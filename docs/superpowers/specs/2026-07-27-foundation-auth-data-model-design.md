@@ -4,7 +4,7 @@
 > 이 문서는 전체 프로젝트(웹+환자 앱+AI 상담봇, 약 6.3인월 규모)를 5단계로 나눈 것 중 **1단계**의 설계입니다.
 >
 > 1. **기반: 인증/권한 + 예약·진료상태·수정이력 데이터 모델 (이 문서)**
-> 2. 직원용 웹 (Next.js)
+> 2. 직원용 웹 (React)
 > 3. 환자 모바일 앱 (Flutter)
 > 4. AI 상담봇
 > 5. 통합 테스트 & 배포
@@ -14,7 +14,7 @@
 | 영역 | 선택 |
 |---|---|
 | 백엔드 | FastAPI + Supabase (Postgres) |
-| 직원용 웹 | Next.js + TypeScript |
+| 직원용 웹 | React + TypeScript |
 | 환자 앱 | Flutter |
 | 푸시 알림 | Firebase Cloud Messaging |
 | AI 상담봇 | Claude API (tool use) + Supabase |
