@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Consumes: DB 테이블 `patients`, `patient_family_links`, `departments`, `staff`, `appointment_slots` (1단계 Task 2~5), `tests.conftest.db_conn/seed_staff/set_session_auth`(1단계 Task 2)
-- Produces: `patients.auth_user_id`(nullable, unique, `auth.users(id)` 참조), SQL 함수 `patient_owns(target_patient_id uuid) returns boolean`, `appointment_slots`에 대한 환자용 UPDATE 정책(`patients_can_update_slots_for_booking` — Task 7의 `book_slot`/`release_slot`이 의존), `tests.conftest.seed_patient(conn, name=..., phone=..., with_auth=True, is_active=True) -> dict` (`{"auth_user_id": UUID | None, "patient_id": UUID}`)
+- Produces: `patients.auth_user_id`(nullable, unique, `auth.users(id)` 참조), SQL 함수 `patient_owns(target_patient_id uuid) returns boolean`([정합성 검토 R5-02] `patient_family_links.is_active = true`인 링크만 유효하게 인정), `appointment_slots`에 대한 환자용 UPDATE 정책(`patients_can_update_slots_for_booking` — Task 7의 `book_slot`/`release_slot`이 의존), `tests.conftest.seed_patient(conn, name=..., phone=..., with_auth=True, is_active=True) -> dict` (`{"auth_user_id": UUID | None, "patient_id": UUID}`)
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -56,6 +56,7 @@ as $$
         or exists (
           select 1 from patient_family_links l
           where l.account_patient_id = me.id and l.family_patient_id = target_patient_id
+            and l.is_active  -- [정합성 검토 R5-02] 연결 해제된(is_active=false) 링크는 더 이상 인정하지 않는다
         )
       )
   );
@@ -350,21 +351,38 @@ async def test_patient_can_release_own_booked_slot(db_conn):
         "update appointment_slots set status = '빈시간' where id = $1", slot_id,
     )
     assert result == "UPDATE 1"
+
+
+@pytest.mark.asyncio
+async def test_patient_owns_ignores_deactivated_family_link(db_conn):
+    """[정합성 검토 R5-02] is_active=false로 비활성화된 가족 링크는 patient_owns()가 더 이상 인정하지 않는다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    me = await seed_patient(db_conn, name="부모")
+    child = await seed_patient(db_conn, name="자녀", with_auth=False)
+    await db_conn.execute(
+        "insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) values ($1, $2, '자녀', false)",
+        me["patient_id"], child["patient_id"],
+    )
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    row = await db_conn.fetchrow("select id from patients where id = $1", child["patient_id"])
+    assert row is None
 ```
 
 Run: `cd backend && pytest tests/test_patient_identity_schema.py -v`
-Expected: FAIL(마이그레이션 적용 전이면 실패 — Step 2 이후 다시 실행하면 9개 모두 PASS)
+Expected: FAIL(마이그레이션 적용 전이면 실패 — Step 2 이후 다시 실행하면 10개 모두 PASS)
 
 - [ ] **Step 5: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_identity_schema.py -v`
-Expected: 9개 테스트 모두 PASS([정합성 검토 R5-01] 검증 테스트 1건 추가로 8→9)
+Expected: 10개 테스트 모두 PASS([정합성 검토 R5-01] 검증 테스트 1건 추가로 8→9, [정합성 검토 R5-02] 검증 테스트 1건 추가로 9→10)
 
 - [ ] **Step 6: 커밋**
 
 ```bash
 git add supabase/migrations/00009_patient_identity.sql backend/tests/conftest.py backend/tests/test_patient_identity_schema.py
-git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환자용 RLS 추가 (R2-01: 타 환자 슬롯 반납 차단 포함)"
+git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환자용 RLS 추가 (R2-01: 타 환자 슬롯 반납 차단, R5-02: 비활성 가족링크 무효화 포함)"
 ```
 
 ---
@@ -879,7 +897,7 @@ git commit -m "feat: 환자용 JWT 인증 의존성(PatientContext) 추가"
 
 **Interfaces:**
 - Consumes: `app.core.patient_security.PatientContext, get_current_auth_user_id`(Task 4), `app.db.pool.acquire_as`(1단계 Task 9), `app.db.admin_client.get_admin_client`(1단계 Task 12), `app.core.errors.AppError`(1단계 Task 10)
-- Produces: `app.services.patient_profile_service.register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str, phone: str) -> UUID`, `get_my_profile(patient: PatientContext) -> dict`, `deactivate_self(patient: PatientContext) -> None`
+- Produces: `app.services.patient_profile_service.register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str) -> UUID`([정합성 검토 R5-05] `phone` 파라미터 제거 — Supabase Auth에 저장된 검증된 전화번호를 서버가 직접 조회해서 쓴다. 검증된 번호+생년월일+이름이 모두 일치하는 미연결(`auth_user_id is null`) 기존 환자가 정확히 1건이면 새 행을 만들지 않고 그 행에 연결한다), `get_my_profile(patient: PatientContext) -> dict`, `deactivate_self(patient: PatientContext) -> None`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -893,7 +911,14 @@ import pytest
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.services import patient_profile_service
-from tests.conftest import seed_patient
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+
+def _mock_verified_phone(phone: str):
+    """[정합성 검토 R5-05] register_profile은 Auth admin API에서 검증된 phone을 조회한다."""
+    fake_admin_client = MagicMock()
+    fake_admin_client.auth.admin.get_user_by_id.return_value.user.phone = phone
+    return fake_admin_client
 
 
 @pytest.mark.asyncio
@@ -909,25 +934,92 @@ async def test_register_profile_creates_patient_row(db_conn, monkeypatch):
         auth_user_id, f"{auth_user_id}@test.local",
     )
 
-    patient_id = await patient_profile_service.register_profile(
-        auth_user_id=auth_user_id, name="홍길동", birth_date=date(1985, 3, 1), gender="M", phone="01012345678",
-    )
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
+        patient_id = await patient_profile_service.register_profile(
+            auth_user_id=auth_user_id, name="홍길동", birth_date=date(1985, 3, 1), gender="M",
+        )
     assert patient_id is not None
 
-    row = await db_conn.fetchrow("select name, auth_user_id from patients where id = $1", patient_id)
+    row = await db_conn.fetchrow("select name, auth_user_id, phone from patients where id = $1", patient_id)
     assert row["name"] == "홍길동"
     assert row["auth_user_id"] == auth_user_id
+    assert row["phone"] == "01012345678"
 
 
 @pytest.mark.asyncio
 async def test_register_profile_rejects_duplicate(db_conn):
     patient = await seed_patient(db_conn)
 
-    with pytest.raises(AppError):
-        await patient_profile_service.register_profile(
-            auth_user_id=patient["auth_user_id"], name="다시가입", birth_date=date(1990, 1, 1), gender="F",
-            phone="01099998888",
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01099998888")):
+        with pytest.raises(AppError):
+            await patient_profile_service.register_profile(
+                auth_user_id=patient["auth_user_id"], name="다시가입", birth_date=date(1990, 1, 1), gender="F",
+            )
+
+
+@pytest.mark.asyncio
+async def test_register_profile_auto_links_unique_matching_unclaimed_patient(db_conn):
+    """[정합성 검토 R5-05] 검증된 전화번호+생년월일+이름이 모두 일치하는 미연결 환자가 정확히 1건이면
+    새 행을 만들지 않고 그 행에 auth_user_id를 연결한다(과거 예약·방문이력을 그대로 이어받음)."""
+    import uuid
+
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    legacy_patient_id = await db_conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678') returning id"
+    )
+
+    auth_user_id = uuid.uuid4()
+    await db_conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, $2, '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        auth_user_id, f"{auth_user_id}@test.local",
+    )
+
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
+        patient_id = await patient_profile_service.register_profile(
+            auth_user_id=auth_user_id, name="홍길동", birth_date=date(1985, 3, 1), gender="M",
         )
+
+    assert patient_id == legacy_patient_id
+    row = await db_conn.fetchrow("select auth_user_id from patients where id = $1", legacy_patient_id)
+    assert row["auth_user_id"] == auth_user_id
+    count = await db_conn.fetchval("select count(*) from patients where phone = '01012345678'")
+    assert count == 1  # 새 행이 추가로 생기지 않았다
+
+
+@pytest.mark.asyncio
+async def test_register_profile_creates_new_row_when_candidates_ambiguous(db_conn):
+    """[정합성 검토 R5-05] 후보가 0건 또는 2건 이상이면 자동 연결하지 않고 새 행으로 가입시킨다."""
+    import uuid
+
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    for _ in range(2):
+        await db_conn.execute(
+            "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678')"
+        )
+
+    auth_user_id = uuid.uuid4()
+    await db_conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, $2, '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        auth_user_id, f"{auth_user_id}@test.local",
+    )
+
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
+        patient_id = await patient_profile_service.register_profile(
+            auth_user_id=auth_user_id, name="홍길동", birth_date=date(1985, 3, 1), gender="M",
+        )
+
+    count = await db_conn.fetchval("select count(*) from patients where phone = '01012345678'")
+    assert count == 3  # 기존 2건 + 새로 가입한 1건
+    row = await db_conn.fetchrow("select auth_user_id from patients where id = $1", patient_id)
+    assert row["auth_user_id"] == auth_user_id
 
 
 @pytest.mark.asyncio
@@ -966,23 +1058,52 @@ from uuid import UUID
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.db.admin_client import get_admin_client
-from app.db.pool import acquire_as
+from app.db.pool import acquire_as, get_pool
 
 
-async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str, phone: str) -> UUID:
-    async with acquire_as(str(auth_user_id)) as conn:
-        existing = await conn.fetchval("select id from patients where auth_user_id = $1", auth_user_id)
-        if existing is not None:
-            raise AppError("이미 등록된 계정입니다.", status_code=409)
+async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str) -> UUID:
+    """[정합성 검토 R5-05] phone은 요청 본문을 신뢰하지 않고 Supabase Auth(admin API)에서
+    검증된 번호를 직접 조회해서 쓴다 — 클라이언트가 회원가입 요청에 임의의 번호를 실어 보내도 무시된다.
 
-        patient_id = await conn.fetchval(
-            """
-            insert into patients (auth_user_id, name, birth_date, gender, phone)
-            values ($1, $2, $3, $4, $5)
-            returning id
-            """,
-            auth_user_id, name, birth_date, gender, phone,
-        )
+    검증된 phone + birth_date + name이 모두 일치하는 미연결(auth_user_id is null) 기존 환자가
+    정확히 1건이면 그 행에 연결하고(과거 예약·방문이력을 그대로 이어받음), 0건/2건 이상이면
+    새 행으로 가입시킨다(모호한 경우는 관리자가 나중에 수동 병합 — 2단계 admin 화면).
+
+    add_family_member와 마찬가지로 이 함수는 get_pool()의 서비스 역할 커넥션을 쓴다 — 아직
+    auth_user_id로 연결된 patients 행이 없는 신규 가입자는 patient_owns() 기반 RLS로는
+    기존 미연결 환자 행을 조회할 수 없기 때문이다."""
+    admin = get_admin_client()
+    auth_user = admin.auth.admin.get_user_by_id(str(auth_user_id))
+    phone = auth_user.user.phone
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            existing = await conn.fetchval("select id from patients where auth_user_id = $1", auth_user_id)
+            if existing is not None:
+                raise AppError("이미 등록된 계정입니다.", status_code=409)
+
+            candidates = await conn.fetch(
+                """
+                select id from patients
+                where auth_user_id is null and phone = $1 and birth_date = $2 and name = $3
+                """,
+                phone, birth_date, name,
+            )
+            if len(candidates) == 1:
+                patient_id = candidates[0]["id"]
+                await conn.execute(
+                    "update patients set auth_user_id = $1 where id = $2", auth_user_id, patient_id,
+                )
+            else:
+                patient_id = await conn.fetchval(
+                    """
+                    insert into patients (auth_user_id, name, birth_date, gender, phone)
+                    values ($1, $2, $3, $4, $5)
+                    returning id
+                    """,
+                    auth_user_id, name, birth_date, gender, phone,
+                )
     return patient_id
 
 
@@ -1011,13 +1132,13 @@ async def deactivate_self(patient: PatientContext) -> None:
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_profile_service.py -v`
-Expected: 4개 테스트 모두 PASS
+Expected: 6개 테스트 모두 PASS([정합성 검토 R5-05] 검증 테스트 2건 추가로 4→6)
 
 - [ ] **Step 4: 커밋**
 
 ```bash
 git add backend/app/services/patient_profile_service.py backend/tests/test_patient_profile_service.py
-git commit -m "feat: 환자 프로필 등록/조회/탈퇴 서비스 추가"
+git commit -m "feat: 환자 프로필 등록/조회/탈퇴 서비스 추가 (R5-05: 인증된 전화번호로 기존 환자 자동연결)"
 ```
 
 ---
@@ -1030,7 +1151,7 @@ git commit -m "feat: 환자 프로필 등록/조회/탈퇴 서비스 추가"
 
 **Interfaces:**
 - Consumes: `app.core.patient_security.PatientContext`(Task 4), `app.db.pool.acquire_as`, `app.core.errors.AppError`
-- Produces: `app.services.patient_family_service.add_family_member(patient, name: str, birth_date: date, gender: str, relation: str) -> UUID`, `list_family_members(patient) -> list[dict]`, `update_family_member(patient, family_patient_id: UUID, name: str, birth_date: date, gender: str, relation: str) -> None`, `unlink_family_member(patient, family_patient_id: UUID) -> None`
+- Produces: `app.services.patient_family_service.add_family_member(patient, name: str, birth_date: date, gender: str, relation: str) -> UUID`, `list_family_members(patient) -> list[dict]`, `update_family_member(patient, family_patient_id: UUID, name: str, birth_date: date, gender: str, relation: str) -> None`, `unlink_family_member(patient, family_patient_id: UUID) -> None`([정합성 검토 R5-02] `patient_family_links.is_active/unlinked_at`만 갱신 — `patients.is_active`는 건드리지 않는다. 과거 예약·방문이력에 이름 등이 계속 정상 표시되어야 하기 때문)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1150,7 +1271,7 @@ async def list_family_members(patient: PatientContext) -> list[dict]:
             select p.id, p.name, p.birth_date, p.gender, l.relation
             from patient_family_links l
             join patients p on p.id = l.family_patient_id
-            where l.account_patient_id = $1 and p.is_active
+            where l.account_patient_id = $1 and l.is_active  -- [정합성 검토 R5-02] 링크 활성 여부 기준(환자 활성 여부 아님)
             order by p.name
             """,
             patient.id,
@@ -1182,27 +1303,48 @@ async def update_family_member(
 
 
 async def unlink_family_member(patient: PatientContext, family_patient_id: UUID) -> None:
+    """[정합성 검토 R5-02] 링크만 비활성화한다. 가족 구성원의 patients.is_active는 그대로 둔다 —
+    과거 예약·방문이력에서 그 사람의 이름 등 정보가 계속 정상적으로 보여야 하기 때문이다."""
     async with acquire_as(str(patient.auth_user_id)) as conn:
         link = await conn.fetchrow(
-            "select id from patient_family_links where account_patient_id = $1 and family_patient_id = $2",
+            "select id from patient_family_links where account_patient_id = $1 and family_patient_id = $2 and is_active",
             patient.id, family_patient_id,
         )
         if link is None:
             raise AppError("본인이 등록한 가족만 연결 해제할 수 있습니다.", status_code=403)
 
-        await conn.execute("update patients set is_active = false where id = $1", family_patient_id)
+        await conn.execute(
+            "update patient_family_links set is_active = false, unlinked_at = now() where id = $1", link["id"],
+        )
+```
+
+`backend/tests/test_patient_family_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_unlink_family_member_does_not_deactivate_patient_row(db_conn):
+    """[정합성 검토 R5-02] 연결 해제해도 가족 구성원의 patients.is_active는 그대로 true다 —
+    과거 예약·방문이력에서 이름 등이 계속 정상 표시되어야 한다."""
+    me = _to_context(await seed_patient(db_conn))
+    family_id = await patient_family_service.add_family_member(
+        me, name="김자녀", birth_date=date(2015, 5, 5), gender="F", relation="자녀",
+    )
+
+    await patient_family_service.unlink_family_member(me, family_id)
+
+    is_active = await db_conn.fetchval("select is_active from patients where id = $1", family_id)
+    assert is_active is True
 ```
 
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_family_service.py -v`
-Expected: 4개 테스트 모두 PASS
+Expected: 5개 테스트 모두 PASS([정합성 검토 R5-02] 검증 테스트 1건 추가로 4→5)
 
 - [ ] **Step 4: 커밋**
 
 ```bash
 git add backend/app/services/patient_family_service.py backend/tests/test_patient_family_service.py
-git commit -m "feat: 가족 등록/수정/연결해제 서비스 추가"
+git commit -m "feat: 가족 등록/수정/연결해제 서비스 추가 (R5-02: 연결해제는 링크만 비활성화)"
 ```
 
 ---
@@ -2856,10 +2998,11 @@ router = APIRouter(prefix="/app/profile", tags=["patient-profile"])
 
 
 class RegisterProfileRequest(BaseModel):
+    """[정합성 검토 R5-05] phone 필드를 제거했다 — 요청 본문의 전화번호는 검증되지 않은 값이라
+    신뢰할 수 없다(요청 조작으로 임의 번호 저장 가능). 서비스가 Auth에서 검증된 번호를 직접 조회한다."""
     name: str
     birth_date: date
     gender: str
-    phone: str
 
 
 @router.post("")
@@ -2867,7 +3010,7 @@ async def register_profile(
     body: RegisterProfileRequest, auth_user_id: UUID = Depends(get_current_auth_user_id),
 ) -> dict:
     patient_id = await patient_profile_service.register_profile(
-        auth_user_id=auth_user_id, name=body.name, birth_date=body.birth_date, gender=body.gender, phone=body.phone,
+        auth_user_id=auth_user_id, name=body.name, birth_date=body.birth_date, gender=body.gender,
     )
     return {"patient_id": str(patient_id)}
 
@@ -3832,6 +3975,8 @@ class SignupController extends AsyncNotifier<SignupFormData> {
     required String birthDate,
     required String gender,
   }) async {
+    // [정합성 검토 R5-05] phone은 요청 본문에 싣지 않는다 — 서버가 Auth에 저장된 검증된
+    // 번호를 직접 조회해서 쓰므로, 클라이언트가 보내는 값은 어차피 무시된다.
     final phone = state.value?.phone ?? '';
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -3839,7 +3984,7 @@ class SignupController extends AsyncNotifier<SignupFormData> {
       final api = ref.read(apiClientProvider);
       await api.post(
         '/app/profile',
-        {'name': name, 'birth_date': birthDate, 'gender': gender, 'phone': phone},
+        {'name': name, 'birth_date': birthDate, 'gender': gender},
         (json) => json,
       );
       return SignupFormData(phone: phone, otpSent: true, otpVerified: true);
