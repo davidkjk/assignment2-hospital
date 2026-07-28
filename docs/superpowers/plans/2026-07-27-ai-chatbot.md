@@ -2616,8 +2616,8 @@ git commit -m "feat: 대화 오케스트레이션 - 응급검사/인계감시/�
 - Produces: `app.services.ticket_service.is_business_hours(now=None) -> bool`
 - Produces: `app.services.ticket_service.list_tickets(staff, status="pending") -> list[dict]`, `get_ticket_detail(ticket_id, staff) -> dict`(요약 5항목 + 원본 대화 포함 — 열람 즉시 `pending`이면 `claim_ticket` 자동 호출)
 - Produces: `app.services.ticket_service.claim_ticket(ticket_id, staff) -> None` — `pending → in_progress` 전환 + `assigned_staff_id`를 호출한 직원으로 배정. 이미 `in_progress`/`answered`면 아무 것도 하지 않음(멱등)
-- Produces: `app.services.ticket_service.reassign_ticket(ticket_id, staff, to_staff_id) -> None` — 의료진 판단이 필요할 때(3.9) 담당을 `to_staff_id`로 교체. 상태는 `in_progress` 유지, `answered` 티켓은 재배정 불가(`AppError`)
-- Produces: `app.services.ticket_service.answer_ticket(ticket_id, staff, answer_text, sms=None, push=None) -> None` — 직원 말풍선 insert + 티켓 `answered` + 상담방 `bot` 복귀 + 알림(로그인 환자=푸시, 익명=SMS)
+- Produces: `app.services.ticket_service.reassign_ticket(ticket_id, staff, to_staff_id) -> None` — 의료진 판단이 필요할 때(3.9) 담당을 `to_staff_id`로 교체. 상태는 `in_progress` 유지, `answered` 티켓은 재배정 불가(`AppError`). [정합성 검토 R2-06] `to_staff_id`가 비활성이면 400, `medical_judgment` 사유 티켓인데 `to_staff_id`의 role이 doctor/admin이 아니면 403
+- Produces: `app.services.ticket_service.answer_ticket(ticket_id, staff, answer_text, sms=None, push=None) -> None` — 직원 말풍선 insert + 티켓 `answered` + 상담방 `bot` 복귀 + 알림(로그인 환자=푸시, 익명=SMS). [정합성 검토 R2-06] `staff.id != assigned_staff_id`면 409(배정된 담당자만 답변 가능), `medical_judgment` 사유인데 `staff.role`이 doctor/admin이 아니면 403
 - Produces: `app.services.ticket_service.set_anon_contact(conversation_id, anon_token, name, phone) -> None`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
@@ -2699,6 +2699,70 @@ async def test_reassign_ticket_to_another_staff(service_conn, receptionist_staff
         await ticket_service.reassign_ticket(ticket_id, admin_staff, receptionist_staff.id)
 
 
+@pytest.mark.asyncio
+async def test_answer_ticket_rejects_unassigned_staff(service_conn, receptionist_staff, admin_staff):
+    """[정합성 검토 R2-06] 배정되지 않은 직원의 답변 시도는 409로 거부된다."""
+    from app.core.errors import AppError
+    from app.services import chat_service, ticket_service
+    from tests.test_kb_service import FakeEmbedding
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    ticket_id = await ticket_service.create_ticket(
+        conversation_id=conv["conversation_id"], patient=None, reason="no_answer",
+        summary_question="q", summary_confirmed="c", summary_guided="g",
+        summary_unresolved="u", summary_staff_todo="t", embedder=FakeEmbedding(),
+    )
+    await ticket_service.claim_ticket(ticket_id, receptionist_staff)  # receptionist_staff에게 배정됨
+
+    with pytest.raises(AppError) as exc_info:
+        await ticket_service.answer_ticket(ticket_id, admin_staff, "제가 답할게요.")
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_receptionist_cannot_directly_answer_medical_judgment_ticket(service_conn, receptionist_staff):
+    """[정합성 검토 R2-06] 접수직원은 medical_judgment 티켓을 열람(배정)할 수는 있어도 직접 답변은 403으로 거부된다."""
+    from app.core.errors import AppError
+    from app.services import chat_service, ticket_service
+    from tests.test_kb_service import FakeEmbedding
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    ticket_id = await ticket_service.create_ticket(
+        conversation_id=conv["conversation_id"], patient=None, reason="medical_judgment",
+        summary_question="q", summary_confirmed="c", summary_guided="g",
+        summary_unresolved="u", summary_staff_todo="t", embedder=FakeEmbedding(),
+    )
+    await ticket_service.claim_ticket(ticket_id, receptionist_staff)
+
+    with pytest.raises(AppError) as exc_info:
+        await ticket_service.answer_ticket(ticket_id, receptionist_staff, "제가 답할게요.")
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reassign_ticket_rejects_inactive_staff(service_conn, receptionist_staff, admin_staff):
+    """[정합성 검토 R2-06] 비활성 상태인 직원으로는 재배정할 수 없다."""
+    from app.core.errors import AppError
+    from app.core.security import StaffContext
+    from app.services import chat_service, ticket_service
+    from tests.conftest import seed_staff
+    from tests.test_kb_service import FakeEmbedding
+
+    inactive = await seed_staff(service_conn, role="doctor", is_active=False)
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    ticket_id = await ticket_service.create_ticket(
+        conversation_id=conv["conversation_id"], patient=None, reason="no_answer",
+        summary_question="q", summary_confirmed="c", summary_guided="g",
+        summary_unresolved="u", summary_staff_todo="t", embedder=FakeEmbedding(),
+    )
+    await ticket_service.claim_ticket(ticket_id, receptionist_staff)
+
+    with pytest.raises(AppError) as exc_info:
+        await ticket_service.reassign_ticket(ticket_id, receptionist_staff, inactive["staff_id"])
+    assert exc_info.value.status_code == 400
+
+
 class FakeSms:
     def __init__(self):
         self.sent = []
@@ -2721,6 +2785,8 @@ async def test_answer_ticket_notifies_anon_by_sms_and_returns_to_bot(service_con
         summary_question="q", summary_confirmed="c", summary_guided="g",
         summary_unresolved="u", summary_staff_todo="t", embedder=FakeEmbedding(),
     )
+    # [정합성 검토 R2-06] answer_ticket은 배정된 담당자만 호출할 수 있다 — 먼저 열람(claim)해야 한다.
+    await ticket_service.claim_ticket(ticket_id, receptionist_staff)
     sms = FakeSms()
     await ticket_service.answer_ticket(ticket_id, receptionist_staff, "확인 결과 가능합니다.", sms=sms)
 
@@ -2865,13 +2931,25 @@ async def claim_ticket(ticket_id: UUID, staff: StaffContext) -> None:
 
 
 async def reassign_ticket(ticket_id: UUID, staff: StaffContext, to_staff_id: UUID) -> None:
-    """의료진 판단이 필요한 경우 접수 직원이 임의로 답하지 않고 담당 의사·관리자에게 전달한다 (요구사항 3.9)."""
+    """의료진 판단이 필요한 경우 접수 직원이 임의로 답하지 않고 담당 의사·관리자에게 전달한다 (요구사항 3.9).
+
+    [정합성 검토 R2-06] 재배정 대상(to_staff_id)이 활성 상태(is_active)인지 확인하고,
+    medical_judgment 사유 티켓이면 대상의 role이 doctor/admin인지도 함께 확인한다."""
     pool = get_pool()
-    row = await pool.fetchrow(
-        "update support_tickets set assigned_staff_id = $2 "
-        "where id = $1 and status = 'in_progress' returning id",
-        ticket_id, to_staff_id,
-    )
+    async with pool.acquire() as conn:
+        target = await conn.fetchrow("select role, is_active from staff where id = $1", to_staff_id)
+        if target is None or not target["is_active"]:
+            raise AppError("비활성 직원에게는 재배정할 수 없어요.", 400)
+
+        ticket = await conn.fetchrow("select reason from support_tickets where id = $1", ticket_id)
+        if ticket is not None and ticket["reason"] == "medical_judgment" and target["role"] not in ("doctor", "admin"):
+            raise AppError("의료진 판단이 필요한 문의는 담당 의사 또는 관리자에게만 전달할 수 있어요.", 403)
+
+        row = await conn.fetchrow(
+            "update support_tickets set assigned_staff_id = $2 "
+            "where id = $1 and status = 'in_progress' returning id",
+            ticket_id, to_staff_id,
+        )
     if row is None:
         raise AppError("답변완료된 티켓은 재배정할 수 없어요.", 409)
 
@@ -2879,16 +2957,29 @@ async def reassign_ticket(ticket_id: UUID, staff: StaffContext, to_staff_id: UUI
 async def answer_ticket(
     ticket_id: UUID, staff: StaffContext, answer_text: str, sms=None, push=None
 ) -> None:
+    """[정합성 검토 R2-06] 배정된 담당자(assigned_staff_id)만 답변할 수 있고(불일치 시 409),
+    medical_judgment 사유 티켓은 role이 doctor/admin인 담당자만 답변할 수 있다(위반 시 403).
+    담당자가 아직 없으면(pending인데 열람도 안 한 경우) assigned_staff_id가 null이라 이 검사에서
+    자동으로 걸러진다 — 먼저 열람(claim_ticket)해 배정받아야 한다."""
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            ticket = await conn.fetchrow(
-                "update support_tickets set status = 'answered', assigned_staff_id = $2, "
-                "answered_at = now() where id = $1 and status in ('pending', 'in_progress') returning *",
-                ticket_id, staff.id,
+            existing = await conn.fetchrow(
+                "select assigned_staff_id, reason, status from support_tickets where id = $1 for update",
+                ticket_id,
             )
-            if ticket is None:
+            if existing is None or existing["status"] not in ("pending", "in_progress"):
                 raise AppError("이미 처리되었거나 없는 티켓이에요.", 409)
+            if existing["assigned_staff_id"] != staff.id:
+                raise AppError("배정된 담당자만 답변할 수 있어요.", 409)
+            if existing["reason"] == "medical_judgment" and staff.role not in ("doctor", "admin"):
+                raise AppError("의료진의 판단이 필요한 문의는 담당 의사 또는 관리자만 답변할 수 있어요.", 403)
+
+            ticket = await conn.fetchrow(
+                "update support_tickets set status = 'answered', answered_at = now() "
+                "where id = $1 returning *",
+                ticket_id,
+            )
             await conn.execute(
                 "insert into chat_messages (conversation_id, sender, staff_id, content) "
                 "values ($1, 'staff', $2, $3)",
@@ -2918,11 +3009,11 @@ async def answer_ticket(
 - [ ] **Step 3: 테스트 통과 확인 후 Commit**
 
 Run: `cd backend && pytest tests/test_ticket_service.py -v`
-Expected: PASS
+Expected: PASS([정합성 검토 R2-06] 배정자 불일치 409, 접수직원의 medical_judgment 직접답변 403, 비활성 직원 재배정 400 — 검증 테스트 3건 추가)
 
 ```bash
 git add backend/app/services/ticket_service.py backend/tests/test_ticket_service.py
-git commit -m "feat: 인계 티켓 - 생성/처리중 배정/재배정/직원답변/알림/봇 복귀"
+git commit -m "feat: 인계 티켓 - 생성/처리중 배정/재배정/직원답변/알림/봇 복귀 (R2-06: 담당자·역할 제한 포함)"
 ```
 
 ---
@@ -3659,6 +3750,9 @@ async def test_staff_ticket_flow(client, staff_auth_headers, service_conn):
     assert r.status_code == 200 and len(r.json()) >= 1
 
     ticket_id = r.json()[0]["id"]
+    # [정합성 검토 R2-06] answer는 배정된 담당자만 가능하다 — 상세 열람(GET)이 claim_ticket을 자동 수행한다.
+    r = await client.get(f"/staff/chat/tickets/{ticket_id}", headers=staff_auth_headers)
+    assert r.status_code == 200
     r = await client.post(
         f"/staff/chat/tickets/{ticket_id}/answer",
         json={"answer_text": "확인했습니다."}, headers=staff_auth_headers,
