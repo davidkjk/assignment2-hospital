@@ -1496,6 +1496,45 @@ async def test_change_booking_releases_old_and_books_new(db_conn):
 
     new_row = await db_conn.fetchrow("select status, slot_id from appointments where id = $1", new_appointment_id)
     assert new_row["slot_id"] == new_slot_id
+
+
+@pytest.mark.asyncio
+async def test_create_booking_rejects_after_booking_deadline_for_todays_slot(db_conn):
+    """[정합성 검토 R3-01] 오늘 진료분 슬롯은 예약 마감 시각이 지나면 앱에서 예약할 수 없다.
+    미래 날짜 슬롯은 시각과 무관하게 항상 예약 가능하다(별도 검증 불필요 — 기존 테스트가 '2026-08-01'로 확인)."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
+
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date()
+    # booking_deadline='00:00'으로 두면 자정 이후 어느 시각에 테스트를 돌려도 항상 마감을 지난 상태가 되어 결정적이다.
+    await db_conn.execute(
+        """
+        insert into doctor_schedule_rules
+            (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments, booking_deadline)
+        values ($1, $2, '00:00', '23:59', 30, 50, '00:00')
+        """,
+        doctor["staff_id"], today.weekday(),
+    )
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, $2, '09:00') returning id",
+        doctor["staff_id"], today,
+    )
+    patient = _to_context(await seed_patient(db_conn))
+
+    with pytest.raises(AppError) as exc_info:
+        await patient_booking_service.create_booking(
+            patient, for_patient_id=patient.id, department_id=dept_id,
+            doctor_id=doctor["staff_id"], slot_id=slot_id, reason="감기",
+        )
+    assert exc_info.value.status_code == 409
+
+    slot_status = await db_conn.fetchval("select status from appointment_slots where id = $1", slot_id)
+    assert slot_status == "빈시간"  # 거부되었으므로 슬롯이 점유되지 않고 그대로 남는다
 ```
 
 Run: `cd backend && pytest tests/test_patient_booking_service.py -v`
@@ -1522,6 +1561,29 @@ async def _initial_status(conn) -> str:
     return "예약확정" if auto_confirm else "예약신청"
 
 
+async def _is_after_booking_deadline(conn, slot_id: UUID) -> bool:
+    """[정합성 검토 R3-01] 오늘 진료분 슬롯에 한해 그 요일의 booking_deadline을 지났는지 확인한다.
+    미래 날짜 슬롯은 시각과 무관하게 항상 예약 가능하므로 여기서 False를 반환한다.
+    직원 웹(2단계 appointment_service)의 당일 접수 경로는 이 함수를 호출하지 않는다 — 직원은
+    언제든 당일 접수를 처리해야 하므로 마감 제한을 받지 않는다."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    slot = await conn.fetchrow("select doctor_id, slot_date from appointment_slots where id = $1", slot_id)
+    if slot is None:
+        return False
+    now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
+    if slot["slot_date"] != now_kst.date():
+        return False
+    rule = await conn.fetchrow(
+        "select booking_deadline from doctor_schedule_rules where doctor_id = $1 and weekday = $2",
+        slot["doctor_id"], slot["slot_date"].weekday(),
+    )
+    if rule is None or rule["booking_deadline"] is None:
+        return False
+    return now_kst.time() > rule["booking_deadline"]
+
+
 async def create_booking(
     patient: PatientContext,
     for_patient_id: UUID,
@@ -1537,6 +1599,11 @@ async def create_booking(
     `log_appointment_status_change()` 트리거가 INSERT 시 자동으로 남긴다("치명적 규칙은 DB가 최종 심판").
     """
     async with acquire_as(str(patient.auth_user_id)) as conn:
+        # [정합성 검토 R3-01] 슬롯을 점유하기 전에 먼저 확인한다 — book_slot 이후에 거부하면
+        # 슬롯을 다시 반납해야 하는 불필요한 롤백 경로가 생긴다.
+        if await _is_after_booking_deadline(conn, slot_id):
+            raise AppError("오늘 진료분 예약은 마감되었습니다. 상담을 통해 문의해주세요.", status_code=409)
+
         booked = await book_slot(slot_id, patient, conn=conn)
         if not booked:
             raise AppError("이미 선택된 시간입니다. 다른 시간을 선택해주세요.", status_code=409)
@@ -1610,13 +1677,13 @@ async def change_booking(
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_booking_service.py -v`
-Expected: 4개 테스트 모두 PASS
+Expected: 5개 테스트 모두 PASS([정합성 검토 R3-01] 당일 예약마감 검증 테스트 1건 추가)
 
 - [ ] **Step 4: 커밋**
 
 ```bash
 git add backend/app/services/patient_booking_service.py backend/tests/test_patient_booking_service.py
-git commit -m "feat: 환자용 예약 생성/변경 서비스 추가"
+git commit -m "feat: 환자용 예약 생성/변경 서비스와 당일 예약마감 검증(R3-01) 추가"
 ```
 
 ---
