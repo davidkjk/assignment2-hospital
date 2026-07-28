@@ -326,6 +326,15 @@ create table kb_documents (
   content text not null,
   status text not null default 'draft' check (status in ('draft', 'approved', 'archived')),
   is_restricted boolean not null default false, -- true면 상담봇이 근거로 재생성하지 않고 content를 그대로 안내(요구사항 3.8 "답하면 안 되는 내용")
+  -- [정합성 검토 R4-01] 이미 승인된 문서를 수정하면 위 title/category/content/is_restricted(라이브, 챗봇이 실제 사용 중인 내용)는
+  -- 그대로 두고, 아래 pending_* 컬럼에 수정 내용을 담아둔다. 재승인(approve_pending_edit) 전까지 챗봇은 계속 라이브 내용으로 답한다.
+  has_pending_edit boolean not null default false,
+  pending_title text,
+  pending_category text,
+  pending_content text,
+  pending_is_restricted boolean,
+  pending_updated_by uuid references staff(id),
+  pending_updated_at timestamptz,
   created_by uuid references staff(id),
   approved_by uuid references staff(id),
   created_at timestamptz not null default now(),
@@ -398,7 +407,7 @@ Expected: PASS
 
 ```bash
 git add supabase/migrations/00013_kb_pgvector.sql backend/tests/test_kb_schema.py
-git commit -m "feat: pgvector + 지식베이스 테이블 + 수정이력 (4단계 RAG)"
+git commit -m "feat: pgvector + 지식베이스 테이블 + 수정이력 (4단계 RAG, R4-01 pending_* 컬럼 포함)"
 ```
 
 ---
@@ -754,7 +763,7 @@ git commit -m "feat: OpenAI 임베딩 클라이언트 + 4단계 설정"
 
 **Interfaces:**
 - Consumes: `app.db.pool.get_pool`, `EmbeddingClient` (주입 가능), `StaffContext`
-- Produces: `app.services.kb_service.create_document(staff, title, category, content, is_restricted=False) -> UUID`, `update_document(staff, document_id, title, category, content, is_restricted=False) -> None`(수정 전 내용을 `kb_document_revisions`에 스냅샷 저장 후 덮어쓰기 — 요구사항 3.8. 승인 상태였다면 재청킹+재임베딩), `approve_document(staff, document_id) -> None`(청킹+임베딩 실행, 관리자만), `archive_document(staff, document_id) -> None`(조각 삭제), `list_documents(staff, status=None, category=None) -> list[dict]`, `list_revisions(staff, document_id) -> list[dict]`(수정이력 시간 역순), `chunk_text(content: str) -> list[str]`(빈 줄 기준 문단 분리, 800자 초과 문단은 분할). `is_restricted=True`인 자료는 상담봇이 답하면 안 되는 주제를 나타낸다(요구사항 3.8) — RAG 체인(Task 7)이 이 값을 보고 LLM 생성 없이 `content`를 그대로 안내한다
+- Produces: `app.services.kb_service.create_document(staff, title, category, content, is_restricted=False) -> UUID`, `update_document(staff, document_id, title, category, content, is_restricted=False, embedder=None) -> None`([정합성 검토 R4-01] 문서가 `draft` 상태면 기존과 동일하게 즉시 덮어쓴다. `approved` 상태면 라이브 내용은 그대로 두고 `pending_*` 컬럼에 수정 내용을 저장 + `has_pending_edit=true`만 표시 — 재청킹하지 않음), `approve_document(staff, document_id) -> None`(청킹+임베딩 실행, 관리자만, `draft`→`approved` 최초 승인 전용), `approve_pending_edit(staff, document_id, embedder=None) -> None`([정합성 검토 R4-01] 신규. 관리자만(본인이 수정한 문서도 자기 승인 가능). 현재 라이브 내용을 `kb_document_revisions`에 스냅샷 → `pending_*`를 라이브 컬럼으로 승격 → 재청킹+재임베딩 → `pending_*` 초기화, `has_pending_edit=false`), `archive_document(staff, document_id) -> None`(조각 삭제), `list_documents(staff, status=None, category=None) -> list[dict]`, `list_revisions(staff, document_id) -> list[dict]`(수정이력 시간 역순), `chunk_text(content: str) -> list[str]`(빈 줄 기준 문단 분리, 800자 초과 문단은 분할). `is_restricted=True`인 자료는 상담봇이 답하면 안 되는 주제를 나타낸다(요구사항 3.8) — RAG 체인(Task 7)이 이 값을 보고 LLM 생성 없이 `content`를 그대로 안내한다
 
 - [ ] **Step 1: 청킹 단위 테스트 작성 (순수 함수 먼저)**
 
@@ -878,6 +887,88 @@ async def test_update_saves_previous_content_as_revision(service_conn, admin_sta
 
 
 @pytest.mark.asyncio
+async def test_update_approved_document_keeps_live_content_until_reapproved(service_conn, admin_staff):
+    """[정합성 검토 R4-01] 승인된 문서를 수정해도, 재승인 전까지 라이브 내용(챗봇이 실제 쓰는 내용)은 그대로다."""
+    from app.services import kb_service
+
+    doc_id = await kb_service.create_document(
+        admin_staff, title="내과 진료시간", category="진료시간", content="오후 2시까지 접수 가능합니다."
+    )
+    await kb_service.approve_document(admin_staff, doc_id, embedder=FakeEmbedding())
+
+    await kb_service.update_document(
+        admin_staff, doc_id, title="내과 진료시간", category="진료시간",
+        content="오후 2시 30분까지 접수 가능합니다.", embedder=FakeEmbedding(),
+    )
+
+    doc = await service_conn.fetchrow("select * from kb_documents where id = $1", doc_id)
+    assert doc["content"] == "오후 2시까지 접수 가능합니다."  # 라이브 내용 불변
+    assert doc["has_pending_edit"] is True
+    assert doc["pending_content"] == "오후 2시 30분까지 접수 가능합니다."
+    chunk_contents = {
+        r["content"] for r in await service_conn.fetch(
+            "select content from kb_chunks where document_id = $1", doc_id
+        )
+    }
+    assert "오후 2시까지 접수 가능합니다." in chunk_contents  # 검색용 조각도 그대로
+
+
+@pytest.mark.asyncio
+async def test_approve_pending_edit_promotes_and_reembeds(service_conn, admin_staff):
+    """[정합성 검토 R4-01] 재승인하면 대기 중이던 내용이 라이브로 승격되고, 이전 내용은 수정이력에 남는다."""
+    from app.services import kb_service
+
+    doc_id = await kb_service.create_document(
+        admin_staff, title="내과 진료시간", category="진료시간", content="오후 2시까지 접수 가능합니다."
+    )
+    await kb_service.approve_document(admin_staff, doc_id, embedder=FakeEmbedding())
+    await kb_service.update_document(
+        admin_staff, doc_id, title="내과 진료시간", category="진료시간",
+        content="오후 2시 30분까지 접수 가능합니다.", embedder=FakeEmbedding(),
+    )
+
+    await kb_service.approve_pending_edit(admin_staff, doc_id, embedder=FakeEmbedding())
+
+    doc = await service_conn.fetchrow("select * from kb_documents where id = $1", doc_id)
+    assert doc["content"] == "오후 2시 30분까지 접수 가능합니다."
+    assert doc["has_pending_edit"] is False
+    assert doc["pending_content"] is None
+    revisions = await kb_service.list_revisions(admin_staff, doc_id)
+    assert revisions[0]["previous_content"] == "오후 2시까지 접수 가능합니다."
+    chunk_contents = {
+        r["content"] for r in await service_conn.fetch(
+            "select content from kb_chunks where document_id = $1", doc_id
+        )
+    }
+    assert "오후 2시 30분까지 접수 가능합니다." in chunk_contents
+
+
+@pytest.mark.asyncio
+async def test_pending_edit_kept_for_further_revision_when_not_approved(service_conn, admin_staff):
+    """[정합성 검토 R4-01] 재승인하지 않아도(반려해도) 대기 중 내용은 사라지지 않고 계속 고칠 수 있다."""
+    from app.services import kb_service
+
+    doc_id = await kb_service.create_document(
+        admin_staff, title="내과 진료시간", category="진료시간", content="오후 2시까지 접수 가능합니다."
+    )
+    await kb_service.approve_document(admin_staff, doc_id, embedder=FakeEmbedding())
+    await kb_service.update_document(
+        admin_staff, doc_id, title="내과 진료시간", category="진료시간",
+        content="오후 2시 30분까지 접수 가능합니다.", embedder=FakeEmbedding(),
+    )
+    # 관리자가 재승인하지 않고 내용을 한 번 더 고침
+    await kb_service.update_document(
+        admin_staff, doc_id, title="내과 진료시간", category="진료시간",
+        content="오후 3시까지 접수 가능합니다.", embedder=FakeEmbedding(),
+    )
+
+    doc = await service_conn.fetchrow("select * from kb_documents where id = $1", doc_id)
+    assert doc["content"] == "오후 2시까지 접수 가능합니다."  # 여전히 라이브는 최초 승인본
+    assert doc["has_pending_edit"] is True
+    assert doc["pending_content"] == "오후 3시까지 접수 가능합니다."  # 대기 중 내용은 최신으로 갱신됨
+
+
+@pytest.mark.asyncio
 async def test_non_admin_cannot_approve(service_conn, receptionist_staff, admin_staff):
     from app.services import kb_service
     from app.core.errors import AppError
@@ -947,6 +1038,8 @@ async def update_document(
     staff: StaffContext, document_id: UUID, title: str, category: str, content: str,
     is_restricted: bool = False, embedder=None,
 ) -> None:
+    """[정합성 검토 R4-01] 승인된 문서는 라이브 내용을 즉시 바꾸지 않는다 — 재승인 전까지 챗봇은
+    기존 승인 내용으로 계속 답해야 하므로, 수정 내용은 pending_* 컬럼에만 저장한다."""
     embedder = embedder or get_embedding_client()
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -957,6 +1050,17 @@ async def update_document(
             )
             if before is None:
                 raise AppError("자료를 찾을 수 없어요.", 404)
+
+            if before["status"] == "approved":
+                await conn.execute(
+                    "update kb_documents set has_pending_edit = true, pending_title = $2, "
+                    "pending_category = $3, pending_content = $4, pending_is_restricted = $5, "
+                    "pending_updated_by = $6, pending_updated_at = now() where id = $1",
+                    document_id, title, category, content, is_restricted, staff.id,
+                )
+                return
+
+            # draft 상태(한 번도 승인된 적 없음)는 라이브 개념이 없으므로 기존처럼 즉시 덮어쓴다.
             # 덮어쓰기 전 스냅샷을 먼저 남긴다 (요구사항 3.8, 1단계 medical_record_revisions와 같은 패턴)
             await conn.execute(
                 "insert into kb_document_revisions "
@@ -969,8 +1073,41 @@ async def update_document(
                 "is_restricted = $5, updated_at = now() where id = $1",
                 document_id, title, category, content, is_restricted,
             )
-            if before["status"] == "approved":
-                await _rebuild_chunks(conn, document_id, content, embedder)
+
+
+async def approve_pending_edit(staff: StaffContext, document_id: UUID, embedder=None) -> None:
+    """[정합성 검토 R4-01] 대기 중인 수정본을 라이브로 승격하고 재청킹·재임베딩한다.
+    본인이 수정한 문서도 관리자 역할이면 스스로 승인할 수 있다(병원에 관리자가 1명뿐인 경우가 많음)."""
+    _require_admin(staff)
+    embedder = embedder or get_embedding_client()
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            before = await conn.fetchrow(
+                "select title, category, content, has_pending_edit, pending_title, pending_category, "
+                "pending_content, pending_is_restricted from kb_documents where id = $1",
+                document_id,
+            )
+            if before is None:
+                raise AppError("자료를 찾을 수 없어요.", 404)
+            if not before["has_pending_edit"]:
+                raise AppError("승인 대기 중인 수정본이 없어요.", 400)
+
+            await conn.execute(
+                "insert into kb_document_revisions "
+                "(document_id, previous_title, previous_category, previous_content, changed_by) "
+                "values ($1, $2, $3, $4, $5)",
+                document_id, before["title"], before["category"], before["content"], staff.id,
+            )
+            await conn.execute(
+                "update kb_documents set title = $2, category = $3, content = $4, is_restricted = $5, "
+                "has_pending_edit = false, pending_title = null, pending_category = null, "
+                "pending_content = null, pending_is_restricted = null, pending_updated_by = null, "
+                "pending_updated_at = null, updated_at = now() where id = $1",
+                document_id, before["pending_title"], before["pending_category"],
+                before["pending_content"], before["pending_is_restricted"],
+            )
+            await _rebuild_chunks(conn, document_id, before["pending_content"], embedder)
 
 
 async def list_revisions(staff: StaffContext, document_id: UUID) -> list[dict]:
@@ -998,7 +1135,8 @@ async def archive_document(staff: StaffContext, document_id: UUID) -> None:
 async def list_documents(staff: StaffContext, status: str | None = None, category: str | None = None) -> list[dict]:
     pool = get_pool()
     rows = await pool.fetch(
-        "select id, title, category, status, updated_at, approved_at from kb_documents "
+        # has_pending_edit: [정합성 검토 R4-01] 관리자 화면에서 "검토 대기 중" 배지를 표시하는 데 쓰인다.
+        "select id, title, category, status, has_pending_edit, updated_at, approved_at from kb_documents "
         "where ($1::text is null or status = $1) and ($2::text is null or category = $2) "
         "order by updated_at desc",
         status, category,
@@ -1013,7 +1151,7 @@ Expected: PASS
 
 ```bash
 git add backend/app/services/kb_service.py backend/tests/test_kb_service.py
-git commit -m "feat: 지식베이스 서비스 - 승인 시 청킹+임베딩 파이프라인 + 수정이력 스냅샷"
+git commit -m "feat: 지식베이스 서비스 - 승인 시 청킹+임베딩 파이프라인 + 수정이력 스냅샷 (R4-01: 재승인 흐름 포함)"
 ```
 
 ---
@@ -3415,7 +3553,7 @@ git commit -m "feat: 오답신고/정기검토 + 품질개선 예시은행 + 미
   - `GET /staff/chat/conversations?channel=` (전체 상담 기록 — 요구사항 5.1), `GET /staff/chat/conversations/{id}/messages` (각 봇 메시지에 `route_taken`과 `sources: [{title, content}]` 포함 — 근거 확인, 요구사항 5.6)
   - `POST /staff/chat/messages/{id}/feedback` `{correction_text, add_to_example_bank?}` (그 자리에서 오답 신고 — `source="realtime_report"` 고정)
 - Produces (관리자 — `admin_kb.py`, `require_role("admin")`):
-  - `GET/POST /admin/kb/documents`, `PUT /admin/kb/documents/{id}`, `POST /admin/kb/documents/{id}/approve`, `POST /admin/kb/documents/{id}/archive` — POST/PUT 본문은 `{title, category, content, is_restricted?}`(`is_restricted` 기본값 `false`, `kb_service.create_document`/`update_document`에 그대로 전달 — 요구사항 3.8)
+  - `GET/POST /admin/kb/documents`, `PUT /admin/kb/documents/{id}`, `POST /admin/kb/documents/{id}/approve`, `POST /admin/kb/documents/{id}/approve-pending-edit`([정합성 검토 R4-01] 신규 — `kb_service.approve_pending_edit` 호출), `POST /admin/kb/documents/{id}/archive` — POST/PUT 본문은 `{title, category, content, is_restricted?}`(`is_restricted` 기본값 `false`, `kb_service.create_document`/`update_document`에 그대로 전달 — 요구사항 3.8)
   - `GET /admin/kb/documents/{id}/revisions` — 수정이력 시간 역순 목록 (요구사항 3.8)
   - `GET /admin/kb/feedback`, `POST /admin/kb/feedback/{id}/apply` `{document_id?}`, `POST /admin/kb/feedback/{id}/reject`
   - `GET /admin/kb/stats?from=&to=`
@@ -4231,7 +4369,7 @@ git commit -m "feat: 직원 웹 상담 관리 - 티켓함(3단계 상태)/상세
 
 **Interfaces:**
 - Consumes: Task 14의 `/admin/kb/*` API, `<RequireRole roles={["admin"]}>`(2단계), `<StatTile />`(2단계)
-- Produces: `listKbDocuments(status?, category?)`, `createKbDocument(body)`, `updateKbDocument(id, body)`, `approveKbDocument(id)`, `archiveKbDocument(id)`, `listKbRevisions(documentId) -> Promise<Revision[]>`(수정이력 시간 역순 — 요구사항 3.8), `listFeedback()`, `applyFeedback(id, documentId?)`, `rejectFeedback(id)`, `getBotStats(from, to)`
+- Produces: `listKbDocuments(status?, category?)`, `createKbDocument(body)`, `updateKbDocument(id, body)`, `approveKbDocument(id)`, `approvePendingKbEdit(id)`([정합성 검토 R4-01] 신규 — 대기 중인 수정본 재승인), `archiveKbDocument(id)`, `listKbRevisions(documentId) -> Promise<Revision[]>`(수정이력 시간 역순 — 요구사항 3.8), `listFeedback()`, `applyFeedback(id, documentId?)`, `rejectFeedback(id)`, `getBotStats(from, to)`
 - Produces: `listQualityReportConversations(from, to) -> Promise<QualityConversation[]>`(`route_taken`/인계여부/신고여부 포함), `submitPeriodicCorrection(messageId, correctionText, addToExampleBank) -> Promise<void>`, `listExampleBank() -> Promise<Example[]>`, `deactivateExample(id) -> Promise<void>`
 - Produces: `listUnresolvedQuestionClusters(from, to) -> Promise<{sample_question: string, count: number, ticket_ids: string[]}[]>`(개수 내림차순 — 요구사항 3.9/3.10)
 
@@ -4263,6 +4401,28 @@ test("초안 자료를 승인하면 approve API가 호출된다", async () => {
   await screen.findByText("주차 안내");
   await userEvent.click(screen.getByRole("button", { name: "승인" }));
   await waitFor(() => expect(approved).toBe(true));
+});
+
+test("[정합성 검토 R4-01] 대기 중 수정본이 있으면 배지가 보이고, 재승인 버튼이 approvePendingKbEdit를 호출한다", async () => {
+  let approvedPendingEdit = false;
+  server.use(
+    http.get("*/admin/kb/documents", () =>
+      HttpResponse.json([
+        {
+          id: "d1", title: "내과 진료시간", category: "진료시간", status: "approved",
+          has_pending_edit: true, updated_at: "2026-07-27",
+        },
+      ]),
+    ),
+    http.post("*/admin/kb/documents/d1/approve-pending-edit", () => {
+      approvedPendingEdit = true;
+      return HttpResponse.json({});
+    }),
+  );
+  renderWithProviders(<KbDocumentsPage />);
+  await screen.findByText("검토 대기 중");
+  await userEvent.click(screen.getByRole("button", { name: "재승인" }));
+  await waitFor(() => expect(approvedPendingEdit).toBe(true));
 });
 
 test("수정이력 보기를 누르면 이전 내용이 시간순으로 표시된다", async () => {
@@ -4440,7 +4600,7 @@ export function ReportWrongAnswerDialog({ messageId, onDone, onCancel, onSubmit 
 `QualityReportPage`는 `<ReportWrongAnswerDialog ... onSubmit={submitPeriodicCorrection} />`로 호출한다.
 
 구현 요점 (나머지 파일):
-- `KbDocumentsPage`: 자료 목록 테이블(제목/분류/상태/수정일), 상태·분류 필터, "새 자료" 버튼 → `KbEditorDialog`(제목·분류 select·본문 textarea·**"상담봇이 이 내용을 직접 답변하지 않고 이 문구만 그대로 보여줍니다" 체크박스** — 요구사항 3.8 "답하면 안 되는 내용", 체크 시 `createKbDocument`/`updateKbDocument` 본문에 `is_restricted: true` 포함). 목록에서 `is_restricted` 자료는 제목 옆에 "차단 안내" 배지 표시. `draft` 행에 "승인" 버튼(승인 시 "승인하면 상담봇이 이 자료를 근거로 사용해요. 자동으로 검색용 조각과 임베딩이 만들어져요" 확인창), `approved` 행에 "수정"(수정 시 재임베딩됨을 안내)과 "보관" 버튼. 모든 행에 "수정이력" 버튼 → `listKbRevisions(id)` 결과를 시간 역순 목록으로 보여주는 다이얼로그(수정 전 제목·분류·본문 스냅샷 표시 — 요구사항 3.8)
+- `KbDocumentsPage`: 자료 목록 테이블(제목/분류/상태/수정일), 상태·분류 필터, "새 자료" 버튼 → `KbEditorDialog`(제목·분류 select·본문 textarea·**"상담봇이 이 내용을 직접 답변하지 않고 이 문구만 그대로 보여줍니다" 체크박스** — 요구사항 3.8 "답하면 안 되는 내용", 체크 시 `createKbDocument`/`updateKbDocument` 본문에 `is_restricted: true` 포함). 목록에서 `is_restricted` 자료는 제목 옆에 "차단 안내" 배지 표시. `draft` 행에 "승인" 버튼(승인 시 "승인하면 상담봇이 이 자료를 근거로 사용해요. 자동으로 검색용 조각과 임베딩이 만들어져요" 확인창), `approved` 행에 "수정"(수정 시 재임베딩되지 않고 "재승인 전까지는 기존 내용으로 답변합니다"를 안내)과 "보관" 버튼. **[정합성 검토 R4-01]** `has_pending_edit=true`인 행은 제목 옆에 "검토 대기 중" 배지를 표시하고, "수정" 버튼과 별개로 "재승인" 버튼을 추가로 보여준다(`approvePendingKbEdit(id)` 호출, "재승인하면 대기 중인 수정 내용으로 챗봇 답변이 바뀝니다" 확인창). "재승인" 버튼을 누르기 전까지는 몇 번을 수정해도 라이브 내용이 바뀌지 않는다. 모든 행에 "수정이력" 버튼 → `listKbRevisions(id)` 결과를 시간 역순 목록으로 보여주는 다이얼로그(수정 전 제목·분류·본문 스냅샷 표시 — 요구사항 3.8)
 - `FeedbackInboxPage`: pending 신고 목록(봇 답변 원문 + 직원 정정 내용 + 신고자 + `source` 뱃지로 "실시간 신고"/"정기 검토" 구분). 각 행에 "반영"(자료 선택 select — 미선택 시 새 자료로 생성됨 안내) / "반려" 버튼
 - `ExampleBankPage`: `qa_example_bank` 목록(질문/교정답변/갈래 표시), 각 행에 "비활성화" 버튼(삭제 대신 숨김 — 요구사항 6.3)
 - `BotStatsPage`: 기간 선택(from/to) + `StatTile` 4개(앱 상담 수/웹 상담 수/인계 건수/오답 신고 수) + 갈래별 분포(안내형/진료과추천형/행동형) + 인계 사유별 건수 목록(거창한 차트 없이 숫자 카드 수준 — 스펙 섹션 4)
