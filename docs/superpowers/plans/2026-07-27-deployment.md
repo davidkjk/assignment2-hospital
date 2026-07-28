@@ -1797,17 +1797,17 @@ git push origin main
 
 ---
 
-### Task 15: Vercel 배포 — 직원 웹 + 상담봇 위젯 데모 페이지
+### Task 15: Vercel 배포 — 직원 웹 + 상담봇 webchat 앱 + 위젯 데모 페이지
 
 **Files:**
 - Create: `web/.env.example` (`VITE_API_BASE_URL=`, `VITE_SUPABASE_URL=`, `VITE_SUPABASE_ANON_KEY=`)
 - Create: `widget-demo/index.html`
 
 **Interfaces:**
-- Consumes: 4단계 웹 위젯 빌드 산출물(`web-widget/dist/widget.js`, 전역 초기화 함수 `HospitalChatWidget.init(options)` — 이 계획 작성 시점의 가정이며, 4단계 구현이 완료되면 실제 산출물 경로와 초기화 함수명을 반드시 대조한다)
-- Produces: 직원 웹 주소 `https://<프로젝트>.vercel.app`, 위젯 데모 주소 `https://<위젯데모>.vercel.app`
+- Consumes: 4단계 상담봇 산출물 — **확정 계약**(4단계 문서와 합의됨): ① 독립 `webchat/` Vite 웹앱(상담 화면 자체), ② 그것을 iframe으로 띄우는 얇은 로더 `webchat/dist/widget.js`, 전역 초기화 `HospitalChatWidget.init({ webchatUrl })`(우하단 플로팅 버튼 삽입, 클릭 시 webchatUrl을 iframe으로 로드)
+- Produces: 직원 웹 주소 `https://<프로젝트>.vercel.app`, webchat 앱 주소 `https://<webchat>.vercel.app`, 위젯 데모 주소 `https://<위젯데모>.vercel.app`
 
-> Global Constraints 마지막 항목("라우터 인터페이스가 계획과 실제 구현 사이에 어긋나면 실제 구현 쪽을 기준으로 맞춘다")은 백엔드 라우터뿐 아니라 이 Task의 위젯 파일 경로·초기화 함수명에도 동일하게 적용한다. Step 4를 실행하기 전 `web-widget/dist/` 실제 산출물과 4단계 구현 계획의 실제 초기화 API를 먼저 확인하고, 아래 코드의 파일명·함수 호출부를 그에 맞게 고친다.
+> 위 계약은 확정됐지만, 실행 시점에 `webchat/dist/` 실제 산출물 파일명과 초기화 옵션을 한 번 가볍게 대조한 뒤 진행한다(어긋나면 실제 구현 쪽 기준 — Global Constraints 마지막 항목과 동일 원칙).
 
 - [ ] **Step 1: 직원 웹 Vercel 프로젝트 생성**
 
@@ -1824,7 +1824,13 @@ React Router 새로고침 404 방지: `web/vercel.json`이 없다면 생성:
 
 브라우저에서 `https://<프로젝트>.vercel.app` 접속 → 로그인 화면 표시 → 데모 관리자 계정(`admin@demo-hospital.kr`)으로 로그인 → 오늘의 현황 화면 로드 확인.
 
-- [ ] **Step 4: 위젯 데모 페이지 작성**
+- [ ] **Step 4: webchat 앱 Vercel 프로젝트 생성·검증**
+
+Vercel → Add New Project → 같은 저장소, Root Directory `webchat/`, Framework Preset: Vite. 환경변수 입력(4단계 `webchat/.env.example` 기준 — API 주소=Railway 주소, Supabase URL·anon key).
+배포 후 `https://<webchat>.vercel.app`에 직접 접속 → 상담 화면이 뜨고 질문·답변이 동작하는지 확인.
+**백엔드 CORS 확인**: 백엔드의 허용 오리진(allowed origins) 목록에 이 webchat 배포 주소가 포함돼야 브라우저에서 API 호출이 된다. 누락 시 Railway 환경변수(또는 백엔드 CORS 설정 — 실제 구현 기준)에 추가 후 재배포.
+
+- [ ] **Step 5: 위젯 데모 페이지 작성**
 
 `widget-demo/index.html`:
 ```html
@@ -1844,23 +1850,23 @@ React Router 새로고침 404 방지: `web/vercel.json`이 없다면 생성:
      오른쪽 아래 말풍선 버튼을 눌러 상담을 시작하세요.</p>
   <script src="./widget.js"></script>
   <script>
-    /* 초기화 함수명·옵션은 4단계 위젯 구현이 정의한 것을 사용 */
-    HospitalChatWidget.init({ apiBaseUrl: "%RAILWAY_API_URL%" });
+    /* 로더가 우하단 플로팅 버튼을 만들고, 클릭 시 webchatUrl을 iframe으로 띄운다 */
+    HospitalChatWidget.init({ webchatUrl: "%WEBCHAT_URL%" });
   </script>
 </body>
 </html>
 ```
-빌드된 위젯을 복사: `cp web-widget/dist/widget.js widget-demo/widget.js` (4단계 산출물 경로 기준). `%RAILWAY_API_URL%`은 실제 Railway 주소로 치환.
+빌드된 로더를 복사: `cp webchat/dist/widget.js widget-demo/widget.js`. `%WEBCHAT_URL%`은 Step 4의 실제 webchat 배포 주소(`https://<webchat>.vercel.app`)로 치환.
 
-- [ ] **Step 5: 위젯 데모 Vercel 프로젝트 생성·검증**
+- [ ] **Step 6: 위젯 데모 Vercel 프로젝트 생성·검증**
 
-Vercel → Add New Project → Root Directory `widget-demo/`, Framework: Other(정적). 배포 후 접속해 위젯 열기 → "진료 시간 알려주세요" 질문 → 지식 문서 기반 답변 확인.
+Vercel → Add New Project → Root Directory `widget-demo/`, Framework: Other(정적). 배포 후 접속해 우하단 말풍선 버튼 클릭 → iframe으로 webchat이 열림 → "진료 시간 알려주세요" 질문 → 지식 문서 기반 답변 확인.
 
-- [ ] **Step 6: 커밋**
+- [ ] **Step 7: 커밋**
 
 ```bash
 git add web/.env.example web/vercel.json widget-demo/
-git commit -m "deploy: Vercel 직원 웹 설정과 상담봇 위젯 데모 페이지 추가"
+git commit -m "deploy: Vercel 직원 웹·webchat 앱 설정과 상담봇 위젯 데모 페이지 추가"
 git push origin main
 ```
 

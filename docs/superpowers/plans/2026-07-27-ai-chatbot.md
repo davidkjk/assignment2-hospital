@@ -72,7 +72,7 @@ mobile/lib/features/chat/          # Flutter 앱(3단계 patient-app과 동일 �
 - Test: `backend/tests/test_chat_tables_schema.py`
 
 **Interfaces:**
-- Produces: 테이블 `chat_conversations`, `chat_messages`(`route_taken` 포함 — 스펙 섹션 2), RLS 정책 일체
+- Produces: 테이블 `chat_conversations`(순차 문진 플로우 상태 `active_flow`/`flow_step`/`flow_collected` 포함), `chat_messages`(`route_taken` 포함 — 스펙 섹션 2), `chat_booking_cards`(서버 발급 예약 확인 카드 — 일회용 `nonce`), RLS 정책 일체
 
 - [ ] **Step 1: 실패하는 스키마 테스트 작성**
 
@@ -141,6 +141,11 @@ create table chat_conversations (
   anon_session_token text unique,                   -- 익명 재방문용 "진동벨"
   channel text not null check (channel in ('app', 'web')),
   status text not null default 'bot' check (status in ('bot', 'handed_over', 'closed')),
+  -- 순차 문진(진료과 안내) 진행 상태 — 매 턴 라우터로 재분류하면 중간 답변이 다른 갈래로 새거나
+  -- 이전 대화 이력에 따라 단계가 건너뛸 수 있어, 진행 중인 플로우는 대화방에 상태로 못박아 둔다.
+  active_flow text check (active_flow in ('department_guide')),
+  flow_step int not null default 0,
+  flow_collected jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   last_message_at timestamptz not null default now()
 );
@@ -160,12 +165,28 @@ create table chat_messages (
   created_at timestamptz not null default now()
 );
 
+-- 서버가 발급하는 예약 확인 카드 — 확정 API가 "카드에 적힌 그대로인지, 아직 안 쓴 카드인지"를
+-- 검증할 근거다. 클라이언트가 body에 담아 보내는 department_id/doctor_id/slot_id를 그대로 믿지 않는다.
+create table chat_booking_cards (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references chat_conversations(id),
+  nonce uuid not null default gen_random_uuid() unique,
+  for_patient_id uuid not null references patients(id),
+  department_id uuid not null references departments(id),
+  doctor_id uuid not null references staff(id),
+  slot_id uuid not null references appointment_slots(id),
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create index idx_chat_messages_conversation on chat_messages (conversation_id, created_at);
 create index idx_chat_conversations_patient on chat_conversations (patient_id);
 create index idx_chat_conversations_last_message on chat_conversations (last_message_at desc);
+create index idx_chat_booking_cards_conversation on chat_booking_cards (conversation_id);
 
 alter table chat_conversations enable row level security;
 alter table chat_messages enable row level security;
+alter table chat_booking_cards enable row level security;
 
 -- 환자: 본인 상담방만 조회 (익명 방은 서버(service role)가 토큰 검증 후 대신 접근)
 create policy chat_conversations_patient_select on chat_conversations
@@ -203,7 +224,7 @@ Expected: PASS
 
 ```bash
 git add supabase/migrations/00012_chat_tables.sql backend/tests/test_chat_tables_schema.py
-git commit -m "feat: 상담방/메시지 테이블(route_taken 포함) + RLS (4단계)"
+git commit -m "feat: 상담방/메시지 테이블(route_taken, 문진 플로우 상태) + 예약 확인 카드 테이블 + RLS (4단계)"
 ```
 
 ---
@@ -1551,10 +1572,22 @@ def build_tools(ctx: ToolContext) -> list[StructuredTool]:
     ) -> str:
         if ctx.patient is None:
             return "환자가 로그인하지 않았습니다. 예약은 로그인 후 가능하다고 안내하세요."
+        # 카드에 표시할 이름·날짜 문구는 LLM이 채워도 되지만, 실제 예약에 쓰일 ID 4종은
+        # 여기서 DB에 저장해 서버가 발급한 nonce로만 확정 가능하게 한다("치명적 규칙은 DB가 최종 심판") —
+        # confirm_booking은 이 nonce로 찾은 행의 값만 신뢰하고 클라이언트가 보낸 ID는 무시한다.
+        from app.db.pool import get_pool
+        nonce = await get_pool().fetchval(
+            """
+            insert into chat_booking_cards (conversation_id, for_patient_id, department_id, doctor_id, slot_id)
+            values ($1, $2, $3, $4, $5)
+            returning nonce
+            """,
+            ctx.conversation_id, for_patient_id, department_id, doctor_id, slot_id,
+        )
         ctx.collected["card"] = {
-            "for_patient_id": for_patient_id, "department_id": department_id, "doctor_id": doctor_id,
-            "slot_id": slot_id, "department_name": department_name, "doctor_name": doctor_name,
-            "slot_date": slot_date, "start_time": start_time,
+            "nonce": str(nonce), "for_patient_id": for_patient_id, "department_id": department_id,
+            "doctor_id": doctor_id, "slot_id": slot_id, "department_name": department_name,
+            "doctor_name": doctor_name, "slot_date": slot_date, "start_time": start_time,
         }
         return "확인 카드를 띄웠습니다. 환자가 '이 내용으로 예약' 버튼을 누르기를 기다린다고 안내하세요."
 
@@ -2194,6 +2227,7 @@ Run: `cd backend && pytest tests/test_chat_service.py -v` → FAIL
 
 `backend/app/services/chat_service.py`:
 ```python
+import json
 import secrets
 from uuid import UUID
 
@@ -2242,7 +2276,7 @@ async def attach_patient(conversation_id: UUID, patient: PatientContext) -> None
 
 async def _authorize(conn, conversation_id: UUID, patient, anon_token) -> dict:
     row = await conn.fetchrow(
-        "select id, patient_id, anon_session_token, status, channel "
+        "select id, patient_id, anon_session_token, status, channel, active_flow, flow_step, flow_collected "
         "from chat_conversations where id = $1",
         conversation_id,
     )
@@ -2312,17 +2346,25 @@ async def post_message(
 
     history_texts = [r["content"] for r in history if r["sender"] == "patient"]
     history_text = "\n".join(f"{r['sender']}: {r['content']}" for r in history) + f"\npatient: {content}"
-    department_guide_step = sum(
-        1 for r in history if r["sender"] == "bot" and r["route_taken"] == "department_guide"
-    )
+
+    # 순차 문진(진료과 안내) 진행 상태는 대화방에 저장된 값을 쓴다 — 매 턴 history에서 route_taken 개수를
+    # 세는 방식은 ① 중간 답변이 라우터에 의해 다른 갈래로 잘못 분류되거나 ② 이전 대화 이력에 따라 단계가
+    # 건너뛰는 문제가 있었다(정합성 검토 2026-07-28). active_flow가 설정된 동안은 라우터 분류 자체를
+    # 건너뛰고 department_guide 갈래로 결정적으로 진행한다.
+    active_flow = conv["active_flow"]
+    flow_step = conv["flow_step"]
+    flow_collected: dict = dict(conv["flow_collected"] or {})
 
     reply: str | None
     card: dict | None = None
     route_taken: str | None
     source_chunk_ids: list = []
+    next_active_flow = active_flow
+    next_flow_step = flow_step
+    next_flow_collected = flow_collected
 
     try:
-        # ⓪ 응급 검사 — 규칙 기반, 최우선. 통과 못하면 아래 전부 건너뜀
+        # ⓪ 응급 검사 — 규칙 기반, 최우선. 통과 못하면 아래 전부 건너뜀(플로우 진행 중이어도 동일)
         if safety_watchdog.check_emergency(content):
             reply, route_taken = safety_watchdog.EMERGENCY_REPLY, "emergency"
         else:
@@ -2333,8 +2375,19 @@ async def post_message(
             if reason:
                 reply = await _handoff(conversation_id, patient, reason, history_text, model, embedder=embedder)
                 route_taken = "handoff"
+                next_active_flow, next_flow_step, next_flow_collected = None, 0, {}
+            elif active_flow == "department_guide":
+                # 문진 진행 중 — 방금 답변을 저장하고 다음 단계로 결정적으로 진행한다(라우터 재분류 없음).
+                next_flow_collected = {**flow_collected, f"answer_{flow_step}": content}
+                if flow_step >= 3:
+                    reply = await department_guide_chain.recommend_departments(history_text, patient, model=model)
+                    next_active_flow, next_flow_step = None, 0  # 추천을 마쳤으니 플로우 종료 — 다음 턴은 일반 라우팅
+                else:
+                    reply = await department_guide_chain.ask_next_question(history_text, flow_step, model=model)
+                    next_flow_step = flow_step + 1
+                route_taken = "department_guide"
             else:
-                # ② 라우터 — 3갈래 분류
+                # ② 라우터 — 3갈래 분류 (플로우가 진행 중이 아닐 때만)
                 route = await classify_route(content, model=model)
                 if route == "rag":
                     result = await rag_chain.answer(content, embedder=embedder, model=model)
@@ -2345,13 +2398,10 @@ async def post_message(
                     else:
                         reply, source_chunk_ids, route_taken = result["text"], result["source_chunk_ids"], "rag"
                 elif route == "department_guide":
-                    if department_guide_step >= 3:
-                        reply = await department_guide_chain.recommend_departments(history_text, patient, model=model)
-                    else:
-                        reply = await department_guide_chain.ask_next_question(
-                            history_text, department_guide_step, model=model
-                        )
+                    # 이번 턴에 처음 진입 — 0단계 질문을 묻고 플로우를 시작한다.
+                    reply = await department_guide_chain.ask_next_question(history_text, 0, model=model)
                     route_taken = "department_guide"
+                    next_active_flow, next_flow_step, next_flow_collected = "department_guide", 1, {}
                 else:
                     ctx = ToolContext(patient=patient, conversation_id=conversation_id)
                     result = await agent_chain.run(content, ctx, model=model)
@@ -2371,6 +2421,10 @@ async def post_message(
             "(conversation_id, sender, content, source_chunk_ids, message_type, route_taken) "
             "values ($1, 'bot', $2, $3, $4, $5)",
             conversation_id, reply, source_chunk_ids or None, message_type, route_taken,
+        )
+        await conn.execute(
+            "update chat_conversations set active_flow = $1, flow_step = $2, flow_collected = $3 where id = $4",
+            next_active_flow, next_flow_step, json.dumps(next_flow_collected), conversation_id,
         )
 
     return {"reply": reply, "message_type": message_type, "card": card, "handed_over": handed_over}
@@ -3354,7 +3408,7 @@ git commit -m "feat: 오답신고/정기검토 + 품질개선 예시은행 + 미
   - `POST /chat/conversations/{id}/attach` — 로그인 환자가 익명 방을 본인 계정에 연결 (`X-Anon-Session` 필수)
   - `POST /chat/conversations/{id}/contact` — 익명 인계용 연락처 `{name, phone}`
   - `POST /chat/conversations/{id}/leave-ticket` — 봇 장애 시 봇 없이 문의만 남기기 `{content, name?, phone?}`
-  - `POST /chat/conversations/{id}/booking` — **확인 카드의 버튼**. body `{for_patient_id, department_id, doctor_id, slot_id}`. 로그인 필수. 내부에서 `patient_booking_service.create_booking` 호출(중복 방지·충돌 처리는 3단계 로직 그대로), 성공 시 `booking_done` 봇 메시지 저장 + `{appointment_id}` 반환, 충돌(슬롯 선점) 시 409 + 한글 안내
+  - `POST /chat/conversations/{id}/booking` — **확인 카드의 버튼**. body `{nonce}`(카드 발급 시 서버가 심어둔 일회용 식별자 — 나머지 예약 필드는 클라이언트를 신뢰하지 않고 `chat_booking_cards`에서 읽는다). 로그인 필수, 상담방 소유권 확인 필수. 내부에서 `patient_booking_service.create_booking(..., source="chatbot")` 호출(중복 방지·충돌 처리는 3단계 로직 그대로), 성공 시 `booking_done` 봇 메시지 저장 + `{appointment_id}` 반환. 카드가 이미 쓰였거나 존재하지 않으면 409, 충돌(슬롯 선점) 시에도 409 + 한글 안내
 - Produces (직원 — `staff_chat.py`, `require_role("receptionist","doctor","admin")`):
   - `GET /staff/chat/tickets?status=`(`pending`/`in_progress`/`answered`), `GET /staff/chat/tickets/{id}`(열람 시 자동 `claim_ticket`), `POST /staff/chat/tickets/{id}/answer` `{answer_text}`
   - `POST /staff/chat/tickets/{id}/reassign` `{staff_id}` — 의료진 판단이 필요할 때 다른 직원(담당 의사·관리자)에게 재배정 (요구사항 3.9)
@@ -3401,29 +3455,55 @@ async def test_anon_web_chat_flow(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_booking_button_uses_stage3_service(client, patient_auth_headers, monkeypatch):
+async def test_booking_button_uses_stage3_service(client, patient_auth_headers, service_conn, monkeypatch):
     from app.routers import chat as chat_router
     from uuid import uuid4
 
     called = {}
 
-    async def fake_create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason):
+    async def fake_create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason, source):
         called["slot_id"] = slot_id
+        called["source"] = source
         return uuid4()
 
     monkeypatch.setattr(chat_router.patient_booking_service, "create_booking", fake_create_booking)
 
     r = await client.post("/chat/conversations", json={"channel": "app"}, headers=patient_auth_headers)
     conv_id = r.json()["conversation_id"]
+    # 실제로는 propose_booking_card 도구가 카드를 발급하지만, 여기서는 라우터만 검증하므로
+    # 서버가 이미 발급해 둔 카드가 있다고 가정하고 직접 심어 넣는다.
+    for_patient_id = str(uuid4())
     slot_id = str(uuid4())
+    nonce = await service_conn.fetchval(
+        """
+        insert into chat_booking_cards (conversation_id, for_patient_id, department_id, doctor_id, slot_id)
+        values ($1, $2, $3, $4, $5)
+        returning nonce
+        """,
+        conv_id, for_patient_id, str(uuid4()), str(uuid4()), slot_id,
+    )
     r = await client.post(
         f"/chat/conversations/{conv_id}/booking",
-        json={"for_patient_id": str(uuid4()), "department_id": str(uuid4()),
-              "doctor_id": str(uuid4()), "slot_id": slot_id},
+        json={"nonce": str(nonce)},
         headers=patient_auth_headers,
     )
     assert r.status_code == 200 and "appointment_id" in r.json()
     assert called["slot_id"] == slot_id  # 3단계 예약 서비스로 직행 확인
+    assert called["source"] == "chatbot"  # 예약 출처가 챗봇으로 저장되는지 확인
+
+
+@pytest.mark.asyncio
+async def test_booking_confirm_rejects_reused_or_unknown_nonce(client, patient_auth_headers):
+    from uuid import uuid4
+
+    r = await client.post("/chat/conversations", json={"channel": "app"}, headers=patient_auth_headers)
+    conv_id = r.json()["conversation_id"]
+    r = await client.post(
+        f"/chat/conversations/{conv_id}/booking",
+        json={"nonce": str(uuid4())},  # 발급된 적 없는 nonce
+        headers=patient_auth_headers,
+    )
+    assert r.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -3603,10 +3683,7 @@ async def post_message(
 
 
 class BookingBody(BaseModel):
-    for_patient_id: UUID
-    department_id: UUID
-    doctor_id: UUID
-    slot_id: UUID
+    nonce: UUID  # 확인 카드에 서버가 심어 보낸 일회용 식별자 — 나머지 예약 필드는 클라이언트가 아니라 카드에서 읽는다.
 
 
 @router.post("/conversations/{conversation_id}/booking")
@@ -3614,20 +3691,47 @@ async def confirm_booking(
     conversation_id: UUID, body: BookingBody,
     patient: PatientContext = Depends(get_current_patient),
 ):
-    """확인 카드의 '이 내용으로 예약' 버튼 — Claude를 거치지 않고 3단계 예약 서비스 직행."""
+    """확인 카드의 '이 내용으로 예약' 버튼 — Claude를 거치지 않고 3단계 예약 서비스 직행.
+
+    치명적 규칙은 DB가 최종 심판: 클라이언트가 보낸 department_id/doctor_id/slot_id는 신뢰하지 않는다.
+    카드 발급 시(propose_booking_card) DB에 저장해 둔 chat_booking_cards 행을 nonce로 찾아,
+    ① 이 상담방 소유의 카드인지, ② 아직 쓰지 않은 카드인지를 원자적으로 확인·소비(used_at 설정)한 뒤
+    그 행에 저장된 값으로만 예약을 생성한다.
+    """
+    from app.db.pool import get_pool
+    pool = get_pool()
+
+    # 소유권 검증 — 이 상담방이 정말 이 환자의 것인지(익명 상담방이거나 다른 환자의 방이면 거부).
+    conv = await pool.fetchrow("select patient_id from chat_conversations where id = $1", conversation_id)
+    if conv is None or conv["patient_id"] != patient.id:
+        raise AppError("이 상담방에 접근할 수 없어요.", 403)
+
+    card = await pool.fetchrow(
+        """
+        update chat_booking_cards
+        set used_at = now()
+        where nonce = $1 and conversation_id = $2 and used_at is null
+        returning for_patient_id, department_id, doctor_id, slot_id
+        """,
+        body.nonce, conversation_id,
+    )
+    if card is None:
+        raise AppError("이미 처리되었거나 유효하지 않은 예약 확인 카드예요. 다시 시간을 골라주세요.", 409)
+
     appointment_id = await patient_booking_service.create_booking(
-        patient, body.for_patient_id, body.department_id, body.doctor_id,
-        body.slot_id, reason="상담봇 예약",
+        patient, card["for_patient_id"], card["department_id"], card["doctor_id"],
+        card["slot_id"], reason="상담봇 예약", source="chatbot",
     )
     # 예약 완료 카드 메시지 저장 (예약번호 + 사전문진 이동 버튼용)
-    from app.db.pool import get_pool
-    await get_pool().execute(
+    await pool.execute(
         "insert into chat_messages (conversation_id, sender, content, message_type) "
         "values ($1, 'bot', $2, 'booking_done')",
         conversation_id, f"예약이 완료되었어요. 예약번호: {appointment_id}",
     )
     return {"appointment_id": appointment_id}
 ```
+
+> `chat_booking_cards`에 대한 클라이언트용 RLS 정책은 두지 않는다 — 조회·소비 모두 백엔드(service role)만 접근한다. `update ... returning`을 한 문장으로 실행하므로 "동시에 두 번 확정" 경합에서도 두 번째 요청은 `used_at is null` 조건에 걸려 `card is None`이 된다(원자적 소비).
 
 나머지 엔드포인트(resume/attach/contact/leave-ticket, `staff_chat.py`의 티켓·상담기록·오답신고, `admin_kb.py`의 KB CRUD·오답 처리·stats)는 Interfaces 절의 경로·본문 그대로, 위와 같은 얇은 패턴(권한 dependency → 서비스 호출)으로 구현한다. `staff_chat.py`의 봇 메시지 근거는:
 ```sql
@@ -4405,6 +4509,7 @@ git commit -m "feat: 관리자 KB 관리(수정이력 포함)/오답 처리함/�
 - Create: `webchat/src/AuthModal.tsx` (로그인/가입 모달 — 별도 페이지 방식)
 - Create: `webchat/src/ContactForm.tsx` (익명 인계용 이름·연락처)
 - Create: `webchat/src/api.ts`, `webchat/src/anonSession.ts`, `webchat/src/supabase.ts`
+- Create: `webchat/widget/loader.ts`, `webchat/vite.widget.config.ts` (별도 병원 홈페이지에 삽입하는 얇은 로더 — 확정 계약, 배포 5단계 문서와 공유)
 - Test: `webchat/src/ChatWindow.test.tsx`
 
 **Interfaces:**
@@ -4412,6 +4517,7 @@ git commit -m "feat: 관리자 KB 관리(수정이력 포함)/오답 처리함/�
 - Produces: `anonSession.getToken()/saveToken(token)/clear()` — localStorage 보관(익명 "진동벨")
 - Produces: `<ChatWidget />` — 우하단 플로팅 버튼, 클릭 시 `<ChatWindow />` 펼침
 - Produces: `<BookingCard card onConfirm />`, `<AuthModal mode onSuccess onClose />`, `<ContactForm onSubmit />`
+- Produces(**확정 계약 — 5단계 배포 문서와 공유**): 빌드 산출물 `webchat/dist/widget.js`, 전역 초기화 함수 `HospitalChatWidget.init({ webchatUrl: string })` — 우하단 플로팅 버튼을 삽입하고, 클릭 시 `webchatUrl`을 iframe으로 띄운다. webchat 앱 본체(`ChatWidget`)는 그대로 독립 웹앱으로 배포되고, 로더는 그 앱을 iframe으로 감싸는 별도의 작은 번들이다.
 
 - [ ] **Step 1: 스캐폴딩**
 
@@ -4459,7 +4565,7 @@ test("확인 카드가 오면 예약 버튼 하나가 표시된다", async () =>
     http.post("*/chat/conversations/c1/messages", () =>
       HttpResponse.json({
         reply: "이 내용으로 예약할까요?", message_type: "booking_confirm",
-        card: { department_name: "내과", doctor_name: "김의사", slot_date: "2026-07-30",
+        card: { nonce: "n1", department_name: "내과", doctor_name: "김의사", slot_date: "2026-07-30",
                 start_time: "10:00", for_patient_id: "p", department_id: "d",
                 doctor_id: "doc", slot_id: "s" },
         handed_over: false,
@@ -4506,19 +4612,82 @@ test("전송 실패 시 실패 표시와 재전송 버튼이 보인다", async (
 구현 요점:
 - `anonSession.ts`: `localStorage`에 토큰 저장. `ChatWindow` 마운트 시 토큰 있으면 `GET /chat/conversations/resume`으로 어제 대화 복원, 없으면 `POST /chat/conversations {channel:'web'}`로 새 방 + 토큰 저장
 - `ChatWindow`: 말풍선 목록(환자/봇/직원 구분), 입력창(placeholder "궁금한 점을 입력하세요") + "보내기". 전송 중 버튼 비활성(중복 클릭 방지). 실패 시 말풍선에 "전송에 실패했어요" + "다시 보내기". `message_type`별 렌더: `booking_confirm` → `<BookingCard>`, `booking_done` → 예약번호 + "사전문진은 앱에서 작성할 수 있어요" 안내. **`route_taken === "department_guide"`인 답변에는 말풍선 위에 "진단이 아니라 진료과 안내입니다" 고정 배너를 붙인다** (설계서 섹션 4 — 의료 안내와 일반 안내를 시각적으로 구분)
-- `BookingCard`: 환자·진료과·의사·날짜·시간 표 + `이 내용으로 예약` 버튼 1개. 클릭 → 로그인 상태면 `POST /chat/conversations/{id}/booking`(Supabase 세션의 access token을 Authorization 헤더로), 비로그인이면 `<AuthModal>` 열기. 409(선점) 응답이면 "방금 그 시간이 마감됐어요. 봇에게 다른 시간을 물어보세요" 표시
+- `BookingCard`: 환자·진료과·의사·날짜·시간 표 + `이 내용으로 예약` 버튼 1개. 클릭 → 로그인 상태면 `POST /chat/conversations/{id}/booking` body `{nonce: card.nonce}`(Supabase 세션의 access token을 Authorization 헤더로) — 카드가 받은 `nonce`만 그대로 돌려보낼 뿐, 진료과·의사·시간 필드는 서버가 발급 시점에 저장해 둔 값을 쓰므로 클라이언트가 위조해도 소용없다. 비로그인이면 `<AuthModal>` 열기. 409(카드 재사용·선점) 응답이면 "방금 그 시간이 마감됐어요. 봇에게 다른 시간을 물어보세요" 표시
 - `AuthModal`: 로그인 탭(전화번호+비밀번호 — `supabase.auth.signInWithPassword({phone, password})`) / 가입 탭(전화번호 → `signInWithOtp` → OTP 확인 → 비밀번호·이름·생년월일·성별 → 3단계 가입 API 재사용). 성공 시 `POST /chat/conversations/{id}/attach`로 익명 대화를 계정에 연결 후 모달 닫기. 채팅창 위를 덮는 전체 모달(별도 페이지 방식 — 스펙 확정)
 - `ContactForm`: 봇 응답의 `handed_over === true`이고 비로그인 상태면 채팅에 인라인 표시 — 이름·휴대폰 입력 → `POST /chat/conversations/{id}/contact`. 제출 후 "답변이 등록되면 문자로 알려드릴게요"
 - 직원 답변 실시간 수신: Supabase Realtime은 익명 사용자에게 못 쓰므로(RLS), 웹 위젯은 채팅창이 열려 있는 동안 15초 간격 폴링으로 새 메시지 확인 (단순·충분)
 
-- [ ] **Step 4: 테스트 통과 확인 후 Commit**
+- [ ] **Step 4: 테스트 통과 확인**
 
 Run: `cd webchat && npx vitest run && npx tsc --noEmit`
 Expected: PASS
 
+- [ ] **Step 5: iframe 위젯 로더 빌드 (병원 홈페이지에 삽입하는 산출물 — 5단계와 공유하는 확정 계약)**
+
+`webchat/widget/loader.ts`:
+```typescript
+type InitOptions = { webchatUrl: string };
+
+function init({ webchatUrl }: InitOptions): void {
+  const button = document.createElement("button");
+  button.textContent = "💬";
+  button.setAttribute("aria-label", "상담 시작");
+  Object.assign(button.style, {
+    position: "fixed", right: "20px", bottom: "20px", zIndex: "999999",
+    width: "56px", height: "56px", borderRadius: "50%", border: "none",
+    fontSize: "24px", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+  });
+
+  let iframe: HTMLIFrameElement | null = null;
+
+  button.addEventListener("click", () => {
+    if (iframe) {
+      iframe.remove();
+      iframe = null;
+      return;
+    }
+    iframe = document.createElement("iframe");
+    iframe.src = webchatUrl;
+    iframe.title = "병원 상담봇";
+    Object.assign(iframe.style, {
+      position: "fixed", right: "20px", bottom: "88px", zIndex: "999998",
+      width: "360px", height: "560px", border: "none", borderRadius: "12px",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+    });
+    document.body.appendChild(iframe);
+  });
+
+  document.body.appendChild(button);
+}
+
+declare global {
+  interface Window {
+    HospitalChatWidget: { init: (options: InitOptions) => void };
+  }
+}
+window.HospitalChatWidget = { init };
+```
+
+`webchat/vite.widget.config.ts`(라이브러리 모드로 별도 빌드해 `webchat/dist/widget.js`를 산출한다 — `ChatWidget` 본체와는 별개의 작은 번들):
+```typescript
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  build: {
+    outDir: "dist",
+    emptyOutDir: false,
+    lib: { entry: "widget/loader.ts", name: "HospitalChatWidgetLoader", fileName: () => "widget.js", formats: ["iife"] },
+  },
+});
+```
+
+`webchat/package.json`의 스크립트에 추가: `"build:widget": "vite build --config vite.widget.config.ts"`
+
+- [ ] **Step 6: Commit**
+
 ```bash
 git add webchat/
-git commit -m "feat: 병원 홈페이지용 웹 상담창 위젯 (익명+로그인 전환, 문진 배너)"
+git commit -m "feat: 병원 홈페이지용 웹 상담창 위젯(익명+로그인 전환, 문진 배너) + iframe 삽입용 로더"
 ```
 
 ---
@@ -4960,11 +5129,11 @@ Expected: 전체 PASS
 `backend/tests/test_chat_routes.py`에 추가:
 ```python
 @pytest.mark.asyncio
-async def test_booking_response_includes_questionnaire_prefill(client, patient_auth_headers, monkeypatch):
+async def test_booking_response_includes_questionnaire_prefill(client, patient_auth_headers, service_conn, monkeypatch):
     from app.routers import chat as chat_router
     from uuid import uuid4
 
-    async def fake_create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason):
+    async def fake_create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason, source):
         return uuid4()
 
     async def fake_prefill(conversation_id):
@@ -4975,13 +5144,18 @@ async def test_booking_response_includes_questionnaire_prefill(client, patient_a
 
     r = await client.post("/chat/conversations", json={"channel": "app"}, headers=patient_auth_headers)
     conv_id = r.json()["conversation_id"]
+    nonce = await service_conn.fetchval(
+        """
+        insert into chat_booking_cards (conversation_id, for_patient_id, department_id, doctor_id, slot_id)
+        values ($1, $2, $3, $4, $5)
+        returning nonce
+        """,
+        conv_id, str(uuid4()), str(uuid4()), str(uuid4()), str(uuid4()),
+    )
 
     r = await client.post(
         f"/chat/conversations/{conv_id}/booking",
-        json={
-            "for_patient_id": str(uuid4()), "department_id": str(uuid4()),
-            "doctor_id": str(uuid4()), "slot_id": str(uuid4()),
-        },
+        json={"nonce": str(nonce)},
         headers=patient_auth_headers,
     )
 
@@ -4994,7 +5168,7 @@ Expected: 새 테스트 FAIL (`questionnaire_prefill` 키 없음)
 
 - [ ] **Step 5: confirm_booking 라우터 수정**
 
-`backend/app/routers/chat.py`의 `confirm_booking` 함수를 다음으로 교체:
+`backend/app/routers/chat.py`의 `confirm_booking` 함수 마지막 두 줄(`return` 직전)에 프리필 조회를 추가한다 — 소유권 검증·nonce 소비·`source="chatbot"` 전달 로직(Task 14에서 이미 작성됨)은 그대로 둔다:
 ```python
 @router.post("/conversations/{conversation_id}/booking")
 async def confirm_booking(
@@ -5002,13 +5176,31 @@ async def confirm_booking(
     patient: PatientContext = Depends(get_current_patient),
 ):
     """확인 카드의 '이 내용으로 예약' 버튼 — Claude를 거치지 않고 3단계 예약 서비스 직행."""
+    from app.db.pool import get_pool
+    pool = get_pool()
+
+    conv = await pool.fetchrow("select patient_id from chat_conversations where id = $1", conversation_id)
+    if conv is None or conv["patient_id"] != patient.id:
+        raise AppError("이 상담방에 접근할 수 없어요.", 403)
+
+    card = await pool.fetchrow(
+        """
+        update chat_booking_cards
+        set used_at = now()
+        where nonce = $1 and conversation_id = $2 and used_at is null
+        returning for_patient_id, department_id, doctor_id, slot_id
+        """,
+        body.nonce, conversation_id,
+    )
+    if card is None:
+        raise AppError("이미 처리되었거나 유효하지 않은 예약 확인 카드예요. 다시 시간을 골라주세요.", 409)
+
     appointment_id = await patient_booking_service.create_booking(
-        patient, body.for_patient_id, body.department_id, body.doctor_id,
-        body.slot_id, reason="상담봇 예약",
+        patient, card["for_patient_id"], card["department_id"], card["doctor_id"],
+        card["slot_id"], reason="상담봇 예약", source="chatbot",
     )
     # 예약 완료 카드 메시지 저장 (예약번호 + 사전문진 이동 버튼용)
-    from app.db.pool import get_pool
-    await get_pool().execute(
+    await pool.execute(
         "insert into chat_messages (conversation_id, sender, content, message_type) "
         "values ($1, 'bot', $2, 'booking_done')",
         conversation_id, f"예약이 완료되었어요. 예약번호: {appointment_id}",

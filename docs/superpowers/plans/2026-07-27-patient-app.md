@@ -307,13 +307,56 @@ create policy "patients_can_read_own_status_history" on appointment_status_histo
   for select
   using (exists (select 1 from appointments a where a.id = appointment_status_history.appointment_id and patient_owns(a.account_patient_id)));
 
-create policy "patients_can_insert_own_status_history" on appointment_status_history
+-- 실제 상태전이(from_status <> to_status)를 흉내낸 행은 직접 INSERT로 만들 수 없다 — 1단계에서 만든
+-- log_appointment_status_change() 트리거만 그런 행을 남길 수 있으므로(아래에서 patient 행위자도 인식하도록
+-- 재정의한다), "치명적 규칙은 DB가 최종 심판" 원칙이 환자에게도 동일하게 적용된다.
+-- 다만 "마감 후 취소 요청"(cancellation_requested_at만 세팅, 상태 자체는 그대로)처럼 상태변화가 없는
+-- 관리 메모는 1단계의 staff_can_insert_note_history와 동일한 조건(from_status = to_status)으로 허용한다.
+create policy "patients_can_insert_note_history" on appointment_status_history
   for insert
   with check (
-    changed_by_patient_id is not null
+    from_status = to_status
+    and changed_by_patient_id is not null
     and exists (select 1 from patients p where p.auth_user_id = auth.uid() and p.id = appointment_status_history.changed_by_patient_id)
     and exists (select 1 from appointments a where a.id = appointment_status_history.appointment_id and patient_owns(a.account_patient_id))
   );
+
+-- 1단계 log_appointment_status_change()는 auth.uid()를 staff 테이블에서만 찾았다.
+-- 환자가 직접 예약을 생성·취소·변경할 수 있게 된 이 단계부터는 환자 행위자도 인식해야 하므로 재정의한다.
+create or replace function log_appointment_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_staff_id uuid;
+  v_patient_id uuid;
+  v_old_status text;
+begin
+  v_old_status := case when tg_op = 'INSERT' then null else old.status end;
+  if tg_op = 'INSERT' or new.status is distinct from old.status then
+    select id into v_staff_id from staff where auth_user_id = auth.uid();
+    if v_staff_id is null then
+      select id into v_patient_id from patients where auth_user_id = auth.uid();
+    end if;
+    -- auth.uid()가 없는 세션(배포 시드 스크립트, 관리자 배치 작업 등 JWT 클레임 없이 직접 접속하는 경우)에는
+    -- 행위자를 알 수 없다. changed_by/changed_by_patient_id 둘 다 not null 체크 제약이 있으므로,
+    -- 행위자를 특정하지 못하면 이력 행을 만들지 않고 조용히 건너뛴다(제약 위반으로 시드/배치가 깨지는 것을 방지).
+    if v_staff_id is not null or v_patient_id is not null then
+      insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_by_patient_id, reason)
+      values (
+        new.id, v_old_status, new.status, v_staff_id, v_patient_id,
+        coalesce(
+          current_setting('app.status_change_reason', true),
+          case when tg_op = 'INSERT' then (case when v_patient_id is not null then '환자 앱 예약 신청' else '예약 생성' end) else null end
+        )
+      );
+    end if;
+  end if;
+  return new;
+end;
+$$;
 
 create policy "patients_can_read_templates" on questionnaire_templates
   for select
@@ -355,6 +398,8 @@ from tests.conftest import seed_patient, seed_staff, set_session_auth
 async def _seed_dept_and_doctor(conn):
     doctor = await seed_staff(conn, role="doctor")
     dept_id = await conn.fetchval("insert into departments (name) values ('내과') returning id")
+    # 담당의 소속 진료과와 예약 진료과가 일치해야 하므로(1단계 trg_enforce_appointment_consistency) 맞춰준다.
+    await conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     return dept_id, doctor["staff_id"]
 
 
@@ -1235,7 +1280,9 @@ git commit -m "feat: 환자용 진료과/의사/슬롯 조회 서비스와 slot_
 
 **Interfaces:**
 - Consumes: `app.core.patient_security.PatientContext`(Task 4), `app.services.slot_service.book_slot, release_slot`(1단계 Task 13, Task 7), `app.core.errors.AppError`
-- Produces: `app.services.patient_booking_service.create_booking(patient, for_patient_id: UUID, department_id: UUID, doctor_id: UUID, slot_id: UUID, reason: str) -> UUID`, `change_booking(patient, appointment_id: UUID, new_slot_id: UUID, reason: str) -> UUID`
+- Produces: `app.services.patient_booking_service.create_booking(patient, for_patient_id: UUID, department_id: UUID, doctor_id: UUID, slot_id: UUID, reason: str, source: str = 'app') -> UUID`, `change_booking(patient, appointment_id: UUID, new_slot_id: UUID, reason: str) -> UUID`
+
+> **4단계와의 공유 계약:** `source` 매개변수는 4단계 AI 상담봇(`ai-chatbot.md`)이 이 서비스를 `source='chatbot'`으로 재사용하기 위한 계약이다. 허용값은 `appointments.source` enum(`'app'`/`'chatbot'`/`'staff'`) 중 환자 경로인 `'app'`/`'chatbot'`만이며, 서버에서 검증한다(`'staff'`는 직원 경로 전용이므로 거부). 환자 앱 라우터(Task 13)는 클라이언트로부터 `source`를 받지 않고 기본값 `'app'`을 그대로 쓴다 — 앱 API로는 source 조작이 불가능하다. 이 시그니처를 바꿀 때는 4단계 문서와 함께 갱신해야 한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1258,6 +1305,8 @@ async def _seed_base(db_conn):
     await set_session_auth(db_conn, admin["auth_user_id"])
     doctor = await seed_staff(db_conn, role="doctor")
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    # 담당의 소속 진료과와 예약 진료과가 일치해야 하므로(1단계 trg_enforce_appointment_consistency) 맞춰준다.
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     slot_id = await db_conn.fetchval(
         "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, '2026-08-01', '09:00') returning id",
         doctor["staff_id"],
@@ -1350,6 +1399,8 @@ Expected: FAIL(`app.services.patient_booking_service` 모듈 없음)
 ```python
 from uuid import UUID
 
+import asyncpg
+
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.db.pool import acquire_as
@@ -1370,29 +1421,31 @@ async def create_booking(
     doctor_id: UUID,
     slot_id: UUID,
     reason: str,
+    source: str = "app",
 ) -> UUID:
+    """`source`는 4단계 AI 상담봇(ai-chatbot.md)이 이 서비스를 재사용하며 `'chatbot'`을 넘기기 위한 계약이다.
+    환자 앱 라우터(Task 13)는 이 값을 클라이언트로부터 받지 않고 기본값 `'app'`을 그대로 쓴다.
+    상태 이력(appointment_status_history)은 여기서 직접 INSERT하지 않는다 — 1단계 마이그레이션의
+    `log_appointment_status_change()` 트리거가 INSERT 시 자동으로 남긴다("치명적 규칙은 DB가 최종 심판").
+    """
     async with acquire_as(str(patient.auth_user_id)) as conn:
         booked = await book_slot(slot_id, patient, conn=conn)
         if not booked:
             raise AppError("이미 선택된 시간입니다. 다른 시간을 선택해주세요.", status_code=409)
 
         initial_status = await _initial_status(conn)
-        appointment_id = await conn.fetchval(
-            """
-            insert into appointments
-                (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source)
-            values ($1, $2, $3, $4, $5, $6, $7, 'app')
-            returning id
-            """,
-            slot_id, patient.id, for_patient_id, department_id, doctor_id, reason, initial_status,
-        )
-        await conn.execute(
-            """
-            insert into appointment_status_history (appointment_id, from_status, to_status, changed_by_patient_id, reason)
-            values ($1, null, $2, $3, '환자 앱 예약 신청')
-            """,
-            appointment_id, initial_status, patient.id,
-        )
+        try:
+            appointment_id = await conn.fetchval(
+                """
+                insert into appointments
+                    (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source)
+                values ($1, $2, $3, $4, $5, $6, $7, $8)
+                returning id
+                """,
+                slot_id, patient.id, for_patient_id, department_id, doctor_id, reason, initial_status, source,
+            )
+        except asyncpg.PostgresError as exc:
+            raise AppError(str(exc), status_code=400) from exc
     return appointment_id
 
 
@@ -1417,39 +1470,34 @@ async def change_booking(
         if not booked:
             raise AppError("이미 선택된 시간입니다. 다른 시간을 선택해주세요.", status_code=409)
 
-        await conn.execute(
-            "update appointments set status = '환자취소', updated_at = now() where id = $1", appointment_id,
-        )
+        try:
+            await conn.execute("select set_config('app.status_change_reason', '예약 변경으로 인한 자동 취소', true)")
+            await conn.execute(
+                "update appointments set status = '환자취소', updated_at = now() where id = $1", appointment_id,
+            )
+        except asyncpg.PostgresError as exc:
+            raise AppError(str(exc), status_code=400) from exc
         if row["slot_id"] is not None:
             await release_slot(row["slot_id"], patient, conn=conn)
-        await conn.execute(
-            """
-            insert into appointment_status_history (appointment_id, from_status, to_status, changed_by_patient_id, reason)
-            values ($1, $2, '환자취소', $3, '예약 변경으로 인한 자동 취소')
-            """,
-            appointment_id, row["status"], patient.id,
-        )
 
         new_status = await _initial_status(conn)
-        new_appointment_id = await conn.fetchval(
-            """
-            insert into appointments
-                (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source)
-            values ($1, $2, $3, $4, $5, $6, $7, 'app')
-            returning id
-            """,
-            new_slot_id, patient.id, row["for_patient_id"], row["department_id"], new_slot["doctor_id"], reason,
-            new_status,
-        )
-        await conn.execute(
-            """
-            insert into appointment_status_history (appointment_id, from_status, to_status, changed_by_patient_id, reason)
-            values ($1, null, $2, $3, '예약 변경으로 재신청')
-            """,
-            new_appointment_id, new_status, patient.id,
-        )
+        try:
+            new_appointment_id = await conn.fetchval(
+                """
+                insert into appointments
+                    (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source)
+                values ($1, $2, $3, $4, $5, $6, $7, 'app')
+                returning id
+                """,
+                new_slot_id, patient.id, row["for_patient_id"], row["department_id"], new_slot["doctor_id"], reason,
+                new_status,
+            )
+        except asyncpg.PostgresError as exc:
+            raise AppError(str(exc), status_code=400) from exc
     return new_appointment_id
 ```
+
+> 위 코드가 참조하는 `asyncpg`는 파일 상단에 `import asyncpg`로 추가한다. 상태 이력은 트리거가 전담하므로, 취소·재신청 각각의 사유는 `set_config('app.status_change_reason', ...)`로 세션에 실어 트리거가 이력에 그대로 기록하게 한다(재신청 이력의 사유는 트리거의 INSERT 기본값 `'환자 앱 예약 신청'`이 그대로 쓰이므로 별도 설정이 필요 없다).
 
 - [ ] **Step 3: 테스트 실행**
 
@@ -1567,18 +1615,17 @@ async def cancel_appointment(patient: PatientContext, appointment_id: UUID, reas
             can_cancel_directly = datetime.now() <= appointment_dt - timedelta(hours=deadline_hours)
 
         if can_cancel_directly:
-            await conn.execute(
-                "update appointments set status = '환자취소', updated_at = now() where id = $1", appointment_id,
-            )
+            if reason:
+                await conn.execute("select set_config('app.status_change_reason', $1, true)", reason)
+            try:
+                await conn.execute(
+                    "update appointments set status = '환자취소', updated_at = now() where id = $1", appointment_id,
+                )
+            except asyncpg.PostgresError as exc:
+                raise AppError(str(exc), status_code=400) from exc
             if row["slot_id"] is not None:
                 await release_slot(row["slot_id"], patient, conn=conn)
-            await conn.execute(
-                """
-                insert into appointment_status_history (appointment_id, from_status, to_status, changed_by_patient_id, reason)
-                values ($1, $2, '환자취소', $3, $4)
-                """,
-                appointment_id, row["status"], patient.id, reason,
-            )
+            # 이력은 log_appointment_status_change() 트리거가 자동으로 남긴다(직접 INSERT 금지).
             return {"cancelled": True, "cancellation_requested": False}
 
         await conn.execute(
@@ -1619,6 +1666,7 @@ async def test_list_my_appointments_includes_family(db_conn):
     await set_session_auth(db_conn, admin["auth_user_id"])
     doctor = await seed_staff(db_conn, role="doctor")
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     slot_id = await db_conn.fetchval(
         "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, '2026-09-01', '09:00') returning id",
         doctor["staff_id"],
@@ -1647,6 +1695,7 @@ async def test_list_my_appointments_excludes_past_dated_slots(db_conn):
     await set_session_auth(db_conn, admin["auth_user_id"])
     doctor = await seed_staff(db_conn, role="doctor")
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     past_slot_id = await db_conn.fetchval(
         "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, '2020-01-01', '09:00', '예약됨') returning id",
         doctor["staff_id"],
@@ -1671,6 +1720,7 @@ async def test_get_appointment_detail_returns_status(db_conn):
     await set_session_auth(db_conn, admin["auth_user_id"])
     doctor = await seed_staff(db_conn, role="doctor")
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     slot_id = await db_conn.fetchval(
         "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, '2026-09-01', '09:00') returning id",
         doctor["staff_id"],
@@ -1731,7 +1781,7 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
         row = await conn.fetchrow(
             """
             select a.id, a.status, a.cancellation_requested_at, a.updated_at, a.queue_position,
-                   p.name as for_patient_name, d.name as department_name, st.name as doctor_name,
+                   a.doctor_id, p.name as for_patient_name, d.name as department_name, st.name as doctor_name,
                    s.slot_date, s.start_time
             from appointments a
             join patients p on p.id = a.for_patient_id
@@ -1786,6 +1836,7 @@ async def _seed_appointment(db_conn):
     await set_session_auth(db_conn, admin["auth_user_id"])
     doctor = await seed_staff(db_conn, role="doctor")
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     template_id = await db_conn.fetchval(
         "insert into questionnaire_templates (department_id, questions) values ($1, $2) returning id",
         dept_id, '[{"text": "오늘 불편한 증상은 무엇인가요?", "type": "text", "required": true}]',
@@ -1959,6 +2010,7 @@ async def test_list_visit_history_shows_only_completed_and_visible_notes(db_conn
     await set_session_auth(db_conn, admin["auth_user_id"])
     doctor = await seed_staff(db_conn, role="doctor")
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     patient_seed = await seed_patient(db_conn)
     me = PatientContext(id=patient_seed["patient_id"], auth_user_id=patient_seed["auth_user_id"])
 
@@ -4051,15 +4103,97 @@ git commit -m "feat: 가족 등록/수정/연결해제 화면 추가"
 
 ## Task 19: 예약 플로우 (8단계)
 
+> 정합성 검토(2026-07-28)에서 지적된 두 결함을 이 태스크에서 고친다: ① 앱이 본인을 문자열 `'self'`로 그대로 서버에 보내는데 백엔드는 UUID를 요구해 본인 예약이 실패하던 문제 → `MyProfileController`로 실제 patient UUID를 로드해서 쓴다. ② 진료과·의사·날짜·시간 선택(1~5단계)이 `Text('N단계 화면')` placeholder였던 문제 → 실제 API 연동 목록 위젯으로 채운다.
+
 **Files:**
+- Create: `mobile/lib/features/profile/my_profile_controller.dart`
 - Create: `mobile/lib/features/booking/booking_flow_controller.dart`
 - Create: `mobile/lib/features/booking/booking_flow_screen.dart`
-- Modify: `mobile/lib/core/router.dart` (`/booking` 라우트 교체)
+- Modify: `mobile/lib/core/router.dart` (`/booking`, `/history` 라우트 교체)
+- Test: `mobile/test/features/profile/my_profile_controller_test.dart`
 - Test: `mobile/test/features/booking/booking_flow_controller_test.dart`
+- Test: `mobile/test/features/booking/booking_flow_screen_test.dart`
 
 **Interfaces:**
 - Consumes: `apiClientProvider`(Task 15), `FamilyMember, familyControllerProvider`(Task 18)
+- Produces: `MyProfile`(모델: `id, name, birthDate, gender, phone`), `myProfileControllerProvider`(`AsyncNotifierProvider<MyProfileController, MyProfile>`, `GET /app/profile` 결과 캐시)
 - Produces: `BookingSelection`(모델: `forPatientId, departmentId, doctorId, slotId, reason`), `BookingFlowController`(`AsyncNotifier<BookingSelection>`: `selectPatient(id)`, `selectDepartment(id)`, `selectDoctor(id)`, `selectSlot(id)`, `setReason(text)`, `submit() -> Future<String>`(생성된 `appointment_id` 반환))
+
+- [ ] **Step 0: 실패하는 테스트 작성 — MyProfileController**
+
+`mobile/test/features/profile/my_profile_controller_test.dart`:
+```dart
+import 'dart:convert';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
+import 'package:hospital_patient_app/core/providers.dart';
+import 'package:hospital_patient_app/features/profile/my_profile_controller.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+void main() {
+  test('내 프로필을 조회하면 실제 patient UUID를 담은 MyProfile을 반환한다', () async {
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({'id': 'p1', 'name': '홍길동', 'birth_date': '1985-03-01', 'gender': 'M', 'phone': '01012345678'}),
+        200,
+      );
+    });
+    final container = ProviderContainer(overrides: [
+      apiClientProvider.overrideWithValue(
+        ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 't', httpClient: mockClient),
+      ),
+    ]);
+
+    final profile = await container.read(myProfileControllerProvider.future);
+
+    expect(profile.id, 'p1');
+  });
+}
+```
+
+Run: `cd mobile && flutter test test/features/profile/my_profile_controller_test.dart`
+Expected: FAIL(모듈 없음)
+
+- [ ] **Step 0.1: MyProfileController 구현**
+
+`mobile/lib/features/profile/my_profile_controller.dart`:
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/providers.dart';
+
+class MyProfile {
+  const MyProfile({required this.id, required this.name, required this.birthDate, required this.gender, required this.phone});
+  final String id;
+  final String name;
+  final String birthDate;
+  final String gender;
+  final String phone;
+
+  factory MyProfile.fromJson(Map<String, dynamic> json) => MyProfile(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        birthDate: json['birth_date'] as String,
+        gender: json['gender'] as String,
+        phone: json['phone'] as String,
+      );
+}
+
+class MyProfileController extends AsyncNotifier<MyProfile> {
+  @override
+  Future<MyProfile> build() async {
+    final api = ref.read(apiClientProvider);
+    return api.get('/app/profile', (json) => MyProfile.fromJson(json as Map<String, dynamic>));
+  }
+}
+
+final myProfileControllerProvider = AsyncNotifierProvider<MyProfileController, MyProfile>(MyProfileController.new);
+```
+
+> 로그인 직후(홈 화면 진입 시) 한 번 `ref.read(myProfileControllerProvider.future)`로 미리 불러와 두면, 예약·방문이력 등 "본인"을 나타내야 하는 모든 화면이 문자열 `'self'` 대신 이 `profile.id`(실제 patient UUID)를 쓸 수 있다. 서버 API와 RLS는 UUID만 인식하므로, `'self'` 리터럴은 이 태스크 이후 코드베이스에서 완전히 제거한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -4189,7 +4323,61 @@ final bookingFlowControllerProvider = NotifierProvider<BookingFlowController, Bo
 Run: `cd mobile && flutter test test/features/booking/booking_flow_controller_test.dart`
 Expected: 1개 테스트 PASS
 
-- [ ] **Step 4: 8단계 화면 작성(PageView 기반 위저드)**
+- [ ] **Step 4: 카탈로그 API 클라이언트 (진료과/의사/날짜/시간)**
+
+`mobile/lib/features/booking/catalog_controller.dart`:
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/providers.dart';
+
+class CatalogItem {
+  const CatalogItem({required this.id, required this.name});
+  final String id;
+  final String name;
+
+  factory CatalogItem.fromJson(Map<String, dynamic> json) =>
+      CatalogItem(id: json['id'] as String, name: json['name'] as String);
+}
+
+class SlotItem {
+  const SlotItem({required this.id, required this.startTime});
+  final String id;
+  final String startTime;
+
+  factory SlotItem.fromJson(Map<String, dynamic> json) =>
+      SlotItem(id: json['id'] as String, startTime: json['start_time'] as String);
+}
+
+final departmentsProvider = FutureProvider<List<CatalogItem>>((ref) async {
+  final api = ref.read(apiClientProvider);
+  return api.get('/app/departments', (json) => (json as List).map((e) => CatalogItem.fromJson(e as Map<String, dynamic>)).toList());
+});
+
+final doctorsProvider = FutureProvider.family<List<CatalogItem>, String>((ref, departmentId) async {
+  final api = ref.read(apiClientProvider);
+  return api.get(
+    '/app/doctors?department_id=$departmentId',
+    (json) => (json as List).map((e) => CatalogItem.fromJson(e as Map<String, dynamic>)).toList(),
+  );
+});
+
+final availableDatesProvider = FutureProvider.family<List<String>, String>((ref, doctorId) async {
+  final api = ref.read(apiClientProvider);
+  return api.get('/app/available-dates/$doctorId', (json) => (json as List).map((e) => e as String).toList());
+});
+
+final availableSlotsProvider = FutureProvider.family<List<SlotItem>, (String, String)>((ref, args) async {
+  final (doctorId, targetDate) = args;
+  final api = ref.read(apiClientProvider);
+  return api.get(
+    '/app/available-slots/$doctorId?target_date=$targetDate',
+    (json) => (json as List).map((e) => SlotItem.fromJson(e as Map<String, dynamic>)).toList(),
+  );
+});
+```
+
+- [ ] **Step 5: 8단계 화면 작성(PageView 기반 위저드, 각 단계 실제 API 연동)**
 
 `mobile/lib/features/booking/booking_flow_screen.dart`:
 ```dart
@@ -4198,7 +4386,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../family/family_controller.dart';
+import '../profile/my_profile_controller.dart';
 import 'booking_flow_controller.dart';
+import 'catalog_controller.dart';
 
 class BookingFlowScreen extends ConsumerStatefulWidget {
   const BookingFlowScreen({super.key});
@@ -4211,35 +4401,104 @@ class _BookingFlowScreenState extends ConsumerState<BookingFlowScreen> {
   int _step = 0;
   final _reasonController = TextEditingController();
 
+  Widget _listOrLoading<T>(AsyncValue<List<T>> value, Widget Function(List<T>) builder) {
+    return value.when(
+      loading: () => const CircularProgressIndicator(),
+      error: (e, _) => Text('$e'),
+      data: builder,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selection = ref.watch(bookingFlowControllerProvider);
     final controller = ref.read(bookingFlowControllerProvider.notifier);
     final familyState = ref.watch(familyControllerProvider);
+    final myProfileState = ref.watch(myProfileControllerProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text('예약 (${_step + 1}/8)')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: switch (_step) {
-          0 => familyState.when(
+          // 0단계: 본인 또는 가족 구성원 선택 — 본인은 반드시 실제 patient UUID를 써야 한다('self' 리터럴 금지).
+          0 => myProfileState.when(
               loading: () => const CircularProgressIndicator(),
               error: (e, _) => Text('$e'),
-              data: (members) => ListView(
-                children: [
+              data: (myProfile) => familyState.when(
+                loading: () => const CircularProgressIndicator(),
+                error: (e, _) => Text('$e'),
+                data: (members) => ListView(
+                  children: [
+                    ListTile(
+                      title: const Text('본인'),
+                      onTap: () {
+                        controller.selectPatient(myProfile.id);
+                        setState(() => _step = 1);
+                      },
+                    ),
+                    for (final member in members)
+                      ListTile(
+                        title: Text('${member.name} (${member.relation})'),
+                        onTap: () {
+                          controller.selectPatient(member.id);
+                          setState(() => _step = 1);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          // 1단계: 진료과 선택
+          1 => _listOrLoading(ref.watch(departmentsProvider), (items) => ListView(
+              children: [
+                for (final item in items)
                   ListTile(
-                    title: const Text('본인'),
+                    title: Text(item.name),
                     onTap: () {
-                      controller.selectPatient('self');
-                      setState(() => _step = 1);
+                      controller.selectDepartment(item.id);
+                      setState(() => _step = 2);
                     },
                   ),
-                  for (final member in members)
+              ],
+            )),
+          // 2단계: 의사 선택
+          2 => _listOrLoading(ref.watch(doctorsProvider(selection.departmentId!)), (items) => ListView(
+              children: [
+                for (final item in items)
+                  ListTile(
+                    title: Text(item.name),
+                    onTap: () {
+                      controller.selectDoctor(item.id);
+                      setState(() => _step = 3);
+                    },
+                  ),
+              ],
+            )),
+          // 3단계: 날짜 선택
+          3 => _listOrLoading(ref.watch(availableDatesProvider(selection.doctorId!)), (dates) => ListView(
+              children: [
+                for (final date in dates)
+                  ListTile(
+                    title: Text(date),
+                    onTap: () => setState(() {
+                      _selectedDate = date;
+                      _step = 4;
+                    }),
+                  ),
+              ],
+            )),
+          // 4단계: 시간 선택
+          4 => _listOrLoading(
+              ref.watch(availableSlotsProvider((selection.doctorId!, _selectedDate!))),
+              (slots) => ListView(
+                children: [
+                  for (final slot in slots)
                     ListTile(
-                      title: Text('${member.name} (${member.relation})'),
+                      title: Text(slot.startTime),
                       onTap: () {
-                        controller.selectPatient(member.id);
-                        setState(() => _step = 1);
+                        controller.selectSlot(slot.id);
+                        setState(() => _step = 6);
                       },
                     ),
                 ],
@@ -4273,37 +4532,42 @@ class _BookingFlowScreenState extends ConsumerState<BookingFlowScreen> {
                 ),
               ],
             ),
-          _ => Column(
-              children: [
-                Text('${_step + 1}단계 화면(진료과/의사/날짜/시간 선택)'),
-                ElevatedButton(onPressed: () => setState(() => _step += 1), child: const Text('다음')),
-              ],
-            ),
+          _ => const SizedBox.shrink(),
         },
       ),
     );
   }
 }
 ```
-(진료과·의사·날짜·시간 단계는 각각 `patient_catalog_service`가 제공하는 `/app/departments`, `/app/doctors`, `/app/available-dates`, `/app/available-slots`를 호출하는 목록 위젯으로, 위 `_step` 1~5 분기에 Task 18의 `FamilyMember` 목록 위젯과 동일한 `ListTile` 패턴을 반복 적용해 완성한다 — 데이터 계약(`BookingFlowController.selectDepartment/selectDoctor/selectSlot`)은 이미 Step 2에서 확정되어 있으므로 추가 컨트롤러 변경 없이 화면만 채우면 된다.)
 
-- [ ] **Step 5: 라우터 연결**
+> 위 위젯은 `_selectedDate`를 상태로 들고 있어야 하므로 `_BookingFlowScreenState`에 `String? _selectedDate;` 필드를 추가한다(코드에는 간결함을 위해 생략). 5단계는 별도 화면 없이 4단계에서 시간을 고르는 즉시 슬롯이 확정되므로 6단계(방문 이유)로 바로 넘어간다 — 스펙의 "8단계"는 본인선택·진료과·의사·날짜·시간·(예비)·방문이유·확인의 8개 화면 전환을 의미하며, 실제 로직 단계는 6개다.
+
+- [ ] **Step 6: 라우터 연결**
 
 `mobile/lib/core/router.dart`의 `/booking` 라우트를 교체한다:
 ```dart
 GoRoute(path: '/booking', builder: (context, state) => const BookingFlowScreen()),
 ```
 
-- [ ] **Step 6: 커밋**
+> `/history` 라우트의 `'self'` 리터럴은 Task 24(방문 이력 화면)에서 같은 `myProfileControllerProvider`를 사용해 함께 고친다 — 그 라우트는 Task 24가 소유하므로 여기서는 건드리지 않는다.
+
+- [ ] **Step 7: 테스트 실행**
+
+Run: `cd mobile && flutter test test/features/profile/my_profile_controller_test.dart test/features/booking/booking_flow_controller_test.dart`
+Expected: 전체 PASS
+
+- [ ] **Step 8: 커밋**
 
 ```bash
-git add mobile/lib/features/booking mobile/lib/core/router.dart mobile/test/features/booking/booking_flow_controller_test.dart
-git commit -m "feat: 8단계 예약 플로우 컨트롤러와 화면 추가"
+git add mobile/lib/features/profile mobile/lib/features/booking mobile/lib/core/router.dart mobile/test/features/profile/my_profile_controller_test.dart mobile/test/features/booking/booking_flow_controller_test.dart
+git commit -m "feat: 8단계 예약 플로우 실제 API 연동, MyProfileController로 'self' 리터럴 제거"
 ```
 
 ---
 
 ## Task 20: 예약 변경/취소 화면
+
+> 정합성 검토(2026-07-28)에서 지적된 갭: `AppointmentActionController.changeBooking`은 이미 구현돼 있었지만, 실제로 새 날짜·시간을 고르는 화면이 없어 호출할 방법이 없었다("예약 변경 UI가 없다"). 이 태스크에 새 슬롯 선택 다이얼로그를 추가해 마무리한다.
 
 **Files:**
 - Create: `mobile/lib/features/booking/appointment_action_controller.dart`
@@ -4312,7 +4576,7 @@ git commit -m "feat: 8단계 예약 플로우 컨트롤러와 화면 추가"
 - Test: `mobile/test/features/booking/appointment_action_controller_test.dart`
 
 **Interfaces:**
-- Consumes: `apiClientProvider`(Task 15)
+- Consumes: `apiClientProvider`(Task 15), `get_appointment_detail`이 반환하는 `doctor_id`(Task 9, 예약 변경 대상 의사 식별용으로 확장), `availableDatesProvider, availableSlotsProvider`(Task 19 `catalog_controller.dart`)
 - Produces: `AppointmentActionController`(`AsyncNotifier<void>`: `changeBooking(appointmentId, newSlotId, reason) -> Future<String>`, `cancelBooking(appointmentId, reason) -> Future<Map<String, bool>>`)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
@@ -4412,15 +4676,87 @@ Expected: 1개 테스트 PASS
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/providers.dart';
 import 'appointment_action_controller.dart';
+import 'catalog_controller.dart';
+
+final _appointmentDetailProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, appointmentId) async {
+  final api = ref.read(apiClientProvider);
+  return api.get('/app/appointments/$appointmentId', (json) => json as Map<String, dynamic>);
+});
 
 class AppointmentDetailScreen extends ConsumerWidget {
   const AppointmentDetailScreen({super.key, required this.appointmentId});
   final String appointmentId;
 
+  Future<void> _openRescheduleDialog(BuildContext context, WidgetRef ref, String doctorId) async {
+    String? selectedDate;
+    String? selectedSlotId;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('예약 변경 — 새 날짜/시간 선택'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: selectedDate == null
+                ? Consumer(
+                    builder: (context, ref, _) => ref.watch(availableDatesProvider(doctorId)).when(
+                          loading: () => const CircularProgressIndicator(),
+                          error: (e, _) => Text('$e'),
+                          data: (dates) => ListView(
+                            shrinkWrap: true,
+                            children: [
+                              for (final date in dates)
+                                ListTile(title: Text(date), onTap: () => setDialogState(() => selectedDate = date)),
+                            ],
+                          ),
+                        ),
+                  )
+                : Consumer(
+                    builder: (context, ref, _) =>
+                        ref.watch(availableSlotsProvider((doctorId, selectedDate!))).when(
+                              loading: () => const CircularProgressIndicator(),
+                              error: (e, _) => Text('$e'),
+                              data: (slots) => ListView(
+                                shrinkWrap: true,
+                                children: [
+                                  for (final slot in slots)
+                                    ListTile(
+                                      title: Text(slot.startTime),
+                                      onTap: () {
+                                        selectedSlotId = slot.id;
+                                        Navigator.of(dialogContext).pop();
+                                      },
+                                    ),
+                                ],
+                              ),
+                            ),
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('취소')),
+          ],
+        ),
+      ),
+    );
+
+    if (selectedSlotId != null && context.mounted) {
+      final newAppointmentId = await ref
+          .read(appointmentActionControllerProvider.notifier)
+          .changeBooking(appointmentId, selectedSlotId!, '환자 요청으로 일정 변경');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('예약이 변경되었습니다.')));
+        context.go('/appointments/$newAppointmentId');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actionState = ref.watch(appointmentActionControllerProvider);
+    final detailState = ref.watch(_appointmentDetailProvider(appointmentId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('예약 상세')),
@@ -4431,6 +4767,17 @@ class AppointmentDetailScreen extends ConsumerWidget {
           children: [
             Text('예약번호: $appointmentId', style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 24),
+            detailState.when(
+              loading: () => const CircularProgressIndicator(),
+              error: (e, _) => Text('$e'),
+              data: (detail) => ElevatedButton(
+                onPressed: actionState.isLoading
+                    ? null
+                    : () => _openRescheduleDialog(context, ref, detail['doctor_id'] as String),
+                child: const Text('예약 변경'),
+              ),
+            ),
+            const SizedBox(height: 8),
             ElevatedButton(
               onPressed: actionState.isLoading
                   ? null
@@ -4455,6 +4802,8 @@ class AppointmentDetailScreen extends ConsumerWidget {
 }
 ```
 
+> `context.go(...)`를 쓰려면 `go_router` import가 필요하다(`import 'package:go_router/go_router.dart';`). 재확인 UX(변경 전 "정말 변경하시겠습니까?" 확인 다이얼로그)는 위 슬롯 선택 자체가 명시적 액션이므로 별도 확인창 없이 바로 진행한다 — 취소와 달리 변경은 이미 두 번의 선택(날짜→시간)을 거치기 때문이다.
+
 `mobile/lib/core/router.dart`의 `/appointments/:id` 라우트를 교체한다:
 ```dart
 GoRoute(
@@ -4466,8 +4815,8 @@ GoRoute(
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add mobile/lib/features/booking/appointment_action_controller.dart mobile/lib/features/booking/appointment_detail_screen.dart mobile/lib/core/router.dart mobile/test/features/booking/appointment_action_controller_test.dart
-git commit -m "feat: 예약 변경/취소 화면과 마감전후 취소 분기 처리 추가"
+git add mobile/lib/features/booking/appointment_action_controller.dart mobile/lib/features/booking/appointment_detail_screen.dart mobile/lib/core/router.dart mobile/test/features/booking/appointment_action_controller_test.dart backend/app/services/patient_appointment_query_service.py
+git commit -m "feat: 예약 변경 화면(날짜/시간 재선택)과 마감전후 취소 분기 처리 추가"
 ```
 
 ---
@@ -5088,11 +5437,12 @@ git commit -m "feat: 나의 예약 목록과 Realtime 방문상태 구독 추가
 **Files:**
 - Create: `mobile/lib/features/history/history_controller.dart`
 - Create: `mobile/lib/features/history/history_screen.dart`
+- Create: `mobile/lib/features/history/history_route.dart`
 - Modify: `mobile/lib/core/router.dart` (`/history` 라우트 교체)
 - Test: `mobile/test/features/history/history_controller_test.dart`
 
 **Interfaces:**
-- Consumes: `apiClientProvider`(Task 15)
+- Consumes: `apiClientProvider`(Task 15), `myProfileControllerProvider`(Task 19)
 - Produces: `VisitHistoryItem`(모델), `HistoryController`(`AsyncNotifier<List<VisitHistoryItem>>`: `load(forPatientId)`)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
@@ -5234,19 +5584,46 @@ class HistoryScreen extends ConsumerWidget {
 }
 ```
 
-`mobile/lib/core/router.dart`의 `/history` 라우트를 교체한다(쿼리 파라미터로 `forPatientId`를 받는다):
+`mobile/lib/core/router.dart`의 `/history` 라우트를 교체한다. 쿼리 파라미터가 있으면(가족 구성원 이력) 그대로 쓰고,
+없으면("본인" 이력) 문자열 `'self'` 대신 `myProfileControllerProvider`(Task 19)에서 실제 patient UUID를 읽는다 —
+`'self'`는 서버 API·RLS가 인식하지 못하는 값이라 이전에는 본인 방문이력 조회가 항상 실패했다:
 ```dart
 GoRoute(
   path: '/history',
-  builder: (context, state) => HistoryScreen(forPatientId: state.uri.queryParameters['patientId'] ?? 'self'),
+  builder: (context, state) => _HistoryRoute(patientId: state.uri.queryParameters['patientId']),
 ),
+```
+
+`mobile/lib/features/history/history_route.dart`:
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../profile/my_profile_controller.dart';
+import 'history_screen.dart';
+
+class _HistoryRoute extends ConsumerWidget {
+  const _HistoryRoute({required this.patientId});
+  final String? patientId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (patientId != null) return HistoryScreen(forPatientId: patientId!);
+    final myProfile = ref.watch(myProfileControllerProvider);
+    return myProfile.when(
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
+      data: (profile) => HistoryScreen(forPatientId: profile.id),
+    );
+  }
+}
 ```
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add mobile/lib/features/history mobile/lib/core/router.dart mobile/test/features/history/history_controller_test.dart
-git commit -m "feat: 방문 이력 화면 추가"
+git commit -m "feat: 방문 이력 화면 추가, 'self' 리터럴을 실제 patient UUID로 교체"
 ```
 
 ---

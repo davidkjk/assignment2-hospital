@@ -4,7 +4,7 @@
 
 **Goal:** 병원 통합 서비스의 백엔드 기반 — 직원 인증/권한(Supabase Auth + RLS), 예약·진료상태·진료기록 수정이력을 포함한 핵심 데이터 모델을 FastAPI + Supabase(Postgres) 위에 구축한다.
 
-**Architecture:** Supabase Postgres에 마이그레이션으로 스키마와 RLS 정책을 만들고, FastAPI는 요청자의 JWT 클레임을 DB 세션에 실어(`request.jwt.claims` + `set local role authenticated`) RLS가 실제 권한 집행을 하도록 한다. 서비스 계층(`app/services/*`)이 슬롯 조건부 UPDATE, 낙관적 잠금(`updated_at` 비교), 상태 이력·수정 이력 기록 같은 트랜잭션 로직을 담당하고, 라우터는 `require_role` 의존성으로 1차 권한 검사 후 서비스를 호출하는 얇은 계층이다.
+**Architecture:** Supabase Postgres에 마이그레이션으로 스키마와 RLS 정책을 만들고, FastAPI는 요청자의 JWT 클레임을 DB 세션에 실어(`request.jwt.claims` + `set local role authenticated`) RLS가 실제 권한 집행을 하도록 한다. 서비스 계층(`app/services/*`)이 슬롯 조건부 UPDATE, 입력 검증, 한글 안내 메시지 같은 "친절한 안내" 로직을 담당하고, 라우터는 `require_role` 의존성으로 1차 권한 검사 후 서비스를 호출하는 얇은 계층이다. **우회가 절대 불가능해야 하는 불변식(완료 진료기록 수정 규칙, 예약 상태전이·이력, 담당의 정합성)은 DB의 SECURITY DEFINER RPC·트리거가 최종 심판으로 강제한다** — 서비스 코드의 검증은 유지하되(친절한 안내 역할), Supabase에 직접 접속해도 이 규칙은 깨지지 않는다.
 
 **Tech Stack:** FastAPI, Supabase (Postgres/Auth), asyncpg, supabase-py(Auth Admin 호출용), pytest + pytest-asyncio, Supabase CLI(로컬 개발)
 
@@ -19,6 +19,7 @@
 - 같은 의사·같은 시간 이중예약은 `appointment_slots`의 조건부 UPDATE로 원천 차단한다 (스펙 문서 섹션 3)
 - 동시 수정 충돌은 `updated_at` 낙관적 잠금으로 방지한다 (스펙 문서 섹션 3)
 - 사용자에게는 한글 안내 메시지만 노출하고, 미처리 예외는 `system_error_log`에 기록한다 (스펙 문서 섹션 3)
+- **치명적 규칙은 DB가 최종 심판, 친절한 안내는 서버** (스펙 문서 섹션 4): 완료 진료기록 수정(사유·이력·낙관적 잠금), 예약 상태전이·이력 기록, 진료기록/예약의 담당의 정합성은 DB의 RPC·트리거·RLS로 강제한다. 서버(FastAPI 서비스)의 검증 로직은 제거하지 않고 유지하되 이는 한글 안내를 위한 1차 방어이며, DB가 최종 방어선이다.
 
 ---
 
@@ -704,10 +705,137 @@ create policy "staff_can_read_status_history" on appointment_status_history
   for select
   using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
 
-create policy "staff_can_insert_status_history" on appointment_status_history
+-- 주의: appointment_status_history에는 클라이언트가 직접 INSERT할 수 있는 정책을 두지 않는다.
+-- 이력 기록은 아래 log_appointment_status_change() 트리거(SECURITY DEFINER)만 담당하며,
+-- 이렇게 해야 "이력 없이 상태만 슬쩍 바꾸는" 우회가 원천적으로 불가능하다.
+
+-- ── 치명적 규칙은 DB가 최종 심판 ──────────────────────────────────────────
+-- ①: 예약의 담당의가 실제로 활성 상태의 의사인지, 소속 진료과가 예약 진료과와
+--    일치하는지, 슬롯을 지정한 경우 슬롯 담당의와 예약 담당의가 같은지 검증한다.
+create or replace function enforce_appointment_consistency()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_doctor_role staff_role;
+  v_doctor_dept uuid;
+  v_doctor_active boolean;
+  v_slot_doctor uuid;
+begin
+  select role, department_id, is_active into v_doctor_role, v_doctor_dept, v_doctor_active
+  from staff where id = new.doctor_id;
+
+  if v_doctor_role is null or v_doctor_role <> 'doctor' or not coalesce(v_doctor_active, false) then
+    raise exception '담당의로 지정한 직원이 활성 상태의 의사가 아닙니다.' using errcode = 'P0001';
+  end if;
+
+  if new.department_id is distinct from v_doctor_dept then
+    raise exception '담당의의 소속 진료과와 예약 진료과가 일치하지 않습니다.' using errcode = 'P0001';
+  end if;
+
+  if new.slot_id is not null then
+    select doctor_id into v_slot_doctor from appointment_slots where id = new.slot_id;
+    if v_slot_doctor is distinct from new.doctor_id then
+      raise exception '선택한 시간대의 담당의와 예약 담당의가 일치하지 않습니다.' using errcode = 'P0001';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger trg_enforce_appointment_consistency
+  before insert or update of doctor_id, department_id, slot_id on appointments
+  for each row execute function enforce_appointment_consistency();
+
+-- ②: 예약 상태전이는 정해진 경로만 허용한다(직접 UPDATE로 임의 상태 점프 차단).
+create table appointment_status_transitions (
+  from_status text,
+  to_status text not null,
+  primary key (from_status, to_status)
+);
+
+insert into appointment_status_transitions (from_status, to_status) values
+  (null, '예약신청'), (null, '예약확정'),
+  ('예약신청', '예약확정'), ('예약신청', '환자취소'), ('예약신청', '병원취소'),
+  ('예약확정', '도착'), ('예약확정', '환자취소'), ('예약확정', '병원취소'), ('예약확정', '예약부도'),
+  ('도착', '진료대기'),
+  ('진료대기', '진료중'),
+  ('진료중', '진료완료');
+
+-- 전이 검증은 UPDATE(이후 실제 상태변경)에만 건다 — INSERT 시점 초기 상태까지 이 표로 강제하면
+-- 테스트 픽스처가 흔히 쓰는 "완료 상태로 미리 씨딩" 같은 직접 INSERT 셋업이 전부 깨진다.
+-- 초기 상태 자체의 채널별 제한(예: 앱은 '예약신청'만 등)은 이번 5건 수정 범위 밖의 별도 보완 과제로 남긴다.
+create or replace function enforce_appointment_status_transition()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status is distinct from old.status then
+    if not exists (
+      select 1 from appointment_status_transitions
+      where from_status is not distinct from old.status and to_status = new.status
+    ) then
+      raise exception '''%'' 상태에서 ''%''(으)로 변경할 수 없습니다.', old.status, new.status
+        using errcode = 'P0001';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_enforce_appointment_status_transition
+  before update of status on appointments
+  for each row execute function enforce_appointment_status_transition();
+
+-- ③: 상태 변경 이력은 서비스 코드가 아니라 트리거가 자동으로 남긴다(생성 시 초기 이력 포함).
+-- 서비스는 `set local app.status_change_reason = '<사유>'`로 사유만 세션에 실어두면 된다.
+create or replace function log_appointment_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_staff_id uuid;
+  v_old_status text;
+begin
+  v_old_status := case when tg_op = 'INSERT' then null else old.status end;
+  if tg_op = 'INSERT' or new.status is distinct from old.status then
+    select id into v_staff_id from staff where auth_user_id = auth.uid();
+    -- auth.uid()가 없는 세션(배포 시드 스크립트 등 JWT 클레임 없이 직접 접속)에는 changed_by가 NOT NULL이라
+    -- 행위자를 못 찾으면 이력 행을 만들지 않고 조용히 건너뛴다(제약 위반으로 시드/배치가 깨지는 것을 방지).
+    if v_staff_id is not null then
+      insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, reason)
+      values (
+        new.id, v_old_status, new.status, v_staff_id,
+        coalesce(current_setting('app.status_change_reason', true), case when tg_op = 'INSERT' then '예약 생성' else null end)
+      );
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_log_appointment_status_change
+  after insert or update of status on appointments
+  for each row execute function log_appointment_status_change();
+
+-- 클라이언트가 실제 상태전이를 흉내낸 이력을 직접 꾸며 넣을 수는 없지만(위 INSERT 정책 없음),
+-- 순서 재배치처럼 상태변화가 없는 관리 메모는 from_status = to_status인 행만 허용해 예외로 둔다.
+create policy "staff_can_insert_note_history" on appointment_status_history
   for insert
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  with check (
+    from_status = to_status
+    and exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active)
+  );
 ```
+
+> 위 트리거 함수는 모두 `security definer`로 만들어 마이그레이션 실행 계정(Supabase의 `postgres` 역할, RLS 우회 권한 보유) 소유로 등록된다. 그래서 `appointment_status_history`에 실제 상태전이를 직접 INSERT할 수 있는 정책이 없어도 트리거는 정상적으로 이력을 남길 수 있다 — 이것이 "DB가 최종 심판"의 핵심 장치다.
 
 - [ ] **Step 2: 마이그레이션 적용**
 
@@ -750,10 +878,10 @@ async def test_slot_unique_per_doctor_date_time(db_conn):
 @pytest.mark.asyncio
 async def test_receptionist_can_create_appointment(db_conn):
     admin = await seed_staff(db_conn, role="admin")
-    receptionist = await seed_staff(db_conn, role="receptionist")
-    doctor = await seed_staff(db_conn, role="doctor")
     await set_session_auth(db_conn, admin["auth_user_id"])
     dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
 
     await set_session_auth(db_conn, receptionist["auth_user_id"])
     appointment_id = await db_conn.fetchval(
@@ -771,11 +899,11 @@ async def test_receptionist_can_create_appointment(db_conn):
 @pytest.mark.asyncio
 async def test_doctor_cannot_update_other_doctors_appointment(db_conn):
     admin = await seed_staff(db_conn, role="admin")
-    receptionist = await seed_staff(db_conn, role="receptionist")
-    doctor_a = await seed_staff(db_conn, role="doctor")
-    doctor_b = await seed_staff(db_conn, role="doctor")
     await set_session_auth(db_conn, admin["auth_user_id"])
     dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor_a = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    doctor_b = await seed_staff(db_conn, role="doctor", department_id=dept_id)
 
     await set_session_auth(db_conn, receptionist["auth_user_id"])
     appointment_id = await db_conn.fetchval(
@@ -793,18 +921,119 @@ async def test_doctor_cannot_update_other_doctors_appointment(db_conn):
         "update appointments set status = '도착' where id = $1", appointment_id
     )
     assert result == "UPDATE 0"
+
+
+@pytest.mark.asyncio
+async def test_appointment_department_must_match_doctor_department(db_conn):
+    """치명적 규칙은 DB가 최종 심판 — 담당의 소속 진료과와 다른 진료과로 직접 INSERT하면 거부된다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    other_dept_id = await db_conn.fetchval("insert into departments (name) values ('외과') returning id")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            """
+            insert into appointments
+                (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+            values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+            """,
+            patient_id, other_dept_id, doctor["staff_id"], receptionist["staff_id"],
+        )
+
+
+@pytest.mark.asyncio
+async def test_appointment_doctor_id_must_be_active_doctor_role(db_conn):
+    """접수직원을 doctor_id로 지정해 직접 INSERT하면 거부된다 — role='doctor' 검증이 DB에 있다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            """
+            insert into appointments
+                (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+            values ($1, $1, $2, $3, '예약확정', 'staff', $3)
+            """,
+            patient_id, dept_id, receptionist["staff_id"],
+        )
+
+
+@pytest.mark.asyncio
+async def test_invalid_status_transition_rejected(db_conn):
+    """'예약확정' → '진료완료'처럼 중간을 건너뛰는 상태전이는 트리거가 거부한다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor["staff_id"], receptionist["staff_id"],
+    )
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update appointments set status = '진료완료' where id = $1", appointment_id
+        )
+
+
+@pytest.mark.asyncio
+async def test_status_history_recorded_automatically_and_forgery_blocked(db_conn):
+    """상태 변경 이력은 트리거가 자동 기록하고, 실제 상태전이를 흉내낸 직접 INSERT는 거부된다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor["staff_id"], receptionist["staff_id"],
+    )
+    history_count = await db_conn.fetchval(
+        "select count(*) from appointment_status_history where appointment_id = $1", appointment_id
+    )
+    assert history_count == 1  # INSERT 트리거가 자동으로 초기 이력을 남김
+
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            """
+            insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, reason)
+            values ($1, '예약확정', '진료완료', $2, '몰래 꾸민 이력')
+            """,
+            appointment_id, receptionist["staff_id"],
+        )
 ```
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_appointments_schema.py -v`
-Expected: 3개 테스트 모두 PASS
+Expected: 8개 테스트 모두 PASS
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add supabase/migrations/00004_appointments.sql backend/tests/test_appointments_schema.py
-git commit -m "feat: appointment_slots/appointments/appointment_status_history 테이블과 RLS 정책 추가"
+git commit -m "feat: appointment_slots/appointments/appointment_status_history 테이블·RLS·정합성 트리거 추가"
 ```
 
 ---
@@ -868,7 +1097,112 @@ create policy "staff_can_read_revisions" on medical_record_revisions
 create policy "doctor_can_insert_own_revisions" on medical_record_revisions
   for insert
   with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'doctor' and s.is_active and s.id = medical_record_revisions.revised_by));
+
+-- ── 치명적 규칙은 DB가 최종 심판 ──────────────────────────────────────────
+-- ①: medical_records.doctor_id는 반드시 해당 appointment_id의 실제 담당의와 같아야 한다.
+-- RLS의 "s.id = medical_records.doctor_id" 검사만으로는, 의사가 자기 id를 doctor_id로 넣은 채
+-- "남의 예약"에 기록을 다는 것까지는 막지 못한다 — 이 트리거가 그 구멍을 메운다.
+create or replace function enforce_medical_record_doctor_match()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_appt_doctor uuid;
+begin
+  select doctor_id into v_appt_doctor from appointments where id = new.appointment_id;
+  if v_appt_doctor is distinct from new.doctor_id then
+    raise exception '해당 예약의 담당의만 진료기록을 작성할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_enforce_medical_record_doctor_match
+  before insert or update of doctor_id, appointment_id on medical_records
+  for each row execute function enforce_medical_record_doctor_match();
+
+-- ②: 완료된 진료기록은 revise_medical_record() RPC로만 수정 가능하다.
+-- 직접 UPDATE(Supabase 클라이언트 포함)는 사유·이력·낙관적 잠금을 모두 우회하므로 차단한다.
+create or replace function block_direct_update_of_completed_records()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.is_completed and coalesce(current_setting('app.via_revise_rpc', true), 'false') <> 'true' then
+    raise exception '완료된 진료기록은 수정 사유를 입력하는 절차(revise_medical_record)로만 수정할 수 있습니다.'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_block_direct_update_of_completed_records
+  before update on medical_records
+  for each row execute function block_direct_update_of_completed_records();
+
+-- ③: 완료 기록 수정 RPC — 사유 필수, 낙관적 잠금(updated_at) 검사, 이력 삽입을 한 트랜잭션에서 원자화.
+create or replace function revise_medical_record(
+  p_record_id uuid,
+  p_symptoms text,
+  p_diagnosis text,
+  p_treatment text,
+  p_patient_visible_notes text,
+  p_reason text,
+  p_expected_updated_at timestamptz
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_staff_id uuid;
+  v_row medical_records%rowtype;
+begin
+  select id into v_staff_id from staff where auth_user_id = auth.uid() and role = 'doctor' and is_active;
+  if v_staff_id is null then
+    raise exception '활성 상태의 의사만 진료기록을 수정할 수 있습니다.' using errcode = 'P0001';
+  end if;
+
+  select * into v_row from medical_records where id = p_record_id and doctor_id = v_staff_id for update;
+  if not found then
+    raise exception '진료기록을 찾을 수 없습니다.' using errcode = 'P0002';
+  end if;
+  if not v_row.is_completed then
+    raise exception '완료되지 않은 기록은 임시저장 기능으로 수정하세요.' using errcode = 'P0001';
+  end if;
+  if trim(coalesce(p_reason, '')) = '' then
+    raise exception '수정 사유를 입력해야 합니다.' using errcode = 'P0001';
+  end if;
+  if v_row.updated_at is distinct from p_expected_updated_at then
+    raise exception '다른 사람이 먼저 수정했습니다. 새로고침 후 다시 시도하세요.' using errcode = 'P0003';
+  end if;
+
+  insert into medical_record_revisions (record_id, previous_content, revised_by, reason)
+  values (
+    p_record_id,
+    jsonb_build_object(
+      'symptoms', v_row.symptoms, 'diagnosis', v_row.diagnosis,
+      'treatment', v_row.treatment, 'patient_visible_notes', v_row.patient_visible_notes
+    ),
+    v_staff_id, p_reason
+  );
+
+  perform set_config('app.via_revise_rpc', 'true', true);
+  update medical_records
+  set symptoms = p_symptoms, diagnosis = p_diagnosis, treatment = p_treatment,
+      patient_visible_notes = p_patient_visible_notes, updated_at = now()
+  where id = p_record_id;
+  perform set_config('app.via_revise_rpc', 'false', true);
+end;
+$$;
 ```
+
+> `revise_medical_record`는 `security definer`로 등록해, 함수 안의 UPDATE가 `block_direct_update_of_completed_records` 트리거의 `app.via_revise_rpc` 세션 변수 검사를 통과하도록 한다. 함수 밖에서(Supabase 클라이언트든 다른 SQL이든) 완료된 기록을 직접 UPDATE하면 이 변수가 설정돼 있지 않으므로 트리거가 거부한다.
 
 - [ ] **Step 2: 마이그레이션 적용**
 
@@ -883,8 +1217,11 @@ import pytest
 from tests.conftest import seed_staff, set_session_auth
 
 
-async def _seed_appointment_for_doctor(conn, doctor_id, receptionist_id):
+async def _seed_appointment_for_doctor(conn, doctor_id, receptionist_id, status="진료중"):
     dept_id = await conn.fetchval("insert into departments (name) values ('내과') returning id")
+    # 담당의 소속 진료과와 예약 진료과가 일치해야 하므로(trg_enforce_appointment_consistency),
+    # doctor_id에 해당 department_id를 부여한다.
+    await conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor_id)
     patient_id = await conn.fetchval(
         "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678') returning id"
     )
@@ -892,10 +1229,10 @@ async def _seed_appointment_for_doctor(conn, doctor_id, receptionist_id):
         """
         insert into appointments
             (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
-        values ($1, $1, $2, $3, '진료중', 'staff', $4)
+        values ($1, $1, $2, $3, $4, 'staff', $5)
         returning id
         """,
-        patient_id, dept_id, doctor_id, receptionist_id,
+        patient_id, dept_id, doctor_id, status, receptionist_id,
     )
     return appointment_id
 
@@ -918,6 +1255,7 @@ async def test_doctor_can_create_own_medical_record(db_conn):
 
 @pytest.mark.asyncio
 async def test_other_doctor_cannot_create_record_for_appointment(db_conn):
+    """치명적 규칙은 DB가 최종 심판 — doctor_id를 자기 id로 채워도 '남의 예약'이면 트리거가 거부한다."""
     admin = await seed_staff(db_conn, role="admin")
     receptionist = await seed_staff(db_conn, role="receptionist")
     doctor_a = await seed_staff(db_conn, role="doctor")
@@ -956,18 +1294,86 @@ async def test_receptionist_can_read_but_not_insert_records(db_conn):
             "insert into medical_records (appointment_id, doctor_id, symptoms) values ($1, $2, '기침')",
             appointment_id, doctor["staff_id"],
         )
+
+
+@pytest.mark.asyncio
+async def test_completed_record_direct_update_blocked_but_rpc_allowed(db_conn):
+    """완료된 기록은 직접 UPDATE로 우회할 수 없고, revise_medical_record() RPC로만 고칠 수 있다."""
+    admin = await seed_staff(db_conn, role="admin")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    appointment_id = await _seed_appointment_for_doctor(db_conn, doctor["staff_id"], receptionist["staff_id"])
+
+    await set_session_auth(db_conn, doctor["auth_user_id"])
+    record_id = await db_conn.fetchval(
+        "insert into medical_records (appointment_id, doctor_id, symptoms, is_completed) "
+        "values ($1, $2, '기침', true) returning id",
+        appointment_id, doctor["staff_id"],
+    )
+    expected_updated_at = await db_conn.fetchval(
+        "select updated_at from medical_records where id = $1", record_id
+    )
+
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update medical_records set symptoms = '몰래 수정' where id = $1", record_id
+        )
+
+    await db_conn.execute(
+        "select revise_medical_record($1, '기침(수정)', null, null, null, '오타 수정', $2)",
+        record_id, expected_updated_at,
+    )
+    row = await db_conn.fetchrow("select symptoms from medical_records where id = $1", record_id)
+    assert row["symptoms"] == "기침(수정)"
+
+    revision_count = await db_conn.fetchval(
+        "select count(*) from medical_record_revisions where record_id = $1", record_id
+    )
+    assert revision_count == 1
+
+
+@pytest.mark.asyncio
+async def test_revise_medical_record_requires_reason_and_checks_optimistic_lock(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    appointment_id = await _seed_appointment_for_doctor(db_conn, doctor["staff_id"], receptionist["staff_id"])
+
+    await set_session_auth(db_conn, doctor["auth_user_id"])
+    record_id = await db_conn.fetchval(
+        "insert into medical_records (appointment_id, doctor_id, symptoms, is_completed) "
+        "values ($1, $2, '기침', true) returning id",
+        appointment_id, doctor["staff_id"],
+    )
+    expected_updated_at = await db_conn.fetchval(
+        "select updated_at from medical_records where id = $1", record_id
+    )
+
+    with pytest.raises(Exception):  # 사유 없음
+        await db_conn.execute(
+            "select revise_medical_record($1, '기침(수정)', null, null, null, '', $2)",
+            record_id, expected_updated_at,
+        )
+
+    with pytest.raises(Exception):  # 낙관적 잠금 위반(오래된 updated_at)
+        await db_conn.execute(
+            "select revise_medical_record($1, '기침(수정)', null, null, null, '사유', $2)",
+            record_id, expected_updated_at - __import__("datetime").timedelta(seconds=1),
+        )
 ```
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_medical_records_schema.py -v`
-Expected: 3개 테스트 모두 PASS
+Expected: 6개 테스트 모두 PASS
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add supabase/migrations/00005_medical_records.sql backend/tests/test_medical_records_schema.py
-git commit -m "feat: medical_records/medical_record_revisions 테이블과 RLS 정책 추가"
+git commit -m "feat: medical_records/medical_record_revisions 테이블·RLS·담당의 정합성 트리거·완료기록 수정 RPC 추가"
 ```
 
 ---
@@ -1012,9 +1418,18 @@ create policy "admin_can_manage_templates" on questionnaire_templates
   using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active))
   with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
 
-create policy "staff_can_read_responses" on questionnaire_responses
+-- 사전문진은 "해당 의사만" 열람 가능해야 한다(고객요구사항) — 모든 활성 직원이 아니라
+-- 예약 담당의만 조회하도록 제한한다. 관리자는 감사 목적으로만 예외 허용한다.
+create policy "assigned_doctor_can_read_responses" on questionnaire_responses
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (
+    exists (
+      select 1 from appointments a
+      join staff s on s.auth_user_id = auth.uid() and s.is_active
+      where a.id = questionnaire_responses.appointment_id
+        and (s.id = a.doctor_id or s.role = 'admin')
+    )
+  );
 
 -- 환자가 직접 제출하는 정책은 3단계(환자 앱)에서 환자 인증 연동 시 추가한다
 ```
@@ -2028,6 +2443,8 @@ async def _seed_base(db_conn):
     receptionist = await seed_staff(db_conn, role="receptionist")
     doctor = await seed_staff(db_conn, role="doctor")
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    # 담당의 소속 진료과와 예약 진료과가 일치해야 하므로(trg_enforce_appointment_consistency) 맞춰준다.
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
     patient_id = await db_conn.fetchval(
         "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678') returning id"
     )
@@ -2204,9 +2621,14 @@ Expected: FAIL (`app.services.appointment_service` 모듈 없음)
 - [ ] **Step 2: appointment_service 구현**
 
 `backend/app/services/appointment_service.py`:
+
+> **치명적 규칙은 DB가 최종 심판, 친절한 안내는 서버.** `VALID_TRANSITIONS`는 여전히 여기 남아 있지만 이제는 "한글로 미리 안내하는" 역할일 뿐이다 — 실제 우회 방지는 마이그레이션의 `enforce_appointment_status_transition`/`enforce_appointment_consistency`/`log_appointment_status_change` 트리거가 담당한다(Task 5). 상태 이력 INSERT도 서비스가 직접 하지 않는다 — 트리거가 INSERT/UPDATE 시 자동으로 남긴다. 서비스는 `set local app.status_change_reason`으로 사유만 세션에 실어 넘긴다.
+
 ```python
 from datetime import datetime
 from uuid import UUID
+
+import asyncpg
 
 from app.core.errors import AppError
 from app.core.security import StaffContext
@@ -2239,23 +2661,23 @@ async def create_appointment(
             if not booked:
                 raise AppError("이미 예약된 시간입니다. 다른 시간을 선택하세요.", status_code=409)
 
-        appointment_id = await conn.fetchval(
-            """
-            insert into appointments
-                (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            returning id
-            """,
-            slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason,
-            initial_status, source, staff.id,
-        )
-        await conn.execute(
-            """
-            insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, reason)
-            values ($1, null, $2, $3, '예약 생성')
-            """,
-            appointment_id, initial_status, staff.id,
-        )
+        try:
+            # 담당의-슬롯-진료과 정합성은 DB 트리거가 최종 검증하고,
+            # 이력(appointment_status_history)도 이 INSERT 한 번으로 트리거가 자동 기록한다.
+            # (초기 상태 자체의 유효성은 서비스 계층의 채널별 규칙에 맡긴다 — Task 5의 설계 노트 참고.)
+            appointment_id = await conn.fetchval(
+                """
+                insert into appointments
+                    (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by)
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                returning id
+                """,
+                slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason,
+                initial_status, source, staff.id,
+            )
+        except asyncpg.PostgresError as exc:
+            # 트리거가 raise exception으로 던진 메시지는 이미 한글 안내문이다.
+            raise AppError(str(exc), status_code=400) from exc
     return appointment_id
 
 
@@ -2275,21 +2697,21 @@ async def transition_status(
         if row["updated_at"] != expected_updated_at:
             raise AppError("다른 직원이 먼저 수정했습니다. 새로고침 후 다시 시도하세요.", status_code=409)
         if new_status not in VALID_TRANSITIONS.get(row["status"], set()):
+            # 서버의 1차 안내 — 실제 방어선은 DB 트리거(enforce_appointment_status_transition)다.
             raise AppError(
                 f"'{row['status']}' 상태에서는 '{new_status}'(으)로 변경할 수 없습니다.", status_code=400,
             )
 
-        await conn.execute(
-            "update appointments set status = $1, updated_at = now() where id = $2",
-            new_status, appointment_id,
-        )
-        await conn.execute(
-            """
-            insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, reason)
-            values ($1, $2, $3, $4, $5)
-            """,
-            appointment_id, row["status"], new_status, staff.id, reason,
-        )
+        try:
+            if reason:
+                await conn.execute("select set_config('app.status_change_reason', $1, true)", reason)
+            # UPDATE 한 번으로 트리거가 전이 유효성 검증과 이력 기록을 모두 처리한다.
+            await conn.execute(
+                "update appointments set status = $1, updated_at = now() where id = $2",
+                new_status, appointment_id,
+            )
+        except asyncpg.PostgresError as exc:
+            raise AppError(str(exc), status_code=400) from exc
 
 
 async def reorder_queue(
@@ -2377,6 +2799,8 @@ def _to_context(seed: dict, role: str) -> StaffContext:
 
 async def _seed_appointment(db_conn, doctor_ctx, receptionist_id):
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    # 담당의 소속 진료과와 예약 진료과가 일치해야 하므로(trg_enforce_appointment_consistency) 맞춰준다.
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor_ctx.id)
     patient_id = await db_conn.fetchval(
         "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678') returning id"
     )
@@ -2484,9 +2908,10 @@ Expected: FAIL (`app.services.medical_record_service` 모듈 없음)
 
 `backend/app/services/medical_record_service.py`:
 ```python
-import json
 from datetime import datetime
 from uuid import UUID
+
+import asyncpg
 
 from app.core.errors import AppError
 from app.core.security import StaffContext
@@ -2548,45 +2973,23 @@ async def revise_record(
     reason: str,
     expected_updated_at: datetime,
 ) -> None:
+    """완료된 진료기록 수정 — 실제 검증·이력 삽입은 DB의 revise_medical_record() RPC가 원자적으로 수행한다
+    (Task 6 마이그레이션). 여기서의 사전 체크는 서버 쪽 한글 안내용이며, DB가 최종 방어선이다."""
     if not reason.strip():
         raise AppError("수정 사유를 입력해야 합니다.", status_code=400)
 
     async with acquire_as(str(staff.auth_user_id)) as conn:
-        row = await conn.fetchrow(
-            "select symptoms, diagnosis, treatment, patient_visible_notes, is_completed, updated_at "
-            "from medical_records where id = $1 and doctor_id = $2",
-            record_id, staff.id,
-        )
-        if row is None:
-            raise AppError("진료기록을 찾을 수 없습니다.", status_code=404)
-        if not row["is_completed"]:
-            raise AppError("완료되지 않은 기록은 임시저장 기능으로 수정하세요.", status_code=400)
-        if row["updated_at"] != expected_updated_at:
-            raise AppError("다른 사람이 먼저 수정했습니다. 새로고침 후 다시 시도하세요.", status_code=409)
-
-        previous_content = {
-            "symptoms": row["symptoms"],
-            "diagnosis": row["diagnosis"],
-            "treatment": row["treatment"],
-            "patient_visible_notes": row["patient_visible_notes"],
-        }
-
-        await conn.execute(
-            """
-            insert into medical_record_revisions (record_id, previous_content, revised_by, reason)
-            values ($1, $2, $3, $4)
-            """,
-            record_id, json.dumps(previous_content), staff.id, reason,
-        )
-        await conn.execute(
-            """
-            update medical_records
-            set symptoms = $1, diagnosis = $2, treatment = $3, patient_visible_notes = $4, updated_at = now()
-            where id = $5
-            """,
-            new_content["symptoms"], new_content["diagnosis"], new_content["treatment"],
-            new_content["patient_visible_notes"], record_id,
-        )
+        try:
+            await conn.execute(
+                "select revise_medical_record($1, $2, $3, $4, $5, $6, $7)",
+                record_id,
+                new_content["symptoms"], new_content["diagnosis"], new_content["treatment"],
+                new_content["patient_visible_notes"], reason, expected_updated_at,
+            )
+        except asyncpg.PostgresError as exc:
+            # RPC가 raise exception으로 던진 한글 메시지를 그대로 안내한다.
+            status_code = 409 if getattr(exc, "sqlstate", None) == "P0003" else 400
+            raise AppError(str(exc), status_code=status_code) from exc
 ```
 
 - [ ] **Step 3: 테스트 실행**
