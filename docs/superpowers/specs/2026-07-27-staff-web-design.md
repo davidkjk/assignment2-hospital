@@ -5,7 +5,7 @@
 
 ## 범위
 
-다룬다: 3.1(로그인/권한, 화면 관점), 3.2(오늘의 현황), 3.3(예약 캘린더), 3.4(도착·대기 관리), 3.5(환자 정보), 3.6(의사 진료 화면), 3.7(진료과·의사 일정 관리), 3.10(운영 통계, 상담봇 수치 제외)
+다룬다: 3.1(로그인/권한, 화면 관점), 3.2(오늘의 현황), 3.3(예약 캘린더), 3.4(도착·대기 관리), 3.5(환자 정보), 3.6(의사 진료 화면), 3.7(진료과·의사 일정 관리), 3.10(운영 통계, 상담봇 수치 제외), 4.3 취소요청 처리(섹션 10 — 3단계 스펙이 2단계 몫으로 남겨둔 항목)
 
 다루지 않는다 (문서 하단 참고): 3.8(상담봇 지식관리), 3.9(상담 문의 관리) → 4단계
 
@@ -93,6 +93,17 @@
 - 실시간 동기화: Supabase Realtime 구독(대기목록/오늘현황/캘린더)
 - 네트워크 오류 시 "저장에 실패했습니다. 다시 시도해주세요" 명확히 표시, 조용히 무시하지 않음
 
+## 섹션 10: 취소요청 대기열 (`/cancellation-requests`)
+
+> 배경: 3단계(환자 앱) 스펙에서 "예약 마감 시간이 지난 뒤 환자가 취소를 요청하면 `appointments.cancellation_requested_at`을 채우고, 직원이 승인/반려하는 화면은 2단계 몫"이라고 설계했으나, 2단계 스펙에 반영되지 않았던 항목. 요구사항 4.3 "병원이 정한 시간 이후에는 앱에서 직접 취소하지 못하고 상담으로 연결"을 실제로 완결하기 위해 이번에 추가한다.
+
+- **접근 권한**: 접수직원 + 관리자 (`require_role(["receptionist", "admin"])`). 의사는 접근 불가 — 다른 직원 전용 메뉴와 동일한 원칙.
+- **`/today`(오늘의 현황)**: 기존 "확인 필요 상담 문의" 카드와 같은 자리에 "취소 요청 확인 N건" 카드 추가. `cancellation_requested_at is not null`인 예약이 0건이면 카드 자체가 보이지 않음(기존 카드 패턴과 동일). 클릭 시 `/cancellation-requests`로 이동.
+- **`/cancellation-requests` 목록 페이지**: `cancellation_requested_at`이 채워진 예약을 전부 표로 표시 — 환자명(생년월일), 예약 일시, 진료과/의사, 취소 요청 시각, 환자가 남긴 사유(`appointment_status_history`에서 해당 예약의 최신 행 중 `from_status = to_status`인 요청 시점 기록의 `reason`). 각 행에 `[승인]` `[반려]` 버튼.
+  - **승인**: 예약 상태를 `환자취소`로 전환 + 슬롯 반납(`release_slot`, 슬롯이 있는 예약만) + `cancellation_requested_at` 비움 + `appointment_status_history`에 기록(직원이 승인 처리했음을 남김). 환자에게 별도 알림은 발송하지 않음(본인이 요청한 취소이므로).
+  - **반려**: `cancellation_requested_at`만 비움(상태는 그대로 유지) + `appointment_status_history`에 반려 사유 기록 + 환자에게 "취소 요청이 반려되었습니다" 알림 발송(3단계 스펙에서 이미 정한 문구, 알림 발송 자체는 3단계 `notification_service.notify_patient` 재사용).
+  - **동시성**: 다른 직원이 먼저 처리했거나 환자가 그 사이 마감 전 시간대로 예약이 옮겨져 요청이 무의미해진 경우, "이미 처리되었거나 취소 요청이 존재하지 않는 예약입니다" 한글 안내 후 목록 새로고침(6.2 원칙 재사용).
+
 ## 2단계에서 추가되는 백엔드 (1단계 스펙 이후 발견된 항목)
 
 1단계는 이미 스펙·계획 문서가 확정되어 있어 그 문서를 고치지 않고, 이번 단계에서 새로 필요해진 것만 추가한다.
@@ -101,10 +112,11 @@
 - `doctor_quick_phrases` 테이블 신규: `id, doctor_id, text, created_at`, RLS는 본인 의사만 CRUD, 다른 직원은 읽기만
 - `appointment_service.reschedule_appointment(appointment_id, new_slot_id, staff, reason)` 신규 서비스: 기존 슬롯 반납 + 새 슬롯 예약을 하나의 트랜잭션으로 처리(1단계 `book_slot` 재사용), `appointment_status_history`에 기록
 - "영향받는 예약" 조회: 새 테이블 없이, 취소되지 않은 예약 상태 + `doctor_schedule_exceptions`를 조인하는 쿼리로 계산
+- `appointment_service.list_cancellation_requests(staff) -> list[dict]`, `approve_cancellation_request(appointment_id, staff) -> None`, `reject_cancellation_request(appointment_id, staff) -> None` 신규 서비스 (섹션 10). 3단계가 만든 `cancellation_requested_at` 필드와 3단계 `notification_service.notify_patient`(반려 알림용)를 재사용
 
 ## 이번 단계에서 다루지 않는 것 (4단계에서 다룸)
 
-- 환자 상세화면에 "상담봇 문의 중 직원에게 전달된 내용" 탭 추가
-- "오늘의 현황"의 "확인 필요 상담 문의" 카드에 실제 데이터 연결 (카드 자체는 2단계에서 0건으로 미리 만들어둠)
-- 운영 통계의 상담봇 관련 수치(문의 수, 직원이관 비율, 자주 묻는 질문)
+- 환자 상세화면에 "상담봇 문의 중 직원에게 전달된 내용" 탭 추가. **[해결됨]** `ai-chatbot-design.md` "직원 웹 — 상담 관리" + `ai-chatbot.md` Task 20으로 반영 완료(정합성 검토 중 발견된 갭 보완, 2026-07-28).
+- "오늘의 현황"의 "확인 필요 상담 문의" 카드에 실제 데이터 연결 (카드 자체는 2단계에서 0건으로 미리 만들어둠). **[해결됨]** 위와 동일하게 `ai-chatbot.md` Task 20으로 반영 완료.
+- 운영 통계의 상담봇 관련 수치(문의 수, 직원이관 비율, 자주 묻는 질문) — `ai-chatbot-design.md` "관리자 화면" 섹션의 "상담봇 처리 현황(1.4)"으로 반영됨(별도 화면으로 제공, `/admin/stats`에 병합되지는 않음)
 - 3.8(병원 안내·상담봇 지식 관리), 3.9(상담 문의 관리) 화면 전체

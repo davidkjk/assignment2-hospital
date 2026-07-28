@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Consumes: DB 테이블 `patients`, `patient_family_links`, `departments`, `staff`, `appointment_slots` (1단계 Task 2~5), `tests.conftest.db_conn/seed_staff/set_session_auth`(1단계 Task 2)
-- Produces: `patients.auth_user_id`(nullable, unique, `auth.users(id)` 참조), SQL 함수 `patient_owns(target_patient_id uuid) returns boolean`, `tests.conftest.seed_patient(conn, name=..., phone=..., with_auth=True, is_active=True) -> dict` (`{"auth_user_id": UUID | None, "patient_id": UUID}`)
+- Produces: `patients.auth_user_id`(nullable, unique, `auth.users(id)` 참조), SQL 함수 `patient_owns(target_patient_id uuid) returns boolean`, `appointment_slots`에 대한 환자용 UPDATE 정책(`patients_can_update_slots_for_booking` — Task 7의 `book_slot`/`release_slot`이 의존), `tests.conftest.seed_patient(conn, name=..., phone=..., with_auth=True, is_active=True) -> dict` (`{"auth_user_id": UUID | None, "patient_id": UUID}`)
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -97,7 +97,14 @@ create policy "patients_can_read_doctors" on staff
 create policy "patients_can_read_open_slots" on appointment_slots
   for select
   using (status = '빈시간' and exists (select 1 from patients p where p.auth_user_id = auth.uid()));
+
+create policy "patients_can_update_slots_for_booking" on appointment_slots
+  for update
+  using (status in ('빈시간', '예약됨') and exists (select 1 from patients p where p.auth_user_id = auth.uid()))
+  with check (status in ('빈시간', '예약됨') and exists (select 1 from patients p where p.auth_user_id = auth.uid()));
 ```
+
+> **왜 필요한가:** `slot_service.book_slot`/`release_slot`(Task 7)은 환자 세션(`acquire_as(patient.auth_user_id)`)으로 `appointment_slots`를 직접 UPDATE한다. 위 SELECT 정책만으로는 UPDATE가 허용되지 않아 — 환자가 예약을 신청하는 순간 DB가 권한 없음으로 판단해 슬롯 잠금에 실패하고, `book_slot`이 항상 `False`를 반환해 "이미 선택된 시간입니다" 오류로 예약 자체가 막힌다. 상태를 `빈시간`/`예약됨`으로 제한한 이유는 직원이 별도 사유로 막아둔(`휴진` 등) 슬롯까지 환자가 건드리지 못하게 하기 위함이다. 실제 전이 조건(어느 슬롯을, 어느 상태에서, 어느 상태로)은 `slot_service`의 조건부 SQL(`where status = '빈시간'`)이 이미 강제하므로 RLS는 "환자가 이 두 상태 사이에서만 손댈 수 있다"는 큰 테두리만 맡는다.
 
 - [ ] **Step 2: 마이그레이션 적용**
 
@@ -204,15 +211,51 @@ async def test_patient_can_read_active_department_and_doctor(db_conn):
     doctor_rows = await db_conn.fetch("select id from staff where role = 'doctor'")
     assert dept_id in {r["id"] for r in dept_rows}
     assert doctor["staff_id"] in {r["id"] for r in doctor_rows}
+
+
+@pytest.mark.asyncio
+async def test_patient_can_update_open_slot_to_booked(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, '2026-08-01', '09:00', '빈시간') returning id",
+        doctor["staff_id"],
+    )
+    me = await seed_patient(db_conn)
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    result = await db_conn.execute(
+        "update appointment_slots set status = '예약됨' where id = $1 and status = '빈시간'", slot_id,
+    )
+    assert result == "UPDATE 1"
+
+
+@pytest.mark.asyncio
+async def test_patient_cannot_update_blocked_slot(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, '2026-08-01', '09:00', '휴진') returning id",
+        doctor["staff_id"],
+    )
+    me = await seed_patient(db_conn)
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    result = await db_conn.execute(
+        "update appointment_slots set status = '예약됨' where id = $1", slot_id,
+    )
+    assert result == "UPDATE 0"
 ```
 
 Run: `cd backend && pytest tests/test_patient_identity_schema.py -v`
-Expected: FAIL(마이그레이션 적용 전이면 실패 — Step 2 이후 다시 실행하면 4개 모두 PASS)
+Expected: FAIL(마이그레이션 적용 전이면 실패 — Step 2 이후 다시 실행하면 6개 모두 PASS)
 
 - [ ] **Step 5: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_identity_schema.py -v`
-Expected: 4개 테스트 모두 PASS
+Expected: 6개 테스트 모두 PASS
 
 - [ ] **Step 6: 커밋**
 
@@ -231,7 +274,7 @@ git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환�
 
 **Interfaces:**
 - Consumes: `patient_owns()`(Task 1), DB 테이블 `appointments`, `appointment_status_history`, `questionnaire_templates`, `questionnaire_responses`, `medical_records`, `hospital_settings`(1단계 Task 5~8)
-- Produces: `appointments.cancellation_requested_at`(nullable timestamptz), `appointment_status_history.changed_by_patient_id`(nullable, `patients(id)` 참조, `changed_by`는 nullable로 변경), `hospital_settings.auto_confirm_app_bookings`(boolean, 기본 false), 환자용 select/insert/update RLS 정책 일체
+- Produces: `appointments.cancellation_requested_at`(nullable timestamptz), `appointment_status_history.changed_by_patient_id`(nullable, `patients(id)` 참조, `changed_by`는 nullable로 변경), `hospital_settings.auto_confirm_app_bookings`(boolean, 기본 false), 환자용 select/insert/update RLS 정책 일체, DB 뷰 `patient_medical_notes(id, appointment_id, patient_visible_notes, is_completed, updated_at)`(Task 11이 `medical_records` 대신 이 뷰를 조회 — 의료진 전용 항목 비노출용)
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -281,17 +324,20 @@ create policy "patients_can_manage_own_questionnaire_responses" on questionnaire
   using (exists (select 1 from appointments a where a.id = questionnaire_responses.appointment_id and patient_owns(a.for_patient_id)))
   with check (exists (select 1 from appointments a where a.id = questionnaire_responses.appointment_id and patient_owns(a.for_patient_id)));
 
-create policy "patients_can_read_own_completed_medical_notes" on medical_records
-  for select
-  using (
-    is_completed
-    and exists (select 1 from appointments a where a.id = medical_records.appointment_id and patient_owns(a.for_patient_id))
-  );
+create view patient_medical_notes with (security_invoker = false) as
+  select mr.id, mr.appointment_id, mr.patient_visible_notes, mr.is_completed, mr.updated_at
+  from medical_records mr
+  join appointments a on a.id = mr.appointment_id
+  where mr.is_completed and patient_owns(a.for_patient_id);
+
+grant select on patient_medical_notes to authenticated;
 
 create policy "patients_can_read_hospital_settings" on hospital_settings
   for select
   using (exists (select 1 from patients p where p.auth_user_id = auth.uid()));
 ```
+
+> **왜 정책 대신 뷰(view)로 만드는가:** `medical_records`에는 `symptoms`(증상)/`diagnosis`(진단)/`treatment`(치료) 같은 의료진 전용 항목과, 환자에게 그대로 보여줘도 되는 `patient_visible_notes`가 한 테이블에 같이 있다. RLS 정책은 "이 행을 볼 수 있는가"만 판단할 뿐 "이 행에서 어느 칼럼을 보여줄 것인가"는 판단하지 못한다(행 단위 보안이지 칼럼 단위 보안이 아니다). 그래서 환자용 정책을 `medical_records` 테이블에 직접 걸면, 백엔드 API를 거치지 않고 앱이 Supabase에 직접 접속하는 경로(로그인, Realtime 구독)로 환자가 같은 테이블을 조회할 경우 의료진 전용 항목까지 그대로 노출된다. 대신 안전한 칼럼만 골라 담은 `patient_medical_notes` 뷰를 만들고(`security_invoker = false`이므로 뷰 소유자 권한으로 실행되어 `medical_records`의 RLS 자체를 우회하지만, 뷰의 `where` 절에 있는 `patient_owns()` 검사가 그 자리를 대신한다), `medical_records` 테이블에는 환자용 정책을 아예 두지 않는다 — 이러면 환자가 어떤 경로로 접속하든 `medical_records`를 직접 조회하면 0건이 반환되고, 안전한 항목만 담긴 뷰를 통해서만 조회할 수 있다.
 
 - [ ] **Step 2: 마이그레이션 적용**
 
@@ -371,15 +417,48 @@ async def test_patient_cannot_read_other_patients_appointment(db_conn):
     await set_session_auth(db_conn, me["auth_user_id"])
     row = await db_conn.fetchrow("select id from appointments where id = $1", appointment_id)
     assert row is None
+
+
+@pytest.mark.asyncio
+async def test_patient_cannot_read_medical_records_table_directly(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, doctor_id = await _seed_dept_and_doctor(db_conn)
+    me = await seed_patient(db_conn)
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments (account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+        values ($1, $1, $2, $3, '진료완료', 'app')
+        returning id
+        """,
+        me["patient_id"], dept_id, doctor_id,
+    )
+    await db_conn.execute(
+        """
+        insert into medical_records (appointment_id, doctor_id, symptoms, diagnosis, patient_visible_notes, is_completed)
+        values ($1, $2, '내부 증상', '내부 진단', '푹 쉬세요', true)
+        """,
+        appointment_id, doctor_id,
+    )
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    rows = await db_conn.fetch("select * from medical_records where appointment_id = $1", appointment_id)
+    assert rows == []
+
+    view_rows = await db_conn.fetch(
+        "select patient_visible_notes from patient_medical_notes where appointment_id = $1", appointment_id,
+    )
+    assert len(view_rows) == 1
+    assert view_rows[0]["patient_visible_notes"] == "푹 쉬세요"
 ```
 
 Run: `cd backend && pytest tests/test_patient_appointments_rls.py -v`
-Expected: 마이그레이션 적용 전에는 첫 번째 테스트 FAIL(정책 없음) → Step 2 이후 3개 모두 PASS
+Expected: 마이그레이션 적용 전에는 첫 번째 테스트 FAIL(정책 없음) → Step 2 이후 4개 모두 PASS
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_appointments_rls.py -v`
-Expected: 3개 테스트 모두 PASS
+Expected: 4개 테스트 모두 PASS
 
 - [ ] **Step 5: 커밋**
 
@@ -1563,6 +1642,30 @@ async def test_list_my_appointments_includes_family(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_list_my_appointments_excludes_past_dated_slots(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    past_slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, '2020-01-01', '09:00', '예약됨') returning id",
+        doctor["staff_id"],
+    )
+    me_seed = await seed_patient(db_conn)
+    me = PatientContext(id=me_seed["patient_id"], auth_user_id=me_seed["auth_user_id"])
+    await db_conn.execute(
+        """
+        insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+        values ($1, $2, $2, $3, $4, '예약확정', 'app')
+        """,
+        past_slot_id, me.id, dept_id, doctor["staff_id"],
+    )
+
+    appointments = await patient_appointment_query_service.list_my_appointments(me)
+    assert appointments == []
+
+
+@pytest.mark.asyncio
 async def test_get_appointment_detail_returns_status(db_conn):
     admin = await seed_staff(db_conn, role="admin")
     await set_session_auth(db_conn, admin["auth_user_id"])
@@ -1612,13 +1715,17 @@ async def list_my_appointments(patient: PatientContext) -> list[dict]:
             left join appointment_slots s on s.id = a.slot_id
             where a.for_patient_id = any($1::uuid[])
               and a.status not in ('환자취소', '병원취소', '예약부도')
+              and (s.slot_date is null or s.slot_date >= current_date)
             order by s.slot_date nulls last, s.start_time nulls last
             """,
             accessible_ids,
         )
     return [dict(row) for row in rows]
+```
 
+> **참고:** `slot_date >= current_date` 조건이 있는 이유는, 상태 전이(진료완료/취소 처리)를 직원이 깜빡해서 지나간 예약이 `예약신청`/`예약확정` 상태로 계속 남아있는 경우, 홈 화면(Task 22)이 이걸 계속 "다음 예약"으로 보여주는 걸 막기 위함이다. `slot_id`가 아직 없는(=슬롯 미배정) 예약은 날짜가 없으므로 항상 포함한다.
 
+```python
 async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) -> dict:
     async with acquire_as(str(patient.auth_user_id)) as conn:
         row = await conn.fetchrow(
@@ -1641,7 +1748,7 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
 - [ ] **Step 6: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_appointment_query_service.py -v`
-Expected: 2개 테스트 모두 PASS
+Expected: 3개 테스트 모두 PASS
 
 - [ ] **Step 7: 커밋**
 
@@ -1831,7 +1938,7 @@ git commit -m "feat: 사전문진 제출/조회 서비스 추가"
 - Test: `backend/tests/test_patient_history_service.py`
 
 **Interfaces:**
-- Consumes: `app.core.patient_security.PatientContext, list_accessible_patient_ids`(Task 4)
+- Consumes: `app.core.patient_security.PatientContext, list_accessible_patient_ids`(Task 4), DB 뷰 `patient_medical_notes`(Task 2)
 - Produces: `app.services.patient_history_service.list_visit_history(patient, for_patient_id: UUID) -> list[dict]`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
@@ -1919,7 +2026,7 @@ async def list_visit_history(patient: PatientContext, for_patient_id: UUID) -> l
             join departments d on d.id = a.department_id
             join staff st on st.id = a.doctor_id
             left join appointment_slots s on s.id = a.slot_id
-            left join medical_records mr on mr.appointment_id = a.id and mr.is_completed
+            left join patient_medical_notes mr on mr.appointment_id = a.id
             where a.for_patient_id = $1 and a.status = '진료완료'
             order by s.slot_date desc nulls last
             """,
@@ -2216,7 +2323,21 @@ async def create_booking(...) -> UUID:
         pass
     return appointment_id
 ```
-(`change_booking`은 새 예약 생성 뒤 `"changed"` 알림을 동일한 방식으로 추가한다. `cancel_appointment`는 즉시취소 성공 시 화면 자체 안내로 충분하므로 별도 알림을 생략한다 — 마감 후 취소요청에 대한 직원의 승인/반려 알림은 2단계(직원 웹)의 "취소요청 대기열" 처리 시점에 호출되어야 하므로 이 계획 범위 밖이다.)
+
+`change_booking`도 동일한 위치(트랜잭션 블록을 벗어난 직후)에 `"changed"` 알림 호출을 추가한다:
+```python
+async def change_booking(
+    patient: PatientContext, appointment_id: UUID, new_slot_id: UUID, reason: str,
+) -> UUID:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        ...  # 기존 로직(Task 8에서 이미 작성됨, 변경 없음)
+    try:
+        await notification_service.notify_patient(row["for_patient_id"], "changed")
+    except Exception:
+        pass
+    return new_appointment_id
+```
+(`cancel_appointment`는 즉시취소 성공 시 화면 자체 안내로 충분하므로 별도 알림을 생략한다 — 마감 후 취소요청에 대한 직원의 승인/반려 알림은 2단계(직원 웹)의 "취소요청 대기열" 처리 시점에 호출되어야 하므로 이 계획 범위 밖이다.)
 
 - [ ] **Step 9: 통합 테스트 실행**
 
@@ -5440,17 +5561,163 @@ git commit -m "feat: 오프라인 감지 배너와 공통 중복클릭 방지 �
 - 6.4 오류 처리(한글 메시지, 저장 실패 명확히 안내, 오류 로그, 외부서비스 중단 시에도 핵심기능 유지) → `AppError`/`log_error` 재사용(Task 5~12 전반), Task 12의 알림 best-effort 처리
 - 6.5 개인정보(비로그인 접근 차단, 역할별 접근 제한, 비밀키 비공개) → Task 1·2·3의 RLS 전체, Task 12의 `.env` 환경변수 원칙
 
+## Task 27: 사전문진 양식에 "필드 태그" 추가 + 상담봇 수집 정보 미리채우기
+
+정합성 검토에서 발견: 요구사항 4.4 마지막 문장 "상담봇이 대화 중 받은 내용이 사전문진에 들어갈 경우에는 환자에게 내용을 보여주고 저장 여부를 다시 확인받아야 합니다"가 3단계 스펙에서 "4단계 상담봇 구현 시 처리"로 미뤄졌으나 4단계 스펙에도 반영되지 않았던 것을 보완한다. `questionnaire_templates.questions` JSON에 선택적 `field_key`(예: `"chief_complaint"`/`"onset"`)를 추가해, 4단계 상담봇이 문진 체인에서 들은 증상·시작시점을 그 꼬리표가 붙은 질문 칸에만 미리 채워 보여주고, 환자가 직접 확인 후 "제출"해야 저장되게 한다(별도 확인 다이얼로그 없이, 제출 자체가 확인 절차 — 스키마·마이그레이션 변경 없음, `questions` JSON에 선택 필드만 추가).
+
+**Files:**
+- Modify: `mobile/lib/features/questionnaire/questionnaire_controller.dart`(Task 21)
+- Modify: `mobile/lib/features/questionnaire/questionnaire_screen.dart`(Task 21)
+- Test: `mobile/test/features/questionnaire/questionnaire_controller_test.dart`(Task 21, 추가)
+
+**Interfaces:**
+- Consumes: `QuestionTemplate`(Task 21)
+- Produces: `QuestionnaireScreen`에 선택적 생성자 인자 `prefill: Map<String, String>?` 추가(키는 `field_key`, 값은 미리 채울 텍스트) — 4단계 `mobile/lib/features/chat/booking_card.dart`(Task 19)가 예약 완료 후 "사전문진 작성하기"에서 이 값을 넘긴다
+
+- [ ] **Step 1: 실패하는 테스트 작성 — field_key로 프리필**
+
+`mobile/test/features/questionnaire/questionnaire_controller_test.dart`에 추가:
+```dart
+test('QuestionTemplate.questions에 field_key가 있으면 prefill 값을 찾을 수 있다', () {
+  const template = QuestionTemplate(id: 't1', questions: [
+    {'text': '오늘 불편한 증상은?', 'type': 'text', 'required': true, 'field_key': 'chief_complaint'},
+    {'text': '복용 중인 약이 있나요?', 'type': 'text', 'required': false},
+  ]);
+
+  final prefill = {'chief_complaint': '기침, 콧물'};
+  final matched = template.questions.firstWhere(
+    (q) => q['field_key'] != null && prefill.containsKey(q['field_key']),
+    orElse: () => {},
+  );
+
+  expect(matched['text'], '오늘 불편한 증상은?');
+});
+```
+
+Run: `cd mobile && flutter test test/features/questionnaire/questionnaire_controller_test.dart`
+Expected: PASS (기존 `QuestionTemplate` 구조 그대로도 통과 — `field_key`는 이미 임의의 JSON 맵을 담는 `questions: List<Map<String, dynamic>>`에 자연스럽게 포함되므로 컨트롤러 코드 변경 불필요. 다음 스텝은 화면 쪽 prefill 반영)
+
+- [ ] **Step 2: QuestionnaireScreen에 prefill 반영**
+
+`mobile/lib/features/questionnaire/questionnaire_screen.dart`를 다음으로 교체:
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'questionnaire_controller.dart';
+
+class QuestionnaireScreen extends ConsumerStatefulWidget {
+  const QuestionnaireScreen({
+    super.key,
+    required this.appointmentId,
+    required this.departmentId,
+    this.prefill,
+  });
+  final String appointmentId;
+  final String departmentId;
+  final Map<String, String>? prefill;
+
+  @override
+  ConsumerState<QuestionnaireScreen> createState() => _QuestionnaireScreenState();
+}
+
+class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
+  final Map<String, TextEditingController> _controllers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(questionnaireControllerProvider.notifier).loadTemplate(widget.departmentId));
+  }
+
+  TextEditingController _controllerFor(Map<String, dynamic> question) {
+    final text = question['text'] as String;
+    return _controllers.putIfAbsent(text, () {
+      final fieldKey = question['field_key'] as String?;
+      final initial = (fieldKey != null ? widget.prefill?[fieldKey] : null) ?? '';
+      return TextEditingController(text: initial);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(questionnaireControllerProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('사전문진')),
+      body: state.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('$e')),
+        data: (template) {
+          if (template == null) return const Center(child: Text('이 진료과의 사전문진 양식이 없습니다.'));
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (widget.prefill != null && widget.prefill!.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text('상담에서 말씀하신 내용을 미리 채워드렸어요. 확인하고 필요하면 고쳐주세요.'),
+                ),
+              for (final q in template.questions)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: TextField(
+                    controller: _controllerFor(q),
+                    decoration: InputDecoration(labelText: q['text'] as String),
+                  ),
+                ),
+              ElevatedButton(
+                onPressed: () {
+                  final answers = template.questions
+                      .map((q) => {'question': q['text'], 'answer': _controllerFor(q).text})
+                      .toList();
+                  ref.read(questionnaireControllerProvider.notifier).submit(
+                    widget.appointmentId, template.id, answers,
+                  );
+                },
+                child: const Text('제출'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+```
+
+- [ ] **Step 3: 테스트 실행**
+
+Run: `cd mobile && flutter test test/features/questionnaire/`
+Expected: 전체 PASS
+
+- [ ] **Step 4: 커밋**
+
+```bash
+git add mobile/lib/features/questionnaire/questionnaire_screen.dart mobile/test/features/questionnaire/questionnaire_controller_test.dart
+git commit -m "feat: 사전문진에 상담봇 수집 정보 미리채우기 (4단계 스펙 갭 보완)"
+```
+
+---
+
 ## Self-Review
 
-**1) 스펙 커버리지:** 위 표를 통해 `docs/superpowers/specs/2026-07-27-patient-app-design.md`의 섹션 1~9와 "3단계에서 추가되는 백엔드" 항목이 모두 하나 이상의 태스크에 대응됨을 확인했다. "이번 단계에서 다루지 않는 것"(AI 상담봇, 상담봇발 사전문진 자동반영, 상담 답변 알림)은 어떤 태스크에도 포함하지 않았다.
+**1) 스펙 커버리지:** 위 표를 통해 `docs/superpowers/specs/2026-07-27-patient-app-design.md`의 섹션 1~9와 "3단계에서 추가되는 백엔드" 항목이 모두 하나 이상의 태스크에 대응됨을 확인했다. "이번 단계에서 다루지 않는 것" 중 AI 상담봇 본체와 상담 답변 알림은 여전히 4단계 몫이라 이 계획에 없다. 상담봇발 사전문진 자동반영은 화면 쪽 절반(`field_key` 프리필 표시)을 Task 27이 담당하고, 나머지 절반(대화 기록에서 증상·시작시점 추출)은 4단계 `ai-chatbot.md`가 담당하도록 정합성 검토에서 나눠 반영했다(2026-07-28).
 
 **2) 플레이스홀더 스캔:** "TBD"/"적절히 처리"/"위와 유사하게" 같은 표현이 있는지 재검토했다. Task 19 Step 4의 진료과/의사/날짜/시간 단계 설명은 반복 패턴을 안내하는 문장이지만, 반복해야 할 정확한 데이터 계약(컨트롤러 메서드명·엔드포인트)이 Step 2와 Task 7에 이미 완전한 코드로 명시되어 있어 "코드 없이 설명만" 하는 플레이스홀더는 아니다. 다만 이상적이진 않으므로, 실행 시(subagent-driven-development) 이 부분만 별도 서브태스크로 쪼개 실제 위젯 코드를 채워 넣는 것을 권장한다.
 
 **3) 타입/함수명 일관성:** 대조 결과 모두 일치한다 — 백엔드: `PatientContext(id, auth_user_id)`(Task 4)가 Task 5~13 전체에서 동일하게 사용됨, `book_slot`/`release_slot`의 `actor` 매개변수가 `StaffContext`/`PatientContext` 양쪽에 duck-typing으로 재사용됨(Task 7), `hospital_settings.auto_confirm_app_bookings`(Task 2)가 Task 8의 `_initial_status`에서 그대로 조회됨, `appointment_status_history.changed_by_patient_id`(Task 2)가 Task 8·9에서 그대로 사용됨. Flutter: `ApiClient`(Task 15)의 `get/post/patch/delete` 시그니처가 Task 16~26 전체 컨트롤러에서 동일하게 사용됨, `UpcomingAppointment`(Task 22)가 Task 23에서 재사용됨, `RealtimeSubscriber`(Task 23)가 테스트에서 `FakeRealtimeSubscriber`로 대체 가능하도록 인터페이스로 분리됨.
 
+**4) 독립 서브에이전트 교차 검증(2026-07-27 추가):** 계획서를 작성한 세션과 무관한 별도 서브에이전트가 스펙 대비 전수 검토를 수행해, 최초 self-review가 놓친 문제 4건을 발견해 모두 수정했다.
+- **[치명적, 수정완료]** Task 1의 `appointment_slots` RLS에 환자용 SELECT 정책만 있고 UPDATE 정책이 없어, Task 7의 `book_slot`/`release_slot`(환자 세션으로 직접 UPDATE)이 항상 실패해 예약 신청/변경/취소 전체가 막히는 결함 → `patients_can_update_slots_for_booking` 정책 추가, 검증 테스트 2건 추가
+- **[보안, 수정완료]** Task 2의 `medical_records` RLS가 행 단위로만 걸려 있어 `symptoms`/`diagnosis`/`treatment` 같은 의료진 전용 항목이 컬럼 단위로는 보호되지 않던 결함(앱의 Supabase 직접 접속 경로로 우회 열람 가능) → `patient_medical_notes` 뷰로 분리해 안전한 칼럼만 노출, `medical_records` 테이블 자체에는 환자용 정책을 두지 않도록 변경, Task 11이 뷰를 사용하도록 수정, 검증 테스트 추가
+- **[보통, 수정완료]** Task 9 `list_my_appointments`에 날짜 필터가 없어 직원이 상태 전이를 놓친 과거 예약이 계속 "다음 예약"으로 표시될 수 있던 결함 → `slot_date >= current_date` 조건 추가, 검증 테스트 추가
+- **[경미, 수정완료]** Task 12에서 `change_booking`의 알림 호출이 코드 없이 설명 문장으로만 남아있던 자리표시자 → 실제 코드로 채움
+
 ## 다른 단계 의존성
 
-- 2단계(직원용 웹)에는 아직 "취소요청 대기열" 화면이 없다(마감 후 `cancellation_requested_at`이 채워진 예약을 직원이 승인/반려하는 화면). 이 계획은 백엔드에 `cancellation_requested_at` 필드와 상태만 준비해두고, 그 화면 자체는 2단계 담당이므로 이 계획의 태스크로 포함하지 않았다.
+- 2단계(직원용 웹)에는 아직 "취소요청 대기열" 화면이 없다(마감 후 `cancellation_requested_at`이 채워진 예약을 직원이 승인/반려하는 화면). 이 계획은 백엔드에 `cancellation_requested_at` 필드와 상태만 준비해두고, 그 화면 자체는 2단계 담당이므로 이 계획의 태스크로 포함하지 않았다. **[해결됨]** `staff-web.md` Task 16으로 반영 완료(2026-07-28).
+- Task 27(상담봇 수집 정보의 사전문진 반영)은 4단계(`ai-chatbot.md`)의 `chat_service.get_questionnaire_prefill`을 소비한다. 4단계 구현이 먼저 끝나 있어야 한다.
 
 ## Execution Handoff
 

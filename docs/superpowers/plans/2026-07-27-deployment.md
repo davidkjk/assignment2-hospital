@@ -523,14 +523,17 @@ git commit -m "test: 시나리오 5(기록 수정)·6(일정 변경) 통합 테�
 
 ---
 
-### Task 5: 시나리오 9(권한 확인) 자동 테스트 + RLS 이중 확인
+### Task 5: 시나리오 9(권한 확인)·10(운영 통계 API) 자동 테스트 + RLS 이중 확인
 
 **Files:**
 - Create: `backend/tests/scenarios/test_scenario_09_permissions.py`
+- Create: `backend/tests/scenarios/test_scenario_10_stats.py`
 
 **Interfaces:**
-- Consumes: `hospital`, `bearer()`, `tests.conftest.set_session_auth`, 라우터 전반, 뷰 `patient_medical_notes`
+- Consumes: `hospital`, `bearer()`, `tests.conftest.set_session_auth`, 라우터 전반, 뷰 `patient_medical_notes`, `GET /stats?from_=&to=`(2단계 Task 참조 — admin 전용, 응답 `{reserved, cancelled, no_show, visited, average_wait_minutes, app_booking_ratio}`)
 - Produces: 없음
+
+> 시나리오 10(운영 통계)은 "화면에 보이는가"와 "숫자가 맞는가"가 분리된다. 후자는 API 응답만으로 검증 가능하므로 여기서 자동화하고, 화면 렌더링·CSV 다운로드 버튼 클릭은 Task 20/21의 수동 체크리스트로 남긴다.
 
 - [ ] **Step 1: 권한 테스트 작성 — API 레벨 + RLS 직접 조회 레벨**
 
@@ -609,17 +612,83 @@ async def test_scenario_09_rls_blocks_direct_table_access(db_conn, hospital):
 Run: `cd backend && pytest tests/scenarios/test_scenario_09_permissions.py -v`
 Expected: PASS
 
-- [ ] **Step 3: 시나리오 전체 일괄 실행**
+- [ ] **Step 3: 시나리오 10 테스트 작성 — 통계 API 수치가 실제 생성한 예약과 일치**
+
+`backend/tests/scenarios/test_scenario_10_stats.py`:
+```python
+from datetime import date
+
+import pytest
+
+from tests.scenarios.conftest import bearer
+
+
+@pytest.mark.asyncio
+async def test_scenario_10_stats_reflect_created_appointments(client, hospital, db_pool):
+    admin_h = bearer(hospital["admin"]["auth_user_id"])
+    reception_h = bearer(hospital["receptionist"]["auth_user_id"])
+
+    # 1) 확정 예약 1건
+    res = client.post("/appointments", headers=reception_h, json={
+        "account_patient_id": str(hospital["patient"]["patient_id"]),
+        "for_patient_id": str(hospital["patient"]["patient_id"]),
+        "department_id": str(hospital["dept_id"]),
+        "doctor_id": str(hospital["doctor"]["staff_id"]),
+        "reason": "정기검진", "source": "staff", "initial_status": "예약확정",
+        "slot_id": str(hospital["slots"][0]),
+    })
+    assert res.status_code == 200
+
+    # 2) 예약 후 취소 1건 (취소 건수에 반영돼야 함)
+    res = client.post("/appointments", headers=reception_h, json={
+        "account_patient_id": str(hospital["patient"]["patient_id"]),
+        "for_patient_id": str(hospital["patient"]["patient_id"]),
+        "department_id": str(hospital["dept_id"]),
+        "doctor_id": str(hospital["doctor"]["staff_id"]),
+        "reason": "취소예정", "source": "staff", "initial_status": "예약확정",
+        "slot_id": str(hospital["slots"][1]),
+    })
+    cancel_id = res.json()["appointment_id"]
+    async with db_pool.acquire() as conn:
+        updated_at = await conn.fetchval(
+            "select updated_at from appointments where id = $1::uuid", cancel_id,
+        )
+    client.patch(f"/appointments/{cancel_id}/status", headers=reception_h, json={
+        "new_status": "환자취소", "reason": "환자 요청",
+        "expected_updated_at": updated_at.isoformat(),
+    })
+
+    today = date.today().isoformat()
+
+    # 3) 관리자는 통계 조회 가능, 숫자가 실제 생성 건수를 반영
+    res = client.get(f"/stats?from_={today}&to={today}", headers=admin_h)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["reserved"] >= 1
+    assert body["cancelled"] >= 1
+    assert {"average_wait_minutes", "app_booking_ratio"} <= set(body)
+
+    # 4) 접수직원은 통계 조회 불가 (관리자 전용 — 요구사항 3.10)
+    res = client.get(f"/stats?from_={today}&to={today}", headers=reception_h)
+    assert res.status_code == 403
+```
+
+- [ ] **Step 4: 실행해 통과 확인**
+
+Run: `cd backend && pytest tests/scenarios/test_scenario_10_stats.py -v`
+Expected: PASS (라우터의 실제 쿼리 파라미터 이름이 `from_`이 아니라 `from`(alias 처리)이면 Global Constraints 마지막 항목에 따라 이 테스트의 쿼리 문자열을 실제 구현에 맞춰 수정)
+
+- [ ] **Step 5: 시나리오 전체 일괄 실행**
 
 Run: `cd backend && pytest tests/scenarios/ -v`
 Expected: 전부 PASS
 
-- [ ] **Step 4: 임시 스모크 테스트 제거 후 커밋**
+- [ ] **Step 6: 임시 스모크 테스트 제거 후 커밋**
 
 ```bash
 rm backend/tests/scenarios/test_fixture_smoke.py
 git add -A backend/tests/scenarios/
-git commit -m "test: 시나리오 9(권한+RLS 이중 확인) 통합 테스트"
+git commit -m "test: 시나리오 9(권한+RLS 이중 확인)·10(통계 API) 통합 테스트"
 ```
 
 ---
@@ -1306,11 +1375,13 @@ async def main(do_reset: bool):
                     appointment_id, doctor_id, symptoms_pool[i], diagnosis_pool[i],
                 )
 
-        # 7) 상담봇 지식 문서 (승인 상태 — 4단계 kb_documents 스키마 기준)
+        # 7) 상담봇 지식 문서 (승인 상태 — 4단계 kb_documents 스키마의 status check 제약: draft/approved/archived)
+        admin_id = staff_ids["admin@demo-hospital.kr"]
         for title, content in KB_DOCUMENTS:
             await conn.execute(
-                "insert into kb_documents (title, content, status) values ($1, $2, '승인')",
-                title, content,
+                "insert into kb_documents (title, content, status, approved_by, approved_at) "
+                "values ($1, $2, 'approved', $3, now())",
+                title, content, admin_id,
             )
 
     print(f"[seed_demo] 직원 {len(STAFF)}, 환자 {len(PATIENTS)}+가족 1, "
@@ -1733,8 +1804,10 @@ git push origin main
 - Create: `widget-demo/index.html`
 
 **Interfaces:**
-- Consumes: 4단계 웹 위젯 빌드 산출물(`web-widget/dist/widget.js` — 4단계 구현 계획이 정하는 실제 경로·전역 초기화 함수명을 따른다)
+- Consumes: 4단계 웹 위젯 빌드 산출물(`web-widget/dist/widget.js`, 전역 초기화 함수 `HospitalChatWidget.init(options)` — 이 계획 작성 시점의 가정이며, 4단계 구현이 완료되면 실제 산출물 경로와 초기화 함수명을 반드시 대조한다)
 - Produces: 직원 웹 주소 `https://<프로젝트>.vercel.app`, 위젯 데모 주소 `https://<위젯데모>.vercel.app`
+
+> Global Constraints 마지막 항목("라우터 인터페이스가 계획과 실제 구현 사이에 어긋나면 실제 구현 쪽을 기준으로 맞춘다")은 백엔드 라우터뿐 아니라 이 Task의 위젯 파일 경로·초기화 함수명에도 동일하게 적용한다. Step 4를 실행하기 전 `web-widget/dist/` 실제 산출물과 4단계 구현 계획의 실제 초기화 API를 먼저 확인하고, 아래 코드의 파일명·함수 호출부를 그에 맞게 고친다.
 
 - [ ] **Step 1: 직원 웹 Vercel 프로젝트 생성**
 
@@ -1897,7 +1970,7 @@ cd mobile && flutter build ios --simulator \
   --dart-define=SUPABASE_ANON_KEY=<anon key>
 flutter run -d "iPhone 15" --release <같은 dart-define 3개>
 ```
-Expected: 시뮬레이터에서 로그인·예약 조회 정상. README에 이 실행 명령을 기록(강사 검토용).
+Expected: 시뮬레이터에서 로그인·예약 조회 정상. README에 이 실행 명령을 기록해 향후 재현 가능하게 한다.
 
 - [ ] **Step 4: GitHub Release 생성**
 
@@ -2049,7 +2122,7 @@ git commit -m "test: 클라우드 스모크 테스트 스크립트 추가"
   1. 관리자 화면 "시스템 오류"에서 확인 2. Railway 로그 보는 법(백엔드·크론) 3. Vercel 로그 4. Supabase 로그 5. 증상별 1차 점검표(웹이 안 열려요/앱이 로그인이 안 돼요/알림이 안 와요/상담봇이 답을 안 해요 → 각각 어디를 먼저 보는지)
 
 - [ ] **Step 6: `scenario-checklist.md`** (검수 대본)
-  요구사항 8장의 10개 시나리오 각각을 "단계 | 수행자 | 화면/조작 | 통과 기준 | ✅" 표로 작성. 자동 테스트로 검증되는 단계는 비고에 테스트 파일명 병기. 시나리오 2·7(상담봇), 10(운영 보고)과 푸시알림 수신은 수동 확인 절차를 상세히.
+  요구사항 8장의 10개 시나리오 각각을 "단계 | 수행자 | 화면/조작 | 통과 기준 | ✅" 표로 작성. 자동 테스트로 검증되는 단계는 비고에 테스트 파일명 병기. 시나리오 10은 통계 수치 자체는 `test_scenario_10_stats.py`(Task 5)로 이미 자동 검증되므로, 체크리스트에는 "화면에 같은 숫자가 보이는지"와 "CSV 다운로드 버튼이 실제로 파일을 내려받는지"만 수동 항목으로 남긴다. 시나리오 2·7(상담봇)과 푸시알림 실제 수신은 전체를 수동 확인 절차로 상세히 작성.
 
 - [ ] **Step 7: `README.md` 갱신**
   접속 주소(직원 웹·위젯 데모·백엔드), 테스트 계정 표(demo_accounts.md 링크), 안드로이드 .apk 설치법(GitHub Release 링크), iOS 시뮬레이터 실행 명령, 로컬 개발 실행법, 문서 목차(docs/manual/), 저장소 구조.
@@ -2092,7 +2165,7 @@ git push origin main
 ## 스펙 커버리지 확인
 
 - 실제 클라우드 배포(Railway/Vercel/Supabase) → Task 13, 14, 15
-- 자동 통합 테스트(시나리오 1,3,4,5,6,8,9) + 수동 체크리스트(2,7,10, 알림) → Task 1~5, 20(Step 6), 21
+- 자동 통합 테스트(시나리오 1,3,4,5,6,8,9,10 통계API 수치) + 수동 체크리스트(2,7, 10 화면·CSV 다운로드, 알림) → Task 1~5, 20(Step 6), 21
 - 알림 스케줄러(전날·당일·사전문진, 08:00 KST) → Task 6, 16
 - 백업(pg_dump, 14일, 복구 리허설) → Task 7, 16
 - 오류 로그 화면(1~4단계 공백 메움) + 플랫폼 로그 문서화 → Task 8, 20(Step 5)

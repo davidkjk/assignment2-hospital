@@ -60,7 +60,7 @@ backend/scripts/
 frontend/src/features/chatAdmin/   # 직원 웹: 상담 관리
 frontend/src/features/admin/kb/    # 관리자: KB 관리/오답/품질리포트/현황
 webchat/                           # 병원 홈페이지용 웹 상담창 (별도 Vite 앱)
-app/lib/features/chat/             # Flutter 앱: AI 상담
+mobile/lib/features/chat/          # Flutter 앱(3단계 patient-app과 동일 프로젝트): AI 상담
 ```
 
 ---
@@ -304,6 +304,7 @@ create table kb_documents (
   category text not null default '기타',
   content text not null,
   status text not null default 'draft' check (status in ('draft', 'approved', 'archived')),
+  is_restricted boolean not null default false, -- true면 상담봇이 근거로 재생성하지 않고 content를 그대로 안내(요구사항 3.8 "답하면 안 되는 내용")
   created_by uuid references staff(id),
   approved_by uuid references staff(id),
   created_at timestamptz not null default now(),
@@ -338,9 +339,9 @@ create index idx_kb_document_revisions_document on kb_document_revisions (docume
 
 -- 승인된 자료의 조각만 대상으로 코사인 유사도 상위 match_count개 반환
 create function match_kb_chunks(query_embedding vector(1536), match_count int)
-returns table (id uuid, document_id uuid, content text, title text, similarity float)
+returns table (id uuid, document_id uuid, content text, title text, is_restricted boolean, similarity float)
 language sql stable as $$
-  select c.id, c.document_id, c.content, d.title,
+  select c.id, c.document_id, c.content, d.title, d.is_restricted,
          1 - (c.embedding <=> query_embedding) as similarity
   from kb_chunks c
   join kb_documents d on d.id = c.document_id
@@ -732,7 +733,7 @@ git commit -m "feat: OpenAI 임베딩 클라이언트 + 4단계 설정"
 
 **Interfaces:**
 - Consumes: `app.db.pool.get_pool`, `EmbeddingClient` (주입 가능), `StaffContext`
-- Produces: `app.services.kb_service.create_document(staff, title, category, content) -> UUID`, `update_document(staff, document_id, title, category, content) -> None`(수정 전 내용을 `kb_document_revisions`에 스냅샷 저장 후 덮어쓰기 — 요구사항 3.8. 승인 상태였다면 재청킹+재임베딩), `approve_document(staff, document_id) -> None`(청킹+임베딩 실행, 관리자만), `archive_document(staff, document_id) -> None`(조각 삭제), `list_documents(staff, status=None, category=None) -> list[dict]`, `list_revisions(staff, document_id) -> list[dict]`(수정이력 시간 역순), `chunk_text(content: str) -> list[str]`(빈 줄 기준 문단 분리, 800자 초과 문단은 분할)
+- Produces: `app.services.kb_service.create_document(staff, title, category, content, is_restricted=False) -> UUID`, `update_document(staff, document_id, title, category, content, is_restricted=False) -> None`(수정 전 내용을 `kb_document_revisions`에 스냅샷 저장 후 덮어쓰기 — 요구사항 3.8. 승인 상태였다면 재청킹+재임베딩), `approve_document(staff, document_id) -> None`(청킹+임베딩 실행, 관리자만), `archive_document(staff, document_id) -> None`(조각 삭제), `list_documents(staff, status=None, category=None) -> list[dict]`, `list_revisions(staff, document_id) -> list[dict]`(수정이력 시간 역순), `chunk_text(content: str) -> list[str]`(빈 줄 기준 문단 분리, 800자 초과 문단은 분할). `is_restricted=True`인 자료는 상담봇이 답하면 안 되는 주제를 나타낸다(요구사항 3.8) — RAG 체인(Task 7)이 이 값을 보고 LLM 생성 없이 `content`를 그대로 안내한다
 
 - [ ] **Step 1: 청킹 단위 테스트 작성 (순수 함수 먼저)**
 
@@ -875,12 +876,14 @@ def _vec_literal(v: list[float]) -> str:
     return "[" + ",".join(str(x) for x in v) + "]"
 
 
-async def create_document(staff: StaffContext, title: str, category: str, content: str) -> UUID:
+async def create_document(
+    staff: StaffContext, title: str, category: str, content: str, is_restricted: bool = False
+) -> UUID:
     pool = get_pool()
     return await pool.fetchval(
-        "insert into kb_documents (title, category, content, created_by) "
-        "values ($1, $2, $3, $4) returning id",
-        title, category, content, staff.id,
+        "insert into kb_documents (title, category, content, is_restricted, created_by) "
+        "values ($1, $2, $3, $4, $5) returning id",
+        title, category, content, is_restricted, staff.id,
     )
 
 
@@ -920,7 +923,8 @@ async def approve_document(staff: StaffContext, document_id: UUID, embedder=None
 
 
 async def update_document(
-    staff: StaffContext, document_id: UUID, title: str, category: str, content: str, embedder=None
+    staff: StaffContext, document_id: UUID, title: str, category: str, content: str,
+    is_restricted: bool = False, embedder=None,
 ) -> None:
     embedder = embedder or get_embedding_client()
     pool = get_pool()
@@ -940,9 +944,9 @@ async def update_document(
                 document_id, before["title"], before["category"], before["content"], staff.id,
             )
             await conn.execute(
-                "update kb_documents set title = $2, category = $3, content = $4, updated_at = now() "
-                "where id = $1",
-                document_id, title, category, content,
+                "update kb_documents set title = $2, category = $3, content = $4, "
+                "is_restricted = $5, updated_at = now() where id = $1",
+                document_id, title, category, content, is_restricted,
             )
             if before["status"] == "approved":
                 await _rebuild_chunks(conn, document_id, content, embedder)
@@ -1001,7 +1005,7 @@ git commit -m "feat: 지식베이스 서비스 - 승인 시 청킹+임베딩 파
 
 **Interfaces:**
 - Consumes: `match_kb_chunks` DB 함수(Task 2), `EmbeddingClient`
-- Produces: `app.services.rag_search_service.search(query: str, top_k: int = 5, embedder=None) -> list[dict]` — 각 dict: `{"chunk_id": UUID, "document_id": UUID, "title": str, "content": str, "similarity": float}`
+- Produces: `app.services.rag_search_service.search(query: str, top_k: int = 5, embedder=None) -> list[dict]` — 각 dict: `{"chunk_id": UUID, "document_id": UUID, "title": str, "content": str, "is_restricted": bool, "similarity": float}`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1050,7 +1054,7 @@ async def search(query: str, top_k: int = 5, embedder=None) -> list[dict]:
     [vector] = await embedder.embed([query])
     pool = get_pool()
     rows = await pool.fetch(
-        "select id as chunk_id, document_id, content, title, similarity "
+        "select id as chunk_id, document_id, content, title, is_restricted, similarity "
         "from match_kb_chunks($1::vector, $2)",
         _vec_literal(vector), top_k,
     )
@@ -1081,7 +1085,7 @@ git commit -m "feat: RAG 검색 서비스 (질문 임베딩 + pgvector 유사도
 **Interfaces:**
 - Consumes: `settings.anthropic_api_key`, `settings.chat_model`, `rag_search_service.search`(Task 6)
 - Produces: `app.integrations.langchain_client.get_chat_model(model: str | None = None) -> ChatAnthropic`
-- Produces: `app.services.rag_chain.answer(query: str, embedder=None, model=None) -> dict` (`{"text": str, "source_chunk_ids": list[UUID]}`) — 도구 없이 검색+생성만 수행 (스펙 섹션 3 "갈래 ①")
+- Produces: `app.services.rag_chain.answer(query: str, embedder=None, model=None) -> dict` (`{"text": str, "source_chunk_ids": list[UUID]}`) — 도구 없이 검색+생성만 수행 (스펙 섹션 3 "갈래 ①"). 검색 1위 결과가 `is_restricted` 자료면 LLM을 호출하지 않고 그 자료의 `content`를 그대로 반환한다(요구사항 3.8 "답하면 안 되는 내용" — 관리자가 쓴 문구를 그대로 보여줘야 AI가 말을 바꾸지 않음)
 
 - [ ] **Step 1: 의존성 추가**
 
@@ -1169,6 +1173,24 @@ async def test_answer_no_kb_hits_skips_model_call():
 
     assert result["source_chunk_ids"] == []
     assert "찾지 못했" in result["text"]
+
+
+@pytest.mark.asyncio
+async def test_answer_restricted_document_skips_model_and_returns_admin_text(service_conn, admin_staff):
+    from app.services import kb_service, rag_chain
+
+    doc_id = await kb_service.create_document(
+        admin_staff, title="정신과 상담 안내", category="기타",
+        content="정신과 관련 상담은 상담봇이 답변드리지 않아요. 정신건강의학과 진료 예약으로 문의해주세요.",
+        is_restricted=True,
+    )
+    await kb_service.approve_document(admin_staff, doc_id, embedder=FakeEmbedding())
+
+    fake_model = FakeListChatModel(responses=["이 답은 나오면 안 됨"])
+    result = await rag_chain.answer("우울증 상담 되나요?", embedder=FakeEmbedding(), model=fake_model)
+
+    assert result["text"] == "정신과 관련 상담은 상담봇이 답변드리지 않아요. 정신건강의학과 진료 예약으로 문의해주세요."
+    assert len(result["source_chunk_ids"]) == 1
 ```
 
 Run: `cd backend && pytest tests/test_rag_chain.py -v` → FAIL (모듈 없음)
@@ -1200,6 +1222,10 @@ async def answer(query: str, embedder=None, model=None) -> dict:
     if not results:
         return {"text": NO_RESULT_REPLY, "source_chunk_ids": []}
 
+    if results[0]["is_restricted"]:
+        # 관리자가 "답하면 안 되는 내용"으로 등록한 자료 — AI가 문구를 바꾸지 않도록 그대로 반환 (요구사항 3.8)
+        return {"text": results[0]["content"], "source_chunk_ids": [results[0]["chunk_id"]]}
+
     context = "\n\n".join(f"[{r['title']}] {r['content']}" for r in results)
     chain = _PROMPT | (model or get_chat_model()) | StrOutputParser()
     text = await chain.ainvoke({"context": context, "query": query})
@@ -1225,7 +1251,7 @@ git commit -m "feat: LangChain 모델 클라이언트 + 안내형 RAG 체인"
 - Test: `backend/tests/test_department_guide_chain.py`
 
 **Interfaces:**
-- Consumes: `get_chat_model`(Task 7), `patient_catalog_service.list_departments`(1단계)
+- Consumes: `get_chat_model`(Task 7), `patient_catalog_service.list_departments`(3단계, patient-app)
 - Produces: `app.services.department_guide_chain.SAFETY_RULES: str`
 - Produces: `app.services.department_guide_chain.ask_next_question(history_text: str, step: int, model=None) -> str` (`step` 0=시작시점 질문, 1=동반증상 질문, 2=목적 확인)
 - Produces: `app.services.department_guide_chain.recommend_departments(history_text: str, patient, model=None) -> str` — 실제 운영 중인 진료과만 안내
@@ -1342,7 +1368,7 @@ git commit -m "feat: 문진 체인 - 진료과 추천형 (구조화된 순차 �
 - Test: `backend/tests/test_agent_chain.py`
 
 **Interfaces:**
-- Consumes: `rag_search_service.search`(Task 6), `patient_catalog_service.list_departments/list_doctors/list_available_slots`, `patient_appointment_query_service.list_my_appointments`(1단계), `get_chat_model`(Task 7)
+- Consumes: `rag_search_service.search`(Task 6), `patient_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app), `patient_appointment_query_service.list_my_appointments`(3단계, patient-app), `get_chat_model`(Task 7)
 - Produces: `app.services.chat_tools.ToolContext`(dataclass: `patient: PatientContext | None`, `conversation_id: UUID`, `collected: dict` — `source_chunk_ids: list`, `card: dict | None`)
 - Produces: `app.services.chat_tools.build_tools(ctx: ToolContext) -> list[StructuredTool]` (도구 5개 — 인계 도구는 없음, Task 10의 감시 로직으로 분리됨)
 - Produces: `app.services.agent_chain.run(query: str, ctx: ToolContext, model=None) -> dict` (`{"text": str, "card": dict | None, "source_chunk_ids": list}`)
@@ -1376,7 +1402,7 @@ async def test_search_collects_source_chunks(monkeypatch):
 
     async def fake_search(query, top_k=5, embedder=None):
         return [{"chunk_id": uuid4(), "document_id": uuid4(), "title": "주차 안내",
-                 "content": "지하 1층", "similarity": 0.9}]
+                 "content": "지하 1층", "is_restricted": False, "similarity": 0.9}]
 
     monkeypatch.setattr(chat_tools.rag_search_service, "search", fake_search)
     ctx = ToolContext(patient=None, conversation_id=uuid4())
@@ -1385,6 +1411,23 @@ async def test_search_collects_source_chunks(monkeypatch):
     out = await tool.ainvoke({"query": "주차"})
     assert "지하 1층" in out
     assert len(ctx.collected["source_chunk_ids"]) == 1  # 근거 추적 (요구사항 5.6)
+
+
+@pytest.mark.asyncio
+async def test_search_restricted_document_instructs_verbatim_reply(monkeypatch):
+    from app.services import chat_tools
+
+    async def fake_search(query, top_k=5, embedder=None):
+        return [{"chunk_id": uuid4(), "document_id": uuid4(), "title": "정신과 상담 안내",
+                 "content": "정신과 관련 상담은 전화로만 안내합니다.", "is_restricted": True, "similarity": 0.9}]
+
+    monkeypatch.setattr(chat_tools.rag_search_service, "search", fake_search)
+    ctx = ToolContext(patient=None, conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "search_hospital_info")
+
+    out = await tool.ainvoke({"query": "우울증 상담"})
+    assert "정신과 관련 상담은 전화로만 안내합니다." in out
+    assert len(ctx.collected["source_chunk_ids"]) == 1
 
 
 @pytest.mark.asyncio
@@ -1462,6 +1505,13 @@ def build_tools(ctx: ToolContext) -> list[StructuredTool]:
         results = await rag_search_service.search(query)
         if not results:
             return "관련된 병원 안내자료를 찾지 못했습니다. 지어내지 말고 인계를 고려하세요."
+        if results[0]["is_restricted"]:
+            # RAG 체인(갈래①)과 동일한 보호 — 관리자 문구를 에이전트가 바꿔 말하지 않도록 지시 (요구사항 3.8)
+            ctx.collected["source_chunk_ids"].append(results[0]["chunk_id"])
+            return (
+                "[중요] 이 주제는 아래 문구를 요약하거나 바꾸지 말고 그대로 답변하세요:\n"
+                f"{results[0]['content']}"
+            )
         ctx.collected["source_chunk_ids"].extend(r["chunk_id"] for r in results)
         return "\n\n".join(f"[{r['title']}] {r['content']}" for r in results)
 
@@ -3231,6 +3281,10 @@ async def answer(query: str, embedder=None, model=None) -> dict:
     if not results:
         return {"text": NO_RESULT_REPLY, "source_chunk_ids": []}
 
+    if results[0]["is_restricted"]:
+        # Task 7과 동일한 보호 — 이 함수가 Task 7의 answer()를 완전히 대체하므로 여기도 유지해야 함 (요구사항 3.8)
+        return {"text": results[0]["content"], "source_chunk_ids": [results[0]["chunk_id"]]}
+
     context = "\n\n".join(f"[{r['title']}] {r['content']}" for r in results)
     examples = await qa_example_bank_service.find_similar_examples(query, category="rag", embedder=embedder)
     examples_text = "\n".join(f"Q: {e['question_text']}\nA: {e['corrected_answer_text']}" for e in examples) or "(없음)"
@@ -3307,7 +3361,7 @@ git commit -m "feat: 오답신고/정기검토 + 품질개선 예시은행 + 미
   - `GET /staff/chat/conversations?channel=` (전체 상담 기록 — 요구사항 5.1), `GET /staff/chat/conversations/{id}/messages` (각 봇 메시지에 `route_taken`과 `sources: [{title, content}]` 포함 — 근거 확인, 요구사항 5.6)
   - `POST /staff/chat/messages/{id}/feedback` `{correction_text, add_to_example_bank?}` (그 자리에서 오답 신고 — `source="realtime_report"` 고정)
 - Produces (관리자 — `admin_kb.py`, `require_role("admin")`):
-  - `GET/POST /admin/kb/documents`, `PUT /admin/kb/documents/{id}`, `POST /admin/kb/documents/{id}/approve`, `POST /admin/kb/documents/{id}/archive`
+  - `GET/POST /admin/kb/documents`, `PUT /admin/kb/documents/{id}`, `POST /admin/kb/documents/{id}/approve`, `POST /admin/kb/documents/{id}/archive` — POST/PUT 본문은 `{title, category, content, is_restricted?}`(`is_restricted` 기본값 `false`, `kb_service.create_document`/`update_document`에 그대로 전달 — 요구사항 3.8)
   - `GET /admin/kb/documents/{id}/revisions` — 수정이력 시간 역순 목록 (요구사항 3.8)
   - `GET /admin/kb/feedback`, `POST /admin/kb/feedback/{id}/apply` `{document_id?}`, `POST /admin/kb/feedback/{id}/reject`
   - `GET /admin/kb/stats?from=&to=`
@@ -4282,7 +4336,7 @@ export function ReportWrongAnswerDialog({ messageId, onDone, onCancel, onSubmit 
 `QualityReportPage`는 `<ReportWrongAnswerDialog ... onSubmit={submitPeriodicCorrection} />`로 호출한다.
 
 구현 요점 (나머지 파일):
-- `KbDocumentsPage`: 자료 목록 테이블(제목/분류/상태/수정일), 상태·분류 필터, "새 자료" 버튼 → `KbEditorDialog`(제목·분류 select·본문 textarea). `draft` 행에 "승인" 버튼(승인 시 "승인하면 상담봇이 이 자료를 근거로 사용해요. 자동으로 검색용 조각과 임베딩이 만들어져요" 확인창), `approved` 행에 "수정"(수정 시 재임베딩됨을 안내)과 "보관" 버튼. 모든 행에 "수정이력" 버튼 → `listKbRevisions(id)` 결과를 시간 역순 목록으로 보여주는 다이얼로그(수정 전 제목·분류·본문 스냅샷 표시 — 요구사항 3.8)
+- `KbDocumentsPage`: 자료 목록 테이블(제목/분류/상태/수정일), 상태·분류 필터, "새 자료" 버튼 → `KbEditorDialog`(제목·분류 select·본문 textarea·**"상담봇이 이 내용을 직접 답변하지 않고 이 문구만 그대로 보여줍니다" 체크박스** — 요구사항 3.8 "답하면 안 되는 내용", 체크 시 `createKbDocument`/`updateKbDocument` 본문에 `is_restricted: true` 포함). 목록에서 `is_restricted` 자료는 제목 옆에 "차단 안내" 배지 표시. `draft` 행에 "승인" 버튼(승인 시 "승인하면 상담봇이 이 자료를 근거로 사용해요. 자동으로 검색용 조각과 임베딩이 만들어져요" 확인창), `approved` 행에 "수정"(수정 시 재임베딩됨을 안내)과 "보관" 버튼. 모든 행에 "수정이력" 버튼 → `listKbRevisions(id)` 결과를 시간 역순 목록으로 보여주는 다이얼로그(수정 전 제목·분류·본문 스냅샷 표시 — 요구사항 3.8)
 - `FeedbackInboxPage`: pending 신고 목록(봇 답변 원문 + 직원 정정 내용 + 신고자 + `source` 뱃지로 "실시간 신고"/"정기 검토" 구분). 각 행에 "반영"(자료 선택 select — 미선택 시 새 자료로 생성됨 안내) / "반려" 버튼
 - `ExampleBankPage`: `qa_example_bank` 목록(질문/교정답변/갈래 표시), 각 행에 "비활성화" 버튼(삭제 대신 숨김 — 요구사항 6.3)
 - `BotStatsPage`: 기간 선택(from/to) + `StatTile` 4개(앱 상담 수/웹 상담 수/인계 건수/오답 신고 수) + 갈래별 분포(안내형/진료과추천형/행동형) + 인계 사유별 건수 목록(거창한 차트 없이 숫자 카드 수준 — 스펙 섹션 4)
@@ -4472,14 +4526,14 @@ git commit -m "feat: 병원 홈페이지용 웹 상담창 위젯 (익명+로그�
 ## Task 19: Flutter 앱 — AI 상담 화면
 
 **Files:**
-- Create: `app/lib/features/chat/chat_api.dart`
-- Create: `app/lib/features/chat/chat_models.dart`
-- Create: `app/lib/features/chat/chat_controller.dart`
-- Create: `app/lib/features/chat/chat_list_screen.dart` (이전 상담 목록)
-- Create: `app/lib/features/chat/chat_screen.dart` (채팅 화면)
-- Create: `app/lib/features/chat/booking_card.dart`
-- Modify: `app/lib/router.dart` (`/chat`, `/chat/:id` 라우트), 홈 화면에 `AI 상담` 메뉴 추가
-- Test: `app/test/features/chat/chat_controller_test.dart`
+- Create: `mobile/lib/features/chat/chat_api.dart`
+- Create: `mobile/lib/features/chat/chat_models.dart`
+- Create: `mobile/lib/features/chat/chat_controller.dart`
+- Create: `mobile/lib/features/chat/chat_list_screen.dart` (이전 상담 목록)
+- Create: `mobile/lib/features/chat/chat_screen.dart` (채팅 화면)
+- Create: `mobile/lib/features/chat/booking_card.dart`
+- Modify: `mobile/lib/router.dart` (`/chat`, `/chat/:id` 라우트), 홈 화면에 `AI 상담` 메뉴 추가
+- Test: `mobile/test/features/chat/chat_controller_test.dart`
 
 **Interfaces:**
 - Consumes: `ApiClient`(3단계), `BusyButton`(3단계), FCM 푸시(3단계 — `chat_answered` 타입 수신 시 해당 방으로 딥링크)
@@ -4488,10 +4542,10 @@ git commit -m "feat: 병원 홈페이지용 웹 상담창 위젯 (익명+로그�
 
 - [ ] **Step 1: 실패하는 컨트롤러 테스트 작성**
 
-`app/test/features/chat/chat_controller_test.dart`:
+`mobile/test/features/chat/chat_controller_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hospital_app/features/chat/chat_models.dart';
+import 'package:hospital_patient_app/features/chat/chat_models.dart';
 
 void main() {
   test('SendResult가 booking_confirm 카드를 파싱한다', () {
@@ -4531,7 +4585,7 @@ void main() {
 
 - [ ] **Step 2: 실패 확인 → 구현**
 
-Run: `cd app && flutter test test/features/chat/` → FAIL
+Run: `cd mobile && flutter test test/features/chat/` → FAIL
 
 구현 요점:
 - `chat_api.dart`: `ApiClient`로 `/chat/*` 호출 (앱은 항상 로그인 상태 — Authorization 자동)
@@ -4543,12 +4597,452 @@ Run: `cd app && flutter test test/features/chat/` → FAIL
 
 - [ ] **Step 3: 테스트 통과 확인 후 Commit**
 
-Run: `cd app && flutter test && flutter analyze`
+Run: `cd mobile && flutter test && flutter analyze`
 Expected: PASS
 
 ```bash
-git add app/lib/features/chat/ app/lib/router.dart app/test/features/chat/
+git add mobile/lib/features/chat/ mobile/lib/router.dart mobile/test/features/chat/
 git commit -m "feat: 앱 AI 상담 - 채팅/카드/피드백/인계/푸시 연동/문진 배너"
+```
+
+---
+
+## Task 20: 2단계 스펙이 4단계로 넘긴 두 항목 마무리 — 환자상세 상담이력 탭 + 오늘의 현황 카드 연결
+
+`staff-web-design.md`(2단계 스펙)의 "이번 단계에서 다루지 않는 것" 목록에 다음 두 항목이 "4단계에서 다룸"으로 명시되어 있었으나, `ai-chatbot-design.md`(4단계 스펙)에는 반영되지 않았던 것을 정합성 검토에서 발견해 보완한다: ① 요구사항 3.5 "상담봇 문의 중 직원에게 전달된 내용"을 환자 상세화면에서 확인, ② 요구사항 3.2 "오늘의 현황"의 "확인 필요 상담 문의" 카드를 실제 데이터에 연결(2단계에서는 항상 0건 고정이었음).
+
+**Files:**
+- Modify: `backend/app/services/ticket_service.py` (`list_tickets_for_patient`, `count_pending_tickets` 추가)
+- Modify: `backend/app/routers/staff_chat.py` (`GET /staff/chat/patients/{patient_id}/tickets` 추가)
+- Modify: `backend/app/services/dashboard_service.py`(2단계 Task 13) — `get_today_summary`의 `pending_inquiries_count` 하드코딩 0을 실제 값으로 교체
+- Modify: `frontend/src/features/patients/PatientDetailPage.tsx`(2단계 Task 10) — "상담 문의" 섹션 추가
+- Test: `backend/tests/test_ticket_service.py` (추가)
+- Test: `backend/tests/test_dashboard_service.py`(2단계, 추가)
+- Test: `frontend/src/features/patients/PatientDetailPage.test.tsx`(2단계, 추가)
+
+**Interfaces:**
+- Consumes: `app.db.pool.get_pool`(Task 12에서 이미 쓰는 방식 그대로), `app.core.security.StaffContext, require_role`, `app.db.pool.acquire_as`(2단계 Task 13), `apiFetch`(2단계 Task 5)
+- Produces: `app.services.ticket_service.list_tickets_for_patient(patient_id, staff) -> list[dict]`, `count_pending_tickets() -> int`
+- Produces: `GET /staff/chat/patients/{patient_id}/tickets`(`require_role("receptionist","doctor","admin")`)
+
+- [ ] **Step 1: 실패하는 테스트 작성 — ticket_service**
+
+`backend/tests/test_ticket_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_list_tickets_for_patient_returns_only_that_patient(service_conn, admin_staff):
+    from app.core.patient_security import PatientContext
+    from app.services import chat_service, ticket_service
+    from tests.conftest import seed_patient
+
+    seed_a = await seed_patient(service_conn)
+    seed_b = await seed_patient(service_conn)
+    patient_a = PatientContext(id=seed_a["patient_id"], auth_user_id=seed_a["auth_user_id"])
+    patient_b = PatientContext(id=seed_b["patient_id"], auth_user_id=seed_b["auth_user_id"])
+    conv_a = await chat_service.start_conversation(channel="app", patient=patient_a)
+    conv_b = await chat_service.start_conversation(channel="app", patient=patient_b)
+    await ticket_service.create_ticket(
+        conversation_id=conv_a["conversation_id"], patient=patient_a, reason="no_answer",
+        summary_question="주차 몇 시까지 되나요", summary_confirmed="", summary_guided="",
+        summary_unresolved="자료 없음", summary_staff_todo="확인 후 안내",
+    )
+    await ticket_service.create_ticket(
+        conversation_id=conv_b["conversation_id"], patient=patient_b, reason="no_answer",
+        summary_question="다른 환자 질문", summary_confirmed="", summary_guided="",
+        summary_unresolved="자료 없음", summary_staff_todo="확인 후 안내",
+    )
+
+    rows = await ticket_service.list_tickets_for_patient(patient_a.id, admin_staff)
+
+    assert len(rows) == 1
+    assert rows[0]["summary_question"] == "주차 몇 시까지 되나요"
+
+
+@pytest.mark.asyncio
+async def test_count_pending_tickets(service_conn):
+    from app.services import chat_service, ticket_service
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    await ticket_service.create_ticket(
+        conversation_id=conv["conversation_id"], patient=None, reason="no_answer",
+        summary_question="질문", summary_confirmed="", summary_guided="",
+        summary_unresolved="", summary_staff_todo="",
+    )
+
+    count = await ticket_service.count_pending_tickets()
+
+    assert count == 1
+```
+
+Run: `cd backend && pytest tests/test_ticket_service.py -v`
+Expected: 새 테스트 2개 FAIL(`list_tickets_for_patient`/`count_pending_tickets` 없음)
+
+- [ ] **Step 2: ticket_service 구현**
+
+`backend/app/services/ticket_service.py` 끝에 추가:
+```python
+async def list_tickets_for_patient(patient_id: UUID, staff: StaffContext) -> list[dict]:
+    pool = get_pool()
+    rows = await pool.fetch(
+        "select id, reason, status, summary_question, summary_guided, created_at, answered_at "
+        "from support_tickets where patient_id = $1 order by created_at desc",
+        patient_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def count_pending_tickets() -> int:
+    pool = get_pool()
+    return await pool.fetchval("select count(*) from support_tickets where status = 'pending'")
+```
+
+- [ ] **Step 3: 테스트 실행**
+
+Run: `cd backend && pytest tests/test_ticket_service.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 4: 라우터에 엔드포인트 추가**
+
+`backend/app/routers/staff_chat.py`에 추가(기존 `GET /staff/chat/tickets` 등록부 근처):
+```python
+@router.get("/staff/chat/patients/{patient_id}/tickets")
+async def patient_tickets(
+    patient_id: UUID,
+    staff: StaffContext = Depends(require_role("receptionist", "doctor", "admin")),
+) -> list[dict]:
+    return await ticket_service.list_tickets_for_patient(patient_id, staff)
+```
+
+- [ ] **Step 5: 실패하는 테스트 작성 — dashboard_service (2단계) pending_inquiries_count**
+
+`backend/tests/test_dashboard_service.py`(2단계 파일)에 추가:
+```python
+@pytest.mark.asyncio
+async def test_today_summary_counts_pending_tickets(db_conn, monkeypatch):
+    admin = _to_context(await seed_staff(db_conn, role="admin"), "admin")
+
+    async def fake_count_pending_tickets():
+        return 3
+
+    monkeypatch.setattr("app.services.ticket_service.count_pending_tickets", fake_count_pending_tickets)
+
+    summary = await dashboard_service.get_today_summary(admin)
+
+    assert summary["pending_inquiries_count"] == 3
+```
+
+Run: `cd backend && pytest tests/test_dashboard_service.py -v`
+Expected: 새 테스트 FAIL (`pending_inquiries_count`가 항상 0으로 하드코딩되어 있음)
+
+- [ ] **Step 6: dashboard_service.get_today_summary 수정**
+
+`backend/app/services/dashboard_service.py` 상단 import에 `from app.services import ticket_service` 추가. 반환 dict의 `"pending_inquiries_count": 0,` 줄을 다음으로 교체:
+```python
+        "pending_inquiries_count": await ticket_service.count_pending_tickets(),
+```
+
+- [ ] **Step 7: 테스트 실행**
+
+Run: `cd backend && pytest tests/test_dashboard_service.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 8: 실패하는 테스트 작성 — PatientDetailPage 상담 문의 섹션**
+
+`frontend/src/features/patients/PatientDetailPage.test.tsx`에 추가:
+```tsx
+it("shows chatbot inquiries handed over to staff", async () => {
+  server.use(
+    http.get("http://localhost:8000/patients/p1", () =>
+      HttpResponse.json({
+        id: "p1", name: "홍길동", birth_date: "1985-03-01",
+        phone: "01012345678", gender: "M", internal_notes: [],
+      }),
+    ),
+    http.get("http://localhost:8000/staff/chat/patients/p1/tickets", () =>
+      HttpResponse.json([
+        {
+          id: "t1", reason: "no_answer", status: "answered",
+          summary_question: "주차 몇 시까지 되나요", summary_guided: "지하 1층, 2시간 무료",
+          created_at: "2026-07-27T10:00:00Z", answered_at: "2026-07-27T10:05:00Z",
+        },
+      ]),
+    ),
+  );
+
+  renderWithProviders("p1");
+
+  await waitFor(() => expect(screen.getByText("주차 몇 시까지 되나요")).toBeInTheDocument());
+  expect(screen.getByText("지하 1층, 2시간 무료")).toBeInTheDocument();
+});
+```
+
+Run: `cd frontend && npm test -- PatientDetailPage.test.tsx`
+Expected: 새 테스트 FAIL (상담 문의 섹션 없음)
+
+- [ ] **Step 9: PatientDetailPage에 상담 문의 섹션 추가**
+
+`frontend/src/features/patients/PatientDetailPage.tsx`를 다음으로 교체:
+```tsx
+import { useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
+
+import { apiFetch } from "../../api/httpClient";
+
+type PatientDetail = {
+  id: string;
+  name: string;
+  birth_date: string;
+  phone: string;
+  gender: string;
+  internal_notes: { id: string; content: string; staff_name: string; created_at: string }[];
+};
+
+type PatientTicket = {
+  id: string;
+  reason: string;
+  status: "pending" | "in_progress" | "answered";
+  summary_question: string;
+  summary_guided: string;
+  created_at: string;
+  answered_at: string | null;
+};
+
+export function PatientDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { data } = useQuery({
+    queryKey: ["patient", id],
+    queryFn: () => apiFetch<PatientDetail>(`/patients/${id}`),
+    enabled: Boolean(id),
+  });
+  const { data: tickets } = useQuery({
+    queryKey: ["patient-tickets", id],
+    queryFn: () => apiFetch<PatientTicket[]>(`/staff/chat/patients/${id}/tickets`),
+    enabled: Boolean(id),
+  });
+
+  if (!data) return <p>불러오는 중입니다...</p>;
+
+  return (
+    <div>
+      <h1>{data.name}</h1>
+      <p>{data.birth_date}</p>
+      <p>{data.phone}</p>
+      <section aria-label="상담 문의">
+        {(tickets ?? []).map((t) => (
+          <div key={t.id}>
+            <p>{t.summary_question}</p>
+            {t.summary_guided && <p>{t.summary_guided}</p>}
+          </div>
+        ))}
+      </section>
+      <section aria-label="내부 메모">
+        {data.internal_notes.map((note) => (
+          <p key={note.id}>{note.content}</p>
+        ))}
+      </section>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 10: 테스트 실행**
+
+Run: `cd frontend && npm test -- PatientDetailPage.test.tsx`
+Expected: 전체 PASS
+
+- [ ] **Step 11: 커밋**
+
+```bash
+git add backend/app/services/ticket_service.py backend/app/routers/staff_chat.py backend/app/services/dashboard_service.py backend/tests/test_ticket_service.py backend/tests/test_dashboard_service.py frontend/src/features/patients/PatientDetailPage.tsx frontend/src/features/patients/PatientDetailPage.test.tsx
+git commit -m "feat: 환자상세 상담이력 탭 + 오늘의현황 상담문의 카드 연결 (2단계 스펙 갭 보완)"
+```
+
+---
+
+## Task 21: 문진 체인이 수집한 증상·시작시점을 사전문진에 미리채우기 연결 (요구사항 4.4)
+
+정합성 검토에서 발견: 요구사항 4.4 "상담봇이 대화 중 받은 내용이 사전문진에 들어갈 경우에는 환자에게 내용을 보여주고 저장 여부를 다시 확인받아야 합니다"가 3단계 스펙에서 4단계로 미뤄졌으나 반영되지 않았던 것을 보완한다. 이 태스크는 대화 기록에서 증상·시작시점을 추출해 예약 완료 응답에 실어 보내는 쪽(백엔드+Flutter 전달)을 담당하고, 실제로 사전문진 화면에 채워 보여주는 쪽은 3단계 `patient-app.md` Task 27이 담당한다(그 태스크가 먼저 존재해야 함).
+
+**Files:**
+- Modify: `backend/app/services/chat_service.py`(Task 11) — `get_questionnaire_prefill` 추가
+- Modify: `backend/app/routers/chat.py`(Task 14) — `confirm_booking` 응답에 `questionnaire_prefill` 필드 추가
+- Modify: `mobile/lib/features/chat/booking_card.dart`(Task 19) — 예약 완료 후 "사전문진 작성하기" 버튼이 프리필 값을 함께 전달
+- Test: `backend/tests/test_chat_service.py`(Task 11, 추가)
+- Test: `backend/tests/test_chat_routes.py`(Task 14, 추가)
+
+**Interfaces:**
+- Consumes: `chat_messages`(Task 1, `route_taken`/`sender`/`content`/`created_at`)
+- Produces: `app.services.chat_service.get_questionnaire_prefill(conversation_id: UUID) -> dict | None` (`{"chief_complaint": str, "onset": str}` 중 값이 있는 키만 포함, 문진 체인 대화가 없었으면 `None`)
+- Produces: `POST /chat/conversations/{id}/booking` 응답에 `questionnaire_prefill: dict | None` 필드 추가
+
+- [ ] **Step 1: 실패하는 테스트 작성 — get_questionnaire_prefill**
+
+`backend/tests/test_chat_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_get_questionnaire_prefill_extracts_symptom_and_onset(service_conn):
+    from app.services import chat_service
+
+    conv = await chat_service.start_conversation(channel="app", patient=None)
+    conv_id = conv["conversation_id"]
+    await service_conn.execute(
+        "insert into chat_messages (conversation_id, sender, content) values ($1, 'patient', '배가 아파요')",
+        conv_id,
+    )
+    await service_conn.execute(
+        "insert into chat_messages (conversation_id, sender, content, route_taken) "
+        "values ($1, 'bot', '언제부터 그러셨어요?', 'department_guide')",
+        conv_id,
+    )
+    await service_conn.execute(
+        "insert into chat_messages (conversation_id, sender, content) values ($1, 'patient', '어제 저녁부터요')",
+        conv_id,
+    )
+
+    prefill = await chat_service.get_questionnaire_prefill(conv_id)
+
+    assert prefill == {"chief_complaint": "배가 아파요", "onset": "어제 저녁부터요"}
+
+
+@pytest.mark.asyncio
+async def test_get_questionnaire_prefill_returns_none_without_department_guide(service_conn):
+    from app.services import chat_service
+
+    conv = await chat_service.start_conversation(channel="app", patient=None)
+    await service_conn.execute(
+        "insert into chat_messages (conversation_id, sender, content, route_taken) "
+        "values ($1, 'bot', '지하 1층 주차장입니다.', 'rag')",
+        conv["conversation_id"],
+    )
+
+    prefill = await chat_service.get_questionnaire_prefill(conv["conversation_id"])
+
+    assert prefill is None
+```
+
+Run: `cd backend && pytest tests/test_chat_service.py -v`
+Expected: 새 테스트 2개 FAIL(`get_questionnaire_prefill` 없음)
+
+- [ ] **Step 2: chat_service.get_questionnaire_prefill 구현**
+
+`backend/app/services/chat_service.py` 끝에 추가:
+```python
+async def get_questionnaire_prefill(conversation_id: UUID) -> dict | None:
+    pool = get_pool()
+    rows = await pool.fetch(
+        "select sender, content, route_taken from chat_messages "
+        "where conversation_id = $1 order by created_at",
+        conversation_id,
+    )
+    guide_index = next(
+        (i for i, r in enumerate(rows) if r["sender"] == "bot" and r["route_taken"] == "department_guide"),
+        None,
+    )
+    if guide_index is None:
+        return None
+
+    result: dict[str, str] = {}
+    if guide_index - 1 >= 0 and rows[guide_index - 1]["sender"] == "patient":
+        result["chief_complaint"] = rows[guide_index - 1]["content"]
+    if guide_index + 1 < len(rows) and rows[guide_index + 1]["sender"] == "patient":
+        result["onset"] = rows[guide_index + 1]["content"]
+
+    return result or None
+```
+
+- [ ] **Step 3: 테스트 실행**
+
+Run: `cd backend && pytest tests/test_chat_service.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 4: 실패하는 테스트 작성 — 예약 완료 응답에 프리필 포함**
+
+`backend/tests/test_chat_routes.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_booking_response_includes_questionnaire_prefill(client, patient_auth_headers, monkeypatch):
+    from app.routers import chat as chat_router
+    from uuid import uuid4
+
+    async def fake_create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason):
+        return uuid4()
+
+    async def fake_prefill(conversation_id):
+        return {"chief_complaint": "배가 아파요", "onset": "어제 저녁부터요"}
+
+    monkeypatch.setattr(chat_router.patient_booking_service, "create_booking", fake_create_booking)
+    monkeypatch.setattr(chat_router.chat_service, "get_questionnaire_prefill", fake_prefill)
+
+    r = await client.post("/chat/conversations", json={"channel": "app"}, headers=patient_auth_headers)
+    conv_id = r.json()["conversation_id"]
+
+    r = await client.post(
+        f"/chat/conversations/{conv_id}/booking",
+        json={
+            "for_patient_id": str(uuid4()), "department_id": str(uuid4()),
+            "doctor_id": str(uuid4()), "slot_id": str(uuid4()),
+        },
+        headers=patient_auth_headers,
+    )
+
+    assert r.status_code == 200
+    assert r.json()["questionnaire_prefill"] == {"chief_complaint": "배가 아파요", "onset": "어제 저녁부터요"}
+```
+
+Run: `cd backend && pytest tests/test_chat_routes.py -v`
+Expected: 새 테스트 FAIL (`questionnaire_prefill` 키 없음)
+
+- [ ] **Step 5: confirm_booking 라우터 수정**
+
+`backend/app/routers/chat.py`의 `confirm_booking` 함수를 다음으로 교체:
+```python
+@router.post("/conversations/{conversation_id}/booking")
+async def confirm_booking(
+    conversation_id: UUID, body: BookingBody,
+    patient: PatientContext = Depends(get_current_patient),
+):
+    """확인 카드의 '이 내용으로 예약' 버튼 — Claude를 거치지 않고 3단계 예약 서비스 직행."""
+    appointment_id = await patient_booking_service.create_booking(
+        patient, body.for_patient_id, body.department_id, body.doctor_id,
+        body.slot_id, reason="상담봇 예약",
+    )
+    # 예약 완료 카드 메시지 저장 (예약번호 + 사전문진 이동 버튼용)
+    from app.db.pool import get_pool
+    await get_pool().execute(
+        "insert into chat_messages (conversation_id, sender, content, message_type) "
+        "values ($1, 'bot', $2, 'booking_done')",
+        conversation_id, f"예약이 완료되었어요. 예약번호: {appointment_id}",
+    )
+    prefill = await chat_service.get_questionnaire_prefill(conversation_id)
+    return {"appointment_id": appointment_id, "questionnaire_prefill": prefill}
+```
+(`chat.py` 상단 `from app.services import chat_service, patient_booking_service, ticket_service`에 이미 `chat_service`가 포함되어 있으므로 import 변경 불필요)
+
+- [ ] **Step 6: 테스트 실행**
+
+Run: `cd backend && pytest tests/test_chat_routes.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 7: Flutter에서 프리필 전달**
+
+`mobile/lib/features/chat/booking_card.dart`의 예약 완료 처리 부분에서, `POST /chat/conversations/{id}/booking` 응답의 `questionnaire_prefill`(nullable `Map<String, dynamic>`)을 `Map<String, String>?`로 변환해, "사전문진 작성하기" 버튼이 `QuestionnaireScreen`(3단계 `patient-app.md` Task 27)으로 이동할 때 `prefill:` 인자로 그대로 넘긴다:
+```dart
+final prefillRaw = responseJson['questionnaire_prefill'] as Map<String, dynamic>?;
+final prefill = prefillRaw?.map((key, value) => MapEntry(key, value as String));
+
+// "사전문진 작성하기" 버튼의 onPressed:
+Navigator.of(context).push(MaterialPageRoute(
+  builder: (_) => QuestionnaireScreen(
+    appointmentId: appointmentId, departmentId: departmentId, prefill: prefill,
+  ),
+));
+```
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add backend/app/services/chat_service.py backend/app/routers/chat.py backend/tests/test_chat_service.py backend/tests/test_chat_routes.py mobile/lib/features/chat/booking_card.dart
+git commit -m "feat: 문진 체인 수집 정보를 사전문진 프리필로 전달 (요구사항 4.4 갭 보완)"
 ```
 
 ---
@@ -4561,9 +5055,11 @@ Task 2 ─┼─ Task 4 ── Task 5 ── Task 6 ─┬─ Task 7 ─┬─ T
 Task 3 ─┘                              ├─ Task 8 ─┤
                                         └─ Task 9 ─┴─ Task 10 ─┘
 백엔드(Task 14) 완료 후: Task 16 / Task 17 / Task 18 / Task 19는 서로 독립 (병렬 가능)
+Task 12 완료 후 + 2단계(staff-web) Task 10·13 완료 후: Task 20
+Task 14 완료 후: Task 21 (Step 7은 Task 19와 3단계 Task 27이 먼저 끝나 있어야 함)
 ```
 
-Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지만 서로 독립적으로 병렬 진행 가능하다. Task 10(라우터+인계감시)은 Task 7의 모델 팩토리만 있으면 되므로 7 이후 바로 시작할 수 있다. Task 11(오케스트레이션)은 7·8·9·10을 모두 소비하므로 넷 다음에 온다.
+Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지만 서로 독립적으로 병렬 진행 가능하다. Task 10(라우터+인계감시)은 Task 7의 모델 팩토리만 있으면 되므로 7 이후 바로 시작할 수 있다. Task 11(오케스트레이션)은 7·8·9·10을 모두 소비하므로 넷 다음에 온다. Task 20은 이 계획의 `ticket_service`(Task 12)와 2단계 `staff-web.md`의 `PatientDetailPage`(Task 10)·`dashboard_service`(Task 13)를 모두 수정하는 교차 작업이라, 2단계 구현이 먼저 끝나 있어야 한다. Task 21도 마찬가지로 3단계 `patient-app.md` Task 27(사전문진 화면의 prefill 반영)에 의존하는 교차 작업이다.
 
 ## 수동 검증 시나리오 (전체 구현 후)
 
@@ -4579,3 +5075,5 @@ Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지
 10. 직원 웹: 8번에서 생성된 `medical_judgment` 티켓을 열람(새 문의→처리 중 자동 전환 확인) → "담당 의사에게 전달" → 다른 계정으로 로그인해 담당자로 넘어왔는지, 답변까지 정상 처리되는지 확인 (요구사항 3.9)
 11. 관리자 웹: KB 자료 하나를 두 번 수정 → "수정이력"에서 이전 두 버전이 시간 역순으로 남아있는지 확인 (요구사항 3.8)
 12. 웹 상담창(익명)으로 비슷한 질문("야간 진료 하나요?", "밤에 진료 되나요?")을 각각 답 없는 자료로 물어 인계시킨 뒤, 관리자 웹 "미해결 질문 모아보기"에서 두 건이 한 그룹으로 묶여 "2건"으로 표시되는지 확인 (요구사항 3.9/3.10)
+13. 웹 상담창에서 인계된 문의 1건을 만든 뒤, 직원 웹 "오늘의 현황"에 "확인 필요 상담 문의 1건" 카드가 뜨는지, 해당 환자의 환자 상세화면(`/patients/:id`)에도 그 문의가 "상담 문의" 섹션에 보이는지 확인 (요구사항 3.2/3.5)
+14. 관리자 웹에서 "답하면 안 되는 내용" 체크박스를 켠 자료(예: "정신과 상담은 전화로만 안내") 등록·승인 → 앱/웹 상담창에서 관련 질문 → 안내형(RAG)·행동형(에이전트) 양쪽 경로 모두에서 봇이 등록한 문구를 그대로(AI가 다르게 표현하지 않고) 답하는지 확인 (요구사항 3.8)
