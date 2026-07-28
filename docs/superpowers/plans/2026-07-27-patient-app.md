@@ -81,10 +81,25 @@ create policy "patients_can_update_self_and_family" on patients
   using (patient_owns(id))
   with check (patient_owns(id));
 
-create policy "patients_can_manage_own_family_links" on patient_family_links
-  for all
+-- [정합성 검토 R5-01] 기존에는 "for all"이라 INSERT까지 허용했는데, INSERT의 with check는
+-- account_patient_id(요청자 본인)만 확인하고 family_patient_id(연결 대상)는 전혀 검사하지 않아서
+-- 환자 A가 환자 B의 UUID를 알기만 하면 (백엔드를 거치지 않고 Supabase에 직접 접속해도) 동의 없이
+-- B를 자기 가족으로 연결할 수 있었다. INSERT는 클라이언트가 직접 할 수 없게 하고, 반드시 아래
+-- patient_family_service.add_family_member(새 프로필)/confirm_family_link_otp(기존 환자 연결)가
+-- get_pool()의 서비스 역할 커넥션(RLS 우회)으로 대신 처리한다. SELECT/UPDATE/DELETE는 이미
+-- "내가 만든 링크"만 다루므로(가족을 새로 지목하는 게 아니라 기존 내 링크의 조회·수정·해제) 그대로 둔다.
+create policy "patients_can_read_own_family_links" on patient_family_links
+  for select
+  using (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id));
+
+create policy "patients_can_update_own_family_links" on patient_family_links
+  for update
   using (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id))
   with check (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id));
+
+create policy "patients_can_delete_own_family_links" on patient_family_links
+  for delete
+  using (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id));
 
 create policy "patients_can_read_active_departments" on departments
   for select
@@ -100,11 +115,22 @@ create policy "patients_can_read_open_slots" on appointment_slots
 
 create policy "patients_can_update_slots_for_booking" on appointment_slots
   for update
-  using (status in ('빈시간', '예약됨') and exists (select 1 from patients p where p.auth_user_id = auth.uid()))
+  using (
+    exists (select 1 from patients p where p.auth_user_id = auth.uid())
+    and (
+      status = '빈시간'
+      or exists (
+        select 1 from appointments a
+        where a.slot_id = appointment_slots.id and patient_owns(a.account_patient_id)
+      )
+    )
+  )
   with check (status in ('빈시간', '예약됨') and exists (select 1 from patients p where p.auth_user_id = auth.uid()));
 ```
 
 > **왜 필요한가:** `slot_service.book_slot`/`release_slot`(Task 7)은 환자 세션(`acquire_as(patient.auth_user_id)`)으로 `appointment_slots`를 직접 UPDATE한다. 위 SELECT 정책만으로는 UPDATE가 허용되지 않아 — 환자가 예약을 신청하는 순간 DB가 권한 없음으로 판단해 슬롯 잠금에 실패하고, `book_slot`이 항상 `False`를 반환해 "이미 선택된 시간입니다" 오류로 예약 자체가 막힌다. 상태를 `빈시간`/`예약됨`으로 제한한 이유는 직원이 별도 사유로 막아둔(`휴진` 등) 슬롯까지 환자가 건드리지 못하게 하기 위함이다. 실제 전이 조건(어느 슬롯을, 어느 상태에서, 어느 상태로)은 `slot_service`의 조건부 SQL(`where status = '빈시간'`)이 이미 강제하므로 RLS는 "환자가 이 두 상태 사이에서만 손댈 수 있다"는 큰 테두리만 맡는다.
+>
+> **[정합성 검토 R2-01, 보안 수정]** `status in ('빈시간', '예약됨')`만 검사하던 최초 버전은 슬롯의 "소유"를 전혀 확인하지 않아, 로그인한 환자 A가 다른 환자 B의 이미 예약된(`예약됨`) 슬롯 id를 알기만 하면 (Supabase 클라이언트로 백엔드를 거치지 않고 직접 호출해도) `release_slot`과 같은 SQL로 그 슬롯을 `빈시간`으로 되돌릴 수 있었다 — 이는 다른 환자의 예약을 임의로 무효화하는 것과 같다. 수정한 `using` 절은 두 가지 경우만 UPDATE를 허용한다: ① 슬롯이 아직 `빈시간`이면 누구나 선점 시도할 수 있다(선착순 예약이므로 소유 개념이 없다 — 실제 승패는 `slot_service.book_slot`의 조건부 `where status = '빈시간'`이 가른다). ② 슬롯이 이미 `예약됨`이면, 그 슬롯을 참조하는 `appointments` 행의 `account_patient_id`를 `patient_owns()`로 확인해 **본인 또는 본인 가족의 예약일 때만** 반납(release)을 허용한다. `with check` 절은 그대로 두어 결과 상태가 항상 `빈시간`/`예약됨` 중 하나임을 보장한다.
 
 - [ ] **Step 2: 마이그레이션 적용**
 
@@ -199,6 +225,23 @@ async def test_patient_can_read_family_member_via_link(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_patient_cannot_directly_insert_family_link(db_conn):
+    """[정합성 검토 R5-01] 환자는 patient_family_links에 직접 INSERT할 수 없다 — 반드시
+    patient_family_service(add_family_member/confirm_family_link_otp)를 거쳐야 한다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    me = await seed_patient(db_conn, name="본인", phone="01011110001")
+    other = await seed_patient(db_conn, name="타인", phone="01011110002")
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "insert into patient_family_links (account_patient_id, family_patient_id, relation) values ($1, $2, '가족')",
+            me["patient_id"], other["patient_id"],
+        )
+
+
+@pytest.mark.asyncio
 async def test_patient_can_read_active_department_and_doctor(db_conn):
     admin = await seed_staff(db_conn, role="admin")
     await set_session_auth(db_conn, admin["auth_user_id"])
@@ -247,21 +290,81 @@ async def test_patient_cannot_update_blocked_slot(db_conn):
         "update appointment_slots set status = '예약됨' where id = $1", slot_id,
     )
     assert result == "UPDATE 0"
+
+
+@pytest.mark.asyncio
+async def test_patient_cannot_release_other_patients_booked_slot(db_conn):
+    """[정합성 검토 R2-01] 환자 A가 환자 B의 예약 슬롯을 직접 '빈시간'으로 되돌릴 수 없어야 한다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    patient_a = await seed_patient(db_conn, name="환자A", phone="01011110001")
+    patient_b = await seed_patient(db_conn, name="환자B", phone="01011110002")
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, '2026-08-01', '09:00', '예약됨') returning id",
+        doctor["staff_id"],
+    )
+    await db_conn.execute(
+        """
+        insert into appointments
+            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+        values ($1, $2, $2, $3, $4, '예약확정', 'app')
+        """,
+        slot_id, patient_b["patient_id"], dept_id, doctor["staff_id"],
+    )
+
+    await set_session_auth(db_conn, patient_a["auth_user_id"])
+    result = await db_conn.execute(
+        "update appointment_slots set status = '빈시간' where id = $1", slot_id,
+    )
+    assert result == "UPDATE 0"
+
+    status = await db_conn.fetchval("select status from appointment_slots where id = $1", slot_id)
+    assert status == "예약됨"
+
+
+@pytest.mark.asyncio
+async def test_patient_can_release_own_booked_slot(db_conn):
+    """소유자 본인이 자기 예약 슬롯을 반납하는 정상 흐름은 계속 허용되어야 한다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    patient_b = await seed_patient(db_conn, name="환자B", phone="01011110002")
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, '2026-08-01', '09:00', '예약됨') returning id",
+        doctor["staff_id"],
+    )
+    await db_conn.execute(
+        """
+        insert into appointments
+            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+        values ($1, $2, $2, $3, $4, '예약확정', 'app')
+        """,
+        slot_id, patient_b["patient_id"], dept_id, doctor["staff_id"],
+    )
+
+    await set_session_auth(db_conn, patient_b["auth_user_id"])
+    result = await db_conn.execute(
+        "update appointment_slots set status = '빈시간' where id = $1", slot_id,
+    )
+    assert result == "UPDATE 1"
 ```
 
 Run: `cd backend && pytest tests/test_patient_identity_schema.py -v`
-Expected: FAIL(마이그레이션 적용 전이면 실패 — Step 2 이후 다시 실행하면 6개 모두 PASS)
+Expected: FAIL(마이그레이션 적용 전이면 실패 — Step 2 이후 다시 실행하면 9개 모두 PASS)
 
 - [ ] **Step 5: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_identity_schema.py -v`
-Expected: 6개 테스트 모두 PASS
+Expected: 9개 테스트 모두 PASS([정합성 검토 R5-01] 검증 테스트 1건 추가로 8→9)
 
 - [ ] **Step 6: 커밋**
 
 ```bash
 git add supabase/migrations/00009_patient_identity.sql backend/tests/conftest.py backend/tests/test_patient_identity_schema.py
-git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환자용 RLS 추가"
+git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환자용 RLS 추가 (R2-01: 타 환자 슬롯 반납 차단 포함)"
 ```
 
 ---
@@ -1016,22 +1119,27 @@ from uuid import UUID
 
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
-from app.db.pool import acquire_as
+from app.db.pool import acquire_as, get_pool
 
 
 async def add_family_member(
     patient: PatientContext, name: str, birth_date: date, gender: str, relation: str,
 ) -> UUID:
-    async with acquire_as(str(patient.auth_user_id)) as conn:
-        account_phone = await conn.fetchval("select phone from patients where id = $1", patient.id)
-        family_id = await conn.fetchval(
-            "insert into patients (name, birth_date, gender, phone) values ($1, $2, $3, $4) returning id",
-            name, birth_date, gender, account_phone,
-        )
-        await conn.execute(
-            "insert into patient_family_links (account_patient_id, family_patient_id, relation) values ($1, $2, $3)",
-            patient.id, family_id, relation,
-        )
+    """[정합성 검토 R5-01] patient_family_links는 클라이언트가 직접 INSERT할 수 없도록 RLS를
+    막아뒀으므로(Task 1), 이 함수는 get_pool()의 서비스 역할 커넥션으로 직접 쓴다. family_patient_id는
+    여기서 항상 새로 만드는 행이라 클라이언트가 기존 환자를 지목할 방법이 없어 안전하다."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            account_phone = await conn.fetchval("select phone from patients where id = $1", patient.id)
+            family_id = await conn.fetchval(
+                "insert into patients (name, birth_date, gender, phone) values ($1, $2, $3, $4) returning id",
+                name, birth_date, gender, account_phone,
+            )
+            await conn.execute(
+                "insert into patient_family_links (account_patient_id, family_patient_id, relation) values ($1, $2, $3)",
+                patient.id, family_id, relation,
+            )
     return family_id
 
 
@@ -2101,7 +2209,7 @@ git commit -m "feat: 환자용 방문이력 조회 서비스 추가(내부기록
 
 ---
 
-## Task 12: 알림 — 기기 토큰 등록/해제 + SMS/Push 클라이언트 + 발송 서비스
+## Task 12: 알림 — 기기 토큰 등록/해제 + SMS/Push 클라이언트 + 발송 서비스 + 가족 연결 OTP
 
 **Files:**
 - Modify: `backend/app/core/config.py` (Twilio/Firebase 설정 필드 추가)
@@ -2113,12 +2221,16 @@ git commit -m "feat: 환자용 방문이력 조회 서비스 추가(내부기록
 - Create: `backend/app/services/device_token_service.py`
 - Create: `backend/app/services/notification_service.py`
 - Modify: `backend/app/services/patient_booking_service.py` (예약 신청/확정/취소 시 알림 호출)
+- Create: `supabase/migrations/00012_family_link_otp.sql`([정합성 검토 R5-01])
+- Create: `backend/app/services/family_link_otp_service.py`([정합성 검토 R5-01] — Task 6의 `patient_family_links`와 이 Task의 `SmsClient`를 함께 소비하므로 이 Task에 둔다)
 - Test: `backend/tests/test_device_token_service.py`
 - Test: `backend/tests/test_notification_service.py`
+- Test: `backend/tests/test_family_link_otp_service.py`
 
 **Interfaces:**
 - Consumes: `app.core.config.settings`, `app.core.patient_security.PatientContext`(Task 4), `app.db.pool.get_pool`(1단계 Task 9), `app.core.errors.log_error`(1단계 Task 10)
 - Produces: `app.integrations.sms_client.SmsClient(account_sid, auth_token, from_number)`(`.send_sms(to, body) -> None`), `get_sms_client() -> SmsClient`, `app.integrations.push_client.PushClient`(`.send_push(token, title, body, data=None) -> None`), `get_push_client() -> PushClient`, `app.services.device_token_service.register_token(patient, fcm_token: str) -> None`, `unregister_token(patient, fcm_token: str) -> None`, `app.services.notification_service.notify_patient(patient_id: UUID, notification_type: str) -> None`
+- Produces([정합성 검토 R5-01]): `app.services.family_link_otp_service.request_family_link_otp(patient, name: str, birth_date: date, phone: str, sms_client=None) -> UUID`(일치하는 기존 환자를 정확히 1건 찾으면 그 환자의 등록 전화번호로 6자리 코드를 SMS 발송하고 요청 id를 반환. 0건/2건 이상이면 `AppError(404)`, 대상 전화번호가 없으면 `AppError(400, "본인 확인이 어려운 경우...")`), `confirm_family_link_otp(patient, request_id: UUID, code: str) -> UUID`(코드 일치·만료·소유자 확인 후 `patient_family_links`를 서비스 역할 커넥션으로 직접 생성, 대상 `family_patient_id` 반환. 실패 시 `AppError(400)`)
 
 - [ ] **Step 1: 설정과 의존성 추가**
 
@@ -2396,11 +2508,249 @@ async def change_booking(
 Run: `cd backend && pytest tests/test_patient_booking_service.py tests/test_notification_service.py -v`
 Expected: 전체 PASS
 
-- [ ] **Step 10: 커밋**
+- [ ] **Step 10: [정합성 검토 R5-01] 가족 연결 OTP 마이그레이션 작성**
+
+`supabase/migrations/00012_family_link_otp.sql`:
+```sql
+-- 이미 병원에 등록된 환자를 가족으로 "연결"할 때, 요청자가 대상 환자의 실제 전화번호에 접근 가능한지
+-- 확인하기 위한 임시 인증 요청. 클라이언트가 직접 접근할 이유가 없으므로 RLS만 켜고 정책은 두지 않는다
+-- (정책이 없으면 authenticated/anon 모두 기본 거부 — family_link_otp_service가 get_pool()의 서비스
+-- 역할 커넥션으로만 읽고 쓴다).
+create table family_link_requests (
+  id uuid primary key default gen_random_uuid(),
+  requesting_patient_id uuid not null references patients(id),
+  target_patient_id uuid not null references patients(id),
+  code_hash text not null,
+  expires_at timestamptz not null,
+  verified_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table family_link_requests enable row level security;
+```
+
+- [ ] **Step 11: 마이그레이션 적용**
+
+Run: `supabase db reset`
+Expected: 오류 없이 적용됨
+
+- [ ] **Step 12: [정합성 검토 R5-01] 실패하는 테스트 작성 — family_link_otp_service**
+
+`backend/tests/test_family_link_otp_service.py`:
+```python
+from datetime import date, timedelta
+
+import pytest
+
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.services import family_link_otp_service
+from tests.conftest import seed_patient
+
+
+def _to_context(seed: dict) -> PatientContext:
+    return PatientContext(id=seed["patient_id"], auth_user_id=seed["auth_user_id"])
+
+
+class FakeSms:
+    def __init__(self):
+        self.sent = []
+
+    def send_sms(self, to: str, body: str) -> None:
+        self.sent.append((to, body))
+
+
+@pytest.mark.asyncio
+async def test_request_and_confirm_links_existing_patient(db_conn):
+    me = _to_context(await seed_patient(db_conn, name="본인", phone="01011110001"))
+    target = await seed_patient(
+        db_conn, name="김자녀", phone="01099998888", with_auth=False,
+    )
+    await db_conn.execute(
+        "update patients set birth_date = '2015-05-05' where id = $1", target["patient_id"],
+    )
+    sms = FakeSms()
+
+    request_id = await family_link_otp_service.request_family_link_otp(
+        me, name="김자녀", birth_date=date(2015, 5, 5), phone="01099998888", sms_client=sms,
+    )
+    assert len(sms.sent) == 1
+    sent_to, sent_body = sms.sent[0]
+    assert sent_to == "01099998888"
+    code = "".join(ch for ch in sent_body if ch.isdigit())[:6]
+
+    linked_id = await family_link_otp_service.confirm_family_link_otp(me, request_id, code)
+    assert linked_id == target["patient_id"]
+
+    link = await db_conn.fetchrow(
+        "select relation from patient_family_links where account_patient_id = $1 and family_patient_id = $2",
+        me.id, target["patient_id"],
+    )
+    assert link is not None
+
+
+@pytest.mark.asyncio
+async def test_request_fails_when_no_exact_match(db_conn):
+    me = _to_context(await seed_patient(db_conn, name="본인", phone="01011110001"))
+
+    with pytest.raises(AppError):
+        await family_link_otp_service.request_family_link_otp(
+            me, name="존재안함", birth_date=date(2000, 1, 1), phone="01000000000", sms_client=FakeSms(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_confirm_fails_with_wrong_code(db_conn):
+    me = _to_context(await seed_patient(db_conn, name="본인", phone="01011110001"))
+    target = await seed_patient(db_conn, name="김자녀", phone="01099998888", with_auth=False)
+    await db_conn.execute(
+        "update patients set birth_date = '2015-05-05' where id = $1", target["patient_id"],
+    )
+
+    request_id = await family_link_otp_service.request_family_link_otp(
+        me, name="김자녀", birth_date=date(2015, 5, 5), phone="01099998888", sms_client=FakeSms(),
+    )
+
+    with pytest.raises(AppError):
+        await family_link_otp_service.confirm_family_link_otp(me, request_id, "000000")
+
+
+@pytest.mark.asyncio
+async def test_confirm_fails_when_expired(db_conn):
+    me = _to_context(await seed_patient(db_conn, name="본인", phone="01011110001"))
+    target = await seed_patient(db_conn, name="김자녀", phone="01099998888", with_auth=False)
+    await db_conn.execute(
+        "update patients set birth_date = '2015-05-05' where id = $1", target["patient_id"],
+    )
+    sms = FakeSms()
+    request_id = await family_link_otp_service.request_family_link_otp(
+        me, name="김자녀", birth_date=date(2015, 5, 5), phone="01099998888", sms_client=sms,
+    )
+    code = "".join(ch for ch in sms.sent[0][1] if ch.isdigit())[:6]
+    await db_conn.execute(
+        "update family_link_requests set expires_at = now() - interval '1 minute' where id = $1", request_id,
+    )
+
+    with pytest.raises(AppError):
+        await family_link_otp_service.confirm_family_link_otp(me, request_id, code)
+
+
+@pytest.mark.asyncio
+async def test_another_account_cannot_confirm_someone_elses_request(db_conn):
+    """[정합성 검토 R5-01] 요청을 만든 계정이 아니면 코드를 알아도 확정할 수 없다."""
+    me = _to_context(await seed_patient(db_conn, name="본인", phone="01011110001"))
+    stranger = _to_context(await seed_patient(db_conn, name="제3자", phone="01011110003"))
+    target = await seed_patient(db_conn, name="김자녀", phone="01099998888", with_auth=False)
+    await db_conn.execute(
+        "update patients set birth_date = '2015-05-05' where id = $1", target["patient_id"],
+    )
+    sms = FakeSms()
+    request_id = await family_link_otp_service.request_family_link_otp(
+        me, name="김자녀", birth_date=date(2015, 5, 5), phone="01099998888", sms_client=sms,
+    )
+    code = "".join(ch for ch in sms.sent[0][1] if ch.isdigit())[:6]
+
+    with pytest.raises(AppError):
+        await family_link_otp_service.confirm_family_link_otp(stranger, request_id, code)
+```
+
+Run: `cd backend && pytest tests/test_family_link_otp_service.py -v`
+Expected: FAIL(`app.services.family_link_otp_service` 모듈 없음)
+
+- [ ] **Step 13: [정합성 검토 R5-01] family_link_otp_service 구현**
+
+`backend/app/services/family_link_otp_service.py`:
+```python
+import hashlib
+import secrets
+from datetime import date, datetime, timedelta, timezone
+from uuid import UUID
+
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.db.pool import get_pool
+from app.integrations.sms_client import get_sms_client
+
+OTP_TTL_MINUTES = 5
+
+
+def _hash_code(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
+async def request_family_link_otp(
+    patient: PatientContext, name: str, birth_date: date, phone: str, sms_client=None,
+) -> UUID:
+    """일치하는 기존 환자를 정확히 한 명 찾을 때만 그 환자의 등록 전화번호로 OTP를 보낸다.
+    가족 본인이 전화를 받을 수 없다면(전화번호 없음 등) 직원 확인 경로로 안내한다."""
+    sms_client = sms_client or get_sms_client()
+    pool = await get_pool()
+    candidates = await pool.fetch(
+        "select id, phone from patients where name = $1 and birth_date = $2 and phone = $3",
+        name, birth_date, phone,
+    )
+    if len(candidates) != 1:
+        raise AppError(
+            "일치하는 기록을 특정할 수 없습니다. 병원(전화/방문)으로 문의해주세요.", status_code=404,
+        )
+    target = candidates[0]
+    if not target["phone"]:
+        raise AppError(
+            "본인 확인이 어려운 경우 병원(전화/방문)으로 문의해주시면 직원이 확인 후 연결해드립니다.",
+            status_code=400,
+        )
+
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    request_id = await pool.fetchval(
+        """
+        insert into family_link_requests (requesting_patient_id, target_patient_id, code_hash, expires_at)
+        values ($1, $2, $3, $4)
+        returning id
+        """,
+        patient.id, target["id"], _hash_code(code),
+        datetime.now(timezone.utc) + timedelta(minutes=OTP_TTL_MINUTES),
+    )
+    sms_client.send_sms(target["phone"], f"[병원] 가족 연결 인증번호는 {code}입니다. {OTP_TTL_MINUTES}분 내에 입력해주세요.")
+    return request_id
+
+
+async def confirm_family_link_otp(patient: PatientContext, request_id: UUID, code: str) -> UUID:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            req = await conn.fetchrow(
+                "select * from family_link_requests where id = $1 for update", request_id,
+            )
+            if req is None or req["requesting_patient_id"] != patient.id:
+                raise AppError("요청을 찾을 수 없습니다.", status_code=404)
+            if req["verified_at"] is not None:
+                raise AppError("이미 처리된 요청입니다.", status_code=400)
+            if req["expires_at"] < datetime.now(timezone.utc):
+                raise AppError("인증번호가 만료되었습니다. 다시 시도해주세요.", status_code=400)
+            if req["code_hash"] != _hash_code(code):
+                raise AppError("인증번호가 올바르지 않습니다.", status_code=400)
+
+            await conn.execute(
+                "update family_link_requests set verified_at = now() where id = $1", request_id,
+            )
+            await conn.execute(
+                "insert into patient_family_links (account_patient_id, family_patient_id, relation) "
+                "values ($1, $2, '가족(연결)')",
+                patient.id, req["target_patient_id"],
+            )
+    return req["target_patient_id"]
+```
+
+- [ ] **Step 14: 테스트 실행**
+
+Run: `cd backend && pytest tests/test_family_link_otp_service.py -v`
+Expected: 5개 테스트 모두 PASS
+
+- [ ] **Step 15: 커밋**
 
 ```bash
-git add backend/app/core/config.py backend/.env.example backend/requirements.txt backend/app/integrations backend/app/services/device_token_service.py backend/app/services/notification_service.py backend/app/services/patient_booking_service.py backend/tests/test_device_token_service.py backend/tests/test_notification_service.py
-git commit -m "feat: 알림 토큰 등록/해제와 Twilio SMS·FCM 푸시 best-effort 발송 서비스 추가"
+git add backend/app/core/config.py backend/.env.example backend/requirements.txt backend/app/integrations backend/app/services/device_token_service.py backend/app/services/notification_service.py backend/app/services/patient_booking_service.py backend/app/services/family_link_otp_service.py supabase/migrations/00012_family_link_otp.sql backend/tests/test_device_token_service.py backend/tests/test_notification_service.py backend/tests/test_family_link_otp_service.py
+git commit -m "feat: 알림 토큰/SMS·FCM 발송 서비스 + 가족 연결 OTP 서비스 추가 (R5-01)"
 ```
 
 ---
@@ -2420,7 +2770,7 @@ git commit -m "feat: 알림 토큰 등록/해제와 Twilio SMS·FCM 푸시 best-
 
 **Interfaces:**
 - Consumes: Task 4~12의 모든 서비스 함수, `app.core.patient_security.get_current_auth_user_id, get_current_patient`(Task 4)
-- Produces: `/app/profile`, `/app/family`, `/app/departments`, `/app/doctors`, `/app/available-dates/{doctor_id}`, `/app/available-slots/{doctor_id}`, `/app/appointments`, `/app/appointments/{id}`, `/app/appointments/{id}/change`, `/app/appointments/{id}/cancel`, `/app/questionnaire-templates/{department_id}`, `/app/appointments/{id}/questionnaire`, `/app/visit-history`, `/app/device-tokens` 엔드포인트 일체
+- Produces: `/app/profile`, `/app/family`, `/app/family/link-requests`, `/app/family/link-requests/{id}/confirm`([정합성 검토 R5-01]), `/app/departments`, `/app/doctors`, `/app/available-dates/{doctor_id}`, `/app/available-slots/{doctor_id}`, `/app/appointments`, `/app/appointments/{id}`, `/app/appointments/{id}/change`, `/app/appointments/{id}/cancel`, `/app/questionnaire-templates/{department_id}`, `/app/appointments/{id}/questionnaire`, `/app/visit-history`, `/app/device-tokens` 엔드포인트 일체
 
 - [ ] **Step 1: 프로필/가족/카탈로그 라우터 작성**
 
@@ -2475,7 +2825,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.core.patient_security import PatientContext, get_current_patient
-from app.services import patient_family_service
+from app.services import family_link_otp_service, patient_family_service
 
 router = APIRouter(prefix="/app/family", tags=["patient-family"])
 
@@ -2485,6 +2835,16 @@ class FamilyMemberRequest(BaseModel):
     birth_date: date
     gender: str
     relation: str
+
+
+class FamilyLinkOtpRequest(BaseModel):
+    name: str
+    birth_date: date
+    phone: str
+
+
+class FamilyLinkOtpConfirmRequest(BaseModel):
+    code: str
 
 
 @router.get("")
@@ -2519,6 +2879,25 @@ async def unlink_family(
 ) -> dict:
     await patient_family_service.unlink_family_member(patient, family_patient_id)
     return {"status": "unlinked"}
+
+
+# [정합성 검토 R5-01] 이미 병원에 등록된 환자를 가족으로 "연결"하는 경로 — OTP 자기인증 우선.
+@router.post("/link-requests")
+async def request_family_link(
+    body: FamilyLinkOtpRequest, patient: PatientContext = Depends(get_current_patient),
+) -> dict:
+    request_id = await family_link_otp_service.request_family_link_otp(
+        patient, name=body.name, birth_date=body.birth_date, phone=body.phone,
+    )
+    return {"request_id": str(request_id)}
+
+
+@router.post("/link-requests/{request_id}/confirm")
+async def confirm_family_link(
+    request_id: UUID, body: FamilyLinkOtpConfirmRequest, patient: PatientContext = Depends(get_current_patient),
+) -> dict:
+    family_id = await family_link_otp_service.confirm_family_link_otp(patient, request_id, body.code)
+    return {"id": str(family_id)}
 ```
 
 `backend/app/routers/patient_catalog.py`:
@@ -3891,7 +4270,7 @@ git commit -m "feat: 로그인/비밀번호 찾기/로그아웃과 민감화면 
 
 **Interfaces:**
 - Consumes: `apiClientProvider`(Task 15)
-- Produces: `FamilyMember`(모델: `id, name, birthDate, gender, relation`), `FamilyController`(`AsyncNotifier<List<FamilyMember>>`: `load()`, `add(...)`, `update(...)`, `unlink(id)`)
+- Produces: `FamilyMember`(모델: `id, name, birthDate, gender, relation`), `FamilyController`(`AsyncNotifier<List<FamilyMember>>`: `load()`, `add(...)`, `update(...)`, `unlink(id)`, `requestLinkOtp(name, birthDate, phone) -> Future<String>`([정합성 검토 R5-01], request_id 반환), `confirmLinkOtp(requestId, code) -> Future<void>`)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -3928,6 +4307,37 @@ void main() {
     final members = container.read(familyControllerProvider).value!;
     expect(members.single.name, '김자녀');
     expect(members.single.relation, '자녀');
+  });
+
+  test('[정합성 검토 R5-01] requestLinkOtp는 request_id를 반환하고, confirmLinkOtp는 목록을 새로고침한다', () async {
+    final mockClient = MockClient((request) async {
+      if (request.url.path.endsWith('/link-requests')) {
+        return http.Response(jsonEncode({'request_id': 'req-1'}), 200);
+      }
+      if (request.url.path.endsWith('/confirm')) {
+        return http.Response(jsonEncode({'id': 'f2'}), 200);
+      }
+      return http.Response(
+        jsonEncode([
+          {'id': 'f2', 'name': '김배우자', 'birth_date': '1990-01-01', 'gender': 'F', 'relation': '배우자'},
+        ]),
+        200,
+      );
+    });
+    final container = ProviderContainer(overrides: [
+      apiClientProvider.overrideWithValue(
+        ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 't', httpClient: mockClient),
+      ),
+    ]);
+
+    final requestId = await container.read(familyControllerProvider.notifier).requestLinkOtp(
+          name: '김배우자', birthDate: '1990-01-01', phone: '01099998888',
+        );
+    expect(requestId, 'req-1');
+
+    await container.read(familyControllerProvider.notifier).confirmLinkOtp(requestId, '123456');
+    final members = container.read(familyControllerProvider).value!;
+    expect(members.single.name, '김배우자');
   });
 }
 ```
@@ -4005,6 +4415,26 @@ class FamilyController extends AsyncNotifier<List<FamilyMember>> {
       return _fetch();
     });
   }
+
+  // [정합성 검토 R5-01] 이미 병원에 등록된 환자를 가족으로 연결 — OTP 자기인증.
+  Future<String> requestLinkOtp({required String name, required String birthDate, required String phone}) async {
+    final api = ref.read(apiClientProvider);
+    final result = await api.post(
+      '/app/family/link-requests',
+      {'name': name, 'birth_date': birthDate, 'phone': phone},
+      (j) => j as Map<String, dynamic>,
+    );
+    return result['request_id'] as String;
+  }
+
+  Future<void> confirmLinkOtp(String requestId, String code) async {
+    final api = ref.read(apiClientProvider);
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      await api.post('/app/family/link-requests/$requestId/confirm', {'code': code}, (j) => j);
+      return _fetch();
+    });
+  }
 }
 
 final familyControllerProvider = AsyncNotifierProvider<FamilyController, List<FamilyMember>>(FamilyController.new);
@@ -4013,7 +4443,7 @@ final familyControllerProvider = AsyncNotifierProvider<FamilyController, List<Fa
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd mobile && flutter test test/features/family/family_controller_test.dart`
-Expected: 1개 테스트 PASS
+Expected: 2개 테스트 모두 PASS([정합성 검토 R5-01] 검증 테스트 1건 추가로 1→2)
 
 - [ ] **Step 4: 가족 관리 화면 작성 및 라우터 연결**
 
@@ -4022,6 +4452,7 @@ Expected: 1개 테스트 PASS
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/api_client.dart';
 import 'family_controller.dart';
 
 class FamilyScreen extends ConsumerStatefulWidget {
@@ -4049,6 +4480,17 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
         data: (members) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // [정합성 검토 R5-01] 이미 병원에 등록된 가족을 새로 추가하면 과거 기록과 분리된다는 상시 안내.
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              color: Colors.amber.shade50,
+              child: const Text(
+                '이미 병원에 방문·예약하신 적 있는 가족이라면 새로 추가하지 마세요. '
+                '새로 추가하면 과거 기록과 별도로 관리됩니다. '
+                '기존 기록과 연결하시려면 아래 "기존 환자와 연결"을 이용하거나 병원(전화/방문)으로 문의해주세요.',
+              ),
+            ),
             for (final member in members)
               ListTile(
                 title: Text('${member.name} (${member.relation})'),
@@ -4079,8 +4521,78 @@ class _FamilyScreenState extends ConsumerState<FamilyScreen> {
                   ),
               child: const Text('가족 등록'),
             ),
+            const Divider(),
+            OutlinedButton(
+              onPressed: () => _showLinkExistingDialog(context),
+              child: const Text('기존 환자와 연결'),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  // [정합성 검토 R5-01] 기존 환자와 연결: 이름·생년월일·전화번호 → OTP 발송 → 코드 확인.
+  Future<void> _showLinkExistingDialog(BuildContext context) async {
+    final nameController = TextEditingController();
+    final birthController = TextEditingController();
+    final phoneController = TextEditingController();
+    String? requestId;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          if (requestId == null) {
+            return AlertDialog(
+              title: const Text('기존 환자와 연결'),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: '이름')),
+                TextField(controller: birthController, decoration: const InputDecoration(labelText: '생년월일 (YYYY-MM-DD)')),
+                TextField(controller: phoneController, decoration: const InputDecoration(labelText: '전화번호')),
+              ]),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('취소')),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      final id = await ref.read(familyControllerProvider.notifier).requestLinkOtp(
+                            name: nameController.text,
+                            birthDate: birthController.text,
+                            phone: phoneController.text,
+                          );
+                      setDialogState(() => requestId = id);
+                    } on ApiException catch (e) {
+                      // 404/400: "일치하는 기록을 특정할 수 없습니다" 또는 "본인 확인이 어려운 경우
+                      // 병원(전화/방문)으로 문의해주세요" — 서버 메시지를 그대로 보여준다.
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                    }
+                  },
+                  child: const Text('인증번호 받기'),
+                ),
+              ],
+            );
+          }
+          final codeController = TextEditingController();
+          return AlertDialog(
+            title: const Text('인증번호 입력'),
+            content: TextField(controller: codeController, decoration: const InputDecoration(labelText: '인증번호 6자리')),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('취소')),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await ref.read(familyControllerProvider.notifier).confirmLinkOtp(requestId!, codeController.text);
+                    Navigator.pop(dialogContext);
+                  } on ApiException catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+                  }
+                },
+                child: const Text('확인'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -4096,7 +4608,7 @@ GoRoute(path: '/family', builder: (context, state) => const FamilyScreen()),
 
 ```bash
 git add mobile/lib/features/family mobile/lib/core/router.dart mobile/test/features/family/family_controller_test.dart
-git commit -m "feat: 가족 등록/수정/연결해제 화면 추가"
+git commit -m "feat: 가족 등록/수정/연결해제 화면 추가 (R5-01: 기존 환자 OTP 연결 포함)"
 ```
 
 ---
@@ -6090,6 +6602,10 @@ git commit -m "feat: 사전문진에 상담봇 수집 정보 미리채우기 (4�
 - **[보안, 수정완료]** Task 2의 `medical_records` RLS가 행 단위로만 걸려 있어 `symptoms`/`diagnosis`/`treatment` 같은 의료진 전용 항목이 컬럼 단위로는 보호되지 않던 결함(앱의 Supabase 직접 접속 경로로 우회 열람 가능) → `patient_medical_notes` 뷰로 분리해 안전한 칼럼만 노출, `medical_records` 테이블 자체에는 환자용 정책을 두지 않도록 변경, Task 11이 뷰를 사용하도록 수정, 검증 테스트 추가
 - **[보통, 수정완료]** Task 9 `list_my_appointments`에 날짜 필터가 없어 직원이 상태 전이를 놓친 과거 예약이 계속 "다음 예약"으로 표시될 수 있던 결함 → `slot_date >= current_date` 조건 추가, 검증 테스트 추가
 - **[경미, 수정완료]** Task 12에서 `change_booking`의 알림 호출이 코드 없이 설명 문장으로만 남아있던 자리표시자 → 실제 코드로 채움
+
+**5) 정합성 검토 2~5차 통합 리포트 반영(2026-07-28):**
+- **[치명적, 수정완료 — R2-01]** Task 1의 `patients_can_update_slots_for_booking` 정책이 슬롯의 소유는 확인하지 않고 상태값만 검사해, 환자 A가 환자 B의 예약된 슬롯 id만 알면 백엔드를 거치지 않고 Supabase에 직접 접속해 그 슬롯을 `빈시간`으로 되돌릴 수 있던 결함 → `using` 절에 "슬롯이 비어있거나(`빈시간`, 소유 개념 없음) 또는 그 슬롯을 참조하는 `appointments.account_patient_id`가 `patient_owns()`로 확인되는 본인/가족 소유일 때만" 허용하는 조건 추가, 검증 테스트 2건(타인 슬롯 반납 차단, 본인 슬롯 반납 정상 동작) 추가.
+- **[치명적, 수정완료 — R5-01]** Task 1의 `patient_family_links` INSERT 정책이 `account_patient_id`(요청자 본인)만 확인하고 `family_patient_id`(연결 대상)의 동의·소유권은 전혀 검사하지 않아, 환자 A가 환자 B의 UUID만 알면 백엔드를 거치지 않고 직접 Supabase에 접속해 동의 없이 B를 자기 가족으로 연결할 수 있던 결함 → INSERT 권한을 클라이언트에서 완전히 제거(SELECT/UPDATE/DELETE만 남김)하고, "새 프로필 추가"(`add_family_member`, Task 6)와 "기존 환자 OTP 연결"(`family_link_otp_service`, Task 12 — 이름·생년월일·전화번호로 정확히 1건 매칭 시 그 환자의 등록 전화번호로 SMS 인증번호 발송, 인증 성공 시에만 서비스 역할 커넥션으로 링크 생성)만 서버 신뢰 경로로 허용. 화면에는 "이미 방문·예약하신 적 있는 가족이라면 새로 추가하지 마세요" 상시 안내와 "기존 환자와 연결" OTP 흐름, OTP 불가 시 병원 문의 안내를 추가(Task 18). 검증 테스트: 직접 INSERT 차단 1건(Task 1), OTP 서비스 5건(Task 12), 화면 컨트롤러 1건(Task 18).
 
 ## 다른 단계 의존성
 
