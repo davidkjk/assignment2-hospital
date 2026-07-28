@@ -2438,7 +2438,7 @@ git commit -m "feat: 환자용 방문이력 조회 서비스 추가(내부기록
 
 **Interfaces:**
 - Consumes: `app.core.config.settings`, `app.core.patient_security.PatientContext`(Task 4), `app.db.pool.get_pool`(1단계 Task 9), `app.core.errors.log_error`(1단계 Task 10)
-- Produces: `app.integrations.sms_client.SmsClient(account_sid, auth_token, from_number)`(`.send_sms(to, body) -> None`), `get_sms_client() -> SmsClient`, `app.integrations.push_client.PushClient`(`.send_push(token, title, body, data=None) -> None`), `get_push_client() -> PushClient`, `app.services.device_token_service.register_token(patient, fcm_token: str) -> None`, `unregister_token(patient, fcm_token: str) -> None`, `app.services.notification_service.notify_patient(patient_id: UUID, notification_type: str) -> None`
+- Produces: `app.integrations.sms_client.SmsClient(account_sid, auth_token, from_number)`(`.send_sms(to, body) -> None`), `get_sms_client() -> SmsClient`, `app.integrations.push_client.PushClient`(`.send_push(token, title, body, data=None) -> None`), `get_push_client() -> PushClient`, `app.services.device_token_service.register_token(patient, fcm_token: str) -> None`, `unregister_token(patient, fcm_token: str) -> None`, `app.services.notification_service.notify_patient(account_patient_id: UUID, notification_type: str, target_name: str | None = None, appointment_id: UUID | None = None) -> None`([정합성 검토 R2-05] `target_name`이 있으면(가족 예약) 메시지 본문에 대상자 이름을 채워 넣는다. `appointment_id`가 있으면 `notification_log`에 `(appointment_id, notification_type)` 조합으로 먼저 기록을 시도해 중복 발송을 막는다 — 없으면(기존 호출부 호환) 중복확인 없이 항상 발송), DB 테이블 `notification_log(id, appointment_id, patient_id, notification_type, sent_at, channel)`
 - Produces([정합성 검토 R5-01]): `app.services.family_link_otp_service.request_family_link_otp(patient, name: str, birth_date: date, phone: str, sms_client=None) -> UUID`(일치하는 기존 환자를 정확히 1건 찾으면 그 환자의 등록 전화번호로 6자리 코드를 SMS 발송하고 요청 id를 반환. 0건/2건 이상이면 `AppError(404)`, 대상 전화번호가 없으면 `AppError(400, "본인 확인이 어려운 경우...")`), `confirm_family_link_otp(patient, request_id: UUID, code: str) -> UUID`(코드 일치·만료·소유자 확인 후 `patient_family_links`를 서비스 역할 커넥션으로 직접 생성, 대상 `family_patient_id` 반환. 실패 시 `AppError(400)`)
 
 - [ ] **Step 1: 설정과 의존성 추가**
@@ -2592,7 +2592,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services import notification_service
-from tests.conftest import seed_patient
+from tests.conftest import seed_patient, seed_staff, set_session_auth
 
 
 @pytest.mark.asyncio
@@ -2619,10 +2619,94 @@ async def test_notify_patient_falls_back_to_sms_when_no_token(db_conn, db_pool):
         await notification_service.notify_patient(patient_seed["patient_id"], "requested")
 
     fake_sms.send_sms.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_notify_patient_includes_target_name_for_family_booking(db_conn, db_pool):
+    """[정합성 검토 R2-05] 가족 예약이면 대상자 이름이 메시지 본문에 포함된다."""
+    patient_seed = await seed_patient(db_conn)
+
+    fake_sms = MagicMock()
+    with patch("app.services.notification_service.get_sms_client", return_value=fake_sms):
+        await notification_service.notify_patient(patient_seed["patient_id"], "confirmed", target_name="민준")
+
+    sent_body = fake_sms.send_sms.call_args.args[1]
+    assert "민준" in sent_body
+
+
+@pytest.mark.asyncio
+async def test_notify_patient_deduplicates_same_appointment_and_type(db_conn, db_pool):
+    """[정합성 검토 R2-05] 같은 (appointment_id, notification_type)로 두 번 호출해도 한 번만 발송된다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    patient_seed = await seed_patient(db_conn)
+    async with db_pool.acquire() as conn:
+        appointment_id = await conn.fetchval(
+            """
+            insert into appointments
+                (account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+            values ($1, $1, $2, $3, '예약확정', 'app')
+            returning id
+            """,
+            patient_seed["patient_id"], dept_id, doctor["staff_id"],
+        )
+
+    fake_sms = MagicMock()
+    with patch("app.services.notification_service.get_sms_client", return_value=fake_sms):
+        await notification_service.notify_patient(
+            patient_seed["patient_id"], "confirmed", appointment_id=appointment_id,
+        )
+        await notification_service.notify_patient(
+            patient_seed["patient_id"], "confirmed", appointment_id=appointment_id,
+        )
+
+    assert fake_sms.send_sms.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_notify_patient_cancellation_approved_message_exists(db_conn, db_pool):
+    """[정합성 검토 R2-05] cancellation_approved 문구가 MESSAGES에 새로 추가되어 발송된다."""
+    patient_seed = await seed_patient(db_conn)
+
+    fake_sms = MagicMock()
+    with patch("app.services.notification_service.get_sms_client", return_value=fake_sms):
+        await notification_service.notify_patient(patient_seed["patient_id"], "cancellation_approved")
+
+    sent_body = fake_sms.send_sms.call_args.args[1]
+    assert "취소" in sent_body and "승인" in sent_body
 ```
 
 Run: `cd backend && pytest tests/test_notification_service.py -v`
 Expected: FAIL(모듈 없음)
+
+- [ ] **Step 5.5: [정합성 검토 R2-05] notification_log 마이그레이션**
+
+`supabase/migrations/00016_notification_log.sql`:
+```sql
+-- [정합성 검토 R2-05] 같은 이벤트가 두 번 트리거되거나(트랜잭션 재시도 등) 리마인더 크론이
+-- 같은 날 두 번 돌아도 알림이 한 번만 나가도록, 발송 전에 먼저 이 로그에 insert를 시도한다.
+-- 리마인더처럼 하루 단위로 반복되는 유형은 sent_at::date까지 키에 포함해야 "다음 날은 다시 보낼 수
+-- 있고 같은 날 두 번은 막는" 동작이 된다. 그래서 유니크 인덱스를 (appointment_id, notification_type,
+-- (sent_at::date))로 만든다 — reminder류가 아닌 1회성 유형(confirmed 등)도 이 인덱스로 문제없이
+-- 막힌다(같은 예약에 같은 유형이 같은 날 두 번 오는 경우는 반복 유형과 동일하게 막아도 무방하다).
+create table notification_log (
+  id uuid primary key default gen_random_uuid(),
+  appointment_id uuid not null references appointments(id),
+  patient_id uuid not null references patients(id),
+  notification_type text not null,
+  channel text not null check (channel in ('push', 'sms')),
+  sent_at timestamptz not null default now()
+);
+
+create unique index idx_notification_log_dedup
+  on notification_log (appointment_id, notification_type, (sent_at::date));
+
+alter table notification_log enable row level security;
+-- 클라이언트가 직접 접근할 이유가 없다 — notification_service가 get_pool()의 서비스 역할
+-- 커넥션으로만 읽고 쓴다(정책 없음 = authenticated/anon 기본 거부).
+```
 
 - [ ] **Step 6: notification_service 구현**
 
@@ -2643,17 +2727,42 @@ MESSAGES = {
     "changed": "예약이 변경되었습니다.",
     "hospital_cancelled": "병원 사정으로 예약이 취소되었습니다.",
     "cancellation_rejected": "취소 요청이 반려되었습니다.",
+    "cancellation_approved": "취소 요청이 승인되었습니다.",  # [정합성 검토 R2-05] 신규
     "questionnaire_missing": "사전문진을 작성해주세요.",
     "visit_completed": "진료가 완료되었습니다. 안내를 확인해주세요.",
 }
 
 
-async def notify_patient(patient_id: UUID, notification_type: str) -> None:
-    message = MESSAGES.get(notification_type, "새 소식이 있습니다.")
+async def notify_patient(
+    account_patient_id: UUID,
+    notification_type: str,
+    target_name: str | None = None,
+    appointment_id: UUID | None = None,
+) -> None:
+    """[정합성 검토 R2-05] 알림은 항상 계정 소유자(account_patient_id)에게만 보낸다.
+    실제 진료받는 사람이 계정 소유자와 다르면(가족 예약) target_name으로 대상자 이름을 본문에 명시한다.
+    appointment_id가 주어지면 notification_log에 먼저 insert를 시도해(유니크 위반 시 조용히 skip)
+    같은 이벤트의 중복 발송을 막는다."""
+    base_message = MESSAGES.get(notification_type, "새 소식이 있습니다.")
+    message = f"{target_name}님의 {base_message}" if target_name else base_message
+
     pool = await get_pool()
     async with pool.acquire() as conn:
-        patient = await conn.fetchrow("select phone from patients where id = $1", patient_id)
-        tokens = await conn.fetch("select fcm_token from device_tokens where patient_id = $1", patient_id)
+        if appointment_id is not None:
+            logged = await conn.fetchval(
+                """
+                insert into notification_log (appointment_id, patient_id, notification_type, channel)
+                values ($1, $2, $3, 'push')
+                on conflict do nothing
+                returning id
+                """,
+                appointment_id, account_patient_id, notification_type,
+            )
+            if logged is None:
+                return  # 이미 오늘 같은 예약에 같은 유형의 알림을 보냈다 — 중복 발송 방지
+
+        patient = await conn.fetchrow("select phone from patients where id = $1", account_patient_id)
+        tokens = await conn.fetch("select fcm_token from device_tokens where patient_id = $1", account_patient_id)
 
     if patient is None:
         return
@@ -2676,11 +2785,11 @@ async def notify_patient(patient_id: UUID, notification_type: str) -> None:
 - [ ] **Step 7: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_notification_service.py -v`
-Expected: 2개 테스트 모두 PASS
+Expected: 5개 테스트 모두 PASS([정합성 검토 R2-05] 검증 테스트 3건 추가로 2→5)
 
 - [ ] **Step 8: 예약 서비스에 알림 호출 연결**
 
-`backend/app/services/patient_booking_service.py`에서 `create_booking`의 트랜잭션이 끝난 직후(즉 `async with acquire_as(...) as conn:` 블록을 벗어난 뒤) 아래처럼 best-effort 알림 호출을 추가한다:
+`backend/app/services/patient_booking_service.py`에서 `create_booking`의 트랜잭션이 끝난 직후(즉 `async with acquire_as(...) as conn:` 블록을 벗어난 뒤) 아래처럼 best-effort 알림 호출을 추가한다. [정합성 검토 R2-05] 알림은 항상 **계정 소유자**(`patient.id`)에게 보내고, `for_patient_id`가 계정 소유자와 다르면(가족 예약) 대상자 이름을 조회해 `target_name`으로 넘긴다:
 ```python
 from app.services import notification_service
 
@@ -2688,9 +2797,15 @@ from app.services import notification_service
 async def create_booking(...) -> UUID:
     async with acquire_as(str(patient.auth_user_id)) as conn:
         ...  # 기존 로직
+        target_name = None
+        if for_patient_id != patient.id:
+            target_name = await conn.fetchval("select name from patients where id = $1", for_patient_id)
     try:
         await notification_service.notify_patient(
-            for_patient_id, "confirmed" if initial_status == "예약확정" else "requested",
+            patient.id,
+            "confirmed" if initial_status == "예약확정" else "requested",
+            target_name=target_name,
+            appointment_id=appointment_id,
         )
     except Exception:
         pass
@@ -2704,8 +2819,13 @@ async def change_booking(
 ) -> UUID:
     async with acquire_as(str(patient.auth_user_id)) as conn:
         ...  # 기존 로직(Task 8에서 이미 작성됨, 변경 없음)
+        target_name = None
+        if row["for_patient_id"] != patient.id:
+            target_name = await conn.fetchval("select name from patients where id = $1", row["for_patient_id"])
     try:
-        await notification_service.notify_patient(row["for_patient_id"], "changed")
+        await notification_service.notify_patient(
+            patient.id, "changed", target_name=target_name, appointment_id=new_appointment_id,
+        )
     except Exception:
         pass
     return new_appointment_id
