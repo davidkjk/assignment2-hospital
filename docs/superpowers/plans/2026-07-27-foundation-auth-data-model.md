@@ -501,7 +501,7 @@ git commit -m "feat: 의사 스케줄 규칙/예외 테이블과 RLS 정책 추�
 
 **Interfaces:**
 - Consumes: `tests.conftest.db_conn`, `seed_staff`, `set_session_auth`
-- Produces: DB 테이블 `patients(id, name, birth_date, gender, phone, is_active, updated_at, created_at)`, `patient_family_links(id, account_patient_id, family_patient_id, relation)`
+- Produces: DB 테이블 `patients(id, name, birth_date, gender, phone, is_active, updated_at, created_at)`, `patient_family_links(id, account_patient_id, family_patient_id, relation, is_active, unlinked_at)`([정합성 검토 R5-02] `is_active`/`unlinked_at` — 3단계 `patient_owns()`가 `is_active = true`인 링크만 유효하게 인정하고, `unlink_family_member`는 이 두 컬럼만 갱신한다. `patients.is_active`는 가족 연결 해제와 무관하게 건드리지 않는다 — 과거 예약·방문이력에 이름 등이 계속 정상 표시되어야 하기 때문)
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -523,8 +523,12 @@ create table patient_family_links (
   account_patient_id uuid not null references patients(id),
   family_patient_id uuid not null references patients(id),
   relation text not null,
+  is_active boolean not null default true,
+  unlinked_at timestamptz,
   unique (account_patient_id, family_patient_id)
 );
+-- [정합성 검토 R5-02] is_active/unlinked_at: 가족 연결 해제 시 이 링크만 비활성화한다.
+-- patient_owns()(3단계)는 is_active = true인 링크만 유효하게 인정한다.
 
 alter table patients enable row level security;
 alter table patient_family_links enable row level security;
@@ -605,7 +609,7 @@ Expected: 3개 테스트 모두 PASS
 
 ```bash
 git add supabase/migrations/00003_patients.sql backend/tests/test_patients_schema.py
-git commit -m "feat: patients/patient_family_links 테이블과 RLS 정책 추가"
+git commit -m "feat: patients/patient_family_links 테이블과 RLS 정책 추가 (R5-02: 링크 비활성화 컬럼 포함)"
 ```
 
 ---
@@ -618,7 +622,7 @@ git commit -m "feat: patients/patient_family_links 테이블과 RLS 정책 추�
 
 **Interfaces:**
 - Consumes: `tests.conftest.db_conn`, `seed_staff`, `set_session_auth`, `departments`(Task 2), `patients`(Task 4)
-- Produces: DB 테이블 `appointment_slots(id, doctor_id, slot_date, start_time, status)`, `appointments(id, slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, queue_position, is_urgent_flag, created_by, updated_at, created_at)`, `appointment_status_history(id, appointment_id, from_status, to_status, changed_by, reason, changed_at)`, SQL 함수 `doctor_can_view_appointment(target_appointment_id uuid) returns boolean`([정합성 검토 R2-02] — Task 6의 `medical_records`/`medical_record_revisions`와 Task 7의 `questionnaire_responses` RLS가 이 함수를 그대로 재사용함)
+- Produces: DB 테이블 `appointment_slots(id, doctor_id, slot_date, start_time, status)`, `appointments(id, slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, queue_position, is_urgent_flag, booking_code, booking_code_expires_at, created_by, updated_at, created_at)`([정합성 검토 R4-04] `booking_code`/`booking_code_expires_at` — 사람이 읽고 QR에도 담는 6자리 짧은 코드. `id`(UUID)는 내부 기본키로 그대로 유지), `appointment_status_history(id, appointment_id, from_status, to_status, changed_by, reason, changed_at)`, SQL 함수 `doctor_can_view_appointment(target_appointment_id uuid) returns boolean`([정합성 검토 R2-02] — Task 6의 `medical_records`/`medical_record_revisions`와 Task 7의 `questionnaire_responses` RLS가 이 함수를 그대로 재사용함), `generate_booking_code() returns text`([정합성 검토 R4-04])
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -648,10 +652,92 @@ create table appointments (
   source text not null check (source in ('app', 'chatbot', 'staff')),
   queue_position int,
   is_urgent_flag boolean not null default false,
+  booking_code varchar(6),
+  booking_code_expires_at timestamptz,
   created_by uuid references staff(id),
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+
+-- [정합성 검토 R4-04] booking_code는 항상 유니크(NULL은 여러 개 허용)하게 강제한다.
+-- 주의: `where booking_code_expires_at > now()` 같은 부분 인덱스는 Postgres에서 불가능하다
+-- (부분 인덱스 조건절에는 IMMUTABLE 함수만 쓸 수 있는데 now()는 STABLE이라 마이그레이션 자체가 실패한다).
+-- 대신 만료된 코드는 아래 트리거/배치가 booking_code를 NULL로 비워 값을 재사용 가능하게 만든다.
+create unique index idx_appointments_booking_code on appointments (booking_code);
+
+-- [정합성 검토 R4-04] 6자리 코드 생성: 대문자+숫자, 혼동되는 0/O, 1/I 제외. 충돌 시 재시도는 호출부(트리거)가 담당한다.
+create or replace function generate_booking_code()
+returns text
+language sql
+volatile
+as $$
+  select string_agg(substr('23456789ABCDEFGHJKLMNPQRSTUVWXYZ', (random() * 32)::int + 1, 1), '')
+  from generate_series(1, 6);
+$$;
+
+-- [정합성 검토 R4-04] 예약 생성 시 코드를 발급하고, 슬롯 날짜 다음날 자정을 만료 시각으로 잡는다.
+-- 슬롯이 없는 예약(source='chatbot' 등 슬롯 미지정)은 생성 시점 + 1일을 만료 시각으로 잡는다.
+create or replace function assign_booking_code()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_slot_date date;
+  v_code text;
+  v_attempt int := 0;
+begin
+  if new.slot_id is not null then
+    select slot_date into v_slot_date from appointment_slots where id = new.slot_id;
+  end if;
+  new.booking_code_expires_at := coalesce(v_slot_date, current_date) + interval '1 day';
+
+  -- BEFORE INSERT 트리거 안에서는 아직 행이 실제로 들어가기 전이라 유니크 제약 위반 예외를
+  -- 받을 수 없다. 그래서 후보 코드가 이미 쓰이고 있는지 직접 조회해서 재시도한다.
+  loop
+    v_code := generate_booking_code();
+    v_attempt := v_attempt + 1;
+    exit when not exists (select 1 from appointments where booking_code = v_code);
+    if v_attempt > 10 then
+      raise exception '예약번호 발급에 반복적으로 실패했습니다.' using errcode = 'P0001';
+    end if;
+  end loop;
+
+  new.booking_code := v_code;
+  return new;
+end;
+$$;
+
+create trigger trg_assign_booking_code
+  before insert on appointments
+  for each row execute function assign_booking_code();
+
+-- [정합성 검토 R4-04] 예약이 종료 상태(진료완료/취소류)가 되면 즉시 코드를 비워 값을 재사용 가능하게 만든다
+-- (예약 기록 자체는 그대로 보존 — booking_code만 NULL로 비운다).
+create or replace function expire_booking_code_on_terminal_status()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status in ('진료완료', '환자취소', '병원취소', '예약부도') and new.booking_code is not null then
+    new.booking_code := null;
+    new.booking_code_expires_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_expire_booking_code_on_terminal_status
+  before update of status on appointments
+  for each row execute function expire_booking_code_on_terminal_status();
+
+-- [정합성 검토 R4-04] "슬롯 날짜 당일 경과" 만료는 시각이 아니라 날짜 경과로 트리거되므로
+-- INSERT/UPDATE 트리거만으로는 잡을 수 없다. 2단계(직원 웹) 예약번호 검색 API는 반드시
+-- `where booking_code = $1 and booking_code_expires_at > now()`로 조회해 만료 여부를 조회
+-- 시점에 다시 확인한다(값 재사용을 위한 실제 NULL 비우기는 2단계에서 하루 1회 배치로 처리).
 
 create table appointment_status_history (
   id uuid primary key default gen_random_uuid(),
@@ -888,6 +974,8 @@ Expected: 오류 없이 적용됨
 
 `backend/tests/test_appointments_schema.py`:
 ```python
+from datetime import datetime, timezone
+
 import pytest
 from tests.conftest import seed_staff, set_session_auth
 
@@ -1161,18 +1249,96 @@ async def test_status_history_recorded_automatically_and_forgery_blocked(db_conn
             """,
             appointment_id, receptionist["staff_id"],
         )
+
+
+@pytest.mark.asyncio
+async def test_booking_code_assigned_on_insert(db_conn):
+    """[정합성 검토 R4-04] 예약 생성 시 6자리 booking_code가 자동 발급된다(혼동 문자 0/O/1/I 제외)."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    row = await db_conn.fetchrow(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        returning booking_code, booking_code_expires_at
+        """,
+        patient_id, dept_id, doctor["staff_id"], receptionist["staff_id"],
+    )
+    assert row["booking_code"] is not None
+    assert len(row["booking_code"]) == 6
+    assert not set(row["booking_code"]) & set("0O1I")
+    assert row["booking_code_expires_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_booking_code_cleared_on_terminal_status(db_conn):
+    """[정합성 검토 R4-04] 예약이 취소/완료되면 booking_code가 즉시 비워져 값이 재사용 가능해진다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor["staff_id"], receptionist["staff_id"],
+    )
+    await db_conn.execute("update appointments set status = '환자취소' where id = $1", appointment_id)
+
+    row = await db_conn.fetchrow(
+        "select booking_code, booking_code_expires_at from appointments where id = $1", appointment_id
+    )
+    assert row["booking_code"] is None
+    assert row["booking_code_expires_at"] <= datetime.now(timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_booking_code_unique_across_active_appointments(db_conn):
+    """[정합성 검토 R4-04] 두 예약이 동시에 같은 booking_code를 가질 수 없다(유니크 인덱스)."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    codes = set()
+    for _ in range(5):
+        code = await db_conn.fetchval(
+            """
+            insert into appointments
+                (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+            values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+            returning booking_code
+            """,
+            patient_id, dept_id, doctor["staff_id"], receptionist["staff_id"],
+        )
+        codes.add(code)
+    assert len(codes) == 5
 ```
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_appointments_schema.py -v`
-Expected: 10개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 3건 추가로 8→10)
+Expected: 13개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 3건 추가로 8→10, [정합성 검토 R4-04] booking_code 검증 테스트 3건 추가로 10→13)
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add supabase/migrations/00004_appointments.sql backend/tests/test_appointments_schema.py
-git commit -m "feat: appointment_slots/appointments/appointment_status_history 테이블·RLS·정합성 트리거 추가 (R2-02: doctor_can_view_appointment 포함)"
+git commit -m "feat: appointment_slots/appointments/appointment_status_history 테이블·RLS·정합성 트리거 추가 (R2-02: doctor_can_view_appointment, R4-04: booking_code 자동발급/만료 포함)"
 ```
 
 ---
@@ -1554,7 +1720,7 @@ git commit -m "feat: medical_records/medical_record_revisions 테이블·RLS·�
 
 **Interfaces:**
 - Consumes: `tests.conftest.db_conn`, `seed_staff`, `set_session_auth`, `departments`(Task 2), `appointments`(Task 5)
-- Produces: DB 테이블 `questionnaire_templates(id, department_id, questions)`, `questionnaire_responses(id, appointment_id, template_id, answers, submitted_at)`
+- Produces: DB 테이블 `questionnaire_templates(id, department_id, questions)`, `questionnaire_responses(id, appointment_id, template_id, answers, submitted_at)`, `questionnaire_templates.department_id`에 UNIQUE 제약([정합성 검토 R5-09] — Step 6 별도 마이그레이션에서 추가. 진료과당 문진 양식은 항상 정확히 1행이며 그 1행이 곧 "활성 버전")
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -1698,6 +1864,95 @@ Expected: 3개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 1
 ```bash
 git add supabase/migrations/00006_questionnaire.sql backend/tests/test_questionnaire_schema.py
 git commit -m "feat: questionnaire_templates/questionnaire_responses 테이블과 RLS 정책 추가 (R2-02 반영)"
+```
+
+- [ ] **Step 6: [정합성 검토 R5-09] department_id UNIQUE 제약 추가 마이그레이션**
+
+`supabase/migrations/00015_questionnaire_template_unique.sql`:
+```sql
+-- [정합성 검토 R5-09] 진료과당 문진 양식은 정확히 1행만 존재한다(그 1행이 곧 활성 버전).
+-- 별도의 is_active 플래그나 다중 버전 개념을 두지 않는다. 관리자가 저장하면
+-- upsert(on conflict (department_id) do update)로 이 유일한 행을 갱신한다.
+--
+-- 정합성 검토 시점에 이미 한 진료과에 여러 행이 생겨 있었을 가능성이 있으므로,
+-- UNIQUE 제약을 걸기 전에 진료과당 가장 나중에 만들어진 1행만 남기고 정리한다.
+-- (questionnaire_templates에는 created_at이 없으므로 id를 정렬 기준으로 쓴다 — UUID는
+-- 생성 순서를 보장하지 않지만, 이 정리는 "이미 중복이 생겼던 드문 경우"의 1회성 정리이고
+-- 어느 한 행이 남아도 데이터 손실 없이 이후부터는 유일성이 보장되면 되므로 충분하다.)
+delete from questionnaire_templates a
+using questionnaire_templates b
+where a.department_id = b.department_id and a.id < b.id;
+
+alter table questionnaire_templates
+  add constraint questionnaire_templates_department_id_key unique (department_id);
+```
+
+- [ ] **Step 7: 마이그레이션 적용**
+
+Run: `supabase db reset`
+Expected: 오류 없이 적용됨(기존 중복 데이터가 있어도 Step 6의 delete로 자동 정리된 뒤 제약이 걸림)
+
+- [ ] **Step 8: 실패하는 테스트 작성**
+
+`backend/tests/test_questionnaire_schema.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_second_template_for_same_department_rejected(db_conn):
+    """[정합성 검토 R5-09] 같은 진료과에 두 번째 행을 INSERT하면 UNIQUE 위반으로 거부된다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
+    await db_conn.execute(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb)",
+        dept_id,
+    )
+
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb)",
+            dept_id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_upsert_replaces_the_single_template_row(db_conn):
+    """[정합성 검토 R5-09] on conflict upsert로 그 진료과의 유일한 행을 갱신한다(저장 즉시 활성화, 롤백 없음)."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
+
+    await db_conn.execute(
+        """
+        insert into questionnaire_templates (department_id, questions)
+        values ($1, '[{"text": "old"}]'::jsonb)
+        on conflict (department_id) do update set questions = excluded.questions
+        """,
+        dept_id,
+    )
+    await db_conn.execute(
+        """
+        insert into questionnaire_templates (department_id, questions)
+        values ($1, '[{"text": "new"}]'::jsonb)
+        on conflict (department_id) do update set questions = excluded.questions
+        """,
+        dept_id,
+    )
+
+    rows = await db_conn.fetch("select questions from questionnaire_templates where department_id = $1", dept_id)
+    assert len(rows) == 1
+    assert rows[0]["questions"][0]["text"] == "new"
+```
+
+- [ ] **Step 9: 테스트 실행**
+
+Run: `cd backend && pytest tests/test_questionnaire_schema.py -v`
+Expected: 5개 테스트 모두 PASS([정합성 검토 R5-09] 검증 테스트 2건 추가로 3→5)
+
+- [ ] **Step 10: 커밋**
+
+```bash
+git add supabase/migrations/00015_questionnaire_template_unique.sql backend/tests/test_questionnaire_schema.py
+git commit -m "feat: questionnaire_templates.department_id UNIQUE 제약 추가 (R5-09: 진료과당 1행 = 활성 버전)"
 ```
 
 ---
