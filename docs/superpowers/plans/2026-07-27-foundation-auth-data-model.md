@@ -2301,7 +2301,8 @@ git commit -m "feat: 환자 등록/조회 서비스 추가"
 - Consumes: `app.core.config.settings`(Task 1), `app.db.pool.acquire_as`(Task 9), `app.core.security.StaffContext`(Task 9)
 - Produces: `app.db.admin_client.get_admin_client() -> supabase.Client` (service role 클라이언트)
 - Produces: `app.services.staff_service.invite_staff(email: str, name: str, role: str, department_id: UUID | None, invited_by: StaffContext) -> UUID`
-- Produces: `app.services.staff_service.deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None`
+- Produces: `app.services.staff_service.deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None`([정합성 검토 R3-04] 본인 또는 마지막 남은 활성 관리자를 중지하려 하면 `AppError(409)`)
+- Produces: `app.services.staff_service.list_staff(staff: StaffContext) -> list[dict]`([정합성 검토 R3-04] `id, name, role, department_id, is_active` — 관리자 전용, `/admin/staff` 화면 목록)
 
 - [ ] **Step 1: Supabase Admin 클라이언트 팩토리 작성**
 
@@ -2380,6 +2381,54 @@ async def test_deactivate_staff_sets_flags(db_conn):
     )
     assert row["is_active"] is False
     assert row["deactivated_by"] == admin_ctx.id
+
+
+@pytest.mark.asyncio
+async def test_deactivate_staff_rejects_self(db_conn):
+    """[정합성 검토 R3-04] 관리자가 자기 자신을 중지할 수 없다."""
+    from app.core.errors import AppError
+
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    with pytest.raises(AppError) as exc_info:
+        await staff_service.deactivate_staff(admin_ctx.id, deactivated_by=admin_ctx)
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_deactivate_staff_rejects_last_active_admin(db_conn):
+    """[정합성 검토 R3-04] 활성 관리자가 한 명뿐이면(본인이 아니어도) 중지할 수 없다 — 관리 권한 공백 방지."""
+    from app.core.errors import AppError
+
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    other_admin_seed = await seed_staff(db_conn, role="admin")
+    await staff_service.deactivate_staff(other_admin_seed["staff_id"], deactivated_by=admin_ctx)
+
+    # 이제 활성 관리자는 admin_ctx 한 명뿐이다. 다른 사람이 그를 중지하려 해도 막혀야 한다.
+    yet_another_admin_seed = await seed_staff(db_conn, role="admin")
+    yet_another_admin_ctx = _to_context(yet_another_admin_seed, "admin")
+    with pytest.raises(AppError) as exc_info:
+        await staff_service.deactivate_staff(yet_another_admin_seed["staff_id"], deactivated_by=admin_ctx)
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_list_staff_returns_all_roles(db_conn):
+    """[정합성 검토 R3-04] 관리자 화면의 직원 목록 — 활성/비활성 모두 포함한다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    await staff_service.deactivate_staff(receptionist["staff_id"], deactivated_by=admin_ctx)
+
+    staff_list = await staff_service.list_staff(admin_ctx)
+
+    ids = {row["id"] for row in staff_list}
+    assert admin_ctx.id in ids
+    assert receptionist["staff_id"] in ids
+    inactive_row = next(row for row in staff_list if row["id"] == receptionist["staff_id"])
+    assert inactive_row["is_active"] is False
 ```
 
 Run: `cd backend && pytest tests/test_staff_service.py -v`
@@ -2391,6 +2440,7 @@ Expected: FAIL (`app.services.staff_service` 모듈 없음)
 ```python
 from uuid import UUID
 
+from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.admin_client import get_admin_client
 from app.db.pool import acquire_as
@@ -2420,7 +2470,20 @@ async def invite_staff(
 
 
 async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None:
+    """[정합성 검토 R3-04] 본인 중지와 마지막 남은 활성 관리자 중지를 막는다 —
+    둘 다 병원 운영이 관리자 없이 멈추는 상황을 만들 수 있다."""
+    if staff_id == deactivated_by.id:
+        raise AppError("본인 계정은 중지할 수 없습니다.", status_code=409)
+
     async with acquire_as(str(deactivated_by.auth_user_id)) as conn:
+        target_role = await conn.fetchval("select role from staff where id = $1", staff_id)
+        if target_role == "admin":
+            active_admin_count = await conn.fetchval(
+                "select count(*) from staff where role = 'admin' and is_active"
+            )
+            if active_admin_count <= 1:
+                raise AppError("마지막 남은 관리자는 중지할 수 없습니다.", status_code=409)
+
         await conn.execute(
             """
             update staff
@@ -2429,18 +2492,26 @@ async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None
             """,
             staff_id, deactivated_by.id,
         )
+
+
+async def list_staff(staff: StaffContext) -> list[dict]:
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select id, name, role, department_id, is_active from staff order by is_active desc, name"
+        )
+    return [dict(row) for row in rows]
 ```
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_staff_service.py -v`
-Expected: 2개 테스트 모두 PASS
+Expected: 5개 테스트 모두 PASS([정합성 검토 R3-04] 본인/마지막 관리자 중지 차단, 목록 조회 검증 테스트 3건 추가)
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add backend/app/db/admin_client.py backend/app/services/staff_service.py backend/tests/test_staff_service.py
-git commit -m "feat: 관리자 초대 링크 기반 직원 계정 생성/중지 서비스 추가"
+git commit -m "feat: 관리자 초대 링크 기반 직원 계정 생성/중지 서비스와 목록 조회(R3-04) 추가"
 ```
 
 ---
@@ -3300,7 +3371,7 @@ git commit -m "feat: 환자정보/진료기록 열람 감사로그 서비스 추
 
 **Interfaces:**
 - Consumes: 모든 이전 태스크의 서비스/의존성
-- Produces: `POST /staff`, `PATCH /staff/{staff_id}/deactivate`, `POST /appointments`, `PATCH /appointments/{appointment_id}/status`, `PATCH /appointments/{appointment_id}/queue-position`, `PATCH /appointments/{appointment_id}/urgent-flag`, `POST /medical-records/draft`, `PATCH /medical-records/{record_id}/complete`, `PATCH /medical-records/{record_id}/revise`
+- Produces: `POST /staff`, `PATCH /staff/{staff_id}/deactivate`, `GET /staff`([정합성 검토 R3-04]), `POST /appointments`, `PATCH /appointments/{appointment_id}/status`, `PATCH /appointments/{appointment_id}/queue-position`, `PATCH /appointments/{appointment_id}/urgent-flag`, `POST /medical-records/draft`, `PATCH /medical-records/{record_id}/complete`, `PATCH /medical-records/{record_id}/revise`
 
 - [ ] **Step 1: staff 라우터 작성**
 
@@ -3346,6 +3417,14 @@ async def deactivate_staff(
 ) -> dict:
     await staff_service.deactivate_staff(staff_id, deactivated_by=staff)
     return {"status": "deactivated"}
+
+
+@router.get("")
+async def get_staff_list(
+    staff: StaffContext = Depends(require_role("admin")),
+) -> list[dict]:
+    """[정합성 검토 R3-04] `/admin/staff` 화면의 직원 목록."""
+    return await staff_service.list_staff(staff)
 ```
 
 - [ ] **Step 2: appointments 라우터 작성**
