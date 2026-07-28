@@ -618,7 +618,7 @@ git commit -m "feat: patients/patient_family_links 테이블과 RLS 정책 추�
 
 **Interfaces:**
 - Consumes: `tests.conftest.db_conn`, `seed_staff`, `set_session_auth`, `departments`(Task 2), `patients`(Task 4)
-- Produces: DB 테이블 `appointment_slots(id, doctor_id, slot_date, start_time, status)`, `appointments(id, slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, queue_position, is_urgent_flag, created_by, updated_at, created_at)`, `appointment_status_history(id, appointment_id, from_status, to_status, changed_by, reason, changed_at)`
+- Produces: DB 테이블 `appointment_slots(id, doctor_id, slot_date, start_time, status)`, `appointments(id, slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, queue_position, is_urgent_flag, created_by, updated_at, created_at)`, `appointment_status_history(id, appointment_id, from_status, to_status, changed_by, reason, changed_at)`, SQL 함수 `doctor_can_view_appointment(target_appointment_id uuid) returns boolean`([정합성 검토 R2-02] — Task 6의 `medical_records`/`medical_record_revisions`와 Task 7의 `questionnaire_responses` RLS가 이 함수를 그대로 재사용함)
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -667,6 +667,42 @@ alter table appointment_slots enable row level security;
 alter table appointments enable row level security;
 alter table appointment_status_history enable row level security;
 
+-- [정합성 검토 R2-02] 의사는 원칙적으로 본인 담당(doctor_id = 본인) 예약만 조회할 수 있다.
+-- 예외: 오늘 그 의사에게 '도착'/'진료대기'/'진료중' 상태로 와 있는 환자(for_patient_id 동일)라면,
+-- 그 환자의 이미 종료된(과거) 예약·진료기록은 담당의가 달랐더라도 진료 연속성을 위해 열람을 허용한다.
+-- 아직 지나지 않은 미래 예약(다른 의사 담당)은 이 예외로도 열람할 수 없다 — 종료 여부를 함께 검사하기 때문이다.
+-- 접수직원·관리자는 이 함수를 거치지 않고 전체 열람 정책을 그대로 유지한다(운영상 전체 환자를 다뤄야 함).
+create or replace function doctor_can_view_appointment(target_appointment_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from appointments target
+    join staff me on me.auth_user_id = auth.uid() and me.role = 'doctor' and me.is_active
+    left join appointment_slots ts on ts.id = target.slot_id
+    where target.id = target_appointment_id
+      and (
+        target.doctor_id = me.id
+        or (
+          (
+            target.status in ('진료완료', '환자취소', '병원취소', '예약부도')
+            or (ts.slot_date is not null and ts.slot_date < current_date)
+          )
+          and exists (
+            select 1 from appointments live
+            where live.doctor_id = me.id
+              and live.for_patient_id = target.for_patient_id
+              and live.status in ('도착', '진료대기', '진료중')
+          )
+        )
+      )
+  );
+$$;
+
 create policy "staff_can_read_slots" on appointment_slots
   for select
   using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
@@ -678,7 +714,10 @@ create policy "receptionist_admin_can_manage_slots" on appointment_slots
 
 create policy "staff_can_read_appointments" on appointments
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (
+    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    or doctor_can_view_appointment(id)
+  );
 
 create policy "receptionist_admin_can_insert_appointments" on appointments
   for insert
@@ -703,7 +742,10 @@ create policy "staff_can_update_own_scope_appointments" on appointments
 
 create policy "staff_can_read_status_history" on appointment_status_history
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (
+    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    or doctor_can_view_appointment(appointment_id)
+  );
 
 -- 주의: appointment_status_history에는 클라이언트가 직접 INSERT할 수 있는 정책을 두지 않는다.
 -- 이력 기록은 아래 log_appointment_status_change() 트리거(SECURITY DEFINER)만 담당하며,
@@ -924,6 +966,103 @@ async def test_doctor_cannot_update_other_doctors_appointment(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_doctor_cannot_read_other_doctors_appointment(db_conn):
+    """[정합성 검토 R2-02] 의사는 원칙적으로 본인 담당이 아닌 예약을 조회할 수 없다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor_a = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    doctor_b = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor_a["staff_id"], receptionist["staff_id"],
+    )
+
+    await set_session_auth(db_conn, doctor_b["auth_user_id"])
+    row = await db_conn.fetchrow("select id from appointments where id = $1", appointment_id)
+    assert row is None
+
+
+@pytest.mark.asyncio
+async def test_doctor_can_read_patients_past_records_during_active_visit(db_conn):
+    """[정합성 검토 R2-02] 오늘 내게 '도착~진료중' 상태로 온 환자라면, 다른 의사가 남긴 과거(종료된) 예약도 볼 수 있다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor_a = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    doctor_b = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    past_appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '진료완료', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor_a["staff_id"], receptionist["staff_id"],
+    )
+    today_appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '진료중', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor_b["staff_id"], receptionist["staff_id"],
+    )
+
+    await set_session_auth(db_conn, doctor_b["auth_user_id"])
+    past_row = await db_conn.fetchrow("select id from appointments where id = $1", past_appointment_id)
+    today_row = await db_conn.fetchrow("select id from appointments where id = $1", today_appointment_id)
+    assert past_row is not None
+    assert today_row is not None
+
+
+@pytest.mark.asyncio
+async def test_doctor_cannot_read_patients_future_appointment_with_other_doctor(db_conn):
+    """[정합성 검토 R2-02] 진료 중이라도, 같은 환자의 '아직 지나지 않은' 다른 의사 예약은 볼 수 없다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor_a = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    doctor_b = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    future_appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor_a["staff_id"], receptionist["staff_id"],
+    )
+    await db_conn.execute(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '진료중', 'staff', $4)
+        """,
+        patient_id, dept_id, doctor_b["staff_id"], receptionist["staff_id"],
+    )
+
+    await set_session_auth(db_conn, doctor_b["auth_user_id"])
+    row = await db_conn.fetchrow("select id from appointments where id = $1", future_appointment_id)
+    assert row is None
+
+
+@pytest.mark.asyncio
 async def test_appointment_department_must_match_doctor_department(db_conn):
     """치명적 규칙은 DB가 최종 심판 — 담당의 소속 진료과와 다른 진료과로 직접 INSERT하면 거부된다."""
     admin = await seed_staff(db_conn, role="admin")
@@ -1027,13 +1166,13 @@ async def test_status_history_recorded_automatically_and_forgery_blocked(db_conn
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_appointments_schema.py -v`
-Expected: 8개 테스트 모두 PASS
+Expected: 10개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 3건 추가로 8→10)
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add supabase/migrations/00004_appointments.sql backend/tests/test_appointments_schema.py
-git commit -m "feat: appointment_slots/appointments/appointment_status_history 테이블·RLS·정합성 트리거 추가"
+git commit -m "feat: appointment_slots/appointments/appointment_status_history 테이블·RLS·정합성 트리거 추가 (R2-02: doctor_can_view_appointment 포함)"
 ```
 
 ---
@@ -1077,9 +1216,13 @@ create table medical_record_revisions (
 alter table medical_records enable row level security;
 alter table medical_record_revisions enable row level security;
 
+-- [정합성 검토 R2-02] Task 5의 doctor_can_view_appointment()를 그대로 재사용한다.
 create policy "staff_can_read_medical_records" on medical_records
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (
+    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    or doctor_can_view_appointment(appointment_id)
+  );
 
 create policy "doctor_can_insert_own_medical_records" on medical_records
   for insert
@@ -1090,9 +1233,13 @@ create policy "doctor_can_update_own_medical_records" on medical_records
   using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'doctor' and s.is_active and s.id = medical_records.doctor_id))
   with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'doctor' and s.is_active and s.id = medical_records.doctor_id));
 
+-- [정합성 검토 R2-02] medical_record_revisions은 record_id로만 연결되므로 medical_records를 거쳐 appointment_id를 찾는다.
 create policy "staff_can_read_revisions" on medical_record_revisions
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (
+    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    or doctor_can_view_appointment((select appointment_id from medical_records where id = medical_record_revisions.record_id))
+  );
 
 create policy "doctor_can_insert_own_revisions" on medical_record_revisions
   for insert
@@ -1297,6 +1444,27 @@ async def test_receptionist_can_read_but_not_insert_records(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_doctor_cannot_read_other_doctors_medical_record(db_conn):
+    """[정합성 검토 R2-02] 의사는 본인 담당이 아닌 예약의 진료기록을 조회할 수 없다."""
+    admin = await seed_staff(db_conn, role="admin")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor_a = await seed_staff(db_conn, role="doctor")
+    doctor_b = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    appointment_id = await _seed_appointment_for_doctor(db_conn, doctor_a["staff_id"], receptionist["staff_id"])
+
+    await set_session_auth(db_conn, doctor_a["auth_user_id"])
+    await db_conn.execute(
+        "insert into medical_records (appointment_id, doctor_id, symptoms) values ($1, $2, '기침')",
+        appointment_id, doctor_a["staff_id"],
+    )
+
+    await set_session_auth(db_conn, doctor_b["auth_user_id"])
+    rows = await db_conn.fetch("select id from medical_records where appointment_id = $1", appointment_id)
+    assert len(rows) == 0
+
+
+@pytest.mark.asyncio
 async def test_completed_record_direct_update_blocked_but_rpc_allowed(db_conn):
     """완료된 기록은 직접 UPDATE로 우회할 수 없고, revise_medical_record() RPC로만 고칠 수 있다."""
     admin = await seed_staff(db_conn, role="admin")
@@ -1367,13 +1535,13 @@ async def test_revise_medical_record_requires_reason_and_checks_optimistic_lock(
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_medical_records_schema.py -v`
-Expected: 6개 테스트 모두 PASS
+Expected: 7개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 1건 추가로 6→7)
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add supabase/migrations/00005_medical_records.sql backend/tests/test_medical_records_schema.py
-git commit -m "feat: medical_records/medical_record_revisions 테이블·RLS·담당의 정합성 트리거·완료기록 수정 RPC 추가"
+git commit -m "feat: medical_records/medical_record_revisions 테이블·RLS·담당의 정합성 트리거·완료기록 수정 RPC 추가 (R2-02 반영)"
 ```
 
 ---
@@ -1420,15 +1588,16 @@ create policy "admin_can_manage_templates" on questionnaire_templates
 
 -- 사전문진은 "해당 의사만" 열람 가능해야 한다(고객요구사항) — 모든 활성 직원이 아니라
 -- 예약 담당의만 조회하도록 제한한다. 관리자는 감사 목적으로만 예외 허용한다.
+-- [정합성 검토 R2-02] "해당 의사"의 범위는 Task 5의 doctor_can_view_appointment()를 그대로 따른다
+-- (본인 담당 예약 + 오늘 도착~진료중인 환자의 과거 기록).
 create policy "assigned_doctor_can_read_responses" on questionnaire_responses
   for select
   using (
     exists (
-      select 1 from appointments a
-      join staff s on s.auth_user_id = auth.uid() and s.is_active
-      where a.id = questionnaire_responses.appointment_id
-        and (s.id = a.doctor_id or s.role = 'admin')
+      select 1 from staff s
+      where s.auth_user_id = auth.uid() and s.is_active and s.role = 'admin'
     )
+    or doctor_can_view_appointment(questionnaire_responses.appointment_id)
   );
 
 -- 환자가 직접 제출하는 정책은 3단계(환자 앱)에서 환자 인증 연동 시 추가한다
@@ -1480,18 +1649,55 @@ async def test_doctor_cannot_create_template(db_conn):
             """,
             dept_id,
         )
+
+
+@pytest.mark.asyncio
+async def test_doctor_cannot_read_other_doctors_questionnaire_response(db_conn):
+    """[정합성 검토 R2-02] 사전문진도 doctor_can_view_appointment() 범위를 그대로 따른다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor_a = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    doctor_b = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    patient_id = await db_conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678') returning id"
+    )
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        returning id
+        """,
+        patient_id, dept_id, doctor_a["staff_id"], receptionist["staff_id"],
+    )
+    template_id = await db_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb) returning id",
+        dept_id,
+    )
+    await db_conn.execute(
+        "insert into questionnaire_responses (appointment_id, template_id, answers) values ($1, $2, '{}'::jsonb)",
+        appointment_id, template_id,
+    )
+
+    await set_session_auth(db_conn, doctor_b["auth_user_id"])
+    rows = await db_conn.fetch(
+        "select id from questionnaire_responses where appointment_id = $1", appointment_id
+    )
+    assert len(rows) == 0
 ```
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_questionnaire_schema.py -v`
-Expected: 2개 테스트 모두 PASS
+Expected: 3개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 1건 추가로 2→3)
 
 - [ ] **Step 5: 커밋**
 
 ```bash
 git add supabase/migrations/00006_questionnaire.sql backend/tests/test_questionnaire_schema.py
-git commit -m "feat: questionnaire_templates/questionnaire_responses 테이블과 RLS 정책 추가"
+git commit -m "feat: questionnaire_templates/questionnaire_responses 테이블과 RLS 정책 추가 (R2-02 반영)"
 ```
 
 ---
