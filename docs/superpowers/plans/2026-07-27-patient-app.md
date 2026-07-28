@@ -1840,7 +1840,7 @@ git commit -m "feat: 환자용 예약 생성/변경 서비스와 당일 예약�
 
 **Interfaces:**
 - Consumes: `app.core.patient_security.PatientContext, list_accessible_patient_ids`(Task 4), `app.services.slot_service.release_slot`(Task 7), `hospital_settings.cancellation_deadline_hours`(1단계 Task 8)
-- Produces: `app.services.patient_booking_service.cancel_appointment(patient, appointment_id: UUID, reason: str | None) -> dict`(`{"cancelled": bool, "cancellation_requested": bool}`), `app.services.patient_appointment_query_service.list_my_appointments(patient) -> list[dict]`, `get_appointment_detail(patient, appointment_id: UUID) -> dict`
+- Produces: `app.services.patient_booking_service.cancel_appointment(patient, appointment_id: UUID, reason: str | None) -> dict`(`{"cancelled": bool, "cancellation_requested": bool}`), `app.services.patient_appointment_query_service.list_my_appointments(patient) -> list[dict]`(각 행에 `booking_code`, `booking_code_expires_at` 포함 — [정합성 검토 R4-04]), `get_appointment_detail(patient, appointment_id: UUID) -> dict`(마찬가지로 `booking_code` 포함), `get_queue_status(patient, appointment_id: UUID) -> dict`(`{"patients_ahead": int}` — [정합성 검토 R4-03])
 
 - [ ] **Step 1: 실패하는 테스트 작성 — cancel_appointment**
 
@@ -2051,6 +2051,37 @@ async def test_get_appointment_detail_returns_status(db_conn):
     detail = await patient_appointment_query_service.get_appointment_detail(me, appointment_id)
     assert detail["status"] == "예약신청"
     assert detail["department_name"] == "내과"
+
+
+@pytest.mark.asyncio
+async def test_get_queue_status_counts_only_earlier_queue_positions(db_conn):
+    """[정합성 검토 R4-03] 같은 의사·오늘·'진료대기' 상태 중 queue_position이 더 작은 건수만 센다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    me_seed = await seed_patient(db_conn)
+    me = PatientContext(id=me_seed["patient_id"], auth_user_id=me_seed["auth_user_id"])
+
+    async def _seed_waiting(queue_position, for_patient_id=None):
+        pid = for_patient_id or (await seed_patient(db_conn, phone=f"0101111{queue_position:04d}"))["patient_id"]
+        return await db_conn.fetchval(
+            """
+            insert into appointments
+                (account_patient_id, for_patient_id, department_id, doctor_id, status, source, queue_position)
+            values ($1, $1, $2, $3, '진료대기', 'staff', $4)
+            returning id
+            """,
+            pid, dept_id, doctor["staff_id"], queue_position,
+        )
+
+    await _seed_waiting(1)
+    await _seed_waiting(2)
+    my_appointment_id = await _seed_waiting(3, for_patient_id=me.id)
+    await _seed_waiting(4)
+
+    status = await patient_appointment_query_service.get_queue_status(me, my_appointment_id)
+    assert status == {"patients_ahead": 2}
 ```
 
 Run: `cd backend && pytest tests/test_patient_appointment_query_service.py -v`
@@ -2072,6 +2103,7 @@ async def list_my_appointments(patient: PatientContext) -> list[dict]:
         rows = await conn.fetch(
             """
             select a.id, a.status, a.cancellation_requested_at, a.updated_at,
+                   a.booking_code, a.booking_code_expires_at,
                    p.name as for_patient_name, d.name as department_name, st.name as doctor_name,
                    s.slot_date, s.start_time,
                    exists (select 1 from questionnaire_responses q where q.appointment_id = a.id) as questionnaire_submitted
@@ -2098,7 +2130,8 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
         row = await conn.fetchrow(
             """
             select a.id, a.status, a.cancellation_requested_at, a.updated_at, a.queue_position,
-                   a.doctor_id, p.name as for_patient_name, d.name as department_name, st.name as doctor_name,
+                   a.doctor_id, a.booking_code, a.booking_code_expires_at,
+                   p.name as for_patient_name, d.name as department_name, st.name as doctor_name,
                    s.slot_date, s.start_time
             from appointments a
             join patients p on p.id = a.for_patient_id
@@ -2110,18 +2143,48 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
             appointment_id,
         )
     return dict(row) if row else {}
+
+
+async def get_queue_status(patient: PatientContext, appointment_id: UUID) -> dict:
+    """[정합성 검토 R4-03] "내 앞 대기 인원" = 같은 의사·오늘 날짜·'진료대기' 상태인 예약 중
+    queue_position이 내 값보다 작은 건수. 직원 웹의 대기목록과 항상 같은 컬럼(queue_position)을
+    기준으로 삼으므로 두 화면의 순서가 어긋나지 않는다. 다른 환자의 이름 등 식별정보는 절대 포함하지 않는다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            """
+            select a.doctor_id, a.queue_position, s.slot_date
+            from appointments a
+            left join appointment_slots s on s.id = a.slot_id
+            where a.id = $1 and a.status = '진료대기'
+            """,
+            appointment_id,
+        )
+        if row is None or row["queue_position"] is None:
+            return {"patients_ahead": 0}
+
+        patients_ahead = await conn.fetchval(
+            """
+            select count(*) from appointments a2
+            left join appointment_slots s2 on s2.id = a2.slot_id
+            where a2.doctor_id = $1 and a2.status = '진료대기'
+              and coalesce(s2.slot_date, current_date) = current_date
+              and a2.queue_position < $2
+            """,
+            row["doctor_id"], row["queue_position"],
+        )
+    return {"patients_ahead": patients_ahead}
 ```
 
 - [ ] **Step 6: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_appointment_query_service.py -v`
-Expected: 3개 테스트 모두 PASS
+Expected: 4개 테스트 모두 PASS([정합성 검토 R4-03] 검증 테스트 1건 추가로 3→4)
 
 - [ ] **Step 7: 커밋**
 
 ```bash
 git add backend/app/services/patient_booking_service.py backend/app/services/patient_appointment_query_service.py backend/tests/test_patient_booking_service.py backend/tests/test_patient_appointment_query_service.py
-git commit -m "feat: 예약 취소(마감전후 분기)와 나의 예약 조회 서비스 추가"
+git commit -m "feat: 예약 취소(마감전후 분기)와 나의 예약 조회 서비스 추가 (R4-03: 대기인원, R4-04: booking_code 포함)"
 ```
 
 ---
@@ -3313,6 +3376,14 @@ async def get_appointment(
     appointment_id: UUID, patient: PatientContext = Depends(get_current_patient),
 ) -> dict:
     return await patient_appointment_query_service.get_appointment_detail(patient, appointment_id)
+
+
+@router.get("/{appointment_id}/queue-status")
+async def get_queue_status(
+    appointment_id: UUID, patient: PatientContext = Depends(get_current_patient),
+) -> dict:
+    """[정합성 검토 R4-03] 내 앞 대기 인원 — patients_ahead 한 값만 반환한다."""
+    return await patient_appointment_query_service.get_queue_status(patient, appointment_id)
 
 
 class ChangeBookingRequest(BaseModel):
@@ -5918,7 +5989,7 @@ class UpcomingAppointment {
   const UpcomingAppointment({
     required this.id, required this.status, required this.departmentName, required this.doctorName,
     required this.forPatientName, required this.slotDate, required this.startTime,
-    required this.questionnaireSubmitted,
+    required this.questionnaireSubmitted, required this.bookingCode,
   });
 
   final String id;
@@ -5929,8 +6000,10 @@ class UpcomingAppointment {
   final String? slotDate;
   final String? startTime;
   final bool questionnaireSubmitted;
+  final String? bookingCode; // [정합성 검토 R4-04] 만료된 예약은 null일 수 있다
 
   bool get isConfirmed => status == '예약확정';
+  bool get isWaiting => status == '진료대기'; // [정합성 검토 R4-03] 대기인원 위젯 표시 조건
 
   factory UpcomingAppointment.fromJson(Map<String, dynamic> json) => UpcomingAppointment(
         id: json['id'] as String,
@@ -5941,6 +6014,7 @@ class UpcomingAppointment {
         slotDate: json['slot_date'] as String?,
         startTime: json['start_time'] as String?,
         questionnaireSubmitted: json['questionnaire_submitted'] as bool,
+        bookingCode: json['booking_code'] as String?,
       );
 }
 
@@ -5964,6 +6038,17 @@ class HomeController extends AsyncNotifier<UpcomingAppointment?> {
 }
 
 final homeControllerProvider = AsyncNotifierProvider<HomeController, UpcomingAppointment?>(HomeController.new);
+
+// [정합성 검토 R4-03] 내 앞 대기 인원. Task 23의 appointments Realtime 구독 콜백이 이 provider를
+// invalidate하면 자동으로 다시 조회된다 — 순서 변경/진료시작/취소 모두 그 구독으로 이미 커버된다.
+final queueStatusProvider = FutureProvider.autoDispose.family<int, String>((ref, appointmentId) async {
+  final api = ref.read(apiClientProvider);
+  final result = await api.get(
+    '/app/appointments/$appointmentId/queue-status',
+    (json) => (json as Map<String, dynamic>)['patients_ahead'] as int,
+  );
+  return result;
+});
 ```
 
 - [ ] **Step 3: 테스트 실행**
@@ -6016,9 +6101,25 @@ class HomeScreen extends ConsumerWidget {
                 Text(appointment.isConfirmed ? '예약 확정' : '예약 신청됨'),
                 Text(appointment.questionnaireSubmitted ? '사전문진 작성완료' : '사전문진 미작성'),
                 const SizedBox(height: 24),
-                const Text('병원에 보여줄 예약번호'),
-                QrImageView(data: appointment.id, size: 160),
-                Text(appointment.id),
+                // [정합성 검토 R4-04] QR/텍스트 모두 UUID(id)가 아닌 6자리 booking_code를 쓴다.
+                // 만료된 예약은 booking_code가 null이라 QR 대신 안내 문구만 보여준다.
+                if (appointment.bookingCode != null) ...[
+                  const Text('병원에 보여줄 예약번호'),
+                  QrImageView(data: appointment.bookingCode!, size: 160),
+                  Text(appointment.bookingCode!, style: const TextStyle(fontSize: 24, letterSpacing: 2)),
+                ] else
+                  const Text('예약번호가 만료되었습니다. 접수처에 문의해주세요.'),
+                if (appointment.isWaiting)
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final queueStatus = ref.watch(queueStatusProvider(appointment.id));
+                      return queueStatus.when(
+                        loading: () => const Text('대기 인원 확인 중...'),
+                        error: (e, _) => const SizedBox.shrink(),
+                        data: (patientsAhead) => Text('내 앞 대기 인원: $patientsAhead명'),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 16),
                 const Text('예상 대기시간은 변동될 수 있습니다.', style: TextStyle(color: Colors.grey)),
                 ElevatedButton(
@@ -6046,7 +6147,7 @@ GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
 
 ```bash
 git add mobile/lib/features/home mobile/lib/core/router.dart mobile/test/features/home/home_controller_test.dart
-git commit -m "feat: 홈 화면(가장 가까운 예약, QR/예약번호) 추가"
+git commit -m "feat: 홈 화면(가장 가까운 예약, QR/예약번호) 추가 (R4-04: booking_code로 교체, R4-03: 대기인원 위젯 포함)"
 ```
 
 ---
