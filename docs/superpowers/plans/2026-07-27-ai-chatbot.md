@@ -10,8 +10,9 @@
 
 ## Global Constraints
 
-- 이 계획은 1~3단계 계획의 산출물이 이미 존재한다고 가정한다: `backend/` 스캐폴딩, `supabase/migrations/00001~00011`, `app.db.pool.acquire_as`/`get_pool`, `app.core.security.StaffContext`/`require_role`, `app.core.patient_security.PatientContext`/`get_current_patient`, `app.core.errors.AppError`/`log_error`, `app.integrations.sms_client.get_sms_client`, `app.services.notification_service.notify_patient`, `app.services.patient_catalog_service.*`, `app.services.patient_booking_service.create_booking`, `app.services.patient_appointment_query_service.list_my_appointments`
-- 신규 마이그레이션은 `supabase/migrations/00012`부터 번호를 이어간다
+- **[정합성 검토 P1/P2 추적]** `docs/supabase-postgres-review-2026-07-28.md`의 SDB-10(지식자료 CASCADE DELETE), SDB-30(트랜잭션 안에서 외부 임베딩 API 대기)은 P0가 아니라 해당 기능을 실제로 만들 때 함께 반영하기로 결정됨(2026-07-28).
+- 이 계획은 1~3단계 계획의 산출물이 이미 존재한다고 가정한다: `backend/` 스캐폴딩, `supabase/migrations/00001~00099`(기반) + `00100~00199`(직원 웹) + `00200~00299`(환자 앱), `app.db.pool.acquire_as`/`get_pool`, `app.core.security.StaffContext`/`require_role`, `app.core.patient_security.PatientContext`/`get_current_patient`, `app.core.errors.AppError`/`log_error`, `app.integrations.sms_client.get_sms_client`, `app.services.notification_service.notify_patient`, `app.services.patient_catalog_service.*`, `app.services.patient_booking_service.create_booking`, `app.services.patient_appointment_query_service.list_my_appointments`
+- 마이그레이션 번호 대역: **4단계(AI 챗봇) `00300~00399`**(정합성 검토 SDB-01, 1~3단계와 겹치지 않도록 미리 고정된 대역). 신규 마이그레이션은 `supabase/migrations/00300`부터 번호를 이어간다
 - **AI 프레임워크는 LangChain을 사용한다** (스펙 "핵심 결정" — 이전 버전의 "Claude API tool use 수동 루프 직접 구현" 결정을 대체함). 모델 호출은 `langchain-anthropic`의 `ChatAnthropic`으로, 갈래 분기는 `RunnableBranch`로, 도구 실행형 갈래는 `AgentExecutor`로 구현한다
 - 대화 모델은 `claude-sonnet-5` 고정, 임베딩은 OpenAI `text-embedding-3-small`(1536차원) 고정 (스펙 섹션 1/2)
 - **매 메시지는 반드시 ⓪응급검사 → ①인계감시 → ②라우터 순서로 통과한다** — 어느 갈래(RAG/문진/에이전트)에 있든 인계 감시가 조건을 감지하면 무조건 인계로 전환한다 (스펙 섹션 1/3, 인계는 "에이전트가 선택하는 도구"가 아니다)
@@ -32,9 +33,9 @@
 
 ```
 supabase/migrations/
-  00012_chat_tables.sql            # 상담방/메시지(route_taken 포함) + RLS
-  00013_kb_pgvector.sql            # pgvector 확장 + 지식베이스 + RLS
-  00014_support_feedback.sql       # 인계 티켓 + 오답 신고(source/add_to_example_bank) + qa_example_bank + RLS
+  00300_chat_tables.sql            # 상담방/메시지(route_taken 포함) + RLS
+  00301_kb_pgvector.sql            # pgvector 확장 + 지식베이스 + RLS
+  00302_support_feedback.sql       # 인계 티켓 + 오답 신고(source/add_to_example_bank) + qa_example_bank + RLS
 backend/app/
   integrations/embedding_client.py # OpenAI 임베딩 (모킹 가능)
   integrations/langchain_client.py # ChatAnthropic 모델 팩토리 (모킹 가능)
@@ -68,7 +69,7 @@ mobile/lib/features/chat/          # Flutter 앱(3단계 patient-app과 동일 �
 ## Task 1: 마이그레이션 — 상담방/메시지 테이블 + RLS
 
 **Files:**
-- Create: `supabase/migrations/00012_chat_tables.sql`
+- Create: `supabase/migrations/00300_chat_tables.sql`
 - Test: `backend/tests/test_chat_tables_schema.py`
 
 **Interfaces:**
@@ -132,7 +133,7 @@ Expected: FAIL (테이블 없음)
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00012_chat_tables.sql`:
+`supabase/migrations/00300_chat_tables.sql`:
 ```sql
 -- 상담방: 상담 한 건 = 방 하나 (스펙 섹션 2)
 create table chat_conversations (
@@ -189,25 +190,30 @@ alter table chat_messages enable row level security;
 alter table chat_booking_cards enable row level security;
 
 -- 환자: 본인 상담방만 조회 (익명 방은 서버(service role)가 토큰 검증 후 대신 접근)
+-- private.current_patient_id()는 is_active=true인 환자만 반환하므로 비활성화된 환자는
+-- 자동으로 상담방을 볼 수 없다(정합성 검토 SDB-03/SDB-22, 1단계에서 정의된 헬퍼 재사용).
 create policy chat_conversations_patient_select on chat_conversations
   for select to authenticated
-  using (patient_id in (select id from patients where auth_user_id = auth.uid()));
+  using (patient_id = private.current_patient_id());
 
 create policy chat_messages_patient_select on chat_messages
   for select to authenticated
   using (conversation_id in (
     select id from chat_conversations
-    where patient_id in (select id from patients where auth_user_id = auth.uid())
+    where patient_id = private.current_patient_id()
   ));
 
 -- 직원: 전체 상담 조회 가능 (요구사항 5.1 "같은 상담 관리 화면")
+-- [정합성 검토 SDB-03/SDB-05] staff를 직접 재조회하는 방식은 (staff 테이블 자체의 RLS는
+-- 1단계에서 이미 헬퍼로 고쳤으므로 무한 재귀까지는 아니어도) staff RLS를 매번 다시 평가하게 해
+-- 비효율적이고 검사 기준도 흩어진다. 1단계에서 정의한 private.is_active_staff() 헬퍼로 통일한다.
 create policy chat_conversations_staff_select on chat_conversations
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 
 create policy chat_messages_staff_select on chat_messages
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 
 -- 쓰기는 전부 백엔드(service role) 경유 — 클라이언트 직접 insert/update 불가.
 -- Realtime 구독을 위해 두 테이블을 publication에 추가
@@ -223,7 +229,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/00012_chat_tables.sql backend/tests/test_chat_tables_schema.py
+git add supabase/migrations/00300_chat_tables.sql backend/tests/test_chat_tables_schema.py
 git commit -m "feat: 상담방/메시지 테이블(route_taken, 문진 플로우 상태) + 예약 확인 카드 테이블 + RLS (4단계)"
 ```
 
@@ -232,7 +238,7 @@ git commit -m "feat: 상담방/메시지 테이블(route_taken, 문진 플로우
 ## Task 2: 마이그레이션 — pgvector + 지식베이스 테이블
 
 **Files:**
-- Create: `supabase/migrations/00013_kb_pgvector.sql`
+- Create: `supabase/migrations/00301_kb_pgvector.sql`
 - Test: `backend/tests/test_kb_schema.py`
 
 **Interfaces:**
@@ -314,7 +320,7 @@ Expected: FAIL
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00013_kb_pgvector.sql`:
+`supabase/migrations/00301_kb_pgvector.sql`:
 ```sql
 create extension if not exists vector;
 
@@ -387,15 +393,15 @@ alter table kb_document_revisions enable row level security;
 -- 직원: 자료 조회 가능 (근거 확인용). 작성/수정/승인은 백엔드 경유(관리자 검사)
 create policy kb_documents_staff_select on kb_documents
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 
 create policy kb_chunks_staff_select on kb_chunks
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 
 create policy kb_document_revisions_staff_select on kb_document_revisions
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 ```
 
 - [ ] **Step 4: 테스트 통과 확인**
@@ -406,7 +412,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/00013_kb_pgvector.sql backend/tests/test_kb_schema.py
+git add supabase/migrations/00301_kb_pgvector.sql backend/tests/test_kb_schema.py
 git commit -m "feat: pgvector + 지식베이스 테이블 + 수정이력 (4단계 RAG, R4-01 pending_* 컬럼 포함)"
 ```
 
@@ -415,7 +421,7 @@ git commit -m "feat: pgvector + 지식베이스 테이블 + 수정이력 (4단�
 ## Task 3: 마이그레이션 — 인계 티켓 + 오답 신고 + 품질개선 예시은행 테이블
 
 **Files:**
-- Create: `supabase/migrations/00014_support_feedback.sql`
+- Create: `supabase/migrations/00302_support_feedback.sql`
 - Test: `backend/tests/test_support_feedback_schema.py`
 
 **Interfaces:**
@@ -538,7 +544,7 @@ Expected: FAIL
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00014_support_feedback.sql`:
+`supabase/migrations/00302_support_feedback.sql`:
 ```sql
 -- 직원 인계 티켓 (스펙 섹션 2, 요구사항 5.5)
 -- reason의 6개 값이 곧 "인계 감시"가 매 턴 검사하는 6가지 조건이다.
@@ -604,15 +610,15 @@ alter table qa_example_bank enable row level security;
 
 create policy support_tickets_staff_select on support_tickets
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 
 create policy answer_feedback_staff_select on answer_feedback
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 
 create policy qa_example_bank_staff_select on qa_example_bank
   for select to authenticated
-  using (exists (select from staff where auth_user_id = auth.uid() and is_active));
+  using (private.is_active_staff());
 
 alter publication supabase_realtime add table support_tickets;
 ```
@@ -625,7 +631,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/00014_support_feedback.sql backend/tests/test_support_feedback_schema.py
+git add supabase/migrations/00302_support_feedback.sql backend/tests/test_support_feedback_schema.py
 git commit -m "feat: 인계 티켓 + 오답 신고 + 품질개선 예시은행 테이블 (4단계)"
 ```
 
@@ -731,7 +737,9 @@ class EmbeddingClient:
                 json={"model": settings.embedding_model, "input": texts},
             )
         if resp.status_code != 200:
-            log_error("embedding", f"OpenAI 임베딩 실패: {resp.status_code} {resp.text[:200]}")
+            # [정합성 검토 SDB-23] log_error()는 비동기 함수라 await 없이 호출하면 아무 일도
+            # 일어나지 않은 채(코루틴 객체만 만들어지고 실행되지 않음) 오류로그가 조용히 유실된다.
+            await log_error("embedding", f"OpenAI 임베딩 실패: {resp.status_code} {resp.text[:200]}")
             raise AppError("자료 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.", 502)
         data = sorted(resp.json()["data"], key=lambda d: d["index"])
         return [d["embedding"] for d in data]
@@ -991,7 +999,7 @@ def _vec_literal(v: list[float]) -> str:
 async def create_document(
     staff: StaffContext, title: str, category: str, content: str, is_restricted: bool = False
 ) -> UUID:
-    pool = get_pool()
+    pool = await get_pool()
     return await pool.fetchval(
         "insert into kb_documents (title, category, content, is_restricted, created_by) "
         "values ($1, $2, $3, $4, $5) returning id",
@@ -1021,7 +1029,7 @@ def _require_admin(staff: StaffContext) -> None:
 async def approve_document(staff: StaffContext, document_id: UUID, embedder=None) -> None:
     _require_admin(staff)
     embedder = embedder or get_embedding_client()
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
@@ -1041,7 +1049,7 @@ async def update_document(
     """[정합성 검토 R4-01] 승인된 문서는 라이브 내용을 즉시 바꾸지 않는다 — 재승인 전까지 챗봇은
     기존 승인 내용으로 계속 답해야 하므로, 수정 내용은 pending_* 컬럼에만 저장한다."""
     embedder = embedder or get_embedding_client()
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             before = await conn.fetchrow(
@@ -1080,7 +1088,7 @@ async def approve_pending_edit(staff: StaffContext, document_id: UUID, embedder=
     본인이 수정한 문서도 관리자 역할이면 스스로 승인할 수 있다(병원에 관리자가 1명뿐인 경우가 많음)."""
     _require_admin(staff)
     embedder = embedder or get_embedding_client()
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             before = await conn.fetchrow(
@@ -1111,7 +1119,7 @@ async def approve_pending_edit(staff: StaffContext, document_id: UUID, embedder=
 
 
 async def list_revisions(staff: StaffContext, document_id: UUID) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select id, previous_title, previous_category, previous_content, changed_by, changed_at "
         "from kb_document_revisions where document_id = $1 order by changed_at desc",
@@ -1122,7 +1130,7 @@ async def list_revisions(staff: StaffContext, document_id: UUID) -> list[dict]:
 
 async def archive_document(staff: StaffContext, document_id: UUID) -> None:
     _require_admin(staff)
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
@@ -1133,7 +1141,7 @@ async def archive_document(staff: StaffContext, document_id: UUID) -> None:
 
 
 async def list_documents(staff: StaffContext, status: str | None = None, category: str | None = None) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         # has_pending_edit: [정합성 검토 R4-01] 관리자 화면에서 "검토 대기 중" 배지를 표시하는 데 쓰인다.
         "select id, title, category, status, has_pending_edit, updated_at, approved_at from kb_documents "
@@ -1211,7 +1219,7 @@ from app.services.kb_service import _vec_literal
 async def search(query: str, top_k: int = 5, embedder=None) -> list[dict]:
     embedder = embedder or get_embedding_client()
     [vector] = await embedder.embed([query])
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select id as chunk_id, document_id, content, title, is_restricted, similarity "
         "from match_kb_chunks($1::vector, $2)",
@@ -1714,7 +1722,10 @@ def build_tools(ctx: ToolContext) -> list[StructuredTool]:
         # 여기서 DB에 저장해 서버가 발급한 nonce로만 확정 가능하게 한다("치명적 규칙은 DB가 최종 심판") —
         # confirm_booking은 이 nonce로 찾은 행의 값만 신뢰하고 클라이언트가 보낸 ID는 무시한다.
         from app.db.pool import get_pool
-        nonce = await get_pool().fetchval(
+        # [정합성 검토 SDB-23] get_pool()은 코루틴을 반환하므로 await로 먼저 실제 풀을 받아야 한다 —
+        # await get_pool().fetchval(...)는 코루틴 객체에 .fetchval을 호출하려다 즉시 AttributeError가 난다.
+        pool = await get_pool()
+        nonce = await pool.fetchval(
             """
             insert into chat_booking_cards (conversation_id, for_patient_id, department_id, doctor_id, slot_id)
             values ($1, $2, $3, $4, $5)
@@ -2386,7 +2397,7 @@ FALLBACK_REPLY = (
 
 
 async def start_conversation(channel: str, patient: PatientContext | None) -> dict:
-    pool = get_pool()
+    pool = await get_pool()
     token = secrets.token_urlsafe(32) if (channel == "web" and patient is None) else None
     conversation_id = await pool.fetchval(
         "insert into chat_conversations (patient_id, anon_session_token, channel) "
@@ -2397,7 +2408,7 @@ async def start_conversation(channel: str, patient: PatientContext | None) -> di
 
 
 async def resume_anon_conversation(token: str) -> dict | None:
-    pool = get_pool()
+    pool = await get_pool()
     row = await pool.fetchrow(
         "select id, status from chat_conversations where anon_session_token = $1", token
     )
@@ -2405,7 +2416,7 @@ async def resume_anon_conversation(token: str) -> dict | None:
 
 
 async def attach_patient(conversation_id: UUID, patient: PatientContext) -> None:
-    pool = get_pool()
+    pool = await get_pool()
     await pool.execute(
         "update chat_conversations set patient_id = $2 where id = $1 and patient_id is null",
         conversation_id, patient.id,
@@ -2450,7 +2461,7 @@ async def post_message(
     conversation_id: UUID, content: str, patient: PatientContext | None = None,
     anon_token: str | None = None, model=None, embedder=None, unhelpful_flagged: bool = False,
 ) -> dict:
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         conv = await _authorize(conn, conversation_id, patient, anon_token)
         if conv["patient_id"] is None:
@@ -2547,7 +2558,7 @@ async def post_message(
                         result["text"], result["card"], result["source_chunk_ids"], "agent"
                     )
     except Exception as exc:  # Claude/OpenAI 장애 — 예약 기능과 무관하게 상담만 안내로 전환
-        log_error("chatbot", f"상담봇 응답 실패: {exc}")
+        await log_error("chatbot", f"상담봇 응답 실패: {exc}")
         reply, card, source_chunk_ids, route_taken = FALLBACK_REPLY, None, [], None
 
     handed_over = route_taken == "handoff"
@@ -2569,7 +2580,7 @@ async def post_message(
 
 
 async def list_my_conversations(patient: PatientContext) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select id, channel, status, last_message_at from chat_conversations "
         "where patient_id = $1 order by last_message_at desc",
@@ -2579,7 +2590,7 @@ async def list_my_conversations(patient: PatientContext) -> list[dict]:
 
 
 async def get_messages(conversation_id: UUID, patient=None, anon_token=None) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         await _authorize(conn, conversation_id, patient, anon_token)
         rows = await conn.fetch(
@@ -2835,7 +2846,7 @@ async def create_ticket(
     summary_unresolved: str, summary_staff_todo: str,
     contact_name: str | None = None, contact_phone: str | None = None, embedder=None,
 ) -> UUID:
-    pool = get_pool()
+    pool = await get_pool()
     # 질문 임베딩 (미해결 질문 클러스터링용, 요구사항 3.9/3.10) — 실패해도 티켓 생성은 계속 진행
     question_embedding = None
     try:
@@ -2845,7 +2856,7 @@ async def create_ticket(
         [vector] = await embedder.embed([summary_question])
         question_embedding = _vec_literal(vector)
     except Exception as exc:
-        log_error("chatbot", f"티켓 질문 임베딩 실패(클러스터링에서만 제외됨): {exc}")
+        await log_error("chatbot", f"티켓 질문 임베딩 실패(클러스터링에서만 제외됨): {exc}")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -2876,7 +2887,7 @@ async def create_ticket(
 
 
 async def set_anon_contact(conversation_id: UUID, anon_token: str, name: str, phone: str) -> None:
-    pool = get_pool()
+    pool = await get_pool()
     ok = await pool.fetchval(
         "select exists (select from chat_conversations where id = $1 and anon_session_token = $2)",
         conversation_id, anon_token,
@@ -2893,7 +2904,7 @@ async def set_anon_contact(conversation_id: UUID, anon_token: str, name: str, ph
 
 
 async def list_tickets(staff: StaffContext, status: str = "pending") -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select t.id, t.reason, t.status, t.created_at, t.summary_question, "
         "p.name as patient_name, t.contact_name "
@@ -2905,7 +2916,7 @@ async def list_tickets(staff: StaffContext, status: str = "pending") -> list[dic
 
 
 async def get_ticket_detail(ticket_id: UUID, staff: StaffContext) -> dict:
-    pool = get_pool()
+    pool = await get_pool()
     ticket = await pool.fetchrow("select * from support_tickets where id = $1", ticket_id)
     if ticket is None:
         raise AppError("티켓을 찾을 수 없어요.", 404)
@@ -2922,7 +2933,7 @@ async def get_ticket_detail(ticket_id: UUID, staff: StaffContext) -> dict:
 
 async def claim_ticket(ticket_id: UUID, staff: StaffContext) -> None:
     """새 문의(pending)를 열람한 직원에게 배정하며 처리 중으로 전환한다 (요구사항 3.9). 멱등."""
-    pool = get_pool()
+    pool = await get_pool()
     await pool.execute(
         "update support_tickets set status = 'in_progress', assigned_staff_id = $2 "
         "where id = $1 and status = 'pending'",
@@ -2935,7 +2946,7 @@ async def reassign_ticket(ticket_id: UUID, staff: StaffContext, to_staff_id: UUI
 
     [정합성 검토 R2-06] 재배정 대상(to_staff_id)이 활성 상태(is_active)인지 확인하고,
     medical_judgment 사유 티켓이면 대상의 role이 doctor/admin인지도 함께 확인한다."""
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         target = await conn.fetchrow("select role, is_active from staff where id = $1", to_staff_id)
         if target is None or not target["is_active"]:
@@ -2961,7 +2972,7 @@ async def answer_ticket(
     medical_judgment 사유 티켓은 role이 doctor/admin인 담당자만 답변할 수 있다(위반 시 403).
     담당자가 아직 없으면(pending인데 열람도 안 한 경우) assigned_staff_id가 null이라 이 검사에서
     자동으로 걸러진다 — 먼저 열람(claim_ticket)해 배정받아야 한다."""
-    pool = get_pool()
+    pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             existing = await conn.fetchrow(
@@ -3003,7 +3014,7 @@ async def answer_ticket(
                 "[병원] 문의하신 내용에 답변이 등록되었습니다. 상담창에서 확인해 주세요.",
             )
     except Exception as exc:
-        log_error("chatbot", f"인계 답변 알림 실패: {exc}")
+        await log_error("chatbot", f"인계 답변 알림 실패: {exc}")
 ```
 
 - [ ] **Step 3: 테스트 통과 확인 후 Commit**
@@ -3150,7 +3161,7 @@ async def report_correction(
     staff: StaffContext, message_id: UUID, correction_text: str,
     source: str = "realtime_report", add_to_example_bank: bool = False,
 ) -> UUID:
-    pool = get_pool()
+    pool = await get_pool()
     sender = await pool.fetchval("select sender from chat_messages where id = $1", message_id)
     if sender != "bot":
         raise AppError("봇 답변에만 신고·교정을 할 수 있어요.", 400)
@@ -3162,7 +3173,7 @@ async def report_correction(
 
 
 async def list_pending(staff: StaffContext) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select f.id, f.correction_text, f.source, f.created_at, m.content as bot_answer, "
         "s.name as reporter_name "
@@ -3190,7 +3201,7 @@ async def apply_feedback(
 ) -> None:
     if staff.role != "admin":
         raise AppError("관리자만 할 수 있는 작업이에요.", 403)
-    pool = get_pool()
+    pool = await get_pool()
     fb = await pool.fetchrow(
         "select * from answer_feedback where id = $1 and status = 'pending'", feedback_id
     )
@@ -3235,7 +3246,7 @@ async def apply_feedback(
 async def reject_feedback(staff: StaffContext, feedback_id: UUID) -> None:
     if staff.role != "admin":
         raise AppError("관리자만 할 수 있는 작업이에요.", 403)
-    pool = get_pool()
+    pool = await get_pool()
     await pool.execute(
         "update answer_feedback set status = 'rejected', reviewed_by = $2, reviewed_at = now() "
         "where id = $1 and status = 'pending'",
@@ -3252,7 +3263,7 @@ from app.db.pool import get_pool
 
 
 async def get_stats(staff: StaffContext, from_date: date, to_date: date) -> dict:
-    pool = get_pool()
+    pool = await get_pool()
     channel_rows = await pool.fetch(
         "select channel, count(*) as cnt from chat_conversations "
         "where created_at::date between $1 and $2 group by channel",
@@ -3360,7 +3371,7 @@ async def create_example(
 ) -> UUID:
     embedder = embedder or get_embedding_client()
     [vector] = await embedder.embed([question_text])
-    pool = get_pool()
+    pool = await get_pool()
     return await pool.fetchval(
         "insert into qa_example_bank "
         "(source_feedback_id, question_text, corrected_answer_text, question_embedding, category) "
@@ -3372,7 +3383,7 @@ async def create_example(
 async def find_similar_examples(query: str, category: str, top_k: int = 2, embedder=None) -> list[dict]:
     embedder = embedder or get_embedding_client()
     [vector] = await embedder.embed([query])
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select question_text, corrected_answer_text, "
         "1 - (question_embedding <=> $1::vector) as similarity "
@@ -3384,7 +3395,7 @@ async def find_similar_examples(query: str, category: str, top_k: int = 2, embed
 
 
 async def list_examples(staff: StaffContext) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select id, question_text, corrected_answer_text, category, is_active, created_at "
         "from qa_example_bank order by created_at desc"
@@ -3395,7 +3406,7 @@ async def list_examples(staff: StaffContext) -> list[dict]:
 async def deactivate_example(staff: StaffContext, example_id: UUID) -> None:
     if staff.role != "admin":
         raise AppError("관리자만 할 수 있는 작업이에요.", 403)
-    pool = get_pool()
+    pool = await get_pool()
     await pool.execute("update qa_example_bank set is_active = false where id = $1", example_id)
 ```
 
@@ -3508,7 +3519,7 @@ def cluster_by_similarity(items: list[dict], threshold: float = 0.82) -> list[li
 async def list_unresolved_question_clusters(
     staff: StaffContext, from_date: date, to_date: date, threshold: float = 0.82,
 ) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select id, summary_question, question_embedding from support_tickets "
         "where reason in ('no_answer', 'repeated') and question_embedding is not null "
@@ -3931,7 +3942,7 @@ async def confirm_booking(
     그 행에 저장된 값으로만 예약을 생성한다.
     """
     from app.db.pool import get_pool
-    pool = get_pool()
+    pool = await get_pool()
 
     # 소유권 검증 — 이 상담방이 정말 이 환자의 것인지(익명 상담방이거나 다른 환자의 방이면 거부).
     conv = await pool.fetchrow("select patient_id from chat_conversations where id = $1", conversation_id)
@@ -4039,7 +4050,7 @@ from app.services import answer_feedback_service, qa_example_bank_service
 async def quality_report_conversations(
     from_: date, to: date, staff: StaffContext = Depends(require_role("admin")),
 ):
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select c.id, c.channel, c.status, c.last_message_at, "
         "exists(select 1 from support_tickets t where t.conversation_id = c.id) as was_handed_over, "
@@ -5105,7 +5116,7 @@ Expected: 새 테스트 2개 FAIL(`list_tickets_for_patient`/`count_pending_tick
 `backend/app/services/ticket_service.py` 끝에 추가:
 ```python
 async def list_tickets_for_patient(patient_id: UUID, staff: StaffContext) -> list[dict]:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select id, reason, status, summary_question, summary_guided, created_at, answered_at "
         "from support_tickets where patient_id = $1 order by created_at desc",
@@ -5115,7 +5126,7 @@ async def list_tickets_for_patient(patient_id: UUID, staff: StaffContext) -> lis
 
 
 async def count_pending_tickets() -> int:
-    pool = get_pool()
+    pool = await get_pool()
     return await pool.fetchval("select count(*) from support_tickets where status = 'pending'")
 ```
 
@@ -5351,7 +5362,7 @@ Expected: 새 테스트 2개 FAIL(`get_questionnaire_prefill` 없음)
 `backend/app/services/chat_service.py` 끝에 추가:
 ```python
 async def get_questionnaire_prefill(conversation_id: UUID) -> dict | None:
-    pool = get_pool()
+    pool = await get_pool()
     rows = await pool.fetch(
         "select sender, content, route_taken from chat_messages "
         "where conversation_id = $1 order by created_at",
@@ -5431,7 +5442,7 @@ async def confirm_booking(
 ):
     """확인 카드의 '이 내용으로 예약' 버튼 — Claude를 거치지 않고 3단계 예약 서비스 직행."""
     from app.db.pool import get_pool
-    pool = get_pool()
+    pool = await get_pool()
 
     conv = await pool.fetchrow("select patient_id from chat_conversations where id = $1", conversation_id)
     if conv is None or conv["patient_id"] != patient.id:

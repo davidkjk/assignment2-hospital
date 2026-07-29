@@ -10,8 +10,9 @@
 
 ## Global Constraints
 
-- 이 계획은 **1단계 계획**(`docs/superpowers/plans/2026-07-27-foundation-auth-data-model.md`)의 Task 1~17이 이미 실행되어 `backend/`, `supabase/migrations/00001~00007`, `app.db.pool.acquire_as`, `app.core.security.StaffContext`, `app.core.errors.AppError`, `app.db.admin_client.get_admin_client`, `app.services.slot_service.book_slot`, `app.services.appointment_service.*`가 이미 존재한다고 가정한다. 2단계(직원용 웹) 코드 존재 여부와는 무관하게 이 계획은 독립적으로 실행 가능하다(2단계의 `reschedule_appointment`/`schedule_service`는 재사용하지 않는다 — 환자 앱의 "변경"은 스펙대로 취소 후 재예약으로 자체 구현한다).
-- 신규 마이그레이션은 `supabase/migrations/00009`부터 번호를 이어간다.
+- **[정합성 검토 P1/P2 추적]** `docs/supabase-postgres-review-2026-07-28.md`의 SDB-07~SDB-13, SDB-27~SDB-31은 P0가 아니라 해당 기능(예: 예약 직접 UPDATE 제한 SDB-07, 진료기록 열람 뷰 SDB-08, 알림 outbox/기기토큰 소유권 SDB-27, OTP 시도제한 SDB-28, KST 시간대 SDB-31)을 실제로 만들 때 함께 반영하기로 결정됨(2026-07-28).
+- 이 계획은 **1단계 계획**(`docs/superpowers/plans/2026-07-27-foundation-auth-data-model.md`)의 Task 1~17이 이미 실행되어 `backend/`, `supabase/migrations/00001~00008`, `app.db.pool.acquire_as`, `app.core.security.StaffContext`, `app.core.errors.AppError`, `app.db.admin_client.get_admin_client`, `app.services.slot_service.book_slot`, `app.services.appointment_service.*`가 이미 존재한다고 가정한다. 2단계(직원용 웹) 코드 존재 여부와는 무관하게 이 계획은 독립적으로 실행 가능하다(2단계의 `reschedule_appointment`/`schedule_service`는 재사용하지 않는다 — 환자 앱의 "변경"은 스펙대로 취소 후 재예약으로 자체 구현한다).
+- 마이그레이션 번호 대역: 1단계(기반) `00001~00099`, 2단계(직원 웹) `00100~00199`, **3단계(환자 앱) `00200~00299`**, 4단계(AI 챗봇) `00300~00399`, 5단계(배포·운영) `00400~`. 영역별 대역이 겹치지 않게 미리 고정한 것으로, 신규 마이그레이션은 `supabase/migrations/00200`부터 번호를 이어간다(정합성 검토 SDB-01).
 - 신규 백엔드 엔드포인트는 모두 `/app/*` 경로 아래에 둔다(직원 웹의 `/patients/{id}`, `/appointments` 등과 경로 충돌 방지).
 - 환자 간 데이터 격리는 Supabase RLS(`patient_owns()` 함수)로 강제한다 — 서비스 코드의 조건문만으로 막지 않는다.
 - 같은 의사·같은 시간 이중예약은 1단계 `slot_service.book_slot`의 조건부 UPDATE를 그대로 재사용한다.
@@ -27,7 +28,7 @@
 ## Task 1: 마이그레이션 — patients.auth_user_id + patient_owns() 함수 + 환자용 조회 RLS
 
 **Files:**
-- Create: `supabase/migrations/00009_patient_identity.sql`
+- Create: `supabase/migrations/00200_patient_identity.sql`
 - Modify: `backend/tests/conftest.py` (`seed_patient` 헬퍼 추가)
 - Test: `backend/tests/test_patient_identity_schema.py`
 
@@ -37,30 +38,46 @@
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
-`supabase/migrations/00009_patient_identity.sql`:
+`supabase/migrations/00200_patient_identity.sql`:
 ```sql
 alter table patients add column auth_user_id uuid unique references auth.users(id);
+
+-- [정합성 검토 SDB-03/SDB-05/SDB-22] patients RLS 정책이 patients 테이블을 직접 재조회하면
+-- staff와 같은 이유로 무한 재귀 오류가 난다. private.current_patient_id()는 postgres 소유
+-- security definer 함수라 patients RLS를 다시 트리거하지 않고, is_active=true인 환자만
+-- 반환한다(비활성화된 환자는 이 함수가 NULL을 반환하므로 이 함수를 쓰는 모든 정책에서
+-- 자동으로 접근이 막힌다 — 계정 정지의 최종 방어선이 API가 아니라 DB에 있게 된다).
+create or replace function private.current_patient_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p.id from public.patients p where p.auth_user_id = auth.uid() and p.is_active;
+$$;
+
+revoke execute on function private.current_patient_id() from public;
+grant execute on function private.current_patient_id() to authenticated;
 
 create or replace function patient_owns(target_patient_id uuid)
 returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
-  select exists (
-    select 1 from patients me
-    where me.auth_user_id = auth.uid()
-      and (
-        me.id = target_patient_id
-        or exists (
-          select 1 from patient_family_links l
-          where l.account_patient_id = me.id and l.family_patient_id = target_patient_id
-            and l.is_active  -- [정합성 검토 R5-02] 연결 해제된(is_active=false) 링크는 더 이상 인정하지 않는다
-        )
-      )
-  );
+  select
+    private.current_patient_id() = target_patient_id
+    or exists (
+      select 1 from public.patient_family_links l
+      where l.account_patient_id = private.current_patient_id() and l.family_patient_id = target_patient_id
+        and l.is_active  -- [정합성 검토 R5-02] 연결 해제된(is_active=false) 링크는 더 이상 인정하지 않는다
+    );
 $$;
+
+revoke execute on function patient_owns(uuid) from public;
+grant execute on function patient_owns(uuid) to authenticated;
 
 create policy "patients_can_register_self" on patients
   for insert
@@ -70,17 +87,66 @@ create policy "patients_can_insert_family_members" on patients
   for insert
   with check (
     auth_user_id is null
-    and exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.is_active)
+    and private.current_patient_id() is not null
   );
 
 create policy "patients_can_read_self_and_family" on patients
   for select
   using (patient_owns(id));
 
-create policy "patients_can_update_self_and_family" on patients
-  for update
-  using (patient_owns(id))
-  with check (patient_owns(id));
+-- [정합성 검토 SDB-18] 예전에는 patient_owns(id)만 검사하는 UPDATE 정책이 있어서, 환자가
+-- Supabase REST를 직접 호출하면 auth_user_id·is_active·phone 등 어떤 칼럼이든 바꿀 수 있었다
+-- (본인이 비활성화를 스스로 되돌리거나, 가족 프로필의 인증 연결을 조작하는 것도 가능했다).
+-- RLS의 USING/WITH CHECK는 "이 행을 바꿀 수 있는가"만 판단할 뿐 "어떤 칼럼을 바꿀 수 있는가"는
+-- 막지 못한다 — 그리고 Supabase에서는 환자와 직원이 같은 `authenticated` DB 역할을 공유하므로
+-- (구분은 auth.uid()로 하는 RLS 정책 안에서만 이뤄진다) 칼럼 단위 GRANT도 이 둘을 구분하지 못한다.
+-- 그래서 patients 직접 UPDATE 정책 자체를 두지 않는다 — 필요한 변경은 모두 전용 RPC로만 한다.
+-- name/birth_date/gender(가족 정보 수정)는 update_patient_basic_info()가, is_active 비활성화는
+-- deactivate_patient_self()가 담당하며, 둘 다 바꿀 수 있는 칼럼을 딱 그만큼만 하드코딩해 둔다
+-- (auth_user_id 변경·재활성화는 어느 RPC에도 없다 — 관리자 절차로만 가능).
+create or replace function update_patient_basic_info(
+  target_patient_id uuid,
+  p_name text,
+  p_birth_date date,
+  p_gender text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.patient_owns(target_patient_id) then
+    raise exception '본인 또는 등록한 가족만 정보를 수정할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  update public.patients
+  set name = p_name, birth_date = p_birth_date, gender = p_gender
+  where id = target_patient_id;
+end;
+$$;
+
+revoke execute on function update_patient_basic_info(uuid, text, date, text) from public;
+grant execute on function update_patient_basic_info(uuid, text, date, text) to authenticated;
+
+create or replace function deactivate_patient_self()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_patient_id uuid;
+begin
+  v_patient_id := private.current_patient_id();
+  if v_patient_id is null then
+    raise exception '활성 상태의 환자만 계정을 비활성화할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  update public.patients set is_active = false where id = v_patient_id;
+end;
+$$;
+
+revoke execute on function deactivate_patient_self() from public;
+grant execute on function deactivate_patient_self() to authenticated;
 
 -- [정합성 검토 R5-01] 기존에는 "for all"이라 INSERT까지 허용했는데, INSERT의 with check는
 -- account_patient_id(요청자 본인)만 확인하고 family_patient_id(연결 대상)는 전혀 검사하지 않아서
@@ -91,33 +157,146 @@ create policy "patients_can_update_self_and_family" on patients
 -- "내가 만든 링크"만 다루므로(가족을 새로 지목하는 게 아니라 기존 내 링크의 조회·수정·해제) 그대로 둔다.
 create policy "patients_can_read_own_family_links" on patient_family_links
   for select
-  using (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id));
+  using (private.current_patient_id() = patient_family_links.account_patient_id);
 
-create policy "patients_can_update_own_family_links" on patient_family_links
-  for update
-  using (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id))
-  with check (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id));
+-- [정합성 검토 SDB-19] 기존에는 UPDATE 정책이 "account_patient_id가 본인인가"만 검사했다.
+-- 그래서 이미 가족 링크가 하나 있는 환자는 그 행의 family_patient_id를 아무 환자 UUID로나
+-- 바꿔치기할 수 있었고(patient_owns()가 새 대상을 즉시 가족으로 인정), is_active를 다시
+-- true로 되돌려 OTP 없이 해제된 링크를 재활성화할 수도 있었다. 그래서 patient_family_links에는
+-- 클라이언트 직접 UPDATE/DELETE 정책을 두지 않는다 — 연결은 confirm_family_link_otp()(OTP 검증),
+-- 해제는 아래 unlink_family_link_self()만 수행하며, 재연결도 다시 OTP를 거쳐야 한다.
+create or replace function unlink_family_link_self(target_link_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_patient_id uuid;
+begin
+  v_patient_id := private.current_patient_id();
+  if v_patient_id is null then
+    raise exception '활성 상태의 환자만 가족 연결을 해제할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  update public.patient_family_links
+  set is_active = false, unlinked_at = now()
+  where id = target_link_id and account_patient_id = v_patient_id;
+  if not found then
+    raise exception '본인이 등록한 가족만 연결 해제할 수 있습니다.' using errcode = 'P0002';
+  end if;
+end;
+$$;
 
-create policy "patients_can_delete_own_family_links" on patient_family_links
-  for delete
-  using (exists (select 1 from patients me where me.auth_user_id = auth.uid() and me.id = patient_family_links.account_patient_id));
+revoke execute on function unlink_family_link_self(uuid) from public;
+grant execute on function unlink_family_link_self(uuid) to authenticated;
+
+-- [정합성 검토 SDB-19] relation(호칭 라벨, 예: "딸"/"아들")만 바꾸는 것도 같은 이유로 RPC로 옮긴다 —
+-- family_patient_id/account_patient_id/is_active는 이 함수도 건드리지 않는다.
+create or replace function update_family_link_relation_self(target_link_id uuid, p_relation text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_patient_id uuid;
+begin
+  v_patient_id := private.current_patient_id();
+  if v_patient_id is null then
+    raise exception '활성 상태의 환자만 가족 정보를 수정할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  update public.patient_family_links
+  set relation = p_relation
+  where id = target_link_id and account_patient_id = v_patient_id;
+  if not found then
+    raise exception '본인이 등록한 가족만 수정할 수 있습니다.' using errcode = 'P0002';
+  end if;
+end;
+$$;
+
+revoke execute on function update_family_link_relation_self(uuid, text) from public;
+grant execute on function update_family_link_relation_self(uuid, text) to authenticated;
 
 create policy "patients_can_read_active_departments" on departments
   for select
-  using (is_active and exists (select 1 from patients p where p.auth_user_id = auth.uid()));
+  using (is_active and private.current_patient_id() is not null);
 
 create policy "patients_can_read_doctors" on staff
   for select
-  using (role = 'doctor' and exists (select 1 from patients p where p.auth_user_id = auth.uid()));
+  using (role = 'doctor' and private.current_patient_id() is not null);
 
 create policy "patients_can_read_open_slots" on appointment_slots
   for select
-  using (status = '빈시간' and exists (select 1 from patients p where p.auth_user_id = auth.uid()));
+  using (status = '빈시간' and private.current_patient_id() is not null);
+
+-- [정합성 검토 SDB-21] 위 정책은 status='빈시간'인 슬롯만 보여준다. 그런데 예약이 확정되면
+-- 슬롯 status는 '예약됨'으로 바뀌므로, 본인 예약 목록 화면이 slot_id로 LEFT JOIN해서
+-- 날짜·시간을 가져오려 해도 RLS가 그 행을 숨겨 항상 NULL이 나왔다. 그래서 "내 예약이
+-- 참조하는 슬롯"은 상태와 무관하게 읽을 수 있는 정책을 추가한다.
+create policy "patients_can_read_own_appointment_slots" on appointment_slots
+  for select
+  using (
+    exists (
+      select 1 from appointments a
+      where a.slot_id = appointment_slots.id and patient_owns(a.account_patient_id)
+    )
+  );
+
+-- [정합성 검토 SDB-21] patients_can_read_active_departments는 is_active인 진료과만 보여준다.
+-- 진료과가 나중에 비활성화되면, 그 진료과로 예약했던 과거 기록을 조회할 때 INNER JOIN이 통째로
+-- 사라져(진료과 행 자체가 RLS에서 안 보이므로) 예약 자체가 목록에서 없어지는 것처럼 보였다.
+-- 그래서 "내 예약이 참조하는 진료과"는 활성 여부와 무관하게 읽을 수 있는 정책을 추가한다.
+create policy "patients_can_read_own_appointment_departments" on departments
+  for select
+  using (
+    exists (
+      select 1 from appointments a
+      where a.department_id = departments.id and patient_owns(a.account_patient_id)
+    )
+  );
+
+-- [정합성 검토 SDB-21] "내 앞 대기 인원"은 같은 의사의 다른 환자 예약까지 세야 하는데, 환자의
+-- appointments RLS는 본인·가족 예약만 보여준다. 그래서 SELECT 정책을 넓히는 대신(다른 환자의
+-- 예약 정보가 노출됨), 숫자 하나만 반환하는 SECURITY DEFINER 집계 함수로 분리한다 — 호출자가
+-- 그 예약의 소유자인지부터 patient_owns()로 확인한 뒤에만 집계한다.
+create or replace function patient_queue_position_ahead_count(target_appointment_id uuid)
+returns integer
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_doctor_id uuid;
+  v_queue_position int;
+  v_count int;
+begin
+  select a.doctor_id, a.queue_position into v_doctor_id, v_queue_position
+  from public.appointments a
+  where a.id = target_appointment_id and a.status = '진료대기' and public.patient_owns(a.account_patient_id);
+
+  if v_queue_position is null then
+    return 0;
+  end if;
+
+  select count(*) into v_count
+  from public.appointments a2
+  left join public.appointment_slots s2 on s2.id = a2.slot_id
+  where a2.doctor_id = v_doctor_id and a2.status = '진료대기'
+    and coalesce(s2.slot_date, current_date) = current_date
+    and a2.queue_position < v_queue_position;
+
+  return v_count;
+end;
+$$;
+
+revoke execute on function patient_queue_position_ahead_count(uuid) from public;
+grant execute on function patient_queue_position_ahead_count(uuid) to authenticated;
 
 create policy "patients_can_update_slots_for_booking" on appointment_slots
   for update
   using (
-    exists (select 1 from patients p where p.auth_user_id = auth.uid())
+    private.current_patient_id() is not null
     and (
       status = '빈시간'
       or exists (
@@ -126,7 +305,7 @@ create policy "patients_can_update_slots_for_booking" on appointment_slots
       )
     )
   )
-  with check (status in ('빈시간', '예약됨') and exists (select 1 from patients p where p.auth_user_id = auth.uid()));
+  with check (status in ('빈시간', '예약됨') and private.current_patient_id() is not null);
 ```
 
 > **왜 필요한가:** `slot_service.book_slot`/`release_slot`(Task 7)은 환자 세션(`acquire_as(patient.auth_user_id)`)으로 `appointment_slots`를 직접 UPDATE한다. 위 SELECT 정책만으로는 UPDATE가 허용되지 않아 — 환자가 예약을 신청하는 순간 DB가 권한 없음으로 판단해 슬롯 잠금에 실패하고, `book_slot`이 항상 `False`를 반환해 "이미 선택된 시간입니다" 오류로 예약 자체가 막힌다. 상태를 `빈시간`/`예약됨`으로 제한한 이유는 직원이 별도 사유로 막아둔(`휴진` 등) 슬롯까지 환자가 건드리지 못하게 하기 위함이다. 실제 전이 조건(어느 슬롯을, 어느 상태에서, 어느 상태로)은 `slot_service`의 조건부 SQL(`where status = '빈시간'`)이 이미 강제하므로 RLS는 "환자가 이 두 상태 사이에서만 손댈 수 있다"는 큰 테두리만 맡는다.
@@ -381,7 +560,7 @@ Expected: 10개 테스트 모두 PASS([정합성 검토 R5-01] 검증 테스트 
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add supabase/migrations/00009_patient_identity.sql backend/tests/conftest.py backend/tests/test_patient_identity_schema.py
+git add supabase/migrations/00200_patient_identity.sql backend/tests/conftest.py backend/tests/test_patient_identity_schema.py
 git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환자용 RLS 추가 (R2-01: 타 환자 슬롯 반납 차단, R5-02: 비활성 가족링크 무효화 포함)"
 ```
 
@@ -390,7 +569,7 @@ git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환�
 ## Task 2: 마이그레이션 — appointments/사전문진/진료기록 환자용 RLS + cancellation_requested_at
 
 **Files:**
-- Create: `supabase/migrations/00010_patient_appointments_rls.sql`
+- Create: `supabase/migrations/00201_patient_appointments_rls.sql`
 - Test: `backend/tests/test_patient_appointments_rls.py`
 
 **Interfaces:**
@@ -399,7 +578,7 @@ git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환�
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
-`supabase/migrations/00010_patient_appointments_rls.sql`:
+`supabase/migrations/00201_patient_appointments_rls.sql`:
 ```sql
 alter table appointments add column cancellation_requested_at timestamptz;
 
@@ -438,7 +617,7 @@ create policy "patients_can_insert_note_history" on appointment_status_history
   with check (
     from_status = to_status
     and changed_by_patient_id is not null
-    and exists (select 1 from patients p where p.auth_user_id = auth.uid() and p.id = appointment_status_history.changed_by_patient_id)
+    and private.current_patient_id() = appointment_status_history.changed_by_patient_id
     and exists (select 1 from appointments a where a.id = appointment_status_history.appointment_id and patient_owns(a.account_patient_id))
   );
 
@@ -448,7 +627,7 @@ create or replace function log_appointment_status_change()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_staff_id uuid;
@@ -457,15 +636,17 @@ declare
 begin
   v_old_status := case when tg_op = 'INSERT' then null else old.status end;
   if tg_op = 'INSERT' or new.status is distinct from old.status then
-    select id into v_staff_id from staff where auth_user_id = auth.uid();
+    -- private.current_staff_id()/current_patient_id()는 is_active인 행위자만 반환한다
+    -- (정합성 검토 SDB-05/SDB-22 — 예전 버전은 비활성 직원도 그대로 changed_by로 남겼다).
+    v_staff_id := private.current_staff_id();
     if v_staff_id is null then
-      select id into v_patient_id from patients where auth_user_id = auth.uid();
+      v_patient_id := private.current_patient_id();
     end if;
     -- auth.uid()가 없는 세션(배포 시드 스크립트, 관리자 배치 작업 등 JWT 클레임 없이 직접 접속하는 경우)에는
     -- 행위자를 알 수 없다. changed_by/changed_by_patient_id 둘 다 not null 체크 제약이 있으므로,
     -- 행위자를 특정하지 못하면 이력 행을 만들지 않고 조용히 건너뛴다(제약 위반으로 시드/배치가 깨지는 것을 방지).
     if v_staff_id is not null or v_patient_id is not null then
-      insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_by_patient_id, reason)
+      insert into public.appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_by_patient_id, reason)
       values (
         new.id, v_old_status, new.status, v_staff_id, v_patient_id,
         coalesce(
@@ -481,7 +662,7 @@ $$;
 
 create policy "patients_can_read_templates" on questionnaire_templates
   for select
-  using (exists (select 1 from patients p where p.auth_user_id = auth.uid()));
+  using (private.current_patient_id() is not null);
 
 create policy "patients_can_manage_own_questionnaire_responses" on questionnaire_responses
   for all
@@ -498,7 +679,7 @@ grant select on patient_medical_notes to authenticated;
 
 create policy "patients_can_read_hospital_settings" on hospital_settings
   for select
-  using (exists (select 1 from patients p where p.auth_user_id = auth.uid()));
+  using (private.current_patient_id() is not null);
 ```
 
 > **왜 정책 대신 뷰(view)로 만드는가:** `medical_records`에는 `symptoms`(증상)/`diagnosis`(진단)/`treatment`(치료) 같은 의료진 전용 항목과, 환자에게 그대로 보여줘도 되는 `patient_visible_notes`가 한 테이블에 같이 있다. RLS 정책은 "이 행을 볼 수 있는가"만 판단할 뿐 "이 행에서 어느 칼럼을 보여줄 것인가"는 판단하지 못한다(행 단위 보안이지 칼럼 단위 보안이 아니다). 그래서 환자용 정책을 `medical_records` 테이블에 직접 걸면, 백엔드 API를 거치지 않고 앱이 Supabase에 직접 접속하는 경로(로그인, Realtime 구독)로 환자가 같은 테이블을 조회할 경우 의료진 전용 항목까지 그대로 노출된다. 대신 안전한 칼럼만 골라 담은 `patient_medical_notes` 뷰를 만들고(`security_invoker = false`이므로 뷰 소유자 권한으로 실행되어 `medical_records`의 RLS 자체를 우회하지만, 뷰의 `where` 절에 있는 `patient_owns()` 검사가 그 자리를 대신한다), `medical_records` 테이블에는 환자용 정책을 아예 두지 않는다 — 이러면 환자가 어떤 경로로 접속하든 `medical_records`를 직접 조회하면 0건이 반환되고, 안전한 항목만 담긴 뷰를 통해서만 조회할 수 있다.
@@ -629,7 +810,7 @@ Expected: 4개 테스트 모두 PASS
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add supabase/migrations/00010_patient_appointments_rls.sql backend/tests/test_patient_appointments_rls.py
+git add supabase/migrations/00201_patient_appointments_rls.sql backend/tests/test_patient_appointments_rls.py
 git commit -m "feat: 환자용 예약/사전문진/진료기록 RLS와 취소요청/자동확정 필드 추가"
 ```
 
@@ -638,7 +819,7 @@ git commit -m "feat: 환자용 예약/사전문진/진료기록 RLS와 취소요
 ## Task 3: 마이그레이션 — device_tokens
 
 **Files:**
-- Create: `supabase/migrations/00011_device_tokens.sql`
+- Create: `supabase/migrations/00202_device_tokens.sql`
 - Test: `backend/tests/test_device_tokens_schema.py`
 
 **Interfaces:**
@@ -647,7 +828,7 @@ git commit -m "feat: 환자용 예약/사전문진/진료기록 RLS와 취소요
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
-`supabase/migrations/00011_device_tokens.sql`:
+`supabase/migrations/00202_device_tokens.sql`:
 ```sql
 create table device_tokens (
   id uuid primary key default gen_random_uuid(),
@@ -661,12 +842,12 @@ alter table device_tokens enable row level security;
 
 create policy "patients_can_manage_own_device_tokens" on device_tokens
   for all
-  using (exists (select 1 from patients p where p.auth_user_id = auth.uid() and p.id = device_tokens.patient_id))
-  with check (exists (select 1 from patients p where p.auth_user_id = auth.uid() and p.id = device_tokens.patient_id));
+  using (private.current_patient_id() = device_tokens.patient_id)
+  with check (private.current_patient_id() = device_tokens.patient_id);
 
 create policy "staff_can_read_device_tokens" on device_tokens
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 ```
 
 - [ ] **Step 2: 마이그레이션 적용**
@@ -718,7 +899,7 @@ Expected: 2개 테스트 모두 PASS
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add supabase/migrations/00011_device_tokens.sql backend/tests/test_device_tokens_schema.py
+git add supabase/migrations/00202_device_tokens.sql backend/tests/test_device_tokens_schema.py
 git commit -m "feat: device_tokens 테이블과 RLS 정책 추가"
 ```
 
@@ -903,6 +1084,7 @@ git commit -m "feat: 환자용 JWT 인증 의존성(PatientContext) 추가"
 
 `backend/tests/test_patient_profile_service.py`:
 ```python
+import uuid
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -1043,6 +1225,24 @@ async def test_deactivate_self_sets_inactive_and_bans_auth_account(db_conn):
     fake_admin_client.auth.admin.update_user_by_id.assert_called_once()
     row = await db_conn.fetchrow("select is_active from patients where id = $1", patient["patient_id"])
     assert row["is_active"] is False
+
+
+@pytest.mark.asyncio
+async def test_patient_cannot_directly_update_auth_user_id_or_is_active(db_conn):
+    """[정합성 검토 SDB-18] patients에는 직접 UPDATE 정책이 없다 — 환자가 Supabase 세션으로
+    auth_user_id/is_active를 직접 바꾸려 하면 거부되고, 스스로 재활성화도 불가능하다."""
+    patient = await seed_patient(db_conn)
+    other_auth_user_id = uuid.uuid4()
+    await set_session_auth(db_conn, patient["auth_user_id"])
+
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update patients set auth_user_id = $1 where id = $2", other_auth_user_id, patient["patient_id"],
+        )
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update patients set is_active = false where id = $1", patient["patient_id"],
+        )
 ```
 
 Run: `cd backend && pytest tests/test_patient_profile_service.py -v`
@@ -1122,8 +1322,10 @@ async def get_my_profile(patient: PatientContext) -> dict:
 
 
 async def deactivate_self(patient: PatientContext) -> None:
+    """[정합성 검토 SDB-18] patients에는 더 이상 직접 UPDATE 정책이 없으므로
+    deactivate_patient_self() RPC를 통해서만 비활성화한다."""
     async with acquire_as(str(patient.auth_user_id)) as conn:
-        await conn.execute("update patients set is_active = false where id = $1", patient.id)
+        await conn.execute("select deactivate_patient_self()")
 
     admin = get_admin_client()
     admin.auth.admin.update_user_by_id(str(patient.auth_user_id), {"ban_duration": "87600h"})
@@ -1132,7 +1334,7 @@ async def deactivate_self(patient: PatientContext) -> None:
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_profile_service.py -v`
-Expected: 6개 테스트 모두 PASS([정합성 검토 R5-05] 검증 테스트 2건 추가로 4→6)
+Expected: 7개 테스트 모두 PASS([정합성 검토 R5-05] 검증 테스트 2건 추가로 4→6, [정합성 검토 SDB-18] 직접 UPDATE 차단 테스트 1건 추가로 6→7)
 
 - [ ] **Step 4: 커밋**
 
@@ -1164,7 +1366,7 @@ import pytest
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.services import patient_family_service
-from tests.conftest import seed_patient
+from tests.conftest import seed_patient, set_session_auth
 
 
 def _to_context(seed: dict) -> PatientContext:
@@ -1293,13 +1495,14 @@ async def update_family_member(
         if link is None:
             raise AppError("본인이 등록한 가족만 수정할 수 있습니다.", status_code=403)
 
+        # [정합성 검토 SDB-18] patients에는 더 이상 직접 UPDATE 정책이 없다 — RPC가 patient_owns()로
+        # 소유권을 다시 확인하고 name/birth_date/gender 세 칼럼만 바꾼다.
         await conn.execute(
-            "update patients set name = $1, birth_date = $2, gender = $3 where id = $4",
-            name, birth_date, gender, family_patient_id,
+            "select update_patient_basic_info($1, $2, $3, $4)",
+            family_patient_id, name, birth_date, gender,
         )
-        await conn.execute(
-            "update patient_family_links set relation = $1 where id = $2", relation, link["id"],
-        )
+        # [정합성 검토 SDB-19] patient_family_links도 더 이상 직접 UPDATE 정책이 없다.
+        await conn.execute("select update_family_link_relation_self($1, $2)", link["id"], relation)
 
 
 async def unlink_family_member(patient: PatientContext, family_patient_id: UUID) -> None:
@@ -1313,9 +1516,9 @@ async def unlink_family_member(patient: PatientContext, family_patient_id: UUID)
         if link is None:
             raise AppError("본인이 등록한 가족만 연결 해제할 수 있습니다.", status_code=403)
 
-        await conn.execute(
-            "update patient_family_links set is_active = false, unlinked_at = now() where id = $1", link["id"],
-        )
+        # [정합성 검토 SDB-19] patient_family_links에는 더 이상 직접 UPDATE 정책이 없다 —
+        # unlink_family_link_self() RPC가 소유권을 다시 확인하고 is_active/unlinked_at만 바꾼다.
+        await conn.execute("select unlink_family_link_self($1)", link["id"])
 ```
 
 `backend/tests/test_patient_family_service.py`에 추가:
@@ -1333,12 +1536,42 @@ async def test_unlink_family_member_does_not_deactivate_patient_row(db_conn):
 
     is_active = await db_conn.fetchval("select is_active from patients where id = $1", family_id)
     assert is_active is True
+
+
+@pytest.mark.asyncio
+async def test_patient_cannot_directly_rewrite_family_link_target(db_conn):
+    """[정합성 검토 SDB-19] patient_family_links에는 직접 UPDATE/DELETE 정책이 없다 — 환자가
+    Supabase 세션으로 family_patient_id를 다른 환자로 바꿔치기하거나 해제된 링크를 직접
+    재활성화(is_active=true)할 수 없다."""
+    me = _to_context(await seed_patient(db_conn))
+    family_id = await patient_family_service.add_family_member(
+        me, name="김자녀", birth_date=date(2015, 5, 5), gender="F", relation="자녀",
+    )
+    link_id = await db_conn.fetchval(
+        "select id from patient_family_links where account_patient_id = $1 and family_patient_id = $2",
+        me.id, family_id,
+    )
+    stranger_id = await db_conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) values ('제3자', '1990-01-01', 'M', '01000000000') returning id"
+    )
+
+    await set_session_auth(db_conn, me.auth_user_id)
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update patient_family_links set family_patient_id = $1 where id = $2", stranger_id, link_id,
+        )
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update patient_family_links set is_active = false where id = $1", link_id,
+        )
+    with pytest.raises(Exception):
+        await db_conn.execute("delete from patient_family_links where id = $1", link_id)
 ```
 
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_family_service.py -v`
-Expected: 5개 테스트 모두 PASS([정합성 검토 R5-02] 검증 테스트 1건 추가로 4→5)
+Expected: 6개 테스트 모두 PASS([정합성 검토 R5-02] 검증 테스트 1건 추가로 4→5, [정합성 검토 SDB-19] 직접 UPDATE/DELETE 차단 테스트 1건 추가로 5→6)
 
 - [ ] **Step 4: 커밋**
 
@@ -2004,6 +2237,10 @@ async def test_list_my_appointments_includes_family(db_conn):
     appointments = await patient_appointment_query_service.list_my_appointments(me)
     assert [a["id"] for a in appointments] == [appointment_id]
     assert appointments[0]["for_patient_name"] == "테스트환자"
+    # [정합성 검토 SDB-21] 예약이 확정되면 슬롯 status가 '예약됨'으로 바뀌는데, 예전에는 그 슬롯이
+    # RLS(patients_can_read_open_slots)에서 숨겨져 날짜/시간이 항상 NULL로 나왔다.
+    assert appointments[0]["slot_date"] is not None
+    assert appointments[0]["start_time"] is not None
 
 
 @pytest.mark.asyncio
@@ -2148,31 +2385,17 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
 async def get_queue_status(patient: PatientContext, appointment_id: UUID) -> dict:
     """[정합성 검토 R4-03] "내 앞 대기 인원" = 같은 의사·오늘 날짜·'진료대기' 상태인 예약 중
     queue_position이 내 값보다 작은 건수. 직원 웹의 대기목록과 항상 같은 컬럼(queue_position)을
-    기준으로 삼으므로 두 화면의 순서가 어긋나지 않는다. 다른 환자의 이름 등 식별정보는 절대 포함하지 않는다."""
-    async with acquire_as(str(patient.auth_user_id)) as conn:
-        row = await conn.fetchrow(
-            """
-            select a.doctor_id, a.queue_position, s.slot_date
-            from appointments a
-            left join appointment_slots s on s.id = a.slot_id
-            where a.id = $1 and a.status = '진료대기'
-            """,
-            appointment_id,
-        )
-        if row is None or row["queue_position"] is None:
-            return {"patients_ahead": 0}
+    기준으로 삼으므로 두 화면의 순서가 어긋나지 않는다. 다른 환자의 이름 등 식별정보는 절대 포함하지 않는다.
 
+    [정합성 검토 SDB-21] 예전에는 이 카운트를 환자 세션으로 직접 집계해서, appointments RLS가
+    본인·가족 예약만 보여주는 탓에 실제 전체 대기열이 아니라 본인·가족만 세는 버그가 있었다.
+    patient_queue_position_ahead_count() RPC(security definer)가 소유권을 먼저 확인한 뒤
+    전체 대기열을 집계해 숫자만 돌려준다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
         patients_ahead = await conn.fetchval(
-            """
-            select count(*) from appointments a2
-            left join appointment_slots s2 on s2.id = a2.slot_id
-            where a2.doctor_id = $1 and a2.status = '진료대기'
-              and coalesce(s2.slot_date, current_date) = current_date
-              and a2.queue_position < $2
-            """,
-            row["doctor_id"], row["queue_position"],
+            "select patient_queue_position_ahead_count($1)", appointment_id,
         )
-    return {"patients_ahead": patients_ahead}
+    return {"patients_ahead": patients_ahead or 0}
 ```
 
 - [ ] **Step 6: 테스트 실행**
@@ -2493,7 +2716,7 @@ git commit -m "feat: 환자용 방문이력 조회 서비스 추가(내부기록
 - Create: `backend/app/services/device_token_service.py`
 - Create: `backend/app/services/notification_service.py`
 - Modify: `backend/app/services/patient_booking_service.py` (예약 신청/확정/취소 시 알림 호출)
-- Create: `supabase/migrations/00012_family_link_otp.sql`([정합성 검토 R5-01])
+- Create: `supabase/migrations/00203_family_link_otp.sql`([정합성 검토 R5-01])
 - Create: `backend/app/services/family_link_otp_service.py`([정합성 검토 R5-01] — Task 6의 `patient_family_links`와 이 Task의 `SmsClient`를 함께 소비하므로 이 Task에 둔다)
 - Test: `backend/tests/test_device_token_service.py`
 - Test: `backend/tests/test_notification_service.py`
@@ -2746,25 +2969,32 @@ Expected: FAIL(모듈 없음)
 
 - [ ] **Step 5.5: [정합성 검토 R2-05] notification_log 마이그레이션**
 
-`supabase/migrations/00016_notification_log.sql`:
+`supabase/migrations/00204_notification_log.sql`:
 ```sql
--- [정합성 검토 R2-05] 같은 이벤트가 두 번 트리거되거나(트랜잭션 재시도 등) 리마인더 크론이
--- 같은 날 두 번 돌아도 알림이 한 번만 나가도록, 발송 전에 먼저 이 로그에 insert를 시도한다.
--- 리마인더처럼 하루 단위로 반복되는 유형은 sent_at::date까지 키에 포함해야 "다음 날은 다시 보낼 수
--- 있고 같은 날 두 번은 막는" 동작이 된다. 그래서 유니크 인덱스를 (appointment_id, notification_type,
--- (sent_at::date))로 만든다 — reminder류가 아닌 1회성 유형(confirmed 등)도 이 인덱스로 문제없이
--- 막힌다(같은 예약에 같은 유형이 같은 날 두 번 오는 경우는 반복 유형과 동일하게 막아도 무방하다).
+-- [정합성 검토 SDB-04] sent_at은 timestamptz라 sent_at::date는 세션 시간대에 따라 값이 달라지므로
+-- PostgreSQL이 인덱스 표현식에 필요한 불변(immutable) 함수로 인정하지 않아 이 인덱스 생성 자체가
+-- 실패한다. 대신 업무 시간대(KST)가 고정된 notification_date 칼럼을 따로 저장하고, 하루 단위로
+-- 반복되는 유형(리마인더)과 예약당 한 번만 보내야 하는 1회성 유형의 중복 기준을 부분 유니크
+-- 인덱스 두 개로 분리한다.
 create table notification_log (
   id uuid primary key default gen_random_uuid(),
   appointment_id uuid not null references appointments(id),
   patient_id uuid not null references patients(id),
   notification_type text not null,
   channel text not null check (channel in ('push', 'sms')),
+  notification_date date not null default ((now() at time zone 'Asia/Seoul')::date),
   sent_at timestamptz not null default now()
 );
 
-create unique index idx_notification_log_dedup
-  on notification_log (appointment_id, notification_type, (sent_at::date));
+-- 하루 단위로 반복 발송되는 리마인더는 같은 업무일에 한 번만 허용한다(다음 날은 다시 보낼 수 있다).
+create unique index idx_notification_log_dedup_daily
+  on notification_log (appointment_id, notification_type, notification_date)
+  where notification_type in ('reminder_day_before', 'reminder_today');
+
+-- 1회성 이벤트 알림(예약확정 등)은 예약당 한 번만 허용한다(다음 날이라도 다시 보내지 않는다).
+create unique index idx_notification_log_dedup_once
+  on notification_log (appointment_id, notification_type)
+  where notification_type not in ('reminder_day_before', 'reminder_today');
 
 alter table notification_log enable row level security;
 -- 클라이언트가 직접 접근할 이유가 없다 — notification_service가 get_pool()의 서비스 역할
@@ -2902,7 +3132,7 @@ Expected: 전체 PASS
 
 - [ ] **Step 10: [정합성 검토 R5-01] 가족 연결 OTP 마이그레이션 작성**
 
-`supabase/migrations/00012_family_link_otp.sql`:
+`supabase/migrations/00203_family_link_otp.sql`:
 ```sql
 -- 이미 병원에 등록된 환자를 가족으로 "연결"할 때, 요청자가 대상 환자의 실제 전화번호에 접근 가능한지
 -- 확인하기 위한 임시 인증 요청. 클라이언트가 직접 접근할 이유가 없으므로 RLS만 켜고 정책은 두지 않는다
@@ -3141,7 +3371,7 @@ Expected: 5개 테스트 모두 PASS
 - [ ] **Step 15: 커밋**
 
 ```bash
-git add backend/app/core/config.py backend/.env.example backend/requirements.txt backend/app/integrations backend/app/services/device_token_service.py backend/app/services/notification_service.py backend/app/services/patient_booking_service.py backend/app/services/family_link_otp_service.py supabase/migrations/00012_family_link_otp.sql backend/tests/test_device_token_service.py backend/tests/test_notification_service.py backend/tests/test_family_link_otp_service.py
+git add backend/app/core/config.py backend/.env.example backend/requirements.txt backend/app/integrations backend/app/services/device_token_service.py backend/app/services/notification_service.py backend/app/services/patient_booking_service.py backend/app/services/family_link_otp_service.py supabase/migrations/00203_family_link_otp.sql backend/tests/test_device_token_service.py backend/tests/test_notification_service.py backend/tests/test_family_link_otp_service.py
 git commit -m "feat: 알림 토큰/SMS·FCM 발송 서비스 + 가족 연결 OTP 서비스 추가 (R5-01)"
 ```
 

@@ -10,6 +10,8 @@
 
 ## Global Constraints
 
+- **[정합성 검토 P1/P2 추적]** `docs/supabase-postgres-review-2026-07-28.md`의 SDB-07~SDB-16, SDB-24~SDB-34는 P0(구현 전 필수)가 아니라 "해당 기능을 실제로 만들 때 함께 반영"하기로 결정됨(2026-07-28). 이 계획서의 관련 태스크(예약번호 발급, 상태 이력 행위자, 진료 일정 규칙, 연결 풀 설정 등)를 구현할 때는 그 보고서에서 같은 테이블/함수를 다루는 SDB 번호를 먼저 확인할 것.
+- 마이그레이션 번호 대역: **1단계(기반) `00001~00099`**, 2단계(직원 웹) `00100~00199`, 3단계(환자 앱) `00200~00299`, 4단계(AI 챗봇) `00300~00399`, 5단계(배포·운영) `00400~`. 서로 다른 단계가 같은 번호를 쓰면 실행 순서가 꼬이므로 영역별 대역을 미리 고정한다(정합성 검토 SDB-01)
 - 백엔드는 FastAPI + Supabase(Postgres)만 사용한다 (스펙 문서 "기술 스택")
 - 권한은 Supabase RLS로 강제한다 (스펙 문서 섹션 1)
 - 직원 세션은 30분 무활동 시 자동 로그아웃 (Supabase Auth JWT 만료 설정)
@@ -213,23 +215,83 @@ create table staff (
 alter table departments enable row level security;
 alter table staff enable row level security;
 
+-- [정합성 검토 SDB-03/SDB-05] staff RLS 정책이 staff 테이블을 직접 재조회하면
+-- "infinite recursion detected in policy" 오류가 난다(자기 자신의 RLS를 평가하는 도중
+-- 같은 RLS를 다시 평가하려 들기 때문). 아래 private 스키마 헬퍼는 postgres 소유
+-- security definer 함수라 호출 시 staff RLS를 다시 트리거하지 않고, API에도 노출되지
+-- 않는다(search_path = ''로 스키마 탐색 우회 공격도 차단). 이후 모든 RLS 정책은
+-- staff를 직접 재조회하지 않고 이 헬퍼만 사용한다.
+create schema if not exists private;
+-- USAGE가 없으면 authenticated 역할은 private.xxx() 이름 자체를 조회(lookup)할 수 없어
+-- RLS 정책 안에서 이 헬퍼를 호출하는 시점에 권한 오류가 난다 — EXECUTE만으로는 부족하다.
+grant usage on schema private to authenticated;
+
+create or replace function private.current_staff_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.id from public.staff s where s.auth_user_id = auth.uid() and s.is_active;
+$$;
+
+create or replace function private.current_staff_role()
+returns public.staff_role
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.role from public.staff s where s.auth_user_id = auth.uid() and s.is_active;
+$$;
+
+create or replace function private.is_active_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.staff s where s.auth_user_id = auth.uid() and s.is_active);
+$$;
+
+create or replace function private.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active);
+$$;
+
+revoke execute on function private.current_staff_id() from public;
+revoke execute on function private.current_staff_role() from public;
+revoke execute on function private.is_active_staff() from public;
+revoke execute on function private.is_admin() from public;
+grant execute on function private.current_staff_id() to authenticated;
+grant execute on function private.current_staff_role() to authenticated;
+grant execute on function private.is_active_staff() to authenticated;
+grant execute on function private.is_admin() to authenticated;
+
 create policy "staff_can_read_departments" on departments
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "admin_can_manage_departments" on departments
   for all
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin())
+  with check (private.is_admin());
 
 create policy "staff_can_read_staff" on staff
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "admin_can_manage_staff" on staff
   for all
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin())
+  with check (private.is_admin());
 ```
 
 - [ ] **Step 2: 마이그레이션 적용**
@@ -398,21 +460,21 @@ alter table doctor_schedule_exceptions enable row level security;
 
 create policy "staff_can_read_schedule_rules" on doctor_schedule_rules
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "admin_can_manage_schedule_rules" on doctor_schedule_rules
   for all
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin())
+  with check (private.is_admin());
 
 create policy "staff_can_read_schedule_exceptions" on doctor_schedule_exceptions
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "admin_can_manage_schedule_exceptions" on doctor_schedule_exceptions
   for all
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin())
+  with check (private.is_admin());
 ```
 
 - [ ] **Step 2: 마이그레이션 적용**
@@ -533,22 +595,27 @@ create table patient_family_links (
 alter table patients enable row level security;
 alter table patient_family_links enable row level security;
 
-create policy "staff_can_read_patients" on patients
+-- [정합성 검토 SDB-06] 접수직원·관리자는 전체 환자를 조회해야 운영이 가능하므로 그대로 둔다.
+-- 의사의 조회 범위는 이 마이그레이션 시점에는 아직 appointments 테이블이 없어 결정할 수 없다.
+-- Task 4(00004_appointments.sql)에서 doctor_can_view_appointment() 근처에 doctor_can_view_patient()를
+-- 정의하고 "doctor_can_read_scoped_patients" 정책을 별도로 추가한다 — 의사는 본인 담당 예약 또는
+-- 진료 연속성 규칙에 연결된 환자만 조회할 수 있어야 한다(다른 의사만 담당하는 환자는 볼 수 없다).
+create policy "receptionist_admin_can_read_patients" on patients
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.current_staff_role() in ('receptionist', 'admin'));
 
 create policy "receptionist_admin_can_insert_patients" on patients
   for insert
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role in ('receptionist', 'admin') and s.is_active));
+  with check (private.current_staff_role() in ('receptionist', 'admin'));
 
 create policy "receptionist_admin_can_update_patients" on patients
   for update
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role in ('receptionist', 'admin') and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role in ('receptionist', 'admin') and s.is_active));
+  using (private.current_staff_role() in ('receptionist', 'admin'))
+  with check (private.current_staff_role() in ('receptionist', 'admin'));
 
 create policy "staff_can_read_family_links" on patient_family_links
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 ```
 
 - [ ] **Step 2: 마이그레이션 적용**
@@ -587,7 +654,24 @@ async def test_doctor_cannot_register_patient(db_conn):
 
 
 @pytest.mark.asyncio
-async def test_doctor_can_read_patients(db_conn):
+async def test_receptionist_can_read_patients(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    await db_conn.execute(
+        "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678')"
+    )
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    rows = await db_conn.fetch("select * from patients")
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_doctor_cannot_read_patients_without_appointment_link(db_conn):
+    """[정합성 검토 SDB-06] 이 마이그레이션(Task 3) 시점에는 appointments가 아직 없어 의사에게
+    범위 제한된 조회 권한을 줄 수 없다. 의사의 담당 환자 조회 권한은 Task 4에서
+    doctor_can_view_patient()와 함께 추가되며, 그때 별도 테스트로 검증한다."""
     admin = await seed_staff(db_conn, role="admin")
     doctor = await seed_staff(db_conn, role="doctor")
     await set_session_auth(db_conn, admin["auth_user_id"])
@@ -597,13 +681,13 @@ async def test_doctor_can_read_patients(db_conn):
 
     await set_session_auth(db_conn, doctor["auth_user_id"])
     rows = await db_conn.fetch("select * from patients")
-    assert len(rows) == 1
+    assert len(rows) == 0
 ```
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patients_schema.py -v`
-Expected: 3개 테스트 모두 PASS
+Expected: 4개 테스트 모두 PASS([정합성 검토 SDB-06] 의사 조회 범위 제한 테스트 추가로 3→4)
 
 - [ ] **Step 5: 커밋**
 
@@ -622,7 +706,7 @@ git commit -m "feat: patients/patient_family_links 테이블과 RLS 정책 추�
 
 **Interfaces:**
 - Consumes: `tests.conftest.db_conn`, `seed_staff`, `set_session_auth`, `departments`(Task 2), `patients`(Task 4)
-- Produces: DB 테이블 `appointment_slots(id, doctor_id, slot_date, start_time, status)`, `appointments(id, slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, queue_position, is_urgent_flag, booking_code, booking_code_expires_at, created_by, updated_at, created_at)`([정합성 검토 R4-04] `booking_code`/`booking_code_expires_at` — 사람이 읽고 QR에도 담는 6자리 짧은 코드. `id`(UUID)는 내부 기본키로 그대로 유지), `appointment_status_history(id, appointment_id, from_status, to_status, changed_by, reason, changed_at)`, SQL 함수 `doctor_can_view_appointment(target_appointment_id uuid) returns boolean`([정합성 검토 R2-02] — Task 6의 `medical_records`/`medical_record_revisions`와 Task 7의 `questionnaire_responses` RLS가 이 함수를 그대로 재사용함), `generate_booking_code() returns text`([정합성 검토 R4-04])
+- Produces: DB 테이블 `appointment_slots(id, doctor_id, slot_date, start_time, status)`, `appointments(id, slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, queue_position, is_urgent_flag, booking_code, booking_code_expires_at, created_by, updated_at, created_at)`([정합성 검토 R4-04] `booking_code`/`booking_code_expires_at` — 사람이 읽고 QR에도 담는 6자리 짧은 코드. `id`(UUID)는 내부 기본키로 그대로 유지), `appointment_status_history(id, appointment_id, from_status, to_status, changed_by, reason, changed_at)`, SQL 함수 `doctor_can_view_appointment(target_appointment_id uuid) returns boolean`([정합성 검토 R2-02] — Task 6의 `medical_records`/`medical_record_revisions`와 Task 7의 `questionnaire_responses` RLS가 이 함수를 그대로 재사용함), `doctor_can_view_patient(target_patient_id uuid) returns boolean`([정합성 검토 SDB-06] — Task 3에서 접수직원·관리자로만 열어둔 `patients` 조회 범위에 의사용 정책을 추가한다), `generate_booking_code() returns text`([정합성 검토 R4-04])
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -636,6 +720,33 @@ create table appointment_slots (
   status text not null default '빈시간' check (status in ('빈시간', '예약됨', '휴진')),
   unique (doctor_id, slot_date, start_time)
 );
+
+-- [정합성 검토 SDB-20] 3단계(환자 앱)의 patients_can_update_slots_for_booking 정책은 status만
+-- 검사하고 doctor_id/slot_date/start_time은 검사하지 않는다. 그래서 환자가 REST를 직접 호출하면
+-- 자신이 UPDATE 가능한 슬롯(빈 슬롯 또는 본인 예약 슬롯)의 담당의·날짜·시간까지 바꿀 수 있었다.
+-- 실제로 이 세 칼럼을 바꾸는 정상 흐름은 없다(일정 재생성은 슬롯을 DELETE 후 다시 INSERT하는
+-- 방식이다 — staff-web Task 참고). 그래서 이 세 칼럼은 역할과 무관하게 아예 불변으로 만든다.
+-- book_slot()/release_slot()은 status만 바꾸므로 이 트리거의 영향을 받지 않는다.
+create or replace function block_appointment_slot_identity_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.doctor_id is distinct from old.doctor_id
+     or new.slot_date is distinct from old.slot_date
+     or new.start_time is distinct from old.start_time then
+    raise exception '슬롯의 담당의·날짜·시간은 만든 뒤에는 바꿀 수 없습니다. 슬롯을 다시 만드세요.'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_block_appointment_slot_identity_change
+  before update on appointment_slots
+  for each row execute function block_appointment_slot_identity_change();
 
 create table appointments (
   id uuid primary key default gen_random_uuid(),
@@ -670,6 +781,7 @@ create or replace function generate_booking_code()
 returns text
 language sql
 volatile
+set search_path = ''
 as $$
   select string_agg(substr('23456789ABCDEFGHJKLMNPQRSTUVWXYZ', (random() * 32)::int + 1, 1), '')
   from generate_series(1, 6);
@@ -681,7 +793,7 @@ create or replace function assign_booking_code()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_slot_date date;
@@ -689,16 +801,16 @@ declare
   v_attempt int := 0;
 begin
   if new.slot_id is not null then
-    select slot_date into v_slot_date from appointment_slots where id = new.slot_id;
+    select slot_date into v_slot_date from public.appointment_slots where id = new.slot_id;
   end if;
   new.booking_code_expires_at := coalesce(v_slot_date, current_date) + interval '1 day';
 
   -- BEFORE INSERT 트리거 안에서는 아직 행이 실제로 들어가기 전이라 유니크 제약 위반 예외를
   -- 받을 수 없다. 그래서 후보 코드가 이미 쓰이고 있는지 직접 조회해서 재시도한다.
   loop
-    v_code := generate_booking_code();
+    v_code := public.generate_booking_code();
     v_attempt := v_attempt + 1;
-    exit when not exists (select 1 from appointments where booking_code = v_code);
+    exit when not exists (select 1 from public.appointments where booking_code = v_code);
     if v_attempt > 10 then
       raise exception '예약번호 발급에 반복적으로 실패했습니다.' using errcode = 'P0001';
     end if;
@@ -719,7 +831,7 @@ create or replace function expire_booking_code_on_terminal_status()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   if new.status in ('진료완료', '환자취소', '병원취소', '예약부도') and new.booking_code is not null then
@@ -763,13 +875,13 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = public
+set search_path = ''
 as $$
   select exists (
     select 1
-    from appointments target
-    join staff me on me.auth_user_id = auth.uid() and me.role = 'doctor' and me.is_active
-    left join appointment_slots ts on ts.id = target.slot_id
+    from public.appointments target
+    join public.staff me on me.auth_user_id = auth.uid() and me.role = 'doctor' and me.is_active
+    left join public.appointment_slots ts on ts.id = target.slot_id
     where target.id = target_appointment_id
       and (
         target.doctor_id = me.id
@@ -779,7 +891,7 @@ as $$
             or (ts.slot_date is not null and ts.slot_date < current_date)
           )
           and exists (
-            select 1 from appointments live
+            select 1 from public.appointments live
             where live.doctor_id = me.id
               and live.for_patient_id = target.for_patient_id
               and live.status in ('도착', '진료대기', '진료중')
@@ -789,25 +901,69 @@ as $$
   );
 $$;
 
+revoke execute on function doctor_can_view_appointment(uuid) from public;
+grant execute on function doctor_can_view_appointment(uuid) to authenticated;
+
+-- [정합성 검토 SDB-06] Task 3(00003_patients.sql)에서는 접수직원·관리자만 patients를 조회할 수 있게
+-- 해두었다(그 시점엔 appointments가 없어 의사 범위를 정할 수 없었다). 이제 appointments가 생겼으니
+-- doctor_can_view_appointment()와 같은 "본인 담당 예약 또는 진료 연속성" 규칙을 환자 단위로 재사용해
+-- 의사의 patients 조회 범위를 제한한다 — 담당 아닌 환자는 UUID를 알아도 조회되지 않는다.
+create or replace function doctor_can_view_patient(target_patient_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.appointments target
+    left join public.appointment_slots ts on ts.id = target.slot_id
+    where target.for_patient_id = target_patient_id
+      and (
+        target.doctor_id = private.current_staff_id()
+        or (
+          (
+            target.status in ('진료완료', '환자취소', '병원취소', '예약부도')
+            or (ts.slot_date is not null and ts.slot_date < current_date)
+          )
+          and exists (
+            select 1 from public.appointments live
+            where live.doctor_id = private.current_staff_id()
+              and live.for_patient_id = target_patient_id
+              and live.status in ('도착', '진료대기', '진료중')
+          )
+        )
+      )
+  );
+$$;
+
+revoke execute on function doctor_can_view_patient(uuid) from public;
+grant execute on function doctor_can_view_patient(uuid) to authenticated;
+
+create policy "doctor_can_read_scoped_patients" on patients
+  for select
+  using (private.current_staff_role() = 'doctor' and doctor_can_view_patient(id));
+
 create policy "staff_can_read_slots" on appointment_slots
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "receptionist_admin_can_manage_slots" on appointment_slots
   for all
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role in ('receptionist', 'admin') and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role in ('receptionist', 'admin') and s.is_active));
+  using (private.current_staff_role() in ('receptionist', 'admin'))
+  with check (private.current_staff_role() in ('receptionist', 'admin'));
 
 create policy "staff_can_read_appointments" on appointments
   for select
   using (
-    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    private.current_staff_role() in ('receptionist', 'admin')
     or doctor_can_view_appointment(id)
   );
 
 create policy "receptionist_admin_can_insert_appointments" on appointments
   for insert
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role in ('receptionist', 'admin') and s.is_active));
+  with check (private.current_staff_role() in ('receptionist', 'admin'));
 
 create policy "staff_can_update_own_scope_appointments" on appointments
   for update
@@ -829,7 +985,7 @@ create policy "staff_can_update_own_scope_appointments" on appointments
 create policy "staff_can_read_status_history" on appointment_status_history
   for select
   using (
-    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    private.current_staff_role() in ('receptionist', 'admin')
     or doctor_can_view_appointment(appointment_id)
   );
 
@@ -844,16 +1000,16 @@ create or replace function enforce_appointment_consistency()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
-  v_doctor_role staff_role;
+  v_doctor_role public.staff_role;
   v_doctor_dept uuid;
   v_doctor_active boolean;
   v_slot_doctor uuid;
 begin
   select role, department_id, is_active into v_doctor_role, v_doctor_dept, v_doctor_active
-  from staff where id = new.doctor_id;
+  from public.staff where id = new.doctor_id;
 
   if v_doctor_role is null or v_doctor_role <> 'doctor' or not coalesce(v_doctor_active, false) then
     raise exception '담당의로 지정한 직원이 활성 상태의 의사가 아닙니다.' using errcode = 'P0001';
@@ -864,7 +1020,7 @@ begin
   end if;
 
   if new.slot_id is not null then
-    select doctor_id into v_slot_doctor from appointment_slots where id = new.slot_id;
+    select doctor_id into v_slot_doctor from public.appointment_slots where id = new.slot_id;
     if v_slot_doctor is distinct from new.doctor_id then
       raise exception '선택한 시간대의 담당의와 예약 담당의가 일치하지 않습니다.' using errcode = 'P0001';
     end if;
@@ -879,33 +1035,41 @@ create trigger trg_enforce_appointment_consistency
   for each row execute function enforce_appointment_consistency();
 
 -- ②: 예약 상태전이는 정해진 경로만 허용한다(직접 UPDATE로 임의 상태 점프 차단).
-create table appointment_status_transitions (
-  from_status text,
+-- primary key (from_status, to_status)는 두 칼럼 모두 NOT NULL을 강제하므로 (null, ...) 행은 절대 넣지 않는다
+-- (정합성 검토 SDB-02 — 예전 초안은 초기 상태 행을 NULL로 넣으려 해서 마이그레이션이 실패했다).
+-- [정합성 검토 SDB-17] 이 표는 사용자 업무 데이터가 아니라 "어떤 상태전이가 허용되는지"를 정의하는
+-- 내부 보안 규칙표다. public 스키마에 RLS 없이 두면 Supabase 기본 권한상 authenticated 역할이
+-- 직접 SELECT/INSERT/UPDATE/DELETE할 수 있어 클라이언트가 규칙 자체를 조작할 위험이 있다.
+-- private 스키마에는 authenticated/anon에게 기본으로 어떤 테이블 권한도 없으므로(1단계 Task 1에서
+-- private 스키마 자체 USAGE만 부여했을 뿐 테이블 권한은 부여하지 않았다) 이 표를 private에 두는 것만으로
+-- 일반 세션의 직접 접근이 전부 거부된다. 아래 enforce_appointment_status_transition() 트리거는
+-- security definer(테이블 소유자 postgres 권한으로 실행)라 RLS/테이블 권한과 무관하게 이 표를 읽을 수 있다.
+create table private.appointment_status_transitions (
+  from_status text not null,
   to_status text not null,
   primary key (from_status, to_status)
 );
 
-insert into appointment_status_transitions (from_status, to_status) values
-  (null, '예약신청'), (null, '예약확정'),
+insert into private.appointment_status_transitions (from_status, to_status) values
   ('예약신청', '예약확정'), ('예약신청', '환자취소'), ('예약신청', '병원취소'),
   ('예약확정', '도착'), ('예약확정', '환자취소'), ('예약확정', '병원취소'), ('예약확정', '예약부도'),
   ('도착', '진료대기'),
   ('진료대기', '진료중'),
   ('진료중', '진료완료');
 
--- 전이 검증은 UPDATE(이후 실제 상태변경)에만 건다 — INSERT 시점 초기 상태까지 이 표로 강제하면
--- 테스트 픽스처가 흔히 쓰는 "완료 상태로 미리 씨딩" 같은 직접 INSERT 셋업이 전부 깨진다.
+-- 전이 검증은 UPDATE(이후 실제 상태변경)에만 건다 — INSERT 시점 초기 상태는 이 표로 강제하지 않는다.
+-- 테스트 픽스처가 흔히 쓰는 "완료 상태로 미리 씨딩" 같은 직접 INSERT 셋업을 막지 않기 위해서다.
 -- 초기 상태 자체의 채널별 제한(예: 앱은 '예약신청'만 등)은 이번 5건 수정 범위 밖의 별도 보완 과제로 남긴다.
 create or replace function enforce_appointment_status_transition()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   if new.status is distinct from old.status then
     if not exists (
-      select 1 from appointment_status_transitions
+      select 1 from private.appointment_status_transitions
       where from_status is not distinct from old.status and to_status = new.status
     ) then
       raise exception '''%'' 상태에서 ''%''(으)로 변경할 수 없습니다.', old.status, new.status
@@ -926,7 +1090,7 @@ create or replace function log_appointment_status_change()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_staff_id uuid;
@@ -934,11 +1098,11 @@ declare
 begin
   v_old_status := case when tg_op = 'INSERT' then null else old.status end;
   if tg_op = 'INSERT' or new.status is distinct from old.status then
-    select id into v_staff_id from staff where auth_user_id = auth.uid();
+    select id into v_staff_id from public.staff where auth_user_id = auth.uid();
     -- auth.uid()가 없는 세션(배포 시드 스크립트 등 JWT 클레임 없이 직접 접속)에는 changed_by가 NOT NULL이라
     -- 행위자를 못 찾으면 이력 행을 만들지 않고 조용히 건너뛴다(제약 위반으로 시드/배치가 깨지는 것을 방지).
     if v_staff_id is not null then
-      insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, reason)
+      insert into public.appointment_status_history (appointment_id, from_status, to_status, changed_by, reason)
       values (
         new.id, v_old_status, new.status, v_staff_id,
         coalesce(current_setting('app.status_change_reason', true), case when tg_op = 'INSERT' then '예약 생성' else null end)
@@ -959,7 +1123,7 @@ create policy "staff_can_insert_note_history" on appointment_status_history
   for insert
   with check (
     from_status = to_status
-    and exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active)
+    and private.is_active_staff()
   );
 ```
 
@@ -1218,6 +1382,21 @@ async def test_invalid_status_transition_rejected(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_staff_cannot_directly_access_status_transition_rules(db_conn):
+    """[정합성 검토 SDB-17] 상태전이 규칙표는 private 스키마에 있어 관리자 세션조차 직접
+    SELECT/INSERT할 수 없다 — 트리거(security definer)만 이 표를 읽는다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+
+    with pytest.raises(Exception):
+        await db_conn.fetch("select * from private.appointment_status_transitions")
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "insert into private.appointment_status_transitions (from_status, to_status) values ('진료완료', '예약신청')"
+        )
+
+
+@pytest.mark.asyncio
 async def test_status_history_recorded_automatically_and_forgery_blocked(db_conn):
     """상태 변경 이력은 트리거가 자동 기록하고, 실제 상태전이를 흉내낸 직접 INSERT는 거부된다."""
     admin = await seed_staff(db_conn, role="admin")
@@ -1327,12 +1506,82 @@ async def test_booking_code_unique_across_active_appointments(db_conn):
         )
         codes.add(code)
     assert len(codes) == 5
+
+
+@pytest.mark.asyncio
+async def test_appointment_slot_identity_columns_are_immutable(db_conn):
+    """[정합성 검토 SDB-20] doctor_id/slot_date/start_time은 관리자 세션으로도 UPDATE할 수 없다
+    (슬롯 재생성은 DELETE 후 새 INSERT로 한다) — status 변경은 그대로 허용된다."""
+    admin = await seed_staff(db_conn, role="admin")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    doctor_a = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    doctor_b = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, current_date + 1, '09:00') returning id",
+        doctor_a["staff_id"],
+    )
+
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update appointment_slots set doctor_id = $1 where id = $2", doctor_b["staff_id"], slot_id,
+        )
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "update appointment_slots set start_time = '10:00' where id = $1", slot_id,
+        )
+
+    await db_conn.execute("update appointment_slots set status = '휴진' where id = $1", slot_id)
+    status = await db_conn.fetchval("select status from appointment_slots where id = $1", slot_id)
+    assert status == '휴진'
+
+
+@pytest.mark.asyncio
+async def test_doctor_can_read_own_patient_but_not_unrelated_patient(db_conn):
+    """[정합성 검토 SDB-06] 의사는 본인 담당 예약이 있는 환자만 patients 테이블에서 직접 조회할 수 있다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, own_patient_id = await _seed_department_and_patient(db_conn)
+    _, unrelated_patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    await db_conn.execute(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, '예약확정', 'staff', $4)
+        """,
+        own_patient_id, dept_id, doctor["staff_id"], receptionist["staff_id"],
+    )
+
+    await set_session_auth(db_conn, doctor["auth_user_id"])
+    own_row = await db_conn.fetchrow("select id from patients where id = $1", own_patient_id)
+    unrelated_row = await db_conn.fetchrow("select id from patients where id = $1", unrelated_patient_id)
+    assert own_row is not None
+    assert unrelated_row is None
+
+
+@pytest.mark.asyncio
+async def test_receptionist_admin_patient_scope_unaffected_by_doctor_restriction(db_conn):
+    """[정합성 검토 SDB-06] 접수직원·관리자의 patients 조회 범위는 의사 범위 제한과 무관하게 전체 그대로다."""
+    admin = await seed_staff(db_conn, role="admin")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    await db_conn.execute(
+        "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678')"
+    )
+
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+    rows = await db_conn.fetch("select * from patients")
+    assert len(rows) == 1
 ```
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_appointments_schema.py -v`
-Expected: 13개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 3건 추가로 8→10, [정합성 검토 R4-04] booking_code 검증 테스트 3건 추가로 10→13)
+Expected: 17개 테스트 모두 PASS([정합성 검토 R2-02] 검증 테스트 3건 추가로 8→10, [정합성 검토 R4-04] booking_code 검증 테스트 3건 추가로 10→13, [정합성 검토 SDB-06] 의사 환자조회 범위 제한 테스트 2건 추가로 13→15, [정합성 검토 SDB-17] 상태전이 규칙표 직접 접근 차단 테스트 1건 추가로 15→16, [정합성 검토 SDB-20] 슬롯 불변 칼럼 테스트 1건 추가로 16→17)
 
 - [ ] **Step 5: 커밋**
 
@@ -1386,30 +1635,30 @@ alter table medical_record_revisions enable row level security;
 create policy "staff_can_read_medical_records" on medical_records
   for select
   using (
-    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    private.current_staff_role() in ('receptionist', 'admin')
     or doctor_can_view_appointment(appointment_id)
   );
 
 create policy "doctor_can_insert_own_medical_records" on medical_records
   for insert
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'doctor' and s.is_active and s.id = medical_records.doctor_id));
+  with check (private.current_staff_role() = 'doctor' and private.current_staff_id() = medical_records.doctor_id);
 
 create policy "doctor_can_update_own_medical_records" on medical_records
   for update
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'doctor' and s.is_active and s.id = medical_records.doctor_id))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'doctor' and s.is_active and s.id = medical_records.doctor_id));
+  using (private.current_staff_role() = 'doctor' and private.current_staff_id() = medical_records.doctor_id)
+  with check (private.current_staff_role() = 'doctor' and private.current_staff_id() = medical_records.doctor_id);
 
 -- [정합성 검토 R2-02] medical_record_revisions은 record_id로만 연결되므로 medical_records를 거쳐 appointment_id를 찾는다.
 create policy "staff_can_read_revisions" on medical_record_revisions
   for select
   using (
-    exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.role in ('receptionist', 'admin'))
+    private.current_staff_role() in ('receptionist', 'admin')
     or doctor_can_view_appointment((select appointment_id from medical_records where id = medical_record_revisions.record_id))
   );
 
 create policy "doctor_can_insert_own_revisions" on medical_record_revisions
   for insert
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'doctor' and s.is_active and s.id = medical_record_revisions.revised_by));
+  with check (private.current_staff_role() = 'doctor' and private.current_staff_id() = medical_record_revisions.revised_by);
 
 -- ── 치명적 규칙은 DB가 최종 심판 ──────────────────────────────────────────
 -- ①: medical_records.doctor_id는 반드시 해당 appointment_id의 실제 담당의와 같아야 한다.
@@ -1419,12 +1668,12 @@ create or replace function enforce_medical_record_doctor_match()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_appt_doctor uuid;
 begin
-  select doctor_id into v_appt_doctor from appointments where id = new.appointment_id;
+  select doctor_id into v_appt_doctor from public.appointments where id = new.appointment_id;
   if v_appt_doctor is distinct from new.doctor_id then
     raise exception '해당 예약의 담당의만 진료기록을 작성할 수 있습니다.' using errcode = 'P0001';
   end if;
@@ -1442,7 +1691,7 @@ create or replace function block_direct_update_of_completed_records()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   if old.is_completed and coalesce(current_setting('app.via_revise_rpc', true), 'false') <> 'true' then
@@ -1470,18 +1719,18 @@ create or replace function revise_medical_record(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   v_staff_id uuid;
-  v_row medical_records%rowtype;
+  v_row public.medical_records%rowtype;
 begin
-  select id into v_staff_id from staff where auth_user_id = auth.uid() and role = 'doctor' and is_active;
+  select id into v_staff_id from public.staff where auth_user_id = auth.uid() and role = 'doctor' and is_active;
   if v_staff_id is null then
     raise exception '활성 상태의 의사만 진료기록을 수정할 수 있습니다.' using errcode = 'P0001';
   end if;
 
-  select * into v_row from medical_records where id = p_record_id and doctor_id = v_staff_id for update;
+  select * into v_row from public.medical_records where id = p_record_id and doctor_id = v_staff_id for update;
   if not found then
     raise exception '진료기록을 찾을 수 없습니다.' using errcode = 'P0002';
   end if;
@@ -1495,7 +1744,7 @@ begin
     raise exception '다른 사람이 먼저 수정했습니다. 새로고침 후 다시 시도하세요.' using errcode = 'P0003';
   end if;
 
-  insert into medical_record_revisions (record_id, previous_content, revised_by, reason)
+  insert into public.medical_record_revisions (record_id, previous_content, revised_by, reason)
   values (
     p_record_id,
     jsonb_build_object(
@@ -1506,13 +1755,16 @@ begin
   );
 
   perform set_config('app.via_revise_rpc', 'true', true);
-  update medical_records
+  update public.medical_records
   set symptoms = p_symptoms, diagnosis = p_diagnosis, treatment = p_treatment,
       patient_visible_notes = p_patient_visible_notes, updated_at = now()
   where id = p_record_id;
   perform set_config('app.via_revise_rpc', 'false', true);
 end;
 $$;
+
+revoke execute on function revise_medical_record(uuid, text, text, text, text, text, timestamptz) from public;
+grant execute on function revise_medical_record(uuid, text, text, text, text, text, timestamptz) to authenticated;
 ```
 
 > `revise_medical_record`는 `security definer`로 등록해, 함수 안의 UPDATE가 `block_direct_update_of_completed_records` 트리거의 `app.via_revise_rpc` 세션 변수 검사를 통과하도록 한다. 함수 밖에서(Supabase 클라이언트든 다른 SQL이든) 완료된 기록을 직접 UPDATE하면 이 변수가 설정돼 있지 않으므로 트리거가 거부한다.
@@ -1745,12 +1997,12 @@ alter table questionnaire_responses enable row level security;
 
 create policy "staff_can_read_templates" on questionnaire_templates
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "admin_can_manage_templates" on questionnaire_templates
   for all
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin())
+  with check (private.is_admin());
 
 -- 사전문진은 "해당 의사만" 열람 가능해야 한다(고객요구사항) — 모든 활성 직원이 아니라
 -- 예약 담당의만 조회하도록 제한한다. 관리자는 감사 목적으로만 예외 허용한다.
@@ -1868,7 +2120,7 @@ git commit -m "feat: questionnaire_templates/questionnaire_responses 테이블�
 
 - [ ] **Step 6: [정합성 검토 R5-09] department_id UNIQUE 제약 추가 마이그레이션**
 
-`supabase/migrations/00015_questionnaire_template_unique.sql`:
+`supabase/migrations/00008_questionnaire_template_unique.sql`:
 ```sql
 -- [정합성 검토 R5-09] 진료과당 문진 양식은 정확히 1행만 존재한다(그 1행이 곧 활성 버전).
 -- 별도의 is_active 플래그나 다중 버전 개념을 두지 않는다. 관리자가 저장하면
@@ -1951,7 +2203,7 @@ Expected: 5개 테스트 모두 PASS([정합성 검토 R5-09] 검증 테스트 2
 - [ ] **Step 10: 커밋**
 
 ```bash
-git add supabase/migrations/00015_questionnaire_template_unique.sql backend/tests/test_questionnaire_schema.py
+git add supabase/migrations/00008_questionnaire_template_unique.sql backend/tests/test_questionnaire_schema.py
 git commit -m "feat: questionnaire_templates.department_id UNIQUE 제약 추가 (R5-09: 진료과당 1행 = 활성 버전)"
 ```
 
@@ -2007,32 +2259,32 @@ alter table hospital_settings enable row level security;
 
 create policy "staff_can_insert_own_audit_log" on access_audit_log
   for insert
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.id = access_audit_log.staff_id));
+  with check (private.current_staff_id() = access_audit_log.staff_id);
 
 create policy "admin_can_read_audit_log" on access_audit_log
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin());
 
 create policy "admin_can_read_error_log" on system_error_log
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin());
 
 create policy "staff_can_read_internal_notes" on patient_internal_notes
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "staff_can_insert_own_internal_notes" on patient_internal_notes
   for insert
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active and s.id = patient_internal_notes.staff_id));
+  with check (private.current_staff_id() = patient_internal_notes.staff_id);
 
 create policy "staff_can_read_hospital_settings" on hospital_settings
   for select
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.is_active));
+  using (private.is_active_staff());
 
 create policy "admin_can_update_hospital_settings" on hospital_settings
   for update
-  using (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active))
-  with check (exists (select 1 from staff s where s.auth_user_id = auth.uid() and s.role = 'admin' and s.is_active));
+  using (private.is_admin())
+  with check (private.is_admin());
 ```
 
 - [ ] **Step 2: 마이그레이션 적용**
