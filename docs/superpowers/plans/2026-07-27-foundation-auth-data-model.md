@@ -442,7 +442,11 @@ create table doctor_schedule_rules (
   lunch_start time,
   lunch_end time,
   max_daily_appointments int not null,
-  booking_deadline time
+  booking_deadline time,
+  -- [정합성 검토 R3-01] 의사당 요일별 규칙은 정확히 1행이어야 한다. 이 제약이 없으면
+  -- 2단계 schedule_service.upsert_schedule_rule()의 "SELECT로 존재 확인 후 UPDATE/INSERT"가
+  -- 동시 저장 요청 사이에서 경쟁해 같은 (doctor_id, weekday)에 중복 행을 만들 수 있다.
+  unique (doctor_id, weekday)
 );
 
 create table doctor_schedule_exceptions (
@@ -2131,6 +2135,21 @@ git commit -m "feat: questionnaire_templates/questionnaire_responses 테이블�
 -- (questionnaire_templates에는 created_at이 없으므로 id를 정렬 기준으로 쓴다 — UUID는
 -- 생성 순서를 보장하지 않지만, 이 정리는 "이미 중복이 생겼던 드문 경우"의 1회성 정리이고
 -- 어느 한 행이 남아도 데이터 손실 없이 이후부터는 유일성이 보장되면 되므로 충분하다.)
+--
+-- [정합성 검토 R5-09] questionnaire_responses.template_id는 삭제될 중복 행을 참조하고 있을
+-- 수 있다(not null references, ON DELETE 절 없음 → 기본 RESTRICT). 그대로 delete를 실행하면
+-- 그 진료과에 과거 응답이 하나라도 있는 경우 외래키 위반으로 마이그레이션 자체가 실패한다.
+-- 질문 문구는 이미 questionnaire_responses.answers에 제출 당시 스냅샷으로 저장되어 있으므로
+-- (r5-09-questionnaire-template-design.md 결정 참고), 삭제 전에 참조만 살아남을 행으로
+-- 옮겨주면 과거 응답이 보여주는 내용은 전혀 바뀌지 않는다.
+update questionnaire_responses r
+set template_id = keep.keep_id
+from (
+  select department_id, max(id) as keep_id from questionnaire_templates group by department_id
+) keep
+join questionnaire_templates t on t.department_id = keep.department_id
+where r.template_id = t.id and t.id <> keep.keep_id;
+
 delete from questionnaire_templates a
 using questionnaire_templates b
 where a.department_id = b.department_id and a.id < b.id;
@@ -2195,15 +2214,93 @@ async def test_upsert_replaces_the_single_template_row(db_conn):
     assert rows[0]["questions"][0]["text"] == "new"
 ```
 
+`backend/tests/test_questionnaire_dedup_migration.py`(신규 — 이 파일은 마이그레이션 스크립트 자체를 재현하는 별도 스키마 테스트이므로 `db_conn` 픽스처가 이미 00008을 적용한 이후 상태와 별개로, raw SQL 재현으로 검증한다):
+```python
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_dedup_repoints_responses_before_deleting_duplicate_template(db_conn):
+    """[정합성 검토 R5-09] 정리 대상(오래된) 템플릿을 이미 questionnaire_responses가 참조하고
+    있어도, 00008 마이그레이션의 정리 스텝이 FK 위반 없이 끝나야 한다. UNIQUE 제약이 이미 걸린
+    스키마에서는 중복을 직접 만들 수 없으므로, 제약을 임시로 뗀 뒤 마이그레이션의 정리 SQL만
+    재현해 검증한다."""
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
+
+    await db_conn.execute(
+        "alter table questionnaire_templates drop constraint questionnaire_templates_department_id_key"
+    )
+    old_template_id = await db_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[{\"text\": \"old\"}]'::jsonb) returning id",
+        dept_id,
+    )
+    new_template_id = await db_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[{\"text\": \"new\"}]'::jsonb) returning id",
+        dept_id,
+    )
+    dept_id2 = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    doctor = await db_conn.fetchval(
+        "insert into staff (auth_user_id, name, role, department_id) "
+        "select gen_random_uuid(), '의사', 'doctor', $1 returning id",
+        dept_id2,
+    )
+    patient_id = await db_conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) values ('홍길동', '1985-03-01', 'M', '01012345678') returning id"
+    )
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments (account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+        values ($1, $1, $2, $2, '예약확정', 'app')
+        returning id
+        """,
+        patient_id, dept_id2,
+    )
+    # 과거 응답이 정리 대상(오래된) 템플릿을 참조하는 상황을 재현한다.
+    await db_conn.execute(
+        "insert into questionnaire_responses (appointment_id, template_id, answers) values ($1, $2, '[]'::jsonb)",
+        appointment_id, old_template_id,
+    )
+
+    # 00008 마이그레이션의 정리 SQL을 그대로 재현한다.
+    await db_conn.execute(
+        """
+        update questionnaire_responses r
+        set template_id = keep.keep_id
+        from (
+            select department_id, max(id) as keep_id from questionnaire_templates group by department_id
+        ) keep
+        join questionnaire_templates t on t.department_id = keep.department_id
+        where r.template_id = t.id and t.id <> keep.keep_id
+        """
+    )
+    await db_conn.execute(
+        "delete from questionnaire_templates a using questionnaire_templates b "
+        "where a.department_id = b.department_id and a.id < b.id"
+    )  # FK 위반 없이 끝나야 한다(위 UPDATE로 참조를 먼저 옮겼으므로)
+
+    remaining = await db_conn.fetchval(
+        "select count(*) from questionnaire_templates where department_id = $1", dept_id,
+    )
+    assert remaining == 1
+    response_template = await db_conn.fetchval(
+        "select template_id from questionnaire_responses where appointment_id = $1", appointment_id,
+    )
+    assert response_template == new_template_id  # 참조가 살아남은 행으로 옮겨짐
+
+    await db_conn.execute(
+        "alter table questionnaire_templates add constraint questionnaire_templates_department_id_key unique (department_id)"
+    )
+```
+
 - [ ] **Step 9: 테스트 실행**
 
-Run: `cd backend && pytest tests/test_questionnaire_schema.py -v`
-Expected: 5개 테스트 모두 PASS([정합성 검토 R5-09] 검증 테스트 2건 추가로 3→5)
+Run: `cd backend && pytest tests/test_questionnaire_schema.py tests/test_questionnaire_dedup_migration.py -v`
+Expected: `test_questionnaire_schema.py` 5개 모두 PASS([정합성 검토 R5-09] 검증 테스트 2건 추가로 3→5), `test_questionnaire_dedup_migration.py` 1개 PASS(신규 — 정리 SQL이 참조 중인 템플릿 삭제 시 FK 위반 없이 안전하게 재연결되는지 확인)
 
 - [ ] **Step 10: 커밋**
 
 ```bash
-git add supabase/migrations/00008_questionnaire_template_unique.sql backend/tests/test_questionnaire_schema.py
+git add supabase/migrations/00008_questionnaire_template_unique.sql backend/tests/test_questionnaire_schema.py backend/tests/test_questionnaire_dedup_migration.py
 git commit -m "feat: questionnaire_templates.department_id UNIQUE 제약 추가 (R5-09: 진료과당 1행 = 활성 버전)"
 ```
 
@@ -2810,6 +2907,7 @@ git commit -m "feat: 환자 등록/조회 서비스 추가"
 - Produces: `app.services.staff_service.invite_staff(email: str, name: str, role: str, department_id: UUID | None, invited_by: StaffContext) -> UUID`
 - Produces: `app.services.staff_service.deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None`([정합성 검토 R3-04] 본인 또는 마지막 남은 활성 관리자를 중지하려 하면 `AppError(409)`)
 - Produces: `app.services.staff_service.list_staff(staff: StaffContext) -> list[dict]`([정합성 검토 R3-04] `id, name, role, department_id, is_active` — 관리자 전용, `/admin/staff` 화면 목록)
+- Produces: `app.services.staff_service.resend_invite(staff_id: UUID, requested_by: StaffContext) -> None`([정합성 검토 R3-04] 초대 이메일 재발송)
 
 - [ ] **Step 1: Supabase Admin 클라이언트 팩토리 작성**
 
@@ -2905,20 +3003,38 @@ async def test_deactivate_staff_rejects_self(db_conn):
 
 @pytest.mark.asyncio
 async def test_deactivate_staff_rejects_last_active_admin(db_conn):
-    """[정합성 검토 R3-04] 활성 관리자가 한 명뿐이면(본인이 아니어도) 중지할 수 없다 — 관리 권한 공백 방지."""
+    """[정합성 검토 R3-04] 활성 관리자가 한 명뿐이면(본인이 아니어도) 중지할 수 없다 — 관리 권한 공백 방지.
+
+    이전 버전 테스트는 관리자를 하나 더 추가한 뒤(활성 관리자 2명) 그 신규 관리자를 중지하는
+    시나리오를 검증했는데, 이 경우 중지 후에도 관리자가 1명 남으므로 서비스 규칙상 성공해야
+    맞다 — 테스트가 "실패해야 함"으로 잘못 기대하고 있었다. 진짜 "마지막 관리자" 시나리오는
+    활성 관리자가 정확히 1명일 때 그 사람을 중지하려는 경우다."""
     from app.core.errors import AppError
 
     admin_seed = await seed_staff(db_conn, role="admin")
     admin_ctx = _to_context(admin_seed, "admin")
     other_admin_seed = await seed_staff(db_conn, role="admin")
     await staff_service.deactivate_staff(other_admin_seed["staff_id"], deactivated_by=admin_ctx)
+    # 이제 활성 관리자는 admin_ctx 한 명뿐이다. 접수직원이 그 마지막 관리자를 중지하려 해도 막혀야 한다.
 
-    # 이제 활성 관리자는 admin_ctx 한 명뿐이다. 다른 사람이 그를 중지하려 해도 막혀야 한다.
-    yet_another_admin_seed = await seed_staff(db_conn, role="admin")
-    yet_another_admin_ctx = _to_context(yet_another_admin_seed, "admin")
+    receptionist_seed = await seed_staff(db_conn, role="receptionist")
+    receptionist_ctx = _to_context(receptionist_seed, "receptionist")
     with pytest.raises(AppError) as exc_info:
-        await staff_service.deactivate_staff(yet_another_admin_seed["staff_id"], deactivated_by=admin_ctx)
+        await staff_service.deactivate_staff(admin_ctx.id, deactivated_by=receptionist_ctx)
     assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_deactivate_staff_allows_admin_when_another_admin_remains(db_conn):
+    """[정합성 검토 R3-04] 관리자가 2명이면 한 명을 중지해도 최소 1명이 남으므로 허용돼야 한다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    other_admin_seed = await seed_staff(db_conn, role="admin")
+
+    await staff_service.deactivate_staff(other_admin_seed["staff_id"], deactivated_by=admin_ctx)
+
+    row = await db_conn.fetchrow("select is_active from staff where id = $1", other_admin_seed["staff_id"])
+    assert row["is_active"] is False
 
 
 @pytest.mark.asyncio
@@ -3007,12 +3123,64 @@ async def list_staff(staff: StaffContext) -> list[dict]:
             "select id, name, role, department_id, is_active from staff order by is_active desc, name"
         )
     return [dict(row) for row in rows]
+
+
+async def resend_invite(staff_id: UUID, requested_by: StaffContext) -> None:
+    """[정합성 검토 R3-04] 초대 이메일이 도착하지 않았거나 링크가 만료된 경우 관리자가 재발송할 수
+    있게 한다. `staff`에는 이메일이 없으므로(계정 자체는 `auth.users`가 소유) auth_user_id로
+    실제 이메일을 조회한 뒤 같은 `invite_user_by_email`을 다시 호출한다 — 이미 초대를 수락한
+    계정에 호출하면 Supabase가 오류를 반환하므로 그대로 사용자에게 안내한다."""
+    async with acquire_as(str(requested_by.auth_user_id)) as conn:
+        auth_user_id = await conn.fetchval("select auth_user_id from staff where id = $1", staff_id)
+    if auth_user_id is None:
+        raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
+
+    admin = get_admin_client()
+    user = admin.auth.admin.get_user_by_id(str(auth_user_id))
+    if user is None or user.user is None or not user.user.email:
+        raise AppError("계정 이메일을 확인할 수 없습니다.", status_code=404)
+    try:
+        admin.auth.admin.invite_user_by_email(user.user.email)
+    except Exception as exc:
+        raise AppError("재초대에 실패했습니다. 이미 초대를 수락한 계정일 수 있습니다.", status_code=409) from exc
 ```
+
+`backend/tests/test_staff_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_resend_invite_calls_invite_user_by_email_again(db_conn):
+    """[정합성 검토 R3-04] 초대 이메일을 못 받은 직원에게 관리자가 재발송할 수 있어야 한다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target_seed = await seed_staff(db_conn, role="receptionist")
+
+    fake_user = MagicMock()
+    fake_user.user.email = target_seed.get("email", "receptionist@test.local")
+    fake_admin_client = MagicMock()
+    fake_admin_client.auth.admin.get_user_by_id.return_value = fake_user
+
+    with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
+        await staff_service.resend_invite(target_seed["staff_id"], requested_by=admin_ctx)
+
+    fake_admin_client.auth.admin.get_user_by_id.assert_called_once_with(str(target_seed["auth_user_id"]))
+    fake_admin_client.auth.admin.invite_user_by_email.assert_called_once_with(fake_user.user.email)
+
+
+@pytest.mark.asyncio
+async def test_resend_invite_missing_staff_raises(db_conn):
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    with pytest.raises(AppError):
+        await staff_service.resend_invite(uuid4(), requested_by=admin_ctx)
+```
+
+> `seed_staff`가 반환하는 dict에 `email` 키가 없다면(1단계 conftest 픽스처가 이메일을 저장하지 않는 경우), 위 테스트에서 `target_seed["auth_user_id"]`로 `auth.users.email`을 직접 조회해 기대값을 만든다: `await db_conn.fetchval("select email from auth.users where id = $1", target_seed["auth_user_id"])`.
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_staff_service.py -v`
-Expected: 5개 테스트 모두 PASS([정합성 검토 R3-04] 본인/마지막 관리자 중지 차단, 목록 조회 검증 테스트 3건 추가)
+Expected: 8개 테스트 모두 PASS([정합성 검토 R3-04] 본인/마지막 관리자 중지 차단, 목록 조회, 관리자 2명 중 1명 중지 허용, 재초대 성공/대상없음 검증 테스트 6건 추가)
 
 - [ ] **Step 5: 커밋**
 
@@ -3445,23 +3613,38 @@ async def create_appointment(
             if not booked:
                 raise AppError("이미 예약된 시간입니다. 다른 시간을 선택하세요.", status_code=409)
 
-        try:
-            # 담당의-슬롯-진료과 정합성은 DB 트리거가 최종 검증하고,
-            # 이력(appointment_status_history)도 이 INSERT 한 번으로 트리거가 자동 기록한다.
-            # (초기 상태 자체의 유효성은 서비스 계층의 채널별 규칙에 맡긴다 — Task 5의 설계 노트 참고.)
-            appointment_id = await conn.fetchval(
-                """
-                insert into appointments
-                    (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by)
-                values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                returning id
-                """,
-                slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason,
-                initial_status, source, staff.id,
-            )
-        except asyncpg.PostgresError as exc:
-            # 트리거가 raise exception으로 던진 메시지는 이미 한글 안내문이다.
-            raise AppError(str(exc), status_code=400) from exc
+        # [정합성 검토 R4-04] assign_booking_code() 트리거는 INSERT 이전에 "이미 쓰이는 코드인지"만
+        # 확인하고 실제 유일성 보장은 booking_code UNIQUE 인덱스가 한다 — 두 요청이 동시에 같은
+        # BEFORE INSERT 트리거를 통과하며 서로의 커밋 전 상태를 보지 못하면(READ COMMITTED) 같은
+        # 후보 코드를 고를 수 있고, 그중 하나의 실제 INSERT가 UNIQUE 위반으로 실패한다. 이전 버전은
+        # 이 실패를 그대로 AppError로 올려 사용자에게 "예약 실패"로 보여줬다 — 트리거가 매 시도마다
+        # 새 코드를 다시 뽑으므로, INSERT 자체를 몇 번 재시도하면 대부분 조용히 성공한다.
+        appointment_id = None
+        last_exc: asyncpg.PostgresError | None = None
+        for _attempt in range(5):
+            try:
+                async with conn.transaction():  # 중첩 트랜잭션 = SAVEPOINT: 실패해도 바깥 트랜잭션은 안 깨짐
+                    appointment_id = await conn.fetchval(
+                        """
+                        insert into appointments
+                            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by)
+                        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                        returning id
+                        """,
+                        slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason,
+                        initial_status, source, staff.id,
+                    )
+                break
+            except asyncpg.UniqueViolationError as exc:
+                if "booking_code" not in str(exc):
+                    raise AppError(str(exc), status_code=400) from exc
+                last_exc = exc
+                continue
+            except asyncpg.PostgresError as exc:
+                # 트리거가 raise exception으로 던진 메시지는 이미 한글 안내문이다.
+                raise AppError(str(exc), status_code=400) from exc
+        else:
+            raise AppError("예약번호 발급에 실패했습니다. 다시 시도해주세요.", status_code=409) from last_exc
     return appointment_id
 
 
@@ -3560,10 +3743,11 @@ git commit -m "feat: 예약 생성/상태전이/대기순서/응급표시 서비
 - Test: `backend/tests/test_medical_record_service.py`
 
 **Interfaces:**
-- Consumes: `app.db.pool.acquire_as`(Task 9), `app.core.errors.AppError`(Task 10), `app.core.security.StaffContext`(Task 9)
+- Consumes: `app.db.pool.acquire_as`(Task 9), `app.core.errors.AppError`(Task 10), `app.core.security.StaffContext`(Task 9), `app.services.notification_service.notify_patient`(3단계 Task 8 — [정합성 검토 R4-02] `complete_record`가 `"visit_completed"` 알림을 이 함수로 발송한다. 다른 계획(2단계 취소요청 승인/반려)에서도 이미 같은 방식의 3단계 선행 의존을 쓰고 있다)
 - Produces: `app.services.medical_record_service.save_draft(appointment_id, staff, symptoms, diagnosis, treatment, patient_visible_notes) -> UUID`
 - Produces: `app.services.medical_record_service.complete_record(record_id, staff) -> None`
 - Produces: `app.services.medical_record_service.revise_record(record_id, staff, new_content: dict, reason: str, expected_updated_at) -> None`
+- Produces: `app.services.medical_record_service.get_record(appointment_id, staff) -> dict | None`, `list_revisions(record_id, staff) -> list[dict]`([정합성 검토 R5-08] 이전에는 저장 전용이라 조회 API 자체가 없었다 — 열람 시 `access_audit_log`에 `medical_record`로 기록한다)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -3634,6 +3818,85 @@ async def test_complete_record_marks_completed(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_complete_record_also_completes_appointment_and_notifies(db_conn, monkeypatch):
+    """정합성 검토 R4-02: 기록 완료 한 번으로 예약 상태·상태이력·알림이 함께 처리되는지 확인한다."""
+    doctor = _to_context(await seed_staff(db_conn, role="doctor"), "doctor")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    appointment_id = await _seed_appointment(db_conn, doctor, receptionist["staff_id"])
+    record_id = await medical_record_service.save_draft(
+        appointment_id, doctor, symptoms="기침", diagnosis="감기", treatment="처방", patient_visible_notes="휴식 권장",
+    )
+
+    notified = []
+
+    async def fake_notify(account_patient_id, notification_type, target_name=None, appointment_id=None):
+        notified.append((account_patient_id, notification_type, appointment_id))
+
+    monkeypatch.setattr("app.services.medical_record_service.notification_service.notify_patient", fake_notify)
+
+    await medical_record_service.complete_record(record_id, doctor)
+
+    status = await db_conn.fetchval("select status from appointments where id = $1", appointment_id)
+    assert status == "진료완료"
+
+    history_count = await db_conn.fetchval(
+        "select count(*) from appointment_status_history where appointment_id = $1 and to_status = '진료완료'",
+        appointment_id,
+    )
+    assert history_count == 1
+
+    assert len(notified) == 1
+    assert notified[0][1] == "visit_completed"
+    assert notified[0][2] == appointment_id
+
+
+@pytest.mark.asyncio
+async def test_complete_record_is_idempotent_on_retry(db_conn, monkeypatch):
+    """정합성 검토 R4-02: 네트워크 재시도로 같은 완료 요청이 두 번 들어와도 두 번째 호출이 실패하지 않아야 한다."""
+    doctor = _to_context(await seed_staff(db_conn, role="doctor"), "doctor")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    appointment_id = await _seed_appointment(db_conn, doctor, receptionist["staff_id"])
+    record_id = await medical_record_service.save_draft(
+        appointment_id, doctor, symptoms="기침", diagnosis="감기", treatment="처방", patient_visible_notes="휴식 권장",
+    )
+
+    monkeypatch.setattr(
+        "app.services.medical_record_service.notification_service.notify_patient",
+        lambda *a, **k: None,
+    )
+
+    await medical_record_service.complete_record(record_id, doctor)
+    await medical_record_service.complete_record(record_id, doctor)  # 재시도 — 예외 없이 통과해야 함
+
+    status = await db_conn.fetchval("select status from appointments where id = $1", appointment_id)
+    assert status == "진료완료"
+    history_count = await db_conn.fetchval(
+        "select count(*) from appointment_status_history where appointment_id = $1 and to_status = '진료완료'",
+        appointment_id,
+    )
+    assert history_count == 1  # 값이 그대로면 트리거가 새 이력을 남기지 않는다
+
+
+@pytest.mark.asyncio
+async def test_complete_record_rejects_invalid_appointment_status(db_conn):
+    """진료중이 아닌 예약(예: 아직 도착 전)은 완료 처리할 수 없다."""
+    doctor = _to_context(await seed_staff(db_conn, role="doctor"), "doctor")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    appointment_id = await _seed_appointment(db_conn, doctor, receptionist["staff_id"])
+    await db_conn.execute("update appointments set status = '도착' where id = $1", appointment_id)
+    record_id = await db_conn.fetchval(
+        "insert into medical_records (appointment_id, doctor_id, symptoms) values ($1, $2, '기침') returning id",
+        appointment_id, doctor.id,
+    )
+
+    with pytest.raises(AppError):
+        await medical_record_service.complete_record(record_id, doctor)
+
+    is_completed = await db_conn.fetchval("select is_completed from medical_records where id = $1", record_id)
+    assert is_completed is False  # 트랜잭션이 롤백되어 기록도 완료 처리되지 않아야 함
+
+
+@pytest.mark.asyncio
 async def test_save_draft_after_completion_raises(db_conn):
     doctor = _to_context(await seed_staff(db_conn, role="doctor"), "doctor")
     receptionist = await seed_staff(db_conn, role="receptionist")
@@ -3700,6 +3963,7 @@ import asyncpg
 from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
+from app.services import notification_service
 
 
 async def save_draft(
@@ -3741,13 +4005,48 @@ async def save_draft(
 
 
 async def complete_record(record_id: UUID, staff: StaffContext) -> None:
+    """[정합성 검토 R4-02] 기록 완료와 예약의 '진료중'→'진료완료' 전이를 같은 트랜잭션에서 처리한다.
+    acquire_as가 블록 전체를 하나의 DB 트랜잭션으로 감싸므로(Task 9), 예약 상태 전이가
+    거부되면(예: 예약이 아직 '진료중'이 아님) is_completed 갱신도 함께 롤백된다.
+    두 UPDATE 모두 값이 이미 같으면 조건 없이 재적용되므로(전이 트리거는 실제 값 변경에만 반응),
+    재시도해도 두 번째 호출이 실패하지 않는다(멱등)."""
     async with acquire_as(str(staff.auth_user_id)) as conn:
-        result = await conn.execute(
-            "update medical_records set is_completed = true, updated_at = now() where id = $1 and doctor_id = $2",
+        record = await conn.fetchrow(
+            "update medical_records set is_completed = true, updated_at = now() "
+            "where id = $1 and doctor_id = $2 returning appointment_id",
             record_id, staff.id,
         )
-    if result == "UPDATE 0":
-        raise AppError("진료기록을 완료 처리할 수 없습니다.", status_code=400)
+        if record is None:
+            raise AppError("진료기록을 완료 처리할 수 없습니다.", status_code=400)
+        appointment_id = record["appointment_id"]
+
+        await conn.execute("select set_config('app.status_change_reason', '진료 완료', true)")
+        try:
+            appointment = await conn.fetchrow(
+                "update appointments set status = '진료완료', updated_at = now() where id = $1 "
+                "returning account_patient_id, for_patient_id",
+                appointment_id,
+            )
+        except asyncpg.PostgresError as exc:
+            # enforce_appointment_status_transition() 트리거가 던지는 한글 메시지를 그대로 안내한다
+            # (예: 예약이 '진료중'이 아닌 상태에서 완료 처리를 시도한 경우).
+            raise AppError(str(exc), status_code=400) from exc
+
+        target_name = None
+        if appointment["for_patient_id"] != appointment["account_patient_id"]:
+            target_name = await conn.fetchval(
+                "select name from patients where id = $1", appointment["for_patient_id"],
+            )
+        account_patient_id = appointment["account_patient_id"]
+
+    # notify_patient는 (appointment_id, notification_type) 조합으로 중복 발송을 막으므로
+    # 재시도로 이 함수가 두 번 호출돼도 알림은 한 번만 나간다.
+    try:
+        await notification_service.notify_patient(
+            account_patient_id, "visit_completed", target_name=target_name, appointment_id=appointment_id,
+        )
+    except Exception:
+        pass
 
 
 async def revise_record(
@@ -3774,12 +4073,111 @@ async def revise_record(
             # RPC가 raise exception으로 던진 한글 메시지를 그대로 안내한다.
             status_code = 409 if getattr(exc, "sqlstate", None) == "P0003" else 400
             raise AppError(str(exc), status_code=status_code) from exc
+
+
+async def get_record(appointment_id: UUID, staff: StaffContext) -> dict | None:
+    """[정합성 검토 R5-08] 진료기록 원문 조회. 이전 버전은 저장(save_draft/complete_record/revise_record)
+    함수만 있고 조회 API가 아예 없었다 — 의사 화면이 기존 임시저장 내용을 불러오지 못했을 뿐 아니라,
+    "누가 진료기록을 열람했는지 관리자가 확인할 수 있어야 한다"(요구사항 3.1)는 요구를 지킬 방법 자체가
+    없었다. RLS(doctor_can_view_appointment 기반)가 접근 범위를 걸러주지만, 그 범위 안에서 실제로
+    열람한 기록은 access_audit_log에 별도로 남겨야 한다."""
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            """
+            select r.id, r.appointment_id, r.symptoms, r.diagnosis, r.treatment,
+                   r.patient_visible_notes, r.is_completed, r.updated_at, a.for_patient_id
+            from medical_records r
+            join appointments a on a.id = r.appointment_id
+            where r.appointment_id = $1
+            """,
+            appointment_id,
+        )
+        if row is None:
+            return None
+        await conn.execute(
+            "insert into access_audit_log (staff_id, patient_id, resource_type) values ($1, $2, 'medical_record')",
+            staff.id, row["for_patient_id"],
+        )
+    return {k: v for k, v in dict(row).items() if k != "for_patient_id"}
+
+
+async def list_revisions(record_id: UUID, staff: StaffContext) -> list[dict]:
+    """[정합성 검토 R5-08] 과거 수정이력(medical_record_revisions) 조회. get_record와 마찬가지로
+    조회 자체가 없었던 API를 새로 만들고, 열람 시 medical_record 감사로그를 남긴다."""
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        record = await conn.fetchrow(
+            """
+            select r.id, a.for_patient_id
+            from medical_records r join appointments a on a.id = r.appointment_id
+            where r.id = $1
+            """,
+            record_id,
+        )
+        if record is None:
+            return []
+        rows = await conn.fetch(
+            "select id, previous_content, revised_by, reason, revised_at "
+            "from medical_record_revisions where record_id = $1 order by revised_at desc",
+            record_id,
+        )
+        await conn.execute(
+            "insert into access_audit_log (staff_id, patient_id, resource_type) values ($1, $2, 'medical_record')",
+            staff.id, record["for_patient_id"],
+        )
+    return [dict(row) for row in rows]
+```
+
+`backend/tests/test_medical_record_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_get_record_logs_medical_record_access(db_conn):
+    """[정합성 검토 R5-08] 진료기록 원문 조회가 access_audit_log에 medical_record로 남아야 한다."""
+    doctor = _to_context(await seed_staff(db_conn, role="doctor"), "doctor")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    appointment_id = await _seed_appointment(db_conn, doctor, receptionist["staff_id"])
+    await medical_record_service.save_draft(
+        appointment_id, doctor, symptoms="기침", diagnosis="감기", treatment="처방", patient_visible_notes="휴식 권장",
+    )
+
+    record = await medical_record_service.get_record(appointment_id, doctor)
+    assert record["symptoms"] == "기침"
+
+    log_row = await db_conn.fetchrow(
+        "select staff_id, resource_type from access_audit_log where resource_type = 'medical_record'",
+    )
+    assert log_row["staff_id"] == doctor.id
+
+
+@pytest.mark.asyncio
+async def test_list_revisions_logs_medical_record_access(db_conn):
+    """[정합성 검토 R5-08] 수정이력 조회도 medical_record 감사로그를 남긴다."""
+    doctor = _to_context(await seed_staff(db_conn, role="doctor"), "doctor")
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    appointment_id = await _seed_appointment(db_conn, doctor, receptionist["staff_id"])
+    record_id = await medical_record_service.save_draft(
+        appointment_id, doctor, symptoms="기침", diagnosis="감기", treatment="처방", patient_visible_notes="휴식 권장",
+    )
+    await medical_record_service.complete_record(record_id, doctor)
+    row = await db_conn.fetchrow("select updated_at from medical_records where id = $1", record_id)
+    await medical_record_service.revise_record(
+        record_id, doctor,
+        new_content={"symptoms": "기침(수정)", "diagnosis": "감기", "treatment": "처방", "patient_visible_notes": "휴식 권장"},
+        reason="오타 수정", expected_updated_at=row["updated_at"],
+    )
+
+    revisions = await medical_record_service.list_revisions(record_id, doctor)
+    assert len(revisions) == 1
+
+    log_count = await db_conn.fetchval(
+        "select count(*) from access_audit_log where resource_type = 'medical_record'",
+    )
+    assert log_count == 1
 ```
 
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_medical_record_service.py -v`
-Expected: 4개 테스트 모두 PASS
+Expected: 10개 테스트 모두 PASS([정합성 검토 R4-02] 완료 시 예약 상태·알림 검증 4건 추가로 4→8, [정합성 검토 R5-08] 열람 감사로그 검증 2건 추가로 8→10)
 
 - [ ] **Step 4: 커밋**
 
@@ -3878,7 +4276,7 @@ git commit -m "feat: 환자정보/진료기록 열람 감사로그 서비스 추
 
 **Interfaces:**
 - Consumes: 모든 이전 태스크의 서비스/의존성
-- Produces: `POST /staff`, `PATCH /staff/{staff_id}/deactivate`, `GET /staff`([정합성 검토 R3-04]), `POST /appointments`, `PATCH /appointments/{appointment_id}/status`, `PATCH /appointments/{appointment_id}/queue-position`, `PATCH /appointments/{appointment_id}/urgent-flag`, `POST /medical-records/draft`, `PATCH /medical-records/{record_id}/complete`, `PATCH /medical-records/{record_id}/revise`
+- Produces: `POST /staff`, `PATCH /staff/{staff_id}/deactivate`, `GET /staff`([정합성 검토 R3-04]), `POST /staff/{staff_id}/resend-invite`([정합성 검토 R3-04]), `POST /appointments`, `PATCH /appointments/{appointment_id}/status`, `PATCH /appointments/{appointment_id}/queue-position`, `PATCH /appointments/{appointment_id}/urgent-flag`, `POST /medical-records/draft`, `PATCH /medical-records/{record_id}/complete`, `PATCH /medical-records/{record_id}/revise`, `GET /medical-records/by-appointment/{appointment_id}`([정합성 검토 R5-08]), `GET /medical-records/{record_id}/revisions`([정합성 검토 R5-08])
 
 - [ ] **Step 1: staff 라우터 작성**
 
@@ -3932,6 +4330,16 @@ async def get_staff_list(
 ) -> list[dict]:
     """[정합성 검토 R3-04] `/admin/staff` 화면의 직원 목록."""
     return await staff_service.list_staff(staff)
+
+
+@router.post("/{staff_id}/resend-invite")
+async def resend_invite(
+    staff_id: UUID,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[정합성 검토 R3-04] 초대 이메일 재발송."""
+    await staff_service.resend_invite(staff_id, requested_by=staff)
+    return {"status": "resent"}
 ```
 
 - [ ] **Step 2: appointments 라우터 작성**
@@ -4107,6 +4515,24 @@ async def revise_record(
         expected_updated_at=body.expected_updated_at,
     )
     return {"status": "revised"}
+
+
+@router.get("/by-appointment/{appointment_id}")
+async def get_record(
+    appointment_id: UUID,
+    staff: StaffContext = Depends(require_role("doctor", "receptionist", "admin")),
+) -> dict | None:
+    """[정합성 검토 R5-08] 진료기록 원문 조회 — RLS(doctor_can_view_appointment 기반)가 최종
+    접근 범위를 강제하므로, 담당 아닌 의사가 호출하면 여기 도달하기 전에 이미 None이 반환된다."""
+    return await medical_record_service.get_record(appointment_id, staff)
+
+
+@router.get("/{record_id}/revisions")
+async def list_revisions(
+    record_id: UUID,
+    staff: StaffContext = Depends(require_role("doctor", "receptionist", "admin")),
+) -> list[dict]:
+    return await medical_record_service.list_revisions(record_id, staff)
 ```
 
 - [ ] **Step 4: main.py에 라우터 연결**

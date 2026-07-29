@@ -664,10 +664,48 @@ create policy "patients_can_read_templates" on questionnaire_templates
   for select
   using (private.current_patient_id() is not null);
 
-create policy "patients_can_manage_own_questionnaire_responses" on questionnaire_responses
-  for all
-  using (exists (select 1 from appointments a where a.id = questionnaire_responses.appointment_id and patient_owns(a.for_patient_id)))
-  with check (exists (select 1 from appointments a where a.id = questionnaire_responses.appointment_id and patient_owns(a.for_patient_id)));
+-- 정합성 검토 R5-03: 이전 버전은 FOR ALL 정책 하나로 SELECT/INSERT/UPDATE/DELETE를 전부 허용하면서
+-- 소유권(patient_owns)만 검사했다. 서비스 계층(patient_questionnaire_service.EDITABLE_STATUSES)은
+-- '예약신청'/'예약확정'일 때만 저장하도록 검사하지만, 이 검사는 RLS가 아니라 애플리케이션 코드에만 있었다.
+-- 그 결과 Supabase 클라이언트로 직접 접속하면(백엔드 API를 거치지 않고) 도착/진료대기/진료중/진료완료
+-- 상태에서도 문진 응답을 직접 UPDATE·DELETE할 수 있었다. 조회(SELECT)는 방문 이후에도 본인 문진을
+-- 계속 볼 수 있어야 하므로 상태 제한 없이 소유권만 확인하고, 쓰기(INSERT/UPDATE/DELETE)만 상태를 제한한다.
+create policy "patients_can_read_own_questionnaire_responses" on questionnaire_responses
+  for select
+  using (exists (select 1 from appointments a where a.id = questionnaire_responses.appointment_id and patient_owns(a.for_patient_id)));
+
+create policy "patients_can_insert_own_questionnaire_responses" on questionnaire_responses
+  for insert
+  with check (exists (
+    select 1 from appointments a
+    where a.id = questionnaire_responses.appointment_id
+      and patient_owns(a.for_patient_id)
+      and a.status in ('예약신청', '예약확정')
+  ));
+
+create policy "patients_can_update_own_questionnaire_responses" on questionnaire_responses
+  for update
+  using (exists (
+    select 1 from appointments a
+    where a.id = questionnaire_responses.appointment_id
+      and patient_owns(a.for_patient_id)
+      and a.status in ('예약신청', '예약확정')
+  ))
+  with check (exists (
+    select 1 from appointments a
+    where a.id = questionnaire_responses.appointment_id
+      and patient_owns(a.for_patient_id)
+      and a.status in ('예약신청', '예약확정')
+  ));
+
+create policy "patients_can_delete_own_questionnaire_responses" on questionnaire_responses
+  for delete
+  using (exists (
+    select 1 from appointments a
+    where a.id = questionnaire_responses.appointment_id
+      and patient_owns(a.for_patient_id)
+      and a.status in ('예약신청', '예약확정')
+  ));
 
 create view patient_medical_notes with (security_invoker = false) as
   select mr.id, mr.appointment_id, mr.patient_visible_notes, mr.is_completed, mr.updated_at
@@ -797,15 +835,95 @@ async def test_patient_cannot_read_medical_records_table_directly(db_conn):
     )
     assert len(view_rows) == 1
     assert view_rows[0]["patient_visible_notes"] == "푹 쉬세요"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("locked_status", ["도착", "진료대기", "진료중", "진료완료"])
+async def test_patient_cannot_directly_update_questionnaire_after_arrival(db_conn, locked_status):
+    """정합성 검토 R5-03: 서비스 계층(EDITABLE_STATUSES)이 아니라 RLS 자체가
+    도착 이후 상태에서 문진 응답 직접 UPDATE를 막는지 확인한다 — 백엔드 API를
+    거치지 않고 Supabase 클라이언트로 직접 접속하는 우회 경로를 차단하기 위함."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, doctor_id = await _seed_dept_and_doctor(db_conn)
+    me = await seed_patient(db_conn)
+    template_id = await db_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb) returning id",
+        dept_id,
+    )
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments (account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+        values ($1, $1, $2, $3, '예약신청', 'app')
+        returning id
+        """,
+        me["patient_id"], dept_id, doctor_id,
+    )
+    response_id = await db_conn.fetchval(
+        "insert into questionnaire_responses (appointment_id, template_id, answers) values ($1, $2, '[]'::jsonb) returning id",
+        appointment_id, template_id,
+    )
+
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    await db_conn.execute("update appointments set status = $1 where id = $2", locked_status, appointment_id)
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    updated = await db_conn.fetchval(
+        "update questionnaire_responses set answers = '[{\"q\": 1}]'::jsonb where id = $1 returning id",
+        response_id,
+    )
+    assert updated is None  # RLS의 using 조건이 상태를 걸러 대상 행이 0건이 되어 UPDATE가 조용히 0행 적용됨
+
+    deleted = await db_conn.fetchval(
+        "delete from questionnaire_responses where id = $1 returning id", response_id,
+    )
+    assert deleted is None
+
+    # 조회는 방문 이후에도 계속 가능해야 한다(상담 이력 확인 등).
+    still_there = await db_conn.fetchrow("select id from questionnaire_responses where id = $1", response_id)
+    assert still_there is not None
+
+
+@pytest.mark.asyncio
+async def test_patient_can_edit_questionnaire_before_arrival(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id, doctor_id = await _seed_dept_and_doctor(db_conn)
+    me = await seed_patient(db_conn)
+    template_id = await db_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb) returning id",
+        dept_id,
+    )
+
+    await set_session_auth(db_conn, me["auth_user_id"])
+    appointment_id = await db_conn.fetchval(
+        """
+        insert into appointments (account_patient_id, for_patient_id, department_id, doctor_id, status, source)
+        values ($1, $1, $2, $3, '예약확정', 'app')
+        returning id
+        """,
+        me["patient_id"], dept_id, doctor_id,
+    )
+    response_id = await db_conn.fetchval(
+        "insert into questionnaire_responses (appointment_id, template_id, answers) values ($1, $2, '[]'::jsonb) returning id",
+        appointment_id, template_id,
+    )
+    updated = await db_conn.fetchval(
+        "update questionnaire_responses set answers = '[{\"q\": 1}]'::jsonb where id = $1 returning id",
+        response_id,
+    )
+    assert updated == response_id
 ```
 
 Run: `cd backend && pytest tests/test_patient_appointments_rls.py -v`
-Expected: 마이그레이션 적용 전에는 첫 번째 테스트 FAIL(정책 없음) → Step 2 이후 4개 모두 PASS
+Expected: 마이그레이션 적용 전에는 첫 번째 테스트 FAIL(정책 없음) → Step 2 이후 6개 모두 PASS
 
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_appointments_rls.py -v`
-Expected: 4개 테스트 모두 PASS
+Expected: 6개 테스트 모두 PASS(도착/진료대기/진료중/진료완료 4개 상태 각각의 파라미터화 테스트 포함)
 
 - [ ] **Step 5: 커밋**
 
@@ -1746,11 +1864,94 @@ async def list_available_slots(doctor_id: UUID, target_date: date, patient: Pati
 Run: `cd backend && pytest tests/test_patient_catalog_service.py -v`
 Expected: 2개 테스트 모두 PASS
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 7: [정합성 검토 R5-04] 공개(익명) 카탈로그 서비스**
+
+4단계(AI 상담봇)의 `chat_tools.list_departments_doctors`/`list_available_slots`는 로그인하지 않은 방문자와도 대화한다(챗봇 스펙은 익명 사용을 허용). 그런데 이 두 도구는 `patient_catalog_service.list_departments/list_doctors/list_available_slots`에 `ctx.patient`를 그대로 넘기고, 이 함수들은 `acquire_as(str(patient.auth_user_id))`로 인증된 환자 세션을 요구한다. `ctx.patient`가 `None`이면 `str(None.auth_user_id)`에서 즉시 `AttributeError`가 나 익명 사용자가 진료과 추천이나 빈 시간 조회에 닿는 순간 예외로 끝난다.
+
+진료과명·의사명·빈 슬롯 시간은 애초에 개인정보가 아니고 병원 홈페이지에 그냥 공개해도 되는 정보이므로, 인증 세션이 전혀 필요 없는 별도 서비스를 만든다. `acquire_as`로 RLS를 통과시키는 대신, `get_pool()`이 반환하는 기본 연결(마이그레이션 실행 계정 권한이라 RLS를 우회함)을 그대로 쓰되 쿼리 자체에서 안전한 컬럼(`id`, `name`, `start_time`)과 조건(`is_active`, `status = '빈시간'`)만 골라 반환해 개인정보 노출 경로를 만들지 않는다.
+
+`backend/app/services/patient_public_catalog_service.py`(신규):
+```python
+from datetime import date
+from uuid import UUID
+
+from app.db.pool import get_pool
+
+
+async def list_departments() -> list[dict]:
+    """[정합성 검토 R5-04] 로그인 여부와 무관하게 항상 호출 가능한 공개 카탈로그.
+    patient_catalog_service.list_departments와 달리 인증 세션(acquire_as)을 요구하지 않는다."""
+    pool = await get_pool()
+    rows = await pool.fetch("select id, name from departments where is_active order by name")
+    return [dict(row) for row in rows]
+
+
+async def list_doctors(department_id: UUID) -> list[dict]:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "select id, name from staff where role = 'doctor' and department_id = $1 and is_active order by name",
+        department_id,
+    )
+    return [dict(row) for row in rows]
+
+
+async def list_available_slots(doctor_id: UUID, target_date: date) -> list[dict]:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """
+        select id, start_time from appointment_slots
+        where doctor_id = $1 and slot_date = $2 and status = '빈시간'
+        order by start_time
+        """,
+        doctor_id, target_date,
+    )
+    return [{"id": row["id"], "start_time": row["start_time"]} for row in rows]
+```
+
+`backend/tests/test_patient_public_catalog_service.py`(신규):
+```python
+import pytest
+from datetime import date
+
+from app.services import patient_public_catalog_service
+from tests.conftest import seed_staff
+
+
+@pytest.mark.asyncio
+async def test_anonymous_can_list_departments_and_doctors_without_patient_context(db_conn):
+    """[정합성 검토 R5-04] PatientContext 없이도(익명) 활성 진료과·의사 목록을 조회할 수 있어야 한다."""
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
+
+    departments = await patient_public_catalog_service.list_departments()
+    assert any(d["id"] == dept_id for d in departments)
+
+    doctors = await patient_public_catalog_service.list_doctors(dept_id)
+    assert len(doctors) == 1
+
+
+@pytest.mark.asyncio
+async def test_anonymous_can_list_available_slots(db_conn):
+    doctor = await seed_staff(db_conn, role="doctor")
+    await db_conn.execute(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, $2, '09:00', '빈시간')",
+        doctor["staff_id"], date(2026, 8, 1),
+    )
+
+    slots = await patient_public_catalog_service.list_available_slots(doctor["staff_id"], date(2026, 8, 1))
+    assert len(slots) == 1
+    assert str(slots[0]["start_time"]) == "09:00:00"
+```
+
+Run: `cd backend && pytest tests/test_patient_public_catalog_service.py -v`
+Expected: 2개 테스트 모두 PASS
+
+- [ ] **Step 8: 커밋**
 
 ```bash
-git add backend/app/services/patient_catalog_service.py backend/app/services/slot_service.py backend/tests/test_patient_catalog_service.py backend/tests/test_slot_service.py
-git commit -m "feat: 환자용 진료과/의사/슬롯 조회 서비스와 slot_service.release_slot 추가"
+git add backend/app/services/patient_catalog_service.py backend/app/services/patient_public_catalog_service.py backend/app/services/slot_service.py backend/tests/test_patient_catalog_service.py backend/tests/test_patient_public_catalog_service.py backend/tests/test_slot_service.py
+git commit -m "feat: 환자용 진료과/의사/슬롯 조회 서비스와 익명용 공개 카탈로그 서비스 추가"
 ```
 
 ---

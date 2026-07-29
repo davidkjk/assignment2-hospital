@@ -6,13 +6,13 @@
 
 **Architecture:** 스펙 `docs/superpowers/specs/2026-07-27-deployment-design.md` 참조. 1구간(로컬: 시나리오 테스트·시드·오류화면·빌드설정·CI) → ★사용자 승인 관문(원격 DB 적용) → 2구간(클라우드 구성) → 3구간(검수·문서) 순서.
 
-**Tech Stack:** FastAPI(backend/), React+Vite(web/), Flutter(mobile/), Supabase CLI, Railway, Vercel, GitHub Actions, pg_dump, gitleaks
+**Tech Stack:** FastAPI(backend/), React+Vite(frontend/), Flutter(mobile/), Supabase CLI, Railway, Vercel, GitHub Actions, pg_dump, gitleaks
 
 ## Global Constraints
 
 - **[정합성 검토 P1/P2 추적]** `docs/supabase-postgres-review-2026-07-28.md`의 SDB-25(연결 풀/역할 분리), SDB-34(pg_stat_statements·실행계획 기준선)는 이 단계(운영 배포) 작업 시 함께 반영하기로 결정됨(2026-07-28).
 - **전제**: 1~4단계 구현 완료 후 실행한다. (1~4단계 모두 스펙·구현 계획 문서가 존재하며, 구현 실행이 선행돼야 한다)
-- 디렉토리: 백엔드 `backend/`, 직원 웹 `web/`, 환자 앱 `mobile/`, 마이그레이션 `supabase/migrations/`
+- 디렉토리: 백엔드 `backend/`, 직원 웹 `frontend/`([정합성 검토 R5-07] 2/4단계 계획이 이미 쓰는 `frontend/`로 통일 — 이전에는 이 문서만 `web/`을 썼다), 환자 앱 `mobile/`, 마이그레이션 `supabase/migrations/`
 - 사용자 노출 메시지는 전부 한글, 개발자용 오류 문장 노출 금지 (요구사항 6.4)
 - 비밀키는 저장소에 절대 커밋하지 않는다. 실제 값은 플랫폼 환경변수에만 저장, 저장소에는 `.env.example`(키 이름만)
 - 시간 기준: 크론 스케줄은 KST 기준 (알림 08:00 KST = `0 23 * * *` UTC, 백업 03:00 KST = `0 18 * * *` UTC)
@@ -954,12 +954,12 @@ git commit -m "feat: pg_dump 일일 백업 잡 추가 (14일 보관, Supabase St
 **Files:**
 - Create: `backend/app/routers/error_logs.py`
 - Modify: `backend/app/main.py` (라우터 등록 1줄)
-- Create: `web/src/pages/ErrorLogPage.tsx`
-- Modify: `web/src/App.tsx` (관리자 라우트에 `/admin/errors` 추가 — 기존 관리자 메뉴 패턴을 따름)
-- Test: `backend/tests/test_error_logs_router.py`, `web/src/pages/ErrorLogPage.test.tsx`
+- Create: `frontend/src/pages/ErrorLogPage.tsx`
+- Modify: `frontend/src/App.tsx` (관리자 라우트에 `/admin/errors` 추가 — 기존 관리자 메뉴 패턴을 따름)
+- Test: `backend/tests/test_error_logs_router.py`, `frontend/src/pages/ErrorLogPage.test.tsx`
 
 **Interfaces:**
-- Consumes: `app.core.security.require_role`, `app.db.pool.acquire_as`, 테이블 `system_error_log(id, occurred_at, feature, message)`, web의 기존 API 클라이언트(`web/src/api/` — 2단계 Task 5 패턴)
+- Consumes: `app.core.security.require_role`, `app.db.pool.acquire_as`, 테이블 `system_error_log(id, occurred_at, feature, message)`, 직원 웹의 기존 API 클라이언트(`frontend/src/api/` — 2단계 Task 5 패턴)
 - Produces: `GET /error-logs?from=&to=` (admin 전용, 최신순 최대 200건, 각 항목 `{id, occurred_at, feature, message}`), `ErrorLogPage` 컴포넌트(`/admin/errors` 라우트)
 
 - [ ] **Step 1: 실패하는 백엔드 테스트 작성**
@@ -1067,7 +1067,7 @@ Expected: PASS
 
 - [ ] **Step 5: React 페이지 작성 (실패하는 테스트 먼저)**
 
-`web/src/pages/ErrorLogPage.test.tsx` — 2단계의 기존 페이지 테스트 패턴(msw 또는 API 모킹)을 따른다:
+`frontend/src/pages/ErrorLogPage.test.tsx` — 2단계의 기존 페이지 테스트 패턴(msw 또는 API 모킹)을 따른다:
 ```tsx
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -1092,7 +1092,7 @@ describe("ErrorLogPage", () => {
 });
 ```
 
-`web/src/pages/ErrorLogPage.tsx`:
+`frontend/src/pages/ErrorLogPage.tsx`:
 ```tsx
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
@@ -1156,17 +1156,17 @@ export default function ErrorLogPage() {
 }
 ```
 
-`web/src/App.tsx`: 기존 관리자 전용 라우트 블록(2단계 Task 4의 역할 기반 라우팅)에 `/admin/errors` → `<ErrorLogPage />` 추가, 관리자 메뉴에 "시스템 오류" 링크 추가. (기존 `SchedulePage`/`StatsPage` 등록 방식과 동일하게)
+`frontend/src/App.tsx`: 기존 관리자 전용 라우트 블록(2단계 Task 4의 역할 기반 라우팅)에 `/admin/errors` → `<ErrorLogPage />` 추가, 관리자 메뉴에 "시스템 오류" 링크 추가. (기존 `SchedulePage`/`StatsPage` 등록 방식과 동일하게)
 
 - [ ] **Step 6: 웹 테스트 통과 확인**
 
-Run: `cd web && npx vitest run src/pages/ErrorLogPage.test.tsx`
+Run: `cd frontend && npx vitest run src/pages/ErrorLogPage.test.tsx`
 Expected: PASS
 
 - [ ] **Step 7: 커밋**
 
 ```bash
-git add backend/app/routers/error_logs.py backend/app/main.py backend/tests/test_error_logs_router.py web/src/pages/ErrorLogPage.tsx web/src/pages/ErrorLogPage.test.tsx web/src/App.tsx
+git add backend/app/routers/error_logs.py backend/app/main.py backend/tests/test_error_logs_router.py frontend/src/pages/ErrorLogPage.tsx frontend/src/pages/ErrorLogPage.test.tsx frontend/src/App.tsx
 git commit -m "feat: 관리자용 시스템 오류 로그 조회 API·화면 추가"
 ```
 
@@ -1571,8 +1571,8 @@ git commit -m "feat: 앱 릴리즈 서명 설정·아이콘·빌드 스크립트
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Consumes: `backend/` pytest 스위트, `web/` vitest+build, `mobile/` flutter analyze/test
-- Produces: push/PR 시 3개 job(backend, web, mobile)이 실행되는 `CI` 워크플로 — Task 17의 배포 게이트가 이 체크 이름을 참조
+- Consumes: `backend/` pytest 스위트, `frontend/` vitest+build, `mobile/` flutter analyze/test
+- Produces: push/PR 시 3개 job(backend, frontend, mobile)이 실행되는 `CI` 워크플로 — Task 17의 배포 게이트가 이 체크 이름을 참조
 
 - [ ] **Step 1: 워크플로 작성**
 
@@ -1609,7 +1609,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
 
-  web:
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1617,13 +1617,13 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-        working-directory: web
+        working-directory: frontend
       - run: npx vitest run
-        working-directory: web
+        working-directory: frontend
       - run: npm run build
-        working-directory: web
+        working-directory: frontend
 
   mobile:
     runs-on: ubuntu-latest
@@ -1652,7 +1652,7 @@ jobs:
 
 ```bash
 git add .github/workflows/ci.yml
-git commit -m "ci: backend/web/mobile 테스트 게이트 워크플로 추가"
+git commit -m "ci: backend/frontend/mobile 테스트 게이트 워크플로 추가"
 git push origin main
 ```
 Run: `gh run watch`
@@ -1801,7 +1801,7 @@ git push origin main
 ### Task 15: Vercel 배포 — 직원 웹 + 상담봇 webchat 앱 + 위젯 데모 페이지
 
 **Files:**
-- Create: `web/.env.example` (`VITE_API_BASE_URL=`, `VITE_SUPABASE_URL=`, `VITE_SUPABASE_ANON_KEY=`)
+- Create: `frontend/.env.example` (`VITE_API_BASE_URL=`, `VITE_SUPABASE_URL=`, `VITE_SUPABASE_ANON_KEY=`)
 - Create: `widget-demo/index.html`
 
 **Interfaces:**
@@ -1812,11 +1812,11 @@ git push origin main
 
 - [ ] **Step 1: 직원 웹 Vercel 프로젝트 생성**
 
-Vercel 대시보드 → Add New Project → 저장소 선택, Root Directory `web/`, Framework Preset: Vite. 환경변수 3개 입력(`VITE_API_BASE_URL`=Railway 주소, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+Vercel 대시보드 → Add New Project → 저장소 선택, Root Directory `frontend/`, Framework Preset: Vite. 환경변수 3개 입력(`VITE_API_BASE_URL`=Railway 주소, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 
 - [ ] **Step 2: SPA 라우팅 설정 확인**
 
-React Router 새로고침 404 방지: `web/vercel.json`이 없다면 생성:
+React Router 새로고침 404 방지: `frontend/vercel.json`이 없다면 생성:
 ```json
 { "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
 ```
@@ -1866,7 +1866,7 @@ Vercel → Add New Project → Root Directory `widget-demo/`, Framework: Other(�
 - [ ] **Step 7: 커밋**
 
 ```bash
-git add web/.env.example web/vercel.json widget-demo/
+git add frontend/.env.example frontend/vercel.json widget-demo/
 git commit -m "deploy: Vercel 직원 웹·webchat 앱 설정과 상담봇 위젯 데모 페이지 추가"
 git push origin main
 ```
@@ -1928,13 +1928,13 @@ Railway 서비스 Settings → "Wait for CI" (GitHub check 통과 후 배포) �
 
 Vercel은 기본적으로 push마다 즉시 빌드한다. Project Settings → Git에서 "Only build production if checks pass" 유형 설정이 있으면 활성화. 없으면 대안으로 Ignored Build Step에 `git log -1 --pretty=%B | grep -qv '\[skip-deploy\]'` 같은 규칙 대신 **GitHub Actions에서 CI 성공 후 Vercel CLI로 배포하는 방식으로 전환**한다 — 이 경우 `.github/workflows/ci.yml`에 deploy job을 추가:
 ```yaml
-  deploy-web:
-    needs: [backend, web, mobile]
+  deploy-frontend:
+    needs: [backend, frontend, mobile]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd web
+      - run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
 ```
 (Vercel 프로젝트의 Git 자동 배포는 끄고, `VERCEL_TOKEN`은 GitHub 저장소 Secrets에 등록)
 

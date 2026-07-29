@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **[정합성 검토 P1/P2 추적]** `docs/supabase-postgres-review-2026-07-28.md`의 SDB-10(지식자료 CASCADE DELETE), SDB-30(트랜잭션 안에서 외부 임베딩 API 대기)은 P0가 아니라 해당 기능을 실제로 만들 때 함께 반영하기로 결정됨(2026-07-28).
-- 이 계획은 1~3단계 계획의 산출물이 이미 존재한다고 가정한다: `backend/` 스캐폴딩, `supabase/migrations/00001~00099`(기반) + `00100~00199`(직원 웹) + `00200~00299`(환자 앱), `app.db.pool.acquire_as`/`get_pool`, `app.core.security.StaffContext`/`require_role`, `app.core.patient_security.PatientContext`/`get_current_patient`, `app.core.errors.AppError`/`log_error`, `app.integrations.sms_client.get_sms_client`, `app.services.notification_service.notify_patient`, `app.services.patient_catalog_service.*`, `app.services.patient_booking_service.create_booking`, `app.services.patient_appointment_query_service.list_my_appointments`
+- 이 계획은 1~3단계 계획의 산출물이 이미 존재한다고 가정한다: `backend/` 스캐폴딩, `supabase/migrations/00001~00099`(기반) + `00100~00199`(직원 웹) + `00200~00299`(환자 앱), `app.db.pool.acquire_as`/`get_pool`, `app.core.security.StaffContext`/`require_role`, `app.core.patient_security.PatientContext`/`get_current_patient`, `app.core.errors.AppError`/`log_error`, `app.integrations.sms_client.get_sms_client`, `app.services.notification_service.notify_patient`, `app.services.patient_catalog_service.*`, `app.services.patient_public_catalog_service.*`([정합성 검토 R5-04] 익명 사용자용), `app.services.patient_booking_service.create_booking`, `app.services.patient_appointment_query_service.list_my_appointments`
 - 마이그레이션 번호 대역: **4단계(AI 챗봇) `00300~00399`**(정합성 검토 SDB-01, 1~3단계와 겹치지 않도록 미리 고정된 대역). 신규 마이그레이션은 `supabase/migrations/00300`부터 번호를 이어간다
 - **AI 프레임워크는 LangChain을 사용한다** (스펙 "핵심 결정" — 이전 버전의 "Claude API tool use 수동 루프 직접 구현" 결정을 대체함). 모델 호출은 `langchain-anthropic`의 `ChatAnthropic`으로, 갈래 분기는 `RunnableBranch`로, 도구 실행형 갈래는 `AgentExecutor`로 구현한다
 - 대화 모델은 `claude-sonnet-5` 고정, 임베딩은 OpenAI `text-embedding-3-small`(1536차원) 고정 (스펙 섹션 1/2)
@@ -771,7 +771,7 @@ git commit -m "feat: OpenAI 임베딩 클라이언트 + 4단계 설정"
 
 **Interfaces:**
 - Consumes: `app.db.pool.get_pool`, `EmbeddingClient` (주입 가능), `StaffContext`
-- Produces: `app.services.kb_service.create_document(staff, title, category, content, is_restricted=False) -> UUID`, `update_document(staff, document_id, title, category, content, is_restricted=False, embedder=None) -> None`([정합성 검토 R4-01] 문서가 `draft` 상태면 기존과 동일하게 즉시 덮어쓴다. `approved` 상태면 라이브 내용은 그대로 두고 `pending_*` 컬럼에 수정 내용을 저장 + `has_pending_edit=true`만 표시 — 재청킹하지 않음), `approve_document(staff, document_id) -> None`(청킹+임베딩 실행, 관리자만, `draft`→`approved` 최초 승인 전용), `approve_pending_edit(staff, document_id, embedder=None) -> None`([정합성 검토 R4-01] 신규. 관리자만(본인이 수정한 문서도 자기 승인 가능). 현재 라이브 내용을 `kb_document_revisions`에 스냅샷 → `pending_*`를 라이브 컬럼으로 승격 → 재청킹+재임베딩 → `pending_*` 초기화, `has_pending_edit=false`), `archive_document(staff, document_id) -> None`(조각 삭제), `list_documents(staff, status=None, category=None) -> list[dict]`, `list_revisions(staff, document_id) -> list[dict]`(수정이력 시간 역순), `chunk_text(content: str) -> list[str]`(빈 줄 기준 문단 분리, 800자 초과 문단은 분할). `is_restricted=True`인 자료는 상담봇이 답하면 안 되는 주제를 나타낸다(요구사항 3.8) — RAG 체인(Task 7)이 이 값을 보고 LLM 생성 없이 `content`를 그대로 안내한다
+- Produces: `app.services.kb_service.create_document(staff, title, category, content, is_restricted=False) -> UUID`, `update_document(staff, document_id, title, category, content, is_restricted=False, embedder=None) -> None`([정합성 검토 R4-01] 문서가 `draft` 상태면 기존과 동일하게 즉시 덮어쓴다. `approved` 상태면 라이브 내용은 그대로 두고 `pending_*` 컬럼에 수정 내용을 저장 + `has_pending_edit=true`만 표시 — 재청킹하지 않음), `approve_document(staff, document_id) -> None`(청킹+임베딩 실행, 관리자만, `draft`→`approved` 최초 승인 전용), `approve_pending_edit(staff, document_id, embedder=None) -> None`([정합성 검토 R4-01] 신규. 관리자만(본인이 수정한 문서도 자기 승인 가능). 현재 라이브 내용을 `kb_document_revisions`에 스냅샷 → `pending_*`를 라이브 컬럼으로 승격 → 재청킹+재임베딩 → `pending_*` 초기화, `has_pending_edit=false`), `archive_document(staff, document_id) -> None`(조각 삭제), `list_documents(staff, status=None, category=None) -> list[dict]`, `get_document(staff, document_id) -> dict | None`([정합성 검토 R4-01] 신규 — 라이브 컬럼(title/category/content/is_restricted)과 대기 중 수정본(pending_*)을 함께 반환해 재승인 전 비교 화면에 쓴다), `list_revisions(staff, document_id) -> list[dict]`(수정이력 시간 역순), `chunk_text(content: str) -> list[str]`(빈 줄 기준 문단 분리, 800자 초과 문단은 분할). `is_restricted=True`인 자료는 상담봇이 답하면 안 되는 주제를 나타낸다(요구사항 3.8) — RAG 체인(Task 7)이 이 값을 보고 LLM 생성 없이 `content`를 그대로 안내한다
 
 - [ ] **Step 1: 청킹 단위 테스트 작성 (순수 함수 먼저)**
 
@@ -986,6 +986,28 @@ async def test_non_admin_cannot_approve(service_conn, receptionist_staff, admin_
     )
     with pytest.raises(AppError):
         await kb_service.approve_document(receptionist_staff, doc_id, embedder=FakeEmbedding())
+
+
+@pytest.mark.asyncio
+async def test_get_document_returns_live_and_pending_content_for_comparison(service_conn, admin_staff):
+    """[정합성 검토 R4-01] list_documents는 배지 표시용 요약뿐이라 재승인 전 비교가 불가능했다.
+    get_document는 라이브 내용과 대기 중 수정본을 함께 반환해야 한다."""
+    from app.services import kb_service
+
+    doc_id = await kb_service.create_document(
+        admin_staff, title="내과 진료시간", category="진료시간", content="오후 2시까지 접수 가능합니다."
+    )
+    await kb_service.approve_document(admin_staff, doc_id, embedder=FakeEmbedding())
+    await kb_service.update_document(
+        admin_staff, doc_id, title="내과 진료시간", category="진료시간",
+        content="오후 2시 30분까지 접수 가능합니다.", embedder=FakeEmbedding(),
+    )
+
+    doc = await kb_service.get_document(admin_staff, doc_id)
+
+    assert doc["content"] == "오후 2시까지 접수 가능합니다."  # 라이브 내용
+    assert doc["pending_content"] == "오후 2시 30분까지 접수 가능합니다."  # 대기 중 수정본
+    assert doc["has_pending_edit"] is True
 ```
 
 - [ ] **Step 4: 실패 확인 → 서비스 구현**
@@ -1150,6 +1172,20 @@ async def list_documents(staff: StaffContext, status: str | None = None, categor
         status, category,
     )
     return [dict(r) for r in rows]
+
+
+async def get_document(staff: StaffContext, document_id: UUID) -> dict | None:
+    """[정합성 검토 R4-01] list_documents는 배지 표시용 요약만 반환해 pending 본문 자체가 없었다.
+    관리자가 "재승인" 전에 실제로 무엇이 바뀌는지 라이브 내용과 대기 중 수정본을 나란히 비교해
+    볼 수 있어야 하므로, 문서 하나의 라이브/대기 컬럼을 모두 반환하는 상세 조회를 추가한다."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "select id, title, category, content, is_restricted, status, has_pending_edit, "
+        "pending_title, pending_category, pending_content, pending_is_restricted, pending_updated_at "
+        "from kb_documents where id = $1",
+        document_id,
+    )
+    return dict(row) if row else None
 ```
 
 - [ ] **Step 5: 테스트 통과 확인 후 Commit**
@@ -1535,7 +1571,7 @@ git commit -m "feat: 문진 체인 - 진료과 추천형 (구조화된 순차 �
 - Test: `backend/tests/test_agent_chain.py`
 
 **Interfaces:**
-- Consumes: `rag_search_service.search`(Task 6), `patient_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app), `patient_appointment_query_service.list_my_appointments`(3단계, patient-app), `get_chat_model`(Task 7)
+- Consumes: `rag_search_service.search`(Task 6), `patient_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app), `patient_public_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app — [정합성 검토 R5-04] 익명 사용자 경로), `patient_appointment_query_service.list_my_appointments`(3단계, patient-app), `get_chat_model`(Task 7)
 - Produces: `app.services.chat_tools.ToolContext`(dataclass: `patient: PatientContext | None`, `conversation_id: UUID`, `collected: dict` — `source_chunk_ids: list`, `card: dict | None`)
 - Produces: `app.services.chat_tools.build_tools(ctx: ToolContext) -> list[StructuredTool]` (도구 5개 — 인계 도구는 없음, Task 10의 감시 로직으로 분리됨)
 - Produces: `app.services.agent_chain.run(query: str, ctx: ToolContext, model=None) -> dict` (`{"text": str, "card": dict | None, "source_chunk_ids": list}`)
@@ -1617,6 +1653,51 @@ async def test_propose_card_requires_login():
     })
     assert "로그인" in out
     assert ctx.collected["card"] is None
+
+
+@pytest.mark.asyncio
+async def test_anonymous_list_departments_doctors_uses_public_catalog(monkeypatch):
+    """[정합성 검토 R5-04] ctx.patient가 None이어도 예외 없이 진료과·의사 목록을 반환해야 한다
+    (이전 버전은 patient_catalog_service에 None을 그대로 넘겨 AttributeError로 끝났다)."""
+    from app.services import chat_tools
+
+    dept_id = str(uuid4())
+
+    async def fake_list_departments():
+        return [{"id": dept_id, "name": "내과"}]
+
+    async def fake_list_doctors(department_id):
+        assert department_id == dept_id
+        return [{"id": str(uuid4()), "name": "김의사"}]
+
+    monkeypatch.setattr(chat_tools.patient_public_catalog_service, "list_departments", fake_list_departments)
+    monkeypatch.setattr(chat_tools.patient_public_catalog_service, "list_doctors", fake_list_doctors)
+
+    ctx = ToolContext(patient=None, conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "list_departments_doctors")
+
+    out = await tool.ainvoke({})
+    assert "내과: 김의사" in out
+
+
+@pytest.mark.asyncio
+async def test_anonymous_list_available_slots_uses_public_catalog(monkeypatch):
+    """[정합성 검토 R5-04] 익명 사용자의 빈 시간 조회도 예외 없이 끝나야 한다."""
+    from app.services import chat_tools
+
+    doctor_id = uuid4()
+
+    async def fake_list_available_slots(d_id, target_date):
+        assert d_id == doctor_id
+        return [{"id": uuid4(), "start_time": "09:00:00"}]
+
+    monkeypatch.setattr(chat_tools.patient_public_catalog_service, "list_available_slots", fake_list_available_slots)
+
+    ctx = ToolContext(patient=None, conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "list_available_slots")
+
+    out = await tool.ainvoke({"doctor_id": str(doctor_id), "target_date": "2026-08-01"})
+    assert "09:00:00" in out
 ```
 
 Run: `cd backend && pytest tests/test_chat_tools.py -v` → FAIL (모듈 없음)
@@ -1633,7 +1714,12 @@ from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from app.core.patient_security import PatientContext
-from app.services import patient_appointment_query_service, patient_catalog_service, rag_search_service
+from app.services import (
+    patient_appointment_query_service,
+    patient_catalog_service,
+    patient_public_catalog_service,
+    rag_search_service,
+)
 
 
 @dataclass
@@ -1683,20 +1769,35 @@ def build_tools(ctx: ToolContext) -> list[StructuredTool]:
         return "\n\n".join(f"[{r['title']}] {r['content']}" for r in results)
 
     async def list_departments_doctors(department_id: str | None = None) -> str:
-        departments = await patient_catalog_service.list_departments(ctx.patient)
+        # [정합성 검토 R5-04] 익명 사용자는 인증 세션이 필요한 patient_catalog_service 대신
+        # 공개 카탈로그(patient_public_catalog_service)로 조회한다. 로그인한 환자는 기존 경로를
+        # 그대로 쓴다 — 동작을 바꿀 이유가 없고, 두 서비스가 반환하는 형태(id/name)도 동일하다.
+        if ctx.patient is None:
+            departments = await patient_public_catalog_service.list_departments()
+        else:
+            departments = await patient_catalog_service.list_departments(ctx.patient)
         lines = []
         for d in departments:
             if department_id and d["id"] != department_id:
                 continue
-            doctors = await patient_catalog_service.list_doctors(d["id"], ctx.patient)
+            if ctx.patient is None:
+                doctors = await patient_public_catalog_service.list_doctors(d["id"])
+            else:
+                doctors = await patient_catalog_service.list_doctors(d["id"], ctx.patient)
             names = ", ".join(doc["name"] for doc in doctors) or "배정 의사 없음"
             lines.append(f"{d['name']}: {names}")
         return "\n".join(lines) or "운영 중인 진료과가 없습니다."
 
     async def list_available_slots(doctor_id: str, target_date: str) -> str:
-        slots = await patient_catalog_service.list_available_slots(
-            UUID(doctor_id), date.fromisoformat(target_date), ctx.patient
-        )
+        # [정합성 검토 R5-04] 위와 같은 이유로 익명 사용자는 공개 카탈로그 경로를 쓴다.
+        if ctx.patient is None:
+            slots = await patient_public_catalog_service.list_available_slots(
+                UUID(doctor_id), date.fromisoformat(target_date)
+            )
+        else:
+            slots = await patient_catalog_service.list_available_slots(
+                UUID(doctor_id), date.fromisoformat(target_date), ctx.patient
+            )
         if not slots:
             return "해당 날짜에 예약 가능한 시간이 없습니다."
         return "\n".join(f"slot_id={s['id']} {s['start_time']}" for s in slots)
@@ -3655,7 +3756,7 @@ git commit -m "feat: 오답신고/정기검토 + 품질개선 예시은행 + 미
   - `GET /staff/chat/conversations?channel=` (전체 상담 기록 — 요구사항 5.1), `GET /staff/chat/conversations/{id}/messages` (각 봇 메시지에 `route_taken`과 `sources: [{title, content}]` 포함 — 근거 확인, 요구사항 5.6)
   - `POST /staff/chat/messages/{id}/feedback` `{correction_text, add_to_example_bank?}` (그 자리에서 오답 신고 — `source="realtime_report"` 고정)
 - Produces (관리자 — `admin_kb.py`, `require_role("admin")`):
-  - `GET/POST /admin/kb/documents`, `PUT /admin/kb/documents/{id}`, `POST /admin/kb/documents/{id}/approve`, `POST /admin/kb/documents/{id}/approve-pending-edit`([정합성 검토 R4-01] 신규 — `kb_service.approve_pending_edit` 호출), `POST /admin/kb/documents/{id}/archive` — POST/PUT 본문은 `{title, category, content, is_restricted?}`(`is_restricted` 기본값 `false`, `kb_service.create_document`/`update_document`에 그대로 전달 — 요구사항 3.8)
+  - `GET/POST /admin/kb/documents`, `GET /admin/kb/documents/{id}`([정합성 검토 R4-01] 신규 — `kb_service.get_document` 호출, 라이브/대기 중 수정본 비교 화면용), `PUT /admin/kb/documents/{id}`, `POST /admin/kb/documents/{id}/approve`, `POST /admin/kb/documents/{id}/approve-pending-edit`([정합성 검토 R4-01] 신규 — `kb_service.approve_pending_edit` 호출), `POST /admin/kb/documents/{id}/archive` — POST/PUT 본문은 `{title, category, content, is_restricted?}`(`is_restricted` 기본값 `false`, `kb_service.create_document`/`update_document`에 그대로 전달 — 요구사항 3.8)
   - `GET /admin/kb/documents/{id}/revisions` — 수정이력 시간 역순 목록 (요구사항 3.8)
   - `GET /admin/kb/feedback`, `POST /admin/kb/feedback/{id}/apply` `{document_id?}`, `POST /admin/kb/feedback/{id}/reject`
   - `GET /admin/kb/stats?from=&to=`
@@ -4474,7 +4575,7 @@ git commit -m "feat: 직원 웹 상담 관리 - 티켓함(3단계 상태)/상세
 
 **Interfaces:**
 - Consumes: Task 14의 `/admin/kb/*` API, `<RequireRole roles={["admin"]}>`(2단계), `<StatTile />`(2단계)
-- Produces: `listKbDocuments(status?, category?)`, `createKbDocument(body)`, `updateKbDocument(id, body)`, `approveKbDocument(id)`, `approvePendingKbEdit(id)`([정합성 검토 R4-01] 신규 — 대기 중인 수정본 재승인), `archiveKbDocument(id)`, `listKbRevisions(documentId) -> Promise<Revision[]>`(수정이력 시간 역순 — 요구사항 3.8), `listFeedback()`, `applyFeedback(id, documentId?)`, `rejectFeedback(id)`, `getBotStats(from, to)`
+- Produces: `listKbDocuments(status?, category?)`, `getKbDocument(id)`([정합성 검토 R4-01] 신규 — 라이브/대기 중 수정본을 함께 반환), `createKbDocument(body)`, `updateKbDocument(id, body)`, `approveKbDocument(id)`, `approvePendingKbEdit(id)`([정합성 검토 R4-01] 신규 — 대기 중인 수정본 재승인), `archiveKbDocument(id)`, `listKbRevisions(documentId) -> Promise<Revision[]>`(수정이력 시간 역순 — 요구사항 3.8), `listFeedback()`, `applyFeedback(id, documentId?)`, `rejectFeedback(id)`, `getBotStats(from, to)`
 - Produces: `listQualityReportConversations(from, to) -> Promise<QualityConversation[]>`(`route_taken`/인계여부/신고여부 포함), `submitPeriodicCorrection(messageId, correctionText, addToExampleBank) -> Promise<void>`, `listExampleBank() -> Promise<Example[]>`, `deactivateExample(id) -> Promise<void>`
 - Produces: `listUnresolvedQuestionClusters(from, to) -> Promise<{sample_question: string, count: number, ticket_ids: string[]}[]>`(개수 내림차순 — 요구사항 3.9/3.10)
 
@@ -4705,7 +4806,7 @@ export function ReportWrongAnswerDialog({ messageId, onDone, onCancel, onSubmit 
 `QualityReportPage`는 `<ReportWrongAnswerDialog ... onSubmit={submitPeriodicCorrection} />`로 호출한다.
 
 구현 요점 (나머지 파일):
-- `KbDocumentsPage`: 자료 목록 테이블(제목/분류/상태/수정일), 상태·분류 필터, "새 자료" 버튼 → `KbEditorDialog`(제목·분류 select·본문 textarea·**"상담봇이 이 내용을 직접 답변하지 않고 이 문구만 그대로 보여줍니다" 체크박스** — 요구사항 3.8 "답하면 안 되는 내용", 체크 시 `createKbDocument`/`updateKbDocument` 본문에 `is_restricted: true` 포함). 목록에서 `is_restricted` 자료는 제목 옆에 "차단 안내" 배지 표시. `draft` 행에 "승인" 버튼(승인 시 "승인하면 상담봇이 이 자료를 근거로 사용해요. 자동으로 검색용 조각과 임베딩이 만들어져요" 확인창), `approved` 행에 "수정"(수정 시 재임베딩되지 않고 "재승인 전까지는 기존 내용으로 답변합니다"를 안내)과 "보관" 버튼. **[정합성 검토 R4-01]** `has_pending_edit=true`인 행은 제목 옆에 "검토 대기 중" 배지를 표시하고, "수정" 버튼과 별개로 "재승인" 버튼을 추가로 보여준다(`approvePendingKbEdit(id)` 호출, "재승인하면 대기 중인 수정 내용으로 챗봇 답변이 바뀝니다" 확인창). "재승인" 버튼을 누르기 전까지는 몇 번을 수정해도 라이브 내용이 바뀌지 않는다. 모든 행에 "수정이력" 버튼 → `listKbRevisions(id)` 결과를 시간 역순 목록으로 보여주는 다이얼로그(수정 전 제목·분류·본문 스냅샷 표시 — 요구사항 3.8)
+- `KbDocumentsPage`: 자료 목록 테이블(제목/분류/상태/수정일), 상태·분류 필터, "새 자료" 버튼 → `KbEditorDialog`(제목·분류 select·본문 textarea·**"상담봇이 이 내용을 직접 답변하지 않고 이 문구만 그대로 보여줍니다" 체크박스** — 요구사항 3.8 "답하면 안 되는 내용", 체크 시 `createKbDocument`/`updateKbDocument` 본문에 `is_restricted: true` 포함). 목록에서 `is_restricted` 자료는 제목 옆에 "차단 안내" 배지 표시. `draft` 행에 "승인" 버튼(승인 시 "승인하면 상담봇이 이 자료를 근거로 사용해요. 자동으로 검색용 조각과 임베딩이 만들어져요" 확인창), `approved` 행에 "수정"(수정 시 재임베딩되지 않고 "재승인 전까지는 기존 내용으로 답변합니다"를 안내)과 "보관" 버튼. **[정합성 검토 R4-01]** `has_pending_edit=true`인 행은 제목 옆에 "검토 대기 중" 배지를 표시하고, "수정" 버튼과 별개로 "비교" 버튼과 "재승인" 버튼을 추가로 보여준다. "비교" 버튼은 `getKbDocument(id)`로 라이브 컬럼(title/category/content)과 `pending_*` 컬럼을 함께 받아와 좌우 2열로 나란히 보여주는 다이얼로그를 연다(왼쪽 "현재 라이브 내용", 오른쪽 "대기 중인 수정본") — 관리자가 실제로 무엇이 바뀌는지 확인한 뒤에만 재승인 여부를 판단할 수 있게 한다. "재승인" 버튼은 이 비교를 보지 않고도 누를 수 있지만(`approvePendingKbEdit(id)` 호출, "재승인하면 대기 중인 수정 내용으로 챗봇 답변이 바뀝니다" 확인창), 비교 다이얼로그 안에도 같은 재승인 버튼을 둬서 내용을 본 자리에서 바로 확정할 수 있게 한다. "재승인" 버튼을 누르기 전까지는 몇 번을 수정해도 라이브 내용이 바뀌지 않는다. 모든 행에 "수정이력" 버튼 → `listKbRevisions(id)` 결과를 시간 역순 목록으로 보여주는 다이얼로그(수정 전 제목·분류·본문 스냅샷 표시 — 요구사항 3.8)
 - `FeedbackInboxPage`: pending 신고 목록(봇 답변 원문 + 직원 정정 내용 + 신고자 + `source` 뱃지로 "실시간 신고"/"정기 검토" 구분). 각 행에 "반영"(자료 선택 select — 미선택 시 새 자료로 생성됨 안내) / "반려" 버튼
 - `ExampleBankPage`: `qa_example_bank` 목록(질문/교정답변/갈래 표시), 각 행에 "비활성화" 버튼(삭제 대신 숨김 — 요구사항 6.3)
 - `BotStatsPage`: 기간 선택(from/to) + `StatTile` 4개(앱 상담 수/웹 상담 수/인계 건수/오답 신고 수) + 갈래별 분포(안내형/진료과추천형/행동형) + 인계 사유별 건수 목록(거창한 차트 없이 숫자 카드 수준 — 스펙 섹션 4)

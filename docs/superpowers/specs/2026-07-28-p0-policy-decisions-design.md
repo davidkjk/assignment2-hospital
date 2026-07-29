@@ -80,10 +80,10 @@
 
 ### 보안 원칙 (기존 RLS 결함 수정)
 
-- `patient_family_links` INSERT는 클라이언트가 직접 하지 않는다 — 반드시 아래 두 SECURITY DEFINER RPC 중 하나를 거친다:
-  - `create_family_member(name, birth_date, gender, phone) -> uuid`: 새 프로필 생성 + 링크를 한 트랜잭션으로 생성
-  - `link_existing_family_member(target_patient_id, otp_verified boolean) -> void`: OTP 인증 성공 컨텍스트에서만 호출 가능(백엔드가 OTP 검증 후 호출) — `target_patient_id`의 소유권·동의를 검사하지 않고 무조건 연결하던 기존 결함 제거
-- 직원 웹의 "직원 확인 연결" 액션도 별도 RPC(`staff_link_family_member`)로 감사로그(R5-08과 연결)를 남긴다
+- `patient_family_links` INSERT는 클라이언트가 직접 하지 않는다 — 반드시 아래 세 서비스 함수(SECURITY DEFINER 커넥션을 쓰는 백엔드 서비스, DB RPC가 아니라 애플리케이션 계층 함수로 구현됨) 중 하나를 거친다. **[2026-07-28 재검증]** writing-plans 단계에서 실제로 구현된 이름은 이 문서가 원래 정한 이름과 달랐다 — 기능은 동일하므로 아래는 실제 구현 이름으로 갱신했다(정합성 검토 R5-01):
+  - `create_family_member(name, birth_date, gender, phone) -> uuid` → 실제 구현명 **`patient_family_service.add_family_member(patient, name, birth_date, gender, relation) -> UUID`**(3단계 계획): 새 프로필 생성 + 링크를 한 트랜잭션으로 생성
+  - `link_existing_family_member(target_patient_id, otp_verified boolean) -> void` → 실제 구현명 **`family_link_otp_service.confirm_family_link_otp(patient, request_id, code) -> UUID`**(3단계 계획): OTP 인증 성공 컨텍스트에서만 연결이 완성됨(코드 일치·만료·소유자 확인 후 링크 생성) — `target_patient_id`의 소유권·동의를 검사하지 않고 무조건 연결하던 기존 결함 제거
+  - `staff_link_family_member(account_patient_id, target_patient_id, relation, staff) -> None` → 실제 구현명 그대로 **`patient_merge_service.staff_link_family_member`**(2단계 계획, `POST /admin/family-links`): 접수직원이 본인확인 후 연결, `access_audit_log`에 기록(R5-08과 연결). 이 함수만 최초 writing-plans 단계에서 누락돼 있었다가 이후 세션에서 추가됨
 
 ### 구현 방향 (writing-plans에서 구체화할 것)
 
@@ -94,5 +94,5 @@
 
 ## 다른 단계 의존성
 
-- 섹션 3의 "직원 웹 연결" 화면은 R5-05 작업과 함께 구현해야 중복 작업이 없다 — 이후 P1 세션(R5-05)에서 이 RPC(`staff_link_family_member`)를 그대로 재사용하도록 설계를 맞춘다.
+- 섹션 3의 "직원 웹 연결" 액션은 R5-05(환자 계정 병합) 작업과 같은 서비스 파일(`patient_merge_service.py`)에 구현됐다 — 본인확인 후 직원이 연결한다는 같은 패턴을 공유하기 때문. **[2026-07-28 재검증]** 최초 writing-plans 때는 이 함수 자체가 누락돼 있었고, 이후 세션에서 `staff_link_family_member`로 추가·구현 완료됨(정합성 검토 R5-01).
 - 섹션 1의 `doctor_can_view_patient()`는 R5-08(진료기록 열람 감사로그)과 별개로, 열람 자체의 허용/차단만 담당한다. 감사로그 연결은 P1 세션에서 다룬다.
