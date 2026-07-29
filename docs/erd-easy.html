@@ -366,6 +366,8 @@
       padding: 24px;
       border-left: 1px solid var(--line);
       background: white;
+      max-height: 620px;
+      overflow-y: auto;
     }
     .detail-kicker { color: var(--mint-strong); font-size: 11px; font-weight: 900; letter-spacing: .09em; }
     .node-detail h3 { margin: 8px 0 2px; font-size: 22px; line-height: 1.25; }
@@ -385,7 +387,14 @@
       font-size: 12px;
     }
     .detail-fields code { color: var(--ink); font-weight: 800; }
+    .detail-fields code small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; font-weight: 700; }
     .detail-fields span { color: var(--muted); text-align: right; }
+    .detail-relations { margin-top: 20px; }
+    .detail-relations h4 { margin: 0 0 8px; font-size: 14px; }
+    .detail-relations ul { margin: 0; padding: 0; list-style: none; }
+    .detail-relations li { padding: 10px 0; border-top: 1px solid #edf0ed; }
+    .detail-relations strong { display: block; color: var(--ink); font-size: 11px; }
+    .detail-relations span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.5; }
     .diagram-help {
       margin-top: 18px;
       padding: 13px;
@@ -797,6 +806,49 @@
       group, description, fields, standard: true
     });
 
+    const columnMeanings = {
+      auth_user_id: "Supabase 로그인 계정을 가리키는 번호",
+      department_id: "소속하거나 예약한 진료과를 가리키는 번호",
+      deactivated_by: "이 직원을 비활성 처리한 직원을 가리키는 번호",
+      role: "관리자·접수직원·의사 등 직원 역할",
+      is_active: "현재 사용하거나 운영 중인지 나타내는 값",
+      doctor_id: "담당 의사를 가리키는 직원 번호",
+      weekday: "반복 근무가 적용되는 요일",
+      start_time: "근무 또는 예약 시간칸이 시작되는 시각",
+      end_time: "근무 시간이 끝나는 시각",
+      exception_date: "기본 일정 대신 예외를 적용할 날짜",
+      is_closed: "해당 날짜가 휴진인지 나타내는 값",
+      name: "사람이나 진료과의 표시 이름",
+      birth_date: "환자의 생년월일",
+      phone: "환자 연락과 본인확인에 사용하는 전화번호",
+      account_patient_id: "예약과 가족 관리를 수행하는 대표 환자 번호",
+      family_patient_id: "대표 환자가 대신 관리할 가족 환자 번호",
+      relation: "부모·자녀·배우자 등 가족 관계",
+      unlinked_at: "가족 연결을 해제한 시각",
+      slot_date: "예약 시간칸이 속한 날짜",
+      status: "현재 업무 처리 상태",
+      appointment_id: "연결된 예약을 가리키는 번호",
+      changed_by: "예약 상태를 변경한 직원을 가리키는 번호",
+      changed_by_patient_id: "예약 상태를 변경한 환자를 가리키는 번호",
+      from_status: "상태 변경 전의 값",
+      to_status: "상태 변경 후의 값",
+      changed_at: "예약 상태가 변경된 시각",
+      slot_id: "선택한 실제 예약 시간칸 번호",
+      for_patient_id: "실제로 진료를 받을 환자 번호",
+      created_by: "예약을 대신 생성한 직원을 가리키는 번호",
+      source: "직원 웹·환자 앱·챗봇 등 예약 생성 경로",
+      booking_code: "환자와 직원이 예약을 찾을 때 사용하는 중복 없는 코드",
+      is_completed: "진료기록 작성이 완료됐는지 나타내는 값",
+      updated_at: "현재 진료기록을 마지막으로 수정한 시각",
+      record_id: "수정 전 진료기록 원본을 가리키는 번호",
+      revised_by: "진료기록을 수정한 의사를 가리키는 번호",
+      reason: "완료된 진료기록을 수정한 이유",
+      revised_at: "진료기록을 수정하고 과거본을 만든 시각",
+      questions: "문진 질문·유형·필수 여부를 담은 질문 목록",
+      template_id: "답변에 사용된 문진 양식을 가리키는 번호",
+      answers: "환자가 제출한 문진 답변 묶음"
+    };
+
     const maps = {
       overview: {
         title: "전체 핵심 ERD",
@@ -1127,6 +1179,41 @@
       return map.nodes.find(node => node.id === id);
     }
 
+    function standardFieldInfo(node, field) {
+      const parts = field[0].trim().split(/\s+/);
+      const name = parts.at(-1);
+      const type = parts.slice(0, -1).join(" ");
+      const meaning = name === "id"
+        ? `${node.title} 테이블에서 각 행을 구분하는 고유번호`
+        : columnMeanings[name] || "이 테이블의 업무 데이터를 저장하는 컬럼";
+      return { name, type, key: field[1], meaning };
+    }
+
+    function relationshipMeaning(map, edge) {
+      const [from, to, label, business, relation = "many"] = edge;
+      const fromNode = nodeById(map, from);
+      const toNode = nodeById(map, to);
+      if (relation === "rule" || business) {
+        return {
+          title: `${fromNode.title} ⇢ ${toNode.title} · ${label}`,
+          text: "외래키 관계는 아니며, 예약 상태를 바꿀 때 내부 트리거가 허용 조합인지 검사하는 업무 규칙입니다."
+        };
+      }
+      if (from === to) {
+        return {
+          title: `${fromNode.title} 내부 연결 · ${label}`,
+          text: `같은 ${fromNode.title} 테이블의 다른 행을 가리키는 자기참조 외래키 관계입니다.`
+        };
+      }
+      const cardinality = relation === "optionalOne"
+        ? `${fromNode.title} 한 건에 ${toNode.title}가 없거나 한 건 연결`
+        : `${fromNode.title} 한 건에 ${toNode.title} 여러 건 연결 가능`;
+      return {
+        title: `${fromNode.title} → ${toNode.title} · ${label}`,
+        text: `${cardinality}되는 외래키 관계입니다.`
+      };
+    }
+
     function edgePoints(a, b) {
       if (a === b) {
         const x = a.x + a.w;
@@ -1261,14 +1348,36 @@
       const map = maps[activeMap];
       const node = nodeById(map, id);
       svg.querySelectorAll(".diagram-node").forEach(el => el.classList.toggle("selected", el.dataset.id === id));
+      const fields = node.fields.map(field => {
+        if (!node.standard) {
+          return `<li><code>${escapeXml(field[0])}</code><span>${escapeXml(field[1])}</span></li>`;
+        }
+        const info = standardFieldInfo(node, field);
+        const meta = [info.type, info.key].filter(Boolean).join(" · ");
+        return `<li><code>${escapeXml(info.name)}<small>${escapeXml(meta)}</small></code><span>${escapeXml(info.meaning)}</span></li>`;
+      }).join("");
+      const relations = map.standard
+        ? map.edges
+            .filter(([from, to]) => from === id || to === id)
+            .map(edge => relationshipMeaning(map, edge))
+        : [];
+      const relationGuide = relations.length
+        ? `<div class="detail-relations">
+             <h4>연결 관계의 의미</h4>
+             <ul>${relations.map(relation =>
+               `<li><strong>${escapeXml(relation.title)}</strong><span>${escapeXml(relation.text)}</span></li>`
+             ).join("")}</ul>
+           </div>`
+        : "";
       nodeDetail.innerHTML = `
         <span class="detail-kicker">선택한 장부</span>
         <h3>${escapeXml(node.title)}</h3>
         <div class="detail-table">${escapeXml(node.table)}</div>
         <p>${escapeXml(node.description)}</p>
         <ul class="detail-fields">
-          ${node.fields.map(([field, meaning]) => `<li><code>${escapeXml(field)}</code><span>${escapeXml(meaning)}</span></li>`).join("")}
+          ${fields}
         </ul>
+        ${relationGuide}
         <div class="diagram-help">${map.standard
           ? "PK는 기본키, FK는 외래키입니다. 관계선의 1은 한 개, N은 여러 개, 0..1은 없거나 한 개를 뜻합니다. 점선은 FK가 아닌 트리거 검증 관계입니다."
           : "PK는 이 장부의 대표 고유번호, FK는 다른 장부를 가리키는 연결번호입니다."}</div>`;
