@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "prebuild": "mkdir -p public && cp docs/erd-easy.html public/erd-easy.html",
-    "build": "vinext build"
+    "build": "vinext build",
+    "postbuild": "mkdir -p dist/.openai && cp .openai/hosting.json dist/.openai/hosting.json"
   },
   "dependencies": {
     "react": "19.2.6",
