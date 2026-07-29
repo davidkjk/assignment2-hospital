@@ -2931,6 +2931,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.services import staff_service
 from tests.conftest import seed_staff
@@ -2961,16 +2962,30 @@ async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
         )
 
     await fake_seed_auth_user(db_conn)
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
 
     with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
         staff_id = await staff_service.invite_staff(
-            email="new-doctor@test.local", name="김의사", role="doctor", department_id=None, invited_by=admin_ctx,
+            email="new-doctor@test.local", name="김의사", role="doctor", department_id=dept_id, invited_by=admin_ctx,
         )
 
     assert staff_id is not None
     row = await db_conn.fetchrow("select role, name from staff where id = $1", staff_id)
     assert row["role"] == "doctor"
     assert row["name"] == "김의사"
+
+
+@pytest.mark.asyncio
+async def test_invite_doctor_without_department_rejected(db_conn):
+    """[정합성 검토 R3-04] 프론트엔드 검증을 우회한 직접 API 호출도 막혀야 한다 —
+    이전에는 StaffAdminPage.tsx에만 이 검사가 있어 서버가 소속 없는 의사 생성을 그대로 허용했다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    with pytest.raises(AppError):
+        await staff_service.invite_staff(
+            email="no-dept-doctor@test.local", name="김의사", role="doctor", department_id=None, invited_by=admin_ctx,
+        )
 
 
 @pytest.mark.asyncio
@@ -3076,6 +3091,13 @@ async def invite_staff(
     department_id: UUID | None,
     invited_by: StaffContext,
 ) -> UUID:
+    # [정합성 검토 R3-04] 의사는 소속 진료과가 있어야 예약·슬롯·환자조회 범위(doctor_can_view_patient 등)가
+    # 성립한다. 이전에는 이 검사가 StaffAdminPage.tsx(프론트엔드)에만 있어, 프론트를 거치지 않는 직접
+    # API 호출(또는 클라이언트 버그)로 소속 없는 의사가 만들어질 수 있었다. 이메일을 실제로 보내기 전에
+    # 먼저 검사해 불필요한 초대 발송도 막는다.
+    if role == "doctor" and department_id is None:
+        raise AppError("의사는 소속 진료과를 선택해야 합니다.", status_code=400)
+
     admin = get_admin_client()
     result = admin.auth.admin.invite_user_by_email(email)
     auth_user_id = UUID(result.user.id)
@@ -3180,7 +3202,7 @@ async def test_resend_invite_missing_staff_raises(db_conn):
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_staff_service.py -v`
-Expected: 8개 테스트 모두 PASS([정합성 검토 R3-04] 본인/마지막 관리자 중지 차단, 목록 조회, 관리자 2명 중 1명 중지 허용, 재초대 성공/대상없음 검증 테스트 6건 추가)
+Expected: 9개 테스트 모두 PASS([정합성 검토 R3-04] 본인/마지막 관리자 중지 차단, 목록 조회, 관리자 2명 중 1명 중지 허용, 재초대 성공/대상없음, 의사 소속 진료과 필수 검증 테스트 7건 추가)
 
 - [ ] **Step 5: 커밋**
 
