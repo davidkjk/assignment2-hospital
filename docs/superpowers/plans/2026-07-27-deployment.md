@@ -770,18 +770,31 @@ Expected: FAIL (`app.jobs.reminders` 모듈 없음)
     "questionnaire_missing": "내일 진료 전 사전문진을 아직 작성하지 않으셨습니다. 앱에서 작성해주세요.",
 ```
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** Railway cron은 `0 23 * * *`(UTC)를 "08:00 KST"로 환산해 스케줄만 등록한다(Task 16 Step 1). 하지만 Railway 컨테이너의 OS 타임존은 기본 UTC이므로, 잡 안에서 `date.today()`를 그대로 쓰면 KST 자정~09:00 사이에 실행되는 다른 잡(백업 등)이나 이 잡이 재실행될 때 "오늘"이 KST 기준과 하루 어긋날 수 있다(예: KST 08:00 = UTC 전날 23:00 — 이 시각엔 문제없지만, 수동 재실행이나 디버깅 시 UTC 자정 근처면 날짜가 밀린다). `zoneinfo`로 한국 시간대를 명시 변환해 이 경계 오류를 원천 차단한다.
+
 `backend/app/jobs/reminders.py`:
 ```python
 """매일 아침 크론이 실행하는 리마인더 발송 잡. 실행: python -m app.jobs.reminders"""
 import asyncio
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 from app.db.pool import get_pool
 from app.services import notification_service
 
+KST = ZoneInfo("Asia/Seoul")
+
+
+def _today_kst() -> date:
+    """서버 OS 타임존이 UTC여도 'KST 기준 오늘'을 반환한다.
+    [정합성 검토 우선10] date.today()는 서버 로컬 타임존(Railway 기본값 UTC)을 따르므로
+    KST 자정 부근에서 날짜가 하루 어긋날 수 있어 명시적으로 KST로 변환한다."""
+    from datetime import datetime
+    return datetime.now(KST).date()
+
 
 async def send_reminders(today: date | None = None) -> dict:
-    today = today or date.today()
+    today = today or _today_kst()
     tomorrow = today + timedelta(days=1)
     counts = {"reminder_today": 0, "reminder_tomorrow": 0, "questionnaire_missing": 0}
     pool = await get_pool()
@@ -863,6 +876,8 @@ Expected: FAIL (모듈 없음)
 
 - [ ] **Step 3: 구현**
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 이 잡도 Railway cron(UTC 스케줄)으로 실행되므로 Task 6과 동일한 이유로 `date.today()` 대신 KST 기준 날짜를 명시 사용한다 — 백업 파일명(`backup-YYYY-MM-DD.sql.gz`)의 날짜가 실제 KST 날짜와 어긋나면 14일 보관 판정(`select_expired`)과 복구 시 "어느 날짜 백업인지" 확인이 모두 하루씩 밀릴 수 있다.
+
 `backend/app/jobs/backup.py`:
 ```python
 """매일 새벽 크론이 실행하는 DB 백업 잡. 실행: python -m app.jobs.backup"""
@@ -870,13 +885,15 @@ import gzip
 import re
 import subprocess
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from app.core.config import settings
 from app.db.admin_client import get_admin_client
 
 BACKUP_NAME_RE = re.compile(r"^backup-(\d{4}-\d{2}-\d{2})\.sql\.gz$")
+KST = ZoneInfo("Asia/Seoul")
 
 
 def select_expired(names: list[str], today: date, keep_days: int = 14) -> list[str]:
@@ -890,7 +907,8 @@ def select_expired(names: list[str], today: date, keep_days: int = 14) -> list[s
 
 
 def run_backup(today: date | None = None) -> str:
-    today = today or date.today()
+    # [정합성 검토 우선10] 서버 OS 타임존이 UTC일 수 있어 KST로 명시 변환(Task 6과 동일 사유)
+    today = today or datetime.now(KST).date()
     filename = f"backup-{today.isoformat()}.sql.gz"
     with tempfile.TemporaryDirectory() as tmp:
         dump_path = Path(tmp) / "dump.sql"
@@ -1193,7 +1211,8 @@ random.seed 고정으로 매 실행 동일한 데이터를 생성한다."""
 import asyncio
 import random
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo  # [정합성 검토 우선10] KST 기준 "오늘" 계산용 — 아래 today = ... 참고
 
 from app.db.admin_client import get_admin_client
 from app.db.pool import get_pool
@@ -1323,7 +1342,10 @@ async def main(do_reset: bool):
                     "values ($1, $2, '09:00', '17:00', 30, '12:00', '14:00', 12, '1 hour')",
                     doctor_id, weekday,
                 )
-        today = date.today()
+        # [정합성 검토 우선10] 시드는 "3주 전~2주 후" 슬롯을 만드는 배치라 실행 시각의 UTC/KST
+        # 경계 오차가 하루 밀려도 시나리오 검증에 치명적이진 않지만, Task 6/7과 동일 기준으로
+        # 통일해 시드가 만드는 "오늘" 예약이 실제 KST 오늘과 어긋나지 않게 한다.
+        today = datetime.now(ZoneInfo("Asia/Seoul")).date()
         slot_times = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
                       "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"]
         all_slots = []  # (slot_id, doctor_id, dept_id, slot_date)
@@ -1445,13 +1467,14 @@ git commit -m "feat: 데모 데이터 시드 스크립트와 테스트 계정 �
 - Create: `mobile/android/key.properties.example`
 - Modify: `mobile/android/app/build.gradle` (signingConfigs)
 - Modify: `mobile/android/.gitignore` (`key.properties`, `*.keystore` 추가)
-- Modify: `mobile/ios/Runner/Info.plist` (권한 문구)
+- Modify: `mobile/ios/Runner/Info.plist` (권한 문구, Bundle Identifier)
+- Modify: `mobile/ios/Runner.xcworkspace` Signing & Capabilities([정합성 검토 즉시14/교차4] Apple Developer 계정 연결)
 - Create: `mobile/scripts/build_release.sh`
 - Modify: `mobile/pubspec.yaml` (`flutter_launcher_icons` dev dependency + 설정)
 
 **Interfaces:**
-- Consumes: `mobile/lib/core/env.dart`의 `Env.apiBaseUrl` 등(3단계 Task 14 — `--dart-define` 주입)
-- Produces: `./mobile/scripts/build_release.sh apk|appbundle` (프로덕션 서버 주소로 서명된 빌드 생성)
+- Consumes: `mobile/lib/core/env.dart`의 `Env.apiBaseUrl` 등(3단계 Task 14 — `--dart-define` 주입), 사용자 보유 Apple Developer 계정
+- Produces: `./mobile/scripts/build_release.sh apk|appbundle` (프로덕션 서버 주소로 서명된 안드로이드 빌드), 서명된 `build/ios/ipa/*.ipa`([정합성 검토 즉시14/교차4] `flutter build ipa` 또는 Xcode Archive — 스토어 제출은 범위 밖)
 
 - [ ] **Step 1: 안드로이드 서명 키 생성 (로컬 1회, 커밋 금지)**
 
@@ -1515,6 +1538,39 @@ if (keystorePropertiesFile.exists()) {
 - Bundle Identifier(Xcode 프로젝트 설정) → `com.vcuhospital.patient`
 - 푸시 알림은 capability로 처리(문구 불필요). 앱이 카메라·사진·위치를 쓰지 않으므로 해당 Usage Description은 추가하지 않는다 — 심사에서 미사용 권한 문구는 오히려 리젝 사유.
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토의 교차단계 결정("Apple 개발자 계정 등록 후 서명된 IPA 산출")이 여기까지 Task로 내려오지 않았었다. **사용자가 Apple 개발자 계정을 이미 보유**하고 있음을 확인했으므로, Bundle Identifier 설정만으로 끝내지 않고 실제 서명까지 이 Step에서 진행한다. 스토어 심사 제출 자체는 범위 밖(뒤 Step 4.5 참고).
+
+- [ ] **Step 4.5: Apple 개발자 계정 연결 + 서명된 IPA 산출**
+
+**Files 추가:**
+- Modify: `mobile/ios/Runner.xcworkspace`의 Signing & Capabilities 설정(Xcode 프로젝트 설정 — 텍스트로 커밋되는 `project.pbxproj`에 반영됨)
+- Modify: `mobile/ios/Runner/Info.plist`(Bundle Identifier 재확인)
+
+1. **Xcode에서 Apple Developer 계정 연결**: `open mobile/ios/Runner.xcworkspace` → Xcode → Settings → Accounts → `+`로 Apple ID 로그인(사용자 보유 계정) → 프로젝트 navigator에서 `Runner` 타깃 선택 → Signing & Capabilities 탭 → Team 드롭다운에서 방금 로그인한 계정(회사/개인 개발자 팀) 선택 → "Automatically manage signing" 체크.
+
+2. **Bundle Identifier로 App ID 등록**: Signing & Capabilities에서 Bundle Identifier가 `com.vcuhospital.patient`인지 확인(Automatic signing이 켜져 있으면 Xcode가 Apple Developer 포털에 App ID를 자동 등록 시도한다). 자동 등록이 실패하면 [developer.apple.com](https://developer.apple.com) → Certificates, Identifiers & Profiles → Identifiers → `+` → App IDs → Bundle ID `com.vcuhospital.patient`로 수동 등록.
+
+3. **Distribution Certificate + Provisioning Profile 생성/설치**: Automatic signing을 쓰면 Xcode가 Archive 시점에 Distribution Certificate와 Provisioning Profile을 자동 생성·설치한다. 수동으로 하려면 Apple Developer 포털 → Certificates → `+` → Apple Distribution → Xcode의 Certificate Signing Request로 생성 → Profiles → `+` → App Store(또는 Ad Hoc) → 방금 만든 App ID + Distribution Certificate 선택 → 다운로드 후 더블클릭해 설치.
+
+4. **서명된 `.ipa` 산출**:
+```bash
+cd mobile
+flutter build ipa --release \
+  --dart-define=API_BASE_URL=https://<railway 주소> \
+  --dart-define=SUPABASE_URL=https://<ref>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon key>
+```
+Expected: `build/ios/ipa/*.ipa` 생성. `flutter build ipa`가 서명 실패로 멈추면 Xcode에서 `Runner.xcworkspace`를 열고 Archive(Product → Archive)로 대체 — Xcode Organizer에서 Distribute App → App Store Connect(또는 Ad Hoc) 선택.
+
+5. **산출물 서명 검증**:
+```bash
+cd build/ios/ipa && unzip -o *.ipa -d _unzipped
+codesign -dv --verbose=4 _unzipped/Payload/Runner.app
+```
+Expected: `Authority=Apple Distribution: ...`(또는 iPhone Distribution) 출력 — 서명이 실제로 적용됐다는 증거. `rm -rf _unzipped`로 정리.
+
+6. **선택: TestFlight 업로드**: Xcode Organizer → Distribute App → App Store Connect → Upload. App Store Connect 웹에서 빌드 처리 완료 확인. **실제 스토어 심사 제출(App Store 공개)은 이 계획의 범위 밖 — TestFlight 내부 테스트 업로드까지만 한다.**
+
 - [ ] **Step 5: 앱 아이콘 설정**
 
 `mobile/pubspec.yaml`에:
@@ -1559,20 +1615,23 @@ Expected: `✓ Built build/app/outputs/flutter-apk/app-release.apk` (서명된 �
 - [ ] **Step 8: 커밋**
 
 ```bash
-git add mobile/android/key.properties.example mobile/android/.gitignore mobile/android/app/build.gradle mobile/ios/Runner/Info.plist mobile/pubspec.yaml mobile/assets/icon/ mobile/scripts/build_release.sh
-git commit -m "feat: 앱 릴리즈 서명 설정·아이콘·빌드 스크립트 추가"
+git add mobile/android/key.properties.example mobile/android/.gitignore mobile/android/app/build.gradle mobile/ios/Runner/Info.plist mobile/ios/Runner.xcodeproj/project.pbxproj mobile/pubspec.yaml mobile/assets/icon/ mobile/scripts/build_release.sh
+git commit -m "feat: 앱 릴리즈 서명 설정(Android keystore + iOS Team 연결)·아이콘·빌드 스크립트 추가"
 ```
+서명 관련 비밀(keystore 파일, Distribution Certificate `.p12`, Provisioning Profile)은 위 목록에 포함되지 않는다 — `project.pbxproj`엔 Team ID만 텍스트로 남고, 인증서·프로필 자체는 로컬/Keychain에만 있다.
 
 ---
 
 ### Task 11: GitHub Actions CI (테스트 게이트)
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 원래 계획은 backend/frontend/mobile 3개 job뿐이었다. 4단계에서 `webchat/`(독립 Vite 상담 앱)이 새로 생겼는데 CI에 반영되지 않아 이 앱이 깨져도 배포 게이트를 그대로 통과했다. `webchat` job을 추가하고, 위젯 로더(`widget.js`) 빌드도 함께 검증한다.
+
 **Files:**
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Consumes: `backend/` pytest 스위트, `frontend/` vitest+build, `mobile/` flutter analyze/test
-- Produces: push/PR 시 3개 job(backend, frontend, mobile)이 실행되는 `CI` 워크플로 — Task 17의 배포 게이트가 이 체크 이름을 참조
+- Consumes: `backend/` pytest 스위트, `frontend/` vitest+build, `mobile/` flutter analyze/test, `webchat/` vitest+build(4단계 산출물)
+- Produces: push/PR 시 4개 job(backend, frontend, mobile, webchat)이 실행되는 `CI` 워크플로 — Task 17의 배포 게이트가 이 체크 이름을 참조
 
 - [ ] **Step 1: 워크플로 작성**
 
@@ -1638,6 +1697,25 @@ jobs:
         working-directory: mobile
       - run: flutter test
         working-directory: mobile
+
+  webchat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: webchat/package-lock.json
+      - run: npm ci
+        working-directory: webchat
+      - run: npx vitest run
+        working-directory: webchat
+      - run: npm run build
+        working-directory: webchat
+      # widget/loader.ts(4단계) — 위젯 데모(Task 15)가 그대로 쓰는 산출물이므로 CI에서 빌드 성공 확인
+      - run: npm run build:widget
+        working-directory: webchat
 ```
 
 주: backend job의 anon/service role 키는 `supabase start` 출력에서 파싱해 `$GITHUB_ENV`로 넘기는 스텝을 추가한다:
@@ -1740,6 +1818,8 @@ ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 # 백업
 BACKUP_BUCKET=backups
+# CORS ([정합성 검토 우선11] 콤마구분 문자열 — 직원 웹·webchat Vercel 도메인. 환자 앱은 모바일이라 불필요)
+ALLOWED_ORIGINS=https://<직원웹>.vercel.app,https://<webchat>.vercel.app
 ```
 ```bash
 git add backend/.env.example
@@ -1750,12 +1830,16 @@ git commit -m "docs: 백엔드 환경변수 목록(.env.example) 추가"
 
 ### Task 14: Railway 백엔드 배포
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 기존 계획서엔 CORS(브라우저가 "이 도메인의 스크립트가 다른 도메인 API를 호출해도 되는지" 서버에 묻고 서버가 허용 헤더로 답하는 규칙) 설정이 전혀 없었다 — Task 15에 "백엔드 CORS 확인... 실제 구현 기준"이라는 안내 한 줄만 있었고 실제로 뭘 구현해야 하는지가 계획에 없었다. 이 상태로 배포하면 Vercel에 올라간 직원 웹·webchat이 브라우저에서 Railway 백엔드를 호출하는 순간 브라우저가 응답을 차단한다(요청 자체는 서버에 도달하지만 브라우저가 스크립트에 결과를 넘겨주지 않음). Step 3.5로 `CORSMiddleware` 설정을 추가한다.
+
 **Files:**
 - Create: `backend/railway.json`
 - Create: `backend/Procfile` (또는 railway.json의 startCommand — 하나만)
+- Modify: `backend/app/main.py` (`CORSMiddleware` 추가)
+- Modify: `backend/app/core/config.py` (`allowed_origins` 설정 추가)
 
 **Interfaces:**
-- Produces: 인터넷에서 접속 가능한 백엔드 주소 `https://<서비스>.up.railway.app` (이후 Task 15/16/18/19가 사용)
+- Produces: 인터넷에서 접속 가능한 백엔드 주소 `https://<서비스>.up.railway.app` (이후 Task 15/16/18/19가 사용), CORS 허용 오리진 목록을 읽는 `app.main.app`의 `CORSMiddleware`
 
 - [ ] **Step 1: 시작 명령 정의**
 
@@ -1778,7 +1862,35 @@ Railway 대시보드 → New Project → Deploy from GitHub repo → 이 저장�
 
 - [ ] **Step 3: 환경변수 입력**
 
-Task 13의 `.env.example` 목록 전체를 Railway Variables 화면에 실값으로 입력 (원격 Supabase 값, Twilio, FCM, Anthropic, OpenAI).
+Task 13의 `.env.example` 목록 전체를 Railway Variables 화면에 실값으로 입력 (원격 Supabase 값, Twilio, FCM, Anthropic, OpenAI, `ALLOWED_ORIGINS`).
+
+- [ ] **Step 3.5: CORS 미들웨어 추가**
+
+`backend/app/core/config.py`의 Settings에 추가:
+```python
+    allowed_origins: str = ""  # 콤마구분. 예: "https://staff.vercel.app,https://webchat.vercel.app"
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+```
+
+`backend/app/main.py`(라우터 등록보다 먼저, `app = FastAPI(...)` 직후):
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+주: 환자 앱(`mobile/`)은 Flutter 네이티브 앱이라 브라우저 CORS 대상이 아니므로 `ALLOWED_ORIGINS`에 넣지 않는다 — 직원 웹(`frontend/`)과 webchat(`webchat/`) Vercel 도메인만 넣는다.
+
+Run: `cd backend && pytest -q` (기존 테스트 회귀 확인 — CORS 미들웨어 추가로 기존 API 동작이 깨지지 않아야 함)
+Expected: 기존 테스트 전부 PASS
 
 - [ ] **Step 4: 배포 확인**
 
@@ -1788,11 +1900,19 @@ Expected: `{"status":"ok"}`
 Run: `curl https://<서비스>.up.railway.app/app/departments`
 Expected: 401 (인증 요구 — 라우터가 살아있고 보호도 동작)
 
+Run(CORS preflight 확인):
+```bash
+curl -i -X OPTIONS https://<서비스>.up.railway.app/app/departments \
+  -H "Origin: https://<직원웹>.vercel.app" \
+  -H "Access-Control-Request-Method: GET"
+```
+Expected: 응답 헤더에 `access-control-allow-origin: https://<직원웹>.vercel.app` 포함. `ALLOWED_ORIGINS`에 없는 Origin으로 같은 요청을 보내면 이 헤더가 빠져야 함(차단 확인).
+
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add backend/railway.json
-git commit -m "deploy: Railway 배포 설정 추가"
+git add backend/railway.json backend/app/main.py backend/app/core/config.py
+git commit -m "deploy: Railway 배포 설정 + CORS 미들웨어 추가"
 git push origin main
 ```
 
@@ -1829,7 +1949,7 @@ React Router 새로고침 404 방지: `frontend/vercel.json`이 없다면 생성
 
 Vercel → Add New Project → 같은 저장소, Root Directory `webchat/`, Framework Preset: Vite. 환경변수 입력(4단계 `webchat/.env.example` 기준 — API 주소=Railway 주소, Supabase URL·anon key).
 배포 후 `https://<webchat>.vercel.app`에 직접 접속 → 상담 화면이 뜨고 질문·답변이 동작하는지 확인.
-**백엔드 CORS 확인**: 백엔드의 허용 오리진(allowed origins) 목록에 이 webchat 배포 주소가 포함돼야 브라우저에서 API 호출이 된다. 누락 시 Railway 환경변수(또는 백엔드 CORS 설정 — 실제 구현 기준)에 추가 후 재배포.
+**백엔드 CORS 확인** ([2026-07-28 재검증 — 1차 문서 반영] Task 14 Step 3.5에서 만든 `CORSMiddleware`가 대상): Railway `ALLOWED_ORIGINS` 환경변수에 이 webchat 배포 주소가 포함돼야 브라우저에서 API 호출이 된다. 누락 시 `ALLOWED_ORIGINS`에 `https://<webchat>.vercel.app`을 추가하고 재배포 후, Task 14 Step 4의 OPTIONS preflight curl로 재확인.
 
 - [ ] **Step 5: 위젯 데모 페이지 작성**
 
@@ -1929,14 +2049,23 @@ Railway 서비스 Settings → "Wait for CI" (GitHub check 통과 후 배포) �
 Vercel은 기본적으로 push마다 즉시 빌드한다. Project Settings → Git에서 "Only build production if checks pass" 유형 설정이 있으면 활성화. 없으면 대안으로 Ignored Build Step에 `git log -1 --pretty=%B | grep -qv '\[skip-deploy\]'` 같은 규칙 대신 **GitHub Actions에서 CI 성공 후 Vercel CLI로 배포하는 방식으로 전환**한다 — 이 경우 `.github/workflows/ci.yml`에 deploy job을 추가:
 ```yaml
   deploy-frontend:
-    needs: [backend, frontend, mobile]
+    needs: [backend, frontend, mobile, webchat]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
+
+  deploy-webchat:
+    needs: [backend, frontend, mobile, webchat]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --cwd webchat
 ```
-(Vercel 프로젝트의 Git 자동 배포는 끄고, `VERCEL_TOKEN`은 GitHub 저장소 Secrets에 등록)
+> **[2026-07-28 재검증 — 1차 문서 반영]** `deploy-frontend`의 `needs`에 `webchat`을 추가해, webchat이 CI에서 깨지면 직원 웹 배포도 함께 막히게 했다(둘 다 같은 백엔드 계약을 공유하므로 한쪽이 깨진 채 배포되는 것을 막는 게 안전하다). `deploy-webchat` job을 신설해 webchat 앱 자체도 CI 게이트 뒤에서만 배포되게 한다.
+(Vercel 프로젝트의 Git 자동 배포는 끄고, `VERCEL_TOKEN`은 GitHub 저장소 Secrets에 등록. `webchat` 프로젝트도 Task 15 Step 4에서 만든 Vercel 프로젝트를 대상으로 한다)
 
 - [ ] **Step 3: 동작 검증**
 
@@ -1949,8 +2078,8 @@ Vercel은 기본적으로 push마다 즉시 빌드한다. Project Settings → G
 **Files:** 없음 (빌드 산출물은 GitHub Release에만 업로드 — 저장소에 바이너리 커밋 금지)
 
 **Interfaces:**
-- Consumes: `mobile/scripts/build_release.sh`(Task 10), Railway 주소(Task 14), 원격 Supabase 값(Task 13)
-- Produces: GitHub Release `v1.0.0-demo` (app-release.apk, app-release.aab 첨부)
+- Consumes: `mobile/scripts/build_release.sh`(Task 10), Railway 주소(Task 14), 원격 Supabase 값(Task 13), Task 10 Step 4.5의 서명된 `.ipa`
+- Produces: GitHub Release `v1.0.0-demo` (app-release.apk, app-release.aab, **서명된 .ipa** 첨부 — [정합성 검토 즉시14/교차4] 시뮬레이터 빌드로만 끝내지 않는다)
 
 - [ ] **Step 1: 프로덕션 값으로 서명 빌드**
 
@@ -1979,16 +2108,31 @@ flutter run -d "iPhone 15" --release <같은 dart-define 3개>
 ```
 Expected: 시뮬레이터에서 로그인·예약 조회 정상. README에 이 실행 명령을 기록해 향후 재현 가능하게 한다.
 
+- [ ] **Step 3.5: 서명된 iOS 실물 빌드(.ipa) 산출** ([정합성 검토 즉시14/교차4] 재검증 — 1차 문서 반영)
+
+시뮬레이터 확인은 코드가 도는지만 보여줄 뿐 실기기 배포 가능 여부는 증명하지 않는다. Task 10 Step 4.5에서 이미 Apple Developer 계정을 연결해뒀으므로, 여기서는 프로덕션 값으로 서명된 산출물만 다시 뽑는다:
+```bash
+cd mobile
+flutter build ipa --release \
+  --dart-define=API_BASE_URL=https://<railway 주소> \
+  --dart-define=SUPABASE_URL=https://<ref>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon key>
+```
+Expected: `build/ios/ipa/*.ipa` 생성.
+검증: `cd build/ios/ipa && unzip -o *.ipa -d _unzipped && codesign -dv --verbose=4 _unzipped/Payload/Runner.app && rm -rf _unzipped`
+Expected: `Authority=Apple Distribution: ...` 출력(서명 확인). 스토어 심사 제출은 하지 않는다 — GitHub Release 첨부와 README 안내까지가 이 계획의 범위.
+
 - [ ] **Step 4: GitHub Release 생성**
 
 ```bash
 gh release create v1.0.0-demo \
   mobile/build/app/outputs/flutter-apk/app-release.apk \
   mobile/build/app/outputs/bundle/release/app-release.aab \
+  mobile/build/ios/ipa/*.ipa \
   --title "데모 납품 빌드 v1.0.0" \
-  --notes "안드로이드 설치: app-release.apk 다운로드 후 설치. 스토어 제출용: app-release.aab. iOS는 README의 시뮬레이터 실행법 참조. 테스트 계정: backend/scripts/demo_accounts.md"
+  --notes "안드로이드 설치: app-release.apk 다운로드 후 설치. 스토어 제출용: app-release.aab. iOS는 서명된 .ipa 첨부(Apple Developer 계정으로 서명, 실기기 설치는 Xcode Devices 창 또는 Apple Configurator 필요 — 별도 스토어 등록 없이는 임의 배포에 제약 있음), 시뮬레이터 실행법은 README 참조. 테스트 계정: backend/scripts/demo_accounts.md"
 ```
-Expected: Release 페이지에 파일 2개 첨부 확인
+Expected: Release 페이지에 파일 3개(apk, aab, ipa) 첨부 확인
 
 ---
 
@@ -1998,10 +2142,11 @@ Expected: Release 페이지에 파일 2개 첨부 확인
 
 **Files:**
 - Create: `backend/scripts/smoke.py`
+- Create: `backend/scripts/smoke_rate_limit.py` ([정합성 검토 우선12] 익명 채팅 rate limit 전용 — 정기 스모크와 분리)
 
 **Interfaces:**
-- Consumes: Railway 주소, 원격 Supabase(토큰 발급), 데모 계정(Task 9)
-- Produces: `python -m scripts.smoke` — 배포 환경 대상 핵심 흐름 검증 스크립트(재배포 때마다 재실행 가능)
+- Consumes: Railway 주소, 원격 Supabase(토큰 발급), 데모 계정(Task 9), `ALLOWED_ORIGINS`(Task 14), `settings.anon_rate_limit_per_hour`(4단계)
+- Produces: `python -m scripts.smoke` — 배포 환경 대상 핵심 흐름·CORS 검증 스크립트(재배포 때마다 재실행 가능), `python -m scripts.smoke_rate_limit` — 익명 rate limit 선택 검증(비용 발생 — 필요할 때만 실행)
 
 - [ ] **Step 1: 스모크 스크립트 작성**
 
@@ -2009,7 +2154,8 @@ Expected: Release 페이지에 파일 2개 첨부 확인
 ```python
 """배포된 클라우드 환경 스모크 테스트.
 실행: SMOKE_API=https://<railway> SMOKE_SUPABASE_URL=https://<ref>.supabase.co \
-     SMOKE_ANON_KEY=<anon> python -m scripts.smoke"""
+     SMOKE_ANON_KEY=<anon> SMOKE_STAFF_ORIGIN=https://<직원웹>.vercel.app \
+     SMOKE_WEBCHAT_ORIGIN=https://<webchat>.vercel.app python -m scripts.smoke"""
 import os
 import sys
 
@@ -2018,6 +2164,9 @@ import httpx
 API = os.environ["SMOKE_API"]
 SUPABASE = os.environ["SMOKE_SUPABASE_URL"]
 ANON = os.environ["SMOKE_ANON_KEY"]
+# [정합성 검토 우선11] CORS(ALLOWED_ORIGINS)가 실제로 걸려있는지 배포 때마다 확인
+STAFF_ORIGIN = os.environ.get("SMOKE_STAFF_ORIGIN")
+WEBCHAT_ORIGIN = os.environ.get("SMOKE_WEBCHAT_ORIGIN")
 
 ADMIN = {"email": "admin@demo-hospital.kr", "password": "Demo!2026admin"}
 PATIENT = {"phone": "+821011110001", "password": "Demo!2026pt1"}
@@ -2040,9 +2189,29 @@ def check(name: str, ok: bool, detail: str = ""):
         sys.exit(1)
 
 
+def check_cors_preflight(origin: str, label: str):
+    """[정합성 검토 우선11] ALLOWED_ORIGINS 배포 회귀 확인 —
+    직원 웹/webchat 도메인이 실제로 CORS 허용되는지 OPTIONS preflight로 검증."""
+    res = httpx.options(
+        f"{API}/app/departments",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+        timeout=15,
+    )
+    allow_origin = res.headers.get("access-control-allow-origin")
+    check(f"CORS preflight ({label})", allow_origin == origin, f"allow-origin={allow_origin}")
+
+
 def main():
     res = httpx.get(f"{API}/health", timeout=15)
     check("health", res.status_code == 200)
+
+    if STAFF_ORIGIN:
+        check_cors_preflight(STAFF_ORIGIN, "직원 웹")
+    if WEBCHAT_ORIGIN:
+        check_cors_preflight(WEBCHAT_ORIGIN, "webchat")
 
     staff_token = login(ADMIN)
     res = httpx.get(f"{API}/me", headers={"Authorization": f"Bearer {staff_token}"}, timeout=15)
@@ -2076,17 +2245,65 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: 실행해 전체 통과 확인**
 
-Run: `cd backend && SMOKE_API=... SMOKE_SUPABASE_URL=... SMOKE_ANON_KEY=... python -m scripts.smoke`
-Expected: 모든 항목 ✅, `스모크 테스트 전체 통과`
+Run: `cd backend && SMOKE_API=... SMOKE_SUPABASE_URL=... SMOKE_ANON_KEY=... SMOKE_STAFF_ORIGIN=https://<직원웹>.vercel.app SMOKE_WEBCHAT_ORIGIN=https://<webchat>.vercel.app python -m scripts.smoke`
+Expected: 모든 항목 ✅(CORS preflight 2건 포함), `스모크 테스트 전체 통과`
 
-- [ ] **Step 3: 외부 서비스 차단 실험 (요구사항 6.4 실검증)**
+- [ ] **Step 3: 익명 채팅 rate limit 실제 동작 확인**
+
+> **[2026-07-28 재검증 — 1차 문서 반영]** 4단계 계획의 `settings.anon_rate_limit_per_hour`(기본 30)는 pytest에서 `monkeypatch`로 2로 낮춰 단위 테스트됐지만(`test_anon_rate_limit`, ai-chatbot.md 라인 2478), 실제 배포 환경에서 이 값이 정말 적용되는지는 검증된 적이 없다. 매 배포마다 31번 실제 LLM 호출을 태우는 건 비용·시간이 크므로, 필요할 때만 수동으로 켜는 별도 스크립트로 분리한다(정기 스모크에는 포함하지 않음).
+
+`backend/scripts/smoke_rate_limit.py`(선택 실행 — 배포 직후 1회 또는 rate limit 로직 변경 시에만):
+```python
+"""익명 채팅 rate limit이 배포 환경에서 실제로 걸리는지 확인.
+실행: SMOKE_API=https://<railway> python -m scripts.smoke_rate_limit
+주의: settings.anon_rate_limit_per_hour(기본 30)+1번 실제 채팅 API를 호출한다 — 비용 발생, 자주 돌리지 말 것."""
+import os
+
+import httpx
+
+API = os.environ["SMOKE_API"]
+LIMIT = int(os.environ.get("SMOKE_RATE_LIMIT", "30"))  # 배포 환경의 anon_rate_limit_per_hour와 맞출 것
+
+
+def main():
+    conv = httpx.post(f"{API}/chat/conversations", json={"channel": "web"}, timeout=15).json()
+    headers = {"X-Anon-Session": conv["anon_session_token"]}
+    conv_id = conv["conversation_id"]
+
+    last_status = None
+    for i in range(LIMIT + 1):
+        res = httpx.post(
+            f"{API}/chat/conversations/{conv_id}/messages",
+            json={"content": "진료 시간 알려주세요"},
+            headers=headers,
+            timeout=30,
+        )
+        last_status = res.status_code
+        if res.status_code == 429:
+            print(f"✅ {i+1}번째 요청에서 429(rate limited) 확인 — 한도 {LIMIT}과 일치: {i+1 > LIMIT - 2}")
+            return
+    print(f"❌ {LIMIT + 1}번 요청 후에도 429 없음 (마지막 status={last_status}) — rate limit 미동작 의심")
+    raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
+```
+Run: `cd backend && SMOKE_API=https://<railway> python -m scripts.smoke_rate_limit`
+Expected: `LIMIT+1`번째 이내에 429 발생. 안 나오면 4단계 `_check_anon_rate_limit`(ai-chatbot.md 라인 2576)이 배포 환경 설정값을 실제로 읽는지 점검.
+
+- [ ] **Step 4: 외부 서비스 차단 실험 (요구사항 6.4 실검증)**
+
+> **[2026-07-28 재검증 — 1차 문서 반영]** 기존 절차는 `TWILIO_AUTH_TOKEN`·`ANTHROPIC_API_KEY`만 다뤘다. `OPENAI_API_KEY`(4단계 임베딩/RAG 경로)와 `FCM_SERVICE_ACCOUNT_JSON`(푸시 알림)도 같은 방식으로 장애 시 폴백을 확인하도록 (5)(6)을 추가한다. 상담봇은 Claude/OpenAI 둘 다 쓰므로 각각 개별로 막아 어느 한쪽만 죽어도 안내 문구가 나가는지 확인한다.
 
 1. Railway Variables에서 `TWILIO_AUTH_TOKEN`과 `ANTHROPIC_API_KEY`를 일부러 잘못된 값으로 변경 → 재배포
 2. 직원 웹에서 예약 생성 + 의사 진료기록 저장 → **정상 동작해야 함** (알림·상담봇 실패는 로그에만)
 3. 오류 로그 화면(`/admin/errors`)에 알림 발송 실패가 기록됐는지 확인
 4. 키를 원래 값으로 복원 → 재배포 → 스모크 재실행
+5. `ANTHROPIC_API_KEY`만 복원한 채 `OPENAI_API_KEY`를 잘못된 값으로 변경 → 재배포 → webchat에서 질문 전송 → **AI 서비스가 응답하지 못할 때 사용자에게 "잠시 후 다시 시도해주세요" 류 안내 문구가 나가는지 수동 확인**(전용 헬스체크 엔드포인트가 AI 프로바이더 상태를 별도로 노출하지 않는 한 이 수동 확인이 유일한 검증 경로 — `/admin/errors`에도 실패 로그가 남는지 함께 확인). 확인 후 `OPENAI_API_KEY` 복원
+6. `FCM_SERVICE_ACCOUNT_JSON`을 빈 문자열로 변경 → 재배포 → 환자 앱에서 예약 상태 변경 트리거(예: 접수직원이 상태를 "진료중"으로 변경) → **직원 웹/앱 핵심 기능은 계속 동작**하고 푸시만 실패, `/admin/errors`에 기록되는지 확인 → 키 복원 → 재배포
 
-- [ ] **Step 4: 비밀키 유출 스캔 (요구사항 6.5)**
+- [ ] **Step 5: 비밀키 유출 스캔 (요구사항 6.5)**
 
 ```bash
 brew install gitleaks
@@ -2096,11 +2313,11 @@ Expected: `no leaks found`. 검출되면 해당 값을 즉시 회전(rotate)하�
 
 추가: 배포된 직원 웹의 브라우저 개발자도구 → Sources에서 번들 검색 — `service_role`, `sk-ant-`, `TWILIO` 문자열이 없는지 확인 (프론트에 서버 키가 섞이지 않았는지).
 
-- [ ] **Step 5: 커밋**
+- [ ] **Step 6: 커밋**
 
 ```bash
-git add backend/scripts/smoke.py
-git commit -m "test: 클라우드 스모크 테스트 스크립트 추가"
+git add backend/scripts/smoke.py backend/scripts/smoke_rate_limit.py
+git commit -m "test: 클라우드 스모크 테스트 스크립트 + CORS·rate limit 검증 추가"
 ```
 
 ---
@@ -2173,11 +2390,12 @@ git push origin main
 
 - 실제 클라우드 배포(Railway/Vercel/Supabase) → Task 13, 14, 15
 - 자동 통합 테스트(시나리오 1,3,4,5,6,8,9,10 통계API 수치) + 수동 체크리스트(2,7, 10 화면·CSV 다운로드, 알림) → Task 1~5, 20(Step 6), 21
-- 알림 스케줄러(전날·당일·사전문진, 08:00 KST) → Task 6, 16
+- 알림 스케줄러(전날·당일·사전문진, 08:00 KST, 서버 UTC 타임존 대비 `zoneinfo` 명시 변환) → Task 6, 16
 - 백업(pg_dump, 14일, 복구 리허설) → Task 7, 16
 - 오류 로그 화면(1~4단계 공백 메움) + 플랫폼 로그 문서화 → Task 8, 20(Step 5)
 - 데모 데이터(계정, 3주 과거+미래, 지식문서 15) → Task 9
-- 앱 제출 준비 빌드(서명 .aab/.apk, iOS 준비, 스토어 미제출) → Task 10, 18
+- 앱 제출 준비 빌드(서명 .aab/.apk, 서명된 iOS .ipa — Apple Developer 계정 연결, 스토어 미제출) → Task 10(Step 4.5), 18(Step 3.5)
+- CORS(ALLOWED_ORIGINS)·CI webchat 게이트·익명 rate limit·AI/FCM 장애 폴백 배포 검증 → Task 14(Step 3.5), 11(webchat job), 19(Step 3, 4)
 - CI 게이트 + 자동 배포 → Task 11, 17
 - 사용자 승인 관문(원격 DB 적용) → Task 12
 - 외부 서비스 차단에도 핵심 기능 유지(6.4) 실검증 → Task 19(Step 3)

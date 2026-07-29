@@ -14,7 +14,7 @@
 - 마이그레이션 번호 대역: **1단계(기반) `00001~00099`**, 2단계(직원 웹) `00100~00199`, 3단계(환자 앱) `00200~00299`, 4단계(AI 챗봇) `00300~00399`, 5단계(배포·운영) `00400~`. 서로 다른 단계가 같은 번호를 쓰면 실행 순서가 꼬이므로 영역별 대역을 미리 고정한다(정합성 검토 SDB-01)
 - 백엔드는 FastAPI + Supabase(Postgres)만 사용한다 (스펙 문서 "기술 스택")
 - 권한은 Supabase RLS로 강제한다 (스펙 문서 섹션 1)
-- 직원 세션은 30분 무활동 시 자동 로그아웃 (Supabase Auth JWT 만료 설정)
+- 직원 세션은 30분 무활동 시 자동 로그아웃 (Supabase Auth JWT 만료 설정) — ([정합성 검토 R1-우선2 재검증] 실제로는 "무활동 30분"이 아니라 로그인 시점부터의 절대 만료로 구현한다. 차이와 판단 근거는 Task 12 도입부 참고)
 - 직원 계정은 관리자의 초대 링크로만 생성된다 (자가입 불가)
 - 어떤 테이블도 실제 `DELETE`를 사용하지 않는다 — `is_active` 플래그로 소프트 삭제 (스펙 문서 섹션 2, 소프트 삭제 원칙)
 - 완료된 진료기록 수정 시 사유(`reason`)가 필수이며 이전 내용은 `medical_record_revisions`에 보존된다 (스펙 문서 섹션 2)
@@ -58,6 +58,8 @@ supabase start
 [auth]
 jwt_expiry = 1800
 ```
+
+> **[2026-07-28 재검증 — 1차 문서 반영]** 이 값은 "무활동 30분"이 아니라 로그인 시점부터의 **절대 만료**다(계속 조작 중이어도 정확히 30분에 끊김). 스펙 섹션 1의 "30분 무활동 로그아웃"과 정확히 같은 의미는 아니라는 점, 그리고 이 프로젝트가 왜 절대 만료로 충분하다고 판단했는지는 Task 12(직원 초대/중지 서비스)의 도입부 인용 블록에 정리했다.
 
 - [ ] **Step 2: 백엔드 의존성 정의**
 
@@ -246,6 +248,11 @@ as $$
   select s.role from public.staff s where s.auth_user_id = auth.uid() and s.is_active;
 $$;
 
+-- [정합성 검토 R1-우선2 재검증] 이 함수가 모든 RLS 정책의 게이트라, 직원이 비활성화되면 Auth
+-- 세션(리프레시 토큰)이 살아있어도 이 함수가 즉시 false를 반환해 데이터 접근을 막는다 — 그래서
+-- Task 12에서 "JWT 30분 절대 만료로 충분하다"고 판단할 수 있었다(세션 존속 자체는 보안 공백이
+-- 아님). 다만 세션을 실제로 끊는 절차(Task 12 deactivate_staff의 sign_out 호출)는 이 함수와
+-- 별개로 필요했고 이번에 추가했다.
 create or replace function private.is_active_staff()
 returns boolean
 language sql
@@ -2896,6 +2903,16 @@ git commit -m "feat: 환자 등록/조회 서비스 추가"
 
 ## Task 12: 직원 초대/중지 서비스
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토 우선순위2 및 그 재검증(`consistency-review-2026-07-28-round1-verification.md` 우선2, ⚠️ 부분반영)의 지적: "30분 무활동 로그아웃 ≠ JWT 30분 만료, 직원 비활성화가 Auth 세션을 무효화하지 않는다."
+>
+> 두 가지가 서로 다른 개념이라는 점부터 정리한다.
+> - **절대 만료(absolute expiry)**: 로그인 시점부터 정확히 30분이 지나면 무조건 로그아웃된다. 계속 화면을 조작하고 있어도 예외 없이 끊긴다. `supabase/config.toml`의 `jwt_expiry = 1800`(Task 1, 위 라인 56~60)이 이 방식이다.
+> - **무활동 만료(inactivity expiry)**: 마지막 조작 시점부터 30분간 아무 조작이 없어야 로그아웃된다. 계속 쓰고 있으면 세션이 계속 연장된다. 이걸 구현하려면 프론트엔드가 사용자 조작(클릭/키입력 등)을 감지해 주기적으로 Supabase의 리프레시 토큰으로 세션을 갱신(`supabase.auth.refreshSession()`)하는 별도 로직이 필요하다.
+>
+> **이 프로젝트는 절대 만료로 간다 — 무활동 감지+자동 갱신 로직은 별도로 구축하지 않는다.** 이유: (1) 병원 직원 웹은 접수/의사 콘솔처럼 화면을 오래 띄워두고 간헐적으로 조작하는 사용 패턴이 흔한데, 절대 만료를 택하면 이런 사용자는 작업 중간에 갑자기 로그아웃될 수 있어 "무활동 30분"보다 오히려 더 자주 끊길 수 있다는 단점은 있다. 그러나 (2) 무활동 감지 로직은 프론트엔드에 이벤트 리스너·타이머·백그라운드 갱신 요청이라는 추가 복잡도를 요구하고, (3) 이 프로젝트의 실질적 보안 위험(비활성화된 직원이 계속 데이터에 접근하는 것)은 아래 `is_active_staff()`가 모든 RLS 정책의 게이트라 세션 존속 여부와 무관하게 이미 차단된다 — 세션이 살아있어도 RLS가 막으므로 "로그인 상태 자체를 얼마나 오래 유지하느냐"는 편의성 문제이지 보안 공백이 아니다. 따라서 구현 비용 대비 이득이 낮다고 판단해 절대 만료를 유지한다. (사용자가 실제로 자주 끊긴다고 느끼면 이후 단계에서 무활동 방식으로 전환하는 옵션은 남겨둔다.)
+>
+> 다만 **직원 비활성화 시 Supabase Auth 세션(리프레시 토큰) 자체를 끊는 절차는 없다는 지적은 실제 공백이므로 이번에 반영한다** — RLS가 데이터 접근은 막아주지만, 비활성화된 직원의 브라우저 세션은 만료 시각(최대 30분)까지 "로그인된 상태 화면"이 계속 떠 있을 수 있다(빈 목록만 보일 뿐 완전히 로그아웃되지는 않음). 아래 `deactivate_staff`가 `admin.auth.admin.sign_out(auth_user_id, scope="global")`을 호출해 모든 기기의 세션을 즉시 무효화하도록 Step 3을 수정했다.
+
 **Files:**
 - Create: `backend/app/db/admin_client.py`
 - Create: `backend/app/services/staff_service.py`
@@ -2905,7 +2922,7 @@ git commit -m "feat: 환자 등록/조회 서비스 추가"
 - Consumes: `app.core.config.settings`(Task 1), `app.db.pool.acquire_as`(Task 9), `app.core.security.StaffContext`(Task 9)
 - Produces: `app.db.admin_client.get_admin_client() -> supabase.Client` (service role 클라이언트)
 - Produces: `app.services.staff_service.invite_staff(email: str, name: str, role: str, department_id: UUID | None, invited_by: StaffContext) -> UUID`
-- Produces: `app.services.staff_service.deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None`([정합성 검토 R3-04] 본인 또는 마지막 남은 활성 관리자를 중지하려 하면 `AppError(409)`)
+- Produces: `app.services.staff_service.deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None`([정합성 검토 R3-04] 본인 또는 마지막 남은 활성 관리자를 중지하려 하면 `AppError(409)`. [정합성 검토 R1-우선2 재검증] `is_active = false` UPDATE와 함께 `admin.auth.admin.sign_out(auth_user_id, scope="global")`을 호출해 대상 직원의 모든 기기 Auth 세션을 즉시 무효화한다)
 - Produces: `app.services.staff_service.list_staff(staff: StaffContext) -> list[dict]`([정합성 검토 R3-04] `id, name, role, department_id, is_active` — 관리자 전용, `/admin/staff` 화면 목록)
 - Produces: `app.services.staff_service.resend_invite(staff_id: UUID, requested_by: StaffContext) -> None`([정합성 검토 R3-04] 초대 이메일 재발송)
 
@@ -2939,6 +2956,18 @@ from tests.conftest import seed_staff
 
 def _to_context(seed: dict, role: str) -> StaffContext:
     return StaffContext(id=seed["staff_id"], auth_user_id=seed["auth_user_id"], role=role, department_id=None)
+
+
+@pytest.fixture(autouse=True)
+def _fake_admin_client(monkeypatch):
+    """[정합성 검토 R1-우선2 재검증] deactivate_staff가 Supabase Admin API로 세션을 끊게 되면서,
+    이 파일의 모든 테스트가 기본적으로 가짜 admin 클라이언트를 쓰도록 한다(실제 네트워크 호출 방지).
+    세션 무효화 호출 자체를 검증하는 테스트는 이 픽스처가 반환한 목을 그대로 받아 assert한다.
+    개별 테스트가 `with patch("app.services.staff_service.get_admin_client", ...)`로 더 구체적인
+    목을 또 씌우는 것도 문제없다 — with 블록이 끝나면 이 픽스처의 monkeypatch로 복원된다."""
+    fake_admin_client = MagicMock()
+    monkeypatch.setattr("app.services.staff_service.get_admin_client", lambda: fake_admin_client)
+    return fake_admin_client
 
 
 @pytest.mark.asyncio
@@ -3001,6 +3030,22 @@ async def test_deactivate_staff_sets_flags(db_conn):
     )
     assert row["is_active"] is False
     assert row["deactivated_by"] == admin_ctx.id
+
+
+@pytest.mark.asyncio
+async def test_deactivate_staff_revokes_auth_session(db_conn, _fake_admin_client):
+    """[정합성 검토 R1-우선2 재검증] 비활성화 시 대상 직원의 Supabase Auth 세션을 전 기기에서
+    즉시 끊는다 — RLS(`is_active_staff()`)는 데이터 접근을 막아주지만, 세션 자체는 살아있어
+    JWT 만료(최대 30분) 전까지 로그인된 화면이 떠 있을 수 있었다는 지적을 반영."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")
+
+    await staff_service.deactivate_staff(target["staff_id"], deactivated_by=admin_ctx)
+
+    _fake_admin_client.auth.admin.sign_out.assert_called_once_with(
+        str(target["auth_user_id"]), scope="global"
+    )
 
 
 @pytest.mark.asyncio
@@ -3116,13 +3161,21 @@ async def invite_staff(
 
 async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None:
     """[정합성 검토 R3-04] 본인 중지와 마지막 남은 활성 관리자 중지를 막는다 —
-    둘 다 병원 운영이 관리자 없이 멈추는 상황을 만들 수 있다."""
+    둘 다 병원 운영이 관리자 없이 멈추는 상황을 만들 수 있다.
+
+    [정합성 검토 R1-우선2 재검증] `is_active_staff()` RLS 게이트가 비활성화된 직원의 데이터
+    접근은 이미 막지만, Supabase Auth 세션(리프레시 토큰) 자체는 그것만으로는 끊기지 않는다 —
+    비활성화 이후에도 JWT 만료 시각(최대 30분)까지 브라우저에는 "로그인된 화면"이 그대로 떠
+    있을 수 있다(데이터는 비어 보이지만 완전한 로그아웃 상태는 아님). 이를 막기 위해 `is_active`
+    UPDATE와 같은 트랜잭션 안에서 Admin API로 전 기기 세션을 즉시 무효화한다."""
     if staff_id == deactivated_by.id:
         raise AppError("본인 계정은 중지할 수 없습니다.", status_code=409)
 
     async with acquire_as(str(deactivated_by.auth_user_id)) as conn:
-        target_role = await conn.fetchval("select role from staff where id = $1", staff_id)
-        if target_role == "admin":
+        target = await conn.fetchrow("select role, auth_user_id from staff where id = $1", staff_id)
+        if target is None:
+            raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
+        if target["role"] == "admin":
             active_admin_count = await conn.fetchval(
                 "select count(*) from staff where role = 'admin' and is_active"
             )
@@ -3137,6 +3190,14 @@ async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext) -> None
             """,
             staff_id, deactivated_by.id,
         )
+
+    # [정합성 검토 R1-우선2 재검증] scope="global" — 이 직원이 로그인해둔 모든 기기/브라우저의
+    # 리프레시 토큰을 한 번에 무효화한다. DB 트랜잭션 밖에서 호출하는 이유: Admin API 호출은
+    # DB 트랜잭션에 편입될 수 없는 별도의 외부 호출이라, is_active 반영을 먼저 커밋해 RLS가
+    # 즉시 데이터 접근을 막도록 한 뒤 세션을 끊는 순서가 더 안전하다(반대 순서면 세션은 끊겼지만
+    # is_active 갱신이 실패해 RLS로는 여전히 접근 가능한 상태가 남을 수 있다).
+    admin = get_admin_client()
+    admin.auth.admin.sign_out(str(target["auth_user_id"]), scope="global")
 
 
 async def list_staff(staff: StaffContext) -> list[dict]:
@@ -3202,7 +3263,7 @@ async def test_resend_invite_missing_staff_raises(db_conn):
 - [ ] **Step 4: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_staff_service.py -v`
-Expected: 9개 테스트 모두 PASS([정합성 검토 R3-04] 본인/마지막 관리자 중지 차단, 목록 조회, 관리자 2명 중 1명 중지 허용, 재초대 성공/대상없음, 의사 소속 진료과 필수 검증 테스트 7건 추가)
+Expected: 10개 테스트 모두 PASS([정합성 검토 R3-04] 본인/마지막 관리자 중지 차단, 목록 조회, 관리자 2명 중 1명 중지 허용, 재초대 성공/대상없음, 의사 소속 진료과 필수 검증 테스트 7건 추가, [정합성 검토 R1-우선2 재검증] 비활성화 시 Auth 세션 무효화 호출 검증 테스트 1건 추가로 9→10)
 
 - [ ] **Step 5: 커밋**
 
@@ -3385,13 +3446,20 @@ git commit -m "feat: 슬롯 조건부 예약 서비스와 동시성 테스트 �
 
 ## Task 14: 예약 생성/상태전이/대기순서/응급표시 서비스
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토(`consistency-review-2026-07-28.md` 우선순위3) 및
+> 그 반영 여부를 재확인한 `consistency-review-2026-07-28-round1-verification.md`(우선3, ❌ 미반영)가
+> 지적한 항목: "예약 생성 시 초기 상태를 요청값 그대로 받지 말고 예약 채널별 허용 상태를 서버에서
+> 고정한다." 실제로 구 버전 `CreateAppointmentRequest.initial_status`(구 라인 4390/4411)는 클라이언트가
+> 보낸 값을 검증 없이 그대로 저장했다. 이번에 `ALLOWED_INITIAL_STATUS_BY_SOURCE` 화이트리스트(Step 2)와
+> 라우터의 `source="staff"` 강제(Step 2 라우터), 실패하는 테스트 2건(Step 1)을 추가해 반영했다.
+
 **Files:**
 - Create: `backend/app/services/appointment_service.py`
 - Test: `backend/tests/test_appointment_service.py`
 
 **Interfaces:**
 - Consumes: `app.db.pool.acquire_as`(Task 9), `app.core.errors.AppError`(Task 10), `app.services.slot_service.book_slot`(Task 13), `app.core.security.StaffContext`(Task 9)
-- Produces: `app.services.appointment_service.create_appointment(staff, account_patient_id, for_patient_id, department_id, doctor_id, reason, source, initial_status, slot_id=None) -> UUID`
+- Produces: `app.services.appointment_service.create_appointment(staff, account_patient_id, for_patient_id, department_id, doctor_id, reason, source, initial_status, slot_id=None) -> UUID`([정합성 검토 R1-우선3 재검증] `source`/`initial_status` 조합을 `ALLOWED_INITIAL_STATUS_BY_SOURCE` 화이트리스트로 검증 — 클라이언트가 보낸 값을 그대로 신뢰하지 않는다)
 - Produces: `app.services.appointment_service.transition_status(appointment_id, new_status, staff, reason, expected_updated_at) -> None`
 - Produces: `app.services.appointment_service.reorder_queue(appointment_id, new_position, staff, reason) -> None`
 - Produces: `app.services.appointment_service.set_urgent_flag(appointment_id, is_urgent, staff, expected_updated_at) -> None`
@@ -3587,6 +3655,45 @@ async def test_set_urgent_flag(db_conn):
 
     flag = await db_conn.fetchval("select is_urgent_flag from appointments where id = $1", appointment_id)
     assert flag is True
+
+
+@pytest.mark.asyncio
+async def test_create_appointment_rejects_initial_status_not_allowed_for_source(db_conn):
+    """[정합성 검토 R1-우선3 재검증] `source`가 보낸 `initial_status`가 그 채널에서 허용되지 않으면
+    서버가 그대로 저장하지 않고 거부한다 — 예: 'app' 채널이 '진료완료'를 초기상태로 주장하는 경우."""
+    ctx = await _seed_base(db_conn)
+
+    with pytest.raises(AppError) as exc_info:
+        await appointment_service.create_appointment(
+            staff=ctx["receptionist"],
+            account_patient_id=ctx["patient_id"],
+            for_patient_id=ctx["patient_id"],
+            department_id=ctx["dept_id"],
+            doctor_id=ctx["doctor"].id,
+            reason="감기",
+            source="app",
+            initial_status="진료완료",
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_appointment_rejects_unknown_source(db_conn):
+    """[정합성 검토 R1-우선3 재검증] 화이트리스트에 없는 `source` 값 자체도 거부한다."""
+    ctx = await _seed_base(db_conn)
+
+    with pytest.raises(AppError) as exc_info:
+        await appointment_service.create_appointment(
+            staff=ctx["receptionist"],
+            account_patient_id=ctx["patient_id"],
+            for_patient_id=ctx["patient_id"],
+            department_id=ctx["dept_id"],
+            doctor_id=ctx["doctor"].id,
+            reason="감기",
+            source="fax",
+            initial_status="예약확정",
+        )
+    assert exc_info.value.status_code == 400
 ```
 
 Run: `cd backend && pytest tests/test_appointment_service.py -v`
@@ -3617,6 +3724,19 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     "진료중": {"진료완료"},
 }
 
+# [정합성 검토 R1-우선3 재검증] 예약 생성 시 초기 상태를 예약 채널(source)별로 서버가 고정한다.
+# 1차 정합성 검토 지적: `CreateAppointmentRequest.initial_status`를 클라이언트가 보낸 값 그대로 저장하고
+# 있었다(구 라인 4390/4411) — 예를 들어 앱에서 "진료완료"를 초기상태로 보내도 그대로 통과했다.
+# 'app'/'chatbot' 채널은 실제로는 이 함수를 거치지 않고 3단계 patient_booking_service.create_booking()의
+# _initial_status()(hospital_settings.auto_confirm_app_bookings 기준)가 서버에서 직접 계산한 값만 쓴다 —
+# 여기 화이트리스트는 그 계약이 앞으로도 지켜지도록 하는 방어선이다. 'staff' 채널(2단계 전화예약/워크인
+# 등록)만 실제로 이 함수를 통해 여러 초기 상태를 선택할 수 있으므로 셋을 넓게 둔다.
+ALLOWED_INITIAL_STATUS_BY_SOURCE: dict[str, set[str]] = {
+    "staff": {"예약확정", "도착", "진료대기"},  # 전화예약=예약확정, 워크인 즉시 대기열 편입=도착/진료대기
+    "app": {"예약신청", "예약확정"},
+    "chatbot": {"예약신청", "예약확정"},
+}
+
 
 async def create_appointment(
     staff: StaffContext,
@@ -3629,6 +3749,19 @@ async def create_appointment(
     initial_status: str,
     slot_id: UUID | None = None,
 ) -> UUID:
+    # [정합성 검토 R1-우선3 재검증] 클라이언트가 보낸 source/initial_status 조합을 그대로 믿지 않고
+    # 화이트리스트로 검증한다. 화이트리스트에 없는 source, 또는 그 source에서 허용하지 않는
+    # initial_status면 예약 자체를 만들지 않고 400으로 거부한다("무시하고 서버값으로 대체"가 아니라
+    # "거부"를 택한 이유: 'staff' 채널은 전화예약/워크인처럼 상황에 따라 정말 다른 초기 상태가 필요해
+    # 하나의 고정값으로 무시-대체할 수 없다 — 그래서 검증만 하고, 값 자체는 여전히 호출부 책임으로 둔다).
+    allowed = ALLOWED_INITIAL_STATUS_BY_SOURCE.get(source)
+    if allowed is None:
+        raise AppError(f"알 수 없는 예약 경로입니다: {source}", status_code=400)
+    if initial_status not in allowed:
+        raise AppError(
+            f"'{source}' 경로에서는 '{initial_status}' 상태로 예약을 생성할 수 없습니다.", status_code=400,
+        )
+
     async with acquire_as(str(staff.auth_user_id)) as conn:
         if slot_id is not None:
             booked = await book_slot(slot_id, staff, conn=conn)
@@ -3747,7 +3880,7 @@ async def set_urgent_flag(
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_appointment_service.py -v`
-Expected: 7개 테스트 모두 PASS
+Expected: 9개 테스트 모두 PASS([정합성 검토 R1-우선3 재검증] 채널별 초기상태 화이트리스트 검증 테스트 2건 추가로 7→9)
 
 - [ ] **Step 4: 커밋**
 
@@ -4400,6 +4533,11 @@ async def create_appointment(
     body: CreateAppointmentRequest,
     staff: StaffContext = Depends(require_role("receptionist", "admin")),
 ) -> CreateAppointmentResponse:
+    # [정합성 검토 R1-우선3 재검증] 이 엔드포인트는 require_role로 접수직원/관리자만 호출할 수 있으므로
+    # source는 항상 "staff"로 서버가 고정한다 — body.source는 받되(구 클라이언트/스모크 테스트 호환용
+    # 필드로 남겨둔다) 신뢰하지 않고 무시한다. initial_status는 여전히 body 값을 그대로 서비스에 넘기지만,
+    # appointment_service.create_appointment의 ALLOWED_INITIAL_STATUS_BY_SOURCE 화이트리스트가
+    # "staff" 채널에서 허용하지 않는 값이면 400으로 거부한다.
     appointment_id = await appointment_service.create_appointment(
         staff=staff,
         account_patient_id=body.account_patient_id,
@@ -4407,7 +4545,7 @@ async def create_appointment(
         department_id=body.department_id,
         doctor_id=body.doctor_id,
         reason=body.reason,
-        source=body.source,
+        source="staff",
         initial_status=body.initial_status,
         slot_id=body.slot_id,
     )

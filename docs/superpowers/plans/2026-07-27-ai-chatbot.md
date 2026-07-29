@@ -2314,6 +2314,40 @@ async def test_escalation_detected_creates_ticket_and_hands_over(service_conn, m
 
 
 @pytest.mark.asyncio
+async def test_handoff_reply_mentions_next_business_day_outside_business_hours(service_conn, monkeypatch):
+    """[2026-07-28 재검증 — 1차 문서 반영] is_business_hours()가 고아 함수였던 문제 수정:
+    업무시간 외 인계 시 응답 문구에 '다음 영업일'이 포함되는지 검증한다."""
+    from app.services import chat_service, ticket_service
+
+    async def fake_escalation(text, history_texts, unhelpful_flagged, no_answer, model=None):
+        return "medical_judgment"
+
+    async def fake_summary(history_text, model=None):
+        return {
+            "summary_question": "q", "summary_confirmed": "c", "summary_guided": "g",
+            "summary_unresolved": "u", "summary_staff_todo": "t",
+        }
+
+    monkeypatch.setattr(chat_service.safety_watchdog, "check_escalation", fake_escalation)
+    monkeypatch.setattr(chat_service.safety_watchdog, "build_handoff_summary", fake_summary)
+    monkeypatch.setattr(ticket_service, "is_business_hours", lambda now=None: False)  # 업무시간 외로 고정
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    result = await chat_service.post_message(
+        conv["conversation_id"], "이 약 계속 먹어도 되나요?", anon_token=conv["anon_session_token"],
+    )
+    assert "다음 영업일" in result["reply"]
+
+    monkeypatch.setattr(ticket_service, "is_business_hours", lambda now=None: True)  # 업무시간 중으로 고정
+    conv2 = await chat_service.start_conversation(channel="web", patient=None)
+    result2 = await chat_service.post_message(
+        conv2["conversation_id"], "이 약 계속 먹어도 되나요?", anon_token=conv2["anon_session_token"],
+    )
+    assert "다음 영업일" not in result2["reply"]
+    assert "빠른 시일" in result2["reply"]
+
+
+@pytest.mark.asyncio
 async def test_routes_to_rag_chain_and_records_route_taken(service_conn, monkeypatch):
     from app.services import chat_service
 
@@ -2549,13 +2583,26 @@ async def _check_anon_rate_limit(conn, conversation_id: UUID) -> None:
         raise AppError("잠시 후 다시 시도해 주세요. 문의가 많아 잠깐 쉬어가고 있어요.", 429)
 
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** `ticket_service.is_business_hours()`(Task 12, 라인 약 2937)는
+> 정의·단위테스트는 있었지만 실제로 환자에게 보여줄 인계 안내 문구를 만드는 곳이 없어 "고아 함수"였다
+> (2026-07-28 정합성 검토 1차, ⚠️ 부분반영). `_handoff()`가 인계 티켓을 만든 직후 `is_business_hours()`를
+> 호출해, 업무시간 중이면 "빠른 답변", 업무시간 외면 "다음 영업일 답변"으로 문구를 분기하도록 연결한다.
+> 이 문구는 기존 흐름 그대로 `chat_messages`에 `sender='bot'`으로 저장된다(Task 11 Step 2, `post_message`의
+> insert 블록 — 라인 약 2669). 프런트엔드(라인 약 5130, `handedOver === true`일 때의 안내 말풍선)는 이미
+> "업무시간에는 곧, 업무시간이 아니면 다음 영업일" 문구를 정적으로 보여주고 있었는데, 이제 백엔드가 실제
+> `is_business_hours()` 판정 결과로 같은 취지의 문구를 봇 메시지로 저장하므로 프런트 문구와 실제 대화
+> 로그(`chat_messages`, `get_ticket_detail`이 보여주는 원본 대화)가 일치하게 된다.
+
 async def _handoff(conversation_id: UUID, patient, reason: str, history_text: str, model, embedder=None) -> str:
     summary = await safety_watchdog.build_handoff_summary(history_text, model=model)
     from app.services import ticket_service  # 순환 import 방지 — 인계 발생 시에만 로드
     await ticket_service.create_ticket(
         conversation_id=conversation_id, patient=patient, reason=reason, embedder=embedder, **summary,
     )
-    return "직원에게 문의를 전달했어요. 확인 후 답변드릴게요."
+    # [2026-07-28 재검증] is_business_hours()를 실제 안내 문구에 연결 — 더 이상 고아 함수가 아니다.
+    if ticket_service.is_business_hours():
+        return "직원에게 문의를 전달했어요. 빠른 시일 내 답변드릴게요."
+    return "직원에게 문의를 전달했어요. 업무시간(평일 9시~18시)이 아니라 다음 영업일에 답변드릴게요."
 
 
 async def post_message(
@@ -2725,7 +2772,7 @@ git commit -m "feat: 대화 오케스트레이션 - 응급검사/인계감시/�
 **Interfaces:**
 - Consumes: `notification_service.notify_patient`(푸시), `sms_client.get_sms_client`(익명 SMS), `settings.business_hour_start/end`
 - Produces: `app.services.ticket_service.create_ticket(conversation_id, patient, reason, summary_question, summary_confirmed, summary_guided, summary_unresolved, summary_staff_todo, contact_name=None, contact_phone=None, embedder=None) -> UUID` — 상담방을 `handed_over`로 전환. Task 11의 `_handoff()`가 `safety_watchdog.build_handoff_summary()`가 만든 요약 5항목을 그대로 이 함수의 키워드 인자로 넘긴다. `summary_question`을 임베딩해 `question_embedding`에 함께 저장(요구사항 3.9/3.10 미해결 질문 클러스터링용) — 임베딩 실패해도 티켓 생성 자체는 막지 않음(부가 기능)
-- Produces: `app.services.ticket_service.is_business_hours(now=None) -> bool`
+- Produces: `app.services.ticket_service.is_business_hours(now=None) -> bool` — [2026-07-28 재검증 — 1차 문서 반영] Task 11의 `_handoff()`(라인 약 2552)가 인계 안내 문구를 분기하는 데 이 함수를 직접 호출해 사용한다(기존엔 정의·테스트만 있고 호출부가 없는 고아 함수였음)
 - Produces: `app.services.ticket_service.list_tickets(staff, status="pending") -> list[dict]`, `get_ticket_detail(ticket_id, staff) -> dict`(요약 5항목 + 원본 대화 포함 — 열람 즉시 `pending`이면 `claim_ticket` 자동 호출)
 - Produces: `app.services.ticket_service.claim_ticket(ticket_id, staff) -> None` — `pending → in_progress` 전환 + `assigned_staff_id`를 호출한 직원으로 배정. 이미 `in_progress`/`answered`면 아무 것도 하지 않음(멱등)
 - Produces: `app.services.ticket_service.reassign_ticket(ticket_id, staff, to_staff_id) -> None` — 의료진 판단이 필요할 때(3.9) 담당을 `to_staff_id`로 교체. 상태는 `in_progress` 유지, `answered` 티켓은 재배정 불가(`AppError`). [정합성 검토 R2-06] `to_staff_id`가 비활성이면 400, `medical_judgment` 사유 티켓인데 `to_staff_id`의 role이 doctor/admin이 아니면 403

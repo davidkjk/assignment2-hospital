@@ -574,7 +574,9 @@ git commit -m "feat: patients.auth_user_id 링크와 patient_owns() 기반 환�
 
 **Interfaces:**
 - Consumes: `patient_owns()`(Task 1), DB 테이블 `appointments`, `appointment_status_history`, `questionnaire_templates`, `questionnaire_responses`, `medical_records`, `hospital_settings`(1단계 Task 5~8)
-- Produces: `appointments.cancellation_requested_at`(nullable timestamptz), `appointment_status_history.changed_by_patient_id`(nullable, `patients(id)` 참조, `changed_by`는 nullable로 변경), `hospital_settings.auto_confirm_app_bookings`(boolean, 기본 false), 환자용 select/insert/update RLS 정책 일체, DB 뷰 `patient_medical_notes(id, appointment_id, patient_visible_notes, is_completed, updated_at)`(Task 11이 `medical_records` 대신 이 뷰를 조회 — 의료진 전용 항목 비노출용)
+- Produces: `appointments.cancellation_requested_at`(nullable timestamptz), `appointment_status_history.changed_by_patient_id`(nullable, `patients(id)` 참조, `changed_by`는 nullable로 변경), `hospital_settings.auto_confirm_app_bookings`(boolean, 기본 false), `hospital_settings.hospital_address`/`hospital_phone`(text, 기본 빈 문자열 — [2026-07-28 재검증] Task 22 홈 화면 예약 카드가 조회), 환자용 select/insert/update RLS 정책 일체, DB 뷰 `patient_medical_notes(id, appointment_id, patient_visible_notes, is_completed, updated_at)`(Task 11이 `medical_records` 대신 이 뷰를 조회 — 의료진 전용 항목 비노출용)
+
+> **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토(우선8)가 지적한 대로, 계획서 전체를 검색해도 병원 위치(주소/전화번호) 정보가 어디에도 없었다. `hospital_settings`는 이미 `auto_confirm_app_bookings`처럼 병원 전역 설정을 담는 테이블이자(Task 8, 라인 591) `patients_can_read_hospital_settings` RLS 정책으로 로그인한 환자에게 이미 열려 있으므로(라인 718), 새 테이블을 만드는 대신 이 테이블에 `hospital_address`/`hospital_phone` 두 컬럼만 추가한다. 값은 배포 시 병원 운영팀이 직접 UPDATE하는 정적 설정이며, 이렇게 하면 주소가 바뀌어도 앱 재배포 없이 반영된다.
 
 - [ ] **Step 1: 마이그레이션 SQL 작성**
 
@@ -589,6 +591,12 @@ alter table appointment_status_history
   check (changed_by is not null or changed_by_patient_id is not null);
 
 alter table hospital_settings add column auto_confirm_app_bookings boolean not null default false;
+
+-- [2026-07-28 재검증 — 1차 문서 반영] 홈 화면 예약 카드에 병원 위치/전화번호를 보여주기 위한 정적 설정값.
+-- 병원은 1곳뿐이므로 hospital_settings에 단일 행으로 둔다(운영 중 주소 변경 시 이 값만 UPDATE하면
+-- 앱 재배포 없이 반영된다 — 앱에 하드코딩하는 대신 이 방식을 택한 이유).
+alter table hospital_settings add column hospital_address text not null default '';
+alter table hospital_settings add column hospital_phone text not null default '';
 
 create policy "patients_can_read_own_appointments" on appointments
   for select
@@ -1801,6 +1809,23 @@ async def test_list_available_slots_excludes_booked(db_conn):
     slots = await patient_catalog_service.list_available_slots(doctor["staff_id"], date(2026, 8, 1), ctx)
     assert len(slots) == 1
     assert str(slots[0]["start_time"]) == "09:00:00"
+
+
+@pytest.mark.asyncio
+async def test_get_hospital_info_returns_address_and_phone(db_conn):
+    """[2026-07-28 재검증 — 1차 문서 반영] 홈 화면 예약 카드용 병원 주소/전화번호 조회."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    await db_conn.execute(
+        "update hospital_settings set hospital_address = $1, hospital_phone = $2",
+        "서울시 강남구 테헤란로 123", "02-1234-5678",
+    )
+    patient = await seed_patient(db_conn)
+    ctx = PatientContext(id=patient["patient_id"], auth_user_id=patient["auth_user_id"])
+
+    info = await patient_catalog_service.get_hospital_info(ctx)
+    assert info["hospital_address"] == "서울시 강남구 테헤란로 123"
+    assert info["hospital_phone"] == "02-1234-5678"
 ```
 
 Run: `cd backend && pytest tests/test_patient_catalog_service.py -v`
@@ -1857,12 +1882,22 @@ async def list_available_slots(doctor_id: UUID, target_date: date, patient: Pati
             doctor_id, target_date,
         )
     return [{"id": row["id"], "start_time": row["start_time"]} for row in rows]
+
+
+async def get_hospital_info(patient: PatientContext) -> dict:
+    """[2026-07-28 재검증 — 1차 문서 반영] 홈 화면 예약 카드에 표시할 병원 주소/전화번호.
+    hospital_settings는 단일 행이라 limit 1로 첫 행을 가져온다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow("select hospital_address, hospital_phone from hospital_settings limit 1")
+    if row is None:
+        return {"hospital_address": "", "hospital_phone": ""}
+    return {"hospital_address": row["hospital_address"], "hospital_phone": row["hospital_phone"]}
 ```
 
 - [ ] **Step 6: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_catalog_service.py -v`
-Expected: 2개 테스트 모두 PASS
+Expected: 3개 테스트 모두 PASS([2026-07-28 재검증] `get_hospital_info` 테스트 1건 추가로 2→3 — 테스트 본문은 Step 1의 실패 테스트에 함께 추가한다)
 
 - [ ] **Step 7: [정합성 검토 R5-04] 공개(익명) 카탈로그 서비스**
 
@@ -2623,6 +2658,8 @@ git commit -m "feat: 예약 취소(마감전후 분기)와 나의 예약 조회 
 - Consumes: `app.core.patient_security.PatientContext`(Task 4), `app.core.errors.AppError`
 - Produces: `app.services.patient_questionnaire_service.get_template(department_id: UUID, patient) -> dict | None`, `submit_response(patient, appointment_id: UUID, template_id: UUID, answers: list[dict]) -> UUID`, `get_response(patient, appointment_id: UUID) -> dict | None`
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토(우선7)에서 지적된 갭이 실제 코드에 남아 있다: `submit_response`가 클라이언트가 보낸 `template_id`를 예약의 `department_id`와 대조 없이 그대로 저장한다(원 코드 라인 2736~2756). 즉 환자 앱(또는 API를 직접 호출하는 악의적 클라이언트)이 자신이 예약한 진료과가 아닌 다른 진료과의 문진 템플릿 id를 보내도 그대로 저장되어, 의료진이 엉뚱한 문진 내용을 보게 될 수 있다. Step 1의 실패 테스트와 Step 2 구현에 "예약의 department_id와 template_id의 department_id가 일치하는지" 서버 검증을 추가한다.
+
 - [ ] **Step 1: 실패하는 테스트 작성**
 
 `backend/tests/test_patient_questionnaire_service.py`:
@@ -2704,6 +2741,26 @@ async def test_submit_response_rejected_after_arrival(db_conn):
         await patient_questionnaire_service.submit_response(
             ctx["me"], ctx["appointment_id"], ctx["template_id"], [{"question": "q", "answer": "늦은 수정"}],
         )
+
+
+@pytest.mark.asyncio
+async def test_submit_response_rejects_mismatched_department_template(db_conn):
+    """[2026-07-28 재검증 — 1차 문서 반영] 예약은 내과인데 다른 진료과(정형외과) 템플릿 id를
+    보내면 서버가 department_id 불일치를 이유로 400을 던져야 한다 — 클라이언트가 어떤
+    template_id를 보내든 신뢰하지 않는다."""
+    ctx = await _seed_appointment(db_conn)
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    other_dept_id = await db_conn.fetchval("insert into departments (name) values ('정형외과') returning id")
+    other_template_id = await db_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, $2) returning id",
+        other_dept_id, '[{"text": "어디가 아프신가요?", "type": "text", "required": true}]',
+    )
+
+    with pytest.raises(AppError):
+        await patient_questionnaire_service.submit_response(
+            ctx["me"], ctx["appointment_id"], other_template_id, [{"question": "q", "answer": "무릎이 아파요"}],
+        )
 ```
 
 Run: `cd backend && pytest tests/test_patient_questionnaire_service.py -v`
@@ -2737,11 +2794,21 @@ async def submit_response(
     patient: PatientContext, appointment_id: UUID, template_id: UUID, answers: list[dict],
 ) -> UUID:
     async with acquire_as(str(patient.auth_user_id)) as conn:
-        appointment = await conn.fetchrow("select status from appointments where id = $1", appointment_id)
+        appointment = await conn.fetchrow(
+            "select status, department_id from appointments where id = $1", appointment_id,
+        )
         if appointment is None:
             raise AppError("예약을 찾을 수 없습니다.", status_code=404)
         if appointment["status"] not in EDITABLE_STATUSES:
             raise AppError("방문 전까지만 사전문진을 작성/수정할 수 있습니다.", status_code=400)
+
+        # [2026-07-28 재검증 — 1차 문서 반영] 클라이언트가 보낸 template_id를 그대로 믿지 않는다.
+        # 예약 진료과의 템플릿이 아니면(다른 진료과 템플릿이거나 존재하지 않는 id면) 거부한다.
+        template_dept = await conn.fetchval(
+            "select department_id from questionnaire_templates where id = $1", template_id,
+        )
+        if template_dept is None or template_dept != appointment["department_id"]:
+            raise AppError("선택한 문진 양식이 예약 진료과와 일치하지 않습니다.", status_code=400)
 
         response_id = await conn.fetchval(
             """
@@ -2775,13 +2842,13 @@ async def get_response(patient: PatientContext, appointment_id: UUID) -> dict | 
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd backend && pytest tests/test_patient_questionnaire_service.py -v`
-Expected: 4개 테스트 모두 PASS
+Expected: 5개 테스트 모두 PASS([2026-07-28 재검증] 진료과 불일치 거부 테스트 1건 추가로 4→5)
 
 - [ ] **Step 4: 커밋**
 
 ```bash
 git add backend/app/services/patient_questionnaire_service.py backend/tests/test_patient_questionnaire_service.py
-git commit -m "feat: 사전문진 제출/조회 서비스 추가"
+git commit -m "feat: 사전문진 제출/조회 서비스 추가 (문진 템플릿-예약 진료과 서버 검증 포함)"
 ```
 
 ---
@@ -3761,6 +3828,12 @@ async def list_available_slots(
     doctor_id: UUID, target_date: date, patient: PatientContext = Depends(get_current_patient),
 ) -> list[dict]:
     return await patient_catalog_service.list_available_slots(doctor_id, target_date, patient)
+
+
+@router.get("/hospital-info")
+async def get_hospital_info(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    """[2026-07-28 재검증 — 1차 문서 반영] 홈 화면 예약 카드의 병원 주소/전화번호."""
+    return await patient_catalog_service.get_hospital_info(patient)
 ```
 
 - [ ] **Step 2: 예약/사전문진/이력/알림 라우터 작성**
@@ -5925,6 +5998,8 @@ git commit -m "feat: 8단계 예약 플로우 실제 API 연동, MyProfileContro
 - Consumes: `apiClientProvider`(Task 15), `get_appointment_detail`이 반환하는 `doctor_id`(Task 9, 예약 변경 대상 의사 식별용으로 확장), `availableDatesProvider, availableSlotsProvider`(Task 19 `catalog_controller.dart`)
 - Produces: `AppointmentActionController`(`AsyncNotifier<void>`: `changeBooking(appointmentId, newSlotId, reason) -> Future<String>`, `cancelBooking(appointmentId, reason) -> Future<Map<String, bool>>`)
 
+> **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토(우선8)에서 지적된 대로, 아래 Step 4의 "예약 취소" 버튼은 확인 다이얼로그 없이 바로 `cancelBooking`을 호출하고 있었다. 실수로 버튼을 눌러도 되돌릴 방법이 없는 파괴적 동작이므로 "정말 취소하시겠습니까?" 확인창을 추가한다. 예약 변경(reschedule) 플로우는 이미 날짜→시간 두 단계 선택을 거치므로 의도적으로 확인창을 생략한다는 설명이 아래에 그대로 남아 있다 — 그 로직은 건드리지 않는다.
+
 - [ ] **Step 1: 실패하는 테스트 작성**
 
 `mobile/test/features/booking/appointment_action_controller_test.dart`:
@@ -6099,6 +6174,30 @@ class AppointmentDetailScreen extends ConsumerWidget {
     }
   }
 
+  // [2026-07-28 재검증 — 1차 문서 반영] 취소는 되돌릴 수 없는 동작이라 명시적 확인을 거친다.
+  // 예약 변경(reschedule)은 위 _openRescheduleDialog가 이미 날짜→시간 두 단계 선택을 거치므로
+  // 별도 확인창 없이 바로 진행한다 — 이 결정은 그대로 유지한다.
+  Future<void> _confirmAndCancel(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('예약 취소'),
+        content: const Text('정말 취소하시겠습니까?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('아니오')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('예, 취소합니다')),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final result = await ref.read(appointmentActionControllerProvider.notifier).cancelBooking(appointmentId, '환자 요청');
+    if (context.mounted) {
+      final message = result['cancelled'] == true ? '예약이 취소되었습니다.' : '취소 요청됨 · 직원 확인 중';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actionState = ref.watch(appointmentActionControllerProvider);
@@ -6127,17 +6226,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
             ElevatedButton(
               onPressed: actionState.isLoading
                   ? null
-                  : () async {
-                      final result = await ref
-                          .read(appointmentActionControllerProvider.notifier)
-                          .cancelBooking(appointmentId, '환자 요청');
-                      if (context.mounted) {
-                        final message = result['cancelled'] == true
-                            ? '예약이 취소되었습니다.'
-                            : '취소 요청됨 · 직원 확인 중';
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-                      }
-                    },
+                  : () => _confirmAndCancel(context, ref),
               child: const Text('예약 취소'),
             ),
           ],
@@ -6162,7 +6251,7 @@ GoRoute(
 
 ```bash
 git add mobile/lib/features/booking/appointment_action_controller.dart mobile/lib/features/booking/appointment_detail_screen.dart mobile/lib/core/router.dart mobile/test/features/booking/appointment_action_controller_test.dart backend/app/services/patient_appointment_query_service.py
-git commit -m "feat: 예약 변경 화면(날짜/시간 재선택)과 마감전후 취소 분기 처리 추가"
+git commit -m "feat: 예약 변경 화면(날짜/시간 재선택)과 마감전후 취소 분기 처리 추가 (2026-07-28 재검증: 취소 확인 다이얼로그 포함)"
 ```
 
 ---
@@ -6359,8 +6448,10 @@ git commit -m "feat: 사전문진 작성/수정 화면 추가"
 - Test: `mobile/test/features/home/home_controller_test.dart`
 
 **Interfaces:**
-- Consumes: `apiClientProvider`(Task 15)
-- Produces: `UpcomingAppointment`(모델), `HomeController`(`AsyncNotifier<UpcomingAppointment?>`: `load()`)
+- Consumes: `apiClientProvider`(Task 15), `GET /app/hospital-info`(Task 7·13, [2026-07-28 재검증])
+- Produces: `UpcomingAppointment`(모델), `HospitalInfo`(모델, [2026-07-28 재검증]), `HomeController`(`AsyncNotifier<UpcomingAppointment?>`: `load()`), `hospitalInfoProvider`(`FutureProvider<HospitalInfo>`)
+
+> **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토(우선8)에서 지적된 대로 홈 화면 예약 카드에 병원 주소/전화번호가 없었다. Task 7·13에서 추가한 `GET /app/hospital-info`를 조회하는 `hospitalInfoProvider`를 새로 추가하고, 아래 Step 4 홈 화면 카드에 표시한다. `BusyButton`/`OfflineBanner`(Task 26)는 이 태스크의 변경과 무관하므로 그대로 둔다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -6470,6 +6561,24 @@ class HomeController extends AsyncNotifier<UpcomingAppointment?> {
 
 final homeControllerProvider = AsyncNotifierProvider<HomeController, UpcomingAppointment?>(HomeController.new);
 
+// [2026-07-28 재검증 — 1차 문서 반영] 병원 주소/전화번호. 예약 유무와 무관하게 항상 같은 값이라
+// autoDispose 없이 앱 전역에서 한 번만 조회해도 된다.
+class HospitalInfo {
+  const HospitalInfo({required this.address, required this.phone});
+  final String address;
+  final String phone;
+
+  factory HospitalInfo.fromJson(Map<String, dynamic> json) => HospitalInfo(
+        address: json['hospital_address'] as String,
+        phone: json['hospital_phone'] as String,
+      );
+}
+
+final hospitalInfoProvider = FutureProvider<HospitalInfo>((ref) async {
+  final api = ref.read(apiClientProvider);
+  return api.get('/app/hospital-info', (json) => HospitalInfo.fromJson(json as Map<String, dynamic>));
+});
+
 // [정합성 검토 R4-03] 내 앞 대기 인원. Task 23의 appointments Realtime 구독 콜백이 이 provider를
 // invalidate하면 자동으로 다시 조회된다 — 순서 변경/진료시작/취소 모두 그 구독으로 이미 커버된다.
 final queueStatusProvider = FutureProvider.autoDispose.family<int, String>((ref, appointmentId) async {
@@ -6553,6 +6662,41 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 const SizedBox(height: 16),
                 const Text('예상 대기시간은 변동될 수 있습니다.', style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 8),
+                // [2026-07-28 재검증 — 1차 문서 반영] 병원 주소/전화번호. 실패해도 예약 카드 자체는
+                // 그대로 보여야 하므로 error 상태에서는 조용히 숨긴다(전화 문의라는 대체 수단이 있어
+                // 화면을 막을 정도로 치명적이지 않다).
+                Consumer(
+                  builder: (context, ref, _) {
+                    final hospitalInfo = ref.watch(hospitalInfoProvider);
+                    return hospitalInfo.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (e, _) => const SizedBox.shrink(),
+                      data: (info) => Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on_outlined, size: 18, color: Colors.grey),
+                                const SizedBox(width: 4),
+                                Expanded(child: Text(info.address, style: const TextStyle(color: Colors.grey))),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                const Icon(Icons.call_outlined, size: 18, color: Colors.grey),
+                                const SizedBox(width: 4),
+                                Text(info.phone, style: const TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 ElevatedButton(
                   onPressed: () => context.go('/appointments/${appointment.id}'),
                   child: const Text('예약 상세'),
@@ -6578,7 +6722,7 @@ GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
 
 ```bash
 git add mobile/lib/features/home mobile/lib/core/router.dart mobile/test/features/home/home_controller_test.dart
-git commit -m "feat: 홈 화면(가장 가까운 예약, QR/예약번호) 추가 (R4-04: booking_code로 교체, R4-03: 대기인원 위젯 포함)"
+git commit -m "feat: 홈 화면(가장 가까운 예약, QR/예약번호) 추가 (R4-04: booking_code로 교체, R4-03: 대기인원 위젯 포함, 2026-07-28 재검증: 병원 주소/전화번호 표시 포함)"
 ```
 
 ---
