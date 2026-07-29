@@ -351,10 +351,14 @@
     .edge { fill: none; stroke: #91a49f; stroke-width: 2; }
     .edge.business { stroke-dasharray: 7 6; }
     .edge-label { fill: #667975; font-size: 11px; font-weight: 700; paint-order: stroke; stroke: #f8faf8; stroke-width: 6px; stroke-linejoin: round; }
+    .edge-cardinality { fill: #29443e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 950; paint-order: stroke; stroke: #f8faf8; stroke-width: 6px; }
     .node-title { fill: var(--ink); font-size: 16px; font-weight: 900; }
     .node-table { fill: #536964; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
     .node-line { stroke: rgba(23, 51, 47, .12); }
     .node-field { fill: #415b55; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
+    .node-field-key { fill: #29443e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 950; }
+    .diagram-node.standard .node-shell { rx: 3; }
+    .diagram-node.standard .node-table { fill: white; font-size: 11px; font-weight: 900; }
     .node-description { fill: #6b7d79; font-size: 11px; }
     .node-key { fill: white; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; font-weight: 900; }
 
@@ -626,7 +630,8 @@
         </div>
         <div class="diagram-card" id="diagramCard">
           <div class="diagram-tabs" role="tablist" aria-label="ERD 업무 영역">
-            <button class="diagram-tab" role="tab" aria-selected="true" data-map="account">① 계정·환자·가족</button>
+            <button class="diagram-tab" role="tab" aria-selected="true" data-map="overview">전체 ERD</button>
+            <button class="diagram-tab" role="tab" aria-selected="false" data-map="account">① 계정·환자·가족</button>
             <button class="diagram-tab" role="tab" aria-selected="false" data-map="booking">② 일정·예약</button>
             <button class="diagram-tab" role="tab" aria-selected="false" data-map="care">③ 문진·진료·감사</button>
             <button class="diagram-tab" role="tab" aria-selected="false" data-map="operation">④ 설정·앱 알림</button>
@@ -634,8 +639,8 @@
           </div>
           <div class="diagram-toolbar">
             <div class="diagram-title">
-              <strong id="mapTitle">계정·환자·가족</strong>
-              <span id="mapSubtitle">로그인한 사람이 누구이며, 누구를 대신할 수 있는가</span>
+              <strong id="mapTitle">전체 핵심 ERD</strong>
+              <span id="mapSubtitle">PK·FK가 표시된 테이블과 1:N 관계선 · 실선은 FK, 점선은 트리거 규칙</span>
             </div>
             <div class="zoom-tools" aria-label="다이어그램 확대 축소">
               <button class="icon-button" id="zoomOut" type="button" title="축소" aria-label="축소">−</button>
@@ -787,8 +792,106 @@
     const N = (id, title, table, x, y, group, description, fields) => ({
       id, title, table, x, y, w: 205, h: 142, group, description, fields
     });
+    const E = (id, title, table, x, y, group, description, fields) => ({
+      id, title, table, x, y, w: 250, h: 76 + fields.length * 20,
+      group, description, fields, standard: true
+    });
 
     const maps = {
+      overview: {
+        title: "전체 핵심 ERD",
+        subtitle: "PK·FK가 표시된 테이블과 1:N 관계선 · 실선은 FK, 점선은 트리거 규칙",
+        width: 2050, height: 1490, standard: true,
+        nodes: [
+          E("auth", "로그인 계정", "auth.users", 55, 55, "account", "Supabase가 관리하는 로그인 계정입니다.", [
+            ["uuid id", "PK"]
+          ]),
+          E("staff", "직원", "staff", 420, 55, "people", "직원과 의사의 계정·소속·역할을 저장합니다.", [
+            ["uuid id", "PK"], ["uuid auth_user_id", "FK · UK"], ["uuid department_id", "FK"],
+            ["uuid deactivated_by", "FK"], ["enum role", ""], ["boolean is_active", ""]
+          ]),
+          E("dept", "진료과", "departments", 800, 55, "operation", "병원이 운영하는 진료과 기준정보입니다.", [
+            ["uuid id", "PK"], ["text name", ""], ["boolean is_active", ""]
+          ]),
+          E("transitions", "허용 상태 규칙", "private.appointment_status_transitions", 1570, 55, "operation", "사용자에게 공개하지 않고 상태전이 트리거만 읽는 내부 규칙표입니다.", [
+            ["text from_status", "PK · NOT NULL"], ["text to_status", "PK · NOT NULL"]
+          ]),
+          E("rules", "반복 근무 규칙", "doctor_schedule_rules", 55, 400, "operation", "의사의 요일별 기본 근무시간입니다.", [
+            ["uuid id", "PK"], ["uuid doctor_id", "FK"], ["int weekday", ""],
+            ["time start_time", ""], ["time end_time", ""]
+          ]),
+          E("exceptions", "날짜별 일정 예외", "doctor_schedule_exceptions", 55, 740, "operation", "휴진과 특별근무 같은 특정일 예외입니다.", [
+            ["uuid id", "PK"], ["uuid doctor_id", "FK"], ["date exception_date", ""],
+            ["boolean is_closed", ""]
+          ]),
+          E("patients", "환자", "patients", 420, 405, "people", "병원의 환자정보이며 로그인 계정은 선택사항입니다.", [
+            ["uuid id", "PK"], ["uuid auth_user_id", "FK · UK"], ["text name", ""],
+            ["date birth_date", ""], ["text phone", ""], ["boolean is_active", ""]
+          ]),
+          E("family", "가족 권한 연결", "patient_family_links", 420, 785, "account", "보호자가 다른 환자를 대신 관리하는 관계입니다.", [
+            ["uuid id", "PK"], ["uuid account_patient_id", "FK"], ["uuid family_patient_id", "FK"],
+            ["text relation", ""], ["boolean is_active", ""], ["timestamptz unlinked_at", ""]
+          ]),
+          E("slots", "예약 시간칸", "appointment_slots", 800, 405, "booking", "의사별 실제 예약 가능 시간입니다.", [
+            ["uuid id", "PK"], ["uuid doctor_id", "FK"], ["date slot_date", ""],
+            ["time start_time", ""], ["text status", ""]
+          ]),
+          E("history", "예약 상태 이력", "appointment_status_history", 800, 845, "care", "예약 상태 변경과 행위자를 시간순으로 보존합니다.", [
+            ["uuid id", "PK"], ["uuid appointment_id", "FK"], ["uuid changed_by", "FK"],
+            ["uuid changed_by_patient_id", "FK"], ["text from_status", ""], ["text to_status", ""],
+            ["timestamptz changed_at", ""]
+          ]),
+          E("appointments", "예약", "appointments", 1160, 385, "booking", "예약자·진료대상·진료과·의사·시간을 묶는 핵심 테이블입니다.", [
+            ["uuid id", "PK"], ["uuid slot_id", "FK"], ["uuid account_patient_id", "FK"],
+            ["uuid for_patient_id", "FK"], ["uuid department_id", "FK"], ["uuid doctor_id", "FK"],
+            ["uuid created_by", "FK"], ["text status", ""], ["text source", ""],
+            ["text booking_code", "UK"]
+          ]),
+          E("records", "현재 진료기록", "medical_records", 1160, 845, "care", "예약에 연결된 현재 진료기록입니다.", [
+            ["uuid id", "PK"], ["uuid appointment_id", "FK · UK"], ["uuid doctor_id", "FK"],
+            ["boolean is_completed", ""], ["timestamptz updated_at", ""]
+          ]),
+          E("revisions", "진료기록 과거본", "medical_record_revisions", 1160, 1190, "care", "완료 기록 수정 전의 내용을 보존합니다.", [
+            ["uuid id", "PK"], ["uuid record_id", "FK"], ["uuid revised_by", "FK"],
+            ["text reason", ""], ["timestamptz revised_at", ""]
+          ]),
+          E("templates", "문진 양식", "questionnaire_templates", 1700, 400, "care", "진료과별 사전문진 질문 세트입니다.", [
+            ["uuid id", "PK"], ["uuid department_id", "FK"], ["jsonb questions", ""]
+          ]),
+          E("responses", "제출 문진", "questionnaire_responses", 1700, 760, "care", "예약 전에 제출된 실제 문진 답변입니다.", [
+            ["uuid id", "PK"], ["uuid appointment_id", "FK · UK"],
+            ["uuid template_id", "FK"], ["jsonb answers", ""]
+          ])
+        ],
+        edges: [
+          ["auth", "staff", "직원 로그인", false, "optionalOne"],
+          ["auth", "patients", "환자 로그인", false, "optionalOne"],
+          ["dept", "staff", "직원 소속", false, "many"],
+          ["staff", "staff", "비활성 처리자", false, "many"],
+          ["staff", "rules", "정규 일정", false, "many"],
+          ["staff", "exceptions", "예외 일정", false, "many"],
+          ["patients", "family", "예약 계정 환자", false, "many"],
+          ["patients", "family", "가족 환자", false, "many"],
+          ["staff", "slots", "담당 의사", false, "many"],
+          ["slots", "appointments", "선택 슬롯", false, "many"],
+          ["patients", "appointments", "예약 계정", false, "many"],
+          ["patients", "appointments", "진료 대상", false, "many"],
+          ["dept", "appointments", "예약 진료과", false, "many"],
+          ["staff", "appointments", "담당 의사", false, "many"],
+          ["staff", "appointments", "직원 생성자", false, "many"],
+          ["appointments", "history", "상태 이력", false, "many"],
+          ["staff", "history", "직원 행위자", false, "many"],
+          ["patients", "history", "환자 행위자", false, "many"],
+          ["appointments", "records", "진료기록", false, "optionalOne"],
+          ["staff", "records", "작성 의사", false, "many"],
+          ["records", "revisions", "수정 이력", false, "many"],
+          ["staff", "revisions", "수정 의사", false, "many"],
+          ["dept", "templates", "진료과 문진", false, "many"],
+          ["appointments", "responses", "제출 문진", false, "optionalOne"],
+          ["templates", "responses", "사용 양식", false, "many"],
+          ["transitions", "appointments", "상태 변경 검증", true, "rule"]
+        ]
+      },
       account: {
         title: "계정·환자·가족",
         subtitle: "로그인한 사람이 누구이며, 누구를 대신할 수 있는가",
@@ -1009,7 +1112,7 @@
     const mapSubtitle = document.getElementById("mapSubtitle");
     const zoomValue = document.getElementById("zoomValue");
     const nodeDetail = document.getElementById("nodeDetail");
-    let activeMap = "account";
+    let activeMap = "overview";
     let view = { x: 0, y: 0, w: 1000, h: 650 };
     let baseView = { x: 0, y: 0, w: 1000, h: 650 };
     let dragging = false;
@@ -1031,7 +1134,9 @@
         return {
           path: `M ${x - 12} ${y} C ${x + 100} ${y - 45}, ${x + 100} ${y + 78}, ${x - 12} ${y + 42}`,
           mx: x + 42,
-          my: y - 7
+          my: y - 7,
+          start: { x: x - 12, y },
+          end: { x: x - 12, y: y + 42 }
         };
       }
       const ac = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
@@ -1051,7 +1156,7 @@
       const path = Math.abs(dx) >= Math.abs(dy)
         ? `M ${start.x} ${start.y} C ${mx} ${start.y}, ${mx} ${end.y}, ${end.x} ${end.y}`
         : `M ${start.x} ${start.y} C ${start.x} ${my}, ${end.x} ${my}, ${end.x} ${end.y}`;
-      return { path, mx, my };
+      return { path, mx, my, start, end };
     }
 
     function renderMap(name) {
@@ -1064,17 +1169,42 @@
       view = { ...baseView };
       zoomValue.textContent = "맞춤";
 
-      const edges = map.edges.map(([from, to, label, business]) => {
+      const edges = map.edges.map(([from, to, label, business, relation = "many"]) => {
         const points = edgePoints(nodeById(map, from), nodeById(map, to));
+        const standardMarkers = relation === "rule"
+          ? `marker-end="url(#arrow)"`
+          : `marker-start="url(#card-one)" marker-end="url(#${relation === "optionalOne" ? "card-optional-one" : "card-many"})"`;
+        const markers = map.standard ? standardMarkers : `marker-end="url(#arrow)"`;
+        const cardinality = map.standard && relation !== "rule" && from !== to
+          ? `<text class="edge-cardinality" x="${points.start.x + (points.end.x - points.start.x) * .08}" y="${points.start.y + (points.end.y - points.start.y) * .08 - 8}" text-anchor="middle">1</text>
+             <text class="edge-cardinality" x="${points.start.x + (points.end.x - points.start.x) * .92}" y="${points.start.y + (points.end.y - points.start.y) * .92 - 8}" text-anchor="middle">${relation === "optionalOne" ? "0..1" : "N"}</text>`
+          : "";
         return `
           <g>
-            <path class="edge${business ? " business" : ""}" d="${points.path}" marker-end="url(#arrow)" />
+            <path class="edge${business ? " business" : ""}" d="${points.path}" ${markers} />
             <text class="edge-label" x="${points.mx}" y="${points.my - 7}" text-anchor="middle">${escapeXml(label)}</text>
+            ${cardinality}
           </g>`;
       }).join("");
 
       const nodes = map.nodes.map(node => {
         const color = palette[node.group];
+        if (node.standard) {
+          return `
+            <g class="diagram-node standard" data-id="${node.id}" tabindex="0" role="button"
+               aria-label="${escapeXml(node.title)} 테이블 상세 보기" transform="translate(${node.x} ${node.y})">
+              <rect class="node-shell" width="${node.w}" height="${node.h}" rx="3"
+                    fill="#ffffff" stroke="${color.stroke}" stroke-width="1.8" />
+              <path d="M 3 3 H ${node.w - 3} V 39 H 3 Z" fill="${color.stroke}" />
+              <text class="node-table" x="12" y="25">${escapeXml(node.table)}</text>
+              ${node.fields.map((field, index) => {
+                const y = 61 + index * 20;
+                return `<line class="node-line" x1="1" y1="${42 + index * 20}" x2="${node.w - 1}" y2="${42 + index * 20}" />
+                  <text class="node-field" x="11" y="${y}">${escapeXml(field[0])}</text>
+                  <text class="node-field-key" x="${node.w - 10}" y="${y}" text-anchor="end">${escapeXml(field[1])}</text>`;
+              }).join("")}
+            </g>`;
+        }
         const visibleFields = node.fields.slice(0, 3);
         return `
           <g class="diagram-node" data-id="${node.id}" tabindex="0" role="button"
@@ -1096,6 +1226,16 @@
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#91a49f"></path>
+          </marker>
+          <marker id="card-one" viewBox="-1 -9 12 18" refX="1" refY="0" markerWidth="12" markerHeight="18" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+            <path d="M 4 -7 V 7 M 8 -7 V 7" fill="none" stroke="#526a64" stroke-width="1.8"></path>
+          </marker>
+          <marker id="card-many" viewBox="0 -9 14 18" refX="13" refY="0" markerWidth="14" markerHeight="18" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M 1 0 L 12 -7 M 1 0 L 12 0 M 1 0 L 12 7" fill="none" stroke="#526a64" stroke-width="1.8"></path>
+          </marker>
+          <marker id="card-optional-one" viewBox="0 -9 18 18" refX="17" refY="0" markerWidth="18" markerHeight="18" orient="auto" markerUnits="userSpaceOnUse">
+            <circle cx="5" cy="0" r="3.3" fill="#f8faf8" stroke="#526a64" stroke-width="1.6"></circle>
+            <path d="M 12 -7 V 7" fill="none" stroke="#526a64" stroke-width="1.8"></path>
           </marker>
         </defs>
         <g>${edges}</g>
@@ -1129,7 +1269,9 @@
         <ul class="detail-fields">
           ${node.fields.map(([field, meaning]) => `<li><code>${escapeXml(field)}</code><span>${escapeXml(meaning)}</span></li>`).join("")}
         </ul>
-        <div class="diagram-help">PK는 이 장부의 대표 고유번호, FK는 다른 장부를 가리키는 연결번호입니다.</div>`;
+        <div class="diagram-help">${map.standard
+          ? "PK는 기본키, FK는 외래키입니다. 관계선의 1은 한 개, N은 여러 개, 0..1은 없거나 한 개를 뜻합니다. 점선은 FK가 아닌 트리거 검증 관계입니다."
+          : "PK는 이 장부의 대표 고유번호, FK는 다른 장부를 가리키는 연결번호입니다."}</div>`;
     }
 
     function setViewBox() {
@@ -1233,7 +1375,7 @@
       emptyState.style.display = visible ? "none" : "block";
     });
 
-    renderMap("account");
+    renderMap("overview");
   </script>
 </body>
 </html>
