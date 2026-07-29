@@ -577,7 +577,7 @@
       <div class="notice-icon" aria-hidden="true">ⓘ</div>
       <div>
         <strong>이 문서는 현재 구현 계획을 설명하는 지도입니다.</strong>
-        <span>아직 실제 운영 데이터베이스가 아니며, 보안·정합성 검토 결과에 따라 테이블과 관계가 달라질 수 있습니다.</span>
+        <span>아직 실제 운영 데이터베이스가 아니며, 보안·정합성 검토 결과에 따라 테이블과 관계가 달라질 수 있습니다. 기준 원본: Supabase 계획 스키마 ERD</span>
       </div>
     </div>
 
@@ -792,21 +792,24 @@
       account: {
         title: "계정·환자·가족",
         subtitle: "로그인한 사람이 누구이며, 누구를 대신할 수 있는가",
-        width: 1050, height: 650,
+        width: 1120, height: 760,
         nodes: [
           N("auth", "로그인 계정", "auth.users", 70, 70, "account", "Supabase가 관리하는 로그인 계정입니다. 병원 직원이나 환자 장부와 1:1로 이어질 수 있습니다.", [["id", "PK · 계정 번호"]]),
-          N("dept", "진료과", "departments", 70, 400, "operation", "내과, 정형외과처럼 병원이 운영하는 진료과를 저장합니다.", [["id", "PK"], ["name", "진료과명"]]),
-          N("staff", "직원", "staff", 390, 70, "people", "관리자·접수직원·의사의 기본정보와 로그인 연결을 저장합니다.", [["id", "PK"], ["auth_user_id", "FK · 로그인"], ["department_id", "FK · 소속"]]),
-          N("patients", "환자", "patients", 390, 300, "people", "병원에서 진료받는 사람의 기본정보입니다. 전화 환자는 로그인 계정이 없을 수 있습니다.", [["id", "PK"], ["auth_user_id", "FK · 선택"], ["phone", "연락처"]]),
-          N("family", "가족 권한 연결", "patient_family_links", 735, 145, "account", "보호자가 자녀·부모 등 다른 환자를 대신 관리할 수 있는 관계를 저장합니다.", [["account_patient_id", "FK · 보호자"], ["family_patient_id", "FK · 가족"]]),
-          N("family_req", "가족 연결 OTP", "family_link_requests", 735, 405, "operation", "기존 환자를 가족으로 연결하기 전, 휴대전화 OTP 확인 과정을 저장합니다.", [["requesting_patient_id", "FK · 요청자"], ["target_patient_id", "FK · 대상"], ["expires_at", "만료 시각"]])
+          N("dept", "진료과", "departments", 70, 400, "operation", "내과, 정형외과처럼 병원이 운영하는 진료과를 저장합니다.", [["id", "PK"], ["name", "진료과명"], ["is_active", "운영 여부"]]),
+          N("staff", "직원", "staff", 390, 70, "people", "관리자·접수직원·의사의 기본정보와 로그인 연결을 저장합니다.", [["id", "PK"], ["auth_user_id", "FK · UNIQUE · 로그인"], ["department_id", "FK · 소속"], ["deactivated_by", "FK · 처리자"], ["role", "직원 역할"], ["is_active", "활성 여부"]]),
+          N("patients", "환자", "patients", 390, 300, "people", "병원에서 진료받는 사람의 기본정보입니다. 전화 환자는 로그인 계정이 없을 수 있습니다.", [["id", "PK"], ["auth_user_id", "FK · UNIQUE · 선택"], ["name", "이름"], ["birth_date", "생년월일"], ["phone", "연락처"], ["is_active", "활성 여부"]]),
+          N("family", "가족 권한 연결", "patient_family_links", 735, 145, "account", "보호자가 자녀·부모 등 다른 환자를 대신 관리할 수 있는 관계를 저장합니다.", [["id", "PK"], ["account_patient_id", "FK · 보호자"], ["family_patient_id", "FK · 가족"], ["relation", "가족 관계"], ["is_active", "활성 여부"]]),
+          N("family_req", "가족 연결 OTP", "family_link_requests", 735, 405, "operation", "기존 환자를 가족으로 연결하기 전, 휴대전화 OTP 확인 과정을 저장합니다.", [["id", "PK"], ["requesting_patient_id", "FK · 요청자"], ["target_patient_id", "FK · 대상"], ["code_hash", "OTP 해시"], ["expires_at", "만료 시각"], ["verified_at", "확인 시각"]])
         ],
         edges: [
           ["auth", "staff", "직원 로그인", false],
           ["auth", "patients", "환자 로그인 (선택)", false],
           ["dept", "staff", "소속 진료과", false],
-          ["patients", "family", "보호자 / 가족", false],
-          ["patients", "family_req", "요청자 / 대상", false]
+          ["staff", "staff", "비활성 처리자", false],
+          ["patients", "family", "account_patient_id · 보호자", false],
+          ["patients", "family", "family_patient_id · 가족", false],
+          ["patients", "family_req", "requesting_patient_id · 요청자", false],
+          ["patients", "family_req", "target_patient_id · 대상", false]
         ]
       },
       booking: {
@@ -815,26 +818,28 @@
         width: 1300, height: 800,
         nodes: [
           N("staff", "담당 의사", "staff", 40, 60, "people", "의사 일정과 예약에서 doctor_id가 가리키는 직원입니다.", [["id", "PK · 의사 번호"], ["role", "doctor"]]),
-          N("rules", "반복 근무 규칙", "doctor_schedule_rules", 340, 40, "operation", "“매주 월요일 9~17시” 같은 기본 근무시간을 저장합니다.", [["doctor_id", "FK"], ["weekday", "요일"], ["start_time", "시작"]]),
-          N("exceptions", "날짜별 예외", "doctor_schedule_exceptions", 340, 245, "operation", "공휴일 휴진이나 특정일 단축진료처럼 기본 규칙의 예외를 저장합니다.", [["doctor_id", "FK"], ["exception_date", "날짜"], ["is_closed", "휴진 여부"]]),
-          N("slots", "실제 예약 시간칸", "appointment_slots", 655, 135, "booking", "“김의사, 7월 28일 10시가 비어 있음”이라는 실제 시간표입니다.", [["id", "PK"], ["doctor_id", "FK"], ["status", "빈시간/예약됨"]]),
+          N("rules", "반복 근무 규칙", "doctor_schedule_rules", 340, 40, "operation", "“매주 월요일 9~17시” 같은 기본 근무시간을 저장합니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["weekday", "요일"], ["start_time", "시작"], ["end_time", "종료"]]),
+          N("exceptions", "날짜별 예외", "doctor_schedule_exceptions", 340, 245, "operation", "공휴일 휴진이나 특정일 단축진료처럼 기본 규칙의 예외를 저장합니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["exception_date", "예외 날짜"], ["is_closed", "휴진 여부"]]),
+          N("slots", "실제 예약 시간칸", "appointment_slots", 655, 135, "booking", "“김의사, 7월 28일 10시가 비어 있음”이라는 실제 시간표입니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["slot_date", "예약 날짜"], ["start_time", "시작 시각"], ["status", "상태"]]),
           N("patients", "환자", "patients", 655, 525, "people", "예약을 관리한 사람과 실제 진료받을 사람을 각각 가리킵니다.", [["id", "PK · 환자 번호"]]),
-          N("dept", "진료과", "departments", 40, 565, "operation", "예약이 어느 진료과에 속하는지 알려주는 기준 장부입니다.", [["id", "PK"], ["name", "진료과명"]]),
-          N("appointments", "실제 예약", "appointments", 965, 275, "booking", "누가, 누구를 위해, 어느 진료과·의사·시간을 예약했는지 저장하는 핵심 업무 장부입니다.", [["id", "PK"], ["slot_id", "FK · 시간"], ["for_patient_id", "FK · 진료대상"]]),
-          N("history", "상태 변경 이력", "appointment_status_history", 965, 545, "care", "신청→확정→도착→완료처럼 예약 상태가 바뀐 과정을 시간순으로 누적합니다.", [["appointment_id", "FK"], ["from_status", "변경 전"], ["to_status", "변경 후"]]),
-          N("transitions", "허용 상태 규칙", "appointment_status_transitions", 965, 45, "operation", "어떤 상태에서 어떤 상태로 바꿀 수 있는지 정한 규칙표입니다.", [["from_status", "복합 PK"], ["to_status", "복합 PK"]])
+          N("dept", "진료과", "departments", 40, 565, "operation", "예약이 어느 진료과에 속하는지 알려주는 기준 장부입니다.", [["id", "PK"]]),
+          N("appointments", "실제 예약", "appointments", 965, 275, "booking", "누가, 누구를 위해, 어느 진료과·의사·시간을 예약했는지 저장하는 핵심 업무 장부입니다.", [["id", "PK"], ["slot_id", "FK · 시간"], ["account_patient_id", "FK · 예약자"], ["for_patient_id", "FK · 진료대상"], ["department_id", "FK · 진료과"], ["doctor_id", "FK · 의사"], ["created_by", "FK · 생성 직원"], ["booking_code", "UNIQUE · 예약코드"]]),
+          N("history", "상태 변경 이력", "appointment_status_history", 965, 545, "care", "신청→확정→도착→완료처럼 예약 상태가 바뀐 과정을 시간순으로 누적합니다.", [["id", "PK"], ["appointment_id", "FK"], ["changed_by", "FK · 직원"], ["changed_by_patient_id", "FK · 환자"], ["from_status", "이전 상태"], ["to_status", "새 상태"]]),
+          N("transitions", "허용 상태 규칙", "private.appointment_status_transitions", 965, 45, "operation", "어떤 상태에서 어떤 상태로 바꿀 수 있는지 정한 내부 규칙표입니다. 일반 사용자는 접근할 수 없고 상태전이 트리거만 읽습니다.", [["from_status", "NOT NULL · 복합 PK"], ["to_status", "NOT NULL · 복합 PK"]])
         ],
         edges: [
           ["staff", "rules", "정규 일정", false],
           ["staff", "exceptions", "예외 일정", false],
-          ["rules", "slots", "계산해 생성", true],
-          ["exceptions", "slots", "예외 반영", true],
-          ["staff", "appointments", "담당 의사", false],
+          ["staff", "slots", "담당 의사", false],
+          ["staff", "appointments", "doctor_id · 담당 의사", false],
+          ["staff", "appointments", "created_by · 생성 직원", false],
           ["slots", "appointments", "선택한 시간", false],
-          ["patients", "appointments", "예약자 / 진료대상", false],
+          ["patients", "appointments", "account_patient_id · 예약자", false],
+          ["patients", "appointments", "for_patient_id · 진료대상", false],
           ["dept", "appointments", "예약 진료과", false],
           ["appointments", "history", "변경 과정", false],
-          ["transitions", "appointments", "변경 가능 검사", true]
+          ["staff", "history", "changed_by · 직원 행위자", false],
+          ["patients", "history", "changed_by_patient_id · 환자 행위자", false]
         ]
       },
       care: {
@@ -842,17 +847,17 @@
         subtitle: "진료 전 질문부터 기록 수정과 민감정보 열람까지",
         width: 1320, height: 810,
         nodes: [
-          N("dept", "진료과", "departments", 40, 55, "operation", "진료과마다 다른 사전 문진 양식을 선택하는 기준입니다.", [["id", "PK"]]),
-          N("templates", "문진 양식", "questionnaire_templates", 335, 55, "care", "진료과별 질문 문구, 질문 유형, 필수 여부를 JSONB로 저장합니다.", [["department_id", "FK"], ["questions", "질문 목록"]]),
+          N("dept", "진료과", "departments", 40, 55, "operation", "진료과마다 다른 사전 문진 양식을 선택하는 기준입니다.", [["id", "PK"], ["name", "진료과명"]]),
+          N("templates", "문진 양식", "questionnaire_templates", 335, 55, "care", "진료과별 질문 문구, 질문 유형, 필수 여부를 JSONB로 저장합니다.", [["id", "PK"], ["department_id", "FK"], ["questions", "질문 목록"]]),
           N("appointments", "예약", "appointments", 650, 310, "booking", "문진과 진료기록을 하나의 방문 단위로 묶는 중심 장부입니다.", [["id", "PK · 예약 번호"]]),
-          N("responses", "제출 문진", "questionnaire_responses", 650, 55, "care", "환자가 예약 전에 제출한 실제 답변입니다. 예약당 최대 하나입니다.", [["appointment_id", "FK · UNIQUE"], ["template_id", "FK"], ["answers", "답변"]]),
-          N("records", "현재 진료기록", "medical_records", 650, 565, "care", "증상·진단·처치와 환자 공개 안내 등 현재 진료기록을 저장합니다.", [["appointment_id", "FK · UNIQUE"], ["doctor_id", "FK"], ["diagnosis", "진단"]]),
-          N("revisions", "진료기록 과거본", "medical_record_revisions", 980, 565, "care", "완료된 진료기록을 수정할 때, 수정 직전 내용을 보존합니다.", [["record_id", "FK"], ["previous_content", "이전 내용"], ["revised_by", "수정 의사"]]),
+          N("responses", "제출 문진", "questionnaire_responses", 650, 55, "care", "환자가 예약 전에 제출한 실제 답변입니다. 예약당 최대 하나입니다.", [["id", "PK"], ["appointment_id", "FK · UNIQUE"], ["template_id", "FK"], ["answers", "답변"]]),
+          N("records", "현재 진료기록", "medical_records", 650, 565, "care", "증상·진단·처치와 환자 공개 안내 등 현재 진료기록을 저장합니다.", [["id", "PK"], ["appointment_id", "FK · UNIQUE"], ["doctor_id", "FK · 의사"], ["is_completed", "완료 여부"], ["updated_at", "수정 시각"]]),
+          N("revisions", "진료기록 과거본", "medical_record_revisions", 980, 565, "care", "완료된 진료기록을 수정할 때, 수정 직전 내용을 보존합니다.", [["id", "PK"], ["record_id", "FK"], ["revised_by", "FK · 수정 의사"], ["reason", "수정 사유"], ["revised_at", "수정 시각"]]),
           N("staff", "직원·의사", "staff", 40, 565, "people", "진료기록 작성자, 민감정보 열람자, 내부 메모 작성자를 가리킵니다.", [["id", "PK · 직원 번호"]]),
           N("patients", "환자", "patients", 335, 310, "people", "민감정보 열람 대상이나 내부 메모의 대상 환자를 가리킵니다.", [["id", "PK · 환자 번호"]]),
-          N("audit", "민감정보 열람 기록", "access_audit_log", 980, 55, "operation", "어떤 직원이 어느 환자의 민감정보를 언제 열어봤는지 남깁니다.", [["staff_id", "FK"], ["patient_id", "FK"], ["accessed_at", "열람 시각"]]),
-          N("notes", "직원 전용 메모", "patient_internal_notes", 980, 310, "operation", "환자에게 공개하지 않는 병원 운영 메모입니다.", [["patient_id", "FK"], ["staff_id", "FK"], ["content", "메모"]]),
-          N("phrases", "의사 개인 상용구", "doctor_quick_phrases", 40, 310, "operation", "의사가 진료기록에 빠르게 붙여 넣을 개인 문장을 저장합니다.", [["doctor_id", "FK"], ["text", "상용 문장"]])
+          N("audit", "민감정보 열람 기록", "access_audit_log", 980, 55, "operation", "어떤 직원이 어느 환자의 민감정보를 언제 열어봤는지 남깁니다.", [["id", "PK"], ["staff_id", "FK · 열람 직원"], ["patient_id", "FK · 대상 환자"], ["resource_type", "열람 자원"], ["accessed_at", "열람 시각"]]),
+          N("notes", "직원 전용 메모", "patient_internal_notes", 980, 310, "operation", "환자에게 공개하지 않는 병원 운영 메모입니다.", [["id", "PK"], ["patient_id", "FK · 대상 환자"], ["staff_id", "FK · 작성 직원"], ["content", "메모"], ["created_at", "작성 시각"]]),
+          N("phrases", "의사 개인 상용구", "doctor_quick_phrases", 40, 310, "operation", "의사가 진료기록에 빠르게 붙여 넣을 개인 문장을 저장합니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["text", "상용 문장"], ["created_at", "작성 시각"]])
         ],
         edges: [
           ["dept", "templates", "진료과별 양식", false],
@@ -872,59 +877,82 @@
       operation: {
         title: "설정·앱 알림",
         subtitle: "예약 소식을 어느 환자의 어느 기기로 보낼 것인가",
-        width: 1050, height: 650,
+        width: 1200, height: 760,
         nodes: [
-          N("patients", "환자", "patients", 70, 80, "people", "알림을 실제로 받을 환자와 그 환자의 기기들을 연결합니다.", [["id", "PK · 환자 번호"]]),
-          N("devices", "알림 기기 주소", "device_tokens", 395, 65, "operation", "환자의 휴대전화·태블릿으로 푸시를 보내기 위한 FCM 토큰입니다.", [["patient_id", "FK"], ["fcm_token", "푸시 목적지"]]),
-          N("appointments", "예약", "appointments", 70, 360, "booking", "확정·변경·리마인더·완료 알림이 발생한 원인입니다.", [["id", "PK · 예약 번호"]]),
-          N("notifications", "알림 발송 기록", "notification_log", 395, 350, "operation", "누가 어떤 예약 알림을 어떤 채널로 언제 받았는지 저장합니다.", [["appointment_id", "FK"], ["patient_id", "FK"], ["channel", "push/sms"]]),
-          N("settings", "병원 전체 설정", "hospital_settings", 745, 70, "operation", "취소 마감시간, 장기대기 기준 등 시스템 전체가 함께 읽는 설정 한 묶음입니다.", [["id", "항상 true"], ["cancellation_deadline_hours", "취소 기준"]]),
-          N("errors", "시스템 오류 기록", "system_error_log", 745, 350, "operation", "기능별 오류 발생 시각과 운영자용 설명을 저장하는 독립 장부입니다.", [["feature", "발생 기능"], ["message", "오류 설명"]])
+          N("patients", "환자", "patients", 35, 40, "people", "알림·감사·메모·가족 연결의 대상 환자입니다.", [["id", "PK · 환자 번호"]]),
+          N("staff", "직원", "staff", 35, 300, "people", "감사 열람자, 메모 작성자, 의사 상용구 소유자입니다.", [["id", "PK · 직원 번호"]]),
+          N("appointments", "예약", "appointments", 35, 560, "booking", "확정·변경·리마인더·완료 알림이 발생한 원인입니다.", [["id", "PK · 예약 번호"]]),
+          N("audit", "민감정보 열람 기록", "access_audit_log", 330, 40, "operation", "어떤 직원이 어느 환자의 민감정보를 언제 열어봤는지 남깁니다.", [["id", "PK"], ["staff_id", "FK"], ["patient_id", "FK"], ["accessed_at", "열람 시각"]]),
+          N("notes", "직원 전용 메모", "patient_internal_notes", 330, 300, "operation", "환자에게 공개하지 않는 병원 운영 메모입니다.", [["id", "PK"], ["patient_id", "FK"], ["staff_id", "FK"], ["content", "메모"]]),
+          N("phrases", "의사 개인 상용구", "doctor_quick_phrases", 330, 560, "operation", "의사가 진료기록에 빠르게 붙여 넣을 개인 문장을 저장합니다.", [["id", "PK"], ["doctor_id", "FK"], ["text", "상용 문장"]]),
+          N("devices", "알림 기기 주소", "device_tokens", 650, 40, "operation", "환자의 휴대전화·태블릿으로 푸시를 보내기 위한 FCM 토큰입니다.", [["id", "PK"], ["patient_id", "FK"], ["fcm_token", "푸시 목적지"], ["created_at", "등록 시각"]]),
+          N("notifications", "알림 발송 기록", "notification_log", 650, 300, "operation", "누가 어떤 예약 알림을 어떤 채널로 언제 받았는지 저장합니다.", [["id", "PK"], ["appointment_id", "FK · 예약"], ["patient_id", "FK · 수신자"], ["notification_type", "알림 종류"], ["channel", "채널"], ["sent_at", "발송 시각"]]),
+          N("family_req", "가족 연결 OTP", "family_link_requests", 650, 560, "operation", "기존 환자를 가족으로 연결하기 전, 휴대전화 OTP 확인 과정을 저장합니다.", [["id", "PK"], ["requesting_patient_id", "FK · 요청자"], ["target_patient_id", "FK · 대상"], ["code_hash", "OTP 해시"], ["expires_at", "만료 시각"], ["verified_at", "확인 시각"]]),
+          N("settings", "병원 전체 설정", "hospital_settings", 965, 40, "operation", "취소 마감시간과 앱 예약 자동확정처럼 시스템 전체가 함께 읽는 한 묶음입니다.", [["id", "PK · true 한 행"], ["cancellation_deadline_hours", "취소 기준"], ["auto_confirm_app_bookings", "자동 확정 여부"]]),
+          N("errors", "시스템 오류 기록", "system_error_log", 965, 300, "operation", "기능별 오류 발생 시각과 운영자용 설명을 저장하는 독립 장부입니다.", [["id", "PK"], ["feature", "발생 기능"], ["message", "오류 설명"], ["occurred_at", "발생 시각"]])
         ],
         edges: [
+          ["staff", "audit", "열람 직원", false],
+          ["patients", "audit", "열람 대상", false],
+          ["patients", "notes", "메모 대상", false],
+          ["staff", "notes", "메모 작성자", false],
+          ["staff", "phrases", "의사 상용구", false],
           ["patients", "devices", "환자의 기기", false],
           ["patients", "notifications", "실제 수신자", false],
-          ["appointments", "notifications", "알림 원인", false]
+          ["appointments", "notifications", "예약 알림", false],
+          ["patients", "family_req", "연결 요청자", false],
+          ["patients", "family_req", "연결 대상", false]
         ]
       },
       ai: {
         title: "AI 상담·지식",
         subtitle: "대화, 예약 제안, 직원 인계, 공식 지식과 오답 개선",
-        width: 1510, height: 920,
+        width: 1510, height: 1000,
         nodes: [
           N("patients", "환자", "patients", 35, 55, "people", "로그인 상담자 또는 예약 카드의 실제 진료 대상입니다. 익명 상담은 연결이 없을 수 있습니다.", [["id", "PK"]]),
-          N("conversations", "상담 대화방", "chat_conversations", 330, 55, "ai", "한 번의 챗봇 상담 전체를 묶고 진행 상태와 특별 흐름을 저장합니다.", [["patient_id", "FK · 선택"], ["status", "상담 상태"], ["active_flow", "진행 흐름"]]),
-          N("messages", "상담 메시지", "chat_messages", 650, 55, "ai", "환자·봇·직원이 주고받은 메시지와 AI 답변 근거 조각을 저장합니다.", [["conversation_id", "FK"], ["sender", "보낸 사람"], ["source_chunk_ids", "답변 근거"]]),
-          N("cards", "예약 확인 카드", "chat_booking_cards", 330, 310, "booking", "챗봇에서 고른 진료과·의사·시간을 최종 확인하는 일회용 카드입니다. 아직 실제 예약은 아닙니다.", [["conversation_id", "FK"], ["slot_id", "FK"], ["nonce", "일회용 값"]]),
-          N("tickets", "직원 인계 티켓", "support_tickets", 650, 310, "operation", "챗봇이 해결하지 못한 문의를 요약해 담당 직원에게 넘깁니다.", [["conversation_id", "FK"], ["assigned_staff_id", "FK"], ["status", "처리 상태"]]),
+          N("departments", "진료과", "departments", 35, 600, "operation", "챗봇 예약 카드에서 선택한 진료과입니다.", [["id", "PK"]]),
+          N("slots", "예약 시간칸", "appointment_slots", 35, 820, "booking", "챗봇 예약 카드에서 선택한 실제 시간칸입니다.", [["id", "PK"]]),
+          N("conversations", "상담 대화방", "chat_conversations", 330, 55, "ai", "한 번의 챗봇 상담 전체를 묶고 진행 상태와 특별 흐름을 저장합니다.", [["id", "PK"], ["patient_id", "FK · 선택"], ["anon_session_token", "UNIQUE · 익명 세션"], ["channel", "상담 채널"], ["status", "상담 상태"], ["active_flow", "진행 흐름"]]),
+          N("messages", "상담 메시지", "chat_messages", 650, 55, "ai", "환자·봇·직원이 주고받은 메시지와 AI 답변 근거 조각을 저장합니다. source_chunk_ids는 배열이라 실제 FK가 아닙니다.", [["id", "PK"], ["conversation_id", "FK"], ["staff_id", "FK · 선택"], ["sender", "보낸 사람"], ["content", "메시지"], ["source_chunk_ids", "출처 ID 배열"]]),
+          N("cards", "예약 확인 카드", "chat_booking_cards", 330, 310, "booking", "챗봇에서 고른 진료과·의사·시간을 최종 확인하는 일회용 카드입니다. 아직 실제 예약은 아닙니다.", [["id", "PK"], ["conversation_id", "FK"], ["for_patient_id", "FK · 진료대상"], ["department_id", "FK · 진료과"], ["doctor_id", "FK · 의사"], ["slot_id", "FK · 시간"], ["nonce", "UNIQUE · 일회용 값"]]),
+          N("tickets", "직원 인계 티켓", "support_tickets", 650, 310, "operation", "챗봇이 해결하지 못한 문의를 요약해 담당 직원에게 넘깁니다.", [["id", "PK"], ["conversation_id", "FK"], ["patient_id", "FK · 선택"], ["assigned_staff_id", "FK · 선택"], ["reason", "인계 사유"], ["status", "처리 상태"], ["question_embedding", "질문 벡터"]]),
           N("staff", "직원", "staff", 35, 310, "people", "직원 메시지 작성자, 인계 티켓 담당자, 지식자료 작성·승인자를 가리킵니다.", [["id", "PK · 직원 번호"]]),
-          N("docs", "공식 지식자료", "kb_documents", 330, 635, "ai", "병원 안내 원문과 승인 상태를 저장합니다. AI는 승인된 현재 본문을 사용합니다.", [["id", "PK"], ["content", "승인 본문"], ["status", "승인 상태"]]),
-          N("chunks", "AI 검색 조각", "kb_chunks", 650, 635, "ai", "긴 공식 자료를 AI가 검색하기 좋은 작은 문단으로 나눈 것입니다.", [["document_id", "FK"], ["content", "근거 문단"], ["embedding", "의미 벡터"]]),
-          N("doc_revisions", "지식자료 과거본", "kb_document_revisions", 35, 635, "care", "공식 지식자료가 변경되기 전 제목·분류·본문을 보존합니다.", [["document_id", "FK"], ["previous_content", "이전 본문"]]),
-          N("feedback", "AI 오답 신고", "answer_feedback", 985, 230, "operation", "문제가 된 답변, 교정 문장, 검토 결과와 공식 자료 반영 여부를 저장합니다.", [["message_id", "FK"], ["correction_text", "교정 답변"], ["status", "검토 상태"]]),
-          N("examples", "검증 답변 예시", "qa_example_bank", 985, 545, "ai", "검토가 끝난 좋은 질문·정답 예시를 AI가 참고할 수 있게 저장합니다.", [["source_feedback_id", "FK"], ["question_text", "예시 질문"], ["corrected_answer_text", "검증 답변"]])
+          N("docs", "공식 지식자료", "kb_documents", 330, 635, "ai", "병원 안내 원문과 승인 상태를 저장합니다. AI는 승인된 현재 본문을 사용합니다.", [["id", "PK"], ["pending_updated_by", "FK · 수정 대기 작성자"], ["created_by", "FK · 원본 작성자"], ["approved_by", "FK · 승인자"], ["title", "자료 제목"], ["status", "승인 상태"], ["is_restricted", "제한 자료 여부"]]),
+          N("chunks", "AI 검색 조각", "kb_chunks", 650, 635, "ai", "긴 공식 자료를 AI가 검색하기 좋은 작은 문단으로 나눈 것입니다.", [["id", "PK"], ["document_id", "FK"], ["chunk_index", "순서"], ["content", "근거 문단"], ["embedding", "의미 벡터"]]),
+          N("doc_revisions", "지식자료 과거본", "kb_document_revisions", 35, 635, "care", "공식 지식자료가 변경되기 전 제목·분류·본문을 보존합니다.", [["id", "PK"], ["document_id", "FK"], ["changed_by", "FK · 수정 직원"], ["previous_content", "이전 본문"], ["changed_at", "수정 시각"]]),
+          N("feedback", "AI 오답 신고", "answer_feedback", 985, 230, "operation", "문제가 된 답변, 교정 문장, 검토 결과와 공식 자료 반영 여부를 저장합니다.", [["id", "PK"], ["message_id", "FK"], ["reported_by", "FK · 신고 직원"], ["reviewed_by", "FK · 검토 직원"], ["applied_document_id", "FK · 반영 자료"], ["correction_text", "교정 답변"], ["status", "검토 상태"]]),
+          N("examples", "검증 답변 예시", "qa_example_bank", 985, 545, "ai", "검토가 끝난 좋은 질문·정답 예시를 AI가 참고할 수 있게 저장합니다.", [["id", "PK"], ["source_feedback_id", "FK · 출처 신고"], ["question_text", "예시 질문"], ["corrected_answer_text", "검증 답변"], ["question_embedding", "질문 벡터"], ["is_active", "활성 여부"]])
         ],
         edges: [
           ["patients", "conversations", "로그인 상담", false],
           ["conversations", "messages", "시간순 메시지", false],
+          ["staff", "messages", "직원 발언", false],
           ["conversations", "cards", "예약 제안", false],
+          ["patients", "cards", "진료 대상", false],
+          ["departments", "cards", "선택 진료과", false],
+          ["staff", "cards", "선택 의사", false],
+          ["slots", "cards", "선택 슬롯", false],
           ["conversations", "tickets", "직원 인계", false],
-          ["staff", "messages", "직원 메시지", false],
+          ["patients", "tickets", "상담 환자", false],
           ["staff", "tickets", "담당 직원", false],
-          ["staff", "docs", "작성·승인", false],
+          ["staff", "docs", "pending_updated_by · 수정 대기 작성자", false],
+          ["staff", "docs", "created_by · 원본 작성자", false],
+          ["staff", "docs", "approved_by · 승인자", false],
           ["docs", "chunks", "검색 문단으로 분할", false],
           ["docs", "doc_revisions", "변경 전 보존", false],
-          ["chunks", "messages", "AI 답변 근거", true],
+          ["staff", "doc_revisions", "수정 직원", false],
           ["messages", "feedback", "문제 답변 신고", false],
-          ["feedback", "examples", "검증 예시 생성", false],
-          ["feedback", "docs", "공식 자료에 반영", false]
+          ["staff", "feedback", "reported_by · 신고 직원", false],
+          ["staff", "feedback", "reviewed_by · 검토 직원", false],
+          ["docs", "feedback", "applied_document_id · 반영 자료", false],
+          ["feedback", "examples", "출처 신고", false]
         ]
       }
     };
 
     const tableGroups = [
       {
-        title: "직원·환자·예약·진료 · 14개",
+        title: "기반·예약·진료 · 18개",
         items: [
           ["departments", "진료과", "내과·정형외과 등 병원이 운영하는 진료과"],
           ["staff", "병원 직원", "관리자·접수직원·의사의 정보와 권한"],
@@ -935,21 +963,26 @@
           ["appointment_slots", "예약 가능 시간", "날짜별 의사의 실제 시간 칸"],
           ["appointments", "실제 예약", "예약자·진료대상·진료과·의사·상태"],
           ["appointment_status_history", "예약 상태 이력", "예약 상태가 바뀐 전체 과정"],
-          ["appointment_status_transitions", "예약 상태 규칙", "허용된 상태 변경 조합"],
+          ["private.appointment_status_transitions", "예약 상태 규칙", "트리거만 읽는 허용 상태 변경 조합"],
           ["medical_records", "현재 진료기록", "증상·진단·처치와 환자 안내"],
           ["medical_record_revisions", "진료기록 과거본", "완료 기록을 수정하기 전 내용"],
           ["questionnaire_templates", "문진 질문 양식", "진료과별 사전 질문 세트"],
-          ["questionnaire_responses", "제출 문진 답변", "환자가 예약 전에 답한 내용"]
-        ]
-      },
-      {
-        title: "운영·감사·환자 앱 · 8개",
-        items: [
+          ["questionnaire_responses", "제출 문진 답변", "환자가 예약 전에 답한 내용"],
           ["access_audit_log", "민감정보 열람 기록", "누가 어느 환자정보를 언제 열었는지 기록"],
           ["system_error_log", "시스템 오류 기록", "기능별 장애 시각과 오류 설명"],
           ["patient_internal_notes", "직원 전용 환자 메모", "환자에게 공개되지 않는 운영 메모"],
-          ["hospital_settings", "병원 전체 설정", "취소 마감·장기대기 등 공통 기준"],
-          ["doctor_quick_phrases", "의사 개인 상용구", "진료기록에 붙여 넣는 자주 쓰는 문장"],
+          ["hospital_settings", "병원 전체 설정", "취소 마감·앱 예약 자동확정 등 공통 기준"]
+        ]
+      },
+      {
+        title: "직원 웹 추가 · 1개",
+        items: [
+          ["doctor_quick_phrases", "의사 개인 상용구", "진료기록에 붙여 넣는 자주 쓰는 문장"]
+        ]
+      },
+      {
+        title: "환자 앱 추가 · 3개",
+        items: [
           ["device_tokens", "환자 앱 기기 주소", "푸시 알림을 보낼 휴대전화·태블릿 주소"],
           ["notification_log", "알림 발송 기록", "예약 알림의 수신자·채널·발송시각"],
           ["family_link_requests", "가족 연결 OTP", "기존 환자를 가족으로 연결하는 인증 요청"]
@@ -992,6 +1025,15 @@
     }
 
     function edgePoints(a, b) {
+      if (a === b) {
+        const x = a.x + a.w;
+        const y = a.y + 36;
+        return {
+          path: `M ${x - 12} ${y} C ${x + 100} ${y - 45}, ${x + 100} ${y + 78}, ${x - 12} ${y + 42}`,
+          mx: x + 42,
+          my: y - 7
+        };
+      }
       const ac = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
       const bc = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
       const dx = bc.x - ac.x;
