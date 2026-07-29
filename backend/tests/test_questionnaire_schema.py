@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from tests.conftest import seed_staff, set_session_auth
 
@@ -72,3 +74,50 @@ async def test_doctor_cannot_read_other_doctors_questionnaire_response(db_conn):
         "select id from questionnaire_responses where appointment_id = $1", appointment_id
     )
     assert len(rows) == 0
+
+
+@pytest.mark.asyncio
+async def test_second_template_for_same_department_rejected(db_conn):
+    """[정합성 검토 R5-09] 같은 진료과에 두 번째 행을 INSERT하면 UNIQUE 위반으로 거부된다."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
+    await db_conn.execute(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb)",
+        dept_id,
+    )
+
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb)",
+            dept_id,
+        )
+
+
+@pytest.mark.asyncio
+async def test_upsert_replaces_the_single_template_row(db_conn):
+    """[정합성 검토 R5-09] on conflict upsert로 그 진료과의 유일한 행을 갱신한다(저장 즉시 활성화, 롤백 없음)."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
+
+    await db_conn.execute(
+        """
+        insert into questionnaire_templates (department_id, questions)
+        values ($1, '[{"text": "old"}]'::jsonb)
+        on conflict (department_id) do update set questions = excluded.questions
+        """,
+        dept_id,
+    )
+    await db_conn.execute(
+        """
+        insert into questionnaire_templates (department_id, questions)
+        values ($1, '[{"text": "new"}]'::jsonb)
+        on conflict (department_id) do update set questions = excluded.questions
+        """,
+        dept_id,
+    )
+
+    rows = await db_conn.fetch("select questions from questionnaire_templates where department_id = $1", dept_id)
+    assert len(rows) == 1
+    assert json.loads(rows[0]["questions"])[0]["text"] == "new"
