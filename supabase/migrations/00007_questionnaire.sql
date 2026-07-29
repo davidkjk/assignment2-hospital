@@ -34,17 +34,14 @@ create policy "admin_can_manage_templates" on questionnaire_templates
 create policy "assigned_doctor_can_read_responses" on questionnaire_responses
   for select
   using (
-    exists (
-      select 1 from staff s
-      where s.auth_user_id = auth.uid() and s.is_active and s.role = 'admin'
-    )
+    private.is_admin()
     or doctor_can_view_appointment(questionnaire_responses.appointment_id)
   );
 
 -- 환자가 직접 제출하는 정책은 3단계(환자 앱)에서 환자 인증 연동 시 추가한다.
--- 그 전까지(1단계)는 전화/방문 접수 시 직원이 대신 입력하거나 관리자가 데이터를 넣을 방법이
--- 있어야 하므로, INSERT는 관리자에게만 우선 허용한다 — 브리프 SQL에 이 정책이 빠져 있었다
--- (RLS를 켠 테이블에 INSERT 정책이 하나도 없으면 기본값은 전체 거부).
-create policy "admin_can_insert_responses" on questionnaire_responses
+-- 그 전까지(1단계)는 전화/방문 접수 시 직원이 대신 입력할 수 있어야 하므로, INSERT는
+-- 접수직원·관리자에게 허용한다 — 브리프 SQL에 이 정책이 빠져 있었다(RLS를 켠 테이블에
+-- INSERT 정책이 하나도 없으면 기본값은 전체 거부).
+create policy "receptionist_admin_can_insert_responses" on questionnaire_responses
   for insert
-  with check (private.is_admin());
+  with check (private.current_staff_role() in ('receptionist', 'admin'));
