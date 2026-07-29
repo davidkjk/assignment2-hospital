@@ -88,8 +88,11 @@ grant execute on function private.current_staff_role() to authenticated;
 grant execute on function private.is_active_staff() to authenticated;
 grant execute on function private.is_admin() to authenticated;
 
-grant all on table departments to authenticated;
-grant all on table staff to authenticated;
+-- Intentionally exclude DELETE, TRUNCATE, REFERENCES, TRIGGER to enforce the
+-- project-wide no-hard-delete invariant (all records soft-delete via is_active flag).
+-- The DB itself must be the final enforcer of this critical constraint.
+grant select, insert, update on table departments to authenticated;
+grant select, insert, update on table staff to authenticated;
 
 create policy "staff_can_read_departments" on departments
   for select
