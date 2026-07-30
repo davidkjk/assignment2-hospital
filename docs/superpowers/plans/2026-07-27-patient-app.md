@@ -6000,6 +6000,8 @@ git commit -m "feat: 8단계 예약 플로우 실제 API 연동, MyProfileContro
 
 > **[2026-07-28 재검증 — 1차 문서 반영]** 1차 정합성 검토(우선8)에서 지적된 대로, 아래 Step 4의 "예약 취소" 버튼은 확인 다이얼로그 없이 바로 `cancelBooking`을 호출하고 있었다. 실수로 버튼을 눌러도 되돌릴 방법이 없는 파괴적 동작이므로 "정말 취소하시겠습니까?" 확인창을 추가한다. 예약 변경(reschedule) 플로우는 이미 날짜→시간 두 단계 선택을 거치므로 의도적으로 확인창을 생략한다는 설명이 아래에 그대로 남아 있다 — 그 로직은 건드리지 않는다.
 
+> **[2026-07-30 재검증 — 요구사항 4.3 원문 재정합]** 3단계 스펙(`patient-app-design.md` 섹션 4)이 마감 후 취소를 "앱이 직접 접수 처리"에서 "AI 상담 화면으로 리다이렉트"로 변경됐다(요구사항 원문이 "상담으로 연결"이지 "취소 요청 접수"가 아니므로). `cancelBooking`은 여전히 그대로 호출한다 — 이 호출 자체가 마감 전/후를 서버에서 판정하고, 마감 후엔 `cancellation_requested_at`을 기록하는 유일한 창구라 Dart 쪽에서 마감 시각을 별도로 재계산할 필요가 없다(백엔드 `cancel_appointment`, Task 9는 변경 없음). 달라지는 것은 그 **결과를 화면에 보여주는 방식**뿐이다: `cancellation_requested: true`를 받으면 앱이 "취소 요청됨" 문구로 마무리 짓는 대신, 안내 후 `/chat`(4단계 챗봇, `ai-chatbot.md` Task 19)으로 이동시킨다. 인계 티켓(`support_tickets`, 사유 `late_cancellation`) 생성은 앱이 하지 않는다 — 챗봇 쪽 `예약취소_카드보내기` 흐름(카드의 "이 예약 취소" 버튼)이 같은 `cancel_appointment`를 호출해 대화 맥락과 함께 티켓을 만드는 정식 경로이며, 이미 `cancellation_requested_at`이 설정된 예약을 다시 그 경로로 확인해도 타임스탬프만 갱신될 뿐 안전하다(멱등). 4단계가 아직 구현되지 않은 시점이라도 이 태스크의 테스트(버튼→화면 이동 확인)는 그대로 통과한다.
+
 - [ ] **Step 1: 실패하는 테스트 작성**
 
 `mobile/test/features/booking/appointment_action_controller_test.dart`:
@@ -6096,6 +6098,7 @@ Expected: 1개 테스트 PASS
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import 'appointment_action_controller.dart';
@@ -6192,10 +6195,18 @@ class AppointmentDetailScreen extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
 
     final result = await ref.read(appointmentActionControllerProvider.notifier).cancelBooking(appointmentId, '환자 요청');
-    if (context.mounted) {
-      final message = result['cancelled'] == true ? '예약이 취소되었습니다.' : '취소 요청됨 · 직원 확인 중';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    if (!context.mounted) return;
+
+    if (result['cancelled'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('예약이 취소되었습니다.')));
+      return;
     }
+
+    // [2026-07-30 재검증] 마감 후에는 앱이 "취소 요청됨"으로 마무리 짓지 않는다.
+    // 요구사항 4.3 원문대로 상담(4단계 챗봇)으로 연결만 하고, 실제 접수 확인·인계 티켓
+    // 생성은 챗봇의 예약취소_카드보내기 흐름이 담당한다(위 재검증 메모 참고).
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('마감이 지나 상담으로 연결해드립니다.')));
+    context.go('/chat');
   }
 
   @override
@@ -6237,7 +6248,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
 }
 ```
 
-> `context.go(...)`를 쓰려면 `go_router` import가 필요하다(`import 'package:go_router/go_router.dart';`). 재확인 UX(변경 전 "정말 변경하시겠습니까?" 확인 다이얼로그)는 위 슬롯 선택 자체가 명시적 액션이므로 별도 확인창 없이 바로 진행한다 — 취소와 달리 변경은 이미 두 번의 선택(날짜→시간)을 거치기 때문이다.
+> 재확인 UX(변경 전 "정말 변경하시겠습니까?" 확인 다이얼로그)는 위 슬롯 선택 자체가 명시적 액션이므로 별도 확인창 없이 바로 진행한다 — 취소와 달리 변경은 이미 두 번의 선택(날짜→시간)을 거치기 때문이다.
 
 `mobile/lib/core/router.dart`의 `/appointments/:id` 라우트를 교체한다:
 ```dart
@@ -6251,7 +6262,7 @@ GoRoute(
 
 ```bash
 git add mobile/lib/features/booking/appointment_action_controller.dart mobile/lib/features/booking/appointment_detail_screen.dart mobile/lib/core/router.dart mobile/test/features/booking/appointment_action_controller_test.dart backend/app/services/patient_appointment_query_service.py
-git commit -m "feat: 예약 변경 화면(날짜/시간 재선택)과 마감전후 취소 분기 처리 추가 (2026-07-28 재검증: 취소 확인 다이얼로그 포함)"
+git commit -m "feat: 예약 변경 화면(날짜/시간 재선택)과 마감전후 취소 분기 처리 추가 (2026-07-30 재검증: 마감 후 취소는 앱이 접수하지 않고 AI 상담 화면으로 리다이렉트)"
 ```
 
 ---
@@ -6265,7 +6276,9 @@ git commit -m "feat: 예약 변경 화면(날짜/시간 재선택)과 마감전�
 
 **Interfaces:**
 - Consumes: `apiClientProvider`(Task 15)
-- Produces: `QuestionnaireController`(`AsyncNotifier<QuestionTemplate?>`: `loadTemplate(departmentId)`, `submit(appointmentId, templateId, answers)`)
+- Produces: `QuestionnaireController`(`AsyncNotifier<QuestionTemplate?>`: `loadTemplate(departmentId)`, `submit(appointmentId, templateId, answers)`, `loadExistingAnswers(appointmentId) -> Future<Map<String, String>>`)
+
+> **[2026-07-30 재검증 — F-15]** 정합성 검토에서 발견: 원래 계획은 `loadTemplate`(빈 양식 조회)과 `submit`(저장)만 있고, **기존에 저장된 답변을 불러와 화면에 채우는 기능이 없었다**. 화면 코드도 항상 빈 `TextEditingController()`로 시작해, 한 번 저장한 뒤 재방문하면 항상 빈 화면이 뜨는 문제가 있었다 — 요구사항 4.4("진료 전까지 내용을 수정할 수 있고")를 지키려면 기존 값을 먼저 보여줘야 한다. 이 기능이 추가되면 상담봇(`사전문진_카드보내기`, 4단계)이 채팅 카드로 저장한 내용도 이 화면에서 항상 최신값으로 보인다(둘 다 같은 `questionnaire_responses` 테이블에 쓰고 읽으므로, 챗봇이 먼저 썼든 앱에서 예전에 썼든 구분 없이 최신 저장값이 조회된다) — 별도의 "상담봇 프리필" 경로를 만들 필요가 없다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -6300,6 +6313,48 @@ void main() {
 
     expect(sentBody!['template_id'], 't1');
     expect((sentBody!['answers'] as List).first['answer'], '기침');
+  });
+
+  test('loadExistingAnswers는 기존 저장값을 question 텍스트로 매핑해 반환한다', () async {
+    final mockClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'id': 'r1',
+          'template_id': 't1',
+          'answers': [
+            {'question': '오늘 불편한 증상은 무엇인가요?', 'answer': '기침, 콧물'},
+          ],
+          'submitted_at': '2026-07-29T00:00:00Z',
+        }),
+        200,
+      );
+    });
+    final container = ProviderContainer(overrides: [
+      apiClientProvider.overrideWithValue(
+        ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 't', httpClient: mockClient),
+      ),
+    ]);
+
+    final answers =
+        await container.read(questionnaireControllerProvider.notifier).loadExistingAnswers('a1');
+
+    expect(answers['오늘 불편한 증상은 무엇인가요?'], '기침, 콧물');
+  });
+
+  test('loadExistingAnswers는 저장된 사전문진이 없으면 빈 맵을 반환한다', () async {
+    final mockClient = MockClient((request) async {
+      return http.Response('null', 200);
+    });
+    final container = ProviderContainer(overrides: [
+      apiClientProvider.overrideWithValue(
+        ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 't', httpClient: mockClient),
+      ),
+    ]);
+
+    final answers =
+        await container.read(questionnaireControllerProvider.notifier).loadExistingAnswers('a1');
+
+    expect(answers, isEmpty);
   });
 }
 ```
@@ -6347,6 +6402,19 @@ class QuestionnaireController extends AsyncNotifier<QuestionTemplate?> {
       (json) => json,
     );
   }
+
+  Future<Map<String, String>> loadExistingAnswers(String appointmentId) async {
+    final api = ref.read(apiClientProvider);
+    final response = await api.get(
+      '/app/appointments/$appointmentId/questionnaire',
+      (json) => json as Map<String, dynamic>?,
+    );
+    if (response == null) return {};
+    final answers = List<Map<String, dynamic>>.from(response['answers'] as List);
+    return {
+      for (final answer in answers) answer['question'] as String: answer['answer'] as String,
+    };
+  }
 }
 
 final questionnaireControllerProvider =
@@ -6356,9 +6424,9 @@ final questionnaireControllerProvider =
 - [ ] **Step 3: 테스트 실행**
 
 Run: `cd mobile && flutter test test/features/questionnaire/questionnaire_controller_test.dart`
-Expected: 1개 테스트 PASS
+Expected: 3개 테스트 PASS
 
-- [ ] **Step 4: 사전문진 화면 작성**
+- [ ] **Step 4: 사전문진 화면 작성 (기존 저장값 자동 불러오기 포함)**
 
 `mobile/lib/features/questionnaire/questionnaire_screen.dart`:
 ```dart
@@ -6378,11 +6446,28 @@ class QuestionnaireScreen extends ConsumerStatefulWidget {
 
 class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   final Map<String, TextEditingController> _controllers = {};
+  Map<String, String> _existingAnswers = {};
+  bool _existingAnswersLoaded = false;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() => ref.read(questionnaireControllerProvider.notifier).loadTemplate(widget.departmentId));
+    // [2026-07-30 재검증 — F-15] 화면 진입 시 기존 저장값을 먼저 불러온다. 컨트롤러가
+    // TextField를 만들 때(putIfAbsent) 초깃값을 채워야 하므로, 로딩이 끝나기 전에는
+    // 폼을 그리지 않고 로딩 스피너만 보여준다(아래 build의 _existingAnswersLoaded 분기).
+    ref.read(questionnaireControllerProvider.notifier).loadExistingAnswers(widget.appointmentId).then((answers) {
+      if (!mounted) return;
+      setState(() {
+        _existingAnswers = answers;
+        _existingAnswersLoaded = true;
+      });
+    });
+  }
+
+  TextEditingController _controllerFor(Map<String, dynamic> question) {
+    final text = question['text'] as String;
+    return _controllers.putIfAbsent(text, () => TextEditingController(text: _existingAnswers[text] ?? ''));
   }
 
   @override
@@ -6391,40 +6476,42 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('사전문진')),
-      body: state.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (template) {
-          if (template == null) return const Center(child: Text('이 진료과의 사전문진 양식이 없습니다.'));
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              for (final question in template.questions)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: TextField(
-                    controller: _controllers.putIfAbsent(question['text'] as String, () => TextEditingController()),
-                    decoration: InputDecoration(labelText: question['text'] as String),
-                  ),
-                ),
-              ElevatedButton(
-                onPressed: () {
-                  final answers = template.questions
-                      .map((q) => {
-                            'question': q['text'],
-                            'answer': _controllers[q['text']]?.text ?? '',
-                          })
-                      .toList();
-                  ref.read(questionnaireControllerProvider.notifier).submit(
-                        widget.appointmentId, template.id, answers,
-                      );
-                },
-                child: const Text('사전문진 저장'),
-              ),
-            ],
-          );
-        },
-      ),
+      body: !_existingAnswersLoaded
+          ? const Center(child: CircularProgressIndicator())
+          : state.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('$e')),
+              data: (template) {
+                if (template == null) return const Center(child: Text('이 진료과의 사전문진 양식이 없습니다.'));
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    for (final question in template.questions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: TextField(
+                          controller: _controllerFor(question),
+                          decoration: InputDecoration(labelText: question['text'] as String),
+                        ),
+                      ),
+                    ElevatedButton(
+                      onPressed: () {
+                        final answers = template.questions
+                            .map((q) => {
+                                  'question': q['text'],
+                                  'answer': _controllerFor(q).text,
+                                })
+                            .toList();
+                        ref.read(questionnaireControllerProvider.notifier).submit(
+                              widget.appointmentId, template.id, answers,
+                            );
+                      },
+                      child: const Text('사전문진 저장'),
+                    ),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
@@ -6434,7 +6521,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
 
 ```bash
 git add mobile/lib/features/questionnaire mobile/test/features/questionnaire/questionnaire_controller_test.dart
-git commit -m "feat: 사전문진 작성/수정 화면 추가"
+git commit -m "feat: 사전문진 작성/수정 화면 추가 (기존 저장값 자동 불러오기 포함 — F-15)"
 ```
 
 ---
@@ -7458,148 +7545,9 @@ git commit -m "feat: 오프라인 감지 배너와 공통 중복클릭 방지 �
 - 6.4 오류 처리(한글 메시지, 저장 실패 명확히 안내, 오류 로그, 외부서비스 중단 시에도 핵심기능 유지) → `AppError`/`log_error` 재사용(Task 5~12 전반), Task 12의 알림 best-effort 처리
 - 6.5 개인정보(비로그인 접근 차단, 역할별 접근 제한, 비밀키 비공개) → Task 1·2·3의 RLS 전체, Task 12의 `.env` 환경변수 원칙
 
-## Task 27: 사전문진 양식에 "필드 태그" 추가 + 상담봇 수집 정보 미리채우기
-
-정합성 검토에서 발견: 요구사항 4.4 마지막 문장 "상담봇이 대화 중 받은 내용이 사전문진에 들어갈 경우에는 환자에게 내용을 보여주고 저장 여부를 다시 확인받아야 합니다"가 3단계 스펙에서 "4단계 상담봇 구현 시 처리"로 미뤄졌으나 4단계 스펙에도 반영되지 않았던 것을 보완한다. `questionnaire_templates.questions` JSON에 선택적 `field_key`(예: `"chief_complaint"`/`"onset"`)를 추가해, 4단계 상담봇이 문진 체인에서 들은 증상·시작시점을 그 꼬리표가 붙은 질문 칸에만 미리 채워 보여주고, 환자가 직접 확인 후 "제출"해야 저장되게 한다(별도 확인 다이얼로그 없이, 제출 자체가 확인 절차 — 스키마·마이그레이션 변경 없음, `questions` JSON에 선택 필드만 추가).
-
-**Files:**
-- Modify: `mobile/lib/features/questionnaire/questionnaire_controller.dart`(Task 21)
-- Modify: `mobile/lib/features/questionnaire/questionnaire_screen.dart`(Task 21)
-- Test: `mobile/test/features/questionnaire/questionnaire_controller_test.dart`(Task 21, 추가)
-
-**Interfaces:**
-- Consumes: `QuestionTemplate`(Task 21)
-- Produces: `QuestionnaireScreen`에 선택적 생성자 인자 `prefill: Map<String, String>?` 추가(키는 `field_key`, 값은 미리 채울 텍스트) — 4단계 `mobile/lib/features/chat/booking_card.dart`(Task 19)가 예약 완료 후 "사전문진 작성하기"에서 이 값을 넘긴다
-
-- [ ] **Step 1: 실패하는 테스트 작성 — field_key로 프리필**
-
-`mobile/test/features/questionnaire/questionnaire_controller_test.dart`에 추가:
-```dart
-test('QuestionTemplate.questions에 field_key가 있으면 prefill 값을 찾을 수 있다', () {
-  const template = QuestionTemplate(id: 't1', questions: [
-    {'text': '오늘 불편한 증상은?', 'type': 'text', 'required': true, 'field_key': 'chief_complaint'},
-    {'text': '복용 중인 약이 있나요?', 'type': 'text', 'required': false},
-  ]);
-
-  final prefill = {'chief_complaint': '기침, 콧물'};
-  final matched = template.questions.firstWhere(
-    (q) => q['field_key'] != null && prefill.containsKey(q['field_key']),
-    orElse: () => {},
-  );
-
-  expect(matched['text'], '오늘 불편한 증상은?');
-});
-```
-
-Run: `cd mobile && flutter test test/features/questionnaire/questionnaire_controller_test.dart`
-Expected: PASS (기존 `QuestionTemplate` 구조 그대로도 통과 — `field_key`는 이미 임의의 JSON 맵을 담는 `questions: List<Map<String, dynamic>>`에 자연스럽게 포함되므로 컨트롤러 코드 변경 불필요. 다음 스텝은 화면 쪽 prefill 반영)
-
-- [ ] **Step 2: QuestionnaireScreen에 prefill 반영**
-
-`mobile/lib/features/questionnaire/questionnaire_screen.dart`를 다음으로 교체:
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'questionnaire_controller.dart';
-
-class QuestionnaireScreen extends ConsumerStatefulWidget {
-  const QuestionnaireScreen({
-    super.key,
-    required this.appointmentId,
-    required this.departmentId,
-    this.prefill,
-  });
-  final String appointmentId;
-  final String departmentId;
-  final Map<String, String>? prefill;
-
-  @override
-  ConsumerState<QuestionnaireScreen> createState() => _QuestionnaireScreenState();
-}
-
-class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
-  final Map<String, TextEditingController> _controllers = {};
-
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(() => ref.read(questionnaireControllerProvider.notifier).loadTemplate(widget.departmentId));
-  }
-
-  TextEditingController _controllerFor(Map<String, dynamic> question) {
-    final text = question['text'] as String;
-    return _controllers.putIfAbsent(text, () {
-      final fieldKey = question['field_key'] as String?;
-      final initial = (fieldKey != null ? widget.prefill?[fieldKey] : null) ?? '';
-      return TextEditingController(text: initial);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(questionnaireControllerProvider);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('사전문진')),
-      body: state.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (template) {
-          if (template == null) return const Center(child: Text('이 진료과의 사전문진 양식이 없습니다.'));
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (widget.prefill != null && widget.prefill!.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Text('상담에서 말씀하신 내용을 미리 채워드렸어요. 확인하고 필요하면 고쳐주세요.'),
-                ),
-              for (final q in template.questions)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: TextField(
-                    controller: _controllerFor(q),
-                    decoration: InputDecoration(labelText: q['text'] as String),
-                  ),
-                ),
-              ElevatedButton(
-                onPressed: () {
-                  final answers = template.questions
-                      .map((q) => {'question': q['text'], 'answer': _controllerFor(q).text})
-                      .toList();
-                  ref.read(questionnaireControllerProvider.notifier).submit(
-                    widget.appointmentId, template.id, answers,
-                  );
-                },
-                child: const Text('제출'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-```
-
-- [ ] **Step 3: 테스트 실행**
-
-Run: `cd mobile && flutter test test/features/questionnaire/`
-Expected: 전체 PASS
-
-- [ ] **Step 4: 커밋**
-
-```bash
-git add mobile/lib/features/questionnaire/questionnaire_screen.dart mobile/test/features/questionnaire/questionnaire_controller_test.dart
-git commit -m "feat: 사전문진에 상담봇 수집 정보 미리채우기 (4단계 스펙 갭 보완)"
-```
-
----
-
 ## Self-Review
 
-**1) 스펙 커버리지:** 위 표를 통해 `docs/superpowers/specs/2026-07-27-patient-app-design.md`의 섹션 1~9와 "3단계에서 추가되는 백엔드" 항목이 모두 하나 이상의 태스크에 대응됨을 확인했다. "이번 단계에서 다루지 않는 것" 중 AI 상담봇 본체와 상담 답변 알림은 여전히 4단계 몫이라 이 계획에 없다. 상담봇발 사전문진 자동반영은 화면 쪽 절반(`field_key` 프리필 표시)을 Task 27이 담당하고, 나머지 절반(대화 기록에서 증상·시작시점 추출)은 4단계 `ai-chatbot.md`가 담당하도록 정합성 검토에서 나눠 반영했다(2026-07-28).
+**1) 스펙 커버리지:** 위 표를 통해 `docs/superpowers/specs/2026-07-27-patient-app-design.md`의 섹션 1~9와 "3단계에서 추가되는 백엔드" 항목이 모두 하나 이상의 태스크에 대응됨을 확인했다. "이번 단계에서 다루지 않는 것" 중 AI 상담봇 본체와 상담 답변 알림은 여전히 4단계 몫이라 이 계획에 없다. **[2026-07-30 재검증 — F-12/F-14]** 상담봇발 사전문진 자동반영은 예전엔 화면 쪽 절반(`field_key` 프리필 표시, 옛 Task 27)과 대화 추출 쪽 절반(4단계 `ai-chatbot.md`)으로 역할을 나눠 반영했으나, 4단계 스펙이 `사전문진_카드보내기` 도구(채팅 카드에서 직접 저장·수정까지 완결)로 재설계되면서 그 역할 분담 자체가 사라졌다. 3단계가 새로 맡는 것은 오직 Task 21의 `loadExistingAnswers`(F-15) 하나뿐이다 — 이 함수가 "누가 최근에 저장했든"(챗봇이든 앱 자체 작성이든) 항상 최신 저장값을 화면에 보여주므로, 옛 Task 27이 하려던 "프리필 표시"도 자동으로 해결된다. 4단계 구현이 먼저 끝나 있어야 한다는 의존성도 사라졌다(아래 "다른 단계 의존성" 참고).
 
 **2) 플레이스홀더 스캔:** "TBD"/"적절히 처리"/"위와 유사하게" 같은 표현이 있는지 재검토했다. Task 19 Step 4의 진료과/의사/날짜/시간 단계 설명은 반복 패턴을 안내하는 문장이지만, 반복해야 할 정확한 데이터 계약(컨트롤러 메서드명·엔드포인트)이 Step 2와 Task 7에 이미 완전한 코드로 명시되어 있어 "코드 없이 설명만" 하는 플레이스홀더는 아니다. 다만 이상적이진 않으므로, 실행 시(subagent-driven-development) 이 부분만 별도 서브태스크로 쪼개 실제 위젯 코드를 채워 넣는 것을 권장한다.
 
@@ -7618,7 +7566,8 @@ git commit -m "feat: 사전문진에 상담봇 수집 정보 미리채우기 (4�
 ## 다른 단계 의존성
 
 - 2단계(직원용 웹)에는 아직 "취소요청 대기열" 화면이 없다(마감 후 `cancellation_requested_at`이 채워진 예약을 직원이 승인/반려하는 화면). 이 계획은 백엔드에 `cancellation_requested_at` 필드와 상태만 준비해두고, 그 화면 자체는 2단계 담당이므로 이 계획의 태스크로 포함하지 않았다. **[해결됨]** `staff-web.md` Task 16으로 반영 완료(2026-07-28).
-- Task 27(상담봇 수집 정보의 사전문진 반영)은 4단계(`ai-chatbot.md`)의 `chat_service.get_questionnaire_prefill`을 소비한다. 4단계 구현이 먼저 끝나 있어야 한다.
+- Task 20(마감 후 예약 취소 버튼)은 `/chat`(4단계 챗봇 화면, `ai-chatbot.md` Task 19)으로 이동만 한다. 4단계가 아직 구현되지 않은 시점에 3단계를 먼저 구현해도 Task 20 자체 테스트(버튼→화면 이동 확인)는 통과한다 — 종단 간(취소가 실제로 대기열·인계함에 뜨는지) 검증은 4단계 완성 후에나 가능하다.
+- **[2026-07-30 재검증 — F-12]** Task 27(옛 상담봇 프리필 반영 태스크)은 삭제됐다. 4단계 `사전문진_카드보내기` 도구가 앱과 무관하게 채팅 카드에서 저장·수정까지 완결하고, 3단계는 Task 21의 `loadExistingAnswers`(F-15)로 그 저장값을 화면에 그대로 비춰 보여주기만 하면 되므로, 3단계와 4단계 사이에 남은 사전문진 관련 의존성은 없다(두 태스크 모두 같은 `questionnaire_responses` 테이블을 독립적으로 읽고 쓸 뿐이다).
 
 ## Execution Handoff
 
