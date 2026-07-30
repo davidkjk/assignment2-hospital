@@ -160,7 +160,8 @@ create table chat_messages (
   content text not null,
   source_chunk_ids uuid[],                          -- 봇 답변의 근거 조각 (요구사항 5.6)
   message_type text not null default 'text'
-    check (message_type in ('text', 'slot_options', 'booking_confirm', 'booking_done')),
+    check (message_type in
+      ('text', 'slot_options', 'booking_confirm', 'booking_done', 'cancellation_confirm', 'questionnaire')),
   route_taken text
     check (route_taken in ('emergency', 'rag', 'department_guide', 'agent', 'handoff')),
   created_at timestamptz not null default now()
@@ -475,6 +476,21 @@ async def test_ticket_reason_check(service_conn):
 
 
 @pytest.mark.asyncio
+async def test_ticket_reason_accepts_late_cancellation(service_conn):
+    """[A-5] late_cancellation은 나머지 6개 인계 감시 조건과 달리 도구가 직접 생성하는 사유다."""
+    conv = await service_conn.fetchval(
+        "insert into chat_conversations (channel) values ('web') returning id"
+    )
+    ticket_id = await service_conn.fetchval(
+        "insert into support_tickets (conversation_id, reason, summary_question, "
+        "summary_confirmed, summary_guided, summary_unresolved, summary_staff_todo) "
+        "values ($1, 'late_cancellation', 'q', 'c', 'g', 'u', 't') returning id",
+        conv,
+    )
+    assert ticket_id is not None
+
+
+@pytest.mark.asyncio
 async def test_ticket_status_check(service_conn):
     conv = await service_conn.fetchval(
         "insert into chat_conversations (channel) values ('web') returning id"
@@ -559,8 +575,10 @@ create table support_tickets (
   summary_guided text not null,
   summary_unresolved text not null,
   summary_staff_todo text not null,
+  -- late_cancellation은 나머지 6개와 달리 "인계 감시" 로직이 아니라 예약취소_카드보내기 도구가
+  -- 마감 후 취소 시 직접 생성한다(A-5, 요구사항 4.3)
   reason text not null check (reason in
-    ('no_answer', 'medical_judgment', 'unhelpful', 'data_mismatch', 'complaint', 'repeated')),
+    ('no_answer', 'medical_judgment', 'unhelpful', 'data_mismatch', 'complaint', 'repeated', 'late_cancellation')),
   -- 새 문의 / 처리 중(담당 배정됨) / 답변완료 (요구사항 3.9)
   status text not null default 'pending' check (status in ('pending', 'in_progress', 'answered')),
   assigned_staff_id uuid references staff(id),
@@ -1562,19 +1580,24 @@ git commit -m "feat: 문진 체인 - 진료과 추천형 (구조화된 순차 �
 
 ---
 
-## Task 9: 에이전트 도구 5개 + 에이전트 체인 (행동형, 요구사항 5.4)
+## Task 9: 에이전트 도구 7개 + 에이전트 체인 (행동형, 요구사항 5.4/4.3/4.4)
 
 **Files:**
 - Create: `backend/app/services/chat_tools.py`
 - Create: `backend/app/services/agent_chain.py`
+- Create: `backend/app/services/late_cancellation_ticket_service.py`(A-5 — 마감 후 취소 시 인계 티켓 생성)
+- Create: `backend/app/routers/chat_late_cancellation.py`
 - Test: `backend/tests/test_chat_tools.py`
 - Test: `backend/tests/test_agent_chain.py`
+- Test: `backend/tests/test_late_cancellation_ticket_service.py`
 
 **Interfaces:**
-- Consumes: `rag_search_service.search`(Task 6), `patient_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app), `patient_public_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app — [정합성 검토 R5-04] 익명 사용자 경로), `patient_appointment_query_service.list_my_appointments`(3단계, patient-app), `get_chat_model`(Task 7)
-- Produces: `app.services.chat_tools.ToolContext`(dataclass: `patient: PatientContext | None`, `conversation_id: UUID`, `collected: dict` — `source_chunk_ids: list`, `card: dict | None`)
-- Produces: `app.services.chat_tools.build_tools(ctx: ToolContext) -> list[StructuredTool]` (도구 5개 — 인계 도구는 없음, Task 10의 감시 로직으로 분리됨)
+- Consumes: `rag_search_service.search`(Task 6), `patient_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app), `patient_public_catalog_service.list_departments/list_doctors/list_available_slots`(3단계, patient-app — [정합성 검토 R5-04] 익명 사용자 경로), `patient_appointment_query_service.list_my_appointments/get_appointment_detail`(3단계, patient-app), `patient_questionnaire_service.get_template/get_response`(3단계, patient-app, Task 10 그 문서), `patient_family_service.list_family_members`(3단계, patient-app), `get_chat_model`(Task 7)
+- Produces: `app.services.chat_tools.ToolContext`(dataclass: `patient: PatientContext | None`, `conversation_id: UUID`, `family_members: list[dict]`(로그인 시 미리 조회해둔 `[{"id", "name", "relation"}]`, 시스템 프롬프트에 주입해 에이전트가 "누구의 예약인가요"를 판단하는 근거로 씀), `collected: dict` — `source_chunk_ids: list`, `card: dict | None`)
+- Produces: `app.services.chat_tools.build_tools(ctx: ToolContext) -> list[StructuredTool]` (도구 7개 — 인계 도구는 없음, Task 10의 감시 로직으로 분리됨. A-4 가족 확장 2개 + A-5 취소 카드 + A-1 사전문진 카드 신규)
 - Produces: `app.services.agent_chain.run(query: str, ctx: ToolContext, model=None) -> dict` (`{"text": str, "card": dict | None, "source_chunk_ids": list}`)
+- Produces: `app.services.late_cancellation_ticket_service.create_ticket(conversation_id: UUID, appointment_id: UUID) -> UUID`(대화 내역을 요약해 `support_tickets`에 `reason='late_cancellation'` 행 생성, [환자 노출 문구 원칙] 이 함수는 환자에게 보이는 텍스트를 만들지 않는다 — 순수 내부 기록)
+- Produces: 라우터 `POST /chat/conversations/{conversation_id}/late-cancellation-ticket`(body: `{"appointment_id": UUID}`) — 3단계 취소 API가 `cancellation_requested: true`를 반환한 직후 **프런트엔드가 직접** 호출한다(Claude를 거치지 않음, 결정적 후처리이기 때문). Task 18/19가 이 엔드포인트를 호출하는 쪽을 구현한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성 — 도구**
 
@@ -1586,17 +1609,21 @@ from uuid import uuid4
 from app.services.chat_tools import ToolContext, build_tools
 
 
-def test_build_tools_returns_five_and_excludes_handoff_and_booking_execution():
+def test_build_tools_returns_seven_and_excludes_handoff_and_booking_execution():
     ctx = ToolContext(patient=None, conversation_id=uuid4())
     tools = build_tools(ctx)
     names = {t.name for t in tools}
     assert names == {
         "search_hospital_info", "list_departments_doctors", "list_available_slots",
         "get_my_appointments", "propose_booking_card",
+        "cancel_appointment_card", "questionnaire_card",
     }
-    # 인계는 도구가 아니라 Task 10의 감시 로직으로 분리됨. 예약 실행 도구도 의도적으로 없음 (스펙 섹션 3)
+    # 인계는 도구가 아니라 Task 10의 감시 로직으로 분리됨. 예약 실행/취소 실행/문진 저장 도구는
+    # 의도적으로 없음 — 전부 "카드 표시 → 버튼으로 API 직행" 패턴 (스펙 섹션 3)
     assert "handoff_to_staff" not in names
     assert "create_booking" not in names and "book_appointment" not in names
+    assert "cancel_appointment" not in names  # 취소 실행 자체는 도구가 아니라 카드 버튼의 몫
+    assert "submit_questionnaire" not in names  # 문진 저장 자체도 카드 버튼의 몫
 
 
 @pytest.mark.asyncio
@@ -1639,6 +1666,149 @@ async def test_my_appointments_requires_login():
     tool = next(t for t in build_tools(ctx) if t.name == "get_my_appointments")
     out = await tool.ainvoke({})
     assert "로그인" in out  # 익명이면 로그인 안내 문자열 반환 (에러 아님)
+
+
+@pytest.mark.asyncio
+async def test_my_appointments_includes_appointment_id_and_family_name(monkeypatch):
+    """[A-4 가족 확장] list_my_appointments는 3단계에서 이미 본인+가족을 함께 반환한다
+    (patient_owns() 기반 RLS). 이 도구가 새로 할 일은 결과 텍스트에 appointment_id와
+    for_patient_name을 포함시켜, 에이전트가 예약취소_카드보내기/사전문진_카드보내기 호출 시
+    "누구의 어느 예약인지"를 구분할 수 있게 하는 것뿐이다."""
+    from app.services import chat_tools
+
+    appt_id = uuid4()
+
+    async def fake_list_my_appointments(patient):
+        return [{
+            "id": appt_id, "slot_date": "2026-08-01", "start_time": "09:00:00",
+            "department_name": "내과", "doctor_name": "김의사", "status": "예약확정",
+            "for_patient_name": "김자녀",
+        }]
+
+    monkeypatch.setattr(
+        chat_tools.patient_appointment_query_service, "list_my_appointments", fake_list_my_appointments,
+    )
+    ctx = ToolContext(patient=object(), conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "get_my_appointments")
+
+    out = await tool.ainvoke({})
+    assert str(appt_id) in out
+    assert "김자녀" in out
+
+
+@pytest.mark.asyncio
+async def test_cancel_appointment_card_requires_login():
+    ctx = ToolContext(patient=None, conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "cancel_appointment_card")
+    out = await tool.ainvoke({"appointment_id": str(uuid4())})
+    assert "로그인" in out
+    assert ctx.collected["card"] is None
+
+
+@pytest.mark.asyncio
+async def test_cancel_appointment_card_shows_confirm_card(monkeypatch):
+    from app.services import chat_tools
+
+    appt_id = uuid4()
+
+    async def fake_get_appointment_detail(patient, appointment_id):
+        assert appointment_id == appt_id
+        return {
+            "id": appt_id, "for_patient_name": "김자녀", "department_name": "내과",
+            "doctor_name": "김의사", "slot_date": "2026-08-01", "start_time": "09:00:00",
+            "status": "예약확정",
+        }
+
+    monkeypatch.setattr(
+        chat_tools.patient_appointment_query_service, "get_appointment_detail", fake_get_appointment_detail,
+    )
+    ctx = ToolContext(patient=object(), conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "cancel_appointment_card")
+
+    out = await tool.ainvoke({"appointment_id": str(appt_id)})
+    assert "취소" in out
+    assert ctx.collected["card"]["type"] == "cancellation_confirm"
+    assert ctx.collected["card"]["appointment_id"] == str(appt_id)
+    assert ctx.collected["card"]["for_patient_name"] == "김자녀"
+
+
+@pytest.mark.asyncio
+async def test_cancel_appointment_card_rejects_already_cancelled(monkeypatch):
+    from app.services import chat_tools
+
+    appt_id = uuid4()
+
+    async def fake_get_appointment_detail(patient, appointment_id):
+        return {
+            "id": appt_id, "for_patient_name": "김자녀", "department_name": "내과",
+            "doctor_name": "김의사", "slot_date": "2026-08-01", "start_time": "09:00:00",
+            "status": "환자취소",
+        }
+
+    monkeypatch.setattr(
+        chat_tools.patient_appointment_query_service, "get_appointment_detail", fake_get_appointment_detail,
+    )
+    ctx = ToolContext(patient=object(), conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "cancel_appointment_card")
+
+    out = await tool.ainvoke({"appointment_id": str(appt_id)})
+    assert "이미 취소" in out
+    assert ctx.collected["card"] is None
+
+
+@pytest.mark.asyncio
+async def test_questionnaire_card_requires_login():
+    ctx = ToolContext(patient=None, conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "questionnaire_card")
+    out = await tool.ainvoke({"appointment_id": str(uuid4()), "extracted_answers": []})
+    assert "로그인" in out
+    assert ctx.collected["card"] is None
+
+
+@pytest.mark.asyncio
+async def test_questionnaire_card_merges_existing_and_extracted_answers(monkeypatch):
+    """[A-1] 기존 저장값이 있으면 그 값을 우선 채우고, 없는 항목만 대화에서 파악한 값으로 채운다."""
+    from app.services import chat_tools
+
+    appt_id = uuid4()
+    dept_id = uuid4()
+    template_id = uuid4()
+
+    async def fake_get_appointment_department(patient, appointment_id):
+        assert appointment_id == appt_id
+        return dept_id
+
+    async def fake_get_template(department_id, patient):
+        assert department_id == dept_id
+        return {"id": template_id, "questions": [
+            {"text": "오늘 불편한 증상은 무엇인가요?"},
+            {"text": "복용 중인 약이 있나요?"},
+        ]}
+
+    async def fake_get_response(patient, appointment_id):
+        return {"template_id": template_id, "answers": [
+            {"question": "오늘 불편한 증상은 무엇인가요?", "answer": "기존에 저장된 기침"},
+        ]}
+
+    monkeypatch.setattr(chat_tools, "_get_appointment_department_id", fake_get_appointment_department)
+    monkeypatch.setattr(chat_tools.patient_questionnaire_service, "get_template", fake_get_template)
+    monkeypatch.setattr(chat_tools.patient_questionnaire_service, "get_response", fake_get_response)
+
+    ctx = ToolContext(patient=object(), conversation_id=uuid4())
+    tool = next(t for t in build_tools(ctx) if t.name == "questionnaire_card")
+
+    out = await tool.ainvoke({
+        "appointment_id": str(appt_id),
+        "extracted_answers": [{"question": "복용 중인 약이 있나요?", "answer": "타이레놀"}],
+    })
+
+    assert "사전문진" in out
+    card = ctx.collected["card"]
+    assert card["type"] == "questionnaire"
+    assert card["template_id"] == str(template_id)
+    answers_by_q = {a["question"]: a["value"] for a in card["questions"]}
+    assert answers_by_q["오늘 불편한 증상은 무엇인가요?"] == "기존에 저장된 기침"  # 기존 저장값 우선
+    assert answers_by_q["복용 중인 약이 있나요?"] == "타이레놀"  # 없는 항목은 대화 파악값
 
 
 @pytest.mark.asyncio
@@ -1717,7 +1887,9 @@ from app.core.patient_security import PatientContext
 from app.services import (
     patient_appointment_query_service,
     patient_catalog_service,
+    patient_family_service,
     patient_public_catalog_service,
+    patient_questionnaire_service,
     rag_search_service,
 )
 
@@ -1726,6 +1898,7 @@ from app.services import (
 class ToolContext:
     patient: PatientContext | None
     conversation_id: UUID
+    family_members: list[dict] = field(default_factory=list)
     collected: dict = field(default_factory=lambda: {"source_chunk_ids": [], "card": None})
 
 
@@ -1743,7 +1916,7 @@ class ListAvailableSlotsInput(BaseModel):
 
 
 class ProposeBookingCardInput(BaseModel):
-    for_patient_id: str
+    for_patient_id: str = Field(description="예약 대상 환자 id. 본인 또는 family_members 목록의 가족 id")
     department_id: str
     doctor_id: str
     slot_id: str
@@ -1751,6 +1924,60 @@ class ProposeBookingCardInput(BaseModel):
     doctor_name: str
     slot_date: str
     start_time: str
+
+
+class CancelAppointmentCardInput(BaseModel):
+    appointment_id: str = Field(description="취소할 예약 id. get_my_appointments 결과에서 확인")
+
+
+class QuestionnaireCardInput(BaseModel):
+    appointment_id: str = Field(description="사전문진을 작성/수정할 예약 id")
+    extracted_answers: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "대화 전체에서 파악한 항목만 담는다. 각 항목은 {'question': str, 'answer': str} — "
+            "question은 사전문진 양식의 질문 문구와 최대한 일치시키고, 파악하지 못한 항목은 넣지 않는다(지어내지 않음)."
+        ),
+    )
+
+
+async def _get_appointment_department_id(patient: PatientContext, appointment_id: UUID) -> UUID | None:
+    # acquire_as(patient.auth_user_id)로 실행하므로, 본인·가족 소유가 아닌 예약이면
+    # RLS(patients_can_read_own_appointments)에 걸려 조용히 None을 반환한다 — 타인 예약 정보 유출 방지.
+    from app.db.pool import acquire_as
+
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        return await conn.fetchval(
+            "select department_id from appointments where id = $1", appointment_id,
+        )
+
+
+async def build_questionnaire_card(
+    patient: PatientContext, appointment_id: UUID, extracted_answers: list[dict],
+) -> dict | None:
+    """예약 신청 직후 자동 호출(Task 21)과 questionnaire_card 도구가 함께 쓰는 카드 조립 로직.
+    기존 저장값이 있으면 그 값이 최신이므로 우선하고, 없는 항목만 extracted_answers로 채운다
+    (둘 다 없으면 빈칸 — 지어내지 않음)."""
+    department_id = await _get_appointment_department_id(patient, appointment_id)
+    if department_id is None:
+        return None
+    template = await patient_questionnaire_service.get_template(department_id, patient)
+    if template is None:
+        return None
+    existing = await patient_questionnaire_service.get_response(patient, appointment_id)
+    existing_by_q = {a["question"]: a["answer"] for a in (existing["answers"] if existing else [])}
+    extracted_by_q = {a["question"]: a["answer"] for a in extracted_answers}
+
+    questions = [
+        {"question": q["text"], "value": existing_by_q.get(q["text"]) or extracted_by_q.get(q["text"], "")}
+        for q in template["questions"]
+    ]
+    return {
+        "type": "questionnaire",
+        "appointment_id": str(appointment_id),
+        "template_id": str(template["id"]),
+        "questions": questions,
+    }
 
 
 def build_tools(ctx: ToolContext) -> list[StructuredTool]:
@@ -1805,11 +2032,15 @@ def build_tools(ctx: ToolContext) -> list[StructuredTool]:
     async def get_my_appointments() -> str:
         if ctx.patient is None:
             return "환자가 로그인하지 않았습니다. 예약 확인은 로그인 후 가능하다고 안내하세요."
+        # list_my_appointments는 3단계에서 이미 본인+가족(patient_owns() 기반 RLS)을 함께 반환한다(A-4).
+        # 여기서는 id/for_patient_name을 결과 텍스트에 포함시켜, 에이전트가 이후 예약취소_카드보내기·
+        # 사전문진_카드보내기를 호출할 때 "누구의 어느 예약인지"를 구분할 수 있게 한다.
         rows = await patient_appointment_query_service.list_my_appointments(ctx.patient)
         if not rows:
             return "현재 예약이 없습니다."
         return "\n".join(
-            f"{r['slot_date']} {r['start_time']} {r['department_name']} {r['doctor_name']} ({r['status']})"
+            f"id={r['id']} {r['for_patient_name']} {r['slot_date']} {r['start_time']} "
+            f"{r['department_name']} {r['doctor_name']} ({r['status']})"
             for r in rows
         )
 
@@ -1841,6 +2072,46 @@ def build_tools(ctx: ToolContext) -> list[StructuredTool]:
         }
         return "확인 카드를 띄웠습니다. 환자가 '이 내용으로 예약' 버튼을 누르기를 기다린다고 안내하세요."
 
+    async def cancel_appointment_card(appointment_id: str) -> str:
+        # [A-5] 취소도 예약과 같은 패턴: 이 도구는 취소를 실행하지 않는다. 카드만 띄우고,
+        # 환자가 버튼을 눌러야 3단계 cancel_appointment API가 Claude 없이 직행 호출된다.
+        # 마감 전후 분기·인계 티켓 생성은 그 API 호출 이후 프런트엔드가 처리한다 (아래 참고).
+        if ctx.patient is None:
+            return "환자가 로그인하지 않았습니다. 예약 취소는 로그인 후 가능하다고 안내하세요."
+        detail = await patient_appointment_query_service.get_appointment_detail(
+            ctx.patient, UUID(appointment_id),
+        )
+        if not detail:
+            return "해당 예약을 찾을 수 없습니다. 예약 id를 다시 확인하세요."
+        if detail["status"] in ("환자취소", "병원취소", "예약부도"):
+            return "이미 취소되었거나 종료된 예약입니다."
+        ctx.collected["card"] = {
+            "type": "cancellation_confirm",
+            "appointment_id": str(detail["id"]),
+            "for_patient_name": detail["for_patient_name"],
+            "department_name": detail["department_name"],
+            "doctor_name": detail["doctor_name"],
+            "slot_date": str(detail["slot_date"]) if detail["slot_date"] else None,
+            "start_time": str(detail["start_time"]) if detail["start_time"] else None,
+        }
+        return (
+            "취소 확인 카드를 띄웠습니다. 환자가 '이 예약 취소' 버튼을 누르기를 기다린다고 안내하세요. "
+            "마감이 지난 경우라도 '취소 요청이 접수됐다'는 말은 하지 말고, 버튼을 누르면 상담(직원 확인)으로 "
+            "연결된다고만 안내하세요."
+        )
+
+    async def questionnaire_card(appointment_id: str, extracted_answers: list[dict]) -> str:
+        # [A-1] 사전문진도 같은 패턴: 이 도구는 저장을 실행하지 않는다. build_questionnaire_card가
+        # 기존 저장값(있으면 우선)과 대화에서 파악한 값(없는 항목만)을 합쳐 카드를 만들고,
+        # 환자가 직접 고쳐 쓴 뒤 '저장' 버튼을 눌러야 3단계 문진 저장 API가 Claude 없이 직행 호출된다.
+        if ctx.patient is None:
+            return "환자가 로그인하지 않았습니다. 사전문진은 로그인 후 가능하다고 안내하세요."
+        card = await build_questionnaire_card(ctx.patient, UUID(appointment_id), extracted_answers)
+        if card is None:
+            return "해당 예약을 찾을 수 없거나, 이 진료과는 아직 사전문진 양식이 등록되어 있지 않습니다."
+        ctx.collected["card"] = card
+        return "사전문진 카드를 띄웠습니다. 환자가 내용을 확인·수정하고 '저장' 버튼을 누르면 반영됩니다."
+
     return [
         StructuredTool.from_function(
             coroutine=search_hospital_info, name="search_hospital_info",
@@ -1866,9 +2137,24 @@ def build_tools(ctx: ToolContext) -> list[StructuredTool]:
         ),
         StructuredTool.from_function(
             coroutine=propose_booking_card, name="propose_booking_card",
-            description="환자가 시간을 골랐을 때 예약 확인 카드를 채팅에 띄운다. 이 도구는 예약을 실행하지 않는다 — "
-                        "환자가 카드의 버튼을 눌러야 실제 예약된다.",
+            description="환자(본인 또는 가족)가 시간을 골랐을 때 예약 확인 카드를 채팅에 띄운다. 이 도구는 예약을 "
+                        "실행하지 않는다 — 환자가 카드의 버튼을 눌러야 실제 예약된다. 가족이 여러 명이면 먼저 "
+                        "누구의 예약인지 확인할 것.",
             args_schema=ProposeBookingCardInput,
+        ),
+        StructuredTool.from_function(
+            coroutine=cancel_appointment_card, name="cancel_appointment_card",
+            description="환자(본인 또는 가족)가 취소하려는 예약의 확인 카드를 채팅에 띄운다. 이 도구는 취소를 "
+                        "실행하지 않는다 — 환자가 카드의 버튼을 눌러야 실제 취소(또는 마감 후라면 상담 연결)된다. "
+                        "appointment_id는 먼저 get_my_appointments로 확인할 것.",
+            args_schema=CancelAppointmentCardInput,
+        ),
+        StructuredTool.from_function(
+            coroutine=questionnaire_card, name="questionnaire_card",
+            description="사전문진 내용을 채팅 카드로 띄운다(기존 저장값+대화에서 파악한 값 자동 채움). "
+                        "예약 신청 직후 자동 호출되거나, 환자가 사전문진 확인/수정을 요청하면 호출한다. "
+                        "이 도구는 저장을 실행하지 않는다 — 환자가 카드의 '저장' 버튼을 눌러야 반영된다.",
+            args_schema=QuestionnaireCardInput,
         ),
     ]
 ```
@@ -1928,10 +2214,22 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.integrations.langchain_client import get_chat_model
 from app.services.chat_tools import ToolContext, build_tools
 
-AGENT_SYSTEM_PROMPT = """당신은 병원의 AI 상담봇입니다. 예약 가능 시간 조회, 예약 제안, 본인 예약 확인을 돕습니다.
+AGENT_SYSTEM_PROMPT = """당신은 병원의 AI 상담봇입니다. 예약 가능 시간 조회, 예약 제안, 예약 확인·취소, \
+사전문진 작성·수정을 돕습니다. 본인뿐 아니라 로그인 계정에 연결된 가족의 예약도 다룰 수 있습니다.
+
+[가족 목록]
+{family_members}
+(비어 있으면 가족이 없는 계정입니다. 목록에 2명 이상 있으면, 예약/취소/사전문진 관련 요청 시 \
+반드시 먼저 "본인 예약인가요, 아니면 [이름] 예약인가요?"처럼 대상을 확인한 뒤 해당 도구를 호출하세요.)
+
 [절대 규칙 — 위반 금지]
 - 예약을 직접 실행할 수 없습니다. 환자가 시간을 고르면 propose_booking_card로 확인 카드만 띄우고,
   실제 예약은 환자가 버튼을 눌러야 됩니다.
+- 예약을 직접 취소할 수 없습니다. cancel_appointment_card로 확인 카드만 띄우고, 실제 취소는
+  환자가 버튼을 눌러야 됩니다. 마감이 지난 취소라도 "취소 요청이 접수/등록됐다"는 말은 절대 하지
+  마세요 — 버튼을 누르면 "상담(직원 확인)으로 연결된다"고만 안내하세요.
+- 사전문진 내용을 직접 저장할 수 없습니다. questionnaire_card로 카드만 띄우고, 실제 저장은
+  환자가 '저장' 버튼을 눌러야 됩니다. 파악하지 못한 항목은 지어내지 말고 빈칸으로 두세요.
 - 시간은 반드시 list_available_slots 도구의 결과만 안내하고 지어내지 마세요.
 - 존댓말의 친절한 한국어로, 짧고 명확하게 답하세요."""
 
@@ -1947,7 +2245,8 @@ async def run(query: str, ctx: ToolContext, model=None) -> dict:
     tools = build_tools(ctx)
     agent = create_tool_calling_agent(model, tools, _PROMPT)
     executor = AgentExecutor(agent=agent, tools=tools, max_iterations=8)
-    result = await executor.ainvoke({"input": query})
+    family_text = "\n".join(f"- {m['name']} ({m['relation']})" for m in ctx.family_members) or "(없음)"
+    result = await executor.ainvoke({"input": query, "family_members": family_text})
     return {
         "text": result["output"],
         "card": ctx.collected["card"],
@@ -1962,7 +2261,166 @@ Expected: 전체 PASS
 
 ```bash
 git add backend/app/services/chat_tools.py backend/app/services/agent_chain.py backend/tests/test_chat_tools.py backend/tests/test_agent_chain.py
-git commit -m "feat: 에이전트 도구 5종 + 행동형 에이전트 체인 (예약 실행 도구는 의도적으로 미포함)"
+git commit -m "feat: 에이전트 도구 7종(가족 확장 2 + 취소카드 + 사전문진카드 신규) + 행동형 에이전트 체인"
+```
+
+- [ ] **Step 7: 실패하는 테스트 작성 — 마감 후 취소 인계 티켓**
+
+`backend/tests/test_late_cancellation_ticket_service.py`:
+```python
+import pytest
+from uuid import uuid4
+
+
+@pytest.mark.asyncio
+async def test_create_ticket_summarizes_conversation_and_sets_reason(monkeypatch, db_conn):
+    from app.services import late_cancellation_ticket_service
+
+    conversation_id = uuid4()
+    appointment_id = uuid4()
+    patient_id = uuid4()
+    await db_conn.execute(
+        "insert into patients (id, name, phone) values ($1, '김환자', '01000000000')", patient_id,
+    )
+    await db_conn.execute(
+        "insert into chat_conversations (id, patient_id, channel, status) values ($1, $2, 'app', 'bot')",
+        conversation_id, patient_id,
+    )
+    await db_conn.execute(
+        "insert into chat_messages (conversation_id, sender, content) values ($1, 'patient', '내일 예약 취소하고 싶어요')",
+        conversation_id,
+    )
+
+    ticket_id = await late_cancellation_ticket_service.create_ticket(conversation_id, appointment_id)
+
+    row = await db_conn.fetchrow("select reason, status, conversation_id from support_tickets where id = $1", ticket_id)
+    assert row["reason"] == "late_cancellation"
+    assert row["status"] == "pending"
+    assert row["conversation_id"] == conversation_id
+```
+
+Run: `cd backend && pytest tests/test_late_cancellation_ticket_service.py -v` → FAIL (모듈 없음)
+
+- [ ] **Step 8: 마감 후 취소 인계 티켓 서비스 구현**
+
+`backend/app/services/late_cancellation_ticket_service.py`:
+```python
+from uuid import UUID
+
+from app.db.pool import get_pool
+from app.integrations.langchain_client import get_chat_model
+
+SUMMARY_PROMPT = """다음은 환자와 상담봇의 대화입니다. 이 환자가 예약 취소를 요청했고, 취소 마감 시각이
+지나 직원 승인이 필요합니다. 아래 형식으로 짧게 요약하세요:
+취소 사유(대화에서 파악된 것, 없으면 "명시 안 함"): ...
+대화 대화:
+{conversation}"""
+
+
+async def create_ticket(conversation_id: UUID, appointment_id: UUID) -> UUID:
+    pool = await get_pool()
+    messages = await pool.fetch(
+        "select sender, content from chat_messages where conversation_id = $1 order by created_at",
+        conversation_id,
+    )
+    conversation_text = "\n".join(f"{m['sender']}: {m['content']}" for m in messages)
+    model = get_chat_model()
+    summary = (await model.ainvoke(SUMMARY_PROMPT.format(conversation=conversation_text))).content
+
+    conversation = await pool.fetchrow(
+        "select patient_id from chat_conversations where id = $1", conversation_id,
+    )
+    ticket_id = await pool.fetchval(
+        """
+        insert into support_tickets
+            (conversation_id, patient_id, summary_question, summary_confirmed, summary_guided,
+             summary_unresolved, summary_staff_todo, reason, status)
+        values ($1, $2, $3, '', '', $4, $5, 'late_cancellation', 'pending')
+        returning id
+        """,
+        conversation_id, conversation["patient_id"] if conversation else None,
+        "예약 취소(마감 후)", summary,
+        f"appointment_id={appointment_id} 취소요청 대기열에서 승인/반려 처리 필요",
+    )
+    return ticket_id
+```
+
+- [ ] **Step 9: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_late_cancellation_ticket_service.py -v`
+Expected: PASS
+
+- [ ] **Step 10: 실패하는 테스트 작성 — 마감 후 취소 티켓 생성 엔드포인트**
+
+`backend/tests/test_chat_late_cancellation_router.py`:
+```python
+import pytest
+from uuid import uuid4
+
+
+@pytest.mark.asyncio
+async def test_late_cancellation_ticket_endpoint_creates_ticket(monkeypatch, async_client):
+    from app.routers import chat_late_cancellation
+
+    created = {}
+
+    async def fake_create_ticket(conversation_id, appointment_id):
+        created["conversation_id"] = conversation_id
+        created["appointment_id"] = appointment_id
+        return uuid4()
+
+    monkeypatch.setattr(
+        chat_late_cancellation.late_cancellation_ticket_service, "create_ticket", fake_create_ticket,
+    )
+    conversation_id = uuid4()
+    appointment_id = uuid4()
+
+    response = await async_client.post(
+        f"/chat/conversations/{conversation_id}/late-cancellation-ticket",
+        json={"appointment_id": str(appointment_id)},
+    )
+
+    assert response.status_code == 200
+    assert created["conversation_id"] == conversation_id
+    assert created["appointment_id"] == appointment_id
+```
+
+Run: `cd backend && pytest tests/test_chat_late_cancellation_router.py -v` → FAIL (모듈 없음)
+
+- [ ] **Step 11: 라우터 구현**
+
+`backend/app/routers/chat_late_cancellation.py`:
+```python
+from uuid import UUID
+
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+from app.services import late_cancellation_ticket_service
+
+router = APIRouter(prefix="/chat", tags=["chat-late-cancellation"])
+
+
+class LateCancellationTicketRequest(BaseModel):
+    appointment_id: UUID
+
+
+@router.post("/conversations/{conversation_id}/late-cancellation-ticket")
+async def create_late_cancellation_ticket(conversation_id: UUID, body: LateCancellationTicketRequest) -> dict:
+    ticket_id = await late_cancellation_ticket_service.create_ticket(conversation_id, body.appointment_id)
+    return {"ticket_id": str(ticket_id)}
+```
+
+> **왜 로그인 인증 의존성이 없는가**: 이 엔드포인트는 3단계 취소 API가 이미 `cancellation_requested: true`를 반환한 **직후** 프런트엔드가 이어서 호출하는 내부 후처리 단계다. 별도 인증을 요구하면 이미 인증된 취소 요청 흐름을 한 번 더 검증하는 중복이 생기므로, `conversation_id`(추측 불가능한 UUID)만으로 충분하다고 판단했다 — 상담방·티켓 자체의 열람 권한은 각각의 RLS가 이미 지킨다.
+
+- [ ] **Step 12: 테스트 통과 확인 후 Commit**
+
+Run: `cd backend && pytest tests/test_late_cancellation_ticket_service.py tests/test_chat_late_cancellation_router.py -v`
+Expected: 전체 PASS
+
+```bash
+git add backend/app/services/late_cancellation_ticket_service.py backend/app/routers/chat_late_cancellation.py backend/tests/test_late_cancellation_ticket_service.py backend/tests/test_chat_late_cancellation_router.py
+git commit -m "feat: 마감 후 취소 시 late_cancellation 인계 티켓 생성 서비스+엔드포인트 (A-5)"
 ```
 
 ---
@@ -2241,7 +2699,7 @@ git commit -m "feat: 응급 검사 + 인계 감시(6조건) + 라우터(Runnable
 - Produces: `app.services.chat_service.post_message(conversation_id, content, patient=None, anon_token=None, model=None, embedder=None, unhelpful_flagged=False) -> dict` (`{"reply": str | None, "message_type": str, "card": dict | None, "handed_over": bool}`)
 - Produces: `app.services.chat_service.list_my_conversations(patient) -> list[dict]`, `get_messages(conversation_id, patient=None, anon_token=None) -> list[dict]`
 
-**처리 순서 (스펙 섹션 3):** ⓪`safety_watchdog.check_emergency` → ①`safety_watchdog.check_escalation`(선행 검사: `unhelpful_flagged`/반복/의미 분류) → ②`classify_route`로 3갈래 분기 → `rag`갈래에서 검색 결과가 0건이면 그 자체가 `no_answer` 인계 사유가 된다(요구사항 5.5 "답을 찾지 못했거나"). 즉 `no_answer`만 라우팅 이후(사후)에 판정되고, 나머지 5가지 사유는 라우팅 이전(사전)에 판정된다.
+**처리 순서 (스펙 섹션 3):** ⓪`safety_watchdog.check_emergency` → ①`safety_watchdog.check_escalation`(선행 검사: `unhelpful_flagged`/반복/의미 분류) → ②`classify_route`로 3갈래 분기 → `rag`갈래에서 검색 결과가 0건이면 [A-2] 코드가 직접(라우터 재분류 없이) 행동형 에이전트로 1회 재시도하고, 그마저 근거·카드 둘 다 못 만들면 `no_answer` 인계 사유가 된다(요구사항 5.5 "답을 찾지 못했거나"). 즉 `no_answer`만 라우팅 이후(사후)에 판정되고, 나머지 5가지 사유는 라우팅 이전(사전)에 판정된다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -2377,7 +2835,9 @@ async def test_routes_to_rag_chain_and_records_route_taken(service_conn, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_rag_with_no_kb_hits_escalates_as_no_answer(service_conn, monkeypatch):
+async def test_rag_with_no_kb_hits_retries_agent_then_escalates_as_no_answer(service_conn, monkeypatch):
+    """[A-2] 검색 실패 시 곧장 인계하지 않고 행동형으로 1회 재시도한다. 재시도도 근거·카드를
+    못 만들면 그때 no_answer로 인계한다."""
     from app.services import chat_service
 
     async def no_escalation(*args, **kwargs):
@@ -2389,6 +2849,9 @@ async def test_rag_with_no_kb_hits_escalates_as_no_answer(service_conn, monkeypa
     async def empty_rag_answer(query, embedder=None, model=None):
         return {"text": chat_service.rag_chain.NO_RESULT_REPLY, "source_chunk_ids": []}
 
+    async def empty_agent_run(query, ctx, model=None):
+        return {"text": "잘 모르겠습니다.", "card": None, "source_chunk_ids": []}
+
     async def fake_summary(history_text, model=None):
         return {
             "summary_question": "q", "summary_confirmed": "c", "summary_guided": "g",
@@ -2398,6 +2861,7 @@ async def test_rag_with_no_kb_hits_escalates_as_no_answer(service_conn, monkeypa
     monkeypatch.setattr(chat_service.safety_watchdog, "check_escalation", no_escalation)
     monkeypatch.setattr(chat_service, "classify_route", route_rag)
     monkeypatch.setattr(chat_service.rag_chain, "answer", empty_rag_answer)
+    monkeypatch.setattr(chat_service.agent_chain, "run", empty_agent_run)
     monkeypatch.setattr(chat_service.safety_watchdog, "build_handoff_summary", fake_summary)
 
     conv = await chat_service.start_conversation(channel="web", patient=None)
@@ -2409,6 +2873,41 @@ async def test_rag_with_no_kb_hits_escalates_as_no_answer(service_conn, monkeypa
         "select reason from support_tickets where conversation_id = $1", conv["conversation_id"]
     )
     assert ticket_reason == "no_answer"  # 자료를 못 찾은 것 자체가 인계 사유 (요구사항 5.5)
+
+
+@pytest.mark.asyncio
+async def test_rag_with_no_kb_hits_but_agent_retry_finds_answer_skips_handoff(service_conn, monkeypatch):
+    """[A-2] 재시도에서 근거를 찾으면(또는 카드를 만들면) 인계하지 않고 그 결과를 그대로 답한다."""
+    from app.services import chat_service
+
+    async def no_escalation(*args, **kwargs):
+        return None
+
+    async def route_rag(*args, **kwargs):
+        return "rag"
+
+    async def empty_rag_answer(query, embedder=None, model=None):
+        return {"text": chat_service.rag_chain.NO_RESULT_REPLY, "source_chunk_ids": []}
+
+    async def successful_agent_run(query, ctx, model=None):
+        return {"text": "운영 중인 진료과는 내과입니다.", "card": None, "source_chunk_ids": ["c1"]}
+
+    monkeypatch.setattr(chat_service.safety_watchdog, "check_escalation", no_escalation)
+    monkeypatch.setattr(chat_service, "classify_route", route_rag)
+    monkeypatch.setattr(chat_service.rag_chain, "answer", empty_rag_answer)
+    monkeypatch.setattr(chat_service.agent_chain, "run", successful_agent_run)
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    result = await chat_service.post_message(
+        conv["conversation_id"], "무슨 과가 있나요?", anon_token=conv["anon_session_token"],
+    )
+    assert result["handed_over"] is False
+    assert "내과" in result["reply"]
+    row = await service_conn.fetchrow(
+        "select route_taken from chat_messages where conversation_id = $1 and sender = 'bot'",
+        conv["conversation_id"],
+    )
+    assert row["route_taken"] == "agent"
 
 
 @pytest.mark.asyncio
@@ -2519,7 +3018,7 @@ from app.core.config import settings
 from app.core.errors import AppError, log_error
 from app.core.patient_security import PatientContext
 from app.db.pool import get_pool
-from app.services import agent_chain, department_guide_chain, rag_chain, safety_watchdog
+from app.services import agent_chain, department_guide_chain, patient_family_service, rag_chain, safety_watchdog
 from app.services.chat_router import classify_route
 from app.services.chat_tools import ToolContext
 
@@ -2689,9 +3188,19 @@ async def post_message(
                 if route == "rag":
                     result = await rag_chain.answer(content, embedder=embedder, model=model)
                     if not result["source_chunk_ids"]:
-                        # 자료를 못 찾은 것 자체가 인계 사유 (요구사항 5.5 "답을 찾지 못했거나")
-                        reply = await _handoff(conversation_id, patient, "no_answer", history_text, model, embedder=embedder)
-                        route_taken = "handoff"
+                        # [A-2] 검색 실패 시 곧장 인계하지 않고, 코드가 직접(라우터 재분류 없이) 행동형으로
+                        # 1회만 전환해 재시도한다 — 하드코딩된 흐름이라 무한루프가 생기지 않는다.
+                        # 행동형이 이미 RAG 검색을 포함하는 상위호환 갈래라 반대 방향 재시도는 두지 않는다.
+                        family_members = await patient_family_service.list_family_members(patient) if patient else []
+                        ctx = ToolContext(patient=patient, conversation_id=conversation_id, family_members=family_members)
+                        retry_result = await agent_chain.run(content, ctx, model=model)
+                        if retry_result["source_chunk_ids"] or retry_result["card"]:
+                            reply, card, source_chunk_ids, route_taken = (
+                                retry_result["text"], retry_result["card"], retry_result["source_chunk_ids"], "agent"
+                            )
+                        else:
+                            reply = await _handoff(conversation_id, patient, "no_answer", history_text, model, embedder=embedder)
+                            route_taken = "handoff"
                     else:
                         reply, source_chunk_ids, route_taken = result["text"], result["source_chunk_ids"], "rag"
                 elif route == "department_guide":
@@ -2700,7 +3209,8 @@ async def post_message(
                     route_taken = "department_guide"
                     next_active_flow, next_flow_step, next_flow_collected = "department_guide", 1, {}
                 else:
-                    ctx = ToolContext(patient=patient, conversation_id=conversation_id)
+                    family_members = await patient_family_service.list_family_members(patient) if patient else []
+                    ctx = ToolContext(patient=patient, conversation_id=conversation_id, family_members=family_members)
                     result = await agent_chain.run(content, ctx, model=model)
                     reply, card, source_chunk_ids, route_taken = (
                         result["text"], result["card"], result["source_chunk_ids"], "agent"
@@ -2710,7 +3220,14 @@ async def post_message(
         reply, card, source_chunk_ids, route_taken = FALLBACK_REPLY, None, [], None
 
     handed_over = route_taken == "handoff"
-    message_type = "booking_confirm" if card else "text"
+    # 카드 종류에 따라 message_type을 다르게 기록한다 — propose_booking_card는 "type" 키가 없는
+    # 예약 확인 카드(기존 설계 그대로), 그 외 신규 카드(A-1/A-5)는 도구가 직접 "type"을 채워 넣는다.
+    if card is None:
+        message_type = "text"
+    elif card.get("type") in ("cancellation_confirm", "questionnaire"):
+        message_type = card["type"]
+    else:
+        message_type = "booking_confirm"
 
     async with pool.acquire() as conn:
         await conn.execute(
@@ -4919,6 +5436,8 @@ git commit -m "feat: 관리자 KB 관리(수정이력 포함)/오답 처리함/�
 - Create: `webchat/src/ChatWidget.tsx` (말풍선 버튼 + 펼쳐지는 채팅창)
 - Create: `webchat/src/ChatWindow.tsx` (메시지 목록 + 입력 + 카드 렌더)
 - Create: `webchat/src/BookingCard.tsx` (확인 카드 — 주요 버튼 1개)
+- Create: `webchat/src/CancellationCard.tsx` (A-5 — 취소 확인 카드, 버튼 1개)
+- Create: `webchat/src/QuestionnaireCard.tsx` (A-1 — 사전문진 카드, 필드 편집 + 저장 버튼)
 - Create: `webchat/src/AuthModal.tsx` (로그인/가입 모달 — 별도 페이지 방식)
 - Create: `webchat/src/ContactForm.tsx` (익명 인계용 이름·연락처)
 - Create: `webchat/src/api.ts`, `webchat/src/anonSession.ts`, `webchat/src/supabase.ts`
@@ -4929,7 +5448,7 @@ git commit -m "feat: 관리자 KB 관리(수정이력 포함)/오답 처리함/�
 - Consumes: Task 14의 `/chat/*` API, Supabase JS SDK(전화번호+비밀번호 로그인 — 3단계와 동일 Auth, 가입은 OTP 본인확인 → 비밀번호 설정)
 - Produces: `anonSession.getToken()/saveToken(token)/clear()` — localStorage 보관(익명 "진동벨")
 - Produces: `<ChatWidget />` — 우하단 플로팅 버튼, 클릭 시 `<ChatWindow />` 펼침
-- Produces: `<BookingCard card onConfirm />`, `<AuthModal mode onSuccess onClose />`, `<ContactForm onSubmit />`
+- Produces: `<BookingCard card onConfirm />`, `<CancellationCard card onConfirmed />`(A-5), `<QuestionnaireCard card onSaved />`(A-1), `<AuthModal mode onSuccess onClose />`, `<ContactForm onSubmit />`
 - Produces(**확정 계약 — 5단계 배포 문서와 공유**): 빌드 산출물 `webchat/dist/widget.js`, 전역 초기화 함수 `HospitalChatWidget.init({ webchatUrl: string })` — 우하단 플로팅 버튼을 삽입하고, 클릭 시 `webchatUrl`을 iframe으로 띄운다. webchat 앱 본체(`ChatWidget`)는 그대로 독립 웹앱으로 배포되고, 로더는 그 앱을 iframe으로 감싸는 별도의 작은 번들이다.
 
 - [ ] **Step 1: 스캐폴딩**
@@ -4993,6 +5512,47 @@ test("확인 카드가 오면 예약 버튼 하나가 표시된다", async () =>
   expect(screen.getAllByRole("button", { name: "이 내용으로 예약" })).toHaveLength(1);
 });
 
+test("취소 확인 카드가 오면 취소 버튼 하나가 표시된다", async () => {
+  server.use(
+    http.post("*/chat/conversations/c1/messages", () =>
+      HttpResponse.json({
+        reply: "상담으로 연결해 드렸습니다.", message_type: "cancellation_confirm",
+        card: {
+          type: "cancellation_confirm", appointment_id: "a1", for_patient_name: "김환자",
+          department_name: "내과", doctor_name: "김의사", slot_date: "2026-08-01", start_time: "09:00",
+        },
+        handed_over: false,
+      }),
+    ),
+  );
+  render(<ChatWindow />);
+  await userEvent.type(await screen.findByPlaceholderText("궁금한 점을 입력하세요"), "다음 예약 취소해주세요");
+  await userEvent.click(screen.getByRole("button", { name: "보내기" }));
+  await screen.findByText(/내과.*김의사/);
+  expect(screen.getAllByRole("button", { name: "이 예약 취소" })).toHaveLength(1);
+});
+
+test("사전문진 카드가 오면 필드가 프리필되고 저장 버튼이 표시된다", async () => {
+  server.use(
+    http.post("*/chat/conversations/c1/messages", () =>
+      HttpResponse.json({
+        reply: "사전문진 카드를 띄웠습니다.", message_type: "questionnaire",
+        card: {
+          type: "questionnaire", appointment_id: "a1", template_id: "t1",
+          questions: [{ question: "오늘 불편한 증상은 무엇인가요?", value: "기침, 콧물" }],
+        },
+        handed_over: false,
+      }),
+    ),
+  );
+  render(<ChatWindow />);
+  await userEvent.type(await screen.findByPlaceholderText("궁금한 점을 입력하세요"), "사전문진 확인할게요");
+  await userEvent.click(screen.getByRole("button", { name: "보내기" }));
+  const input = await screen.findByDisplayValue("기침, 콧물");
+  expect(input).toBeInTheDocument();
+  screen.getByRole("button", { name: "저장" });
+});
+
 test("진료과 추천형(문진) 응답에는 진단이 아니라는 배너가 함께 표시된다", async () => {
   server.use(
     http.post("*/chat/conversations/c1/messages", () =>
@@ -5024,8 +5584,10 @@ test("전송 실패 시 실패 표시와 재전송 버튼이 보인다", async (
 
 구현 요점:
 - `anonSession.ts`: `localStorage`에 토큰 저장. `ChatWindow` 마운트 시 토큰 있으면 `GET /chat/conversations/resume`으로 어제 대화 복원, 없으면 `POST /chat/conversations {channel:'web'}`로 새 방 + 토큰 저장
-- `ChatWindow`: 말풍선 목록(환자/봇/직원 구분), 입력창(placeholder "궁금한 점을 입력하세요") + "보내기". 전송 중 버튼 비활성(중복 클릭 방지). 실패 시 말풍선에 "전송에 실패했어요" + "다시 보내기". `message_type`별 렌더: `booking_confirm` → `<BookingCard>`, `booking_done` → 예약번호 + "사전문진은 앱에서 작성할 수 있어요" 안내. **`route_taken === "department_guide"`인 답변에는 말풍선 위에 "진단이 아니라 진료과 안내입니다" 고정 배너를 붙인다** (설계서 섹션 4 — 의료 안내와 일반 안내를 시각적으로 구분)
+- `ChatWindow`: 말풍선 목록(환자/봇/직원 구분), 입력창(placeholder "궁금한 점을 입력하세요") + "보내기". 전송 중 버튼 비활성(중복 클릭 방지). 실패 시 말풍선에 "전송에 실패했어요" + "다시 보내기". `message_type`별 렌더: `booking_confirm` → `<BookingCard>`, `booking_done` → 예약번호 + "사전문진은 앱에서 작성할 수 있어요" 안내, `cancellation_confirm` → `<CancellationCard>`(A-5), `questionnaire` → `<QuestionnaireCard>`(A-1). **`route_taken === "department_guide"`인 답변에는 말풍선 위에 "진단이 아니라 진료과 안내입니다" 고정 배너를 붙인다** (설계서 섹션 4 — 의료 안내와 일반 안내를 시각적으로 구분)
 - `BookingCard`: 환자·진료과·의사·날짜·시간 표 + `이 내용으로 예약` 버튼 1개. 클릭 → 로그인 상태면 `POST /chat/conversations/{id}/booking` body `{nonce: card.nonce}`(Supabase 세션의 access token을 Authorization 헤더로) — 카드가 받은 `nonce`만 그대로 돌려보낼 뿐, 진료과·의사·시간 필드는 서버가 발급 시점에 저장해 둔 값을 쓰므로 클라이언트가 위조해도 소용없다. 비로그인이면 `<AuthModal>` 열기. 409(카드 재사용·선점) 응답이면 "방금 그 시간이 마감됐어요. 봇에게 다른 시간을 물어보세요" 표시
+- `CancellationCard`(A-5): 환자명·진료과·의사·날짜·시간 표 + `이 예약 취소` 버튼 1개. 클릭 → 3단계 API `POST /app/appointments/{card.appointment_id}/cancel` body `{reason: null}`을 **Claude를 거치지 않고 직접** 호출(Supabase 세션 access token 사용, 이 API는 웹 상담창에서도 로그인 환자만 호출 가능 — 비로그인이면 `<AuthModal>`). 응답 `cancellation_requested === true`(마감 후)면 이어서 `POST /chat/conversations/{conversationId}/late-cancellation-ticket` body `{appointment_id: card.appointment_id}`를 호출해 인계 티켓을 만들고, 카드 자리에 "상담으로 연결됐습니다. 담당 직원이 확인 후 안내해 드립니다"만 표시(❌ "취소 요청이 접수됐습니다" 문구 금지 — 스펙 A-5 환자 노출 문구 원칙). `cancellation_requested === false`(마감 전)면 "예약이 취소되었습니다"만 표시하고 티켓 엔드포인트는 호출하지 않는다.
+- `QuestionnaireCard`(A-1): `card.questions` 각 항목을 `question` 레이블 + 편집 가능한 텍스트 입력(`value`로 프리필)으로 렌더. `저장` 버튼 클릭 → 3단계 API `POST /app/appointments/{card.appointment_id}/questionnaire` body `{template_id: card.template_id, answers: [{question, answer}, ...]}`을 **Claude를 거치지 않고 직접** 호출(로그인 필요 — 비로그인이면 `<AuthModal>`). 성공 시 "저장됐습니다" 표시. `나중에 할게요` 버튼은 그냥 카드를 접는다(API 호출 없음).
 - `AuthModal`: 로그인 탭(전화번호+비밀번호 — `supabase.auth.signInWithPassword({phone, password})`) / 가입 탭(전화번호 → `signInWithOtp` → OTP 확인 → 비밀번호·이름·생년월일·성별 → 3단계 가입 API 재사용). 성공 시 `POST /chat/conversations/{id}/attach`로 익명 대화를 계정에 연결 후 모달 닫기. 채팅창 위를 덮는 전체 모달(별도 페이지 방식 — 스펙 확정)
 - `ContactForm`: 봇 응답의 `handed_over === true`이고 비로그인 상태면 채팅에 인라인 표시 — 이름·휴대폰 입력 → `POST /chat/conversations/{id}/contact`. 제출 후 "답변이 등록되면 문자로 알려드릴게요"
 - 직원 답변 실시간 수신: Supabase Realtime은 익명 사용자에게 못 쓰므로(RLS), 웹 위젯은 채팅창이 열려 있는 동안 15초 간격 폴링으로 새 메시지 확인 (단순·충분)
@@ -5114,12 +5676,14 @@ git commit -m "feat: 병원 홈페이지용 웹 상담창 위젯(익명+로그�
 - Create: `mobile/lib/features/chat/chat_list_screen.dart` (이전 상담 목록)
 - Create: `mobile/lib/features/chat/chat_screen.dart` (채팅 화면)
 - Create: `mobile/lib/features/chat/booking_card.dart`
+- Create: `mobile/lib/features/chat/cancellation_card.dart`(A-5)
+- Create: `mobile/lib/features/chat/questionnaire_card.dart`(A-1)
 - Modify: `mobile/lib/router.dart` (`/chat`, `/chat/:id` 라우트), 홈 화면에 `AI 상담` 메뉴 추가
 - Test: `mobile/test/features/chat/chat_controller_test.dart`
 
 **Interfaces:**
-- Consumes: `ApiClient`(3단계), `BusyButton`(3단계), FCM 푸시(3단계 — `chat_answered` 타입 수신 시 해당 방으로 딥링크)
-- Produces: `ChatMessage`(모델: `id, sender, content, messageType, routeTaken, createdAt`), `ChatCard`(모델: 카드 필드), `ChatController`(`AsyncNotifier<List<ChatMessage>>`: `load(conversationId)`, `send(text) -> Future<SendResult>`, `confirmBooking(card) -> Future<String>`(appointment_id), `sendFeedback(messageId, helpful)`)
+- Consumes: `ApiClient`(3단계), `BusyButton`(3단계), FCM 푸시(3단계 — `chat_answered` 타입 수신 시 해당 방으로 딥링크), `PatientBookingController.cancelAppointment`(3단계 취소 API 래퍼), `QuestionnaireController`(3단계 문진 저장 API 래퍼)
+- Produces: `ChatMessage`(모델: `id, sender, content, messageType, routeTaken, createdAt`), `ChatCard`(모델: 카드 필드 — `type`(nullable, `cancellation_confirm`/`questionnaire`일 때만 채워짐. booking 카드는 기존처럼 `type` 없음)), `ChatController`(`AsyncNotifier<List<ChatMessage>>`: `load(conversationId)`, `send(text) -> Future<SendResult>`, `confirmBooking(card) -> Future<String>`(appointment_id), `confirmCancellation(conversationId, card) -> Future<bool>`(반환값: `cancellation_requested` — true면 컨트롤러가 이어서 `late-cancellation-ticket` 엔드포인트를 호출), `saveQuestionnaire(card, answers) -> Future<void>`, `sendFeedback(messageId, helpful)`)
 - Produces: `SendResult`(모델: `reply, messageType, card, handedOver, routeTaken`)
 
 - [ ] **Step 1: 실패하는 컨트롤러 테스트 작성**
@@ -5155,6 +5719,38 @@ void main() {
     expect(result.reply, isNull);
   });
 
+  test('SendResult가 cancellation_confirm 카드를 파싱한다 (A-5)', () {
+    final result = SendResult.fromJson({
+      'reply': '상담으로 연결해 드렸습니다.',
+      'message_type': 'cancellation_confirm',
+      'card': {
+        'type': 'cancellation_confirm', 'appointment_id': 'a1', 'for_patient_name': '김환자',
+        'department_name': '내과', 'doctor_name': '김의사', 'slot_date': '2026-08-01', 'start_time': '09:00',
+      },
+      'handed_over': false,
+      'route_taken': 'agent',
+    });
+    expect(result.messageType, 'cancellation_confirm');
+    expect(result.card!.forPatientName, '김환자');
+  });
+
+  test('SendResult가 questionnaire 카드를 파싱한다 (A-1)', () {
+    final result = SendResult.fromJson({
+      'reply': '사전문진 카드를 띄웠습니다.',
+      'message_type': 'questionnaire',
+      'card': {
+        'type': 'questionnaire', 'appointment_id': 'a1', 'template_id': 't1',
+        'questions': [
+          {'question': '오늘 불편한 증상은 무엇인가요?', 'value': '기침, 콧물'},
+        ],
+      },
+      'handed_over': false,
+      'route_taken': 'agent',
+    });
+    expect(result.messageType, 'questionnaire');
+    expect(result.card!.questions!.first.value, '기침, 콧물');
+  });
+
   test('진료과 추천형(department_guide) 응답을 파싱한다', () {
     final result = SendResult.fromJson({
       'reply': '언제부터 그러셨어요?', 'message_type': 'text', 'card': null,
@@ -5172,8 +5768,10 @@ Run: `cd mobile && flutter test test/features/chat/` → FAIL
 구현 요점:
 - `chat_api.dart`: `ApiClient`로 `/chat/*` 호출 (앱은 항상 로그인 상태 — Authorization 자동)
 - `chat_list_screen.dart`: `GET /chat/conversations` 목록(마지막 발언 시각 순) + "새 상담 시작" 버튼
-- `chat_screen.dart`: 말풍선 UI. 입력 + 전송(`BusyButton` 재사용 — 처리 중 중복 전송 방지). 전송 실패 시 말풍선에 실패 표시 + 재전송(요구사항 4.8 "저장된 것처럼 보이면 안 됨"). 봇 말풍선 하단에 👍/👎 아이콘 — 👎 탭 시 "직원에게 문의를 넘겨드릴까요?" 다이얼로그 → 확인 시 `send(text, unhelpfulFlagged: true)` 호출(백엔드의 인계 감시가 `unhelpful` 사유로 즉시 인계 처리). **봇 말풍선의 `routeTaken == 'department_guide'`이면 말풍선 위에 "진단이 아니라 진료과 안내입니다" 배너를 표시**(설계서 섹션 4). `message_type` 렌더: `booking_confirm` → `booking_card.dart`, `booking_done` → 예약번호 카드 + "사전문진 작성하기" 버튼(3단계 문진 화면으로 이동)
+- `chat_screen.dart`: 말풍선 UI. 입력 + 전송(`BusyButton` 재사용 — 처리 중 중복 전송 방지). 전송 실패 시 말풍선에 실패 표시 + 재전송(요구사항 4.8 "저장된 것처럼 보이면 안 됨"). 봇 말풍선 하단에 👍/👎 아이콘 — 👎 탭 시 "직원에게 문의를 넘겨드릴까요?" 다이얼로그 → 확인 시 `send(text, unhelpfulFlagged: true)` 호출(백엔드의 인계 감시가 `unhelpful` 사유로 즉시 인계 처리). **봇 말풍선의 `routeTaken == 'department_guide'`이면 말풍선 위에 "진단이 아니라 진료과 안내입니다" 배너를 표시**(설계서 섹션 4). `message_type` 렌더: `booking_confirm` → `booking_card.dart`, `booking_done` → 예약번호 카드 + "사전문진 작성하기" 버튼(3단계 문진 화면으로 이동), `cancellation_confirm` → `cancellation_card.dart`(A-5), `questionnaire` → `questionnaire_card.dart`(A-1)
 - `booking_card.dart`: 확인 카드 — 주요 버튼 `이 내용으로 예약` 1개(`BusyButton`). 성공 시 완료 처리, 409면 "방금 그 시간이 마감됐어요" 스낵바 + 봇에게 재문의 유도
+- `cancellation_card.dart`(A-5): 환자명·진료과·의사·날짜·시간 표시 + `이 예약 취소` 버튼 1개(`BusyButton`). 탭 → `ChatController.confirmCancellation`이 3단계 `PatientBookingController.cancelAppointment(appointmentId)`(Claude를 거치지 않고 직접 호출)를 부르고, 응답이 마감 후(취소요청)면 곧바로 `POST /chat/conversations/{id}/late-cancellation-ticket`를 호출해 인계 티켓을 만든 뒤 "상담으로 연결됐습니다. 담당 직원이 확인 후 안내해 드립니다"만 표시(❌ "취소 요청이 접수됐습니다" 금지 — A-5 문구 원칙). 마감 전이면 "예약이 취소되었습니다"만 표시
+- `questionnaire_card.dart`(A-1): `card.questions`를 항목별 편집 가능한 `TextField`(초기값 `value`)로 렌더 + `저장`/`나중에 할게요` 버튼. `저장` 탭 → `ChatController.saveQuestionnaire`가 3단계 문진 저장 API를 Claude 없이 직접 호출, 성공 시 "저장됐습니다" 스낵바. `나중에 할게요`는 API 호출 없이 카드만 접는다
 - 인계 후: `handedOver == true`면 "업무시간에는 곧, 업무시간이 아니면 다음 영업일에 직원이 답변드려요. 답변이 오면 알림을 보내드릴게요" 시스템 말풍선 표시. FCM `chat_answered` 수신 시 해당 상담방으로 이동
 - 직원 답변 실시간 반영: 앱은 로그인 상태이므로 Supabase Realtime 구독(`chat_messages`, 본인 RLS 통과분)으로 새 말풍선 자동 추가
 
@@ -5441,119 +6039,38 @@ git commit -m "feat: 환자상세 상담이력 탭 + 오늘의현황 상담문�
 
 ---
 
-## Task 21: 문진 체인이 수집한 증상·시작시점을 사전문진에 미리채우기 연결 (요구사항 4.4)
+## Task 21: 예약 완료 시 사전문진_카드보내기 자동 1회 호출 (요구사항 4.4, A-1)
 
-정합성 검토에서 발견: 요구사항 4.4 "상담봇이 대화 중 받은 내용이 사전문진에 들어갈 경우에는 환자에게 내용을 보여주고 저장 여부를 다시 확인받아야 합니다"가 3단계 스펙에서 4단계로 미뤄졌으나 반영되지 않았던 것을 보완한다. 이 태스크는 대화 기록에서 증상·시작시점을 추출해 예약 완료 응답에 실어 보내는 쪽(백엔드+Flutter 전달)을 담당하고, 실제로 사전문진 화면에 채워 보여주는 쪽은 3단계 `patient-app.md` Task 27이 담당한다(그 태스크가 먼저 존재해야 함).
+**[대체됨]** 이 태스크는 원래 "문진 체인이 수집한 증상·시작시점을 사전문진에 미리채우기 연결"(`get_questionnaire_prefill` + `questionnaire_prefill` 응답 필드 + 3단계 Task 27 화면 연동)이었다. A-1 브레인스토밍에서 `사전문진_카드보내기` 도구(Task 9)로 전면 재설계되며 이 접근은 완전히 폐기됐다 — 옛 방식은 (1) 문진 체인 태그 앞뒤 메시지 1개씩만 봐서 수집 범위가 좁고, (2) 결과를 3단계 사전문진 화면에서만 보여줄 수 있어 웹 상담창 전용 사용자는 아예 못 쓰고, (3) 예약 신청 시 1회성이라 이후 수정 경로가 없었다. 새 설계는 채팅 카드 자체가 저장·재수정을 모두 담당하므로 3단계 `patient-app.md` Task 27(프리필 연동)도 함께 삭제된다.
+
+이 태스크가 새로 하는 일: 예약 확인 카드의 `이 내용으로 예약` 버튼(Claude를 거치지 않는 직행 API, Task 14 `confirm_booking`)이 성공한 직후, **코드가 무조건 1회** `build_questionnaire_card`(Task 9)를 호출해 사전문진 카드를 채팅에 이어 붙인다. 대화에서 증상 등을 추출하는 것도 LLM 판단이지만, "지금 이 시점에 호출할지 말지"는 하드코딩되어 있어 반복 호출이나 누락이 없다.
 
 **Files:**
-- Modify: `backend/app/services/chat_service.py`(Task 11) — `get_questionnaire_prefill` 추가
-- Modify: `backend/app/routers/chat.py`(Task 14) — `confirm_booking` 응답에 `questionnaire_prefill` 필드 추가
-- Modify: `mobile/lib/features/chat/booking_card.dart`(Task 19) — 예약 완료 후 "사전문진 작성하기" 버튼이 프리필 값을 함께 전달
-- Test: `backend/tests/test_chat_service.py`(Task 11, 추가)
+- Modify: `backend/app/routers/chat.py`(Task 14) — `confirm_booking`이 예약 완료 후 사전문진 카드를 자동 생성
 - Test: `backend/tests/test_chat_routes.py`(Task 14, 추가)
 
 **Interfaces:**
-- Consumes: `chat_messages`(Task 1, `route_taken`/`sender`/`content`/`created_at`)
-- Produces: `app.services.chat_service.get_questionnaire_prefill(conversation_id: UUID) -> dict | None` (`{"chief_complaint": str, "onset": str}` 중 값이 있는 키만 포함, 문진 체인 대화가 없었으면 `None`)
-- Produces: `POST /chat/conversations/{id}/booking` 응답에 `questionnaire_prefill: dict | None` 필드 추가
+- Consumes: `app.services.chat_tools.build_questionnaire_card`(Task 9), `chat_messages`(Task 1, 대화 추출용)
+- Produces: `POST /chat/conversations/{id}/booking` 응답에 `questionnaire_card: dict | None` 필드 추가(기존 `questionnaire_prefill` 필드는 완전히 제거 — 하위호환 유지 안 함, 아직 배포 전이므로 폐기 가능)
 
-- [ ] **Step 1: 실패하는 테스트 작성 — get_questionnaire_prefill**
-
-`backend/tests/test_chat_service.py`에 추가:
-```python
-@pytest.mark.asyncio
-async def test_get_questionnaire_prefill_extracts_symptom_and_onset(service_conn):
-    from app.services import chat_service
-
-    conv = await chat_service.start_conversation(channel="app", patient=None)
-    conv_id = conv["conversation_id"]
-    await service_conn.execute(
-        "insert into chat_messages (conversation_id, sender, content) values ($1, 'patient', '배가 아파요')",
-        conv_id,
-    )
-    await service_conn.execute(
-        "insert into chat_messages (conversation_id, sender, content, route_taken) "
-        "values ($1, 'bot', '언제부터 그러셨어요?', 'department_guide')",
-        conv_id,
-    )
-    await service_conn.execute(
-        "insert into chat_messages (conversation_id, sender, content) values ($1, 'patient', '어제 저녁부터요')",
-        conv_id,
-    )
-
-    prefill = await chat_service.get_questionnaire_prefill(conv_id)
-
-    assert prefill == {"chief_complaint": "배가 아파요", "onset": "어제 저녁부터요"}
-
-
-@pytest.mark.asyncio
-async def test_get_questionnaire_prefill_returns_none_without_department_guide(service_conn):
-    from app.services import chat_service
-
-    conv = await chat_service.start_conversation(channel="app", patient=None)
-    await service_conn.execute(
-        "insert into chat_messages (conversation_id, sender, content, route_taken) "
-        "values ($1, 'bot', '지하 1층 주차장입니다.', 'rag')",
-        conv["conversation_id"],
-    )
-
-    prefill = await chat_service.get_questionnaire_prefill(conv["conversation_id"])
-
-    assert prefill is None
-```
-
-Run: `cd backend && pytest tests/test_chat_service.py -v`
-Expected: 새 테스트 2개 FAIL(`get_questionnaire_prefill` 없음)
-
-- [ ] **Step 2: chat_service.get_questionnaire_prefill 구현**
-
-`backend/app/services/chat_service.py` 끝에 추가:
-```python
-async def get_questionnaire_prefill(conversation_id: UUID) -> dict | None:
-    pool = await get_pool()
-    rows = await pool.fetch(
-        "select sender, content, route_taken from chat_messages "
-        "where conversation_id = $1 order by created_at",
-        conversation_id,
-    )
-    guide_index = next(
-        (i for i, r in enumerate(rows) if r["sender"] == "bot" and r["route_taken"] == "department_guide"),
-        None,
-    )
-    if guide_index is None:
-        return None
-
-    result: dict[str, str] = {}
-    if guide_index - 1 >= 0 and rows[guide_index - 1]["sender"] == "patient":
-        result["chief_complaint"] = rows[guide_index - 1]["content"]
-    if guide_index + 1 < len(rows) and rows[guide_index + 1]["sender"] == "patient":
-        result["onset"] = rows[guide_index + 1]["content"]
-
-    return result or None
-```
-
-- [ ] **Step 3: 테스트 실행**
-
-Run: `cd backend && pytest tests/test_chat_service.py -v`
-Expected: 전체 PASS
-
-- [ ] **Step 4: 실패하는 테스트 작성 — 예약 완료 응답에 프리필 포함**
+- [ ] **Step 1: 실패하는 테스트 작성 — 예약 완료 응답에 사전문진 카드 자동 포함**
 
 `backend/tests/test_chat_routes.py`에 추가:
 ```python
 @pytest.mark.asyncio
-async def test_booking_response_includes_questionnaire_prefill(client, patient_auth_headers, service_conn, monkeypatch):
+async def test_booking_response_auto_attaches_questionnaire_card(client, patient_auth_headers, service_conn, monkeypatch):
     from app.routers import chat as chat_router
     from uuid import uuid4
 
     async def fake_create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason, source):
         return uuid4()
 
-    async def fake_prefill(conversation_id):
-        return {"chief_complaint": "배가 아파요", "onset": "어제 저녁부터요"}
+    async def fake_build_card(patient, appointment_id, extracted_answers):
+        assert extracted_answers == []  # [Step 5 참고] 예약 직후 호출이라 아직 대화 추출값이 없다
+        return {"type": "questionnaire", "appointment_id": str(appointment_id), "template_id": "t1", "questions": []}
 
     monkeypatch.setattr(chat_router.patient_booking_service, "create_booking", fake_create_booking)
-    monkeypatch.setattr(chat_router.chat_service, "get_questionnaire_prefill", fake_prefill)
+    monkeypatch.setattr(chat_router.chat_tools, "build_questionnaire_card", fake_build_card)
 
     r = await client.post("/chat/conversations", json={"channel": "app"}, headers=patient_auth_headers)
     conv_id = r.json()["conversation_id"]
@@ -5573,15 +6090,19 @@ async def test_booking_response_includes_questionnaire_prefill(client, patient_a
     )
 
     assert r.status_code == 200
-    assert r.json()["questionnaire_prefill"] == {"chief_complaint": "배가 아파요", "onset": "어제 저녁부터요"}
+    assert r.json()["questionnaire_card"]["type"] == "questionnaire"
+    rows = await service_conn.fetch(
+        "select message_type from chat_messages where conversation_id = $1 order by created_at", conv_id,
+    )
+    assert [row["message_type"] for row in rows] == ["booking_done", "questionnaire"]
 ```
 
 Run: `cd backend && pytest tests/test_chat_routes.py -v`
-Expected: 새 테스트 FAIL (`questionnaire_prefill` 키 없음)
+Expected: 새 테스트 FAIL (`questionnaire_card` 키 없음)
 
-- [ ] **Step 5: confirm_booking 라우터 수정**
+- [ ] **Step 2: confirm_booking 라우터 수정**
 
-`backend/app/routers/chat.py`의 `confirm_booking` 함수 마지막 두 줄(`return` 직전)에 프리필 조회를 추가한다 — 소유권 검증·nonce 소비·`source="chatbot"` 전달 로직(Task 14에서 이미 작성됨)은 그대로 둔다:
+`backend/app/routers/chat.py`의 `confirm_booking` 함수(Task 14에서 이미 작성됨 — 소유권 검증·nonce 소비·`source="chatbot"` 전달 로직은 그대로 둔다) 마지막 부분을 아래로 교체:
 ```python
 @router.post("/conversations/{conversation_id}/booking")
 async def confirm_booking(
@@ -5612,43 +6133,43 @@ async def confirm_booking(
         patient, card["for_patient_id"], card["department_id"], card["doctor_id"],
         card["slot_id"], reason="상담봇 예약", source="chatbot",
     )
-    # 예약 완료 카드 메시지 저장 (예약번호 + 사전문진 이동 버튼용)
+    # 예약 완료 카드 메시지 저장 (예약번호)
     await pool.execute(
         "insert into chat_messages (conversation_id, sender, content, message_type) "
         "values ($1, 'bot', $2, 'booking_done')",
         conversation_id, f"예약이 완료되었어요. 예약번호: {appointment_id}",
     )
-    prefill = await chat_service.get_questionnaire_prefill(conversation_id)
-    return {"appointment_id": appointment_id, "questionnaire_prefill": prefill}
+    # [A-1, Task 21] 예약 신청 완료 시 사전문진 카드를 코드가 무조건 1회 자동으로 이어 붙인다
+    # (LLM의 자율 판단이 아님 — 반복 호출·누락 방지). 이 시점엔 아직 이번 대화에서 추출할 값이
+    # 없으므로 extracted_answers=[]로 호출하고, 기존 저장값만 프리필된다.
+    questionnaire_card = await chat_tools.build_questionnaire_card(patient, appointment_id, [])
+    if questionnaire_card is not None:
+        await pool.execute(
+            "insert into chat_messages (conversation_id, sender, content, message_type) "
+            "values ($1, 'bot', '사전문진을 확인·작성해 주세요.', 'questionnaire')",
+            conversation_id,
+        )
+    return {"appointment_id": appointment_id, "questionnaire_card": questionnaire_card}
 ```
-(`chat.py` 상단 `from app.services import chat_service, patient_booking_service, ticket_service`에 이미 `chat_service`가 포함되어 있으므로 import 변경 불필요)
+`chat.py` 상단 import에 `chat_tools` 추가: `from app.services import chat_tools, patient_booking_service, ticket_service`(기존 `chat_service` import는 이제 이 라우터에서 쓰이지 않으면 제거 — 다른 엔드포인트가 여전히 쓰면 유지)
 
-- [ ] **Step 6: 테스트 실행**
+- [ ] **Step 3: 테스트 실행 후 Commit**
 
 Run: `cd backend && pytest tests/test_chat_routes.py -v`
 Expected: 전체 PASS
 
-- [ ] **Step 7: Flutter에서 프리필 전달**
-
-`mobile/lib/features/chat/booking_card.dart`의 예약 완료 처리 부분에서, `POST /chat/conversations/{id}/booking` 응답의 `questionnaire_prefill`(nullable `Map<String, dynamic>`)을 `Map<String, String>?`로 변환해, "사전문진 작성하기" 버튼이 `QuestionnaireScreen`(3단계 `patient-app.md` Task 27)으로 이동할 때 `prefill:` 인자로 그대로 넘긴다:
-```dart
-final prefillRaw = responseJson['questionnaire_prefill'] as Map<String, dynamic>?;
-final prefill = prefillRaw?.map((key, value) => MapEntry(key, value as String));
-
-// "사전문진 작성하기" 버튼의 onPressed:
-Navigator.of(context).push(MaterialPageRoute(
-  builder: (_) => QuestionnaireScreen(
-    appointmentId: appointmentId, departmentId: departmentId, prefill: prefill,
-  ),
-));
-```
-
-- [ ] **Step 8: 커밋**
-
 ```bash
-git add backend/app/services/chat_service.py backend/app/routers/chat.py backend/tests/test_chat_service.py backend/tests/test_chat_routes.py mobile/lib/features/chat/booking_card.dart
-git commit -m "feat: 문진 체인 수집 정보를 사전문진 프리필로 전달 (요구사항 4.4 갭 보완)"
+git add backend/app/routers/chat.py backend/tests/test_chat_routes.py
+git commit -m "feat: 예약 완료 시 사전문진 카드 자동 1회 부착 (A-1, 요구사항 4.4 — 옛 프리필 방식 폐기)"
 ```
+
+- [ ] **Step 4: 프런트엔드에서 새 카드 렌더**
+
+`webchat/src/ChatWindow.tsx`와 `mobile/lib/features/chat/chat_screen.dart`(둘 다 Task 18/19에서 이미 `questionnaire` 타입 렌더링을 갖고 있다)는 `POST .../booking` 응답에 이제 `card`가 아니라 `questionnaire_card`가 별도 필드로 온다는 점만 반영하면 된다 — 응답을 받으면 `booking_done` 카드를 표시한 뒤, `questionnaire_card`가 `null`이 아니면 곧바로 `<QuestionnaireCard>`/`questionnaire_card.dart`를 이어서 표시한다(백엔드가 이미 `chat_messages`에도 `questionnaire` 메시지를 심어뒀으므로, 대화방을 나갔다 다시 들어와도 기록에는 남는다 — 다만 카드 내용 자체는 booking 카드와 마찬가지로 실시간 응답에서만 채워지고 재조회 시엔 텍스트만 보인다).
+
+- [ ] **Step 5: 향후 확장 여지(지금 구현하지 않음) 메모**
+
+`extracted_answers=[]`로 고정한 이유: 예약 신청 시점에는 아직 "이번 대화에서 파악한 증상"을 뽑아낼 별도 LLM 추출 단계가 없다(문진 체인을 거쳤다면 그 대화 내용은 기존 `patient_questionnaire_service.get_response`에 저장된 값이 없는 한 반영되지 않는다). 환자가 이후 "사전문진 확인/수정할게요"라고 다시 요청하면 그때는 에이전트가 `questionnaire_card` 도구를 호출하면서 대화 전체를 직접 훑어 `extracted_answers`를 채워 넣으므로(Task 9), 실질적인 수집은 그 경로에서 이뤄진다. 예약 직후 카드는 "기존 저장값 프리필 + 바로 작성 진입점 제공"이 목적이다.
 
 ---
 

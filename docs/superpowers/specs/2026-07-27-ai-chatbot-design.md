@@ -75,7 +75,7 @@
 | `staff_id` | UUID, null 허용 | 직원 발언 시 직원 |
 | `content` | text | 내용 |
 | `source_chunk_ids` | UUID[], null 허용 | 봇 답변의 근거 자료 조각 목록 (요구사항 5.6 근거 추적) |
-| `message_type` | `text` / `slot_options` / `booking_confirm` / `booking_done` | 일반 텍스트 / 시간 선택 카드 / 예약 확인 카드 / 예약 완료 카드 |
+| `message_type` | `text` / `slot_options` / `booking_confirm` / `booking_done` / `cancellation_confirm` / `questionnaire` | 일반 텍스트 / 시간 선택 카드 / 예약 확인 카드 / 예약 완료 카드 / 예약취소 확인 카드(A-5) / 사전문진 카드(A-1) |
 | `route_taken` | `emergency` / `rag` / `department_guide` / `agent` / `handoff`, null 허용(직원·환자 발언은 null) | 봇 답변이 어느 갈래로 처리됐는지 기록 — 관리자가 라우팅이 잘 됐는지 확인하거나, 사후 품질 검토 시 갈래별로 필터링하는 데 사용 |
 | `created_at` | 시각 | 발신 시각 |
 
