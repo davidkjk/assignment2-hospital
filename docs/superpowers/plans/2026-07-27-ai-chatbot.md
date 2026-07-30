@@ -4,7 +4,7 @@
 
 **Goal:** 병원 통합 서비스의 AI 상담봇 — RAG(pgvector) 기반 병원 안내, 구조화된 문진 기반 진료과 추천, LangChain 에이전트 기반 예약 조회·제안, 조건 감지 기반 직원 인계, 지식베이스 관리, 오답 정정과 정기 품질 검토로 이어지는 개선 사이클을 백엔드(FastAPI) + 직원 웹(React) + 웹 상담창(React 위젯) + 환자 앱(Flutter)에 구축한다.
 
-**Architecture:** 상담봇 두뇌는 백엔드 API에 있다. 환자 메시지가 오면 **⓪ 응급 표현 검사(규칙 기반, 최우선) → ① 인계 감시(6가지 조건, 항상 동작) → ② 라우터(LangChain `RunnableBranch`)가 안내형/진료과추천형/행동형 3갈래로 분류** 순서로 처리한다. 안내형은 RAG 체인(pgvector 검색 + LCEL 프롬프트, 도구 없음), 진료과추천형은 문진 체인(구조화된 순차 질문 + 강화된 안전 가드레일), 행동형은 에이전트 체인(LangChain `AgentExecutor` + 도구 5개, `langchain-anthropic`으로 Claude Sonnet 호출)이 처리한다. **실제 예약 실행은 봇의 도구가 아니다** — 확인 카드의 버튼이 3단계 `patient_booking_service.create_booking`을 직접 호출한다. 인계는 에이전트가 스스로 판단해서 도구를 선택하는 게 아니라, 감시 로직이 조건을 감지하면 무조건 실행되는 별도의 인계 체인(`support_tickets` 티켓 생성)으로 구현하고, 같은 `chat_messages`를 공유하는 직원 답변으로 실시간 반영한다(Supabase Realtime). 오답 신고와 관리자의 정기 상담 품질 리포트 검토가 쌓이면 `qa_example_bank`에 축적되어, 이후 유사 질문의 답변 프롬프트에 참고 예시로 자동 반영되는 품질 개선 사이클을 구성한다. 웹 상담창은 익명(세션 토큰) 기본 + 필요 시 로그인/가입(3단계와 동일 Supabase Auth 계정).
+**Architecture:** 상담봇 두뇌는 백엔드 API에 있다. 환자 메시지가 오면 **⓪ 응급 표현 검사(규칙 기반, 최우선) → ① 인계 감시(6가지 조건, 항상 동작) → ② 라우터(LangChain `RunnableBranch`)가 안내형/진료과추천형/행동형 3갈래로 분류** 순서로 처리한다. 안내형은 RAG 체인(pgvector 검색 + LCEL 프롬프트, 도구 없음), 진료과추천형은 문진 체인(구조화된 순차 질문 + 강화된 안전 가드레일), 행동형은 에이전트 체인(LangChain `AgentExecutor` + 도구 7개, `langchain-anthropic`으로 Claude Sonnet 호출)이 처리한다. **실제 예약 실행은 봇의 도구가 아니다** — 확인 카드의 버튼이 3단계 `patient_booking_service.create_booking`을 직접 호출한다. 인계는 에이전트가 스스로 판단해서 도구를 선택하는 게 아니라, 감시 로직이 조건을 감지하면 무조건 실행되는 별도의 인계 체인(`support_tickets` 티켓 생성)으로 구현하고, 같은 `chat_messages`를 공유하는 직원 답변으로 실시간 반영한다(Supabase Realtime). 오답 신고와 관리자의 정기 상담 품질 리포트 검토가 쌓이면 `qa_example_bank`에 축적되어, 이후 유사 질문의 답변 프롬프트에 참고 예시로 자동 반영되는 품질 개선 사이클을 구성한다. 웹 상담창은 익명(세션 토큰) 기본 + 필요 시 로그인/가입(3단계와 동일 Supabase Auth 계정).
 
 **Tech Stack:** FastAPI, Supabase (Postgres + pgvector + Realtime + Auth), LangChain + `langchain-anthropic`(Claude Sonnet 5, `RunnableBranch` 라우터, `AgentExecutor`), OpenAI Embeddings API (`text-embedding-3-small`, httpx 직접 호출), React + TypeScript (직원 웹 확장 + 웹 상담창 위젯), Flutter + Riverpod (앱 AI 상담), pytest + pytest-asyncio, Vitest + MSW, flutter_test
 
@@ -43,7 +43,7 @@ backend/app/
   services/rag_search_service.py   # 질문 → 유사 조각 검색
   services/rag_chain.py            # 안내형: RAG 체인 (LCEL)
   services/department_guide_chain.py # 진료과추천형: 문진 체인
-  services/chat_tools.py           # 에이전트 도구 5개 정의+실행 (LangChain Tool)
+  services/chat_tools.py           # 에이전트 도구 7개 정의+실행 (LangChain Tool)
   services/agent_chain.py          # 행동형: AgentExecutor 조립
   services/safety_watchdog.py      # ⓪응급검사 + ①인계감시 + 인계 체인
   services/chat_router.py          # ②라우터 (RunnableBranch) — 3갈래 분류
@@ -6182,10 +6182,10 @@ Task 3 ─┘                              ├─ Task 8 ─┤
                                         └─ Task 9 ─┴─ Task 10 ─┘
 백엔드(Task 14) 완료 후: Task 16 / Task 17 / Task 18 / Task 19는 서로 독립 (병렬 가능)
 Task 12 완료 후 + 2단계(staff-web) Task 10·13 완료 후: Task 20
-Task 14 완료 후: Task 21 (Step 7은 Task 19와 3단계 Task 27이 먼저 끝나 있어야 함)
+Task 14 완료 후: Task 21 (Step 4는 Task 19가 먼저 끝나 있어야 함)
 ```
 
-Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지만 서로 독립적으로 병렬 진행 가능하다. Task 10(라우터+인계감시)은 Task 7의 모델 팩토리만 있으면 되므로 7 이후 바로 시작할 수 있다. Task 11(오케스트레이션)은 7·8·9·10을 모두 소비하므로 넷 다음에 온다. Task 20은 이 계획의 `ticket_service`(Task 12)와 2단계 `staff-web.md`의 `PatientDetailPage`(Task 10)·`dashboard_service`(Task 13)를 모두 수정하는 교차 작업이라, 2단계 구현이 먼저 끝나 있어야 한다. Task 21도 마찬가지로 3단계 `patient-app.md` Task 27(사전문진 화면의 prefill 반영)에 의존하는 교차 작업이다.
+Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지만 서로 독립적으로 병렬 진행 가능하다. Task 10(라우터+인계감시)은 Task 7의 모델 팩토리만 있으면 되므로 7 이후 바로 시작할 수 있다. Task 11(오케스트레이션)은 7·8·9·10을 모두 소비하므로 넷 다음에 온다. Task 20은 이 계획의 `ticket_service`(Task 12)와 2단계 `staff-web.md`의 `PatientDetailPage`(Task 10)·`dashboard_service`(Task 13)를 모두 수정하는 교차 작업이라, 2단계 구현이 먼저 끝나 있어야 한다. **[2026-07-30 재검증]** Task 21은 예전엔 3단계 `patient-app.md` Task 27(사전문진 화면의 프리필 반영)에 의존하는 교차 작업이었으나, 그 Task 27 자체가 삭제되며(3단계 F-12) 이 의존성은 사라졌다 — Task 21은 이제 4단계 문서 내부(Task 9·14)에만 의존한다.
 
 ## 수동 검증 시나리오 (전체 구현 후)
 
