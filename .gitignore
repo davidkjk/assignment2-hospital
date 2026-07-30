@@ -1,8 +1,5 @@
 node_modules/
-.next/
 dist/
-public/erd-easy.html
-next-env.d.ts
 
 # 작업용 문서 — 설계 논의·검토 기록, 배포 산출물이 아니라 git 추적 제외
 CLAUDE.md
