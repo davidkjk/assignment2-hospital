@@ -18,14 +18,18 @@ async def create_draft_record(
     conn=None,
 ) -> UUID:
     async def _run(c) -> UUID:
-        return await c.fetchval(
-            """
-            insert into medical_records (appointment_id, doctor_id, symptoms, diagnosis, treatment, patient_visible_notes)
-            values ($1, $2, $3, $4, $5, $6)
-            returning id
-            """,
-            appointment_id, staff.id, symptoms, diagnosis, treatment, patient_visible_notes,
-        )
+        try:
+            return await c.fetchval(
+                """
+                insert into medical_records (appointment_id, doctor_id, symptoms, diagnosis, treatment, patient_visible_notes)
+                values ($1, $2, $3, $4, $5, $6)
+                returning id
+                """,
+                appointment_id, staff.id, symptoms, diagnosis, treatment, patient_visible_notes,
+            )
+        except asyncpg.PostgresError as exc:
+            # enforce_medical_record_doctor_match 트리거 메시지는 이미 한글 안내문이다.
+            raise AppError(str(exc), status_code=400) from exc
 
     if conn is not None:
         return await _run(conn)
@@ -109,7 +113,10 @@ async def revise_completed_record(
             )
         except asyncpg.PostgresError as exc:
             # revise_medical_record() RPC의 예외 메시지는 이미 한글 안내문이다.
-            raise AppError(str(exc), status_code=400) from exc
+            # P0003(낙관적 잠금 충돌)은 update_draft_record/complete_record의 동일 충돌과
+            # 같은 409로 맞춰, 클라이언트가 상태 코드만으로 재조회를 유도할 수 있게 한다.
+            status_code = 409 if getattr(exc, "sqlstate", None) == "P0003" else 400
+            raise AppError(str(exc), status_code=status_code) from exc
 
     if conn is not None:
         return await _run(conn)
