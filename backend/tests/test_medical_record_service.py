@@ -31,7 +31,9 @@ async def _seed_base(db_conn):
     )
     return {
         "doctor": _to_context(doctor, "doctor"),
+        "receptionist": _to_context(receptionist, "receptionist"),
         "appointment_id": appointment_id,
+        "patient_id": patient_id,
     }
 
 
@@ -382,3 +384,96 @@ async def test_revise_completed_record_stale_lock_raises_409(db_conn):
             conn=db_conn,
         )
     assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_record_returns_content_and_logs_audit_access(db_conn):
+    ctx = await _seed_base(db_conn)
+    await set_session_auth(db_conn, ctx["doctor"].auth_user_id)
+    await medical_record_service.create_draft_record(
+        appointment_id=ctx["appointment_id"],
+        symptoms="기침",
+        diagnosis="감기",
+        treatment="휴식",
+        patient_visible_notes="충분한 휴식이 필요합니다.",
+        staff=ctx["doctor"],
+        conn=db_conn,
+    )
+
+    result = await medical_record_service.get_record(ctx["appointment_id"], ctx["doctor"], conn=db_conn)
+
+    assert result["symptoms"] == "기침"
+    assert result["diagnosis"] == "감기"
+
+    await db_conn.execute("reset role")
+    audit_row = await db_conn.fetchrow(
+        "select staff_id, patient_id, resource_type from access_audit_log where patient_id = $1",
+        ctx["patient_id"],
+    )
+    assert audit_row["staff_id"] == ctx["doctor"].id
+    assert audit_row["resource_type"] == "medical_record"
+
+
+@pytest.mark.asyncio
+async def test_get_record_for_other_doctors_appointment_returns_none(db_conn):
+    """RLS(doctor_can_view_appointment)가 접근 범위를 강제하므로, 담당 아닌 의사는 None을 받는다."""
+    other_doctor_seed = await seed_staff(db_conn, role="doctor")
+    ctx = await _seed_base(db_conn)
+    await set_session_auth(db_conn, ctx["doctor"].auth_user_id)
+    await medical_record_service.create_draft_record(
+        appointment_id=ctx["appointment_id"],
+        symptoms="기침",
+        diagnosis=None,
+        treatment=None,
+        patient_visible_notes=None,
+        staff=ctx["doctor"],
+        conn=db_conn,
+    )
+
+    other_doctor = _to_context(other_doctor_seed, "doctor")
+    await set_session_auth(db_conn, other_doctor.auth_user_id)
+
+    result = await medical_record_service.get_record(ctx["appointment_id"], other_doctor, conn=db_conn)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_list_revisions_returns_previous_content(db_conn):
+    ctx = await _seed_base(db_conn)
+    await set_session_auth(db_conn, ctx["doctor"].auth_user_id)
+    record_id = await medical_record_service.create_draft_record(
+        appointment_id=ctx["appointment_id"],
+        symptoms="기침",
+        diagnosis=None,
+        treatment=None,
+        patient_visible_notes=None,
+        staff=ctx["doctor"],
+        conn=db_conn,
+    )
+    expected_updated_at = await db_conn.fetchval(
+        "select updated_at from medical_records where id = $1", record_id,
+    )
+    await medical_record_service.complete_record(
+        record_id=record_id, expected_updated_at=expected_updated_at, staff=ctx["doctor"], conn=db_conn,
+    )
+    completed_updated_at = await db_conn.fetchval(
+        "select updated_at from medical_records where id = $1", record_id,
+    )
+    await medical_record_service.revise_completed_record(
+        record_id=record_id,
+        symptoms="기침(수정)",
+        diagnosis=None,
+        treatment=None,
+        patient_visible_notes=None,
+        reason="증상 재확인",
+        expected_updated_at=completed_updated_at,
+        staff=ctx["doctor"],
+        conn=db_conn,
+    )
+
+    revisions = await medical_record_service.list_revisions(record_id, ctx["doctor"], conn=db_conn)
+
+    assert len(revisions) == 1
+    assert revisions[0]["reason"] == "증상 재확인"
+    assert revisions[0]["previous_content"]["symptoms"] == "기침"

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from uuid import UUID
 
@@ -6,6 +7,7 @@ import asyncpg
 from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
+from app.services import audit_service
 
 
 async def create_draft_record(
@@ -30,6 +32,64 @@ async def create_draft_record(
         except asyncpg.PostgresError as exc:
             # enforce_medical_record_doctor_match 트리거 메시지는 이미 한글 안내문이다.
             raise AppError(str(exc), status_code=400) from exc
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
+async def get_record(appointment_id: UUID, staff: StaffContext, conn=None) -> dict | None:
+    """[정합성 검토 R5-08] 진료기록 원문 조회 — RLS(doctor_can_view_appointment 기반)가 최종
+    접근 범위를 강제하므로, 담당 아닌 의사가 호출하면 row가 None으로 반환된다."""
+    async def _run(c) -> dict | None:
+        row = await c.fetchrow(
+            """
+            select mr.id, mr.appointment_id, mr.doctor_id, mr.symptoms, mr.diagnosis, mr.treatment,
+                   mr.patient_visible_notes, mr.is_completed, mr.updated_at, mr.created_at,
+                   a.for_patient_id
+            from medical_records mr
+            join appointments a on a.id = mr.appointment_id
+            where mr.appointment_id = $1
+            """,
+            appointment_id,
+        )
+        if row is None:
+            return None
+        await audit_service.log_access(row["for_patient_id"], "medical_record", staff, conn=c)
+        return {
+            "id": row["id"],
+            "appointment_id": row["appointment_id"],
+            "doctor_id": row["doctor_id"],
+            "symptoms": row["symptoms"],
+            "diagnosis": row["diagnosis"],
+            "treatment": row["treatment"],
+            "patient_visible_notes": row["patient_visible_notes"],
+            "is_completed": row["is_completed"],
+            "updated_at": row["updated_at"],
+            "created_at": row["created_at"],
+        }
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
+async def list_revisions(record_id: UUID, staff: StaffContext, conn=None) -> list[dict]:
+    async def _run(c) -> list[dict]:
+        rows = await c.fetch(
+            """
+            select id, record_id, previous_content, revised_by, reason, revised_at
+            from medical_record_revisions
+            where record_id = $1
+            order by revised_at desc
+            """,
+            record_id,
+        )
+        return [{**dict(row), "previous_content": json.loads(row["previous_content"])} for row in rows]
 
     if conn is not None:
         return await _run(conn)
