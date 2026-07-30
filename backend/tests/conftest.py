@@ -84,6 +84,19 @@ async def set_session_auth(conn, auth_user_id) -> None:
 async def _cleanup_committed_data(db_pool):
     yield
     async with db_pool.acquire() as conn:
+        await conn.execute("delete from access_audit_log")
+        await conn.execute("delete from medical_record_revisions")
+        await conn.execute("delete from medical_records")
+        await conn.execute("delete from appointment_status_history")
+        await conn.execute("delete from appointments")
+        await conn.execute("delete from patients")
         await conn.execute("delete from appointment_slots")
         await conn.execute("delete from staff")
+        await conn.execute("delete from departments")
         await conn.execute("delete from auth.users where email like '%@test.local'")
+
+
+@pytest_asyncio.fixture
+async def committed_conn(db_pool):
+    async with db_pool.acquire() as conn:
+        yield conn
