@@ -59,6 +59,14 @@ async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext, conn=No
         if target is None:
             raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
         if target["role"] == "admin":
+            # 동시에 서로 다른 관리자를 중지하는 두 트랜잭션이 같은 개수를 읽고 둘 다
+            # 통과해버리는 경쟁 상태를 막는다(둘 다 통과하면 활성 관리자가 0명이 될 수
+            # 있다). `select ... for update`로 행을 잠그는 방식은 RLS의
+            # `admin_can_manage_staff`(관리자만 UPDATE 가능) 때문에 호출자가 관리자가
+            # 아닐 때(예: 마지막 관리자 중지를 시도하는 접수직원) 잠글 행 자체가 RLS에
+            # 걸러져 카운트가 0이 되어버리는 오류를 낳는다. RLS의 영향을 받지 않는
+            # 트랜잭션 단위 advisory lock으로 이 검사 구간 전체를 직렬화한다.
+            await c.execute("select pg_advisory_xact_lock(hashtext('staff_deactivate_admin_guard'))")
             active_admin_count = await c.fetchval(
                 "select count(*) from staff where role = 'admin' and is_active"
             )

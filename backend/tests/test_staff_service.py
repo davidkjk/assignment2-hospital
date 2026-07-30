@@ -1,3 +1,5 @@
+import asyncio
+import uuid
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -194,3 +196,54 @@ async def test_resend_invite_missing_staff_raises(db_conn):
 
     with pytest.raises(AppError):
         await staff_service.resend_invite(uuid4(), requested_by=admin_ctx, conn=db_conn)
+
+
+async def _seed_committed_staff(conn, role: str) -> dict:
+    auth_user_id = uuid.uuid4()
+    await conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, $2, '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        auth_user_id, f"{auth_user_id}@test.local",
+    )
+    staff_id = await conn.fetchval(
+        "insert into staff (auth_user_id, name, role) values ($1, 'Concurrency Staff', $2) returning id",
+        auth_user_id, role,
+    )
+    return {"auth_user_id": auth_user_id, "staff_id": staff_id}
+
+
+@pytest.mark.asyncio
+async def test_concurrent_deactivation_keeps_one_active_admin(db_pool):
+    """두 명뿐인 활성 관리자를 동시에 중지하려 하면 하나만 성공해야 한다 —
+    둘 다 성공하면 활성 관리자가 0명이 되어 이후 아무도 관리자 권한을 되돌릴 수 없다.
+
+    라우터 계층에서 `require_role("admin")`으로 막히므로 이 서비스 함수의 실제
+    호출자는 항상 관리자다 — 관리자가 정확히 2명뿐인 상태에서 그 둘이 서로를 거의
+    동시에 중지하는 실사용 시나리오를 재현한다(예: 두 관리자가 각자 다른 브라우저
+    탭에서 상대를 정리하려는 경우)."""
+    async with db_pool.acquire() as setup_conn:
+        admin_x = await _seed_committed_staff(setup_conn, role="admin")
+        admin_y = await _seed_committed_staff(setup_conn, role="admin")
+
+    admin_x_ctx = _to_context(admin_x, "admin")
+    admin_y_ctx = _to_context(admin_y, "admin")
+
+    results = await asyncio.gather(
+        staff_service.deactivate_staff(admin_y["staff_id"], deactivated_by=admin_x_ctx),
+        staff_service.deactivate_staff(admin_x["staff_id"], deactivated_by=admin_y_ctx),
+        return_exceptions=True,
+    )
+
+    successes = [r for r in results if r is None]
+    failures = [r for r in results if isinstance(r, AppError)]
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert failures[0].status_code == 409
+
+    async with db_pool.acquire() as check_conn:
+        active_admin_count = await check_conn.fetchval(
+            "select count(*) from staff where role = 'admin' and is_active"
+        )
+    assert active_admin_count == 1
