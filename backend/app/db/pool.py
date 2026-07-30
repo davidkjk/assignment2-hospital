@@ -18,13 +18,7 @@ async def get_pool() -> asyncpg.Pool:
 async def close_pool() -> None:
     global _pool
     if _pool is not None:
-        try:
-            await _pool.close()
-        except RuntimeError:
-            # 풀이 동기 TestClient가 만든 임시 이벤트 루프에서 생성된 경우,
-            # 그 루프가 이미 닫혀 close()가 실패할 수 있다. 다음 테스트가
-            # 새 풀을 만들 수 있도록 참조만 정리한다.
-            pass
+        await _pool.close()
         _pool = None
 
 

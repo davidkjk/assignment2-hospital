@@ -17,7 +17,14 @@ async def _reset_app_db_pool():
     # InterfaceError를 던지므로, 테스트마다 전역 풀을 닫아 다음 테스트가 자기 루프에서
     # 새로 만들도록 한다.
     yield
-    await app_pool.close_pool()
+    try:
+        await app_pool.close_pool()
+    except RuntimeError:
+        # 동기 TestClient 요청이 만든 임시 이벤트 루프에서 풀이 생성된 경우,
+        # 그 루프가 이미 닫혀 close()가 실패할 수 있다. 다음 테스트가 새 풀을
+        # 만들 수 있도록 참조만 정리한다(get_pool은 close_pool 실패 시에도
+        # 전역 _pool을 None으로 되돌리지 않으므로 여기서 직접 정리한다).
+        app_pool._pool = None
 
 
 @pytest.fixture
