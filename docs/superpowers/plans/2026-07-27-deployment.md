@@ -1407,8 +1407,96 @@ async def main(do_reset: bool):
                 title, content, admin_id,
             )
 
+        # 8) 상담봇 대화 예시 (갈래별 1건씩 — 관리자 통계 화면이 비어있지 않게, 검수 대본 시나리오 2·7과
+        # 동일한 갈래를 미리 심어둔다: 안내형/문진형/행동형3종/인계/RAG실패→행동형재시도)
+        demo_patient = patient_ids[PATIENTS[0]["phone"]]  # 홍길동
+
+        async def new_conversation(channel, patient_id, status="bot"):
+            return await conn.fetchval(
+                "insert into chat_conversations (patient_id, channel, status) "
+                "values ($1, $2, $3) returning id",
+                patient_id, channel, status,
+            )
+
+        async def add_message(conversation_id, sender, content, message_type="text", route_taken=None, staff_id=None):
+            await conn.execute(
+                "insert into chat_messages (conversation_id, sender, content, message_type, route_taken, staff_id) "
+                "values ($1, $2, $3, $4, $5, $6)",
+                conversation_id, sender, content, message_type, route_taken, staff_id,
+            )
+
+        # 8-1) 안내형: KB 문서 기반 응답
+        conv_guide = await new_conversation("web", None)
+        await add_message(conv_guide, "patient", "주차장 있나요?")
+        await add_message(
+            conv_guide, "bot",
+            "건물 지하 1~2층 주차장을 이용하실 수 있으며, 진료 확인 시 2시간 무료입니다.",
+            route_taken="rag",
+        )
+
+        # 8-2) 문진형: 예약 완료 시 사전문진 카드 자동 부착
+        conv_intake = await new_conversation("app", demo_patient)
+        await add_message(conv_intake, "bot", "예약이 완료되었습니다. 아래 사전문진을 작성해 주세요.", message_type="questionnaire", route_taken="agent")
+        await add_message(conv_intake, "patient", "기침과 미열이 3일째 있고, 타이레놀을 복용 중이에요.")
+        await add_message(conv_intake, "bot", "사전문진 내용을 저장했습니다.", message_type="questionnaire", route_taken="agent")
+
+        # 8-3) 행동형 — 신규예약흐름
+        conv_booking = await new_conversation("app", demo_patient)
+        await add_message(conv_booking, "patient", "내과 예약하고 싶어요")
+        await add_message(conv_booking, "bot", "내과 김내과 선생님의 예약 가능한 시간입니다.", message_type="slot_options", route_taken="agent")
+        await add_message(conv_booking, "patient", "내일 오전 10시로 할게요")
+        await add_message(conv_booking, "bot", "아래 내용으로 예약을 진행할까요?", message_type="booking_confirm", route_taken="agent")
+        await add_message(conv_booking, "patient", "네 확정할게요")
+        await add_message(conv_booking, "bot", "예약이 완료되었습니다.", message_type="booking_done", route_taken="agent")
+
+        # 8-4) 행동형 — "제 예약 확인해주세요"
+        conv_lookup = await new_conversation("web", demo_patient)
+        await add_message(conv_lookup, "patient", "제 예약 확인해주세요")
+        await add_message(conv_lookup, "bot", "다음 예약이 있습니다: 내과 김내과 선생님, 내일 10:00.", route_taken="agent")
+
+        # 8-5) 행동형 — 자연스러운 증상·복약 언급으로 사전문진 카드 재호출
+        conv_symptom = await new_conversation("app", demo_patient)
+        await add_message(conv_symptom, "patient", "머리가 아프고 어제부터 두통약을 먹고 있어요")
+        await add_message(conv_symptom, "bot", "말씀하신 내용을 사전문진에 반영해드릴까요?", message_type="questionnaire", route_taken="agent")
+
+        # 8-6) 인계: 👎 피드백으로 인한 인계 티켓
+        conv_handoff = await new_conversation("web", None, status="handed_over")
+        await add_message(conv_handoff, "patient", "제 진단서에 적힌 병명이 왜 이렇게 나왔는지 알고 싶어요")
+        await add_message(conv_handoff, "bot", "죄송합니다, 해당 문의는 담당 직원에게 연결해 드리겠습니다.", route_taken="handoff")
+        await conn.execute(
+            "insert into support_tickets (conversation_id, patient_id, summary_question, summary_confirmed, "
+            "summary_guided, summary_unresolved, summary_staff_todo, reason) "
+            "values ($1, $2, $3, $4, $5, $6, $7, 'unhelpful')",
+            conv_handoff, demo_patient,
+            "진단서 병명 산정 근거 문의",
+            "환자 본인 확인 완료",
+            "일반적인 진단서 발급 절차만 안내함",
+            "구체적인 병명 산정 근거는 KB에 없어 안내 못함",
+            "담당 의사 확인 후 환자에게 병명 산정 근거 설명 필요",
+        )
+
+        # 8-7) RAG 실패 → 행동형 1회 재시도 → 그래도 미해결 시 인계
+        conv_retry = await new_conversation("web", None, status="handed_over")
+        await add_message(conv_retry, "patient", "타로 봐주실 수 있나요?")
+        await add_message(conv_retry, "bot", "어떤 것을 도와드릴까요? 예약/취소/사전문진 중 필요하신 게 있으신가요?", route_taken="agent")
+        await add_message(conv_retry, "patient", "아니요 그냥 재미로 물어본 거예요")
+        await add_message(conv_retry, "bot", "죄송합니다, 해당 문의는 담당 직원에게 연결해 드리겠습니다.", route_taken="handoff")
+        await conn.execute(
+            "insert into support_tickets (conversation_id, patient_id, summary_question, summary_confirmed, "
+            "summary_guided, summary_unresolved, summary_staff_todo, reason) "
+            "values ($1, $2, $3, $4, $5, $6, $7, 'no_answer')",
+            conv_retry, None,
+            "타로 관련 문의(병원 업무 무관)",
+            "-",
+            "행동형 재시도로 예약/취소/사전문진 여부 확인함",
+            "병원 업무와 무관한 질문이라 KB/도구 어느 쪽으로도 답변 불가",
+            "일반 문의로 판단, 특별 조치 불필요 — 참고용으로만 확인",
+        )
+        demo_conversations = 7
+
     print(f"[seed_demo] 직원 {len(STAFF)}, 환자 {len(PATIENTS)}+가족 1, "
-          f"진료과 {len(DEPARTMENTS)}, 슬롯 {len(all_slots)}, 예약 {counts}, 지식문서 {len(KB_DOCUMENTS)}")
+          f"진료과 {len(DEPARTMENTS)}, 슬롯 {len(all_slots)}, 예약 {counts}, 지식문서 {len(KB_DOCUMENTS)}, "
+          f"상담대화 {demo_conversations}")
 
 
 if __name__ == "__main__":
@@ -1420,7 +1508,7 @@ if __name__ == "__main__":
 - [ ] **Step 2: 로컬 실행으로 검증**
 
 Run: `cd backend && python -m scripts.seed_demo --reset`
-Expected: 요약 출력 (직원 6, 환자 5+1, 슬롯 수백, 예약 counts 3종 모두 0보다 큼, 지식문서 15)
+Expected: 요약 출력 (직원 6, 환자 5+1, 슬롯 수백, 예약 counts 3종 모두 0보다 큼, 지식문서 15, 상담대화 7)
 
 - [ ] **Step 3: 정합성 쿼리로 확인**
 
@@ -2346,7 +2434,17 @@ git commit -m "test: 클라우드 스모크 테스트 스크립트 + CORS·rate 
   1. 관리자 화면 "시스템 오류"에서 확인 2. Railway 로그 보는 법(백엔드·크론) 3. Vercel 로그 4. Supabase 로그 5. 증상별 1차 점검표(웹이 안 열려요/앱이 로그인이 안 돼요/알림이 안 와요/상담봇이 답을 안 해요 → 각각 어디를 먼저 보는지)
 
 - [ ] **Step 6: `scenario-checklist.md`** (검수 대본)
-  요구사항 8장의 10개 시나리오 각각을 "단계 | 수행자 | 화면/조작 | 통과 기준 | ✅" 표로 작성. 자동 테스트로 검증되는 단계는 비고에 테스트 파일명 병기. 시나리오 10은 통계 수치 자체는 `test_scenario_10_stats.py`(Task 5)로 이미 자동 검증되므로, 체크리스트에는 "화면에 같은 숫자가 보이는지"와 "CSV 다운로드 버튼이 실제로 파일을 내려받는지"만 수동 항목으로 남긴다. 시나리오 2·7(상담봇)과 푸시알림 실제 수신은 전체를 수동 확인 절차로 상세히 작성.
+  요구사항 8장의 10개 시나리오 각각을 "단계 | 수행자 | 화면/조작 | 통과 기준 | ✅" 표로 작성. 자동 테스트로 검증되는 단계는 비고에 테스트 파일명 병기. 시나리오 10은 통계 수치 자체는 `test_scenario_10_stats.py`(Task 5)로 이미 자동 검증되므로, 체크리스트에는 "화면에 같은 숫자가 보이는지"와 "CSV 다운로드 버튼이 실제로 파일을 내려받는지"만 수동 항목으로 남긴다. 푸시알림 실제 수신은 전체를 수동 확인 절차로 상세히 작성.
+
+  **시나리오 2·7(상담봇)은 아래 7건을 각각 별도 행으로 구체화** — "상담봇과 대화해본다" 같은 뭉뚱그린 항목 대신, 갈래별로 통과 기준을 명시한다:
+  - **안내형 1건**: 위젯/앱 채팅창에 "주차장 있나요?" 입력 → KB 문서("주차 안내")에서 가져온 답변이 나오는지 확인. 통과 기준: 답변에 "지하 1~2층", "2시간 무료" 문구 포함.
+  - **문진형 1건**: 예약 완료 직후 `QuestionnaireCard`가 채팅창에 자동으로 붙는지 확인 → 증상 입력 후 [저장] 클릭 → 환자 앱 사전문진 화면(Task 21, 3단계)에 같은 내용이 채워져 보이는지 확인. 통과 기준: 카드 자동 부착 + 저장 후 앱 화면 값 일치.
+  - **행동형 3건**:
+    1. **신규예약흐름**: "내과 예약하고 싶어요" 입력 → 의사·시간 선택 흐름 → `propose_booking_card` → [확정] 클릭 → `appointments` 테이블에 실제 행 생성 확인. 통과 기준: 대화 종료 후 환자 앱 "내 예약"에 새 예약이 보임.
+    2. **"제 예약 확인해주세요"**: 정확히 이 문장 입력 → `get_my_appointments` 도구 호출 → 예정된 예약 목록이 카드로 나오는지 확인(가족 있는 계정으로 테스트 시 본인+가족 구분 표시도 함께 확인).
+    3. **증상·복약 언급**: 예약 후 이어지는 대화에서 "머리가 아프고 어제부터 두통약을 먹고 있어요"처럼 사전문진 태그 없이 자연스럽게 증상·복약을 언급 → `사전문진_카드보내기`가 대화 전체에서 파악한 값으로 카드를 채워 보여주는지 확인(문진형 1건과 달리 예약 직후 자동호출이 아니라 대화 중 자연 언급 기반 재호출 경로를 검증).
+  - **인계 1건**: 아무 답변에나 👎 클릭 → `support_tickets`에 `reason='unhelpful'` 행 생성 확인 → 직원 웹 "확인 필요 상담 문의" 카드에 건수 반영 확인.
+  - **RAG실패→행동형 재시도 1건**: KB에 없는 내용(예: "타로 봐주세요" 등 병원과 무관한 질문)을 입력 → 유사도 낮음 판정 후 인계 티켓을 만들기 전에 행동형 재시도(예: "어떤 것을 도와드릴까요? 예약/취소/사전문진 중 필요하신 게 있으신가요" 류 안내)가 먼저 나오는지 확인. 통과 기준: 첫 응답이 곧장 인계가 아니라 행동형 안내이고, 이 안내에도 답을 못 찾으면 그다음에야 인계 티켓이 생성됨.
 
 - [ ] **Step 7: `README.md` 갱신**
   접속 주소(직원 웹·위젯 데모·백엔드), 테스트 계정 표(demo_accounts.md 링크), 안드로이드 .apk 설치법(GitHub Release 링크), iOS 시뮬레이터 실행 명령, 로컬 개발 실행법, 문서 목차(docs/manual/), 저장소 구조.
