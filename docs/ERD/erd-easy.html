@@ -1,0 +1,1884 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>병원 시스템 ERD — 쉬운 데이터 지도</title>
+  <style>
+    :root {
+      --ink: #17332f;
+      --muted: #60726f;
+      --paper: #fbfaf6;
+      --surface: #ffffff;
+      --line: #dce4df;
+      --mint: #dff3ea;
+      --mint-strong: #1f806c;
+      --blue: #e4efff;
+      --blue-strong: #386eaf;
+      --peach: #ffead9;
+      --peach-strong: #b35f35;
+      --lilac: #eee8ff;
+      --lilac-strong: #6e5aae;
+      --yellow: #fff3c9;
+      --yellow-strong: #8c6b16;
+      --shadow: 0 18px 52px rgba(37, 67, 60, .09);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 5% 0%, rgba(203, 237, 224, .58), transparent 29rem),
+        radial-gradient(circle at 98% 10%, rgba(219, 231, 255, .62), transparent 28rem),
+        var(--paper);
+      font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+      line-height: 1.62;
+      word-break: keep-all;
+    }
+
+    a { color: inherit; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    .wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--mint-strong);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 24px;
+      height: 2px;
+      background: currentColor;
+    }
+
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-bottom: 1px solid rgba(220, 228, 223, .82);
+      background: rgba(251, 250, 246, .88);
+      backdrop-filter: blur(16px);
+    }
+    .topbar-inner {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      font-weight: 900;
+      text-decoration: none;
+    }
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      color: white;
+      background: var(--ink);
+      font-size: 19px;
+    }
+    .topnav { display: flex; gap: 6px; }
+    .topnav a {
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .topnav a:hover { color: var(--ink); background: white; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 88px 0 64px;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr);
+      align-items: center;
+      gap: 60px;
+    }
+    h1 {
+      max-width: 780px;
+      margin: 16px 0 22px;
+      font-size: clamp(42px, 6vw, 76px);
+      line-height: 1.04;
+      letter-spacing: -.055em;
+    }
+    .hero-copy > p {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(17px, 2vw, 20px);
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+    .primary, .secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border: 1px solid var(--ink);
+      border-radius: 14px;
+      font-weight: 800;
+      text-decoration: none;
+      transition: .2s ease;
+    }
+    .primary { color: white; background: var(--ink); }
+    .secondary { background: rgba(255, 255, 255, .55); }
+    .primary:hover, .secondary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(23, 51, 47, .12); }
+
+    .hero-board {
+      position: relative;
+      min-height: 390px;
+      padding: 30px;
+      border: 1px solid rgba(255, 255, 255, .9);
+      border-radius: 34px;
+      background: rgba(255, 255, 255, .65);
+      box-shadow: var(--shadow);
+      transform: rotate(1.5deg);
+    }
+    .hero-board::after {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      z-index: -1;
+      border: 1px dashed #cad7d2;
+      border-radius: 25px;
+    }
+    .mini-node {
+      position: absolute;
+      min-width: 145px;
+      padding: 14px 16px;
+      border: 1px solid rgba(23, 51, 47, .11);
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 10px 28px rgba(24, 55, 48, .08);
+    }
+    .mini-node strong, .mini-node span { display: block; }
+    .mini-node strong { font-size: 15px; }
+    .mini-node span { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    .mini-node.one { top: 42px; left: 28px; background: var(--mint); }
+    .mini-node.two { top: 142px; right: 24px; background: var(--blue); }
+    .mini-node.three { bottom: 42px; left: 55px; background: var(--peach); }
+    .mini-line {
+      position: absolute;
+      height: 2px;
+      border-top: 2px dashed #8da19c;
+      transform-origin: left center;
+    }
+    .mini-line.a { width: 170px; top: 110px; left: 150px; transform: rotate(22deg); }
+    .mini-line.b { width: 160px; top: 230px; left: 150px; transform: rotate(-18deg); }
+    .hero-stat {
+      position: absolute;
+      right: 28px;
+      bottom: 26px;
+      text-align: right;
+    }
+    .hero-stat b { display: block; font-size: 52px; line-height: 1; letter-spacing: -.06em; }
+    .hero-stat span { color: var(--muted); font-size: 13px; font-weight: 700; }
+
+    .notice {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      margin: 0 auto 70px;
+      padding: 18px 20px;
+      border: 1px solid #eadb9e;
+      border-radius: 18px;
+      background: rgba(255, 243, 201, .66);
+    }
+    .notice-icon { font-size: 20px; }
+    .notice strong, .notice span { display: block; }
+    .notice span { margin-top: 2px; color: #6f6242; font-size: 14px; }
+
+    section { padding: 78px 0; }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 30px;
+      margin-bottom: 28px;
+    }
+    h2 {
+      margin: 10px 0 0;
+      font-size: clamp(31px, 4vw, 48px);
+      line-height: 1.12;
+      letter-spacing: -.045em;
+    }
+    .section-lead { max-width: 510px; margin: 0; color: var(--muted); }
+
+    .reader-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .reader-card {
+      min-height: 180px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, .68);
+    }
+    .reader-card .token {
+      display: inline-grid;
+      min-width: 45px;
+      min-height: 32px;
+      place-items: center;
+      padding: 0 9px;
+      border-radius: 9px;
+      background: var(--ink);
+      color: white;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .reader-card h3 { margin: 16px 0 7px; font-size: 17px; }
+    .reader-card p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    #diagram { background: #f3f6f3; }
+    #diagram > .wrap { width: 100%; max-width: none; }
+    #diagram > .wrap > .section-head { width: min(100% - 48px, 1480px); margin-left: auto; margin-right: auto; }
+    .diagram-card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background: white;
+      box-shadow: var(--shadow);
+    }
+    .diagram-card:fullscreen {
+      width: 100vw;
+      height: 100vh;
+      border: 0;
+      border-radius: 0;
+    }
+    .diagram-card:fullscreen .diagram-main { height: calc(100vh - 132px); }
+    .diagram-card:fullscreen .svg-wrap,
+    .diagram-card:fullscreen #erdSvg { min-height: 100%; height: 100%; }
+    .diagram-tabs {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 16px 16px 10px;
+      scrollbar-width: thin;
+    }
+    .diagram-tab {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: white;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .diagram-tab:hover { border-color: #9db0aa; color: var(--ink); }
+    .diagram-tab[aria-selected="true"] { border-color: var(--ink); color: white; background: var(--ink); }
+
+    .diagram-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 16px;
+      border-top: 1px solid #edf0ed;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfb;
+    }
+    .diagram-title strong { display: block; font-size: 16px; }
+    .diagram-title span { color: var(--muted); font-size: 12px; }
+    .zoom-tools { display: flex; align-items: center; gap: 6px; }
+    .icon-button {
+      min-width: 38px;
+      height: 38px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: white;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .icon-button:hover { border-color: #8fa39e; background: #f4f8f6; }
+    .zoom-value { min-width: 55px; color: var(--muted); text-align: center; font-size: 12px; font-weight: 800; }
+    .diagram-main {
+      position: relative;
+      display: block;
+      height: calc(100vh - 270px);
+      min-height: 760px;
+    }
+    .svg-wrap {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background-color: #f8faf8;
+      background-image: radial-gradient(#cdd8d3 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+    #erdSvg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      touch-action: none;
+      cursor: grab;
+      user-select: none;
+    }
+    #erdSvg.dragging { cursor: grabbing; }
+    .diagram-node { cursor: pointer; outline: none; }
+    .diagram-node .node-shell { transition: filter .15s ease, stroke-width .15s ease; }
+    .diagram-node:hover .node-shell,
+    .diagram-node:focus .node-shell,
+    .diagram-node.selected .node-shell {
+      stroke-width: 2.5;
+      filter: drop-shadow(0 9px 10px rgba(23, 51, 47, .12));
+    }
+    .edge { fill: none; stroke: #91a49f; stroke-width: 2; }
+    .edge.business { stroke-dasharray: 7 6; }
+    .edge-label { fill: #667975; font-size: 13px; font-weight: 800; paint-order: stroke; stroke: #f8faf8; stroke-width: 7px; stroke-linejoin: round; }
+    .edge-cardinality { fill: #29443e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; font-weight: 950; paint-order: stroke; stroke: #f8faf8; stroke-width: 7px; }
+    .edge-note { fill: #4f6560; font-size: 10.5px; font-weight: 750; paint-order: stroke; stroke: #f8faf8; stroke-width: 6px; stroke-linejoin: round; }
+    .erd-zone { fill: rgba(255, 255, 255, .64); stroke: #b9c8c3; stroke-width: 2; stroke-dasharray: 10 8; }
+    .erd-zone-title { fill: #29443e; font-size: 30px; font-weight: 950; }
+    .erd-zone-subtitle { fill: #667975; font-size: 16px; font-weight: 750; }
+    .node-title { fill: var(--ink); font-size: 16px; font-weight: 900; }
+    .node-table { fill: #536964; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .node-line { stroke: rgba(23, 51, 47, .12); }
+    .node-field { fill: #415b55; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .node-field-key { fill: #29443e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 950; }
+    .node-field-meaning { fill: #667975; font-size: 10.5px; font-weight: 700; }
+    .diagram-node.standard .node-shell { rx: 3; }
+    .diagram-node.standard .node-table { fill: white; font-size: 12px; font-weight: 900; }
+    .diagram-node.standard .node-title-ko { fill: rgba(255, 255, 255, .88); font-size: 12px; font-weight: 800; }
+    .node-description { fill: #6b7d79; font-size: 11px; }
+    .node-key { fill: white; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; font-weight: 900; }
+
+    .node-detail {
+      position: absolute;
+      z-index: 3;
+      top: 16px;
+      right: 16px;
+      width: 360px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: white;
+      box-shadow: 0 18px 40px rgba(23, 51, 47, .16);
+      max-height: calc(100% - 32px);
+      overflow-y: auto;
+    }
+    .detail-kicker { color: var(--mint-strong); font-size: 11px; font-weight: 900; letter-spacing: .09em; }
+    .node-detail h3 { margin: 8px 0 2px; font-size: 22px; line-height: 1.25; }
+    .detail-table { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .node-detail p { margin: 20px 0; color: #4f6560; font-size: 14px; }
+    .detail-fields {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .detail-fields li {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 0;
+      border-top: 1px solid #edf0ed;
+      font-size: 12px;
+    }
+    .detail-fields code { color: var(--ink); font-weight: 800; }
+    .detail-fields code small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; font-weight: 700; }
+    .detail-fields span { color: var(--muted); text-align: right; }
+    .detail-relations { margin-top: 20px; }
+    .detail-relations h4 { margin: 0 0 8px; font-size: 14px; }
+    .detail-relations ul { margin: 0; padding: 0; list-style: none; }
+    .detail-relations li { padding: 10px 0; border-top: 1px solid #edf0ed; }
+    .detail-relations strong { display: block; color: var(--ink); font-size: 11px; }
+    .detail-relations span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .diagram-help {
+      margin-top: 18px;
+      padding: 13px;
+      border-radius: 13px;
+      color: #61736f;
+      background: #f3f7f5;
+      font-size: 12px;
+    }
+
+    .distinction-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .distinction {
+      position: relative;
+      overflow: hidden;
+      min-height: 260px;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: white;
+    }
+    .distinction:nth-child(1) { background: var(--mint); }
+    .distinction:nth-child(2) { background: var(--blue); }
+    .distinction:nth-child(3) { background: var(--peach); }
+    .distinction .number { color: rgba(23, 51, 47, .25); font-size: 46px; font-weight: 950; line-height: 1; }
+    .distinction h3 { margin: 26px 0 12px; font-size: 22px; line-height: 1.25; }
+    .distinction p { margin: 0; color: #4f6560; font-size: 14px; }
+
+    .flow-list { display: grid; gap: 14px; }
+    .flow {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: white;
+    }
+    .flow-title { padding: 24px; background: #f3f7f5; }
+    .flow-title small { display: block; color: var(--mint-strong); font-weight: 900; }
+    .flow-title strong { display: block; margin-top: 6px; font-size: 18px; line-height: 1.35; }
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 24px;
+    }
+    .flow-step {
+      flex: 0 0 auto;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .flow-arrow { flex: 0 0 auto; color: #90a29d; font-weight: 900; }
+
+    #dictionary { background: #f3f6f3; }
+    .dictionary-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .search {
+      width: min(390px, 100%);
+      min-height: 48px;
+      padding: 0 16px;
+      border: 1px solid #cfd9d4;
+      border-radius: 14px;
+      outline: none;
+      background: white;
+    }
+    .search:focus { border-color: var(--mint-strong); box-shadow: 0 0 0 4px rgba(31, 128, 108, .1); }
+    .count { color: var(--muted); font-size: 13px; font-weight: 800; }
+    .table-groups { display: grid; gap: 26px; }
+    .table-group { padding: 0; }
+    .table-group h3 { margin: 0 0 12px; font-size: 18px; }
+    .table-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .table-item {
+      min-height: 126px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: white;
+    }
+    .table-item.hidden { display: none; }
+    .table-item code { color: var(--mint-strong); font-size: 12px; font-weight: 900; }
+    .table-item strong { display: block; margin: 7px 0 4px; font-size: 15px; }
+    .table-item p { margin: 0; color: var(--muted); font-size: 12px; }
+    .empty-state { display: none; padding: 40px; border: 1px dashed #bfcac6; border-radius: 18px; color: var(--muted); text-align: center; }
+
+    .glossary {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0 40px;
+      border-top: 1px solid var(--line);
+    }
+    .term {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 18px;
+      padding: 19px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .term dt { font-weight: 900; }
+    .term dd { margin: 0; color: var(--muted); font-size: 14px; }
+    footer { padding: 34px 0 54px; color: var(--muted); font-size: 12px; }
+    footer .wrap { display: flex; justify-content: space-between; gap: 20px; padding-top: 24px; border-top: 1px solid var(--line); }
+
+    @media (max-width: 900px) {
+      .hero-grid, .diagram-main { grid-template-columns: 1fr; }
+      .hero-board { display: none; }
+      .reader-grid { grid-template-columns: repeat(2, 1fr); }
+      .diagram-main { height: calc(100vh - 240px); min-height: 720px; }
+      .svg-wrap, #erdSvg { min-height: 0; }
+      .node-detail {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+        width: min(360px, calc(100% - 24px));
+        max-height: 46%;
+        padding: 18px;
+      }
+      .distinction-grid, .table-grid { grid-template-columns: 1fr 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .glossary { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .wrap { width: min(100% - 24px, 1180px); }
+      .topnav { display: none; }
+      .hero { padding-top: 56px; }
+      .hero-actions a { width: 100%; }
+      section { padding: 58px 0; }
+      .section-head { display: block; }
+      .section-lead { margin-top: 14px; }
+      .reader-grid, .distinction-grid, .table-grid { grid-template-columns: 1fr; }
+      .diagram-toolbar { align-items: flex-start; flex-direction: column; }
+      .zoom-tools { width: 100%; }
+      .zoom-tools .icon-button { flex: 1; }
+      .diagram-main { height: calc(100vh - 190px); min-height: 600px; }
+      .svg-wrap, #erdSvg { min-height: 0; }
+      .dictionary-bar { align-items: stretch; flex-direction: column; }
+      .search { width: 100%; }
+      .term { grid-template-columns: 1fr; gap: 4px; }
+      footer .wrap { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">+</span>
+        <span>병원 데이터 지도</span>
+      </a>
+      <nav class="topnav" aria-label="문서 바로가기">
+        <a href="#read">읽는 법</a>
+        <a href="#diagram">다이어그램</a>
+        <a href="#flows">업무 흐름</a>
+        <a href="#dictionary">테이블 찾기</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow">Easy ERD Guide · 2026.07.28</span>
+          <h1>병원 데이터가<br>어디로 흐르는지<br>한눈에.</h1>
+          <p>ERD(Entity Relationship Diagram, 데이터 관계도)를 처음 보는 사람도 이해할 수 있도록, 복잡한 데이터베이스를 업무별 장부와 연결선으로 풀었습니다.</p>
+          <div class="hero-actions">
+            <a class="primary" href="#diagram">확대 가능한 지도 보기 ↓</a>
+            <a class="secondary" href="#dictionary">31개 테이블 찾아보기</a>
+          </div>
+        </div>
+        <div class="hero-board" aria-hidden="true">
+          <div class="mini-line a"></div>
+          <div class="mini-line b"></div>
+          <div class="mini-node one"><strong>환자 장부</strong><span>patients</span></div>
+          <div class="mini-node two"><strong>예약 장부</strong><span>appointments</span></div>
+          <div class="mini-node three"><strong>진료 기록</strong><span>medical_records</span></div>
+          <div class="hero-stat"><b>31</b><span>계획된 데이터 테이블</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap notice" role="note">
+      <div class="notice-icon" aria-hidden="true">ⓘ</div>
+      <div>
+        <strong>이 문서는 현재 구현 계획을 설명하는 지도입니다.</strong>
+        <span>아직 실제 운영 데이터베이스가 아니며, 보안·정합성 검토 결과에 따라 테이블과 관계가 달라질 수 있습니다. 기준 원본: Supabase 계획 스키마 ERD</span>
+      </div>
+    </div>
+
+    <section id="read">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Before you start</span>
+            <h2>선 하나만 읽어도<br>절반은 이해한 셈입니다.</h2>
+          </div>
+          <p class="section-lead">테이블은 같은 종류의 정보를 모아 둔 ‘장부 한 권’입니다. 연결선은 한 장부의 고유번호를 다른 장부가 빌려 쓰는 관계를 뜻합니다.</p>
+        </div>
+        <div class="reader-grid">
+          <article class="reader-card">
+            <span class="token">PK</span>
+            <h3>기본키 · 대표 고유번호</h3>
+            <p>장부 안에서 한 줄을 확실하게 찾는 번호입니다. 주민번호보다는 ‘시스템 내부 관리번호’에 가깝습니다.</p>
+          </article>
+          <article class="reader-card">
+            <span class="token">FK</span>
+            <h3>외래키 · 다른 장부 연결번호</h3>
+            <p>다른 테이블의 PK를 가리킵니다. 예: 예약의 <code>doctor_id</code>는 직원 장부의 의사를 찾습니다.</p>
+          </article>
+          <article class="reader-card">
+            <span class="token">1 : N</span>
+            <h3>하나와 여러 개의 관계</h3>
+            <p>환자 한 명은 예약을 여러 건 가질 수 있지만, 예약 한 건의 실제 환자는 한 명입니다.</p>
+          </article>
+          <article class="reader-card">
+            <span class="token">NULL</span>
+            <h3>값이 없거나 해당 없음</h3>
+            <p>전화로 등록된 환자는 앱 로그인 계정이 아직 없으므로 <code>auth_user_id</code>가 비어 있을 수 있습니다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="diagram">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Interactive map</span>
+            <h2>업무별 ERD 탐색기</h2>
+          </div>
+          <p class="section-lead">탭을 바꾸면 관련 장부만 볼 수 있습니다. 상자를 클릭하면 오른쪽에 쉬운 설명이 나옵니다.</p>
+        </div>
+        <div class="diagram-card" id="diagramCard">
+          <div class="diagram-tabs" role="tablist" aria-label="ERD 업무 영역">
+            <button class="diagram-tab" role="tab" aria-selected="true" data-map="core">① 핵심 예약·진료</button>
+            <button class="diagram-tab" role="tab" aria-selected="false" data-map="operation">② 운영·알림·가족</button>
+            <button class="diagram-tab" role="tab" aria-selected="false" data-map="ai">③ AI 상담·지식</button>
+            <button class="diagram-tab" role="tab" aria-selected="false" data-map="overview">전체 ERD · 31개 + auth.users</button>
+          </div>
+          <div class="diagram-toolbar">
+            <div class="diagram-title">
+              <strong id="mapTitle">핵심 예약·진료 ERD</strong>
+              <span id="mapSubtitle">로그인·환자·의사 일정·예약·문진·진료기록의 연결</span>
+            </div>
+            <div class="zoom-tools" aria-label="다이어그램 확대 축소">
+              <button class="icon-button" id="zoomOut" type="button" title="축소" aria-label="축소">−</button>
+              <span class="zoom-value" id="zoomValue" aria-live="polite">맞춤</span>
+              <button class="icon-button" id="zoomIn" type="button" title="확대" aria-label="확대">＋</button>
+              <button class="icon-button" id="zoomFit" type="button" title="화면에 맞춤">맞춤</button>
+              <button class="icon-button" id="fullScreen" type="button" title="전체 화면" aria-label="전체 화면">⛶</button>
+            </div>
+          </div>
+          <div class="diagram-main">
+            <div class="svg-wrap">
+              <svg id="erdSvg" role="img" aria-label="확대 및 이동 가능한 병원 시스템 ERD"></svg>
+            </div>
+            <aside class="node-detail" id="nodeDetail" aria-live="polite">
+              <span class="detail-kicker">TABLE GUIDE</span>
+              <h3>상자를 선택해보세요</h3>
+              <div class="detail-table">table details</div>
+              <p>다이어그램의 장부 상자를 누르면 이곳에서 역할과 주요 연결번호를 쉽게 설명합니다.</p>
+              <div class="diagram-help">사용법: 휠이나 +/− 버튼으로 확대·축소하고, 빈 공간을 드래그해 이동하세요.</div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Three distinctions</span>
+            <h2>가장 많이 헷갈리는<br>세 가지 구분</h2>
+          </div>
+        </div>
+        <div class="distinction-grid">
+          <article class="distinction">
+            <span class="number">01</span>
+            <h3>로그인 계정 ≠ 환자</h3>
+            <p><code>auth.users</code>는 로그인 수단이고 <code>patients</code>는 병원의 환자정보입니다. 전화 접수 환자는 병원 장부에는 있어도 앱 계정은 없을 수 있습니다.</p>
+          </article>
+          <article class="distinction">
+            <span class="number">02</span>
+            <h3>예약 시간 ≠ 실제 예약</h3>
+            <p><code>appointment_slots</code>는 “10시가 비어 있음”이라는 시간표이고, <code>appointments</code>는 “홍길동이 10시를 예약함”이라는 업무 기록입니다.</p>
+          </article>
+          <article class="distinction">
+            <span class="number">03</span>
+            <h3>현재 값 ≠ 변경 이력</h3>
+            <p><code>appointments</code>에는 현재 상태를, <code>appointment_status_history</code>에는 누가 언제 어떤 상태로 바꿨는지를 차곡차곡 남깁니다.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="flows">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Real workflows</span>
+            <h2>실제 업무 한 건은<br>이렇게 이동합니다.</h2>
+          </div>
+          <p class="section-lead">화살표는 저장 순서나 조회 방향을 단순화해 보여줍니다. 모든 화살표가 데이터베이스의 FK라는 뜻은 아닙니다.</p>
+        </div>
+        <div class="flow-list">
+          <article class="flow">
+            <div class="flow-title"><small>가족 예약</small><strong>보호자가 자녀 대신 예약</strong></div>
+            <div class="flow-steps">
+              <span class="flow-step">auth.users</span><span class="flow-arrow">→</span>
+              <span class="flow-step">patients (보호자)</span><span class="flow-arrow">→</span>
+              <span class="flow-step">patient_family_links</span><span class="flow-arrow">→</span>
+              <span class="flow-step">appointments (자녀)</span>
+            </div>
+          </article>
+          <article class="flow">
+            <div class="flow-title"><small>진료 기록 수정</small><strong>완료된 기록의 과거본 보존</strong></div>
+            <div class="flow-steps">
+              <span class="flow-step">appointments</span><span class="flow-arrow">→</span>
+              <span class="flow-step">medical_records</span><span class="flow-arrow">→</span>
+              <span class="flow-step">medical_record_revisions</span>
+            </div>
+          </article>
+          <article class="flow">
+            <div class="flow-title"><small>AI 근거 답변</small><strong>공식 자료에서 답변까지</strong></div>
+            <div class="flow-steps">
+              <span class="flow-step">kb_documents</span><span class="flow-arrow">→</span>
+              <span class="flow-step">kb_chunks</span><span class="flow-arrow">→</span>
+              <span class="flow-step">AI 검색</span><span class="flow-arrow">→</span>
+              <span class="flow-step">chat_messages</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="dictionary">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Table finder</span>
+            <h2>31개 장부 빠르게 찾기</h2>
+          </div>
+          <p class="section-lead">화면이나 기능 이름으로 검색해도 됩니다. 예: “예약”, “알림”, “챗봇”, “감사”.</p>
+        </div>
+        <div class="dictionary-bar">
+          <input class="search" id="tableSearch" type="search" placeholder="테이블명 또는 쉬운 설명 검색…" aria-label="테이블 검색">
+          <span class="count" id="tableCount">31개 표시 중</span>
+        </div>
+        <div class="table-groups" id="tableGroups"></div>
+        <div class="empty-state" id="emptyState">일치하는 테이블이 없습니다. 다른 단어로 검색해보세요.</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">Mini glossary</span>
+            <h2>용어 사전</h2>
+          </div>
+        </div>
+        <dl class="glossary">
+          <div class="term"><dt>UUID</dt><dd>추측하기 어려운 긴 형태의 시스템 고유번호입니다. 대부분의 <code>id</code>에 사용합니다.</dd></div>
+          <div class="term"><dt>UNIQUE</dt><dd>같은 값이 두 번 저장되지 못하게 막는 중복 방지 규칙입니다.</dd></div>
+          <div class="term"><dt>RLS</dt><dd>Row Level Security(행 단위 보안). 같은 장부에서도 로그인한 사람에 따라 볼 수 있는 줄을 제한합니다.</dd></div>
+          <div class="term"><dt>JSONB</dt><dd>질문 목록처럼 모양이 자주 달라지는 묶음 데이터를 PostgreSQL에 저장하는 형식입니다.</dd></div>
+          <div class="term"><dt>Audit log</dt><dd>누가 언제 민감한 정보를 열거나 변경했는지 남기는 감사 기록입니다.</dd></div>
+          <div class="term"><dt>Soft delete</dt><dd>행을 실제로 지우지 않고 <code>is_active=false</code>로 표시해 과거 기록을 보존하는 방식입니다.</dd></div>
+        </dl>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>병원 시스템 데이터 지도 · 비개발자용 ERD</span>
+      <span>기준: Supabase / PostgreSQL 계획 스키마 · 2026-07-28</span>
+    </div>
+  </footer>
+
+  <script>
+    const palette = {
+      account: { fill: "#dff3ea", stroke: "#3a917e" },
+      people: { fill: "#e4efff", stroke: "#557fb6" },
+      booking: { fill: "#ffead9", stroke: "#bf744d" },
+      care: { fill: "#eee8ff", stroke: "#7564ac" },
+      operation: { fill: "#fff3c9", stroke: "#9a7a28" },
+      ai: { fill: "#e5f4f2", stroke: "#438c81" }
+    };
+
+    const N = (id, title, table, x, y, group, description, fields) => ({
+      id, title, table, x, y, w: 205, h: 142, group, description, fields
+    });
+    const E = (id, title, table, x, y, group, description, fields) => ({
+      id, title, table, x, y, w: 340, h: 58 + fields.length * 34,
+      group, description, fields, standard: true
+    });
+
+    const columnMeanings = {
+      auth_user_id: "Supabase 로그인 계정을 가리키는 번호",
+      department_id: "소속하거나 예약한 진료과를 가리키는 번호",
+      deactivated_by: "이 직원을 비활성 처리한 직원을 가리키는 번호",
+      role: "관리자·접수직원·의사 등 직원 역할",
+      is_active: "현재 사용하거나 운영 중인지 나타내는 값",
+      doctor_id: "담당 의사를 가리키는 직원 번호",
+      weekday: "반복 근무가 적용되는 요일",
+      start_time: "근무 또는 예약 시간칸이 시작되는 시각",
+      end_time: "근무 시간이 끝나는 시각",
+      exception_date: "기본 일정 대신 예외를 적용할 날짜",
+      is_closed: "해당 날짜가 휴진인지 나타내는 값",
+      name: "사람이나 진료과의 표시 이름",
+      birth_date: "환자의 생년월일",
+      phone: "환자 연락과 본인확인에 사용하는 전화번호",
+      account_patient_id: "예약과 가족 관리를 수행하는 대표 환자 번호",
+      family_patient_id: "대표 환자가 대신 관리할 가족 환자 번호",
+      relation: "부모·자녀·배우자 등 가족 관계",
+      unlinked_at: "가족 연결을 해제한 시각",
+      slot_date: "예약 시간칸이 속한 날짜",
+      status: "현재 업무 처리 상태",
+      appointment_id: "연결된 예약을 가리키는 번호",
+      changed_by: "예약 상태를 변경한 직원을 가리키는 번호",
+      changed_by_patient_id: "예약 상태를 변경한 환자를 가리키는 번호",
+      from_status: "상태 변경 전의 값",
+      to_status: "상태 변경 후의 값",
+      changed_at: "예약 상태가 변경된 시각",
+      slot_id: "선택한 실제 예약 시간칸 번호",
+      for_patient_id: "실제로 진료를 받을 환자 번호",
+      created_by: "예약을 대신 생성한 직원을 가리키는 번호",
+      source: "직원 웹·환자 앱·챗봇 등 예약 생성 경로",
+      booking_code: "환자와 직원이 예약을 찾을 때 사용하는 중복 없는 코드",
+      is_completed: "진료기록 작성이 완료됐는지 나타내는 값",
+      updated_at: "현재 진료기록을 마지막으로 수정한 시각",
+      record_id: "수정 전 진료기록 원본을 가리키는 번호",
+      revised_by: "진료기록을 수정한 의사를 가리키는 번호",
+      reason: "완료된 진료기록을 수정한 이유",
+      revised_at: "진료기록을 수정하고 과거본을 만든 시각",
+      questions: "문진 질문·유형·필수 여부를 담은 질문 목록",
+      template_id: "답변에 사용된 문진 양식을 가리키는 번호",
+      answers: "환자가 제출한 문진 답변 묶음",
+      staff_id: "연결된 직원을 가리키는 번호",
+      patient_id: "연결된 환자를 가리키는 번호",
+      resource_type: "열람한 민감정보의 종류",
+      accessed_at: "민감정보를 열람한 시각",
+      feature: "오류가 발생한 기능 또는 업무 영역",
+      message: "운영자가 확인할 오류 설명",
+      occurred_at: "오류가 발생한 시각",
+      content: "해당 테이블이 보관하는 본문 내용",
+      created_at: "이 행을 처음 만든 시각",
+      cancellation_deadline_hours: "예약 취소가 가능한 마감시간 기준",
+      auto_confirm_app_bookings: "환자 앱 예약을 자동 확정할지 나타내는 설정",
+      text: "의사가 반복해서 사용하는 상용 문장",
+      fcm_token: "푸시 알림을 전달할 기기의 FCM 주소",
+      notification_type: "예약 확정·변경·리마인더 등 알림 종류",
+      channel: "웹·앱·푸시 등 요청 또는 발송 채널",
+      sent_at: "알림 발송을 시도하거나 완료한 시각",
+      requesting_patient_id: "가족 연결을 요청한 환자 번호",
+      target_patient_id: "가족으로 연결하려는 대상 환자 번호",
+      code_hash: "원문을 저장하지 않고 단방향 변환한 OTP 값",
+      expires_at: "OTP 요청을 더 이상 사용할 수 없는 시각",
+      verified_at: "OTP 확인에 성공한 시각",
+      anon_session_token: "로그인하지 않은 상담을 다시 찾는 중복 없는 세션 값",
+      active_flow: "현재 상담에서 진행 중인 예약·문의 등의 흐름",
+      conversation_id: "메시지·카드·티켓이 속한 상담 대화방 번호",
+      sender: "환자·AI·직원 중 메시지를 보낸 주체",
+      source_chunk_ids: "AI 답변 근거로 사용한 지식 조각 번호 배열",
+      route_taken: "일반답변·예약·직원인계 등 AI가 선택한 처리 경로",
+      nonce: "예약 확인 카드를 한 번만 사용하게 하는 중복 없는 값",
+      used_at: "예약 확인 카드를 실제 사용한 시각",
+      assigned_staff_id: "인계 티켓을 맡은 직원 번호",
+      question_embedding: "질문의 의미 유사도 검색에 사용하는 벡터",
+      pending_updated_by: "승인 대기 중인 수정안을 작성한 직원 번호",
+      approved_by: "공식 지식자료를 승인한 직원 번호",
+      title: "공식 지식자료의 제목",
+      is_restricted: "일반 답변에 사용할 수 없는 제한 자료인지 나타내는 값",
+      document_id: "원본 공식 지식자료를 가리키는 번호",
+      chunk_index: "원문 안에서 지식 조각이 놓인 순서",
+      embedding: "지식 문단의 의미 유사도 검색에 사용하는 벡터",
+      previous_content: "수정되기 전 공식 지식자료의 본문",
+      message_id: "오답 신고 대상인 상담 메시지 번호",
+      reported_by: "AI 오답을 신고한 직원 번호",
+      reviewed_by: "AI 오답 신고를 검토한 직원 번호",
+      applied_document_id: "교정 내용을 반영한 공식 지식자료 번호",
+      correction_text: "문제가 된 답변을 대신할 올바른 답변",
+      source_feedback_id: "검증 예시를 만든 근거 오답 신고 번호",
+      question_text: "검증 예시로 보관할 질문",
+      corrected_answer_text: "검토를 마친 올바른 모범 답변"
+    };
+
+    const tableColumnMeanings = {
+      "appointments.status": "예약의 현재 상태(신청·확정·도착·완료·취소 등)",
+      "appointment_slots.status": "시간칸이 예약 가능한지 또는 사용됐는지 나타내는 상태",
+      "private.appointment_status_transitions.from_status": "허용 상태 이동의 출발 상태",
+      "private.appointment_status_transitions.to_status": "출발 상태에서 이동할 수 있는 도착 상태",
+      "patient_internal_notes.content": "환자에게 공개하지 않는 직원용 내부 메모 본문",
+      "notification_log.channel": "푸시 등 실제 알림을 보낸 전달 채널",
+      "chat_conversations.channel": "웹·앱 등 AI 상담이 시작된 접점",
+      "chat_conversations.status": "상담 대화방의 진행·종료·인계 상태",
+      "chat_messages.staff_id": "직원이 작성한 메시지일 때 그 직원을 가리키는 번호",
+      "chat_messages.content": "환자·AI·직원이 주고받은 실제 메시지 본문",
+      "support_tickets.patient_id": "직원 인계 대상 환자이며 익명 상담이면 비어 있을 수 있는 번호",
+      "support_tickets.reason": "AI가 상담을 직원에게 넘긴 이유",
+      "support_tickets.status": "직원 인계 티켓의 대기·처리·완료 상태",
+      "kb_documents.created_by": "공식 지식자료 원본을 처음 작성한 직원 번호",
+      "kb_documents.status": "지식자료의 초안·승인·보관 상태",
+      "kb_chunks.content": "AI가 검색하고 답변 근거로 제시할 지식 문단",
+      "kb_document_revisions.changed_by": "공식 지식자료를 수정한 직원 번호",
+      "kb_document_revisions.changed_at": "지식자료를 수정하고 과거본을 만든 시각",
+      "answer_feedback.status": "오답 신고의 접수·검토·반영 상태",
+      "qa_example_bank.is_active": "해당 검증 예시를 AI 평가·참고에 계속 사용할지 나타내는 값"
+    };
+
+    const relationshipReasons = {
+      "auth|staff|직원 로그인": "인증정보와 병원 직원 프로필·권한을 분리하면서, 로그인한 계정이 어느 직원인지 확인하기 위해 연결합니다.",
+      "auth|patients|환자 로그인": "전화로 먼저 등록된 환자는 계정이 없을 수 있으므로 선택 관계이며, 앱 가입 후 같은 환자정보에 로그인 계정을 연결합니다.",
+      "dept|staff|직원 소속": "한 진료과에 여러 직원이 소속될 수 있고, 부서 미지정 직원도 허용하기 위해 선택적인 소속 FK를 둡니다.",
+      "staff|staff|비활성 처리자": "직원 계정을 비활성화한 책임자를 같은 직원 테이블에서 추적하기 위한 자기참조 관계입니다.",
+      "staff|rules|정규 일정": "요일별 근무 규칙은 특정 의사에게 귀속되고, 한 의사는 여러 요일 규칙을 가질 수 있기 때문입니다.",
+      "staff|exceptions|예외 일정": "휴진·특별근무는 특정 의사의 특정 날짜에 적용되며, 의사 한 명에게 여러 예외일이 생길 수 있기 때문입니다.",
+      "patients|family|예약 계정 환자": "가족을 대신 관리하는 주체가 어느 환자 계정인지 기록해야 대리 권한을 검사할 수 있습니다.",
+      "patients|family|예약 계정": "가족을 대신 관리하는 주체가 어느 환자 계정인지 기록해야 대리 권한을 검사할 수 있습니다.",
+      "patients|family|가족 환자": "대리 관리의 대상이 되는 가족 환자를 별도로 가리켜 주체와 대상을 구분합니다.",
+      "staff|slots|담당 의사": "각 예약 시간칸은 진료할 의사 한 명에게 속하고, 의사 한 명은 여러 날짜·시간칸을 가집니다.",
+      "slots|appointments|선택 슬롯": "예약이 어느 실제 시간칸을 사용했는지 확인해 가용성과 중복예약을 제어하기 위해 연결합니다.",
+      "patients|appointments|예약 계정": "예약을 생성·관리한 환자 계정을 보존해야 가족 대리예약 권한과 취소 권한을 판단할 수 있습니다.",
+      "patients|appointments|진료 대상": "예약을 관리한 사람과 실제 진료받는 사람이 다를 수 있어 진료 대상을 별도 FK로 둡니다.",
+      "dept|appointments|예약 진료과": "예약 시점에 선택한 진료과를 직접 보존해 조회·통계와 문진 선택의 기준으로 사용합니다.",
+      "staff|appointments|담당 의사": "예약을 실제로 진료할 의사를 명확히 지정하고 의사별 예약을 조회하기 위해 연결합니다.",
+      "staff|appointments|직원 생성자": "접수직원이 대신 만든 예약만 생성 직원을 기록하며, 환자가 직접 만든 예약에서는 비어 있을 수 있습니다.",
+      "appointments|history|상태 이력": "예약 한 건의 신청·확정·도착·완료·취소 변경을 덮어쓰지 않고 여러 행으로 누적하기 위해 연결합니다.",
+      "staff|history|직원 행위자": "직원이 상태를 바꾼 경우 누가 변경했는지 감사하기 위해 선택적으로 직원을 기록합니다.",
+      "patients|history|환자 행위자": "환자가 앱에서 취소·변경한 경우 행위자를 남기기 위한 선택 FK이며, 직원 행위자와의 XOR 제약은 별도 검토 대상입니다.",
+      "appointments|records|진료기록": "진료기록은 특정 방문 예약에 귀속되며 appointment_id의 UNIQUE로 예약당 현재 기록을 최대 한 건만 허용합니다.",
+      "appointments|records|현재 진료기록": "진료기록은 특정 방문 예약에 귀속되며 appointment_id의 UNIQUE로 예약당 현재 기록을 최대 한 건만 허용합니다.",
+      "staff|records|작성 의사": "진료기록을 작성하고 책임지는 의사를 확인해야 의료기록 접근과 감사가 가능하기 때문입니다.",
+      "records|revisions|수정 이력": "완료된 진료기록을 수정할 때 과거 내용을 여러 버전으로 보존하기 위해 원본 기록에 연결합니다.",
+      "staff|revisions|수정 의사": "민감한 완료 기록을 누가 수정했는지 책임과 감사 추적을 남기기 위해 연결합니다.",
+      "dept|templates|진료과 문진": "진료과마다 필요한 사전 질문이 다르므로 한 진료과가 여러 문진 양식을 소유할 수 있습니다.",
+      "appointments|responses|제출 문진": "문진 답변은 특정 예약 방문을 위한 것이며 appointment_id의 UNIQUE로 예약당 제출본을 최대 한 건으로 제한합니다.",
+      "templates|responses|사용 양식": "답변이 어떤 질문 버전을 기준으로 작성됐는지 재현하기 위해 사용한 문진 양식을 기록합니다.",
+      "transitions|appointments|상태 변경 검증": "FK 관계가 아니라, 예약 상태 변경 시 SECURITY DEFINER 트리거가 허용된 from→to 조합인지 검사하는 내부 규칙입니다.",
+
+      "staff|audit|열람 직원": "민감정보를 조회한 직원을 기록해야 의료정보 접근 감사를 수행할 수 있습니다.",
+      "patients|audit|열람 대상": "어느 환자의 민감정보가 열람됐는지 감사 로그의 대상을 명확히 하기 위해 연결합니다.",
+      "patients|notes|메모 대상": "직원 전용 메모가 어느 환자에 관한 내용인지 구분하기 위해 환자 FK가 필요합니다.",
+      "staff|notes|메모 작성자": "내부 메모의 작성 책임자와 수정·오용 여부를 추적하기 위해 직원을 기록합니다.",
+      "staff|phrases|의사 상용구": "상용구는 의사 개인 설정이므로 소유 의사별로 여러 문장을 저장하기 위해 연결합니다.",
+      "patients|devices|알림 기기": "푸시 토큰을 어느 환자의 알림 목적지로 사용할지 결정하기 위해 환자와 연결합니다.",
+      "appointments|notifications|예약 알림": "확정·변경·리마인더 등 알림이 어떤 예약에서 발생했는지 추적하기 위해 연결합니다.",
+      "patients|notifications|알림 수신자": "가족 대리예약에서는 예약자와 진료대상이 다를 수 있어 실제 알림 수신자를 별도 기록합니다.",
+      "patients|family_req|연결 요청자": "가족 연결 절차를 시작한 환자를 확인해 요청 권한과 시도 횟수를 관리합니다.",
+      "patients|family_req|연결 대상": "OTP 확인 후 어느 기존 환자를 가족으로 연결할지 정확히 지정하기 위해 대상 FK를 둡니다.",
+
+      "patients|conversations|로그인 상담": "로그인 상담은 환자 이력과 연결하지만 익명 상담도 허용하므로 patient_id가 선택 사항입니다.",
+      "conversations|messages|대화 메시지": "한 상담방 안에 환자·AI·직원 메시지가 시간순으로 여러 건 쌓이기 때문에 대화방 FK로 묶습니다.",
+      "staff|messages|직원 발언": "직원이 상담에 참여해 메시지를 작성한 경우에만 작성 직원을 기록하므로 선택 관계입니다.",
+      "conversations|cards|예약 확인 카드": "한 상담에서 여러 예약 후보 카드를 만들 수 있고, 각 카드가 어느 대화 흐름에서 생성됐는지 보존합니다.",
+      "patients|cards|진료 대상": "가족 대리예약을 지원하려면 챗봇 사용자와 실제 진료받을 환자를 분리해 카드에 저장해야 합니다.",
+      "dept|cards|선택 진료과": "최종 예약 전 사용자가 확인한 진료과를 카드에 고정해 확인 화면과 실제 예약 생성값을 일치시킵니다.",
+      "staff|cards|선택 의사": "최종 확인 단계에서 선택한 의사를 고정해 이후 슬롯·예약 생성 시 다른 의사로 바뀌지 않게 합니다.",
+      "slots|cards|선택 슬롯": "사용자가 확인한 실제 시간칸을 카드에 고정하고 예약 생성 시 가용성을 다시 검사하기 위해 연결합니다.",
+      "conversations|tickets|직원 인계": "AI가 해결하지 못한 상담을 어느 대화 맥락에서 넘겼는지 직원이 확인할 수 있도록 연결합니다.",
+      "patients|tickets|상담 환자": "로그인 상담의 환자는 인계 티켓과 연결하지만 익명 상담 티켓도 존재하므로 선택 관계입니다.",
+      "staff|tickets|담당 직원": "티켓이 배정된 뒤 책임 직원을 기록하며, 배정 전에는 담당자가 없을 수 있습니다.",
+      "staff|docs|수정 대기 작성자": "승인 전 수정안을 누가 작성했는지 원본 작성자와 별도로 추적하기 위해 선택 FK를 둡니다.",
+      "staff|docs|원본 작성자": "공식 지식자료를 최초 등록한 직원을 감사 목적으로 보존합니다.",
+      "staff|docs|승인자": "AI 답변 근거로 공개한 책임자를 추적하며, 승인 전 문서는 승인자가 없을 수 있습니다.",
+      "docs|chunks|검색 조각": "한 공식 자료를 여러 검색 단위로 나누고, 자료가 갱신될 때 해당 조각들을 찾기 위해 연결합니다.",
+      "docs|doc_revisions|수정 이력": "공식 자료 변경 전 내용을 여러 과거본으로 보존해 과거 답변 근거를 추적하기 위해 연결합니다.",
+      "staff|doc_revisions|수정 직원": "지식자료의 과거본을 만든 수정 책임자를 기록하며 시스템 작업이면 비어 있을 수 있습니다.",
+      "messages|feedback|오답 신고": "어떤 AI 메시지가 문제였는지 원문과 교정 과정을 정확히 연결하기 위해 메시지 FK를 둡니다.",
+      "staff|feedback|신고 직원": "의료 안내 오류를 발견해 신고한 직원을 기록해 후속 확인과 책임소재를 남깁니다.",
+      "staff|feedback|검토 직원": "신고 접수 시에는 없고 검토 후 배정되므로 선택 관계로 검토자를 기록합니다.",
+      "docs|feedback|반영 자료": "교정 결과가 실제 어느 공식 자료에 반영됐는지 연결하며, 자료 반영 전에는 비어 있을 수 있습니다.",
+      "feedback|examples|학습 예시 출처": "검증된 오답 교정 건을 좋은 질문·답변 예시로 승격했을 때 그 출처를 추적하기 위해 연결합니다."
+    };
+
+    const maps = {
+      overview: {
+        title: "병원 시스템 전체 ERD",
+        subtitle: "계획 테이블 31개 + auth.users · 선 첫 줄은 연결 컬럼, 둘째 줄은 관계가 필요한 이유",
+        width: 3900, height: 2550, standard: true,
+        zones: [
+          { x: 25, y: 25, w: 1975, h: 1500, title: "A. 인증·직원·환자·예약·진료", subtitle: "핵심 진료 업무 · 14개 계획 테이블 + auth.users" },
+          { x: 25, y: 1560, w: 1975, h: 950, title: "B. 운영·감사·환자 앱", subtitle: "운영 및 모바일 기능 · 8개 계획 테이블" },
+          { x: 2040, y: 25, w: 1830, h: 2485, title: "C. AI 상담·지식자료", subtitle: "상담, 인계, 지식 검색과 피드백 · 9개 계획 테이블" }
+        ],
+        nodes: [
+          E("auth", "로그인 계정", "auth.users", 70, 105, "account", "Supabase가 관리하는 로그인 계정입니다.", [
+            ["uuid id", "PK"]
+          ]),
+          E("staff", "직원", "staff", 420, 105, "people", "직원과 의사의 계정·소속·역할을 저장합니다.", [
+            ["uuid id", "PK"], ["uuid auth_user_id", "FK · UK"], ["uuid department_id", "FK"],
+            ["uuid deactivated_by", "FK"], ["enum role", ""], ["boolean is_active", ""]
+          ]),
+          E("dept", "진료과", "departments", 800, 105, "operation", "병원이 운영하는 진료과 기준정보입니다.", [
+            ["uuid id", "PK"], ["text name", ""], ["boolean is_active", ""]
+          ]),
+          E("transitions", "허용 상태 규칙", "private.appointment_status_transitions", 1570, 105, "operation", "사용자에게 공개하지 않고 상태전이 트리거만 읽는 내부 규칙표입니다.", [
+            ["text from_status", "PK · NOT NULL"], ["text to_status", "PK · NOT NULL"]
+          ]),
+          E("rules", "반복 근무 규칙", "doctor_schedule_rules", 70, 465, "operation", "의사의 요일별 기본 근무시간입니다.", [
+            ["uuid id", "PK"], ["uuid doctor_id", "FK"], ["int weekday", ""],
+            ["time start_time", ""], ["time end_time", ""]
+          ]),
+          E("exceptions", "날짜별 일정 예외", "doctor_schedule_exceptions", 70, 820, "operation", "휴진과 특별근무 같은 특정일 예외입니다.", [
+            ["uuid id", "PK"], ["uuid doctor_id", "FK"], ["date exception_date", ""],
+            ["boolean is_closed", ""]
+          ]),
+          E("patients", "환자", "patients", 420, 465, "people", "병원의 환자정보이며 로그인 계정은 선택사항입니다.", [
+            ["uuid id", "PK"], ["uuid auth_user_id", "FK · UK"], ["text name", ""],
+            ["date birth_date", ""], ["text phone", ""], ["boolean is_active", ""]
+          ]),
+          E("family", "가족 권한 연결", "patient_family_links", 420, 855, "account", "보호자가 다른 환자를 대신 관리하는 관계입니다.", [
+            ["uuid id", "PK"], ["uuid account_patient_id", "FK"], ["uuid family_patient_id", "FK"],
+            ["text relation", ""], ["boolean is_active", ""], ["timestamptz unlinked_at", ""]
+          ]),
+          E("slots", "예약 시간칸", "appointment_slots", 800, 465, "booking", "의사별 실제 예약 가능 시간입니다.", [
+            ["uuid id", "PK"], ["uuid doctor_id", "FK"], ["date slot_date", ""],
+            ["time start_time", ""], ["text status", ""]
+          ]),
+          E("history", "예약 상태 이력", "appointment_status_history", 800, 890, "care", "예약 상태 변경과 행위자를 시간순으로 보존합니다.", [
+            ["uuid id", "PK"], ["uuid appointment_id", "FK"], ["uuid changed_by", "FK"],
+            ["uuid changed_by_patient_id", "FK"], ["text from_status", ""], ["text to_status", ""],
+            ["timestamptz changed_at", ""]
+          ]),
+          E("appointments", "예약", "appointments", 1175, 450, "booking", "예약자·진료대상·진료과·의사·시간을 묶는 핵심 테이블입니다.", [
+            ["uuid id", "PK"], ["uuid slot_id", "FK"], ["uuid account_patient_id", "FK"],
+            ["uuid for_patient_id", "FK"], ["uuid department_id", "FK"], ["uuid doctor_id", "FK"],
+            ["uuid created_by", "FK"], ["text status", ""], ["text source", ""],
+            ["text booking_code", "UK"]
+          ]),
+          E("records", "현재 진료기록", "medical_records", 1175, 890, "care", "예약에 연결된 현재 진료기록입니다.", [
+            ["uuid id", "PK"], ["uuid appointment_id", "FK · UK"], ["uuid doctor_id", "FK"],
+            ["boolean is_completed", ""], ["timestamptz updated_at", ""]
+          ]),
+          E("revisions", "진료기록 과거본", "medical_record_revisions", 1175, 1240, "care", "완료 기록 수정 전의 내용을 보존합니다.", [
+            ["uuid id", "PK"], ["uuid record_id", "FK"], ["uuid revised_by", "FK"],
+            ["text reason", ""], ["timestamptz revised_at", ""]
+          ]),
+          E("templates", "문진 양식", "questionnaire_templates", 1600, 465, "care", "진료과별 사전문진 질문 세트입니다.", [
+            ["uuid id", "PK"], ["uuid department_id", "FK"], ["jsonb questions", ""]
+          ]),
+          E("responses", "제출 문진", "questionnaire_responses", 1600, 855, "care", "예약 전에 제출된 실제 문진 답변입니다.", [
+            ["uuid id", "PK"], ["uuid appointment_id", "FK · UK"],
+            ["uuid template_id", "FK"], ["jsonb answers", ""]
+          ]),
+
+          E("audit", "민감정보 열람 기록", "access_audit_log", 70, 1655, "operation", "누가 어떤 환자의 민감정보를 열람했는지 남기는 감사 기록입니다.", [
+            ["uuid id", "PK"], ["uuid staff_id", "FK"], ["uuid patient_id", "FK"],
+            ["text resource_type", ""], ["timestamptz accessed_at", ""]
+          ]),
+          E("errors", "시스템 오류 기록", "system_error_log", 70, 2070, "operation", "기능별 시스템 오류와 발생 시각을 저장하는 독립 테이블입니다.", [
+            ["uuid id", "PK"], ["text feature", ""], ["text message", ""],
+            ["timestamptz occurred_at", ""]
+          ]),
+          E("notes", "직원 전용 환자 메모", "patient_internal_notes", 430, 1655, "operation", "환자에게 공개하지 않는 병원 내부 운영 메모입니다.", [
+            ["uuid id", "PK"], ["uuid patient_id", "FK"], ["uuid staff_id", "FK"],
+            ["text content", ""], ["timestamptz created_at", ""]
+          ]),
+          E("settings", "병원 전체 설정", "hospital_settings", 430, 2070, "operation", "취소 마감과 자동확정 등 병원 공통 설정 한 묶음입니다.", [
+            ["boolean id", "PK"], ["int cancellation_deadline_hours", ""],
+            ["boolean auto_confirm_app_bookings", ""]
+          ]),
+          E("phrases", "의사 개인 상용구", "doctor_quick_phrases", 790, 1655, "operation", "의사가 진료기록에 빠르게 삽입하는 개인 문장입니다.", [
+            ["uuid id", "PK"], ["uuid doctor_id", "FK"], ["text text", ""],
+            ["timestamptz created_at", ""]
+          ]),
+          E("devices", "환자 앱 기기 주소", "device_tokens", 790, 2070, "operation", "환자에게 푸시 알림을 보낼 FCM 기기 토큰입니다.", [
+            ["uuid id", "PK"], ["uuid patient_id", "FK"], ["text fcm_token", ""],
+            ["timestamptz created_at", ""]
+          ]),
+          E("notifications", "알림 발송 기록", "notification_log", 1150, 1655, "operation", "예약 알림의 수신자·종류·채널·발송시각을 기록합니다.", [
+            ["uuid id", "PK"], ["uuid appointment_id", "FK"], ["uuid patient_id", "FK"],
+            ["text notification_type", ""], ["text channel", ""], ["timestamptz sent_at", ""]
+          ]),
+          E("family_req", "가족 연결 OTP", "family_link_requests", 1580, 1655, "operation", "기존 환자와 가족관계를 연결하기 위한 OTP 확인 요청입니다.", [
+            ["uuid id", "PK"], ["uuid requesting_patient_id", "FK"], ["uuid target_patient_id", "FK"],
+            ["text code_hash", ""], ["timestamptz expires_at", ""], ["timestamptz verified_at", ""]
+          ]),
+
+          E("conversations", "AI 상담 대화방", "chat_conversations", 2110, 110, "ai", "한 번의 AI 상담 전체와 로그인·익명 세션 상태를 묶습니다.", [
+            ["uuid id", "PK"], ["uuid patient_id", "FK"], ["text anon_session_token", "UK"],
+            ["text channel", ""], ["text status", ""], ["text active_flow", ""]
+          ]),
+          E("messages", "상담 메시지", "chat_messages", 2500, 110, "ai", "환자·AI·직원이 주고받은 메시지와 답변 근거 정보를 저장합니다.", [
+            ["uuid id", "PK"], ["uuid conversation_id", "FK"], ["uuid staff_id", "FK"],
+            ["text sender", ""], ["text content", ""], ["uuid_array source_chunk_ids", ""],
+            ["text route_taken", ""]
+          ]),
+          E("cards", "예약 확인 카드", "chat_booking_cards", 2110, 570, "booking", "챗봇이 선택한 예약 내용을 최종 확인 전까지 임시로 고정합니다.", [
+            ["uuid id", "PK"], ["uuid conversation_id", "FK"], ["uuid for_patient_id", "FK"],
+            ["uuid department_id", "FK"], ["uuid doctor_id", "FK"], ["uuid slot_id", "FK"],
+            ["uuid nonce", "UK"], ["timestamptz used_at", ""]
+          ]),
+          E("tickets", "직원 인계 티켓", "support_tickets", 2500, 570, "operation", "AI가 해결하지 못한 상담을 직원에게 넘기는 업무 티켓입니다.", [
+            ["uuid id", "PK"], ["uuid conversation_id", "FK"], ["uuid patient_id", "FK"],
+            ["uuid assigned_staff_id", "FK"], ["text reason", ""], ["text status", ""],
+            ["vector question_embedding", ""]
+          ]),
+          E("docs", "공식 지식자료", "kb_documents", 2110, 1110, "ai", "AI가 답변 근거로 사용하는 승인 대상 병원 공식 자료입니다.", [
+            ["uuid id", "PK"], ["uuid pending_updated_by", "FK"], ["uuid created_by", "FK"],
+            ["uuid approved_by", "FK"], ["text title", ""], ["text status", ""],
+            ["boolean is_restricted", ""]
+          ]),
+          E("chunks", "AI 검색용 지식 조각", "kb_chunks", 2500, 1110, "ai", "공식 자료를 의미 검색하기 좋게 나눈 작은 문단입니다.", [
+            ["uuid id", "PK"], ["uuid document_id", "FK"], ["int chunk_index", ""],
+            ["text content", ""], ["vector embedding", ""]
+          ]),
+          E("doc_revisions", "지식자료 과거본", "kb_document_revisions", 2110, 1570, "care", "공식 지식자료 변경 전 내용을 보존하는 수정 이력입니다.", [
+            ["uuid id", "PK"], ["uuid document_id", "FK"], ["uuid changed_by", "FK"],
+            ["text previous_content", ""], ["timestamptz changed_at", ""]
+          ]),
+          E("feedback", "AI 오답 신고", "answer_feedback", 2920, 570, "operation", "문제가 된 AI 답변과 교정·검토·공식자료 반영 상태를 기록합니다.", [
+            ["uuid id", "PK"], ["uuid message_id", "FK"], ["uuid reported_by", "FK"],
+            ["uuid reviewed_by", "FK"], ["uuid applied_document_id", "FK"],
+            ["text correction_text", ""], ["text status", ""]
+          ]),
+          E("examples", "검증 답변 예시", "qa_example_bank", 3320, 1050, "ai", "검토가 끝난 질문과 올바른 답변을 재사용하기 위한 예시 은행입니다.", [
+            ["uuid id", "PK"], ["uuid source_feedback_id", "FK"], ["text question_text", ""],
+            ["text corrected_answer_text", ""], ["vector question_embedding", ""],
+            ["boolean is_active", ""]
+          ])
+        ],
+        edges: [
+          ["auth", "staff", "auth_user_id · 직원 로그인", false, "oneToOptional"],
+          ["auth", "patients", "auth_user_id · 환자 로그인", false, "optionalToOptional"],
+          ["dept", "staff", "department_id · 직원 소속", false, "optionalToMany"],
+          ["staff", "staff", "deactivated_by · 비활성 처리자", false, "optionalToMany"],
+          ["staff", "rules", "doctor_id · 정규 일정", false, "oneToMany"],
+          ["staff", "exceptions", "doctor_id · 예외 일정", false, "oneToMany"],
+          ["patients", "family", "account_patient_id · 예약 계정", false, "oneToMany"],
+          ["patients", "family", "family_patient_id · 가족 환자", false, "oneToMany"],
+          ["staff", "slots", "doctor_id · 담당 의사", false, "oneToMany"],
+          ["slots", "appointments", "slot_id · 선택 슬롯", false, "optionalToMany"],
+          ["patients", "appointments", "account_patient_id · 예약 계정", false, "oneToMany"],
+          ["patients", "appointments", "for_patient_id · 진료 대상", false, "oneToMany"],
+          ["dept", "appointments", "department_id · 예약 진료과", false, "oneToMany"],
+          ["staff", "appointments", "doctor_id · 담당 의사", false, "oneToMany"],
+          ["staff", "appointments", "created_by · 직원 생성자", false, "optionalToMany"],
+          ["appointments", "history", "appointment_id · 상태 이력", false, "oneToMany"],
+          ["staff", "history", "changed_by · 직원 행위자", false, "optionalToMany"],
+          ["patients", "history", "changed_by_patient_id · 환자 행위자", false, "optionalToMany"],
+          ["appointments", "records", "appointment_id · 현재 진료기록", false, "oneToOptional"],
+          ["staff", "records", "doctor_id · 작성 의사", false, "oneToMany"],
+          ["records", "revisions", "record_id · 수정 이력", false, "oneToMany"],
+          ["staff", "revisions", "revised_by · 수정 의사", false, "oneToMany"],
+          ["dept", "templates", "department_id · 진료과 문진", false, "oneToMany"],
+          ["appointments", "responses", "appointment_id · 제출 문진", false, "oneToOptional"],
+          ["templates", "responses", "template_id · 사용 양식", false, "oneToMany"],
+          ["transitions", "appointments", "상태 변경 검증", true, "rule"],
+
+          ["staff", "audit", "staff_id · 열람 직원", false, "oneToMany"],
+          ["patients", "audit", "patient_id · 열람 대상", false, "oneToMany"],
+          ["patients", "notes", "patient_id · 메모 대상", false, "oneToMany"],
+          ["staff", "notes", "staff_id · 메모 작성자", false, "oneToMany"],
+          ["staff", "phrases", "doctor_id · 의사 상용구", false, "oneToMany"],
+          ["patients", "devices", "patient_id · 알림 기기", false, "oneToMany"],
+          ["appointments", "notifications", "appointment_id · 예약 알림", false, "oneToMany"],
+          ["patients", "notifications", "patient_id · 알림 수신자", false, "oneToMany"],
+          ["patients", "family_req", "requesting_patient_id · 연결 요청자", false, "oneToMany"],
+          ["patients", "family_req", "target_patient_id · 연결 대상", false, "oneToMany"],
+
+          ["patients", "conversations", "patient_id · 로그인 상담", false, "optionalToMany"],
+          ["conversations", "messages", "conversation_id · 대화 메시지", false, "oneToMany"],
+          ["staff", "messages", "staff_id · 직원 발언", false, "optionalToMany"],
+          ["conversations", "cards", "conversation_id · 예약 확인 카드", false, "oneToMany"],
+          ["patients", "cards", "for_patient_id · 진료 대상", false, "oneToMany"],
+          ["dept", "cards", "department_id · 선택 진료과", false, "oneToMany"],
+          ["staff", "cards", "doctor_id · 선택 의사", false, "oneToMany"],
+          ["slots", "cards", "slot_id · 선택 슬롯", false, "oneToMany"],
+          ["conversations", "tickets", "conversation_id · 직원 인계", false, "oneToMany"],
+          ["patients", "tickets", "patient_id · 상담 환자", false, "optionalToMany"],
+          ["staff", "tickets", "assigned_staff_id · 담당 직원", false, "optionalToMany"],
+          ["staff", "docs", "pending_updated_by · 수정 대기 작성자", false, "optionalToMany"],
+          ["staff", "docs", "created_by · 원본 작성자", false, "optionalToMany"],
+          ["staff", "docs", "approved_by · 승인자", false, "optionalToMany"],
+          ["docs", "chunks", "document_id · 검색 조각", false, "oneToMany"],
+          ["docs", "doc_revisions", "document_id · 수정 이력", false, "oneToMany"],
+          ["staff", "doc_revisions", "changed_by · 수정 직원", false, "optionalToMany"],
+          ["messages", "feedback", "message_id · 오답 신고", false, "oneToMany"],
+          ["staff", "feedback", "reported_by · 신고 직원", false, "oneToMany"],
+          ["staff", "feedback", "reviewed_by · 검토 직원", false, "optionalToMany"],
+          ["docs", "feedback", "applied_document_id · 반영 자료", false, "optionalToMany"],
+          ["feedback", "examples", "source_feedback_id · 학습 예시 출처", false, "optionalToMany"]
+        ]
+      },
+      account: {
+        title: "계정·환자·가족",
+        subtitle: "로그인한 사람이 누구이며, 누구를 대신할 수 있는가",
+        width: 1120, height: 760,
+        nodes: [
+          N("auth", "로그인 계정", "auth.users", 70, 70, "account", "Supabase가 관리하는 로그인 계정입니다. 병원 직원이나 환자 장부와 1:1로 이어질 수 있습니다.", [["id", "PK · 계정 번호"]]),
+          N("dept", "진료과", "departments", 70, 400, "operation", "내과, 정형외과처럼 병원이 운영하는 진료과를 저장합니다.", [["id", "PK"], ["name", "진료과명"], ["is_active", "운영 여부"]]),
+          N("staff", "직원", "staff", 390, 70, "people", "관리자·접수직원·의사의 기본정보와 로그인 연결을 저장합니다.", [["id", "PK"], ["auth_user_id", "FK · UNIQUE · 로그인"], ["department_id", "FK · 소속"], ["deactivated_by", "FK · 처리자"], ["role", "직원 역할"], ["is_active", "활성 여부"]]),
+          N("patients", "환자", "patients", 390, 300, "people", "병원에서 진료받는 사람의 기본정보입니다. 전화 환자는 로그인 계정이 없을 수 있습니다.", [["id", "PK"], ["auth_user_id", "FK · UNIQUE · 선택"], ["name", "이름"], ["birth_date", "생년월일"], ["phone", "연락처"], ["is_active", "활성 여부"]]),
+          N("family", "가족 권한 연결", "patient_family_links", 735, 145, "account", "보호자가 자녀·부모 등 다른 환자를 대신 관리할 수 있는 관계를 저장합니다.", [["id", "PK"], ["account_patient_id", "FK · 보호자"], ["family_patient_id", "FK · 가족"], ["relation", "가족 관계"], ["is_active", "활성 여부"]]),
+          N("family_req", "가족 연결 OTP", "family_link_requests", 735, 405, "operation", "기존 환자를 가족으로 연결하기 전, 휴대전화 OTP 확인 과정을 저장합니다.", [["id", "PK"], ["requesting_patient_id", "FK · 요청자"], ["target_patient_id", "FK · 대상"], ["code_hash", "OTP 해시"], ["expires_at", "만료 시각"], ["verified_at", "확인 시각"]])
+        ],
+        edges: [
+          ["auth", "staff", "직원 로그인", false],
+          ["auth", "patients", "환자 로그인 (선택)", false],
+          ["dept", "staff", "소속 진료과", false],
+          ["staff", "staff", "비활성 처리자", false],
+          ["patients", "family", "account_patient_id · 보호자", false],
+          ["patients", "family", "family_patient_id · 가족", false],
+          ["patients", "family_req", "requesting_patient_id · 요청자", false],
+          ["patients", "family_req", "target_patient_id · 대상", false]
+        ]
+      },
+      booking: {
+        title: "일정·예약",
+        subtitle: "의사의 근무 규칙이 실제 예약 한 건이 되기까지",
+        width: 1300, height: 800,
+        nodes: [
+          N("staff", "담당 의사", "staff", 40, 60, "people", "의사 일정과 예약에서 doctor_id가 가리키는 직원입니다.", [["id", "PK · 의사 번호"], ["role", "doctor"]]),
+          N("rules", "반복 근무 규칙", "doctor_schedule_rules", 340, 40, "operation", "“매주 월요일 9~17시” 같은 기본 근무시간을 저장합니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["weekday", "요일"], ["start_time", "시작"], ["end_time", "종료"]]),
+          N("exceptions", "날짜별 예외", "doctor_schedule_exceptions", 340, 245, "operation", "공휴일 휴진이나 특정일 단축진료처럼 기본 규칙의 예외를 저장합니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["exception_date", "예외 날짜"], ["is_closed", "휴진 여부"]]),
+          N("slots", "실제 예약 시간칸", "appointment_slots", 655, 135, "booking", "“김의사, 7월 28일 10시가 비어 있음”이라는 실제 시간표입니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["slot_date", "예약 날짜"], ["start_time", "시작 시각"], ["status", "상태"]]),
+          N("patients", "환자", "patients", 655, 525, "people", "예약을 관리한 사람과 실제 진료받을 사람을 각각 가리킵니다.", [["id", "PK · 환자 번호"]]),
+          N("dept", "진료과", "departments", 40, 565, "operation", "예약이 어느 진료과에 속하는지 알려주는 기준 장부입니다.", [["id", "PK"]]),
+          N("appointments", "실제 예약", "appointments", 965, 275, "booking", "누가, 누구를 위해, 어느 진료과·의사·시간을 예약했는지 저장하는 핵심 업무 장부입니다.", [["id", "PK"], ["slot_id", "FK · 시간"], ["account_patient_id", "FK · 예약자"], ["for_patient_id", "FK · 진료대상"], ["department_id", "FK · 진료과"], ["doctor_id", "FK · 의사"], ["created_by", "FK · 생성 직원"], ["booking_code", "UNIQUE · 예약코드"]]),
+          N("history", "상태 변경 이력", "appointment_status_history", 965, 545, "care", "신청→확정→도착→완료처럼 예약 상태가 바뀐 과정을 시간순으로 누적합니다.", [["id", "PK"], ["appointment_id", "FK"], ["changed_by", "FK · 직원"], ["changed_by_patient_id", "FK · 환자"], ["from_status", "이전 상태"], ["to_status", "새 상태"]]),
+          N("transitions", "허용 상태 규칙", "private.appointment_status_transitions", 965, 45, "operation", "어떤 상태에서 어떤 상태로 바꿀 수 있는지 정한 내부 규칙표입니다. 일반 사용자는 접근할 수 없고 상태전이 트리거만 읽습니다.", [["from_status", "NOT NULL · 복합 PK"], ["to_status", "NOT NULL · 복합 PK"]])
+        ],
+        edges: [
+          ["staff", "rules", "정규 일정", false],
+          ["staff", "exceptions", "예외 일정", false],
+          ["staff", "slots", "담당 의사", false],
+          ["staff", "appointments", "doctor_id · 담당 의사", false],
+          ["staff", "appointments", "created_by · 생성 직원", false],
+          ["slots", "appointments", "선택한 시간", false],
+          ["patients", "appointments", "account_patient_id · 예약자", false],
+          ["patients", "appointments", "for_patient_id · 진료대상", false],
+          ["dept", "appointments", "예약 진료과", false],
+          ["appointments", "history", "변경 과정", false],
+          ["staff", "history", "changed_by · 직원 행위자", false],
+          ["patients", "history", "changed_by_patient_id · 환자 행위자", false]
+        ]
+      },
+      care: {
+        title: "문진·진료·감사",
+        subtitle: "진료 전 질문부터 기록 수정과 민감정보 열람까지",
+        width: 1320, height: 810,
+        nodes: [
+          N("dept", "진료과", "departments", 40, 55, "operation", "진료과마다 다른 사전 문진 양식을 선택하는 기준입니다.", [["id", "PK"], ["name", "진료과명"]]),
+          N("templates", "문진 양식", "questionnaire_templates", 335, 55, "care", "진료과별 질문 문구, 질문 유형, 필수 여부를 JSONB로 저장합니다.", [["id", "PK"], ["department_id", "FK"], ["questions", "질문 목록"]]),
+          N("appointments", "예약", "appointments", 650, 310, "booking", "문진과 진료기록을 하나의 방문 단위로 묶는 중심 장부입니다.", [["id", "PK · 예약 번호"]]),
+          N("responses", "제출 문진", "questionnaire_responses", 650, 55, "care", "환자가 예약 전에 제출한 실제 답변입니다. 예약당 최대 하나입니다.", [["id", "PK"], ["appointment_id", "FK · UNIQUE"], ["template_id", "FK"], ["answers", "답변"]]),
+          N("records", "현재 진료기록", "medical_records", 650, 565, "care", "증상·진단·처치와 환자 공개 안내 등 현재 진료기록을 저장합니다.", [["id", "PK"], ["appointment_id", "FK · UNIQUE"], ["doctor_id", "FK · 의사"], ["is_completed", "완료 여부"], ["updated_at", "수정 시각"]]),
+          N("revisions", "진료기록 과거본", "medical_record_revisions", 980, 565, "care", "완료된 진료기록을 수정할 때, 수정 직전 내용을 보존합니다.", [["id", "PK"], ["record_id", "FK"], ["revised_by", "FK · 수정 의사"], ["reason", "수정 사유"], ["revised_at", "수정 시각"]]),
+          N("staff", "직원·의사", "staff", 40, 565, "people", "진료기록 작성자, 민감정보 열람자, 내부 메모 작성자를 가리킵니다.", [["id", "PK · 직원 번호"]]),
+          N("patients", "환자", "patients", 335, 310, "people", "민감정보 열람 대상이나 내부 메모의 대상 환자를 가리킵니다.", [["id", "PK · 환자 번호"]]),
+          N("audit", "민감정보 열람 기록", "access_audit_log", 980, 55, "operation", "어떤 직원이 어느 환자의 민감정보를 언제 열어봤는지 남깁니다.", [["id", "PK"], ["staff_id", "FK · 열람 직원"], ["patient_id", "FK · 대상 환자"], ["resource_type", "열람 자원"], ["accessed_at", "열람 시각"]]),
+          N("notes", "직원 전용 메모", "patient_internal_notes", 980, 310, "operation", "환자에게 공개하지 않는 병원 운영 메모입니다.", [["id", "PK"], ["patient_id", "FK · 대상 환자"], ["staff_id", "FK · 작성 직원"], ["content", "메모"], ["created_at", "작성 시각"]]),
+          N("phrases", "의사 개인 상용구", "doctor_quick_phrases", 40, 310, "operation", "의사가 진료기록에 빠르게 붙여 넣을 개인 문장을 저장합니다.", [["id", "PK"], ["doctor_id", "FK · 의사"], ["text", "상용 문장"], ["created_at", "작성 시각"]])
+        ],
+        edges: [
+          ["dept", "templates", "진료과별 양식", false],
+          ["templates", "responses", "사용한 질문 세트", false],
+          ["appointments", "responses", "예약당 최대 1개", false],
+          ["appointments", "records", "예약당 최대 1개", false],
+          ["records", "revisions", "수정 전 내용", false],
+          ["staff", "records", "담당 의사", false],
+          ["staff", "revisions", "수정 의사", false],
+          ["staff", "audit", "열람 직원", false],
+          ["patients", "audit", "열람 대상", false],
+          ["staff", "notes", "작성 직원", false],
+          ["patients", "notes", "메모 대상", false],
+          ["staff", "phrases", "상용구 소유", false]
+        ]
+      },
+      operation: {
+        title: "설정·앱 알림",
+        subtitle: "예약 소식을 어느 환자의 어느 기기로 보낼 것인가",
+        width: 1200, height: 760,
+        nodes: [
+          N("patients", "환자", "patients", 35, 40, "people", "알림·감사·메모·가족 연결의 대상 환자입니다.", [["id", "PK · 환자 번호"]]),
+          N("staff", "직원", "staff", 35, 300, "people", "감사 열람자, 메모 작성자, 의사 상용구 소유자입니다.", [["id", "PK · 직원 번호"]]),
+          N("appointments", "예약", "appointments", 35, 560, "booking", "확정·변경·리마인더·완료 알림이 발생한 원인입니다.", [["id", "PK · 예약 번호"]]),
+          N("audit", "민감정보 열람 기록", "access_audit_log", 330, 40, "operation", "어떤 직원이 어느 환자의 민감정보를 언제 열어봤는지 남깁니다.", [["id", "PK"], ["staff_id", "FK"], ["patient_id", "FK"], ["accessed_at", "열람 시각"]]),
+          N("notes", "직원 전용 메모", "patient_internal_notes", 330, 300, "operation", "환자에게 공개하지 않는 병원 운영 메모입니다.", [["id", "PK"], ["patient_id", "FK"], ["staff_id", "FK"], ["content", "메모"]]),
+          N("phrases", "의사 개인 상용구", "doctor_quick_phrases", 330, 560, "operation", "의사가 진료기록에 빠르게 붙여 넣을 개인 문장을 저장합니다.", [["id", "PK"], ["doctor_id", "FK"], ["text", "상용 문장"]]),
+          N("devices", "알림 기기 주소", "device_tokens", 650, 40, "operation", "환자의 휴대전화·태블릿으로 푸시를 보내기 위한 FCM 토큰입니다.", [["id", "PK"], ["patient_id", "FK"], ["fcm_token", "푸시 목적지"], ["created_at", "등록 시각"]]),
+          N("notifications", "알림 발송 기록", "notification_log", 650, 300, "operation", "누가 어떤 예약 알림을 어떤 채널로 언제 받았는지 저장합니다.", [["id", "PK"], ["appointment_id", "FK · 예약"], ["patient_id", "FK · 수신자"], ["notification_type", "알림 종류"], ["channel", "채널"], ["sent_at", "발송 시각"]]),
+          N("family_req", "가족 연결 OTP", "family_link_requests", 650, 560, "operation", "기존 환자를 가족으로 연결하기 전, 휴대전화 OTP 확인 과정을 저장합니다.", [["id", "PK"], ["requesting_patient_id", "FK · 요청자"], ["target_patient_id", "FK · 대상"], ["code_hash", "OTP 해시"], ["expires_at", "만료 시각"], ["verified_at", "확인 시각"]]),
+          N("settings", "병원 전체 설정", "hospital_settings", 965, 40, "operation", "취소 마감시간과 앱 예약 자동확정처럼 시스템 전체가 함께 읽는 한 묶음입니다.", [["id", "PK · true 한 행"], ["cancellation_deadline_hours", "취소 기준"], ["auto_confirm_app_bookings", "자동 확정 여부"]]),
+          N("errors", "시스템 오류 기록", "system_error_log", 965, 300, "operation", "기능별 오류 발생 시각과 운영자용 설명을 저장하는 독립 장부입니다.", [["id", "PK"], ["feature", "발생 기능"], ["message", "오류 설명"], ["occurred_at", "발생 시각"]])
+        ],
+        edges: [
+          ["staff", "audit", "열람 직원", false],
+          ["patients", "audit", "열람 대상", false],
+          ["patients", "notes", "메모 대상", false],
+          ["staff", "notes", "메모 작성자", false],
+          ["staff", "phrases", "의사 상용구", false],
+          ["patients", "devices", "환자의 기기", false],
+          ["patients", "notifications", "실제 수신자", false],
+          ["appointments", "notifications", "예약 알림", false],
+          ["patients", "family_req", "연결 요청자", false],
+          ["patients", "family_req", "연결 대상", false]
+        ]
+      },
+      ai: {
+        title: "AI 상담·지식",
+        subtitle: "대화, 예약 제안, 직원 인계, 공식 지식과 오답 개선",
+        width: 1510, height: 1000,
+        nodes: [
+          N("patients", "환자", "patients", 35, 55, "people", "로그인 상담자 또는 예약 카드의 실제 진료 대상입니다. 익명 상담은 연결이 없을 수 있습니다.", [["id", "PK"]]),
+          N("departments", "진료과", "departments", 35, 600, "operation", "챗봇 예약 카드에서 선택한 진료과입니다.", [["id", "PK"]]),
+          N("slots", "예약 시간칸", "appointment_slots", 35, 820, "booking", "챗봇 예약 카드에서 선택한 실제 시간칸입니다.", [["id", "PK"]]),
+          N("conversations", "상담 대화방", "chat_conversations", 330, 55, "ai", "한 번의 챗봇 상담 전체를 묶고 진행 상태와 특별 흐름을 저장합니다.", [["id", "PK"], ["patient_id", "FK · 선택"], ["anon_session_token", "UNIQUE · 익명 세션"], ["channel", "상담 채널"], ["status", "상담 상태"], ["active_flow", "진행 흐름"]]),
+          N("messages", "상담 메시지", "chat_messages", 650, 55, "ai", "환자·봇·직원이 주고받은 메시지와 AI 답변 근거 조각을 저장합니다. source_chunk_ids는 배열이라 실제 FK가 아닙니다.", [["id", "PK"], ["conversation_id", "FK"], ["staff_id", "FK · 선택"], ["sender", "보낸 사람"], ["content", "메시지"], ["source_chunk_ids", "출처 ID 배열"]]),
+          N("cards", "예약 확인 카드", "chat_booking_cards", 330, 310, "booking", "챗봇에서 고른 진료과·의사·시간을 최종 확인하는 일회용 카드입니다. 아직 실제 예약은 아닙니다.", [["id", "PK"], ["conversation_id", "FK"], ["for_patient_id", "FK · 진료대상"], ["department_id", "FK · 진료과"], ["doctor_id", "FK · 의사"], ["slot_id", "FK · 시간"], ["nonce", "UNIQUE · 일회용 값"]]),
+          N("tickets", "직원 인계 티켓", "support_tickets", 650, 310, "operation", "챗봇이 해결하지 못한 문의를 요약해 담당 직원에게 넘깁니다.", [["id", "PK"], ["conversation_id", "FK"], ["patient_id", "FK · 선택"], ["assigned_staff_id", "FK · 선택"], ["reason", "인계 사유"], ["status", "처리 상태"], ["question_embedding", "질문 벡터"]]),
+          N("staff", "직원", "staff", 35, 310, "people", "직원 메시지 작성자, 인계 티켓 담당자, 지식자료 작성·승인자를 가리킵니다.", [["id", "PK · 직원 번호"]]),
+          N("docs", "공식 지식자료", "kb_documents", 330, 635, "ai", "병원 안내 원문과 승인 상태를 저장합니다. AI는 승인된 현재 본문을 사용합니다.", [["id", "PK"], ["pending_updated_by", "FK · 수정 대기 작성자"], ["created_by", "FK · 원본 작성자"], ["approved_by", "FK · 승인자"], ["title", "자료 제목"], ["status", "승인 상태"], ["is_restricted", "제한 자료 여부"]]),
+          N("chunks", "AI 검색 조각", "kb_chunks", 650, 635, "ai", "긴 공식 자료를 AI가 검색하기 좋은 작은 문단으로 나눈 것입니다.", [["id", "PK"], ["document_id", "FK"], ["chunk_index", "순서"], ["content", "근거 문단"], ["embedding", "의미 벡터"]]),
+          N("doc_revisions", "지식자료 과거본", "kb_document_revisions", 35, 635, "care", "공식 지식자료가 변경되기 전 제목·분류·본문을 보존합니다.", [["id", "PK"], ["document_id", "FK"], ["changed_by", "FK · 수정 직원"], ["previous_content", "이전 본문"], ["changed_at", "수정 시각"]]),
+          N("feedback", "AI 오답 신고", "answer_feedback", 985, 230, "operation", "문제가 된 답변, 교정 문장, 검토 결과와 공식 자료 반영 여부를 저장합니다.", [["id", "PK"], ["message_id", "FK"], ["reported_by", "FK · 신고 직원"], ["reviewed_by", "FK · 검토 직원"], ["applied_document_id", "FK · 반영 자료"], ["correction_text", "교정 답변"], ["status", "검토 상태"]]),
+          N("examples", "검증 답변 예시", "qa_example_bank", 985, 545, "ai", "검토가 끝난 좋은 질문·정답 예시를 AI가 참고할 수 있게 저장합니다.", [["id", "PK"], ["source_feedback_id", "FK · 출처 신고"], ["question_text", "예시 질문"], ["corrected_answer_text", "검증 답변"], ["question_embedding", "질문 벡터"], ["is_active", "활성 여부"]])
+        ],
+        edges: [
+          ["patients", "conversations", "로그인 상담", false],
+          ["conversations", "messages", "시간순 메시지", false],
+          ["staff", "messages", "직원 발언", false],
+          ["conversations", "cards", "예약 제안", false],
+          ["patients", "cards", "진료 대상", false],
+          ["departments", "cards", "선택 진료과", false],
+          ["staff", "cards", "선택 의사", false],
+          ["slots", "cards", "선택 슬롯", false],
+          ["conversations", "tickets", "직원 인계", false],
+          ["patients", "tickets", "상담 환자", false],
+          ["staff", "tickets", "담당 직원", false],
+          ["staff", "docs", "pending_updated_by · 수정 대기 작성자", false],
+          ["staff", "docs", "created_by · 원본 작성자", false],
+          ["staff", "docs", "approved_by · 승인자", false],
+          ["docs", "chunks", "검색 문단으로 분할", false],
+          ["docs", "doc_revisions", "변경 전 보존", false],
+          ["staff", "doc_revisions", "수정 직원", false],
+          ["messages", "feedback", "문제 답변 신고", false],
+          ["staff", "feedback", "reported_by · 신고 직원", false],
+          ["staff", "feedback", "reviewed_by · 검토 직원", false],
+          ["docs", "feedback", "applied_document_id · 반영 자료", false],
+          ["feedback", "examples", "출처 신고", false]
+        ]
+      }
+    };
+
+    // 전체 ERD는 관계선이 많은 단일 지도이므로, 화면에 맞출 때도 테이블 사이에
+    // 숨 쉴 공간을 남긴다. 각 노드의 업무 좌표를 확대하고 경계 상자도 함께 늘린다.
+    const overviewLayout = maps.overview;
+    const overviewSpacingX = 1.5;
+    const overviewSpacingY = 1.4;
+    overviewLayout.width = Math.round(overviewLayout.width * overviewSpacingX);
+    overviewLayout.height = Math.round(overviewLayout.height * overviewSpacingY);
+    overviewLayout.nodes.forEach(node => {
+      node.x = Math.round(node.x * overviewSpacingX);
+      node.y = Math.round(node.y * overviewSpacingY);
+    });
+    overviewLayout.zones.forEach(zone => {
+      zone.x = Math.round(zone.x * overviewSpacingX);
+      zone.y = Math.round(zone.y * overviewSpacingY);
+      zone.w = Math.round(zone.w * overviewSpacingX);
+      zone.h = Math.round(zone.h * overviewSpacingY);
+    });
+
+    // 전체 ERD의 노드·관계를 업무 흐름별로 재배치한다. 각 탭은 같은 정의를
+    // 공유하지만, 해당 흐름에 필요한 테이블만 가까운 격자로 보여준다.
+    const overviewNodeById = new Map(overviewLayout.nodes.map(node => [node.id, node]));
+    function makeWorkflowMap(title, subtitle, nodeIds, zoneTitle, zoneSubtitle, columns = 4) {
+      const rowGap = 500;
+      const colGap = 430;
+      const top = 100;
+      const left = 70;
+      const nodes = nodeIds.map((id, index) => ({
+        ...overviewNodeById.get(id),
+        x: left + (index % columns) * colGap,
+        y: top + Math.floor(index / columns) * rowGap
+      }));
+      const ids = new Set(nodeIds);
+      const edges = overviewLayout.edges.filter(([from, to]) => ids.has(from) && ids.has(to));
+      const rows = Math.ceil(nodes.length / columns);
+      const width = left * 2 + columns * colGap - (colGap - 340);
+      const height = top * 2 + rows * rowGap;
+      return {
+        title, subtitle, width, height, standard: true,
+        zones: [{ x: 25, y: 25, w: width - 50, h: height - 50, title: zoneTitle, subtitle: zoneSubtitle }],
+        nodes, edges
+      };
+    }
+
+    maps.core = makeWorkflowMap(
+      "핵심 예약·진료 ERD",
+      "로그인·환자·의사 일정·예약·문진·진료기록의 연결",
+      ["auth", "staff", "dept", "transitions", "rules", "patients", "slots", "appointments", "exceptions", "family", "history", "templates", "records", "revisions", "responses"],
+      "A. 핵심 예약·진료 흐름",
+      "인증 → 일정 → 예약 → 문진·진료기록"
+    );
+    maps.operation = makeWorkflowMap(
+      "운영·알림·가족 ERD",
+      "직원 감사·메모·기기 알림·가족 연결 업무",
+      ["staff", "patients", "appointments", "family_req", "audit", "notes", "phrases", "devices", "notifications", "settings", "errors"],
+      "B. 운영·알림·가족 흐름",
+      "업무 기록 → 알림 전달 → 가족 권한 확인"
+    );
+    maps.ai = makeWorkflowMap(
+      "AI 상담·지식 ERD",
+      "상담 → 예약 제안·직원 인계 → 공식 지식·오답 개선",
+      ["patients", "staff", "dept", "slots", "conversations", "messages", "cards", "tickets", "docs", "chunks", "feedback", "doc_revisions", "examples"],
+      "C. AI 상담·지식 흐름",
+      "상담 → 답변 근거 → 직원 인계·지식 개선"
+    );
+
+    const tableGroups = [
+      {
+        title: "기반·예약·진료 · 18개",
+        items: [
+          ["departments", "진료과", "내과·정형외과 등 병원이 운영하는 진료과"],
+          ["staff", "병원 직원", "관리자·접수직원·의사의 정보와 권한"],
+          ["doctor_schedule_rules", "반복 근무 규칙", "의사의 요일별 기본 근무시간"],
+          ["doctor_schedule_exceptions", "날짜별 일정 예외", "휴진·특별근무 같은 특정일 변경"],
+          ["patients", "환자 기본정보", "이름·생년월일·연락처와 로그인 연결"],
+          ["patient_family_links", "가족 관리 권한", "보호자가 가족을 대신 이용하는 관계"],
+          ["appointment_slots", "예약 가능 시간", "날짜별 의사의 실제 시간 칸"],
+          ["appointments", "실제 예약", "예약자·진료대상·진료과·의사·상태"],
+          ["appointment_status_history", "예약 상태 이력", "예약 상태가 바뀐 전체 과정"],
+          ["private.appointment_status_transitions", "예약 상태 규칙", "트리거만 읽는 허용 상태 변경 조합"],
+          ["medical_records", "현재 진료기록", "증상·진단·처치와 환자 안내"],
+          ["medical_record_revisions", "진료기록 과거본", "완료 기록을 수정하기 전 내용"],
+          ["questionnaire_templates", "문진 질문 양식", "진료과별 사전 질문 세트"],
+          ["questionnaire_responses", "제출 문진 답변", "환자가 예약 전에 답한 내용"],
+          ["access_audit_log", "민감정보 열람 기록", "누가 어느 환자정보를 언제 열었는지 기록"],
+          ["system_error_log", "시스템 오류 기록", "기능별 장애 시각과 오류 설명"],
+          ["patient_internal_notes", "직원 전용 환자 메모", "환자에게 공개되지 않는 운영 메모"],
+          ["hospital_settings", "병원 전체 설정", "취소 마감·앱 예약 자동확정 등 공통 기준"]
+        ]
+      },
+      {
+        title: "직원 웹 추가 · 1개",
+        items: [
+          ["doctor_quick_phrases", "의사 개인 상용구", "진료기록에 붙여 넣는 자주 쓰는 문장"]
+        ]
+      },
+      {
+        title: "환자 앱 추가 · 3개",
+        items: [
+          ["device_tokens", "환자 앱 기기 주소", "푸시 알림을 보낼 휴대전화·태블릿 주소"],
+          ["notification_log", "알림 발송 기록", "예약 알림의 수신자·채널·발송시각"],
+          ["family_link_requests", "가족 연결 OTP", "기존 환자를 가족으로 연결하는 인증 요청"]
+        ]
+      },
+      {
+        title: "AI 상담·지식자료 · 9개",
+        items: [
+          ["chat_conversations", "챗봇 상담 대화방", "한 번의 상담 전체와 진행 상태"],
+          ["chat_messages", "상담 메시지", "환자·봇·직원의 메시지와 답변 근거"],
+          ["chat_booking_cards", "예약 최종 확인 카드", "챗봇이 제안한 예약 내용을 잠시 고정"],
+          ["kb_documents", "공식 지식자료", "AI가 사용하는 승인된 병원 안내 원문"],
+          ["kb_chunks", "AI 검색용 지식 조각", "원문을 검색하기 좋게 나눈 작은 문단"],
+          ["kb_document_revisions", "지식자료 과거본", "공식 자료가 바뀌기 전 내용"],
+          ["support_tickets", "직원 인계 문의", "챗봇이 해결하지 못해 직원에게 넘긴 건"],
+          ["answer_feedback", "AI 오답 신고", "문제 답변과 교정·검토 결과"],
+          ["qa_example_bank", "검증 질문·답변 예시", "AI가 참고하는 검증 완료 정답 사례"]
+        ]
+      }
+    ];
+
+    const svg = document.getElementById("erdSvg");
+    const mapTitle = document.getElementById("mapTitle");
+    const mapSubtitle = document.getElementById("mapSubtitle");
+    const zoomValue = document.getElementById("zoomValue");
+    const nodeDetail = document.getElementById("nodeDetail");
+    let activeMap = "core";
+    let view = { x: 0, y: 0, w: 1000, h: 650 };
+    let baseView = { x: 0, y: 0, w: 1000, h: 650 };
+    let dragging = false;
+    let dragStart = null;
+    let moved = false;
+
+    const escapeXml = value => String(value)
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+
+    function nodeById(map, id) {
+      return map.nodes.find(node => node.id === id);
+    }
+
+    function standardFieldInfo(node, field) {
+      const parts = field[0].trim().split(/\s+/);
+      const name = parts.at(-1);
+      const type = parts.slice(0, -1).join(" ");
+      const meaning = name === "id"
+        ? `${node.title} 테이블에서 각 행을 구분하는 고유번호`
+        : tableColumnMeanings[`${node.table}.${name}`]
+          || columnMeanings[name]
+          || "이 테이블의 업무 데이터를 저장하는 컬럼";
+      return { name, type, key: field[1], meaning };
+    }
+
+    function relationEnds(relation) {
+      const pairs = {
+        many: ["1", "N"],
+        optionalOne: ["1", "0..1"],
+        oneToMany: ["1", "N"],
+        optionalToMany: ["0..1", "N"],
+        oneToOptional: ["1", "0..1"],
+        optionalToOptional: ["0..1", "0..1"]
+      };
+      return pairs[relation] || ["1", "N"];
+    }
+
+    function relationshipMeaning(map, edge) {
+      const [from, to, label, business, relation = "many"] = edge;
+      const fromNode = nodeById(map, from);
+      const toNode = nodeById(map, to);
+      const reasonLabel = label.includes(" · ") ? label.split(" · ").at(-1) : label;
+      const reason = relationshipReasons[`${from}|${to}|${reasonLabel}`];
+      if (relation === "rule" || business) {
+        return {
+          title: `${fromNode.title} ⇢ ${toNode.title} · ${label}`,
+          text: reason || "외래키가 아닌 업무 규칙 관계입니다."
+        };
+      }
+      if (from === to) {
+        return {
+          title: `${fromNode.title} 내부 연결 · ${label}`,
+          text: reason || `같은 ${fromNode.title} 테이블의 다른 행을 가리키는 자기참조 외래키 관계입니다.`
+        };
+      }
+      const [fromCardinality, toCardinality] = relationEnds(relation);
+      const cardinality = `관계 표기 ${fromCardinality} : ${toCardinality}.`;
+      return {
+        title: `${fromNode.title} → ${toNode.title} · ${label}`,
+        text: `${cardinality} ${reason || "업무상 상위 행과 하위 행을 연결하는 외래키 관계입니다."}`
+      };
+    }
+
+    function relationshipReasonForEdge(edge) {
+      const [from, to, label] = edge;
+      const reasonLabel = label.includes(" · ") ? label.split(" · ").at(-1) : label;
+      return relationshipReasons[`${from}|${to}|${reasonLabel}`]
+        || "업무상 상위 테이블과 하위 테이블을 연결하는 관계입니다.";
+    }
+
+    function relationshipLineNote(edge) {
+      const reason = relationshipReasonForEdge(edge).replace(/[.!。]+$/, "");
+      return reason.length > 31 ? `${reason.slice(0, 31)}…` : reason;
+    }
+
+    function edgePoints(a, b, lane = 0) {
+      if (a === b) {
+        const x = a.x + a.w;
+        const y = a.y + 36;
+        return {
+          path: `M ${x - 12} ${y} C ${x + 100} ${y - 45}, ${x + 100} ${y + 78}, ${x - 12} ${y + 42}`,
+          mx: x + 42,
+          my: y - 7,
+          start: { x: x - 12, y },
+          end: { x: x - 12, y: y + 42 }
+        };
+      }
+      const ac = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
+      const bc = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+      const dx = bc.x - ac.x;
+      const dy = bc.y - ac.y;
+      let start, end;
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        start = { x: dx > 0 ? a.x + a.w : a.x, y: ac.y };
+        end = { x: dx > 0 ? b.x : b.x + b.w, y: bc.y };
+      } else {
+        start = { x: ac.x, y: dy > 0 ? a.y + a.h : a.y };
+        end = { x: bc.x, y: dy > 0 ? b.y : b.y + b.h };
+      }
+      const mx = (start.x + end.x) / 2;
+      const my = (start.y + end.y) / 2;
+      const horizontal = Math.abs(dx) >= Math.abs(dy);
+      const path = horizontal
+        ? `M ${start.x} ${start.y} C ${mx} ${start.y + lane}, ${mx} ${end.y + lane}, ${end.x} ${end.y}`
+        : `M ${start.x} ${start.y} C ${start.x + lane} ${my}, ${end.x + lane} ${my}, ${end.x} ${end.y}`;
+      return {
+        path,
+        mx: horizontal ? mx : mx + lane,
+        my: horizontal ? my + lane : my,
+        start,
+        end
+      };
+    }
+
+    function renderMap(name) {
+      activeMap = name;
+      const map = maps[name];
+      mapTitle.textContent = map.title;
+      mapSubtitle.textContent = map.subtitle;
+      svg.setAttribute("viewBox", `0 0 ${map.width} ${map.height}`);
+      baseView = { x: 0, y: 0, w: map.width, h: map.height };
+      view = { ...baseView };
+      zoomValue.textContent = "맞춤";
+
+      const edges = map.edges.map(([from, to, label, business, relation = "many"], edgeIndex) => {
+        const lane = map.standard && relation !== "rule"
+          ? ((edgeIndex % 7) - 3) * 52
+          : 0;
+        const points = edgePoints(nodeById(map, from), nodeById(map, to), lane);
+        const [fromCardinality, toCardinality] = relationEnds(relation);
+        const startMarker = fromCardinality === "0..1" ? "card-optional-one" : "card-one";
+        const endMarker = toCardinality === "N"
+          ? "card-many"
+          : toCardinality === "0..1" ? "card-optional-one" : "card-one";
+        const standardMarkers = relation === "rule"
+          ? `marker-end="url(#arrow)"`
+          : `marker-start="url(#${startMarker})" marker-end="url(#${endMarker})"`;
+        const markers = map.standard ? standardMarkers : `marker-end="url(#arrow)"`;
+        const cardinality = map.standard && relation !== "rule" && from !== to
+          ? `<text class="edge-cardinality" x="${points.start.x + (points.end.x - points.start.x) * .08}" y="${points.start.y + (points.end.y - points.start.y) * .08 - 8}" text-anchor="middle">${fromCardinality}</text>
+             <text class="edge-cardinality" x="${points.start.x + (points.end.x - points.start.x) * .92}" y="${points.start.y + (points.end.y - points.start.y) * .92 - 8}" text-anchor="middle">${toCardinality}</text>`
+          : "";
+        return `
+          <g>
+            <title>${escapeXml(`${nodeById(map, from).title} → ${nodeById(map, to).title}: ${relationshipReasonForEdge([from, to, label, business, relation])}`)}</title>
+            <path class="edge${business ? " business" : ""}" d="${points.path}" ${markers} />
+            <text class="edge-label" x="${points.mx}" y="${points.my - 7}" text-anchor="middle">${escapeXml(label)}</text>
+            ${map.standard ? `<text class="edge-note" x="${points.mx}" y="${points.my + 12}" text-anchor="middle">${escapeXml(relationshipLineNote([from, to, label, business, relation]))}</text>` : ""}
+            ${cardinality}
+          </g>`;
+      }).join("");
+
+      const zones = (map.zones || []).map(zone => `
+        <g aria-hidden="true">
+          <rect class="erd-zone" x="${zone.x}" y="${zone.y}" width="${zone.w}" height="${zone.h}" rx="24" />
+          <text class="erd-zone-title" x="${zone.x + 28}" y="${zone.y + 39}">${escapeXml(zone.title)}</text>
+          <text class="erd-zone-subtitle" x="${zone.x + 28}" y="${zone.y + 62}">${escapeXml(zone.subtitle)}</text>
+        </g>`).join("");
+
+      const nodes = map.nodes.map(node => {
+        const color = palette[node.group];
+        if (node.standard) {
+          return `
+            <g class="diagram-node standard" data-id="${node.id}" tabindex="0" role="button"
+               aria-label="${escapeXml(node.title)} 테이블 상세 보기" transform="translate(${node.x} ${node.y})">
+              <rect class="node-shell" width="${node.w}" height="${node.h}" rx="3"
+                    fill="#ffffff" stroke="${color.stroke}" stroke-width="1.8" />
+              <path d="M 3 3 H ${node.w - 3} V 50 H 3 Z" fill="${color.stroke}" />
+              <text class="node-table" x="12" y="21">${escapeXml(node.table)}</text>
+              <text class="node-title-ko" x="12" y="41">${escapeXml(node.title)}</text>
+              ${node.fields.map((field, index) => {
+                const info = standardFieldInfo(node, field);
+                const top = 51 + index * 34;
+                return `<line class="node-line" x1="1" y1="${top}" x2="${node.w - 1}" y2="${top}" />
+                  <text class="node-field" x="11" y="${top + 14}">${escapeXml(field[0])}</text>
+                  <text class="node-field-key" x="${node.w - 10}" y="${top + 14}" text-anchor="end">${escapeXml(field[1])}</text>
+                  <text class="node-field-meaning" x="11" y="${top + 28}">${escapeXml(info.meaning)}</text>`;
+              }).join("")}
+            </g>`;
+        }
+        const visibleFields = node.fields.slice(0, 3);
+        return `
+          <g class="diagram-node" data-id="${node.id}" tabindex="0" role="button"
+             aria-label="${escapeXml(node.title)} 테이블 상세 보기" transform="translate(${node.x} ${node.y})">
+            <rect class="node-shell" width="${node.w}" height="${node.h}" rx="17"
+                  fill="${color.fill}" stroke="${color.stroke}" stroke-width="1.4" />
+            <rect x="15" y="14" width="27" height="18" rx="5" fill="${color.stroke}" />
+            <text class="node-key" x="28.5" y="26.5" text-anchor="middle">PK</text>
+            <text class="node-title" x="51" y="29">${escapeXml(node.title)}</text>
+            <text class="node-table" x="16" y="51">${escapeXml(node.table)}</text>
+            <line class="node-line" x1="16" y1="63" x2="${node.w - 16}" y2="63" />
+            ${visibleFields.map((field, index) =>
+              `<text class="node-field" x="16" y="${82 + index * 18}">${escapeXml(field[0])}</text>`
+            ).join("")}
+          </g>`;
+      }).join("");
+
+      svg.innerHTML = `
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#91a49f"></path>
+          </marker>
+          <marker id="card-one" viewBox="-1 -9 12 18" refX="1" refY="0" markerWidth="12" markerHeight="18" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+            <path d="M 4 -7 V 7 M 8 -7 V 7" fill="none" stroke="#526a64" stroke-width="1.8"></path>
+          </marker>
+          <marker id="card-many" viewBox="0 -9 14 18" refX="13" refY="0" markerWidth="14" markerHeight="18" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M 1 0 L 12 -7 M 1 0 L 12 0 M 1 0 L 12 7" fill="none" stroke="#526a64" stroke-width="1.8"></path>
+          </marker>
+          <marker id="card-optional-one" viewBox="0 -9 18 18" refX="17" refY="0" markerWidth="18" markerHeight="18" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+            <circle cx="5" cy="0" r="3.3" fill="#f8faf8" stroke="#526a64" stroke-width="1.6"></circle>
+            <path d="M 12 -7 V 7" fill="none" stroke="#526a64" stroke-width="1.8"></path>
+          </marker>
+        </defs>
+        <g>${zones}</g>
+        <g>${edges}</g>
+        <g>${nodes}</g>`;
+
+      svg.querySelectorAll(".diagram-node").forEach(element => {
+        const select = () => showNode(element.dataset.id);
+        element.addEventListener("click", event => {
+          if (!moved) select();
+          event.stopPropagation();
+        });
+        element.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            select();
+          }
+        });
+      });
+      showNode(map.nodes[0].id);
+    }
+
+    function showNode(id) {
+      const map = maps[activeMap];
+      const node = nodeById(map, id);
+      svg.querySelectorAll(".diagram-node").forEach(el => el.classList.toggle("selected", el.dataset.id === id));
+      const fields = node.fields.map(field => {
+        if (!node.standard) {
+          return `<li><code>${escapeXml(field[0])}</code><span>${escapeXml(field[1])}</span></li>`;
+        }
+        const info = standardFieldInfo(node, field);
+        const meta = [info.type, info.key].filter(Boolean).join(" · ");
+        return `<li><code>${escapeXml(info.name)}<small>${escapeXml(meta)}</small></code><span>${escapeXml(info.meaning)}</span></li>`;
+      }).join("");
+      const relations = map.standard
+        ? map.edges
+            .filter(([from, to]) => from === id || to === id)
+            .map(edge => relationshipMeaning(map, edge))
+        : [];
+      const relationGuide = relations.length
+        ? `<div class="detail-relations">
+             <h4>연결 관계의 의미</h4>
+             <ul>${relations.map(relation =>
+               `<li><strong>${escapeXml(relation.title)}</strong><span>${escapeXml(relation.text)}</span></li>`
+             ).join("")}</ul>
+           </div>`
+        : "";
+      nodeDetail.innerHTML = `
+        <span class="detail-kicker">선택한 장부</span>
+        <h3>${escapeXml(node.title)}</h3>
+        <div class="detail-table">${escapeXml(node.table)}</div>
+        <p>${escapeXml(node.description)}</p>
+        <ul class="detail-fields">
+          ${fields}
+        </ul>
+        ${relationGuide}
+        <div class="diagram-help">${map.standard
+          ? "PK는 기본키, FK는 외래키입니다. 관계선의 1은 한 개, N은 여러 개, 0..1은 없거나 한 개를 뜻합니다. 점선은 FK가 아닌 트리거 검증 관계입니다."
+          : "PK는 이 장부의 대표 고유번호, FK는 다른 장부를 가리키는 연결번호입니다."}</div>`;
+    }
+
+    function setViewBox() {
+      svg.setAttribute("viewBox", `${view.x} ${view.y} ${view.w} ${view.h}`);
+      const ratio = Math.round((baseView.w / view.w) * 100);
+      zoomValue.textContent = view.w === baseView.w ? "맞춤" : `${ratio}%`;
+    }
+
+    function zoomAt(factor, clientX, clientY) {
+      const rect = svg.getBoundingClientRect();
+      const px = clientX == null ? .5 : (clientX - rect.left) / rect.width;
+      const py = clientY == null ? .5 : (clientY - rect.top) / rect.height;
+      const newW = Math.max(baseView.w * .08, Math.min(baseView.w * 2, view.w * factor));
+      const newH = newW * (view.h / view.w);
+      view.x += (view.w - newW) * px;
+      view.y += (view.h - newH) * py;
+      view.w = newW;
+      view.h = newH;
+      setViewBox();
+    }
+
+    document.querySelectorAll(".diagram-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".diagram-tab").forEach(item => item.setAttribute("aria-selected", "false"));
+        tab.setAttribute("aria-selected", "true");
+        renderMap(tab.dataset.map);
+      });
+    });
+    document.getElementById("zoomIn").addEventListener("click", () => zoomAt(.82));
+    document.getElementById("zoomOut").addEventListener("click", () => zoomAt(1.22));
+    document.getElementById("zoomFit").addEventListener("click", () => {
+      view = { ...baseView };
+      setViewBox();
+    });
+    document.getElementById("fullScreen").addEventListener("click", async () => {
+      const card = document.getElementById("diagramCard");
+      if (!document.fullscreenElement) await card.requestFullscreen?.();
+      else await document.exitFullscreen?.();
+    });
+
+    svg.addEventListener("wheel", event => {
+      event.preventDefault();
+      zoomAt(event.deltaY > 0 ? 1.1 : .9, event.clientX, event.clientY);
+    }, { passive: false });
+
+    svg.addEventListener("pointerdown", event => {
+      dragging = true;
+      moved = false;
+      dragStart = { x: event.clientX, y: event.clientY, viewX: view.x, viewY: view.y };
+      svg.classList.add("dragging");
+      svg.setPointerCapture(event.pointerId);
+    });
+    svg.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      const rect = svg.getBoundingClientRect();
+      const dx = event.clientX - dragStart.x;
+      const dy = event.clientY - dragStart.y;
+      if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+      view.x = dragStart.viewX - dx * (view.w / rect.width);
+      view.y = dragStart.viewY - dy * (view.h / rect.height);
+      setViewBox();
+    });
+    const stopDragging = event => {
+      dragging = false;
+      svg.classList.remove("dragging");
+      if (event.pointerId != null && svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+      setTimeout(() => { moved = false; }, 0);
+    };
+    svg.addEventListener("pointerup", stopDragging);
+    svg.addEventListener("pointercancel", stopDragging);
+
+    const tableGroupsEl = document.getElementById("tableGroups");
+    tableGroupsEl.innerHTML = tableGroups.map(group => `
+      <section class="table-group">
+        <h3>${group.title}</h3>
+        <div class="table-grid">
+          ${group.items.map(([table, title, description]) => `
+            <article class="table-item" data-search="${escapeXml(`${table} ${title} ${description}`.toLowerCase())}">
+              <code>${escapeXml(table)}</code>
+              <strong>${escapeXml(title)}</strong>
+              <p>${escapeXml(description)}</p>
+            </article>`).join("")}
+        </div>
+      </section>`).join("");
+
+    const search = document.getElementById("tableSearch");
+    const tableCount = document.getElementById("tableCount");
+    const emptyState = document.getElementById("emptyState");
+    search.addEventListener("input", () => {
+      const query = search.value.trim().toLowerCase();
+      let visible = 0;
+      document.querySelectorAll(".table-item").forEach(item => {
+        const matches = item.dataset.search.includes(query);
+        item.classList.toggle("hidden", !matches);
+        if (matches) visible += 1;
+      });
+      document.querySelectorAll(".table-group").forEach(group => {
+        group.hidden = !group.querySelector(".table-item:not(.hidden)");
+      });
+      tableCount.textContent = `${visible}개 표시 중`;
+      emptyState.style.display = visible ? "none" : "block";
+    });
+
+    renderMap("core");
+  </script>
+</body>
+</html>

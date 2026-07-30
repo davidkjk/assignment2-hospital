@@ -3,13 +3,6 @@ dist/
 
 # 작업용 문서 — 설계 논의·검토 기록, 배포 산출물이 아니라 git 추적 제외
 CLAUDE.md
-docs/고객요구사항.txt
-docs/consistency review/
-docs/ERD/
-docs/superpowers/specs/2026-07-28-p0-policy-decisions-design.md
-docs/superpowers/specs/2026-07-28-p1-scheduling-design.md
-docs/superpowers/specs/2026-07-28-p2-notification-queue-family-design.md
-docs/superpowers/specs/2026-07-28-r5-09-questionnaire-template-design.md
 
 # Supabase CLI 로컬 실행 시 생성되는 임시 상태 디렉토리
 supabase/.temp/
