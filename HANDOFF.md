@@ -141,7 +141,12 @@
 - 3.7 `is_day_off`(정기 휴진 요일 반복설정) — spec(`foundation-auth-data-model-design.md`) → plan(Task 18) → 마이그레이션 `00009_doctor_schedule_day_off.sql` → 스키마 테스트 2건 전부 TDD로 반영, 백엔드 전체 테스트 97개 PASS 확인, 커밋 완료(`b213974`)
 - Group A의 나머지 2단계 UI 반영분(휴진 체크박스 화면)은 Group B(`staff-web.md`) 몫으로 이월
 
-**다음 세션: Group B(직원웹)부터 시작.** 대상: 3.5 전역 환자검색+재확인 확대, 3.10 갭1 오래대기 건수 통계, 3.7 휴진일 체크박스 UI(`staff-web-design.md` 섹션7). 모두 `staff-web.md`/`staff-web-design.md`가 대상이며 2단계 코드는 아직 미구현(문서만).
+**Group B(직원웹) 완료(2026-07-30):**
+- 스펙(`staff-web-design.md`) 3.5/3.7/3.10 반영 커밋(`bc2b314`): `/patients` 전역 환자검색 화면 신설(섹션 4.5), "의사별 스케줄" 탭 정기휴진 체크박스, `/admin/stats`에 오래대기 사례 건수
+- 계획(`staff-web.md`) Task 23~25 추가 커밋(`53bbc00`): Task 23(휴진 슬롯 생성 제외), Task 24(전역 환자검색 백엔드+화면), Task 25(오래대기 통계 집계)
+- 2단계는 `frontend/`·`schedule_service` 등 실제 코드가 아직 없어 TDD 미실행 — 계획 문서에 절차만 코드로 명시. 실제 구현 시 `subagent-driven-development`/`executing-plans`로 Task 1~25 순서 실행 필요
+
+**다음 세션: Group C(환자앱)부터 시작.** 대상: 4.5 홈카드 변경·취소 버튼, 7 변경·취소 확인 다이얼로그. `patient-app.md`/`patient-app-design.md`가 대상, 3단계 코드도 미구현.
 
 **참고**: 로컬 Supabase가 이번 세션에서 시작됐고(`supabase start`), `backend/.env`·`backend/.venv`가 새로 생성됨(둘 다 gitignore 대상, 커밋 안 됨). 다음 세션에서 백엔드 테스트를 돌리려면 `supabase status`로 살아있는지 먼저 확인.
 
@@ -173,16 +178,16 @@
 | 상담봇 UI 티켓상태·시각구분 | 필요(`ai-chatbot-design.md` 섹션4) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
 | 시나리오10 CSV·드릴다운 | 필요(`ai-chatbot-design.md` 섹션4) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
 | 시나리오9 GET /staff 403 테스트 | 해당없음 | 필요(`deployment.md:530,541` 예시 코드) | 배포단계 미구현, 해당없음 | |
-| 3.5 전역 환자검색 + 재확인 확대 | 필요(`staff-web-design.md`) | 필요(`staff-web.md`) | 2단계 미구현, 해당없음 | |
-| 3.10 갭1 오래대기 건수 통계 | 필요(`staff-web-design.md:85`) | 필요(`staff-web.md`) | 2단계 미구현, 해당없음 | |
+| 3.5 전역 환자검색 + 재확인 확대 | ✅ 완료(`staff-web-design.md` 섹션 4.5) | ✅ 완료(Task 24) | 2단계 미구현(코드 없음), TDD는 향후 구현 시 Task 24 절차대로 | |
+| 3.10 갭1 오래대기 건수 통계 | ✅ 완료(`staff-web-design.md:85`) | ✅ 완료(Task 25) | 2단계 미구현(코드 없음), TDD는 향후 구현 시 Task 25 절차대로 | |
 | 3.10 갭2 전체질문 순위 통계 | 필요(`ai-chatbot-design.md`) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
-| 3.7 휴진일 반복설정(`is_day_off`) | ✅ 완료(`foundation-auth-data-model-design.md`) | ✅ 완료(Task 18) | ✅ 완료(마이그레이션 `00009`, 테스트 2건, 97개 전체 PASS) | 1단계 완료. `staff-web-design.md` 섹션7 체크박스 UI만 Group B로 이월 |
+| 3.7 휴진일 반복설정(`is_day_off`) | ✅ 완료(`foundation-auth-data-model-design.md` + `staff-web-design.md` 섹션7) | ✅ 완료(1단계 Task 18 + 2단계 Task 23) | 1단계 완료(마이그레이션 `00009`, 테스트 2건, 97개 전체 PASS). 2단계(슬롯생성 반영·체크박스 UI)는 코드 없음, TDD는 향후 Task 23 절차대로 | |
 | 3.8 갭① 진료과·의사소개 KB 하이브리드 | 필요(`ai-chatbot-design.md` KB `category` 목록에 "진료과·의사소개" 추가 + 하이브리드 근거 서술) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | `진료과의사_조회` 도구(실시간)는 유지, 소개성 글만 KB로 병행 |
 | 3.8 갭② 자주묻는질문 KB category | 필요(`ai-chatbot-design.md` KB `category` 목록에 "자주묻는질문" 추가) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | 3.10 갭2 "전체질문순위 통계"(사후 확인용)와 역할 다름 — 통계로 파악 후 이 category에 수동 등록하는 흐름 |
 
 **세션별 작업 단위(컨텍스트 관리용) — 문서(파일) 단위로 묶음, 한 세션당 한 그룹 권장:**
 - **Group A** DB/스키마(`foundation-auth-data-model.md` + `-design.md`): 6.1 RLS(완료), 3.7 `is_day_off`(Task 18 + TDD)
-- **Group B** 직원웹(`staff-web.md` + `-design.md`): 3.5 전역 환자검색, 3.10 갭1 오래대기 건수 통계, 3.7 휴진일 체크박스 UI
+- **Group B** 직원웹(`staff-web.md` + `-design.md`): 3.5 전역 환자검색, 3.10 갭1 오래대기 건수 통계, 3.7 휴진일 체크박스 UI — ✅ 완료(2026-07-30, 커밋 `bc2b314`/`53bbc00`)
 - **Group C** 환자앱(`patient-app.md` + `-design.md`): 4.5 홈카드 변경·취소 버튼, 7 확인 다이얼로그
 - **Group D** 챗봇(`ai-chatbot.md` + `-design.md`): 상담봇 UI 티켓상태·시각구분, 시나리오10 CSV·드릴다운, 3.10 갭2 전체질문순위 통계, 3.8 갭①·② KB category 2건(진료과·의사소개 하이브리드, 자주묻는질문)
 - **Group E** 검수·테스트(`deployment.md`): 시나리오2 연계테스트(Task 20), 시나리오9 `GET /staff` 403 예시 코드
