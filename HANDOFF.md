@@ -146,7 +146,12 @@
 - 계획(`staff-web.md`) Task 23~25 추가 커밋(`53bbc00`): Task 23(휴진 슬롯 생성 제외), Task 24(전역 환자검색 백엔드+화면), Task 25(오래대기 통계 집계)
 - 2단계는 `frontend/`·`schedule_service` 등 실제 코드가 아직 없어 TDD 미실행 — 계획 문서에 절차만 코드로 명시. 실제 구현 시 `subagent-driven-development`/`executing-plans`로 Task 1~25 순서 실행 필요
 
-**다음 세션: Group C(환자앱)부터 시작.** 대상: 4.5 홈카드 변경·취소 버튼, 7 변경·취소 확인 다이얼로그. `patient-app.md`/`patient-app-design.md`가 대상, 3단계 코드도 미구현.
+**Group C(환자앱) 완료(2026-07-30, 커밋 `5aaee12`):**
+- 스펙(`patient-app-design.md`) 섹션 4/6 반영: 취소 확인 다이얼로그("정말 취소하시겠습니까?") 문장 추가, 홈카드 구성요소에 변경·취소 버튼 추가
+- 계획(`patient-app.md`) Task 22 홈 화면 예시 코드에 변경/취소 버튼 2개 추가(새 로직 없음 — `/appointments/:id`로 이동만, 실제 확인 다이얼로그·변경 로직은 Task 20에 이미 존재)
+- 3단계는 `mobile/` 코드가 아직 없어 TDD 미실행 — 실제 구현 시 Task 20~22 절차대로 진행
+
+**다음 세션: Group D(챗봇)부터 시작.** 대상: 상담봇 UI 티켓상태·시각구분, 시나리오10 CSV·드릴다운, 3.10 갭2 전체질문순위 통계, 3.8 갭①·② KB category 2건(진료과·의사소개 하이브리드, 자주묻는질문). `ai-chatbot.md`/`ai-chatbot-design.md`가 대상, 4단계 코드도 미구현.
 
 **참고**: 로컬 Supabase가 이번 세션에서 시작됐고(`supabase start`), `backend/.env`·`backend/.venv`가 새로 생성됨(둘 다 gitignore 대상, 커밋 안 됨). 다음 세션에서 백엔드 테스트를 돌리려면 `supabase status`로 살아있는지 먼저 확인.
 
@@ -167,13 +172,13 @@
 | 갭 | specs 수정(brainstorming) | plans 수정(writing-plans) | 실제 코드(TDD) | 비고 |
 |---|---|---|---|---|
 | 6.1 RLS(사전문진 접근제한) | ✅ 반영 완료(`foundation-auth-data-model-design.md`) | 불필요 | 불필요 — 코드 이미 정상(검증완료) | `supabase/migrations/00007_questionnaire.sql`의 `assigned_doctor_can_read_responses`가 이미 담당의사·관리자로 제한 중 |
-| 4.5 홈카드 변경·취소 버튼 | 필요(`patient-app-design.md:66`) | 필요(`patient-app.md`) | 3단계 미구현, 해당없음 | |
+| 4.5 홈카드 변경·취소 버튼 | ✅ 완료(`patient-app-design.md` 섹션6) | ✅ 완료(Task 22) | 3단계 미구현, 해당없음 | |
 | 4.6 환자공개 안내문 입력란 | 필요(`staff-web-design.md` 섹션6) | 불필요 — 이미 있음 | 해당없음 | `patient_visible_notes`는 plans에 이미 존재 |
 | 4.4 챗봇 자동수집 범위 | 변경 없음(현행 유지 결정) | 변경 없음 | 해당없음 | |
 | 5.2 챗봇 처리대상 예시 나열 | 필요(`ai-chatbot-design.md:195`) | 불필요 | 해당없음 | 예시 목록 보강뿐 |
 | 직원용 웹 빠른입력 UX | 필요(한 줄 메모, `staff-web-design.md`) | 구현 시 확정 | 2단계 미구현, 해당없음 | |
 | 6.5 비밀번호 문구 | 필요(`foundation-auth-data-model-design.md` 섹션1) | 불필요 | 해당없음 | |
-| 7 변경·취소 확인 다이얼로그 | 필요(`patient-app-design.md:52~55`) | 필요(`patient-app.md`) | 3단계 미구현, 해당없음 | |
+| 7 변경·취소 확인 다이얼로그 | ✅ 완료(`patient-app-design.md` 섹션4) | ✅ 이미 있었음(Task 20, 2026-07-28 별개 검토) | 3단계 미구현, 해당없음 | |
 | 시나리오2 문진→행동형 연계 테스트 | 해당없음 | 필요(`deployment.md` Task 20) | 배포단계 미구현, 해당없음 | |
 | 상담봇 UI 티켓상태·시각구분 | 필요(`ai-chatbot-design.md` 섹션4) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
 | 시나리오10 CSV·드릴다운 | 필요(`ai-chatbot-design.md` 섹션4) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
@@ -188,7 +193,7 @@
 **세션별 작업 단위(컨텍스트 관리용) — 문서(파일) 단위로 묶음, 한 세션당 한 그룹 권장:**
 - **Group A** DB/스키마(`foundation-auth-data-model.md` + `-design.md`): 6.1 RLS(완료), 3.7 `is_day_off`(Task 18 + TDD)
 - **Group B** 직원웹(`staff-web.md` + `-design.md`): 3.5 전역 환자검색, 3.10 갭1 오래대기 건수 통계, 3.7 휴진일 체크박스 UI — ✅ 완료(2026-07-30, 커밋 `bc2b314`/`53bbc00`)
-- **Group C** 환자앱(`patient-app.md` + `-design.md`): 4.5 홈카드 변경·취소 버튼, 7 확인 다이얼로그
+- **Group C** 환자앱(`patient-app.md` + `-design.md`): 4.5 홈카드 변경·취소 버튼, 7 확인 다이얼로그 — ✅ 완료(2026-07-30, 커밋 `5aaee12`)
 - **Group D** 챗봇(`ai-chatbot.md` + `-design.md`): 상담봇 UI 티켓상태·시각구분, 시나리오10 CSV·드릴다운, 3.10 갭2 전체질문순위 통계, 3.8 갭①·② KB category 2건(진료과·의사소개 하이브리드, 자주묻는질문)
 - **Group E** 검수·테스트(`deployment.md`): 시나리오2 연계테스트(Task 20), 시나리오9 `GET /staff` 403 예시 코드
 - **Group F** specs 문장만 가벼운 보강(plans 변경 불필요, 자투리 시간에 처리 가능): 4.6/5.2/6.5/직원웹UX메모
