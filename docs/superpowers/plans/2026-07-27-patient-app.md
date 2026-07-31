@@ -6788,6 +6788,21 @@ class HomeScreen extends ConsumerWidget {
                   onPressed: () => context.go('/appointments/${appointment.id}'),
                   child: const Text('예약 상세'),
                 ),
+                // [요구사항 4.5] 홈 카드의 변경·취소는 빠른 실행(shortcut)일 뿐, 실제 절차(확인
+                // 다이얼로그 포함)는 상세화면(Task 20, appointment_detail_screen.dart)이 그대로
+                // 담당한다 — 여기서 새로 만들지 않고 같은 라우트로 이동만 시킨다.
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => context.go('/appointments/${appointment.id}'),
+                      child: const Text('변경'),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go('/appointments/${appointment.id}'),
+                      child: const Text('취소'),
+                    ),
+                  ],
+                ),
               ],
             ),
           );
