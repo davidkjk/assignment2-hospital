@@ -52,6 +52,7 @@ backend/app/
   services/answer_feedback_service.py  # 오답 신고/정기검토/반영
   services/qa_example_bank_service.py  # 품질개선 사이클: 예시 등록/검색/비활성화
   services/bot_stats_service.py    # 상담봇 처리 현황 집계
+  services/answer_visual.py        # 답변 시각 구분(의료/일반) 카테고리 매핑 (Group D①)
   routers/chat.py                  # 환자/익명용 상담 API
   routers/staff_chat.py             # 직원용 티켓/상담기록 API
   routers/admin_kb.py               # 관리자용 KB/오답/품질리포트/현황 API
@@ -6173,6 +6174,890 @@ git commit -m "feat: 예약 완료 시 사전문진 카드 자동 1회 부착 (A
 
 ---
 
+## Task 22: 답변 시각 구분(의료/일반) + 인계 후 티켓 상태 배지 (요구사항 "상담봇" 절 UI, 스펙 섹션4 — Group D①)
+
+`ai-chatbot-design.md`(2026-07-30 갱신) 대조 검토에서 발견된 갭 2건 반영: 봇 답변이 의료적 내용인지 일반 병원 안내인지 시각적으로 구분되지 않는 문제, 인계 후 환자 화면에 티켓 처리 상태가 계속 보이지 않는 문제.
+
+**Files:**
+- Create: `backend/app/services/answer_visual.py`
+- Create: `backend/tests/test_answer_visual.py`
+- Modify: `backend/app/services/rag_chain.py`(Task 7)
+- Modify: `backend/tests/test_rag_chain.py`(Task 7)
+- Modify: `backend/app/services/chat_service.py`(Task 11)
+- Modify: `backend/tests/test_chat_service.py`(Task 11)
+- Modify: `backend/app/services/ticket_service.py`(Task 12)
+- Modify: `backend/tests/test_ticket_service.py`(Task 12/20)
+- Modify: `backend/app/routers/chat.py`(Task 14)
+- Modify: `backend/tests/test_chat_routes.py`(Task 14)
+- Modify: `webchat/src/ChatWindow.tsx`(Task 18)
+- Modify: `mobile/lib/features/chat/chat_screen.dart`, `chat_models.dart`, `chat_controller.dart`(Task 19)
+
+**Interfaces:**
+- Consumes: `rag_search_service.search`(Task 6), `app.db.pool.get_pool`, `chat_service._authorize`(Task 11), `ticket_service.is_business_hours`(Task 12)
+- Produces: `app.services.answer_visual.categorize_answer(category: str | None) -> "medical" | "general" | None`
+- Produces: `rag_chain.answer(...) -> dict` — 기존 키에 `"category": str | None`(매칭된 자료의 `kb_documents.category`, 검색 실패 시 `None`) 추가
+- Produces: `chat_service.post_message(...) -> dict` — 기존 키에 `"route_taken": str | None`, `"answer_category": "medical" | "general" | None`(rag 갈래일 때만 채워짐, 그 외엔 `None`) 추가
+- Produces: `ticket_service.get_ticket_status_for_conversation(conversation_id: UUID) -> dict | None` — `{"status": "pending"|"in_progress"|"answered", "is_business_hours": bool}`, 인계 티켓이 없으면 `None`
+- Produces: `GET /chat/conversations/{id}/ticket-status`(환자/익명 — `X-Anon-Session` 지원, 404 if 티켓 없음)
+
+- [ ] **Step 1: 실패하는 테스트 작성 — answer_visual**
+
+`backend/tests/test_answer_visual.py`:
+```python
+from app.services.answer_visual import categorize_answer
+
+
+def test_categorize_medical_categories():
+    assert categorize_answer("검사준비") == "medical"
+    assert categorize_answer("진료과·의사소개") == "medical"
+
+
+def test_categorize_general_categories():
+    assert categorize_answer("진료시간") == "general"
+    assert categorize_answer("위치·주차") == "general"
+    assert categorize_answer("예약규칙") == "general"
+    assert categorize_answer("자주묻는질문") == "general"
+    assert categorize_answer("기타") == "general"
+
+
+def test_categorize_none_when_no_category():
+    assert categorize_answer(None) is None
+```
+
+Run: `cd backend && pytest tests/test_answer_visual.py -v`
+Expected: FAIL (모듈 없음)
+
+- [ ] **Step 2: answer_visual 구현**
+
+`backend/app/services/answer_visual.py`:
+```python
+MEDICAL_CATEGORIES = {"검사준비", "진료과·의사소개"}
+
+
+def categorize_answer(category: str | None) -> str | None:
+    """kb_documents.category를 환자 화면 표시용 "medical"/"general"로 매핑한다.
+    요구사항 7절 "의료 안내와 일반 병원 안내를 시각적으로 구분"."""
+    if category is None:
+        return None
+    return "medical" if category in MEDICAL_CATEGORIES else "general"
+```
+
+Run: `cd backend && pytest tests/test_answer_visual.py -v`
+Expected: PASS
+
+- [ ] **Step 3: 실패하는 테스트 작성 — rag_chain.answer의 category 필드**
+
+`backend/tests/test_rag_chain.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_answer_includes_matched_category(service_conn, admin_staff):
+    from app.services import kb_service, rag_chain
+
+    doc_id = await kb_service.create_document(
+        admin_staff, title="검사 전 준비사항", category="검사준비", content="검사 전 8시간 금식하세요"
+    )
+    await kb_service.approve_document(admin_staff, doc_id, embedder=FakeEmbedding())
+
+    fake_model = FakeListChatModel(responses=["검사 전 8시간 금식하셔야 해요."])
+    result = await rag_chain.answer("검사 전에 뭐 준비해요?", embedder=FakeEmbedding(), model=fake_model)
+
+    assert result["category"] == "검사준비"
+
+
+@pytest.mark.asyncio
+async def test_answer_no_hits_category_is_none():
+    from app.services import rag_chain
+
+    fake_model = FakeListChatModel(responses=["이 답은 나오면 안 됨"])
+    result = await rag_chain.answer("아무 질문", embedder=FakeEmbedding(), model=fake_model)
+
+    assert result["category"] is None
+```
+
+Run: `cd backend && pytest tests/test_rag_chain.py -v`
+Expected: 새 테스트 2개 FAIL (`KeyError: 'category'`)
+
+- [ ] **Step 4: rag_chain.answer에 category 추가**
+
+`backend/app/services/rag_chain.py` 상단 import에 `from app.db.pool import get_pool` 추가. `answer()`를 다음으로 교체:
+```python
+async def answer(query: str, embedder=None, model=None) -> dict:
+    results = await rag_search_service.search(query, embedder=embedder)
+    if not results:
+        return {"text": NO_RESULT_REPLY, "source_chunk_ids": [], "category": None}
+
+    pool = await get_pool()
+    category = await pool.fetchval(
+        "select category from kb_documents where id = $1", results[0]["document_id"]
+    )
+
+    if results[0]["is_restricted"]:
+        # 관리자가 "답하면 안 되는 내용"으로 등록한 자료 — AI가 문구를 바꾸지 않도록 그대로 반환 (요구사항 3.8)
+        return {"text": results[0]["content"], "source_chunk_ids": [results[0]["chunk_id"]], "category": category}
+
+    context = "\n\n".join(f"[{r['title']}] {r['content']}" for r in results)
+    chain = _PROMPT | (model or get_chat_model()) | StrOutputParser()
+    text = await chain.ainvoke({"context": context, "query": query})
+    return {"text": text, "source_chunk_ids": [r["chunk_id"] for r in results], "category": category}
+```
+
+- [ ] **Step 5: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_rag_chain.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 6: 실패하는 테스트 작성 — chat_service.post_message의 route_taken/answer_category**
+
+`backend/tests/test_chat_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_post_message_includes_route_taken_and_answer_category(service_conn, monkeypatch):
+    from app.services import chat_service
+
+    async def no_escalation(*args, **kwargs):
+        return None
+
+    async def route_rag(*args, **kwargs):
+        return "rag"
+
+    async def fake_rag_answer(query, embedder=None, model=None):
+        return {"text": "검사 전 8시간 금식하세요.", "source_chunk_ids": ["c1"], "category": "검사준비"}
+
+    monkeypatch.setattr(chat_service.safety_watchdog, "check_escalation", no_escalation)
+    monkeypatch.setattr(chat_service, "classify_route", route_rag)
+    monkeypatch.setattr(chat_service.rag_chain, "answer", fake_rag_answer)
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    result = await chat_service.post_message(
+        conv["conversation_id"], "검사 전에 뭐 준비해요?", anon_token=conv["anon_session_token"],
+    )
+
+    assert result["route_taken"] == "rag"
+    assert result["answer_category"] == "medical"
+
+
+@pytest.mark.asyncio
+async def test_post_message_agent_route_has_no_answer_category(service_conn, monkeypatch):
+    from app.services import chat_service
+
+    async def no_escalation(*args, **kwargs):
+        return None
+
+    async def route_agent(*args, **kwargs):
+        return "agent"
+
+    async def fake_agent_run(query, ctx, model=None):
+        return {"text": "빈 시간이 있어요.", "card": None, "source_chunk_ids": []}
+
+    monkeypatch.setattr(chat_service.safety_watchdog, "check_escalation", no_escalation)
+    monkeypatch.setattr(chat_service, "classify_route", route_agent)
+    monkeypatch.setattr(chat_service.agent_chain, "run", fake_agent_run)
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    result = await chat_service.post_message(
+        conv["conversation_id"], "내과 예약 시간 알려주세요", anon_token=conv["anon_session_token"],
+    )
+
+    assert result["route_taken"] == "agent"
+    assert result["answer_category"] is None
+```
+
+Run: `cd backend && pytest tests/test_chat_service.py -v`
+Expected: 새 테스트 2개 FAIL (`KeyError: 'route_taken'`)
+
+- [ ] **Step 7: chat_service.post_message 반환값에 route_taken/answer_category 추가**
+
+`backend/app/services/chat_service.py` 상단 import에 `from app.services.answer_visual import categorize_answer` 추가. `else:` 라우터 분기의 `if route == "rag":` 블록에서 `reply, source_chunk_ids, route_taken = result["text"], result["source_chunk_ids"], "rag"`를 다음으로 교체:
+```python
+                        reply, source_chunk_ids, route_taken = result["text"], result["source_chunk_ids"], "rag"
+                        kb_category = result["category"]
+```
+`try` 블록 진입 전 변수 선언부(`source_chunk_ids: list = []` 근처)에 `kb_category: str | None = None`을 추가한다. 마지막 `return` 문을 다음으로 교체:
+```python
+    return {
+        "reply": reply, "message_type": message_type, "card": card, "handed_over": handed_over,
+        "route_taken": route_taken, "answer_category": categorize_answer(kb_category),
+    }
+```
+(`kb_category`는 `route == "rag"`로 성공 처리된 경우에만 값이 채워지므로, 다른 갈래는 자동으로 `answer_category = None`이 된다.) `handed_over` 조기 반환문(`인계된 방에서는 봇이 침묵` 블록)에도 `"route_taken": None, "answer_category": None`을 추가한다.
+
+- [ ] **Step 8: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_chat_service.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 9: 실패하는 테스트 작성 — 티켓 상태 조회**
+
+`backend/tests/test_ticket_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_get_ticket_status_for_conversation(service_conn):
+    from app.services import chat_service, ticket_service
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    await ticket_service.create_ticket(
+        conversation_id=conv["conversation_id"], patient=None, reason="no_answer",
+        summary_question="q", summary_confirmed="", summary_guided="",
+        summary_unresolved="", summary_staff_todo="",
+    )
+
+    status = await ticket_service.get_ticket_status_for_conversation(conv["conversation_id"])
+
+    assert status["status"] == "pending"
+    assert "is_business_hours" in status
+
+
+@pytest.mark.asyncio
+async def test_get_ticket_status_none_when_no_ticket(service_conn):
+    from app.services import chat_service, ticket_service
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+
+    status = await ticket_service.get_ticket_status_for_conversation(conv["conversation_id"])
+
+    assert status is None
+```
+
+Run: `cd backend && pytest tests/test_ticket_service.py -v`
+Expected: 새 테스트 2개 FAIL (`AttributeError`)
+
+- [ ] **Step 10: ticket_service.get_ticket_status_for_conversation 구현**
+
+`backend/app/services/ticket_service.py` 끝에 추가:
+```python
+async def get_ticket_status_for_conversation(conversation_id: UUID) -> dict | None:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "select status from support_tickets where conversation_id = $1 "
+        "order by created_at desc limit 1",
+        conversation_id,
+    )
+    if row is None:
+        return None
+    return {"status": row["status"], "is_business_hours": is_business_hours()}
+```
+
+- [ ] **Step 11: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_ticket_service.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 12: 실패하는 테스트 작성 — 라우터**
+
+`backend/tests/test_chat_routes.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_ticket_status_endpoint(client, monkeypatch):
+    from app.routers import chat as chat_router
+    from tests.test_kb_service import FakeEmbedding
+
+    monkeypatch.setattr(chat_router, "_model_factory", lambda: None)
+    monkeypatch.setattr(chat_router, "_embedder_factory", lambda: FakeEmbedding())
+
+    r = await client.post("/chat/conversations", json={"channel": "web"})
+    conv_id = r.json()["conversation_id"]
+    token = r.json()["anon_session_token"]
+
+    # 아직 인계 전 — 404
+    r = await client.get(
+        f"/chat/conversations/{conv_id}/ticket-status", headers={"X-Anon-Session": token},
+    )
+    assert r.status_code == 404
+
+    from app.services import ticket_service
+    await ticket_service.create_ticket(
+        conversation_id=conv_id, patient=None, reason="no_answer",
+        summary_question="q", summary_confirmed="", summary_guided="",
+        summary_unresolved="", summary_staff_todo="",
+    )
+
+    r = await client.get(
+        f"/chat/conversations/{conv_id}/ticket-status", headers={"X-Anon-Session": token},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "pending"
+```
+
+Run: `cd backend && pytest tests/test_chat_routes.py -v`
+Expected: 새 테스트 FAIL (엔드포인트 없음, 404 대신 다른 오류)
+
+- [ ] **Step 13: 라우터에 엔드포인트 추가**
+
+`backend/app/routers/chat.py`에 추가(기존 `post_message` 등록부 근처):
+```python
+@router.get("/conversations/{conversation_id}/ticket-status")
+async def get_ticket_status(
+    conversation_id: UUID, request: Request,
+    x_anon_session: str | None = Header(default=None),
+):
+    patient = await get_optional_patient(request)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await chat_service._authorize(conn, conversation_id, patient, x_anon_session)
+    status = await ticket_service.get_ticket_status_for_conversation(conversation_id)
+    if status is None:
+        raise AppError("연결된 상담 문의가 없어요.", 404)
+    return status
+```
+
+- [ ] **Step 14: 테스트 실행 후 Commit**
+
+Run: `cd backend && pytest tests/test_answer_visual.py tests/test_rag_chain.py tests/test_chat_service.py tests/test_ticket_service.py tests/test_chat_routes.py -v`
+Expected: 전체 PASS
+
+```bash
+git add backend/app/services/answer_visual.py backend/app/services/rag_chain.py backend/app/services/chat_service.py backend/app/services/ticket_service.py backend/app/routers/chat.py backend/tests/test_answer_visual.py backend/tests/test_rag_chain.py backend/tests/test_chat_service.py backend/tests/test_ticket_service.py backend/tests/test_chat_routes.py
+git commit -m "feat: 답변 의료/일반 시각구분 + 인계 후 티켓 상태 조회 API (요구사항 7 상담봇 UI)"
+```
+
+- [ ] **Step 15: 프런트엔드 반영**
+
+`webchat/src/ChatWindow.tsx`(Task 18)와 `mobile/lib/features/chat/chat_screen.dart`(Task 19)는 이미 각 메시지의 `routeTaken`/`route_taken`을 파싱하고 있다(문진 배너용). 여기에 다음을 추가한다:
+- 봇 말풍선 렌더링 시 `answer_category === "medical"`이면 의료 아이콘·연한 파란 배경, `"general"`이면 기본 스타일 — 웹은 `ChatWindow.tsx`의 봇 말풍선 컴포넌트에 `className={answerCategory === "medical" ? "bubble-medical" : "bubble-general"}`, Flutter는 `chat_models.dart`의 `ChatMessage`에 `answerCategory` 필드 추가 후 `chat_screen.dart`에서 동일하게 분기
+- `handedOver === true`가 된 이후, `chat_screen.dart`/`ChatWindow.tsx`는 상단에 `GET /chat/conversations/{id}/ticket-status`를 호출해 상태 배지(대기중/직원 확인중/답변완료)를 표시한다. 앱은 이미 해당 상담방의 `chat_messages` Realtime을 구독 중이므로(Task 19), 직원 답변 도착 시 함께 상태를 다시 조회해 배지를 갱신한다. 예상 답변시간 문구는 Task 11의 인계 시스템 메시지("업무시간에는 곧, 업무시간이 아니면 다음 영업일...")로 이미 1회 노출되므로 별도 문구를 새로 만들지 않는다
+
+---
+
+## Task 23: 상담봇 처리 현황 — CSV 다운로드 + 숫자 카드 드릴다운 (시나리오10, 스펙 섹션4 — Group D②)
+
+`/admin/stats`(2단계)와 동일한 상호작용 패턴을 상담봇 처리 현황 화면에도 적용한다.
+
+**Files:**
+- Modify: `backend/app/services/bot_stats_service.py`(Task 13)
+- Modify: `backend/tests/test_answer_feedback_service.py`(Task 13, `bot_stats_service` 테스트가 이 파일에 있음)
+- Modify: `backend/app/routers/admin_kb.py`(Task 14)
+- Modify: `backend/tests/test_chat_routes.py`(Task 14)
+- Modify: `frontend/src/features/admin/kb/BotStatsPage.tsx`(Task 17)
+
+**Interfaces:**
+- Consumes: `bot_stats_service.get_stats`(Task 13)
+- Produces: `app.services.bot_stats_service.export_stats_csv(staff, from_date, to_date) -> str` — CSV 텍스트(헤더: `항목,값`)
+- Produces: `GET /admin/kb/stats/export?from=&to=` — `text/csv` 응답
+- Produces (프론트): `BotStatsPage`의 각 숫자 카드가 클릭 가능해지고, `/admin/chat?channel=&route_taken=&status=` 등 기존 상담 관리 화면(Task 16)으로 쿼리스트링과 함께 이동
+
+- [ ] **Step 1: 실패하는 테스트 작성 — CSV 생성**
+
+`backend/tests/test_answer_feedback_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_export_stats_csv_contains_counts(service_conn, admin_staff):
+    from datetime import date, timedelta
+    from app.services import bot_stats_service
+
+    await service_conn.execute("insert into chat_conversations (channel) values ('web'), ('app')")
+
+    csv_text = await bot_stats_service.export_stats_csv(
+        admin_staff, date.today() - timedelta(days=1), date.today() + timedelta(days=1),
+    )
+
+    assert "항목,값" in csv_text
+    assert "앱 상담 수" in csv_text
+    assert "웹 상담 수" in csv_text
+```
+
+Run: `cd backend && pytest tests/test_answer_feedback_service.py -v`
+Expected: 새 테스트 FAIL (`export_stats_csv` 없음)
+
+- [ ] **Step 2: bot_stats_service.export_stats_csv 구현**
+
+`backend/app/services/bot_stats_service.py` 끝에 추가:
+```python
+import csv
+import io
+
+
+async def export_stats_csv(staff: StaffContext, from_date: date, to_date: date) -> str:
+    stats = await get_stats(staff, from_date, to_date)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["항목", "값"])
+    writer.writerow(["앱 상담 수", stats["conversations_app"]])
+    writer.writerow(["웹 상담 수", stats["conversations_web"]])
+    for route, count in stats["routes"].items():
+        writer.writerow([f"갈래별 분포 - {route}", count])
+    for reason, count in stats["handoffs_by_reason"].items():
+        writer.writerow([f"인계 사유 - {reason}", count])
+    writer.writerow(["오답 신고 수", stats["feedback_count"]])
+    return buf.getvalue()
+```
+(파일 상단에 `StaffContext`, `date` import가 이미 있는지 확인 — Task 13에서 `get_stats` 정의 시 이미 import돼 있음)
+
+- [ ] **Step 3: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_answer_feedback_service.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 4: 실패하는 테스트 작성 — 라우터**
+
+`backend/tests/test_chat_routes.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_stats_export_endpoint(client, admin_auth_headers, service_conn):
+    from datetime import date, timedelta
+
+    await service_conn.execute("insert into chat_conversations (channel) values ('web')")
+
+    r = await client.get(
+        "/admin/kb/stats/export",
+        params={"from": str(date.today() - timedelta(days=1)), "to": str(date.today() + timedelta(days=1))},
+        headers=admin_auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    assert "항목,값" in r.text
+```
+
+Run: `cd backend && pytest tests/test_chat_routes.py -v`
+Expected: 새 테스트 FAIL (엔드포인트 없음)
+
+- [ ] **Step 5: 라우터에 엔드포인트 추가**
+
+`backend/app/routers/admin_kb.py`에 추가(기존 `GET /admin/kb/stats` 등록부 근처):
+```python
+from fastapi.responses import PlainTextResponse
+
+
+@router.get("/kb/stats/export")
+async def export_stats(
+    from_: date, to: date, staff: StaffContext = Depends(require_role("admin")),
+):
+    csv_text = await bot_stats_service.export_stats_csv(staff, from_, to)
+    return PlainTextResponse(content=csv_text, media_type="text/csv")
+```
+
+- [ ] **Step 6: 테스트 실행 후 Commit**
+
+Run: `cd backend && pytest tests/test_answer_feedback_service.py tests/test_chat_routes.py -v`
+Expected: 전체 PASS
+
+```bash
+git add backend/app/services/bot_stats_service.py backend/app/routers/admin_kb.py backend/tests/test_answer_feedback_service.py backend/tests/test_chat_routes.py
+git commit -m "feat: 상담봇 처리 현황 CSV 다운로드 (시나리오10 갭①)"
+```
+
+- [ ] **Step 7: 프론트엔드 — CSV 다운로드 버튼 + 드릴다운**
+
+`frontend/src/features/admin/kb/BotStatsPage.tsx`(Task 17)에 다음을 추가:
+- 상단에 `CSV 다운로드` 버튼 — 클릭 시 `GET /admin/kb/stats/export?from=&to=`를 호출해 응답 텍스트를 `Blob`으로 만들어 `<a download>`로 저장(2단계 `/admin/stats` CSV 버튼과 동일 패턴 재사용)
+- 앱 상담 수/웹 상담 수 카드 클릭 → `/admin/chat?channel=app`(또는 `web`)로 이동
+- 갈래별 분포(안내형/진료과추천형/행동형) 각 항목 클릭 → `/admin/chat?route_taken=rag`(해당 값)로 이동
+- 인계 건수 카드 클릭 → `/admin/chat/tickets?status=pending`(전체 인계 목록), 인계 사유별 항목 클릭 → `/admin/chat/tickets?reason=no_answer`(해당 사유)로 이동
+- (대상 라우트 `/admin/chat`, `/admin/chat/tickets`는 Task 16에서 이미 정의된 상담 관리·티켓함 화면 — 쿼리스트링 필터만 이번 태스크에서 추가로 소비하도록 해당 페이지의 초기 필터 상태를 URL에서 읽어오게 한다)
+
+- [ ] **Step 8: 프론트엔드 테스트 실행 후 Commit**
+
+Run: `cd frontend && npm test -- BotStatsPage.test.tsx`
+Expected: PASS (기존 테스트에 다운로드 버튼·링크 존재 여부 검증 케이스 추가)
+
+```bash
+git add frontend/src/features/admin/kb/BotStatsPage.tsx frontend/src/features/admin/kb/BotStatsPage.test.tsx
+git commit -m "feat: 상담봇 처리 현황 화면 CSV 다운로드·숫자카드 드릴다운 (시나리오10 갭②)"
+```
+
+---
+
+## Task 24: 전체 질문 순위 통계 (3.10절 갭2, 스펙 섹션 2/4 — Group D③)
+
+답변 성공 여부와 무관하게 환자 질문 전체를 대상으로 "가장 많이 들어온 질문 TOP N"을 집계한다. 미해결 질문 모아보기(Task 13 `question_cluster_service`)와 클러스터링 방식은 같지만, 대상이 "답 못 찾은 티켓"이 아니라 "환자가 보낸 모든 메시지"라는 점이 다르다.
+
+**Files:**
+- Modify: `supabase/migrations/00300_chat_tables.sql`(Task 1)
+- Modify: `backend/tests/test_chat_tables_schema.py`(Task 1)
+- Modify: `backend/app/services/chat_service.py`(Task 11) — 환자 메시지 저장 시 `question_embedding` 채우기
+- Modify: `backend/tests/test_chat_service.py`(Task 11)
+- Modify: `backend/app/services/question_cluster_service.py`(Task 13)
+- Modify: `backend/tests/test_question_cluster_service.py`(Task 13)
+- Modify: `backend/app/routers/admin_kb.py`(Task 14)
+- Modify: `backend/tests/test_chat_routes.py`(Task 14)
+- Create: `frontend/src/features/admin/kb/TopQuestionsPage.tsx`
+- Create: `frontend/src/features/admin/kb/TopQuestionsPage.test.tsx`
+- Modify: `frontend/src/App.tsx` 또는 관리자 라우트 파일(Task 17에서 관리자 메뉴 라우트가 정의된 파일 — 예: `frontend/src/features/admin/AdminRoutes.tsx`)
+
+**Interfaces:**
+- Consumes: `question_cluster_service.cluster_by_similarity`(Task 13), `app.integrations.embedding_client.get_embedding_client`(Task 4), `app.services.kb_service._vec_literal`(Task 5)
+- Produces: `chat_messages.question_embedding vector(1536)` 컬럼(마이그레이션)
+- Produces: `app.services.question_cluster_service.list_top_questions(staff, from_date, to_date, threshold=0.82) -> list[dict]` — `sender='patient'`인 `chat_messages` 전체(답변 성공/실패 무관)를 대상으로 `[{"sample_question": str, "count": int, "message_ids": list[UUID]}]` 반환(개수 내림차순)
+- Produces: `GET /admin/kb/top-questions?from=&to=`
+
+- [ ] **Step 1: 실패하는 스키마 테스트 작성**
+
+`backend/tests/test_chat_tables_schema.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_chat_messages_has_question_embedding_column(service_conn):
+    cols = {
+        r["column_name"]
+        for r in await service_conn.fetch(
+            "select column_name from information_schema.columns where table_name = 'chat_messages'"
+        )
+    }
+    assert "question_embedding" in cols
+```
+
+Run: `cd backend && pytest tests/test_chat_tables_schema.py -v`
+Expected: 새 테스트 FAIL (컬럼 없음)
+
+- [ ] **Step 2: 마이그레이션 수정**
+
+`supabase/migrations/00300_chat_tables.sql`의 `create table chat_messages (...)` 정의에서 `route_taken` 컬럼 다음 줄에 추가:
+```sql
+  question_embedding vector(1536),                 -- sender='patient' 메시지에만 채워짐 (전체 질문 순위 통계용, 요구사항 3.10)
+```
+(4단계 코드가 아직 구현 전이라 새 마이그레이션 파일을 따로 만들지 않고 Task 1의 원본을 직접 수정한다 — Task 2의 `create extension if not exists vector;`가 Task 1보다 나중에 실행되므로, `chat_messages` 마이그레이션 파일 맨 위에 `create extension if not exists vector;`를 추가해 순서 의존성을 없앤다.)
+
+파일 최상단에 추가:
+```sql
+create extension if not exists vector;
+
+```
+
+- [ ] **Step 3: 테스트 통과 확인**
+
+Run: `supabase db reset && cd backend && pytest tests/test_chat_tables_schema.py -v`
+Expected: PASS
+
+- [ ] **Step 4: 실패하는 테스트 작성 — 환자 메시지 저장 시 임베딩**
+
+`backend/tests/test_chat_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_patient_message_gets_question_embedding(service_conn, monkeypatch):
+    from app.services import chat_service
+    from tests.test_kb_service import FakeEmbedding
+
+    async def no_escalation(*args, **kwargs):
+        return None
+
+    async def route_rag(*args, **kwargs):
+        return "rag"
+
+    async def fake_rag_answer(query, embedder=None, model=None):
+        return {"text": "안내드릴게요.", "source_chunk_ids": [], "category": None}
+
+    monkeypatch.setattr(chat_service.safety_watchdog, "check_escalation", no_escalation)
+    monkeypatch.setattr(chat_service, "classify_route", route_rag)
+    monkeypatch.setattr(chat_service.rag_chain, "answer", fake_rag_answer)
+
+    conv = await chat_service.start_conversation(channel="web", patient=None)
+    await chat_service.post_message(
+        conv["conversation_id"], "주차 되나요?", anon_token=conv["anon_session_token"],
+        embedder=FakeEmbedding(),
+    )
+
+    row = await service_conn.fetchrow(
+        "select question_embedding from chat_messages where conversation_id = $1 and sender = 'patient'",
+        conv["conversation_id"],
+    )
+    assert row["question_embedding"] is not None
+```
+
+Run: `cd backend && pytest tests/test_chat_service.py -v`
+Expected: 새 테스트 FAIL (컬럼은 있지만 항상 null)
+
+- [ ] **Step 5: chat_service.post_message에서 환자 메시지 임베딩 저장**
+
+`backend/app/services/chat_service.py` 상단 import에 다음 추가:
+```python
+from app.integrations.embedding_client import get_embedding_client
+from app.services.kb_service import _vec_literal
+```
+`post_message` 안의 환자 메시지 insert 두 곳(인계된 방 조기 반환 블록, 일반 흐름 블록) 앞에 아래 헬퍼 호출을 추가하고, insert 문에 `question_embedding` 컬럼을 포함시킨다:
+```python
+async def _embed_question(content: str, embedder=None) -> str | None:
+    try:
+        embedder = embedder or get_embedding_client()
+        [vec] = await embedder.embed([content])
+        return _vec_literal(vec)
+    except Exception:
+        return None  # 임베딩 실패해도 메시지 저장 자체는 막지 않음(부가 기능) — question_cluster_service가 null은 자동 제외
+```
+두 insert 문을 각각 다음으로 교체:
+```python
+        question_embedding = await _embed_question(content, embedder)
+        await conn.execute(
+            "insert into chat_messages (conversation_id, sender, content, question_embedding) "
+            "values ($1, 'patient', $2, $3::vector)",
+            conversation_id, content, question_embedding,
+        )
+```
+(인계된 방 조기 반환 블록의 insert도 동일하게 교체 — 단 그 블록은 `embedder` 인자가 이미 함수 시그니처에 있으므로 그대로 전달)
+
+- [ ] **Step 6: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_chat_service.py -v`
+Expected: 전체 PASS
+
+- [ ] **Step 7: 실패하는 테스트 작성 — list_top_questions**
+
+`backend/tests/test_question_cluster_service.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_list_top_questions_counts_all_regardless_of_answer_success(service_conn, admin_staff):
+    from app.services import chat_service, question_cluster_service
+    from tests.test_kb_service import FakeEmbedding
+    from datetime import date, timedelta
+
+    conv1 = await chat_service.start_conversation(channel="web", patient=None)
+    conv2 = await chat_service.start_conversation(channel="web", patient=None)
+
+    async def no_escalation(*args, **kwargs):
+        return None
+
+    async def route_rag(*args, **kwargs):
+        return "rag"
+
+    async def answered_ok(query, embedder=None, model=None):
+        return {"text": "지하 1층에 있어요.", "source_chunk_ids": ["c1"], "category": "위치·주차"}
+
+    import app.services.chat_service as cs
+    cs.safety_watchdog.check_escalation = no_escalation
+    cs.classify_route = route_rag
+    cs.rag_chain.answer = answered_ok
+
+    # 같은 임베딩(FakeEmbedding은 항상 동일 벡터 반환)이라 두 건이 한 클러스터로 묶여야 함 —
+    # 둘 다 "답을 잘 찾은" 질문이라는 점이 미해결 질문 모아보기와의 차이
+    await chat_service.post_message(
+        conv1["conversation_id"], "주차장 어디에 있어요?", anon_token=conv1["anon_session_token"],
+        embedder=FakeEmbedding(),
+    )
+    await chat_service.post_message(
+        conv2["conversation_id"], "주차 공간이 어디죠?", anon_token=conv2["anon_session_token"],
+        embedder=FakeEmbedding(),
+    )
+
+    today = date.today()
+    top = await question_cluster_service.list_top_questions(
+        admin_staff, today - timedelta(days=1), today + timedelta(days=1),
+    )
+    assert top[0]["count"] == 2
+```
+
+Run: `cd backend && pytest tests/test_question_cluster_service.py -v`
+Expected: 새 테스트 FAIL (`list_top_questions` 없음)
+
+- [ ] **Step 8: question_cluster_service.list_top_questions 구현**
+
+`backend/app/services/question_cluster_service.py` 끝에 추가:
+```python
+async def list_top_questions(
+    staff: StaffContext, from_date: date, to_date: date, threshold: float = 0.82,
+) -> list[dict]:
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "select id, content, question_embedding from chat_messages "
+        "where sender = 'patient' and question_embedding is not null "
+        "and created_at::date between $1 and $2",
+        from_date, to_date,
+    )
+    items = [
+        {"id": r["id"], "question": r["content"], "embedding": list(r["question_embedding"])}
+        for r in rows
+    ]
+    clusters = cluster_by_similarity(items, threshold=threshold)
+    return [
+        {
+            "sample_question": cluster[0]["question"],
+            "count": len(cluster),
+            "message_ids": [i["id"] for i in cluster],
+        }
+        for cluster in clusters
+    ]
+```
+
+- [ ] **Step 9: 테스트 통과 확인 후 Commit**
+
+Run: `cd backend && pytest tests/test_chat_tables_schema.py tests/test_chat_service.py tests/test_question_cluster_service.py -v`
+Expected: 전체 PASS
+
+```bash
+git add supabase/migrations/00300_chat_tables.sql backend/tests/test_chat_tables_schema.py backend/app/services/chat_service.py backend/tests/test_chat_service.py backend/app/services/question_cluster_service.py backend/tests/test_question_cluster_service.py
+git commit -m "feat: 환자 질문 임베딩 저장 + 전체 질문 순위 클러스터링 (3.10 갭2)"
+```
+
+- [ ] **Step 10: 실패하는 테스트 작성 — 라우터**
+
+`backend/tests/test_chat_routes.py`에 추가:
+```python
+@pytest.mark.asyncio
+async def test_top_questions_endpoint(client, admin_auth_headers):
+    from datetime import date, timedelta
+
+    r = await client.get(
+        "/admin/kb/top-questions",
+        params={"from": str(date.today() - timedelta(days=1)), "to": str(date.today() + timedelta(days=1))},
+        headers=admin_auth_headers,
+    )
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+```
+
+Run: `cd backend && pytest tests/test_chat_routes.py -v`
+Expected: 새 테스트 FAIL (엔드포인트 없음)
+
+- [ ] **Step 11: 라우터에 엔드포인트 추가**
+
+`backend/app/routers/admin_kb.py`에 추가(기존 `GET /admin/kb/unresolved-question-clusters` 등록부 근처):
+```python
+@router.get("/kb/top-questions")
+async def top_questions(
+    from_: date, to: date, staff: StaffContext = Depends(require_role("admin")),
+):
+    from app.services import question_cluster_service
+    return await question_cluster_service.list_top_questions(staff, from_, to)
+```
+
+- [ ] **Step 12: 테스트 실행 후 Commit**
+
+Run: `cd backend && pytest tests/test_chat_routes.py -v`
+Expected: 전체 PASS
+
+```bash
+git add backend/app/routers/admin_kb.py backend/tests/test_chat_routes.py
+git commit -m "feat: 전체 질문 순위 API (3.10 갭2)"
+```
+
+- [ ] **Step 13: 실패하는 프론트엔드 테스트 작성**
+
+`frontend/src/features/admin/kb/TopQuestionsPage.test.tsx`(Task 17의 `UnresolvedQuestionsPage.test.tsx`와 같은 패턴 — MSW로 `GET /admin/kb/top-questions` 모킹):
+```tsx
+import { render, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+
+import { TopQuestionsPage } from "./TopQuestionsPage";
+import { renderWithProviders } from "../../../test-utils";
+
+const server = setupServer(
+  http.get("http://localhost:8000/admin/kb/top-questions", () =>
+    HttpResponse.json([
+      { sample_question: "주차장 어디에 있어요?", count: 5, message_ids: ["m1", "m2"] },
+    ]),
+  ),
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+describe("TopQuestionsPage", () => {
+  it("shows question clusters ranked by count", async () => {
+    renderWithProviders(<TopQuestionsPage />);
+    await waitFor(() => expect(screen.getByText("주차장 어디에 있어요?")).toBeInTheDocument());
+    expect(screen.getByText("5건")).toBeInTheDocument();
+  });
+});
+```
+
+Run: `cd frontend && npm test -- TopQuestionsPage.test.tsx`
+Expected: FAIL (컴포넌트 없음)
+
+- [ ] **Step 14: TopQuestionsPage 구현**
+
+`frontend/src/features/admin/kb/TopQuestionsPage.tsx`(Task 17의 `UnresolvedQuestionsPage.tsx`와 거의 동일한 구조 — 호출 엔드포인트와 안내 문구만 다름):
+```tsx
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import { apiFetch } from "../../../api/httpClient";
+
+type QuestionCluster = { sample_question: string; count: number; message_ids: string[] };
+
+export function TopQuestionsPage() {
+  const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const { data } = useQuery({
+    queryKey: ["top-questions", from, to],
+    queryFn: () => apiFetch<QuestionCluster[]>(`/admin/kb/top-questions?from=${from}&to=${to}`),
+  });
+
+  return (
+    <div>
+      <h1>전체 질문 순위</h1>
+      <p>답변 성공 여부와 무관하게 가장 많이 들어온 질문을 모아본 결과예요. 비슷한 질문끼리 자동으로 묶었으며 실제로 다른 질문이 섞여 있을 수 있어요.</p>
+      <label>
+        시작일 <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+      </label>
+      <label>
+        종료일 <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+      </label>
+      <ul>
+        {(data ?? []).map((cluster) => (
+          <li key={cluster.sample_question}>
+            {cluster.sample_question} — {cluster.count}건
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 15: 테스트 통과 확인 후 관리자 라우트 등록 + Commit**
+
+Run: `cd frontend && npm test -- TopQuestionsPage.test.tsx`
+Expected: PASS
+
+Task 17에서 관리자 메뉴 라우트를 등록한 파일에 `/admin/kb/top-questions` 경로와 `TopQuestionsPage`를 추가한다(기존 `UnresolvedQuestionsPage` 라우트 등록부와 동일한 방식).
+
+```bash
+git add frontend/src/features/admin/kb/TopQuestionsPage.tsx frontend/src/features/admin/kb/TopQuestionsPage.test.tsx
+git commit -m "feat: 전체 질문 순위 관리자 화면 (3.10 갭2)"
+```
+
+---
+
+## Task 25: KB category 2건 추가 — 진료과·의사소개(하이브리드) / 자주묻는질문 (3.8절 갭①·②, 스펙 섹션2 — Group D④)
+
+`kb_documents.category`는 이미 자유 텍스트 컬럼(CHECK 제약 없음, Task 2)이라 백엔드·DB 변경은 필요 없다. 관리자가 새 카테고리 값을 실제로 선택할 수 있도록 프론트엔드 선택지에만 추가한다.
+
+**Files:**
+- Modify: `frontend/src/features/admin/kb/KbDocumentForm.tsx`(Task 17 — 안내자료 작성/수정 폼)
+- Modify: `frontend/src/features/admin/kb/KbDocumentForm.test.tsx`(Task 17)
+
+**Interfaces:**
+- Consumes: 기존 `POST/PUT /admin/kb/documents`(Task 14, `category`는 이미 임의 문자열을 받는다)
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`frontend/src/features/admin/kb/KbDocumentForm.test.tsx`에 추가:
+```tsx
+it("includes 진료과·의사소개 and 자주묻는질문 as category options", () => {
+  renderWithProviders(<KbDocumentForm onSubmit={vi.fn()} />);
+  const select = screen.getByLabelText("분류");
+  const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
+  expect(options).toEqual(
+    expect.arrayContaining(["진료시간", "위치·주차", "예약규칙", "검사준비", "진료과·의사소개", "자주묻는질문", "기타"]),
+  );
+});
+```
+
+Run: `cd frontend && npm test -- KbDocumentForm.test.tsx`
+Expected: FAIL (새 옵션 2개가 목록에 없음)
+
+- [ ] **Step 2: 카테고리 선택지에 2개 추가**
+
+`frontend/src/features/admin/kb/KbDocumentForm.tsx`의 카테고리 `<select>` 옵션 배열(기존 `["진료시간", "위치·주차", "예약규칙", "검사준비", "기타"]`)을 다음으로 교체:
+```tsx
+const KB_CATEGORIES = ["진료시간", "위치·주차", "예약규칙", "검사준비", "진료과·의사소개", "자주묻는질문", "기타"];
+```
+
+- [ ] **Step 3: 테스트 통과 확인 후 Commit**
+
+Run: `cd frontend && npm test -- KbDocumentForm.test.tsx`
+Expected: PASS
+
+```bash
+git add frontend/src/features/admin/kb/KbDocumentForm.tsx frontend/src/features/admin/kb/KbDocumentForm.test.tsx
+git commit -m "feat: KB 카테고리에 진료과·의사소개(하이브리드)·자주묻는질문 추가 (3.8 갭①②)"
+```
+
+- [ ] **Step 4: 데모 시드 데이터 메모 (실제 반영은 배포 계획 Task 9 몫)**
+
+이 카테고리가 실제로 쓰이는 예시 문서(의사 소개글, FAQ 안내문)는 `docs/superpowers/plans/2026-07-27-deployment.md` Task 9(데모 시드)의 `seed_kb.py`에서 채워야 한다 — 이번 Task는 카테고리를 "선택 가능하게" 만드는 것까지만 다루고, 실제 콘텐츠 작성은 배포 단계로 넘긴다.
+
+---
+
 ## 실행 순서와 의존 관계
 
 ```
@@ -6183,9 +7068,13 @@ Task 3 ─┘                              ├─ Task 8 ─┤
 백엔드(Task 14) 완료 후: Task 16 / Task 17 / Task 18 / Task 19는 서로 독립 (병렬 가능)
 Task 12 완료 후 + 2단계(staff-web) Task 10·13 완료 후: Task 20
 Task 14 완료 후: Task 21 (Step 4는 Task 19가 먼저 끝나 있어야 함)
+Task 7·11·12·14·18·19 완료 후: Task 22 (백엔드 Step 1~14는 Task 14까지, 프런트 Step 15는 Task 18·19까지 필요)
+Task 13·14·17 완료 후: Task 23
+Task 1·11·13·14 완료 후 + Task 17(라우트 등록 파일) 완료 후: Task 24 (Task 1 마이그레이션을 직접 수정하므로 다른 4단계 작업보다 먼저 끝내는 편이 충돌이 적음)
+Task 17 완료 후: Task 25 (독립적, 프론트 전용)
 ```
 
-Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지만 서로 독립적으로 병렬 진행 가능하다. Task 10(라우터+인계감시)은 Task 7의 모델 팩토리만 있으면 되므로 7 이후 바로 시작할 수 있다. Task 11(오케스트레이션)은 7·8·9·10을 모두 소비하므로 넷 다음에 온다. Task 20은 이 계획의 `ticket_service`(Task 12)와 2단계 `staff-web.md`의 `PatientDetailPage`(Task 10)·`dashboard_service`(Task 13)를 모두 수정하는 교차 작업이라, 2단계 구현이 먼저 끝나 있어야 한다. **[2026-07-30 재검증]** Task 21은 예전엔 3단계 `patient-app.md` Task 27(사전문진 화면의 프리필 반영)에 의존하는 교차 작업이었으나, 그 Task 27 자체가 삭제되며(3단계 F-12) 이 의존성은 사라졌다 — Task 21은 이제 4단계 문서 내부(Task 9·14)에만 의존한다.
+Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지만 서로 독립적으로 병렬 진행 가능하다. Task 10(라우터+인계감시)은 Task 7의 모델 팩토리만 있으면 되므로 7 이후 바로 시작할 수 있다. Task 11(오케스트레이션)은 7·8·9·10을 모두 소비하므로 넷 다음에 온다. Task 20은 이 계획의 `ticket_service`(Task 12)와 2단계 `staff-web.md`의 `PatientDetailPage`(Task 10)·`dashboard_service`(Task 13)를 모두 수정하는 교차 작업이라, 2단계 구현이 먼저 끝나 있어야 한다. **[2026-07-30 재검증]** Task 21은 예전엔 3단계 `patient-app.md` Task 27(사전문진 화면의 프리필 반영)에 의존하는 교차 작업이었으나, 그 Task 27 자체가 삭제되며(3단계 F-12) 이 의존성은 사라졌다 — Task 21은 이제 4단계 문서 내부(Task 9·14)에만 의존한다. **[2026-07-30 Group D 추가]** Task 22~25는 요구사항 대조 검토에서 나온 갭 보완으로, 모두 1~21의 결과물을 수정하는 후행 작업이다 — Task 24가 `chat_messages` 마이그레이션(Task 1)을 직접 수정하므로, Task 22·23·25와 동시에 진행할 경우 `chat_service.py`를 함께 건드리는 Task 22와 파일 충돌 가능성이 있어 순서대로(24 → 22) 진행하거나 병합 시 주의한다.
 
 ## 수동 검증 시나리오 (전체 구현 후)
 
@@ -6203,3 +7092,7 @@ Task 7·8·9는 모두 `langchain_client.get_chat_model`(Task 7)에 의존하지
 12. 웹 상담창(익명)으로 비슷한 질문("야간 진료 하나요?", "밤에 진료 되나요?")을 각각 답 없는 자료로 물어 인계시킨 뒤, 관리자 웹 "미해결 질문 모아보기"에서 두 건이 한 그룹으로 묶여 "2건"으로 표시되는지 확인 (요구사항 3.9/3.10)
 13. 웹 상담창에서 인계된 문의 1건을 만든 뒤, 직원 웹 "오늘의 현황"에 "확인 필요 상담 문의 1건" 카드가 뜨는지, 해당 환자의 환자 상세화면(`/patients/:id`)에도 그 문의가 "상담 문의" 섹션에 보이는지 확인 (요구사항 3.2/3.5)
 14. 관리자 웹에서 "답하면 안 되는 내용" 체크박스를 켠 자료(예: "정신과 상담은 전화로만 안내") 등록·승인 → 앱/웹 상담창에서 관련 질문 → 안내형(RAG)·행동형(에이전트) 양쪽 경로 모두에서 봇이 등록한 문구를 그대로(AI가 다르게 표현하지 않고) 답하는지 확인 (요구사항 3.8)
+15. 웹 상담창에서 "검사 전에 뭐 준비해요?"(category=검사준비) 질문 → 말풍선이 의료용 스타일로, "주차장 어디예요?"(category=위치·주차) 질문 → 말풍선이 일반 스타일로 구분되는지 확인. 답 없는 질문으로 인계시킨 뒤 화면에 "대기중" 배지가 뜨는지, 직원이 티켓을 열람하면(자동 `in_progress` 전환) 배지가 "직원 확인중"으로, 답변 완료 시 "답변완료"로 바뀌는지 확인 (요구사항 7 "상담봇" 절 UI, Task 22)
+16. 관리자 웹 "상담봇 처리 현황"에서 기간 지정 후 CSV 다운로드 버튼으로 파일이 받아지는지, 인계 건수 카드를 클릭하면 해당 사유의 티켓 목록으로 이동하는지 확인 (시나리오10, Task 23)
+17. 웹 상담창(익명)으로 답을 잘 찾은 질문("주차장 어디에 있어요?")과 비슷한 표현("주차 공간이 어디죠?")을 각각 물어본 뒤, 관리자 웹 "전체 질문 순위"에서 두 건이 한 그룹 "2건"으로 집계되는지 확인 — 미해결 질문 모아보기(12번)와 달리 답변이 성공했어도 집계되는지가 핵심 (3.10 갭2, Task 24)
+18. 관리자 웹 안내자료 작성 화면의 분류 선택지에 "진료과·의사소개"·"자주묻는질문"이 추가돼 있는지, 해당 카테고리로 자료를 등록·승인해도 정상적으로 검색 대상(approved)이 되는지 확인 (3.8 갭①②, Task 25)
