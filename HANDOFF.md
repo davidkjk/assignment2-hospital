@@ -156,7 +156,12 @@
 - 계획(`ai-chatbot.md`) Task 22~25 추가: Task22(답변시각구분+티켓상태 API, `rag_chain`/`chat_service`/`ticket_service`/`chat.py` 수정), Task23(CSV export+드릴다운, `bot_stats_service`/`admin_kb.py`/`BotStatsPage`), Task24(`chat_messages` 마이그레이션 직접수정 — Task1 파일에 `question_embedding` 컬럼 추가 + `question_cluster_service.list_top_questions`), Task25(KB category 프론트 선택지만 추가, DB 제약 없어 백엔드 변경 불필요)
 - 4단계는 `backend/app/services/chat_service.py` 등 코드 자체가 아직 없어 TDD 미실행 — 실제 구현 시 Task 1~25 순서대로(Task24는 Task1 마이그레이션을 직접 수정하므로 Task22보다 먼저 실행 권장, 계획 문서 "실행 순서와 의존 관계" 절 참고)
 
-**다음 세션: Group E(검수·테스트, `deployment.md`)부터 시작.** 대상: 시나리오2 문진→행동형 연계 테스트 케이스 추가(Task 20), 시나리오9 `GET /staff` 403 테스트 추가(예시 코드 단계). 이후 Group F(가벼운 스펙 문장 보강 — 4.6/5.2/6.5/직원웹UX메모, plans 변경 불필요)로 마무리하면 갭 17건 전부 문서 반영 완료.
+**Group E(검수·테스트) 완료(2026-07-30, 커밋 `4158bb1`):**
+- `deployment.md` Task 5 Step 1: 의사 토큰으로 `GET /staff`(직원 목록 조회) 시도 시 403 확인 assertion 추가 (요구사항 3.1 "메뉴를 사용할 수 없다"는 조회도 포함하는 포괄적 표현이라는 결정 반영)
+- `deployment.md` Task 20 Step 6: 시나리오2·7 검수 대본에 "문진→행동형 연계" 케이스 추가(기존 7건→8건) — 증상만 언급→문진체인 진료과 추천→"그 과로 예약해주세요"→행동형이 이어받아 예약 완료까지 검증
+- 배포단계(Task 5/20) 자체가 아직 코드/문서 미착수 단계라 지금은 계획 문서 텍스트 반영만, 실제 pytest 실행은 없음(계획대로 정상)
+
+**다음 세션: Group F(가벼운 스펙 문장 보강, plans 변경 불필요)로 마무리.** 대상 4곳: 4.6절(환자공개 안내문 입력란 — `staff-web-design.md` 섹션6), 5.2절(챗봇 처리대상 예시 나열 — `ai-chatbot-design.md:195`), 6.5절(비밀번호 문구 — `foundation-auth-data-model-design.md` 섹션1), 직원용 웹 빠른입력 UX 메모(`staff-web-design.md` 환자검색 섹션 인근). 이걸 끝내면 갭 17건 전부 문서 반영 완료.
 
 **참고**: 로컬 Supabase가 이번 세션에서 시작됐고(`supabase start`), `backend/.env`·`backend/.venv`가 새로 생성됨(둘 다 gitignore 대상, 커밋 안 됨). 다음 세션에서 백엔드 테스트를 돌리려면 `supabase status`로 살아있는지 먼저 확인.
 
@@ -184,10 +189,10 @@
 | 직원용 웹 빠른입력 UX | 필요(한 줄 메모, `staff-web-design.md`) | 구현 시 확정 | 2단계 미구현, 해당없음 | |
 | 6.5 비밀번호 문구 | 필요(`foundation-auth-data-model-design.md` 섹션1) | 불필요 | 해당없음 | |
 | 7 변경·취소 확인 다이얼로그 | ✅ 완료(`patient-app-design.md` 섹션4) | ✅ 이미 있었음(Task 20, 2026-07-28 별개 검토) | 3단계 미구현, 해당없음 | |
-| 시나리오2 문진→행동형 연계 테스트 | 해당없음 | 필요(`deployment.md` Task 20) | 배포단계 미구현, 해당없음 | |
+| 시나리오2 문진→행동형 연계 테스트 | 해당없음 | ✅ 완료(`deployment.md` Task 20) | 배포단계 미구현, 해당없음 | |
 | 상담봇 UI 티켓상태·시각구분 | ✅ 완료(`ai-chatbot-design.md` 섹션4) | ✅ 완료(Task 22) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 22 절차대로 | |
 | 시나리오10 CSV·드릴다운 | ✅ 완료(`ai-chatbot-design.md` 섹션4) | ✅ 완료(Task 23) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 23 절차대로 | |
-| 시나리오9 GET /staff 403 테스트 | 해당없음 | 필요(`deployment.md:530,541` 예시 코드) | 배포단계 미구현, 해당없음 | |
+| 시나리오9 GET /staff 403 테스트 | 해당없음 | ✅ 완료(`deployment.md:530,541` 예시 코드) | 배포단계 미구현, 해당없음 | |
 | 3.5 전역 환자검색 + 재확인 확대 | ✅ 완료(`staff-web-design.md` 섹션 4.5) | ✅ 완료(Task 24) | 2단계 미구현(코드 없음), TDD는 향후 구현 시 Task 24 절차대로 | |
 | 3.10 갭1 오래대기 건수 통계 | ✅ 완료(`staff-web-design.md:85`) | ✅ 완료(Task 25) | 2단계 미구현(코드 없음), TDD는 향후 구현 시 Task 25 절차대로 | |
 | 3.10 갭2 전체질문 순위 통계 | ✅ 완료(`ai-chatbot-design.md`) | ✅ 완료(Task 24) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 24 절차대로 | |
@@ -200,7 +205,7 @@
 - **Group B** 직원웹(`staff-web.md` + `-design.md`): 3.5 전역 환자검색, 3.10 갭1 오래대기 건수 통계, 3.7 휴진일 체크박스 UI — ✅ 완료(2026-07-30, 커밋 `bc2b314`/`53bbc00`)
 - **Group C** 환자앱(`patient-app.md` + `-design.md`): 4.5 홈카드 변경·취소 버튼, 7 확인 다이얼로그 — ✅ 완료(2026-07-30, 커밋 `5aaee12`)
 - **Group D** 챗봇(`ai-chatbot.md` + `-design.md`): 상담봇 UI 티켓상태·시각구분, 시나리오10 CSV·드릴다운, 3.10 갭2 전체질문순위 통계, 3.8 갭①·② KB category 2건(진료과·의사소개 하이브리드, 자주묻는질문) — ✅ 완료(2026-07-30, 커밋 `2722183`/`076850b`)
-- **Group E** 검수·테스트(`deployment.md`): 시나리오2 연계테스트(Task 20), 시나리오9 `GET /staff` 403 예시 코드
+- **Group E** 검수·테스트(`deployment.md`): 시나리오2 연계테스트(Task 20), 시나리오9 `GET /staff` 403 예시 코드 — ✅ 완료(2026-07-30, 커밋 `4158bb1`)
 - **Group F** specs 문장만 가벼운 보강(plans 변경 불필요, 자투리 시간에 처리 가능): 4.6/5.2/6.5/직원웹UX메모
 - 3.8절(지식관리 category)은 2026-07-30 결정 완료 — 더 이상 보류 아님(위 표 참고). 갭 17건 전부 결정 완료 상태.
 - 요구사항 원문 대조는 3.10절까지 완료. 3.11절 이후(또는 4장 등)는 아직 미착수 — 이어서 진행.
