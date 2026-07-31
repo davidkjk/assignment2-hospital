@@ -151,7 +151,12 @@
 - 계획(`patient-app.md`) Task 22 홈 화면 예시 코드에 변경/취소 버튼 2개 추가(새 로직 없음 — `/appointments/:id`로 이동만, 실제 확인 다이얼로그·변경 로직은 Task 20에 이미 존재)
 - 3단계는 `mobile/` 코드가 아직 없어 TDD 미실행 — 실제 구현 시 Task 20~22 절차대로 진행
 
-**다음 세션: Group D(챗봇)부터 시작.** 대상: 상담봇 UI 티켓상태·시각구분, 시나리오10 CSV·드릴다운, 3.10 갭2 전체질문순위 통계, 3.8 갭①·② KB category 2건(진료과·의사소개 하이브리드, 자주묻는질문). `ai-chatbot.md`/`ai-chatbot-design.md`가 대상, 4단계 코드도 미구현.
+**Group D(챗봇) 완료(2026-07-30, 커밋 `2722183`/`076850b`):**
+- 스펙(`ai-chatbot-design.md`) 반영: 티켓 상태 배지·예상 답변시간·의료/일반 시각구분(섹션4), CSV 다운로드·드릴다운(섹션4 상담봇 처리 현황), `chat_messages.question_embedding` + "전체 질문 순위" 관리자 화면 신설(섹션2/4), `kb_documents.category`에 "진료과·의사소개"(하이브리드 원칙 포함)·"자주묻는질문" 추가(섹션2)
+- 계획(`ai-chatbot.md`) Task 22~25 추가: Task22(답변시각구분+티켓상태 API, `rag_chain`/`chat_service`/`ticket_service`/`chat.py` 수정), Task23(CSV export+드릴다운, `bot_stats_service`/`admin_kb.py`/`BotStatsPage`), Task24(`chat_messages` 마이그레이션 직접수정 — Task1 파일에 `question_embedding` 컬럼 추가 + `question_cluster_service.list_top_questions`), Task25(KB category 프론트 선택지만 추가, DB 제약 없어 백엔드 변경 불필요)
+- 4단계는 `backend/app/services/chat_service.py` 등 코드 자체가 아직 없어 TDD 미실행 — 실제 구현 시 Task 1~25 순서대로(Task24는 Task1 마이그레이션을 직접 수정하므로 Task22보다 먼저 실행 권장, 계획 문서 "실행 순서와 의존 관계" 절 참고)
+
+**다음 세션: Group E(검수·테스트, `deployment.md`)부터 시작.** 대상: 시나리오2 문진→행동형 연계 테스트 케이스 추가(Task 20), 시나리오9 `GET /staff` 403 테스트 추가(예시 코드 단계). 이후 Group F(가벼운 스펙 문장 보강 — 4.6/5.2/6.5/직원웹UX메모, plans 변경 불필요)로 마무리하면 갭 17건 전부 문서 반영 완료.
 
 **참고**: 로컬 Supabase가 이번 세션에서 시작됐고(`supabase start`), `backend/.env`·`backend/.venv`가 새로 생성됨(둘 다 gitignore 대상, 커밋 안 됨). 다음 세션에서 백엔드 테스트를 돌리려면 `supabase status`로 살아있는지 먼저 확인.
 
@@ -180,21 +185,21 @@
 | 6.5 비밀번호 문구 | 필요(`foundation-auth-data-model-design.md` 섹션1) | 불필요 | 해당없음 | |
 | 7 변경·취소 확인 다이얼로그 | ✅ 완료(`patient-app-design.md` 섹션4) | ✅ 이미 있었음(Task 20, 2026-07-28 별개 검토) | 3단계 미구현, 해당없음 | |
 | 시나리오2 문진→행동형 연계 테스트 | 해당없음 | 필요(`deployment.md` Task 20) | 배포단계 미구현, 해당없음 | |
-| 상담봇 UI 티켓상태·시각구분 | 필요(`ai-chatbot-design.md` 섹션4) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
-| 시나리오10 CSV·드릴다운 | 필요(`ai-chatbot-design.md` 섹션4) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
+| 상담봇 UI 티켓상태·시각구분 | ✅ 완료(`ai-chatbot-design.md` 섹션4) | ✅ 완료(Task 22) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 22 절차대로 | |
+| 시나리오10 CSV·드릴다운 | ✅ 완료(`ai-chatbot-design.md` 섹션4) | ✅ 완료(Task 23) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 23 절차대로 | |
 | 시나리오9 GET /staff 403 테스트 | 해당없음 | 필요(`deployment.md:530,541` 예시 코드) | 배포단계 미구현, 해당없음 | |
 | 3.5 전역 환자검색 + 재확인 확대 | ✅ 완료(`staff-web-design.md` 섹션 4.5) | ✅ 완료(Task 24) | 2단계 미구현(코드 없음), TDD는 향후 구현 시 Task 24 절차대로 | |
 | 3.10 갭1 오래대기 건수 통계 | ✅ 완료(`staff-web-design.md:85`) | ✅ 완료(Task 25) | 2단계 미구현(코드 없음), TDD는 향후 구현 시 Task 25 절차대로 | |
-| 3.10 갭2 전체질문 순위 통계 | 필요(`ai-chatbot-design.md`) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | |
+| 3.10 갭2 전체질문 순위 통계 | ✅ 완료(`ai-chatbot-design.md`) | ✅ 완료(Task 24) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 24 절차대로 | |
 | 3.7 휴진일 반복설정(`is_day_off`) | ✅ 완료(`foundation-auth-data-model-design.md` + `staff-web-design.md` 섹션7) | ✅ 완료(1단계 Task 18 + 2단계 Task 23) | 1단계 완료(마이그레이션 `00009`, 테스트 2건, 97개 전체 PASS). 2단계(슬롯생성 반영·체크박스 UI)는 코드 없음, TDD는 향후 Task 23 절차대로 | |
-| 3.8 갭① 진료과·의사소개 KB 하이브리드 | 필요(`ai-chatbot-design.md` KB `category` 목록에 "진료과·의사소개" 추가 + 하이브리드 근거 서술) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | `진료과의사_조회` 도구(실시간)는 유지, 소개성 글만 KB로 병행 |
-| 3.8 갭② 자주묻는질문 KB category | 필요(`ai-chatbot-design.md` KB `category` 목록에 "자주묻는질문" 추가) | 필요(`ai-chatbot.md`) | 4단계 미구현, 해당없음 | 3.10 갭2 "전체질문순위 통계"(사후 확인용)와 역할 다름 — 통계로 파악 후 이 category에 수동 등록하는 흐름 |
+| 3.8 갭① 진료과·의사소개 KB 하이브리드 | ✅ 완료(`ai-chatbot-design.md` KB `category` 목록에 "진료과·의사소개" 추가 + 하이브리드 근거 서술) | ✅ 완료(Task 25) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 25 절차대로 | `진료과의사_조회` 도구(실시간)는 유지, 소개성 글만 KB로 병행 |
+| 3.8 갭② 자주묻는질문 KB category | ✅ 완료(`ai-chatbot-design.md` KB `category` 목록에 "자주묻는질문" 추가) | ✅ 완료(Task 25) | 4단계 미구현(코드 없음), TDD는 향후 구현 시 Task 25 절차대로 | 3.10 갭2 "전체질문순위 통계"(사후 확인용)와 역할 다름 — 통계로 파악 후 이 category에 수동 등록하는 흐름 |
 
 **세션별 작업 단위(컨텍스트 관리용) — 문서(파일) 단위로 묶음, 한 세션당 한 그룹 권장:**
 - **Group A** DB/스키마(`foundation-auth-data-model.md` + `-design.md`): 6.1 RLS(완료), 3.7 `is_day_off`(Task 18 + TDD)
 - **Group B** 직원웹(`staff-web.md` + `-design.md`): 3.5 전역 환자검색, 3.10 갭1 오래대기 건수 통계, 3.7 휴진일 체크박스 UI — ✅ 완료(2026-07-30, 커밋 `bc2b314`/`53bbc00`)
 - **Group C** 환자앱(`patient-app.md` + `-design.md`): 4.5 홈카드 변경·취소 버튼, 7 확인 다이얼로그 — ✅ 완료(2026-07-30, 커밋 `5aaee12`)
-- **Group D** 챗봇(`ai-chatbot.md` + `-design.md`): 상담봇 UI 티켓상태·시각구분, 시나리오10 CSV·드릴다운, 3.10 갭2 전체질문순위 통계, 3.8 갭①·② KB category 2건(진료과·의사소개 하이브리드, 자주묻는질문)
+- **Group D** 챗봇(`ai-chatbot.md` + `-design.md`): 상담봇 UI 티켓상태·시각구분, 시나리오10 CSV·드릴다운, 3.10 갭2 전체질문순위 통계, 3.8 갭①·② KB category 2건(진료과·의사소개 하이브리드, 자주묻는질문) — ✅ 완료(2026-07-30, 커밋 `2722183`/`076850b`)
 - **Group E** 검수·테스트(`deployment.md`): 시나리오2 연계테스트(Task 20), 시나리오9 `GET /staff` 403 예시 코드
 - **Group F** specs 문장만 가벼운 보강(plans 변경 불필요, 자투리 시간에 처리 가능): 4.6/5.2/6.5/직원웹UX메모
 - 3.8절(지식관리 category)은 2026-07-30 결정 완료 — 더 이상 보류 아님(위 표 참고). 갭 17건 전부 결정 완료 상태.
