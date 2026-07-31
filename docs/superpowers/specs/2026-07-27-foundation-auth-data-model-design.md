@@ -59,6 +59,7 @@
 - `lunch_start` / `lunch_end`: 점심시간
 - `max_daily_appointments`: 하루 최대 예약 인원
 - `booking_deadline`: 예약 마감 시각
+- `is_day_off`: 해당 요일 정기 휴진 여부 (기본값 `false`). `true`인 요일은 슬롯 배치 생성 시 제외 — "매주 수요일 휴진"처럼 반복되는 휴진을 매번 개별 날짜로 등록하지 않아도 되게 함 (요구사항 3.7). 특정 날짜만 예외로 쉬는 비반복 케이스는 기존 `doctor_schedule_exceptions.is_closed`로 별도 처리
 
 **`doctor_schedule_exceptions`** (특정 날짜 예외 — 요구사항 3.7)
 - `doctor_id`: 대상 의사

@@ -4844,3 +4844,97 @@ git commit -m "feat: 직원/예약/진료기록 라우터 연결 및 통합 테�
 - 한글 오류 메시지·외부서비스 장애로부터 핵심 기능 분리 → Task 10
 
 이번 단계에서 다루지 않는 항목(2~5단계에서 다룸): 병원 안내/상담봇 지식관리, 상담문의관리, 운영통계 화면, 알림 발송, 배포/백업 — 스펙 문서의 "이번 단계에서 다루지 않는 것" 섹션과 동일.
+
+---
+
+## Task 18: 마이그레이션 — doctor_schedule_rules에 is_day_off 컬럼 추가 (요구사항 3.7)
+
+**배경:** `doctor_schedule_rules`는 이미 의사×요일별로 한 행씩 있는 구조다(Task 3). "매주 수요일 휴진"처럼 반복되는 정기 휴진을 관리자가 매번 `doctor_schedule_exceptions`에 개별 날짜로 등록해야 하는 번거로움을 없애기 위해, 요일별 행에 정기 휴진 여부를 표시하는 컬럼을 추가한다. 단발성 예외(이번 주만 특별히 하루 더 쉬는 등)는 기존 `doctor_schedule_exceptions.is_closed`로 계속 처리한다.
+
+**Files:**
+- Create: `supabase/migrations/00009_doctor_schedule_day_off.sql`
+- Modify: `backend/tests/test_doctor_schedule_schema.py`
+
+**Interfaces:**
+- Consumes: `tests.conftest.db_conn`, `seed_staff`, `set_session_auth` (Task 2), 기존 테이블 `doctor_schedule_rules` (Task 3)
+- Produces: `doctor_schedule_rules.is_day_off boolean not null default false` — 2단계(`staff-web`) "의사별 스케줄" 탭이 이 컬럼을 요일별 체크박스로 노출
+
+- [ ] **Step 1: 실패하는 테스트 먼저 추가**
+
+`backend/tests/test_doctor_schedule_schema.py`에 다음 두 테스트를 파일 끝에 추가:
+
+```python
+@pytest.mark.asyncio
+async def test_schedule_rule_is_day_off_defaults_false(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    doctor = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+
+    await db_conn.execute(
+        """
+        insert into doctor_schedule_rules
+            (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments)
+        values ($1, 1, '09:00', '18:00', 20, 30)
+        """,
+        doctor["staff_id"],
+    )
+    row = await db_conn.fetchrow("select is_day_off from doctor_schedule_rules where doctor_id = $1", doctor["staff_id"])
+    assert row["is_day_off"] is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_rule_is_day_off_can_be_set_true(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    doctor = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+
+    await db_conn.execute(
+        """
+        insert into doctor_schedule_rules
+            (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments, is_day_off)
+        values ($1, 3, '09:00', '18:00', 20, 30, true)
+        """,
+        doctor["staff_id"],
+    )
+    row = await db_conn.fetchrow(
+        "select is_day_off from doctor_schedule_rules where doctor_id = $1 and weekday = 3",
+        doctor["staff_id"],
+    )
+    assert row["is_day_off"] is True
+```
+
+- [ ] **Step 2: 테스트 실행하여 실패 확인**
+
+Run: `cd backend && pytest tests/test_doctor_schedule_schema.py -v`
+Expected: 새로 추가한 2개 테스트가 `column "is_day_off" does not exist` 등의 오류로 FAIL (기존 3개는 PASS)
+
+- [ ] **Step 3: 마이그레이션 SQL 작성**
+
+`supabase/migrations/00009_doctor_schedule_day_off.sql`:
+```sql
+alter table doctor_schedule_rules
+  add column is_day_off boolean not null default false;
+```
+
+- [ ] **Step 4: 마이그레이션 적용**
+
+Run: `supabase db reset`
+Expected: 오류 없이 적용됨
+
+- [ ] **Step 5: 테스트 실행하여 통과 확인**
+
+Run: `cd backend && pytest tests/test_doctor_schedule_schema.py -v`
+Expected: 5개 테스트 모두 PASS
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add supabase/migrations/00009_doctor_schedule_day_off.sql backend/tests/test_doctor_schedule_schema.py
+git commit -m "feat: doctor_schedule_rules에 정기 휴진 여부(is_day_off) 컬럼 추가"
+```
+
+---
+
+## 스펙 커버리지 확인 (Task 18 추가분)
+
+- 요일별 정기 휴진 반복설정(요구사항 3.7) → Task 18 (`is_day_off`), 단발성 예외는 기존 Task 3 `doctor_schedule_exceptions.is_closed`가 계속 담당
