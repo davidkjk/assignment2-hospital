@@ -9,3 +9,9 @@ supabase/.temp/
 
 # 로컬 도구 설정 — 팀/환경마다 다를 수 있어 추적 제외
 .claude/
+
+# 비주얼 컴패니언(브레인스토밍 목업) 세션 파일
+.superpowers/
+
+# macOS 파인더가 만드는 폴더 정보 파일
+.DS_Store
