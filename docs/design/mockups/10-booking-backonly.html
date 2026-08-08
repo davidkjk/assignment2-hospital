@@ -1,0 +1,136 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .bo { width: 262px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 495px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .bo-top { background: #fff; padding: 9px 12px 10px; }
+  .bo-nav { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .bo-back { color: #0B6E70; font-weight: 700; }
+  .bo-x { color: #5A6C7B; font-weight: 600; }
+  .bo-prog { display: flex; gap: 3px; margin-top: 9px; }
+  .bo-prog i { flex: 1; height: 5px; border-radius: 3px; background: #E0E7EC; }
+  .bo-prog i.on { background: #0B6E70; }
+  .bo-step { font-size: 10px; color: #5A6C7B; margin-top: 6px; font-weight: 600; }
+  .bo-body { flex: 1; padding: 12px; }
+  .bo-q { font-size: 19px; font-weight: 800; letter-spacing: -.4px; margin-bottom: 4px; }
+  .bo-hint { font-size: 11px; color: #5A6C7B; margin-bottom: 12px; font-weight: 500; }
+  .bo-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .bo-t { background: #fff; border: 2px solid #E6EBEF; border-radius: 9px; padding: 11px 0; text-align: center; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .bo-t.sel { background: #0B6E70; border-color: #0B6E70; color: #fff; }
+  .bo-t.off { background: #F5F7F8; border-color: #EDF1F3; color: #B4BFC8; text-decoration: line-through; }
+  .bo-cta { background: #0B6E70; color: #fff; text-align: center; font-size: 15px; font-weight: 800; padding: 15px; border-radius: 11px; margin: 10px 12px 12px; }
+  .bo-read { font-size: 11px; color: #5A6C7B; font-weight: 600; line-height: 1.55; margin-bottom: 13px; padding-left: 9px; border-left: 3px solid #C9DADA; }
+  .bo-conf { background: #fff; border-radius: 12px; overflow: hidden; }
+  .bo-crow { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; border-bottom: 1px solid #E6EBEF; font-size: 12px; }
+  .bo-crow:last-child { border-bottom: none; }
+  .bo-clab { color: #5A6C7B; font-weight: 500; width: 52px; flex-shrink: 0; }
+  .bo-cval { flex: 1; font-weight: 800; }
+  .bo-cfix { color: #0B6E70; font-size: 11px; font-weight: 800; border: 1.5px solid #9CC4C4; border-radius: 7px; padding: 5px 9px; }
+  .bo-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .bo-note { background:#fff; border-left:4px solid #B44E00; padding:9px 11px; border-radius:0 8px 8px 0; font-size:11px; color:#10243A; font-weight:600; margin-top:10px; }
+</style>
+
+<h2>화면 10 / 20 — 뒤로 버튼만 두는 안</h2>
+<p class="subtitle">
+  제안하신 방향이 맞습니다. <b>되돌아가면 그 뒤 단계가 어차피 초기화</b>되므로, "칩으로 3단계 전 점프"와 "뒤로 두 번"은 결과가 같습니다 — 칩의 이점이 제가 생각한 것보다 작았습니다.
+  <br>남는 건 하나뿐입니다: <b>고른 값을 확인하는 기능</b>. 그걸 어떻게 처리할지가 이번 선택입니다.
+</p>
+
+<div class="bo-row">
+
+  <!-- A -->
+  <div class="card" data-choice="back-only" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bo">
+        <div class="bo-top">
+          <div class="bo-nav"><span class="bo-back">‹ 뒤로</span><span>예약하기</span><span class="bo-x">✕</span></div>
+          <div class="bo-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="bo-step">5단계 / 8단계 · 시간 선택</div>
+        </div>
+        <div class="bo-body">
+          <div class="bo-q">몇 시에 오시겠어요?</div>
+          <div class="bo-hint">줄이 그어진 시간은 이미 예약됐습니다</div>
+          <div class="bo-times">
+            <div class="bo-t">09:00</div><div class="bo-t off">09:30</div><div class="bo-t">10:00</div>
+            <div class="bo-t off">10:30</div><div class="bo-t">11:00</div><div class="bo-t off">11:30</div>
+            <div class="bo-t">14:00</div><div class="bo-t sel">14:30</div><div class="bo-t">15:00</div>
+            <div class="bo-t">15:30</div><div class="bo-t off">16:00</div><div class="bo-t">16:30</div>
+            <div class="bo-t">17:00</div><div class="bo-t off">17:30</div><div class="bo-t">18:00</div>
+          </div>
+        </div>
+        <div class="bo-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 뒤로 버튼만 (제안하신 안)</h3>
+      <p>화면에 <b>질문 하나와 답만</b> 남습니다. 배울 게 아무것도 없고, 공간이 넓어져 시간 버튼이 <b>15개까지 스크롤 없이</b> 들어갑니다. 단점: 5단계에 와서 "내가 무슨 과를 골랐더라?"가 궁금하면 확인할 방법이 없습니다.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="back-readonly" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bo">
+        <div class="bo-top">
+          <div class="bo-nav"><span class="bo-back">‹ 뒤로</span><span>예약하기</span><span class="bo-x">✕</span></div>
+          <div class="bo-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="bo-step">5단계 / 8단계 · 시간 선택</div>
+        </div>
+        <div class="bo-body">
+          <div class="bo-read">김순자 · 내과 이민호 원장<br>8월 3일 (월)</div>
+          <div class="bo-q">몇 시에 오시겠어요?</div>
+          <div class="bo-hint">줄이 그어진 시간은 이미 예약됐습니다</div>
+          <div class="bo-times">
+            <div class="bo-t">09:00</div><div class="bo-t off">09:30</div><div class="bo-t">10:00</div>
+            <div class="bo-t off">10:30</div><div class="bo-t">11:00</div><div class="bo-t off">11:30</div>
+            <div class="bo-t">14:00</div><div class="bo-t sel">14:30</div><div class="bo-t">15:00</div>
+            <div class="bo-t">15:30</div><div class="bo-t off">16:00</div><div class="bo-t">16:30</div>
+          </div>
+        </div>
+        <div class="bo-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 뒤로 버튼 + 읽기 전용 요약</h3>
+      <p>고른 값을 <b>누를 수 없는 회색 글씨</b>로 왼쪽 선과 함께 표시. 버튼처럼 안 생겼으니 <b>"눌러야 하나?" 고민이 생기지 않습니다</b>. 되돌아가기는 오직 뒤로 버튼 하나. 값 확인과 단순함을 둘 다 가져갑니다.</p>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" data-choice="confirm-fix" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bo">
+        <div class="bo-top">
+          <div class="bo-nav"><span class="bo-back">‹ 뒤로</span><span>예약하기</span><span class="bo-x">✕</span></div>
+          <div class="bo-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="bo-step">7단계 / 8단계 · 최종 확인</div>
+        </div>
+        <div class="bo-body">
+          <div class="bo-q">이렇게 예약할까요?</div>
+          <div class="bo-hint" style="margin-bottom:10px">고칠 항목이 있으면 옆의 고치기를 누르세요</div>
+          <div class="bo-conf">
+            <div class="bo-crow"><span class="bo-clab">누구</span><span class="bo-cval">김순자 (본인)</span><span class="bo-cfix">고치기</span></div>
+            <div class="bo-crow"><span class="bo-clab">진료과</span><span class="bo-cval">내과</span><span class="bo-cfix">고치기</span></div>
+            <div class="bo-crow"><span class="bo-clab">의사</span><span class="bo-cval">이민호 원장</span><span class="bo-cfix">고치기</span></div>
+            <div class="bo-crow"><span class="bo-clab">날짜</span><span class="bo-cval">8월 3일 (월)</span><span class="bo-cfix">고치기</span></div>
+            <div class="bo-crow"><span class="bo-clab">시간</span><span class="bo-cval">오후 2:30</span><span class="bo-cfix">고치기</span></div>
+            <div class="bo-crow"><span class="bo-clab">이유</span><span class="bo-cval">기침이 2주째</span><span class="bo-cfix">고치기</span></div>
+          </div>
+          <div class="bo-note">의사를 고치면 날짜와 시간을 다시 골라야 합니다</div>
+        </div>
+        <div class="bo-cta">예약 신청하기</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 진행 중엔 뒤로만, 마지막에 몰아서 고치기</h3>
+      <p>1~6단계는 <b>A와 완전히 동일</b>(뒤로 버튼만). 대신 7단계 <b>최종 확인 화면</b>에서 모든 항목을 한 번에 보여주고 항목별 [고치기]를 답니다. 이건 A·B와 <b>경쟁하는 안이 아니라 함께 쓰는 안</b>입니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>B + C 조합</b>을 추천합니다. 진행 중에는 <b>뒤로 버튼 하나만</b> 두되(제안하신 대로), 고른 값은 <b>누를 수 없는 회색 글씨</b>로 보여줍니다. 그리고 마지막 <b>최종 확인 화면</b>에서 항목별 [고치기]를 제공합니다.</p>
+  <p style="margin-top:8px">이렇게 하면 각자 제 역할만 합니다 — <b>진행 중엔 앞으로만 가고</b>(단순함), <b>확인은 마지막에 한 번에</b>(안전함). 스펙 4.3의 8단계 중 7단계가 원래 "최종확인"이라, 이 구조가 스펙과도 자연스럽게 맞습니다.</p>
+  <p style="margin-top:8px">B의 요약 줄이 부담스러우시면 <b>A + C</b>도 좋습니다. 그 경우 화면이 가장 깨끗해지고, 값 확인은 전부 마지막 확인 화면에 맡기게 됩니다. <b>A와 B 중 어느 쪽으로 갈지만</b> 정해주시면 됩니다 — C는 어느 쪽이든 넣습니다.</p>
+</div>

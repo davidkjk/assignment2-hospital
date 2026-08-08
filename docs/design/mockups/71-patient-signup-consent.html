@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>71 · 가입 「동의」 단계 — 환자 앱 (갭 #108)</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --warn-bg:#FFF1E4; --danger:#9E3F6E; --danger-bg:#F3E7EA;
+    --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --book:#E7F1F1; --book-line:#9FC6C6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  .quote .warn{color:var(--warn);font-weight:800}
+  .quote.bad{border-left-color:var(--danger)}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:var(--warn-bg);color:var(--warn)}
+  .tag.no{background:var(--danger-bg);color:var(--danger)}
+
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:6px 0 0}
+  .hint b{color:var(--ink)}
+  .hint.w b{color:var(--warn)}
+  .hint.g b{color:var(--primary)}
+
+  svg.i{width:13px;height:13px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;
+        stroke-linecap:round;stroke-linejoin:round}
+
+  /* ── 휴대폰 프레임 ── */
+  .phone{width:280px;background:#fff;border:1px solid var(--divider);border-radius:16px;overflow:hidden;
+         box-shadow:0 1px 3px rgba(16,36,58,.06)}
+  .ptop{display:flex;align-items:center;gap:6px;padding:9px 12px;border-bottom:1px solid var(--divider);
+        font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .ptop .sp{flex:1}
+  .pbody{padding:14px 14px 16px}
+  .steps{display:flex;align-items:center;gap:5px;margin-bottom:12px}
+  .steps .dot{width:6px;height:6px;border-radius:99px;background:#DCE4EA}
+  .steps .dot.on{background:var(--primary)}
+  .steps .lbl{margin-left:4px;font-size:10px;font-weight:800;color:var(--ink-muted)}
+  .ptitle{font-size:15px;font-weight:800;margin:0 0 4px;line-height:1.45}
+  .plead{font-size:11px;color:var(--ink-muted);line-height:1.6;margin:0 0 12px}
+
+  /* 동의 줄 */
+  .crow{display:flex;align-items:flex-start;gap:8px;padding:9px 2px;border-bottom:1px solid var(--divider)}
+  .crow:last-child{border-bottom:0}
+  .crow .t{flex:1;min-width:0;font-size:11.5px;font-weight:700;line-height:1.5;color:var(--ink)}
+  .crow .t .req{font-weight:800;color:var(--warn);font-size:10px;margin-right:3px}
+  .crow .t .opt{font-weight:800;color:var(--ink-muted);font-size:10px;margin-right:3px}
+  .crow .t .why{display:block;font-weight:600;font-size:10px;color:var(--ink-muted);margin-top:2px;line-height:1.5}
+  .crow .go{font-size:10px;font-weight:800;color:var(--ink-muted);white-space:nowrap;padding-top:1px}
+  .cbox{width:17px;height:17px;flex:none;border:1.5px solid #C3CED6;border-radius:5px;background:#fff;
+        position:relative;margin-top:1px}
+  .cbox.on{background:var(--primary);border-color:var(--primary)}
+  .cbox.on::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;
+                  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(42deg)}
+  .allrow{display:flex;align-items:center;gap:8px;padding:11px 10px;border:1.5px solid var(--divider);
+          border-radius:9px;margin-bottom:6px;background:#FCFDFD}
+  .allrow.on{border-color:var(--primary);background:var(--book)}
+  .allrow .t{flex:1;font-size:12.5px;font-weight:800;color:var(--ink)}
+  .pbtn{display:block;text-align:center;padding:11px;border-radius:9px;font-size:12.5px;font-weight:800;
+        background:var(--primary);color:#fff;margin-top:14px}
+  .pbtn.dis{background:var(--done-bg);color:#AEB9C3}
+  .fld{display:block;border:1px solid var(--divider);border-radius:8px;padding:9px 10px;
+       font-size:12px;font-weight:700;color:#A9B6C0;margin-bottom:8px}
+
+  /* 비교/배치 */
+  .row{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+  .opt{border:1px solid var(--divider);border-radius:10px;background:var(--surface);padding:14px;margin-top:14px}
+  .opt.rec{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary) inset}
+  .opt.no{border-color:#EBD8DE}
+  .opt .h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;margin-bottom:12px}
+  .opt .h .sp{flex:1}
+  .pm{flex:1;min-width:260px}
+  .plus,.minus{display:flex;gap:7px;font-size:11.5px;line-height:1.65;margin-bottom:8px;color:var(--ink-muted)}
+  .plus b,.minus b{color:var(--ink)}
+  .plus .s{color:var(--primary);font-weight:800}
+  .minus .s{color:var(--danger);font-weight:800}
+
+  table.t{width:100%;border-collapse:collapse;margin-top:12px;font-size:11.5px}
+  table.t th,table.t td{border:1px solid var(--divider);padding:8px 10px;text-align:left;vertical-align:top;line-height:1.6}
+  table.t th{background:#FAFCFC;font-weight:800;font-size:11px;color:var(--ink-muted)}
+  table.t td b{color:var(--ink)}
+  td.yes{color:var(--primary);font-weight:700}
+  td.no{color:var(--danger);font-weight:700}
+
+  .verdict{border-radius:9px;padding:12px 14px;font-size:12px;line-height:1.75;margin-top:14px;
+           background:var(--book);border:1px solid var(--book-line);color:var(--ink)}
+  .verdict.good{background:var(--book);border-color:var(--book-line)}
+  .verdict.warn{background:var(--warn-bg);border-color:#E8C9A8}
+  .verdict.bad{background:var(--danger-bg);border-color:#E2C3CE}
+
+  /* 흐름 */
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .fnode{border:1px solid var(--divider);border-radius:8px;padding:8px 11px;background:#fff;
+         font-size:11.5px;font-weight:800;color:var(--ink);text-align:center;line-height:1.5}
+  .fnode span{display:block;font-weight:600;font-size:10px;color:var(--ink-muted);margin-top:2px}
+  .fnode.new{border-color:var(--primary);background:var(--book)}
+  .farrow{color:#C3CED6;font-weight:800}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+</svg>
+
+<div class="page">
+
+  <h1>71 · 가입 「동의」 단계 <span style="color:var(--warn)">— 갭 #108</span></h1>
+  <p class="sub">환자 앱 회원가입이 <b>3단계 → 4단계</b>가 된다. 새 단계는 <b>맨 앞</b>(사용자 확정 ㉮).<br>
+     ⚠️ <b>이 화면은 「없던 것」을 만드는 것이다</b> — 문서·목업·마이그레이션 전부에서 <code>약관</code>·<code>동의</code>·<code>consent</code>가 <b>0건</b>이었다.</p>
+
+  <div class="quote bad">
+    ⚠️⚠️ <b>이건 「광고 동의를 어디에 넣나」(<code>SB-51</code>)를 풀려다 나왔다.</b>
+    광고 동의를 붙일 <b>그릇 자체가 없었다</b> — 가입은 <b>①전화번호 ②인증번호 ③기본정보</b> 셋뿐이고
+    <span class="warn">동의를 받는 화면이 아예 없다.</span><br>
+    📌 <b>요구사항에도 없다</b> — 4.1 `:232~239`는 인증·기본정보·비밀번호찾기·탈퇴·재인증까지만 적었고,
+    6.5 `:447`은 <b>접근통제와 비밀키</b>뿐이다. <b>고객이 「빼라」고 한 게 아니라 적지 않았을 뿐</b>이다(`B-30` 성별 때와 <b>같은 모양</b>).
+  </div>
+
+  <hr class="rule">
+
+  <!-- ① 어디에 -->
+  <h2 class="sec">① 어디에 두나 — <span style="color:var(--primary)">맨 앞, 전화번호를 받기 전</span> <span class="tag ok">확정</span></h2>
+  <p class="seclead">
+    <b>자리를 정한 것은 취향이 아니라 순서다</b> — 개인정보 <b>수집·이용 동의는 수집하기 전에</b> 받아야 한다.
+  </p>
+
+  <div class="flow">
+    <div class="fnode">랜딩<span>[로그인] [회원가입]</span></div>
+    <span class="farrow">→</span>
+    <div class="fnode new">① 동의<span>🆕 신설 · 1 / 4</span></div>
+    <span class="farrow">→</span>
+    <div class="fnode">② 전화번호<span>2 / 4</span></div>
+    <span class="farrow">→</span>
+    <div class="fnode">③ 인증번호<span>3 / 4</span></div>
+    <span class="farrow">→</span>
+    <div class="fnode">④ 비밀번호·기본정보<span>4 / 4</span></div>
+  </div>
+
+  <table class="t">
+    <tr><th style="width:150px">자리</th><th>왜 그런가</th></tr>
+    <tr><td class="yes">✅ <b>㉮ 맨 앞</b></td>
+        <td><b>전화번호 자체가 개인정보</b>다. 지금 흐름은 ①에서 이미 그것을 받는다 — <b>동의는 그 앞이어야 한다.</b><br>
+            ⭐ 요구사항 4.8 <b>「화면당 핵심 행동 하나」</b>에 맞는다(동의만 있는 화면).<br>
+            ⭐ <code>AUTH-SIGNUP-08</code>(③까지 하고 앱이 꺼지면 ④로 되돌린다)과 <b>얽히지 않는다</b> — 동의는 그 앞에서 이미 끝났다.<br>
+            ⭐ <b>구현도 가장 가볍다</b> — 이 시점엔 <b>세션이 아직 없어서</b> 서버 상태가 필요 없다(<code>AuthStatus</code>를 안 건드린다).</td></tr>
+    <tr><td class="no">⛔ ㉯ ④ 맨 아래</td>
+        <td>이름·생년월일·성별을 <b>다 채운 뒤 거부하면 입력이 전부 날아간다.</b> 그리고 전화번호는 <b>이미 수집된 뒤</b>다</td></tr>
+    <tr><td class="no">⛔ ㉰ ③과 ④ 사이</td>
+        <td>⚠️ <b>그 시점엔 계정이 이미 생겨 있다</b>(<code>AUTH-SIGNUP-07</code> — 인증번호가 맞는 순간 <code>verifyOTP</code>가 세션을 발급).
+            거부하면 <b>이미 만든 계정을 지우는 경로</b>가 따로 필요하다</td></tr>
+  </table>
+
+  <hr class="rule">
+
+  <!-- ② 항목 -->
+  <h2 class="sec">② 무엇을 몇 줄로 받나 — <span style="color:var(--warn)">넷</span></h2>
+  <p class="seclead">
+    <b>줄 수는 고를 수 있는 것이 아니다</b> — 법이 <b>「따로 받아라」</b>고 정한 것은 묶으면 동의 자체가 무효가 된다.
+  </p>
+
+  <table class="t">
+    <tr><th style="width:44px"></th><th style="width:180px">줄</th><th style="width:150px">왜 따로인가</th><th>이 앱에서 무엇 때문에</th></tr>
+    <tr><td><b>1</b></td><td><b>[필수] 서비스 이용약관</b></td><td>계약 조건</td><td>예약·취소 규칙, 노쇼 처리 등 <b>병원과 환자 사이의 약속</b></td></tr>
+    <tr><td><b>2</b></td><td><b>[필수] 개인정보 수집·이용</b></td><td>개인정보보호법 15조</td><td>이름 · 생년월일 · 성별 · 전화번호(<code>patients</code> 표)</td></tr>
+    <tr><td><b>3</b></td><td class="no"><b>[필수] 민감정보(건강정보) 처리</b></td><td class="no"><b>같은 법 23조<br>— 별도 동의</b></td>
+        <td>⚠️⚠️ <b>이 앱은 문진 답변 · 진료기록 · 처방을 다룬다.</b> 건강정보는 <b>민감정보</b>라
+            <b>2번과 묶어서 받으면 안 된다</b> — 묶으면 그 동의가 무효다</td></tr>
+    <tr><td><b>4</b></td><td><b>[선택] 광고성 정보 수신</b></td><td>정보통신망법 50조</td><td>갭 <b>#104</b> — 검진 할인 안내 등. <b>안 켜도 가입된다</b></td></tr>
+  </table>
+
+  <div class="verdict good">
+    ⭐⭐ <b>여기서 <code>SB-51</code>이 저절로 풀린다.</b> <code>SB-51</code>은
+    *"가입 화면에 넣으면 가입이 길어지고, 나중에 받으면 동의자가 거의 안 모인다"*는 <b>딜레마</b>로 적혀 있었다.
+    그런데 <b>필수 동의 화면이 어차피 가입에 들어가야 하므로</b> 광고 동의는 <b>그 목록의 넷째 줄</b>이면 된다 —
+    <b>「가입이 길어진다」는 단점의 전제가 사라진다.</b><br>
+    📌 <b>빈틈을 메우기 전에 「그릇이 있나」를 먼저 봐야 했던 사례다.</b>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ③ 화면 -->
+  <h2 class="sec">③ 화면 — <span style="color:var(--danger)">「전체 동의」 줄을 어떻게 두나</span> <span class="tag new">미결</span></h2>
+  <p class="seclead">
+    네 줄을 하나씩 누르게만 하면 <b>가입이 무거워진다.</b> 그래서 맨 위에 <b>「전체 동의」</b>를 두는데,
+    <b>그 한 줄이 선택 항목(광고)까지 켜느냐</b>가 갈린다. ⚠️ <b>이건 법이 정해 주지 않는다.</b>
+  </p>
+
+  <div class="row">
+    <!-- ㉮ -->
+    <div class="opt rec" style="flex:1;min-width:300px">
+      <div class="h"><span class="tag ok">㉮ 추천</span> 「전체 동의」가 <b>필수 3개만</b> 켠다</div>
+      <div class="phone">
+        <div class="ptop"><svg class="i"><use href="#i-back"/></svg> 회원가입<span class="sp"></span></div>
+        <div class="pbody">
+          <div class="steps"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="lbl">1단계 / 4단계</span></div>
+          <p class="ptitle">약관에 동의해 주세요</p>
+          <p class="plead">서비스를 이용하려면 아래 <b>필수 항목</b>에 동의가 필요합니다.</p>
+
+          <div class="allrow on"><span class="cbox on"></span><span class="t">필수 항목에 모두 동의</span></div>
+
+          <div class="crow"><span class="cbox on"></span>
+            <span class="t"><span class="req">[필수]</span>서비스 이용약관</span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+          <div class="crow"><span class="cbox on"></span>
+            <span class="t"><span class="req">[필수]</span>개인정보 수집·이용
+              <span class="why">이름 · 생년월일 · 성별 · 전화번호</span></span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+          <div class="crow"><span class="cbox on"></span>
+            <span class="t"><span class="req">[필수]</span>민감정보(건강정보) 처리
+              <span class="why">문진 답변 · 진료기록 · 처방</span></span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+          <div class="crow"><span class="cbox"></span>
+            <span class="t"><span class="opt">[선택]</span>광고성 정보 수신
+              <span class="why">검진·행사 안내. <b>안 받아도 예약 알림은 그대로 옵니다</b></span></span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+
+          <div class="pbtn">다음</div>
+        </div>
+      </div>
+      <div class="pm" style="margin-top:12px">
+        <div class="plus"><span class="s">＋</span><span><b>선택 항목은 손으로만 켜진다.</b> 「전체 동의」를 눌렀는데
+          <b>광고까지 켜져 있는 것</b>은 사용자가 <b>고른 적 없는 동의</b>다 — 광고 동의는 <b>사전 동의가 법적 요건</b>이라 특히 위험하다.</span></div>
+        <div class="plus"><span class="s">＋</span><span>줄 이름이 <b>「필수 항목에 모두 동의」</b>라 <b>무엇이 켜지는지 이름에 적혀 있다.</b></span></div>
+        <div class="minus"><span class="s">－</span><span>광고 동의자가 <b>적게 모인다.</b> 📌 다만 <b>그게 정상</b>이다 — 동의는 모으는 것이 목적이 아니다.</span></div>
+      </div>
+    </div>
+
+    <!-- ㉯ -->
+    <div class="opt no" style="flex:1;min-width:300px">
+      <div class="h"><span class="tag no">㉯</span> 「전체 동의」가 <b>선택까지 전부</b> 켠다</div>
+      <div class="phone">
+        <div class="ptop"><svg class="i"><use href="#i-back"/></svg> 회원가입<span class="sp"></span></div>
+        <div class="pbody">
+          <div class="steps"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="lbl">1단계 / 4단계</span></div>
+          <p class="ptitle">약관에 동의해 주세요</p>
+          <p class="plead">아래 항목에 동의해 주세요.</p>
+
+          <div class="allrow on"><span class="cbox on"></span><span class="t">전체 동의</span></div>
+
+          <div class="crow"><span class="cbox on"></span><span class="t"><span class="req">[필수]</span>서비스 이용약관</span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+          <div class="crow"><span class="cbox on"></span><span class="t"><span class="req">[필수]</span>개인정보 수집·이용</span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+          <div class="crow"><span class="cbox on"></span><span class="t"><span class="req">[필수]</span>민감정보(건강정보) 처리</span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+          <div class="crow"><span class="cbox on"></span>
+            <span class="t"><span class="opt">[선택]</span>광고성 정보 수신
+              <span class="why" style="color:var(--danger);font-weight:800">⚠️ 누른 적 없는데 켜져 있다</span></span>
+            <span class="go"><svg class="i"><use href="#i-chev"/></svg></span></div>
+
+          <div class="pbtn">다음</div>
+        </div>
+      </div>
+      <div class="pm" style="margin-top:12px">
+        <div class="plus"><span class="s">＋</span><span>한 번에 끝나 <b>가입이 가장 빠르다.</b> 실제로 많은 앱이 이렇게 한다.</span></div>
+        <div class="minus"><span class="s">－</span><span>⚠️⚠️ <b>「전체 동의」라는 이름이 무엇을 켜는지 안 밝힌다.</b>
+          <b>광고를 받겠다고 고른 적 없는 사람</b>이 동의자 명단에 들어간다.</span></div>
+        <div class="minus"><span class="s">－</span><span>⭐ <b>이 프로젝트의 원칙과 정면으로 부딪힌다</b> —
+          <code>AUTH-SIGNUP-06b</code>(<b>미리 골라두지 않는다</b>)를 정한 이유가 바로
+          <b>*"기본값은 조용히 답을 만든다"*</b>였다. 성별에서 막은 것을 <b>동의에서 허용할 수 없다.</b></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <b>㉮를 추천합니다.</b> ⭐ 이 프로젝트는 <b>같은 판단을 이미 한 번 했다</b> —
+    <code>AUTH-SIGNUP-06b·06c</code>에서 성별을 <b>미리 골라두지 않기로</b> 했고, 근거가
+    <b>*"안 고르고 넘어간 사람이 조용히 여성으로 저장되고, 없는 질문은 없는 줄도 모른다"*</b>였다.
+    <b>광고 동의는 그보다 더하다 — 사전 동의가 법적 요건</b>이라, 고른 적 없는 동의는 <b>동의가 아니다.</b>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ④ 거부 -->
+  <h2 class="sec">④ 필수를 켜지 않으면 — <span style="color:var(--primary)">막되, 막다른 길을 만들지 않는다</span></h2>
+  <div class="row">
+    <div class="opt" style="flex:1;min-width:290px">
+      <div class="h">필수 셋 중 하나라도 꺼져 있을 때</div>
+      <div class="phone">
+        <div class="ptop"><svg class="i"><use href="#i-back"/></svg> 회원가입<span class="sp"></span></div>
+        <div class="pbody">
+          <div class="steps"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="lbl">1단계 / 4단계</span></div>
+          <p class="ptitle">약관에 동의해 주세요</p>
+          <div class="allrow"><span class="cbox"></span><span class="t">필수 항목에 모두 동의</span></div>
+          <div class="crow"><span class="cbox on"></span><span class="t"><span class="req">[필수]</span>서비스 이용약관</span></div>
+          <div class="crow"><span class="cbox"></span><span class="t"><span class="req">[필수]</span>개인정보 수집·이용</span></div>
+          <div class="crow"><span class="cbox on"></span><span class="t"><span class="req">[필수]</span>민감정보(건강정보) 처리</span></div>
+          <div class="crow"><span class="cbox"></span><span class="t"><span class="opt">[선택]</span>광고성 정보 수신</span></div>
+          <div class="pbtn dis">다음</div>
+          <p class="hint" style="text-align:center;margin-top:7px">필수 항목 <b>1개</b>가 남았습니다</p>
+        </div>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b><code>[다음]</code>은 꺼져 있되 「왜」가 아래에 적힌다</b> —
+        <code>BTN-STATE-01</code>(<b>다 채워야 살아나는 버튼</b>)을 그대로 쓰고, ⛔ <b>왜 안 눌리는지 모르는 버튼을 만들지 않는다.</b></span></div>
+      <div class="plus"><span class="s">＋</span><span><b>남은 개수를 세어 준다</b>(`1개`) — 네 줄 중 어느 것이 빠졌는지 <b>화면을 훑지 않아도 안다.</b></span></div>
+      <div class="minus"><span class="s">－</span><span>⚠️ <b>여기가 진짜 막다른 길이 될 수 있는 자리다</b> —
+        동의를 안 하면 <b>앱을 아예 못 쓴다.</b> 그래서 <b>「그럼 어떻게 예약하나」를 함께 준다</b> →
+        화면 아래에 <b><code>동의 없이 이용하려면 병원으로 전화 주세요 · 02-000-0000</code></b>.
+        ⭐ 요구사항이 <b>전화·방문 경로를 늘 열어 뒀다</b>(<code>CAL-PAST-06</code>의 근거와 같은 자리).</span></div>
+    </div>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ⑤ 나중 -->
+  <h2 class="sec">⑤ 가입한 뒤 — <span style="color:var(--primary)">끌 수 있어야 한다</span></h2>
+  <table class="t">
+    <tr><th style="width:170px">어디서</th><th>무엇을</th></tr>
+    <tr><td><b>내 정보 → 알림 설정</b></td>
+        <td><b>[선택] 광고성 정보 수신</b>을 <b>언제든 켜고 끈다.</b> ⛔ <b>끌 수 없는 스위치를 두지 않는다</b>(사용자 설계 원칙).<br>
+            ⚠️ 필수 셋은 여기서 못 끈다 — 끄는 것 = <b>탈퇴</b>다. 그래서 <b><code>탈퇴하기 ›</code>로 길을 준다</b>(막다른 길 금지)</td></tr>
+    <tr><td><b>동의 이력</b></td>
+        <td>⚠️ <b>표가 새로 필요하다</b> — <b>무엇에 · 언제 · 어느 판(버전)에</b> 동의했는지.
+            약관이 바뀌면 <b>다시 받아야 하는데</b>, 무엇에 동의했는지 안 남기면 <b>누구에게 다시 받아야 하는지 알 수 없다</b></td></tr>
+    <tr><td><b>광고 문자·푸시</b></td>
+        <td>제목 앞 <code>(광고)</code> · 본문에 <b>무료 수신거부 방법</b> · <b>21~08시 발송 금지</b> → 갭 <b>#104</b>의 조치와 한 몸</td></tr>
+  </table>
+
+  <hr class="rule">
+
+  <!-- ⑥ ⑦대조 -->
+  <h2 class="sec">⑥ ⑦플랜 대조 — <span style="color:var(--warn)">네 층 전부 비어 있다</span></h2>
+  <table class="t">
+    <tr><th style="width:80px">층</th><th style="width:230px">지금 무엇이 있나</th><th>결과</th></tr>
+    <tr><td><b>①DB</b></td><td><code>patients</code>에 이름·생년월일·성별·전화·<code>is_active</code>뿐<br>
+        (<code>00003_patients.sql:1~10</code>)</td>
+        <td class="no">⛔ <b>동의 칸 0개 · 동의 이력 표 없음</b> → 새 마이그레이션(<code>00010_</code> 이후)</td></tr>
+    <tr><td><b>②조회</b></td><td>—</td>
+        <td class="no">⛔ <b>약관 본문·판(버전)을 내려줄 조회가 없다</b></td></tr>
+    <tr><td><b>③화면</b></td><td>가입이 <b>한 화면 안에서 조건부로 갈아 끼운다</b><br>
+        (<code>if (!form.otpSent) … else if (!form.otpVerified) …</code>)</td>
+        <td class="no">⛔ <b>동의 단계가 들어갈 자리가 없다.</b> 📌 <code>AUTH-SIGNUP-02</code>가 <b>이미 「플랜 패치 대상」으로 적어 뒀다</b> — 같은 자리에서 함께 고쳐진다</td></tr>
+    <tr><td><b>④상태</b></td><td><code>enum AuthStatus { signedOut, signedIn }</code></td>
+        <td class="yes">✅ <b>안 건드려도 된다</b> — 동의는 <b>세션이 생기기 전</b>이라 화면 안 상태로 충분하다.
+            ⭐ <b>㉮(맨 앞)를 고른 덕에 생긴 이득</b>이다. ㉰였다면 <code>AUTH-SIGNUP-11</code>의 「가입 미완료」 상태와 얽혔다</td></tr>
+  </table>
+
+  <div class="verdict warn">
+    ⚠️ <b>약관·방침의 「본문」은 병원이 쓰는 것이다</b> — 이 설계는 <b>자리와 흐름</b>만 정한다.
+    (사용자 확인 2026-08-07: <b>실물 약관은 없을 것</b>이므로 본문은 자리표시자로 둔다.)
+  </div>
+
+</div>
+</body>
+</html>

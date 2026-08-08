@@ -1,0 +1,516 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .hl { --teal:#0B6E70; --ink:#10243A; --warn:#B44E00; --done:#67788A;
+        --gray-wait:#7E8E99; --gray-past:#A3AFB8; --bg:#F2F5F7;
+        font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink); }
+  .hl, .hl * { box-sizing:border-box; text-align:left; }
+
+  .hl-lane { display:flex; gap:26px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .hl-col { width:330px; }
+  .hl-col h3 { margin:0 0 4px; font-size:15px; font-weight:800; }
+  .hl-cap { font-size:12.5px; color:#5A6C7B; line-height:1.6; margin:0 0 12px; }
+
+  /* 정식 크기 폰 틀 — 46번(예약 탭)과 같은 규격 */
+  .ph { width:330px; background:#fff; border:1px solid #d6dde3; border-radius:14px; overflow:hidden;
+        display:flex; flex-direction:column; min-height:620px; }
+  .ph-bar { background:var(--teal); color:#fff; padding:11px 16px; font-size:15px; font-weight:600;
+            display:flex; align-items:center; }
+  .ph-chips { display:flex; gap:6px; padding:11px 14px 10px; background:var(--bg);
+              border-bottom:1px solid #E0E7EC; overflow:hidden; }
+  .chip { font-size:12.5px; font-weight:700; padding:6px 12px; border-radius:99px;
+          background:#fff; color:#5A6C7B; border:1px solid #D6DDE3; white-space:nowrap; }
+  .chip.on { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .ph-body { flex:1; padding:0 14px 14px; background:var(--bg); }
+
+  /* 연도 머리 */
+  .yr { font-size:15px; font-weight:800; color:var(--ink); letter-spacing:-.3px;
+        padding:16px 2px 9px; display:flex; align-items:center; gap:9px; }
+  .yr .rule { flex:1; height:1px; background:#DDE5EA; }
+
+  /* 한 지나간 예약 = 한 상자 (줄 + 펼침이 같은 테두리 안) */
+  .grp { border:1.5px solid #DDE5EA; border-radius:11px; overflow:hidden;
+         background:#fff; margin-bottom:9px; }
+
+  .ln { display:flex; align-items:stretch; background:#fff; }
+  .ln .lt { background:var(--teal); color:#fff; width:74px; flex:none; padding:12px 0;
+            font-variant-numeric:tabular-nums; }
+  .ln .lt, .ln .lt .m, .ln .lt .d, .ln .lt .w { text-align:center; }
+  .ln .lt .m { font-size:11px; font-weight:600; opacity:.9; }
+  .ln .lt .d { font-size:20px; font-weight:800; letter-spacing:-.5px; line-height:1.15; }
+  .ln .lt .w { font-size:10.5px; font-weight:600; opacity:.9; }
+  .ln.past .lt { background:var(--gray-past); }
+  .ln .rt { flex:1; padding:11px 12px; display:flex; align-items:center; gap:8px; }
+  .ln .who { font-size:14px; font-weight:800; }
+  .ln .sub { font-size:11px; color:#8A98A4; font-weight:600; margin-top:2px; }
+  /* 오른쪽 상태 배지 — 글자만, 배경 없음 */
+  .ln .st { margin-left:auto; font-size:11.5px; font-weight:800; color:var(--teal);
+            text-align:right; line-height:1.35; flex-shrink:0; }
+  .ln .st.gray { color:var(--gray-past); }
+
+  /* 취소선 — ✅ 진료과·의사 이름에 긋는다(B-44). 없어진 것은 「진료」이지 날짜가 아니다 */
+  .sl-name .who { text-decoration:line-through; text-decoration-thickness:1.5px; color:#6C7B87; }
+  /* 기각안 ㉮(날짜 숫자) — 아래 「기각한 안」 절에서만 쓴다 */
+  .sl-date .lt .d { text-decoration:line-through; text-decoration-thickness:1.5px; }
+
+  /* 미확정 줄에 붙는 설명 한 줄 */
+  .why { padding:9px 12px 9px 86px; background:#fff; border-top:1px solid #E6EBEF;
+         font-size:11.5px; font-weight:600; color:#5A6C7B; line-height:1.5; }
+
+  /* 펼쳐진 병원 안내문 */
+  .note { padding:11px 12px; border-top:1px solid #E6EBEF; background:#F4F8F8;
+          font-size:12px; line-height:1.65; }
+  .note .h { font-size:10.5px; font-weight:800; color:var(--teal); margin-bottom:4px; }
+  .none { padding:9px 12px; border-top:1px solid #E6EBEF;
+          font-size:11.5px; color:#8A98A4; font-weight:600; }
+
+  /* 문진 줄 — 눈 아이콘 */
+  .qrow { display:flex; align-items:center; gap:7px; padding:10px 12px;
+          border-top:1px solid #E6EBEF; font-size:12px; font-weight:700; color:var(--done);
+          background:#FAFCFC; }
+  .qrow .ar { margin-left:auto; font-size:11px; }
+  .qrow.open { color:var(--teal); background:#F4F8F8; }
+  .qbody { padding:2px 12px 12px; background:#FAFCFC; border-top:1px solid #EEF2F4; }
+  .qi { padding:8px 0; border-bottom:1px solid #EEF2F4; font-size:11.5px; line-height:1.6; }
+  .qi:last-child { border-bottom:0; }
+  .qi .q { color:#5A6C7B; font-weight:600; }
+  .qi .a { font-weight:700; margin-top:1px; }
+
+  /* 목록 끝 3상태 */
+  .tail { text-align:center; font-size:12px; font-weight:700; color:#8A98A4; padding:14px 0 4px; }
+  .tail.load { color:var(--done); }
+  .tail-btn { display:block; text-align:center; background:#fff; border:1.5px solid var(--teal);
+              color:var(--teal); font-size:13.5px; font-weight:800; padding:11px; border-radius:10px;
+              margin-top:10px; }
+
+  /* 빈 상태 · 오프라인 한 벌 */
+  .mid-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+               padding:30px 22px; background:var(--bg); }
+  .mid-empty .ei { width:44px; height:44px; fill:#C3CED6; margin-bottom:12px; }
+  .mid-empty .et { font-size:14px; font-weight:700; color:#5A6C7B; line-height:1.6; text-align:center; }
+  .mid-empty .es { font-size:12px; color:#8A98A4; font-weight:600; margin-top:6px; text-align:center; line-height:1.6; }
+  .btn { display:block; text-align:center; background:var(--teal); color:#fff; font-size:14.5px;
+         font-weight:800; padding:13px 22px; border-radius:11px; margin-top:18px; }
+  .btn.line { background:#fff; border:1.5px solid var(--teal); color:var(--teal); }
+
+  /* 오프라인 띠 — 유일한 배경 허용 예외 */
+  .offbar { background:#FDF1E4; color:var(--warn); font-size:11.5px; font-weight:700;
+            padding:8px 14px; border-bottom:1px solid #F0DCC6; }
+
+  .nav { display:flex; background:#fff; border-top:1px solid #E0E7EC; }
+  .nav > div { flex:1; text-align:center; padding:8px 0 9px; font-size:10px; font-weight:700; color:#9AA8B2; }
+  .nav > div.on { color:var(--teal); }
+  .nav i { display:block; }
+  .nav svg { width:19px; height:19px; fill:currentColor; }
+
+  .ic { width:14px; height:14px; fill:currentColor; flex-shrink:0; }
+
+  .hl-note { font-size:12px; color:#5A6C7B; line-height:1.7; }
+  .hl-note b { color:var(--ink); }
+  .hl-sec { margin-top:34px; }
+  .hl-sec h2 { font-size:17px; font-weight:800; margin:0 0 6px; }
+  .tag { display:inline-block; font-size:10px; font-weight:800; color:#fff; background:var(--warn);
+         border-radius:4px; padding:2px 6px; margin-left:5px; vertical-align:middle; }
+  .tagq { display:inline-block; font-size:10px; font-weight:800; color:#fff; background:var(--ink);
+          border-radius:4px; padding:2px 6px; margin-left:5px; vertical-align:middle; }
+</style>
+
+<svg style="display:none">
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M12 5C6.5 5 2.7 9.6 1.5 12c1.2 2.4 5 7 10.5 7s9.3-4.6 10.5-7c-1.2-2.4-5-7-10.5-7zm0 11.5A4.5 4.5 0 1116.5 12 4.5 4.5 0 0112 16.5zm0-7A2.5 2.5 0 1014.5 12 2.5 2.5 0 0012 9.5z"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24"><path d="M13 3a9 9 0 00-9 9H1l4 4 4-4H6a7 7 0 117 7 6.9 6.9 0 01-4.6-1.8l-1.4 1.5A9 9 0 1013 3zm-1 5v5l4.3 2.5.7-1.2-3.5-2.1V8z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M12 3L2 12h3v8h5v-6h4v6h5v-8h3z"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><path d="M7 2v2H5a2 2 0 00-2 2v13a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-2V2h-2v2H9V2zm12 8v9H5v-9z"/></symbol>
+  <symbol id="i-fam" viewBox="0 0 24 24"><path d="M8 11a3.5 3.5 0 100-7 3.5 3.5 0 000 7zm8 0a3 3 0 100-6 3 3 0 000 6zM8 13c-3 0-6 1.5-6 4.2V20h12v-2.8C14 14.5 11 13 8 13zm8 .3c-.6 0-1.2 0-1.7.2 1.1 1 1.7 2.3 1.7 3.7V20h6v-2.5c0-2.5-2.7-4.2-6-4.2z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 3h16a2 2 0 012 2v10a2 2 0 01-2 2H9l-5 4V5a2 2 0 012-2z"/></symbol>
+  <symbol id="i-empty" viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm0 16H5V8h14zM7 10h10v2H7zm0 4h7v2H7z"/></symbol>
+  <symbol id="i-off" viewBox="0 0 24 24"><path d="M2.8 3.5L1.4 4.9l3 3A14.9 14.9 0 001 10.5l2 2a11.9 11.9 0 014.1-2.4l2.3 2.3A8.7 8.7 0 005 14.5l2 2a5.9 5.9 0 014.6-1.6l4.5 4.6 1.4-1.4zM12 6c3.3 0 6.4 1.3 8.7 3.5l2-2A15 15 0 0012 3a15 15 0 00-3.6.5l2.4 2.4A12 12 0 0112 6zm0 13.5a2 2 0 100-4 2 2 0 000 4z"/></symbol>
+</svg>
+
+<div class="hl">
+
+<h2>이력 목록 — 정식 크기 목업 <span class="tag">1순위</span></h2>
+<p class="subtitle">
+  이력 탭은 <b>「지나간 예약 전체」</b>를 봅니다(<code>HIST-ROLE-01</code>). 줄이 <b>4종</b>이고 레일 색이 2종이라
+  <b>나란히 놓았을 때 구분되는지</b>가 이 화면의 전부입니다. 흐름도 축소판에는 치수가 없어 정식 크기로 다시 그렸습니다.
+</p>
+
+<div class="hl-lane">
+
+  <!-- ① 기본 — 줄 4종이 섞인 모습 -->
+  <div class="hl-col">
+    <h3>① 기본 — 줄 4종이 시간순에 섞인 모습</h3>
+    <p class="hl-cap">따로 모으지 않고 <b>한 줄기 시간순</b>입니다. 상태는 <b>오른쪽 글자</b>로만 말합니다(<code>HIST-LIST-07</code>·<code>HIST-ROW-13</code>).</p>
+    <div class="ph">
+      <div class="ph-bar">이력</div>
+      <div class="ph-chips">
+        <span class="chip on">김순자</span><span class="chip">김도윤</span><span class="chip">김하윤</span>
+      </div>
+      <div class="ph-body">
+        <div class="yr">2026년<span class="rule"></span></div>
+
+        <!-- ① 진료완료 + 안내문 있음 → 딥틸 레일 -->
+        <div class="grp">
+          <div class="ln">
+            <div class="lt"><div class="m">8월</div><div class="d">3</div><div class="w">(월)</div></div>
+            <div class="rt">
+              <div><div class="who">내과 · 이민호 원장</div></div>
+              <div class="st">진료 완료</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ④ 확정되지 않음 -->
+        <div class="grp">
+          <div class="ln past">
+            <div class="lt"><div class="m">7월</div><div class="d">28</div><div class="w">(화)</div></div>
+            <div class="rt">
+              <div><div class="who">피부과 · 정다은 원장</div></div>
+              <div class="st gray">확정되지 않음</div>
+            </div>
+          </div>
+          <div class="why">병원에서 확정하지 않아 진료가 진행되지 않았습니다</div>
+        </div>
+
+        <!-- ② 취소됨 -->
+        <div class="grp">
+          <div class="ln past sl-name">
+            <div class="lt"><div class="m">7월</div><div class="d">20</div><div class="w">(월)</div></div>
+            <div class="rt">
+              <div>
+                <div class="who">정형외과 · 박서준 원장</div>
+                <div class="sub">7월 18일 오후 3:12에 취소</div>
+              </div>
+              <div class="st gray">취소됨<br>병원에서 취소</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ 방문하지 않음 -->
+        <div class="grp">
+          <div class="ln past">
+            <div class="lt"><div class="m">7월</div><div class="d">2</div><div class="w">(목)</div></div>
+            <div class="rt">
+              <div><div class="who">내과 · 이민호 원장</div></div>
+              <div class="st gray">방문하지 않음</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ① 진료완료인데 안내문 없음 → 레일만 회색, 배지는 딥틸 -->
+        <div class="grp">
+          <div class="ln past">
+            <div class="lt"><div class="m">6월</div><div class="d">12</div><div class="w">(금)</div></div>
+            <div class="rt">
+              <div><div class="who">이비인후과 · 최유진 원장</div></div>
+              <div class="st">진료 완료</div>
+            </div>
+          </div>
+          <div class="none">안내 없음</div>
+        </div>
+
+        <div class="yr">2025년<span class="rule"></span></div>
+
+        <div class="grp">
+          <div class="ln">
+            <div class="lt"><div class="m">12월</div><div class="d">20</div><div class="w">(토)</div></div>
+            <div class="rt">
+              <div><div class="who">내과 · 이민호 원장</div></div>
+              <div class="st">진료 완료</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="nav">
+        <div><i><svg><use href="#i-home"/></svg></i>홈</div>
+        <div><i><svg><use href="#i-cal"/></svg></i>예약</div>
+        <div><i><svg><use href="#i-fam"/></svg></i>가족</div>
+        <div class="on"><i><svg><use href="#i-hist"/></svg></i>이력</div>
+        <div><i><svg><use href="#i-chat"/></svg></i>AI 상담</div>
+      </div>
+    </div>
+    <p class="hl-note" style="margin-top:12px">
+      ⭐ <b>레일이 딥틸인 줄은 「진료도 받았고 안내문도 있는」 줄 하나뿐</b>입니다(<code>HIST-LIST-05~06</code>).
+      6월 12일은 <b>진료는 받았지만 안내문이 없어</b> 레일만 회색이고 <b>배지는 딥틸</b>입니다 — 레일은 <b>읽을 것이 있나</b>를, 배지는 <b>무슨 일이 있었나</b>를 말합니다.
+      <br><br>
+      📌 <b>「확정되지 않음」에만 설명 한 줄이 붙습니다</b>(<code>HIST-ROW-11</code>). 나머지 셋은 배지만으로 뜻이 통하지만, 이것만은 <b>환자가 안 간 것이 아니라 병원이 확정을 안 한 것</b>이라 밝혀야 합니다.
+    </p>
+  </div>
+
+  <!-- ② 펼친 모습 -->
+  <div class="hl-col">
+    <h3>② 펼친 모습 — 안내문 · 문진</h3>
+    <p class="hl-cap"><b>여러 줄을 동시에 펼쳐 둘 수 있습니다</b>(<code>HIST-LIST-10</code>). 두 방문을 비교하는 것이 이 화면의 흔한 용도입니다.</p>
+    <div class="ph">
+      <div class="ph-bar">이력</div>
+      <div class="ph-chips">
+        <span class="chip on">김순자</span><span class="chip">김도윤</span><span class="chip">김하윤</span>
+      </div>
+      <div class="ph-body">
+        <div class="yr">2026년<span class="rule"></span></div>
+
+        <div class="grp">
+          <div class="ln">
+            <div class="lt"><div class="m">8월</div><div class="d">3</div><div class="w">(월)</div></div>
+            <div class="rt">
+              <div><div class="who">내과 · 이민호 원장</div></div>
+              <div class="st">진료 완료</div>
+            </div>
+          </div>
+          <div class="note">
+            <div class="h">병원 안내</div>
+            혈압약을 하루 한 알 아침에 드시고, 2주 뒤에 다시 오세요. 짜게 드시지 않는 것이 좋습니다.
+          </div>
+          <div class="qrow open"><svg class="ic"><use href="#i-eye"/></svg>내가 작성한 사전문진<span class="ar">▴</span></div>
+          <div class="qbody">
+            <div class="qi"><div class="q">오늘 불편한 증상</div><div class="a">뒷목이 뻣뻣하고 어지럽습니다</div></div>
+            <div class="qi"><div class="q">증상이 시작된 시점</div><div class="a">2주 전부터</div></div>
+            <div class="qi"><div class="q">복용 중인 약</div><div class="a">혈압약(아침 1알)</div></div>
+            <div class="qi"><div class="q">알레르기</div><div class="a">없음</div></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="ln past sl-name">
+            <div class="lt"><div class="m">7월</div><div class="d">20</div><div class="w">(월)</div></div>
+            <div class="rt">
+              <div>
+                <div class="who">정형외과 · 박서준 원장</div>
+                <div class="sub">7월 18일 오후 3:12에 취소</div>
+              </div>
+              <div class="st gray">취소됨<br>병원에서 취소</div>
+            </div>
+          </div>
+          <div class="qrow"><svg class="ic"><use href="#i-eye"/></svg>작성했던 사전문진<span class="ar">▾</span></div>
+        </div>
+
+        <div class="grp">
+          <div class="ln past">
+            <div class="lt"><div class="m">7월</div><div class="d">2</div><div class="w">(목)</div></div>
+            <div class="rt">
+              <div><div class="who">내과 · 이민호 원장</div></div>
+              <div class="st gray">방문하지 않음</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="nav">
+        <div><i><svg><use href="#i-home"/></svg></i>홈</div>
+        <div><i><svg><use href="#i-cal"/></svg></i>예약</div>
+        <div><i><svg><use href="#i-fam"/></svg></i>가족</div>
+        <div class="on"><i><svg><use href="#i-hist"/></svg></i>이력</div>
+        <div><i><svg><use href="#i-chat"/></svg></i>AI 상담</div>
+      </div>
+    </div>
+    <p class="hl-note" style="margin-top:12px">
+      ⭐ <b>문진 줄에는 눈 아이콘</b>을 씁니다(<code>HIST-QNR-01~02</code>) — <b>처음부터 보기만 하는 자리</b>라는 뜻입니다.
+      자물쇠는 <i>"원래 되던 것이 지금 막혔다"</i>는 뜻이라 여기 쓰면 틀린 말이 됩니다.
+      <br><br>
+      📌 <b>7월 2일 줄에는 문진 줄이 아예 없습니다</b>(<code>HIST-QNR-04</code>) — 그때 문진을 안 쓰신 예약입니다.
+      <b><code>작성하지 않으셨습니다</code>를 적지 않습니다</b>: 지나간 일이라 <b>고칠 수 없어</b> 알려도 할 수 있는 일이 없습니다.
+      (<code>안내 없음</code>은 <b>병원이 안 쓴 것</b>이라 사실 전달의 값이 있어 다릅니다.)
+    </p>
+  </div>
+
+  <!-- ③ 목록 끝 3상태 -->
+  <div class="hl-col">
+    <h3>③ 20건 이어 붙이기 — 끝의 3가지 모습</h3>
+    <p class="hl-cap">B-40으로 새로 정해진 부분입니다(<code>HIST-LIST-15~19</code>). <b><code>더 보기</code> 버튼을 두지 않습니다.</b></p>
+
+    <div class="ph" style="min-height:0">
+      <div class="ph-bar">이력 — 이어받는 중</div>
+      <div class="ph-body" style="padding-bottom:6px">
+        <div class="grp" style="margin-top:14px">
+          <div class="ln past">
+            <div class="lt"><div class="m">3월</div><div class="d">9</div><div class="w">(월)</div></div>
+            <div class="rt"><div><div class="who">내과 · 이민호 원장</div></div><div class="st gray">방문하지 않음</div></div>
+          </div>
+        </div>
+        <div class="tail load">◌ 불러오는 중…</div>
+      </div>
+    </div>
+
+    <div class="ph" style="min-height:0;margin-top:14px">
+      <div class="ph-bar">이력 — 끝까지 받음</div>
+      <div class="ph-body" style="padding-bottom:6px">
+        <div class="grp" style="margin-top:14px">
+          <div class="ln">
+            <div class="lt"><div class="m">1월</div><div class="d">12</div><div class="w">(월)</div></div>
+            <div class="rt"><div><div class="who">내과 · 이민호 원장</div></div><div class="st">진료 완료</div></div>
+          </div>
+        </div>
+        <div class="tail">처음부터 모두 보여드렸습니다</div>
+      </div>
+    </div>
+
+    <div class="ph" style="min-height:0;margin-top:14px">
+      <div class="ph-bar">이력 — 이어받기 실패</div>
+      <div class="ph-body" style="padding-bottom:12px">
+        <div class="grp" style="margin-top:14px">
+          <div class="ln past">
+            <div class="lt"><div class="m">3월</div><div class="d">9</div><div class="w">(월)</div></div>
+            <div class="rt"><div><div class="who">내과 · 이민호 원장</div></div><div class="st gray">방문하지 않음</div></div>
+          </div>
+        </div>
+        <div class="tail-btn">다시 시도</div>
+      </div>
+    </div>
+
+    <p class="hl-note" style="margin-top:12px">
+      ⭐ <b>끝을 반드시 알립니다</b> — 안 알리면 <i>"더 있는데 안 나오나"</i>로 읽힙니다.
+      <br><br>
+      ⚠️ <b>이어받기가 실패해도 이미 뜬 줄은 지우지 않습니다</b>(<code>HIST-LIST-19</code>). 화면 가운데 안내로 갈아치우면 <b>보고 있던 내용까지 사라집니다.</b>
+    </p>
+  </div>
+
+  <!-- ④ 빈 상태 · 오프라인 -->
+  <div class="hl-col">
+    <h3>④ 빈 상태 · 오프라인(= 조회 실패)</h3>
+    <p class="hl-cap">둘은 <b>한 벌의 모양</b>을 씁니다. 다른 점은 <b><code>[다시 시도]</code>가 있느냐</b>뿐입니다.</p>
+
+    <div class="ph">
+      <div class="ph-bar">이력</div>
+      <div class="ph-chips">
+        <span class="chip on">김순자</span><span class="chip">김도윤</span>
+      </div>
+      <div class="mid-empty">
+        <svg class="ei"><use href="#i-empty"/></svg>
+        <div class="et">아직 방문하신 기록이 없습니다</div>
+        <div class="es">진료를 받으시면 이곳에 남습니다</div>
+        <span class="btn">+ 진료 예약하기</span>
+      </div>
+      <div class="nav">
+        <div><i><svg><use href="#i-home"/></svg></i>홈</div>
+        <div><i><svg><use href="#i-cal"/></svg></i>예약</div>
+        <div><i><svg><use href="#i-fam"/></svg></i>가족</div>
+        <div class="on"><i><svg><use href="#i-hist"/></svg></i>이력</div>
+        <div><i><svg><use href="#i-chat"/></svg></i>AI 상담</div>
+      </div>
+    </div>
+
+    <div class="ph" style="margin-top:14px">
+      <div class="offbar">인터넷 연결 없음</div>
+      <div class="ph-bar">이력</div>
+      <div class="mid-empty">
+        <svg class="ei"><use href="#i-off"/></svg>
+        <div class="et">이력을 불러올 수 없습니다</div>
+        <div class="es">인터넷 연결을 확인한 뒤 다시 시도해 주세요</div>
+        <span class="btn line">다시 시도</span>
+      </div>
+      <div class="nav">
+        <div><i><svg><use href="#i-home"/></svg></i>홈</div>
+        <div><i><svg><use href="#i-cal"/></svg></i>예약</div>
+        <div><i><svg><use href="#i-fam"/></svg></i>가족</div>
+        <div class="on"><i><svg><use href="#i-hist"/></svg></i>이력</div>
+        <div><i><svg><use href="#i-chat"/></svg></i>AI 상담</div>
+      </div>
+    </div>
+
+    <p class="hl-note" style="margin-top:12px">
+      ⭐ <b>빈 상태에는 <code>[다시 시도]</code>가 없습니다</b> — 눌러도 달라질 것이 없기 때문입니다(<code>HIST-LIST-12</code>).
+      대신 <b>할 수 있는 일</b>(<code>+ 진료 예약하기</code>)을 둡니다.
+      <br><br>
+      📌 <b>이력은 폰에 저장해 두지 않습니다</b>(<code>OFF-CACHE-03</code>). 그래서 오프라인이면 <b>목록이 아예 없고</b>, 홈·예약과 달리 <b>지난 정보를 보여줄 수 없습니다.</b>
+      <br><br>
+      ⚠️ 빈 상태에서도 <b>이름 칩은 남습니다</b> — 본인 이력이 없어도 <b>가족 이력은 있을 수 있기</b> 때문입니다.
+    </p>
+  </div>
+
+</div>
+
+<!-- ===== 물어볼 것 ===== -->
+<div class="hl-sec">
+  <h2>✅ 확정 — 취소선은 <b>진료과·의사 이름에</b> 긋는다 <span class="tagq">B-44</span></h2>
+  <p class="hl-note" style="margin-bottom:14px">
+    동작 명세서 <code>HIST-ROW-04</code>는 <b>「진료과·의사 이름에 취소선」</b>이라고 적혀 있는데,
+    근거로 단 흐름도와 기존 목업 38번은 <b>「날짜 숫자에 취소선」</b>이었습니다.
+    <b>옮겨 적는 중에 어긋난 것</b>이라 그려서 비교한 뒤 <b>안 ㉯(명세서 쪽)로 확정</b>했습니다(2026-08-04, 사용자 결정).
+    → <b>흐름도 <code>:1470</code>과 목업 38번을 이쪽으로 고칩니다.</b>
+  </p>
+
+  <div class="hl-lane">
+    <div class="hl-col">
+      <h3>⛔ 기각 ㉮ — 날짜 숫자에 긋는다 <span class="tag">기존 그림</span></h3>
+      <p class="hl-cap">흐름도·목업 38번이 쓰던 방식.</p>
+      <div class="grp">
+        <div class="ln past sl-date">
+          <div class="lt"><div class="m">7월</div><div class="d">20</div><div class="w">(월)</div></div>
+          <div class="rt">
+            <div><div class="who">정형외과 · 박서준 원장</div>
+              <div class="sub">7월 18일 오후 3:12에 취소</div></div>
+            <div class="st gray">취소됨<br>병원에서 취소</div>
+          </div>
+        </div>
+      </div>
+      <p class="hl-note" style="margin-top:10px">
+        <b>뜻</b>: <i>"그 <b>날짜가</b> 없어졌다"</i>. 레일은 이 목록에서 가장 크고 진한 덩어리라 <b>멀리서도 취소가 보입니다.</b>
+        <br><br>
+        ⚠️ <b>약점</b>: 흰 취소선이 <b>옅은 회색 위에 그어져</b> 대비가 낮습니다. 그리고 날짜는 <b>진료를 받은 줄에도 똑같이 있는</b> 자리라, 취소선이 흐릿하면 그냥 회색 줄과 구분이 안 됩니다.
+      </p>
+    </div>
+
+    <div class="hl-col">
+      <h3>✅ 채택 ㉯ — 진료과·의사 이름에 긋는다 <span class="tag">확정</span></h3>
+      <p class="hl-cap">동작 명세서 <code>HIST-ROW-04</code>가 쓴 방식.</p>
+      <div class="grp">
+        <div class="ln past sl-name">
+          <div class="lt"><div class="m">7월</div><div class="d">20</div><div class="w">(월)</div></div>
+          <div class="rt">
+            <div><div class="who">정형외과 · 박서준 원장</div>
+              <div class="sub">7월 18일 오후 3:12에 취소</div></div>
+            <div class="st gray">취소됨<br>병원에서 취소</div>
+          </div>
+        </div>
+      </div>
+      <p class="hl-note" style="margin-top:10px">
+        <b>뜻</b>: <i>"그 <b>진료가</b> 없어졌다"</i>. 취소된 것은 날짜가 아니라 <b>「그 의사에게 받기로 한 진료」</b>이므로 말이 더 정확합니다.
+        <br>진한 글자 위 검은 선이라 <b>대비가 높습니다.</b>
+        <br><br>
+        ⚠️ <b>약점</b>: 글자가 작아 <b>목록을 훑을 때는 눈에 덜 띕니다.</b> 어르신에게는 특히 그렇습니다.
+      </p>
+    </div>
+
+    <div class="hl-col">
+      <h3>⛔ 기각 ㉰ — 취소선을 아예 긋지 않는다</h3>
+      <p class="hl-cap">회색 레일 + 오른쪽 <code>취소됨</code> 배지만으로 말합니다.</p>
+      <div class="grp">
+        <div class="ln past">
+          <div class="lt"><div class="m">7월</div><div class="d">20</div><div class="w">(월)</div></div>
+          <div class="rt">
+            <div><div class="who">정형외과 · 박서준 원장</div>
+              <div class="sub">7월 18일 오후 3:12에 취소</div></div>
+            <div class="st gray">취소됨<br>병원에서 취소</div>
+          </div>
+        </div>
+      </div>
+      <p class="hl-note" style="margin-top:10px">
+        <b>뜻</b>: 상태는 <b>글자가 말한다</b>는 원칙에 가장 충실합니다. 배지 4종이 이미 서로 다른 글자라 <b>취소선 없이도 구분됩니다.</b>
+        <br><br>
+        ⚠️ <b>약점</b>: <b>「방문하지 않음」과 겉모습이 똑같아집니다</b> — 오른쪽 글자를 읽어야만 갈립니다.
+        지금 두 줄을 가르는 유일한 장치가 취소선인데, 그것을 빼면 <b>둘의 차이를 그림으로는 말하지 못합니다.</b>
+      </p>
+    </div>
+  </div>
+
+  <p class="hl-note" style="margin-top:16px">
+    <b>확정 근거 — 안 ㉯(진료과·의사 이름)</b>. 이유 둘입니다.
+    <br>① <b>말이 사실과 맞습니다</b> — 없어진 것은 <b>진료</b>이지 날짜가 아닙니다. 실제로 <code>HIST-ROW-06</code>이 <b>부도 줄에는 취소선을 긋지 말라</b>고 한 이유가 정확히 이것입니다(<i>"예약은 살아 있었고 방문만 없었다"</i>). 같은 잣대를 대면 <b>취소선은 「없어진 그것」 위에 그어야</b> 합니다.
+    <br>② <b>대비가 높습니다</b> — 안 ㉮는 옅은 회색 바탕에 흰 선이라 <b>어르신 화면에서 가장 먼저 흐려지는 종류</b>입니다(요구사항 4.8).
+    <br><br>
+    안 ㉰를 기각하는 이유: <b>「취소됨」과 「방문하지 않음」이 그림으로 구별되지 않게 됩니다.</b> 이 화면의 목적이 바로 그 구별입니다.
+  </p>
+</div>
+
+<div class="hl-sec">
+  <h2>이 목업이 확인해 준 것</h2>
+  <p class="hl-note">
+    · <b>레일 색 2종 + 배지 4종이 섞여도 구분됩니다</b> — 다만 갈라주는 것은 <b>레일 색이 아니라 오른쪽 글자</b>였습니다. 레일은 <i>"읽을 안내문이 있나"</i>만 말합니다.<br>
+    · <b>「확정되지 않음」에만 설명 한 줄이 붙어</b> 다른 줄보다 키가 큽니다 — 목록에서 <b>도드라져 보이는 것이 오히려 맞습니다</b>(병원 쪽 사정으로 생긴 유일한 줄).<br>
+    · <b>진료완료인데 안내가 없는 줄</b>은 레일(회색)과 배지(딥틸)의 색이 <b>서로 다릅니다.</b> 어색해 보이지 않는지 확인이 필요합니다.<br>
+    · ❓ <b>취소선 위치</b>는 그려보니 <b>명세서와 흐름도가 서로 다른 말</b>을 하고 있었습니다 → 위 미결.
+  </p>
+</div>
+
+</div>

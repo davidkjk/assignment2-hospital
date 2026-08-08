@@ -1,0 +1,176 @@
+<style>
+  .phone2 { width: 268px; border: 2px solid #444; border-radius: 22px; background: #f5f6f8; color: #111; font-size: 12px; min-height: 490px; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+  .phone2 .st { display:flex; justify-content:space-between; font-size:9px; color:#888; padding:8px 12px 6px; background:#fff; }
+  .phone2 .body { flex:1; padding:12px; }
+  .appbar { background:#fff; padding:0 12px 10px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+  .appicons { display:flex; gap:11px; font-size:15px; }
+  .w { background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .badge { display:inline-block; font-size:9px; padding:2px 7px; border-radius:99px; background:#dbeafe; color:#1d4ed8; font-weight:600; }
+  .badge.warn { background:#fef3c7; color:#b45309; }
+  .badge.me { background:#e0e7ff; color:#4338ca; }
+  .badge.fam { background:#fce7f3; color:#be185d; }
+  .big-date { font-size:18px; font-weight:700; margin:8px 0 2px; }
+  .meta { color:#666; font-size:11px; line-height:1.65; }
+  .qr { width:54px; height:54px; background:repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/11px 11px; }
+  .qrsm { width:34px; height:34px; background:repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/8px 8px; flex-shrink:0; }
+  .b2 { display:flex; gap:6px; margin-top:10px; }
+  .b2 > div { flex:1; text-align:center; padding:8px; border-radius:8px; font-weight:600; font-size:11px; }
+  .out { border:1px solid #cbd5e1; color:#334155; }
+  .nav { display:flex; background:#fff; border-top:1px solid #e5e7eb; }
+  .nav > div { flex:1; text-align:center; padding:9px 0 11px; font-size:9px; color:#9ca3af; }
+  .nav > div.on { color:#2563eb; font-weight:700; }
+  .nav .ic { font-size:16px; display:block; }
+  .dots { display:flex; gap:5px; justify-content:center; margin:-2px 0 10px; }
+  .dots i { width:6px; height:6px; border-radius:50%; background:#cbd5e1; }
+  .dots i.on { background:#2563eb; width:16px; border-radius:3px; }
+  .prow { display:flex; align-items:center; gap:9px; padding:9px 0; border-top:1px solid #f1f5f9; }
+  .cardrow { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; }
+  .ok { color:#15803d; }
+</style>
+
+<h2>화면 2 v3 — 같은 날 예약이 여러 건일 때 (아이 둘 동반 등)</h2>
+<p class="subtitle">
+  <span class="ok">✓ 탭 재배치 반영: 설정 ⚙는 앱바 우상단으로 올리고, 상담 💬을 하단 탭으로 내렸습니다 → FAB이 사전문진 버튼을 가리는 문제도 함께 해결.</span>
+  탭 5개 = 홈 · 예약 · 가족 · 이력 · <b>상담</b>
+</p>
+<p class="label">본인 + 아이 둘, 같은 날 3건. 홈에서 어떻게 보여줄까요?</p>
+
+<div class="cardrow">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>김순자님</span><span class="appicons">🔔 ⚙️</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb;position:relative">
+            <span class="badge fam">가족 · 김도윤 (아들)</span>
+            <div class="big-date">8월 3일 (월) 오후 2:30</div>
+            <div class="meta">소아과 · 박지우 원장 · 별관 2층</div>
+            <div style="display:flex;justify-content:center;margin:10px 0 5px"><div class="qr"></div></div>
+            <div style="text-align:center;font-size:11px;color:#666">예약번호 <b>A-2414</b></div>
+            <div class="b2"><div class="out">변경</div><div class="out">취소</div></div>
+            <div style="position:absolute;right:-2px;top:46%;font-size:16px;color:#cbd5e1">›</div>
+            <div style="position:absolute;left:-2px;top:46%;font-size:16px;color:#cbd5e1">‹</div>
+          </div>
+          <div class="dots"><i></i><i class="on"></i><i></i></div>
+          <div class="w" style="padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <span><span class="badge warn">미작성</span> 사전문진 (김도윤)</span>
+            <span style="color:#2563eb;font-weight:600">작성 ›</span>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 좌우 스와이프 (캐러셀)</h3>
+      <p>카드 크기와 정보량은 1건일 때와 완전히 동일. 옆으로 밀어 다음 사람. 아래 점(●)이 3건임을 알림. 단점: <b>밀어야만 나머지가 보임</b> — 접수 데스크에서 3명분 QR을 차례로 넘겨야 하고, 밀 수 있다는 걸 모르면 나머지 2건을 못 봅니다.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>김순자님</span><span class="appicons">🔔 ⚙️</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">오늘 방문 3건</span>
+            <div class="big-date">8월 3일 (월)</div>
+            <div class="meta" style="margin-bottom:4px">본관 · 별관 · 접수 데스크에서 아래 QR을 차례로 보여주세요</div>
+
+            <div class="prow">
+              <div class="qrsm"></div>
+              <div style="flex:1">
+                <div><b>김순자</b> <span class="badge me">본인</span></div>
+                <div class="meta">14:30 내과 이민호 · A-2413</div>
+              </div>
+              <span style="color:#cbd5e1">›</span>
+            </div>
+            <div class="prow">
+              <div class="qrsm"></div>
+              <div style="flex:1">
+                <div><b>김도윤</b> <span class="badge fam">아들</span></div>
+                <div class="meta">14:50 소아과 박지우 · A-2414</div>
+                <div style="font-size:9px;color:#b45309">⚠ 사전문진 미작성</div>
+              </div>
+              <span style="color:#cbd5e1">›</span>
+            </div>
+            <div class="prow">
+              <div class="qrsm"></div>
+              <div style="flex:1">
+                <div><b>김하윤</b> <span class="badge fam">딸</span></div>
+                <div class="meta">15:10 소아과 박지우 · A-2415</div>
+              </div>
+              <span style="color:#cbd5e1">›</span>
+            </div>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">각 줄을 누르면 QR 확대 · 변경 · 취소</div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 같은 날 묶음 카드</h3>
+      <p>같은 날 예약을 한 카드에 사람별 줄로. 3명 전원의 시간·QR·문진 상태가 <b>스크롤 없이 한눈에</b>. 변경·취소는 줄을 눌러 상세로. <b>1건일 때는 v2의 큰 히어로 카드 그대로</b> 나오고, 2건 이상일 때만 이 모양으로 바뀝니다.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>김순자님</span><span class="appicons">🔔 ⚙️</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb;padding:10px">
+            <span class="badge me">본인</span>
+            <div class="big-date" style="font-size:16px">8월 3일 (월) 14:30</div>
+            <div class="meta">내과 이민호 · 본관 3층</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+              <div class="qrsm" style="width:44px;height:44px"></div>
+              <div style="flex:1"><div class="b2" style="margin:0"><div class="out">변경</div><div class="out">취소</div></div></div>
+            </div>
+          </div>
+          <div class="w" style="padding:10px">
+            <span class="badge fam">아들 김도윤</span>
+            <div style="font-weight:700;margin:5px 0 2px">14:50 소아과 박지우</div>
+            <div style="font-size:9px;color:#b45309">⚠ 사전문진 미작성</div>
+          </div>
+          <div class="w" style="padding:10px">
+            <span class="badge fam">딸 김하윤</span>
+            <div style="font-weight:700;margin:5px 0 2px">15:10 소아과 박지우</div>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">▾ 더 보기</div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 세로 스택 (첫 건만 크게)</h3>
+      <p>가장 가까운 1건만 펼치고 나머지는 요약 카드로 아래에. 구현이 단순하고 4건 이상도 자연스럽게 늘어남. 단점: 아래쪽 사람의 QR을 보려면 <b>매번 탭해서 들어갔다 나와야</b> 함.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>B(같은 날 묶음 카드)</b>를 추천합니다. 아이 둘 데리고 접수하는 순간이 가장 정신없는 상황인데, B는 <b>세 명의 QR이 한 화면에 동시에</b> 있어서 데스크에서 폰만 내밀면 됩니다. A는 스와이프를 모르면 나머지 2건의 존재 자체를 놓칠 수 있고(어르신·초행 사용자에게 실제로 자주 발생), C는 QR을 보려고 화면을 세 번 드나들어야 합니다.</p>
+  <p style="margin-top:8px">참고로 <b>1건일 때는 셋 다 v2의 큰 히어로 카드로 동일</b>하게 동작시킬 계획입니다 — 대다수 사용자는 예약이 1건이므로, 다건 레이아웃 때문에 평상시 화면이 복잡해지지 않게 하려는 겁니다.</p>
+</div>

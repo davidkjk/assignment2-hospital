@@ -1,0 +1,147 @@
+<style>
+  .phone2 { width: 268px; border: 2px solid #444; border-radius: 22px; background: #f5f6f8; color: #111; font-size: 12px; min-height: 480px; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+  .phone2 .st { display:flex; justify-content:space-between; font-size:9px; color:#888; padding:8px 12px 6px; background:#fff; }
+  .phone2 .body { flex:1; padding:12px; }
+  .appbar { background:#fff; padding:0 12px 10px; font-weight:700; font-size:14px; display:flex; justify-content:space-between; align-items:center; }
+  .appicons { display:flex; gap:12px; font-size:15px; }
+  .w { background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .badge { display:inline-block; font-size:9px; padding:2px 7px; border-radius:99px; background:#dbeafe; color:#1d4ed8; font-weight:600; }
+  .badge.warn { background:#fef3c7; color:#b45309; }
+  .badge.ok { background:#fff; color:#15803d; }
+  .big-date { font-size:19px; font-weight:700; margin:8px 0 2px; }
+  .meta { color:#666; font-size:11px; line-height:1.7; }
+  .qr { width:62px; height:62px; background:repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/12px 12px; border:3px solid #fff; }
+  .b2 { display:flex; gap:6px; margin-top:10px; }
+  .b2 > div { flex:1; text-align:center; padding:9px; border-radius:8px; font-weight:600; font-size:11px; }
+  .out { border:1px solid #cbd5e1; color:#334155; }
+  .nav { display:flex; background:#fff; border-top:1px solid #e5e7eb; }
+  .nav > div { flex:1; text-align:center; padding:9px 0 11px; font-size:9px; color:#9ca3af; }
+  .nav > div.on { color:#2563eb; font-weight:700; }
+  .nav .ic { font-size:16px; display:block; }
+  .fab { position:absolute; right:12px; bottom:64px; width:52px; height:52px; border-radius:50%; background:#2563eb; color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; box-shadow:0 3px 10px rgba(37,99,235,.45); }
+  .fab-label { position:absolute; right:12px; bottom:48px; font-size:8px; color:#2563eb; font-weight:700; width:52px; text-align:center; }
+  .cardrow { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; }
+  .ring { outline:2px dashed #f59e0b; outline-offset:3px; border-radius:6px; }
+  .fixnote { font-size:11px; color:#15803d; }
+</style>
+
+<h2>화면 2 v2 — 환자 앱 홈: A+C 혼합 (상담봇 배치만 결정해 주세요)</h2>
+<p class="subtitle">
+  반영한 것 — <span class="fixnote">✓ 평소/도착후 상태에 따라 같은 자리의 카드가 바뀜 · ✓ 예약하기·방문이력 바로가기 제거(탭과 중복) · ✓ 도착 후에도 사전문진 유도 배지 유지(🔄 2026-08-05 정정 — 요구사항 4.4는 "진료 전까지" 수정 가능이라 대기실에서도 쓸 수 있어야 합니다. 숨는 시점은 진료 시작부터) · ✓ 탭 5개 유지 · ✓ 햄버거 없음</span>
+</p>
+<p class="label">남은 결정: 상담봇 진입점을 어디에 둘까요? (주황 점선 부분)</p>
+
+<div class="cardrow">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar">
+          <span>안녕하세요, 김순자님</span>
+          <span class="appicons ring">💬 🔔</span>
+        </div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">확정</span>
+            <div class="big-date">8월 3일 (월) 오후 2:30</div>
+            <div class="meta">내과 · 이민호 원장<br>본관 3층 내과 접수</div>
+            <div style="display:flex;justify-content:center;margin:12px 0 6px"><div class="qr"></div></div>
+            <div style="text-align:center;font-size:11px;color:#666">예약번호 <b>A-2413</b></div>
+            <div class="b2"><div class="out">변경</div><div class="out">취소</div></div>
+          </div>
+          <div class="w" style="padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <span><span class="badge warn">미작성</span> 사전문진</span>
+            <span style="color:#2563eb;font-weight:600">작성하기 ›</span>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">⚙️</span>설정</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 상단 앱바 아이콘 (제안하신 안)</h3>
+      <p>알림 🔔 옆에 💬. 모든 탭에서 앱바가 유지되므로 어디서든 진입 가능. 화면을 전혀 가리지 않음. 다만 아이콘이 작고 상단 모서리라 어르신 손이 닿기 어렵고 눈에 덜 띔.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>안녕하세요, 김순자님</span><span class="appicons">🔔</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">확정</span>
+            <div class="big-date">8월 3일 (월) 오후 2:30</div>
+            <div class="meta">내과 · 이민호 원장<br>본관 3층 내과 접수</div>
+            <div style="display:flex;justify-content:center;margin:12px 0 6px"><div class="qr"></div></div>
+            <div style="text-align:center;font-size:11px;color:#666">예약번호 <b>A-2413</b></div>
+            <div class="b2"><div class="out">변경</div><div class="out">취소</div></div>
+          </div>
+          <div class="w" style="padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <span><span class="badge warn">미작성</span> 사전문진</span>
+            <span style="color:#2563eb;font-weight:600">작성하기 ›</span>
+          </div>
+        </div>
+        <div class="fab ring">💬</div>
+        <div class="fab-label">AI 상담</div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">⚙️</span>설정</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 떠 있는 상담 버튼 (FAB)</h3>
+      <p>화면 오른쪽 아래에 큰 원형 버튼이 항상 떠 있음. 엄지가 닿는 위치 + 큰 터치 영역 → 요구사항 4.8(큰 버튼)에 부합. 대신 카드 하단 일부를 살짝 가리고, 스크롤 시 콘텐츠와 겹칩니다.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>한빛병원</span><span class="appicons ring">💬 🔔</span></div>
+        <div class="body">
+          <div class="w" style="background:#2563eb;color:#fff">
+            <span class="badge ok">진료 대기중</span>
+            <div class="big-date" style="color:#fff">내 앞 <span style="font-size:28px">3</span>명</div>
+            <div style="font-size:11px;opacity:.92">예상 대기 약 25분 · 내과 3진료실</div>
+            <div style="font-size:9px;opacity:.75;margin-top:6px">예상 대기시간은 변동될 수 있습니다</div>
+          </div>
+          <div class="w" style="padding:10px">
+            <div class="meta"><b style="color:#111">8월 3일 (월) 14:30</b> · 내과 이민호<br>예약번호 A-2413 · 본관 3층</div>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center;line-height:1.6">
+            진료가 시작되면 자동으로 바뀝니다<br>
+            <span style="color:#cbd5e1">(사전문진은 도착 후 수정할 수 없어 표시하지 않습니다)</span>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">⚙️</span>설정</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>참고 — 같은 홈의 "도착 후" 모습</h3>
+      <p>선택지가 아니라 <b>A/B 어느 쪽을 골라도 적용되는 상태 변화</b>입니다. 도착 처리되면 히어로 카드가 대기 상태로 바뀌고, QR·변경·취소 버튼과 사전문진 배지는 사라집니다(이미 접수됐고 수정 불가이므로).</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>B(FAB)</b>를 살짝 더 추천합니다. 스펙 4.3에 따르면 <b>예약 마감 후 취소는 반드시 상담봇 화면을 거치게</b> 되어 있어서, 상담봇은 "가끔 쓰는 도움말"이 아니라 <u>정규 업무 동선</u>입니다. 어르신이 상단 작은 아이콘을 못 찾으면 그대로 병원에 전화가 걸려옵니다. 다만 제안하신 <b>A(앱바)</b>도 충분히 타당합니다 — 화면을 안 가리고, 모든 탭에서 위치가 일정하다는 장점이 확실합니다. 어느 쪽이든 5개 탭은 그대로 유지됩니다.</p>
+</div>

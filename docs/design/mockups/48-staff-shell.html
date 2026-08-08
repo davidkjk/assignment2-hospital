@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>48 · 직원 웹 공통 셸 3안</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    /* 47번에서 확정한 직원 웹 밀도(안 B) */
+    --fs:13px; --fs-name:14px; --fs-time:15px; --row:44px; --pad:11px; --tap:36px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased;font-size:var(--fs)}
+  .page{max-width:1360px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  hr.rule{height:1px;background:var(--divider);margin:24px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:36px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.rec{background:var(--primary);color:#fff}
+
+  /* ── 앱 프레임 ── */
+  .app{background:var(--surface);border:1px solid var(--divider);border-radius:12px;overflow:hidden;
+       display:grid;grid-template-columns:200px 1fr;min-height:430px}
+  .app.top{grid-template-columns:1fr}
+
+  /* 헤더 */
+  .hdr{display:flex;align-items:center;gap:12px;height:52px;padding:0 16px;
+       border-bottom:1px solid var(--divider);background:var(--surface)}
+  .brand{font-weight:800;font-size:var(--fs-name);color:var(--primary);white-space:nowrap}
+  .hdr .sp{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:99px;
+        background:var(--done-bg);color:var(--ink);font-weight:700;font-size:12px;white-space:nowrap}
+  .chip .role{color:var(--ink-muted);font-weight:600}
+  .lg{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--divider);background:#fff;
+      color:var(--ink-muted);font-size:12px;font-weight:700;font-family:inherit;display:inline-flex;align-items:center}
+
+  /* 사이드바 */
+  .side{border-right:1px solid var(--divider);background:#FBFCFD;padding:10px 0;overflow:auto}
+  .side .grp{font-size:11px;font-weight:800;color:var(--ink-muted);letter-spacing:.04em;
+             padding:14px 16px 6px;text-transform:none}
+  .side a{display:flex;align-items:center;gap:9px;height:var(--tap);padding:0 16px;
+          color:var(--ink);text-decoration:none;font-weight:700;font-size:var(--fs)}
+  .side a .ic{width:16px;height:16px;flex:none;fill:var(--ink-muted)}
+  .side a.on{background:#E7F1F1;color:var(--primary);box-shadow:inset 3px 0 0 var(--primary)}
+  .side a.on .ic{fill:var(--primary)}
+  .side a .n{margin-left:auto;font-size:11px;font-weight:800;color:var(--warn);font-variant-numeric:tabular-nums}
+  .side .divline{height:1px;background:var(--divider);margin:8px 12px}
+
+  /* 상단 가로 내비 */
+  .topnav{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--divider);
+          background:#FBFCFD;overflow-x:auto}
+  .topnav a{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 12px;white-space:nowrap;
+            color:var(--ink);text-decoration:none;font-weight:700;font-size:var(--fs);border-bottom:2px solid transparent}
+  .topnav a.on{color:var(--primary);border-bottom-color:var(--primary)}
+  .topnav .more{color:var(--ink-muted)}
+
+  /* 본문 자리표시 */
+  .body{padding:18px 20px}
+  .ph-title{font-size:16px;font-weight:800;margin:0 0 12px}
+  .ph{border:1px dashed var(--divider);border-radius:10px;height:96px;background:#FCFDFE;
+      display:flex;align-items:center;justify-content:center;color:var(--ink-muted);font-size:12px;margin-bottom:10px}
+  .ph.tall{height:150px}
+
+  /* 역할 비교 */
+  .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:6px}
+  @media (max-width:980px){.roles{grid-template-columns:1fr}}
+  .rolecard{background:var(--surface);border:1px solid var(--divider);border-radius:12px;overflow:hidden}
+  .rolecard h3{margin:0;padding:12px 14px;font-size:var(--fs-name);font-weight:800;
+               border-bottom:1px solid var(--divider);background:#FBFCFD}
+  .rolecard h3 span{font-weight:600;color:var(--ink-muted);font-size:12px}
+  .rolecard .side{border-right:0;background:transparent}
+
+  .notes{margin-top:34px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:20px 22px}
+  .notes h2{font-size:15px;font-weight:800;margin:0 0 12px}
+  .notes table{width:100%;border-collapse:collapse;font-size:13px}
+  .notes th,.notes td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--divider);vertical-align:top}
+  .notes th{color:var(--ink-muted);font-weight:700;font-size:12px}
+  .notes p{font-size:13px;line-height:1.75;color:var(--ink-muted);margin:14px 0 0}
+  .notes p b,.notes td b{color:var(--ink)}
+  .warnline{color:var(--warn);font-weight:800;padding-left:8px;border-left:4px solid var(--warn)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>직원 웹 공통 셸 3안</h1>
+<p class="sub">
+  📌 <b>이 그림이 담은 규칙</b>(원본은 <code>docs/design/screen-behaviors.md</code> 「공통 셸」 절) —
+  사이드바·역할별 메뉴 <code>SHELL-NAV-01~06</code> · 헤더·역할 칩 <code>SHELL-HDR-01~02</code> · 직접 URL 접근 <code>SHELL-URL-01</code> ·
+  화면 이동 <code>NAV-SHELL-01~12</code>
+</p>
+<p class="sub">
+  16화면이 전부 이 틀 안에 들어간다. 크기는 <b>47번 안 B</b>(본문 13 / 행 44 / 버튼 36)를 그대로 쓴다.<br>
+  세 안은 <b>메뉴를 어디에 어떻게 놓는가</b>만 다르다. 모두 <b>관리자</b> 기준 — 메뉴가 14개로 가장 많아 구조의 한계가 여기서 드러난다.
+</p>
+
+<hr class="rule">
+
+<!-- ══════════ 안 A ══════════ -->
+<h2 class="sec"><span class="tag">안 A</span> &nbsp;좌측 사이드바 · 평면 목록</h2>
+<p class="seclead">메뉴 14개를 묶지 않고 한 줄로 나열한다.</p>
+<div class="app">
+  <nav class="side">
+    <a class="on"><svg class="ic" viewBox="0 0 16 16"><path d="M2 7 8 2l6 5v7H10v-4H6v4H2z"/></svg>오늘의 현황</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm0 4v8h10V6z"/></svg>예약 캘린더</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>대기 목록 <span class="n">12</span></a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 1l6 3v5c0 3-2.5 5.3-6 6-3.5-.7-6-3-6-6V4z"/></svg>예약번호·QR 접수</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M7 2a5 5 0 103.2 8.8l3 3 1.4-1.4-3-3A5 5 0 007 2zm0 2a3 3 0 110 6 3 3 0 010-6z"/></svg>환자 검색</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 2a3 3 0 110 6 3 3 0 010-6zM2 14c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5z"/></svg>진료과·의사 일정</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 13h3V7H2zm4.5 0h3V3h-3zM11 13h3V9h-3z"/></svg>운영 통계</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 2a3 3 0 110 6 3 3 0 010-6zM2 14c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5z"/></svg>직원 계정 관리</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 3c3.3 0 6 2.5 6 5s-2.7 5-6 5-6-2.5-6-5 2.7-5 6-5zm0 2a3 3 0 100 6 3 3 0 000-6z"/></svg>환자정보 열람 기록</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M5 3a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm6 1a2 2 0 110 4 2 2 0 010-4zM1 14c0-2.4 2-3.5 4-3.5s4 1.1 4 3.5zm9.5 0c0-1.5-.6-2.6-1.5-3.2.6-.2 1.3-.3 2-.3 2 0 4 1.1 4 3.5z"/></svg>환자 계정 병합</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M4 1h8l2 2v12H2V3zm1 5h6V5H5zm0 3h6V8H5zm0 3h4v-1H5z"/></svg>문진 양식 관리</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 1l7 13H1zM7.2 6v4h1.6V6zm0 5.2v1.6h1.6v-1.6z"/></svg>시스템 오류 로그</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 5a3 3 0 100 6 3 3 0 000-6zm6.4 3l1.3 1-1.5 2.6-1.6-.5-1.4.8-.3 1.6h-3l-.3-1.6-1.4-.8-1.6.5L3.1 14l1.3-1a5.6 5.6 0 010-1.6"/></svg>병원 설정</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>진료 화면(의사)</a>
+  </nav>
+  <div>
+    <header class="hdr">
+      <span class="brand">한빛병원</span><span class="sp"></span>
+      <span class="chip">정수진 <span class="role">관리자</span></span>
+      <button class="lg">로그아웃</button>
+    </header>
+    <div class="body">
+      <div class="ph-title">오늘의 현황</div>
+      <div class="ph">지금 처리할 것</div>
+      <div class="ph tall">오늘 요약 타일</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 안 B ══════════ -->
+<h2 class="sec"><span class="tag rec">안 B · 추천</span> &nbsp;좌측 사이드바 · 업무별 묶음</h2>
+<p class="seclead">같은 사이드바지만 <b>「진료 현장 / 환자 / 운영·관리」</b> 세 덩어리로 묶고, 자주 쓰는 것을 맨 위에 둔다.</p>
+<div class="app">
+  <nav class="side">
+    <div class="grp">진료 현장</div>
+    <a class="on"><svg class="ic" viewBox="0 0 16 16"><path d="M2 7 8 2l6 5v7H10v-4H6v4H2z"/></svg>오늘의 현황</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>대기 목록 <span class="n">12</span></a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm0 4v8h10V6z"/></svg>예약 캘린더 <span class="n">2</span></a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 1l6 3v5c0 3-2.5 5.3-6 6-3.5-.7-6-3-6-6V4z"/></svg>예약번호·QR 접수</a>
+    <div class="grp">환자</div>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M7 2a5 5 0 103.2 8.8l3 3 1.4-1.4-3-3A5 5 0 007 2zm0 2a3 3 0 110 6 3 3 0 010-6z"/></svg>환자 검색</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M5 3a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm6 1a2 2 0 110 4 2 2 0 010-4zM1 14c0-2.4 2-3.5 4-3.5s4 1.1 4 3.5zm9.5 0c0-1.5-.6-2.6-1.5-3.2.6-.2 1.3-.3 2-.3 2 0 4 1.1 4 3.5z"/></svg>계정 병합 후보 <span class="n">1</span></a>
+    <div class="grp">운영·관리</div>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 2a3 3 0 110 6 3 3 0 010-6zM2 14c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5z"/></svg>진료과·의사 일정</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M4 1h8l2 2v12H2V3zm1 5h6V5H5zm0 3h6V8H5zm0 3h4v-1H5z"/></svg>문진 양식 관리</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 13h3V7H2zm4.5 0h3V3h-3zM11 13h3V9h-3z"/></svg>운영 통계</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 2a3 3 0 110 6 3 3 0 010-6zM2 14c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5z"/></svg>직원 계정 관리</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 3c3.3 0 6 2.5 6 5s-2.7 5-6 5-6-2.5-6-5 2.7-5 6-5zm0 2a3 3 0 100 6 3 3 0 000-6z"/></svg>열람 기록</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 1l7 13H1zM7.2 6v4h1.6V6zm0 5.2v1.6h1.6v-1.6z"/></svg>시스템 오류</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 5a3 3 0 100 6 3 3 0 000-6zm6.4 3l1.3 1-1.5 2.6-1.6-.5-1.4.8-.3 1.6h-3l-.3-1.6-1.4-.8-1.6.5L3.1 14l1.3-1a5.6 5.6 0 010-1.6"/></svg>병원 설정</a>
+  </nav>
+  <div>
+    <header class="hdr">
+      <span class="brand">한빛병원</span><span class="sp"></span>
+      <span class="chip">정수진 <span class="role">관리자</span></span>
+      <button class="lg">로그아웃</button>
+    </header>
+    <div class="body">
+      <div class="ph-title">오늘의 현황</div>
+      <div class="ph">지금 처리할 것</div>
+      <div class="ph tall">오늘 요약 타일</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 안 C ══════════ -->
+<h2 class="sec"><span class="tag">안 C</span> &nbsp;상단 가로 내비</h2>
+<p class="seclead">사이드바를 없애고 위쪽 한 줄에 메뉴를 놓는다. 본문 가로폭이 가장 넓다.</p>
+<div class="app top">
+  <header class="hdr">
+    <span class="brand">한빛병원</span><span class="sp"></span>
+    <span class="chip">정수진 <span class="role">관리자</span></span>
+    <button class="lg">로그아웃</button>
+  </header>
+  <nav class="topnav">
+    <a class="on">오늘의 현황</a><a>대기 목록</a><a>예약 캘린더</a><a>QR 접수</a><a>환자 검색</a>
+    <a>일정 관리</a><a>운영 통계</a><a class="more">관리 ▾ &nbsp;<span style="color:#B44E00;font-weight:800">7</span></a>
+  </nav>
+  <div class="body">
+    <div class="ph-title">오늘의 현황</div>
+    <div class="ph">지금 처리할 것</div>
+    <div class="ph tall">오늘 요약 타일</div>
+  </div>
+</div>
+
+<!-- ══════════ 역할별 ══════════ -->
+<h2 class="sec">역할별 메뉴 (안 B 기준)</h2>
+<p class="seclead">
+  요구사항 3.1 <b>“접수 직원, 의사, 관리자의 메뉴가 서로 달라야 합니다”</b> ·
+  완료 시나리오 9 <b>“의사는 직원 관리 메뉴를 사용할 수 없다”</b>
+</p>
+<div class="roles">
+  <div class="rolecard">
+    <h3>접수 직원 <span>· 5개</span></h3>
+    <nav class="side">
+      <div class="grp">진료 현장</div>
+      <a class="on">오늘의 현황</a><a>대기 목록 <span class="n">12</span></a><a>예약 캘린더 <span class="n">2</span></a><a>예약번호·QR 접수</a>
+      <div class="grp">환자</div>
+      <a>환자 검색</a>
+      <div class="divline"></div>
+      <div class="grp" style="color:#B44E00">가족 연결·전화번호 변경은</div>
+      <a style="font-weight:600;color:#5A6C7B">환자 상세 안에서 (메뉴 아님)</a>
+    </nav>
+  </div>
+  <div class="rolecard">
+    <h3>의사 <span>· 2개</span></h3>
+    <nav class="side">
+      <div class="grp">진료</div>
+      <a class="on">진료 화면</a>
+      <div class="grp">환자</div>
+      <a>환자 검색</a>
+      <div class="divline"></div>
+      <div class="grp" style="color:#B44E00">보이지 않음</div>
+      <a style="font-weight:600;color:#5A6C7B">대기 목록 · 캘린더 · 관리 전체</a>
+    </nav>
+  </div>
+  <div class="rolecard">
+    <h3>관리자 <span>· 13개</span></h3>
+    <nav class="side">
+      <div class="grp">진료 현장</div>
+      <a class="on">오늘의 현황</a><a>대기 목록</a><a>예약 캘린더</a><a>예약번호·QR 접수</a>
+      <div class="grp">환자</div>
+      <a>환자 검색</a><a>계정 병합 후보 <span class="n">1</span></a>
+      <div class="grp">운영·관리</div>
+      <a>진료과·의사 일정</a><a>문진 양식 관리</a><a>운영 통계</a><a>직원 계정 관리</a><a>열람 기록</a><a>시스템 오류</a><a>병원 설정</a>
+    </nav>
+  </div>
+</div>
+
+<div class="notes">
+  <h2>판단 재료</h2>
+  <table>
+    <thead><tr><th style="width:26%">기준</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td>메뉴 14개가 들어가나</td>
+          <td><b>C는 안 들어간다.</b> 가로 한 줄에 7개까지가 한계라 나머지 7개를 <code>관리 ▾</code> 안에 숨겨야 한다 —
+              <b>관리자 화면 절반이 한 겹 뒤로 밀린다.</b> A·B는 14개가 다 보인다.</td></tr>
+      <tr><td>찾는 데 걸리는 시간</td>
+          <td><b>A는 14개가 구분 없이 한 줄</b>이라 훑어야 한다. B는 세 덩어리로 나뉘어
+              “지금 진료 중인 일인가 / 환자를 찾는 일인가 / 설정하는 일인가”로 먼저 좁혀진다.</td></tr>
+      <tr><td>요구사항 7절<br>“오늘 처리할 환자와 문제가 먼저”</td>
+          <td>B는 <b>「진료 현장」을 맨 위</b>에 두고 그 안에 처리할 건수를 <span class="warnline">주의색 숫자</span>로 붙인다.
+              A는 순서가 평평해 이 강조가 안 된다.</td></tr>
+      <tr><td>본문 가로폭</td>
+          <td>C가 200px 넓다. 예약 캘린더(주간 7일)에는 이득이지만,
+              <b>1080p에서 A·B도 캘린더 7일이 들어간다</b> — 이 이득을 위해 메뉴 7개를 숨기는 건 교환이 안 맞는다.</td></tr>
+      <tr><td>역할별 차이</td>
+          <td>의사는 메뉴가 <b>2개뿐</b>이다. C(상단 가로)에서는 넓은 띠에 항목 2개만 떠서 허전하고,
+              사이드바는 그 상태로도 자연스럽다.</td></tr>
+    </tbody>
+  </table>
+  <p><b>안 B를 추천한다.</b> 14개를 다 보여주면서 자주 쓰는 것을 위로 올릴 수 있는 구조는 이것뿐이다.</p>
+  <p>
+    📌 <b>헤더 종 아이콘은 없앴다</b>(2026-08-03 확정, 이 목업에서 제거함).
+    종은 취소요청 대기열 폐지(결정 #25)의 대체 수단 ③으로 만든 것인데, 맡던 일이 전부 다른 곳으로 옮겨갔다 —
+    「다른 화면에 있어도 안다」는 <b>사이드바 항목의 주의색 숫자</b>가, 「확인 필요 상담 문의」는
+    <b>오늘의 현황 화면</b>이 맡는다(요구사항 3.2가 그 항목을 그 화면에 직접 지정하고 있다).
+    같은 수를 두 곳에서 세면 반드시 어긋나고, 한 번 어긋나면 직원은 둘 다 안 믿게 된다.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

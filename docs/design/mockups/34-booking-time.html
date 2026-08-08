@@ -1,0 +1,127 @@
+<style>
+  .p9 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --bg:#F2F5F7; }
+  .p9, .p9 * { text-align:left; box-sizing:border-box; }
+  .p9 { width:340px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+        overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink); }
+  .p9 .bar { background:var(--teal); color:#fff; padding:11px 16px; font-size:15px; font-weight:600; }
+  .p9 .prog { padding:12px 16px 6px; background:var(--bg); }
+  .p9 .prog .txt { font-size:12px; color:var(--done); font-weight:600; margin-bottom:6px; }
+  .p9 .prog .track { height:5px; background:#dde4e9; border-radius:3px; overflow:hidden; }
+  .p9 .prog .fill { height:100%; width:62.5%; background:var(--teal); }
+  .p9 .q { padding:16px 16px 0; font-size:20px; font-weight:800; letter-spacing:-.3px; line-height:1.35; }
+  .p9 .sum { padding:10px 16px 14px; display:flex; gap:6px; flex-wrap:wrap; }
+  .p9 .sum span { font-size:12.5px; color:var(--done); background:#eef2f5; padding:3px 9px; border-radius:5px; }
+  .p9 .body { padding:0 16px 18px; }
+
+  .tgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .t { border:1.5px solid #cfdbe0; border-radius:10px; padding:13px 0; text-align:center;
+       font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .t.on { background:var(--teal); border-color:var(--teal); color:#fff; }
+  .grp { font-size:13px; font-weight:800; color:var(--done); margin:16px 0 9px; }
+  .grp:first-child { margin-top:0; }
+  .cnt { font-size:12.5px; color:var(--done); font-weight:400; }
+
+  .rail { display:flex; align-items:stretch; border:1.5px solid #cfdbe0; border-radius:10px;
+          overflow:hidden; margin-bottom:8px; }
+  .rail .lt { background:#eef4f5; color:var(--teal); font-size:19px; font-weight:800; padding:14px 0;
+              width:96px; text-align:center; font-variant-numeric:tabular-nums; flex:none; }
+  .rail .rt { flex:1; padding:14px 13px; font-size:14px; color:var(--done); display:flex; align-items:center; }
+  .rail.on { border-color:var(--teal); border-width:2px; }
+  .rail.on .lt { background:var(--teal); color:#fff; }
+  .rail .lt, .rail .rt { text-align:left; }
+  .rail .lt { text-align:center; }
+
+  .lane9 { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane9 h3 { margin:0 0 5px; text-align:left; }
+  .lane9 .cap { font-size:13px; color:#6b7d8c; margin-bottom:12px; max-width:340px; text-align:left; }
+</style>
+
+<h2>예약 5단계 — 시간 선택</h2>
+<p class="subtitle">확정된 <b>#9</b>에 따라 <b>예약 가능한 시간만</b> 보여줍니다(찬 시간은 회색 처리하지 않고 아예 숨김). 남은 결정은 <b>어떻게 묶어서 보여줄 것인가</b>입니다.</p>
+
+<div class="lane9">
+
+  <div>
+    <h3>가 · 오전/오후로 묶기 (추천)</h3>
+    <div class="cap">3열 격자를 오전·오후 두 덩어리로 나눕니다. 사람이 시간을 떠올리는 방식과 같습니다.</div>
+    <div class="p9">
+      <div class="bar">← &nbsp;예약하기</div>
+      <div class="prog"><div class="txt">5단계 / 8단계 · 시간 선택</div><div class="track"><div class="fill"></div></div></div>
+      <div class="q">몇 시가 좋으세요?</div>
+      <div class="sum"><span>정형외과</span><span>김민수</span><span>8월 12일 (수)</span></div>
+      <div class="body">
+        <div class="grp">오전 <span class="cnt">4자리</span></div>
+        <div class="tgrid">
+          <div class="t">09:00</div><div class="t">09:30</div><div class="t">10:30</div>
+          <div class="t on">11:00</div>
+        </div>
+        <div class="grp">오후 <span class="cnt">5자리</span></div>
+        <div class="tgrid">
+          <div class="t">14:00</div><div class="t">14:30</div><div class="t">15:00</div>
+          <div class="t">16:00</div><div class="t">17:30</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3>나 · 한 덩어리로</h3>
+    <div class="cap">묶지 않고 이른 시간부터 차례로. 가장 단순합니다.</div>
+    <div class="p9">
+      <div class="bar">← &nbsp;예약하기</div>
+      <div class="prog"><div class="txt">5단계 / 8단계 · 시간 선택</div><div class="track"><div class="fill"></div></div></div>
+      <div class="q">몇 시가 좋으세요?</div>
+      <div class="sum"><span>정형외과</span><span>김민수</span><span>8월 12일 (수)</span></div>
+      <div class="body">
+        <div class="tgrid">
+          <div class="t">09:00</div><div class="t">09:30</div><div class="t">10:30</div>
+          <div class="t on">11:00</div><div class="t">14:00</div><div class="t">14:30</div>
+          <div class="t">15:00</div><div class="t">16:00</div><div class="t">17:30</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3>다 · 시각 레일 세로 목록</h3>
+    <div class="cap">확정 시그니처(왼쪽 진한 띠에 시각을 크게)를 그대로 씁니다. 글씨가 가장 큽니다.</div>
+    <div class="p9">
+      <div class="bar">← &nbsp;예약하기</div>
+      <div class="prog"><div class="txt">5단계 / 8단계 · 시간 선택</div><div class="track"><div class="fill"></div></div></div>
+      <div class="q">몇 시가 좋으세요?</div>
+      <div class="sum"><span>정형외과</span><span>김민수</span><span>8월 12일 (수)</span></div>
+      <div class="body">
+        <div class="rail"><div class="lt">09:00</div><div class="rt">오전</div></div>
+        <div class="rail"><div class="lt">09:30</div><div class="rt">오전</div></div>
+        <div class="rail on"><div class="lt">11:00</div><div class="rt">오전</div></div>
+        <div class="rail"><div class="lt">14:00</div><div class="rt">오후</div></div>
+        <div class="rail"><div class="lt">14:30</div><div class="rt">오후</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="options" style="margin-top:26px">
+  <div class="option" data-choice="ampm" onclick="toggleSelect(this)">
+    <div class="letter">가</div>
+    <div class="content">
+      <h3>오전/오후로 묶은 3열 격자 <span style="color:#0B6E70">— 추천</span></h3>
+      <p>사람은 "오전에 갈까 오후에 갈까"를 먼저 정하고 그 안에서 시간을 고릅니다. 묶어주면 그 순서대로 고를 수 있습니다. <b>점심시간이라 자리가 없는 구간</b>도 두 덩어리 사이 빈틈으로 자연스럽게 드러납니다. 자리 수를 덧붙이면 "오후가 여유롭구나"도 알 수 있습니다.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="flat" onclick="toggleSelect(this)">
+    <div class="letter">나</div>
+    <div class="content">
+      <h3>묶지 않고 한 덩어리</h3>
+      <p>가장 단순하고 화면이 짧습니다. 대신 11:00 다음에 14:00이 바로 붙어 나와, 그 사이가 왜 비었는지(점심) 알 수 없고 시간이 갑자기 건너뛴 것처럼 보입니다.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="rail" onclick="toggleSelect(this)">
+    <div class="letter">다</div>
+    <div class="content">
+      <h3>시각 레일 세로 목록</h3>
+      <p>확정 시그니처를 그대로 쓰고 글씨가 가장 큽니다. 대신 한 줄에 하나뿐이라 <b>화면이 매우 길어지고</b>(하루 15자리면 15줄), 오른쪽 칸에 "오전/오후" 말고 채울 내용이 없어 공간이 낭비됩니다.</p>
+    </div>
+  </div>
+</div>

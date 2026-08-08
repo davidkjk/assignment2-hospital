@@ -1,0 +1,159 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .qn { width: 262px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 500px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .qn-top { background: #fff; padding: 9px 12px 10px; }
+  .qn-nav { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .qn-back { color: #0B6E70; font-weight: 700; }
+  .qn-sub { font-size: 10px; color: #5A6C7B; margin-top: 5px; font-weight: 600; }
+  .qn-prog { display: flex; gap: 3px; margin-top: 8px; }
+  .qn-prog i { flex: 1; height: 5px; border-radius: 3px; background: #E0E7EC; }
+  .qn-prog i.on { background: #0B6E70; }
+  .qn-body { flex: 1; padding: 11px; }
+  .qn-q { font-size: 18px; font-weight: 800; letter-spacing: -.4px; line-height: 1.35; margin-bottom: 10px; }
+  .qn-ql { font-size: 13.5px; font-weight: 800; margin-bottom: 7px; }
+  .qn-card { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 9px; box-shadow: 0 1px 2px rgba(16,36,58,.08); }
+  .qn-opt { background: #fff; border: 2px solid #E6EBEF; border-radius: 11px; padding: 13px 12px; margin-bottom: 7px; font-size: 14.5px; font-weight: 700; }
+  .qn-opt.sel { border-color: #0B6E70; background: #F0F7F7; }
+  .qn-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .qn-chip { border: 2px solid #E6EBEF; background: #fff; border-radius: 99px; padding: 9px 13px; font-size: 12.5px; font-weight: 700; }
+  .qn-chip.sel { border-color: #0B6E70; background: #0B6E70; color: #fff; }
+  .qn-input { border: 2px solid #E6EBEF; background: #fff; border-radius: 10px; padding: 12px; font-size: 12.5px; color: #A9B6BF; font-weight: 500; }
+  .qn-cta { background: #0B6E70; color: #fff; text-align: center; font-size: 15px; font-weight: 800; padding: 15px; border-radius: 11px; margin: 10px 12px 12px; }
+  .qn-ghost { border: 2px solid #0B6E70; color: #0B6E70; background: #fff; }
+  .qn-note { background: #fff; border-left: 4px solid #B44E00; border-radius: 0 10px 10px 0; padding: 10px 11px; color: #B44E00; font-weight: 700; font-size: 11.5px; line-height: 1.55; margin-bottom: 9px; }
+  .qn-saved { font-size: 10.5px; color: #5A6C7B; font-weight: 600; text-align: right; margin-top: -3px; margin-bottom: 7px; }
+  .qn-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .qn-sec { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: #5A6C7B; margin: 3px 0 6px; }
+</style>
+
+<h2>화면 19 / 20 — 환자 앱: 사전문진 작성 (요구사항 4.4)</h2>
+<p class="subtitle">
+  진료과별 질문 세트(<code>questionnaire_templates</code>)를 채우는 화면. <b>진료가 시작되기 전까지 자유롭게 수정 가능</b>, <code>진료중</code>부터 읽기 전용. <span style="color:#B44E00;font-weight:700">🔄 2026-08-05 정정</span> — 예전 서술 <s>"도착 처리 전까지 / 도착 이후 읽기 전용"</s>은 요구사항 4.4의 <i>"환자는 <b>진료 전까지</b> 내용을 수정할 수 있고"</i>(<code>:282</code>)와 어긋났습니다(갭 #21).
+  챗봇이 대화에서 파악한 내용을 채팅 카드로 저장할 수도 있고, <b>그 값이 이 화면에 항상 최신으로 표시</b>됩니다.
+  <br>질문이 5~10개 되는데 <b>어떻게 담을지</b>가 결정 사항입니다.
+</p>
+
+<div class="qn-row">
+
+  <!-- A -->
+  <div class="card" data-choice="q-wizard" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="qn">
+        <div class="qn-top">
+          <div class="qn-nav"><span class="qn-back">‹ 뒤로</span><span>사전문진</span><span class="qn-back">✕</span></div>
+          <div class="qn-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="qn-sub">3번 / 6문항 · 내과</div>
+        </div>
+        <div class="qn-body">
+          <div class="qn-q">지금 드시는 약이<br>있으신가요?</div>
+          <div class="qn-opt sel">있습니다</div>
+          <div class="qn-opt">없습니다</div>
+          <div class="qn-opt">잘 모르겠습니다</div>
+          <div style="margin-top:11px">
+            <div class="qn-sec">어떤 약인지 적어주세요 (선택)</div>
+            <div class="qn-input">예: 혈압약, 당뇨약</div>
+          </div>
+        </div>
+        <div class="qn-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 한 문항씩 (마법사)</h3>
+      <p>예약 플로우와 <b>같은 방식</b>이라 배울 게 없고, 글자·버튼이 가장 큽니다. 단점: 문진은 <u>"아까 뭐라고 답했더라"를 되짚는 일이 잦은데</u> 매번 뒤로 가야 합니다. 6문항이면 6번 넘겨야 저장됩니다.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="q-scroll" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="qn">
+        <div class="qn-top">
+          <div class="qn-nav"><span class="qn-back">‹ 뒤로</span><span>사전문진</span><span style="width:30px"></span></div>
+          <div class="qn-sub">8월 3일 내과 이민호 원장 · 김순자</div>
+        </div>
+        <div class="qn-body" style="padding:10px">
+          <div class="qn-saved">방금 자동 저장됨</div>
+          <div class="qn-card">
+            <div class="qn-ql">1. 어디가 불편하신가요?</div>
+            <div class="qn-input" style="color:#10243A;font-weight:600">기침이 2주째 계속됩니다</div>
+          </div>
+          <div class="qn-card">
+            <div class="qn-ql">2. 언제부터 그러셨나요?</div>
+            <div class="qn-chips">
+              <span class="qn-chip">오늘</span><span class="qn-chip">2~3일</span>
+              <span class="qn-chip sel">1~2주</span><span class="qn-chip">한 달 이상</span>
+            </div>
+          </div>
+          <div class="qn-card">
+            <div class="qn-ql">3. 지금 드시는 약이 있나요?</div>
+            <div class="qn-chips">
+              <span class="qn-chip sel">있음</span><span class="qn-chip">없음</span><span class="qn-chip">모름</span>
+            </div>
+            <div class="qn-input" style="margin-top:8px">예: 혈압약, 당뇨약</div>
+          </div>
+          <div class="qn-card" style="opacity:.55">
+            <div class="qn-ql">4. 알레르기가 있나요?</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;margin:0 12px 12px">
+          <div class="qn-cta qn-ghost" style="flex:1;margin:0;font-size:13px;padding:14px 0">나중에 하기</div>
+          <div class="qn-cta" style="flex:1.4;margin:0;font-size:14px;padding:14px 0">저장하기</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 한 페이지에 전부 (스크롤 폼)</h3>
+      <p>질문 카드가 위에서 아래로 이어집니다. <b>앞 답을 언제든 다시 보고 고칠 수 있고</b>, 자동 저장이 되어 중간에 나가도 안전합니다. 상단에 누구의 어떤 진료인지 늘 표시. 단점: 스크롤이 길고, 한 화면에 여러 행동이 있습니다.</p>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" data-choice="q-group" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="qn">
+        <div class="qn-top">
+          <div class="qn-nav"><span class="qn-back">‹ 뒤로</span><span>사전문진</span><span class="qn-back">✕</span></div>
+          <div class="qn-prog"><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="qn-sub">2단계 / 3단계 · 복용 중인 약과 알레르기</div>
+        </div>
+        <div class="qn-body" style="padding:10px">
+          <div class="qn-card">
+            <div class="qn-ql">지금 드시는 약이 있나요?</div>
+            <div class="qn-chips">
+              <span class="qn-chip sel">있음</span><span class="qn-chip">없음</span><span class="qn-chip">모름</span>
+            </div>
+            <div class="qn-input" style="margin-top:8px">예: 혈압약, 당뇨약</div>
+          </div>
+          <div class="qn-card">
+            <div class="qn-ql">알레르기가 있나요?</div>
+            <div class="qn-chips">
+              <span class="qn-chip">있음</span><span class="qn-chip sel">없음</span><span class="qn-chip">모름</span>
+            </div>
+          </div>
+          <div class="qn-card">
+            <div class="qn-ql">임신 가능성이 있으신가요?</div>
+            <div class="qn-chips">
+              <span class="qn-chip">있음</span><span class="qn-chip sel">없음</span>
+            </div>
+          </div>
+        </div>
+        <div class="qn-cta">다음 · 마지막 단계</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 주제별로 묶어 3단계</h3>
+      <p>①증상 ②약·알레르기 ③기타. 관련 질문끼리 <b>한 화면에 모여</b> 맥락이 이어지고, 마법사보다 화면 이동이 적습니다. 단점: 진료과마다 질문 개수·성격이 달라 <b>어떻게 묶을지 미리 정하기 어렵고</b>, 관리자가 문항을 추가하면 묶음이 깨집니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>B(한 페이지 스크롤 폼)</b>를 추천합니다. 예약 플로우는 A(마법사)로 정했는데 왜 여기선 다르냐면, <u>두 화면의 성격이 다르기 때문</u>입니다.</p>
+  <p style="margin-top:8px"><b>예약은 앞의 선택이 뒤를 결정합니다</b> — 의사를 골라야 그 의사의 날짜가 나오고, 날짜를 골라야 시간이 나옵니다. 순서가 강제되니 마법사가 맞습니다. 반면 <b>문진의 질문들은 서로 독립적</b>입니다. 약 이야기를 먼저 쓰든 증상을 먼저 쓰든 상관없고, 3번을 쓰다가 1번을 고치는 일이 자주 생깁니다. 이런 성격엔 한 페이지가 맞습니다.</p>
+  <p style="margin-top:8px">두 번째 이유는 <b>중단과 재개</b>입니다. 문진은 "약 이름을 확인하러 서랍을 뒤지는" 식의 중단이 흔합니다. B는 자동 저장이라 앱을 닫았다 와도 그대로이고, 마법사는 어느 단계에서 끊겼는지 다시 찾아 들어가야 합니다.</p>
+  <p style="margin-top:8px">C는 매력적이지만 <b>진료과마다 문항이 달라</b> 묶음 규칙을 일반화할 수 없습니다. 관리자가 문항을 하나 추가할 때마다 묶음이 흐트러집니다.</p>
+  <p style="margin-top:10px"><span class="label">B를 고르실 때 함께 정해지는 것</span> ① 자동 저장(입력이 멈추면 저장, 상단에 "방금 자동 저장됨") ② 상단에 <b>누구의 어떤 진료</b>인지 항상 표시(가족 문진을 잘못 쓰는 사고 방지) ③ 🔄 <b>진료가 시작된 이후</b>(상태 <code>진료중</code>)에 같은 화면이 <b>읽기 전용</b>으로 바뀌고 "진료가 시작되어 수정할 수 없습니다" 안내 표시. <b>도착(접수)은 아직 진료 전이라 대기실에서 고칠 수 있습니다.</b></p>
+</div>

@@ -1,0 +1,142 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+</style>
+<style>
+  .tf { width: 254px; border: 2px solid #3a3a3a; border-radius: 16px; overflow: hidden; background: #F2F5F7; color: #10243A; }
+  .tf-bar { background: #fff; padding: 9px 11px; font-size: 13px; font-weight: 800; }
+  .tf-in { padding: 10px; }
+  .tf-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.12); }
+  .tf-head { background: #0B6E70; color: #fff; padding: 8px 11px; font-size: 11px; font-weight: 800; }
+  .tf-p { display: flex; border-bottom: 1px solid #E6EBEF; }
+  .tf-rail { background: #0B6E70; color: #fff; width: 58px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; }
+  .tf-time { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+  .tf-rel { font-size: 8px; opacity: .88; }
+  .tf-mid { flex: 1; padding: 9px; }
+  .tf-name { font-size: 14px; font-weight: 800; }
+  .tf-sub { font-size: 10px; color: #5A6C7B; margin-top: 2px; }
+  .tf-q { font-size: 10px; font-weight: 700; padding: 7px 11px 7px 68px; background: #FFF6E8; color: #A85B00; }
+  .tf-nums { background: #fff; border-radius: 10px; margin-top: 8px; padding: 9px 11px; }
+  .tf-numline { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; line-height: 1.5; }
+  .tf-lab { font-size: 9px; color: #5A6C7B; font-weight: 700; letter-spacing: .5px; }
+  .tf-sample { background:#fff; border-radius:10px; margin-top:8px; padding:9px 11px; }
+  .tf-s1 { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+  .tf-s2 { font-size: 12px; font-weight: 400; color: #33465A; margin-top: 3px; line-height: 1.6; }
+  .tf-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+  .f-pre { font-family: 'Pretendard', -apple-system, sans-serif; }
+  .f-noto { font-family: 'Noto Sans KR', -apple-system, sans-serif; }
+  .f-sys { font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
+</style>
+
+<h2>화면 6 / 20 — 서체(폰트) 선택</h2>
+<p class="subtitle">
+  같은 홈 화면·같은 색에 <b>서체만</b> 바꿨습니다. 아래 세 가지를 특히 비교해 보세요:
+  <b>①이름의 굵기가 충분히 진한가</b> · <b>②시각 숫자(14:30)의 폭이 일정한가</b> · <b>③작은 회색 글씨가 읽히는가</b>
+  <br><span style="color:#94a3b8">웹폰트를 인터넷에서 받아와 표시합니다. 세 카드의 글자 모양이 똑같아 보이면 폰트 로딩이 실패한 것이니 알려주세요.</span>
+</p>
+
+<div class="tf-row">
+
+  <!-- Pretendard -->
+  <div class="card" data-choice="pretendard" onclick="toggleSelect(this)" style="max-width:290px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="tf f-pre">
+        <div class="tf-bar">김순자님</div>
+        <div class="tf-in">
+          <div class="tf-card">
+            <div class="tf-head">오늘 방문 3건 · 8월 3일 (월)</div>
+            <div class="tf-p">
+              <div class="tf-rail"><div class="tf-time">14:30</div><div class="tf-rel">본인</div></div>
+              <div class="tf-mid"><div class="tf-name">김순자</div><div class="tf-sub">내과 · 이민호 원장</div></div>
+            </div>
+            <div class="tf-q">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="tf-nums">
+            <div class="tf-lab">숫자 정렬</div>
+            <div class="tf-numline">09:00<br>11:30<br>14:30</div>
+          </div>
+          <div class="tf-sample">
+            <div class="tf-s1">예상 대기 약 25분</div>
+            <div class="tf-s2">예상 대기시간은 변동될 수 있습니다. 진료 순서가 되면 알려드립니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1. Pretendard</h3>
+      <p>한국에서 만든 무료 오픈소스 서체. 굵기가 <b>9단계</b>로 촘촘해 "이름은 아주 굵게, 설명은 보통"처럼 위계를 정밀하게 잡을 수 있습니다. 숫자 폭이 일정해 시각이 세로로 딱 맞습니다. 아이폰 기본 서체와 인상이 비슷해 낯설지 않습니다.</p>
+    </div>
+  </div>
+
+  <!-- Noto Sans KR -->
+  <div class="card" data-choice="noto" onclick="toggleSelect(this)" style="max-width:290px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="tf f-noto">
+        <div class="tf-bar">김순자님</div>
+        <div class="tf-in">
+          <div class="tf-card">
+            <div class="tf-head">오늘 방문 3건 · 8월 3일 (월)</div>
+            <div class="tf-p">
+              <div class="tf-rail"><div class="tf-time">14:30</div><div class="tf-rel">본인</div></div>
+              <div class="tf-mid"><div class="tf-name">김순자</div><div class="tf-sub">내과 · 이민호 원장</div></div>
+            </div>
+            <div class="tf-q">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="tf-nums">
+            <div class="tf-lab">숫자 정렬</div>
+            <div class="tf-numline">09:00<br>11:30<br>14:30</div>
+          </div>
+          <div class="tf-sample">
+            <div class="tf-s1">예상 대기 약 25분</div>
+            <div class="tf-s2">예상 대기시간은 변동될 수 있습니다. 진료 순서가 되면 알려드립니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2. 본고딕 (Noto Sans KR)</h3>
+      <p>구글·어도비가 만든 표준 한글 서체. 세상에서 가장 많이 검증된 한글 폰트라 <b>깨질 일이 사실상 없습니다</b>. 글자 속 공간이 넓어 아주 작은 크기에서 강합니다. 단점: 너무 흔해 인상이 밋밋하고, 굵은 무게에서 글자가 다소 답답해 보입니다.</p>
+    </div>
+  </div>
+
+  <!-- 시스템 기본 -->
+  <div class="card" data-choice="system" onclick="toggleSelect(this)" style="max-width:290px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="tf f-sys">
+        <div class="tf-bar">김순자님</div>
+        <div class="tf-in">
+          <div class="tf-card">
+            <div class="tf-head">오늘 방문 3건 · 8월 3일 (월)</div>
+            <div class="tf-p">
+              <div class="tf-rail"><div class="tf-time">14:30</div><div class="tf-rel">본인</div></div>
+              <div class="tf-mid"><div class="tf-name">김순자</div><div class="tf-sub">내과 · 이민호 원장</div></div>
+            </div>
+            <div class="tf-q">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="tf-nums">
+            <div class="tf-lab">숫자 정렬</div>
+            <div class="tf-numline">09:00<br>11:30<br>14:30</div>
+          </div>
+          <div class="tf-sample">
+            <div class="tf-s1">예상 대기 약 25분</div>
+            <div class="tf-s2">예상 대기시간은 변동될 수 있습니다. 진료 순서가 되면 알려드립니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3. 기기 기본 서체</h3>
+      <p>폰이 원래 쓰는 글꼴을 그대로. 앱 용량이 안 늘고, 사용자가 <b>기기에서 키운 글자 크기 설정</b>을 가장 자연스럽게 따릅니다. 결정적 단점: <b>아이폰과 안드로이드의 글자 모양이 서로 다릅니다</b>(애플 SD 산돌고딕 vs 본고딕). 같은 화면이 기기마다 달라 보이고, 줄바꿈 위치까지 달라져 목업과 실제가 어긋납니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>1. Pretendard</b>를 추천합니다. 이유 세 가지입니다.</p>
+  <p style="margin-top:6px">첫째, 우리 디자인은 <b>굵기 대비로 위계를 만듭니다</b>(이름 800, 진료과 600, 안내문 400). Pretendard는 굵기가 9단계라 이걸 정확히 표현할 수 있고, 본고딕은 굵은 쪽이 답답해집니다.</p>
+  <p style="margin-top:6px">둘째, 시그니처인 <b>시각 레일</b>이 숫자로 만들어집니다. 숫자 폭이 들쭉날쭉하면 "14:30"과 "9:00"이 세로로 안 맞아 표지판 느낌이 무너집니다 — 카드의 "숫자 정렬" 부분에서 세 서체를 비교해 보세요.</p>
+  <p style="margin-top:6px">셋째, <b>환자 앱(Flutter)과 직원 웹(React)에 같은 폰트 파일</b>을 쓸 수 있어 두 화면의 인상이 하나로 묶입니다. 3번(기기 기본)으로 가면 아이폰·안드로이드·직원용 PC가 전부 다른 글꼴이 됩니다.</p>
+  <p style="margin-top:8px"><span class="label">덧붙임</span> 3번의 장점인 "기기 글자 크기 설정 따르기"는 Pretendard를 써도 그대로 지원됩니다(글꼴과 크기는 별개 설정이라). 그래서 3번을 고를 실익이 크지 않습니다.</p>
+</div>

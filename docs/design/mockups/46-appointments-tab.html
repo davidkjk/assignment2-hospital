@@ -1,0 +1,295 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .at { --teal:#0B6E70; --ink:#10243A; --warn:#B44E00; --done:#67788A;
+        --gray-wait:#7E8E99; --gray-past:#A3AFB8; --bg:#F2F5F7;
+        font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink); }
+  .at, .at * { box-sizing:border-box; text-align:left; }
+
+  .at-lane { display:flex; gap:26px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .at-col { width:330px; }
+  .at-col h3 { margin:0 0 4px; font-size:15px; font-weight:800; }
+  .at-cap { font-size:12.5px; color:#5A6C7B; line-height:1.6; margin:0 0 12px; }
+
+  .ap { width:330px; background:#fff; border:1px solid #d6dde3; border-radius:14px; overflow:hidden;
+        display:flex; flex-direction:column; min-height:600px; }
+  .ap-bar { background:var(--teal); color:#fff; padding:11px 16px; font-size:15px; font-weight:600; }
+  .ap-body { flex:1; padding:0 14px 14px; background:var(--bg); }
+  /* 날짜 머리 — 잉크색 + 크기를 키워 목록의 뼈대가 보이게 한다 */
+  .ap-day { font-size:15px; font-weight:800; color:var(--ink); letter-spacing:-.3px;
+            padding:16px 2px 9px; display:flex; align-items:center; gap:9px; }
+  .ap-day .cnt { font-size:11.5px; font-weight:700; color:var(--done); }
+  .ap-day .rule { flex:1; height:1px; background:#DDE5EA; }
+
+  /* 한 예약 = 한 상자. 줄과 그에 딸린 문진 경고가 같은 테두리 안에 들어간다 */
+  .grp { border:1.5px solid #DDE5EA; border-radius:11px; overflow:hidden;
+         background:#fff; margin-bottom:9px; }
+
+  /* 얇은 줄 — 버튼 없음, 줄 전체가 상세로 가는 문 */
+  .ln { display:flex; align-items:stretch; background:#fff; }
+  .ln .lt { background:var(--teal); color:#fff; width:74px; flex:none; padding:12px 0;
+            font-variant-numeric:tabular-nums; }
+  .ln .lt, .ln .lt .t, .ln .lt .w { text-align:center; }
+  .ln .lt .t { font-size:19px; font-weight:800; letter-spacing:-.6px; line-height:1.15; }
+  .ln .lt .w { font-size:10.5px; font-weight:600; opacity:.9; margin-top:1px; }
+  .ln.wait .lt { background:var(--gray-wait); }
+  .ln .rt { flex:1; padding:11px 12px; display:flex; align-items:center; gap:8px; }
+  .ln .who { font-size:14px; font-weight:800; }
+  .ln .sub { font-size:11.5px; color:#5A6C7B; font-weight:600; margin-top:2px; }
+  .ln .st { margin-left:auto; font-size:11px; font-weight:700; color:var(--done);
+            text-align:right; line-height:1.35; flex-shrink:0; }
+  .ln .st.warn { color:var(--warn); }
+  .ln .go { color:#C7D2D8; font-size:15px; flex-shrink:0; }
+
+  /* 미작성인 줄에만 붙는 경고 한 줄.
+     주의색 바를 레일 오른쪽 끝(74px)에 세워 "위 줄의 내용 칸에 딸린 것"임을 자리로 말한다.
+     홈 화면의 사전문진 줄과 같은 문법이다. */
+  .qwarn { position:relative; padding:9px 12px 9px 86px; background:#fff;
+           border-top:1px solid #E6EBEF;
+           font-size:11.5px; font-weight:700; color:var(--warn);
+           display:flex; align-items:center; gap:6px; }
+  .qwarn:before { content:''; position:absolute; left:74px; top:0; bottom:0;
+                  width:3px; background:var(--warn); }
+  .qwarn .ar { margin-left:auto; }
+
+  .ap-foot { padding:12px 14px 14px; background:var(--bg); }
+  .btn { display:block; text-align:center; background:var(--teal); color:#fff; font-size:15px;
+         font-weight:800; padding:15px; border-radius:11px; }
+
+  .nav { display:flex; background:#fff; border-top:1px solid #E0E7EC; }
+  .nav div { flex:1; text-align:center; padding:8px 0 10px; font-size:10px; color:#9CAAB4; font-weight:700; }
+  .nav div.on { color:var(--teal); font-weight:800; }
+  .nav svg { width:19px; height:19px; fill:currentColor; display:block; margin:0 auto 2px; }
+
+  .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+           text-align:center; padding:24px; background:var(--bg); }
+  .empty svg { width:46px; height:46px; fill:#C7D2D8; }
+  .empty .ttl { font-size:17px; font-weight:800; margin-top:14px; line-height:1.45; text-align:center; }
+  .empty .sub { font-size:13px; color:#5A6C7B; font-weight:600; margin-top:7px; line-height:1.6; text-align:center; }
+
+  .at-note { font-size:12px; color:#5A6C7B; line-height:1.7; }
+  .at-note b { color:var(--ink); }
+  .box { background:#fff; border:1px solid #E0E7EC; border-radius:11px; padding:13px 15px; margin-top:10px; }
+  .box h4 { margin:0 0 6px; font-size:13px; font-weight:800; }
+  .cmp { display:flex; gap:10px; margin-top:8px; }
+  .cmp > div { flex:1; background:#F7F9FA; border-radius:9px; padding:10px 11px; font-size:11.5px; line-height:1.6; }
+  .cmp .k { font-size:12px; font-weight:800; color:var(--teal); margin-bottom:3px; }
+  .tagfix { display:inline-block; font-size:10px; font-weight:800; color:#fff; background:var(--teal);
+            border-radius:4px; padding:2px 6px; margin-left:5px; vertical-align:middle; }
+  .tagnew { display:inline-block; font-size:10px; font-weight:800; color:#fff; background:var(--warn);
+            border-radius:4px; padding:2px 6px; margin-left:5px; vertical-align:middle; }
+  .ic { width:14px; height:14px; fill:currentColor; flex-shrink:0; }
+</style>
+
+<svg style="display:none">
+  <symbol id="a-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></symbol>
+  <symbol id="a-home" viewBox="0 0 24 24"><path d="M12 2.6 2 11.2V21a1 1 0 0 0 1 1h6v-6.5h6V22h6a1 1 0 0 0 1-1v-9.8z"/></symbol>
+  <symbol id="a-cal" viewBox="0 0 24 24"><path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.5A2.5 2.5 0 0 1 22 6.5V9H2V6.5A2.5 2.5 0 0 1 4.5 4H6V3a1 1 0 0 1 1-1z"/><path d="M2 11h20v8.5a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 19.5z"/></symbol>
+  <symbol id="a-fam" viewBox="0 0 24 24"><circle cx="9" cy="7.6" r="3.6"/><path d="M1.6 20.4c0-3.9 3.3-6 7.4-6s7.4 2.1 7.4 6a1.2 1.2 0 0 1-1.2 1.2H2.8a1.2 1.2 0 0 1-1.2-1.2z"/><circle cx="17.8" cy="9.2" r="2.7"/><path d="M17 13.6c3.4.2 5.4 2 5.4 5.3a1 1 0 0 1-1 1h-3.1c.3-2.6-.4-4.7-1.3-6.3z"/></symbol>
+  <symbol id="a-hist" viewBox="0 0 24 24"><path d="M6.5 2h11A2.5 2.5 0 0 1 20 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2zm2 5.2a1 1 0 0 0 0 2h7a1 1 0 1 0 0-2zm0 4a1 1 0 1 0 0 2h7a1 1 0 1 0 0-2zm0 4a1 1 0 1 0 0 2h4a1 1 0 1 0 0-2z"/></symbol>
+  <symbol id="a-chat" viewBox="0 0 24 24"><path d="M4 3h16a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 20 17H9.8L4.6 21.3A.9.9 0 0 1 3 20.6V17H4a2.5 2.5 0 0 1-2.5-2.5v-9A2.5 2.5 0 0 1 4 3z"/></symbol>
+</svg>
+
+<div class="at">
+
+<h2>나의 예약 목록 — 하단 탭 「예약」<span class="tagnew">그림 최초</span></h2>
+<p class="subtitle">
+  <b>확정은 2026-07-31에 끝나 있었는데 그림이 한 번도 없던 화면입니다.</b> 하단 탭에 이름이 걸려 있어 오히려 놓쳤습니다(갭 #11).
+  흐름도 개정 중 결정 문서와 대조하다 드러났고, 이 목업이 그 마지막 조각입니다.
+</p>
+
+<div class="at-lane">
+
+  <div class="at-col">
+    <h3>기본 — 앞으로 갈 예약 전부 <span class="tagfix">v2</span></h3>
+    <p class="at-cap">본인과 가족을 <b>한 목록에 섞고</b> 이름으로 구분합니다(홈과 같은 방식). 날짜 헤더로 묶고 가까운 날짜부터.
+    <br>v1 지적 반영: <b>한 예약 = 한 상자</b>로 묶어 문진 줄이 누구 것인지 분명히 하고, <b>날짜 머리를 키웠습니다</b>.
+    <br>🆕 <b>맨 위 13:20 줄 = 「시간 지남」</b>(B-43, 2026-08-04 묶음 8) — 예약 시각이 지났는데 접수가 안 된 줄입니다. <b>오른쪽에 주의색 글자 하나뿐</b>이고 아래에 경고 줄을 붙이지 않습니다.</p>
+    <div class="ap">
+      <div class="ap-bar">나의 예약</div>
+      <div class="ap-body">
+        <div class="ap-day">8월 3일 (월)<span class="cnt">4건</span><span class="rule"></span></div>
+
+        <div class="grp">
+          <div class="ln">
+            <div class="lt"><div class="t">13:20</div><div class="w">어머니</div></div>
+            <div class="rt">
+              <div><div class="who">이말순</div><div class="sub">내과 · 이민호 원장</div></div>
+              <span class="st warn">시간 지남</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="ln">
+            <div class="lt"><div class="t">14:30</div><div class="w">본인</div></div>
+            <div class="rt">
+              <div><div class="who">김순자</div><div class="sub">내과 · 이민호 원장</div></div>
+              <span class="go">›</span>
+            </div>
+          </div>
+          <div class="qwarn"><svg class="ic"><use href="#a-doc"/></svg>사전문진 미작성 · 작성하기<span class="ar">›</span></div>
+        </div>
+
+        <div class="grp">
+          <div class="ln">
+            <div class="lt"><div class="t">14:50</div><div class="w">아들</div></div>
+            <div class="rt">
+              <div><div class="who">김도윤</div><div class="sub">소아과 · 박지우 원장</div></div>
+              <span class="go">›</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="ln wait">
+            <div class="lt"><div class="t">15:10</div><div class="w">딸</div></div>
+            <div class="rt">
+              <div><div class="who">김하윤</div><div class="sub">소아과 · 박지우 원장</div></div>
+              <span class="st">확인 중</span>
+            </div>
+          </div>
+          <div class="qwarn"><svg class="ic"><use href="#a-doc"/></svg>사전문진 미작성 · 작성하기<span class="ar">›</span></div>
+        </div>
+
+        <div class="ap-day">8월 21일 (금)<span class="cnt">1건</span><span class="rule"></span></div>
+
+        <div class="grp">
+          <div class="ln">
+            <div class="lt"><div class="t">10:00</div><div class="w">본인</div></div>
+            <div class="rt">
+              <div><div class="who">김순자</div><div class="sub">정형외과 · 박서준 원장</div></div>
+              <span class="st warn">상담<br>연결됨</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ap-foot"><span class="btn">+ 새 예약하기</span></div>
+      <div class="nav">
+        <div><svg><use href="#a-home"/></svg>홈</div>
+        <div class="on"><svg><use href="#a-cal"/></svg>예약</div>
+        <div><svg><use href="#a-fam"/></svg>가족</div>
+        <div><svg><use href="#a-hist"/></svg>이력</div>
+        <div><svg><use href="#a-chat"/></svg>AI 상담</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="at-col">
+    <h3>0건 — 예약이 하나도 없을 때</h3>
+    <p class="at-cap">빈 화면 한 벌의 문법을 그대로 씁니다. <b><code>[다시 시도]</code>가 없습니다</b> — 실패가 아니라 사실이니까요.</p>
+    <div class="ap">
+      <div class="ap-bar">나의 예약</div>
+      <div class="empty">
+        <svg><use href="#a-cal"/></svg>
+        <div class="ttl">예약된 진료가<br>없습니다</div>
+        <div class="sub">가까운 날짜로<br>예약하실 수 있습니다</div>
+      </div>
+      <div class="ap-foot"><span class="btn">+ 새 예약하기</span></div>
+      <div class="nav">
+        <div><svg><use href="#a-home"/></svg>홈</div>
+        <div class="on"><svg><use href="#a-cal"/></svg>예약</div>
+        <div><svg><use href="#a-fam"/></svg>가족</div>
+        <div><svg><use href="#a-hist"/></svg>이력</div>
+        <div><svg><use href="#a-chat"/></svg>AI 상담</div>
+      </div>
+    </div>
+    <p class="at-note" style="margin-top:12px">
+      ⭐ <b><code>[+ 새 예약하기]</code>는 0건일 때 특히 중요합니다.</b> 신규 환자는 홈도 목록도 비어 있어서,
+      이 버튼이 없으면 <b>앱 어디에서도 예약을 시작할 수 없습니다.</b>
+    </p>
+  </div>
+
+  <div class="at-col">
+    <h3>이 화면이 지키는 규칙</h3>
+    <p class="at-cap">①~④는 2026-07-31에 확정된 것이고, <b>⑤만 2026-08-04(묶음 8)에 추가된 결정</b>입니다(B-43).</p>
+
+    <div class="box">
+      <h4>① 홈과 역할을 나눈다</h4>
+      <div class="at-note">담는 내용이 겹치는 것은 허용하되 <b>성격을 다르게</b> 합니다.</div>
+      <div class="cmp">
+        <div><div class="k">홈</div>가장 가까운 <b>하루치</b><br>"지금 해야 할 일"<br>→ <b>큰 버튼</b>(QR 등)</div>
+        <div><div class="k">목록</div>앞으로 갈 <b>전부</b><br>"훑어보고 관리"<br>→ <b>얇은 줄</b>, 줄 전체를 탭</div>
+      </div>
+      <div class="at-note" style="margin-top:8px">
+        <b>기각</b>: 목록에서 오늘 것을 빼 겹침을 없애기 — "내 예약 다 보여줘" 했는데 오늘 게 없는 목록이 됩니다.
+      </div>
+    </div>
+
+    <div class="box">
+      <h4>② 줄에 버튼을 두지 않는다</h4>
+      <div class="at-note">
+        변경·취소·문진·QR을 줄마다 붙이면 <b>6건 기준 버튼 24개</b>가 되어 요구사항 4.8("중요한 버튼을 여러 개 작게 배치하지 말 것")과 정면충돌합니다.
+        줄을 누르면 어차피 상세로 가므로 지름길을 둘 이유가 없습니다.<br>
+        <b>예외는 사전문진 하나</b> — <b>미작성인 줄에만</b> 경고 줄을 하나 더 붙입니다.
+        작성완료는 표시하지 않습니다(급하지 않고, 표시하면 대부분의 줄이 회색 줄로 두 배가 됩니다).
+      </div>
+    </div>
+
+    <div class="box">
+      <h4>③ 담는 범위 — 앞으로 갈 예약만</h4>
+      <div class="at-note">
+        취소·완료된 예약은 넣지 않습니다. 그것들이 갈 곳은 <b>이력 탭</b>입니다(8/1 확정 — 목업 38번).
+        전부 담으면 <b>이력 탭과 역할이 겹쳐 탭 하나가 무의미해집니다.</b>
+      </div>
+    </div>
+
+    <div class="box">
+      <h4>④ 상태는 오른쪽 작은 글씨 하나로만</h4>
+      <div class="at-note">
+        <b>확인 중</b> = 병원이 아직 승인하지 않음(레일도 <b>진한 회색</b>). 승인되면 <b>실시간으로 저절로 사라집니다</b>.<br>
+        <b>상담 연결됨</b> = 마감 후 취소·변경을 문의 중.<br>
+        🆕 <b>시간 지남</b>(주의색) = 예약 시각이 지났는데 <b>접수가 안 된 것</b>. 앞의 둘은 회색이지만 이것만 주의색입니다.
+        ⚠️ <b>정시가 아니라 예약 시각 + 30분부터</b>입니다(<b>B-13</b>) — 그 시각 이 화면을 보는 사람은 대부분 <b>이미 병원에 와서 접수 줄에 서 있는 사람</b>이라, 정시에 바꾸면 <b>창구 앞에 선 사람이 병원에 전화를 겁니다.</b>
+        이 표시를 두는 이유는 노쇼 방지가 아니라 <b>중복 요청 방지</b>입니다 — 목록에 아무 변화가 없으면
+        "요청이 안 들어갔나?" 싶어 채팅에 다시 쓰거나 병원에 전화하게 됩니다.<br>
+        ⚠️ <b>"취소 요청이 접수/등록되었다"는 표현을 쓰지 않습니다</b>(환자 노출 문구 원칙).
+      </div>
+    </div>
+
+    <div class="box">
+      <h4>⑤ 🆕 「시간 지남」에는 경고 줄을 붙이지 않는다 <span class="tagnew">B-43</span></h4>
+      <div class="at-note">
+        <b>결정을 가른 사실</b>: 시간이 지난 예약은 <b>반드시 오늘 예약</b>이고, 홈은 「가장 가까운 하루치」를 <b>반드시</b> 보여줍니다(<code>HOME-SCOPE-01</code>).
+        즉 이 예약은 <b>홈 화면에 100% 나타나고</b>, 홈에는 이미 <code>예약 시간이 지났습니다</code> 한 줄과 <b>큰 버튼 두 개</b>(상담·전화)가 떠 있습니다.
+        목록이 이중으로 경고할 값이 낮습니다.<br>
+        그래서 목록에는 <code>병원에 연락해 주세요</code>도 <code>[상담 채팅 연결]</code>·<code>[병원 전화]</code>도 <b>두지 않습니다</b>.<br>
+        <b>⛔ 기각(경고 줄 붙이기)</b>: ②의 예외가 <b>하나에서 둘로 늘어납니다.</b> 문진 미작성과 겹치면
+        <b>한 예약에 경고 줄이 두 개</b> 달려, 요구사항 4.8이 막으려던 화면이 됩니다.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="box" style="margin-top:22px">
+  <h4>v1에서 고친 것 두 가지 (사용자 지적)</h4>
+  <div class="at-note">
+    <b>① "사전문진 미작성이 위 예약 것인지 아래 것인지 모르겠다"</b> — v1은 줄들을 나란히 놓고 경고를 그 사이에 끼워 넣어,
+    <b>경고가 위·아래 어느 예약에 붙는지 자리로 말해주지 못했습니다.</b> 잘못 읽으면 <b>다른 예약의 문진을 쓰게 되는</b> 문제라 그냥 둘 수 없었습니다. 두 가지로 고쳤습니다:
+    <div style="margin:7px 0 0 12px">
+      · <b>한 예약 = 한 상자.</b> 줄과 그에 딸린 경고를 <b>같은 테두리 안에</b> 넣고 예약끼리는 상자를 띄웠습니다. 테두리가 "여기까지가 한 예약"을 말합니다.<br>
+      · <b>주의색 바를 레일 오른쪽 끝(74px)에 세웠습니다.</b> 경고 글자가 위 줄의 <b>이름·진료과와 같은 세로선</b>에서 시작하므로, 눈이 위로 이어집니다. 홈 화면의 사전문진 줄과 같은 문법입니다.
+    </div>
+    <div style="margin-top:7px">
+      ⚠️ 확인용으로 <b>미작성을 두 건</b>(김순자·김하윤) 넣었습니다. 상자가 떨어져 있어도 <b>각각 자기 예약에 붙어 보이는지</b> 봐주세요.
+      김하윤은 <b>확인 중 + 미작성</b>이 겹친 줄입니다 — 진한 회색 레일과 주의색 경고가 한 상자 안에서 부딪히지 않는지도 함께 봐주세요.
+    </div>
+    <div style="margin-top:9px">
+      <b>② "날짜 글씨가 눈에 잘 안 띈다"</b> — <b>12.5px 회색 → 15px 잉크색</b>으로 올리고 <b>건수(3건)</b>와 <b>가로선</b>을 붙였습니다.
+      날짜는 이 화면의 <b>뼈대</b>라(예약을 날짜로 찾으므로) 줄 안의 이름(14px)보다 <b>커야</b> 맞습니다. v1은 오히려 더 작고 흐렸습니다.
+    </div>
+  </div>
+</div>
+
+<div class="box">
+  <h4>아직 봐주실 것</h4>
+  <div class="at-note">
+    ① 상자 사이 간격(9px)이 <b>충분히 떨어져</b> 보이는지 — 붙어 보이면 다시 한 덩어리로 읽힙니다.<br>
+    ② 날짜 머리에 붙인 <b>건수(3건)</b>가 도움이 되는지, 아니면 군더더기인지.<br>
+    ③ <b>확인 중</b>(진한 회색 레일)과 <b>상담 연결됨</b>(주의색 글씨)의 구분 — v1에서 잘 된다고 하셨으니 이번에도 유지되는지만.
+  </div>
+</div>
+
+</div>

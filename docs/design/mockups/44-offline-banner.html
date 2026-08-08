@@ -1,0 +1,181 @@
+<style>
+  .of { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --bg:#F2F5F7; --warn:#B44E00; }
+  .of, .of * { text-align:left; box-sizing:border-box; }
+  .of { width:320px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+        overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+        color:var(--ink); display:flex; flex-direction:column; }
+  .of .status { display:flex; justify-content:space-between; font-size:10px; color:#9aa7b1;
+                padding:7px 14px 5px; }
+  .of .appbar { display:flex; justify-content:space-between; align-items:center;
+                padding:2px 14px 12px; }
+  .of .appbar b { font-size:17px; font-weight:800; letter-spacing:-.3px; }
+  .of .appbar svg { width:19px; height:19px; fill:var(--done); }
+
+  /* ── 배너 3안 ── */
+  .bn { display:flex; align-items:center; gap:9px; font-size:13px; font-weight:700;
+        padding:10px 14px; }
+  .bn .txt { line-height:1.4; }
+  .bn.a { color:var(--warn); border-left:4px solid var(--warn); background:#fff; }
+  .bn.b { color:var(--warn); border-left:4px solid var(--warn); background:#FBF0E7; }
+  .bn.c { color:var(--ink); background:#E7ECF0; border-left:4px solid var(--done); }
+  .bn.c em { font-style:normal; color:var(--warn); font-weight:800; }
+  .bn svg { width:17px; height:17px; flex:none; }
+
+  .of .body { flex:1; padding:12px 14px 16px; background:var(--bg); }
+  .daylabel { font-size:12.5px; font-weight:800; color:var(--done); margin:2px 0 8px; }
+
+  .appt { display:flex; background:#fff; border-radius:12px; overflow:hidden;
+          box-shadow:0 1px 3px rgba(16,36,58,.09); }
+  .appt .rail { background:var(--teal); color:#fff; width:78px; flex:none;
+                padding:14px 0 14px 12px; }
+  .appt .rail .t { font-size:21px; font-weight:800; font-variant-numeric:tabular-nums;
+                   letter-spacing:-.5px; }
+  .appt .rail .d { font-size:11px; font-weight:600; opacity:.85; margin-top:2px; }
+  .appt .info { flex:1; padding:13px 13px 13px 12px; }
+  .appt .info .nm { font-size:15.5px; font-weight:800; }
+  .appt .info .sub { font-size:12.5px; color:var(--done); font-weight:600; margin-top:3px;
+                     line-height:1.55; }
+
+  .qrbtn { margin-top:10px; background:var(--teal); color:#fff; border-radius:10px;
+           padding:13px 0; font-size:15px; font-weight:800; }
+  .qrbtn, .qrbtn * { text-align:center; }
+
+  .lockwrap { margin-top:12px; }
+  .lockwhy { font-size:12px; font-weight:700; color:var(--warn); border-left:4px solid var(--warn);
+             padding-left:8px; line-height:1.45; margin-bottom:7px; }
+  .lockrow { display:flex; gap:8px; }
+  .lockbtn { flex:1; border:1.5px solid #d3dae0; border-radius:10px; padding:11px 0;
+             font-size:13.5px; font-weight:700; color:#aeb8c1; background:#f7f9fa; }
+  .lockbtn, .lockbtn * { text-align:center; }
+
+  .of .nav { display:flex; background:#fff; border-top:1px solid #e3e9ed; }
+  .of .nav > div { flex:1; padding:8px 0 10px; font-size:10px; color:#a4b0b9; font-weight:700; }
+  .of .nav > div, .of .nav > div * { text-align:center; }
+  .of .nav > div.on { color:var(--teal); }
+  .of .nav svg { width:18px; height:18px; display:block; margin:0 auto 3px; fill:currentColor; }
+
+  .lane { display:flex; gap:26px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane h3 { margin:0 0 6px; text-align:left; font-size:16px; }
+  .lane .cap { font-size:13px; color:#6b7d8c; margin-bottom:12px; max-width:320px;
+               text-align:left; line-height:1.6; }
+  .note { background:#f4f7f9; border-left:4px solid #0B6E70; padding:12px 14px; border-radius:0 8px 8px 0;
+          font-size:13.5px; line-height:1.7; margin:18px 0 22px; max-width:960px; }
+</style>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="ic-cog" viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm9.4 4a7.4 7.4 0 00-.1-1.2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 00-2-1.2L16.5 3h-4l-.4 2.6a7.5 7.5 0 00-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 000 2.4l-2 1.6 2 3.4 2.4-1c.6.5 1.3.9 2 1.2l.4 2.6h4l.4-2.6c.7-.3 1.4-.7 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></symbol>
+  <symbol id="ic-warn" viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-7h-2v5h2V9z"/></symbol>
+  <symbol id="ic-home" viewBox="0 0 24 24"><path d="M12 3L2 12h3v9h6v-6h2v6h6v-9h3z"/></symbol>
+  <symbol id="ic-cal" viewBox="0 0 24 24"><path d="M7 2v2H4v18h16V4h-3V2h-2v2H9V2H7zm-1 8h12v10H6V10z"/></symbol>
+  <symbol id="ic-fam" viewBox="0 0 24 24"><path d="M8 11a3 3 0 100-6 3 3 0 000 6zm8 0a3 3 0 100-6 3 3 0 000 6zM2 20c0-3 2.7-5 6-5s6 2 6 5H2zm12.5 0c-.2-1.7-1-3.2-2.2-4.3.5-.1 1.1-.2 1.7-.2 3.3 0 6 2 6 5h-5.5z"/></symbol>
+  <symbol id="ic-list" viewBox="0 0 24 24"><path d="M4 3h16v18H4V3zm3 4v2h10V7H7zm0 4v2h10v-2H7zm0 4v2h7v-2H7z"/></symbol>
+  <symbol id="ic-chat" viewBox="0 0 24 24"><path d="M3 3h18v13H8l-5 5V3z"/></symbol>
+</svg>
+
+<h2>#5 오프라인 — 상단 띠를 어떤 모양으로 할까요</h2>
+<p class="subtitle">지금까지 정한 것: ① 예약은 폰에 저장해 <b>오프라인에서도 QR이 보인다</b> · ② 저장 범위는 <b>앞으로 갈 예약 전부</b> · ③ "인터넷 없음"과 "언제 기준 정보"를 <b>한 줄로 합친다</b> · ④ 변경·취소는 <b>잠그고 이유를 붙인다</b>. 세 화면 모두 내용은 같고 <b>맨 윗줄 모양만</b> 다릅니다.</p>
+
+<div class="note">
+<b>이 질문의 어려운 점.</b> 확정 원칙은 <b>"주의색(#B44E00)은 배경 없이 글자 + 좌측 4px 바만"</b> 입니다 — 주황색 면적을 최소화하자는 뜻이었죠. 그런데 그 규칙은 원래 <b>입력 오류 문구</b>(작은 글씨 한 줄)를 염두에 둔 것이었습니다. 지금은 <b>화면 전체가 평소와 다른 상태</b>라는 걸 알려야 하는 상황이라, 규칙을 그대로 쓰면 너무 조용할 수 있습니다. 어르신이 이 줄을 못 보고 지나치면 낡은 정보를 최신으로 착각합니다.
+</div>
+
+<div class="lane">
+
+  <!-- 가 -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <h3>가 · 규칙 그대로 (배경 없음)</h3>
+    <div class="cap">확정 토큰을 한 글자도 어기지 않습니다. 흰 바탕에 주황 글자 + 왼쪽 4px 바.<br><b>걱정</b>: 흰 배경 위 흰 배경이라 "그냥 안내문 한 줄"로 읽히고 <b>눈에 안 들어올 수 있습니다</b>.</div>
+    <div class="of">
+      <div class="status"><span>9:41</span><span>연결 없음</span></div>
+      <div class="appbar"><b>김순자님</b><svg><use href="#ic-cog"/></svg></div>
+      <div class="bn a"><svg fill="#B44E00"><use href="#ic-warn"/></svg><span class="txt">인터넷 연결 없음 · 오후 3:12 기준 정보</span></div>
+      <div class="body">
+        <div class="daylabel">8월 3일 (월)</div>
+        <div class="appt">
+          <div class="rail"><div class="t">14:30</div><div class="d">오후</div></div>
+          <div class="info"><div class="nm">김순자 · 내과</div><div class="sub">이민호 원장<br>본관 2층 내과</div></div>
+        </div>
+        <div class="qrbtn">QR 보여주기</div>
+        <div class="lockwrap">
+          <div class="lockwhy">인터넷이 연결되면 변경·취소할 수 있습니다</div>
+          <div class="lockrow"><div class="lockbtn">변경</div><div class="lockbtn">취소</div></div>
+        </div>
+      </div>
+      <div class="nav">
+        <div class="on"><svg><use href="#ic-home"/></svg>홈</div>
+        <div><svg><use href="#ic-cal"/></svg>예약</div>
+        <div><svg><use href="#ic-fam"/></svg>가족</div>
+        <div><svg><use href="#ic-list"/></svg>이력</div>
+        <div><svg><use href="#ic-chat"/></svg>AI 상담</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 나 -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <h3>나 · 아주 옅은 주황 배경 한 줄</h3>
+    <div class="cap">글자·바는 그대로 두고 <b>그 줄만</b> 옅은 주황(#FBF0E7)을 깝니다. 카드·버튼에는 주황이 하나도 없으니 화면 전체 주황 면적은 여전히 작습니다.<br><b>걱정</b>: "배경 없음" 규칙의 예외를 하나 만드는 것입니다.</div>
+    <div class="of">
+      <div class="status"><span>9:41</span><span>연결 없음</span></div>
+      <div class="appbar"><b>김순자님</b><svg><use href="#ic-cog"/></svg></div>
+      <div class="bn b"><svg fill="#B44E00"><use href="#ic-warn"/></svg><span class="txt">인터넷 연결 없음 · 오후 3:12 기준 정보</span></div>
+      <div class="body">
+        <div class="daylabel">8월 3일 (월)</div>
+        <div class="appt">
+          <div class="rail"><div class="t">14:30</div><div class="d">오후</div></div>
+          <div class="info"><div class="nm">김순자 · 내과</div><div class="sub">이민호 원장<br>본관 2층 내과</div></div>
+        </div>
+        <div class="qrbtn">QR 보여주기</div>
+        <div class="lockwrap">
+          <div class="lockwhy">인터넷이 연결되면 변경·취소할 수 있습니다</div>
+          <div class="lockrow"><div class="lockbtn">변경</div><div class="lockbtn">취소</div></div>
+        </div>
+      </div>
+      <div class="nav">
+        <div class="on"><svg><use href="#ic-home"/></svg>홈</div>
+        <div><svg><use href="#ic-cal"/></svg>예약</div>
+        <div><svg><use href="#ic-fam"/></svg>가족</div>
+        <div><svg><use href="#ic-list"/></svg>이력</div>
+        <div><svg><use href="#ic-chat"/></svg>AI 상담</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 다 -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <h3>다 · 회색 줄 + 주황은 글자 일부만</h3>
+    <div class="cap">줄 배경은 <b>회색</b>(주의색 아님)으로 눈에 띄게 하고, 주황은 <b>"인터넷 연결 없음"</b> 몇 글자에만 씁니다. 기준 시각은 검은 글씨.<br><b>걱정</b>: 회색은 우리 토큰에서 <b>"완료·지나간 것"</b>을 뜻해서, 뜻이 어긋납니다.</div>
+    <div class="of">
+      <div class="status"><span>9:41</span><span>연결 없음</span></div>
+      <div class="appbar"><b>김순자님</b><svg><use href="#ic-cog"/></svg></div>
+      <div class="bn c"><svg fill="#B44E00"><use href="#ic-warn"/></svg><span class="txt"><em>인터넷 연결 없음</em> · 오후 3:12 기준 정보</span></div>
+      <div class="body">
+        <div class="daylabel">8월 3일 (월)</div>
+        <div class="appt">
+          <div class="rail"><div class="t">14:30</div><div class="d">오후</div></div>
+          <div class="info"><div class="nm">김순자 · 내과</div><div class="sub">이민호 원장<br>본관 2층 내과</div></div>
+        </div>
+        <div class="qrbtn">QR 보여주기</div>
+        <div class="lockwrap">
+          <div class="lockwhy">인터넷이 연결되면 변경·취소할 수 있습니다</div>
+          <div class="lockrow"><div class="lockbtn">변경</div><div class="lockbtn">취소</div></div>
+        </div>
+      </div>
+      <div class="nav">
+        <div class="on"><svg><use href="#ic-home"/></svg>홈</div>
+        <div><svg><use href="#ic-cal"/></svg>예약</div>
+        <div><svg><use href="#ic-fam"/></svg>가족</div>
+        <div><svg><use href="#ic-list"/></svg>이력</div>
+        <div><svg><use href="#ic-chat"/></svg>AI 상담</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="label" style="margin-top:24px">함께 봐주실 것 — 세 화면에 공통으로 들어간 것</p>
+<div class="note" style="margin-top:8px">
+① <b>QR 버튼은 평소와 똑같이 딥틸</b>입니다. 오프라인이어도 이건 되니까요. 접수대에서 이 버튼만 누르면 됩니다.<br>
+② <b>변경·취소는 회색으로 잠그고, 바로 위에 왜 못 누르는지</b>를 적었습니다. 이유 없는 회색 버튼은 "고장난 앱"으로 읽히기 때문입니다.<br>
+③ <b>예약 카드 자체는 평소 그대로</b>입니다 — 회색으로 죽이지 않았습니다. 이 정보는 진짜니까요(다만 3:12 기준).
+</div>

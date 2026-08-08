@@ -1,0 +1,201 @@
+<style>
+  .phone2 { width: 268px; border: 2px solid #444; border-radius: 22px; background: #f5f6f8; color: #111; font-size: 12px; min-height: 470px; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+  .phone2 .st { display:flex; justify-content:space-between; font-size:9px; color:#888; padding:8px 12px 6px; background:#fff; }
+  .phone2 .body { flex:1; padding:12px; }
+  .appbar { background:#fff; padding:0 12px 10px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+  .appicons { display:flex; gap:11px; font-size:15px; }
+  .w { background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .badge { display:inline-block; font-size:9px; padding:2px 7px; border-radius:99px; background:#dbeafe; color:#1d4ed8; font-weight:600; }
+  .badge.warn { background:#fef3c7; color:#b45309; }
+  .badge.me { background:#e0e7ff; color:#4338ca; }
+  .badge.fam { background:#fce7f3; color:#be185d; }
+  .badge.done { background:#dcfce7; color:#15803d; }
+  .meta { color:#666; font-size:11px; line-height:1.6; }
+  .qrbig { width:140px; height:140px; background:repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/22px 22px; margin:0 auto; }
+  .nav { display:flex; background:#fff; border-top:1px solid #e5e7eb; }
+  .nav > div { flex:1; text-align:center; padding:9px 0 11px; font-size:9px; color:#9ca3af; }
+  .nav > div.on { color:#2563eb; font-weight:700; }
+  .nav .ic { font-size:16px; display:block; }
+  .prow { display:flex; align-items:center; gap:8px; padding:10px 0; border-top:1px solid #f1f5f9; }
+  .cta { background:#2563eb; color:#fff; text-align:center; padding:7px 11px; border-radius:8px; font-weight:700; font-size:11px; white-space:nowrap; }
+  .out { border:1px solid #cbd5e1; color:#334155; text-align:center; padding:6px 10px; border-radius:8px; font-weight:600; font-size:10px; white-space:nowrap; }
+  .amber { border:1px solid #fbbf24; background:#fffbeb; color:#b45309; text-align:center; padding:6px 10px; border-radius:8px; font-weight:700; font-size:10px; white-space:nowrap; }
+  .cardrow { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; }
+  .ok { color:#15803d; }
+  .segs { display:flex; gap:4px; justify-content:center; margin:10px 0 0; }
+  .segs div { font-size:10px; padding:5px 9px; border-radius:99px; background:#e5e7eb; color:#6b7280; }
+  .segs div.on { background:#2563eb; color:#fff; font-weight:700; }
+  .titlebox { border:1px dashed #cbd5e1; border-radius:10px; padding:12px; background:#fff; color:#111; }
+</style>
+
+<h2>화면 2 v5 — 목록은 B, QR 화면은 A. 남은 건 ①문진 버튼 ②상단 문구</h2>
+<p class="subtitle"><span class="ok">✓ 확정: 홈 목록은 사람별 줄 방식(B) · QR은 누르면 전체화면(A), 좌우로 밀어 다음 사람 · C(통합 QR)는 시간이 다르면 애매해져 폐기</span></p>
+<p class="label">질문 ① — 3명일 때 사전문진을 어떻게 붙일까요? (아래 3안 중 선택)</p>
+
+<div class="cardrow">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>김순자님</span><span class="appicons">🔔 ⚙️</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">오늘 방문 3건</span>
+            <div style="font-size:18px;font-weight:700;margin:6px 0 2px">8월 3일 (월)</div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김순자</b> <span class="badge me">본인</span></div>
+                <div class="meta">14:30 내과 이민호</div>
+              </div>
+              <div class="out">문진</div><div class="cta">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김도윤</b> <span class="badge fam">아들</span></div>
+                <div class="meta">14:50 소아과 박지우</div>
+              </div>
+              <div class="amber">문진!</div><div class="cta">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김하윤</b> <span class="badge fam">딸</span></div>
+                <div class="meta">15:10 소아과 박지우</div>
+              </div>
+              <div class="amber">문진!</div><div class="cta">QR</div>
+            </div>
+          </div>
+          <div class="meta" style="text-align:center;font-size:10px;color:#94a3b8">노란 [문진!]은 아직 안 쓴 사람</div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div><div><span class="ic">📅</span>예약</div><div><span class="ic">👨‍👩‍👧</span>가족</div><div><span class="ic">📋</span>이력</div><div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 줄마다 버튼 2개 (문진 + QR)</h3>
+      <p>QR과 완전히 대칭. 누구의 문진인지 헷갈릴 일이 없고, 작성 완료면 회색·미작성이면 노란색으로 즉시 구분. 단점: 한 줄에 버튼이 2개라 <b>터치 영역이 좁아짐</b>(4.8 "큰 버튼"과 상충), 화면이 다소 빽빽.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>김순자님</span><span class="appicons">🔔 ⚙️</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">오늘 방문 3건</span>
+            <div style="font-size:18px;font-weight:700;margin:6px 0 2px">8월 3일 (월)</div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김순자</b> <span class="badge me">본인</span> <span class="badge done">문진완료</span></div>
+                <div class="meta">14:30 내과 이민호</div>
+              </div>
+              <div class="cta">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김도윤</b> <span class="badge fam">아들</span></div>
+                <div class="meta">14:50 소아과 박지우</div>
+                <div style="color:#b45309;font-weight:700;font-size:10px;margin-top:3px">⚠ 사전문진 작성하기 ›</div>
+              </div>
+              <div class="cta">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김하윤</b> <span class="badge fam">딸</span></div>
+                <div class="meta">15:10 소아과 박지우</div>
+                <div style="color:#b45309;font-weight:700;font-size:10px;margin-top:3px">⚠ 사전문진 작성하기 ›</div>
+              </div>
+              <div class="cta">QR</div>
+            </div>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div><div><span class="ic">📅</span>예약</div><div><span class="ic">👨‍👩‍👧</span>가족</div><div><span class="ic">📋</span>이력</div><div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 미작성인 사람 줄에만 안내줄</h3>
+      <p>버튼은 줄당 [QR] 하나만. 문진은 <b>안 쓴 사람 줄에만</b> 노란 한 줄이 나타나고, 그 줄을 누르면 해당 문진으로. 다 쓰면 사라져 화면이 깔끔해짐. QR(데스크에서 하는 일)과 문진(집에서 미리 하는 일)의 <b>우선순위 차이가 시각적으로 드러남</b>.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>김순자님</span><span class="appicons">🔔 ⚙️</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">오늘 방문 3건</span>
+            <div style="font-size:18px;font-weight:700;margin:6px 0 2px">8월 3일 (월)</div>
+            <div class="prow">
+              <div style="flex:1"><div><b>김순자</b> <span class="badge me">본인</span></div><div class="meta">14:30 내과 이민호</div></div>
+              <div class="cta">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1"><div><b>김도윤</b> <span class="badge fam">아들</span></div><div class="meta">14:50 소아과 박지우</div></div>
+              <div class="cta">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1"><div><b>김하윤</b> <span class="badge fam">딸</span></div><div class="meta">15:10 소아과 박지우</div></div>
+              <div class="cta">QR</div>
+            </div>
+          </div>
+          <div class="w" style="border:1px solid #fbbf24;background:#fffbeb;padding:11px">
+            <div style="font-weight:700;color:#b45309;font-size:12px">⚠ 사전문진 2건이 남았어요</div>
+            <div class="meta" style="color:#92400e;margin:4px 0 8px">김도윤 · 김하윤</div>
+            <div class="cta" style="background:#b45309">지금 작성하기</div>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div><div><span class="ic">📅</span>예약</div><div><span class="ic">👨‍👩‍👧</span>가족</div><div><span class="ic">📋</span>이력</div><div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 문진은 별도 묶음 카드</h3>
+      <p>예약 목록은 QR만 남겨 아주 단순하게. 문진은 아래 노란 카드로 <b>"2건 남았어요"</b>를 크게. 누르면 미작성자만 모아 연달아 작성. 놓칠 확률이 가장 낮음. 단점: 어느 예약의 문진인지 목록에서 바로 안 보임(카드 안에 이름은 있음).</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:30px">
+  <p class="label">질문 ② — QR 전체화면의 상단 문구를 뭘로 할까요?</p>
+  <p class="subtitle" style="margin-top:4px">"접수 QR"이 어색하다고 하셔서 후보를 만들었습니다. 화면 자체는 확정안(좌우로 밀어 3명 전환)입니다.</p>
+  <div class="cardrow" style="align-items:flex-start">
+    <div style="width:260px">
+      <div class="titlebox">
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:10px">
+          <span>‹ 김도윤님 (2/3)</span><span>✕</span>
+        </div>
+        <div class="qrbig"></div>
+        <div style="text-align:center;margin-top:8px;font-weight:700;letter-spacing:1px">A-2414</div>
+        <div class="meta" style="text-align:center">14:50 소아과 박지우</div>
+        <div class="segs"><div>김순자</div><div class="on">김도윤</div><div>김하윤</div></div>
+      </div>
+      <div class="options" style="margin-top:10px">
+        <div class="option" data-choice="title-name" onclick="toggleSelect(this)">
+          <div class="letter">1</div>
+          <div class="content"><h3>사람 이름 + 순번</h3><p>"김도윤님 (2/3)" — 지금 누구 QR인지가 제목. 데스크에서 직원이 화면만 봐도 확인 가능. <b>추천</b></p></div>
+        </div>
+        <div class="option" data-choice="title-checkin" onclick="toggleSelect(this)">
+          <div class="letter">2</div>
+          <div class="content"><h3>"접수하기"</h3><p>지금 하는 행동을 제목으로. 무엇을 하는 화면인지 가장 분명하지만, 누구 것인지는 QR 아래 이름으로만 확인.</p></div>
+        </div>
+        <div class="option" data-choice="title-code" onclick="toggleSelect(this)">
+          <div class="letter">3</div>
+          <div class="content"><h3>"예약 확인 코드"</h3><p>QR·번호가 무엇인지 설명하는 중립적 표현. 접수 외에 진료실 호출 확인 등 다른 용도로도 쓸 수 있게 여지를 남김.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p>①은 <b>B(미작성 줄에만 안내줄)</b>를 추천합니다. QR과 문진은 <u>하는 시점이 다릅니다</u> — 문진은 집에서 미리, QR은 데스크에서. 그래서 같은 크기의 버튼 두 개로 나란히 두면(A안) 데스크 앞에서 급할 때 잘못 누르기 쉽고, 터치 영역도 좁아집니다. B는 다 작성하면 그 줄이 사라져 화면이 저절로 정리됩니다. C도 좋지만, 예약이 1건인 대다수 사용자에게 카드가 하나 더 늘어나는 게 부담입니다.</p>
+  <p style="margin-top:8px">②는 <b>1번(김도윤님 2/3)</b>을 추천합니다. 이 화면에서 가장 중요한 정보는 "지금 이건 누구 것인가"이고, 아이 둘을 연달아 접수할 때 실수를 막아줍니다.</p>
+</div>

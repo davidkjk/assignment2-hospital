@@ -1,0 +1,148 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .s2 { width: 252px; border: 2px solid #3a3a3a; border-radius: 17px; overflow: hidden; display: flex; flex-direction: column; min-height: 400px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; position: relative; }
+  .s2-top { background: #fff; padding: 9px 12px 11px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 800; }
+  .s2-back { color: #0B6E70; font-weight: 700; }
+  .s2-body { flex: 1; padding: 11px; }
+  .s2-lab { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: #5A6C7B; margin: 2px 3px 6px; }
+  .s2-g { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.07); }
+  .s2-r { display: flex; align-items: center; gap: 9px; padding: 12px; border-bottom: 1px solid #E6EBEF; font-size: 12.5px; font-weight: 700; }
+  .s2-r:last-child { border-bottom: none; }
+  .s2-sub { font-size: 10px; color: #5A6C7B; font-weight: 500; margin-top: 2px; }
+  .s2-sw { width: 36px; height: 21px; border-radius: 99px; background: #0B6E70; position: relative; flex-shrink: 0; }
+  .s2-sw:after { content: ''; position: absolute; right: 2px; top: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; }
+  .s2-sw.lock { background: #A9BFC0; }
+  .s2-why { font-size: 10.5px; font-weight: 600; margin: 6px 4px 0; line-height: 1.6; }
+  .s2-out { text-align: center; padding: 13px; font-size: 13px; font-weight: 800; color: #0B6E70; background: #fff; border-radius: 12px; margin-top: 11px; }
+  .s2-del { text-align: center; font-size: 11.5px; font-weight: 700; color: #8A9AA5; margin-top: 13px; text-decoration: underline; }
+  .s2-dim { position: absolute; inset: 0; background: rgba(16,36,58,.55); display: flex; align-items: center; justify-content: center; padding: 14px; }
+  .s2-dlg { background: #fff; border-radius: 13px; width: 100%; overflow: hidden; }
+  .s2-row { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+  .s2-cap { font-size: 11.5px; color: #5A6C7B; margin-top: 8px; line-height: 1.6; max-width: 258px; }
+  .s2-cap b { color: #10243A; }
+</style>
+
+<h2>화면 28 — 잠긴 알림 안내 문구 · 로그아웃 확인</h2>
+<p class="subtitle">B안 확정. 세 가지 문구 후보입니다 — <b>같은 화면, 주황 부분만 다릅니다.</b> 맨 오른쪽은 로그아웃 확인 팝업(참고).</p>
+
+<div class="s2-row">
+
+  <!-- 1 -->
+  <div class="card" data-choice="copy-safe" onclick="toggleSelect(this)" style="max-width:278px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:12px;background:#e4ebee">
+      <div class="s2">
+        <div class="s2-top"><span class="s2-back">‹ 뒤로</span><span>설정</span><span style="width:28px"></span></div>
+        <div class="s2-body">
+          <div class="s2-lab">꼭 받아야 하는 알림</div>
+          <div class="s2-g">
+            <div class="s2-r"><div style="flex:1">예약 확정·변경·병원 취소<div class="s2-sub">병원 사정으로 일정이 바뀔 때</div></div><div class="s2-sw lock"></div></div>
+          </div>
+          <div class="s2-why" style="color:#B44E00">진료를 안전하게 받으시도록 병원이<br>반드시 안내드리는 알림입니다.</div>
+          <div class="s2-lab" style="margin-top:13px">골라서 받는 알림</div>
+          <div class="s2-g">
+            <div class="s2-r"><div style="flex:1">방문 전날·당일 안내</div><div class="s2-sw"></div></div>
+            <div class="s2-r"><div style="flex:1">사전문진 작성 안내</div><div class="s2-sw"></div></div>
+            <div class="s2-r"><div style="flex:1">진료 후 병원 안내</div><div class="s2-sw"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1. "안전하게 받으시도록"</h3>
+      <p>이유를 <b>환자의 이익</b>으로 설명합니다. 병원이 주어라 공적인 느낌이 나면서, 왜 이 알림만 특별한지가 납득됩니다.</p>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="card" data-choice="copy-duty" onclick="toggleSelect(this)" style="max-width:278px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:12px;background:#e4ebee">
+      <div class="s2">
+        <div class="s2-top"><span class="s2-back">‹ 뒤로</span><span>설정</span><span style="width:28px"></span></div>
+        <div class="s2-body">
+          <div class="s2-lab">꼭 받아야 하는 알림</div>
+          <div class="s2-g">
+            <div class="s2-r"><div style="flex:1">예약 확정·변경·병원 취소<div class="s2-sub">병원 사정으로 일정이 바뀔 때</div></div><div class="s2-sw lock"></div></div>
+          </div>
+          <div class="s2-why" style="color:#B44E00">예약에 관한 중요한 변경사항은<br>병원이 반드시 안내드립니다.</div>
+          <div class="s2-lab" style="margin-top:13px">골라서 받는 알림</div>
+          <div class="s2-g">
+            <div class="s2-r"><div style="flex:1">방문 전날·당일 안내</div><div class="s2-sw"></div></div>
+            <div class="s2-r"><div style="flex:1">사전문진 작성 안내</div><div class="s2-sw"></div></div>
+            <div class="s2-r"><div style="flex:1">진료 후 병원 안내</div><div class="s2-sw"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2. "반드시 안내드립니다"</h3>
+      <p>병원의 <b>의무</b>로 설명합니다. 가장 격식 있고 짧습니다. 다만 "왜 나한테 좋은지"는 말하지 않아 다소 사무적입니다.</p>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="card" data-choice="copy-benefit" onclick="toggleSelect(this)" style="max-width:278px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:12px;background:#e4ebee">
+      <div class="s2">
+        <div class="s2-top"><span class="s2-back">‹ 뒤로</span><span>설정</span><span style="width:28px"></span></div>
+        <div class="s2-body">
+          <div class="s2-lab">꼭 받아야 하는 알림</div>
+          <div class="s2-g">
+            <div class="s2-r"><div style="flex:1">예약 확정·변경·병원 취소<div class="s2-sub">병원 사정으로 일정이 바뀔 때</div></div><div class="s2-sw lock"></div></div>
+          </div>
+          <div class="s2-why" style="color:#B44E00">일정이 바뀌었는데 모르고 오시는 일이<br>없도록, 이 알림은 항상 보내드립니다.</div>
+          <div class="s2-lab" style="margin-top:13px">골라서 받는 알림</div>
+          <div class="s2-g">
+            <div class="s2-r"><div style="flex:1">방문 전날·당일 안내</div><div class="s2-sw"></div></div>
+            <div class="s2-r"><div style="flex:1">사전문진 작성 안내</div><div class="s2-sw"></div></div>
+            <div class="s2-r"><div style="flex:1">진료 후 병원 안내</div><div class="s2-sw"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3. "모르고 오시는 일이 없도록"</h3>
+      <p>가장 <b>구체적</b>입니다. 무슨 일이 벌어지는지 그림이 그려져서 어르신께 가장 잘 전달됩니다. 대신 길고 덜 격식적입니다.</p>
+    </div>
+  </div>
+
+  <!-- 로그아웃 -->
+  <div style="max-width:278px">
+    <div style="display:flex;justify-content:center;padding:12px;background:#eef2f4;border-radius:12px">
+      <div class="s2">
+        <div class="s2-top"><span class="s2-back">‹ 뒤로</span><span>설정</span><span style="width:28px"></span></div>
+        <div class="s2-body">
+          <div class="s2-lab">계정</div>
+          <div class="s2-g">
+            <div class="s2-r"><div style="flex:1">비밀번호 변경</div><span style="color:#C7D2D8">›</span></div>
+            <div class="s2-r"><div style="flex:1">가족 관리</div><span style="color:#C7D2D8">›</span></div>
+          </div>
+          <div class="s2-out">로그아웃</div>
+          <div class="s2-del">회원 탈퇴</div>
+        </div>
+        <div class="s2-dim">
+          <div class="s2-dlg">
+            <div style="padding:15px 13px 11px">
+              <div style="font-size:15.5px;font-weight:800;line-height:1.4">로그아웃할까요?</div>
+              <div style="font-size:11.5px;color:#33465A;font-weight:500;line-height:1.65;margin-top:8px">
+                다시 이용하시려면 <b>전화번호와 비밀번호</b>로 로그인하셔야 합니다.<br>
+                예약 내용은 그대로 남아 있습니다.
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;padding:0 12px 13px">
+              <div style="flex:1;text-align:center;padding:13px 0;border-radius:9px;font-size:13px;font-weight:800;border:2px solid #0B6E70;color:#0B6E70">아니요</div>
+              <div style="flex:1;text-align:center;padding:13px 0;border-radius:9px;font-size:13px;font-weight:800;background:#0B6E70;color:#fff">로그아웃</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="s2-cap"><b>로그아웃 확인 (추가)</b><br>지적하신 대로 넣었습니다. 다만 취소·탈퇴와 달리 <b>되돌릴 수 있는 동작</b>이라 빨간 버튼을 쓰지 않고, <b>"예약 내용은 그대로 남아 있습니다"</b>로 불안을 없앱니다 — 로그아웃하면 예약이 사라지는 줄 아는 분이 실제로 많습니다.</p>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>1번("진료를 안전하게 받으시도록 병원이 반드시 안내드리는 알림입니다")</b>을 추천합니다. 요청하신 <u>공적인 어조</u>와 <u>고객을 위한 일</u>이라는 두 가지를 한 문장에 담습니다 — <b>"안전하게"</b>가 이유를, <b>"병원이 반드시 안내드리는"</b>이 격식을 맡습니다. 3번이 가장 친절하지만 두 줄이 꽉 차 설정 화면에서는 무겁고, 2번은 짧고 단정하지만 <b>왜 나만 못 끄는지</b>에 답하지 않습니다.</p>
+</div>

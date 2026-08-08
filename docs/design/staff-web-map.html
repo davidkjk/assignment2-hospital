@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>직원 웹 — 화면 지도와 진입점</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  h2.sec{font-size:16px;font-weight:800;margin:38px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  hr.rule{height:1px;background:var(--divider);margin:24px 0 26px;border:0}
+
+  .lane{background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .lane-h{display:flex;align-items:baseline;gap:8px;margin-bottom:12px}
+  .lane-h .t{font-size:14px;font-weight:800}
+  .lane-h .d{font-size:12px;color:var(--ink-muted)}
+  .lane-h .sp{margin-left:auto}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+
+  .box{border:1px solid var(--divider);border-radius:10px;padding:10px 12px;background:#fff;min-height:96px;
+       display:flex;flex-direction:column;gap:4px}
+  .box .nm{font-size:13px;font-weight:800}
+  .box .rt{font-size:11px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+  .box .ds{font-size:11px;color:var(--ink-muted);line-height:1.6;margin-top:2px}
+  .box .sp{margin-top:auto}
+  .box.done{border-color:var(--primary);background:#F4FAFA}
+  .box.now{border-color:var(--warn);background:#FFF7EF;box-shadow:0 0 0 3px rgba(180,78,0,.10)}
+  .box.miss{border-style:dashed;border-color:#D8A889;background:#FFFBF7}
+  .st{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;padding:2px 6px;border-radius:99px;
+      background:var(--done-bg);color:var(--done);align-self:flex-start}
+  .st.ok{background:var(--primary);color:#fff}
+  .st.wn{background:#FFF1E4;color:var(--warn)}
+  .st.now{background:var(--warn);color:#fff}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--divider);vertical-align:top}
+  th{background:var(--done-bg);color:var(--ink-muted);font-weight:700;font-size:11.5px}
+  tr:last-child td{border-bottom:0}
+  td b{color:var(--ink)}
+  .arw{color:var(--primary);font-weight:800}
+  .new{color:var(--warn);font-weight:800}
+
+  .ok{background:#F1F8F8;border:1px solid #CBE3E3;border-left:4px solid var(--primary);border-radius:8px;
+      padding:12px 14px;margin:14px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .ok b{color:var(--primary)} .ok .t{color:var(--ink)}
+  .flag{background:#FFF7EF;border:1px solid #E8D3C2;border-left:4px solid var(--warn);border-radius:8px;
+        padding:12px 14px;margin:14px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .flag b{color:var(--warn)} .flag .t{color:var(--ink)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-muted);margin:10px 0 0}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .sw{width:12px;height:12px;border-radius:3px;border:1px solid var(--divider);display:inline-block}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>직원 웹 — 화면 지도와 진입점</h1>
+<p class="sub">
+  <b>여러 곳에서 같은 일을 시작할 수 있어서</b> 헷갈리는 상태를 풀기 위한 그림이다.
+  화면 목록은 <b>구현 계획(플랜)에서 전수로 뽑았다</b> — 스펙(<code>staff-web-design.md</code>)은 낡아서 <b>관리자 화면 6개가 빠져</b> 있다.
+</p>
+<p class="sub">
+  ⭐ <b>가장 중요한 구분</b>: 아래 ①②③은 <b>화면</b>(주소가 있고 사이드바로 갈 수 있다)이고,
+  ④는 <b>화면이 아니라 팝업</b>이다 — <b>주소가 없고, 여러 화면 위에서 열린다.</b> 헷갈림의 대부분이 여기서 온다.
+</p>
+<div class="legend">
+  <span><i class="sw" style="background:#F4FAFA;border-color:#0B6E70"></i> 목업·규칙 완료</span>
+  <span><i class="sw" style="background:#fff"></i> 아직 안 그림</span>
+  <span><i class="sw" style="background:#FFFBF7;border-style:dashed;border-color:#D8A889"></i> 플랜에 화면이 없음(기능 갭)</span>
+  <span><i class="sw" style="background:#FFF7EF;border-color:#B44E00"></i> 지금 이야기 중</span>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">① 접수 창구가 하루 종일 쓰는 화면</h2>
+<p class="seclead">사이드바 맨 위 묶음. <b>지금 우리가 그리고 있는 구역</b>이다.</p>
+<div class="lane">
+  <div class="grid">
+    <div class="box done">
+      <span class="st ok">목업 49</span>
+      <span class="nm">오늘의 현황</span><span class="rt">/today</span>
+      <span class="ds">로그인하면 <b>가장 먼저</b> 보는 화면. 숫자 타일 6개 + 지금 처리할 환자</span>
+    </div>
+    <div class="box done">
+      <span class="st ok">목업 61·62</span>
+      <span class="nm">대기 목록</span><span class="rt">/queue</span>
+      <span class="ds">상태 탭 7개. <b>순서 조정·응급 표시·워크인 등록</b>이 여기 산다</span>
+    </div>
+    <div class="box done">
+      <span class="st ok">목업 63</span>
+      <span class="nm">환자 검색</span><span class="rt">/patients</span>
+      <span class="ds">이름·전화·생년월일 <b>한 칸</b>으로 찾는다. 어제 그렸다</span>
+    </div>
+    <div class="box">
+      <span class="st">다음 차례</span>
+      <span class="nm">예약번호·QR 접수</span><span class="rt">/checkin</span>
+      <span class="ds">환자가 <b>예약번호나 QR</b>을 내밀면 찾아서 도착 처리</span>
+    </div>
+    <div class="box">
+      <span class="st">미착수</span>
+      <span class="nm">예약 캘린더</span><span class="rt">/calendar</span>
+      <span class="ds">하루·주간 격자. <b>빈 슬롯을 누르면 전화예약</b>이 열린다</span>
+    </div>
+    <div class="box">
+      <span class="st">미착수</span>
+      <span class="nm">환자 상세</span><span class="rt">/patients/:id</span>
+      <span class="ds">한 사람의 모든 것. <b>여기서는 번호가 안 가려진다</b></span>
+    </div>
+    <div class="box miss">
+      <span class="st wn">갭 #79</span>
+      <span class="nm">로그인</span><span class="rt">/ (없음)</span>
+      <span class="ds">⚠️ 16화면의 <b>첫 화면인데 플랜에 만들 계획이 없다</b></span>
+    </div>
+    <div class="box" style="border-style:dashed;background:#FAFBFC">
+      <span class="st">폐지</span>
+      <span class="nm">취소요청 대기열</span><span class="rt">/cancellation-requests</span>
+      <span class="ds">쓰지 않기로 했다(환자 취소는 상담으로 연결)</span>
+    </div>
+  </div>
+</div>
+
+<h2 class="sec">② 의사가 쓰는 화면</h2>
+<div class="lane">
+  <div class="grid">
+    <div class="box">
+      <span class="st">미착수</span>
+      <span class="nm">진료 화면</span><span class="rt">/doctor/console</span>
+      <span class="ds">내 환자 목록 → 한 명을 <b>열면 그 순간 「진료중」</b>이 된다(버튼이 없다)</span>
+    </div>
+    <div class="box">
+      <span class="st">미착수</span>
+      <span class="nm">진료 기록 작성</span><span class="rt">/doctor/console/:id</span>
+      <span class="ds">사전문진을 보고 기록을 쓴다 → <b>진료 완료</b>로 마감</span>
+    </div>
+  </div>
+</div>
+
+<h2 class="sec">③ 관리자 화면 — <b>6개가 스펙에서 빠져 있었다</b></h2>
+<p class="seclead">전부 미착수. 사이드바 아래쪽 묶음이고 <b>관리자에게만 보인다</b>.</p>
+<div class="lane">
+  <div class="grid">
+    <div class="box"><span class="st">미착수</span><span class="nm">직원 계정 관리</span><span class="rt">/admin/staff</span>
+      <span class="ds">계정 만들기·사용 중지(초대 메일)</span></div>
+    <div class="box"><span class="st">미착수</span><span class="nm">의사 일정 관리</span><span class="rt">/admin/schedule</span>
+      <span class="ds">진료시간·휴진. <b>바꾸면 영향받는 예약 목록</b>이 뜬다</span></div>
+    <div class="box"><span class="st">미착수</span><span class="nm">운영 통계</span><span class="rt">/admin/stats</span>
+      <span class="ds">⚠️ <b>되돌리기가 있는 숫자</b>다(<code>UNDO-STAT-01</code>)</span></div>
+    <div class="box"><span class="st">미착수</span><span class="nm">열람 기록</span><span class="rt">/admin/access-logs</span>
+      <span class="ds">누가 무엇을 열어봤나 + <b>무엇으로 검색했나</b></span></div>
+    <div class="box"><span class="st">미착수</span><span class="nm">문진 양식 관리</span><span class="rt">/admin/questionnaires</span>
+      <span class="ds">사전문진 문항 편집</span></div>
+    <div class="box"><span class="st">미착수</span><span class="nm">환자 계정 병합</span><span class="rt">/admin/patient-merge-candidates</span>
+      <span class="ds">같은 사람이 두 번 등록된 것을 합친다</span></div>
+    <div class="box"><span class="st">미착수</span><span class="nm">가족 연결 관리</span><span class="rt">/admin/family-links</span>
+      <span class="ds">가족 대리 예약 관계 확인</span></div>
+    <div class="box miss"><span class="st wn">갭 #81</span><span class="nm">알림함</span><span class="rt">(없음)</span>
+      <span class="ds">⚠️ 환자 앱 쪽 화면인데 <b>플랜에 통째로 없다</b></span></div>
+  </div>
+</div>
+
+<h2 class="sec">④ 화면이 아닌 것 — <b>팝업(모달) 4종</b></h2>
+<p class="seclead">
+  ⭐ <b>주소가 없다.</b> 사이드바로 갈 수 없고, <b>다른 화면 위에서 열렸다 닫힌다.</b>
+  같은 팝업을 <b>여러 화면에서 열 수 있다</b> — 이게 지금 헷갈리는 지점이다.
+</p>
+<div class="lane">
+  <div class="grid">
+    <div class="box done"><span class="st ok">목업 62 ⑥ · 63 ⑥⑦</span><span class="nm">당일 방문(워크인) 등록</span><span class="rt">4단계</span>
+      <span class="ds">찾기 → (찾음/신규) → 의사 → 확인. <b>지금 병원에 와 있는 사람</b></span></div>
+    <div class="box now"><span class="st now">지금 이야기 중</span><span class="nm">전화 예약 등록</span><span class="rt">단계 미확정</span>
+      <span class="ds"><b>지금 병원에 없는 사람.</b> 시간을 잡는 게 핵심</span></div>
+    <div class="box done"><span class="st ok">목업 62 ⑦</span><span class="nm">동명이인 재확인</span><span class="rt">2회</span>
+      <span class="ds">이름+생년월일을 보여주고 <b>예/아니오</b>만. 위 둘 안에서 열린다</span></div>
+    <div class="box done"><span class="st ok">목업 62 ④⑤ · 63 ⑨</span><span class="nm">사유 입력</span><span class="rt">3종</span>
+      <span class="ds">순서 변경 · 응급 표시 · <b>진료완료 되돌리기</b></span></div>
+  </div>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⭐ 여기가 헷갈리는 이유 — <b>같은 일을 여러 문으로 들어간다</b></h2>
+<p class="seclead">
+  화면이 16개인데 <b>일은 그보다 적다.</b> 그래서 한 가지 일에 <b>문이 여러 개</b> 난다.
+  <b>문이 여러 개인 것 자체는 문제가 아니다</b> — 창구에서 그 일이 <b>여러 상황에서 시작</b>되기 때문이다.
+  중요한 건 <b>어느 문으로 들어가든 같은 팝업</b>이고, <b>들어간 지점에 따라 몇 단계부터 열리는지만 다르다</b>는 것이다.
+</p>
+
+<table>
+  <tr><th style="width:130px">무슨 일</th><th style="width:210px">어느 화면에서</th><th>무엇을 누르면</th><th style="width:230px">어떻게 열리나</th></tr>
+
+  <tr>
+    <td rowspan="3"><b>환자를 찾는다</b></td>
+    <td><code>/patients</code> 환자 검색</td>
+    <td>화면 자체가 검색이다</td>
+    <td>결과 목록이 화면에 깔린다</td>
+  </tr>
+  <tr>
+    <td>워크인 팝업 <b>1단계</b></td>
+    <td>팝업 안의 같은 검색칸</td>
+    <td rowspan="2"><b>같은 검색</b>을 팝업 안에서 쓴다(<code>SEARCH-BOX-03</code>)</td>
+  </tr>
+  <tr>
+    <td>전화예약 팝업 <b>1단계</b></td>
+    <td>팝업 안의 같은 검색칸</td>
+  </tr>
+
+  <tr>
+    <td rowspan="3"><b>당일 방문을<br>등록한다</b></td>
+    <td><code>/queue</code> 대기 목록</td>
+    <td>우측 상단 <code>＋ 당일 방문 등록</code></td>
+    <td><b>1단계(찾기)부터</b></td>
+  </tr>
+  <tr>
+    <td><code>/patients</code> 검색 결과 줄</td>
+    <td><code>[당일 방문 등록]</code> <span class="new">🆕 어제 생김</span></td>
+    <td>환자를 이미 골랐으므로 <b>2단계부터</b></td>
+  </tr>
+  <tr>
+    <td><code>/today</code> 오늘의 현황</td>
+    <td><code>＋ 당일 방문 등록</code> <span class="new">🆕 방금 결정</span></td>
+    <td><b>1단계(찾기)부터</b></td>
+  </tr>
+
+  <tr>
+    <td rowspan="3"><b>예약을 잡는다<br>(전화)</b></td>
+    <td><code>/calendar</code> 예약 캘린더</td>
+    <td><b>빈 슬롯</b>을 클릭</td>
+    <td><b>시간이 이미 정해진 채로</b> 열린다 → 사람만 찾으면 된다</td>
+  </tr>
+  <tr>
+    <td><code>/patients</code> 검색 결과 줄</td>
+    <td><code>[예약 잡기]</code> <span class="new">🆕 어제 생김</span></td>
+    <td rowspan="2" style="background:#FFF7EF"><b class="new">⚠️ 여기가 지금 미결(SB-25)</b><br>사람은 정해졌는데 <b>시간이 안 정해졌다.</b> 캘린더와 <b>순서가 반대</b>라 그대로 이어붙일 수 없다</td>
+  </tr>
+  <tr>
+    <td><code>/today</code> 오늘의 현황</td>
+    <td><code>[예약 잡기]</code>(둘지 미정)</td>
+  </tr>
+
+  <tr>
+    <td rowspan="4"><b>도착 처리를<br>한다</b></td>
+    <td><code>/today</code> 오늘의 현황</td>
+    <td>줄의 <code>[도착 처리]</code></td>
+    <td rowspan="4">전부 <b>같은 한 번의 상태 변경</b>. 이제 <b>되돌릴 수 있다</b>(<code>UNDO-*</code>)</td>
+  </tr>
+  <tr><td><code>/queue</code> 「아직 안 옴」 탭</td><td>줄의 <code>[도착 처리]</code></td></tr>
+  <tr><td><code>/patients</code> 검색 결과 줄</td><td><code>[도착 처리]</code> <span class="new">🆕 어제 생김</span></td></tr>
+  <tr><td><code>/checkin</code> 예약번호·QR</td><td>번호를 넣거나 QR을 비추면</td></tr>
+</table>
+
+<div class="ok">
+  <span class="t">⭐ <b>왜 문을 여러 개 냈나 — 창구의 순서가 상황마다 다르기 때문이다</b></span><br>
+  <b>㉮ 무엇을 할지 먼저 정해진 경우</b>: <i>"예약 없이 오셨네요"</i> → 대기 목록에서 <b>워크인 버튼</b> → 사람을 찾는다.<br>
+  <b>㉯ 사람이 먼저 정해진 경우</b>: <i>"김민정님이신가요?"</i> → <b>검색으로 찾고</b> → 보니 오늘 예약이 없다 → <b>그 자리에서</b> 등록.<br>
+  둘 다 실제로 일어나는데 <b>㉯의 문이 없었다.</b> 그래서 찾아 놓고도 검색을 닫고 대기 목록으로 가서 <b>같은 사람을 처음부터 다시 찾아야</b> 했다.
+  <b>어제 생긴 문 세 개가 전부 ㉯를 여는 문</b>이다.
+</div>
+
+<div class="flag">
+  <span class="t">⚠️ <b>그런데 「예약 잡기」만 ㉯로 못 넘어간다</b> — 지금 물어보고 있는 것(SB-25)</span><br>
+  워크인은 <b>시간이라는 개념이 없다</b>(지금 왔으니까) — 사람만 정하면 끝이라 <b>2단계부터 이어붙이면</b> 된다.<br>
+  전화예약은 <b>시간을 잡는 것이 일의 본체</b>다. 그런데 지금 설계는 <b>캘린더의 빈 칸을 눌러서</b> 여는 구조라
+  <b>시간 → 사람</b> 순서로만 되어 있다. 사람을 먼저 고른 상태로 이 팝업에 들어가면 <b>건너뛸 단계가 없고, 오히려 없던 단계(시간 고르기)가 필요해진다.</b><br>
+  <b>그래서 셋 중 하나를 골라야 한다</b> — ㉮ 고른 환자를 <b>들고 캘린더로 간다</b> / ㉯ 팝업 안에 <b>시간 고르기 단계를 새로 넣는다</b> / ㉰ <code>[예약 잡기]</code>를 <b>안 둔다</b>.
+</div>
+
+<div class="ok">
+  <span class="t">📌 <b>화면을 다 그리기 전까지는 이 지도가 계속 바뀐다</b></span><br>
+  <code>/calendar</code>·<code>/checkin</code>·<code>/patients/:id</code>·의사 화면이 아직 안 그려져 있어서,
+  <b>지금 여기 없는 문이 앞으로 더 생긴다.</b> 예를 들어 <code>/patients/:id</code>(환자 상세)에서도
+  <b>예약을 잡거나 도착 처리를 하고 싶어질</b> 가능성이 높다 — 그때 이 표에 줄이 추가된다.<br>
+  ⚠️ 그러니 <b>지금 확정할 것은 「문을 몇 개 내느냐」가 아니라 「문이 열리는 방식의 규칙」</b>이다.
+  규칙이 하나면 화면이 늘어도 표만 길어진다.
+</div>
+
+</div>
+</body>
+</html>

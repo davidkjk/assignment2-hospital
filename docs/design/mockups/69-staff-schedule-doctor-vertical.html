@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>69 · 진료 일정 관리 — 탭을 왼쪽 세로줄로(SB-53)</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --warn-bg:#FFF1E4; --danger:#9E3F6E; --danger-bg:#F3E7EA;
+    --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --book:#E7F1F1; --book-line:#9FC6C6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  .quote .warn{color:var(--warn);font-weight:800}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:var(--warn-bg);color:var(--warn)}
+  .tag.no{background:var(--danger-bg);color:var(--danger)}
+
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:6px 0 0}
+  .hint b{color:var(--ink)}
+  .hint.w b{color:var(--warn)}
+  .hint.g b{color:var(--primary)}
+
+  svg.i{width:13px;height:13px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;
+        stroke-linecap:round;stroke-linejoin:round}
+  svg.i.sm{width:11px;height:11px;vertical-align:-1px}
+
+  .app{background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .apptop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);
+          font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .apptop .sp{flex:1}
+  .body{padding:14px}
+  .btn{border:1px solid var(--divider);border-radius:6px;padding:4px 9px;background:#fff;
+       font-size:11px;font-weight:800;color:var(--ink);white-space:nowrap;display:inline-block}
+  .btn.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.q{color:var(--ink-muted)}
+
+  /* 가로 탭(지금) */
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--divider);padding:0 12px}
+  .tabs .tb{padding:9px 13px;font-size:11.5px;font-weight:800;color:var(--ink-muted);
+            border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+  .tabs .tb.on{color:var(--primary);border-bottom-color:var(--primary)}
+
+  /* 좌우 2단 */
+  .split{display:flex}
+  .lside{width:158px;flex:none;border-right:1px solid var(--divider);padding:8px 0;background:#FCFDFD}
+  .lside .lh{font-size:10px;font-weight:800;color:#93A2AE;padding:2px 12px 6px;letter-spacing:.03em}
+  .lrow{padding:9px 12px;font-size:11.5px;font-weight:800;color:var(--ink-muted);
+        border-left:3px solid transparent;display:flex;align-items:center;gap:6px}
+  .lrow .sp{flex:1}
+  .lrow .txt{min-width:0}
+  .lrow .v{display:block;font-weight:600;font-size:10px;margin-top:2px;color:#93A2AE}
+  .lrow.on{background:var(--book);border-left-color:var(--primary);color:var(--ink)}
+  .dot{width:6px;height:6px;border-radius:99px;background:var(--warn);flex:none}
+  .rside{flex:1;min-width:0}
+
+  /* 의사 고르는 가로줄 */
+  .docbar{display:flex;align-items:center;gap:6px;padding:8px 11px;border-bottom:1px solid var(--divider);
+          background:#FCFDFD;flex-wrap:wrap}
+  .docbar .cap{font-size:10px;font-weight:800;color:#93A2AE;letter-spacing:.03em;margin-right:2px}
+  .doc{border:1px solid #CFD8DF;border-radius:99px;padding:4px 10px;font-size:11px;font-weight:800;
+       background:#fff;color:var(--ink-muted);white-space:nowrap}
+  .doc .dp{font-weight:600;font-size:9.5px;color:#93A2AE;margin-left:4px}
+  .doc.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .doc.on .dp{color:#BFE0E0}
+  .doc .dot{display:inline-block;margin-left:5px;vertical-align:1px}
+
+  .rh{display:flex;align-items:baseline;gap:8px;margin:0 0 9px}
+  .rh b{font-size:12.5px;font-weight:800}
+  .rh span{font-size:11px;color:var(--ink-muted)}
+  .rh .sp{flex:1}
+
+  /* 주간 표 */
+  table.wk{width:100%;border-collapse:collapse;font-size:10.5px}
+  table.wk th,table.wk td{padding:6px 5px;border-bottom:1px solid var(--divider);text-align:left;
+                          white-space:nowrap;vertical-align:middle}
+  table.wk th{background:var(--done-bg);font-weight:800;color:var(--ink-muted);font-size:9.5px}
+  table.wk td.day{font-weight:800;width:26px}
+  table.wk tr.off td{color:#AEB9C3}
+  table.wk tr:last-child td{border-bottom:0}
+  .fs{border:1px solid #CFD8DF;border-radius:4px;padding:3px 5px;background:#fff;
+      font-size:10.5px;font-weight:700;display:inline-block;min-width:42px;text-align:center}
+  .fs.dim{background:var(--done-bg);border-color:#E2E8ED;color:#C3CDD5}
+  .fs.chg{border-color:var(--warn);background:var(--warn-bg)}
+  .tilde{color:var(--ink-muted);margin:0 3px}
+  .sw{width:22px;height:13px;border-radius:99px;background:var(--primary);position:relative;display:inline-block;
+      vertical-align:-2px}
+  .sw::after{content:"";position:absolute;top:2px;left:11px;width:9px;height:9px;border-radius:99px;background:#fff}
+  .sw.off{background:#C3CDD5}
+  .sw.off::after{left:2px}
+
+  /* 전체 현황 격자 */
+  table.gr{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}
+  table.gr th,table.gr td{border:1px solid var(--divider);padding:5px 3px;text-align:center;line-height:1.35}
+  table.gr th{background:var(--done-bg);font-weight:800;color:var(--ink-muted);font-size:9.5px}
+  table.gr th.who,table.gr td.who{text-align:left;width:74px;font-weight:800;font-size:10px}
+  table.gr td b{display:block;font-weight:800}
+  table.gr td span{color:var(--ink-muted);font-size:9px}
+  table.gr td.x{color:#AEB9C3;font-weight:800;
+    background:repeating-linear-gradient(45deg,#F7F9FA,#F7F9FA 4px,#EDF1F3 4px,#EDF1F3 8px)}
+
+  /* 의사 세로 목록(지금) */
+  .drow{padding:6px 11px;font-size:11px;line-height:1.35;border-left:3px solid transparent}
+  .drow b{font-weight:800;display:block}
+  .drow span{color:var(--ink-muted);font-size:10px}
+  .drow.on{background:var(--book);border-left-color:var(--primary)}
+
+  .colh{font-size:12px;font-weight:800;margin:0 0 7px;display:flex;align-items:center;gap:7px}
+
+  .verdict{border-radius:8px;padding:10px 13px;font-size:12px;line-height:1.8;margin:8px 0 0}
+  .verdict.good{background:var(--book);border:1px solid var(--book-line)}
+  .verdict.bad{background:var(--danger-bg);border:1px solid #E3CBD5}
+  .verdict.warn{background:var(--warn-bg);border:1px solid #F0D5BC}
+  .verdict b{font-weight:800}
+
+  table.t{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;
+          border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+  table.t th,table.t td{padding:8px 10px;border-bottom:1px solid var(--divider);text-align:left;
+                        vertical-align:top;line-height:1.65}
+  table.t th{background:var(--done-bg);font-weight:800;color:var(--ink-muted);font-size:10.5px}
+  table.t tr:last-child td{border-bottom:0}
+  table.t .yes{color:var(--primary);font-weight:800}
+  table.t .no{color:var(--danger);font-weight:800}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+</svg>
+
+<div class="page">
+
+  <h1>69 · 진료 일정 관리 — <span style="color:var(--primary)">탭 4개를 왼쪽 세로줄로</span></h1>
+  <p class="sub">사용자 제안(2026-08-07) — <b>「전체 현황 · 진료과 관리 · 의사별 스케줄 · 특정 날짜 변경, 이게 왼쪽 세로줄이 된다」</b><br>
+     그리고 <b>의사는 위쪽 가로줄</b>로 올라간다. 68번 병원 설정에서 고른 <b>㉰(왼쪽 세로 메뉴)와 같은 부품</b>이다.</p>
+
+  <div class="quote">
+    ⭐ <b>이건 「그릇」만 바꾸는 제안이다.</b> 오른쪽에 들어가는 것(<b>주간 표 · 전체 현황 격자 · 진료과 목록 · 달력</b>)은
+    67번에서 확정한 그대로다. <span class="warn">규칙 65개 중 손대는 것은 「그릇」 몇 개뿐</span>이다 —
+    <code>SCHED-TAB-01·02</code>(탭 넷) · <code>SCHED-WEEK-01·08·09</code>(왼쪽 의사 목록).
+    <b>SB-44(저장) · GRID · EXC · SLOT은 전부 그대로 산다.</b>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ① 나란히 -->
+  <h2 class="sec">① 지금(67번)과 새 안</h2>
+
+  <div class="colh"><span class="tag no">지금 67번</span> 탭이 위 가로 · 의사가 왼쪽 세로</div>
+  <div class="app">
+    <div class="apptop"><svg class="i"><use href="#i-cal"/></svg> 병원 관리 · 진료 일정<span class="sp"></span>
+      <span class="btn q">되돌리기</span><span class="btn p">저장</span></div>
+    <div class="tabs">
+      <div class="tb">전체 현황</div><div class="tb">진료과 관리</div>
+      <div class="tb on">의사별 스케줄</div><div class="tb">특정 날짜 변경</div>
+    </div>
+    <div class="split">
+      <div class="lside" style="width:112px">
+        <div class="lh">의사</div>
+        <div class="drow on"><b>김민수</b><span>내과</span></div>
+        <div class="drow"><b>박서연</b><span>내과</span></div>
+        <div class="drow"><b>이지현</b><span>정형외과</span></div>
+        <div class="drow"><b>최우진</b><span>소아청소년과</span></div>
+      </div>
+      <div class="rside" style="padding:10px 12px">
+        <div class="rh"><b>김민수</b><span>내과 · 요일마다 다르게 둘 수 있습니다</span>
+          <span class="sp"></span><span class="btn q">월요일 값을 나머지에</span></div>
+        <table class="wk">
+          <tr><th></th><th>진료</th><th>진료 시간</th><th>한 칸</th><th>점심시간</th><th>최대</th><th>마감</th></tr>
+          <tr><td class="day">월</td><td><span class="sw"></span></td>
+            <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">18:00</span></td>
+            <td><span class="fs">15분</span></td>
+            <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+            <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+          <tr><td class="day">화</td><td><span class="sw"></span></td>
+            <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">18:00</span></td>
+            <td><span class="fs">15분</span></td>
+            <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+            <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+          <tr class="off"><td class="day">수</td><td><span class="sw off"></span></td>
+            <td colspan="5" style="font-weight:700">휴진</td></tr>
+          <tr><td class="day">목</td><td><span class="sw"></span></td>
+            <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">18:00</span></td>
+            <td><span class="fs">15분</span></td>
+            <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+            <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+          <tr><td class="day">금</td><td><span class="sw"></span></td>
+            <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">18:00</span></td>
+            <td><span class="fs">15분</span></td>
+            <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+            <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+          <tr><td class="day">토</td><td><span class="sw"></span></td>
+            <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">13:00</span></td>
+            <td><span class="fs">15분</span></td><td><span class="fs dim">없음</span></td>
+            <td><span class="fs">20</span></td><td><span class="fs">12:00</span></td></tr>
+          <tr class="off"><td class="day">일</td><td><span class="sw off"></span></td>
+            <td colspan="5" style="font-weight:700">휴진</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p class="hint w">⚠️ <b>세로줄이 「의사」에 쓰이고 있다</b> — 그래서 <b>화면 이름</b>(무슨 일을 하는 곳인가)은
+     <b>위쪽 가로 탭</b>에 밀려 있다. 그리고 <code>SCHED-WEEK-09</code>는 <b>의사 8명까지</b>를 전제로 이 목록을 세로로 뒀다.</p>
+
+  <div style="height:22px"></div>
+
+  <div class="colh"><span class="tag ok">새 안</span> 화면 이름이 왼쪽 세로 · 의사가 위 가로</div>
+  <div class="app">
+    <div class="apptop"><svg class="i"><use href="#i-cal"/></svg> 병원 관리 · 진료 일정<span class="sp"></span>
+      <span style="color:var(--warn);font-weight:800">● 저장하지 않은 변경 1곳</span>
+      <span class="btn q">되돌리기</span><span class="btn p">저장</span></div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">진료 일정</div>
+        <div class="lrow"><div class="txt">전체 현황<span class="v">읽는 곳</span></div></div>
+        <div class="lrow"><div class="txt">진료과 관리<span class="v">4과</span></div></div>
+        <div class="lrow on"><div class="txt">의사별 스케줄<span class="v">의사 4명</span></div><span class="sp"></span><span class="dot"></span></div>
+        <div class="lrow"><div class="txt">특정 날짜 변경<span class="v">다음 휴무 2/9</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="docbar">
+          <span class="cap">의사</span>
+          <span class="doc on">김민수<span class="dp">내과</span></span>
+          <span class="doc">박서연<span class="dp">내과</span><span class="dot"></span></span>
+          <span class="doc">이지현<span class="dp">정형외과</span></span>
+          <span class="doc">최우진<span class="dp">소아청소년과</span></span>
+        </div>
+        <div style="padding:10px 12px">
+          <div class="rh"><b>김민수</b><span>내과 · 요일마다 다르게 둘 수 있습니다</span>
+            <span class="sp"></span><span class="btn q">월요일 값을 나머지에</span></div>
+          <table class="wk">
+            <tr><th></th><th>진료</th><th>진료 시간</th><th>한 칸</th><th>점심시간</th><th>최대</th><th>마감</th></tr>
+            <tr><td class="day">월</td><td><span class="sw"></span></td>
+              <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs chg">19:00</span></td>
+              <td><span class="fs">15분</span></td>
+              <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+              <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+            <tr><td class="day">화</td><td><span class="sw"></span></td>
+              <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">18:00</span></td>
+              <td><span class="fs">15분</span></td>
+              <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+              <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+            <tr class="off"><td class="day">수</td><td><span class="sw off"></span></td>
+              <td colspan="5" style="font-weight:700">휴진</td></tr>
+            <tr><td class="day">목</td><td><span class="sw"></span></td>
+              <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">18:00</span></td>
+              <td><span class="fs">15분</span></td>
+              <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+              <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+            <tr><td class="day">금</td><td><span class="sw"></span></td>
+              <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">18:00</span></td>
+              <td><span class="fs">15분</span></td>
+              <td><span class="fs">12:30</span><span class="tilde">~</span><span class="fs">13:30</span></td>
+              <td><span class="fs">40</span></td><td><span class="fs">17:00</span></td></tr>
+            <tr><td class="day">토</td><td><span class="sw"></span></td>
+              <td><span class="fs">09:00</span><span class="tilde">~</span><span class="fs">13:00</span></td>
+              <td><span class="fs">15분</span></td><td><span class="fs dim">없음</span></td>
+              <td><span class="fs">20</span></td><td><span class="fs">12:00</span></td></tr>
+            <tr class="off"><td class="day">일</td><td><span class="sw off"></span></td>
+              <td colspan="5" style="font-weight:700">휴진</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict good">
+    <b>세로줄이 제자리를 찾는다</b> — 세로줄에 놓을 것은 <b>「무슨 일을 하는 곳인가」</b>이지 <b>「누구의 것인가」</b>가 아니다.
+    의사는 <b>고른 뒤 계속 바뀌는 값</b>이라 <b>내용 위에 붙는 필터</b>에 가깝다.<br>
+    ⭐ <b>주황 점이 두 층에 붙는다</b> — 왼쪽 <b>「의사별 스케줄」</b>에 하나(어느 화면을 만졌나),
+    위쪽 <b>「박서연」</b>에 하나(어느 의사를 만졌나). ⚠️ 지금 67번은 <b>다른 의사를 만진 흔적이 안 보인다</b> —
+    <code>SCHED-SAVE-02</code>가 「고친 줄에 ●」까지만 정해 뒀는데, <b>의사를 옮기면 그 ●가 화면에서 사라진다.</b><br>
+    <b>68번 병원 설정과 부품이 같아진다</b> — 관리자 화면 둘의 설명이 하나가 된다.
+  </div>
+
+  <hr class="rule">
+
+  <!-- ② 값 -->
+  <h2 class="sec">② 다른 세 화면도 같은 자리에 들어간다</h2>
+  <p class="seclead">왼쪽에서 무엇을 고르든 <b>오른쪽만 갈린다.</b> 「전체 현황」은 <b>의사 가로줄이 없다</b> — 전부를 한 장에 보는 곳이라 고를 것이 없다.</p>
+
+  <div class="app">
+    <div class="apptop"><svg class="i"><use href="#i-cal"/></svg> 병원 관리 · 진료 일정<span class="sp"></span>
+      <span class="btn p">저장</span></div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">진료 일정</div>
+        <div class="lrow on"><div class="txt">전체 현황<span class="v">읽는 곳</span></div></div>
+        <div class="lrow"><div class="txt">진료과 관리<span class="v">4과</span></div></div>
+        <div class="lrow"><div class="txt">의사별 스케줄<span class="v">의사 4명</span></div></div>
+        <div class="lrow"><div class="txt">특정 날짜 변경<span class="v">다음 휴무 2/9</span></div></div>
+      </div>
+      <div class="rside" style="padding:11px 12px">
+        <div class="rh"><b>이번 주 평상시 규칙</b><span>실제 예약과 그날만의 변경은 <code>/calendar</code>에서 본다</span></div>
+        <table class="gr">
+          <tr><th class="who">의사</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th><th>일</th></tr>
+          <tr><td class="who">김민수<span style="display:block;font-weight:700;color:var(--ink-muted);font-size:9px">내과</span></td>
+            <td><b>09–18</b><span>15분 · 40명</span></td><td><b>09–18</b><span>15분 · 40명</span></td>
+            <td class="x">휴진</td><td><b>09–18</b><span>15분 · 40명</span></td>
+            <td><b>09–18</b><span>15분 · 40명</span></td><td><b>09–13</b><span>15분 · 20명</span></td><td class="x">휴진</td></tr>
+          <tr><td class="who">박서연<span style="display:block;font-weight:700;color:var(--ink-muted);font-size:9px">내과</span></td>
+            <td><b>13–20</b><span>20분 · 28명</span></td><td><b>13–20</b><span>20분 · 28명</span></td>
+            <td><b>13–20</b><span>20분 · 28명</span></td><td class="x">휴진</td>
+            <td><b>13–20</b><span>20분 · 28명</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+          <tr><td class="who">이지현<span style="display:block;font-weight:700;color:var(--ink-muted);font-size:9px">정형외과</span></td>
+            <td><b>09–17</b><span>30분 · 16명</span></td><td><b>09–17</b><span>30분 · 16명</span></td>
+            <td><b>09–17</b><span>30분 · 16명</span></td><td><b>09–17</b><span>30분 · 16명</span></td>
+            <td><b>09–17</b><span>30분 · 16명</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+          <tr><td class="who">최우진<span style="display:block;font-weight:700;color:var(--ink-muted);font-size:9px">소아과</span></td>
+            <td><b>09–18</b><span>15분 · 44명</span></td><td><b>09–18</b><span>15분 · 44명</span></td>
+            <td><b>09–18</b><span>15분 · 44명</span></td><td><b>09–18</b><span>15분 · 44명</span></td>
+            <td><b>09–18</b><span>15분 · 44명</span></td><td><b>09–13</b><span>15분 · 24명</span></td><td class="x">휴진</td></tr>
+        </table>
+        <p class="hint g">칸을 누르면 <b>왼쪽이 「의사별 스케줄」로 바뀌고 그 의사·그 요일 줄이 선택된 채</b> 열린다
+          (<code>SCHED-GRID-03</code> 그대로). ⭐ <b>왼쪽 줄이 옮겨가는 것이 눈에 보여</b> 지금 탭보다 「어디로 갔는지」가 분명하다.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ③ 대가 -->
+  <h2 class="sec">③ ⚠️ 치르는 대가 — <span style="color:var(--warn)">가로 158px</span></h2>
+  <p class="seclead">
+    67번이 「전체 현황」을 <b>별도 탭</b>으로 고른 이유 중 하나가 <b>*"가로가 통째로 격자에 쓰인다 — 왼쪽 목록 186px이 없으므로
+    칸마다 「15분 · 40명」까지 들어간다"*</b>였다. 왼쪽 세로줄을 두면 <b>그 158px을 다시 내놓는다.</b>
+  </p>
+  <table class="t">
+    <tr><th style="width:190px">화면</th><th style="width:200px">지금 쓰는 가로</th><th>새 안</th></tr>
+    <tr><td><b>전체 현황</b>(격자)</td><td class="yes">전폭 — 왼쪽 목록 없음</td>
+        <td class="no">⚠️ <b>158px 줄어든다</b> — 칸이 <b>7개</b>라 한 칸에 <b>20px씩</b> 손해</td></tr>
+    <tr><td><b>의사별 스케줄</b>(주간 표)</td><td>왼쪽 의사 목록 <b>112~186px</b>을 이미 쓴다</td>
+        <td class="yes">✅ <b>거의 같다</b> — 세로줄이 의사 목록 자리를 대신한다</td></tr>
+    <tr><td><b>진료과 관리 · 특정 날짜</b></td><td>목록·달력이라 여유가 있다</td><td class="yes">✅ 영향 없음</td></tr>
+  </table>
+  <div class="verdict warn">
+    ⭐ <b>손해가 「전체 현황」 한 곳에만 몰린다.</b> 그리고 그 화면은 <b>읽기 전용</b>이라(<code>SCHED-GRID-02</code>)
+    입력칸을 넣을 필요가 없어 <b>글자만 들어간다</b> — <code>09–18</code> / <code>15분 · 40명</code>은
+    좁아진 칸에도 들어간다(위 ② 그림이 실제로 158px을 뺀 상태다).<br>
+    <b>대가는 실재하지만 감당된다</b>는 판단이다.
+  </div>
+
+  <hr class="rule">
+
+  <!-- ④ 의사 수 -->
+  <h2 class="sec">④ 의사가 많아지면 — <span style="color:var(--primary)">원문이 이미 답해 뒀다</span></h2>
+  <p class="seclead">
+    의사가 <b>위쪽 가로줄</b>로 가면 *"많아지면 접히지 않나"*가 걱정된다. 그런데 <b>이미 확인된 답이 있었다.</b>
+  </p>
+  <div class="quote">
+    <code>SCHED-WEEK-09</code> — <b>*"의사가 많을 때: 전부 세로로 늘어놓는다. <span class="warn">요구사항이 병원 규모를 의사 5~8명으로 못박았다</span>(`:13`). 접거나 검색칸을 두지 않는다."*</b><br>
+    ⭐ 즉 <b>「많아지면」이라는 상황 자체를 이 프로젝트는 이미 범위 밖으로 뒀다.</b>
+    <b>8명이면 가로줄 한 줄에 들어간다</b>(위 그림의 4명 기준으로 두 배). <b>새 빈칸을 만들 필요가 없다.</b>
+  </div>
+  <p class="hint w">⚠️ 다만 <code>SCHED-WEEK-09</code>의 문장이 <b>「세로로 늘어놓는다」</b>이므로
+     <b>「가로줄에 늘어놓는다」로 고쳐 써야</b> 한다. 근거(5~8명이라 접지 않는다)는 그대로 산다.</p>
+
+  <hr class="rule">
+
+  <!-- ⑤ 무엇이 바뀌나 -->
+  <h2 class="sec">⑤ 규칙 중 무엇을 손대나 — <span style="color:var(--primary)">다섯 개</span></h2>
+  <table class="t">
+    <tr><th style="width:150px">규칙</th><th style="width:290px">지금</th><th>새 안</th></tr>
+    <tr><td><code>SCHED-TAB-01</code></td><td>탭 <b>네 개</b></td><td>🔄 <b>왼쪽 세로줄 네 줄.</b> 넷이라는 것과 이름은 그대로</td></tr>
+    <tr><td><code>SCHED-TAB-02</code></td><td>첫 탭은 늘 `전체 현황`</td><td>🔄 <b>첫 줄</b>은 늘 `전체 현황`. 근거(바꾸기 전에 보는 것이 순서) 그대로</td></tr>
+    <tr><td><code>SCHED-WEEK-01</code></td><td>왼쪽 의사 목록 + 오른쪽 요일 7행 표</td><td>🔄 <b>위쪽 의사 가로줄</b> + 오른쪽 요일 7행 표</td></tr>
+    <tr><td><code>SCHED-WEEK-08·09</code></td><td>활성 의사만 · <b>세로</b>로 전부</td><td>🔄 활성 의사만 · <b>가로</b>로 전부(5~8명 근거 유지)</td></tr>
+    <tr><td><code>SCHED-SAVE-02</code></td><td>고친 <b>줄</b>에 `●` + 맨 위 `고친 곳 N군데`</td>
+        <td>🆕 <b>점이 두 층 더 붙는다</b> — 왼쪽 세로줄과 <b>의사 이름</b>에도.
+            ⚠️ <b>지금은 다른 의사를 만진 흔적이 화면에서 사라진다</b>(새로 발견)</td></tr>
+    <tr><td colspan="3" style="background:var(--book)"><b>그대로 사는 것</b> — <code>SCHED-GRID-01~07</code>(격자) ·
+        <code>SCHED-WEEK-02~07</code>(7행·휴진·시각입력·월요일 복사) · <code>SCHED-SAVE-01·03~08</code>(SB-44 저장) ·
+        <code>SCHED-DEPT-*</code> · <code>SCHED-EXC-*</code> · <code>SCHED-WARN-*</code> · <code>SCHED-SLOT-*</code>
+        → <b>65개 중 60개가 손대지 않는다.</b></td></tr>
+  </table>
+
+  <div class="verdict good" style="margin-top:14px">
+    <b>새 안을 추천합니다.</b> 바꾸는 것은 <b>그릇뿐</b>이고 <b>67번에서 힘들게 정한 내용은 하나도 안 뒤집힌다.</b>
+    대가는 <b>「전체 현황」의 가로 158px</b> 하나인데 그 화면은 읽기 전용이라 견딘다.<br>
+    ⭐ 그리고 <b>덤으로 구멍 하나가 메워진다</b> — 지금은 <b>다른 의사를 고쳐 둔 흔적이 화면에서 사라져</b>
+    저장을 안 한 채 떠나기 쉬운데(<code>SCHED-SAVE-07</code>은 <b>묻지 않고 날린다</b>),
+    <b>의사 이름에 붙는 점</b>이 그걸 눈에 남긴다.
+  </div>
+
+</div>
+</body>
+</html>

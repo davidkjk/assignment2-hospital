@@ -1,0 +1,129 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .wc { width: 254px; border: 2px solid #3a3a3a; border-radius: 16px; overflow: hidden; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .wc-bar { background: #fff; padding: 9px 11px; font-size: 13px; font-weight: 800; }
+  .wc-in { padding: 10px; }
+  .wc-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.12); }
+  .wc-head { background: #0B6E70; color: #fff; padding: 8px 11px; font-size: 11px; font-weight: 800; }
+  .wc-p { display: flex; }
+  .wc-rail { background: #0B6E70; color: #fff; width: 58px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; }
+  .wc-time { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+  .wc-rel { font-size: 8px; opacity: .88; }
+  .wc-mid { flex: 1; padding: 9px; }
+  .wc-name { font-size: 14px; font-weight: 800; }
+  .wc-sub { font-size: 10px; color: #5A6C7B; margin-top: 2px; font-weight: 500; }
+  .wc-q { font-size: 10.5px; font-weight: 700; padding: 8px 11px 8px 69px; border-top: 1px solid #E6EBEF; }
+  .wc-div { border-top: 1px solid #E6EBEF; }
+  .wc-tag { font-size: 8px; font-weight: 800; letter-spacing: .4px; color: #5A6C7B; margin: 9px 0 3px; }
+  .wc-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .wc-hex { font-size: 10px; color: #667; text-align: center; margin-top: 7px; font-variant-numeric: tabular-nums; }
+</style>
+
+<h2>화면 7 / 20 — "사전문진 미작성" 주의색 다시 보기</h2>
+<p class="subtitle">
+  지적하신 대로입니다. 앰버(주황)는 딥틸의 <b>보색</b>이라 시선은 확실히 끌지만, 넓은 면으로 깔면 화면이 <b>차가운 톤과 따뜻한 톤으로 쪼개져</b> 보입니다.
+  <br>해결 방향은 두 갈래 — <b>색을 딥틸 쪽으로 당기거나</b>, <b>색은 두되 면적을 줄이거나</b>. 셋 다 그려봤습니다. 각 카드에 미작성 줄과 완료 줄이 함께 있습니다.
+</p>
+
+<div class="wc-row">
+
+  <!-- 현행 -->
+  <div class="card" data-choice="warn-current" onclick="toggleSelect(this)" style="max-width:285px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="wc">
+        <div class="wc-bar">김순자님</div>
+        <div class="wc-in">
+          <div class="wc-card">
+            <div class="wc-head">오늘 방문 2건 · 8월 3일 (월)</div>
+            <div class="wc-p">
+              <div class="wc-rail"><div class="wc-time">14:30</div><div class="wc-rel">본인</div></div>
+              <div class="wc-mid"><div class="wc-name">김순자</div><div class="wc-sub">내과 · 이민호 원장</div></div>
+            </div>
+            <div class="wc-q" style="background:#F5F7F8;color:#67788A">사전문진 작성완료 · 수정하기 ›</div>
+            <div class="wc-p wc-div">
+              <div class="wc-rail"><div class="wc-time">14:50</div><div class="wc-rel">아들</div></div>
+              <div class="wc-mid"><div class="wc-name">김도윤</div><div class="wc-sub">소아과 · 박지우 원장</div></div>
+            </div>
+            <div class="wc-q" style="background:#FFF6E8;color:#A85B00">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="wc-hex">#A85B00 · 배경 #FFF6E8</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 현행 앰버 (비교용)</h3>
+      <p>가장 눈에 띕니다. 대신 지적하신 그 문제 — 딥틸의 정반대 색이 넓은 면으로 붙어 <b>두 색이 서로 밀어냅니다</b>. 카드 하단이 화면에서 따로 노는 느낌.</p>
+    </div>
+  </div>
+
+  <!-- 톤 다운 -->
+  <div class="card" data-choice="warn-muted" onclick="toggleSelect(this)" style="max-width:285px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="wc">
+        <div class="wc-bar">김순자님</div>
+        <div class="wc-in">
+          <div class="wc-card">
+            <div class="wc-head">오늘 방문 2건 · 8월 3일 (월)</div>
+            <div class="wc-p">
+              <div class="wc-rail"><div class="wc-time">14:30</div><div class="wc-rel">본인</div></div>
+              <div class="wc-mid"><div class="wc-name">김순자</div><div class="wc-sub">내과 · 이민호 원장</div></div>
+            </div>
+            <div class="wc-q" style="background:#F5F7F8;color:#67788A">사전문진 작성완료 · 수정하기 ›</div>
+            <div class="wc-p wc-div">
+              <div class="wc-rail"><div class="wc-time">14:50</div><div class="wc-rel">아들</div></div>
+              <div class="wc-mid"><div class="wc-name">김도윤</div><div class="wc-sub">소아과 · 박지우 원장</div></div>
+            </div>
+            <div class="wc-q" style="background:#F6F1E6;color:#7A5514">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="wc-hex">#7A5514 · 배경 #F6F1E6</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 채도 낮춘 황토색</h3>
+      <p>주황에서 <b>노란 기를 빼고 회색을 섞은</b> 황토색. 딥틸과 톤 세기가 비슷해져 같은 화면의 식구처럼 보입니다. 단점: 차분해진 만큼 <b>"급하다"는 신호가 약해집니다</b> — 완료 줄(회색)과 얼핏 비슷해 보일 수 있음.</p>
+    </div>
+  </div>
+
+  <!-- 면적 축소 -->
+  <div class="card" data-choice="warn-bar" onclick="toggleSelect(this)" style="max-width:285px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="wc">
+        <div class="wc-bar">김순자님</div>
+        <div class="wc-in">
+          <div class="wc-card">
+            <div class="wc-head">오늘 방문 2건 · 8월 3일 (월)</div>
+            <div class="wc-p">
+              <div class="wc-rail"><div class="wc-time">14:30</div><div class="wc-rel">본인</div></div>
+              <div class="wc-mid"><div class="wc-name">김순자</div><div class="wc-sub">내과 · 이민호 원장</div></div>
+            </div>
+            <div class="wc-q" style="background:#fff;color:#67788A">사전문진 작성완료 · 수정하기 ›</div>
+            <div class="wc-p wc-div">
+              <div class="wc-rail"><div class="wc-time">14:50</div><div class="wc-rel">아들</div></div>
+              <div class="wc-mid"><div class="wc-name">김도윤</div><div class="wc-sub">소아과 · 박지우 원장</div></div>
+            </div>
+            <div class="wc-q" style="background:#fff;color:#B44E00;padding-left:69px;position:relative">
+              <span style="position:absolute;left:58px;top:0;bottom:0;width:4px;background:#B44E00"></span>
+              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#B44E00;margin-right:5px;vertical-align:middle"></span>사전문진 미작성 · 작성하기 ›
+            </div>
+          </div>
+          <div class="wc-hex">#B44E00 · 배경 없음(흰색)</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 색은 두고 면적만 축소</h3>
+      <p>배경 색을 <b>없애고</b> 글자 + 왼쪽 4px 세로 바 + 작은 점만 주황으로. 화면 전체는 딥틸-흰색 톤을 유지하면서, <b>주황은 점처럼만 찍혀</b> 시선은 그대로 끕니다. 시각 레일 바로 옆에 세로 바가 이어져 "이 사람의 줄"이라는 연결도 강해집니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>C(면적 축소)</b>를 추천합니다. 색이 부딪히는 진짜 원인은 <u>색상 자체가 아니라 그 색이 차지한 넓이</u>입니다. 주황을 몇 픽셀짜리 바와 점으로 줄이면, 보색이라는 성질이 오히려 장점이 됩니다 — 흰 바탕 위에서 가장 빨리 눈에 걸리는 색이니까요. 딥틸이 화면의 주인 자리를 계속 지킵니다.</p>
+  <p style="margin-top:8px">B는 조화롭지만 <b>완료(회색)와 미작성이 비슷해 보이는</b> 부작용이 있습니다. 어차피 요구사항 7절대로 "미작성"이라는 <b>글자</b>가 항상 함께 있으니 색만으로 구분하는 건 아니지만, 그래도 훑어볼 때 한눈에 갈라져야 합니다.</p>
+  <p style="margin-top:8px"><span class="label">참고</span> C를 고르시면 주황을 <b>#A85B00 → #B44E00</b>으로 살짝 진하고 붉게 조정합니다. 배경색이 사라져 글자만 남으면 흰 바탕에서 대비를 더 벌어야 하기 때문입니다(흰색 대비 5.9:1로 AA 통과).</p>
+  <p style="margin-top:8px">이 결정은 <b>직원 웹의 경고 표시</b>(캘린더의 ⚠ 확인 필요 아이콘, 오래 대기 환자 카드, 취소요청 배지)에도 그대로 적용됩니다.</p>
+</div>

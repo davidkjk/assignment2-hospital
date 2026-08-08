@@ -1,0 +1,199 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .rb { --teal:#0B6E70; --teal-soft:#6BA3A4; --ink:#10243A; --warn:#B44E00; --done:#67788A;
+        --gray-live:#7E8E99; --gray-past:#A3AFB8; --bg:#F2F5F7;
+        font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink); }
+  .rb, .rb * { box-sizing:border-box; text-align:left; }
+
+  .rb h3 { font-size:16px; font-weight:800; margin:30px 0 3px; }
+  .rb .lead { font-size:12.5px; color:#5A6C7B; line-height:1.65; margin:0 0 14px; max-width:760px; }
+
+  .set { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; }
+  .item { width:298px; }
+  .item .cap { font-size:13px; font-weight:800; margin:0 0 2px; display:flex; align-items:center; gap:6px; }
+  .item .when { font-size:11px; color:var(--done); font-weight:600; margin:0 0 8px;
+                font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .item .why { font-size:11.5px; color:#5A6C7B; line-height:1.65; margin:9px 0 0; }
+  .item .why b { color:var(--ink); }
+
+  /* 카드 조각 — 문진 줄이 실제로 놓이는 자리 */
+  .frag { background:#fff; border:1px solid #E0E7EC; border-radius:11px; overflow:hidden;
+          box-shadow:0 1px 3px rgba(16,36,58,.10); }
+  .frag .top { padding:9px 12px; font-size:11.5px; color:#5A6C7B; font-weight:600;
+               border-bottom:1px solid #EEF2F4; background:#FBFCFD; }
+  .qrow { display:flex; align-items:center; gap:7px; padding:12px; font-size:12.5px; font-weight:700; }
+  .qrow.todo { color:var(--warn); border-left:4px solid var(--warn); }
+  .qrow.done { color:var(--done); }
+  .qrow.lock { color:var(--gray-past); }
+  .qrow .ar { margin-left:auto; font-weight:800; }
+
+  /* 버튼 */
+  .btn { display:flex; align-items:center; justify-content:center; gap:7px;
+         padding:15px 0; border-radius:11px; font-size:15px; font-weight:800; }
+  .btn.normal { background:var(--teal); color:#fff; }
+  .btn.busy { background:var(--teal-soft); color:#fff; }
+  .btn.off { background:#E4EAEE; color:#96A3AC; }
+  .btn.cool { background:#fff; border:2px solid #C7D2D8; color:#8A98A4; }
+  .reason { font-size:11.5px; color:var(--warn); font-weight:700; margin-top:7px;
+            border-left:4px solid var(--warn); padding-left:8px; }
+  .spin { width:14px; height:14px; border:2.5px solid rgba(255,255,255,.45);
+          border-top-color:#fff; border-radius:50%; display:inline-block;
+          animation:rbspin .9s linear infinite; }
+  @keyframes rbspin { to { transform:rotate(360deg); } }
+  .swatch { display:inline-block; width:11px; height:11px; border-radius:3px; vertical-align:-1px; margin-right:3px; }
+
+  .ic { width:15px; height:15px; fill:currentColor; flex-shrink:0; }
+  .warnbox { border-left:4px solid var(--warn); padding:10px 12px; margin:16px 0 0;
+             font-size:12px; line-height:1.7; color:#5A6C7B; max-width:760px; }
+  .warnbox b { color:var(--ink); }
+  .tag { display:inline-block; font-size:9.5px; font-weight:800; color:#fff; border-radius:4px;
+         padding:2px 6px; vertical-align:middle; }
+  .tag.gap { background:var(--warn); }
+  .tag.fix { background:var(--teal); }
+</style>
+
+<svg style="display:none">
+  <symbol id="rb-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></symbol>
+  <symbol id="rb-lock" viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 00-10 0v2H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V10a2 2 0 00-2-2zM9 6a3 3 0 016 0v2H9V6zm3 12a2 2 0 110-4 2 2 0 010 4z"/></symbol>
+  <symbol id="rb-eye" viewBox="0 0 24 24"><path d="M12 5C6.5 5 2.3 8.6 1 12c1.3 3.4 5.5 7 11 7s9.7-3.6 11-7c-1.3-3.4-5.5-7-11-7zm0 12a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></symbol>
+  <symbol id="rb-off" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></symbol>
+</svg>
+
+<div class="rb">
+
+<h2>상태 모음판 ② — 사전문진 줄 5종 · 버튼 4상태</h2>
+<p class="subtitle">
+  카드 안에 들어가는 <b>작은 요소</b> 둘입니다. 개별 화면에서는 하나씩만 보이지만, 실제로는 같은 자리가 상황에 따라 여러 모습을 갖습니다(문진 줄 <b>5종</b> · 버튼 <b>4상태</b>). 나란히 놓아야 <b>구분이 되는지</b>를 판단할 수 있습니다.
+</p>
+
+<h3>가 · 사전문진 줄 <b>5종</b> <span class="tag fix">2026-08-04 「작성 중」 추가</span></h3>
+<p class="lead">
+  홈 카드·예약 상세·예약 목록에 공통으로 들어가는 한 줄입니다. 확정 규칙은 <b>"같은 모양, 문구와 색만 다름"</b> — <b>아직 할 일이 남은 ①·②만 주의색</b>이고 나머지는 회색입니다. 전부 주의색이면 <b>급한 것이 무엇인지 신호가 희석</b>되기 때문입니다.<br>🆕 <b>②「작성 중」은 2026-08-04(묶음 5, B-20)에 추가</b>됐습니다 — 자동 저장 때문에 생긴 상태입니다.
+</p>
+
+<div class="set">
+
+  <div class="item">
+    <p class="cap">① 미작성</p>
+    <p class="when">예약신청 · 예약확정 · 도착 · 진료대기</p>
+    <div class="frag">
+      <div class="top">8월 3일 (월) 오후 2:30 · 내과</div>
+      <div class="qrow todo">
+        <svg class="ic"><use href="#rb-doc"/></svg>사전문진 미작성 · 작성하기<span class="ar">›</span></div>
+    </div>
+    <p class="why">유일하게 <b>주의색 + 좌측 4px 바</b>. 배경은 넣지 않습니다(면적 최소 규칙). 이 줄만 눈에 띄어야 합니다.</p>
+  </div>
+
+  <div class="item">
+    <p class="cap">② 🆕 작성 중 <span class="tag fix">B-20</span></p>
+    <p class="when">예약신청 · 예약확정 · 도착 · 진료대기</p>
+    <div class="frag">
+      <div class="top">8월 3일 (월) 오후 2:30 · 내과</div>
+      <div class="qrow todo">
+        <svg class="ic"><use href="#rb-doc"/></svg>사전문진 작성 중 (3/8) · 이어서 쓰기<span class="ar">›</span></div>
+    </div>
+    <p class="why">⭐ <b>자동 저장이 만든 상태입니다.</b> 문항마다 저장되므로 <b>1문항만 쓰고 나가도 문진 행이 생기고</b>,
+    예전 판정(행이 있으면 완료)으로는 <code>작성완료</code>로 보였습니다 — 어르신은 다 한 줄 알고, <b>챙겨줄 마지막 장치인 전날 알림까지 같은 판정을 써서 함께 꺼집니다</b>(갭 #50).<br>
+    ①과 <b>같은 주의색</b>입니다(아직 할 일이 남았으므로). 대신 <b>괄호 안 숫자</b>가 ①과 구분해 줍니다 — 분모는
+    진료과·환자 성별에 따라 달라져 <b>서버 한 곳에서 계산</b>합니다(B-22).</p>
+  </div>
+
+  <div class="item">
+    <p class="cap">③ 작성완료</p>
+    <p class="when">예약확정 · 도착 · 진료대기</p>
+    <div class="frag">
+      <div class="top">8월 3일 (월) 오후 2:30 · 내과</div>
+      <div class="qrow done">
+        <svg class="ic"><use href="#rb-doc"/></svg>사전문진 작성완료 · 수정하기<span class="ar">›</span></div>
+    </div>
+    <p class="why">회색이지만 <b>수정하기가 살아 있습니다</b> — 요구사항 4.4가 <b>"진료 전까지"</b> 수정 가능이라 도착·대기 중에도 열립니다.</p>
+  </div>
+
+  <div class="item">
+    <p class="cap">④ 잠김 (읽기 전용)</p>
+    <p class="when">진료중</p>
+    <div class="frag">
+      <div class="top">8월 3일 (월) 오후 2:30 · 내과</div>
+      <div class="qrow lock">
+        <svg class="ic"><use href="#rb-lock"/></svg>진료가 시작되어 수정할 수 없습니다<span class="ar">›</span></div>
+    </div>
+    <p class="why"><b>줄을 숨기지 않습니다.</b> 환자가 화면을 보며 <b>의료진에게 구두로 정정</b>할 수 있어야 하므로 내용 조회는 계속 열어 둡니다.</p>
+  </div>
+
+  <div class="item">
+    <p class="cap">⑤ 지난 문진 보기</p>
+    <p class="when">진료완료 · 이력 탭 <span class="tag gap">갭 #24</span></p>
+    <div class="frag">
+      <div class="top">8월 3일 (월) 오후 2:30 · 내과 · 진료 완료</div>
+      <div class="qrow done">
+        <svg class="ic"><use href="#rb-eye"/></svg>내가 작성한 사전문진 보기<span class="ar">›</span></div>
+    </div>
+    <p class="why">아이콘이 <b>문서 → 눈</b>으로 바뀝니다. 쓰거나 고치는 줄이 아니라 <b>보기만 하는 줄</b>임을 모양으로 구분합니다.</p>
+  </div>
+
+</div>
+
+<div class="warnbox">
+  <b>④와 ⑤의 차이</b>는 자물쇠와 눈입니다. ④는 <b>"원래 되던 것이 지금 막혔다"</b>(진료가 시작돼서)이고, ⑤는 <b>"처음부터 보기만 하는 자리"</b>입니다. ④에만 자물쇠를 쓰는 이유는 <b>막힌 데는 이유가 있다</b>는 것을 알려야 하기 때문입니다 — 확정 원칙 <i>"못 누르는 버튼에는 반드시 이유를 붙인다"</i>.
+</div>
+
+<h3>나 · 버튼 4상태</h3>
+<p class="lead">
+  <span class="swatch" style="background:#0B6E70"></span><b>진한 딥틸</b> 누를 수 있음 &nbsp;
+  <span class="swatch" style="background:#6BA3A4"></span><b>흐린 딥틸</b> 지금 일하는 중 &nbsp;
+  <span class="swatch" style="background:#E4EAEE"></span><b>회색</b> 못 누름
+  <br>
+  적용 대상은 <b>"서버에 무언가를 남기거나 바꾸는 버튼 전부"</b>입니다 — 지금 플랜에는 3개뿐이지만 이 기준이면 <b>15곳 안팎</b>이 됩니다. 특히 <b>가족 연결 해제·회원 탈퇴</b>가 빠져 있던 것이 위험했습니다.
+</p>
+
+<div class="set">
+
+  <div class="item">
+    <p class="cap">① 평소</p>
+    <p class="when">기본</p>
+    <div class="btn normal">예약 신청하기</div>
+    <p class="why">진한 딥틸 + 흰 글자.</p>
+  </div>
+
+  <div class="item">
+    <p class="cap">② 처리 중 <span class="tag fix">코드 패치</span></p>
+    <p class="when">눌린 직후 ~ 응답 도착</p>
+    <div class="btn busy"><span class="spin"></span>예약 신청 중…</div>
+    <p class="why">
+      <b>글자를 지우지 않습니다.</b> 기존 <code>BusyButton</code> 코드는 라벨을 회전 표시로 <b>교체</b>하는데, 그러면 "내가 뭘 눌렀지?"가 됩니다 → 패치 대상.
+      <br>회색으로 칠하지 않는 이유: 이 앱에서 회색은 <b>"꺼짐·못 누름"</b>이라 <b>고장난 버튼</b>으로 읽혀 다시 누르게 됩니다(막으려던 바로 그 행동).
+    </p>
+  </div>
+
+  <div class="item">
+    <p class="cap">③ 비활성</p>
+    <p class="when">오프라인 등</p>
+    <div class="btn off">예약 신청하기</div>
+    <div class="reason">인터넷이 연결되어 있지 않아 지금은 신청할 수 없습니다</div>
+    <p class="why"><b>이유 없는 회색 버튼을 두지 않습니다.</b> 왜 못 누르는지 바로 아래에 붙입니다.</p>
+  </div>
+
+  <div class="item">
+    <p class="cap">④ 쿨다운</p>
+    <p class="when">인증번호 다시 받기 · 다시 시도 <span class="tag gap">갭 #16</span></p>
+    <div class="btn cool">30초 후 다시 받기</div>
+    <p class="why">
+      이 버튼들은 <b>다시 누르는 것이 정상</b>이라 ②의 "다시 눌러도 무시"를 적용하면 영영 문자를 못 받습니다.
+      <br><b>남은 시간을 숫자로</b> 보여주고 30초 뒤 원래대로 돌아옵니다. 횟수 제한은 <b>막다른 길</b>이라 기각했습니다.
+      <br>🆕 <b>쿨다운은 「화면」이 아니라 「전화번호」에 겁니다</b>(<b>B-3</b>, 2026-08-05 반영).
+      화면에만 걸면 <b>앱을 껐다 켜는 것만으로 초기화</b>돼 문자 비용이 무제한이 됩니다.
+      <b>서버가 그 번호 기준으로 지켜야</b> 앱을 안 거치는 요청도 막힙니다(갭 #16).
+    </p>
+  </div>
+
+</div>
+
+<div class="warnbox">
+  <b>②와 ③이 같은 버튼에서 번갈아 나타납니다</b>(오프라인에서 저장을 누르는 경우). 그래서 <b>반드시 눈으로 구분</b>돼야 합니다 — 색을 하나 아끼는 값보다 <b>"일하는 중"과 "못 누름"을 가르는 값</b>이 큽니다.
+  <br><br>
+  ⚠️ <b>처리 중에 시간제한을 두지 않습니다</b>(사용자 확정). 대신 화면을 나가려 하면 확인 팝업이 뜹니다 — <i>"나가셔도 신청은 계속 진행됩니다. 결과는 예약 목록에서 확인하실 수 있습니다."</i> <b>"나가시면 취소됩니다"는 금지 문구</b>입니다(거짓말이고, 사용자가 다시 신청해 <b>예약이 두 건</b> 생깁니다 — 멱등성이 없어서, 갭 #15).
+</div>
+
+</div>

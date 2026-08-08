@@ -1,0 +1,166 @@
+<style>
+  .p53 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --warn:#B44E00; --bg:#F2F5F7; }
+  .p53, .p53 * { text-align:left; box-sizing:border-box; }
+  .p53 { width:340px; height:680px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+         overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+         color:var(--ink); position:relative; }
+  .p53 .bar { background:var(--teal); color:#fff; padding:11px 16px; font-size:15px; font-weight:600; }
+  .p53 .steps { padding:13px 16px 4px; background:var(--bg); display:flex; align-items:center; gap:8px; }
+  .p53 .steps .dot { width:8px; height:8px; border-radius:50%; background:#cfd8de; }
+  .p53 .steps .dot.on { background:var(--teal); }
+  .p53 .steps .txt { font-size:12px; color:var(--done); font-weight:600; margin-left:4px; }
+  .p53 .q { padding:15px 16px 4px; font-size:19px; font-weight:800; letter-spacing:-.3px; line-height:1.35; }
+  .p53 .body { padding:10px 16px 0; }
+
+  .fl { margin-bottom:13px; }
+  .fl .lb { font-size:13px; font-weight:700; color:#33485c; margin-bottom:5px; }
+  .fl .lb small { font-weight:600; color:var(--done); font-size:12px; margin-left:5px; }
+  .fl .in { border:1.5px solid #dde4e9; border-radius:9px; padding:11px 12px; font-size:15.5px;
+            display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; }
+  .fl .in.ph { color:#a9b6c0; }
+  .fl .in .eye { color:#8496a4; font-size:16px; }
+  .fl .in .cal { color:var(--teal); font-size:16px; }
+
+  .cond { margin:-6px 0 13px; display:flex; gap:12px; }
+  .cond span { font-size:12px; color:var(--done); font-weight:600; }
+  .cond span.ok { color:var(--teal); }
+
+  .gd { display:flex; gap:9px; }
+  .gd div { flex:1; border:1.5px solid #dde4e9; border-radius:9px; padding:12px; font-size:16px;
+            font-weight:700; text-align:center; color:#44586b; }
+  .gd div.sel { border-color:var(--teal); border-width:2px; background:#f0f7f7; color:var(--teal); font-weight:800; }
+
+  .p53 .foot { position:absolute; left:0; right:0; bottom:0; padding:0 16px 18px; }
+  .p53 .cta { display:block; width:100%; background:var(--teal); color:#fff; border:none; border-radius:11px;
+              padding:15px; font-size:16.5px; font-weight:800; text-align:center; font-family:inherit; }
+  .p53 .cta.off { background:#c6d0d7; color:#f4f7f9; }
+  .p53 .errline { padding-left:9px; border-left:4px solid var(--warn); font-size:13px; color:var(--warn);
+                  font-weight:700; line-height:1.5; margin-bottom:11px; }
+
+  .p53 .scrim { position:absolute; inset:0; background:rgba(16,36,58,.45); }
+  .p53 .picker { position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:16px 16px 0 0;
+                 padding:14px 16px 18px; }
+  .p53 .picker .ph { font-size:15px; font-weight:800; margin-bottom:12px; }
+  .p53 .picker .cols { display:flex; gap:8px; text-align:center; }
+  .p53 .picker .cols > div { flex:1; border:1.5px solid #dde4e9; border-radius:10px; padding:8px 0; }
+  .p53 .picker .cols > div * { text-align:center; }
+  .p53 .picker .cols .hd { font-size:11.5px; color:var(--done); font-weight:700; margin-bottom:5px; }
+  .p53 .picker .cols .v { font-size:15px; color:#b3bfc8; font-weight:600; padding:3px 0; }
+  .p53 .picker .cols .v.mid { font-size:20px; color:var(--ink); font-weight:800; }
+
+  .lane53 { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane53 h3 { margin:0 0 5px; text-align:left; }
+  .lane53 .cap { font-size:13px; color:#6b7d8c; margin-bottom:12px; max-width:340px; text-align:left; line-height:1.6; }
+  .note53 { margin-top:26px; border:1px solid #dde4e9; border-radius:12px; padding:16px 18px; background:#fafcfd;
+            font-size:13.5px; line-height:1.75; color:#33485c; max-width:1100px; }
+  .note53 b { color:#10243A; }
+  .note53 code { background:#eef2f5; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .warn53 { margin-top:18px; border:1.5px solid #e2c9a8; border-radius:12px; padding:16px 18px; background:#fdf8f1;
+            font-size:13.5px; line-height:1.75; color:#4a3a26; max-width:1100px; }
+  .warn53 b { color:#B44E00; }
+  .warn53 code { background:#f2e6d6; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+
+<h2>회원가입 ③ — 비밀번호 · 기본정보 (신규 · 규칙 <code>AUTH-PROFILE-01~08</code>)</h2>
+<p class="subtitle">⚠️ <b>목업 01번에는 전화번호 칸밖에 없었습니다.</b> 요구사항 4.1이 요구한 기본정보 4종(전화번호·이름·생년월일·<b>성별</b>) 중 <b>3개가 그림에 한 번도 등장한 적이 없습니다.</b> 이 화면이 없어서 <b>구현 플랜의 성별 기본값 문제</b>(아래 주황 상자)가 아무에게도 안 보였습니다.</p>
+
+<div class="lane53">
+
+  <div>
+    <h3>① 화면에 막 들어온 상태</h3>
+    <div class="cap">⭐ <b>성별은 두 칸 다 안 눌린 채로 시작합니다</b>(<code>AUTH-SIGNUP-06b</code>, B-30). 하나를 눌러야 <code>[가입 완료]</code>가 살아납니다(<code>BTN-STATE-01</code>).
+    <br>비밀번호 조건은 <b>미리 보여줍니다</b>(<code>AUTH-PROFILE-01</code>) — 다 치고 나서 "틀렸습니다"를 듣는 것이 가장 나쁩니다.</div>
+    <div class="p53">
+      <div class="bar">← &nbsp;회원가입</div>
+      <div class="steps"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="txt">3단계 / 3단계</span></div>
+      <div class="q">마지막으로<br>기본정보를 알려주세요</div>
+      <div class="body">
+        <div class="fl"><div class="lb">비밀번호</div><div class="in ph">비밀번호 입력 <span class="eye">👁</span></div></div>
+        <div class="cond"><span>· 8자 이상</span><span>· 영문·숫자 함께</span></div>
+        <div class="fl"><div class="lb">비밀번호 확인</div><div class="in ph">한 번 더 입력 <span class="eye">👁</span></div></div>
+        <div class="fl"><div class="lb">이름</div><div class="in ph">홍길동</div></div>
+        <div class="fl"><div class="lb">생년월일</div><div class="in ph">날짜를 골라주세요 <span class="cal">📅</span></div></div>
+        <div class="fl"><div class="lb">성별 <small>(사전문진 문항 노출에 쓰입니다)</small></div>
+          <div class="gd"><div>남</div><div>여</div></div></div>
+      </div>
+      <div class="foot"><button class="cta off">가입 완료</button></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>② 다 채운 상태</h3>
+    <div class="cap">비밀번호 조건이 <b>충족되면 <code>✓</code>로 바뀝니다</b>. <b>확인 칸도 같은 방식</b>으로 <code>✓ 위와 같습니다</code>가 뜹니다 — 다 치고 <code>[가입 완료]</code>를 누른 뒤에 "다릅니다"를 듣지 않습니다.
+    <br>성별을 고르면 <b>테두리가 딥틸 2px + 옅은 배경</b>으로 바뀌고 버튼이 살아납니다.</div>
+    <div class="p53">
+      <div class="bar">← &nbsp;회원가입</div>
+      <div class="steps"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="txt">3단계 / 3단계</span></div>
+      <div class="q">마지막으로<br>기본정보를 알려주세요</div>
+      <div class="body">
+        <div class="fl"><div class="lb">비밀번호</div><div class="in">hospital2026 <span class="eye">👁</span></div></div>
+        <div class="cond"><span class="ok">✓ 8자 이상</span><span class="ok">✓ 영문·숫자 함께</span></div>
+        <div class="fl"><div class="lb">비밀번호 확인</div><div class="in">hospital2026 <span class="eye">👁</span></div></div>
+        <div class="cond"><span class="ok">✓ 위와 같습니다</span></div>
+        <div class="fl"><div class="lb">이름</div><div class="in">김순자</div></div>
+        <div class="fl"><div class="lb">생년월일</div><div class="in">1958년 3월 14일 <span class="cal">📅</span></div></div>
+        <div class="fl"><div class="lb">성별 <small>(사전문진 문항 노출에 쓰입니다)</small></div>
+          <div class="gd"><div>남</div><div class="sel">여</div></div></div>
+      </div>
+      <div class="foot"><button class="cta">가입 완료</button></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>③ 생년월일 — <b>날짜 선택기</b></h3>
+    <div class="cap"><code>AUTH-PROFILE-05</code>. <b><code>YYYY-MM-DD</code> 자유 입력을 쓰지 않습니다</b> — 중장년층에게 오타가 잦고, 요구사항 4.8이 <i>"입력 오류가 있으면 무엇을 고쳐야 하는지 알려주세요"</i>라고 한 것보다 <b>애초에 틀릴 수 없게 만드는 편</b>이 낫습니다.
+    <br>⚠️ <b>플랜은 지금 자유 입력입니다</b>(<code>plans/patient-app.md:4767</code> <code>labelText: '생년월일 (YYYY-MM-DD)'</code>) → 플랜 패치 대상(<code>AUTH-PROFILE-06</code>).</div>
+    <div class="p53">
+      <div class="bar">← &nbsp;회원가입</div>
+      <div class="steps"><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="txt">3단계 / 3단계</span></div>
+      <div class="q">마지막으로<br>기본정보를 알려주세요</div>
+      <div class="body">
+        <div class="fl"><div class="lb">비밀번호</div><div class="in">hospital2026 <span class="eye">👁</span></div></div>
+        <div class="cond"><span class="ok">✓ 8자 이상</span><span class="ok">✓ 영문·숫자 함께</span></div>
+        <div class="fl"><div class="lb">비밀번호 확인</div><div class="in">hospital2026 <span class="eye">👁</span></div></div>
+        <div class="fl"><div class="lb">이름</div><div class="in">김순자</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="picker">
+        <div class="ph">생년월일을 골라주세요</div>
+        <div class="cols">
+          <div><div class="hd">년</div><div class="v">1956</div><div class="v">1957</div><div class="v mid">1958</div><div class="v">1959</div><div class="v">1960</div></div>
+          <div><div class="hd">월</div><div class="v">1</div><div class="v">2</div><div class="v mid">3</div><div class="v">4</div><div class="v">5</div></div>
+          <div><div class="hd">일</div><div class="v">12</div><div class="v">13</div><div class="v mid">14</div><div class="v">15</div><div class="v">16</div></div>
+        </div>
+        <button class="cta" style="margin-top:14px">확인</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="warn53">
+⚠️ <b>이 화면이 없어서 생긴 실제 위험 — 성별 기본값</b>
+<br>구현 플랜은 <code>String _gender = 'F';</code>로 시작합니다(<code>plans/patient-app.md:4553</code>, <b>가족 등록 화면 <code>:5376</code>에도 같은 코드</b>). 즉 <b>성별 칸을 건드리지 않고 넘어가면 조용히 「여성」으로 저장</b>됩니다.
+<br>그리고 그 값이 사전문진의 <b>「보일 대상」</b>을 가릅니다(<code>QNR-SHOW-01</code>) — 요구사항 4.4가 지정한 다섯째 문항이 <b><code>임신 가능성</code></b>이라, <b>아들에게 임신 문항이 뜹니다.</b>
+<br>⭐ <b>가장 나쁜 점은 아무도 모른다는 것입니다</b> — 화면에 「여」가 미리 눌려 보이는 것도 아니고, 오류도 안 납니다. <b>없는 질문은 없는 줄도 모릅니다</b>(<code>AUTH-SIGNUP-06c</code>).
+<br>→ 그래서 이 화면은 <b>「안 고른 상태」가 실제로 존재해야</b> 합니다. 기본값을 없애는 것이 규칙이고, 그림 ①이 그 상태입니다.
+</div>
+
+<div class="warn53" style="border-color:#a9cccd;background:#f4f9f9;color:#2b4a4b">
+🔄 <b>2026-08-05 정정 — 「비밀번호 확인」 칸이 빠져 있었다</b>(사용자 지적)
+<br>처음 그린 그림에는 확인 칸이 없었고, 동작 명세 <code>AUTH-PROFILE-03</code>도 <b><code>가입 화면에는 확인 칸을 두지 않는다</code></b>라고 적혀 있었습니다. <b>둘 다 틀렸습니다.</b>
+<br>2026-08-01에 <b>사용자가 직접 「두 번 치게」로 확정</b>했고(결정 문서 <code>:407</code>), 적용 범위도 <b><code>가입·비밀번호 찾기·비밀번호 변경 세 화면</code></b>이라고 명시돼 있었습니다(<code>:410</code>).
+<br>· <b>확정 근거</b>: 비밀번호 설정은 <b>틀렸을 때 대가가 큰 화면</b>입니다 — 잘못 정하면 <b>다음 로그인부터 못 들어가고</b>, 되돌리려면 SMS 인증을 다시 거쳐야 합니다. 이 앱은 <b>전화번호가 바뀐 환자가 계정에 영영 못 들어가는 문제</b>가 이미 있습니다(갭 #19).
+<br>· ⛔ <b>기각된 안(확인 칸 없애기)의 허점</b>: 타이핑은 절반이 되지만 그 안전은 <b>「사용자가 눈 버튼을 누른다」는 전제</b> 위에 있습니다. <b>안 누르고 넘긴 사람에게는 장치가 하나도 안 남습니다.</b> 확인 칸은 눈을 안 눌러도 <b>두 번 친 것이 다르면 잡아냅니다.</b>
+<br>⚠️ <b>규칙 쪽 근거 칸에 <code>확신 낮음</code> 표시가 붙어 있었습니다</b> — 확신이 낮았던 게 아니라 <b>이미 확정된 결정을 못 찾은 것</b>이었습니다. → <code>AUTH-PROFILE-03b~03e</code>로 되돌림.
+</div>
+
+<div class="note53">
+<b>그림에 안 보이지만 이 화면에 걸린 규칙</b>
+<br>· <b>이 화면에 도착한 사람은 이미 로그인 상태입니다</b>(<code>AUTH-SIGNUP-07</code>). 인증번호가 맞은 순간 서버가 출입증(세션)을 발급하므로, <b>계정은 이미 존재하고 이름·생년월일만 비어 있습니다.</b>
+<br>· <b>그래서 여기서 앱을 꺼도 ③으로 돌아옵니다</b>(<code>AUTH-SIGNUP-08</code>, B-6). 문자 인증을 다시 시키지 않습니다 — 앱을 껐다 켜는 가장 흔한 이유가 <b>문자가 안 와서</b>인데, 그 사람에게 문자부터 다시 받으라고 하면 <b>같은 자리를 맴돕니다.</b>
+<br>· ⚠️ <b>구현에 「가입 미완료」 상태가 없습니다</b>(<code>AUTH-SIGNUP-11</code>) — 플랜의 로그인 상태는 <code>signedOut</code>/<code>signedIn</code> 둘뿐이라 <b>이 되돌리기를 만들 자리가 없습니다.</b> 판정 기준은 <b>「출입증은 있는데 프로필이 없으면 가입 미완료」</b>(<code>AUTH-SIGNUP-12</code>).
+<br>· <b>비밀번호 조건이 서버와 어긋납니다</b>(<code>AUTH-PROFILE-02</code>) — 서버는 <code>minimum_password_length = 6</code>에 문자 종류 조건이 없습니다(<code>config.toml:182·185</code>). <b>서버를 화면에 맞춥니다</b>(갭 #25).
+<br>· <b>가입 성공 → 곧장 홈입니다</b>(<code>AUTH-PROFILE-07</code>). 축하 화면을 따로 두지 않습니다.
+<br>· <b>가입 실패 → 버튼 위 붙박이 오류</b>(<code>AUTH-PROFILE-08</code>). ⭐ <b>①②를 다시 하게 만들지 않습니다</b> — 인증은 이미 끝났고, 다시 시키면 <b>본인 잘못이 아닌 일로 처음부터</b>가 됩니다.
+</div>

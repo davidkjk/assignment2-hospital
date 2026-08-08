@@ -1,0 +1,163 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .ff { width: 240px; border: 2px solid #3a3a3a; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; min-height: 445px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .ff-top { background: #fff; padding: 8px 11px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 800; }
+  .ff-back { color: #0B6E70; font-weight: 700; }
+  .ff-body { flex: 1; padding: 11px; }
+  .ff-q { font-size: 17px; font-weight: 800; letter-spacing: -.4px; line-height: 1.35; margin-bottom: 3px; }
+  .ff-hint { font-size: 10.5px; color: #5A6C7B; margin-bottom: 12px; font-weight: 500; line-height: 1.6; }
+  .ff-pick { background: #fff; border: 2px solid #E6EBEF; border-radius: 12px; padding: 12px 11px; margin-bottom: 8px; }
+  .ff-pick.sel { border-color: #0B6E70; background: #F0F7F7; }
+  .ff-pt { font-size: 14px; font-weight: 800; }
+  .ff-pd { font-size: 10.5px; color: #5A6C7B; font-weight: 500; margin-top: 4px; line-height: 1.55; }
+  .ff-lab { font-size: 10px; font-weight: 800; color: #5A6C7B; margin: 11px 0 5px; }
+  .ff-lab:first-child { margin-top: 0; }
+  .ff-in { border: 2px solid #E6EBEF; background: #fff; border-radius: 9px; padding: 11px; font-size: 12.5px; font-weight: 600; }
+  .ff-in.ph { color: #A9B6BF; font-weight: 500; }
+  .ff-cta { background: #0B6E70; color: #fff; text-align: center; font-size: 14px; font-weight: 800; padding: 14px; border-radius: 10px; margin: 9px 11px 11px; }
+  .ff-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .ff-chip { border: 2px solid #E6EBEF; background: #fff; border-radius: 99px; padding: 8px 12px; font-size: 12px; font-weight: 700; }
+  .ff-chip.sel { border-color: #0B6E70; background: #0B6E70; color: #fff; }
+  .ff-otp { display: flex; gap: 5px; margin: 4px 0; }
+  .ff-otp div { flex: 1; border: 2px solid #E6EBEF; background: #fff; border-radius: 8px; padding: 12px 0; text-align: center; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ff-otp div.on { border-color: #0B6E70; }
+  .ff-help { border: 1.5px solid #9CC4C4; background: #fff; border-radius: 9px; padding: 10px; margin-top: 13px; }
+  .ff-helpt { font-size: 11.5px; font-weight: 800; color: #0B6E70; }
+  .ff-helpd { font-size: 10px; color: #5A6C7B; font-weight: 500; line-height: 1.55; margin-top: 3px; }
+  .ff-row { display: flex; gap: 13px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+  .ff-cap { font-size: 11.5px; color: #5A6C7B; margin-top: 8px; line-height: 1.6; max-width: 246px; }
+  .ff-cap b { color: #10243A; display: block; margin-bottom: 2px; }
+  .ff-ok { color: #0B6E70; font-weight: 700; }
+  .ff-branch { font-size: 10px; font-weight: 800; letter-spacing: .4px; color: #5A6C7B; margin-bottom: 6px; }
+</style>
+
+<h2>화면 25 — 가족 추가 전체 흐름 (확정본)</h2>
+<p class="subtitle">
+  <span class="ff-ok">✓ "전에 진료받은 적이 있어요"에 휴대폰 없을 때 안내 추가</span> ·
+  <span class="ff-ok">✓ 전화번호 입력 화면 신설</span> ·
+  <span class="ff-ok">✓ "병원에 문의하기"를 인증번호 화면 → 전화번호 화면으로 이동</span> ·
+  <span class="ff-ok">✓ "옆에 계시거나 통화가 가능해야" 문구 삭제</span>
+</p>
+
+<div class="ff-row">
+
+  <!-- 1 -->
+  <div>
+    <div class="ff-branch">공통 1단계</div>
+    <div style="display:flex;justify-content:center;padding:11px;background:#eef2f4;border-radius:11px">
+      <div class="ff">
+        <div class="ff-top"><span class="ff-back">‹ 뒤로</span><span>가족 추가</span><span style="width:26px"></span></div>
+        <div class="ff-body">
+          <div class="ff-q">어떤 가족을<br>추가하시나요?</div>
+          <div class="ff-hint">둘 중 맞는 쪽을 골라주세요</div>
+          <div class="ff-pick sel">
+            <div class="ff-pt">우리 병원이 처음이에요</div>
+            <div class="ff-pd">아직 진료받은 적이 없는 가족입니다. 이름·생년월일만 적으면 바로 등록됩니다.</div>
+          </div>
+          <div class="ff-pick">
+            <div class="ff-pt">전에 진료받은 적이 있어요</div>
+            <div class="ff-pd">이미 병원에 기록이 있는 가족입니다. 본인 확인을 위해 <b>그분 휴대폰으로 인증번호</b>를 보냅니다.<br><b style="color:#B44E00">휴대폰이 없거나 번호가 바뀐 가족이면</b> 병원에 문의해 주세요. 직원이 확인 후 연결해 드립니다.</div>
+          </div>
+        </div>
+        <div class="ff-cta">다음</div>
+      </div>
+    </div>
+    <p class="ff-cap"><b>① 갈래 선택</b>두 번째 항목에 <b>휴대폰이 없거나 번호가 바뀌었을 때의 길</b>을 미리 적었습니다(B-36). 여기서 알면 헛걸음 없이 바로 병원에 연락할 수 있습니다.</p>
+  </div>
+
+  <!-- 2a -->
+  <div>
+    <div class="ff-branch">갈래 ㉮ — 병원이 처음</div>
+    <div style="display:flex;justify-content:center;padding:11px;background:#eef2f4;border-radius:11px">
+      <div class="ff">
+        <div class="ff-top"><span class="ff-back">‹ 뒤로</span><span>가족 정보</span><span style="width:26px"></span></div>
+        <div class="ff-body">
+          <div class="ff-lab">이름</div>
+          <div class="ff-in">김도윤</div>
+          <div class="ff-lab">생년월일</div>
+          <div class="ff-in">2018년 7월 2일</div>
+          <div class="ff-lab">성별</div>
+          <div style="display:flex;gap:6px">
+            <div class="ff-in" style="flex:1;text-align:center;color:#5A6C7B">남</div>
+            <div class="ff-in" style="flex:1;text-align:center;color:#5A6C7B">여</div>
+          </div>
+          <div class="ff-lab">나와의 관계</div>
+          <div class="ff-chips">
+            <span class="ff-chip sel">아들</span><span class="ff-chip">딸</span><span class="ff-chip">배우자</span><span class="ff-chip">부모</span>
+          </div>
+          <div class="ff-lab">전화번호 <span style="font-weight:600;color:#A9B6BF">(없으면 비워두세요)</span></div>
+          <div class="ff-in ph">010-0000-0000</div>
+          <div style="font-size:10px;color:#5A6C7B;font-weight:500;line-height:1.55;margin-top:6px">비워두시면 <b>보호자(내) 번호</b>로 표시되고, 알림도 내 휴대폰으로 옵니다.</div>
+        </div>
+        <div class="ff-cta">등록하기</div>
+      </div>
+    </div>
+    <p class="ff-cap"><b>②㉮ 새 가족 등록</b>인증 절차 없이 바로 등록됩니다. <b>전화번호는 선택</b> — 아이처럼 번호가 없으면 비워둡니다.
+    <br>🔄 <b>2026-08-05 정정</b> — 성별을 <s>미리 「남」으로 골라두던 것</s>을 <b>둘 다 안 고른 상태</b>로 바꿨습니다(<b>B-30</b>).
+    ⚠️ 플랜이 <code>String _gender = 'F'</code>로 시작해(<code>plans:5376</code>) <b>성별 칸을 안 건드리면 조용히 여성으로 저장</b>됩니다.
+    그 값이 사전문진 <b>「보일 대상」</b>(<code>QNR-SHOW-01</code>)을 가르는데 <b>없는 질문은 없는 줄도 모릅니다</b> — 아들에게 임신 문항이 뜹니다.
+    성별은 <b>필수</b>이되 <b>미리 골라두지 않습니다.</b></p>
+  </div>
+
+  <!-- 2b -->
+  <div>
+    <div class="ff-branch">갈래 ㉯ — 진료 기록 있음</div>
+    <div style="display:flex;justify-content:center;padding:11px;background:#eef2f4;border-radius:11px">
+      <div class="ff">
+        <div class="ff-top"><span class="ff-back">‹ 뒤로</span><span>가족 확인</span><span style="width:26px"></span></div>
+        <div class="ff-body">
+          <div class="ff-q" style="font-size:15.5px">가족분 정보를<br>입력해 주세요</div>
+          <div class="ff-hint">입력하신 <b>휴대폰으로 인증번호</b>를 보냅니다</div>
+          <div class="ff-lab" style="margin-top:0">이름</div>
+          <div class="ff-in">김영수</div>
+          <div class="ff-lab">생년월일</div>
+          <div class="ff-in">1948년 5월 20일</div>
+          <div class="ff-lab">휴대폰 번호</div>
+          <div class="ff-in">010-1234-5678</div>
+          <div class="ff-lab">나와의 관계</div>
+          <div class="ff-chips">
+            <span class="ff-chip">아들</span><span class="ff-chip">딸</span><span class="ff-chip">배우자</span><span class="ff-chip sel">부모</span>
+          </div>
+          <div class="ff-help">
+            <div class="ff-helpt">휴대폰이 없거나, 번호가 바뀐 가족인가요? ›</div>
+            <div class="ff-helpd">병원에 전화하거나 방문하시면 직원이 확인 후 연결해 드립니다.</div>
+          </div>
+        </div>
+        <div class="ff-cta">인증번호 받기</div>
+      </div>
+    </div>
+    <p class="ff-cap"><b>②㉯ 전화번호 입력 (신설)</b>여기가 <b>"병원에 문의하기"의 제자리</b>입니다 — 문자를 보내기 <b>전</b>이라 아직 되돌릴 수 있습니다.
+    <br>🆕 <b>안내 상자 문구를 넓혔습니다</b>(B-36, 2026-08-04) — <code>휴대폰이 없는</code> → <b><code>휴대폰이 없거나, 번호가 바뀐</code></b>.
+    번호가 바뀐 가족은 <b>앱이 판정할 수 없습니다</b>: 새 번호로는 0건(문자가 영영 안 옴)이고, 옛 번호로는 <b>그 번호를 쓰는 다른 사람에게 인증번호가 갑니다</b>(갭 #44).
+    새 화면을 만들지 않고 <b>이미 있던 상자의 문구만</b> 넓힌 것이 핵심입니다.
+    <br>🆕 <b>이 갈래(㉯)로 연결된 가족은 나중에 「정보 수정」이 잠깁니다</b>(B-31) — 이름·생년월일·성별은 <b>병원 기록</b>이라 읽기 전용이 되고 <b>관계만</b> 고칠 수 있습니다.
+    그림은 <b>목업 22번 ④</b>에 있습니다. ㉮(새 가족)는 전부 고칠 수 있어 <b>여기서 어느 갈래로 들어왔는지가 뒤 화면을 가릅니다.</b></p>
+  </div>
+
+  <!-- 3b -->
+  <div>
+    <div class="ff-branch">갈래 ㉯ — 마지막</div>
+    <div style="display:flex;justify-content:center;padding:11px;background:#eef2f4;border-radius:11px">
+      <div class="ff">
+        <div class="ff-top"><span class="ff-back">‹ 뒤로</span><span>본인 확인</span><span style="width:26px"></span></div>
+        <div class="ff-body">
+          <div class="ff-q" style="font-size:15.5px">인증번호를<br>입력해 주세요</div>
+          <div class="ff-hint"><b>김영수</b>님 휴대폰 <b>010-****-5678</b>로<br>6자리 숫자를 보냈습니다</div>
+          <div class="ff-otp"><div class="on">4</div><div class="on">1</div><div class="on">7</div><div>·</div><div>·</div><div>·</div></div>
+          <div style="text-align:center;font-size:10.5px;color:#5A6C7B;font-weight:600;margin-top:9px">남은 시간 <b style="color:#B44E00">4:32</b></div>
+          <div style="text-align:center;font-size:11.5px;color:#0B6E70;font-weight:800;margin-top:13px">인증번호 다시 받기</div>
+        </div>
+        <div class="ff-cta">확인</div>
+      </div>
+    </div>
+    <p class="ff-cap"><b>③㉯ 인증번호</b>문구를 덜어냈습니다. 이 화면에서는 <b>번호를 입력하는 일 하나</b>만 남습니다.</p>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">정보가 틀렸을 때</p>
+  <p>㉯에서 이름·생년월일·전화번호가 병원 기록과 <b>맞지 않아도 화면은 똑같이</b> "인증번호를 보냈습니다"로 넘어갑니다. 문자는 오지 않고, 시간이 지나면 "인증번호가 오지 않았나요?" 안내가 뜹니다.</p>
+  <p style="margin-top:8px">번거로워 보이지만 <b>일부러 그렇게 만든 것</b>입니다. "그런 환자 없습니다"라고 알려주면, 아무나 이름과 생년월일을 넣어보며 <u>특정인이 이 병원에 다니는지 알아낼 수 있게</u> 됩니다.</p>
+</div>

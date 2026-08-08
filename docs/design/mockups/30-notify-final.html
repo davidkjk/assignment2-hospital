@@ -1,0 +1,114 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .nf { width: 256px; border: 2px solid #3a3a3a; border-radius: 17px; overflow: hidden; display: flex; flex-direction: column; min-height: 452px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; position: relative; }
+  .nf-top { background: #fff; padding: 9px 12px 11px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 800; }
+  .nf-back { color: #0B6E70; font-weight: 700; }
+  .nf-body { flex: 1; padding: 11px; }
+  .nf-lab { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: #5A6C7B; margin: 2px 3px 6px; }
+  .nf-g { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.07); }
+  .nf-r { display: flex; align-items: center; gap: 9px; padding: 12px; border-bottom: 1px solid #E6EBEF; font-size: 12.5px; font-weight: 700; }
+  .nf-r:last-child { border-bottom: none; }
+  .nf-r.key { border-left: 4px solid #B44E00; }
+  .nf-sub { font-size: 10px; color: #5A6C7B; font-weight: 500; margin-top: 3px; line-height: 1.5; }
+  .nf-sub.warn { color: #B44E00; font-weight: 600; }
+  .nf-sw { width: 36px; height: 21px; border-radius: 99px; background: #0B6E70; position: relative; flex-shrink: 0; }
+  .nf-sw:after { content: ''; position: absolute; right: 2px; top: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; }
+  .nf-sw.off { background: #C7D2D8; }
+  .nf-sw.off:after { right: 17px; }
+  .nf-dim { position: absolute; inset: 0; background: rgba(16,36,58,.55); display: flex; align-items: center; justify-content: center; padding: 13px; }
+  .nf-dlg { background: #fff; border-radius: 13px; width: 100%; overflow: hidden; }
+  .nf-note { background: #fff; border-left: 4px solid #B44E00; border-radius: 0 9px 9px 0; padding: 10px 11px; color: #B44E00; font-weight: 700; font-size: 11px; line-height: 1.55; margin-top: 10px; }
+  .nf-row { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+  .nf-cap { font-size: 11.5px; color: #5A6C7B; margin-top: 8px; line-height: 1.6; max-width: 262px; }
+  .nf-cap b { color: #10243A; }
+</style>
+
+<h2>화면 30 — 알림 설정 (잠금 제거)</h2>
+<p class="subtitle">
+  <span style="color:#0B6E70;font-weight:700">✓ 못 끄는 알림 없앰 — 전부 끌 수 있습니다.</span>
+  대신 중요한 알림은 <b>붉은 표시</b>로 구분하고, 끄려 할 때 <b>무슨 일이 생기는지</b> 한 번 알려줍니다.
+</p>
+
+<div class="nf-row">
+
+  <div>
+    <div style="display:flex;justify-content:center;padding:12px;background:#eef2f4;border-radius:12px">
+      <div class="nf">
+        <div class="nf-top"><span class="nf-back">‹ 뒤로</span><span>알림 설정</span><span style="width:28px"></span></div>
+        <div class="nf-body">
+          <div class="nf-lab">예약에 관한 알림</div>
+          <div class="nf-g">
+            <div class="nf-r key">
+              <div style="flex:1">
+                <span style="color:#B44E00">예약 변경·취소 안내</span>
+                <div class="nf-sub warn">병원 사정으로 일정이 바뀔 때 알려드립니다</div>
+              </div>
+              <div class="nf-sw"></div>
+            </div>
+            <div class="nf-r"><div style="flex:1">예약 신청·확정<div class="nf-sub">예약이 접수·확정되었을 때</div></div><div class="nf-sw"></div></div>
+            <div class="nf-r"><div style="flex:1">방문 전날·당일 안내<div class="nf-sub">잊지 않으시도록 미리 알려드립니다</div></div><div class="nf-sw"></div></div>
+          </div>
+          <div class="nf-lab" style="margin-top:13px">그 밖의 알림</div>
+          <div class="nf-g">
+            <div class="nf-r"><div style="flex:1">사전문진 작성 안내</div><div class="nf-sw"></div></div>
+            <div class="nf-r"><div style="flex:1">진료 후 병원 안내</div><div class="nf-sw off"></div></div>
+            <div class="nf-r"><div style="flex:1">상담 답변 도착</div><div class="nf-sw"></div></div>
+          </div>
+          <!-- 🔄 2026-08-04 B-41: 「받는 방법 / 문자로도 받기」 묶음을 삭제했다.
+               요구사항 4.7의 주어는 병원이고("환자에게 … 보낼 수 있어야 합니다",
+               "앱을 설치하지 않았거나 꼭 필요한 경우") 앱을 설치하지 않은 사람은
+               이 화면에 들어올 수 없다. 게다가 문자 발송은 요구사항이 지정한
+               「범위가 커질 때 가장 먼저 뺄 항목」 2번이라 죽은 스위치가 될 수 있다.
+               → 문자 on/off는 직원 웹 몫(갭 #72). -->
+        </div>
+      </div>
+    </div>
+    <p class="nf-cap"><b>① 알림 설정 (확정 · 2026-08-04 갱신)</b><br>🔄 <b>묶음은 2개입니다</b> — 「예약에 관한 알림」과 「그 밖의 알림」. <b>「받는 방법 / 문자로도 받기」는 삭제했습니다</b>(B-41): 요구사항 4.7이 말하는 문자는 <b>병원이 보내는 것</b>이고, 그것이 가장 필요한 사람은 <b>애초에 앱을 설치하지 않은 사람</b>이라 앱 안의 스위치로 켤 수 있는 기능이 아닙니다. 문자 on/off는 <b>직원 웹 몫</b>(갭 #72).<br>맨 위 항목만 <b>붉은 글씨 + 왼쪽 붉은 띠</b>로 구분합니다. 잠기지 않았고 <b>똑같이 끌 수 있습니다</b> — 다만 "이건 성격이 다르다"는 게 눈으로 보입니다. 주의색을 면적 작게 쓰는 규칙(왼쪽 4px 바)이 여기서도 그대로 적용됩니다.</p>
+  </div>
+
+  <div>
+    <div style="display:flex;justify-content:center;padding:12px;background:#eef2f4;border-radius:12px">
+      <div class="nf">
+        <div class="nf-top"><span class="nf-back">‹ 뒤로</span><span>알림 설정</span><span style="width:28px"></span></div>
+        <div class="nf-body">
+          <div class="nf-lab">예약에 관한 알림</div>
+          <div class="nf-g">
+            <div class="nf-r key"><div style="flex:1"><span style="color:#B44E00">예약 변경·취소 안내</span><div class="nf-sub warn">병원 사정으로 일정이 바뀔 때</div></div><div class="nf-sw"></div></div>
+            <div class="nf-r"><div style="flex:1">예약 신청·확정</div><div class="nf-sw"></div></div>
+          </div>
+        </div>
+        <div class="nf-dim">
+          <div class="nf-dlg">
+            <div style="padding:15px 13px 11px">
+              <div style="font-size:15px;font-weight:800;line-height:1.4">이 알림을 끄시겠어요?</div>
+              <div style="font-size:11.5px;color:#33465A;font-weight:500;line-height:1.7;margin-top:9px">
+                병원 사정으로 예약 시간이 바뀌거나 취소될 때 <b>앱에서 알려드릴 수 없습니다.</b><br><br>
+                다만 <b>일정이 바뀌면 병원에서 전화로도 안내드립니다.</b> 연락처가 바뀌셨다면 설정에서 확인해 주세요.
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;padding:0 12px 13px">
+              <div style="flex:1.15;text-align:center;padding:13px 0;border-radius:9px;font-size:12.5px;font-weight:800;border:2px solid #0B6E70;color:#0B6E70">그대로 둘게요</div>
+              <div style="flex:1;text-align:center;padding:13px 0;border-radius:9px;font-size:12.5px;font-weight:800;background:#fff;border:2px solid #C7D2D8;color:#5A6C7B">끄기</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="nf-cap"><b>② 끌 때 한 번만</b><br>막지 않고 <b>알려주기만</b> 합니다. 그리고 <b>"병원에서 전화로도 안내드립니다"</b>를 함께 말해 불안을 없앱니다 — 실제로 스펙상 일정 변경 시 직원이 환자 연락처를 보고 전화하게 되어 있습니다. 기본 버튼은 "그대로 둘게요"지만 <b>"끄기"도 회색일 뿐 정상 버튼</b>입니다.</p>
+  </div>
+
+  <div style="max-width:262px">
+    <div style="background:#fff;border:1px solid #d7dee3;border-radius:12px;padding:14px;font-size:11.5px;line-height:1.8;color:#33465A">
+      <div style="font-size:13px;font-weight:800;color:#10243A;margin-bottom:9px">왜 잠금을 없앴나</div>
+      <b style="color:#10243A">① 잠가도 못 막습니다</b><br>
+      사용자가 폰 설정에서 앱 알림 자체를 끄면 그만입니다. 잠긴 스위치는 아무 역할도 못 하면서 "이 앱은 내 말을 안 듣는다"는 인상만 남깁니다.<br><br>
+      <b style="color:#10243A">② 알림이 유일한 통로가 아닙니다</b><br>
+      스펙상 일정이 바뀌면 직원이 <b>영향받는 환자 이름·연락처를 화면에서 보고 전화</b>합니다. 알림은 보조 수단입니다. 유일한 통로가 아닌 것을 잠글 근거는 약합니다.<br><br>
+      <b style="color:#10243A">③ 대신 잃는 것도 있습니다</b><br>
+      정직하게 말씀드리면, 알림을 끈 환자가 늘수록 <b>직원의 전화 업무가 늘어납니다.</b> 그래서 ②의 확인 팝업으로 "끄면 어떻게 되는지"는 분명히 알리되, 결정은 환자에게 맡깁니다.
+    </div>
+    <p class="nf-cap"><b>판단 근거 정리</b><br>결정 기록 문서에 이 근거를 그대로 남기겠습니다.</p>
+  </div>
+</div>

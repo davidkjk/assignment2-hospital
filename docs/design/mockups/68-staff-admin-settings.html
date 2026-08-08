@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>68 · 병원 설정 /admin/settings — 확정안(SB-50)</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --warn-bg:#FFF1E4; --danger:#9E3F6E; --danger-bg:#F3E7EA;
+    --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --book:#E7F1F1; --book-line:#9FC6C6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  .quote .warn{color:var(--warn);font-weight:800}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:var(--warn-bg);color:var(--warn)}
+  .tag.no{background:var(--danger-bg);color:var(--danger)}
+
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:6px 0 0}
+  .hint b{color:var(--ink)}
+  .hint.w b{color:var(--warn)}
+  .hint.g b{color:var(--primary)}
+
+  svg.i{width:13px;height:13px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;
+        stroke-linecap:round;stroke-linejoin:round}
+  svg.i.sm{width:11px;height:11px;vertical-align:-1px}
+
+  .app{background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .apptop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);
+          font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .apptop .sp{flex:1}
+  .btn{border:1px solid var(--divider);border-radius:6px;padding:4px 9px;background:#fff;
+       font-size:11px;font-weight:800;color:var(--ink);white-space:nowrap;display:inline-block}
+  .btn.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.q{color:var(--ink-muted)}
+  .btn.dis{background:var(--done-bg);border-color:#E2E8ED;color:#AEB9C3}
+
+  /* 왼쪽 세로줄 */
+  .split{display:flex;min-height:250px}
+  .lside{width:176px;flex:none;border-right:1px solid var(--divider);padding:8px 0;background:#FCFDFD}
+  .lside .lh{font-size:10px;font-weight:800;color:#93A2AE;padding:2px 12px 6px;letter-spacing:.03em}
+  .lrow{padding:9px 12px;font-size:11.5px;font-weight:800;color:var(--ink-muted);
+        border-left:3px solid transparent;display:flex;align-items:flex-start;gap:6px}
+  .lrow .sp{flex:1}
+  .lrow .txt{min-width:0}
+  .lrow .v{display:block;font-weight:600;font-size:10px;margin-top:2px;color:#93A2AE;line-height:1.45}
+  .lrow.on{background:var(--book);border-left-color:var(--primary);color:var(--ink)}
+  .dot{width:6px;height:6px;border-radius:99px;background:var(--warn);flex:none;margin-top:4px}
+  .rside{flex:1;min-width:0;padding:12px 14px}
+  .rh{display:flex;align-items:baseline;gap:8px;margin:0 0 4px}
+  .rh b{font-size:13px;font-weight:800}
+  .rh span{font-size:11px;color:var(--ink-muted)}
+  .rh .sp{flex:1}
+
+  .row{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid var(--divider)}
+  .row:last-child{border-bottom:0}
+  .row .lb{width:154px;flex:none;font-size:11.5px;font-weight:800;padding-top:3px}
+  .row .lb .d{display:block;font-weight:600;color:var(--ink-muted);font-size:10.5px;line-height:1.5;margin-top:2px}
+  .row .ct{flex:1;min-width:0;font-size:11.5px;line-height:1.9}
+  .row .ct .note{display:block;font-size:10.5px;color:var(--ink-muted);line-height:1.6;margin-top:3px}
+  .row.locked .lb,.row.locked .ct{opacity:.45}
+
+  .fld{border:1px solid #CFD8DF;border-radius:5px;padding:4px 8px;background:#fff;
+       font-size:11.5px;font-weight:700;display:inline-block;min-width:50px;text-align:center}
+  .fld.wide{min-width:230px;text-align:left}
+  .fld.dim{background:var(--done-bg);border-color:#E2E8ED;color:#AEB9C3}
+  .unit{font-size:11px;color:var(--ink-muted);font-weight:700;margin-left:4px}
+
+  .sw{width:26px;height:15px;border-radius:99px;background:var(--primary);position:relative;display:inline-block;
+      vertical-align:-3px}
+  .sw::after{content:"";position:absolute;top:2px;left:13px;width:11px;height:11px;border-radius:99px;background:#fff}
+  .sw.off{background:#C3CDD5}
+  .sw.off::after{left:2px}
+  .swl{font-size:11px;font-weight:800;margin-left:6px;color:var(--primary)}
+  .swl.no{color:var(--ink-muted)}
+
+  .chk{width:13px;height:13px;border:1.5px solid var(--primary);border-radius:3px;display:inline-block;
+       vertical-align:-2px;background:var(--primary);position:relative}
+  .chk::after{content:"";position:absolute;left:3.5px;top:1px;width:4px;height:7px;border:solid #fff;
+              border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .chk.no{background:#fff;border-color:#C3CDD5}
+  .chk.no::after{display:none}
+
+  .rad{display:inline-flex;gap:5px;flex-wrap:wrap}
+  .rad .r{border:1px solid #CFD8DF;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700}
+  .rad .r.on{background:var(--primary);border-color:var(--primary);color:#fff}
+
+  .ro{background:var(--done-bg);border:1px solid var(--divider);border-radius:6px;padding:9px 11px;
+      font-size:11px;line-height:1.9;color:var(--ink-muted)}
+  .ro b{color:var(--ink)}
+  .ro .lnk{color:var(--primary);font-weight:800}
+
+  /* 확인창 */
+  .modal{background:#fff;border:1px solid var(--divider);border-radius:10px;
+         box-shadow:0 8px 28px rgba(16,36,58,.13);max-width:420px;padding:16px 18px}
+  .modal h4{font-size:13.5px;font-weight:800;margin:0 0 8px}
+  .modal p{font-size:11.5px;line-height:1.8;color:var(--ink-muted);margin:0 0 9px}
+  .modal p b{color:var(--ink)}
+  .modal .acts{display:flex;gap:7px;justify-content:flex-end;margin-top:12px}
+  .stage{background:#EDF1F4;border-radius:10px;padding:22px;display:flex;justify-content:center}
+
+  .verdict{border-radius:8px;padding:10px 13px;font-size:12px;line-height:1.8;margin:8px 0 0}
+  .verdict.good{background:var(--book);border:1px solid var(--book-line)}
+  .verdict.bad{background:var(--danger-bg);border:1px solid #E3CBD5}
+  .verdict.warn{background:var(--warn-bg);border:1px solid #F0D5BC}
+  .verdict b{font-weight:800}
+
+  table.t{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;
+          border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+  table.t th,table.t td{padding:8px 10px;border-bottom:1px solid var(--divider);text-align:left;
+                        vertical-align:top;line-height:1.65}
+  table.t th{background:var(--done-bg);font-weight:800;color:var(--ink-muted);font-size:10.5px}
+  table.t tr:last-child td{border-bottom:0}
+  table.t .yes{color:var(--primary);font-weight:800}
+  table.t .no{color:var(--danger);font-weight:800}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+</svg>
+
+<div class="page">
+
+  <h1>68 · 병원 설정 <code>/admin/settings</code> — 확정안</h1>
+  <p class="sub">빈칸 <b>SB-50</b> ✅ 해소 — <b>왼쪽 세로 메뉴 다섯 줄.</b>
+     담을 것은 <b>SB-49에서 이미 확정</b>됐고 여기서 정한 것은 <b>그릇</b>이다.<br>
+     ⭐ <b>69번(진료 일정 관리)과 같은 부품</b>을 쓴다 — 관리자 화면 둘의 설명이 하나가 된다.</p>
+
+  <div class="quote">
+    ⭐ <b>사용자가 「나중을 위해서」로 골랐다.</b> 이 목업을 그릴 때 조작 요소는 여덟 개뿐이라 한 장에도 담겼지만,
+    갭 <b>#102</b>(자동 알림 문구 편집)와 <b>#104</b>(광고 동의·야간 발송 규칙)가 오면 <span class="warn">왼쪽에 줄 하나 추가</span>로 끝난다고 봤다.
+  </div>
+
+  <div class="quote">
+    ⭐⭐ <b>그 판단이 값을 돌려줬다 — 2026-08-08 「알림」 줄이 실제로 늘었다</b>(갭 <b>#102</b> 해소 · <code>HSET-NAV-01</code> 개정 · <b>목업 75</b>).
+    <b>네 줄 → 다섯 줄</b>이 됐고 <b>다른 것은 하나도 안 바뀌었다.</b><br>
+    ⚠️ <b>다만 「줄 하나 추가」로는 안 끝났다</b> — 「문자로도 보낼 알림」이 <b>같은 10종 목록</b>이라
+    <span class="warn">「문자 발송」 묶음에서 「알림」 묶음으로 옮겨야</span> 했다(<code>HSET-SMS-01</code>: 세 칸 → <b>두 칸</b>).
+    ⭐ <b>같은 목록을 두 곳에 두면 갈라진다</b>는 것이 이유다(<code>HSET-SMS-05</code>).
+  </div>
+
+  <hr class="rule">
+
+  <!-- ① 담을 것 -->
+  <h2 class="sec">① 담을 것 — 조작 요소 <span style="color:var(--primary)">여덟</span> + 읽기 전용 하나
+     <span class="tag new">+ 알림 10종 (2026-08-08)</span></h2>
+  <p class="seclead">
+    「여섯 가지」로 세어 왔지만 <b>문자 사용 여부가 혼자 세 칸</b>이고 <b>오래 대기가 두 칸</b>이다.
+    ⭐ <b>이 숫자가 그릇을 갈랐다</b> — 여덟은 <b>탭 하나에 2~3개</b>밖에 안 들어간다.
+    ✅ <b>2026-08-08 — 여기에 「알림」 묶음이 늘었다</b>(표 하나에 10줄). ⭐ <b>세로줄을 고른 판단이 정확히 이걸 대비한 것</b>이고,
+    <b>탭이었다면 이 10줄이 들어갈 자리가 없었다.</b>
+  </p>
+  <table class="t">
+    <tr><th style="width:120px">묶음</th><th style="width:150px">항목</th><th>담는 것</th><th style="width:110px">근거</th></tr>
+    <tr><td rowspan="2"><b>예약 규칙</b></td><td>취소 마감 시간</td>
+        <td>숫자 + <code>시간</code>. ⚠️ 저장할 때 <b>「N건이 새로 마감 후가 됩니다」</b> 확인창</td><td><code>SB-49</code> ①</td></tr>
+    <tr><td>앱 예약 자동확정</td><td>스위치. 켜면 환자 앱의 <b>「확정 대기」가 통째로 사라진다</b></td><td>갭 <code>#32</code></td></tr>
+    <tr><td><b>대기실 운영</b></td><td>오래 대기 표시</td>
+        <td>☑ + 분. ⭐ <b>이름에 「알림」을 쓰지 않는다</b> — 푸시가 아니라 <code>/today</code>에 카드가 뜰 뿐이다</td><td>갭 <code>#32</code></td></tr>
+    <tr><td rowspan="2"><b>문자 발송</b></td><td>문자를 쓰나</td><td rowspan="2">둘이 <b>한 덩어리</b> — 위를 끄면 아래가 잠긴다.
+        ✅ <b>2026-08-08 개정</b> — 셋째 <b>「어떤 종류를 문자로도」는 「알림」 묶음으로 옮겼다</b>(같은 10종 목록이 두 곳에 생겨서) → <code>HSET-MSG-02</code></td><td rowspan="2">갭 <code>#72</code></td></tr>
+    <tr><td>누구에게</td></tr>
+    <tr><td><b>알림</b> <span class="tag new">신설</span></td><td>알림 10종</td>
+        <td>표 하나 — <b>종류 · 문구 · 문자로도</b> 세 열. <b>문구는 통째로 자유</b>(저장 전 되묻기·미리보기) · 넣을 값 <b>이름·날짜·시각</b>.
+        ⚠️ <b>「문자로도」 열만</b> 문자 스위치에 잠긴다 — <b>문구 칸은 절대 안 잠긴다</b> → <b>목업 75</b></td><td>갭 <code>#102</code></td></tr>
+    <tr><td rowspan="3"><b>병원 정보</b></td><td>주소</td>
+        <td rowspan="2">⭐ <b>여기만 환자 앱에 그대로 뜬다</b>(홈 예약 카드 · 설정 「병원」 줄 <code>SET-11</code>)</td><td rowspan="2">갭 <code>#32</code></td></tr>
+    <tr><td>대표 전화</td></tr>
+    <tr><td>다가오는 휴무일</td><td><b>읽기 전용</b> — 고치는 곳은 <code>/admin/schedule</code>. 링크를 함께 단다</td><td><code>SCHED-EXC-18</code></td></tr>
+  </table>
+  <p class="hint w">⚠️ <b>요일별 운영시간과 특정 날짜 휴무는 여기 없다</b> — <code>SB-49</code> ②에서
+     <b>「달력·시계에 그려지는 것은 스케줄, 숫자·스위치 하나로 끝나는 것은 설정」</b>으로 갈라
+     <code>/admin/schedule</code>로 넘겼다. 여기엔 <b>보여주기만</b> 한다.</p>
+
+  <hr class="rule">
+
+  <!-- ② 확정 화면 -->
+  <h2 class="sec">② 확정 화면 — 왼쪽 세로 메뉴</h2>
+  <p class="seclead">
+    ⭐ <b>줄마다 부제목에 「지금 값」을 적는다.</b> 이게 이 그릇의 유일한 약점(<b>안 연 줄이 생긴다</b>)에 대한 답이다 —
+    <b>들어가 보지 않아도 상태가 읽힌다.</b>
+  </p>
+
+  <div class="app">
+    <div class="apptop">
+      <svg class="i"><use href="#i-gear"/></svg> 병원 설정
+      <span class="sp"></span>
+      <span style="color:var(--warn);font-weight:800">● 저장하지 않은 변경 1곳</span>
+      <span class="btn q">되돌리기</span><span class="btn p">저장</span>
+    </div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">병원 설정</div>
+        <div class="lrow on"><div class="txt">예약 규칙<span class="v">취소 마감 24시간<br>자동확정 꺼짐</span></div></div>
+        <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+        <div class="lrow"><div class="txt">문자 발송<span class="v">켜짐 · 앱 미설치자만</span></div></div>
+        <div class="lrow"><div class="txt">알림<span class="v">문구 3개 고침<br>문자로도 5종</span></div></div>
+        <div class="lrow"><div class="txt">병원 정보<span class="v">강남구 테헤란로 123</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="rh"><b>예약 규칙</b><span>환자가 앱에서 할 수 있는 일의 범위입니다</span></div>
+        <div class="row">
+          <div class="lb">취소 마감 시간<span class="d">이 시간보다 늦으면 환자가<br>앱에서 직접 취소하지 못합니다</span></div>
+          <div class="ct">
+            진료 시각 <span class="fld">24</span><span class="unit">시간 전까지</span>
+            <span class="note">마감을 넘긴 환자는 <b>거절되는 것이 아니라 상담(직원 확인)으로 연결</b>됩니다.
+              값을 바꾸면 저장할 때 <b>몇 건이 새로 마감 후가 되는지</b> 알려드립니다.</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lb">앱 예약 자동확정<span class="d">환자가 앱에서 넣은 예약을<br>직원 확인 없이 바로 확정</span></div>
+          <div class="ct">
+            <span class="sw off"></span><span class="swl no">꺼짐 — 직원이 확인한 뒤 확정됩니다</span>
+            <span class="note">켜면 환자 앱에서 <b>「확정 대기 중」 표시가 사라지고</b> 넣는 즉시 확정으로 보입니다.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:16px"></div>
+
+  <div class="app">
+    <div class="apptop"><svg class="i"><use href="#i-gear"/></svg> 병원 설정<span class="sp"></span>
+      <span class="btn p">저장</span></div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">병원 설정</div>
+        <div class="lrow"><div class="txt">예약 규칙<span class="v">취소 마감 24시간<br>자동확정 꺼짐</span></div></div>
+        <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+        <div class="lrow on"><div class="txt">문자 발송<span class="v">켜짐 · 앱 미설치자만</span></div></div>
+        <div class="lrow"><div class="txt">알림<span class="v">문구 3개 고침<br>문자로도 5종</span></div></div>
+        <div class="lrow"><div class="txt">병원 정보<span class="v">강남구 테헤란로 123</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="rh"><b>문자 발송</b><span>보낼 때마다 병원이 비용을 냅니다</span></div>
+        <div class="row">
+          <div class="lb">문자를 사용함</div>
+          <div class="ct">
+            <span class="sw"></span><span class="swl">켜짐</span>
+            <span class="note">발송업체 계정은 <b>병원에서 따로 준비</b>합니다. 계정이 없으면 켜도 나가지 않습니다.</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lb">누구에게</div>
+          <div class="ct">
+            <span class="rad"><span class="r on">앱을 안 쓰는 환자만</span><span class="r">모든 환자</span></span>
+            <span class="note">「앱을 안 쓰는 환자」에는 <b>앱을 지웠거나 폰을 바꾼 환자</b>도 들어갑니다.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint g">⭐ <b>스위치를 끄면 아래 「누구에게」가 잠긴다</b>(회색 + 조작 불가) — <b>값은 지워지지 않고 보존</b>된다.
+     다시 켜면 그대로 돌아온다. 오래 대기 표시의 체크를 풀었을 때와 <b>같은 규칙</b>이다(갭 #32).</p>
+
+  <p class="hint w">✅ <b>2026-08-08 개정 — 셋째 줄이 여기서 빠졌다</b>(<code>HSET-SMS-01</code>: 세 칸 → <b>두 칸</b>).
+     옛 <b>「문자로도 보낼 알림」</b> 체크칸 10개는 <b>「알림」 묶음의 셋째 열</b>로 옮겼다 —
+     <b>같은 10종 목록이 두 화면에 생기는 것</b>이 드러났기 때문이다(<code>HSET-MSG-02~04</code> · <b>목업 75</b> ②절).</p>
+
+  <p class="hint w">⚠️⚠️ <b>그래서 잠기는 범위가 두 화면으로 나뉘었다</b>(<code>HSET-SMS-02b</code>·<code>02c</code>) —
+     스위치를 끄면 ①<b>여기 「누구에게」</b>와 ②<b>「알림」 묶음의 「문자로도」 열</b>이 잠긴다.
+     ⛔ <b>「알림」의 문구 칸은 절대 잠기지 않는다</b> — 잠그면 <b>문자를 안 쓰는 병원이 푸시 문구를 하나도 못 고쳐</b> 그 기능이 죽는다.
+     ⭐ 스위치가 <b>다른 줄에 있으므로</b> 「알림」 쪽에 <b>왜 잠겼는지와 가는 길</b>을 함께 둔다(<code>SEND-CH-05</code> 재사용).</p>
+
+  <div style="height:16px"></div>
+
+  <div class="app">
+    <div class="apptop"><svg class="i"><use href="#i-gear"/></svg> 병원 설정<span class="sp"></span>
+      <span class="btn p">저장</span></div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">병원 설정</div>
+        <div class="lrow"><div class="txt">예약 규칙<span class="v">취소 마감 24시간<br>자동확정 꺼짐</span></div></div>
+        <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+        <div class="lrow"><div class="txt">문자 발송<span class="v">켜짐 · 앱 미설치자만</span></div></div>
+        <div class="lrow"><div class="txt">알림<span class="v">문구 3개 고침<br>문자로도 5종</span></div></div>
+        <div class="lrow on"><div class="txt">병원 정보<span class="v">강남구 테헤란로 123</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="rh"><b>병원 정보</b>
+          <span style="color:var(--warn);font-weight:800">환자 앱에 그대로 보입니다</span></div>
+        <div class="row">
+          <div class="lb">주소</div>
+          <div class="ct"><span class="fld wide">서울시 강남구 테헤란로 123</span>
+            <span class="note">환자 앱 <b>홈 예약 카드</b>와 <b>설정 › 병원</b> 줄에 그대로 뜹니다.</span></div>
+        </div>
+        <div class="row">
+          <div class="lb">대표 전화</div>
+          <div class="ct"><span class="fld wide">02-1234-5678</span>
+            <span class="note">환자가 <b>취소 마감을 넘겼을 때</b> 안내에 이 번호가 나옵니다.</span></div>
+        </div>
+        <div class="row">
+          <div class="lb">다가오는 휴무일<span class="d">여기서는 볼 수만 있습니다</span></div>
+          <div class="ct">
+            <div class="ro">
+              <b>2/9(월)~2/11(수)</b> 설 연휴 · 종일 휴무<br>
+              <b>3/1(일)</b> 삼일절 · 종일 휴무
+              <div style="margin-top:6px"><span class="lnk">진료 일정 관리 › 특정 날짜 변경에서 관리 <svg class="i sm"><use href="#i-arrow"/></svg></span></div>
+            </div>
+            <span class="note">⭐ <b>넣는 자리는 스케줄 화면 하나뿐</b>입니다(<code>SCHED-EXC-16</code>) —
+              두 곳에 두면 <b>「그날 예약이 몇 건 걸렸는지」 경고를 우회하는 문</b>이 생깁니다.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ③ 저장 -->
+  <h2 class="sec">③ 저장 — <span style="color:var(--primary)">맨 위 버튼 하나</span> + 주황 점 두 층</h2>
+  <p class="seclead">
+    📌 <b>A등급(이미 정한 원칙에서 자동으로 나옴)</b> — <code>SB-44</code>가 <code>/admin/schedule</code>에서
+    <b>「저장은 맨 위 버튼 하나」</b>로 정했고, <code>SCHED-SAVE-02b~02d</code>가 <b>주황 점을 층마다 붙이기</b>로 정했다.
+    <b>두 관리자 화면이 다르게 동작하면 설명이 두 벌</b>이 된다.
+  </p>
+  <table class="t">
+    <tr><th style="width:180px">무엇</th><th>이 화면에서</th></tr>
+    <tr><td><b>저장 버튼</b></td><td><b>맨 위에 하나.</b> 네 묶음의 변경이 <b>한 덩어리로</b> 들어간다 — 전부 되거나 전부 안 되거나</td></tr>
+    <tr><td><b>주황 점 ①</b> 왼쪽 줄</td><td>고친 묶음의 줄에 <b>●</b> — 다른 묶음을 보고 있어도 보인다</td></tr>
+    <tr><td><b>주황 점 ②</b> 맨 위</td><td><code>● 저장하지 않은 변경 1곳</code></td></tr>
+    <tr><td><b>부제목</b></td><td>고치는 즉시 <b>주황 글씨로 바뀐 값</b>을 보여준다 — <b>무엇으로 바뀌는지까지</b> 목록에서 읽힌다</td></tr>
+    <tr><td><b>줄을 옮기면</b></td><td>고친 값과 <b>●</b>가 <b>그대로 남는다</b>(<code>SCHED-SAVE-06</code>과 같음)</td></tr>
+    <tr><td><b>화면을 떠나면</b></td><td><b>묻지 않고 날아간다</b>(<code>SCHED-SAVE-07</code>·<code>PANEL-ONE-01</code>과 같음).
+        ⚠️ 두 화면이 다르면 더 헷갈리므로 <b>같게 둔다</b></td></tr>
+  </table>
+
+  <h2 class="sec" style="margin-top:26px">③-2 ⚠️ 취소 마감만 확인창이 붙는다</h2>
+  <p class="seclead">
+    <b>저장을 누르면 바뀐 것 중 「취소 마감」이 있을 때만</b> 이 창이 뜬다.
+    <b>다른 셋을 아무리 고쳐도 안 뜬다</b> — ⭐ <b>자주 뜨는 확인창은 읽지 않고 누르는 습관을 만든다</b>(<code>SCHED-SAVE-04</code>·갭 #90과 같은 이유).
+  </p>
+  <div class="stage">
+    <div class="modal">
+      <h4><svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg> 취소 마감을 24시간 → 48시간으로 바꿉니다</h4>
+      <p>이 변경으로 <b>지금 잡혀 있는 예약 7건</b>이 <b>새로 마감 후</b>가 됩니다.</p>
+      <p>그 환자들은 앱에서 직접 취소하지 못하고 <b>상담(직원 확인)으로 연결</b>됩니다.
+         ⭐ <b>취소가 막히는 것이 아니라 직원을 한 번 거치게 되는 것</b>입니다.</p>
+      <p style="color:var(--ink);font-weight:700">📌 환자에게 자동으로 알림이 나가지는 않습니다.</p>
+      <div class="acts"><span class="btn q">그대로 둘게요</span><span class="btn p">바꾸기</span></div>
+    </div>
+  </div>
+  <div class="verdict good">
+    <b>왜 알림을 안 보내나</b> — 사용자 지적 <b>*"아마 그렇게 하려면 미리 공지도 하고 그랬을 거야"*</b>.
+    마감 변경은 <b>병원이 현실에서 먼저 안내하고 나서 하는 일</b>이다.
+    <code>SCHED-WARN-11</code>(일정을 저장해도 그 자리에서 알림이 나가지 않는다)과 <b>같은 자리</b>라 설명이 하나로 통일된다.
+  </div>
+  <div class="verdict warn">
+    ⚠️ <b>「7건」을 셀 수 있어야 한다</b> — 지금 계획에 <b>이 숫자를 미리 계산해 주는 창구가 없다.</b>
+    <code>preview_rule_change</code>(의사 스케줄용)와 같은 성격이지만 <b>대상이 병원 전체</b>라 다른 조회다.
+    ⭐ 없으면 <b>확인창이 「N건」 대신 빈칸이 되어 이 화면의 유일한 안전장치가 무너진다</b> → 갭으로 기록한다.
+  </div>
+
+  <hr class="rule">
+
+  <!-- ④ 기각 -->
+  <h2 class="sec">④ 기각한 그릇 둘 <span class="tag no">참고</span></h2>
+  <table class="t">
+    <tr><th style="width:150px">안</th><th style="width:280px">왜 좋아 보였나</th><th>왜 기각했나</th></tr>
+    <tr><td><b>㉮ 한 장 스크롤</b><br>섹션 카드 4개</td>
+        <td class="yes">지금 여덟 개에 가장 잘 맞는다. <b>안 본 설정이 안 생긴다</b> — 스크롤하면 전부 지나간다</td>
+        <td>⚠️ <b>항목이 늘면 무너지는 그릇</b>이다. 갭 #102(문구 11종)·#104(광고 동의)가 오면 한 장이 세 배가 된다.
+            <b>사용자가 「나중을 위해서」로 ㉰를 골랐다</b></td></tr>
+    <tr><td><b>㉯ 가로 탭</b><br>3개</td>
+        <td><code>/admin/schedule</code>과 모양이 같아 익숙했다</td>
+        <td class="no">❌ <b>탭당 2~3개라 화면 아래가 빈다.</b> 탭은 <b>내용이 넘칠 때</b> 나누는 장치인데 지금은 넘치지 않는다.
+            📌 그리고 <b>이 근거는 69번에서 함께 사라졌다</b> — <code>/admin/schedule</code>도 세로줄이 됐다</td></tr>
+  </table>
+  <div class="verdict bad">
+    ⚠️⚠️ <b>내가 ㉰에 붙인 반대 근거 하나가 사실이 아니었다.</b>
+    *"직원 웹에서 이 모양을 쓰는 화면이 여기 하나뿐이 된다"*라고 썼는데,
+    <b><code>/admin/schedule</code>의 「의사별 스케줄」 탭이 이미 정확히 이 구조</b>였다(<code>67:234~242</code> — 왼쪽 목록 + 이름 + 부제목).
+    <b>사용자가 *"이거 이미 썼었어"*로 잡아냈다.</b> 📌 <b>또 「원문을 안 열고 단정한」 사례</b>다.
+  </div>
+
+  <hr class="rule">
+
+  <!-- ⑤ 남은 것 -->
+  <h2 class="sec">⑤ 이 화면이 남기는 것</h2>
+  <table class="t">
+    <tr><th style="width:150px">무엇</th><th>내용</th></tr>
+    <tr><td><b>새 마이그레이션</b></td>
+        <td>⚠️ 실제 DB(<code>00004_audit_settings.sql:24</code>)의 <code>hospital_settings</code>는
+            <b><code>cancellation_deadline_hours</code> 한 칸뿐</b>이다.
+            <code>auto_confirm_app_bookings</code>·<code>long_wait_threshold_minutes</code>·<code>hospital_address</code>·<code>hospital_phone</code>은
+            <b>플랜 안 <code>alter table</code> 문으로만</b> 있고, <b>문자 관련 3칸은 아예 없다</b> → <code>00010_</code>에 함께</td></tr>
+    <tr><td><b>권한</b></td>
+        <td>✅ 이미 맞다 — <code>admin_can_update_hospital_settings</code>(<code>00004:64</code>)가 <b>관리자만 수정</b>을 DB에서 막는다.
+            ⚠️ 다만 <b>환자도 이 표를 읽는다</b>(<code>patients_can_read_hospital_settings</code>) — <b>문자 설정까지 환자에게 보이면 안 된다</b>는 점을 확인할 것</td></tr>
+    <tr><td><b>다음 묶음</b></td>
+        <td><b>F</b>(광고·수신동의 #104) → <b>D</b>(발송 부품 #101) → <b>B</b>(문구 편집 #102) → <b>C</b>(문자 폴백 #100·#103) → <b>E</b>(예약 발송).
+            ⭐ <b>B가 오면 이 화면 왼쪽에 「알림 문구」 줄이 하나 붙는다</b> — 그릇을 다시 짤 필요가 없다</td></tr>
+  </table>
+
+</div>
+</body>
+</html>

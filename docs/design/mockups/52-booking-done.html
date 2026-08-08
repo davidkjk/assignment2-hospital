@@ -1,0 +1,123 @@
+<style>
+  .p52 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --warn:#B44E00; --bg:#F2F5F7; }
+  .p52, .p52 * { text-align:left; box-sizing:border-box; }
+  .p52 { width:340px; height:610px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+         overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+         color:var(--ink); position:relative; display:flex; flex-direction:column; }
+  .p52 .bar { background:var(--teal); color:#fff; padding:11px 16px; font-size:15px; font-weight:600; }
+  .p52 .prog { padding:12px 16px 6px; background:var(--bg); }
+  .p52 .prog .txt { font-size:12px; color:var(--done); font-weight:600; margin-bottom:6px; }
+  .p52 .prog .track { height:5px; background:#dde4e9; border-radius:3px; overflow:hidden; }
+  .p52 .prog .fill { height:100%; background:var(--teal); }
+
+  .p52 .core { flex:1; padding:26px 20px 0; }
+  .p52 .core * { text-align:center; }
+  .p52 .ring { width:66px; height:66px; border-radius:50%; background:var(--teal); color:#fff;
+               font-size:32px; font-weight:800; display:flex; align-items:center; justify-content:center; margin:0 auto; }
+  .p52 .ttl { font-size:21px; font-weight:800; margin-top:16px; letter-spacing:-.3px; }
+
+  .p52 .card { margin-top:18px; border:1.5px solid #dde4e9; border-radius:12px; padding:14px 16px; background:#fbfdfd; }
+  .p52 .card * { text-align:left; }
+  .p52 .card .when { font-size:18px; font-weight:800; letter-spacing:-.2px; }
+  .p52 .card .what { font-size:14.5px; color:#33485c; margin-top:5px; font-weight:600; }
+  .p52 .card .num { margin-top:11px; padding-top:11px; border-top:1px solid #eaeff3;
+                    display:flex; justify-content:space-between; align-items:baseline; }
+  .p52 .card .num .k { font-size:13px; color:var(--done); font-weight:600; }
+  .p52 .card .num .v { font-size:17px; font-weight:800; color:var(--teal); font-variant-numeric:tabular-nums; }
+
+  .p52 .guide { margin-top:15px; font-size:13.5px; color:#44586b; line-height:1.6; }
+  .p52 .pend { margin-top:11px; padding-left:9px; border-left:4px solid var(--warn);
+               font-size:13px; color:var(--warn); font-weight:700; line-height:1.55; }
+  .p52 .pend * { text-align:left; }
+
+  .p52 .foot { padding:0 20px 20px; }
+  .p52 .cta { display:block; width:100%; background:var(--teal); color:#fff; border:none; border-radius:11px;
+              padding:15px; font-size:16.5px; font-weight:800; text-align:center; font-family:inherit; }
+  .p52 .later { margin-top:13px; font-size:14px; color:var(--done); text-align:center; font-weight:600;
+                text-decoration:underline; }
+
+  .lane52 { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane52 h3 { margin:0 0 5px; text-align:left; }
+  .lane52 .cap { font-size:13px; color:#6b7d8c; margin-bottom:12px; max-width:340px; text-align:left; line-height:1.6; }
+  .note52 { margin-top:26px; border:1px solid #dde4e9; border-radius:12px; padding:16px 18px; background:#fafcfd;
+            font-size:13.5px; line-height:1.75; color:#33485c; max-width:1100px; }
+  .note52 b { color:#10243A; }
+  .note52 code { background:#eef2f5; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .find52 { margin-top:18px; border:1.5px solid #e2c9a8; border-radius:12px; padding:16px 18px; background:#fdf8f1;
+            font-size:13.5px; line-height:1.75; color:#4a3a26; max-width:1100px; }
+  .find52 b { color:#B44E00; }
+  .find52 code { background:#f2e6d6; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+
+<h2>예약 8단계 — 완료 (신규 · 규칙 <code>BOOK-DONE-01~07</code>)</h2>
+<p class="subtitle">8단계는 <b>질문 화면이 아니라 결과 화면</b>입니다. 사용자가 무언가를 고르는 화면은 7개이고, 이 화면은 <b>"무슨 일이 일어났는지"를 알려주고 다음 행동 하나를 제안</b>하는 자리입니다.</p>
+
+<div class="lane52">
+
+  <div>
+    <h3>① <code>예약신청</code>으로 생성 — 병원 확인이 필요한 경우</h3>
+    <div class="cap"><code>BOOK-DONE-02</code>. 제목이 <b><code>예약이 신청되었습니다</code></b>이고, 번호도 <b><code>신청번호</code></b>입니다.
+    <br>⭐ <b>용어가 상태를 따라갑니다</b>(<code>CARD-COMMON-02</code>) — 확정 전에는 어디서든 「신청번호 / 신청 취소」, 확정 후에는 「예약번호 / 예약 취소」로 통일합니다.</div>
+    <div class="p52">
+      <div class="bar">예약하기</div>
+      <div class="prog"><div class="txt">8단계 / 8단계 · 완료</div><div class="track"><div class="fill" style="width:100%"></div></div></div>
+      <div class="core">
+        <div class="ring">✓</div>
+        <div class="ttl">예약이 신청되었습니다</div>
+        <div class="card">
+          <div class="when">8월 12일 (화) 오후 2:30</div>
+          <div class="what">정형외과 · 이정민 선생님 · 본인 (김순자)</div>
+          <div class="num"><span class="k">신청번호</span><span class="v">A-2413</span></div>
+        </div>
+        <div class="pend">병원 확인 후 확정되면 알림으로 알려드립니다</div>
+        <div class="guide">사전문진을 미리 써두시면 진료가 더 빨라집니다.</div>
+      </div>
+      <div class="foot">
+        <button class="cta">사전문진 작성하기</button>
+        <div class="later">나중에 할게요</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3>② <code>예약확정</code>으로 생성 — 즉시확정 병원</h3>
+    <div class="cap"><code>BOOK-DONE-03</code>. 제목 <b><code>예약이 확정되었습니다</code></b> + <b><code>예약번호</code></b>. <b>주의색 한 줄이 없습니다</b> — 기다릴 것이 없기 때문입니다.
+    <br>⚠️ 7단계 버튼 글자는 <b>양쪽 모두 <code>예약 신청하기</code> 하나</b>입니다(<code>BOOK-CONF-04b</code>, B-17). 나누지 않는 이유는 <b>틀렸을 때의 손해가 한쪽으로 기울기 때문</b>입니다 — 「신청」이라 해놓고 바로 확정되면 <b>약속보다 좋은 결과</b>지만, 「예약」이라 해놓고 확인 중이 되면 <b>앱이 거짓말한 것</b>이 됩니다.</div>
+    <div class="p52">
+      <div class="bar">예약하기</div>
+      <div class="prog"><div class="txt">8단계 / 8단계 · 완료</div><div class="track"><div class="fill" style="width:100%"></div></div></div>
+      <div class="core">
+        <div class="ring">✓</div>
+        <div class="ttl">예약이 확정되었습니다</div>
+        <div class="card">
+          <div class="when">8월 12일 (화) 오후 2:30</div>
+          <div class="what">정형외과 · 이정민 선생님 · 본인 (김순자)</div>
+          <div class="num"><span class="k">예약번호</span><span class="v">A-2413</span></div>
+        </div>
+        <div class="guide">사전문진을 미리 써두시면 진료가 더 빨라집니다.</div>
+      </div>
+      <div class="foot">
+        <button class="cta">사전문진 작성하기</button>
+        <div class="later">나중에 할게요</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="find52">
+⚠️ <b>그리다 발견한 것 — 규칙표에 예약번호가 빠져 있었다</b>
+<br>요구사항 4.3은 <b><code>예약이 완료되면 예약번호와 사전문진으로 이동하는 버튼을 보여줍니다</code></b>(<code>고객요구사항.txt:380</code>)라고 <b>두 가지를 함께</b> 요구합니다. 그런데 <code>BOOK-DONE-01</code>의 요약 항목은 <b>「일시·진료」뿐</b>이라 예약번호가 없었습니다. 버튼(<code>BOOK-DONE-04</code>)만 규칙에 있고 번호는 빠진 상태였습니다.
+<br>→ <b>그림에 넣고 규칙 <code>BOOK-DONE-01b</code>를 신설</b>했습니다. 용어는 이미 <code>CARD-COMMON-02·03</code>이 정해두었으므로 <b>새로 정할 것은 없고 따라오기만 하면 됩니다.</b>
+<br>⭐ <b>이것이 「그림을 그리면 발견이 나온다」의 실례입니다</b> — 규칙만 읽을 때는 요약 항목에 무엇이 빠졌는지 보이지 않았고, <b>카드를 실제로 그려 빈자리를 보고 나서야</b> 요구사항 원문을 다시 확인하게 됐습니다.
+</div>
+
+<div class="note52">
+<b>그림에 안 보이지만 이 화면에 걸린 규칙</b>
+<br>· <b>앱바에 뒤로 화살표가 없습니다</b>(<code>BOOK-NAV-08</code> · <code>BOOK-DONE-07</code>). 예약은 <b>이미 만들어졌으므로</b> 마법사로 되돌아가면 <b>같은 예약을 한 번 더 만들게 됩니다.</b> 폰의 뒤로가기를 눌러도 <b>홈으로</b> 나갑니다.
+<br>· ⚠️ 이것이 중요한 이유: 서버에 <b>멱등성(같은 요청을 두 번 보내도 한 번만 처리되는 장치)이 없습니다</b>(갭 #15). 그래서 <b>화면이 되돌아갈 길을 막는 것이 유일한 방어</b>입니다.
+<br>· <b><code>나중에 할게요</code>는 홈으로 갑니다</b>(<code>BOOK-DONE-06</code>). 예약 카드가 이미 홈에 있으므로 <b>확인할 곳이 있습니다</b> — 막다른 길이 아닙니다.
+<br>· <b>진행 막대를 <code>8단계 / 8단계</code>로 남겨둡니다</b>(<code>BOOK-NAV-02</code> "항상"). 결과 화면이지만 <b>여기가 끝이라는 사실 자체가 정보</b>입니다.
+<br>· <b>「몇 시간 안에 확인됩니다」 같은 문구를 쓰지 않습니다</b> — 재사용 패턴 3「소요 시간 추정 금지」. 병원이 언제 볼지는 <b>앱이 약속할 수 없는 것</b>입니다.
+<br>· <b>신청이 실패한 경우는 이 화면에 오지 않습니다</b> — 7단계에 머문 채 <b>버튼 바로 위</b>에 오류가 붙습니다(<code>BOOK-CONF-09</code> · <code>ERR-POS-01</code>). 시간을 뺏긴 경우는 <b>5단계로</b> 되돌아갑니다(<code>BOOK-RACE-01</code>).
+</div>

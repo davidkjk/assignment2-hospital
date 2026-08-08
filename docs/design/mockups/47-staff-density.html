@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>47 · 직원 웹 밀도 3안 — 대기 목록</title>
+<style>
+  /* ── 환자 앱에서 확정한 토큰 (색·서체는 그대로, 크기만 바꾼다) ── */
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .page{max-width:1400px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .rule{height:1px;background:var(--divider);margin:24px 0 28px;border:0}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:start}
+  @media (max-width:1100px){.grid{grid-template-columns:1fr}}
+
+  .col{background:var(--surface);border:1px solid var(--divider);border-radius:12px;overflow:hidden}
+  .col-head{padding:14px 16px;border-bottom:1px solid var(--divider)}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.rec{background:var(--primary);color:#fff}
+  .col-title{font-size:16px;font-weight:800;margin:8px 0 4px}
+  .col-spec{font-size:12px;color:var(--ink-muted);line-height:1.65}
+  .col-spec code{font-family:inherit;font-weight:700;color:var(--ink)}
+
+  /* ── 밀도 변수: 이 6개만 안마다 다르다 ── */
+  .d{ --fs:14px; --fs-name:15px; --fs-time:16px; --row:52px; --pad:14px; --tap:40px; }
+  .d.b{ --fs:13px; --fs-name:14px; --fs-time:15px; --row:44px; --pad:11px; --tap:36px; }
+  .d.c{ --fs:12px; --fs-name:13px; --fs-time:14px; --row:36px; --pad:8px;  --tap:30px; }
+
+  table{width:100%;border-collapse:collapse;font-size:var(--fs)}
+  thead th{
+    text-align:left;font-size:calc(var(--fs) - 1px);font-weight:700;color:var(--ink-muted);
+    padding:calc(var(--pad) - 4px) 10px;border-bottom:1px solid var(--divider);
+    white-space:nowrap;background:#FBFCFD;
+  }
+  tbody td{padding:0 10px;border-bottom:1px solid var(--divider);height:var(--row);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+
+  /* 시각 레일 — 환자 앱 시그니처를 직원 웹에도 유지 */
+  .rail{
+    display:inline-flex;align-items:center;justify-content:center;
+    background:var(--primary);color:#fff;border-radius:6px;
+    font-size:var(--fs-time);font-weight:800;font-variant-numeric:tabular-nums;
+    padding:4px 8px;min-width:56px;
+  }
+  .no{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink-muted);width:28px}
+  .nm{font-size:var(--fs-name);font-weight:800;white-space:nowrap}
+  .meta{color:var(--ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wait{font-variant-numeric:tabular-nums;font-weight:700}
+
+  .badge{display:inline-block;font-size:calc(var(--fs) - 1px);font-weight:700;
+         padding:2px 7px;border-radius:99px;background:var(--done-bg);color:var(--done);white-space:nowrap}
+  .badge.on{background:#E7F1F1;color:var(--primary)}
+
+  /* 주의색: 배경 없이 글자 + 좌측 4px 바 (확정 규칙) */
+  .warn{color:var(--warn);font-weight:800;padding-left:8px;border-left:4px solid var(--warn);white-space:nowrap}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:var(--tap);padding:0 12px;border-radius:8px;border:1px solid var(--primary);
+    background:#fff;color:var(--primary);font-size:calc(var(--fs) - 1px);font-weight:800;
+    font-family:inherit;cursor:default;white-space:nowrap;
+  }
+  .btn.fill{background:var(--primary);color:#fff}
+
+  .foot{padding:10px 16px;border-top:1px solid var(--divider);background:#FBFCFD;
+        font-size:12px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+
+  .notes{margin-top:36px;background:var(--surface);border:1px solid var(--divider);
+         border-radius:12px;padding:20px 22px}
+  .notes h2{font-size:15px;font-weight:800;margin:0 0 12px}
+  .notes table{font-size:13px}
+  .notes th,.notes td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--divider);height:auto}
+  .notes th{color:var(--ink-muted);font-weight:700;font-size:12px;background:transparent}
+  .notes p{font-size:13px;line-height:1.75;color:var(--ink-muted);margin:14px 0 0}
+  .notes p b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>직원 웹 밀도 3안 — 대기 목록 <span style="color:#5A6C7B;font-weight:600">(<code>/queue</code>)</span></h1>
+  <p class="sub">
+    📌 <b>이 목업은 화면이 아니라 「기준 크기」다</b> — 직원 웹 목업 전부가 여기서 정한 치수를 물려받는다(확정: 안 B).
+    화면으로서의 <code>/queue</code> 규칙은 아직 없다(다음 작업). 여기서 쓰인 규칙은
+    가림 <code>MASK-TEL-01</code> <code>MASK-DOB-01</code> · 셸 <code>SHELL-NAV-01</code>뿐이다.
+  </p>
+  <p class="sub">
+    색·서체·시각 레일은 환자 앱에서 확정한 것을 <b>그대로</b> 쓴다. 세 안은 <b>크기 단계만</b> 다르다 —
+    본문 글자, 이름, 시각, 행 높이, 안쪽 여백, 버튼 높이 여섯 가지.<br>
+    같은 데이터·같은 레이아웃이므로 순수하게 밀도만 비교된다.
+  </p>
+
+  <hr class="rule">
+
+  <div class="grid">
+
+    <!-- ─────────── 안 A ─────────── -->
+    <section class="col">
+      <div class="col-head">
+        <span class="tag">안 A</span>
+        <div class="col-title">약간만 줄이기</div>
+        <div class="col-spec">
+          본문 <code>14px</code> · 이름 <code>15px</code> · 시각 <code>16px</code><br>
+          행 높이 <code>52px</code> · 버튼 <code>40px</code>
+        </div>
+      </div>
+      <div class="d a">
+        <table>
+          <thead><tr><th>순</th><th>시각</th><th>환자</th><th>대기</th><th>상태</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="no">1</td><td><span class="rail">09:00</span></td>
+                <td><div class="nm">김영수</div><div class="meta">1958-03-12 · 내과 박준호</div></td>
+                <td class="wait warn">42분</td><td><span class="badge on">진료대기</span></td>
+                <td><button class="btn fill">진료 시작</button></td></tr>
+            <tr><td class="no">2</td><td><span class="rail">09:15</span></td>
+                <td><div class="nm">이정아</div><div class="meta">1991-07-04 · 내과 박준호</div></td>
+                <td class="wait">18분</td><td><span class="badge on">진료대기</span></td>
+                <td><button class="btn">도착 취소</button></td></tr>
+            <tr><td class="no">3</td><td><span class="rail">09:30</span></td>
+                <td><div class="nm">최민준</div><div class="meta">1977-11-23 · 정형외과 서지현</div></td>
+                <td class="wait">6분</td><td><span class="badge">도착</span></td>
+                <td><button class="btn">대기 등록</button></td></tr>
+            <tr><td class="no">4</td><td><span class="rail">09:30</span></td>
+                <td><div class="nm">한서윤</div><div class="meta">2015-02-08 · 소아과 임하늘</div></td>
+                <td class="wait">3분</td><td><span class="badge">도착</span></td>
+                <td><button class="btn">대기 등록</button></td></tr>
+            <tr><td class="no">5</td><td><span class="rail">09:45</span></td>
+                <td><div class="nm">박도현</div><div class="meta">1963-09-30 · 내과 박준호</div></td>
+                <td class="wait">—</td><td><span class="badge">진료중</span></td>
+                <td><button class="btn">진료 완료</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="foot">한 화면에 약 <b>14행</b></div>
+    </section>
+
+    <!-- ─────────── 안 B ─────────── -->
+    <section class="col">
+      <div class="col-head">
+        <span class="tag rec">안 B · 추천</span>
+        <div class="col-title">표준 축소</div>
+        <div class="col-spec">
+          본문 <code>13px</code> · 이름 <code>14px</code> · 시각 <code>15px</code><br>
+          행 높이 <code>44px</code> · 버튼 <code>36px</code>
+        </div>
+      </div>
+      <div class="d b">
+        <table>
+          <thead><tr><th>순</th><th>시각</th><th>환자</th><th>대기</th><th>상태</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="no">1</td><td><span class="rail">09:00</span></td>
+                <td><div class="nm">김영수</div><div class="meta">1958-03-12 · 내과 박준호</div></td>
+                <td class="wait warn">42분</td><td><span class="badge on">진료대기</span></td>
+                <td><button class="btn fill">진료 시작</button></td></tr>
+            <tr><td class="no">2</td><td><span class="rail">09:15</span></td>
+                <td><div class="nm">이정아</div><div class="meta">1991-07-04 · 내과 박준호</div></td>
+                <td class="wait">18분</td><td><span class="badge on">진료대기</span></td>
+                <td><button class="btn">도착 취소</button></td></tr>
+            <tr><td class="no">3</td><td><span class="rail">09:30</span></td>
+                <td><div class="nm">최민준</div><div class="meta">1977-11-23 · 정형외과 서지현</div></td>
+                <td class="wait">6분</td><td><span class="badge">도착</span></td>
+                <td><button class="btn">대기 등록</button></td></tr>
+            <tr><td class="no">4</td><td><span class="rail">09:30</span></td>
+                <td><div class="nm">한서윤</div><div class="meta">2015-02-08 · 소아과 임하늘</div></td>
+                <td class="wait">3분</td><td><span class="badge">도착</span></td>
+                <td><button class="btn">대기 등록</button></td></tr>
+            <tr><td class="no">5</td><td><span class="rail">09:45</span></td>
+                <td><div class="nm">박도현</div><div class="meta">1963-09-30 · 내과 박준호</div></td>
+                <td class="wait">—</td><td><span class="badge">진료중</span></td>
+                <td><button class="btn">진료 완료</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="foot">한 화면에 약 <b>17행</b></div>
+    </section>
+
+    <!-- ─────────── 안 C ─────────── -->
+    <section class="col">
+      <div class="col-head">
+        <span class="tag">안 C</span>
+        <div class="col-title">고밀도</div>
+        <div class="col-spec">
+          본문 <code>12px</code> · 이름 <code>13px</code> · 시각 <code>14px</code><br>
+          행 높이 <code>36px</code> · 버튼 <code>30px</code>
+        </div>
+      </div>
+      <div class="d c">
+        <table>
+          <thead><tr><th>순</th><th>시각</th><th>환자</th><th>대기</th><th>상태</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="no">1</td><td><span class="rail">09:00</span></td>
+                <td><div class="nm">김영수</div><div class="meta">1958-03-12 · 내과 박준호</div></td>
+                <td class="wait warn">42분</td><td><span class="badge on">진료대기</span></td>
+                <td><button class="btn fill">진료 시작</button></td></tr>
+            <tr><td class="no">2</td><td><span class="rail">09:15</span></td>
+                <td><div class="nm">이정아</div><div class="meta">1991-07-04 · 내과 박준호</div></td>
+                <td class="wait">18분</td><td><span class="badge on">진료대기</span></td>
+                <td><button class="btn">도착 취소</button></td></tr>
+            <tr><td class="no">3</td><td><span class="rail">09:30</span></td>
+                <td><div class="nm">최민준</div><div class="meta">1977-11-23 · 정형외과 서지현</div></td>
+                <td class="wait">6분</td><td><span class="badge">도착</span></td>
+                <td><button class="btn">대기 등록</button></td></tr>
+            <tr><td class="no">4</td><td><span class="rail">09:30</span></td>
+                <td><div class="nm">한서윤</div><div class="meta">2015-02-08 · 소아과 임하늘</div></td>
+                <td class="wait">3분</td><td><span class="badge">도착</span></td>
+                <td><button class="btn">대기 등록</button></td></tr>
+            <tr><td class="no">5</td><td><span class="rail">09:45</span></td>
+                <td><div class="nm">박도현</div><div class="meta">1963-09-30 · 내과 박준호</div></td>
+                <td class="wait">—</td><td><span class="badge">진료중</span></td>
+                <td><button class="btn">진료 완료</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="foot">한 화면에 약 <b>20행</b></div>
+    </section>
+
+  </div>
+
+  <div class="notes">
+    <h2>판단 재료</h2>
+    <table>
+      <thead><tr><th style="width:30%">기준</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>한 화면 행 수</td>
+            <td>1080p 모니터에서 머리말·필터를 뺀 실제 목록 영역 기준. <b>A 14행 / B 17행 / C 20행</b>.
+                오전 대기가 20명을 넘는 일은 흔하므로 A는 스크롤이 잦아진다.</td></tr>
+        <tr><td>요구사항 7절</td>
+            <td>“직원이 <b>오래 사용해도 피로하지 않고 실수하기 어려운</b> 화면”.
+                C는 행 사이 간격이 좁아 <b>옆줄을 눌러 다른 환자를 처리하는 사고</b>가 난다 — 상태 변경 버튼이 붙어 있어 되돌리기 어렵다.</td></tr>
+        <tr><td>클릭 목표 크기</td>
+            <td>환자 앱은 손가락이라 44px가 필요했지만 직원 웹은 마우스라 더 작아도 된다.
+                다만 <b>30px는 일반적인 권장 하한(약 32px)을 밑돈다</b> — C의 버튼이 여기 걸린다.</td></tr>
+        <tr><td>생년월일·전화번호 가독성</td>
+            <td>동명이인 확인용이라 <b>잘못 읽으면 다른 사람을 처리</b>하게 된다(요구사항 3.5·6.2).
+                12px는 숫자 <code>3·8</code>, <code>0·6</code> 구분이 눈에 띄게 나빠진다.</td></tr>
+        <tr><td>주의 표시가 살아 있나</td>
+            <td>‘42분’ 주의색은 배경 없이 <b>글자 + 좌측 4px 바</b>로만 표현한다(확정 규칙).
+                C에서는 행이 얕아 이 바가 눈에 덜 걸린다.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <b>안 B를 추천한다.</b> C보다 3행 적을 뿐인데 위 네 가지 위험을 전부 피한다.
+      A는 안전하지만 환자 앱과 거의 차이가 없어 <b>“크기 단계를 축소한다”는 결정을 사실상 안 한 것</b>이 되고,
+      캘린더처럼 A보다 더 조밀한 화면에서 다시 줄여야 해서 <b>화면마다 크기가 달라진다.</b>
+    </p>
+    <p>
+      ⚠️ 여기서 정한 값은 <b>표·목록 기준</b>이다. 의사 진료 화면의 <b>진료기록 작성란</b>은 예외로
+      본문을 한 단계 키운다(길게 읽고 쓰는 곳이라 표와 같은 크기를 쓰면 눈이 빨리 피로해진다) — 그 화면을 그릴 때 확정한다.
+    </p>
+  </div>
+
+</div>
+</body>
+</html>
