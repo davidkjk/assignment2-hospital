@@ -113,6 +113,16 @@
 
   .modal{background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:16px 18px;
          box-shadow:0 8px 24px rgba(16,36,58,.12);width:100%;max-width:460px}
+  .panel{background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:16px 18px;
+         box-shadow:0 8px 24px rgba(16,36,58,.12);width:100%;max-width:460px}
+  .panel-head{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;margin:0 0 12px}
+  .panel-head .sp{margin-left:auto;color:var(--ink-muted);font-size:11px;font-weight:700}
+  .panel label{display:block;font-size:11px;font-weight:800;color:var(--ink-muted);margin:0 0 4px}
+  .panel p{font-size:12px;color:var(--ink-muted);line-height:1.75}
+  .selected{border:1px solid #B9D7D7;border-radius:8px;background:#F1FAFA;padding:9px 10px;margin:0 0 10px}
+  .selected .nm{display:block;margin-bottom:3px}
+  .selected .meta{font-size:11px;color:var(--ink-muted)}
+  .legacy-wizard{display:none}
   .modal h4{font-size:14px;font-weight:800;margin:0 0 6px}
   .modal .step{font-size:11px;font-weight:800;color:var(--primary);letter-spacing:.04em;margin:0 0 4px}
   .modal p{font-size:12px;color:var(--ink-muted);line-height:1.75;margin:0 0 10px}
@@ -128,7 +138,7 @@
   .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}
   .hint{font-size:11px;color:var(--ink-muted);line-height:1.7;margin:-4px 0 10px}
   .hint.w{color:var(--warn);font-weight:700}
-  /* 모달 안의 결과 목록 — /patients와 같은 모양을 좁은 폭에 맞춘다(QUEUE-WALK-02c) */
+  /* 패널 안의 결과 목록 — /patients와 같은 모양을 좁은 폭에 맞춘다(QUEUE-WALK-02c) */
   .mlist{border:1px solid var(--divider);border-radius:8px;overflow:hidden;margin-bottom:10px;max-height:236px}
   .mlist .srow{grid-template-columns:minmax(56px,.8fr) 92px 120px;gap:0 8px;padding:0 10px;min-height:46px}
   .mlist .sect-h{padding:7px 10px}
@@ -165,13 +175,13 @@
 <body>
 <div class="page">
 
-<h1>환자 통합 검색 <span style="color:#5A6C7B;font-weight:600">(<code>/patients</code> + 워크인 모달 1단계)</span> · <span class="tag ok">확정안</span></h1>
+<h1>환자 통합 검색 <span style="color:#5A6C7B;font-weight:600">(<code>/patients</code> + 워크인 패널)</span> · <span class="tag ok">확정안</span></h1>
 <p class="sub">
   2026-08-06에 확정된 <b>「환자 찾기를 한 칸으로 통일한다」</b>(빈칸 B-11·B-14·B-15·B-16 해소)의 그림이다.
   규칙 <b><code>SEARCH-*</code> 42개</b>는 이미 썼는데 <b>그림이 없었다</b> — 이 문서가 그 그림이다.
 </p>
 <p class="sub">
-  ⭐ <b>화면이 둘인데 검색은 하나다.</b> <code>/patients</code>(전역 환자 검색)와 <b>워크인·전화예약 모달의 1단계</b>가
+  ⭐ <b>화면이 둘인데 검색은 하나다.</b> <code>/patients</code>(전역 환자 검색)와 <b>워크인·전화예약 패널의 환자 찾기</b>가
   <b>같은 칸·같은 목록·같은 순서</b>를 쓴다(<code>SEARCH-BOX-03</code>). 직원이 두 가지를 따로 배우지 않는다.
 </p>
 <p class="sub">셸은 <b>48번 안 B</b>, 크기는 <b>47번 안 B</b>(본문 13 / 버튼 36), 줄의 짜임은 <b>62번</b>과 같다. 사이드바·헤더는 생략하고 <b>본문만</b> 그렸다.</p>
@@ -191,7 +201,7 @@
   <code>SEARCH-RESULT-01~10</code> 찾은 수·이어받기·0건 · <code>SEARCH-ORDER-01~07</code> 순서 ·
   <code>SEARCH-LOG-01~05</code> 열람 기록 · <code>SEARCH-SAME-01</code> 동명이인 재확인 ·
   🆕 <code>SEARCH-ACT-01~09</code> 줄에서 바로 하는 일 · 🆕 <code>UNDO-*</code> 26개 상태 되돌리기(전역 신설)<br>
-  <b>모달 쪽</b> — <code>QUEUE-WALK-02b·02c·02d</code> 1단계에서 목록이 펼쳐진다 ·
+  <b>패널 쪽</b> — <code>QUEUE-WALK-02b·02c·02d</code> 검색 아래 목록이 펼쳐진다 ·
   <code>QUEUE-WALK-03·03b</code> 같은 검색을 쓴다 · <code>QUEUE-WALK-05·05b·05c</code> 신규 등록 4칸과 미리 채우기 ·
   <code>QUEUE-SAME-01~04</code> 재확인<br>
   함께 걸리는 기존 규칙 — <code>MASK-TEL-01</code> · <code>MASK-DOB-01</code> · <code>MASK-VIEW-01~03</code> ·
@@ -351,9 +361,9 @@
   오늘 아무 예약이 없으면 <b><code>[예약 잡기]</code>·<code>[당일 방문 등록]</code></b>.
   <b>네 개를 한 줄에 다 늘어놓지 않는다</b> — 62번의 「탭마다 버튼이 바뀐다」와 같은 원칙이다.<br>
   ⭐ <b>왜 이게 필요했나</b> — 요구사항 <code>:37</code>이 접수 직원의 일을 <b>셋</b>으로 적어 뒀고(현황 확인 · <b>전화예약/워크인 등록</b> · 도착 접수),
-  <b>검색이 그 셋 전부의 출발점</b>이다. 그런데 지금 플랜은 <b>모달을 먼저 열고 그 안에서 검색</b>하는 <b>한 방향</b>뿐이라,
+  <b>검색이 그 셋 전부의 출발점</b>이다. 그런데 지금 플랜은 <b>패널을 열고 그 안에서 검색</b>하는 <b>한 방향</b>뿐이라,
   <b>사람을 먼저 찾은 절반의 경우가 막다른 길</b>이었다 — 찾아 놓고도 검색을 닫고 대기 목록으로 가서 <b>같은 사람을 처음부터 다시 찾아야</b> 했다.<br>
-  🔧 <b>문이 두 개가 되어도 화면은 늘지 않는다</b> — 누르면 <b>같은 4단계 모달의 2단계부터</b> 열린다(<code>SEARCH-ACT-06</code>).
+  🔧 <b>문이 두 개가 되어도 화면은 늘지 않는다</b> — 누르면 <b>같은 등록 패널의 이어지는 입력 상태</b>가 열린다(<code>SEARCH-ACT-06</code>).
   ⚠️ 단 <b>동명이인 재확인 1차는 건너뛰지 않는다</b>(<code>SEARCH-ACT-07</code>).<br>
   📌 <code>[번호 보기]</code>는 <b>버튼 자리를 뺏지 않도록</b> 전화번호에 붙은 <b>작은 글자</b>로 내렸다(<code>MASK-VIEW-01</code>).
 </div>
@@ -492,7 +502,7 @@
 <h2 class="sec">⑤ 0건 — <b>같은 「없음」인데 다음에 할 일이 화면마다 다르다</b></h2>
 <p class="seclead">
   <code>SEARCH-RESULT-10</code>은 <b>0건 문구 + 다음에 할 일</b>을 함께 두라고 정했다.
-  그런데 <b>「다음에 할 일」이 두 화면에서 정반대</b>다 — <code>/patients</code>는 <b>찾는 중</b>이고, 모달은 <b>등록하는 중</b>이다.
+  그런데 <b>「다음에 할 일」이 두 화면에서 정반대</b>다 — <code>/patients</code>는 <b>찾는 중</b>이고, 패널은 <b>등록하는 중</b>이다.
   ⛔ 두 곳 모두 <code>[다시 시도]</code>는 두지 않는다(고장이 아니라 <b>정상적으로 없는 것</b>이다).
 </p>
 
@@ -521,10 +531,10 @@
     </div>
   </div>
   <div>
-    <p class="mini-t">㉯ <span class="n">모달 1단계 — 신규 등록으로 이어진다</span></p>
+    <p class="mini-t">㉯ <span class="n">패널의 검색 결과 0건 — 신규 등록으로 이어진다</span></p>
     <div class="screen" style="display:flex;justify-content:center">
       <div class="modal">
-        <p class="step">1 / 4 · 환자 찾기</p>
+        <p class="step">환자 찾기 · 등록 패널</p>
         <h4>당일 방문 등록</h4>
         <div class="sbox focus" style="height:42px;margin-bottom:8px">
           <span class="ico">🔍</span><span class="val" style="font-size:14px">01099887766</span><span class="caret"></span>
@@ -546,20 +556,51 @@
   </div>
 </div>
 
-<!-- ⑥ 모달 1단계 -->
-<h2 class="sec">⑥ 워크인 모달 1단계 — <b>같은 목록이 모달 안에서 펼쳐진다</b> <span class="tag new">B-16 확정</span></h2>
+<!-- ⑥ 워크인 단일 패널 -->
+<h2 class="sec">⑥ 워크인 당일 방문 등록 — <b>오른쪽 패널 한 화면</b> <span class="tag new">QUEUE-WALK-02</span></h2>
 <p class="seclead">
-  여러 명이 나와도 <b>단계는 4단계 그대로</b>다(<code>QUEUE-WALK-02b</code>). 「고르기」 단계를 따로 만들면
-  <b>1명만 나오는 가장 흔한 경우가 가장 느려진다.</b> 목록은 <b><code>/patients</code>와 같은 모양</b>이고(<code>QUEUE-WALK-02c</code>),
-  ⛔ <b><code>/patients</code>로 화면을 옮기지 않는다</b> — 모달이 닫히면 등록하던 일이 끊긴다(<code>QUEUE-WALK-02d</code>).
+  워크인 등록은 <b>4단계 마법사가 아니라 한 화면의 오른쪽 패널</b>이다(<code>QUEUE-WALK-02</code>).
+  환자 검색 결과는 검색 칸 바로 아래에 펼쳐지고(<code>QUEUE-WALK-02b·02c</code>), 선택한 환자·담당 의사·방문 시각·등록을
+  같은 패널에서 끝낸다(<code>QUEUE-WALK-02d</code>). <b>마지막 [등록]</b>에서만 본인 확인 팝업을 연다.
 </p>
+
+<div class="screen" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:14px;align-items:start">
+  <div class="card">
+    <div class="card-h">대기 목록 <span class="sp">8월 5일 (화)</span></div>
+    <div class="srow"><span class="nm">강태오</span><span class="dob">1988-**-11</span><span class="why">진료 대기 3번</span><span class="right"></span></div>
+    <div class="srow"><span class="nm">이정아</span><span class="dob">1991-**-04</span><span class="why mut">도착 전</span><span class="right"></span></div>
+    <div class="srow"><span class="nm">김민준</span><span class="dob">1977-**-23</span><span class="why mut">진료 완료</span><span class="right"></span></div>
+  </div>
+  <aside class="panel">
+    <div class="panel-head">당일 방문 등록 <span class="sp">오른쪽 패널 · 닫기</span></div>
+    <label>환자 찾기</label>
+    <div class="sbox focus" style="height:42px;margin-bottom:8px">
+      <span class="ico">검색</span><span class="val" style="font-size:14px">김</span><span class="caret"></span>
+    </div>
+    <div class="cntline" style="margin-bottom:10px"><b>3명</b> 찾음 · 이름·번호를 더 넣으면 좁혀집니다</div>
+    <div class="mlist">
+      <div class="srow on"><span class="nm">김영수</span><span class="dob">1958-**-12</span><span class="tel">010-****-5678</span></div>
+      <div class="srow"><span class="nm">김하늘</span><span class="dob">1990-**-07</span><span class="tel">010-****-2231</span></div>
+      <div class="srow"><span class="nm">김민준</span><span class="dob">2001-**-17</span><span class="tel">010-****-9014</span></div>
+    </div>
+    <div class="selected"><span class="nm">선택한 환자 · 김영수</span><span class="meta">1958-**-12 · 010-****-5678</span></div>
+    <label>담당 의사</label>
+    <div class="fld filled">내과 / 박지훈 · 대기 5명 · 다음 자리 15:20</div>
+    <label>방문 시각</label>
+    <div class="radio"><span class="on">지금 · 14:02</span><span>지난 시각 · 오늘 09:30</span></div>
+    <div class="acts"><button class="btn q sm">취소하고 닫기</button><button class="btn fill sm">등록</button></div>
+    <p class="hint">[등록] 뒤 본인 확인을 한 번 묻고 당일 방문을 저장합니다.</p>
+  </aside>
+</div>
+
+<div class="legacy-wizard">
 
 <div class="two-up">
   <div>
-    <p class="mini-t">⑥-1 <span class="n">여러 명이 나온 1단계 — 한 명을 누르면 <b>곧바로 2단계</b></span></p>
+    <p class="mini-t">⑥-1 <span class="n">여러 명이 나온 검색 상태 — 한 명을 누르면 <b>패널에 선택된다</b></span></p>
     <div class="screen" style="display:flex;justify-content:center">
       <div class="modal">
-        <p class="step">1 / 4 · 환자 찾기</p>
+        <p class="step">환자 찾기 · 등록 패널</p>
         <h4>당일 방문 등록</h4>
         <div class="sbox focus" style="height:42px;margin-bottom:8px">
           <span class="ico">🔍</span><span class="val" style="font-size:14px">김</span><span class="caret"></span>
@@ -578,21 +619,21 @@
         <p class="hint">목록을 아래로 내리면 <b>다음 20건</b>이 이어 붙습니다.</p>
         <div class="acts">
           <button class="btn q sm">취소하고 닫기</button>
-          <button class="btn dis sm">다음</button>
+          <button class="btn dis sm">등록</button>
         </div>
       </div>
     </div>
     <p class="h2s">
-      <b>모달 안에서는 <code>[번호 보기]</code>·<code>[환자 상세]</code> 버튼이 없다</b> — 여기서 할 일은 <b>고르는 것</b> 하나뿐이라
+      <b>등록 패널 안에서는 <code>[번호 보기]</code>·<code>[환자 상세]</code> 버튼이 없다</b> — 여기서 할 일은 <b>고르는 것</b> 하나뿐이라
       줄 전체가 <b>「고르기」 버튼</b>이다. <b>같은 목록이되 줄에 달린 동작이 화면 목적에 따라 다르다.</b>
-      <code>[다음]</code>은 <b>고르기 전에는 눌리지 않는다</b>(<code>BTN-STATE-03</code>).
+      <code>[등록]</code>은 <b>환자·의사·방문 시각을 고른 뒤에만 눌린다</b>(<code>BTN-STATE-03</code>).
     </p>
   </div>
   <div>
-    <p class="mini-t">⑥-2 <span class="n">1명만 나온 1단계 — <b>가장 흔한 경우</b>. 화면이 똑같다</span></p>
+    <p class="mini-t">⑥-2 <span class="n">1명만 나온 검색 상태 — <b>가장 흔한 경우</b>. 패널 모양은 똑같다</span></p>
     <div class="screen" style="display:flex;justify-content:center">
       <div class="modal">
-        <p class="step">1 / 4 · 환자 찾기</p>
+        <p class="step">환자 찾기 · 등록 패널</p>
         <h4>당일 방문 등록</h4>
         <div class="sbox focus" style="height:42px;margin-bottom:8px">
           <span class="ico">🔍</span><span class="val" style="font-size:14px">010-1234-5678</span><span class="caret"></span>
@@ -606,7 +647,7 @@
         <p class="hint">하이픈을 <b>그대로 붙여넣어도</b> 됩니다 — 지우고 비교합니다(<code>SEARCH-MATCH-03</code>).</p>
         <div class="acts">
           <button class="btn q sm">취소하고 닫기</button>
-          <button class="btn fill sm">다음</button>
+          <button class="btn fill sm">등록</button>
         </div>
       </div>
     </div>
@@ -620,16 +661,17 @@
 
 <div class="ok">
   <span class="t">⭐ <b>고른 뒤에는 반드시 재확인을 거친다</b>(<code>SEARCH-SAME-01</code> · <code>QUEUE-SAME-01~04</code>)</span><br>
-  2단계가 <b>동명이인 재확인 1차</b>다 — <b>이름 + 생년월일</b>을 보여주고 <code>예 / 아니오</code>만 묻는다(재입력을 받지 않는다).
+  등록 직전에 <b>동명이인 재확인</b>을 한다 — <b>이름 + 생년월일</b>을 보여주고 <code>예 / 아니오</code>만 묻는다(재입력을 받지 않는다).
   ⭐ <b>부분 일치로 목록이 넓어질수록 이 관문이 더 중요해진다</b> — 예전에는 「전화+생년월일 완전 일치」라 애초에 남이 섞일 일이 적었지만,
   지금은 <code>김</code> 한 글자에 <b>213명</b>이 뜬다. 그림은 <b>62번 ⑦</b>에 이미 있다.
 </div>
 
 <!-- ⑦ 신규 등록 -->
+</div>
 <h2 class="sec">⑦ 못 찾아 신규 등록으로 — <b>네 칸을 모두 받는다</b> <span class="tag new">깨진 규칙을 고친 자리</span></h2>
 <p class="seclead">
-  <code>QUEUE-WALK-05</code>는 원래 <b>“전화번호·생년월일은 1단계 값을 그대로 쓴다”</b>였다.
-  그건 1단계가 <b>「전화번호 칸 + 생년월일 칸」이던 시절</b>의 규칙이라, <b>통합 검색에서는 성립하지 않는다</b> —
+  <code>QUEUE-WALK-05</code>는 검색어로 알아볼 수 있는 값을 신규 등록 칸에 미리 채운다.
+  예전의 <b>「전화번호 칸 + 생년월일 칸」만 받는 입력</b>은 <b>통합 검색에서는 성립하지 않는다</b> —
   직원이 <code>김철수</code>라고 <b>이름만 쳤다면 전화번호도 생년월일도 없다.</b>
   그대로 뒀으면 <b>전화번호 없는 환자가 등록돼 나중에 아무도 못 찾는다</b>(<code>QUEUE-WALK-05b</code>).
 </p>
@@ -639,7 +681,7 @@
     <p class="mini-t">㉮ <span class="n">숫자 11자리로 찾았을 때 — <b>전화번호 칸</b>만 채워진다</span></p>
     <div class="screen" style="display:flex;justify-content:center">
       <div class="modal">
-        <p class="step">2 / 4 · 신규 환자 등록</p>
+        <p class="step">신규 환자 등록 · 등록 패널</p>
         <h4>처음 오신 환자입니다</h4>
         <p><b>01099887766</b>으로 찾았지만 없었습니다. 아래 <b>네 칸을 모두</b> 채워 주세요.</p>
         <label>이름</label>
@@ -653,7 +695,7 @@
         <p class="hint w">⚠️ 네 칸이 다 차기 전에는 다음으로 갈 수 없습니다.</p>
         <div class="acts">
           <button class="btn q sm">취소하고 닫기</button>
-          <button class="btn dis sm">다음</button>
+          <button class="btn dis sm">등록</button>
         </div>
       </div>
     </div>
@@ -662,7 +704,7 @@
     <p class="mini-t">㉯ <span class="n">이름만 쳤을 때 — <b>이름 칸</b>만 채워진다</span></p>
     <div class="screen" style="display:flex;justify-content:center">
       <div class="modal">
-        <p class="step">2 / 4 · 신규 환자 등록</p>
+        <p class="step">신규 환자 등록 · 등록 패널</p>
         <h4>처음 오신 환자입니다</h4>
         <p><b>김철순</b>으로 찾았지만 없었습니다. 아래 <b>네 칸을 모두</b> 채워 주세요.</p>
         <label>이름 <span style="color:#0B6E70">· 검색어에서 가져왔습니다</span></label>
@@ -676,7 +718,7 @@
         <p class="hint">⭐ <b>전화번호를 비워 둘 수 없다</b> — 비면 이 환자는 <b>다음에 아무도 못 찾는다.</b></p>
         <div class="acts">
           <button class="btn q sm">취소하고 닫기</button>
-          <button class="btn dis sm">다음</button>
+          <button class="btn dis sm">등록</button>
         </div>
       </div>
     </div>
@@ -723,7 +765,7 @@
   <code>access_audit_log</code>는 ① <b><code>patient_id</code>가 필수</b>인데 검색은 환자 1명이 아니다(213명이다) ·
   ② <code>resource_type</code>이 <code>patient_detail</code>·<code>medical_record</code> <b>둘만 허용</b> ·
   ③ <b>검색어를 담을 칸이 아예 없다</b> · ④ 조회 함수가 <code>join patients</code>라 <b>넣어도 안 보인다.</b><br>
-  ⭐ <b>이건 「그리다 보니 나온 것」의 표본이다</b> — 1단계에서 이 표를 만들 때는 <i>“환자 상세를 봤다 / 진료기록을 봤다”</i> 두 가지면 충분해 보였다.
+  ⭐ <b>이건 「그리다 보니 나온 것」의 표본이다</b> — 검색 기록을 만들 때는 <i>“환자 상세를 봤다 / 진료기록을 봤다”</i> 두 가지면 충분해 보였다.
   <b>검색 화면을 그려보고 나서야</b> 담을 곳이 없다는 걸 알았다. <b>마이그레이션은 이미 적용됐으므로 고치지 않고 <code>00010_</code>으로 덧붙인다.</b>
   <span class="warn">⏳ 「넓은 검색」 배지의 기준(몇 명부터인가)은 규칙에 없다 — SB-22.</span>
 </div>
@@ -896,8 +938,8 @@
     </tr>
     <tr>
       <td><b>SB-21</b></td><td>B</td>
-      <td><b>모달에서 1명만 나오면 자동으로 골라두나.</b> 지금 그림은 <b>골라둔 상태</b>(⑥-2)로 그렸는데 규칙에 근거가 없다.</td>
-      <td><b>골라두되 <code>[다음]</code>은 직원이 누른다</b>(추천) — <b>자동으로 2단계까지 넘어가면 안 된다.</b> 2단계가 곧 <b>동명이인 재확인</b>이라, 자동으로 넘기면 <b>확인해야 할 화면을 확인 없이 통과</b>한다.</td>
+      <td><b>패널에서 1명만 나오면 자동으로 골라두나.</b> 지금 그림은 <b>골라둔 상태</b>(⑥-2)로 그렸는데 규칙에 근거가 없다.</td>
+      <td><b>골라두되 <code>[등록]</code>은 직원이 누른다</b>(추천) — <b>환자·의사·방문 시각을 확인하기 전에는 저장하지 않는다.</b> 등록 직전에 <b>동명이인 재확인</b>을 거쳐야 한다.</td>
     </tr>
     <tr>
       <td><b>SB-22</b></td><td>C</td>

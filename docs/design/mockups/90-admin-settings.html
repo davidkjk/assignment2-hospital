@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>90 · 관리자 설정 /admin/settings — 결정 반영 상태</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --warn-bg:#FFF1E4; --danger:#9E3F6E; --danger-bg:#F3E7EA;
+    --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF; --book:#E7F1F1;
+    --book-line:#9FC6C6; --white:#FFFFFF; --panel:#FCFDFD;
+    --field-line:#CFD8DF; --soft-line:#E2E8ED; --muted-line:#93A2AE;
+    --toggle-off:#C3CDD5; --warn-line:#F2DCC6; --danger-line:#E4CBD6;
+    --warn-text:#6E4413; --warn-dark:#5A3306; --danger-text:#6B2A47;
+    --danger-dark:#4E1B32; --shadow:rgba(16,36,58,.13);
+    --focus:rgba(11,110,112,.12); --danger-focus:rgba(158,63,110,.10);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1220px;margin:0 auto;padding:34px 24px 82px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 7px}
+  h3{font-size:13px;font-weight:800;margin:0}
+  p{margin:0}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b,.quote b,.note b,.gap-card b,.modal b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+    border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote .warn{color:var(--warn);font-weight:800}
+  hr.rule{height:1px;background:var(--divider);margin:27px 0 29px;border:0}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.03em;
+    padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done);white-space:nowrap}
+  .tag.ok{background:var(--book);color:var(--primary)}
+  .tag.new{background:var(--warn-bg);color:var(--warn)}
+  .tag.no{background:var(--danger-bg);color:var(--danger)}
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:7px 0 0}
+  .hint.w b{color:var(--warn)}
+  .hint.g b{color:var(--primary)}
+
+  .rid{font-size:10px;font-weight:800;color:var(--primary);background:var(--book);
+    border-radius:4px;padding:1px 5px;margin-left:4px;white-space:nowrap}
+
+  svg.i{width:13px;height:13px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round}
+  svg.i.sm{width:11px;height:11px;vertical-align:-1px}
+  .app{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .apptop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);
+    font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .apptop .sp{flex:1}
+  .btn{border:1px solid var(--divider);border-radius:6px;padding:5px 10px;background:var(--surface);
+    font-size:11px;font-weight:800;color:var(--ink);white-space:nowrap;display:inline-block}
+  .btn.p{background:var(--primary);border-color:var(--primary);color:var(--white)}
+  .btn.q{color:var(--ink-muted)}
+  .btn.dis{background:var(--done-bg);border-color:var(--soft-line);color:var(--muted-line)}
+  .top-state{color:var(--warn);font-weight:800}
+  .split{display:flex;min-height:250px}
+  .lside{width:176px;flex:none;border-right:1px solid var(--divider);padding:8px 0;background:var(--panel)}
+  .lside .lh{font-size:10px;font-weight:800;color:var(--muted-line);padding:2px 12px 6px;letter-spacing:.03em}
+  .lrow{padding:9px 12px;font-size:11.5px;font-weight:800;color:var(--ink-muted);border-left:3px solid transparent;
+    display:flex;align-items:flex-start;gap:6px}
+  .lrow .txt{min-width:0}
+  .lrow .v{display:block;font-weight:600;font-size:10px;margin-top:2px;color:var(--muted-line);line-height:1.45}
+  .lrow.on{background:var(--book);border-left-color:var(--primary);color:var(--ink)}
+  .lrow.warnrow{background:var(--warn-bg);border-left-color:var(--warn)}
+  .lrow.warnrow .txt{color:var(--warn)}
+  .rside{flex:1;min-width:0;padding:12px 14px}
+  .rh{display:flex;align-items:baseline;gap:8px;margin:0 0 4px}
+  .rh b{font-size:13px;font-weight:800}
+  .rh span{font-size:11px;color:var(--ink-muted)}
+  .rh .sp{flex:1}
+  .row{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid var(--divider)}
+  .row:last-child{border-bottom:0}
+  .row .lb{width:154px;flex:none;font-size:11.5px;font-weight:800;padding-top:3px}
+  .row .lb .d{display:block;font-weight:600;color:var(--ink-muted);font-size:10.5px;line-height:1.5;margin-top:2px}
+  .row .ct{flex:1;min-width:0;font-size:11.5px;line-height:1.9}
+  .row .ct .note{display:block;font-size:10.5px;color:var(--ink-muted);line-height:1.6;margin-top:3px}
+  .fld{border:1px solid var(--field-line);border-radius:5px;padding:4px 8px;background:var(--surface);
+    font-size:11.5px;font-weight:700;display:inline-block;min-width:50px;text-align:center}
+  .fld.wide{min-width:250px;text-align:left}
+  .unit{font-size:11px;color:var(--ink-muted);font-weight:700;margin-left:4px}
+  .sw{width:26px;height:15px;border-radius:99px;background:var(--primary);position:relative;display:inline-block;vertical-align:-3px}
+  .sw::after{content:"";position:absolute;top:2px;left:13px;width:11px;height:11px;border-radius:99px;background:var(--white)}
+  .sw.off{background:var(--toggle-off)}
+  .sw.off::after{left:2px}
+  .swl{font-size:11px;font-weight:800;margin-left:6px;color:var(--primary)}
+  .swl.no{color:var(--ink-muted)}
+  .chk{width:13px;height:13px;border:1.5px solid var(--primary);border-radius:3px;display:inline-block;
+    vertical-align:-2px;background:var(--primary);position:relative}
+  .chk::after{content:"";position:absolute;left:3.5px;top:1px;width:4px;height:7px;border:solid var(--white);
+    border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .chk.no{background:var(--surface);border-color:var(--toggle-off)}
+  .chk.no::after{display:none}
+  .rad{display:inline-flex;gap:5px;flex-wrap:wrap}
+  .rad .r{border:1px solid var(--field-line);border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700}
+  .rad .r.on{background:var(--primary);border-color:var(--primary);color:var(--white)}
+  .ro{background:var(--done-bg);border:1px solid var(--divider);border-radius:6px;padding:9px 11px;
+    font-size:11px;line-height:1.9;color:var(--ink-muted)}
+  .ro b{color:var(--ink)}
+  .ro .lnk,.link{color:var(--primary);font-weight:800;text-decoration:none}
+
+  /* 결정 33: 항목별로 독립된 최근 변경 펼침 */
+  details.history{margin-top:5px;font-size:10.5px;line-height:1.6}
+  details.history summary{list-style:none;cursor:pointer;color:var(--ink-muted);font-size:10.5px;line-height:1.55}
+  details.history summary::-webkit-details-marker{display:none}
+  details.history summary::before{content:"";display:inline-block;width:5px;height:5px;border-right:1px solid var(--ink-muted);
+    border-bottom:1px solid var(--ink-muted);transform:rotate(-45deg);vertical-align:2px;margin:0 7px 0 2px}
+  details.history[open] summary::before{transform:rotate(45deg);vertical-align:3px}
+  .history-body{margin:5px 0 2px 14px;padding:7px 9px;background:var(--done-bg);border:1px solid var(--divider);border-radius:6px}
+  .history-line{display:flex;gap:8px;align-items:baseline;padding:2px 0;border-bottom:1px solid var(--divider)}
+  .history-line:last-of-type{border-bottom:0}
+  .history-line .date{width:74px;color:var(--ink-muted);white-space:nowrap}
+  .history-line .actor{width:52px;font-weight:800;white-space:nowrap}
+  .history-line .change{font-weight:800;color:var(--ink)}
+  .history-line .secret{color:var(--ink-muted)}
+  .history-foot{font-size:10px;color:var(--ink-muted);margin-top:5px}
+  .history-link{display:inline-flex;gap:6px;align-items:baseline;margin-top:4px}
+  .history-filter{font-size:10px;color:var(--primary);font-weight:800;background:var(--book);border-radius:4px;padding:2px 5px}
+  .history.compact{margin-top:2px}
+  .history.compact summary{font-size:9.5px}
+  .history.compact .history-body{margin-left:0;font-size:9.5px}
+
+  .subsection{border-top:1px solid var(--divider);padding-top:12px;margin-top:13px}
+  .subsection-head{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+  .subsection-head b{font-size:12.5px}
+  .subsection-head span{font-size:10.5px;color:var(--ink-muted)}
+  .provider{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:7px;padding:9px 11px;
+    color:var(--warn-text);font-size:11px;line-height:1.65;margin:7px 0 4px}
+  .provider b{color:var(--warn-dark)}
+  .provider .provider-title{font-weight:800;color:var(--warn-dark)}
+  .provider .link{color:var(--primary)}
+  .secret{background:var(--done-bg);border:1px solid var(--divider);border-radius:5px;padding:4px 8px;color:var(--ink-muted);font-weight:800;display:inline-block}
+
+  .ntab{width:100%;border-collapse:collapse;font-size:11px}
+  .ntab th{background:var(--panel);border-bottom:1px solid var(--divider);padding:6px 8px;text-align:left;
+    font-weight:800;color:var(--ink-muted);font-size:10px}
+  .ntab td{border-bottom:1px solid var(--divider);padding:7px 8px;vertical-align:middle}
+  .ntab tr:last-child td{border-bottom:0}
+  .ntab .kd{width:112px;font-weight:800;white-space:nowrap}
+  .ntab .cc{width:70px;text-align:center}
+  .ntab .box{border:1px solid var(--field-line);border-radius:5px;padding:5px 8px;background:var(--surface);
+    font-size:10.5px;line-height:1.55}
+  .ntab .col-lock{background:var(--done-bg)}
+  .ntab .box.dim{background:var(--done-bg);border-color:var(--soft-line);color:var(--muted-line)}
+  .token-editor{margin-top:10px;padding:9px 10px;background:var(--panel);border:1px solid var(--divider);border-radius:7px}
+  .token-editor-head{display:flex;align-items:baseline;gap:6px;font-size:10.5px;font-weight:800;margin-bottom:6px}
+  .token-editor-head .sp{flex:1}
+  .token-field{border:1px solid var(--field-line);border-radius:5px;padding:7px 8px;background:var(--surface);font-size:11px;line-height:1.65}
+  .token-tools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:7px}
+  .token-tools .label{font-size:10px;color:var(--ink-muted);font-weight:800;margin-right:2px}
+  .token-btn{border-color:var(--book-line);background:var(--book);color:var(--primary);padding:4px 7px;font-size:10px}
+  .token-btn.dis,.token-btn:disabled{background:var(--done-bg);border-color:var(--soft-line);color:var(--muted-line);cursor:not-allowed}
+  .token-note{display:block;margin-top:6px;font-size:10px;line-height:1.6;color:var(--ink-muted)}
+  .token-gap{margin-top:7px;padding:7px 9px;border-left:3px solid var(--warn);background:var(--warn-bg);color:var(--warn-text);font-size:10px;line-height:1.6}
+  .vr{display:inline-block;background:var(--book);border:1px solid var(--book-line);border-radius:4px;
+    padding:0 4px;font-size:10px;font-weight:800;color:var(--primary)}
+  .lockbar{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:6px;padding:7px 10px;
+    font-size:11px;line-height:1.6;color:var(--warn-text);margin:0 0 8px}
+  .lockbar b{color:var(--warn-dark)}
+  .lockbar .link{text-decoration:underline}
+
+  .status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:14px}
+  .status-card{background:var(--surface);border:1px solid var(--divider);border-radius:9px;overflow:hidden}
+  .status-head{display:flex;align-items:center;gap:7px;padding:9px 11px;border-bottom:1px solid var(--divider);
+    background:var(--panel);font-size:12px}
+  .status-head .sp{flex:1}
+  .status-body{padding:11px 12px;font-size:11px;line-height:1.7}
+  .status-body p{color:var(--ink-muted)}
+  .modal{background:var(--surface);border:1px solid var(--divider);border-radius:9px;box-shadow:0 8px 28px var(--shadow);
+    padding:12px 13px}
+  .modal h4{font-size:13px;font-weight:800;margin:0 0 7px}
+  .modal p{font-size:11px;line-height:1.7;color:var(--ink-muted);margin:0 0 6px}
+  .modal .acts{display:flex;gap:6px;justify-content:flex-end;margin-top:10px}
+  .confirm-list{margin:7px 0 2px;padding:0;list-style:none}
+  .confirm-list li{display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--divider);padding:5px 0}
+  .confirm-list .value{font-weight:800;color:var(--ink)}
+  .invalid-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .invalid-field{border:1px solid var(--danger);border-radius:5px;background:var(--surface);padding:5px 8px;font-weight:800}
+  .error{font-size:10.5px;line-height:1.55;color:var(--danger);font-weight:800;margin-top:4px}
+  .save-error{background:var(--danger-bg);border:1px solid var(--danger-line);border-radius:7px;padding:8px 10px;color:var(--danger-text);font-size:11px;line-height:1.6}
+  .save-error b{color:var(--danger-dark)}
+  .draft{margin-top:8px;padding:7px 9px;border-left:3px solid var(--warn);background:var(--warn-bg);color:var(--warn-text);font-size:10.5px;line-height:1.6}
+  .denied{display:flex;align-items:flex-start;gap:10px;border:1px solid var(--danger-line);background:var(--danger-bg);
+    border-radius:7px;padding:10px;color:var(--danger-text);line-height:1.7}
+  .denied .i{flex:none;margin-top:2px}
+  .disabled-fields{margin-top:8px;border:1px dashed var(--soft-line);border-radius:6px;padding:8px;color:var(--muted-line);background:var(--done-bg)}
+  .disabled-fields .btn{margin-top:6px}
+
+  .log-target{background:var(--book);border:1px solid var(--book-line);border-radius:8px;padding:10px 12px;margin-top:12px;
+    font-size:11px;line-height:1.7;color:var(--ink-muted)}
+  .log-target b{color:var(--ink)}
+  .log-target .route{display:inline-block;margin-top:4px;padding:3px 6px;background:var(--surface);border:1px solid var(--book-line);
+    border-radius:4px;color:var(--primary);font-weight:800}
+  .gap-card{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:11px 13px;margin-top:14px;
+    color:var(--warn-text);font-size:11px;line-height:1.75}
+  .gap-card .title{display:flex;gap:6px;align-items:center;color:var(--warn-dark);font-size:12px;font-weight:800;margin-bottom:3px}
+  .completion{background:var(--primary);color:var(--white);border-radius:8px;padding:12px 14px;margin-top:22px;
+    font-size:12px;font-weight:700;line-height:1.7}
+  .trace{width:100%;border-collapse:collapse;margin-top:12px;font-size:10.5px;background:var(--surface)}
+  .trace th,.trace td{border:1px solid var(--divider);padding:6px 8px;text-align:left;vertical-align:top;line-height:1.55}
+  .trace th{background:var(--done-bg);color:var(--ink-muted);font-weight:800}
+  .trace td:first-child{width:90px;font-weight:800;color:var(--primary)}
+  @media(max-width:760px){
+    .page{padding:60px 12px 60px}
+    .split{display:block}
+    .lside{width:100%;border-right:0;border-bottom:1px solid var(--divider);display:flex;overflow:auto;padding:4px 0}
+    .lside .lh{display:none}
+    .lrow{min-width:125px;border-left:0;border-bottom:3px solid transparent}
+    .lrow.on{border-left:0;border-bottom-color:var(--primary)}
+    .row{display:block}
+    .row .lb{width:auto;margin-bottom:4px}
+    .status-grid,.invalid-grid{grid-template-columns:1fr}
+    .ntab{min-width:650px}
+    .rside{overflow:auto}
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>90 · 관리자 설정 <code>/admin/settings</code> — 결정 반영 상태</h1>
+  <p class="sub">기존 목업 68·75의 왼쪽 세로 메뉴와 한 번 저장 구조를 이어받고, 결정 33의 항목별 변경 이력과 AD-067·AD-068의 알림 토큰·문자 정책 배치를 반영합니다.</p>
+  <div class="quote">
+    <b>이번 화면의 범위</b> — 취소 마감 시간, 앱 예약 자동확정, 오래 대기 기준, 문자 사용·Twilio 연결 상태·비용, 자동 알림 대상·문구·토큰 10종, 병원 정보입니다.<br>
+    설정 항목 아래의 회색 한 줄은 <b>마지막 변경 · 2026년 8월 10일 (월) 김간호</b>만 보여주며 전후 값은 숨깁니다. 줄을 누르면 해당 항목 이력만 펼쳐지고, 최근 10건 뒤에는 항목 필터가 적용된 접근 기록으로 이동합니다.
+  </div>
+
+  <hr class="rule">
+
+  <h2 class="sec">① 기본 상태 — 관리자 설정 화면</h2>
+  <p class="seclead">현재 저장값과 아직 저장하지 않은 초안을 한 화면에서 구분합니다. 열린 이력은 취소 마감 항목 하나뿐이며, 다른 이력 줄은 서로 독립적으로 열립니다.</p>
+
+  <div class="app">
+    <div class="apptop">
+      <svg class="i"><use href="#i-gear"/></svg> 병원 설정
+      <span class="sp"></span>
+      <span class="top-state">저장하지 않은 변경 2곳</span>
+      <span class="btn q">되돌리기</span><span class="btn p">저장</span>
+    </div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">병원 설정</div>
+        <div class="lrow on"><div class="txt">예약 규칙<span class="v">취소 마감 24시간<br>자동확정 켬</span></div><span class="rid">HSET-NAV-04</span></div>
+        <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+        <div class="lrow warnrow"><div class="txt">문자 발송<span class="v">켜짐 · Twilio 연결 필요</span></div></div>
+        <div class="lrow"><div class="txt">알림<span class="v">문구 3개 고침<br>문자로도 5종</span></div></div>
+        <div class="lrow"><div class="txt">병원 정보<span class="v">주소·전화 표시</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="rh"><b>예약 규칙</b><span>환자가 앱에서 할 수 있는 일의 범위입니다</span><span class="rid">HSET-NAV-03</span></div>
+        <div class="row">
+          <div class="lb">취소 마감 시간<span class="d">이 시간보다 늦으면 환자가<br>앱에서 직접 취소하지 못합니다</span><span class="rid">HSET-BOOK-01</span></div>
+          <div class="ct">
+            진료 시각 <span class="fld">24</span><span class="unit">시간 전까지</span>
+            <span class="note">마감을 넘긴 환자는 거절되는 것이 아니라 <b>상담(직원 확인)으로 연결</b>됩니다. 값을 바꾸면 저장할 때 영향 건수를 알려드립니다.<span class="rid">HSET-SAVE-06</span></span>
+            <details class="history" open>
+              <summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary>
+              <div class="history-body">
+                <div class="history-line"><span class="date">2026년 8월 10일 (월) 09:25</span><span class="actor">김간호</span><span class="change">24시간 → 2시간</span></div>
+                <div class="history-line"><span class="date">2026년 8월 8일 (토) 16:10</span><span class="actor">이관리</span><span class="change">48시간 → 24시간</span></div>
+                <div class="history-foot">최근 10건까지 표시합니다. 이 항목의 값만 조회합니다.</div>
+                <div class="history-link"><a class="link" href="/admin/access-logs?setting=cancellation_deadline_hours">더 보기 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="history-filter">이동 대상: /admin/access-logs · 필터: 취소 마감 시간</span></div>
+              </div>
+            </details>
+            <span class="rid">HSETX-AUDIT-01</span><span class="rid">HSETX-NAV-01</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lb">앱 예약 자동확정<span class="d">환자가 앱에서 넣은 예약을<br>직원 확인 없이 바로 확정</span><span class="rid">HSET-BOOK-05</span></div>
+          <div class="ct">
+            <span class="sw"></span><span class="swl">켬</span>
+            <span class="note">환자가 넣는 즉시 예약이 확정으로 보입니다.</span>
+            <details class="history"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월) 09:25</span><span class="actor">김간호</span><span class="change">꺼짐 → 켬</span></div><div class="history-foot">최근 10건까지 표시합니다. 이 항목의 값만 조회합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=auto_confirm_app_bookings">더 보기 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="history-filter">이동 대상: /admin/access-logs · 필터: 앱 예약 자동확정</span></div></div></details>
+            <span class="rid">HSETX-DEFAULT-01</span><span class="rid">HSETX-AUDIT-01</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lb">오래 대기 표시<span class="d">/today에 오래 대기 카드를<br>표시할 기준입니다</span><span class="rid">HSET-WAIT-01</span></div>
+          <div class="ct">
+            <span class="chk"></span> <span class="fld">30</span><span class="unit">분 이상</span>
+            <span class="note">체크를 풀면 표시하지 않으며, 숫자 0은 사용할 수 없습니다.<span class="rid">HSET-WAIT-03</span></span>
+            <details class="history"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월) 09:25</span><span class="actor">김간호</span><span class="change">20분 → 30분</span></div><div class="history-foot">최근 10건까지 표시합니다. 이 항목의 값만 조회합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=long_wait_threshold_minutes">더 보기 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="history-filter">이동 대상: /admin/access-logs · 필터: 오래 대기 기준</span></div></div></details>
+            <span class="rid">HSETX-VALID-01</span><span class="rid">HSETX-AUDIT-01</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app" style="margin-top:15px">
+    <div class="apptop"><svg class="i"><use href="#i-gear"/></svg> 병원 설정 <span class="sp"></span><span class="btn p">저장</span></div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">병원 설정</div>
+        <div class="lrow"><div class="txt">예약 규칙<span class="v">취소 마감 24시간<br>자동확정 켬</span></div></div>
+        <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+        <div class="lrow on"><div class="txt">문자 발송<span class="v">켜짐 · Twilio 연결 필요</span></div></div>
+        <div class="lrow"><div class="txt">알림<span class="v">문구 3개 고침<br>문자로도 5종</span></div></div>
+        <div class="lrow"><div class="txt">병원 정보<span class="v">주소·전화 표시</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="rh"><b>문자 발송</b><span>Twilio 연결 상태·문자 사용·비용만 안내합니다</span><span class="rid">HSET-SMS-01</span></div>
+        <div class="row">
+          <div class="lb">문자를 사용함<span class="rid">HSET-SMS-02</span></div>
+          <div class="ct">
+            <span class="sw"></span><span class="swl">켜짐</span>
+            <span class="note">자동 알림의 문자 사용 여부입니다. 누구에게·알림별 「문자로도」·문구와 토큰은 「알림」에서 정합니다.<span class="rid">HSET-SMS-02b</span><span class="rid">HSET-MSG-02</span></span>
+            <details class="history"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월) 09:25</span><span class="actor">김간호</span><span class="change">꺼짐 → 켜짐</span></div><div class="history-foot">최근 10건까지 표시합니다. 이 항목의 값만 조회합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=sms_enabled">더 보기 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="history-filter">이동 대상: /admin/access-logs · 필터: 문자 사용</span></div></div></details>
+            <span class="rid">HSETX-AUDIT-01</span>
+          </div>
+        </div>
+        <div class="provider">
+          <div class="provider-title"><svg class="i"><use href="#i-warn"/></svg> Twilio 연결 상태 · 연결 필요 <span class="rid">HSETX-SEC-02</span></div>
+          <div>문자 설정은 켜져 있지만 Twilio 연결이 확인되지 않았습니다. 연결 전에는 <b>발송을 시도하지 않고 안내를 표시</b>합니다. 비밀키와 발신번호는 직원 웹에 노출하거나 여기서 변경하지 않습니다.</div>
+          <div>발신번호 변경은 <span class="link">Twilio 관리자에서만</span> 진행합니다. 보낼 때마다 병원이 비용을 내며, 발송업체 계정은 병원에서 별도로 준비합니다.<span class="rid">HSET-SMS-04</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint w">문자 사용이 꺼져도 알림 문구와 토큰 버튼은 잠기지 않고, 알림 메뉴의 <b>누구에게</b>와 표의 <b>문자로도</b>만 잠깁니다. 잠긴 이유와 이동 경로는 알림 묶음에 함께 표시합니다.<span class="rid">HSET-SMS-02</span><span class="rid">HSET-SMS-02b</span><span class="rid">HSET-MSG-27~30</span></p>
+
+  <div class="app" style="margin-top:15px">
+    <div class="apptop"><svg class="i"><use href="#i-gear"/></svg> 병원 설정 <span class="sp"></span><span class="btn p">저장</span></div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">병원 설정</div>
+        <div class="lrow"><div class="txt">예약 규칙<span class="v">취소 마감 24시간<br>자동확정 켬</span></div></div>
+        <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+        <div class="lrow"><div class="txt">문자 발송<span class="v">켜짐 · Twilio 연결 필요</span></div></div>
+        <div class="lrow on"><div class="txt">알림<span class="v">문구 3개 고침<br>문자로도 5종</span></div></div>
+        <div class="lrow"><div class="txt">병원 정보<span class="v">주소·전화 표시</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="rh"><b>알림</b><span>자동 알림의 대상·문자 여부·문구·토큰을 함께 정합니다</span><span class="rid">HSET-NAV-01</span></div>
+        <div class="lockbar" id="sms"><svg class="i"><use href="#i-lock"/></svg> <b>문자 발송이 켜져 있지만 Twilio 연결이 확인되지 않아 문자 발송이 준비되지 않았습니다.</b> 지금은 문자 시도 대신 안내가 표시됩니다. <a class="link" href="/admin/settings#sms">문자 발송 연결 상태로 이동 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="rid">HSETX-SEC-02</span></div>
+        <div class="row">
+          <div class="lb">누구에게<span class="d">자동 알림의 기본 대상 정책</span><span class="rid">HSET-SMS-02b</span></div>
+          <div class="ct"><span class="rad"><span class="r on">앱을 안 쓰는 환자만</span><span class="r">모든 환자</span></span>
+            <span class="note">지금 문자를 보내지 않습니다. 앞으로 자동 알림이 문자로 갈 때의 기본 대상이며, 문자 사용을 끄면 값은 보존한 채 이 선택지만 잠깁니다.<span class="rid">HSET-SMS-05</span></span>
+            <details class="history"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월) 09:25</span><span class="actor">김간호</span><span class="change">모든 환자 → 앱을 안 쓰는 환자만</span></div><div class="history-foot">최근 10건까지 표시합니다. 이 항목의 값만 조회합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=sms_target">더 보기 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="history-filter">이동 대상: /admin/access-logs · 필터: 문자 수신 대상</span></div></div></details>
+            <span class="rid">HSETX-AUDIT-01</span>
+          </div>
+        </div>
+        <table class="ntab">
+          <colgroup><col><col><col class="col-lock"></colgroup>
+          <tr><th class="kd">종류</th><th>문구</th><th class="cc">문자로도</th></tr>
+          <tr><td class="kd">예약 신청</td><td><div class="box">예약이 신청되었습니다.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">변경 없음</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_booking_requested">더 보기</a><span class="history-filter">필터: 예약 신청</span></div></div></details></td><td class="cc"><span class="chk no"></span></td></tr>
+          <tr><td class="kd">예약 확정</td><td><div class="box"><span class="vr">[+날짜]</span> <span class="vr">[+시각]</span> 예약이 확정되었습니다.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">문구 1건 변경</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_booking_confirmed">더 보기</a><span class="history-filter">필터: 예약 확정</span></div></div></details></td><td class="cc"><span class="chk"></span></td></tr>
+          <tr><td class="kd">예약 전날</td><td><div class="box">내일 <span class="vr">[+시각]</span> 예약이 있습니다. 잊지 말고 방문해주세요.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">문구 1건 변경</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_day_before">더 보기</a><span class="history-filter">필터: 예약 전날</span></div></div></details></td><td class="cc"><span class="chk"></span></td></tr>
+          <tr><td class="kd">예약 당일</td><td><div class="box">오늘 <span class="vr">[+시각]</span> 예약이 있습니다.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">변경 없음</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_day_of">더 보기</a><span class="history-filter">필터: 예약 당일</span></div></div></details></td><td class="cc"><span class="chk"></span></td></tr>
+          <tr><td class="kd">예약 변경</td><td><div class="box"><span class="vr">[+날짜]</span> <span class="vr">[+시각]</span>으로 예약이 변경되었습니다.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">문구 1건 변경</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_booking_changed">더 보기</a><span class="history-filter">필터: 예약 변경</span></div></div></details></td><td class="cc"><span class="chk"></span></td></tr>
+          <tr><td class="kd">병원 취소</td><td><div class="box">병원 사정으로 예약이 취소되었습니다.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">변경 없음</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_hospital_cancelled">더 보기</a><span class="history-filter">필터: 병원 취소</span></div></div></details></td><td class="cc"><span class="chk"></span></td></tr>
+          <tr><td class="kd">취소 승인</td><td><div class="box">취소 요청이 승인되었습니다.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">변경 없음</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_cancel_approved">더 보기</a><span class="history-filter">필터: 취소 승인</span></div></div></details></td><td class="cc"><span class="chk no"></span></td></tr>
+          <tr><td class="kd">취소 반려</td><td><div class="box">취소 요청이 반려되었습니다.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">변경 없음</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_cancel_rejected">더 보기</a><span class="history-filter">필터: 취소 반려</span></div></div></details></td><td class="cc"><span class="chk no"></span></td></tr>
+          <tr><td class="kd">문진 안내</td><td><div class="box">사전문진을 작성해주세요.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">변경 없음</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_questionnaire">더 보기</a><span class="history-filter">필터: 문진 안내</span></div></div></details></td><td class="cc"><span class="chk no"></span></td></tr>
+          <tr><td class="kd">진료 완료</td><td><div class="box">진료가 완료되었습니다. 안내를 확인해주세요.</div><details class="history compact"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월)</span><span class="actor">김간호</span><span class="change">변경 없음</span></div><div class="history-foot">최근 10건까지 표시합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=notification_visit_completed">더 보기</a><span class="history-filter">필터: 진료 완료</span></div></div></details></td><td class="cc"><span class="chk no"></span></td></tr>
+        </table>
+        <div class="token-editor">
+          <div class="token-editor-head"><b>현재 편집 중 · 예약 확정</b><span class="rid">HSET-MSG-16</span><span class="sp"></span><span class="tag new">날짜·시각 연결 전</span></div>
+          <div class="token-field" role="textbox" aria-label="예약 확정 알림 문구 편집">[+환자 이름]님의 예약이 확정되었습니다. [+날짜] [+시각]</div>
+          <div class="token-tools" aria-label="토큰 삽입 버튼"><span class="label">커서 위치에 삽입</span><button class="btn token-btn" type="button">[+환자 이름]</button><button class="btn token-btn dis" type="button" disabled>[+날짜] · 곧 지원</button><button class="btn token-btn dis" type="button" disabled>[+시각] · 곧 지원</button></div>
+          <span class="token-note">버튼을 누르면 현재 커서 위치에 토큰 칩을 꽂습니다. 직접 입력한 <b>"이름"</b>은 자동 토큰으로 해석하지 않습니다. 발송 시에는 토큰만 해당 환자·예약의 실제 값으로 바뀝니다.<span class="rid">HSET-MSG-16</span><span class="rid">HSETX-DATA-02</span></span>
+          <div class="token-gap"><b>BLOCKED-BEFORE-MERGE</b> — [+날짜]·[+시각]의 실제 치환(예약 시각 데이터 연결)은 아직 구현되지 않았습니다. 연결 전에는 날짜·시각 버튼을 비활성화하고, 발송 시 원 토큰이나 빈 값이 나가지 않도록 서버 치환 계약을 먼저 구현합니다.<span class="rid">HSET-MSG-17</span><span class="rid">HSETX-DATA-02</span></div>
+        </div>
+        <p class="hint">문구와 토큰은 이 「알림」 메뉴에서 함께 관리하며, 직접 환자를 골라 보내는 업무는 <code>/messages</code>에서 처리합니다. 기본 문구로 되돌릴 때도 이 알림 줄의 이력만 남깁니다.<span class="rid">HSET-MSG-02</span><span class="rid">HSET-MSG-22</span><span class="rid">HSET-MSG-24</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="app" style="margin-top:15px">
+    <div class="apptop"><svg class="i"><use href="#i-gear"/></svg> 병원 설정 <span class="sp"></span><span class="btn p">저장</span></div>
+    <div class="split">
+      <div class="lside">
+        <div class="lh">병원 설정</div>
+        <div class="lrow"><div class="txt">예약 규칙<span class="v">취소 마감 24시간<br>자동확정 켬</span></div></div>
+        <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+        <div class="lrow"><div class="txt">문자 발송<span class="v">켜짐 · Twilio 연결 필요</span></div></div>
+        <div class="lrow"><div class="txt">알림<span class="v">문구 3개 고침<br>문자로도 5종</span></div></div>
+        <div class="lrow on"><div class="txt">병원 정보<span class="v">주소·전화 표시</span></div></div>
+      </div>
+      <div class="rside">
+        <div class="rh"><b>병원 정보</b><span>환자 앱에 그대로 보입니다</span><span class="rid">HSET-INFO-01</span></div>
+        <div class="row"><div class="lb">주소</div><div class="ct"><span class="fld wide">서울시 강남구 테헤란로 123</span><span class="note">환자 앱 홈 예약 카드와 설정의 병원 줄에 표시됩니다.</span><details class="history"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월) 09:25</span><span class="actor">김간호</span><span class="change">주소 문구 변경</span></div><div class="history-foot">최근 10건까지 표시합니다. 이 항목의 값만 조회합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=hospital_address">더 보기 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="history-filter">이동 대상: /admin/access-logs · 필터: 병원 주소</span></div></div></details><span class="rid">HSETX-AUDIT-01</span></div></div>
+        <div class="row"><div class="lb">대표 전화</div><div class="ct"><span class="fld wide">02-1234-5678</span><span class="note">취소 마감을 넘긴 환자에게 직원 상담 번호로 안내됩니다.</span><details class="history"><summary>마지막 변경 · 2026년 8월 10일 (월) 김간호</summary><div class="history-body"><div class="history-line"><span class="date">2026년 8월 10일 (월) 09:25</span><span class="actor">김간호</span><span class="change">대표 전화 변경</span></div><div class="history-foot">최근 10건까지 표시합니다. 이 항목의 값만 조회합니다.</div><div class="history-link"><a class="link" href="/admin/access-logs?setting=hospital_phone">더 보기 <svg class="i sm"><use href="#i-arrow"/></svg></a><span class="history-filter">이동 대상: /admin/access-logs · 필터: 대표 전화</span></div></div></details><span class="rid">HSETX-AUDIT-01</span></div></div>
+        <div class="row"><div class="lb">다가오는 휴무일<span class="d">여기서는 볼 수만 있습니다</span><span class="rid">HSET-INFO-03</span></div><div class="ct"><div class="ro"><b>2026년 2월 9일 (월)~2026년 2월 11일 (수)</b> 설 연휴 · 종일 휴무<br><b>2026년 3월 1일 (일)</b> 삼일절 · 종일 휴무<div style="margin-top:6px"><a class="link" href="/admin/schedule?date=2026-02-09">진료 일정 관리 · 특정 날짜 변경에서 관리 <svg class="i sm"><use href="#i-arrow"/></svg></a></div></div><span class="note">휴무일은 이 화면에서 수정하지 않습니다.<span class="rid">HSETX-NAV-01</span></span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-target"><b>접근 기록 이동 미리보기</b> — 각 항목의 [더 보기]는 맨몸의 <code>/admin/access-logs</code>가 아니라 <b>설정 항목 필터가 적용된 화면</b>으로 열립니다.<br><span class="route">/admin/access-logs · 필터: 취소 마감 시간 · 기간: 최근 30일 · 관리자 변경만</span> <span class="rid">HSETX-NAV-01</span></div>
+
+  <!-- 구현 미비: 설정 이력 전용 표·설정 read/update API·문자 제공자 연결 상태 계약은 아직 DB와 서버에 없다. -->
+  <div class="gap-card">
+    <div class="title"><svg class="i"><use href="#i-warn"/></svg> 구현 미비 <span class="tag new">BLOCKED-BEFORE-MERGE</span><span class="rid">HSETX-DATA-01</span></div>
+    <div>이 작업본은 저장값·항목별 이력·계정 미연결 상태를 그린 설계입니다. 현재 DB에는 설정별 이력과 대부분의 설정 저장 칸이 없으므로, 이 카드는 실제 저장 완료를 가장하지 않습니다. 설정 변경과 이력 기록을 한 트랜잭션으로 묶는 migration·API·권한 검증이 먼저 필요합니다.<span class="rid">HSETX-DATA-04</span><span class="rid">HSETX-API-01</span><span class="rid">HSETX-AUDIT-02</span></div>
+  </div>
+
+  <hr class="rule">
+
+  <h2 class="sec">② 상태 모음 — 저장·검증·권한</h2>
+  <p class="seclead">아래는 같은 화면에서 발생하는 별도 상태를 한 번에 확인하는 모형입니다. 실패 상태에서도 초안과 현재 위치를 유지합니다.</p>
+
+  <div class="status-grid">
+    <section class="status-card">
+      <div class="status-head"><span class="tag new">저장 확인</span><h3>취소 마감 0시간 저장 전</h3><span class="sp"></span><span class="rid">HSET-SAVE-06</span></div>
+      <div class="status-body"><div class="modal"><h4><svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg> 취소 마감을 24시간 → 0시간으로 바꿉니다</h4><p>0시간은 진료 직전까지 취소할 수 있다는 뜻입니다. 직전 취소로 노쇼가 늘 수 있으므로 저장 전에 확인합니다.</p><ul class="confirm-list"><li><span>새로 마감 후가 되는 예약</span><span class="value">7건</span></li><li><span>환자에게 자동 알림</span><span class="value">보내지 않음</span></li></ul><div class="acts"><span class="btn q">그대로 둘게요</span><span class="btn p">0시간으로 저장</span></div></div></div>
+    </section>
+
+    <section class="status-card">
+      <div class="status-head"><span class="tag no">검증 실패</span><h3>허용 범위 밖 입력</h3><span class="sp"></span><span class="rid">HSETX-VALID-01</span></div>
+      <div class="status-body"><div class="invalid-grid"><div><div class="invalid-field">취소 마감 · -1</div><div class="error">0~168시간만 입력할 수 있습니다. 빈값·문자·음수는 저장할 수 없습니다.</div></div><div><div class="invalid-field">오래 대기 · 0</div><div class="error">1~180분만 입력할 수 있습니다. 0은 사용할 수 없습니다.</div></div></div><p class="hint">문자열, 빈값, 음수도 같은 자리에서 즉시 거부하며 저장 버튼은 비활성화합니다.</p></div>
+    </section>
+
+    <section class="status-card">
+      <div class="status-head"><span class="tag no">저장 실패</span><h3>서버 검증 또는 이력 기록 실패</h3><span class="sp"></span><span class="rid">HSETX-STATE-02</span></div>
+      <div class="status-body"><div class="save-error"><svg class="i"><use href="#i-warn"/></svg> 저장하지 못했습니다. <b>취소 마감 시간, 오래 대기 기준</b> 변경이 반영되지 않았습니다.</div><div class="draft">초안 유지 · 상단에 주황 점 2곳 표시 · 화면을 떠나지 않음<br>다시 저장하기 전까지 입력한 값과 이력 펼침 상태를 보존합니다.</div><div class="acts" style="margin-top:8px"><span class="btn q">되돌리기</span><span class="btn p">다시 저장</span></div><p class="hint">성공 토스트나 저장 완료 문구로 덮지 않습니다.<span class="rid">HSET-SAVE-02</span><span class="rid">ERR-RETRY-*</span><span class="rid">NAV-GLOBAL-07</span></p></div>
+    </section>
+
+    <section class="status-card">
+      <div class="status-head"><span class="tag no">권한 없음</span><h3>관리자 외 접근</h3><span class="sp"></span><span class="rid">HSET-NAV-05</span></div>
+      <div class="status-body"><div class="denied"><svg class="i"><use href="#i-lock"/></svg><div><b>관리자 권한이 필요합니다.</b><br>설정값을 읽거나 저장할 수 없습니다. 기본값으로 채워 저장된 것처럼 보이지 않으며, 로그인한 역할의 기본 화면으로 이동할 수 있습니다.</div></div><div class="disabled-fields">설정 입력과 저장 버튼 비활성화<div><span class="btn dis">저장</span></div></div><div class="acts" style="margin-top:8px"><button class="btn p" type="button">역할 기본화면으로 가기 <svg class="i sm"><use href="#i-arrow"/></svg></button></div><p class="hint">서버에서도 관리자 권한을 다시 확인하고, 역할에 따라 접수직원은 오늘의 현황, 의사는 진료 콘솔로 이동합니다.<span class="rid">ROLE-ADM-*</span><span class="rid">NAV-SHELL-05</span><span class="rid">HSETX-STATE-01</span></p></div>
+    </section>
+  </div>
+
+  <table class="trace">
+    <tr><th>상태</th><th>화면에 남긴 요점</th><th>다음 구현 갭</th></tr>
+    <tr><td>항목별 이력</td><td>각 항목 아래 같은 회색 한 줄, 펼치면 해당 항목만 최근 10건과 필터 이동</td><td>설정 change-log 표·필터 API</td></tr>
+    <tr><td>AD-067 토큰</td><td>알림 문구 아래 [+환자 이름]·[+날짜]·[+시각] 버튼, 커서 위치 삽입, 직접 입력한 "이름"은 토큰 아님</td><td>예약 시각 데이터 연결·발송 치환</td></tr>
+    <tr><td>AD-068 문자 정책</td><td>알림에 누구에게·문자로도·문구/토큰, 문자 발송에는 Twilio 상태·사용·비용만, 발신번호는 Twilio 관리자</td><td>자동 알림 정책 API·Twilio 연동·외부 관리자 경계</td></tr>
+    <tr><td>문자 연결 미확인</td><td>문자 ON 유지, Twilio 연결 필요, 발송 시도 대신 안내, 비밀키·발신번호 미노출</td><td>연결 상태 감지·발송 차단·직원 안내 소비</td></tr>
+    <tr><td>수치 검증</td><td>취소 마감 0~168시간, 오래 대기 1~180분, 빈값·문자·음수 거부</td><td>DB 칸·서버 검증·0시간 확인 건수 API</td></tr>
+    <tr><td>저장·권한</td><td>확인창, 저장 실패 초안 유지, 권한 없음 비활성 상태</td><td>원자 저장·409 재검증·권한별 API</td></tr>
+  </table>
+
+  <h2 class="sec">③ 작업 인계 메모</h2>
+  <div class="log-target"><b>보고</b> — 68·75의 시각 구조를 재사용해 90번 관리자 설정 상태 모음판에 AD-067·AD-068의 확정안을 반영했습니다. 알림 메뉴에 자동 대상·문자로도·문구/토큰을 모으고 문자 발송 메뉴는 Twilio 연결 상태·문자 사용·비용만 남겼으며, 직접 발송은 <code>/messages</code>로 분리했습니다. 날짜·시각 실제 치환과 Twilio 연동·발신번호 외부 관리자 경계는 구현 전 차단으로 남깁니다.</div>
+  <table class="trace">
+    <tr><th>화면 동작 규칙</th><th>적용 내용</th><th>상태</th></tr>
+    <tr><td>항목별 이력</td><td>각 설정 항목 아래 회색 한 줄, 클릭 시 그 항목만 펼침, 최근 10건과 필터 적용 접근 기록 링크</td><td>기존 <span class="rid">HSETX-AUDIT-01</span><span class="rid">HSETX-NAV-01</span> 인용</td></tr>
+    <tr><td>AD-067 토큰</td><td>세 토큰 버튼을 문구 편집 아래에 두고 커서 위치에 삽입, 직접 입력한 "이름"은 변환하지 않음</td><td><span class="rid">HSET-MSG-16</span> USER-FINAL · 날짜/시각 <span class="tag new">BLOCKED-BEFORE-MERGE</span></td></tr>
+    <tr><td>AD-068 자동 알림 정책</td><td>알림에 누구에게·문자로도·문구/토큰을 모으고, 문자 발송은 Twilio 상태·사용·비용만 안내. 발신번호는 Twilio 관리자에서 변경</td><td><span class="rid">HSET-SMS-02b</span><span class="rid">HSET-SMS-05</span><span class="rid">HSET-MSG-02</span><span class="rid">HSETX-SEC-02</span></td></tr>
+    <tr><td>숫자 검증</td><td>취소 마감 0~168시간, 오래 대기 1~180분, 빈값·문자·음수 거부</td><td><span class="rid">HSETX-VALID-01</span> FINAL</td></tr>
+    <tr><td>상태·권한</td><td>저장 확인·검증 실패·저장 실패·권한 없음, 실패 시 초안 유지와 현재 위치 유지</td><td><span class="rid">HSETX-STATE-01</span><span class="rid">HSETX-STATE-02</span><span class="rid">HSETX-STATE-03</span> 인용</td></tr>
+  </table>
+  <div class="gap-card"><div class="title"><svg class="i"><use href="#i-warn"/></svg> 결정·⑦ 플랜 대조</div><div><b>결정:</b> 새 설계·새 결정 없이 AD-067·AD-068의 사용자 확정안을 기존 ID에 연결했습니다. <b>BLOCKED-BEFORE-MERGE:</b> DB·서버 조회·API·다음 소비자 4층에서 알림 override/token 저장, 예약 시각 치환, Twilio 연결 상태·발송 차단·외부 관리자 발신번호 경계가 구현되지 않았습니다. `/messages` 파일은 참조만 했고 수정하지 않았습니다.<br><b>mirror에서 고친 것:</b> 없음. <b>남은 것:</b> 코디네이터가 병합 패킷에 migration·API·RLS·알림 치환·Twilio 연동 게이트를 남겨야 합니다.</div></div>
+
+  <div class="completion">90 완료: 기존 상태 모음에 AD-067 토큰 버튼/직접입력 경계와 AD-068 자동 알림 정책 배치를 반영했습니다. 날짜·시각 실제 치환, 알림 override 저장·조회, Twilio 연결·발송 차단·외부 관리자 발신번호 변경은 <b>BLOCKED-BEFORE-MERGE</b>입니다.</div>
+</div>
+</body>
+</html>
+<!-- 수정 보고: AD-067의 토큰 버튼/커서 삽입 안내와 날짜·시각 치환 BLOCKED 상태, AD-068의 알림·문자 발송 메뉴 분리 및 Twilio 관리자 발신번호 경계를 반영했습니다. 기존 HSET/HSETX ID만 인용했고 /messages 관련 파일은 손대지 않았습니다. git status --short: 비어 있음. -->

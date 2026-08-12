@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>77 · QR·예약번호 접수 /checkin · CHKIN</title>
+<style>
+  :root{--primary:#0B6E70;--ink:#10243A;--ink-muted:#5A6C7B;--warn:#B44E00;--warn-bg:#FFF1E4;--danger:#9E3F6E;--danger-bg:#F3E7EA;--done:#67788A;--done-bg:#F5F7F8;--bg:#F2F5F7;--surface:#fff;--divider:#E1E8EC;--soft:#F8FAFB;--teal-soft:#E7F1F1;--teal-line:#9FC6C6}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:13px;-webkit-font-smoothing:antialiased}
+  .page{max-width:1360px;margin:0 auto;padding:32px 24px 80px}h1{font-size:22px;margin:0 0 6px;font-weight:800}h2{font-size:16px;margin:34px 0 8px;font-weight:800}h3{font-size:13px;margin:0;font-weight:800}.sub{color:var(--ink-muted);line-height:1.75;margin:0}.sub b{color:var(--ink)}code{background:var(--done-bg);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--ink)}
+  .note{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);border-radius:8px;padding:12px 15px;margin:16px 0;line-height:1.75;color:var(--ink-muted)}.note b{color:var(--ink)}.note.w{border-left-color:var(--warn);background:var(--warn-bg)}.note.d{border-left-color:var(--danger);background:var(--danger-bg)}
+  .rule{display:inline-block;border-radius:4px;padding:2px 5px;background:var(--teal-soft);color:var(--primary);font-weight:800;font-size:10px;line-height:1.35;white-space:nowrap}.rule.muted{background:var(--done-bg);color:var(--done)}.rule.warn{background:var(--warn-bg);color:var(--warn)}.rule.no{background:var(--danger-bg);color:var(--danger)}
+  .app{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(16,36,58,.05)}.top{height:42px;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--divider);font-size:11px;color:var(--ink-muted);font-weight:800}.top .brand{color:var(--ink);font-size:12px}.top .sp{flex:1}.role{padding:4px 8px;background:var(--done-bg);border-radius:99px;font-size:10px;color:var(--ink)}.top .action{border:1px solid var(--divider);border-radius:5px;padding:5px 8px;background:var(--surface);color:var(--ink);font-size:10px}.top .action.p{background:var(--primary);border-color:var(--primary);color:var(--surface)}
+  .stage{display:flex;min-height:700px}.nav{width:156px;flex:none;border-right:1px solid var(--divider);background:#FBFCFD;padding:9px 0}.nav .grp{padding:9px 13px 5px;color:var(--ink-muted);font-size:10px;font-weight:800;letter-spacing:.04em}.nav .it{display:flex;align-items:center;gap:7px;border-left:3px solid transparent;padding:7px 13px;color:var(--ink-muted);font-size:11.5px}.nav .it.on{background:var(--teal-soft);border-left-color:var(--primary);color:var(--primary);font-weight:800}.nav .it .sp{flex:1}.nav .num{color:var(--warn);font-weight:800;font-size:10px}
+  .body{flex:1;min-width:0;padding:17px 19px 28px;background:#FCFDFD}.crumb{display:flex;align-items:center;gap:6px;color:var(--ink-muted);font-size:11px;margin-bottom:12px}.crumb b{color:var(--ink)}svg.i{width:14px;height:14px;vertical-align:-3px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.i.fill{fill:currentColor;stroke:none}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid var(--divider);border-radius:6px;padding:7px 11px;background:var(--surface);color:var(--ink);font-size:11px;font-weight:800;white-space:nowrap}.btn.p{background:var(--primary);border-color:var(--primary);color:var(--surface)}.btn.q{color:var(--ink-muted)}.btn.dis{background:var(--done-bg);color:#AEB9C3;border-color:var(--divider)}.btn.dg{border-color:var(--danger-bg);color:var(--danger)}
+  .screenhead{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.screenhead .sp{flex:1}.screenhead h2{font-size:20px;margin:0 0 4px}.screenhead p{margin:0;color:var(--ink-muted);font-size:11.5px;line-height:1.6}.chip{font-size:10px;padding:4px 8px;border-radius:99px;background:var(--teal-soft);color:var(--primary);font-weight:800;white-space:nowrap}
+  .screen-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(230px,.75fr);gap:12px}.card{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.card-hd{display:flex;align-items:center;gap:7px;padding:10px 12px;border-bottom:1px solid var(--divider);background:#FBFCFD}.card-hd .sp{flex:1}.card-bd{padding:13px 14px}.entry{border-color:var(--teal-line);background:#FBFEFE}.entry-bd{padding:15px}.label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;margin-bottom:5px}.label .req{color:var(--warn);font-size:10px}.inputline{display:flex;gap:7px;align-items:stretch}.inputline input{width:100%;min-width:0;border:1px solid #A8C9C9;border-radius:6px;padding:10px 11px;background:var(--surface);color:var(--ink);font:inherit;font-size:18px;font-weight:800;letter-spacing:.18em;outline:0}.inputline input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(11,110,112,.13)}.inputline .btn{min-width:68px}.helper{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;color:var(--ink-muted);font-size:10.5px;line-height:1.55}.helper span{display:inline-flex;align-items:center;gap:4px}.helper svg{color:var(--primary)}
+  .method-foot{display:flex;align-items:center;gap:7px;margin-top:14px;padding-top:12px;border-top:1px solid var(--divider)}.method-foot .or{color:var(--ink-muted);font-size:10px;font-weight:800}.method-foot .btn{padding:6px 9px}.hint{color:var(--ink-muted);font-size:10.5px;line-height:1.6}.hint b{color:var(--ink)}
+  .aside-bd{padding:12px}.aside-row{display:flex;align-items:flex-start;gap:8px;padding:9px 3px;border-bottom:1px solid var(--divider);font-size:11px;line-height:1.55}.aside-row:last-child{border-bottom:0}.aside-row .icon{width:23px;height:23px;display:flex;align-items:center;justify-content:center;flex:none;border-radius:6px;background:var(--teal-soft);color:var(--primary)}.aside-row b{display:block;margin-bottom:2px}.aside-row span{color:var(--ink-muted)}.security{margin-top:10px;padding:9px 10px;border-left:4px solid var(--warn);background:var(--warn-bg);color:var(--warn);font-size:10.5px;line-height:1.6}.security b{color:var(--warn)}
+  .statusbar{display:flex;align-items:center;gap:8px;padding:9px 11px;margin-top:10px;border:1px dashed var(--divider);border-radius:7px;color:var(--ink-muted);font-size:10.5px}.statusbar .sp{flex:1}.statusbar strong{color:var(--ink)}.statusbar.good{border-color:#BBDADA;background:#FBFEFE;color:var(--primary)}.statusbar.good strong{color:var(--primary)}.statusbar.err{border-color:var(--danger-bg);background:var(--danger-bg);color:var(--danger)}.statusbar.warn{border-color:var(--warn-bg);background:var(--warn-bg);color:var(--warn)}
+  .ids{padding:8px 11px;border-top:1px solid var(--divider);background:#FBFCFD;line-height:1.7}.ids .rule{margin:2px 2px 0 0}
+  .state-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.state{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.state-hd{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--divider);background:#FBFCFD;font-size:11.5px;font-weight:800}.state-hd .sp{flex:1}.state-bd{padding:11px;font-size:10.5px;line-height:1.6}.state-bd p{margin:7px 0 0;color:var(--ink-muted)}.mini-input{display:flex;gap:5px}.mini-input .field{flex:1;border:1px solid var(--divider);border-radius:5px;padding:6px 7px;color:var(--ink);font-size:11px;font-weight:800;letter-spacing:.12em}.mini-input .btn{padding:5px 8px;font-size:10px}.field-error{margin-top:5px;color:var(--warn);font-size:10px}.errorline{display:flex;gap:7px;align-items:flex-start;padding:8px 9px;border-left:4px solid var(--warn);background:var(--warn-bg);color:var(--warn);border-radius:5px}.errorline b{color:var(--warn)}.qr-preview{position:relative;height:100px;border:1px solid #D6E1E4;border-radius:6px;background:#0F2935;display:flex;align-items:center;justify-content:center;overflow:hidden}.qr-preview:before,.qr-preview:after{content:"";position:absolute;width:24px;height:24px;border:2px solid #BBDADA}.qr-preview:before{top:15px;left:18px;border-right:0;border-bottom:0}.qr-preview:after{right:18px;bottom:15px;border-left:0;border-top:0}.qr-preview .scanline{position:absolute;left:24px;right:24px;top:49px;height:2px;background:#8BD0CF;box-shadow:0 0 10px #8BD0CF}.qr-preview .qr{width:57px;height:57px;background:repeating-conic-gradient(#F7FFFF 0 8%,#122B38 0 16%);border:5px solid var(--surface)}.qr-label{position:absolute;bottom:6px;left:0;right:0;text-align:center;color:#DDF3F2;font-size:10px;font-weight:800}.scan-actions{display:flex;align-items:center;gap:6px;margin-top:8px}.scan-actions .sp{flex:1}.found-box{padding:10px;border:1px solid #BBDADA;border-radius:6px;background:#FBFEFE;color:var(--primary)}.found-box strong{display:block;font-size:12px;margin:4px 0}.found-box span{color:var(--ink-muted)}
+  .compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.opt{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.opt.win{border-color:var(--primary);box-shadow:0 0 0 2px rgba(11,110,112,.12)}.opt.lose{opacity:.74}.opthd{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#FBFCFD;border-bottom:1px solid var(--divider);font-size:11.5px;font-weight:800}.tag{display:inline-block;padding:3px 7px;border-radius:99px;font-size:10px;font-weight:800;background:var(--done-bg);color:var(--done)}.tag.ok{background:var(--primary);color:var(--surface)}.tag.no{background:var(--danger-bg);color:var(--danger)}.optbd{padding:10px;font-size:10.5px;line-height:1.6}.mini-shell{border:1px solid var(--divider);border-radius:6px;overflow:hidden;background:var(--surface)}.mini-head{height:18px;background:var(--soft);border-bottom:1px solid var(--divider)}.mini-body{display:grid;grid-template-columns:28px 1fr;min-height:70px}.mini-nav{background:#FBFCFD;border-right:1px solid var(--divider)}.mini-main{padding:7px}.mini-line{height:7px;background:var(--divider);border-radius:3px;margin:0 0 6px}.mini-line.p{background:#BBDADA;width:85%}.mini-line.w{background:var(--warn-bg);width:70%}.mini-line.d{background:var(--danger-bg);width:56%}.verdict{padding:8px 10px;border-top:1px solid var(--divider);font-size:10.5px;line-height:1.55;background:#FBFCFD}.verdict.ok b{color:var(--primary)}.verdict.no b{color:var(--danger)}
+  table.trace{width:100%;border-collapse:collapse;font-size:10.5px;background:var(--surface)}table.trace th,table.trace td{border:1px solid var(--divider);padding:7px 8px;text-align:left;vertical-align:top;line-height:1.55}table.trace th{background:#FBFCFD;color:var(--ink-muted);font-weight:800}table.trace td:first-child{white-space:nowrap;color:var(--primary);font-weight:800}.foot{color:var(--ink-muted);font-size:11px;line-height:1.75;margin:10px 0}.foot b{color:var(--ink)}
+  @media(max-width:900px){.stage{display:block}.nav{width:100%;display:flex;align-items:center;gap:4px;border-right:0;border-bottom:1px solid var(--divider);overflow:auto}.nav .grp{display:none}.nav .it{white-space:nowrap}.screen-grid,.state-grid,.compare{grid-template-columns:1fr}.screenhead{display:block}.screenhead .chip{display:inline-block;margin-top:8px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.5-3.5 2.5-5 6-5s5.5 1.5 6 5"/><circle cx="17" cy="10" r="2.5"/><path d="M14 16c2.8-.8 5.2.5 6 4"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM16 18h4v2h-4z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 7h4l1.5-2h5L16 7h4a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="4"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h.01M8 9h.01M11 9h.01M14 9h.01M17 9h.01M5 13h.01M8 13h.01M11 13h.01M14 13h5M6 16h12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 2 5"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+</svg>
+
+<main class="page">
+  <h1>77 · <b>QR·예약번호 접수</b> <code>/checkin</code></h1>
+  <p class="sub">환자 앱의 <b>QR 스캔</b>을 주 경로로, 6자리 <b>예약번호 직접 입력</b>을 보조 경로로 사용해 유효한 예약을 찾는 직원용 화면.</p>
+  <div class="note"><b>확정된 우선순위</b> — QR을 첫 번째 큰 행동으로 두고, 카메라를 사용할 수 없거나 QR이 없는 경우 바로 아래에서 예약번호를 직접 입력한다. 두 경로는 같은 서버 조회와 같은 실패 안내를 사용한다.</div>
+
+  <section class="app" aria-label="QR·예약번호 접수 직원 웹 화면">
+    <header class="top">
+      <span class="brand">루나병원</span><span>직원 웹</span><span class="sp"></span>
+      <span class="role">김접수 · 접수 직원</span><span>로그아웃</span>
+      <span class="action">+ 새 예약</span><span class="action p">+ 당일 방문</span>
+    </header>
+    <div class="stage">
+      <nav class="nav" aria-label="직원 웹 메뉴">
+        <div class="grp">진료 현장</div>
+        <div class="it">오늘의 현황</div><div class="it">대기 목록</div><div class="it">예약 캘린더</div>
+        <div class="it on"><svg class="i"><use href="#i-qr"/></svg>QR·예약번호 접수</div>
+        <div class="grp">환자</div><div class="it"><svg class="i"><use href="#i-user"/></svg>환자 검색</div>
+        <div class="grp">운영·관리</div><div class="it">안내 보내기</div><div class="it">운영 통계</div>
+      </nav>
+      <div class="body">
+        <div class="crumb"><svg class="i"><use href="#i-cal"/></svg><span>진료 현장</span><span>/</span><b>QR·예약번호 접수</b></div>
+        <div class="screenhead"><div><h2>QR·예약번호 접수</h2><p>먼저 환자 앱의 QR을 읽어 주세요. QR이 없으면 예약번호를 직접 입력할 수 있습니다.</p></div><span class="sp"></span><span class="chip">CHKIN-HEAD-01 · 접수직원·관리자</span></div>
+
+        <div class="screen-grid">
+          <section class="card entry" aria-label="QR 스캔과 예약번호 보조 입력">
+            <div class="card-hd"><svg class="i" style="color:var(--primary)"><use href="#i-qr"/></svg><h3>QR로 예약 찾기</h3><span class="sp"></span><span class="rule">CHKIN-SCAN-01</span></div>
+            <div class="entry-bd">
+              <button class="btn p" type="button" style="width:100%;justify-content:center;padding:12px;font-size:13px"><svg class="i"><use href="#i-camera"/></svg>QR 스캔 시작</button>
+              <div class="helper"><span><svg class="i"><use href="#i-check"/></svg>첫 인식 뒤 자동 조회</span><span><svg class="i"><use href="#i-lock"/></svg>버튼을 누른 뒤에만 카메라 사용</span></div>
+              <div class="method-foot" style="margin:14px 0 9px"><span class="hint"><b>QR이 없나요?</b> 예약번호를 직접 입력하세요.</span><span class="sp"></span><span class="or">보조</span></div>
+              <label class="label" for="booking-code"><svg class="i" style="color:var(--primary)"><use href="#i-keyboard"/></svg>예약번호 직접 입력<span class="sp"></span><span class="rule muted">CHKIN-CODE-01·02</span></label>
+              <div class="inputline"><input id="booking-code" value="AB34CD" aria-label="예약번호" autocomplete="off" inputmode="text"/><button class="btn q" type="button">예약번호로 찾기</button></div>
+              <div class="helper"><span><svg class="i"><use href="#i-check"/></svg>6자리 · 대문자로 확인</span><span><svg class="i"><use href="#i-check"/></svg>앞뒤 공백은 자동 정리</span><span><svg class="i"><use href="#i-keyboard"/></svg>Enter로 바로 조회</span></div>
+              <div class="statusbar" aria-live="polite"><svg class="i"><use href="#i-lock"/></svg><span>아직 조회하지 않았습니다. 최근 환자·예약 정보는 초기 화면에 보이지 않습니다.</span><span class="sp"></span><span class="rule muted">CHKIN-LOAD-03</span></div>
+            </div>
+            <div class="ids"><span class="rule">CHKIN-CODE-01</span><span class="rule">CHKIN-CODE-02</span><span class="rule">CHKIN-CODE-03</span><span class="rule">CHKIN-CODE-05</span><span class="rule">CHKIN-SCAN-01</span><span class="rule">CHKIN-LOAD-03</span></div>
+          </section>
+
+          <aside class="card" aria-label="이 화면의 역할과 경계">
+            <div class="card-hd"><svg class="i" style="color:var(--primary)"><use href="#i-lock"/></svg><h3>이 화면에서 하는 일</h3><span class="sp"></span><span class="rule muted">P-01</span></div>
+            <div class="aside-bd">
+              <div class="aside-row"><div class="icon"><svg class="i"><use href="#i-qr"/></svg></div><div><b>찾고 바로 도착 처리</b><span>유효한 예약은 같은 카드에서 확인하고 도착 처리합니다.</span></div></div>
+              <div class="aside-row"><div class="icon"><svg class="i"><use href="#i-camera"/></svg></div><div><b>두 경로는 한 조회</b><span>직접 입력과 QR은 같은 함수·같은 실패 안내를 씁니다.</span></div></div>
+              <div class="aside-row"><div class="icon"><svg class="i"><use href="#i-user"/></svg></div><div><b>환자 검색은 하지 않음</b><span>이름으로 못 찾는 접수는 환자 검색·대기 목록에서 처리합니다.</span></div></div>
+              <div class="security"><svg class="i"><use href="#i-lock"/></svg> <b>만료인지 없는 코드인지 구분하지 않습니다.</b><br>환자 존재 여부와 취소·부도 사유를 이 화면에서 드러내지 않습니다.</div>
+            </div>
+            <div class="ids"><span class="rule">CHKIN-HEAD-02</span><span class="rule">CHKIN-HEAD-03</span><span class="rule">CHKIN-RESULT-02</span><span class="rule">ROLE-ADM-01</span><span class="rule">SHELL-NAV-02</span></div>
+          </aside>
+        </div>
+
+        <h3 style="margin:25px 0 8px">화면 상태 — 같은 `/checkin` 안에서 달라지는 모습</h3>
+        <p class="sub" style="font-size:10.5px">실제 화면은 아래 상태 중 하나만 보여준다. 유효 조회 뒤에도 별도 상세 화면으로 가지 않고 같은 `/checkin` 카드에서 도착 처리를 끝낸다.</p>
+        <div class="state-grid" style="margin-top:10px">
+          <section class="state" aria-label="예약번호 형식 오류 상태">
+            <div class="state-hd"><span class="tag no">형식 오류</span> 6자리가 아님 <span class="sp"></span><span class="rule">CHKIN-CODE-04</span></div>
+            <div class="state-bd"><div class="mini-input"><div class="field">AB3</div><button class="btn p">조회</button></div><div class="field-error">예약번호 6자리를 입력해 주세요</div><p>조회하지 않고 칸 바로 아래에서 고칠 수 있게 한다. 오류가 있는 칸으로 이동한다.</p></div>
+          </section>
+          <section class="state" aria-label="예약번호 없음 또는 만료 상태">
+            <div class="state-hd"><span class="tag no">찾지 못함</span> 만료·미존재 <span class="sp"></span><span class="rule">CHKIN-RESULT-02</span></div>
+            <div class="state-bd"><div class="mini-input"><div class="field">ZZ99ZZ</div><button class="btn p">조회</button></div><div class="errorline" style="margin-top:7px"><svg class="i"><use href="#i-warn"/></svg><div><b>만료되었거나 존재하지 않는 예약번호입니다</b></div></div><p>실제 사유와 환자 존재 여부를 나누지 않는다. 입력값은 남겨 두고 다시 고친다.</p></div>
+          </section>
+          <section class="state" aria-label="QR 스캔 중 상태">
+            <div class="state-hd"><span class="tag ok">스캔 중</span> 카메라가 열림 <span class="sp"></span><span class="rule">CHKIN-SCAN-01</span></div>
+            <div class="state-bd"><div class="qr-preview" aria-label="QR 스캐너 미리보기"><div class="qr"></div><div class="scanline"></div><div class="qr-label">QR 코드를 사각형 안에 맞춰 주세요</div></div><div class="scan-actions"><span class="hint">첫 인식 뒤 자동으로 멈춥니다.</span><span class="sp"></span><button class="btn q"><svg class="i"><use href="#i-close"/></svg>QR 스캔 중지</button></div><p><span class="rule">CHKIN-SCAN-02</span> 디코드한 코드는 같은 조회 함수를 한 번 호출한다.</p></div>
+          </section>
+          <section class="state" aria-label="카메라 권한 실패 상태">
+            <div class="state-hd"><span class="tag no">수동 입력 가능</span> 카메라를 시작하지 못함 <span class="sp"></span><span class="rule">CHKIN-SCAN-04</span></div>
+            <div class="state-bd"><div class="errorline"><svg class="i"><use href="#i-warn"/></svg><div><b>카메라를 시작할 수 없습니다</b><br>카메라 권한을 확인해주세요</div></div><div class="scan-actions"><span class="hint">예약번호를 직접 입력할 수 있습니다.</span><span class="sp"></span><button class="btn q">다시 QR 스캔</button></div><p>카메라 오류가 예약 확인 전체를 막지 않는다.</p></div>
+          </section>
+          <section class="state" aria-label="예약 찾음과 도착 처리 상태">
+            <div class="state-hd"><span class="tag ok">찾음</span> 같은 카드에서 확인 <span class="sp"></span><span class="rule">CHKIN-RESULT-01·03</span></div>
+            <div class="state-bd"><div class="found-box"><svg class="i"><use href="#i-check"/></svg><strong>예약을 찾았습니다 · 예약확정</strong><span>오늘 10:30 · 내과 · 김의사<br>김○○ 환자</span></div><div class="scan-actions"><span class="hint">예약과 환자를 확인한 뒤 처리합니다.</span><span class="sp"></span><button class="btn p">도착 처리</button></div><p>별도 예약 상세 화면으로 이동하지 않는다. 확인창 없이 기존 상태 전이를 호출하고 실패하면 이 카드를 보존한다.</p></div>
+          </section>
+          <section class="state" aria-label="도착 처리 완료 상태">
+            <div class="state-hd"><span class="tag ok">처리 완료</span> 화면 유지 · 카드 갱신 <span class="sp"></span><span class="rule">CHKIN-RESULT-04</span></div>
+            <div class="state-bd"><div class="found-box"><svg class="i"><use href="#i-check"/></svg><strong>도착 처리했습니다 · 도착</strong><span>김○○ 환자 · 오늘 10:30 · 내과</span></div><div class="scan-actions"><span class="hint">다음 환자의 QR을 바로 스캔할 수 있습니다.</span><span class="sp"></span><button class="btn q">대기 목록에서 보기</button></div><p>버튼을 누를 때만 `/queue`의 해당 환자 줄로 이동한다.</p></div>
+          </section>
+        </div>
+
+        <div class="ids" style="margin-top:11px"><b style="font-size:10.5px;color:var(--ink)">상태·예외 추적</b><br><span class="rule">CHKIN-CODE-04</span><span class="rule">CHKIN-CODE-05</span><span class="rule">CHKIN-CODE-06</span><span class="rule">CHKIN-RESULT-01</span><span class="rule">CHKIN-RESULT-02</span><span class="rule">CHKIN-RESULT-03</span><span class="rule">CHKIN-RESULT-04</span><span class="rule">CHKIN-SCAN-01</span><span class="rule">CHKIN-SCAN-02</span><span class="rule">CHKIN-SCAN-03</span><span class="rule">CHKIN-SCAN-04</span><span class="rule">CHKIN-SCAN-05</span><span class="rule">CHKIN-LOAD-01</span><span class="rule">CHKIN-LOAD-02</span></div>
+      </div>
+    </div>
+  </section>
+
+  <h2>확정된 입력 우선순위</h2>
+  <div class="compare" style="grid-template-columns:1fr">
+    <section class="opt win"><div class="opthd"><span class="tag ok">FINAL</span> QR 주 경로 + 예약번호 직접 입력 보조</div><div class="optbd"><div class="mini-shell"><div class="mini-head"></div><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div class="mini-line p"></div><div class="mini-line p"></div><div class="mini-line"></div></div></div></div><p>요구사항 7절의 순서와 사용자 확정에 따라 QR을 첫 번째 큰 행동으로 둔다. 카메라를 사용할 수 없거나 QR이 없는 경우에도 같은 카드의 예약번호 입력으로 즉시 이어진다.</p></div><div class="verdict ok"><b>CHKIN-SCAN-01·04 / CHKIN-CODE-01·03</b> — 두 경로는 같은 조회 함수를 공유한다.</div></section>
+  </div>
+
+  <h2>새 규칙 추적표</h2>
+  <table class="trace">
+    <tr><th>묶음</th><th>목업에 반영된 새 규칙</th><th>상태·핵심 위치</th></tr>
+    <tr><td>셸·권한</td><td>CHKIN-HEAD-01 · 02 · 03</td><td>공통 셸, 역할 칩, 권한 없는 직접 URL은 기존 `NAV-SHELL-*` 인용</td></tr>
+    <tr><td>직접 입력</td><td>CHKIN-CODE-01 · 02 · 03 · 04 · 05 · 06</td><td>6자리 입력, 정규화, Enter/조회, 형식 오류, busy, 이탈</td></tr>
+    <tr><td>조회 결과</td><td>CHKIN-RESULT-01 · 02 · 03 · 04</td><td>같은 카드에서 예약 확인·도착 처리·완료 상태 갱신·대기 목록 이탈</td></tr>
+    <tr><td>QR 스캔</td><td>CHKIN-SCAN-01 · 02 · 03 · 04 · 05</td><td>열기·공유 조회·첫 프레임·카메라 실패·중지</td></tr>
+    <tr><td>연결·세션</td><td>CHKIN-LOAD-01 · 02 · 03</td><td>기존 `OFF-*`·`BTN-*`·`NAV-SHELL-*`를 인용. 대상 route/API는 BLOCKED</td></tr>
+  </table>
+  <p class="foot"><b>기존 규칙 인용:</b> <code>ROLE-ADM-01</code> · <code>SHELL-NAV-02~04</code> · <code>SHELL-URL-01</code> · <code>MASK-*</code> · <code>SEARCH-*</code> · <code>ERR-*</code> · <code>EMPTY-*</code> · <code>BTN-*</code> · <code>OFF-*</code> · <code>PANEL-USE-01</code> · <code>NAV-SHELL-03·05·08·09</code> · <code>DISP-*</code>. 새 `NAV-*`·`MASK-*`·`SEARCH-*`·`ROLE-*`는 만들지 않았다.</p>
+</main>
+</body>
+</html>

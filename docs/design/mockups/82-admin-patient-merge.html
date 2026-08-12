@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>82 · 중복 환자 후보 /admin/patient-merge-candidates — 설계 초안</title>
+<style>
+  :root{
+    --primary:#0B6E70;--ink:#10243A;--ink-muted:#5A6C7B;--warn:#B44E00;--warn-bg:#FFF1E4;
+    --danger:#A33F45;--danger-bg:#F8E9E9;--done:#67788A;--done-bg:#F5F7F8;
+    --bg:#F2F5F7;--surface:#FFF;--divider:#E3E9EE;--teal-bg:#E7F1F1;--teal-line:#9FC6C6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.55 Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}
+  .page{max-width:1360px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;line-height:1.35;margin:0 0 7px;font-weight:800}h2{font-size:16px;margin:34px 0 7px;line-height:1.45}h3{font-size:13px;margin:0;font-weight:800}h4{font-size:11px;margin:0 0 6px}p{margin:0}.sub{font-size:14px;color:var(--ink-muted);line-height:1.75}.sub b,.note b,.callout b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;font-size:11px;color:var(--ink)}
+  .note,.callout{margin-top:14px;border:1px solid var(--divider);border-left:4px solid var(--primary);background:var(--surface);border-radius:8px;padding:11px 14px;color:var(--ink-muted);font-size:12px;line-height:1.8}.callout.warn{border-left-color:var(--warn);background:var(--warn-bg)}.callout.lock{border-left-color:var(--done)}
+  .tag,.rid{display:inline-block;border-radius:99px;font-size:10px;line-height:1.35;font-weight:800;letter-spacing:.02em;padding:3px 7px;background:var(--done-bg);color:var(--done);white-space:nowrap}.tag.ok{background:var(--primary);color:var(--surface)}.tag.warn{background:var(--warn-bg);color:var(--warn)}.tag.no{background:var(--danger-bg);color:var(--danger)}
+  .rid{border-radius:4px;background:var(--teal-bg);color:var(--primary);margin:2px 2px 0 0}.rid.no{background:var(--danger-bg);color:var(--danger)}
+  svg.i{width:14px;height:14px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}svg.i.sm{width:11px;height:11px;vertical-align:-1px}
+  .hr{height:1px;background:var(--divider);border:0;margin:27px 0}
+
+  .app{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;margin-top:20px;box-shadow:0 4px 14px rgba(16,36,58,.04)}
+  .top{height:39px;border-bottom:1px solid var(--divider);display:flex;align-items:center;gap:9px;padding:0 13px;font-size:11px;font-weight:800;color:var(--ink-muted)}.top .brand{color:var(--ink);font-size:12px}.top .sp{flex:1}.role{border:1px solid var(--divider);border-radius:99px;padding:3px 8px;color:var(--ink);font-size:10px}.top .action{border-left:1px solid var(--divider);padding-left:10px;color:var(--primary)}
+  .stage{display:flex;min-height:940px;background:var(--divider)}.nav{width:180px;flex:none;background:#FCFDFD;border-right:1px solid var(--divider);padding:11px 0}.nav .group{padding:5px 13px 7px;color:#93A2AE;font-size:10px;font-weight:800;letter-spacing:.04em}.nav .item{display:flex;align-items:center;gap:7px;padding:8px 12px;border-left:3px solid transparent;color:var(--ink-muted);font-weight:800;font-size:11px}.nav .item.on{background:var(--teal-bg);border-left-color:var(--primary);color:var(--ink)}.nav .item .sp{flex:1}
+  .body{min-width:0;flex:1;padding:17px 19px 25px}.crumb{display:flex;align-items:center;gap:6px;color:var(--ink-muted);font-size:10.5px;margin-bottom:13px}.crumb b{color:var(--ink)}.hero{display:flex;align-items:flex-start;gap:12px}.hero .main{min-width:0;flex:1}.hero h2{font-size:19px;margin:0}.hero .desc{color:var(--ink-muted);font-size:11px;margin-top:3px}.hero .sp{flex:1}.head-actions{display:flex;gap:6px;align-items:center}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;border:1px solid var(--divider);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit;font-size:10.5px;font-weight:800;white-space:nowrap}.btn.p{border-color:var(--primary);background:var(--primary);color:var(--surface)}.btn.q{color:var(--ink-muted)}.btn.locked{background:#F7F9FA;color:#9AA7B0;border-color:var(--divider);cursor:not-allowed}.read-only{display:inline-flex;align-items:center;gap:5px;background:var(--done-bg);border:1px solid var(--divider);border-radius:99px;padding:4px 8px;color:var(--done);font-size:10px;font-weight:800}
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:15px 0 12px}.stat{background:var(--surface);border:1px solid var(--divider);border-radius:7px;padding:9px 11px}.stat .k{display:block;color:var(--ink-muted);font-size:10px;font-weight:800}.stat .v{display:block;color:var(--ink);font-size:16px;font-weight:800;margin-top:2px}.stat .s{display:block;color:var(--ink-muted);font-size:9.5px;margin-top:1px}
+  .list-card,.compare-card,.mini{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.list-head{display:flex;align-items:center;gap:7px;padding:10px 11px;border-bottom:1px solid var(--divider)}.list-head .sp{flex:1}.list-head .meta{color:var(--ink-muted);font-size:10px}.list-head .meta b{color:var(--ink)}
+  .candidate{padding:12px 12px 11px;border-bottom:1px solid var(--divider)}.candidate:last-child{border-bottom:0}.candidate-top{display:flex;align-items:flex-start;gap:7px}.candidate-top .sp{flex:1}.candidate-id{font-size:10px;color:var(--ink-muted);font-variant-numeric:tabular-nums}.candidate-title{font-size:12px;font-weight:800}.candidate-reason{font-size:10px;color:var(--ink-muted);margin:4px 0 10px}.candidate-reason b{color:var(--ink)}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:9px}.person{border:1px solid var(--divider);border-radius:7px;padding:10px;background:#FCFDFD;min-width:0}.person.chosen{border-color:var(--teal-line);background:#F7FCFC}.person-head{display:flex;align-items:flex-start;gap:8px}.avatar{width:31px;height:31px;border-radius:50%;background:var(--teal-bg);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex:none}.person h4{font-size:12px;margin:0}.person .meta{color:var(--ink-muted);font-size:9.5px;margin-top:1px}.person .sp{flex:1}.person-badge{font-size:9px;font-weight:800;color:var(--primary);border:1px solid var(--teal-line);border-radius:99px;padding:2px 6px;white-space:nowrap}.person-badge.off{color:var(--done);border-color:var(--divider)}.masked{font-size:10px;color:var(--ink-muted);margin:8px 0;border-top:1px solid var(--divider);padding-top:7px}.masked b{color:var(--ink);font-weight:800}.facts{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-top:7px}.fact{background:var(--surface);border:1px solid var(--divider);border-radius:5px;padding:5px 6px}.fact .k{display:block;color:var(--ink-muted);font-size:8.5px}.fact .v{display:block;color:var(--ink);font-weight:800;font-size:10.5px;margin-top:1px}.person-foot{display:flex;align-items:center;gap:6px;margin-top:9px}.person-foot .sp{flex:1}.candidate-foot{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--divider);color:var(--ink-muted);font-size:9.5px}.candidate-foot .sp{flex:1}.family-note{color:var(--warn);font-weight:800}
+  .compare-card{margin-top:10px;overflow:hidden}.compare-head{display:flex;align-items:center;gap:7px;padding:10px 11px;border-bottom:1px solid var(--divider);background:#FBFDFD}.compare-head .sp{flex:1}.compare-body{padding:11px}.compare-title{font-weight:800;font-size:11px}.compare-copy{font-size:9.5px;color:var(--ink-muted);margin-top:3px}.compare-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:9.5px}.compare-table th,.compare-table td{border-bottom:1px solid var(--divider);padding:6px 7px;text-align:left;vertical-align:top}.compare-table th{color:var(--ink-muted);font-size:9px;background:#FAFBFC;font-weight:800}.compare-table td:nth-child(2),.compare-table td:nth-child(3){width:28%;font-weight:800;color:var(--ink)}.compare-table td:first-child{color:var(--ink-muted);width:24%}.compare-table tr:last-child td{border-bottom:0}.warn-text{color:var(--warn);font-weight:800}.data-warning{display:flex;align-items:flex-start;gap:7px;margin-top:9px;border:1px solid var(--warn-bg);border-left:3px solid var(--warn);background:var(--warn-bg);border-radius:6px;padding:8px 9px;color:var(--ink-muted);font-size:9.5px;line-height:1.65}.data-warning svg{color:var(--warn);flex:none;margin-top:2px}.data-warning b{color:var(--ink)}.compare-actions{display:flex;align-items:center;gap:7px;margin-top:10px}.compare-actions .sp{flex:1}.lock-copy{font-size:9px;color:var(--done);display:flex;align-items:center;gap:4px;font-weight:800}
+  .locknote{padding:9px 11px;border-top:1px solid var(--divider);color:var(--ink-muted);font-size:9.5px;line-height:1.6;background:#FCFDFD}.locknote b{color:var(--ink)}
+
+  .dialog-demo{margin-top:12px;background:var(--divider);border:1px solid var(--divider);border-radius:8px;padding:14px;position:relative}.dialog-label{color:var(--ink-muted);font-size:9px;font-weight:800;margin-bottom:7px}.dialog{max-width:560px;margin:0 auto;background:var(--surface);border:1px solid var(--divider);border-radius:9px;box-shadow:0 10px 30px rgba(16,36,58,.16);overflow:hidden}.dialog-head{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--divider)}.dialog-head .sp{flex:1}.dialog-head h3{font-size:13px}.dialog-body{padding:12px 14px}.dialog-lead{font-size:10.5px;line-height:1.7}.dialog-lead b{color:var(--ink)}.dialog-compare{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}.dialog-person{border:1px solid var(--divider);border-radius:6px;padding:7px 8px;background:#FCFDFD;font-size:9px;color:var(--ink-muted)}.dialog-person b{display:block;color:var(--ink);font-size:10.5px;margin-bottom:2px}.dialog-rows{border:1px solid var(--divider);border-radius:6px;overflow:hidden}.dialog-row{display:grid;grid-template-columns:116px 1fr;gap:7px;padding:6px 8px;border-bottom:1px solid var(--divider);font-size:9px;line-height:1.5}.dialog-row:last-child{border-bottom:0}.dialog-row .k{color:var(--ink-muted);font-weight:800}.dialog-row .v{color:var(--ink)}.dialog-warn{margin-top:10px;border-left:3px solid var(--danger);background:var(--danger-bg);padding:8px 9px;color:var(--danger);font-size:9.5px;line-height:1.65}.dialog-warn b{font-size:10px}.dialog-check{display:flex;align-items:flex-start;gap:6px;margin-top:10px;color:var(--ink-muted);font-size:9.5px}.fake-check{width:13px;height:13px;border:1px solid var(--divider);border-radius:3px;background:var(--surface);flex:none}.dialog-foot{display:flex;align-items:center;gap:7px;padding:10px 14px;border-top:1px solid var(--divider);background:#FCFDFD}.dialog-foot .sp{flex:1}.dialog-foot .danger{background:var(--danger);border-color:var(--danger);color:var(--surface)}.dialog-foot .danger:disabled{opacity:.45;cursor:not-allowed}
+
+  .state-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.state{background:var(--surface);border:1px solid var(--divider);border-radius:8px;padding:11px;min-height:136px}.state h4{margin:0 0 7px;font-size:11px}.state p{color:var(--ink-muted);font-size:9.5px;line-height:1.65}.state .state-tag{float:right}.skeleton{height:8px;background:var(--divider);border-radius:3px;margin:8px 0;width:90%}.skeleton.short{width:58%}.state .retry{display:inline-block;color:var(--primary);font-weight:800;border:1px solid var(--teal-line);border-radius:5px;padding:4px 8px;margin-top:8px;font-size:9.5px}.state .error{border-left:3px solid var(--warn);padding-left:8px}.state .blocked{border-left:3px solid var(--done);padding-left:8px}
+  .below{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.mini{padding:10px 11px;overflow:visible}.mini h4{font-size:11px}.mini p{color:var(--ink-muted);font-size:9.5px;line-height:1.7}.mini .ids{margin-top:6px}.mini.block{border-left:3px solid var(--warn)}
+  .decision{margin-top:24px}.decision-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.decision-card{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.decision-card.reco{border-color:var(--teal-line)}.decision-h{padding:9px 10px;border-bottom:1px solid var(--divider);font-weight:800;font-size:10.5px}.decision-b{padding:10px;font-size:9.5px;color:var(--ink-muted);line-height:1.7}.decision-b b{color:var(--ink)}.decision-b .verdict{margin-top:8px;padding-top:7px;border-top:1px solid var(--divider);font-weight:800}.verdict.ok{color:var(--primary)}.verdict.no{color:var(--danger)}
+  .trace{width:100%;border-collapse:collapse;font-size:10px;background:var(--surface);border:1px solid var(--divider);margin-top:10px}.trace th,.trace td{border-bottom:1px solid var(--divider);padding:7px 8px;text-align:left;vertical-align:top;line-height:1.6}.trace th{background:#FAFBFC;color:var(--ink-muted);font-size:9px}.trace tr:last-child td{border-bottom:0}.foot{color:var(--ink-muted);font-size:10.5px;line-height:1.75;margin-top:12px}.foot b{color:var(--ink)}
+  @media(max-width:900px){.stage{display:block}.nav{width:100%;display:flex;gap:3px;overflow:auto;padding:7px}.nav .group{display:none}.nav .item{white-space:nowrap;border-left:0;border-bottom:3px solid transparent}.nav .item.on{border-bottom-color:var(--primary)}.body{padding:14px}.hero{display:block}.head-actions{margin-top:9px}.summary,.below,.decision-grid,.state-grid{grid-template-columns:1fr}.pair,.dialog-compare{grid-template-columns:1fr}.compare-table{min-width:520px}.compare-card{overflow:auto}.dialog-row{grid-template-columns:100px 1fr}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v5c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+  <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20c.7-3.4 2.8-5.2 6.2-5.2s5.5 1.8 6.2 5.2"/><circle cx="17" cy="9" r="2.7"/><path d="M15.2 14.7c2.8-.1 4.7 1.6 5.4 4.4"/></symbol>
+  <symbol id="i-record" viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h4M8 13h8M8 17h6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 2 5"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+</svg>
+
+<main class="page">
+  <h1>82 · <b>중복 환자 후보</b> <code>/admin/patient-merge-candidates</code> — 설계 초안</h1>
+  <p class="sub">같은 사람이 두 개의 환자 기록으로 나뉘었는지 <b>관리자가 비교하고 병합을 검토하는 화면</b>. 후보를 자동으로 합치지 않으며, 현재 계획에 예약·문진·진료기록·감사 로그의 병합 계보가 없어 <b>병합 확정은 잠겨 있다</b>.</p>
+  <div class="note"><b>설계 축</b> — 목록에는 서버가 가린 값만 받고, 두 후보를 나란히 비교해 기록 위치를 확인한다. 대표를 정하는 버튼은 회색 검토 단계로 낮추고, 빨간 <b>병합 확정</b>은 확인창 안에서만 보인다. 이 화면에서 병합을 취소할 수 없다는 사실과 오병합 정정 경로를 실행 전에 알린다. <span class="rid">MERGE-HEAD-02</span> <span class="rid">MERGE-CONFIRM-02</span> <span class="rid">MERGE-UNDO-02</span></div>
+
+  <section class="app" aria-label="관리자 중복 환자 후보 화면">
+    <header class="top"><span class="brand">루나병원</span><span>직원 웹</span><span class="sp"></span><span class="role">박관리 · 관리자</span><span>로그아웃</span><span class="action">+ 새 예약</span><span class="action">+ 당일 방문</span></header>
+    <div class="stage">
+      <nav class="nav" aria-label="관리자 운영 메뉴">
+        <div class="group">진료 현장</div>
+        <div class="item"><svg class="i"><use href="#i-record"/></svg>오늘의 현황</div>
+        <div class="item"><svg class="i"><use href="#i-record"/></svg>대기 목록</div>
+        <div class="item"><svg class="i"><use href="#i-cal"/></svg>예약 캘린더</div>
+        <div class="group">환자</div>
+        <div class="item"><svg class="i"><use href="#i-search"/></svg>환자 검색</div>
+        <div class="group">운영·관리</div>
+        <div class="item"><svg class="i"><use href="#i-people"/></svg>직원 계정 관리</div>
+        <div class="item"><svg class="i"><use href="#i-record"/></svg>운영 통계</div>
+        <div class="item"><svg class="i"><use href="#i-shield"/></svg>열람 기록</div>
+        <div class="item on"><svg class="i"><use href="#i-people"/></svg><span>중복 환자 후보</span><span class="sp"></span><span class="rid">MERGE-SHELL-03</span></div>
+        <div class="item"><svg class="i"><use href="#i-record"/></svg>병원 설정</div>
+      </nav>
+
+      <div class="body">
+        <div class="crumb"><svg class="i sm"><use href="#i-people"/></svg><span>운영·관리</span><span>/</span><b>중복 환자 후보</b></div>
+        <section class="hero">
+          <div class="main"><h2>중복 환자 후보 <span class="rid">MERGE-HEAD-01</span></h2><p class="desc">같은 사람의 환자 기록이 나뉘었는지 확인하고 병합을 검토합니다.</p></div>
+          <div class="head-actions"><span class="read-only"><svg class="i sm"><use href="#i-shield"/></svg>관리자 전용 · 자동 병합 안 함 <span class="rid">MERGE-SHELL-01</span></span></div>
+        </section>
+
+        <div class="summary" aria-label="후보 요약">
+          <div class="stat"><span class="k">검토 대기 그룹</span><span class="v">2개</span><span class="s">후보 행 5명 · <span class="rid">MERGE-LIST-01</span></span></div>
+          <div class="stat"><span class="k">현재 비교</span><span class="v">1쌍</span><span class="s">대표 미확정 · <span class="rid">MERGE-COMPARE-01</span></span></div>
+          <div class="stat"><span class="k">확정 가능 상태</span><span class="v">잠김</span><span class="s">데이터 계보 계약 필요 · <span class="rid">MERGE-REVIEW-02</span></span></div>
+        </div>
+
+        <div class="callout warn"><svg class="i"><use href="#i-warn"/></svg> <span><b>자동으로 합치지 않습니다.</b> 같은 이름·생년월일·전화번호로 묶였어도 가족이 번호를 공유하면 다른 사람일 수 있습니다. 두 카드를 비교하고 대표를 정한 뒤에만 병합 내용을 검토합니다. <span class="rid">MERGE-HEAD-02</span> <span class="rid">MERGE-LIST-04</span></span></div>
+
+        <section class="list-card" aria-label="중복 후보 목록">
+          <div class="list-head"><svg class="i" style="color:var(--primary)"><use href="#i-people"/></svg><h3>검토 대기 후보</h3><span class="sp"></span><span class="meta"><b>2개 그룹</b> · 고정 순서</span><span class="rid">MERGE-LIST-02</span></div>
+          <article class="candidate">
+            <div class="candidate-top"><span class="candidate-title">후보 그룹 01</span><span class="tag warn">확인 필요</span><span class="sp"></span><span class="candidate-id">그룹 기준: 서버 마스킹 값</span></div>
+            <p class="candidate-reason"><b>김민서 · 1990-**-14 · 010-****-7251</b> 값으로 묶인 활성 환자 행입니다. <span class="rid">MERGE-LIST-03</span> <span class="rid">MASK-SRV-01</span></p>
+            <div class="pair">
+              <section class="person chosen" aria-label="후보 환자 A">
+                <div class="person-head"><div class="avatar">김</div><div><h4>김민서</h4><div class="meta">환자 행 A · 2019년 3월 14일 (목) 생성</div></div><span class="sp"></span><span class="person-badge">계정 연결</span></div>
+                <div class="masked"><b>1990-**-14</b> · <b>010-****-7251</b> <span class="rid">MASK-DOB-01</span> <span class="rid">MASK-TEL-01</span></div>
+                <div class="facts"><div class="fact"><span class="k">예약</span><span class="v">7건</span></div><div class="fact"><span class="k">문진 작성 예약</span><span class="v">3건</span></div><div class="fact"><span class="k">진료기록</span><span class="v">4건</span></div><div class="fact"><span class="k">마지막 방문</span><span class="v">2026년 8월 5일 (수)</span></div></div>
+                <div class="person-foot"><span class="rid">MERGE-COMPARE-02</span><span class="sp"></span><button class="btn q">대표로 검토</button></div>
+              </section>
+              <section class="person" aria-label="후보 환자 B">
+                <div class="person-head"><div class="avatar">김</div><div><h4>김민서</h4><div class="meta">환자 행 B · 2024년 11월 2일 (토) 생성</div></div><span class="sp"></span><span class="person-badge off">계정 미연결</span></div>
+                <div class="masked"><b>1990-**-14</b> · <b>010-****-7251</b></div>
+                <div class="facts"><div class="fact"><span class="k">예약</span><span class="v">2건</span></div><div class="fact"><span class="k">문진 작성 예약</span><span class="v">1건</span></div><div class="fact"><span class="k">진료기록</span><span class="v">0건</span></div><div class="fact"><span class="k">마지막 방문</span><span class="v">2025년 10월 17일 (금)</span></div></div>
+                <div class="person-foot"><span class="rid">MERGE-COMPARE-03</span><span class="sp"></span><button class="btn q">대표로 검토</button></div>
+              </section>
+            </div>
+            <div class="candidate-foot"><svg class="i sm" style="color:var(--warn)"><use href="#i-warn"/></svg><span class="family-note">같은 번호를 공유하는 가족은 병합하지 않습니다.</span><span>필요하면 기존 환자 상세에서 열람 기록을 남기고 원문을 확인합니다.</span><span class="sp"></span><span class="rid">MERGE-LIST-05</span><span class="rid">MERGE-COMPARE-04</span><span class="rid">MERGE-COMPARE-05</span><span class="rid">MASK-DETAIL-01</span></div>
+          </article>
+          <article class="candidate">
+            <div class="candidate-top"><span class="candidate-title">후보 그룹 02</span><span class="tag">추가 비교</span><span class="sp"></span><span class="candidate-id">이서윤 · 1985-**-09 · 010-****-4482</span></div>
+            <p class="candidate-reason">기록 건수를 먼저 확인한 뒤 대표를 검토할 수 있습니다. <span class="rid">MERGE-LIST-01</span></p>
+            <div class="candidate-foot" style="margin-top:0;padding-top:0;border-top:0"><span>두 환자 카드 비교 전 · 자동 선택 없음</span><span class="sp"></span><button class="btn q">후보 비교 열기</button></div>
+          </article>
+          <div class="locknote"><svg class="i sm"><use href="#i-lock"/></svg> <b>후보 목록은 서버 마스킹 응답만 사용합니다.</b> 원본 생년월일·전화번호·UUID는 이 화면에 내려오지 않습니다. <span class="rid">MERGE-LIST-03</span> <span class="rid">MERGE-LIST-06</span> <span class="rid">MASK-SRV-01</span></div>
+        </section>
+
+        <section class="compare-card" aria-label="대표 환자 비교 결과">
+          <div class="compare-head"><svg class="i" style="color:var(--primary)"><use href="#i-eye"/></svg><h3>대표 환자 비교</h3><span class="tag warn">대표 미확정</span><span class="sp"></span><span class="rid">MERGE-COMPARE-01</span><span class="rid">MERGE-COMPARE-03</span></div>
+          <div class="compare-body">
+            <div class="compare-title">기록이 더 많은 쪽을 대표로 권합니다. 자동으로 선택하지 않습니다.</div>
+            <p class="compare-copy">대표 선택은 아직 서버에 저장되지 않습니다. 아래의 기록 위치와 계정 연결을 확인한 뒤 병합 내용을 검토합니다.</p>
+            <table class="compare-table" aria-label="후보 환자 기록 비교"><thead><tr><th>확인할 항목</th><th>환자 행 A · 대표 검토</th><th>환자 행 B · 병합 대상 검토</th></tr></thead><tbody>
+              <tr><td>계정 연결</td><td>연결됨</td><td>연결되지 않음</td></tr>
+              <tr><td>예약 / 문진 / 진료기록</td><td>7건 / 3건 / 4건</td><td>2건 / 1건 / 0건</td></tr>
+              <tr><td>감사 기록</td><td>확인 필요</td><td>확인 필요</td></tr>
+              <tr><td>병합 뒤 표시</td><td class="warn-text">대표 환자 조회에 포함할 계약 필요</td><td class="warn-text">원본 행을 숨길지 계약 필요</td></tr>
+            </tbody></table>
+            <div class="data-warning"><svg class="i"><use href="#i-warn"/></svg><span><b>현재 계획은 계정 연결과 비활성화만 처리합니다.</b> 예약·문진·진료기록·감사 로그의 행이 자동으로 대표 환자에 따라오지 않습니다. 기록 계보와 후속 조회 계약이 정해지기 전에는 병합을 확정할 수 없습니다. <span class="rid no">MERGE-COMPARE-06</span> <span class="rid no">MERGE-DATA-01~04</span></span></div>
+            <div class="compare-actions"><span class="lock-copy"><svg class="i sm"><use href="#i-lock"/></svg> 데이터 소유권 계약 확인 필요 <span class="rid">MERGE-REVIEW-01</span> <span class="rid">MERGE-REVIEW-02</span></span><span class="sp"></span><button class="btn q">비교 닫기</button><button class="btn locked" disabled><svg class="i sm"><use href="#i-lock"/></svg>병합 내용 검토</button></div>
+          </div>
+        </section>
+
+        <div class="dialog-demo" aria-label="병합 확인창 상태 예시">
+          <div class="dialog-label">확인창 상태 예시 · 현재는 계약 미완료로 확정 버튼 잠김 <span class="rid">MERGE-CONFIRM-01~05</span></div>
+          <div class="dialog">
+            <div class="dialog-head"><svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg><h3>병합 내용을 확인하세요</h3><span class="sp"></span><span class="tag warn">최종 확인</span></div>
+            <div class="dialog-body">
+              <p class="dialog-lead"><b>김민서 환자 행 A</b>를 대표로 남기고, <b>환자 행 B</b>를 비활성화하려고 합니다. 대표 선택과 계정 연결 이동을 다시 확인하세요.</p>
+              <div class="dialog-compare"><div class="dialog-person"><b>대표로 남김</b>김민서 · 1990-**-14<br>010-****-7251 · 계정 연결</div><div class="dialog-person"><b>비활성화 대상</b>김민서 · 1990-**-14<br>010-****-7251 · 계정 미연결</div></div>
+              <div class="dialog-rows"><div class="dialog-row"><span class="k">예약·문진</span><span class="v">원본 행 보존 / 대표 조회 계보 계약 필요 <span class="rid">MERGE-DATA-01</span> <span class="rid">MERGE-DATA-02</span></span></div><div class="dialog-row"><span class="k">진료기록·수정 이력</span><span class="v">원문·이력 삭제하지 않음 / 후속 권한 계약 필요 <span class="rid">MERGE-DATA-03</span></span></div><div class="dialog-row"><span class="k">열람 감사</span><span class="v">원래 환자 ID 보존 / 별도 병합 사건 기록 필요 <span class="rid">MERGE-DATA-04</span> <span class="rid">MERGE-AUDIT-01</span></span></div><div class="dialog-row"><span class="k">오병합 정정</span><span class="v">이 화면에서 취소할 수 없음 / 병원 운영 절차로 요청 <span class="rid">MERGE-UNDO-03</span></span></div></div>
+              <div class="dialog-warn"><b>병합 확정 후 이 화면에서 취소할 수 없습니다.</b><br>이미 노출된 환자 기록 열람은 되돌릴 수 없습니다. 데이터 소유권·감사 계약이 준비되기 전까지 확정 버튼은 잠겨 있습니다. <span class="rid no">MERGE-CONFIRM-03</span> <span class="rid no">MERGE-UNDO-01~02</span></div>
+              <div class="dialog-check"><span class="fake-check" aria-hidden="true"></span><span>대표 환자·비활성화 대상과 기록 처리 방식을 읽었고, 오병합 정정 절차를 확인했습니다. <span class="rid">MERGE-CONFIRM-04</span></span></div>
+            </div>
+            <div class="dialog-foot"><button class="btn q"><svg class="i sm"><use href="#i-close"/></svg>취소</button><span class="sp"></span><button class="btn danger locked" disabled><svg class="i sm"><use href="#i-lock"/></svg>병합 확정</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <h2>상태 모음판 — 후보 조회와 병합이 막히는 순간</h2>
+  <p class="sub">실패·오프라인·두 계정 연결은 데이터 변경 없이 같은 화면에서 해결 경로를 보인다. 새 상태 규칙은 만들지 않고 기존 `ERR-*`·`EMPTY-*`·`BTN-*`를 인용한다.</p>
+  <div class="state-grid">
+    <section class="state"><span class="state-tag tag">0건</span><h4>검토할 후보 없음 <span class="rid">MERGE-STATE-01</span></h4><p>현재 병합을 검토할 중복 환자가 없습니다.<br>새 후보가 생기면 이곳에 표시됩니다.</p><span class="retry">환자 검색으로 가기</span></section>
+    <section class="state"><span class="state-tag tag no">실패</span><h4>후보 조회 실패 <span class="rid">MERGE-STATE-02</span></h4><div class="error"><p><b>후보를 불러오지 못했습니다.</b><br>잠시 후 다시 시도해주세요.</p><span class="retry"><svg class="i sm"><use href="#i-refresh"/></svg>다시 시도</span></div></section>
+    <section class="state"><span class="state-tag tag warn">잠김</span><h4>두 계정 모두 연결됨 <span class="rid">MERGE-STATE-04</span></h4><div class="blocked"><p><b>자동 병합할 수 없습니다.</b><br>가족 연결과 혼동하지 말고 환자 상세에서 별도 확인하세요.</p></div></section>
+    <section class="state"><span class="state-tag tag">조회 중</span><h4>후보를 불러오는 중 <span class="rid">MERGE-STATE-01</span></h4><div class="skeleton"></div><div class="skeleton short"></div><p>기존 후보와 새 응답을 섞지 않고 카드 자리만 유지합니다.</p></section>
+    <section class="state"><span class="state-tag tag warn">409</span><h4>다른 직원이 먼저 처리 <span class="rid">MERGE-RACE-01</span></h4><p><b>후보 상태가 바뀌었습니다.</b><br>목록과 기록 건수를 다시 확인하세요.</p><span class="retry">다시 확인</span></section>
+    <section class="state"><span class="state-tag tag">오프라인</span><h4>연결 끊김 <span class="rid">MERGE-STATE-03</span></h4><p>캐시 후보로 병합하지 않습니다.<br>연결되면 최신 후보를 다시 확인할 수 있습니다.</p><span class="retry">다시 시도</span></section>
+  </div>
+
+  <section class="decision">
+    <h2>레이아웃·동작 결정 — A/B/C</h2>
+    <div class="decision-grid">
+      <article class="decision-card"><div class="decision-h"><span class="tag no">기각</span> A · 단순 목록 + 즉시 병합</div><div class="decision-b"><b>계획의 최소 UI</b>와 가깝지만 기록 건수·대표 선택 근거가 없다. 인라인 병합 버튼은 되돌릴 수 없는 동작을 가장 눈에 띄는 행동으로 만든다.<div class="verdict no">기각 사유 — 갭 #68과 P-04를 동시에 어긴다.</div></div></article>
+      <article class="decision-card reco"><div class="decision-h"><span class="tag ok">추천</span> B · 나란히 비교 + 확인창</div><div class="decision-b"><b>서버 마스킹 값만</b> 두 카드에 보여주고 예약·문진·진료기록·감사 건수를 비교한다. 대표 검토와 병합 확정을 분리하고 빨간 버튼은 확인창 안에서만 둔다.<div class="verdict ok">PROVISIONAL — `MERGE-COMPARE-*` · `MERGE-CONFIRM-*`.</div></div></article>
+      <article class="decision-card"><div class="decision-h"><span class="tag no">기각</span> C · 후보를 한 명씩 열기</div><div class="decision-b"><b>원문 상세를 왕복</b>하면 비교 맥락을 잃고, 필요한 개인정보 열람과 병합 판단이 섞인다. 직원이 두 기록의 차이를 기억해야 한다.<div class="verdict no">기각 사유 — `NAV-SHELL-10`·`ALOG-*`의 의미를 흐린다.</div></div></article>
+    </div>
+  </section>
+
+  <h2>새 규칙 추적표</h2>
+  <table class="trace">
+    <thead><tr><th>묶음</th><th>목업에 반영된 새 규칙</th><th>상태·핵심 위치</th></tr></thead>
+    <tbody>
+      <tr><td>셸·목록</td><td>`MERGE-SHELL-01`·`MERGE-SHELL-02`·`MERGE-SHELL-03` · `MERGE-HEAD-01`·`MERGE-HEAD-02` · `MERGE-LIST-01~06`</td><td>관리자 전용·자동 병합 금지·서버 마스킹 후보·고정 정렬·빈 후보 상태</td></tr>
+      <tr><td>비교</td><td>`MERGE-COMPARE-01`·`MERGE-COMPARE-02`·`MERGE-COMPARE-03`·`MERGE-COMPARE-04`·`MERGE-COMPARE-05`·`MERGE-COMPARE-06` · `MERGE-REVIEW-01`·`MERGE-REVIEW-02`</td><td>나란히 비교·기록 위치·계정 연결·기록 계보 경고·계약 전 잠금</td></tr>
+      <tr><td>확인창</td><td>`MERGE-CONFIRM-01`·`MERGE-CONFIRM-02`·`MERGE-CONFIRM-03`·`MERGE-CONFIRM-04`·`MERGE-CONFIRM-05`</td><td>대표/대상 재확인·빨간 확정 버튼의 확인창 한정·비가역 고지·체크·취소</td></tr>
+      <tr><td>데이터·감사</td><td>`MERGE-DATA-01`·`MERGE-DATA-02`·`MERGE-DATA-03`·`MERGE-DATA-04` · `MERGE-AUDIT-01`</td><td>예약·문진·진료기록·열람 로그 원본 보존과 별도 병합 사건 — 계약 전 차단</td></tr>
+      <tr><td>오병합·동시성</td><td>`MERGE-UNDO-01~03` · `MERGE-RACE-01`</td><td>자동 undo 약속 금지·운영 정정 경로·409 최신 상태 재확인</td></tr>
+      <tr><td>상태</td><td>`MERGE-STATE-01~04`</td><td>로딩·조회 실패·오프라인·두 계정 연결 409</td></tr>
+    </tbody>
+  </table>
+  <p class="foot"><b>기존 규칙 인용:</b> `ROLE-ADM-01~03` · `ROLE-SEE-01~03` · `MASK-TEL-01` · `MASK-DOB-01` · `MASK-SRV-01` · `MASK-DETAIL-01` · `SEARCH-*` · `QUEUE-SAME-*` · `HIST-*` · `SHELL-NAV-01~06` · `SHELL-URL-01` · `NAV-SHELL-03·05·08·09·10` · `ALOG-*` · `ERR-*` · `EMPTY-*` · `BTN-*`. 새 `NAV-*`·`MASK-*`·`ROLE-*`·`HIST-*`·`SEARCH-*`·`ALOG-*`는 만들지 않았다.</p>
+</main>
+</body>
+</html>

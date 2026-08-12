@@ -41,6 +41,9 @@
   .chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:99px;
         background:var(--done-bg);color:var(--ink);font-weight:700;font-size:12px;white-space:nowrap}
   .chip .role{color:var(--ink-muted);font-weight:600}
+  .head-actions{display:inline-flex;align-items:center;gap:8px}
+  .startbtn{height:30px;padding:0 10px;border-radius:8px;border:1px solid #B9D7D7;background:#F1FAFA;
+      color:var(--primary);font-size:12px;font-weight:800;font-family:inherit;display:inline-flex;align-items:center}
   .lg{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--divider);background:#fff;
       color:var(--ink-muted);font-size:12px;font-weight:700;font-family:inherit;display:inline-flex;align-items:center}
 
@@ -101,7 +104,7 @@
 </p>
 <p class="sub">
   16화면이 전부 이 틀 안에 들어간다. 크기는 <b>47번 안 B</b>(본문 13 / 행 44 / 버튼 36)를 그대로 쓴다.<br>
-  세 안은 <b>메뉴를 어디에 어떻게 놓는가</b>만 다르다. 모두 <b>관리자</b> 기준 — 메뉴가 14개로 가장 많아 구조의 한계가 여기서 드러난다.
+  세 안은 <b>메뉴를 어디에 어떻게 놓는가</b>만 다르다. 모두 <b>관리자</b> 기준 — 공통 셸 메뉴와 헤더 진입 동작을 한 번에 확인한다.
 </p>
 
 <hr class="rule">
@@ -115,6 +118,7 @@
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm0 4v8h10V6z"/></svg>예약 캘린더</a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>대기 목록 <span class="n">12</span></a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 1l6 3v5c0 3-2.5 5.3-6 6-3.5-.7-6-3-6-6V4z"/></svg>예약번호·QR 접수</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h8v2H2zm0 4h12v2H2z"/></svg>안내 보내기</a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M7 2a5 5 0 103.2 8.8l3 3 1.4-1.4-3-3A5 5 0 007 2zm0 2a3 3 0 110 6 3 3 0 010-6z"/></svg>환자 검색</a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 2a3 3 0 110 6 3 3 0 010-6zM2 14c0-3 2.7-4.5 6-4.5s6 1.5 6 4.5z"/></svg>진료과·의사 일정</a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 13h3V7H2zm4.5 0h3V3h-3zM11 13h3V9h-3z"/></svg>운영 통계</a>
@@ -129,6 +133,7 @@
   <div>
     <header class="hdr">
       <span class="brand">한빛병원</span><span class="sp"></span>
+      <span class="head-actions"><button class="startbtn">＋ 새 예약</button><button class="startbtn">＋ 당일 방문</button></span>
       <span class="chip">정수진 <span class="role">관리자</span></span>
       <button class="lg">로그아웃</button>
     </header>
@@ -150,6 +155,7 @@
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>대기 목록 <span class="n">12</span></a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M3 2h10a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm0 4v8h10V6z"/></svg>예약 캘린더 <span class="n">2</span></a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M8 1l6 3v5c0 3-2.5 5.3-6 6-3.5-.7-6-3-6-6V4z"/></svg>예약번호·QR 접수</a>
+    <a><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h8v2H2zm0 4h12v2H2z"/></svg>안내 보내기</a>
     <div class="grp">환자</div>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M7 2a5 5 0 103.2 8.8l3 3 1.4-1.4-3-3A5 5 0 007 2zm0 2a3 3 0 110 6 3 3 0 010-6z"/></svg>환자 검색</a>
     <a><svg class="ic" viewBox="0 0 16 16"><path d="M5 3a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm6 1a2 2 0 110 4 2 2 0 010-4zM1 14c0-2.4 2-3.5 4-3.5s4 1.1 4 3.5zm9.5 0c0-1.5-.6-2.6-1.5-3.2.6-.2 1.3-.3 2-.3 2 0 4 1.1 4 3.5z"/></svg>계정 병합 후보 <span class="n">1</span></a>
@@ -165,6 +171,7 @@
   <div>
     <header class="hdr">
       <span class="brand">한빛병원</span><span class="sp"></span>
+      <span class="head-actions"><button class="startbtn">＋ 새 예약</button><button class="startbtn">＋ 당일 방문</button></span>
       <span class="chip">정수진 <span class="role">관리자</span></span>
       <button class="lg">로그아웃</button>
     </header>
@@ -182,11 +189,12 @@
 <div class="app top">
   <header class="hdr">
     <span class="brand">한빛병원</span><span class="sp"></span>
+    <span class="head-actions"><button class="startbtn">＋ 새 예약</button><button class="startbtn">＋ 당일 방문</button></span>
     <span class="chip">정수진 <span class="role">관리자</span></span>
     <button class="lg">로그아웃</button>
   </header>
   <nav class="topnav">
-    <a class="on">오늘의 현황</a><a>대기 목록</a><a>예약 캘린더</a><a>QR 접수</a><a>환자 검색</a>
+    <a class="on">오늘의 현황</a><a>대기 목록</a><a>예약 캘린더</a><a>QR 접수</a><a>환자 검색</a><a>안내 보내기</a>
     <a>일정 관리</a><a>운영 통계</a><a class="more">관리 ▾ &nbsp;<span style="color:#B44E00;font-weight:800">7</span></a>
   </nav>
   <div class="body">
@@ -204,10 +212,10 @@
 </p>
 <div class="roles">
   <div class="rolecard">
-    <h3>접수 직원 <span>· 5개</span></h3>
+  <h3>접수 직원 <span>· 6개</span></h3>
     <nav class="side">
       <div class="grp">진료 현장</div>
-      <a class="on">오늘의 현황</a><a>대기 목록 <span class="n">12</span></a><a>예약 캘린더 <span class="n">2</span></a><a>예약번호·QR 접수</a>
+      <a class="on">오늘의 현황</a><a>대기 목록 <span class="n">12</span></a><a>예약 캘린더 <span class="n">2</span></a><a>예약번호·QR 접수</a><a>안내 보내기</a>
       <div class="grp">환자</div>
       <a>환자 검색</a>
       <div class="divline"></div>
@@ -228,14 +236,14 @@
     </nav>
   </div>
   <div class="rolecard">
-    <h3>관리자 <span>· 13개</span></h3>
+    <h3>관리자 <span>· 전체 메뉴</span></h3>
     <nav class="side">
       <div class="grp">진료 현장</div>
       <a class="on">오늘의 현황</a><a>대기 목록</a><a>예약 캘린더</a><a>예약번호·QR 접수</a>
       <div class="grp">환자</div>
       <a>환자 검색</a><a>계정 병합 후보 <span class="n">1</span></a>
       <div class="grp">운영·관리</div>
-      <a>진료과·의사 일정</a><a>문진 양식 관리</a><a>운영 통계</a><a>직원 계정 관리</a><a>열람 기록</a><a>시스템 오류</a><a>병원 설정</a>
+      <a>진료과·의사 일정</a><a>문진 양식 관리</a><a>운영 통계</a><a>직원 계정 관리</a><a>열람 기록</a><a>시스템 오류</a><a>병원 설정</a><a>안내 보내기</a>
     </nav>
   </div>
 </div>

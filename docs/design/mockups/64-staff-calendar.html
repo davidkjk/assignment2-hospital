@@ -187,6 +187,7 @@
   .nowline b{position:absolute;left:-44px;top:-8px;background:#C0392B;color:#fff;font-size:9px;
              font-weight:800;padding:1px 4px;border-radius:4px}
   .stepbox{background:#fff;border:1px solid var(--divider);border-radius:10px;padding:12px 14px;font-size:12px}
+  .stepbox.panel-preview{max-width:420px;margin-left:auto;box-shadow:0 8px 24px rgba(16,36,58,.12)}
   .fline{display:flex;align-items:center;font-size:11px;font-weight:800;color:var(--ink-muted);margin:12px 0 5px}
   .fline:first-of-type{margin-top:0}
   .fnum{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-right:6px;
@@ -1005,7 +1006,7 @@
   <tr><td>색뿐 아니라 <b>글자로도</b> 구분 (7절)</td><td class="yes">✅</td><td>일간은 글자가 넉넉하다. 주간은 <b>레인 머리글에 성 한 자를 날마다</b> 고정으로 붙이고 <b>휴진이면 흐리게</b> — 호버 없이 읽힌다. ✅ <b>8명(요구사항 상한)까지 확인했다</b> — 레인 19~20px에 성 한 자가 들어간다(SB-30 해소 · <code>CAL-WEEK-08</code>)</td></tr>
   <tr><td>(요구사항엔 없지만 필요) <b>주간 → 그 날 일간</b>으로 가는 길</td><td class="yes">✅</td><td><b>날짜 머리를 누르면</b> 그 날 일간. <code>[일간][주간]</code> 토글만으론 <b>며칠로 가는지 알 수 없다</b>는 사용자 지적</td></tr>
   <tr><td>(요구사항엔 없지만 필요) <b>다음 주·다른 달</b>로 옮기는 장치</td><td class="yes">✅</td><td><code>[‹][›]</code>=가까운 이동 · <b>기간 글자=작은 달력</b>으로 먼 이동 · <code>[오늘]</code>=돌아오는 길</td></tr>
-  <tr><td>전화로 들어온 예약을 대신 등록</td><td class="no">⬜</td><td><b>전화예약 팝업이 아직 안 그려졌다</b> → 목업 65</td></tr>
+  <tr><td>전화로 들어온 예약을 대신 등록</td><td class="no">⬜</td><td><b>전화예약 오른쪽 패널이 아직 안 그려졌다</b> → 목업 65</td></tr>
   <tr><td>기존 환자는 찾고, 신규는 등록</td><td class="yes">✅</td><td><b>통합 검색을 그대로 쓴다</b>(목업 63 · <code>SEARCH-BOX-03</code>)</td></tr>
   <tr><td>예약 시간 변경·취소</td><td class="no">⬜</td><td><b>사이드패널 미설계</b> → 목업 65. ✅ <b>SB-28 해소</b> — 사이드패널 + 격자를 밀어서 좁힘(<code>CAL-PANEL-*</code>)</td></tr>
   <tr><td>변경·취소 <b>사유</b>를 남긴다</td><td class="no">⬜</td><td>〃 (사유 입력 자리)</td></tr>
@@ -1017,9 +1018,9 @@
 </table>
 
 <div class="flag">
-  <span class="t">⚠️ <b>13줄 중 4줄만 끝났다 — 나머지는 「구조」가 아니라 「팝업·패널」에 있다</b></span><br>
+  <span class="t">⚠️ <b>13줄 중 4줄만 끝났다 — 나머지는 「구조」가 아니라 「오른쪽 패널·확인창」에 있다</b></span><br>
   지금까지 정한 것은 <b>시간표를 어떻게 그리나</b>이고, 남은 것은 대부분 <b>그 위에서 무엇을 하나</b>다 —
-  전화예약 4단계 · 변경/취소 사이드패널 · <b>사이 끼워넣기 경고</b> · <b>일정 변경 영향 목록</b>.
+  전화예약 오른쪽 패널 · 변경/취소 사이드패널 · <b>사이 끼워넣기 경고</b> · <b>일정 변경 영향 목록</b>.
   ⭐ <b>특히 마지막 두 개는 요구사항이 직접 지정한 화면</b>인데 <b>아직 아무 그림도 없다.</b>
   목업 <b>65번(확정안)</b>에서 이것들을 그린다.
 </div>
@@ -1051,7 +1052,7 @@
         <div class="blk fr" style="top:30px;height:28px">빈 시간 09:15</div>
         <div class="blk b1" style="top:60px;height:28px">이하늘<span class="sm">09:30–09:45</span></div>
         <div class="blk b1" style="top:90px;height:28px">박민정<span class="sm">09:45–10:00</span></div>
-        <div class="blk fr" style="top:120px;height:28px">빈 시간 10:00</div>
+        <div class="blk fr" style="top:130px;height:28px">빈 시간 10:05</div>
         <div class="blk fr" style="top:150px;height:28px">빈 시간 10:15</div>
         <div class="blk b1" style="top:180px;height:28px">정우성<span class="sm">10:30–10:45</span></div>
         <div class="blk fr" style="top:210px;height:28px">빈 시간 10:45</div>
@@ -1080,8 +1081,8 @@
     ⭐ <b>세 열의 눈금이 똑같다</b>(30분마다 굵은 선, 15분마다 점선) — <b>시각이 가로로 정확히 맞는다.</b>
     그 위에서 <b>블록만 길이가 다르다</b>: 박지훈 15분(짧다) · 최민석 20분 · 한서윤 30분(길다).
     <b>「10시에 누가 되나」를 가로로 한 줄 훑으면</b> 답이 나온다.<br>
-    ⭐ <b>5분은 「표시 해상도」이지 「예약 가능 시각」이 아니다</b> — 빈 곳을 눌러도
-    <b>그 의사의 슬롯에 맞는 시각으로 붙는다</b>(박지훈은 09:15·09:30…). 그래야 <b>09:07 예약</b>이 안 생긴다.
+  ⭐ <b>5분은 시작 시각의 스냅 단위이며 보이는 격자가 아니다</b> — 빈 곳을 눌러도
+    <b>5분 단위로 스냅된다</b>(10:07 → 10:05). 슬롯 중간의 <b>10:05 예약</b>도 허용하되, 화면은 30분 글자와 15분 점선만 유지한다.
   </p>
 </div>
 
@@ -1090,16 +1091,16 @@
   <b>일간</b>에서는 <b>가로 한 줄이 곧 그 시각</b>이라 <b>누르지 않아도</b> 보인다.
   <b>주간</b>도 <b>세로축이 시각</b>이라 <b>같은 방법으로 읽는다</b> — 다만 <b>레인이 얇아 글자가 안 들어가므로</b>
   <b>정확히 보려면 그 날 일간으로 내려간다</b>(⏳ 빈칸 <b>SB-33</b>).<br>
-  📌 <b>기본 단위(5분)는 화면이 아니라 서버가 쓴다</b> — 빈자리를 계산할 때
-  <b>「이 의사의 진료시간으로 이 구간에 몇 명이 들어가나」</b>를 재는 자다.
+  📌 <b>5분 스냅은 시작 시각에만 적용한다</b> — 화면은 30분 글자와 15분 점선만 사용하고,
+  <b>30분 눈금과 15분 점선 위에 블록 길이만 비례</b>시킨다.
 </div>
 <h2 class="sec">⏳ 이미 지난 시각을 눌렀을 때 — <b>캘린더는 막고, 「당일 방문 등록」이 시각을 받는다</b> <span class="tag ok">2026-08-06 확정 · SB-27</span></h2>
 <p class="seclead">
   ⭐ <b>한 번 정했다가 사용자 지적으로 뒤집은 결정이다.</b> 처음엔 <i>“막되 <code>[당일 방문 등록]</code>으로 보낸다”</i>였는데 —
   <i>“<b>진료시간 사이에 못 넣으면 그 사람은 진료 기록도 못 하고 통계에도 안 든다.</b>
   나중에라도 기록해야 하는 경우가 생길 수 있다. <b>많은 사람이 들이닥쳤을 때.</b>”</i><br>
-  ⚠️ <b>확인해 보니 그 「갈 길」은 길이 아니었다</b> — 당일 방문 등록은 <b>시각을 남기지 않는다</b>(4단계에 시간을 묻는 칸이 없다).
-  <b>막으면 진짜로 적을 곳이 사라진다.</b>
+  ⚠️ <b>당일 방문 등록 패널은 방문 시각을 함께 받는다</b> — 지난 시각과 지난 날을 구분해 기록한다.
+  <b>캘린더에서 지난 시각을 막아도 패널에는 기록할 길이 남는다.</b>
 </p>
 
 <div class="ok">
@@ -1168,12 +1169,12 @@
   </div>
 </div>
 
-<p class="mini-t" style="margin-top:22px">㉰ <span class="n">그래서 <b>「당일 방문 등록」을 한 화면으로 다시 만든다</b> <span class="tag new">함께 바뀌는 화면 · 마법사 폐기</span></span></p>
+<p class="mini-t" style="margin-top:22px">㉰ <span class="n">그래서 <b>「당일 방문 등록」을 한 화면으로 다시 만든다</b> <span class="tag new">QUEUE-WALK-02 정본</span></span></p>
 <p class="seclead" style="margin-top:0">
   사용자 지시: <i>“당일 등록이 5단계라고 했는데 <b>그걸 한 화면에서 적나? 한 단계씩 가나?</b>
   <b>이거 한 화면에서 해야 할 것 같아.</b>”</i><br>
-  ⭐ <b>지금 그림(목업 62 ⑥)은 <code>1/4</code> <code>2/4</code> 마법사</b>였다. 시각 단계까지 붙으면 <b>5단계</b>가 된다 —
-  <b>접수 창구에서 다섯 번 넘기는 화면</b>이다.
+  ⭐ <b>워크인 등록은 환자·의사·시각을 한 오른쪽 패널에 함께 둔다</b> —
+  <b>접수 직원이 한 화면에서 확인하고 [등록]을 누르는 구조</b>다.
 </p>
 
 <div class="ok">
@@ -1187,7 +1188,7 @@
 
 <div class="screen" style="margin-top:14px">
   <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
-    <div class="stepbox" style="flex:1.2;min-width:290px">
+    <div class="stepbox panel-preview" style="flex:1.2;min-width:290px">
       <h4 style="margin:0 0 10px;font-size:13px;font-weight:800">당일 방문 환자 등록</h4>
 
       <div class="fline"><span class="fnum">1</span>환자</div>
@@ -1240,16 +1241,16 @@
     ⛔ <b>감춰 뒀다가 하나씩 꺼내지 않는다</b>(마법사의 문제다 — 끝날 때까지 <b>몇 개가 남았는지</b> 모른다).<br>
     ⭐ <b>못 찾으면 같은 화면 안에서</b> 신규 등록 칸(이름·성별·생년월일·전화)이 <b>펼쳐진다</b>(<code>QUEUE-WALK-20</code>).
     ⛔ 다른 화면으로 넘기지 않는다.<br>
-    ⭐ <b>전화예약 모달도 같은 구조</b>다(<code>QUEUE-WALK-21</code>) — 환자 · 의사 · 시각 · 사유.
-    <b>두 모달이 부품을 공유하던 관계</b>(<code>SEARCH-ACT-06</code>)를 그대로 유지한다.<br>
+    ⭐ <b>전화예약 패널도 같은 구조</b>다(<code>QUEUE-WALK-21</code>) — 환자 · 의사 · 시각 · 사유.
+    <b>두 패널이 부품을 공유하던 관계</b>(<code>SEARCH-ACT-06</code>)를 그대로 유지한다.<br>
     📌 <b>검색 결과에서 바로 열면</b>(<code>SEARCH-ACT-05</code>) <b>1번 줄이 이미 채워진 채로</b> 열리고 커서는 <b>담당 의사</b>로 간다.
   </p>
 </div>
 
 <div class="flag">
-  <span class="t">⚠️ <b>목업 62 ⑥절(<code>1/4</code> 마법사)이 낡았다 — 다시 그려야 한다</b></span><br>
-  <code>/queue</code> 확정안인 <b>목업 62번의 ⑥ 당일 방문 등록</b>은 아직 <b>4단계 마법사</b>로 그려져 있다.
-  <b>이 결정이 그 화면을 바꾼다</b>(<code>QUEUE-WALK-02</code>·<code>QUEUE-SAME-01</code> 개정).
+  <span class="t">⚠️ <b>당일 방문 등록은 단일 패널이 정본이다</b></span><br>
+  <code>/queue</code>에서 여는 <b>당일 방문 등록</b>은 환자·의사·시각을 한 화면에 두고,
+  <b>저장 직전에 한 번 확인한다</b>(<code>QUEUE-WALK-02</code>·<code>QUEUE-SAME-01</code>).
 </div>
 
 <div class="flag">
@@ -1392,7 +1393,7 @@
   <p style="margin:0 0 10px;font-size:12px;color:var(--ink-muted);line-height:1.6">
     ⭐ <b>SB-26은 이 문서 안에서 이미 답이 나왔다</b>(「⏱ 진료시간이 의사마다 다를 때」 절 — <b>눈금 30분 고정 + 블록은 길이에 비례</b>).
     <b>SB-30·SB-34는 요구사항 <code>:13</code>(의사 5~8명)을 찾아내면서 함께 닫혔다</b>(위 「🧮 8명이면 정말 못 읽나」 절).
-    <b>SB-25·SB-33은 <code>CAL-BOOK-*</code>(모달 한 화면)이 생기면서, SB-28은 <i>“팝업을 쓴다”</i>는 전제가 사실이 아님을 확인하면서 닫혔다.</b>
+    <b>SB-25·SB-33은 <code>CAL-BOOK-*</code>(오른쪽 패널 한 화면)이 생기면서, SB-28은 <i>“오버레이를 쓴다”</i>는 전제가 사실이 아님을 확인하면서 닫혔다.</b>
     <b>SB-29는 점심칸이 DB에 이미 있다는 것을 확인하면서</b> 닫혔다. <b>남은 빈칸은 없다.</b>
     ⭐ <b>8건 중 4건이 「원문을 안 찾아본 것」이었다</b>(SB-30·34는 요구사항, SB-28은 기존 규칙, SB-29는 마이그레이션).
   </p>
@@ -1400,10 +1401,10 @@
     <tr><th style="width:64px">번호</th><th style="width:34px">등급</th><th>무엇이 안 정해졌나</th><th style="width:38%">지금 생각(추천)</th></tr>
     <tr>
       <td><b>SB-25</b><br><span class="tag ok" style="font-size:9px">해소됨</span></td><td>B</td>
-      <td><b>검색·<code>/today</code>에서 <code>[예약 잡기]</code>를 누르면 시간을 어디서 고르나.</b> 지금 전화예약 팝업은 <b>빈 슬롯을 눌러야</b> 열린다(시간 → 사람 순서).</td>
-      <td><b>✅ 모달 한 화면에서 끝내되, <code>[다른 날도 보기]</code>로 캘린더에 나가는 길을 하나 둔다</b>(<code>CAL-BOOK-01~08</code> · 2026-08-06 확정).<br>
-        ⭐ <b>여기 적혀 있던 추천안(「칩 들고 캘린더로」)은 이미 있는 규칙 둘과 어긋났다</b> — <code>SEARCH-ACT-06</code>(<i>“새 화면을 만들지 않는다”</i>) · <code>QUEUE-WALK-21</code>(<i>“전화예약도 한 화면”</i>).<br>
-        ⛔ <b>㉮ 캘린더로 데려가기 기각</b> — 두 규칙을 뒤집어야 하고 <b>날짜가 이미 정해진 대부분의 통화에 화면 이동을 강제</b>한다. ⛔ <b>㉯ 모달 안에서만 기각</b> — <i>“이번 주 아무 때나”</i> 통화가 <b>막힌 길</b>이 된다.</td>
+      <td><b>검색·<code>/today</code>에서 <code>[예약 잡기]</code>를 누르면 시간을 어디서 고르나.</b> 예약은 오른쪽 패널에서 환자·의사·날짜·시간을 함께 확인한다.</td>
+      <td><b>✅ 캘린더 빈 곳을 직접 눌러 오른쪽 패널에서 끝낸다</b>(<code>CAL-BOOK-01~04</code> · 2026-08-06 확정).<br>
+        ⭐ <b>날짜 이동은 캘린더의 날짜 컨트롤로 처리하고, 별도 시간 칩을 만들지 않는다.</b>
+        검색 화면의 <code>[예약 잡기]</code>는 환자를 채운 채 캘린더로 이동하고 의사·시간을 고른다(<code>CAL-BOOK-03·04</code>).</td>
     </tr>
     <tr>
       <td><b>SB-26</b><br><span class="tag ok" style="font-size:9px">해소됨</span></td><td>B</td>
@@ -1418,9 +1419,9 @@
     </tr>
     <tr>
       <td><b>SB-28</b><br><span class="tag ok" style="font-size:9px">해소됨</span></td><td>B</td>
-      <td><b>예약 슬롯을 눌렀을 때 상세를 어디에 띄우나.</b> 스펙은 <b>사이드패널</b>이라 적혀 있는데, <code>/today</code>·<code>/queue</code>는 <b>팝업</b>을 쓴다고 적혀 있었다.</td>
+      <td><b>예약 슬롯을 눌렀을 때 상세를 어디에 띄우나.</b> 스펙은 <b>오른쪽 패널</b>이라 적혀 있는데, 이전 문구에는 <b>오버레이</b>가 섞여 있었다.</td>
       <td><b>✅ 사이드패널 + 격자를 밀어서 좁힌다</b>(<code>CAL-PANEL-01~07</code> · 2026-08-06 확정).<br>
-        ⭐ <b>「팝업을 쓴다」가 사실이 아니었다</b> — <code>/today</code>·<code>/queue</code>엔 <b>예약 상세가 아예 없고</b> 둘 다 <b>이 패널로 보낸다</b>(<code>TODAY-BTN-03</code>·<code>QUEUE-BTN-05</code>). 거기 팝업은 <b>동작 확인용</b>이라 <b>처음부터 충돌이 아니었다.</b><br>
+        ⭐ <b>예약 상세는 오버레이가 아니다</b> — <code>/today</code>·<code>/queue</code>엔 <b>예약 상세가 아예 없고</b> 둘 다 <b>이 패널로 보낸다</b>(<code>TODAY-BTN-03</code>·<code>QUEUE-BTN-05</code>). 확인창은 <b>저장 확인에만</b> 쓴다.<br>
         ⛔ <b>㉯ 격자 위에 덮기 기각</b> — <b>덮인 열의 빈자리를 못 본 채</b> 옮길 시간을 고르게 된다. <b>가려진 줄도 모르는 실수</b>보다 <b>눈에 보이는 불편</b>이 낫다.</td>
     </tr>
     <tr>
@@ -1443,10 +1444,10 @@
     </tr>
     <tr>
       <td><b>SB-33</b><br><span class="tag ok" style="font-size:9px">해소됨</span></td><td>B</td>
-      <td><b>주간에서 「빈 곳」을 누르면 무엇이 열리나.</b> 일간에서는 빈 칸을 누르면 <b>그 의사·그 시간으로 전화예약 팝업</b>이 열린다.
+      <td><b>주간에서 「빈 곳」을 누르면 무엇이 열리나.</b> 일간에서는 빈 칸을 누르면 <b>그 의사·그 시간으로 전화예약 패널</b>이 열린다.
         그런데 주간의 레인은 <b>얇고</b> 하루가 <b>세로로 압축</b>돼 있다.</td>
-      <td><b>✅ 모달을 열되 시각만 비운다</b>(<code>CAL-WEEK-10</code> · 2026-08-06 확정) — <b>그 의사·그 날</b>까지만 채워 열고, <b>시각은 모달의 빈 시간 칩</b>에서 고른다(<code>CAL-BOOK-04</code>).<br>
-        ⭐ <b>주간에서 부정확한 것은 세로(시각)뿐</b>이라 <b>부정확한 것만 모달이 받는다.</b><br>
+      <td><b>✅ 오른쪽 패널을 열되 시각은 비워 둔다</b>(<code>CAL-WEEK-10</code> · 2026-08-06 확정) — <b>그 의사·그 날</b>까지만 채워 열고, <b>시각은 일간 캘린더의 빈 곳을 직접 눌러</b> 넣는다(<code>CAL-BOOK-04</code>).<br>
+        ⭐ <b>주간에서 부정확한 것은 세로(시각)뿐</b>이라 <b>시각만 비운 패널</b>을 받는다.<br>
         ⛔ <b>㉮ 일간으로 이동 기각</b> — 예약을 잡던 흐름이 <b>화면 이동으로 끊긴다.</b> ⛔ <b>㉯ 그 자리에서 시각까지 찍기 기각</b> — <b>19~20px 레인</b>에서 15분을 찍는 것이 곧 <b>오예약</b>이고, <b>환자 안내가 나간 뒤에 발견</b>된다.</td>
     </tr>
     <tr>
@@ -1460,7 +1461,7 @@
   </table>
 
   <p>
-    📌 <b>확정되면 <code>/queue</code>의 62번처럼 「확정안」을 따로 그린다</b>(65번) — 전화예약 팝업 4단계 ·
+    📌 <b>확정되면 <code>/queue</code>의 62번처럼 「확정안」을 따로 그린다</b>(65번) — 전화예약 오른쪽 패널 ·
     변경/취소 사이드패널 · 일정 변경 영향 목록 · <b>「사이에 끼워 넣기」 경고</b> · 빈 상태 · 실시간 갱신까지.
     <b>이 문서에는 고른 안만 남아 있다</b> — 기각안과 그 근거는 <b>결정 문서</b>에 있다.
   </p>

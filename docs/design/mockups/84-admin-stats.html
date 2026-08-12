@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>운영 통계 · 직원 웹 목업 84</title>
+  <style>
+    :root {
+      --ink: #10243a;
+      --ink-muted: #5a6c7b;
+      --subtle: #8a99a6;
+      --divider: #dfe7eb;
+      --bg: #f2f5f7;
+      --surface: #fff;
+      --primary: #0b6e70;
+      --teal-soft: #e8f4f3;
+      --teal-line: #abd8d5;
+      --warn: #b44e00;
+      --warn-soft: #fff4e9;
+      --done: #67788a;
+      --done-bg: #eef2f5;
+      --danger: #a33b39;
+      --shadow: 0 14px 35px rgba(16, 36, 58, .07);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--bg); font-size: 14px; line-height: 1.45; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    svg { display: block; }
+    .icon { width: 18px; height: 18px; flex: 0 0 auto; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 226px minmax(0, 1fr); }
+    .sidebar { display: flex; flex-direction: column; min-height: 100vh; background: var(--surface); border-right: 1px solid var(--divider); }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 25px 21px 22px; border-bottom: 1px solid var(--divider); }
+    .brand-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; background: var(--primary); color: var(--surface); }
+    .brand strong { font-size: 16px; letter-spacing: -.02em; }
+    .brand small { display: block; color: var(--subtle); font-size: 11px; margin-top: 1px; }
+    .nav-label { color: var(--subtle); font-size: 11px; font-weight: 700; letter-spacing: .08em; padding: 23px 21px 8px; }
+    .nav { padding: 0 10px; }
+    .nav a { display: flex; align-items: center; gap: 11px; color: var(--ink-muted); text-decoration: none; padding: 10px 11px; border-radius: 9px; margin: 2px 0; }
+    .nav a:hover { background: #f5f8f9; }
+    .nav a.active { position: relative; color: var(--primary); background: var(--teal-soft); font-weight: 700; }
+    .nav a.active::before { content: ""; position: absolute; inset: 7px auto 7px 0; width: 3px; border-radius: 4px; background: var(--primary); }
+    .nav .badge { margin-left: auto; min-width: 22px; padding: 2px 6px; border-radius: 99px; color: var(--warn); background: var(--warn-soft); font-size: 11px; text-align: center; font-weight: 700; }
+    .sidebar-note { margin: auto 15px 16px; padding: 13px 13px 12px; border: 1px solid var(--divider); border-radius: 11px; background: #fafcfc; color: var(--ink-muted); font-size: 12px; }
+    .sidebar-note strong { display: block; color: var(--ink); margin-bottom: 4px; }
+    .main { min-width: 0; }
+    .topbar { height: 70px; display: flex; align-items: center; gap: 13px; padding: 0 30px; background: var(--surface); border-bottom: 1px solid var(--divider); }
+    .topbar .spacer { flex: 1; }
+    .top-action { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--divider); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 8px 11px; font-weight: 650; }
+    .top-action.primary { color: var(--surface); background: var(--primary); border-color: var(--primary); }
+    .profile { display: flex; align-items: center; gap: 9px; margin-left: 5px; padding-left: 18px; border-left: 1px solid var(--divider); }
+    .avatar { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; color: var(--primary); background: var(--teal-soft); font-weight: 800; }
+    .profile strong { display: block; font-size: 13px; }
+    .profile small { color: var(--ink-muted); font-size: 11px; }
+    .page { max-width: 1450px; margin: 0 auto; padding: 29px 34px 50px; }
+    .eyebrow { display: flex; align-items: center; gap: 8px; color: var(--primary); font-size: 12px; font-weight: 750; letter-spacing: .05em; }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+    h1 { margin: 7px 0 4px; font-size: 29px; line-height: 1.2; letter-spacing: -.04em; }
+    .lead { max-width: 760px; margin: 0; color: var(--ink-muted); }
+    .sample-banner { display: flex; align-items: center; gap: 9px; margin-top: 18px; padding: 10px 13px; border: 1px solid #bedbd9; border-radius: 9px; background: var(--teal-soft); color: var(--primary); font-size: 12px; }
+    .sample-banner strong { color: var(--primary); }
+    .audit-note { display: flex; align-items: flex-start; gap: 10px; margin-top: 11px; padding: 11px 13px; border: 1px solid #f1d5b8; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 12px; }
+    .audit-note strong { color: var(--warn); }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-top: 22px; padding: 16px; border: 1px solid var(--divider); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+    .field { display: grid; gap: 5px; }
+    .field label { color: var(--ink-muted); font-size: 11px; font-weight: 750; }
+    .field input, .field select { min-width: 151px; height: 38px; padding: 0 10px; border: 1px solid var(--divider); border-radius: 7px; background: var(--surface); color: var(--ink); }
+    .range-arrow { padding-bottom: 9px; color: var(--subtle); }
+    .view-button { height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 15px; border: 1px solid var(--primary); border-radius: 7px; color: var(--surface); background: var(--primary); font-weight: 750; }
+    .download { height: 38px; display: inline-flex; align-items: center; gap: 7px; margin-left: auto; padding: 0 14px; border: 1px solid var(--teal-line); border-radius: 7px; color: var(--primary); background: #f7fbfb; font-weight: 750; }
+    .download small { color: var(--ink-muted); font-weight: 500; }
+    .section-head { display: flex; align-items: baseline; gap: 10px; margin: 28px 0 12px; }
+    .section-head h2 { margin: 0; font-size: 16px; letter-spacing: -.02em; }
+    .section-head p { margin: 0; color: var(--ink-muted); font-size: 12px; }
+    .rule-tag { margin-left: auto; color: var(--subtle); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .metrics { display: grid; grid-template-columns: repeat(6, minmax(130px, 1fr)); gap: 11px; }
+    .metric { min-height: 127px; padding: 15px; border: 1px solid var(--divider); border-radius: 11px; background: var(--surface); box-shadow: 0 5px 18px rgba(16,36,58,.035); }
+    .metric.clickable { transition: border-color .15s, box-shadow .15s; }
+    .metric.clickable:hover { border-color: var(--teal-line); box-shadow: 0 7px 22px rgba(11,110,112,.10); }
+    .metric-top { display: flex; align-items: center; gap: 6px; color: var(--ink-muted); font-size: 12px; }
+    .metric-top .open { margin-left: auto; color: var(--primary); }
+    .metric strong { display: block; margin-top: 13px; font-size: 25px; letter-spacing: -.05em; }
+    .metric .basis { display: block; margin-top: 5px; color: var(--subtle); font-size: 10px; }
+    .metric.warning { border-color: #f0d5bd; background: #fffaf5; }
+    .metric.warning strong { color: var(--warn); }
+    .metric .privacy { color: var(--warn); font-size: 11px; line-height: 1.35; margin-top: 15px; }
+    .content-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 14px; align-items: start; }
+    .panel { min-width: 0; border: 1px solid var(--divider); border-radius: 12px; background: var(--surface); box-shadow: 0 5px 18px rgba(16,36,58,.035); overflow: hidden; }
+    .panel-head { display: flex; align-items: center; gap: 10px; padding: 16px 17px 13px; border-bottom: 1px solid var(--divider); }
+    .panel-head h3 { margin: 0; font-size: 14px; }
+    .panel-head p { margin: 2px 0 0; color: var(--ink-muted); font-size: 11px; }
+    .panel-head .spacer { flex: 1; }
+    .segmented { display: inline-flex; border: 1px solid var(--divider); border-radius: 7px; overflow: hidden; }
+    .segmented button { padding: 6px 10px; border: 0; border-right: 1px solid var(--divider); color: var(--ink-muted); background: var(--surface); font-size: 11px; }
+    .segmented button:last-child { border-right: 0; }
+    .segmented button.active { color: var(--primary); background: var(--teal-soft); font-weight: 750; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 11px 16px; text-align: left; border-bottom: 1px solid #edf1f3; white-space: nowrap; }
+    th { color: var(--ink-muted); background: #fafcfc; font-size: 11px; font-weight: 750; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td .muted { color: var(--ink-muted); }
+    td .masked { color: var(--warn); font-size: 11px; }
+    .link-cell { color: var(--primary); font-weight: 700; text-decoration: none; }
+    .chart { padding: 17px 17px 18px; }
+    .chart-grid { height: 178px; display: flex; align-items: end; gap: 9px; padding: 16px 7px 0; border-bottom: 1px solid #cfdadd; background: repeating-linear-gradient(to bottom, transparent 0, transparent 43px, #edf2f3 44px); }
+    .bar-col { min-width: 30px; flex: 1; display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: end; gap: 6px; }
+    .bar-value { color: var(--ink-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .bar { width: min(31px, 100%); min-height: 9px; border-radius: 5px 5px 0 0; background: #8bc7c4; }
+    .bar.emphasis { background: var(--primary); }
+    .bar.hidden { display: grid; place-items: center; background: #e3e9ec; color: var(--ink-muted); font-size: 9px; }
+    .bar-label { color: var(--ink-muted); font-size: 10px; }
+    .chart-foot { display: flex; align-items: center; gap: 7px; margin-top: 13px; color: var(--ink-muted); font-size: 11px; }
+    .legend { width: 9px; height: 9px; border-radius: 3px; background: var(--primary); }
+    .source { padding: 16px 17px 17px; }
+    .source-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
+    .source-row strong { font-variant-numeric: tabular-nums; }
+    .track { height: 13px; display: flex; overflow: hidden; border-radius: 7px; background: #e9eef0; }
+    .track .app-share { width: 62%; background: var(--primary); }
+    .track .staff-share { width: 38%; background: #9eb0bd; }
+    .source-key { display: flex; gap: 16px; margin-top: 11px; color: var(--ink-muted); font-size: 11px; }
+    .source-key span { display: inline-flex; align-items: center; gap: 6px; }
+    .source-key i { width: 8px; height: 8px; border-radius: 3px; background: var(--primary); }
+    .source-key .staff i { background: #9eb0bd; }
+    .note { margin-top: 12px; padding: 10px 11px; border-radius: 7px; color: var(--ink-muted); background: #f7f9fa; font-size: 11px; }
+    .chatbot { margin-top: 14px; border-color: #f0d5bd; }
+    .chatbot .panel-head { background: #fffaf5; }
+    .blocked { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding: 3px 6px; border-radius: 5px; color: var(--warn); background: var(--warn-soft); font-size: 10px; font-weight: 750; }
+    .chat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 15px 17px 17px; }
+    .chat-card { padding: 12px; border: 1px dashed #e4c9ae; border-radius: 8px; background: #fffdfb; }
+    .chat-card span { display: block; color: var(--ink-muted); font-size: 11px; }
+    .chat-card strong { display: block; margin-top: 8px; color: var(--warn); font-size: 14px; }
+    .drawer { margin-top: 14px; }
+    .drawer .panel-head { background: #f8fbfb; }
+    .drawer .panel-head .close { color: var(--ink-muted); border: 0; background: transparent; font-size: 17px; line-height: 1; }
+    .drawer-note { margin: 12px 17px 0; padding: 9px 10px; border-radius: 7px; color: var(--primary); background: var(--teal-soft); font-size: 11px; }
+    .drawer table th, .drawer table td { padding-left: 17px; padding-right: 17px; }
+    .drawer .footer { display: flex; justify-content: space-between; align-items: center; padding: 11px 17px 14px; color: var(--ink-muted); font-size: 11px; }
+    .rule-index { display: flex; flex-wrap: wrap; gap: 5px 8px; margin-top: 25px; padding-top: 14px; border-top: 1px solid var(--divider); color: var(--subtle); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .rule-index code { padding: 2px 4px; border-radius: 4px; background: #e8edef; }
+    @media (max-width: 1180px) {
+      .metrics { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+      .content-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .topbar { padding: 0 16px; }
+      .topbar .top-action { display: none; }
+      .page { padding: 22px 16px 35px; }
+      .metrics { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+      .toolbar { align-items: stretch; }
+      .field, .field input, .field select, .view-button, .download { width: 100%; }
+      .download { margin-left: 0; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <svg class="sr-only" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.1 2.2-5 5.5-5s5.1 1.9 5.5 5M16 6.5a2.5 2.5 0 0 1 0 4.9M16 14c2.3.2 3.8 1.8 4.2 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M8 10h8M8 14h8M8 18h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 19V5M4 19h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m8 15 3-4 3 2 5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.5-2.5 7.8-7 10-4.5-2.2-7-5.5-7-10V6l7-3Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m9 12 2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 10.5v5M12 7.5h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <div class="app">
+    <aside class="sidebar" aria-label="관리자 메뉴">
+      <div class="brand">
+        <div class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></div>
+        <div><strong>온결병원</strong><small>직원 운영 시스템</small></div>
+      </div>
+      <div class="nav-label">업무</div>
+      <nav class="nav">
+        <a href="#today"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>오늘의 현황</a>
+        <a href="#calendar"><svg class="icon" aria-hidden="true"><use href="#i-cal"/></svg>예약 캘린더</a>
+        <a href="#queue"><svg class="icon" aria-hidden="true"><use href="#i-people"/></svg>대기 목록<span class="badge">3</span></a>
+        <a href="#patients"><svg class="icon" aria-hidden="true"><use href="#i-people"/></svg>환자 검색</a>
+      </nav>
+      <div class="nav-label">관리</div>
+      <nav class="nav">
+        <a href="#schedule"><svg class="icon" aria-hidden="true"><use href="#i-cal"/></svg>일정 관리</a>
+        <a href="#stats" class="active" aria-current="page" data-rule="STAT-SHELL-01 STAT-SHELL-02 STAT-SHELL-03"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg>운영 통계</a>
+        <a href="#access-logs"><svg class="icon" aria-hidden="true"><use href="#i-clipboard"/></svg>열람 기록</a>
+        <a href="#settings"><svg class="icon" aria-hidden="true"><use href="#i-clipboard"/></svg>병원 설정</a>
+      </nav>
+      <div class="sidebar-note"><strong>관리자 전용 화면</strong>운영 통계의 열람·드릴다운·내보내기 동작은 관리자 활동 기록 정책을 따릅니다.</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <span class="sr-only">직원용 웹 헤더</span>
+        <div class="spacer"></div>
+        <button class="top-action"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>새 예약</button>
+        <button class="top-action primary"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>당일 방문</button>
+        <div class="profile"><span class="avatar">김</span><div><strong>김수진</strong><small>관리자</small></div></div>
+      </header>
+
+      <div class="page" id="stats">
+        <div class="eyebrow"><span class="dot"></span>ADMIN / REPORTING</div>
+        <h1>운영 통계</h1>
+        <p class="lead" data-rule="STAT-SHELL-03">선택한 기간의 병원 운영 흐름을 집계합니다. 숫자를 비교할 때는 각 지표의 기준일을 함께 확인하세요.</p>
+        <div class="sample-banner" data-rule="STAT-STATE-02"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg><span><strong>레이아웃 확인용 샘플 데이터</strong> · 실제 환자 정보와 병원 수치가 아닙니다.</span></div>
+        <div class="audit-note" data-rule="STAT-AUDIT-01 STAT-AUDIT-02"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><span><strong>개인정보 보호 초안</strong> · 소수 인원 집계는 비공개 처리하고, 통계 열람·상세 목록·CSV 내보내기의 감사 범위는 ALOG 확장 결정이 필요합니다.</span></div>
+
+        <form class="toolbar" aria-label="통계 조회 조건" data-rule="STAT-SCOPE-01 STAT-SCOPE-02 STAT-SCOPE-03">
+          <div class="field"><label for="from">시작일</label><input id="from" type="date" value="2026-08-01"></div>
+          <span class="range-arrow" aria-hidden="true">—</span>
+          <div class="field"><label for="to">종료일</label><input id="to" type="date" value="2026-08-07"></div>
+          <button class="view-button" type="button">통계 보기</button>
+          <button class="download" type="button" data-rule="STAT-EXPORT-01 STAT-EXPORT-02"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>CSV 다운로드 <small>· 집계만</small></button>
+        </form>
+
+        <div class="section-head"><h2>기간 요약</h2><p>2026년 8월 1일 (토) — 2026년 8월 7일 (금) · 샘플</p><span class="rule-tag">STAT-METRIC-01 · STAT-METRIC-07</span></div>
+        <section class="metrics" aria-label="기간 요약 지표" data-rule="STAT-METRIC-01 STAT-METRIC-07 STAT-MASK-01 STAT-MASK-02">
+          <button class="metric clickable" type="button" data-rule="STAT-DRILL-01 STAT-DRILL-03">
+            <span class="metric-top">예약 <span class="open">상세</span></span><strong>1,248</strong><span class="basis">예약 생성일 기준</span>
+          </button>
+          <button class="metric clickable" type="button" data-rule="STAT-DRILL-01 STAT-DRILL-03">
+            <span class="metric-top">취소 <span class="open">상세</span></span><strong>46</strong><span class="basis">취소 발생일 기준</span>
+          </button>
+          <button class="metric clickable" type="button" data-rule="STAT-DRILL-01 STAT-DRILL-03">
+            <span class="metric-top">예약 부도 <span class="open">상세</span></span><strong>12</strong><span class="basis">부도 발생일 기준</span>
+          </button>
+          <button class="metric clickable" type="button" data-rule="STAT-DRILL-01 STAT-DRILL-03">
+            <span class="metric-top">실제 방문 <span class="open">상세</span></span><strong>1,086</strong><span class="basis">방문 전이일 기준</span>
+          </button>
+          <div class="metric" data-rule="STAT-METRIC-04 STAT-MASK-03">
+            <span class="metric-top">평균 대기시간</span><strong>18.4분</strong><span class="basis">대기 시작일 기준</span>
+          </div>
+          <button class="metric warning clickable" type="button" data-rule="STAT-METRIC-04 STAT-DRILL-01 STAT-DRILL-03">
+            <span class="metric-top">오래 기다린 사례 <span class="open">상세</span></span><strong>7</strong><span class="basis">병원 기준시간 초과</span>
+          </button>
+        </section>
+
+        <div class="section-head"><h2>분해해서 보기</h2><p>비공개 셀은 클릭·복사할 수 없습니다.</p><span class="rule-tag">STAT-METRIC-02 · STAT-MASK-02~04</span></div>
+        <div class="content-grid">
+          <section class="panel" aria-label="진료과별 예약 현황" data-rule="STAT-METRIC-02 STAT-MASK-01 STAT-MASK-02 STAT-MASK-03 STAT-MASK-04">
+            <div class="panel-head"><div><h3>진료과별 예약 현황</h3><p>예약 · 방문 · 취소 · 부도</p></div><span class="spacer"></span><div class="segmented" role="tablist" aria-label="분해 기준"><button class="active" type="button" role="tab" aria-selected="true">진료과별</button><button type="button" role="tab" aria-selected="false">의사별</button></div></div>
+            <div class="table-wrap">
+              <table>
+                <caption class="sr-only">샘플 진료과별 예약 현황</caption>
+                <thead><tr><th>진료과</th><th class="num">예약</th><th class="num">방문</th><th class="num">취소</th><th class="num">부도</th></tr></thead>
+                <tbody>
+                  <tr><td>내과</td><td class="num"><a class="link-cell" href="#detail">598</a></td><td class="num"><a class="link-cell" href="#detail">522</a></td><td class="num">19</td><td class="num">7</td></tr>
+                  <tr><td>정형외과</td><td class="num"><a class="link-cell" href="#detail">321</a></td><td class="num"><a class="link-cell" href="#detail">284</a></td><td class="num">13</td><td class="num">4</td></tr>
+                  <tr><td>소아청소년과</td><td class="num"><span class="masked">소수 인원 보호 · 비공개</span></td><td class="num"><span class="masked">소수 인원 보호 · 비공개</span></td><td class="num"><span class="masked">비공개</span></td><td class="num"><span class="masked">비공개</span></td></tr>
+                  <tr><td>전체</td><td class="num"><strong>1,248</strong></td><td class="num"><strong>1,086</strong></td><td class="num"><strong>46</strong></td><td class="num"><strong>12</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="시간대별 방문 환자 수" data-rule="STAT-METRIC-03 STAT-MASK-04">
+            <div class="panel-head"><div><h3>시간대별 방문 환자 수</h3><p>방문 전이일 · 슬롯 시작 시각</p></div><span class="rule-tag">STAT-METRIC-03</span></div>
+            <div class="chart">
+              <div class="chart-grid" aria-label="시간대별 샘플 막대 그래프">
+                <div class="bar-col"><span class="bar-value">92</span><span class="bar" style="height:37%"></span><span class="bar-label">09시</span></div>
+                <div class="bar-col"><span class="bar-value">141</span><span class="bar emphasis" style="height:57%"></span><span class="bar-label">10시</span></div>
+                <div class="bar-col"><span class="bar-value">188</span><span class="bar emphasis" style="height:76%"></span><span class="bar-label">11시</span></div>
+                <div class="bar-col"><span class="bar-value">163</span><span class="bar emphasis" style="height:66%"></span><span class="bar-label">13시</span></div>
+                <div class="bar-col"><span class="bar-value">207</span><span class="bar emphasis" style="height:84%"></span><span class="bar-label">14시</span></div>
+                <div class="bar-col"><span class="bar-value">155</span><span class="bar" style="height:63%"></span><span class="bar-label">15시</span></div>
+                <div class="bar-col"><span class="bar-value">140</span><span class="bar" style="height:57%"></span><span class="bar-label">16시</span></div>
+                <div class="bar-col"><span class="bar hidden" style="height:16%">비공개</span><span class="bar-label">17시</span></div>
+              </div>
+              <div class="chart-foot"><span class="legend"></span>막대 위 숫자는 샘플 값 · 소수 인원은 비공개</div>
+            </div>
+          </section>
+        </div>
+
+        <div class="section-head"><h2>예약 유입 경로</h2><p>예약 생성일 기준 · chatbot은 별도 집계</p><span class="rule-tag">STAT-METRIC-05</span></div>
+        <section class="panel source" aria-label="앱 예약과 직원 등록 예약 비율" data-rule="STAT-METRIC-05 STAT-MASK-01">
+          <div class="source-row"><span>전체 예약</span><strong>1,248건</strong></div>
+          <div class="track" role="img" aria-label="앱 예약 62퍼센트, 직원 등록 예약 38퍼센트"><span class="app-share"></span><span class="staff-share"></span></div>
+          <div class="source-key"><span><i></i>모바일 앱 62% · 774건</span><span class="staff"><i></i>직원 등록 38% · 474건</span></div>
+          <div class="note"><svg class="icon" style="display:inline-block;vertical-align:-5px;width:14px;height:14px" aria-hidden="true"><use href="#i-info"/></svg> 상담봇으로 생성된 예약을 이 비율에 포함할지는 운영 정책 결정이 필요합니다. 현재 샘플은 앱·직원만 표시합니다.</div>
+        </section>
+
+        <section class="panel chatbot" aria-label="상담봇 지표" data-rule="STAT-METRIC-06 STAT-STATE-02">
+          <div class="panel-head"><div><h3>상담봇 운영 지표</h3><p>문의 수 · 자체 안내 · 직원 연결 · 많이 들어온 질문</p></div><span class="blocked">BLOCKED-BEFORE-MERGE</span></div>
+          <div class="chat-grid">
+            <div class="chat-card"><span>상담봇 문의 수</span><strong>현재 집계할 수 없음</strong></div>
+            <div class="chat-card"><span>상담봇 자체 안내</span><strong>데이터 계약 필요</strong></div>
+            <div class="chat-card"><span>직원에게 넘긴 문의</span><strong>데이터 계약 필요</strong></div>
+            <div class="chat-card"><span>많이 들어온 질문</span><strong>분류 기준 필요</strong></div>
+          </div>
+        </section>
+
+        <aside class="panel drawer" id="detail" aria-label="실제 방문 상세 목록" data-rule="STAT-DRILL-01 STAT-DRILL-02 STAT-DRILL-03 STAT-AUDIT-02">
+          <div class="panel-head"><div><h3>실제 방문 상세</h3><p>2026년 8월 1일 (토) — 2026년 8월 7일 (금) · 공개 가능한 집계에서 열림</p></div><span class="spacer"></span><button class="close" type="button" aria-label="상세 닫기">×</button></div>
+          <div class="drawer-note"><svg class="icon" style="display:inline-block;vertical-align:-5px;width:14px;height:14px" aria-hidden="true"><use href="#i-shield"/></svg> 샘플 행입니다. 전화번호·생년월일은 서버가 마스킹한 값만 표시하고, 상세 열람은 감사 대상입니다.</div>
+          <div class="table-wrap">
+            <table>
+              <caption class="sr-only">샘플 실제 방문 상세 목록</caption>
+              <thead><tr><th>환자</th><th>예약일</th><th>상태</th></tr></thead>
+              <tbody>
+                <tr><td>홍길동 · <span class="muted">1985-**-01 · 010-****-5678</span></td><td>2026년 8월 1일 (토)</td><td>진료완료</td></tr>
+                <tr><td>이몽룡 · <span class="muted">1978-**-24 · 010-****-2255</span></td><td>2026년 8월 2일 (일)</td><td>진료완료</td></tr>
+                <tr><td>김하늘 · <span class="muted">1991-**-08 · 010-****-9102</span></td><td>2026년 8월 3일 (월)</td><td>진료완료</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="footer"><span>최근 3건 표시 · 전체 상한은 서버 계약 필요</span><span>샘플 데이터</span></div>
+        </aside>
+
+        <div class="rule-index" aria-label="이 목업이 다루는 화면 규칙">
+          <code>STAT-SHELL-01</code><code>STAT-SHELL-02</code><code>STAT-SHELL-03</code>
+          <code>STAT-SCOPE-01</code><code>STAT-SCOPE-02</code><code>STAT-SCOPE-03</code>
+          <code>STAT-METRIC-01</code><code>STAT-METRIC-02</code><code>STAT-METRIC-03</code><code>STAT-METRIC-04</code><code>STAT-METRIC-05</code><code>STAT-METRIC-06</code><code>STAT-METRIC-07</code>
+          <code>STAT-MASK-01</code><code>STAT-MASK-02</code><code>STAT-MASK-03</code><code>STAT-MASK-04</code>
+          <code>STAT-DRILL-01</code><code>STAT-DRILL-02</code><code>STAT-DRILL-03</code>
+          <code>STAT-EXPORT-01</code><code>STAT-EXPORT-02</code><code>STAT-AUDIT-01</code><code>STAT-AUDIT-02</code>
+          <code>STAT-STATE-01</code><code>STAT-STATE-02</code><code>STAT-STATE-03</code><code>STAT-STATE-04</code>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

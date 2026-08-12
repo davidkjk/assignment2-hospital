@@ -6,37 +6,61 @@
 <title>61 · 대기 목록 3안</title>
 <style>
   :root{
-    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
-    --warn:#B44E00; --done:#67788A; --done-bg:#F5F7F8;
-    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
-    --fs:13px; --fs-name:14px; --fs-time:15px; --row:44px; --pad:11px; --tap:36px;
+    --primary:#0b6e70; --ink:#10243a; --ink-muted:#5a6c7b;
+    --warn:#b44e00; --done:#67788a; --done-bg:#f5f7f8;
+    --bg:#f2f5f7; --surface:#fff; --divider:#e6ebef;
+    --fs-base:13px; --fs-sm:12px; --fs-lg:15px; --fs-xl:20px; --fs-num:26px;
+    --row:44px; --pad:11px; --tap:36px;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-size:var(--fs);
+  .icon-sprite{position:absolute;width:0;height:0;overflow:hidden}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:var(--fs-base);line-height:1.5;
     font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
     -webkit-font-smoothing:antialiased}
-  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
-  h1{font-size:22px;font-weight:800;margin:0 0 6px}
-  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .app-shell{display:flex;align-items:stretch;min-width:0}
+  .sidebar{width:240px;flex:0 0 240px;min-height:100vh;background:var(--surface);
+           border-right:1px solid var(--divider);padding:24px 12px 20px;display:flex;flex-direction:column}
+  .side-brand{padding:0 12px 24px;border-bottom:1px solid var(--divider)}
+  .side-brand strong{display:block;color:var(--primary);font-size:var(--fs-lg);font-weight:800}
+  .side-brand small{display:block;color:var(--ink-muted);font-size:var(--fs-sm);margin-top:2px}
+  .side-standalone{padding-top:16px}
+  .side-group{margin-top:20px}
+  .side-group.settings{margin-top:auto;padding-top:18px;border-top:1px solid var(--divider)}
+  .side-heading{padding:0 12px 6px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:800;letter-spacing:.04em}
+  .side-nav{display:grid;gap:2px}
+  .side-nav a{display:flex;align-items:center;gap:8px;min-height:var(--tap);padding:0 12px;border-radius:8px;
+              color:var(--ink-muted);font-size:var(--fs-base);font-weight:700;text-decoration:none}
+  .side-nav a .nav-icon{width:16px;height:16px;flex:0 0 auto;color:var(--ink-muted)}
+  .side-nav a .nav-meta{margin-left:auto;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:600;white-space:nowrap}
+  .side-nav a.active{background:#e7f1f1;color:var(--primary);box-shadow:inset 3px 0 0 var(--primary)}
+  .side-nav a.active .nav-icon,.side-nav a.active .nav-meta{color:var(--primary)}
+  .side-nav a:hover{background:var(--bg);color:var(--ink)}
+  .side-nav a.active:hover{background:#e7f1f1;color:var(--primary)}
+  .app-main{flex:1;min-width:0;background:var(--bg)}
+  .page{width:100%;max-width:1200px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:var(--fs-xl);font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:var(--fs-lg);margin:0 0 4px;line-height:1.7}
   .sub b{color:var(--ink)}
   .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
-         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:var(--fs-base);line-height:1.8;color:var(--ink-muted);
+         box-shadow:0 4px 14px rgba(16,36,58,.06)}
   .quote b{color:var(--ink)}
   hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
-  h2.sec{font-size:16px;font-weight:800;margin:38px 0 6px}
-  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
-  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+  h2.sec{font-size:var(--fs-lg);font-weight:800;margin:38px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:var(--fs-base);line-height:1.7;margin:0 0 14px}
+  .tag{display:inline-block;font-size:var(--fs-sm);font-weight:800;letter-spacing:.04em;
        padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
   .tag.rec{background:var(--primary);color:#fff}
 
   /* 화면 프레임 */
   .screen{background:var(--bg);border:1px solid var(--divider);border-radius:12px;padding:16px;overflow:hidden}
-  .h2t{font-size:15px;font-weight:800;margin:0 0 4px}
-  .h2s{font-size:12px;color:var(--ink-muted);margin:0 0 12px}
+  .h2t{font-size:var(--fs-lg);font-weight:800;margin:0 0 4px}
+  .h2s{font-size:var(--fs-sm);color:var(--ink-muted);margin:0 0 12px}
 
-  .card{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;margin-bottom:12px}
+  .card{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;margin-bottom:20px;
+        box-shadow:0 5px 16px rgba(16,36,58,.1)}
   .card-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--divider);
-          font-weight:800;font-size:var(--fs-name)}
+          font-weight:800;font-size:var(--fs-lg)}
   .card-h .cnt{font-variant-numeric:tabular-nums}
   .card-h .sp{margin-left:auto}
 
@@ -45,100 +69,163 @@
 
   /* 화면 머리 — 제목줄 + 상태 탭 */
   .pgh{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;padding:0 2px}
-  .pgh .t{font-size:17px;font-weight:800}
-  .pgh .d{font-size:12px;color:var(--ink-muted)}
+  .pgh .t{font-size:var(--fs-xl);font-weight:800}
+  .pgh .d{font-size:var(--fs-sm);color:var(--ink-muted)}
   .pgh .sp{margin-left:auto}
 
   .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
   .tab{background:var(--surface);border:1px solid var(--divider);border-radius:8px;padding:7px 11px;
        display:flex;align-items:baseline;gap:6px;white-space:nowrap}
-  .tab .l{font-size:12px;font-weight:700;color:var(--ink-muted)}
-  .tab .n{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
-  .tab.on{border-color:var(--primary);background:#E7F1F1;box-shadow:inset 3px 0 0 var(--primary)}
+  .tab .l{font-size:var(--fs-sm);font-weight:700;color:var(--ink-muted)}
+  .tab .n{font-size:var(--fs-num);font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .tab.on{border-color:var(--primary);background:#e7f1f1;box-shadow:inset 3px 0 0 var(--primary)}
   .tab.on .l{color:var(--primary)}
   .tab.on .n{color:var(--primary)}
   .tab.wn .n{color:var(--warn)}
-  .tab.ghost{border-style:dashed;border-color:var(--warn);background:#fff}
+  .tab.ghost{border-style:dashed;border-color:var(--warn);background:var(--surface)}
   .tab.ghost .l{color:var(--warn)}
 
   /* 환자 행 */
   .qrow{display:flex;align-items:center;gap:10px;min-height:var(--row);padding:0 12px;border-bottom:1px solid var(--divider)}
   .qrow:last-child{border-bottom:0}
-  .grip{width:14px;color:#B7C2CB;font-size:14px;letter-spacing:-2px;cursor:grab;user-select:none}
-  .grip.off{color:#E0E6EA}
+  .grip{width:14px;color:#b7c2cb;font-size:var(--fs-base);letter-spacing:-2px;cursor:grab;user-select:none}
+  .grip.off{color:#e0e6ea}
   .rail{display:inline-flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;
-        border-radius:6px;font-size:var(--fs-time);font-weight:800;font-variant-numeric:tabular-nums;
+        border-radius:6px;font-size:var(--fs-lg);font-weight:800;font-variant-numeric:tabular-nums;
         padding:4px 8px;min-width:34px}
   .rail.mut{background:var(--done)}
-  .rail.gh{background:#fff;color:var(--done);border:1px solid var(--divider)}
-  .nm{font-size:var(--fs-name);font-weight:800;white-space:nowrap}
-  .dob{color:var(--ink-muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .wait{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:66px}
-  .dept{color:var(--ink-muted);font-size:12px;white-space:nowrap}
+  .rail.gh{background:var(--surface);color:var(--done);border:1px solid var(--divider)}
+  .nm{font-size:var(--fs-lg);font-weight:800;white-space:nowrap}
+  .dob{color:var(--ink-muted);font-size:var(--fs-sm);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wait{font-size:var(--fs-base);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:66px}
+  .dept{color:var(--ink-muted);font-size:var(--fs-sm);white-space:nowrap}
   .right{margin-left:auto;display:flex;align-items:center;gap:8px}
   .btn{display:inline-flex;align-items:center;justify-content:center;height:var(--tap);padding:0 12px;
-       border-radius:8px;border:1px solid var(--primary);background:#fff;color:var(--primary);
-       font-size:12px;font-weight:800;font-family:inherit;cursor:default;white-space:nowrap}
+       border-radius:8px;border:1px solid var(--primary);background:var(--surface);color:var(--primary);
+       font-size:var(--fs-sm);font-weight:800;font-family:inherit;cursor:default;white-space:nowrap}
   .btn.fill{background:var(--primary);color:#fff}
   .btn.q{border-color:var(--divider);color:var(--ink-muted)}
-  .btn.sm{height:28px;padding:0 9px;font-size:11px}
-  .urg{display:inline-flex;align-items:center;gap:4px;color:var(--warn);font-weight:800;font-size:12px;white-space:nowrap}
+  .btn.sm{height:28px;padding:0 9px;font-size:var(--fs-sm)}
+  .urg{display:inline-flex;align-items:center;gap:4px;color:var(--warn);font-weight:800;font-size:var(--fs-sm);white-space:nowrap}
   .qrow.urgent{border-left:4px solid var(--warn);padding-left:8px}
   .qrow.dim{opacity:.55}
-  .qrow.hl{background:#FFF7EF;box-shadow:inset 3px 0 0 var(--warn)}
-  .badge{font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;background:var(--done-bg);color:var(--done);white-space:nowrap}
-  .badge.w{background:#fff;color:var(--warn);border:1px solid #E8D3C2}
+  .qrow.hl{background:#fff7ef;box-shadow:inset 3px 0 0 var(--warn)}
+  .badge{font-size:var(--fs-sm);font-weight:800;padding:2px 7px;border-radius:99px;background:var(--done-bg);color:var(--done);white-space:nowrap}
+  .badge.w{background:var(--surface);color:var(--warn);border:1px solid #e8d3c2}
 
   /* 구획 쌓기(안 B) */
-  .sect-h{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#EDF2F4;border-bottom:1px solid var(--divider);
-          font-size:12px;font-weight:800;color:var(--ink-muted)}
+  .sect-h{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#edf2f4;border-bottom:1px solid var(--divider);
+          font-size:var(--fs-sm);font-weight:800;color:var(--ink-muted)}
   .sect-h .n{color:var(--ink);font-variant-numeric:tabular-nums}
   .sect-h .sp{margin-left:auto;font-weight:700;color:var(--primary)}
 
   /* 칸반(안 C) */
   .kb{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  .kcol{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden}
-  .kcol .kh{padding:9px 11px;border-bottom:1px solid var(--divider);font-size:12px;font-weight:800;display:flex;gap:6px}
+  .kcol{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;box-shadow:0 5px 16px rgba(16,36,58,.1)}
+  .kcol .kh{padding:9px 11px;border-bottom:1px solid var(--divider);font-size:var(--fs-sm);font-weight:800;display:flex;gap:6px}
   .kcol .kh .n{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink-muted)}
   .kcard{border-bottom:1px solid var(--divider);padding:9px 11px}
   .kcard:last-child{border-bottom:0}
-  .kcard .l1{font-size:13px;font-weight:800}
-  .kcard .l2{font-size:11px;color:var(--ink-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  @media (max-width:900px){.kb{grid-template-columns:1fr 1fr}}
+  .kcard .l1{font-size:var(--fs-base);font-weight:800}
+  .kcard .l2{font-size:var(--fs-sm);color:var(--ink-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* 팝업 */
   .modal{background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:16px 18px;
          box-shadow:0 8px 24px rgba(16,36,58,.12);max-width:420px}
-  .modal h4{font-size:14px;font-weight:800;margin:0 0 6px}
-  .modal p{font-size:12px;color:var(--ink-muted);line-height:1.7;margin:0 0 10px}
-  .modal .fld{border:1px solid var(--divider);border-radius:8px;padding:9px 10px;font-size:12px;color:#A7B3BC;margin-bottom:10px}
+  .modal h4{font-size:var(--fs-lg);font-weight:800;margin:0 0 6px}
+  .modal p{font-size:var(--fs-sm);color:var(--ink-muted);line-height:1.7;margin:0 0 10px}
+  .modal .fld{border:1px solid var(--divider);border-radius:8px;padding:9px 10px;font-size:var(--fs-sm);color:#a7b3bc;margin-bottom:10px}
   .modal .acts{display:flex;gap:8px;justify-content:flex-end}
 
-  .empty{padding:26px 14px;text-align:center;color:var(--ink-muted);font-size:12px;line-height:1.8}
-  .empty > b:first-child{color:var(--primary);font-size:14px;display:block;margin-bottom:3px}
+  .empty{padding:26px 14px;text-align:center;color:var(--ink-muted);font-size:var(--fs-sm);line-height:1.8}
+  .empty > b:first-child{color:var(--primary);font-size:var(--fs-lg);display:block;margin-bottom:3px}
   .empty b{font-weight:800}
 
-  .notes{margin-top:34px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:20px 22px}
-  .notes h2{font-size:15px;font-weight:800;margin:0 0 12px}
-  .notes table{width:100%;border-collapse:collapse;font-size:13px}
+  .notes{margin-top:40px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:20px 22px;box-shadow:0 5px 16px rgba(16,36,58,.1)}
+  .notes h2{font-size:var(--fs-lg);font-weight:800;margin:0 0 12px}
+  .notes table{width:100%;border-collapse:collapse;font-size:var(--fs-base)}
   .notes th,.notes td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--divider);vertical-align:top}
-  .notes th{color:var(--ink-muted);font-weight:700;font-size:12px}
-  .notes p{font-size:13px;line-height:1.75;color:var(--ink-muted);margin:14px 0 0}
+  .notes th{color:var(--ink-muted);font-weight:700;font-size:var(--fs-sm)}
+  .notes p{font-size:var(--fs-base);line-height:1.75;color:var(--ink-muted);margin:14px 0 0}
   .notes p b,.notes td b{color:var(--ink)}
   .two-up{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
-  @media (max-width:900px){.two-up{grid-template-columns:1fr}}
-  .mini-t{font-size:12px;font-weight:800;margin:0 0 8px}
-  .flag{background:#FFF7EF;border:1px solid #E8D3C2;border-left:4px solid var(--warn);border-radius:8px;
-        padding:12px 14px;margin:14px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .mini-t{font-size:var(--fs-sm);font-weight:800;margin:0 0 8px}
+  .flag{background:#fff7ef;border:1px solid #e8d3c2;border-left:4px solid var(--warn);border-radius:8px;
+        padding:12px 14px;margin:14px 0 0;font-size:var(--fs-base);line-height:1.8;color:var(--ink-muted)}
   .flag b{color:var(--warn)}
   .flag .t{color:var(--ink)}
+  @media (max-width:1280px){
+    .page{padding:24px 20px 64px}
+    .two-up{grid-template-columns:1fr}
+    .kb{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .qrow{flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+    .qrow .right{margin-left:auto}
+  }
 </style>
 </head>
 <body>
-<div class="page">
+<svg class="icon-sprite" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 12.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 19V5M4 19h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m8 15 3-4 3 2 5-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.5-2.5 7.8-7 10-4.5-2.2-7-5.5-7-10V6z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m9 12 2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.4-3.1 2.2-5 5.5-5s5.1 1.9 5.5 5M16 6.5a2.5 2.5 0 0 1 0 4.9M16 14c2.3.2 3.8 1.8 4.2 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 21 20H3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v5M12 17.5h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8 4-2.1.8a6.5 6.5 0 0 1-.8 1.9l.9 2-2 2-2-.9a6.5 6.5 0 0 1-1.9.8L12 20h-2l-.8-2.1a6.5 6.5 0 0 1-1.9-.8l-2 .9-2-2 .9-2a6.5 6.5 0 0 1-.8-1.9L2 12v-2l2.1-.8a6.5 6.5 0 0 1 .8-1.9l-.9-2 2-2 2 .9a6.5 6.5 0 0 1 1.9-.8L10 2h2l.8 2.1a6.5 6.5 0 0 1 1.9.8l2-.9 2 2-.9 2a6.5 6.5 0 0 1 .8 1.9L20 10z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+</svg>
 
-<h1>대기 목록 <span style="color:#5A6C7B;font-weight:600">(<code>/queue</code>)</span> · 3안</h1>
-<p class="sub">셸은 <b>48번 안 B</b>, 크기는 <b>47번 안 B</b>(본문 13 / 행 44 / 버튼 36). 사이드바·헤더는 생략하고 <b>본문만</b> 그렸다.</p>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="직원 웹 메뉴">
+    <div class="side-brand"><strong>한빛병원</strong><small>직원 운영 시스템</small></div>
+
+    <div class="side-standalone">
+      <nav class="side-nav" aria-label="의사 전용 메뉴">
+        <a href="#doctor-console"><svg class="nav-icon"><use href="#i-shield"></use></svg><span>진료 화면</span><span class="nav-meta">(의사 전용)</span></a>
+      </nav>
+    </div>
+
+    <section class="side-group" aria-labelledby="side-work">
+      <h2 class="side-heading" id="side-work">업무</h2>
+      <nav class="side-nav" aria-label="업무 메뉴">
+        <a href="#today"><svg class="nav-icon"><use href="#i-grid"></use></svg><span>오늘의 현황</span></a>
+        <a href="#queue" class="active" aria-current="page"><svg class="nav-icon"><use href="#i-list"></use></svg><span>대기 목록</span></a>
+        <a href="#checkin"><svg class="nav-icon"><use href="#i-users"></use></svg><span>접수</span></a>
+        <a href="#calendar"><svg class="nav-icon"><use href="#i-calendar"></use></svg><span>캘린더</span></a>
+        <a href="#patients"><svg class="nav-icon"><use href="#i-search"></use></svg><span>환자 검색</span></a>
+        <a href="#messages"><svg class="nav-icon"><use href="#i-message"></use></svg><span>메시지 발송</span></a>
+      </nav>
+    </section>
+
+    <section class="side-group" aria-labelledby="side-records">
+      <h2 class="side-heading" id="side-records">기록</h2>
+      <nav class="side-nav" aria-label="기록 메뉴">
+        <a href="#stats"><svg class="nav-icon"><use href="#i-chart"></use></svg><span>운영 통계</span></a>
+        <a href="#access-logs"><svg class="nav-icon"><use href="#i-shield"></use></svg><span>접근 기록</span></a>
+        <a href="#duplicates"><svg class="nav-icon"><use href="#i-users"></use></svg><span>중복 환자</span></a>
+        <a href="#merge-history"><svg class="nav-icon"><use href="#i-list"></use></svg><span>병합 이력</span></a>
+        <a href="#system-errors"><svg class="nav-icon"><use href="#i-alert"></use></svg><span>시스템 오류</span><span class="nav-meta">(관리자)</span></a>
+      </nav>
+    </section>
+
+    <section class="side-group settings" aria-labelledby="side-settings">
+      <h2 class="side-heading" id="side-settings">설정</h2>
+      <nav class="side-nav" aria-label="설정 메뉴">
+        <a href="#staff"><svg class="nav-icon"><use href="#i-users"></use></svg><span>직원 관리</span></a>
+        <a href="#schedule"><svg class="nav-icon"><use href="#i-calendar"></use></svg><span>진료 일정</span></a>
+        <a href="#questionnaires"><svg class="nav-icon"><use href="#i-list"></use></svg><span>문진표 관리</span></a>
+        <a href="#hospital-settings"><svg class="nav-icon"><use href="#i-settings"></use></svg><span>병원 설정</span><span class="nav-meta">(관리자)</span></a>
+      </nav>
+    </section>
+  </aside>
+
+  <main class="app-main">
+<div class="page" id="queue">
+
+<h1>대기 목록 <span style="color:var(--ink-muted);font-weight:600">(<code>/queue</code>)</span> · 3안</h1>
+<p class="sub">셸은 <b>48번 안 B</b>, 크기는 <b>47번 안 B</b>(본문 13 / 행 44 / 버튼 36). 직원 웹 정본 사이드바 안에서 <b>본문 기준</b>을 그렸다.</p>
 <p class="sub">
   세 안은 <b>「상태가 6~7종인 오늘 명단을 한 화면에 어떻게 담는가」</b>만 다르다.
   <b>2026-08-05 셸 빈칸 B-6</b>에서 <b>「오늘 요약」 타일 6개가 전부 이 화면으로 오도록</b> 정해졌기 때문에,
@@ -153,7 +240,7 @@
 </div>
 
 <div class="flag">
-  <span class="t">🆕 <b>그리다 나온 것 — 탭 하나가 빈다</b></span><br>
+  <span class="t"><b>그리다 나온 것 — 탭 하나가 빈다</b></span><br>
   「오늘 요약」 타일은 <b>6개</b>(전체·도착·진료 대기·진료 중·진료 완료·취소/부도)인데,
   <b>「아직 안 온 사람」(예약확정 상태)에 해당하는 타일이 없다.</b>
   그런데 요구사항 3.4의 첫 문장이 접수 직원에게 시키는 일이 바로 <b>그 사람들을 찾아 「도착」으로 넘기는 것</b>이다.
@@ -175,7 +262,7 @@
     <span class="t">대기 목록</span>
     <span class="d">8월 5일 (화) · 실시간 갱신 중</span>
     <span class="sp"></span>
-    <button class="btn fill">＋ 당일 방문 등록</button>
+    <span class="d">당일 방문은 공통 셸 헤더에서 시작</span>
   </div>
 
   <div class="tabs">
@@ -249,7 +336,7 @@
   </div>
 
   <p class="h2s" style="margin:0 0 4px">
-    ⬆ <b>3번 줄</b>은 <code>/today</code>의 <code>[대기 목록에서 보기]</code>로 들어왔을 때 모습이다 —
+    <b>참고:</b> <b>3번 줄</b>은 <code>/today</code>의 <code>[대기 목록에서 보기]</code>로 들어왔을 때 모습이다 —
     <b>맨 위가 아니라 그 사람이 강조된 채</b>로 열린다(<b>플랜 패치 P-S3</b>).
   </p>
 </div>
@@ -315,7 +402,7 @@
 <div class="screen">
   <div class="pgh">
     <span class="t">대기 목록</span><span class="d">8월 5일 (화) · 50명</span>
-    <span class="sp"></span><button class="btn fill">＋ 당일 방문 등록</button>
+    <span class="sp"></span><span class="d">당일 방문은 공통 셸 헤더에서 시작</span>
   </div>
 
   <div class="card">
@@ -347,7 +434,7 @@
   </div>
 
   <p class="h2s" style="margin:0">
-    ⚠️ 구획 6개가 다 펼쳐지면 <b>세로 50줄</b>이 된다. 그래서 「진료 완료」·「취소·부도」는 기본 접힘이고,
+    <b>주의:</b> 구획 6개가 다 펼쳐지면 <b>세로 50줄</b>이 된다. 그래서 「진료 완료」·「취소·부도」는 기본 접힘이고,
     나머지도 <b>구획마다 5줄까지만</b> 보이고 <code>모두 보기</code>를 눌러야 나머지가 나온다 —
     <b>화면에 보이는 줄이 실제 인원이 아니게 된다.</b>
   </p>
@@ -361,7 +448,7 @@
 
 <div class="screen">
   <div class="pgh"><span class="t">대기 목록</span><span class="d">8월 5일 (화)</span>
-    <span class="sp"></span><button class="btn fill">＋ 당일 방문 등록</button></div>
+    <span class="sp"></span><span class="d">당일 방문은 공통 셸 헤더에서 시작</span></div>
   <div class="kb">
     <div class="kcol">
       <div class="kh">도착 <span class="n">5</span></div>
@@ -385,7 +472,7 @@
     </div>
   </div>
   <p class="h2s" style="margin:10px 0 0">
-    ⚠️ 기둥 하나의 폭이 <b>270px</b>이라 순번·대기시간·생년월일·진료과·의사·상태 버튼을 <b>한 줄에 못 담는다</b> — 두 줄로 접히고 뒷부분은 잘린다.
+    <b>주의:</b> 기둥 하나의 폭이 <b>270px</b>이라 순번·대기시간·생년월일·진료과·의사·상태 버튼을 <b>한 줄에 못 담는다</b> — 두 줄로 접히고 뒷부분은 잘린다.
     그리고 <b>끄는 동작이 두 가지 뜻</b>을 갖게 된다(위아래로 끌면 순서 변경, 옆으로 끌면 상태 변경).
   </p>
 </div>
@@ -431,23 +518,24 @@
       <tr><td><b>㉮ 둔다</b>(그림의 점선 탭)</td>
           <td>요구사항 3.4의 첫 문장이 시키는 <b>「도착 처리」를 시작할 목록</b>이 이 화면에 생긴다.
               QR·예약번호가 없는 환자(어르신·앱 미사용자)를 <b>이름으로 찾아 도착 처리</b>할 수 있다.
-              ⚠️ 대신 <b>「오늘 요약」 타일과 탭이 6:7로 어긋난다</b> — 타일에 없는 탭이 하나 생긴다.</td></tr>
+              <b>주의:</b> 대신 <b>「오늘 요약」 타일과 탭이 6:7로 어긋난다</b> — 타일에 없는 탭이 하나 생긴다.</td></tr>
       <tr><td>㉯ 두지 않는다</td>
           <td>타일과 정확히 1:1을 유지한다. 대신 도착 처리는 <b><code>/checkin</code>(예약번호·QR 접수)</b>과 <b>환자 검색</b>에서만 가능해진다.
-              ⚠️ QR을 못 쓰는 환자를 접수하려면 <b>매번 다른 화면으로 건너가야</b> 한다.</td></tr>
+              <b>주의:</b> QR을 못 쓰는 환자를 접수하려면 <b>매번 다른 화면으로 건너가야</b> 한다.</td></tr>
       <tr><td>㉰ 타일도 7개로 늘린다</td>
-          <td>1:1을 지키면서 목록도 생긴다. ⚠️ <code>/today</code>는 <b>“숫자보다 처리할 환자가 먼저”</b>인 화면이라
+          <td>1:1을 지키면서 목록도 생긴다. <b>주의:</b> <code>/today</code>는 <b>“숫자보다 처리할 환자가 먼저”</b>인 화면이라
               <b>숫자 타일을 늘리는 방향</b>이 그 화면의 원칙과 반대다.</td></tr>
     </tbody>
   </table>
   <p><b>㉮를 추천한다.</b> 타일과 탭이 6:7로 어긋나는 것은 <b>설명 한 줄로 끝나는 문제</b>지만,
      도착 처리할 목록이 없는 것은 <b>요구사항 3.4의 첫 문장이 실행 불가능해지는 문제</b>다. 무게가 다르다.</p>
 
-  <p>📌 <b>이 그림에 아직 없는 것</b>(안이 확정되면 이어서 그린다): 당일 방문(워크인) 등록 모달 ·
+  <p><b>이 그림에 아직 없는 것</b>(안이 확정되면 이어서 그린다): 당일 방문(워크인) 등록 패널 ·
      응급/주의 표시 확인 팝업(<b>“의학적 응급도 판정이 아닙니다”</b>) · 동명이인 재확인 팝업 ·
      빈 상태 · 오프라인/연결 끊김 · 의사별 필터로 들어왔을 때(<code>NAV-TODAY-08</code>).</p>
 </div>
-
+</div>
+</main>
 </div>
 </body>
 </html>

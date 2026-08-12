@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>85 · 직원 웹 로그인</title>
+  <style>
+    :root {
+      --ink: #10243a;
+      --ink-muted: #5a6c7b;
+      --quiet: #8694a0;
+      --divider: #dbe4e8;
+      --line-strong: #b6c7ce;
+      --bg: #f2f5f7;
+      --surface: #ffffff;
+      --primary: #0b6e70;
+      --primary-dark: #07575a;
+      --primary-pale: #e9f5f4;
+      --warn: #b44e00;
+      --warn-pale: #fff5ed;
+      --shadow: 0 22px 60px rgba(16, 36, 58, .11);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 980px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 15%, rgba(11, 110, 112, .07), transparent 26rem),
+        linear-gradient(135deg, #f8fafb 0%, var(--bg) 55%, #edf3f5 100%);
+      font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: -.02em;
+    }
+    .page { min-height: 100vh; padding: 44px 64px 54px; }
+    .meta {
+      max-width: 1180px;
+      margin: 0 auto 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--quiet);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .03em;
+    }
+    .meta .route { color: var(--primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .artboard {
+      max-width: 1180px;
+      min-height: 700px;
+      margin: 0 auto;
+      padding: 58px 70px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      gap: 72px;
+      align-items: center;
+      background: rgba(255, 255, 255, .62);
+      border: 1px solid rgba(182, 199, 206, .68);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .brand { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 76px; }
+    .brand-mark {
+      width: 38px; height: 38px; display: grid; place-items: center;
+      color: var(--surface); background: var(--primary); border-radius: 11px;
+      box-shadow: 0 6px 15px rgba(11, 110, 112, .22);
+    }
+    .brand strong { display: block; font-size: 17px; letter-spacing: -.04em; }
+    .brand span { display: block; margin-top: 2px; color: var(--ink-muted); font-size: 11px; font-weight: 700; }
+    .intro { align-self: start; padding-top: 12px; }
+    .intro h1 { max-width: 470px; margin: 0 0 18px; font-size: 42px; line-height: 1.15; letter-spacing: -.065em; }
+    .intro > p { max-width: 440px; margin: 0; color: var(--ink-muted); font-size: 16px; line-height: 1.75; font-weight: 600; }
+    .privacy-note {
+      max-width: 450px;
+      margin-top: 42px;
+      padding: 17px 19px;
+      display: flex;
+      gap: 12px;
+      color: var(--primary);
+      background: var(--primary-pale);
+      border: 1px solid #cae4e2;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      font-weight: 700;
+    }
+    .privacy-note svg { flex: 0 0 auto; margin-top: 2px; }
+    .login-card {
+      width: 100%;
+      padding: 34px 34px 30px;
+      background: var(--surface);
+      border: 1px solid var(--divider);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 32px rgba(16, 36, 58, .08);
+    }
+    .card-head { margin-bottom: 26px; }
+    .eyebrow { margin: 0 0 8px; color: var(--primary); font-size: 11px; font-weight: 900; letter-spacing: .1em; }
+    .card-head h2 { margin: 0; font-size: 25px; letter-spacing: -.055em; }
+    .card-head p { margin: 8px 0 0; color: var(--ink-muted); font-size: 13px; line-height: 1.55; font-weight: 600; }
+    .field { margin-top: 17px; }
+    label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 850; }
+    .input-wrap { position: relative; }
+    input {
+      width: 100%;
+      height: 50px;
+      padding: 0 14px;
+      color: var(--ink);
+      background: #fbfcfc;
+      border: 1.5px solid var(--line-strong);
+      border-radius: 9px;
+      outline: none;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(11, 110, 112, .12); }
+    input[type=password] { padding-right: 48px; letter-spacing: .1em; }
+    .eye {
+      position: absolute; top: 50%; right: 11px; transform: translateY(-50%);
+      width: 34px; height: 34px; display: grid; place-items: center;
+      color: var(--ink-muted); background: transparent; border: 0; border-radius: 7px;
+    }
+    .eye:hover { background: var(--bg); color: var(--primary); }
+    .error {
+      margin-top: 20px;
+      padding: 12px 14px 12px 17px;
+      position: relative;
+      color: var(--warn);
+      background: transparent;
+      border: 1px solid #f0d5c1;
+      border-radius: 9px;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 800;
+    }
+    .error::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 4px; background: var(--warn); border-radius: 0 3px 3px 0; }
+    .submit {
+      width: 100%; height: 51px; margin-top: 16px;
+      color: var(--surface); background: var(--primary); border: 0; border-radius: 9px;
+      font: inherit; font-size: 15px; font-weight: 850;
+      box-shadow: 0 7px 15px rgba(11, 110, 112, .2);
+    }
+    .submit:hover { background: var(--primary-dark); }
+    .help {
+      margin-top: 21px;
+      padding-top: 20px;
+      border-top: 1px solid var(--divider);
+      color: var(--ink-muted);
+      font-size: 12px;
+      line-height: 1.65;
+      font-weight: 650;
+    }
+    .help strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 13px; }
+    .help .pending { color: var(--primary); font-weight: 800; }
+    .roles {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 12px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(182, 199, 206, .68);
+    }
+    .role { padding: 16px 18px; background: rgba(255,255,255,.78); border: 1px solid var(--divider); border-radius: 11px; }
+    .role .kicker { margin-bottom: 6px; color: var(--primary); font-size: 11px; font-weight: 900; }
+    .role strong { display: block; font-size: 14px; }
+    .role span { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 12px; font-weight: 600; }
+    .caption { max-width: 1180px; margin: 16px auto 0; color: var(--quiet); font-size: 11px; line-height: 1.6; }
+    .caption code { color: var(--primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .brand-mark svg { width: 21px; height: 21px; stroke-width: 1.7; }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-hospital" viewBox="0 0 24 24">
+      <path d="M4 21h16M6 21V6.5L12 3l6 3.5V21M9 9h6M12 6v6M9 17h2M13 17h2"/>
+    </symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <path d="M12 3.5 19 6v5.4c0 4.4-2.8 7.5-7 9.1-4.2-1.6-7-4.7-7-9.1V6l7-2.5Z"/>
+      <path d="m9 12 2 2 4-4"/>
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24">
+      <path d="M2.5 12s3.4-5 9.5-5 9.5 5 9.5 5-3.4 5-9.5 5-9.5-5-9.5-5Z"/>
+      <circle cx="12" cy="12" r="2.2"/>
+    </symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24">
+      <path d="M4 12h15M14 7l5 5-5 5"/>
+    </symbol>
+  </svg>
+
+  <main class="page">
+    <div class="meta">
+      <span>목업 85 · 직원 웹 인증 입구 · DRAFT</span>
+      <span class="route">/login</span>
+    </div>
+
+    <section class="artboard" aria-label="직원 웹 로그인 화면">
+      <div class="intro">
+        <div class="brand">
+          <div class="brand-mark"><svg aria-hidden="true"><use href="#i-hospital"/></svg></div>
+          <div><strong>새봄병원</strong><span>직원용 웹 프로그램</span></div>
+        </div>
+        <h1>환자와 병원의 오늘을<br>안전하게 시작합니다.</h1>
+        <p>등록된 직원만 환자 정보와 진료 업무를 볼 수 있습니다. 로그인하면 역할에 맞는 첫 화면으로 이동합니다.</p>
+        <div class="privacy-note">
+          <svg aria-hidden="true"><use href="#i-shield"/></svg>
+          <span>이메일이 없거나 비밀번호가 틀린 경우에도 같은 안내를 보여드립니다. 계정의 존재 여부를 화면에서 알려드리지 않습니다.</span>
+        </div>
+      </div>
+
+      <form class="login-card" aria-label="직원 로그인 폼">
+        <div class="card-head">
+          <p class="eyebrow">STAFF ACCESS</p>
+          <h2>직원용 웹에 로그인</h2>
+          <p>관리자가 초대한 업무용 이메일로 로그인해 주세요.</p>
+        </div>
+
+        <div class="field">
+          <label for="email">업무용 이메일</label>
+          <input id="email" name="email" type="email" value="jiyeon.kim@saebom.example" autocomplete="username">
+        </div>
+
+        <div class="field">
+          <label for="password">비밀번호</label>
+          <div class="input-wrap">
+            <input id="password" name="password" type="password" placeholder="비밀번호를 입력해 주세요" autocomplete="current-password">
+            <button class="eye" type="button" aria-label="비밀번호 보기"><svg aria-hidden="true"><use href="#i-eye"/></svg></button>
+          </div>
+        </div>
+
+        <div class="error" role="alert">로그인 정보를 확인해 주세요</div>
+        <button class="submit" type="submit">로그인</button>
+
+        <div class="help">
+          <strong>로그인이 계속되지 않나요?</strong>
+          비밀번호를 잊었거나 초대 이메일을 못 받으셨다면<br>
+          <span class="pending">병원 관리자에게 계정 확인 또는 초대 이메일 재발송을 요청해 주세요.</span>
+        </div>
+      </form>
+
+      <div class="roles" aria-label="로그인 성공 후 역할별 이동">
+        <div class="role">
+          <div class="kicker">ROLE ROUTING</div>
+          <strong>로그인 후 역할에 맞게 이동</strong>
+          <span>역할을 이 화면에서 선택하지 않습니다.</span>
+        </div>
+        <div class="role">
+          <strong>접수 직원 · 관리자</strong>
+          <span>/today · 오늘의 현황</span>
+        </div>
+        <div class="role">
+          <strong>의사</strong>
+          <span>/doctor/console · 내 진료 화면</span>
+        </div>
+      </div>
+    </section>
+
+    <p class="caption"><code>STAFF-LOGIN-01~11</code> · 실패 상태는 입력 이메일을 남기고 비밀번호만 비운 뒤 같은 화면에 머무는 상태를 대표한다. 비밀번호 재설정 버튼은 실제 reset API가 없어 그리지 않았다. 성공 후 이동은 기존 <code>NAV-SHELL-01·02</code>를 인용한다.</p>
+  </main>
+</body>
+</html>

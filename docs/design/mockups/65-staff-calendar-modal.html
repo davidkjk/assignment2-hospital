@@ -157,6 +157,7 @@
   .killed{background:#F7F4F5;border:1px solid #E4D9DD;border-left:4px solid #9E3F6E;
           border-radius:8px;padding:12px 14px;margin:14px 0 0;font-size:12.5px;line-height:1.75}
   .killed b{color:#9E3F6E}
+  .deprecated-zoom{display:none}
 </style>
 </head>
 <body>
@@ -290,8 +291,8 @@
   <b><code>✕</code>는 그만두기</b>이고 <b>채운 것이 사라진다.</b><br>
   ⛔ <b><code>✕</code>를 눌러도 묻지 않는다</b>(<code>PANEL-LIVE-06</code>) — <b>저장하지 않은 것은 날아가는 것이 당연하다.</b>
   대신 <b>접기가 있어서</b> 「잠깐 치우기」와 「그만두기」가 <b>손에서 갈린다.</b><br>
-  📌 <b>폐기했던 「잡는 중」 칩</b>(<code>CAL-BOOK-06</code>)<b>이 풀려던 문제를 「접힌 패널」이 대신한다</b>(<code>PANEL-LIVE-08</code>) —
-  다만 <b>별도 부품이 아니라 같은 패널의 다른 상태</b>라 더 단순하다.
+  📌 <b>작성 중 상태는 「접힌 패널」로 유지한다</b>(<code>PANEL-LIVE-08</code>) —
+  별도 표시 칩을 만들지 않고 <b>같은 패널의 다른 상태</b>로 다룬다.
 </p>
 
 <hr class="rule">
@@ -431,7 +432,7 @@
 <div class="app">
   <div class="apptop">
     <button class="navbtn">‹</button><b style="color:var(--ink)">2026-08-06 (목)</b><button class="navbtn">›</button>
-    <span style="margin-left:8px;color:var(--warn)">← 날짜를 옮겨도 패널은 열린 채 따라온다 (<code>CAL-BOOK-05</code> 폐기)</span>
+    <span style="margin-left:8px;color:var(--warn)">← 날짜를 옮겨도 패널은 열린 채 따라온다</span>
   </div>
   <div class="split">
     <div class="cal locked">
@@ -603,8 +604,7 @@
 <p class="seclead">
   ⭐ <b>진료 15분인 의사여도 환자가 10:05에 오면 10:05에 잡아야 한다.</b>
   <b>길이만 의사별 진료시간이 정하고</b>(<code>slot_duration_minutes</code>), <b>시작은 5분 단위 어디든</b>이다(<code>CAL-TIME-03</code> 개정).<br>
-  ⚠️ 원래 규칙은 정반대였다 — <i>“5분은 <b>표시 해상도</b>이지 예약 가능 시각이 아니다.”</i>
-  <b>창구의 현실이 격자대로 가지 않는다.</b>
+  <b>화면은 30분 글자와 15분 점선만 사용하고</b>, 시작 시각만 5분으로 스냅한다.
 </p>
 
 <div class="row">
@@ -728,6 +728,7 @@
 
 <hr class="rule">
 
+<div class="deprecated-zoom">
 <!-- ⑤ 확대 -->
 <h2 class="sec">⑤ 시간축을 <b>끌어서 넓히기</b> <span class="tag new">SB-41</span></h2>
 <p class="seclead">
@@ -801,6 +802,8 @@
 </p>
 
 <hr class="rule">
+
+</div>
 
 <h2 class="sec">⑥ 두 직원이 <b>같은 자리를</b> — <span class="tag new">SB-42 해소 · 시나리오 8</span></h2>
 <p class="seclead">
@@ -962,16 +965,10 @@
 <hr class="rule">
 
 <div class="notes">
-  <h2>이 결정으로 <b>없어진 것</b> — 규칙 7개 <span class="tag no">SB-39</span></h2>
+  <h2>현행 캘린더 원칙 <span class="tag ok">CAL-BOOK-01~04</span></h2>
   <div class="killed">
-    ⛔ <b><code>CAL-BOOK-05</code> <code>[다른 날도 보기]</code></b> — <b>이미 캘린더 위에 있으므로</b>
-      날짜 이동은 캘린더의 <code>[‹] [›]</code>·작은 달력이 그대로 한다.<br>
-    ⛔ <b><code>CAL-BOOK-06</code>·<code>09</code>~<code>12</code> 「잡는 중」 칩 5개</b> —
-      <b>패널이 계속 떠 있으니 「들고 다닌다」는 개념 자체가 없어졌다.</b>
-      ⚠️ 바로 앞 세션에 확정한 <b>SB-37이 한 세션 만에 무효</b>가 됐다.<br>
-    ⛔ <b><code>CAL-BOOK-07</code> 「문이 둘이어도 되는 이유」</b> — <b>문이 하나가 되어</b> 정당화할 것이 없다.<br>
-    ⛔ <b>SB-38(범위 칩에서 「10시」 고르기)도 사라졌다</b> — 📌 범위 칩은
-      <b>「캘린더를 못 보는 자리」를 메우려던 대용품</b>이었다. 캘린더 위로 올라가니 <b>대용품이 필요 없다.</b>
+    <b>현행 캘린더 규칙</b> — 날짜 이동은 캘린더의 <code>[‹]</code>·<code>[›]</code>와 작은 달력으로 처리하고,
+    예약 작성은 캘린더 오른쪽 패널에서 한다. 빈 곳을 직접 눌러 시간을 채우며, 작성 중 상태도 같은 패널을 접어 보관한다.
   </div>
 
   <h2 style="margin-top:22px">아직 안 그린 것 — <span class="tag no">다음 차례</span></h2>
