@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>121 · 티켓 상세 재배치 견본</title>
+<style>
+:root{
+  --primary:#0b6e70;
+  --primary-soft:#e7f1f1;
+  --ink:#10243a;
+  --ink-muted:#617385;
+  --bg:#f2f5f7;
+  --surface:#fff;
+  --divider:#d9e2e7;
+  --line-strong:#b8c8d0;
+  --warn:#95601a;
+  --warn-bg:#fff4e9;
+  --danger:#a02f3d;
+  --danger-bg:#fff0f1;
+  --shadow:0 12px 28px rgba(16,36,58,.08);
+  --radius:12px;
+  --tap:36px;
+  --fs-sm:12px;
+  --fs-base:13px;
+  --fs-lg:15px;
+  --fs-xl:19px;
+  --fs-num:20px;
+  --lh:1.55;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#dfe8ec;color:var(--ink);font-family:Inter,"Noto Sans KR",system-ui,sans-serif;font-size:var(--fs-base);line-height:var(--lh)}
+button,textarea,select{font:inherit}
+button{cursor:pointer}
+.page{width:min(1480px,calc(100% - 48px));margin:24px auto 48px}
+.page>h1{margin:0;font-size:var(--fs-xl);line-height:1.35;letter-spacing:-.02em}
+.lead{margin:6px 0 16px;color:var(--ink-muted)}
+.spec-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.spec-tags span{padding:4px 8px;border:1px solid var(--divider);border-radius:99px;background:rgba(255,255,255,.72);color:var(--ink-muted);font-size:var(--fs-sm);font-weight:700}
+.shell{display:grid;grid-template-columns:240px minmax(0,1fr);grid-template-rows:58px minmax(860px,auto);overflow:hidden;border:1px solid var(--divider);border-radius:var(--radius);background:var(--bg);box-shadow:var(--shadow)}
+.sidebar{grid-row:1 / span 2;width:240px;padding:18px 12px 24px;background:#10243a;color:#fff}
+.brand{display:flex;align-items:center;gap:9px;margin:0 8px 18px;color:#fff;font-size:var(--fs-lg);font-weight:850;letter-spacing:-.03em}
+.brand-mark{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:#1f8586;color:#fff;font-size:var(--fs-sm);font-weight:900}
+.nav-standalone{display:flex;align-items:center;gap:9px;min-height:38px;margin-bottom:17px;padding:0 10px;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;text-decoration:none;font-weight:800}
+.nav-standalone .nav-icon{color:#a9dcdc}
+.nav-group{margin-top:14px}
+.nav-group:first-of-type{margin-top:0}
+.nav-label{margin:0 10px 5px;color:#9eb0bd;font-size:var(--fs-sm);font-weight:800;letter-spacing:.02em}
+.nav-item{display:flex;align-items:center;gap:9px;min-height:32px;padding:0 10px;border-radius:7px;color:#dce7eb;text-decoration:none;font-size:var(--fs-base);font-weight:650}
+.nav-item:hover,.nav-item.active{background:rgba(255,255,255,.12);color:#fff}
+.nav-item.active{box-shadow:inset 3px 0 #7ed3d0}
+.nav-icon{width:16px;height:16px;flex:none;fill:currentColor}
+.nav-count{margin-left:auto;min-width:20px;padding:1px 6px;border-radius:99px;background:#d7a54a;color:#10243a;text-align:center;font-size:var(--fs-sm);font-weight:850;line-height:1.35}
+.header{display:flex;align-items:center;gap:12px;padding:0 22px;border-bottom:1px solid var(--divider);background:var(--surface)}
+.crumb{color:var(--ink-muted);font-size:var(--fs-sm);font-weight:700}
+.crumb strong{color:var(--ink)}
+.spacer{flex:1}
+.connection{display:flex;align-items:center;gap:7px;color:var(--primary);font-size:var(--fs-sm);font-weight:800}
+.connection-dot{width:7px;height:7px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 4px var(--primary-soft)}
+.user-chip{padding:6px 10px;border:1px solid var(--divider);border-radius:8px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:750}
+.content{min-width:0;padding:26px 30px 34px;background:var(--bg)}
+.titlebar{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+.titlebar h2{margin:0;font-size:var(--fs-xl);line-height:1.35;letter-spacing:-.025em}
+.titlebar p{margin:5px 0 0;color:var(--ink-muted)}
+.back-button{display:inline-flex;align-items:center;gap:7px;height:var(--tap);padding:0 11px;border:1px solid var(--divider);border-radius:8px;background:var(--surface);color:var(--ink);font-weight:800}
+.back-button svg{width:15px;height:15px;fill:currentColor}
+.status{align-self:center;padding:5px 9px;border-radius:99px;background:var(--primary-soft);color:var(--primary);font-size:var(--fs-sm);font-weight:850;white-space:nowrap}
+.workspace{display:grid;grid-template-columns:minmax(300px,.56fr) minmax(650px,1.44fr);min-height:760px;border:1px solid var(--divider);border-radius:var(--radius);overflow:hidden;background:var(--surface);box-shadow:0 5px 16px rgba(16,36,58,.045)}
+.ticket-list{min-width:0;border-right:1px solid var(--divider);background:#fbfcfd}
+.list-head{padding:17px 16px 13px;border-bottom:1px solid var(--divider)}
+.list-head h3{margin:0;font-size:var(--fs-lg)}
+.list-head p{margin:4px 0 0;color:var(--ink-muted);font-size:var(--fs-sm)}
+.tabs{display:flex;gap:4px;padding:11px 12px;border-bottom:1px solid var(--divider)}
+.tab{padding:6px 8px;border-radius:7px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:800}
+.tab.active{background:var(--primary-soft);color:var(--primary)}
+.ticket-rows{padding:5px 8px}
+.ticket-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:9px;padding:14px 8px;border-bottom:1px solid var(--divider)}
+.ticket-row.active{margin:3px 0;padding-left:9px;border:1px solid #bcdcdc;border-left:4px solid var(--primary);border-radius:8px;background:#f1fafa}
+.ticket-time{color:var(--ink-muted);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.ticket-name{font-weight:850}
+.ticket-question{margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:750}
+.ticket-meta{margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-muted);font-size:var(--fs-sm)}
+.detail-pane{min-width:0;padding:20px 22px 24px;background:var(--surface)}
+.detail-header{display:flex;align-items:flex-start;gap:12px;padding:0 2px 17px;border-bottom:1px solid var(--divider)}
+.detail-header h3{margin:0;font-size:var(--fs-lg);line-height:1.4}
+.detail-header p{margin:5px 0 0;color:var(--ink-muted);font-size:var(--fs-sm)}
+.detail-status{margin-left:auto;padding:5px 9px;border-radius:99px;background:var(--primary-soft);color:var(--primary);font-size:var(--fs-sm);font-weight:850;white-space:nowrap}
+.section-label{display:flex;align-items:center;gap:9px;margin:17px 0 8px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:850;letter-spacing:.01em}
+.section-label .step{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;font-size:var(--fs-sm)}
+.assign-card{padding:15px;border:1px solid #bcdcdc;border-radius:10px;background:#f1fafa}
+.assign-top{display:flex;align-items:center;gap:9px}
+.assign-top strong{font-size:var(--fs-base)}
+.assign-role{color:var(--ink-muted);font-size:var(--fs-sm)}
+.assign-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,.72fr) auto;gap:9px;align-items:end;margin-top:13px}
+.field{min-width:0}
+.field label{display:block;margin-bottom:5px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:750}
+.field select{width:100%;height:var(--tap);padding:0 9px;border:1px solid var(--divider);border-radius:8px;background:#fff;color:var(--ink)}
+.button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:var(--tap);padding:0 13px;border:1px solid var(--divider);border-radius:8px;background:#fff;color:var(--ink);font-weight:850;white-space:nowrap}
+.button.primary{border-color:var(--primary);background:var(--primary);color:#fff}
+.assign-note{margin-top:11px;color:var(--ink-muted);font-size:var(--fs-sm)}
+.conversation-card{border:1px solid var(--divider);border-radius:10px;overflow:hidden;background:#fbfcfd}
+.conversation-head{display:flex;align-items:center;gap:8px;padding:13px 15px;border-bottom:1px solid var(--divider);background:#f7fafb}
+.conversation-head h4{margin:0;font-size:var(--fs-base)}
+.conversation-head span{margin-left:auto;color:var(--ink-muted);font-size:var(--fs-sm)}
+.messages{display:flex;flex-direction:column;gap:13px;min-height:430px;padding:18px 16px;background:#fbfcfd}
+.message{max-width:76%;padding:11px 13px;border:1px solid var(--divider);border-radius:10px;background:#fff}
+.message.patient{align-self:flex-end;border-color:#bcdcdc;background:var(--primary-soft)}
+.message.system{max-width:90%;align-self:center;border-style:dashed;background:#fff;color:var(--ink-muted);text-align:center}
+.message-meta{display:block;margin-bottom:4px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:750}
+.message p{margin:0}
+.composer-card{padding:15px;border:1px solid var(--divider);border-radius:10px;background:#fff}
+.composer-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.composer-head h4{margin:0;font-size:var(--fs-base)}
+.composer-head span{margin-left:auto;color:var(--ink-muted);font-size:var(--fs-sm)}
+.composer textarea{display:block;width:100%;min-height:94px;padding:11px 12px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--ink);line-height:var(--lh);resize:vertical}
+.composer-actions{display:flex;align-items:center;gap:10px;margin-top:10px}
+.composer-hint{color:var(--ink-muted);font-size:var(--fs-sm)}
+.composer-actions .button.primary{margin-left:auto}
+.close-block{margin-top:15px;padding:14px 15px;border:1px solid #e3b3ba;border-radius:10px;background:#fffafb}
+.close-top{display:flex;align-items:center;gap:8px}
+.close-top h4{margin:0;font-size:var(--fs-base);color:var(--danger)}
+.close-top span{margin-left:auto;color:var(--danger);font-size:var(--fs-sm);font-weight:800}
+.close-block p{margin:5px 0 10px;color:var(--ink-muted);font-size:var(--fs-sm)}
+.close-action{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.close-action strong{color:var(--ink);font-size:var(--fs-sm)}
+.button.danger{border-color:var(--danger);background:var(--danger);color:#fff}
+.ordering-note{display:flex;align-items:center;gap:9px;margin-top:14px;padding:11px 13px;border:1px dashed var(--line-strong);border-radius:9px;color:var(--ink-muted);font-size:var(--fs-sm)}
+.ordering-note strong{color:var(--ink)}
+@media(max-width:1279px){
+  .page{width:min(1180px,calc(100% - 28px));margin-top:14px}
+  .workspace{grid-template-columns:1fr}
+  .ticket-list{border-right:0;border-bottom:1px solid var(--divider)}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>
+  <symbol id="i-stethoscope" viewBox="0 0 16 16"><path d="M3 2v4a3 3 0 0 0 6 0V2H7v4a1 1 0 0 1-2 0V2H3Zm7 5h2a2 2 0 1 1-2 2v5H8v-5a2 2 0 0 1 2-2Zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 16 16"><path d="M2 7 8 2l6 5v7h-4v-4H6v4H2z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h9v2H2z"/></symbol>
+  <symbol id="i-checkin" viewBox="0 0 16 16"><path d="M2 2h5v2H4v8h3v2H2V2Zm7 3 4 3-4 3V9H5V7h4V5Zm1-3h4v12h-4v-2h2V4h-2V2Z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 16 16"><path d="M3 2h2v2h6V2h2v2h2v11H1V4h2zm0 5v6h10V7z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><path d="M6.5 2a4.5 4.5 0 1 0 2.77 8.05L13 13.78 14 12.8l-3.7-3.7A4.5 4.5 0 0 0 6.5 2Zm0 1.7a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 16 16"><path d="M2 3h12v3a2 2 0 0 0 0 4v3H2v-3a2 2 0 0 0 0-4V3Zm2 2v1.8a3.7 3.7 0 0 1 0 4.4V11h8v-.8a3.7 3.7 0 0 1 0-4.4V5H4Z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2 2h12v9H7l-4 3v-3H2V2Zm2 3v1h8V5H4Zm0 3v1h6V8H4Z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 16 16"><path d="M2 13h12v2H0V1h2v12Zm2-2V8h2v3H4Zm3 0V4h2v7H7Zm3 0V6h2v5h-2Z"/></symbol>
+  <symbol id="i-log" viewBox="0 0 16 16"><path d="M2 2h12v12H2V2Zm2 2v8h8V4H4Zm1 1h6v1H5V5Zm0 2h6v1H5V7Zm0 2h4v1H5V9Z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 16 16"><path d="M5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm6-1a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM1 14c0-3 1.8-5 4-5s4 2 4 5H1Zm8 0c0-1.5-.4-2.8-1.1-3.8.8-.8 1.8-1.2 3.1-1.2 2.2 0 4 2 4 5H9Z"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 16 16"><path d="m6.5 1 .5 1.5a5.8 5.8 0 0 1 2 0L9.5 1h2l.3 1.7c.5.3.9.6 1.3 1.1L15 3.2v2l-1.6.8a5.8 5.8 0 0 1 0 2L15 8.8v2l-1.9-.6c-.4.5-.8.8-1.3 1.1l-.3 1.7h-2L9 11.5a5.8 5.8 0 0 1-2 0L6.5 13h-2l-.3-1.7c-.5-.3-.9-.6-1.3-1.1L1 10.8v-2l1.6-.8a5.8 5.8 0 0 1 0-2L1 5.2v-2l1.9.6c.4-.5.8-.8 1.3-1.1L4.5 1h2ZM6 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 16 16"><path d="M7 1h2v2h2a3 3 0 0 1 3 3v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h2V1Zm-2 4a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM5 10h6v2H5v-2Z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 16 16"><path d="M2 2h5a2 2 0 0 1 2 2v9a2 2 0 0 0-2-1H2V2Zm12 0H9a2 2 0 0 0-2 2v9a2 2 0 0 1 2-1h5V2ZM4 5h2v1H4V5Zm0 2h2v1H4V7Z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 1 15 14H1L8 1Zm0 4L4 12h8L8 5Zm-.8 2h1.6v2H7.2V7Zm0 2.8h1.6v1.6H7.2V9.8Z"/></symbol>
+  <symbol id="i-report" viewBox="0 0 16 16"><path d="M2 2h12v12H2V2Zm2 2v8h8V4H4Zm1 5h1V6H5v3Zm2 0h1V5H7v4Zm2 0h1V7H9v2Z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 16 16"><path d="m7 3-5 5 5 5v-3h7V6H7V3Z"/></symbol>
+</defs></svg>
+
+<div class="page">
+  <h1>121 · 티켓 상세 재배치 견본</h1>
+  <p class="lead">문의 티켓함의 목록 문맥은 유지하면서, 오른쪽 상세를 담당 이관부터 상담 종료까지 한 방향으로 읽고 처리합니다.</p>
+  <div class="spec-tags"><span>AD-069 사이드바</span><span>AD-070 타이포</span><span>MR2-09 상세 순서</span></div>
+
+  <section class="shell" aria-label="문의 티켓함과 티켓 상세">
+    <nav class="sidebar" aria-label="직원 웹 정본 사이드바">
+      <div class="brand"><span class="brand-mark">한</span><span>한빛병원</span></div>
+      <a class="nav-standalone" href="#"><svg class="nav-icon"><use href="#i-stethoscope"/></svg><span>진료 화면</span></a>
+      <section class="nav-group" aria-labelledby="nav-work">
+        <div class="nav-label" id="nav-work">업무</div>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-home"/></svg><span>오늘의 현황</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-list"/></svg><span>대기 목록</span><span class="nav-count">12</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-checkin"/></svg><span>접수</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-calendar"/></svg><span>캘린더</span><span class="nav-count">2</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-search"/></svg><span>환자 검색</span></a>
+        <a class="nav-item active" href="#" aria-current="page"><svg class="nav-icon"><use href="#i-ticket"/></svg><span>문의 티켓함</span><span class="nav-count">6</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chat"/></svg><span>전체 상담 기록</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chat"/></svg><span>메시지 발송</span></a>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-records">
+        <div class="nav-label" id="nav-records">기록</div>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chart"/></svg><span>운영 통계</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-log"/></svg><span>접근 기록</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-users"/></svg><span>중복 환자</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-log"/></svg><span>병합 이력</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-alert"/></svg><span>시스템 오류</span><span class="nav-count">1</span></a>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-settings">
+        <div class="nav-label" id="nav-settings">설정</div>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-users"/></svg><span>직원 관리</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-calendar"/></svg><span>진료 일정</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-book"/></svg><span>문진표 관리</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-settings"/></svg><span>병원 설정</span></a>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-chatbot">
+        <div class="nav-label" id="nav-chatbot">상담봇</div>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-book"/></svg><span>안내자료</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-alert"/></svg><span>미해결 질문</span><span class="nav-count">8</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-report"/></svg><span>오답 처리함</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chart"/></svg><span>품질 리포트</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-bot"/></svg><span>상담봇 현황</span></a>
+      </section>
+    </nav>
+
+    <header class="header">
+      <div class="crumb">업무 <span aria-hidden="true">/</span> <strong>문의 티켓함</strong></div>
+      <span class="spacer"></span>
+      <div class="connection"><span class="connection-dot"></span>실시간 연결됨</div>
+      <div class="user-chip">정수진 · 접수 직원</div>
+    </header>
+
+    <main class="content">
+      <div class="titlebar">
+        <button class="back-button" type="button"><svg><use href="#i-back"/></svg>문의 목록</button>
+        <div><h2>티켓 상세</h2><p>새 문의를 선택하면 자동 배정된 담당자가 상담을 이어갑니다.</p></div>
+        <span class="spacer"></span><span class="status">직원 상담 중</span>
+      </div>
+
+      <section class="workspace" aria-label="티켓 목록과 상세 작업공간">
+        <aside class="ticket-list" aria-label="문의 티켓 목록">
+          <div class="list-head"><h3>문의 티켓함</h3><p>오래된 문의부터 표시 · 새 문의 6건</p></div>
+          <div class="tabs"><span class="tab active">새 문의 6</span><span class="tab">처리 중 3</span><span class="tab">답변 완료 28</span></div>
+          <div class="ticket-rows">
+            <div class="ticket-row active"><div class="ticket-time">09:18<br>T-041</div><div><div class="ticket-name">김영수</div><div class="ticket-question">예약을 내일 오전으로 바꿀 수 있나요?</div><div class="ticket-meta">예약 변경 상담 · 정수진</div></div></div>
+            <div class="ticket-row"><div class="ticket-time">09:26<br>T-044</div><div><div class="ticket-name">이정아</div><div class="ticket-question">이 약과 같이 먹어도 괜찮을까요?</div><div class="ticket-meta">의료 판단 질문 · 미배정</div></div></div>
+            <div class="ticket-row"><div class="ticket-time">09:41<br>T-052</div><div><div class="ticket-name">최민준</div><div class="ticket-question">오늘 예약을 취소하고 싶어요.</div><div class="ticket-meta">취소 상담 · 미배정</div></div></div>
+            <div class="ticket-row"><div class="ticket-time">10:02<br>T-060</div><div><div class="ticket-name">한서윤</div><div class="ticket-question">가족 예약도 제 계정에서 확인되나요?</div><div class="ticket-meta">일반 문의 · 미배정</div></div></div>
+          </div>
+        </aside>
+
+        <article class="detail-pane" aria-label="선택한 티켓 상세">
+          <header class="detail-header"><div><h3>예약을 내일 오전으로 바꿀 수 있나요?</h3><p>티켓 T-260813-041 · 김영수 · 오늘 09:18 접수</p></div><span class="detail-status">in_progress · 상담 중</span></header>
+
+          <div class="section-label"><span class="step">1</span><span>담당 이관</span></div>
+          <section class="assign-card" aria-labelledby="assign-title">
+            <div class="assign-top"><strong id="assign-title">현재 담당 정수진</strong><span class="assign-role">접수 직원</span></div>
+            <div class="assign-grid"><div class="field"><label for="assign-target">이관할 담당자</label><select id="assign-target"><option>박관리 · 관리자</option><option>김민지 · 접수 직원</option><option>김도윤 · 내과 의사</option></select></div><div class="field"><label for="assign-reason">이관 사유</label><select id="assign-reason"><option>의료진 일정 확인</option><option>담당 업무 변경</option></select></div><button class="button" type="button">이관</button></div>
+            <div class="assign-note">예약 변경 상담은 캘린더 확인이 필요합니다. 이관해도 상담 상태는 직원 상담 중으로 유지됩니다.</div>
+          </section>
+
+          <div class="section-label"><span class="step">2</span><span>전체 대화</span></div>
+          <section class="conversation-card" aria-labelledby="conversation-title">
+            <div class="conversation-head"><h4 id="conversation-title">시간 순 대화</h4><span>새 메시지는 현재 상담방에 이어집니다</span></div>
+            <div class="messages">
+              <div class="message patient"><span class="message-meta">김영수 · 09:16</span><p>예약을 내일 오전으로 바꿀 수 있나요?</p></div>
+              <div class="message"><span class="message-meta">상담봇 · 09:17</span><p>가능한 시간은 직원 확인이 필요해 상담으로 연결할게요.</p></div>
+              <div class="message system"><span class="message-meta">시스템 · 09:18</span><p>정수진 직원에게 상담이 연결되었습니다.</p></div>
+              <div class="message"><span class="message-meta">정수진 · 09:20</span><p>안녕하세요. 캘린더에서 내일 오전 가능한 시간을 확인하고 있습니다.</p></div>
+              <div class="message patient"><span class="message-meta">김영수 · 09:21</span><p>10시 이후면 괜찮습니다. 얼마나 기다리면 될까요?</p></div>
+              <div class="message"><span class="message-meta">정수진 · 09:22</span><p>확인 후 가능한 시간과 변경 방법을 안내드리겠습니다.</p></div>
+            </div>
+          </section>
+
+          <div class="section-label"><span class="step">3</span><span>답변 작성</span></div>
+          <section class="composer-card" aria-labelledby="composer-title">
+            <div class="composer-head"><h4 id="composer-title">환자에게 보낼 답변</h4><span>작성 중 내용은 유지됩니다</span></div>
+            <div class="composer"><textarea aria-label="환자에게 보낼 답변">오전 예약 가능 시간을 확인해 안내드리겠습니다.</textarea><div class="composer-actions"><span class="composer-hint">[보내기]는 상담을 종료하지 않고 대화를 이어갑니다.</span><button class="button primary" type="button">보내기</button></div></div>
+          </section>
+
+          <section class="close-block" aria-labelledby="close-title">
+            <div class="close-top"><h4 id="close-title">상담 종료</h4><span>보내기와 별도 동작</span></div>
+            <p>더 이상 확인할 내용이 없을 때만 종료합니다. 종료하면 티켓은 상담 종료 상태가 되고 다시 열 수 없습니다.</p>
+            <div class="close-action"><strong>현재 상태: 직원 상담 중</strong><button class="button danger" type="button">상담 종료</button></div>
+          </section>
+          <div class="ordering-note"><strong>처리 순서</strong><span>담당 이관 → 전체 대화 → 답변 작성과 보내기 → 별도 상담 종료</span></div>
+        </article>
+      </section>
+    </main>
+  </section>
+</div>
+</body>
+</html>

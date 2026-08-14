@@ -17,11 +17,14 @@
 | `ink` | `#10243A` | 본문 최고 대비 텍스트 |
 | `ink-muted` | `#5A6C7B` | 보조 텍스트(진료과·의사명) |
 | `warn` | `#B44E00` / **배경 없음(흰색)** | 미작성·주의 상태 |
+| `--danger` | `#A02F3D` | 오류·실패 |
+| `--danger-bg` | `#FFF0F1` | 오류·실패 배경 |
 | `done` | `#67788A` / 배경 `#F5F7F8` | 완료·중립 상태 |
 | `bg` | `#F2F5F7` | 화면 배경 |
 | `surface` | `#FFFFFF` | 카드 |
 | `divider` | `#E6EBEF` | 구분선 |
 
+- **구현 주석**: 이 토큰들은 **단일 공용 토큰 원본**에서 플랫폼별 파일(CSS 변수/테마)로 생성해 전 화면에 적용한다. 화면별 인라인 색 재정의를 금지하고, 토큰 밖의 임의 색상값은 lint/CI로 막는다. *(근거: `decision-ledger-chatbot.md` R2-0 + `decision-meeting-2026-08-12-R2C.md` 안건 0)*
 - 흰 글자 대비 4.5:1 이상(WCAG AA). 검토한 대안: 포레스트그린(초록=완료 습관과 충돌), 네이비(무난하나 차별성 없음), 플럼(뷰티로 읽힘) — 모두 기각.
 - **색만으로 상태를 구분하지 않는다.** 항상 텍스트 병기(요구사항 7절).
 - **주의색은 면적을 최소화한다.** 앰버는 딥틸의 보색이라 넓은 면으로 깔면 화면이 한난 두 톤으로 쪼개진다. 배경색을 쓰지 않고 **글자 + 좌측 4px 세로 바 + 작은 점**으로만 표현한다. 배경이 사라진 만큼 흰색 대비를 확보하기 위해 `#A85B00 → #B44E00`으로 조정(흰색 대비 5.9:1). 채도를 낮춘 황토색 대안은 완료(회색)와 구분이 약해져 기각.
@@ -327,8 +330,7 @@
     - **전화번호는 테두리 있는 상자**로 둔다 — 이전에는 그냥 글자라 **누를 수 있는 것인지** 알 수 없었다.
   - `[닫기]`로 빠져나갈 문을 반드시 둔다. 바로 상담방으로 보내면 취소를 망설이던 사람까지 들어와 **불필요한 티켓**이 쌓이고 직원 업무가 늘어난다.
   - 전화번호를 함께 두되 **전화를 주 경로로 올리지 않는다** — 전화는 `support_tickets`에 남지 않아 요구사항 3.9·3.10의 상담 통계·지식 개선 사이클에서 빠진다.
-- `[상담 채팅 연결]` → 상담 화면. 봇 첫 메시지가 **예약 정보와 이유를 함께** 설명한 뒤 확인 카드를 띄운다. 카드 버튼은 **`[네, 상담으로 연결해 주세요]`** / `[아니요, 그냥 갈게요]`.
-  - **이 버튼을 눌러야** 챗봇 도구 `예약취소_카드보내기`가 `cancellation_requested_at`을 채우고 `late_cancellation` 티켓을 만든다 = 직원 웹 취소요청 대기열에 나타나는 시점.
+- `[상담 채팅 연결]` → 상담 화면. 이 버튼이 **유일한 결정지점**이며 즉시 `support_requested_at`과 `request_type='취소'`를 기록하고 `late_cancellation` 티켓·배지를 만든다. 봇 첫 메시지는 예약 정보와 이유·예약 유지 사실을 설명할 뿐 **확인 카드를 띄우거나 다시 선택을 요구하지 않는다**(결정 A1·E3, 2026-08-12). `/cancellation-requests` 대기열은 폐지됐으므로 직원은 `/today` 카드·예약 캘린더 ⚠에서 확인한다.
 - 연결 후: 채팅 상단 **티켓 상태 배지**(대기중/직원 확인중/답변완료), 봇 메시지 "상담으로 연결해 드렸습니다…", 시스템 말풍선(업무시간 안내 + "답변이 오면 알림을 보내드릴게요"), 예약 상태는 **"상담 연결됨 · 직원 확인 중"** + **"아직 예약은 유지되고 있습니다"**.
 - **금지 문구**(스펙 명시): "취소 요청이 접수되었습니다", "취소를 요청해 두었습니다". 자동 취소될 거라 믿고 병원에 안 오면 예약 부도로 남고 다른 환자 자리도 낭비된다.
 
@@ -1286,7 +1288,7 @@ B-6·B-7이 **둘 다 이 사실에서 파생**됐고, 회원가입과 비밀번
 **📌 원문에서 새로 확인한 것**
 - 취소 마감은 **병원 전체 공통 1행**(`hospital_settings.cancellation_deadline_hours`, 기본 24)이고 **의사별 값이 아니다.** 예약 마감(`booking_deadline`)만 의사별·요일별이다 — 둘은 다른 값이다.
 - 상세 API(`get_appointment_detail`, `plans/patient-app.md:2601~2618`)는 `updated_at`을 이미 내려준다 → **낙관적 잠금 재료가 있다**(갭 #12는 「보내고 비교하는 코드」만 없는 것).
-- 마감 후 취소는 **팝업을 연 것만으로는 아무 일도 일어나지 않는다** — 상담 확인 카드를 눌러야 `cancellation_requested_at`이 채워진다.
+- 마감 후 취소는 **팝업의 `[상담 채팅 연결]`을 눌러야 공통 `support_requested_at`과 `request_type='취소'`가 채워진다** — 팝업을 열어둔 것만으로도, `[닫기]`로 나간 사람도 기록되지 않는다(결정 A1·E3).
 
 ### 🆕 예약 상세·변경·취소 플랜 패치 10건 (2026-08-04, 묶음 4 동작 명세 중 발견) — 전부 앱 코드
 
@@ -3126,6 +3128,7 @@ C-2(`[전화 걸기]`가 PC에서 실제로 걸리는가)를 파고들다 **더 
 - **#4 전화번호 변경 시 본인 확인** — ㉯ **새 번호 인증(OTP) 포함 인라인 변경**. 기각: 직접 저장(㉮, 계정 탈취·기록 오염 위험). `USER-FINAL`. 구현: OTP 발송·Auth 동기화·변경 이력 API 부재(`BLOCKED`).
 - **#21 통계 소수 인원 숨김** — **관리자 화면은 소수 억제 안 함**(숫자 그대로, 1건 칸도 드릴다운). **소수 보호(k=5 미만 가림+보완 억제)는 CSV 파일에만** + 가림엔 반드시 설명 3종(칸 문구·파일 첫 줄·다운로드 직전 안내). 기각: 화면 억제, 관리자 '원본 보기' 예외 버튼. 근거: 요구사항 3.10·6.5, 관리자 전용 화면. `USER-FINAL`(정본 `24b`). 구현: k값 저장 칸 없음·CSV 억제 로직(`BLOCKED`).
 - **#24 통계 드릴다운 명단 개인정보 범위** — **마스킹 표시**(`홍*동`·`010-****-5678`·`1990-**-**`), 전체 필요 시 줄 클릭 → 환자 상세(내부 patient_id 기반)로 이동, 거기서 열람 기록. 근거: 요구사항 3.10·6.5. `USER-FINAL`(정본 `24b`). 구현: 마스킹 DTO·행 링크 미구현(`BLOCKED`).
+- **#23 챗봇 예약의 유입 비율 처리** — **별도 유입원으로 따로 표시**(앱 %:직원 %:챗봇 %), 앱/직원 비율에 안 섞음. `appointments.source='chatbot'`가 나중에 들어와도 표가 안 깨지고 총합이 맞게, 데이터 없으면 0건/미집계(0으로 위장 금지). 근거: 요구사항 3.10·`STAT-METRIC-05`·`appointments.source`·`AD-013`(챗봇은 사용자 몫). `USER-FINAL`(정본 `24b`). 구현: 유입원 3분류(app/staff/chatbot) 집계 API 보강(`BLOCKED`). 📌 규칙은 `screen-behaviors.md` `STAT-METRIC-05`에 이미 반영됨.
 - **#20 관리자 오류 화면 노출 범위** — B **안전한 요약 기본 + 기술 상세는 redaction(비밀·PII 제거) 후 별도**. 개발자는 이 화면 아닌 뒷단에서 봄. 근거: 요구사항 6.4·6.5. `USER-FINAL`(정본 `24b`). 구현: `message` 단일 칸에 원문 저장 중 → 저장 시점 redaction + 요약/상세 분리(`BLOCKED`).
 
 **되돌릴 수 없는 것 — 병합 (3회차)**
@@ -3208,7 +3211,7 @@ C-2(`[전화 걸기]`가 PC에서 실제로 걸리는가)를 파고들다 **더 
 
 > **번호는 핸드오프(`HANDOFF.md`)의 기능 갭 번호와 같다.** 문서 곳곳에서 "기능 갭 #13" 식으로 참조하므로 번호를 바꾸지 말 것. 아래 목록에 본문이 없는 3건(#6·#11·#12)은 다른 절에 상세가 있다 — 각 항목에 위치를 적어 두었다.
 
-- [ ] **#6 마감 후 "변경" 요청을 담을 데이터 칸이 없다.** → 상세는 위 「마감 후 변경 · 챗봇 장애 대체 경로」 절. 요약: `cancellation_requested_at`은 **취소 전용**이고 마감 후 **변경** 요청(원하는 새 날짜·시간)을 담을 칸이 없다. 별도 칸 vs `request_type` 통합 구조 판단 필요.
+- [ ] **#6 마감 후 취소·변경 공통 요청 칸 구현 대기(E3 확정).** → `00010_`에서 기존 `cancellation_requested_at`을 공통 `support_requested_at` + `request_type`(`취소`/`변경`)으로 대체한다. **희망 일시는 저장하지 않는다.** 구조 판단은 끝났고 마이그레이션 작성·적용만 남았다.
 - [ ] **#11 서버가 "이미 취소됨"과 "이미 완료됨"을 뭉뚱그린다.** → 조치 방향은 위 「이미 처리된 예약」 절 ③. 요약: `raise AppError("이미 취소되었거나 완료된 예약입니다.")`(`plans/2026-07-27-patient-app.md:2395`) — 응답에 **실제 상태 + 주체 + 바뀐 시각**을 담아야 #18 화면 문구를 만들 수 있다.
 - [ ] **#12 환자 앱 취소·변경 경로에 낙관적 잠금(optimistic lock)이 없다.** → 조치 방향은 위 「이미 처리된 예약」 절 ③. 요약: 직원 웹에는 있다(`backend/app/services/appointment_service.py:119`). 환자 경로에는 없어 **낡은 화면에서 누른 것이 조용히 덮어써진다.** ⭐ 이것이 #17·#18 화면의 방아쇠다.
 
@@ -3270,7 +3273,7 @@ C-2(`[전화 걸기]`가 PC에서 실제로 걸리는가)를 파고들다 **더 
   - 현황: 챗봇 스펙은 상담봇을 **독립 화면 · 독립 예약 경로**로만 정의한다. 예약 마법사 위에 겹쳐 떠서 **진료과만 알려주고 마법사로 값을 돌려주는** 사용법이 없다.
   - 결과: 예약 2단계의 `어느 과인지 모르겠어요 ›`를 구현할 수 없다. 지금 구조로는 상담봇이 열리는 순간 마법사가 끊긴다.
   - 조치: ① 대화 시작 시 **맥락 전달**(예약 진행 중임 + 1단계에서 고른 본인/가족) ② 이 모드에서는 상담봇이 **예약을 직접 완성하지 않는다** — 진료과를 좁혀주는 데까지만 하고 `진료과 확정` 결과를 마법사로 돌려준다 ③ 시트 UI(겹침) + `○○과로 계속하기` 반환 버튼
-  - **주의**: 같은 대화 엔진이 두 모드로 동작하게 되므로, 모드별로 **쓸 수 있는 도구가 다르다**는 것을 스펙에 명시해야 한다(예약 중 상담 모드에서는 `예약제안_카드보내기` 사용 금지 — 안 그러면 마법사와 챗봇이 각각 예약을 만들어 중복이 생긴다).
+  - **주의(E4 확정, 2026-08-12)**: 같은 대화 엔진이 두 모드로 동작하므로 모드별 도구 계약을 스펙에 명시한다. 예약 중 상담 모드는 **정보성 안내 + 진료과 추천만** 허용하고 예약제안·취소·문진 카드 등 행동형 도구를 전부 금지한다. 유일한 행동 출구는 `○○과로 계속하기`이며, 119/응급실 긴급 안전 안내만 모드와 무관하게 작동한다.
   - 대상: `specs/2026-07-27-ai-chatbot-design.md` + `plans/2026-07-27-ai-chatbot.md`, `plans/2026-07-27-patient-app.md`(예약 2단계 태스크)
 
 - [ ] 🆕 **#13 앱에 예약을 폰에 적어두는 장치(로컬 캐시)가 없다.** — 오프라인 결정(2026-08-01)의 전제
@@ -4182,21 +4185,16 @@ C-2(`[전화 걸기]`가 PC에서 실제로 걸리는가)를 파고들다 **더 
 - **결정 ①: 마감 후 변경도 취소와 동일하게 상담 연결로 보낸다.** 팝업 문구만 다르다(`변경 마감 시간이 지났습니다 / 시간 변경은 직원 확인이 필요합니다` + 전화번호 + `[상담 연결하기]`). 화면은 취소용을 거의 그대로 재사용.
   - 기각 ②(마감 후 [시간 변경] 버튼 숨김): 막다른 길이 된다 — 원칙 위반.
   - 기각 ③(그대로 둠): 위 구멍이 남는다.
-- **🆕 기능 갭 #6 — 마감 후 변경 요청을 담을 데이터 칸이 없다** (화면만으로는 실현 불가)
-  - 취소는 `appointments.cancellation_requested_at`(Task 2 마이그레이션)에 기록되고, 백엔드 `cancel_appointment`가 **이미 마감 전/후를 스스로 분기**한다(`plans/2026-07-27-patient-app.md:2398~2418`) — 마감 전이면 즉시 취소 + 슬롯 반납, 마감 후면 요청 시각만 기록. **챗봇 없이도 완결된다.**
-  - 따라서 위 "항상 폼" 결정은 **취소에 관한 한 새 백엔드가 필요 없다.** 폼이 같은 API를 부르면 요청이 자동으로 직원 대기열에 뜬다.
-  - **그러나 변경에는 대응 필드가 없다.** `cancellation_requested_at`은 이름 그대로 취소 전용이고, 마감 후 **변경** 요청(원하는 새 날짜·시간 포함)을 담을 칸이 어디에도 없다.
-  - 필요한 조치: ① 마이그레이션에 요청 칸 추가(예: `change_requested_at` + 희망 일시, 또는 요청 종류를 구분하는 단일 구조로 통합) ② `cancel_appointment`와 같은 결의 변경요청 API ③ 승인 시 직원이 새 슬롯을 잡아주는 처리
-  - **설계 판단 필요**: 취소·변경을 각각 별도 칸으로 둘지, `request_type`(취소/변경) + 공통 칸 하나로 통합할지. 후자가 대기열 화면을 하나로 유지하기에 유리해 보이나, 기존 `cancellation_requested_at`을 쓰는 코드(직원 웹 대기열, `/today` 카드)를 함께 고쳐야 한다.
-- **파생 작업 — 직원 웹**: 현재 직원 웹에는 **"취소요청 대기열"만** 있어(이름부터 취소 전용) 변경 요청이 갈 곳이 없다. **대기열을 "취소·변경 요청 대기열"로 넓히고 요청에 종류 딱지(취소/변경)를 붙인다.** 화면 신설보다 비용이 적다.
-  - 대상: `specs/2026-07-27-staff-web-design.md` 섹션 10 / `plans/2026-07-27-staff-web.md` Task 16 / 티켓 사유값에 `late_change` 추가(`specs/2026-07-27-ai-chatbot-design.md:136` 근처)
-  - **함께 고칠 문장**: `staff-web-design.md:108`이 "마감 후 취소 요청은 입구 채널이 무엇이든 **전부 4단계 챗봇의 `예약취소_카드보내기` 도구를 거쳐** 동일한 `cancel_appointment` API를 호출한다"고 단정한다. **"항상 폼" 결정으로 앱 버튼 경로는 챗봇을 거치지 않고 API를 직접 호출**하므로 이 문장이 틀리게 된다(채널 무관성이라는 결론 자체는 유지되며, 오히려 더 강해진다 — 챗봇 의존이 사라지므로).
+- **🆕 기능 갭 #6 — 마감 후 취소·변경 공통 요청 칸 구현 대기(E3 확정)**
+  - `appointments.cancellation_requested_at`을 공통 `support_requested_at`으로 대체하고 `request_type`(`취소`/`변경`)을 함께 저장한다. 취소·변경은 같은 팝업·상담 연결·배지·`/today`·캘린더 ⚠ 흐름을 쓰며 직원은 `request_type`으로 둘을 구분한다.
+  - **희망 일시는 저장하지 않는다.** 앱에서 고르면 그 시간으로 바뀐 줄 오해하므로 새 시간은 상담 대화에서 정한다(`APPT-CHG-20`). 별도 취소/변경 칸은 처리 로직을 두 벌로 갈라 기각했다.
+  - 필요한 조치: `00010_` 마이그레이션, 취소·변경 요청 API의 공통 기록, `/today`·캘린더 ⚠ 조회의 `request_type` 표시. 전용 `/cancellation-requests` 화면은 되살리지 않는다.
 
 #### #19 챗봇 장애 시 대체 경로
 
 - **이미 있는 것**(챗봇 스펙 50줄): "봇 장애 시 상담창은 **'문의 남기기'(봇 없이 티켓 생성)**로 전환."
 - **남아 있던 구멍**: 봇이 죽으면 `예약취소_카드보내기` 도구가 돌지 않아 **`cancel_appointment` API가 호출되지 않는다.** 환자는 "문의 남기기"로 글만 남기게 되고, 직원이 일반 문의함을 읽다가 발견해야 하며 그 사이 진료 시간이 지난다.
-  - ⚠️ **정정(초안 오류)**: 초안에서 "티켓에 `late_cancellation` **딱지**가 안 붙어 대기열에 못 들어간다"고 적었으나 **부정확했다.** 직원 웹 스펙 112줄에 따르면 취소요청 대기열의 조회 기준은 티켓이 아니라 **`appointments.cancellation_requested_at`이 채워졌는지**다. 진짜 문제는 딱지가 아니라 **API 호출 자체가 일어나지 않는 것**이다.
+  - ⚠️ **정정(초안 오류·E3 후속 정합화)**: 초안에서 "티켓에 `late_cancellation` **딱지**가 안 붙어 대기열에 못 들어간다"고 적었으나 **부정확했다.** 당시 직원 웹 스펙의 조회 기준은 티켓이 아니라 예약의 요청 시각이었다. E3 확정 뒤 기준 필드는 공통 **`appointments.support_requested_at` + `request_type`**이며, 진짜 문제는 딱지가 아니라 **API 호출 자체가 일어나지 않는 것**이다.
 - ⚠️ **아래 「재결정」 절에서 이 항목의 결론(폼 도입)은 철회되었다.** 챗봇 장애 시에는 원래 스펙대로 "문의 남기기"로 전환한다.
 - **결정: 상담창 장애 화면에 예약 진입 경로를 둔다.** "지금은 상담을 이용할 수 없습니다" + **"예약은 앱에서 바로 하실 수 있습니다 `[예약하기]`"** + 문의 남기기 입력창 + 전화번호. 안내가 없으면 환자는 예약까지 막힌 줄 알고 나간다(원칙: 막다른 길 금지).
 #### ⭐ 재결정 — "항상 폼"을 철회하고 **상담(대화)으로 연결**한다 (2026-07-31, 사용자 지적으로 뒤집음)
@@ -4239,7 +4237,7 @@ C-2(`[전화 걸기]`가 PC에서 실제로 걸리는가)를 파고들다 **더 
 | **3.9 상담 문의 관리** | "상담봇이 해결하지 못한 문의는 직원용 웹에 표시", "직원이 답변을 남기면 환자 앱에 전달" |
 
 - **스펙에도 이미 있다**(`staff-web-design.md:44-45`): 빈 슬롯 클릭 → 전화예약 등록 모달 / **예약 슬롯 클릭 → 상세 사이드패널(변경/취소, 사유 입력)**. 대기열을 없애도 직원은 캘린더에서 취소할 수 있다.
-- **중복이 실제로 발생하고 있었다**(`ai-chatbot-design.md:234`): 마감 후 취소 시 `cancellation_requested_at`을 채움과 **동시에** 인계 티켓도 생성해, **같은 건이 상담 문의함과 대기열 양쪽에 뜬다.** 직원이 어디서 처리할지 헷갈리고, 한쪽에서 처리해도 다른 쪽이 안 지워질 위험이 있다.
+- **중복이 실제로 발생하고 있었다**(`ai-chatbot-design.md:234`): 마감 후 지원 요청 시 공통 `support_requested_at`·`request_type`을 채움과 **동시에** 인계 티켓도 생성하므로, 전용 대기열까지 두면 **같은 건이 상담 문의함과 대기열 양쪽에 뜬다.** 직원이 어디서 처리할지 헷갈리고, 한쪽에서 처리해도 다른 쪽이 안 지워질 위험이 있다.
 
 **대체 — 새 화면 0개**
 
@@ -4254,12 +4252,11 @@ C-2(`[전화 걸기]`가 PC에서 실제로 걸리는가)를 파고들다 **더 
 - **이득**: 직원이 **예약을 다루는 곳에서 예약 일을 처리한다.** 별도 장소로 갔다가 캘린더로 돌아오는 왕복이 사라지고, 승인하면 **그 자리가 캘린더에서 바로 비는 것이 보여** 다음 환자를 받을 수 있는지 즉시 알 수 있다.
 - **잃는 것**: `[승인]`·`[반려]` 두 버튼으로 끝내던 편의. 다만 요구사항 3.9가 "직원이 답변을 남기면 환자 앱에 전달"이라 했으므로 답변 절차는 어차피 필요하다.
 
-#### 취소 요청 기록 시점 — **[상담 채팅 연결]을 누른 즉시** (2026-07-31, 사용자 확정)
+#### 취소·변경 지원 요청 기록 시점 — **[상담 채팅 연결]을 누른 즉시** (2026-08-12, A1·E3 확정)
 
-- 누른 즉시 `cancellation_requested_at`을 채운다. 그래야 앱 목록·상세에 **"상담 연결됨" 배지가 바로** 뜬다.
-- **대가**: 환자가 채팅에 들어갔다 "그냥 갈게요" 하고 나가도 배지가 남고 직원 쪽에 헛건이 쌓인다.
-- **그래도 즉시를 택한 이유**: 헛건은 직원이 "취소 안 하시겠다고 하셨습니다"로 닫으면 되지만, **환자가 눌렀는데 아무 일도 일어나지 않은 것처럼 보이는 것**은 앱 신뢰를 깎는다. 그리고 중도 이탈은 드물다.
-- 기각: "봇이 취소 의사를 확인한 뒤 기록" — 헛건은 없으나 버튼을 누르고 몇 초간 앱에 아무 변화가 없다.
+- 누른 즉시 공통 `support_requested_at`과 `request_type`(`취소`/`변경`)을 채운다. 그래야 앱 목록·상세에 **"상담 연결됨" 배지가 바로** 뜬다.
+- 확인 카드는 없앤다. 환자는 마감이 지난 뒤 이미 한 번 더 생각하고 연결을 눌렀으므로 `[네]/[아니요]` 재선택은 부담만 늘린다.
+- 기각: 확인 카드 유지 — 같은 결정을 되묻는다. 기록 철회 — 이미 표시한 상담 연결 배지를 뒤집어 신뢰를 깎는다. 봇 확인 뒤 기록 — 버튼을 누른 뒤 아무 변화가 없는 구간이 생긴다.
 
 #### 직원 알림 — 조용한 숫자 표시만 (2026-07-31 확정 → ⚠️ **2026-08-03 표시 위치 변경**)
 
@@ -4272,6 +4269,495 @@ C-2(`[전화 걸기]`가 PC에서 실제로 걸리는가)를 파고들다 **더 
 
 - 초안에서 그린 `[취소하고 싶어요] [시간을 바꾸고 싶어요]`는 **지어낸 것**이다. 챗봇 스펙에 그런 개념이 없다 — 있는 것은 **카드형 메시지 3종**(시간 선택지 / 예약 확인 / 사전문진)뿐이고 전부 "누르면 그 동작이 실행되는" 카드다. 대화를 유도하는 버튼은 정의된 바 없다.
 - **4단계 챗봇 화면 설계 시 결정한다.** 지금 정하면 전체 대화 방식을 모르는 채 부품 하나만 정하게 된다. 안 만들면 고령 환자가 직접 타이핑해야 하고, 만들면 "다른 화면에도 넣을까"가 따라온다.
+
+### 상담봇 `00010_` 마이그레이션 대기
+
+- [ ] **E3** — `appointments.support_requested_at` + `request_type`(`취소`/`변경`)을 추가하고 계획된 `cancellation_requested_at`을 공통 구조로 대체한다. 희망 일시 칸은 만들지 않는다.
+- [ ] **B3** — 오답 신고 처리함의 `source` 칸에 `quality_review`를 저장·조회할 수 있게 추가하고 화면에 `품질 리뷰`로 구분 표시한다.
+
+#### 상담봇 통합 스키마 공백 7건 — ⑦플랜 대조 요약 (2026-08-13)
+
+> 기존 AI 상담봇 플랜 ↔ 3-A 결정 ↔ R2 목업을 ⑦대조한 결과다. 세 문서의 합집합은 큰 기능을 커버하지만, 바로 구현 가능한 단일 정본 스키마는 아직 없다.
+
+| # | 공백 | 무엇이 필요 | 상태 |
+|---|---|---|---|
+| 1 | 통합 스키마 없음 | 옛 `chat_conversations` ↔ 새 `chat_threads`가 같은 역할·다른 이름/필드. 하나로 합치며 보존: 앱/웹 채널·현재 상담 갈래·진행 상태·AI세션/티켓 경계·마지막 활동 시각·환자/익명 소유권 | 플랜 재작성 |
+| 2 | 메시지 카드 미보존 | 3-A `chat_messages`가 사실상 `content text`뿐. 카드 8종·상태·실행결과 복원용 `message_type + payload jsonb`(버전 스냅샷) 또는 카드 종류별 이벤트/결과 테이블 | 플랜 재작성 |
+| 3 | 예약-티켓 직접 연결 없음 | `support_tickets.appointment_id`(nullable FK)가 어느 계획에도 없음 — 함수 인자로만 넘기고 테이블엔 안 남김. "이 취소·변경 상담이 어느 예약의 티켓인가"를 DB가 보장 못 함 | 플랜 재작성 |
+| 4 | 품질 검토 상태 저장 자리 없음 | `answer_feedback`은 교정·신고 시에만 행 생성. "문제없음 검토 완료"를 저장 못 함 → 상담 단위 `검토 상태·검토 관리자·검토 시각` 필요(R2 결정: 상담 목록에 검토 상태 표시 + 미검토 우선 정렬) | 플랜 재작성 |
+| 5 | 답변 근거 과거 재현 약함 | 옛 `source_chunk_ids uuid[]`는 실제 FK 아님. 지식 조각 재생성 시 과거 답변 근거 깨짐. ERD가 이미 `chat_message_sources`(message_id·chunk_id·당시 순서·유사도·가능하면 당시 제목/본문 스냅샷) 권고 | 플랜 재작성 |
+| 6 | 시스템 경계 표현 없음 | 메시지 발신자가 환자·봇·직원뿐. 화면엔 `직원 연결됨·담당 변경·상담 종료·AI 30분 만료·새 AI 시작`도 시간순 필요 → `chat_events` 별도 표 or `chat_messages`에 `system` 유형 추가 | 플랜 재작성 |
+| 7 | ⚠️ 보존기간·익명정보 파기 기준 | 상담 원문·AI 요약·익명 토큰·암호화 전화번호·알림 기록·읽음 상태를 얼마나 보관/언제 파기하나. **기술자가 임의로 못 정함 — 법(개인정보보호법·의료법)이 정하는 숫자** | `FINAL(방침 확정 2026-08-13)` |
+
+⚠️ **②·④층은 덜 대조됨** — 이 대조는 ①DB층 중심이다. 플레이북이 *"②서버조회(`order by`·`limit`)·④다음 단계가 가장 잘 빠진다 — 아무도 안 묻기 때문"*이라 경고한 자리(예: 품질 미검토 우선 정렬을 실제로 뽑는 `order by`·인덱스, 티켓 인박스·상담 목록 정렬). 플랜 재작성 때 이 두 층을 반드시 훑을 것.
+
+⚠️ **7번은 직원웹 #14 보존기간과 한 묶음** — 같은 법·같은 조사다(`W-02`가 law.go.kr·lbox.kr 403으로 막힘, `AD-040`). **의료법 시행규칙 §15 · 개인정보 안전성 확보조치 기준 §8 원문 재확인**이 공통 게이트.
+
+상세는 아래 소절에 인라인 보존. 원본 codex-work 파일은 아카이브.
+
+### 상담봇 통합 스키마 — 상세 요구 (3-A, 2026-08-13)
+
+# 3-A 스키마 요구사항 (2026-08-13)
+
+> 대상: 이후 다시 작성할 `ai-chatbot` 구현 플랜
+>
+> 상태: **요구사항만 확정**. 이 문서는 SQL, Supabase migration, RLS 정책문, 함수·트리거 구현을 작성하거나 적용하지 않는다.
+
+## 1. 근거와 해석 경계
+
+현재 근거는 아래 세 문서와 이번 사용자 추가 확정뿐이다.
+
+1. `decision-ledger-chatbot.md`의 `R2-3A`
+2. `decision-meeting-2026-08-12-R2C.md`의 안건 `3-A` 결정 기록
+3. `3A-scope-2026-08-13.md`의 `③ DB·마이그레이션` 층
+4. 사용자 추가 확정(2026-08-13): 익명 웹 직원답변 알림은 `patients`와 무관한 익명 세션 전화번호 대상의 정보성 SMS이며, 등록 환자와 공통 수신 대상 추상화·배칭·발송 로그 파이프라인을 사용
+
+이 문서는 위 결정에서 요구된 생명주기를 구현 가능한 데이터 계약으로 풀어쓴다. 과거 `ai-chatbot` 스펙·플랜과 과거 커밋은 테이블 이름이나 동작을 확정하는 근거로 사용하지 않는다. 기존 프로젝트의 `uuid`·`timestamptz`·lowercase `snake_case` 관례는 구현 일관성을 위한 기술 형식으로만 따른다.
+
+확정된 뜻은 다음과 같다.
+
+- 환자에게는 AI 대화와 직원 상담이 같은 상담방의 시간순 이력으로 보인다.
+- 직원의 일반 메시지 전송은 티켓을 닫지 않는다. `answered`는 직원이 별도 `[상담 종료]`를 실행한 상태다.
+- 완료 티켓은 재개하지 않는다. 다시 직원 확인이 필요하면 같은 상담방 안에 새 티켓을 만든다.
+- AI 상담 단위는 마지막 활동 후 30분 무활동이면 만료한다. 직원 상담 티켓에는 이 만료를 적용하지 않는다.
+- AI 상담을 이어갈 때에는 직전 AI 상담 또는 직원 상담의 요약을 새 AI 상담 단위에 전달한다. 새 질문은 과거 문맥을 전달하지 않는다.
+- 비로그인 웹 이력은 브라우저 익명 토큰에 귀속하며 연락처를 연결할 수 있다. 연락처가 같다는 이유로 환자·계정을 추측해 연결하지 않는다.
+- 사용자가 상담방을 보지 않을 때의 미확인 연속 직원 답변은 한 배치로 묶어 알림 한 번만 보낸다. 확인 후의 새 답변은 새 배치다.
+
+## 2. 전체 관계
+
+`chat_threads`가 환자에게 보이는 “같은 상담방”의 안정적인 ID다.
+
+```text
+chat_threads
+  ├─ ai_chat_sessions       0..N  (30분 경계를 가진 AI 상담 단위)
+  ├─ support_tickets        0..N  (재문의마다 새 행)
+  ├─ chat_messages          0..N  (AI·환자·직원 메시지의 단일 타임라인)
+  ├─ chat_read_states       0..N  (참여자별 확인 위치·열람 상태)
+  └─ chat_notification_batches 0..N (미확인 연속 직원 답변 묶음)
+
+anonymous_chat_sessions
+  ├─ chat_threads           0..N
+  └─ anonymous_chat_contacts 0..N
+```
+
+메시지는 항상 `thread_id`를 가지며, 동시에 정확히 하나의 `ai_chat_session_id` 또는 `support_ticket_id`를 가진다. 따라서 여러 AI 상담 단위와 여러 직원 티켓이 생겨도 `thread_id, created_at, id` 순서로 한 화면의 연속 이력을 복원할 수 있다.
+
+## 3. enum 요구사항
+
+구현 플랜은 최소 아래 enum을 신설한다. DB enum을 쓸지 `text + check`를 쓸지는 migration 작성 시 정할 수 있지만, 허용값과 의미는 바꾸지 않는다.
+
+| enum | 허용값 | 의미 |
+|---|---|---|
+| `chat_thread_owner_type` | `patient`, `anonymous_web` | 로그인 환자 소유 상담방인지 브라우저 익명 세션 소유 상담방인지 구분 |
+| `support_ticket_status` | `pending`, `in_progress`, `answered` | 대기, 직원 상담 중, 직원이 명시적으로 종료한 상담. `answered`를 “답변 메시지 한 건 전송”으로 해석하지 않음 |
+| `chat_sender_type` | `patient`, `bot`, `staff` | 메시지 발신 주체. 익명 웹 사용자의 발신도 `patient`이며 익명 세션 FK로 식별 |
+| `ai_chat_session_status` | `active`, `expired`, `ended` | 진행 중, 30분 무활동 만료, 다른 명시적 경계로 종료 |
+| `ai_chat_end_reason` | `inactivity_timeout`, `staff_handoff`, `new_question` | `expired`/`ended`가 된 원인. `inactivity_timeout`은 30분 무활동에만 사용 |
+| `chat_continuation_source_type` | `ai_session`, `support_ticket` | 새 AI 상담에 전달된 요약의 출처. 새 질문은 값과 출처 FK를 모두 `null`로 둠 |
+| `chat_reader_type` | `patient`, `anonymous_web`, `staff` | 확인 위치를 기록할 참여자 종류 |
+| `anonymous_contact_kind` | `phone` | 익명 웹 직원답변 알림의 검증된 휴대전화 연락처 |
+| `notification_recipient_type` | `patient`, `anonymous_chat_contact` | 등록 환자 대상과 익명 세션 연락처 대상을 하나의 수신 대상 계약으로 구분 |
+| `notification_message_class` | `transactional`, `marketing` | 정보성·거래성 알림과 광고성 발송 구분. 직원답변 알림은 항상 `transactional` |
+
+알림 대기 마이그레이션 `#119`가 정의한 발송 상태는 같은 허용값을 재사용한다.
+
+| enum | 허용값 | 의미 |
+|---|---|---|
+| `notification_delivery_status` | `sending`, `delivered`, `failed`, `retrying` | `notification_log`의 실제 발송 결과. 상담 알림만의 별도 결과 enum을 만들지 않음 |
+
+익명 직원답변 알림의 연락처와 채널은 이번 추가 요구에서 **전화번호/SMS**로 확정됐다. 이메일을 현재 허용값으로 임의 추가하지 않는다.
+
+## 4. 테이블·칼럼 요구사항
+
+### 4.1 `chat_threads` — 같은 상담방의 루트
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK |
+| `owner_type` | `chat_thread_owner_type` | N | `patient` 또는 `anonymous_web` |
+| `patient_id` | `uuid` FK → `patients.id` | Y | 로그인 환자 상담방일 때만 값 존재 |
+| `anonymous_session_id` | `uuid` FK → `anonymous_chat_sessions.id` | Y | 비로그인 웹 상담방일 때만 값 존재 |
+| `last_activity_at` | `timestamptz` | N | 상담방 목록 정렬용 전체 마지막 활동 시각. AI 30분 만료 판단의 원본 칼럼으로 사용하지 않음 |
+| `created_at` | `timestamptz` | N | 생성 시각 |
+| `updated_at` | `timestamptz` | N | 메타데이터 갱신 시각 |
+
+필수 제약:
+
+- `owner_type = patient`이면 `patient_id`만 존재하고, `owner_type = anonymous_web`이면 `anonymous_session_id`만 존재한다.
+- 연락처 연결만으로 `owner_type`이나 `patient_id`를 바꾸지 않는다.
+- 한 브라우저 익명 세션이 여러 상담방을 가질 수 있으므로 `anonymous_session_id`를 unique로 만들지 않는다.
+
+### 4.2 `support_tickets` — 직원 상담 생명주기
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK |
+| `thread_id` | `uuid` FK → `chat_threads.id` | N | 환자에게 같은 상담방으로 보이게 하는 루트 |
+| `source_ai_session_id` | `uuid` FK → `ai_chat_sessions.id` | Y | AI가 직원 확인으로 넘긴 경우의 출처. AI를 거치지 않은 직원 문의라면 `null` 가능 |
+| `previous_ticket_id` | `uuid` self FK | Y | 완료 후 재문의로 만든 새 티켓이 직전 관련 티켓을 가리킴. 이전 행을 재개하는 용도가 아님 |
+| `status` | `support_ticket_status` | N | 기본값 `pending` |
+| `assigned_staff_id` | `uuid` FK → `staff.id` | Y | 현재 담당자 |
+| `assigned_at` | `timestamptz` | Y | 현재 담당자가 지정된 시각 |
+| `started_at` | `timestamptz` | Y | `in_progress`가 된 시각 |
+| `closed_by_staff_id` | `uuid` FK → `staff.id` | Y | `[상담 종료]`를 실행한 직원, 즉 종료 주체 |
+| `closed_at` | `timestamptz` | Y | `[상담 종료]` 성공 시각 |
+| `created_at` | `timestamptz` | N | 직원 연결 요청 시각 |
+| `updated_at` | `timestamptz` | N | 상태·담당 변경 시각 |
+
+필수 제약과 전이:
+
+- 허용 전이는 `pending → in_progress → answered`다. `answered → pending/in_progress` 전이는 금지한다.
+- 일반 `[보내기]`는 `status`, `closed_by_staff_id`, `closed_at`을 변경하지 않는다.
+- `answered` 행에는 `closed_by_staff_id`와 `closed_at`이 모두 있어야 하며, 다른 상태에서는 둘 다 `null`이어야 한다.
+- `in_progress`와 `answered`에는 담당자 이력이 있어야 한다. 종료 뒤에도 마지막 `assigned_staff_id`를 보존한다.
+- 한 `thread_id`에 `pending` 또는 `in_progress` 티켓은 최대 한 개만 허용한다. 재문의는 기존 행 갱신이 아니라 새 PK의 행을 만든다.
+- `previous_ticket_id`와 새 티켓의 `thread_id`는 같아야 하고, 이전 티켓은 `answered`여야 한다.
+- AI의 30분 만료 작업은 이 테이블을 변경하지 않는다.
+
+담당 지정·이관의 감사 이력을 위해 아래 보조 테이블도 플랜에 포함한다.
+
+#### `support_ticket_assignment_history`
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK |
+| `ticket_id` | `uuid` FK → `support_tickets.id` | N | 대상 티켓 |
+| `from_staff_id` | `uuid` FK → `staff.id` | Y | 최초 배정이면 `null` |
+| `to_staff_id` | `uuid` FK → `staff.id` | N | 새 담당자 |
+| `changed_by_staff_id` | `uuid` FK → `staff.id` | N | 배정 또는 이관을 실행한 직원 |
+| `changed_at` | `timestamptz` | N | 실행 시각 |
+
+`support_tickets.assigned_staff_id`는 현재값, 이 테이블은 변경 이력이다. 두 직원이 동시에 가져가는 경쟁에서는 한 명만 성공해야 한다. 구체적인 조건부 UPDATE/RPC 방식은 3-A의 열린 구현 질문이므로 이 문서에서 SQL로 선결하지 않지만, 구현 플랜은 원자성 테스트를 반드시 둔다.
+
+### 4.3 `chat_messages` — Realtime 단일 메시지 원장
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK |
+| `thread_id` | `uuid` FK → `chat_threads.id` | N | 단일 타임라인 조회 키 |
+| `ai_chat_session_id` | `uuid` FK → `ai_chat_sessions.id` | Y | AI 상담 단위에 속한 메시지 |
+| `support_ticket_id` | `uuid` FK → `support_tickets.id` | Y | 직원 상담 티켓에 속한 메시지 |
+| `sender_type` | `chat_sender_type` | N | `patient`, `bot`, `staff` |
+| `sender_patient_id` | `uuid` FK → `patients.id` | Y | 로그인 환자 발신일 때 |
+| `sender_anonymous_session_id` | `uuid` FK → `anonymous_chat_sessions.id` | Y | 비로그인 웹 환자 발신일 때 |
+| `sender_staff_id` | `uuid` FK → `staff.id` | Y | 직원 발신일 때 |
+| `client_message_id` | `uuid` | Y | 환자·직원 재전송의 멱등 키. 동일 발신자가 재시도해도 메시지 중복 생성 금지 |
+| `content` | `text` | N | 메시지 본문. 빈 문자열 금지 |
+| `created_at` | `timestamptz` | N | 서버가 수락한 시각 |
+
+필수 제약:
+
+- `ai_chat_session_id`와 `support_ticket_id` 중 정확히 하나만 존재한다.
+- 참조한 AI 상담 단위 또는 티켓의 `thread_id`는 메시지의 `thread_id`와 같아야 한다.
+- `sender_type = patient`이면 `sender_patient_id`와 `sender_anonymous_session_id` 중 정확히 하나만 존재하고 `sender_staff_id`는 `null`이다.
+- 로그인 환자 발신자는 상담방의 `patient_id`, 익명 웹 발신자는 상담방의 `anonymous_session_id`와 일치해야 한다.
+- `sender_type = staff`이면 `sender_staff_id`만 존재하며 `support_ticket_id`가 반드시 있다.
+- `sender_type = bot`이면 세 발신자 FK가 모두 `null`이고 `ai_chat_session_id`가 반드시 있다.
+- 직원 상담이 `pending` 또는 `in_progress`인 동안 봇 메시지를 그 티켓 문맥에 넣지 않는다. AI가 답하지 않는 계약은 서비스 계층에서도 강제한다.
+- 전송 성공 후 메시지의 발신 주체·본문·소속 세션/티켓·시각은 수정하지 않는다. 실패/재전송 표시는 클라이언트 전송 상태이며, 서버 수락 뒤에는 `client_message_id`로 한 행만 남긴다.
+- 사진·파일·음성·반응 칼럼은 3-A 최소 범위에서 만들지 않는다.
+
+Realtime 요구:
+
+- `chat_messages`의 INSERT와 `support_tickets`의 상태·담당 변경을 권한 범위 안에서 Realtime으로 구독 가능하게 한다.
+- typing과 접속 상태는 보존 메시지가 아니므로 `chat_messages` 행으로 만들지 않는다. Realtime Broadcast/Presence 또는 수명이 짧은 동등 수단으로 처리한다.
+- 연결 복구 후 `created_at, id` 커서를 기준으로 빠진 메시지를 다시 조회해 Realtime 이벤트 유실을 보충한다.
+
+### 4.4 `ai_chat_sessions` — 30분 경계를 가진 AI 상담 단위
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK |
+| `thread_id` | `uuid` FK → `chat_threads.id` | N | 같은 상담방 루트 |
+| `status` | `ai_chat_session_status` | N | 기본값 `active` |
+| `started_at` | `timestamptz` | N | 단위 시작 시각 |
+| `last_activity_at` | `timestamptz` | N | 이 AI 단위에서 마지막으로 수락된 환자 또는 봇 메시지 시각 |
+| `expires_at` | `timestamptz` | N | `last_activity_at + 30분`. 만료 후보 조회용 저장값 |
+| `ended_at` | `timestamptz` | Y | `expired` 또는 `ended` 확정 시각 |
+| `end_reason` | `ai_chat_end_reason` | Y | 종료 원인 |
+| `closing_summary` | `text` | Y | 이 단위를 나중에 이어가기 위한 직전 내용 요약 |
+| `summary_last_message_id` | `uuid` FK → `chat_messages.id` | Y | 요약에 포함된 마지막 메시지 경계 |
+| `summary_created_at` | `timestamptz` | Y | 요약 생성 시각 |
+| `continuation_source_type` | `chat_continuation_source_type` | Y | 새 AI 단위에 전달된 문맥의 출처 |
+| `continued_from_ai_session_id` | `uuid` self FK | Y | 만료된 이전 AI 상담을 이어갈 때 |
+| `continued_from_ticket_id` | `uuid` FK → `support_tickets.id` | Y | 종료된 직원 상담을 이어서 AI에 질문할 때 |
+| `continuation_summary` | `text` | Y | 새 AI 단위가 실제 입력 문맥으로 받은 요약. 원문 전체를 무제한 전달하지 않음 |
+| `created_at` | `timestamptz` | N | 행 생성 시각 |
+
+필수 제약과 만료 계약:
+
+- 한 `thread_id`에는 `active` AI 상담 단위가 최대 하나다.
+- `status = active`이면 `ended_at`과 `end_reason`은 모두 `null`이다. `status = expired`이면 `end_reason = inactivity_timeout`, `status = ended`이면 `end_reason`은 `staff_handoff` 또는 `new_question`이어야 한다.
+- AI 세션의 메시지를 수락할 때 `last_activity_at`과 `expires_at`을 함께 갱신한다. 창을 닫거나 Realtime 연결이 끊겼다는 이유만으로 종료하지 않는다.
+- `now >= expires_at`인 `active` 행은 조건부로 `expired`, `ended_at`, `end_reason = inactivity_timeout`을 기록한다. 배치 작업과 새 메시지의 경쟁에서도 만료 또는 메시지 수락 중 하나만 성공해야 한다.
+- `expired`이면 `closing_summary`, `summary_last_message_id`, `summary_created_at`을 준비해 `[이전 내용 이어서 질문]`이 새 AI 상담 행을 만들 수 있어야 한다.
+- 직원 인계 시 기존 AI 단위는 `ended / staff_handoff`로 닫고 직원 티켓을 만든다. 직원 상담 중에는 `ai_chat_sessions.expires_at`을 티켓에 복사하거나 직원 티켓을 30분 만료시키지 않는다.
+- 이어가기 선택은 항상 새 `ai_chat_sessions.id`를 만든다. AI 이어가기는 `continued_from_ai_session_id`, 직원 상담 이어가기는 `continued_from_ticket_id`와 `continuation_summary`를 채운다.
+- `[새 질문 시작]`은 세 출처·요약 칼럼을 모두 `null`로 둔 새 행이다.
+- 두 출처 FK 중 최대 하나만 존재하며 `continuation_source_type`과 일치해야 한다. 출처 행의 `thread_id`도 새 AI 단위와 같아야 한다.
+
+### 4.5 `anonymous_chat_sessions`와 연락처 연결
+
+#### `anonymous_chat_sessions`
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | 내부 PK. 브라우저에 그대로 노출할 토큰이 아님 |
+| `token_hash` | `text` | N | 브라우저가 가진 고엔트로피 원문 토큰의 단방향 해시. 원문 토큰 저장 금지, unique |
+| `created_at` | `timestamptz` | N | 생성 시각 |
+| `last_seen_at` | `timestamptz` | N | 같은 브라우저에서 마지막으로 유효 토큰을 사용한 시각 |
+| `revoked_at` | `timestamptz` | Y | 토큰 폐기 시각 |
+
+토큰 만료 기간은 3-A 결정에서 정하지 않았다. 구현 플랜은 보안·보존 정책을 별도 결정하기 전 임의 기간을 제품 확정값처럼 쓰지 않는다. 다만 원문 토큰 비저장, 충분한 무작위성, 회전·폐기 가능성은 필수다.
+
+#### `anonymous_chat_contacts`
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK |
+| `anonymous_session_id` | `uuid` FK → `anonymous_chat_sessions.id` | N | 연락처를 연결한 익명 세션 |
+| `contact_kind` | `anonymous_contact_kind` | N | 현재 허용값 `phone`. 익명 직원답변 SMS용 연락처 |
+| `contact_value_ciphertext` | `text` | N | 원문 전화번호의 암호화 저장값. 평문 저장 금지 |
+| `contact_value_hash` | `text` | N | 검증·중복 판단용 정규화 전화번호의 단방향 해시. 환자 추측 매칭용으로 사용 금지 |
+| `verified_at` | `timestamptz` | Y | 연락처 소유 확인 시각. 다른 기기 복원·알림은 검증 완료 뒤만 허용 |
+| `answer_notification_enabled_at` | `timestamptz` | Y | 이 익명 상담의 직원답변 정보성 SMS를 받기로 한 시각. 광고 수신 동의가 아님 |
+| `revoked_at` | `timestamptz` | Y | 연결 또는 알림 동의 철회 시각 |
+| `created_at` | `timestamptz` | N | 생성 시각 |
+
+필수 귀속 규칙:
+
+- `contact_value_hash`가 `patients.phone` 또는 다른 계정 연락처와 같아도 `chat_threads.patient_id`를 자동 채우지 않는다.
+- 연락처 연결은 익명 세션에 대한 검증된 접근·알림 수단일 뿐 환자 신원 확인이 아니다.
+- 익명 웹 사용자는 등록 환자가 아니므로 익명 연락처를 위해 `patients` 행을 만들거나 기존 환자를 찾아 붙이지 않는다.
+- 익명 직원답변 SMS의 실제 대상은 `anonymous_session_id`에 연결되고 검증된 이 전화 연락처다. `patients.phone`, 환자 기기 토큰 또는 환자용 `notify_patient()` 대상 조회에 의존하지 않는다.
+- 익명 상담을 로그인 계정으로 옮기는 기능을 나중에 만들 경우 별도의 명시적 인증·동의·감사 계약이 필요하다. 이 migration에 추측 병합 로직을 넣지 않는다.
+- 로그·Realtime payload·직원 목록에는 암호화 원문이나 전체 연락처를 노출하지 않고 마스킹된 표시만 서비스 계층에서 제공한다.
+
+### 4.6 `chat_read_states` — 확인 위치와 “지금 보고 있음”
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK |
+| `thread_id` | `uuid` FK → `chat_threads.id` | N | 상담방 |
+| `reader_type` | `chat_reader_type` | N | 환자, 익명 웹, 직원 |
+| `reader_patient_id` | `uuid` FK → `patients.id` | Y | 로그인 환자일 때 |
+| `reader_anonymous_session_id` | `uuid` FK → `anonymous_chat_sessions.id` | Y | 익명 웹일 때 |
+| `reader_staff_id` | `uuid` FK → `staff.id` | Y | 직원일 때 |
+| `last_read_message_id` | `uuid` FK → `chat_messages.id` | Y | 마지막으로 확인한 메시지 |
+| `last_read_at` | `timestamptz` | Y | 확인 시각 |
+| `active_view_until` | `timestamptz` | Y | 화면 열람 heartbeat의 짧은 만료 시각. 영구 `is_viewing=true` 금지 |
+| `updated_at` | `timestamptz` | N | 상태 갱신 시각 |
+
+`reader_type`에 맞는 reader FK 정확히 하나만 존재해야 한다. 참여자·상담방 조합당 한 행만 둔다. `last_read_message_id`는 같은 `thread_id`의 메시지여야 한다. Realtime Presence를 사용하더라도 알림 배칭과 재접속 뒤 미확인 계산에 필요한 마지막 확인 위치는 보존한다.
+
+### 4.7 `chat_notification_batches` — 미확인 연속 직원 답변 한 묶음
+
+| 칼럼 | 형식 | null | 요구사항 |
+|---|---|---:|---|
+| `id` | `uuid` | N | PK 및 알림 멱등 키 |
+| `thread_id` | `uuid` FK → `chat_threads.id` | N | 대상 상담방 |
+| `ticket_id` | `uuid` FK → `support_tickets.id` | N | 직원 답변이 속한 티켓 |
+| `recipient_type` | `notification_recipient_type` | N | 등록 환자 또는 익명 세션 연락처 대상 구분 |
+| `recipient_patient_id` | `uuid` FK → `patients.id` | Y | 로그인 수신자 |
+| `recipient_anonymous_session_id` | `uuid` FK → `anonymous_chat_sessions.id` | Y | 익명 수신자의 상담 세션. 발송 이력 귀속의 기준 |
+| `recipient_anonymous_contact_id` | `uuid` FK → `anonymous_chat_contacts.id` | Y | 검증된 익명 연락처 수신자 |
+| `first_message_id` | `uuid` FK → `chat_messages.id` | N | 이 미확인 묶음의 첫 직원 메시지 |
+| `last_message_id` | `uuid` FK → `chat_messages.id` | N | 현재까지 묶인 마지막 직원 메시지 |
+| `message_count` | 정수 | N | 기본값 1, 양수 |
+| `created_at` | `timestamptz` | N | 첫 미확인 직원 답변 시각 |
+| `updated_at` | `timestamptz` | N | 연속 답변이 추가된 시각 |
+| `notification_requested_at` | `timestamptz` | Y | 이 배치에 대해 알림 발송을 요청한 시각. 한 번만 설정 |
+| `acknowledged_at` | `timestamptz` | Y | 사용자가 상담방에서 이 묶음을 확인한 시각 |
+
+배칭 규칙:
+
+- `recipient_type = patient`이면 `recipient_patient_id`만 존재한다.
+- `recipient_type = anonymous_chat_contact`이면 `recipient_patient_id`는 `null`이고 `recipient_anonymous_session_id`와 `recipient_anonymous_contact_id`가 모두 존재해야 한다. 연락처 행은 같은 익명 세션에 속하고 `verified_at`, `answer_notification_enabled_at`이 있으며 `revoked_at`은 없어야 한다.
+- 배치의 `ticket_id`는 `thread_id`에 속해야 한다. 등록 환자 수신자는 그 상담방의 `patient_id`, 익명 수신자는 그 상담방의 `anonymous_session_id`와 일치해야 한다.
+- `first_message_id`와 `last_message_id`는 모두 같은 `ticket_id`에 속한 `sender_type = staff` 메시지여야 한다.
+- 사용자가 `active_view_until` 기준으로 상담방을 보고 있으면 직원 메시지를 즉시 확인 처리하고 배치를 만들거나 알림을 요청하지 않는다.
+- 보고 있지 않다면 첫 미확인 직원 메시지가 열린 배치(`acknowledged_at is null`)를 만들고 알림 한 번을 요청한다.
+- 같은 수신자가 확인하기 전 추가된 연속 직원 메시지는 같은 배치의 `last_message_id`, `message_count`, `updated_at`만 갱신한다. 새 알림을 요청하지 않는다.
+- 확인하면 `acknowledged_at`을 기록한다. 그 뒤 도착한 직원 메시지는 새 배치와 새 알림 한 번을 만든다.
+- 담당자 배정, 이관, 티켓 상태 변경만으로는 배치를 만들지 않는다. `sender_type = staff`인 실제 새 메시지만 시작·확장할 수 있다.
+- 한 티켓·수신자에 열린 배치는 최대 하나다. 동시 직원 답변에서도 배치와 알림이 중복 생성되지 않아야 한다.
+
+## 5. `notification_log` 대기 마이그레이션 `#115·#119` 연결
+
+상담 답변 알림용 별도 발송 로그를 만들지 않는다. 기존 대기 migration에서 만들거나 확장할 `notification_log`를 공동 사용한다.
+
+### 수신 대상 추상화 — 대상 조회는 둘, 발송 파이프라인은 하나
+
+기존 `notify_patient()`는 `patients`와 환자 기기·전화번호를 전제로 하므로 익명 웹 사용자에게 도달할 수 없다. 익명 상담을 이 함수에 넣기 위해 가짜 `patients` 행을 만들거나 전화번호로 기존 환자를 추측 매칭하는 방식을 금지한다.
+
+대신 구현 플랜은 내부 공통 계약 `NotificationRecipient`를 둔다. 이름은 구현 언어에 맞게 바꿀 수 있지만 아래 의미는 유지한다.
+
+| 공통 필드 | 등록 환자 대상 | 익명 웹 대상 |
+|---|---|---|
+| `recipient_type` | `patient` | `anonymous_chat_contact` |
+| 영속 참조 | `patient_id` | `anonymous_session_id` + `anonymous_contact_id` |
+| 목적지 해석 | 기존 환자 기기 토큰/전화번호 조회 | 해당 익명 세션에 연결·검증된 전화번호 복호화 |
+| 직원답변 채널 | 기존 환자 채널 정책 | `sms` |
+| 직원답변 분류 | `transactional` | `transactional` |
+| 배칭 | `chat_notification_batches` | 같은 `chat_notification_batches` |
+| 결과·재시도 이력 | `notification_log` | 같은 `notification_log` |
+
+즉 **목적지 확인 adapter만 두 종류**다. 이후 `배치 생성 → NotificationRecipient 해석 → 공통 dispatcher → notification_log 결과/재시도`는 한 파이프라인이어야 한다. 익명용 별도 배칭 규칙, 별도 발송 결과 표, 별도 재시도 상태기를 만들지 않는다. 기존 `notify_patient()`는 등록 환자 adapter로 감싸거나 공통 dispatcher 아래로 옮기고, 익명 adapter는 `patients`를 거치지 않고 검증된 익명 전화 연락처를 반환한다.
+
+직원답변 SMS는 예약·진료 또는 상담 요청에 대한 **정보성(트랜잭션) 문자**다. `notification_message_class = transactional`로 기록하고 광고 발송 대상 선정·광고 동의·광고 문구 처리 경로에 넣지 않는다. 다만 익명 사용자가 제공한 연락처의 검증과 해당 상담의 답변 알림 활성 상태는 확인해야 한다.
+
+### `#115`와의 연결
+
+`#115`가 요구한 `sender_staff_id`, `target_count`를 그대로 사용한다.
+
+- 상담 답변 알림은 시스템이 메시지 도착을 계기로 자동 발송하므로 `notification_log.sender_staff_id`는 `null`이다.
+- 답변한 직원은 `chat_messages.sender_staff_id`로 추적한다. 자동 발송자를 직원으로 잘못 기록하지 않는다.
+- 개별 상담 답변 알림의 `target_count`는 1이다.
+
+### `#119`와의 연결
+
+`#119`가 요구한 아래 칼럼을 그대로 사용하고 상담 전용 중복 칼럼을 만들지 않는다.
+
+- `delivery_status notification_delivery_status`
+- `failure_code text null`
+- `retry_count integer not null default 0`
+- 실제 `channel`
+
+상담 알림 연결을 위해 `notification_log`에는 추가로 다음 요구가 생긴다.
+
+| 칼럼/변경 | 요구사항 |
+|---|---|
+| `notification_type` 허용값 | `staff_chat_reply` 추가 |
+| `recipient_type` | `notification_recipient_type`; 등록 환자와 익명 연락처를 공통 발송 계약으로 구분 |
+| `message_class` | `notification_message_class`; `staff_chat_reply`는 항상 `transactional` |
+| `chat_notification_batch_id` | nullable FK → `chat_notification_batches.id`, 상담 답변 알림에서는 not null 및 unique |
+| `appointment_id` | 상담 알림은 예약과 무관할 수 있으므로 nullable 허용 |
+| `patient_id` | `recipient_type = patient`일 때만 사용. 익명 연락처 수신에서는 반드시 `null` |
+| `anonymous_session_id` | nullable FK → `anonymous_chat_sessions.id`; 익명 상담 발송 이력을 환자 FK가 아닌 익명 세션에 귀속 |
+| `anonymous_contact_id` | nullable FK → `anonymous_chat_contacts.id`; 익명 상담 알림의 실제 SMS 목적지 참조 |
+
+`recipient_type = patient`이면 `patient_id`만, `recipient_type = anonymous_chat_contact`이면 `anonymous_session_id`와 `anonymous_contact_id`만 수신자 참조로 존재해야 한다. 익명 이력에 `patient_id`를 채우지 않는다.
+
+`notification_log`의 수신자 참조는 연결된 `chat_notification_batches`의 수신자 참조와 같아야 한다. 따라서 익명 로그의 `anonymous_session_id`는 배치→티켓→상담방의 익명 세션과 일치하고, `anonymous_contact_id`도 그 세션에 속해야 한다.
+
+한 `chat_notification_batch_id`에는 `notification_log` 한 행만 존재한다. 실패 재시도는 같은 행의 `delivery_status`, `failure_code`, `retry_count`를 갱신하며 새 배치·새 사용자 알림을 만들지 않는다. 도달 여부와 실패는 `system_error_log`가 아니라 수신자·배치 문맥을 가진 `notification_log`에 남긴다.
+
+`#115·#119`는 이미 같은 `notification_log` migration에서 함께 처리하기로 대기 중이다. `ai-chatbot` 플랜은 그 migration의 적용 여부를 먼저 확인하고 다음 중 하나를 명시해야 한다.
+
+1. 아직 미적용이면 `#115·#119` 필드와 3-A 연결 필드를 한 migration 설계에 합친다.
+2. 먼저 적용됐다면 후속 migration에서 3-A FK·허용값만 확장한다.
+
+어느 경우에도 `notification_log`를 다른 이름으로 복제하지 않는다.
+
+## 6. 인덱스·무결성 요구사항
+
+구현 플랜은 SQL을 쓸 때 모든 FK 칼럼의 인덱스를 점검하고, 최소 아래 조회·경쟁 경로를 인덱스로 보장한다.
+
+- `chat_messages(thread_id, created_at, id)` — 상담방 타임라인·재연결 누락 조회
+- `chat_messages(support_ticket_id, created_at, id)` 및 `(ai_chat_session_id, created_at, id)` — 티켓/AI 단위별 조회
+- `chat_messages.client_message_id`의 non-null 전역 unique — 고엔트로피 UUID 한 개를 한 번의 논리 전송에만 사용
+- `support_tickets(status, created_at)` — `pending`/`in_progress` 직원 큐. 종료 행을 제외하는 partial index 우선
+- `support_tickets(assigned_staff_id, status, updated_at)` — 담당자별 진행 상담
+- `support_tickets(thread_id, created_at)` — 같은 상담방의 티켓 이력
+- `support_tickets`의 `thread_id`당 열린 티켓 하나를 강제하는 partial unique
+- `ai_chat_sessions(status, expires_at)` — 만료 작업. `active`만 포함하는 partial index 우선
+- `ai_chat_sessions`의 `thread_id`당 `active` 한 행을 강제하는 partial unique
+- `anonymous_chat_sessions(token_hash)` unique
+- `anonymous_chat_contacts(anonymous_session_id, contact_kind)` — 활성 연락처 조회; 철회 행 제외 조건 검토
+- `chat_read_states`의 참여자·상담방 unique 및 `last_read_message_id` FK 인덱스
+- `chat_notification_batches`의 티켓·수신자당 열린 배치 하나 partial unique
+- `notification_log(chat_notification_batch_id)` unique
+- `notification_log(anonymous_session_id, created_at)` — 익명 세션별 발송 이력 조회; FK 인덱스 포함
+
+시간은 모두 `timestamptz`로 저장한다. 메시지·티켓·세션·알림 이력은 hard delete하지 않으며 외래키 연쇄 삭제로 상담 기록이 사라지지 않게 한다.
+
+## 7. 권한·Realtime 보안 요구사항
+
+모든 신규 공개 스키마 테이블은 RLS를 켜고 FK/RLS 조회 칼럼에 인덱스를 둔다.
+
+- 로그인 환자는 자신 또는 현재 가족 접근 계약으로 허용된 `patient_id`의 상담방·메시지만 읽고, 자기 주체의 환자 메시지만 만든다.
+- 익명 웹은 원문 토큰을 DB에 직접 제시해 전체 테이블을 조회하지 않는다. 백엔드가 토큰 해시를 검증하고 해당 `anonymous_session_id` 범위만 반환하거나, 그 범위로 제한된 서명된 Realtime 권한을 발급한다.
+- 직원은 현재 상담 지원 역할에 허용된 티켓·메시지만 읽고 처리한다. 의사·접수직원·관리자 중 정확한 역할 범위는 동작명세의 권한 계약을 구현 플랜이 인용해 닫아야 하며, 이 스키마 문서가 임의로 넓히지 않는다.
+- 환자·익명 사용자는 `assigned_staff_id`, `status`, `closed_by_staff_id`, `closed_at`을 갱신할 수 없다.
+- 직원은 `sender_type = patient` 또는 `bot` 메시지를 만들 수 없고, 환자는 `staff` 메시지를 만들 수 없다.
+- bot 메시지 생성, 30분 만료, 요약 저장, 알림 배칭·재시도는 제한된 서버 주체만 실행한다.
+- Realtime 구독에서도 같은 행 수준 권한이 적용돼 다른 환자·익명 세션의 메시지, 전체 연락처, 토큰 해시가 payload로 새지 않아야 한다.
+- 담당자 이름·역할은 화면 표시용 최소 필드만 제공하고, 익명 연락처 원문은 Realtime publication 대상에서 제외한다.
+
+## 8. 원자성·멱등성 수용 조건
+
+구현 플랜은 아래 경쟁 상황을 테스트로 명시한다.
+
+1. 두 직원이 같은 `pending` 티켓을 동시에 배정받으려 해도 한 명만 현재 담당자가 된다.
+2. 일반 `[보내기]` 성공 뒤에도 티켓은 `in_progress`이고, `[상담 종료]` 한 번만 `answered`·종료 주체·종료 시각을 기록한다.
+3. 완료 티켓에 메시지를 추가하거나 상태를 재개할 수 없으며 재문의는 새 티켓 ID를 만든다.
+4. 동일 `client_message_id` 재전송은 메시지 한 행만 만든다.
+5. AI 세션 만료 작업과 30분 경계의 새 메시지가 경쟁해도 한 세션이 동시에 `active`와 `expired`로 처리되지 않는다.
+6. 직원 두 명이 거의 동시에 답해도 미확인 배치 하나와 `notification_log` 한 행만 만들어진다.
+7. 사용자가 배치를 확인한 뒤의 새 직원 답변은 이전 배치를 다시 열지 않고 새 배치를 만든다.
+8. 상담방을 보고 있을 때의 직원 답변, 담당 배정, 단순 상태 변경은 알림 배치를 만들지 않는다.
+9. 연락처 해시가 기존 환자와 같아도 익명 `chat_thread`에 `patient_id`가 자동 연결되지 않는다.
+10. Realtime 연결이 끊겼다가 돌아오면 커서 이후 메시지를 보충 조회해 중복 없이 복원한다.
+11. `patients` 행과 환자 기기 토큰이 전혀 없는 익명 사용자도, 해당 세션에 연결·검증된 전화번호로 직원답변 SMS를 받으며 발송 로그에는 `patient_id = null`, 익명 세션·연락처 FK가 남는다.
+12. 등록 환자와 익명 연락처 케이스가 같은 수신 대상 계약·배칭·dispatcher·`notification_log` 상태/재시도 테스트를 통과하고, 익명 직원답변 SMS는 항상 `transactional`이며 광고 발송 경로에 들어가지 않는다.
+
+## 9. 구현 플랜 완료 기준과 비범위
+
+이후 `ai-chatbot` 구현 플랜은 다음을 모두 포함해야 스키마 단계가 닫힌다.
+
+- 위 테이블·칼럼·enum·FK·check/unique 조건의 migration 작업 항목
+- Realtime publication/채널과 재연결 보충 조회 작업 항목
+- RLS와 익명 토큰 검증 경계 작업 항목
+- AI 30분 만료 실행 주체와 경쟁 처리 작업 항목
+- 담당 배정·이관·상담 종료의 원자적 서비스 계약
+- 등록 환자/익명 연락처 `NotificationRecipient` adapter와 공통 dispatcher 작업 항목
+- 알림 배치와 `#115·#119 notification_log` 통합 작업 항목
+- 위 12개 원자성·귀속·Realtime·익명 발송 수용 테스트
+
+이 문서의 비범위:
+
+- SQL 또는 migration 파일 작성·적용
+- UI 목업과 문구 결정
+- 익명 토큰 보존기간처럼 3-A가 확정하지 않은 제품값의 임의 확정
+- 사진·파일·음성·반응·온라인 초록점
+- 과거 스펙·플랜을 현재 요구 근거로 승격하는 일
+
+---
+
+## ⑦플랜 대조 — 통합 스키마 공백 7건 (2026-08-13, 사용자 확인)
+
+> **무엇**: 기존 AI 상담봇 플랜(9테이블) ↔ 3-A 결정 ↔ R2 목업을 ⑦대조한 결과(①DB층 = 결정·규칙이 쓸 칸/표가 실제 계획에 있나). **세 문서의 합집합은 큰 기능을 커버하나, 바로 구현 가능한 단일 정본 스키마가 아직 없다.** 1~6은 플랜 재작성 때 통합 스키마에서 보강, 7은 별도 사용자·법적 결정.
+> **근거**: 기존 플랜 `docs/superpowers/plans/2026-07-27-ai-chatbot.md:137,568` · ERD `docs/ERD/supabase-planned-erd-2026-07-28.md:277,443` · 결정로그 00010 대기 `ui-design-decisions.md:4290,3547`.
+
+| # | 공백 | 무엇이 필요 | 상태 |
+|---|---|---|---|
+| 1 | 통합 스키마 없음 | 옛 `chat_conversations` ↔ 새 `chat_threads`가 같은 역할·다른 이름/필드. 하나로 합치며 보존: 앱/웹 채널·현재 상담 갈래·진행 상태·AI세션/티켓 경계·마지막 활동 시각·환자/익명 소유권 | 플랜 재작성 |
+| 2 | 메시지 카드 미보존 | 3-A `chat_messages`가 사실상 `content text`뿐. 카드 8종·상태·실행결과 복원용 `message_type + payload jsonb`(버전 스냅샷) 또는 카드 종류별 이벤트/결과 테이블 | 플랜 재작성 |
+| 3 | 예약-티켓 직접 연결 없음 | `support_tickets.appointment_id`(nullable FK)가 어느 계획에도 없음 — 함수 인자로만 넘기고 테이블엔 안 남김. "이 취소·변경 상담이 어느 예약의 티켓인가"를 DB가 보장 못 함 | 플랜 재작성 |
+| 4 | 품질 검토 상태 저장 자리 없음 | `answer_feedback`은 교정·신고 시에만 행 생성. "문제없음 검토 완료"를 저장 못 함 → 상담 단위 `검토 상태·검토 관리자·검토 시각` 필요(R2 결정: 상담 목록에 검토 상태 표시 + 미검토 우선 정렬) | 플랜 재작성 |
+| 5 | 답변 근거 과거 재현 약함 | 옛 `source_chunk_ids uuid[]`는 실제 FK 아님. 지식 조각 재생성 시 과거 답변 근거 깨짐. ERD가 이미 `chat_message_sources`(message_id·chunk_id·당시 순서·유사도·가능하면 당시 제목/본문 스냅샷) 권고 | 플랜 재작성 |
+| 6 | 시스템 경계 표현 없음 | 메시지 발신자가 환자·봇·직원뿐. 화면엔 `직원 연결됨·담당 변경·상담 종료·AI 30분 만료·새 AI 시작`도 시간순 필요 → `chat_events` 별도 표 or `chat_messages`에 `system` 유형 추가 | 플랜 재작성 |
+| 7 | ⚠️ 보존기간·익명정보 파기 기준 | 상담 원문·AI 요약·익명 토큰·암호화 전화번호·알림 기록·읽음 상태를 얼마나 보관/언제 파기하나. **기술자가 임의로 못 정함 — 법(개인정보보호법·의료법)이 정하는 숫자** | `FINAL(방침 확정 2026-08-13)` |
+
+⚠️ **②·④층은 덜 대조됨** — 이 대조는 ①DB층 중심이다. 플레이북이 *"②서버조회(`order by`·`limit`)·④다음 단계가 가장 잘 빠진다 — 아무도 안 묻기 때문"*이라 경고한 자리(예: 품질 미검토 우선 정렬을 실제로 뽑는 `order by`·인덱스, 티켓 인박스·상담 목록 정렬). 플랜 재작성 때 이 두 층을 반드시 훑을 것.
+
+⚠️ **7번은 직원웹 #14 보존기간과 한 묶음** — 같은 법·같은 조사다(`W-02`가 law.go.kr·lbox.kr 403으로 막힘, `AD-040`). **의료법 시행규칙 §15 · 개인정보 안전성 확보조치 기준 §8 원문 재확인**이 공통 게이트.
+
+### 7번 보존기간 — 방침 확정 (2026-08-13, 사용자: ㉯ 방침값)
+> 근거 조사 = `W-02-retention-research-2026-08-13.md`. **전역 TTL 금지 → 보존 클래스 6개 분리.** 법정 확정값은 **코드로 강제**(화면 설정칸 안 만듦 — 직원이 줄이면 법 위반이라 못 만지게), 미확정 3개만 **병원 방침 기본값**(화면칸 없이 DB 초기값·처리방침으로 조정).
+
+| 보존 클래스 | 기간 | 방식 |
+|---|---|---|
+| `medical_record` 진료기록 편입분 | **10년** | 코드 강제(의료법 시규 §15) |
+| `access_audit` 직원 감사로그 | **2년** | 코드 강제(안전성확보 §8, 민감정보 시스템) |
+| `pseudonymous_or_tokenized` 암호화전화·재식별 토큰 | **원 데이터와 동일** | 원본 파기 시 함께. 진정한 익명만 예외(개보법 §58의2) |
+| `appointment_operation` 비진료 예약·운영 | **기본 1년** | 방침값(법정 없음) · 병원 처리방침으로 조정 |
+| `consultation_message` 상담·챗봇 | **기본 1년** | 방침값 · 진료 편입분은 `medical_record`로 이관/복제 |
+| `notification_delivery` 발송로그 | **기본 1년** | 방침값 · 본문은 미저장/최소화 |
+
+**공통 원칙**: ①미확정 3개는 목적 종료 후 **5일 내 파기**(개보법 §21·표준지침 §10) 위에서 운영 ②진료기록 편입분은 `medical_record`(10년)로 이관, 미편입 임시본은 목적종료 후 파기 ③파기는 복원불가 영구삭제(시행령 §16) ④**기본 1년은 근거 있는 최소가 아니라 안전한 초기값** — 병원 도입 시 개인정보처리방침에 맞춰 확정.
+**상태**: 방침 `FINAL`. 스키마에 `retention_class` 칸 + 클래스별 TTL 배치·파기 배치는 플랜 재작성 때 `BLOCKED`.
 
 ### 스펙 문서 수정 목록 (요구사항과 어긋나거나 화면 결정이 스펙보다 강해진 것)
 
@@ -4501,3 +4987,103 @@ grep -rn '기능 갭 #' docs/superpowers/plans/ | sort
 `docs/design/mockups/` — 이 세션에서 만든 HTML 목업. 브라우저로 열어 구현 결과와 대조하는 용도다. 파일명 앞 번호가 결정 순서이고, `-v2`/`-v3` 접미사는 같은 화면의 수정본이다(뒤 번호가 최종).
 
 **목업은 조감도이지 코드가 아니다.** HTML/CSS로 그렸지만 실제 구현은 Flutter(환자 앱)·React(직원 웹)다. 실제 반영 경로는 ① 위 디자인 토큰을 `ThemeData`/CSS 변수로 코드화 ② 레이아웃 규칙을 플랜 태스크에 글로 명시 ③ 목업 파일은 눈으로 대조 — 이 셋이다. 자동으로 반영되지 않으므로 플랜 패치를 쓴 뒤 사람이 확인하는 단계가 필요하다.
+
+## 상담봇 결정 (2026-08-12~13)
+
+> 정본 요약 출처: 로컬 [상담봇 결정 기록판](../../../.claude/codex-work/orchestration/decision-ledger-chatbot.md). Round 2 회의의 근거 원문은 옮기지 않고 [회의록](../../../.claude/codex-work/orchestration/decision-meeting-2026-08-12-R2C.md)의 줄번호로만 참조한다. 이 절과 충돌하는 앞선 상담봇 서술은 이 절이 덮어쓴다.
+
+### 결정 회의 10건 (2026-08-12)
+
+| ID | 무엇 | 확정 내용 | 근거 | 기각안 |
+|---|---|---|---|---|
+| **A1** | 마감 후 상담 연결의 마지막 확인 | `[상담 채팅 연결]`을 유일한 결정지점으로 삼는다. 누르면 즉시 기록·배지·예약 맥락 상담방 진입, 확인 카드는 없애고 봇은 설명만 한다. | 마감 뒤 이미 한 번 더 생각한 환자에게 같은 결정을 되묻지 않는다. `CANCEL-LATE-10~13` 정합, 앱 20→19장. | 확인 카드 유지 — 재선택 부담. 기록 철회 — 이미 표시한 연결 상태를 뒤집음. |
+| **A2** | 승인 자료의 이전 버전 재사용 | 수정이력의 각 이전 버전에 `[편집]`을 두어 편집 폼에 채운다. 확인 후 별도 `[승인]`을 거쳐 재임베딩하고 감사이력은 새 항목으로 남긴다. | 긴 문구 수동 복사의 오타를 줄이되 승인 관문·감사를 유지한다. | `되돌리기` 라벨·자동 복원·자동 승인 — undo/승인취소로 오해. 수동 복사만 허용 — 오타 위험. |
+| **A3** | 답하면 안 되는 제한 자료 | 일반 자료는 평소대로 답하고 제한 주제만 병원 문구를 글자 그대로 별도 블록에 표시하며 봇이 살을 붙이지 않는다. 질문 전체가 제한 주제면 제한 문구+`[직원 연결]`만 둔다. | 위험한 것은 제한 문구가 생성 문장에 섞여 변형되는 것이며 무관한 일반 답변까지 막을 이유는 없다. | 배타 전면 차단 — 제한과 무관한 일반 안내까지 막음. |
+| **B1** | 콜드 스타트 딥링크 뒤로가기 | 해당 상담방에서 뒤로가면 이전 상담 목록(`CHAT-HISTORY`)으로 간다. | 상담방의 자연스러운 부모는 상담 목록이다. | 홈 이동 — 사용자가 보던 상담 맥락에서 이탈. |
+| **B2** | 오답 신고 저장 뒤 복귀 | 저장 완료 알림 후 왔던 전체 상담 기록/티켓 상세로 돌아가고 스크롤 위치를 유지한다. | 조사를 시작한 맥락을 보존하고 막다른 길을 없앤다. | 고정 화면 이동·폼 잔류 — 출발 맥락 상실 또는 다음 행동 막힘. |
+| **B3** | 품질 리포트 교정 저장의 도착지 | 오답 신고 처리함(`BADINBOX-REVIEW`)에 `source='quality_review'`로 등록한다. “반영/반려 검토 뒤 반영” 안내와 `[처리함으로 가기 ›]`를 고정한다. | 신고와 교정을 한 처리함에서 검토해 감사기록·승인 관문을 유지하고 즉시 반영 오해를 막는다. | `KBADM-EDITOR`로 즉시 이동 — 반영/반려 관문 우회. “반영됨/적용됨/교정 완료” 문구 — 사실과 다름. |
+| **B4** | 닫힌 웹 런처 미읽음 표시 | 작은 점(●)만 표시하고 숫자는 쓰지 않는다. | 익명 세션·다중 탭에서는 정확한 개수를 신뢰할 수 없고 새 답변 유무만 필요하다. | 숫자 배지 — 부정확한 수가 신뢰를 깎음. |
+| **B5** | 웹 AI 장애의 주 경로 | 전화번호+`[문의 남기기]`를 주 경로로 두고 앱 예약은 보조 문구로만 알린다. | 전화는 장애와 무관한 비상구다. | 앱 예약을 웹 주 CTA로 배치 — 현재 문의 목적과 플랫폼 경계를 흐림. |
+| **E3** | 마감 후 취소·변경 요청 데이터 | 예약에 공통 `support_requested_at`+`request_type`(`취소`/`변경`)을 저장하고 기존 `cancellation_requested_at`을 대체한다. 희망 일시는 저장하지 않는다. | 취소·변경이 같은 팝업·상담·배지·`/today`·캘린더 흐름을 쓰므로 공통 구조가 중복을 막는다. 새 시간은 상담에서 정한다. | 취소/변경 별도 칸 — 로직 두 벌. 희망 일시 저장 — 확정처럼 오해. |
+| **E4** | 예약 중 상담의 도구 계약 | 정보성 안내+진료과 추천만 허용하고 모든 행동형 도구를 금지한다. 유일한 행동 출구는 `○○과로 계속하기`, 119/응급실 안전 안내는 항상 작동한다. | 마법사와 봇의 중복 예약뿐 아니라 취소·문진 갈래 혼란도 함께 막아야 하며 긴급 안전은 모드보다 우선한다. | 예약제안만 금지 — 다른 행동형 도구가 남아 같은 혼란 재발. |
+
+### Round 2 결정 7건 (2026-08-12~13)
+
+| ID | 무엇 | 확정 내용 | 근거 | 기각안 |
+|---|---|---|---|---|
+| **R2-0** | 오류색(danger) 토큰 | `--danger:#A02F3D`·`--danger-bg:#FFF0F1`을 확정하고 단일 공용 토큰 원본→플랫폼별 생성 파일→전 화면 적용, 인라인 재정의 금지, lint/CI를 구현 계획에 둔다. 기존 목업 1~90은 소급 수정하지 않는다. | 목업 89 상태판의 오류=빨강 기준과 주의·완료·정보 색 분리. [회의록](../../../.claude/codex-work/orchestration/decision-meeting-2026-08-12-R2C.md) :34~48 | 자주 `#9E3F6E` — 플럼/뷰티로 읽히며 빈도는 서로 베낀 결과. |
+| **R2-1** | 카드 레이아웃 | 넓은 세로 카드·상단 윗꼬리표를 유지하고 테두리·배경 톤을 강화해 일반 봇 말풍선과 구분한다. | 목업 92 정본 구조와 카드 계약 유지. 회의록 :52~63 | 의료 안내 아이콘·좌측 바 임의 도입 — 이 결정 범위를 넘음. |
+| **R2-2** | 빠른답변 생성 로딩·실패 | 생성 중·실패에는 별도 표시를 하지 않고 성공 때만 추천 3~4개를 보인다. 자유 입력은 항상 유지하며 추천 실패를 상담 전체 오류로 확대하지 않는다. | 조용한 실패가 대화 흐름을 덜 끊는다. 회의록 :67~80 | 로딩/실패 안내·재시도 버튼 — 부분 기능 실패를 전체 흐름 중단처럼 보이게 함. |
+| **R2-3** | 직원웹·관리자 상세 열기 | 상담/질문/신고 상세는 별도 전체 화면으로 열고 복귀 시 직전 필터·검색어·스크롤을 복원한다. | 긴 원문·답변·근거·편집 내용을 충분한 폭으로 읽는다. 회의록 :84~96 | 모달·사이드패널 — 긴 내용에 좁음. 예약 상세 패널을 선례로 적용 — 상담 상세와 목적이 다름. |
+| **R2-3A** | 직원 연결 뒤 실시간 상담 생명주기 | 같은 상담방 다회 대화, 직원 `[상담 종료]`만 `answered`, 완료 재열기 금지, 종료 뒤 이어서 AI/새 질문, AI만 30분 무활동 만료, 재문의는 새 티켓, 미확인 연속 직원 답변 알림 1회, 최소 라이브 기능을 확정한다. | 복구 가능한 과거 사용자 원문은 “요청서가 아니라 상담 연결”까지였으므로 생명주기 7건을 이번 회의에서 새로 확정했다. 회의록 :100~158 | 일반 `[보내기]` 즉시 종료·완료 티켓 재열기 — 다회 상담과 종료 경계 훼손. 온라인 초록점·파일·반응 — 최소 범위 밖. |
+| **R2-4** | 품질 검토 상세 | 연속 검토용 목록+오른쪽 패널을 R2-3의 예외로 둔다. 개인정보 없는 필드, 미검토 우선·같은 상태 최신순·20건/쪽, 신고 필터를 쓰며 교정 저장은 B3 처리함으로 보낸다. `QUALITY-REPORT-12`는 일반 조회 오류+재시도로 통합한다. | 여러 상담 연속 검토가 목적이며 “원문 부재 상담”은 요구사항에 없는 정상 시나리오였다. 회의록 :162~192 | 일반 상세처럼 전체 화면 고정 — 연속 검토 비효율. 원문 없는 교정 허용/차단 선택 — 근거 없는 가정이라 안건 자체 철회. |
+| **R2-5** | 문진 완료·수정 표현 | 0문항은 `작성할 문진이 없습니다`만 표시한다. 앱은 진료 시작 전 `[내용 보기]`+`[수정하기]`, 진료 중부터 보기만; 웹은 환자 앱 경로만 안내한다. 취소 뒤 문진은 읽기 전용 보존하고 자동 복사하지 않는다. | 기존 앱 문진 화면을 연결하고 웹 위젯에 새 문진 기능을 만들지 않는 실제 제품 범위. 회의록 :196~222 | 0/0·비활성 버튼, 웹 문진 복제, 취소 문진 자동 복사 — 막다른 표시·범위 확장·낡은 답 재사용 위험. |
+
+### R2-3A 목업 착수 전 후속 결정 3건
+
+| ID | 무엇 | 확정 내용 | 근거 | 기각안 |
+|---|---|---|---|---|
+| **R2-3A-Q1** | 두 직원 동시 열람 | 늦게 연 직원은 상세를 열지 않고 목록으로 돌아가며 `이미 다른 직원이 맡았어요`와 담당자 이름을 표시한다. 원자적 배정 방식은 구현 계약으로 남긴다. | 새 문의는 다음 건을 잡으면 되어 막다른 길이 아니다. 회의록 :226~230 | 읽기 전용 상세·즉시 이어받기 — 더 복잡하고 담당 경계를 흐림. |
+| **R2-3A-Q2** | 의료↔일반 안내 구분 | 색이 아닌 작은 글자 머리말 `진료 안내`/`병원 이용 안내`를 쓴다. 기존 안전 표시와 함께 둔다. | 요구사항의 글자 구분 원칙을 만족하면서 화면을 덜 어지럽힌다. 회의록 :226~231 | 아이콘+라벨·좌측 바 — 불필요한 시각 부품 증가. |
+| **R2-3A-Q3** | 익명 웹 직원답변 알림 | 직원 연결 폼에서 전화번호를 선택으로 받으면 자리 비운 동안 미확인 연속답변을 문자 1회로 자동 발송하고 직원 화면에 발송 상태를 작게 표시한다. 번호가 없으면 재방문 시 미읽음 점만 보인다. | 번호 입력을 강요하지 않으면서 도달 경로를 제공하고 3-A 알림 배칭과 맞춘다. 회의록 :226~236 | 웹푸시·알림 없음 — 플랫폼 부담 또는 도달 경로 부재. 직원 수동 문자 버튼 — 자동 배칭과 중복. |
+
+> **R2-3 범위 보완(2026-08-13, 역대조 결정 7):** R2-3의 `검색어` 복원은 **검색 입력이 실제로 존재하는 출발 목록에만** 적용된다. 병원 안내자료(`KBADM-LIST-09`)·미해결 질문(`UNRES-CLUSTER-05`)·전체 질문 순위(`QTOP-RANK-05`) 세 목록에는 검색 기능을 새로 만들지 않으므로, 이들의 복귀 복원은 **직전 필터와 스크롤 위치만**이다(검색어 없음).
+
+### 역방향 대조 결정 8건 (2026-08-13)
+
+> 목업↔규칙 역방향 대조에서 나온 어긋남 90건 중 규칙·그림 사이 판단이 필요했던 8건을 코5 회의에서 확정했다. 확정·근거·기각 원문은 로컬 [RCHECK-DECISIONS-2026-08-13.md](../../../.claude/codex-work/orchestration/RCHECK-DECISIONS-2026-08-13.md)가 원본이고, 이 표는 정본 요약이다. 규칙 반영은 `screen-behaviors.md`가 원본이다.
+
+| ID | 무엇 | 확정 내용 | 근거 | 기각안 |
+|---|---|---|---|---|
+| **역대조-1** | 앱 97 긴급 분류 실패 우회 문구·제목 | B안. 화면 제목은 `안내`(`긴급 안내` 아님), 본문은 확정 문구 `상담봇이 긴급 여부를 확인하지 못했습니다. 온라인 상담이나 예약을 계속하지 말고, 119에 연락하거나 가까운 응급실을 이용하세요.` `CHAT-URGENT-EXC-01`에 반영. | 분류 실패를 밝히고 일반 예약 자동 실행을 막으며 119·응급실 해결 경로를 함께 준다. | A안(현 목업 문구) — 실패 사실·판단 주체 모호. C안(일반 오류·다시 시도) — 응급 환자에게 안전 경로 없어 막다른 길. 제목 `긴급 안내` — 이미 긴급으로 분류한 인상. |
+| **역대조-2** | 직원 104 티켓함 접수순 방향·동점 키 | A안. 세 탭 모두 `created_at ASC, id ASC`(오래된 문의 먼저, 동점은 티켓 ID 오름차순). `TICKET-INBOX-ORDER-02`에 반영. | 먼저 들어온 환자를 먼저 처리해 오래된 문의가 새 문의에 계속 밀리지 않게 한다. | B안(최신순) — 오래 기다린 문의가 아래로 밀림. C안(탭마다 다른 정렬) — 탭 의미가 갈라져 불필요하게 복잡. |
+| **역대조-3** | 직원 105 최초 담당 지정과 이관 | C안. `새 문의` 선택 시 그 직원에게 **원자적 자동 배정**하고 `pending→in_progress` 전환. 별도 `[담당 지정]`·`[내가 맡기]`는 두지 않고, 담당자가 생긴 뒤 다른 직원이 맡을 때만 `[이관]`. `TICKET-DETAIL-ASSIGN-02`·`SCOPE-01` 정정. | 기존 자동 배정이 이미 최초 담당을 부여하므로 별도 지정은 중복. `in_progress`엔 담당자가 반드시 있어야 한다. | A안(`in_progress` 미배정에서 지정) — 존재할 수 없는 중간 상태. B안(`pending`에서 최초 지정) — 선택 자동 배정과 중복, 경쟁 계약 복잡. |
+| **역대조-4** | 직원 108 오늘의 현황 변경·취소 상담 표시 | 독립 `변경 요청 N`·`취소 요청 N` 수치 카드를 **모두 만들지 않는다**. 기존 `확인 필요한 예약` 카드에 환자별 한 줄(`변경/취소 상담 · 직원 확인 중`)로 통합하고, 같은 `support_tickets` 한 건으로 문의 티켓함에도 함께 표시(두 진입점 동기화). 예약 처리만으로 행을 없애지 않고 `[상담 종료]`→`answered` 때 함께 제거. 캘린더↔`/today`↔문의함 양방향 내비 신설. `SUPPORT-TODAY-*`·`TODAY-RESCHED-23~28`·`NAV-STFSUP-08·14` 반영. | 수치 카드는 `TODAY-LAY-02`(환자별 행) 원칙과 충돌. 같은 캘린더·패널로 가는 일을 둘로 나누지 않는다. | B안(독립 수치 카드) — 환자별 행 원칙과 충돌, 집계·0건·Realtime 규칙 복제. C안(일반 문의에만 포함) — 예약 업무를 캘린더로 왕복시켜 기존 결정과 어긋남. |
+| **역대조-5** | 직원 109 예약 사이드패널 닫기 표시 | A안. 기존 예약 상세 패널과 같은 우측 상단 `✕` 유지(패널만 닫고 캘린더 원폭 복귀, 처리로 보지 않음, 접근성 이름 `패널 닫기`). `SUPPORT-PANEL-CLOSE-01` 내용 변경 없이 정합. | 새 패널이 아니라 기존 예약 상세 패널의 확장이므로 같은 위치·모양 유지. | B안(텍스트 `[닫기]`) — 처리 버튼처럼 보이고 기존 패널과 불일치. C안(`✕ 닫기`) — 이 패널만 바꾸면 전체 패널 체계와 불일치. |
+| **역대조-6** | 앱 96 상담 연결 처리 중 팝업 닫기 | A안. 연결 **전** `[닫기]`는 기록 없이 팝업만 닫지만, `[상담 채팅 연결]` 선택 뒤 서버 처리 중에는 `[닫기]`와 연결 버튼을 **모두 잠근다**. 실패·시간 초과 시 팝업 유지하고 `[닫기]`·`[다시 연결]` 재활성(잠금 무기한 금지). `LATEFLOW-POP-CLOSE-01`·`BUSY-01`·`ERR-01` 반영. | 연결 선택 뒤에는 이미 기록이 시작되므로 활성 `[닫기]`가 「기록 없이 이탈」·「연결 취소」처럼 보이면 안 된다. | B안(처리 중 닫기 허용) — 사용자는 취소로 이해하나 요청은 접수되는 불일치. C안(닫기로 요청 취소) — 즉시 기록 계약과 충돌, 경합·별도 취소 계약 필요. |
+| **역대조-7** | 관리자 115 세 목록의 검색 기능·검색어 복원 | A안. 병원 안내자료·미해결 질문·전체 질문 순위 세 목록에 **검색 기능을 새로 만들지 않는다**(기존 분류·상태·기간 필터 사용). 복귀 시 직전 필터·스크롤만 복원(검색어 없음). R2-3의 `검색어` 범위 문구 보완. | 검색 대상·결합·0건·오류 계약 없이 복원 표시만으로 새 기능을 확정할 수 없다. 현재 필터로 찾을 수 있다. | B안(세 목록 검색 추가) — 대상·결합·집계·0건·오류 미정. C안(안내자료만 검색) — 후속 후보이나 현재 필요성 미확인, 별도 안건으로 남김. |
+| **역대조-4B** | 직원 104·105 문의 티켓함 상세 그릇(4번 후속) | C안. 문의 티켓함은 **왼쪽 티켓 목록 + 오른쪽 넓은 상세 작업공간** 분할 화면(좁은 예약 패널 아님). 새 문의 선택 시 원자적 배정→`pending→in_progress`→오른쪽 상세, 경쟁 늦은 직원은 목록 유지+`이미 다른 직원이 맡았어요`. 좁은 창은 상세 전체 폭+`[문의 목록]` 복귀. **이 예외는 문의 티켓함에만**, 나머지는 `R2-3` 전체 화면 유지. `TICKET-INBOX-ROW-01`·`NAV-STFSUP-02·13` 개정. | 여러 건을 연속 배정·응답하는 라이브 작업이라 `R2-4`(품질 리포트)처럼 목록 문맥 유지가 필요. | A안(별도 전체 화면) — 티켓마다 목록 왕복, 실시간 새 문의·탭 상태 동시 확인 어려움. B안(좁은 사이드패널) — 요약·대화·작성·담당·도달을 한 세로 칸에 압축해 작업 해침. |
+
+#### ⑦플랜 대조 — 역방향 결정 8건 (2026-08-13, 새 세션)
+
+> **무엇**: 위 8건으로 규칙이 바뀌었으니, 그 결정이 **구현 계획에 설 땅이 있는지**만 4층으로 갈라낸다(고치는 게 아님 — 「나중에 고쳐도 되는 것」과 「결정이 성립 안 하는 것」을 나눈다). 판정 대상 = `docs/superpowers/plans/2026-07-27-ai-chatbot.md`(티켓·배정·조회) + `2026-07-27-staff-web.md`(`/today` 대시보드). **결과: 성립 불가(blocker) 0건. 방식 충돌 1건(역대조-3/4B 경쟁 패자). 나머지는 결정이 이미 「반영 대상」으로 예고한 신설이라 재작성 몫.** ⚠️ 플랜 자체 수정은 재작성 단계 몫 — 여기는 판정까지만.
+
+**계약 ① — 원자적 자동 배정 + `pending→in_progress`, 별도 담당지정 없음 (역대조-3·4B)**
+- **①DB — 설 땅 있음.** `support_tickets.assigned_staff_id`(`ai-chatbot.md:585`)·`status` enum `pending/in_progress/answered`(`:584`) 존재.
+- **②서버조회 — 원자성·자동배정 지지.** `claim_ticket`(`:3600`) = `update support_tickets set status='in_progress', assigned_staff_id=$2 where id=$1 and status='pending'` → `where status='pending'`이 경쟁을 직렬화한다. `get_ticket_detail`(`:3584`)이 `pending`이면 `claim_ticket`을 자동 호출 → 열람=자동 배정. 별도 `[담당 지정]`·`[내가 맡기]` API 없음(`claim`=자동 + `reassign`=이관 둘뿐) → **결정과 정합.**
+- ⚠️⚠️ **방식 충돌 1건(②·④층) — 경쟁 패자에게 실패를 안 알린다.** `claim_ticket`은 `-> None`·`pool.execute`라 **승패를 반환하지 않고**, `get_ticket_detail`은 `claim` 뒤 무조건 `select *`로 상세를 연다(`:3589~3597`) → **경쟁에서 진 직원도 상세를 그대로 본다.** 역대조-4B는 *"늦은 직원은 상세를 보지 않고 목록 유지 + `이미 다른 직원이 맡았어요` + 최신 담당자"*를 명시 → **충돌.** ⭐ **설 땅은 있다** — `update ... where status='pending' returning id`로 승패를 판정하고 패배 시 담당자 이름을 반환하면 된다(DB 구조는 이미 지지). **계약 개정(재작성 몫)**이지 성립 불가 아님.
+
+**계약 ② — 정렬 `created_at ASC, id ASC` 복합·페이지 경계 (역대조-2)**
+- **②서버조회 — 방향 일치, 동점 키만 빠짐.** `list_tickets`(`:3572`) = `order by t.created_at`(ASC 기본) → 방향 OK. ⚠️ **동점 키 `id ASC` 없음** → 같은 `created_at`이면 순서 비결정적. 인덱스는 `(status, created_at)`(`:592`). `, t.id` 한 줄 추가로 해결 → 설 땅 있음.
+- **페이지 경계 — 현재 페이징 자체가 없음.** `list_tickets`에 `limit`/`offset` 없음(전체 반환) → "페이지 경계 같은 키"는 페이징 신설 시 함께. 지금은 조용히 깨질 것 없음. 재작성 몫.
+
+**계약 ③ — `/today` 행 + 문의함 두 진입점 동기화, `answered` 동시 제외 (역대조-4·4B)** ⭐ 가장 큰 신설
+- **①DB — 설 땅은 있으나 세 칸이 전부 없다.**
+  - `support_tickets.appointment_id` **컬럼 없음.** late_cancellation은 `appointment_id`를 `summary_staff_todo` **텍스트에 문자열로 박음**(`:2344` `f"appointment_id={appointment_id} …"`) — 구조화 FK 아니라 조인·동기화 불가. ⚠️ **단 `support_tickets`는 미적용 마이그레이션(`00302`)** → 컬럼 추가 자유.
+  - `appointments.support_requested_at`·`request_type` **두 컬럼 모두 없음**(양 플랜 grep 0건). `appointments`는 1단계 적용분이라 새 마이그레이션 `ALTER` 필요 — staff-web가 이미 `needs_rescheduling` 등을 `ALTER`하므로 방식 확립됨 → 설 땅 있음.
+  - `reason` check enum(`:581`)에 **예약 변경 상담** 값 없음(`late_cancellation`은 취소만). 변경 상담을 티켓으로 표현하려면 enum 확장 필요 — 미적용이라 가능. 📌 재작성 상세.
+- **②서버조회 — `/today` 조회가 통째로 없다(설 땅은 있음).** `get_today_summary`(`staff-web.md:3970`)가 **`pending_inquiries_count: 0`·`affected_appointments_count: 0`을 하드코딩**(`:4032~4033`) — `support_tickets`를 조인하지 않는다. ⚠️ 단 이 함수는 이미 `long_wait_patients`·`urgent_patients` **행 목록**을 반환하는 구조라, 상담 행 목록을 같은 패턴으로 추가 가능 → 설 땅 있음(신설). 문의함 `list_tickets`(`:3572`)는 status 필터 기반 → `/today`와 문의함이 **같은 티켓을 status로 소비**하면 `answered`는 양쪽에서 자연 제외 → 동시 제외 계약 구조적으로 성립. ✅
+- **④다음단계 — 수치 카드 폐기가 기존 조회를 스트랜드하지 않는다.** *"수치 카드 폐기가 플랜의 집계 조회를 바꾸나?"* → **아니오.** 플랜엔 애초에 `SUPPORT-TODAY-CANCEL`류 **집계 조회가 없다**(하드코딩 0). 수치 카드는 후속 문서·목업에만 있던 개념이라 폐기해도 깨질 기존 조회 0. ✅ 충돌 없음. 양방향 내비(`[캘린더에서 예약 처리]`·`[상담 전체 보기]`)는 플랜에 라우팅 없음(신설) — 캘린더 예약 패널(`CAL-PANEL`)·문의함 상세는 각각 있어 두 출발/도착점은 존재 → 설 땅 있음, 상태 복원 라우팅이 재작성 몫.
+- **종합**: blocker 0. appointment_id 컬럼 · appointments 두 컬럼 · reason enum 확장 · `/today` 상담 행 조회 · 양방향 내비가 전부 플랜에 **아직 없다** — 전부 **결정 자신이 「반영 대상」으로 예고한 신설**이라 재작성 몫이다.
+
+**나머지 4건 — 구현 방식을 단정하지 않아 대조 신호 약함, 성립 문제 없음**
+- **역대조-1(앱97 우회 문구)·역대조-5(앱109 `✕`)**: 순수 화면 문구·표시라 DB·조회 무관.
+- **역대조-6(앱96 처리 중 잠금)**: 프런트 상태(버튼 잠금)만 바꾸고, 서버 계약은 기존 late-cancellation-ticket 즉시 기록 그대로 → 설 땅 있음.
+- **역대조-7(관리자115 검색 미신설)**: **검색을 안 만든다**는 결정이라 플랜에 없는 걸 만들지 않음 → 대조할 신설 없음(오히려 안전).
+
+### 목업 감찰 R2 결정(MR2-01~10) (2026-08-13)
+
+> 원문: [MOCKUP-REVIEW2-DECISIONS-2026-08-13.md](../../../.claude/codex-work/orchestration/MOCKUP-REVIEW2-DECISIONS-2026-08-13.md)
+
+| ID | 무엇 | 확정 내용 | 근거 | 기각안 |
+|---|---|---|---|---|
+| **MR2-01** | 익명 웹의 다른 기기 이어보기 | 익명 웹은 **다른 기기 이어보기 경로를 만들지 않는다**. 같은 브라우저의 익명 토큰 복원은 유지하고, 인계 폼의 전화번호는 직원 답변 문자 수신용으로만 사용한다. | 요구사항에 다른 기기 이어보기 요구가 없고, 미정인 본인확인·전화번호 기반 복원은 개인정보 위험이 있다. | 전화번호로 다른 기기 세션을 복원하는 경로 — 본인확인 방식이 미정이고 타인 세션 연결 위험이 있다. |
+| **MR2-02** | 상담방의 이전 상담 진입 | 상담방 상단 `이전 상담` 아이콘을 선택하면 `CHAT-HISTORY` 목록으로 이동하고, 목록 뒤로가기는 상담방으로 돌아간다(`NAV-CHATAPP-10`). | 목업 91에 아이콘은 이미 있으나 평소 목록을 여는 NAV 규칙이 없었다. 로그인 앱의 이전 상담 목록은 유지한다. | 아이콘을 없애거나 푸시 딥링크만 남기는 안 — 이미 그려진 정식 입구를 잃고 목록 진입 공백이 남는다. |
+| **MR2-03** | 인증 완료 뒤 예약·취소 복귀 | 자동 실행하지 않고 최신 대상·슬롯을 재검증하는 **재확인 카드**를 다시 띄운다. 환자가 `[신청]` 또는 `[취소]`를 눌러야 확정한다(`WEBMOD-AUTH-08`, `WEBCARD-BOOKCONF-03`). | 되돌릴 수 없는 동작은 확인 안에서만 실행해야 하며, 기존 최신 슬롯 재검증 카드 계약과도 정합하다. | 인증 완료 즉시 자동 실행 — 몰래 실행 금지 원칙 위반. 별도 복귀 버튼 — 재확인 카드보다 의미를 추가하지 못한다. |
+| **MR2-04** | 예약 3단계 의사 선택 강조 | 목업 95에서 `김순자 본인`은 선택 대상이 아닌 조용한 맥락 라벨로 낮추고, `박정우 원장` 등 의사 카드를 선택지로 강조한다. 의사 카드의 `다음 가능 시간`은 제거한다. | 선택해야 하는 원장과 환자 맥락의 시각적 강조가 뒤집혀 있어 선택 대상을 오해하게 한다. | 환자 맥락 카드를 계속 강조하거나 의사 카드에 다음 가능 시간을 남기는 안 — 선택 대상과 부가 정보의 우선순위를 흐린다. |
+| **MR2-05** | 상담봇 운영시간 화면 | 목업 118과 상담봇 관리의 운영시간 편집 메뉴를 폐기한다. 상담봇은 직원웹 `SCHED-HOURS-*`·`SCHED-EXC-*` 원본을 **읽기만** 한다. | 운영시간 단일소스·상담봇 읽기전용은 기존 `SCHED-HOURS-17b`·`CHAT-HANDOFF-HOURS-01~03`·`WEBCHAT-HANDOFF-02`가 이미 규정. 목업 118만 폐기(별도 신규 규칙 불필요). | 상담봇에서 운영시간을 다시 편집하거나 라이브 상담 시간을 별도 운영하는 안 — 같은 데이터의 이중 원본을 만든다. |
+| **MR2-06** | 116 질문 순위와 117 현황 | 목업 116의 전체 질문 순위를 117 상담봇 처리 현황 안의 한 섹션으로 흡수하고 별도 메뉴를 두지 않는다. | 둘 다 읽기 전용 집계이며 자주 묻는 질문은 상담봇 현황 대시보드의 한 패널로 충분하다. | 116을 최상위 메뉴로 유지하는 안 — 읽기 전용 집계를 분리해 메뉴와 화면을 중복한다. |
+| **MR2-07** | 직원웹 사이드바 정본 그룹 | `진료 화면`은 의사 전용으로 그룹 밖 단독 배치하고, **업무·기록·설정·상담봇** 4그룹으로 정리한다. 업무에는 문의 티켓함·전체 상담 기록·메시지 발송을 포함하고, 상담봇에는 안내자료·미해결 질문·오답 처리함·품질 리포트·상담봇 현황을 둔다. `SHELL-NAV-01·02·04`에 반영한다. | AD-069가 기존 3그룹보다 우선하는 최종 사이드바 정본이며, 직원 업무와 상담봇 관리 메뉴를 한 구조로 통합해야 한다. | 기존 `진료 현장`·`환자`·`운영·관리` 3그룹 또는 화면별로 상담봇 항목을 잘라내는 안 — 정본 그룹과 역할별 노출이 다시 어긋난다. |
+| **MR2-08** | 대화 길이/컨텍스트 한도 넛지 | AI 상담이 매우 길어지면 소프트 넛지를 제시한다(`CHAT-LEN-01`). 실제 한도값(메시지 수·토큰)과 오래된 메시지 요약vs절단 방식은 플랜에서 `확인 필요`로 남긴다. | 한도 규칙 0건 갭, LLM 컨텍스트 유한. 두 층(UX 넛지=규칙 `CHAT-LEN-01` / 실제 한도값·요약vs절단=플랜 `확인 필요`)으로 나눠 사용자 경험 계약과 구현 결정을 분리한다. | 하드 컷 즉시차단 — 대화를 예고 없이 끊고 사용자가 이어갈 선택지를 잃는다. |
+| **MR2-09** | 104·105 티켓 상세 레이아웃과 보내기·종료 분리 | 문의 티켓함 104의 우측 분할 상세와 105 티켓 상세를 공통으로, 위에서 아래로 **담당 이관 → 전체 대화(세로로 긴 주 영역) → 답변 작성 입력칸과 오른쪽 `[보내기]` → 따로 `[상담 종료]`** 순서로 둔다. 빈번하고 안전한 `[보내기]`와 되돌리기 어려운 `[상담 종료]`는 인접 배치하지 않는다(`TICKET-DETAIL-LAYOUT-01`, `TICKET-DETAIL-CLOSE-SEP-01`). | 담당 이관·전체 대화·답변·종료의 작업 순서를 명확히 하고, 되돌릴 수 없는 동작은 잘못 누르지 않게 해야 한다. | `[보내기]`와 `[상담 종료]`를 인접 배치하는 안 — 오클릭 위험이 있고 안전한 빈번 동작과 되돌리기 어려운 동작의 성격 차이를 흐린다. |
+| **MR2-10** | 109 캘린더-상담 흡수 | 목업 109는 폐기하고 별도 화면으로 만들지 않는다. 마감 후 취소·변경 상담의 ⚠ 표식과 기존 예약 사이드패널 처리는 64/65 기본 예약 캘린더의 `SUPPORT-CAL-*` 상태로 흡수하며 해당 규칙은 유지한다. | 118 폐기와 같은 논리로 같은 캘린더의 중복 화면을 만들지 않고, 예약 캘린더 한 곳에서 상담 처리 상태를 확인·처리한다. | 109를 별도 화면으로 유지하는 안 — 64/65 예약 캘린더와 같은 캘린더 맥락·상태를 중복하고 별도 내비게이션·처리 흐름을 만든다. |

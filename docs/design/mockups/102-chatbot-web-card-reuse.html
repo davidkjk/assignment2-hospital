@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>102 · 웹 상담봇 앱 카드 재사용 보드</title>
+<style>
+:root{--primary:#0B6E70;--ink:#10243A;--muted:#5A6C7B;--bg:#E8EEF0;--surface:#fff;--soft:#F4F7F8;--line:#D6E0E4;--teal-bg:#E7F1F1;--teal-line:#9FC6C6;--warn:#B44E00;--warn-bg:#FFF1E4;--danger:#A02F3D;--danger-bg:#FFF0F1;--done:#67788A;--done-bg:#F5F7F8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button{font:inherit}.page{max-width:1560px;margin:auto;padding:34px 24px 64px}.meta{display:flex;gap:9px;align-items:center;color:var(--muted);font-size:11px;font-weight:800}.pill,.rule{display:inline-flex;padding:4px 8px;border:1px solid var(--teal-line);border-radius:99px;background:var(--teal-bg);color:var(--primary);font-weight:850}.rule{border-radius:4px;font:750 9px ui-monospace,SFMono-Regular,Menlo,monospace}h1{font-size:34px;letter-spacing:-.045em;margin:12px 0 7px}h1 span{color:var(--primary)}.lead{max-width:1080px;color:var(--muted);font-size:13px;line-height:1.7;margin:0}.rule-index{display:flex;flex-wrap:wrap;gap:4px;margin:15px 0 24px}.icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.widget{width:min(390px,100%);margin:0 auto 26px;border:1px solid #7C929B;border-radius:18px;background:#fff;box-shadow:0 20px 46px rgba(16,36,58,.16);overflow:hidden}.head{height:68px;padding:13px 15px;background:var(--primary);color:#fff;display:flex;align-items:center;gap:10px}.head-mark{width:39px;height:39px;border:1px solid rgba(255,255,255,.42);border-radius:12px;display:grid;place-items:center}.head div{flex:1}.head b{display:block}.head span{font-size:10px;color:rgba(255,255,255,.8)}.feed{padding:14px;background:var(--soft)}.bubble{width:78%;padding:9px 11px;border:1px solid var(--line);border-radius:5px 13px 13px;background:#fff;font-size:10px;line-height:1.5;margin-bottom:9px}.bubble.patient{margin-left:auto;border-color:var(--teal-line);border-radius:13px 5px 13px 13px;background:var(--teal-bg)}.chat-card{position:relative;margin:16px 0 10px;padding:13px;border:2px solid var(--teal-line);border-radius:11px;background:#fff}.chat-card:before{content:attr(data-label);position:absolute;top:-10px;left:12px;padding:2px 7px;border:1px solid var(--teal-line);border-radius:99px;background:var(--teal-bg);color:var(--primary);font:850 8px ui-monospace,SFMono-Regular,Menlo,monospace}.chat-card h3{margin:3px 0 7px;font-size:13px}.chat-card p{margin:5px 0;color:var(--muted);font-size:9.5px;line-height:1.5}.guide{margin:12px 0 9px;padding:9px;border:1px solid var(--teal-line);border-left:4px solid var(--primary);border-radius:8px;background:#fff;font-size:9px;line-height:1.45}.composer{height:61px;padding:9px;border-top:1px solid var(--line);background:#fff;display:flex;gap:6px}.input{flex:1;border:1px solid #AABAC2;border-radius:9px;padding:9px;color:var(--muted);font-size:9px}.send{width:40px;border:0;border-radius:9px;background:var(--primary);color:#fff;display:grid;place-items:center}.board{display:grid;gap:18px}.family{border:1px solid #B8C7CE;border-radius:15px;background:#fff;overflow:hidden}.family-head{display:flex;justify-content:space-between;gap:18px;padding:15px 17px;border-bottom:1px solid var(--line);background:#FBFCFD}.family-head h2{margin:0;font-size:17px}.family-head p{margin:4px 0 0;color:var(--muted);font-size:10px}.family-source{color:var(--done);font:750 9px ui-monospace,SFMono-Regular,Menlo,monospace}.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:var(--line)}.state{min-height:190px;padding:13px;background:#fff}.state h3{margin:0 0 9px;font-size:11px}.state small{display:block;margin-top:7px;color:var(--muted);font-size:8.5px;line-height:1.5}.state-card{position:relative;padding:12px;border:2px solid var(--teal-line);border-radius:10px;background:#fff}.state-card:before{content:attr(data-label);position:absolute;top:-8px;left:9px;padding:1px 6px;border:1px solid var(--teal-line);border-radius:99px;background:var(--teal-bg);color:var(--primary);font:800 7.5px ui-monospace,SFMono-Regular,Menlo,monospace}.state-card b{display:block;margin:3px 0 6px;font-size:10.5px}.state-card p{margin:4px 0;color:var(--muted);font-size:8.8px;line-height:1.5}.rows{display:grid;gap:4px}.row{display:flex;justify-content:space-between;gap:8px;padding-bottom:3px;border-bottom:1px solid #E7ECEE;font-size:8.5px}.row span:first-child{color:var(--muted)}.actions,.pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.action,.pill-action{min-height:29px;padding:6px 8px;border:1px solid var(--teal-line);border-radius:6px;background:#fff;color:var(--primary);font-size:8.5px;font-weight:850}.action.primary{border-color:var(--primary);background:var(--primary);color:#fff}.action.busy{border-color:#CCD6DA;background:#E6ECEE;color:#697B84}.action.danger{border-color:var(--danger);background:var(--danger);color:#fff}.pill-action{border-radius:99px;background:var(--teal-bg)}.callout{padding:8px;border-left:3px solid var(--primary);border-radius:4px;background:var(--teal-bg);color:#315E60;font-size:8.8px;line-height:1.45}.callout.warn{border-color:var(--warn);background:var(--warn-bg);color:#75440E}.callout.error{border-color:var(--danger);background:var(--danger-bg);color:var(--danger)}.loading{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:9px}.spinner{width:14px;height:14px;border:2px solid #CBD7DB;border-top-color:var(--primary);border-radius:50%}.status{display:inline-flex;padding:3px 7px;border-radius:99px;background:var(--teal-bg);color:var(--primary);font-size:8px;font-weight:850}.quick-stack{display:grid;gap:5px}.quick{padding:7px 9px;border:1px solid var(--teal-line);border-radius:99px;background:#fff;color:var(--primary);text-align:left;font-size:8.5px}.empty-space{display:grid;place-items:center;min-height:74px;border:1px dashed #B9C8CE;border-radius:8px;color:var(--muted);font-size:8.5px;text-align:center}.urgent{border-color:var(--danger)}.urgent:before{border-color:var(--danger);background:var(--danger-bg);color:var(--danger)}.urgent .callout{border-color:var(--danger);background:var(--danger-bg);color:#6B2A47}.foot{margin-top:18px;color:var(--muted);font-size:10.5px;line-height:1.65}@media(max-width:700px){.page{padding:22px 12px 45px}.family-head{display:block}.family-source{display:block;margin-top:6px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 3V5Z"/><path d="M8 10h8M8 13h5"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="m4 5 16 7-16 7 3-7-3-7Z"/><path d="M7 12h13"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></symbol>
+</defs></svg>
+<main class="page">
+<div class="meta"><span class="pill">목업 102</span><span>웹 상담창 · 앱 카드 재사용</span><span>11개 묶음 · 41개 웹 delta</span></div>
+<h1>앱 카드의 판단을 <span>실제 웹 상태로 재현</span>한다</h1>
+<p class="lead">정상 화면만 줄여 그리지 않는다. 앱 카드 사전의 빈·처리 중·오류·충돌 상태와 문구·실행 결과를 390px 위젯 폭에 맞추고, 웹에서 달라지는 인증·앱 문진 안내·익명 복원만 덧붙인다.</p>
+<div class="rule-index" id="ruleIndex" aria-label="적용 규칙 ID"></div>
+
+<section class="widget" aria-label="390px 웹 위젯 실제 카드 예시">
+<header class="head"><span class="head-mark"><svg class="icon"><use href="#i-chat"/></svg></span><div><b>AI 상담봇</b><span>익명 상담 · 웹 카드 인스턴스</span></div></header>
+<div class="feed"><div class="bubble">8월 18일에 예약 가능한 시간을 확인했습니다.</div><div class="chat-card" data-label="시간 선택"><h3>8월 18일 · 오전</h3><div class="pills"><button class="pill-action">오전 9:30</button><button class="pill-action">오전 10:30</button><button class="pill-action">오전 11:00</button></div><p>시간을 고르는 것만으로 예약되거나 슬롯이 잡히지 않습니다.</p></div><div class="guide"><b>진료 안내 · 진료과 선택 도움</b><br>진단이 아닌 진료과·병원 이용 안내입니다.</div><div class="bubble patient">오전 10:30</div><div class="chat-card" data-label="예약 확인"><h3>예약 내용을 확인해 주세요</h3><div class="rows"><div class="row"><span>대상</span><b>김순자 · 본인</b></div><div class="row"><span>진료과</span><b>내과</b></div><div class="row"><span>의사</span><b>박지훈 의사</b></div><div class="row"><span>일시</span><b>8월 18일 오전 10:30</b></div><div class="row"><span>방문이유</span><b>복통</b></div><div class="row"><span>장소</span><b>본관 2층</b></div></div><button class="action primary">예약 신청하기</button></div></div>
+<div class="composer"><div class="input">자유 입력은 항상 사용할 수 있습니다</div><button class="send" aria-label="보내기"><svg class="icon"><use href="#i-send"/></svg></button></div>
+</section>
+
+<section class="board">
+<article class="family"><header class="family-head"><div><h2>시간선택 카드 · 5상태</h2><p>실제 날짜·시간 버튼, 0개 이유, 조회와 슬롯 소진을 같은 흐름에서 확인한다.</p></div><span class="family-source">CCARD-TIME → WEBCARD-TIME</span></header><div class="states">
+<section class="state"><h3>정상</h3><div class="state-card" data-label="시간 선택"><b>8월 18일 · 오전</b><div class="pills"><button class="pill-action">오전 9:30</button><button class="pill-action">오전 10:30</button><button class="pill-action">오전 11:00</button></div><small>선택만으로 슬롯을 잡지 않는다.</small></div></section>
+<section class="state"><h3>가능한 시간 0개</h3><div class="state-card" data-label="시간 선택"><div class="callout">지금부터 30분 안에는 예약할 수 있어 오늘 가능한 시간이 없습니다.</div><button class="action">다른 날짜 고르기</button></div></section>
+<section class="state"><h3>조회 중</h3><div class="state-card" data-label="시간 선택"><div class="loading"><i class="spinner"></i>예약 가능한 시간을 확인하고 있습니다</div><small>선택 가능한 시간처럼 보이는 버튼은 없다.</small></div></section>
+<section class="state"><h3>조회 오류</h3><div class="state-card" data-label="시간 선택"><div class="callout error">시간을 불러오지 못했습니다.</div><button class="action">다시 시도</button></div></section>
+<section class="state"><h3>슬롯 소진</h3><div class="state-card" data-label="시간 선택"><div class="callout warn">오전 10:30은 방금 예약되었습니다. 가능한 시간을 다시 확인했습니다.</div><div class="pills"><button class="pill-action">오전 9:30</button><button class="pill-action">오전 11:00</button></div></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>예약확인 카드 · 4상태</h2><p>여섯 확인 항목과 주 행동을 한 묶음으로 유지한다.</p></div><span class="family-source">CCARD-BOOKCONF → WEBCARD-BOOKCONF</span></header><div class="states">
+<section class="state"><h3>정상</h3><div class="state-card" data-label="예약 확인"><div class="rows"><div class="row"><span>대상</span><b>김순자 · 본인</b></div><div class="row"><span>진료과</span><b>내과</b></div><div class="row"><span>의사</span><b>박지훈 의사</b></div><div class="row"><span>일시</span><b>8월 18일 10:30</b></div><div class="row"><span>방문이유</span><b>복통</b></div><div class="row"><span>장소</span><b>본관 2층</b></div></div><button class="action primary">예약 신청하기</button></div></section>
+<section class="state"><h3>신청 처리 중</h3><div class="state-card" data-label="예약 확인"><b>김순자 · 내과 · 8월 18일 10:30</b><button class="action busy">예약 신청 중…</button><small>중복 신청을 막고 임의로 끊지 않는다.</small></div></section>
+<section class="state"><h3>신청 실패</h3><div class="state-card" data-label="예약 확인"><b>김순자 · 내과 · 8월 18일 10:30</b><div class="callout error">예약을 신청하지 못했습니다.</div><button class="action primary">예약 신청하기</button></div></section>
+<section class="state"><h3>슬롯 충돌</h3><div class="state-card" data-label="시간 선택"><div class="callout warn">오전 10:30은 방금 예약되었습니다. 다른 시간을 골라 주세요.</div><div class="pills"><button class="pill-action">오전 11:00</button><button class="pill-action">오전 11:30</button></div><small>예약 흐름 처음으로 돌아가지 않는다.</small></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>예약완료 카드 · 4상태</h2><p>신청과 확정을 구분하고, 실제 번호와 웹 전용 앱 문진 안내를 보여준다.</p></div><span class="family-source">CCARD-BOOKDONE → WEBCARD-BOOKDONE</span></header><div class="states">
+<section class="state"><h3>신청 완료</h3><div class="state-card" data-label="예약 결과"><b>예약이 신청되었습니다</b><div class="row"><span>신청번호</span><b>R-260818-0142</b></div><div class="callout">사전문진은 환자 앱에서 작성하거나 수정할 수 있습니다.</div><button class="action">환자 앱 열기</button></div></section>
+<section class="state"><h3>확정 완료</h3><div class="state-card" data-label="예약 결과"><b>예약이 확정되었습니다</b><div class="row"><span>예약번호</span><b>A-260818-0142</b></div><div class="callout">작성할 문진이 없습니다</div></div></section>
+<section class="state"><h3>결과 조회 중</h3><div class="state-card" data-label="예약 결과"><div class="loading"><i class="spinner"></i>예약 결과를 확인하고 있습니다</div><small>신청·확정 문구와 번호를 만들어 쓰지 않는다.</small></div></section>
+<section class="state"><h3>결과 조회 오류</h3><div class="state-card" data-label="예약 결과"><div class="callout error">예약 결과를 확인하지 못했습니다. 완료로 표시하지 않았습니다.</div><small>같은 세션을 다시 열어도 신청 버튼은 되살리지 않는다.</small></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>취소확인 카드 · 4상태</h2><p>마감 전·신규 예약 유예에서 최신 대상을 확인하고 명시적으로 실행한다.</p></div><span class="family-source">CCARD-CANCELCONF → WEBCARD-CANCELCONF</span></header><div class="states">
+<section class="state"><h3>정상 확인</h3><div class="state-card" data-label="취소 확인"><b>이 예약을 취소할까요?</b><div class="rows"><div class="row"><span>대상</span><b>김순자</b></div><div class="row"><span>일시</span><b>8월 18일 10:30</b></div><div class="row"><span>진료</span><b>내과 · 박지훈 의사</b></div></div><div class="actions"><button class="action">아니요</button><button class="action danger">취소합니다</button></div></div></section>
+<section class="state"><h3>취소 처리 중</h3><div class="state-card" data-label="취소 확인"><b>김순자 · 8월 18일 10:30</b><button class="action busy">취소하는 중…</button></div></section>
+<section class="state"><h3>취소 실패</h3><div class="state-card" data-label="취소 확인"><div class="callout error">예약을 취소하지 못했습니다.</div><button class="action danger">취소합니다</button></div></section>
+<section class="state"><h3>409 최신 상태</h3><div class="state-card" data-label="예약 변경 알림"><div class="callout warn">이 예약은 14:32에 병원에서 이미 변경했습니다.</div><button class="action">확인</button><small>확인 전까지 알림을 유지한다.</small></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>취소결과 카드 · 4상태</h2><p>취소 주체·시각과 보존 문진의 앱 읽기 전용 경로를 실제 결과에서만 보여준다.</p></div><span class="family-source">CCARD-CANCELDONE → WEBCARD-CANCELDONE</span></header><div class="states">
+<section class="state"><h3>정상</h3><div class="state-card" data-label="취소 결과"><b>취소됨</b><div class="rows"><div class="row"><span>취소 일시</span><b>8월 13일 14:32</b></div><div class="row"><span>취소한 사람</span><b>환자 본인</b></div></div><button class="action primary">새로 예약하기</button></div></section>
+<section class="state"><h3>결과 조회 중</h3><div class="state-card" data-label="취소 결과"><div class="loading"><i class="spinner"></i>취소 결과를 확인하고 있습니다</div><small>주체와 시각을 만들어 쓰지 않는다.</small></div></section>
+<section class="state"><h3>결과 조회 오류</h3><div class="state-card" data-label="취소 결과"><div class="callout error">취소 완료 여부를 확인하지 못했습니다.</div></div></section>
+<section class="state"><h3>보존 문진 있음</h3><div class="state-card" data-label="취소 결과"><b>취소됨 · 환자 본인 · 8월 13일 14:32</b><div class="callout">작성한 문진은 환자 앱에서 읽기 전용으로 확인할 수 있습니다. 새 예약에 자동으로 복사하지 않습니다.</div><button class="action primary">새로 예약하기</button></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>취소반려 카드 · 3상태</h2><p>직원 사유, 고정 확인, 정상 예약·QR 복귀와 다시 문의를 함께 재현한다.</p></div><span class="family-source">CCARD-CANCELREJ → WEBCARD-CANCELREJ</span></header><div class="states">
+<section class="state"><h3>확인 전</h3><div class="state-card" data-label="직원 답변"><b>취소가 어렵다는 답변을 받았습니다</b><div class="callout warn">직원 사유 · 이미 진료 준비가 시작되어 취소할 수 없습니다.</div><button class="action primary">확인</button></div></section>
+<section class="state"><h3>확인 후</h3><div class="state-card" data-label="예약 정상"><b>예약이 유지됩니다</b><p>정상 예약 상태와 QR을 다시 표시했습니다.</p><button class="action">다시 문의하기</button><small>같은 예약·직원 사유 문맥을 이어간다.</small></div></section>
+<section class="state"><h3>사유 누락 · 계약 오류</h3><div class="state-card" data-label="답변 오류"><div class="callout error">직원 답변 사유를 불러오지 못했습니다. 임의 사유를 표시하지 않습니다.</div><small>확인 필요인 저장·API 계약 오류로 남긴다.</small></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>사전문진 · 웹은 앱 경로만 안내</h2><p>문항·답변·진행률·인증 뒤 웹 문진 화면을 만들지 않는다.</p></div><span class="family-source">WEBCARD-QNR WEB DELTA</span></header><div class="states">
+<section class="state"><h3>작성·수정 안내</h3><div class="state-card" data-label="앱 안내"><div class="callout">사전문진은 환자 앱에서 작성하거나 수정할 수 있습니다.</div><button class="action">환자 앱 열기</button><small>로그인 모달로 웹 문진을 열지 않는다.</small></div></section>
+<section class="state"><h3>0문항</h3><div class="state-card" data-label="예약 결과"><div class="callout">작성할 문진이 없습니다</div><small>(0/0), 비활성 버튼, 독립 문진 카드는 표시하지 않는다.</small></div></section>
+<section class="state"><h3>취소 뒤 보존 기록</h3><div class="state-card" data-label="앱 안내"><div class="callout">작성한 문진은 환자 앱에서 읽기 전용으로 확인할 수 있습니다.</div><p>새 예약에 자동으로 복사하지 않습니다.</p></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>빠른답변 · 5상태</h2><p>성공했을 때만 문장 버튼을 표시하고 누른 문장을 환자 말풍선으로 저장한다.</p></div><span class="family-source">CCARD-QUICK → WEBCARD-QUICK</span></header><div class="states">
+<section class="state"><h3>시작 · 다가오는 예약 있음</h3><div class="quick-stack"><button class="quick">내 예약 확인해줘</button><button class="quick">예약을 바꾸고 싶어요</button><button class="quick">진료 전에 준비할 게 있나요</button><button class="quick">주차할 수 있나요</button></div></section>
+<section class="state"><h3>시작 · 예약 없음</h3><div class="quick-stack"><button class="quick">진료시간이 어떻게 되나요</button><button class="quick">어느 과에 가야 할지 모르겠어요</button><button class="quick">예약하려면 어떻게 하나요</button><button class="quick">주차할 수 있나요</button></div></section>
+<section class="state"><h3>대화 중 · 선택 결과</h3><div class="quick-stack"><button class="quick">내과 진료시간을 알려주세요</button><button class="quick">예약 가능한 시간을 찾아주세요</button><button class="quick">주차 위치도 알려주세요</button></div><div class="bubble patient">예약 가능한 시간을 찾아주세요</div></section>
+<section class="state"><h3>추천 생성 중</h3><div class="empty-space">빠른답변 로딩 표식 없음<br>자유 입력은 계속 열림</div></section>
+<section class="state"><h3>추천 생성 실패</h3><div class="empty-space">실패 안내·재시도 버튼 없음<br>상담 전체 오류로 확대하지 않음</div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>진료과 추천 배너 · 표시/숨김</h2><p>추천 중에만 메시지와 함께 스크롤되고 일반 안내로 돌아오면 남지 않는다.</p></div><span class="family-source">CHAT-GUIDE → WEBCHAT-GUIDE</span></header><div class="states">
+<section class="state"><h3>추천 진행 중</h3><div class="state-card" data-label="대화"><div class="guide"><b>진료 안내 · 진료과 선택 도움</b><br>진단이 아닌 진료과·병원 이용 안내입니다.</div><p>어느 부위가 불편한지 알려주세요.</p></div></section>
+<section class="state"><h3>추천 종료·일반 안내</h3><div class="state-card" data-label="대화"><p>내과 진료시간은 평일 오전 9시부터입니다.</p><div class="empty-space">추천 배너 숨김</div></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>직원 인계 · 상태·운영시간·조회</h2><p>폼 제출과 분리된 티켓 상태 API 결과를 같은 상담방에 표시한다.</p></div><span class="family-source">CHAT-HANDOFF → WEBCHAT-HANDOFF</span></header><div class="states">
+<section class="state"><h3>대기중</h3><div class="state-card" data-label="직원 연결"><span class="status">대기중</span><p>상담(직원 확인)으로 연결됐습니다.</p></div></section>
+<section class="state"><h3>직원 확인중</h3><div class="state-card" data-label="직원 연결"><span class="status">직원 확인중</span><p>직원이 문의 내용을 확인하고 있습니다.</p></div></section>
+<section class="state"><h3>답변완료</h3><div class="state-card" data-label="직원 연결"><span class="status">답변완료</span><p>직원 답변을 같은 상담방에서 확인합니다.</p></div></section>
+<section class="state"><h3>운영시간 밖</h3><div class="state-card" data-label="직원 연결"><span class="status">대기중</span><div class="callout">현재 운영시간이 아닙니다. 다음 영업일 · 8월 14일(금)에 답변을 확인해 주세요.</div></div></section>
+<section class="state"><h3>상태 조회 중</h3><div class="state-card" data-label="직원 연결"><span class="status">대기중</span><div class="loading"><i class="spinner"></i>상담 상태를 확인하는 중</div><small>마지막 배지를 유지한다.</small></div></section>
+<section class="state"><h3>상태 조회 오류</h3><div class="state-card" data-label="직원 연결"><div class="callout error">상담 상태를 확인하지 못했습니다.</div><button class="action">다시 조회</button><small>답변완료로 가장하지 않는다.</small></div></section>
+</div></article>
+
+<article class="family"><header class="family-head"><div><h2>긴급 표현 안내</h2><p>일반 예약 대화를 멈추고 인증·연락처보다 119 또는 응급실 안내를 먼저 보여준다.</p></div><span class="family-source">CHAT-URGENT → WEBCHAT-URGENT</span></header><div class="states">
+<section class="state"><h3>긴급 표현 감지</h3><div class="state-card urgent" data-label="긴급 안내"><div class="callout"><svg class="icon"><use href="#i-alert"/></svg><b>지금 심한 흉통이나 호흡곤란이 있다면 119에 연락하거나 가까운 응급실을 이용해 주세요.</b>이 안내는 긴급 여부를 완벽히 판단하거나 진단하는 것이 아닙니다.</div><small>시간선택·예약확인 CTA, 로그인, 연락처 수집을 함께 표시하지 않는다.</small></div></section>
+</div></article>
+</section>
+<p class="foot"><b>웹 delta:</b> 문진은 앱 안내만 제공하고, 로그인은 예약·취소 실행 앞에서만 연다. 오류는 <code>#A02F3D</code>/<code>#FFF0F1</code>을 사용하며 모든 아이콘은 SVG 심볼을 재사용한다.</p>
+</main>
+<script>
+const components=[['WEBCARD-TIME',3],['WEBCARD-BOOKCONF',4],['WEBCARD-BOOKDONE',3],['WEBCARD-CANCELCONF',3],['WEBCARD-CANCELDONE',3],['WEBCARD-CANCELREJ',3],['WEBCARD-QNR',4],['WEBCARD-QUICK',4],['WEBCHAT-GUIDE',3],['WEBCHAT-HANDOFF',7],['WEBCHAT-URGENT',4]];
+const expected=components.flatMap(([prefix,count])=>Array.from({length:count},(_,i)=>`${prefix}-${String(i+1).padStart(2,'0')}`));
+const index=document.getElementById('ruleIndex');for(const id of expected){const code=document.createElement('code');code.className='rule';code.dataset.rule=id;code.textContent=id;index.appendChild(code)}
+const actual=[...document.querySelectorAll('[data-rule]')].map(node=>node.dataset.rule);if(actual.length!==41||new Set(actual).size!==41||expected.some(id=>!actual.includes(id)))document.documentElement.dataset.validation='rule-error';
+const css=new Set();function scan(rules){for(const rule of rules){if(rule.selectorText)for(const hit of rule.selectorText.matchAll(/\.([a-zA-Z_][\w-]*)/g))css.add(hit[1]);if(rule.cssRules)scan(rule.cssRules)}}for(const sheet of document.styleSheets)scan(sheet.cssRules);const used=new Set([...document.querySelectorAll('[class]')].flatMap(node=>[...node.classList]));document.documentElement.dataset.undefinedCssClasses=String([...used].filter(name=>!css.has(name)).length);
+</script>
+</body>
+</html>

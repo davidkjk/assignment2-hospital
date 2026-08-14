@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 상담봇 통합 화면 흐름도</title>
+<style>
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:#edf1f3;color:#10243a;font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}.wrap{max-width:1500px;margin:auto;padding:32px 24px 64px}h1{margin:0;font-size:30px;letter-spacing:-.8px}h2{margin:42px 0 7px;font-size:21px;letter-spacing:-.4px}h3{margin:0;font-size:15px}.lede,.section-note{color:#5a6c7b;font-size:13px}.lede{max-width:920px;margin:8px 0 0}.legend,.summary,.channel,.table-wrap,.verification{background:#fff;border:1px solid #dfe7eb;border-radius:14px;box-shadow:0 2px 7px rgba(16,36,58,.05)}.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px;padding:13px 16px;font-size:12px}.legend span{display:flex;align-items:center;gap:6px}.swatch{width:13px;height:13px;border-radius:4px}.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;margin-top:18px;overflow:hidden;background:#dfe7eb}.metric{background:#fff;padding:14px 16px}.metric b{display:block;font-size:23px;color:#0b6e70}.metric span{font-size:11px;color:#5a6c7b;font-weight:700}.channels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}.channel{padding:16px}.channel-head{display:flex;align-items:center;gap:9px;margin-bottom:12px}.channel-head svg{width:22px;height:22px;fill:#0b6e70}.channel-head small{margin-left:auto;color:#5a6c7b;font-weight:700}.node-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.node{border:1px solid #dfe7eb;border-left:4px solid #0b6e70;border-radius:9px;padding:9px 10px;min-height:68px;background:#fbfcfc}.node.component{border-left-color:#7e8e99}.node.pending{border-left-color:#b44e00}.node-id{font:700 10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#5a6c7b}.node-title{font-size:12px;font-weight:800;margin-top:2px}.node-meta{font-size:10px;color:#71818d;margin-top:3px}.flow-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:14px}.edge-card{display:grid;grid-template-columns:minmax(90px,1fr) 24px minmax(90px,1fr);align-items:center;gap:7px;border:1px solid #dfe7eb;border-radius:9px;padding:8px;background:#fff}.edge-card.cross{border-color:#9fc7c7;background:#f4fafa}.edge-card.pending{border-color:#e0b48e;background:#fffaf5}.edge-end{font-size:10px;font-weight:800}.edge-act{grid-column:1/-1;color:#5a6c7b;font-size:9.5px}.edge-card svg{width:20px;height:20px;fill:#0b6e70}.edge-card.pending svg{fill:#b44e00}.table-wrap{overflow:auto;margin-top:16px}table{width:100%;border-collapse:collapse;min-width:1060px;font-size:11px}th{position:sticky;top:0;background:#10243a;color:#fff;text-align:left;padding:9px 10px}td{padding:8px 10px;border-bottom:1px solid #e6ebef;vertical-align:top}tbody tr:hover{background:#f4f8f8}.mono{font:700 10px ui-monospace,SFMono-Regular,Consolas,monospace;color:#0b6e70}.tag{display:inline-block;border-radius:99px;padding:2px 7px;font-size:9px;font-weight:800;background:#e5efef;color:#0b6e70}.tag.pending{background:#fbf0e7;color:#a44900}.tag.external{background:#e8edf0;color:#5a6c7b}.verification{padding:18px 20px;margin-top:16px}.verify-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.verify-card{border:1px solid #dfe7eb;border-radius:10px;padding:13px}.verify-card h3{display:flex;align-items:center;gap:7px}.verify-card svg{width:18px;height:18px;fill:#0b6e70}.verify-card.warn svg{fill:#b44e00}.verify-card strong{font-size:24px;color:#0b6e70}.verify-card.warn strong{color:#b44e00}.issue-list{margin:10px 0 0;padding-left:19px;font-size:11px;color:#526675}.issue-list li+li{margin-top:5px}.checkline{margin-top:14px;border-left:4px solid #0b6e70;background:#f3f8f8;padding:10px 12px;font-size:12px;font-weight:700}.footnote{margin-top:12px;color:#6b7b87;font-size:10.5px}.hidden{display:none}@media(max-width:900px){.summary{grid-template-columns:repeat(2,1fr)}.channels,.flow-list,.verify-grid{grid-template-columns:1fr}.node-grid{grid-template-columns:1fr}}@media print{body{background:#fff}.wrap{max-width:none;padding:15px}.channel,.table-wrap,.verification,.summary,.legend{box-shadow:none}.table-wrap{overflow:visible}th{position:static}}
+.node.screen{border-left-color:#0b6e70}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-app" viewBox="0 0 24 24"><path d="M7 2h10a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zm3 17h4v-1.5h-4z"/></symbol>
+  <symbol id="i-web" viewBox="0 0 24 24"><path d="M3 3h18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7v2h3v1H7v-1h3v-2H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 3v10h18V6z"/></symbol>
+  <symbol id="i-staff" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-5 3.6-8 8-8s8 3 8 8z"/></symbol>
+  <symbol id="i-admin" viewBox="0 0 24 24"><path d="M12 1 3 5v6c0 5.6 3.8 10.4 9 12 5.2-1.6 9-6.4 9-12V5zm-1 6h2v4h4v2h-4v4h-2v-4H7v-2h4z"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 11h12.2l-4.6-4.6L13 5l7 7-7 7-1.4-1.4 4.6-4.6H4z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M9.2 17.4 3.8 12l1.8-1.8 3.6 3.6 9.2-9.2 1.8 1.8z"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 2 1 21h22zm-1 7h2v6h-2zm0 8h2v2h-2z"/></symbol>
+</svg>
+
+<main class="wrap">
+  <h1>AI 상담봇 통합 화면 흐름도</h1>
+  <p class="lede">환자 앱, 웹 상담창, 직원 웹 상담관리, 관리자 화면의 53프레임과 결정 R2-3A의 상담 경계 2노드를 하나의 검증 판으로 묶었다. 카드와 배지처럼 대화 안에 삽입되는 컴포넌트도 노드로 세되, 독립 화면이 아니므로 부모 상담방의 출구를 상속한다.</p>
+
+  <div class="legend">
+    <span><i class="swatch" style="background:#0b6e70"></i>독립 화면·확정 연결</span>
+    <span><i class="swatch" style="background:#7e8e99"></i>대화 안 컴포넌트·상태</span>
+    <span><i class="swatch" style="background:#b44e00"></i>확인 필요</span>
+    <span><svg width="16" height="16"><use href="#i-arrow"/></svg>동작 후 이동·상태 전이</span>
+  </div>
+
+  <section class="summary" aria-label="흐름도 요약">
+    <div class="metric"><b id="nodeCount">0</b><span>인벤토리 노드</span></div>
+    <div class="metric"><b id="edgeCount">0</b><span>통합 엣지</span></div>
+    <div class="metric"><b id="deadCount">0</b><span>막다른 길</span></div>
+    <div class="metric"><b id="brokenCount">0</b><span>끊긴 연결</span></div>
+    <div class="metric"><b id="pendingCount">0</b><span>확인 필요</span></div>
+  </section>
+
+  <h2>채널별 노드</h2>
+  <p class="section-note">각 노드의 ID는 화면 인벤토리 접두어다. 회색 레일은 독립 라우트가 아니라 부모 채팅 그릇 안에 놓이는 카드·배너·상태다.</p>
+  <section id="channels" class="channels"></section>
+
+  <h2>핵심 흐름과 채널 간 연결</h2>
+  <p class="section-note">전체 74개 엣지 가운데 목업에서 가장 먼저 확인해야 할 예약·마감 후 상담·인계·3-A 재진입·품질 환류 연결을 펼쳐 보인다.</p>
+  <section id="keyFlows" class="flow-list"></section>
+
+  <h2>통합 NAV 표</h2>
+  <p class="section-note">앱 9개, 웹 7개, 직원 12개, 관리자 12개, 카드 버튼 16개를 원문 단위로 통합하고 채널 간 7개, 보완 연결 5개, 결정 R2-3A 연결 6개를 더했다. 한 행을 엣지 1개로 센다.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>면</th><th>출발</th><th>동작</th><th>도착</th><th>뒤로가기·예외</th><th>근거·출처</th><th>상태</th></tr></thead>
+      <tbody id="navRows"></tbody>
+    </table>
+  </div>
+
+  <h2>검증 결과</h2>
+  <section class="verification">
+    <div class="verify-grid">
+      <article class="verify-card"><h3><svg><use href="#i-check"/></svg>막다른 길</h3><strong>0</strong><p class="section-note"><code>BADRPT-FORM</code>은 저장 완료·취소 후 왔던 화면으로 복귀한다.</p></article>
+      <article class="verify-card"><h3><svg><use href="#i-check"/></svg>끊긴 연결</h3><strong>0</strong><p class="section-note"><code>QUALITY-REPORT</code> 교정은 <code>BADINBOX-REVIEW</code>에 도착한다.</p></article>
+      <article class="verify-card"><h3><svg><use href="#i-check"/></svg>확인 필요</h3><strong>9</strong><p class="section-note">결정 회의에서 닫힌 항목을 빼고 C·D 미결 9항목을 센다.</p></article>
+    </div>
+    <ol class="issue-list" id="pendingIssues"></ol>
+    <div class="checkline">환자 노출 라벨 점검: 금지된 취소 확정 암시 표현 0건. 마감 후 경로는 `상담(직원 확인)으로 연결`과 `아직 예약은 유지되고 있습니다`로만 표기했다.</div>
+    <p class="footnote">계수 기준: 노드는 인벤토리 §1~§4의 53행과 결정 R2-3A의 화면 내부 상담 경계 2개를 합친 55개, 엣지는 통합 NAV 표의 74행이다. 운영체제 전화 앱·CSV 파일·기존 예약/인증 화면은 상담봇 노드 수에서 제외한 외부 확정 경로다. 카드·배너·상담 경계는 부모 그릇의 출구를 상속하므로 별도 막다른 길로 세지 않는다. 미결 연결은 인벤토리 §6 번호를 기준으로 중복 제거했다.</p>
+  </section>
+</main>
+
+<script>
+const nodes = [
+  ['app','CHAT-TAB','하단 5번째 탭','screen'],['app','CHAT-ROOM','독립 상담 채팅','screen'],['app','CHAT-STAFF-END','직원 상담 종료 경계·AI 재진입 분기','component'],['app','CHAT-AI-EXPIRED','AI 상담 30분 무활동 만료·재열기 분기','component'],['app','CCARD-TIME','시간선택 카드','component'],['app','CCARD-BOOKCONF','예약확인 카드','component'],['app','CCARD-BOOKDONE','예약완료 카드','component'],['app','CCARD-CANCELCONF','취소확인 카드','component'],['app','CCARD-CANCELDONE','취소결과 카드','component'],['app','CCARD-CANCELREJ','취소반려 카드','component'],['app','CCARD-QNR','사전문진 카드','component'],['app','CCARD-QUICK','빠른답변 묶음','component'],['app','CHAT-GUIDE','진료과 추천 배너','component'],['app','CHAT-HANDOFF','인계 상태 배지','component'],['app','BOOKBOT-SHEET','예약 중 상담 시트','screen'],['app','LATEFLOW-POP','마감 후 안내 팝업','screen'],['app','LATEFLOW-CHAT','예약 맥락 상담','screen'],['app','LATEFLOW-APPT','연결 후 예약 상세 상태','screen'],['app','CHAT-HISTORY','이전 상담 목록','screen'],['app','CHAT-OUTAGE','AI 장애 상태','component'],['app','CHAT-URGENT','긴급 안내 상태','component'],
+  ['web','WEBCHAT-LAUNCH','웹 런처','screen'],['web','WEBCHAT-ROOM','웹 채팅 위젯','screen'],['web','WEBCARD-TIME','웹 시간선택 카드','component'],['web','WEBCARD-BOOKCONF','웹 예약확인 카드','component'],['web','WEBCARD-BOOKDONE','웹 예약완료 카드','component'],['web','WEBCARD-CANCELCONF','웹 취소확인 카드','component'],['web','WEBCARD-CANCELDONE','웹 취소결과 카드','component'],['web','WEBCARD-CANCELREJ','웹 취소반려 카드','component'],['web','WEBCARD-QNR','웹 사전문진 카드','component'],['web','WEBCARD-QUICK','웹 빠른답변 묶음','component'],['web','WEBCHAT-GUIDE','웹 진료과 추천 배너','component'],['web','WEBCHAT-HANDOFF','웹 인계 배지','component'],['web','WEBMOD-AUTH','로그인·가입 분기','screen'],['web','WEBANON-HANDOFF','익명 인계 폼','screen'],['web','WEBCHAT-OUTAGE','웹 AI 장애','component'],['web','WEBCHAT-URGENT','웹 긴급 안내','component'],
+  ['staff','TICKET-INBOX','문의 티켓함','screen'],['staff','TICKET-DETAIL','티켓 상세','screen'],['staff','CHATLOG-LIST','전체 상담 기록','screen'],['staff','BADRPT-FORM','오답 신고 작성','screen'],['staff','PTSUP-SECT','환자 상세 상담 문의','screen'],['staff','SUPPORT-TODAY','오늘의 현황 상담 카드','screen'],['staff','SUPPORT-CAL','예약 캘린더 상담 경고','screen'],['staff','SUPPORT-PANEL','예약 사이드패널 처리','screen'],
+  ['admin','KBADM-LIST','안내자료 목록','screen'],['admin','KBADM-EDITOR','안내자료 편집·승인','screen'],['admin','KBADM-HISTORY','안내자료 수정이력','screen'],['admin','UNRES-CLUSTER','미해결 질문 모음','screen'],['admin','BADINBOX-REVIEW','오답 신고 처리함','screen'],['admin','QUALITY-REPORT','상담 품질 리포트','screen'],['admin','QAEX-LIST','참고 예시 관리','screen'],['admin','QTOP-RANK','전체 질문 순위','screen'],['admin','BOTSTAT-DASH','상담봇 처리 현황','screen'],['admin','BOTOPS-HOURS','운영시간·특정일 변경','screen']
+];
+
+const edges=[];
+function edge(id,channel,from,action,to,back,basis,status='확정',source=''){edges.push({id,channel,from,action,to,back,basis,status,source});}
+
+edge('NAV-CHATAPP-01','앱','CHAT-TAB','탭 선택','CHAT-ROOM','5번째 탭, FAB 아님','결정로그 L69–77','확정','chatbot-app.md');
+edge('NAV-CHATAPP-02','앱','예약 2단계','어느 과인지 모르겠어요','BOOKBOT-SHEET','닫기=2단계, 과 확정=3단계','NAV-BOOK-06~08','확정','chatbot-app.md');
+edge('NAV-CHATAPP-03','앱','CCARD-BOOKCONF','신청 성공','CCARD-BOOKDONE','문진 또는 홈','BOOK-DONE-01~07','확정','chatbot-app.md');
+edge('NAV-CHATAPP-04','앱','CCARD-TIME·BOOKCONF','슬롯 충돌','CCARD-TIME','처음부터 되돌리지 않음','BOOK-RACE-01~09','확정','chatbot-app.md');
+edge('NAV-CHATAPP-05','앱','예약 상세','마감 후 취소·변경','LATEFLOW-POP','닫기=상세, 상담 뒤로=상세','NAV-APPT-14~16','확정','chatbot-app.md');
+edge('NAV-CHATAPP-06','앱','LATEFLOW-POP','상담 채팅 연결','LATEFLOW-CHAT','즉시 기록·배지, 추가 확인 카드 없음','CANCEL-LATE-10~13; 결정 A1','확정','chatbot-app.md');
+edge('NAV-CHATAPP-07','앱','LATEFLOW-APPT','상담 이어가기','LATEFLOW-CHAT','새 기록 없음','APPT-BTN-09','확정','chatbot-app.md');
+edge('NAV-CHATAPP-08','앱','취소 반려 알림','알림 선택','예약 상세','확인 전 유지, 확인 후 QR 복귀','CANCEL-REJ-01~07','확정','chatbot-app.md');
+edge('NAV-CHATAPP-09','앱','직원 답변 푸시','푸시 선택','CHAT-ROOM','콜드스타트 뒤로=CHAT-HISTORY','결정 B1','확정','chatbot-app.md');
+
+edge('NAV-WEBCHAT-01','웹','WEBCHAT-LAUNCH','런처 선택','WEBCHAT-ROOM','익명 세션 복원','인벤토리 §5(10)','확정','chatbot-web.md');
+edge('NAV-WEBCHAT-02','웹','WEBCHAT-ROOM','로그인 필요 행동','WEBMOD-AUTH','선택·대화 문맥 보존','옛 스펙 L280','확정','chatbot-web.md');
+edge('NAV-WEBCHAT-03','웹','WEBMOD-AUTH','닫기','WEBCHAT-ROOM','원래 행동 미실행','인벤토리 §5(10)','확정','chatbot-web.md');
+edge('NAV-WEBCHAT-04','웹','WEBMOD-AUTH','로그인·가입 완료','원래 행동','가입 완료 복귀 방식 확인 필요','인벤토리 §6(9)','확인 필요','chatbot-web.md');
+edge('NAV-WEBCHAT-05','웹','WEBANON-HANDOFF','연락정보 제출 성공','WEBCHAT-HANDOFF','같은 위젯으로 복귀','인벤토리 §5(11)','확정','chatbot-web.md');
+edge('NAV-WEBCHAT-06','웹','익명 세션','재방문','WEBCHAT-ROOM·앱 로그인 안내','같은 브라우저만 토큰 복원','옛 스펙 L264','확정','chatbot-web.md');
+edge('NAV-WEBCHAT-07','웹','웹 취소·변경','마감 후 진입','확인 필요','앱 전용 화면 복제 금지','인벤토리 §6(6)','확인 필요','chatbot-web.md');
+
+edge('NAV-STFSUP-01','직원','오늘의 현황','일반 상담 카드 선택','TICKET-INBOX','뒤로=/today','NAV-STFSUP-01','확정','chatbot-staff.md');
+edge('NAV-STFSUP-02','직원','TICKET-INBOX','티켓 행 선택','TICKET-DETAIL','목록 상태 복원 확인 필요','인벤토리 §6(11)','확인 필요','chatbot-staff.md');
+edge('NAV-STFSUP-03','직원','TICKET-DETAIL','답변 완료','환자 채팅방·알림','직원 목록 자동 이동 확인 필요','요구사항 L209·L514','확인 필요','chatbot-staff.md');
+edge('NAV-STFSUP-04','직원','TICKET-DETAIL','의료판단 재배정','TICKET-DETAIL','같은 상세 유지','TICKET-DETAIL-REASSIGN-02','확정','chatbot-staff.md');
+edge('NAV-STFSUP-05','직원','CHATLOG-LIST','봇 답변 근거 선택','근거 자료 표시','표시 그릇·뒤로 확인 필요','인벤토리 §6(11)','확인 필요','chatbot-staff.md');
+edge('NAV-STFSUP-06','직원','봇 답변','잘못된 답변 선택','BADRPT-FORM','왔던 화면·스크롤 위치 기억','결정 B2','확정','chatbot-staff.md');
+edge('NAV-STFSUP-07','직원','PTSUP-SECT','상담 카드 선택','티켓·대화 맥락','상세 방식 확인 필요','인벤토리 §6(11)','확인 필요','chatbot-staff.md');
+edge('NAV-STFSUP-08','직원','오늘의 현황','취소 상담 카드 선택','SUPPORT-CAL','전용 취소 대기열 금지','정본 §1(13)','확정','chatbot-staff.md');
+edge('NAV-STFSUP-09','직원','SUPPORT-CAL','경고 예약 선택','SUPPORT-PANEL','같은 캘린더 안','CAL-PANEL-01','확정','chatbot-staff.md');
+edge('NAV-STFSUP-10','직원','SUPPORT-PANEL','대화 맥락 선택','TICKET-DETAIL','같은 예약 재열기 방식 확인 필요','인벤토리 §6(11)','확인 필요','chatbot-staff.md');
+edge('NAV-STFSUP-11','직원','SUPPORT-PANEL','처리 완료·반려','SUPPORT-CAL','캘린더 최신 상태 유지','SUPPORT-PANEL-DONE-01','확정','chatbot-staff.md');
+edge('NAV-STFSUP-12','직원','직원 상담 화면','세션 만료·권한 오류','직원 로그인·권한 거절','환자 정보 미노출','NAV-SHELL-05·08','확정','chatbot-staff.md');
+
+edge('NAV-ADM-01','관리자','KBADM-LIST','새 안내자료','KBADM-EDITOR','저장만으로 공개 안 됨','요구사항 L190·L200','확정','chatbot-admin.md');
+edge('NAV-ADM-02','관리자','KBADM-LIST','자료 행 선택','KBADM-EDITOR','조회 실패를 새 자료로 전환 금지','요구사항 L190·L407','확정','chatbot-admin.md');
+edge('NAV-ADM-03','관리자','KBADM-EDITOR','수정이력 보기','KBADM-HISTORY','뒤로=같은 자료 편집','요구사항 L200','확정','chatbot-admin.md');
+edge('NAV-ADM-04','관리자','KBADM-HISTORY','이전 버전 편집','KBADM-EDITOR','내용 prefill·별도 승인 필요','결정 A2','확정','chatbot-admin.md');
+edge('NAV-ADM-05','관리자','UNRES-CLUSTER','안내자료 추가','KBADM-EDITOR','승인 성공 뒤 반영','요구사항 L211·L409','확정','chatbot-admin.md');
+edge('NAV-ADM-06','관리자','BADINBOX-REVIEW','반영','KBADM-EDITOR·QAEX-LIST','자동 승인 금지','요구사항 L408–409','확정','chatbot-admin.md');
+edge('NAV-ADM-07','관리자','QUALITY-REPORT','교정 저장·[처리함으로 가기 ›]','BADINBOX-REVIEW','source=quality_review·반영/반려 전 상담봇 미반영','결정 B3; 인벤토리 §6(12)','확정','chatbot-admin.md');
+edge('NAV-ADM-08','관리자','QTOP-RANK','FAQ 보강','KBADM-EDITOR','승인 전 미반영','요구사항 L197·L200','확정','chatbot-admin.md');
+edge('NAV-ADM-09','관리자','BOTSTAT-DASH','숫자 카드 선택','같은 기간 상세','닫기=기간·지표 유지','STAT-DRILL-01','확정','chatbot-admin.md');
+edge('NAV-ADM-10','관리자','BOTSTAT-DASH','계약 없음·오류·오프라인','BOTSTAT-DASH','상세·CSV 이동 없음','STAT-STATE-03~04','확정','chatbot-admin.md');
+edge('NAV-ADM-11','관리자','BOTOPS-HOURS','특정 날짜 선택','BOTOPS-HOURS','저장 후 단일 원본 갱신','SCHED-EXC-01·12','확정','chatbot-admin.md');
+edge('NAV-ADM-12','관리자','관리자 10화면','뒤로·목록 복귀','각 목록','필터·기간·스크롤 확인 필요','정본 §4','확인 필요','chatbot-admin.md');
+
+edge('CARD-TIME-01','카드','CCARD-TIME','날짜 후보 선택','CCARD-TIME','날짜/시간 턴 배치 확인 필요','BOOK-TODAY-01~13','확인 필요','chatbot-card-catalog.md');
+edge('CARD-TIME-02','카드','CCARD-TIME','시간 후보 선택','CCARD-BOOKCONF','슬롯 선점 아님','BOOK-HOLD-01~03','확정','chatbot-card-catalog.md');
+edge('CARD-TIME-03','카드','CCARD-TIME','다른 날짜 고르기','CCARD-TIME','같은 예약 흐름','BOOK-TIME-07','확정','chatbot-card-catalog.md');
+edge('CARD-BOOKCONF-01','카드','CCARD-BOOKCONF','예약 신청하기','CCARD-BOOKDONE·CCARD-TIME','실패=같은 카드','BOOK-CONF-04b~09','확정','chatbot-card-catalog.md');
+edge('CARD-BOOKDONE-01','카드','CCARD-BOOKDONE','사전문진 작성하기','CCARD-QNR·문진','0문항 CTA 확인 필요','QNR-FORM-04~07','확인 필요','chatbot-card-catalog.md');
+edge('CARD-BOOKDONE-02','카드','CCARD-BOOKDONE','나중에 할게요','앱 홈','예약 유지','BOOK-DONE-06~07','확정','chatbot-card-catalog.md');
+edge('CARD-CANCELCONF-01','카드','CCARD-CANCELCONF','아니요','CHAT-ROOM','카드 잔존 표현 확인 필요','CANCEL-PRE-03','확인 필요','chatbot-card-catalog.md');
+edge('CARD-CANCELCONF-02','카드','CCARD-CANCELCONF','취소합니다','CCARD-CANCELDONE','409=최신 상태','CANCEL-PRE-03~07','확정','chatbot-card-catalog.md');
+edge('CARD-CANCELDONE-01','카드','CCARD-CANCELDONE','새로 예약하기','예약 흐름','문진 자동 복사 금지','CANCEL-DONE-03·08','확정','chatbot-card-catalog.md');
+edge('CARD-CANCELREJ-01','카드','CCARD-CANCELREJ','확인','정상 예약·QR','확인 저장 API 확인 필요','CANCEL-REJ-04~05','확인 필요','chatbot-card-catalog.md');
+edge('CARD-CANCELREJ-02','카드','CCARD-CANCELREJ','다시 문의하기','LATEFLOW-CHAT','횟수 제한 없음','CANCEL-REJ-06','확정','chatbot-card-catalog.md');
+edge('CARD-QNR-01','카드','CCARD-QNR','작성하기','문진 첫 문항','미작성 상태','CARD-QNR-01','확정','chatbot-card-catalog.md');
+edge('CARD-QNR-02','카드','CCARD-QNR','이어서 쓰기','다음 문항','서버 진행값 사용','QNR-PROG-07~09','확정','chatbot-card-catalog.md');
+edge('CARD-QNR-03','카드','CCARD-QNR','수정하기','문진 편집','진료 시작 전','CARD-QNR-02·05','확정','chatbot-card-catalog.md');
+edge('CARD-QNR-04','카드','CCARD-QNR','내용 보기','읽기 전용 문진','취소·진료중 이후','APPT-QNR-05~06','확정','chatbot-card-catalog.md');
+edge('CARD-QUICK-01','카드','CCARD-QUICK','추천 문장 선택','CHAT-ROOM','문장 그대로 환자 말풍선','결정로그 L816–818','확정','chatbot-card-catalog.md');
+edge('X-CHANNEL-01','채널 간','CHAT-HANDOFF','직원 인계 생성','TICKET-INBOX','대화 요약 5항목 전달','요구사항 L393–401','확정','통합');
+edge('X-CHANNEL-02','채널 간','WEBANON-HANDOFF','티켓 생성','TICKET-INBOX','익명 토큰·SMS 연락정보 연결','옛 스펙 L263–264','확정','통합');
+edge('X-CHANNEL-03','채널 간','TICKET-DETAIL','앱 환자 답변 완료','CHAT-ROOM','푸시 선택=해당 상담방','요구사항 L209·L514','확정','통합');
+edge('X-CHANNEL-04','채널 간','TICKET-DETAIL','익명 웹 답변 완료','WEBCHAT-ROOM','SMS 후 같은 브라우저 복원','옛 스펙 L263–264','확정','통합');
+edge('X-CHANNEL-05','채널 간','BADRPT-FORM','저장 시 오답 신고 등록','BADINBOX-REVIEW','화면 이동은 왔던 직원 화면으로 복귀','요구사항 L403–409; 결정 B2','확정','통합');
+edge('X-CHANNEL-06','채널 간','KBADM-EDITOR','자료 승인','CHAT-ROOM·WEBCHAT-ROOM','승인 자료만 답변에 반영','요구사항 L405–409','확정','통합');
+edge('X-CHANNEL-07','채널 간','BOTOPS-HOURS','운영시간 저장','CHAT-HANDOFF·WEBCHAT-HANDOFF','단일 is_open(at) 소비','SCHED-EXC-12','확정','통합');
+
+edge('FLOW-SUPPLEMENT-01','앱','CHAT-HISTORY','상담 행 선택','CHAT-ROOM','선택 대화 복원','CHAT-HISTORY-LIST-01','확정','chatbot-app.md');
+edge('FLOW-SUPPLEMENT-02','앱','CHAT-OUTAGE','예약하기·병원 전화','예약 흐름·전화 앱','장애 비상구','정본 §1(17)','확정','chatbot-app.md');
+edge('FLOW-SUPPLEMENT-03','앱','CHAT-URGENT','긴급 안내','119·응급실','일반 예약 CTA 없음','요구사항 L370–371','정상 종료','chatbot-app.md');
+edge('FLOW-SUPPLEMENT-04A','직원','BADRPT-FORM','저장 완료·취소(전체 상담 기록에서 진입)','CHATLOG-LIST','직전 필터·검색어·스크롤 위치 유지','NAV-STFSUP-06; 결정 B2; 인벤토리 §6(11)','확정','chatbot-staff.md');
+edge('FLOW-SUPPLEMENT-04B','직원','BADRPT-FORM','저장 완료·취소(티켓 상세에서 진입)','TICKET-DETAIL','직전 선택·스크롤 위치 유지','NAV-STFSUP-06; 결정 B2; 인벤토리 §6(11)','확정','chatbot-staff.md');
+
+edge('FLOW-R2-3A-01','채널 간','TICKET-DETAIL','직원 [상담 종료]','CHAT-STAFF-END','일반 [보내기]는 종료 아님·완료 티켓 재개 금지','결정로그 R2-3A; 결정회의 안건 3-A','확정','통합');
+edge('FLOW-R2-3A-02','앱','CHAT-STAFF-END','[방금 상담 이어서 AI 질문]','CHAT-ROOM','직전 직원 상담 요약을 가진 새 AI 상담','결정로그 R2-3A; 결정회의 안건 3-A','확정','chatbot-app.md');
+edge('FLOW-R2-3A-03','앱','CHAT-STAFF-END','[새 질문 시작]','CHAT-ROOM','과거 문맥 없는 새 AI 상담','결정로그 R2-3A; 결정회의 안건 3-A','확정','chatbot-app.md');
+edge('FLOW-R2-3A-04','앱','CHAT-ROOM','마지막 AI 활동 뒤 30분 무활동','CHAT-AI-EXPIRED','현재 AI 상담만 만료·대화 기록 보존','결정로그 R2-3A; 결정회의 안건 3-A','확정','chatbot-app.md');
+edge('FLOW-R2-3A-05','앱','CHAT-AI-EXPIRED','[이전 내용 이어서 질문]','CHAT-ROOM','직전 요약을 가진 새 AI 상담','결정로그 R2-3A; 결정회의 안건 3-A','확정','chatbot-app.md');
+edge('FLOW-R2-3A-06','앱','CHAT-AI-EXPIRED','[새 질문]','CHAT-ROOM','과거 문맥 없는 새 AI 상담','결정로그 R2-3A; 결정회의 안건 3-A','확정','chatbot-app.md');
+
+const pendingIssues = [
+  ['1','독립 상담방·카드 전용 레이아웃','카드 크기·말풍선과의 구분은 미확정','정본 §2·§4'],
+  ['5','빠른답변 상태 표현','생성 로딩·실패의 정확한 표현 미확정','결정로그 L800–834'],
+  ['6','웹 마감 후 취소·변경','웹 전용 진입 근거 없음','NAV-WEBCHAT-07'],
+  ['9','웹 가입 화면 경계','가입 완료 후 원래 행동 복귀 방식 미확정','NAV-WEBCHAT-04'],
+  ['11','직원 상세 열기 방식','모달·패널·route 방식은 미확정','NAV-STFSUP-02·05·07·10'],
+  ['12','관리자 품질 상세','상세 그릇은 미확정','NAV-ADM-07'],
+  ['13','의사 소개 관리','저장 칸·관리 화면·사진 저장소 미확정','BOOK-DOC-06~07'],
+  ['14','상담봇 통계 계약 없음','상세·CSV가 가능한 집계 계약 미구현','STAT-METRIC-05~06'],
+  ['15','문진 완료·0문항 표현','완료 판정 칸·문항 ID·상한 계약 미구현','QNR-STATE-07~08']
+];
+const deadEnds=[];
+const brokenLinks=[];
+
+const channelMeta={app:['환자 앱', '#i-app'],web:['웹 상담창','#i-web'],staff:['직원 웹 상담관리','#i-staff'],admin:['관리자','#i-admin']};
+const channelRoot=document.getElementById('channels');
+Object.entries(channelMeta).forEach(([key,[label,icon]])=>{
+  const list=nodes.filter(n=>n[0]===key);
+  const article=document.createElement('article'); article.className='channel';
+  article.innerHTML=`<div class="channel-head"><svg><use href="${icon}"/></svg><h3>${label}</h3><small>${list.length}개 노드</small></div><div class="node-grid">${list.map(n=>`<div class="node ${n[3]}" data-node="${n[1]}"><div class="node-id">${n[1]}</div><div class="node-title">${n[2]}</div><div class="node-meta">${n[3]==='component'?'부모 상담 그릇 안 상태':n[3]==='pending'?'잠정 컴포넌트 · 확인 필요':'독립 화면·기존 화면 확장'}</div></div>`).join('')}</div>`;
+  channelRoot.appendChild(article);
+});
+
+const keyIds=['NAV-CHATAPP-03','NAV-CHATAPP-04','NAV-CHATAPP-05','NAV-CHATAPP-06','FLOW-R2-3A-01','FLOW-R2-3A-02','FLOW-R2-3A-03','FLOW-R2-3A-04','FLOW-R2-3A-05','FLOW-R2-3A-06','FLOW-SUPPLEMENT-04A','FLOW-SUPPLEMENT-04B','X-CHANNEL-01','X-CHANNEL-02','X-CHANNEL-03','X-CHANNEL-04','X-CHANNEL-05','X-CHANNEL-06','X-CHANNEL-07','NAV-ADM-07'];
+document.getElementById('keyFlows').innerHTML=keyIds.map(id=>{const e=edges.find(x=>x.id===id);return `<article class="edge-card ${e.channel==='채널 간'?'cross':''} ${e.status==='확인 필요'?'pending':''}"><div class="edge-end">${e.from}</div><svg><use href="#i-arrow"/></svg><div class="edge-end">${e.to}</div><div class="edge-act"><span class="mono">${e.id}</span> · ${e.action}<br>${e.basis}</div></article>`}).join('');
+
+document.getElementById('navRows').innerHTML=edges.map(e=>`<tr data-edge="${e.id}"><td class="mono">${e.id}</td><td>${e.channel}</td><td>${e.from}</td><td>${e.action}</td><td>${e.to}</td><td>${e.back}</td><td>${e.basis}<br><span class="tag external">${e.source}</span></td><td><span class="tag ${e.status==='확인 필요'?'pending':''}">${e.status}</span></td></tr>`).join('');
+document.getElementById('pendingIssues').innerHTML=pendingIssues.map(i=>`<li><b>§6(${i[0]}) ${i[1]}</b> — ${i[2]} <span class="mono">${i[3]}</span></li>`).join('');
+
+document.getElementById('nodeCount').textContent=nodes.length;
+document.getElementById('edgeCount').textContent=edges.length;
+document.getElementById('deadCount').textContent=deadEnds.length;
+document.getElementById('brokenCount').textContent=brokenLinks.length;
+document.getElementById('pendingCount').textContent=pendingIssues.length;
+
+if(nodes.length!==55||edges.length!==74||deadEnds.length!==0||brokenLinks.length!==0||pendingIssues.length!==9){document.documentElement.dataset.validation='count-error';}
+if(new Set(nodes.map(n=>n[1])).size!==nodes.length||new Set(edges.map(e=>e.id)).size!==edges.length){document.documentElement.dataset.validation='duplicate-id';}
+const cssClasses=new Set();
+function collectRules(rules){for(const rule of rules){if(rule.selectorText){for(const hit of rule.selectorText.matchAll(/\.([a-zA-Z_][\w-]*)/g)){cssClasses.add(hit[1]);}}if(rule.cssRules){collectRules(rule.cssRules);}}}
+for(const sheet of document.styleSheets){collectRules(sheet.cssRules);}
+const usedClasses=new Set([...document.querySelectorAll('[class]')].flatMap(el=>[...el.classList]));
+const undefinedClasses=[...usedClasses].filter(name=>!cssClasses.has(name));
+document.documentElement.dataset.undefinedCssClasses=String(undefinedClasses.length);
+</script>
+</body>
+</html>

@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>100 · 웹 상담봇 익명 직원 인계</title>
+  <style>
+    :root {
+      --ink: #10243A;
+      --ink-muted: #5A6C7B;
+      --primary: #0B6E70;
+      --primary-dark: #075658;
+      --teal-soft: #E8F3F2;
+      --teal-line: #B9D5D4;
+      --surface: #FFFFFF;
+      --canvas: #E8EEF0;
+      --panel: #F4F7F8;
+      --line: #D6E0E4;
+      --line-strong: #AABAC2;
+      --danger: #A02F3D;
+      --danger-bg: #FFF0F1;
+      --warn: #A95313;
+      --warn-soft: #FFF7ED;
+      --info: #2C5F96;
+      --info-soft: #EEF5FC;
+      --done: #67788A;
+      --shadow-page: 0 24px 58px rgba(16, 36, 58, .12);
+      --shadow-widget: 0 24px 58px rgba(16, 36, 58, .23), 0 5px 15px rgba(16, 36, 58, .12);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--canvas); }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 9% 3%, rgba(11, 110, 112, .12), transparent 24rem),
+        var(--canvas);
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+
+    .page {
+      width: min(1540px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 38px 0 72px;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      color: var(--ink-muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .meta-number, .channel-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border: 1px solid var(--teal-line);
+      border-radius: 999px;
+      color: var(--primary);
+      background: var(--teal-soft);
+    }
+    .route { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    h1 {
+      margin: 17px 0 8px;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.12;
+      letter-spacing: -.045em;
+    }
+    h1 span { color: var(--primary); }
+    .lead {
+      max-width: 1040px;
+      margin: 0;
+      color: var(--ink-muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+    .decision-note {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      margin-top: 22px;
+      padding: 14px 16px;
+      border: 1px solid var(--teal-line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .72);
+      box-shadow: 0 8px 22px rgba(16, 36, 58, .05);
+      font-size: 12px;
+    }
+    .decision-note strong { color: var(--primary-dark); }
+    .decision-note .icon { color: var(--primary); }
+    .metric {
+      padding: 5px 9px;
+      border-radius: 7px;
+      color: var(--primary);
+      background: var(--teal-soft);
+      font: 800 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: nowrap;
+    }
+    .rule-index { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 28px; }
+    .rule {
+      padding: 4px 7px;
+      border: 1px solid var(--teal-line);
+      border-radius: 5px;
+      color: var(--primary);
+      background: var(--surface);
+      font: 760 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .section { margin-top: 30px; }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 12px;
+    }
+    .section-head h2 { margin: 0; font-size: 21px; letter-spacing: -.025em; }
+    .section-head p { margin: 4px 0 0; color: var(--ink-muted); font-size: 12px; }
+    .section-count { color: var(--ink-muted); font: 750 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .browser {
+      position: relative;
+      min-height: 750px;
+      overflow: hidden;
+      border: 1px solid #B7C6CD;
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: var(--shadow-page);
+    }
+    .browser-bar {
+      display: grid;
+      grid-template-columns: 88px 1fr 88px;
+      align-items: center;
+      height: 42px;
+      padding: 0 15px;
+      border-bottom: 1px solid var(--line);
+      background: #F8FAFB;
+    }
+    .browser-dots { display: flex; gap: 6px; }
+    .browser-dots i { width: 8px; height: 8px; border-radius: 50%; background: #BCC8CE; }
+    .address {
+      justify-self: center;
+      width: min(440px, 80%);
+      padding: 5px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink-muted);
+      background: var(--surface);
+      text-align: center;
+      font-size: 10px;
+    }
+    .browser-body {
+      min-height: 708px;
+      padding: 30px 470px 36px 34px;
+      background:
+        linear-gradient(120deg, rgba(255,255,255,.96), rgba(244,247,248,.83)),
+        repeating-linear-gradient(90deg, transparent, transparent 72px, rgba(11,110,112,.035) 73px);
+    }
+    .site-nav { display: flex; justify-content: space-between; align-items: center; color: #71828B; font-size: 10px; }
+    .site-brand { display: flex; gap: 8px; align-items: center; color: var(--ink); font-weight: 850; }
+    .site-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: #fff; background: #8AA6A7; }
+    .site-links { display: flex; gap: 18px; }
+    .site-hero { max-width: 610px; margin-top: 58px; }
+    .site-kicker { color: #7E9A9B; font-size: 10px; font-weight: 850; letter-spacing: .14em; }
+    .site-hero h3 { margin: 10px 0; color: #24404A; font-size: clamp(28px, 3vw, 44px); line-height: 1.17; letter-spacing: -.04em; }
+    .site-hero p { max-width: 520px; color: #72838B; font-size: 13px; }
+    .site-card-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 42px; }
+    .site-card { min-height: 112px; padding: 16px; border: 1px solid #DFE6E9; border-radius: 12px; color: #7B8A91; background: rgba(255,255,255,.76); font-size: 10px; }
+    .site-card b { display: block; margin-bottom: 7px; color: #536971; font-size: 12px; }
+
+    .widget {
+      position: absolute;
+      z-index: 2;
+      top: 68px;
+      right: 28px;
+      display: flex;
+      flex-direction: column;
+      width: 410px;
+      height: 650px;
+      overflow: hidden;
+      border: 1px solid rgba(16, 36, 58, .18);
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: var(--shadow-widget);
+    }
+    .widget-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 62px;
+      padding: 10px 13px;
+      color: #fff;
+      background: var(--primary);
+    }
+    .bot-mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(255,255,255,.42);
+      border-radius: 12px;
+    }
+    .widget-title { flex: 1; }
+    .widget-title strong, .widget-title span { display: block; }
+    .widget-title strong { font-size: 14px; }
+    .widget-title span { margin-top: 1px; color: rgba(255,255,255,.78); font-size: 10px; }
+    .icon-button {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border: 0;
+      border-radius: 9px;
+      color: #fff;
+      background: rgba(255,255,255,.08);
+    }
+    .session-strip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 13px;
+      border-bottom: 1px solid var(--teal-line);
+      color: var(--primary-dark);
+      background: var(--teal-soft);
+      font-size: 10px;
+      font-weight: 750;
+    }
+    .widget-body { flex: 1; overflow: auto; padding: 14px; background: var(--panel); }
+    .message { max-width: 83%; margin-bottom: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 5px 13px 13px; background: #fff; font-size: 11px; line-height: 1.55; }
+    .message.patient { margin-left: auto; border-color: var(--teal-line); border-radius: 13px 5px 13px 13px; background: var(--teal-soft); }
+    .handoff-gate {
+      margin-top: 13px;
+      overflow: hidden;
+      border: 1px solid var(--teal-line);
+      border-radius: 13px;
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(16,36,58,.07);
+    }
+    .gate-head { display: flex; gap: 9px; align-items: center; padding: 11px 12px; border-bottom: 1px solid var(--line); background: #FBFCFD; }
+    .gate-head .icon { color: var(--primary); }
+    .gate-head b { display: block; font-size: 12px; }
+    .gate-head span { display: block; color: var(--ink-muted); font-size: 9px; }
+    .gate-body { padding: 12px; }
+    .gate-copy { margin: 0 0 11px; color: var(--ink-muted); font-size: 10px; line-height: 1.55; }
+    .gate-copy strong { color: var(--ink); }
+    .field { margin-top: 11px; }
+    .label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .label-row label { font-size: 10px; font-weight: 850; }
+    .optional { padding: 2px 6px; border-radius: 999px; color: var(--primary); background: var(--teal-soft); font-size: 8px; font-weight: 850; }
+    .field input { width: 100%; height: 38px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: #fff; font-size: 11px; outline: none; }
+    .field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(11,110,112,.12); }
+    .help { display: flex; gap: 6px; margin-top: 5px; color: var(--ink-muted); font-size: 8.5px; line-height: 1.45; }
+    .help .icon { flex: none; width: 13px; height: 13px; color: var(--primary); }
+    .privacy { display: flex; gap: 7px; margin-top: 11px; padding: 8px; border-left: 3px solid var(--primary); border-radius: 5px; color: var(--ink-muted); background: var(--teal-soft); font-size: 8.5px; }
+    .privacy .icon { flex: none; width: 14px; height: 14px; color: var(--primary); }
+    .primary-button { width: 100%; height: 40px; margin-top: 12px; border: 0; border-radius: 8px; color: #fff; background: var(--primary); font-size: 11px; font-weight: 850; }
+    .text-button { width: 100%; height: 30px; border: 0; color: var(--ink-muted); background: transparent; font-size: 9.5px; font-weight: 750; }
+
+    .gate-map {
+      position: absolute;
+      left: 34px;
+      bottom: 38px;
+      display: grid;
+      grid-template-columns: minmax(170px, 220px) 34px minmax(210px, 250px);
+      align-items: stretch;
+      width: min(600px, calc(100% - 540px));
+    }
+    .gate-source, .gate-target { padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.92); box-shadow: 0 8px 22px rgba(16,36,58,.06); }
+    .gate-source b, .gate-target b { display: block; font-size: 11px; }
+    .gate-source span, .gate-target span { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 9.5px; }
+    .source-row { display: grid; grid-template-columns: 1fr; gap: 7px; margin-top: 9px; }
+    .source-chip { display: flex; gap: 7px; align-items: center; padding: 7px 8px; border-radius: 7px; background: var(--panel); font-size: 9px; font-weight: 750; }
+    .source-chip .icon { width: 14px; height: 14px; color: var(--primary); }
+    .gate-arrow { display: grid; place-items: center; color: var(--primary); }
+    .gate-target { border-color: var(--teal-line); background: var(--teal-soft); }
+    .gate-target strong { color: var(--primary-dark); }
+
+    .handoff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .branch-card { overflow: hidden; border: 1px solid #B7C6CD; border-radius: 15px; background: #fff; box-shadow: 0 10px 26px rgba(16,36,58,.07); }
+    .branch-head { display: flex; justify-content: space-between; gap: 12px; padding: 15px 16px; border-bottom: 1px solid var(--line); background: #FBFCFD; }
+    .branch-head h3 { margin: 0; font-size: 15px; }
+    .branch-head p { margin: 3px 0 0; color: var(--ink-muted); font-size: 10px; }
+    .branch-label { align-self: start; padding: 4px 8px; border-radius: 999px; color: var(--primary); background: var(--teal-soft); font-size: 9px; font-weight: 850; white-space: nowrap; }
+    .branch-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(190px, .8fr); gap: 12px; padding: 14px; }
+    .mini-widget { overflow: hidden; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff; }
+    .mini-widget-head { display: flex; justify-content: space-between; align-items: center; padding: 9px 11px; color: #fff; background: var(--primary); font-size: 10px; font-weight: 850; }
+    .mini-widget-head span { display: block; color: rgba(255,255,255,.76); font-size: 8px; font-weight: 650; }
+    .mini-widget-head .icon { width: 15px; height: 15px; }
+    .mini-widget-body { min-height: 230px; padding: 11px; background: var(--panel); }
+    .status-banner { padding: 9px 10px; border: 1px solid var(--teal-line); border-left: 3px solid var(--primary); border-radius: 7px; background: var(--teal-soft); font-size: 9px; }
+    .status-banner strong { display: block; color: var(--primary-dark); font-size: 10px; }
+    .status-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 9px; }
+    .status-step { padding: 6px 4px; border-radius: 6px; color: var(--ink-muted); background: #E7ECEE; text-align: center; font-size: 7.5px; font-weight: 800; }
+    .status-step.active { color: #fff; background: var(--primary); }
+    .mini-message { max-width: 83%; margin-top: 10px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 5px 10px 10px; background: #fff; font-size: 8.5px; }
+    .mini-message.staff { border-color: var(--teal-line); }
+    .sender-line { display: block; margin-bottom: 3px; color: var(--primary); font-size: 7.5px; font-weight: 850; }
+    .branch-explain { display: flex; flex-direction: column; gap: 8px; }
+    .explain-item { display: flex; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink-muted); background: #fff; font-size: 9px; }
+    .explain-item .icon { flex: none; width: 16px; height: 16px; color: var(--primary); }
+    .explain-item strong { display: block; margin-bottom: 2px; color: var(--ink); }
+    .sms-preview { padding: 10px; border: 1px solid var(--teal-line); border-radius: 9px; background: var(--teal-soft); font-size: 8.5px; }
+    .sms-preview strong { display: flex; gap: 6px; align-items: center; color: var(--primary-dark); font-size: 9px; }
+    .sms-preview .icon { width: 14px; height: 14px; }
+    .launcher-stage { position: relative; min-height: 78px; padding: 21px 10px 10px; border: 1px dashed var(--line-strong); border-radius: 9px; background: var(--panel); }
+    .mini-launcher { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px 8px 8px; border: 0; border-radius: 999px; color: #fff; background: var(--primary); font-size: 9px; font-weight: 850; box-shadow: 0 7px 16px rgba(11,110,112,.25); }
+    .mini-launcher-mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,.14); }
+    .mini-launcher .icon { width: 14px; height: 14px; }
+    .unread-dot { position: absolute; top: 15px; left: 118px; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 1px rgba(160,47,61,.15); }
+
+    .state-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+    .state-card { overflow: hidden; border: 1px solid #B7C6CD; border-radius: 12px; background: #fff; }
+    .state-card h3 { margin: 0; padding: 10px 11px; border-bottom: 1px solid var(--line); background: #FBFCFD; font-size: 11px; }
+    .state-body { min-height: 210px; padding: 10px; color: var(--ink-muted); font-size: 9px; }
+    .mini-field { margin-bottom: 8px; }
+    .mini-label { display: flex; justify-content: space-between; margin-bottom: 3px; color: var(--ink); font-size: 8px; font-weight: 850; }
+    .mini-input { min-height: 30px; padding: 7px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: #fff; }
+    .mini-input.placeholder { color: #89979E; }
+    .mini-input.error { border-color: var(--danger); background: var(--danger-bg); }
+    .error-text { margin-top: 3px; color: var(--danger); font-size: 8px; font-weight: 750; }
+    .mini-button { width: 100%; margin-top: 7px; padding: 7px; border: 1px solid var(--primary); border-radius: 6px; color: #fff; background: var(--primary); font-size: 8.5px; font-weight: 850; }
+    .mini-button.busy { border-color: #CBD6DC; color: #71828B; background: #DDE5E8; }
+    .mini-button.retry { border-color: #D8AAB0; color: var(--danger); background: #fff; }
+    .callout { padding: 9px; border-left: 3px solid var(--primary); border-radius: 5px; background: var(--teal-soft); }
+    .callout strong { display: block; color: var(--ink); }
+    .callout.error { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+    .preserved { margin-top: 8px; padding: 7px; border: 1px dashed var(--line-strong); border-radius: 6px; }
+
+    .open-question {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: center;
+      margin-top: 16px;
+      padding: 13px 14px;
+      border: 1px solid #E5C7A9;
+      border-left: 4px solid var(--warn);
+      border-radius: 10px;
+      color: #76502C;
+      background: var(--warn-soft);
+      font-size: 10px;
+    }
+    .open-question .icon { color: var(--warn); }
+    .open-question strong { display: block; color: #593719; font-size: 11px; }
+    .confirm-needed { padding: 4px 8px; border-radius: 999px; color: var(--warn); background: #fff; font-size: 9px; font-weight: 850; white-space: nowrap; }
+    .footer-note { margin: 18px 0 0; color: var(--ink-muted); font-size: 10px; line-height: 1.7; }
+    .icon { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+    @media (max-width: 1180px) {
+      .browser-body { padding-right: 440px; }
+      .gate-map { width: calc(100% - 500px); }
+      .state-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 920px) {
+      .browser { min-height: 980px; }
+      .browser-body { min-height: 938px; padding: 28px; }
+      .site-links { display: none; }
+      .widget { top: 210px; left: 50%; right: auto; transform: translateX(-50%); }
+      .gate-map { left: 24px; bottom: 22px; width: calc(100% - 48px); }
+      .handoff-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .page { width: min(100% - 24px, 1540px); padding-top: 24px; }
+      .decision-note, .open-question { grid-template-columns: auto 1fr; }
+      .metric, .confirm-needed { grid-column: 2; justify-self: start; }
+      .section-head { align-items: start; flex-direction: column; }
+      .browser { min-height: 1020px; }
+      .widget { width: min(410px, calc(100% - 28px)); }
+      .gate-map { grid-template-columns: 1fr; gap: 7px; }
+      .gate-arrow { transform: rotate(90deg); }
+      .branch-body { grid-template-columns: 1fr; }
+      .state-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 470px) {
+      .browser { min-height: 1070px; }
+      .state-grid { grid-template-columns: 1fr; }
+      .site-card-row { grid-template-columns: 1fr; }
+      .site-card-row .site-card:not(:first-child) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <defs>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v12H9l-5 3V5Z"></path><path d="M8 10h8M8 13h5"></path></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"></path></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-5 3.5-8 8-8s8 3 8 8"></path></symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24"><path d="M7 3h3l1 5-2 1.5a15 15 0 0 0 5.5 5.5l1.5-2 5 1v3c0 2-1.5 4-4 4C9 20 4 15 3 7c0-2.5 2-4 4-4Z"></path></symbol>
+      <symbol id="i-device" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"></rect><path d="M9 18h6"></path></symbol>
+      <symbol id="i-browser" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 8h18M7 6h.01M10 6h.01"></path></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path><path d="m9 12 2 2 4-5"></path></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"></path></symbol>
+      <symbol id="i-message" viewBox="0 0 24 24"><path d="M4 5h16v12H8l-4 3V5Z"></path><path d="M8 9h8M8 13h5"></path></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"></path><path d="M12 9v5M12 17h.01"></path></symbol>
+      <symbol id="i-retry" viewBox="0 0 24 24"><path d="M19 8a8 8 0 1 0 1 7"></path><path d="M19 4v4h-4"></path></symbol>
+    </defs>
+  </svg>
+
+  <main class="page">
+    <div class="meta">
+      <span class="meta-number">목업 100</span>
+      <span class="channel-badge">웹 상담창 · 익명 직원 인계</span>
+      <span class="route">homepage / chatbot-widget / anonymous-handoff</span>
+    </div>
+    <h1>직원 연결 전에 <span>답변 받을 연락처를 연결</span>한다</h1>
+    <p class="lead">이름과 전화번호를 최소 연락정보로 받는다. 전화번호는 직원 답변 문자 알림과 다른 기기 이어보기에만 쓰며, 로그인 계정이나 환자 신원으로 추측 귀속하지 않는다. 유효한 이름·연락처와 현재 대화 요약으로 티켓을 만든다.</p>
+
+    <div class="decision-note">
+      <svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg>
+      <div><strong>직원 연결의 공통 관문</strong> 업무시간의 라이브 상담과 업무시간 밖의 직원 확인 모두 이 익명 인계 폼을 먼저 거친 뒤 티켓을 만든다.</div>
+      <span class="metric">17 RULES · WEB 98 ANCHOR</span>
+    </div>
+
+    <div class="rule-index" aria-label="적용 규칙 ID">
+      <code class="rule" data-rule="WEBANON-HANDOFF-01">WEBANON-HANDOFF-01</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-02">WEBANON-HANDOFF-02</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-03">WEBANON-HANDOFF-03</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-04">WEBANON-HANDOFF-04</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-05">WEBANON-HANDOFF-05</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-06">WEBANON-HANDOFF-06</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-07">WEBANON-HANDOFF-07</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-08">WEBANON-HANDOFF-08</code>
+      <code class="rule" data-rule="WEBANON-HANDOFF-09">WEBANON-HANDOFF-09</code>
+      <code class="rule" data-rule="WEBCHAT-HANDOFF-01">WEBCHAT-HANDOFF-01</code>
+      <code class="rule" data-rule="WEBCHAT-HANDOFF-02">WEBCHAT-HANDOFF-02</code>
+      <code class="rule" data-rule="WEBCHAT-HANDOFF-03">WEBCHAT-HANDOFF-03</code>
+      <code class="rule" data-rule="WEBCHAT-HANDOFF-04">WEBCHAT-HANDOFF-04</code>
+      <code class="rule" data-rule="WEBCHAT-HANDOFF-05">WEBCHAT-HANDOFF-05</code>
+      <code class="rule" data-rule="WEBCHAT-HANDOFF-06">WEBCHAT-HANDOFF-06</code>
+      <code class="rule" data-rule="WEBCHAT-HANDOFF-07">WEBCHAT-HANDOFF-07</code>
+      <code class="rule" data-rule="WEBCHAT-LAUNCH-05">WEBCHAT-LAUNCH-05</code>
+    </div>
+
+    <section class="section" aria-labelledby="gate-title">
+      <div class="section-head">
+        <div>
+          <h2 id="gate-title">직원 연결 공통 관문</h2>
+          <p>현재 익명 대화와 요약은 유지한다. 운영시간 판정 뒤에도 라이브 연결부터 바로 시작하지 않고 이 폼을 먼저 연다.</p>
+        </div>
+        <span class="section-count">WEBANON-HANDOFF-01~05</span>
+      </div>
+
+      <div class="browser">
+        <div class="browser-bar">
+          <div class="browser-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="address">https://hospital.example</div>
+          <span></span>
+        </div>
+        <div class="browser-body">
+          <nav class="site-nav" aria-label="병원 홈페이지 예시 메뉴">
+            <div class="site-brand"><span class="site-mark">H</span><span>한결병원</span></div>
+            <div class="site-links"><span>병원 안내</span><span>진료과</span><span>의료진</span><span>예약 안내</span></div>
+          </nav>
+          <div class="site-hero">
+            <div class="site-kicker">PATIENT FIRST</div>
+            <h3>곁에 있는 진료,<br>이어지는 안심</h3>
+            <p>병원 이용 정보와 필요한 다음 단계를 상담봇에서 이어서 확인하세요.</p>
+          </div>
+          <div class="site-card-row" aria-hidden="true">
+            <div class="site-card"><b>오늘의 진료 안내</b>운영시간과 방문 전 확인사항</div>
+            <div class="site-card"><b>진료과 찾기</b>증상에 맞는 진료과 안내</div>
+            <div class="site-card"><b>오시는 길</b>주차와 대중교통 안내</div>
+          </div>
+        </div>
+
+        <aside class="widget" aria-label="익명 직원 인계 폼">
+          <header class="widget-head">
+            <span class="bot-mark"><svg class="icon" aria-hidden="true"><use href="#i-chat"></use></svg></span>
+            <div class="widget-title"><strong>AI 상담봇</strong><span>익명 상담 · 직원 연결 준비</span></div>
+            <button class="icon-button" type="button" aria-label="상담창 닫기"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button>
+          </header>
+          <div class="session-strip"><svg class="icon" aria-hidden="true"><use href="#i-browser"></use></svg><span>현재 대화와 상담 요약을 그대로 이어갑니다</span></div>
+          <div class="widget-body">
+            <div class="message">이 내용은 직원 확인이 필요합니다. 지금까지의 대화 요약과 함께 연결할게요.</div>
+            <div class="message patient">직원에게 연결해 주세요.</div>
+            <form class="handoff-gate">
+              <div class="gate-head">
+                <svg class="icon" aria-hidden="true"><use href="#i-user"></use></svg>
+                <div><b>직원 답변 받기</b><span>라이브 연결도 이 폼을 먼저 거칩니다</span></div>
+              </div>
+              <div class="gate-body">
+                <p class="gate-copy"><strong>직원 답변을 받을 이름과 전화번호를 입력해 주세요.</strong><br>전화번호는 문자 알림과 다른 기기 이어보기에만 사용합니다.</p>
+                <div class="field">
+                  <div class="label-row"><label for="name">이름</label><span>필수</span></div>
+                  <input id="name" value="김순자" autocomplete="name">
+                  <div class="help">직원이 답변 대상을 구분하는 데 사용합니다.</div>
+                </div>
+                <div class="field">
+                  <div class="label-row"><label for="phone">전화번호</label><span>필수</span></div>
+                  <input id="phone" value="010-1234-5678" inputmode="tel" autocomplete="tel" required>
+                  <div class="help"><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg><span>직원 답변 문자 알림과 다른 기기에서 상담을 이어보는 데만 사용합니다.</span></div>
+                </div>
+                <div class="privacy"><svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg><span>전화번호를 계정이나 환자 신원으로 추측해 연결하지 않습니다. 주소·주민번호는 받지 않습니다.</span></div>
+                <button class="primary-button" type="button">직원에게 연결하기</button>
+                <button class="text-button" type="button">지금은 AI 상담 계속하기</button>
+              </div>
+            </form>
+          </div>
+        </aside>
+
+        <div class="gate-map" aria-label="운영시간별 폼 진입 흐름">
+          <div class="gate-source">
+            <b>직원 연결 조건 충족</b>
+            <div class="source-row">
+              <div class="source-chip"><svg class="icon" aria-hidden="true"><use href="#i-message"></use></svg>업무시간 · 라이브 상담</div>
+              <div class="source-chip"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>업무시간 밖 · 직원 확인</div>
+            </div>
+          </div>
+          <div class="gate-arrow"><svg class="icon" aria-hidden="true"><use href="#i-arrow"></use></svg></div>
+          <div class="gate-target"><b><strong>둘 다 같은 폼을 먼저 통과</strong></b><span>이름 필수 · 전화번호 필수 · 제출 뒤 티켓 생성</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="handoff-title">
+      <div class="section-head">
+        <div>
+          <h2 id="handoff-title">제출 뒤 `WEBCHAT-HANDOFF` 운영시간 두 갈래</h2>
+          <p>티켓 생성과 연락처 연결이 성공하면 같은 상담방으로 돌아간다. 서버의 단일 운영시간 판정에 따라 현재 연결 상태 또는 다음 영업일 안내를 보여준다.</p>
+        </div>
+        <span class="section-count">WEBCHAT-HANDOFF-01~07 · WEBCHAT-LAUNCH-05</span>
+      </div>
+
+      <div class="handoff-grid">
+        <article class="branch-card">
+          <div class="branch-head">
+            <div><h3>운영시간 안</h3><p>직원 확인 상태와 문자 알림, 연락처 기반 다른 기기 이어보기</p></div>
+            <span class="branch-label">문자 알림 가능</span>
+          </div>
+          <div class="branch-body">
+            <div class="mini-widget">
+              <div class="mini-widget-head"><div>AI 상담봇<span>익명 상담 · 직원 연결</span></div><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></div>
+              <div class="mini-widget-body">
+                <div class="status-banner"><strong>상담(직원 확인)으로 연결됐습니다</strong>현재 대화방에서 직원 답변을 이어서 확인합니다.</div>
+                <div class="status-steps"><div class="status-step">대기중</div><div class="status-step active">직원 확인중</div><div class="status-step">답변완료</div></div>
+                <div class="mini-message staff"><span class="sender-line">상담 직원 · 원무팀</span>문의하신 내용을 확인하고 있습니다.</div>
+              </div>
+            </div>
+            <div class="branch-explain">
+              <div class="explain-item"><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg><div><strong>자리를 비운 동안만 자동 알림</strong>미확인 연속 직원 답변을 한 묶음 문자 1회로 보냅니다.</div></div>
+              <div class="sms-preview"><strong><svg class="icon" aria-hidden="true"><use href="#i-message"></use></svg>직원 답변이 도착했습니다</strong>문자의 이어보기 경로에서 상담을 확인할 수 있습니다.</div>
+              <div class="explain-item"><svg class="icon" aria-hidden="true"><use href="#i-device"></use></svg><div><strong>다른 기기 이어보기</strong>연결한 연락처를 이용하되 임의 계정·환자로 귀속하지 않습니다.</div></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="branch-card">
+          <div class="branch-head">
+            <div><h3>운영시간 밖</h3><p>같은 티켓을 만들고 서버가 계산한 다음 영업일 답변 안내</p></div>
+            <span class="branch-label">다음 영업일 안내</span>
+          </div>
+          <div class="branch-body">
+            <div class="mini-widget">
+              <div class="mini-widget-head"><div>AI 상담봇<span>익명 상담 · 직원 연결</span></div><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></div>
+              <div class="mini-widget-body">
+                <div class="status-banner"><strong>상담(직원 확인)으로 연결됐습니다</strong>현재 운영시간이 아닙니다. 다음 영업일에 직원이 확인합니다.</div>
+                <div class="status-steps"><div class="status-step active">대기중</div><div class="status-step">직원 확인중</div><div class="status-step">답변완료</div></div>
+                <div class="mini-message staff"><span class="sender-line">운영시간 판정</span>다음 영업일 · 8월 14일(금)에 답변을 확인해 주세요.</div>
+              </div>
+            </div>
+            <div class="branch-explain">
+              <div class="explain-item"><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg><div><strong>같은 운영시간 판정</strong>휴무·예외까지 반영한 서버의 다음 영업일 값을 그대로 표시합니다.</div></div>
+              <div class="launcher-stage">
+                <button class="mini-launcher" type="button"><span class="mini-launcher-mark"><svg class="icon" aria-hidden="true"><use href="#i-chat"></use></svg></span>AI 상담봇</button>
+                <i class="unread-dot" aria-label="새 답변 있음"></i>
+              </div>
+              <div class="explain-item"><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg><div><strong>답변 도착 알림</strong>자리를 비운 동안 답변이 오면 연결한 연락처로 알립니다.</div></div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="open-question">
+        <svg class="icon" aria-hidden="true"><use href="#i-alert"></use></svg>
+        <div><strong>다른 기기 본인확인·복원 화면</strong>전화번호를 남긴 사용자에게 연락처 기반 이어보기 경로를 제공한다. 다만 본인확인 단계와 복원 화면의 정확한 방식은 이 목업에서 새로 확정하지 않는다.</div>
+        <span class="confirm-needed">확인 필요 유지</span>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="states-title">
+      <div class="section-head">
+        <div>
+          <h2 id="states-title">폼·인계 조회 상태 7종</h2>
+          <p>이름과 전화번호는 모두 유효해야 제출할 수 있다. 폼 제출 상태와 티켓 상태 조회 상태를 나누고, 둘 다 기존 입력·대화·마지막 배지를 보존한다.</p>
+        </div>
+        <span class="section-count">WEBANON-HANDOFF-03~08</span>
+      </div>
+
+      <div class="state-grid">
+        <article class="state-card">
+          <h3>정상 · 번호 남김</h3>
+          <div class="state-body">
+            <div class="mini-field"><div class="mini-label"><span>이름</span><span>필수</span></div><div class="mini-input">김순자</div></div>
+            <div class="mini-field"><div class="mini-label"><span>전화번호</span><span>필수</span></div><div class="mini-input">010-1234-5678</div></div>
+            <button class="mini-button">직원에게 연결하기</button>
+            <p>문자 알림과 다른 기기 이어보기 목적을 칸 가까이에 알린다.</p>
+          </div>
+        </article>
+        <article class="state-card">
+          <h3>입력 오류 · 연락처 없음</h3>
+          <div class="state-body">
+            <div class="mini-field"><div class="mini-label"><span>이름</span><span>필수</span></div><div class="mini-input">김순자</div></div>
+            <div class="mini-field"><div class="mini-label"><span>전화번호</span><span>필수</span></div><div class="mini-input error placeholder">전화번호를 입력해 주세요</div><div class="error-text">직원 답변을 받을 전화번호를 입력해 주세요.</div></div>
+            <button class="mini-button busy">직원에게 연결하기</button>
+            <p>유효한 연락처가 없으면 티켓을 만들지 않는다.</p>
+          </div>
+        </article>
+        <article class="state-card">
+          <h3>입력 오류</h3>
+          <div class="state-body">
+            <div class="mini-field"><div class="mini-label"><span>이름</span><span>필수</span></div><div class="mini-input error"></div><div class="error-text">이름을 입력해 주세요.</div></div>
+            <div class="mini-field"><div class="mini-label"><span>전화번호</span><span>필수</span></div><div class="mini-input error">010-12</div><div class="error-text">전화번호 형식을 확인해 주세요.</div></div>
+            <p>두 칸 가까이에 각각 고칠 내용을 한글로 표시한다.</p>
+          </div>
+        </article>
+        <article class="state-card">
+          <h3>제출 중</h3>
+          <div class="state-body">
+            <div class="callout"><strong>직원 연결을 요청하고 있습니다</strong>아직 연결 완료나 문자 발송 완료로 표시하지 않습니다.</div>
+            <div class="preserved">이름·전화번호·대화 요약 유지</div>
+            <button class="mini-button busy">직원에게 연결하는 중</button>
+            <p>중복 티켓 생성을 막는다.</p>
+          </div>
+        </article>
+        <article class="state-card">
+          <h3>제출 실패</h3>
+          <div class="state-body">
+            <div class="callout error"><strong>직원에게 연결하지 못했습니다</strong>입력한 내용은 그대로 두었습니다.</div>
+            <div class="preserved">기존 대화와 익명 세션 유지</div>
+            <button class="mini-button retry"><svg class="icon" aria-hidden="true"><use href="#i-retry"></use></svg> 다시 시도</button>
+            <p>성공·접수·문자 발송으로 가장하지 않는다.</p>
+          </div>
+        </article>
+        <article class="state-card">
+          <h3>상태 조회 중</h3>
+          <div class="state-body">
+            <div class="callout"><strong>대기중 · 마지막 확인 상태</strong>티켓 상태를 다시 확인하고 있습니다.</div>
+            <div class="preserved">기존 대화·익명 토큰·대기중 배지 유지</div>
+            <p>조회 중이라고 새 상태로 바꾸지 않는다.</p>
+          </div>
+        </article>
+        <article class="state-card">
+          <h3>상태 조회 실패</h3>
+          <div class="state-body">
+            <div class="callout error"><strong>상담 상태를 확인하지 못했습니다</strong>답변완료로 바꾸지 않았습니다.</div>
+            <button class="mini-button retry"><svg class="icon" aria-hidden="true"><use href="#i-retry"></use></svg> 다시 조회</button>
+            <p>기존 대화와 익명 토큰을 그대로 둔다.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <p class="footer-note"><strong>노출 문구 경계:</strong> 제출 성공은 `상담(직원 확인)으로 연결됐습니다`로 말하고 같은 위젯의 `WEBCHAT-HANDOFF` 상태로 돌아간다. 근거 없는 분 단위 예상시간, 취소 완료·자동 처리·문자 발송 완료를 만들지 않는다.</p>
+  </main>
+
+  <script>
+    const expectedRules = [
+      'WEBANON-HANDOFF-01', 'WEBANON-HANDOFF-02', 'WEBANON-HANDOFF-03', 'WEBANON-HANDOFF-04', 'WEBANON-HANDOFF-05',
+      'WEBANON-HANDOFF-06', 'WEBANON-HANDOFF-07', 'WEBANON-HANDOFF-08', 'WEBANON-HANDOFF-09',
+      'WEBCHAT-HANDOFF-01', 'WEBCHAT-HANDOFF-02', 'WEBCHAT-HANDOFF-03', 'WEBCHAT-HANDOFF-04', 'WEBCHAT-HANDOFF-05',
+      'WEBCHAT-HANDOFF-06', 'WEBCHAT-HANDOFF-07', 'WEBCHAT-LAUNCH-05'
+    ];
+    const actualRules = [...document.querySelectorAll('[data-rule]')].map((node) => node.dataset.rule);
+    if (actualRules.length !== expectedRules.length || new Set(actualRules).size !== expectedRules.length || expectedRules.some((id) => !actualRules.includes(id))) {
+      document.documentElement.dataset.validation = 'rule-error';
+    }
+
+    const cssClasses = new Set();
+    function collectRules(rules) {
+      for (const rule of rules) {
+        if (rule.selectorText) {
+          for (const hit of rule.selectorText.matchAll(/\.([a-zA-Z_][\w-]*)/g)) cssClasses.add(hit[1]);
+        }
+        if (rule.cssRules) collectRules(rule.cssRules);
+      }
+    }
+    for (const sheet of document.styleSheets) collectRules(sheet.cssRules);
+    const usedClasses = new Set([...document.querySelectorAll('[class]')].flatMap((node) => [...node.classList]));
+    const undefinedClasses = [...usedClasses].filter((name) => !cssClasses.has(name));
+    document.documentElement.dataset.undefinedCssClasses = String(undefinedClasses.length);
+  </script>
+</body>
+</html>
