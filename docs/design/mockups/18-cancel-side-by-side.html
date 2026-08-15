@@ -1,0 +1,222 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .sb { width: 232px; border: 2px solid #3a3a3a; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; min-height: 420px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; position: relative; }
+  .sb-top { background: #fff; padding: 8px 11px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 800; }
+  .sb-back { color: #0B6E70; font-weight: 700; }
+  .sb-body { flex: 1; padding: 10px; }
+  .sb-card { background: #fff; border-radius: 11px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.10); margin-bottom: 8px; }
+  .sb-head { background: #0B6E70; color: #fff; padding: 10px 11px; }
+  .sb-when { font-size: 15.5px; font-weight: 800; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+  .sb-who { font-size: 10.5px; opacity: .92; margin-top: 2px; font-weight: 500; }
+  .sb-r { display: flex; padding: 8px 11px; border-bottom: 1px solid #E6EBEF; font-size: 11.5px; }
+  .sb-r:last-child { border-bottom: none; }
+  .sb-l { color: #5A6C7B; width: 52px; flex-shrink: 0; font-weight: 500; }
+  .sb-v { flex: 1; font-weight: 700; }
+  .sb-btns { display: flex; gap: 6px; padding: 9px 10px 11px; background: #fff; border-top: 1px solid #E0E7EC; }
+  .sb-b { flex: 1; text-align: center; padding: 12px 0; border-radius: 9px; font-size: 12.5px; font-weight: 800; }
+  .sb-out { border: 2px solid #0B6E70; color: #0B6E70; }
+  .sb-gray { border: 2px solid #C7D2D8; color: #5A6C7B; }
+  .sb-dim { position: absolute; inset: 0; background: rgba(16,36,58,.55); display: flex; align-items: center; justify-content: center; padding: 12px; }
+  .sb-dlg { background: #fff; border-radius: 13px; width: 100%; overflow: hidden; }
+  .sb-dtitle { font-size: 14.5px; font-weight: 800; letter-spacing: -.3px; line-height: 1.35; }
+  .sb-dtext { font-size: 11px; color: #33465A; font-weight: 500; line-height: 1.6; margin-top: 6px; }
+  .sb-recap { background: #F2F5F7; border-radius: 8px; padding: 8px 9px; margin-top: 9px; font-size: 11px; font-weight: 700; line-height: 1.5; }
+  .sb-dbtns { display: flex; gap: 6px; padding: 0 11px 12px; }
+  .sb-db { flex: 1; text-align: center; padding: 12px 0; border-radius: 8px; font-size: 12.5px; font-weight: 800; }
+  .sb-red { background: #A3231C; color: #fff; }
+  .sb-solid { background: #0B6E70; color: #fff; }
+  .sb-tel { background: #F2F5F7; border-radius: 9px; padding: 9px 10px; margin-top: 9px; display: flex; align-items: center; gap: 8px; }
+  .sb-sys { background: #E7EDEE; border-radius: 9px; padding: 9px 10px; font-size: 10.5px; font-weight: 600; color: #33465A; line-height: 1.55; text-align: center; margin-bottom: 9px; }
+  .sb-bot { background: #fff; border-radius: 11px 11px 11px 3px; padding: 10px; font-size: 11.5px; line-height: 1.6; font-weight: 500; }
+  .sb-lane { border: 1px solid #d7dee3; border-radius: 14px; padding: 14px; background: #fbfcfd; }
+  .sb-lanetitle { font-size: 14px; font-weight: 800; margin-bottom: 3px; }
+  .sb-lanesub { font-size: 11.5px; color: #5A6C7B; font-weight: 500; line-height: 1.6; margin-bottom: 12px; }
+  .sb-flow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .sb-arrow { font-size: 20px; color: #A9B6BF; font-weight: 800; }
+  .sb-step { font-size: 10px; font-weight: 800; color: #5A6C7B; letter-spacing: .3px; margin-bottom: 5px; }
+  .sb-badge { display:inline-block; font-size:9.5px; font-weight:800; padding:3px 8px; border-radius:99px; background:#E7EDEE; color:#33465A; }
+</style>
+
+<h2>화면 18 / 20 — 취소 흐름 나란히 보기</h2>
+<p class="subtitle">
+  <span style="color:#0B6E70;font-weight:700">✓ "상담 연결하기" → "상담 채팅 연결"로 수정</span> ·
+  <span style="color:#0B6E70;font-weight:700">✓ 마감 시간은 고정 숫자가 아니라 병원 설정값을 읽어 문장에 채웁니다</span>
+  <br>위: 마감 전 (A안 팝업) · 아래: 마감 후 (A안 안내 팝업 → B안 상담 화면)
+</p>
+
+<!-- ===== 마감 전 ===== -->
+<div class="sb-lane" style="margin-bottom:18px">
+  <div class="sb-lanetitle">① 마감 전 — 앱에서 바로 취소</div>
+  <div class="sb-lanesub">직원 승인 없이 <b>즉시 처리</b>됩니다. 슬롯이 곧바로 반납되어 다른 환자가 예약할 수 있게 됩니다.</div>
+  <div class="sb-flow">
+    <div>
+      <div class="sb-step">1. 예약 상세</div>
+      <div class="sb">
+        <div class="sb-top"><span class="sb-back">‹ 뒤로</span><span>예약 상세</span><span style="width:30px"></span></div>
+        <div class="sb-body">
+          <div class="sb-card">
+            <div class="sb-head"><div class="sb-when">8월 3일 (월) 오후 2:30</div><div class="sb-who">김순자 · 내과 이민호 원장</div></div>
+            <div class="sb-r"><span class="sb-l">장소</span><span class="sb-v">본관 3층</span></div>
+            <div class="sb-r"><span class="sb-l">예약번호</span><span class="sb-v">A-2413</span></div>
+          </div>
+        </div>
+        <div class="sb-btns"><div class="sb-b sb-out">시간 변경</div><div class="sb-b sb-gray">예약 취소</div></div>
+      </div>
+    </div>
+
+    <span class="sb-arrow">›</span>
+
+    <div>
+      <div class="sb-step">2. 확인 팝업</div>
+      <div class="sb">
+        <div class="sb-top"><span class="sb-back">‹ 뒤로</span><span>예약 상세</span><span style="width:30px"></span></div>
+        <div class="sb-body">
+          <div class="sb-card">
+            <div class="sb-head"><div class="sb-when">8월 3일 (월) 오후 2:30</div><div class="sb-who">김순자 · 내과 이민호 원장</div></div>
+          </div>
+        </div>
+        <div class="sb-btns"><div class="sb-b sb-out">시간 변경</div><div class="sb-b sb-gray">예약 취소</div></div>
+        <div class="sb-dim">
+          <div class="sb-dlg">
+            <div style="padding:14px 12px 11px">
+              <div class="sb-dtitle">예약을 취소할까요?</div>
+              <div class="sb-dtext">취소하면 되돌릴 수 없습니다. 다시 예약하려면 처음부터 진행해야 하고, 같은 시간이 남아 있지 않을 수 있습니다.</div>
+              <div class="sb-recap">8월 3일 (월) 오후 2:30<br>내과 이민호 원장 · 김순자</div>
+            </div>
+            <div class="sb-dbtns"><div class="sb-db sb-out">아니요</div><div class="sb-db sb-red">취소합니다</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <span class="sb-arrow">›</span>
+
+    <div>
+      <div class="sb-step">3. 취소 완료</div>
+      <div class="sb">
+        <div class="sb-top"><span class="sb-back">‹ 뒤로</span><span>예약 상세</span><span style="width:30px"></span></div>
+        <div class="sb-body">
+          <div class="sb-card">
+            <div class="sb-head" style="background:#7E8E99">
+              <span class="sb-badge" style="background:rgba(255,255,255,.25);color:#fff">취소됨</span>
+              <div class="sb-when" style="margin-top:3px">8월 3일 (월) 오후 2:30</div>
+              <div class="sb-who">김순자 · 내과 이민호 원장</div>
+            </div>
+            <div class="sb-r"><span class="sb-l">취소일시</span><span class="sb-v">7월 31일 오전 11:42</span></div>
+            <div class="sb-r"><span class="sb-l">취소한 분</span><span class="sb-v">본인</span></div>
+          </div>
+          <div style="font-size:11px;color:#5A6C7B;font-weight:600;line-height:1.6;padding:2px 2px">이 예약은 취소되었습니다. 다시 진료가 필요하시면 새로 예약해 주세요.</div>
+        </div>
+        <div class="sb-btns"><div class="sb-b" style="background:#0B6E70;color:#fff">새로 예약하기</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 마감 후 ===== -->
+<div class="sb-lane">
+  <div class="sb-lanetitle">② 마감 후 — 상담을 거쳐 직원이 처리</div>
+  <div class="sb-lanesub">앱에서 바로 취소되지 않습니다. <b>③의 버튼을 눌러야</b> 직원 웹의 취소요청 대기열에 나타나고, 직원이 승인해야 실제로 취소됩니다.</div>
+  <div class="sb-flow">
+    <div>
+      <div class="sb-step">1. 예약 상세 (동일)</div>
+      <div class="sb">
+        <div class="sb-top"><span class="sb-back">‹ 뒤로</span><span>예약 상세</span><span style="width:30px"></span></div>
+        <div class="sb-body">
+          <div class="sb-card">
+            <div class="sb-head"><div class="sb-when">8월 1일 (토) 오전 9:00</div><div class="sb-who">김순자 · 내과 이민호 원장</div></div>
+            <div class="sb-r"><span class="sb-l">장소</span><span class="sb-v">본관 3층</span></div>
+            <div class="sb-r"><span class="sb-l">예약번호</span><span class="sb-v">A-2410</span></div>
+          </div>
+        </div>
+        <div class="sb-btns"><div class="sb-b sb-out">시간 변경</div><div class="sb-b sb-gray">예약 취소</div></div>
+      </div>
+    </div>
+
+    <span class="sb-arrow">›</span>
+
+    <div>
+      <div class="sb-step">2. 안내 팝업 (다름)</div>
+      <div class="sb">
+        <div class="sb-top"><span class="sb-back">‹ 뒤로</span><span>예약 상세</span><span style="width:30px"></span></div>
+        <div class="sb-body">
+          <div class="sb-card">
+            <div class="sb-head"><div class="sb-when">8월 1일 (토) 오전 9:00</div><div class="sb-who">김순자 · 내과 이민호 원장</div></div>
+          </div>
+        </div>
+        <div class="sb-btns"><div class="sb-b sb-out">시간 변경</div><div class="sb-b sb-gray">예약 취소</div></div>
+        <div class="sb-dim">
+          <div class="sb-dlg">
+            <div style="padding:14px 12px 11px">
+              <div style="display:flex;gap:7px;align-items:flex-start;margin-bottom:7px">
+                <svg width="19" height="19" viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10" fill="#B44E00"/><path d="M12 6.3v6l3.9 2.4" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="sb-dtitle" style="color:#B44E00">취소 마감 시간이<br>지났습니다</div>
+              </div>
+              <div class="sb-dtext">진료 시작 <b>24시간 전</b>까지만 앱에서 취소할 수 있습니다. 직원 상담으로 연결해 드릴까요?</div>
+              <div class="sb-tel">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="#0B6E70" style="flex-shrink:0"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.57 3.6a1 1 0 0 1-.25 1z"/></svg>
+                <div>
+                  <div style="font-size:9px;color:#5A6C7B;font-weight:700">전화로 바로 문의</div>
+                  <div style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums">02-1234-5678</div>
+                </div>
+              </div>
+            </div>
+            <div class="sb-dbtns"><div class="sb-db sb-out">닫기</div><div class="sb-db sb-solid" style="flex:1.35">상담 채팅 연결</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <span class="sb-arrow">›</span>
+
+    <div>
+      <div class="sb-step">3. 상담 화면</div>
+      <div class="sb">
+        <div class="sb-top"><span class="sb-back">‹</span><span>AI 상담</span><span style="width:30px"></span></div>
+        <div class="sb-body">
+          <div class="sb-sys">예약 취소 문의로 상담이 시작되었습니다</div>
+          <div class="sb-bot">
+            <b>8월 1일 (토) 오전 9:00</b> 내과 이민호 원장 예약은 진료 시작 24시간 전이 지나 앱에서 바로 취소할 수 없습니다.<br><br>
+            직원이 확인한 뒤 처리해 드립니다. 연결해 드릴까요?
+          </div>
+          <div style="background:#fff;border-radius:11px;padding:10px;margin-top:8px">
+            <div style="font-size:10px;color:#5A6C7B;font-weight:700;margin-bottom:5px">취소하려는 예약</div>
+            <div style="font-size:11.5px;font-weight:800;line-height:1.5">8월 1일 (토) 오전 9:00<br>내과 이민호 원장 · 김순자</div>
+            <div style="font-size:10px;color:#5A6C7B;font-weight:500;margin-top:6px;line-height:1.5">누르면 담당 직원에게 연결됩니다.<br>바로 취소되지는 않습니다.</div>
+            <div style="background:#0B6E70;color:#fff;text-align:center;padding:10px;border-radius:8px;font-size:11.5px;font-weight:800;margin-top:8px">네, 상담으로 연결해 주세요</div>
+            <div style="text-align:center;padding:8px;font-size:11px;font-weight:700;color:#5A6C7B">아니요, 그냥 갈게요</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <span class="sb-arrow">›</span>
+
+    <div>
+      <div class="sb-step">4. 연결 완료</div>
+      <div class="sb">
+        <div class="sb-top"><span class="sb-back">‹</span><span>AI 상담</span><span class="sb-badge" style="background:#FCEEDE;color:#B44E00">대기중</span></div>
+        <div class="sb-body">
+          <div class="sb-bot" style="margin-bottom:9px">
+            상담으로 연결해 드렸습니다. 담당 직원이 내용을 확인한 후 안내해 드립니다(영업시간 외엔 다음 영업일).
+          </div>
+          <div class="sb-sys">업무시간에는 곧, 업무시간이 아니면 다음 영업일에 직원이 답변드려요.<br>답변이 오면 알림을 보내드릴게요</div>
+          <div style="background:#fff;border-radius:11px;padding:10px;margin-top:2px">
+            <div style="font-size:10px;color:#5A6C7B;font-weight:700;margin-bottom:4px">예약 상태</div>
+            <div style="font-size:11.5px;font-weight:800;color:#B44E00">상담 연결됨 · 직원 확인 중</div>
+            <div style="font-size:10px;color:#5A6C7B;font-weight:500;margin-top:5px;line-height:1.5">아직 예약은 유지되고 있습니다. 취소가 확정되면 알려드립니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:22px">
+  <p class="label">두 흐름의 차이 정리</p>
+  <p><b>마감 전</b>은 팝업 하나로 끝나고 예약이 <u>그 자리에서 취소</u>됩니다. <b>마감 후</b>는 팝업이 "왜 안 되는지"를 알려주는 <u>안내</u>로 바뀌고, 상담을 거쳐 <u>직원이 승인해야</u> 취소됩니다.</p>
+  <p style="margin-top:8px"><span class="label">문구가 지키는 원칙</span> 마감 후 경로 어디에도 <b>"취소 요청이 접수되었습니다"</b>가 없습니다. 스펙이 금지한 표현입니다 — 자동으로 취소될 거라 믿고 병원에 안 오면, 그건 예약 부도로 남고 다른 환자의 자리도 낭비됩니다. 그래서 4번 화면에서 <b>"아직 예약은 유지되고 있습니다"</b>를 명시적으로 말합니다.</p>
+  <p style="margin-top:8px"><span class="label">"24시간"의 정체</span> 화면에 보이는 24시간은 <b>병원이 설정한 값을 읽어온 것</b>입니다(요구사항 3.7 "예약 마감 시간"). 고객요구사항 원문은 4.3에서 <b>"병원이 정한 시간"</b>이라고만 하고 숫자를 지정하지 않았습니다. 병원이 12시간으로 바꾸면 이 화면들의 문장도 자동으로 "12시간 전"이 됩니다.</p>
+</div>

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>76 · 환자 상세 /patients/:id · PTDET</title>
+<style>
+  :root{--primary:#0B6E70;--ink:#10243A;--ink-muted:#5A6C7B;--warn:#B44E00;--warn-bg:#FFF1E4;--danger:#9E3F6E;--danger-bg:#F3E7EA;--done:#67788A;--done-bg:#F5F7F8;--bg:#F2F5F7;--surface:#fff;--divider:#E1E8EC;--soft:#F8FAFB;--teal-soft:#E7F1F1;--teal-line:#9FC6C6}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:13px;-webkit-font-smoothing:antialiased}
+  .page{max-width:1360px;margin:0 auto;padding:32px 24px 80px}h1{font-size:22px;margin:0 0 6px;font-weight:800}h2{font-size:16px;margin:34px 0 8px;font-weight:800}.sub{color:var(--ink-muted);line-height:1.75;margin:0}.sub b{color:var(--ink)}code{background:var(--done-bg);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--ink)}
+  .note{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);border-radius:8px;padding:12px 15px;margin:16px 0;line-height:1.75;color:var(--ink-muted)}.note b{color:var(--ink)}.note.w{border-left-color:var(--warn);background:var(--warn-bg)}.note.d{border-left-color:var(--danger);background:var(--danger-bg)}.note .warn{color:var(--warn);font-weight:800}.note .danger{color:var(--danger);font-weight:800}
+  .rule{display:inline-block;border-radius:4px;padding:2px 5px;background:var(--teal-soft);color:var(--primary);font-weight:800;font-size:10px;line-height:1.35;white-space:nowrap}.rule.muted{background:var(--done-bg);color:var(--done)}.rule.warn{background:var(--warn-bg);color:var(--warn)}
+  
+  .app{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(16,36,58,.05)}.top{height:42px;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--divider);font-size:11px;color:var(--ink-muted);font-weight:800}.top .brand{color:var(--ink);font-size:12px}.top .sp{flex:1}.role{padding:4px 8px;background:var(--done-bg);border-radius:99px;font-size:10px;color:var(--ink)}.top .action{border:1px solid var(--divider);border-radius:5px;padding:5px 8px;background:var(--surface);color:var(--ink);font-size:10px}.top .action.p{background:var(--primary);border-color:var(--primary);color:var(--surface)}
+  .stage{display:flex;min-height:700px}.nav{width:156px;flex:none;border-right:1px solid var(--divider);background:#FBFCFD;padding:9px 0}.nav .grp{padding:9px 13px 5px;color:var(--ink-muted);font-size:10px;font-weight:800;letter-spacing:.04em}.nav .it{display:flex;align-items:center;gap:7px;border-left:3px solid transparent;padding:7px 13px;color:var(--ink-muted);font-size:11.5px}.nav .it.on{background:var(--teal-soft);border-left-color:var(--primary);color:var(--primary);font-weight:800}.nav .it .sp{flex:1}.nav .num{color:var(--warn);font-weight:800;font-size:10px}.body{flex:1;min-width:0;padding:17px 19px 28px;background:#FCFDFD}.crumb{display:flex;align-items:center;gap:6px;color:var(--ink-muted);font-size:11px;margin-bottom:12px}.crumb b{color:var(--ink)}
+  svg.i{width:14px;height:14px;vertical-align:-3px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.i.fill{fill:currentColor;stroke:none}
+  .btn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--divider);border-radius:6px;padding:6px 10px;background:var(--surface);color:var(--ink);font-size:11px;font-weight:800;white-space:nowrap}.btn.p{background:var(--primary);border-color:var(--primary);color:var(--surface)}.btn.q{color:var(--ink-muted)}.btn.dis{background:var(--done-bg);color:#AEB9C3;border-color:var(--divider)}.btn.dg{border-color:var(--danger-bg);color:var(--danger)}
+  .hero{display:flex;gap:18px;align-items:stretch;background:var(--surface);border:1px solid var(--divider);border-radius:9px;padding:15px 16px}.hero-main{min-width:0;flex:1}.hero-title{display:flex;align-items:center;gap:8px}.hero-title h2{font-size:20px;margin:0;font-weight:800}.chip{font-size:10px;padding:3px 7px;border-radius:99px;background:var(--teal-soft);color:var(--primary);font-weight:800}.meta{color:var(--ink-muted);font-size:12px;margin-top:5px}.contact{display:flex;align-items:center;gap:9px;margin-top:11px;font-size:14px;font-weight:800}.contact .copy{font-size:10px;font-weight:800;color:var(--primary);text-decoration:underline}.hero-actions{display:flex;align-items:flex-start;gap:6px;flex:none}.quiet{font-size:10px;color:var(--ink-muted);margin-top:11px}.warnbar{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:9px 11px;background:var(--warn-bg);border:1px solid var(--warn-bg);border-radius:7px;color:var(--warn);font-size:11px;line-height:1.55}.warnbar b{color:var(--warn)}.warnbar .sp{flex:1}.warnbar .btn{padding:4px 8px;color:var(--ink)}
+  .status{display:grid;grid-template-columns:1fr 1.2fr;gap:10px;margin-top:12px}.status-card,.mini-card{background:var(--surface);border:1px solid var(--divider);border-radius:8px;padding:11px 13px}.status-card.current{border-color:var(--teal-line);background:#FBFEFE}.cap{display:flex;align-items:center;gap:7px;color:var(--ink-muted);font-size:10.5px;font-weight:800;margin-bottom:6px}.cap .sp{flex:1}.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:99px;background:var(--teal-soft);color:var(--primary);font-size:10px;font-weight:800}.badge.gray{background:var(--done-bg);color:var(--done)}.badge.warn{background:var(--warn-bg);color:var(--warn)}.status-title{font-weight:800;font-size:14px}.status-detail{font-size:11.5px;color:var(--ink-muted);margin-top:5px}.status-detail b{color:var(--ink)}.summary-list{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.summary-cell{padding:7px 8px;background:var(--soft);border-radius:6px}.summary-cell .k{display:block;font-size:10px;color:var(--ink-muted);margin-bottom:3px}.summary-cell .v{font-size:11.5px;font-weight:800}
+  .anchor{display:flex;align-items:center;gap:5px;margin:15px 0 10px;padding:8px 9px;border-bottom:1px solid var(--divider);overflow:auto}.anchor .a{padding:5px 7px;background:var(--soft);border:1px solid var(--divider);border-radius:5px;color:var(--ink-muted);font-size:10.5px;font-weight:800;white-space:nowrap}.anchor .a.on{background:var(--primary);border-color:var(--primary);color:var(--surface)}.anchor .sp{flex:1;min-width:3px}
+  .grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:18px}.col{display:flex;flex-direction:column;gap:18px}.section{background:var(--surface);border:1px solid var(--teal-line);border-radius:8px;overflow:hidden;box-shadow:0 5px 16px rgba(16,36,58,.08)}.section-hd{display:flex;align-items:center;gap:7px;padding:10px 12px;border-bottom:1px solid var(--divider);background:#FBFCFD}.section-hd h3{font-size:12.5px;margin:0;font-weight:800}.section-hd .sp{flex:1}.section-bd{padding:10px 12px}.count{font-size:10px;color:var(--ink-muted)}.row{display:flex;align-items:flex-start;gap:9px;padding:9px 3px;border-bottom:1px solid var(--divider);font-size:11.5px}.row:last-child{border-bottom:0}.date{width:50px;flex:none;color:var(--ink-muted);font-size:10px;line-height:1.4}.date b{display:block;color:var(--ink);font-size:12px}.row-main{flex:1;min-width:0}.row-main b{font-weight:800}.row-sub{color:var(--ink-muted);font-size:10.5px;margin-top:3px;line-height:1.5}.row .right{flex:none;text-align:right}.status-label{display:inline-block;padding:3px 6px;border-radius:4px;background:var(--teal-soft);color:var(--primary);font-size:10px;font-weight:800}.status-label.gray{background:var(--done-bg);color:var(--done)}.status-label.warn{background:var(--warn-bg);color:var(--warn)}.currentline{background:#F7FCFC;border:1px solid #D7EBEB;border-radius:6px;padding:8px 9px;margin-bottom:7px}.currentline .ribbon{font-size:10px;color:var(--primary);font-weight:800;margin-bottom:4px}.more{display:block;text-align:center;color:var(--primary);font-size:10.5px;font-weight:800;padding:7px 2px 1px}.empty{border:1px dashed var(--divider);border-radius:6px;padding:14px 10px;text-align:center;color:var(--ink-muted);font-size:11px;line-height:1.6}.empty .btn{margin-top:7px}
+  .qrow{display:grid;grid-template-columns:86px 1fr;gap:8px;padding:8px 3px;border-bottom:1px solid var(--divider);font-size:11px}.qrow:last-child{border-bottom:0}.qrow .q{color:var(--ink-muted)}.qrow .ans{font-weight:800}.access{padding:10px;border:1px solid var(--danger-bg);border-radius:6px;background:var(--danger-bg);color:var(--danger);font-size:11px;line-height:1.6}.access b{color:var(--danger)}.record{padding:8px 3px;border-bottom:1px solid var(--divider)}.record:last-child{border-bottom:0}.record .rhead{display:flex;align-items:center;gap:6px}.record .rhead .sp{flex:1}.record .rmeta{color:var(--ink-muted);font-size:10.5px;margin-top:4px}.record .diagnosis{margin-top:5px;font-size:11px}.record .diagnosis b{font-weight:800}.family{display:flex;align-items:center;gap:9px;padding:9px 3px;border-bottom:1px solid var(--divider)}.family:last-child{border-bottom:0}.family .avatar{width:28px;height:28px;border-radius:50%;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;color:var(--primary);font-weight:800;font-size:11px}.family .sp{flex:1}.family .name{font-size:11.5px;font-weight:800}.family .rel{font-size:10.5px;color:var(--ink-muted);margin-top:2px}.ticket{padding:9px 3px;border-bottom:1px solid var(--divider)}.ticket:last-child{border-bottom:0}.ticket .thead{display:flex;align-items:center;gap:6px}.ticket .thead .sp{flex:1}.ticket .question{font-size:11.5px;font-weight:800;margin-top:5px}.ticket .answer{font-size:10.5px;color:var(--ink-muted);line-height:1.55;margin-top:4px}.note-row{display:flex;gap:8px;padding:9px 3px;border-bottom:1px solid var(--divider)}.note-row:last-child{border-bottom:0}.note-row .who{color:var(--primary);font-size:10px;font-weight:800;white-space:nowrap}.note-row .txt{flex:1;min-width:0;font-size:11px;line-height:1.5}.note-row .when{color:var(--ink-muted);font-size:10px;white-space:nowrap}.addline{display:flex;align-items:center;gap:6px;padding:9px 3px 0}.addline input{width:100%;border:1px solid var(--divider);border-radius:6px;padding:7px 8px;font:inherit;font-size:11px;color:var(--ink-muted)}
+  .ids{padding:8px 11px;border-top:1px solid var(--divider);background:#FBFCFD;line-height:1.7}.ids .rule{margin:2px 2px 0 0}
+  .cmp{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.opt{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.opt.win{border-color:var(--primary);box-shadow:0 0 0 2px rgba(11,110,112,.12)}.opt.lose{opacity:.72}.opthd{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#FBFCFD;border-bottom:1px solid var(--divider);font-size:11.5px;font-weight:800}.tag{display:inline-block;padding:3px 7px;border-radius:99px;font-size:10px;font-weight:800;background:var(--done-bg);color:var(--done)}.tag.ok{background:var(--primary);color:var(--surface)}.tag.no{background:var(--danger-bg);color:var(--danger)}.optbd{padding:10px;font-size:10.5px;line-height:1.6}.mini-shell{border:1px solid var(--divider);border-radius:6px;overflow:hidden;background:var(--surface)}.mini-head{height:20px;background:var(--soft);border-bottom:1px solid var(--divider)}.mini-body{display:grid;grid-template-columns:28px 1fr;min-height:70px}.mini-nav{background:#FBFCFD;border-right:1px solid var(--divider)}.mini-main{padding:7px}.mini-line{height:7px;background:var(--divider);border-radius:3px;margin:0 0 6px}.mini-line.w{background:var(--warn-bg);width:72%}.mini-line.p{background:#BBDADA;width:84%}.verdict{padding:8px 10px;border-top:1px solid var(--divider);font-size:10.5px;line-height:1.55;background:#FBFCFD}.verdict.ok b{color:var(--primary)}.verdict.no b{color:var(--danger)}
+  .panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.panel{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.panel-hd{padding:9px 11px;border-bottom:1px solid var(--divider);font-size:12px;font-weight:800}.panel-bd{padding:11px;font-size:11px;color:var(--ink-muted);line-height:1.65}.field{margin:0 0 8px}.field label{display:block;font-size:10px;color:var(--ink-muted);font-weight:800;margin-bottom:4px}.field input,.field select{width:100%;padding:7px 8px;border:1px solid var(--divider);border-radius:5px;background:var(--surface);color:var(--ink);font:inherit;font-size:11px}.panel-ft{display:flex;justify-content:flex-end;gap:6px;padding:9px 11px;border-top:1px solid var(--divider)}
+  table.trace{width:100%;border-collapse:collapse;font-size:10.5px;background:var(--surface)}table.trace th,table.trace td{border:1px solid var(--divider);padding:7px 8px;text-align:left;vertical-align:top;line-height:1.55}table.trace th{background:#FBFCFD;color:var(--ink-muted);font-weight:800}table.trace td:first-child{white-space:nowrap;color:var(--primary);font-weight:800}
+  .foot{color:var(--ink-muted);font-size:11px;line-height:1.75;margin:10px 0}.foot b{color:var(--ink)}
+  @media(max-width:900px){.stage{display:block}.nav{width:100%;display:flex;align-items:center;gap:4px;border-right:0;border-bottom:1px solid var(--divider);overflow:auto}.nav .grp{display:none}.nav .it{white-space:nowrap}.status,.grid,.cmp,.panel-grid{grid-template-columns:1fr}.hero{display:block}.hero-actions{margin-top:12px}.summary-list{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 3.5-6 8-6s7.2 2 8 6"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></symbol>
+  <symbol id="i-fam" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c.5-3.5 2.5-5 6-5s5.5 1.5 6 5M14 16c2.8-.8 5.2.5 6 4"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M16 3v4h4M8 11h8M8 15h8M8 19h5"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></symbol>
+  <symbol id="i-record" viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h4M8 13h8M8 17h6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7M16 4l4 4M13 17l-1 4 4-1L21 15l-4-4z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 2 5"/><path d="M20 4v7h-7"/></symbol>
+</svg>
+
+<main class="page">
+  <h1>76 · <b>환자 상세</b> <code>/patients/:id</code></h1>
+  <p class="sub">환자 한 명의 기본정보·현재 상태·예약/방문·문진·완료 기록·가족·상담 문의·내부 메모를 <b>같은 상세 화면</b>에서 확인하는 직원용 목업. 새 규칙은 <b>PTDET-*</b>만 만든다.</p>
+  <div class="note"><b>설계 축</b> — 헤더에는 지금 창구에서 판단해야 할 정보(신원·연락처·가장 가까운 상태)를 고정하고, 아래에는 긴 이력과 내부 기록을 두 열로 배치한다. 목록의 전화번호·생년월일은 <code>MASK-*</code>를 따르고, 상세 진입은 조용히 감사 기록에 남긴다(<code>MASK-DETAIL-01</code>).</div>
+
+  <section class="app" aria-label="환자 상세 직원 웹 화면">
+    <header class="top">
+      <span class="brand">루나병원</span><span>직원 웹</span><span class="sp"></span>
+      <span class="role">김접수 · 접수 직원</span><span>로그아웃</span>
+      <span class="action">+ 새 예약</span><span class="action p">+ 당일 방문</span>
+    </header>
+    <div class="stage">
+      <nav class="nav" aria-label="직원 웹 메뉴">
+        <div class="grp">진료 현장</div>
+        <div class="it">오늘의 현황</div><div class="it">대기 목록</div><div class="it">예약 캘린더</div>
+        <div class="grp">환자</div>
+        <div class="it on"><svg class="i"><use href="#i-user"/></svg>환자 검색<span class="sp"></span></div>
+        <div class="grp">운영·관리</div><div class="it">안내 보내기</div><div class="it">운영 통계</div>
+      </nav>
+      <div class="body">
+        <div class="crumb"><svg class="i"><use href="#i-back"/></svg><span>환자 검색으로 돌아가기</span><span>/</span><b>환자 상세</b></div>
+
+        <section class="hero">
+          <div class="hero-main">
+            <div class="hero-title"><h2>홍길동</h2><span class="chip">본인 환자</span></div>
+            <div class="meta">1985-03-01 · 남성 · 환자 ID p1</div>
+            <div class="contact"><svg class="i"><use href="#i-phone"/></svg><span>010-1234-5678</span><span class="copy"><svg class="i"><use href="#i-copy"/></svg> 복사</span></div>
+            <div class="warnbar"><svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg><span><b>이 번호로 문자가 가지 않습니다</b> · 2026년 8월 8일 (토) 확인</span><span class="sp"></span><span class="btn q"><svg class="i"><use href="#i-edit"/></svg>번호 고치기</span></div>
+            <div class="quiet">이 상세 화면을 연 기록은 관리자 열람 기록에 남습니다. 화면에는 별도 알림을 띄우지 않습니다.</div>
+          </div>
+          <div class="hero-actions"><span class="btn q"><svg class="i"><use href="#i-fam"/></svg>가족 연결 추가</span><span class="btn q"><svg class="i"><use href="#i-edit"/></svg>전화번호 변경</span></div>
+        </section>
+
+        <section class="status" aria-label="현재 예약 요약">
+          <div class="status-card current">
+            <div class="cap"><svg class="i"><use href="#i-cal"/></svg>현재 예약 <span class="sp"></span><span class="badge">현재</span><span class="rule">PTDET-STATUS-01</span></div>
+            <div class="status-title">오늘 14:30 · 진료 대기</div>
+            <div class="status-detail"><b>내과</b> · 김의사 · 방문 이유: 감기 증상</div>
+          </div>
+          <div class="status-card">
+            <div class="cap">빠른 확인 <span class="sp"></span><span class="rule">PTDET-STATUS-02</span></div>
+            <div class="summary-list"><div class="summary-cell"><span class="k">최근 방문</span><span class="v">2026년 7월 1일 (수)</span></div><div class="summary-cell"><span class="k">예약·방문</span><span class="v">12건</span></div><div class="summary-cell"><span class="k">가족 연결</span><span class="v">1명</span></div></div>
+          </div>
+        </section>
+
+        <div class="anchor" aria-label="상세 섹션 바로가기">
+          <span class="a on">예약·방문 이력</span><span class="a">사전문진</span><span class="a">과거 진료기록</span><span class="a">가족 관계</span><span class="a">상담 문의</span><span class="a">내부 메모</span><span class="sp"></span><span class="rule muted">PTDET-LOAD-04</span>
+        </div>
+
+        <div class="grid">
+          <div class="col">
+            <section class="section" aria-label="예약·방문 이력">
+              <div class="section-hd"><svg class="i" style="color:var(--primary)"><use href="#i-cal"/></svg><h3>예약·방문 이력</h3><span class="count">12건</span><span class="sp"></span><span class="rule">PTDET-VISIT-01</span></div>
+              <div class="section-bd">
+                <div class="currentline"><div class="ribbon"><svg class="i"><use href="#i-check"/></svg> 오늘 현재 상태 · PTDET-VISIT-04</div><div class="row" style="padding:0;border:0"><div class="date"><b>2026년 8월 8일 (토)</b>14:30</div><div class="row-main"><b>내과 · 김의사</b><div class="row-sub">방문 이유: 감기 증상</div></div><div class="right"><span class="status-label">진료 대기</span></div></div></div>
+                <div class="row"><div class="date"><b>2026년 7월 1일 (수)</b>09:20</div><div class="row-main"><b>내과 · 김의사</b><div class="row-sub">완료된 진료 방문</div></div><div class="right"><span class="status-label">진료 완료</span></div></div>
+                <div class="row"><div class="date"><b>2026년 6월 19일 (금)</b>15:00</div><div class="row-main"><b>내과 · 김의사</b><div class="row-sub">환자 요청으로 취소</div></div><div class="right"><span class="status-label gray">환자 취소</span></div></div>
+                <div class="row"><div class="date"><b>2026년 5월 13일 (수)</b>10:40</div><div class="row-main"><b>내과 · 김의사</b><div class="row-sub">방문하지 않음</div></div><div class="right"><span class="status-label warn">예약 부도</span></div></div>
+                <span class="more">아래로 내리면 다음 8건을 이어서 봅니다 · PTDET-VISIT-03, PTDET-VISIT-07</span>
+              </div>
+              <div class="ids"><span class="rule">PTDET-VISIT-01</span><span class="rule">PTDET-VISIT-02</span><span class="rule">PTDET-VISIT-03</span><span class="rule">PTDET-VISIT-04</span><span class="rule">PTDET-VISIT-05</span><span class="rule">PTDET-VISIT-06</span><span class="rule">PTDET-VISIT-07</span><span class="rule">PTDET-VISIT-08</span></div>
+            </section>
+
+            <section class="section" aria-label="사전문진">
+              <div class="section-hd"><svg class="i" style="color:var(--primary)"><use href="#i-note"/></svg><h3>사전문진</h3><span class="count">2026년 7월 1일 (수) 작성</span><span class="sp"></span><span class="rule">PTDET-QNR-01</span></div>
+              <div class="section-bd">
+                <div class="access"><svg class="i" style="color:var(--danger)"><use href="#i-lock"/></svg> <b>담당 의사만 열람할 수 있습니다.</b><br>접수 직원 화면에는 작성 여부와 담당 의사 안내만 보입니다. 문진 내용은 의사 진료 화면에서 확인합니다.<br><span class="rule no" style="margin-top:5px;background:var(--danger-bg);color:var(--danger)">PTDET-QNR-03</span> <span class="rule no" style="background:var(--danger-bg);color:var(--danger)">PTDET-QNR-04</span></div>
+              </div>
+              <div class="ids"><span class="rule">PTDET-QNR-01</span><span class="rule">PTDET-QNR-02</span><span class="rule">PTDET-QNR-03</span><span class="rule">PTDET-QNR-04</span></div>
+            </section>
+
+            <section class="section" aria-label="과거 진료기록">
+              <div class="section-hd"><svg class="i" style="color:var(--primary)"><use href="#i-record"/></svg><h3>과거 진료기록</h3><span class="count">완료 3건</span><span class="sp"></span><span class="rule">PTDET-RECORD-01</span></div>
+              <div class="section-bd">
+                <div class="record"><div class="rhead"><b>2026년 7월 1일 (수) · 내과 · 김의사</b><span class="sp"></span><span class="status-label">진료 완료</span></div><div class="rmeta">진단 요약</div><div class="diagnosis"><b>감기</b> · 진료 후 안내: 충분히 휴식해 주세요.</div></div>
+                <div class="record"><div class="rhead"><b>2026년 3월 22일 (일) · 내과 · 김의사</b><span class="sp"></span><span class="status-label">진료 완료</span></div><div class="rmeta">진단 요약</div><div class="diagnosis"><b>알레르기 비염</b></div></div>
+                <div class="record"><div class="rhead"><b>2025-11-18 · 내과 · 박의사</b><span class="sp"></span><span class="status-label">진료 완료</span></div><div class="rmeta">진단 요약</div><div class="diagnosis"><b>위염 의심</b></div></div>
+                <div class="row-sub" style="padding:7px 3px 0">이 화면은 완료 기록을 읽는 곳입니다. 수정·삭제 버튼은 두지 않습니다 · <span class="rule">PTDET-RECORD-03</span> <span class="rule">PTDET-RECORD-04</span></div>
+              </div>
+              <div class="ids"><span class="rule">PTDET-RECORD-01</span><span class="rule">PTDET-RECORD-02</span><span class="rule">PTDET-RECORD-03</span><span class="rule">PTDET-RECORD-04</span><span class="rule">PTDET-RECORD-05</span></div>
+            </section>
+          </div>
+
+          <div class="col">
+            <section class="section" aria-label="가족 관계">
+              <div class="section-hd"><svg class="i" style="color:var(--primary)"><use href="#i-fam"/></svg><h3>가족 관계</h3><span class="count">활성 연결 1명</span><span class="sp"></span><span class="btn q" style="padding:4px 7px"><svg class="i"><use href="#i-plus"/></svg>가족 연결 추가</span></div>
+              <div class="section-bd">
+                <div class="family"><span class="avatar">홍</span><div><div class="name">홍길순</div><div class="rel">배우자 · 활성 연결</div></div><span class="sp"></span><span class="btn q" style="padding:4px 7px">관계 보기</span></div>
+                <div class="row-sub" style="padding:8px 3px 1px">이름과 관계만 기본 표시합니다. 가족의 전체 진료기록을 이 카드에 자동으로 펼치지 않습니다 · <span class="rule">PTDET-FAMILY-01</span> <span class="rule">PTDET-FAMILY-02</span></div>
+              </div>
+              <div class="ids"><span class="rule">PTDET-FAMILY-01</span><span class="rule">PTDET-FAMILY-02</span><span class="rule">PTDET-FAMILY-03</span><span class="rule">PTDET-FAMILY-04</span><span class="rule">PTDET-FAMILY-05</span></div>
+            </section>
+
+            <section class="section" aria-label="상담 문의">
+              <div class="section-hd"><svg class="i" style="color:var(--primary)"><use href="#i-chat"/></svg><h3>상담 문의</h3><span class="count">인계 1건</span><span class="sp"></span><span class="rule">PTDET-SUPPORT-01</span></div>
+              <div class="section-bd">
+                <div class="ticket"><div class="thead"><span class="badge warn">새 문의</span><span class="row-sub">인계 이유: 답변을 찾지 못함</span><span class="sp"></span><span class="row-sub">2026년 8월 7일 (금) 10:00</span></div><div class="question">“주차는 몇 시까지 가능한가요?”</div><div class="answer">상담봇 안내: 지하 1층 주차장을 이용할 수 있습니다. 직원 확인이 필요한 문의입니다.</div></div>
+                <div class="row-sub" style="padding:8px 3px 1px">상태는 `새 문의`·`처리 중`·`답변 완료`로 표시합니다. 답변 작성은 상담 문의 관리 화면에서 이어집니다 · <span class="rule">PTDET-SUPPORT-02</span> <span class="rule">PTDET-SUPPORT-04</span></div>
+              </div>
+              <div class="ids"><span class="rule">PTDET-SUPPORT-01</span><span class="rule">PTDET-SUPPORT-02</span><span class="rule">PTDET-SUPPORT-03</span><span class="rule">PTDET-SUPPORT-04</span><span class="rule">PTDET-SUPPORT-05</span></div>
+            </section>
+
+            <section class="section" aria-label="내부 메모">
+              <div class="section-hd"><svg class="i" style="color:var(--primary)"><use href="#i-note"/></svg><h3>내부 메모</h3><span class="count">직원 전용</span><span class="sp"></span><span class="rule">PTDET-NOTE-01</span></div>
+              <div class="section-bd">
+                <div class="note-row"><span class="who">김접수</span><span class="txt">연락처 확인 필요. 다음 방문 시 새 번호를 확인한다.</span><span class="when">2026년 8월 8일 (토) 09:42</span></div>
+                <div class="note-row"><span class="who">박관리</span><span class="txt">가족 연결 요청을 본인 확인 후 처리함.</span><span class="when">2026년 7월 12일 (일) 16:20</span></div>
+                <div class="addline"><input aria-label="내부 메모" placeholder="직원에게만 보이는 메모를 남겨 주세요"><span class="btn p"><svg class="i"><use href="#i-plus"/></svg>추가</span></div>
+              </div>
+              <div class="ids"><span class="rule">PTDET-NOTE-01</span><span class="rule">PTDET-NOTE-02</span><span class="rule">PTDET-NOTE-03</span><span class="rule">PTDET-NOTE-04</span><span class="rule">PTDET-NOTE-05</span></div>
+            </section>
+          </div>
+        </div>
+        <div class="ids" style="margin-top:12px"><b style="font-size:10.5px;color:var(--ink)">조회 상태 · 패널 · 권한</b><br><span class="rule">PTDET-HEAD-01</span><span class="rule">PTDET-HEAD-02</span><span class="rule">PTDET-HEAD-03</span><span class="rule">PTDET-HEAD-04</span><span class="rule">PTDET-HEAD-05</span><span class="rule">PTDET-HEAD-06</span><span class="rule">PTDET-STATUS-01</span><span class="rule">PTDET-STATUS-02</span><span class="rule">PTDET-STATUS-03</span><span class="rule">PTDET-STATUS-04</span><span class="rule">PTDET-STATUS-05</span><span class="rule">PTDET-ACTION-01</span><span class="rule">PTDET-ACTION-02</span><span class="rule">PTDET-ACTION-03</span><span class="rule">PTDET-ACTION-04</span><span class="rule">PTDET-ACTION-05</span><span class="rule">PTDET-ACTION-06</span><span class="rule">PTDET-LOAD-01</span><span class="rule">PTDET-LOAD-02</span><span class="rule">PTDET-LOAD-03</span><span class="rule">PTDET-LOAD-04</span></div>
+      </div>
+    </div>
+  </section>
+
+  <h2>패널 상태 — 같은 환자 상세 안에서 이어서 처리</h2>
+  <p class="sub">새 화면으로 보내지 않고 현재 환자 헤더를 유지한다. 아래는 화면을 바꾸지 않는 두 인라인 패널의 설계 상태다.</p>
+  <div class="panel-grid">
+    <section class="panel" aria-label="가족 연결 추가 패널">
+      <div class="panel-hd"><svg class="i"><use href="#i-fam"/></svg> 가족 연결 추가 <span class="rule">PTDET-ACTION-01</span> <span class="rule">PTDET-FAMILY-03</span></div>
+      <div class="panel-bd"><div class="field"><label>가족 환자 찾기 · 이름/전화번호/생년월일 중 아는 것을 입력</label><input value="홍길순"></div><div class="mini-card" style="padding:8px;margin-bottom:8px"><b style="color:var(--ink)">홍길순</b> · 1989-06-20 · 010-****-7755<br><span style="color:var(--warn);font-weight:800">동명이인 확인 후 연결합니다</span> <span class="rule">SEARCH-SAME-01</span></div><div class="field"><label>관계</label><select><option>배우자</option><option>자녀</option><option>부모</option><option>기타</option></select></div>검색 선택 후 이름·생년월일·연락처를 다시 확인하고 저장한다. 기존 연결선은 자동으로 덮어쓰지 않는다.</div>
+      <div class="panel-ft"><span class="btn q">닫기</span><span class="btn p">확인 후 연결</span></div>
+    </section>
+    <section class="panel" aria-label="전화번호 변경 패널">
+      <div class="panel-hd"><svg class="i"><use href="#i-phone"/></svg> 전화번호 변경 <span class="rule">PTDET-ACTION-02</span> <span class="rule warn">NEEDS-USER-DECISION</span></div>
+      <div class="panel-bd"><div class="field"><label>새 전화번호</label><input value="010-9876-5432"></div><div class="mini-card" style="padding:8px;margin-bottom:8px"><svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg> 새 번호로 인증번호를 보낸 뒤 변경합니다.<br><span style="color:var(--ink-muted)">인증 방법·변경 이력·Auth 동기화 계약은 병합 전 확정 필요</span></div><div class="field"><label>인증번호</label><input placeholder="6자리 인증번호"></div></div>
+      <div class="panel-ft"><span class="btn q">취소</span><span class="btn p">인증번호 보내기</span></div>
+    </section>
+  </div>
+
+  <h2>정보 배치 결정 — A/B/C</h2>
+  <div class="cmp">
+    <section class="opt lose"><div class="opthd"><span class="tag no">기각</span> ㉮ 탭만 둔다</div><div class="optbd"><div class="mini-shell"><div class="mini-head"></div><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div class="mini-line p"></div><div class="mini-line"></div><div class="mini-line"></div></div></div></div><p>문진·기록·메모를 번갈아 열어야 한다. 현재 예약과 최근 기록을 한 번에 비교할 수 없다.</p></div><div class="verdict no"><b>기각 사유</b> — 요구사항의 “한 번에”를 탭 왕복으로 약화한다.</div></section>
+    <section class="opt lose"><div class="opthd"><span class="tag no">기각</span> ㉯ 한 열로 전부 쌓기</div><div class="optbd"><div class="mini-shell"><div class="mini-head"></div><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div class="mini-line p"></div><div class="mini-line"></div><div class="mini-line"></div><div class="mini-line"></div><div class="mini-line"></div></div></div></div><p>정보는 모두 보이지만 메모·상담이 현재 상태보다 멀어지고, 창구에서 첫 화면을 읽는 시간이 늘어난다.</p></div><div class="verdict no"><b>기각 사유</b> — 운영 판단에 필요한 현재 카드가 긴 이력에 묻힌다.</div></section>
+    <section class="opt win"><div class="opthd"><span class="tag ok">추천</span> ㉰ 요약 + 2열 섹션</div><div class="optbd"><div class="mini-shell"><div class="mini-head"></div><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div class="mini-line p"></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:5px"><div><div class="mini-line"></div><div class="mini-line w"></div></div><div><div class="mini-line"></div><div class="mini-line"></div></div></div></div></div></div><p>헤더에 신원·현재 상태를 고정하고, 6개 섹션을 한 화면에서 동시에 확인한다. 긴 목록만 자체적으로 이어 받는다.</p></div><div class="verdict ok"><b>PROVISIONAL</b> — `PTDET-STATUS-*`, `PTDET-VISIT-*`, `PTDET-QNR-*`, `PTDET-RECORD-*`, `PTDET-SUPPORT-*`, `PTDET-NOTE-*`와 함께 재검토.</div></section>
+  </div>
+
+  <h2>새 규칙 추적표</h2>
+  <table class="trace">
+    <tr><th>묶음</th><th>목업에 반영된 PTDET 규칙</th><th>상태·핵심 위치</th></tr>
+    <tr><td>헤더</td><td>PTDET-HEAD-01 · 02 · 03 · 04 · 05 · 06</td><td>환자 신원/연락처/실패 표식/조용한 감사</td></tr>
+    <tr><td>현재 상태</td><td>PTDET-STATUS-01 · 02 · 03 · 04 · 05</td><td>상단 현재 예약 카드와 상태 텍스트</td></tr>
+    <tr><td>가족</td><td>PTDET-FAMILY-01 · 02 · 03 · 04 · 05</td><td>활성 연결만, 인라인 연결 패널</td></tr>
+    <tr><td>예약/방문</td><td>PTDET-VISIT-01 · 02 · 03 · 04 · 05 · 06 · 07 · 08</td><td>현재/지난 상태와 안정 정렬·이어받기</td></tr>
+    <tr><td>문진</td><td>PTDET-QNR-01 · 02 · 03 · 04</td><td>접수직원 제한 안내 상태는 NEEDS-USER-DECISION</td></tr>
+    <tr><td>진료기록</td><td>PTDET-RECORD-01 · 02 · 03 · 04 · 05</td><td>완료 진단 요약 읽기 전용</td></tr>
+    <tr><td>상담 문의</td><td>PTDET-SUPPORT-01 · 02 · 03 · 04 · 05</td><td>질문·안내·인계 이유·상태, DB 부재로 BLOCKED</td></tr>
+    <tr><td>내부 메모</td><td>PTDET-NOTE-01 · 02 · 03 · 04 · 05</td><td>직원 전용 읽기/추가</td></tr>
+    <tr><td>보조 동작</td><td>PTDET-ACTION-01 · 02 · 03 · 04 · 05 · 06</td><td>가족·전화 패널과 역할/API 경계</td></tr>
+    <tr><td>조회 상태</td><td>PTDET-LOAD-01 · 02 · 03 · 04</td><td>부분 실패·세션·뒤로/새로고침</td></tr>
+  </table>
+  <p class="foot"><b>기존 규칙 인용:</b> <code>MASK-DETAIL-01</code> · <code>MASK-TEL-02</code> · <code>ROLE-ADM-01</code> · <code>ROLE-READ-01</code> · <code>ROLE-DOC-01</code> · <code>SEARCH-*</code> · <code>NAV-SHELL-05</code> · <code>NAV-SHELL-08~11</code> · <code>EMPTY-*</code> · <code>ERR-*</code> · <code>BTN-*</code> · <code>DISP-*</code> · <code>SEND-DEAD-01</code> · <code>SEND-DEAD-08</code>. 새 `NAV-*`·`MASK-*`·`ROLE-*`·`SEARCH-*`는 만들지 않았다.</p>
+</main>
+</body>
+</html>

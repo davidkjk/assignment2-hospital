@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>67 · 진료과·의사 일정 관리 /admin/schedule</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --warn-bg:#FFF1E4; --danger:#9E3F6E; --danger-bg:#F3E7EA;
+    --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --book:#E7F1F1; --book-line:#9FC6C6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  .quote .warn{color:var(--warn);font-weight:800}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:var(--warn-bg);color:var(--warn)}
+  .tag.no{background:var(--danger-bg);color:var(--danger)}
+
+  .mini-t{font-size:12px;font-weight:800;color:var(--ink-muted);margin:0 0 8px}
+  .mini-t .n{color:var(--ink)}
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:6px 0 0}
+  .hint b{color:var(--ink)}
+  .hint.w b{color:var(--warn)}
+  .hint.d b{color:var(--danger)}
+  .hint.g b{color:var(--primary)}
+
+  svg.i{width:13px;height:13px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;
+        stroke-linecap:round;stroke-linejoin:round}
+
+  /* ── 화면 껍데기 ─────────────────────────────── */
+  .app{background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .apptop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);
+          font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .apptop .sp{flex:1}
+  .hdrbtn{border:1px solid var(--primary);border-radius:6px;padding:3px 9px;background:#fff;
+          color:var(--primary);font-size:11px;font-weight:800}
+  .body{padding:14px}
+
+  .btn{border:1px solid var(--divider);border-radius:6px;padding:4px 9px;background:#fff;
+       font-size:11px;font-weight:800;color:var(--ink);white-space:nowrap;display:inline-block}
+  .btn.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.q{color:var(--ink-muted)}
+  .btn.d{border-color:var(--danger);color:var(--danger)}
+
+  /* ── 화면 안 탭 ─────────────────────────────── */
+  /* ── 경로 캡션 — 「그릇」을 그리지 않는다(원본은 목업 69·70) ── */
+  .crumb{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:10.5px;font-weight:700;
+         color:#93A2AE;border-bottom:1px solid var(--divider);background:#FCFDFD}
+  .crumb b{color:var(--ink);font-weight:800;font-size:11px}
+  .crumb .sep{color:#C3CED6}
+  .crumb .note{margin-left:auto;font-weight:700;font-size:9.5px;color:#A9B6C0}
+  /* 의사 가로줄 — 69에서 세로→가로로 올라갔다 */
+  .drail{display:flex;gap:0;padding:0 12px;border-bottom:1px solid var(--divider);background:#fff}
+  .drail .dt{padding:7px 11px;font-size:11px;font-weight:800;color:var(--ink-muted);
+             border-bottom:2px solid transparent;white-space:nowrap}
+  .drail .dt span{display:block;font-weight:700;font-size:9px;color:#A9B6C0;margin-top:1px}
+  .drail .dt.on{color:var(--primary);border-bottom-color:var(--primary)}
+  /* 낡은 그림 표식 — ①-2절 비교안 전용 */
+  .stale{margin:6px 0 0;padding:6px 9px;border-left:3px solid var(--warn);background:var(--warn-bg);
+         font-size:10.5px;font-weight:700;color:var(--warn);border-radius:0 5px 5px 0}
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--divider);padding:0 12px}
+  .tabs .tb{padding:9px 14px;font-size:12px;font-weight:800;color:var(--ink-muted);
+            border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tabs .tb.on{color:var(--primary);border-bottom-color:var(--primary)}
+
+  /* ── 좌우 2단 ─────────────────────────────── */
+  .split{display:flex;min-height:270px}
+  .lside{width:186px;flex:none;border-right:1px solid var(--divider);padding:8px 0}
+  .lside .lh{font-size:10px;font-weight:800;color:var(--ink-muted);padding:2px 12px 6px;letter-spacing:.03em}
+  .drow{padding:7px 12px;font-size:11.5px;line-height:1.4;border-left:3px solid transparent}
+  .drow b{font-weight:800;display:block}
+  .drow span{color:var(--ink-muted);font-size:10.5px}
+  .drow.on{background:var(--book);border-left-color:var(--primary)}
+  .rside{flex:1;min-width:0;padding:10px 12px}
+  .rh{display:flex;align-items:baseline;gap:8px;margin:0 0 9px}
+  .rh b{font-size:13px;font-weight:800}
+  .rh span{font-size:11px;color:var(--ink-muted)}
+  .rh .sp{flex:1}
+
+  /* ── 주간 표(㉮) ─────────────────────────────── */
+  table.wk{width:100%;border-collapse:collapse;font-size:11px}
+  table.wk th,table.wk td{padding:6px 7px;border-bottom:1px solid var(--divider);text-align:left;
+                          white-space:nowrap;vertical-align:middle}
+  table.wk th{background:var(--done-bg);font-weight:800;color:var(--ink-muted);font-size:10px;
+              border-bottom:1px solid var(--divider)}
+  table.wk td.day{font-weight:800;width:30px}
+  table.wk tr.off td{color:#AEB9C3}
+  table.wk tr.off td.day{color:var(--ink-muted)}
+  .fld{border:1px solid #CFD8DF;border-radius:5px;padding:3px 6px;background:#fff;
+       font-size:11px;font-weight:700;display:inline-block;min-width:44px;text-align:center}
+  .fld.wide{min-width:96px}
+  .fld.dim{background:var(--done-bg);border-color:#E2E8ED;color:#AEB9C3}
+  .tilde{color:var(--ink-muted);margin:0 3px}
+  .sw{width:26px;height:15px;border-radius:99px;background:var(--primary);position:relative;display:inline-block;
+      vertical-align:-3px}
+  .sw::after{content:"";position:absolute;top:2px;left:13px;width:11px;height:11px;border-radius:99px;background:#fff}
+  .sw.off{background:#C3CDD5}
+  .sw.off::after{left:2px}
+  .offlabel{font-size:10px;font-weight:800;color:var(--ink-muted);margin-left:5px}
+
+  /* ── 요일 탭(㉯) ─────────────────────────────── */
+  .dtabs{display:flex;gap:4px;margin:0 0 12px}
+  .dtabs .d{width:30px;height:26px;border:1px solid var(--divider);border-radius:6px;display:flex;
+            align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .dtabs .d.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .dtabs .d.off{background:var(--done-bg);color:#C3CDD5}
+  .form .fr{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--divider)}
+  .form .fr:last-child{border-bottom:0}
+  .form .fl{width:104px;flex:none;font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .rad{display:inline-flex;gap:5px}
+  .rad .r{border:1px solid #CFD8DF;border-radius:5px;padding:3px 9px;font-size:11px;font-weight:700}
+  .rad .r.on{background:var(--primary);border-color:var(--primary);color:#fff}
+
+  /* ── 전체 격자(㉰) ─────────────────────────────── */
+  table.gr{width:100%;border-collapse:collapse;font-size:10.5px;table-layout:fixed}
+  table.gr th,table.gr td{border:1px solid var(--divider);padding:5px 4px;text-align:center;line-height:1.4}
+  table.gr th{background:var(--done-bg);font-weight:800;color:var(--ink-muted);font-size:10px}
+  table.gr th.who{text-align:left;width:96px}
+  table.gr td.who{text-align:left;font-weight:800;background:#fff}
+  table.gr td b{display:block;font-weight:800}
+  table.gr td span{color:var(--ink-muted);font-size:9.5px}
+  table.gr td.x{background:repeating-linear-gradient(45deg,#F5F7F8,#F5F7F8 4px,#E6EBEF 4px,#E6EBEF 8px);
+                color:var(--ink-muted);font-weight:800}
+
+  /* ── 달력(특정 날짜 변경) ─────────────────────────────── */
+  table.cal td{height:26px;font-weight:700;position:relative}
+  table.cal th.sun,table.cal td.sun{color:var(--danger)}
+  table.cal td.void{background:var(--done-bg);border-color:var(--divider)}
+  table.cal td.sel{background:var(--warn-bg);color:var(--warn);font-weight:800;
+                   box-shadow:inset 0 0 0 2px var(--warn)}
+  table.cal td.sel em{font-style:normal;display:block;font-size:8px;line-height:1}
+  table.cal td.today{box-shadow:inset 0 0 0 1.5px var(--primary);color:var(--primary);font-weight:800}
+
+  /* ── 비교 상자 ─────────────────────────────── */
+  .opt{border:1px solid var(--divider);border-radius:10px;overflow:hidden;background:#fff;margin-top:12px}
+  .opt>.h{padding:9px 12px;font-size:12px;font-weight:800;border-bottom:1px solid var(--divider);
+          display:flex;align-items:center;gap:8px}
+  .opt>.h .sp{flex:1}
+  .opt.rec>.h{background:var(--book);color:#1C4C4D}
+  .opt.no>.h{background:var(--danger-bg);color:var(--danger)}
+  .opt>.c{padding:12px}
+  .pm{margin:10px 0 0;font-size:11.5px;line-height:1.75}
+  .pm div{display:flex;gap:7px;padding:2px 0}
+  .pm .s{flex:none;font-weight:800;width:13px}
+  .pm .plus .s{color:var(--primary)}
+  .pm .minus .s{color:var(--danger)}
+  .pm b{font-weight:800}
+
+  /* ── 팝업 ─────────────────────────────── */
+  .scrim{background:#10243A;border-radius:10px;padding:22px 18px;position:relative}
+  .modal{background:#fff;border-radius:10px;max-width:430px;margin:0 auto;overflow:hidden;
+         box-shadow:0 8px 30px rgba(16,36,58,.28)}
+  .modal .mh{padding:13px 15px 0}
+  .modal .mh h3{margin:0;font-size:14px;font-weight:800}
+  .modal .mh p{margin:6px 0 0;font-size:11.5px;line-height:1.7;color:var(--ink-muted)}
+  .modal .mb{padding:12px 15px}
+  .modal .mf{display:flex;gap:8px;justify-content:flex-end;padding:11px 15px;border-top:1px solid var(--divider)}
+
+  /* ── 체크 줄 ─────────────────────────────── */
+  .chk{display:flex;align-items:flex-start;gap:8px;padding:7px 9px;border:1px solid var(--divider);
+       border-radius:7px;margin-top:6px;font-size:11.5px;line-height:1.5;background:#fff}
+  .chk:first-of-type{margin-top:0}
+  .chk .box{width:14px;height:14px;border:1.6px solid var(--primary);border-radius:3px;flex:none;margin-top:1px;
+            background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center}
+  .chk .box.off{background:#fff;border-color:#C3CDD5}
+  .chk .box svg{width:9px;height:9px;flex:none;fill:none;stroke:#fff;stroke-width:3;
+                stroke-linecap:round;stroke-linejoin:round}
+  .chk .txt b{font-weight:800}
+  .chk .txt span{color:var(--ink-muted)}
+
+  .note{border-radius:7px;padding:9px 11px;font-size:11px;line-height:1.65;margin-top:10px}
+  .note.i{background:var(--book);border:1px solid var(--book-line);color:#1C4C4D}
+  .note.w{background:var(--warn-bg);border:1px solid #F0C9A3;color:var(--warn)}
+  .note b{font-weight:800}
+
+  table.t{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;
+          border:1px solid var(--divider);border-radius:9px;overflow:hidden}
+  table.t th,table.t td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--divider);
+                        vertical-align:top;line-height:1.6}
+  table.t th{background:var(--done-bg);font-weight:800;color:var(--ink-muted);font-size:11px}
+  table.t tr:last-child td{border-bottom:0}
+  table.t td b{font-weight:800}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="ic-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="ic-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="ic-warn" viewBox="0 0 24 24"><path d="M12 9v5M12 17.5v.5"/><path d="M10.3 3.9 2.6 17.4a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></symbol>
+  <symbol id="ic-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+</svg>
+
+<div class="page">
+
+<h1>67 · 진료과·의사 일정 관리 <code>/admin/schedule</code> — 관리자 전용</h1>
+<p class="sub">이 화면이 담아야 할 것은 <b>요구사항 3.7의 7가지</b>다. 그중 <b>5가지가 「의사 × 요일」마다 따로 저장</b>된다 —
+  진료 시간 · 한 칸 길이 · 점심시간 · 하루 최대 인원 · 예약 마감. 그래서 <b>한 의사당 7벌의 폼</b>을 다뤄야 하고,
+  <b>그 7벌을 어떻게 늘어놓느냐가 이 화면의 모양을 정한다.</b></p>
+
+<div class="quote">
+  <b>요구사항 3.7 원문</b><br>
+  진료과 추가·수정·사용 중지 / 의사별 진료 요일과 시간 / 예약 한 칸의 기본 시간(예: 15분·20분·30분) /
+  점심시간과 휴진일 / 특정 날짜의 진료시간 변경 / 의사별 하루 최대 예약 인원 / 예약 마감 시간<br>
+  <span class="warn">일정을 변경했을 때 이미 예약된 환자가 있으면 바로 저장하기 전에 경고해주세요.</span>
+  → 이 경고는 <b>이미 확정</b>됐다(<code>SCHED-WARN-01~11</code> · 목업 66). <b>이번에 그리는 것은 그 앞의 본 화면이다.</b>
+</div>
+
+<div class="note i" style="margin-top:14px">
+  <b>DB 칸은 전부 이미 있다</b> — <code>doctor_schedule_rules</code>에 <code>start_time · end_time · slot_duration_minutes ·
+  lunch_start/end · max_daily_appointments · booking_deadline · is_day_off</code>가 <b>(의사, 요일) 한 쌍마다 1행</b>으로 들어 있고
+  (<code>unique(doctor_id, weekday)</code>), 특정일은 <code>doctor_schedule_exceptions</code>가 받는다.
+  <b>이 화면은 없는 칸을 만드는 것이 아니라 있는 칸을 어떻게 보여줄지 정하는 일이다.</b>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">① 요일 7개를 어떻게 늘어놓나 — 세 가지 안</h2>
+<p class="seclead">세 안 모두 <b>같은 데이터</b>를 다룬다(의사 4명 · 요일 7개 · 칸 6개). <b>달라지는 것은 「한 번에 몇 개가 보이느냐」</b>다.</p>
+
+<!-- ㉮ -->
+<div class="opt rec">
+  <div class="h"><span class="tag ok">㉮ 추천</span> 한 의사의 일주일을 <b>표 한 장</b>으로 <span class="sp"></span>
+    <span style="font-weight:700;font-size:11px">위쪽 의사 가로줄 + 아래 요일 7행</span></div>
+  <div class="c">
+    <div class="app">
+      <div class="apptop">병원 관리 · 진료 일정<span class="sp"></span>
+        <span class="hdrbtn">＋ 새 예약</span><span class="hdrbtn">＋ 당일 방문</span></div>
+      <div class="crumb">진료 일정 <span class="sep">›</span> <b>의사별 스케줄</b><span class="note">그릇(왼쪽 세로줄)은 목업 69·70이 원본</span></div>
+      <div class="drail">
+        <div class="dt on">김민수<span>내과</span></div>
+        <div class="dt">박서연<span>내과</span></div>
+        <div class="dt">이지현<span>정형외과</span></div>
+        <div class="dt">최우진<span>소아청소년과</span></div>
+      </div>
+      <div class="split">
+        <div class="rside">
+          <div class="rh"><b>김민수</b><span>내과</span><span class="sp"></span>
+            <span class="btn q"><svg class="i"><use href="#ic-copy"/></svg> 월요일 값을 나머지에</span>
+            <span class="btn p">저장</span></div>
+          <table class="wk">
+            <tr><th>요일</th><th>진료</th><th>진료 시간</th><th>한 칸</th><th>점심시간</th><th>하루 최대</th><th>예약 마감</th></tr>
+            <tr><td class="day">월</td><td><span class="sw"></span></td>
+              <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+              <td><span class="fld">15분</span></td>
+              <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+              <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+            <tr><td class="day">화</td><td><span class="sw"></span></td>
+              <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+              <td><span class="fld">15분</span></td>
+              <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+              <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+            <tr><td class="day">수</td><td><span class="sw"></span></td>
+              <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">13:00</span></td>
+              <td><span class="fld" style="border-color:var(--warn);color:var(--warn)">30분</span></td>
+              <td><span class="fld dim">—</span></td>
+              <td><span class="fld">18명</span></td><td><span class="fld">12:00</span></td></tr>
+            <tr><td class="day">목</td><td><span class="sw"></span></td>
+              <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+              <td><span class="fld">15분</span></td>
+              <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+              <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+            <tr><td class="day">금</td><td><span class="sw"></span></td>
+              <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+              <td><span class="fld">15분</span></td>
+              <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+              <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+            <tr><td class="day">토</td><td><span class="sw"></span></td>
+              <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">13:00</span></td>
+              <td><span class="fld">15분</span></td>
+              <td><span class="fld dim">—</span></td>
+              <td><span class="fld">24명</span></td><td><span class="fld">12:00</span></td></tr>
+            <tr class="off"><td class="day">일</td><td><span class="sw off"></span><span class="offlabel">휴진</span></td>
+              <td><span class="fld dim">—</span></td><td><span class="fld dim">—</span></td>
+              <td><span class="fld dim">—</span></td><td><span class="fld dim">—</span></td><td><span class="fld dim">—</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>어긋난 요일이 눈에 박힌다.</b> 위 그림에서 <b style="color:var(--warn)">수요일만 30분</b>인 것이
+        한눈에 보인다. 이게 의도인지 실수인지 <b>비교할 수 있어야 물어볼 수 있다</b> — 나머지 두 안은 이걸 못 한다.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>「월요일 값을 나머지에」가 자연스럽다.</b> 실제 병원은 요일마다 값이 거의 같다.
+        7벌을 손으로 채우게 두면 반드시 한 요일이 낡은 채 남는다.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>빠진 요일이 없다는 것을 셀 수 있다</b> — 7행이 항상 다 보이므로 「화요일은 아직 안 정했나」가 생기지 않는다.</span></div>
+      <div class="minus"><span class="s">－</span><span>가로 칸이 6개라 <b>입력칸 하나하나가 작다.</b> 시각은 <code>0900</code>처럼 숫자로 치는 방식이 필요하다
+        (<code>QUEUE-WALK-14b~e</code>에서 이미 쓰는 방식).</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ㉯ -->
+<div class="opt">
+  <div class="h"><span class="tag">㉯</span> 요일을 <b>탭으로</b> 나누고 한 요일씩 큰 폼</div>
+  <div class="c">
+    <div class="app">
+      <div class="apptop">병원 관리 · 진료 일정<span class="sp"></span>
+        <span class="hdrbtn">＋ 새 예약</span><span class="hdrbtn">＋ 당일 방문</span></div>
+      <div class="crumb">진료 일정 <span class="sep">›</span> <b>의사별 스케줄</b><span class="note">그릇(왼쪽 세로줄)은 목업 69·70이 원본</span></div>
+      <div class="body">
+        <div class="rh"><span class="btn q">김민수 · 내과 <svg class="i"><use href="#ic-chev"/></svg></span><span class="sp"></span>
+          <span class="btn p">저장</span></div>
+        <div class="dtabs" style="margin-top:10px">
+          <div class="d on">월</div><div class="d">화</div><div class="d">수</div><div class="d">목</div>
+          <div class="d">금</div><div class="d">토</div><div class="d off">일</div>
+        </div>
+        <div class="form">
+          <div class="fr"><div class="fl">진료 시간</div>
+            <span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></div>
+          <div class="fr"><div class="fl">한 칸 길이</div>
+            <span class="rad"><span class="r on">15분</span><span class="r">20분</span><span class="r">30분</span></span></div>
+          <div class="fr"><div class="fl">점심시간</div>
+            <span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></div>
+          <div class="fr"><div class="fl">하루 최대 인원</div><span class="fld">40</span><span style="font-size:11px;color:var(--ink-muted)">명</span></div>
+          <div class="fr"><div class="fl">예약 마감 시간</div><span class="fld">17:00</span>
+            <span style="font-size:10.5px;color:var(--ink-muted)">이 시각 이후로는 당일 예약을 받지 않는다</span></div>
+          <div class="fr"><div class="fl">정기 휴진</div><span class="sw off"></span>
+            <span style="font-size:10.5px;color:var(--ink-muted)">켜면 위 칸이 전부 잠긴다</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span>칸이 커서 <b>고르기·치기가 편하다.</b> 「한 칸 길이」를 15/20/30 <b>버튼으로</b> 놓을 자리도 나온다.</span></div>
+      <div class="minus"><span class="s">－</span><span><b>비교가 불가능하다.</b> 수요일만 30분인 것을 보려면 <b>요일 탭을 7번 눌러</b> 기억으로 대조해야 한다.
+        ⚠️ 이 화면에서 가장 흔한 사고는 <b>「한 요일만 낡은 값」</b>인데, 이 안은 그걸 구조적으로 못 잡는다.</span></div>
+      <div class="minus"><span class="s">－</span><span><b>「다 채웠나」를 알 수 없다.</b> 탭 뒤에 숨은 요일이 비어 있어도 화면은 멀쩡해 보인다.</span></div>
+      <div class="minus"><span class="s">－</span><span>저장이 요일마다인지 7개 한꺼번인지가 <b>모호해진다</b> — 탭을 옮길 때 저장 안 한 값이 날아가는지 묻는 창이 또 필요하다.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ㉰ -->
+<div class="opt">
+  <div class="h"><span class="tag">㉰</span> <b>의사 × 요일 전체 격자</b>를 한 장에</div>
+  <div class="c">
+    <div class="app">
+      <div class="apptop">병원 관리 · 진료 일정<span class="sp"></span>
+        <span class="hdrbtn">＋ 새 예약</span><span class="hdrbtn">＋ 당일 방문</span></div>
+      <div class="crumb">진료 일정 <span class="sep">›</span> <b>의사별 스케줄</b><span class="note">그릇(왼쪽 세로줄)은 목업 69·70이 원본</span></div>
+      <div class="body">
+        <table class="gr">
+          <tr><th class="who">의사</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th><th>일</th></tr>
+          <tr><td class="who">김민수<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">내과</span></td>
+            <td><b>09–18</b><span>15분</span></td><td><b>09–18</b><span>15분</span></td>
+            <td><b>09–13</b><span>30분</span></td><td><b>09–18</b><span>15분</span></td>
+            <td><b>09–18</b><span>15분</span></td><td><b>09–13</b><span>15분</span></td><td class="x">휴진</td></tr>
+          <tr><td class="who">박서연<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">내과</span></td>
+            <td><b>13–20</b><span>20분</span></td><td><b>13–20</b><span>20분</span></td>
+            <td><b>13–20</b><span>20분</span></td><td class="x">휴진</td>
+            <td><b>13–20</b><span>20분</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+          <tr><td class="who">이지현<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">정형외과</span></td>
+            <td><b>09–17</b><span>30분</span></td><td><b>09–17</b><span>30분</span></td>
+            <td><b>09–17</b><span>30분</span></td><td><b>09–17</b><span>30분</span></td>
+            <td><b>09–17</b><span>30분</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+          <tr><td class="who">최우진<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">소아청소년과</span></td>
+            <td><b>09–18</b><span>15분</span></td><td><b>09–18</b><span>15분</span></td>
+            <td><b>09–18</b><span>15분</span></td><td><b>09–18</b><span>15분</span></td>
+            <td><b>09–18</b><span>15분</span></td><td><b>09–13</b><span>15분</span></td><td class="x">휴진</td></tr>
+        </table>
+        <p class="hint">칸을 누르면 오른쪽에 패널이 열려 그 칸만 고친다. <b>점심·최대 인원·마감은 격자에 못 담아</b> 패널에서만 보인다.</p>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>병원 전체의 일주일</b>이 한 장이다 — 「목요일 오후에 아무도 없다」가 보인다.</span></div>
+      <div class="minus"><span class="s">－</span><span>⚠️ <b>그건 이미 <code>/calendar</code>가 하는 일이다.</b> 캘린더가 실제 예약까지 얹어 같은 그림을 더 정확히 보여준다
+        (<code>CAL-WEEK-*</code>). <b>같은 것을 두 곳에서 그리면 어긋난 쪽이 거짓말을 한다.</b></span></div>
+      <div class="minus"><span class="s">－</span><span><b>칸 6개 중 2개만 담긴다.</b> 점심·최대 인원·마감은 결국 패널로 밀려나
+        <b>화면이 둘로 나뉜다</b> — 격자는 「보는 곳」, 패널은 「고치는 곳」이 되어 ㉮의 표 한 장보다 손이 더 간다.</span></div>
+      <div class="minus"><span class="s">－</span><span>의사가 8명이면 세로로 8행 × 가로 7열 = <b>56칸</b>이라 한 칸이 좁아진다.</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="note i" style="margin-top:16px">
+  <b>✅ 확정(2026-08-07) — ㉮ + ㉰ 둘 다 둔다</b>(사용자 결정).
+  ⭐ <b>㉰의 기각 사유였던 「<code>/calendar</code>와 겹친다」가 사실이 아니었다</b> — 원문을 열어보니
+  캘린더 주간이 그리는 것은 <b>실제 예약 막대</b>뿐이고(<code>CAL-WEEK-02</code>),
+  <b>슬롯 길이·하루 최대 인원·예약 마감은 캘린더에 아예 없다.</b> 휴진조차 점심과 <b>같은 빗금</b>이라
+  (<code>CAL-SLOT-11</code>) 정기 휴진인지 그날만 쉬는 것인지 구분되지 않는다.
+  <b>캘린더는 「결과」(그 날만의 변경까지 반영된 그 주), 격자는 「원본」(평상시 규칙)이다.</b><br>
+  ⭐ <b>그리고 병행하면 ㉰의 나머지 단점도 사라진다</b> — 격자를 <b>고치는 곳이 아니라 읽는 곳</b>으로 두면
+  칸에 6개를 다 담을 필요가 없고, 칸을 누르면 <b>㉮ 표의 그 행으로 데려가면</b> 된다.
+  <b>격자는 길 안내판, 표는 작업대.</b>
+</div>
+
+<div class="note w">
+  <svg class="i"><use href="#ic-warn"/></svg> <b>왜 이 결정이 먼저인가</b> —
+  뒤에 정할 것들(저장 단위 · 「영향받는 예약 경고」가 뜨는 시점 · 요일 값 복사 · 특정 날짜 변경로 넘어가는 길)이
+  <b>전부 이 모양 위에 얹힌다.</b> 그릇을 나중에 바꾸면 그 위의 결정이 함께 무너진다(SB-39에서 실제로 겪었다).
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">①-2 그 격자를 <b>어디에</b> 두나</h2>
+<p class="seclead">격자는 <b>읽는 곳</b>으로 확정됐다. 남은 것은 자리다 — <b>두 안 모두 칸을 누르면 ㉮ 표의 그 행으로 데려간다</b>(이동 비용은 같다).
+  달라지는 것은 <b>관리자가 이 화면에 들어왔을 때 처음 보는 것</b>과 <b>탭이 3개냐 4개냐</b>다.</p>
+
+  <div class="stale">⚠️ <b>이 두 그림에만 가로 탭이 남아 있다</b> — 여기서는 <b>탭 자체가 비교의 주제</b>(㉠ 탭 안에서 / ㉡ 탭을 하나 더)라 걷어낼 수 없다. <b>실제 화면의 그릇은 나중에 목업 69가 「왼쪽 세로줄」로 바꿨고, 여기서 고른 ㉡(화면을 하나 더)은 그대로 살아 「전체 현황」 줄이 됐다.</b></div>
+<!-- ㉠ -->
+<div class="opt">
+  <div class="h"><span class="tag">㉠</span> 「의사별 스케줄」 탭 <b>안</b>에서 — 의사 목록 맨 위에 <code>전체 보기</code></div>
+  <div class="c">
+    <div class="app">
+      <div class="apptop">병원 관리 · 진료 일정<span class="sp"></span>
+        <span class="hdrbtn">＋ 새 예약</span><span class="hdrbtn">＋ 당일 방문</span></div>
+      <div class="tabs"><div class="tb">진료과 관리</div><div class="tb on">의사별 스케줄</div><div class="tb">특정 날짜 변경</div></div>
+      <div class="split">
+        <div class="lside">
+          <div class="lh">의사</div>
+          <div class="drow on" style="border-bottom:1px solid var(--divider);padding-bottom:9px">
+            <b>전체 보기</b><span>4명을 한 장에</span></div>
+          <div class="drow"><b>김민수</b><span>내과</span></div>
+          <div class="drow"><b>박서연</b><span>내과</span></div>
+          <div class="drow"><b>이지현</b><span>정형외과</span></div>
+          <div class="drow"><b>최우진</b><span>소아청소년과</span></div>
+        </div>
+        <div class="rside">
+          <div class="rh"><b>전체 보기</b><span>칸을 누르면 그 의사의 표로 넘어간다</span></div>
+          <table class="gr">
+            <tr><th class="who">의사</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th><th>일</th></tr>
+            <tr><td class="who">김민수</td>
+              <td><b>09–18</b><span>15분</span></td><td><b>09–18</b><span>15분</span></td>
+              <td><b>09–13</b><span>30분</span></td><td><b>09–18</b><span>15분</span></td>
+              <td><b>09–18</b><span>15분</span></td><td><b>09–13</b><span>15분</span></td><td class="x">휴진</td></tr>
+            <tr><td class="who">박서연</td>
+              <td><b>13–20</b><span>20분</span></td><td><b>13–20</b><span>20분</span></td>
+              <td><b>13–20</b><span>20분</span></td><td class="x">휴진</td>
+              <td><b>13–20</b><span>20분</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+            <tr><td class="who">이지현</td>
+              <td><b>09–17</b><span>30분</span></td><td><b>09–17</b><span>30분</span></td>
+              <td><b>09–17</b><span>30분</span></td><td><b>09–17</b><span>30분</span></td>
+              <td><b>09–17</b><span>30분</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+            <tr><td class="who">최우진</td>
+              <td><b>09–18</b><span>15분</span></td><td><b>09–18</b><span>15분</span></td>
+              <td><b>09–18</b><span>15분</span></td><td><b>09–18</b><span>15분</span></td>
+              <td><b>09–18</b><span>15분</span></td><td><b>09–13</b><span>15분</span></td><td class="x">휴진</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>같은 자리에서 넓혔다 좁혔다 한다.</b> 왼쪽에서 사람을 고르면 표, 「전체 보기」로 돌아오면 격자 —
+        <b>화면을 옮기는 느낌이 없다.</b> 이 패턴은 이미 프로젝트에 있다(<code>CAL-DOC-02</code>의 <code>[전체]</code> 칩).</span></div>
+      <div class="minus"><span class="s">－</span><span>「전체 보기」가 <b>의사 목록에 섞여 있어</b> 사람 이름처럼 읽힐 수 있다(줄을 그어 갈라도 자리는 같다).</span></div>
+      <div class="minus"><span class="s">－</span><span>탭 이름은 <b>「의사<u>별</u>」</b>인데 그 안에 전체가 들어가 <b>이름과 내용이 어긋난다.</b></span></div>
+      <div class="minus"><span class="s">－</span><span>관리자가 들어오면 <b>맨 처음 무엇이 보이는지가 애매하다</b> — 마지막에 보던 의사인가, 전체인가.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ㉡ -->
+<div class="opt rec">
+  <div class="h"><span class="tag ok">㉡ 추천</span> <b>탭을 하나 더</b> — 맨 앞에 <code>전체 현황</code></div>
+  <div class="c">
+    <div class="app">
+      <div class="apptop">병원 관리 · 진료 일정<span class="sp"></span>
+        <span class="hdrbtn">＋ 새 예약</span><span class="hdrbtn">＋ 당일 방문</span></div>
+      <div class="tabs"><div class="tb on">전체 현황</div><div class="tb">진료과 관리</div><div class="tb">의사별 스케줄</div><div class="tb">특정 날짜 변경</div></div>
+      <div class="body">
+        <div class="rh"><b>이번 주 평상시 규칙</b>
+          <span>실제 예약과 특정 날짜 변경는 <code>/calendar</code>에서 본다</span></div>
+        <table class="gr">
+          <tr><th class="who">의사</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th><th>일</th></tr>
+          <tr><td class="who">김민수<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">내과</span></td>
+            <td><b>09–18</b><span>15분 · 40명</span></td><td><b>09–18</b><span>15분 · 40명</span></td>
+            <td><b>09–13</b><span>30분 · 18명</span></td><td><b>09–18</b><span>15분 · 40명</span></td>
+            <td><b>09–18</b><span>15분 · 40명</span></td><td><b>09–13</b><span>15분 · 24명</span></td><td class="x">휴진</td></tr>
+          <tr><td class="who">박서연<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">내과</span></td>
+            <td><b>13–20</b><span>20분 · 28명</span></td><td><b>13–20</b><span>20분 · 28명</span></td>
+            <td><b>13–20</b><span>20분 · 28명</span></td><td class="x">휴진</td>
+            <td><b>13–20</b><span>20분 · 28명</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+          <tr><td class="who">이지현<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">정형외과</span></td>
+            <td><b>09–17</b><span>30분 · 16명</span></td><td><b>09–17</b><span>30분 · 16명</span></td>
+            <td><b>09–17</b><span>30분 · 16명</span></td><td><b>09–17</b><span>30분 · 16명</span></td>
+            <td><b>09–17</b><span>30분 · 16명</span></td><td class="x">휴진</td><td class="x">휴진</td></tr>
+          <tr><td class="who">최우진<br><span style="font-weight:700;color:var(--ink-muted);font-size:9.5px">소아청소년과</span></td>
+            <td><b>09–18</b><span>15분 · 44명</span></td><td><b>09–18</b><span>15분 · 44명</span></td>
+            <td><b>09–18</b><span>15분 · 44명</span></td><td><b>09–18</b><span>15분 · 44명</span></td>
+            <td><b>09–18</b><span>15분 · 44명</span></td><td><b>09–13</b><span>15분 · 24명</span></td><td class="x">휴진</td></tr>
+        </table>
+        <p class="hint g">칸을 누르면 <b>「의사별 스케줄」로 넘어가며 그 의사·그 요일 행이 선택된 채로</b> 열린다.
+          <b>보다가 발견한 것을 그 자리에서 고치러 갈 수 있다</b>(막다른 길 금지).</p>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>관리자가 들어오면 늘 같은 것이 보인다</b> — 전체 현황. 이 화면에 오는 이유는 대개
+        「무언가 바꾸려고」인데, <b>바꾸기 전에 지금 상태를 보는 것</b>이 순서에 맞다.</span></div>
+      <div class="plus"><span class="s">＋</span><span>줄 이름과 내용이 <b>어긋나지 않는다.</b> 「전체 현황」은 읽는 곳, 「의사별 스케줄」은 고치는 곳으로 <b>역할이 이름에 적혀 있다.</b></span></div>
+      <div class="plus"><span class="s">＋</span><span>가로가 통째로 격자에 쓰인다 — <b>왼쪽 목록 186px이 없으므로</b> 칸마다
+        <b>「15분 · 40명」까지</b> 들어간다(㉠은 자리가 모자라 슬롯 길이만 들어갔다).</span></div>
+      <div class="minus"><span class="s">－</span><span>탭이 <b>4개</b>가 된다. 다만 넷은 <b>각각 다른 일</b>이라(전체를 본다 / 진료과 / 의사 스케줄 / 특정일) 묶을 이유가 없다.</span></div>
+    </div>
+  </div>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">② 고친 것을 <b>언제 기록하나</b> — 저장 버튼이 몇 개인가 <span class="tag new">SB-44</span></h2>
+<div class="quote" style="border-left-color:var(--warn)">
+  <b>상황</b> — 관리자가 <b>김민수</b> 의사의 일주일 표를 열었다. 두 군데를 고쳤다.<br>
+  ① <b>수요일</b> 진료 시간을 <code>09–13</code> → <code>09–18</code>로 늘렸다.
+  ② <b>토요일</b> 하루 최대 인원을 <code>24명</code> → <code>30명</code>으로 올렸다.<br>
+  <b>화면에서는 이미 바뀐 것처럼 보인다. 그런데 아직 병원 컴퓨터에는 안 들어갔다.</b>
+  <b>「저장」을 눌러야 진짜로 바뀐다</b> — 그 버튼을 <b>몇 개 두느냐</b>가 이 결정이다.
+</div>
+
+<!-- ㉮ -->
+<div class="opt rec">
+  <div class="h"><span class="tag ok">㉮ 추천</span> 표 <b>맨 위에 저장 버튼 하나</b> — 고친 것을 <b>한꺼번에</b></div>
+  <div class="c">
+    <div class="app">
+      <div class="body" style="padding:10px 12px">
+        <div class="rh"><b>김민수</b><span>내과</span><span class="sp"></span>
+          <span style="font-size:10.5px;font-weight:800;color:var(--warn);margin-right:6px">● 고친 곳 2군데 · 아직 저장 안 됨</span>
+          <span class="btn q"><svg class="i"><use href="#ic-copy"/></svg> 월요일 값을 나머지에</span>
+          <span class="btn p">저장</span></div>
+        <table class="wk">
+          <tr><th>요일</th><th>진료</th><th>진료 시간</th><th>한 칸</th><th>점심시간</th><th>하루 최대</th><th>예약 마감</th></tr>
+          <tr><td class="day">월</td><td><span class="sw"></span></td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+          <tr><td class="day">화</td><td><span class="sw"></span></td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+          <tr style="background:var(--warn-bg)">
+            <td class="day" style="color:var(--warn)">● 수</td><td><span class="sw"></span></td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld" style="border-color:var(--warn);color:var(--warn)">18:00</span></td>
+            <td><span class="fld">30분</span></td>
+            <td><span class="fld dim">—</span></td>
+            <td><span class="fld">18명</span></td><td><span class="fld">12:00</span></td></tr>
+          <tr><td class="day">목</td><td><span class="sw"></span></td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+          <tr><td class="day">금</td><td><span class="sw"></span></td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td></tr>
+          <tr style="background:var(--warn-bg)">
+            <td class="day" style="color:var(--warn)">● 토</td><td><span class="sw"></span></td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">13:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld dim">—</span></td>
+            <td><span class="fld" style="border-color:var(--warn);color:var(--warn)">30명</span></td><td><span class="fld">12:00</span></td></tr>
+          <tr class="off"><td class="day">일</td><td><span class="sw off"></span><span class="offlabel">휴진</span></td>
+            <td><span class="fld dim">—</span></td><td><span class="fld dim">—</span></td>
+            <td><span class="fld dim">—</span></td><td><span class="fld dim">—</span></td><td><span class="fld dim">—</span></td></tr>
+        </table>
+        <p class="hint w">고친 줄에 <b>● 표시</b>가 붙고 맨 위에 <b>「고친 곳 2군데 · 아직 저장 안 됨」</b>이 뜬다.
+          <b>「저장」을 한 번 누르면 두 줄이 함께</b> 기록된다.</p>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>「저장 안 누른 줄」이 생길 수 없다.</b> 버튼이 하나뿐이라 <b>다 되거나 다 안 되거나</b>다.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>「월요일 값을 나머지에」와 짝이 맞는다.</b> 그 버튼은 <b>여섯 줄을 한꺼번에</b> 바꾸는데,
+        저장이 줄마다면 <b>여섯 번을 눌러야</b> 한다.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>「예약된 환자가 있으면 경고」가 한 번만 뜬다.</b> 요구사항 3.7이 요구한 그 경고인데,
+        줄마다 저장하면 <b>같은 창이 두 번, 세 번</b> 뜬다.</span></div>
+      <div class="minus"><span class="s">－</span><span>경고에 <b>어느 요일 때문인지를 함께 적어야 한다.</b>
+        수요일 때문에 2명, 토요일 때문에 1명인데 <b>「3명」이라고만 뜨면</b> 관리자가 무엇을 되돌려야 할지 모른다.</span></div>
+      <div class="minus"><span class="s">－</span><span>⚠️ <b>지금 만들기로 한 방식과 어긋난다.</b> 병원 컴퓨터(서버)에 값을 보내는 창구가
+        지금 계획엔 <b>「요일 하나짜리」밖에 없다.</b> 그래서 일곱 줄을 보내려면 <b>일곱 번을 따로 보내야</b> 하고,
+        <b>다섯 번째에서 인터넷이 끊기면 네 줄만 저장된 채</b> 남는다 — 화면은 저장된 것처럼 보이는데 실제로는 반만 들어간 상태다.
+        <b>이걸 막으려면 「일주일치를 한 덩어리로 받아, 전부 되든지 전부 안 되든지」 하는 창구를 새로 만들어야 한다</b>(할 일 1건 추가).</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ㉯ -->
+<div class="opt">
+  <div class="h"><span class="tag">㉯</span> <b>줄마다 저장 버튼</b> — 고친 줄을 각각</div>
+  <div class="c">
+    <div class="app">
+      <div class="body" style="padding:10px 12px">
+        <div class="rh"><b>김민수</b><span>내과</span><span class="sp"></span>
+          <span class="btn q"><svg class="i"><use href="#ic-copy"/></svg> 월요일 값을 나머지에</span></div>
+        <table class="wk">
+          <tr><th>요일</th><th>진료 시간</th><th>한 칸</th><th>점심시간</th><th>하루 최대</th><th>예약 마감</th><th></th></tr>
+          <tr><td class="day">월</td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td>
+            <td><span class="btn q" style="opacity:.4">저장</span></td></tr>
+          <tr><td class="day">화</td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td>
+            <td><span class="btn q" style="opacity:.4">저장</span></td></tr>
+          <tr style="background:var(--warn-bg)"><td class="day" style="color:var(--warn)">● 수</td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld" style="border-color:var(--warn);color:var(--warn)">18:00</span></td>
+            <td><span class="fld">30분</span></td>
+            <td><span class="fld dim">—</span></td>
+            <td><span class="fld">18명</span></td><td><span class="fld">12:00</span></td>
+            <td><span class="btn p">저장</span></td></tr>
+          <tr><td class="day">목</td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td>
+            <td><span class="btn q" style="opacity:.4">저장</span></td></tr>
+          <tr><td class="day">금</td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">18:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld">12:30</span><span class="tilde">~</span><span class="fld">13:30</span></td>
+            <td><span class="fld">40명</span></td><td><span class="fld">17:00</span></td>
+            <td><span class="btn q" style="opacity:.4">저장</span></td></tr>
+          <tr style="background:var(--warn-bg)"><td class="day" style="color:var(--warn)">● 토</td>
+            <td><span class="fld">09:00</span><span class="tilde">~</span><span class="fld">13:00</span></td>
+            <td><span class="fld">15분</span></td>
+            <td><span class="fld dim">—</span></td>
+            <td><span class="fld" style="border-color:var(--warn);color:var(--warn)">30명</span></td><td><span class="fld">12:00</span></td>
+            <td><span class="btn p">저장</span></td></tr>
+          <tr class="off"><td class="day">일</td>
+            <td colspan="5" style="color:#AEB9C3">휴진</td><td></td></tr>
+        </table>
+        <p class="hint">고친 줄의 <b>저장 버튼만 켜진다.</b> <b>수요일 한 번, 토요일 한 번 — 두 번 눌러야</b> 끝난다.</p>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>지금 계획과 그대로 맞는다.</b> 창구가 원래 「요일 하나짜리」라 새로 만들 것이 없다.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>실패해도 그 줄만</b> 안 들어간다. 반만 저장되는 일이 없다.</span></div>
+      <div class="plus"><span class="s">＋</span><span>경고가 <b>「수요일을 바꿔서 2명」</b>이라 원인이 분명하다.</span></div>
+      <div class="minus"><span class="s">－</span><span>⚠️⚠️ <b>저장을 안 누른 줄이 생긴다.</b> 토요일을 고쳐놓고 저장을 안 누른 채 다른 탭으로 가면
+        <b>화면에서는 30명으로 보였는데 실제로는 24명</b>이다. ⭐ 이 화면의 대표 사고가 <b>「한 요일만 낡은 값」</b>인데,
+        <b>저장 단계에서 그 사고를 한 번 더 만드는 셈</b>이다.</span></div>
+      <div class="minus"><span class="s">－</span><span><b>「월요일 값을 나머지에」를 누르면 여섯 줄이 바뀌는데 저장을 여섯 번</b> 눌러야 한다.
+        하나라도 빠뜨리면 위 사고가 그대로 난다.</span></div>
+      <div class="minus"><span class="s">－</span><span>같은 <b>경고 창이 두 번, 세 번</b> 뜬다. ⭐ <b>자주 뜨는 확인창은 읽지 않고 누르는 습관</b>을 만든다
+        (갭 #90에서 이미 같은 이유로 팝업 하나를 없앴다).</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="note i">
+  <b>✅ 확정(2026-08-07) — ㉮</b>(사용자 결정) → <code>SCHED-SAVE-01~08</code>.
+  대가로 <b>갭 #95</b>가 생겼다(일주일치를 한 덩어리로 받는 창구를 새로 만들어야 한다).
+  ⭐ <b>이 갭은 「발견한 것」이 아니라 「결정이 만들어낸 것」이다</b> — 대가를 알고 고른 것이다.
+  함께 <b><code>SCHED-WARN-04e</code> 신설</b> — 경고에 <b>요일별 내역</b>을 적는다(<code>수요일 2명 · 09:30 · 11:00</code>).
+</div>
+
+<div class="note i">
+  <b>한 줄로 고르면</b> — ㉮는 <b>「만드는 쪽이 일을 하나 더 한다」</b>(서버 창구 1개 추가),
+  ㉯는 <b>「쓰는 쪽이 매번 조심해야 한다」</b>(저장 눌렀나 확인). <b>㉮를 추천하는 이유가 이것이다</b> —
+  만드는 일은 한 번이고, 쓰는 일은 병원이 문 여는 날마다다.
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">③ 진료과 관리 — <b>「사용 중지」를 누르면 무슨 일이 일어나나</b> <span class="tag new">SB-45</span></h2>
+<p class="seclead">탭 자체는 단순하다 — <b>목록 + 추가 + 이름 수정 + 사용 중지</b>. 어려운 것은 <b>「사용 중지」의 뒷일</b>이다.</p>
+
+<div class="app">
+  <div class="apptop">병원 관리 · 진료 일정<span class="sp"></span>
+    <span class="hdrbtn">＋ 새 예약</span><span class="hdrbtn">＋ 당일 방문</span></div>
+  <div class="crumb">진료 일정 <span class="sep">›</span> <b>진료과 관리</b><span class="note">그릇(왼쪽 세로줄)은 목업 69·70이 원본</span></div>
+  <div class="body">
+    <div class="rh"><b>진료과</b><span>4개 · 사용 중지 1개</span><span class="sp"></span>
+      <span class="btn p"><svg class="i"><use href="#ic-plus"/></svg> 진료과 추가</span></div>
+    <table class="t" style="font-size:11.5px">
+      <tr><th style="width:170px">이름</th><th style="width:110px">소속 의사</th><th style="width:120px">상태</th><th></th></tr>
+      <tr><td><b>내과</b></td><td>2명</td><td><span class="tag ok">사용 중</span></td>
+        <td style="text-align:right"><span class="btn q">이름 수정</span> <span class="btn q">사용 중지</span></td></tr>
+      <tr><td><b>정형외과</b></td><td>1명</td><td><span class="tag ok">사용 중</span></td>
+        <td style="text-align:right"><span class="btn q">이름 수정</span> <span class="btn q">사용 중지</span></td></tr>
+      <tr><td><b>소아청소년과</b></td><td>1명</td><td><span class="tag ok">사용 중</span></td>
+        <td style="text-align:right"><span class="btn q">이름 수정</span> <span class="btn q">사용 중지</span></td></tr>
+      <tr><td style="color:var(--ink-muted)"><b>피부과</b></td><td style="color:var(--ink-muted)">0명</td>
+        <td><span class="tag">사용 중지됨</span></td>
+        <td style="text-align:right"><span class="btn q">다시 사용</span></td></tr>
+    </table>
+    <p class="hint">⛔ <b>삭제 버튼은 없다.</b> 요구사항 3.7이 말하는 것도 <b>「사용 중지」</b>이고,
+      지운 진료과를 참조하는 <b>지난 예약·사전문진이 통째로 깨진다.</b></p>
+  </div>
+</div>
+
+<div class="note w" style="margin-top:16px">
+  <svg class="i"><use href="#ic-warn"/></svg> <b>먼저 확인한 것 — 「진료과를 끈다」가 실제로는 아무것도 막지 않는다</b><br>
+  병원 컴퓨터가 예약을 받을 때 검사하는 것은 <b>①담당 의사가 활성인가 ②예약 진료과 = 그 의사의 소속 과인가</b> 둘뿐이다
+  (<code>00005:301~310</code>). <b><code>departments.is_active</code>는 아예 보지 않는다.</b>
+  → <b>진료과를 꺼도 그 과 의사에게는 예약이 계속 만들어진다.</b><br>
+  그리고 <code>/admin/staff</code>에는 <b>의사를 사용 중지하는 길은 있지만</b>(<code>PATCH /staff/{id}/deactivate</code>)
+  <b>소속 과를 바꾸는 길은 없다.</b> → *"먼저 의사를 다른 과로 옮기세요"*는 <b>안내할 수 없는 길이다.</b>
+</div>
+
+<div class="opt rec">
+  <div class="h"><span class="tag ok">㉮ 추천</span> <b>의사가 남아 있으면 끄지 못하게 막고, 갈 길을 준다</b></div>
+  <div class="c">
+    <div class="scrim">
+      <div class="modal">
+        <div class="mh"><h3>정형외과를 사용 중지할 수 없습니다</h3>
+          <p>이 진료과에 <b>진료 중인 의사 1명</b>이 있습니다. 의사가 남아 있는 채로 진료과를 끄면
+            <b>그 의사에게는 예약이 계속 만들어지는데</b> 진료과는 꺼진 상태가 되어 <b>앞뒤가 맞지 않습니다.</b></p></div>
+        <div class="mb">
+          <div class="chk"><div class="box off"></div><div class="txt"><b>이지현</b> <span>· 이번 주 예약 6건</span></div></div>
+          <div class="note i" style="margin-top:9px">먼저 <b>직원 관리</b>에서 이 의사를 사용 중지하면,
+            그 뒤에 진료과를 끌 수 있습니다.</div>
+        </div>
+        <div class="mf"><span class="btn q">닫기</span><span class="btn p">직원 관리로 가기</span></div>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>「어디에도 속하지 않는 의사」가 생기지 않는다.</b> 진료과는 의사의 <b>윗 개념</b>이라
+        <b>아래가 비어야 위를 끌 수 있다</b>가 순서에 맞다.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>앞으로의 예약 문제가 의사 쪽에서 이미 풀린다.</b> 의사를 사용 중지하면
+        <b>그 의사에게는 예약이 만들어지지 않는다</b>(위 트리거). 진료과 쪽에 <b>경고 장치를 하나 더 만들 필요가 없다.</b></span></div>
+      <div class="plus"><span class="s">＋</span><span><b>이미 있는 것으로 풀린다</b> — 의사 사용 중지는 <b>이미 만들 계획에 있다.</b>
+        <b>막되 갈 길을 함께 준다</b>(막다른 길 금지).</span></div>
+      <div class="minus"><span class="s">－</span><span>관리자가 <b>화면 두 곳을 오간다</b>(진료 일정 → 직원 관리 → 다시 진료 일정).</span></div>
+      <div class="minus"><span class="s">－</span><span>⚠️ <b>의사를 껐을 때 그 의사의 앞으로의 예약을 어떻게 하는지가 아직 규칙에 없다</b>
+        (<code>/admin/staff</code>는 화면 규칙이 0개다) → 새 빈칸으로 남긴다.</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="note i">
+  <b>✅ 확정(2026-08-07) — ㉮</b>(사용자 결정) → <code>SCHED-DEPT-01~12</code>.
+  🆕 <b>빈칸 <code>SB-48</code></b>: 의사를 사용 중지하면 <b>그 의사의 앞으로의 예약</b>은 어떻게 되나 —
+  <code>/admin/staff</code>는 화면 규칙이 0개이고, <code>SCHED-CALC-*</code>의 계산은 <b>휴진·시간변경만 보고 「의사가 꺼진 것」은 보지 않는다.</b><br>
+  ⚠️ <b>한 겹 더 나왔다</b> — <code>list_departments()</code>가 <code>is_active</code>를 <b>조회하지도 거르지도 않는다.</b>
+  <b>「사용 중지」라는 개념이 DB·조회·API 세 층 모두에 없다</b> — 칸만 있다(갭 #92에 합쳐 기록).
+</div>
+
+<div class="opt">
+  <div class="h"><span class="tag">㉯</span> 끄되 <b>일정 변경과 같은 경고</b>를 띄운다(<code>SCHED-WARN-*</code> 재사용)</div>
+  <div class="c">
+    <div class="pm" style="margin-top:0">
+      <div class="plus"><span class="s">＋</span><span>이미 만든 경고 장치를 그대로 쓴다. 관리자가 <b>화면을 옮기지 않는다.</b></span></div>
+      <div class="minus"><span class="s">－</span><span>⚠️⚠️ <b>껐는데 계속 예약이 만들어진다.</b> 그 과 의사가 살아 있으면
+        컴퓨터는 <b>진료과가 꺼진 것을 보지 않으므로</b> 새 예약을 막지 않는다. 화면에서 가려도
+        <b>「꺼진 진료과에 소속된 살아 있는 의사」</b>라는 <b>앞뒤 안 맞는 상태가 남는다.</b></span></div>
+      <div class="minus"><span class="s">－</span><span>그걸 막으려면 <b>서버 검사 한 겹을 새로 넣어야</b> 한다 — ㉮는 그것 없이 끝난다.</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="opt no">
+  <div class="h"><span class="tag no">㉰ 기각</span> 끄면 <b>그 과 의사도 함께</b> 사용 중지한다</div>
+  <div class="c">
+    <div class="pm" style="margin-top:0">
+      <div class="minus"><span class="s">－</span><span>⚠️⚠️ <b>되돌릴 수 없는 일을 한 번에 여러 건</b> 하는 것이다.
+        버튼 하나로 <b>의사 3명의 계정이 함께 꺼진다.</b> 이 프로젝트가 <b>정면으로 금지한 모양</b>이다
+        (갭 #89가 정확히 이 사고였다 — 관리자가 저장 한 번으로 예약을 전부 취소하는 것).</span></div>
+    </div>
+  </div>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">④ 특정 날짜 변경 — <b>「이 날만 다르다」를 등록하는 곳</b></h2>
+<p class="seclead">평상시 규칙(요일별)에 <b>단발로 덮어쓰는 것</b>이다. 담을 수 있는 것은 <b>종일 휴진</b>과 <b>시간 변경</b> 둘뿐이다
+  (<code>doctor_schedule_exceptions</code>: <code>is_closed</code> · <code>override_start_time</code> · <code>override_end_time</code>).</p>
+
+<div class="app">
+  <div class="apptop">병원 관리 · 진료 일정<span class="sp"></span>
+    <span class="hdrbtn">＋ 새 예약</span><span class="hdrbtn">＋ 당일 방문</span></div>
+  <div class="crumb">진료 일정 <span class="sep">›</span> <b>특정 날짜 변경</b><span class="note">그릇(왼쪽 세로줄)은 목업 69·70이 원본</span></div>
+  <div class="split">
+    <div class="lside" style="width:auto;flex:none;padding:10px 12px">
+      <div class="mini-t" style="margin-bottom:8px">2026년 <span class="n">8월</span>
+        <span style="float:right;color:var(--ink-muted)">‹ ›</span></div>
+      <table class="gr cal" style="width:210px;table-layout:fixed">
+        <tr><th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr>
+        <tr><td class="void"></td><td class="void"></td><td class="void"></td><td class="void"></td><td class="void"></td><td class="void"></td><td>1</td></tr>
+        <tr><td class="sun">2</td><td>3</td><td>4</td><td class="sel">5<em>●</em></td><td>6</td><td>7</td><td>8</td></tr>
+        <tr><td class="sun">9</td><td>10</td><td>11</td><td>12</td><td>13</td><td>14</td><td>15</td></tr>
+        <tr><td class="sun">16</td><td class="today">17</td><td>18</td><td>19</td><td>20</td><td>21</td><td>22</td></tr>
+        <tr><td class="sun">23</td><td>24</td><td>25</td><td>26</td><td>27</td><td>28</td><td>29</td></tr>
+        <tr><td class="sun">30</td><td>31</td><td class="void"></td><td class="void"></td><td class="void"></td><td class="void"></td><td class="void"></td></tr>
+      </table>
+      <p class="hint" style="width:210px"><b style="color:var(--warn)">●</b> 변경이 등록된 날 —
+        <b>지금은 5일 하나뿐</b>이다. <b>날짜를 누르면</b> 오른쪽에 그 날이 열린다.
+        ⛔ <b>정기 휴진(일요일 등)은 여기 표시하지 않는다</b> — 그건 <b>그 날만의 변경이 아니라 평상시 규칙</b>이다.</p>
+    </div>
+    <div class="rside">
+      <div class="rh"><b>8월 5일 (수)</b><span class="sp"></span><span class="btn p"><svg class="i"><use href="#ic-plus"/></svg> 변경 등록</span></div>
+      <table class="t" style="font-size:11.5px">
+        <tr><th style="width:120px">의사</th><th style="width:150px">이 날은</th><th style="width:110px">영향받는 예약</th><th></th></tr>
+        <tr><td><b>김민수</b><br><span style="color:var(--ink-muted);font-size:10.5px">내과</span></td>
+          <td><span class="tag no">종일 휴진</span></td>
+          <td><b style="color:var(--warn)">3건</b><br><span style="color:var(--ink-muted);font-size:10.5px">직원이 처리 중</span></td>
+          <td style="text-align:right"><span class="btn q">수정</span> <span class="btn q">되돌리기</span></td></tr>
+        <tr><td><b>이지현</b><br><span style="color:var(--ink-muted);font-size:10.5px">정형외과</span></td>
+          <td><b>09:00 ~ 13:00</b><br><span style="color:var(--ink-muted);font-size:10.5px">평소 09:00~17:00</span></td>
+          <td><b style="color:var(--warn)">2건</b><br><span style="color:var(--ink-muted);font-size:10.5px">직원이 처리 중</span></td>
+          <td style="text-align:right"><span class="btn q">수정</span> <span class="btn q">되돌리기</span></td></tr>
+      </table>
+      <p class="hint">「영향받는 예약」은 <b>지금 계산한 값</b>이다(<code>SCHED-CALC-01</code>) — <b>되돌리면 저절로 0건이 된다.</b></p>
+    </div>
+  </div>
+</div>
+
+<div class="note w" style="margin-top:16px">
+  <svg class="i"><use href="#ic-warn"/></svg> <b>여기서 드러난 것 — 「병원이 통째로 쉬는 날」을 담을 곳이 없다</b><br>
+  <code>doctor_schedule_exceptions</code>는 <b>의사 한 명 × 날짜 하나</b>가 한 행이다(<code>unique(doctor_id, exception_date)</code>).
+  설날처럼 <b>병원 전체가 쉬는 날</b>을 넣으려면 <b>의사 8명을 하나씩 여덟 번</b> 등록해야 하고,
+  ⚠️ <b>하나라도 빠뜨리면 그 의사에게만 예약이 열린다</b> — 그리고 그건 <b>환자가 그 날 병원에 와서야</b> 드러난다.<br>
+  📌 요구사항에 <b>「공휴일」이라는 단어는 없지만</b>, 상담봇이 답할 병원 안내에
+  <b>*"진료시간과 <u>휴진일</u>"*</b>이 <b>병원 단위로</b> 들어 있다(<code>:193</code> · <code>:350</code>).
+</div>
+
+<div class="opt rec">
+  <div class="h"><span class="tag ok">㉮ 추천</span> 변경을 등록할 때 <b>의사를 여러 명 고를 수 있게</b> 한다</div>
+  <div class="c">
+    <div class="app">
+      <div class="body">
+        <div class="rh"><b>8월 15일 (토) · 변경 등록</b></div>
+        <div class="form">
+          <div class="fr"><div class="fl">의사</div>
+            <div style="flex:1">
+              <span class="btn q" style="margin-right:4px">전체 선택</span>
+              <span style="font-size:10.5px;color:var(--ink-muted)">토요일에 진료하는 2명만 고른다</span>
+              <div style="margin-top:7px">
+                <div class="chk"><div class="box"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></div>
+                  <div class="txt"><b>김민수</b> <span>· 내과 · 토 09:00~13:00 · <b style="color:var(--warn)">이 날 예약 4건</b></span></div></div>
+                <div class="chk" style="background:var(--done-bg);border-color:var(--divider)">
+                  <div class="box off" style="border-color:#D6DDE3;background:#EDF1F4"></div>
+                  <div class="txt" style="color:var(--done)"><b style="color:var(--done)">박서연</b> <span>· 내과 · <b style="color:var(--done)">토요일은 이미 정기 휴진</b></span></div></div>
+                <div class="chk" style="background:var(--done-bg);border-color:var(--divider)">
+                  <div class="box off" style="border-color:#D6DDE3;background:#EDF1F4"></div>
+                  <div class="txt" style="color:var(--done)"><b style="color:var(--done)">이지현</b> <span>· 정형외과 · <b style="color:var(--done)">토요일은 이미 정기 휴진</b></span></div></div>
+                <div class="chk"><div class="box"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></div>
+                  <div class="txt"><b>최우진</b> <span>· 소아청소년과 · 토 09:00~13:00 · <b style="color:var(--warn)">이 날 예약 1건</b></span></div></div>
+              </div>
+              <p class="hint" style="margin-top:8px">⭐ <b>그 요일이 이미 정기 휴진인 의사는 회색으로 두고 고를 수 없게 한다.</b>
+                <b>쉬는 날을 또 쉬게 만들 수는 없고</b>, 고를 수 있게 두면 <b>「등록했다」는 착각</b>만 남는다
+                (실제로는 아무 일도 일어나지 않는다).</p>
+            </div></div>
+          <div class="fr"><div class="fl">이 날은</div>
+            <span class="rad"><span class="r on">종일 휴진</span><span class="r">시간 변경</span></span></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <span class="btn q">그만두기</span><span class="btn p">저장</span></div>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>공휴일을 한 번에 넣을 수 있다.</b> 저장할 때 컴퓨터가 <b>의사마다 한 줄씩</b> 만들어 넣는다 —
+        <b>담는 그릇은 그대로</b>이고 <b>화면만 여러 명을 받는다.</b></span></div>
+      <div class="plus"><span class="s">＋</span><span><b>빠뜨림이 구조적으로 줄어든다.</b> <code>[전체 선택]</code>이 있으면
+        「여덟 번 중 한 번을 잊는」 사고가 나지 않는다.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>이름 옆에 「이 날 예약 N건」이 보인다</b> — 저장 전 경고(<code>SCHED-WARN-*</code>)가 뜨기 전에
+        이미 <b>무엇이 걸릴지 짐작할 수 있다.</b></span></div>
+      <div class="plus"><span class="s">＋</span><span>⭐ <b>「이미 정기 휴진인 의사」가 회색으로 갈라진다</b> — 목록을 세로로 늘어놓아야
+        <b>「이 날 병원에 누가 나오나」가 한눈에</b> 보인다. 한 명씩 등록하면 이게 안 보인다.</span></div>
+      <div class="minus"><span class="s">－</span><span>⚠️ <b>「병원 휴무일」이라는 개념 자체는 여전히 없다.</b> 나중에 의사가 새로 들어오면
+        <b>그 사람에게는 그 공휴일이 없다.</b> 상담봇이 <b>「우리 병원 휴진일」을 답해야 할 때</b>(요구사항 3.8)
+        <b>의사별 행을 모아서 추측해야</b> 한다 → 갭으로 남긴다.</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="opt">
+  <div class="h"><span class="tag">㉯</span> <b>병원 휴무일을 담는 곳을 새로 만든다</b>(표 하나 추가)</div>
+  <div class="c">
+    <div class="app">
+      <div class="body">
+        <div class="rh"><b>8월 15일 (토) · 변경 등록</b></div>
+        <div class="form">
+          <div class="fr"><div class="fl">누가 쉬나</div>
+            <span class="rad"><span class="r on">병원 전체</span><span class="r">의사 고르기</span></span></div>
+          <div class="fr"><div class="fl">이 날은</div>
+            <span class="rad"><span class="r on">종일 휴진</span><span class="r">시간 변경</span></span></div>
+          <div class="fr"><div class="fl">메모</div>
+            <span class="fld wide" style="min-width:200px;text-align:left;color:var(--ink-muted)">병원 지정 휴무일</span>
+            <span style="font-size:10.5px;color:var(--ink-muted)">상담봇이 이 말을 그대로 쓴다</span></div>
+        </div>
+        <div class="note w" style="margin-top:12px">
+          <svg class="i"><use href="#ic-warn"/></svg>
+          <b>이 날 진료 예정인 의사 2명 · 예약 5건</b>이 걸립니다. 저장하면 <code>/today</code>의 「확인 필요한 예약」으로 넘어갑니다.</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <span class="btn q">그만두기</span><span class="btn p">저장</span></div>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px"><b>등록한 뒤 그 날을 열면 이렇게 보인다</b> — 병원 휴무가 <b>맨 위 한 줄</b>로 서고,
+      의사별 줄은 <b>전부 그 아래에 회색으로</b> 깔린다.</p>
+    <div class="app" style="margin-top:8px">
+      <div class="body">
+        <div class="rh"><b>8월 15일 (토)</b><span class="sp"></span><span class="btn p">변경 등록</span></div>
+        <table class="t" style="font-size:11.5px">
+          <tr><th style="width:130px">대상</th><th style="width:160px">이 날은</th><th style="width:110px">영향받는 예약</th><th></th></tr>
+          <tr style="background:var(--warn-bg)"><td><b>병원 전체</b><br>
+            <span style="color:var(--ink-muted);font-size:10.5px">병원 지정 휴무일</span></td>
+            <td><span class="tag no">종일 휴진</span></td>
+            <td><b style="color:var(--warn)">5건</b></td>
+            <td style="text-align:right"><span class="btn q">수정</span> <span class="btn q">되돌리기</span></td></tr>
+          <tr><td style="color:var(--done)">김민수 <span style="font-size:10.5px">내과</span></td>
+            <td colspan="3" style="color:var(--done)">병원 휴무일이라 쉰다 <span style="font-size:10.5px">(따로 등록한 것 없음)</span></td></tr>
+          <tr><td style="color:var(--done)">최우진 <span style="font-size:10.5px">소아청소년과</span></td>
+            <td colspan="3" style="color:var(--done)">병원 휴무일이라 쉰다 <span style="font-size:10.5px">(따로 등록한 것 없음)</span></td></tr>
+          <tr><td style="color:var(--done)">박서연 · 이지현</td>
+            <td colspan="3" style="color:var(--done)">토요일은 원래 정기 휴진</td></tr>
+        </table>
+        <p class="hint w">⚠️ <b>여기서 새 질문이 생긴다</b> — 병원 휴무일인데 <b>김민수만 나와서 진료하기로</b> 했다면?
+          <b>「병원 휴무」와 「의사별 변경」이 겹칠 때 무엇이 이기는지</b>를 정해야 한다. ㉮에는 이 질문이 아예 없다(줄이 하나뿐이므로).</p>
+      </div>
+    </div>
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>「병원이 쉬는 날」이 하나의 사실로 저장된다.</b> 상담봇도 그대로 읽어 답할 수 있고,
+        나중에 들어온 의사에게도 <b>자동으로 적용된다.</b></span></div>
+      <div class="minus"><span class="s">－</span><span><b>데이터베이스 표를 하나 더 만들어야 한다</b>(되돌리기 비싼 구간).
+        그리고 <b>「의사별 휴진」과 「병원 휴무」가 겹칠 때 무엇이 이기나</b>를 또 정해야 한다.</span></div>
+      <div class="minus"><span class="s">－</span><span><b>요구사항이 직접 요구한 적은 없다</b> — 3.7이 말하는 것은 *"특정 날짜의 진료시간 변경"*까지다.
+        <b>3.8(상담봇 안내)에서 간접적으로만</b> 필요해 보인다.</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="opt rec">
+  <div class="h"><span class="tag ok">㉰ 둘을 합친 것</span> <b>병원 휴무일 표를 만들되, 「의사 고르기」는 여러 명 체크로</b>
+    <span class="sp"></span><span style="font-weight:700;font-size:11px">사용자 제안 2026-08-07</span></div>
+  <div class="c">
+    <p class="hint" style="margin:0 0 10px">⭐ <b>㉮가 없어지는 것이 아니라 ㉯ 안으로 들어간다.</b>
+      「누가 쉬나」의 <b>두 갈래 중 아래쪽</b>이 곧 ㉮다.</p>
+    <div class="app">
+      <div class="body">
+        <div class="rh"><b>8월 15일 (토) · 변경 등록</b></div>
+        <div class="form">
+          <div class="fr"><div class="fl">누가 쉬나</div>
+            <span class="rad"><span class="r">병원 전체</span><span class="r on">의사 고르기</span></span></div>
+          <div class="fr"><div class="fl">의사</div>
+            <div style="flex:1">
+              <span class="btn q" style="margin-right:4px">전체 선택</span>
+              <span style="font-size:10.5px;color:var(--ink-muted)">토요일에 진료하는 2명만 고른다</span>
+              <div style="margin-top:7px">
+                <div class="chk"><div class="box"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></div>
+                  <div class="txt"><b>김민수</b> <span>· 내과 · 토 09:00~13:00 · <b style="color:var(--warn)">이 날 예약 4건</b></span></div></div>
+                <div class="chk" style="background:var(--done-bg);border-color:var(--divider)">
+                  <div class="box off" style="border-color:#D6DDE3;background:#EDF1F4"></div>
+                  <div class="txt" style="color:var(--done)"><b style="color:var(--done)">박서연</b> <span>· 내과 · <b style="color:var(--done)">토요일은 이미 정기 휴진</b></span></div></div>
+                <div class="chk" style="background:var(--done-bg);border-color:var(--divider)">
+                  <div class="box off" style="border-color:#D6DDE3;background:#EDF1F4"></div>
+                  <div class="txt" style="color:var(--done)"><b style="color:var(--done)">이지현</b> <span>· 정형외과 · <b style="color:var(--done)">토요일은 이미 정기 휴진</b></span></div></div>
+                <div class="chk"><div class="box"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></div>
+                  <div class="txt"><b>최우진</b> <span>· 소아청소년과 · 토 09:00~13:00 · <b style="color:var(--warn)">이 날 예약 1건</b></span></div></div>
+              </div>
+            </div></div>
+          <div class="fr"><div class="fl">이 날은</div>
+            <span class="rad"><span class="r on">종일 휴진</span><span class="r">시간 변경</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="hint" style="margin-top:12px"><b>겹쳤을 때 — 8월 15일이 병원 휴무인데 김민수만 나오기로 했다면</b></p>
+    <div class="app" style="margin-top:6px">
+      <div class="body">
+        <div class="rh"><b>8월 15일 (토)</b><span class="sp"></span><span class="btn p">변경 등록</span></div>
+        <table class="t" style="font-size:11.5px">
+          <tr><th style="width:150px">대상</th><th style="width:190px">이 날은</th><th style="width:100px">예약</th><th></th></tr>
+          <tr><td><b>병원 전체</b><br><span style="color:var(--ink-muted);font-size:10.5px">병원 지정 휴무일</span></td>
+            <td><span class="tag no">종일 휴진</span> <span style="font-size:10.5px;color:var(--ink-muted)">— 아래에서 덮인 사람 있음</span></td>
+            <td>—</td>
+            <td style="text-align:right"><span class="btn q">수정</span> <span class="btn q">되돌리기</span></td></tr>
+          <tr style="background:var(--book)"><td><b>김민수</b><br><span style="color:var(--ink-muted);font-size:10.5px">내과</span></td>
+            <td><b>09:00 ~ 13:00 진료</b><br><span style="color:#1C4C4D;font-size:10.5px">병원 휴무일이지만 이 사람은 나온다</span></td>
+            <td><b style="color:var(--warn)">4건</b></td>
+            <td style="text-align:right"><span class="btn q">수정</span> <span class="btn q">되돌리기</span></td></tr>
+          <tr><td style="color:var(--done)">최우진 <span style="font-size:10.5px">소아청소년과</span></td>
+            <td colspan="3" style="color:var(--done)">병원 휴무일이라 쉰다 <span style="font-size:10.5px">(따로 등록한 것 없음)</span></td></tr>
+          <tr><td style="color:var(--done)">박서연 · 이지현</td>
+            <td colspan="3" style="color:var(--done)">토요일은 원래 정기 휴진</td></tr>
+        </table>
+        <p class="hint g">⭐ <b>좁은 쪽이 이긴다</b> — 병원 휴무는 <b>기본값</b>이고 의사별 지정은 <b>그 사람을 콕 집은 지시</b>다.
+          반대로 정하면 <b>「휴무일인데 나오기로 한 의사」를 표현할 방법이 없어져 막다른 길</b>이 된다.
+          그래서 <b>병원 전체 줄에는 「아래에서 덮인 사람 있음」</b>이 붙는다 — <b>덮였다는 사실이 안 보이면 그게 더 위험하다.</b></p>
+      </div>
+    </div>
+
+    <div class="pm">
+      <div class="plus"><span class="s">＋</span><span><b>㉮의 장점이 그대로 살아 있다</b> — 「의사 고르기」에서 여러 명을 한 번에,
+        <b>정기 휴진인 사람은 회색으로</b>, 이름 옆에 <b>「이 날 예약 N건」</b>.</span></div>
+      <div class="plus"><span class="s">＋</span><span><b>㉯의 장점도 그대로</b> — 「병원이 쉬는 날」이 <b>하나의 사실</b>로 남아
+        <b>상담봇이 읽고</b>, <b>나중에 들어온 의사에게도 적용</b>된다.</span></div>
+      <div class="plus"><span class="s">＋</span><span>⭐ <b>겹침 질문이 오히려 답이 된다</b> — 「휴무일인데 나오는 의사」는
+        ㉮에서는 <b>표현할 방법조차 없던</b> 상황이다(줄이 하나라 덮을 것이 없다).</span></div>
+      <div class="minus"><span class="s">－</span><span><b>데이터베이스 표를 하나 더 만든다</b> — 1단계는 이미 만들어졌으므로
+        <b>새 마이그레이션 파일을 얹는다</b>(<code>00010_</code>부터). 되돌리기 비싼 구간이라 <b>지금 정해야 하는 것이 맞다.</b></span></div>
+      <div class="minus"><span class="s">－</span><span><b>「어느 것이 이기나」를 코드가 매번 판정해야 한다</b> — 예약을 받을 때,
+        캘린더를 그릴 때, 상담봇이 답할 때 <b>같은 판정을 세 곳에서</b> 쓴다.
+        📌 <b>이미 있는 원칙으로 막는다</b> — <code>SCHED-CALC-02</code>(판정 함수는 하나뿐이다).</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="note i">
+  <b>✅ 확정(2026-08-07) — ㉰ 합친 안</b>(사용자 결정) → <code>SCHED-EXC-01~15</code>.
+  🆕 <b>갭 #96</b> — <b>병원 휴무일 표를 신설</b>한다. ⚠️ 1단계는 이미 만들어졌으므로 <b>기존 파일을 고치지 않고 <code>00010_</code>부터 새로 얹는다.</b><br>
+  ⭐ <b>겹침은 「좁은 쪽이 이긴다」</b>(의사별 &gt; 병원 휴무) — 판정은 <b>한 함수</b>로(<code>SCHED-CALC-02</code>를 여기까지 넓힌다).
+  ⚠️ 예약을 받을 때 검사하는 곳(<code>00005:301~310</code>)은 <b>지금 휴진을 아예 보지 않는다</b>(갭 #92와 같은 뿌리).
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⑤ 이 화면에서 정해진 것과 남은 것 <span class="tag ok">2026-08-07</span></h2>
+<p class="seclead">⑤절에 <b>미결로 적어뒀던 다섯 가지가 이번 세션에 전부 닫혔다.</b> 남은 것은 <b>고객에게 물을 것 하나</b>와 <b>다른 화면의 몫 둘</b>이다.</p>
+<table class="t">
+  <tr><th style="width:170px">무엇</th><th>어떻게 됐나</th></tr>
+  <tr><td><b>저장 단위</b> <span class="tag ok">닫힘</span></td>
+    <td><b>표 맨 위 버튼 하나로 한꺼번에</b>(<code>SCHED-SAVE-01~08</code>). 대가로 <b>갭 #95</b>(일주일치를 한 덩어리로 받는 창구).</td></tr>
+  <tr><td><b>진료과 「사용 중지」</b> <span class="tag ok">닫힘</span></td>
+    <td><b>의사가 남아 있으면 막고 <code>[직원 관리로 가기]</code></b>(<code>SCHED-DEPT-03~06</code>). ⭐ <b>끄는 것이 아무것도 막지 않는다</b>는 사실이 답을 정했다.</td></tr>
+  <tr><td><b>병원 전체가 쉬는 날</b> <span class="tag ok">닫힘</span></td>
+    <td><b>병원 휴무일 표를 신설 + 의사 다중 선택</b>(<code>SCHED-EXC-01~15</code>) · 겹치면 <b>좁은 쪽이 이긴다</b>. <b>갭 #96</b>(마이그레이션 <code>00010_</code>).</td></tr>
+  <tr><td><b>한 칸 길이를 바꾸면</b> <span class="tag ok">닫힘</span></td>
+    <td>⭐⭐ <b>질문이 옛 전제 위에 있었다</b>(사용자 지적). 격자는 <b>환자에게 보여줄 목록</b>일 뿐이라
+      <b>「손봐야 할 예약」은 0건이 원칙</b>(<code>SCHED-SLOT-01~09</code>). 🆕 <b>갭 #97</b> — 지금 플랜은
+      <b>저장 즉시 환자에게 알림을 보내고</b>, 게다가 <b>아무 일도 안 일어난 예약에</b> 보낸다.</td></tr>
+  <tr><td><b>취소 마감 시간을 어디서</b> <span class="tag ok">닫힘</span></td>
+    <td>⭐⭐ <b>「거기 두자」의 「거기」가 없었다</b> — <code>/admin/settings</code>는 <b>화면 목록에만 있는 유령 화면</b>이었다.
+      <b>신설로 확정</b> · 🆕 <b>갭 #98</b>(요구사항 4.3의 <b>「병원이 정한 시간」을 정할 곳이 없다</b>).</td></tr>
+  <tr><td><b>그날만 점심 옮기기</b> <span class="tag new">고객에게 물을 것</span></td>
+    <td><b>지금은 방법이 없다</b>(<code>SCHED-EXC-08b</code>). 요구사항이 요구한 적이 없어 <b>막다른 길로 치지 않는다.</b>
+      질문 그대로: <i>“그날만 점심시간을 옮기는 일이 실제로 있습니까?”</i> — <b>없다고 답하면 적어두는 것만으로 끝난다</b>(갭 #94).</td></tr>
+  <tr><td><b>의사를 사용 중지하면 그 예약은</b> <span class="tag">다른 화면</span></td>
+    <td><code>/admin/staff</code>의 몫 — <b>빈칸 <code>SB-48</code></b>. ⚠️ 지금 계산은 <b>휴진·시간변경만 보고 「의사가 꺼진 것」은 보지 않는다.</b></td></tr>
+  <tr><td><b><code>/admin/settings</code> 화면 자체</b> <span class="tag">다른 화면</span></td>
+    <td><b>빈칸 <code>SB-49</code></b>. ⚠️ 첫 질문은 <b>소급 여부</b> — 취소 마감을 24→48시간으로 늘리면
+      <b>어제 예약한 사람이 오늘 갑자기 취소를 못 하게 된다.</b></td></tr>
+</table>
+
+</div>
+</body>
+</html>

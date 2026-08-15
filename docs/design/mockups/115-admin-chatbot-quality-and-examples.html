@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>115 · 상담 품질 리포트와 관리자 상세 패턴</title>
+<style>
+:root{--primary:#0B6E70;--ink:#10243A;--muted:#5A6C7B;--warn:#B44E00;--warn-bg:#FFF1E4;--danger:#A02F3D;--danger-bg:#FFF0F1;--done:#67788A;--done-bg:#F5F7F8;--bg:#F2F5F7;--surface:#fff;--divider:#E1E8EC;--soft:#F8FAFB;--teal:#E7F1F1;--teal-line:#9FC6C6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}button,input,select,textarea{font:inherit}button{cursor:pointer}svg.i{width:14px;height:14px;flex:none;vertical-align:-3px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.page{max-width:1440px;margin:auto;padding:32px 24px 72px}h1{font-size:23px;line-height:1.3;margin:0 0 7px}h2.sec{font-size:17px;margin:32px 0 7px}.lead,.note{color:var(--muted);line-height:1.7;margin:0}.lead b,.note b{color:var(--ink)}code{background:var(--done-bg);padding:2px 5px;border-radius:4px;font-size:11px}.rules{display:flex;gap:5px;flex-wrap:wrap;margin:12px 0 16px;padding:11px 13px;background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);border-radius:8px}.rule{display:inline-flex;align-items:center;padding:2px 5px;border-radius:4px;background:var(--teal);color:var(--primary);font-size:10px;line-height:1.35;font-weight:800;white-space:nowrap}.rule.w{background:var(--warn-bg);color:var(--warn)}.rule.d{background:var(--danger-bg);color:var(--danger)}
+.app{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(16,36,58,.05)}.top{height:44px;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--divider);color:var(--muted);font-size:11px;font-weight:800}.brand{color:var(--ink);font-size:12px}.sp{flex:1}.role,.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:99px;background:var(--done-bg);font-size:10px;font-weight:800;white-space:nowrap}.badge.on{background:var(--teal);color:var(--primary)}.badge.w{background:var(--warn-bg);color:var(--warn)}.badge.d{background:var(--danger-bg);color:var(--danger)}.stage{display:flex;min-height:730px}.stage.short{min-height:490px}.nav{width:184px;flex:none;background:#FBFCFD;border-right:1px solid var(--divider);padding:9px 0}.grp{padding:10px 14px 5px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.04em}.it{display:flex;align-items:center;gap:7px;min-height:35px;padding:8px 14px;border-left:3px solid transparent;color:var(--muted);font-size:11.5px}.it.on{background:var(--teal);border-color:var(--primary);color:var(--primary);font-weight:800}.body{flex:1;min-width:0;padding:18px 20px 26px;background:#FCFDFD}.crumb{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:11px;margin-bottom:12px}.crumb b{color:var(--ink)}.titlebar,.filters{display:flex;align-items:center;gap:7px;margin-bottom:11px}.titlebar h3{font-size:18px;margin:0}.filters{padding:10px;background:var(--surface);border:1px solid var(--divider);border-radius:8px;flex-wrap:wrap}.input{height:34px;border:1px solid var(--divider);border-radius:6px;background:var(--surface);padding:0 9px;color:var(--ink);font-size:11px}.input:focus,textarea:focus{outline:0;border-color:var(--primary);box-shadow:0 0 0 2px rgba(11,110,112,.1)}.filter-label{color:var(--muted);font-size:10px;font-weight:800}.filter-help{color:var(--muted);font-size:10px}.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;border:1px solid var(--divider);border-radius:7px;background:var(--surface);color:var(--ink);padding:7px 10px;font-size:11px;font-weight:800}.btn.p{background:var(--primary);border-color:var(--primary);color:#fff}.btn.d{color:var(--danger);border-color:var(--danger)}.btn.dis{background:var(--done-bg);color:#A2AFBA;cursor:not-allowed}.btn.link{min-height:0;border:0;padding:3px;color:var(--primary);background:transparent}.btn:focus-visible,.conversation:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.quality-grid{display:grid;grid-template-columns:minmax(390px,.86fr) minmax(0,1.14fr);gap:12px}.card{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.ch{display:flex;align-items:center;gap:7px;min-height:42px;padding:9px 12px;background:#FBFCFD;border-bottom:1px solid var(--divider);font-weight:800;font-size:12px}.ch .sub{color:var(--muted);font-size:10px;font-weight:600}.list-order{display:flex;align-items:center;gap:6px;padding:8px 11px;background:var(--soft);border-bottom:1px solid var(--divider);color:var(--muted);font-size:10px}.list-order b{color:var(--ink)}.conversation{width:100%;border:0;border-bottom:1px solid var(--divider);background:var(--surface);padding:11px 12px;text-align:left;color:var(--ink)}.conversation:hover{background:#FCFEFE}.conversation.on{background:var(--teal);box-shadow:inset 3px 0 var(--primary)}.conversation:last-of-type{border-bottom:0}.conversation-top{display:flex;align-items:center;gap:6px;margin-bottom:5px}.date{color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}.review{margin-left:auto}.q{font-size:11.5px;font-weight:800;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:7px}.meta-cell{min-width:0;color:var(--muted);font-size:9.5px}.meta-cell b{display:block;margin-bottom:2px;color:var(--ink);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pagination{display:flex;align-items:center;justify-content:center;gap:5px;padding:10px;border-top:1px solid var(--divider);background:#FBFCFD}.page-btn{width:29px;height:29px;display:grid;place-items:center;border:1px solid var(--divider);border-radius:6px;background:var(--surface);color:var(--muted);font-size:10px;font-weight:800}.page-btn.on{border-color:var(--primary);background:var(--primary);color:#fff}.page-meta{margin-left:5px;color:var(--muted);font-size:9.5px}.panel{padding:13px}.panel-scroll{max-height:610px;overflow:auto;padding-right:3px}.context-label{display:flex;align-items:center;gap:5px;margin:12px 0 5px;color:var(--muted);font-size:9.5px;font-weight:800;letter-spacing:.02em}.context-label:first-child{margin-top:0}.turn{padding:10px 11px;border-radius:7px;background:var(--done-bg);font-size:11px;line-height:1.65}.turn.bot{margin:7px 0 0 24px;background:var(--teal)}.source{padding:10px;border:1px solid var(--divider);border-radius:7px;font-size:10.5px;line-height:1.6}.source-title{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-weight:800}.source small{color:var(--muted)}.field label{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:9.5px;font-weight:800;margin-bottom:5px}.field textarea{width:100%;height:96px;border:1px solid var(--divider);border-radius:6px;padding:9px;color:var(--ink);font-size:11px;line-height:1.55;resize:vertical}.actions{display:flex;align-items:center;gap:7px;margin-top:8px}.result{display:none;margin-top:10px;padding:10px 11px;border-left:4px solid var(--primary);background:var(--teal);font-size:10.5px;line-height:1.65}.result.show{display:block}.result b{color:var(--ink)}.result .btn{margin-top:7px}.trace{display:flex;align-items:center;gap:6px;margin-top:9px;color:var(--muted);font-size:9.5px}.trace code{color:var(--primary)}
+.states{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:13px}.state{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.sh{display:flex;align-items:center;gap:5px;padding:8px 10px;background:#FBFCFD;border-bottom:1px solid var(--divider);font-weight:800;font-size:11px}.sb{min-height:137px;padding:11px;color:var(--muted);font-size:10.5px;line-height:1.6}.sb b{color:var(--ink)}.line{padding:9px;border-left:4px solid var(--danger);background:var(--danger-bg);color:var(--danger);margin-bottom:7px}.line.w{border-color:var(--warn);background:var(--warn-bg);color:var(--warn)}.line.ok{border-color:var(--primary);background:var(--teal);color:var(--ink)}.sk{height:10px;background:var(--divider);border-radius:4px;margin:8px 0}.check-list{margin:0;padding-left:17px}.check-list li{margin:3px 0}
+.example{display:grid;grid-template-columns:minmax(180px,.75fr) minmax(260px,1.25fr) 100px 94px;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px solid var(--divider);font-size:11px;line-height:1.5}.example.off{background:var(--done-bg);color:var(--muted)}.examples-states{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-top:12px}.examples-states .sb{min-height:120px}.note{margin-top:10px;font-size:10.5px}
+.pattern-head{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:start;margin:10px 0 13px;padding:12px 14px;border:1px solid var(--teal-line);border-left:4px solid var(--primary);border-radius:8px;background:#FBFEFE}.pattern-head b{display:block;margin-bottom:3px}.pattern-head p{margin:0;color:var(--muted);font-size:11px;line-height:1.65}.route-chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.route-chip{padding:4px 7px;border-radius:99px;background:var(--teal);color:var(--primary);font-size:10px;font-weight:800}.detail-stage{min-height:570px}.detail-body{flex:1;min-width:0;padding:18px 22px 28px;background:#FCFDFD}.backline{display:flex;align-items:center;gap:8px;margin-bottom:13px}.backline .btn{color:var(--primary)}.restore{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:11px}.restore-item{display:flex;align-items:center;gap:7px;padding:8px 9px;border:1px solid var(--divider);border-radius:7px;background:var(--surface);font-size:10px;color:var(--muted)}.restore-item b{display:block;color:var(--ink);font-size:10.5px}.detail-card{background:var(--surface);border:1px solid var(--divider);border-radius:9px;overflow:hidden}.detail-hero{display:flex;align-items:flex-start;gap:10px;padding:15px 16px;border-bottom:1px solid var(--divider)}.detail-hero h3{font-size:18px;margin:0 0 4px}.detail-hero p{margin:0;color:var(--muted);font-size:10.5px}.detail-content{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(270px,.7fr);gap:12px;padding:14px}.quote-list{border:1px solid var(--divider);border-radius:7px;overflow:hidden}.quote{padding:10px 11px;border-bottom:1px solid var(--divider);font-size:11px;line-height:1.55}.quote:last-child{border-bottom:0}.quote small{display:block;color:var(--muted);margin-top:3px}.side-info{padding:11px;border-radius:7px;background:var(--done-bg);font-size:10.5px;line-height:1.65;color:var(--muted)}.side-info b{color:var(--ink)}.unresolved-note{margin-top:9px;padding:9px 10px;border-left:4px solid var(--warn);background:var(--warn-bg);color:var(--warn);font-size:10px;line-height:1.6}
+@media(max-width:1050px){.quality-grid{grid-template-columns:1fr}.panel-scroll{max-height:none}.states,.examples-states{grid-template-columns:1fr 1fr}.detail-content{grid-template-columns:1fr}.pattern-head{grid-template-columns:1fr}.route-chips{justify-content:flex-start}}@media(max-width:820px){.stage{display:block}.nav{width:100%;display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--divider)}.grp{display:none}.it{white-space:nowrap}.restore{grid-template-columns:1fr}.example{grid-template-columns:1fr 1.4fr auto}}@media(max-width:620px){.page{padding:22px 12px 60px}.states,.examples-states{grid-template-columns:1fr}.filters{align-items:stretch;flex-direction:column}.filter-help{margin-left:0}.meta-grid{grid-template-columns:1fr 1fr}.example{grid-template-columns:1fr}.example .btn{justify-self:start}.detail-body,.body{padding:14px}.quality-grid{display:block}.quality-grid>.card+aside{margin-top:10px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a3 3 0 0 1 3-3h13v17H7a3 3 0 0 0-3 3z"/><path d="M4 5v17M8 6h8M8 10h6"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.2.9-1.2 1.7M12 17h.01"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 4h16l2 12v4H2v-4z"/><path d="M3 15h5l2 3h4l2-3h5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 4z"/><path d="M8 9h8M8 13h5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v5h5M9 12h6M9 16h6"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="m4 20 4-1 11-11-3-3L5 16zM14 7l3 3"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M4 3h14l2 2v16H4z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7M8 12h12"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M18 10a7 7 0 0 0-12-3L4 12M6 14a7 7 0 0 0 12 3l2-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20z"/><path d="M12 9v5M12 18h.01"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/></symbol>
+</svg>
+
+<main class="page">
+  <h1>115 · 상담 품질 리포트 + 관리자 상세 패턴</h1>
+  <p class="lead"><b>품질 검토는 목록+오른쪽 패널</b>로 연속 처리하고, 지식·미해결·질문 순위의 목록 상세는 <b>별도 전체 화면</b>으로 연다. 관리자 48·79~90의 공통 셸과 상태 색을 따른다.</p>
+
+  <h2 class="sec">115-A · 상담 품질 리포트 <code>/admin/chatbot/quality</code></h2>
+  <div class="rules"><span class="rule">QUALITY-REPORT-01</span><span class="rule">QUALITY-REPORT-02</span><span class="rule">QUALITY-REPORT-03</span><span class="rule">QUALITY-REPORT-04</span><span class="rule">QUALITY-REPORT-05</span><span class="rule">QUALITY-REPORT-06</span><span class="rule">QUALITY-REPORT-07</span><span class="rule">QUALITY-REPORT-08</span><span class="rule">QUALITY-REPORT-09</span><span class="rule">QUALITY-REPORT-10</span><span class="rule">QUALITY-REPORT-11</span><span class="rule">QUALITY-REPORT-12</span><span class="rule">NAV-ADM-07</span></div>
+  <section class="app">
+    <header class="top"><span class="brand">루나병원 · 직원 웹</span><span class="sp"></span><span class="role"><svg class="i"><use href="#i-user"/></svg>김관리 · 관리자</span><span>로그아웃</span></header>
+    <div class="stage">
+      <nav class="nav" aria-label="상담봇 관리자 메뉴">
+        <div class="grp">상담봇 관리</div>
+        <div class="it"><svg class="i"><use href="#i-book"/></svg>병원 안내자료</div>
+        <div class="it"><svg class="i"><use href="#i-help"/></svg>미해결 질문</div>
+        <div class="it"><svg class="i"><use href="#i-inbox"/></svg>오답 처리함 · 3</div>
+        <div class="it on"><svg class="i"><use href="#i-check"/></svg>품질 리포트</div>
+        <div class="it"><svg class="i"><use href="#i-file"/></svg>참고 예시</div>
+        <div class="it"><svg class="i"><use href="#i-chart"/></svg>질문 순위</div>
+      </nav>
+      <div class="body">
+        <div class="crumb">상담봇 관리 / <b>상담 품질 리포트</b></div>
+        <div class="titlebar"><h3>상담 품질 리포트</h3><span class="badge on">검토 가능 48건</span><span class="rule">QUALITY-REPORT-04</span></div>
+        <div class="filters">
+          <span class="filter-label">기간</span><input class="input" value="2026-08-01" aria-label="시작일"><span>~</span><input class="input" value="2026-08-12" aria-label="종료일">
+          <span class="filter-label">오답 신고</span><select class="input" id="report-filter" aria-label="오답 신고 필터"><option value="all">전체</option><option value="reported">신고 있음</option><option value="none">신고 없음</option></select>
+          <button class="btn p" type="button"><svg class="i"><use href="#i-search"/></svg>조회</button><span class="sp"></span><span class="filter-help">기간 경계·시간대는 <b>확인 필요</b></span><span class="rule w">QUALITY-REPORT-01</span>
+        </div>
+        <div class="quality-grid">
+          <section class="card" aria-label="품질 검토 상담 목록">
+            <div class="ch"><svg class="i"><use href="#i-filter"/></svg>상담 목록 <span class="sub">개인정보 표시 안 함</span><span class="sp"></span><span class="rule">QUALITY-REPORT-02</span><span class="rule">QUALITY-REPORT-03</span></div>
+            <div class="list-order"><b>미검토 우선</b><span>· 같은 상태 최신순</span><span class="sp"></span><b>20건 / 쪽</b></div>
+            <button class="conversation on" type="button" data-report="none" data-q="토요일 진료는 몇 시까지예요?" data-answer="토요일은 오후 5시까지 진료합니다." data-source="사용된 병원 안내 없음" aria-pressed="true">
+              <span class="conversation-top"><span class="date">2026.08.12 13:40</span><span class="review badge w">미검토</span></span><span class="q">토요일 진료는 몇 시까지예요?</span>
+              <span class="meta-grid"><span class="meta-cell"><b>앱</b>이용 경로</span><span class="meta-cell"><b>안내 없음</b>사용 안내</span><span class="meta-cell"><b>신고 없음</b>오답 신고</span></span>
+            </button>
+            <button class="conversation" type="button" data-report="reported" data-q="주차 할인은 어디서 받나요?" data-answer="주차 할인은 안내 데스크에서 받을 수 있습니다." data-source="주차 이용 안내 v3 · 2026.07.28 승인" aria-pressed="false">
+              <span class="conversation-top"><span class="date">2026.08.12 11:03</span><span class="review badge w">미검토</span></span><span class="q">주차 할인은 어디서 받나요?</span>
+              <span class="meta-grid"><span class="meta-cell"><b>웹</b>이용 경로</span><span class="meta-cell"><b>안내 1건</b>사용 안내</span><span class="meta-cell"><b>신고 있음</b>오답 신고</span></span>
+            </button>
+            <button class="conversation" type="button" data-report="none" data-q="오늘 내과 진료 가능한가요?" data-answer="오늘 진료 일정은 예약 화면에서 확인해 주세요." data-source="외래 진료시간 v5 · 2026.08.02 승인" aria-pressed="false">
+              <span class="conversation-top"><span class="date">2026.08.12 09:28</span><span class="review badge w">미검토</span></span><span class="q">오늘 내과 진료 가능한가요?</span>
+              <span class="meta-grid"><span class="meta-cell"><b>앱</b>이용 경로</span><span class="meta-cell"><b>안내 1건</b>사용 안내</span><span class="meta-cell"><b>신고 없음</b>오답 신고</span></span>
+            </button>
+            <button class="conversation" type="button" data-report="reported" data-q="건강검진 결과는 언제 확인하나요?" data-answer="검진 결과는 보통 7일 이내에 확인할 수 있습니다." data-source="건강검진 결과 안내 v2 · 2026.06.11 승인" aria-pressed="false">
+              <span class="conversation-top"><span class="date">2026.08.11 16:22</span><span class="review badge">검토 완료</span></span><span class="q">건강검진 결과는 언제 확인하나요?</span>
+              <span class="meta-grid"><span class="meta-cell"><b>웹</b>이용 경로</span><span class="meta-cell"><b>안내 1건</b>사용 안내</span><span class="meta-cell"><b>신고 있음</b>오답 신고</span></span>
+            </button>
+            <div class="pagination" aria-label="페이지 이동"><button class="page-btn" type="button" aria-label="이전 페이지"><svg class="i"><use href="#i-chevron-left"/></svg></button><button class="page-btn on" type="button">1</button><button class="page-btn" type="button">2</button><button class="page-btn" type="button">3</button><button class="page-btn" type="button" aria-label="다음 페이지"><svg class="i"><use href="#i-chevron-right"/></svg></button><span class="page-meta">전체 48건</span></div>
+          </section>
+          <aside class="card" aria-label="선택한 상담의 품질 상세">
+            <div class="ch"><svg class="i"><use href="#i-message"/></svg>선택 상담 상세 · 오른쪽 패널 <span class="sp"></span><span class="rule">QUALITY-REPORT-04</span><span class="rule">QUALITY-REPORT-05</span></div>
+            <div class="panel"><div class="panel-scroll">
+              <div class="context-label"><svg class="i"><use href="#i-message"/></svg>질문·답변 맥락</div>
+              <div class="turn" id="detail-question">환자 · 토요일 진료는 몇 시까지예요?</div>
+              <div class="turn bot" id="detail-answer">AI 상담봇 · 토요일은 오후 5시까지 진료합니다.</div>
+              <div class="context-label"><svg class="i"><use href="#i-book"/></svg>답변에 사용한 병원 안내</div>
+              <div class="source"><div class="source-title" id="detail-source">사용된 병원 안내 없음</div><small>안내 없음과 조회 실패를 구분합니다.</small></div>
+              <div class="context-label"><svg class="i"><use href="#i-edit"/></svg>올바른 안내 · 신고가 없어도 작성 가능</div>
+              <div class="field"><label for="correction"><span>교정 입력</span><span class="rule">QUALITY-REPORT-05</span></label><textarea id="correction">토요일 접수 창구는 오후 1시까지 운영합니다. 의사별 진료시간은 예약 화면에서 확인해 주세요.</textarea></div>
+              <div class="actions"><span class="sp"></span><button class="btn p" id="save-correction" type="button"><svg class="i"><use href="#i-save"/></svg>교정 저장</button></div>
+              <div class="result show" id="save-result" role="status"><b>교정을 저장했습니다.</b><br>오답 신고 처리함에서 [반영/반려] 검토를 거쳐야 상담봇에 반영됩니다.<br><button class="btn" type="button"><svg class="i"><use href="#i-inbox"/></svg>처리함으로 가기 ›</button><span class="rule">QUALITY-REPORT-08 · NAV-ADM-07</span><div class="trace">처리함 등록 출처 <code>source = quality_review</code></div></div>
+            </div></div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="states">
+    <article class="state"><div class="sh"><svg class="i"><use href="#i-save"/></svg>저장 중·실패 <span class="rule">QUALITY-REPORT-06</span><span class="rule">QUALITY-REPORT-07</span></div><div class="sb"><div class="line w"><b>교정 저장 중</b><br>입력 유지 · 중복 저장 잠금</div><div class="line"><b>저장하지 못했습니다</b><br>입력값 보존 · [다시 시도]</div></div></article>
+    <article class="state"><div class="sh"><svg class="i"><use href="#i-check"/></svg>0건 <span class="rule">QUALITY-REPORT-09</span></div><div class="sb"><b>선택 기간에 검토할 상담이 없습니다</b><br>조회 성공 뒤 실제 0건에만 표시합니다.</div></article>
+    <article class="state"><div class="sh"><svg class="i"><use href="#i-refresh"/></svg>로딩·오류 <span class="rule">QUALITY-REPORT-10</span><span class="rule">QUALITY-REPORT-11</span></div><div class="sb"><div class="sk"></div><div class="sk"></div><div class="sk"></div><div class="line"><b>상담을 불러오지 못했습니다</b><br>0건·근거 없음으로 위장하지 않습니다.</div></div></article>
+    <article class="state"><div class="sh"><svg class="i"><use href="#i-alert"/></svg>원문 조회 오류 <span class="rule">QUALITY-REPORT-12</span></div><div class="sb"><div class="line"><b>질문과 답변을 불러오지 못했습니다</b><br>[다시 시도] · 원문 없이 교정하지 않음</div><ul class="check-list"><li>정상적인 원문 부재 상태 아님</li><li>영구 소실은 데이터 사고로 처리</li></ul></div></article>
+  </section>
+
+  <h2 class="sec">115-B · 참고 예시 관리 <code>/admin/chatbot/examples</code></h2>
+  <div class="rules"><span class="rule">QAEX-LIST-01</span><span class="rule">QAEX-LIST-02</span><span class="rule">QAEX-LIST-03</span><span class="rule">QAEX-LIST-04</span><span class="rule">QAEX-LIST-05</span><span class="rule">QAEX-LIST-06</span><span class="rule">QAEX-LIST-07</span><span class="rule">QAEX-LIST-08</span><span class="rule">QAEX-LIST-09</span><span class="rule">QAEX-LIST-10</span></div>
+  <section class="app">
+    <header class="top"><span class="brand">루나병원 · 직원 웹</span><span class="sp"></span><span class="role"><svg class="i"><use href="#i-user"/></svg>김관리 · 관리자</span><span>로그아웃</span></header>
+    <div class="stage short"><nav class="nav"><div class="grp">상담봇 관리</div><div class="it"><svg class="i"><use href="#i-book"/></svg>병원 안내자료</div><div class="it"><svg class="i"><use href="#i-help"/></svg>미해결 질문</div><div class="it"><svg class="i"><use href="#i-inbox"/></svg>오답 처리함</div><div class="it"><svg class="i"><use href="#i-check"/></svg>품질 리포트</div><div class="it on"><svg class="i"><use href="#i-file"/></svg>참고 예시</div></nav>
+      <div class="body"><div class="crumb">상담봇 관리 / <b>참고 예시</b></div><div class="titlebar"><h3>참고 예시 관리</h3><span class="badge on">활성 18</span><span class="badge">비활성 4</span><span class="sp"></span><button class="btn" type="button"><svg class="i"><use href="#i-filter"/></svg>활성만</button></div>
+        <section class="card"><div class="ch">승인된 교정 질문·답변 예시 <span class="sp"></span><span class="rule">QAEX-LIST-01~03</span></div><div class="example"><b>토요일 진료는 몇 시까지예요?</b><span>토요일 접수 창구는 오후 1시까지 운영합니다.</span><span class="badge on">활성</span><button class="btn d" type="button">비활성화</button></div><div class="example"><b>주차 등록은 어디에서 해요?</b><span>출차 전 원무과에서 차량번호를 등록해 주세요.</span><span class="badge on">활성</span><button class="btn d" type="button">비활성화</button></div><div class="example off"><b>예약 취소는 전화로만 되나요?</b><span>취소 마감 전에는 앱에서 직접 취소할 수 있습니다.</span><span class="badge">비활성</span><button class="btn dis" type="button" disabled>비활성됨</button></div></section>
+        <p class="note"><b>삭제하지 않는다.</b> 비활성화하면 상담봇이 더 이상 참고하지 않는다. <b>재활성화 계약은 확인 필요</b>다. <span class="rule w">QAEX-LIST-03</span></p>
+      </div>
+    </div>
+  </section>
+  <section class="examples-states"><article class="state"><div class="sh">처리 중 <span class="rule">QAEX-LIST-04</span></div><div class="sb"><div class="line w"><b>비활성화 중</b><br>해당 예시의 중복 조작 잠금.</div></div></article><article class="state"><div class="sh">실패 <span class="rule">QAEX-LIST-05</span></div><div class="sb"><div class="line"><b>비활성화하지 못했습니다</b><br>활성 상태 유지 · [다시 시도]</div></div></article><article class="state"><div class="sh">완료·충돌 <span class="rule">QAEX-LIST-06</span><span class="rule">QAEX-LIST-07</span></div><div class="sb"><div class="line ok"><b>비활성화 완료</b><br>삭제가 아닌 비활성 표시.</div><div class="line w"><b>다른 관리자가 먼저 변경</b><br>최신 상태 재조회. 충돌 세부 계약은 <b>확인 필요</b>.</div></div></article><article class="state"><div class="sh">0건 <span class="rule">QAEX-LIST-08</span></div><div class="sb"><b>등록된 참고 예시가 없습니다</b><br>조회 성공 뒤 현재 조건 0건.</div></article><article class="state"><div class="sh">로딩·오류 <span class="rule">QAEX-LIST-09</span><span class="rule">QAEX-LIST-10</span></div><div class="sb"><div class="sk"></div><div class="sk"></div><div class="line"><b>참고 예시를 불러오지 못했습니다</b><br>0건으로 표시하지 않음.</div></div></article></section>
+
+  <h2 class="sec">115-C · 그 외 관리자 목록 → 전체 화면 상세</h2>
+  <div class="rules"><span class="rule">KBADM-LIST-09</span><span class="rule">UNRES-CLUSTER-05</span><span class="rule">QTOP-RANK-05</span></div>
+  <div class="pattern-head"><div><b>품질 리포트만 오른쪽 패널 예외</b><p>병원 안내자료(지식)·미해결 질문·전체 질문 순위의 행을 선택하면 목록을 가리는 별도 전체 화면 상세로 이동한다. `[목록으로]` 복귀 시 직전 필터·스크롤 위치를 그대로 복원한다.</p></div><div class="route-chips"><span class="route-chip">지식 상세</span><span class="route-chip">미해결 상세</span><span class="route-chip">순위 상세</span></div></div>
+  <section class="app">
+    <header class="top"><span class="brand">루나병원 · 직원 웹</span><span class="sp"></span><span class="role"><svg class="i"><use href="#i-user"/></svg>김관리 · 관리자</span><span>로그아웃</span></header>
+    <div class="stage detail-stage"><nav class="nav"><div class="grp">상담봇 관리</div><div class="it"><svg class="i"><use href="#i-book"/></svg>병원 안내자료</div><div class="it on"><svg class="i"><use href="#i-help"/></svg>미해결 질문</div><div class="it"><svg class="i"><use href="#i-inbox"/></svg>오답 처리함</div><div class="it"><svg class="i"><use href="#i-check"/></svg>품질 리포트</div><div class="it"><svg class="i"><use href="#i-chart"/></svg>질문 순위</div></nav>
+      <div class="detail-body">
+        <div class="crumb">상담봇 관리 / 미해결 질문 / <b>묶음 상세</b></div>
+        <div class="backline"><button class="btn" type="button"><svg class="i"><use href="#i-arrow-left"/></svg>목록으로</button><span class="rule">UNRES-CLUSTER-05</span><span class="sp"></span><span class="badge on">별도 전체 화면</span></div>
+        <div class="restore"><div class="restore-item"><svg class="i"><use href="#i-filter"/></svg><span><b>필터 복원</b>2026.08.01~08.12 · 미해결만</span></div><div class="restore-item"><svg class="i"><use href="#i-arrow-left"/></svg><span><b>스크롤 복원</b>목록 17번째 묶음 위치</span></div></div>
+        <section class="detail-card"><div class="detail-hero"><div><h3>주차 할인은 어떻게 받아요?</h3><p>미해결·반복 미해결 9건 · 자동 유사도 묶음</p></div><span class="sp"></span><span class="badge w">확정 분류 아님</span></div><div class="detail-content"><div class="quote-list"><div class="quote">“진료보고 주차비 할인받으려면 어떻게 해요?”<small>2026.08.12 11:03 · 반복 미해결</small></div><div class="quote">“주차 등록 어디에서 하나요?”<small>2026.08.11 16:22 · 답변 근거 없음</small></div><div class="quote">“보호자 차도 무료 주차 되나요?”<small>2026.08.10 09:17 · 다른 질문 포함 가능</small></div></div><aside><div class="side-info"><b>같은 전체 화면 원칙 적용</b><br><span class="rule">KBADM-LIST-09</span> 안내자료 작성·수정 상세<br><span class="rule">UNRES-CLUSTER-05</span> 미해결 묶음 상세<br><span class="rule">QTOP-RANK-05</span> 질문 순위 묶음 상세<br><br><button class="btn p" type="button"><svg class="i"><use href="#i-edit"/></svg>안내자료 추가</button></div><div class="unresolved-note"><b>확인 필요 유지</b><br>미해결 상세의 표시 필드·정렬, 질문 순위의 TOP N·동률 정렬·개인정보 표시 범위는 아직 확정하지 않는다.</div></aside></div></section>
+      </div>
+    </div>
+  </section>
+  <p class="note"><b>복귀 상태는 화면별 임의 구현이 아니다.</b> 세 목록 모두 직전 필터·스크롤 위치를 복원한다. 품질 리포트는 이 패턴의 예외이므로 목록을 유지한 오른쪽 패널 안에서 상세를 바꾼다.</p>
+</main>
+<script>
+const reportRows=[...document.querySelectorAll('.conversation')];
+const reportFilter=document.querySelector('#report-filter');
+const question=document.querySelector('#detail-question');
+const answer=document.querySelector('#detail-answer');
+const source=document.querySelector('#detail-source');
+const result=document.querySelector('#save-result');
+const selectReport=(row)=>{
+  reportRows.forEach((item)=>{item.classList.remove('on');item.setAttribute('aria-pressed','false')});
+  row.classList.add('on');row.setAttribute('aria-pressed','true');
+  question.textContent=`환자 · ${row.dataset.q}`;
+  answer.textContent=`AI 상담봇 · ${row.dataset.answer}`;
+  source.textContent=row.dataset.source;
+  result.classList.remove('show');
+};
+reportRows.forEach((row)=>row.addEventListener('click',()=>selectReport(row)));
+reportFilter.addEventListener('change',()=>{
+  reportRows.forEach((row)=>{row.hidden=reportFilter.value!=='all'&&row.dataset.report!==reportFilter.value});
+  const firstVisible=reportRows.find((row)=>!row.hidden);
+  if(firstVisible)selectReport(firstVisible);
+});
+document.querySelector('#save-correction').addEventListener('click',()=>result.classList.add('show'));
+</script>
+</body>
+</html>

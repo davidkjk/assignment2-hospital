@@ -1,0 +1,152 @@
+<style>
+  .p56 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --warn:#B44E00; --bg:#F2F5F7; }
+  .p56, .p56 * { text-align:left; box-sizing:border-box; }
+  .p56 { width:320px; height:520px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+         overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+         color:var(--ink); position:relative; }
+  .p56 .bar { background:var(--teal); color:#fff; padding:11px 14px; font-size:14.5px; font-weight:600; }
+  .p56 .prog { padding:12px 14px 6px; background:var(--bg); }
+  .p56 .prog .txt { font-size:12px; color:var(--done); font-weight:600; margin-bottom:6px; }
+  .p56 .prog .track { height:5px; background:#dde4e9; border-radius:3px; overflow:hidden; }
+  .p56 .prog .fill { height:100%; background:var(--teal); }
+  .p56 .q { padding:20px 16px 6px; font-size:19px; font-weight:800; line-height:1.4; letter-spacing:-.3px; }
+  .p56 .hint { padding:0 16px; font-size:12.5px; color:var(--done); font-weight:600; line-height:1.5; }
+  .p56 .body { padding:16px 16px 0; }
+
+  .box1 { border:1.5px solid #dde4e9; border-radius:10px; padding:13px 12px; font-size:15.5px; min-height:48px; color:#a9b6c0; }
+  .box1.filled { color:var(--ink); }
+  .boxN { border:1.5px solid #dde4e9; border-radius:10px; padding:13px 12px; font-size:15px; height:120px;
+          color:#a9b6c0; line-height:1.6; }
+  .yn { display:flex; flex-direction:column; gap:11px; }
+  .yn div { border:2px solid #dde4e9; border-radius:12px; padding:20px; font-size:20px; font-weight:800;
+            text-align:center; color:#3d5163; }
+  .yn div.sel { border-color:var(--teal); background:#f0f7f7; color:var(--teal); }
+
+  .p56 .foot { position:absolute; left:0; right:0; bottom:0; padding:0 16px 16px; display:flex; gap:9px; }
+  .p56 .foot .back { flex:none; width:64px; border:1.5px solid #c8d2d9; color:#44586b; border-radius:10px;
+                     padding:14px 0; font-size:14.5px; font-weight:800; text-align:center; }
+  .p56 .foot .next { flex:1; background:var(--teal); color:#fff; border-radius:10px; padding:14px;
+                     font-size:16px; font-weight:800; text-align:center; }
+  .p56 .skip { position:absolute; left:0; right:0; bottom:64px; text-align:center; font-size:13px;
+               color:var(--done); font-weight:600; text-decoration:underline; }
+
+  .resume { border:1px solid #dde4e9; border-radius:14px; background:#fff; padding:19px 18px 15px; width:290px;
+            box-shadow:0 10px 26px rgba(16,36,58,.13); }
+  .resume h4 { margin:0 0 8px; font-size:16.5px; font-weight:800; }
+  .resume p { margin:0; font-size:13.5px; color:#44586b; line-height:1.62; }
+  .resume .main { margin-top:16px; background:var(--teal); color:#fff; border-radius:9px; padding:13px;
+                  font-size:15px; font-weight:800; text-align:center; }
+  .resume .ghost { margin-top:9px; border:1.5px solid #c8d2d9; color:#44586b; border-radius:9px; padding:13px;
+                   font-size:15px; font-weight:800; text-align:center; }
+
+  .rowline { width:320px; border:1.5px solid #dde4e9; border-radius:11px; padding:12px 13px; background:#fff;
+             display:flex; align-items:center; gap:9px; font-size:14px; font-weight:700; color:var(--warn); }
+  .rowline .ar { margin-left:auto; color:#b6c2cb; font-weight:400; }
+
+  .lane56 { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane56 h3 { margin:0 0 5px; text-align:left; font-size:16px; }
+  .lane56 .cap { font-size:12.5px; color:#6b7d8c; margin-bottom:11px; max-width:320px; text-align:left; line-height:1.6; }
+  .note56 { margin-top:26px; border:1px solid #dde4e9; border-radius:12px; padding:16px 18px; background:#fafcfd;
+            font-size:13.5px; line-height:1.75; color:#33485c; max-width:1100px; }
+  .note56 b { color:#10243A; }
+  .note56 code { background:#eef2f5; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .key56 { margin-top:18px; border:1.5px solid #e2c9a8; border-radius:12px; padding:16px 18px; background:#fdf8f1;
+           font-size:13.5px; line-height:1.75; color:#4a3a26; max-width:1100px; }
+  .key56 b { color:#B44E00; }
+  .key56 code { background:#f2e6d6; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+
+<h2>사전문진 — 문항 종류 3종 · 진행 표시 (신규 · 결정 <b>B-25 · B-22</b>)</h2>
+<p class="subtitle">문항 종류는 <b>이미 정의돼 있었습니다</b> — <code>단답형</code>·<code>장문형</code>·<code>예/아니오</code> 3종(<code>staff-web.md:8977</code>)이고 관리자 화면에 선택 드롭다운도 있습니다. ⚠️ <b>환자 앱만 이를 무시하고 항상 자유 입력 한 칸을 그립니다</b>(<code>plans/patient-app.md:6489</code>) → 플랜 패치 대상. <b>새로 정할 것은 없고</b> 세 종류가 화면에서 어떻게 보이는지를 그린 것입니다.</p>
+
+<div class="lane56">
+
+  <div>
+    <h3>① <code>단답형</code> — 한 줄 입력칸</h3>
+    <div class="cap"><code>QNR-TYPE-01</code>. 진행 표시는 <b><code>3번 / 8문항</code></b>(<code>QNR-PROG-06</code>).
+    <br>⚠️ <b>8이라는 숫자는 사람마다 다릅니다</b> — 진료과마다 문항이 다르고, <b>환자 성별에 따라서도 달라집니다</b>(남성은 임신 문항이 안 보임, <code>QNR-PROG-03</code>).</div>
+    <div class="p56">
+      <div class="bar">← &nbsp;사전문진</div>
+      <div class="prog"><div class="txt">3번 / 8문항</div><div class="track"><div class="fill" style="width:37.5%"></div></div></div>
+      <div class="q">어떤 약을 드시고<br>계신가요?</div>
+      <div class="hint">약 이름을 아는 만큼만 적어 주세요</div>
+      <div class="body"><div class="box1">예) 혈압약, 당뇨약</div></div>
+      <div class="skip">건너뛰기</div>
+      <div class="foot"><div class="back">이전</div><div class="next">다음</div></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>② <code>장문형</code> — 여러 줄 입력칸</h3>
+    <div class="cap"><code>QNR-TYPE-02</code>. 칸의 <b>높이 자체가 "길게 써도 된다"는 신호</b>입니다 — 한 줄 칸에 길게 쓰라고 하면 대부분 짧게 씁니다.
+    <br>예약 6단계에서 적은 <b>방문 이유가 첫 문항의 초기값</b>으로 들어옵니다(두 값은 그 뒤로 독립).</div>
+    <div class="p56">
+      <div class="bar">← &nbsp;사전문진</div>
+      <div class="prog"><div class="txt">1번 / 8문항</div><div class="track"><div class="fill" style="width:12.5%"></div></div></div>
+      <div class="q">어디가 불편해서<br>오셨나요?</div>
+      <div class="hint">언제부터, 어떻게 아픈지 적어 주시면 좋습니다</div>
+      <div class="body"><div class="boxN">계단을 내려갈 때 오른쪽 무릎이 아픕니다. 두 달쯤 됐고 요즘은 앉았다 일어설 때도…</div></div>
+      <div class="skip">건너뛰기</div>
+      <div class="foot"><div class="back">이전</div><div class="next">다음</div></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>③ <code>예/아니오</code> — 큰 버튼 2개</h3>
+    <div class="cap"><code>QNR-TYPE-03</code>. ⭐ <b>한 화면에 한 문항이라 아주 크게 놓을 수 있습니다</b> — 요구사항 4.8이 <i>"중요한 버튼을 한 화면에 여러 개 작게 배치하지 말라"</i>고 한 것이 여기서 그대로 지켜집니다.
+    <br><b>안 고르고 넘어가도 됩니다</b>(<code>QNR-TYPE-09</code>) — 지나간 것으로 세고 의사 화면에는 <code>답 없음</code>으로 보입니다.</div>
+    <div class="p56">
+      <div class="bar">← &nbsp;사전문진</div>
+      <div class="prog"><div class="txt">2번 / 8문항</div><div class="track"><div class="fill" style="width:25%"></div></div></div>
+      <div class="q">복용 중인 약이<br>있으신가요?</div>
+      <div class="body" style="padding-top:22px">
+        <div class="yn"><div class="sel">예</div><div>아니오</div></div>
+      </div>
+      <div class="skip">건너뛰기</div>
+      <div class="foot"><div class="back">이전</div><div class="next">다음</div></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="key56">
+⭐ <b>이 결정의 진짜 문제는 「그리기」가 아니었습니다</b>(B-25)
+<br>요구사항 4.4의 문항 6개 중 <b>셋이 「~가 있는지」</b>입니다 — 복용 약 · 알레르기 · 임신 가능성.
+<br>이걸 <code>예/아니오</code>로만 받으면 <b><code>알레르기 있음</code>만 남고 <u>무엇에</u> 알레르기가 있는지는 안 남습니다.</b> 그 정보로 <b>의사가 할 수 있는 일이 없습니다</b>(<code>QNR-TYPE-06</code>).
+<br>✅ <b>해법: 새 종류를 만들지 않고 병원이 문항 두 개로 나눠 씁니다</b>(<code>QNR-TYPE-04·05</code>) — 위 ③(<code>예/아니오</code>) → ①(<code>단답형</code>)이 바로 그 짝입니다. <b>「아니오」인 사람은 후속 문항을 비우고 넘어갑니다</b>(<code>QNR-TYPE-07</code>).
+<br>⛔ <b>기각 ①(「예/아니오 + 후속 입력」 새 종류 신설)</b>: 데이터 구조·관리자 화면·앱·진행률 셈법 <b>네 곳</b>을 고쳐야 하고 갭이 1건 느는데, <b>얻는 것은 화면 한 장뿐</b>입니다. 기존 종류 둘을 이어 붙이면 같은 결과가 나옵니다.
+<br>⛔ <b>기각 ②(전부 자유 입력 유지)</b>: <code>없어요</code>/<code>없음</code>/<code>X</code>/빈칸으로 갈려 <b>「없다는 뜻인지 안 쓴 건지」를 구분할 수 없습니다.</b>
+<br>📌 <b>나눌지 말지는 병원이 판단합니다</b>(<code>QNR-TYPE-08</code>) — 진료과마다 약 이름까지 필요한지가 다릅니다.
+</div>
+
+<div class="lane56" style="margin-top:30px">
+  <div>
+    <h3>④ 이어쓰기 화면 <span style="color:#67788A;font-size:13px">B-22</span></h3>
+    <div class="cap">중간에 나갔다가 돌아왔을 때(<code>QNR-PROG-08</code>).</div>
+    <div class="resume">
+      <h4>작성하시던 사전문진이 있습니다</h4>
+      <p>8문항 중 3개를 작성하셨습니다.</p>
+      <div class="main">4번부터 이어서</div>
+      <div class="ghost">처음부터 다시</div>
+    </div>
+  </div>
+
+  <div>
+    <h3>⑤ 세 자리에 같은 숫자 <span style="color:#67788A;font-size:13px">B-22</span></h3>
+    <div class="cap">⭐ <b>홈·이어쓰기·알림이 전부 같은 서버 값에서 나옵니다</b>(<code>QNR-PROG-09</code>). 각자 세지 않고 <b>서버 한 곳</b>에서 계산한 값을 받아 씁니다(<code>QNR-PROG-04</code>).
+    <br>🔄 <b>정정(2026-08-05, 결정 B-47)</b> — 여기 두 줄이 <b>서로 모순돼 있었습니다.</b> 홈은 <code>(3/8)</code>로 <b>「한 것이 3개」</b>인데 알림은 <code>3문항 남았습니다</code>로 <b>「남은 것이 3개」</b>였습니다. 8문항 중 3개를 했으면 <b>남은 것은 5개</b>입니다.
+    <br>⭐ <b>표기를 억지로 통일하지 않았습니다</b> — 홈 줄은 <b>「지금 어디까지 왔나」</b>를 보여주는 자리이고, 알림은 <b>「지금 무엇을 해야 하나」</b>를 말하는 자리라 <b>남은 양이 더 자연스럽게 재촉합니다.</b> 대신 규칙을 <b>「세 자리가 같은 글자」에서 「세 자리가 같은 서버 값에서 나온다」</b>로 바꿨습니다(<code>QNR-PROG-09</code>).</div>
+    <div class="rowline">📋 사전문진 작성 중 (3/8) · 이어서 쓰기 <span class="ar">›</span></div>
+    <div class="rowline" style="margin-top:11px;color:#33485c">🔔 작성하시던 사전문진이 <b style="color:#B44E00">5문항 남았습니다</b><br>내일 진료 전에 마쳐 주세요</div>
+  </div>
+</div>
+
+<div class="note56">
+<b>진행률을 세는 방법 — 「비어 있는 답도 답이다」</b>(B-22)
+<br>· <b>분자 = 환자가 지나간 문항 수</b>(<code>QNR-PROG-01</code>). 내용을 보지 않고 <b>「이 질문을 봤는가」만</b> 셉니다.
+<br>· ⭐ <b>비우고 넘긴 문항도 답한 것으로 셉니다</b>(<code>QNR-PROG-05</code>) — <b>알레르기가 없다는 것은 의사에게 중요한 정보</b>인데, 앱이 그걸 「안 한 것」으로 세면 <b>영영 100%가 안 되는 문진</b>이 됩니다.
+<br>· ⭐ <b>추가 비용이 0입니다</b> — 자동 저장이 문항마다 일어나므로 <b>저장된 답 항목 수가 곧 지나간 문항 수</b>입니다. 따로 세는 장치를 만들 필요가 없습니다.
+<br>· <b>분모는 사람마다 다릅니다</b>(<code>QNR-PROG-02·03</code>) — 진료과별 양식이 다르고, <b>「보일 대상」</b> 때문에 <b>환자 성별에 따라서도</b> 달라집니다(남성은 임신 문항이 안 보임).
+<br>· ⚠️ <b>그래서 계산을 서버 한 곳으로 못박았습니다</b>(<code>QNR-PROG-04</code>). 앱·이어쓰기·알림 <b>세 곳이 각자 세면 반드시 어긋납니다</b> — 예상 대기시간을 서버 한 곳에서 계산하기로 한 것과 같은 처리입니다.
+<br>· 📌 이 분모가 넓어진 것은 <b>사용자 되물음 덕분</b>이었습니다 — <i>"과마다 문항 수도 달라지지 않아?"</i>라는 질문에서 진료과별이 나왔고, 이어서 성별별까지 나왔습니다.
+</div>

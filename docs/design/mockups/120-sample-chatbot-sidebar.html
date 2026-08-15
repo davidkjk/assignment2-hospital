@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>120 · 상담봇 관리 사이드바 IA 견본</title>
+<style>
+:root{
+  --primary:#0b6e70;
+  --primary-soft:#e7f1f1;
+  --ink:#10243a;
+  --ink-muted:#617385;
+  --bg:#f2f5f7;
+  --surface:#fff;
+  --divider:#d9e2e7;
+  --line-strong:#b8c8d0;
+  --shadow:0 12px 28px rgba(16,36,58,.08);
+  --radius:12px;
+  --tap:36px;
+  --fs-sm:12px;
+  --fs-base:13px;
+  --fs-lg:15px;
+  --fs-xl:19px;
+  --fs-num:20px;
+  --lh:1.55;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#dfe8ec;color:var(--ink);font-family:Inter,"Noto Sans KR",system-ui,sans-serif;font-size:var(--fs-base);line-height:var(--lh)}
+button,input{font:inherit}
+button{cursor:pointer}
+.page{width:min(1480px,calc(100% - 48px));margin:24px auto 48px}
+.page>h1{margin:0;font-size:var(--fs-xl);line-height:1.35;letter-spacing:-.02em}
+.lead{margin:6px 0 16px;color:var(--ink-muted)}
+.spec-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.spec-tags span{padding:4px 8px;border:1px solid var(--divider);border-radius:99px;background:rgba(255,255,255,.72);color:var(--ink-muted);font-size:var(--fs-sm);font-weight:700}
+.shell{display:grid;grid-template-columns:240px minmax(0,1fr);grid-template-rows:58px minmax(790px,auto);overflow:hidden;border:1px solid var(--divider);border-radius:var(--radius);background:var(--bg);box-shadow:var(--shadow)}
+.sidebar{grid-row:1 / span 2;width:240px;padding:18px 12px 24px;background:#10243a;color:#fff}
+.brand{display:flex;align-items:center;gap:9px;margin:0 8px 18px;color:#fff;font-size:var(--fs-lg);font-weight:850;letter-spacing:-.03em}
+.brand-mark{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:#1f8586;color:#fff;font-size:var(--fs-sm);font-weight:900}
+.nav-standalone{display:flex;align-items:center;gap:9px;min-height:38px;margin-bottom:17px;padding:0 10px;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;font-weight:800}
+.nav-standalone .nav-icon{color:#a9dcdc}
+.nav-group{margin-top:14px}
+.nav-group:first-of-type{margin-top:0}
+.nav-label{margin:0 10px 5px;color:#9eb0bd;font-size:var(--fs-sm);font-weight:800;letter-spacing:.02em}
+.nav-item{display:flex;align-items:center;gap:9px;min-height:32px;padding:0 10px;border-radius:7px;color:#dce7eb;text-decoration:none;font-size:var(--fs-base);font-weight:650}
+.nav-item:hover,.nav-item.active{background:rgba(255,255,255,.12);color:#fff}
+.nav-item.active{box-shadow:inset 3px 0 #7ed3d0}
+.nav-icon{width:16px;height:16px;flex:none;fill:currentColor}
+.nav-count{margin-left:auto;min-width:20px;padding:1px 6px;border-radius:99px;background:#d7a54a;color:#10243a;text-align:center;font-size:var(--fs-sm);font-weight:850;line-height:1.35}
+.header{display:flex;align-items:center;gap:12px;padding:0 22px;border-bottom:1px solid var(--divider);background:var(--surface)}
+.crumb{color:var(--ink-muted);font-size:var(--fs-sm);font-weight:700}
+.crumb strong{color:var(--ink)}
+.spacer{flex:1}
+.connection{display:flex;align-items:center;gap:7px;color:var(--primary);font-size:var(--fs-sm);font-weight:800}
+.connection-dot{width:7px;height:7px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 4px var(--primary-soft)}
+.user-chip{padding:6px 10px;border:1px solid var(--divider);border-radius:8px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:750}
+.content{min-width:0;padding:26px 30px 34px;background:var(--bg)}
+.titlebar{display:flex;align-items:flex-start;gap:18px;margin-bottom:20px}
+.titlebar h2{margin:0;font-size:var(--fs-xl);line-height:1.35;letter-spacing:-.025em}
+.titlebar p{margin:5px 0 0;color:var(--ink-muted)}
+.title-action{display:inline-flex;align-items:center;justify-content:center;min-height:var(--tap);padding:0 13px;border:1px solid var(--primary);border-radius:8px;background:var(--primary);color:#fff;font-weight:800}
+.metric-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.metric{padding:16px 18px;border:1px solid var(--divider);border-radius:10px;background:var(--surface);box-shadow:0 4px 12px rgba(16,36,58,.04)}
+.metric-label{color:var(--ink-muted);font-size:var(--fs-sm);font-weight:750}
+.metric-value{margin-top:3px;font-size:var(--fs-num);font-weight:850;letter-spacing:-.03em}
+.metric-note{margin-top:1px;color:var(--ink-muted);font-size:var(--fs-sm)}
+.workspace{display:grid;grid-template-columns:minmax(430px,1.08fr) minmax(360px,.92fr);gap:16px;align-items:start}
+.card{border:1px solid var(--divider);border-radius:var(--radius);background:var(--surface);box-shadow:0 5px 16px rgba(16,36,58,.045)}
+.card-head{display:flex;align-items:center;gap:10px;padding:17px 18px;border-bottom:1px solid var(--divider)}
+.card-head h3{margin:0;font-size:var(--fs-lg);letter-spacing:-.02em}
+.card-head p{margin:3px 0 0;color:var(--ink-muted);font-size:var(--fs-sm)}
+.head-stack{min-width:0}
+.head-meta{margin-left:auto;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:700}
+.toolbar{display:flex;align-items:center;gap:8px;padding:13px 18px;border-bottom:1px solid var(--divider);color:var(--ink-muted);font-size:var(--fs-sm)}
+.search{display:flex;align-items:center;gap:7px;min-width:220px;height:var(--tap);padding:0 10px;border:1px solid var(--divider);border-radius:8px;background:#fbfcfd;color:#95a4ae}
+.search svg{width:15px;height:15px;fill:currentColor}
+.list{padding:4px 10px 10px}
+.list-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:15px 8px;border-bottom:1px solid var(--divider)}
+.list-row:last-child{border-bottom:0}
+.list-row.active{margin:4px 0;padding-left:11px;border:1px solid #bcdcdc;border-left:4px solid var(--primary);border-radius:8px;background:#f1fafa}
+.row-title{font-size:var(--fs-base);font-weight:850}
+.row-sub{margin-top:3px;color:var(--ink-muted);font-size:var(--fs-sm)}
+.row-status{padding:4px 8px;border-radius:99px;background:var(--primary-soft);color:var(--primary);font-size:var(--fs-sm);font-weight:800;white-space:nowrap}
+.row-status.pending{background:#fff4e9;color:#9a5f17}
+.preview{padding:18px}
+.preview-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.preview-toolbar span{padding:4px 8px;border:1px solid var(--divider);border-radius:99px;color:var(--ink-muted);font-size:var(--fs-sm);font-weight:700}
+.preview-toolbar .selected{border-color:#bcdcdc;background:var(--primary-soft);color:var(--primary)}
+.source{padding:18px;border:1px solid var(--divider);border-radius:10px;background:#fbfcfd}
+.source-kicker{color:var(--primary);font-size:var(--fs-sm);font-weight:850;letter-spacing:.02em}
+.source h4{margin:7px 0 8px;font-size:var(--fs-lg)}
+.source p{margin:0;color:var(--ink-muted)}
+.source-line{height:8px;margin-top:12px;border-radius:99px;background:#dce6ea}
+.source-line.short{width:62%}
+.answer-box{margin-top:14px;padding:15px;border:1px solid #bcdcdc;border-radius:10px;background:#f1fafa}
+.answer-box-head{display:flex;align-items:center;gap:8px;color:var(--primary);font-weight:850}
+.answer-box-head svg{width:16px;height:16px;fill:currentColor}
+.answer-box p{margin:9px 0 0;color:var(--ink)}
+.preview-note{display:flex;gap:9px;margin-top:14px;padding:12px 13px;border-left:4px solid #d7a54a;background:#fff9ef;color:#76511b;font-size:var(--fs-sm);font-weight:700}
+.preview-note svg{width:16px;height:16px;flex:none;fill:currentColor}
+.rule-strip{display:flex;align-items:center;gap:10px;margin-top:16px;padding:12px 14px;border:1px dashed var(--line-strong);border-radius:10px;color:var(--ink-muted);font-size:var(--fs-sm)}
+.rule-strip strong{color:var(--ink)}
+@media(max-width:1279px){
+  .page{width:min(1180px,calc(100% - 28px));margin-top:14px}
+  .workspace{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs>
+  <symbol id="i-stethoscope" viewBox="0 0 16 16"><path d="M3 2v4a3 3 0 0 0 6 0V2H7v4a1 1 0 0 1-2 0V2H3Zm7 5h2a2 2 0 1 1-2 2v5H8v-5a2 2 0 0 1 2-2Zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 16 16"><path d="M2 7 8 2l6 5v7h-4v-4H6v4H2z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h9v2H2z"/></symbol>
+  <symbol id="i-checkin" viewBox="0 0 16 16"><path d="M2 2h5v2H4v8h3v2H2V2Zm7 3 4 3-4 3V9H5V7h4V5Zm1-3h4v12h-4v-2h2V4h-2V2Z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 16 16"><path d="M3 2h2v2h6V2h2v2h2v11H1V4h2zm0 5v6h10V7z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><path d="M6.5 2a4.5 4.5 0 1 0 2.77 8.05L13 13.78 14 12.8l-3.7-3.7A4.5 4.5 0 0 0 6.5 2Zm0 1.7a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 16 16"><path d="M2 3h12v3a2 2 0 0 0 0 4v3H2v-3a2 2 0 0 0 0-4V3Zm2 2v1.8a3.7 3.7 0 0 1 0 4.4V11h8v-.8a3.7 3.7 0 0 1 0-4.4V5H4Z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 16 16"><path d="M2 2h12v9H7l-4 3v-3H2V2Zm2 3v1h8V5H4Zm0 3v1h6V8H4Z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 16 16"><path d="M2 13h12v2H0V1h2v12Zm2-2V8h2v3H4Zm3 0V4h2v7H7Zm3 0V6h2v5h-2Z"/></symbol>
+  <symbol id="i-log" viewBox="0 0 16 16"><path d="M2 2h12v12H2V2Zm2 2v8h8V4H4Zm1 1h6v1H5V5Zm0 2h6v1H5V7Zm0 2h4v1H5V9Z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 16 16"><path d="M5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm6-1a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM1 14c0-3 1.8-5 4-5s4 2 4 5H1Zm8 0c0-1.5-.4-2.8-1.1-3.8.8-.8 1.8-1.2 3.1-1.2 2.2 0 4 2 4 5H9Z"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 16 16"><path d="m6.5 1 .5 1.5a5.8 5.8 0 0 1 2 0L9.5 1h2l.3 1.7c.5.3.9.6 1.3 1.1L15 3.2v2l-1.6.8a5.8 5.8 0 0 1 0 2L15 8.8v2l-1.9-.6c-.4.5-.8.8-1.3 1.1l-.3 1.7h-2L9 11.5a5.8 5.8 0 0 1-2 0L6.5 13h-2l-.3-1.7c-.5-.3-.9-.6-1.3-1.1L1 10.8v-2l1.6-.8a5.8 5.8 0 0 1 0-2L1 5.2v-2l1.9.6c.4-.5.8-.8 1.3-1.1L4.5 1h2ZM6 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 16 16"><path d="M7 1h2v2h2a3 3 0 0 1 3 3v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h2V1Zm-2 4a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM5 10h6v2H5v-2Z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 16 16"><path d="M2 2h5a2 2 0 0 1 2 2v9a2 2 0 0 0-2-1H2V2Zm12 0H9a2 2 0 0 0-2 2v9a2 2 0 0 1 2-1h5V2ZM4 5h2v1H4V5Zm0 2h2v1H4V7Z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 16 16"><path d="M8 1 15 14H1L8 1Zm0 4L4 12h8L8 5Zm-.8 2h1.6v2H7.2V7Zm0 2.8h1.6v1.6H7.2V9.8Z"/></symbol>
+  <symbol id="i-report" viewBox="0 0 16 16"><path d="M2 2h12v12H2V2Zm2 2v8h8V4H4Zm1 5h1V6H5v3Zm2 0h1V5H7v4Zm2 0h1V7H9v2Z"/></symbol>
+</defs></svg>
+
+<div class="page">
+  <h1>120 · 상담봇 관리 사이드바 IA 견본</h1>
+  <p class="lead">안내자료 화면을 기준으로, 직원 업무와 상담봇 운영을 한 셸 안에서 찾을 수 있게 정리한 샘플입니다.</p>
+  <div class="spec-tags"><span>AD-069 사이드바</span><span>AD-070 타이포</span><span>MR2-07 4그룹</span></div>
+
+  <section class="shell" aria-label="상담봇 안내자료 관리 화면">
+    <nav class="sidebar" aria-label="직원 웹 정본 사이드바">
+      <div class="brand"><span class="brand-mark">한</span><span>한빛병원</span></div>
+      <a class="nav-standalone" href="#"><svg class="nav-icon"><use href="#i-stethoscope"/></svg><span>진료 화면</span></a>
+
+      <section class="nav-group" aria-labelledby="nav-work">
+        <div class="nav-label" id="nav-work">업무</div>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-home"/></svg><span>오늘의 현황</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-list"/></svg><span>대기 목록</span><span class="nav-count">12</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-checkin"/></svg><span>접수</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-calendar"/></svg><span>캘린더</span><span class="nav-count">2</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-search"/></svg><span>환자 검색</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-ticket"/></svg><span>문의 티켓함</span><span class="nav-count">6</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chat"/></svg><span>전체 상담 기록</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chat"/></svg><span>메시지 발송</span></a>
+      </section>
+
+      <section class="nav-group" aria-labelledby="nav-records">
+        <div class="nav-label" id="nav-records">기록</div>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chart"/></svg><span>운영 통계</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-log"/></svg><span>접근 기록</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-users"/></svg><span>중복 환자</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-log"/></svg><span>병합 이력</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-alert"/></svg><span>시스템 오류</span><span class="nav-count">1</span></a>
+      </section>
+
+      <section class="nav-group" aria-labelledby="nav-settings">
+        <div class="nav-label" id="nav-settings">설정</div>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-users"/></svg><span>직원 관리</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-calendar"/></svg><span>진료 일정</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-book"/></svg><span>문진표 관리</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-settings"/></svg><span>병원 설정</span></a>
+      </section>
+
+      <section class="nav-group" aria-labelledby="nav-chatbot">
+        <div class="nav-label" id="nav-chatbot">상담봇</div>
+        <a class="nav-item active" href="#" aria-current="page"><svg class="nav-icon"><use href="#i-book"/></svg><span>안내자료</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-alert"/></svg><span>미해결 질문</span><span class="nav-count">8</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-report"/></svg><span>오답 처리함</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-chart"/></svg><span>품질 리포트</span></a>
+        <a class="nav-item" href="#"><svg class="nav-icon"><use href="#i-bot"/></svg><span>상담봇 현황</span></a>
+      </section>
+    </nav>
+
+    <header class="header">
+      <div class="crumb">상담봇 <span aria-hidden="true">/</span> <strong>안내자료</strong></div>
+      <span class="spacer"></span>
+      <div class="connection"><span class="connection-dot"></span>상담봇 연결됨</div>
+      <div class="user-chip">정수진 · 관리자</div>
+    </header>
+
+    <main class="content">
+      <div class="titlebar">
+        <div><h2>안내자료</h2><p>상담봇이 답변할 때 참고하는 승인 자료를 관리합니다.</p></div>
+        <span class="spacer"></span>
+        <button class="title-action" type="button">새 안내자료</button>
+      </div>
+
+      <div class="metric-row" aria-label="안내자료 요약">
+        <div class="metric"><div class="metric-label">활성 자료</div><div class="metric-value">128</div><div class="metric-note">상담봇 답변에 사용 중</div></div>
+        <div class="metric"><div class="metric-label">검토 대기</div><div class="metric-value">6</div><div class="metric-note">승인 전에는 답변에 미사용</div></div>
+        <div class="metric"><div class="metric-label">최근 동기화</div><div class="metric-value">10:14</div><div class="metric-note">전체 상담봇에 반영됨</div></div>
+      </div>
+
+      <div class="workspace">
+        <section class="card" aria-labelledby="library-title">
+          <div class="card-head"><div class="head-stack"><h3 id="library-title">자료 목록</h3><p>승인된 병원 이용 안내와 진료 안내</p></div><span class="head-meta">128개</span></div>
+          <div class="toolbar"><div class="search"><svg><use href="#i-search"/></svg><span>자료는 분류로 찾아보세요</span></div><span class="spacer"></span><span>최근 수정순</span></div>
+          <div class="list">
+            <div class="list-row active"><div><div class="row-title">외래 진료 접수와 방문 절차</div><div class="row-sub">병원 이용 안내 · 2026.08.13 수정 · 정수진</div></div><span class="row-status">승인됨</span></div>
+            <div class="list-row"><div><div class="row-title">예약 변경과 취소 안내</div><div class="row-sub">예약 안내 · 2026.08.12 수정 · 김민지</div></div><span class="row-status">승인됨</span></div>
+            <div class="list-row"><div><div class="row-title">진료과별 운영시간</div><div class="row-sub">병원 이용 안내 · 2026.08.11 수정 · 박관리</div></div><span class="row-status">승인됨</span></div>
+            <div class="list-row"><div><div class="row-title">검사 전 준비사항</div><div class="row-sub">진료 안내 · 2026.08.10 저장 · 이수진</div></div><span class="row-status pending">검토 대기</span></div>
+          </div>
+        </section>
+
+        <aside class="card" aria-labelledby="preview-title">
+          <div class="card-head"><div class="head-stack"><h3 id="preview-title">자료 미리보기</h3><p>상담봇 답변 기준에 적용되는 본문</p></div><span class="head-meta">읽기 전용</span></div>
+          <div class="preview">
+            <div class="preview-toolbar"><span class="selected">본문</span><span>변경 이력</span><span>사용 통계</span></div>
+            <div class="source"><div class="source-kicker">병원 이용 안내 · 승인된 자료</div><h4>외래 진료 접수와 방문 절차</h4><p>예약 시간 10분 전까지 접수 창구 또는 무인 접수 기기에서 접수해 주세요. 접수 후 대기 목록에서 순서를 확인할 수 있습니다.</p><div class="source-line"></div><div class="source-line"></div><div class="source-line short"></div></div>
+            <div class="answer-box"><div class="answer-box-head"><svg><use href="#i-bot"/></svg><span>상담봇 적용 범위</span></div><p>예약·접수 방법 질문에 이 자료를 우선 참고합니다. 의료 판단이 필요한 질문은 직원 상담으로 연결합니다.</p></div>
+            <div class="preview-note"><svg><use href="#i-alert"/></svg><span>상담봇 관리 화면에서는 운영시간을 수정하지 않습니다. 직원 웹의 진료 일정 원본을 읽어 사용합니다.</span></div>
+          </div>
+        </aside>
+      </div>
+      <div class="rule-strip"><strong>사이드바 적용 기준</strong><span>진료 화면은 단독으로 두고, 업무 · 기록 · 설정 · 상담봇은 접기 없이 항상 펼쳐진 네 그룹으로 표시합니다.</span></div>
+    </main>
+  </section>
+</div>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .bn { width: 262px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 495px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .bn-top { background: #fff; padding: 9px 12px 10px; }
+  .bn-nav { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .bn-back { color: #5A6C7B; font-weight: 600; }
+  .bn-prog { display: flex; gap: 3px; margin-top: 9px; }
+  .bn-prog i { flex: 1; height: 5px; border-radius: 3px; background: #E0E7EC; }
+  .bn-prog i.on { background: #0B6E70; }
+  .bn-step { font-size: 10px; color: #5A6C7B; margin-top: 6px; font-weight: 600; }
+  .bn-body { flex: 1; padding: 12px; }
+  .bn-q { font-size: 19px; font-weight: 800; letter-spacing: -.4px; margin-bottom: 4px; }
+  .bn-hint { font-size: 11px; color: #5A6C7B; margin-bottom: 12px; font-weight: 500; }
+  .bn-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .bn-t { background: #fff; border: 2px solid #E6EBEF; border-radius: 9px; padding: 11px 0; text-align: center; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .bn-t.sel { background: #0B6E70; border-color: #0B6E70; color: #fff; }
+  .bn-t.off { background: #F5F7F8; border-color: #EDF1F3; color: #B4BFC8; text-decoration: line-through; }
+  .bn-cta { background: #0B6E70; color: #fff; text-align: center; font-size: 15px; font-weight: 800; padding: 15px; border-radius: 11px; margin: 10px 12px 12px; }
+
+  /* A: 칩 + 연필 */
+  .bn-chips { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px; }
+  .bn-chip { font-size: 10.5px; font-weight: 600; background: #fff; color: #0B6E70; padding: 6px 9px; border-radius: 99px; border: 1.5px solid #9CC4C4; display: inline-flex; align-items: center; gap: 4px; }
+  .bn-chip svg { flex-shrink: 0; }
+  .bn-chiphint { font-size: 10px; color: #5A6C7B; margin-bottom: 12px; font-weight: 600; }
+
+  /* B: 요약줄 + 고치기 */
+  .bn-sum { background: #fff; border: 1.5px solid #E0E7EC; border-radius: 11px; padding: 10px 11px; display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
+  .bn-sumtxt { flex: 1; font-size: 11px; line-height: 1.55; font-weight: 600; }
+  .bn-sumtxt span { color: #5A6C7B; font-weight: 500; }
+  .bn-fix { background: #0B6E70; color: #fff; font-size: 11px; font-weight: 800; padding: 9px 11px; border-radius: 8px; white-space: nowrap; }
+
+  /* C: 이름 붙은 단계 막대 */
+  .bn-steps { display: flex; gap: 2px; margin-top: 10px; }
+  .bn-sc { flex: 1; text-align: center; }
+  .bn-scbar { height: 5px; border-radius: 3px; background: #E0E7EC; }
+  .bn-scbar.on { background: #0B6E70; }
+  .bn-scbar.cur { background: #0B6E70; }
+  .bn-sclab { font-size: 7.5px; margin-top: 3px; color: #B4BFC8; font-weight: 600; }
+  .bn-sclab.on { color: #0B6E70; text-decoration: underline; }
+  .bn-sclab.cur { color: #10243A; font-weight: 800; }
+
+  .bn-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+</style>
+
+<h2>화면 9 / 20 — 앞 단계로 되돌아가는 방법</h2>
+<p class="subtitle">
+  A안(8화면 마법사) 확정. 다만 지적하신 두 가지를 고쳐야 합니다 —
+  <b>① ✕는 "삭제"로 읽힌다</b>(의도는 "그 단계로 이동"), <b>② 칩을 눌러 이동한다는 걸 알 방법이 없다</b>.
+  <br>세 대안 모두 "5단계 / 8단계 · 시간 선택" 같은 화면입니다.
+</p>
+
+<div class="bn-row">
+
+  <!-- A -->
+  <div class="card" data-choice="chip-pencil" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bn">
+        <div class="bn-top">
+          <div class="bn-nav"><span class="bn-back">‹ 뒤로</span><span>예약하기</span><span class="bn-back">✕</span></div>
+          <div class="bn-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="bn-step">5단계 / 8단계 · 시간 선택</div>
+        </div>
+        <div class="bn-body">
+          <div class="bn-chips">
+            <span class="bn-chip">김순자 <svg width="10" height="10" viewBox="0 0 24 24" fill="#0B6E70"><path d="M3 17.2V21h3.8L18 9.8 14.2 6zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8L18.9 8.9z"/></svg></span>
+            <span class="bn-chip">내과 <svg width="10" height="10" viewBox="0 0 24 24" fill="#0B6E70"><path d="M3 17.2V21h3.8L18 9.8 14.2 6zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8L18.9 8.9z"/></svg></span>
+            <span class="bn-chip">이민호 원장 <svg width="10" height="10" viewBox="0 0 24 24" fill="#0B6E70"><path d="M3 17.2V21h3.8L18 9.8 14.2 6zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8L18.9 8.9z"/></svg></span>
+            <span class="bn-chip">8/3 (월) <svg width="10" height="10" viewBox="0 0 24 24" fill="#0B6E70"><path d="M3 17.2V21h3.8L18 9.8 14.2 6zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.8 1.8L18.9 8.9z"/></svg></span>
+          </div>
+          <div class="bn-chiphint">위 항목을 누르면 다시 고를 수 있어요</div>
+          <div class="bn-q">몇 시에 오시겠어요?</div>
+          <div class="bn-hint">줄이 그어진 시간은 이미 예약됐습니다</div>
+          <div class="bn-times">
+            <div class="bn-t">09:00</div><div class="bn-t off">09:30</div><div class="bn-t">10:00</div>
+            <div class="bn-t off">10:30</div><div class="bn-t">11:00</div><div class="bn-t off">11:30</div>
+            <div class="bn-t">14:00</div><div class="bn-t sel">14:30</div><div class="bn-t">15:00</div>
+          </div>
+        </div>
+        <div class="bn-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 칩 유지 + 연필 아이콘 + 안내문</h3>
+      <p>✕를 <b>연필(고치기)</b>로 바꾸고, 칩 아래 <b>"위 항목을 누르면 다시 고를 수 있어요"</b>를 항상 표시합니다. 한 번 누르면 바로 그 단계로. 단점: 칩이 네 개까지 늘어나면 두 줄이 되고, 안내문이 한 줄을 더 먹습니다.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="summary-fix" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bn">
+        <div class="bn-top">
+          <div class="bn-nav"><span class="bn-back">‹ 뒤로</span><span>예약하기</span><span class="bn-back">✕</span></div>
+          <div class="bn-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="bn-step">5단계 / 8단계 · 시간 선택</div>
+        </div>
+        <div class="bn-body">
+          <div class="bn-sum">
+            <div class="bn-sumtxt">
+              <span>지금까지 고른 내용</span><br>
+              김순자 · 내과 · 이민호 원장<br>8월 3일 (월)
+            </div>
+            <div class="bn-fix">고치기</div>
+          </div>
+          <div class="bn-q">몇 시에 오시겠어요?</div>
+          <div class="bn-hint">줄이 그어진 시간은 이미 예약됐습니다</div>
+          <div class="bn-times">
+            <div class="bn-t">09:00</div><div class="bn-t off">09:30</div><div class="bn-t">10:00</div>
+            <div class="bn-t off">10:30</div><div class="bn-t">11:00</div><div class="bn-t off">11:30</div>
+            <div class="bn-t">14:00</div><div class="bn-t sel">14:30</div><div class="bn-t">15:00</div>
+            <div class="bn-t">15:30</div><div class="bn-t off">16:00</div><div class="bn-t">16:30</div>
+          </div>
+        </div>
+        <div class="bn-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 요약 한 줄 + [고치기] 버튼</h3>
+      <p>고른 내용은 <b>읽기만 하는 글</b>로 두고, 되돌아가는 건 <b>"고치기"라는 글자 버튼</b> 하나가 전담합니다. 누르면 "무엇을 고칠까요?" 목록이 뜨고 거기서 단계를 고릅니다. <b>가장 오해가 없는 방식</b>이지만, 되돌아가는 데 <b>탭이 두 번</b> 필요합니다.</p>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" data-choice="named-steps" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bn">
+        <div class="bn-top">
+          <div class="bn-nav"><span class="bn-back">‹ 뒤로</span><span>예약하기</span><span class="bn-back">✕</span></div>
+          <div class="bn-steps">
+            <div class="bn-sc"><div class="bn-scbar on"></div><div class="bn-sclab on">누구</div></div>
+            <div class="bn-sc"><div class="bn-scbar on"></div><div class="bn-sclab on">진료과</div></div>
+            <div class="bn-sc"><div class="bn-scbar on"></div><div class="bn-sclab on">의사</div></div>
+            <div class="bn-sc"><div class="bn-scbar on"></div><div class="bn-sclab on">날짜</div></div>
+            <div class="bn-sc"><div class="bn-scbar cur"></div><div class="bn-sclab cur">시간</div></div>
+            <div class="bn-sc"><div class="bn-scbar"></div><div class="bn-sclab">이유</div></div>
+            <div class="bn-sc"><div class="bn-scbar"></div><div class="bn-sclab">확인</div></div>
+            <div class="bn-sc"><div class="bn-scbar"></div><div class="bn-sclab">완료</div></div>
+          </div>
+          <div class="bn-step" style="margin-top:7px">밑줄 친 단계를 누르면 그때로 돌아갑니다</div>
+        </div>
+        <div class="bn-body">
+          <div class="bn-q">몇 시에 오시겠어요?</div>
+          <div class="bn-hint">김순자 · 내과 이민호 원장 · 8월 3일 (월)</div>
+          <div class="bn-times">
+            <div class="bn-t">09:00</div><div class="bn-t off">09:30</div><div class="bn-t">10:00</div>
+            <div class="bn-t off">10:30</div><div class="bn-t">11:00</div><div class="bn-t off">11:30</div>
+            <div class="bn-t">14:00</div><div class="bn-t sel">14:30</div><div class="bn-t">15:00</div>
+            <div class="bn-t">15:30</div><div class="bn-t off">16:00</div><div class="bn-t">16:30</div>
+          </div>
+        </div>
+        <div class="bn-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 진행 막대에 단계 이름 붙이기</h3>
+      <p>막대 아래에 단계 이름을 적고, <b>끝난 단계는 밑줄</b>을 그어 누를 수 있음을 표시합니다. 칩과 요약줄이 사라져 <b>본 질문에 쓸 공간이 가장 넓습니다</b>. 단점: 글자가 아주 작아지고(8단계를 한 줄에 넣어야 함), <b>고른 값(내과·이민호)이 안 보입니다</b> — 단계 이름만 보입니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>A(칩 + 연필 + 안내문)</b>를 추천합니다. 되돌아가기가 <b>한 번의 탭</b>으로 끝나고, 무엇보다 <u>고른 값이 그대로 보입니다</u> — "내가 이민호 원장을 골랐던가?"를 확인하려고 되돌아갈 필요가 없어집니다. ✕를 연필로 바꾸면 "지운다"는 오해가 사라지고, 안내문 한 줄이 "눌러도 된다"는 사실을 대신 말해줍니다.</p>
+  <p style="margin-top:8px">B는 오해 가능성이 <b>가장 낮지만</b>(글자로 "고치기"라고 써 있으니) 탭이 두 번 필요합니다. 어르신 대상이라면 이 안전함이 값어치를 할 수도 있어, <b>차선으로 추천</b>드립니다.</p>
+  <p style="margin-top:8px">C는 공간 효율은 최고지만, 8단계 이름을 한 줄에 넣으면 글자가 7~8px까지 작아져 <b>요구사항 4.8(큰 글씨)과 정면으로 부딪힙니다</b>. 권하지 않습니다.</p>
+  <p style="margin-top:8px"><span class="label">덧붙임</span> 어느 안을 고르셔도, 되돌아가서 값을 바꾸면 <b>그 뒤 단계는 초기화</b>됩니다(예: 의사를 바꾸면 날짜·시간은 다시 골라야 함). 의사마다 진료 시간이 다르니 이전 선택을 그대로 둘 수 없습니다. 이건 화면에 "의사를 바꾸면 날짜와 시간을 다시 골라야 합니다"라고 미리 알려주는 방식으로 처리하겠습니다.</p>
+</div>

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>직원 웹 — 화면과 일의 흐름</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --ok:#1F6F4A; --no:#9E3F6E;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.65;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1000px;margin:0 auto;padding:26px 16px 70px}
+  h1{font-size:21px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:13.5px;margin:0 0 18px}
+  .sub b{color:var(--ink)}
+  h2{font-size:16px;font-weight:800;margin:34px 0 8px;padding-top:8px;border-top:2px solid var(--divider)}
+  h3{font-size:14px;font-weight:800;margin:20px 0 6px}
+  p{margin:0 0 10px}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;font-size:12px}
+  .card{background:var(--surface);border:1px solid var(--divider);border-radius:10px;padding:14px 16px;margin:0 0 12px}
+  .lead{color:var(--ink-muted);font-size:13px;margin:0 0 12px}
+  .lead b{color:var(--ink)}
+
+  /* 흐름 줄 */
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0}
+  .node{border:1px solid var(--divider);border-radius:8px;padding:6px 10px;background:#fff;
+        font-size:12.5px;font-weight:800;white-space:nowrap}
+  .node.start{border-color:var(--primary);background:#E7F1F1;color:var(--primary)}
+  .node.act{border-color:#D8C0A6;background:#FFF7EF;color:var(--warn)}
+  .node.end{border-color:#A9CDBB;background:#EAF5EF;color:var(--ok)}
+  .node.todo{border-style:dashed;color:#9AA7B2}
+  .arw{color:var(--ink-muted);font-weight:800;font-size:12px}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--divider);
+        border-radius:10px;overflow:hidden;font-size:12.5px;margin:0 0 12px}
+  th,td{padding:8px 10px;border-top:1px solid var(--divider);text-align:left;vertical-align:top;line-height:1.6}
+  th{background:var(--done-bg);font-size:11px;font-weight:800;color:var(--ink-muted);border-top:0}
+  .st{font-weight:800;white-space:nowrap}
+  .st.ok{color:var(--ok)} .st.mid{color:var(--warn)} .st.no{color:var(--no)}
+  .tag{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;
+       background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:#FFF1E4;color:var(--warn)}
+  .tag.no{background:#F3E7EA;color:var(--no)}
+  .note{background:#FFF7EF;border:1px solid #F0DCC6;border-left:4px solid var(--warn);
+        border-radius:8px;padding:11px 13px;margin:12px 0;font-size:12.5px}
+  .note b{color:var(--warn)}
+  ul{margin:6px 0 10px;padding-left:20px}
+  li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>직원 웹 — 화면 16개와 일의 흐름</h1>
+<p class="sub">
+  2026-08-06 기준 · <b>「어디서 시작해 어디로 들어가 무엇을 하나」</b>를 업무 순서로 정리.
+  근거는 <code>screen-behaviors.md</code>의 <code>NAV-*</code> 규칙 <b>36개</b>.
+</p>
+
+<div class="note">
+  ⭐ <b>정리가 되냐고 물으셨는데 — 됩니다.</b> 화면은 <b>안 그렸어도 어디에 무엇이 있는지</b>는 이미 정해져 있습니다.
+  ⚠️ <b>다만 흐름이 「끊긴 곳」이 세 군데 보입니다</b> — 맨 아래 「빈틈」 절에 모았습니다.
+</div>
+
+<!-- ─────────── 1. 누가 무엇을 보나 ─────────── -->
+<h2>1. 누가 무엇을 보나 — 역할이 메뉴를 정한다</h2>
+<p class="lead">로그인하면 <b>역할별 기본 화면</b>으로 바로 갑니다(<code>NAV-SHELL-01·02</code>). 사이드바는 <b>세 덩어리</b>로 묶습니다.</p>
+
+<table>
+  <tr><th style="width:96px">역할</th><th style="width:120px">로그인하면</th><th>사이드바에 보이는 것</th></tr>
+  <tr>
+    <td class="st">접수 직원</td>
+    <td><code>/today</code></td>
+    <td><b>5개</b> — 오늘의 현황 · 대기 목록 · 예약 캘린더 · 예약번호/QR 접수 · 환자 검색</td>
+  </tr>
+  <tr>
+    <td class="st">의사</td>
+    <td><code>/doctor/console</code></td>
+    <td><b>2개뿐</b> — 진료 화면 · 환자 검색<br>
+      <span style="color:var(--ink-muted)">⚠️ <b>대기 목록을 주지 않는다</b> — 다른 의사 환자까지 보게 되고, 필요한 목록은 진료 화면 왼쪽에 이미 있다</span></td>
+  </tr>
+  <tr>
+    <td class="st">관리자</td>
+    <td><code>/today</code></td>
+    <td><b>13개 전부</b></td>
+  </tr>
+</table>
+
+<!-- ─────────── 2. 화면 16개 ─────────── -->
+<h2>2. 화면 16개 — 지금 어디까지 그렸나</h2>
+
+<h3>진료 현장 (접수 직원이 종일 쓰는 것)</h3>
+<table>
+  <tr><th style="width:150px">화면</th><th style="width:74px">그림</th><th>여기서 하는 일</th></tr>
+  <tr><td><code>/today</code> 오늘의 현황</td><td class="st ok">✅ 49</td>
+      <td><b>지금 처리할 것</b> 4가지(오래 대기 · 접수 안 됨 · 어제 마무리 안 됨 · 확인 필요) + 요약 숫자</td></tr>
+  <tr><td><code>/queue</code> 대기 목록</td><td class="st ok">✅ 61·62</td>
+      <td>상태별 탭 · <b>순서 바꾸기</b> · 응급 표시 · <b>당일 방문 등록</b></td></tr>
+  <tr><td><code>/calendar</code> 예약 캘린더</td><td class="st ok">✅ 64·65</td>
+      <td><b>전화 예약 만들기</b> · 예약 변경/취소 · 빈자리 보기</td></tr>
+  <tr><td><code>/checkin</code> 예약번호·QR 접수</td><td class="st no">⬜</td>
+      <td>환자가 내민 <b>QR·예약번호</b>로 도착 처리</td></tr>
+  <tr><td><code>/patients</code> 환자 검색</td><td class="st ok">✅ 63</td>
+      <td><b>모든 일의 출발점</b> — 찾아서 바로 도착 처리·예약·당일 등록</td></tr>
+  <tr><td><code>/patients/:id</code> 환자 상세</td><td class="st no">⬜</td>
+      <td>기본정보 · <b>내부 메모</b> · 문진 이력 · 진료 이력 · 가족 연결</td></tr>
+  <tr><td>로그인</td><td class="st no">⬜</td><td>—</td></tr>
+</table>
+
+<h3>의사</h3>
+<table>
+  <tr><th style="width:150px">화면</th><th style="width:74px">그림</th><th>여기서 하는 일</th></tr>
+  <tr><td><code>/doctor/console</code> 진료 화면</td><td class="st no">⬜</td>
+      <td>왼쪽에 <b>내 환자 대기 목록</b> · 환자를 <b>여는 순간 「진료중」</b>이 된다 · 진료 기록 작성</td></tr>
+</table>
+
+<h3>운영·관리 (관리자만)</h3>
+<table>
+  <tr><th style="width:150px">화면</th><th style="width:74px">그림</th><th>여기서 하는 일</th></tr>
+  <tr><td><code>/admin/schedule</code> 일정 관리</td><td class="st no">⬜</td>
+      <td>진료과 · <b>의사별 진료시간·점심·휴진</b> · 예약 단위 · 하루 최대 인원</td></tr>
+  <tr><td><code>/admin/stats</code> 운영 통계</td><td class="st no">⬜</td><td>예약·취소·부도·방문 수 · 평균 대기시간 · 내려받기</td></tr>
+  <tr><td><code>/admin/staff</code> 직원 계정</td><td class="st no">⬜</td><td>계정 만들기 · 역할 · <b>의사 색 고르기</b></td></tr>
+  <tr><td><code>/admin/settings</code> 병원 설정</td><td class="st no">⬜</td><td>운영시간 · 오래 대기 기준 · 앱 예약 자동확정 <span class="tag no">갭 #32</span></td></tr>
+  <tr><td><code>/admin/access-logs</code></td><td class="st no">⬜</td><td>환자정보를 누가 언제 열었나</td></tr>
+  <tr><td><code>/admin/patient-merge-candidates</code></td><td class="st no">⬜</td><td>같은 사람이 두 번 등록된 것 합치기</td></tr>
+  <tr><td><code>/admin/questionnaires</code></td><td class="st no">⬜</td><td>문진 양식 관리</td></tr>
+  <tr><td><code>/admin/errors</code></td><td class="st no">⬜</td><td>시스템 오류 로그</td></tr>
+</table>
+
+<!-- ─────────── 3. 업무별 흐름 ─────────── -->
+<h2>3. 업무별 흐름 — <b>어디서 들어가 무엇을 하나</b></h2>
+<p class="lead">
+  ⭐ <b>대부분의 일이 문을 두세 개 가집니다.</b> 창구에서 <b>손에 무엇이 먼저 잡히느냐</b>가 매번 다르기 때문입니다 —
+  전화가 먼저 오기도, 환자가 먼저 서 있기도 합니다.
+</p>
+
+<div class="card">
+  <h3>① 전화 예약을 잡는다 <span class="tag ok">규칙 확정</span></h3>
+  <div class="flow">
+    <span class="node start">캘린더 빈 곳 클릭</span><span class="arw">→</span>
+    <span class="node act">오른쪽 패널</span><span class="arw">→</span>
+    <span class="node">환자 찾기(왼쪽 표)</span><span class="arw">→</span>
+    <span class="node end">등록</span>
+  </div>
+  <div class="flow">
+    <span class="node start">검색에서 <b>[예약 잡기]</b></span><span class="arw">→</span>
+    <span class="node">캘린더로 이동 + 패널</span><span class="arw">→</span>
+    <span class="node act">캘린더에서 시간 찍기</span><span class="arw">→</span>
+    <span class="node end">등록 → <b>검색 결과로 복귀</b></span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ⭐ <b>시간부터냐 사람부터냐</b>만 다르고 <b>같은 패널에서 만난다.</b>
+    끝나면 <b>출발한 화면으로 돌아온다.</b></p>
+</div>
+
+<div class="card">
+  <h3>② 예약 없이 온 환자를 줄 세운다(당일 방문) <span class="tag ok">규칙 확정</span></h3>
+  <div class="flow">
+    <span class="node start"><code>/queue</code> [＋ 당일 방문 등록]</span><span class="arw">→</span>
+    <span class="node act">오른쪽 패널</span><span class="arw">→</span>
+    <span class="node">환자 찾기 · 의사 · 오신 시각</span><span class="arw">→</span>
+    <span class="node end">「진료 대기」 맨 뒤</span>
+  </div>
+  <div class="flow">
+    <span class="node start">검색에서 <b>[당일 방문 등록]</b></span><span class="arw">→</span>
+    <span class="node act">같은 패널(환자 채워짐)</span><span class="arw">→</span>
+    <span class="node end">등록</span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ⭐ <b>못 찾으면 그 자리에서 신규 등록</b>으로 이어진다 — 화면을 옮기지 않는다.
+    ⭐ <b>「아까 오셨어요」·「어제 오셨어요」</b>도 같은 패널에서 받는다.</p>
+</div>
+
+<div class="card">
+  <h3>③ 도착한 환자를 접수한다 <span class="tag ok">규칙 확정</span></h3>
+  <div class="flow">
+    <span class="node start"><code>/today</code> 「접수 안 됨」 카드</span><span class="arw">→</span>
+    <span class="node act">[도착 처리]</span><span class="arw">→</span>
+    <span class="node end">그 자리에서 처리 · <b>되돌리기 가능</b></span>
+  </div>
+  <div class="flow">
+    <span class="node start">환자가 <b>QR·예약번호</b>를 내밀면</span><span class="arw">→</span>
+    <span class="node todo"><code>/checkin</code> (미설계)</span><span class="arw">→</span>
+    <span class="node end">도착</span>
+  </div>
+  <div class="flow">
+    <span class="node start">이름으로 찾아서</span><span class="arw">→</span>
+    <span class="node act">검색 결과 줄의 [도착 처리]</span><span class="arw">→</span>
+    <span class="node end">도착</span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ⭐ <b>확인창이 없다.</b> 대신 <b>되돌릴 수 있게</b> 했다 — 확인창은 매번 손을 멈추지만 실수는 가끔이다.</p>
+</div>
+
+<div class="card">
+  <h3>④ 예약을 바꾸거나 취소한다 <span class="tag ok">규칙 확정</span></h3>
+  <div class="flow">
+    <span class="node start">캘린더에서 예약 블록 클릭</span><span class="arw">→</span>
+    <span class="node act">오른쪽 상세 패널</span><span class="arw">→</span>
+    <span class="node">[시간 변경] / [예약 취소]</span><span class="arw">→</span>
+    <span class="node end">사유 적고 확인</span>
+  </div>
+  <div class="flow">
+    <span class="node start"><code>/today</code>·<code>/queue</code>의 [재예약]</span><span class="arw">→</span>
+    <span class="node act">캘린더 + <b>그 예약 패널이 열린 채</b></span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ⭐ <b><code>/today</code>·<code>/queue</code>에는 예약 상세가 없다</b> — 전부 캘린더 패널로 보낸다. <b>고치는 곳은 한 군데</b>다.</p>
+</div>
+
+<div class="card">
+  <h3>⑤ 대기 순서를 바꾼다 <span class="tag ok">규칙 확정</span></h3>
+  <div class="flow">
+    <span class="node start"><code>/today</code> 「오래 대기」 [대기 목록에서 보기]</span><span class="arw">→</span>
+    <span class="node"><code>/queue</code> <b>그 줄이 강조된 채</b></span><span class="arw">→</span>
+    <span class="node act">끌어서 옮김</span><span class="arw">→</span>
+    <span class="node end">사유 팝업 → 확인</span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ⭐ <b>사유를 적기 전에는 순서가 바뀌지 않는다.</b> 바깥을 눌러도 창이 안 닫힌다.</p>
+</div>
+
+<div class="card">
+  <h3>⑥ 환자를 찾아 살펴본다 <span class="tag new">상세 화면 미설계</span></h3>
+  <div class="flow">
+    <span class="node start"><code>/patients</code> 한 칸 검색</span><span class="arw">→</span>
+    <span class="node">결과 줄 클릭</span><span class="arw">→</span>
+    <span class="node todo"><code>/patients/:id</code> (미설계)</span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ⭐ <b>모든 목록 화면이 같은 곳으로 간다</b> — 돌아오면 <b>검색어·필터·스크롤 위치가 그대로</b>다.
+    이름·전화·생년월일 <b>어느 조각으로도</b> 찾는다.</p>
+</div>
+
+<div class="card">
+  <h3>⑦ 의사가 진료한다 <span class="tag no">화면 미설계</span></h3>
+  <div class="flow">
+    <span class="node start">로그인(의사)</span><span class="arw">→</span>
+    <span class="node todo"><code>/doctor/console</code></span><span class="arw">→</span>
+    <span class="node act">환자를 <b>여는 순간</b></span><span class="arw">→</span>
+    <span class="node end">「진료중」 자동 전환</span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ⚠️ <b>[진료 시작] 버튼이 없다</b> — 여는 순간이 곧 시작이라 시각이 정확해진다.
+    ⚠️ 대신 <b>잘못 열면 되돌릴 수 없다</b>(갭 #82).</p>
+</div>
+
+<div class="card">
+  <h3>⑧ 관리자가 일정을 바꾼다 <span class="tag ok">해소 2026-08-07 · 목업 66</span></h3>
+  <div class="flow">
+    <span class="node start"><code>/admin/schedule</code> 휴진 등록</span><span class="arw">→</span>
+    <span class="node">저장 전 경고 + <b>안내 대상</b> 고르기</span><span class="arw">→</span>
+    <span class="node"><code>/today</code> <b>「확인 필요한 예약」</b> 행</span><span class="arw">→</span>
+    <span class="node">직원이 <b>옮기기 / 취소 / 그대로 두기</b></span><span class="arw">→</span>
+    <span class="node end">캘린더에 <b>⚠ 확인 필요</b></span>
+  </div>
+  <p style="font-size:12px;color:var(--ink-muted);margin:4px 0 0">
+    ✅ <b>가운데 두 칸이 채워졌다</b>(SB-32 · <code>SCHED-*</code> 23개 · <code>TODAY-RESCHED-04~11</code>).
+    ⭐ <b>새 화면을 만들지 않았다</b> — 관리자 팝업은 <b>플랜에 이미 있었고</b>(<code>AffectedAppointmentsDialog</code>),
+    직원 진입점도 <b>규칙에 이미 있었다</b>(<code>TODAY-RESCHED-01~03</code>). 없던 것은 <b>행에서 할 수 있는 일</b>뿐이었다.</p>
+</div>
+
+<!-- ─────────── 4. 빈틈 ─────────── -->
+<h2>4. ⚠️ 흐름이 끊긴 곳 — <b>여기가 다음 할 일</b></h2>
+<div class="note" style="background:#EAF5EF;border-color:#A9CDBB;border-left-color:var(--ok)">
+  ⭐ <b style="color:var(--ok)">좋은 소식 — 셋 다 「그림만 없는 것」이었다</b>(2026-08-06 원문 대조).
+  <b>서버·DB는 이미 다 있다.</b> 새로 만들 기능이 아니라 <b>그리기만 하면 되는 것들</b>이다.<br>
+  📌 다만 <b>「끊겼다」의 뜻이 셋 다 다르다</b> — ①은 <b>갈 곳이 없다</b>, ②는 <b>말할 문장이 없다</b>, ③은 <b>그릴 화면이 없다</b>.
+</div>
+
+<table>
+  <tr><th style="width:34px">#</th><th style="width:160px">끊긴 곳</th><th>무엇이 없나</th></tr>
+  <tr>
+    <td class="st ok">1</td>
+    <td><b>일정 변경 → 환자 안내</b><br><span class="tag ok">해소 2026-08-07</span></td>
+    <td>✅ <b>이어졌다</b>(SB-32 · 목업 66 · <code>SCHED-CALC-*</code>·<code>SCHED-DONE-*</code>·<code>SCHED-WARN-*</code> · <code>TODAY-RESCHED-04~11</code>).<br>
+      ⭐⭐ <b>「화면이 없다」가 절반 틀렸다</b> — 관리자 팝업은 <b>플랜에 이미 있었고</b>(<code>AffectedAppointmentsDialog</code> Task 12/18),
+      직원 진입점도 <b>규칙에 이미 있었다</b>(<code>TODAY-RESCHED-01~03</code>). <b>새 화면을 만들지 않았다.</b><br>
+      ⭐ 먼저 <b>「미결정 #1」</b>(2026-08-02부터 대기)을 풀어야 했다 — 명단을 <b>계산으로 만드나 도장으로 만드나</b>.
+      → <b>계산이 명단을 만들고, 도장은 「사람이 처리했나」만</b> 담는다.<br>
+      🆕 대조 중 <b>갭 #88·#89·#90</b>이 나왔다 — 특히 <b>#89</b>는 플랜의 「안내 대상」 체크가
+      실제로는 <b>전부 병원취소</b>이고 <b>기본이 전체 선택</b>이다.</td>
+  </tr>
+  <tr>
+    <td class="st ok">2</td>
+    <td><b>두 직원이 같은 자리를</b><br><span class="tag ok">해소 2026-08-07</span></td>
+    <td>✅ <b>이어졌다</b>(SB-42 · 목업 65 ⑥절 · <code>CAL-RACE-01~08</code> · <code>CAL-LIVE-01~04</code>).<br>
+      ⭐⭐ <b>물어보니 「저장할 때 갈리는 문제」가 아니라 「저장 전에 막을 수 있는 문제」였다</b> —
+      내 자리표가 있는 자리에 다른 예약이 들어오면 <b>그 즉시 <code>⚠ 방금 찼습니다</code></b>로 바뀐다(<code>CAL-RACE-02</code>).<br>
+      ⚠️ 그러려면 <b>캘린더가 실시간이어야</b> 하는데 <b><code>CAL-LIVE-*</code>가 0개였다</b> —
+      <code>/today</code>·<code>/queue</code>엔 있고 <b>캘린더에만 없었다.</b><br>
+      ✅ 그래도 409를 만나면 <b>패널은 그대로 두고 시간 칸만 비운다</b> —
+      <b>자리만 뺏겼지 환자·의사·사유는 유효</b>하다(<code>TODAY-RACE</code>와 다른 점).</td>
+  </tr>
+  <tr>
+    <td class="st no">3</td>
+    <td><b>화면 규칙이 0개인 것 셋</b></td>
+    <td>✅ <b>DB·서버 다 있다</b> — 내부 메모(<code>patient_internal_notes</code> 조회 코드) · 직원 계정(<code>/admin/staff</code> 라우트).<br>
+      ⬜ 없는 것은 <b>그림</b>. <code>/patients/:id</code> · <code>/admin/staff</code> · 챗봇.</td>
+  </tr>
+</table>
+
+<div class="note">
+  ⚠️⚠️ <b>모든 흐름의 밑바닥에 갭 #85가 있다</b> — 예약에 <b>실제 시각 칸이 없어</b>
+  <b>5분 단위 예약·당일 방문·사이 끼워넣기</b>가 전부 걸립니다.
+  2026-08-06에 <b>「나중에」에서 「선행 조건」으로 격상</b>됐습니다.
+</div>
+
+<p style="font-size:12px;color:var(--ink-muted);margin-top:18px">
+  📌 이 문서는 <b>정리본</b>입니다. 규칙 원본은 <code>docs/design/screen-behaviors.md</code>,
+  결정 근거는 <code>docs/superpowers/specs/2026-07-31-ui-design-decisions.md</code>입니다.
+</p>
+
+</div>
+</body>
+</html>

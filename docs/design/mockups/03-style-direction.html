@@ -1,0 +1,234 @@
+<style>
+  .sd-frame { width: 276px; border: 2px solid #3a3a3a; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; min-height: 520px; }
+  .sd-status { display: flex; justify-content: space-between; font-size: 9px; padding: 7px 12px 5px; }
+  .sd-main { flex: 1; padding: 12px; }
+  .sd-tabs { display: flex; }
+  .sd-tabs > div { flex: 1; text-align: center; padding: 8px 0 10px; font-size: 9px; }
+  .sd-tabs .sd-ic { font-size: 15px; display: block; margin-bottom: 1px; }
+  .sd-swatches { display: flex; gap: 4px; margin: 10px 0 6px; }
+  .sd-sw { flex: 1; height: 26px; border-radius: 4px; font-size: 7px; color: #fff; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px; }
+  .sd-tok { font-size: 11px; line-height: 1.75; color: var(--muted, #666); }
+  .sd-tok b { color: var(--fg, #111); }
+  .sd-row { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+  .sd-sig { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: #111; color: #fff; margin-bottom: 6px; }
+
+  /* ---------- 방향 1: 표지판 ---------- */
+  .d1 { background: #F2F5F7; color: #10243A; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .d1 .sd-status { background: #fff; color: #7A8A99; }
+  .d1 .d1-bar { background: #fff; padding: 0 12px 11px; display: flex; justify-content: space-between; align-items: center; }
+  .d1 .d1-bar span:first-child { font-size: 15px; font-weight: 800; letter-spacing: -.3px; }
+  .d1 .d1-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.10); }
+  .d1 .d1-head { background: #0B6E70; color: #fff; padding: 9px 12px; font-size: 12px; font-weight: 800; letter-spacing: .2px; }
+  .d1 .d1-person { display: flex; align-items: stretch; border-bottom: 1px solid #E6EBEF; }
+  .d1 .d1-rail { background: #0B6E70; color: #fff; width: 62px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 11px 0; }
+  .d1 .d1-time { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+  .d1 .d1-mid { flex: 1; padding: 10px 10px; }
+  .d1 .d1-name { font-size: 15px; font-weight: 800; }
+  .d1 .d1-sub { font-size: 11px; color: #5A6C7B; margin-top: 2px; }
+  .d1 .d1-qr { align-self: center; background: #0B6E70; color: #fff; font-size: 11px; font-weight: 800; padding: 11px 12px; border-radius: 9px; margin-right: 10px; }
+  .d1 .d1-q { display: block; font-size: 11px; font-weight: 700; padding: 8px 12px 8px 74px; border-bottom: 1px solid #E6EBEF; }
+  .d1 .d1-q.todo { background: #FFF6E8; color: #A85B00; }
+  .d1 .d1-q.done { background: #F5F7F8; color: #67788A; }
+  .d1 .sd-tabs { background: #fff; border-top: 1px solid #E0E7EC; color: #8FA0AE; }
+  .d1 .sd-tabs .on { color: #0B6E70; font-weight: 800; }
+
+  /* ---------- 방향 2: 진료 카드 ---------- */
+  .d2 { background: #EDEAE3; color: #1B1B1A; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .d2 .sd-status { background: #FBFAF7; color: #8C877C; }
+  .d2 .d2-bar { background: #FBFAF7; padding: 0 12px 11px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #17457A; }
+  .d2 .d2-bar span:first-child { font-size: 14px; font-weight: 700; }
+  .d2 .d2-date { font-size: 11px; font-weight: 700; color: #6B665C; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+  .d2 .d2-card { background: #FBFAF7; border: 1px solid #D9D4C9; border-left: 5px solid #17457A; border-radius: 3px; padding: 10px 11px; margin-bottom: 8px; position: relative; }
+  .d2 .d2-tab { position: absolute; top: -1px; left: -5px; background: #17457A; color: #fff; font-size: 9px; font-weight: 700; padding: 2px 7px 3px; border-radius: 0 0 4px 0; }
+  .d2 .d2-name { font-size: 15px; font-weight: 700; margin-top: 12px; }
+  .d2 .d2-sub { font-size: 11px; color: #6B665C; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .d2 .d2-acts { display: flex; gap: 6px; margin-top: 9px; }
+  .d2 .d2-qr { background: #17457A; color: #fff; font-size: 11px; font-weight: 700; padding: 8px 14px; border-radius: 3px; }
+  .d2 .d2-q { flex: 1; font-size: 11px; font-weight: 700; padding: 8px 10px; border-radius: 3px; text-align: center; }
+  .d2 .d2-q.todo { background: #FBF0DC; color: #8A5200; border: 1px solid #E3C68A; }
+  .d2 .d2-q.done { background: #F1EFE9; color: #6B665C; border: 1px solid #D9D4C9; }
+  .d2 .sd-tabs { background: #FBFAF7; border-top: 1px solid #D9D4C9; color: #8C877C; }
+  .d2 .sd-tabs .on { color: #17457A; font-weight: 700; }
+
+  /* ---------- 방향 3: 큰 활자 ---------- */
+  .d3 { background: #FFFFFF; color: #111111; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .d3 .sd-status { background: #fff; color: #767676; }
+  .d3 .d3-bar { padding: 0 14px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #111; }
+  .d3 .d3-bar span:first-child { font-size: 17px; font-weight: 800; }
+  .d3 .sd-main { padding: 0; }
+  .d3 .d3-date { font-size: 15px; font-weight: 800; padding: 12px 14px 8px; }
+  .d3 .d3-person { padding: 12px 14px 14px; border-bottom: 2px solid #E3E3E3; }
+  .d3 .d3-name { font-size: 21px; font-weight: 800; letter-spacing: -.4px; }
+  .d3 .d3-time { font-size: 17px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .d3 .d3-sub { font-size: 14px; color: #444; margin-top: 1px; }
+  .d3 .d3-qr { display: block; background: #1544B0; color: #fff; text-align: center; font-size: 15px; font-weight: 800; padding: 13px; border-radius: 8px; margin-top: 10px; }
+  .d3 .d3-q { display: block; text-align: center; font-size: 14px; font-weight: 700; padding: 11px; border-radius: 8px; margin-top: 7px; }
+  .d3 .d3-q.todo { background: #FFF4E0; color: #8A4B00; border: 2px solid #8A4B00; }
+  .d3 .d3-q.done { background: #fff; color: #444; border: 2px solid #C9C9C9; }
+  .d3 .sd-tabs { border-top: 3px solid #111; color: #555; }
+  .d3 .sd-tabs > div { font-size: 10px; font-weight: 700; }
+  .d3 .sd-tabs .on { color: #1544B0; }
+</style>
+
+<h2>화면 3 / 18 — 디자인 스타일 방향 (색 · 서체 · 간격)</h2>
+<p class="subtitle">
+  세 시안 모두 <b>레이아웃은 완전히 동일</b>합니다(확정한 홈 3건 목록). 달라지는 건 색·글자 크기·모서리·구분 방식뿐이라, 순수하게 스타일만 비교됩니다.
+  <br>모두 공통 적용: 대비 4.5:1 이상 · 색 없이도 글자로 상태 구분 · 문진 완료는 <b>같은 모양 회색</b>, 미작성만 노란색(확정 반영) · 터치 높이 44px 이상
+  <br><span style="color:#94a3b8">서체는 시스템 기본으로 근사 표현했습니다. 실제로는 한글 가독성이 좋은 Pretendard를 쓰고, 굵기·크기 규칙은 아래 적힌 값 그대로 갑니다.</span>
+</p>
+
+<div class="sd-row">
+
+  <!-- ===== 방향 1 ===== -->
+  <div class="card" data-choice="wayfinding" onclick="toggleSelect(this)" style="max-width:320px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#dfe6ea">
+      <div class="sd-frame d1">
+        <div class="sd-status"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="d1-bar"><span>김순자님</span><span style="font-size:14px">🔔 ⚙️</span></div>
+        <div class="sd-main">
+          <div class="d1-card">
+            <div class="d1-head">오늘 방문 3건 · 8월 3일 (월)</div>
+
+            <div class="d1-person">
+              <div class="d1-rail"><div class="d1-time">14:30</div><div style="font-size:8px;opacity:.85;margin-top:1px">본인</div></div>
+              <div class="d1-mid"><div class="d1-name">김순자</div><div class="d1-sub">내과 · 이민호 원장</div></div>
+              <div class="d1-qr">QR</div>
+            </div>
+            <div class="d1-q done">사전문진 작성완료 · 수정하기 ›</div>
+
+            <div class="d1-person">
+              <div class="d1-rail"><div class="d1-time">14:50</div><div style="font-size:8px;opacity:.85;margin-top:1px">아들</div></div>
+              <div class="d1-mid"><div class="d1-name">김도윤</div><div class="d1-sub">소아과 · 박지우 원장</div></div>
+              <div class="d1-qr">QR</div>
+            </div>
+            <div class="d1-q todo">사전문진 미작성 · 작성하기 ›</div>
+
+            <div class="d1-person" style="border-bottom:none">
+              <div class="d1-rail"><div class="d1-time">15:10</div><div style="font-size:8px;opacity:.85;margin-top:1px">딸</div></div>
+              <div class="d1-mid"><div class="d1-name">김하윤</div><div class="d1-sub">소아과 · 박지우 원장</div></div>
+              <div class="d1-qr">QR</div>
+            </div>
+            <div class="d1-q todo" style="border-bottom:none">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+        </div>
+        <div class="sd-tabs">
+          <div class="on"><span class="sd-ic">🏠</span>홈</div><div><span class="sd-ic">📅</span>예약</div><div><span class="sd-ic">👨‍👩‍👧</span>가족</div><div><span class="sd-ic">📋</span>이력</div><div><span class="sd-ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1. 표지판 (Wayfinding)</h3>
+      <span class="sd-sig" style="background:#0B6E70">시그니처 — 시각 레일</span>
+      <p>병원 복도 안내표지판의 문법을 가져왔습니다. 왼쪽 <b>진한 색 띠에 시각을 크게</b> 박아, 목록을 훑을 때 "몇 시에 누구"가 세로로 정렬돼 읽힙니다. 시간순 방문이라는 이 화면의 본질을 구조가 그대로 말해줍니다.</p>
+      <div class="sd-swatches">
+        <div class="sd-sw" style="background:#10243A">잉크</div>
+        <div class="sd-sw" style="background:#0B6E70">틸</div>
+        <div class="sd-sw" style="background:#A85B00">주의</div>
+        <div class="sd-sw" style="background:#1E6B3A">완료</div>
+        <div class="sd-sw" style="background:#F2F5F7;color:#555">배경</div>
+      </div>
+      <p class="sd-tok"><b>주색</b> 딥틸 #0B6E70 — 파랑보다 의료·위생 연상, 흔한 병원 파랑을 피함<br><b>본문</b> 15px / <b>이름</b> 15px 800 / <b>시각</b> 17px 800 고정폭숫자<br><b>모서리</b> 12px · <b>그림자</b> 거의 없음</p>
+    </div>
+  </div>
+
+  <!-- ===== 방향 2 ===== -->
+  <div class="card" data-choice="chart" onclick="toggleSelect(this)" style="max-width:320px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e0dcd3">
+      <div class="sd-frame d2">
+        <div class="sd-status"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="d2-bar"><span>김순자님</span><span style="font-size:14px">🔔 ⚙️</span></div>
+        <div class="sd-main">
+          <div class="d2-date">8월 3일 월요일 · 3건</div>
+
+          <div class="d2-card">
+            <div class="d2-tab">본인</div>
+            <div class="d2-name">김순자</div>
+            <div class="d2-sub">14:30 · 내과 이민호 원장 · 본관 3층</div>
+            <div class="d2-acts"><div class="d2-qr">QR</div><div class="d2-q done">문진 수정</div></div>
+          </div>
+
+          <div class="d2-card">
+            <div class="d2-tab">아들</div>
+            <div class="d2-name">김도윤</div>
+            <div class="d2-sub">14:50 · 소아과 박지우 원장 · 별관 2층</div>
+            <div class="d2-acts"><div class="d2-qr">QR</div><div class="d2-q todo">문진 작성</div></div>
+          </div>
+
+          <div class="d2-card">
+            <div class="d2-tab">딸</div>
+            <div class="d2-name">김하윤</div>
+            <div class="d2-sub">15:10 · 소아과 박지우 원장 · 별관 2층</div>
+            <div class="d2-acts"><div class="d2-qr">QR</div><div class="d2-q todo">문진 작성</div></div>
+          </div>
+        </div>
+        <div class="sd-tabs">
+          <div class="on"><span class="sd-ic">🏠</span>홈</div><div><span class="sd-ic">📅</span>예약</div><div><span class="sd-ic">👨‍👩‍👧</span>가족</div><div><span class="sd-ic">📋</span>이력</div><div><span class="sd-ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2. 진료 카드 (Paper chart)</h3>
+      <span class="sd-sig" style="background:#17457A">시그니처 — 인덱스 탭</span>
+      <p>병원 종이 진료차트의 <b>인덱스 탭</b>(카드 왼쪽 위 작은 라벨)을 그대로 옮겼습니다. 사람마다 한 장의 카드가 되고, 탭에 관계(본인/아들/딸)가 붙어 <b>"누구 것인지"가 가장 먼저</b> 읽힙니다. 종이 질감의 배경이 화면을 덜 차갑게 만듭니다.</p>
+      <div class="sd-swatches">
+        <div class="sd-sw" style="background:#1B1B1A">잉크</div>
+        <div class="sd-sw" style="background:#17457A">네이비</div>
+        <div class="sd-sw" style="background:#8A5200">주의</div>
+        <div class="sd-sw" style="background:#EDEAE3;color:#555">종이</div>
+        <div class="sd-sw" style="background:#FBFAF7;color:#555">카드</div>
+      </div>
+      <p class="sd-tok"><b>주색</b> 네이비 #17457A — 문서·서식의 색, 신뢰감 우선<br><b>본문</b> 15px / <b>이름</b> 15px 700 / 날짜는 자간 넓힌 소형 대문자 라벨<br><b>모서리</b> 3px(거의 각짐) · <b>구분</b> 얇은 테두리 + 좌측 굵은 선</p>
+    </div>
+  </div>
+
+  <!-- ===== 방향 3 ===== -->
+  <div class="card" data-choice="largeprint" onclick="toggleSelect(this)" style="max-width:320px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e8e8e8">
+      <div class="sd-frame d3">
+        <div class="sd-status"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="d3-bar"><span>김순자님</span><span style="font-size:16px">🔔 ⚙️</span></div>
+        <div class="sd-main">
+          <div class="d3-date">8월 3일 (월) · 방문 3건</div>
+
+          <div class="d3-person">
+            <div class="d3-name">김순자 <span style="font-size:13px;font-weight:700;color:#555">본인</span></div>
+            <div class="d3-time">오후 2:30</div>
+            <div class="d3-sub">내과 이민호 원장</div>
+            <div class="d3-qr">QR 코드 보기</div>
+            <div class="d3-q done">사전문진 수정하기</div>
+          </div>
+
+          <div class="d3-person">
+            <div class="d3-name">김도윤 <span style="font-size:13px;font-weight:700;color:#555">아들</span></div>
+            <div class="d3-time">오후 2:50</div>
+            <div class="d3-sub">소아과 박지우 원장</div>
+            <div class="d3-qr">QR 코드 보기</div>
+            <div class="d3-q todo">사전문진 작성하기</div>
+          </div>
+        </div>
+        <div class="sd-tabs">
+          <div class="on"><span class="sd-ic">🏠</span>홈</div><div><span class="sd-ic">📅</span>예약</div><div><span class="sd-ic">👨‍👩‍👧</span>가족</div><div><span class="sd-ic">📋</span>이력</div><div><span class="sd-ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3. 큰 활자 (Large print)</h3>
+      <span class="sd-sig" style="background:#1544B0">시그니처 — 풀폭 행동 바</span>
+      <p>카드를 아예 없앴습니다. 화면 폭을 <b>끝에서 끝까지</b> 쓰고, 굵은 가로선으로만 구분합니다. 이름 21px, 버튼 높이 48px — <b>셋 중 글자가 가장 큽니다</b>. 대신 한 화면에 2명까지만 보이고 나머지는 스크롤입니다.</p>
+      <div class="sd-swatches">
+        <div class="sd-sw" style="background:#111111">먹</div>
+        <div class="sd-sw" style="background:#1544B0">파랑</div>
+        <div class="sd-sw" style="background:#8A4B00">주의</div>
+        <div class="sd-sw" style="background:#FFFFFF;color:#555">흰 배경</div>
+      </div>
+      <p class="sd-tok"><b>주색</b> 파랑 #1544B0 — 링크·행동의 관습색을 그대로(학습 부담 0)<br><b>본문</b> 17px / <b>이름</b> 21px 800 / <b>버튼</b> 15px 800, 높이 48px<br><b>모서리</b> 8px · <b>배경 회색 없음</b>(흰색만) · 구분은 2~3px 굵은 선</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:26px">
+  <p class="label">추천</p>
+  <p><b>1번 표지판</b>을 추천합니다. 이 화면에서 사람이 실제로 찾는 정보는 <u>"몇 시에 누가"</u>인데, 1번만 그 두 가지가 왼쪽 세로줄에 정렬돼 훑어보기가 됩니다. 2·3번은 시각이 본문 안에 섞여 있어 한 줄씩 읽어야 합니다. 딥틸 색도 흔한 병원 파랑을 피하면서 의료 맥락을 지킵니다.</p>
+  <p style="margin-top:8px"><b>3번은 접근성만 보면 최고</b>입니다(글자 가장 큼, 버튼 가장 큼). 다만 직원용 웹에도 같은 스타일을 써야 하는데, 직원 화면은 캘린더·대기목록처럼 <b>한 화면에 정보를 빽빽하게</b> 넣어야 해서 큰 활자 원칙과 정면으로 부딪힙니다. 2번은 가장 얌전하고 안전하지만, 셋 중 기억에 남는 특징이 가장 약합니다.</p>
+  <p style="margin-top:8px"><span class="label">참고</span> 어느 걸 고르셔도 <b>환자 앱은 큰 글씨, 직원 웹은 조밀하게</b>라는 차이는 유지합니다. 같은 색·같은 서체를 쓰되 크기 단계만 다르게 가는 방식입니다.</p>
+</div>

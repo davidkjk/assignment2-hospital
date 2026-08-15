@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>111 · 안내자료 작성·수정·승인 · 관리자 상담봇</title>
+<style>
+:root{--primary:#0B6E70;--ink:#10243A;--muted:#5A6C7B;--warn:#B44E00;--warn-bg:#FFF1E4;--danger:#A02F3D;--danger-bg:#FFF0F1;--done:#67788A;--done-bg:#F5F7F8;--bg:#F2F5F7;--surface:#fff;--divider:#E1E8EC;--soft:#F8FAFB;--teal-soft:#E7F1F1;--teal-line:#9FC6C6;--overlay:rgba(16,36,58,.62)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:13px;-webkit-font-smoothing:antialiased}.page{max-width:1400px;margin:0 auto;padding:32px 24px 80px}h1{font-size:22px;line-height:1.25;margin:0 0 7px;font-weight:800}.lead{margin:0;color:var(--muted);font-size:13px;line-height:1.75}.lead b{color:var(--ink)}code{background:var(--done-bg);padding:2px 5px;border-radius:4px;font-size:11px}.rulebar{display:flex;gap:5px;flex-wrap:wrap;margin:14px 0 18px;padding:11px 13px;background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);border-radius:8px}.rule{display:inline-flex;align-items:center;border-radius:4px;padding:2px 5px;background:var(--teal-soft);color:var(--primary);font-weight:800;font-size:10px;line-height:1.35;white-space:nowrap}.rule.muted{background:var(--done-bg);color:var(--done)}.rule.warn{background:var(--warn-bg);color:var(--warn)}.rule.danger{background:var(--danger-bg);color:var(--danger)}
+.app{position:relative;background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(16,36,58,.05)}.top{height:44px;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--divider);font-size:11px;color:var(--muted);font-weight:800}.top .brand{color:var(--ink);font-size:12px}.sp{flex:1}.role{padding:4px 8px;background:var(--done-bg);border-radius:99px;font-size:10px;color:var(--ink)}.top-btn{height:29px;border:1px solid var(--divider);border-radius:6px;background:var(--surface);padding:0 9px;font:inherit;font-size:10px;color:var(--ink)}.stage{display:flex;min-height:750px}.nav{width:180px;flex:none;border-right:1px solid var(--divider);background:#FBFCFD;padding:8px 0}.nav .grp{padding:10px 14px 5px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.04em}.nav .it{display:flex;align-items:center;gap:7px;min-height:34px;border-left:3px solid transparent;padding:7px 13px;color:var(--muted);font-size:11.5px}.nav .it.on{background:var(--teal-soft);border-left-color:var(--primary);color:var(--primary);font-weight:800}.nav .it .n{margin-left:auto;color:var(--warn);font-size:10px}.body{flex:1;min-width:0;padding:18px 20px 28px;background:#FCFDFD}.crumb{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;margin-bottom:12px}.crumb b{color:var(--ink)}svg.i{width:14px;height:14px;vertical-align:-3px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.screen-title{display:flex;align-items:center;gap:8px;margin-bottom:13px}.screen-title h2{font-size:18px;margin:0}.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:99px;background:var(--teal-soft);color:var(--primary);font-size:10px;font-weight:800}.badge.gray{background:var(--done-bg);color:var(--done)}.badge.warn{background:var(--warn-bg);color:var(--warn)}.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;border:1px solid var(--divider);border-radius:7px;padding:7px 11px;background:var(--surface);color:var(--ink);font:inherit;font-size:11px;font-weight:800;white-space:nowrap}.btn.p{background:var(--primary);border-color:var(--primary);color:#fff}.btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}.btn.dis{background:var(--done-bg);color:#A2AFBA}.btn.link{border:0;color:var(--primary);padding:3px;min-height:0}.grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:12px;align-items:start}.card{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.card-h{display:flex;align-items:center;gap:7px;min-height:42px;padding:9px 11px;border-bottom:1px solid var(--divider);background:#FBFCFD;font-weight:800;font-size:12px}.card-b{padding:13px}.field{margin-bottom:12px}.field label,.label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:10px;font-weight:800;margin-bottom:5px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--divider);border-radius:6px;background:#fff;padding:8px 9px;color:var(--ink);font:inherit;font-size:11px}.field input,.field select{height:35px}.field textarea{height:155px;resize:none;line-height:1.65}.hint{margin-top:4px;color:var(--muted);font-size:10px;line-height:1.55}.restricted{display:flex;gap:9px;align-items:flex-start;padding:11px;border:1px solid #E7C4A6;border-radius:7px;background:var(--warn-bg)}.restricted input{width:16px;height:16px;margin:1px 0 0;accent-color:var(--warn)}.restricted label{font-weight:800;font-size:11px;line-height:1.45}.restricted small{display:block;color:var(--muted);font-weight:500;line-height:1.55;margin-top:4px}.form-actions{display:flex;align-items:center;gap:7px;border-top:1px solid var(--divider);padding-top:12px;margin-top:14px}.form-actions .save-note{font-size:10px;color:var(--muted);line-height:1.45}.preview{padding:11px;border:1px solid var(--divider);border-radius:7px;background:var(--soft);margin-bottom:9px}.preview.restricted-preview{border-left:4px solid var(--warn);background:var(--warn-bg)}.preview .cap{color:var(--muted);font-size:9.5px;font-weight:800;margin-bottom:6px}.preview p{font-size:11px;line-height:1.65;margin:0}.callout{padding:10px 11px;border-left:4px solid var(--primary);border-radius:6px;background:var(--teal-soft);font-size:10.5px;line-height:1.6;color:var(--muted);margin-top:9px}.callout b{color:var(--ink)}.callout.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--overlay);padding:20px;z-index:3}.modal{width:440px;max-width:100%;background:#fff;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,.3);overflow:hidden}.modal-h{display:flex;gap:9px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--divider);font-size:15px;font-weight:800;color:var(--warn)}.modal-b{padding:15px 16px}.modal-b p{margin:0 0 10px;font-size:12px;line-height:1.7;color:var(--muted)}.modal-b p strong{color:var(--ink)}.impact{margin:10px 0;padding:10px 11px;background:var(--warn-bg);border-left:4px solid var(--warn);border-radius:6px;color:var(--ink);font-size:11px;line-height:1.65}.impact b{color:var(--warn)}.checklist{margin:10px 0 0;padding:0;list-style:none;border-top:1px solid var(--divider)}.checklist li{display:flex;gap:7px;padding:7px 0;border-bottom:1px solid var(--divider);font-size:10.5px;line-height:1.5}.modal-ft{display:flex;justify-content:flex-end;gap:7px;padding:11px 16px;border-top:1px solid var(--divider);background:#FBFCFD}
+h2.section{font-size:16px;margin:30px 0 6px}.section-lead{margin:0 0 11px;color:var(--muted);font-size:11px;line-height:1.65}.states{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.state{background:var(--surface);border:1px solid var(--divider);border-radius:8px;overflow:hidden}.state-h{display:flex;align-items:center;gap:5px;min-height:39px;padding:8px 10px;border-bottom:1px solid var(--divider);background:#FBFCFD;font-size:11.5px;font-weight:800}.state-b{min-height:165px;padding:11px;color:var(--muted);font-size:10.5px;line-height:1.6}.state-b b{color:var(--ink)}.state-b.center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.state-b .btn{margin-top:8px}.line{padding:9px 10px;border-left:4px solid var(--primary);background:var(--teal-soft);border-radius:5px}.line.warn{border-left-color:var(--warn);background:var(--warn-bg);color:var(--warn)}.line.danger{border-left-color:var(--danger);background:var(--danger-bg);color:var(--danger)}.skeleton{width:100%;margin-top:7px}.sk{height:10px;background:var(--divider);border-radius:4px;margin:7px 0}.sk:nth-child(2){width:70%}.locked{margin-top:7px;padding:8px;border:1px dashed var(--divider);background:var(--done-bg);color:var(--muted)}.mini-field{height:28px;border:1px solid var(--divider);border-radius:5px;background:#fff;margin-top:7px;padding:6px 8px;color:#A2AFBA}.foot{margin-top:12px;color:var(--muted);font-size:10.5px;line-height:1.65}
+@media(max-width:1050px){.grid{grid-template-columns:1fr}.states{grid-template-columns:repeat(2,1fr)}}@media(max-width:850px){.stage{display:block}.nav{width:100%;display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--divider)}.nav .grp{display:none}.nav .it{white-space:nowrap}}@media(max-width:650px){.page{padding:22px 12px 60px}.states{grid-template-columns:1fr}.top .top-btn{display:none}.form-actions{align-items:stretch;flex-direction:column}.form-actions .btn{width:100%}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8v10H3z"/><path d="M9 21v-7h6v7"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8M8 12h5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.2 8.3-8 10-4.8-1.7-8-5-8-10V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h12l3 3v15H4V3z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 9v5M12 17h.01"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 2 5"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="m4 20 4.5-1 10-10-3.5-3.5-10 10z"/><path d="m13.5 7 3.5 3.5"/></symbol>
+</svg>
+<main class="page">
+  <h1>111 · 안내자료 작성·수정·승인 <code>/admin/chatbot/knowledge/:id</code></h1>
+  <p class="lead"><b>저장</b>은 승인 전 수정본만 남기고, <b>승인</b>은 확인창에서만 재청킹·재임베딩을 시작한다. 승인 성공 전에는 기존 승인본을 계속 사용한다.</p>
+  <div class="rulebar" aria-label="이 목업이 다루는 규칙 ID">
+    <span class="rule">KBADM-EDITOR-01</span><span class="rule">KBADM-EDITOR-02</span><span class="rule">KBADM-EDITOR-03</span><span class="rule">KBADM-EDITOR-04</span><span class="rule">KBADM-EDITOR-05</span><span class="rule">KBADM-EDITOR-06</span><span class="rule">KBADM-EDITOR-07</span><span class="rule">KBADM-EDITOR-08</span><span class="rule warn">KBADM-EDITOR-09</span><span class="rule warn">KBADM-EDITOR-10</span><span class="rule">KBADM-EDITOR-11</span><span class="rule">KBADM-EDITOR-12</span><span class="rule">KBADM-EDITOR-13</span><span class="rule">KBADM-EDITOR-14</span><span class="rule">KBADM-EDITOR-15</span><span class="rule">KBADM-EDITOR-16</span><span class="rule">KBADM-EDITOR-17</span>
+  </div>
+
+  <section class="app" aria-label="안내자료 편집과 승인 확인창">
+    <header class="top"><span class="brand">루나병원</span><span>직원 웹</span><span class="sp"></span><button class="top-btn">+ 새 예약</button><button class="top-btn">+ 당일 방문</button><span class="role">김관리 · 관리자</span><span>로그아웃</span></header>
+    <div class="stage">
+      <nav class="nav" aria-label="관리자 웹 메뉴">
+        <div class="grp">진료 현장</div><div class="it"><svg class="i"><use href="#i-home"/></svg>오늘의 현황</div><div class="it"><svg class="i"><use href="#i-list"/></svg>예약 캘린더</div>
+        <div class="grp">상담봇 관리</div><div class="it on"><svg class="i"><use href="#i-chat"/></svg>병원 안내자료</div><div class="it"><svg class="i"><use href="#i-list"/></svg>미해결 질문</div><div class="it"><svg class="i"><use href="#i-alert"/></svg>오답 처리함 <span class="n">3</span></div><div class="it"><svg class="i"><use href="#i-check"/></svg>품질 리포트</div>
+        <div class="grp">운영·관리</div><div class="it"><svg class="i"><use href="#i-shield"/></svg>진료 일정</div><div class="it"><svg class="i"><use href="#i-shield"/></svg>병원 설정</div>
+      </nav>
+      <div class="body">
+        <div class="crumb"><span>상담봇 관리</span><span>/</span><span>병원 안내자료</span><span>/</span><b>수정</b></div>
+        <div class="screen-title"><h2>수면내시경 전날 준비</h2><span class="badge"><svg class="i"><use href="#i-check"/></svg>현재 승인본 있음</span><span class="badge gray">수정본 저장됨</span><span class="sp"></span><button class="btn link">수정이력 보기</button></div>
+        <div class="grid">
+          <section class="card" aria-label="안내자료 편집 폼">
+            <div class="card-h"><svg class="i" style="color:var(--primary)"><use href="#i-edit"/></svg>안내 내용 편집 <span class="sp"></span><span class="rule">KBADM-EDITOR-01</span></div>
+            <div class="card-b">
+              <div class="field"><label for="kind">분류 <span class="rule muted">KBADM-EDITOR-02</span></label><select id="kind"><option>검사 전 준비사항</option><option>위치·주차</option><option>예약·변경·취소 규칙</option><option>자주 묻는 질문</option></select><div class="hint">의사 소개와 진료시간·휴진일은 각 원본 화면에서 관리하므로 이 선택지에 없습니다.</div></div>
+              <div class="field"><label for="title">제목</label><input id="title" value="수면내시경 전날 준비"></div>
+              <div class="field"><label for="content">안내 문구</label><textarea id="content">검사 전날 밤 9시부터 금식해 주세요. 물은 검사 2시간 전까지 가능합니다. 복용 중인 약이 있다면 임의로 중단하지 말고 병원에 문의해 주세요.</textarea></div>
+              <div class="restricted"><input id="restricted" type="checkbox" checked><label for="restricted">상담봇이 직접 답변하지 않고 이 문구만 그대로 보여줍니다 <span class="rule warn">KBADM-EDITOR-03</span><small>제한 주제에서는 이 문구를 봇 생성 텍스트와 분리해 그대로 표시합니다. 질문 전체가 제한 주제라면 이 문구와 [직원 연결]만 제공합니다.</small></label></div>
+              <div class="form-actions"><div class="save-note"><b>저장만으로는 공개되지 않습니다.</b><br>현재 승인본은 그대로 유지됩니다.</div><span class="sp"></span><button class="btn"><svg class="i"><use href="#i-save"/></svg>수정본 저장</button><button class="btn p">승인 내용 확인…</button></div>
+            </div>
+          </section>
+          <aside class="card" aria-label="상담봇 표시 미리보기">
+            <div class="card-h"><svg class="i" style="color:var(--primary)"><use href="#i-chat"/></svg>답변 표시 미리보기</div>
+            <div class="card-b">
+              <div class="preview"><div class="cap">일반 자료일 때</div><p>승인된 병원 안내자료만 상담봇 답변의 근거로 사용합니다.</p><span class="rule">KBADM-EDITOR-05</span></div>
+              <div class="preview restricted-preview"><div class="cap">제한 자료일 때 · 별도 블록</div><p>검사 전날 밤 9시부터 금식해 주세요. 물은 검사 2시간 전까지 가능합니다. 복용 중인 약이 있다면 임의로 중단하지 말고 병원에 문의해 주세요.</p><span class="rule warn">KBADM-EDITOR-04</span></div>
+              <button class="btn" style="width:100%">직원 연결</button>
+              <div class="callout"><b>승인 후 정정</b><br>승인 취소는 없습니다. 수정이력의 [편집]으로 내용을 채워 새 수정본으로 검토한 뒤 다시 승인합니다. <span class="rule muted">KBADM-EDITOR-14</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" aria-label="승인 확인창">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="modal-h" id="confirm-title"><svg class="i"><use href="#i-alert"/></svg>안내자료를 승인하시겠습니까?</div>
+        <div class="modal-b">
+          <p><strong>승인하면 이 수정본이 AI 상담봇 답변에 반영되며 되돌릴 수 없습니다.</strong></p>
+          <div class="impact"><b>승인 뒤 즉시 시작되는 작업</b><br>내용을 다시 나누고(재청킹) 임베딩을 새로 만듭니다. 완료되기 전에는 기존 승인본이 계속 사용됩니다.</div>
+          <ul class="checklist">
+            <li><svg class="i"><use href="#i-check"/></svg><span>분류: 검사 전 준비사항</span></li>
+            <li><svg class="i"><use href="#i-lock"/></svg><span>제한 자료: 상담봇이 직접 답하지 않고 입력 문구만 그대로 표시</span></li>
+            <li><svg class="i"><use href="#i-refresh"/></svg><span>정정하려면 [편집] 후 새 수정본을 다시 승인해야 함</span></li>
+          </ul>
+          <span class="rule warn">KBADM-EDITOR-09</span> <span class="rule warn">KBADM-EDITOR-10</span>
+        </div>
+        <div class="modal-ft"><button class="btn">계속 편집</button><button class="btn warn">승인하고 반영</button></div>
+      </section>
+    </div>
+  </section>
+
+  <h2 class="section">저장·승인·조회 상태 모음</h2>
+  <p class="section-lead">편집값과 기존 승인본을 보존하며, 성공 응답 전에는 승인 완료로 표현하지 않는다. 승인 취소 버튼은 어느 상태에도 두지 않는다.</p>
+  <section class="states" aria-label="안내자료 편집 상태">
+    <article class="state"><div class="state-h">새 자료 작성 <span class="sp"></span><span class="rule">01~03</span></div><div class="state-b"><b>새 안내자료</b><br>현재 승인본 표식 없이 빈 폼에서 시작합니다.<div class="mini-field">분류를 선택하세요</div><div class="mini-field">제목을 입력하세요</div><div class="mini-field" style="height:46px">안내 문구를 입력하세요</div><div class="hint">저장 뒤에도 승인 전까지 답변에 공개되지 않습니다.</div></div></article>
+    <article class="state"><div class="state-h">승인 전 저장 <span class="sp"></span><span class="rule">06~08</span></div><div class="state-b"><div class="line"><b>저장 완료</b><br>승인 전 수정본으로 저장했습니다. 상담봇 답변은 바뀌지 않았습니다.</div><div class="line warn" style="margin-top:7px"><b>저장 중</b><br>입력값 유지 · 중복 저장 잠금</div><div class="line danger" style="margin-top:7px"><b>저장하지 못했습니다</b><br>입력값을 유지했습니다. [다시 시도]</div></div></article>
+    <article class="state"><div class="state-h">승인 진행 <span class="sp"></span><span class="rule">11~13</span></div><div class="state-b"><div class="line warn"><b>승인하여 반영 중</b><br>재청킹·재임베딩 중 · 버튼 잠금</div><div class="line danger" style="margin-top:7px"><b>승인하지 못했습니다</b><br>서버 결과로 기존 승인본 유지 여부를 표시합니다. 부분 반영 여부는 <b>확인 필요</b>.</div><div class="line" style="margin-top:7px"><b>승인 완료</b><br>승인되어 AI 상담봇 답변에 반영되었습니다.</div></div></article>
+    <article class="state"><div class="state-h">기존 자료 조회 <span class="sp"></span><span class="rule">15~16</span></div><div class="state-b"><b>수정할 자료를 불러오는 중</b><div class="skeleton"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div><div class="line danger" style="margin-top:12px"><b>자료를 불러오지 못했습니다</b><br>새 자료 작성으로 바꾸지 않습니다.<br><button class="btn"><svg class="i"><use href="#i-refresh"/></svg>다시 시도</button></div></div></article>
+    <article class="state"><div class="state-h">중복 원본 예외 <span class="sp"></span><span class="rule">17</span></div><div class="state-b"><div class="line warn"><b>이 자료는 여기서 다시 승인할 수 없습니다</b><br>의사 소개는 직원 정보, 진료시간·휴진일은 운영시간·특정일에서 관리해 주세요.</div><div class="locked">편집·저장·승인 잠금<br><b>마이그레이션·폐기 방식 확인 필요</b></div></div></article>
+  </section>
+  <p class="foot"><span class="rule">KBADM-EDITOR-06</span> 저장은 승인 전 수정본 생성, <span class="rule">KBADM-EDITOR-10</span> 확인창의 [승인하고 반영]만 승인·재청킹·재임베딩 요청이다. 신규 작성도 같은 폼을 쓰며 “현재 승인본 있음” 표식만 없다.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,1572 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>62 · 대기 목록 확정안</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --fs:13px; --fs-name:14px; --fs-time:15px; --row:52px; --tap:36px;
+    /* 목록 행의 열 너비 — 비율로 고정해 모든 줄이 세로로 맞는다 */
+    --col: 22px 62px minmax(78px,1.1fr) 98px 104px minmax(140px,1.5fr) minmax(230px,1.4fr);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:var(--fs);
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  .ids{background:var(--surface);border:1px solid var(--divider);border-radius:8px;padding:12px 16px;
+       margin:14px 0 0;font-size:12px;line-height:1.9;color:var(--ink-muted)}
+  .ids b{color:var(--ink)}
+  .ids code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:#FFF1E4;color:var(--warn)}
+
+  .screen{background:var(--bg);border:1px solid var(--divider);border-radius:12px;padding:16px;overflow:hidden}
+  .h2s{font-size:12px;color:var(--ink-muted);line-height:1.75}
+  .h2s b{color:var(--ink)}
+
+  .card{background:var(--surface);border:1px solid var(--divider);border-radius:10px;overflow:hidden;margin-bottom:12px}
+  .card:last-child{margin-bottom:0}
+  .card-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--divider);
+          font-weight:800;font-size:var(--fs-name)}
+  .card-h .cnt{font-variant-numeric:tabular-nums}
+  .card-h .sp{margin-left:auto}
+
+  .warn{color:var(--warn);font-weight:800}
+
+  .pgh{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;padding:0 2px}
+  .pgh .t{font-size:17px;font-weight:800}
+  .pgh .d{font-size:12px;color:var(--ink-muted)}
+  .pgh .sp{margin-left:auto}
+
+  /* ⭐ 2026-08-07 — 탭을 같은 너비로(사용자 지시).
+     글자 수대로 너비가 달라지면 「전체」가 가장 작은 과녁이 되는데, 하루 종일 오가는 탭이라
+     좁은 과녁을 반복해 겨누게 된다. flex:1 1 92px이라 좁아지면 줄이 바뀌되 너비는 계속 같다. */
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tab{flex:1 1 92px;min-width:0;background:var(--surface);border:1px solid var(--divider);border-radius:8px;
+       padding:7px 10px;display:flex;align-items:baseline;justify-content:center;gap:6px;white-space:nowrap}
+  .tab .l{font-size:12px;font-weight:700;color:var(--ink-muted)}
+  .tab .n{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+  .tab.on{border-color:var(--primary);background:#E7F1F1;box-shadow:inset 3px 0 0 var(--primary)}
+  .tab.on .l,.tab.on .n{color:var(--primary)}
+  .tab.wn .n{color:var(--warn)}
+  .tab.zero .n{color:#A7B3BC}
+
+  /* ⭐ 격자 — 이름 길이가 달라도 열이 어긋나지 않는다. 눈이 세로로 훑어 내려갈 수 있어야 한다 */
+  .qrow{display:grid;grid-template-columns:var(--col);align-items:center;gap:0 12px;
+        min-height:var(--row);padding:0 14px;border-bottom:1px solid var(--divider)}
+  .qrow:last-child{border-bottom:0}
+  .qrow > .grip{grid-column:1}
+  .qrow > .rail{grid-column:2;justify-self:start}
+  .qrow > .nm{grid-column:3}
+  .qrow > .dob{grid-column:4}
+  .qrow > .wait{grid-column:5}
+  .qrow > .badge{grid-column:5;justify-self:start}
+  .qrow > .dept{grid-column:6;overflow:hidden;text-overflow:ellipsis}
+  .qrow > .right{grid-column:7}
+  .grip{width:14px;color:#B7C2CB;font-size:14px;letter-spacing:-2px;cursor:grab;user-select:none}
+  .grip.off{color:#E0E6EA}
+  /* 끌 수 없는 탭 — 순번 자리를 「빈칸」으로 둔다.
+     ⛔ 예전에는 여기에 `–`를 넣었는데 「빼기·제거」로 읽혔다(사용자가 실제로 그렇게 읽음).
+     기호는 무엇이든 뜻을 만든다 — 아무것도 없는 것이 가장 조용하다. */
+  .grip.none,.rail.none{visibility:hidden}
+  /* ⭐ 2026-08-07 — 채운 칩을 걷어냈다.
+     시각 레일(딥틸로 채운 칸)은 「14:00」처럼 다섯 글자를 담으려고 만든 그릇인데,
+     여기에 순번 「12」 두 글자를 넣으니 그릇만 크고 속이 비어 보였다(사용자 지적).
+     ⭐ 더 중요한 이유: /today는 「몇 시 예약을 훑는 화면」이라 시각이 기준축이지만,
+     /queue는 「사람을 찾아 처리하는 화면」이라 기준축이 이름이다. 레일이 이름보다 무거우면 축이 뒤바뀐다.
+     📌 /today(목업 49)의 시각 레일은 그대로 둔다 — 거기서는 시각이 진짜 축이다. */
+  .rail{display:inline-flex;align-items:baseline;justify-content:flex-end;gap:2px;background:none;
+        border-radius:0;padding:0;min-width:44px;color:var(--ink);
+        font-size:var(--fs-name);font-weight:800;font-variant-numeric:tabular-nums}
+  .rail.num{color:var(--primary)}
+  .rail.num i{font-style:normal;font-size:10px;font-weight:800;color:#9FB0BB}
+  .rail.mut{color:var(--done);font-weight:700}
+  .rail.gh{color:#A7B3BC;font-weight:700}
+  .nm{font-size:var(--fs-name);font-weight:800;white-space:nowrap}
+  .dob{color:var(--ink-muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wait{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:66px}
+  .dept{color:var(--ink-muted);font-size:12px;white-space:nowrap}
+  .right{justify-self:end;display:flex;align-items:center;gap:10px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:var(--tap);padding:0 12px;
+       border-radius:8px;border:1px solid var(--primary);background:#fff;color:var(--primary);
+       font-size:12px;font-weight:800;font-family:inherit;cursor:default;white-space:nowrap}
+  .btn.fill{background:var(--primary);color:#fff}
+  .btn.q{border-color:var(--divider);color:var(--ink-muted)}
+  /* ⚠️ 목록 안 버튼도 47번 안 B가 정한 36px를 지킨다 — 줄이 촘촘하다고 버튼까지 줄이면 누르기 어려워진다 */
+  .btn.sm{height:var(--tap);padding:0 12px;font-size:12px}
+  .btn.dis{border-color:var(--divider);background:var(--done-bg);color:#A7B3BC}
+  .urg{display:inline-flex;align-items:center;gap:4px;color:var(--warn);font-weight:800;font-size:12px;white-space:nowrap}
+  .qrow.urgent{border-left:4px solid var(--warn);padding-left:8px}
+  .qrow.dim{opacity:.55}
+  .qrow.hl{background:#FFF7EF;box-shadow:inset 3px 0 0 var(--warn)}
+  .qrow.drag{background:#EAF3F3;border:1px dashed var(--primary);border-radius:8px}
+  /* 나란히 비교하는 좁은 틀에서는 같은 격자를 비율만 줄여 쓴다(실제 화면은 위의 --col) */
+  .two-up .qrow,.three-up .qrow{grid-template-columns:18px 54px minmax(56px,1fr) 88px 88px minmax(0,1fr) auto;gap:0 8px;padding:0 10px}
+  .two-up .btn.sm,.three-up .btn.sm{padding:0 9px;font-size:11px}
+  .two-up .dept,.three-up .dept{overflow:hidden;text-overflow:ellipsis}
+
+  .badge{font-size:11px;font-weight:800;padding:2px 7px;border-radius:99px;background:var(--done-bg);color:var(--done);white-space:nowrap}
+  .badge.w{background:#fff;color:var(--warn);border:1px solid #E8D3C2}
+  .badge.p{background:#E7F1F1;color:var(--primary)}
+
+  .sect-h{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#EDF2F4;border-bottom:1px solid var(--divider);
+          border-top:1px solid var(--divider);font-size:12px;font-weight:800;color:var(--ink-muted)}
+  .sect-h .n{color:var(--ink);font-variant-numeric:tabular-nums}
+  .sect-h .sp{margin-left:auto;font-weight:700;color:var(--primary)}
+
+  .modal{background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:16px 18px;
+         box-shadow:0 8px 24px rgba(16,36,58,.12);width:100%;max-width:430px}
+  .modal h4{font-size:14px;font-weight:800;margin:0 0 6px}
+  .modal .step{font-size:11px;font-weight:800;color:var(--primary);letter-spacing:.04em;margin:0 0 4px}
+  .modal p{font-size:12px;color:var(--ink-muted);line-height:1.75;margin:0 0 10px}
+  .modal p b{color:var(--ink)}
+  .modal label{display:block;font-size:11px;font-weight:800;color:var(--ink-muted);margin:0 0 4px}
+  .fld{border:1px solid var(--divider);border-radius:8px;padding:9px 10px;font-size:12px;color:#A7B3BC;margin-bottom:10px;background:#fff}
+  .fld.filled{color:var(--ink);font-weight:700}
+  .fld.err{border-color:var(--warn)}
+  /* QUEUE-WALK-08b: 의사 드롭다운을 펼친 모습 — 대기 인원이 나란히 비교된다 */
+  .dd-open{border:1px solid var(--divider);border-radius:8px;background:#fff;margin:-4px 0 10px;
+           box-shadow:0 6px 16px rgba(20,40,60,.10);overflow:hidden}
+  .dd-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+          padding:9px 10px;font-size:12px;border-top:1px solid var(--divider)}
+  .dd-row:first-child{border-top:0}
+  .dd-row.sel{background:#F2F7F7}
+  /* QUEUE-WALK-08e — 진료과는 「고르는 칸」이 아니라 「읽는 순서를 만드는 머리」다. 눌리지 않는다 */
+  .dd-head{padding:6px 10px 3px;font-size:10px;font-weight:800;color:var(--ink-muted);
+           background:var(--done-bg);border-top:1px solid var(--divider);letter-spacing:.04em}
+  .dd-open .dd-head:first-child{border-top:0}
+  .dd-head + .dd-row{border-top:0}
+  .dd-w{font-weight:800;font-size:11px;color:var(--done)}
+  .dd-w.warn{color:var(--warn)}
+  .dd-w.ok{color:#2C6E5B}
+  .radio{display:flex;gap:8px;margin-bottom:10px}
+  .radio span{flex:1;border:1px solid var(--divider);border-radius:8px;padding:9px 10px;font-size:12px;
+              font-weight:800;color:var(--ink-muted);text-align:center;background:#fff}
+  .radio span.on{border-color:var(--primary);background:#E7F1F1;color:var(--primary)}
+  .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.7;margin:-4px 0 10px}
+  .hint.w{color:var(--warn);font-weight:700}
+  .found{border:1px solid var(--primary);background:#F4FAFA;border-radius:8px;padding:10px 12px;margin-bottom:10px}
+  .found .l1{font-size:13px;font-weight:800}
+  .found .l2{font-size:11px;color:var(--ink-muted);margin-top:2px;font-variant-numeric:tabular-nums}
+
+  .banner{display:flex;align-items:center;gap:10px;background:#FFF7EF;border:1px solid #E8D3C2;
+          border-left:4px solid var(--warn);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;line-height:1.6}
+  .banner b{color:var(--warn)}
+  .banner .sp{margin-left:auto}
+  .stale{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:var(--done)}
+  .stale .dot{width:7px;height:7px;border-radius:99px;background:#A7B3BC;display:inline-block}
+
+  .empty{padding:34px 14px;text-align:center;color:var(--ink-muted);font-size:12px;line-height:1.9}
+  .empty > b:first-child{color:var(--ink);font-size:14px;display:block;margin-bottom:4px}
+  .empty b{color:var(--ink);font-weight:800}
+
+  .filt{display:inline-flex;align-items:center;gap:6px;background:#E7F1F1;border:1px solid var(--primary);
+        border-radius:99px;padding:5px 10px;font-size:12px;font-weight:800;color:var(--primary)}
+  .filt .x{color:var(--primary);font-weight:800}
+
+  .two-up{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .three-up{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media (max-width:900px){.two-up,.three-up{grid-template-columns:1fr}}
+  .mini-t{font-size:12px;font-weight:800;margin:0 0 8px}
+  .mini-t .n{color:var(--ink-muted);font-weight:700}
+
+  .notes{margin-top:34px;background:var(--surface);border:1px solid var(--divider);border-radius:12px;padding:20px 22px}
+  .notes h2{font-size:15px;font-weight:800;margin:0 0 12px}
+  .notes table{width:100%;border-collapse:collapse;font-size:13px}
+  .notes th,.notes td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--divider);vertical-align:top}
+  .notes th{color:var(--ink-muted);font-weight:700;font-size:12px}
+  .notes p{font-size:13px;line-height:1.75;color:var(--ink-muted);margin:14px 0 0}
+  .notes p b,.notes td b{color:var(--ink)}
+  .flag{background:#FFF7EF;border:1px solid #E8D3C2;border-left:4px solid var(--warn);border-radius:8px;
+        padding:12px 14px;margin:14px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .flag b{color:var(--warn)}
+  .flag .t{color:var(--ink)}
+  .ok{background:#F1F8F8;border:1px solid #CBE3E3;border-left:4px solid var(--primary);border-radius:8px;
+      padding:12px 14px;margin:14px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .ok b{color:var(--primary)}
+  .ok .t{color:var(--ink)}
+
+  /* ── ⑥ 워크인은 「오른쪽 패널」이다(SB-39) — 부품을 65번과 똑같이 쓴다 ─────────
+     ⚠️ 이 아래 규칙은 전부 .app / .panel 안으로만 걸어 위쪽 목록 CSS를 건드리지 않는다 */
+  .app{background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .hdr{display:flex;align-items:center;gap:9px;padding:9px 14px;background:#10243A;color:#fff;
+       font-size:12px;font-weight:800}
+  .hdr .hb{border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:800}
+  .hdr .hb.on{background:var(--primary);border-color:var(--primary)}
+  .hdr .sp{flex:1}
+  /* ⭐ 2026-08-07 — 일 시작 버튼을 헤더 오른쪽 끝으로(사용자 지시).
+     ①오른손잡이가 많고 ②패널이 오른쪽에서 열려 손이 이어서 움직인다
+     ③덤으로 「로그아웃」이 화면 가장자리에서 물러난다 — 되돌릴 수 없는 것을 가장 누르기 쉬운 자리에 두지 않는다. */
+  .hdr .hbsep{width:1px;height:18px;background:rgba(255,255,255,.22);margin:0 3px}
+  .hdr .hb.q{border-color:rgba(255,255,255,.18);color:#B9C6D0;font-weight:700}
+  .hdr .me{font-weight:700;color:#B9C6D0;font-size:11px}
+  .split{display:flex;align-items:stretch}
+  .left{flex:1;min-width:0;background:var(--bg)}
+  /* PANEL-BACK-01 — 패널이 열린 동안 뒤는 읽기 전용이다(하얗게 덮어 「지금은 못 누른다」를 보인다) */
+  .left.locked{position:relative}
+  .left.locked::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.45);pointer-events:none}
+  .left .qrow{grid-template-columns:16px 48px minmax(52px,1fr) 84px 74px minmax(0,1fr) auto;gap:0 8px;
+              padding:0 10px;min-height:42px}
+  .left .btn.sm{height:28px;padding:0 8px;font-size:11px}
+  .left .lt{font-size:11px;font-weight:800;color:var(--ink-muted);padding:9px 12px 0}
+  .left .lt b{color:var(--ink)}
+
+  .panel{width:290px;flex:0 0 290px;border-left:1px solid var(--divider);background:#fff;padding:13px 14px}
+  .panel.wide{width:330px;flex:0 0 330px}
+  .panel h5{margin:0 0 3px;font-size:14px;font-weight:800;display:flex;justify-content:space-between;
+            align-items:center;gap:8px}
+  .panel h5 .x{color:var(--ink-muted);font-weight:800;font-size:11px;white-space:nowrap}
+  .panel .who{font-size:11px;color:var(--ink-muted);font-weight:700;margin-bottom:10px}
+  .panel label{display:block;font-size:11px;font-weight:800;color:var(--ink-muted);margin:12px 0 5px}
+  .panel .fld{margin-bottom:0;padding:8px 9px}
+  /* PANEL-WORK-03 — 지금 채우는 중인 칸은 테두리로 표시한다(왼쪽이 왜 바뀌었는지의 짝) */
+  .panel .fld.now{border-color:var(--primary);box-shadow:0 0 0 3px #E7F1F1}
+  .panel .found{margin-bottom:0}
+  .panel .radio{flex-direction:column;align-items:stretch;gap:6px;margin-bottom:0}
+  .panel .hint{margin:6px 0 0}
+  .panel .dd-open{margin:6px 0 0}
+  .panel .btn{width:100%;height:34px}
+  .panel .btnrow{display:flex;gap:7px;margin-top:14px}
+  .panel .btnrow .btn{flex:1}
+  /* QUEUE-WALK-19 — 환자를 고르기 전에는 아래 두 줄이 흐리게 있다(감춰서 놀라게 하지 않는다) */
+  .panel .later{opacity:.45}
+  .dimlabel{font-size:11px;font-weight:800;color:var(--ink-muted);margin:12px 0 5px}
+  /* PANEL-LIVE — 접힌 패널은 오른쪽 가장자리의 얇은 띠가 된다 */
+  .folded{width:34px;flex:0 0 34px;border-left:1px solid #9FC6C6;background:#E7F1F1;
+          display:flex;align-items:center;justify-content:center;padding:10px 0}
+  .folded span{writing-mode:vertical-rl;font-size:11px;font-weight:800;color:var(--primary);white-space:nowrap}
+
+  /* PANEL-FIND-01 — 왼쪽 큰 자리에 뜨는 검색 결과 표(/patients와 같은 모양) */
+  .findpane{padding:11px 13px}
+  .findpane .fh{font-size:12px;font-weight:800;margin:0 0 8px}
+  .findpane .fh span{color:var(--ink-muted);font-weight:700}
+  .ftab{width:100%;border-collapse:collapse;font-size:12px;background:#fff;
+        border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+  .ftab th,.ftab td{padding:7px 9px;border-top:1px solid var(--divider);text-align:left}
+  .ftab th{background:var(--done-bg);font-size:10px;color:var(--ink-muted);border-top:0;font-weight:800}
+  .ftab tr.pick{background:#F2F7F7}
+
+  /* PANEL-WORK-02 — 의사 칸이 부르는 「그 의사의 오늘 캘린더」 */
+  .daycal{padding:11px 13px}
+  .daycal .dh{font-size:12px;font-weight:800;margin:0 0 8px}
+  .daycal .dh span{color:var(--ink-muted);font-weight:700}
+  .lane{display:flex;background:#fff;border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+  .tax{width:42px;position:relative;border-right:1px solid var(--divider);background:#FAFBFC}
+  .tax b{position:absolute;right:5px;font-size:9px;font-weight:800;color:var(--ink-muted);transform:translateY(-50%)}
+  .tl{position:relative;flex:1}
+  .gl{position:absolute;left:0;right:0;height:1px;background:#F0F3F5}
+  .gl.h{background:var(--divider)}
+  .blk{position:absolute;left:4px;right:4px;border-radius:5px;padding:2px 5px;font-size:10px;font-weight:800;
+       overflow:hidden;background:#E7F1F1;border:1px solid #9FC6C6}
+  .blk.fr{background:#fff;border:1px dashed #D6DDE2;color:#8C99A4}
+  .hat{position:absolute;left:0;right:0;font-size:9px;font-weight:800;color:var(--ink-muted);text-align:center;
+       padding-top:2px;background:repeating-linear-gradient(45deg,#F1F4F6,#F1F4F6 5px,#E7ECEF 5px,#E7ECEF 10px)}
+
+  /* 가운데 팝업(확인창)은 그대로 남는다 — PANEL-USE-02 */
+  .stage{background:#3B4A57;border-radius:12px;padding:22px 16px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>대기 목록 <span style="color:#5A6C7B;font-weight:600">(<code>/queue</code>)</span> · <span class="tag ok">확정안</span></h1>
+<p class="sub">
+  61번의 <b>안 A(상태 탭)</b>가 채택됐고, 「아직 안 옴」 탭도 <b>㉮ 둔다</b>로 확정됐다(2026-08-05).
+  이 문서는 그 확정안에 <b>61번이 아직 안 그린 상태 전부</b>를 더한 것이다 —
+  워크인 등록 · 응급/주의 확인 · 동명이인 재확인 · 빈 상태 · 연결 끊김 · 의사별 필터.
+</p>
+<p class="sub">셸은 <b>48번 안 B</b>, 크기는 <b>47번 안 B</b>(본문 13 / 행 44 / 버튼 36). 사이드바·헤더는 생략하고 <b>본문만</b> 그렸다.</p>
+
+<div class="quote">
+  요구사항 3.4 — <b>“환자가 병원에 도착하면 예약을 찾아 <span class="warn">도착</span> 처리합니다.”</b><br>
+  요구사항 3.4 — <b>“예약 없이 방문한 환자는 … <span class="warn">전화번호로</span> 기존 환자를 찾거나 신규로 등록한 뒤 담당 의사를 선택할 수 있어야 합니다.”</b><br>
+  요구사항 3.4 — <b>“접수 직원은 대기 순서를 조정할 수 있어야 하지만, <span class="warn">순서를 바꾼 사람과 이유가 남아야</span> 합니다.”</b><br>
+  요구사항 3.4 — <b>“응급하거나 먼저 봐야 하는 환자는 별도의 주의 표시를 … 단, 이 표시가 <span class="warn">의학적 응급도 판정을 대신하는 기능은 아닙니다</span>.”</b><br>
+  요구사항 3.5 — <b>“환자를 잘못 선택한 상태에서 기록하지 않도록 <span class="warn">저장 전에 이름과 생년월일을 다시 확인</span>할 수 있으면 좋겠습니다.”</b>
+</div>
+
+<div class="ids">
+  <b>이 그림이 담고 있는 규칙</b>(<code>docs/design/screen-behaviors.md</code> 「대기 목록」 절) —
+  <code>QUEUE-TAB-01~10</code> 탭 · <code>QUEUE-ROW-01~09</code> 줄의 짜임 ·
+  <code>QUEUE-ORDER-01~10</code> 순번·드래그 · <code>QUEUE-URG-01~07</code> 응급/주의 ·
+  <code>QUEUE-BTN-01~09</code> 상태별 버튼 · <code>QUEUE-WALK-01~27</code> 당일 방문 등록(패널) ·
+  <code>QUEUE-SAME-01~04</code> 동명이인 재확인 · <code>QUEUE-FILT-01~06</code> 의사 필터 ·
+  <code>QUEUE-EMPTY-01~04</code> 빈 상태 · <code>QUEUE-LIVE-01~07</code> 실시간·연결 끊김 ·
+  <code>NAV-QUEUE-01~13</code> 화면 사이 이동<br>
+  함께 걸리는 기존 규칙 — <code>MASK-DOB-01</code> · <code>MASK-VIEW-01·02</code> ·
+  <code>TODAY-SUM-03</code> · <code>TODAY-BTN-03</code> · <code>TODAY-LIVE-02·03</code> ·
+  <code>SHELL-LIVE-01~04</code> · <code>NAV-TODAY-01·07·08</code> · <code>BTN-STATE-03</code><br>
+  🆕 <b>SB-39 이후 함께 걸리는 전역 규칙</b> — <code>PANEL-USE-01·02</code>(패널이냐 팝업이냐) ·
+  <code>PANEL-BACK-01</code>(뒤는 읽기 전용) · <code>PANEL-ONE-01</code>(패널은 하나) ·
+  <code>PANEL-HOME-01</code>(끝나면 출발한 화면으로) · <code>PANEL-WORK-01~03</code>(패널의 칸이 왼쪽을 정한다) ·
+  <code>PANEL-FIND-01~04</code>(환자 찾기는 왼쪽에) · <code>PANEL-LIVE-01~08</code>(패널은 살아남고 접힌다) ·
+  <code>SHELL-ACT-01~05</code>(헤더의 일 시작 버튼) · <code>SEARCH-*</code>(한 칸 통합 검색)
+</div>
+
+<hr class="rule">
+
+<!-- ① 기본 화면 -->
+<h2 class="sec">① 기본 화면 — 「진료 대기」 탭 <span class="tag">기본으로 열리는 탭</span></h2>
+<p class="seclead">
+  탭 <b>7개</b>. 「오늘 요약」 타일 6개는 각각 자기 탭이 눌린 채로 이 화면을 연다(<code>TODAY-SUM-03</code>).
+  <b>「아직 안 옴」만 타일에 짝이 없다</b> — 타일 6 ↔ 탭 7. 그 이유는 아래 ②에 그렸다.
+</p>
+
+<div class="notes" style="margin-top:0;margin-bottom:16px;padding:16px 18px">
+  <h2 style="margin-bottom:8px">🔧 2026-08-07에 바뀐 두 가지 <span class="tag new">사용자 지적</span></h2>
+  <div class="two-up" style="gap:18px">
+    <div>
+      <p class="mini-t">① 순번·시각에서 <b>채운 칩을 걷어냈다</b></p>
+      <div style="background:#fff;border:1px solid var(--divider);border-radius:8px;padding:10px 12px">
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-muted)">
+          <span style="width:38px">전</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;background:var(--primary);
+                       color:#fff;border-radius:6px;font-size:15px;font-weight:800;padding:4px 8px;min-width:34px">12</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;background:var(--primary);
+                       color:#fff;border-radius:6px;font-size:15px;font-weight:800;padding:4px 8px;min-width:34px">09:30</span>
+          <span class="nm" style="margin-left:4px">이수민</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink-muted);margin-top:10px">
+          <span style="width:38px">후</span>
+          <span class="rail num" style="min-width:44px">12<i>번</i></span>
+          <span class="rail" style="min-width:44px">09:30</span>
+          <span class="nm" style="margin-left:4px">이수민</span>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:8px">
+        ⭐ <b>왜 못생겨 보였나</b> — 딥틸 칩은 <code>14:00</code>처럼 <b>다섯 글자를 담으려고 만든 그릇</b>인데
+        순번 <code>12</code>는 <b>두 글자</b>다. <b>그릇만 크고 속이 빈</b> 모양이 50줄 반복됐다.<br>
+        ⭐ <b>더 중요한 이유</b> — <code>/today</code>는 <b>몇 시 예약을 훑는 화면</b>이라 시각이 기준축이지만,
+        <code>/queue</code>는 <b>사람을 찾아 처리하는 화면</b>이라 <b>기준축이 이름</b>이다.
+        레일이 이름보다 무거우면 <b>축이 뒤바뀐다.</b><br>
+        📌 <b><code>/today</code>(목업 49)의 시각 레일은 그대로 둔다</b> — 거기서는 시각이 진짜 축이다.
+        <b>같은 부품을 두 화면에서 다르게 쓰는 것이 아니라, 두 화면의 축이 다른 것이다.</b><br>
+        📌 순번에 <b>작은 <code>번</code></b>을 붙여 <b>시각과 헷갈리지 않게</b> 했다(<code>QUEUE-ROW-09</code>가 배지에
+        <code>진료 대기 · 1번</code>이라 적는 것과 같은 말버릇).
+      </p>
+    </div>
+    <div>
+      <p class="mini-t">② 탭을 <b>같은 너비로</b></p>
+      <div style="background:#fff;border:1px solid var(--divider);border-radius:8px;padding:10px 12px">
+        <p class="hint" style="margin:0 0 6px"><b>전</b> — 글자 수대로 너비가 다르다</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span class="tab" style="flex:0 0 auto">전체 50</span>
+          <span class="tab" style="flex:0 0 auto">아직 안 옴 8</span>
+          <span class="tab" style="flex:0 0 auto">도착 5</span>
+          <span class="tab on" style="flex:0 0 auto">진료 대기 12</span>
+        </div>
+        <p class="hint" style="margin:10px 0 6px"><b>후</b> — 과녁이 전부 같다</p>
+        <div class="tabs" style="margin:0">
+          <span class="tab">전체 50</span>
+          <span class="tab">아직 안 옴 8</span>
+          <span class="tab">도착 5</span>
+          <span class="tab on">진료 대기 12</span>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:8px">
+        ⭐ <b>글자 수가 곧 과녁 크기가 되면 안 된다</b> — 전에는 <b><code>전체</code>가 가장 작은 과녁</b>이었다.
+        하루 종일 오가는 탭이라 <b>좁은 과녁을 반복해 겨누게</b> 되고, 옆 탭을 잘못 눌러
+        <b>보던 목록이 통째로 바뀐다</b>(그게 사용자가 말한 <i>“실수하면 사용하기 어려워진다”</i>이다).<br>
+        📌 화면이 좁아지면 <b>줄이 바뀌되 너비는 계속 같다</b>(<code>flex:1 1 92px</code>) —
+        좁은 화면에서 글자가 잘리지 않는다.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="screen">
+  <div class="pgh">
+    <span class="t">대기 목록</span>
+    <span class="d">8월 5일 (화) · 실시간 갱신 중</span>
+    <span class="sp"></span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab"><span class="l">전체</span><span class="n">50</span></div>
+    <div class="tab"><span class="l">아직 안 옴</span><span class="n">8</span></div>
+    <div class="tab"><span class="l">도착</span><span class="n">5</span></div>
+    <div class="tab on"><span class="l">진료 대기</span><span class="n">12</span></div>
+    <div class="tab"><span class="l">진료 중</span><span class="n">3</span></div>
+    <div class="tab"><span class="l">진료 완료</span><span class="n">18</span></div>
+    <div class="tab wn"><span class="l">취소·부도</span><span class="n">4</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">진료 대기 <span class="cnt">12명</span>
+      <span class="sp"></span>
+      <span class="dept" style="font-weight:600">의사 전체 ▾</span>
+    </div>
+
+    <div class="qrow urgent">
+      <span class="grip">⠿</span><span class="rail num">1<i>번</i></span>
+      <span class="nm">김영수</span><span class="dob">1958-**-12</span>
+      <span class="wait warn">32분 대기</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right">
+        <span class="urg">▲ 응급/주의</span>
+        <button class="btn q sm">환자 상세</button>
+      </span>
+    </div>
+
+    <div class="qrow">
+      <span class="grip">⠿</span><span class="rail num">2<i>번</i></span>
+      <span class="nm">이하늘</span><span class="dob">1990-**-07</span>
+      <span class="wait">18분 대기</span>
+      <span class="dept">정형외과 · 최민석</span>
+      <span class="right">
+        <button class="btn q sm">응급/주의 표시</button>
+        <button class="btn q sm">환자 상세</button>
+      </span>
+    </div>
+
+    <div class="qrow hl">
+      <span class="grip">⠿</span><span class="rail num">3<i>번</i></span>
+      <span class="nm">박민정</span><span class="dob">1971-**-03</span>
+      <span class="wait warn">41분 대기</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right">
+        <span class="badge w">오늘의 현황에서 옴</span>
+        <button class="btn q sm">응급/주의 표시</button>
+        <button class="btn q sm">환자 상세</button>
+      </span>
+    </div>
+
+    <div class="qrow">
+      <span class="grip">⠿</span><span class="rail num">4<i>번</i></span>
+      <span class="nm">정우성</span><span class="dob">1984-**-25</span>
+      <span class="wait">9분 대기</span>
+      <span class="dept">소아과 · 한서윤</span>
+      <span class="right">
+        <button class="btn q sm">응급/주의 표시</button>
+        <button class="btn q sm">환자 상세</button>
+      </span>
+    </div>
+
+    <div class="qrow">
+      <span class="grip">⠿</span><span class="rail num">5<i>번</i></span>
+      <span class="nm">강해린</span><span class="dob">2001-**-17</span>
+      <span class="wait">6분 대기</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right">
+        <span class="badge p">당일 방문</span>
+        <button class="btn q sm">응급/주의 표시</button>
+        <button class="btn q sm">환자 상세</button>
+      </span>
+    </div>
+
+    <div class="qrow dim">
+      <span class="grip off">⠿</span><span class="rail num mut">6<i>번</i></span>
+      <span class="nm">최은지</span><span class="dob">1996-**-08</span>
+      <span class="wait">4분 대기</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right"><span class="badge">다른 직원이 처리함</span></span>
+    </div>
+  </div>
+
+  <p class="h2s" style="margin:0">
+    <b>3번 줄</b>은 <code>/today</code>의 <code>[대기 목록에서 보기]</code>로 들어왔을 때 모습(<code>NAV-TODAY-01</code>·플랜 패치 P-S3),
+    <b>5번 줄</b>은 방금 <b>당일 방문으로 등록된 환자</b>(<code>QUEUE-WALK-11</code> — 예약 없이 온 사람이라 <b>맨 뒤에 붙는다</b>),
+    <b>6번 줄</b>은 다른 직원이 먼저 처리해 <b>흐려진 뒤 30초 후 사라지는</b> 줄(<code>TODAY-LIVE-02·03</code>과 같은 처리).
+  </p>
+</div>
+
+<div class="ok">
+  <span class="t">⭐ <b>줄의 짜임 — 「비율로 고정된 열」</b>(<code>QUEUE-ROW-01</code>)</span><br>
+  이름·생년월일·대기시간·진료과·버튼이 <b>모든 줄에서 같은 가로 자리</b>에 온다. 이름 길이에 따라 뒤가 밀리지 않는다 —
+  <b>50줄을 눈으로 훑어 내려갈 때 세로로 줄이 서야</b> 「32분 대기」 같은 것이 한눈에 잡힌다.
+  가운데 열은 <b>비율(<code>fr</code>)</b>이라 화면이 넓어지면 <b>같이 넓어진다.</b> 고정 픽셀로 짜면 넓은 모니터에서 오른쪽이 텅 빈다.<br>
+  <b>줄 높이 52px · 버튼 36px.</b> ⚠️ 앞서 그린 그림은 목록 안 버튼을 <b>28px</b>로 그렸는데, 이는 <b>47번 안 B가 정한 36px를 어긴 것</b>이라 되돌렸다 —
+  <b>줄이 촘촘한 것과 버튼이 작은 것은 다른 문제</b>다. 접수 창구는 서서·급하게 누르는 자리라 <b>버튼은 줄이지 않는다.</b>
+</div>
+
+<!-- ② 탭별 모습 -->
+<h2 class="sec">② 탭을 바꾸면 — <b>순번 열과 버튼이 함께 바뀐다</b></h2>
+<p class="seclead">
+  탭마다 <b>할 수 있는 일이 다르다.</b> 순번을 끌 수 있는 것은 「진료 대기」 하나뿐이고,
+  나머지 탭은 <b>순번 자리가 통째로 빈칸</b>이고 <b>손잡이도 없다</b> — 「끌 수 없다」를 <b>색이 아니라 「있고 없음」</b>으로 말한다.<br>
+  ⛔ <b>예전에는 여기에 <code>–</code>를 넣었다</b>(2026-08-06 교체). ⚠️ <b>「빼기·제거」로 읽힌다</b> —
+  실제로 <b>이 화면을 처음 본 사람이 그렇게 읽었다.</b> 바로 옆에 <b>정말로 눌리는 버튼</b>(<code>[진료 대기로]</code>·<code>[재예약]</code>)이
+  있어서 더 그렇다. ⭐ <b>기호는 무엇이든 뜻을 만든다</b> — <code>·</code>도 마찬가지다. <b>아무것도 없는 것이 가장 조용하다.</b>
+</p>
+
+<div class="two-up">
+  <div>
+    <p class="mini-t">「아직 안 옴」 <span class="n">— 예약확정인데 아직 도착 안 한 사람</span></p>
+    <div class="screen">
+      <div class="tabs">
+        <div class="tab on"><span class="l">아직 안 옴</span><span class="n">8</span></div>
+        <div class="tab"><span class="l">도착</span><span class="n">5</span></div>
+      </div>
+      <div class="card">
+        <div class="card-h">아직 안 옴 <span class="cnt">8명</span></div>
+        <div class="qrow">
+          <span class="grip off">⠿</span><span class="rail gh">09:40</span>
+          <span class="nm">강태오</span><span class="dob">1988-**-11</span>
+          <span class="dept">내과 · 박지훈</span>
+          <span class="right"><button class="btn sm">도착 처리</button><button class="btn q sm">번호 보기</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip off">⠿</span><span class="rail gh">10:00</span>
+          <span class="nm">서지우</span><span class="dob">1994-**-02</span>
+          <span class="dept">소아과 · 한서윤</span>
+          <span class="right"><button class="btn sm">도착 처리</button><button class="btn q sm">번호 보기</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip off">⠿</span><span class="rail gh warn" style="border-color:#E8D3C2">09:10</span>
+          <span class="nm">노민호</span><span class="dob">1949-**-28</span>
+          <span class="badge w">시간 지남</span>
+          <span class="dept">내과 · 박지훈</span>
+          <span class="right"><button class="btn sm">도착 처리</button><button class="btn q sm">번호 보기</button></span>
+        </div>
+      </div>
+      <p class="h2s" style="margin:0">
+        순번 자리에 <b>예약 시각</b>이 온다 — 아직 줄을 선 게 아니라 <b>올 차례를 기다리는 사람</b>이라서다.
+        <b>예약 시각이 지났으면</b> <code>시간 지남</code> 표시가 붙는다(<code>/today</code>의 「시간이 지났는데 접수가 안 됨」 카드와 <b>같은 사람</b>).
+        <b><code>[번호 보기]</code>는 이 탭에만 있다</b> — 전화를 걸어볼 이유가 있는 유일한 상태다.
+      </p>
+    </div>
+  </div>
+
+  <div>
+    <p class="mini-t">「도착」 <span class="n">— 접수는 했지만 아직 줄에 안 세운 사람</span></p>
+    <div class="screen">
+      <div class="tabs">
+        <div class="tab on"><span class="l">도착</span><span class="n">5</span></div>
+        <div class="tab"><span class="l">진료 대기</span><span class="n">12</span></div>
+      </div>
+      <div class="card">
+        <div class="card-h">도착 <span class="cnt">5명</span></div>
+        <div class="qrow">
+          <span class="grip none"></span><span class="rail none"></span>
+          <span class="nm">윤재하</span><span class="dob">1993-**-22</span>
+          <span class="wait">2분 경과</span>
+          <span class="dept">소아과 · 한서윤</span>
+          <span class="right"><button class="btn sm">진료 대기로</button><button class="btn q sm">환자 상세</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip none"></span><span class="rail none"></span>
+          <span class="nm">문가영</span><span class="dob">1968-**-15</span>
+          <span class="wait warn">36분 경과</span>
+          <span class="dept">내과 · 박지훈</span>
+          <span class="right"><button class="btn sm">진료 대기로</button><button class="btn q sm">환자 상세</button></span>
+        </div>
+      </div>
+      <p class="h2s" style="margin:0">
+        시간 글자가 <b><code>N분 경과</code></b>다(진료 대기 탭은 <code>N분 대기</code>).
+        <b>다른 말을 쓰는 이유</b>: 도착은 <b>줄에 서기 전</b>이라 「대기」라고 부르면 순번이 있는 것처럼 읽힌다.
+        30분을 넘으면 주의색 — <b>줄에 세우는 걸 잊은 사람</b>이라 오히려 더 급하다.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="two-up" style="margin-top:16px">
+  <div>
+    <p class="mini-t">「진료 중」·「진료 완료」 <span class="n">— 접수 직원이 손댈 것이 없다</span></p>
+    <div class="screen">
+      <div class="tabs">
+        <div class="tab on"><span class="l">진료 중</span><span class="n">3</span></div>
+        <div class="tab"><span class="l">진료 완료</span><span class="n">18</span></div>
+      </div>
+      <div class="card">
+        <div class="card-h">진료 중 <span class="cnt">3명</span></div>
+        <div class="qrow">
+          <span class="grip none"></span><span class="rail none"></span>
+          <span class="nm">한지수</span><span class="dob">1975-**-30</span>
+          <span class="wait">6분째</span>
+          <span class="dept">내과 · 박지훈</span>
+          <span class="right"><button class="btn q sm">환자 상세</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip none"></span><span class="rail none"></span>
+          <span class="nm">서동현</span><span class="dob">1982-**-06</span>
+          <span class="wait">1분째</span>
+          <span class="dept">소아과 · 한서윤</span>
+          <span class="right"><button class="btn q sm">환자 상세</button></span>
+        </div>
+      </div>
+      <p class="h2s" style="margin:0">
+        <b>상태를 바꾸는 버튼이 없다.</b> <code>진료중</code>은 <b>의사가 환자를 여는 순간 자동</b>으로 되고(<code>DOCTOR-START-01</code>),
+        <code>진료완료</code>도 의사가 찍는다. 접수 직원에게는 <b>「보는 화면」</b>이다.
+      </p>
+    </div>
+  </div>
+
+  <div>
+    <p class="mini-t">「취소·부도」 <span class="n">— 다시 예약을 잡아야 하는 사람</span></p>
+    <div class="screen">
+      <div class="tabs">
+        <div class="tab"><span class="l">진료 완료</span><span class="n">18</span></div>
+        <div class="tab on wn"><span class="l">취소·부도</span><span class="n">4</span></div>
+      </div>
+      <div class="card">
+        <div class="card-h">취소·부도 <span class="cnt">4명</span></div>
+        <div class="qrow">
+          <span class="grip none"></span><span class="rail none"></span>
+          <span class="nm">오세훈</span><span class="dob">1962-**-19</span>
+          <span class="badge w">예약 부도</span>
+          <span class="dept">내과 · 박지훈 · 09:30</span>
+          <span class="right"><button class="btn sm">재예약</button><button class="btn q sm">환자 상세</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip none"></span><span class="rail none"></span>
+          <span class="nm">서지민</span><span class="dob">1979-**-04</span>
+          <span class="badge">환자 취소</span>
+          <span class="dept">정형외과 · 최민석 · 11:00</span>
+          <span class="right"><button class="btn sm">재예약</button><button class="btn q sm">환자 상세</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip none"></span><span class="rail none"></span>
+          <span class="nm">임세라</span><span class="dob">1990-**-21</span>
+          <span class="badge">병원 취소</span>
+          <span class="dept">내과 · 박지훈 · 14:00</span>
+          <span class="right"><button class="btn sm">재예약</button><button class="btn q sm">환자 상세</button></span>
+        </div>
+      </div>
+      <p class="h2s" style="margin:0">
+        <b>세 가지가 한 탭에 섞이므로 배지로 구분한다</b>(환자 취소 · 병원 취소 · 예약 부도).
+        요구사항 3.4의 상태 목록에 셋이 따로 있으므로 <b>글자를 뭉치지 않는다.</b>
+        <code>[재예약]</code>은 <b>예약 캘린더의 사이드패널</b>로 보낸다(<code>TODAY-BTN-03</code>과 같은 처리).
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ③ 전체 탭 -->
+<h2 class="sec">③ 「전체」 탭 — <b>묶는 방식을 바꿀 수 있다</b> <span class="tag new">2026-08-05 결정</span></h2>
+<p class="seclead">
+  여섯 상태가 한 목록에 섞이므로 <b>상태 배지 열</b>이 생기고, 순번은 전부 <code>–</code>가 된다.
+  <b>묶기</b>를 <b>시각순 ↔ 상태별</b>로 바꿀 수 있다 — <b>상태별</b>을 고르면 61번 「안 B」와 거의 같은 모습이 된다.
+  ⭐ <b>안 B를 두 번째 화면이 아니라 「전체」 탭의 묶는 방식으로 얹은 것</b>이다(아래 ③-2).
+</p>
+<div class="screen">
+  <div class="tabs">
+    <div class="tab on"><span class="l">전체</span><span class="n">50</span></div>
+    <div class="tab"><span class="l">아직 안 옴</span><span class="n">8</span></div>
+    <div class="tab"><span class="l">도착</span><span class="n">5</span></div>
+  </div>
+  <div class="card">
+    <div class="card-h">오늘 예약 전체 <span class="cnt">50명</span>
+      <span class="sp"></span>
+      <span class="dept" style="font-weight:600">묶기</span>
+      <span class="badge p">시각순</span><span class="badge">상태별</span>
+      <span class="dept" style="font-weight:600">· 의사 전체 ▾</span></div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail gh">09:00</span>
+      <span class="nm">서동현</span><span class="dob">1982-**-06</span>
+      <span class="badge">진료 완료</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right"><button class="btn q sm">환자 상세</button></span>
+    </div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail gh">09:10</span>
+      <span class="nm">노민호</span><span class="dob">1949-**-28</span>
+      <span class="badge w">아직 안 옴 · 시간 지남</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right"><button class="btn sm">도착 처리</button><button class="btn q sm">번호 보기</button></span>
+    </div>
+    <div class="qrow urgent">
+      <span class="grip off">⠿</span><span class="rail gh">09:20</span>
+      <span class="nm">김영수</span><span class="dob">1958-**-12</span>
+      <span class="badge p">진료 대기 · 1번</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right"><span class="urg">▲ 응급/주의</span><button class="btn q sm">환자 상세</button></span>
+    </div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail gh">09:30</span>
+      <span class="nm">오세훈</span><span class="dob">1962-**-19</span>
+      <span class="badge w">예약 부도</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right"><button class="btn sm">재예약</button><button class="btn q sm">환자 상세</button></span>
+    </div>
+  </div>
+  <p class="h2s" style="margin:0">
+    ⚠️ <b>여기서는 순서를 끌 수 없다</b> — 순번은 「진료 대기」 안에서만 뜻이 있고, 완료·부도가 섞인 목록에서 3번을 1번으로 옮기는 것은 말이 안 된다.
+    대신 <b>진료 대기인 줄에는 배지에 순번을 함께 적어</b>(<code>진료 대기 · 1번</code>) 정보는 잃지 않는다.
+    <b>버튼은 그 줄의 상태를 따른다</b> — 같은 화면인데 줄마다 버튼이 다른 것은 이 탭뿐이다.
+  </p>
+</div>
+
+<h2 class="sec">③-2 같은 「전체」 탭 · 묶기를 <b>「상태별」</b>로 바꾸면 <span class="tag ok">61번 안 B가 여기로 들어왔다</span></h2>
+<p class="seclead">
+  줄은 그대로고 <b>구획 머리만 생긴다.</b> 61번 안 B의 <b>유일한 결함이 「구획마다 5줄로 자르고 접는 것」</b>이었으므로,
+  여기서는 <b>자르지도 접지도 않는다</b> — 50줄이 그대로 이어진다. 화면이 길어지는 것 자체가 정보다(<code>TODAY-ORDER-02</code>와 같은 원칙).
+</p>
+<div class="screen">
+  <div class="tabs">
+    <div class="tab on"><span class="l">전체</span><span class="n">50</span></div>
+    <div class="tab"><span class="l">아직 안 옴</span><span class="n">8</span></div>
+    <div class="tab"><span class="l">진료 대기</span><span class="n">12</span></div>
+  </div>
+  <div class="card">
+    <div class="card-h">오늘 예약 전체 <span class="cnt">50명</span>
+      <span class="sp"></span>
+      <span class="dept" style="font-weight:600">묶기</span>
+      <span class="badge">시각순</span><span class="badge p">상태별</span>
+      <span class="dept" style="font-weight:600">· 의사 전체 ▾</span></div>
+
+    <div class="sect-h">아직 안 옴 <span class="n">8</span></div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail gh">09:10</span>
+      <span class="nm">노민호</span><span class="dob">1949-**-28</span>
+      <span class="badge w">시간 지남</span><span class="dept">내과 · 박지훈</span>
+      <span class="right"><button class="btn sm">도착 처리</button><button class="btn q sm">번호 보기</button></span>
+    </div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail gh">09:40</span>
+      <span class="nm">강태오</span><span class="dob">1988-**-11</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right"><button class="btn sm">도착 처리</button><button class="btn q sm">번호 보기</button></span>
+    </div>
+
+    <div class="sect-h">도착 <span class="n">5</span></div>
+    <div class="qrow">
+      <span class="grip none"></span><span class="rail none"></span>
+      <span class="nm">윤재하</span><span class="dob">1993-**-22</span>
+      <span class="wait">2분 경과</span><span class="dept">소아과 · 한서윤</span>
+      <span class="right"><button class="btn sm">진료 대기로</button><button class="btn q sm">환자 상세</button></span>
+    </div>
+
+    <div class="sect-h" style="box-shadow:inset 3px 0 0 var(--primary)">진료 대기 <span class="n">12</span>
+      <span class="sp">순서를 바꾸려면 「진료 대기」 탭에서</span></div>
+    <div class="qrow urgent">
+      <span class="grip off">⠿</span><span class="rail num">1<i>번</i></span>
+      <span class="nm">김영수</span><span class="dob">1958-**-12</span>
+      <span class="wait warn">32분 대기</span><span class="dept">내과 · 박지훈</span>
+      <span class="right"><span class="urg">▲ 응급/주의</span><button class="btn q sm">환자 상세</button></span>
+    </div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail num">2<i>번</i></span>
+      <span class="nm">이하늘</span><span class="dob">1990-**-07</span>
+      <span class="wait">18분 대기</span><span class="dept">정형외과 · 최민석</span>
+      <span class="right"><button class="btn q sm">응급/주의 표시</button><button class="btn q sm">환자 상세</button></span>
+    </div>
+
+    <div class="sect-h">진료 중 <span class="n">3</span></div>
+    <div class="qrow dim">
+      <span class="grip none"></span><span class="rail none"></span>
+      <span class="nm">한지수</span><span class="dob">1975-**-30</span>
+      <span class="wait">6분째</span><span class="dept">내과 · 박지훈</span>
+      <span class="right"><button class="btn q sm">환자 상세</button></span>
+    </div>
+
+    <div class="sect-h">진료 완료 <span class="n">18</span></div>
+    <div class="sect-h">취소·부도 <span class="n">4</span></div>
+  </div>
+
+  <p class="h2s" style="margin:0">
+    ⭐ <b>순번은 여기서도 살아 있지만 손잡이는 흐리다</b> — 「진료 대기」 구획의 순번(1·2·…)은 <b>읽을 수는 있고 끌 수는 없다.</b>
+    끌기는 <b>「진료 대기」 탭에서만</b> 산다(<code>QUEUE-ORDER-02</code>). 구획 머리에 <b>그 사실을 글로 적어 두었다</b> —
+    회색으로 흐리기만 하면 <b>「고장인가」로 읽힌다.</b><br>
+    ⚠️ <b>「진료 완료」·「취소·부도」 구획도 접지 않는다.</b> 접는 순간 61번 안 B가 탈락한 이유(<b>보이는 줄 ≠ 실제 인원</b>)가 그대로 돌아온다.
+  </p>
+</div>
+
+<!-- ④ 순서 변경 -->
+<h2 class="sec">④ 순서를 끌어 놓으면 — <b>사유를 적기 전에는 바뀌지 않는다</b></h2>
+<p class="seclead">
+  요구사항 3.4의 <b>“순서를 바꾼 사람과 이유가 남아야”</b>를 화면 구조로 강제하는 자리다.
+  끌어 놓는 순간 순서가 바뀌는 게 아니라, <b>사유를 확정해야</b> 바뀐다.
+</p>
+
+<div class="two-up">
+  <div>
+    <p class="mini-t">끄는 중 — <b>놓을 자리가 미리 보인다</b></p>
+    <div class="screen">
+      <div class="card">
+        <div class="qrow drag">
+          <span class="grip">⠿</span><span class="rail num">1<i>번</i></span>
+          <span class="nm">정우성</span><span class="dob">1984-**-25</span>
+          <span class="dept">소아과 · 한서윤</span>
+          <span class="right"><span class="badge p">여기로 이동</span></span>
+        </div>
+        <div class="qrow urgent">
+          <span class="grip">⠿</span><span class="rail num">2<i>번</i></span>
+          <span class="nm">김영수</span><span class="dob">1958-**-12</span>
+          <span class="wait warn">32분 대기</span>
+          <span class="right"><span class="urg">▲</span></span>
+        </div>
+        <div class="qrow">
+          <span class="grip">⠿</span><span class="rail num">3<i>번</i></span>
+          <span class="nm">이하늘</span><span class="dob">1990-**-07</span>
+          <span class="wait">18분 대기</span>
+        </div>
+        <div class="qrow dim" style="border:1px dashed var(--divider);border-radius:8px">
+          <span class="grip">⠿</span><span class="rail num mut">4<i>번</i></span>
+          <span class="nm">정우성</span><span class="dob">1984-**-25</span>
+          <span class="dept">원래 자리</span>
+        </div>
+      </div>
+      <p class="h2s" style="margin:0">끌려가는 줄은 <b>원래 자리에 점선으로 남는다</b> — 취소하면 <b>이 자리로 되돌아간다</b>는 것을 미리 보여준다.</p>
+    </div>
+  </div>
+
+  <div>
+    <p class="mini-t">놓은 직후 — <b>사유 입력이 필수</b></p>
+    <div class="screen" style="display:flex;align-items:center;justify-content:center;min-height:270px">
+      <div class="modal">
+        <h4>대기 순서 변경</h4>
+        <p><b>정우성</b> 님의 대기 순서를 <b>4번 → 1번</b>으로 변경합니다.<br>
+           바꾼 사람과 이유가 기록에 남습니다.</p>
+        <label>변경 사유 <span class="warn">(필수)</span></label>
+        <div class="fld">예: 고열로 먼저 진료 필요</div>
+        <div class="acts">
+          <button class="btn q">취소</button>
+          <button class="btn dis">변경 확인</button>
+        </div>
+      </div>
+    </div>
+    <p class="h2s" style="margin:6px 0 0">
+      <b>사유가 비어 있으면 <code>[변경 확인]</code>이 눌리지 않는다</b>(회색).
+      <code>[취소]</code>면 끌기 전 자리로 <b>원위치</b>. 팝업 바깥을 눌러도 <b>닫히지 않는다</b> — 실수로 닫으면 순서가 바뀐 건지 아닌지 알 수 없다.
+    </p>
+  </div>
+</div>
+
+<!-- ⑤ 응급/주의 -->
+<h2 class="sec">⑤ 응급/주의 표시 — <b>켤 때도 끌 때도 한 번 묻는다</b></h2>
+<p class="seclead">
+  요구사항이 <b>“의학적 응급도 판정을 대신하는 기능은 아닙니다”</b>를 못박았다.
+  그 문장을 <b>화면에 그대로 띄우는 것</b>이 이 팝업의 존재 이유다 — 문서에만 적어두면 아무도 안 읽는다.
+</p>
+
+<div class="two-up">
+  <div>
+    <p class="mini-t">켤 때</p>
+    <div class="screen" style="display:flex;align-items:center;justify-content:center;min-height:250px">
+      <div class="modal">
+        <h4>응급/주의 표시를 켭니다</h4>
+        <p><b>이하늘</b> 님 (1990-**-07)</p>
+        <div class="banner" style="margin-bottom:12px">
+          <span>이 표시는 <b>먼저 봐야 할 환자를 눈에 띄게</b> 하는 것일 뿐,
+          <b>의학적 응급도 판정이 아닙니다.</b></span>
+        </div>
+        <p>표시해도 <b>대기 순서는 바뀌지 않습니다.</b> 순서를 바꾸려면 줄을 끌어 옮기세요.</p>
+        <div class="acts">
+          <button class="btn q">취소</button>
+          <button class="btn fill">확인</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="mini-t">끌 때 <span class="n">— 같은 무게로 한 번 더 묻는다</span></p>
+    <div class="screen" style="display:flex;align-items:center;justify-content:center;min-height:250px">
+      <div class="modal">
+        <h4>응급/주의 표시를 끕니다</h4>
+        <p><b>김영수</b> 님 (1958-**-12)<br>
+           <span class="dept">오늘 09:32 · 박간호 님이 켰습니다</span></p>
+        <p>표시를 끄면 목록에서 <b>다른 환자와 똑같이 보입니다.</b></p>
+        <div class="acts">
+          <button class="btn q">취소</button>
+          <button class="btn fill">표시 끄기</button>
+        </div>
+      </div>
+    </div>
+    <p class="h2s" style="margin:6px 0 0">
+      ⭐ <b>켠 사람과 시각을 보여준다.</b> 다른 직원이 이유가 있어 켠 것을 모르고 끄는 일을 막는다 —
+      요구사항 3.4가 순서 변경에 <b>“바꾼 사람이 남아야”</b>를 요구한 것과 같은 취지다.
+    </p>
+  </div>
+</div>
+
+<!-- ⑥ 워크인 -->
+<h2 class="sec">⑥ 당일 방문(워크인) 등록 — <b>오른쪽 패널 한 장</b> <span class="tag ok">2026-08-06 SB-39 · 패널로 다시 그림</span></h2>
+<p class="seclead">
+  <b>예약 없이 그냥 온 환자</b>를 줄에 세우는 흐름이다(요구사항 3.4 마지막 문단).<br>
+  ⭐ <b>그릇이 두 번 바뀌었다</b> — <code>1/4</code> 마법사 → 가운데 팝업 <b>한 화면</b> → <b>오른쪽 패널</b>(SB-39).
+  <b>담긴 내용(환자 · 담당 의사 · 오신 시각)은 세 번 다 같다</b> — 바뀐 것은 <b>어디에 담느냐</b>뿐이다
+  (<code>QUEUE-WALK-02</code> · <code>02e</code>).
+</p>
+<div class="quote" style="margin:0 0 16px">
+  직원이 배우는 규칙은 한 줄이다 —
+  <b>오른쪽에서 열리면 「만드는 중」, 가운데서 막아서면 「확인해야 넘어감」</b>(<code>PANEL-USE-01·02</code>).<br>
+  📌 <b>전화예약 패널과 부품을 공유한다</b>(<code>QUEUE-WALK-21</code>) — 다른 것은 <b>시각을 어디서 고르나</b>뿐이다:
+  워크인은 <b>「지금/아까」를 숫자로 치고</b>, 전화예약은 <b>캘린더를 눌러</b> 찍는다.
+</div>
+
+<p class="mini-t">㉮ <span class="n">헤더의 <code>[＋ 당일 방문]</code>을 누르면 — <b>화면은 그대로, 패널만 열린다</b> <span class="tag new">SHELL-ACT-04</span></span></p>
+<div class="app">
+  <div class="hdr">
+    <span>◉ 행복한방병원</span>
+        <span class="sp"></span>
+        <span class="me">김직원 · 접수 직원</span>
+        <span class="hbsep"></span>
+        <span class="hb">＋ 새 예약</span>
+        <span class="hb on">＋ 당일 방문</span>
+  </div>
+  <div class="split">
+    <div class="left locked">
+      <div class="lt">대기 목록 <b>/queue</b> · 진료 대기 12명 — <b>보던 화면 그대로다</b></div>
+      <div class="card" style="margin:9px 12px 12px">
+        <div class="qrow">
+          <span class="grip">⣿</span><span class="rail num">12<i>번</i></span>
+          <span class="nm">이수민</span><span class="dob">1991-**-03</span>
+          <span class="wait">14분</span><span class="dept">내과 / 박지훈</span>
+          <span class="right"><button class="btn sm">진료 시작</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip">⣿</span><span class="rail num">13<i>번</i></span>
+          <span class="nm">정하늘</span><span class="dob">1977-**-25</span>
+          <span class="wait">9분</span><span class="dept">정형외과 / 최민석</span>
+          <span class="right"><button class="btn sm">진료 시작</button></span>
+        </div>
+        <div class="qrow">
+          <span class="grip">⣿</span><span class="rail num">14<i>번</i></span>
+          <span class="nm">오지훈</span><span class="dob">1965-**-11</span>
+          <span class="wait">4분</span><span class="dept">내과 / 박지훈</span>
+          <span class="right"><button class="btn sm">진료 시작</button></span>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h5>당일 방문 등록 <span class="x">«접기 &nbsp; ✕ 닫기</span></h5>
+      <div class="who">지금 대기열에 세울 환자입니다</div>
+
+      <label>① 환자</label>
+      <div class="fld now">이름 · 전화 · 생년월일 중 아무거나</div>
+      <p class="hint">⭐ 커서가 <b>여기</b>에 와 있다(<code>SHELL-ACT-04</code>).</p>
+
+      <div class="later">
+        <div class="dimlabel">② 담당 의사</div>
+        <div class="fld">선택</div>
+        <div class="dimlabel">③ 오신 시각</div>
+        <div class="fld">◉ 지금 14:02</div>
+      </div>
+      <p class="hint">⭐ <b>아래 두 줄이 흐리게 보인다</b>(<code>QUEUE-WALK-19</code>) — <b>무엇이 남았는지</b>가 처음부터 보인다.
+        감춰 뒀다가 하나씩 꺼내 놀라게 하지 않는다.</p>
+
+      <div class="btnrow">
+        <button class="btn q">취소하고 닫기</button>
+        <button class="btn fill">등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="hint" style="max-width:940px">
+  ⭐ <b>왼쪽이 하얗게 덮인다</b>(<code>PANEL-BACK-01</code>) — <b>보이지만 눌리지는 않는다.</b>
+  SB-36에서 팝업을 고른 기각 사유 <i>“뒤가 눌려 사고”</i>가 <b>여기서 해소됐다</b>(<code>QUEUE-WALK-02e</code>).<br>
+  ⭐ <b><code>/queue</code> 위에서 열리는 것이 이 화면의 값이다</b>(<code>SHELL-ACT-04</code>) — <b>지금 줄이 몇 명인지 보면서</b> 등록한다.
+  ⛔ <b>미리 캘린더로 끌고 가지 않는다</b> — 당일 방문은 <b>캘린더가 아예 필요 없다</b>(시각을 「지금/아까」로 받는다).<br>
+  📌 <b><code>취소하고 닫기</code>라고 적는다</b>(<code>QUEUE-WALK-13</code>) — <b>신규 환자를 이미 만든 뒤</b>라면 그 환자는 남기 때문에,
+  <code>[취소]</code>만 적으면 <b>“전부 없던 일”</b>로 읽힌다.
+</p>
+
+<hr class="rule">
+
+<p class="mini-t">㉯ <span class="n">① <b>환자 칸</b>을 채우면 — <b>왼쪽 큰 자리가 검색 결과 표</b>가 된다 <span class="tag new">PANEL-FIND-01</span></span></p>
+<div class="app">
+  <div class="hdr">
+    <span>◉ 행복한방병원</span>
+        <span class="sp"></span>
+        <span class="me">김직원</span>
+        <span class="hbsep"></span>
+        <span class="hb">＋ 새 예약</span>
+        <span class="hb on">＋ 당일 방문</span>
+  </div>
+  <div class="split">
+    <div class="left">
+      <div class="findpane">
+        <p class="fh">환자를 고르는 중 &nbsp;<span>「김영수」로 찾은 결과 · 3명</span></p>
+        <table class="ftab">
+          <tr><th style="width:78px">이름</th><th style="width:96px">생년월일</th><th style="width:120px">전화</th><th>최근 방문</th></tr>
+          <tr class="pick"><td><b>김영수</b></td><td>1958-**-12</td><td>010-****-5678</td><td>2026-07-30 내과</td></tr>
+          <tr><td><b>김영수</b></td><td>1990-**-04</td><td>010-****-1122</td><td>2025-11-02 정형외과</td></tr>
+          <tr><td><b>김영수</b></td><td>2011-**-19</td><td>010-****-8890</td><td>기록 없음</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h5>당일 방문 등록 <span class="x">«접기 &nbsp; ✕ 닫기</span></h5>
+      <div class="who" style="color:var(--primary)">환자를 고르는 중</div>
+      <label>① 환자</label>
+      <div class="fld now filled">김영수</div>
+      <div class="later">
+        <div class="dimlabel">② 담당 의사</div>
+        <div class="fld">선택</div>
+      </div>
+      <div class="btnrow">
+        <button class="btn q">취소하고 닫기</button>
+        <button class="btn fill">등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="hint" style="max-width:940px">
+  ⭐ <b>표는 <code>/patients</code>와 <span style="border-bottom:2px solid var(--primary)">같은 모양</span>이다</b>(<code>QUEUE-WALK-02c</code>) —
+  직원이 두 가지를 따로 배우지 않는다. <b>1명이든 213명이든 화면이 같다.</b><br>
+  ⛔ <b>290px 패널 안에 목록을 우겨넣지 않는다</b>(<code>PANEL-FIND-01</code>) — <b>열이 정렬된 표가 들어가지 않는다.</b>
+  ⛔ <b><code>/patients</code> 화면으로 보내지도 않는다</b>(<code>QUEUE-WALK-02d</code>) — 패널이 닫히면 <b>등록하던 일이 끊긴다.</b><br>
+  ⭐ <b>패널 테두리와 왼쪽 위 글자(<code>환자를 고르는 중</code>)가 함께 알린다</b>(<code>PANEL-WORK-03</code>) —
+  <b>왼쪽이 왜 바뀌었는지를 글자가 설명한다.</b>
+</p>
+
+<hr class="rule">
+
+<p class="mini-t">㉰ <span class="n">② <b>의사를 고르면</b> — <b>그 의사의 오늘 캘린더</b>가 왼쪽에 온다 <span class="tag new">PANEL-WORK-02 개정</span></span></p>
+<div class="app">
+  <div class="hdr">
+    <span>◉ 행복한방병원</span>
+        <span class="sp"></span>
+        <span class="me">김직원</span>
+        <span class="hbsep"></span>
+        <span class="hb">＋ 새 예약</span>
+        <span class="hb on">＋ 당일 방문</span>
+  </div>
+  <div class="split">
+    <div class="left">
+      <div class="daycal">
+        <p class="dh">내과 / 박지훈 · 오늘 &nbsp;<span>대기 5명 · 다음 자리 15:20</span></p>
+        <div class="lane" style="height:190px">
+          <div class="tax">
+            <b style="top:8px">14:00</b><b style="top:53px">15:00</b><b style="top:98px">16:00</b><b style="top:143px">17:00</b>
+          </div>
+          <div class="tl">
+            <div class="gl h" style="top:8px"></div><div class="gl h" style="top:53px"></div>
+            <div class="gl h" style="top:98px"></div><div class="gl h" style="top:143px"></div>
+            <div class="blk" style="top:8px;height:20px">14:00 이수민</div>
+            <div class="blk" style="top:30px;height:20px">14:30 정하늘</div>
+            <div class="blk" style="top:53px;height:42px">15:00 오지훈 <span style="font-weight:700">…</span></div>
+            <div class="hat" style="top:98px;height:22px">점심 없음 · 회의</div>
+            <div class="blk fr" style="top:122px;height:20px">16:30 빈자리</div>
+            <div class="blk" style="top:143px;height:20px">17:00 한지우</div>
+          </div>
+        </div>
+        <p class="hint">⭐ <b>대기 인원과 「오늘이 얼마나 찼나」는 다른 정보다</b> —
+          <b>대기 2명이어도 오후 예약이 꽉 차 있으면 워크인이 밀린다.</b></p>
+      </div>
+    </div>
+    <div class="panel">
+      <h5>당일 방문 등록 <span class="x">«접기 &nbsp; ✕ 닫기</span></h5>
+      <div class="who" style="color:var(--primary)">담당 의사를 고르는 중</div>
+      <label>① 환자</label>
+      <div class="found">
+        <div class="l1">김영수</div>
+        <div class="l2">1958-**-12 · 010-****-5678</div>
+      </div>
+      <p class="hint">⭐ 고른 환자가 <b>패널에 계속 떠 있다</b>(<code>QUEUE-WALK-04</code> · <code>QUEUE-SAME-01</code> 상시 노출).</p>
+
+      <label>② 담당 의사</label>
+      <div class="fld now filled">내과 / 박지훈 &nbsp;<span style="color:#5A6C7B">· 대기 5명 · 다음 자리 15:20</span> &nbsp;▾</div>
+      <div class="dd-open">
+        <div class="dd-head">내과</div>
+        <div class="dd-row"><b>박지훈</b><span class="dd-w warn">대기 5명 · 다음 자리 15:20</span></div>
+        <div class="dd-row"><b>이한나</b><span class="dd-w ok">대기 없음 · 다음 자리 14:30</span></div>
+        <div class="dd-head">정형외과</div>
+        <div class="dd-row sel"><b>최민석</b><span class="dd-w">대기 2명 · <span class="warn">오늘 자리 없음</span></span></div>
+        <div class="dd-head">소아과</div>
+        <div class="dd-row"><b>한서윤</b><span class="dd-w ok">대기 없음 · 다음 자리 14:10</span></div>
+      </div>
+      <p class="hint">⭐ <b>진료과는 고르는 것이 아니라 묶는 것이다</b>(<code>QUEUE-WALK-08e</code>) —
+        <b>DB가 「예약의 진료과 = 의사의 진료과」를 트리거로 강제</b>하므로(<code>00005:301~324</code>)
+        <b>의사를 고르는 순간 진료과는 따라온다.</b> ⛔ <b>진료과 칸·칩을 따로 두지 않는다</b> —
+        의사가 <b>5~8명</b>이라(요구사항 <code>:13</code>) <b>거를 것이 없는데 필터를 다는 것</b>이 된다.<br>
+        ⭐ <b>줄마다 숫자 둘</b>(<code>QUEUE-WALK-08b</code>) — <b>대기 인원</b>(요구사항 <code>:96</code>)과
+        <b>다음 자리</b>는 <b>다른 정보</b>다: 대기 2명이어도 <b>오늘 자리가 없으면</b> 워크인이 밀린다.</p>
+      <div class="btnrow">
+        <button class="btn q">취소하고 닫기</button>
+        <button class="btn fill">등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="hint" style="max-width:940px">
+  ⭐ <b>왼쪽 캘린더는 「고른 뒤」에 온다</b>(<code>PANEL-WORK-02</code>) — <b>고르기 전에는 보던 화면 그대로</b>다.
+  고르기 전에는 <b>「그 의사」가 아직 없어</b> 띄울 것이 없고, 드롭다운 줄의 <b>숫자 둘로 이미 비교가 끝나기 때문</b>이다.<br>
+  ⛔ <b>의사 고르는 판을 왼쪽에 따로 만들지 않는다</b>(검토 후 기각, 2026-08-07) — ⭐ 사용자 지적:
+  <i>“이건 거의 <b>화면 하나를 더 만들자</b>는 거네?”</i> <b>줄에 숫자 하나를 더 적으면 풀리는 일</b>이었다.
+  의사가 <b>5~8명</b>이면 펼친 목록이 <b>이미 한 화면에 세로로 정렬</b>돼 비교가 된다.<br>
+  ⚠️ <b>뒤에 깔린 <code>/queue</code>에는 그 숫자가 없다</b> — 환자가 한 줄씩 나열돼 있어 <b>눈으로 세야 한다</b>(<code>QUEUE-WALK-08d</code>).
+  그래서 <b>패널로 바꾼 뒤에도 숫자를 그 자리에 둔다.</b>
+  📌 <b>전화예약 패널도 같은 부품을 쓴다</b>(<code>QUEUE-WALK-21</code>).
+</p>
+
+<div class="flag">
+  <span class="t">⚠️ <b>「남은 자리 N개」는 셀 수 없다 — 그래서 「다음 자리 15:20」으로 적는다</b> <span class="tag new">사용자 질문 2026-08-07</span></span><br>
+  사용자 질문: <i>“<b>남은 자리는 계산을 할 수가 있나? 15분짜리 진료시간 의사라 해도, 환자가 5분 비게 들어올 수도 있고 그렇지 않나?</b>”</i> — <b>맞는 지적이고 DB가 그 근거다.</b><br>
+  ⭐ <b>자리에는 「길이」가 없다</b> — <code>appointment_slots</code>는 <b>시작 시각만</b> 갖고(<code>00005:1~7</code>)
+  길이는 <b>의사 규칙</b>에서 따로 온다(<code>doctor_schedule_rules.slot_duration_minutes</code> · <code>00002:7</code>).<br>
+  ⚠️ <b>SB-40(5분 단위 예약)이 열리면 개수가 거짓이 된다</b> — 15분 격자에 <b>10:07 5분짜리</b>가 끼면
+  ①칸은 <code>빈시간</code>으로 <b>남아 있는데 실제로는 못 쓰거나</b>, ②<b>5분 쓰고 15분 칸을 지우거나</b> 둘 중 하나다.
+  <b>어느 쪽이든 화면의 숫자가 사실이 아니다.</b><br>
+  ✅ <b>「다음 자리」는 개수가 아니라 시각이라 흔들리지 않는다</b> — <b>“지금 이후로 그 의사의 진료 길이만큼 <span style="border-bottom:2px solid var(--warn)">연달아</span> 비는 첫 시각”</b>.
+  끼워넣기가 생기면 <b>연속 구간이 실제로 줄어 다음 자리가 뒤로 밀린다</b> — <b>스스로 반영된다.</b><br>
+  ⭐ <b>갭 #85가 풀려 계산이 「칸 세기 → 시간 범위 재기」로 바뀌어도 화면 문구는 그대로다</b> — 다시 그릴 일이 없다.<br>
+  📌 <b>업무의 말과도 맞는다</b> — 창구·전화에서 묻는 말은 <i>“몇 자리 남았어요?”</i>가 아니라 <b><i>“언제 되나요?”</i></b>이다.
+  마감됐으면 <b><code>오늘 자리 없음</code></b>, 계산 근거가 아직 없으면 <b>대기 인원만</b> 적는다(<code>QUEUE-WALK-08c</code>).
+</div>
+
+<hr class="rule">
+
+<div class="two-up">
+  <div>
+    <p class="mini-t">㉱ <span class="n">③ <b>오신 시각</b> — 숫자로 친다 <span class="tag new">QUEUE-WALK-14b~e</span></span></p>
+    <div class="app">
+      <div class="split">
+        <div class="left" style="min-width:0">
+          <div class="daycal" style="color:var(--ink-muted);font-size:12px;line-height:1.8">
+            <b style="color:var(--ink)">왼쪽은 바뀌지 않는다</b><br>
+            시각은 <b style="color:var(--ink)">캘린더에서 찍는 것이 아니라</b> 숫자로 친다 —
+            <b style="color:var(--ink)">당일 방문에는 「자리」가 없다.</b><br>
+            <span style="color:var(--warn)">⚠️ 전화예약은 정반대다</span> — 거기서는 <b style="color:var(--ink)">캘린더를 눌러</b> 찍는다(<code>CAL-BOOK-04</code>).
+          </div>
+        </div>
+        <div class="panel">
+          <h5>당일 방문 등록 <span class="x">«접기 &nbsp; ✕</span></h5>
+          <label>③ 오신 시각</label>
+          <div class="radio">
+            <span class="on">◉ 지금 &nbsp;14:02</span>
+            <span>○ 지난 시각 — 오늘 &nbsp;<b style="border-bottom:2px solid #B44E00">1015</b></span>
+            <span>○ 지난 날 &nbsp;<b style="border-bottom:2px solid #B44E00">0805</b> &nbsp;<b style="border-bottom:2px solid #B44E00">0930</b></span>
+          </div>
+          <p class="hint"><code>1015</code>→<code>10:15</code> · <code>905</code>→<code>09:05</code></p>
+          <div class="fld err" style="margin-top:10px;color:var(--warn);font-weight:800">1530</div>
+          <p class="hint w">아직 오지 않은 시각입니다 — <b>입력은 지우지 않는다</b>(<code>QUEUE-WALK-14e</code>).</p>
+          <div class="btnrow">
+            <button class="btn q">취소하고 닫기</button>
+            <button class="btn fill">등록</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="ok" style="margin-top:26px">
+      <span class="t">⭐ <b>드롭다운을 폐기했다</b>(<code>QUEUE-WALK-14b</code>)</span><br>
+      요구사항 <code>:465</code>가 <b>“키보드 입력이 편해야”</b>를 직접 요구하고,
+      <b>5분 단위</b>가 되면서(SB-40) <b>09:00~현재 목록이 100개를 넘어</b> 못 쓰게 됐다.<br>
+      ⭐ <b>3자리도 받는다</b>(<code>14c</code>) — 앞의 <code>0</code>을 치게 하면 <b>한 손으로 치는 속도가 깨진다.</b>
+    </div>
+    <div class="ok">
+      <span class="t">⭐⭐ <b>방문 시각은 스냅하지 않는다</b>(<code>QUEUE-WALK-14d</code>)</span><br>
+      <code>10:07</code>을 치면 <b><code>10:07</code> 그대로</b> 남는다.<br>
+      <b>예약은 「앞으로 만들 자리」</b>라 5분 격자에 붙여도 되지만(<code>CAL-TIME-03</code>),
+      <b>방문 시각은 「실제로 일어난 일의 기록」</b>이라 <b>붙이는 순간 거짓</b>이 된다.
+    </div>
+    <div class="flag">
+      <span class="t">⚠️ <b>줄의 자리는 그대로 맨 뒤다</b>(<code>QUEUE-WALK-17</code>)</span><br>
+      <b>「지난 시각에 왔다」고 적는 것이 새치기가 되면 안 된다.</b> 먼저 봐야 하면
+      <b>등록한 뒤 순서를 끌어 옮긴다</b> — 그래야 요구사항 3.4의 <b>「순서를 바꾼 사람과 이유」</b>가 남는다.
+    </div>
+  </div>
+</div>
+
+<div class="two-up" style="margin-top:18px">
+  <div>
+    <p class="mini-t">㉲ <span class="n">못 찾았을 때 — <b>같은 패널 안에서 펼쳐진다</b></span></p>
+    <div class="app">
+      <div class="split">
+        <div class="left">
+          <div class="findpane">
+            <p class="fh">환자를 고르는 중 &nbsp;<span>「김철수」로 찾은 결과 · 0명</span></p>
+            <div class="empty" style="padding:24px 10px">
+              <b>조회된 환자가 없습니다</b>
+              오른쪽 패널에서 <b>신규 환자로 등록</b>합니다.<br>
+              <span style="color:var(--warn)">⛔ <b>[다시 시도]</b>를 두지 않는다(<code>SEARCH-RESULT-10</code>)</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h5>당일 방문 등록 <span class="x">«접기 &nbsp; ✕</span></h5>
+          <label>① 환자</label>
+          <div class="fld filled">김철수</div>
+          <p class="hint w">조회된 환자가 없습니다. <b>신규 환자로 등록합니다.</b></p>
+          <label>이름</label>
+          <div class="fld filled">김철수</div>
+          <label>성별</label>
+          <div class="radio" style="flex-direction:row"><span>여성</span><span>남성</span></div>
+          <p class="hint w">⚠️ 처음에는 <b>둘 다 안 눌린 상태</b>다 — 고르지 않으면 등록할 수 없다.</p>
+          <label>생년월일 · 전화번호</label>
+          <div class="fld">1990-01-01</div>
+          <div class="fld" style="margin-top:6px">010-0000-0000</div>
+          <p class="hint">🔄 <b>네 칸을 모두 받는다</b> — 검색칸에서 <b>알아볼 수 있는 것만</b> 미리 채운다(<code>QUEUE-WALK-05c</code>).
+            ⛔ 그대로 두면 <b>전화번호 없는 환자</b>가 등록돼 <b>나중에 아무도 못 찾는다.</b></p>
+          <div class="btnrow">
+            <button class="btn q">취소하고 닫기</button>
+            <button class="btn fill">등록</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="mini-t">㉳ <span class="n"><code>[등록]</code>을 누르면 — <b>가운데 팝업으로 한 번</b> <span class="tag new">PANEL-USE-02</span></span></p>
+    <div class="stage">
+      <div class="modal" style="max-width:340px">
+        <h4>이 환자가 맞습니까?</h4>
+        <div class="found">
+          <div class="l1">김영수</div>
+          <div class="l2">1958-**-12 · 내과 / 박지훈 · 14:02</div>
+        </div>
+        <p>동명이인이 아닌지 <b>생년월일</b>을 확인해 주세요.<br>
+           추가하면 <b>「진료 대기」 맨 뒤</b>에 들어갑니다.</p>
+        <div class="acts">
+          <button class="btn q">아니오</button>
+          <button class="btn fill">예, 등록합니다</button>
+        </div>
+      </div>
+    </div>
+    <div class="ok">
+      <span class="t">⭐ <b>여기만 팝업이다</b> — 그릇이 뜻을 갖는다</span><br>
+      <b>패널은 「만드는 중」</b>이고 <b>팝업은 「확인해야 넘어감」</b>(<code>PANEL-USE-01·02</code>).
+      요구사항 3.5의 <b>“저장 전에 이름과 생년월일을 다시 확인”</b>이 <b>정확히 이 한 번</b>이다(<code>QUEUE-SAME-01</code>).<br>
+      ⭐ <b>확인이 2회 → 1회로 줄었다</b> — 2회의 근거였던 <i>“사이에 의사 선택이 끼어 주의가 흩어진다”</i>가
+      <b>한 화면이 되면서 「사이」 자체가 없어졌다.</b> 대신 <b>고른 환자가 패널에 계속 떠 있다.</b><br>
+      📌 <b>끝나면 출발한 화면으로 돌아간다</b>(<code>PANEL-HOME-01</code>) — <code>/queue</code>에서 열었으면 <code>/queue</code>로.
+    </div>
+  </div>
+</div>
+
+<hr class="rule">
+
+<p class="mini-t">㉴ <span class="n"><b>「지난 날」</b>을 고르면 — <b>패널의 성격이 바뀐다</b> <span class="tag ok">SB-35 해소</span></span></p>
+<p class="seclead" style="margin-top:0">
+  ⭐ <b>오늘 등록과 과거 등록은 「무엇을 만드는가」가 다르다</b> —
+  <b>오늘은 앞으로 볼 사람을 줄에 세우는 일</b>이고, <b>과거는 이미 끝난 일을 적는 일</b>이다(<code>QUEUE-WALK-23</code>).
+  ⛔ <b>날짜만 붙이고 나머지를 그대로 두면 어제 환자가 오늘 대기열에 줄을 선다.</b>
+</p>
+<div class="two-up">
+  <div>
+    <div class="app">
+      <div class="split">
+        <div class="left">
+          <div class="daycal" style="color:var(--ink-muted);font-size:12px;line-height:1.8">
+            <b style="color:var(--ink)">8월 5일 (화) · 내과 / 박지훈</b><br>
+            지난 날을 고르면 <b style="color:var(--ink)">그 날의 기록</b>을 왼쪽에서 확인한다 —
+            <b style="color:var(--ink)">같은 사람을 두 번 적지 않기 위해서</b>다.
+          </div>
+        </div>
+        <div class="panel">
+          <h5>지난 방문 기록 <span class="x">«접기 &nbsp; ✕</span></h5>
+          <div class="who" style="color:var(--warn)">대기열에 넣지 않습니다</div>
+          <label>① 환자</label>
+          <div class="found"><div class="l1">강해린</div><div class="l2">2001-**-17 · 010-****-9012</div></div>
+          <label>② 담당 의사</label>
+          <div class="fld filled">내과 / 박지훈 ▾</div>
+          <label>③ 오신 시각</label>
+          <div class="radio">
+            <span>○ 지금 &nbsp;14:02</span>
+            <span>○ 지난 시각 — 오늘 &nbsp;<b style="border-bottom:2px solid #B44E00">0930</b></span>
+            <span class="on">◉ 지난 날 &nbsp;<b style="border-bottom:2px solid #B44E00">0805</b> &nbsp;<b style="border-bottom:2px solid #B44E00">0930</b></span>
+          </div>
+          <p class="hint w">⚠️ <b>지난 방문을 기록합니다. 대기열에 넣지 않습니다.</b></p>
+          <label>진료를 받으셨나요?</label>
+          <div class="radio" style="flex-direction:row"><span>받았다</span><span>그냥 가셨다</span></div>
+          <label>사유</label>
+          <div class="fld filled">당일 환자가 몰려 나중에 기록</div>
+          <div class="btnrow">
+            <button class="btn q">취소하고 닫기</button>
+            <button class="btn fill">지난 방문 기록</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="ok" style="margin-top:0">
+      <span class="t">⭐ <b>같은 패널에 두되, 고르는 순간 다른 일이 된다</b></span><br>
+      <b>제목과 버튼 글자까지 바뀐다</b> — <code>당일 방문 등록</code> → <code>지난 방문 기록</code>,
+      <code>[등록]</code> → <code>[지난 방문 기록]</code>.<br>
+      ⛔ <b>대기열에 넣지 않는다</b>(<code>QUEUE-WALK-24</code>) — 줄 번호를 주지 않는다.<br>
+      ⭐ <b>사유를 받는다</b>(<code>QUEUE-WALK-25</code>) — <b>과거를 고쳐 적는 일에는 누가·왜가 남아야</b> 한다.
+      요구사항 3.4가 <b>순서 변경</b>에 요구한 것과 같은 기준이다.
+    </div>
+    <div class="flag">
+      <span class="t">⛔ <b>기각한 안 둘</b></span><br>
+      <b>㉮ 날짜만 붙이고 나머지는 그대로</b> — <b>어제 환자가 오늘 대기열에</b> 선다. 서버도 <code>진료완료</code>를 <b>거부한다.</b><br>
+      <b>㉯ 관리자 전용 별도 화면</b> — <b>바쁜 날 다음 날 정리를 접수 직원이 못 하게</b> 된다.
+      ⭐ 그 정리가 필요해진 이유가 <b>바로 바빴기 때문</b>인데, 그때 <b>관리자를 불러야</b> 한다면 길이 아니다.
+    </div>
+    <div class="flag">
+      <span class="t">⚠️⚠️ <b>지금 서버로는 만들 수 없다</b> — 기능 갭 <b>#86</b></span><br>
+      워크인이 만들 수 있는 초기 상태는 <b><code>예약확정 · 도착 · 진료대기</code> 셋뿐</b>이다
+      (<code>appointment_service.py:27</code>). <b><code>진료완료</code>는 400으로 거부된다.</b><br>
+      ⚠️ <b>「그냥 가셨다」에 맞는 상태는 아예 없다</b> — <code>예약부도</code>는 <b>안 온 사람</b>이고,
+      <code>환자취소</code>는 <b>온 사실이 안 남는다.</b>
+    </div>
+  </div>
+</div>
+
+<p class="mini-t" style="margin-top:22px">㉵ <span class="n">등록 중에 <b>다른 화면에 가야 하면</b> — <b>패널이 따라간다</b> <span class="tag new">PANEL-LIVE</span></span></p>
+<div class="two-up">
+  <div>
+    <div class="app">
+      <div class="hdr">
+        <span>◉ 행복한방병원</span>
+        <span class="sp"></span>
+        <span class="me">김직원</span>
+        <span class="hbsep"></span>
+        <span class="hb">＋ 새 예약</span>
+        <span class="hb on">＋ 당일 방문</span>
+      </div>
+      <div class="split">
+        <div class="left">
+          <div class="daycal" style="color:var(--ink-muted);font-size:12px;line-height:1.8">
+            <b style="color:var(--ink)">환자 상세 — 김영수</b><br>
+            지난 진료 기록 · 2026-07-30 내과 · 처방 …<br>
+            <span style="color:var(--warn)">↑ 직원이 <b style="color:var(--ink)">스스로 간 화면</b>(“지난번에 무슨 약 받았죠?”)</span>
+          </div>
+        </div>
+        <div class="panel">
+          <h5>당일 방문 등록 <span class="x">«접기 &nbsp; ✕</span></h5>
+          <div class="who">작성 중인 내용이 그대로 있다</div>
+          <div class="kv" style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-top:1px solid var(--divider)">
+            <span style="color:var(--ink-muted);font-weight:700">① 환자</span><span style="font-weight:800">김영수</span></div>
+          <div class="kv" style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-top:1px solid var(--divider)">
+            <span style="color:var(--ink-muted);font-weight:700">② 의사</span><span style="font-weight:800">내과 / 박지훈</span></div>
+          <div class="kv" style="display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-top:1px solid var(--divider)">
+            <span style="color:var(--ink-muted);font-weight:700">③ 시각</span><span style="font-weight:800">지금 14:02</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="app">
+      <div class="hdr">
+        <span>◉ 행복한방병원</span>
+        <span class="sp"></span><span class="me">김직원</span>
+        <span class="hbsep"></span><span class="hb">＋ 새 예약</span><span class="hb">＋ 당일 방문</span>
+      </div>
+      <div class="split">
+        <div class="left">
+          <div class="daycal" style="color:var(--ink-muted);font-size:12px;line-height:1.8">
+            <b style="color:var(--ink)">환자 상세 — 김영수</b><br>
+            지난 진료 기록 · 문진 이력 · 가족 연결 …<br>
+            <span style="color:var(--primary)">↑ <b style="color:var(--ink)">«접기</b>를 눌러 왼쪽이 넓어졌다</span>
+          </div>
+        </div>
+        <div class="folded"><span>김영수 님 당일 방문 작성 중</span></div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>다시 누르면 채워둔 것이 그대로</b> 펼쳐진다(<code>PANEL-LIVE-04</code>).<br>
+      ⭐ <b><code>«접기</code>와 <code>✕ 닫기</code>를 글자로 구분한다</b>(<code>PANEL-LIVE-05</code>) — <b><code>✕</code>는 그만두기</b>다.<br>
+      ⛔ <b><code>✕</code>를 눌러도 묻지 않는다</b>(<code>PANEL-LIVE-06</code>) — <b>저장하지 않은 것은 날아가는 것이 당연하다.</b>
+      대신 <b>접기가 있어서</b> 「잠깐 치우기」와 「그만두기」가 <b>손에서 갈린다.</b></p>
+  </div>
+</div>
+
+<div class="flag">
+  <span class="t">⚠️⚠️ <b>「오신 시각」을 저장할 칸이 없다</b> — 기능 갭 <b>#85</b></span><br>
+  예약의 시각은 <b>오직 <code>slot_id</code></b>로 정해지는데(<code>appointments</code>에 시각 칸이 없다),
+  <b>워크인은 슬롯을 잡지 않는다</b> — 그 시각 슬롯이 <b>이미 다른 환자로 차 있을 수도</b> 있다.
+  ⭐ <b>같은 구멍에 요구사항 3.3의 「기존 예약 사이에 끼워 넣기」도 걸려 있다</b>(「사이」는 슬롯이 없는 시각이다).
+  <b><code>00010_</code></b>이 필요하다.
+</div>
+
+<div class="flag">
+  <span class="t">⚠️ <b>성별을 무엇으로 저장하나 — 새 갭이 아니라 이미 기록된 갭 #57의 「직원 웹 쪽 화면」</b></span><br>
+  플랜의 워크인 등록은 성별이 <b>자유 입력 칸</b>(<code>&lt;input&gt;</code>)이고 DB도 제약이 없다.
+  환자 앱은 <b><code>'F'</code>/<code>'M'</code> 코드</b>로 저장한다. 같은 칸에 <code>F</code>·<code>남</code>·<code>male</code>이 섞이면
+  <b>문진의 「보일 대상」</b>(임신 문항 등)이 어긋난다. → 위 그림은 <b>버튼 2개(여성·남성) · 기본 선택 없음</b>으로 그렸다.
+  <b>기본값을 미리 눌러두지 않는 것</b>은 환자 앱 결정 <b>B-30</b>과 같은 원칙이다 — 조용히 저장되는 값을 만들지 않는다.
+  ⭐ 갭 #57이 <b>“직원 웹 입력칸을 드롭다운으로 바꾼다”</b>고 이미 조치까지 적어 뒀다(<code>QNR-SHOW-10</code>) — <b>이 그림이 그 조치의 화면</b>이다.
+</div>
+
+<!-- ⑦ 빈 상태 -->
+<h2 class="sec">⑦ 빈 상태 — <b>「없음」과 「고장」을 구분해서 말한다</b></h2>
+<p class="seclead">빈 화면을 그냥 두면 직원은 <b>고장으로 읽는다.</b> 세 가지 「비어 있음」은 원인이 달라 문구도 다르다.</p>
+
+<div class="three-up">
+  <div>
+    <p class="mini-t">그 탭만 0명</p>
+    <div class="screen">
+      <div class="tabs">
+        <div class="tab"><span class="l">진료 대기</span><span class="n">12</span></div>
+        <div class="tab on zero"><span class="l">취소·부도</span><span class="n">0</span></div>
+      </div>
+      <div class="card"><div class="empty">
+        <b>취소·부도가 없습니다</b>
+        오늘은 아직 취소나 부도가 없습니다.
+      </div></div>
+      <p class="h2s" style="margin:0"><b>탭은 사라지지 않는다</b> — 0도 정보다(<code>TODAY-SUM</code> 타일과 같은 규칙).</p>
+    </div>
+  </div>
+
+  <div>
+    <p class="mini-t">오늘 예약이 통째로 0명</p>
+    <div class="screen">
+      <div class="tabs">
+        <div class="tab on zero"><span class="l">전체</span><span class="n">0</span></div>
+        <div class="tab zero"><span class="l">진료 대기</span><span class="n">0</span></div>
+      </div>
+      <div class="card"><div class="empty">
+        <b>오늘 예약이 없습니다</b>
+        예약 없이 오신 환자는 <b>화면 오른쪽 위 <span style="color:var(--primary)">［＋ 당일 방문］</span></b>으로 등록하세요.
+      </div></div>
+      <p class="h2s" style="margin:0">⭐ <b>버튼을 여기 한 번 더 놓지 않는다</b>(2026-08-07 개정) — <b>헤더에 예외 없이 있으므로</b>(<code>SHELL-ACT-02</code>) 같은 일에 문이 둘이 된다. 대신 <b>빈 화면이 「할 일이 없다」로 읽히지 않게 헤더 버튼을 가리킨다</b> — <b>막다른 길을 만들지 않는다</b>는 원칙은 <b>버튼이 아니라 길 안내</b>로 지킨다.</p>
+    </div>
+  </div>
+
+  <div>
+    <p class="mini-t">의사 필터 때문에 0명</p>
+    <div class="screen">
+      <div class="tabs">
+        <div class="tab on"><span class="l">진료 대기</span><span class="n">12</span></div>
+      </div>
+      <div class="card"><div class="empty">
+        <b>최민석 의사의 대기 환자가 없습니다</b>
+        진료 대기 <b>12명</b> 중 이 의사에게 배정된 환자가 없습니다.
+        <div style="margin-top:12px"><button class="btn q">필터 지우고 12명 모두 보기</button></div>
+      </div></div>
+      <p class="h2s" style="margin:0">⭐ <b>탭 숫자(12)와 목록(0)이 다른 유일한 경우</b>라 반드시 이유를 말해야 한다. 안 그러면 <b>고장으로 읽힌다.</b></p>
+    </div>
+  </div>
+</div>
+
+<!-- ⑧ 연결 끊김 -->
+<h2 class="sec">⑧ 연결이 끊겼을 때 — <b>숫자를 조용히 굳히지 않는다</b></h2>
+<p class="seclead">
+  이 화면은 <b>실시간 구독</b>으로 갱신된다(<code>SHELL-LIVE-01</code>과 <b>같은 연결</b>을 쓴다 — 탭 하나당 연결 하나).
+  연결이 끊기면 <b>화면이 멀쩡해 보이는 채로 낡는다</b> — 그게 가장 위험하다.
+</p>
+<div class="screen">
+  <div class="banner">
+    <span>⚠️ <b>실시간 연결이 끊겼습니다.</b> 아래 숫자와 목록은 <b>09:41 기준</b>이며 지금과 다를 수 있습니다. 다시 연결을 시도하는 중입니다…</span>
+    <span class="sp"></span>
+    <button class="btn q sm">지금 새로고침</button>
+  </div>
+  <div class="tabs">
+    <div class="tab"><span class="l">전체</span><span class="n">50</span><span class="stale"><span class="dot"></span></span></div>
+    <div class="tab on"><span class="l">진료 대기</span><span class="n">12</span><span class="stale"><span class="dot"></span></span></div>
+    <div class="tab"><span class="l">진료 중</span><span class="n">3</span><span class="stale"><span class="dot"></span></span></div>
+  </div>
+  <div class="card">
+    <div class="card-h">진료 대기 <span class="cnt">12명</span><span class="sp"></span><span class="stale"><span class="dot"></span> 09:41 기준</span></div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail num mut">1<i>번</i></span>
+      <span class="nm">김영수</span><span class="dob">1958-**-12</span>
+      <span class="wait">32분 대기</span>
+      <span class="dept">내과 · 박지훈</span>
+      <span class="right"><button class="btn dis sm">연결이 끊겨 순서를 바꿀 수 없습니다</button><button class="btn q sm">환자 상세</button></span>
+    </div>
+    <div class="qrow">
+      <span class="grip off">⠿</span><span class="rail num mut">2<i>번</i></span>
+      <span class="nm">이하늘</span><span class="dob">1990-**-07</span>
+      <span class="wait">18분 대기</span>
+      <span class="dept">정형외과 · 최민석</span>
+      <span class="right"><button class="btn q sm">환자 상세</button></span>
+    </div>
+  </div>
+  <p class="h2s" style="margin:0">
+    ⭐ <b>순서 드래그가 막힌다</b>(손잡이가 흐려지고 순번 색이 빠진다). 이유: 내가 보는 순서가 이미 낡았을 수 있는데
+    <b>거기다 대고 「4번 → 1번」을 적으면 엉뚱한 사람이 앞으로 간다.</b> 대기시간 글자도 <b>주의색을 뺐다</b> — 낡은 값으로 급함을 말하면 안 된다.
+    <b><code>[환자 상세]</code>는 살려 둔다</b> — 화면 이동은 서버가 그때 최신값을 다시 읽으므로 낡은 값에 기대지 않는다.
+  </p>
+</div>
+
+<!-- ⑨ 의사 필터 -->
+<h2 class="sec">⑨ 의사별 필터로 들어왔을 때 <span class="tag">NAV-TODAY-08</span></h2>
+<p class="seclead">
+  <code>/today</code>의 <b>「의사별 현재 대기 인원」 줄을 누르면</b> 이 모습으로 열린다.
+  <b>필터가 걸려 있다는 것이 반드시 눈에 보여야 한다</b> — 안 보이면 직원은 <b>병원 전체가 3명뿐인 줄 안다.</b>
+</p>
+<div class="screen">
+  <div class="pgh">
+    <span class="t">대기 목록</span>
+    <span class="d">8월 5일 (화)</span>
+    <span class="sp"></span>
+  </div>
+  <div class="tabs">
+    <div class="tab"><span class="l">전체</span><span class="n">50</span></div>
+    <div class="tab"><span class="l">도착</span><span class="n">5</span></div>
+    <div class="tab on"><span class="l">진료 대기</span><span class="n">12</span></div>
+    <div class="tab"><span class="l">진료 중</span><span class="n">3</span></div>
+  </div>
+  <div class="card">
+    <div class="card-h">
+      진료 대기 <span class="cnt">3명</span>
+      <span class="dept" style="font-weight:600">/ 진료 대기 전체 12명</span>
+      <span class="sp"></span>
+      <span class="filt">내과 · 박지훈 <span class="x">✕</span></span>
+    </div>
+    <div class="qrow urgent">
+      <span class="grip">⠿</span><span class="rail num">1<i>번</i></span>
+      <span class="nm">김영수</span><span class="dob">1958-**-12</span>
+      <span class="wait warn">32분 대기</span>
+      <span class="right"><span class="urg">▲ 응급/주의</span><button class="btn q sm">환자 상세</button></span>
+    </div>
+    <div class="qrow">
+      <span class="grip">⠿</span><span class="rail num">3<i>번</i></span>
+      <span class="nm">박민정</span><span class="dob">1971-**-03</span>
+      <span class="wait warn">41분 대기</span>
+      <span class="right"><button class="btn q sm">응급/주의 표시</button><button class="btn q sm">환자 상세</button></span>
+    </div>
+    <div class="qrow">
+      <span class="grip">⠿</span><span class="rail num">5<i>번</i></span>
+      <span class="nm">강해린</span><span class="dob">2001-**-17</span>
+      <span class="wait">6분 대기</span>
+      <span class="right"><span class="badge p">당일 방문</span><button class="btn q sm">환자 상세</button></span>
+    </div>
+  </div>
+  <p class="h2s" style="margin:0">
+    ⭐ <b>순번이 1 · 3 · 5로 띄엄띄엄하다.</b> 이건 <b>일부러 그렇게 그린 것</b>이다 —
+    순번은 <b>병원 전체 대기 줄에서의 자리</b>이지 이 화면에서 몇 번째인지가 아니다.
+    1·2·3으로 다시 매기면 <b>직원이 「3번」이라고 부른 사람과 의사가 부르는 「3번」이 달라진다.</b><br>
+    ⚠️ <b>그래서 이 상태에서는 순서를 끌 수 없어야 하는 것 아닌가</b> — 사이에 안 보이는 사람(2·4번)이 있어서 「1번 → 3번」이 무슨 뜻인지 모호해진다.
+    <b>아래 「함께 정할 것」의 B-13</b>에서 다룬다.
+  </p>
+</div>
+
+<!-- 함께 정할 것 -->
+<div class="notes">
+  <h2>함께 정할 것 — 그리다 갈린 빈칸 3건</h2>
+  <table>
+    <thead><tr><th style="width:16%">#</th><th>무엇이 갈리나</th></tr></thead>
+    <tbody>
+      <tr style="opacity:.7">
+        <td><s><b>B-11</b></s><br><span class="dept">워크인 조회 조건</span></td>
+        <td>✅ <b>해소(2026-08-06)</b> — <b>둘 다 아니다. 검색을 한 칸으로 통일</b>했다(<code>SEARCH-*</code> · <code>QUEUE-WALK-03</code>).
+          ⭐ <b>질문 자체가 좁았다</b> — 「전화번호냐, 전화번호+생년월일이냐」 중 <b>어느 쪽을 골라도 번호를 바꾼 환자는 못 찾는다.</b>
+          그게 진짜 문제였다(사용자 지적: <i>“무슨 정보로든 검색할 수 있어야 번호가 바뀌어도 찾을 수 있어”</i>).
+          그래서 <b>워크인 전용 조회를 없애고</b> <code>/patients</code>와 <b>같은 통합 검색</b>을 쓴다(위 ㉯).
+          📌 함께 <b>원문 오독 1건도 정정</b>했다 — 요구사항 <code>:132</code>의 「전화번호로」는 3.3을 가리키는 <b>참조</b>라
+          <b>플랜은 원문을 어기지 않았었다</b>(<code>QUEUE-WALK-03b</code>).</td>
+      </tr>
+      <tr style="opacity:.7">
+        <td><s><b>B-12</b></s><br><span class="dept">「전체」 탭 정렬</span></td>
+        <td>✅ <b>해소(2026-08-05)</b> — <b>둘 다 둔다.</b> 「전체」 탭에 <b>묶기 전환(시각순 ↔ 상태별)</b>을 얹었다(③·③-2).
+          ⭐ 사용자 질문 <i>“안 A로 가되 안 B도 볼 수 있게 목록 옵션을 줄 수 없나”</i>에서 나온 것이다 —
+          <b>안 B를 두 번째 화면으로 만들지 않고 「전체」 탭의 묶는 방식으로 흡수</b>했다. 탭 구조·드래그 규칙·타일 1:1이 전부 그대로 남는다.
+          <b>구획을 접지 않는 것</b>이 조건이다(접으면 61번 안 B가 탈락한 이유가 그대로 돌아온다).</td>
+      </tr>
+      <tr>
+        <td><b>B-13</b><br><span class="dept">필터가 걸린 채 드래그</span></td>
+        <td>의사 필터가 걸리면 <b>순번이 1·3·5로 띄엄띄엄</b>해진다. 이때 순서 드래그를 <b>살려 둘지 막을지.</b>
+          살리면 <b>“1번 → 3번”이 안 보이는 2번을 넘은 것인지</b> 모호하고, 막으면 <b>의사별로 보다가 순서를 못 바꾼다</b>(필터를 지우고 다시 찾아야 한다).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="ok">
+    <span class="t">✅ <b>그리면서 원칙에서 자동으로 나온 것</b>(A등급 — 이상하면 뒤집을 것)</span><br>
+    · 워크인 환자는 <b>「진료 대기」 맨 뒤</b>에 붙는다(새치기는 <b>사유가 남는 드래그</b>로만) ·
+    응급/주의는 <b>켤 때도 끌 때도</b> 확인 팝업 ·
+    「도착」 탭은 <code>N분 경과</code>, 「진료 대기」 탭은 <code>N분 대기</code> ·
+    성별은 <b>버튼 2개 · 기본 선택 없음</b>(B-30과 같은 원칙) ·
+    연결이 끊기면 <b>드래그를 막고</b> 기준 시각을 붙인다 ·
+    필터 중에도 <b>순번은 전체 기준</b>을 유지한다 ·
+    「전체」 탭에서는 <b>드래그 불가</b>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<style>
+  .p58 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --warn:#B44E00; --red:#B3261E; --bg:#F2F5F7; }
+  .p58, .p58 * { text-align:left; box-sizing:border-box; }
+  .p58 { width:330px; height:600px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+         overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+         color:var(--ink); position:relative; }
+  .p58 .bar { background:var(--teal); color:#fff; padding:11px 15px; font-size:14.5px; font-weight:600; }
+  .p58 .body { padding:18px 16px 0; }
+  .p58 .h { font-size:20px; font-weight:800; line-height:1.35; letter-spacing:-.3px; margin-bottom:14px; }
+
+  .blk { border:1.5px solid #dde4e9; border-radius:11px; padding:13px 14px; margin-bottom:11px; }
+  .blk .t { font-size:13.5px; font-weight:800; margin-bottom:6px; }
+  .blk p { margin:0; font-size:13px; color:#44586b; line-height:1.62; }
+  .blk.key { border-color:#a9cccd; background:#f4f9f9; }
+  .blk.key .t { color:var(--teal); }
+
+  .appt { border:1.5px solid #e6d3c0; border-radius:11px; padding:12px 13px; margin-bottom:9px; background:#fdf8f1; }
+  .appt .w { font-size:15px; font-weight:800; color:#8A4A12; }
+  .appt .s { font-size:12.5px; color:#7a6449; font-weight:600; margin-top:3px; }
+  .keepline { padding-left:9px; border-left:4px solid #c8d2d9; font-size:12.5px; color:var(--done);
+              font-weight:600; line-height:1.5; margin:12px 0 0; }
+  .golink { display:block; margin-top:12px; border:1.5px solid var(--teal); color:var(--teal); border-radius:10px;
+            padding:12px; font-size:15px; font-weight:800; text-align:center; }
+
+  .p58 .foot { position:absolute; left:0; right:0; bottom:0; padding:0 16px 16px; }
+  .p58 .danger { display:block; width:100%; border:2px solid var(--red); color:var(--red); background:#fff;
+                 border-radius:11px; padding:14px; font-size:16px; font-weight:800; text-align:center; }
+  .p58 .danger.off { border-color:#d8dde1; color:#a9b4bc; }
+  .p58 .whyoff { margin-top:9px; font-size:12.5px; color:var(--done); font-weight:600; text-align:center; line-height:1.5; }
+
+  .pop58 { border:1px solid #d6dde3; border-radius:14px; background:#fff; padding:20px 18px 16px; width:300px;
+           box-shadow:0 10px 26px rgba(16,36,58,.14); }
+  .pop58 h4 { margin:0 0 10px; font-size:17px; font-weight:800; }
+  .pop58 p { margin:0; font-size:13.5px; color:#44586b; line-height:1.65; }
+  .pop58 .btns { margin-top:18px; display:flex; gap:9px; }
+  .pop58 .btns div { flex:1; border-radius:10px; padding:13px; font-size:15px; font-weight:800; text-align:center; }
+  .pop58 .btns .no { border:1.5px solid #c8d2d9; color:#44586b; }
+  .pop58 .btns .yes { background:#B3261E; color:#fff; }
+
+  .lane58 { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane58 h3 { margin:0 0 5px; text-align:left; font-size:16px; }
+  .lane58 .cap { font-size:12.5px; color:#6b7d8c; margin-bottom:11px; max-width:330px; text-align:left; line-height:1.6; }
+  .note58 { margin-top:26px; border:1px solid #dde4e9; border-radius:12px; padding:16px 18px; background:#fafcfd;
+            font-size:13.5px; line-height:1.75; color:#33485c; max-width:1100px; }
+  .note58 b { color:#10243A; }
+  .note58 code { background:#eef2f5; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .key58 { margin-top:18px; border:1.5px solid #e2c9a8; border-radius:12px; padding:16px 18px; background:#fdf8f1;
+           font-size:13.5px; line-height:1.75; color:#4a3a26; max-width:1100px; }
+  .key58 b { color:#B44E00; }
+  .key58 code { background:#f2e6d6; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+
+<h2>회원 탈퇴 3종 — 정식 크기 (신규 · 규칙 <code>SET-QUIT-01~28</code>)</h2>
+<p class="subtitle">목업 42번에 <b>작은 축소판</b>이 있었지만 정식 크기는 없었습니다(묶음 7이 남긴 숙제). ⭐ <b>버튼이 세 번 나오고 갈수록 무거워집니다</b>(<code>SET-QUIT-03</code>) — 설정 맨 아래 <b>작은 회색 글씨</b> → 화면 안 <b>붉은 테두리</b> → 확인창 안 <b>채운 빨강</b>. <b>되돌릴 수 없는 동작</b>을 다루는 방식입니다.</p>
+
+<div class="lane58">
+
+  <div>
+    <h3>① 탈퇴 안내 화면 — 평소</h3>
+    <div class="cap">⭐ <b>팝업 하나로 끝내지 않고 전용 화면을 둡니다</b>(<code>SET-QUIT-01·02</code>) — 팝업에 차단·보관 고지·재가입 안내를 다 담으면 <b>팝업이 설명서가 됩니다.</b>
+    <br>⭐ <b>파란 상자(보관 고지)가 이 화면의 핵심입니다</b>(<code>SET-QUIT-05</code>).</div>
+    <div class="p58">
+      <div class="bar">← &nbsp;회원 탈퇴</div>
+      <div class="body">
+        <div class="h">탈퇴하기 전에<br>확인해 주세요</div>
+        <div class="blk key">
+          <div class="t">진료기록은 지워지지 않습니다</div>
+          <p>병원의 진료기록은 법으로 정해진 기간 동안 병원에 보관됩니다. 앱에서만 보이지 않게 됩니다.</p>
+        </div>
+        <div class="blk">
+          <div class="t">앱에서 볼 수 없게 되는 것</div>
+          <p>탈퇴하시면 앱에서 예약·가족·사전문진을 더 이상 볼 수 없습니다.<br>가족 연결이 모두 해제됩니다.</p>
+        </div>
+        <div class="blk">
+          <div class="t">다시 이용하시려면</div>
+          <p>같은 휴대폰 번호로 다시 가입하실 수 있습니다.</p>
+        </div>
+      </div>
+      <div class="foot"><div class="danger">탈퇴하겠습니다</div></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>② 다가오는 예약이 있어 막힌 상태</h3>
+    <div class="cap"><code>SET-QUIT-11·15</code>(B-42). 막은 예약<b>만</b> 나열합니다.
+    <br>⭐ <b>탈퇴 버튼이 사라지지 않고 회색으로 남습니다</b>(<code>SET-QUIT-17</code>) — 없애면 <i>"탈퇴가 어디 갔지?"</i>가 되고 <b>지금 못 하는 이유까지 화면에서 사라집니다.</b>
+    <br>⭐ 회색 줄 한 줄이 <b>왜 어떤 건 뜨고 어떤 건 안 뜨는지</b>를 스스로 설명합니다(<code>SET-QUIT-16</code>).</div>
+    <div class="p58">
+      <div class="bar">← &nbsp;회원 탈퇴</div>
+      <div class="body">
+        <div class="h">먼저 예약을<br>취소해 주세요</div>
+        <div class="appt"><div class="w">8월 12일 (화) 오후 2:30</div><div class="s">정형외과 · 본인</div></div>
+        <div class="appt"><div class="w">8월 19일 (화) 오전 10:00</div><div class="s">내과 · 박말순 (어머니)</div></div>
+        <div class="keepline">직접 앱을 쓰시는 가족의 예약은 그대로 유지됩니다</div>
+        <div class="golink">예약 보러 가기</div>
+      </div>
+      <div class="foot">
+        <div class="danger off">탈퇴하겠습니다</div>
+        <div class="whyoff">위 예약을 취소하신 뒤에 진행하실 수 있습니다</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3>③ 최종 확인창</h3>
+    <div class="cap"><code>SET-QUIT-19·20</code>. ⭐ <b>채운 빨강은 앱 전체에서 이 버튼 하나뿐입니다</b> — 되돌릴 수 없는 동작은 <b>확인창 안에서만</b> 붉게 칠합니다.
+    <br>여기서도 <b>보관 고지를 다시 한 번</b> 말합니다 — 마지막 순간에 오해가 남아 있으면 안 됩니다.</div>
+    <div class="pop58">
+      <h4>정말 탈퇴하시겠어요?</h4>
+      <p>앱에서 예약·가족·사전문진을 더 이상 볼 수 없습니다.<br>진료기록은 병원에 그대로 보관됩니다.</p>
+      <div class="btns"><div class="no">아니요</div><div class="yes">탈퇴합니다</div></div>
+    </div>
+    <div class="cap" style="margin-top:14px">누른 뒤에는 <code>◌ 탈퇴 처리 중…</code>으로 바뀌고 <b>중복 클릭이 막힙니다</b>(<code>SET-QUIT-21</code>).
+    <br>끝나면 <b>랜딩 화면</b>으로 나가면서 <code>탈퇴 처리가 완료되었습니다</code> 한 줄(<code>SET-QUIT-26</code>).</div>
+  </div>
+
+</div>
+
+<div class="key58">
+⚠️ <b>화면은 맞지만 지금 구현으로는 「거짓말」이 되는 문장이 있습니다</b>
+<br>③의 <b><code>같은 휴대폰 번호로 다시 가입하실 수 있습니다</code></b>(<code>SET-QUIT-08</code>) — 지금 구현은 탈퇴할 때 <b>Auth 계정을 100년 정지</b>시키고(<code>ban_duration: 87600h</code>) 환자 행에 <code>auth_user_id</code>가 남아, <b>재가입도 병합도 막힙니다</b>(<code>plans:1458</code>) → 갭 <b>#64</b>.
+<br>· 결정 <b>B-37</b>이 이 문장을 <b>지킬 수 있게 만들기 위한</b> 결정이었습니다. <b>구현이 따라와야 화면이 참이 됩니다.</b>
+<br>⚠️ 더 큰 것: <b>탈퇴 API를 부르는 앱 코드가 아예 없습니다</b>(<code>SET-QUIT-28</code>). 서버 쪽(<code>:1450</code>·<code>:3705</code>)은 멀쩡한데 <b>부르는 곳이 없고</b>, ②의 <b>차단 판정 로직도 어디에도 없습니다</b> → 갭 <b>#70</b>(설정 화면이 플랜에 통째로 없다).
+</div>
+
+<div class="note58">
+<b>그림에 안 보이지만 이 화면에 걸린 규칙</b>
+<br>· <b>막는 대상은 「내 예약 + 자기 계정이 없는 가족(㉮)의 예약」입니다</b>(<code>SET-QUIT-11·12</code>, B-42). ⭐ <b>㉮와 ㉯는 내가 탈퇴한 뒤의 처지가 정반대</b>입니다 — ㉮ 어머니는 앱이 없어 <b>아무도 손댈 수 없는 유령 예약</b>이 남고, ㉯ 아버지는 <b>자기 폰이 있습니다.</b>
+<br>· ⛔ <b>기각(보이는 예약 전부 막기)</b>: 아버지가 <b>자기 폰으로 잡은 예약</b> 때문에 내가 탈퇴를 못 하고, 취소하려면 <b>남의 진료를 내 손으로 없애야</b> 합니다.
+<br>· ⛔ <b>기각(내 예약만 막기)</b>: 어머니 예약이 유령이 되고 <b>병원이 당일 빈자리를 떠안습니다.</b>
+<br>· <b>오프라인이면 막습니다</b>(<code>SET-QUIT-27</code>) — 서버에 남기는 일이고 <b>되돌릴 수 없기</b> 때문입니다. 버튼 비활성 + <code>인터넷에 연결된 뒤에 진행해 주세요</code>.
+<br>· <b>탈퇴하면 폰 보관본을 함께 지우고</b>(<code>SET-QUIT-22</code>) <b>알림 토큰을 해제합니다</b>(<code>SET-QUIT-23</code>) — 안 하면 <b>탈퇴한 사람 폰에 알림이 계속 옵니다.</b>
+<br>· ⛔ <b>로컬 캐시 삭제를 화면에 적지 않습니다</b>(<code>SET-QUIT-10</code>) — <code>앱에서 보이지 않게 된다</code>에 이미 포함된 이야기라 <b>문구만 복잡해집니다.</b> 구현 지시로만 남깁니다.
+<br>· <b>내가 만든 ㉮ 가족의 환자 행은 병원 명부에 남습니다</b>(<code>SET-QUIT-24</code>, 연결선만 끊김). ⚠️ <b>재가입해도 앱만으로는 다시 못 잇습니다</b>(<code>SET-QUIT-25</code>) — ㉯ 기존 환자 연결은 <b>그 가족 휴대폰으로 인증번호</b>를 보내는데 <b>휴대폰이 없습니다</b> → 병원 문의(갭 #2).
+<br>· <b>이 화면에 들어오기 전에 재인증을 거칩니다</b>(<code>NAV-GLOBAL-05</code>).
+</div>

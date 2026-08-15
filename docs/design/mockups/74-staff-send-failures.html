@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>74 · 안 닿은 명단 — 발송 결과와 실패 (갭 #100·#103 · #119~#124)</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --warn-bg:#FFF1E4; --danger:#9E3F6E; --danger-bg:#F3E7EA;
+    --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --book:#E7F1F1; --book-line:#9FC6C6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  .quote .warn{color:var(--warn);font-weight:800}
+  .quote.bad{border-left-color:var(--danger)}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  h2.sub2{font-size:14px;font-weight:800;margin:26px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:var(--warn-bg);color:var(--warn)}
+  .tag.no{background:var(--danger-bg);color:var(--danger)}
+
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:6px 0 0}
+  .hint b{color:var(--ink)}
+  .hint.w b{color:var(--warn)}
+  .hint.g b{color:var(--primary)}
+
+  svg.i{width:13px;height:13px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;
+        stroke-linecap:round;stroke-linejoin:round}
+
+  /* ── 화면 틀 ── */
+  .app{background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .apptop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);
+          font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .apptop .sp{flex:1}
+  .btn{border:1px solid var(--divider);border-radius:6px;padding:5px 10px;background:#fff;
+       font-size:11px;font-weight:800;color:var(--ink);white-space:nowrap;display:inline-block}
+  .btn.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.q{color:var(--ink-muted)}
+  .btn.dis{background:var(--done-bg);border-color:#E2E8ED;color:#AEB9C3}
+  .btn.dg{border-color:#E4CBD6;color:var(--danger)}
+
+  .stage{display:flex;min-height:220px}
+  .nav{width:150px;flex:none;background:#FBFCFD;border-right:1px solid var(--divider);padding:8px 0}
+  .nav .grp{font-size:10px;font-weight:800;color:#9AA9B6;padding:8px 12px 4px;letter-spacing:.04em}
+  .nav .it{display:flex;align-items:center;gap:6px;padding:6px 12px;font-size:11.5px;color:var(--ink-muted);
+           border-left:3px solid transparent}
+  .nav .it.on{background:var(--book);border-left-color:var(--primary);color:var(--primary);font-weight:800}
+  .nav .it .n{margin-left:auto;font-size:10px;font-weight:800;color:var(--warn)}
+  .body{flex:1;min-width:0;padding:14px 16px;background:#FCFDFD}
+
+  /* ── 목록 ── */
+  .zone{margin:0 0 16px}
+  .zonehd{display:flex;align-items:center;gap:8px;margin:0 0 7px}
+  .zonehd .t{font-size:12.5px;font-weight:800}
+  .zonehd .c{font-size:11px;color:var(--ink-muted)}
+  .zonehd .sp{flex:1}
+  .zone.sched{background:var(--warn-bg);border:1px solid #F2DCC6;border-radius:8px;padding:10px 12px}
+  .zone.sched .t{color:var(--warn)}
+
+  .row{display:flex;align-items:center;gap:10px;padding:9px 10px;background:#fff;
+       border:1px solid var(--divider);border-radius:7px;margin:0 0 6px}
+  .row.q{background:#FBFCFD}
+  .row .kind{flex:none;width:44px;font-size:10px;font-weight:800;text-align:center;
+             padding:3px 0;border-radius:4px;background:var(--done-bg);color:var(--done)}
+  .row .kind.ad{background:var(--danger-bg);color:var(--danger)}
+  .row .msg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+  .row .who{flex:none;font-size:11px;color:var(--ink-muted)}
+  .row .who b{color:var(--ink);font-weight:800}
+  .row .ch{flex:none;font-size:10.5px;color:var(--ink-muted)}
+  .row .when{flex:none;font-size:11px;color:var(--ink-muted);width:96px;text-align:right}
+  .row .act{flex:none}
+  .row .lnk{color:var(--primary);font-weight:800;text-decoration:underline;cursor:pointer}
+  .row .res{flex:none;font-size:10.5px;font-weight:800;color:var(--ink-muted)}
+  .row .res.ok{color:var(--primary)}
+  .row .res.bad{color:var(--warn)}
+  .row .res.run{color:var(--done)}
+
+  .empty{padding:22px 10px;text-align:center;color:var(--ink-muted);font-size:12px;
+         background:#fff;border:1px dashed var(--divider);border-radius:7px}
+
+  /* ── 큰 탭 ── */
+  .tabbar{display:flex;gap:6px;border-bottom:1px solid var(--divider);margin:0 0 10px}
+  .tabbar .tab{padding:7px 12px;border:1px solid var(--divider);border-bottom:0;
+               border-radius:7px 7px 0 0;background:#FBFCFD;font-size:11.5px;font-weight:800;
+               color:var(--ink-muted);margin-bottom:-1px;display:flex;align-items:center;gap:6px}
+  .tabbar .tab.on{background:#fff;color:var(--primary);border-color:var(--divider);border-bottom-color:#fff}
+  .tabbar .tab .cnt{font-size:10px;font-weight:800;padding:1px 6px;border-radius:99px;
+                    background:var(--warn-bg);color:var(--warn)}
+  .tabbar .tab.on .cnt{background:var(--primary);color:#fff}
+  .tabbar .sp{flex:1}
+
+  /* ── 명단 줄 ── */
+  .plist{background:#fff;border:1px solid var(--divider);border-radius:0 0 7px 7px;padding:8px 10px}
+  .prow{display:flex;align-items:center;gap:10px;padding:7px 8px;border-bottom:1px solid var(--divider);font-size:12px}
+  .prow:last-child{border-bottom:0}
+  .prow .nm{flex:none;width:64px;font-weight:800}
+  .prow .tel{flex:none;width:126px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+  .prow .tel.open{color:var(--ink);font-weight:800}
+  .prow .why{flex:1;min-width:0;font-size:11px;color:var(--warn);font-weight:800}
+  .prow .why.q{color:var(--ink-muted);font-weight:400}
+  .prow .act{flex:none}
+  .fold{margin:6px 0 0;padding:7px 9px;background:#FBFCFD;border:1px dashed var(--divider);
+        border-radius:6px;font-size:11px;color:var(--ink-muted);text-align:center}
+  .fold b{color:var(--ink)}
+  .fold .lnk{color:var(--primary);font-weight:800;text-decoration:underline;cursor:pointer}
+
+  /* ── 비교 열 ── */
+  .cmp{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0 0}
+  .opt{background:#fff;border:1px solid var(--divider);border-radius:9px;overflow:hidden}
+  .opt.win{border-color:var(--primary);box-shadow:0 0 0 2px rgba(11,110,112,.12)}
+  .opt.lose{opacity:.72}
+  .opthd{padding:8px 11px;border-bottom:1px solid var(--divider);font-size:12px;font-weight:800;
+         background:#FBFCFD;display:flex;align-items:center;gap:6px}
+  .optbd{padding:10px 11px}
+  .mini{font-size:10.5px;line-height:1.5}
+  .mini .tabs{display:flex;gap:4px;margin:0 0 6px}
+  .mini .tb{padding:3px 7px;border:1px solid var(--divider);border-radius:5px;background:#fff;font-weight:800;color:var(--ink-muted)}
+  .mini .tb.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .mini .ln{padding:5px 7px;border:1px solid var(--divider);border-radius:5px;margin:0 0 4px;background:#fff}
+  .mini .ln.w{background:var(--warn-bg);border-color:#F2DCC6}
+  .mini .ln.g{background:var(--done-bg)}
+  .verdict{font-size:11px;line-height:1.6;padding:8px 11px;border-top:1px solid var(--divider);background:#FBFCFD}
+  .verdict b{color:var(--ink)}
+  .verdict.no b{color:var(--danger)}
+  .verdict.ok b{color:var(--primary)}
+
+  /* ── 시간 흐름 ── */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 0}
+  .step{background:#fff;border:1px solid var(--divider);border-radius:8px;overflow:hidden}
+  .stephd{padding:6px 10px;border-bottom:1px solid var(--divider);background:#FBFCFD;
+          font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .stepbd{padding:9px 10px;font-size:11.5px;line-height:1.7}
+  .stepbd b{font-weight:800}
+
+  /* ── 팝업 ── */
+  .modal{background:#fff;border:1px solid var(--divider);border-radius:10px;
+         box-shadow:0 8px 28px rgba(16,36,58,.14);max-width:420px;margin:12px 0 0}
+  .modalhd{padding:11px 14px;border-bottom:1px solid var(--divider);font-size:13px;font-weight:800}
+  .modalbd{padding:13px 14px;font-size:12px;line-height:1.75;color:var(--ink-muted)}
+  .modalbd b{color:var(--ink)}
+  .modalft{padding:10px 14px;border-top:1px solid var(--divider);display:flex;gap:6px;justify-content:flex-end}
+
+  /* ── 환자 상세 조각 ── */
+  .pcard{background:#fff;border:1px solid var(--divider);border-radius:9px;padding:12px 14px;max-width:440px}
+  .pcard .nm{font-size:15px;font-weight:800}
+  .pcard .meta{font-size:11.5px;color:var(--ink-muted);margin:2px 0 8px}
+  .pcard .telrow{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800}
+  .pcard .flag{margin:7px 0 0;padding:8px 10px;background:var(--warn-bg);border:1px solid #F2DCC6;
+               border-radius:7px;font-size:11.5px;line-height:1.65;color:#6E4413}
+  .pcard .flag b{color:#5A3306}
+
+  /* ── 규칙표 ── */
+  table.r{width:100%;border-collapse:collapse;margin:12px 0 0;font-size:11.5px}
+  table.r th{background:#FBFCFD;border:1px solid var(--divider);padding:6px 8px;text-align:left;
+             font-weight:800;color:var(--ink-muted);font-size:10.5px}
+  table.r td{border:1px solid var(--divider);padding:6px 8px;line-height:1.6;vertical-align:top}
+  table.r td.id{white-space:nowrap;font-weight:800;color:var(--primary);width:118px}
+  table.r td b{color:var(--ink)}
+  .rid{display:inline-block;font-size:10px;font-weight:800;color:var(--primary);
+       background:var(--book);border-radius:4px;padding:1px 5px;margin-left:4px}
+
+  .gap{background:var(--warn-bg);border:1px solid #F2DCC6;border-radius:8px;padding:11px 14px;margin:12px 0 0;
+       font-size:12px;line-height:1.75;color:#6E4413}
+  .gap b{color:#5A3306}
+  .gap.no{background:var(--danger-bg);border-color:#E4CBD6;color:#6B2A47}
+  .gap.no b{color:#4E1B32}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4h-5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></symbol>
+  <symbol id="i-retry" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+</svg>
+
+<div class="page">
+
+<h1>74 · <b>안 닿은 명단</b> — 발송 결과와 실패</h1>
+<p class="sub">
+  갭 <b>#100·#103</b>(발송 결과가 규칙에 없다) · 신규 <b>#119~#124</b> —
+  규칙 <code>SEND-RESULT-*</code> · <code>SEND-RETRY-*</code> · <code>SEND-BADGE-*</code> · <code>SEND-FAIL-*</code> · <code>SEND-DEAD-*</code>
+</p>
+
+<div class="quote">
+  <b>왜 이 화면이 필요했나</b> — <code>SEND-*</code> 60여 개가 <b>「보내기 전」만</b> 말하고 있었다.
+  <code>SEND-CH-04</code>가 <i>"문자 34건에 비용이 듭니다"</i>까지 세어 주는데
+  <span class="warn">보낸 뒤 몇 건이 닿았는지는 아무도 안 봤다.</span>
+  목업 73의 명단에 「실패」 한 줄이 있었지만 <b>그 상태를 정의한 규칙이 0개</b>였다 — <b>앞당겨 쓴 말</b>이었다.<br>
+  <b>왜 아픈가</b> — ①문자는 <b>건당 과금</b>이라 실패도 돈이 나간다 ②휴진 안내가 <b>안 닿은 환자</b>가 그날 온다
+  ③직원이 <i>"보냈다"</i>고 믿고 <b>전화를 안 건다.</b>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">① 어디까지를 <b>「닿았다」</b>로 보나</h2>
+<p class="seclead">
+  ⭐⭐ <b>푸시와 문자가 다르다.</b> 푸시는 <b>즉시 알 수 있고</b> 문자는 <b>기다려야</b> 안다 —
+  이 사실이 아래 모든 화면의 모양을 정한다.
+</p>
+
+<div class="cmp" style="grid-template-columns:1fr 1fr">
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">㉮</span> 「보냈다」까지만 본다</div>
+    <div class="optbd">
+      <div class="mini">
+        <div class="ln">휴진 안내 · 김접수 · 문자 · 10:12 · 대상 34명</div>
+        <div class="ln g">└ <b>문자 34건 접수</b> · 푸시 실패 2건</div>
+        <div class="ln w" style="margin-top:6px">⚠️ 없는 번호 2건도 <b>「접수」에 포함</b>돼 있다</div>
+      </div>
+    </div>
+    <div class="verdict no">
+      ⛔ <b>없는 번호로 보낸 것도 똑같이 「접수」로 보인다.</b>
+      ⭐ 이 프로젝트가 반복해서 막아 온 <b>「조용히 줄어드는 것」</b>이다(<code>PICK-MIX-02</code>·<code>SEND-ADS-01</code>·<code>HSET-NAV-03</code>) —
+      직원이 <i>"34명에게 보냈다"</i>고 믿고 <b>전화를 안 건다.</b>
+    </div>
+  </div>
+
+  <div class="opt win">
+    <div class="opthd"><span class="tag ok">㉯</span> <b>진짜 도달까지</b> 본다 <span class="rid">SEND-RESULT-01</span></div>
+    <div class="optbd">
+      <div class="mini">
+        <div class="ln">휴진 안내 · 김접수 · 문자 · 10:12 · 대상 34명</div>
+        <div class="ln g">└ <b>도달 32건 · 실패 2건</b> <b>[안 닿은 2명 보기]</b></div>
+        <div class="ln w" style="margin-top:6px">⭐ 전화 걸 대상이 <b>손에 잡힌다</b></div>
+      </div>
+    </div>
+    <div class="verdict ok">
+      ⭐ <b>근거 셋</b> — 요구사항 6.4 <code>:445</code>(<i>"오류가 발생한 시간과 기능을 <b>관리자가 확인할 수 있어야</b>"</i>) ·
+      4.7 <code>:323</code>(<b>비용이 병원 부담</b>인데 닿았는지 모른 채 나간다) · 위 「조용한 실패」 계보.
+    </div>
+  </div>
+</div>
+
+<div class="gap">
+  <b>⚠️⚠️ 그런데 ㉯가 설 땅이 없다 — 갭 #122</b> <span class="rid">SEND-RESULT-02</span><br>
+  Twilio <code>messages.create()</code>가 즉시 주는 것은 <b><code>queued</code>(접수)까지</b>다.
+  <b>편의점에 택배를 맡긴 영수증</b>과 같다 — 맡긴 건 확실하지만 <b>배달됐는지는 아직 모른다.</b><br>
+  실제 도달·실패(없는 번호·수신 차단·통신사 거부)는 <b>Twilio가 몇 초~몇 분 뒤 우리 서버로 되알려주는 것</b>(상태 되알림)을 받아야 안다.
+  ⚠️ 전수 검색 결과 <code>status_callback|statusCallback|webhook|delivered</code>가 <b>플랜·스펙 전체에 0건</b>이다.<br>
+  📌 <b>푸시는 필요 없다</b> <span class="rid">SEND-RESULT-03</span> — <code>messaging.send()</code>가 죽은 토큰이면 <b>그 자리에서 예외</b>를 던진다.
+  <b>문자만의 문제</b>다.
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">② 줄이 <b>시간에 따라 변한다</b> <span class="rid">SEND-RESULT-11</span><span class="rid">SEND-RESULT-12</span><span class="rid">SEND-RESULT-13</span></h2>
+<p class="seclead">
+  ⭐ 발송 결과는 <b>한 번에 정해지지 않는다.</b> 도달 통지가 몇 분에 걸쳐 들어오고, 그 사이 자동 재시도도 돈다.
+</p>
+
+<div class="steps">
+  <div class="step">
+    <div class="stephd">발송 직후</div>
+    <div class="stepbd">
+      <b>문자 34건 발송 중</b> <svg class="i" style="color:var(--done)"><use href="#i-retry"/></svg>
+      <p class="hint" style="margin-top:6px">아직 아무 통지도 안 왔다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="stephd">1분 뒤</div>
+    <div class="stepbd">
+      도달 <b>30건</b> · <span style="color:var(--done);font-weight:800">재시도 중 2건</span>
+      <svg class="i" style="color:var(--done)"><use href="#i-retry"/></svg> ·
+      <span style="color:var(--warn);font-weight:800">실패 2건</span>
+      <p class="hint w" style="margin-top:6px">
+        ⭐ <b>무슨 일이 일어나는지 적는다</b> — 그냥 <code>발송 중</code>으로 몇 분 두면 직원이 <i>"왜 안 끝나지"</i> 한다.
+      </p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="stephd">6분 뒤 — 끝</div>
+    <div class="stepbd">
+      도달 <b>32건</b> · <span style="color:var(--warn);font-weight:800">실패 2건</span>
+      <span class="btn" style="margin-left:4px">안 닿은 2명 보기</span>
+      <p class="hint g" style="margin-top:6px">
+        통신사가 붐볐던 2건은 <b>조용히 성공</b>했다 — <b>직원을 방해하지 않는다.</b>
+      </p>
+    </div>
+  </div>
+</div>
+
+<p class="hint" style="margin-top:12px">
+  <b>실패가 0건이면</b> <span class="rid">SEND-RESULT-14</span> — <code>도달 34건</code>만 적는다.
+  ⛔ <code>실패 0건</code>을 적지 않는다 — <b>0을 적으면 눈이 0을 찾게 된다</b>(<code>SHELL-NAV-05</code>·<code>SEND-LIST-02</code>와 같은 태도).
+</p>
+<p class="hint w" style="margin-top:4px">
+  ⚠️ <b>목록 줄의 칸이 여섯 → 일곱이 됐다</b> <span class="rid">SEND-LIST-06</span> —
+  기존 여섯(종류·내용·보낸직원·채널·시각·대상수)이 <b>전부 보내기 전에 정해지는 것</b>이라 <b>결과를 담을 칸이 없었다.</b>
+  📌 <b>목업 73이 이 개정으로 낡았다.</b>
+</p>
+
+<h2 class="sub2">자동 재시도 — <b>일시 실패만</b> <span class="rid">SEND-RETRY-01</span><span class="rid">SEND-RETRY-02</span></h2>
+<p class="seclead">
+  ⭐⭐ <b>실패에 두 종류가 있고, 업체가 오류 코드로 갈라 준다</b> <span class="rid">SEND-RETRY-03</span>.
+</p>
+
+<table class="r">
+  <tr><th style="width:96px">종류</th><th style="width:32%">무엇</th><th>어떻게 다루나</th></tr>
+  <tr>
+    <td class="id">영구 실패</td>
+    <td>없는 번호 · 문자 안 되는 회선(유선·인터넷 번호) · 수신 차단</td>
+    <td>⛔ <b>한 번도 다시 안 보낸다.</b> <b>백 번 보내도 백 번 실패</b>하고 <b>실패해도 건당 요금이 나갈 수 있다.</b>
+      바로 아래 명단으로 간다</td>
+  </tr>
+  <tr>
+    <td class="id">일시 실패</td>
+    <td>통신사 혼잡 · 업체 순간 장애</td>
+    <td>✅ <b>2번까지 자동</b>(1분 뒤 · 5분 뒤). 대개 성공하고 <b>직원은 알 필요가 없다</b></td>
+  </tr>
+  <tr>
+    <td class="id">모르는 코드</td>
+    <td>업체가 안 주거나 처음 보는 값</td>
+    <td>⛔ <b>일시로 보지 않는다</b> — ⭐ <b>모르면 돈을 쓰지 않는다</b></td>
+  </tr>
+</table>
+
+<div class="gap">
+  <b>⭐⭐ 왜 일시 실패만인가</b> <span class="rid">SEND-RETRY-04</span> —
+  <b>일시 실패를 사람에게 들이미는 것은 거짓 경보</b>다. 직원이 <code>실패 2건</code>을 보고 전화했더니 환자가 <i>"문자 받았어요"</i> →
+  <span style="color:#B44E00;font-weight:800">다음부터 그 표시를 안 믿는다.</span>
+  ⭐ <b>한 번 거짓말한 경보는 진짜 경보도 무시된다.</b><br>
+  ⚠️ <b><code>BTN-KILL-07</code>(자동 재시도 금지)과 어긋나지 않는다</b> <span class="rid">SEND-RETRY-05</span> —
+  거기서 금지한 이유는 <i>"멱등성이 없어 <b>예약이 두 건</b> 생긴다"</i>로 <b>결과가 두 배</b>가 되기 때문이다.
+  문자는 <b>환자가 보는 것이 한 통</b>(첫 통은 애초에 안 갔다)이고 두 배가 되는 것은 <b>요금뿐</b>이라
+  <b>횟수를 정해</b> 허용한다.<br>
+  ⛔ <b>사람이 누르는 <code>[다시 보내기]</code>도 두지 않는다</b> <span class="rid">SEND-RETRY-06</span> —
+  영구 실패에 다시 보내면 <b>없는 번호에 또 돈을 낸다.</b> 대신 <b>번호를 고치는 길</b>을 준다.
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">③ <span class="tag new">그릇</span> 안 닿은 명단은 <b>탭</b>으로 가른다 <span class="rid">SEND-FAIL-02</span></h2>
+<p class="seclead">
+  ⭐⭐ <b>할 일이 완전히 다른 두 무리가 섞여 있었다</b> <span class="rid">SEND-FAIL-06</span> —
+  <code>지금 전화</code>는 <b>번호가 살아 있어 전화가 걸리고</b>, <code>번호 고쳐야 함</code>은 <b>번호가 죽어 전화도 안 걸린다.</b>
+</p>
+
+<div class="cmp">
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">㉮</span> 안 가른다</div>
+    <div class="optbd">
+      <div class="mini">
+        <div class="ln"><b>안 닿은 49명</b></div>
+        <div class="ln">이○○ · 수신 차단</div>
+        <div class="ln">박○○ · 없는 번호</div>
+        <div class="ln">정○○ · 없는 번호</div>
+        <div class="ln g" style="text-align:center;color:#9AA9B6">… 46명 더</div>
+      </div>
+    </div>
+    <div class="verdict no">
+      ⛔ <b>진짜 전화할 2명이 47명 속에 묻힌다.</b>
+      ⚠️ 그리고 <b>번호 풀기 버튼이 하나</b>라 2명만 보려 해도 <b>49명이 다 풀린다.</b>
+    </div>
+  </div>
+
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">㉯</span> 구역으로 가른다</div>
+    <div class="optbd">
+      <div class="mini">
+        <div class="ln w"><b>지금 전화 2명</b></div>
+        <div class="ln">이○○ · 수신 차단</div>
+        <div class="ln g" style="margin-top:6px"><b>번호 고쳐야 함 47명</b></div>
+        <div class="ln">박○○ · 없는 번호</div>
+      </div>
+    </div>
+    <div class="verdict no">
+      📌 <b>내가 처음 추천한 안이고, 뒤집혔다.</b> 갈라지긴 하지만
+      <b>건수를 제목에만 적을 수 있어</b> 스크롤하면 안 보이고, <b>47명 구역이 화면을 길게 먹는다.</b>
+    </div>
+  </div>
+
+  <div class="opt win">
+    <div class="opthd"><span class="tag ok">㉰</span> 탭 — <b>이름에 건수</b></div>
+    <div class="optbd">
+      <div class="mini">
+        <div class="tabs"><span class="tb on">지금 전화 2</span><span class="tb">번호 고쳐야 함 47</span></div>
+        <div class="ln">이○○ · 수신 차단</div>
+        <div class="ln">최○○ · 앱 지움+문자 실패</div>
+      </div>
+    </div>
+    <div class="verdict ok">
+      ⭐ <b>안 눌러도 둘 다 몇 건인지 안다</b> <span class="rid">SEND-FAIL-04</span> —
+      <code>SHELL-NAV-05</code>가 사이드바에서 하는 일과 같다.
+      ⭐ <b>번호 풀기가 탭마다 따로</b> 걸린다.
+    </div>
+  </div>
+</div>
+
+<div class="gap">
+  <b>⚠️ 내가 탭을 기각했고, 사용자 근거 한 줄에 뒤집혔다</b><br>
+  내 반대 이유는 <i>"탭은 하나만 보이니 <b>둘 다 있나</b>를 알려면 두 번 눌러야 한다"</i>였다.<br>
+  사용자: <i>"탭으로 가자. <b>그래야 거기에 몇 건인지 표시도 해주지.</b>"</i>
+  ⭐ <b>이름에 숫자가 있으면 안 눌러도 안다</b> — 내 반대 근거가 <b>통째로 사라졌다.</b><br>
+  📌 <b><code>SEND-LIST-04</code>(탭 기각)와 모순이 아니고, 그 사실을 규칙에 박았다</b> <span class="rid">SEND-FAIL-03</span> —
+  거기서 기각한 것은 <b>늘 떠 있는 화면</b>(제1문)이라 <b>0건 탭이 화면을 먹기</b> 때문이고,
+  <b>이 명단은 실패가 있을 때만 열린다</b>(0건이면 애초에 열 일이 없다).
+  ⭐ <b>갈리는 선은 「탭이 늘 떠 있나」</b>다. ⚠️ <b>안 박아두면 다음 사람이 모순으로 읽는다.</b>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">④ 실제 화면 — 탭 둘 <span class="rid">SEND-FAIL-01</span><span class="rid">SEND-FAIL-07</span></h2>
+
+<h2 class="sub2">㉠ <code>지금 전화</code> 탭 — 번호가 살아 있다</h2>
+<div class="app">
+  <div class="stage">
+    <div class="body">
+      <div class="zonehd">
+        <svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg>
+        <span class="t">안 닿은 49명</span>
+        <span class="c">휴진 안내 · 8/8 10:12 발송</span>
+        <span class="sp"></span>
+        <span class="btn q">닫기</span>
+      </div>
+
+      <div class="tabbar">
+        <span class="tab on"><svg class="i"><use href="#i-phone"/></svg>지금 전화<span class="cnt">2</span></span>
+        <span class="tab">번호 고쳐야 함<span class="cnt">47</span></span>
+        <span class="sp"></span>
+      </div>
+      <div class="plist">
+        <div class="zonehd" style="margin:0 0 4px">
+          <span class="sp"></span>
+          <span class="btn">이 2명 전화번호 보기</span>
+        </div>
+        <div class="prow">
+          <span class="nm">이○○</span>
+          <span class="tel">010-3333-****</span>
+          <span class="why">문자 수신 차단</span>
+          <span class="act"><span class="btn q">처리함</span></span>
+        </div>
+        <div class="prow">
+          <span class="nm">최○○</span>
+          <span class="tel">010-4444-****</span>
+          <span class="why">앱을 지웠고 문자도 실패</span>
+          <span class="act"><span class="btn q">처리함</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="hint" style="margin-top:10px">
+  <b>줄의 칸은 셋</b> <span class="rid">SEND-FAIL-07</span> — <b>이름 · 번호 · 왜 안 갔나.</b>
+  <code>없는 번호</code> · <code>문자 수신 차단</code> · <code>앱을 지웠고 문자도 실패</code>
+</p>
+<p class="hint w" style="margin-top:4px">
+  <code>[처리함]</code>을 누르면 <b>사이드바 숫자가 줄어든다</b> <span class="rid">SEND-BADGE-06</span> —
+  ⛔ <b>화면을 열기만 해도 사라지지 않는다.</b> <code>NOTI-READ-*</code>(열면 읽음)와 <b>다르게</b> 다룬다 —
+  <b>여기는 「할 일」이지 소식이 아니다.</b>
+</p>
+
+<h2 class="sub2">㉡ <code>번호 고쳐야 함</code> 탭 — 전화도 안 걸린다</h2>
+<div class="app">
+  <div class="stage">
+    <div class="body">
+      <div class="tabbar">
+        <span class="tab"><svg class="i"><use href="#i-phone"/></svg>지금 전화<span class="cnt">2</span></span>
+        <span class="tab on">번호 고쳐야 함<span class="cnt">47</span></span>
+        <span class="sp"></span>
+      </div>
+      <div class="plist">
+        <div class="zonehd" style="margin:0 0 4px">
+          <span class="sp"></span>
+          <span class="btn">이 47명 전화번호 보기</span>
+        </div>
+        <div class="prow">
+          <span class="nm">박○○</span>
+          <span class="tel">010-2222-****</span>
+          <span class="why">없는 번호</span>
+          <span class="act"><span class="btn"><svg class="i"><use href="#i-edit"/></svg> 환자 열기</span></span>
+        </div>
+        <div class="prow">
+          <span class="nm">한○○</span>
+          <span class="tel">010-5555-****</span>
+          <span class="why">문자를 받을 수 없는 회선</span>
+          <span class="act"><span class="btn"><svg class="i"><use href="#i-edit"/></svg> 환자 열기</span></span>
+        </div>
+        <div class="fold">
+          그중 <b>45명</b>은 지난 발송에서 <b>이미 확인된 번호</b> <span class="lnk">보기 ›</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="hint g" style="margin-top:10px">
+  <b><code>[환자 열기]</code>가 유일한 버튼</b> <span class="rid">SEND-FAIL-08</span> —
+  <code>/patients/:id</code>로 간다. ⛔ <code>[다시 보내기]</code>를 두지 않는다(<code>SEND-RETRY-06</code>).
+  ⭐ <b>번호를 고치는 자리가 거기다</b>(<code>NAV-SHELL-11</code>: <i>"가족 연결 · 전화번호 변경은 환자 상세 안에서 처리한다"</i>).
+</p>
+
+<div class="gap">
+  <b>⭐⭐ 사용자 지적으로 생긴 규칙 — 「이미 확인된 번호」 접어두기</b> <span class="rid">SEND-FAIL-09</span><br>
+  사용자: <i>"그런데 음. ㉮로 하면 <b>매번 실패가 뜨겠네?</b> 그 사람은 계속 안 고쳐지니까."</i><br>
+  ⭐ <b>맞다.</b> 죽은 번호는 안 고쳐지므로 <b>발송할 때마다 같은 47명이 실패 명단에 다시 뜬다.</b>
+  직원은 <b>새 소식이 하나도 없는 47건</b>을 매번 본다.<br>
+  ✅ 그래서 <b>지난 발송에서 이미 실패한 번호는 한 줄로 접는다.</b>
+  ⭐ <b>새 장치가 아니다</b> <span class="rid">SEND-FAIL-10</span> —
+  <code>SEND-LIST-08</code>(자동 발송을 접어두는 것)과 <b>똑같다</b>: <i>"평소에 안 쓰는 것이 화면을 먹지 않게"</i>.
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⑤ 마스킹 — <b>탭마다 따로</b> 푼다 <span class="rid">SEND-FAIL-11</span></h2>
+<p class="seclead">
+  기존 <code>SEND-OPEN-03</code>은 <b>버튼 하나로 3,000개가 다 풀렸다.</b>
+  탭이 갈리면 <b>그 탭 사람들만</b> 풀린다 — 2명만 전화하려는데 47명 번호까지 열 이유가 없다.
+</p>
+
+<div class="cmp" style="grid-template-columns:1fr 1fr">
+  <div class="opt">
+    <div class="opthd">누르기 전 <span class="rid">SEND-OPEN-06</span></div>
+    <div class="optbd">
+      <div class="modal" style="margin:0;box-shadow:none;max-width:none">
+        <div class="modalbd" style="padding-bottom:4px">
+          <svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg>
+          <b>이 2명의 전화번호를 표시합니다.</b><br>
+          <span style="color:var(--warn);font-weight:800">열람 기록이 남습니다.</span>
+        </div>
+        <div class="modalft"><span class="btn q">그만두기</span><span class="btn p">보기</span></div>
+      </div>
+      <p class="hint" style="margin-top:8px">
+        ⛔ <b>되돌릴 수 없는 것은 기록 쪽</b>이다 — <i>"모르고 눌렀다"</i>는 말이 나오지 않게 한다.
+      </p>
+    </div>
+  </div>
+
+  <div class="opt win">
+    <div class="opthd">누른 뒤 — <b>그 탭만</b> 풀린다</div>
+    <div class="optbd">
+      <div class="plist" style="border-radius:7px">
+        <div class="prow">
+          <span class="nm">이○○</span>
+          <span class="tel open">010-3333-1234</span>
+          <span class="why">문자 수신 차단</span>
+        </div>
+        <div class="prow">
+          <span class="nm">최○○</span>
+          <span class="tel open">010-4444-5678</span>
+          <span class="why">앱을 지웠고 문자도 실패</span>
+        </div>
+      </div>
+      <p class="hint w" style="margin-top:8px">
+        <svg class="i" style="color:var(--warn)"><use href="#i-eye"/></svg>
+        <b>기록은 두 곳에</b> <span class="rid">SEND-FAIL-13</span> —
+        ①<b>발송 이력 줄</b> ②<b>열람 기록에 사람 수만큼</b>(<code>SEND-OPEN-07~07g</code> 그대로)
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="gap">
+  <b>⚠️ 내가 또 틀렸고, 사용자가 잡았다 — 없는 번호도 볼 수 있어야 한다</b> <span class="rid">SEND-FAIL-12</span><br>
+  내가 처음 적은 것: <i>"죽은 번호는 <b>전화가 안 걸리니 풀 필요가 없다</b>"</i> → <code>번호 고쳐야 함</code> 탭에는 번호 풀기 버튼을 안 뒀다.<br>
+  사용자: <i>"<b>없는 번호라 해도 번호를 볼 수 있게 해줘야 해. 확인 작업을 위해서는.</b>"</i><br>
+  ⭐ <b>확인 작업을 빼먹었다</b> — ①번호를 고치려면 <b>지금 뭐라 적혀 있는지 봐야</b> 하고
+  ②자릿수·오타는 <b>눈으로 잡는다</b>(<code>010-222-3456</code>처럼 한 자리가 빠진 것).<br>
+  📌 <b>같은 실수를 이 세션에서 두 번 했다</b> — 광고 실패를 <i>"직원이 할 일이 없다"</i>고 넘긴 것도 같은 뿌리다.
+  <b>「행동할 수 없다」가 「확인할 수 없다」는 아니다.</b>
+</div>
+
+<div class="gap">
+  <b>⭐⭐ 덤 — 어제 정한 「3,000줄」이 작아졌다</b> <span class="rid">SEND-FAIL-14</span><span class="rid">SEND-OPEN-07c</span><br>
+  <code>SEND-OPEN-07c</code>는 <i>"3,000줄이 남는 것이 맞다"</i>였다.
+  그런데 <b>실패 명단은 최대 49명</b>이고 <b>탭마다 따로 풀리므로</b> 실제로 남는 줄은 <b>푼 탭의 인원수</b>다.<br>
+  ⭐ <b>원칙은 그대로, 숫자만 작아진다 — 본 만큼만 남는다.</b>
+  📌 <b>목업 73이 이 개정으로도 낡았다</b>(그쪽에 <i>"3,000줄 전수"</i>라고 적혀 있다).
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⑥ 사이드바 숫자 — <b>전화해야 할 건수만</b> <span class="rid">SEND-BADGE-01</span><span class="rid">SEND-BADGE-02</span></h2>
+<p class="seclead">
+  ⭐ <b>새 장치를 만들지 않았다</b> — <code>SHELL-NAV-05</code>(항목 우측 주의색 숫자 · <b>0이면 숫자 자체가 사라진다</b>)를 그대로 쓴다.
+</p>
+
+<div class="cmp" style="grid-template-columns:1fr 1fr">
+  <div class="opt win">
+    <div class="opthd"><span class="tag ok">㉮</span> 꼭 닿아야 하는 것만 센다</div>
+    <div class="optbd">
+      <div class="app" style="border-radius:7px">
+        <div class="stage" style="min-height:0">
+          <div class="nav" style="width:100%">
+            <div class="it">오늘의 현황<span class="n">3</span></div>
+            <div class="it">대기 목록<span class="n">12</span></div>
+            <div class="it">환자 검색</div>
+            <div class="it on"><svg class="i"><use href="#i-send"/></svg>안내 보내기<span class="n">2</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint g" style="margin-top:8px">
+        광고 3,000명을 보낸 <b>직후에도 숫자가 없다</b> — 없는 번호 47건은 <b>목록에만</b> 남는다.
+        ⭐ <b>숫자가 뜨는 것 = 진짜 통화할 일.</b>
+      </p>
+    </div>
+    <div class="verdict ok">
+      ⭐ <b>무엇을 세나</b> — 예약 변경 · 병원 취소 · 전날/당일 알림 · 직원이 보낸 <b>일정 변경 안내</b>.
+      기준은 <b>「모르면 환자가 손해를 보나」</b>(요구사항 4.7 <code>:317</code>).
+    </div>
+  </div>
+
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">㉯</span> 실패를 전부 센다</div>
+    <div class="optbd">
+      <div class="app" style="border-radius:7px">
+        <div class="stage" style="min-height:0">
+          <div class="nav" style="width:100%">
+            <div class="it">오늘의 현황<span class="n">3</span></div>
+            <div class="it">대기 목록<span class="n">12</span></div>
+            <div class="it">환자 검색</div>
+            <div class="it on"><svg class="i"><use href="#i-send"/></svg>안내 보내기<span class="n">49</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint w" style="margin-top:8px">
+        ⚠️ 47건은 <b>광고가 없는 번호로 안 간 것</b>이다.
+      </p>
+    </div>
+    <div class="verdict no">
+      ⛔ <b>진짜 급한 2건이 47건에 묻힌다</b> <span class="rid">SEND-BADGE-04</span>.
+      광고를 보낼 때마다 수십 건이 붙어 <b>숫자가 늘 켜져 있고</b>, 지우려면 <b>없는 번호 47건을 하나씩</b> 눌러야 한다 —
+      <b>끌 수 없는 스위치.</b>
+    </div>
+  </div>
+</div>
+
+<p class="hint w" style="margin-top:12px">
+  ⛔ <b>숫자를 안 두는 안도 기각</b> <span class="rid">SEND-BADGE-05</span> —
+  전체 공지가 안 닿아도 <code>/messages</code>를 열지 않으면 <b>아무도 모른다.</b><br>
+  ⛔ <b>죽은 번호는 세지 않는다</b> <span class="rid">SEND-BADGE-03</span> —
+  ⭐⭐ <b>전화가 안 걸리는 사람을 「전화할 일」로 셀 수 없다.</b> 그 사람은 <b>다음에 병원에 올 때</b> 잡는다.
+</p>
+
+<div class="gap">
+  <b>⭐⭐ 자체 발견 — 두 곳에서 세는 겹침을 잡았다</b> <span class="rid">TODAY-RESCHED-21</span><span class="rid">TODAY-RESCHED-22</span><br>
+  휴진 안내가 안 닿은 환자는 <b><code>/today</code>의 「확인 필요한 예약」 카드에 이미 줄이 있다</b> —
+  <code>TODAY-RESCHED-16</code>이 <i>"안내를 보냈다고 도장이 찍히지 않는다"</i>고 못박아 뒀기 때문이다.<br>
+  ⚠️ 사이드바에 또 세면 직원이 <b>같은 2명을 두 군데서</b> 보고,
+  <code>TODAY-RESCHED-11</code>(<i>"직원이 화면을 하나 더 순찰하게 된다"</i>)이 막으려던 것이 <b>그대로 생긴다.</b><br>
+  ✅ <b>카드에 줄이 있는 것은 숫자에서 뺀다.</b> 숫자로 가는 것은 <b>어느 화면도 그 사람을 잡아주지 않는 실패</b>뿐이다 —
+  개별 예약 변경·취소 안내, 전날/당일 알림.
+</div>
+
+<h2 class="sub2"><code>/today</code> 카드에는 <b>표식</b>이 붙는다 <span class="rid">TODAY-RESCHED-17</span></h2>
+<div class="app">
+  <div class="stage">
+    <div class="body">
+      <div class="zonehd">
+        <svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg>
+        <span class="t" style="color:var(--warn)">확인 필요한 예약</span><span class="c">3건</span>
+      </div>
+      <div class="row">
+        <span class="when" style="text-align:left;width:88px">8/12 14:00</span>
+        <span class="msg"><b>박○○</b> · 내과 김의사 · <span style="color:var(--ink-muted)">8/12 휴진 등록됨</span></span>
+        <span class="res bad">안내 못 함 · 번호 확인 필요</span>
+        <span class="act"><span class="btn">예약 옮기기</span></span>
+      </div>
+      <div class="row">
+        <span class="when" style="text-align:left;width:88px">8/12 15:30</span>
+        <span class="msg"><b>이○○</b> · 내과 김의사 · <span style="color:var(--ink-muted)">8/12 휴진 등록됨</span></span>
+        <span class="res bad">안내 못 함</span>
+        <span class="act"><span class="btn">예약 옮기기</span></span>
+      </div>
+      <div class="row">
+        <span class="when" style="text-align:left;width:88px">8/12 16:00</span>
+        <span class="msg"><b>최○○</b> · 내과 김의사 · <span style="color:var(--ink-muted)">8/12 휴진 등록됨</span></span>
+        <span class="res ok">안내 보냄 10:12</span>
+        <span class="act"><span class="btn">예약 옮기기</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="hint" style="margin-top:10px">
+  ⭐ <b>줄을 새로 만들지 않는다</b> <span class="rid">TODAY-RESCHED-17</span> — 그 환자는 <b>이미 이 카드에 있다.</b>
+  표식 한 칸이 붙는 것뿐이다.
+</p>
+<p class="hint w" style="margin-top:4px">
+  ⚠️ <b>지금까지 아무도 성공 여부를 안 봤다</b> <span class="rid">TODAY-RESCHED-18</span> —
+  <code>TODAY-RESCHED-15</code>가 <b>보낼 문구까지 정해두고도</b> 닿았는지는 규칙 어디에도 없었다.
+  안 닿은 환자가 <b>모르고 그날 온다.</b><br>
+  ⭐ <b>무엇이 달라지나</b> <span class="rid">TODAY-RESCHED-19</span> — 직원이 <i>"먼저 문자를 돌렸으니 급하지 않다"</i>고
+  <b>판단할 수 없게 된다.</b> 이 사람은 <b>전화가 유일한 길</b>이다.<br>
+  ⭐ <b>번호가 죽었으면 문구가 다르다</b> <span class="rid">TODAY-RESCHED-20</span> —
+  <code>안내 못 함 · 번호 확인 필요</code>. ⛔ <b>전화를 걸라고 하지 않는다 — 걸리지 않는다.</b>
+</p>
+
+<hr class="rule">
+
+<h2 class="sec">⑦ 죽은 번호는 <b>환자 화면</b>에 남는다 <span class="rid">SEND-DEAD-01</span></h2>
+<p class="seclead">
+  ⭐ 사용자 지적에서 나온 절이다 — <i>"경고를 어디엔가 보내긴 해야 하지 않나?"</i>
+  나는 <b>광고가 없는 번호로 안 간 것을 「할 일 없음」으로 너무 쉽게 넘겼다.</b>
+  그 환자는 <b>앞으로 휴진 안내도 못 받는다.</b>
+</p>
+
+<div class="pcard">
+  <div class="nm">박○○</div>
+  <div class="meta">여 · 1958-03-12 · 환자번호 P-004821</div>
+  <div class="telrow">
+    <svg class="i" style="color:var(--ink-muted)"><use href="#i-phone"/></svg>
+    010-2222-****
+  </div>
+  <div class="flag">
+    <svg class="i" style="color:var(--warn)"><use href="#i-warn"/></svg>
+    <b>이 번호로 문자가 가지 않습니다</b> (8/8 확인)
+    <div style="margin-top:6px"><span class="btn">번호 고치기</span></div>
+  </div>
+</div>
+
+<p class="hint g" style="margin-top:10px">
+  <b>왜 여기인가</b> <span class="rid">SEND-DEAD-02</span> —
+  ①⭐ <b>고치는 자리에 표시가 붙는다</b>(<code>NAV-SHELL-11</code>: 전화번호 변경은 이 화면에서 한다)
+  ②⭐ <b>보게 되는 때가 딱 맞다</b> — 그 환자가 접수하러 오면 직원이 이 화면을 열고,
+  <b>환자가 눈앞에 있을 때</b> 번호를 물어볼 수 있다.
+</p>
+<p class="hint" style="margin-top:4px">
+  ⭐ <b>사람이 순찰하지 않는다</b> <span class="rid">SEND-DEAD-03</span> —
+  아무도 화면을 더 열어보지 않아도 된다. <b>환자가 병원에 오는 것은 저절로 일어난다.</b><br>
+  <b>표식이 사라지는 때</b> <span class="rid">SEND-DEAD-08</span> — 번호를 고치면 지운다. 또 실패하면 다시 붙는다.
+</p>
+
+<div class="cmp" style="grid-template-columns:1fr 1fr;margin-top:14px">
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">⛔</span> <code>/admin/errors</code>에 모으기 <span class="rid">SEND-DEAD-04</span></div>
+    <div class="optbd">
+      <div class="mini">
+        <div class="ln g"><b>관리자 · 오류 확인</b></div>
+        <div class="ln">죽은 번호 43명</div>
+        <div class="ln">발송 실패 12건</div>
+      </div>
+    </div>
+    <div class="verdict no">
+      ⛔ ①<b>관리자만 보는데 번호를 고치는 사람은 접수직원</b>이다 — <b>아는 사람과 고칠 사람이 갈린다</b>
+      ②<b>그 화면은 껍데기</b>다(규칙 0개·플랜 0건 — 갭 <b>#124</b>)
+      ③<b>관리자가 순찰해야</b> 한다(<code>TODAY-RESCHED-11</code>).
+    </div>
+  </div>
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">⛔</span> 발송 목록에만 <span class="rid">SEND-DEAD-05</span></div>
+    <div class="optbd">
+      <div class="mini">
+        <div class="ln">8/8 광고 · 실패 47건</div>
+        <div class="ln g" style="text-align:center;color:#9AA9B6">…그리고 아무 일도 안 일어난다</div>
+      </div>
+    </div>
+    <div class="verdict no">
+      ⛔ <b>반년 뒤에도 그대로 죽은 번호</b>다. 그때 휴진 안내가 <b>또 안 가고 또 아무도 모른다.</b>
+    </div>
+  </div>
+</div>
+
+<p class="hint w" style="margin-top:12px">
+  ⚠️ <b>알고 고른 약점</b> <span class="rid">SEND-DEAD-06</span> — 그 환자가 <b>다시 오지 않으면 안 고쳐진다.</b>
+  📌 <b>급하지 않다</b> — 병원에 안 오는 환자에게 휴진 안내가 안 가는 것은 문제가 아니다.<br>
+  ⛔ <b>수신 차단에는 표식을 안 붙인다</b> <span class="rid">SEND-DEAD-09</span> —
+  번호가 죽은 것이 아니라 <b>환자의 선택</b>이고 직원이 고칠 것이 없다(<code>SEND-ADS-02</code>와 같은 판단).
+</p>
+
+<hr class="rule">
+
+<h2 class="sec">⑧ ⑦플랜 대조 <span class="tag new">4층</span> — 갭 6건</h2>
+<p class="seclead">
+  ⭐ <b>②층에서 가장 무거운 것이 나왔다</b> — 플레이북이 <i>"②와 ④가 가장 얇아진다"</i>고 경고한 그 층이다.
+</p>
+
+<table class="r">
+  <tr><th style="width:80px">층</th><th style="width:26%">확인한 것</th><th>결과</th></tr>
+  <tr>
+    <td class="id">②서버조회</td>
+    <td>실패한 알림을 <b>다시 보낼 수 있나</b></td>
+    <td>⛔⛔ <b>영구히 못 보낸다 — 갭 #121</b> <span class="rid">SEND-RESULT-06</span><span class="rid">SEND-RESULT-07</span><br>
+      플랜이 <b>①<code>notification_log</code>에 먼저 넣고 → ②그 다음에 보낸다</b>(<code>patient-app.md:3315</code>).
+      실패하면 <code>system_error_log</code>에 한 줄 남기고 끝이라 <b>「보냈다」로 남는다.</b><br>
+      ⚠️⚠️ 게다가 그 표에 <b>「같은 예약·같은 종류는 한 번만」 유니크 인덱스</b>가 걸려 있어(<code>:3258</code>),
+      다시 보내려 하면 <code>on conflict do nothing</code>에 걸려 <b>함수가 조용히 되돌아 나온다</b>(<code>:3319</code>).<br>
+      ⭐ <b>핸드오프가 적어둔 <i>"안 닿은 환자가 그날 온다"</i>가 정확히 이 코드였다.</b><br>
+      ✅ <b>조치</b> <span class="rid">SEND-RESULT-08</span> — 자물쇠를 없애지 않는다(목적은 그대로 필요하다).
+      <b>바꿀 것은 「무엇을 보냈다고 볼 것인가」</b>뿐 — <b>닿은 것만 「보냈다」</b>로 보고
+      <b>상태가 <code>실패</code>인 줄은 자물쇠가 비켜간다.</b></td>
+  </tr>
+  <tr>
+    <td class="id">①DB</td>
+    <td>발송 <b>결과</b>를 담을 칸</td>
+    <td>⛔ <b>없다 — 갭 #119.</b> 칸이 <code>id, appointment_id, patient_id, notification_type, channel, notification_date, sent_at</code>뿐이라
+      <b>성공/실패가 없다.</b> 필요한 것: <b>상태 · 실패 이유(업체 오류 코드) · 재시도 횟수.</b><br>
+      ⛔ <b><code>system_error_log</code>로 보내면 안 된다</b> <span class="rid">SEND-RESULT-10</span> —
+      칸이 <code>시각·기능·메시지</code> 셋뿐이라(<code>00004:9</code>) <b>누구에게 실패했는지 담을 수 없다.</b>
+      지금 플랜이 정확히 그렇게 하고 있다.<br>
+      🔗 <b>#115와 한 몸</b>(발송자·대상 수) — <b>같은 표라 한 마이그레이션에서 함께.</b></td>
+  </tr>
+  <tr>
+    <td class="id">②서버조회</td>
+    <td>문자 <b>도달</b>을 받는 곳</td>
+    <td>⛔ <b>없다 — 갭 #122</b> <span class="rid">SEND-RESULT-02</span>.
+      <code>status_callback|webhook|delivered</code> 전수 <b>0건.</b>
+      필요한 것: ①되알림 받는 <b>공개 주소</b> ②<code>messages.create()</code>에 그 주소 넘기기
+      ③⚠️ <b>서명 검증</b>(아무나 두드려 <i>"도달했다"</i>고 거짓 보고하지 못하게 — 요구사항 6.5 <code>:452</code>와 같은 자리)
+      ④받은 상태를 <code>notification_log</code>에 반영.</td>
+  </tr>
+  <tr>
+    <td class="id">①DB</td>
+    <td><b>채널</b>이 실제와 맞나</td>
+    <td>⛔ <b>거짓말을 한다 — 갭 #120</b> <span class="rid">SEND-RESULT-09</span>.
+      코드가 <code>values ($1,$2,$3,'push')</code>로 <b>상수를 박는데</b> 같은 함수가 <b>토큰이 없으면 문자로 폴백</b>한다
+      (<code>SEND-CH-02</code>가 이름을 붙여준 그 동작).<br>
+      ⚠️ <b>두 곳이 조용히 틀린다</b> — ①<code>SEND-LIST-06</code>의 「채널」 칸
+      ②<code>SEND-CH-04</code>가 약속한 <i>"문자 34건에 비용이 듭니다"</i>를 <b>나중에 대조할 수 없다.</b>
+      ⭐ <b>돈이 나가는 숫자를 검증할 수 없다.</b></td>
+  </tr>
+  <tr>
+    <td class="id">①DB</td>
+    <td><b>죽은 번호</b>를 담을 칸</td>
+    <td>⛔ <b>없다 — 갭 #123</b> <span class="rid">SEND-DEAD-07</span>.
+      <code>patients</code>에 <b>「문자가 안 감」·「언제 확인했나」 두 칸</b>이 필요하다.
+      발송 목록을 뒤져서는 <b>가장 최근 실패가 아직 유효한지</b>를 판정할 수 없다.</td>
+  </tr>
+  <tr>
+    <td class="id">③API·화면</td>
+    <td><code>/admin/errors</code></td>
+    <td>⛔ <b>유령 화면 — 갭 #124.</b> <b>화면 명단에는 있는데</b> 스펙·플랜 <b>0건</b>이고 규칙도 <b>0개</b>다.
+      테이블(<code>system_error_log</code>)과 관리자 RLS 정책까지 있는데 <b>보는 화면을 아무도 만들지 않았다.</b><br>
+      ⚠️ 요구사항 6.4 <code>:446</code>이 <b>명시로 요구</b>한 것이다 —
+      <i>"오류가 발생한 시간과 기능을 관리자가 확인할 수 있어야 합니다."</i><br>
+      🔗 <b>#113의 반대 방향</b> — 그쪽은 <b>명단에 없는 화면</b>, 이쪽은 <b>명단에만 있는 화면</b>이다.</td>
+  </tr>
+  <tr>
+    <td class="id">④다음단계</td>
+    <td>결과를 <b>물려받는 곳</b></td>
+    <td>✅ <b>메웠다</b> <span class="rid">TODAY-RESCHED-17</span>~<span class="rid">TODAY-RESCHED-22</span>.
+      목업 73의 ⑥절이 <i>"안 닿은 환자는 <code>TODAY-RESCHED-*</code>에 「안내 못 함」으로 남아야 하는데 지금은 아무도 안 본다"</i>고
+      열어둔 것이 <b>이번에 닫혔다.</b> ⭐ 그 과정에서 <b>사이드바 숫자와의 겹침</b>도 함께 잡혔다(<code>TODAY-RESCHED-21</code>).</td>
+  </tr>
+</table>
+
+<hr class="rule">
+
+<h2 class="sec">⑨ 이 목업이 쓴 규칙</h2>
+
+<h2 class="sub2">이 목업에서 <b>새로 만든</b> 규칙 (56개)</h2>
+<table class="r">
+  <tr><th style="width:118px">ID</th><th>무엇</th></tr>
+  <tr><td class="id">SEND-RESULT-01~04</td><td><b>진짜 도달까지</b> 본다 · 푸시는 즉시·문자는 되알림 · ⛔「접수」까지만 기각</td></tr>
+  <tr><td class="id">SEND-RESULT-05</td><td>상태 넷 — <code>발송 중 → 도달 / 실패 / 재시도 중</code></td></tr>
+  <tr><td class="id">SEND-RESULT-06~08</td><td>⚠️⚠️ 기록이 발송보다 먼저 · <b>자물쇠가 재발송을 막는다</b> · 조치는 <b>「닿은 것만 보냈다」</b></td></tr>
+  <tr><td class="id">SEND-RESULT-09·10</td><td>채널이 항상 <code>'push'</code> · 실패를 오류 로그로 보내지 않는다</td></tr>
+  <tr><td class="id">SEND-RESULT-11~14</td><td>목록 줄의 표시 3단계 · <b>실패 0건이면 안 적는다</b></td></tr>
+  <tr><td class="id">SEND-RESULT-15</td><td><code>SEND-OPEN-01</code>의 「발송 결과」가 <b>비로소 정의됐다</b></td></tr>
+  <tr><td class="id">SEND-RETRY-01~03</td><td><b>일시 실패만 2번</b>(1분·5분) · 영구는 0번 · <b>모르는 코드는 일시로 안 본다</b></td></tr>
+  <tr><td class="id">SEND-RETRY-04~06</td><td>거짓 경보 논거 · <code>BTN-KILL-07</code>과 다른 이유 · ⛔<code>[다시 보내기]</code> 없음</td></tr>
+  <tr><td class="id">SEND-BADGE-01~03</td><td>사이드바 숫자 = <b>전화할 건수만</b> · 무엇이 그것인가 · ⛔죽은 번호 제외</td></tr>
+  <tr><td class="id">SEND-BADGE-04~06</td><td>⛔전부 세기 기각 · ⛔안 두기 기각 · <b>열기만 해선 안 줄어든다</b></td></tr>
+  <tr><td class="id">SEND-FAIL-01~06</td><td>명단 · <b>탭 + 건수</b> · <code>SEND-LIST-04</code>와 모순 아님 · 0건 탭은 사라짐 · 왜 가르나</td></tr>
+  <tr><td class="id">SEND-FAIL-07·08</td><td>줄의 칸 셋 · <code>[환자 열기]</code>가 유일한 버튼</td></tr>
+  <tr><td class="id">SEND-FAIL-09·10</td><td><b>이미 확인된 번호는 접어둔다</b>(<code>SEND-LIST-08</code>과 같은 장치)</td></tr>
+  <tr><td class="id">SEND-FAIL-11~14</td><td>마스킹은 <b>탭마다 따로</b> · <b>죽은 번호도 풀 수 있다</b> · 기록 두 곳 · 3,000줄→탭 인원수</td></tr>
+  <tr><td class="id">SEND-DEAD-01~03</td><td>환자 상세에 표식 · 왜 거기인가 · <b>사람이 순찰하지 않는다</b></td></tr>
+  <tr><td class="id">SEND-DEAD-04~06</td><td>⛔<code>/admin/errors</code> 기각 · ⛔발송 목록만 기각 · <b>알고 고른 약점</b></td></tr>
+  <tr><td class="id">SEND-DEAD-07~09</td><td><code>patients</code>에 두 칸 필요 · 표식이 사라지는 때 · ⛔수신 차단 제외</td></tr>
+  <tr><td class="id">TODAY-RESCHED-17~20</td><td><code>/today</code> 카드에 <b><code>안내 못 함</code></b> 표식 · 왜 여기 · 무엇이 달라지나 · 죽은 번호일 때</td></tr>
+  <tr><td class="id">TODAY-RESCHED-21·22</td><td>⭐⭐<b>사이드바 숫자에 두 번 세지 않는다</b> · 그럼 무엇이 숫자로 가나</td></tr>
+</table>
+
+<h2 class="sub2">이 목업이 <b>근거로 인용한</b> 기존 규칙</h2>
+<table class="r">
+  <tr><th style="width:118px">ID</th><th>무엇</th></tr>
+  <tr><td class="id">SEND-LIST-06</td><td>줄의 칸 — <b>여섯 → 일곱으로 개정됨</b>(발송 결과 추가)</td></tr>
+  <tr><td class="id">SEND-OPEN-01</td><td>「그 사람의 발송 결과」 — <b>앞당겨 쓴 말이었고 이제 정의됨</b></td></tr>
+  <tr><td class="id">SEND-OPEN-03</td><td>번호 모두 보기 — <b>범위가 탭 단위로 좁아짐</b></td></tr>
+  <tr><td class="id">SEND-OPEN-06</td><td>누르기 전에 <b>기록이 남는다고 먼저 알린다</b></td></tr>
+  <tr><td class="id">SEND-OPEN-07c</td><td>3,000줄 — <b>「푼 탭 인원수」로 개정됨</b></td></tr>
+  <tr><td class="id">SEND-LIST-04</td><td>탭 기각 — <b>여기와 갈리는 선을 규칙에 박았다</b></td></tr>
+  <tr><td class="id">SEND-LIST-08</td><td>자동 발송 접어두기 — <b>「이미 확인된 번호」의 원형</b></td></tr>
+  <tr><td class="id">SEND-LIST-02</td><td>0건이면 구역이 사라진다</td></tr>
+  <tr><td class="id">SEND-CH-02·04</td><td>토큰 없으면 문자 폴백 · 보내기 전 건수와 비용</td></tr>
+  <tr><td class="id">SEND-ADS-01·02</td><td>조용히 줄어드는 것 · 할 수 있는 일이 없으면 안 보여준다</td></tr>
+  <tr><td class="id">SHELL-NAV-05</td><td>주의색 숫자 · <b>0이면 사라진다</b> — 배지와 탭 건수의 원형</td></tr>
+  <tr><td class="id">NAV-SHELL-11</td><td><b>전화번호 변경은 환자 상세에서</b> — <code>SEND-DEAD-01</code>의 자리 근거</td></tr>
+  <tr><td class="id">TODAY-RESCHED-11</td><td><i>"화면을 하나 더 순찰하게 된다"</i> — 겹침·기각의 공통 근거</td></tr>
+  <tr><td class="id">TODAY-RESCHED-15·16</td><td>보낼 문구 · <b>안내를 보냈다고 도장이 찍히지 않는다</b></td></tr>
+  <tr><td class="id">TODAY-RESCHED-13</td><td>먼저 문자를 돌려두는 이유 — <code>TODAY-RESCHED-19</code>가 뒤집는 전제</td></tr>
+  <tr><td class="id">BTN-KILL-07</td><td>앱의 자동 재시도 금지 — <b>다른 이유임을 갈라 적었다</b></td></tr>
+  <tr><td class="id">PICK-MIX-02</td><td>조용히 줄어드는 것을 막아 온 계보</td></tr>
+  <tr><td class="id">HSET-NAV-03</td><td>문자가 꺼진 줄 모른 채 운영하는 사고 — 같은 「조용한 실패」</td></tr>
+  <tr><td class="id">MASK-VIEW-02</td><td>보려면 흔적이 남게</td></tr>
+  <tr><td class="id">ERR-RETRY-01</td><td><code>[다시 시도]</code>를 새로 만들지 않는 태도</td></tr>
+  <tr><td class="id">SCHED-WARN-04</td><td>건수만으로 판단이 끝난다 — <code>SEND-ADS-02</code>와 같은 계열</td></tr>
+</table>
+
+<hr class="rule">
+
+<h2 class="sec">⑩ 이 목업이 남긴 것</h2>
+<p class="hint" style="margin-top:0">
+  ✅ <b>빈칸 없음</b> — 확정 5건으로 이 묶음의 미결이 다 닫혔다.<br>
+  ⚠️ <b>낡은 목업 둘</b> — <b>73</b>(<code>SEND-LIST-06</code> 칸 7개 · <code>SEND-OPEN-07c</code> 개정) ·
+  <b>66</b>(<code>TODAY-RESCHED-17~22</code> 신설).<br>
+  ⚠️ <b>마이그레이션 <code>00010_</code> 대기가 6건</b> — #115·#117·#118·<b>#119</b>·<b>#121</b>·<b>#123</b>.
+  ⭐ <b>#115·#119·#121은 같은 표(<code>notification_log</code>)라 한 파일에서 함께.</b><br>
+  ⚠️ <b>플랜 조치 2건</b> — <b>#120</b>(채널 상수) · <b>#122</b>(되알림 주소 + 서명 검증).<br>
+  ⬜ <b>#124</b>(<code>/admin/errors</code>)는 <b>이 묶음과 별개로 화면 하나가 필요하다</b> — 요구사항 6.4가 명시로 요구했다.
+</p>
+
+</div>
+</body>
+</html>

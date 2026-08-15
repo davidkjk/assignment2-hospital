@@ -1,0 +1,252 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .nb { --teal:#0B6E70; --ink:#10243A; --warn:#B44E00; --done:#67788A;
+        --gray-past:#A3AFB8; --bg:#F2F5F7;
+        font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink); }
+  .nb, .nb * { box-sizing:border-box; text-align:left; }
+
+  .nb h3 { font-size:15px; font-weight:800; margin:0 0 3px; }
+  .nb .cap { font-size:12px; color:#5A6C7B; line-height:1.6; margin:0 0 12px; min-height:34px; }
+  .lane { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; justify-content:center; }
+  .col { width:318px; }
+
+  .ph { width:318px; background:#fff; border:1px solid #D6DDE3; border-radius:14px; overflow:hidden; }
+  .ph .bar { background:var(--teal); color:#fff; padding:11px 14px; font-size:14.5px; font-weight:600;
+             display:flex; align-items:center; justify-content:space-between; }
+  .ph .bar .r { font-size:12px; font-weight:600; opacity:.9; }
+  .ph .in { background:var(--bg); padding:12px; }
+  .ph .foot { background:var(--bg); padding:0 12px 14px; font-size:11px; color:#8A98A4;
+              font-weight:600; text-align:center; }
+
+  .day { font-size:11.5px; font-weight:800; color:var(--done); margin:4px 2px 8px; }
+  .n { display:flex; gap:10px; background:#fff; border-radius:11px; padding:12px;
+       margin-bottom:9px; border-left:4px solid transparent; }
+  .n.unread { border-left-color:var(--teal); }
+  .n.unread.imp { border-left-color:var(--warn); }
+  .n.read { background:#FAFCFC; }
+  .n .ic { width:34px; height:34px; border-radius:9px; background:#EAF2F2; color:var(--teal);
+           display:flex; align-items:center; justify-content:center; flex:none; }
+  .n.imp .ic { background:#FBF0E6; color:var(--warn); }
+  .n.read .ic { background:#EEF2F4; color:var(--gray-past); }
+  .n .ic svg { width:19px; height:19px; fill:currentColor; }
+  .n .b { flex:1; min-width:0; }
+  .n .t { font-size:13px; font-weight:800; line-height:1.45; }
+  .n.imp .t { color:var(--warn); }
+  .n.read .t { color:#6C7B87; font-weight:700; }
+  .n .s { font-size:11.5px; color:#5A6C7B; font-weight:600; line-height:1.55; margin-top:3px; }
+  .n .w { font-size:10.5px; color:#96A3AC; font-weight:600; margin-top:5px;
+          font-variant-numeric:tabular-nums; }
+  .n .go { font-size:11px; font-weight:800; color:var(--teal); margin-top:6px; }
+  .n.read .go { color:#8A98A4; }
+
+  .blank { padding:38px 16px; text-align:center; }
+  .blank svg { width:44px; height:44px; fill:#C3CED6; margin:0 auto 10px; display:block; }
+  .blank .t { font-size:14.5px; font-weight:800; text-align:center; }
+  .blank .s { font-size:12px; color:#5A6C7B; font-weight:600; margin-top:5px; text-align:center; }
+
+  .badge { position:relative; }
+  .badge .dot { position:absolute; top:-4px; right:-7px; background:var(--warn); color:#fff;
+                font-size:9.5px; font-weight:800; border-radius:99px; padding:1px 5px; }
+
+  .why { font-size:11.5px; color:#5A6C7B; line-height:1.7; margin:11px 0 0; }
+  .why b { color:var(--ink); }
+  .note { border-left:4px solid var(--warn); padding:12px 14px; margin:24px auto 0;
+          font-size:12.5px; line-height:1.85; color:#5A6C7B; max-width:820px; }
+  .note b { color:var(--ink); }
+  .map { background:#F4F8F8; border-radius:10px; padding:13px 15px; margin:20px auto 0;
+         font-size:12.5px; line-height:1.9; color:#5A6C7B; max-width:820px; }
+  .map b { color:var(--ink); }
+  .tag { display:inline-block; font-size:9.5px; font-weight:800; color:#fff; background:var(--warn);
+         border-radius:4px; padding:2px 6px; vertical-align:middle; margin-left:5px; }
+</style>
+
+<svg style="display:none">
+  <symbol id="nb-bell" viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 002.5-2.5h-5A2.5 2.5 0 0012 22zm7-6v-5.5c0-3.1-2-5.7-4.9-6.3v-.7a2.1 2.1 0 00-4.2 0v.7C7 4.8 5 7.4 5 10.5V16l-2 2v1h18v-1l-2-2z"/></symbol>
+  <symbol id="nb-cal" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zm0 16H5V10h14v10z"/></symbol>
+  <symbol id="nb-alert" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></symbol>
+  <symbol id="nb-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></symbol>
+  <symbol id="nb-chat" viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zM7 9h10v2H7V9zm6 5H7v-2h6v2zm4-6H7V6h10v2z"/></symbol>
+  <symbol id="nb-check" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></symbol>
+</svg>
+
+<div class="nb">
+
+<h2>알림함 (앱바 종 아이콘)<span class="tag">기능 갭 #22 — 통째로 없던 화면</span></h2>
+<p class="subtitle">
+  플랜에 있는 것은 <b>알림을 보내는 코드</b>(<code>push_notification_service</code>)뿐입니다. <b>받은 알림을 담는 테이블도, 목록 API도, 화면도 없습니다.</b>
+  지금 설계대로면 알림은 <b>잠금화면에 떴다 사라지면 끝</b>이고, 앱을 나중에 켠 사람은 무슨 일이 있었는지 알 방법이 없습니다.
+</p>
+
+<div class="lane">
+
+  <div class="col">
+    <h3>알림함 — 기본</h3>
+    <p class="cap">읽지 않은 알림은 <b>왼쪽 색 바</b>로 구분합니다. 중요(예약 변경·취소)는 주의색, 나머지는 딥틸.</p>
+    <div class="ph">
+      <div class="bar"><span>알림</span></div>
+      <div class="in">
+
+        <div class="day">오늘</div>
+
+        <div class="n unread imp">
+          <div class="ic"><svg><use href="#nb-alert"/></svg></div>
+          <div class="b">
+            <div class="t">병원 사정으로 예약 시간이 변경되었습니다</div>
+            <div class="s">김순자 · 8월 3일 오후 2:30 → <b>오후 4:00</b></div>
+            <div class="w">오전 9:14</div>
+            <div class="go">예약 보기 ›</div>
+          </div>
+        </div>
+
+        <div class="n unread">
+          <div class="ic"><svg><use href="#nb-check"/></svg></div>
+          <div class="b">
+            <div class="t">예약이 확정되었습니다</div>
+            <div class="s">김도윤 · 8월 3일 오후 2:50 · 소아과</div>
+            <div class="w">오전 8:02</div>
+            <div class="go">예약 보기 ›</div>
+          </div>
+        </div>
+
+        <div class="day" style="margin-top:14px">어제</div>
+
+        <div class="n read">
+          <div class="ic"><svg><use href="#nb-doc"/></svg></div>
+          <div class="b">
+            <div class="t">사전문진을 작성해 주세요</div>
+            <div class="s">김하윤 · 진료 전까지 작성하실 수 있습니다</div>
+            <div class="w">7월 31일 오후 6:00</div>
+            <div class="go">사전문진 쓰기 ›</div>
+          </div>
+        </div>
+
+        <div class="n read">
+          <div class="ic"><svg><use href="#nb-chat"/></svg></div>
+          <div class="b">
+            <div class="t">상담 답변이 도착했습니다</div>
+            <div class="s">문의하신 내용에 직원이 답변했습니다</div>
+            <div class="w">7월 31일 오후 3:20</div>
+            <div class="go">상담 보기 ›</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="foot">알림은 30일 동안 보관됩니다</div>
+    </div>
+    <p class="why">
+      <b>읽음/읽지 않음을 색 바로만</b> 가릅니다 — 배경을 통째로 물들이면 <b>주의색 면적 최소 규칙</b>과 부딪히고 목록이 얼룩덜룩해집니다.
+      <br>읽은 알림도 <b>지우지 않습니다.</b> 30일까지 그대로 남습니다.
+      <br>🔄 <b>2026-08-05 정정 — 앱바의 <s>[모두 읽음]</s> 버튼을 없앴습니다</b>(<b>B-11</b>).
+      「<b>알림함을 열면 전부 읽음</b>」으로 확정돼 <b>누를 대상이 남지 않기 때문</b>입니다.
+      <br>⭐ <b>이렇게 단순하게 정할 수 있었던 이유</b>: 놓치면 손해가 나는 알림(병원발 변경·취소)은
+      <b>홈 카드가 <code>[확인]</code>을 받을 때까지 붙잡습니다</b>(<code>CARD-CHG-04</code>). 알림함이 그 부담까지 질 필요가 없습니다.
+      읽음 표시의 목적은 <b>"새로 온 게 있나"</b>이지 개별 추적이 아닙니다.
+      <br>⛔ <b>기각(눌러야 그 알림만 읽음)</b>: 알림이 10개면 배지를 없애려고 <b>10번 누르게</b> 됩니다 —
+      <b>알림을 없애려고 누르는 버튼은 안 읽고 누릅니다.</b> 직원 웹 「오늘의 현황」에서 사용자가 지적해 이미 기각한 패턴과 같습니다.
+    </p>
+  </div>
+
+  <div class="col">
+    <h3>취소 알림 — 갈 곳이 문제였습니다</h3>
+    <p class="cap">예약이 이미 사라졌는데 <b>"예약 보기"로 보낼 수 없습니다.</b></p>
+    <div class="ph">
+      <div class="bar"><span>알림</span></div>
+      <div class="in">
+        <div class="day">오늘</div>
+        <div class="n unread imp">
+          <div class="ic"><svg><use href="#nb-alert"/></svg></div>
+          <div class="b">
+            <div class="t">병원 사정으로 예약이 취소되었습니다</div>
+            <div class="s">김순자 · 7월 20일 오후 2:30 · 정형외과</div>
+            <div class="w">오전 9:14</div>
+            <div class="go">이력에서 보기 ›</div>
+          </div>
+        </div>
+        <div class="n unread">
+          <div class="ic"><svg><use href="#nb-cal"/></svg></div>
+          <div class="b">
+            <div class="t">내일 진료가 예정되어 있습니다</div>
+            <div class="s">김순자 · 8월 3일 오후 2:30 · 내과 이민호 원장</div>
+            <div class="w">오전 8:00</div>
+            <div class="go">예약 보기 ›</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">알림은 30일 동안 보관됩니다</div>
+    </div>
+    <p class="why">
+      ⭐ <b>오늘 확정한 「이력 탭에 취소 줄을 섞는다」가 이 문제를 풉니다.</b> 취소 알림은 <b>이력의 그 줄</b>로 보냅니다.
+      <br>이력이 없었다면 이 알림은 <b>누를 곳이 없는 알림</b>이 됐을 것입니다.
+    </p>
+  </div>
+
+  <div class="col">
+    <h3>비어 있을 때</h3>
+    <p class="cap">빈 화면 <b>한 벌의 문법</b>을 그대로 씁니다.</p>
+    <div class="ph">
+      <div class="bar"><span>알림</span></div>
+      <div class="in">
+        <div class="blank">
+          <svg><use href="#nb-bell"/></svg>
+          <div class="t">받은 알림이 없습니다</div>
+          <div class="s">예약이 확정되거나 변경되면<br>여기에서 알려드립니다</div>
+        </div>
+      </div>
+    </div>
+    <p class="why">
+      <b>`[다시 시도]`가 없습니다</b> — 실패가 아니라 사실입니다(확정된 한 줄 규칙: <i>누를 것이 이미 있으면 만들지 않고, 없으면 만든다</i>. 여기는 <b>할 일이 없는 화면</b>이라 문을 만들지 않습니다).
+      <br>다만 <b>조회 실패·오프라인일 때는</b> 같은 자리에 `[다시 시도]`가 붙습니다(모음판 ③의 한 벌).
+    </p>
+  </div>
+
+  <div class="col">
+    <h3>앱바의 종 아이콘</h3>
+    <p class="cap">읽지 않은 알림이 있을 때만 숫자가 붙습니다.</p>
+    <div class="ph" style="min-height:0">
+      <div class="bar" style="background:#fff;color:var(--ink);border-bottom:1px solid #E0E7EC">
+        <span style="font-size:15px;font-weight:800">김순자님</span>
+        <span style="display:flex;gap:16px;align-items:center">
+          <span class="badge" style="color:var(--teal)">
+            <svg style="width:21px;height:21px;fill:currentColor"><use href="#nb-bell"/></svg>
+            <span class="dot">2</span>
+          </span>
+          <svg style="width:21px;height:21px;fill:#5A6C7B" viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 000-2l2-1.6-2-3.4-2.5 1a7.6 7.6 0 00-1.7-1L14.8 3h-3.9l-.4 2.9c-.6.3-1.2.6-1.7 1l-2.5-1-2 3.4L4.6 11a7.6 7.6 0 000 2l-2 1.6 2 3.4 2.5-1c.5.4 1.1.8 1.7 1l.4 3h3.9l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.4-2.3-1.7zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/></svg>
+        </span>
+      </div>
+      <div class="in" style="color:#8A98A4;font-size:12px;font-weight:600;padding:22px 12px;text-align:center">
+        … 홈 화면 …
+      </div>
+    </div>
+    <p class="why">
+      숫자 배지는 <b>읽지 않은 개수</b>. 0이면 배지가 사라지고 종만 남습니다.
+      <br>설정(톱니)과 나란히 <b>앱바 우상단</b>에 둡니다 — 이미 확정된 배치입니다(햄버거 없음).
+    </p>
+  </div>
+
+</div>
+
+<div class="map">
+  <b>알림 종류 → 눌렀을 때 가는 곳</b><br>
+  · 예약 신청·확정 → <b>예약 상세</b><br>
+  · <b>병원발 변경</b> → 예약 상세 (카드 위 `[확인]` 안내문이 함께 보인다)<br>
+  · <b>병원발 취소</b> → ⭐ <b>이력 탭의 그 줄</b> (예약이 이미 없다 — 오늘 확정한 #23이 이 문을 만들었다)<br>
+  · 사전문진 안내 → <b>사전문진 작성 화면</b><br>
+  · 전날·당일 안내 → <b>예약 상세</b><br>
+  · 상담 답변 → <b>상담방</b><br>
+  · 진료 후 안내 → <b>이력 탭의 그 줄</b>(병원 안내문이 펼쳐진 상태)
+</div>
+
+<div class="note">
+  <b>이 화면이 없으면 생기는 일</b><br>
+  · 잠금화면 알림을 밀어버린 사람은 <b>무슨 일이 있었는지 영영 모른다.</b><br>
+  · 알림을 <b>종류별로 끌 수 있게</b> 설계했으므로(확정), 꺼둔 사람에게는 통로가 하나도 안 남는다.<br>
+  · 특히 <b>병원발 변경·취소</b>는 놓치면 <b>다른 시간에 병원에 간다</b> — 이번 프로젝트에서 실제 손해가 가장 큰 항목이다.
+  <br><br>
+  ⚠️ <b>끈 알림은 알림함에도 남지 않는다</b>(확정). 사용자가 "껐다"고 한 것이 화면 어디에도 안 나타나는 것이 맞다.
+  <br><br>
+  <b>필요한 것</b>: 알림 저장 테이블 + 목록 API + 읽음 처리 + 30일 정리. 발송 시점에 <b>보내는 것과 같은 내용을 한 벌 더 남기면</b> 된다.
+</div>
+
+</div>

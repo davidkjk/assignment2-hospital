@@ -1,0 +1,156 @@
+<!-- ⚠️ 이 파일은 **28번 → 30번으로 대체된 비교 목업**이다(A/B안 검토 기록).
+     그림은 「어떻게 골랐는가」의 기록이므로 **결정이 바뀌어도 고치지 않는다.**
+     현재 확정본과 다른 점 2가지 — 최종본은 30번을 볼 것:
+       ① `받는 방법 / 문자로도 받기` 묶음은 **삭제됐다**(B-41, 2026-08-04) — 문자는 병원이 보내는 것이고 직원 웹 몫(갭 #72)
+       ② 「꼭 받아야 하는 알림(잠김)」의 **잠금은 없앴다**(30번) — 붉은 표시만 남기고 똑같이 끌 수 있다
+     현재 알림 설정은 **2묶음**(예약에 관한 알림 / 그 밖의 알림), `SET-NOTI-04`. -->
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .st { width: 258px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 490px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .st-top { background: #fff; padding: 9px 12px 11px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .st-back { color: #0B6E70; font-weight: 700; }
+  .st-body { flex: 1; padding: 11px; }
+  .st-lab { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: #5A6C7B; margin: 12px 3px 6px; }
+  .st-lab:first-child { margin-top: 2px; }
+  .st-g { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.07); }
+  .st-r { display: flex; align-items: center; gap: 9px; padding: 12px; border-bottom: 1px solid #E6EBEF; font-size: 13px; font-weight: 700; }
+  .st-r:last-child { border-bottom: none; }
+  .st-r .arw { color: #C7D2D8; font-size: 15px; }
+  .st-sub { font-size: 10.5px; color: #5A6C7B; font-weight: 500; margin-top: 2px; }
+  .st-sw { width: 38px; height: 22px; border-radius: 99px; background: #0B6E70; position: relative; flex-shrink: 0; }
+  .st-sw:after { content: ''; position: absolute; right: 2px; top: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; }
+  .st-sw.off { background: #C7D2D8; }
+  .st-sw.off:after { right: 18px; }
+  .st-sw.lock { background: #A9BFC0; }
+  .st-me { background: #fff; border-radius: 12px; padding: 13px 12px; margin-bottom: 3px; }
+  .st-name { font-size: 16px; font-weight: 800; }
+  .st-phone { font-size: 11.5px; color: #5A6C7B; font-weight: 500; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .st-out { text-align: center; padding: 13px; font-size: 13px; font-weight: 800; color: #0B6E70; background: #fff; border-radius: 12px; margin-top: 10px; }
+  .st-del { text-align: center; font-size: 11.5px; font-weight: 700; color: #8A9AA5; margin-top: 14px; text-decoration: underline; }
+  .st-lockic { font-size: 10px; color: #5A6C7B; font-weight: 600; }
+  .st-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .st-cap { font-size: 12px; color: #5A6C7B; margin-top: 9px; line-height: 1.6; max-width: 264px; }
+  .st-cap b { color: #10243A; }
+  .st-dim { position: absolute; inset: 0; }
+  .st-note { background: #fff; border-left: 4px solid #B44E00; border-radius: 0 10px 10px 0; padding: 10px 11px; color: #B44E00; font-weight: 700; font-size: 11px; line-height: 1.55; }
+</style>
+
+<h2>화면 27 — 환자 앱: 설정 (마지막 앱 화면)</h2>
+<p class="subtitle">
+  앱바 우상단 톱니로 들어옵니다. 담을 것은 <b>내 정보 · 알림 · 비밀번호 변경 · 로그아웃 · 회원 탈퇴 · 병원 정보</b>.
+  <b>알림을 어느 수준까지 켜고 끄게 할지</b>가 핵심 결정입니다(요구사항 4.7).
+</p>
+
+<div class="st-row">
+
+  <!-- A -->
+  <div class="card" data-choice="set-simple" onclick="toggleSelect(this)" style="max-width:286px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="st">
+        <div class="st-top"><span class="st-back">‹ 뒤로</span><span>설정</span><span style="width:30px"></span></div>
+        <div class="st-body">
+          <div class="st-me">
+            <div class="st-name">김순자</div>
+            <div class="st-phone">010-1234-5678</div>
+          </div>
+          <div class="st-lab">알림</div>
+          <div class="st-g">
+            <div class="st-r"><div style="flex:1">앱 알림<div class="st-sub">예약 확정, 방문 하루 전 안내 등</div></div><div class="st-sw"></div></div>
+            <div class="st-r"><div style="flex:1">문자 알림<div class="st-sub">앱 알림이 안 될 때 문자로</div></div><div class="st-sw"></div></div>
+          </div>
+          <div class="st-lab">계정</div>
+          <div class="st-g">
+            <div class="st-r"><div style="flex:1">비밀번호 변경</div><span class="arw">›</span></div>
+            <div class="st-r"><div style="flex:1">가족 관리</div><span class="arw">›</span></div>
+          </div>
+          <div class="st-lab">병원</div>
+          <div class="st-g">
+            <div class="st-r"><div style="flex:1">한빛병원<div class="st-sub">02-1234-5678 · 서울시 …</div></div><span class="arw">›</span></div>
+          </div>
+          <div class="st-out">로그아웃</div>
+          <div class="st-del">회원 탈퇴</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 알림은 켜기/끄기 두 개만</h3>
+      <p><b>앱 알림</b>과 <b>문자 알림</b> 스위치 둘. 고를 게 적어 헤맬 일이 없습니다. 단점: "예약 안내는 받고 싶은데 문진 재촉은 그만"처럼 <b>골라서 끌 수가 없습니다</b> — 성가시면 전부 꺼버리게 되고, 그러면 <b>병원이 예약을 취소했을 때도 못 받습니다</b>.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="set-detail" onclick="toggleSelect(this)" style="max-width:286px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="st">
+        <div class="st-top"><span class="st-back">‹ 뒤로</span><span>설정</span><span style="width:30px"></span></div>
+        <div class="st-body">
+          <div class="st-me">
+            <div class="st-name">김순자</div>
+            <div class="st-phone">010-1234-5678</div>
+          </div>
+          <div class="st-lab">꼭 받아야 하는 알림</div>
+          <div class="st-g">
+            <div class="st-r"><div style="flex:1">예약 확정·변경·병원 취소<div class="st-sub">병원 사정으로 일정이 바뀔 때</div></div><div class="st-sw lock"></div></div>
+          </div>
+          <div style="font-size:10px;color:#5A6C7B;font-weight:600;margin:5px 4px 0;line-height:1.55">이 알림은 끌 수 없습니다. 못 받으면 헛걸음하실 수 있습니다.</div>
+          <div class="st-lab">골라서 받는 알림</div>
+          <div class="st-g">
+            <div class="st-r"><div style="flex:1">방문 전날·당일 안내</div><div class="st-sw"></div></div>
+            <div class="st-r"><div style="flex:1">사전문진 작성 안내</div><div class="st-sw"></div></div>
+            <div class="st-r"><div style="flex:1">진료 후 병원 안내</div><div class="st-sw off"></div></div>
+            <div class="st-r"><div style="flex:1">상담 답변 도착</div><div class="st-sw"></div></div>
+          </div>
+          <div class="st-lab">받는 방법</div>
+          <div class="st-g">
+            <div class="st-r"><div style="flex:1">문자로도 받기<div class="st-sub">앱 알림이 안 될 때 문자 발송</div></div><div class="st-sw"></div></div>
+          </div>
+          <div class="st-out">로그아웃</div>
+          <div class="st-del">회원 탈퇴</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 중요 알림은 잠그고, 나머지는 골라서</h3>
+      <p>알림을 <b>두 묶음</b>으로 나눕니다. <b>병원 취소·일정 변경</b>은 못 끄게 잠그고(스위치가 흐린 색), 리마인더·문진 안내 등은 자유롭게 끕니다. 성가신 알림만 골라 끌 수 있으니 <b>전부 꺼버릴 이유가 사라집니다</b>. 단점: 항목이 많아 화면이 길어집니다.</p>
+    </div>
+  </div>
+
+  <!-- C 탈퇴 -->
+  <div style="max-width:286px">
+    <div style="display:flex;justify-content:center;padding:13px;background:#eef2f4;border-radius:12px">
+      <div class="st">
+        <div class="st-top"><span class="st-back">‹ 뒤로</span><span>회원 탈퇴</span><span style="width:30px"></span></div>
+        <div class="st-body">
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.4px;line-height:1.4;margin-bottom:11px">정말 탈퇴하시겠어요?</div>
+          <div class="st-note" style="margin-bottom:11px">
+            다가오는 예약 1건이 있습니다<br>
+            <span style="font-weight:600">8월 3일 (월) 오후 2:30 내과</span><br>
+            <span style="font-weight:600">탈퇴 전에 먼저 취소해 주세요.</span>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:12px;font-size:11.5px;line-height:1.75;font-weight:500;color:#33465A">
+            탈퇴하시면<br>
+            · 앱으로 예약할 수 없습니다<br>
+            · 가족 연결이 모두 해제됩니다<br>
+            · 다시 쓰시려면 새로 가입해야 합니다<br><br>
+            <b style="color:#10243A">병원의 진료기록은 법으로 정해진 기간 동안 병원에 보관됩니다.</b> 앱에서만 보이지 않게 됩니다.
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;padding:0 11px 12px">
+          <div style="flex:1.3;text-align:center;padding:14px 0;border-radius:10px;font-size:13.5px;font-weight:800;border:2px solid #0B6E70;color:#0B6E70">돌아가기</div>
+          <div style="flex:1;text-align:center;padding:14px 0;border-radius:10px;font-size:13.5px;font-weight:800;background:#D8DFE3;color:#fff">탈퇴합니다</div>
+        </div>
+      </div>
+    </div>
+    <p class="st-cap"><b>회원 탈퇴 (공통, 참고)</b><br>가족 연결 해제와 같은 원칙 — <b>다가오는 예약이 있으면 막습니다</b>. 그리고 <b>진료기록은 병원에 남는다</b>는 사실을 분명히 말합니다(법정 보관 의무). 이걸 안 밝히면 "내 기록이 다 지워지는 줄" 알고 탈퇴하게 됩니다. 진입 시 비밀번호 재인증도 걸립니다.</p>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>B(중요 알림은 잠그고, 나머지는 골라서)</b>를 추천합니다. 이유는 알림 설정의 실제 실패 방식 때문입니다.</p>
+  <p style="margin-top:8px">A처럼 스위치가 하나뿐이면, 사용자는 <b>사소한 알림 하나가 성가실 때 전부를 꺼버립니다.</b> 그 순간 <u>"병원 사정으로 예약이 취소되었습니다"</u>도 함께 막힙니다. 환자는 그걸 모른 채 병원에 가고, 헛걸음합니다. 요구사항 4.7이 <b>변경·병원취소 알림을 발송 대상으로 명시</b>하고 있는데, 사용자가 그걸 끌 수 있게 만들면 요구사항이 무력화됩니다.</p>
+  <p style="margin-top:8px">B는 <b>성가신 것만 골라 끌 수 있게</b> 해서 "전부 끄기"의 동기 자체를 없앱니다. 그리고 못 끄는 알림에는 <b>이유를 적어둡니다</b> — "못 받으면 헛걸음하실 수 있습니다". 잠긴 스위치를 이유 없이 두면 사용자는 앱이 고장 났다고 생각합니다.</p>
+  <p style="margin-top:10px"><span class="label">공통 반영</span> ① <b>로그아웃은 평범한 버튼, 회원 탈퇴는 맨 아래 작은 회색 글씨</b> — 되돌릴 수 없는 순서대로 눈에 덜 띄게 둡니다(취소 버튼과 같은 원칙). ② 설정 진입 시 <b>무활동 5분이 지났으면 비밀번호 재인증</b>(스펙 4.1). ③ <b>병원 정보</b>(전화·주소)를 여기에도 둡니다 — 마감 후 취소 안내에서 전화번호를 보여주기로 했으니, 평소에도 찾을 수 있어야 합니다.</p>
+</div>

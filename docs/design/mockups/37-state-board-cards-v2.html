@@ -1,0 +1,327 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .sb { --teal:#0B6E70; --ink:#10243A; --warn:#B44E00; --done:#67788A;
+        --gray-live:#7E8E99; --gray-past:#A3AFB8; --bg:#F2F5F7;
+        font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink); }
+  .sb, .sb * { box-sizing:border-box; text-align:left; }
+
+  .sb-grid { display:flex; flex-wrap:wrap; gap:22px; justify-content:center; align-items:flex-start; }
+  .sb-cell { width:250px; }
+  .sb-n { font-size:12px; font-weight:800; color:#fff; background:var(--ink); width:20px; height:20px;
+          border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-right:6px; }
+  .sb-t { font-size:14px; font-weight:800; margin:0 0 3px; display:flex; align-items:center; }
+  .sb-st { font-size:11px; color:var(--done); font-weight:600; margin:0 0 9px 26px;
+           font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .fix { display:inline-block; font-size:9.5px; font-weight:800; color:#fff; background:var(--teal);
+         border-radius:4px; padding:2px 5px; margin-left:5px; vertical-align:middle; }
+
+  .c { background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(16,36,58,.13); }
+  .c-head { padding:11px 12px; background:var(--teal); color:#fff; }
+  .c-head.live { background:var(--gray-live); }
+  .c-head.past { background:var(--gray-past); }
+  .c-badge { display:inline-block; font-size:9.5px; font-weight:800; padding:3px 8px; border-radius:99px;
+             background:rgba(255,255,255,.24); color:#fff; margin-bottom:4px; }
+  .c-when { font-size:18px; font-weight:800; letter-spacing:-.4px; font-variant-numeric:tabular-nums; }
+  .c-who { font-size:11px; margin-top:2px; font-weight:500; opacity:.93; }
+  .c-r { display:flex; padding:8px 12px; border-bottom:1px solid #E6EBEF; font-size:11.5px; }
+  .c-l { color:#5A6C7B; width:52px; flex-shrink:0; font-weight:500; }
+  .c-v { flex:1; font-weight:700; }
+
+  /* ① 가운데 영역 — 높이 고정 (QR·문장·대기현황이 같은 상자를 쓴다) */
+  .c-mid { height:132px; padding:11px 12px; border-bottom:1px solid #E6EBEF;
+           display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  /* .sb * 의 text-align:left 가 자식에 직접 걸리므로 가운데 정렬을 각 줄에 명시한다 */
+  .c-mid, .c-mid .c-code, .c-mid .c-hint, .c-mid .c-sub, .c-mid .c-cap { text-align:center; }
+  .c-mid.slot { padding:11px; }
+  .c-qr { width:70px; height:70px; margin-bottom:6px;
+          background:repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/12px 12px; }
+  .c-code { font-size:14px; font-weight:800; letter-spacing:1.5px; font-variant-numeric:tabular-nums; }
+  .c-hint { font-size:10.5px; color:#5A6C7B; font-weight:600; margin-top:3px; }
+  .c-slotbox { width:100%; height:100%; border:1.5px dashed #C7D2D8; border-radius:10px;
+               display:flex; align-items:center; justify-content:center; text-align:center;
+               font-size:10.5px; color:#5A6C7B; font-weight:600; line-height:1.55; padding:8px; }
+  .c-big { font-size:20px; font-weight:800; letter-spacing:-.5px; color:var(--teal);
+           display:flex; align-items:center; gap:5px; }
+  .c-sub { font-size:12.5px; font-weight:700; margin-top:5px; }
+  .c-cap { font-size:10px; color:#5A6C7B; font-weight:500; margin-top:5px; }
+
+  .c-btns { display:flex; gap:7px; padding:10px 11px 12px; }
+  .c-b { flex:1; text-align:center; padding:11px 0; border-radius:9px; font-size:12.5px; font-weight:800; }
+  .c-out { border:2px solid var(--teal); color:var(--teal); }
+  .c-gray { border:2px solid #C7D2D8; color:#5A6C7B; }
+  .c-fill { background:var(--teal); color:#fff; }
+
+  .c-q { display:flex; align-items:center; gap:6px; padding:9px 12px; font-size:11px; font-weight:700;
+         border-top:1px solid #E6EBEF; }
+  .c-q.todo { color:var(--warn); }
+  .c-q.done { color:var(--done); }
+
+  /* 카드 안쪽 주의 한 줄 — 배경 없이 글자 + 좌측 4px 바 (전면 상태 배너가 아니므로 예외 대상 아님) */
+  .c-warn { border-top:1px solid #E6EBEF; border-left:4px solid var(--warn);
+            padding:9px 12px; font-size:11.5px; font-weight:800; color:var(--warn); line-height:1.55; }
+  .c-warn span { display:block; font-weight:600; font-size:11px; margin-top:2px; }
+
+  .c-note { background:#fff; border-left:4px solid var(--warn); border-radius:10px 10px 0 0;
+            padding:10px 11px; font-size:11px; font-weight:600; line-height:1.55; color:var(--warn);
+            display:flex; gap:7px; align-items:flex-start;
+            box-shadow:0 1px 3px rgba(16,36,58,.13); border-bottom:1px solid #F0E4DA; }
+  .c-note .txt { flex:1; }
+  .c-chg { display:block; font-size:13px; font-weight:800; color:var(--ink);
+           font-variant-numeric:tabular-nums; margin:5px 0 7px; }
+  .c-chg s { color:#8A98A4; font-weight:600; }
+  .c-ok { display:block; border:2px solid var(--warn); color:var(--warn); border-radius:8px;
+          padding:7px 0; text-align:center; font-size:12px; font-weight:800; }
+  .c-stack .c { border-radius:0 0 12px 12px; }
+
+  .ic { width:14px; height:14px; flex-shrink:0; fill:currentColor; }
+  .ic-l { width:17px; height:17px; }
+
+  .sb-note { font-size:11.5px; color:#5A6C7B; line-height:1.6; margin:8px 0 0 26px; }
+  .sb-note b { color:var(--ink); }
+  .sb-var { border-left:3px solid #DCE4E8; padding-left:9px; margin:8px 0 0 26px;
+            font-size:11px; color:#5A6C7B; line-height:1.75; }
+  .sb-var b { color:var(--ink); font-weight:700; }
+  .sb-life { margin:8px 0 0 26px; font-size:11px; line-height:1.65; border-left:3px solid var(--teal);
+             padding-left:9px; color:#5A6C7B; }
+  .sb-life b { color:var(--ink); }
+  .swatch { display:inline-block; width:11px; height:11px; border-radius:3px; vertical-align:-1px; margin-right:3px; }
+</style>
+
+<svg style="display:none">
+  <symbol id="v2-clock" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 10.6V6h-2v7.4l5 3 1-1.7-4-2.1z"/></symbol>
+  <symbol id="v2-check" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></symbol>
+  <symbol id="v2-alert" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></symbol>
+  <symbol id="v2-people" viewBox="0 0 24 24"><path d="M16 11c1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3 1.3 3 3 3zm-8 0c1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3 1.3 3 3 3zm0 2c-2.3 0-7 1.2-7 3.5V19h14v-2.5C15 14.2 10.3 13 8 13zm8 0c-.3 0-.6 0-1 .1 1.2.8 2 1.9 2 3.4V19h6v-2.5c0-2.3-4.7-3.5-7-3.5z"/></symbol>
+  <symbol id="v2-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></symbol>
+  <symbol id="v2-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></symbol>
+</svg>
+
+<div class="sb">
+
+<h2>상태 모음판 ① v2 — 홈 예약 카드 9종 (수정 반영)</h2>
+<p class="subtitle">
+  ①~④ 지적을 모두 반영했습니다. <b class="fix">고침</b> 표시가 붙은 곳이 v1에서 달라진 부분입니다.
+  <b>9번</b>은 2026-08-01 밤에 확정한 <b>예약 부도</b> 결정으로 새로 들어온 카드입니다.
+  <br>
+  <span class="swatch" style="background:#0B6E70"></span><b>딥틸</b> 진행 중 &nbsp;
+  <span class="swatch" style="background:#7E8E99"></span><b>진한 회색</b> 아직 안 된 일(앞으로 옴) &nbsp;
+  <span class="swatch" style="background:#A3AFB8"></span><b>옅은 회색</b> 이미 끝난 일(지나감)
+</p>
+
+<div class="sb-grid">
+
+  <!-- 1 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">1</span>예약 신청 — 확인 중<span class="fix">회색 진하게</span></p>
+    <p class="sb-st">예약신청</p>
+    <div class="c">
+      <div class="c-head live">
+        <span class="c-badge">확인 중</span>
+        <div class="c-when">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · <b>신청번호</b> A-2413</div>
+      </div>
+      <div class="c-r"><span class="c-l">진료과</span><span class="c-v">내과 · 이민호 원장</span></div>
+      <div class="c-mid slot"><div class="c-slotbox">확정되면 여기에<br>접수용 QR이 나타납니다</div></div>
+      <div class="c-q todo"><svg class="ic"><use href="#v2-doc"/></svg>사전문진 미작성 · 작성하기 ›</div>
+      <div class="c-btns"><div class="c-b c-out">시간 변경</div><div class="c-b c-gray">신청 취소</div></div>
+    </div>
+    <p class="sb-note"><b>진한 회색</b> = 아직 안 된 일. 6·7번의 옅은 회색과 갈라 <b>시간 방향</b>을 표현합니다.</p>
+  </div>
+
+  <!-- 2 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">2</span>예약 확정</p>
+    <p class="sb-st">예약확정 — 가운데 영역의 기준 높이</p>
+    <div class="c">
+      <div class="c-head">
+        <span class="c-badge">확정됨</span>
+        <div class="c-when">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · 예약번호 A-2413</div>
+      </div>
+      <div class="c-r"><span class="c-l">진료과</span><span class="c-v">내과 · 이민호 원장</span></div>
+      <div class="c-mid">
+        <div class="c-qr"></div>
+        <div class="c-code">A-2413</div>
+      </div>
+      <div class="c-q done"><svg class="ic"><use href="#v2-doc"/></svg>사전문진 작성완료 · 수정하기 ›</div>
+      <div class="c-btns"><div class="c-b c-out">시간 변경</div><div class="c-b c-gray">예약 취소</div></div>
+    </div>
+    <p class="sb-note">이 QR 상자의 높이(<b>132px</b>)가 3·4·5번의 기준이 됩니다.</p>
+  </div>
+
+  <!-- 3 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">3</span>접수 완료<span class="fix">높이 고정</span></p>
+    <p class="sb-st">도착</p>
+    <div class="c">
+      <div class="c-head">
+        <span class="c-badge">접수됨</span>
+        <div class="c-when">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · 내과 이민호 원장</div>
+      </div>
+      <div class="c-r"><span class="c-l">진료과</span><span class="c-v">내과 · 이민호 원장</span></div>
+      <div class="c-mid">
+        <div class="c-big"><svg class="ic" style="width:19px;height:19px"><use href="#v2-check"/></svg>접수되었습니다</div>
+        <div class="c-sub">순서를 준비 중입니다</div>
+      </div>
+      <div class="c-q todo"><svg class="ic"><use href="#v2-doc"/></svg>사전문진 미작성 · 작성하기 ›</div>
+    </div>
+    <p class="sb-note">QR 상자를 <b>그대로 이어받습니다</b>. 카드 크기가 변하지 않아 접수 전후로 화면이 흔들리지 않습니다.</p>
+  </div>
+
+  <!-- 4 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">4</span>진료 대기<span class="fix">높이 고정</span></p>
+    <p class="sb-st">진료대기 — 기능 갭 #21</p>
+    <div class="c">
+      <div class="c-head">
+        <span class="c-badge">대기 중</span>
+        <div class="c-when">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · 내과 이민호 원장</div>
+      </div>
+      <div class="c-r"><span class="c-l">진료과</span><span class="c-v">내과 · 이민호 원장</span></div>
+      <div class="c-mid">
+        <div class="c-big"><svg class="ic" style="width:17px;height:17px"><use href="#v2-people"/></svg>내 앞에 3명</div>
+        <div class="c-sub">예상 대기시간 약 25분</div>
+        <div class="c-cap">예상 대기시간은 변동될 수 있습니다</div>
+      </div>
+      <div class="c-q todo"><svg class="ic"><use href="#v2-doc"/></svg>사전문진 미작성 · 작성하기 ›</div>
+    </div>
+    <p class="sb-note">세 줄이 들어가도 <b>같은 높이</b>입니다. 숫자가 없을 때(근거 데이터 부족)는 가운데 문장만 남습니다.</p>
+  </div>
+
+  <!-- 5 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">5</span>진료 중<span class="fix">높이 고정</span></p>
+    <p class="sb-st">진료중</p>
+    <div class="c">
+      <div class="c-head">
+        <span class="c-badge">진료 중</span>
+        <div class="c-when">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · 내과 이민호 원장</div>
+      </div>
+      <div class="c-r"><span class="c-l">진료과</span><span class="c-v">내과 · 이민호 원장</span></div>
+      <div class="c-mid">
+        <div class="c-big"><svg class="ic" style="width:12px;height:12px"><use href="#v2-dot"/></svg>진료 중입니다</div>
+      </div>
+      <div class="c-q done"><svg class="ic"><use href="#v2-doc"/></svg>진료가 시작되어 수정할 수 없습니다 · 내용 보기 ›</div>
+    </div>
+    <p class="sb-note">보는 사람은 <b>대기실의 보호자</b>. 문진 줄은 여기서 <b>읽기 전용</b>이 되지만 사라지지 않습니다.</p>
+  </div>
+
+  <!-- 6 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">6</span>진료 완료<span class="fix">문진 줄 복구</span></p>
+    <p class="sb-st">진료완료 — 당일 자정까지</p>
+    <div class="c">
+      <div class="c-head past">
+        <span class="c-badge">완료</span>
+        <div class="c-when">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · 내과 이민호 원장</div>
+      </div>
+      <div class="c-mid">
+        <div class="c-big" style="color:var(--done)"><svg class="ic" style="width:19px;height:19px"><use href="#v2-check"/></svg>진료가 끝났습니다</div>
+      </div>
+      <div class="c-q done"><svg class="ic"><use href="#v2-doc"/></svg>내가 작성한 사전문진 보기 ›</div>
+      <div class="c-btns"><div class="c-b c-out">방문 이력 보기</div></div>
+    </div>
+    <p class="sb-note">v1에서 <b>문진 줄을 빠뜨린 것은 실수</b>였습니다(확정 결정 위반). 진료 후에 "내가 뭐라고 썼더라"를 보는 것이 오히려 자연스럽습니다.</p>
+  </div>
+
+  <!-- 7 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">7</span>취소됨<span class="fix">수명 규칙 신설</span></p>
+    <p class="sb-st">환자취소 · 병원취소</p>
+    <div class="c">
+      <div class="c-head past">
+        <span class="c-badge">취소됨</span>
+        <div class="c-when" style="text-decoration:line-through;opacity:.8">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · 내과 이민호 원장</div>
+      </div>
+      <div class="c-r"><span class="c-l">취소</span><span class="c-v">8월 1일 오후 3:12 · <b>병원에서 취소했습니다</b></span></div>
+      <div class="c-btns"><div class="c-b c-fill">새로 예약하기</div></div>
+    </div>
+    <div class="sb-var">
+      <b>누가 했는지에 따라 세 갈래</b><br>
+      · <b>병원에서</b> 취소했습니다 — 병원에 문의<br>
+      · <b>배우자 김영수 님</b>이 취소했습니다 — 가족에게 확인<br>
+      · <b>취소하셨습니다</b> — 설명 불필요
+    </div>
+    <div class="sb-life">
+      <b>카드가 남는 기간(신설)</b><br>
+      · 본인·가족이 취소 → <b>당일 자정까지</b>(이미 안다)<br>
+      · <b>병원</b>이 취소 → <b>[확인]을 누를 때까지</b>(모른다)
+    </div>
+    <p class="sb-note">문진 줄은 없습니다(예약 자체가 없어짐). 대신 <b>이력 탭</b>에 회색 줄로 남고 거기서 문진도 볼 수 있습니다 → 다음 그림.</p>
+  </div>
+
+  <!-- 8 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">8</span>병원 사정으로 변경됨<span class="fix">카드에 붙임</span></p>
+    <p class="sb-st">예약확정 + 시각 변경</p>
+    <div class="c-stack">
+      <div class="c-note"><svg class="ic ic-l"><use href="#v2-alert"/></svg>
+        <span class="txt">병원 사정으로 시간이 변경되었습니다
+          <span class="c-chg"><s>오후 2:30</s> → 오후 4:00</span>
+          <span class="c-ok">확인</span>
+        </span></div>
+      <div class="c">
+        <div class="c-head">
+          <span class="c-badge">확정됨</span>
+          <div class="c-when">8월 3일 (월) 오후 4:00</div>
+          <div class="c-who">김순자 · 예약번호 A-2413</div>
+        </div>
+        <div class="c-r"><span class="c-l">진료과</span><span class="c-v">내과 · 이민호 원장</span></div>
+        <div class="c-mid">
+          <div class="c-qr"></div>
+          <div class="c-code">A-2413</div>
+        </div>
+        <div class="c-btns"><div class="c-b c-out">시간 변경</div><div class="c-b c-gray">예약 취소</div></div>
+      </div>
+    </div>
+    <p class="sb-note">v1에서는 안내문이 <b>떠 있어</b> 별개로 보였습니다. 카드와 <b>한 덩어리</b>로 붙여 "이 카드 이야기"임을 분명히 했습니다. 위치를 화면 맨 위로 올리지 않는 이유는 <b>가족 예약이 여럿일 때 어느 것이 바뀌었는지</b> 알 수 없기 때문입니다.</p>
+  </div>
+
+  <!-- 9 -->
+  <div class="sb-cell">
+    <p class="sb-t"><span class="sb-n">9</span>시간이 지났는데 접수가 안 됨<span class="fix">신설</span></p>
+    <p class="sb-st">예약확정 (아직 부도 아님) — <b>예약 시각 + 30분</b>부터 당일 자정까지</p>
+    <div class="c">
+      <div class="c-head past">
+        <span class="c-badge">시간 지남</span>
+        <div class="c-when">8월 3일 (월) 오후 2:30</div>
+        <div class="c-who">김순자 · 예약번호 A-2413</div>
+      </div>
+      <div class="c-r"><span class="c-l">진료과</span><span class="c-v">내과 · 이민호 원장</span></div>
+      <div class="c-mid">
+        <div class="c-qr"></div>
+        <div class="c-code">A-2413</div>
+      </div>
+      <div class="c-warn">예약 시간이 지났습니다
+        <span>병원에 연락해 주세요</span></div>
+      <div class="c-btns"><div class="c-b c-out">상담 채팅 연결</div><div class="c-b c-out">병원 전화</div></div>
+    </div>
+    <p class="sb-note">⭐ <b>QR을 살려 둡니다.</b> 부도 처리를 <b>그날 마감(자정)에</b> 하기로 정해, 그날 안에는 상태가 <b>예약확정 그대로</b>입니다. 되돌리기 전이도 예약번호 복구도 만들 필요가 없습니다.<br>
+      다만 <b>받아줄지 말지는 병원이 정합니다.</b> QR은 <b>받아주는 병원·조금 늦은 경우를 위해 접수 수단을 죽이지 않는 것</b>일 뿐, "오늘 안엔 갈 수 있다"는 보장이 아닙니다.</p>
+    <div class="sb-var">
+      <b>쓰지 않는 말</b><br>
+      · <b>안 오셨습니다</b> — 책망으로 읽히고, <b>실제로 왔는데 접수가 확인 안 된 경우</b>가 있어 사실이 아닐 수 있습니다<br>
+      · <b>예약 부도</b> — 병원 내부 상태 이름을 환자 화면에 쓰지 않습니다<br>
+      · <b>오늘 안에 오시면 됩니다</b>류 — <b>앱이 병원 대신 하는 약속</b>입니다. 받아줄지는 병원 재량이라 헛걸음을 앱이 만들게 됩니다. <b>조율은 전화로</b> 하게 두고 앱은 문만 열어 둡니다
+    </div>
+    <div class="sb-life">
+      <b>카드가 남는 기간</b><br>
+      · 🔄 <b>예약 시각 + 30분부터</b> 이 모습이 됩니다(<b>B-13</b>, 2026-08-05 반영) — 정시가 아닙니다<br>
+      · <b>당일 자정까지</b> → 그 뒤 카드는 사라지고 <b>이력 탭에 회색 줄</b>로 남습니다(다음 그림)<br>
+      ⭐ <b>30분 유예를 둔 이유</b>: 예전 규칙은 조건이 <i>"예약 시각이 지났고"</i>뿐이라
+      <b>2시 30분 예약이 2시 30분 00초에</b> 회색으로 변하고 <code>병원에 연락해 주세요</code>가 떴습니다.
+      그런데 <b>그 시각 이 화면을 보는 사람은 대부분 이미 병원에 와서 접수 줄에 서 있는 사람</b>입니다 —
+      <b>창구 앞에 선 사람이 병원에 전화를 겁니다.</b> 앱이 만든 헛수고이자 접수 업무 방해입니다.
+    </div>
+  </div>
+
+</div>
+
+</div>

@@ -1,0 +1,172 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .hs { width: 258px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 480px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .hs-top { background: #fff; padding: 9px 12px 0; }
+  .hs-title { font-size: 14px; font-weight: 800; }
+  .hs-tabs { display: flex; gap: 5px; padding: 10px 0 9px; }
+  .hs-tab { font-size: 11.5px; font-weight: 700; padding: 7px 12px; border-radius: 99px; background: #EEF2F4; color: #5A6C7B; }
+  .hs-tab.on { background: #0B6E70; color: #fff; font-weight: 800; }
+  .hs-body { flex: 1; padding: 11px; }
+  .hs-card { background: #fff; border-radius: 12px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(16,36,58,.08); overflow: hidden; }
+  .hs-rail { background: #0B6E70; color: #fff; width: 62px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 11px 0; }
+  .hs-y { font-size: 9px; opacity: .85; font-weight: 700; }
+  .hs-d { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
+  .hs-flex { display: flex; }
+  .hs-mid { flex: 1; padding: 10px 11px; }
+  .hs-dept { font-size: 14px; font-weight: 800; }
+  .hs-doc { font-size: 11px; color: #5A6C7B; font-weight: 500; margin-top: 2px; }
+  .hs-guide { border-top: 1px solid #E6EBEF; padding: 10px 11px; font-size: 11.5px; line-height: 1.65; font-weight: 500; color: #33465A; }
+  .hs-glab { font-size: 9.5px; font-weight: 800; color: #0B6E70; letter-spacing: .3px; margin-bottom: 4px; }
+  .hs-more { font-size: 11px; font-weight: 800; color: #0B6E70; padding: 9px 11px; border-top: 1px solid #E6EBEF; }
+  .hs-year { font-size: 11px; font-weight: 800; color: #5A6C7B; margin: 4px 2px 7px; }
+  .hs-none { font-size: 10.5px; color: #A9B6BF; font-weight: 500; }
+  .hs-tl { padding: 11px; }
+  .hs-tlrow { display: flex; gap: 10px; }
+  .hs-tlcol { display: flex; flex-direction: column; align-items: center; width: 12px; flex-shrink: 0; }
+  .hs-dot { width: 11px; height: 11px; border-radius: 50%; background: #0B6E70; margin-top: 4px; }
+  .hs-line { width: 2px; flex: 1; background: #DCE4E8; }
+  .hs-tlbox { flex: 1; background: #fff; border-radius: 11px; padding: 10px 11px; margin-bottom: 9px; }
+  .hs-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .hs-note { background: #fff; border-left: 4px solid #B44E00; border-radius: 0 10px 10px 0; padding: 9px 10px; color: #B44E00; font-weight: 700; font-size: 10.5px; line-height: 1.55; }
+</style>
+
+<h2>화면 26 — 환자 앱: 방문 이력 (요구사항 4.6)</h2>
+<p class="subtitle">
+  과거 <b>방문일·진료과·담당의사</b>와 <b>병원이 공개한 방문 후 안내</b>만 보입니다.
+  의사가 쓴 내부 진료기록(증상·진단·처치)은 <b>절대 노출되지 않습니다</b> — 1단계에서 아예 다른 칸으로 분리해 뒀습니다.
+  가족 이력도 같은 규칙으로 볼 수 있습니다.
+</p>
+
+<div class="hs-row">
+
+  <!-- A -->
+  <div class="card" data-choice="hist-list" onclick="toggleSelect(this)" style="max-width:286px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="hs">
+        <div class="hs-top">
+          <div class="hs-title">방문 이력</div>
+          <div class="hs-tabs"><span class="hs-tab on">김순자</span><span class="hs-tab">김도윤</span><span class="hs-tab">김하윤</span></div>
+        </div>
+        <div class="hs-body">
+          <div class="hs-year">2026년</div>
+          <div class="hs-card">
+            <div class="hs-flex">
+              <div class="hs-rail"><div class="hs-y">2026</div><div class="hs-d">7.14</div></div>
+              <div class="hs-mid"><div class="hs-dept">내과</div><div class="hs-doc">이민호 원장</div></div>
+            </div>
+            <div class="hs-guide">
+              <div class="hs-glab">병원 안내</div>
+              감기 증상이 남아 있으면 3일 뒤 다시 오세요. 물을 자주 드시고 충분히 쉬시기 바랍니다.
+            </div>
+          </div>
+          <div class="hs-card">
+            <div class="hs-flex">
+              <div class="hs-rail"><div class="hs-y">2026</div><div class="hs-d">5.02</div></div>
+              <div class="hs-mid"><div class="hs-dept">정형외과</div><div class="hs-doc">박서준 원장</div></div>
+            </div>
+            <div class="hs-guide"><div class="hs-glab">병원 안내</div>무릎에 무리가 가는 운동은 2주간 피해 주세요.</div>
+          </div>
+          <div class="hs-year">2025년</div>
+          <div class="hs-card">
+            <div class="hs-flex">
+              <div class="hs-rail" style="background:#7E8E99"><div class="hs-y">2025</div><div class="hs-d">11.20</div></div>
+              <div class="hs-mid"><div class="hs-dept">내과</div><div class="hs-doc">이민호 원장</div><div class="hs-none" style="margin-top:3px">안내 없음</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 목록형 · 안내문을 카드 안에 펼쳐서</h3>
+      <p>홈과 같은 <b>레일 구조</b>(왼쪽에 날짜)를 그대로 씁니다. <b>안내문이 목록에서 바로 읽힙니다</b> — 한 번 더 눌러 들어갈 필요가 없습니다. 위쪽 이름 탭으로 가족 이력 전환. 안내가 없는 방문은 레일이 회색이 되고 "안내 없음"으로 표시됩니다.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="hist-tl" onclick="toggleSelect(this)" style="max-width:286px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="hs">
+        <div class="hs-top">
+          <div class="hs-title">방문 이력</div>
+          <div class="hs-tabs"><span class="hs-tab on">김순자</span><span class="hs-tab">김도윤</span><span class="hs-tab">김하윤</span></div>
+        </div>
+        <div class="hs-body hs-tl">
+          <div class="hs-tlrow">
+            <div class="hs-tlcol"><div class="hs-dot"></div><div class="hs-line"></div></div>
+            <div class="hs-tlbox">
+              <div style="font-size:12px;font-weight:800;font-variant-numeric:tabular-nums">2026년 7월 14일 (화)</div>
+              <div class="hs-doc">내과 · 이민호 원장</div>
+              <div style="font-size:11px;font-weight:700;color:#0B6E70;margin-top:7px">병원 안내 보기 ›</div>
+            </div>
+          </div>
+          <div class="hs-tlrow">
+            <div class="hs-tlcol"><div class="hs-dot"></div><div class="hs-line"></div></div>
+            <div class="hs-tlbox">
+              <div style="font-size:12px;font-weight:800;font-variant-numeric:tabular-nums">2026년 5월 2일 (토)</div>
+              <div class="hs-doc">정형외과 · 박서준 원장</div>
+              <div style="font-size:11px;font-weight:700;color:#0B6E70;margin-top:7px">병원 안내 보기 ›</div>
+            </div>
+          </div>
+          <div class="hs-tlrow">
+            <div class="hs-tlcol"><div class="hs-dot" style="background:#C7D2D8"></div></div>
+            <div class="hs-tlbox">
+              <div style="font-size:12px;font-weight:800;font-variant-numeric:tabular-nums">2025년 11월 20일 (목)</div>
+              <div class="hs-doc">내과 · 이민호 원장</div>
+              <div class="hs-none" style="margin-top:5px">안내 없음</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 타임라인형 · 안내는 눌러서</h3>
+      <p>세로 선으로 <b>시간의 흐름</b>이 드러나 "얼마 만에 다시 왔는지"가 보입니다. 목록이 짧아 <b>한 화면에 더 많은 방문</b>이 들어갑니다. 단점: 안내문을 읽으려면 매번 들어갔다 나와야 합니다.</p>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" data-choice="hist-dept" onclick="toggleSelect(this)" style="max-width:286px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="hs">
+        <div class="hs-top">
+          <div class="hs-title">방문 이력</div>
+          <div class="hs-tabs"><span class="hs-tab on">전체</span><span class="hs-tab">내과</span><span class="hs-tab">정형외과</span></div>
+        </div>
+        <div class="hs-body">
+          <div style="background:#fff;border-radius:12px;padding:11px;margin-bottom:9px">
+            <div style="font-size:10px;font-weight:800;color:#5A6C7B;letter-spacing:.3px">최근 1년</div>
+            <div style="font-size:13px;font-weight:800;margin-top:4px">방문 5회 · 진료과 2곳</div>
+            <div class="hs-doc" style="margin-top:2px">가장 최근 방문 2026년 7월 14일</div>
+          </div>
+          <div class="hs-card">
+            <div class="hs-flex">
+              <div class="hs-rail"><div class="hs-y">2026</div><div class="hs-d">7.14</div></div>
+              <div class="hs-mid"><div class="hs-dept">내과</div><div class="hs-doc">이민호 원장</div></div>
+            </div>
+            <div class="hs-guide"><div class="hs-glab">병원 안내</div>감기 증상이 남아 있으면 3일 뒤 다시 오세요.</div>
+          </div>
+          <div class="hs-card">
+            <div class="hs-flex">
+              <div class="hs-rail"><div class="hs-y">2026</div><div class="hs-d">5.02</div></div>
+              <div class="hs-mid"><div class="hs-dept">정형외과</div><div class="hs-doc">박서준 원장</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 요약 카드 + 진료과 필터</h3>
+      <p>맨 위에 <b>"최근 1년 방문 5회"</b> 같은 요약을 두고, 탭은 진료과로 거릅니다. "내과만 모아보기"가 가능합니다. 단점: <b>가족 전환이 사라집니다</b>(탭 자리를 진료과가 차지) — 별도 선택기를 또 만들어야 합니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>A(목록형)</b>를 추천합니다. 환자가 이 화면을 여는 이유는 대개 <u>"저번에 뭐라고 하셨더라"</u>입니다. 그게 바로 <b>병원 안내문</b>이고, A는 그걸 목록에서 <b>바로 읽게</b> 합니다. B는 그 한 줄을 읽으려고 매번 화면을 드나들어야 합니다.</p>
+  <p style="margin-top:8px">홈과 같은 <b>레일 구조</b>를 재사용하는 것도 이점입니다 — "왼쪽 진한 띠 = 언제"라는 규칙이 앱 전체에서 일관됩니다.</p>
+  <p style="margin-top:8px">C의 진료과 필터는 방문이 수십 건 쌓인 뒤에나 쓸모가 있는데, <b>가족 전환을 밀어냅니다.</b> 가족 이력 조회는 스펙에 명시된 기능이라 더 중요합니다. 요약 카드는 좋은 아이디어지만 A 위에 얹어도 되니, 필요하면 나중에 더하겠습니다.</p>
+  <p style="margin-top:10px"><span class="label">세 안 공통</span> ① <b>의사가 쓴 내부 기록(증상·진단·처치)은 어디에도 안 나옵니다.</b> 화면이 참는 게 아니라 <b>서버가 아예 안 보내줍니다</b>(1단계에서 환자 공개용 칸을 따로 만들어 분리). ② 의사가 나중에 기록을 고쳐도 환자는 <b>최신 안내문만</b> 봅니다 — 수정 이력은 직원 전용입니다. ③ 안내문이 없는 방문은 <b>"안내 없음"</b>으로 명시합니다(빈칸으로 두면 오류로 보입니다).</p>
+</div>

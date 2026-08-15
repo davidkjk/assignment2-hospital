@@ -1,0 +1,145 @@
+<style>
+  .phone2 { width: 268px; border: 2px solid #444; border-radius: 22px; background: #f5f6f8; color: #111; font-size: 12px; min-height: 500px; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+  .phone2 .st { display:flex; justify-content:space-between; font-size:9px; color:#888; padding:8px 12px 6px; background:#fff; }
+  .phone2 .body { flex:1; padding:12px; }
+  .appbar { background:#fff; padding:0 12px 10px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; }
+  .appicons { display:flex; gap:11px; font-size:15px; }
+  .w { background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .badge { display:inline-block; font-size:9px; padding:2px 7px; border-radius:99px; background:#dbeafe; color:#1d4ed8; font-weight:600; }
+  .badge.warn { background:#fef3c7; color:#b45309; }
+  .badge.me { background:#e0e7ff; color:#4338ca; }
+  .badge.fam { background:#fce7f3; color:#be185d; }
+  .meta { color:#666; font-size:11px; line-height:1.65; }
+  .qrbig { width:150px; height:150px; background:repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/24px 24px; margin:0 auto; }
+  .nav { display:flex; background:#fff; border-top:1px solid #e5e7eb; }
+  .nav > div { flex:1; text-align:center; padding:9px 0 11px; font-size:9px; color:#9ca3af; }
+  .nav > div.on { color:#2563eb; font-weight:700; }
+  .nav .ic { font-size:16px; display:block; }
+  .prow { display:flex; align-items:center; gap:9px; padding:10px 0; border-top:1px solid #f1f5f9; }
+  .cta { background:#2563eb; color:#fff; text-align:center; padding:13px; border-radius:10px; font-weight:700; font-size:13px; }
+  .cta.sm { padding:7px 12px; font-size:11px; border-radius:8px; }
+  .out { border:1px solid #cbd5e1; color:#334155; text-align:center; padding:7px 12px; border-radius:8px; font-weight:600; font-size:11px; }
+  .cardrow { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; }
+  .ok { color:#15803d; }
+  .scrollhint { text-align:center; font-size:10px; color:#94a3b8; padding-top:2px; }
+  .segs { display:flex; gap:4px; justify-content:center; margin:12px 0 0; }
+  .segs div { font-size:10px; padding:5px 9px; border-radius:99px; background:#e5e7eb; color:#6b7280; }
+  .segs div.on { background:#2563eb; color:#fff; font-weight:700; }
+  .warnbox { background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:10px; padding:8px; border-radius:8px; line-height:1.6; }
+</style>
+
+<h2>화면 2 v4 — 다건 예약: "목록"과 "QR 제시"를 분리</h2>
+<p class="subtitle">
+  <span class="ok">✓ 지적 반영: 작은 QR 3개 동시 표시 폐기 — 스캐너에 못 씁니다. QR은 전체화면·큰 사이즈로 따로 띄웁니다.</span><br>
+  <span style="color:#94a3b8">참고: 스펙(4.8)이 금지한 건 "한 화면에 핵심 행동 여러 개"이지 세로 스크롤이 아닙니다. 목록이 길어져 스크롤되는 건 괜찮습니다.</span>
+</p>
+<p class="label">본인 + 아이 둘 = 3건. 접수 데스크에서 어떻게 찍게 할까요?</p>
+
+<div class="cardrow">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮ <b style="color:#f59e0b">☀︎최대</b></span></div>
+        <div class="appbar"><span>← 접수 QR</span><span class="appicons">✕</span></div>
+        <div class="body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff">
+          <div style="font-weight:700;font-size:15px">김도윤 <span class="badge fam">아들</span></div>
+          <div class="meta" style="text-align:center;margin-bottom:12px">14:50 소아과 박지우</div>
+          <div class="qrbig"></div>
+          <div style="margin-top:10px;font-size:15px;font-weight:700;letter-spacing:1px">A-2414</div>
+          <div class="meta">예약번호로도 접수할 수 있습니다</div>
+          <div class="segs">
+            <div>김순자</div><div class="on">김도윤</div><div>김하윤</div>
+          </div>
+          <div class="meta" style="margin-top:8px">‹ 좌우로 밀어 다음 사람 (2/3) ›</div>
+        </div>
+        <div class="nav" style="opacity:.35">
+          <div class="on"><span class="ic">🏠</span>홈</div><div><span class="ic">📅</span>예약</div><div><span class="ic">👨‍👩‍👧</span>가족</div><div><span class="ic">📋</span>이력</div><div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 목록 + [접수 QR] 전체화면 모드</h3>
+      <p>홈은 v3의 묶음 목록(작은 QR 없이 이름·시간만). 카드 아래 <b>[접수 QR 보기]</b> 버튼 하나 → 이 전체화면. 화면 밝기 자동 최대, QR 크게, 이름 크게, 좌우로 밀어 다음 사람. 데스크 앞에서 폰을 든 채 3명분을 연속으로 찍을 수 있습니다.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>김순자님</span><span class="appicons">🔔 ⚙️</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">오늘 방문 3건</span>
+            <div style="font-size:18px;font-weight:700;margin:6px 0 2px">8월 3일 (월)</div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김순자</b> <span class="badge me">본인</span></div>
+                <div class="meta">14:30 내과 이민호</div>
+              </div>
+              <div class="cta sm">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김도윤</b> <span class="badge fam">아들</span></div>
+                <div class="meta">14:50 소아과 박지우</div>
+                <div style="font-size:9px;color:#b45309">⚠ 사전문진 미작성</div>
+              </div>
+              <div class="cta sm">QR</div>
+            </div>
+            <div class="prow">
+              <div style="flex:1">
+                <div><b>김하윤</b> <span class="badge fam">딸</span></div>
+                <div class="meta">15:10 소아과 박지우</div>
+              </div>
+              <div class="cta sm">QR</div>
+            </div>
+          </div>
+          <div class="w" style="padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <span><span class="badge warn">미작성</span> 사전문진 1건</span>
+            <span style="color:#2563eb;font-weight:600">작성 ›</span>
+          </div>
+          <div class="scrollhint">▾ 다음 예약 8/21 ›</div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div><div><span class="ic">📅</span>예약</div><div><span class="ic">👨‍👩‍👧</span>가족</div><div><span class="ic">📋</span>이력</div><div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 줄마다 [QR] 버튼</h3>
+      <p>목록은 같지만 사람별로 파란 [QR] 버튼. 누르면 그 사람의 전체화면 QR, 닫으면 목록으로. <b>누구 것을 찍는지 헷갈릴 일이 없음</b>. 대신 3명이면 열고-닫고를 세 번 반복합니다.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮ <b style="color:#f59e0b">☀︎최대</b></span></div>
+        <div class="appbar"><span>← 오늘 접수</span><span class="appicons">✕</span></div>
+        <div class="body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff">
+          <div style="font-weight:700;font-size:15px">김순자님 외 2명</div>
+          <div class="meta" style="text-align:center;margin-bottom:12px">8월 3일 (월) · 3건 한 번에 접수</div>
+          <div class="qrbig"></div>
+          <div style="margin-top:10px;font-size:15px;font-weight:700;letter-spacing:1px">G-8842</div>
+          <div class="meta" style="text-align:center">내과 이민호 14:30<br>소아과 박지우 14:50, 15:10</div>
+          <div class="warnbox" style="margin-top:12px">이 방식은 스펙 변경이 필요합니다 — 현재 스펙은 QR을 예약 1건(appointment)당 1개로 정의</div>
+        </div>
+        <div class="nav" style="opacity:.35">
+          <div class="on"><span class="ic">🏠</span>홈</div><div><span class="ic">📅</span>예약</div><div><span class="ic">👨‍👩‍👧</span>가족</div><div><span class="ic">📋</span>이력</div><div><span class="ic">💬</span>AI 상담</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 보호자 통합 QR 1개</h3>
+      <p>한 번만 찍으면 직원 화면에 3건이 모두 뜨고 일괄 접수. 환자 입장에선 가장 편합니다. 다만 <b>스펙 변경 필요</b>: 지금은 QR이 예약 1건당 1개(<code>appointments.id</code> 기반)라, 보호자·날짜 단위의 새 접수 코드와 직원 웹의 일괄 접수 화면을 추가해야 합니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>A</b>를 추천합니다. 데스크 앞에서 스캐너에 폰을 댄 자세 그대로 좌우로 밀기만 하면 3명이 끝나서, 손이 가장 적게 갑니다. 화면 밝기 자동 최대는 A·B 공통으로 넣습니다(어두운 화면은 스캐너가 못 읽는 실제 원인 1순위).</p>
+  <p style="margin-top:8px"><b>C가 사용자 경험은 제일 좋지만 지금은 권하지 않습니다.</b> 스펙·데이터모델·직원 웹 접수 화면까지 같이 바뀌어서, 이번 목업 단계에서 결정하기엔 파급이 큽니다. 원하시면 별도 안건으로 따로 다루겠습니다.</p>
+  <p style="margin-top:8px"><b>예약 1건일 때는 v2의 큰 히어로 카드</b>가 그대로 나오고, 거기서도 QR을 누르면 같은 전체화면 QR이 뜹니다.</p>
+</div>

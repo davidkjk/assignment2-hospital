@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>75 · 알림 문구 편집 — /admin/settings 다섯째 줄 (갭 #102)</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --warn-bg:#FFF1E4; --danger:#9E3F6E; --danger-bg:#F3E7EA;
+    --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF; --book:#E7F1F1;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  .quote .warn{color:var(--warn);font-weight:800}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  h2.sub2{font-size:14px;font-weight:800;margin:26px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:var(--warn-bg);color:var(--warn)}
+  .tag.no{background:var(--danger-bg);color:var(--danger)}
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:6px 0 0}
+  .hint b{color:var(--ink)}
+  .hint.w b{color:var(--warn)}
+  .hint.g b{color:var(--primary)}
+  svg.i{width:13px;height:13px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:2;
+        stroke-linecap:round;stroke-linejoin:round}
+
+  /* 화면 틀 */
+  .app{background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .apptop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);
+          font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .apptop .sp{flex:1}
+  .btn{border:1px solid var(--divider);border-radius:6px;padding:5px 10px;background:#fff;
+       font-size:11px;font-weight:800;color:var(--ink);white-space:nowrap;display:inline-block}
+  .btn.p{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.q{color:var(--ink-muted)}
+  .btn.dis{background:var(--done-bg);border-color:#E2E8ED;color:#AEB9C3}
+
+  .split{display:flex;min-height:250px}
+  .lside{width:176px;flex:none;border-right:1px solid var(--divider);padding:8px 0;background:#FCFDFD}
+  .lside .lh{font-size:10px;font-weight:800;color:#93A2AE;padding:2px 12px 6px;letter-spacing:.03em}
+  .lrow{padding:9px 12px;font-size:11.5px;font-weight:800;color:var(--ink-muted);
+        border-left:3px solid transparent;display:flex;align-items:flex-start;gap:6px}
+  .lrow .txt{min-width:0}
+  .lrow .v{display:block;font-weight:600;font-size:10px;margin-top:2px;color:#93A2AE;line-height:1.45}
+  .lrow.on{background:var(--book);border-left-color:var(--primary);color:var(--ink)}
+  .lrow.newrow{background:var(--warn-bg);border-left-color:var(--warn)}
+  .lrow.newrow .txt{color:var(--warn)}
+  .rside{flex:1;min-width:0;padding:12px 14px}
+  .rh{display:flex;align-items:baseline;gap:8px;margin:0 0 4px}
+  .rh b{font-size:13px;font-weight:800}
+  .rh span{font-size:11px;color:var(--ink-muted)}
+  .rh .sp{flex:1}
+
+  .row{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid var(--divider)}
+  .row:last-child{border-bottom:0}
+  .row .lb{width:154px;flex:none;font-size:11.5px;font-weight:800;padding-top:3px}
+  .row .ct{flex:1;min-width:0;font-size:11.5px;line-height:1.9}
+  .row .ct .note{display:block;font-size:10.5px;color:var(--ink-muted);line-height:1.6;margin-top:3px}
+  .row.locked .lb,.row.locked .ct{opacity:.45}
+
+  .sw{width:26px;height:15px;border-radius:99px;background:var(--primary);position:relative;display:inline-block;
+      vertical-align:-3px}
+  .sw::after{content:"";position:absolute;top:2px;left:13px;width:11px;height:11px;border-radius:99px;background:#fff}
+  .sw.off{background:#C3CDD5}
+  .sw.off::after{left:2px}
+  .swl{font-size:11px;font-weight:800;margin-left:6px;color:var(--primary)}
+  .swl.no{color:var(--ink-muted)}
+  .chk{width:13px;height:13px;border:1.5px solid var(--primary);border-radius:3px;display:inline-block;
+       vertical-align:-2px;background:var(--primary);position:relative}
+  .chk::after{content:"";position:absolute;left:3.5px;top:1px;width:4px;height:7px;border:solid #fff;
+              border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .chk.no{background:#fff;border-color:#C3CDD5}
+  .chk.no::after{display:none}
+  .rad{display:inline-flex;gap:5px;flex-wrap:wrap}
+  .rad .r{border:1px solid #CFD8DF;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700}
+  .rad .r.on{background:var(--primary);border-color:var(--primary);color:#fff}
+
+  /* 문구 표 */
+  .ntab{width:100%;border-collapse:collapse;font-size:11.5px}
+  .ntab th{background:#FBFCFD;border-bottom:1px solid var(--divider);padding:6px 8px;text-align:left;
+           font-weight:800;color:var(--ink-muted);font-size:10.5px}
+  .ntab td{border-bottom:1px solid var(--divider);padding:7px 8px;vertical-align:middle}
+  .ntab tr:last-child td{border-bottom:0}
+  .ntab .kd{width:112px;font-weight:800;white-space:nowrap}
+  .ntab .cc{width:70px;text-align:center}
+  .ntab .box{border:1px solid #CFD8DF;border-radius:5px;padding:5px 8px;background:#fff;
+             font-size:11px;line-height:1.55}
+  .ntab .box.dim{background:var(--done-bg);border-color:#E2E8ED;color:#9AA9B6}
+  .ntab tr.locked td{opacity:.45}
+  .ntab tr.locked .box{background:var(--done-bg)}
+  .ntab col.lockcol{background:var(--done-bg)}
+  .vr{display:inline-block;background:var(--book);border:1px solid #9FC6C6;border-radius:4px;
+      padding:0 4px;font-size:10.5px;font-weight:800;color:var(--primary)}
+
+  /* 잠김 안내 띠 */
+  .lockbar{background:var(--warn-bg);border:1px solid #F2DCC6;border-radius:6px;padding:7px 10px;
+           font-size:11px;line-height:1.6;color:#6E4413;margin:0 0 8px}
+  .lockbar b{color:#5A3306}
+  .lockbar .lnk{color:var(--primary);font-weight:800;text-decoration:underline}
+
+  /* 비교 */
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 0}
+  .opt{background:#fff;border:1px solid var(--divider);border-radius:9px;overflow:hidden}
+  .opt.win{border-color:var(--primary);box-shadow:0 0 0 2px rgba(11,110,112,.12)}
+  .opt.bad{border-color:#E4CBD6;box-shadow:0 0 0 2px rgba(158,63,110,.10)}
+  .opt.lose{opacity:.75}
+  .opthd{padding:8px 11px;border-bottom:1px solid var(--divider);font-size:12px;font-weight:800;
+         background:#FBFCFD;display:flex;align-items:center;gap:6px}
+  .optbd{padding:10px 11px}
+  .verdict{font-size:11px;line-height:1.6;padding:8px 11px;border-top:1px solid var(--divider);background:#FBFCFD}
+  .verdict b{color:var(--ink)}
+  .verdict.no b{color:var(--danger)}
+  .verdict.ok b{color:var(--primary)}
+
+  .modal{background:#fff;border:1px solid var(--divider);border-radius:10px;
+         box-shadow:0 8px 28px rgba(16,36,58,.13);max-width:430px;padding:15px 17px;margin:12px 0 0}
+  .modal h4{font-size:13.5px;font-weight:800;margin:0 0 8px}
+  .modal p{font-size:11.5px;line-height:1.8;color:var(--ink-muted);margin:0 0 9px}
+  .modal p b{color:var(--ink)}
+  .modal .ft{display:flex;gap:6px;justify-content:flex-end}
+
+  .phone{background:#111A24;border-radius:10px;padding:10px;max-width:300px}
+  .lock{background:#fff;border-radius:7px;padding:9px 11px}
+  .lock .t{font-size:10px;font-weight:800;color:var(--ink-muted)}
+  .lock .b{font-size:12px;line-height:1.6;margin-top:2px}
+
+  table.r{width:100%;border-collapse:collapse;margin:12px 0 0;font-size:11.5px}
+  table.r th{background:#FBFCFD;border:1px solid var(--divider);padding:6px 8px;text-align:left;
+             font-weight:800;color:var(--ink-muted);font-size:10.5px}
+  table.r td{border:1px solid var(--divider);padding:6px 8px;line-height:1.6;vertical-align:top}
+  table.r td.id{white-space:nowrap;font-weight:800;color:var(--primary);width:118px}
+  table.r td b{color:var(--ink)}
+  .rid{display:inline-block;font-size:10px;font-weight:800;color:var(--primary);
+       background:var(--book);border-radius:4px;padding:1px 5px;margin-left:4px}
+  .gap{background:var(--warn-bg);border:1px solid #F2DCC6;border-radius:8px;padding:11px 14px;margin:12px 0 0;
+       font-size:12px;line-height:1.75;color:#6E4413}
+  .gap b{color:#5A3306}
+  .gap.no{background:var(--danger-bg);border-color:#E4CBD6;color:#6B2A47}
+  .gap.no b{color:#4E1B32}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></symbol>
+</svg>
+
+<div class="page">
+
+<h1>75 · <b>알림 문구 편집</b> — <code>/admin/settings</code> 다섯째 줄</h1>
+<p class="sub">갭 <b>#102</b>(자동 알림 문구를 병원이 고칠 수 없다) — 규칙 <code>HSET-MSG-*</code> · <code>HSET-SMS-*</code> 개정</p>
+
+<div class="quote">
+  사용자 요청: <i>"고객 요구사항에 있는 종류들의 알림도 있을 거야. <b>그 알림의 문구도 설정할 수 있어야</b> 하고."</i><br>
+  지금 문구는 <b>서버 코드 안에 박혀 있다</b>(<code>patient-app.md:3283</code>의 <code>MESSAGES</code> 딕셔너리) —
+  <span class="warn">한 글자를 고치려면 배포를 다시 해야 한다.</span>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">① 먼저 — <b>개정 전</b> <code>/admin/settings</code> <span class="tag no">비교용 · 지금은 이렇지 않다</span></h2>
+<p class="seclead">
+  왼쪽 세로줄 <b>네 줄</b>이고, 열려 있는 것은 <b>세 번째 「문자 발송」</b>이다.
+  오른쪽에 <b>세 줄</b>이 있다는 것만 봐 두면 된다 — <b>아래 ②③절 설명이 전부 이 세 줄 얘기</b>다.
+</p>
+<div class="gap no">
+  <b>⚠️ 이 그림은 「개정 전」이다 — 최신이 아니다.</b>
+  이 목업의 결정으로 <b>왼쪽은 다섯 줄</b>(「알림」 추가)이 되고 <b>오른쪽은 두 줄</b>(②가 「알림」 줄로 이동)이 됐다.
+  <b>최신 그림은 목업 68</b>(2026-08-08 갱신).<br>
+  📌 <b>그래도 지우지 않는다</b> — ②③절의 설명이 <b>「바뀌기 전이 이랬다」에 기대고</b> 있어서,
+  이 그림이 없으면 <b>무엇이 어디로 옮겨졌는지</b>를 알 수 없다.
+</div>
+
+<div class="app">
+  <div class="apptop"><span>○○ 병원</span><span class="sp"></span>
+    <span class="tag">박관리 · 관리자</span><span class="btn p">저장</span></div>
+  <div class="split">
+    <div class="lside">
+      <div class="lh">병원 설정</div>
+      <div class="lrow"><div class="txt">예약 규칙<span class="v">취소 마감 24시간</span></div></div>
+      <div class="lrow"><div class="txt">대기실 운영<span class="v">30분 이상 표시함</span></div></div>
+      <div class="lrow on"><div class="txt">문자 발송<span class="v">켜짐 · 앱 미설치자만</span></div></div>
+      <div class="lrow"><div class="txt">병원 정보<span class="v">강남구 테헤란로 123</span></div></div>
+    </div>
+    <div class="rside">
+      <div class="rh"><b>문자 발송</b><span>보낼 때마다 병원이 비용을 냅니다</span></div>
+      <div class="row">
+        <div class="lb">① 문자를 사용함</div>
+        <div class="ct"><span class="sw"></span><span class="swl">켜짐</span></div>
+      </div>
+      <div class="row">
+        <div class="lb">② 문자로도 보낼 알림</div>
+        <div class="ct">
+          <span class="chk"></span> 예약 확정 &nbsp;&nbsp; <span class="chk"></span> 예약 변경·취소 &nbsp;&nbsp;
+          <span class="chk no"></span> 전날 안내 &nbsp;&nbsp; <span class="chk no"></span> 사전문진
+        </div>
+      </div>
+      <div class="row">
+        <div class="lb">③ 누구에게</div>
+        <div class="ct"><span class="rad"><span class="r on">앱을 안 쓰는 환자만</span><span class="r">모든 환자</span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="hint g" style="margin-top:10px">
+  ⭐ <b>이 세 줄은 한 덩어리다</b>(<code>HSET-SMS-02</code>) — <b>①을 끄면 ②③이 회색으로 잠긴다.</b>
+  ①이 <b>바로 위에 있으니</b> 왜 잠겼는지 눈에 보인다. <b>이게 지금 상태다.</b>
+</p>
+
+<hr class="rule">
+
+<h2 class="sec">② <span class="tag new">고를 것</span> 「알림 문구」를 어디에 두나</h2>
+<p class="seclead">
+  문구는 <b>알림 10종마다 하나씩</b> 있다. 그런데 위 그림의 <b>②번 칸도 같은 10종</b>이다 —
+  <b>같은 목록이 두 곳에 생긴다.</b> 그래서 갈린다.
+</p>
+
+<div class="cmp">
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">㉠</span> 따로 둔다 — 다섯째 줄에 <b>문구만</b></div>
+    <div class="optbd">
+      <div class="app" style="border-radius:7px">
+        <div class="split" style="min-height:0">
+          <div class="lside" style="width:104px">
+            <div class="lrow" style="padding:7px 9px">문자 발송</div>
+            <div class="lrow newrow" style="padding:7px 9px">알림 문구</div>
+          </div>
+          <div class="rside" style="padding:9px 10px">
+            <table class="ntab">
+              <tr><td class="kd" style="width:74px">예약 확정</td><td><div class="box">예약이 확정되었습니다.</div></td></tr>
+              <tr><td class="kd">예약 전날</td><td><div class="box">내일 예약이 있습니다.</div></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p class="hint w" style="margin-top:8px">
+        <b>「문자로도 보낼 알림」 체크칸 10개는 「문자 발송」 줄에 그대로 남는다</b> —
+        같은 10종이 <b>두 화면에</b> 늘어선다.
+      </p>
+    </div>
+    <div class="verdict no">
+      ⛔ 병원이 <i>"휴진 안내는 꼭 닿아야 하니 <b>문자로도</b> 보내고 <b>문구도 강하게</b>"</i>를 하려면
+      <b>두 줄을 왕복</b>한다. 그리고 챗봇 단계에서 <b>11번째가 붙으면 두 곳을 다 고쳐야</b> 한다.
+    </div>
+  </div>
+
+  <div class="opt win">
+    <div class="opthd"><span class="tag ok">㉡</span> 합친다 — 다섯째 줄 <b>「알림」</b></div>
+    <div class="optbd">
+      <div class="app" style="border-radius:7px">
+        <div class="split" style="min-height:0">
+          <div class="lside" style="width:104px">
+            <div class="lrow" style="padding:7px 9px">문자 발송</div>
+            <div class="lrow newrow" style="padding:7px 9px">알림</div>
+          </div>
+          <div class="rside" style="padding:9px 10px">
+            <table class="ntab">
+              <tr><th style="width:74px">종류</th><th>문구</th><th class="cc">문자로도</th></tr>
+              <tr><td class="kd" style="width:74px">예약 확정</td><td><div class="box">예약이 확정되었습니다.</div></td><td class="cc"><span class="chk"></span></td></tr>
+              <tr><td class="kd">예약 전날</td><td><div class="box">내일 예약이 있습니다.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p class="hint g" style="margin-top:8px">
+        <b>「문자 발송」 줄에는 스위치와 「누구에게」만</b> 남는다 — 체크칸 10개가 이쪽으로 넘어온다.
+      </p>
+    </div>
+    <div class="verdict ok">
+      ⭐ <b>한 알림에 대한 결정이 한 줄에 모인다.</b> 그리고 <b>목록이 한 곳뿐</b>이라 11번째가 붙어도 한 곳만 고친다.
+      ⭐ <code>HSET-SMS-05</code>가 이미 같은 말을 했다 — <i>"따로 만들면 <b>채널을 고르는 코드가 네 군데로 갈라진다</b>"</i>.
+    </div>
+  </div>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">③ ⚠️⚠️ <b>㉡의 나쁜 점은 여기 하나다</b> — 스위치를 끄면 무엇이 잠기나</h2>
+<p class="seclead">
+  ①절에서 봤듯 <b>스위치는 「문자 발송」 줄에 있다.</b> 합치면 <b>체크칸은 「알림」 줄로 갔는데 스위치는 안 따라온다.</b>
+  그래서 <b>스위치를 끌 때 다른 줄에 있는 것이 잠겨야</b> 한다 — 여기서 <b>범위를 잘못 잡으면 사고가 난다.</b>
+</p>
+
+<h2 class="sub2">문자를 <b>안 쓰는 병원</b>(스위치 꺼짐)이 「알림」 줄을 열면</h2>
+
+<div class="cmp">
+  <div class="opt bad">
+    <div class="opthd"><span class="tag no">⛔ 이렇게 되면 사고</span> 표를 통째로 잠근다</div>
+    <div class="optbd">
+      <div class="app" style="border-radius:7px">
+        <div class="split" style="min-height:0">
+          <div class="lside" style="width:104px">
+            <div class="lrow" style="padding:7px 9px">문자 발송<span class="v">꺼짐</span></div>
+            <div class="lrow on" style="padding:7px 9px">알림</div>
+          </div>
+          <div class="rside" style="padding:9px 10px">
+            <table class="ntab">
+              <tr><th style="width:74px">종류</th><th>문구</th><th class="cc">문자로도</th></tr>
+              <tr class="locked"><td class="kd" style="width:74px">예약 확정</td><td><div class="box">예약이 확정되었습니다.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+              <tr class="locked"><td class="kd">예약 전날</td><td><div class="box">내일 예약이 있습니다.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+              <tr class="locked"><td class="kd">병원 취소</td><td><div class="box">병원 사정으로 취소되었습니다.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p class="hint w" style="margin-top:8px">
+        <svg class="i" style="color:var(--warn)"><use href="#i-lock"/></svg>
+        <b>문구 칸까지 회색이다 — 한 글자도 못 고친다.</b>
+      </p>
+    </div>
+    <div class="verdict no">
+      ⛔⛔ <b>지금 만들고 있는 기능을 통째로 못 쓰게 된다.</b>
+      ⚠️ 그리고 <b>이런 병원이 소수가 아니다</b> — 문자는 <b>병원이 돈을 내는</b> 기능이라
+      <b>안 켜는 쪽이 오히려 흔하다</b>(요구사항 4.7: <i>"비용과 발송업체 계정은 병원에서 별도로"</i>).<br>
+      📌 <b>왜 이렇게 되기 쉬운가</b> — 지금 규칙 문장이 <i>"①을 끄면 <b>아래 두 줄</b>이 잠긴다"</i>다.
+      합친 화면에 그대로 가져오면 <b>"그 표가 잠긴다"</b>로 읽힌다. 그리고 <b>표 전체를 잠그는 것이 가장 쉬운 구현</b>이다.
+    </div>
+  </div>
+
+  <div class="opt win">
+    <div class="opthd"><span class="tag ok">✅ 이렇게 해야 한다</span> <b>맨 오른쪽 열만</b> 잠근다</div>
+    <div class="optbd">
+      <div class="app" style="border-radius:7px">
+        <div class="split" style="min-height:0">
+          <div class="lside" style="width:104px">
+            <div class="lrow" style="padding:7px 9px">문자 발송<span class="v">꺼짐</span></div>
+            <div class="lrow on" style="padding:7px 9px">알림</div>
+          </div>
+          <div class="rside" style="padding:9px 10px">
+            <div class="lockbar">
+              <svg class="i" style="color:var(--warn)"><use href="#i-lock"/></svg>
+              <b>문자 발송이 꺼져 있어 「문자로도」를 고를 수 없습니다.</b>
+              <span class="lnk">문자 발송 설정으로 ›</span>
+            </div>
+            <table class="ntab">
+              <colgroup><col><col><col class="lockcol"></colgroup>
+              <tr><th style="width:74px">종류</th><th>문구</th><th class="cc">문자로도</th></tr>
+              <tr><td class="kd" style="width:74px">예약 확정</td><td><div class="box">예약이 확정되었습니다.</div></td><td class="cc" style="opacity:.4"><span class="chk no"></span></td></tr>
+              <tr><td class="kd">예약 전날</td><td><div class="box">내일 예약이 있습니다.</div></td><td class="cc" style="opacity:.4"><span class="chk no"></span></td></tr>
+              <tr><td class="kd">병원 취소</td><td><div class="box">병원 사정으로 취소되었습니다.</div></td><td class="cc" style="opacity:.4"><span class="chk no"></span></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p class="hint g" style="margin-top:8px">
+        <b>문구 칸은 그대로 흰색 — 얼마든지 고친다.</b> 회색은 <b>맨 오른쪽 한 열</b>뿐이다.
+      </p>
+    </div>
+    <div class="verdict ok">
+      ⭐ <b>새 장치가 아니다</b> — <code>SEND-CH-05</code>가 <b>똑같은 상황을 이미 풀어뒀다</b>:
+      발송 패널에서 문자를 고르려는데 병원이 꺼둔 경우 <i>"<b>잠기고 왜 잠겼는지가 적힌다</b> + <code>설정에서 켜기 ›</code>"</i>.
+      <b>같은 띠를 여기에 붙인 것</b>이다.<br>
+      ⭐ <b>그래서 나쁜 점은 「새 위험」이 아니라 「안 적으면 사고 나는 규칙 두 개」</b>다 —
+      ①<b>잠기는 것은 「문자로도」 열 하나뿐</b> ②<b>왜 잠겼는지와 가는 길을 그 자리에</b>.
+    </div>
+  </div>
+</div>
+
+<div class="gap">
+  <b>📌 한 줄 요약</b> — 합치면 <b>스위치와 체크칸이 서로 다른 줄</b>에 있게 된다.
+  그 자체는 문제가 아니고, <b>「스위치를 끄면 어디까지 잠기나」를 규칙에 정확히 못박지 않는 것</b>이 문제다.
+  <b>못박으면 끝난다.</b>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">④ 문구를 <b>어디까지</b> 고칠 수 있나 — <b>통째로 자유</b> <span class="tag ok">확정</span></h2>
+<p class="seclead">
+  ⛔ 걸리는 규칙은 <code>PUSH-BODY-01</code>다 — <b>진료과 · 의사명 · 증상 · 문진 내용 절대 금지.</b>
+  자유롭게 쓰게 두면 병원이 <i>"○○내과 예약이 확정되었습니다"</i>를 넣을 수 있고, 그건 <b>잠금화면에 병명이 뜨는 것</b>이다.
+</p>
+
+<div class="cmp">
+  <div class="opt lose">
+    <div class="opthd"><span class="tag no">㉮ 기각</span> 정해진 빈칸만 채우게</div>
+    <div class="optbd">
+      <table class="ntab">
+        <tr><td class="kd" style="width:74px">예약 확정</td>
+          <td><div class="box dim">예약이 확정되었습니다.</div>
+              <div class="box" style="margin-top:4px">늦지 않게 방문해주세요.</div></td></tr>
+      </table>
+      <p class="hint" style="margin-top:8px">위 문장은 <b>틀이라 못 고치고</b>, 아래 한 줄만 고친다.</p>
+    </div>
+    <div class="verdict no">
+      ✅ 안전하긴 하다 — <b>금지어가 들어갈 자리가 구조적으로 없다.</b>
+      ⛔ 그런데 <b>병원이 답답해한다</b>(앞 문장을 못 고친다). 그리고 <b>애초에 목표가 틀렸다</b> → 오른쪽.
+    </div>
+  </div>
+
+  <div class="opt win">
+    <div class="opthd"><span class="tag ok">㉯ 확정</span> 통째로 자유 + <b>알려주기</b></div>
+    <div class="optbd">
+      <table class="ntab">
+        <tr><td class="kd" style="width:74px">예약 확정</td>
+          <td><div class="box">○○님, 예약 도와드렸습니다. <span class="vr">날짜</span> <span class="vr">시각</span>에 뵙겠습니다.</div></td></tr>
+      </table>
+      <p class="hint g" style="margin-top:8px">
+        병원이 <b>자기 말투</b>를 쓸 수 있다.
+      </p>
+    </div>
+    <div class="verdict ok">
+      ⭐⭐ <b>금지어 검사로 막으려는 게 애초에 잘못된 목표다</b> — <code>내과</code>를 막으면
+      <i>"소화기 진료"</i>는 안 막힌다. <b>막을 목록을 다 셀 수 없다.</b><br>
+      ⭐ <b>이 프로젝트가 이미 두 번 같은 판단을 했다</b> — <code>SEND-ADS-04</code>(광고 표기는 <b>지울 수 없게</b> 하고 문구는 자유) ·
+      <code>PUSH-BODY-09</code>(<i>"⛔ <b>막지는 않는다</b> — 모르고 보내는 일만 없게 한다"</i>).
+      <b>병원은 막을 상대가 아니라 알려줄 상대</b>다.
+    </div>
+  </div>
+</div>
+
+<h2 class="sub2">그래서 <b>저장 전에 되묻는다</b> — 실제 모양을 보여준다</h2>
+<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+  <div class="modal" style="margin:0">
+    <h4>이 문구로 바꿉니다</h4>
+    <p><b>이 문장은 잠금화면에 그대로 뜨고</b>, 문자로 보낸 경우 <b>환자 폰에 남습니다.</b></p>
+    <p style="color:var(--warn);font-weight:800">진료과 · 의사 이름 · 증상은 넣지 마세요.</p>
+    <div class="ft"><span class="btn q">더 고치기</span><span class="btn p">이대로 저장</span></div>
+  </div>
+  <div>
+    <p class="hint" style="margin:0 0 6px"><b>미리보기 — 값이 채워진 모습</b></p>
+    <div class="phone">
+      <div class="lock">
+        <div class="t">병원 안내</div>
+        <div class="b">○○님, 예약 도와드렸습니다. <b>8월 12일 14:00</b>에 뵙겠습니다.</div>
+      </div>
+    </div>
+    <p class="hint w" style="margin-top:6px">
+      ⭐ <b>편집칸의 <span class="vr">날짜</span> <span class="vr">시각</span>이 실제 값으로 바뀐 것</b>을 보여준다 —
+      그래야 <b>문장이 어색한지</b>가 보인다.
+    </p>
+  </div>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⑤ 넣을 수 있는 값 — <b>이름 · 날짜 · 시각</b> <span class="tag ok">확정</span></h2>
+<p class="seclead">
+  ⚠️ <b>지금 문구엔 날짜·시각이 하나도 없다</b> — <code>"내일 예약이 있습니다"</code>가 전부라
+  환자는 <b>몇 시인지 모르니 앱을 열어야</b> 한다. 서버가 채우는 값도 <b><code>target_name</code> 하나뿐</b>이다.
+</p>
+
+<div class="app">
+  <div class="split">
+    <div class="rside">
+      <div class="rh"><b>알림</b><span>환자에게 자동으로 나가는 문구입니다</span></div>
+      <table class="ntab">
+        <tr><th class="kd">종류</th><th>문구</th><th class="cc">문자로도</th></tr>
+        <tr><td class="kd">예약 신청</td><td><div class="box">예약이 신청되었습니다.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+        <tr><td class="kd">예약 확정</td><td><div class="box"><span class="vr">날짜</span> <span class="vr">시각</span> 예약이 확정되었습니다.</div>
+            <span class="btn q" style="margin-top:4px;padding:2px 7px"><svg class="i"><use href="#i-undo"/></svg> 기본 문구로</span></td><td class="cc"><span class="chk"></span></td></tr>
+        <tr><td class="kd">예약 전날</td><td><div class="box">내일 <span class="vr">시각</span> 예약이 있습니다. 잊지 말고 방문해주세요.</div>
+            <span class="btn q" style="margin-top:4px;padding:2px 7px"><svg class="i"><use href="#i-undo"/></svg> 기본 문구로</span></td><td class="cc"><span class="chk"></span></td></tr>
+        <tr><td class="kd">예약 당일</td><td><div class="box">오늘 <span class="vr">시각</span> 예약이 있습니다.</div>
+            <span class="btn q" style="margin-top:4px;padding:2px 7px"><svg class="i"><use href="#i-undo"/></svg> 기본 문구로</span></td><td class="cc"><span class="chk"></span></td></tr>
+        <tr><td class="kd">예약 변경</td><td><div class="box"><span class="vr">날짜</span> <span class="vr">시각</span>으로 예약이 변경되었습니다.</div>
+            <span class="btn q" style="margin-top:4px;padding:2px 7px"><svg class="i"><use href="#i-undo"/></svg> 기본 문구로</span></td><td class="cc"><span class="chk"></span></td></tr>
+        <tr><td class="kd">병원 취소</td><td><div class="box">병원 사정으로 예약이 취소되었습니다.</div></td><td class="cc"><span class="chk"></span></td></tr>
+        <tr><td class="kd">취소 승인</td><td><div class="box">취소 요청이 승인되었습니다.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+        <tr><td class="kd">취소 반려</td><td><div class="box">취소 요청이 반려되었습니다.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+        <tr><td class="kd">문진 안내</td><td><div class="box">사전문진을 작성해주세요.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+        <tr><td class="kd">진료 완료</td><td><div class="box">진료가 완료되었습니다. 안내를 확인해주세요.</div></td><td class="cc"><span class="chk no"></span></td></tr>
+      </table>
+      <p class="hint" style="margin-top:8px">
+        넣을 수 있는 값: <span class="vr">환자 이름</span> <span class="vr">날짜</span> <span class="vr">시각</span>
+        — <b>눌러서 꽂는다</b> <span class="rid">HSET-MSG-16</span>. ⛔ 직접 타이핑하지 않는다 — <b>오타가 나면 글자 그대로 나간다.</b>
+      </p>
+      <p class="hint w" style="margin-top:4px">
+        <b>당일 접수 환자는 시각이 없어 이 부분이 빠집니다.</b> <span class="rid">HSET-MSG-21</span>
+      </p>
+      <p class="hint g" style="margin-top:4px">
+        ⭐ <b><code>기본 문구로</code>는 고친 줄에만 뜬다</b> <span class="rid">HSET-MSG-22</span> — 위 그림에서 <b>「예약 신청」·아래 넷</b>에는 없다(기본값 그대로).
+        ⛔ <b>맨 위에 하나로 두지 않는다</b> <span class="rid">HSET-MSG-23</span> — <b>아홉 줄을 공들여 쓰고 한 줄만 되돌리려다 전부 잃는다.</b>
+        📌 <b>2026-08-08 정정</b> — 이 그림은 처음에 맨 위에 버튼 하나로 그렸고, 규칙을 쓰면서 <b>기각안임이 드러나 줄마다로 옮겼다.</b>
+      </p>
+    </div>
+  </div>
+</div>
+
+<p class="hint g" style="margin-top:10px">
+  ⭐ <b>추천 근거는 요구사항 4.8 <code>:325</code></b> — <i>"병원 앱은 <b>중장년층도 많이 사용</b>합니다."</i>
+  시각을 안 알려주고 <i>"앱에서 확인하세요"</i>로 미루는 것이 <b>정확히 그 사용자에게 불리하다.</b><br>
+  📌 <b>시각은 금지 대상이 아니다</b> — <code>PUSH-BODY-03</code>이 막은 것은 <b>진료과·의사명·증상</b>이고,
+  새어 나가도 되는 범위를 <b>"최대 「이 사람이 병원 예약이 있다」까지"</b>로 정했다. <b>시각은 그 밖</b>이다.
+</p>
+
+<div class="gap">
+  <b>⚠️ 값이 없을 수 있다 — 그때는 그 자리만 조용히 빠진다</b><br>
+  <code>appointments.slot_id</code>가 <b><code>not null</code>이 아니고</b>(<code>00005:39</code>)
+  <code>notify_patient</code>에 <code>appointment_id</code>를 <b>안 넘기는 호출</b>도 있다.
+  <b>당일 워크인 접수</b>가 그런 경우다 — 슬롯 없이 등록되면 <b>시각이 없다.</b><br>
+  ✅ <b>문장에서 그 자리만 빠진다</b> — <code>8월 12일 예약이 있습니다</code>(시각 없음).
+  ⛔ <b>빈칸이나 <code>null</code>이 그대로 나가지 않게.</b><br>
+  ✅ <b>그리고 편집 화면에서 미리 알려준다</b> — <i>"당일 접수 환자는 시각이 없어 이 부분이 빠집니다"</i>.
+  ⭐ <b>조용히 달라지는 것을 병원이 모르고 있지 않게</b> 하는 쪽이다(<code>HSET-NAV-03</code>과 같은 태도).
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⑥ 세어 봤다 — <b>「11종」이 지금은 10종</b>이다</h2>
+<p class="seclead">
+  갭 #102가 <i>"자동 알림 <b>11종</b>"</i>이라고 적어뒀는데, 플랜의 <code>MESSAGES</code>를 <b>전수로 세어 보니 10개</b>다.
+</p>
+
+<div class="gap">
+  <b>빠진 하나는 「직원 상담 답변 도착」</b>이다 — 요구사항 4.7 <code>:319</code>에 <b>명시로</b> 있다.<br>
+  ✅ <b>누락이 아니다</b> — 플랜이 <i>"AI 상담봇 본체와 <b>상담 답변 알림은 여전히 4단계 몫</b>"</i>이라고
+  <b>명시적으로 미뤄뒀다</b>(<code>patient-app.md:7565</code>). <b>지금 10줄, 챗봇 단계에서 11줄</b>이 된다.<br>
+  📌 <b>세어 본 이유</b> — 세션 5에서 <i>"<code>HOURS-*</code> 13개"</i>가 실제로는 <b>12개</b>였고,
+  그건 <b>세어 보지 않고 앞 문서의 숫자를 옮겨 적은</b> 것이었다. <b>같은 자리라 세었다.</b>
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⑦ ⑦플랜 대조 <span class="tag new">4층</span> — 갭 2건</h2>
+<table class="r">
+  <tr><th style="width:80px">층</th><th style="width:26%">확인한 것</th><th>결과</th></tr>
+  <tr>
+    <td class="id">①DB</td>
+    <td>문구를 <b>담을 칸</b></td>
+    <td>⛔ <b>없다 — 갭 #126</b> <span class="rid">HSET-MSG-34</span>.
+      <code>hospital_settings</code>는 <b>한 줄짜리 표</b>(<code>id boolean primary key check (id)</code>, <code>00004:24</code>)라
+      <b>10종 × (문구·문자여부)를 담을 수 없다.</b> <b>종류마다 한 줄인 새 표</b>가 필요하다.<br>
+      ⭐ <b>기본 문구는 DB에 안 넣어도 된다</b> <span class="rid">HSET-MSG-24</span> —
+      코드의 <code>MESSAGES</code>가 그대로 원본이고, <b>DB가 비어 있으면 코드 값을 쓰고 되돌리기는 DB 줄을 지우는 것</b>이다.</td>
+  </tr>
+  <tr>
+    <td class="id">②서버조회</td>
+    <td><b>날짜·시각</b>을 채울 수 있나</td>
+    <td>⛔ <b>지금은 못 채운다 — 갭 #125</b> <span class="rid">HSET-MSG-17</span>.
+      서버가 채우는 것은 <code>target_name</code> 하나뿐이고(<code>patient-app.md:3295</code>) <b>문구에 날짜·시각이 아예 없다.</b><br>
+      ✅ <b>꺼낼 수는 있다</b> — <code>appointments.slot_id</code> → <code>appointment_slots(slot_date, start_time)</code>이고
+      <code>notify_patient</code>가 <b>이미 <code>appointment_id</code>를 받는다.</b> <b>조회 하나 더 붙이면 된다.</b><br>
+      ⚠️ <b>값이 없을 수 있다</b> <span class="rid">HSET-MSG-19</span><span class="rid">HSET-MSG-20</span> —
+      <code>slot_id</code>가 <code>not null</code>이 아니고(<code>00005:39</code>) <b>당일 워크인</b>은 슬롯이 없다.</td>
+  </tr>
+  <tr>
+    <td class="id">③API·화면</td>
+    <td><code>/admin/settings</code> 화면</td>
+    <td>⛔ <b>없다 — 갭 #98에 이미 기록됨.</b> 플랜에 <code>hospital_settings</code> 확장(Task 1)은 있으나
+      <b>관리자 설정 화면 자체가 0건</b>이다. 📌 <b>새 갭이 아니라 기존 갭이 이 화면도 막고 있다.</b></td>
+  </tr>
+  <tr>
+    <td class="id">④다음단계</td>
+    <td>문구를 <b>읽는 곳</b></td>
+    <td>⚠️ <code>notify_patient</code>의 <code>MESSAGES.get(...)</code> <b>한 곳</b>이다(<code>patient-app.md:3283</code>).
+      ⭐ <b>읽는 자리가 하나라 좋다</b> — 여기만 DB를 보게 바꾸면 <b>10종이 전부 따라온다.</b><br>
+      🔗 <b>같은 함수가 「문자로도」도 읽어야 한다</b>(갭 #103) · <b>죽은 토큰 처리도 여기다</b>(갭 #100) —
+      <code>HSET-SMS-05</code>가 경고한 <b>「채널을 고르는 코드가 갈라진다」의 그 자리</b>다. <b>한 번에 손봐야 한다.</b></td>
+  </tr>
+</table>
+
+<hr class="rule">
+
+<h2 class="sec">⑧ 이 목업이 쓴 규칙</h2>
+<table class="r">
+  <tr><th style="width:118px">ID</th><th>무엇</th></tr>
+  <tr><td class="id">HSET-MSG-01~05</td><td><b>다섯째 줄 「알림」</b> · 문구와 채널이 한 줄 · 왜 합치나 · ⛔따로 두기 기각</td></tr>
+  <tr><td class="id">HSET-MSG-06~08</td><td>종류는 <b>지금 10개</b> · <b>「11종」은 앞당겨 센 숫자</b>(상담 답변은 4단계) · 왜 세어 봤나</td></tr>
+  <tr><td class="id">HSET-MSG-09~11</td><td><b>통째로 자유</b> · <code>PUSH-BODY-01</code>은 그대로 · <b>금지어 검사는 애초에 불가능</b></td></tr>
+  <tr><td class="id">HSET-MSG-12·13</td><td>저장 전 <b>되묻기</b> + <b>값이 채워진 미리보기</b></td></tr>
+  <tr><td class="id">HSET-MSG-14·15</td><td>⛔빈칸만 채우기 기각 · ⛔못 고치게 기각</td></tr>
+  <tr><td class="id">HSET-MSG-16~18</td><td>넣을 값 <b>셋</b> · 지금은 이름뿐 · <b>시각은 금지 대상이 아니다</b></td></tr>
+  <tr><td class="id">HSET-MSG-19~21</td><td>값이 없으면 <b>그 자리만 빠진다</b> · 왜 생기나 · <b>편집 화면에서 미리 알린다</b></td></tr>
+  <tr><td class="id">HSET-MSG-22~24</td><td><b>되돌리기는 고친 줄에만</b> · ⛔맨 위 하나 기각 · <b>기본값 원본은 코드</b></td></tr>
+  <tr><td class="id">HSET-MSG-25·26</td><td>빈 문구 금지 · ⛔<b>문자용 문구를 따로 두지 않는다</b></td></tr>
+  <tr><td class="id">HSET-MSG-27~30</td><td>⭐⭐<b>잠기는 것은 「문자로도」 열 하나뿐</b> · ⛔표 전체 잠금은 사고 · 왜 쉬운가 · <b>왜 잠겼는지와 갈 길</b></td></tr>
+  <tr><td class="id">HSET-MSG-31~34</td><td>저장은 맨 위 하나 · 부제목 · 권한 · <b>담을 표가 없다</b></td></tr>
+  <tr><td class="id">HSET-NAV-01</td><td>✅ <b>네 줄 → 다섯 줄</b>로 개정</td></tr>
+  <tr><td class="id">HSET-NAV-02</td><td><b>이 줄이 늘 것을 미리 적어뒀다</b> — 세로줄을 고른 근거</td></tr>
+  <tr><td class="id">HSET-NAV-03</td><td>줄마다 부제목에 지금 값 — <code>HSET-MSG-32</code>의 원형</td></tr>
+  <tr><td class="id">HSET-SMS-01·02</td><td>✅ <b>세 칸 → 두 칸</b> · <b>잠기는 범위 개정</b>(+<code>02b</code>·<code>02c</code> 신설)</td></tr>
+  <tr><td class="id">HSET-SMS-05·06</td><td>네 갭이 한 몸 · ✅<b>#103의 자리가 확정됐다</b></td></tr>
+  <tr><td class="id">HSET-SAVE-01</td><td>저장은 맨 위 버튼 하나</td></tr>
+  <tr><td class="id">PUSH-BODY-01·03</td><td>⛔진료과·의사명·증상 금지 · <b>새어 나가도 되는 범위</b>(시각은 그 밖)</td></tr>
+  <tr><td class="id">PUSH-BODY-08·09</td><td>11종은 본문 그대로 · <b>막지 않고 알려주는 태도</b></td></tr>
+  <tr><td class="id">SEND-ADS-04</td><td>광고 표기는 지울 수 없게 하되 <b>문구는 자유</b> — 같은 판단의 선례</td></tr>
+  <tr><td class="id">SEND-CH-05</td><td><b>잠기고 왜 잠겼는지 + 설정으로 가는 길</b> — <code>HSET-MSG-30</code>이 그대로 재사용</td></tr>
+  <tr><td class="id">SHELL-NAV-05</td><td>0이면 사라진다 — <code>HSET-MSG-22</code>(고친 줄에만)의 원형</td></tr>
+</table>
+
+<h2 class="sub2">남긴 것</h2>
+<p class="hint" style="margin-top:0">
+  ✅ <b>빈칸 없음</b> — ②절 <b>㉡ 합치기</b>로 확정(사용자), ④⑤절도 확정.<br>
+  ⚠️ <b>목업 68이 낡았다</b> — ①절 그림의 <b>세 칸이 두 칸</b>이 되고 <b>왼쪽 세로줄이 네 줄 → 다섯 줄</b>이 된다.<br>
+  ⚠️ <b>마이그레이션 <code>00010_</code>에 한 건 추가</b> — <b>#126</b>(알림 종류별 표). <b>플랜 조치 한 건</b> — <b>#125</b>(날짜·시각 조회).<br>
+  🔗 <b>#100·#103과 같은 함수에서 손봐야 한다</b> — <code>notify_patient</code> 한 곳이 <b>문구·채널·죽은 토큰</b>을 모두 만진다.
+</p>
+
+</div>
+</body>
+</html>

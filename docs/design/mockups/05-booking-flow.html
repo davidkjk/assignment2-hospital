@@ -1,0 +1,154 @@
+<style>
+  .bk { width: 262px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 500px; background: #F2F5F7; color: #10243A; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .bk-top { background: #fff; padding: 9px 12px 10px; }
+  .bk-nav { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .bk-back { color: #5A6C7B; font-weight: 700; }
+  .bk-prog { display: flex; gap: 3px; margin-top: 9px; }
+  .bk-prog i { flex: 1; height: 5px; border-radius: 3px; background: #E0E7EC; }
+  .bk-prog i.on { background: #0B6E70; }
+  .bk-step { font-size: 10px; color: #5A6C7B; margin-top: 6px; font-weight: 700; }
+  .bk-body { flex: 1; padding: 12px; }
+  .bk-q { font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.35; margin-bottom: 4px; }
+  .bk-hint { font-size: 11px; color: #5A6C7B; margin-bottom: 12px; }
+  .bk-chips { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+  .bk-chip { font-size: 10px; font-weight: 700; background: #E3EEEE; color: #0B6E70; padding: 5px 9px; border-radius: 99px; border: 1px solid #BBD6D6; }
+  .bk-opt { background: #fff; border: 2px solid #E6EBEF; border-radius: 12px; padding: 13px 12px; margin-bottom: 8px; font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+  .bk-opt.sel { border-color: #0B6E70; background: #F0F7F7; }
+  .bk-opt small { display: block; font-size: 11px; font-weight: 600; color: #5A6C7B; margin-top: 2px; }
+  .bk-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .bk-t { background: #fff; border: 2px solid #E6EBEF; border-radius: 9px; padding: 11px 0; text-align: center; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .bk-t.sel { background: #0B6E70; border-color: #0B6E70; color: #fff; }
+  .bk-t.off { background: #F5F7F8; border-color: #EDF1F3; color: #B4BFC8; text-decoration: line-through; }
+  .bk-cta { background: #0B6E70; color: #fff; text-align: center; font-size: 15px; font-weight: 800; padding: 15px; border-radius: 11px; margin: 10px 12px 12px; }
+  .bk-cta.off { background: #C9D3D9; color: #fff; }
+  .bk-acc { background: #fff; border-radius: 11px; margin-bottom: 7px; overflow: hidden; }
+  .bk-acc-done { display: flex; justify-content: space-between; align-items: center; padding: 11px 12px; font-size: 12px; }
+  .bk-acc-done b { font-weight: 800; }
+  .bk-acc-open { padding: 12px; border-left: 4px solid #0B6E70; }
+  .bk-check { color: #0B6E70; font-weight: 800; font-size: 13px; }
+  .bk-edit { color: #0B6E70; font-size: 11px; font-weight: 700; }
+  .bk-sum { background: #fff; border-radius: 12px; padding: 12px; }
+  .bk-sumrow { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E6EBEF; font-size: 12px; }
+  .bk-sumrow:last-child { border-bottom: none; }
+  .bk-sumrow span:first-child { color: #5A6C7B; }
+  .bk-sumrow b { font-weight: 800; }
+  .bk-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+</style>
+
+<h2>화면 5 / 20 — 환자 앱: 진료 예약 8단계 플로우</h2>
+<p class="subtitle">
+  스펙 4.3의 8단계: <b>본인/가족 → 진료과 → 의사 → 날짜 → 시간 → 방문이유 → 최종확인 → 신청</b>. 확정한 딥틸 + 채움 아이콘 스타일을 처음으로 적용했습니다.
+  <br>여덟 단계를 <b>몇 개의 화면에 나눠 담을지</b>가 이번 결정입니다.
+</p>
+
+<div class="bk-row">
+
+  <!-- A -->
+  <div class="card" data-choice="wizard" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bk">
+        <div class="bk-top">
+          <div class="bk-nav"><span class="bk-back">‹ 뒤로</span><span>예약하기</span><span class="bk-back">✕</span></div>
+          <div class="bk-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="bk-step">5단계 / 8단계 · 시간 선택</div>
+        </div>
+        <div class="bk-body">
+          <div class="bk-chips">
+            <span class="bk-chip">김순자 ✕</span>
+            <span class="bk-chip">내과 ✕</span>
+            <span class="bk-chip">이민호 원장 ✕</span>
+            <span class="bk-chip">8/3 (월) ✕</span>
+          </div>
+          <div class="bk-q">몇 시에 오시겠어요?</div>
+          <div class="bk-hint">회색으로 지워진 시간은 이미 예약됐습니다</div>
+          <div class="bk-times">
+            <div class="bk-t">09:00</div><div class="bk-t off">09:30</div><div class="bk-t">10:00</div>
+            <div class="bk-t off">10:30</div><div class="bk-t">11:00</div><div class="bk-t off">11:30</div>
+            <div class="bk-t">14:00</div><div class="bk-t sel">14:30</div><div class="bk-t">15:00</div>
+            <div class="bk-t">15:30</div><div class="bk-t off">16:00</div><div class="bk-t">16:30</div>
+          </div>
+        </div>
+        <div class="bk-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 한 화면에 한 질문 (마법사 8화면)</h3>
+      <p>질문 하나가 화면 전체를 씁니다. 상단에 <b>진행 막대 + "5단계 / 8단계"</b>로 어디쯤인지 늘 보이고, 지금까지 고른 것은 <b>칩</b>으로 쌓입니다. 칩의 ✕를 누르면 그 단계로 바로 돌아갑니다(뒤로가기를 네 번 누를 필요 없음).</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="accordion" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bk">
+        <div class="bk-top">
+          <div class="bk-nav"><span class="bk-back">‹</span><span>예약하기</span><span class="bk-back">✕</span></div>
+          <div class="bk-step" style="margin-top:7px">8개 중 4개 선택함 · 아래로 계속 진행하세요</div>
+        </div>
+        <div class="bk-body" style="padding:10px">
+          <div class="bk-acc"><div class="bk-acc-done"><span><span class="bk-check">✓</span> 누구 · <b>김순자(본인)</b></span><span class="bk-edit">변경</span></div></div>
+          <div class="bk-acc"><div class="bk-acc-done"><span><span class="bk-check">✓</span> 진료과 · <b>내과</b></span><span class="bk-edit">변경</span></div></div>
+          <div class="bk-acc"><div class="bk-acc-done"><span><span class="bk-check">✓</span> 의사 · <b>이민호 원장</b></span><span class="bk-edit">변경</span></div></div>
+          <div class="bk-acc"><div class="bk-acc-done"><span><span class="bk-check">✓</span> 날짜 · <b>8월 3일 (월)</b></span><span class="bk-edit">변경</span></div></div>
+          <div class="bk-acc">
+            <div class="bk-acc-open">
+              <div style="font-size:15px;font-weight:800;margin-bottom:8px">시간을 골라주세요</div>
+              <div class="bk-times">
+                <div class="bk-t">09:00</div><div class="bk-t off">09:30</div><div class="bk-t">10:00</div>
+                <div class="bk-t">14:00</div><div class="bk-t sel">14:30</div><div class="bk-t">15:00</div>
+              </div>
+              <div style="font-size:10px;color:#5A6C7B;margin-top:7px">▾ 시간 더 보기</div>
+            </div>
+          </div>
+          <div class="bk-acc" style="opacity:.45"><div class="bk-acc-done"><span>방문 이유</span><span>›</span></div></div>
+          <div class="bk-acc" style="opacity:.45"><div class="bk-acc-done"><span>최종 확인</span><span>›</span></div></div>
+        </div>
+        <div class="bk-cta off">시간을 고르면 진행됩니다</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 한 화면에 아코디언으로 전부</h3>
+      <p>고른 항목은 접혀서 <b>한 줄 요약</b>으로 남고 다음이 열립니다. 지금까지의 선택이 전부 눈앞에 있어 되돌아가기가 쉽습니다. 단점: 화면이 계속 길어지고 <b>스크롤 위치가 자동으로 움직여</b> 어르신이 "화면이 혼자 움직인다"고 느끼기 쉽습니다.</p>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" data-choice="grouped" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="bk">
+        <div class="bk-top">
+          <div class="bk-nav"><span class="bk-back">‹ 뒤로</span><span>예약하기</span><span class="bk-back">✕</span></div>
+          <div class="bk-prog"><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="bk-step">2단계 / 3단계 · 날짜와 시간</div>
+        </div>
+        <div class="bk-body">
+          <div class="bk-q">언제 오시겠어요?</div>
+          <div class="bk-hint">김순자 · 내과 이민호 원장</div>
+          <div style="display:flex;gap:5px;margin-bottom:11px">
+            <div class="bk-t" style="flex:1;padding:9px 0;font-size:11px">8/1<br><small style="font-weight:600">토</small></div>
+            <div class="bk-t off" style="flex:1;padding:9px 0;font-size:11px">8/2<br><small style="font-weight:600">일</small></div>
+            <div class="bk-t sel" style="flex:1;padding:9px 0;font-size:11px">8/3<br><small style="font-weight:600">월</small></div>
+            <div class="bk-t" style="flex:1;padding:9px 0;font-size:11px">8/4<br><small style="font-weight:600">화</small></div>
+          </div>
+          <div class="bk-times">
+            <div class="bk-t">09:00</div><div class="bk-t off">09:30</div><div class="bk-t">10:00</div>
+            <div class="bk-t off">10:30</div><div class="bk-t">11:00</div><div class="bk-t off">11:30</div>
+            <div class="bk-t">14:00</div><div class="bk-t sel">14:30</div><div class="bk-t">15:00</div>
+          </div>
+        </div>
+        <div class="bk-cta">다음 · 방문 이유 쓰기</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 3화면으로 묶기</h3>
+      <p>①누구·진료과·의사 ②날짜·시간 ③이유·확인. 화면 이동이 8번에서 3번으로 줄어 <b>빠릅니다</b>. 단점: 한 화면에서 두세 가지를 동시에 결정해야 해 <b>요구사항 4.8("화면당 핵심 행동 1개")과 정면으로 어긋납니다</b>.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>A(마법사 8화면)</b>를 추천합니다. 요구사항 4.8이 명시적으로 "화면당 핵심 행동 1개"를 요구하고, 글자와 버튼을 가장 크게 쓸 수 있는 방식이 A입니다.</p>
+  <p style="margin-top:8px">"8번이나 넘겨야 해서 답답하지 않나"가 A의 유일한 약점인데, 그건 <b>칩</b>으로 해결했습니다 — 화면 위에 고른 것이 계속 쌓여 있어서 지금 어디쯤인지 알 수 있고, 잘못 고른 게 있으면 <u>뒤로가기를 여러 번 누르는 대신 칩을 눌러 그 단계로 바로</u> 갑니다. 스펙에 나온 동시 예약 충돌("이미 선택된 시간입니다")이 났을 때도 시간 단계로만 되돌리면 되니 회복이 깔끔합니다.</p>
+  <p style="margin-top:8px">B는 스크롤이 저절로 움직이는 느낌이 고령 사용자에게 불안 요소이고, C는 빠르지만 접근성 요구사항을 직접 위반합니다.</p>
+</div>

@@ -1,0 +1,131 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .pw { width: 262px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 470px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .pw-top { background: #fff; padding: 9px 12px 11px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .pw-back { color: #0B6E70; font-weight: 700; }
+  .pw-body { flex: 1; padding: 11px; }
+  .pw-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.10); margin-bottom: 9px; }
+  .pw-when { font-size: 18px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
+  .pw-who { font-size: 11px; margin-top: 2px; font-weight: 500; }
+  .pw-r { display: flex; padding: 9px 12px; border-bottom: 1px solid #E6EBEF; font-size: 12px; }
+  .pw-r:last-child { border-bottom: none; }
+  .pw-l { color: #5A6C7B; width: 60px; flex-shrink: 0; font-weight: 500; }
+  .pw-v { flex: 1; font-weight: 700; }
+  .pw-btns { display: flex; gap: 7px; padding: 10px 11px 12px; background: #fff; border-top: 1px solid #E0E7EC; }
+  .pw-b { flex: 1; text-align: center; padding: 14px 0; border-radius: 10px; font-size: 14px; font-weight: 800; }
+  .pw-out { border: 2px solid #0B6E70; color: #0B6E70; }
+  .pw-gray { border: 2px solid #C7D2D8; color: #5A6C7B; }
+  .pw-slot { background: #fff; border: 1.5px dashed #C7D2D8; border-radius: 10px; padding: 14px 11px; text-align: center; font-size: 11px; color: #5A6C7B; font-weight: 600; line-height: 1.6; }
+  .pw-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+</style>
+
+<h2>화면 14 / 20 — "확정 전" 문구를 더 크게</h2>
+<p class="subtitle">B안 확정. 지적하신 대로 <b>배지가 너무 작아</b> 가장 중요한 정보가 가장 작게 표시되고 있었습니다. 세 가지 크기·문구 조합입니다.</p>
+
+<div class="pw-row">
+
+  <!-- 1 -->
+  <div class="card" data-choice="wording-title" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="pw">
+        <div class="pw-top"><span class="pw-back">‹ 뒤로</span><span>예약 상세</span><span style="width:34px"></span></div>
+        <div class="pw-body">
+          <div class="pw-card">
+            <div style="background:#7E8E99;color:#fff;padding:13px 12px">
+              <div style="font-size:17px;font-weight:800;letter-spacing:-.3px">직원 확인 중입니다</div>
+              <div style="font-size:11px;opacity:.94;font-weight:500;margin-top:3px">확정되면 알림을 보내드립니다</div>
+            </div>
+            <div style="padding:11px 12px;border-bottom:1px solid #E6EBEF">
+              <div class="pw-when">8월 3일 (월) 오후 2:30</div>
+              <div class="pw-who" style="color:#5A6C7B">김순자 · 신청번호 A-2413</div>
+            </div>
+            <div class="pw-r"><span class="pw-l">진료과</span><span class="pw-v">내과</span></div>
+            <div class="pw-r"><span class="pw-l">담당의사</span><span class="pw-v">이민호 원장</span></div>
+            <div class="pw-r"><span class="pw-l">장소</span><span class="pw-v">본관 3층</span></div>
+          </div>
+          <div class="pw-slot">확정되면 여기에 <b>접수용 QR</b>이 나타납니다</div>
+        </div>
+        <div class="pw-btns"><div class="pw-b pw-out">시간 변경</div><div class="pw-b pw-gray">신청 취소</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1. 상태를 제목 자리로</h3>
+      <p>회색 머리에서 <b>가장 큰 글자가 상태</b>가 됩니다("직원 확인 중입니다" 17px). 날짜는 그 아래 흰 칸으로 내려갑니다. 무슨 상태인지 <b>0.5초 안에</b> 읽힙니다. 단점: 날짜·시간이 두 번째 자리로 밀립니다.</p>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="card" data-choice="wording-band" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="pw">
+        <div class="pw-top"><span class="pw-back">‹ 뒤로</span><span>예약 상세</span><span style="width:34px"></span></div>
+        <div class="pw-body">
+          <div style="background:#5A6C7B;color:#fff;border-radius:10px;padding:11px 12px;margin-bottom:9px;display:flex;align-items:center;gap:9px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" style="flex-shrink:0"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.6V6.5a1 1 0 1 0-2 0v6.6c0 .3.1.6.4.8l3.6 2.9a1 1 0 0 0 1.3-1.6z"/></svg>
+            <div>
+              <div style="font-size:14.5px;font-weight:800">직원 확인 중입니다</div>
+              <div style="font-size:10.5px;opacity:.92;font-weight:500;margin-top:1px">확정되면 알림을 보내드립니다</div>
+            </div>
+          </div>
+          <div class="pw-card">
+            <div style="background:#7E8E99;color:#fff;padding:11px 12px">
+              <div class="pw-when">8월 3일 (월) 오후 2:30</div>
+              <div class="pw-who" style="opacity:.94">김순자 · 신청번호 A-2413</div>
+            </div>
+            <div class="pw-r"><span class="pw-l">진료과</span><span class="pw-v">내과</span></div>
+            <div class="pw-r"><span class="pw-l">담당의사</span><span class="pw-v">이민호 원장</span></div>
+            <div class="pw-r"><span class="pw-l">장소</span><span class="pw-v">본관 3층</span></div>
+          </div>
+          <div class="pw-slot">확정되면 여기에 <b>접수용 QR</b>이 나타납니다</div>
+        </div>
+        <div class="pw-btns"><div class="pw-b pw-out">시간 변경</div><div class="pw-b pw-gray">신청 취소</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2. 카드 위에 상태 띠를 따로</h3>
+      <p>예약 카드는 <b>건드리지 않고</b>, 그 위에 상태 전용 띠를 하나 올립니다. 시계 아이콘이 "기다리는 중"을 보강합니다. 확정되면 이 띠만 사라지므로 <b>확정 전후 화면 차이가 가장 작습니다</b>. 단점: 화면에 요소가 하나 늘어납니다.</p>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="card" data-choice="wording-both" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="pw">
+        <div class="pw-top"><span class="pw-back">‹ 뒤로</span><span>예약 상세</span><span style="width:34px"></span></div>
+        <div class="pw-body">
+          <div class="pw-card">
+            <div style="background:#7E8E99;color:#fff;padding:12px">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.6V6.5a1 1 0 1 0-2 0v6.6c0 .3.1.6.4.8l3.6 2.9a1 1 0 0 0 1.3-1.6z"/></svg>
+                <span style="font-size:15px;font-weight:800">직원 확인 중입니다</span>
+              </div>
+              <div class="pw-when" style="font-size:17px">8월 3일 (월) 오후 2:30</div>
+              <div class="pw-who" style="opacity:.94">김순자 · 신청번호 A-2413</div>
+            </div>
+            <div class="pw-r"><span class="pw-l">진료과</span><span class="pw-v">내과</span></div>
+            <div class="pw-r"><span class="pw-l">담당의사</span><span class="pw-v">이민호 원장</span></div>
+            <div class="pw-r"><span class="pw-l">장소</span><span class="pw-v">본관 3층</span></div>
+          </div>
+          <div class="pw-slot" style="padding:12px 11px">
+            확정되면 여기에 <b>접수용 QR</b>이 나타납니다<br>
+            <span style="color:#A9B6BF">확정 알림도 함께 보내드립니다</span>
+          </div>
+        </div>
+        <div class="pw-btns"><div class="pw-b pw-out">시간 변경</div><div class="pw-b pw-gray">신청 취소</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3. 머리 안에 두 줄로</h3>
+      <p>회색 머리 <b>안에</b> 상태를 첫 줄, 날짜를 둘째 줄로. 요소가 늘지 않으면서 상태 글자가 15px로 커집니다. 상태와 날짜가 <b>한 덩어리로 묶여</b> "이 예약이 확인 중"이라는 관계가 분명합니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>3(머리 안에 두 줄)</b>을 추천합니다. 상태가 충분히 크면서도(15px + 시계 아이콘) 날짜·시간이 밀려나지 않고, 화면에 새 요소가 늘지 않습니다. 무엇보다 <b>상태와 그 상태가 적용되는 예약이 한 상자 안에</b> 있어서, 예약이 여러 건일 때 "어느 예약이 확인 중인지" 헷갈릴 여지가 없습니다.</p>
+  <p style="margin-top:8px">1번은 상태 인식이 가장 빠르지만 <u>날짜가 두 번째로 밀리는 게</u> 아깝습니다 — 사용자가 이 화면을 여는 첫 번째 이유는 여전히 "언제였지?"입니다. 2번은 확정 전후 차이가 가장 작아 만들기 편하지만, 띠와 카드가 따로 놀아 보입니다.</p>
+  <p style="margin-top:8px"><span class="label">문구</span> "아직 확정 전" 대신 <b>"직원 확인 중입니다"</b>로 확정합니다. 지적하신 대로 <u>누가 무엇을 하고 있는지</u>가 드러나서, 사용자가 "내가 뭘 더 해야 하나?" 하고 불안해하지 않습니다.</p>
+</div>

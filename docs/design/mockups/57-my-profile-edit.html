@@ -1,0 +1,104 @@
+<style>
+  .p57 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --warn:#B44E00; --bg:#F2F5F7; }
+  .p57, .p57 * { text-align:left; box-sizing:border-box; }
+  .p57 { width:330px; height:580px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+         overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+         color:var(--ink); position:relative; }
+  .p57 .bar { background:var(--teal); color:#fff; padding:11px 15px; font-size:14.5px; font-weight:600; }
+  .p57 .body { padding:16px 15px 0; }
+
+  .fl { margin-bottom:14px; }
+  .fl .lb { font-size:13px; font-weight:700; color:#33485c; margin-bottom:5px; }
+  .fl .in { border:1.5px solid #dde4e9; border-radius:9px; padding:12px; font-size:15.5px; min-height:46px;
+            display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .fl .in.lock { background:#f1f4f6; color:#7b8b98; border-color:#e2e8ec; }
+  .fl .in .cal { color:var(--teal); font-size:16px; }
+  .fl .why { margin-top:6px; padding-left:9px; border-left:4px solid #c8d2d9; font-size:12.5px;
+             color:var(--done); font-weight:600; line-height:1.5; }
+  .fl .why.act { border-color:var(--warn); color:var(--warn); }
+  .fl .why a { color:var(--teal); font-weight:800; text-decoration:underline; }
+
+  .gd { display:flex; gap:9px; }
+  .gd div { flex:1; border:1.5px solid #dde4e9; border-radius:9px; padding:12px; font-size:16px;
+            font-weight:700; text-align:center; color:#44586b; }
+  .gd div.sel { border-color:var(--teal); border-width:2px; background:#f0f7f7; color:var(--teal); font-weight:800; }
+  .gd.lock div { background:#f1f4f6; color:#9aa8b3; border-color:#e2e8ec; }
+  .gd.lock div.sel { border-color:#c2ccd4; background:#eaeef1; color:#5b6b78; }
+
+  .p57 .foot { position:absolute; left:0; right:0; bottom:0; padding:0 15px 16px; }
+  .p57 .cta { display:block; width:100%; background:var(--teal); color:#fff; border:none; border-radius:11px;
+              padding:14px; font-size:16px; font-weight:800; text-align:center; font-family:inherit; }
+  .p57 .cta.off { background:#c6d0d7; color:#f4f7f9; }
+
+  .lane57 { display:flex; gap:26px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane57 h3 { margin:0 0 5px; text-align:left; font-size:16px; }
+  .lane57 .cap { font-size:12.5px; color:#6b7d8c; margin-bottom:11px; max-width:330px; text-align:left; line-height:1.6; }
+  .note57 { margin-top:26px; border:1px solid #dde4e9; border-radius:12px; padding:16px 18px; background:#fafcfd;
+            font-size:13.5px; line-height:1.75; color:#33485c; max-width:1100px; }
+  .note57 b { color:#10243A; }
+  .note57 code { background:#eef2f5; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .key57 { margin-top:18px; border:1.5px solid #e2c9a8; border-radius:12px; padding:16px 18px; background:#fdf8f1;
+           font-size:13.5px; line-height:1.75; color:#4a3a26; max-width:1100px; }
+  .key57 b { color:#B44E00; }
+  .key57 code { background:#f2e6d6; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+
+<h2>본인 정보 수정 (신규 · 결정 <b>B-32</b>)</h2>
+<p class="subtitle">⭐ <b>같은 화면이 사람마다 다르게 보입니다.</b> 기준은 <b>「진료 이력이 있는가」</b> 하나입니다 — 없으면 스스로 고치고, 있으면 병원만 고칩니다.</p>
+
+<div class="lane57">
+
+  <div>
+    <h3>① 진료 이력이 <b>없을 때</b> — 고칠 수 있다</h3>
+    <div class="cap"><code>FAM-EDIT-07</code>. 가입 직후 <b>오타를 스스로 고치는</b> 상황입니다 — 아직 <b>나만의 기록</b>이라 병원에 물어볼 이유가 없습니다.
+    <br>성별은 여기서도 <b>미리 골라두지 않습니다</b>(<code>FAM-EDIT-11</code>, B-30과 같은 규칙).</div>
+    <div class="p57">
+      <div class="bar">← &nbsp;내 정보</div>
+      <div class="body">
+        <div class="fl"><div class="lb">이름</div><div class="in">김순자</div></div>
+        <div class="fl"><div class="lb">생년월일</div><div class="in">1958년 3월 14일 <span class="cal">📅</span></div></div>
+        <div class="fl"><div class="lb">성별</div><div class="gd"><div>남</div><div class="sel">여</div></div></div>
+        <div class="fl"><div class="lb">휴대폰 번호</div><div class="in lock">010-1234-5678</div>
+          <div class="why">번호를 바꾸시려면 병원에 문의해 주세요</div></div>
+      </div>
+      <div class="foot"><button class="cta">저장</button></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>② 진료 이력이 <b>있을 때</b> — 읽기 전용</h3>
+    <div class="cap"><code>FAM-EDIT-08</code>. 회색 칸으로 잠그고 <b>바로 아래에 이유를 한 줄</b>로 밝힙니다(<code>FAM-EDIT-15</code>).
+    <br>⛔ <b>회색 칸만 만들고 끝내지 않습니다</b> — 왜 못 고치는지와 <b>어디로 가야 하는지</b>가 없으면 막다른 길이 됩니다.</div>
+    <div class="p57">
+      <div class="bar">← &nbsp;내 정보</div>
+      <div class="body">
+        <div class="fl"><div class="lb">이름</div><div class="in lock">김순자</div></div>
+        <div class="fl"><div class="lb">생년월일</div><div class="in lock">1958년 3월 14일</div></div>
+        <div class="fl"><div class="lb">성별</div><div class="gd lock"><div>남</div><div class="sel">여</div></div>
+          <div class="why act">진료 기록이 있어 병원에서만 수정할 수 있습니다 · <a>병원 전화</a></div></div>
+        <div class="fl"><div class="lb">휴대폰 번호</div><div class="in lock">010-1234-5678</div></div>
+      </div>
+      <div class="foot"><button class="cta off">저장</button></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="key57">
+⭐ <b>왜 「진료 이력」을 기준선으로 삼았나</b>(B-32)
+<br><b>본인도 병원 기록을 가진 사람이지만 한 가지가 다릅니다 — 그 값을 처음 적은 사람이 본인입니다.</b>
+<br>· ⛔ <b>전부 잠그면</b>: 가입 직후 이름에 오타를 낸 사람에게 <b><i>"병원에 간 적도 없는데 병원에 문의하라"</i></b>는 화면이 됩니다.
+<br>· ⛔ <b>전부 열면</b>: <b>진료기록의 주인을 아무 확인 없이 바꾸게 됩니다.</b> 요구사항 3.5가 <b>동명이인을 생년월일·연락처로 구분</b>하라고 지정했는데(<code>:149</code>), 앱이 그 값을 덮어쓰면 <b>접수 화면에서 사람이 뒤바뀝니다.</b>
+<br>→ <b>기준선을 「진료 이력」에 두면 둘 다 피합니다.</b>
+<br>⚠️ <b>대가는 화면이 사람마다 다르게 보이는 것</b>입니다 — 그래서 회색 칸 아래에 <b>이유를 한 줄로</b> 밝히는 것이 규칙이 됐습니다.
+<br>⚠️ <b>구현 전제</b>: <b>「진료 이력이 있는가」를 서버가 내려줘야 합니다</b> — 지금 프로필 응답에 <b>그 값이 없습니다</b>(<code>FAM-EDIT-10</code>) → 갭 <b>#63</b>.
+</div>
+
+<div class="note57">
+<b>그림에 안 보이지만 이 화면에 걸린 규칙</b>
+<br>· <b>이 화면에 들어오기 전에 재인증을 거칩니다</b>(<code>NAV-GLOBAL-05</code>) — 화면을 떠난 뒤 5분이 지났으면 <b>비밀번호를 다시 묻습니다</b>. 설정·가족·탈퇴가 같은 대우입니다.
+<br>· <b>휴대폰 번호는 어느 경우에도 앱에서 못 바꿉니다</b> — 번호는 <b>로그인 수단 그 자체</b>라 앱이 스스로 바꾸면 계정을 옮기는 일이 됩니다(<code>AUTH-TEL-*</code>, 갭 #19).
+<br>· <b>본인 카드에는 「연결 해제」가 없습니다</b>(<code>FAM-LIST-09</code>·<code>FAM-UNLINK-02</code>) — 본인을 끊는다는 개념이 없고, 그만두려면 <b>설정의 회원 탈퇴</b>입니다.
+<br>· <b>저장 버튼은 중복 클릭 방지 대상입니다</b>(<code>FAM-EDIT-14</code>) — <code>◌ 저장 중…</code>으로 <b>글자를 지우지 않고</b> 진행형을 보여줍니다. 서버에 무언가를 바꾸는 버튼이기 때문입니다.
+<br>· <b>같은 화면 구조를 가족에게도 씁니다</b> — ㉯ <b>기존 환자 연결</b>로 들어온 가족은 <b>항상 읽기 전용</b>이고(<code>FAM-EDIT-05·06</code>) 관계 칩만 열립니다. 다른 점은 <b>본인만 「진료 이력」에 따라 갈린다</b>는 것입니다.
+</div>

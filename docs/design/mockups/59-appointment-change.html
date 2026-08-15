@@ -1,0 +1,165 @@
+<style>
+  .p59 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --warn:#B44E00; --bg:#F2F5F7; }
+  .p59, .p59 * { text-align:left; box-sizing:border-box; }
+  .p59 { width:330px; height:590px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+         overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+         color:var(--ink); position:relative; }
+  .p59 .bar { background:var(--teal); color:#fff; padding:11px 15px; font-size:14.5px; font-weight:600; }
+  .p59 .prog { padding:12px 15px 6px; background:var(--bg); }
+  .p59 .prog .txt { font-size:12px; color:var(--done); font-weight:600; margin-bottom:6px; }
+  .p59 .prog .track { height:5px; background:#dde4e9; border-radius:3px; overflow:hidden; }
+  .p59 .prog .fill { height:100%; background:var(--teal); }
+  .p59 .fix { margin:12px 15px 0; background:#f1f4f6; border-radius:9px; padding:10px 12px; }
+  .p59 .fix .k { font-size:11.5px; color:var(--done); font-weight:700; }
+  .p59 .fix .v { font-size:14.5px; font-weight:800; margin-top:3px; }
+  .p59 .fix .alt { display:inline-block; margin-top:7px; font-size:12.5px; color:var(--teal);
+                   font-weight:800; text-decoration:underline; }
+  .p59 .q { padding:14px 15px 8px; font-size:18px; font-weight:800; letter-spacing:-.3px; }
+  .p59 .body { padding:0 15px; }
+
+  .cal { border:1.5px solid #dde4e9; border-radius:11px; padding:11px; }
+  .cal .mh { display:flex; justify-content:space-between; align-items:center; font-size:14px; font-weight:800; margin-bottom:9px; }
+  .cal .mh span { color:#b6c2cb; font-size:16px; }
+  .cal .w { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center; }
+  .cal .w * { text-align:center; }
+  .cal .w .hd { font-size:10.5px; color:var(--done); font-weight:700; padding-bottom:3px; }
+  .cal .w .d { font-size:13px; padding:7px 0; border-radius:8px; color:#c3ccd3; font-weight:600; }
+  .cal .w .d.can { color:var(--ink); border:1.5px solid #cfe0e0; font-weight:700; }
+  .cal .w .d.now { background:var(--teal); color:#fff; font-weight:800; border-color:var(--teal); }
+  .cal .w .d.old { border:1.5px dashed #b9c4cc; color:#7b8b98; }
+
+  .p59 .dim { position:absolute; inset:0; background:rgba(16,36,58,.45); display:flex;
+              align-items:center; justify-content:center; padding:0 16px; }
+  .dlg { background:#fff; border-radius:14px; width:100%; overflow:hidden; }
+  .dlg .in { padding:17px 16px 14px; }
+  .dlg .t { font-size:16.5px; font-weight:800; margin-bottom:12px; }
+  .dlg .cmp { border:1.5px solid #e6ebef; border-radius:10px; overflow:hidden; }
+  .dlg .cmp .r { padding:10px 12px; display:flex; align-items:center; gap:9px; }
+  .dlg .cmp .r.a { background:#f6f8f9; }
+  .dlg .cmp .r .k { font-size:11px; font-weight:800; color:var(--done); width:34px; flex:none; }
+  .dlg .cmp .r .v { font-size:15px; font-weight:800; }
+  .dlg .cmp .r.a .v { color:#8b98a3; text-decoration:line-through; }
+  .dlg .cmp .r.b .v { color:var(--teal); }
+  .dlg .cmp .ar { text-align:center; font-size:13px; color:#b6c2cb; padding:0 0 2px; }
+  .dlg .keep { margin-top:11px; font-size:12.5px; color:var(--done); font-weight:600; line-height:1.55; }
+  .dlg .bt { display:flex; gap:8px; padding:0 16px 16px; }
+  .dlg .bt div { flex:1; border-radius:10px; padding:13px; font-size:15px; font-weight:800; text-align:center; }
+  .dlg .bt .no { border:1.5px solid #c8d2d9; color:#44586b; }
+  .dlg .bt .yes { background:var(--teal); color:#fff; flex:1.25; }
+  .dlg .bt .yes.busy { background:#7fa9aa; }
+
+  .lane59 { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane59 h3 { margin:0 0 5px; text-align:left; font-size:16px; }
+  .lane59 .cap { font-size:12.5px; color:#6b7d8c; margin-bottom:11px; max-width:330px; text-align:left; line-height:1.6; }
+  .note59 { margin-top:26px; border:1px solid #dde4e9; border-radius:12px; padding:16px 18px; background:#fafcfd;
+            font-size:13.5px; line-height:1.75; color:#33485c; max-width:1100px; }
+  .note59 b { color:#10243A; }
+  .note59 code { background:#eef2f5; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  .key59 { margin-top:18px; border:1.5px solid #e2c9a8; border-radius:12px; padding:16px 18px; background:#fdf8f1;
+           font-size:13.5px; line-height:1.75; color:#4a3a26; max-width:1100px; }
+  .key59 b { color:#B44E00; }
+  .key59 code { background:#f2e6d6; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+
+<h2>예약 변경 — 날짜 다시 고르기 · 확인창 (신규 · 규칙 <code>APPT-CHG-01~18</code>)</h2>
+<p class="subtitle">⚠️ <b>겉보기와 속이 가장 다른 기능입니다.</b> 화면은 "날짜를 바꾼다"로 보이지만 서버에서는 <b>「취소 + 새 예약」</b>이 일어납니다 — 예약번호가 바뀌고 문진이 끊길 뻔한 문제(B-19·갭 #18)가 전부 여기서 나왔습니다. 그런데 <b>정식 크기 그림이 없었습니다.</b></p>
+
+<div class="lane59">
+
+  <div>
+    <h3>① 날짜 다시 고르기 (1단계 / 2단계)</h3>
+    <div class="cap">⭐ <b>대상·진료과·의사는 다시 묻지 않습니다</b>(<code>APPT-CHG-01·02</code>) — 위 회색 상자에 <b>읽기 전용</b>으로 고정 표시됩니다.
+    <br>⛔ <b>진료과를 고르게 하지 않습니다</b>(<code>APPT-CHG-03</code>) — 서버가 <b>기존 값을 그대로 쓰기</b> 때문에, 고르게 해놓고 무시하면 <b>조용한 거짓말</b>이 됩니다.
+    <br>진행 표시는 <b><code>1단계 / 2단계</code></b>입니다(<code>APPT-CHG-07</code>) — 8단계 막대를 쓰지 않습니다. <b>단계 수가 다른데 같은 막대를 쓰면 거짓말</b>이 됩니다.</div>
+    <div class="p59">
+      <div class="bar">← &nbsp;예약 변경</div>
+      <div class="prog"><div class="txt">1단계 / 2단계 · 날짜 선택</div><div class="track"><div class="fill" style="width:50%"></div></div></div>
+      <div class="fix">
+        <div class="k">이 예약을 옮깁니다</div>
+        <div class="v">정형외과 · 이정민 선생님</div>
+        <div class="k" style="margin-top:6px">현재 8월 5일 (수) 오후 2:30</div>
+        <div class="alt">다른 의사도 보기</div>
+      </div>
+      <div class="q">언제로 옮기시겠어요?</div>
+      <div class="body">
+        <div class="cal">
+          <div class="mh"><span>‹</span>2026년 8월<span>›</span></div>
+          <div class="w">
+            <div class="hd">일</div><div class="hd">월</div><div class="hd">화</div><div class="hd">수</div><div class="hd">목</div><div class="hd">금</div><div class="hd">토</div>
+            <div class="d">2</div><div class="d">3</div><div class="d can">4</div><div class="d old">5</div><div class="d can">6</div><div class="d now">7</div><div class="d">8</div>
+            <div class="d">9</div><div class="d can">10</div><div class="d can">11</div><div class="d">12</div><div class="d can">13</div><div class="d can">14</div><div class="d">15</div>
+            <div class="d">16</div><div class="d can">17</div><div class="d can">18</div><div class="d">19</div><div class="d can">20</div><div class="d can">21</div><div class="d">22</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3>② 확인창 — <b>전 → 후를 함께</b></h3>
+    <div class="cap"><code>APPT-CHG-08</code>(갭 #20). ⚠️ <b>플랜은 *"두 번 골랐으니 확인창을 생략한다"*고 적어뒀는데 결정이 이를 뒤집었습니다</b>(<code>APPT-CHG-09</code>) — <b>되돌릴 수 없는 동작</b>이기 때문입니다.
+    <br>요구사항 <code>:473</code>이 직접 지정한 것이기도 합니다: <i>"예약 변경과 취소처럼 중요한 행동은 실수하지 않도록 <b>한 번 더 확인</b>해주세요."</i></div>
+    <div class="p59">
+      <div class="bar">← &nbsp;예약 변경</div>
+      <div class="prog"><div class="txt">2단계 / 2단계 · 시간 선택</div><div class="track"><div class="fill" style="width:100%"></div></div></div>
+      <div class="dim">
+        <div class="dlg">
+          <div class="in">
+            <div class="t">이렇게 변경할까요?</div>
+            <div class="cmp">
+              <div class="r a"><span class="k">지금</span><span class="v">8월 5일 (수) 오후 2:30</span></div>
+              <div class="ar">↓</div>
+              <div class="r b"><span class="k">변경</span><span class="v">8월 7일 (금) 오후 4:00</span></div>
+            </div>
+            <div class="keep">정형외과 · 이정민 선생님 · 본인 (김순자)<br>작성하신 사전문진은 그대로 옮겨집니다.</div>
+          </div>
+          <div class="bt"><div class="no">아니요</div><div class="yes">변경합니다</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3>③ 처리 중</h3>
+    <div class="cap"><code>APPT-CHG-17</code>. <b>글자를 지우지 않고</b> 진행형으로 바꿉니다(<code>BTN-BUSY-01</code>) — 동그라미만 남으면 <i>"내가 뭘 눌렀지?"</i>가 됩니다.
+    <br>⚠️ <b>앱이 시간을 재서 끊지 않습니다</b> — 멱등성이 없어 다시 누르면 <b>예약이 두 건</b>이 됩니다(갭 #15). 나가려는 사람에게는 <b>「나가셔도 계속 진행됩니다」</b> 팝업이 탈출구입니다.</div>
+    <div class="p59">
+      <div class="bar">← &nbsp;예약 변경</div>
+      <div class="prog"><div class="txt">2단계 / 2단계 · 시간 선택</div><div class="track"><div class="fill" style="width:100%"></div></div></div>
+      <div class="dim">
+        <div class="dlg">
+          <div class="in">
+            <div class="t">이렇게 변경할까요?</div>
+            <div class="cmp">
+              <div class="r a"><span class="k">지금</span><span class="v">8월 5일 (수) 오후 2:30</span></div>
+              <div class="ar">↓</div>
+              <div class="r b"><span class="k">변경</span><span class="v">8월 7일 (금) 오후 4:00</span></div>
+            </div>
+            <div class="keep">정형외과 · 이정민 선생님 · 본인 (김순자)<br>작성하신 사전문진은 그대로 옮겨집니다.</div>
+          </div>
+          <div class="bt"><div class="no" style="opacity:.45">아니요</div><div class="yes busy">◌ 변경 중…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="key59">
+⭐ <b>이 화면이 감추는 것 — 「변경」은 실제로 「취소 + 새 예약」입니다</b>
+<br>그래서 <b>세 가지가 따라옵니다.</b> 셋 다 화면이 어떻게 말하느냐로 갈렸습니다:
+<br>· <b>예약번호가 바뀝니다</b>(<code>APPT-CHG-12</code>, B-19). ⭐ <b>그런데 이 확인창에는 안 적습니다</b> — 결정 직전에 말하면 대부분에게 상관없는 문장이 <b>걱정거리</b>가 되고, <b>완료 후에</b> 말하면 <b>안내</b>가 됩니다(<code>APPT-CHG-13</code>). 완료 화면의 한 줄은 목업 55번 ③에 있습니다.
+<br>· <b>사전문진은 서버가 새 예약으로 그대로 옮깁니다</b>(<code>APPT-CHG-10</code>, C-6 — 갭 #18 해소). 환자 화면에는 <b>아무 일도 안 일어난 것처럼</b> <code>작성완료</code>가 유지됩니다. ⭐ <b>작성 시각도 실제로 쓴 시각 그대로</b> 둡니다(<code>APPT-CHG-11</code>) — 옮겼다고 시각을 새로 찍으면 <b>사실이 아닌 값</b>을 만들게 됩니다. 그래서 확인창에 <code>사전문진은 그대로 옮겨집니다</code> 한 줄을 넣었습니다.
+<br>· ⚠️ <b>병원이 「직원확인후확정」이면 변경한 예약은 다시 <code>예약신청</code>(확인 중)이 됩니다</b>(<code>APPT-CHG-16</code>) — 서버가 <b>새 예약을 만들기</b> 때문입니다. <b>QR이 점선 빈칸으로 돌아갑니다.</b>
+</div>
+
+<div class="note59">
+<b>그림에 안 보이지만 이 화면에 걸린 규칙</b>
+<br>· <b>달력·시간 격자는 예약 마법사의 같은 화면을 씁니다</b>(<code>APPT-CHG-05</code>) — 규칙도 그대로 물려받습니다(가능한 날만 테두리 / 오전·오후 두 덩어리 / 8주까지).
+<br>· <b>같은 과 안에서는 의사를 바꿀 수 있습니다</b>(<code>APPT-CHG-04</code>) — <code>다른 의사도 보기</code>가 그 문입니다. 없으면 <b>"이 선생님만 아니면 되는데"</b> 하는 사람이 막다른 길을 만납니다.
+<br>· <b>당일로 옮기는 것도 됩니다</b>(<code>APPT-CHG-06</code>) — 예약 마법사의 당일 규칙(마감 시각 + 지금부터 30분)을 그대로 적용합니다.
+<br>· <b>그 시간을 방금 다른 사람이 가져갔으면</b> 시간 화면으로 되돌리고 격자 위에 <code>16:00은 방금 다른 분이 예약하셨습니다</code>(<code>APPT-CHG-18</code>). 팝업으로 알리지 않습니다 — <b>닫는 순간 어느 시간이었는지가 사라집니다.</b>
+<br>· <b>완료되면 새 예약의 상세로 갑니다</b>(<code>APPT-CHG-15</code>). 뒤로 누르면 <b>마법사가 아니라 목록</b>으로 — 되돌아가면 <b>같은 일을 두 번</b> 만들게 됩니다.
+<br>· <b>마감(진료 24시간 전)이 지났으면 이 화면에 들어오지 못합니다</b>(<code>APPT-CHG-19</code>) — 취소와 <b>같은 안내 팝업</b>으로 상담·전화를 안내합니다. ⛔ <b>앱에서 희망 시간을 미리 고르게 하지 않습니다</b>(<code>APPT-CHG-20</code>) — 고르게 하면 <b>그 시간으로 옮겨진 줄 압니다.</b>
+<br>· ⭐ <b>마감 후 변경만 막고 취소는 열어두면 규칙에 구멍이 납니다</b>(<code>APPT-CHG-21</code>) — 먼 날짜로 옮긴 뒤 즉시 취소하면 마감 규칙을 <b>우회</b>할 수 있습니다.
+</div>

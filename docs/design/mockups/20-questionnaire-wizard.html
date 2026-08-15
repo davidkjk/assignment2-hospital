@@ -1,0 +1,148 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .qw { width: 258px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 480px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .qw-top { background: #fff; padding: 9px 12px 10px; }
+  .qw-nav { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .qw-back { color: #0B6E70; font-weight: 700; }
+  .qw-who { font-size: 10px; color: #5A6C7B; margin-top: 5px; font-weight: 600; }
+  .qw-prog { display: flex; gap: 3px; margin-top: 8px; }
+  .qw-prog i { flex: 1; height: 5px; border-radius: 3px; background: #E0E7EC; }
+  .qw-prog i.on { background: #0B6E70; }
+  .qw-step { font-size: 10px; color: #5A6C7B; margin-top: 6px; font-weight: 600; display: flex; justify-content: space-between; }
+  .qw-saved { color: #0B6E70; font-weight: 700; }
+  .qw-body { flex: 1; padding: 12px; }
+  .qw-q { font-size: 18.5px; font-weight: 800; letter-spacing: -.4px; line-height: 1.35; margin-bottom: 4px; }
+  .qw-hint { font-size: 11px; color: #5A6C7B; margin-bottom: 12px; font-weight: 500; }
+  .qw-opt { background: #fff; border: 2px solid #E6EBEF; border-radius: 11px; padding: 14px 12px; margin-bottom: 8px; font-size: 15px; font-weight: 700; }
+  .qw-opt.sel { border-color: #0B6E70; background: #F0F7F7; }
+  .qw-input { border: 2px solid #E6EBEF; background: #fff; border-radius: 10px; padding: 12px; font-size: 12.5px; color: #A9B6BF; font-weight: 500; }
+  .qw-sec { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: #5A6C7B; margin: 12px 0 6px; }
+  .qw-cta { background: #0B6E70; color: #fff; text-align: center; font-size: 15px; font-weight: 800; padding: 15px; border-radius: 11px; margin: 10px 12px 12px; }
+  .qw-ghost { border: 2px solid #0B6E70; color: #0B6E70; background: #fff; }
+  .qw-resume { background: #fff; border-left: 4px solid #B44E00; border-radius: 0 11px 11px 0; padding: 12px; margin-bottom: 10px; }
+  .qw-sum { background: #fff; border-radius: 12px; overflow: hidden; }
+  .qw-srow { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; border-bottom: 1px solid #E6EBEF; font-size: 12px; }
+  .qw-srow:last-child { border-bottom: none; }
+  .qw-sq { color: #5A6C7B; font-weight: 500; font-size: 11px; }
+  .qw-sa { font-weight: 800; margin-top: 2px; }
+  .qw-fix { color: #0B6E70; font-size: 11px; font-weight: 800; border: 1.5px solid #9CC4C4; border-radius: 7px; padding: 5px 9px; flex-shrink: 0; }
+  .qw-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .qw-cap { font-size: 12px; color: #5A6C7B; margin-top: 9px; line-height: 1.6; }
+  .qw-cap b { color: #10243A; }
+</style>
+
+<h2>화면 20 / 22 — 사전문진: 마법사 방식(A)으로 확정 + 약점 보완</h2>
+<p class="subtitle">
+  <span style="color:#0B6E70;font-weight:700">✓ 정정: 마법사도 문항마다 자동 저장됩니다</span> — 제가 B만의 장점처럼 잘못 적었습니다.
+  <span style="color:#0B6E70;font-weight:700">✓ "문항이 늘면 흐트러지는" 문제는 C만의 것</span>이고 A·B는 문항이 몇 개든 그대로 늘어납니다.
+  <br>아래 셋은 선택지가 아니라 <b>A 방식의 세 장면</b>입니다. 마지막 요약 화면만 결정해 주세요.
+</p>
+
+<div class="qw-row">
+
+  <!-- 1 -->
+  <div style="max-width:286px">
+    <div style="display:flex;justify-content:center;padding:13px;background:#eef2f4;border-radius:12px">
+      <div class="qw">
+        <div class="qw-top">
+          <div class="qw-nav"><span class="qw-back">‹ 뒤로</span><span>사전문진</span><span class="qw-back">✕</span></div>
+          <div class="qw-who">김순자 · 8월 3일 내과 이민호 원장</div>
+          <div class="qw-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div>
+          <div class="qw-step"><span>3번 / 6문항</span><span class="qw-saved">저장됨</span></div>
+        </div>
+        <div class="qw-body">
+          <div class="qw-q">지금 드시는 약이<br>있으신가요?</div>
+          <div class="qw-hint">모르시면 "잘 모르겠습니다"를 골라주세요</div>
+          <div class="qw-opt sel">있습니다</div>
+          <div class="qw-opt">없습니다</div>
+          <div class="qw-opt">잘 모르겠습니다</div>
+          <div class="qw-sec">어떤 약인지 적어주세요 (선택)</div>
+          <div class="qw-input">예: 혈압약, 당뇨약</div>
+        </div>
+        <div class="qw-cta">다음</div>
+      </div>
+    </div>
+    <p class="qw-cap"><b>① 문항 화면</b><br>한 화면에 질문 하나. 상단에 <b>누구의 어떤 진료</b>인지 항상 표시(가족 문진 혼동 방지) + 진행률 + <b>"저장됨"</b> 표시. 답을 고르는 즉시 서버에 저장되므로 앱을 닫아도 잃지 않습니다.</p>
+  </div>
+
+  <!-- 2 -->
+  <div style="max-width:286px">
+    <div style="display:flex;justify-content:center;padding:13px;background:#eef2f4;border-radius:12px">
+      <div class="qw">
+        <div class="qw-top">
+          <div class="qw-nav"><span class="qw-back">‹ 뒤로</span><span>사전문진</span><span style="width:30px"></span></div>
+          <div class="qw-who">김순자 · 8월 3일 내과 이민호 원장</div>
+        </div>
+        <div class="qw-body">
+          <div class="qw-resume">
+            <div style="font-size:14.5px;font-weight:800;color:#B44E00;line-height:1.4">6문항 중 3개를<br>작성하셨습니다</div>
+            <div style="font-size:11.5px;color:#33465A;font-weight:500;margin-top:6px;line-height:1.6">쓰시던 곳부터 이어서 하실 수 있습니다.</div>
+          </div>
+          <div style="background:#fff;border-radius:12px;padding:12px">
+            <div style="font-size:11px;color:#5A6C7B;font-weight:700;margin-bottom:7px">지금까지 답하신 내용</div>
+            <div style="font-size:12px;font-weight:700;line-height:1.9">
+              1. 어디가 불편하신가요 · <span style="color:#5A6C7B;font-weight:500">기침이 2주째</span><br>
+              2. 언제부터 · <span style="color:#5A6C7B;font-weight:500">1~2주</span><br>
+              3. 드시는 약 · <span style="color:#5A6C7B;font-weight:500">있음</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;margin:0 12px 12px">
+          <div class="qw-cta qw-ghost" style="flex:1;margin:0;font-size:13px;padding:14px 0">처음부터 보기</div>
+          <div class="qw-cta" style="flex:1.4;margin:0;margin-left:0;font-size:14px;padding:14px 0">4번부터 이어서</div>
+        </div>
+      </div>
+    </div>
+    <p class="qw-cap"><b>② 다시 들어왔을 때</b><br>마법사의 최대 약점인 <b>"어디까지 했더라"</b>를 없앱니다. 중간에 나갔다 오면 이 화면이 먼저 뜨고, 지금까지 답이 한눈에 보인 뒤 <b>멈춘 문항부터</b> 이어집니다.</p>
+  </div>
+
+  <!-- 3 -->
+  <div class="card" data-choice="q-summary-fix" onclick="toggleSelect(this)" style="max-width:286px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="qw">
+        <div class="qw-top">
+          <div class="qw-nav"><span class="qw-back">‹ 뒤로</span><span>사전문진</span><span style="width:30px"></span></div>
+          <div class="qw-who">김순자 · 8월 3일 내과 이민호 원장</div>
+          <div class="qw-prog"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div>
+          <div class="qw-step"><span>다 쓰셨습니다 · 확인해 주세요</span></div>
+        </div>
+        <div class="qw-body" style="padding:10px">
+          <div class="qw-sum">
+            <div class="qw-srow"><div style="flex:1"><div class="qw-sq">어디가 불편하신가요</div><div class="qw-sa">기침이 2주째 계속됩니다</div></div><span class="qw-fix">고치기</span></div>
+            <div class="qw-srow"><div style="flex:1"><div class="qw-sq">언제부터</div><div class="qw-sa">1~2주</div></div><span class="qw-fix">고치기</span></div>
+            <div class="qw-srow"><div style="flex:1"><div class="qw-sq">드시는 약</div><div class="qw-sa">있음 · 혈압약</div></div><span class="qw-fix">고치기</span></div>
+            <div class="qw-srow"><div style="flex:1"><div class="qw-sq">알레르기</div><div class="qw-sa">없음</div></div><span class="qw-fix">고치기</span></div>
+            <div class="qw-srow"><div style="flex:1"><div class="qw-sq">임신 가능성</div><div class="qw-sa">없음</div></div><span class="qw-fix">고치기</span></div>
+            <div class="qw-srow"><div style="flex:1"><div class="qw-sq">더 하실 말씀</div><div class="qw-sa" style="color:#A9B6BF">쓰지 않음</div></div><span class="qw-fix">고치기</span></div>
+          </div>
+        </div>
+        <div class="qw-cta">제출하기</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>③ 마지막 확인 화면 — 여기만 결정해 주세요</h3>
+      <p>항목별 <b>[고치기]</b>를 둘지, 아니면 예약 플로우처럼 <b>확인 전용</b>(고치려면 뒤로)으로 할지입니다. 이 카드를 선택하면 <b>[고치기] 있음</b>입니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p>마지막 확인 화면은 <b>[고치기] 버튼을 두는 쪽</b>을 추천합니다. 예약 플로우에서는 반대로 정했는데, 이유가 있습니다.</p>
+  <p style="margin-top:8px"><b>예약은 되돌아가면 뒤 단계가 초기화됩니다</b> — 의사를 바꾸면 날짜·시간을 다시 골라야 하죠. 그래서 "칩으로 점프"가 "뒤로 여러 번"과 결과가 같았고, 되돌리기 경로를 하나로 통일하는 게 단순했습니다.</p>
+  <p style="margin-top:8px"><b>문진은 문항끼리 독립적이라 초기화가 없습니다.</b> 3번을 고쳐도 4·5·6번 답은 그대로입니다. 그러니 6번 화면에서 1번을 고치려고 <u>뒤로를 다섯 번 누르게 할 이유가 없습니다</u>. 같은 규칙을 기계적으로 적용하는 것보다, 각 화면의 성질에 맞추는 게 맞습니다.</p>
+  <p style="margin-top:8px"><span class="label">함께 확정되는 것</span> ① 문항마다 자동 저장 + 상단 "저장됨" 표시 ② 재진입 시 이어쓰기 화면(②번) ③ 🔄 <b>진료가 시작된 이후</b>(상태 <code>진료중</code>)에 같은 화면이 읽기 전용으로 바뀌고 [고치기]·[제출하기]가 사라지며 "진료가 시작되어 수정할 수 없습니다" 표시 ④ 챗봇이 저장한 값도 이 화면에 항상 최신으로 반영(화면이 열릴 때마다 다시 불러옴).</p>
+  <p style="margin-top:10px"><span class="label">🔄 2026-08-05 정정 2건 — 낡아 있던 것</span></p>
+  <p style="margin-top:6px">① <b>문항 5번 <s>최근 수술·입원</s> → <b>임신 가능성</b></b>. 요구사항 4.4가 나열한 6개 중 다섯째는
+  <b><code>임신 가능성처럼 병원이 꼭 확인해야 하는 항목</code></b>(<code>고객요구사항.txt:279</code>)이고 「최근 수술·입원」은 <b>요구사항에 없는 문항</b>이었습니다.
+  갭 #1이 <i>"목업 문항을 요구사항 4.4의 6개로 되돌린다"</i>로 확정했는데 이 화면에 반영이 빠져 있었습니다.
+  ⚠️ 이 문항은 <b>모두에게 보이면 안 됩니다</b> — 문항마다 <b>「보일 대상」(성별)</b>을 관리자가 지정하는 것이 함께 확정됐습니다(갭 #17).
+  문항은 관리자가 자유롭게 쓰는 글자라 <b>앱이 "이건 임신 문항"임을 알아볼 수 없어</b> 사람이 지정해야 합니다.</p>
+  <p style="margin-top:6px">② <b>읽기 전용이 되는 시점 <s>도착 처리 이후</s> → <b>진료 시작 이후</b></b>. 요구사항 4.4 마지막 줄이
+  <i>"환자는 <b>진료 전까지</b> 내용을 수정할 수 있고"</i>라고 못박습니다(<code>:282</code>).
+  도착(접수)은 아직 진료 전이라 <b>대기실에서 고칠 수 있어야</b> 맞습니다 — 갭 #21로 정정된 건입니다.
+  ⚠️ 같은 문장 안의 표시 문구(<code>진료가 시작되어…</code>)와도 <b>서로 모순이었습니다.</b>
+  서버 <code>EDITABLE_STATUSES</code>도 함께 고쳐야 합니다. 상태별 줄 모양은 <b>목업 39번 ③·④</b>에 있습니다.</p>
+</div>

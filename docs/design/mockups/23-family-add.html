@@ -1,0 +1,194 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .fa { width: 256px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 465px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .fa-top { background: #fff; padding: 9px 12px 11px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .fa-back { color: #0B6E70; font-weight: 700; }
+  .fa-body { flex: 1; padding: 12px; }
+  .fa-q { font-size: 18px; font-weight: 800; letter-spacing: -.4px; line-height: 1.35; margin-bottom: 4px; }
+  .fa-hint { font-size: 11px; color: #5A6C7B; margin-bottom: 13px; font-weight: 500; line-height: 1.6; }
+  .fa-pick { background: #fff; border: 2px solid #E6EBEF; border-radius: 12px; padding: 13px 12px; margin-bottom: 9px; }
+  .fa-pick.sel { border-color: #0B6E70; background: #F0F7F7; }
+  .fa-pt { font-size: 14.5px; font-weight: 800; }
+  .fa-pd { font-size: 11px; color: #5A6C7B; font-weight: 500; margin-top: 4px; line-height: 1.55; }
+  .fa-lab { font-size: 10.5px; font-weight: 800; color: #5A6C7B; margin: 12px 0 5px; }
+  .fa-in { border: 2px solid #E6EBEF; background: #fff; border-radius: 10px; padding: 12px; font-size: 13px; font-weight: 600; }
+  .fa-in.ph { color: #A9B6BF; font-weight: 500; }
+  .fa-cta { background: #0B6E70; color: #fff; text-align: center; font-size: 15px; font-weight: 800; padding: 15px; border-radius: 11px; margin: 10px 12px 12px; }
+  .fa-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fa-chip { border: 2px solid #E6EBEF; background: #fff; border-radius: 99px; padding: 9px 13px; font-size: 12.5px; font-weight: 700; }
+  .fa-chip.sel { border-color: #0B6E70; background: #0B6E70; color: #fff; }
+  .fa-otp { display: flex; gap: 6px; justify-content: center; margin: 6px 0 4px; }
+  .fa-otp div { flex: 1; border: 2px solid #E6EBEF; background: #fff; border-radius: 9px; padding: 13px 0; text-align: center; font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .fa-otp div.on { border-color: #0B6E70; }
+  .fa-note { background: #fff; border-left: 4px solid #B44E00; border-radius: 0 10px 10px 0; padding: 10px 11px; color: #B44E00; font-weight: 700; font-size: 11.5px; line-height: 1.55; }
+  .fa-row { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+  .fa-cap { font-size: 12px; color: #5A6C7B; margin-top: 9px; line-height: 1.6; }
+  .fa-cap b { color: #10243A; }
+</style>
+
+<h2>화면 23 — 가족 추가하기: 두 갈래</h2>
+<p class="subtitle">
+  플랜에 <code>family_link_requests</code> 테이블과 <code>family_link_otp_service</code>가 있습니다 — <b>이미 병원에 진료 기록이 있는 사람</b>을 연결할 땐 그 사람 전화번호로 <b>인증번호</b>를 보내 본인 확인을 받습니다. 아이처럼 기록이 없으면 새 프로필만 만들면 되고요.
+  <br>이 갈림길을 <b>어떻게 물어볼지</b>가 결정 사항입니다.
+</p>
+
+<div class="fa-row">
+
+  <!-- A -->
+  <div class="card" data-choice="fork-explicit" onclick="toggleSelect(this)" style="max-width:282px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="fa">
+        <div class="fa-top"><span class="fa-back">‹ 뒤로</span><span>가족 추가</span><span style="width:30px"></span></div>
+        <div class="fa-body">
+          <div class="fa-q">어떤 가족을<br>추가하시나요?</div>
+          <div class="fa-hint">둘 중 맞는 쪽을 골라주세요</div>
+          <div class="fa-pick sel">
+            <div class="fa-pt">우리 병원이 처음이에요</div>
+            <div class="fa-pd">아이처럼 아직 진료받은 적이 없는 가족입니다. 이름·생년월일만 적으면 바로 등록됩니다.</div>
+          </div>
+          <div class="fa-pick">
+            <div class="fa-pt">전에 진료받은 적이 있어요</div>
+            <div class="fa-pd">이미 병원에 기록이 있는 가족입니다. 본인 확인을 위해 <b>그분 휴대폰으로 인증번호</b>를 보냅니다.</div>
+          </div>
+          <div class="fa-note" style="margin-top:13px">잘 모르시겠으면 "처음이에요"를 고르셔도 됩니다. 병원에서 접수할 때 기존 기록과 합쳐드립니다.</div>
+        </div>
+        <div class="fa-cta">다음</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 대놓고 물어보기</h3>
+      <p>"우리 병원이 처음인가요?"를 <b>사용자에게 직접</b> 묻습니다. 다음에 무슨 일이 일어날지(인증번호가 간다) 미리 알려주므로 놀랄 일이 없습니다. 단점: 사용자가 <b>답을 모를 수 있습니다</b> — 그래서 "모르면 처음이에요를 고르세요" 안내를 붙였습니다.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="fork-auto" onclick="toggleSelect(this)" style="max-width:282px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:13px;background:#e4ebee">
+      <div class="fa">
+        <div class="fa-top"><span class="fa-back">‹ 뒤로</span><span>가족 추가</span><span style="width:30px"></span></div>
+        <div class="fa-body">
+          <div class="fa-q">가족 정보를<br>입력해 주세요</div>
+          <div class="fa-hint">입력하시면 기존 진료 기록이 있는지 확인합니다</div>
+          <div class="fa-lab" style="margin-top:0">이름</div>
+          <div class="fa-in">김도윤</div>
+          <div class="fa-lab">생년월일</div>
+          <div class="fa-in">2018년 7월 2일</div>
+          <div class="fa-lab">나와의 관계</div>
+          <div class="fa-chips">
+            <span class="fa-chip sel">아들</span><span class="fa-chip">딸</span>
+            <span class="fa-chip">배우자</span><span class="fa-chip">부모</span>
+          </div>
+        </div>
+        <div class="fa-cta">확인</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 시스템이 알아서 판별</h3>
+      <p>이름·생년월일만 받고, <b>시스템이 기존 환자인지 조회</b>해 알아서 갈래를 정합니다. 사용자는 아무것도 몰라도 됩니다. <b>그런데 이 방식엔 보안 문제가 있습니다</b> — 아래 설명 참고.</p>
+    </div>
+  </div>
+
+  <!-- 인증번호 화면 (공통) -->
+  <div style="max-width:282px">
+    <div style="display:flex;justify-content:center;padding:13px;background:#eef2f4;border-radius:12px">
+      <div class="fa">
+        <div class="fa-top"><span class="fa-back">‹ 뒤로</span><span>본인 확인</span><span style="width:30px"></span></div>
+        <div class="fa-body">
+          <div class="fa-q">인증번호를<br>입력해 주세요</div>
+          <div class="fa-hint"><b>010-****-5678</b>로 6자리 숫자를 보냈습니다.<br>가족분께 번호를 확인해 알려달라고 해주세요.</div>
+          <div class="fa-otp"><div class="on">4</div><div class="on">1</div><div class="on">7</div><div>·</div><div>·</div><div>·</div></div>
+          <div style="text-align:center;font-size:11px;color:#5A6C7B;font-weight:600;margin-top:9px">남은 시간 <b style="color:#B44E00">4:32</b></div>
+          <div style="text-align:center;font-size:12px;color:#0B6E70;font-weight:800;margin-top:14px">인증번호 다시 받기</div>
+          <div class="fa-note" style="margin-top:16px">가족분 휴대폰으로 전송되므로, 옆에 계시거나 통화가 가능해야 합니다.</div>
+        </div>
+        <div class="fa-cta">확인</div>
+      </div>
+    </div>
+    <p class="fa-cap"><b>공통 — 인증번호 화면</b><br>A·B 어느 쪽이든 <b>기존 환자를 연결할 때</b> 나오는 화면입니다. 전화번호는 <b>가운데를 가려서</b> 표시합니다.</p>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>A(대놓고 물어보기)</b>를 추천합니다. 편의성만 보면 B가 낫지만, <b>B에는 개인정보가 새는 구멍</b>이 있습니다.</p>
+  <p style="margin-top:8px">B는 이름·생년월일을 넣으면 <u>"이 사람은 우리 병원 환자다/아니다"를 화면이 알려주는 셈</u>입니다. 아무나 이름과 생년월일을 넣어보면서 <b>특정인이 이 병원에 다니는지 확인할 수 있게 됩니다</b>(정신과·산부인과 같은 진료과가 있는 병원이라면 그 자체가 민감한 정보입니다). 보안에서 <b>계정 열거(enumeration)</b>라고 부르는 문제입니다.</p>
+  <p style="margin-top:8px">A는 사용자가 "전에 진료받은 적 있어요"를 고른 다음 <b>이름·생년월일·전화번호를 모두</b> 입력하게 합니다. 그리고 <u>맞았는지 틀렸는지 알려주지 않고</u> 그 번호로 인증번호만 보냅니다. 정보가 맞으면 문자가 오고, 틀리면 아무 일도 안 일어납니다 — 화면은 어느 쪽이든 똑같이 "인증번호를 보냈습니다"라고 말합니다.</p>
+  <p style="margin-top:8px">A의 약점인 "사용자가 답을 모른다"는 <b>안내 문구로 충분히 해결됩니다</b> — 모르면 "처음이에요"를 고르게 하고, 실제로 기존 기록이 있으면 병원에서 접수할 때 합칩니다. 이건 지금도 병원 접수 데스크에서 일상적으로 하는 일입니다.</p>
+  <p style="margin-top:10px"><span class="label">참고</span> 이 "계정 열거" 문제는 제가 목업을 그리다 발견한 것이고, <b>스펙·플랜에 명시돼 있지 않습니다.</b> 어느 쪽을 고르시든 이 판단 근거를 결정 기록에 남기겠습니다.</p>
+</div>
+
+<h3 style="margin-top:32px">㉮ 확정 — 예약이 있으면 연결 해제를 막는 화면</h3>
+<p class="subtitle" style="margin-bottom:11px">앞 화면에서 정하신 대로 다시 그렸습니다. 왼쪽이 <b>예약이 있을 때(막힘)</b>, 오른쪽이 <b>예약이 없을 때(진행 가능)</b>입니다.</p>
+
+<div class="fa-row">
+  <div style="max-width:282px">
+    <div style="display:flex;justify-content:center;padding:13px;background:#eef2f4;border-radius:12px">
+      <div class="fa" style="min-height:430px;position:relative">
+        <div class="fa-top"><span class="fa-back">‹ 뒤로</span><span>가족 정보 수정</span><span style="width:30px"></span></div>
+        <div class="fa-body">
+          <div class="fa-lab" style="margin-top:0">이름</div>
+          <div class="fa-in">김도윤</div>
+          <div class="fa-lab">생년월일</div>
+          <div class="fa-in">2018년 7월 2일</div>
+        </div>
+        <div class="fa-cta">저장하기</div>
+        <div style="position:absolute;inset:0;background:rgba(16,36,58,.55);display:flex;align-items:center;justify-content:center;padding:13px">
+          <div style="background:#fff;border-radius:13px;width:100%;overflow:hidden">
+            <div style="padding:15px 13px 12px">
+              <div style="font-size:15.5px;font-weight:800;line-height:1.4">먼저 예약을<br>취소해 주세요</div>
+              <div style="font-size:11.5px;color:#33465A;font-weight:500;line-height:1.65;margin-top:8px">
+                김도윤님에게 <b>다가오는 예약이 있어</b> 지금은 연결을 해제할 수 없습니다.
+              </div>
+              <div style="background:#fff;border-left:4px solid #B44E00;border-radius:0 8px 8px 0;padding:10px 11px;margin-top:11px;font-size:11.5px;font-weight:700;color:#B44E00;line-height:1.5;box-shadow:0 0 0 1px #F0E3D5">
+                8월 3일 (월) 오후 2:50<br>
+                <span style="font-weight:600">소아과 박지우 원장</span>
+              </div>
+              <div style="font-size:10.5px;color:#5A6C7B;font-weight:500;line-height:1.6;margin-top:10px">
+                예약을 그대로 두고 연결만 끊으면, 병원에는 예약이 남는데 앱에서는 취소도 변경도 할 수 없게 됩니다.
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;padding:0 12px 13px">
+              <div style="flex:1;text-align:center;padding:13px 0;border-radius:9px;font-size:13px;font-weight:800;border:2px solid #0B6E70;color:#0B6E70">닫기</div>
+              <div style="flex:1.25;text-align:center;padding:13px 0;border-radius:9px;font-size:13px;font-weight:800;background:#0B6E70;color:#fff">예약 보러 가기</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="fa-cap"><b>예약이 있을 때 — 막힘</b><br>거절만 하지 않고 <b>[예약 보러 가기]</b>로 해결 경로를 함께 줍니다. 막다른 길을 만들지 않는다는 원칙(요구사항 6.4 "무엇을 해야 하는지 알려주기")입니다.</p>
+  </div>
+
+  <div style="max-width:282px">
+    <div style="display:flex;justify-content:center;padding:13px;background:#eef2f4;border-radius:12px">
+      <div class="fa" style="min-height:430px;position:relative">
+        <div class="fa-top"><span class="fa-back">‹ 뒤로</span><span>가족 정보 수정</span><span style="width:30px"></span></div>
+        <div class="fa-body">
+          <div class="fa-lab" style="margin-top:0">이름</div>
+          <div class="fa-in">김하윤</div>
+          <div class="fa-lab">생년월일</div>
+          <div class="fa-in">2021년 1월 9일</div>
+        </div>
+        <div class="fa-cta">저장하기</div>
+        <div style="position:absolute;inset:0;background:rgba(16,36,58,.55);display:flex;align-items:center;justify-content:center;padding:13px">
+          <div style="background:#fff;border-radius:13px;width:100%;overflow:hidden">
+            <div style="padding:15px 13px 12px">
+              <div style="font-size:15.5px;font-weight:800;line-height:1.4">김하윤님과의 연결을<br>해제할까요?</div>
+              <div style="font-size:11.5px;color:#33465A;font-weight:500;line-height:1.65;margin-top:8px">
+                더 이상 이 가족으로 예약할 수 없습니다.<br>
+                <b>병원 기록에는 그대로 남지만, 앱에서는 더 이상 보이지 않습니다.</b><br>
+                다시 연결하려면 가족을 새로 등록해야 합니다.
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;padding:0 12px 13px">
+              <div style="flex:1;text-align:center;padding:13px 0;border-radius:9px;font-size:13px;font-weight:800;border:2px solid #0B6E70;color:#0B6E70">아니요</div>
+              <div style="flex:1;text-align:center;padding:13px 0;border-radius:9px;font-size:13px;font-weight:800;background:#A3231C;color:#fff">해제합니다</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="fa-cap"><b>예약이 없을 때 — 진행 가능</b><br>경고 상자가 사라지고 평범한 확인창이 됩니다. <b>"병원 기록에는 그대로 남지만, 앱에서는 더 이상 보이지 않습니다"</b>로 문구를 정정했습니다(B-41과 같은 날 확정된 <b>B-34</b>) — 예전 문구 <s>"과거 예약 이력은 남습니다"</s>는 <b>지킬 수 없는 약속</b>이었습니다. 소프트 삭제라 데이터는 남지만 <code>patient_owns()</code>가 해제된 연결을 인정하지 않아 <b>환자는 못 봅니다.</b></p>
+  </div>
+</div>

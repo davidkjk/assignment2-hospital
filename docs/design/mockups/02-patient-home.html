@@ -1,0 +1,147 @@
+<style>
+  .phone2 { width: 268px; border: 2px solid #444; border-radius: 22px; padding: 0; background: #f5f6f8; color: #111; font-size: 12px; min-height: 470px; display:flex; flex-direction:column; overflow:hidden; }
+  .phone2 .st { display:flex; justify-content:space-between; font-size:9px; color:#888; padding:8px 12px 6px; background:#fff; }
+  .phone2 .body { flex:1; padding:12px; overflow:hidden; }
+  .appbar { background:#fff; padding:0 12px 10px; font-weight:700; font-size:14px; display:flex; justify-content:space-between; align-items:center; }
+  .w { background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .badge { display:inline-block; font-size:9px; padding:2px 7px; border-radius:99px; background:#dbeafe; color:#1d4ed8; font-weight:600; }
+  .badge.warn { background:#fef3c7; color:#b45309; }
+  .badge.ok { background:#dcfce7; color:#15803d; }
+  .big-date { font-size:19px; font-weight:700; margin:8px 0 2px; }
+  .meta { color:#666; font-size:11px; line-height:1.7; }
+  .qr { width:62px; height:62px; background:repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/12px 12px; border:3px solid #fff; }
+  .b2 { display:flex; gap:6px; margin-top:10px; }
+  .b2 > div { flex:1; text-align:center; padding:9px; border-radius:8px; font-weight:600; font-size:11px; }
+  .out { border:1px solid #cbd5e1; color:#334155; }
+  .fill { background:#2563eb; color:#fff; }
+  .nav { display:flex; background:#fff; border-top:1px solid #e5e7eb; }
+  .nav > div { flex:1; text-align:center; padding:9px 0 11px; font-size:9px; color:#9ca3af; }
+  .nav > div.on { color:#2563eb; font-weight:700; }
+  .nav .ic { font-size:16px; display:block; }
+  .row { display:flex; align-items:center; gap:9px; padding:9px 0; border-bottom:1px solid #f1f5f9; }
+  .cardrow { display:flex; gap:18px; flex-wrap:wrap; justify-content:center; }
+  .tl { border-left:2px solid #dbeafe; padding-left:12px; margin-left:5px; position:relative; }
+  .tl:before { content:''; position:absolute; left:-6px; top:4px; width:10px; height:10px; border-radius:50%; background:#2563eb; }
+</style>
+
+<h2>화면 2 / 18 — 환자 앱: 홈 (가장 가까운 예약)</h2>
+<p class="subtitle">요구사항 4.5 — 카드에 일시·진료과·의사·위치·확정여부·사전문진 여부·QR/예약번호·변경/취소 버튼이 모두 들어가야 합니다. 병원 도착 후엔 같은 카드가 대기 상태(내 앞 대기인원)를 실시간으로 보여줍니다.</p>
+<p class="label">한 화면에 정보가 많습니다. 어떻게 배치할까요?</p>
+
+<div class="cardrow">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>안녕하세요, 김순자님</span><span style="font-size:15px">🔔</span></div>
+        <div class="body">
+          <div class="w" style="border:2px solid #2563eb">
+            <span class="badge">확정</span>
+            <div class="big-date">8월 3일 (월) 오후 2:30</div>
+            <div class="meta">내과 · 이민호 원장<br>본관 3층 내과 접수</div>
+            <div style="display:flex;justify-content:center;margin:12px 0 6px"><div class="qr"></div></div>
+            <div style="text-align:center;font-size:11px;color:#666">예약번호 <b>A-2413</b></div>
+            <div class="b2"><div class="out">변경</div><div class="out">취소</div></div>
+          </div>
+          <div class="w" style="padding:10px;display:flex;justify-content:space-between;align-items:center">
+            <span><span class="badge warn">미작성</span> 사전문진</span>
+            <span style="color:#2563eb;font-weight:600">작성하기 ›</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center">다음 예약 1건 더 보기 ›</div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">⚙️</span>설정</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 단일 히어로 카드 + 하단 탭</h3>
+      <p>가장 가까운 예약 하나를 화면 대부분을 쓰는 큰 카드로. QR도 홈에서 바로 보임(접수 데스크에서 폰 꺼내 바로 제시). 나머지는 하단 탭 5개.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>나의 예약</span><span style="font-size:15px">🔔</span></div>
+        <div class="body">
+          <div class="w">
+            <div class="tl">
+              <span class="badge">확정</span>
+              <div class="big-date" style="font-size:16px">8월 3일 (월) 14:30</div>
+              <div class="meta">내과 · 이민호 원장 · 본관 3층</div>
+              <div class="b2"><div class="out">변경</div><div class="out">취소</div><div class="fill">QR 보기</div></div>
+            </div>
+          </div>
+          <div class="w" style="opacity:.85">
+            <div class="tl" style="border-color:#e5e7eb">
+              <span class="badge warn">신청됨</span>
+              <div class="big-date" style="font-size:16px">8월 21일 (목) 10:00</div>
+              <div class="meta">정형외과 · 박서준 원장</div>
+              <div style="font-size:10px;color:#b45309;margin-top:6px">⚠ 사전문진 미작성</div>
+            </div>
+          </div>
+          <div class="w" style="opacity:.6;padding:10px">
+            <div class="meta">가족 · 김도윤 (아들)<br>8월 25일 소아과</div>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">📅</span>예약</div>
+          <div><span class="ic">➕</span>예약하기</div>
+          <div><span class="ic">👨‍👩‍👧</span>가족</div>
+          <div><span class="ic">📋</span>이력</div>
+          <div><span class="ic">⚙️</span>설정</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 타임라인 목록형</h3>
+      <p>본인+가족 예약을 시간순 목록으로 한눈에. QR은 한 번 더 눌러야 보임. 가족 예약을 자주 챙기는 사용자에게 유리.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="max-width:310px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;">
+      <div class="phone2">
+        <div class="st"><span>9:41</span><span>▮▮▮</span></div>
+        <div class="appbar"><span>한빛병원</span><span style="font-size:15px">🔔</span></div>
+        <div class="body">
+          <div class="w" style="background:#2563eb;color:#fff">
+            <span class="badge ok" style="background:#fff;color:#15803d">진료 대기중</span>
+            <div class="big-date" style="color:#fff">내 앞 <span style="font-size:26px">3</span>명</div>
+            <div style="font-size:11px;opacity:.9">예상 대기 약 25분 · 내과 3진료실</div>
+            <div style="font-size:9px;opacity:.75;margin-top:6px">예상 대기시간은 변동될 수 있습니다</div>
+          </div>
+          <div class="w" style="padding:10px">
+            <div class="meta"><b style="color:#111">8월 3일 (월) 14:30</b> · 내과 이민호<br>예약번호 A-2413</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div class="w" style="flex:1;text-align:center;padding:14px 6px"><div style="font-size:19px">➕</div><div style="font-size:10px;margin-top:4px">예약하기</div></div>
+            <div class="w" style="flex:1;text-align:center;padding:14px 6px"><div style="font-size:19px">📝</div><div style="font-size:10px;margin-top:4px">사전문진</div></div>
+            <div class="w" style="flex:1;text-align:center;padding:14px 6px"><div style="font-size:19px">📋</div><div style="font-size:10px;margin-top:4px">방문이력</div></div>
+          </div>
+        </div>
+        <div class="nav">
+          <div class="on"><span class="ic">🏠</span>홈</div>
+          <div><span class="ic">📅</span>예약</div>
+          <div><span class="ic">💬</span>AI 상담</div>
+          <div><span class="ic">⚙️</span>설정</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 상태 우선형 + 바로가기 그리드</h3>
+      <p>지금 상태(대기중이면 대기인원)를 가장 크게. 평소엔 이 자리에 다음 예약이 들어감. 아래는 아이콘 바로가기. 4단계 상담봇 탭 자리도 미리 확보.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>A</b>를 추천합니다. 스펙 4.5가 요구한 항목(QR·예약번호·변경/취소·확정여부·사전문진 배지)이 스크롤 없이 한 카드에 다 들어가고, "화면당 핵심 행동 1개"에도 맞습니다. 다만 <b>C의 대기 상태 표시</b>는 병원 도착 이후에 꼭 필요한 화면이라, A를 고르시면 <u>도착 후에는 A의 히어로 카드가 C처럼 대기인원 카드로 바뀌는 방식</u>으로 합치는 걸 제안드립니다. B는 예약이 보통 1~2건뿐인 환자에겐 화면이 허전해집니다.</p>
+</div>

@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>65 · 예약 만들기·고치기 — 오른쪽 패널</title>
+<style>
+  :root{
+    --primary:#0B6E70; --ink:#10243A; --ink-muted:#5A6C7B;
+    --warn:#B44E00; --done:#67788A; --done-bg:#F5F7F8;
+    --bg:#F2F5F7; --surface:#FFFFFF; --divider:#E6EBEF;
+    --book:#E7F1F1; --book-line:#9FC6C6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:13px;
+    font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .page{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  h1{font-size:22px;font-weight:800;margin:0 0 6px}
+  .sub{color:var(--ink-muted);font-size:14px;margin:0 0 4px;line-height:1.7}
+  .sub b{color:var(--ink)}
+  .quote{background:var(--surface);border:1px solid var(--divider);border-left:4px solid var(--primary);
+         border-radius:8px;padding:12px 16px;margin:16px 0 0;font-size:13px;line-height:1.8;color:var(--ink-muted)}
+  .quote b{color:var(--ink)}
+  hr.rule{height:1px;background:var(--divider);margin:26px 0 28px;border:0}
+  h2.sec{font-size:16px;font-weight:800;margin:40px 0 6px}
+  .seclead{color:var(--ink-muted);font-size:13px;line-height:1.7;margin:0 0 14px}
+  .seclead b{color:var(--ink)}
+  code{background:var(--done-bg);border-radius:4px;padding:1px 5px;color:var(--ink);font-size:11px}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;
+       padding:3px 8px;border-radius:99px;background:var(--done-bg);color:var(--done)}
+  .tag.ok{background:var(--primary);color:#fff}
+  .tag.new{background:#FFF1E4;color:var(--warn)}
+  .tag.no{background:#F3E7EA;color:#9E3F6E}
+
+  .row{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+  .col{flex:1;min-width:330px}
+  .mini-t{font-size:12px;font-weight:800;color:var(--ink-muted);margin:0 0 8px}
+  .mini-t .n{color:var(--ink)}
+  .hint{font-size:11px;color:var(--ink-muted);line-height:1.65;margin:6px 0 0}
+  .hint b{color:var(--ink)}
+  .hint.w b{color:var(--warn)}
+
+  /* ── 캘린더 + 오른쪽 패널 ───────────────────────────────── */
+  .app{background:#fff;border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .apptop{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--divider);
+          font-size:11px;font-weight:800;color:var(--ink-muted)}
+  .navbtn{border:1px solid var(--divider);border-radius:6px;padding:3px 8px;background:#fff;color:var(--ink)}
+  .split{display:flex}
+  .cal{flex:1;min-width:0}
+  .calhead{display:grid;border-bottom:1px solid var(--divider);font-size:11px;font-weight:800}
+  .calhead>div{padding:6px 4px;text-align:center;border-left:1px solid var(--divider)}
+  .calhead>div:first-child{border-left:0;color:var(--ink-muted)}
+  .calbody{display:grid}
+  .tax{position:relative;border-right:1px solid var(--divider)}
+  .tax b{position:absolute;right:5px;font-size:9px;font-weight:800;color:var(--ink-muted);transform:translateY(-50%)}
+  .tl{position:relative;border-left:1px solid var(--divider)}
+  .gl{position:absolute;left:0;right:0;height:1px;background:#F0F3F5}
+  .gl.h{background:var(--divider)}
+  .blk{position:absolute;left:3px;right:3px;border-radius:5px;padding:3px 5px;font-size:10px;
+       font-weight:800;overflow:hidden;background:var(--book);border:1px solid var(--book-line)}
+  .blk .sm{display:block;font-size:9px;font-weight:700;color:#5A6C7B}
+  .blk.fr{background:#fff;border:1px dashed #D6DDE2;color:#8C99A4}
+  .blk.on{outline:2px solid var(--primary);outline-offset:-1px;background:#D7E9E9}
+  /* 자리표(가예약) — 아직 저장 전 */
+  .blk.hold{background:#FFF7EF;border:2px dashed var(--warn);color:var(--warn)}
+  .hat{position:absolute;left:0;right:0;font-size:9px;font-weight:800;color:var(--ink-muted);
+       text-align:center;padding-top:3px;
+       background:repeating-linear-gradient(45deg,#F1F4F6,#F1F4F6 5px,#E7ECEF 5px,#E7ECEF 10px)}
+  /* 읽기 전용으로 잠긴 뒤 화면 */
+  .locked{position:relative}
+  .locked::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.35);pointer-events:none}
+
+  .panel{width:290px;flex:0 0 290px;border-left:1px solid var(--divider);background:#fff;padding:14px}
+  .panel h5{margin:0 0 3px;font-size:14px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+  .panel .x{color:var(--ink-muted);font-weight:800}
+  .panel .who{font-size:11px;color:var(--ink-muted);font-weight:700;margin-bottom:12px}
+  label{display:block;font-size:11px;font-weight:800;color:var(--ink-muted);margin:12px 0 5px}
+  .fld{border:1px solid var(--divider);border-radius:8px;padding:8px 9px;font-size:12px;color:#A7B3BC;background:#fff}
+  .fld.filled{color:var(--ink);font-weight:700}
+  .fld.wait{border-style:dashed;border-color:var(--warn);color:var(--warn);font-weight:800;background:#FFFCF8}
+  .found{border:1px solid var(--book-line);background:var(--book);border-radius:8px;padding:8px 9px}
+  .found .l1{font-weight:800;font-size:13px}
+  .found .l2{font-size:11px;color:var(--ink-muted);margin-top:2px;font-weight:700}
+  .kv{display:flex;justify-content:space-between;font-size:12px;padding:6px 0;border-top:1px solid var(--divider)}
+  .kv .k{color:var(--ink-muted);font-weight:700}
+  .kv .v{font-weight:800}
+  .stack{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+  .btn{border:1px solid var(--divider);background:#fff;border-radius:8px;padding:8px 14px;
+       font-size:12px;font-weight:800;color:var(--ink);width:100%;text-align:center}
+  .btn.fill{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.ghost{border-color:var(--primary);color:var(--primary)}
+  .btn.off{color:#B7C2CB;background:#FAFBFC}
+  .btn.row2{width:auto;flex:1}
+  .btnrow{display:flex;gap:7px;margin-top:14px}
+
+  /* 왼쪽 큰 자리에 뜨는 검색 결과 표 */
+  .findpane{padding:12px 14px}
+  .findpane .fh{font-size:12px;font-weight:800;margin:0 0 8px}
+  .findpane .fh span{color:var(--ink-muted);font-weight:700}
+  .ftab{width:100%;border-collapse:collapse;font-size:12px}
+  .ftab th,.ftab td{padding:7px 8px;border-top:1px solid var(--divider);text-align:left}
+  .ftab th{background:var(--done-bg);font-size:10px;color:var(--ink-muted);border-top:0}
+  .ftab tr.pick{background:#F2F7F7}
+  .ftab td b{font-weight:800}
+  /* 호버 미리보기 — 커서 옆 라벨 */
+  .hover{position:absolute;background:#10243A;color:#fff;border-radius:6px;padding:3px 7px;
+         font-size:10px;font-weight:800;white-space:nowrap;z-index:5}
+  .hover::after{content:"";position:absolute;left:-4px;top:50%;transform:translateY(-50%);
+                border:4px solid transparent;border-right-color:#10243A}
+  .blk.prev{background:#D7E9E9;border:2px solid var(--primary);color:var(--primary)}
+  /* 짧은 틈 */
+  .blk.gap{background:#FFFCF8;border:1px dashed #E0C09A;color:#8A6A3F}
+  .blk.clash{background:#FFF7EF;border:1px solid var(--warn);color:var(--warn)}
+
+  /* 시간축 확대 손잡이 */
+  .zoomax{position:relative;border-right:2px solid var(--primary);background:#F2F7F7}
+  .zoomax .grip{position:absolute;right:-1px;top:50%;transform:translateY(-50%);
+                width:14px;height:34px;border:1px solid var(--primary);border-radius:4px;
+                background:#fff;color:var(--primary);font-size:9px;font-weight:800;
+                display:flex;align-items:center;justify-content:center}
+  .zoombar{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;color:var(--ink-muted);
+           padding:6px 10px;border-bottom:1px solid var(--divider);background:#FAFBFC}
+  .zoombar .lv{color:var(--primary)}
+
+  /* 헤더 — 전역 일 시작 버튼 */
+  .hdr{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#10243A;color:#fff;
+       font-size:12px;font-weight:800}
+  .hdr .hb{border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:5px 11px;font-size:11.5px;font-weight:800}
+  .hdr .hb.on{background:var(--primary);border-color:var(--primary)}
+  .hdr .sp{flex:1}
+  /* ⭐ 2026-08-07 — 일 시작 버튼은 헤더 오른쪽 끝(오른손잡이 · 패널이 오른쪽에서 열린다) */
+  .hdr .hbsep{width:1px;height:18px;background:rgba(255,255,255,.22);margin:0 3px}
+  .hdr .hb.q{border-color:rgba(255,255,255,.18);color:#B9C6D0;font-weight:700}
+  .hdr .me{font-weight:700;color:#B9C6D0;font-size:11px}
+
+  /* 접힌 패널 — 오른쪽 가장자리 얇은 띠 */
+  .folded{width:34px;flex:0 0 34px;border-left:1px solid var(--book-line);background:var(--book);
+          display:flex;align-items:center;justify-content:center;padding:10px 0}
+  .folded span{writing-mode:vertical-rl;font-size:11px;font-weight:800;color:var(--primary);white-space:nowrap}
+  .mock{padding:12px 14px;font-size:12px;color:var(--ink-muted);line-height:1.7}
+  .mock b{color:var(--ink)}
+
+  /* 팝업(확인창) */
+  .stage{background:#3B4A57;border-radius:12px;padding:20px 16px}
+  .modal{background:var(--surface);border-radius:12px;padding:15px;
+         box-shadow:0 18px 44px rgba(10,25,40,.28);max-width:360px;margin:0 auto}
+  .modal h4{margin:0 0 10px;font-size:14px;font-weight:800}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);
+        border:1px solid var(--divider);border-radius:10px;overflow:hidden;font-size:12.5px}
+  th,td{padding:9px 11px;border-top:1px solid var(--divider);vertical-align:top;text-align:left;line-height:1.65}
+  th{background:var(--done-bg);font-size:11px;font-weight:800;color:var(--ink-muted);border-top:0}
+  td.no{color:#9E3F6E;font-weight:800}
+  .notes{background:var(--surface);border:1px solid var(--divider);border-radius:10px;padding:16px 18px;margin-top:16px}
+  .notes h2{font-size:14px;font-weight:800;margin:0 0 10px}
+  .killed{background:#F7F4F5;border:1px solid #E4D9DD;border-left:4px solid #9E3F6E;
+          border-radius:8px;padding:12px 14px;margin:14px 0 0;font-size:12.5px;line-height:1.75}
+  .killed b{color:#9E3F6E}
+  .deprecated-zoom{display:none}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>65 · 예약을 만들고 고치는 자리 — <span class="tag ok">오른쪽 패널</span></h1>
+<p class="sub">
+  ⭐ <b>그릇이 바뀌었다</b>(SB-39) — 예약을 만드는 일은 <b>팝업이 아니라 캘린더 위의 오른쪽 패널</b>에서 한다.
+  <b>어디서 시작하든 같은 패널</b>이고 <b>채워진 칸만 다르다.</b> <b>시간은 캘린더를 눌러서</b> 채운다.
+</p>
+<div class="quote">
+  직원이 배우는 규칙은 한 줄이다 —
+  <b>오른쪽에서 열리면 「만드는 중」, 가운데서 막아서면 「확인해야 넘어감」</b>(<code>PANEL-USE-01·02</code>).
+</div>
+
+<hr class="rule">
+
+<h2 class="sec">⓪ 헤더 — <b>어디서든 일을 시작한다</b> <span class="tag new">SB-43</span></h2>
+<p class="seclead">
+  ⭐ <b>환자·의사·시각이 아무것도 없는 상태에서 시작되는 일</b>은 <b>어느 화면에도 매이지 않는다.</b>
+  그래서 <b>헤더에 예외 없이</b> 둔다 — <b>전화는 화면을 가리지 않고 온다.</b>
+</p>
+<div class="app" style="margin-bottom:10px">
+  <div class="hdr">
+    <span>◉ 행복한방병원</span>
+        <span class="sp"></span>
+        <span class="me">김직원 · 접수 직원</span>
+        <span class="hb q">로그아웃</span>
+        <span class="hbsep"></span>
+        <span class="hb on">＋ 새 예약</span>
+        <span class="hb">＋ 당일 방문</span>
+  </div>
+  <div style="padding:10px 14px;font-size:12px;color:var(--ink-muted)">
+    ↑ <b>설정·통계·로그 화면에서도 같은 자리에 그대로 있다</b>(<code>SHELL-ACT-02</code>)
+  </div>
+</div>
+<p class="hint" style="max-width:940px">
+  ⛔ <b>의사에게는 아예 그리지 않는다</b>(<code>SHELL-ACT-03</code>) — 회색 비활성이 아니라 <b>없음</b>.
+  의사는 예약을 잡지 않는다.<br>
+  ⭐ <b>눌러도 화면은 바뀌지 않는다</b>(<code>SHELL-ACT-04</code> 개정) — <b>패널만 열리고 왼쪽은 보던 그대로</b>다. <b>캘린더는 시간 칸을 누를 때 비로소</b> 온다.<br>
+  ⭐ <b>설정을 고치던 중에 눌러도 묻지 않는다</b>(<code>SHELL-ACT-05</code>) —
+  <b>저장하지 않은 것은 날아가는 것이 당연하다</b>(사용자 확정). 확인창을 두면 <b>가장 급한 순간에 손이 한 번 더 멈춘다.</b><br>
+  📌 <b>도착 처리·순서 변경은 헤더에 두지 않는다</b> — <b>대상이 있어야 시작되는 일</b>이라 그 화면에 남는다.
+</p>
+
+<hr class="rule">
+
+<h2 class="sec">⓪-2 패널의 칸이 <b>왼쪽 큰 자리를 정한다</b> <span class="tag new">사용자 지적</span></h2>
+<p class="seclead">
+  ⭐ <b>패널 = 무엇을 채우나 / 왼쪽 = 채우는 도구.</b>
+  화면이 두 얼굴을 갖는 게 아니라 <b>하나의 일을 둘로 나눠 든 것</b>이다(<code>PANEL-WORK-01</code>).
+</p>
+<table style="margin-bottom:8px">
+  <tr><th style="width:150px">패널에서 누른 칸</th><th style="width:200px">왼쪽 큰 자리</th><th>왜</th></tr>
+  <tr><td><b>① 환자</b></td><td><b>검색 결과 표</b></td><td><code>/patients</code>와 같은 표가 <b>290px 패널에 안 들어간다</b></td></tr>
+  <tr><td><b>② 담당 의사</b></td><td><b>고른 뒤</b> 그 의사의 오늘 캘린더<br><span style="color:var(--ink-muted)">(고르기 전에는 ⛔ 안 바뀐다)</span></td><td>🔄 <b>2026-08-07 개정</b> — 고르기 전에는 <b>「그 의사」가 없어</b> 띄울 것이 없다. 목록은 <b>진료과별 묶음 머리 + 줄마다 <code>대기 5명 · 다음 자리 15:20</code></b>(<code>QUEUE-WALK-08b·08e·08f</code>). ⛔ <b>진료과 칸·칩을 따로 두지 않는다</b> — 의사가 5~8명이라 <b>거를 것이 없다</b></td></tr>
+  <tr><td><b>③ 날짜</b></td><td><b>캘린더</b>(작은 달력)</td><td>날짜를 고르는 도구가 캘린더다</td></tr>
+  <tr><td><b>④ 시간</b></td><td><b>캘린더</b>(그 날 일간)</td><td>빈자리를 보며 찍어야 한다</td></tr>
+</table>
+<p class="hint" style="max-width:940px">
+  ⭐ <b>지금 어느 칸을 채우는 중인지</b>를 <b>패널의 테두리</b>와 <b>왼쪽 위 글자</b>(<code>환자를 고르는 중</code>)가 함께 알린다(<code>PANEL-WORK-03</code>) —
+  <b>왼쪽이 왜 바뀌었는지를 글자가 설명한다.</b>
+</p>
+
+<hr class="rule">
+
+<h2 class="sec">⓪-3 패널은 <b>화면을 옮겨도 살아남는다</b> <span class="tag new">사용자 확정</span></h2>
+<p class="seclead">
+  ⭐ 예약을 잡는 중에 환자가 <b>“그 전에 제가 지난번에 무슨 약 받았죠?”</b> 하면 <b>환자 상세를 봐야 한다.</b>
+  패널이 사라지면 <b>채워둔 것을 전부 다시</b> 해야 한다.<br>
+  📌 <b>“그 일에 필요해서 가는 것”과 “다른 일 하러 가는 것”을 시스템이 구분할 수 없다</b> —
+  그래서 <b>잃었을 때 손해가 큰 쪽</b>으로 정했다(<code>PANEL-LIVE-01</code>).
+</p>
+
+<div class="row">
+  <div class="col" style="min-width:430px">
+    <p class="mini-t">㉮ <span class="n">사이드바로 <b>환자 상세</b>에 가도 <b>패널이 따라간다</b></span></p>
+    <div class="app">
+      <div class="hdr">
+        <span>◉ 행복한방병원</span>
+        <span class="sp"></span>
+        <span class="me">김직원</span>
+        <span class="hbsep"></span>
+        <span class="hb on">＋ 새 예약</span>
+        <span class="hb">＋ 당일 방문</span>
+      </div>
+      <div class="split">
+        <div class="cal mock">
+          <b>환자 상세 — 김민정</b><br>
+          지난 진료 기록 · 2026-05-12 내과 · 처방 …<br>
+          <span style="color:var(--warn)">↑ 왼쪽은 <b>직원이 스스로 간 화면</b></span>
+        </div>
+        <div class="panel">
+          <h5>새 예약 <span class="x" style="font-size:11px">«접기 &nbsp; ✕ 닫기</span></h5>
+          <div class="who">작성 중인 내용이 그대로 있다</div>
+          <div class="kv"><span class="k">① 환자</span><span class="v">김민정</span></div>
+          <div class="kv"><span class="k">② 의사</span><span class="v">내과 / 박지훈</span></div>
+          <div class="kv"><span class="k">③ 날짜</span><span class="v">8/7 (금)</span></div>
+          <div class="kv"><span class="k">④ 시간</span><span class="v" style="color:var(--warn)">아직</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="mini-t">㉯ <span class="n"><code>«접기</code>를 누르면 — <b>얇은 띠</b>가 된다</span></p>
+    <div class="app">
+      <div class="hdr">
+        <span>◉ 행복한방병원</span>
+        <span class="sp"></span>
+        <span class="me">김직원</span>
+        <span class="hbsep"></span>
+        <span class="hb">＋ 새 예약</span>
+      </div>
+      <div class="split">
+        <div class="cal mock">
+          <b>환자 상세 — 김민정</b><br>
+          지난 진료 기록 · 2026-05-12 내과 · 처방 …<br>
+          문진 이력 · 가족 연결 …<br>
+          <span style="color:var(--primary)">↑ <b>왼쪽이 넓어졌다</b></span>
+        </div>
+        <div class="folded"><span>김민정 님 예약 작성 중</span></div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>다시 누르면 채워둔 것이 그대로</b> 펼쳐진다(<code>PANEL-LIVE-04</code>).</p>
+  </div>
+</div>
+
+<p class="hint" style="max-width:940px">
+  ⭐ <b><code>«접기</code>와 <code>✕ 닫기</code>를 글자로 구분한다</b>(<code>PANEL-LIVE-05</code>) — 모양만으로 가르지 않는다.
+  <b><code>✕</code>는 그만두기</b>이고 <b>채운 것이 사라진다.</b><br>
+  ⛔ <b><code>✕</code>를 눌러도 묻지 않는다</b>(<code>PANEL-LIVE-06</code>) — <b>저장하지 않은 것은 날아가는 것이 당연하다.</b>
+  대신 <b>접기가 있어서</b> 「잠깐 치우기」와 「그만두기」가 <b>손에서 갈린다.</b><br>
+  📌 <b>작성 중 상태는 「접힌 패널」로 유지한다</b>(<code>PANEL-LIVE-08</code>) —
+  별도 표시 칩을 만들지 않고 <b>같은 패널의 다른 상태</b>로 다룬다.
+</p>
+
+<hr class="rule">
+
+<!-- ① 캘린더에서 시작 -->
+<h2 class="sec">① 캘린더의 <b>빈 곳</b>에서 시작 — <span class="tag">시간부터 정해진 경우</span></h2>
+<p class="seclead">
+  빈 곳을 누르면 <b>의사·날짜·시간이 채워진 채로</b> 패널이 열린다(<code>CAL-BOOK-02</code>). 남는 것은 <b>환자와 사유</b>.
+</p>
+
+<div class="app">
+  <div class="apptop">
+    <button class="navbtn">‹</button><b style="color:var(--ink)">2026-08-06 (목)</b><button class="navbtn">›</button>
+    <span style="margin-left:8px">일간 · 의사 3명</span>
+  </div>
+  <div class="split">
+    <div class="cal locked">
+      <div class="calhead" style="grid-template-columns:38px repeat(3,1fr)">
+        <div>&nbsp;</div><div>박지훈</div><div>최민석</div><div>한서윤</div>
+      </div>
+      <div class="calbody" style="grid-template-columns:38px repeat(3,1fr)">
+        <div class="tax" style="height:270px">
+          <b style="top:0">09:00</b><b style="top:60px">10:00</b><b style="top:120px">11:00</b>
+          <b style="top:180px">12:00</b><b style="top:240px">13:00</b>
+        </div>
+        <div class="tl" style="height:270px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i><i class="gl h" style="top:180px"></i><i class="gl h" style="top:240px"></i>
+          <div class="blk" style="top:0;height:15px">김영수<span class="sm">09:00–09:15</span></div>
+          <div class="blk fr" style="top:15px;height:45px">빈 시간 09:15–10:00</div>
+          <div class="blk hold" style="top:60px;height:15px">← 여기를 눌렀다<span class="sm" style="color:var(--warn)">10:00–10:15 · 저장 전</span></div>
+          <div class="blk fr" style="top:75px;height:105px">빈 시간 10:15–12:00</div>
+          <div class="hat" style="top:180px;height:60px">점심시간 12:00–13:00</div>
+          <div class="blk fr" style="top:240px;height:30px">빈 시간 13:00–</div>
+        </div>
+        <div class="tl" style="height:270px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i><i class="gl h" style="top:180px"></i><i class="gl h" style="top:240px"></i>
+          <div class="blk fr" style="top:0;height:60px">빈 시간 09:00–10:00</div>
+          <div class="blk" style="top:60px;height:20px">정우성<span class="sm">10:00–10:20</span></div>
+          <div class="blk fr" style="top:80px;height:130px">빈 시간 10:20–12:30</div>
+          <div class="hat" style="top:210px;height:60px">점심시간 12:30–13:30</div>
+        </div>
+        <div class="tl" style="height:270px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i><i class="gl h" style="top:180px"></i><i class="gl h" style="top:240px"></i>
+          <div class="hat" style="top:0;height:60px">휴진 09:00–10:00</div>
+          <div class="blk" style="top:60px;height:30px">강해린<span class="sm">10:00–10:30</span></div>
+          <div class="blk fr" style="top:90px;height:90px">빈 시간 10:30–12:00</div>
+          <div class="hat" style="top:180px;height:60px">점심시간 12:00–13:00</div>
+          <div class="blk fr" style="top:240px;height:30px">빈 시간 13:00–</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h5>새 예약 <span class="x">✕</span></h5>
+      <div class="who">전화 예약 · 직원 등록</div>
+
+      <label>① 환자</label>
+      <div class="fld filled">김민<span style="color:#A7B3BC">|</span></div>
+      <p class="hint">⭐ <b>결과는 왼쪽 큰 자리에 펼쳐진다</b>(<code>PANEL-FIND-01</code>) —
+        패널은 <b>290px</b>이라 <code>/patients</code>와 <b>같은 표</b>가 들어가지 않는다(<code>QUEUE-WALK-02c</code>).</p>
+
+      <label>② 담당 의사</label>
+      <div class="fld filled">내과 / 박지훈 · 대기 5명 · 다음 자리 15:20 ▾</div>
+
+      <label>③ 날짜</label>
+      <div class="fld filled">2026-08-06 (목)</div>
+
+      <label>④ 시간</label>
+      <div class="fld filled">10:00–10:15</div>
+      <p class="hint">⭐ <b>캘린더에서 누른 자리</b>가 그대로 들어온다(<code>CAL-BOOK-04</code>).
+        <b>다른 자리를 다시 누르면 옮겨간다</b>(<code>CAL-BOOK-04b</code>).</p>
+
+      <label>⑤ 사유 <span style="font-weight:700;color:#A7B3BC">(선택)</span></label>
+      <div class="fld">감기 증상 등</div>
+
+      <div class="btnrow">
+        <button class="btn row2">취소</button>
+        <button class="btn fill row2">등록</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="hint" style="max-width:940px">
+  ⭐ <b>자리표(주황 점선)는 아직 예약이 아니다</b>(<code>CAL-BOOK-04c</code>) — <b>저장해야 예약</b>이고,
+  <b>다른 직원에게는 보이지 않는다.</b><br>
+  ⭐ <b>뒤 캘린더는 읽기 전용이 된다</b>(<code>PANEL-BACK-01</code>) — <b>스크롤·날짜 이동·빈 곳 고르기는 그대로 되고</b>,
+  <b>막는 것은 「다른 환자의 상태를 바꾸는 버튼」</b>뿐이다(<code>PANEL-BACK-02</code>).
+</p>
+
+<p class="mini-t" style="margin-top:22px">㉯ <span class="n">환자를 <b>찾는 동안</b>의 왼쪽 — <b>검색 결과 표</b>가 캘린더 자리에 온다</span></p>
+<div class="app">
+  <div class="split">
+    <div class="cal findpane">
+      <p class="fh">「김민」 검색 결과 <span>3명</span></p>
+      <table class="ftab">
+        <tr><th style="width:22%">이름</th><th style="width:24%">생년월일</th><th style="width:28%">전화</th><th>최근 방문</th></tr>
+        <tr class="pick"><td><b>김민정</b></td><td>1991-**-04</td><td>010-****-2210</td><td>2026-05-12 · 내과</td></tr>
+        <tr><td><b>김민수</b></td><td>1978-**-21</td><td>010-****-8890</td><td>2025-11-03 · 정형외과</td></tr>
+        <tr><td><b>김민아</b></td><td>2015-**-09</td><td>010-****-1177</td><td>기록 없음</td></tr>
+      </table>
+      <p class="hint">⭐ <code>/patients</code>와 <b>같은 표</b>다(<code>QUEUE-WALK-02c</code>) — 직원이 두 가지를 배우지 않는다.
+        <b>줄 전체가 고르기 버튼</b>이고 동작 버튼은 없다(<code>SEARCH-ACT-08</code>).<br>
+        ⭐ <b>한 명을 고르면 왼쪽이 캘린더로 바뀐다</b>(<code>PANEL-FIND-02</code>) — 다음에 할 일이 <b>시간 고르기</b>이기 때문.</p>
+    </div>
+    <div class="panel">
+      <h5>새 예약 <span class="x">✕</span></h5>
+      <div class="who">환자를 찾는 중</div>
+      <label>① 환자</label>
+      <div class="fld filled">김민<span style="color:#A7B3BC">|</span></div>
+      <label>② 담당 의사</label>
+      <div class="fld filled">내과 / 박지훈 · 대기 5명 · 다음 자리 15:20 ▾</div>
+      <label>③ 날짜</label>
+      <div class="fld filled">2026-08-06 (목)</div>
+      <label>④ 시간</label>
+      <div class="fld filled">10:00–10:15</div>
+      <p class="hint">⭐ <b>이미 채운 것은 그대로</b> 있다 — 환자만 고르면 된다.</p>
+    </div>
+  </div>
+</div>
+<p class="hint" style="max-width:940px">
+  ⭐ <b>왼쪽이 단계에 따라 바뀌어도 되는 이유</b>(<code>PANEL-FIND-03</code>) —
+  <b>그 시점에 필요한 것이 실제로 다르다.</b> 환자를 고를 땐 <b>캘린더를 볼 이유가 없고</b>,
+  시간을 고를 땐 <b>검색 결과를 볼 이유가 없다.</b> <b>패널이 화면의 기준점</b>이라 「어디 갔지」가 되지 않는다.<br>
+  📌 고른 뒤 환자 카드의 <code>[바꾸기]</code>를 누르면 <b>검색어와 결과가 그대로 남은 채</b> 되돌아간다(<code>PANEL-FIND-04</code>).
+</p>
+
+<hr class="rule">
+
+<!-- ② 검색에서 시작 -->
+<h2 class="sec">② 검색·<code>/today</code>의 <code>[예약 잡기]</code>에서 시작 — <span class="tag">사람부터 정해진 경우</span></h2>
+<p class="seclead">
+  <b>캘린더로 옮겨 가며 패널이 열린다</b>(<code>CAL-BOOK-03</code>) — <b>환자가 채워진 채</b>, 시간 칸만 비어 있다.
+  ⭐ <b>어디서 왔는지 기억하고</b>(<code>PANEL-HOME-01</code>) <b>저장하면 그 검색 결과로 돌아간다.</b>
+</p>
+
+<div class="app">
+  <div class="apptop">
+    <button class="navbtn">‹</button><b style="color:var(--ink)">2026-08-06 (목)</b><button class="navbtn">›</button>
+    <span style="margin-left:8px;color:var(--warn)">← 날짜를 옮겨도 패널은 열린 채 따라온다</span>
+  </div>
+  <div class="split">
+    <div class="cal locked">
+      <div class="calhead" style="grid-template-columns:38px repeat(3,1fr)">
+        <div>&nbsp;</div><div>박지훈</div><div>최민석</div><div>한서윤</div>
+      </div>
+      <div class="calbody" style="grid-template-columns:38px repeat(3,1fr)">
+        <div class="tax" style="height:180px">
+          <b style="top:0">09:00</b><b style="top:60px">10:00</b><b style="top:120px">11:00</b><b style="top:180px">12:00</b>
+        </div>
+        <div class="tl" style="height:180px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i>
+          <div class="blk" style="top:0;height:15px">김영수<span class="sm">09:00–09:15</span></div>
+          <div class="blk fr" style="top:15px;height:45px">빈 시간 09:15–10:00</div>
+          <div class="blk" style="top:60px;height:15px">이서준<span class="sm">10:00–10:15</span></div>
+          <div class="blk fr" style="top:75px;height:105px">빈 시간 10:15–12:00</div>
+        </div>
+        <div class="tl" style="height:180px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i>
+          <div class="blk fr" style="top:0;height:60px">빈 시간 09:00–10:00</div>
+          <div class="blk" style="top:60px;height:20px">정우성<span class="sm">10:00–10:20</span></div>
+          <div class="blk fr" style="top:80px;height:100px">빈 시간 10:20–12:00</div>
+        </div>
+        <div class="tl" style="height:180px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i>
+          <div class="hat" style="top:0;height:60px">휴진 09:00–10:00</div>
+          <div class="blk" style="top:60px;height:30px">강해린<span class="sm">10:00–10:30</span></div>
+          <div class="blk fr" style="top:90px;height:90px">빈 시간 10:30–12:00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h5>새 예약 <span class="x">✕</span></h5>
+      <div class="who">환자 검색에서 시작</div>
+
+      <label>① 환자</label>
+      <div class="found">
+        <div class="l1">김민정</div>
+        <div class="l2">1991-**-04 · 010-****-2210</div>
+      </div>
+
+      <label>② 담당 의사</label>
+      <div class="fld filled">정형외과 / 최민석 · 대기 2명 ▾</div>
+
+      <label>③ 날짜</label>
+      <div class="fld filled">2026-08-06 (목) · 오늘</div>
+
+      <label>④ 시간</label>
+      <div class="fld wait">캘린더에서 빈 곳을 눌러 주세요</div>
+      <p class="hint">⭐ <b>비어 있는 칸이 곧 안내다</b> — 무엇을 해야 하는지가 <b>그 자리에</b> 적혀 있다.</p>
+
+      <label>⑤ 사유 <span style="font-weight:700;color:#A7B3BC">(선택)</span></label>
+      <div class="fld">무릎 통증</div>
+
+      <div class="btnrow">
+        <button class="btn row2">취소</button>
+        <button class="btn off row2">등록</button>
+      </div>
+      <p class="hint">시간이 비면 <b>[등록]이 눌리지 않는다.</b></p>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:16px">
+  <div class="col">
+    <p class="mini-t">㉮ <span class="n"><b>저장하면 검색 결과로 돌아온다</b> (<code>PANEL-HOME-01·02</code>)</span></p>
+    <table>
+      <tr><th style="width:42%">직원이 하는 것</th><th>화면</th></tr>
+      <tr><td>검색에서 <code>[예약 잡기]</code></td><td>캘린더 + 패널(환자 채워짐)</td></tr>
+      <tr><td>캘린더에서 자리를 누름</td><td>패널의 시간 칸이 채워짐</td></tr>
+      <tr><td><code>[등록]</code></td><td><b>검색 결과로 되돌아간다</b> — 그 줄이 <b>강조</b>되고
+        버튼이 <code>[예약 잡기]</code> → <code>[도착 처리]</code>로 <b>저절로 바뀌어 있다</b></td></tr>
+      <tr><td><b>대신 <code>[취소]</code>를 누르면</b></td>
+        <td><b>돌아가지 않는다</b>(<code>PANEL-HOME-03</code>) — <b>캘린더를 보려고 온 것일 수 있다.</b>
+          튕겨 보내면 <b>직원이 고른 적 없는 화면 이동</b>이 된다</td></tr>
+    </table>
+  </div>
+  <div class="col">
+    <p class="mini-t">㉯ <span class="n"><b>확인창은 그대로 가운데 팝업</b>이다 (<code>PANEL-USE-02</code>)</span></p>
+    <div class="stage">
+      <div class="modal">
+        <h4>이 환자가 맞습니까?</h4>
+        <div class="kv"><span class="k">이름</span><span class="v">김민정</span></div>
+        <div class="kv"><span class="k">생년월일</span><span class="v">1991-**-04</span></div>
+        <div class="kv"><span class="k">일시</span><span class="v">8/6(목) 10:20–10:40</span></div>
+        <div class="btnrow">
+          <button class="btn row2">아니오</button>
+          <button class="btn fill row2">예, 등록합니다</button>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>여기까지 패널로 옮기지 않는다</b> — 뒤를 계속 누를 수 있으면
+      <b>「멈춰 세우기」가 성립하지 않는다.</b> 요구사항 3.5가 <b>“저장 전에 다시 확인”</b>을 직접 요구한다.</p>
+  </div>
+</div>
+
+<hr class="rule">
+
+<!-- ③ 예약 상세 -->
+<h2 class="sec">③ 이미 있는 예약을 <b>고치는</b> 패널 — <span class="tag ok">같은 자리</span></h2>
+<p class="seclead">
+  예약 블록을 누르면 <b>같은 오른쪽 자리</b>에 상세가 열린다(<code>CAL-PANEL-01</code>).
+  ⭐ <b>패널은 언제나 하나</b>다(<code>PANEL-ONE-01</code>) — 새 예약을 만드는 중에 다른 블록을 누르면
+  <b>자리를 다투지 않고</b> <code>저장하지 않은 내용이 있습니다</code>를 <b>패널 안에서</b> 묻는다.
+</p>
+
+<div class="app">
+  <div class="split">
+    <div class="cal locked">
+      <div class="calhead" style="grid-template-columns:38px repeat(3,1fr)">
+        <div>&nbsp;</div><div>박지훈</div><div>최민석</div><div>한서윤</div>
+      </div>
+      <div class="calbody" style="grid-template-columns:38px repeat(3,1fr)">
+        <div class="tax" style="height:150px">
+          <b style="top:0">09:00</b><b style="top:60px">10:00</b><b style="top:120px">11:00</b>
+        </div>
+        <div class="tl" style="height:150px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i>
+          <div class="blk" style="top:0;height:15px">김영수<span class="sm">09:00–09:15</span></div>
+          <div class="blk fr" style="top:15px;height:45px">빈 시간 09:15–10:00</div>
+          <div class="blk on" style="top:60px;height:15px">김민정<span class="sm">10:00–10:15</span></div>
+          <div class="blk fr" style="top:75px;height:75px">빈 시간 10:15–11:15</div>
+        </div>
+        <div class="tl" style="height:150px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i>
+          <div class="blk fr" style="top:0;height:60px">빈 시간 09:00–10:00</div>
+          <div class="blk" style="top:60px;height:20px">정우성<span class="sm">10:00–10:20</span></div>
+          <div class="blk fr" style="top:80px;height:70px">빈 시간 10:20–11:30</div>
+        </div>
+        <div class="tl" style="height:150px">
+          <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i>
+          <div class="hat" style="top:0;height:60px">휴진 09:00–10:00</div>
+          <div class="blk" style="top:60px;height:30px">강해린<span class="sm">10:00–10:30</span></div>
+          <div class="blk fr" style="top:90px;height:60px">빈 시간 10:30–11:30</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h5>예약 상세 <span class="x">✕</span></h5>
+      <div class="who">누른 블록이 <b>테두리로</b> 표시된다</div>
+      <div class="kv"><span class="k">환자</span><span class="v">김민정</span></div>
+      <div class="kv"><span class="k">생년월일</span><span class="v">1991-**-04</span></div>
+      <div class="kv"><span class="k">의사</span><span class="v">내과 / 박지훈</span></div>
+      <div class="kv"><span class="k">일시</span><span class="v">8/6(목) 10:00–10:15</span></div>
+      <div class="kv"><span class="k">상태</span><span class="v">확정</span></div>
+      <div class="kv"><span class="k">경로</span><span class="v">전화(직원 등록)</span></div>
+      <div class="stack">
+        <button class="btn ghost">시간 변경</button>
+        <button class="btn">환자 상세 보기</button>
+        <button class="btn">예약 취소</button>
+      </div>
+      <p class="hint">⛔ <b>빨간 버튼을 여기 두지 않는다</b> — 되돌릴 수 없는 것은
+        <b>확인창 안에서만</b> 빨갛다(<code>BLOCK-CONF-01</code>).</p>
+    </div>
+  </div>
+</div>
+
+<p class="hint" style="max-width:940px">
+  ⭐ <b><code>[시간 변경]</code>을 누르면 ①과 같은 모양이 된다</b> — 패널이 「고치는 중」으로 바뀌고
+  <b>캘린더에서 새 자리를 누르면</b> 자리표가 뜬다. <b>만드는 일과 고치는 일이 같은 동작</b>이다.
+</p>
+
+<hr class="rule">
+
+<!-- ④ 5분 단위 -->
+<h2 class="sec">④ 시각은 <b>5분 단위로 자유롭게</b> <span class="tag new">SB-40 · 규칙을 뒤집었다</span></h2>
+<p class="seclead">
+  ⭐ <b>진료 15분인 의사여도 환자가 10:05에 오면 10:05에 잡아야 한다.</b>
+  <b>길이만 의사별 진료시간이 정하고</b>(<code>slot_duration_minutes</code>), <b>시작은 5분 단위 어디든</b>이다(<code>CAL-TIME-03</code> 개정).<br>
+  <b>화면은 30분 글자와 15분 점선만 사용하고</b>, 시작 시각만 5분으로 스냅한다.
+</p>
+
+<div class="row">
+  <div class="col" style="min-width:420px">
+    <p class="mini-t">㉮ <span class="n"><b>호버 미리보기</b> — 커서 옆에 <b>몇 시부터인지</b>가 따라다닌다</span></p>
+    <div class="app">
+      <div class="split">
+        <div class="cal">
+          <div class="calhead" style="grid-template-columns:38px 1fr">
+            <div>&nbsp;</div><div>박지훈 · 진료 15분</div>
+          </div>
+          <div class="calbody" style="grid-template-columns:38px 1fr">
+            <div class="tax" style="height:150px">
+              <b style="top:0">10:00</b><b style="top:60px">10:30</b><b style="top:120px">11:00</b>
+            </div>
+            <div class="tl" style="height:150px">
+              <i class="gl h" style="top:60px"></i><i class="gl h" style="top:120px"></i>
+              <i class="gl" style="top:30px"></i><i class="gl" style="top:90px"></i>
+              <div class="blk fr" style="top:0;height:10px">빈 시간 10:00–10:05</div>
+              <div class="blk prev" style="top:10px;height:30px">10:05–10:20<span class="sm" style="color:var(--primary)">여기에 잡힌다</span></div>
+              <div class="hover" style="top:20px;left:52%">10:05–10:20 · 박지훈</div>
+              <div class="blk fr" style="top:40px;height:110px">빈 시간 10:20–11:15</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>밝아지는 곳 = 찍을 시각부터 진료시간만큼</b>(<code>CAL-TIME-05</code>) —
+      「슬롯 한 칸」이 아니다. <b>커서 옆 라벨</b>이 <b>몇 시부터 몇 시까지인지</b>를 그 자리에서 읽어 준다.<br>
+      📌 <b>5분 스냅</b>이라 <code>10:07</code>에 놓아도 <code>10:05</code>로 붙는다 — <b><code>09:07</code> 같은 예약은 여전히 안 생긴다.</b></p>
+  </div>
+
+  <div class="col">
+    <p class="mini-t">㉯ <span class="n"><b>짧은 틈</b> — 감추지 않고 <b>몇 분인지 적는다</b></span></p>
+    <div class="app">
+      <div class="split">
+        <div class="cal">
+          <div class="calhead" style="grid-template-columns:38px 1fr">
+            <div>&nbsp;</div><div>박지훈 · 진료 15분</div>
+          </div>
+          <div class="calbody" style="grid-template-columns:38px 1fr">
+            <div class="tax" style="height:120px">
+              <b style="top:0">10:00</b><b style="top:60px">10:30</b><b style="top:120px">11:00</b>
+            </div>
+            <div class="tl" style="height:120px">
+              <i class="gl h" style="top:60px"></i><i class="gl" style="top:30px"></i><i class="gl" style="top:90px"></i>
+              <div class="blk" style="top:0;height:30px">김민정<span class="sm">10:00–10:15</span></div>
+              <div class="blk gap" style="top:30px;height:10px">빈 시간 5분</div>
+              <div class="blk" style="top:40px;height:30px">정우성<span class="sm">10:20–10:35</span></div>
+              <div class="blk fr" style="top:70px;height:50px">빈 시간 10:35–11:00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>감추지 않는다</b>(<code>CAL-GAP-01·02</code>) — 감추면 <b>“왜 여기가 비었는데 안 되지”</b>가 되고
+      화면이 <b>거짓말</b>을 한다.<br>
+      ⭐ <b>누를 수도 있다</b>(<code>CAL-GAP-03</code>) — 요구사항 3.3 원문이
+      <b>“추가할 수 <u>있지만</u> … 경고를 보여주세요”</b>이지 <b>막으라고 하지 않았다.</b></p>
+  </div>
+</div>
+
+<div class="row" style="margin-top:18px">
+  <div class="col">
+    <p class="mini-t">㉰ <span class="n"><b>「사이 끼워넣기」 경고</b> <span class="tag ok" style="font-size:9px">SB-31 해소</span></span></p>
+    <div class="stage">
+      <div class="modal">
+        <h4>이 자리에 넣으면 겹칩니다</h4>
+        <p style="font-size:12.5px;line-height:1.75;margin:0 0 4px">
+          이 자리는 <b>5분</b>입니다. 진료 <b>15분</b>으로 잡으면<br>
+          다음 예약(<b>정우성 님 10:20</b>)과 <b>10분 겹칩니다.</b>
+        </p>
+        <div class="btnrow">
+          <button class="btn row2">그만두기</button>
+          <button class="btn fill row2">알겠습니다, 그대로 잡기</button>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>막연한 경고가 아니라 「누구와 몇 분」</b>을 적는다(<code>CAL-GAP-05</code>).<br>
+      ⭐ 진행 버튼에 <b>「알겠습니다」</b>를 넣어 <b>읽었다는 것이 손에 남는다</b>(<code>CAL-GAP-06</code>).
+      ⛔ <b>빨간 버튼이 아니다</b> — 되돌릴 수 있는 일이다.</p>
+  </div>
+
+  <div class="col">
+    <p class="mini-t">㉱ <span class="n">넣은 뒤 — <b>「알고 넣은 것」임이 남는다</b></span></p>
+    <div class="app">
+      <div class="split">
+        <div class="cal">
+          <div class="calhead" style="grid-template-columns:38px 1fr">
+            <div>&nbsp;</div><div>박지훈 · 진료 15분</div>
+          </div>
+          <div class="calbody" style="grid-template-columns:38px 1fr">
+            <div class="tax" style="height:110px">
+              <b style="top:0">10:00</b><b style="top:60px">10:30</b>
+            </div>
+            <div class="tl" style="height:110px">
+              <i class="gl h" style="top:60px"></i><i class="gl" style="top:30px"></i><i class="gl" style="top:90px"></i>
+              <div class="blk" style="top:0;height:30px">김민정<span class="sm">10:00–10:15</span></div>
+              <div class="blk clash" style="top:30px;height:30px">⚠ 겹침 · 이도현<span class="sm" style="color:var(--warn)">10:15–10:30 · 급환</span></div>
+              <div class="blk clash" style="top:40px;left:52%;height:30px">⚠ 겹침 · 정우성<span class="sm" style="color:var(--warn)">10:20–10:35</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>겹친 두 블록에 <code>⚠ 겹침</code></b>을 붙인다(<code>CAL-GAP-07</code>) —
+      <b>나중에 본 직원도 「실수가 아니라 알고 넣은 것」</b>임을 안다.<br>
+      ⛔ <b>여전히 막는 것 하나</b> — <b>같은 의사·같은 시각 시작</b>(<code>CAL-GAP-08</code> · 요구사항 <code>:112</code>).
+      <b>모르고 같은 자리에 두 명</b>과 <b>알고 사이에 끼우기</b>는 다른 것이다.</p>
+  </div>
+</div>
+
+<div style="background:#FFF7EF;border:1px solid #F0DCC6;border-left:4px solid #B44E00;border-radius:8px;
+            padding:12px 14px;margin:16px 0 0;font-size:12.5px;line-height:1.75">
+  ⚠️⚠️ <b style="color:#B44E00">이 절 전체가 갭 #85가 풀려야 동작한다</b> —
+  지금 <code>appointments</code>에는 <b>실제 시각 칸이 없고</b>, 겹침은 슬롯의
+  <code>unique (doctor_id, slot_date, start_time)</code>가 막는다. 그런데 그건 <b>시작 시각만</b> 보므로
+  <b><code>10:05</code>와 <code>10:10</code>이 둘 다 통과해 조용히 겹친다</b>(<code>CAL-GAP-09</code>).<br>
+  ⭐ <b>그래서 갭 #85는 「나중에」가 아니라 「선행 조건」으로 격상됐다</b> — 5분 단위가 <b>일반 경로</b>이기 때문이다.
+</div>
+
+<hr class="rule">
+
+<div class="deprecated-zoom">
+<!-- ⑤ 확대 -->
+<h2 class="sec">⑤ 시간축을 <b>끌어서 넓히기</b> <span class="tag new">SB-41</span></h2>
+<p class="seclead">
+  ⚠️ <b>5분 단위로 바꾸면 생기는 문제</b> — 지금 배율에서 <b>15분 = 30px</b>인데 <b>5분은 10px</b>이라
+  <b>글자가 안 들어가고 점처럼</b> 보인다. 그래서 <b>직원이 배율을 조절한다</b>(<code>CAL-ZOOM-01</code>).
+</p>
+
+<div class="row">
+  <div class="col">
+    <p class="mini-t">㉮ <span class="n"><b>기본 배율</b> — 1시간 60px · 5분은 5px(점처럼 보인다)</span></p>
+    <div class="app">
+      <div class="zoombar">배율 <span class="lv">1시간 = 60px</span> · 기본</div>
+      <div class="split">
+        <div class="cal">
+          <div class="calbody" style="grid-template-columns:38px 1fr">
+            <div class="tax zoomax" style="height:120px">
+              <b style="top:0">10:00</b><b style="top:60px">11:00</b><b style="top:120px">12:00</b>
+              <span class="grip">↕</span>
+            </div>
+            <div class="tl" style="height:120px">
+              <i class="gl h" style="top:60px"></i><i class="gl" style="top:30px"></i><i class="gl" style="top:90px"></i>
+              <div class="blk" style="top:0;height:15px">김민정<span class="sm">10:00–10:15</span></div>
+              <div class="blk gap" style="top:15px;height:5px;padding:0 5px;font-size:8px">5분</div>
+              <div class="blk" style="top:20px;height:15px">정우성<span class="sm">10:20–10:35</span></div>
+              <div class="blk fr" style="top:35px;height:85px">빈 시간 10:35–12:00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⚠️ <b>5분 틈이 5px</b>이라 <b>「빈 시간 5분」이 안 들어간다</b> —
+      <code>CAL-GAP-01</code>(길이를 적는다)이 <b>이 배율에서는 지켜지지 않는다.</b></p>
+  </div>
+
+  <div class="col">
+    <p class="mini-t">㉯ <span class="n"><b>끌어서 넓힌 뒤</b> — 1시간 180px · 5분도 읽힌다</span></p>
+    <div class="app">
+      <div class="zoombar">배율 <span class="lv">1시간 = 180px</span> ·
+        <span style="color:var(--primary)">[기본 배율]</span></div>
+      <div class="split">
+        <div class="cal">
+          <div class="calbody" style="grid-template-columns:38px 1fr">
+            <div class="tax zoomax" style="height:180px">
+              <b style="top:0">10:00</b><b style="top:90px">10:30</b><b style="top:180px">11:00</b>
+              <span class="grip">↕</span>
+            </div>
+            <div class="tl" style="height:180px">
+              <i class="gl h" style="top:90px"></i><i class="gl" style="top:45px"></i><i class="gl" style="top:135px"></i>
+              <div class="blk" style="top:0;height:45px">김민정<span class="sm">10:00–10:15 · 확정</span></div>
+              <div class="blk gap" style="top:45px;height:15px">빈 시간 5분</div>
+              <div class="blk" style="top:60px;height:45px">정우성<span class="sm">10:20–10:35 · 확정</span></div>
+              <div class="blk fr" style="top:105px;height:75px">빈 시간 10:35–11:00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⭐ <b>「빈 시간 5분」이 이제 읽힌다.</b> 30분 눈금 글자도 <b>저절로 촘촘해진다</b>(<code>CAL-TIME-01</code>).<br>
+      ⭐ <b>넘치면 세로 스크롤</b>(<code>CAL-ZOOM-04</code>) — 글자를 줄이거나 블록을 접지 않는다.</p>
+  </div>
+</div>
+
+<p class="hint" style="max-width:940px">
+  ⭐ <b>시간축 오른쪽 가장자리를 잡고 끈다</b> — 올리면 <b>커서가 <code>↕</code>로 바뀌고 눈금선이 굵어진다</b>(<code>CAL-ZOOM-02</code>).
+  ⛔ 표시 없이 숨기지 않는다 — <b>있는 줄 모르면 없는 기능</b>이다.<br>
+  ⭐ <b>맞춰 둔 배율을 기억한다</b>(<code>CAL-ZOOM-05</code>) — <b>사람마다 눈이 다르다.</b> 매번 되돌아가면 <b>끌 수 없는 스위치와 같은 짜증</b>이 된다.
+  길을 잃지 않게 <b><code>[기본 배율]</code></b>이 항상 있다(<code>CAL-ZOOM-06</code>).<br>
+  📌 <b>확대해도 스냅은 5분 그대로다</b>(<code>CAL-ZOOM-08</code>) — <b>확대의 이득은 「정확히 찍는 것」이 아니라 「읽히는 것」</b>이다.
+  정확도는 <b>스냅 + 호버 미리보기</b>가 이미 보장한다.<br>
+  ⭐ <b>주간에도 같은 배율이 걸린다</b>(<code>CAL-ZOOM-07</code>) — <b>19~20px 레인 문제도 함께 완화</b>된다.
+</p>
+
+<hr class="rule">
+
+</div>
+
+<h2 class="sec">⑥ 두 직원이 <b>같은 자리를</b> — <span class="tag new">SB-42 해소 · 시나리오 8</span></h2>
+<p class="seclead">
+  ⭐⭐ <b>물어보니 「저장할 때 갈리는 문제」가 아니라 「저장 전에 막을 수 있는 문제」였다.</b>
+  그러려면 <b>캘린더가 실시간이어야</b> 하는데 — ⚠️ <b><code>CAL-LIVE-*</code>가 0개였다.</b>
+  <code>/today</code>·<code>/queue</code>에는 있고(<code>QUEUE-LIVE-01~03</code>) <b>캘린더에만 없었다.</b>
+</p>
+
+<div class="row">
+  <div class="col" style="min-width:430px">
+    <p class="mini-t">㉮ <span class="n">14:02 — <b>자리표는 서로에게 안 보인다</b> <span class="tag">CAL-BOOK-04c</span></span></p>
+    <div class="app">
+      <div class="apptop"><b style="color:var(--ink)">직원 A의 화면</b><span>2026-08-06 (목) · 박지훈</span></div>
+      <div class="split">
+        <div class="cal">
+          <div class="calhead" style="grid-template-columns:44px 1fr"><div>시각</div><div>박지훈</div></div>
+          <div class="calbody" style="grid-template-columns:44px 1fr;height:120px">
+            <div class="tax"><b style="top:14px">10:00</b><b style="top:59px">10:30</b><b style="top:104px">11:00</b></div>
+            <div class="tl">
+              <div class="gl h" style="top:14px"></div><div class="gl h" style="top:59px"></div><div class="gl h" style="top:104px"></div>
+              <div class="blk" style="top:14px;height:20px">10:00 이수민</div>
+              <div class="blk hold" style="top:59px;height:20px">10:30 자리표 · 저장 전</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="width:170px;flex:0 0 170px">
+          <h5 style="font-size:12px">새 예약</h5>
+          <div class="kv"><span class="k">환자</span><span class="v">김민정</span></div>
+          <div class="kv"><span class="k">시간</span><span class="v">10:30</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="app" style="margin-top:10px">
+      <div class="apptop"><b style="color:var(--ink)">직원 B의 화면</b><span>같은 시각 · 같은 자리</span></div>
+      <div class="split">
+        <div class="cal">
+          <div class="calhead" style="grid-template-columns:44px 1fr"><div>시각</div><div>박지훈</div></div>
+          <div class="calbody" style="grid-template-columns:44px 1fr;height:120px">
+            <div class="tax"><b style="top:14px">10:00</b><b style="top:59px">10:30</b><b style="top:104px">11:00</b></div>
+            <div class="tl">
+              <div class="gl h" style="top:14px"></div><div class="gl h" style="top:59px"></div><div class="gl h" style="top:104px"></div>
+              <div class="blk" style="top:14px;height:20px">10:00 이수민</div>
+              <div class="blk hold" style="top:59px;height:20px">10:30 자리표 · 저장 전</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="width:170px;flex:0 0 170px">
+          <h5 style="font-size:12px">새 예약</h5>
+          <div class="kv"><span class="k">환자</span><span class="v">박서준</span></div>
+          <div class="kv"><span class="k">시간</span><span class="v">10:30</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⚠️ <b>A의 자리표가 B에게 안 보이므로 B도 같은 자리를 찍는다</b> — <b>저장해야 예약</b>이기 때문이다(<code>CAL-RACE-01</code>).</p>
+  </div>
+
+  <div class="col">
+    <p class="mini-t">㉯ <span class="n">14:03 A가 저장 — <b>B의 자리표가 그 즉시 바뀐다</b> <span class="tag new">CAL-RACE-02</span></span></p>
+    <div class="app">
+      <div class="apptop"><b style="color:var(--ink)">직원 B의 화면</b><span>실시간 갱신 · <code>CAL-LIVE-01</code></span></div>
+      <div class="split">
+        <div class="cal">
+          <div class="calhead" style="grid-template-columns:44px 1fr"><div>시각</div><div>박지훈</div></div>
+          <div class="calbody" style="grid-template-columns:44px 1fr;height:120px">
+            <div class="tax"><b style="top:14px">10:00</b><b style="top:59px">10:30</b><b style="top:104px">11:00</b></div>
+            <div class="tl">
+              <div class="gl h" style="top:14px"></div><div class="gl h" style="top:59px"></div><div class="gl h" style="top:104px"></div>
+              <div class="blk" style="top:14px;height:20px">10:00 이수민</div>
+              <div class="blk clash" style="top:59px;height:20px">⚠ 10:30 방금 찼습니다 · 김민정</div>
+              <div class="blk fr" style="top:81px;height:20px">10:45 빈 시간</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="width:170px;flex:0 0 170px">
+          <h5 style="font-size:12px">새 예약</h5>
+          <div class="kv"><span class="k">환자</span><span class="v">박서준</span></div>
+          <div class="kv"><span class="k">시간</span><span class="v" style="color:var(--warn)">다시 고르기</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">⭐⭐ <b>이것이 이 결정의 핵심이다</b> — <b>「저장할 때 갈린다」를 「저장 전에 보인다」로 옮긴다.</b>
+      이것만으로 <b>409를 만나는 일 자체가 드물어진다.</b><br>
+      📌 <b>바로 아래 <code>10:45 빈 시간</code>이 보인다</b> — <b>다음에 할 일이 같은 화면에 이미 있다.</b></p>
+  </div>
+</div>
+
+<p class="mini-t" style="margin-top:20px">㉰ <span class="n">그래도 저장을 눌렀다면 — <b>시간 칸만 비운다</b> <span class="tag new">CAL-RACE-03·04</span></span></p>
+<div class="row">
+  <div class="col" style="min-width:430px">
+    <div class="app">
+      <div class="hdr">
+        <span>◉ 행복한방병원</span><span class="sp"></span><span class="me">이직원</span>
+        <span class="hbsep"></span><span class="hb on">＋ 새 예약</span><span class="hb">＋ 당일 방문</span>
+      </div>
+      <div class="split">
+        <div class="cal">
+          <div class="calhead" style="grid-template-columns:44px 1fr"><div>시각</div><div>박지훈</div></div>
+          <div class="calbody" style="grid-template-columns:44px 1fr;height:150px">
+            <div class="tax"><b style="top:14px">10:00</b><b style="top:59px">10:30</b><b style="top:104px">11:00</b></div>
+            <div class="tl">
+              <div class="gl h" style="top:14px"></div><div class="gl h" style="top:59px"></div><div class="gl h" style="top:104px"></div>
+              <div class="blk" style="top:14px;height:20px">10:00 이수민</div>
+              <div class="blk" style="top:59px;height:20px">10:30 김민정 <span class="sm">방금 다른 직원이 잡음</span></div>
+              <div class="blk fr" style="top:81px;height:20px">10:45 빈 시간</div>
+              <div class="blk fr" style="top:104px;height:20px">11:00 빈 시간</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h5>새 예약 <span class="x">«접기 &nbsp; ✕ 닫기</span></h5>
+          <div class="who">자리만 다시 고르면 됩니다</div>
+          <div class="kv"><span class="k">① 환자</span><span class="v">박서준</span></div>
+          <div class="kv"><span class="k">② 의사</span><span class="v">내과 / 박지훈</span></div>
+          <div class="kv"><span class="k">③ 날짜</span><span class="v">8/6 (목)</span></div>
+          <label>④ 시간</label>
+          <div class="fld wait">방금 다른 직원이 이 자리를 잡았습니다</div>
+          <p class="hint w">캘린더에서 <b>다른 빈 곳</b>을 누르세요.</p>
+          <label>사유</label>
+          <div class="fld filled">두통 · 3일째</div>
+          <div class="btnrow">
+            <button class="btn row2">취소</button>
+            <button class="btn fill row2">저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="notes" style="margin-top:0">
+      <h2>왜 이렇게 정했나</h2>
+      <p class="hint" style="font-size:12.5px">
+        ⭐⭐ <b><code>/today</code>의 충돌과는 성격이 다르다</b>(<code>CAL-RACE-08</code>) —
+        거기서는 <b>다른 직원이 남의 환자를 이미 처리해 버린 것</b>이라 <b>알리고 끝내면</b> 된다(<code>TODAY-RACE-02</code>).
+        여기서는 <b>내가 하려던 일이 아직 안 끝났다</b> — <b>자리만 뺏겼지 환자·의사·사유는 그대로 유효</b>하다.
+        그래서 답은 <b>문구가 아니라 「이어서 할 자리」를 주는 것</b>이다.<br><br>
+        ⛔ <b><code>새로고침 후 다시 시도하세요</code>를 쓰지 않는다</b>(<code>CAL-RACE-04</code>) —
+        <b>실시간이라 이미 갱신돼 있다.</b><br>
+        ⛔ <b>서버 문구 <code>다른 시간을 선택하세요</code>도 그대로 쓰지 않는다</b> —
+        <b>화면이 이미 그 칸을 비워 뒀으므로</b> 시키는 말만 남는다.
+      </p>
+      <div class="killed">
+        ⛔ <b>기각 ㉯ — 가운데 팝업으로 알리기</b>(<code>CAL-RACE-05</code>)<br>
+        ①<b>전화 통화 중에 누를 것이 하나 더</b> 생기고 ②<b>팝업이 캘린더를 가려</b>
+        <i>“그럼 어디가 비었지”</i>를 <b>닫은 뒤에야</b> 본다.
+        ⭐ <b><code>CAL-RACE-02</code>가 대부분을 미리 잡으므로</b> 팝업의 이득(못 보고 지나감 방지)이 <b>작아졌다.</b><br><br>
+        ⛔ <b>기각 ㉰ — 패널을 닫고 처음부터</b>(<code>CAL-RACE-07</code>)<br>
+        채운 것이 <b>전부 날아가고</b>, 전화 통화 중이면 <b>환자에게 다시 묻는다.</b>
+      </div>
+      <p class="hint" style="font-size:12.5px">
+        ⚠️ <b>㉮안의 유일한 대가</b>(<code>CAL-RACE-06</code>) — <b>조용해서 못 볼 수 있다.</b>
+        못 보고 <code>[저장]</code>을 또 누르면 <b><code>시간을 고르세요</code></b>가 뜬다. <b>한 번의 헛손질</b>로 끝난다.<br>
+        📌 <b>연결이 끊겨도 자리 찍기를 막지 않는다</b>(<code>CAL-LIVE-04</code>) —
+        막으면 <b>연결이 불안한 창구에서 예약 자체를 못 잡는다.</b> 대신 <b>저장할 때 이 규칙이 받는다.</b>
+      </p>
+    </div>
+  </div>
+</div>
+
+<hr class="rule">
+
+<div class="notes">
+  <h2>현행 캘린더 원칙 <span class="tag ok">CAL-BOOK-01~04</span></h2>
+  <div class="killed">
+    <b>현행 캘린더 규칙</b> — 날짜 이동은 캘린더의 <code>[‹]</code>·<code>[›]</code>와 작은 달력으로 처리하고,
+    예약 작성은 캘린더 오른쪽 패널에서 한다. 빈 곳을 직접 눌러 시간을 채우며, 작성 중 상태도 같은 패널을 접어 보관한다.
+  </div>
+
+  <h2 style="margin-top:22px">아직 안 그린 것 — <span class="tag no">다음 차례</span></h2>
+  <table>
+    <tr><th style="width:170px">무엇</th><th style="width:80px">막는 것</th><th>왜 아직인가</th></tr>
+    <tr>
+      <td><b>「사이 끼워넣기」 경고</b><br><code>SB-31</code> <span class="tag ok" style="font-size:9px">해소</span></td>
+      <td class="no">갭 #85</td>
+      <td>✅ <b>④절에 그렸다</b>(<code>CAL-GAP-05~07</code>). ⚠️ <b>그림은 정해졌으나 구현은 갭 #85가 풀려야 한다</b> —
+        5분 단위가 일반 경로가 되면서 <b>갭 #85가 선행 조건으로 격상</b>됐다.</td>
+    </tr>
+    <tr>
+      <td><b>일정 변경 영향 목록</b><br><code>SB-32</code></td>
+      <td class="no">화면 없음</td>
+      <td>시나리오 6 — <i>“휴진 변경 → 기존 예약 환자 목록 경고 → 환자별 변경 또는 취소”</i>.
+        <code>CAL-SLOT-05</code>(⚠ 표시)만 있고 <b>목록 화면이 없다.</b></td>
+    </tr>
+    <tr>
+      <td><b>중복 예약</b><br>시나리오 8 <span class="tag ok" style="font-size:9px">해소</span></td>
+      <td class="no">—</td>
+      <td>✅ <b>⑥절에 그렸다</b>(<code>CAL-RACE-01~08</code> · <code>CAL-LIVE-01~04</code>) —
+        <b>저장 전에 자리표가 <code>⚠ 방금 찼습니다</code>로 바뀌고</b>, 그래도 저장했다면
+        <b>시간 칸만 비운다.</b></td>
+    </tr>
+  </table>
+</div>
+
+</div>
+</body>
+</html>

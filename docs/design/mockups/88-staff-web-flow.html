@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>직원 웹 전체 흐름도 · 88</title>
+  <style>
+    :root {
+      --ink: #10243a;
+      --ink-muted: #5a6c7b;
+      --divider: #cbd6de;
+      --surface: #ffffff;
+      --bg: #eef3f5;
+      --primary: #0b6e70;
+      --teal-soft: #e4f3f1;
+      --doctor: #5a4b8a;
+      --doctor-soft: #eeeafa;
+      --admin: #9b4d13;
+      --admin-soft: #fff0e4;
+      --system: #596c7b;
+      --danger: #9d3d2c;
+      --danger-soft: #fff0ed;
+      --blocked: #a66a13;
+      --blocked-soft: #fff5df;
+      --shadow: 0 12px 28px rgba(16, 36, 58, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #dfe8ec;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .page { max-width: 1880px; margin: 0 auto; padding: 42px 44px 64px; }
+    .eyebrow { color: var(--primary); font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 8px 0 10px; font-size: 38px; line-height: 1.12; letter-spacing: -.04em; }
+    .intro { max-width: 960px; color: var(--ink-muted); font-size: 16px; line-height: 1.65; margin: 0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0 18px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; background: rgba(255,255,255,.76); border: 1px solid var(--divider); border-radius: 999px; color: var(--ink-muted); font-size: 12px; font-weight: 700; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .legend-dot.reception { background: var(--primary); }
+    .legend-dot.doctor { background: var(--doctor); }
+    .legend-dot.admin { background: var(--admin); }
+    .legend-dot.shared { background: var(--system); }
+    .legend-dot.blocked { background: var(--danger); }
+    .diagram-wrap { overflow: auto; padding: 4px 0 18px; }
+    .diagram { position: relative; width: 1780px; height: 1420px; border: 1px solid #c7d3da; border-radius: 28px; background: var(--bg); box-shadow: var(--shadow); overflow: hidden; }
+    .lane { position: absolute; top: 178px; bottom: 34px; border: 1px solid rgba(90,108,123,.18); border-radius: 24px; pointer-events: none; }
+    .lane.reception { left: 34px; width: 530px; background: rgba(228,243,241,.76); }
+    .lane.doctor { left: 625px; width: 530px; background: rgba(238,234,250,.78); }
+    .lane.admin { left: 1216px; width: 530px; background: rgba(255,240,228,.78); }
+    .lane-label { position: absolute; top: 198px; padding: 6px 13px; border-radius: 10px; font-size: 12px; font-weight: 900; letter-spacing: .05em; }
+    .lane-label.reception { left: 56px; color: var(--primary); background: var(--teal-soft); }
+    .lane-label.doctor { left: 647px; color: var(--doctor); background: var(--doctor-soft); }
+    .lane-label.admin { left: 1238px; color: var(--admin); background: var(--admin-soft); }
+    .node { position: absolute; width: 330px; min-height: 118px; padding: 16px 18px 15px; border: 1px solid var(--divider); border-top: 5px solid var(--system); border-radius: 17px; background: var(--surface); box-shadow: 0 7px 18px rgba(16,36,58,.07); }
+    .node.reception { border-top-color: var(--primary); }
+    .node.doctor { border-top-color: var(--doctor); }
+    .node.admin { border-top-color: var(--admin); }
+    .node.shared { border-top-color: var(--system); }
+    .node.system { border-top-color: var(--blocked); background: var(--blocked-soft); }
+    .node.blocked { border: 1px dashed var(--danger); border-top: 5px solid var(--danger); background: var(--danger-soft); }
+    .node h3 { margin: 0 0 7px; font-size: 17px; line-height: 1.2; letter-spacing: -.02em; }
+    .node p { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
+    .node .tag { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--ink-muted); font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .node .tag svg { width: 14px; height: 14px; }
+    .status { display: inline-block; margin-top: 9px; padding: 4px 7px; border-radius: 6px; color: var(--blocked); background: #ffe7b1; font-size: 10px; font-weight: 900; }
+    .status.danger { color: var(--danger); background: #ffdcd5; }
+    .login { left: 725px; top: 34px; width: 330px; min-height: 108px; border-top-color: var(--ink); }
+    .rec-today { left: 76px; top: 256px; }
+    .doc-console { left: 725px; top: 256px; }
+    .adm-today { left: 1306px; top: 256px; }
+    .rec-checkin { left: 76px; top: 468px; }
+    .patients { left: 396px; top: 468px; }
+    .messages { left: 1306px; top: 468px; }
+    .patient-detail { left: 396px; top: 675px; }
+    .staff { left: 896px; top: 468px; }
+    .access { left: 896px; top: 652px; }
+    .questionnaires { left: 1306px; top: 652px; }
+    .merge { left: 896px; top: 836px; }
+    .errors { left: 1306px; top: 836px; }
+    .stats { left: 896px; top: 1020px; }
+    .settings { left: 1306px; top: 1020px; }
+    .schedule { left: 1306px; top: 1210px; }
+    .today-return { left: 896px; top: 1210px; }
+    .edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .edges path, .edges line { fill: none; stroke: #667985; stroke-width: 2.4; }
+    .edges .role-reception { stroke: var(--primary); }
+    .edges .role-doctor { stroke: var(--doctor); }
+    .edges .role-admin { stroke: var(--admin); }
+    .edges .shared { stroke: var(--system); }
+    .edges .conditional { stroke: var(--blocked); stroke-dasharray: 9 7; }
+    .edges .blocked { stroke: var(--danger); stroke-dasharray: 7 7; }
+    .edges text { fill: var(--ink-muted); font-size: 13px; font-weight: 800; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+    .edges text.blocked-label { fill: var(--danger); }
+    .edges text.conditional-label { fill: var(--blocked); }
+    .recovery { margin-top: 18px; padding: 18px 20px; border: 1px solid #bfcdd5; border-radius: 18px; background: rgba(255,255,255,.8); }
+    .recovery h2 { margin: 0 0 8px; font-size: 18px; }
+    .recovery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .recovery-card { padding: 13px; border: 1px solid #d3dee4; border-radius: 12px; background: var(--surface); }
+    .recovery-card h3 { margin: 0 0 5px; font-size: 13px; }
+    .recovery-card p { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
+    .footnote { margin: 16px 0 0; color: var(--ink-muted); font-size: 12px; line-height: 1.55; }
+    .rule-index { display: flex; flex-wrap: wrap; gap: 5px 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--divider); color: var(--ink-muted); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .rule-index code { padding: 2px 4px; border-radius: 4px; background: var(--surface); color: var(--ink-muted); }
+    svg.icon { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+    @media (max-width: 820px) {
+      .page { padding: 24px 18px 40px; }
+      h1 { font-size: 30px; }
+      .recovery-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="eyebrow">Staff web · flow map 88</div>
+    <h1>직원 웹 전체 화면 흐름</h1>
+    <p class="intro">직원 로그인에서 역할별 기본 화면으로 분기한 뒤, 04a–04l의 12개 화면과 기존 공통 셸 이동을 연결한다. 실선은 확정된 이동, 점선은 조건부 이동, 붉은 점선은 목적지·계약이 아직 확인되지 않은 빈틈이다.</p>
+    <div class="legend" aria-label="범례">
+      <span class="legend-item"><span class="legend-dot reception"></span>접수직원</span>
+      <span class="legend-item"><span class="legend-dot doctor"></span>의사</span>
+      <span class="legend-item"><span class="legend-dot admin"></span>관리자</span>
+      <span class="legend-item"><span class="legend-dot shared"></span>공통 화면</span>
+      <span class="legend-item"><span class="legend-dot blocked"></span>빈틈·병합 전 차단</span>
+    </div>
+
+    <div class="diagram-wrap">
+      <section class="diagram" aria-label="직원 웹 화면 흐름도">
+        <div class="lane reception"></div>
+        <div class="lane doctor"></div>
+        <div class="lane admin"></div>
+        <div class="lane-label reception">접수직원</div>
+        <div class="lane-label doctor">의사</div>
+        <div class="lane-label admin">관리자</div>
+
+        <svg class="edges" viewBox="0 0 1780 1420" role="img" aria-label="화면 간 이동 화살표">
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#667985"></path></marker>
+            <marker id="arrow-reception" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--primary)"></path></marker>
+            <marker id="arrow-doctor" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#5a4b8a"></path></marker>
+            <marker id="arrow-admin" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9b4d13"></path></marker>
+          </defs>
+          <path class="role-reception" marker-end="url(#arrow-reception)" d="M805 142 C650 188 280 190 241 256"></path>
+          <path class="role-doctor" marker-end="url(#arrow-doctor)" d="M890 142 L890 256"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M975 142 C1138 185 1455 190 1471 256"></path>
+          <text x="376" y="187">로그인 성공 · receptionist</text>
+          <text x="910" y="204">로그인 성공 · doctor</text>
+          <text x="1220" y="187">로그인 성공 · admin</text>
+
+          <path class="role-reception" marker-end="url(#arrow-reception)" d="M241 374 L241 468"></path>
+          <path class="shared" marker-end="url(#arrow)" d="M406 312 C455 370 500 401 523 468"></path>
+          <path class="shared" marker-end="url(#arrow)" d="M1471 374 C1370 425 950 430 726 468"></path>
+          <path class="role-doctor" marker-end="url(#arrow-doctor)" d="M890 374 C810 420 705 432 561 468"></path>
+          <text x="259" y="427">사이드바 · 접수</text>
+          <text x="742" y="421">환자 검색</text>
+          <text x="1140" y="420">사이드바 · 환자 검색</text>
+
+          <path class="role-reception" marker-end="url(#arrow-reception)" d="M241 586 L241 657 C300 676 345 693 396 710"></path>
+          <path class="shared" marker-end="url(#arrow)" d="M561 586 L561 675"></path>
+          <text x="254" y="637">환자 행 / 상세</text>
+          <text x="574" y="642">환자 행 / 상세</text>
+
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 L1471 468"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 C1330 414 1155 420 1061 468"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 C1320 467 1168 574 1061 652"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 C1412 480 1391 565 1471 652"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 C1356 570 1194 706 1061 836"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 C1468 554 1471 696 1471 836"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 C1344 700 1168 899 1061 1020"></path>
+          <path class="role-admin" marker-end="url(#arrow-admin)" d="M1471 374 L1471 1020"></path>
+          <text x="1510" y="430">안내 보내기</text>
+          <text x="1080" y="447">직원 관리</text>
+          <text x="1110" y="596">열람 기록</text>
+          <text x="1490" y="598">문진표 관리</text>
+          <text x="1110" y="780">중복 환자 후보</text>
+          <text x="1490" y="780">시스템 오류</text>
+          <text x="1090" y="965">운영 통계</text>
+          <text x="1490" y="965">병원 설정</text>
+
+          <path class="shared" marker-end="url(#arrow)" d="M1471 586 C1260 644 820 690 726 734"></path>
+          <text x="1002" y="646">실패 명단 · 환자 열기</text>
+          <path class="shared" marker-end="url(#arrow)" d="M1061 954 C940 890 750 836 726 790"></path>
+          <text x="835" y="874">원문 확인 필요</text>
+
+          <path class="conditional" marker-end="url(#arrow)" d="M1061 586 L1061 1210"></path>
+          <text class="conditional-label" x="1075" y="1120">정책 A 승인 뒤 영향 예약을 /today로</text>
+          <path class="conditional" marker-end="url(#arrow)" d="M1471 1138 L1471 1210"></path>
+          <text class="conditional-label" x="1490" y="1180">특정 날짜 변경 · 운영 계약 필요</text>
+        </svg>
+
+        <article class="node login">
+          <div class="tag"><svg class="icon"><use href="#icon-lock"></use></svg>공통 진입</div>
+          <h3>/login · 직원 로그인</h3>
+          <p>직원이 역할을 선택하지 않는다. 서버가 활성 staff.role을 읽어 기본 화면을 정한다.</p>
+        </article>
+        <article class="node reception rec-today">
+          <div class="tag"><svg class="icon"><use href="#icon-dashboard"></use></svg>접수직원 기본</div>
+          <h3>/today · 오늘의 현황</h3>
+          <p>대기·확인 필요 업무를 시작한다. 공통 셸에서 접수, 환자 검색, 안내 보내기로 이어진다.</p>
+        </article>
+        <article class="node doctor doc-console">
+          <div class="tag"><svg class="icon"><use href="#icon-stethoscope"></use></svg>의사 기본</div>
+          <h3>/doctor/console · 진료 화면</h3>
+          <p>담당 대기 환자와 문진을 확인한다. 사이드바에는 환자 검색만 둔다.</p>
+        </article>
+        <article class="node admin adm-today">
+          <div class="tag"><svg class="icon"><use href="#icon-settings"></use></svg>관리자 기본</div>
+          <h3>/today · 오늘의 현황</h3>
+          <p>접수직원 업무를 확인하면서 관리자 사이드바의 운영 화면으로 이동한다.</p>
+        </article>
+
+        <article class="node reception rec-checkin">
+          <div class="tag"><svg class="icon"><use href="#icon-scan"></use></svg>접수직원 · 관리자</div>
+          <h3>/checkin · QR·예약번호 접수</h3>
+          <p>QR을 먼저 스캔하고 예약번호 입력을 보조로 쓴다. 결과 카드에서 도착 처리하며 성공 뒤에도 같은 화면에 남는다.</p>
+        </article>
+        <article class="node shared patients">
+          <div class="tag"><svg class="icon"><use href="#icon-search"></use></svg>공통 환자 업무</div>
+          <h3>/patients · 환자 검색</h3>
+          <p>접수직원·의사·관리자가 역할 범위 안에서 환자를 찾는다. 행 선택은 상세로 이어진다.</p>
+        </article>
+        <article class="node admin messages">
+          <div class="tag"><svg class="icon"><use href="#icon-message"></use></svg>접수직원 · 관리자</div>
+          <h3>/messages · 안내 보내기</h3>
+          <p>새 발송은 오른쪽 패널에서 끝내고, 실패 명단의 환자 열기는 상세로 연결한다.</p>
+        </article>
+        <article class="node shared patient-detail">
+          <div class="tag"><svg class="icon"><use href="#icon-user"></use></svg>공통 상세</div>
+          <h3>/patients/:id · 환자 상세</h3>
+          <p>예약·방문·문진·완료 기록·문의·내부 메모를 역할 범위에 맞게 확인한다.</p>
+        </article>
+        <article class="node admin staff">
+          <div class="tag"><svg class="icon"><use href="#icon-users"></use></svg>관리자</div>
+          <h3>/admin/staff · 직원 관리</h3>
+          <p>초대·재초대·타인 사용 중지. 영향 예약이 있으면 정책 승인 뒤 /today 확인 필요로 넘긴다.</p>
+        </article>
+        <article class="node admin access">
+          <div class="tag"><svg class="icon"><use href="#icon-audit"></use></svg>관리자</div>
+          <h3>/admin/access-logs · 열람 기록</h3>
+          <p>환자 선택은 같은 화면의 필터만 바꾼다. 조회 실패는 화면 안에서 재시도한다.</p>
+        </article>
+        <article class="node admin questionnaires">
+          <div class="tag"><svg class="icon"><use href="#icon-form"></use></svg>관리자</div>
+          <h3>/admin/questionnaires · 문진표 관리</h3>
+          <p>진료과 선택·새 버전 저장·과거 버전 읽기 전용 미리보기는 같은 화면 안에서 닫힌다.</p>
+        </article>
+        <article class="node admin merge">
+          <div class="tag"><svg class="icon"><use href="#icon-merge"></use></svg>관리자</div>
+          <h3>/admin/patient-merge-candidates</h3>
+          <p>후보 비교와 병합 검토를 거친다. 원문 확인은 /patients/:id로 갔다가 후보 목록으로 돌아온다.</p>
+        </article>
+        <article class="node admin errors">
+          <div class="tag"><svg class="icon"><use href="#icon-warning"></use></svg>관리자</div>
+          <h3>/admin/errors · 시스템 오류</h3>
+          <p>기간 조회·최근 오류 확인. 발송 실패 명단으로 자동 이동하지 않고 /messages에 결과를 남긴다.</p>
+        </article>
+        <article class="node admin stats">
+          <div class="tag"><svg class="icon"><use href="#icon-chart"></use></svg>관리자</div>
+          <h3>/admin/stats · 운영 통계</h3>
+          <p>기간 조회·드릴다운·CSV는 현재 화면에서 끝난다. 환자 상세나 새 화면으로 보내지 않는다.</p>
+        </article>
+        <article class="node admin settings">
+          <div class="tag"><svg class="icon"><use href="#icon-settings"></use></svg>관리자</div>
+          <h3>/admin/settings · 병원 설정</h3>
+          <p>저장·오류·409는 현재 화면에 남는다. 예정 휴무의 관리 링크만 특정 날짜 변경으로 이어진다.</p>
+        </article>
+        <article class="node system schedule">
+          <div class="tag"><svg class="icon"><use href="#icon-calendar"></use></svg>범위 밖 참조</div>
+          <h3>/admin/schedule · 특정 날짜 변경</h3>
+          <p>원본 SCHED-EXC-18과 04l HSETX-NAV-01이 목적지를 가리키지만, 이 작업의 12개 화면 밖이며 구현 계약은 차단 상태다.</p>
+          <span class="status">계약 확인 필요</span>
+        </article>
+        <article class="node system today-return">
+          <div class="tag"><svg class="icon"><use href="#icon-dashboard"></use></svg>기존 소비 위치</div>
+          <h3>/today · 확인 필요 예약</h3>
+          <p>의사 사용 중지 후 영향 예약을 처리하는 기존 접수 흐름. STAFF-DEACT-07의 정책 A가 승인될 때만 확정된다.</p>
+          <span class="status">조건부</span>
+        </article>
+      </section>
+    </div>
+
+    <section class="recovery" aria-label="공통 예외 흐름">
+      <h2>모든 역할·화면에 공통으로 닫힌 예외 흐름</h2>
+      <div class="recovery-grid">
+        <article class="recovery-card"><h3>세션 만료</h3><p>현재 route와 필요한 필터를 기억해 /login으로 이동한 뒤 인증 성공 후 원래 화면으로 복귀한다. 기존 NAV-SHELL-08 인용.</p></article>
+        <article class="recovery-card"><h3>권한 부족</h3><p>로그인 화면으로 쫓아내지 않고 권한 안내와 역할별 기본 화면 버튼을 제공한다. 기존 NAV-SHELL-05·SHELL-URL-01 인용.</p></article>
+        <article class="recovery-card"><h3>조회·저장 오류</h3><p>화면을 바꾸지 않고 실패한 영역에 [다시 시도]를 둔다. 기존 NAV-GLOBAL-07·ERR-*·EMPTY-* 인용.</p></article>
+        <article class="recovery-card"><h3>로그아웃</h3><p>공통 셸에서 /login으로 가며 뒤로가기로 직원 화면을 노출하지 않는다. 기존 NAV-SHELL-06 인용.</p></article>
+      </div>
+    </section>
+    <p class="footnote">이 흐름도의 화살표는 고객이 눈으로 보는 곳이고, 구현 시 기계가 확인할 이동 규칙은 동반 명세서 04m의 기존 NAV-* 인용과 NAVX-STAFF-* 표에 있다. 04m에서 새로 만든 NAVX는 기존 NAV-*를 복제하지 않는 두 개의 합성 경로뿐이다.</p>
+    <div class="rule-index" aria-label="이 목업이 다루는 화면 규칙"><code>NAVX-STAFF-01</code><code>NAVX-STAFF-02</code></div>
+  </main>
+
+  <svg aria-hidden="true" width="0" height="0" style="position:absolute">
+    <defs>
+      <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></symbol>
+      <symbol id="icon-dashboard" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"></rect><rect x="14" y="4" width="6" height="6" rx="1"></rect><rect x="4" y="14" width="6" height="6" rx="1"></rect><rect x="14" y="14" width="6" height="6" rx="1"></rect></symbol>
+      <symbol id="icon-stethoscope" viewBox="0 0 24 24"><path d="M6 4v5a4 4 0 0 0 8 0V4"></path><path d="M4 4h4M12 4h4"></path><path d="M14 15a4 4 0 1 0 8 0v-1"></path><circle cx="19" cy="11" r="2"></circle></symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.8 1.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-2.6V20a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1-1.8-1.8.1-.1A1.7 1.7 0 0 0 8 15a1.7 1.7 0 0 0-1.6-1H6v-2.6h.4A1.7 1.7 0 0 0 8 10a1.7 1.7 0 0 0-.3-1.9l-.1-.1 1.8-1.8.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V4h2.6v.4a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.8 1.8-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.4V14h-.4a1.7 1.7 0 0 0-1.6 1z"></path></symbol>
+      <symbol id="icon-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M7 12h10"></path></symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"></circle><path d="m15 15 5 5"></path></symbol>
+      <symbol id="icon-message" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5z"></path><path d="M8 9h8M8 12h5"></path></symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></symbol>
+      <symbol id="icon-warning" viewBox="0 0 24 24"><path d="m12 4 9 16H3L12 4z"></path><path d="M12 9v5M12 17h.01"></path></symbol>
+      <symbol id="icon-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"></circle><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M17 14a5 5 0 0 1 4 6"></path></symbol>
+      <symbol id="icon-audit" viewBox="0 0 24 24"><path d="M6 4h12v16H6z"></path><path d="M9 8h6M9 12h6M9 16h4"></path></symbol>
+      <symbol id="icon-form" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"></path><path d="M15 3v4h4M9 11h6M9 15h6"></path></symbol>
+      <symbol id="icon-merge" viewBox="0 0 24 24"><path d="M5 6h5a4 4 0 0 1 4 4v8"></path><path d="m11 15 3 3 3-3M19 6h-5"></path></symbol>
+      <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"></path><path d="m7 15 3-4 3 2 5-7"></path></symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M8 3v4M16 3v4M4 10h16"></path></symbol>
+    </defs>
+  </svg>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .ps { width: 262px; border: 2px solid #3a3a3a; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 480px; background: #F2F5F7; color: #10243A; font-family: 'Pretendard', -apple-system, sans-serif; }
+  .ps-top { background: #fff; padding: 9px 12px 11px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 800; }
+  .ps-back { color: #0B6E70; font-weight: 700; }
+  .ps-body { flex: 1; padding: 11px; }
+  .ps-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.10); margin-bottom: 9px; }
+  .ps-head { padding: 11px 12px; }
+  .ps-when { font-size: 18px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
+  .ps-who { font-size: 11px; margin-top: 2px; font-weight: 500; }
+  .ps-badge { display: inline-block; font-size: 9.5px; font-weight: 800; padding: 3px 8px; border-radius: 99px; margin-bottom: 3px; }
+  .ps-r { display: flex; padding: 9px 12px; border-bottom: 1px solid #E6EBEF; font-size: 12px; }
+  .ps-r:last-child { border-bottom: none; }
+  .ps-l { color: #5A6C7B; width: 60px; flex-shrink: 0; font-weight: 500; }
+  .ps-v { flex: 1; font-weight: 700; }
+  .ps-btns { display: flex; gap: 7px; padding: 10px 11px 12px; background: #fff; border-top: 1px solid #E0E7EC; }
+  .ps-b { flex: 1; text-align: center; padding: 14px 0; border-radius: 10px; font-size: 14px; font-weight: 800; }
+  .ps-out { border: 2px solid #0B6E70; color: #0B6E70; }
+  .ps-gray { border: 2px solid #C7D2D8; color: #5A6C7B; }
+  .ps-note { background: #fff; border-left: 4px solid #B44E00; padding: 10px 11px; border-radius: 0 10px 10px 0; font-size: 11.5px; font-weight: 600; line-height: 1.6; }
+  .ps-slot { background: #fff; border: 1.5px dashed #C7D2D8; border-radius: 10px; padding: 15px 11px; text-align: center; font-size: 11px; color: #5A6C7B; font-weight: 600; line-height: 1.6; }
+  .ps-qr { width: 48px; height: 48px; background: repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0/9px 9px; }
+  .ps-tl { padding: 11px 12px; }
+  .ps-tlrow { display: flex; gap: 9px; align-items: flex-start; }
+  .ps-tlcol { display: flex; flex-direction: column; align-items: center; width: 12px; flex-shrink: 0; }
+  .ps-tld { width: 10px; height: 10px; border-radius: 50%; background: #0B6E70; }
+  .ps-tld.wait { background: #B44E00; }
+  .ps-tld.off { background: #DCE4E8; }
+  .ps-tlline { width: 2px; flex: 1; min-height: 15px; background: #DCE4E8; }
+  .ps-tltxt { font-size: 11.5px; font-weight: 700; padding-bottom: 8px; }
+  .ps-tltxt.off { color: #A9B6BF; font-weight: 600; }
+  .ps-tltxt small { display: block; font-size: 9.5px; color: #5A6C7B; font-weight: 500; margin-top: 1px; }
+  .ps-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .ps-rail { background: #0B6E70; color: #fff; width: 56px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; }
+  .ps-railwait { background: #7E8E99; }
+</style>
+
+<h2>화면 13 / 20 — 아직 확정되지 않은 예약(`예약신청`) 표시</h2>
+<p class="subtitle">
+  스펙 4.3: 앱 예약은 기본 <b>`예약신청`</b> 상태이고, 즉시확정 여부는 병원 설정(<code>hospital_settings</code>)에 달려 있습니다. 직원 확인이 필요한 병원이라면 환자는 <b>기다리는 시간</b>을 겪습니다.
+  <br>이때 <b>①확정된 예약과 어떻게 구분할지</b>, <b>②QR을 보여줄지</b>가 결정 사항입니다.
+</p>
+
+<div class="ps-row">
+
+  <!-- A -->
+  <div class="card" data-choice="badge-only" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="ps">
+        <div class="ps-top"><span class="ps-back">‹ 뒤로</span><span>예약 상세</span><span style="width:34px"></span></div>
+        <div class="ps-body">
+          <div class="ps-card">
+            <div class="ps-head" style="background:#0B6E70;color:#fff">
+              <span class="ps-badge" style="background:rgba(255,255,255,.22);color:#fff">확인 중</span>
+              <div class="ps-when">8월 3일 (월) 오후 2:30</div>
+              <div class="ps-who" style="opacity:.92">김순자 · 예약번호 A-2413</div>
+            </div>
+            <div class="ps-r"><span class="ps-l">진료과</span><span class="ps-v">내과</span></div>
+            <div class="ps-r"><span class="ps-l">담당의사</span><span class="ps-v">이민호 원장</span></div>
+            <div class="ps-r"><span class="ps-l">장소</span><span class="ps-v">본관 3층</span></div>
+          </div>
+          <div class="ps-note">병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.</div>
+        </div>
+        <div class="ps-btns"><div class="ps-b ps-out">시간 변경</div><div class="ps-b ps-gray">예약 취소</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 배지 + 안내문만 다르게</h3>
+      <p>카드 모양은 확정과 <b>완전히 동일</b>하고, 배지가 "확정됨" → <b>"확인 중"</b>으로, 아래 안내문 한 줄이 붙습니다. 화면이 두 벌로 갈리지 않아 만들기 쉽고 일관됩니다. 단점: 목록에서 빠르게 훑을 때 <b>확정과 미확정이 거의 똑같아 보입니다</b>.</p>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="card" data-choice="muted-head" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="ps">
+        <div class="ps-top"><span class="ps-back">‹ 뒤로</span><span>예약 상세</span><span style="width:34px"></span></div>
+        <div class="ps-body">
+          <div class="ps-card">
+            <div class="ps-head" style="background:#7E8E99;color:#fff">
+              <span class="ps-badge" style="background:rgba(255,255,255,.25);color:#fff">아직 확정 전</span>
+              <div class="ps-when">8월 3일 (월) 오후 2:30</div>
+              <div class="ps-who" style="opacity:.94">김순자 · 신청번호 A-2413</div>
+            </div>
+            <div class="ps-r"><span class="ps-l">진료과</span><span class="ps-v">내과</span></div>
+            <div class="ps-r"><span class="ps-l">담당의사</span><span class="ps-v">이민호 원장</span></div>
+            <div class="ps-r"><span class="ps-l">장소</span><span class="ps-v">본관 3층</span></div>
+          </div>
+          <div class="ps-slot">
+            확정되면 여기에 <b>접수용 QR</b>이 나타납니다<br>
+            <span style="color:#A9B6BF">보통 진료시간 내 1~2시간이 걸립니다</span>
+          </div>
+          <div class="ps-note" style="margin-top:9px">병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.</div>
+        </div>
+        <div class="ps-btns"><div class="ps-b ps-out">시간 변경</div><div class="ps-b ps-gray">신청 취소</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 머리 색을 회색으로 + QR 자리 비움</h3>
+      <p>딥틸 머리를 <b>회색</b>으로 바꿔 "아직 완성되지 않은 상태"임을 한눈에. QR 자리는 <b>점선 빈칸</b>으로 남겨 "확정되면 여기 생긴다"를 미리 알려줍니다. 용어도 "예약번호 → 신청번호", "예약 취소 → 신청 취소"로 맞춥니다. 색만이 아니라 <b>글자로도 구분</b>됩니다(요구사항 7절).</p>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="card" data-choice="progress" onclick="toggleSelect(this)" style="max-width:300px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:14px;background:#e4ebee">
+      <div class="ps">
+        <div class="ps-top"><span class="ps-back">‹ 뒤로</span><span>예약 상세</span><span style="width:34px"></span></div>
+        <div class="ps-body">
+          <div class="ps-card">
+            <div class="ps-head" style="background:#7E8E99;color:#fff">
+              <span class="ps-badge" style="background:rgba(255,255,255,.25);color:#fff">아직 확정 전</span>
+              <div class="ps-when">8월 3일 (월) 오후 2:30</div>
+              <div class="ps-who" style="opacity:.94">김순자 · 내과 이민호 원장</div>
+            </div>
+            <div class="ps-tl">
+              <div class="ps-tlrow">
+                <div class="ps-tlcol"><div class="ps-tld"></div><div class="ps-tlline"></div></div>
+                <div class="ps-tltxt">신청을 보냈습니다<small>7월 31일 오전 11:20</small></div>
+              </div>
+              <div class="ps-tlrow">
+                <div class="ps-tlcol"><div class="ps-tld wait"></div><div class="ps-tlline"></div></div>
+                <div class="ps-tltxt" style="color:#B44E00">병원이 확인하는 중<small style="color:#B44E00">확정되면 알림을 보내드립니다</small></div>
+              </div>
+              <div class="ps-tlrow">
+                <div class="ps-tlcol"><div class="ps-tld off"></div></div>
+                <div class="ps-tltxt off">확정 · 접수용 QR 발급<small>확정 후 QR을 보여주고 접수합니다</small></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ps-btns"><div class="ps-b ps-out">시간 변경</div><div class="ps-b ps-gray">신청 취소</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 진행 상태를 그림으로</h3>
+      <p>신청 → 확인 중 → 확정을 <b>세 칸 타임라인</b>으로. "지금 어느 단계에서 무엇을 기다리는지"가 가장 분명하고, <b>불안을 가장 덜 줍니다</b>. 단점: 확정되면 이 타임라인이 쓸모없어져 <b>화면 구성이 확정 전후로 크게 달라집니다</b>.</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:30px">홈 목록에서는 이렇게 갈립니다</h3>
+<p class="subtitle" style="margin-bottom:10px">가족 다건 목록에서 확정·미확정이 섞였을 때(B안 기준). 시각 레일 색이 갈리고 <b>[QR] 버튼 자리에 "확인 중"</b>이 들어갑니다.</p>
+
+<div class="ps-row">
+  <div style="display:flex;justify-content:center;padding:4px">
+    <div style="width:262px;background:#F2F5F7;border:2px solid #3a3a3a;border-radius:18px;overflow:hidden;font-family:'Pretendard',sans-serif;color:#10243A">
+      <div style="background:#fff;padding:9px 12px;font-size:13px;font-weight:800">김순자님</div>
+      <div style="padding:10px">
+        <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(16,36,58,.12)">
+          <div style="background:#0B6E70;color:#fff;padding:8px 11px;font-size:11px;font-weight:800">오늘 방문 2건 · 8월 3일 (월)</div>
+          <div style="display:flex">
+            <div class="ps-rail"><div style="font-size:16px;font-weight:800;font-variant-numeric:tabular-nums">14:30</div><div style="font-size:8px;opacity:.88">본인</div></div>
+            <div style="flex:1;padding:9px"><div style="font-size:14px;font-weight:800">김순자</div><div style="font-size:10px;color:#5A6C7B;font-weight:500;margin-top:2px">내과 · 이민호 원장</div></div>
+            <div style="align-self:center;background:#0B6E70;color:#fff;font-size:10px;font-weight:800;padding:9px 11px;border-radius:8px;margin-right:9px">QR</div>
+          </div>
+          <div style="font-size:10.5px;font-weight:700;padding:8px 11px 8px 67px;color:#67788A;border-top:1px solid #E6EBEF">사전문진 작성완료 · 수정하기 ›</div>
+          <div style="display:flex;border-top:1px solid #E6EBEF">
+            <div class="ps-rail ps-railwait"><div style="font-size:16px;font-weight:800;font-variant-numeric:tabular-nums">14:50</div><div style="font-size:8px;opacity:.9">아들</div></div>
+            <div style="flex:1;padding:9px"><div style="font-size:14px;font-weight:800">김도윤</div><div style="font-size:10px;color:#5A6C7B;font-weight:500;margin-top:2px">소아과 · 박지우 원장</div></div>
+            <div style="align-self:center;font-size:9.5px;font-weight:800;color:#5A6C7B;border:1.5px solid #C7D2D8;border-radius:8px;padding:8px 7px;margin-right:9px;text-align:center;line-height:1.3">확인<br>중</div>
+          </div>
+          <div style="font-size:10.5px;font-weight:700;padding:8px 11px 8px 67px;color:#B44E00;border-top:1px solid #E6EBEF;position:relative"><span style="position:absolute;left:56px;top:0;bottom:0;width:4px;background:#B44E00"></span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#B44E00;margin-right:5px;vertical-align:middle"></span>사전문진 미작성 · 작성하기 ›</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <p class="label">추천</p>
+  <p><b>B(회색 머리 + QR 자리 비움)</b>를 추천합니다. 미확정 예약에서 가장 위험한 오해는 <u>"예약이 다 된 줄 알고 병원에 갔는데 자리가 없는 것"</u>입니다. B는 세 겹으로 막습니다 — 색(회색), 글자("아직 확정 전", "신청번호"), 그리고 <b>QR이 없다는 사실 자체</b>. QR은 접수의 열쇠라서, 그게 없으면 아직 완성되지 않았다는 게 몸으로 이해됩니다.</p>
+  <p style="margin-top:8px">A는 만들기 가장 쉽지만 훑어볼 때 구분이 안 됩니다. C의 타임라인은 안심 효과가 크지만 확정 후 화면이 전혀 다른 모양이 되어, 사용자가 "확정됐더니 화면이 바뀌었네" 하고 한 번 더 학습해야 합니다.</p>
+  <p style="margin-top:8px"><span class="label">함께 결정되는 것</span> B를 고르시면 용어도 상태에 맞춰 바뀝니다 — 미확정일 때는 <b>"신청번호"</b>, <b>"신청 취소"</b>. 확정되면 <b>"예약번호"</b>, <b>"예약 취소"</b>. 같은 말을 상태에 따라 다르게 쓰는 게 아니라, <b>지금 무엇을 다루고 있는지</b>를 단어가 정확히 말하게 하는 겁니다.</p>
+  <p style="margin-top:8px"><span class="label">참고</span> 병원이 <b>즉시확정</b>으로 설정하면 이 화면은 아예 나타나지 않고, 예약 직후 바로 확정 카드가 보입니다.</p>
+</div>

@@ -1,0 +1,142 @@
+<style>
+  .p8 { --teal:#0B6E70; --ink:#10243A; --done:#67788A; --bg:#F2F5F7; --warn:#B44E00; }
+  .p8, .p8 * { text-align:left; box-sizing:border-box; }
+  .p8 { width:340px; background:#fff; border:1px solid #d6dde3; border-radius:14px;
+        overflow:hidden; font-family:Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+        color:var(--ink); }
+  .p8 .bar { background:var(--teal); color:#fff; padding:11px 16px; font-size:15px; font-weight:600; }
+  .p8 .prog { padding:12px 16px 6px; background:var(--bg); }
+  .p8 .prog .txt { font-size:12px; color:var(--done); font-weight:600; margin-bottom:6px; }
+  .p8 .prog .track { height:5px; background:#dde4e9; border-radius:3px; overflow:hidden; }
+  .p8 .prog .fill { height:100%; width:50%; background:var(--teal); }
+  .p8 .q { padding:16px 16px 0; font-size:20px; font-weight:800; letter-spacing:-.3px; line-height:1.35; }
+  .p8 .sum { padding:10px 16px 14px; display:flex; gap:6px; flex-wrap:wrap; }
+  .p8 .sum span { font-size:12.5px; color:var(--done); background:#eef2f5; padding:3px 9px; border-radius:5px; }
+  .p8 .body { padding:0 16px 18px; }
+
+  /* 달력 */
+  .cal-h { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .cal-h b { font-size:16px; font-weight:800; }
+  .cal-h .nav { color:var(--teal); font-size:17px; font-weight:700; }
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal .dow { font-size:11px; color:var(--done); font-weight:700; text-align:center; padding-bottom:4px; }
+  .cal .d { aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+            font-size:15px; font-weight:700; border-radius:9px; font-variant-numeric:tabular-nums; }
+  .cal .d.off { color:#c6ced4; font-weight:400; }
+  .cal .d.ok  { color:var(--ink); border:1.5px solid #cfdbe0; }
+  .cal .d.on  { background:var(--teal); color:#fff; border:none; }
+  .legend { margin-top:12px; font-size:12px; color:var(--done); display:flex; gap:14px; align-items:center; }
+  .legend i { display:inline-block; width:13px; height:13px; border-radius:4px; vertical-align:-2px; margin-right:5px; }
+
+  /* 가로 띠 */
+  .strip { display:flex; gap:8px; overflow:hidden; padding-bottom:2px; }
+  .dchip { flex:none; width:62px; border:1.5px solid #cfdbe0; border-radius:11px; padding:10px 0 9px;
+           text-align:center; }
+  .dchip .dw { font-size:11px; color:var(--done); font-weight:700; }
+  .dchip .dd { font-size:20px; font-weight:800; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .dchip .cn { font-size:11px; color:var(--teal); font-weight:700; margin-top:3px; }
+  .dchip.on { background:var(--teal); border-color:var(--teal); }
+  .dchip.on .dw, .dchip.on .dd, .dchip.on .cn { color:#fff; }
+  .dchip * { text-align:center; }
+  .mlabel { font-size:13px; color:var(--done); font-weight:700; margin-bottom:9px; }
+  .more { margin-top:12px; text-align:center; font-size:13.5px; color:var(--teal); font-weight:700;
+          border:1.5px solid #cfdbe0; border-radius:10px; padding:12px; }
+  .more { text-align:center; }
+
+  .lane8 { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .lane8 h3 { margin:0 0 5px; text-align:left; }
+  .lane8 .cap { font-size:13px; color:#6b7d8c; margin-bottom:12px; max-width:340px; text-align:left; }
+</style>
+
+<h2>예약 4단계 — 날짜 선택</h2>
+<p class="subtitle">확정된 원칙 <b>#9</b>는 "예약 가능한 것만 보여주고 찬 것은 숨긴다"였습니다. 그런데 <b>달력은 격자라서 날짜 칸을 비울 수 없습니다</b> — 3일을 지우면 뒤 날짜가 밀려 요일이 어긋납니다. 그래서 날짜에는 원칙을 그대로 적용할 수 없고, 두 가지 길이 있습니다.</p>
+
+<div class="lane8">
+
+  <div>
+    <h3>가 · 달력 (가능한 날만 진하게)</h3>
+    <div class="cap">한 달을 통째로 봅니다. 예약할 수 있는 날만 테두리를 주고, 나머지(휴진·마감·꽉 참)는 <b>흐린 숫자</b>로 남깁니다. 숨기지 않고 <b>누를 수 없게</b>만 합니다.</div>
+    <div class="p8">
+      <div class="bar">← &nbsp;예약하기</div>
+      <div class="prog"><div class="txt">4단계 / 8단계 · 날짜 선택</div><div class="track"><div class="fill"></div></div></div>
+      <div class="q">언제 오시겠어요?</div>
+      <div class="sum"><span>본인 (김순자)</span><span>정형외과</span><span>김민수</span></div>
+      <div class="body">
+        <div class="cal-h"><span class="nav">‹</span><b>2026년 8월</b><span class="nav">›</span></div>
+        <div class="cal">
+          <div class="dow">일</div><div class="dow">월</div><div class="dow">화</div><div class="dow">수</div>
+          <div class="dow">목</div><div class="dow">금</div><div class="dow">토</div>
+          <div class="d off"></div><div class="d off"></div><div class="d off"></div><div class="d off"></div>
+          <div class="d off"></div><div class="d off"></div><div class="d off">1</div>
+          <div class="d off">2</div><div class="d off">3</div><div class="d off">4</div><div class="d ok">5</div>
+          <div class="d off">6</div><div class="d ok">7</div><div class="d off">8</div>
+          <div class="d off">9</div><div class="d ok">10</div><div class="d off">11</div><div class="d on">12</div>
+          <div class="d off">13</div><div class="d ok">14</div><div class="d off">15</div>
+          <div class="d off">16</div><div class="d ok">17</div><div class="d off">18</div><div class="d ok">19</div>
+          <div class="d off">20</div><div class="d ok">21</div><div class="d off">22</div>
+          <div class="d off">23</div><div class="d ok">24</div><div class="d off">25</div><div class="d ok">26</div>
+          <div class="d off">27</div><div class="d ok">28</div><div class="d off">29</div>
+        </div>
+        <div class="legend">
+          <span><i style="border:1.5px solid #cfdbe0"></i>예약 가능</span>
+          <span><i style="background:#eef1f3"></i>진료 없음</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <h3>나 · 가로 띠 (가능한 날만 나열)</h3>
+    <div class="cap">예약할 수 있는 날<b>만</b> 왼쪽부터 늘어놓고 옆으로 밉니다. 원칙 #9를 그대로 지킵니다. 남은 자리 수까지 보여줄 수 있습니다.</div>
+    <div class="p8">
+      <div class="bar">← &nbsp;예약하기</div>
+      <div class="prog"><div class="txt">4단계 / 8단계 · 날짜 선택</div><div class="track"><div class="fill"></div></div></div>
+      <div class="q">언제 오시겠어요?</div>
+      <div class="sum"><span>본인 (김순자)</span><span>정형외과</span><span>김민수</span></div>
+      <div class="body">
+        <div class="mlabel">8월</div>
+        <div class="strip">
+          <div class="dchip"><div class="dw">수</div><div class="dd">5</div><div class="cn">3자리</div></div>
+          <div class="dchip"><div class="dw">금</div><div class="dd">7</div><div class="cn">1자리</div></div>
+          <div class="dchip"><div class="dw">월</div><div class="dd">10</div><div class="cn">5자리</div></div>
+          <div class="dchip on"><div class="dw">수</div><div class="dd">12</div><div class="cn">4자리</div></div>
+          <div class="dchip"><div class="dw">금</div><div class="dd">14</div><div class="cn">2자리</div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="strip">
+          <div class="dchip"><div class="dw">월</div><div class="dd">17</div><div class="cn">6자리</div></div>
+          <div class="dchip"><div class="dw">수</div><div class="dd">19</div><div class="cn">5자리</div></div>
+          <div class="dchip"><div class="dw">금</div><div class="dd">21</div><div class="cn">4자리</div></div>
+          <div class="dchip"><div class="dw">월</div><div class="dd">24</div><div class="cn">6자리</div></div>
+          <div class="dchip"><div class="dw">수</div><div class="dd">26</div><div class="cn">5자리</div></div>
+        </div>
+        <div class="more">더 뒤 날짜 보기 ›</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="options" style="margin-top:26px">
+  <div class="option" data-choice="cal" onclick="toggleSelect(this)">
+    <div class="letter">가</div>
+    <div class="content">
+      <h3>달력 <span style="color:#0B6E70">— 추천</span></h3>
+      <p><b>"다음 주 수요일에 가야 한다"는 식으로 날짜를 정해서 오는 사람이 대부분입니다.</b> 달력은 요일과 주 단위가 눈에 보여서 그 사람이 자기 날짜를 바로 찾습니다. 흐린 숫자로 남겨두면 "그날은 진료가 없구나"를 알 수 있어, 없는 날을 아예 지우는 것보다 오히려 덜 헷갈립니다. 대신 한 달을 넘겨 보려면 <b>›</b>를 눌러야 합니다.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="strip" onclick="toggleSelect(this)">
+    <div class="letter">나</div>
+    <div class="content">
+      <h3>가로 띠</h3>
+      <p>원칙 #9("가능한 것만")를 날짜에도 똑같이 지키고, <b>남은 자리 수</b>까지 보여줄 수 있습니다. "아무 때나 빨리"인 사람에게는 가장 빠릅니다. 대신 특정 날짜를 찾으려면 옆으로 계속 밀어야 하고, 옆으로 미는 동작은 어르신에게 세로 스크롤보다 어렵습니다.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">둘</div>
+    <div class="content">
+      <h3>가장 빠른 날 몇 개 + 그 아래 달력</h3>
+      <p>맨 위에 "가장 빠른 날" 3개를 띠로 놓고, 그 아래 달력을 둡니다. 두 부류를 모두 만족시키지만 <b>화면에 두 가지 고르는 방법이 동시에 있어</b> 원칙("한 화면에 가장 중요한 행동 하나")과 부딪칩니다.</p>
+    </div>
+  </div>
+</div>

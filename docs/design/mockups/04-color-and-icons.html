@@ -1,0 +1,257 @@
+<style>
+  /* ===== 색 후보 ===== */
+  .cc-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .cc-frame { width: 250px; background: #F2F5F7; border: 2px solid #3a3a3a; border-radius: 16px; overflow: hidden; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #10243A; }
+  .cc-bar { background: #fff; padding: 9px 11px; font-size: 13px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; }
+  .cc-inner { padding: 10px; }
+  .cc-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,36,58,.12); }
+  .cc-head { color: #fff; padding: 8px 11px; font-size: 11px; font-weight: 800; }
+  .cc-person { display: flex; align-items: stretch; border-bottom: 1px solid #E6EBEF; }
+  .cc-rail { color: #fff; width: 58px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; }
+  .cc-time { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+  .cc-rel { font-size: 8px; opacity: .88; margin-top: 1px; }
+  .cc-mid { flex: 1; padding: 9px; }
+  .cc-name { font-size: 14px; font-weight: 800; }
+  .cc-sub { font-size: 10px; color: #5A6C7B; margin-top: 2px; }
+  .cc-qr { align-self: center; color: #fff; font-size: 10px; font-weight: 800; padding: 9px 11px; border-radius: 8px; margin-right: 9px; }
+  .cc-q { font-size: 10px; font-weight: 700; padding: 7px 11px 7px 68px; }
+  .cc-q.todo { background: #FFF6E8; color: #A85B00; border-bottom: 1px solid #E6EBEF; }
+  .cc-q.done { background: #F5F7F8; color: #67788A; }
+  .cc-tabs { display: flex; background: #fff; border-top: 1px solid #E0E7EC; }
+  .cc-tabs > div { flex: 1; text-align: center; padding: 7px 0 9px; font-size: 8px; color: #93A3B1; }
+  .cc-hex { font-size: 10px; letter-spacing: .5px; color: #667; margin-top: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+
+  /* ===== 아이콘 후보 ===== */
+  .ic-set { border: 1px solid #d7dee3; border-radius: 12px; padding: 16px; background: #fff; color: #10243A; }
+  .ic-strip { display: flex; justify-content: space-between; gap: 6px; padding: 10px 6px 4px; border-top: 1px solid #E0E7EC; border-bottom: 1px solid #E0E7EC; background: #fff; }
+  .ic-item { flex: 1; text-align: center; font-size: 9px; color: #93A3B1; }
+  .ic-item.on { color: #0B6E70; font-weight: 800; }
+  .ic-item svg { display: block; margin: 0 auto 3px; }
+  .ic-small { margin-top: 12px; display: flex; gap: 14px; align-items: center; justify-content: center; }
+  .ic-note { font-size: 11px; line-height: 1.7; color: #5A6C7B; margin-top: 10px; }
+  .ic-note b { color: #10243A; }
+</style>
+
+<h2>화면 4 / 18 — 표지판 방향의 색 후보 · 아이콘 후보</h2>
+<p class="subtitle">1번(표지판) 확정. 이제 <b>레일 색</b>과 <b>탭 아이콘</b>만 고릅니다. 나머지(레이아웃·글자 크기·문진 회색/노랑)는 그대로입니다.</p>
+
+<h3 style="margin-top:22px">① 레일 색 — 4가지 후보</h3>
+<p class="subtitle" style="margin-bottom:12px">네 색 모두 흰 글자 대비 4.5:1을 넘습니다(WCAG AA 통과). 주의(노랑)·완료(회색)는 네 안 공통입니다.</p>
+
+<div class="cc-row">
+
+  <div class="card" data-choice="color-teal" onclick="toggleSelect(this)" style="max-width:270px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:12px;background:#e4ebee">
+      <div class="cc-frame">
+        <div class="cc-bar"><span>김순자님</span><span style="color:#93A3B1;font-size:11px">알림 설정</span></div>
+        <div class="cc-inner">
+          <div class="cc-card">
+            <div class="cc-head" style="background:#0B6E70">오늘 방문 3건 · 8월 3일 (월)</div>
+            <div class="cc-person">
+              <div class="cc-rail" style="background:#0B6E70"><div class="cc-time">14:30</div><div class="cc-rel">본인</div></div>
+              <div class="cc-mid"><div class="cc-name">김순자</div><div class="cc-sub">내과 · 이민호 원장</div></div>
+              <div class="cc-qr" style="background:#0B6E70">QR</div>
+            </div>
+            <div class="cc-q done">사전문진 작성완료 · 수정하기 ›</div>
+            <div class="cc-person" style="border-top:1px solid #E6EBEF">
+              <div class="cc-rail" style="background:#0B6E70"><div class="cc-time">14:50</div><div class="cc-rel">아들</div></div>
+              <div class="cc-mid"><div class="cc-name">김도윤</div><div class="cc-sub">소아과 · 박지우 원장</div></div>
+              <div class="cc-qr" style="background:#0B6E70">QR</div>
+            </div>
+            <div class="cc-q todo" style="border-bottom:none">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="cc-hex">#0B6E70</div>
+        </div>
+        <div class="cc-tabs"><div style="color:#0B6E70;font-weight:800">홈</div><div>예약</div><div>가족</div><div>이력</div><div>AI 상담</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 딥틸 (청록)</h3>
+      <p>수술복·소독포의 색. 병원 맥락은 확실하되 <b>흔한 병원 파랑을 피합니다</b>. 차분하고 중성적이라 남녀·연령을 안 가림.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="color-forest" onclick="toggleSelect(this)" style="max-width:270px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:12px;background:#e4eae6">
+      <div class="cc-frame">
+        <div class="cc-bar"><span>김순자님</span><span style="color:#93A3B1;font-size:11px">알림 설정</span></div>
+        <div class="cc-inner">
+          <div class="cc-card">
+            <div class="cc-head" style="background:#1B5E43">오늘 방문 3건 · 8월 3일 (월)</div>
+            <div class="cc-person">
+              <div class="cc-rail" style="background:#1B5E43"><div class="cc-time">14:30</div><div class="cc-rel">본인</div></div>
+              <div class="cc-mid"><div class="cc-name">김순자</div><div class="cc-sub">내과 · 이민호 원장</div></div>
+              <div class="cc-qr" style="background:#1B5E43">QR</div>
+            </div>
+            <div class="cc-q done">사전문진 작성완료 · 수정하기 ›</div>
+            <div class="cc-person" style="border-top:1px solid #E6EBEF">
+              <div class="cc-rail" style="background:#1B5E43"><div class="cc-time">14:50</div><div class="cc-rel">아들</div></div>
+              <div class="cc-mid"><div class="cc-name">김도윤</div><div class="cc-sub">소아과 · 박지우 원장</div></div>
+              <div class="cc-qr" style="background:#1B5E43">QR</div>
+            </div>
+            <div class="cc-q todo" style="border-bottom:none">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="cc-hex">#1B5E43</div>
+        </div>
+        <div class="cc-tabs"><div style="color:#1B5E43;font-weight:800">홈</div><div>예약</div><div>가족</div><div>이력</div><div>AI 상담</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 포레스트 그린</h3>
+      <p>회복·건강의 색이고 <b>대비가 가장 높습니다</b>(흰 글자 8:1↑). 단점: 우리는 "완료" 상태에 초록 계열을 쓰지 않지만, 초록=성공이라는 습관 때문에 <b>레일 자체가 "다 됐다"로 읽힐 여지</b>가 있습니다.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="color-navy" onclick="toggleSelect(this)" style="max-width:270px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:12px;background:#e5e8ee">
+      <div class="cc-frame">
+        <div class="cc-bar"><span>김순자님</span><span style="color:#93A3B1;font-size:11px">알림 설정</span></div>
+        <div class="cc-inner">
+          <div class="cc-card">
+            <div class="cc-head" style="background:#1F3F73">오늘 방문 3건 · 8월 3일 (월)</div>
+            <div class="cc-person">
+              <div class="cc-rail" style="background:#1F3F73"><div class="cc-time">14:30</div><div class="cc-rel">본인</div></div>
+              <div class="cc-mid"><div class="cc-name">김순자</div><div class="cc-sub">내과 · 이민호 원장</div></div>
+              <div class="cc-qr" style="background:#1F3F73">QR</div>
+            </div>
+            <div class="cc-q done">사전문진 작성완료 · 수정하기 ›</div>
+            <div class="cc-person" style="border-top:1px solid #E6EBEF">
+              <div class="cc-rail" style="background:#1F3F73"><div class="cc-time">14:50</div><div class="cc-rel">아들</div></div>
+              <div class="cc-mid"><div class="cc-name">김도윤</div><div class="cc-sub">소아과 · 박지우 원장</div></div>
+              <div class="cc-qr" style="background:#1F3F73">QR</div>
+            </div>
+            <div class="cc-q todo" style="border-bottom:none">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="cc-hex">#1F3F73</div>
+        </div>
+        <div class="cc-tabs"><div style="color:#1F3F73;font-weight:800">홈</div><div>예약</div><div>가족</div><div>이력</div><div>AI 상담</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 네이비</h3>
+      <p>가장 안전하고 격식 있는 선택. <b>직원용 웹으로 옮겼을 때 가장 자연스럽습니다</b>(표·캘린더가 많은 화면과 잘 맞음). 단점: 병원 앱에서 제일 흔한 색이라 기억에 남지 않음.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="color-plum" onclick="toggleSelect(this)" style="max-width:270px">
+    <div class="card-image" style="display:flex;justify-content:center;padding:12px;background:#ece5ea">
+      <div class="cc-frame">
+        <div class="cc-bar"><span>김순자님</span><span style="color:#93A3B1;font-size:11px">알림 설정</span></div>
+        <div class="cc-inner">
+          <div class="cc-card">
+            <div class="cc-head" style="background:#67376B">오늘 방문 3건 · 8월 3일 (월)</div>
+            <div class="cc-person">
+              <div class="cc-rail" style="background:#67376B"><div class="cc-time">14:30</div><div class="cc-rel">본인</div></div>
+              <div class="cc-mid"><div class="cc-name">김순자</div><div class="cc-sub">내과 · 이민호 원장</div></div>
+              <div class="cc-qr" style="background:#67376B">QR</div>
+            </div>
+            <div class="cc-q done">사전문진 작성완료 · 수정하기 ›</div>
+            <div class="cc-person" style="border-top:1px solid #E6EBEF">
+              <div class="cc-rail" style="background:#67376B"><div class="cc-time">14:50</div><div class="cc-rel">아들</div></div>
+              <div class="cc-mid"><div class="cc-name">김도윤</div><div class="cc-sub">소아과 · 박지우 원장</div></div>
+              <div class="cc-qr" style="background:#67376B">QR</div>
+            </div>
+            <div class="cc-q todo" style="border-bottom:none">사전문진 미작성 · 작성하기 ›</div>
+          </div>
+          <div class="cc-hex">#67376B</div>
+        </div>
+        <div class="cc-tabs"><div style="color:#67376B;font-weight:800">홈</div><div>예약</div><div>가족</div><div>이력</div><div>AI 상담</div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D. 플럼 (자주)</h3>
+      <p>가장 눈에 띄고 따뜻합니다. 소아과·산부인과가 있는 병원에서 자주 쓰는 계열. 단점: <b>의료보다 뷰티·웰니스로 읽힐 위험</b>이 있고, 직원 웹의 빽빽한 표에 쓰면 피로합니다.</p>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:34px">② 탭 아이콘 — 3가지 후보</h3>
+<p class="subtitle" style="margin-bottom:12px">지금까지 목업에 쓴 건 <b>이모지(🏠📅)</b>였습니다. 이모지는 기기·OS마다 모양이 제각각이고 색을 못 바꿔서 실제 앱에는 부적합합니다. 아래는 전부 <b>직접 그린 벡터 아이콘</b>이라 색·굵기를 통제할 수 있습니다. 각 세트 아래에 <b>실제 표시 크기(24px)와 작게 축소한 모습</b>을 같이 뒀습니다.</p>
+
+<div class="cc-row" style="align-items:flex-start">
+
+  <!-- 세트 1: 얇은 아웃라인 -->
+  <div class="card" data-choice="icon-line" onclick="toggleSelect(this)" style="max-width:270px">
+    <div class="card-image" style="padding:14px;background:#eef2f4">
+      <div class="ic-set">
+        <div class="ic-strip">
+          <div class="ic-item on"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>홈</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>예약</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.4 2.9-5.2 6.5-5.2s6.5 1.8 6.5 5.2"/><circle cx="17.5" cy="9.5" r="2.3"/><path d="M16 14.9c3.2 0 5.5 1.6 5.5 5.1"/></svg>가족</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3.5"/></svg>이력</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M20 15.5a2 2 0 0 1-2 2H9l-4.5 3.5v-3.5H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>AI 상담</div>
+        </div>
+        <div class="ic-small">
+          <span style="font-size:9px;color:#93A3B1">작게 보면 →</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="1.6" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="1.6" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.4 2.9-5.2 6.5-5.2s6.5 1.8 6.5 5.2"/><circle cx="17.5" cy="9.5" r="2.3"/></svg>
+        </div>
+        <p class="ic-note"><b>선 굵기 1.6px</b> · 요즘 앱에서 가장 흔한 스타일</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1. 얇은 선</h3>
+      <p>세련되고 가볍습니다. 다만 <b>선이 얇아 작게 표시되면 뭉개지고</b>, 노안·저시력 사용자에게 형태 구분이 가장 어렵습니다. 우리 요구사항(4.8)과는 방향이 반대입니다.</p>
+    </div>
+  </div>
+
+  <!-- 세트 2: 채움 -->
+  <div class="card" data-choice="icon-solid" onclick="toggleSelect(this)" style="max-width:270px">
+    <div class="card-image" style="padding:14px;background:#eef2f4">
+      <div class="ic-set">
+        <div class="ic-strip">
+          <div class="ic-item on"><svg width="24" height="24" viewBox="0 0 24 24" fill="#0B6E70"><path d="M12 2.6 2 11.2V21a1 1 0 0 0 1 1h6v-6.5h6V22h6a1 1 0 0 0 1-1v-9.8z"/></svg>홈</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="#93A3B1"><path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.5A2.5 2.5 0 0 1 22 6.5V9H2V6.5A2.5 2.5 0 0 1 4.5 4H6V3a1 1 0 0 1 1-1z"/><path d="M2 11h20v8.5a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 19.5z"/></svg>예약</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="#93A3B1"><circle cx="9" cy="7.6" r="3.6"/><path d="M1.6 20.4c0-3.9 3.3-6 7.4-6s7.4 2.1 7.4 6a1.2 1.2 0 0 1-1.2 1.2H2.8a1.2 1.2 0 0 1-1.2-1.2z"/><circle cx="17.8" cy="9.2" r="2.7"/><path d="M17 13.6c3.4.2 5.4 2 5.4 5.3a1 1 0 0 1-1 1h-3.1c.3-2.6-.4-4.7-1.3-6.3z"/></svg>가족</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="#93A3B1"><path d="M6.5 2h11A2.5 2.5 0 0 1 20 4.5v15a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2zm2 5.2a1 1 0 0 0 0 2h7a1 1 0 1 0 0-2zm0 4a1 1 0 1 0 0 2h7a1 1 0 1 0 0-2zm0 4a1 1 0 1 0 0 2h4a1 1 0 1 0 0-2z"/></svg>이력</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="#93A3B1"><path d="M4 3h16a2.5 2.5 0 0 1 2.5 2.5v9A2.5 2.5 0 0 1 20 17H9.8L4.6 21.3A.9.9 0 0 1 3 20.6V17H4a2.5 2.5 0 0 1-2.5-2.5v-9A2.5 2.5 0 0 1 4 3z"/></svg>AI 상담</div>
+        </div>
+        <div class="ic-small">
+          <span style="font-size:9px;color:#93A3B1">작게 보면 →</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#0B6E70"><path d="M12 2.6 2 11.2V21a1 1 0 0 0 1 1h6v-6.5h6V22h6a1 1 0 0 0 1-1v-9.8z"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#0B6E70"><path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.5A2.5 2.5 0 0 1 22 6.5V9H2V6.5A2.5 2.5 0 0 1 4.5 4H6V3a1 1 0 0 1 1-1z"/><path d="M2 11h20v8.5a2.5 2.5 0 0 1-2.5 2.5h-15A2.5 2.5 0 0 1 2 19.5z"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#0B6E70"><circle cx="9" cy="7.6" r="3.6"/><path d="M1.6 20.4c0-3.9 3.3-6 7.4-6s7.4 2.1 7.4 6a1.2 1.2 0 0 1-1.2 1.2H2.8a1.2 1.2 0 0 1-1.2-1.2z"/></svg>
+        </div>
+        <p class="ic-note"><b>면으로 채움</b> · 작게 줄여도 실루엣이 살아남음</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2. 채움 (Solid)</h3>
+      <p>선 대신 <b>면 덩어리</b>라, 작아지거나 화면이 흐려도 형태가 무너지지 않습니다. 저시력·노안에서 인식률이 가장 높은 방식이고, 선택된 탭과 아닌 탭의 색 차이도 가장 또렷합니다.</p>
+    </div>
+  </div>
+
+  <!-- 세트 3: 굵은 선 + 둥근 끝 -->
+  <div class="card" data-choice="icon-bold" onclick="toggleSelect(this)" style="max-width:270px">
+    <div class="card-image" style="padding:14px;background:#eef2f4">
+      <div class="ic-set">
+        <div class="ic-strip">
+          <div class="ic-item on"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3.5 10.8 12 3.6l8.5 7.2V20a.9.9 0 0 1-.9.9h-4.4v-5.6H8.8v5.6H4.4a.9.9 0 0 1-.9-.9z"/></svg>홈</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><rect x="3.4" y="5.4" width="17.2" height="15.2" rx="2.4"/><path d="M8 3.4v3.6M16 3.4v3.6M3.4 11h17.2"/></svg>예약</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><circle cx="9.2" cy="8" r="3.4"/><path d="M3 20.2c0-3.4 2.8-5.2 6.2-5.2s6.2 1.8 6.2 5.2"/><circle cx="17.8" cy="9.6" r="2.4"/></svg>가족</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><rect x="5" y="3.2" width="14" height="17.6" rx="2.4"/><path d="M9.2 8.4h5.6M9.2 12.4h5.6M9.2 16.4h3"/></svg>이력</div>
+          <div class="ic-item"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#93A3B1" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><path d="M20.4 15.2a2.2 2.2 0 0 1-2.2 2.2H9.6L5.2 20.6v-3.2h-1a2.2 2.2 0 0 1-2.2-2.2V6.4a2.2 2.2 0 0 1 2.2-2.2h14a2.2 2.2 0 0 1 2.2 2.2z"/></svg>AI 상담</div>
+        </div>
+        <div class="ic-small">
+          <span style="font-size:9px;color:#93A3B1">작게 보면 →</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><path d="M3.5 10.8 12 3.6l8.5 7.2V20a.9.9 0 0 1-.9.9h-4.4v-5.6H8.8v5.6H4.4a.9.9 0 0 1-.9-.9z"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><rect x="3.4" y="5.4" width="17.2" height="15.2" rx="2.4"/><path d="M8 3.4v3.6M16 3.4v3.6M3.4 11h17.2"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0B6E70" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"><circle cx="9.2" cy="8" r="3.4"/><path d="M3 20.2c0-3.4 2.8-5.2 6.2-5.2s6.2 1.8 6.2 5.2"/></svg>
+        </div>
+        <p class="ic-note"><b>선 굵기 2.6px + 둥근 끝</b> · 굵되 속이 비어 있음</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3. 굵은 선</h3>
+      <p>1번보다 훨씬 잘 보이면서 채움보다 부드럽습니다. 아이가 있는 가족 앱에 어울리는 친근한 인상. 다만 아주 작아지면 <b>선 안쪽 빈 공간이 먼저 메워져</b> 채움 방식만 못합니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:26px">
+  <p class="label">추천</p>
+  <p><b>색은 A(딥틸 #0B6E70)</b>를 그대로 추천합니다. B 포레스트는 대비가 제일 좋지만 <u>"초록 = 완료"라는 습관</u> 때문에 레일 전체가 "다 처리됨"으로 읽힐 수 있어 상태 색과 충돌합니다. C 네이비는 직원 웹으로 옮길 때 가장 자연스러워 <b>두 번째로 추천</b>드리고, D 플럼은 병원 신뢰감보다 뷰티 쪽으로 기울어 권하지 않습니다.</p>
+  <p style="margin-top:8px"><b>아이콘은 2번(채움)</b>을 추천합니다. 이유는 단순합니다 — 선으로 그린 아이콘은 화면이 작아지거나 눈이 흐릴 때 <b>선이 서로 붙어 뭉개지지만</b>, 면으로 채운 아이콘은 실루엣만 남아도 알아볼 수 있습니다. 카드 안 "작게 보면 →" 부분을 눈을 가늘게 뜨고 비교해보시면 차이가 바로 보입니다.</p>
+  <p style="margin-top:8px"><span class="label">참고</span> 어느 세트를 고르셔도 <b>아이콘 아래 글자 라벨(홈·예약·가족·이력·상담)은 항상 유지</b>합니다. 아이콘만으로 뜻을 짐작하게 하는 건 고령 사용자에게 가장 흔한 실패 원인이라, 요구사항 7절의 "색뿐 아니라 글자로도 구분" 원칙을 아이콘에도 똑같이 적용한 겁니다.</p>
+</div>

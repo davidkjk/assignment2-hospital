@@ -1,0 +1,218 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+</style>
+<style>
+  .hs { --teal:#0B6E70; --ink:#10243A; --warn:#B44E00; --done:#67788A;
+        --gray-past:#A3AFB8; --bg:#F2F5F7;
+        font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo',sans-serif; color:var(--ink); }
+  .hs, .hs * { box-sizing:border-box; text-align:left; }
+
+  .hs-lane { display:flex; gap:26px; flex-wrap:wrap; justify-content:center; align-items:flex-start; }
+  .hs-col { width:330px; }
+  .hs-col h3 { margin:0 0 4px; font-size:15px; font-weight:800; }
+  .hs-cap { font-size:12.5px; color:#5A6C7B; line-height:1.6; margin:0 0 12px; }
+
+  .ph { width:330px; background:#fff; border:1px solid #d6dde3; border-radius:14px; overflow:hidden; }
+  .ph-bar { background:var(--teal); color:#fff; padding:11px 16px; font-size:15px; font-weight:600; }
+  .ph-tabs { display:flex; gap:6px; padding:11px 14px; background:var(--bg); border-bottom:1px solid #E0E7EC; }
+  .ph-tab { font-size:12.5px; font-weight:700; padding:6px 12px; border-radius:99px;
+            background:#fff; color:#5A6C7B; border:1px solid #D6DDE3; }
+  .ph-tab.on { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .ph-year { font-size:12px; font-weight:800; color:var(--done); padding:12px 16px 7px; }
+  .ph-body { padding:0 14px 16px; }
+
+  /* 레일 줄 */
+  .row { display:flex; align-items:stretch; border:1.5px solid #DDE5EA; border-radius:11px;
+         overflow:hidden; margin-bottom:9px; background:#fff; }
+  .row .lt { background:var(--teal); color:#fff; width:74px; flex:none; padding:12px 0;
+             font-variant-numeric:tabular-nums; }
+  /* .hs * 의 text-align:left 가 자식에 직접 걸리므로 상속으로는 가운데가 되지 않는다 —
+     레일 안의 세 줄에 각각 명시한다 */
+  .row .lt, .row .lt .m, .row .lt .d, .row .lt .w { text-align:center; }
+  .row .lt .m { font-size:11px; font-weight:600; opacity:.9; }
+  .row .lt .d { font-size:20px; font-weight:800; letter-spacing:-.5px; line-height:1.15; }
+  .row .lt .w { font-size:10.5px; font-weight:600; opacity:.9; }
+  .row .rt { flex:1; padding:11px 12px; }
+  .row .who { font-size:14px; font-weight:800; }
+  .row .sub { font-size:11.5px; color:#5A6C7B; font-weight:600; margin-top:2px; }
+
+  /* 취소 줄 · 안내 없음 줄 */
+  .row.past .lt { background:var(--gray-past); }
+  /* ✅ B-44(2026-08-04): 취소선은 **진료과·의사 이름에** 긋는다.
+     없어진 것은 날짜가 아니라 진료다(`HIST-ROW-06`이 부도 줄에 취소선을 금지한 것과 같은 잣대).
+     이전에는 레일의 날짜 숫자에 그었으나, 옅은 회색 위 흰 선이라 대비도 낮았다. */
+  .row.past .who { color:#6C7B87; text-decoration:line-through; text-decoration-thickness:1.5px; }
+  .row.mute .lt { background:var(--gray-past); }
+
+  /* 펼쳐진 안내문 */
+  .note { margin-top:9px; padding:10px 11px; background:#F4F8F8; border-radius:9px;
+          font-size:12px; line-height:1.65; color:var(--ink); }
+  .note .h { font-size:10.5px; font-weight:800; color:var(--teal); margin-bottom:4px; }
+  .none { margin-top:7px; font-size:11.5px; color:#8A98A4; font-weight:600; }
+
+  /* 문진 접기 */
+  .qz { margin-top:8px; border:1px solid #DDE5EA; border-radius:9px; overflow:hidden; }
+  .qz-h { display:flex; align-items:center; gap:6px; padding:9px 11px; font-size:12px;
+          font-weight:700; color:var(--done); background:#FAFCFC; }
+  .qz-h .ar { margin-left:auto; font-size:11px; }
+  .qz-b { padding:4px 11px 11px; }
+  .qz-i { padding:7px 0; border-top:1px solid #EEF2F4; font-size:11.5px; line-height:1.6; }
+  .qz-i .q { color:#5A6C7B; font-weight:600; }
+  .qz-i .a { font-weight:700; margin-top:1px; }
+
+  .ic { width:14px; height:14px; fill:currentColor; flex-shrink:0; }
+
+  .hs-note { font-size:12px; color:#5A6C7B; line-height:1.7; }
+  .hs-note b { color:var(--ink); }
+  .tagnew { display:inline-block; font-size:10px; font-weight:800; color:#fff; background:var(--warn);
+            border-radius:4px; padding:2px 6px; margin-left:5px; vertical-align:middle; }
+  .tagfix { display:inline-block; font-size:10px; font-weight:800; color:#fff; background:var(--teal);
+            border-radius:4px; padding:2px 6px; margin-left:5px; vertical-align:middle; }
+</style>
+
+<svg style="display:none">
+  <symbol id="h-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></symbol>
+  <symbol id="h-x" viewBox="0 0 24 24"><path d="M19 6.4L17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></symbol>
+</svg>
+
+<div class="hs">
+
+<h2>상태 모음판 ①-2 — 이력 탭<span class="tagfix">결정 뒤집음</span></h2>
+<p class="subtitle">
+  이력 탭이 <b>"진료받은 기록"에서 "지나간 예약 전체"</b>로 넓어집니다. 취소된 예약이 앱 어디에도 남지 않던 구멍(기능 갭 <b>#23</b>)과, 진료 다음 날부터 사전문진을 볼 수 없던 구멍(<b>#24</b>)을 이 한 화면이 함께 메웁니다.
+</p>
+
+<div class="hs-lane">
+
+  <div class="hs-col">
+    <h3>이력 목록 — 취소 · 방문하지 않음이 섞인 모습</h3>
+    <p class="hs-cap">시간순 한 줄기. 취소와 <b>방문하지 않음</b>은 <b>따로 모으지 않고</b> 옅은 회색 줄로 섞습니다.</p>
+    <div class="ph">
+      <div class="ph-bar">이력</div>
+      <div class="ph-tabs">
+        <span class="ph-tab on">김순자</span><span class="ph-tab">김도윤</span><span class="ph-tab">김하윤</span>
+      </div>
+      <div class="ph-year">2026년</div>
+      <div class="ph-body">
+
+        <div class="row">
+          <div class="lt"><div class="m">8월</div><div class="d">3</div><div class="w">(월)</div></div>
+          <div class="rt">
+            <div class="who">내과 · 이민호 원장</div>
+            <div class="sub">진료 완료</div>
+            <div class="note">
+              <div class="h">병원 안내</div>
+              혈압약을 하루 한 알 아침에 드시고, 2주 뒤에 다시 오세요. 짜게 드시지 않는 것이 좋습니다.
+            </div>
+            <div class="qz">
+              <div class="qz-h"><svg class="ic"><use href="#h-doc"/></svg>내가 작성한 사전문진<span class="ar">▾</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row past">
+          <div class="lt"><div class="m">7월</div><div class="d">20</div><div class="w">(월)</div></div>
+          <div class="rt">
+            <div class="who">정형외과 · 박서준 원장</div>
+            <div class="sub">취소됨 · <b>병원에서 취소</b></div>
+            <div class="none">7월 18일 오후 3:12에 취소되었습니다</div>
+            <div class="qz">
+              <div class="qz-h"><svg class="ic"><use href="#h-doc"/></svg>작성했던 사전문진<span class="ar">▾</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mute">
+          <div class="lt"><div class="m">7월</div><div class="d">2</div><div class="w">(목)</div></div>
+          <div class="rt">
+            <div class="who">내과 · 이민호 원장</div>
+            <div class="sub">방문하지 않음</div>
+            <div class="qz">
+              <div class="qz-h"><svg class="ic"><use href="#h-doc"/></svg>작성했던 사전문진<span class="ar">▾</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mute">
+          <div class="lt"><div class="m">6월</div><div class="d">12</div><div class="w">(금)</div></div>
+          <div class="rt">
+            <div class="who">이비인후과 · 최유진 원장</div>
+            <div class="sub">진료 완료</div>
+            <div class="none">안내 없음</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <p class="hs-note" style="margin-top:12px">
+      <b>회색 줄이 세 종류</b>입니다 — <b>취소</b>(<b>진료과·의사 이름에 줄을 긋습니다</b>) · <b>방문하지 않음</b>(줄 없음) · 안내 없음(줄 없음).
+      <br><br>
+      ⭐ <b>취소에만 줄을 긋는 이유</b>: 취소는 <b>예약을 없앤 것</b>이고, 방문하지 않음은 <b>예약이 살아 있었는데 안 간 것</b>입니다. 없어진 쪽에만 줄을 긋습니다.
+      <br><br>
+      ✅ <b>2026-08-04 수정(B-44)</b>: 줄을 <b>날짜 숫자에서 진료과·의사 이름으로 옮겼습니다.</b> 없어진 것은 <b>날짜가 아니라 진료</b>이고(부도 줄에 취소선을 금지한 것과 같은 잣대), 옅은 회색 위 흰 선은 <b>어르신 화면에서 가장 먼저 흐려집니다</b>(요구사항 4.8). 정식 크기는 <b>목업 50번</b>에 있습니다.
+      <br><br>
+      ⚠️ <b>「예약 부도」·「안 오셨습니다」라고 쓰지 않습니다</b> — 앞은 병원 내부 상태 이름이고, 뒤는 책망으로 읽히는 데다 <b>실제로 왔는데 접수가 확인 안 된 경우</b>가 있어 사실이 아닐 수 있습니다.
+    </p>
+  </div>
+
+  <div class="hs-col">
+    <h3>문진을 펼친 모습<span class="tagnew">신규</span></h3>
+    <p class="hs-cap">병원 안내문과 <b>같은 방식</b>으로 줄 안에서 바로 펼칩니다. 새 화면을 만들지 않습니다.</p>
+    <div class="ph">
+      <div class="ph-bar">이력</div>
+      <div class="ph-tabs">
+        <span class="ph-tab on">김순자</span><span class="ph-tab">김도윤</span><span class="ph-tab">김하윤</span>
+      </div>
+      <div class="ph-year">2026년</div>
+      <div class="ph-body">
+
+        <div class="row">
+          <div class="lt"><div class="m">8월</div><div class="d">3</div><div class="w">(월)</div></div>
+          <div class="rt">
+            <div class="who">내과 · 이민호 원장</div>
+            <div class="sub">진료 완료</div>
+            <div class="note">
+              <div class="h">병원 안내</div>
+              혈압약을 하루 한 알 아침에 드시고, 2주 뒤에 다시 오세요.
+            </div>
+            <div class="qz">
+              <div class="qz-h" style="color:var(--teal);background:#F4F8F8">
+                <svg class="ic"><use href="#h-doc"/></svg>내가 작성한 사전문진<span class="ar">▴</span></div>
+              <div class="qz-b">
+                <div class="qz-i"><div class="q">오늘 불편한 증상</div>
+                  <div class="a">뒷목이 뻣뻣하고 어지럽습니다</div></div>
+                <div class="qz-i"><div class="q">증상이 시작된 시점</div>
+                  <div class="a">2주 전부터</div></div>
+                <div class="qz-i"><div class="q">복용 중인 약</div>
+                  <div class="a">혈압약(아침 1알)</div></div>
+                <div class="qz-i"><div class="q">알레르기</div>
+                  <div class="a">없음</div></div>
+                <div class="qz-i"><div class="q">의사에게 전하고 싶은 내용</div>
+                  <div class="a">약을 바꿀 수 있는지 여쭤보고 싶습니다</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <p class="hs-note" style="margin-top:12px">
+      <b>조회 API는 이미 있습니다</b> — <code>GET /app/appointments/{id}/questionnaire</code>. 새로 만드는 것이 아니라 <b>이력 응답에 연결</b>하는 일입니다.
+      <br><br>
+      ⚠️ <b>다음 문진에 자동으로 채우지는 않습니다.</b> 증상은 그때그때 다른데 두 달 전 내용이 미리 채워지면 그대로 제출될 위험이 큽니다 — <b>의사가 보는 내용이 사실과 달라집니다.</b> 보고 직접 옮겨 적게 합니다.
+    </p>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:30px">
+  <p class="label">이 화면이 메우는 구멍</p>
+  <p class="hs-note">
+    · <b>#23</b> 취소 기록이 증발하던 문제 — 예약 탭(앞으로 갈 것만)·홈 카드(하루)·알림함(<b>존재하지 않음</b>)이 전부 막혀 있었습니다.<br>
+    · <b>#24</b> 진료 다음 날부터 사전문진을 볼 수 없던 문제 — 환자가 쓴 글이 <b>DB에만</b> 남았습니다.<br>
+    · <b>#29</b> 안 가신 예약이 증발하던 문제(2026-08-01 밤 추가) — <code>where a.status = '진료완료'</code>를 넓힐 때 <b>취소와 부도를 함께</b> 넣고, 부도는 취소와 구분되게 상태를 그대로 내려줍니다.<br>
+    · <b>문진은 지우지 않습니다</b>(2026-08-01 확정) — 의사가 진료에 참고한 자료 = 진료기록의 일부로 보고 <b>의료법이 정한 기간</b>을 따릅니다.
+  </p>
+</div>
+
+</div>
