@@ -52,5 +52,6 @@ async def test_request_type_rejects_unknown_value(db_conn):
     appt_id = await _seed_appointment(db_conn)
     with pytest.raises(Exception):
         await db_conn.execute(
-            "update appointments set request_type = '반려' where id = $1", appt_id
+            "update appointments set support_requested_at = now(), request_type = '반려' where id = $1",
+            appt_id,
         )

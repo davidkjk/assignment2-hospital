@@ -12,6 +12,7 @@ create table notification_preferences (
 
 alter table notification_preferences enable row level security;
 grant select, insert, update on table notification_preferences to authenticated;
+-- insert/update grant는 stage-3(환자 인증 연동)에서 환자 본인 정책이 붙기 전까지는 RLS 기본 거부로 무효다(dispatcher는 서비스 역할로 write).
 
 -- 정책 없음: dispatcher가 서비스 역할로 읽고, 환자 본인 읽기/수정 정책은 3단계(환자 인증)에서 추가한다.
 -- (일반 직원은 환자 알림 선호를 보지 않는다.)
