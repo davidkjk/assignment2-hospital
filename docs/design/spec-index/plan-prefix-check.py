@@ -161,6 +161,53 @@ def pending_handovers(root):
     return out
 
 
+AREA_SPAN = {                                  # 영역 경계(절 제목). plan-coverage-check와 같은 기준
+    "staff-web": ("# 화면 동작 명세서", "# 환자 앱"),
+}
+DEFINED_RE = re.compile(r"^\| `([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)-\d+[a-z]?`")
+
+
+def unassigned_prefixes(root, assigned, plan_text, area="staff-web"):
+    """규칙 문서에 **정의된** 접두어 중, 어느 태스크에도 배정되지 않은 것.
+
+    왜 필요한가
+    -----------
+    앞의 `missing` 검사는 "배정 표에 있는데 본문에 없는 것"을 잡는다. 그런데
+    **배정 표에 아예 없는** 접두어는 그 검사의 시야 밖이다 — 아무도 안 찾는다.
+
+    실제 사고 2회(2026-08-15):
+      - `SUPPORT-CAL-*` 14개 — 접두어가 `CAL-`이 아니라 배정 표의 `CAL-*`에 안 걸렸다.
+      - `SCHED-SAVE-*`·`SCHED-EXC-*`·`SCHED-SLOT-*` 35개 — 표에는 `SCHED-TAB/GRID/WEEK-*`와
+        `SCHED-DEPT-*`만 적혀 있어 나머지 세 계열이 통째로 무주공산이었다.
+
+      ⭐ 교훈: 「배정 표에 적는 것」 자체를 사람이 빠뜨린다. 규칙 문서를 기준으로
+         역방향 대조해야 잡힌다.
+    """
+    path = root / BEHAVIORS
+    if not path.exists() or area not in AREA_SPAN:
+        return []
+    lines = path.read_text().split("\n")
+    start_mark, end_mark = AREA_SPAN[area]
+    s = next((i for i, l in enumerate(lines) if l.startswith(start_mark)), 0)
+    e = next((i for i, l in enumerate(lines) if i > s and l.startswith(end_mark)), len(lines))
+
+    defined = {}                                   # 접두어 → 정의된 규칙 수
+    for l in lines[s:e]:
+        if m := DEFINED_RE.match(l):
+            defined[m.group(1)] = defined.get(m.group(1), 0) + 1
+
+    all_assigned = {p for ps in assigned.values() for p in ps}
+    # 배정 표가 `CAL-*`처럼 짧게 적혀 있어도 `CAL-SLOT`은 덮인 것으로 본다.
+    def covered(prefix):
+        return any(prefix == a or prefix.startswith(f"{a}-") for a in all_assigned)
+
+    # ⚠️ 표에 없어도 **어느 태스크 본문이 이미 쓰고 있으면** 위험이 아니다(표기 정리 대상일 뿐).
+    #    진짜 위험은 「표에도 없고 본문 어디에도 없는」 것 — 그건 아무도 손대지 않았다는 뜻이다.
+    return sorted(((p, n) for p, n in defined.items()
+                   if not covered(p) and f"{p}-" not in plan_text),
+                  key=lambda x: -x[1])
+
+
 def global_rule_prefixes(root):
     """규칙 문서에서 「전역 규칙」으로 선언된 절의 접두어."""
     path = root / BEHAVIORS
@@ -242,6 +289,17 @@ def main():
         print("   → 미결은 「나중에 정한다」의 그 나중이 지금이다. ①지금 정할 것 ②이미 해소돼")
         print("     표시만 낡은 것 ③진짜 이월할 것으로 갈라 본문에 적을 것. 근거가 「목업 검토 때")
         print("     뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것(있으면 낡은 표시다).")
+
+    if orphans := unassigned_prefixes(root, assigned, "\n".join(lines)):
+        total = sum(n for _, n in orphans)
+        print(f"\n🕳  **표에도 본문에도 없는 접두어** {len(orphans)}계열 · 규칙 {total}개 — 아무도 안 건드렸다:")
+        for p, n in orphans[:12]:
+            print(f"   {p + '-*':<24} {n:>3}개")
+        if len(orphans) > 12:
+            print(f"   … 외 {len(orphans) - 12}계열")
+        print("   → 배정 표에 없으면 위 「본문에 없는 접두어」 검사의 시야 밖이라 **아무도 안 찾는다.**")
+        print("     실제로 SUPPORT-CAL-*(14개)·SCHED-SAVE/EXC/SLOT-*(35개)이 이렇게 빠져 있었다.")
+        print("     담당 태스크를 정해 「활성 route 정본」·「File Structure」 표에 적을 것.")
 
     if handovers := pending_handovers(root):
         print("\n📦 다른 플랜으로 **넘긴 미결** — 받을 플랜에 아직 안 들어갔다:")
