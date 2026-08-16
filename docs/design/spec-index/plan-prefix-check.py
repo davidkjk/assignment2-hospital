@@ -163,11 +163,34 @@ def rule_debt(plan, plan_text, spans, assigned):
     return debt, orphan, later, elsewhere
 
 
-# ⚠️ 마커가 화면 문구와 겹치면 오탐이 난다. 이 프로젝트에서는 `needs_rescheduling` 큐의
-#    이름이 「확인 필요한 예약」이라, 그냥 "확인 필요"로 잡으면 멀쩡한 규칙 5건이 걸렸다.
-#    그래서 뒤에 "한"이 붙는 형태(=화면 문구)는 제외한다.
-MARKER_RE = re.compile(r"PROVISIONAL|NEEDS-USER-DECISION|UNKNOWN|⏳|확인 필요(?!한)")
+# ⚠️⚠️ 검사기 결함 6번째(2026-08-16) — **미결 경고 97건 중 44건이 오탐이었다.**
+#    앞서 `확인 필요(?!한)`으로 「확인 필요한 예약」 하나만 막아 뒀는데 **너무 좁았다.**
+#    「확인 필요」는 이 프로젝트에서 **두 가지 뜻**으로 쓰인다:
+#      ① 진짜 미결 표시 — 상담봇 절의 「확인 필요」 71건(의도적 이월)
+#      ② **화면에 찍는 라벨·본문의 뜻** — `조회 불가 \`확인 필요\`` · *"확인 필요 큐"* ·
+#         *"의사 화면에 확인 필요 표시"* · *"계약 확인 필요"*
+#    ②를 미결로 세면 **경고가 소음이 되고, 소음이 되면 아무도 안 본다** — 실제로
+#    Task 21의 「미결 3건」은 셋 다 ②였다(`MERGE-COMPARE-02·05`·`MERGE-REVIEW-02`).
+#    ⭐ 셋으로 가른다. 셋 다 **의미로** 가르는 것이지 문자열을 더 막는 것이 아니다:
+#      (a) 취소선 `~~PROVISIONAL~~` = **이미 해소된 표시** — 세지 않는다
+#      (b) 「확인 필요」가 **백틱 안에만** 있으면 화면 문구다(`\`확인 필요\``)
+#      (c) 같은 줄에 **`FINAL`**이 있으면 그 줄의 상태는 확정이다 — 「확인 필요」는 본문의 뜻
+#    ⛔ `PROVISIONAL`·`⏳`에는 (b)를 적용하지 않는다 — 그것들은 **백틱 안에 쓰는 것이 정상**이다.
+STATUS_MARKER_RE = re.compile(r"PROVISIONAL|NEEDS-USER-DECISION|UNKNOWN|⏳")
+LABEL_MARKER_RE = re.compile(r"확인 필요(?!한)")
+BACKTICKED_RE = re.compile(r"`[^`]*`")
+STRUCK_RE = re.compile(r"~~.*?~~")
 RULE_ID_RE = re.compile(r"`([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+-\d+[a-z]?)`")
+
+
+def line_is_unresolved(line):
+    """이 규칙 행이 **아직 안 정해진** 것인가. (a)(b)(c)는 위 주석 참고."""
+    live = STRUCK_RE.sub("", line)                       # (a) 취소선 = 해소됨
+    if STATUS_MARKER_RE.search(live):
+        return True
+    if re.search(r"`FINAL`", live):                      # (c) 확정 표시가 이기다
+        return False
+    return bool(LABEL_MARKER_RE.search(BACKTICKED_RE.sub("", live)))  # (b) 백틱 밖에서만
 
 
 def unresolved_rules(root):
@@ -192,7 +215,7 @@ def unresolved_rules(root):
         return {}
     out = []
     for line in path.read_text().split("\n"):
-        if not line.startswith("|") or not MARKER_RE.search(line):
+        if not line.startswith("|") or not line_is_unresolved(line):
             continue
         if ids := RULE_ID_RE.findall(line):
             out.append(ids[0])                        # 행의 첫 ID가 그 행의 주인
@@ -201,6 +224,40 @@ def unresolved_rules(root):
 
 HANDOVERS = "docs/design/spec-index/HANDOVERS.md"
 PLANS_DIR = "docs/superpowers/plans"
+
+
+# ⭐⭐ 「값을 만들거나 자르는 코드」에는 **예시 테스트만으로 부족하다** (2026-08-16 신설)
+#
+#    갭 #127이 이렇게 나왔다 — `generate_booking_code()`가 6자리 미만을 8.7% 발급하는데,
+#    **정합성 검토를 통과했고 1단계 테스트 123개도 통과**했다. 예시 하나씩 확인하는
+#    테스트는 *"AB34CD가 나온다"*를 보지 *"항상 6자리인가"*를 못 본다.
+#    실제로 2만 번 돌리니 5자리 8.3%, 100만 번 돌리니 **3자리까지 74개** 나왔다.
+#
+#    ⭐ 이럴 때 쓰는 것이 **속성 테스트**(property-based test) — 예시를 적는 대신
+#    *"언제나 성립해야 하는 성질"*을 정하고 **무작위로 많이 던져** 깨지는지 본다.
+#    비싸지 않다: 2만 번이 0.2초, 100만 번이 5초다.
+#
+#    ⛔ 아무 코드에나 하는 게 아니다. **입력이 무한히 많아 사람이 다 못 적는 것**만이다:
+#       ✅ 무작위로 값 생성 · 반올림/버림/나눗셈 · 글자 자르기(마스킹·형식)
+#       ❌ 권한 규칙 · 상태 전이 · 화면 동작 — 경우의 수가 손에 꼽혀 예시가 더 정확하다
+VALUE_GEN_RE = re.compile(r"random\(|random\.|::int|floor\(|\bround\(|ceil\(|trunc\(|\bmask_\w+|padStart")
+PROPERTY_TEST_RE = re.compile(r"generate_series\(1,\s*\d{4,}|range\(\s*\d{4,}|@given|속성 테스트")
+
+
+def property_test_gaps(lines, spans):
+    """값을 만들거나 자르는 코드를 가진 태스크 중 **속성 테스트가 없는** 것.
+
+    빚으로 세지 않고 ⚠️ 경고로만 낸다 — 신호가 소비(남의 함수를 부르기만)일 수도
+    있어서 사람이 한 번 봐야 한다. 다만 **보긴 봐야 한다**: 이 검사가 없으면
+    "값을 만드는 코드였다"는 사실 자체가 태스크를 쓰고 나면 사라진다.
+    """
+    out = {}
+    for task, (start, end) in spans.items():
+        body = "\n".join(lines[start:end])
+        signals = sorted(set(VALUE_GEN_RE.findall(body)))
+        if signals and not PROPERTY_TEST_RE.search(body):
+            out[task] = signals
+    return out
 
 
 def pending_handovers(root):
@@ -381,6 +438,15 @@ def main():
     if loose:
         print(f"\n🕳  **어느 배정 표에도 없는 낱개 규칙 {len(loose)}개** — 접두어 단위 검사의 시야 밖이다:")
         print("   " + ", ".join(loose[:20]) + (f" 외 {len(loose) - 20}건" if len(loose) > 20 else ""))
+
+    if prop := property_test_gaps(lines, spans):
+        print(f"\n🎲 **값을 만들거나 자르는 코드인데 속성 테스트가 없는 태스크 {len(prop)}개**:")
+        for t, sig in sorted(prop.items(), key=lambda kv: int(kv[0])):
+            print(f"   Task {t:<3} 신호: {', '.join(sig)}")
+        print("   → 예시 하나씩 확인하는 테스트는 「이 입력에서 맞다」를 볼 뿐 **「항상 맞다」를 못 본다.**")
+        print("     갭 #127이 그렇게 샜다 — 정합성 검토도 테스트 123개도 통과했는데")
+        print("     2만 번 돌리니 8.7%가 규격 미달이었다(0.2초 걸렸다).")
+        print("     ⚠️ 남의 함수를 **부르기만** 하는 태스크면 경고를 무시해도 된다. 눈으로 한 번 볼 것.")
 
     if pending:
         print("\n📋 아직 안 쓴 태스크 — 쓰기 전에 알고 있어야 할 것:")
