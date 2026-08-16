@@ -244,6 +244,12 @@ VALUE_GEN_RE = re.compile(r"random\(|random\.|::int|floor\(|\bround\(|ceil\(|tru
 PROPERTY_TEST_RE = re.compile(r"generate_series\(1,\s*\d{4,}|range\(\s*\d{4,}|@given|속성 테스트")
 
 
+#    ⛔ **`Consumes:` 줄은 세지 않는다** — 거기 적힌 것은 이 태스크가 *만드는* 것이
+#       아니라 **남이 만든 것을 부른다**는 선언이다. 속성 테스트를 질 곳은 만든 쪽이다.
+#       (실제로 `mask_phone`을 Task 6이 만들고 13·21이 부르기만 하는데 셋 다 경고가 떴다.)
+CONSUMES_LINE_RE = re.compile(r"^\s*[-*]?\s*(Consumes|소비)\s*:")
+
+
 def property_test_gaps(lines, spans):
     """값을 만들거나 자르는 코드를 가진 태스크 중 **속성 테스트가 없는** 것.
 
@@ -253,7 +259,8 @@ def property_test_gaps(lines, spans):
     """
     out = {}
     for task, (start, end) in spans.items():
-        body = "\n".join(lines[start:end])
+        owned = [ln for ln in lines[start:end] if not CONSUMES_LINE_RE.match(ln)]
+        body = "\n".join(owned)
         signals = sorted(set(VALUE_GEN_RE.findall(body)))
         if signals and not PROPERTY_TEST_RE.search(body):
             out[task] = signals
