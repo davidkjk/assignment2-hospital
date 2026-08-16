@@ -113,6 +113,16 @@ def rule_debt(plan, plan_text, spans, assigned):
 
     소유 태스크는 **가장 구체적인 접두어가 이긴다**(`NAV-QUEUE-*` > `NAV-*`).
     이 규칙을 코드에 박아 둬야 세는 사람마다 숫자가 달라지지 않는다.
+
+    ⭐⭐ **「그 태스크 본문 안에」 있는지를 본다** — 플랜 전체에서 찾으면 안 된다.
+    ---------------------------------------------------------------------------
+    플랜 전체를 한 덩어리로 놓고 글자를 찾으면, **남의 태스크가 인용만 해도 갚은 것으로
+    세어진다.** 실제로 이 검사를 처음 붙인 날, Task 12 주석에 `TODAY-WAIT-01`을 근거로
+    인용했더니 **Task 8의 빚이 저절로 줄었다**(2026-08-16). 인용은 구현이 아니다.
+
+    같은 이유로 `TODAY-RESCHED-01`이 Task 19의 참고 문헌에 걸려 ✅로 나왔던 것이므로,
+    범위 표기를 안 세는 것만으로는 절반만 막은 셈이었다. **소유 태스크의 본문 범위로
+    잘라서** 봐야 끝난다.
     """
     cov = _coverage()
     area = next((a for a, p in cov.PLANS.items()
@@ -120,22 +130,37 @@ def rule_debt(plan, plan_text, spans, assigned):
     if area is None:                       # 재작성본이 아닌 플랜 — 셀 기준이 없다
         return None, [], []
     defined = cov.defined_rules(cov.area_text(cov.load(cov.BEHAVIORS), area))
-    missing = defined - cov.labels(plan_text, cov.RULE_MENTION_RE) - set(cov.RULE_WHITELIST)
+    lines = plan_text.split("\n")
+    body = {t: "\n".join(lines[s:e]) for t, (s, e) in spans.items()}
+    mention_re = re.compile(cov.RULE_MENTION_RE)
+    said = {t: set(mention_re.findall(txt)) for t, txt in body.items()}
 
-    debt, orphan, later = {}, [], 0
-    for rid in sorted(missing):
+    debt, orphan, later, elsewhere = {}, [], 0, {}
+    anywhere = {r for s in said.values() for r in s}
+    for rid in sorted(defined - set(cov.RULE_WHITELIST)):
         best = None
         for task, prefixes in assigned.items():
             for p in prefixes:
                 if rid.startswith(f"{p}-") and (best is None or len(p) > best[1]):
                     best = (task, len(p))
         if best is None:
-            orphan.append(rid)             # 어느 배정 표에도 안 걸린 낱개 규칙
-        elif best[0] in spans:
+            # 어느 배정 표에도 안 걸린 낱개 규칙. 어딘가에 쓰였으면 넘어가고,
+            # 아무 데도 없으면 「아무도 안 찾는」 것이라 따로 알린다.
+            if rid not in anywhere:
+                orphan.append(rid)
+        elif rid in anywhere and rid not in said.get(best[0], ()):
+            # ⚠️ 오탐을 만들지 않으려고 **셋째 칸**을 둔다.
+            #    배정 표는 접두어 단위(`CAL-COLOR-*`)인데 실제 분담은 규칙 단위인 일이 흔하다 —
+            #    플랜이 *"칠하는 쪽(CAL-COLOR-04·05·14)은 Task 14"*처럼 대놓고 나눈 경우가 있다.
+            #    이걸 빚으로 세면 「없는 누락」이 쌓여 검사기를 아무도 안 믿게 된다.
+            #    그렇다고 조용히 넘기면 진짜 오배정이 숨으므로, **눈으로 볼 목록**으로 남긴다.
+            elsewhere.setdefault(best[0], []).append((rid, sorted(t for t in said if rid in said[t])))
+        elif best[0] not in spans:
+            if rid not in anywhere:
+                later += 1                 # 아직 안 쓴 태스크 것 — 빚이 아니다
+        elif rid not in said[best[0]]:
             debt.setdefault(best[0], []).append(rid)
-        else:
-            later += 1                     # 아직 안 쓴 태스크 것 — 빚이 아니다
-    return debt, orphan, later
+    return debt, orphan, later, elsewhere
 
 
 # ⚠️ 마커가 화면 문구와 겹치면 오탐이 난다. 이 프로젝트에서는 `needs_rescheduling` 큐의
@@ -331,7 +356,7 @@ def main():
         print("     ⭐ 근거가 「목업/검토 때 뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것 —")
         print("       있으면 낡은 표시다(실제 사례: STAFF-* 9건 ↔ 목업 79).")
 
-    debt, loose, later = rule_debt(plan, "\n".join(lines), spans, assigned)
+    debt, loose, later, elsewhere = rule_debt(plan, "\n".join(lines), spans, assigned)
     if debt:
         total = sum(len(v) for v in debt.values())
         print(f"\n💸 **이미 쓴 태스크가 빠뜨린 규칙 {total}개** (태스크 {len(debt)}개) "
@@ -343,6 +368,16 @@ def main():
         print("     ⚠️ 「근거 원문」 줄에 적는 것은 구현이 아니다 — 그래서 이 수에 남아 있다.")
     elif debt is not None:
         print("\n✅ 이미 쓴 태스크가 빠뜨린 규칙이 없다.")
+    if elsewhere:
+        total = sum(len(v) for v in elsewhere.values())
+        print(f"\n🔀 배정 표의 주인과 **다른 태스크 본문**에 적힌 규칙 {total}개 — 대부분 의도한 분담이다:")
+        for t, items in sorted(elsewhere.items(), key=lambda kv: -len(kv[1])):
+            head = ", ".join(f"{r}→T{'·'.join(map(str, w))}" for r, w in items[:4])
+            print(f"   표상 주인 Task {t:<3} {len(items):>3}개 — {head}"
+                  + (f" 외 {len(items) - 4}건" if len(items) > 4 else ""))
+        print("   → 배정 표가 접두어 단위(`CAL-COLOR-*`)라 규칙 단위 분담은 못 담는다.")
+        print("     빚으로 세면 「없는 누락」이 쌓이므로 세지 않되, **오배정이 숨을 수 있어** 눈으로 볼 것.")
+
     if loose:
         print(f"\n🕳  **어느 배정 표에도 없는 낱개 규칙 {len(loose)}개** — 접두어 단위 검사의 시야 밖이다:")
         print("   " + ", ".join(loose[:20]) + (f" 외 {len(loose) - 20}건" if len(loose) > 20 else ""))
