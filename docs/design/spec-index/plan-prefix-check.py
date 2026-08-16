@@ -82,6 +82,62 @@ def assignments(lines, first_task_line):
     return out
 
 
+def _coverage():
+    """규칙 「정의·언급」 판정은 `plan-coverage-check.py`가 원본이다.
+
+    같은 정규식을 두 파일에 복사하면 한쪽만 고쳐져 숫자가 갈라진다 —
+    실제로 범위 표기(`ID~NN`) 오탐이 그런 모양이었다(2026-08-16). 그래서
+    복사하지 않고 그 파일을 그대로 불러 쓴다(파일명에 `-`가 있어 import 불가).
+    """
+    import importlib.util
+    path = pathlib.Path(__file__).with_name("plan-coverage-check.py")
+    spec = importlib.util.spec_from_file_location("plan_coverage_check", path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def rule_debt(plan, plan_text, spans, assigned):
+    """**이미 쓴** 태스크가 빠뜨린 규칙 = 빚.
+
+    왜 따로 세나
+    -----------
+    `plan-coverage-check.py`는 전체 숫자 하나(*"빠진 것 503개"*)만 말한다. 그 안에는
+    **아직 안 쓴 태스크 것**(정상)과 **이미 쓴 태스크가 빠뜨린 것**(빚)이 섞여 있어,
+    방금 쓴 태스크가 무엇을 흘렸는지 화면에 절대 안 보인다. 매 태스크마다 검사기를
+    돌려도 늘 큰 숫자만 보이니 아무도 몰랐다.
+
+    실제 사고(2026-08-16 발견): 핸드오프가 *"남은 유일한 빚 7개"*라고 적어 둔 사이
+    이미 쓴 태스크 9개의 빚이 **101개**였다. 초기 태스크(7~10)에 몰려 있고 최근
+    태스크(14·15·18)는 0 — 즉 **뒤로 갈수록 나아졌는데 앞의 것이 안 갚혔다.**
+
+    소유 태스크는 **가장 구체적인 접두어가 이긴다**(`NAV-QUEUE-*` > `NAV-*`).
+    이 규칙을 코드에 박아 둬야 세는 사람마다 숫자가 달라지지 않는다.
+    """
+    cov = _coverage()
+    area = next((a for a, p in cov.PLANS.items()
+                 if pathlib.Path(p).name == plan.name), None)
+    if area is None:                       # 재작성본이 아닌 플랜 — 셀 기준이 없다
+        return None, [], []
+    defined = cov.defined_rules(cov.area_text(cov.load(cov.BEHAVIORS), area))
+    missing = defined - cov.labels(plan_text, cov.RULE_MENTION_RE) - set(cov.RULE_WHITELIST)
+
+    debt, orphan, later = {}, [], 0
+    for rid in sorted(missing):
+        best = None
+        for task, prefixes in assigned.items():
+            for p in prefixes:
+                if rid.startswith(f"{p}-") and (best is None or len(p) > best[1]):
+                    best = (task, len(p))
+        if best is None:
+            orphan.append(rid)             # 어느 배정 표에도 안 걸린 낱개 규칙
+        elif best[0] in spans:
+            debt.setdefault(best[0], []).append(rid)
+        else:
+            later += 1                     # 아직 안 쓴 태스크 것 — 빚이 아니다
+    return debt, orphan, later
+
+
 # ⚠️ 마커가 화면 문구와 겹치면 오탐이 난다. 이 프로젝트에서는 `needs_rescheduling` 큐의
 #    이름이 「확인 필요한 예약」이라, 그냥 "확인 필요"로 잡으면 멀쩡한 규칙 5건이 걸렸다.
 #    그래서 뒤에 "한"이 붙는 형태(=화면 문구)는 제외한다.
@@ -274,6 +330,22 @@ def main():
         print("     표시만 낡은 것 ③진짜 이월할 것 중 무엇인지 태스크 본문에 적을 것.")
         print("     ⭐ 근거가 「목업/검토 때 뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것 —")
         print("       있으면 낡은 표시다(실제 사례: STAFF-* 9건 ↔ 목업 79).")
+
+    debt, loose, later = rule_debt(plan, "\n".join(lines), spans, assigned)
+    if debt:
+        total = sum(len(v) for v in debt.values())
+        print(f"\n💸 **이미 쓴 태스크가 빠뜨린 규칙 {total}개** (태스크 {len(debt)}개) "
+              f"— 아직 안 쓴 태스크 몫 {later}개는 뺀 수다:")
+        for t, ids in sorted(debt.items(), key=lambda kv: -len(kv[1])):
+            head = ", ".join(ids[:5]) + (f" 외 {len(ids) - 5}건" if len(ids) > 5 else "")
+            print(f"   Task {t:<3} {len(ids):>3}개 — {head}")
+        print("   → 태스크 본문에 `test('[규칙ID] …')`로 넣으면 사라진다.")
+        print("     ⚠️ 「근거 원문」 줄에 적는 것은 구현이 아니다 — 그래서 이 수에 남아 있다.")
+    elif debt is not None:
+        print("\n✅ 이미 쓴 태스크가 빠뜨린 규칙이 없다.")
+    if loose:
+        print(f"\n🕳  **어느 배정 표에도 없는 낱개 규칙 {len(loose)}개** — 접두어 단위 검사의 시야 밖이다:")
+        print("   " + ", ".join(loose[:20]) + (f" 외 {len(loose) - 20}건" if len(loose) > 20 else ""))
 
     if pending:
         print("\n📋 아직 안 쓴 태스크 — 쓰기 전에 알고 있어야 할 것:")
