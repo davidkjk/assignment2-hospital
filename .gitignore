@@ -17,3 +17,7 @@ supabase/.branches/
 
 # macOS 파인더가 만드는 폴더 정보 파일
 .DS_Store
+
+# 파이썬 캐시 — 검사기(spec-index/*.py)를 돌릴 때마다 생긴다
+__pycache__/
+*.pyc
