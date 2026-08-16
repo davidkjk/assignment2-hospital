@@ -82,6 +82,42 @@ def assignments(lines, first_task_line):
     return out
 
 
+# ⚠️ 마커가 화면 문구와 겹치면 오탐이 난다. 이 프로젝트에서는 `needs_rescheduling` 큐의
+#    이름이 「확인 필요한 예약」이라, 그냥 "확인 필요"로 잡으면 멀쩡한 규칙 5건이 걸렸다.
+#    그래서 뒤에 "한"이 붙는 형태(=화면 문구)는 제외한다.
+MARKER_RE = re.compile(r"PROVISIONAL|NEEDS-USER-DECISION|UNKNOWN|⏳|확인 필요(?!한)")
+RULE_ID_RE = re.compile(r"`([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+-\d+[a-z]?)`")
+
+
+def unresolved_rules(root):
+    """미결 표시가 붙은 규칙 행에서 규칙 ID를 뽑는다.
+
+    왜 필요한가
+    -----------
+    `PROVISIONAL`·`확인 필요` 같은 표시는 "나중에 정한다"는 뜻인데, **그 나중이
+    바로 이 플랜을 쓰는 시점**이다. 그런데 화면 절을 펼쳐 규칙을 옮길 때 표시를
+    못 보고 지나가면, 잠정이던 것이 확정인 양 테스트 문장이 된다.
+
+    반대 방향의 사고도 있다: 표시가 **낡아서** 이미 해소됐는데 남아 있는 경우다.
+    실제 사례 — `STAFF-*` 9건의 `PROVISIONAL` 근거가 "화면 그릇 배치가 사용자
+    검토 때 뒤집힐 수 있음"인데, 그 목업(79-admin-staff.html)이 이미 2칸 구조로
+    그려져 있었다. 즉 **검토가 끝났는데 표시만 남은 것**이다.
+
+    어느 쪽이든 **태스크를 쓸 때 그 규칙 ID를 한 번은 손에 쥐어야** 한다.
+    이 검사는 "쥐었는지"를 본다 — 본문에 그 ID가 나오면 통과다.
+    """
+    path = root / BEHAVIORS
+    if not path.exists():
+        return {}
+    out = []
+    for line in path.read_text().split("\n"):
+        if not line.startswith("|") or not MARKER_RE.search(line):
+            continue
+        if ids := RULE_ID_RE.findall(line):
+            out.append(ids[0])                        # 행의 첫 ID가 그 행의 주인
+    return sorted(set(out))
+
+
 def global_rule_prefixes(root):
     """규칙 문서에서 「전역 규칙」으로 선언된 절의 접두어."""
     path = root / BEHAVIORS
@@ -106,19 +142,28 @@ def main():
 
     assigned = assignments(lines, min(s for s, _ in spans.values()))
     globals_ = global_rule_prefixes(root)
+    unresolved = unresolved_rules(root)
 
-    missing, pending = {}, {}
+    missing, pending, untouched = {}, {}, {}
     for task in sorted(assigned):
         if task not in spans:                      # 아직 안 쓴 태스크
             risky = sorted(assigned[task] & globals_)
-            if risky:
-                pending[task] = risky
+            ahead = [rid for rid in unresolved
+                     if any(rid.startswith(f"{p}-") for p in assigned[task])]
+            if risky or ahead:
+                pending[task] = (risky, sorted(set(ahead)))
             continue
         start, end = spans[task]
         body = "\n".join(lines[start:end])
         gaps = [p for p in sorted(assigned[task]) if f"{p}-" not in body]
         if gaps:
             missing[task] = gaps
+        # 이 태스크가 담당하는 접두어의 미결 규칙 중, 본문이 한 번도 안 짚은 것
+        skipped = [rid for rid in unresolved
+                   if any(rid.startswith(f"{p}-") for p in assigned[task])
+                   and rid not in body]
+        if skipped:
+            untouched[task] = sorted(set(skipped))
 
     print(f"플랜: {plan.name} · 작성된 태스크 {len(spans)}개 · 배정된 태스크 {len(assigned)}개\n")
 
@@ -130,11 +175,30 @@ def main():
     else:
         print("✅ 배정된 접두어가 모두 본문에 있다.")
 
+    if untouched:
+        print("\n⚠️  담당 절에 **미결 표시**가 붙은 규칙인데 본문이 한 번도 안 짚었다:")
+        for t, ids in sorted(untouched.items()):
+            head = ", ".join(ids[:6]) + (f" 외 {len(ids) - 6}건" if len(ids) > 6 else "")
+            print(f"   Task {t:<3} {len(ids):>2}건 — {head}")
+        print("   → 「나중에 정한다」의 그 나중이 지금이다. 각각 ①지금 정할 것 ②이미 해소돼")
+        print("     표시만 낡은 것 ③진짜 이월할 것 중 무엇인지 태스크 본문에 적을 것.")
+        print("     ⭐ 근거가 「목업/검토 때 뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것 —")
+        print("       있으면 낡은 표시다(실제 사례: STAFF-* 9건 ↔ 목업 79).")
+
     if pending:
-        print("\n⚠️  아직 안 쓴 태스크에 배정된 **전역 규칙** — 쓸 때 빠지기 쉽다:")
-        for t, ps in sorted(pending.items()):
-            print(f"   Task {t:<3} {', '.join(ps)}")
+        print("\n📋 아직 안 쓴 태스크 — 쓰기 전에 알고 있어야 할 것:")
+        for t, (risky, ahead) in sorted(pending.items()):
+            bits = []
+            if risky:
+                bits.append(f"⭐전역규칙 {', '.join(risky)}(빠지기 쉬움)")
+            if ahead:
+                head = ", ".join(ahead[:4]) + (f" 외 {len(ahead) - 4}건" if len(ahead) > 4 else "")
+                bits.append(f"미결 {len(ahead)}건 — {head}")
+            print(f"   Task {t:<3} " + " · ".join(bits))
         print("   → 전역 규칙은 공용 부품 태스크가 소유하고 화면은 소비만 하게 배정할 것.")
+        print("   → 미결은 「나중에 정한다」의 그 나중이 지금이다. ①지금 정할 것 ②이미 해소돼")
+        print("     표시만 낡은 것 ③진짜 이월할 것으로 갈라 본문에 적을 것. 근거가 「목업 검토 때")
+        print("     뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것(있으면 낡은 표시다).")
 
     return 1 if missing else 0
 
