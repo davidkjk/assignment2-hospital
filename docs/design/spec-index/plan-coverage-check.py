@@ -55,6 +55,19 @@ RULE_WHITELIST = {
 RULE_RE = r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+-[0-9]{2}'
 # 규칙 정의는 표 첫 칸에 온다. 본문 인용과 구분해 '정의된 규칙'만 집는다.
 RULE_DEF_RE = re.compile(r'^\| ?`?(' + RULE_RE + r')`?')
+
+# ⚠️ 플랜 쪽을 셀 때는 **범위 표기의 시작**을 빼야 한다.
+#    `TODAY-RESCHED-01~11`을 그냥 찾으면 `TODAY-RESCHED-01`이 매치돼
+#    「그 규칙이 플랜에 있다」로 세어진다. 그런데 범위 표기가 실제로 쓰이는 자리는
+#    **태스크의 「근거 원문」 줄**(= 참고 문헌)이고, 거기 적혔다는 것은
+#    **그 규칙을 구현했다는 뜻이 아니다.** 심지어 규칙을 소유한 태스크가 아니라
+#    **남의 태스크**의 참고 문헌일 수도 있다.
+#    실제 사고: `TODAY-RESCHED-01`이 Task 19의 참고 문헌 `TODAY-RESCHED-01~11`에 걸려
+#    ✅로 나왔지만, 정작 그 규칙을 구현할 **Task 8에는 없었다**(2026-08-16 발견).
+#    ⭐ 그래서 범위는 **펼치지 않고 통째로 안 센다** — 펼치면 참고 문헌 한 줄이
+#    규칙 11개를 한꺼번에 ✅로 만들어 사고가 11배가 된다.
+#    ⑤ 플랜의 지킬 조건 2(*"각 태스크에 `test('[규칙ID] …')` 문장을 직접 넣는다"*)와도 같은 방향.
+RULE_MENTION_RE = RULE_RE + r'(?!~)'
 LABEL_CLASSES = {
     "기능 갭": r'#\d{1,3}\b',
     "AD":      r'AD-0\d{2}',
@@ -106,7 +119,7 @@ def main():
 
     if args.list_missing_rules:
         a = args.list_missing_rules
-        miss = sorted(defined_rules(area_text(behaviors, a)) - labels(plan_text[a], RULE_RE)
+        miss = sorted(defined_rules(area_text(behaviors, a)) - labels(plan_text[a], RULE_MENTION_RE)
                       - set(RULE_WHITELIST))
         print("\n".join(miss))
         sys.exit(0 if not miss else 1)
@@ -130,7 +143,16 @@ def main():
     print("\n② 규칙 ID (screen-behaviors 영역 → 해당 플랜)")
     for a in areas:
         defined = defined_rules(area_text(behaviors, a))
-        miss = sorted(defined - labels(plan_text[a], RULE_RE) - set(RULE_WHITELIST))
+        mentioned = labels(plan_text[a], RULE_MENTION_RE)
+        miss = sorted(defined - mentioned - set(RULE_WHITELIST))
+        # 범위 표기로만 적힌 규칙은 위에서 안 세므로 빠진 것에 들어온다.
+        # 어느 것이 그 경우인지 짚어 준다 — 「근거 원문에 있으니 됐다」는 오해를 막는다.
+        range_only = sorted(set(re.findall(RULE_RE + r'(?=~)', plan_text[a])) & set(miss))
+        if range_only:
+            print(f"   ⚠️  {a}: 범위 표기(`ID~NN`)로만 적힌 규칙 {len(range_only)}개는 "
+                  f"「빠진 것」으로 센다 — {', '.join(range_only)}")
+            print(f"       참고 문헌 줄에 범위로 적은 것은 구현이 아니다. "
+                  f"소유 태스크 본문에 `test('[규칙ID] …')`로 넣을 것.")
         if miss:
             problems.append((f"{a}/규칙", [f"{len(miss)}개 (--list-missing-rules {a} 로 전체 출력)"]))
         pct = 100 * (len(defined) - len(miss)) / len(defined) if defined else 100
