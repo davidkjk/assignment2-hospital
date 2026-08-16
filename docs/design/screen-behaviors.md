@@ -1940,7 +1940,7 @@
 ## 접근 기록 `/admin/access-logs` (`ALOG-*`) — 목업 80 · 결정11·17·22(감사 범위)·4회차(2년+·월1점검)
 
 > 관리자 전용 **읽기 화면**. 누가 어떤 환자 정보·진료기록을 언제 열었는지 확인한다. 기존 `patient_detail`·`medical_record`에 더해 결정11의 `search`(실행 1회)·`phone_reveal`(번호 열람)·대량 번호 열람(환자별 저장·묶음 표시), 결정17의 `patient_merge`·`patient_merge_undo`, 결정22의 `stats_drilldown`·`stats_export`를 **종류를 분리해** 표시한다. 첫 페이지 최근 200건 + 환자 필터 + cursor/기간 이어보기. 기존 `ROLE-*`·`MASK-*`·`SEARCH-*`·`SHELL-*`·`NAV-*`·`EMPTY-*`·`ERR-*`·`P-*` 인용(재정의 안 함).
-> ⚠️ 감사 화면 자체는 감사 대상에서 **제외**(`access_audit_log.patient_id` 필수라 억지 연결 시 감사 의미 훼손 — 결정3 `FINAL`). 진짜 미결: 조회 표 그릇 결정1(안 B=환자 필터+마스킹 식별자+최근 200건, `PROVISIONAL`).
+> ⚠️ 감사 화면 자체는 감사 대상에서 **제외**(`access_audit_log.patient_id` 필수라 억지 연결 시 감사 의미 훼손 — 결정3 `FINAL`). ~~진짜 미결: 조회 표 그릇 결정1(안 B=환자 필터+마스킹 식별자+최근 200건, `PROVISIONAL`).~~ ✅ **해소(2026-08-15, ⑤ Task 15)** — **목업 80이 안 B를 그려 검토가 끝났다.** 남은 미결은 0건(`ALOG-LIST-07`의 「확인 필요」는 **화면에 찍는 라벨**이지 미결 표시가 아니다).
 > `BLOCKED`(구현 전): **B-4** — `resource_type` CHECK가 `patient_detail`·`medical_record`뿐 + `patient_id NOT NULL`이라 검색·번호·대량·병합 두 환자·환자 없는 관리자 활동을 저장할 수 없음(조회 계약·환자 마스킹 DTO·환자 선택 API 부재). **B-19** — 안정 정렬 `(accessed_at desc, id desc)` 인덱스·cursor/기간 조회 API·다음 페이지 UI 부재로 4회차의 월 1회 점검을 아직 보장 못 함.
 
 ### 셸·권한·목적 (`ALOG-SHELL-*`·`ALOG-HEAD-*`)
@@ -1958,9 +1958,9 @@
 | ID | 요소 | 조건 | 동작 | 근거·상태 |
 |---|---|---|---|---|
 | `ALOG-FILTER-01` | 기본 조회 | 최초 진입 | 환자 필터 없이 최신 **첫 페이지(최대 200건)**. `최근 200건`임을 명시, 전체인 척 안 함. 이후는 `ALOG-FILTER-06·07` | Task 15 `list_access_logs` `limit 200`; `B-19 BLOCKED` |
-| `ALOG-FILTER-02` | 환자 기준 필터 | 특정 환자 확인 필요 | 같은 화면 환자 선택 결과를 `patient_id` 필터 요청에 연결, 선택 식별 정보를 칩에. 검색·동명이인·마스킹은 `SEARCH-*`·`MASK-*` 원본 적용 | Task 15 `?patient_id=`·`SEARCH-BOX-*`·`SEARCH-SAME-01`·`MASK-*`; `PROVISIONAL` |
-| `ALOG-FILTER-03` | 필터 상태 | 환자 필터 걸림 | 표 머리에 선택 환자 필터 칩·`[필터 지우기]` 유지, 전체 결과 수·필터 결과 수 구분. 칩 생년월일·전화는 `MASK-DOB-01`·`MASK-TEL-01` | `MASK-DOB-01`·`MASK-TEL-01`·P-05; `PROVISIONAL` |
-| `ALOG-FILTER-04` | 필터 URL·새로고침 | 필터 선택 후 | `?patient_id=...`를 URL에 남겨 새로고침·뒤로가기에 같은 필터 복원. 실제 이름·전화는 URL에 안 넣음 | `NAV-SHELL-09`·P-01; `PROVISIONAL` |
+| `ALOG-FILTER-02` | 환자 기준 필터 | 특정 환자 확인 필요 | 같은 화면 환자 선택 결과를 `patient_id` 필터 요청에 연결, 선택 식별 정보를 칩에. 검색·동명이인·마스킹은 `SEARCH-*`·`MASK-*` 원본 적용 | Task 15 `?patient_id=`·`SEARCH-BOX-*`·`SEARCH-SAME-01`·`MASK-*`; ~~`PROVISIONAL`~~ ✅ **해소(2026-08-15, ⑤ Task 15)** — 목업 80이 안 B(환자 필터+마스킹 식별자+최근 200건)를 이미 그렸고, 남아 있던 사유(*"고급 필터 API 계약 부재"*)는 ①고급 필터가 규칙에 없고 ②기간은 `ALOG-FILTER-07`로 확정 ③API 계약을 플랜 Task 15가 확정해 닫혔다 |
+| `ALOG-FILTER-03` | 필터 상태 | 환자 필터 걸림 | 표 머리에 선택 환자 필터 칩·`[필터 지우기]` 유지, 전체 결과 수·필터 결과 수 구분. 칩 생년월일·전화는 `MASK-DOB-01`·`MASK-TEL-01` | `MASK-DOB-01`·`MASK-TEL-01`·P-05; ~~`PROVISIONAL`~~ ✅ **해소(2026-08-15, ⑤ Task 15 — `ALOG-FILTER-02`와 같은 근거)** |
+| `ALOG-FILTER-04` | 필터 URL·새로고침 | 필터 선택 후 | `?patient_id=...`를 URL에 남겨 새로고침·뒤로가기에 같은 필터 복원. 실제 이름·전화는 URL에 안 넣음 | `NAV-SHELL-09`·P-01; ~~`PROVISIONAL`~~ ✅ **해소(2026-08-15, ⑤ Task 15 — 목업 80:121이 `/admin/access-logs?patient_id=p1`을 명시)** |
 | `ALOG-FILTER-05` | 필터 초기화 | `[필터 지우기]` | 같은 화면에서 전체 최신 **첫 페이지(최대 200건)**로 복귀, 환자 선택을 새 탭·환자 상세로 안 보냄 | `NAV-SHELL-03·09`; `B-19 BLOCKED` |
 | `ALOG-FILTER-06` | 200건 이후 이어보기 | 첫 페이지 200건이고 더 오래된 기록 있음 | 서버가 불투명 cursor 반환 시 같은 필터로 다음 요청에 전달. 정렬 `(accessed_at desc, id desc)`, 다음 페이지 중복·누락 없이 최대 200건 | `ALOG-LIST-08·09`·`HIST-LIST-15~19`; `B-19 BLOCKED-BEFORE-MERGE` |
 | `ALOG-FILTER-07` | 기간 조회 | 월별·임의 기간 과거 점검 필요 | `from` 포함·`to` 제외 날짜·시각 범위 필터. 월 1회 점검은 해당 월 범위 조회, 결과에 조회 기간 표시, 기간 결과도 200건 이어보기 | 결정 4회차(월1점검·2년+)·`NAV-SHELL-09`; `B-19 BLOCKED-BEFORE-MERGE` |
@@ -1971,7 +1971,7 @@
 |---|---|---|---|---|
 | `ALOG-LIST-01` | 표의 열 | 정상 조회 | `열람 시각·열람 직원·환자·열람 자료` 네 열 고정("누가·언제·누구의·무엇을" 순서) | Task 15 `AccessLogPage`·요구사항 3.1; `FINAL` |
 | `ALOG-LIST-02` | 열람 시각 | 각 행 | 서버 절대 시각을 병원 시간대 `YYYY.MM.DD HH:mm:ss`로. 상대값으로 안 바꿈 | `accessed_at`·감사 추적성; `FINAL` |
-| `ALOG-LIST-03` | 열람 직원 | 각 행 | `staff_name` 표시. 이름 없는·탈퇴 직원은 식별자 지어내지 않고 `직원 정보 없음`, 행은 보존 | Task 15 join·P-08; `PROVISIONAL`(join 보존 정책 대기) |
+| `ALOG-LIST-03` | 열람 직원 | 각 행 | `staff_name` 표시. 이름 없는·탈퇴 직원은 식별자 지어내지 않고 `직원 정보 없음`, 행은 보존 | Task 15 join·P-08; ~~`PROVISIONAL`(join 보존 정책 대기)~~ ✅ **해소(2026-08-15, ⑤ Task 15)** — `staff`에서 **DELETE 권한이 의도적으로 배제**돼 있다(`00001_departments_staff.sql:91`). 직원 행은 지워지지 않고 `is_active=false`가 될 뿐이라 **join이 깨질 일이 없다.** `직원 정보 없음`은 이름 칸이 빈 경우를 받는 방어로 남는다 |
 | `ALOG-LIST-04` | 환자 식별 | 각 행 | 서버가 준 마스킹 식별자로 동명이인 구분. 원본 개인정보 새로 안 내려보내고 `MASK-TEL-01`·`MASK-DOB-01`·`MASK-SRV-01` 경계 적용 | 요구사항 3.1·3.5·`MASK-*`; `FINAL`, 마스킹 DTO 부재 갭 |
 | `ALOG-LIST-05` | 자료 종류 | `resource_type = patient_detail` | `환자정보`로 표시. 환자 상세 여는 순간 한 건 생기는 기존 적재 의미 유지 | `MASK-DETAIL-01`·`ROLE-READ-02`; `FINAL` |
 | `ALOG-LIST-06` | 자료 종류 | `resource_type = medical_record` | `진료기록`으로 표시. 수정·작성으로 읽힐 표현 안 씀 | `ROLE-DOC-01`·`ROLE-READ-01`; `FINAL` |
