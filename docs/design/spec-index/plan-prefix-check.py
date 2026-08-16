@@ -118,6 +118,49 @@ def unresolved_rules(root):
     return sorted(set(out))
 
 
+HANDOVERS = "docs/design/spec-index/HANDOVERS.md"
+PLANS_DIR = "docs/superpowers/plans"
+
+
+def pending_handovers(root):
+    """다른 플랜으로 넘긴 미결 중, **받을 플랜에 아직 안 들어간 것**.
+
+    왜 필요한가
+    -----------
+    한 플랜을 쓰다가 "이건 저쪽 플랜에서 정하는 게 맞다"고 넘기는 순간,
+    그 규칙은 **아무 검사기의 시야에도 없는 상태**가 된다. 넘긴 쪽 플랜은
+    이미 다 썼으니 안 보고, 받을 쪽 플랜은 아직 안 썼으니 모른다.
+
+    실제 사고(2026-08-15): `SUPPORT-CAL-*` 14개가 어느 배정 표에도 없었다.
+    접두어가 `CAL-`이 아니라 배정 표의 `CAL-*`에 안 걸렸고, 규칙 문서상
+    위치가 상담봇 절이라 staff-web 커버리지도 세지 않았다. 그런데 그리는
+    화면은 `/calendar`였다.
+
+      ⭐ 교훈: 넘긴 것은 **원장에 적고 기계가 회수**한다. 문서에 적은 약속은
+         읽는 사람이 없으면 없는 것과 같다.
+
+    받을 플랜에 그 규칙 ID가 나타나면 자동으로 조용해진다.
+    """
+    path = root / HANDOVERS
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text().split("\n"):
+        if not line.startswith("|"):
+            continue
+        c = [x.strip() for x in line.strip().strip("|").split("|")]
+        if len(c) < 4 or not re.match(r"^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+-\d+[a-z]?$", c[0]):
+            continue
+        rule_id, came_from, target, what = c[0], c[1], c[2], c[3]
+        # ⚠️ 파일 이름으로 잡으면 재작성 때 낡는다(`2026-07-27-*` → `2026-08-15-*`).
+        #    영역 이름으로 glob해 **그 영역의 모든 플랜**을 본다.
+        plans = sorted((root / PLANS_DIR).glob(f"*{target}*.md"))
+        if any(rule_id in p.read_text() for p in plans):
+            continue                                   # 받았다 — 조용해진다
+        out.append((rule_id, came_from, target, what, bool(plans)))
+    return out
+
+
 def global_rule_prefixes(root):
     """규칙 문서에서 「전역 규칙」으로 선언된 절의 접두어."""
     path = root / BEHAVIORS
@@ -199,6 +242,16 @@ def main():
         print("   → 미결은 「나중에 정한다」의 그 나중이 지금이다. ①지금 정할 것 ②이미 해소돼")
         print("     표시만 낡은 것 ③진짜 이월할 것으로 갈라 본문에 적을 것. 근거가 「목업 검토 때")
         print("     뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것(있으면 낡은 표시다).")
+
+    if handovers := pending_handovers(root):
+        print("\n📦 다른 플랜으로 **넘긴 미결** — 받을 플랜에 아직 안 들어갔다:")
+        for rule_id, came_from, target, what, plan_exists in handovers:
+            mark = "" if plan_exists else "  ⚠️ 그 영역 플랜 파일이 아직 없다"
+            print(f"   {rule_id:<22} {came_from} → {target}{mark}")
+            print(f"      정할 것: {what[:96]}{'…' if len(what) > 96 else ''}")
+        print("   → 원장은 `docs/design/spec-index/HANDOVERS.md`. 받을 플랜을 쓸 때 이 규칙을")
+        print("     본문에 넣으면 이 경고가 저절로 사라진다. **원장에서 지우지 말 것** —")
+        print("     지우면 「넘겼다는 사실」이 사라져 다음 사람이 처음부터 다시 발견해야 한다.")
 
     return 1 if missing else 0
 
