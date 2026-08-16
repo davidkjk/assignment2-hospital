@@ -7,6 +7,7 @@ CLAUDE.md
 
 # Supabase CLI 로컬 실행 시 생성되는 임시 상태 디렉토리
 supabase/.temp/
+supabase/.branches/
 
 # 로컬 도구 설정 — 팀/환경마다 다를 수 있어 추적 제외
 .claude/
