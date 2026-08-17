@@ -770,6 +770,19 @@ def _anchors(rule_body):
     return out
 
 
+# ⛔⛔ **「주석을 벗기고 도는 코드 줄만 본다」는 개선은 시험했다가 기각**(2026-08-17).
+#    구멍 자체는 진짜다 — 값이 **주석에만** 있고 assert는 엉뚱한 걸 봐도 지금은 통과한다.
+#    그런데 그걸 막으려 12줄 창에서 주석·docstring을 벗겼더니 **124→256**으로 튀었고,
+#    새로 잡힌 132건을 전수 분류하니 **약 80%가 오탐**이었다:
+#      · 교차참조 26 · 파싱쓰레기 7 · 장식 불일치 6(`[다시 시도]`↔`'다시 시도'`)
+#      · 곁다리 숫자 ~55 — 규칙이 `8개`를 못박지만 테스트는 `toEqual([8개 항목])`로
+#        **목록 자체**를 검증한다(더 나은 검증인데 껍데기로 몰린다: SHELL-NAV-08·LIVE-03)
+#    ⭐ 뿌리 원인은 「어느 줄을 보나」로는 못 고친다 — `_anchors`가 곁다리 숫자·상태명·
+#       장식 라벨·예시·교차참조를 값으로 뽑고, 테스트는 그걸 **정규화형·구조**로 정당하게
+#       검증한다. 주석이 그동안 **오탐 완충재**였다. 이 검사기는 "소음이 되면 아무도 안
+#       본다"가 원칙이라, 20건 남짓 진짜를 얻자고 110건 노이즈를 더하는 건 손해다.
+#    ⛔ **테스트 「제목」 줄까지 빼는 변형은 더 나빴다**(124→354). 다시 시도하지 말 것.
+#    → 값이 주석에만 있는 진짜 케이스는 **구현·손검수에서 드러난다**(사각지대 ②③과 같은 몫).
 def hollow_citations(root, plan_text):
     """👻 **ID는 인용했는데 규칙이 못박은 값이 테스트에 하나도 없는 것.**
 
@@ -816,7 +829,13 @@ def hollow_citations(root, plan_text):
         cites = [x for x in lines if f"[{rid}]" in x]
         near = "\n".join("\n".join(lines[i:i + 12])
                          for i, x in enumerate(lines) if f"[{rid}]" in x)
-        if any(a in near for a in anch):
+        # ⭐ 장식(`[]「」＋`)만 벗겨 한 번 더 본다 (2026-08-17). 규칙은 버튼을 `[다시 시도]`로
+        #    적지만 테스트의 접근성 이름은 `'다시 시도'`(대괄호 없음)라, 장식 때문에 **이미
+        #    검증 중인 테스트가 껍데기로 몰리던** 오탐을 없앤다. 이 방향은 precision을 **올린다**
+        #    (주석 벗기기와 반대) — 벗겨서 빠지는 것이 전부 「이미 검증됨」임을 전수 확인했다.
+        deco = re.compile(r"[\[\]「」＋]")
+        near_deco = deco.sub("", near)
+        if any(a in near or deco.sub("", a) in near_deco for a in anch):
             continue
         piggyback = all(len(re.findall(r"\[[A-Z][A-Z0-9-]*-\d+[a-z]?\]", c)) > 1 for c in cites)
         out.append((rid, sorted(anch)[:3], piggyback))
