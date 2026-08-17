@@ -818,6 +818,83 @@ def hollow_citations(root, plan_text):
     return out
 
 
+ASSERT_RE = re.compile(r"\b(assert|expect|toBe|toHave|toContain|toEqual|pytest\.raises)")
+TEST_HEAD_RE = re.compile(r"\s*(async def test_|def test_|test\(|test\.each|it\()")
+
+
+def empty_tests(root, lines):
+    """🕳 **제목만 있고 `assert`/`expect`가 한 줄도 없는 테스트.**
+
+    왜 필요한가
+    -----------
+    👻는 *"뭔가는 검증하는데 **그 규칙 것이 아니다**"*를 잡는다. 그 앞에 더 큰 구멍이
+    있었다 — **아무것도 검증하지 않는 테스트**다. 제목에는 규칙 ID와 확인할 내용이
+    또렷이 적혀 있어서 **읽는 사람에게는 다 된 것처럼 보인다.**
+
+        test('[QUEUE-TAB-03][QUEUE-TAB-04] 사이드바로 들어오면 「진료 대기」', async () => {
+          // 접수 직원이 종일 보는 상태가 「진료 대기」다.
+        });                                    ← 본문 끝. expect가 없다
+
+    구현자는 **자기 태스크만** 본다. 이걸 받으면 확인할 코드가 없으니 **그냥 통과시킨다.**
+    `writing-plans` 스킬이 「플랜 실패」로 못박은 *"Write tests for the above (without
+    actual test code)"* 가 바로 이것이다.
+
+    두 등급으로 나눈다
+    ------------------
+    **🕳 껍데기** — 본문에 **주석·docstring 말고는 아무것도 없다.** 오탐이 없다.
+    **△ 암묵** — 실행 코드는 있는데 `assert`가 없다. 대개 *"예외 없이 끝나면 통과"*라는
+    **정당한 패턴**이다(DB 제약 테스트: `insert`가 거부되지 않는 것 자체가 검증).
+    껍데기와 섞어 세면 **「고칠 것」이 부풀어 진짜가 묻힌다** — 그래서 갈라 놓는다.
+
+    ⭐ **껍데기는 오탐이 0이다** — 👻처럼 규칙 원문을 펼쳐 「진짜인가」 판단할 필요가
+    없다. 그래서 **👻보다 먼저 닫는다.** 빈 테스트를 채우는 행위가 곧 👻가 요구하는
+    일이라 같이 닫힌다(반대로 하면 두 번 훑는다).
+    """
+    out = {}
+    for i, l in enumerate(lines):
+        ids = re.findall(r"\[([A-Z][A-Z0-9-]*-\d+[a-z]?)\]", l)
+        if not ids:
+            continue
+        head = None                       # 파이썬은 ID가 docstring에 있어 위로 올라간다
+        for j in range(i, max(i - 4, -1), -1):
+            if TEST_HEAD_RE.match(lines[j]):
+                head = j
+                break
+        if head is None:
+            continue
+        body = []
+        # `test.each([…])('[ID] …', …)`의 **데이터 배열**은 본문이 아니다 — ID 줄부터 센다
+        start = i if TEST_HEAD_RE.match(lines[head]) and "test.each" in lines[head] else head
+        for k in range(start + 1, min(start + 40, len(lines))):
+            if TEST_HEAD_RE.match(lines[k]) or lines[k].startswith("```"):
+                break
+            body.append(lines[k])
+        if any(ASSERT_RE.search(x) for x in body):
+            continue
+        # ⚠️ 「실행이 예외 없이 끝나면 통과」는 정당한 패턴이다(DB 제약 테스트).
+        #    본문에 **주석·docstring 아닌 코드가 한 줄이라도** 있으면 그쪽으로 본다.
+        code, in_doc = [], False
+        for x in body:
+            s = x.strip()
+            if not s:
+                continue
+            q = s.count('"""') + s.count("'''")
+            if in_doc:                                 # docstring 안 — 서술이지 코드가 아니다
+                if q:
+                    in_doc = False
+                continue
+            if q and not (q >= 2 and (s.endswith('"""') or s.endswith("'''"))):
+                in_doc = True                          # 여러 줄 docstring 시작
+                continue
+            if q:                                      # 한 줄짜리 docstring
+                continue
+            if s.startswith(("#", "//", "*")) or re.fullmatch(r"[)}\];,\s]*", s):
+                continue
+            code.append(s)
+        out.setdefault(head + 1, [ids, bool(code)])[0].extend(ids)
+    return [(ln, sorted(set(ids)), runs) for ln, (ids, runs) in sorted(out.items())]
+
+
 def lost_in_rewrite(root, plan, plan_text):
     """♻️ **옛 플랜이 만들던 것 중 재작성본에서 사라진 이름.**
 
@@ -1020,6 +1097,28 @@ def main():
             print(f"   Task {t:<3} {head}")
         print("   → 구현자는 **자기 태스크만** 본다. 만드는 쪽이 없으면 그 자리에서 멈춘다.")
         print("     ⚠️ 남의 플랜(1단계·공용)이 만든 것이면 무시해도 된다. 눈으로 한 번 볼 것.")
+
+    if allempty := empty_tests(root, lines):
+        shell = [(ln, ids) for ln, ids, runs in allempty if not runs]
+        implicit = [(ln, ids) for ln, ids, runs in allempty if runs]
+        n_ids = len({i for _, ids in shell for i in ids})
+        if shell:
+            print(f"\n🕳 **본문이 통째로 빈 테스트 {len(shell)}개** "
+                  f"— 규칙 {n_ids}건이 여기에 걸려 있다:")
+            for ln, ids in shell[:12]:
+                head = ", ".join(ids[:3]) + (f" 외 {len(ids) - 3}건" if len(ids) > 3 else "")
+                print(f"   L{ln:<6} {head}")
+            if len(shell) > 12:
+                print(f"   … 외 {len(shell) - 12}개")
+            print("   → 👻는 *「그 규칙 것이 아닌 걸 검증한다」*를 잡지만, 이건 **아무것도")
+            print("     검증하지 않는다.** 제목에 확인할 내용이 또렷이 적혀 있어 **다 된 것처럼")
+            print("     보이는 것**이 더 나쁘다. 구현자는 확인할 코드가 없으니 그냥 통과시킨다.")
+            print("   ⭐ **오탐 0** — 판단이 필요 없다. 👻보다 **먼저** 닫는다(채우면 👻도 닫힌다).")
+        if implicit:
+            print(f"\n   △ 참고 — 실행 코드는 있는데 `assert`가 없는 것 {len(implicit)}개: "
+                  + ", ".join(f"L{ln}" for ln, _ in implicit[:10])
+                  + (f" 외 {len(implicit) - 10}개" if len(implicit) > 10 else ""))
+            print("     *\"예외 없이 끝나면 통과\"*는 정당한 패턴이다(DB 제약 테스트). **세지 않는다.**")
 
     if hollow := hollow_citations(root, "\n".join(lines)):
         piggy = sum(1 for _, _, p in hollow if p)
