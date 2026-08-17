@@ -624,6 +624,7 @@ RENAMED_IN_REWRITE = {
     "patient_phone": "GET /patients/{id}/contact (Task 6 — phone_reveal 기록)",
     # ⛔ 아래 둘은 **일부러 없앤 것** — Task 16(/cancellation-requests) 화면 폐지(갭 #113)
     "approve_cancellation_request": "⛔ 폐기(Task 16 결번)",
+    "list_cancellation_requests": "⛔ 폐기(Task 16 결번)",
     "reject_cancellation_request": "⛔ 폐기(Task 16 결번)",
 }
 
