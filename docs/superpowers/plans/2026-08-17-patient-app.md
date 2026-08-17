@@ -961,16 +961,17 @@ Run: `pytest tests/test_patient_identity_rls.py -v` → Expected: PASS.
 - [ ] **Step 3: `seed_patient` 헬퍼 추가** — `backend/tests/conftest.py`
 
 ```python
-async def seed_patient(conn, *, name="환자", phone="010-0000-0000", with_auth=True, is_active=True):
-    """환자 행(+선택적으로 auth.users)을 만들고 {auth_user_id, patient_id}를 돌려준다."""
+async def seed_patient(conn, *, name="환자", phone="010-0000-0000", gender="F", with_auth=True, is_active=True):
+    """환자 행(+선택적으로 auth.users)을 만들고 {auth_user_id, patient_id}를 돌려준다.
+    gender는 patients.gender가 not null(00003, default 없음)이라 필수다 — 값은 'M'/'F'(Task 1·2가 쓰는 형식)."""
     auth_user_id = None
     if with_auth:
         auth_user_id = await conn.fetchval(
             "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
             f"{name}-{id(conn)}@test.local")
     patient_id = await conn.fetchval(
-        "insert into patients (name, phone, auth_user_id, is_active) values ($1,$2,$3,$4) returning id",
-        name, phone, auth_user_id, is_active)
+        "insert into patients (name, phone, gender, auth_user_id, is_active) values ($1,$2,$3,$4,$5) returning id",
+        name, phone, gender, auth_user_id, is_active)
     return {"auth_user_id": auth_user_id, "patient_id": patient_id}
 ```
 
@@ -2223,3 +2224,282 @@ git commit -m "feat: 📝 환자앱 Task 6 본문 — 예약 취소(30분 유예
 > 📌 **`request_support`는 취소와 변경 모두 쓴다**(`request_type='취소'`/`'변경'`) — 마감 후 **변경**도 취소와 같은 상담 연결이다(#26 결정). 변경 화면(Task 22)이 마감 후면 `change_booking` 대신 `request_support('변경')`를 부른다.
 > 📌 **직원은 대기열이 아니라 `/today` 카드·예약 캘린더 ⚠에서 확인**한다(`CANCEL-LATE-11` — 취소요청 대기열 폐지). 이 요청을 직원웹이 읽는 창구(`support_requested_at is not null` 조회)는 직원웹 플랜이 소유한다.
 > 📌 **화면(Task 22)이 그리는 것**: 마감 전 확인 팝업(`CANCEL-PRE-01~07`) · 마감 후 안내 팝업(`CANCEL-LATE-01~10`) · 연결 후 `상담 연결됨 · 직원 확인 중`+`아직 예약은 유지되고 있습니다`(`CANCEL-LATE-12`) · 중복 시 `상담 이어가기 ›`(`CANCEL-LATE-14`). 서버는 상태 dict만.
+
+---
+
+## Task 7: 사전문진 서비스 — 부분저장·완료 판정(`completed_at`, `00021`)·진행률 서버계산·성별 노출
+
+> **담당 규칙**: 없음(백엔드 계약). 문진 작성 화면(Task 23)·표시 화면(Task 24)이 이 서비스를 소비한다.
+>
+> ⭐ **옛 플랜 Task 10(`plans/2026-07-27-patient-app.md:2651~2830`)에 다섯 계약을 얹는다**:
+> 1. **완료 판정 별도 칸(`QNR-STATE-08`, 갭 #50)** — `submitted_at`은 저장할 때마다 갱신되어 완료 판정에 쓸 수 없다. `completed_at`을 새로 두고, **`[제출하기]`를 눌렀을 때만 찍는다**(`QNR-STATE-04` — 자동 저장으로는 안 찍힘). 상태 3종: 행 없음=`미작성` / `completed_at` NULL=`작성 중` / `completed_at` 있음=`작성완료`.
+> 2. **부분저장(자동 저장)** — 문항을 넘길 때마다 `answers`를 UPDATE. `completed_at`은 건드리지 않는다.
+> 3. **진행률 서버계산(`QNR-PROG-04`, 갭 #17)** — 분자=답 항목 수(빈 답도 지나갔으면 셈, `QNR-PROG-05`), 분모=**그 환자에게 보이는** 문항 수(「보일 대상」 적용 후). ⭐ **서버 한 곳에서 센다** — 앱·알림 배치가 각자 세지 않는다(예상 대기시간과 같은 처리).
+> 4. **성별 노출(`QNR-SHOW-01`, 갭 #17)** — 문항의 `visible_to`(`모든 환자`/`여성 환자만`/`남성 환자만`)를 **진료받는 사람(`for_patient_id`)의 성별**과 대조. ⛔ 로그인한 사람이 아니다(딸이 아버지 문진을 써도 아버지 성별). 안 보이는 문항은 진행률 분모에서도 빠진다(`QNR-SHOW-05`).
+> 5. **문항 스냅샷(`QNR-ID-02`)** — 답을 `{question_id, question_text, value}`로 저장한다(직원웹 T22 견본 `staff-web.md:4870`과 통일 — 의사 화면이 `question_id`로 매칭, 글자로 안 맞춤). `question_text`가 **그때 본 질문 글자**를 보존한다(관리자가 나중에 글자를 고쳐도 제출 기록은 옛 글자 그대로, `QNR-ID-06`).
+>
+> ⚠️ **수정 시점(#21)**: `EDITABLE_STATUSES = ("예약신청","예약확정","도착","진료대기")` — 요구사항 4.4 "진료 전까지 수정"을 스펙이 "도착 전까지"로 좁혔던 것을 되돌린다. **`진료중`부터 읽기 전용**. 서비스와 RLS 정책 **둘 다**에 건다(심층 방어).
+> ⚠️ **template_id를 클라이언트에서 받지 않는다** — 서버가 예약의 `department_id`로 양식을 정한다(옛 플랜의 "다른 진료과 template_id 위조" 문제를 원천 차단).
+> ⚠️ **문항 구조(`{id, text, type, required, visible_to}`)와 `question_id` 생산은 직원웹 T22**(`QADM-FORM-*`) — Task 7은 **소비만**. gender 값 형식은 `'M'`/`'F'`(재작성본 Task 1·2가 쓰는 형식).
+> ⚠️ **RLS**: 재작성본 Task 1은 문진 **SELECT 정책만** 열었다 — INSERT/UPDATE 정책과 `grant update`는 **여기서** 연다.
+
+**Files:**
+- Create: `supabase/migrations/00021_questionnaire_completion.sql` · `backend/app/services/patient_questionnaire_service.py`
+- Test: `backend/tests/test_patient_questionnaire_service.py`
+
+**Interfaces:**
+- Consumes: `PatientContext`(Task 2) · `acquire_as` · `AppError` · `questionnaire_templates(questions: [{id,text,type,required,visible_to}])`(직원웹 T22 생산) · `questionnaire_responses(appointment_id unique, template_id, answers, submitted_at)`(`00007`) · `appointments.department_id`·`status`·`for_patient_id` · `patients.gender` · `patient_owns()`(Task 1) · 정책 `patients_can_read_own_questionnaire`(Task 1)
+- Produces:
+  - SQL: `questionnaire_responses.completed_at timestamptz`(nullable) · 정책 `patients_can_insert_own_questionnaire`·`patients_can_update_own_questionnaire`(status ∈ EDITABLE) · `grant update on questionnaire_responses to authenticated`
+  - `patient_questionnaire_service.get_template(patient, appointment_id) -> dict | None`(`{"id", "questions": [보이는 문항], "total"}`)
+  - `patient_questionnaire_service.save_response(patient, appointment_id, answers: list[dict], complete: bool = False) -> dict`(`{"id", "state", "answered", "total"}`)
+  - `patient_questionnaire_service.get_response(patient, appointment_id) -> dict | None`(`{"id", "answers", "state", "answered", "total", "completed_at"}`; 행 없으면 None=미작성)
+  - 순수 함수 `compute_progress(questions, gender, answers) -> {"answered", "total"}`(알림 배치가 재사용 — `QNR-PROG-04`)
+
+- [ ] **Step 1: 마이그레이션 실패 테스트** — `backend/tests/test_patient_questionnaire_service.py`(상단)
+
+```python
+import json
+import pytest
+from uuid import uuid4
+
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.services import patient_booking_service, patient_questionnaire_service
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+_Q = json.dumps([
+    {"id": "q1", "text": "증상은?", "type": "text", "required": True, "visible_to": "모든 환자"},
+    {"id": "q2", "text": "임신 가능성?", "type": "yesno", "required": True, "visible_to": "여성 환자만"},
+], ensure_ascii=False)
+
+
+async def _seed_appt(db_conn, *, gender="F"):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id=$1 where id=$2", dept, doctor["staff_id"])
+    await db_conn.execute("insert into questionnaire_templates (department_id, questions) values ($1,$2)", dept, _Q)
+    slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,'2999-08-01','09:00') returning id",
+        doctor["staff_id"])
+    ps = await seed_patient(db_conn, gender=gender)
+    me = PatientContext(id=ps["patient_id"], auth_user_id=ps["auth_user_id"])
+    aid = await patient_booking_service.create_booking(
+        me, for_patient_id=me.id, department_id=dept, doctor_id=doctor["staff_id"],
+        slot_id=slot, reason="감기", request_id=uuid4())
+    return {"me": me, "dept": dept, "appointment_id": aid}
+
+
+@pytest.mark.asyncio
+async def test_migration_adds_completed_at(db_conn):
+    assert await db_conn.fetchval(
+        "select 1 from information_schema.columns where table_name='questionnaire_responses' "
+        "and column_name='completed_at'") == 1
+```
+Run → Expected: FAIL(칸 없음).
+
+- [ ] **Step 2: 마이그레이션 SQL** — `supabase/migrations/00021_questionnaire_completion.sql`
+
+```sql
+-- QNR-STATE-08(갭 #50): submitted_at은 저장마다 갱신되어 완료 판정 불가 → 완료 전용 칸.
+alter table questionnaire_responses add column completed_at timestamptz;
+
+-- 환자 문진 INSERT/UPDATE. #21: 수정 가능 = 진료중 전(예약신청·확정·도착·진료대기). 서비스 EDITABLE_STATUSES와 이중 방어.
+-- (재작성본 Task 1은 SELECT 정책만 열었다. 00007의 grant에는 update가 없어 여기서 연다.)
+grant update on questionnaire_responses to authenticated;
+create policy "patients_can_insert_own_questionnaire" on questionnaire_responses
+  for insert with check (exists (
+    select 1 from public.appointments a
+    where a.id = questionnaire_responses.appointment_id
+      and patient_owns(a.for_patient_id)
+      and a.status in ('예약신청','예약확정','도착','진료대기')));
+create policy "patients_can_update_own_questionnaire" on questionnaire_responses
+  for update using (exists (
+    select 1 from public.appointments a
+    where a.id = questionnaire_responses.appointment_id
+      and patient_owns(a.for_patient_id)
+      and a.status in ('예약신청','예약확정','도착','진료대기')))
+  with check (exists (
+    select 1 from public.appointments a
+    where a.id = questionnaire_responses.appointment_id
+      and patient_owns(a.for_patient_id)
+      and a.status in ('예약신청','예약확정','도착','진료대기')));
+```
+Run → Expected: PASS(Step 1).
+
+- [ ] **Step 3: 서비스 실패 테스트(성별 필터·부분저장·완료·수정시점)** — 같은 파일에 이어서
+
+```python
+@pytest.mark.asyncio
+async def test_get_template_filters_by_for_patient_gender(db_conn):
+    # QNR-SHOW-01: 남성은 '여성 환자만' 문항이 빠지고 total도 준다.
+    ctx = await _seed_appt(db_conn, gender="M")
+    tpl = await patient_questionnaire_service.get_template(ctx["me"], ctx["appointment_id"])
+    assert [q["id"] for q in tpl["questions"]] == ["q1"] and tpl["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_template_shows_female_only_for_female(db_conn):
+    ctx = await _seed_appt(db_conn, gender="F")
+    tpl = await patient_questionnaire_service.get_template(ctx["me"], ctx["appointment_id"])
+    assert [q["id"] for q in tpl["questions"]] == ["q1", "q2"] and tpl["total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_autosave_is_writing_not_complete(db_conn):
+    # QNR-STATE-02·04: 자동 저장은 '작성 중'이고 completed_at을 찍지 않는다. 진행률은 답 수/보이는 수.
+    ctx = await _seed_appt(db_conn, gender="F")
+    ans = [{"question_id": "q1", "question_text": "증상은?", "value": "기침"}]
+    r = await patient_questionnaire_service.save_response(ctx["me"], ctx["appointment_id"], ans, complete=False)
+    assert r["state"] == "작성 중" and r["answered"] == 1 and r["total"] == 2
+    assert await db_conn.fetchval(
+        "select completed_at from questionnaire_responses where appointment_id=$1", ctx["appointment_id"]) is None
+
+
+@pytest.mark.asyncio
+async def test_submit_marks_complete_and_snapshots_text(db_conn):
+    # QNR-STATE-03·04 + QNR-ID-02: [제출하기]는 completed_at을 찍고, 답에 그때 질문 글자가 남는다.
+    ctx = await _seed_appt(db_conn, gender="F")
+    ans = [{"question_id": "q1", "question_text": "증상은?", "value": "기침"},
+           {"question_id": "q2", "question_text": "임신 가능성?", "value": "아니오"}]
+    r = await patient_questionnaire_service.save_response(ctx["me"], ctx["appointment_id"], ans, complete=True)
+    assert r["state"] == "작성완료" and r["answered"] == 2
+    saved = await patient_questionnaire_service.get_response(ctx["me"], ctx["appointment_id"])
+    assert saved["state"] == "작성완료" and saved["completed_at"] is not None
+    assert saved["answers"][0]["question_text"] == "증상은?"  # 스냅샷 보존
+
+
+@pytest.mark.asyncio
+async def test_autosave_keeps_completed_at_once_submitted(db_conn):
+    ctx = await _seed_appt(db_conn, gender="F")
+    ans = [{"question_id": "q1", "question_text": "증상은?", "value": "기침"}]
+    await patient_questionnaire_service.save_response(ctx["me"], ctx["appointment_id"], ans, complete=True)
+    r = await patient_questionnaire_service.save_response(ctx["me"], ctx["appointment_id"], ans, complete=False)
+    assert r["state"] == "작성완료"  # 이미 완료된 것을 자동저장이 되돌리지 않는다
+
+
+@pytest.mark.asyncio
+async def test_save_rejected_from_treatment_start(db_conn):
+    # #21: 진료중부터 읽기 전용. 도착/진료대기까지는 허용.
+    ctx = await _seed_appt(db_conn, gender="F")
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    await db_conn.execute("update appointments set status='도착' where id=$1", ctx["appointment_id"])
+    ans = [{"question_id": "q1", "question_text": "증상은?", "value": "기침"}]
+    r = await patient_questionnaire_service.save_response(ctx["me"], ctx["appointment_id"], ans, complete=False)
+    assert r["answered"] == 1  # 도착 상태는 허용
+    await db_conn.execute("update appointments set status='진료중' where id=$1", ctx["appointment_id"])
+    with pytest.raises(AppError) as e:
+        await patient_questionnaire_service.save_response(ctx["me"], ctx["appointment_id"], ans, complete=False)
+    assert e.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_get_response_none_when_unwritten(db_conn):
+    ctx = await _seed_appt(db_conn, gender="F")
+    assert await patient_questionnaire_service.get_response(ctx["me"], ctx["appointment_id"]) is None
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 4: `patient_questionnaire_service.py` 구현**
+
+```python
+import json
+from uuid import UUID
+
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+
+EDITABLE_STATUSES = ("예약신청", "예약확정", "도착", "진료대기")  # #21: 진료중부터 읽기 전용
+_GENDER_ONLY = {"여성 환자만": "F", "남성 환자만": "M"}  # 나머지('모든 환자')는 항상 보인다
+
+
+def _visible(question: dict, gender: str) -> bool:
+    required = _GENDER_ONLY.get(question.get("visible_to", "모든 환자"))
+    return required is None or required == gender  # QNR-SHOW-01
+
+
+def compute_progress(questions: list[dict], gender: str, answers: list) -> dict:
+    """QNR-PROG-04: 서버 한 곳에서 센다(앱·알림 배치가 재사용). 분자=지나간 답 수, 분모=보이는 문항 수."""
+    total = sum(1 for q in questions if _visible(q, gender))       # QNR-PROG-02·03·SHOW-05
+    return {"answered": len(answers), "total": total}             # QNR-PROG-01·05(빈 답도 셈)
+
+
+def _load(questions) -> list:
+    return json.loads(questions) if isinstance(questions, str) else questions
+
+
+async def _appt_and_template(conn, appointment_id: UUID):
+    appt = await conn.fetchrow(
+        "select status, department_id, for_patient_id from appointments where id=$1", appointment_id)
+    if appt is None:
+        raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+    tpl = await conn.fetchrow(
+        "select id, questions from questionnaire_templates where department_id=$1 limit 1", appt["department_id"])
+    gender = await conn.fetchval("select gender from patients where id=$1", appt["for_patient_id"])
+    return appt, tpl, gender
+
+
+async def get_template(patient: PatientContext, appointment_id: UUID) -> dict | None:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        _appt, tpl, gender = await _appt_and_template(conn, appointment_id)
+    if tpl is None:
+        return None
+    visible = [q for q in _load(tpl["questions"]) if _visible(q, gender)]  # QNR-SHOW
+    return {"id": tpl["id"], "questions": visible, "total": len(visible)}
+
+
+async def save_response(patient: PatientContext, appointment_id: UUID,
+                        answers: list[dict], complete: bool = False) -> dict:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        appt, tpl, gender = await _appt_and_template(conn, appointment_id)
+        if appt["status"] not in EDITABLE_STATUSES:
+            raise AppError("진료가 시작되기 전까지만 사전문진을 작성할 수 있습니다.", status_code=400)  # #21
+        if tpl is None:
+            raise AppError("해당 진료과의 문진 양식이 없습니다.", status_code=404)
+        # 자동저장(complete=False)은 completed_at을 건드리지 않는다(QNR-STATE-04). 이미 완료면 유지.
+        row = await conn.fetchrow(
+            "insert into questionnaire_responses (appointment_id, template_id, answers, completed_at) "
+            "values ($1,$2,$3, case when $4 then now() else null end) "
+            "on conflict (appointment_id) do update set "
+            "  template_id = excluded.template_id, answers = excluded.answers, submitted_at = now(), "
+            "  completed_at = case when $4 then now() else questionnaire_responses.completed_at end "
+            "returning id, completed_at",
+            appointment_id, tpl["id"], json.dumps(answers, ensure_ascii=False), complete)
+        prog = compute_progress(_load(tpl["questions"]), gender, answers)
+    state = "작성완료" if row["completed_at"] is not None else "작성 중"  # QNR-STATE-02·03
+    return {"id": row["id"], "state": state, **prog}
+
+
+async def get_response(patient: PatientContext, appointment_id: UUID) -> dict | None:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select id, answers, submitted_at, completed_at from questionnaire_responses where appointment_id=$1",
+            appointment_id)
+        if row is None:
+            return None  # QNR-STATE-01: 행 없음 = 미작성(호출자가 판정)
+        _appt, tpl, gender = await _appt_and_template(conn, appointment_id)
+    answers = _load(row["answers"])
+    prog = compute_progress(_load(tpl["questions"]) if tpl else [], gender, answers)
+    state = "작성완료" if row["completed_at"] is not None else "작성 중"
+    return {"id": row["id"], "answers": answers, "state": state,
+            "completed_at": row["completed_at"], **prog}
+```
+
+- [ ] **Step 5: 전체 테스트 실행**
+
+Run: `cd backend && pytest tests/test_patient_questionnaire_service.py -v`
+Expected: **8개 PASS**(마이그레이션 1 + 성별 2 + 부분저장/완료 3 + 수정시점 1 + 미작성 1).
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add supabase/migrations/00021_questionnaire_completion.sql backend/app/services/patient_questionnaire_service.py backend/tests/test_patient_questionnaire_service.py backend/tests/conftest.py
+git commit -m "feat: 📝 환자앱 Task 7 본문 — 사전문진 서비스(완료칸 00021·진행률 서버계산·성별 노출 #17·수정시점 #21)"
+```
+
+> 📌 **알림 배치가 `compute_progress`를 재사용**한다(`QNR-PROG-04·QNR-NOTI-06`) — 「남은 수 = total − answered」(`QNR-PROG-10`)로 문구를 만든다. 배치는 진행률을 따로 세지 않는다.
+> 📌 **미작성/작성 중 판정은 서버 값으로**(`QNR-STATE`) — 화면(Task 24)·홈 카드(Task 17 `CARD-QNR-*`)·알림 배치가 같은 `state`·`answered`·`total`을 쓴다. 옛 구현의 "행 존재 여부로만 판정"(갭 #50·#53)을 `completed_at`이 대체한다.
+> 📌 **미완성 문진 이관은 Task 5가 이미 한다**(`move_questionnaire_response`) — `QNR-LIVE-09`("완료 표시 없는 상태 그대로 옮겨 작성 중 유지")는 `completed_at`을 그대로 옮겨 성립한다(별도 처리 불필요).
+> 📌 **옛 플랜 `submit_response`는 폐기하고 `save_response(complete=bool)`로 대체**했다 — 부분저장(자동, `complete=False`)과 제출(완료, `complete=True`)을 한 함수로 합쳐 `completed_at`으로 가른다(옛 upsert는 완료 개념이 없어 1문항만 써도 작성완료로 보였다, 갭 #50).
