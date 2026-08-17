@@ -1592,6 +1592,9 @@ async def list_departments(patient: PatientContext) -> list[dict]:
     return [dict(r) for r in rows]
 
 async def list_doctors(department_id: UUID, patient: PatientContext) -> list[dict]:
+    # ⚠️ 핀(갭 #7, 경계 갭 대조표): 지금은 id·name만. 「예약 3단계 의사 소개」 화면(환자앱 T19)을 쓸 때
+    #    전공·소개·사진을 함께 반환하도록 확장한다 — 칸은 직원웹 T19 STAFF-PROFILE 마이그레이션이 staff에 얹는다
+    #    (그 스키마 확정 뒤 select에 추가). 사진은 버킷 경로/서명 URL.
     async with acquire_as(str(patient.auth_user_id)) as conn:
         rows = await conn.fetch(
             "select id, name from staff where role='doctor' and department_id=$1 and is_active order by name",
