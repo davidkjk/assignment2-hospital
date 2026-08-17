@@ -975,6 +975,10 @@ def main():
     root = pathlib.Path(__file__).resolve().parents[3]
     plan = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / DEFAULT_PLAN
     lines = plan.read_text().split("\n")
+    # 🕳 미배정 검사는 영역별 규칙 문서를 기준으로 삼는다. 플랜 파일명으로 영역을 유도하지 않으면
+    #    기본값(staff-web)으로 대조해 다른 영역 플랜에서 거대한 오탐이 난다(patient-app 229계열 오탐, 2026-08-17).
+    _area = next((a for a, p in _coverage().PLANS.items()
+                  if pathlib.Path(p).name == plan.name), "staff-web")
 
     spans = task_spans(lines)
     if not spans:
@@ -1086,7 +1090,7 @@ def main():
         print("     표시만 낡은 것 ③진짜 이월할 것으로 갈라 본문에 적을 것. 근거가 「목업 검토 때")
         print("     뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것(있으면 낡은 표시다).")
 
-    if orphans := unassigned_prefixes(root, assigned, "\n".join(lines)):
+    if orphans := unassigned_prefixes(root, assigned, "\n".join(lines), area=_area):
         total = sum(n for _, n in orphans)
         print(f"\n🕳  **표에도 본문에도 없는 접두어** {len(orphans)}계열 · 규칙 {total}개 — 아무도 안 건드렸다:")
         for p, n in orphans[:12]:
