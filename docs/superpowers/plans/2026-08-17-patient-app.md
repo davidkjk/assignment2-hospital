@@ -2871,3 +2871,496 @@ git commit -m "feat: 📝 환자앱 Task 8 본문 — 예약 조회 + 이력 4�
 > 📌 **`estimated_wait_minutes`는 raw 분**이다 — 5분 반올림·`약`·`곧 들어가십니다`(0명)·`약 1시간 이상`(60분 초과)은 화면(Task 16·17 `CARD-WAIT-05~07`)이 입힌다. 챗봇(4단계)·직원 웹도 같은 RPC를 호출해 숫자를 일치시킨다(`CARD-WAIT-08`).
 > 📌 **취소 주체(누가 취소)는 화면이 상세로 판단**한다 — `HIST-ROW-02`("병원에서/본인/배우자 김○○")는 `CARD-CXL-*` 3갈래(Task 17)를 재사용하고, 목록 줄은 `status`(환자취소/병원취소)만 준다. 이력 목록에 취소자 이름 조인을 넣지 않는다(얇은 줄 유지).
 > 📌 **`list_my_appointments`의 `slot_date >= current_date`** — 직원이 상태전이를 깜빡한 지난 예약이 홈에 「다음 예약」으로 계속 뜨는 것을 막는다(미배정 슬롯은 날짜 없어 항상 포함). 그 지난 예약은 이력 쪽 `확정되지않음`(예약신청) 또는 미정의 엣지(예약확정)로 간다.
+
+---
+
+## Task 9: 알림 dispatcher — `notify_patient()` 판정 계층 + `device_tokens`(`00023`, #5·#111·#120·#125·#126)
+
+> **담당 규칙**: 없음(백엔드 계약). 예약 서비스(Task 5)·리마인더 cron(배포)·직원 상태전이(직원웹 코2)가 `notify_patient`를 호출하고, 알림함(Task 18)·알림 설정(Task 28)이 `notification_log`·`notification_preferences`를 소비한다.
+>
+> ⭐ **이 태스크는 「판정 계층」이다 — 실제 배달은 짓지 않는다.** 옛 플랜 Task 12(`plans/2026-07-27-patient-app.md:2975~3399`)의 단순 dispatcher(토큰 있으면 push·없으면 sms)를 **결정 #109·#111·#125·#126에 맞춰 재편**하고, **배달·콜백·재시도·죽은토큰은 직원웹 T30이 소유한 `dispatch_service`에 넘긴다**(색인 119 「같은 dispatcher」·중복 금지).
+>
+> **소유 경계(⭐ 중복 방지 — 원문 대조 완료 2026-08-17)**
+> - **이 태스크가 만드는 것**: `notify_patient()`(진입점 — 선호도→문구→채널→dedup→발송로그 판정) · `device_token_service`(register/unregister) · `00023 device_tokens` · 예약 서비스 알림 배관.
+> - **이 태스크가 소비만 하는 것**(직원웹 T30 소유, `staff-web.md:12923~`): `dispatch_service.send_now(notification_ids, conn)`(푸시 즉시·문자 접수) · `dispatch_service._sms_eligible(patient, conn)`(**공용 채널 판정 — 아래 「3) 채널」이 이 헬퍼를 쓴다**) · `apply_status_callback` · `run_retry_worker`(일시실패 1·5분 2회) · `mark_sms_dead` · `is_transient` · `notify_clients.PushClient/SmsClient` · `POST /provider/status-callback`(**#122 Twilio 서명검증** — 배포 플랜과 T30이 소유, 여기서 **안 만든다**). ⚠️ 직원웹은 2단계라 이 태스크 구현 전 이미 존재한다(구현 순서 1→2→3 확정).
+> - ⭐ **죽은 푸시 토큰(#100·㉮)은 T30 `send_now`가 처리한다** — 발송 순간 `UNREGISTERED`면 **이 태스크가 만든 `device_tokens` 줄을 T30이 삭제**하고(서비스 역할이라 RLS 우회, 새 정책 불필요) **그 자리에서 문자로 폴백**한다(`SEND-RESULT-03b·03c`). 그래서 `notify_patient`의 초기 채널 판정과 `send_now`의 폴백 판정이 **같은 `_sms_eligible`**를 써야 갈라지지 않는다(`HSET-SMS-05`).
+> - **범위 밖**: marketing 대량발송·광고 동의(`consent`) 필터·**야간 차단**은 직원 `enqueue_send`(직원웹 T28)와 Task 13(consent 칸) 몫이다. **야간 차단은 marketing 전용이라 트랜잭션 `notify_patient`엔 적용하지 않는다**(예약확정 문자는 밤에도 나가야 한다 — 결정 「⑤ 야간 발송」은 광고·예약발송 cron의 특수 경우).
+>
+> ⚠️ **④ 공용표는 재생성 금지**(`00011~00016` 이미 적용): `notification_log`(`00011` — `channel` NOT NULL·`delivery_status` 기본 `발송중`·부분 dedup 인덱스) · `notification_preferences`(`00012` — 줄 없으면 켜짐) · `notification_type_settings`(`00013` — `body`·`also_sms`, 줄 없으면 코드 기본) · `patients.sms_dead`(`00014`) · `scheduled_notifications`(`00016`). 이 태스크는 **`device_tokens`만 신설**한다.
+>
+> ⚠️ **`hospital_settings.sms_enabled`(병원 문자 전체 on/off, #111)의 원소유는 직원웹 T29(`00035`)**지만 발송이 반드시 읽어야 하고 의존 순서상 화면보다 앞서므로 `00023`이 **`add column if not exists`로 물리적 생성만** 한다(Task 5의 `auto_confirm_app_bookings` 선례 — 「먼저 적용하는 쪽 우선」, 충돌 없음). `sms_recipients`·`sms_opt_out_number`(대량발송·광고 전용)는 만들지 않는다.
+>
+> ⚠️ **채널은 한 이벤트당 한 줄·한 채널**이다 — `00011`의 dedup 부분 인덱스가 `(appointment_id, notification_type)` 단위라 push·sms 두 줄을 쓰면 유니크 위반이 난다. 트랜잭션 알림은 **push 우선, 토큰 없으면 sms 폴백**(`SEND-CH-01` 기본값)의 단일 채널로 처리한다. `channel`엔 **실제 보낸 값**을 넣는다(#120 — 상수 `'push'` 박기 금지).
+>
+> ⚠️ **서비스 역할로 read/write** — `notify_patient`는 여러 환자의 선호도·토큰·병원설정을 읽고 `notification_log`에 쓰므로 RLS 정책이 없는 서비스 역할 커넥션(`get_pool().acquire()`)을 쓴다(`00011`·`00012` 주석의 계약). `device_token_service`만 환자 본인 커넥션(`acquire_as`)을 쓴다.
+
+**Files:**
+- Create: `supabase/migrations/00023_device_tokens.sql`
+- Create: `backend/app/services/device_token_service.py` · `backend/app/services/notification_service.py`
+- Modify: `backend/app/services/patient_booking_service.py`(Task 5 — `create_booking`·`change_booking` 트랜잭션 종료 직후 알림 호출 한 줄)
+- Test: `backend/tests/test_device_token_service.py` · `backend/tests/test_notification_service.py` · `backend/tests/test_patient_booking_service.py`(알림 배관 2건 추가)
+
+**Interfaces:**
+- Consumes:
+  - `PatientContext`(Task 2) · `acquire_as`·`get_pool`(1단계 `app.db.pool`) · `AppError`·`log_error`(1단계 `app.core.errors`)
+  - `dispatch_service.send_now(notification_ids: list[UUID], conn) -> None`(직원웹 T30 — 실제 배달)
+  - `notification_log`·`notification_preferences`·`notification_type_settings`·`patients.sms_dead`(④ `00011~00014`) · `hospital_settings.sms_enabled`(직원웹 T29 `00035`, `00023`이 `if not exists`로 선생성) · `appointments`·`appointment_slots`(1단계 — 날짜·시각 치환)
+  - `private.current_patient_id()`·`patient_owns()`(Task 1) · `private.is_active_staff()`(1단계)
+  - `patient_booking_service.create_booking(...)`·`change_booking(...)`(Task 5 — 여기서 Modify)
+- Produces:
+  - `device_token_service.register_token(patient: PatientContext, fcm_token: str) -> None` · `unregister_token(patient: PatientContext, fcm_token: str) -> None`
+  - `notification_service.notify_patient(account_patient_id: UUID, notification_type: str, *, kind: str = "transactional", target_name: str | None = None, appointment_id: UUID | None = None) -> None`(선호도 off·보낼 수단 없음·중복이면 조용히 무발송)
+  - `notification_service.MESSAGES: dict[str, str]`(코드 기본 문구 표 — DB에 줄 없으면 이 값이 원본, #126)
+  - DB 테이블 `device_tokens(id, patient_id, fcm_token, created_at)`
+
+- [ ] **Step 1: `00023` 마이그레이션 작성**
+
+`supabase/migrations/00023_device_tokens.sql`:
+```sql
+-- 3단계 알림: FCM 기기 토큰. 발송 직전 dispatcher가 조회해 채널(푸시/문자폴백)을 정한다.
+-- ⛔ 토큰은 '삭제 중심'이 아니라 보존한다 — 끈 알림은 발송 직전 선호도로 거른다
+--    (옛 플랜의 '토큰 삭제' 방식 폐기, 색인 47행·구조결정 「알림 선호도」).
+-- ⚠️ 번호는 Task 8(00022) 다음 = 00023. 직원웹도 00017+ 대역을 쓰므로 실제 번호는 구현 시점 확정(먼저 적용하는 쪽 우선).
+create table device_tokens (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references patients(id),
+  fcm_token text not null,
+  created_at timestamptz not null default now(),
+  unique (patient_id, fcm_token)   -- 같은 기기 재등록은 on conflict do nothing으로 무해
+);
+
+alter table device_tokens enable row level security;
+
+-- 로그인 본인만 자기 토큰을 관리한다(가족은 로그인하지 않으므로 토큰이 없다 — current_patient_id로 못박아 가족 id 등록 방지).
+create policy "patients_can_manage_own_device_tokens" on device_tokens
+  for all
+  using (private.current_patient_id() = device_tokens.patient_id)
+  with check (private.current_patient_id() = device_tokens.patient_id);
+
+-- 직원 발송(2단계)이 문자/푸시 대상 판정을 위해 읽는다.
+create policy "staff_can_read_device_tokens" on device_tokens
+  for select
+  using (private.is_active_staff());
+
+create index idx_device_tokens_patient on device_tokens (patient_id);
+
+-- #111: notify_patient가 병원 문자정책(문자 전체 on/off)을 판정에 넣는다(HSET-SMS-01 ①).
+-- 칸의 원소유는 직원웹 T29(00035)지만 발송이 반드시 읽어야 하고 순서상 화면보다 앞서므로 물리적 생성만 한다.
+-- 직원웹 00035도 같은 칸을 default true로 만든다 — 먼저 적용하는 쪽이 만들고 뒤는 no-op(if not exists).
+alter table hospital_settings
+  add column if not exists sms_enabled boolean not null default true;
+```
+
+- [ ] **Step 2: 적용 + 실패 테스트 — device_token_service**
+
+Run: `supabase migration up`
+Expected: `00023` 적용, 오류 없음.
+
+`backend/tests/test_device_token_service.py`:
+```python
+import pytest
+
+from app.core.patient_security import PatientContext
+from app.services import device_token_service
+from tests.conftest import seed_patient
+
+
+def _ctx(s): return PatientContext(id=s["patient_id"], auth_user_id=s["auth_user_id"])
+
+
+@pytest.mark.asyncio
+async def test_register_is_idempotent_and_unregister_removes(db_conn):
+    me = _ctx(await seed_patient(db_conn))
+    await device_token_service.register_token(me, "fcm-1")
+    await device_token_service.register_token(me, "fcm-1")            # 같은 기기 재등록은 무해
+    assert await db_conn.fetchval(
+        "select count(*) from device_tokens where patient_id=$1", me.id) == 1
+
+    await device_token_service.unregister_token(me, "fcm-1")
+    assert await db_conn.fetchval(
+        "select count(*) from device_tokens where patient_id=$1", me.id) == 0
+```
+
+Run: `cd backend && pytest tests/test_device_token_service.py -v`
+Expected: FAIL(모듈 없음)
+
+- [ ] **Step 3: 구현 — device_token_service**
+
+`backend/app/services/device_token_service.py`:
+```python
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+
+
+async def register_token(patient: PatientContext, fcm_token: str) -> None:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        await conn.execute(
+            "insert into device_tokens (patient_id, fcm_token) values ($1, $2) on conflict do nothing",
+            patient.id, fcm_token,
+        )
+
+
+async def unregister_token(patient: PatientContext, fcm_token: str) -> None:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        await conn.execute(
+            "delete from device_tokens where patient_id = $1 and fcm_token = $2",
+            patient.id, fcm_token,
+        )
+```
+
+Run: `cd backend && pytest tests/test_device_token_service.py -v`
+Expected: 1 PASS
+
+- [ ] **Step 4: 실패 테스트 — notification_service (판정)**
+
+`backend/tests/test_notification_service.py`:
+```python
+import pytest
+
+from app.services import dispatch_service, notification_service
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+
+@pytest.fixture
+def sent(monkeypatch):
+    """직원웹 T30의 배달 계층을 스텁한다 — 이 태스크는 '판정'만 검증한다."""
+    calls = []
+    async def fake_send_now(notification_ids, conn):
+        calls.append(list(notification_ids))
+    monkeypatch.setattr(dispatch_service, "send_now", fake_send_now)
+    return calls
+
+
+async def _appt(db_conn, patient_id, *, slot=None):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    dept = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    doctor = await seed_staff(db_conn, role="doctor")
+    slot_id = None
+    if slot is not None:
+        slot_date, start_time = slot
+        slot_id = await db_conn.fetchval(
+            "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,$2,$3) returning id",
+            doctor["staff_id"], slot_date, start_time)
+    return await db_conn.fetchval(
+        "insert into appointments (account_patient_id, for_patient_id, department_id, doctor_id, slot_id, status, source) "
+        "values ($1,$1,$2,$3,$4,'예약확정','app') returning id",
+        patient_id, dept, doctor["staff_id"], slot_id)
+
+
+@pytest.mark.asyncio
+async def test_preference_off_sends_nothing(db_conn, sent):
+    # #5: enabled=false면 푸시·문자·알림함(로그) 어디에도 생성하지 않는다.
+    p = await seed_patient(db_conn)
+    await db_conn.execute(
+        "insert into notification_preferences (patient_id, notification_type, enabled) values ($1,'confirmed',false)",
+        p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "confirmed")
+    assert sent == []
+    assert await db_conn.fetchval(
+        "select count(*) from notification_log where patient_id=$1", p["patient_id"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_push_when_token_exists(db_conn, sent):
+    p = await seed_patient(db_conn)
+    await db_conn.execute("insert into device_tokens (patient_id, fcm_token) values ($1,'t')", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "confirmed")
+    row = await db_conn.fetchrow(
+        "select channel, delivery_status, body from notification_log where patient_id=$1", p["patient_id"])
+    assert row["channel"] == "push"                 # #120: 실제 채널
+    assert row["delivery_status"] == "발송중"        # #119: 기록이 발송보다 먼저
+    assert row["body"] == "예약이 확정되었습니다."
+    assert len(sent) == 1                            # 배달 계층으로 넘어갔다
+
+
+@pytest.mark.asyncio
+async def test_sms_fallback_when_no_token(db_conn, sent):
+    # SEND-CH-01 기본값: 토큰 없으면 문자 폴백. #120: 'push' 상수로 안 박힌다.
+    p = await seed_patient(db_conn)
+    await notification_service.notify_patient(p["patient_id"], "confirmed")
+    assert await db_conn.fetchval(
+        "select channel from notification_log where patient_id=$1", p["patient_id"]) == "sms"
+    assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_hospital_sms_off_blocks_fallback(db_conn, sent):
+    # #111: 병원이 문자를 끄면 토큰 없는 사람에게도 아무것도 나가지 않는다(발송 시도 자체를 막는다).
+    await db_conn.execute("update hospital_settings set sms_enabled=false")
+    p = await seed_patient(db_conn)
+    await notification_service.notify_patient(p["patient_id"], "confirmed")
+    assert sent == []
+    assert await db_conn.fetchval(
+        "select count(*) from notification_log where patient_id=$1", p["patient_id"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_sms_dead_blocks_sms(db_conn, sent):
+    # 00014: 번호가 죽은(sms_dead) 사람에게 문자 폴백을 시도하지 않는다.
+    p = await seed_patient(db_conn)
+    await db_conn.execute("update patients set sms_dead=true where id=$1", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "confirmed")
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_dedup_same_appointment_and_type(db_conn, sent):
+    # 00011 부분 유니크 인덱스: 같은 예약·같은 종류는 한 번만.
+    p = await seed_patient(db_conn)
+    appt = await _appt(db_conn, p["patient_id"])
+    await db_conn.execute("insert into device_tokens (patient_id, fcm_token) values ($1,'t')", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "confirmed", appointment_id=appt)
+    await notification_service.notify_patient(p["patient_id"], "confirmed", appointment_id=appt)
+    assert await db_conn.fetchval("select count(*) from notification_log where appointment_id=$1", appt) == 1
+    assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_row_bypasses_dedup(db_conn, sent):
+    # #121: delivery_status='실패' 줄은 부분 인덱스 조건(delivery_status<>'실패')이 비켜가 재발송이 가능하다.
+    p = await seed_patient(db_conn)
+    appt = await _appt(db_conn, p["patient_id"])
+    await db_conn.execute(
+        "insert into notification_log (appointment_id, patient_id, notification_type, kind, channel, delivery_status) "
+        "values ($1,$2,'confirmed','transactional','sms','실패')", appt, p["patient_id"])
+    await db_conn.execute("insert into device_tokens (patient_id, fcm_token) values ($1,'t')", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "confirmed", appointment_id=appt)
+    assert await db_conn.fetchval("select count(*) from notification_log where appointment_id=$1", appt) == 2
+
+
+@pytest.mark.asyncio
+async def test_target_name_prefixes_body(db_conn, sent):
+    # R2-05: 가족 예약이면 대상자 이름을 본문 앞에 붙인다.
+    p = await seed_patient(db_conn)
+    await db_conn.execute("insert into device_tokens (patient_id, fcm_token) values ($1,'t')", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "confirmed", target_name="민준")
+    body = await db_conn.fetchval("select body from notification_log where patient_id=$1", p["patient_id"])
+    assert body.startswith("민준님")
+
+
+@pytest.mark.asyncio
+async def test_reminder_includes_date_and_time(db_conn, sent):
+    # #125: 리마인더 본문에 날짜·시각이 채워진다(중장년층이 앱을 안 열어도 몇 시인지 안다).
+    from datetime import date, time
+    p = await seed_patient(db_conn)
+    appt = await _appt(db_conn, p["patient_id"], slot=(date(2026, 8, 20), time(14, 0)))
+    await db_conn.execute("insert into device_tokens (patient_id, fcm_token) values ($1,'t')", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "reminder_day_before", appointment_id=appt)
+    body = await db_conn.fetchval("select body from notification_log where patient_id=$1", p["patient_id"])
+    assert "8월 20일" in body and "오후 2시" in body
+
+
+@pytest.mark.asyncio
+async def test_reminder_without_slot_emits_no_null(db_conn, sent):
+    # #125: slot이 없으면(당일 워크인) 시각 자리만 조용히 빠지고 빈칸·null·'{when}'이 나가지 않는다.
+    p = await seed_patient(db_conn)
+    appt = await _appt(db_conn, p["patient_id"], slot=None)
+    await db_conn.execute("insert into device_tokens (patient_id, fcm_token) values ($1,'t')", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "reminder_today", appointment_id=appt)
+    body = await db_conn.fetchval("select body from notification_log where patient_id=$1", p["patient_id"])
+    assert body == "오늘 예약이 있습니다." and "{when}" not in body and "None" not in body
+
+
+@pytest.mark.asyncio
+async def test_body_override_from_settings(db_conn, sent):
+    # #126: notification_type_settings.body가 있으면 코드 기본 문구를 덮어쓴다(줄 없으면 코드값 = 되돌리기는 그 줄 삭제).
+    await db_conn.execute(
+        "insert into notification_type_settings (notification_type, body) values ('confirmed','예약 확정! 방문 잊지 마세요.')")
+    p = await seed_patient(db_conn)
+    await db_conn.execute("insert into device_tokens (patient_id, fcm_token) values ($1,'t')", p["patient_id"])
+    await notification_service.notify_patient(p["patient_id"], "confirmed")
+    assert await db_conn.fetchval(
+        "select body from notification_log where patient_id=$1", p["patient_id"]) == "예약 확정! 방문 잊지 마세요."
+```
+
+Run: `cd backend && pytest tests/test_notification_service.py -v`
+Expected: FAIL(모듈 없음)
+
+- [ ] **Step 5: 구현 — notification_service**
+
+`backend/app/services/notification_service.py`:
+```python
+from datetime import date, time
+from uuid import UUID
+
+from app.db.pool import get_pool
+from app.services import dispatch_service   # 직원웹 T30 소유(2단계 먼저 구현). 실제 배달을 넘긴다.
+
+# 코드 기본 문구 표 — DB(notification_type_settings)에 줄이 없으면 이 값이 원본이다(#126).
+# {when}은 날짜·시각 치환 자리(리마인더). 슬롯이 없으면 빈 문자열로 채워 그 자리만 조용히 빠진다(#125).
+# ⚠️ 11번째 '직원 상담 답변 도착'은 4단계(챗봇) 몫이라 여기 없다 — 그때 한 줄 추가된다.
+MESSAGES = {
+    "requested": "예약이 신청되었습니다.",
+    "confirmed": "예약이 확정되었습니다.",
+    "changed": "예약이 변경되었습니다.",
+    "reminder_day_before": "내일{when} 예약이 있습니다. 잊지 말고 방문해 주세요.",
+    "reminder_today": "오늘{when} 예약이 있습니다.",
+    "hospital_cancelled": "병원 사정으로 예약이 취소되었습니다.",
+    "cancellation_approved": "취소 요청이 처리되어 예약이 취소되었습니다.",
+    "cancellation_rejected": "취소가 어렵다는 답변을 받았습니다. 병원에 문의해 주세요.",
+    "questionnaire_missing": "사전문진 작성을 부탁드립니다.",
+    "visit_completed": "진료가 완료되었습니다. 안내를 확인해 주세요.",
+}
+
+
+def _format_when(slot_date: date, start_time: time) -> str:
+    """'8월 20일 오후 2시' 형태. 분이 있으면 '2시 30분'. (#125 중장년층 가독)"""
+    hour = start_time.hour
+    ampm = "오전" if hour < 12 else "오후"
+    h12 = hour % 12 or 12
+    minute = f" {start_time.minute}분" if start_time.minute else ""
+    return f"{slot_date.month}월 {slot_date.day}일 {ampm} {h12}시{minute}"
+
+
+async def notify_patient(
+    account_patient_id: UUID,
+    notification_type: str,
+    *,
+    kind: str = "transactional",
+    target_name: str | None = None,
+    appointment_id: UUID | None = None,
+) -> None:
+    """알림 발송의 '하나뿐인 판단 지점'(결정 #109). 선호도·문구·채널을 여기서 정하고,
+    실제 배달은 직원웹 T30의 dispatch_service.send_now에 넘긴다.
+    ⚠️ 항상 계정 소유자(account_patient_id)에게 보낸다. 가족 예약이면 target_name으로 대상자 이름을 본문에 명시한다.
+    ⚠️ 야간 차단은 marketing 전용이라 여기(트랜잭션)엔 적용하지 않는다."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # 1) 선호도 — 줄 없으면 켜짐. 끈 알림은 푸시·문자·알림함 어디에도 만들지 않는다(#5).
+        pref = await conn.fetchrow(
+            "select enabled from notification_preferences where patient_id=$1 and notification_type=$2",
+            account_patient_id, notification_type,
+        )
+        if pref is not None and not pref["enabled"]:
+            return
+
+        # 2) 문구 — DB(설정)가 있으면 그것, 없으면 코드 기본(#126). 날짜·시각·이름 치환(#125).
+        setting = await conn.fetchrow(
+            "select body from notification_type_settings where notification_type=$1", notification_type,
+        )
+        base = (setting["body"] if setting and setting["body"] else None) \
+            or MESSAGES.get(notification_type, "새 소식이 있습니다.")
+        when = ""
+        if appointment_id is not None:
+            slot = await conn.fetchrow(
+                "select s.slot_date, s.start_time from appointments a "
+                "join appointment_slots s on s.id = a.slot_id where a.id=$1",
+                appointment_id,
+            )
+            if slot and slot["slot_date"] is not None:
+                when = " " + _format_when(slot["slot_date"], slot["start_time"])
+        body = base.replace("{when}", when)
+        if target_name:
+            body = f"{target_name}님 {body}"
+
+        # 3) 채널 — push 우선, 토큰 없으면 문자 폴백(단일 채널; 00011 dedup이 채널 단위가 아님).
+        #    「문자 써도 되나」 판정은 배달 계층의 공용 헬퍼를 쓴다 — send_now의 죽은 토큰 폴백(SEND-RESULT-03c)과
+        #    같은 코드라 채널 판정이 갈라지지 않는다(HSET-SMS-05·#111).
+        tokens = await conn.fetch(
+            "select fcm_token from device_tokens where patient_id=$1", account_patient_id,
+        )
+        if tokens:
+            channel = "push"
+        elif await dispatch_service._sms_eligible(account_patient_id, conn):
+            channel = "sms"           # #111·SEND-CH-01 폴백. #120: 실제 채널을 기록한다.
+        else:
+            return                    # 보낼 수단 없음(병원 문자 off + 토큰 없음, 또는 죽은 번호)
+
+        # 4) 발송로그 먼저(기록이 발송보다 먼저 — #121). dedup은 00011 부분 인덱스, 실패 줄은 비켜간다.
+        nid = await conn.fetchval(
+            "insert into notification_log "
+            "(appointment_id, patient_id, notification_type, kind, body, channel, delivery_status) "
+            "values ($1,$2,$3,$4,$5,$6,'발송중') on conflict do nothing returning id",
+            appointment_id, account_patient_id, notification_type, kind, body, channel,
+        )
+        if nid is None:
+            return                    # 이미 같은 예약·종류로 닿은 이력이 있다(중복 발송 방지)
+
+        # 5) 실제 배달은 배달 계층(직원웹 T30)에 넘긴다 — 푸시 즉시/문자 접수 후 콜백으로 도달·실패 갱신.
+        await dispatch_service.send_now([nid], conn)
+```
+
+Run: `cd backend && pytest tests/test_notification_service.py -v`
+Expected: 12 PASS
+
+- [ ] **Step 6: 예약 서비스에 알림 배관 (Modify Task 5)**
+
+`backend/app/services/patient_booking_service.py`에서 `create_booking`의 `acquire_as` 트랜잭션 블록을 벗어난 직후에 best-effort 알림을 더한다. 알림은 **계정 소유자**(`patient.id`)에게 보내고, 가족 예약(`for_patient_id != patient.id`)이면 대상자 이름을 `target_name`으로 넘긴다:
+```python
+from app.services import notification_service
+
+
+async def create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason,
+                         request_id, source="app"):
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        ...  # 기존 로직(Task 5). 트랜잭션 끝에서 appointment_id·status 확보.
+        target_name = None
+        if for_patient_id != patient.id:
+            target_name = await conn.fetchval("select name from patients where id=$1", for_patient_id)
+    try:
+        await notification_service.notify_patient(
+            patient.id,
+            "confirmed" if status == "예약확정" else "requested",
+            target_name=target_name,
+            appointment_id=appointment_id,
+        )
+    except Exception:
+        pass   # 알림 실패가 예약을 되돌리지 않는다(1단계 best-effort 원칙).
+    return appointment_id
+```
+
+`change_booking`도 트랜잭션 블록 직후에 `"changed"` 알림을 더한다(`new_appointment_id`·`for_patient_id`는 기존 로직이 확보한 값):
+```python
+    try:
+        await notification_service.notify_patient(
+            patient.id, "changed", target_name=target_name, appointment_id=new_appointment_id,
+        )
+    except Exception:
+        pass
+    return new_appointment_id
+```
+(`cancel_appointment`는 즉시취소 성공 시 화면 안내로 충분하므로 알림을 생략한다. 마감 후 취소·변경 요청에 대한 직원의 승인/반려 알림(`cancellation_approved`/`cancellation_rejected`)은 직원웹(2단계)의 요청 처리 시점에 `notify_patient`를 호출한다 — 이 태스크 범위 밖.)
+
+`backend/tests/test_patient_booking_service.py`에 알림 배관 검증 2건 추가:
+```python
+@pytest.mark.asyncio
+async def test_create_booking_notifies_confirmed(db_conn, monkeypatch):
+    # 갭 #1 계보: 예약이 확정되면 알림을 부른다. (auto_confirm 기본 true → confirmed)
+    from app.services import patient_booking_service, notification_service
+    calls = []
+    async def fake(pid, ntype, **kw): calls.append(ntype)
+    monkeypatch.setattr(notification_service, "notify_patient", fake)
+    # ... 기존 _seed_base로 dept·doctor·slot·request_id 확보 후 create_booking 호출 ...
+    assert calls == ["confirmed"]
+
+
+@pytest.mark.asyncio
+async def test_change_booking_notifies_changed(db_conn, monkeypatch):
+    from app.services import patient_booking_service, notification_service
+    calls = []
+    async def fake(pid, ntype, **kw): calls.append(ntype)
+    monkeypatch.setattr(notification_service, "notify_patient", fake)
+    # ... 기존 예약 하나 만든 뒤 change_booking 호출 ...
+    assert calls == ["changed"]
+```
+
+- [ ] **Step 7: 전체 테스트**
+
+Run: `cd backend && pytest tests/test_device_token_service.py tests/test_notification_service.py tests/test_patient_booking_service.py -v`
+Expected: device 1 + notification 12 + booking(기존 + 알림 배관 2) 전부 PASS
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add supabase/migrations/00023_device_tokens.sql \
+  backend/app/services/device_token_service.py backend/app/services/notification_service.py \
+  backend/app/services/patient_booking_service.py \
+  backend/tests/test_device_token_service.py backend/tests/test_notification_service.py \
+  backend/tests/test_patient_booking_service.py
+git commit -m "feat: 📝 환자앱 Task 9 본문 — 알림 dispatcher 판정 계층(notify_patient·00023 device_tokens) + 예약 알림 배관(#5·#111·#120·#125·#126, 배달은 T30 소비)"
+```
+
+> 📌 **`dispatch_service`는 직원웹 T30 소유**(`staff-web.md:12923`). 구현 순서 1→2→3이라 이 태스크를 구현할 시점엔 `backend/app/services/dispatch_service.py`가 이미 존재한다. 테스트는 `send_now`를 monkeypatch로 스텁해 판정만 검증한다 — 실제 푸시/문자·콜백·재시도·죽은토큰은 T30이 담당한다.
+> 📌 **`channel`은 한 이벤트당 한 줄·한 채널**이다(00011 dedup이 채널 단위가 아니라서). marketing의 「앱+문자 동시」는 직원 `enqueue_send`(직원웹 T28)의 별도 경로다.
+> ⚠️ **발견(보고 대상)**: 직원웹 T29 `00035`가 만드는 `notification_settings`(`send_sms` 칸)는 ④ `00013 notification_type_settings`(`also_sms` 칸)와 **같은 목적·다른 이름의 중복**이다. 이 태스크는 실제 적용된 정본 `00013`을 소비한다. 직원웹 쪽 정합화는 별건(설계 병합/구현 단계에서 하나로 통일).
+> ⚠️ **낡은 단방향 표기 교정**: Global Constraints 표의 「`consent`→Task 1(칸)」은 낡았다 — Task 1 본문이 「`consent`→Task 13」으로 정정했다(CLAUDE.md 함정 ①). `consent`(광고 동의)는 Task 13 소유라 트랜잭션만 다루는 이 태스크와 무관하다.
