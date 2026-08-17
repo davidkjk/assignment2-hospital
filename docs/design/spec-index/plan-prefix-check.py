@@ -799,7 +799,12 @@ def hollow_citations(root, plan_text):
     lines = plan_text.split("\n")
     out = []
     for l in beh.read_text().split("\n"):
-        m = re.match(r"^\| `([A-Z][A-Z0-9-]*-\d+[a-z]?)`\s*\|(.*)$", l)
+        # ⚠️ ID 칸에는 `✅개정`·`🆕` 같은 표시가 붙는다 — `\s*\|`로 받으면 그 행을
+        #    **통째로 건너뛴다.** 2026-08-17 실측: 규칙 3,066개 중 143개(4%)가 이렇게
+        #    빠져 있었고, 그중 109개를 이 플랜이 인용하고 있었다. ⭐ 하필 표시가 붙는 것이
+        #    **🆕(새로 만든 것)·✅개정(막 고친 것)**이라, **가장 검사가 필요한 규칙만 골라
+        #    빠지는** 편향이었다.
+        m = re.match(r"^\| `([A-Z][A-Z0-9-]*-\d+[a-z]?)`[^|]*\|(.*)$", l)
         if not m:
             continue
         rid = m.group(1)
