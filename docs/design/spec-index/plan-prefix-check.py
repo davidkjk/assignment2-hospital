@@ -700,6 +700,14 @@ RENAMED_IN_REWRITE = {
 
 DATA_SOURCE_RE = re.compile(
     r"GET /[a-z0-9/{}?=&:_-]+|\b(?:list|get|search|fetch|paginate|resolve|overview)_[a-z_]+")
+WRITE_SOURCE_RE = re.compile(
+    r"(?:POST|PATCH|PUT|DELETE) /[a-z0-9/{}?=&:_-]*"
+    r"|\b(?:save|create|update|upsert|mark|delete|deactivate|merge|revise|complete"
+    r"|reschedule|regenerate|confirm|add)_[a-z_]+")
+# 화면이 「무언가를 바꾸는 일」을 한다는 신호. 8회 이상이면 쓰기 창구가 있어야 한다.
+CHANGES_RE = re.compile(r"저장|등록|되돌리|보내기|수정|삭제|처리한다|도장")
+# ⛔ 읽기 전용이라고 **명세가 못박은** 화면은 제외 — /admin/access-logs가 그렇다(ALOG-HEAD-02).
+READ_ONLY_RE = re.compile(r"읽기 전용")
 
 
 def screens_without_source(lines, spans):
@@ -729,9 +737,17 @@ def screens_without_source(lines, spans):
         if not any(re.search(r"<\w+Page>|route `/", l) for l in prod):
             continue                                   # 화면 태스크가 아니다
         blob = " ".join(l for l in body if l.startswith("- Consumes:")) + " " + " ".join(prod)
+        page = re.search(r"(<\w+Page>|route `[^`]+`)", " ".join(prod))
+        name = page.group(1) if page else "?"
+        whole = "\n".join(body)
         if not DATA_SOURCE_RE.search(blob):
-            page = re.search(r"(<\w+Page>|route `[^`]+`)", " ".join(prod))
-            out.append((task, page.group(1) if page else "?"))
+            out.append((task, name, "읽기"))
+        # ⭐ 쓰는 쪽도 같은 구멍이 난다 — 실제로 **내부 메모를 저장할 창구**가
+        #    1단계에도 플랜에도 없었는데 화면 둘이 그 저장소를 쓰고 있었다(2026-08-16).
+        elif (len(CHANGES_RE.findall(whole)) >= 8
+              and not READ_ONLY_RE.search(whole)
+              and not WRITE_SOURCE_RE.search(blob)):
+            out.append((task, name, "쓰기"))
     return out
 
 
@@ -939,9 +955,9 @@ def main():
         print("     ⚠️ 남의 플랜(1단계·공용)이 만든 것이면 무시해도 된다. 눈으로 한 번 볼 것.")
 
     if nosrc := screens_without_source(lines, spans):
-        print(f"\n📺 **화면을 만드는데 「그릴 값을 어디서 받나」가 이름으로 없는 태스크 {len(nosrc)}개**:")
-        for t, page in nosrc:
-            print(f"   Task {t:<3} {page}")
+        print(f"\n📺 **화면인데 값을 주고받을 창구가 이름으로 없는 태스크 {len(nosrc)}개**:")
+        for t, page, kind in nosrc:
+            print(f"   Task {t:<3} {page:<26} {kind} 창구가 없다")
         print("   → `Consumes:`에 **이름**으로 적을 것(`GET /queue?…`·`list_week_rules`).")
         print("     ⚠️ 우리말 서술(*\"대기 목록 조회(Task 13)\"*)은 **기계가 못 본다** —")
         print("     `/calendar`가 그래서 **그릴 예약이 없는 채로** 22개 태스크를 통과했다.")
