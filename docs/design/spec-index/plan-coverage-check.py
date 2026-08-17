@@ -39,7 +39,7 @@ AREA_MARKERS = {
 # 세지 않는다. 한 영역의 재작성본이 생길 때마다 여기를 새 경로로 바꾼다.
 PLANS = {
     "staff-web":   "docs/superpowers/plans/2026-08-15-staff-web.md",
-    "patient-app": "docs/superpowers/plans/2026-07-27-patient-app.md",   # 재작성 대기
+    "patient-app": "docs/superpowers/plans/2026-08-17-patient-app.md",   # 재작성본(스켈레톤→본문)
     "ai-chatbot":  "docs/superpowers/plans/2026-07-27-ai-chatbot.md",    # 재작성 대기
 }
 INDEXES = {a: os.path.join(IDXDIR, f"SPECINDEX-{a}.md") for a in PLANS}

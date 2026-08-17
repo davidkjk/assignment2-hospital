@@ -391,6 +391,7 @@ def pending_handovers(root):
 
 AREA_SPAN = {                                  # 영역 경계(절 제목). plan-coverage-check와 같은 기준
     "staff-web": ("# 화면 동작 명세서", "# 환자 앱"),
+    "patient-app": ("# 환자 앱", "## 상담봇 (chatbot)"),
 }
 DEFINED_RE = re.compile(r"^\| `([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)-\d+[a-z]?`")
 
@@ -667,6 +668,7 @@ def screen_only_columns(root):
 
 OLD_PLANS = {                                  # 재작성본 → 그 입력이 된 옛 플랜
     "2026-08-15-staff-web.md": "2026-07-27-staff-web.md",
+    "2026-08-17-patient-app.md": "2026-07-27-patient-app.md",
 }
 
 # 2026-08-16 전수 대조 결과 — 옛 이름 → 재작성본에서 그 일을 맡은 것.
