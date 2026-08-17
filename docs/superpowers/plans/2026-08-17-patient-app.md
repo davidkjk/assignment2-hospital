@@ -1456,3 +1456,181 @@ git commit -m "feat: 가족 CRUD 서비스 + 링크 RPC(00018) — 10명 상한�
 ```
 
 > 📌 `add_family_member`의 `phone` 인자는 #3(전화 없는 가족)이다 — 신규 가족은 번호 없이 등록되고 `list_family_members`가 보호자 번호를 빌려 `phone_borrowed=true`로 돌려준다(화면에서 마스킹 표시는 Task 25). `link_existing_patient_by_otp`의 501은 **4단계에서 해제**한다(원장 `HANDOVERS.md`에 남긴다).
+
+---
+
+## Task 4: 예약 카탈로그 + 예약 시간 단일 판정 서버 함수(`00019`) + `release_slot`
+
+> **담당 규칙**: 없음(백엔드 계약). 예약 화면(Task 19·20)·홈(Task 16)이 소비한다.
+>
+> ⭐ **핵심**: `booking_deadline`·당일 30분 최소 여유·8주 한도를 **앱이 하드코딩하지 않는다** — DB 함수 `list_bookable_slots`가 한 곳에서 판정하고 앱·직원·챗봇이 같은 결과를 쓴다(#21·#45~#47, 색인 「예약 시간 판정 단일 서버 함수」).
+
+**Files:**
+- Create: `supabase/migrations/00019_bookable_slots.sql` · `backend/app/services/patient_catalog_service.py`
+- Modify: `backend/app/services/slot_service.py`(`release_slot` 추가)
+- Test: `backend/tests/test_bookable_slots.py` · `backend/tests/test_patient_catalog_service.py` · `backend/tests/test_slot_service.py`
+
+**Interfaces:**
+- Consumes: `PatientContext`(Task 2) · `acquire_as` · `appointment_slots(doctor_id, slot_date, start_time, status)`·`doctor_schedule(booking_deadline, weekday)`(1단계 `00002`·`00005`) · `departments`·`staff` · **직원웹 T29 `get_public_hospital_info()`**(병원 주소·전화 — 여기서 만들지 않음)
+- Produces:
+  - SQL 함수 `list_bookable_slots(p_doctor_id uuid, p_date date) returns table(id uuid, start_time time)` — `status='빈시간'` + 당일은 `now()+30분` 이후 + `slot_date <= current_date+56` + `booking_deadline` 이전만
+  - `list_departments(patient)`·`list_doctors(department_id, patient)`·`list_available_dates(doctor_id, patient)`(8주 이내 빈 날짜) · `list_available_slots(doctor_id, target_date, patient)`(→ `list_bookable_slots` 호출) · `get_hospital_info(patient) -> {hospital_address, hospital_phone}`(→ `get_public_hospital_info()`)
+  - `slot_service.release_slot(slot_id, actor, conn=None)`(actor는 `.auth_user_id`)
+
+- [ ] **Step 1: 단일 판정 함수 실패 테스트** — `backend/tests/test_bookable_slots.py`
+
+```python
+import pytest
+from datetime import date, timedelta
+from tests.conftest import seed_staff, set_session_auth
+
+@pytest.mark.asyncio
+async def test_bookable_slots_excludes_booked_past30min_and_beyond8weeks(db_conn):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doc = await seed_staff(db_conn, role="doctor")
+    today = date.today()
+    # 빈시간(미래) 1건, 예약됨 1건, 8주 초과 1건 → bookable은 미래 빈시간 1건만.
+    await db_conn.execute("insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1,$2,'23:59','빈시간')", doc["staff_id"], today)
+    await db_conn.execute("insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1,$2,'23:59','예약됨')", doc["staff_id"], today)
+    await db_conn.execute("insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1,$2,'09:00','빈시간')", doc["staff_id"], today + timedelta(days=60))
+    rows = await db_conn.fetch("select * from list_bookable_slots($1, $2)", doc["staff_id"], today)
+    assert len(rows) == 1 and str(rows[0]["start_time"]) == "23:59:00"
+
+@pytest.mark.asyncio
+async def test_bookable_slots_today_requires_30min_buffer(db_conn):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doc = await seed_staff(db_conn, role="doctor")
+    # 이미 지난(00:00) 당일 슬롯은 30분 여유 미달 → 제외.
+    await db_conn.execute("insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, current_date, '00:00', '빈시간')", doc["staff_id"])
+    rows = await db_conn.fetch("select * from list_bookable_slots($1, current_date)", doc["staff_id"])
+    assert rows == []
+```
+Run → Expected: FAIL(함수 없음).
+
+- [ ] **Step 2: 마이그레이션 SQL** — `supabase/migrations/00019_bookable_slots.sql`
+
+```sql
+-- 예약 가능 슬롯 단일 판정. 앱·직원·챗봇이 같은 규칙(당일 30분 여유·8주·마감·빈시간)을 쓴다.
+create or replace function list_bookable_slots(p_doctor_id uuid, p_date date)
+returns table(id uuid, start_time time)
+language sql stable security definer set search_path = '' as $$
+  select s.id, s.start_time
+  from public.appointment_slots s
+  where s.doctor_id = p_doctor_id
+    and s.slot_date = p_date
+    and s.status = '빈시간'
+    and p_date <= current_date + 56                -- 8주(56일) 이내
+    and (p_date > current_date                     -- 미래 날짜는 시간 제한 없음
+         or (now() + interval '30 minutes')::time < s.start_time)  -- 당일은 30분 최소 여유
+    and not exists (                               -- doctor_schedule.booking_deadline 이후면 제외
+      select 1 from public.doctor_schedule d
+      where d.doctor_id = p_doctor_id
+        and d.weekday = extract(isodow from p_date)
+        and d.booking_deadline is not null
+        and s.start_time > d.booking_deadline)
+  order by s.start_time;
+$$;
+revoke execute on function list_bookable_slots(uuid, date) from public;
+grant execute on function list_bookable_slots(uuid, date) to authenticated;
+```
+Run → Expected: PASS.
+
+- [ ] **Step 3: 카탈로그 서비스 실패 테스트** — `backend/tests/test_patient_catalog_service.py`
+
+```python
+from datetime import date
+from unittest.mock import patch
+import pytest
+from app.core.patient_security import PatientContext
+from app.services import patient_catalog_service
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+def _ctx(s): return PatientContext(id=s["patient_id"], auth_user_id=s["auth_user_id"])
+
+@pytest.mark.asyncio
+async def test_list_departments_active_only(db_conn):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    await db_conn.execute("insert into departments (name, is_active) values ('내과', true)")
+    await db_conn.execute("insert into departments (name, is_active) values ('폐과', false)")
+    depts = await patient_catalog_service.list_departments(_ctx(await seed_patient(db_conn)))
+    assert [d["name"] for d in depts] == ["내과"]
+
+@pytest.mark.asyncio
+async def test_available_slots_uses_bookable_function(db_conn):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doc = await seed_staff(db_conn, role="doctor")
+    await db_conn.execute("insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1,'2999-01-01','09:00','빈시간')", doc["staff_id"])
+    await db_conn.execute("insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1,'2999-01-01','09:20','예약됨')", doc["staff_id"])
+    slots = await patient_catalog_service.list_available_slots(doc["staff_id"], date(2999,1,1), _ctx(await seed_patient(db_conn)))
+    assert [str(s["start_time"]) for s in slots] == ["09:00:00"]
+
+@pytest.mark.asyncio
+async def test_hospital_info_uses_public_rpc(db_conn):
+    # 병원 주소·전화는 직원웹 T29의 좁은 창구 get_public_hospital_info()로만 가져온다(HSETX-SEC-01).
+    ctx = _ctx(await seed_patient(db_conn))
+    with patch("app.services.patient_catalog_service.get_public_hospital_info",
+               return_value={"hospital_address": "서울 강남", "hospital_phone": "02-1234-5678"}):
+        info = await patient_catalog_service.get_hospital_info(ctx)
+    assert info["hospital_address"] == "서울 강남"
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 4: `patient_catalog_service.py` 구현**
+
+```python
+from datetime import date
+from uuid import UUID
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+from app.services.settings_service import get_public_hospital_info  # 직원웹 T29 소유
+
+async def list_departments(patient: PatientContext) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch("select id, name from departments where is_active order by name")
+    return [dict(r) for r in rows]
+
+async def list_doctors(department_id: UUID, patient: PatientContext) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select id, name from staff where role='doctor' and department_id=$1 and is_active order by name",
+            department_id)
+    return [dict(r) for r in rows]
+
+async def list_available_dates(doctor_id: UUID, patient: PatientContext) -> list[str]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select distinct slot_date from appointment_slots "
+            "where doctor_id=$1 and status='빈시간' and slot_date between current_date and current_date+56 "
+            "order by slot_date", doctor_id)  # 8주 이내
+    return [str(r["slot_date"]) for r in rows]
+
+async def list_available_slots(doctor_id: UUID, target_date: date, patient: PatientContext) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch("select id, start_time from list_bookable_slots($1, $2)", doctor_id, target_date)
+    return [{"id": r["id"], "start_time": r["start_time"]} for r in rows]
+
+async def get_hospital_info(patient: PatientContext) -> dict:
+    return await get_public_hospital_info()  # HSETX-SEC-01 — 주소·전화만
+```
+
+- [ ] **Step 5: `release_slot` 추가 + 테스트** — `backend/app/services/slot_service.py`
+
+```python
+async def release_slot(slot_id: UUID, actor, conn=None) -> None:
+    async def _run(c):
+        await c.execute("update appointment_slots set status='빈시간' where id=$1", slot_id)
+    if conn is not None:
+        await _run(conn); return
+    async with acquire_as(str(actor.auth_user_id)) as c:
+        await _run(c)
+```
+`test_slot_service.py`에 예약됨→빈시간 복귀 테스트 추가. Run → Expected: 전체 PASS.
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add supabase/migrations/00019_bookable_slots.sql backend/app/services/patient_catalog_service.py backend/app/services/slot_service.py backend/tests/test_bookable_slots.py backend/tests/test_patient_catalog_service.py backend/tests/test_slot_service.py
+git commit -m "feat: 예약 카탈로그 + list_bookable_slots 단일 판정 함수(00019) + release_slot (#21·#45~47)"
+```
+
+> 📌 `list_bookable_slots`는 **직원·챗봇도 같은 함수를 호출**해 슬롯 표시를 일치시킨다(색인 「단일 서버 함수」). 대기시간 `estimated_wait_minutes`(#21 당일 앞사람)는 예약 카탈로그가 아니라 **당일 대기 조회**의 몫이라 Task 8(이력·대기)·홈이 소비한다.
