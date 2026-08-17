@@ -1471,7 +1471,7 @@ git commit -m "feat: 가족 CRUD 서비스 + 링크 RPC(00018) — 10명 상한�
 - Test: `backend/tests/test_bookable_slots.py` · `backend/tests/test_patient_catalog_service.py` · `backend/tests/test_slot_service.py`
 
 **Interfaces:**
-- Consumes: `PatientContext`(Task 2) · `acquire_as` · `appointment_slots(doctor_id, slot_date, start_time, status)`·`doctor_schedule(booking_deadline, weekday)`(1단계 `00002`·`00005`) · `departments`·`staff` · **직원웹 T29 `get_public_hospital_info()`**(병원 주소·전화 — 여기서 만들지 않음)
+- Consumes: `PatientContext`(Task 2) · `acquire_as` · `appointment_slots(doctor_id, slot_date, start_time, status)`·`doctor_schedule_rules(booking_deadline, weekday)`(1단계 `00002`·`00005`) · `departments`·`staff` · **직원웹 T29 `get_public_hospital_info()`**(병원 주소·전화 — 여기서 만들지 않음)
 - Produces:
   - SQL 함수 `list_bookable_slots(p_doctor_id uuid, p_date date) returns table(id uuid, start_time time)` — `status='빈시간'` + 당일은 `now()+30분` 이후 + `slot_date <= current_date+56` + `booking_deadline` 이전만
   - `list_departments(patient)`·`list_doctors(department_id, patient)`·`list_available_dates(doctor_id, patient)`(8주 이내 빈 날짜) · `list_available_slots(doctor_id, target_date, patient)`(→ `list_bookable_slots` 호출) · `get_hospital_info(patient) -> {hospital_address, hospital_phone}`(→ `get_public_hospital_info()`)
@@ -1522,10 +1522,11 @@ language sql stable security definer set search_path = '' as $$
     and p_date <= current_date + 56                -- 8주(56일) 이내
     and (p_date > current_date                     -- 미래 날짜는 시간 제한 없음
          or (now() + interval '30 minutes')::time < s.start_time)  -- 당일은 30분 최소 여유
-    and not exists (                               -- doctor_schedule.booking_deadline 이후면 제외
-      select 1 from public.doctor_schedule d
+    and not exists (                               -- doctor_schedule_rules.booking_deadline 이후면 제외
+      select 1 from public.doctor_schedule_rules d
       where d.doctor_id = p_doctor_id
-        and d.weekday = extract(isodow from p_date)
+        -- weekday는 파이썬 date.weekday() 컨벤션(월0~일6, 00002 check 0~6). isodow는 월1~일7이라 -1로 맞춘다.
+        and d.weekday = extract(isodow from p_date)::int - 1
         and d.booking_deadline is not null
         and s.start_time > d.booking_deadline)
   order by s.start_time;
@@ -1634,3 +1635,364 @@ git commit -m "feat: 예약 카탈로그 + list_bookable_slots 단일 판정 함
 ```
 
 > 📌 `list_bookable_slots`는 **직원·챗봇도 같은 함수를 호출**해 슬롯 표시를 일치시킨다(색인 「단일 서버 함수」). 대기시간 `estimated_wait_minutes`(#21 당일 앞사람)는 예약 카탈로그가 아니라 **당일 대기 조회**의 몫이라 Task 8(이력·대기)·홈이 소비한다.
+
+---
+
+## Task 5: 예약 생성/변경 서비스 — 요청 UUID 멱등성(`00020`) · `updated_at` 낙관적 잠금 · 변경 시 문진 계보 유지
+
+> **담당 규칙**: 없음(백엔드 계약). 예약 신청 화면(Task 20)·변경 화면(Task 22)이 이 서비스를 소비한다.
+>
+> ⭐ **세 가지 새 계약을 옛 플랜 Task 8(`plans/2026-07-27-patient-app.md:1994~2301`) 위에 얹는다**:
+> 1. **요청 UUID 멱등성(갭 #15)** — 앱이 예약 요청마다 고유 `request_id`를 만들어 보내고, 서버가 같은 `(account_patient_id, request_id)`를 이미 처리했으면 **새로 만들지 않고 기존 예약을 그대로 돌려준다.** 통신 유실 후 재신청·연타로 **예약이 두 건 생기는 것**을 DB `unique` 제약으로 막는다(§8 원자성 #4와 같은 패턴).
+> 2. **낙관적 잠금(`APPT-RACE-01`, 갭 #12)** — 변경은 화면이 열 때 받은 `updated_at`을 함께 보낸다. 서버 값이 다르면 **409**(그 사이 병원·가족이 먼저 바꿨다는 뜻). 화면(Task 22)은 409를 받아 카드를 새로 그린다(`APPT-RACE-02`).
+> 3. **문진 계보 유지(`APPT-CHG-10·11`, 결정 C-6·갭 #18)** — 변경은 실제로 **취소 + 새 예약**이라 `appointment_id`에 매인 문진이 사라진다. 변경 트랜잭션 안에서 기존 `questionnaire_responses`를 **새 예약으로 옮긴다**(같은 과라 `template_id` 유효). **작성 시각(`submitted_at`)은 그대로 둔다** — 옮겼다고 새로 찍으면 사실이 아닌 값이 된다.
+>
+> ⚠️ **옛 플랜의 `raise AppError(str(exc))`(예외 원문 노출)를 답습하지 않는다** — DB 예외 원문을 환자에게 그대로 보이면 안 된다(직원웹 결정 #20과 같은 원칙). 일반 실패는 안전 문구로 감싼다.
+>
+> ⚠️ **`auto_confirm_app_bookings` 칸은 1단계에 없다**(00004는 `cancellation_deadline_hours`만). #29(AD-051)로 신설되며, **기본값이 `true`**라 앱 예약의 기본 결과는 **`예약확정`**이다(옛 플랜의 「기본은 예약신청」을 뒤집는다). 이 칸의 **설정 화면은 직원웹 T29(`00035`) 소유**지만, 예약 생성이 반드시 읽어야 하고 의존 순서상 화면보다 앞서므로 **칸의 물리적 생성은 `00020`이 `add column if not exists`로** 한다(직원웹 `00035`도 같은 문장 — 「먼저 적용하는 쪽 우선」, 충돌 없음).
+
+**Files:**
+- Create: `supabase/migrations/00020_booking_idempotency.sql` · `backend/app/services/patient_booking_service.py`
+- Test: `backend/tests/test_patient_booking_service.py`
+
+**Interfaces:**
+- Consumes: `PatientContext`(Task 2) · `acquire_as`(1단계 `app.db.pool`) · `AppError`(1단계 `app.core.errors`) · `slot_service.book_slot(slot_id, actor, conn=None) -> bool`(1단계) · `slot_service.release_slot(slot_id, actor, conn=None)`(Task 4) · `appointments`·`appointment_slots`·`hospital_settings`·`doctor_schedule_rules`·`questionnaire_responses`(1단계) · 트리거 `assign_booking_code()`(booking_code 자동 발급 — 여기서 안 건드림) · `set_config('app.status_change_reason', …)` → `log_appointment_status_change()`(Task 1 재정의)
+- Produces:
+  - SQL: `appointments.request_id uuid`(멱등 키) + `unique index (account_patient_id, request_id)`(NULL은 여러 개 허용 → 직원·챗봇 예약은 무제한) · `hospital_settings.auto_confirm_app_bookings boolean default true`(if not exists) · SECURITY DEFINER 함수 `move_questionnaire_response(p_old_appointment_id uuid, p_new_appointment_id uuid)`
+  - `patient_booking_service.create_booking(patient: PatientContext, for_patient_id: UUID, department_id: UUID, doctor_id: UUID, slot_id: UUID, reason: str, request_id: UUID, source: str = 'app') -> UUID`
+  - `patient_booking_service.change_booking(patient: PatientContext, appointment_id: UUID, new_slot_id: UUID, reason: str, expected_updated_at: datetime) -> UUID`
+
+- [ ] **Step 1: 마이그레이션 실패 테스트** — `backend/tests/test_patient_booking_service.py`(상단)
+
+```python
+import pytest
+from datetime import datetime
+from uuid import uuid4, UUID
+
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.services import patient_booking_service
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+
+def _ctx(seed: dict) -> PatientContext:
+    return PatientContext(id=seed["patient_id"], auth_user_id=seed["auth_user_id"])
+
+
+async def _seed_base(db_conn):
+    """예약 한 건을 만들 수 있는 최소 데이터. 담당의 소속 과 = 예약 과(1단계 정합성 트리거)."""
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"])
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, '2999-08-01', '09:00') returning id",
+        doctor["staff_id"])
+    return {"dept_id": dept_id, "doctor_id": doctor["staff_id"], "slot_id": slot_id,
+            "patient": _ctx(await seed_patient(db_conn))}
+
+
+@pytest.mark.asyncio
+async def test_migration_adds_request_id_and_qnr_mover(db_conn):
+    # 멱등 키 칸 + 계정별 유니크 + 문진 이동 함수가 실재해야 한다.
+    assert await db_conn.fetchval(
+        "select 1 from information_schema.columns "
+        "where table_name='appointments' and column_name='request_id'") == 1
+    assert await db_conn.fetchval(
+        "select 1 from information_schema.columns "
+        "where table_name='hospital_settings' and column_name='auto_confirm_app_bookings'") == 1
+    assert await db_conn.fetchval(
+        "select 1 from pg_proc where proname='move_questionnaire_response'") == 1
+```
+Run → Expected: FAIL(칸·함수 없음).
+
+- [ ] **Step 2: 마이그레이션 SQL** — `supabase/migrations/00020_booking_idempotency.sql`
+
+```sql
+-- 갭 #15: 예약 생성 멱등 키. 같은 (계정, 요청 UUID)는 예약 한 건만 만든다.
+-- request_id가 NULL이면 유니크 검사에 걸리지 않으므로 직원·챗봇 예약(요청 UUID 없음)은 무제한.
+alter table appointments add column request_id uuid;
+create unique index idx_appointments_account_request
+  on appointments (account_patient_id, request_id);
+
+-- #29(AD-051): 앱 예약 자동확정 기본값 true. 설정 화면은 직원웹 T29(00035) 소유이나
+-- 예약 생성이 반드시 읽어야 하고 의존 순서상 앞서므로 칸의 물리적 생성은 여기서 한다.
+-- 직원웹 00035도 같은 문장을 써도 무해하다(먼저 적용하는 쪽 우선).
+alter table hospital_settings
+  add column if not exists auto_confirm_app_bookings boolean not null default true;
+
+-- 갭 #18 / 결정 C-6: 예약 변경(취소+새 예약) 시 사전문진을 새 예약으로 옮긴다.
+-- 환자 세션 RLS를 우회하되(security definer) 두 예약이 같은 계정·같은 대상 환자 소유인지
+-- 함수가 직접 검증한다. submitted_at은 건드리지 않아 실제 작성 시각이 유지된다(APPT-CHG-11).
+create or replace function move_questionnaire_response(
+  p_old_appointment_id uuid, p_new_appointment_id uuid)
+returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_old_owner uuid; v_old_for uuid; v_new_owner uuid; v_new_for uuid;
+begin
+  select account_patient_id, for_patient_id into v_old_owner, v_old_for
+    from public.appointments where id = p_old_appointment_id;
+  select account_patient_id, for_patient_id into v_new_owner, v_new_for
+    from public.appointments where id = p_new_appointment_id;
+  if v_old_owner is null or v_new_owner is null
+     or v_old_owner <> v_new_owner or v_old_for <> v_new_for then
+    raise exception 'questionnaire move: appointment ownership mismatch';
+  end if;
+  update public.questionnaire_responses
+    set appointment_id = p_new_appointment_id
+    where appointment_id = p_old_appointment_id;  -- submitted_at 유지
+end;
+$$;
+revoke execute on function move_questionnaire_response(uuid, uuid) from public;
+grant execute on function move_questionnaire_response(uuid, uuid) to authenticated;
+```
+Run → Expected: PASS(Step 1 테스트).
+
+- [ ] **Step 3: 생성 서비스 실패 테스트** — 같은 파일에 이어서
+
+```python
+@pytest.mark.asyncio
+async def test_create_booking_auto_confirms_by_default(db_conn):
+    # #29(AD-051): auto_confirm 기본값 true → 앱 예약의 기본 결과는 예약확정.
+    ctx = await _seed_base(db_conn)
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=ctx["slot_id"], reason="감기", request_id=uuid4())
+    row = await db_conn.fetchrow("select status, source from appointments where id=$1", aid)
+    assert row["status"] == "예약확정" and row["source"] == "app"
+    assert await db_conn.fetchval("select status from appointment_slots where id=$1", ctx["slot_id"]) == "예약됨"
+
+
+@pytest.mark.asyncio
+async def test_create_booking_requests_when_auto_confirm_off(db_conn):
+    ctx = await _seed_base(db_conn)
+    await db_conn.execute("update hospital_settings set auto_confirm_app_bookings=false")
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=ctx["slot_id"], reason="감기", request_id=uuid4())
+    assert await db_conn.fetchval("select status from appointments where id=$1", aid) == "예약신청"
+
+
+@pytest.mark.asyncio
+async def test_create_booking_is_idempotent_on_same_request_id(db_conn):
+    # 갭 #15: 같은 request_id로 두 번 → 같은 예약 하나만. 두 번째는 book_slot 없이 기존 걸 돌려준다.
+    ctx = await _seed_base(db_conn)
+    rid = uuid4()
+    first = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=ctx["slot_id"], reason="감기", request_id=rid)
+    second = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=ctx["slot_id"], reason="감기", request_id=rid)
+    assert first == second
+    assert await db_conn.fetchval("select count(*) from appointments where account_patient_id=$1", ctx["patient"].id) == 1
+
+
+@pytest.mark.asyncio
+async def test_create_booking_rejects_source_staff(db_conn):
+    # source는 4단계 챗봇과 공유하는 계약이지만 환자 경로는 'app'/'chatbot'만. 'staff'는 거부.
+    ctx = await _seed_base(db_conn)
+    with pytest.raises(AppError) as e:
+        await patient_booking_service.create_booking(
+            ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+            doctor_id=ctx["doctor_id"], slot_id=ctx["slot_id"], reason="감기", request_id=uuid4(), source="staff")
+    assert e.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_booking_fails_when_slot_taken(db_conn):
+    ctx = await _seed_base(db_conn)
+    await db_conn.execute("update appointment_slots set status='예약됨' where id=$1", ctx["slot_id"])
+    with pytest.raises(AppError) as e:
+        await patient_booking_service.create_booking(
+            ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+            doctor_id=ctx["doctor_id"], slot_id=ctx["slot_id"], reason="감기", request_id=uuid4())
+    assert e.value.status_code == 409
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 4: 변경 서비스 실패 테스트(낙관적 잠금 + 문진 계보)** — 같은 파일에 이어서
+
+```python
+async def _make_appointment(db_conn, ctx, slot_id):
+    return await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=slot_id, reason="감기", request_id=uuid4())
+
+
+@pytest.mark.asyncio
+async def test_change_booking_moves_questionnaire_keeping_submitted_at(db_conn):
+    # APPT-CHG-10·11 / C-6: 문진이 새 예약으로 옮겨지고 작성 시각은 그대로.
+    ctx = await _seed_base(db_conn)
+    new_slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,'2999-08-03','10:00') returning id",
+        ctx["doctor_id"])
+    old_id = await _make_appointment(db_conn, ctx, ctx["slot_id"])
+    tid = await db_conn.fetchval("insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb) returning id", ctx["dept_id"])
+    orig_at = await db_conn.fetchval(
+        "insert into questionnaire_responses (appointment_id, template_id, answers, submitted_at) "
+        "values ($1,$2,'{}'::jsonb, '2999-07-30 08:00+00') returning submitted_at", old_id, tid)
+    updated_at = await db_conn.fetchval("select updated_at from appointments where id=$1", old_id)
+
+    new_id = await patient_booking_service.change_booking(
+        ctx["patient"], old_id, new_slot, reason="시간 변경", expected_updated_at=updated_at)
+
+    assert await db_conn.fetchval("select status from appointments where id=$1", old_id) == "환자취소"
+    assert await db_conn.fetchval("select status from appointment_slots where id=$1", ctx["slot_id"]) == "빈시간"
+    moved = await db_conn.fetchrow("select appointment_id, submitted_at from questionnaire_responses where template_id=$1", tid)
+    assert moved["appointment_id"] == new_id and moved["submitted_at"] == orig_at  # 시각 유지
+
+
+@pytest.mark.asyncio
+async def test_change_booking_rejects_stale_updated_at(db_conn):
+    # APPT-RACE-01 (갭 #12): 화면이 보낸 updated_at이 서버와 다르면 409, 슬롯은 그대로.
+    ctx = await _seed_base(db_conn)
+    new_slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,'2999-08-03','10:00') returning id",
+        ctx["doctor_id"])
+    old_id = await _make_appointment(db_conn, ctx, ctx["slot_id"])
+    stale = datetime.fromisoformat("2000-01-01T00:00:00+00:00")
+    with pytest.raises(AppError) as e:
+        await patient_booking_service.change_booking(
+            ctx["patient"], old_id, new_slot, reason="시간 변경", expected_updated_at=stale)
+    assert e.value.status_code == 409
+    assert await db_conn.fetchval("select status from appointment_slots where id=$1", new_slot) == "빈시간"  # 점유 안 함
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 5: `patient_booking_service.py` 구현**
+
+```python
+from datetime import datetime
+from uuid import UUID
+
+import asyncpg
+
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+from app.services.slot_service import book_slot, release_slot
+
+CHANGEABLE_STATUSES = ("예약신청", "예약확정")
+PATIENT_SOURCES = ("app", "chatbot")  # 'staff'는 직원 경로 전용 — 환자 서비스는 거부(4단계 챗봇 공유 계약)
+
+
+async def _initial_status(conn) -> str:
+    auto = await conn.fetchval("select auto_confirm_app_bookings from hospital_settings")
+    return "예약확정" if auto else "예약신청"  # #29(AD-051) 기본 true
+
+
+async def _is_after_booking_deadline(conn, slot_id: UUID) -> bool:
+    """오늘 진료분 슬롯에 한해 그 요일 booking_deadline을 지났는지. 미래 슬롯은 항상 False."""
+    from zoneinfo import ZoneInfo
+    slot = await conn.fetchrow("select doctor_id, slot_date from appointment_slots where id=$1", slot_id)
+    if slot is None:
+        return False
+    now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
+    if slot["slot_date"] != now_kst.date():
+        return False
+    rule = await conn.fetchrow(
+        "select booking_deadline from doctor_schedule_rules where doctor_id=$1 and weekday=$2",
+        slot["doctor_id"], slot["slot_date"].weekday())
+    if rule is None or rule["booking_deadline"] is None:
+        return False
+    return now_kst.time() > rule["booking_deadline"]
+
+
+async def create_booking(patient: PatientContext, for_patient_id: UUID, department_id: UUID,
+                         doctor_id: UUID, slot_id: UUID, reason: str, request_id: UUID,
+                         source: str = "app") -> UUID:
+    """갭 #15: request_id로 멱등. 같은 (계정, request_id)는 예약 한 건만. source는 챗봇 공유 계약.
+    상태 이력은 log_appointment_status_change() 트리거가 INSERT 시 자동으로 남긴다."""
+    if source not in PATIENT_SOURCES:
+        raise AppError("허용되지 않은 예약 경로입니다.", status_code=400)
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        # 멱등 1차: 같은 요청을 이미 처리했으면 슬롯을 잡지 않고 그대로 돌려준다.
+        existing = await conn.fetchval(
+            "select id from appointments where account_patient_id=$1 and request_id=$2",
+            patient.id, request_id)
+        if existing is not None:
+            return existing
+
+        if await _is_after_booking_deadline(conn, slot_id):
+            raise AppError("오늘 진료분 예약은 마감되었습니다. 상담을 통해 문의해주세요.", status_code=409)
+        if not await book_slot(slot_id, patient, conn=conn):
+            raise AppError("이미 선택된 시간입니다. 다른 시간을 선택해주세요.", status_code=409)
+
+        status = await _initial_status(conn)
+        try:
+            return await conn.fetchval(
+                "insert into appointments "
+                "(slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, request_id) "
+                "values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id",
+                slot_id, patient.id, for_patient_id, department_id, doctor_id, reason, status, source, request_id)
+        except asyncpg.UniqueViolationError:
+            # 멱등 2차(경쟁): 거의 동시에 온 같은 request_id가 유니크에 걸렸다 →
+            # 슬롯을 되돌리고 먼저 만들어진 예약을 돌려준다(예약은 여전히 한 건).
+            await release_slot(slot_id, patient, conn=conn)
+            winner = await conn.fetchval(
+                "select id from appointments where account_patient_id=$1 and request_id=$2",
+                patient.id, request_id)
+            if winner is not None:
+                return winner
+            raise AppError("예약 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.", status_code=409)
+        except asyncpg.PostgresError as exc:  # 원문 노출 금지 — 서버 로그로만
+            raise AppError("예약을 만들 수 없습니다. 입력을 확인해주세요.", status_code=400) from exc
+
+
+async def change_booking(patient: PatientContext, appointment_id: UUID, new_slot_id: UUID,
+                         reason: str, expected_updated_at: datetime) -> UUID:
+    """변경 = 옛 예약 취소 + 새 예약. APPT-RACE-01 낙관적 잠금, APPT-CHG-10·11 문진 이동."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select slot_id, status, for_patient_id, department_id, updated_at from appointments where id=$1",
+            appointment_id)
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        # APPT-RACE-01: 화면이 열 때 본 버전과 다르면, 그 사이 병원·가족이 먼저 바꿨다는 뜻.
+        if row["updated_at"] != expected_updated_at:
+            raise AppError("예약이 이미 변경되었습니다.", status_code=409)
+        if row["status"] not in CHANGEABLE_STATUSES:
+            raise AppError("이미 취소되었거나 완료된 예약은 변경할 수 없습니다.", status_code=400)
+
+        new_slot = await conn.fetchrow("select doctor_id from appointment_slots where id=$1", new_slot_id)
+        if new_slot is None:
+            raise AppError("선택한 시간을 찾을 수 없습니다.", status_code=404)
+        if not await book_slot(new_slot_id, patient, conn=conn):
+            raise AppError("이미 선택된 시간입니다. 다른 시간을 선택해주세요.", status_code=409)
+
+        try:
+            await conn.execute("select set_config('app.status_change_reason', '예약 변경으로 인한 자동 취소', true)")
+            await conn.execute("update appointments set status='환자취소', updated_at=now() where id=$1", appointment_id)
+            if row["slot_id"] is not None:
+                await release_slot(row["slot_id"], patient, conn=conn)
+            new_status = await _initial_status(conn)
+            new_id = await conn.fetchval(
+                "insert into appointments "
+                "(slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source) "
+                "values ($1,$2,$3,$4,$5,$6,$7,'app') returning id",
+                new_slot_id, patient.id, row["for_patient_id"], row["department_id"],
+                new_slot["doctor_id"], reason, new_status)
+            # APPT-CHG-10·11 / C-6: 문진을 새 예약으로 옮긴다(작성 시각 유지). 새 예약([새로 예약하기])엔 적용 안 함.
+            await conn.execute("select move_questionnaire_response($1, $2)", appointment_id, new_id)
+        except asyncpg.PostgresError as exc:
+            raise AppError("예약을 변경할 수 없습니다. 잠시 후 다시 시도해주세요.", status_code=400) from exc
+    return new_id
+```
+
+- [ ] **Step 6: 전체 테스트 실행**
+
+Run: `cd backend && pytest tests/test_patient_booking_service.py -v`
+Expected: 8개 PASS(마이그레이션 1 + 생성 4 + 변경 2 + source 1).
+
+- [ ] **Step 7: 커밋**
+
+```bash
+git add supabase/migrations/00020_booking_idempotency.sql backend/app/services/patient_booking_service.py backend/tests/test_patient_booking_service.py
+git commit -m "feat: 📝 환자앱 Task 5 본문 — 예약 생성/변경 서비스(멱등 00020·낙관적 잠금·문진 계보 C-6)"
+```
+
+> 📌 **`source` 계약**: 4단계 AI 상담봇이 이 서비스를 `source='chatbot'`으로 재사용한다(색인 「예약 서비스 공유」). 앱 라우터(Task 10)는 `source`를 클라이언트로부터 받지 않고 기본값 `'app'`을 쓴다 — 앱 API로는 source 조작 불가. 이 시그니처를 바꾸면 4단계 문서도 갱신한다.
+> 📌 **`request_id`는 화면(Task 20)이 만든다** — 마법사 진입 때 한 번 만들어 8단계 신청까지 유지하고, `BusyButton` 연타·통신 유실 재신청 모두 같은 `request_id`를 보낸다(그래야 멱등이 실효). 취소/재진입으로 새로 예약하면 새 `request_id`.
+> 📌 **낙관적 잠금 문구는 화면(Task 22)이 만든다** — 서버는 409만 돌려주고, 화면이 `APPT-RACE-03·04`(누가·무엇으로 바뀌었는지)를 재조회해 그린다. 취소 경로의 낙관적 잠금은 **Task 6**이 같은 `expected_updated_at` 방식으로 받는다.
