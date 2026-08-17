@@ -596,6 +596,76 @@ def undefined_consumes_gaps(root, lines, spans, plan_text):
     return out
 
 
+OLD_PLANS = {                                  # 재작성본 → 그 입력이 된 옛 플랜
+    "2026-08-15-staff-web.md": "2026-07-27-staff-web.md",
+}
+
+# 2026-08-16 전수 대조 결과 — 옛 이름 → 재작성본에서 그 일을 맡은 것.
+# ⭐ 이름이 바뀐 것까지 매번 출력하면 **소음이 되어 아무도 안 본다.** 한 번 눈으로
+#    확인한 것은 여기 적어 재우고, **새로 생긴 손실만** 화면에 남긴다.
+# ⚠️ 여기 적는 것은 「확인했다」는 뜻이다 — 후계자 이름을 **실제로 새 플랜에서 보고** 적을 것.
+RENAMED_IN_REWRITE = {
+    "_desired_slots_for_range": "regenerate_slots",
+    "create_phrase": "Task 3 진료문구 서비스",
+    "create_schedule_exception": "upsert_doctor_exception",
+    "list_schedule_exceptions": "resolve_day · upsert_doctor_exception",
+    "list_schedule_rules": "list_week_rules",
+    "preview_rule_change": "regenerate_slots(dry_run) · list_affected_appointments",
+    "list_active_doctors": "GET /doctors (Task 19·17)",
+    "list_calendar_slots": "GET /calendar (Task 13 — 2026-08-16 신설)",
+    "get_queue_today": "GET /queue (Task 13)",
+    "get_patient_detail": "GET /patients/{id} (Task 13)",
+    "get_patient_medical_history": "GET /patients/{id}/medical-records (Task 13)",
+    "get_appointment_questionnaire": "GET /appointments/{id}/questionnaire (Task 13)",
+    "questionnaire_history": "GET /admin/questionnaires/versions/{id} (Task 22)",
+    "get_template": "GET /admin/questionnaires/{department_id} (Task 22)",
+    "list_templates": "〃",
+    "upsert_template": "Task 22 불변 버전 저장(00030)",
+    "patient_phone": "GET /patients/{id}/contact (Task 6 — phone_reveal 기록)",
+    # ⛔ 아래 둘은 **일부러 없앤 것** — Task 16(/cancellation-requests) 화면 폐지(갭 #113)
+    "approve_cancellation_request": "⛔ 폐기(Task 16 결번)",
+    "reject_cancellation_request": "⛔ 폐기(Task 16 결번)",
+}
+
+
+def lost_in_rewrite(root, plan, plan_text):
+    """♻️ **옛 플랜이 만들던 것 중 재작성본에서 사라진 이름.**
+
+    왜 필요한가
+    -----------
+    재작성의 근거는 **규칙 문서**다. 그런데 규칙은 **화면이 무엇을 하는가**를 적지
+    **배관(서비스 함수)**을 적지 않는다. 그래서 규칙 기준으로 다시 쓰면 **화면은
+    남고 배관이 조용히 빠진다** — 규칙 커버리지는 100%인 채로.
+
+    실제 사례(2026-08-16): 옛 Task 2의 `reschedule_appointment`(예약을 **실제로 옮기는**
+    함수)가 재작성본에서 통째로 사라졌다. 남아 있던 것은 도장(`action='rescheduled'`)과
+    라우터(`POST /appointments/{id}/reschedule`)뿐이라, **누르면 아무 일도 안 나는
+    [재예약] 버튼**이 될 뻔했다. 규칙에는 *"[재예약]은 캘린더 패널로 보낸다"*까지만
+    있었기 때문이다.
+
+    ⚠️ 「지운 것」과 「흘린 것」은 다르다 — 일부러 폐기한 것은 재작성본이 **취소선이나
+       ⛔로 언급**하므로 걸리지 않는다. 이름조차 안 나오는 것만 남는다.
+    """
+    old_name = OLD_PLANS.get(plan.name)
+    if not old_name:
+        return []
+    old = plan.parent / old_name
+    if not old.exists():
+        return []
+    made = set()
+    for l in old.read_text().split("\n"):
+        if l.startswith("- Produces:") or l.startswith("- Interfaces:"):
+            for span in re.findall(r"`([^`]+)`", l):
+                # `app.services.x.reschedule_appointment(...)` → 마지막 마디를 본다
+                head = span.strip().split("(")[0].split(".")[-1]
+                if re.fullmatch(r"[a-z_][a-z0-9_]{5,}", head):
+                    made.add(head)
+    known = (set(re.findall(r"[a-z_][a-z0-9_]{5,}", plan_text))
+             | _already_exists(root, plan_text)
+             | set(RENAMED_IN_REWRITE))          # 한 번 눈으로 확인한 것은 재운다
+    return sorted(made - known)
+
+
 def global_rule_prefixes(root):
     """규칙 문서에서 「전역 규칙」으로 선언된 절의 접두어."""
     path = root / BEHAVIORS
@@ -760,6 +830,15 @@ def main():
             print(f"   Task {t:<3} {head}")
         print("   → 구현자는 **자기 태스크만** 본다. 만드는 쪽이 없으면 그 자리에서 멈춘다.")
         print("     ⚠️ 남의 플랜(1단계·공용)이 만든 것이면 무시해도 된다. 눈으로 한 번 볼 것.")
+
+    if lost := lost_in_rewrite(root, plan, "\n".join(lines)):
+        print(f"\n♻️ **옛 플랜이 만들던 것 중 재작성본에서 이름조차 사라진 것 {len(lost)}개**:")
+        print("   " + ", ".join(lost[:14]) + (f" 외 {len(lost) - 14}건" if len(lost) > 14 else ""))
+        print("   → 재작성의 근거는 **규칙 문서**인데, 규칙은 화면을 적지 **배관을 적지 않는다.**")
+        print("     그래서 규칙 커버리지가 100%여도 서비스 함수가 조용히 빠진다.")
+        print("     실제 사례: `reschedule_appointment` — 도장과 라우터만 남아 **[재예약]이")
+        print("     눌러도 아무 일이 안 나는 버튼**이 될 뻔했다.")
+        print("     ⚠️ 일부러 폐기한 것이면 재작성본에 취소선·⛔로 **한 번 언급**해 두면 사라진다.")
 
     if handovers := pending_handovers(root):
         print("\n📦 다른 플랜으로 **넘긴 미결** — 받을 플랜에 아직 안 들어갔다:")
