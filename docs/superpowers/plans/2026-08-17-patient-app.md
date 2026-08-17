@@ -1996,3 +1996,230 @@ git commit -m "feat: 📝 환자앱 Task 5 본문 — 예약 생성/변경 서�
 > 📌 **`source` 계약**: 4단계 AI 상담봇이 이 서비스를 `source='chatbot'`으로 재사용한다(색인 「예약 서비스 공유」). 앱 라우터(Task 10)는 `source`를 클라이언트로부터 받지 않고 기본값 `'app'`을 쓴다 — 앱 API로는 source 조작 불가. 이 시그니처를 바꾸면 4단계 문서도 갱신한다.
 > 📌 **`request_id`는 화면(Task 20)이 만든다** — 마법사 진입 때 한 번 만들어 8단계 신청까지 유지하고, `BusyButton` 연타·통신 유실 재신청 모두 같은 `request_id`를 보낸다(그래야 멱등이 실효). 취소/재진입으로 새로 예약하면 새 `request_id`.
 > 📌 **낙관적 잠금 문구는 화면(Task 22)이 만든다** — 서버는 409만 돌려주고, 화면이 `APPT-RACE-03·04`(누가·무엇으로 바뀌었는지)를 재조회해 그린다. 취소 경로의 낙관적 잠금은 **Task 6**이 같은 `expected_updated_at` 방식으로 받는다.
+
+---
+
+## Task 6: 예약 취소 서비스 + 30분 유예(C-5) + 마감 후 공통 지원요청(`support_requested_at`)
+
+> **담당 규칙**: 없음(백엔드 계약). 취소·마감후상담 화면(Task 22)이 `CANCEL-PRE-*`·`CANCEL-NEW-*`·`CANCEL-LATE-*`로 이 서비스를 소비한다.
+>
+> ⭐ **취소는 세 갈래다**(옛 플랜 Task 9 `plans/2026-07-27-patient-app.md:2302~2429`를 규칙에 맞게 재편):
+> 1. **마감 전(`CANCEL-PRE-*`)** — 즉시 `환자취소` + 슬롯 반납. **사유 입력란 없음**(`CANCEL-PRE-05` — 즉시 처리라 받아도 쓸 곳이 없다 → `reason` 인자 없앰).
+> 2. **갓 만든 예약 30분 유예(`CANCEL-NEW-*`, 결정 C-5)** — 만든 지 **30분 이내면 마감과 무관하게 즉시 취소.** 당일 예약 허용이 만든 구멍(취소 마감 기본 24h 전이라 오늘·내일 예약은 만든 순간 이미 마감 후)을 막는다. 기준값 `appointments.created_at + 30분`(`CANCEL-NEW-04` — 재료는 이미 있다).
+> 3. **마감 후(`CANCEL-LATE-*`)** — ⭐ **`cancel_appointment`는 취소하지 않고 「마감 후」만 알린다.** `support_requested_at`을 **여기서 자동으로 채우지 않는다** — 화면이 안내 팝업을 띄우고(`CANCEL-LATE-01`), 환자가 **`[상담 채팅 연결]`을 눌러야** 별도 `request_support()`가 `support_requested_at`+`request_type='취소'`를 기록한다(`CANCEL-LATE-11` — 관문0의 `[닫기]`로 안 들어간 사람은 기록되지 않는다).
+>
+> ⚠️ **`cancellation_requested_at` 부활 금지** — ④ `00010`이 `support_requested_at`+`request_type('취소'/'변경')`으로 대체했다(옛 플랜 Task 9의 그 필드를 교체). 두 칸은 **상호 NULL 제약**(둘 다 있거나 둘 다 없거나, `00010`).
+> ⚠️ **환자 노출 문구 금지(`CANCEL-LATE-13`)**: `취소 요청이 접수되었습니다`·`취소를 요청해 두었습니다`. **서버는 문구를 만들지 않는다** — 상태 dict만 돌려주고, 화면이 `상담 연결됨 · 직원 확인 중`을 그린다.
+> ⚠️ **낙관적 잠금(`APPT-RACE-01`)은 취소에도** — `cancel_appointment`가 `expected_updated_at`을 받아 서버와 다르면 409(T5 `change_booking` 견본과 같은 방식).
+> ⚠️ **마이그레이션 없음** — 필요한 칸은 전부 있다(`support_requested_at`·`request_type` = ④ `00010` · `cancellation_deadline_hours` = `00004` · `created_at` = `00005`).
+
+**Files:**
+- Modify: `backend/app/services/patient_booking_service.py`(`cancel_appointment`·`request_support` 추가)
+- Test: `backend/tests/test_patient_booking_service.py`(취소·지원요청 테스트 추가)
+
+**Interfaces:**
+- Consumes: `PatientContext`(Task 2) · `acquire_as` · `AppError` · `release_slot(slot_id, actor, conn=None)`(Task 4) · `CHANGEABLE_STATUSES`(Task 5, 같은 모듈) · `appointments`·`appointment_slots`·`hospital_settings.cancellation_deadline_hours`(`00004`) · `appointment_status_history`(정책 `patients_can_insert_note_history` — Task 1) · `support_requested_at`·`request_type`(`00010`)
+- Produces:
+  - `patient_booking_service.cancel_appointment(patient: PatientContext, appointment_id: UUID, expected_updated_at: datetime) -> dict` — `{"cancelled": bool, "after_deadline": bool}`. `cancelled=True`면 즉시 취소됨(마감 전 또는 30분 유예). `cancelled=False, after_deadline=True`면 화면이 `CANCEL-LATE` 팝업을 띄운다.
+  - `patient_booking_service.request_support(patient: PatientContext, appointment_id: UUID, request_type: str) -> dict` — `{"support_requested": bool, "already_requested": bool}`. `request_type`은 `'취소'`/`'변경'`.
+
+- [ ] **Step 1: 취소 실패 테스트(마감 전·30분 유예·마감 후·낙관적 잠금)** — `test_patient_booking_service.py`에 추가
+
+```python
+from datetime import timedelta
+from zoneinfo import ZoneInfo
+
+
+async def _make_future_appt(db_conn, ctx, *, days=10):
+    """마감(기본 24h 전)에 여유 있는 미래 슬롯 예약 하나."""
+    d = (datetime.now(ZoneInfo("Asia/Seoul")) + timedelta(days=days)).date()
+    slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,$2,'09:00') returning id",
+        ctx["doctor_id"], d)
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=slot, reason="감기", request_id=uuid4())
+    return aid, slot
+
+
+@pytest.mark.asyncio
+async def test_cancel_before_deadline_cancels_immediately(db_conn):
+    # CANCEL-PRE: 마감 전이면 즉시 환자취소 + 슬롯 반납.
+    ctx = await _seed_base(db_conn)
+    aid, slot = await _make_future_appt(db_conn, ctx)
+    uat = await db_conn.fetchval("select updated_at from appointments where id=$1", aid)
+    result = await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=uat)
+    assert result == {"cancelled": True, "after_deadline": False}
+    assert await db_conn.fetchval("select status from appointments where id=$1", aid) == "환자취소"
+    assert await db_conn.fetchval("select status from appointment_slots where id=$1", slot) == "빈시간"
+
+
+@pytest.mark.asyncio
+async def test_cancel_within_30min_grace_ignores_deadline(db_conn):
+    # CANCEL-NEW(C-5): 마감이 지난 오늘 슬롯이라도 만든 지 30분 이내면 즉시 취소된다.
+    ctx = await _seed_base(db_conn)
+    soon = (datetime.now(ZoneInfo("Asia/Seoul")) + timedelta(hours=1))
+    slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,$2,$3) returning id",
+        ctx["doctor_id"], soon.date(), soon.time().replace(microsecond=0))
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=slot, reason="감기", request_id=uuid4())  # 방금 생성 → 30분 이내
+    uat = await db_conn.fetchval("select updated_at from appointments where id=$1", aid)
+    result = await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=uat)
+    assert result == {"cancelled": True, "after_deadline": False}
+    assert await db_conn.fetchval("select status from appointments where id=$1", aid) == "환자취소"
+
+
+@pytest.mark.asyncio
+async def test_cancel_after_deadline_does_not_cancel(db_conn):
+    # CANCEL-LATE: 마감 후 + 30분 유예도 지났으면 취소하지 않고 after_deadline만 알린다(예약·슬롯 유지).
+    ctx = await _seed_base(db_conn)
+    soon = (datetime.now(ZoneInfo("Asia/Seoul")) + timedelta(hours=1))
+    slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,$2,$3) returning id",
+        ctx["doctor_id"], soon.date(), soon.time().replace(microsecond=0))
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=slot, reason="감기", request_id=uuid4())
+    await db_conn.execute("update appointments set created_at = now() - interval '1 hour' where id=$1", aid)  # 30분 유예 소진
+    uat = await db_conn.fetchval("select updated_at from appointments where id=$1", aid)
+    result = await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=uat)
+    assert result == {"cancelled": False, "after_deadline": True}
+    assert await db_conn.fetchval("select status from appointments where id=$1", aid) in ("예약신청", "예약확정")
+    assert await db_conn.fetchval("select status from appointment_slots where id=$1", slot) == "예약됨"
+
+
+@pytest.mark.asyncio
+async def test_cancel_rejects_stale_updated_at(db_conn):
+    # APPT-RACE-01: 취소도 낙관적 잠금. 화면이 본 버전과 다르면 409, 예약 그대로.
+    ctx = await _seed_base(db_conn)
+    aid, slot = await _make_future_appt(db_conn, ctx)
+    stale = datetime.fromisoformat("2000-01-01T00:00:00+00:00")
+    with pytest.raises(AppError) as e:
+        await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=stale)
+    assert e.value.status_code == 409
+    assert await db_conn.fetchval("select status from appointments where id=$1", aid) in ("예약신청", "예약확정")
+```
+Run → Expected: FAIL(`cancel_appointment` 없음).
+
+- [ ] **Step 2: 지원요청 실패 테스트(기록·멱등)** — 같은 파일에 이어서
+
+```python
+@pytest.mark.asyncio
+async def test_request_support_records_and_is_idempotent(db_conn):
+    # CANCEL-LATE-11: [상담 채팅 연결]을 눌러야 support_requested_at+request_type 기록. 감사 note 1행.
+    ctx = await _seed_base(db_conn)
+    aid, _ = await _make_future_appt(db_conn, ctx)
+    first = await patient_booking_service.request_support(ctx["patient"], aid, request_type="취소")
+    assert first == {"support_requested": True, "already_requested": False}
+    row = await db_conn.fetchrow("select support_requested_at, request_type from appointments where id=$1", aid)
+    assert row["support_requested_at"] is not None and row["request_type"] == "취소"
+    # 상태는 안 바뀐다(예약 유지). 감사 note는 from=to로 1행.
+    notes = await db_conn.fetch(
+        "select from_status, to_status from appointment_status_history "
+        "where appointment_id=$1 and changed_by_patient_id is not null", aid)
+    assert len(notes) == 1 and notes[0]["from_status"] == notes[0]["to_status"]
+    # CANCEL-LATE-14: 이미 요청했으면 멱등(두 번째는 already_requested).
+    second = await patient_booking_service.request_support(ctx["patient"], aid, request_type="취소")
+    assert second == {"support_requested": True, "already_requested": True}
+
+
+@pytest.mark.asyncio
+async def test_request_support_rejects_bad_type(db_conn):
+    ctx = await _seed_base(db_conn)
+    aid, _ = await _make_future_appt(db_conn, ctx)
+    with pytest.raises(AppError) as e:
+        await patient_booking_service.request_support(ctx["patient"], aid, request_type="기타")
+    assert e.value.status_code == 400
+```
+Run → Expected: FAIL(`request_support` 없음).
+
+- [ ] **Step 3: `cancel_appointment`·`request_support` 구현** — `patient_booking_service.py`에 추가
+
+```python
+from datetime import timedelta
+from zoneinfo import ZoneInfo
+
+KST = ZoneInfo("Asia/Seoul")
+SUPPORT_TYPES = ("취소", "변경")
+
+
+async def cancel_appointment(patient: PatientContext, appointment_id: UUID,
+                             expected_updated_at: datetime) -> dict:
+    """마감 전/30분 유예(C-5)면 즉시 취소, 마감 후면 after_deadline만 알린다(취소 안 함).
+    CANCEL-PRE-05: 사유를 받지 않는다. 상태 이력은 트리거가 자동으로 남긴다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select a.status, a.slot_id, a.created_at, a.updated_at, s.slot_date, s.start_time "
+            "from appointments a left join appointment_slots s on s.id = a.slot_id where a.id=$1",
+            appointment_id)
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        if row["updated_at"] != expected_updated_at:  # APPT-RACE-01
+            raise AppError("예약이 이미 변경되었습니다.", status_code=409)
+        if row["status"] not in CHANGEABLE_STATUSES:
+            raise AppError("이미 취소되었거나 완료된 예약입니다.", status_code=400)
+
+        now_kst = datetime.now(KST)
+        # CANCEL-NEW-04(C-5): 만든 지 30분 이내면 마감과 무관하게 즉시 취소.
+        within_grace = row["created_at"].astimezone(KST) + timedelta(minutes=30) > now_kst
+        before_deadline = True
+        if row["slot_date"] is not None:
+            hours = await conn.fetchval("select cancellation_deadline_hours from hospital_settings")
+            appt_dt = datetime.combine(row["slot_date"], row["start_time"], tzinfo=KST)
+            before_deadline = now_kst <= appt_dt - timedelta(hours=hours)
+
+        if within_grace or before_deadline:
+            try:
+                await conn.execute(
+                    "update appointments set status='환자취소', updated_at=now() where id=$1", appointment_id)
+            except asyncpg.PostgresError as exc:  # 원문 노출 금지
+                raise AppError("예약을 취소할 수 없습니다. 잠시 후 다시 시도해주세요.", status_code=400) from exc
+            if row["slot_id"] is not None:
+                await release_slot(row["slot_id"], patient, conn=conn)
+            return {"cancelled": True, "after_deadline": False}
+        # 마감 후: 취소하지 않는다. 화면이 CANCEL-LATE 팝업 → [상담 채팅 연결] → request_support().
+        return {"cancelled": False, "after_deadline": True}
+
+
+async def request_support(patient: PatientContext, appointment_id: UUID, request_type: str) -> dict:
+    """CANCEL-LATE-11: [상담 채팅 연결]을 눌렀을 때만 support_requested_at+request_type를 기록한다.
+    이미 요청했으면 멱등(CANCEL-LATE-14). 상태는 바꾸지 않고, 감사 note만 from=to로 남긴다."""
+    if request_type not in SUPPORT_TYPES:
+        raise AppError("허용되지 않은 요청 종류입니다.", status_code=400)
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select status, support_requested_at from appointments where id=$1", appointment_id)
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        if row["status"] not in CHANGEABLE_STATUSES:
+            raise AppError("이미 취소되었거나 완료된 예약입니다.", status_code=400)
+        if row["support_requested_at"] is not None:  # CANCEL-LATE-14 멱등
+            return {"support_requested": True, "already_requested": True}
+        await conn.execute(
+            "update appointments set support_requested_at=now(), request_type=$2, updated_at=now() where id=$1",
+            appointment_id, request_type)
+        # 상태변화 없는 감사 note(patients_can_insert_note_history) — from=to. 내부 기록이라 환자 노출 문구 아님.
+        await conn.execute(
+            "insert into appointment_status_history "
+            "(appointment_id, from_status, to_status, changed_by_patient_id, reason) values ($1,$2,$2,$3,$4)",
+            appointment_id, row["status"], patient.id, f"마감 후 {request_type} 상담 연결")
+        return {"support_requested": True, "already_requested": False}
+```
+
+- [ ] **Step 4: 전체 테스트 실행**
+
+Run: `cd backend && pytest tests/test_patient_booking_service.py -v`
+Expected: 이전 8개 + 취소 4 + 지원요청 2 = **14개 PASS**.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add backend/app/services/patient_booking_service.py backend/tests/test_patient_booking_service.py
+git commit -m "feat: 📝 환자앱 Task 6 본문 — 예약 취소(30분 유예 C-5·낙관적 잠금) + 마감 후 공통 지원요청(00010 support_requested_at)"
+```
+
+> 📌 **`request_support`는 취소와 변경 모두 쓴다**(`request_type='취소'`/`'변경'`) — 마감 후 **변경**도 취소와 같은 상담 연결이다(#26 결정). 변경 화면(Task 22)이 마감 후면 `change_booking` 대신 `request_support('변경')`를 부른다.
+> 📌 **직원은 대기열이 아니라 `/today` 카드·예약 캘린더 ⚠에서 확인**한다(`CANCEL-LATE-11` — 취소요청 대기열 폐지). 이 요청을 직원웹이 읽는 창구(`support_requested_at is not null` 조회)는 직원웹 플랜이 소유한다.
+> 📌 **화면(Task 22)이 그리는 것**: 마감 전 확인 팝업(`CANCEL-PRE-01~07`) · 마감 후 안내 팝업(`CANCEL-LATE-01~10`) · 연결 후 `상담 연결됨 · 직원 확인 중`+`아직 예약은 유지되고 있습니다`(`CANCEL-LATE-12`) · 중복 시 `상담 이어가기 ›`(`CANCEL-LATE-14`). 서버는 상태 dict만.
