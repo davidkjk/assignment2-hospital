@@ -597,8 +597,26 @@ def undefined_consumes_gaps(root, lines, spans, plan_text):
 
 
 SERVER_SEG = {"SRV", "IMPL", "CALC", "SLOT", "SAVE", "LOG", "API", "DATA", "STORE", "AUDIT"}
-SERVER_TEXT = re.compile(r"서버|저장|판정|트리거|마이그레이션|RLS|쿼리|정책|만들지 않|생성하지")
+# ⚠️ **이 목록이 검사의 정확도 전부다.** 처음엔 「서버·저장·판정」만 봤는데, 이 프로젝트가
+#    서버 층을 적을 때 실제로 가장 많이 쓰는 말은 **「구현 전제」**였다(`SEND-LIST-07` 등).
+#    그것을 안 넣었더니 **이미 잘 적혀 있는 규칙을 고치라고 시키는** 오탐이 나왔다.
+#    ⭐ 낱말을 하나씩 더 넣는 방식은 **계속 뚫린다**(실제로 두 번 기웠다). 기준을
+#       「서버가 **하는 일**을 적었나」로 바꾼다 — ①서버 동사 ②서버 함수 이름 ③표시어.
+SERVER_TEXT = re.compile(
+    r"서버|저장|판정|트리거|마이그레이션|RLS|쿼리|정책"                       # ③ 표시어
+    r"|구현 전제|계약|조회 조건|order by"
+    r"|읽는|읽어|불러|만들지 않|생성하지|거른다|필터|계산한다|함수"            # ① 서버 동사
+    r"|\b(?:resolve|regenerate|list|save|upsert|get|mark|log|add|create|confirm|update)_[a-z_]+"  # ② 함수 이름
+    r"|만 날짜 역순|만 오른쪽"
+)
 COL_TYPES = r"(?:uuid|text|boolean|int|integer|timestamptz|date|time|numeric|jsonb|smallint)"
+
+
+# 2026-08-16 눈으로 거른 것 — **칸 이름이 신호가 안 되는 것들.**
+#   ①조인 키(어느 표에나 있고 규칙 본문에 늘 나온다) ②흔한 우리말과 겹치는 칸 이름.
+#   ⭐ 이 목록을 둬야 검사가 **0건**으로 수렴한다 — 0이 아니면 그때가 진짜 신호다.
+COLUMN_NOISE = {"auth_user_id", "doctor_id", "staff_id", "patient_id", "reason",
+                "start_time", "end_time"}
 
 
 def screen_only_columns(root):
@@ -638,6 +656,8 @@ def screen_only_columns(root):
 
     out = []
     for c in sorted(cols):
+        if c in COLUMN_NOISE:
+            continue
         hits = [l for l in rows if re.search(rf"\b{c}\b", l)]
         if hits and not any(is_server(l) for l in hits):
             ids = [re.match(r"^\| `([A-Z][A-Z0-9-]*-\d+[a-z]?)`", l).group(1) for l in hits]
