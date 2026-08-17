@@ -832,8 +832,8 @@ async def test_patient_owns_only_counts_active_links(db_conn):
     acct = await seed_patient(db_conn, with_auth=True)
     fam = await seed_patient(db_conn, with_auth=False)
     await db_conn.execute(
-        "insert into patient_family_links (account_patient_id, family_patient_id, relationship, is_active) "
-        "values ($1,$2,'자녀',false)", acct["patient_id"], fam["patient_id"])
+        "insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) "
+        "values ($1,$2,'자녀',false)", acct["patient_id"], fam["patient_id"])  # 1단계 00003 칼럼명=relation
     await set_session_auth(db_conn, acct["auth_user_id"])
     owns = await db_conn.fetchval("select patient_owns($1)", fam["patient_id"])
     assert owns is False
@@ -994,3 +994,234 @@ git commit -m "feat: 환자 신원 + patient_owns + 환자용 RLS + 가족 phone
 ```
 
 > 📌 `changed_by_patient_id`·`patient_medical_notes`·`patient_owns`는 이후 태스크가 이름으로 소비한다(Consumes에 명시). 마감 후 지원요청의 `support_requested_at` write는 **Task 6**이 `patients_can_insert_note_history` 경로로 수행한다.
+
+---
+
+## Task 2: 환자 인증 의존성(`PatientContext`) + 프로필 등록/조회/탈퇴 서비스
+
+> **담당 규칙**: 없음(백엔드 계약). 화면(Task 13·28·29)이 이 서비스를 소비한다.
+
+**Files:**
+- Create: `backend/app/core/patient_security.py` · `backend/app/services/patient_profile_service.py`
+- Test: `backend/tests/test_patient_security.py` · `backend/tests/test_patient_profile_service.py`
+
+**Interfaces:**
+- Consumes: `patient_owns()`·`deactivate_patient_self()`·`private.current_patient_id()`(Task 1) · `app.db.pool.acquire_as`·`get_pool`(1단계) · `app.db.admin_client.get_admin_client`(1단계) · `app.core.errors.AppError`(1단계) · `settings.supabase_jwt_secret` · `tests.conftest.seed_patient`(Task 1)
+- Produces:
+  - `PatientContext`(dataclass `id: UUID`, `auth_user_id: UUID`) · `get_current_auth_user_id(request) -> UUID`(가입 직후 — patients 행 없어도 통과) · `get_current_patient(request) -> PatientContext`(등록된 활성 환자만; 아니면 403) · `list_accessible_patient_ids(patient) -> list[UUID]`([R5-02] 활성 링크만)
+  - `register_profile(auth_user_id, name, birth_date, gender) -> UUID`([R5-05] phone은 요청 아닌 Supabase Auth 검증번호; 일치 미연결 1건이면 연결·아니면 신규) · `get_my_profile(patient) -> dict` · `deactivate_self(patient) -> None`(RPC + auth 계정 ban)
+
+### A. 인증 의존성 — `patient_security.py`
+
+- [ ] **Step A1: 실패 테스트** — `backend/tests/test_patient_security.py`
+
+```python
+import time, uuid
+import pytest
+from fastapi import HTTPException
+from jose import jwt
+from starlette.requests import Request
+from app.core.config import settings
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+def make_patient_token(auth_user_id: str) -> str:
+    return jwt.encode(
+        {"sub": auth_user_id, "aud": "authenticated", "role": "authenticated", "exp": int(time.time()) + 3600},
+        settings.supabase_jwt_secret, algorithm="HS256")
+
+def _req(token: str) -> Request:
+    return Request({"type": "http", "headers": [(b"authorization", f"Bearer {token}".encode())]})
+
+@pytest.mark.asyncio
+async def test_get_current_patient_returns_context(db_conn):
+    from app.core.patient_security import get_current_patient
+    p = await seed_patient(db_conn)
+    ctx = await get_current_patient(_req(make_patient_token(str(p["auth_user_id"]))))
+    assert ctx.id == p["patient_id"]
+
+@pytest.mark.asyncio
+async def test_get_current_patient_rejects_unregistered_403(db_conn):
+    from app.core.patient_security import get_current_patient
+    uid = uuid.uuid4()
+    await db_conn.execute(
+        "insert into auth.users (id, email, aud, role, created_at, updated_at) "
+        "values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@test.local")
+    with pytest.raises(HTTPException) as e:
+        await get_current_patient(_req(make_patient_token(str(uid))))
+    assert e.value.status_code == 403  # 등록 안 됨/사용중지를 한 문장으로(개인정보 열거 방지)
+
+@pytest.mark.asyncio
+async def test_list_accessible_excludes_inactive_links(db_conn):
+    from app.core.patient_security import PatientContext, list_accessible_patient_ids
+    me = await seed_patient(db_conn)
+    child = await seed_patient(db_conn, with_auth=False)
+    gone = await seed_patient(db_conn, with_auth=False)
+    admin = await seed_staff(db_conn, role="admin")
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    await db_conn.execute("insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) values ($1,$2,'자녀',true)", me["patient_id"], child["patient_id"])
+    await db_conn.execute("insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) values ($1,$2,'자녀',false)", me["patient_id"], gone["patient_id"])
+    ids = await list_accessible_patient_ids(PatientContext(id=me["patient_id"], auth_user_id=me["auth_user_id"]))
+    assert set(ids) == {me["patient_id"], child["patient_id"]}  # [R5-02] 해제 링크(gone) 제외
+```
+Run: `cd backend && pytest tests/test_patient_security.py -v` → Expected: FAIL(모듈 없음).
+
+- [ ] **Step A2: `patient_security.py` 구현**
+
+```python
+from dataclasses import dataclass
+from uuid import UUID
+from fastapi import HTTPException, Request
+from jose import JWTError, jwt
+from app.core.config import settings
+from app.db.pool import acquire_as
+
+def _decode_sub(request: Request) -> str:
+    header = request.headers.get("authorization", "")
+    if not header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    try:
+        payload = jwt.decode(header.removeprefix("Bearer "), settings.supabase_jwt_secret,
+                             algorithms=["HS256"], audience="authenticated")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="로그인 정보가 올바르지 않습니다.")
+    return payload["sub"]
+
+async def get_current_auth_user_id(request: Request) -> UUID:
+    return UUID(_decode_sub(request))
+
+@dataclass
+class PatientContext:
+    id: UUID
+    auth_user_id: UUID
+
+async def get_current_patient(request: Request) -> PatientContext:
+    auth_user_id = _decode_sub(request)
+    async with acquire_as(auth_user_id) as conn:
+        row = await conn.fetchrow("select id, is_active from patients where auth_user_id = $1", UUID(auth_user_id))
+    if row is None or not row["is_active"]:
+        # 등록 안 됨/사용중지를 구분하지 않는다(개인정보 열거 방지).
+        raise HTTPException(status_code=403, detail="등록되지 않았거나 사용 중지된 계정입니다.")
+    return PatientContext(id=row["id"], auth_user_id=UUID(auth_user_id))
+
+async def list_accessible_patient_ids(patient: PatientContext) -> list[UUID]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select family_patient_id from patient_family_links "
+            "where account_patient_id = $1 and is_active", patient.id)  # [R5-02] 활성 링크만
+    return [patient.id] + [r["family_patient_id"] for r in rows]
+```
+Run → Expected: 3개 PASS.
+
+### B. 프로필 서비스 — `patient_profile_service.py`
+
+- [ ] **Step B1: 실패 테스트** — `backend/tests/test_patient_profile_service.py`
+
+핵심 4계약을 확인한다(전체 테스트는 견본 코드 그대로 옮긴다):
+```python
+from datetime import date
+from unittest.mock import patch, MagicMock
+import uuid, pytest
+from app.core.patient_security import PatientContext
+from app.services import patient_profile_service
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+def _mock_verified_phone(phone):
+    m = MagicMock(); m.auth.admin.get_user_by_id.return_value.user.phone = phone; return m
+
+@pytest.mark.asyncio
+async def test_register_links_single_unlinked_match(db_conn):
+    # [R5-05] 검증번호+생년월일+이름이 일치하는 미연결 1건이면 새 행을 만들지 않고 연결(과거 이력 승계).
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    legacy = await db_conn.fetchval("insert into patients (name, birth_date, gender, phone) values ('홍길동','1985-03-01','M','01012345678') returning id")
+    uid = uuid.uuid4()
+    await db_conn.execute("insert into auth.users (id,email,aud,role,created_at,updated_at) values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@t.local")
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
+        pid = await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M")
+    assert pid == legacy
+    assert await db_conn.fetchval("select count(*) from patients where phone='01012345678'") == 1
+
+@pytest.mark.asyncio
+async def test_register_new_row_when_ambiguous(db_conn):
+    # [R5-05] 후보 0건 또는 2건 이상이면 자동 연결하지 않고 새 행(관리자 수동 병합 대상).
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    for _ in range(2):
+        await db_conn.execute("insert into patients (name,birth_date,gender,phone) values ('홍길동','1985-03-01','M','01012345678')")
+    uid = uuid.uuid4()
+    await db_conn.execute("insert into auth.users (id,email,aud,role,created_at,updated_at) values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@t.local")
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
+        await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M")
+    assert await db_conn.fetchval("select count(*) from patients where phone='01012345678'") == 3
+
+@pytest.mark.asyncio
+async def test_deactivate_self_bans_and_inactivates(db_conn):
+    p = await seed_patient(db_conn)
+    fake = MagicMock()
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=fake):
+        await patient_profile_service.deactivate_self(PatientContext(id=p["patient_id"], auth_user_id=p["auth_user_id"]))
+    fake.auth.admin.update_user_by_id.assert_called_once()
+    assert await db_conn.fetchval("select is_active from patients where id=$1", p["patient_id"]) is False
+
+@pytest.mark.asyncio
+async def test_patient_cannot_directly_update_sensitive_columns(db_conn):
+    # [SDB-18] 직접 UPDATE 정책 없음 — auth_user_id·is_active 자가변경/자가재활성 불가.
+    p = await seed_patient(db_conn); await set_session_auth(db_conn, p["auth_user_id"])
+    with pytest.raises(Exception):
+        await db_conn.execute("update patients set is_active = false where id=$1", p["patient_id"])
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step B2: `patient_profile_service.py` 구현** — 옛 플랜 구현 그대로 재사용
+
+```python
+from datetime import date
+from uuid import UUID
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.db.admin_client import get_admin_client
+from app.db.pool import acquire_as, get_pool
+
+async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str) -> UUID:
+    # [R5-05] phone은 요청 본문을 신뢰하지 않고 Supabase Auth(admin API)의 검증번호를 직접 조회한다.
+    # 검증 phone+birth_date+name 일치 미연결 1건이면 연결(과거 예약·이력 승계), 0·2+건이면 신규 가입.
+    # get_pool() 서비스 역할 커넥션 — 아직 auth 연결 전이라 patient_owns RLS로는 조회 불가.
+    admin = get_admin_client()
+    phone = admin.auth.admin.get_user_by_id(str(auth_user_id)).user.phone
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if await conn.fetchval("select id from patients where auth_user_id = $1", auth_user_id) is not None:
+                raise AppError("이미 등록된 계정입니다.", status_code=409)
+            candidates = await conn.fetch(
+                "select id from patients where auth_user_id is null and phone=$1 and birth_date=$2 and name=$3",
+                phone, birth_date, name)
+            if len(candidates) == 1:
+                patient_id = candidates[0]["id"]
+                await conn.execute("update patients set auth_user_id=$1 where id=$2", auth_user_id, patient_id)
+            else:
+                patient_id = await conn.fetchval(
+                    "insert into patients (auth_user_id, name, birth_date, gender, phone) "
+                    "values ($1,$2,$3,$4,$5) returning id", auth_user_id, name, birth_date, gender, phone)
+    return patient_id
+
+async def get_my_profile(patient: PatientContext) -> dict:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow("select id, name, birth_date, gender, phone from patients where id=$1", patient.id)
+    return {"id": row["id"], "name": row["name"], "birth_date": str(row["birth_date"]),
+            "gender": row["gender"], "phone": row["phone"]}
+
+async def deactivate_self(patient: PatientContext) -> None:
+    # [SDB-18] 직접 UPDATE 정책이 없으므로 RPC로만 비활성화 + Supabase Auth 계정 ban.
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        await conn.execute("select deactivate_patient_self()")
+    get_admin_client().auth.admin.update_user_by_id(str(patient.auth_user_id), {"ban_duration": "87600h"})
+```
+Run → Expected: 전체 PASS.
+
+- [ ] **Step B3: 커밋**
+
+```bash
+git add backend/app/core/patient_security.py backend/app/services/patient_profile_service.py backend/tests/test_patient_security.py backend/tests/test_patient_profile_service.py
+git commit -m "feat: 환자 인증 의존성(PatientContext) + 프로필 등록/조회/탈퇴 서비스(R5-05·R5-02·SDB-18)"
+```
+
+> 📌 `get_current_patient`·`register_profile`·`get_my_profile`·`deactivate_self`는 Task 10 라우터가 엔드포인트로, Task 13(가입)·29(탈퇴)가 화면에서 소비한다.
