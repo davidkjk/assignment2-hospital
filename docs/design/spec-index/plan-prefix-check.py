@@ -128,7 +128,7 @@ def rule_debt(plan, plan_text, spans, assigned):
     area = next((a for a, p in cov.PLANS.items()
                  if pathlib.Path(p).name == plan.name), None)
     if area is None:                       # 재작성본이 아닌 플랜 — 셀 기준이 없다
-        return None, [], []
+        return None, [], 0, {}             # ⚠️ 반환 개수를 부르는 쪽과 맞춘다(3개면 터진다)
     defined = cov.defined_rules(cov.area_text(cov.load(cov.BEHAVIORS), area))
     lines = plan_text.split("\n")
     body = {t: "\n".join(lines[s:e]) for t, (s, e) in spans.items()}
@@ -436,6 +436,166 @@ def unassigned_prefixes(root, assigned, plan_text, area="staff-web"):
                   key=lambda x: -x[1])
 
 
+def phantom_prefixes(root, assigned):
+    """🔎 배정 표에 적혀 있는데 **규칙 문서에 규칙이 0개**인 접두어.
+
+    왜 필요한가
+    -----------
+    바로 위 `unassigned_prefixes`는 **규칙 → 표** 방향이다. 그 반대 방향
+    (**표 → 규칙**)은 지금까지 아무도 안 봤다. 그래서 표에 **지어낸 이름**을
+    적어둬도 초록불이 그대로 켜져 있다.
+
+    실제 사례(2026-08-16): 배정 표의 Task 23 칸에 `SCHED-OFF-*`라고 적혀 있었는데
+    그런 접두어는 **규칙 문서·요구사항 어디에도 없었다**(0개). 옛 플랜의 태스크
+    제목(*"정기 휴진 슬롯 생성"*)을 보고 **접두어를 지어내 적은 것**이다.
+
+    ⚠️ 이게 왜 위험한가 — 그 태스크를 쓰려고 앉은 사람이 `SCHED-OFF-*`를 찾다가
+       **0건이 나오면 「할 일이 없구나」로 읽는다.** 실제로는 요구사항 3.7의
+       「휴진일」이 서버 층에서 통째로 빠져 있었다(`is_day_off`를 읽는 곳이 0곳).
+    """
+    path = root / BEHAVIORS
+    if not path.exists():
+        return []
+    defined = set()
+    for l in path.read_text().split("\n"):
+        if m := DEFINED_RE.match(l):
+            defined.add(m.group(1))
+    out = []
+    for task, prefixes in assigned.items():
+        for p in sorted(prefixes):
+            # 짧게 적은 것(`CAL-*`)은 하위 계열(`CAL-SLOT`)이 있으면 실재한다
+            if not any(d == p or d.startswith(f"{p}-") for d in defined):
+                out.append((task, p))
+    return sorted(out)
+
+
+COLUMN_RE = re.compile(
+    r"alter\s+table\s+(?:if\s+exists\s+)?(?:public\.)?([a-z_][a-z0-9_]*)\s+"
+    r"add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)",
+    re.I,
+)
+
+
+def unread_columns(root, plan_text):
+    """🧱 마이그레이션이 **나중에 덧붙인 칸** 중, 플랜에도 코드에도 **읽는 곳이 없는** 것.
+
+    왜 필요한가
+    -----------
+    규칙 커버리지 검사기는 **규칙 문서에 있는 것**만 센다. 그래서 요구사항이
+    **화면 규칙으로만** 옮겨졌고 **서버 층 규칙이 없으면**, 그 기능이 통째로
+    빠져도 **100% 초록불**이 나온다.
+
+    실제 사례(2026-08-16): `00009`가 `doctor_schedule_rules.is_day_off`(정기 휴진)를
+    만들어 뒀는데 **읽는 곳이 한 곳도 없었다.** 규칙(`SCHED-WEEK-04`)은 화면 층
+    ("스위치를 끄면 그 줄이 잠긴다")만 있어서 커버리지는 초록불이었고, 서버는
+    **휴진 요일에도 예약 자리를 계속 만들고 있었다** — 환자가 쉬는 날에 예약을 잡는다.
+
+    ⭐ 「나중에 덧붙인 칸」만 보는 이유: `create table`의 칸까지 세면 수백 개라
+       경고가 소음이 된다. `alter table … add column`은 **기존 것에 새 개념을
+       얹은 것**이라 **읽는 곳이 반드시 있어야 한다** — 없으면 그게 곧 미완성이다.
+    """
+    mig_dir = root / "supabase" / "migrations"
+    if not mig_dir.is_dir():
+        return []
+    added = []                                  # (표, 칸, 마이그레이션)
+    for f in sorted(mig_dir.glob("*.sql")):
+        for table, col in COLUMN_RE.findall(f.read_text()):
+            added.append((table, col, f.name))
+
+    haystack = [plan_text]
+    for d in ("backend/app", "frontend/src"):
+        p = root / d
+        if p.is_dir():
+            for f in list(p.rglob("*.py")) + list(p.rglob("*.ts")) + list(p.rglob("*.tsx")):
+                haystack.append(f.read_text(errors="ignore"))
+    # 마이그레이션 자신은 근거가 아니다 — 만든 곳이지 읽는 곳이 아니다
+    blob = "\n".join(haystack)
+    return [(t, c, m) for t, c, m in added if c not in blob]
+
+
+def undefined_consumes(lines, spans):
+    """🔗 태스크의 `Consumes:`에 적혔는데 **어느 태스크의 `Produces:`에도 없는** 이름.
+
+    왜 필요한가
+    -----------
+    태스크는 서로를 **이름으로만** 연결한다(`Consumes:`/`Produces:`). 그런데 그
+    이름이 실재하는지 대조하는 단계가 없어서, **부르는 쪽만 있고 만드는 쪽이 없는**
+    함수가 조용히 생긴다. 구현자는 자기 태스크만 보므로 **그 자리에서 멈춘다.**
+
+    ⚠️ 반대 방향(만드는 쪽은 있는데 아무도 안 부름)은 경고하지 않는다 —
+       뒤 태스크가 아직 안 쓰였을 뿐인 경우가 대부분이라 소음이 된다.
+
+    ⚠️⚠️ **오탐을 먼저 죽인다.** 처음 만들었을 때 55건이 나왔고 그 대부분이
+       ①표 이름(`appointments`) ②1단계가 이미 만든 것(`acquire_as`) ③경로 조각
+       (`backend/app/...`의 `backend`)이었다. **소음이 되면 아무도 안 본다** —
+       그래서 근거를 셋 더 인정한다: 마이그레이션의 표·함수 · 1단계 코드 · 플랜이
+       스스로 만드는 파일. 남는 것만이 **진짜로 아무 데도 없는 이름**이다.
+    """
+    # 백틱 안이 「이름」 또는 「이름(…)」인 것만. 경로 조각(`backend/app/x.py`)은 버린다.
+    #   `resolve_day(doctor_id, date) -> DaySchedule` → resolve_day  (뒤에 서명이 붙어도 된다)
+    #   `backend/app/x.py`                            → 버린다      (경로 조각)
+    NAME = re.compile(r"^([a-z_][a-z0-9_]{2,})(?![a-z0-9_/.])")
+
+    def names_in(line):
+        out = set()
+        for span in re.findall(r"`([^`]+)`", line):
+            if m := NAME.match(span.strip()):
+                out.add(m.group(1))
+        return out
+
+    produced, consumed = set(), {}
+    for task, (s, e) in spans.items():
+        in_produces = False
+        for l in lines[s:e]:
+            if l.startswith("- Produces:"):
+                in_produces, _ = True, produced.update(names_in(l))
+            elif l.startswith("- Consumes:"):
+                in_produces = False
+                consumed.setdefault(task, set()).update(names_in(l))
+            elif in_produces and l.startswith("  "):      # Produces 블록의 이어지는 줄
+                produced.update(names_in(l))
+            elif l.strip() and not l.startswith(" "):
+                in_produces = False
+    return produced, consumed
+
+
+def _already_exists(root, plan_text):
+    """1단계 코드·마이그레이션·플랜이 만드는 것 — 「없는 이름」 판정에서 빼는 근거."""
+    known = set()
+    mig = root / "supabase" / "migrations"
+    if mig.is_dir():
+        sql = "\n".join(f.read_text() for f in sorted(mig.glob("*.sql")))
+        known.update(re.findall(r"[a-z_][a-z0-9_]{2,}", sql))
+    code = root / "backend" / "app"
+    if code.is_dir():
+        for f in code.rglob("*.py"):
+            known.update(re.findall(r"[a-z_][a-z0-9_]{2,}", f.read_text(errors="ignore")))
+    # 플랜이 스스로 정의하는 것(`def name(` · `const name =` · `function name(`)
+    known.update(re.findall(r"(?:def|function|const|let)\s+([a-z_][a-z0-9_]{2,})", plan_text))
+    # 플랜이 만드는 표(아직 파일이 없는 신설 마이그레이션)
+    known.update(re.findall(r"create\s+table\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]{2,})",
+                            plan_text, re.I))
+    # ⭐ `- Create:` 줄에 적힌 이름도 「만드는 쪽」이다 — Produces 블록에만 적으라는
+    #    규칙이 없으므로 여기서 세지 않으면 오탐이 된다(실제로 `encode_cursor`가 그랬다).
+    for l in plan_text.split("\n"):
+        if l.startswith("- Create:") or l.startswith("- Modify:"):
+            for span in re.findall(r"`([^`]+)`", l):
+                if m := re.match(r"^([a-z_][a-z0-9_]{2,})(?![a-z0-9_/.])", span.strip()):
+                    known.add(m.group(1))
+    return known
+
+
+def undefined_consumes_gaps(root, lines, spans, plan_text):
+    produced, consumed = undefined_consumes(lines, spans)
+    known = produced | _already_exists(root, plan_text)
+    out = {}
+    for task, names in consumed.items():
+        gaps = sorted(n for n in names if n not in known)
+        if gaps:
+            out[task] = gaps
+    return out
+
+
 def global_rule_prefixes(root):
     """규칙 문서에서 「전역 규칙」으로 선언된 절의 접두어."""
     path = root / BEHAVIORS
@@ -573,6 +733,33 @@ def main():
         print("   → 배정 표에 없으면 위 「본문에 없는 접두어」 검사의 시야 밖이라 **아무도 안 찾는다.**")
         print("     실제로 SUPPORT-CAL-*(14개)·SCHED-SAVE/EXC/SLOT-*(35개)이 이렇게 빠져 있었다.")
         print("     담당 태스크를 정해 「활성 route 정본」·「File Structure」 표에 적을 것.")
+
+    if phantoms := phantom_prefixes(root, assigned):
+        print(f"\n🔎 **배정 표에 적혔는데 규칙이 0개인 접두어 {len(phantoms)}건** — 지어낸 이름이다:")
+        for t, p in phantoms:
+            print(f"   Task {t:<3} {p}-*")
+        print("   → 지금까지 검사는 「규칙 → 표」 한 방향뿐이라 **반대 방향이 뚫려 있었다.**")
+        print("     ⚠️ 그 태스크를 쓰려는 사람이 접두어를 찾다 0건을 보면 **「할 일이 없다」로 읽는다.**")
+        print("     실제 사례: `SCHED-OFF-*`(Task 23) — 요구사항 3.7 「휴진일」의 서버 층이")
+        print("     통째로 빠져 있었는데 표만 보면 담당자가 있는 것처럼 보였다.")
+
+    if cols := unread_columns(root, "\n".join(lines)):
+        print(f"\n🧱 **만들어 두고 아무도 읽지 않는 칸 {len(cols)}개** — 칸만 있고 쓰는 곳이 없다:")
+        for table, col, mig in cols:
+            print(f"   {table}.{col:<28} ({mig})")
+        print("   → 규칙 커버리지는 **규칙 문서에 있는 것**만 센다. 요구사항이 **화면 규칙으로만**")
+        print("     옮겨졌으면 서버 층이 통째로 빠져도 **100% 초록불**이다.")
+        print("     실제 사례: `is_day_off`(정기 휴진) — 화면은 스위치를 잠그는데 서버는")
+        print("     **휴진 요일에도 예약 자리를 계속 만들고 있었다.**")
+
+    if uc := undefined_consumes_gaps(root, lines, spans, "\n".join(lines)):
+        total = sum(len(v) for v in uc.values())
+        print(f"\n🔗 **부르는 쪽만 있고 만드는 쪽이 없는 이름 {total}개**:")
+        for t, names in sorted(uc.items()):
+            head = ", ".join(names[:6]) + (f" 외 {len(names) - 6}건" if len(names) > 6 else "")
+            print(f"   Task {t:<3} {head}")
+        print("   → 구현자는 **자기 태스크만** 본다. 만드는 쪽이 없으면 그 자리에서 멈춘다.")
+        print("     ⚠️ 남의 플랜(1단계·공용)이 만든 것이면 무시해도 된다. 눈으로 한 번 볼 것.")
 
     if handovers := pending_handovers(root):
         print("\n📦 다른 플랜으로 **넘긴 미결** — 받을 플랜에 아직 안 들어갔다:")
