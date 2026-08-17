@@ -751,6 +751,73 @@ def screens_without_source(lines, spans):
     return out
 
 
+JOSA_RE = re.compile(r"(이|가|을|를|은|는|에|의|로|와|과|도|만|라|다|나|고)$")
+
+
+def _anchors(rule_body):
+    """규칙이 **구체적으로 못박은 값** — 숫자·시각·화면 문구·버튼 이름."""
+    raw = (re.findall(r"\d+\s*(?:건|분|명|초|시간|주|일|개|자리|자|%)", rule_body)
+           + re.findall(r"\d{1,2}:\d{2}", rule_body)
+           + re.findall(r"`([^`]{2,14})`", rule_body)
+           + re.findall(r"「([^」]{2,14})」", rule_body)
+           + re.findall(r"\[([^\]]{2,14})\]", rule_body))
+    out = set()
+    for a in raw:
+        a = a.strip()
+        if (2 <= len(a) <= 14 and a.count(" ") <= 2 and re.search(r"[가-힣0-9]", a)
+                and not (JOSA_RE.search(a) and " " in a)):     # 문장 조각·기호는 버린다
+            out.add(a)
+    return out
+
+
+def hollow_citations(root, plan_text):
+    """👻 **ID는 인용했는데 규칙이 못박은 값이 테스트에 하나도 없는 것.**
+
+    왜 필요한가
+    -----------
+    지금까지의 검사(💸)는 `test('[규칙ID] …')`에 **ID가 있나만** 본다. 그래서
+    **테스트가 규칙과 다른 것을 검증해도 초록불**이다 — 그게 이 계열의 마지막 구멍이었다.
+
+    ⭐ **완전 일치 검증은 불가능하지만, 「껍데기」는 전수로 잡힌다.** 규칙 대부분은
+    구체적 값을 못박고 있다(`20건`·`09:00`·`[재예약]`·`예약부도`). 그 값이 **인용한
+    테스트 근처에 하나도 없으면**, 그 테스트는 그 규칙을 **검증하지 않는 것이다.**
+
+    실측(2026-08-16): 인용된 규칙 중 **127건**이 그랬다. 그중
+      - **80건**은 `[A][B]` **묶음 테스트에만** 등장 — 뒤에 붙은 ID가 **얹혀 간 것**
+      - **47건**은 자기 전용 테스트인데도 값이 없다 — **더 나쁘다**
+
+    실제 예: `PICK-ACT-01`(*"막대 머리에 `N명 선택됨` + `[취소]`"*)을 인용한 테스트가
+    검증하는 것은 **`[안내 보내기]`·`[내려받기]`**(=`PICK-ACT-01b`의 내용)였다.
+    이 규칙 자신의 내용은 **아무도 확인하지 않는다.**
+
+    ⚠️ 오탐이 있다 — 테스트가 **뜻은 맞게** 쓰되 낱말을 안 옮긴 경우(`SHELL-LIVE-02`).
+       그래서 「고쳐라」가 아니라 **「눈으로 보라」** 목록이다.
+    """
+    beh = root / BEHAVIORS
+    if not beh.exists():
+        return []
+    lines = plan_text.split("\n")
+    out = []
+    for l in beh.read_text().split("\n"):
+        m = re.match(r"^\| `([A-Z][A-Z0-9-]*-\d+[a-z]?)`\s*\|(.*)$", l)
+        if not m:
+            continue
+        rid = m.group(1)
+        if f"[{rid}]" not in plan_text:
+            continue
+        anch = _anchors(" ".join(m.group(2).split("|")[:3]))
+        if not anch:
+            continue
+        cites = [x for x in lines if f"[{rid}]" in x]
+        near = "\n".join("\n".join(lines[i:i + 12])
+                         for i, x in enumerate(lines) if f"[{rid}]" in x)
+        if any(a in near for a in anch):
+            continue
+        piggyback = all(len(re.findall(r"\[[A-Z][A-Z0-9-]*-\d+[a-z]?\]", c)) > 1 for c in cites)
+        out.append((rid, sorted(anch)[:3], piggyback))
+    return out
+
+
 def lost_in_rewrite(root, plan, plan_text):
     """♻️ **옛 플랜이 만들던 것 중 재작성본에서 사라진 이름.**
 
@@ -953,6 +1020,20 @@ def main():
             print(f"   Task {t:<3} {head}")
         print("   → 구현자는 **자기 태스크만** 본다. 만드는 쪽이 없으면 그 자리에서 멈춘다.")
         print("     ⚠️ 남의 플랜(1단계·공용)이 만든 것이면 무시해도 된다. 눈으로 한 번 볼 것.")
+
+    if hollow := hollow_citations(root, "\n".join(lines)):
+        piggy = sum(1 for _, _, p in hollow if p)
+        print(f"\n👻 **ID는 인용했는데 규칙이 못박은 값이 테스트에 없는 것 {len(hollow)}건** "
+              f"— 얹혀 간 것 {piggy} · 자기 테스트인데도 없는 것 {len(hollow) - piggy}:")
+        for rid, anch, p in hollow[:12]:
+            print(f"   {rid:<22} {'[묶음]' if p else '[전용]'} 규칙이 못박은 값: {', '.join(anch)}")
+        if len(hollow) > 12:
+            print(f"   … 외 {len(hollow) - 12}건")
+        print("   → 💸 검사는 **ID가 있나만** 본다. 그래서 테스트가 규칙과 다른 것을")
+        print("     검증해도 초록불이다 — 이것이 그 마지막 구멍이다.")
+        print("     ⚠️ **「고쳐라」가 아니라 「눈으로 보라」 목록이다** — 뜻은 맞게 쓰되")
+        print("     낱말을 안 옮긴 경우가 섞여 있다. 실제 예: `PICK-ACT-01`을 인용한")
+        print("     테스트가 검증한 것은 **다른 규칙(01b)의 내용**이었다.")
 
     if nosrc := screens_without_source(lines, spans):
         print(f"\n📺 **화면인데 값을 주고받을 창구가 이름으로 없는 태스크 {len(nosrc)}개**:")
