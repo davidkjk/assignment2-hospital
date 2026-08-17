@@ -2503,3 +2503,371 @@ git commit -m "feat: 📝 환자앱 Task 7 본문 — 사전문진 서비스(완
 > 📌 **미작성/작성 중 판정은 서버 값으로**(`QNR-STATE`) — 화면(Task 24)·홈 카드(Task 17 `CARD-QNR-*`)·알림 배치가 같은 `state`·`answered`·`total`을 쓴다. 옛 구현의 "행 존재 여부로만 판정"(갭 #50·#53)을 `completed_at`이 대체한다.
 > 📌 **미완성 문진 이관은 Task 5가 이미 한다**(`move_questionnaire_response`) — `QNR-LIVE-09`("완료 표시 없는 상태 그대로 옮겨 작성 중 유지")는 `completed_at`을 그대로 옮겨 성립한다(별도 처리 불필요).
 > 📌 **옛 플랜 `submit_response`는 폐기하고 `save_response(complete=bool)`로 대체**했다 — 부분저장(자동, `complete=False`)과 제출(완료, `complete=True`)을 한 함수로 합쳐 `completed_at`으로 가른다(옛 upsert는 완료 개념이 없어 1문항만 써도 작성완료로 보였다, 갭 #50).
+
+---
+
+## Task 8: 예약 조회 + 방문 이력(4상태·20건 커서) + 당일 대기·예상 시간(`00022`, #21)
+
+> **담당 규칙**: 없음(백엔드 계약). 홈·카드(Task 16·17)·예약 상세(Task 21)·이력(Task 27)·나의 예약(Task 30)이 소비한다.
+>
+> ⭐ **옛 플랜 Task 9 후반(조회, `plans/2026-07-27-patient-app.md:2503~2634`) + Task 11(이력, `:2856~2958`)을 합쳐 재편하고 세 계약을 얹는다**:
+> 1. **예상 대기시간(`CARD-WAIT-08`, 갭 #21, 확정 2026-08-01)** — `estimated = patients_ahead × 1인당 진료시간`. 1인당 진료시간 **3단 대체**: ① 그 의사 최근 20건 실측 평균(`진료중→진료완료` 시각차, `appointment_status_history`) → ② 없으면 슬롯 간격(`doctor_schedule_rules.slot_duration_minutes`) → ③ 그것도 없으면 **null**(화면은 인원만, `CARD-WAIT-04`). ⭐ **서버 한 곳**에서 계산(앱·챗봇·직원이 다른 숫자를 말하면 안 됨). 5분 반올림·`약`·`곧`·`약 1시간 이상`은 **화면 표시 규칙**(`CARD-WAIT-05~07`) — 서버는 raw 분만.
+> 2. **방문 이력 4상태(`HIST-ROW-01·02·06·09`, 갭 #29)** — 옛 이력은 `진료완료`만 봐서 취소·부도가 한 줄도 안 왔다. `HIST-ROLE-01`("지나간 예약 전체")대로 **네 갈래를 서버가 파생**: `진료완료` / `취소됨`(환자취소·병원취소) / `방문하지않음`(예약부도) / `확정되지않음`(`예약신청`인 채 시각 지나 자정 넘김, `HIST-ROW-09`·B-39).
+> 3. **20건 커서·안정정렬(`HIST-LIST-15·16·21`, 갭 #71)** — 옛 조회는 건수 제한도 이어받기 기준점도 없었다. 최신 날짜순 20건 + `(slot_date, id)` 커서로 이어받기. 기간 제한 없음(`HIST-LIST-20`).
+>
+> ⚠️ **`cancellation_requested_at` → `support_requested_at`** — 옛 조회 쿼리의 폐기 필드를 ④ `00010` 칸으로 교체.
+> ⚠️ **조회는 RLS에 맡긴다** — `patients_can_read_own_appointments`(Task 1, `patient_owns(for_patient_id) or account`)가 본인+가족만 거르므로 서비스가 소유 목록을 따로 안 만든다. 이력은 `for_patient_id` 파라미터로 한 사람만 좁힌다(못 보는 가족이면 RLS가 빈 결과).
+> ⚠️ **안내문은 `patient_medical_notes` 뷰(Task 1)** — `medical_records` 직접 조회 금지(의료진 전용 메모가 새지 않게). 완료 줄만 안내문, 취소·부도·미확정 줄은 안내문 자리 없음(`HIST-NOTE-04`).
+> ⚠️ **미정의 엣지(규칙에 없음)**: `예약확정`인 채 시각이 지난 예약(직원이 완료 처리를 깜빡)은 `HIST-ROW-09`가 `예약신청`만 「확정되지않음」으로 정해 **규칙이 다루지 않는다.** 여기서는 이력에 넣지 않는다(추측 금지). auto_confirm 기본 true라 드물지만, 발견 시 규칙 결정 필요 → 완료 보고에 짚음.
+
+**Files:**
+- Create: `supabase/migrations/00022_wait_estimate.sql` · `backend/app/services/patient_appointment_query_service.py` · `backend/app/services/patient_history_service.py`
+- Test: `backend/tests/test_patient_appointment_query_service.py` · `backend/tests/test_patient_history_service.py`
+
+**Interfaces:**
+- Consumes: `PatientContext`(Task 2) · `acquire_as` · `AppError` · `appointments`·`appointment_slots`·`appointment_status_history`·`doctor_schedule_rules.slot_duration_minutes`·`patients`·`departments`·`staff`·`questionnaire_responses` · `patient_medical_notes` 뷰(Task 1) · `patient_owns()`(Task 1) · RLS `patients_can_read_own_appointments`(Task 1)
+- Produces:
+  - SQL: `patient_wait_estimate(p_appointment_id uuid) returns table(patients_ahead int, estimated_wait_minutes int)`(SECURITY DEFINER — 소유 확인 후 전체 대기열·전체 완료이력 집계)
+  - `patient_appointment_query_service.list_my_appointments(patient) -> list[dict]`(진행 중, 취소·부도 제외, 미래·미배정만)
+  - `patient_appointment_query_service.get_appointment_detail(patient, appointment_id) -> dict`
+  - `patient_appointment_query_service.get_queue_status(patient, appointment_id) -> dict`(`{"patients_ahead", "estimated_wait_minutes"}`; 대기 아님/근거 없음이면 `estimated_wait_minutes=None`)
+  - `patient_history_service.list_visit_history(patient, for_patient_id, cursor=None, limit=20) -> dict`(`{"items": [...], "next_cursor": str | None}`; 각 item에 `visit_status`·`patient_visible_notes`·`has_questionnaire`)
+
+- [ ] **Step 1: 대기 RPC 실패 테스트** — `backend/tests/test_patient_appointment_query_service.py`(상단)
+
+```python
+import pytest
+from uuid import uuid4
+
+from app.core.patient_security import PatientContext
+from app.services import patient_appointment_query_service as q
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+
+def _ctx(s): return PatientContext(id=s["patient_id"], auth_user_id=s["auth_user_id"])
+
+
+async def _seed_doctor_dept(db_conn):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id=$1 where id=$2", dept, doctor["staff_id"])
+    return admin, doctor["staff_id"], dept
+
+
+async def _waiting(db_conn, dept, doctor_id, pid, pos):
+    return await db_conn.fetchval(
+        "insert into appointments (account_patient_id, for_patient_id, department_id, doctor_id, status, source, queue_position) "
+        "values ($1,$1,$2,$3,'진료대기','staff',$4) returning id", pid, dept, doctor_id, pos)
+
+
+@pytest.mark.asyncio
+async def test_wait_estimate_uses_slot_duration_when_no_history(db_conn):
+    # 3단 대체 ②: 실측 이력이 없으면 슬롯 간격(30분)으로 1인당 시간을 잡는다. 앞 2명 → 60분.
+    admin, doctor_id, dept = await _seed_doctor_dept(db_conn)
+    await db_conn.execute(
+        "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments) "
+        "values ($1,0,'09:00','18:00',30,50),($1,1,'09:00','18:00',30,50),($1,2,'09:00','18:00',30,50),"
+        "($1,3,'09:00','18:00',30,50),($1,4,'09:00','18:00',30,50),($1,5,'09:00','18:00',30,50),($1,6,'09:00','18:00',30,50)",
+        doctor_id)
+    me = _ctx(await seed_patient(db_conn))
+    await _waiting(db_conn, dept, doctor_id, (await seed_patient(db_conn, phone="010-1"))["patient_id"], 1)
+    await _waiting(db_conn, dept, doctor_id, (await seed_patient(db_conn, phone="010-2"))["patient_id"], 2)
+    mine = await _waiting(db_conn, dept, doctor_id, me.id, 3)
+    st = await q.get_queue_status(me, mine)
+    assert st["patients_ahead"] == 2 and st["estimated_wait_minutes"] == 60
+
+
+@pytest.mark.asyncio
+async def test_wait_estimate_null_when_no_basis(db_conn):
+    # 3단 대체 ③: 실측도 슬롯 간격도 없으면 숫자를 만들지 않는다(CARD-WAIT-04).
+    admin, doctor_id, dept = await _seed_doctor_dept(db_conn)
+    me = _ctx(await seed_patient(db_conn))
+    await _waiting(db_conn, dept, doctor_id, (await seed_patient(db_conn, phone="010-3"))["patient_id"], 1)
+    mine = await _waiting(db_conn, dept, doctor_id, me.id, 2)
+    st = await q.get_queue_status(me, mine)
+    assert st["patients_ahead"] == 1 and st["estimated_wait_minutes"] is None
+```
+Run → Expected: FAIL(RPC·모듈 없음).
+
+- [ ] **Step 2: 마이그레이션 SQL** — `supabase/migrations/00022_wait_estimate.sql`
+
+```sql
+-- #21(확정 2026-08-01): 예상 대기시간 = 앞 인원 × 1인당 진료시간. 1인당은 3단 대체.
+-- 전체 대기열·전체 완료이력을 봐야 하므로 security definer로 소유 확인 뒤 집계한다.
+create or replace function patient_wait_estimate(p_appointment_id uuid)
+returns table(patients_ahead int, estimated_wait_minutes int)
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_doctor uuid; v_pos int; v_ahead int; v_per numeric;
+begin
+  select a.doctor_id, a.queue_position into v_doctor, v_pos
+    from public.appointments a
+    where a.id = p_appointment_id and a.status = '진료대기'
+      and public.patient_owns(a.account_patient_id);
+  if v_pos is null then                       -- 내 예약이 아니거나 대기 상태 아님
+    return query select 0, null::int; return;
+  end if;
+
+  select count(*) into v_ahead                -- 같은 의사·오늘·진료대기·내 앞 순번
+    from public.appointments a2
+    left join public.appointment_slots s2 on s2.id = a2.slot_id
+    where a2.doctor_id = v_doctor and a2.status = '진료대기'
+      and coalesce(s2.slot_date, current_date) = current_date
+      and a2.queue_position < v_pos;
+
+  -- ① 그 의사 최근 20건 실측 평균(진료중→진료완료 분).
+  select avg(mins) into v_per from (
+    select extract(epoch from (
+      (select max(h2.changed_at) from public.appointment_status_history h2
+         where h2.appointment_id = a3.id and h2.to_status = '진료완료')
+      - (select max(h1.changed_at) from public.appointment_status_history h1
+         where h1.appointment_id = a3.id and h1.to_status = '진료중')))/60 as mins
+    from public.appointments a3
+    where a3.doctor_id = v_doctor and a3.status = '진료완료'
+    order by a3.updated_at desc limit 20
+  ) recent where mins is not null and mins > 0;
+
+  if v_per is null then                        -- ② 슬롯 간격으로 대체
+    select slot_duration_minutes into v_per from public.doctor_schedule_rules
+      where doctor_id = v_doctor and slot_duration_minutes is not null limit 1;
+  end if;
+
+  -- ③ 근거 없으면 estimated는 null(화면이 인원만 표시).
+  return query select v_ahead, case when v_per is null then null else round(v_ahead * v_per)::int end;
+end;
+$$;
+revoke execute on function patient_wait_estimate(uuid) from public;
+grant execute on function patient_wait_estimate(uuid) to authenticated;
+```
+Run → Expected: PASS(Step 1 — query_service 구현 후).
+
+- [ ] **Step 3: 조회 서비스 실패 테스트(진행중·상세)** — 같은 파일에 이어서
+
+```python
+async def _future_appt(db_conn, me, dept, doctor_id):
+    from app.services import patient_booking_service
+    slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,'2999-09-01','09:00') returning id",
+        doctor_id)
+    return await patient_booking_service.create_booking(
+        me, for_patient_id=me.id, department_id=dept, doctor_id=doctor_id,
+        slot_id=slot, reason="감기", request_id=uuid4())
+
+
+@pytest.mark.asyncio
+async def test_list_my_appointments_excludes_cancelled_and_past(db_conn):
+    admin, doctor_id, dept = await _seed_doctor_dept(db_conn)
+    me = _ctx(await seed_patient(db_conn))
+    live = await _future_appt(db_conn, me, dept, doctor_id)
+    # 과거 예약확정(직원 상태전이 누락) 1건은 나의 예약(진행 중)에서 빠진다.
+    past_slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1,'2020-01-01','09:00','예약됨') returning id",
+        doctor_id)
+    await db_conn.execute(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source) "
+        "values ($1,$2,$2,$3,$4,'예약확정','app')", past_slot, me.id, dept, doctor_id)
+    rows = await q.list_my_appointments(me)
+    assert [r["id"] for r in rows] == [live]
+    assert rows[0]["slot_date"] is not None  # SDB-21: 예약됨 슬롯 날짜가 NULL로 새지 않는다
+
+
+@pytest.mark.asyncio
+async def test_get_appointment_detail_has_names(db_conn):
+    admin, doctor_id, dept = await _seed_doctor_dept(db_conn)
+    me = _ctx(await seed_patient(db_conn))
+    aid = await _future_appt(db_conn, me, dept, doctor_id)
+    d = await q.get_appointment_detail(me, aid)
+    assert d["department_name"] == "내과" and d["status"] in ("예약신청", "예약확정")
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 4: `patient_appointment_query_service.py` 구현**
+
+```python
+from uuid import UUID
+
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+
+# support_requested_at·request_type(④ 00010)로 폐기된 cancellation_requested_at을 대체한다.
+_LIVE = "('환자취소','병원취소','예약부도')"
+
+
+async def list_my_appointments(patient: PatientContext) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:  # RLS가 본인+가족만 거른다
+        rows = await conn.fetch(
+            "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, "
+            "  a.booking_code, a.booking_code_expires_at, "
+            "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
+            "  s.slot_date, s.start_time, "
+            "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire "
+            "from appointments a "
+            "join patients p on p.id=a.for_patient_id "
+            "join departments d on d.id=a.department_id "
+            "join staff st on st.id=a.doctor_id "
+            "left join appointment_slots s on s.id=a.slot_id "
+            f"where a.status not in {_LIVE} and (s.slot_date is null or s.slot_date >= current_date) "
+            "order by s.slot_date nulls last, s.start_time nulls last")
+    return [dict(r) for r in rows]
+
+
+async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) -> dict:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, a.queue_position, "
+            "  a.doctor_id, a.booking_code, a.booking_code_expires_at, "
+            "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
+            "  s.slot_date, s.start_time "
+            "from appointments a "
+            "join patients p on p.id=a.for_patient_id "
+            "join departments d on d.id=a.department_id "
+            "join staff st on st.id=a.doctor_id "
+            "left join appointment_slots s on s.id=a.slot_id where a.id=$1", appointment_id)
+    return dict(row) if row else {}
+
+
+async def get_queue_status(patient: PatientContext, appointment_id: UUID) -> dict:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow("select * from patient_wait_estimate($1)", appointment_id)
+    return {"patients_ahead": row["patients_ahead"] or 0,
+            "estimated_wait_minutes": row["estimated_wait_minutes"]}  # None이면 화면은 인원만
+```
+
+- [ ] **Step 5: 이력 서비스 실패 테스트(4상태·커서)** — `backend/tests/test_patient_history_service.py`
+
+```python
+import pytest
+from uuid import uuid4
+
+from app.core.patient_security import PatientContext
+from app.services import patient_history_service as h
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+
+def _ctx(s): return PatientContext(id=s["patient_id"], auth_user_id=s["auth_user_id"])
+
+
+async def _past(db_conn, me, dept, doctor_id, status, date, *, note=None):
+    slot = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1,$2,'09:00','예약됨') returning id",
+        doctor_id, date)
+    aid = await db_conn.fetchval(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source) "
+        "values ($1,$2,$2,$3,$4,$5,'app') returning id", slot, me.id, dept, doctor_id, status)
+    if note is not None:
+        await db_conn.execute(
+            "insert into medical_records (appointment_id, doctor_id, symptoms, diagnosis, patient_visible_notes, is_completed) "
+            "values ($1,$2,'내부','내부',$3,true)", aid, doctor_id, note)
+    return aid
+
+
+@pytest.mark.asyncio
+async def test_history_covers_four_statuses_newest_first(db_conn):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id=$1 where id=$2", dept, doctor["staff_id"])
+    me = _ctx(await seed_patient(db_conn)); did = doctor["staff_id"]
+    await _past(db_conn, me, dept, did, "진료완료", "2026-01-10", note="휴식하세요")
+    await _past(db_conn, me, dept, did, "환자취소", "2026-02-10")
+    await _past(db_conn, me, dept, did, "예약부도", "2026-03-10")
+    await _past(db_conn, me, dept, did, "예약신청", "2020-01-01")  # 지난 예약신청 = 확정되지않음
+    res = await h.list_visit_history(me, me.id)
+    statuses = {i["visit_status"] for i in res["items"]}
+    assert statuses == {"진료완료", "취소됨", "방문하지않음", "확정되지않음"}
+    # 날짜 내림차순: 2026-03-10(부도) > 02-10(취소) > 01-10(완료) > 2020(미확정).
+    assert [i["visit_status"] for i in res["items"]] == ["방문하지않음", "취소됨", "진료완료", "확정되지않음"]
+    done = next(i for i in res["items"] if i["visit_status"] == "진료완료")
+    assert done["patient_visible_notes"] == "휴식하세요"
+
+
+@pytest.mark.asyncio
+async def test_history_paginates_20_with_cursor(db_conn):
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id=$1 where id=$2", dept, doctor["staff_id"])
+    me = _ctx(await seed_patient(db_conn)); did = doctor["staff_id"]
+    for i in range(25):
+        await _past(db_conn, me, dept, did, "진료완료", f"2026-{(i%12)+1:02d}-{(i%27)+1:02d}")
+    first = await h.list_visit_history(me, me.id, limit=20)
+    assert len(first["items"]) == 20 and first["next_cursor"] is not None
+    second = await h.list_visit_history(me, me.id, cursor=first["next_cursor"], limit=20)
+    assert len(second["items"]) == 5 and second["next_cursor"] is None
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 6: `patient_history_service.py` 구현**
+
+```python
+from uuid import UUID
+
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+
+# 종료 상태 + '예약신청'인 채 지난 예약(확정되지않음, HIST-ROW-09). 예약확정+지남은 규칙 미정의라 제외.
+_HISTORY_WHERE = (
+    "(a.status in ('진료완료','환자취소','병원취소','예약부도') "
+    " or (a.status = '예약신청' and s.slot_date < current_date))")
+
+
+def _encode(slot_date, aid) -> str:
+    return f"{slot_date.isoformat() if slot_date else ''}|{aid}"
+
+
+def _decode(cursor: str):
+    d, aid = cursor.split("|", 1)
+    return (d or None), aid
+
+
+async def list_visit_history(patient: PatientContext, for_patient_id: UUID,
+                             cursor: str | None = None, limit: int = 20) -> dict:
+    params = [for_patient_id]
+    keyset = ""
+    if cursor:
+        cdate, cid = _decode(cursor)
+        params += [cdate, cid]
+        # (slot_date, id) 내림차순 keyset. 안정 동점키 = id(HIST-LIST 안정정렬).
+        keyset = "and (s.slot_date, a.id) < ($2::date, $3::uuid) "
+    params.append(limit + 1)  # 다음 페이지 존재 여부 판정용 +1
+    async with acquire_as(str(patient.auth_user_id)) as conn:  # RLS가 소유 필터
+        rows = await conn.fetch(
+            "select a.id, a.status, s.slot_date, d.name as department_name, st.name as doctor_name, "
+            "  n.patient_visible_notes, "
+            "  case a.status when '진료완료' then '진료완료' "
+            "       when '환자취소' then '취소됨' when '병원취소' then '취소됨' "
+            "       when '예약부도' then '방문하지않음' else '확정되지않음' end as visit_status, "
+            "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire "
+            "from appointments a "
+            "join departments d on d.id=a.department_id "
+            "join staff st on st.id=a.doctor_id "
+            "left join appointment_slots s on s.id=a.slot_id "
+            "left join patient_medical_notes n on n.appointment_id=a.id "
+            f"where a.for_patient_id = $1 and {_HISTORY_WHERE} {keyset}"
+            "order by s.slot_date desc nulls last, a.id desc "
+            f"limit ${len(params)}", *params)
+    items = [dict(r) for r in rows]
+    next_cursor = None
+    if len(items) > limit:                       # +1이 잡혔으면 다음 페이지가 있다
+        items = items[:limit]
+        last = items[-1]
+        next_cursor = _encode(last["slot_date"], str(last["id"]))
+    return {"items": items, "next_cursor": next_cursor}
+```
+
+- [ ] **Step 7: 전체 테스트 실행**
+
+Run: `cd backend && pytest tests/test_patient_appointment_query_service.py tests/test_patient_history_service.py -v`
+Expected: 조회 4(대기 2 + 진행중/상세 2) + 이력 2 = **6개 PASS**.
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add supabase/migrations/00022_wait_estimate.sql backend/app/services/patient_appointment_query_service.py backend/app/services/patient_history_service.py backend/tests/test_patient_appointment_query_service.py backend/tests/test_patient_history_service.py
+git commit -m "feat: 📝 환자앱 Task 8 본문 — 예약 조회 + 이력 4상태·20건 커서(#71) + 예상 대기 3단 대체(00022·#21 CARD-WAIT)"
+```
+
+> 📌 **`estimated_wait_minutes`는 raw 분**이다 — 5분 반올림·`약`·`곧 들어가십니다`(0명)·`약 1시간 이상`(60분 초과)은 화면(Task 16·17 `CARD-WAIT-05~07`)이 입힌다. 챗봇(4단계)·직원 웹도 같은 RPC를 호출해 숫자를 일치시킨다(`CARD-WAIT-08`).
+> 📌 **취소 주체(누가 취소)는 화면이 상세로 판단**한다 — `HIST-ROW-02`("병원에서/본인/배우자 김○○")는 `CARD-CXL-*` 3갈래(Task 17)를 재사용하고, 목록 줄은 `status`(환자취소/병원취소)만 준다. 이력 목록에 취소자 이름 조인을 넣지 않는다(얇은 줄 유지).
+> 📌 **`list_my_appointments`의 `slot_date >= current_date`** — 직원이 상태전이를 깜빡한 지난 예약이 홈에 「다음 예약」으로 계속 뜨는 것을 막는다(미배정 슬롯은 날짜 없어 항상 포함). 그 지난 예약은 이력 쪽 `확정되지않음`(예약신청) 또는 미정의 엣지(예약확정)로 간다.
