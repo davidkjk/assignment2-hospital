@@ -170,4 +170,612 @@
 
 <!-- 태스크 본문은 여기부터. 세션마다 한 태스크씩 `test('[규칙ID] …')` 문장으로 채운다.
      지킬 조건: ①테스트 한 줄에 규칙 ID 하나 + 값 assert ②Consumes/Produces는 이름으로
-     ③규칙에 DB 칸이 나오면 서버 층 짝 확인. 다 쓰면 plan-coverage-check + plan-prefix-check 경고 0 확인 후 커밋. -->
+     ③규칙에 DB 칸이 나오면 서버 층 짝 확인. 다 쓰면 plan-coverage-check + plan-prefix-check 경고 0 확인 후 커밋.
+     ⚠️ 태스크 헤딩은 `## Task N:`(더블 해시) — prefix-check의 `task_spans`가 이 형식만 본다. -->
+
+## Task 0: Flutter 스캐폴딩 + 시각 토큰(테마) + 공통 표시 위젯 + ApiClient·인증상태
+
+> ⭐ **가장 먼저다.** 토큰이 없으면 각 화면이 자기 색·크기·카드 규격을 만들고, 회수 비용이 화면 수만큼 곱해진다(직원웹 Task 0에서 확인된 교훈). 이 태스크가 `DISP-*` 12규칙 전부를 **토큰·공통 위젯**으로 못박고, 이후 모든 화면은 그것만 소비한다.
+
+**담당 규칙(12)**: `DISP-GRAY-01·02·03` · `DISP-CARD-01·02·03` · `DISP-ATT-01` · `DISP-ICON-01·02·03` · `DISP-COLOR-01` · `DISP-WARN-01`
+
+**Files:**
+- Create: `patient_app/pubspec.yaml`
+- Create: `patient_app/lib/main.dart` · `patient_app/lib/app.dart`
+- Create: `patient_app/lib/core/env.dart` · `patient_app/lib/core/router.dart`
+- Create: `patient_app/lib/core/tokens.dart` (시각 토큰 — `DISP-GRAY-*`·`DISP-CARD-01`·`DISP-WARN-01` 상수)
+- Create: `patient_app/lib/widgets/app_card.dart` (`DISP-CARD-01·02·03`·`DISP-ATT-01`)
+- Create: `patient_app/lib/widgets/status_label.dart` (`DISP-COLOR-01`·`DISP-GRAY-*` 상태→회색 매핑)
+- Create: `patient_app/lib/widgets/warn_text.dart` (`DISP-WARN-01`)
+- Create: `patient_app/lib/widgets/app_icons.dart` (`DISP-ICON-01·02·03`)
+- Create: `patient_app/lib/core/api_client.dart` · `patient_app/lib/core/providers.dart` · `patient_app/lib/features/auth/auth_state.dart`
+- Test: `patient_app/test/widget_test.dart` · `test/core/tokens_test.dart` · `test/widgets/app_card_test.dart` · `test/widgets/status_label_test.dart` · `test/widgets/warn_text_test.dart` · `test/widgets/app_icons_test.dart` · `test/core/api_client_test.dart`
+
+**Interfaces:**
+- Consumes: (없음 — 최초 태스크)
+- Produces:
+  - `Env.apiBaseUrl`·`Env.supabaseUrl`·`Env.supabaseAnonKey`(`--dart-define` 주입) · `appRouter`(`GoRouter`) · `PatientApp` 위젯
+  - `AppTokens.grayPending`(Color `0xFF7E8E99`) · `AppTokens.grayDone`(Color `0xFFA3AFB8`) · `AppTokens.grays`(List<Color>) · `AppTokens.warn`(Color) · `AppTokens.cardBodyHeight`(double `132`) · `AppTokens.warnBarWidth`(double `4`)
+  - `AppCard({required Widget body, Widget? announcement})` · `StatusLabel({required String text, required Color color})` · `WarnText(String text)` · `appIcon(AppIconKind)`(`IconData`) · `enum AppIconKind { blocked, readonly }`
+  - `ApiException(message)` · `ApiClient({required baseUrl, required tokenProvider, http.Client? httpClient})`(`.get`/`.post`/`.patch`/`.delete`) · `apiClientProvider` · `authStateChangesProvider`(`StreamProvider<AuthState>`) · `AuthState`·`AuthStatus`
+
+---
+
+### A. 스캐폴딩
+
+- [ ] **Step A1: `pubspec.yaml` 작성**
+
+`patient_app/pubspec.yaml`:
+```yaml
+name: hospital_patient_app
+description: 병원 통합 서비스 환자용 모바일 앱
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.0
+  supabase_flutter: ^2.5.6
+  http: ^1.2.1
+  intl: ^0.19.0
+  qr_flutter: ^4.1.0
+  firebase_core: ^3.3.0
+  firebase_messaging: ^15.0.4
+  connectivity_plus: ^6.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.3
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+```
+
+- [ ] **Step A2: `env.dart`·`router.dart` 작성**
+
+`patient_app/lib/core/env.dart`:
+```dart
+class Env {
+  static const apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8000');
+  static const supabaseUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: 'http://localhost:54321');
+  static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+}
+```
+
+`patient_app/lib/core/router.dart` — 라우트 골격만. 각 화면 위젯은 이후 태스크(13~31)가 이 파일의 `builder`를 교체한다:
+```dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+final GoRouter appRouter = GoRouter(
+  initialLocation: '/login',
+  routes: [
+    GoRoute(path: '/login', builder: (c, s) => const _Placeholder('로그인')),
+    GoRoute(path: '/signup', builder: (c, s) => const _Placeholder('회원가입')),
+    GoRoute(path: '/home', builder: (c, s) => const _Placeholder('홈')),
+    GoRoute(path: '/booking', builder: (c, s) => const _Placeholder('예약')),
+    GoRoute(path: '/family', builder: (c, s) => const _Placeholder('가족관리')),
+    GoRoute(path: '/appointments/:id', builder: (c, s) => _Placeholder('예약 상세 ${s.pathParameters['id']}')),
+    GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
+    GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
+  ],
+);
+
+class _Placeholder extends StatelessWidget {
+  const _Placeholder(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => Scaffold(body: Center(child: Text(label)));
+}
+```
+
+- [ ] **Step A3: `main.dart`·`app.dart` 작성**(테마는 Step B4에서 토큰과 연결)
+
+`patient_app/lib/main.dart`:
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app.dart';
+import 'core/env.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
+  runApp(const ProviderScope(child: PatientApp()));
+}
+```
+
+`patient_app/lib/app.dart`:
+```dart
+import 'package:flutter/material.dart';
+import 'core/router.dart';
+import 'core/tokens.dart';
+
+class PatientApp extends StatelessWidget {
+  const PatientApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      title: '병원 앱',
+      theme: AppTokens.theme, // Step B4
+      routerConfig: appRouter,
+    );
+  }
+}
+```
+
+- [ ] **Step A4: 스모크 테스트 → `flutter pub get && flutter test test/widget_test.dart`**
+
+`patient_app/test/widget_test.dart`:
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/router.dart';
+
+void main() {
+  test('appRouter는 /login을 초기 경로로 갖는다', () {
+    expect(appRouter.routeInformationProvider.value.uri.toString(), '/login');
+  });
+}
+```
+Expected: PASS.
+
+---
+
+### B. 시각 토큰 — `DISP-GRAY-*` · `DISP-CARD-01` · `DISP-WARN-01`
+
+- [ ] **Step B1: 실패 테스트** — `patient_app/test/core/tokens_test.dart`
+
+```dart
+import 'dart:ui';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
+
+void main() {
+  // 규칙이 못박은 값(색 16진수·높이·바 폭)을 그대로 확인한다.
+  test('[DISP-GRAY-01] 대기(아직 안 된 일) 회색 = #7E8E99', () {
+    expect(AppTokens.grayPending.value, 0xFF7E8E99);
+  });
+  test('[DISP-GRAY-02] 완료·취소(이미 끝난 일) 회색 = #A3AFB8', () {
+    expect(AppTokens.grayDone.value, 0xFFA3AFB8);
+  });
+  test('[DISP-GRAY-03] 회색은 두 진하기뿐 — 새 색을 만들지 않는다', () {
+    // 같은 계열 안에서 진하기만 가른다: 회색 토큰은 정확히 grayPending·grayDone 2개.
+    expect(AppTokens.grays, [AppTokens.grayPending, AppTokens.grayDone]);
+  });
+  test('[DISP-CARD-01] 카드 본문 높이 = 132px 고정', () {
+    expect(AppTokens.cardBodyHeight, 132.0);
+  });
+  test('[DISP-WARN-01] 주의 표시 좌측 바 폭 = 4px', () {
+    expect(AppTokens.warnBarWidth, 4.0);
+  });
+}
+```
+Run: `flutter test test/core/tokens_test.dart` → Expected: FAIL(`tokens.dart` 없음).
+
+- [ ] **Step B2: `tokens.dart` 구현**
+
+`patient_app/lib/core/tokens.dart`:
+```dart
+import 'package:flutter/material.dart';
+
+/// 앱 전역 시각 토큰. 화면 코드는 색·크기·카드 규격을 여기서만 가져온다(하드코딩 금지).
+class AppTokens {
+  AppTokens._();
+
+  // DISP-GRAY-01/02/03 — 회색은 두 진하기뿐. 새 색을 만들지 않는다.
+  static const Color grayPending = Color(0xFF7E8E99); // 아직 안 된 일(앞으로 온다)
+  static const Color grayDone = Color(0xFFA3AFB8);    // 이미 끝난 일(지나갔다)
+  static const List<Color> grays = [grayPending, grayDone];
+
+  // DISP-WARN-01 — 주의색: 배경 없이 글자 + 좌측 4px 바.
+  static const Color warn = Color(0xFFB54708);
+  static const double warnBarWidth = 4.0;
+
+  // DISP-CARD-01 — 카드 본문 높이 고정.
+  static const double cardBodyHeight = 132.0;
+
+  static ThemeData get theme => ThemeData(
+        useMaterial3: true,
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(fontSize: 18),
+          titleLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+      );
+}
+```
+Run: `flutter test test/core/tokens_test.dart` → Expected: PASS.
+
+---
+
+### C. 공통 표시 위젯 — `DISP-CARD-02·03` · `DISP-ATT-01` · `DISP-COLOR-01` · `DISP-ICON-*`
+
+- [ ] **Step C1: `AppCard` 실패 테스트** — `test/widgets/app_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
+import 'package:hospital_patient_app/widgets/app_card.dart';
+
+Future<double> _bodyHeight(WidgetTester t, Widget body) async {
+  await t.pumpWidget(MaterialApp(home: Scaffold(body: AppCard(body: body))));
+  return t.getSize(find.byKey(const Key('app_card_body'))).height;
+}
+
+void main() {
+  testWidgets('[DISP-CARD-02] 본문 내용이 바뀌어도 본문 높이는 132로 유지된다', (t) async {
+    final h1 = await _bodyHeight(t, const Text('한 줄'));
+    final h3 = await _bodyHeight(t, const Text('세\n줄\n짜리'));
+    expect(h1, 132.0);
+    expect(h3, 132.0); // 아래 요소가 튀지 않는다
+  });
+  testWidgets('[DISP-CARD-03] 담을 내용이 1~3줄로 달라도 세로 가운데 정렬·높이 유지', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: AppCard(body: Text('문장만')))));
+    final align = t.widget<Align>(find.byKey(const Key('app_card_body_align')));
+    expect(align.alignment, Alignment.center);
+    expect(t.getSize(find.byKey(const Key('app_card_body'))).height, 132.0);
+  });
+  testWidgets('[DISP-ATT-01] 병원발 변경 안내문은 카드와 간격 없이 한 덩어리로 붙는다', (t) async {
+    await t.pumpWidget(const MaterialApp(
+      home: Scaffold(body: AppCard(body: Text('카드'), announcement: Text('변경 안내'))));
+    final card = t.getRect(find.byKey(const Key('app_card_main')));
+    final att = t.getRect(find.byKey(const Key('app_card_announcement')));
+    expect(att.top, card.bottom); // 떨어져 있지 않다 = 별개 알림으로 안 읽힌다
+  });
+}
+```
+Run → Expected: FAIL(`app_card.dart` 없음).
+
+- [ ] **Step C2: `AppCard` 구현** — `patient_app/lib/widgets/app_card.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+
+/// 예약 카드의 공통 프레임. 본문 높이 132 고정(DISP-CARD-01/02/03),
+/// 병원발 안내문은 카드에 간격 없이 붙인다(DISP-ATT-01).
+class AppCard extends StatelessWidget {
+  const AppCard({super.key, required this.body, this.announcement});
+  final Widget body;
+  final Widget? announcement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          key: const Key('app_card_main'),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppTokens.grayPending),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+          child: SizedBox(
+            key: const Key('app_card_body'),
+            height: AppTokens.cardBodyHeight, // 고정 132
+            child: Align(
+              key: const Key('app_card_body_align'),
+              alignment: Alignment.center, // 세로 가운데(DISP-CARD-03)
+              child: body,
+            ),
+          ),
+        ),
+        if (announcement != null)
+          Container(
+            key: const Key('app_card_announcement'),
+            // 간격 0 = 카드와 모서리를 맞춰 한 덩어리(DISP-ATT-01)
+            decoration: BoxDecoration(
+              color: AppTokens.grayDone.withOpacity(0.15),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: announcement,
+          ),
+      ],
+    );
+  }
+}
+```
+Run → Expected: PASS.
+
+- [ ] **Step C3: `StatusLabel` 실패 테스트** — `test/widgets/status_label_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
+import 'package:hospital_patient_app/widgets/status_label.dart';
+
+void main() {
+  testWidgets('[DISP-COLOR-01] 상태는 색만이 아니라 텍스트를 반드시 병기한다', (t) async {
+    await t.pumpWidget(const MaterialApp(
+      home: Scaffold(body: StatusLabel(text: '예약신청', color: AppTokens.grayPending))));
+    // 텍스트가 실제로 화면에 있어야 한다(색 스와치만으로는 실패).
+    expect(find.text('예약신청'), findsOneWidget);
+    final swatch = t.widget<Container>(find.byKey(const Key('status_swatch')));
+    expect((swatch.decoration as BoxDecoration).color, AppTokens.grayPending);
+  });
+  test('[DISP-GRAY-01] 앞으로 올 상태의 회색은 grayPending에 매핑된다', () {
+    expect(statusGray(StatusPhase.upcoming), AppTokens.grayPending);
+  });
+  test('[DISP-GRAY-02] 지나간 상태의 회색은 grayDone에 매핑된다', () {
+    expect(statusGray(StatusPhase.past), AppTokens.grayDone);
+  });
+}
+```
+Run → Expected: FAIL.
+
+- [ ] **Step C4: `StatusLabel` 구현** — `patient_app/lib/widgets/status_label.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+
+enum StatusPhase { upcoming, past }
+
+/// DISP-GRAY-01/02 — 앞으로 올 일=진한 회색, 지나간 일=옅은 회색.
+Color statusGray(StatusPhase phase) =>
+    phase == StatusPhase.upcoming ? AppTokens.grayPending : AppTokens.grayDone;
+
+/// DISP-COLOR-01 — 색 스와치 + 텍스트를 항상 함께. 색만으로 구분하지 않는다.
+class StatusLabel extends StatelessWidget {
+  const StatusLabel({super.key, required this.text, required this.color});
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          key: const Key('status_swatch'),
+          width: 10, height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(text),
+      ],
+    );
+  }
+}
+```
+Run → Expected: PASS.
+
+- [ ] **Step C5: `WarnText` 실패 테스트** — `test/widgets/warn_text_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
+import 'package:hospital_patient_app/widgets/warn_text.dart';
+
+void main() {
+  testWidgets('[DISP-WARN-01] 주의 표시는 배경 없이 글자 + 좌측 4px 바만', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: WarnText('마감이 지났습니다'))));
+    final box = t.widget<Container>(find.byKey(const Key('warn_box')));
+    final deco = box.decoration as BoxDecoration;
+    expect(deco.color, null); // 배경 없음
+    expect(deco.border!.left.width, AppTokens.warnBarWidth); // 좌측 바 4px
+    expect(deco.border!.left.color, AppTokens.warn);
+    expect(find.text('마감이 지났습니다'), findsOneWidget);
+  });
+}
+```
+Run → Expected: FAIL.
+
+- [ ] **Step C6: `WarnText` 구현** — `patient_app/lib/widgets/warn_text.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+
+/// DISP-WARN-01 — 오프라인 띠를 제외한 모든 주의 표시. 배경 없이 글자 + 좌측 4px 바.
+class WarnText extends StatelessWidget {
+  const WarnText(this.text, {super.key});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('warn_box'),
+      decoration: const BoxDecoration(
+        border: Border(left: BorderSide(color: AppTokens.warn, width: AppTokens.warnBarWidth)),
+      ),
+      padding: const EdgeInsets.only(left: 8),
+      child: Text(text, style: const TextStyle(color: AppTokens.warn)),
+    );
+  }
+}
+```
+Run → Expected: PASS.
+
+- [ ] **Step C7: `app_icons` 실패 테스트** — `test/widgets/app_icons_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/widgets/app_icons.dart';
+
+void main() {
+  test('[DISP-ICON-01] 막힌 기능(진료중 이후 잠김)은 자물쇠 아이콘', () {
+    expect(appIcon(AppIconKind.blocked), Icons.lock);
+  });
+  test('[DISP-ICON-02] 보기 전용(진료완료·이력)은 눈 아이콘', () {
+    expect(appIcon(AppIconKind.readonly), Icons.visibility);
+  });
+  test('[DISP-ICON-03] 아이콘은 채움 벡터 IconData다 — 이모지(String) 금지', () {
+    final icon = appIcon(AppIconKind.blocked);
+    expect(icon, isA<IconData>());
+    expect(icon.fontFamily, 'MaterialIcons'); // 벡터 폰트 아이콘(이모지 아님)
+  });
+}
+```
+Run → Expected: FAIL.
+
+- [ ] **Step C8: `app_icons` 구현** — `patient_app/lib/widgets/app_icons.dart`
+
+```dart
+import 'package:flutter/material.dart';
+
+/// DISP-ICON-01/02/03 — 상태를 나타내는 공통 아이콘. 채움(Solid) 벡터만, 이모지 금지.
+enum AppIconKind {
+  blocked,  // 원래 되던 것이 지금 막혔다(자물쇠)
+  readonly, // 처음부터 보기만 하는 자리(눈)
+}
+
+IconData appIcon(AppIconKind kind) {
+  switch (kind) {
+    case AppIconKind.blocked:
+      return Icons.lock;
+    case AppIconKind.readonly:
+      return Icons.visibility;
+  }
+}
+```
+Run → Expected: PASS.
+
+> 📌 `DISP-ICON-03`의 "하단 탭은 아이콘 아래 글자 라벨 유지"는 하단 탭 셸을 만드는 **Task 16**(`NAV-HOME-*`)이 `BottomNavigationBarItem(label: …)`로 소비한다. 여기서는 아이콘이 벡터임을 못박는다.
+
+- [ ] **Step B4 확인**: `app.dart`의 `theme: AppTokens.theme`가 스모크 테스트에서 깨지지 않는지 `flutter test test/widget_test.dart` 재실행 → PASS.
+
+---
+
+### D. ApiClient + 인증상태(Riverpod)
+
+- [ ] **Step D1: 실패 테스트** — `test/core/api_client_test.dart`
+
+```dart
+import 'dart:convert';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+void main() {
+  test('성공 응답을 파싱해서 반환한다', () async {
+    final mock = MockClient((r) async => http.Response(jsonEncode({'appointment_id': 'a1'}), 200));
+    final client = ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 'tk', httpClient: mock);
+    final result = await client.post('/app/appointments', {'reason': '감기'}, (j) => j['appointment_id'] as String);
+    expect(result, 'a1');
+  });
+  test('실패 응답이면 한글 detail을 담은 ApiException을 던진다(예외 원문 노출 금지)', () async {
+    final mock = MockClient((r) async => http.Response(jsonEncode({'detail': '이미 선택된 시간입니다.'}), 409));
+    final client = ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 'tk', httpClient: mock);
+    expect(
+      () => client.post('/app/appointments', {}, (j) => j),
+      throwsA(isA<ApiException>().having((e) => e.message, 'message', '이미 선택된 시간입니다.')),
+    );
+  });
+}
+```
+Run → Expected: FAIL.
+
+- [ ] **Step D2: `ApiClient` 구현** — `patient_app/lib/core/api_client.dart`
+
+```dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class ApiException implements Exception {
+  ApiException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+class ApiClient {
+  ApiClient({required this.baseUrl, required this.tokenProvider, http.Client? httpClient})
+      : _client = httpClient ?? http.Client();
+  final String baseUrl;
+  final Future<String?> Function() tokenProvider;
+  final http.Client _client;
+
+  Future<Map<String, String>> _headers() async {
+    final token = await tokenProvider();
+    return {'Content-Type': 'application/json', if (token != null) 'Authorization': 'Bearer $token'};
+  }
+
+  Future<T> get<T>(String path, T Function(dynamic) parse, {Map<String, String>? query}) async {
+    final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
+    return _handle(await _client.get(uri, headers: await _headers()), parse);
+  }
+  Future<T> post<T>(String path, Map<String, dynamic> body, T Function(dynamic) parse) async =>
+      _handle(await _client.post(Uri.parse('$baseUrl$path'), headers: await _headers(), body: jsonEncode(body)), parse);
+  Future<T> patch<T>(String path, Map<String, dynamic> body, T Function(dynamic) parse) async =>
+      _handle(await _client.patch(Uri.parse('$baseUrl$path'), headers: await _headers(), body: jsonEncode(body)), parse);
+  Future<T> delete<T>(String path, T Function(dynamic) parse) async =>
+      _handle(await _client.delete(Uri.parse('$baseUrl$path'), headers: await _headers()), parse);
+
+  T _handle<T>(http.Response response, T Function(dynamic) parse) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return parse(response.body.isEmpty ? null : jsonDecode(response.body));
+    }
+    var message = '요청 처리 중 오류가 발생했습니다.'; // 파이썬 예외 원문 대신 정형 한글(갭 #14)
+    try {
+      final body = jsonDecode(response.body);
+      if (body is Map && body['detail'] is String) message = body['detail'] as String;
+    } catch (_) {}
+    throw ApiException(message);
+  }
+}
+```
+Run → Expected: PASS.
+
+- [ ] **Step D3: providers·auth_state 작성**
+
+`patient_app/lib/features/auth/auth_state.dart`:
+```dart
+enum AuthStatus { signedOut, signedIn }
+
+class AuthState {
+  const AuthState({required this.status, this.userId});
+  final AuthStatus status;
+  final String? userId;
+}
+```
+
+`patient_app/lib/core/providers.dart`:
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../features/auth/auth_state.dart';
+import 'api_client.dart';
+import 'env.dart';
+
+final supabaseClientProvider = Provider<SupabaseClient>((ref) => Supabase.instance.client);
+
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final supabase = ref.watch(supabaseClientProvider);
+  return ApiClient(baseUrl: Env.apiBaseUrl, tokenProvider: () async => supabase.auth.currentSession?.accessToken);
+});
+
+final authStateChangesProvider = StreamProvider<AuthState>((ref) {
+  final supabase = ref.watch(supabaseClientProvider);
+  return supabase.auth.onAuthStateChange.map((event) {
+    final session = event.session;
+    if (session == null) return const AuthState(status: AuthStatus.signedOut);
+    return AuthState(status: AuthStatus.signedIn, userId: session.user.id);
+  });
+});
+```
+
+- [ ] **Step D4: 전체 테스트** — `cd patient_app && flutter test` → Expected: 전체 PASS.
+
+- [ ] **Step D5: 커밋**
+
+```bash
+git add patient_app
+git commit -m "feat: 📝 환자앱 Task 0 — 스캐폴딩 + 시각 토큰(DISP-* 12) + ApiClient·인증상태"
+```
+
+> 📌 이 태스크는 **플랜 문서**다(구현 코드 아님). 위 코드 블록은 구현자가 그대로 옮겨 쓰는 견본이다. 실제 `patient_app/`은 ⑦ 구현 단계에서 생성한다.
