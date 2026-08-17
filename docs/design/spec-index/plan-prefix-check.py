@@ -698,6 +698,43 @@ RENAMED_IN_REWRITE = {
 }
 
 
+DATA_SOURCE_RE = re.compile(
+    r"GET /[a-z0-9/{}?=&:_-]+|\b(?:list|get|search|fetch|paginate|resolve|overview)_[a-z_]+")
+
+
+def screens_without_source(lines, spans):
+    """📺 **화면을 만드는데 「그릴 값을 어디서 받나」를 이름으로 안 적은 태스크.**
+
+    왜 필요한가
+    -----------
+    바로 위 `undefined_consumes`는 **적힌 이름**끼리 대조한다. 그런데 **아예 안 적으면**
+    그 검사는 **침묵한다** — 없는 이름은 어긋날 수도 없기 때문이다.
+
+    실제 사례(2026-08-16): Task 14(`/calendar`)의 `Consumes:`에는 *"의사 일정·진료과
+    조회(Task 17)"*라는 **우리말 서술**만 있었고, 정작 **예약 막대를 받아올 창구는
+    이름으로도 우리말로도 없었다.** 규칙이 가장 많은 화면인데 **그릴 값이 없었던 것**을
+    검사기가 아니라 사람이 옛 플랜과 비교하다 찾았다.
+
+    ⭐ 그래서 규약을 하나 세운다 — **`Consumes:`에는 창구를 「이름」으로 적는다**
+       (`GET /queue?...` 또는 `list_week_rules`). 우리말 서술은 덧붙이는 것은 좋지만
+       **이름을 대신할 수 없다** — 기계가 못 보면 다음 사람도 못 본다.
+
+    ⚠️ 자기 창구를 **스스로 만드는** 태스크(화면+백엔드가 한 태스크)는 정상이다 —
+       `Produces:` 쪽도 함께 보고 거른다(Task 20·21·22가 그랬다).
+    """
+    out = []
+    for task, (s, e) in sorted(spans.items()):
+        body = lines[s:e]
+        prod = [l for l in body if l.startswith("- Produces:") or l.startswith("  - ")]
+        if not any(re.search(r"<\w+Page>|route `/", l) for l in prod):
+            continue                                   # 화면 태스크가 아니다
+        blob = " ".join(l for l in body if l.startswith("- Consumes:")) + " " + " ".join(prod)
+        if not DATA_SOURCE_RE.search(blob):
+            page = re.search(r"(<\w+Page>|route `[^`]+`)", " ".join(prod))
+            out.append((task, page.group(1) if page else "?"))
+    return out
+
+
 def lost_in_rewrite(root, plan, plan_text):
     """♻️ **옛 플랜이 만들던 것 중 재작성본에서 사라진 이름.**
 
@@ -900,6 +937,14 @@ def main():
             print(f"   Task {t:<3} {head}")
         print("   → 구현자는 **자기 태스크만** 본다. 만드는 쪽이 없으면 그 자리에서 멈춘다.")
         print("     ⚠️ 남의 플랜(1단계·공용)이 만든 것이면 무시해도 된다. 눈으로 한 번 볼 것.")
+
+    if nosrc := screens_without_source(lines, spans):
+        print(f"\n📺 **화면을 만드는데 「그릴 값을 어디서 받나」가 이름으로 없는 태스크 {len(nosrc)}개**:")
+        for t, page in nosrc:
+            print(f"   Task {t:<3} {page}")
+        print("   → `Consumes:`에 **이름**으로 적을 것(`GET /queue?…`·`list_week_rules`).")
+        print("     ⚠️ 우리말 서술(*\"대기 목록 조회(Task 13)\"*)은 **기계가 못 본다** —")
+        print("     `/calendar`가 그래서 **그릴 예약이 없는 채로** 22개 태스크를 통과했다.")
 
     if soc := screen_only_columns(root):
         print(f"\n🧩 **동작 명세가 화면 층만 적어 둔 DB 칸 {len(soc)}개** — 서버 층 규칙이 0개다:")
