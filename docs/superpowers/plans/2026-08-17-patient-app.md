@@ -1225,3 +1225,234 @@ git commit -m "feat: 환자 인증 의존성(PatientContext) + 프로필 등록/
 ```
 
 > 📌 `get_current_patient`·`register_profile`·`get_my_profile`·`deactivate_self`는 Task 10 라우터가 엔드포인트로, Task 13(가입)·29(탈퇴)가 화면에서 소비한다.
+
+---
+
+## Task 3: 가족 CRUD 서비스 + 가족 링크 RPC 마이그레이션(`00018`)
+
+> **담당 규칙**: 없음(백엔드 계약). 가족 화면(Task 25·26)이 소비한다.
+>
+> ⚠️ **기존 환자 OTP 연결은 이 단계에서 `501`로 막는다**([R5-01]) — 통과시키면 본인확인 없이 남의 계정에 연결된다. 번호 없는 환자는 대면·서류 예외 경로가 있어 막다른 길이 아니다. **4단계에서 본인확인 창구가 생기면 푼다.**
+
+**Files:**
+- Create: `supabase/migrations/00018_patient_family_link_rpcs.sql` · `backend/app/services/patient_family_service.py`
+- Test: `backend/tests/test_patient_family_link_rpcs.py` · `backend/tests/test_patient_family_service.py`
+
+**Interfaces:**
+- Consumes: `patient_owns()`·`update_patient_basic_info()`(Task 1) · `PatientContext`(Task 2) · `acquire_as`·`get_pool`·`AppError` · `patient_family_links(relation, is_active, unlinked_at, unique(account_patient_id, family_patient_id))`(1단계 `00003`)
+- Produces:
+  - RPC `update_family_link_relation_self(link_id, relation)`·`unlink_family_link_self(link_id)`·`relink_family_link_self(link_id)`([SDB-19] 소유 재확인 후 지정 칼럼만; `patient_family_links` 직접 UPDATE/DELETE 정책 없음) + 가족링크 select RLS
+  - `add_family_member(patient, name, birth_date, gender, relation, phone=None) -> UUID`(#3 phone nullable; [#59] 활성 링크 10명 상한; 같은 사람 재추가는 soft-delete된 기존 unique 링크를 **재활성화**) · `list_family_members(patient) -> list[dict]`([R5-02] 활성 링크만; 가족 phone이 null이면 보호자 번호 join) · `update_family_member(...)` · `unlink_family_member(...)`([R5-02] 링크만 비활성·환자 행 유지) · `link_existing_patient_by_otp(patient, ...) -> NoReturn`([R5-01] `AppError(status_code=501)`)
+
+- [ ] **Step 1: 마이그레이션 실패 테스트** — `backend/tests/test_patient_family_link_rpcs.py`
+
+```python
+import pytest
+from tests.conftest import seed_patient, seed_staff, set_session_auth
+
+@pytest.mark.asyncio
+async def test_link_rpcs_exist_and_block_direct_write(db_conn):
+    # [SDB-19] 직접 UPDATE/DELETE는 막히고, 세 RPC만 링크를 바꾼다.
+    exists = await db_conn.fetch(
+        "select proname from pg_proc where proname in "
+        "('update_family_link_relation_self','unlink_family_link_self','relink_family_link_self')")
+    assert {r["proname"] for r in exists} == {
+        "update_family_link_relation_self", "unlink_family_link_self", "relink_family_link_self"}
+```
+Run → Expected: FAIL(함수 없음).
+
+- [ ] **Step 2: 마이그레이션 SQL** — `supabase/migrations/00018_patient_family_link_rpcs.sql`
+
+```sql
+-- [SDB-19] patient_family_links는 select만 authenticated에 열고, 변경은 RPC로만.
+create policy "patients_can_read_own_family_links" on patient_family_links
+  for select using (patient_owns(account_patient_id));
+
+create or replace function update_family_link_relation_self(p_link_id uuid, p_relation text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_acct uuid;
+begin
+  select account_patient_id into v_acct from public.patient_family_links where id = p_link_id;
+  if v_acct is null or not public.patient_owns(v_acct) then
+    raise exception '본인이 등록한 가족만 수정할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  update public.patient_family_links set relation = p_relation where id = p_link_id;
+end; $$;
+
+create or replace function unlink_family_link_self(p_link_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_acct uuid;
+begin
+  select account_patient_id into v_acct from public.patient_family_links where id = p_link_id;
+  if v_acct is null or not public.patient_owns(v_acct) then
+    raise exception '본인이 등록한 가족만 연결 해제할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  update public.patient_family_links set is_active = false, unlinked_at = now() where id = p_link_id;
+end; $$;
+
+create or replace function relink_family_link_self(p_link_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_acct uuid;
+begin
+  select account_patient_id into v_acct from public.patient_family_links where id = p_link_id;
+  if v_acct is null or not public.patient_owns(v_acct) then
+    raise exception '본인이 등록한 가족만 재연결할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  update public.patient_family_links set is_active = true, unlinked_at = null where id = p_link_id;
+end; $$;
+
+revoke execute on function update_family_link_relation_self(uuid, text) from public;
+revoke execute on function unlink_family_link_self(uuid) from public;
+revoke execute on function relink_family_link_self(uuid) from public;
+grant execute on function update_family_link_relation_self(uuid, text) to authenticated;
+grant execute on function unlink_family_link_self(uuid) to authenticated;
+grant execute on function relink_family_link_self(uuid) to authenticated;
+```
+Run → Expected: PASS.
+
+- [ ] **Step 3: 서비스 실패 테스트** — `backend/tests/test_patient_family_service.py`
+
+```python
+from datetime import date
+import pytest
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.services import patient_family_service
+from tests.conftest import seed_patient, set_session_auth
+
+def _ctx(seed): return PatientContext(id=seed["patient_id"], auth_user_id=seed["auth_user_id"])
+
+@pytest.mark.asyncio
+async def test_add_list_update_unlink(db_conn):
+    me = _ctx(await seed_patient(db_conn))
+    fid = await patient_family_service.add_family_member(me, name="김자녀", birth_date=date(2015,5,5), gender="F", relation="자녀")
+    assert (await patient_family_service.list_family_members(me))[0]["name"] == "김자녀"
+    await patient_family_service.update_family_member(me, fid, name="김자녀2", birth_date=date(2015,5,5), gender="F", relation="자녀")
+    assert (await patient_family_service.list_family_members(me))[0]["name"] == "김자녀2"
+    await patient_family_service.unlink_family_member(me, fid)
+    assert await patient_family_service.list_family_members(me) == []
+    # [R5-02] 링크만 비활성 — 환자 행은 그대로 살아 있다(과거 이력 표시).
+    assert await db_conn.fetchval("select is_active from patients where id=$1", fid) is True
+
+@pytest.mark.asyncio
+async def test_add_family_member_allows_null_phone(db_conn):
+    # #3 — 전화 없는 가족도 등록된다.
+    me = _ctx(await seed_patient(db_conn))
+    fid = await patient_family_service.add_family_member(me, name="무전화", birth_date=date(2010,1,1), gender="M", relation="자녀", phone=None)
+    assert await db_conn.fetchval("select phone from patients where id=$1", fid) is None
+
+@pytest.mark.asyncio
+async def test_ten_active_links_max(db_conn):
+    # [#59] 활성 가족 링크는 10명까지.
+    me = _ctx(await seed_patient(db_conn))
+    for i in range(10):
+        await patient_family_service.add_family_member(me, name=f"가족{i}", birth_date=date(2010,1,1), gender="M", relation="자녀")
+    with pytest.raises(AppError) as e:
+        await patient_family_service.add_family_member(me, name="열한번째", birth_date=date(2010,1,1), gender="M", relation="자녀")
+    assert e.value.status_code == 409
+
+@pytest.mark.asyncio
+async def test_readd_reactivates_soft_deleted_link(db_conn):
+    # 재연결 = 기존 unique 링크 재활성화(새 행/새 링크 안 만듦).
+    me = _ctx(await seed_patient(db_conn))
+    fid = await patient_family_service.add_family_member(me, name="자녀", birth_date=date(2010,1,1), gender="F", relation="자녀")
+    await patient_family_service.unlink_family_member(me, fid)
+    fid2 = await patient_family_service.add_family_member(me, name="자녀", birth_date=date(2010,1,1), gender="F", relation="자녀")
+    assert fid2 == fid
+    assert await db_conn.fetchval("select count(*) from patient_family_links where account_patient_id=$1", me.id) == 1
+
+@pytest.mark.asyncio
+async def test_link_existing_patient_is_blocked_501(db_conn):
+    # [R5-01] 본인확인 창구(4단계) 전까지 기존 환자 OTP 연결은 501로 막는다.
+    me = _ctx(await seed_patient(db_conn))
+    with pytest.raises(AppError) as e:
+        await patient_family_service.link_existing_patient_by_otp(me, phone="010-1111-2222", otp="000000")
+    assert e.value.status_code == 501
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 4: `patient_family_service.py` 구현**
+
+```python
+from datetime import date
+from uuid import UUID
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as, get_pool
+
+MAX_ACTIVE_FAMILY = 10  # [#59]
+
+async def add_family_member(patient, name: str, birth_date: date, gender: str, relation: str, phone: str | None = None) -> UUID:
+    # [R5-01] family_patient_id는 항상 새로 만드는 행(또는 기존 soft-delete 링크 재활성화)이라
+    #         클라이언트가 남의 환자를 지목할 수 없다. get_pool() 서비스 역할로 쓴다(RLS는 select만 연다).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            active = await conn.fetchval(
+                "select count(*) from patient_family_links where account_patient_id=$1 and is_active", patient.id)
+            if active >= MAX_ACTIVE_FAMILY:
+                raise AppError(f"가족은 최대 {MAX_ACTIVE_FAMILY}명까지 등록할 수 있습니다.", status_code=409)
+            # 같은 사람(이름·생년월일·성별 동일)에 soft-delete된 링크가 있으면 재활성화(새 행 안 만듦).
+            existing = await conn.fetchrow(
+                "select l.id link_id, l.family_patient_id from patient_family_links l "
+                "join patients p on p.id = l.family_patient_id "
+                "where l.account_patient_id=$1 and not l.is_active "
+                "and p.name=$2 and p.birth_date=$3 and p.gender=$4",
+                patient.id, name, birth_date, gender)
+            if existing is not None:
+                await conn.execute("update patient_family_links set is_active=true, unlinked_at=null where id=$1", existing["link_id"])
+                return existing["family_patient_id"]
+            family_id = await conn.fetchval(
+                "insert into patients (name, birth_date, gender, phone) values ($1,$2,$3,$4) returning id",
+                name, birth_date, gender, phone)  # #3 phone nullable
+            await conn.execute(
+                "insert into patient_family_links (account_patient_id, family_patient_id, relation) values ($1,$2,$3)",
+                patient.id, family_id, relation)
+    return family_id
+
+async def list_family_members(patient) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select p.id, p.name, p.birth_date, p.gender, l.relation, "
+            "       coalesce(p.phone, acct.phone) as phone, (p.phone is null) as phone_borrowed "
+            "from patient_family_links l "
+            "join patients p on p.id = l.family_patient_id "
+            "join patients acct on acct.id = l.account_patient_id "
+            "where l.account_patient_id=$1 and l.is_active order by p.name", patient.id)  # [R5-02]
+    return [{"id": r["id"], "name": r["name"], "birth_date": str(r["birth_date"]), "gender": r["gender"],
+             "relation": r["relation"], "phone": r["phone"], "phone_borrowed": r["phone_borrowed"]} for r in rows]
+
+async def update_family_member(patient, family_patient_id: UUID, name, birth_date, gender, relation) -> None:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        link = await conn.fetchrow(
+            "select id from patient_family_links where account_patient_id=$1 and family_patient_id=$2",
+            patient.id, family_patient_id)
+        if link is None:
+            raise AppError("본인이 등록한 가족만 수정할 수 있습니다.", status_code=403)
+        await conn.execute("select update_patient_basic_info($1,$2,$3,$4)", family_patient_id, name, birth_date, gender)
+        await conn.execute("select update_family_link_relation_self($1,$2)", link["id"], relation)  # [SDB-19]
+
+async def unlink_family_member(patient, family_patient_id: UUID) -> None:
+    # [R5-02] 링크만 비활성 — patients.is_active는 그대로(과거 이력 표시 유지).
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        link = await conn.fetchrow(
+            "select id from patient_family_links where account_patient_id=$1 and family_patient_id=$2 and is_active",
+            patient.id, family_patient_id)
+        if link is None:
+            raise AppError("본인이 등록한 가족만 연결 해제할 수 있습니다.", status_code=403)
+        await conn.execute("select unlink_family_link_self($1)", link["id"])  # [SDB-19]
+
+async def link_existing_patient_by_otp(patient, phone: str, otp: str):
+    # [R5-01] 본인확인 창구(4단계) 전까지 막는다 — 통과시키면 본인확인 없이 연결된다.
+    raise AppError("기존 환자 연결은 준비 중입니다. 병원 접수처에서 도와드립니다.", status_code=501)
+```
+Run → Expected: 전체 PASS.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add supabase/migrations/00018_patient_family_link_rpcs.sql backend/app/services/patient_family_service.py backend/tests/test_patient_family_link_rpcs.py backend/tests/test_patient_family_service.py
+git commit -m "feat: 가족 CRUD 서비스 + 링크 RPC(00018) — 10명 상한·재연결·phone nullable·OTP연결 501차단(R5-01·R5-02·SDB-19)"
+```
+
+> 📌 `add_family_member`의 `phone` 인자는 #3(전화 없는 가족)이다 — 신규 가족은 번호 없이 등록되고 `list_family_members`가 보호자 번호를 빌려 `phone_borrowed=true`로 돌려준다(화면에서 마스킹 표시는 Task 25). `link_existing_patient_by_otp`의 501은 **4단계에서 해제**한다(원장 `HANDOVERS.md`에 남긴다).
