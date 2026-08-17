@@ -596,6 +596,55 @@ def undefined_consumes_gaps(root, lines, spans, plan_text):
     return out
 
 
+SERVER_SEG = {"SRV", "IMPL", "CALC", "SLOT", "SAVE", "LOG", "API", "DATA", "STORE", "AUDIT"}
+SERVER_TEXT = re.compile(r"서버|저장|판정|트리거|마이그레이션|RLS|쿼리|정책|만들지 않|생성하지")
+COL_TYPES = r"(?:uuid|text|boolean|int|integer|timestamptz|date|time|numeric|jsonb|smallint)"
+
+
+def screen_only_columns(root):
+    """🧩 **동작 명세가 화면 층만 적어 둔 DB 칸.**
+
+    왜 필요한가 — ⭐ 이것이 오늘 사고들의 **뿌리**다
+    -------------------------------------------------
+    동작 명세는 「화면이 무엇을 보여주나」를 적는다. 그런데 어떤 규칙은 **화면 밖에
+    결과가 있다** — `SCHED-WEEK-04`(*"휴진 스위치를 끄면 그 줄이 잠긴다"*)가 사실이려면
+    **서버가 그 요일에 예약 자리를 만들지 않아야** 한다. 그 문장이 명세에 없으면,
+    플랜은 명세를 근거로 쓰이므로 **서버 층이 통째로 빠진 채 규칙 커버리지 100%**가 된다.
+
+    실제 사례(2026-08-16): `is_day_off`를 가리키는 규칙은 셋인데(`SCHED-GRID-04`·
+    `SCHED-WEEK-04`·`SCHED-EXC-06`) **전부 화면 규칙**이었다. 그래서 재작성된 플랜
+    9,480줄에 `is_day_off`가 **0회** 등장했고, 화면은 스위치를 잠그는데 서버는
+    휴진 요일에도 자리를 계속 만들고 있었다.
+
+    ⚠️ **계열 단위로는 안 잡힌다** — `SCHED`는 서버 층 규칙이 43%나 있는데도
+       휴진만 빠졌다. 그래서 **칸 하나 단위**로 본다.
+
+    📌 조인 키(`doctor_id`·`staff_id`)나 흔한 낱말(`reason`)은 오탐이다 — 눈으로 거른다.
+    """
+    beh = root / BEHAVIORS
+    mig = root / "supabase" / "migrations"
+    if not beh.exists() or not mig.is_dir():
+        return []
+    sql = "\n".join(f.read_text() for f in sorted(mig.glob("*.sql")))
+    cols = set(re.findall(rf"^\s{{2,}}([a-z_][a-z0-9_]{{4,}})\s+{COL_TYPES}", sql, re.M))
+    cols |= set(re.findall(rf"add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]{{4,}})\s+{COL_TYPES}",
+                           sql, re.I))
+    rows = [l for l in beh.read_text().split("\n")
+            if re.match(r"^\| `[A-Z][A-Z0-9-]*-\d+[a-z]?`", l)]
+
+    def is_server(line):
+        rid = re.match(r"^\| `([A-Z][A-Z0-9-]*-\d+[a-z]?)`", line).group(1)
+        return bool(set(rid.split("-")[1:-1]) & SERVER_SEG) or bool(SERVER_TEXT.search(line))
+
+    out = []
+    for c in sorted(cols):
+        hits = [l for l in rows if re.search(rf"\b{c}\b", l)]
+        if hits and not any(is_server(l) for l in hits):
+            ids = [re.match(r"^\| `([A-Z][A-Z0-9-]*-\d+[a-z]?)`", l).group(1) for l in hits]
+            out.append((c, ids))
+    return out
+
+
 OLD_PLANS = {                                  # 재작성본 → 그 입력이 된 옛 플랜
     "2026-08-15-staff-web.md": "2026-07-27-staff-web.md",
 }
@@ -831,6 +880,16 @@ def main():
             print(f"   Task {t:<3} {head}")
         print("   → 구현자는 **자기 태스크만** 본다. 만드는 쪽이 없으면 그 자리에서 멈춘다.")
         print("     ⚠️ 남의 플랜(1단계·공용)이 만든 것이면 무시해도 된다. 눈으로 한 번 볼 것.")
+
+    if soc := screen_only_columns(root):
+        print(f"\n🧩 **동작 명세가 화면 층만 적어 둔 DB 칸 {len(soc)}개** — 서버 층 규칙이 0개다:")
+        for c, ids in soc:
+            head = ", ".join(ids[:3]) + (f" 외 {len(ids) - 3}건" if len(ids) > 3 else "")
+            print(f"   {c:<26} {head}")
+        print("   → ⭐ **이것이 뿌리다.** 플랜은 명세를 근거로 쓰이므로, 명세에 서버 층이 없으면")
+        print("     **규칙 커버리지 100%인 채로 서버가 통째로 빠진다.**")
+        print("     실제 사례: `is_day_off` — 규칙 셋이 전부 화면 규칙이라 플랜 9,480줄에 0회.")
+        print("     ⚠️ 조인 키(`doctor_id`)·흔한 낱말(`reason`)은 오탐이다. 눈으로 거를 것.")
 
     if lost := lost_in_rewrite(root, plan, "\n".join(lines)):
         print(f"\n♻️ **옛 플랜이 만들던 것 중 재작성본에서 이름조차 사라진 것 {len(lost)}개**:")
