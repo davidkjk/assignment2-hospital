@@ -12410,4 +12410,441 @@ git commit -m "feat: 환자앱 Task 21 — 예약 상세 62규칙(HEAD/INFO/QR/Q
 > ⚠️ **T20 양방향 악수 갚음**: `appointmentDetailProvider`를 여기서 정의(T20 완료 화면이 참조). Task 22가 변경/취소 성공 후 이 provider를 `invalidate`해 상세를 새로 그린다.
 > ⚠️ **신설 마이그레이션 없음** — 갭 #49는 SELECT 한 칸 추가(`reason`). 진료실 칸 부재는 요구사항에 없어 갭 아님(조건부 표시로 마감).
 
-> ▶ **다음 = Task 22 본문 작성** — 예약 변경·취소·마감 후 상담 **73규칙**(`APPT-CHG-01~21`·`APPT-RACE-01~08`·`CANCEL-PRE`·`CANCEL-NEW`·`CANCEL-LATE`·`CANCEL-REJ`·`CANCEL-DONE`). 📌 재사용: T19/20 `BookingController`·`BookingWizard`(변경=날짜·시간 재선택, `APPT-CHG-05`) · T5 `change_booking`(낙관적 잠금 `expected_updated_at`·문진 이동) · T6 취소 서비스(`CANCEL-*`) · T21 `appointmentDetailProvider`(성공 후 invalidate)·`DetailButtonBar`(버튼 onPressed 채움). ⚠️ 마감 후 취소·변경 = **`support_requested_at` 공통 처리**(결정 E3·갭 #24, `request_type`으로 구분) · **환자 노출 문구는 "상담(직원 확인)으로 연결됐다"만**. ⚠️ 73개라 70 초과 — **쪼갤지 먼저 판단**(변경 vs 취소). `writing-plans` 먼저 + 완전 ID(남 태스크 규칙 완전 ID 인용 금지).
+---
+
+## Task 22: 예약 변경 · 취소 · 마감 후 상담 (73규칙, 한 태스크 유지)
+
+> **담당 규칙(73)**: `APPT-CHG-01~21`(21) · `APPT-RACE-01~08`(8) · `CANCEL-PRE-01~07`(7) · `CANCEL-NEW-01~08`(8) · `CANCEL-LATE-01~14`(14) · `CANCEL-REJ-01~07`(7) · `CANCEL-DONE-01~08`(8).
+> ⭐ **이 묶음의 축**: **「변경」은 실제로 취소 + 새 예약**(예약번호 바뀜·문진 끊김이 전부 여기서). **마감 후 취소·변경은 공통 `support_requested_at`**(결정 E3·갭 #24, `request_type`으로 구분) — 환자 노출은 **"상담(직원 확인)으로 연결됐다"만**(`CANCEL-LATE-13` 금지 문구).
+> ⚠️⚠️ **경계 갭 발화 — CANCEL-REJ 저장 자리 없음(A안 확정)**: 직원웹은 취소 반려를 `cancellation_rejected` **알림으로만** 보내고 예약 행에 반려 상태·사유를 저장하지 않는다. 그러나 `CANCEL-REJ-01·04·05`(카드 위 배너 + `[확인]` 눌러야 사라짐 + 확인 후 QR 복귀)는 **병원발 변경(`hospital_change`)과 똑같은 「놓치면 손해」 패턴**을 요구한다 → **`appointments`에 `cancel_rejected_at timestamptz`·`cancel_rejected_reason text` 2칸 추가**(직원웹 반려가 채움+알림, 환자 `[확인]`이 비움). `hospital_change_prev_time/kind`와 대칭. **3곳 반영 필요**(결정 문서 신규 결정 + 경계 갭 대조표 신규 갭 + 직원웹 반려 태스크 소급). 마이그레이션 신설 `00027`(환자앱 기준 — 실제 번호는 구현 시점).
+> ⚠️ **APPT-CHG-05·10·11·APPT-RACE-01 등이 T5 백엔드 계약 노트에 완전 ID로 인용되어 이미 coverage에 세어져 있다**(T21과 무관·기존 상태). **아래 본문에서 이 규칙들을 반드시 `test('[ID]')`로 담는다** — missing 목록에 없어도 T22 몫이다(담당 접두어 전체 ID를 명시적으로 대조함).
+> ⚠️ **경계(변경 화면은 마법사 재사용 · NAV는 T21이 담음)**: 변경 4·5단계는 T19/20 `BookingController`·달력·시간 격자를 **재사용**하되 별도 진행 표시(`APPT-CHG-07` `1단계/2단계`). `NAV-APPT-07~16`(진입·전이)은 **T21이 이미 담았다** — 여기선 도착 화면(변경 마법사·취소 확인창·마감후 안내 팝업) 본체만.
+
+**Files:**
+- Create: `supabase/migrations/00027_cancel_rejected.sql`(`appointments.cancel_rejected_at`·`cancel_rejected_reason` — CANCEL-REJ 저장 자리, 갭)
+- Modify: `backend/app/services/patient_appointment_query_service.py`(`get_appointment_detail` SELECT에 `cancel_rejected_at`·`cancel_rejected_reason` 추가) · `patient_booking_service.py`(`acknowledge_cancel_rejection` — 환자 `[확인]`이 2칸 비움)
+- Test: `backend/tests/test_patient_booking_service.py`·`test_patient_appointment_query_service.py`(추가)
+- Create: `patient_app/lib/features/appointment/change_flow.dart`(`ChangeController`·`ChangeScreen` — 변경 마법사) · `cancel_flow.dart`(`openCancelFlow`·`CancelConfirmDialog`·`LateSupportDialog`) · `reject_banner.dart`(`CancelRejectBanner`) · `cancelled_view.dart`(`CancelledDetail`)
+- Modify: `patient_app/lib/features/appointment/detail_sections.dart`(`DetailButtonBar`의 `[예약 변경]`·`openCancelFlow` 목적지 채움 — T21 양방향)
+- Test: `patient_app/test/features/appointment/{change,cancel,reject,cancelled}_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - T5: `change_booking(patient, appointment_id, new_slot_id, reason, expected_updated_at) -> UUID`(낙관적 잠금 409·문진 이동·새 예약번호) · `CHANGEABLE_STATUSES`
+  - T6: `cancel_appointment(patient, appointment_id, expected_updated_at) -> dict{cancelled, after_deadline}` · `request_support(patient, appointment_id, request_type) -> dict{support_requested, already_requested}`(`request_type`=`'취소'`/`'변경'`)
+  - T19/20: `BookingController`(날짜·시간 상태) · 달력 위젯 · 시간 격자 위젯 · `availableSlotsProvider` · `availableDatesProvider`
+  - T21: `appointmentDetailProvider`(성공 후 `invalidate`) · `AppointmentDetail`(`updated_at`·`supportRequestedAt`·`cancelRejectedAt`·`cancelRejectedReason`) · `DetailButtonBar`(onPressed 채움) · `resolveCardState`
+  - T17: `QrFullscreen`(`CANCEL-REJ-05` QR 복귀) · T12: `showBlockDialog`·`ActionButton`·`InlineError`
+  - 직원웹 반려(`cancellation_rejected` 알림 · `cancel_rejected_at`/`_reason` write) — 이 태스크가 **읽고 비운다**
+- Produces:
+  - `acknowledge_cancel_rejection(patient, appointment_id) -> None`(환자 `[확인]` = 2칸 NULL로) · 라우터 `POST /my/appointments/{id}/ack-rejection`
+  - `ChangeController`(`selectNewDate`·`selectNewSlot`·`step`)·`ChangeScreen` · `openCancelFlow(context, ref, detail)`(마감 전/후 분기) · `CancelRejectBanner` · `CancelledDetail`
+
+- [ ] **Step 1: CANCEL-REJ 저장 자리 (갭) — 마이그레이션 + 상세 조회 + 확인 창구**
+
+```sql
+-- 00027_cancel_rejected.sql — 취소 반려를 「놓치면 손해」 배너로 띄우기 위한 저장 자리(hospital_change 패턴 대칭).
+-- 직원웹 취소요청 반려가 이 두 칸을 채우고 cancellation_rejected 알림을 보낸다. 환자 [확인]이 비운다.
+alter table appointments
+  add column if not exists cancel_rejected_at timestamptz,
+  add column if not exists cancel_rejected_reason text;
+```
+```python
+# get_appointment_detail SELECT에 추가(APPT 상세가 배너를 그릴 데이터):
+#   "  a.cancel_rejected_at, a.cancel_rejected_reason, "
+
+async def acknowledge_cancel_rejection(patient: PatientContext, appointment_id: UUID) -> None:
+    # CANCEL-REJ-04 — 환자 [확인]이 배너를 비운다(RLS: 본인/가족 예약만).
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        await conn.execute(
+            "update appointments set cancel_rejected_at=null, cancel_rejected_reason=null where id=$1", appointment_id)
+```
+테스트(`test_patient_booking_service.py`):
+
+```python
+@pytest.mark.asyncio
+async def test_acknowledge_cancel_rejection_clears_banner(db_conn):
+    # [CANCEL-REJ-04] 확인하면 반려 배너 데이터가 비워진다.
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    ctx = await _make_future_appt(db_conn, _ctx(await seed_patient(db_conn)))
+    await db_conn.execute("update appointments set cancel_rejected_at=now(), cancel_rejected_reason='진료 준비됨' where id=$1", ctx["appointment_id"])
+    await patient_booking_service.acknowledge_cancel_rejection(_pctx(ctx), ctx["appointment_id"])
+    assert await db_conn.fetchval("select cancel_rejected_at from appointments where id=$1", ctx["appointment_id"]) is None
+```
+Run → FAIL(칸·함수 없음) → 위 구현 → PASS.
+> 📌 **3곳 반영(Step 10 커밋 전)**: ① 결정 문서에 신규 결정 「취소 반려 저장 방식 = A안(예약 2칸·hospital_change 대칭)」 + 기각안(알림만·별도 표) · ② 경계 갭 대조표에 신규 갭 「CANCEL-REJ 저장 자리 없음 → T22 해소」 · ③ 직원웹 반려 태스크(취소요청 처리)에 `cancel_rejected_at/_reason` write + 알림 소급 핀.
+
+- [ ] **Step 2: 취소 마감 전 확인창 (CANCEL-PRE)** — `cancel_flow.dart`
+
+```dart
+// openCancelFlow: 마감 전이면 확인창, 마감 후면 안내 팝업. 판정은 cancel_appointment 응답(after_deadline).
+Future<void> openCancelFlow(BuildContext context, WidgetRef ref, AppointmentDetail d) async {
+  final confirmed = await showDialog<bool>(context: context, builder: (_) => CancelConfirmDialog(d));  // CANCEL-PRE-01 팝업
+  if (confirmed != true) return;
+  final res = await ref.read(cancelActionProvider.notifier).cancel(d.view.id, d.view.updatedAt);
+  if (res.afterDeadline) {
+    if (context.mounted) await showDialog(context: context, builder: (_) => LateSupportDialog(d));  // CANCEL-LATE
+  } // cancelled=true면 appointmentDetailProvider invalidate로 취소된 상세 재그림(CANCEL-PRE-07)
+}
+
+class CancelConfirmDialog extends StatelessWidget {
+  const CancelConfirmDialog(this.d, {super.key});
+  final AppointmentDetail d;
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    content: Column(mainAxisSize: MainAxisSize.min, children: [
+      Text('${d.view.forPatientRelation ?? ''} ${d.view.forPatientName} 님'),          // CANCEL-PRE-02 대상 다시
+      Text(formatKoreanDateTime(d.view.slotDate, d.view.startTime), style: const TextStyle(fontWeight: FontWeight.w800)),
+    ]),
+    actions: [
+      OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('아니요')),  // CANCEL-PRE-03 왼쪽
+      TextButton(onPressed: () => Navigator.pop(context, true),
+        style: TextButton.styleFrom(foregroundColor: const Color(0xFFA3231C)),                     // 빨강 — 확인창 안에서만(CANCEL-PRE-04)
+        child: const Text('취소합니다')),
+    ],
+  );  // ⛔ 취소 사유 입력·'취소' 타이핑 없음(CANCEL-PRE-05·06)
+}
+```
+테스트(`cancel_test.dart`):
+
+```dart
+testWidgets('[CANCEL-PRE-01][CANCEL-PRE-02] 확인창에 취소 대상(누구·언제)을 다시 적는다', (t) async {
+  await _openCancel(t, d: _detail(relation: '어머니', forName: '박영자', slot: DateTime(2026,8,5,14,30)));
+  expect(find.byType(AlertDialog), findsOneWidget);
+  expect(find.textContaining('박영자'), findsOneWidget);
+  expect(find.textContaining('8월 5일'), findsOneWidget);
+});
+testWidgets('[CANCEL-PRE-03] 왼쪽 아니요(테두리) / 오른쪽 취소합니다(빨강)', (t) async {
+  await _openCancel(t, d: _detail());
+  expect(find.widgetWithText(OutlinedButton, '아니요'), findsOneWidget);
+  final del = t.widget<TextButton>(find.widgetWithText(TextButton, '취소합니다'));
+  expect(del.style!.foregroundColor!.resolve({}), const Color(0xFFA3231C));
+});
+testWidgets('[CANCEL-PRE-05][CANCEL-PRE-06] 취소 사유 입력·타이핑 확인이 없다', (t) async {
+  await _openCancel(t, d: _detail());
+  expect(find.byType(TextField), findsNothing);
+});
+testWidgets('[CANCEL-PRE-07] 마감 전 취소 성공하면 같은 상세를 취소된 모습으로 다시 그린다', (t) async {
+  final c = await _openCancel(t, d: _detail(), cancelResult: (cancelled: true, afterDeadline: false));
+  await _tapConfirm(t);
+  expect(c.invalidatedDetail, isTrue);          // 화면 안 옮김, invalidate로 재그림
+});
+```
+Run → Expected: PASS.
+
+- [ ] **Step 3: 갓 만든 예약 30분 유예 (CANCEL-NEW)** — 서버 판정 소비 + 안내 부재
+
+```dart
+// CANCEL-NEW는 서버(cancel_appointment)가 created_at+30분 이내면 마감 무관 즉시 취소(after_deadline=false).
+// 앱은 결과만 소비 — 별도 UI 분기 없음. 30분 안내를 미리 띄우지 않는다(CANCEL-NEW-06).
+testWidgets('[CANCEL-NEW-01] 만든 지 30분 이내면 확인창→즉시 취소(마감 후 팝업 안 뜸)', (t) async {
+  final c = await _openCancel(t, d: _detail(), cancelResult: (cancelled: true, afterDeadline: false));
+  await _tapConfirm(t);
+  expect(find.byType(LateSupportDialog), findsNothing);   // 마감 후 안내 안 뜸
+  expect(c.invalidatedDetail, isTrue);
+});
+testWidgets('[CANCEL-NEW-06] 예약 완료·상세 화면에 "30분 안에 취소" 안내를 미리 띄우지 않는다', (t) async {
+  await _pumpDetailFull(t, d: _detail(status: '예약확정', createdAt: DateTime.now()));
+  expect(find.textContaining('30분 안에 취소'), findsNothing);   // 재촉 금지
+});
+```
+> `CANCEL-NEW-02`(왜 = 당일 예약이 만든 구멍)·`CANCEL-NEW-03`(잘못 누른 예약 즉시 풀림·업무 감소)·`CANCEL-NEW-04`(기준값 created_at+30분)·`CANCEL-NEW-05`(같은 30분 통일)는 **T6 `cancel_appointment` 서버 판정**이 실현(앱은 `after_deadline` 결과만 소비). `CANCEL-NEW-07`(변경에도 같은 30분)은 Step 5 변경이 같은 `cancel_appointment`/`change_booking` 경로라 서버가 동일 적용. `CANCEL-NEW-08`(30분 지나면 CANCEL-LATE)은 `after_deadline=true` 분기(Step 4)가 실현.
+Run → Expected: PASS.
+
+- [ ] **Step 4: 마감 후 안내 팝업 + 상담 연결 (CANCEL-LATE)** — `cancel_flow.dart`
+
+```dart
+class LateSupportDialog extends ConsumerWidget {
+  const LateSupportDialog(this.d, {super.key});
+  final AppointmentDetail d;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => AlertDialog(
+    title: const Row(children: [Icon(Icons.schedule), Text('취소 마감 시간이 지났습니다')]),   // CANCEL-LATE-01
+    content: Column(mainAxisSize: MainAxisSize.min, children: [
+      Text('진료 시작 ${ref.watch(cancellationDeadlineHoursProvider)}시간 전까지만 앱에서 취소할 수 있습니다'),  // CANCEL-LATE-02 설정값
+      const Text('상담 채팅으로 문의하시거나 병원으로 전화해 주세요.'),                        // CANCEL-LATE-04 두 경로
+      OutlinedButton(onPressed: () => openTel(d.hospitalPhone), child: Text(d.hospitalPhone ?? '')),  // CANCEL-LATE-06 테두리 상자
+    ]),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기')),        // CANCEL-LATE-07 빠져나갈 문
+      ActionButton(label: '상담 채팅 연결', onPressed: () async {                             // CANCEL-LATE-05 오른쪽 진한
+        await ref.read(supportActionProvider.notifier).request(d.view.id, '취소');           // CANCEL-LATE-11 support_requested_at 채움
+        if (context.mounted) { Navigator.pop(context); context.push('/chat?appointment=${d.view.id}'); }
+      }),
+    ],
+  );  // ⛔ CANCEL-LATE-13 '취소 요청이 접수되었습니다' 류 금지
+}
+```
+테스트:
+
+```dart
+testWidgets('[CANCEL-LATE-01] 마감 후엔 확인창이 아니라 안내 팝업(시계 + 마감 문구)', (t) async {
+  await _openLate(t, d: _detail());
+  expect(find.text('취소 마감 시간이 지났습니다'), findsOneWidget);
+});
+testWidgets('[CANCEL-LATE-02][CANCEL-LATE-03] 설정값 N시간을 채우고 의사 이름은 안 붙인다', (t) async {
+  await _openLate(t, d: _detail(), deadlineHours: 24);
+  expect(find.text('진료 시작 24시간 전까지만 앱에서 취소할 수 있습니다'), findsOneWidget);
+  expect(find.textContaining('의사'), findsNothing);
+});
+testWidgets('[CANCEL-LATE-04][CANCEL-LATE-05] 채팅 먼저·전화 나중 두 경로', (t) async {
+  await _openLate(t, d: _detail());
+  expect(find.text('상담 채팅으로 문의하시거나 병원으로 전화해 주세요.'), findsOneWidget);
+  expect(find.text('상담 채팅 연결'), findsOneWidget);
+});
+testWidgets('[CANCEL-LATE-06] 전화번호는 테두리 상자', (t) async {
+  await _openLate(t, d: _detail(phone: '02-1-2'));
+  expect(find.widgetWithText(OutlinedButton, '02-1-2'), findsOneWidget);
+});
+testWidgets('[CANCEL-LATE-07] [닫기]로 빠져나갈 문이 있다', (t) async {
+  await _openLate(t, d: _detail());
+  expect(find.text('닫기'), findsOneWidget);
+});
+testWidgets('[CANCEL-LATE-11][CANCEL-LATE-12] 상담 채팅 연결을 누르면 support_requested + 유지 문구', (t) async {
+  final c = await _openLate(t, d: _detail());
+  await t.tap(find.text('상담 채팅 연결')); await t.pumpAndSettle();
+  expect(c.lastSupportRequest, ('취소'));
+  expect(_lastRoute, contains('/chat'));
+});
+testWidgets('[CANCEL-LATE-13] "취소 요청이 접수되었습니다" 류 금지', (t) async {
+  await _openLate(t, d: _detail());
+  expect(find.textContaining('접수되었습니다'), findsNothing);
+  expect(find.textContaining('요청해 두었습니다'), findsNothing);
+});
+```
+> `CANCEL-LATE-08`(바로 상담방 안 보내는 근거)·`CANCEL-LATE-09`(전화는 통계 밖이라 주 경로 아님)·`CANCEL-LATE-10`(상담 후 확인 카드 두 번 안 물음)은 팝업이 `[닫기]`/`[상담 채팅 연결]` 두 버튼 구조 + 연결 후 바로 `/chat`(재확인 카드 없음)로 실현. `CANCEL-LATE-14`(이미 요청함=`APPT-BTN-09`)는 T21 `DetailButtonBar`가 `supportRequestedAt`으로 이미 분기(여기선 그 상태로 진입 안 함).
+Run → Expected: PASS.
+
+- [ ] **Step 5: 예약 변경 마법사 (APPT-CHG) — 날짜·시간 재선택 + 확인 팝업 + 제출**
+
+```dart
+class ChangeController extends StateNotifier<ChangeState> {
+  ChangeController(this._detail) : super(ChangeState(step: 0));   // 0=날짜 1=시간
+  final AppointmentDetail _detail;
+  void selectNewDate(DateTime d) => state = state.copyWith(step: 1, date: d);
+  void backToDate() => state = state.copyWith(step: 0);
+}
+
+class ChangeScreen extends ConsumerWidget {
+  // 대상·진료과·의사 고정 표시(APPT-CHG-02). 진료과 안 고르게(APPT-CHG-03). 같은 과 안에서 다른 의사도 보기(APPT-CHG-04).
+  // 4·5단계 = T19/20 달력·시간 격자 재사용(APPT-CHG-05). 당일로 옮기기 허용(APPT-CHG-06, BOOK-TODAY 적용).
+  // 진행 표시 = '1단계 / 2단계 · 날짜 선택'(APPT-CHG-07, 8단계 막대 안 씀).
+  @override
+  Widget build(BuildContext context, WidgetRef ref) { /* 고정 헤더 + 단계별 달력/격자 + 시간 고르면 확인 팝업 */ }
+}
+
+// 확인 팝업 — 전→후 함께(APPT-CHG-08). 플랜의 '생략'을 뒤집음(APPT-CHG-09).
+Future<void> confirmChange(BuildContext context, WidgetRef ref, AppointmentDetail d, String newSlotId, DateTime newWhen) async {
+  final ok = await showBlockDialog(context,
+    before: formatKoreanDateTime(d.view.slotDate, d.view.startTime), after: formatKoreanWhen(newWhen),
+    confirmLabel: '변경합니다', cancelLabel: '아니요');                                 // APPT-CHG-08
+  if (ok != true) return;                                                             // 아니요 → 시간 그대로
+  final res = await ref.read(changeActionProvider.notifier).change(d.view.id, newSlotId, d.reason ?? '', d.view.updatedAt);
+  // 성공: 새 예약 상세로(APPT-CHG-15), 예약번호 새로 발급 안내 한 줄(APPT-CHG-12·13). 문진은 서버가 옮김(APPT-CHG-10·11).
+  // 즉시확정 아니면 다시 예약신청(APPT-CHG-16). 그 시간 이미 참=409→시간 화면 격자 위 안내(APPT-CHG-18).
+}
+```
+테스트(`change_test.dart`):
+
+```dart
+testWidgets('[APPT-CHG-02][APPT-CHG-03] 같은 과·의사 고정 표시, 진료과는 안 고른다', (t) async {
+  await _pumpChange(t, d: _detail(dept: '내과', doctor: '김의사'));
+  expect(find.text('내과'), findsOneWidget); expect(find.text('김의사'), findsOneWidget);
+  expect(find.text('진료과 선택'), findsNothing);
+});
+testWidgets('[APPT-CHG-04] 날짜 화면에 다른 의사도 보기(같은 과)', (t) async {
+  await _pumpChange(t, d: _detail());
+  expect(find.text('다른 의사도 보기'), findsOneWidget);
+});
+testWidgets('[APPT-CHG-07] 진행 표시는 1단계/2단계(8단계 막대 아님)', (t) async {
+  await _pumpChange(t, d: _detail());
+  expect(find.textContaining('1단계 / 2단계'), findsOneWidget);
+  expect(find.textContaining('/ 8단계'), findsNothing);
+});
+testWidgets('[APPT-CHG-08][APPT-CHG-09] 시간을 고르면 전→후 확인 팝업(생략 안 함)', (t) async {
+  await _pumpChange(t, d: _detail(slot: DateTime(2026,8,5,14,30)), atStep: 1);
+  await _pickSlot(t, '16:00'); await t.pumpAndSettle();
+  expect(find.byType(AlertDialog), findsOneWidget);
+  expect(find.textContaining('14:30'), findsOneWidget); expect(find.textContaining('16:00'), findsOneWidget);
+});
+testWidgets('[APPT-CHG-12][APPT-CHG-13] 변경 성공 후 상세에 예약번호 새 발급 안내(팝업 아님)', (t) async {
+  await _pumpChangedDetail(t, changed: true);
+  expect(find.text('예약번호가 새로 발급되었습니다'), findsOneWidget);
+});
+testWidgets('[APPT-CHG-15] 변경 성공 → 새 예약 상세(뒤로는 목록)', (t) async {
+  final c = await _doChange(t, changeResult: 'new-appt-id');
+  expect(_lastRoute, '/appointments/new-appt-id');
+});
+testWidgets('[APPT-CHG-16] 직원확인후확정 병원은 변경 후 다시 예약신청(QR 점선)', (t) async {
+  await _pumpChangedDetail(t, changed: true, status: '예약신청');
+  expect(find.text('확정되면 여기에 접수용 QR이 나타납니다'), findsOneWidget);
+});
+testWidgets('[APPT-CHG-18] 그 시간이 이미 차면 시간 화면 격자 위 안내', (t) async {
+  final c = await _doChange(t, changeError: (statusCode: 409, message: '16:00은 방금 다른 분이 예약하셨습니다'));
+  expect(c.read(_changeState).step, 1);                 // 시간 화면
+  expect(find.textContaining('방금 다른 분이'), findsOneWidget);
+});
+testWidgets('[APPT-CHG-17] [변경합니다] 중복 클릭은 처리 중 잠금', (t) async {
+  await _doChange(t, slow: true); 
+  expect(find.text('변경하는 중…'), findsOneWidget);
+});
+```
+> `APPT-CHG-01`(흐름 날짜→시간→확인→완료)·`APPT-CHG-05`(달력·격자 재사용)·`APPT-CHG-06`(당일 허용)은 위 화면이 T19/20 위젯을 재사용하는 구조가 실현. `APPT-CHG-10`·`APPT-CHG-11`(문진 이동·작성 시각 유지)은 **T5 `change_booking` 서버 트랜잭션**이 실현(앱엔 `작성완료` 유지로 보임). `APPT-CHG-14`(옛 QR 접수대 오인 방지)는 `APPT-CHG-12` 안내가 실현.
+Run → Expected: PASS.
+
+- [ ] **Step 6: 마감 후 변경 (APPT-CHG-19·20·21) — 취소와 공통 처리**
+
+```dart
+// 마감 후 [예약 변경]도 취소와 같은 안내 팝업. request_type='변경'으로만 갈린다.
+testWidgets('[APPT-CHG-19] 마감 후 변경은 취소와 같은 안내 팝업 + 상담 연결', (t) async {
+  final c = await _openChangeLate(t, d: _detail());
+  expect(find.text('변경 마감 시간이 지났습니다'), findsOneWidget);
+  await t.tap(find.text('상담 채팅 연결')); await t.pumpAndSettle();
+  expect(c.lastSupportRequest, '변경');                  // request_type='변경'
+});
+testWidgets('[APPT-CHG-20] 마감 후 변경에서 새 시간을 미리 고르거나 저장하지 않는다', (t) async {
+  await _openChangeLate(t, d: _detail());
+  expect(find.byType(Calendar), findsNothing);          // 희망 시간 폼 없음(상담에서 정함)
+});
+```
+> `APPT-CHG-21`(취소·변경 공통 `support_requested_at`·`request_type` 구분, 별도 변경 칸 안 둠)은 **T6 `request_support(request_type)`** 하나로 처리 — 변경도 취소와 같은 창구를 부르는 구조가 실현.
+
+- [ ] **Step 7: 낙관적 잠금 (APPT-RACE)** — 409 재그림
+
+```dart
+// change/cancel 요청에 화면이 연 updated_at을 함께 보낸다(APPT-RACE-01). 서버 값 다르면 409.
+testWidgets('[APPT-RACE-01][APPT-RACE-02] 409면 화면 안 옮기고 카드 다시 그리며 한 줄 알림', (t) async {
+  final c = await _doCancel(t, cancelError: (statusCode: 409, message: 'changed'));
+  expect(c.invalidatedDetail, isTrue);                  // 다시 그림
+  expect(_lastRoute, isNot('/appointments'));           // 상세에 머묾
+});
+testWidgets('[APPT-RACE-03] 시각만 바뀐 경우 병원 사정 변경 문구 + 전→후 + [확인]', (t) async {
+  await _pumpRaceBanner(t, kind: 'time_changed', prev: '14:30', now: '16:00');
+  expect(find.text('병원 사정으로 16:00으로 변경되었습니다'), findsOneWidget);
+  expect(find.textContaining('14:30 → 16:00'), findsOneWidget);
+});
+testWidgets('[APPT-RACE-04][APPT-RACE-05] 이미 취소면 누가 했는지(직원 이름 없이 병원에서)', (t) async {
+  await _pumpRaceBanner(t, kind: 'cancelled_by_hospital');
+  expect(find.text('병원에서 취소했습니다'), findsOneWidget);
+  expect(find.textContaining('선생님'), findsNothing);
+});
+testWidgets('[APPT-RACE-06] [확인]은 눌러야 사라지고 앱 껐다 켜도 다시 보인다', (t) async {
+  // 상태 기반(hospital_change_*/cancel_rejected_* 유사) → provider 재조회해도 유지, ack가 비운다.
+  await _pumpRaceBanner(t, kind: 'time_changed');
+  expect(find.text('확인'), findsOneWidget);
+});
+testWidgets('[APPT-RACE-07] 409 뒤 버튼을 다시 누를 수 있다', (t) async {
+  final c = await _doCancel(t, cancelError: (statusCode: 409, message: 'x'));
+  await t.pumpAndSettle();
+  expect(tester_findEnabled('예약 취소'), isTrue);
+});
+testWidgets('[APPT-RACE-08] 상세만이 아니라 목록·홈·보관본까지 한 벌로 고친다', (t) async {
+  final c = await _doCancel(t, cancelError: (statusCode: 409, message: 'x'));
+  expect(c.invalidatedProviders, containsAll(['detail', 'upcoming', 'home']));   // UpcomingCache까지
+});
+```
+> `APPT-RACE-03·04`의 배너는 병원발 변경(`hospital_change_*`, T15/17)·취소 주체(`cancelled_by`, T8 갭 #11) 데이터를 **재조회해** 그린다 — 서버는 409만 주고 화면이 최신 상세로 문구를 만든다(낙관적 잠금 문구는 화면 몫, 플랜 `:2003`).
+
+- [ ] **Step 8: 취소된 뒤 화면 (CANCEL-DONE)** — `cancelled_view.dart`
+
+```dart
+class CancelledDetail extends StatelessWidget {
+  // 옅은 회색 머리 + '취소됨' 배지(CANCEL-DONE-01). 취소 일시 + 누가(CANCEL-DONE-02). [새로 예약하기] 하나(CANCEL-DONE-03).
+}
+```
+테스트(`cancelled_test.dart`):
+
+```dart
+testWidgets('[CANCEL-DONE-01][CANCEL-DONE-02] 옅은 회색 머리·취소됨 배지 + 취소 일시·주체', (t) async {
+  await _pumpCancelled(t, d: _detail(status: '취소됨', cancelledBy: '병원', cancelledAt: DateTime(2026,8,4,10,0)));
+  expect(find.text('취소됨'), findsOneWidget);
+  expect(find.textContaining('병원'), findsOneWidget);
+});
+testWidgets('[CANCEL-DONE-03][CANCEL-DONE-08] [새로 예약하기] 하나, 새 예약은 문진 자동 안 끌어옴', (t) async {
+  await _pumpCancelled(t, d: _detail(status: '취소됨'));
+  expect(find.text('새로 예약하기'), findsOneWidget);
+  await t.tap(find.text('새로 예약하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/booking');                       // 새 문진(변경과 다름)
+});
+testWidgets('[CANCEL-DONE-07] 취소돼도 문진은 읽기 전용으로 볼 수 있다(안 지움)', (t) async {
+  await _pumpCancelled(t, d: _detail(status: '취소됨', qnr: 'readonly'));
+  expect(find.textContaining('작성완료'), findsOneWidget);
+});
+```
+> `CANCEL-DONE-04`(본인·가족 취소 홈 카드 자정까지)·`CANCEL-DONE-05`(병원 취소는 `[확인]`까지)·`CANCEL-DONE-06`(자정 후 이력 회색 줄)은 **홈(T16)·이력(T27)·`hospital_change`/`CARD-CXL` 상태**가 실현 — 여기선 취소된 **상세** 화면만(홈 카드 수명은 T16 소유). `CANCEL-DONE-07`은 T21 `APPT-QNR-06`(취소 예약 읽기전용)이 실현.
+
+- [ ] **Step 9: 취소 반려 배너 (CANCEL-REJ)** — `reject_banner.dart`
+
+```dart
+class CancelRejectBanner extends ConsumerWidget {
+  const CancelRejectBanner(this.d, {super.key});
+  final AppointmentDetail d;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (d.cancelRejectedAt == null) return const SizedBox.shrink();
+    return Container(color: const Color(0xFFFFF3E0), child: Column(children: [
+      const Text('취소가 어렵다는 답변을 받았습니다'),                     // CANCEL-REJ-01
+      Text(d.cancelRejectedReason ?? ''),                              // CANCEL-REJ-02 직원 사유 그대로
+      Row(children: [
+        ActionButton(label: '확인', onPressed: () async {              // CANCEL-REJ-04 눌러야 사라짐
+          await ref.read(rejectAckProvider.notifier).ack(d.view.id);  // acknowledge_cancel_rejection
+          ref.invalidate(appointmentDetailProvider(d.view.id));       // CANCEL-REJ-05 정상 복귀(QR 다시)
+        }),
+        TextButton(onPressed: () => context.push('/chat?appointment=${d.view.id}'),
+          child: const Text('다시 문의하기 ›')),                        // CANCEL-REJ-06 횟수 제한 없음
+      ]),
+    ]));
+  }
+}
+```
+테스트(`reject_test.dart`):
+
+```dart
+testWidgets('[CANCEL-REJ-01][CANCEL-REJ-02] 카드 위 배너에 반려 문구 + 직원 사유 그대로', (t) async {
+  await _pumpReject(t, d: _detail(rejectedAt: DateTime.now(), rejectReason: '진료 준비가 이미 진행되었습니다'));
+  expect(find.text('취소가 어렵다는 답변을 받았습니다'), findsOneWidget);
+  expect(find.text('진료 준비가 이미 진행되었습니다'), findsOneWidget);
+});
+testWidgets('[CANCEL-REJ-04][CANCEL-REJ-05] [확인]을 누르면 배너가 사라지고 정상 복귀(QR 다시)', (t) async {
+  final c = await _pumpReject(t, d: _detail(rejectedAt: DateTime.now()));
+  await t.tap(find.text('확인')); await t.pumpAndSettle();
+  expect(c.lastAckId, isNotNull);
+  expect(c.invalidatedDetail, isTrue);
+});
+testWidgets('[CANCEL-REJ-06] 다시 문의하기는 횟수 제한 없이 상담을 다시 연다', (t) async {
+  await _pumpReject(t, d: _detail(rejectedAt: DateTime.now()));
+  await t.tap(find.text('다시 문의하기 ›')); await t.pumpAndSettle();
+  expect(_lastRoute, contains('/chat'));
+});
+testWidgets('[CANCEL-REJ-03] 사유가 비어도 화면은 뜬다(직원웹이 필수로 받지만 방어)', (t) async {
+  await _pumpReject(t, d: _detail(rejectedAt: DateTime.now(), rejectReason: null));
+  expect(find.text('취소가 어렵다는 답변을 받았습니다'), findsOneWidget);   // 크래시 없음
+});
+testWidgets('[CANCEL-REJ-07] 반려 알림을 누르면 그 예약 상세로', (t) async {
+  // notification_log의 cancellation_rejected → resolveNotificationRoute(T18)가 /appointments/:id
+  await _pumpRejectNotification(t); 
+  expect(_lastRoute, startsWith('/appointments/'));
+});
+```
+Run → Expected: PASS.
+
+- [ ] **Step 10: 3곳 갭 반영 + 전체 테스트 + 커밋**
+
+Step 1의 CANCEL-REJ 갭을 세 곳에 반영: ① 결정 문서 신규 결정(취소 반려 저장 A안) + 기각안 · ② 경계 갭 대조표 신규 갭 · ③ 직원웹 반려 태스크에 `cancel_rejected_at/_reason` write 핀. 그리고 `screen-behaviors.md` `CANCEL-REJ-03`(직원웹 필수)·`APPT-CHG-09`(플랜 뒤집음)이 이미 반영됐는지 확인.
+
+```bash
+cd backend && pytest tests/test_patient_booking_service.py tests/test_patient_appointment_query_service.py -v
+cd ../patient_app && flutter test test/features/appointment/
+git add supabase/migrations/00027_cancel_rejected.sql backend/app/services/ backend/tests/ \
+  patient_app/lib/features/appointment/ patient_app/test/features/appointment/ \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 환자앱 Task 22 — 예약 변경·취소·마감후상담 73규칙(APPT-CHG/RACE·CANCEL-*) + CANCEL-REJ 저장 갭 해소"
+```
+
+> 📌 **규칙 커버리지(73)**: `APPT-CHG-01~21`(21) · `APPT-RACE-01~08`(8) · `CANCEL-PRE-01~07`(7) · `CANCEL-NEW-01~08`(8) · `CANCEL-LATE-01~14`(14) · `CANCEL-REJ-01~07`(7) · `CANCEL-DONE-01~08`(8). 개별 ID로 test에 심음. **T5 계약 노트가 미리 세운 `APPT-CHG-05·10·11`·`APPT-RACE-01`도 본문 test로 재확인**(missing에 없어도 담음).
+> ⭐ **경계 갭 해소 — CANCEL-REJ 저장 자리(A안)**: `appointments`에 `cancel_rejected_at`·`cancel_rejected_reason` 2칸(`00027`) = `hospital_change_*` 대칭. 직원웹 반려가 채움+알림, 환자 `[확인]`(`acknowledge_cancel_rejection`)이 비움. 3곳 반영(결정·경계표·직원웹 소급).
+> ⭐ **묶음 4 완결**(T21 상세 + T22 변경·취소). 변경=취소+새예약(문진 이동은 T5 서버), 마감후 취소·변경=공통 `request_support(request_type)`, 낙관적 잠금 409는 상세 재그림. 예약 도메인(3~4묶음) 규칙 전부 담김.
+> 📌 **값 없는/서버·근거 규칙 실현 지도**: `CANCEL-NEW-02·03·04·05`=T6 `cancel_appointment` 서버 판정 · `APPT-CHG-10·11`=T5 `change_booking` 트랜잭션 · `CANCEL-LATE-08·09·10`=팝업 두 버튼+바로 /chat 구조 · `APPT-CHG-21`=`request_support(request_type)` 단일 창구 · `CANCEL-DONE-04·05·06`=홈(T16)·이력(T27) 소유(상세만 여기).
+> ⚠️ **신설 마이그레이션 `00027_cancel_rejected.sql`** — 실제 번호는 구현 시점(직원웹도 `00017+`). `appointments` 2칸이라 의존 없음.
+
+> ▶ **다음 = Task 23 본문 작성** — 사전문진 작성/조회(묶음 5 `QNR-*`·`NAV-QNR-*` 113규칙 = Task 23·24 분담). 담당 규칙 수 먼저 집계(70 넘으면 쪼갬). 📌 재사용: T21 `APPT-QNR`(상세 문진 줄)·`/questionnaire/:id` 라우트 · T7 문진 백엔드(`get_template`·`save_response`) · `BOOK-WHY` reason→1번 초기값(갭 #23). `writing-plans` 먼저 + 완전 ID(남 태스크 규칙 완전 ID 인용 금지, 담당 접두어 전체 ID 명시 대조).
