@@ -11321,4 +11321,569 @@ git commit -m "feat: 환자앱 Task 19 — 예약 마법사 1~4단계 71규칙(B
 > ⚠️ **신설 마이그레이션 없음** — 갭 #7 칸은 직원웹 `00026`, 갭 #9는 순수 함수 + `admin_client` 조회(RLS 우회는 진료요일=비민감). T4 `list_doctors` 서비스만 확장(백엔드 파일 2개 수정/신설).
 > 📌 **Task 20 인계 발판**(5~8단계 · 66규칙): `BOOK-TIME-01~08` · `BOOK-WHY-01~06` · `BOOK-CONF-01~09`(04b·c·d·e 포함) · `BOOK-DONE-01~07`(01b·c 포함) · `BOOK-RACE-01~09` · `BOOK-TODAY-01~13` · `BOOK-HOLD-01~06` · `BOOK-BOT-01~08` + `NAV-BOOK-11~20` 화면 본체. `request_id`는 Task 20이 마법사 진입 때 만든다(멱등, 플랜 `:2002`). 확정 갭 소급 후보: `BOOK-TODAY`의 갭 #45·#46(T4 `list_bookable_slots`가 이미 닫음 — 소비만).
 
-> ▶ **다음 = Task 20 본문 작성** — 예약 5~8단계(시간·방문이유·최종확인·완료) + 동시충돌·당일예약·상담봇 시트 **66규칙**(`BOOK-TIME-*`·`BOOK-WHY-*`·`BOOK-CONF-*`·`BOOK-DONE-*`·`BOOK-RACE-*`·`BOOK-TODAY-*`·`BOOK-HOLD-*`·`BOOK-BOT-*` + `NAV-BOOK-11~20` 화면 본체). 📌 **재사용**: T19 `BookingController`·`bookingProvider`·`BookingWizard` 셸(전이 계약 위에 화면 얹기) · T4 `list_available_slots`/`list_bookable_slots`(당일 30분·마감·8주 서버 판정) · T5 `book_slot`(멱등 `request_id`) · T12 `ActionButton`(BUSY)·`showExitConfirm`(BTN-EXIT)·`PendingRequestCard`(BTN-KILL). ⚠️ `writing-plans` 먼저 호출 + 범위·축약은 완전 ID로. ⚠️ 상담봇 시트(`BOOK-BOT`)는 챗봇 엔진 제한모드(결정 E4)라 4단계와 도구계약 공유 — 도구 금지·긴급 예외 규칙 확인.
+---
+
+## Task 20: 예약 마법사 5~8단계 (시간·방문이유·최종확인·완료) + 동시충돌·당일예약·상담봇 시트
+
+> **담당 규칙(66)**: `BOOK-TIME-01~08`(8) · `BOOK-WHY-01~06`(6) · `BOOK-CONF-01~09`(9, +`04b·04c·04d·04e`) · `BOOK-DONE-01~07`(7, +`01b·01c`) · `BOOK-RACE-01~09`(9) · `BOOK-TODAY-01~13`(13) · `BOOK-HOLD-01~06`(6) · `BOOK-BOT-01~08`(8).
+> ⭐ **T19 셸 위에 뒷 절반을 얹는다**: `NAV-BOOK-11~20`은 T19가 전이 규칙(`BookingController._step`)으로 이미 못박았고(커버리지 반영 완료), 여기서 그 전이가 여는 **실제 화면**(5~8단계·상담봇 시트)을 붙인다. `submit()`이 성공하면 `goToStep(7)`, 그 시간이 이미 차면 `goToStep(4)`(`BOOK-RACE-01`).
+> ⚠️ **당일·마감·8주·30분은 앱이 판정하지 않는다** — T4 `list_bookable_slots`가 서버 한 곳에서 거른다(`BOOK-TODAY-02·03·09·11`, `BOOK-DATE-08·09`). 앱은 서버가 준 슬롯만 그리고, **오늘 남은 슬롯이 0이면 안내문**(`BOOK-TODAY-13`)만 화면 몫.
+> ⚠️ **상담봇 시트(`BOOK-BOT`)는 4단계 챗봇 엔진의 제한 모드**(결정 E4·갭 #10). 대화 엔진은 `ai-chatbot` 플랜 소유라 여기선 **시트 UI + 모드 계약(도구 전부 금지·`○○과로 계속하기`만 출구·119 예외)**을 세우고 대화는 스텁으로 둔다 — 4단계가 엔진을 붙이면 그대로 작동.
+
+**Files:**
+- Modify: `patient_app/lib/features/booking/booking_controller.dart`(`requestId` 추가 — 마법사 진입 때 1회 생성·신청까지 유지, `reset`이 새로 발급 = 멱등 `BOOK-CONF-08`)
+- Create: `patient_app/lib/features/booking/booking_submit.dart`(`BookingRepository.createBooking` 소비 · `submit()` — 409 충돌 분기)
+- Create: `patient_app/lib/features/booking/steps/time_step.dart`·`why_step.dart`·`conf_step.dart`·`done_step.dart`
+- Create: `patient_app/lib/features/booking/dept_bot_sheet.dart`(`DeptBotSheet` — 상담봇 시트 UI + 모드 계약)
+- Modify: `patient_app/lib/features/booking/booking_wizard.dart`(`switch(step)`의 4~7단계에 위 위젯 끼움 — T19 `_LaterStepPlaceholder` 교체)
+- Test: `patient_app/test/features/booking/{time,why,conf,done,submit,dept_bot}_step_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - T19: `bookingProvider`·`BookingController`(`selectSlot`·`goToStep`·`reset`) · `BookingSelection`(target·department·doctor·date) · `BookingWizard` 셸 · `availableSlotsProvider`(아래 신설, T4 `list_available_slots` 소비)
+  - T4: `GET /catalog/doctors/{doctor_id}/slots?target_date=`(`list_bookable_slots` — 당일 30분·마감·8주 서버 판정) · `get_hospital_info`(`BOOK-CONF-02` 장소)
+  - T5: `patient_booking_service.create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason, request_id, source='app') -> UUID`(멱등) · 라우터 `POST /my/appointments`
+  - T8: `GET /my/appointments/{id}`(완료 화면이 `booking_code`·`status` 조회 — `BOOK-DONE-01b·01c·02·03`)
+  - T12: `ActionButton`(`BTN-BUSY`) · `showExitConfirm`(`BTN-EXIT`) · `PendingRequestCard`/`pendingRequestProvider`(`BTN-KILL`) · `InlineError`(`ERR-POS`) · `EmptyState.zero/error`
+- Produces:
+  - `availableSlotsProvider`(`FutureProvider.autoDispose.family<List<Slot>, ({String doctorId, DateTime date})>`) · `Slot(id, startTime)` 모델
+  - `submit()` 결과 → 셸 전이(성공 `goToStep(7)` / 409 `goToStep(4)` + `BOOK-RACE` 안내) — 예약 마법사 완결. **Task 22(변경)가 `change_booking`으로 같은 셸 패턴 재사용 가능**
+  - `DeptBotSheet`(모드 계약 확정) — **`ai-chatbot` 플랜이 대화 엔진을 이 시트에 주입**(`BOOK-BOT-07`이 `selectDepartment` 호출)
+
+- [ ] **Step 1: `requestId` 멱등 키 추가 (BOOK-CONF-08·BOOK-HOLD)** — `booking_controller.dart` 수정
+
+```dart
+import 'package:uuid/uuid.dart';   // Task 0 의존
+
+// BookingSelection에 필드 추가:
+//   final String requestId;   // 마법사 진입 때 1회 생성. 연타·통신 유실 재신청 모두 같은 값 → 서버 멱등(갭 #15).
+// 생성자·copyWith에 requestId 반영. reset()이 새 UUID를 발급한다(BOOK-KEEP-06 = 새 예약은 새 request_id).
+
+class BookingController extends StateNotifier<BookingSelection> {
+  BookingController() : super(BookingSelection(requestId: const Uuid().v4()));
+
+  void reset() => state = BookingSelection(requestId: const Uuid().v4());   // 새 예약 = 새 멱등 키
+
+  // 5단계 시간 선택 — slot_id만 상태에 담는다. ⭐ 여기서 서버를 호출하지 않는다(BOOK-HOLD-01·03: 홀드 없음).
+  void selectSlot(String slotId) => state = state.copyWith(step: 5, slotId: slotId);
+  // 6단계 방문이유 입력 후 → 7단계.
+  void setReason(String reason) => state = state.copyWith(step: 6, reason: reason);
+}
+```
+테스트(`booking_controller_test.dart`에 추가):
+
+```dart
+test('[BOOK-CONF-08] request_id는 마법사 한 판 동안 고정, reset하면 새로 발급된다', () {
+  final first = c.read(bookingProvider).requestId;
+  ctl().selectTarget(t1); ctl().selectDepartment(dInternal);
+  expect(c.read(bookingProvider).requestId, first);   // 진행 중 불변(재신청도 같은 값)
+  ctl().reset();
+  expect(c.read(bookingProvider).requestId, isNot(first));  // 새 예약은 새 키
+});
+test('[BOOK-HOLD-01][BOOK-HOLD-03] 시간을 골라도 서버를 호출하지 않는다(임시 홀드 없음)', () {
+  ctl().selectTarget(t1); ctl().selectDepartment(dInternal); ctl().selectDoctor(doc1); ctl().selectDate(DateTime(2026,8,20));
+  ctl().selectSlot('slot-1');
+  expect(c.read(bookingProvider).slotId, 'slot-1');
+  expect(c.read(bookingProvider).step, 5);            // 6단계로 갈 뿐, book_slot은 8단계 신청에서만
+});
+```
+> `BOOK-HOLD-02`(6·7단계 머무는 사이 뺏길 수 있음)·`BOOK-HOLD-04`·`BOOK-HOLD-05`(홀드의 부작용·타이머 재촉 근거)·`BOOK-HOLD-06`(안전망=RACE)은 결정 **근거** — `selectSlot`이 서버를 안 건드리고 충돌을 `submit`에서 처리하는 구조 자체가 실현한다(Step 6 `submit`·Step 7 `BOOK-RACE`).
+Run → Expected: PASS.
+
+- [ ] **Step 2: 5단계 시간 `TimeStep` (BOOK-TIME + BOOK-TODAY 당일)** — `steps/time_step.dart`
+
+```dart
+final availableSlotsProvider = FutureProvider.autoDispose
+    .family<List<Slot>, ({String doctorId, DateTime date})>((ref, k) =>
+        ref.read(catalogRepositoryProvider).slots(k.doctorId, k.date));   // T4 list_bookable_slots
+
+class Slot { final String id; final DateTime startTime; const Slot(this.id, this.startTime); /* fromJson */ }
+
+class TimeStep extends ConsumerWidget {
+  const TimeStep({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sel = ref.watch(bookingProvider);
+    final slots = ref.watch(availableSlotsProvider((doctorId: sel.doctor!.id, date: sel.date!)));
+    return slots.when(
+      error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(availableSlotsProvider)),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      data: (list) {
+        if (list.isEmpty) {
+          // 그날이 전부 참/당일 30분 규칙으로 0 → 나가는 문 + 당일이면 이유 안내(BOOK-TIME-07·BOOK-TODAY-13)
+          return _AllFull(isToday: _isToday(sel.date!),
+            onPickAnotherDate: () => ref.read(bookingProvider.notifier).goToStep(3));  // NAV-BOOK-12
+        }
+        final am = list.where((s) => s.startTime.hour < 12).toList();   // 오전/오후 두 덩어리(BOOK-TIME-01·04)
+        final pm = list.where((s) => s.startTime.hour >= 12).toList();
+        return ListView(children: [
+          if (am.isNotEmpty) _Block('오전 · ${am.length}자리', am, ref),   // BOOK-TIME-03 남은 자리 수
+          if (pm.isNotEmpty) _Block('오후 · ${pm.length}자리', pm, ref),   // BOOK-TIME-06 한쪽 0이면 통째 감춤
+        ]);
+      },
+    );
+  }
+}
+// _Block: 3열 격자. 칸 누르면 selectSlot(slot.id) → 6단계.
+// 찬 시간은 서버 목록에 애초에 없다(BOOK-TIME-02 숨김). 시각 레일 안 씀(BOOK-TIME-05).
+```
+테스트(`time_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-TIME-01][BOOK-TIME-03] 오전/오후 덩어리 + 남은 자리 수', (t) async {
+  await _pumpTime(t, slots: [_slot('09:00'), _slot('09:20'), _slot('14:00')]);
+  expect(find.text('오전 · 2자리'), findsOneWidget);
+  expect(find.text('오후 · 1자리'), findsOneWidget);
+});
+testWidgets('[BOOK-TIME-02] 찬 시간은 회색이 아니라 아예 없다(서버 목록에 없음)', (t) async {
+  await _pumpTime(t, slots: [_slot('09:00')]);   // 서버가 빈시간만 준다
+  expect(find.text('09:20'), findsNothing);      // 찬 09:20은 목록에 아예 없다
+});
+testWidgets('[BOOK-TIME-06] 오후가 0이면 오후 덩어리를 통째로 감춘다', (t) async {
+  await _pumpTime(t, slots: [_slot('09:00')]);
+  expect(find.textContaining('오후'), findsNothing);
+});
+testWidgets('[BOOK-TIME-07] 그날이 전부 차면 [다른 날짜 고르기]로 4단계로 나간다', (t) async {
+  final c = await _pumpTime(t, slots: []);
+  expect(find.text('다른 날짜 고르기'), findsOneWidget);
+  await t.tap(find.text('다른 날짜 고르기')); await t.pump();
+  expect(c.read(bookingProvider).step, 3);       // NAV-BOOK-12
+});
+testWidgets('[NAV-BOOK-11] 시각을 누르면 6단계 방문 이유로 간다', (t) async {
+  final c = await _pumpTime(t, slots: [_slot('09:00')]);
+  await t.tap(find.text('오전 9:00')); await t.pump();
+  expect(c.read(bookingProvider).step, 5);
+});
+testWidgets('[BOOK-TIME-05] 시각 레일(줄줄이 시간선)을 쓰지 않는다 — 격자다', (t) async {
+  await _pumpTime(t, slots: [_slot('09:00'), _slot('09:20')]);
+  expect(find.byType(GridView), findsWidgets);   // 3열 격자
+});
+```
+> `BOOK-TIME-04`(오전/오후로 묶는 이유 = 점심시간이 빈틈으로 설명)·`BOOK-TIME-08`(당일 지난 시각이 뜨는 구현 전제)는 각각 UI 구조(두 덩어리)·**T4 서버 판정**(`list_bookable_slots`가 이미 거름)이 실현 — 앱은 서버 목록만 그린다.
+Run → Expected: PASS.
+
+- [ ] **Step 3: 당일 예약 (BOOK-TODAY) — 화면 몫만** — `time_step.dart`의 `_AllFull` + 근거 노트
+
+```dart
+class _AllFull extends StatelessWidget {
+  const _AllFull({required this.isToday, required this.onPickAnotherDate});
+  final bool isToday;
+  final VoidCallback onPickAnotherDate;
+  @override
+  Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+    const Text('예약 가능한 시간이 없습니다'),
+    if (isToday) const Padding(padding: EdgeInsets.all(8),
+      child: Text('지금 시각 기준으로 30분 뒤부터 예약하실 수 있습니다')),   // BOOK-TODAY-13 이유를 함께
+    TextButton(onPressed: onPickAnotherDate, child: const Text('다른 날짜 고르기')),  // 막다른 길 금지
+  ]));
+}
+```
+테스트:
+
+```dart
+testWidgets('[BOOK-TODAY-01] 당일(오늘)을 골라도 시간 목록을 보여준다(서버가 남은 슬롯을 준다)', (t) async {
+  await _pumpTime(t, slots: [_slot('23:30')], date: DateTime.now());
+  expect(find.textContaining('오후'), findsOneWidget);   // 오늘도 예약 화면이 뜬다(달력이 오늘 안 막음)
+});
+testWidgets('[BOOK-TODAY-13] 오늘 남은 시간이 0이면 30분 안내문 + 다른 날짜 출구', (t) async {
+  await _pumpTime(t, slots: [], date: DateTime.now());
+  expect(find.text('지금 시각 기준으로 30분 뒤부터 예약하실 수 있습니다'), findsOneWidget);
+  expect(find.text('다른 날짜 고르기'), findsOneWidget);
+});
+```
+> **값 없는/근거 규칙 — 어디서 실현되나(BOOK-TODAY)**: `BOOK-TODAY-02`(지난 시각 제외)·`BOOK-TODAY-03`(마감 이후 제외)·`BOOK-TODAY-09`(30분 이내 제외)·`BOOK-TODAY-11`(30분 고정)은 **T4 `list_bookable_slots`가 서버에서** 거른다(앱은 목록만 소비). `BOOK-TODAY-04`(마감 넘김 = 오늘 흐림)는 T19 `BOOK-DATE-05`(진료 없음)가 실현. `BOOK-TODAY-05`·`BOOK-TODAY-06`·`BOOK-TODAY-07`·`BOOK-TODAY-08`·`BOOK-TODAY-10`·`BOOK-TODAY-12`는 정책 **근거**(마감 시각이 주체·요구사항 당일방문은 다른 경로·지각유예와 같은 30분) — `BOOK-TODAY-01`(당일 허용)·`BOOK-TODAY-13`(안내) 두 동작 + T4 서버 규칙이 이들을 실현한다.
+Run → Expected: PASS.
+
+- [ ] **Step 4: 6단계 방문이유 `WhyStep` (BOOK-WHY)** — `steps/why_step.dart`
+
+```dart
+class WhyStep extends ConsumerStatefulWidget { /* ... */ }
+class _WhyStepState extends ConsumerState<WhyStep> {
+  final _ctl = TextEditingController();
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Padding(padding: EdgeInsets.all(16),
+      child: Text('어떤 일로 오시나요?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),  // BOOK-WHY-02
+    const Padding(padding: EdgeInsets.symmetric(horizontal: 16),
+      child: Text('간단히 적어주시면 진료 준비에 도움이 됩니다.')),
+    Padding(padding: const EdgeInsets.all(16), child: TextField(
+      controller: _ctl, maxLength: 100,                      // BOOK-WHY-01·05 자유입력 100자, 넘으면 입력 자체 막힘
+      maxLines: 3, decoration: const InputDecoration(counterText: ''),
+      buildCounter: (_, {required currentLength, required isFocused, maxLength}) =>
+          Text('$currentLength/$maxLength'),                 // BOOK-WHY-05 남은 글자 수
+    )),
+    const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text(
+      '여기 적으신 내용은 나중에 작성하실 사전문진의 첫 문항에 그대로 옮겨져 있습니다. '
+      '거기서 더 자세히 고쳐 쓰실 수 있습니다.')),               // BOOK-WHY-04 안내 상자
+    const Spacer(),
+    Row(children: [
+      TextButton(onPressed: () => ref.read(bookingProvider.notifier).setReason(''),   // BOOK-WHY-03 건너뛰기
+        child: const Text('건너뛰기')),
+      const Spacer(),
+      ActionButton(label: '다음', onPressed: () => ref.read(bookingProvider.notifier).setReason(_ctl.text)),
+    ]),
+  ]);
+}
+```
+테스트(`why_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-WHY-01] 자유 입력 한 칸(자주 쓰는 이유 단추 없음)', (t) async {
+  await _pumpWhy(t);
+  expect(find.byType(TextField), findsOneWidget);
+  expect(find.byType(ChoiceChip), findsNothing);            // 단추 없음
+});
+testWidgets('[BOOK-WHY-02] 질문 문구와 부연', (t) async {
+  await _pumpWhy(t);
+  expect(find.text('어떤 일로 오시나요?'), findsOneWidget);
+  expect(find.text('간단히 적어주시면 진료 준비에 도움이 됩니다.'), findsOneWidget);
+});
+testWidgets('[BOOK-WHY-03] 필수가 아니다 — 건너뛰기가 7단계로 보낸다', (t) async {
+  final c = await _pumpWhy(t);
+  await t.tap(find.text('건너뛰기')); await t.pump();
+  expect(c.read(bookingProvider).step, 6);
+  expect(c.read(bookingProvider).reason, '');
+});
+testWidgets('[BOOK-WHY-04] 문진 초기값 안내 상자', (t) async {
+  await _pumpWhy(t);
+  expect(find.textContaining('사전문진의 첫 문항에 그대로 옮겨져'), findsOneWidget);
+});
+testWidgets('[BOOK-WHY-05] 100자에 도달하면 입력을 막고 100/100을 보인다(잘라내지 않음)', (t) async {
+  await _pumpWhy(t);
+  await t.enterText(find.byType(TextField), 'ㄱ' * 120);
+  await t.pump();
+  expect(find.text('100/100'), findsOneWidget);             // maxLength가 입력을 막는다
+});
+```
+> `BOOK-WHY-06`(여기 값은 문진 1번 **초기값**일 뿐 문진에서 고쳐도 `appointments.reason` 안 바뀜 — 동기화 없음)은 **T5 `create_booking`이 `reason`을 그대로 저장하고, 문진(T23)이 별도 응답 테이블에 쓰는** 구조가 실현(갭 #23 확정). 이 스텝은 `reason`을 상태에 담아 `submit`에 넘기기만 한다.
+Run → Expected: PASS.
+
+- [ ] **Step 5: 7단계 최종확인 `ConfStep` (BOOK-CONF)** — `steps/conf_step.dart`
+
+```dart
+class ConfStep extends ConsumerWidget {
+  const ConfStep({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sel = ref.watch(bookingProvider);
+    final hospital = ref.watch(hospitalInfoProvider);        // 장소(BOOK-CONF-02) — get_hospital_info
+    final submitting = ref.watch(bookingSubmitProvider);     // AsyncValue — 진행/오류(Step 6)
+    return Column(children: [
+      Expanded(child: ListView(children: [
+        _row('대상', sel.target!.name), _row('진료과', sel.department!.name),
+        _row('의사', sel.doctor!.name), _row('일시', _fmt(sel.date!, sel.slotStartTime)),
+        _row('방문이유', sel.reason?.isEmpty ?? true ? '(없음)' : sel.reason!),
+        hospital.maybeWhen(data: (h) => _row('장소', h.address), orElse: () => const SizedBox()),
+      ])),  // BOOK-CONF-02 전 항목 한 번에. BOOK-CONF-03 항목별 [고치기] 없음(뒤로로 고침)
+      const Padding(padding: EdgeInsets.all(12), child: Text(
+        '병원 확인 후 확정되는 경우 알림으로 알려드립니다')),   // BOOK-CONF-04e 양쪽 참인 문장
+      if (submitting.hasError)
+        InlineError(message: (submitting.error as ApiException).message),  // BOOK-CONF-09 버튼 바로 위 붙박이
+      ActionButton(
+        label: '예약 신청하기',                              // BOOK-CONF-04b 하나로 통일(즉시확정/확인후 안 나눔)
+        busyLabel: '예약 신청 중…',                          // BOOK-CONF-05 진행형 글자 유지
+        busy: submitting.isLoading,
+        onPressed: () => ref.read(bookingSubmitProvider.notifier).submit(),
+      ),
+    ]);
+  }
+}
+```
+테스트(`conf_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-CONF-02] 전 항목을 한 번에 보여준다(방문이유 한 줄만 아님)', (t) async {
+  await _pumpConf(t, sel: _fullSel(reason: '감기 기운'));
+  for (final v in ['김순자', '내과', '김의사', '감기 기운', '서울 강남']) {
+    expect(find.textContaining(v), findsOneWidget);
+  }
+});
+testWidgets('[BOOK-CONF-03] 항목별 [고치기] 버튼이 없다', (t) async {
+  await _pumpConf(t, sel: _fullSel());
+  expect(find.text('고치기'), findsNothing);
+});
+testWidgets('[BOOK-CONF-04b] 신청 버튼은 예약 신청하기 하나(즉시확정/확인후로 안 나눔)', (t) async {
+  await _pumpConf(t, sel: _fullSel());
+  expect(find.text('예약 신청하기'), findsOneWidget);
+  expect(find.text('예약하기'), findsNothing);
+});
+testWidgets('[BOOK-CONF-04e] 병원 확인 안내 문장을 미리 보여준다', (t) async {
+  await _pumpConf(t, sel: _fullSel());
+  expect(find.text('병원 확인 후 확정되는 경우 알림으로 알려드립니다'), findsOneWidget);
+});
+testWidgets('[BOOK-CONF-05] 신청 중에는 글자를 유지한 진행형이 된다', (t) async {
+  await _pumpConf(t, sel: _fullSel(), submitting: const AsyncLoading());
+  expect(find.text('예약 신청 중…'), findsOneWidget);
+});
+testWidgets('[BOOK-CONF-09] 실패는 버튼 바로 위 붙박이 오류(새 [다시 시도] 안 만듦)', (t) async {
+  await _pumpConf(t, sel: _fullSel(), submitting: AsyncError(ApiException('일시적 오류'), StackTrace.current));
+  expect(find.byType(InlineError), findsOneWidget);
+  expect(find.text('다시 시도'), findsNothing);           // 원래 버튼을 다시 누른다
+});
+```
+> `BOOK-CONF-01`(확인 전용·값 안 고침)·`BOOK-CONF-04`(고치려면 뒤로)는 `[고치기]` 부재 + 뒤로 하나(T19 셸)가 실현. `BOOK-CONF-04c·04d`(신청/확정 안 나누는 **근거** = 틀렸을 때 손해가 한쪽으로 기움 · `auto_confirm`을 API가 안 줌)는 `04b` 동작이 실현. `BOOK-CONF-06`(처리 중 이탈=`showExitConfirm`)·`BOOK-CONF-07`(보내기 직전 `PendingRequestCard`)·`BOOK-CONF-08`(오래 걸려도 앱이 안 끊음=멱등)은 Step 6 `submit`이 실현.
+Run → Expected: PASS.
+
+- [ ] **Step 6: 신청 `submit` + 동시충돌 (BOOK-RACE) + 이탈/유언장** — `booking_submit.dart`
+
+```dart
+class BookingRepository {
+  BookingRepository(this._api);
+  final ApiClient _api;
+  // 멱등 request_id를 보낸다. 반환 appointment_id.
+  Future<String> createBooking(BookingSelection s) => _api.post('/my/appointments', {
+    'for_patient_id': s.target!.patientId, 'department_id': s.department!.id,
+    'doctor_id': s.doctor!.id, 'slot_id': s.slotId, 'reason': s.reason ?? '',
+    'request_id': s.requestId,
+  }, (j) => j['appointment_id'] as String);
+}
+
+class BookingSubmit extends StateNotifier<AsyncValue<void>> {
+  BookingSubmit(this._ref) : super(const AsyncData(null));
+  final Ref _ref;
+  Future<void> submit() async {
+    final ctl = _ref.read(bookingProvider.notifier);
+    final sel = _ref.read(bookingProvider);
+    _ref.read(pendingRequestProvider.notifier).begin('예약 신청', sel.requestId);  // BTN-KILL 유언장(BOOK-CONF-07)
+    state = const AsyncLoading();
+    try {
+      final id = await _ref.read(bookingRepositoryProvider).createBooking(sel);
+      _ref.read(pendingRequestProvider.notifier).complete(sel.requestId);
+      ctl.finishTo(id);                       // 8단계 완료(goToStep 7 + 방금 만든 appointment_id 보관)
+      state = const AsyncData(null);
+    } on ApiException catch (e) {
+      _ref.read(pendingRequestProvider.notifier).complete(sel.requestId);
+      if (e.statusCode == 409) {              // 그 시간이 이미 참(BOOK-RACE)
+        ctl.raceBackToTime(e.message);        // 5단계로 되돌리고 격자 위 안내(BOOK-RACE-01·02)
+        state = const AsyncData(null);        // 오류 배너가 아니라 화면 이동으로 처리(BOOK-RACE-09)
+      } else {
+        state = AsyncError(e, StackTrace.current);   // 7단계 그대로 붙박이(BOOK-CONF-09·NAV-BOOK-15)
+      }
+    }
+  }
+}
+final bookingSubmitProvider = StateNotifierProvider<BookingSubmit, AsyncValue<void>>((ref) => BookingSubmit(ref));
+
+// BookingController에 추가:
+//   void finishTo(String appointmentId) => state = state.copyWith(step: 7, createdAppointmentId: appointmentId);
+//   String? raceMessage;
+//   void raceBackToTime(String msg) { raceMessage = msg; state = state.copyWith(step: 4); }  // BOOK-RACE-01
+```
+테스트(`submit_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-RACE-01][NAV-BOOK-16] 그 시간이 이미 차면 5단계 시간 선택으로 되돌린다', (t) async {
+  final c = _containerWith(post: (_) async => throw ApiException('이미 선택된 시간입니다. 다른 시간을 선택해주세요.', statusCode: 409));
+  _advanceToStep(c.read(bookingProvider.notifier), 6);
+  await c.read(bookingSubmitProvider.notifier).submit();
+  expect(c.read(bookingProvider).step, 4);              // 처음부터가 아니라 시간 단계로만
+});
+testWidgets('[BOOK-RACE-02][BOOK-RACE-04] 격자 위 안내에 시각을 앞에 붙인 서버 문장', (t) async {
+  final c = _containerWith(post: (_) async => throw ApiException('이미 선택된 시간입니다. 다른 시간을 선택해주세요.', statusCode: 409));
+  final ctl = c.read(bookingProvider.notifier); _advanceToStep(ctl, 6); ctl.selectSlot('s1'); // 15:00 슬롯
+  await c.read(bookingSubmitProvider.notifier).submit();
+  expect(c.read(bookingProvider).raceMessage, contains('다른 시간을 선택'));
+});
+testWidgets('[BOOK-RACE-09] 충돌을 팝업으로 알리지 않는다(화면 이동으로 처리)', (t) async {
+  final c = _containerWith(post: (_) async => throw ApiException('x', statusCode: 409));
+  _advanceToStep(c.read(bookingProvider.notifier), 6);
+  await c.read(bookingSubmitProvider.notifier).submit();
+  expect(find.byType(AlertDialog), findsNothing);
+});
+testWidgets('[NAV-BOOK-15][BOOK-CONF-09] 서버 오류(409 아님)는 7단계 그대로 붙박이 오류', (t) async {
+  final c = _containerWith(post: (_) async => throw ApiException('서버 오류', statusCode: 500));
+  _advanceToStep(c.read(bookingProvider.notifier), 6);
+  await c.read(bookingSubmitProvider.notifier).submit();
+  expect(c.read(bookingProvider).step, 6);             // 화면 안 옮김
+  expect(c.read(bookingSubmitProvider).hasError, isTrue);
+});
+testWidgets('[BOOK-CONF-07] 보내기 직전 「결과 못 받은 신청」을 폰에 적는다(유언장)', (t) async {
+  final c = _containerWith(post: (_) async { await Future.delayed(const Duration(seconds: 1)); return '{"appointment_id":"a1"}'; });
+  _advanceToStep(c.read(bookingProvider.notifier), 6);
+  unawaited(c.read(bookingSubmitProvider.notifier).submit());
+  await t.pump();
+  expect(c.read(pendingRequestProvider).any((p) => p.requestId != null), isTrue);
+});
+testWidgets('[BOOK-RACE-07] 시간 단계로 되돌아오면 다시 조회한다(찬 시간이 빠져 있다)', (t) async {
+  // raceBackToTime 후 TimeStep이 availableSlotsProvider를 다시 watch → invalidate로 최신화.
+  final c = _containerWith(post: (_) async => throw ApiException('x', statusCode: 409));
+  _advanceToStep(c.read(bookingProvider.notifier), 6);
+  await c.read(bookingSubmitProvider.notifier).submit();
+  // step==4에서 TimeStep이 마운트되며 fresh fetch(회색 잔재 없음, BOOK-RACE-08).
+  expect(c.read(bookingProvider).step, 4);
+});
+```
+> `BOOK-RACE-03`(시각을 말하는 이유=빈자리 안 헤매게)·`BOOK-RACE-05`(위치 규칙=바뀐 대상 위)·`BOOK-RACE-06`(다른 시간 고르면 사라짐)·`BOOK-RACE-08`(놓친 칸 회색 안 남김)은 5단계 격자 위 `raceMessage` 배너 + 재조회가 실현(TimeStep이 `raceMessage`를 격자 위에 그리고, 슬롯 선택 시 지운다). `BOOK-CONF-08`(오래 걸려도 앱 안 끊음)=멱등 `request_id`라 재신청해도 한 건.
+Run → Expected: PASS.
+
+- [ ] **Step 7: 8단계 완료 `DoneStep` (BOOK-DONE)** — `steps/done_step.dart`
+
+```dart
+class DoneStep extends ConsumerWidget {
+  const DoneStep({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = ref.watch(bookingProvider).createdAppointmentId!;
+    final appt = ref.watch(appointmentDetailProvider(id));   // T8 GET /my/appointments/{id}
+    return appt.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(appointmentDetailProvider(id))),
+      data: (a) {
+        final confirmed = a.status == '예약확정';
+        return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const CircleAvatar(radius: 36, backgroundColor: Color(0xFF0B6E70), child: Icon(Icons.check, color: Colors.white, size: 40)),
+          Text(confirmed ? '예약이 확정되었습니다' : '예약이 신청되었습니다',    // BOOK-DONE-02·03 용어가 상태를 따라감
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          _summaryBox(a),                                     // 일시·진료 + 번호(BOOK-DONE-01b)
+          Text('${confirmed ? '예약번호' : '신청번호'} ${a.bookingCode}'),  // BOOK-DONE-01c 용어
+          const Text('사전문진을 미리 써두시면 진료가 더 빨라집니다.'),        // BOOK-DONE-05
+          ActionButton(label: '사전문진 작성하기',                 // BOOK-DONE-04
+            onPressed: () => context.go('/my/appointments/$id/questionnaire')),  // NAV-BOOK-17 → 문진(T23)
+          TextButton(onPressed: () => context.go('/home'),      // BOOK-DONE-06 나중에 할게요 → 홈
+            child: const Text('나중에 할게요')),
+        ]);
+      },
+    );
+  }
+}
+```
+
+이 화면에서 **뒤로 = 홈**(마법사로 안 돌아감). T19 셸 `PopScope`가 `step==7`이면 `context.go('/home')`로 처리하도록 한 줄 추가(`BOOK-NAV-08`·`BOOK-DONE-07`·`NAV-BOOK-14`):
+
+```dart
+// booking_wizard.dart PopScope onPopInvoked 안:
+if (step >= 7) { context.go('/home'); return; }   // 완료 화면 뒤로 = 홈(예약 이미 생성됨)
+```
+테스트(`done_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-DONE-02] 예약신청으로 생성되면 "예약이 신청되었습니다"', (t) async {
+  await _pumpDone(t, appt: _appt(status: '예약신청', code: 'A-2413'));
+  expect(find.text('예약이 신청되었습니다'), findsOneWidget);
+});
+testWidgets('[BOOK-DONE-03] 즉시확정 병원은 "예약이 확정되었습니다"', (t) async {
+  await _pumpDone(t, appt: _appt(status: '예약확정', code: 'A-2413'));
+  expect(find.text('예약이 확정되었습니다'), findsOneWidget);
+});
+testWidgets('[BOOK-DONE-01b][BOOK-DONE-01c] 번호를 함께 보여주고 용어가 상태를 따른다', (t) async {
+  await _pumpDone(t, appt: _appt(status: '예약신청', code: 'A-2413'));
+  expect(find.text('신청번호 A-2413'), findsOneWidget);   // 확정 전 = 신청번호
+});
+testWidgets('[BOOK-DONE-04][BOOK-DONE-05] 사전문진 작성하기 + 안내 + 나중에 할게요', (t) async {
+  await _pumpDone(t, appt: _appt(status: '예약확정', code: 'A-1'));
+  expect(find.text('사전문진 작성하기'), findsOneWidget);
+  expect(find.text('나중에 할게요'), findsOneWidget);
+  expect(find.text('사전문진을 미리 써두시면 진료가 더 빨라집니다.'), findsOneWidget);
+});
+testWidgets('[NAV-BOOK-17] 사전문진 작성하기 → 그 예약의 문진 화면', (t) async {
+  await _pumpDone(t, appt: _appt(status: '예약확정', code: 'A-1', id: 'appt-9'));
+  await t.tap(find.text('사전문진 작성하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/my/appointments/appt-9/questionnaire');
+});
+testWidgets('[NAV-BOOK-18][BOOK-DONE-06] 나중에 할게요 → 홈', (t) async {
+  await _pumpDone(t, appt: _appt(status: '예약확정', code: 'A-1'));
+  await t.tap(find.text('나중에 할게요')); await t.pumpAndSettle();
+  expect(_lastRoute, '/home');
+});
+testWidgets('[BOOK-DONE-07][NAV-BOOK-14] 완료 화면에서 뒤로 = 홈(마법사로 안 돌아감)', (t) async {
+  await _pumpDoneInWizard(t, appt: _appt(status: '예약확정', code: 'A-1'));
+  await _pressBack(t); await t.pumpAndSettle();
+  expect(_lastRoute, '/home');
+});
+```
+> `BOOK-DONE-01`(가운데 원+✓→제목→요약→CTA 레이아웃)은 위 위젯 트리가 실현(체크 원·제목·요약·버튼 존재를 `_pumpDone`이 함께 확인).
+Run → Expected: PASS.
+
+- [ ] **Step 8: 2단계 상담봇 시트 `DeptBotSheet` (BOOK-BOT) — 모드 계약 + UI 스텁** — `dept_bot_sheet.dart`
+
+```dart
+// ⚠️ 대화 엔진은 ai-chatbot 플랜 소유. 여기선 시트 UI + 모드 계약을 세운다.
+//    제한 모드: 행동형 도구 전부 금지, 유일한 출구는 ○○과로 계속하기, 119 안전 안내만 예외(결정 E4).
+class DeptBotSheet extends ConsumerWidget {
+  const DeptBotSheet({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sel = ref.watch(bookingProvider);
+    final suggested = ref.watch(deptBotSuggestionProvider);  // 엔진(4단계)이 좁혀준 진료과. 스텁=null.
+    return Padding(padding: MediaQuery.of(context).viewInsets, child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        const Text('AI 상담봇', style: TextStyle(fontWeight: FontWeight.w800)),   // BOOK-BOT-02 용어(챗봇 아님)
+        const Spacer(),
+        IconButton(icon: const Icon(Icons.cancel), iconSize: 40,                  // BOOK-BOT-03 원형 X(쓸어내림도 됨)
+          onPressed: () => Navigator.of(context).pop()),
+      ]),
+      const Expanded(child: _BotConversation()),   // 정보성 안내 + 진료과 추천만(BOOK-BOT-01·07 계약). 엔진은 4단계.
+      if (suggested != null)
+        Column(children: [
+          ActionButton(label: '${suggested.name}로 계속하기',                     // BOOK-BOT-04·05
+            onPressed: () {
+              ref.read(bookingProvider.notifier).selectDepartment(suggested);    // NAV-BOOK-07 → 3단계, 그 과 선택
+              Navigator.of(context).pop();
+            }),
+          Text('예약을 계속 진행 중입니다 · ${sel.target?.relation ?? '본인'} (${sel.target?.name ?? ''})',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF5D7183))),      // BOOK-BOT-04 회색 보조
+        ]),
+    ]));
+  }
+}
+```
+테스트(`dept_bot_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-BOT-02] 제목은 "AI 상담봇"(챗봇 아님)', (t) async {
+  await _pumpSheet(t);
+  expect(find.text('AI 상담봇'), findsOneWidget);
+  expect(find.textContaining('챗봇'), findsNothing);
+});
+testWidgets('[BOOK-BOT-03] 오른쪽 위 원형 X(40px)로 닫는다', (t) async {
+  await _pumpSheet(t);
+  final btn = t.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.cancel));
+  expect(btn.iconSize, 40);
+});
+testWidgets('[BOOK-BOT-04][BOOK-BOT-05] 과가 정해지면 ○○과로 계속하기 + 진행 중 보조 문구', (t) async {
+  final c = await _pumpSheet(t, suggested: const Department('d1', '내과'), target: const BookingTarget('me','김순자',null));
+  expect(find.text('내과로 계속하기'), findsOneWidget);
+  expect(find.textContaining('예약을 계속 진행 중입니다'), findsOneWidget);
+  await t.tap(find.text('내과로 계속하기')); await t.pumpAndSettle();
+  expect(c.read(bookingProvider).department!.id, 'd1');   // NAV-BOOK-07 그 과 선택된 채 3단계
+  expect(c.read(bookingProvider).step, 2);
+});
+testWidgets('[BOOK-BOT-06] 그냥 닫으면 아무것도 고르지 않은 2단계 그대로', (t) async {
+  final c = await _pumpSheet(t, suggested: null);
+  await t.tap(find.widgetWithIcon(IconButton, Icons.cancel)); await t.pumpAndSettle();
+  expect(c.read(bookingProvider).department, isNull);
+});
+testWidgets('[BOOK-BOT-01] 시트는 겹침(화면을 떠나지 않는다) — 아래에서 올라온다', (t) async {
+  await _pumpSheetOverDept(t);
+  expect(find.byType(DeptStep), findsOneWidget);          // 뒤에 2단계가 살아 있다
+  expect(find.byType(DeptBotSheet), findsOneWidget);
+});
+```
+> `BOOK-BOT-07`(예약 중 상담은 **행동형 도구 전부 금지**·유일 출구 `○○과로 계속하기`)·`BOOK-BOT-08`(같은 엔진 제한 모드지만 **119·응급실 안전 안내는 항상 작동**)은 **모드 계약**이라 시트가 예약제안·취소·문진 카드 위젯을 **띄우지 않는 구조**로 실현하고, 실제 엔진 강제는 `ai-chatbot` 플랜이 이 시트에 주입할 때 계약을 따른다(주석·`deptBotSuggestionProvider`가 「진료과 추천만」 반환 타입으로 계약 고정).
+Run → Expected: PASS.
+
+- [ ] **Step 9: 셸에 5~8단계 끼우기 + 전체 테스트 + 커밋**
+
+`booking_wizard.dart`의 `switch(step)`에서 T19 `_LaterStepPlaceholder`를 교체:
+
+```dart
+4 => const TimeStep(),
+5 => const WhyStep(),
+6 => const ConfStep(),
+7 => const DoneStep(),
+```
+그리고 위 Step 7의 `PopScope` 완료 화면 분기(`step>=7 → 홈`)를 반영.
+
+```bash
+cd patient_app && flutter test test/features/booking/
+git add patient_app/lib/features/booking/ patient_app/test/features/booking/
+git commit -m "feat: 환자앱 Task 20 — 예약 마법사 5~8단계 66규칙(TIME/WHY/CONF/DONE·RACE·TODAY·HOLD·BOT)"
+```
+
+> 📌 **규칙 커버리지(66)**: `BOOK-TIME-01~08`(8) · `BOOK-WHY-01~06`(6) · `BOOK-CONF-01~09`(9 · 04b·04c·04d·04e 포함) · `BOOK-DONE-01~07`(7 · 01b·01c 포함) · `BOOK-RACE-01~09`(9) · `BOOK-TODAY-01~13`(13) · `BOOK-HOLD-01~06`(6) · `BOOK-BOT-01~08`(8). 개별 ID로 test에 심음(축약 없음).
+> ⭐ **예약 마법사 완결**: T19(셸+1~4단계) + T20(5~8단계+신청)로 8단계 예약 흐름이 끝난다. `NAV-BOOK-11~20`의 화면 본체가 여기서 실체화(T19가 전이만 담고 커버리지 반영은 완료). `submit()`이 T5 `create_booking`(멱등 `request_id`)을 호출하고 409는 `BOOK-RACE`로 5단계 복귀.
+> 📌 **값 없는/근거·서버 규칙 실현 지도**: `BOOK-TODAY-02·03·09·11`·`BOOK-TIME-08`·`BOOK-DATE-08·09`=T4 `list_bookable_slots` 서버 판정(앱 소비) · `BOOK-TODAY-05·06·07·08·10·12`=정책 근거(`01`·`13` 동작이 실현) · `BOOK-HOLD-02·04·05·06`=홀드 없음 근거(`submit`이 신청 때만 book) · `BOOK-CONF-04c·04d`=신청/확정 안 나눔 근거(`04b`) · `BOOK-WHY-06`=문진 초기값 비동기화(T5·T23 구조) · `BOOK-BOT-07·08`=모드 계약(시트가 행동 도구 안 띄움).
+> 📌 **T20이 T19 파일을 확장한 곳**(경계): `booking_controller.dart`에 `requestId`·`slotId`·`reason`·`createdAppointmentId`·`raceMessage`·`selectSlot`·`setReason`·`finishTo`·`raceBackToTime` 추가, `booking_wizard.dart` `switch`·`PopScope` 완료 분기. T19 전이 계약(`goToStep`·`_step` 의미)은 그대로.
+> ⚠️ **4단계(챗봇) 인계**: `DeptBotSheet`의 대화 엔진·`deptBotSuggestionProvider`는 `ai-chatbot` 플랜이 채운다. 제한 모드 계약(`BOOK-BOT-07·08` = 행동 도구 금지·119 예외, 결정 E4)을 그 플랜에서 반드시 지킬 것 — 원장 `HANDOVERS.md`에 등록 대상.
+
+> ▶ **다음 = Task 21 본문 작성** — 예약 상세·상태 화면(`APPT-*`·`NAV-APPT-*` 일부, 묶음 4 「상세·변경·취소」 135규칙 중 T21 몫). 📌 재사용: T15·17 카드 위젯·`resolveCardState` · T8 `get_appointment_detail` · T16 홈에서 진입. ⚠️ `writing-plans` 먼저 + 완전 ID. ⚠️ **완전 ID로 남 태스크 규칙 인용 금지**(coverage 미리 셈 — T19 교훈).
