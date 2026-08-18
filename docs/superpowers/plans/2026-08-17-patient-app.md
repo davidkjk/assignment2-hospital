@@ -4161,7 +4161,8 @@ redirect: (context, state) {
   if (auth == AuthStatus.signedOut && protected) return '/login';
   // OFF-AUTH-01: expiredOffline이면 캐시 읽기전용 화면 유지 — 로그인으로 보내지 않는다(리다이렉트 없음).
   if (auth == AuthStatus.expiredOffline) return null;
-  // NAV-GLOBAL-04(갭 #43): 인증됐지만 프로필 미완료면 가입 ③으로. profileCompleteProvider는 GET /patients/me 404로 판정.
+  // NAV-GLOBAL-04(갭 #43): 인증됐지만 프로필 미완료면 가입 ③으로. `profileMissingProvider`는 GET /patients/me
+  // 403으로 판정(get_current_patient가 patients 행이 없을 때 403 — Task 13에서 정의). ⚠️ 옛 주석의 "404"는 낡음.
   if (auth == AuthStatus.signedIn && container.read(profileMissingProvider) && !loc.startsWith('/signup')) {
     return '/signup/step3';
   }
@@ -5646,3 +5647,1971 @@ git commit -m "feat: 환자앱 Task 12 — 전역 공용 위젯(오류·버튼�
 > 📌 **규칙 커버리지(58)**: `ERR-MSG-01·02`·`ERR-KIND-01`·`ERR-FLD-01~05`·`ERR-POS-01~03`·`ERR-GONE-01~03`·`ERR-RETRY-01~04`(18) · `BTN-SCOPE-01·02`·`BTN-BUSY-01·02`·`BTN-STATE-01~03`·`BTN-TIME-01`·`BTN-EXIT-01~03`·`BTN-KILL-01~07`·`BTN-COOL-01~10`(28) · `EMPTY-LAY-01·02`·`EMPTY-OFF-01`·`EMPTY-ERR-01`·`EMPTY-ZERO-01·02`·`EMPTY-TAB-01·02`(8) · `BLOCK-EXIT-01`·`BLOCK-TIME-01`·`BLOCK-CONF-01`·`BLOCK-CHG-01`(4).
 > ⚠️ **T11이 산문으로만 언급해 coverage에 잡혔던 6건**(`BTN-KILL-03·07`·`BTN-STATE-03`·`EMPTY-OFF-01`·`EMPTY-ERR-01`)을 여기서 **실제 `test()`로** 담아 가짜 커버(👻)를 실물로 바꿨다.
 > ⚠️ **화면 태스크(13~31)가 소비할 계약**: 저장·변경 버튼=`ActionButton`(busy·disabledReason는 화면 Notifier가 넘김) · 동작 실패=`InlineError(message)` · 입력 폼=`FieldTextInput`+`FieldErrorController.validateAll()` · 조회 실패/오프라인/0건=`EmptyState.error/offline/zero` · 예약 변경 확인=`showBlockDialog(before/after)` · 처리 중 이탈=`showExitConfirm` · 인증번호 재발송=`CooldownButton` · 미완료 신청 홈 카드=`PendingRequestCard`(예약·변경 경로가 `PendingRequestStore.begin/complete` 호출).
+
+---
+
+## Task 13: 가입 — 동의 ⓪ → 전화 ① → 인증번호 ② → 비밀번호·기본정보 ③ + 새 비밀번호·번호 변경 안내 (83규칙)
+
+> **담당 규칙(83)**: `CONSENT-*`(22) · `AUTH-LAND-*`(4) · `AUTH-PHONE-*`(4) · `AUTH-OTP-*`(11) · `AUTH-SIGNUP-*`(12) · `AUTH-PROFILE-*`(8) · `AUTH-PWNEW-*`(17) · `AUTH-TEL-*`(5). ⭐ **첫 화면 태스크** — Task 11·12의 전역 계층 위에 실제 화면을 짓는다. **로그인·비밀번호 찾기·중복번호·재인증·세션은 Task 14 소유**(여기는 `AUTH-PWNEW` 새 비밀번호 화면만 만들고, 그리로 오는 경로는 Task 14가 잇는다).
+>
+> ⭐⭐ **이 태스크의 심장 = 동의가 맨 앞이다(CONSENT-STEP-01·02)**: 전화번호 자체가 개인정보라 수집 전에 동의를 받아야 한다. 이 시점엔 **세션도 patient 행도 없어서**(CONSENT-STEP-03) 동의는 **화면이 로컬로 들고 있다가 프로필 생성(POST /patients) 때 함께 서버에 기록**한다(CONSENT-LOG-01). 그래서 동의 이력 표를 새로 만든다(CONSENT-LOG-02 — 갭 #108, 표가 통째로 없었다).
+>
+> ⭐⭐ **두 번째 심장 = 「가입 미완료」(AUTH-SIGNUP-07·08·11·12)**: 인증번호가 맞은 순간 이미 로그인 상태가 되고(Supabase `verifyOTP`가 세션 발급) 이름·생년월일만 없다. 앱을 껐다 켜면 **③으로 되돌린다**(문자 재인증 안 시킴). 판정은 별도 enum이 아니라 **`signedIn` + 프로필 없음** — `profileMissingProvider`(GET /patients/me 404)가 그 장치이고, **Task 11 라우터가 이미 이 provider를 기다린다**(양방향 악수).
+>
+> ⚠️ **경계(재소유 금지)**: ① 전역 위젯은 **Task 12를 소비**한다 — 오류는 `InlineError`/`FieldTextInput`, 재발송은 `CooldownButton`+`PhoneCooldownStore`, 버튼은 `ActionButton`. 여기서 다시 만들지 않는다. ② `AUTH-PWNEW` 새 비밀번호 화면은 **여기서 만들고**, 그리로 오는 경로(비밀번호 찾기 `AUTH-PWFIND`·중복 갈림길 `AUTH-DUP`)는 **Task 14**가 잇는다(화면 공유 — AUTH-PWNEW-05·08). ③ 재인증 `AUTH-REAUTH`·세션 `AUTH-SESS`는 Task 14(라우터의 `sensitiveReauthGuardProvider`도 T14 정의).
+
+**Files:**
+- Migrate: `supabase/migrations/00024_patient_consents.sql`(동의 이력 표 + `patients.ads_consent` — CONSENT-LOG-01·02)
+- Modify: `supabase/config.toml`(비밀번호 8자·영문숫자 — AUTH-PROFILE-02 · phone OTP 만료 5분 — AUTH-OTP-04)
+- Create(백엔드): `backend/app/services/consent_service.py`(동의 기록·광고 토글) · `backend/app/services/password_reset_service.py`(서버 경유 이름 대조·5회 잠금 — 갭 #78) · `backend/app/routers/patient_consent.py` · `backend/app/routers/patient_password_reset.py`
+- Modify(백엔드): `backend/app/services/patient_profile_service.py`(`register_profile`이 동의 4줄 함께 기록) · `backend/app/main.py`(라우터 등록)
+- Create(프론트): `patient_app/lib/features/auth/landing_screen.dart`(AUTH-LAND) · `consent_screen.dart`(CONSENT) · `signup_flow.dart`(마법사 셸·진행점·상태보존 — AUTH-SIGNUP) · `signup_phone_screen.dart`(AUTH-PHONE) · `otp_screen.dart`(AUTH-OTP 공용) · `signup_profile_screen.dart`(AUTH-PROFILE) · `new_password_screen.dart`(AUTH-PWNEW) · `phone_change_screen.dart`(AUTH-TEL) · `patient_app/lib/core/profile_status.dart`(`profileMissingProvider`)
+- Test: `backend/tests/test_00024_consent_migration.py` · `test_consent_service.py` · `test_password_reset_service.py` · `patient_app/test/features/auth/{landing,consent,signup_flow,signup_phone,otp,signup_profile,new_password,phone_change}_screen_test.dart` · `test/core/profile_status_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - Task 0: `AppTokens`·`apiClientProvider`·`ApiClient`·`supabaseClientProvider`·`authStateChangesProvider`·`AuthStatus`·`appRouter`
+  - Task 2: `patient_profile_service.register_profile`(이름·생년월일·성별) · `get_current_auth_user_id`(patients 행 없어도 통과)
+  - Task 10: `POST /patients`(프로필 생성) · `GET /patients/me`(404=미완료 판정)
+  - Task 11: `effectiveAuthProvider`·`connectivityProvider` · 라우터가 `profileMissingProvider`를 기다림(여기서 정의)
+  - Task 12: `ActionButton`·`FieldTextInput`+`FieldErrorController`·`InlineError`·`CooldownButton`+`PhoneCooldownStore`·`showBlockDialog`·`EmptyState`
+- Produces:
+  - `profileMissingProvider`(`Provider<bool>` — GET /patients/me 404) · consent 서비스(`record_consents`·`set_ads_consent`) · `password_reset_service`(`verify_name_and_reset`·`RESET_LOCK`) · 가입 마법사 화면 7종 · `ConsentState`(4줄 동의 로컬 상태)
+  - Task 14가 소비: `NewPasswordScreen`(비밀번호 찾기·중복 갈림길이 라우팅) · `PhoneChangeScreen`(번호 변경 안내 — PWFIND-06·PWNEW-12도 링크) · `otp_screen`(비밀번호 찾기 ②·가족 연결도 공유)
+
+- [ ] **Step 1: 마이그레이션 `00024` + config.toml — 동의 이력 표 · 비밀번호/OTP 서버 설정 (`CONSENT-LOG-01·02` · `AUTH-PROFILE-02` · `AUTH-OTP-04`)**
+
+> ⚠️ **번호 주의**: 환자앱은 `00017~00023`을 썼고(T9 device_tokens=00023) consent가 `00024`다. **직원웹도 `00017+`를 쓰므로 실제 번호는 구현 시점에 확정**(먼저 적용하는 쪽 우선). `private.current_patient_id()`·`private.is_active_staff()`는 공용(T1·device_tokens와 같은 패턴)을 재사용한다.
+
+- [ ] **Step 1a: 실패 테스트** — `backend/tests/test_00024_consent_migration.py`
+
+```python
+import pytest
+from pathlib import Path
+
+pytestmark = pytest.mark.asyncio
+
+
+async def test_patient_consents_table_exists(db_conn):
+    # CONSENT-LOG-02 — 동의 이력 표가 통째로 없었다(갭 #108). 새로 생긴다.
+    reg = await db_conn.fetchval("select to_regclass('public.patient_consents')")
+    assert reg is not None
+
+
+async def test_consent_item_check_constraint(db_conn):
+    # CONSENT-ITEM-01 — 줄 넷: 약관·개인정보·민감정보·광고. item은 이 넷만 허용.
+    with pytest.raises(Exception):
+        await db_conn.execute(
+            "insert into patient_consents (patient_id, item, agreed, terms_version) "
+            "values (gen_random_uuid(), 'garbage', true, 'v1')")
+
+
+async def test_patients_has_ads_consent_column(db_conn):
+    # CONSENT-LOG-01 파생 — 광고 동의 '현재 상태' 칸(LATER 토글용). 기본 false.
+    col = await db_conn.fetchval(
+        "select column_default from information_schema.columns "
+        "where table_name='patients' and column_name='ads_consent'")
+    assert col is not None and 'false' in col.lower()
+
+
+def test_config_password_and_otp_tightened():
+    cfg = Path('supabase/config.toml').read_text()
+    assert 'minimum_password_length = 8' in cfg          # AUTH-PROFILE-02: 6 → 8
+    assert 'password_requirements = "letters_digits"' in cfg  # 영문·숫자 함께
+    # AUTH-OTP-04: phone OTP가 화면(5분)과 어긋나지 않게 반영/주석으로 남긴다.
+    assert 'otp_exp' in cfg or 'OTP expiry' in cfg
+```
+Run: `cd backend && pytest tests/test_00024_consent_migration.py -v` → Expected: FAIL(마이그레이션·config 미적용).
+
+- [ ] **Step 1b: 마이그레이션 작성** — `supabase/migrations/00024_patient_consents.sql`
+
+```sql
+-- CONSENT-LOG-01·02 (갭 #108) — 동의 이력 표가 통째로 없었고 patients에도 동의 칸이 0개였다.
+-- 동의는 가입 맨 앞(전화번호 전, CONSENT-STEP-01)이라 세션·patient 행이 아직 없다(CONSENT-STEP-03).
+-- 그래서 화면이 로컬로 들고 있다가, 프로필 생성(POST /patients) 시점에 이 표에 함께 기록한다.
+
+-- 광고 동의 '현재 상태'(가입 뒤 설정에서 켜고 끔 — CONSENT-LATER-01)
+alter table patients add column if not exists ads_consent boolean not null default false;
+
+-- 동의 이력 — 무엇에 · 언제 · 어느 판(버전)에 동의했는지(CONSENT-LOG-01).
+-- 약관이 바뀌면 다시 받아야 하는데, 안 남기면 누구에게 다시 받아야 하는지 알 수 없다.
+create table if not exists patient_consents (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references patients(id) on delete cascade,
+  item text not null check (item in ('terms', 'privacy', 'sensitive', 'ads')), -- CONSENT-ITEM-01 줄 넷
+  agreed boolean not null,
+  terms_version text not null,
+  consented_at timestamptz not null default now()
+);
+create index if not exists patient_consents_by_patient
+  on patient_consents (patient_id, consented_at desc);
+
+-- RLS: 본인만 자기 이력 읽기, 직원 읽기. 쓰기는 서비스 역할(get_pool)이라 정책 없음(device_tokens와 같은 꼴).
+alter table patient_consents enable row level security;
+create policy patient_reads_own_consents on patient_consents
+  for select using (private.current_patient_id() = patient_id);
+create policy staff_reads_consents on patient_consents
+  for select using (private.is_active_staff());
+
+-- AUTH-PWNEW-15 — 새 비밀번호 화면의 「이름 맞히기」를 5회 틀리면 그 번호의 재설정을 잠근다.
+-- 서버 내부용(서비스 역할만 접근) — RLS를 켜지 않는다(환자·직원이 직접 볼 표가 아니다).
+create table if not exists password_reset_locks (
+  phone text primary key,
+  fail_count int not null default 0,
+  locked boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+```
+
+- [ ] **Step 1c: config.toml 패치** — `supabase/config.toml`
+
+```toml
+# AUTH-PROFILE-01·02 — 화면이 요구하는 「8자 이상 + 영문·숫자」를 서버도 보장한다(서버를 화면에 맞춘다).
+minimum_password_length = 8            # 6 → 8
+password_requirements = "letters_digits"  # "" → 영문·숫자 함께
+```
+그리고 `[auth.sms]` 섹션에 만료를 명시한다(없으면 기본 1시간이 걸려 화면의 5분과 어긋난다 — AUTH-OTP-04):
+```toml
+[auth.sms]
+otp_exp = 300  # AUTH-OTP-03·04 — 화면이 5분을 세므로 서버도 300초. CLI가 이 키를 무시하는 버전이면
+               # 대시보드(Authentication > Providers > Phone > OTP expiry = 300)에서 설정한다(배포 체크리스트).
+```
+Run: `cd backend && pytest tests/test_00024_consent_migration.py -v`(마이그레이션은 `supabase migration up` 적용 후) → Expected: PASS(4 tests).
+
+> 📌 **`00024`는 아직 원격 미적용** — 파일 작성·커밋과 실제 적용(`supabase migration up`)은 별개다(전역 지침). 배포 플랜이 적용 순서를 관리한다.
+
+- [ ] **Step 2: consent 서비스 + `register_profile` 연동 — 동의 기록·광고 토글·발송 자격 (`CONSENT-LOG-01` · `CONSENT-LATER-01·02` · `CONSENT-ADS-01`)**
+
+- [ ] **Step 2a: 실패 테스트** — `backend/tests/test_consent_service.py`
+
+```python
+from datetime import datetime
+import pytest
+from app.services import consent_service
+
+pytestmark = pytest.mark.asyncio
+
+TV = '2026-08-01'  # terms_version
+
+
+async def _seed_patient(conn):
+    return await conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) "
+        "values ('김순자','1954-03-02','F','01011112222') returning id")
+
+
+async def test_record_consents_writes_four_rows(db_conn):
+    # CONSENT-LOG-01 — 프로필 생성 시 4줄(필수 3 true + 광고 선택) 기록
+    pid = await _seed_patient(db_conn)
+    await consent_service.record_consents(db_conn, pid, ads_agreed=False, terms_version=TV)
+    rows = await db_conn.fetch(
+        "select item, agreed from patient_consents where patient_id=$1", pid)
+    items = {r['item']: r['agreed'] for r in rows}
+    assert items == {'terms': True, 'privacy': True, 'sensitive': True, 'ads': False}
+
+
+async def test_record_consents_sets_current_ads_flag(db_conn):
+    # CONSENT-LOG-01 — 현재 상태 칸도 함께 맞춘다
+    pid = await _seed_patient(db_conn)
+    await consent_service.record_consents(db_conn, pid, ads_agreed=True, terms_version=TV)
+    assert await db_conn.fetchval("select ads_consent from patients where id=$1", pid) is True
+
+
+async def test_set_ads_consent_toggles_and_logs(db_conn):
+    # CONSENT-LATER-01 — 가입 뒤 광고 동의를 켜면 현재 상태 + 이력 한 줄
+    pid = await _seed_patient(db_conn)
+    await consent_service.set_ads_consent(db_conn, pid, agreed=True, terms_version=TV)
+    assert await db_conn.fetchval("select ads_consent from patients where id=$1", pid) is True
+    n = await db_conn.fetchval(
+        "select count(*) from patient_consents where patient_id=$1 and item='ads'", pid)
+    assert n == 1
+
+
+def test_no_service_path_to_toggle_required_consents():
+    # CONSENT-LATER-02 — 필수 셋을 끄는 길은 없다(끄는 것이 곧 탈퇴). set_ads_consent는 item='ads'만 만진다.
+    assert not hasattr(consent_service, 'set_required_consent')
+
+
+def test_can_send_ads_gates_on_consent_and_night():
+    # CONSENT-ADS-01 — 켠 사람에게만 + 21~08시 발송 금지(정보통신망법 50조)
+    assert consent_service.can_send_ads(ads_consent=False, now=datetime(2026, 8, 17, 14, 0)) is False
+    assert consent_service.can_send_ads(ads_consent=True, now=datetime(2026, 8, 17, 22, 0)) is False  # 야간
+    assert consent_service.can_send_ads(ads_consent=True, now=datetime(2026, 8, 17, 7, 0)) is False   # 08시 전
+    assert consent_service.can_send_ads(ads_consent=True, now=datetime(2026, 8, 17, 14, 0)) is True
+```
+Run: `cd backend && pytest tests/test_consent_service.py -v` → Expected: FAIL(`consent_service` 없음).
+
+- [ ] **Step 2b: `consent_service.py` 구현** — `backend/app/services/consent_service.py`
+
+```python
+"""동의 기록·광고 동의 토글·광고 발송 자격(CONSENT-*, 갭 #108·#104).
+
+동의는 가입 맨 앞(전화번호 전)이라 이 서비스는 세션 밖에서 불릴 수 없다 — 프로필 생성 시점에
+patient_id가 생긴 뒤 `register_profile`이 record_consents를 부른다.
+"""
+from datetime import datetime
+
+REQUIRED_ITEMS = ('terms', 'privacy', 'sensitive')  # CONSENT-ITEM-01·02 — 민감정보는 별도(개인정보보호법 23조)
+
+
+async def record_consents(conn, patient_id, *, ads_agreed: bool, terms_version: str) -> None:
+    """CONSENT-LOG-01 — 프로필 생성 시 무엇에·언제·어느 판에 동의했는지 4줄을 남긴다.
+    필수 3개는 여기 도달했다는 것 자체가 동의다(CONSENT-BTN-01: 필수 셋이 켜져야 [다음]이 살아난다)."""
+    rows = [(patient_id, item, True, terms_version) for item in REQUIRED_ITEMS]
+    rows.append((patient_id, 'ads', ads_agreed, terms_version))
+    await conn.executemany(
+        "insert into patient_consents (patient_id, item, agreed, terms_version) "
+        "values ($1, $2, $3, $4)",
+        rows,
+    )
+    await conn.execute(
+        "update patients set ads_consent = $1 where id = $2", ads_agreed, patient_id)
+
+
+async def set_ads_consent(conn, patient_id, *, agreed: bool, terms_version: str) -> None:
+    """CONSENT-LATER-01 — 가입 뒤 [선택] 광고 동의만 켜고 끈다(설정 > 알림 설정).
+    CONSENT-LATER-02: 필수 셋을 끄는 함수는 두지 않는다 — 끄는 것이 곧 탈퇴이기 때문(탈퇴 경로로 안내)."""
+    await conn.execute(
+        "update patients set ads_consent = $1 where id = $2", agreed, patient_id)
+    await conn.execute(
+        "insert into patient_consents (patient_id, item, agreed, terms_version) "
+        "values ($1, 'ads', $2, $3)",
+        patient_id, agreed, terms_version,
+    )
+
+
+def can_send_ads(*, ads_consent: bool, now: datetime) -> bool:
+    """CONSENT-ADS-01 — 광고는 켠 사람에게만 + 21~08시 발송 금지. (광고) 접두어·무료 수신거부
+    방법은 발송측(직원웹 Task 28)이 본문에 붙인다 — 여기서는 자격만 판정한다."""
+    if not ads_consent:
+        return False
+    return 8 <= now.hour < 21
+```
+
+- [ ] **Step 2c: `register_profile` 연동 + 광고 토글 라우터**
+
+`backend/app/services/patient_profile_service.py`(Modify — `register_profile` 시그니처에 동의 인자 추가, 프로필 생성 트랜잭션 끝에 기록):
+```python
+# register_profile(conn, auth_user_id, *, name, birth_date, gender, ads_agreed, terms_version)
+#   기존 프로필 생성 로직 뒤에 한 줄 추가:
+await consent_service.record_consents(conn, patient_id, ads_agreed=ads_agreed, terms_version=terms_version)
+# ↑ 같은 트랜잭션 안 — 프로필과 동의 기록은 함께 커밋되거나 함께 롤백된다(CONSENT-LOG-01).
+```
+
+`backend/app/routers/patient_consent.py`(Create — 광고 토글만; 최초 동의는 POST /patients에 포함):
+```python
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from app.core.patient_security import get_current_patient, PatientContext
+from app.db.pool import get_pool
+from app.services import consent_service
+
+router = APIRouter(prefix="/patients/me", tags=["consent"])
+TERMS_VERSION = "2026-08-01"  # 병원이 약관을 갱신하면 올린다 — CONSENT-LOG-01의 '어느 판'
+
+
+class AdsConsentIn(BaseModel):
+    agreed: bool
+
+
+@router.patch("/ads-consent")
+async def patch_ads_consent(body: AdsConsentIn, patient: PatientContext = Depends(get_current_patient)):
+    async with get_pool().acquire() as conn:  # 서비스 역할 — 정책 없음
+        await consent_service.set_ads_consent(
+            conn, patient.id, agreed=body.agreed, terms_version=TERMS_VERSION)
+    return {"ads_consent": body.agreed}
+```
+Run: `cd backend && pytest tests/test_consent_service.py -v` → Expected: PASS(6 tests). (`main.py`에 `patient_consent.router` 등록은 Step 4의 통합에서 함께.)
+
+- [ ] **Step 3: 서버 경유 비밀번호 재설정 — 이름 대조·공백 무시·미노출·5회 잠금 (`AUTH-PWNEW-09·09b·10·11·15`, 갭 #78)**
+
+> ⭐ **왜 서버 경유인가(AUTH-PWNEW-09b)**: 지금은 앱이 Supabase `updateUser`를 직접 호출해 **서버가 끼어들 자리가 없다** → 이름 대조(`-09`)도 5회 잠금(`-15`)도 성립하지 않는다(갭 #78). 재설정을 백엔드 엔드포인트로 옮겨, 서버가 이름을 대조한 뒤 **admin API로** 비밀번호를 바꾼다. ⚠️ **저장된 이름을 앱으로 내려보내지 않는다(AUTH-PWNEW-09 = `MASK-SRV-01`)** — 내려보내면 번호를 물려받은 사람이 화면에서 앞 사람 이름을 읽고 그대로 친다.
+
+- [ ] **Step 3a: 실패 테스트** — `backend/tests/test_password_reset_service.py`
+
+```python
+import types
+import uuid
+import pytest
+from app.core.errors import AppError
+from app.services import password_reset_service as prs
+
+pytestmark = pytest.mark.asyncio
+
+
+def _admin_stub():
+    stub = types.SimpleNamespace(updated=None)
+
+    async def update_user_by_id(uid, attrs):
+        stub.updated = (uid, attrs["password"])
+
+    stub.auth = types.SimpleNamespace(
+        admin=types.SimpleNamespace(update_user_by_id=update_user_by_id))
+    return stub
+
+
+async def _seed(conn, name):
+    uid = uuid.uuid4()
+    await conn.execute(
+        "insert into patients (name, birth_date, gender, phone, auth_user_id) "
+        "values ($1,'1954-03-02','F','01011112222',$2)", name, uid)
+    return uid
+
+
+async def test_reset_succeeds_with_matching_name(db_conn):
+    # AUTH-PWNEW-09b — 이름이 맞으면 서버 경유(admin API)로 비밀번호가 갱신된다
+    uid = await _seed(db_conn, '홍길동')
+    admin = _admin_stub()
+    await prs.verify_name_and_reset(db_conn, admin, uid, name_input='홍길동', new_password='newpass12')
+    assert admin.updated == (str(uid), 'newpass12')
+
+
+async def test_name_match_ignores_spaces(db_conn):
+    # AUTH-PWNEW-10 — '홍 길동'과 '홍길동'을 다르다고 하지 않는다(앞뒤·가운데 공백 제거 후 완전일치)
+    uid = await _seed(db_conn, '홍길동')
+    admin = _admin_stub()
+    await prs.verify_name_and_reset(db_conn, admin, uid, name_input='  홍 길동 ', new_password='newpass12')
+    assert admin.updated is not None
+
+
+async def test_wrong_name_raises_without_revealing_stored(db_conn):
+    # AUTH-PWNEW-11 — '등록된 이름과 다릅니다' / AUTH-PWNEW-09 — 저장된 이름을 노출하지 않는다
+    uid = await _seed(db_conn, '홍길동')
+    admin = _admin_stub()
+    with pytest.raises(AppError) as e:
+        await prs.verify_name_and_reset(db_conn, admin, uid, name_input='김철수', new_password='newpass12')
+    assert '등록된 이름과 다릅니다' in str(e.value.detail)
+    assert '홍길동' not in str(e.value.detail)   # 저장 이름 미노출
+    assert admin.updated is None                 # 비밀번호를 건드리지 않았다
+    cnt = await db_conn.fetchval(
+        "select fail_count from password_reset_locks where phone='01011112222'")
+    assert cnt == 1
+
+
+async def test_locks_after_five_wrong_names(db_conn):
+    # AUTH-PWNEW-15 — 5회 틀리면 그 번호의 재설정을 잠근다. 이후엔 맞는 이름도 막힌다.
+    uid = await _seed(db_conn, '홍길동')
+    admin = _admin_stub()
+    for _ in range(5):
+        with pytest.raises(AppError):
+            await prs.verify_name_and_reset(db_conn, admin, uid, name_input='틀림', new_password='newpass12')
+    with pytest.raises(AppError) as e:
+        await prs.verify_name_and_reset(db_conn, admin, uid, name_input='홍길동', new_password='newpass12')
+    assert e.value.status_code == 423   # 잠김(맞는 이름이어도)
+    assert admin.updated is None
+```
+Run: `cd backend && pytest tests/test_password_reset_service.py -v` → Expected: FAIL(`password_reset_service` 없음).
+
+- [ ] **Step 3b: `password_reset_service.py` 구현** — `backend/app/services/password_reset_service.py`
+
+```python
+"""서버 경유 비밀번호 재설정(AUTH-PWNEW-*, 갭 #78). OTP를 통과해 로그인된 세션에서만 도달한다
+(AUTH-PWFIND-05·07). 이름을 대조해 번호 재활용을 막고, 5회 틀리면 잠근다."""
+from app.core.errors import AppError
+
+MAX_RESET_FAILS = 5  # AUTH-PWNEW-15
+
+
+def normalize_name(s: str) -> str:
+    """AUTH-PWNEW-10 — 앞뒤 여백과 가운데 공백을 모두 지운 뒤 비교한다('홍 길동' == '홍길동')."""
+    return "".join(s.split())
+
+
+async def verify_name_and_reset(conn, admin_client, auth_user_id, *, name_input, new_password):
+    """이름이 맞으면 서버 경유로 비밀번호를 바꾼다(AUTH-PWNEW-09b). 저장된 이름은 응답으로
+    내려보내지 않는다(AUTH-PWNEW-09). 다르면 실패를 세고 5회면 잠근다(AUTH-PWNEW-11·15)."""
+    row = await conn.fetchrow(
+        "select name, phone from patients where auth_user_id = $1", auth_user_id)
+    if row is None:
+        raise AppError("비밀번호를 재설정할 수 없습니다. 병원으로 문의해주세요.", status_code=409)
+
+    phone = row["phone"]
+    lock = await conn.fetchrow(
+        "select fail_count, locked from password_reset_locks where phone = $1", phone)
+    if lock and lock["locked"]:
+        raise AppError("여러 번 일치하지 않아 잠겼습니다. 병원으로 문의해주세요.", status_code=423)
+
+    if normalize_name(name_input) != normalize_name(row["name"]):
+        new_count = (lock["fail_count"] if lock else 0) + 1
+        await conn.execute(
+            "insert into password_reset_locks (phone, fail_count, locked, updated_at) "
+            "values ($1, $2, $3, now()) "
+            "on conflict (phone) do update set "
+            "fail_count = excluded.fail_count, locked = excluded.locked, updated_at = now()",
+            phone, new_count, new_count >= MAX_RESET_FAILS)
+        raise AppError("등록된 이름과 다릅니다.", status_code=400)  # 저장된 이름을 넣지 않는다
+
+    # 맞음 — 카운트를 지우고 서버 경유(admin)로 비밀번호를 바꾼다.
+    await conn.execute("delete from password_reset_locks where phone = $1", phone)
+    await admin_client.auth.admin.update_user_by_id(str(auth_user_id), {"password": new_password})
+```
+
+- [ ] **Step 3c: 재설정 라우터** — `backend/app/routers/patient_password_reset.py`
+
+```python
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from app.core.patient_security import get_current_auth_user_id
+from app.db.pool import get_pool
+from app.db.supabase_admin import get_admin_client  # service_role 클라이언트(1단계 재사용/신설)
+from app.services import password_reset_service
+
+
+router = APIRouter(prefix="/patients/me", tags=["password-reset"])
+
+
+class ResetIn(BaseModel):
+    name: str
+    password: str
+
+
+@router.post("/password-reset")
+async def reset_password(body: ResetIn, auth_user_id=Depends(get_current_auth_user_id)):
+    # OTP 통과로 로그인된 세션에서만 도달한다(AUTH-PWFIND-05). 프로필 유무와 무관하게 통과시키는
+    # get_current_auth_user_id를 쓴다 — 재설정은 프로필이 있는 계정을 대상으로 하지만, 판정은 서비스가 한다.
+    async with get_pool().acquire() as conn:
+        await password_reset_service.verify_name_and_reset(
+            conn, get_admin_client(), auth_user_id,
+            name_input=body.name, new_password=body.password)
+    return {"ok": True}
+```
+Run: `cd backend && pytest tests/test_password_reset_service.py -v` → Expected: PASS(4 tests).
+
+> 📌 **`get_admin_client`(service_role)** 는 Supabase admin API로 비밀번호를 바꾸는 데 필요하다 — 1단계에 있으면 재사용, 없으면 이 태스크에서 `backend/app/db/supabase_admin.py`로 얇게 신설(`SUPABASE_SERVICE_ROLE_KEY` 사용). 갭 #78의 실체.
+
+- [ ] **Step 4: `profileMissingProvider` + `ApiException.statusCode` 보강 + 라우터 등록 (`AUTH-SIGNUP-11·12`)**
+
+> ⚠️ **경계 확인 결과(경계 크랙 방지)**: Task 10 `GET /patients/me`는 `get_current_patient` 의존이라 **프로필이 없으면 403**을 낸다(404 아님). Task 11 router 주석의 "404"는 낡음 → **403으로 정정**(위 router.dart 주석 수정 완료). ② Task 0 `ApiException`은 `message`만 있고 **`statusCode`가 없어** 403을 구분 못 한다 → **여기서 보강**(T0 누락).
+
+- [ ] **Step 4a: 실패 테스트** — `patient_app/test/core/profile_status_test.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
+import 'package:hospital_patient_app/core/providers.dart';
+import 'package:hospital_patient_app/core/profile_status.dart';
+import 'package:hospital_patient_app/features/auth/auth_state.dart';
+
+/// GET /patients/me를 흉내내는 얇은 Fake — 403을 던지거나 200을 돌려준다.
+class _FakeApi extends Fake implements ApiClient {
+  final int? throwStatus;
+  _FakeApi({this.throwStatus});
+  @override
+  Future<T> get<T>(String path, T Function(dynamic) parse, {Map<String, String>? query}) async {
+    if (throwStatus != null) throw ApiException('e', statusCode: throwStatus);
+    return parse({'patient_id': 'x'});
+  }
+}
+
+void main() {
+  test('[AUTH-SIGNUP-12] GET /patients/me가 403이면 프로필 미완료(true)', () async {
+    final c = ProviderContainer(
+        overrides: [apiClientProvider.overrideWithValue(_FakeApi(throwStatus: 403))]);
+    addTearDown(c.dispose);
+    expect(await c.read(profileStatusProvider.future), isTrue);
+  });
+
+  test('[AUTH-SIGNUP-12] 프로필이 있으면(200) 미완료가 아니다(false)', () async {
+    final c = ProviderContainer(
+        overrides: [apiClientProvider.overrideWithValue(_FakeApi())]);
+    addTearDown(c.dispose);
+    expect(await c.read(profileStatusProvider.future), isFalse);
+  });
+
+  test('[AUTH-SIGNUP-11] 「가입 미완료」는 별도 enum 값이 아니라 signedIn+missing 조합이다', () {
+    // AuthStatus에 새 값을 만들지 않는다 — 세 값 그대로(Task 11의 expiredOffline까지).
+    expect(AuthStatus.values,
+        [AuthStatus.signedOut, AuthStatus.signedIn, AuthStatus.expiredOffline]);
+  });
+}
+```
+Run: `flutter test test/core/profile_status_test.dart` → Expected: FAIL(`profile_status.dart`·`statusCode` 없음).
+
+- [ ] **Step 4b: `ApiException`에 `statusCode` 보강** — `patient_app/lib/core/api_client.dart` (Modify)
+
+```dart
+class ApiException implements Exception {
+  ApiException(this.message, {this.statusCode}); // statusCode 추가(T0 누락 보강)
+  final String message;
+  final int? statusCode; // 403(프로필 미완료) 등 상태 구분용
+}
+```
+그리고 `_handle`의 실패 분기를 한 줄 고친다:
+```dart
+    throw ApiException(message, statusCode: response.statusCode);
+```
+
+- [ ] **Step 4c: `profile_status.dart` 구현** — `patient_app/lib/core/profile_status.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'api_client.dart';
+import 'providers.dart';
+
+/// AUTH-SIGNUP-12 — 출입증(세션)은 있는데 프로필(이름·생년월일)이 없으면 가입 미완료다.
+/// GET /patients/me가 403이면(get_current_patient가 patients 행을 못 찾음) 미완료로 본다.
+/// 이 판정은 OFF-AUTH-04(온라인 401만 진짜 로그아웃)와 같은 결이다 — 세션과 프로필을 따로 본다.
+final profileStatusProvider = FutureProvider<bool>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  try {
+    await api.get('/patients/me', (j) => j);
+    return false; // 프로필 있음
+  } on ApiException catch (e) {
+    if (e.statusCode == 403) return true; // patients 행 없음 = 미완료
+    rethrow;                              // 다른 오류는 미완료 판정에 쓰지 않는다
+  }
+});
+
+/// AUTH-SIGNUP-11 — 별도 enum 값을 만들지 않는다. Task 11 라우터가 `signedIn && profileMissing`으로
+/// 「가입 미완료」를 표현하고 `/signup/step3`로 보낸다. 로딩 중엔 false라 튕기지 않는다.
+final profileMissingProvider =
+    Provider<bool>((ref) => ref.watch(profileStatusProvider).valueOrNull ?? false);
+```
+
+- [ ] **Step 4d: 라우터 등록** — `backend/app/main.py` (Modify)
+
+```python
+from app.routers import patient_consent, patient_password_reset
+app.include_router(patient_consent.router)
+app.include_router(patient_password_reset.router)
+```
+Run: `flutter test test/core/profile_status_test.dart` → Expected: PASS(3 tests).
+
+- [ ] **Step 5: 랜딩 화면 — 큰 버튼 2개 (`AUTH-LAND-01·02·03·04`)**
+
+- [ ] **Step 5a: 실패 테스트** — `patient_app/test/features/auth/landing_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/auth/landing_screen.dart';
+
+void main() {
+  testWidgets('[AUTH-LAND-01] 큰 버튼 2개([로그인]·[회원가입])만, 입력칸은 없다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LandingScreen()));
+    expect(find.text('로그인'), findsOneWidget);
+    expect(find.text('회원가입'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);       // 입력칸을 두지 않는다
+    expect(find.byType(TextFormField), findsNothing);
+  });
+
+  testWidgets('[AUTH-LAND-02] 병원 이름 + 한 줄 소개. 탭 전환형(TabBar)을 쓰지 않는다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LandingScreen()));
+    expect(find.text(LandingScreen.hospitalName), findsOneWidget);
+    expect(find.byType(TabBar), findsNothing);          // 탭 전환형·가입 우선형 아님
+  });
+
+  testWidgets('[AUTH-LAND-03] 비밀번호를 잊으셨나요?를 랜딩에도 둔다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LandingScreen()));
+    expect(find.text('비밀번호를 잊으셨나요?'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-LAND-04] 로그인 전에는 하단 탭을 그리지 않는다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LandingScreen()));
+    final scaffold = t.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.bottomNavigationBar, isNull);
+  });
+}
+```
+Run: `flutter test test/features/auth/landing_screen_test.dart` → Expected: FAIL(`landing_screen.dart` 없음).
+
+- [ ] **Step 5b: `LandingScreen` 구현** — `patient_app/lib/features/auth/landing_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/tokens.dart';
+
+/// 로그인 전 첫 화면. 큰 버튼 2개만 두고 입력칸을 두지 않는다(AUTH-LAND-01) — 화면당 핵심 행동 1개.
+class LandingScreen extends StatelessWidget {
+  const LandingScreen({super.key});
+
+  static const String hospitalName = '○○의원'; // 배포 시 병원 정보로 치환(get_public_hospital_info)
+
+  @override
+  Widget build(BuildContext context) {
+    // AUTH-LAND-04: bottomNavigationBar를 두지 않는다(로그인 전에는 탭 5개를 그리지 않는다).
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // AUTH-LAND-02: 병원 이름 + 한 줄 소개(탭 전환형·가입 우선형 아님).
+              Text(hospitalName,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              const Text('진료 예약과 방문 이력을 한 곳에서',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTokens.grayPending)),
+              const SizedBox(height: 48),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
+                onPressed: () => context.go('/login'), // 주 버튼
+                child: const Text('로그인'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => context.go('/signup'), // 보조 버튼
+                child: const Text('회원가입'),
+              ),
+              const SizedBox(height: 16),
+              // AUTH-LAND-03: 비밀번호를 모르는 사람이 로그인 화면까지 들어가야 보이면 한 번 더 막힌다.
+              TextButton(
+                onPressed: () => context.go('/password-find'),
+                child: const Text('비밀번호를 잊으셨나요?'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/landing_screen_test.dart` → Expected: PASS(4 tests).
+
+- [ ] **Step 6: 동의 화면 ⓪ — 줄 넷·전체 동의·[다음] (`CONSENT-STEP-01·02·03·08` · `CONSENT-ITEM-01~05` · `CONSENT-ALL-01~04` · `CONSENT-BTN-01~04`)**
+
+> ⭐ **동의는 가입 맨 앞(CONSENT-STEP-01·02)이고 이 시점엔 세션이 없다(CONSENT-STEP-03)** — 화면은 `AuthStatus`를 건드리지 않고, 4줄 동의를 `consentProvider`(로컬)에 담는다. 뒤로 갔다 와도 켜 둔 체크가 남는다(CONSENT-STEP-08 — provider가 화면 밖에서 산다).
+
+- [ ] **Step 6a: 실패 테스트 (상태)** — `patient_app/test/features/auth/consent_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/auth/consent_screen.dart';
+
+Widget _host(Widget child, [ProviderContainer? c]) => UncontrolledProviderScope(
+    container: c ?? ProviderContainer(),
+    child: MaterialApp(home: child));
+
+void main() {
+  test('[CONSENT-ALL-01] 「필수 항목에 모두 동의」는 필수 3개만 켜고 광고는 켜지 않는다', () {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    c.read(consentProvider.notifier).toggleRequiredAll();
+    final s = c.read(consentProvider);
+    expect(s.requiredAllOn, isTrue);
+    expect(s.ads, isFalse); // [선택] 광고는 켜지지 않는다
+  });
+
+  test('[CONSENT-ALL-04] 필수 하나를 끄면 맨 위 「모두 동의」도 함께 꺼진다(파생값)', () {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    final n = c.read(consentProvider.notifier);
+    n.toggleRequiredAll();
+    n.toggle('sensitive'); // 민감정보 끔
+    expect(c.read(consentProvider).requiredAllOn, isFalse);
+  });
+
+  test('[CONSENT-ITEM-02] 민감정보(③)는 개인정보(②)와 별도로 켜고 끈다', () {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    final n = c.read(consentProvider.notifier);
+    n.toggle('privacy');
+    expect(c.read(consentProvider).privacy, isTrue);
+    expect(c.read(consentProvider).sensitive, isFalse); // 묶이지 않는다
+  });
+
+  test('[CONSENT-BTN-03] 남은 필수 개수를 센다', () {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    expect(c.read(consentProvider).requiredRemaining, 3);
+    c.read(consentProvider.notifier).toggle('terms');
+    expect(c.read(consentProvider).requiredRemaining, 2);
+  });
+
+  testWidgets('[CONSENT-STEP-03] 세션(AuthStatus)을 건드리지 않는다 — authState override 없이도 뜬다', (t) async {
+    await t.pumpWidget(_host(const ConsentScreen())); // authStateChangesProvider override 없음
+    expect(find.byType(ConsentScreen), findsOneWidget);
+  });
+
+  testWidgets('[CONSENT-STEP-08] 뒤로 갔다 와도 켜 둔 체크가 남는다(provider가 화면 밖에서 산다)', (t) async {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    c.read(consentProvider.notifier).toggleRequiredAll();
+    await t.pumpWidget(_host(const ConsentScreen(), c)); // 화면 새로 그려도
+    expect(c.read(consentProvider).requiredAllOn, isTrue); // 상태 유지
+  });
+
+  testWidgets('[CONSENT-ITEM-01] [필수] 3줄 + [선택] 1줄, 모두 네 줄', (t) async {
+    await t.pumpWidget(_host(const ConsentScreen()));
+    expect(find.textContaining('서비스 이용약관'), findsOneWidget);
+    expect(find.textContaining('개인정보 수집·이용'), findsOneWidget);
+    expect(find.textContaining('민감정보'), findsOneWidget);
+    expect(find.textContaining('광고성 정보 수신'), findsOneWidget);
+    expect(find.text('[선택]'), findsOneWidget); // 선택은 정확히 하나(광고)
+  });
+
+  testWidgets('[CONSENT-ITEM-03] 각 줄에 무엇을 주는지 부제목이 붙는다', (t) async {
+    await t.pumpWidget(_host(const ConsentScreen()));
+    expect(find.textContaining('이름 · 생년월일 · 성별 · 전화번호'), findsOneWidget); // ②
+    expect(find.textContaining('문진 답변 · 진료기록 · 처방'), findsOneWidget);      // ③
+  });
+
+  testWidgets('[CONSENT-ITEM-04] ④에 「안 받아도 예약 알림은 그대로 옵니다」를 적는다', (t) async {
+    await t.pumpWidget(_host(const ConsentScreen()));
+    expect(find.textContaining('안 받아도 예약 알림은 그대로 옵니다'), findsOneWidget);
+  });
+
+  testWidgets('[CONSENT-ITEM-05] 줄 끝 › 를 누르면 본문(자리표시자)이 열린다', (t) async {
+    await t.pumpWidget(_host(const ConsentScreen()));
+    await t.tap(find.byIcon(Icons.chevron_right).first);
+    await t.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget); // 본문 열림(내용은 병원이 채운다)
+  });
+
+  testWidgets('[CONSENT-ALL-03] 맨 위 줄 이름은 「필수 항목에 모두 동의」(전체 동의 아님)', (t) async {
+    await t.pumpWidget(_host(const ConsentScreen()));
+    expect(find.text('필수 항목에 모두 동의'), findsOneWidget);
+    expect(find.text('전체 동의'), findsNothing);
+  });
+
+  testWidgets('[CONSENT-BTN-01] 필수 셋이 켜지면 [다음]이 살아난다', (t) async {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    c.read(consentProvider.notifier).toggleRequiredAll();
+    await t.pumpWidget(_host(const ConsentScreen(), c));
+    final btn = t.widget<FilledButton>(find.widgetWithText(FilledButton, '다음'));
+    expect(btn.onPressed, isNotNull); // 활성
+  });
+
+  testWidgets('[CONSENT-BTN-02] 덜 켜지면 [다음]이 꺼지고 아래에 「필수 항목 N개가 남았습니다」', (t) async {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    c.read(consentProvider.notifier).toggle('terms'); // 1개만 켬 → 2개 남음
+    await t.pumpWidget(_host(const ConsentScreen(), c));
+    final btn = t.widget<FilledButton>(find.widgetWithText(FilledButton, '다음'));
+    expect(btn.onPressed, isNull); // 꺼짐
+    expect(find.text('필수 항목 2개가 남았습니다'), findsOneWidget);
+  });
+
+  testWidgets('[CONSENT-BTN-04] 막다른 길 방지 — 동의 없이 이용하려면 병원 전화 안내', (t) async {
+    await t.pumpWidget(_host(const ConsentScreen()));
+    expect(find.textContaining('동의 없이 이용하려면 병원으로 전화'), findsOneWidget);
+  });
+}
+```
+`CONSENT-STEP-01·02`(가입 맨 앞이라는 자리·근거)는 라우터가 `/signup`을 `ConsentScreen`으로 여는 것으로 실현되고 Step 9(signup_flow 라우팅)에서 함께 확인한다 — 여기서는 화면이 그 계약(세션 없이 뜸·상태 보존)을 지키는지 본다.
+Run: `flutter test test/features/auth/consent_screen_test.dart` → Expected: FAIL(`consent_screen.dart` 없음).
+
+- [ ] **Step 6b: `consentProvider` + `ConsentScreen` 구현** — `patient_app/lib/features/auth/consent_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/tokens.dart';
+
+/// 4줄 동의의 로컬 상태(CONSENT-STEP-03: 세션 없이 화면이 들고 있다). 화면 밖 provider라
+/// 뒤로 갔다 와도 남는다(CONSENT-STEP-08). 프로필 생성 때 서버로 함께 보낸다(consent_service).
+class ConsentState {
+  final bool terms, privacy, sensitive, ads;
+  const ConsentState({this.terms = false, this.privacy = false, this.sensitive = false, this.ads = false});
+
+  ConsentState copyWith({bool? terms, bool? privacy, bool? sensitive, bool? ads}) => ConsentState(
+        terms: terms ?? this.terms,
+        privacy: privacy ?? this.privacy,
+        sensitive: sensitive ?? this.sensitive,
+        ads: ads ?? this.ads,
+      );
+
+  bool get requiredAllOn => terms && privacy && sensitive; // CONSENT-ALL-04: 파생값이라 어긋나지 않는다
+  int get requiredRemaining => (terms ? 0 : 1) + (privacy ? 0 : 1) + (sensitive ? 0 : 1);
+}
+
+class ConsentNotifier extends StateNotifier<ConsentState> {
+  ConsentNotifier() : super(const ConsentState());
+
+  void toggle(String item) {
+    switch (item) {
+      case 'terms': state = state.copyWith(terms: !state.terms);
+      case 'privacy': state = state.copyWith(privacy: !state.privacy);
+      case 'sensitive': state = state.copyWith(sensitive: !state.sensitive);
+      case 'ads': state = state.copyWith(ads: !state.ads);
+    }
+  }
+
+  /// CONSENT-ALL-01 — 맨 위 줄은 필수 3개만 켜고 끈다. [선택] 광고는 건드리지 않는다.
+  void toggleRequiredAll() {
+    final on = !state.requiredAllOn;
+    state = state.copyWith(terms: on, privacy: on, sensitive: on);
+  }
+}
+
+final consentProvider =
+    StateNotifierProvider<ConsentNotifier, ConsentState>((_) => ConsentNotifier());
+
+class ConsentScreen extends ConsumerWidget {
+  const ConsentScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(consentProvider);
+    final n = ref.read(consentProvider.notifier);
+    return Scaffold(
+      appBar: AppBar(title: const Text('약관 동의')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // CONSENT-ALL-03: 이름에 무엇이 켜지는지 적는다(전체 동의 아님).
+          CheckboxListTile(
+            title: const Text('필수 항목에 모두 동의', style: TextStyle(fontWeight: FontWeight.bold)),
+            value: s.requiredAllOn,
+            onChanged: (_) => n.toggleRequiredAll(),
+          ),
+          const Divider(),
+          _row(context, '[필수]', '서비스 이용약관', null, s.terms, () => n.toggle('terms')),
+          _row(context, '[필수]', '개인정보 수집·이용', '이름 · 생년월일 · 성별 · 전화번호', s.privacy, () => n.toggle('privacy')),
+          _row(context, '[필수]', '민감정보(건강정보) 처리', '문진 답변 · 진료기록 · 처방', s.sensitive, () => n.toggle('sensitive')),
+          // CONSENT-ITEM-04: 정보성과 광고성이 다르다는 것을 밝히는 유일한 자리.
+          _row(context, '[선택]', '광고성 정보 수신', '검진·행사 안내 · 안 받아도 예약 알림은 그대로 옵니다', s.ads, () => n.toggle('ads')),
+          const SizedBox(height: 24),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
+            // CONSENT-BTN-01: 필수 셋이 켜져야 살아난다 → ① 전화번호로.
+            onPressed: s.requiredAllOn ? () => context.go('/signup/phone') : null,
+            child: const Text('다음'),
+          ),
+          // CONSENT-BTN-02·03: 왜 안 눌리는지 모르는 버튼을 만들지 않는다 — 남은 개수를 센다.
+          if (!s.requiredAllOn)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('필수 항목 ${s.requiredRemaining}개가 남았습니다',
+                  textAlign: TextAlign.center, style: const TextStyle(color: AppTokens.grayPending)),
+            ),
+          const SizedBox(height: 24),
+          // CONSENT-BTN-04: 막다른 길 금지 — 동의를 안 하는 사람에게도 길을 준다.
+          const Text('동의 없이 이용하려면 병원으로 전화 주세요 · 02-000-0000',
+              textAlign: TextAlign.center, style: TextStyle(color: AppTokens.grayPending, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, String badge, String title, String? sub, bool value, VoidCallback onToggle) {
+    return CheckboxListTile(
+      value: value,
+      onChanged: (_) => onToggle(),
+      title: Text('$badge $title'),
+      subtitle: sub == null ? null : Text(sub, style: const TextStyle(fontSize: 12)),
+      secondary: IconButton(
+        icon: const Icon(Icons.chevron_right), // CONSENT-ITEM-05: › → 본문(병원이 채운다)
+        onPressed: () => showDialog(
+          context: context,
+          builder: (_) => const Dialog(child: Padding(padding: EdgeInsets.all(24), child: Text('약관 본문(준비 중)'))),
+        ),
+      ),
+      controlAffinity: ListTileControlAffinity.leading,
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/consent_screen_test.dart` → Expected: PASS(14 tests).
+
+- [ ] **Step 7: 전화번호 화면 ① — 안내·검증·발송·쿨다운 (`AUTH-PHONE-01·02·03·04`)**
+
+> Task 12의 `FieldTextInput`(검증)·`ActionButton`(발송 버튼 busy)·`PhoneCooldownStore`(번호 기준 쿨다운)를 소비한다. 발송은 Supabase Auth phone OTP(`shouldCreateUser: true`)이고, 쿨다운 판정은 `SignupPhoneController`로 분리해 단위 테스트한다.
+
+- [ ] **Step 7a: 실패 테스트** — `patient_app/test/features/auth/signup_phone_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:hospital_patient_app/core/phone_cooldown.dart';
+import 'package:hospital_patient_app/features/auth/signup_phone_screen.dart';
+
+class _MockStorage extends Mock implements FlutterSecureStorage {}
+
+_MockStorage _mem() {
+  final s = _MockStorage();
+  final m = <String, String?>{};
+  when(() => s.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer((i) async => m[i.namedArguments[#key] as String] = i.namedArguments[#value] as String?);
+  when(() => s.read(key: any(named: 'key'))).thenAnswer((i) async => m[i.namedArguments[#key] as String]);
+  when(() => s.delete(key: any(named: 'key'))).thenAnswer((i) async => m.remove(i.namedArguments[#key] as String));
+  return s;
+}
+
+/// 발송을 흉내내는 Fake — 실제로 몇 번 불렸는지 센다.
+class _FakeSender implements AuthOtpSender {
+  int sent = 0;
+  @override
+  Future<void> sendSignupOtp(String phone) async => sent++;
+}
+
+void main() {
+  test('[AUTH-PHONE-03] 처음 제출하면 발송하고 쿨다운을 시작한다(sent)', () async {
+    final sender = _FakeSender();
+    final cooldown = PhoneCooldownStore(_mem());
+    final ctrl = SignupPhoneController(sender, cooldown);
+    final r = await ctrl.submit('01011112222', DateTime(2026, 8, 17, 10, 0));
+    expect(r, PhoneSendResult.sent);
+    expect(sender.sent, 1);
+    expect(cooldown.remainingSeconds('01011112222', DateTime(2026, 8, 17, 10, 0)), greaterThan(0));
+  });
+
+  test('[AUTH-PHONE-04] 쿨다운이 남은 번호는 새로 보내지 않고 그대로 ②로 넘어간다(alreadySent)', () async {
+    final sender = _FakeSender();
+    final cooldown = PhoneCooldownStore(_mem());
+    await cooldown.start('01011112222', DateTime(2026, 8, 17, 10, 0)); // 방금 보낸 상태
+    final ctrl = SignupPhoneController(sender, cooldown);
+    final r = await ctrl.submit('01011112222', DateTime(2026, 8, 17, 10, 5)); // 5초 뒤
+    expect(r, PhoneSendResult.alreadySent);
+    expect(sender.sent, 0); // 새로 보내지 않는다
+  });
+
+  testWidgets('[AUTH-PHONE-01] 안내문 두 줄(문자 발송 + 병원 연락 번호)', (t) async {
+    await t.pumpWidget(MaterialApp(home: SignupPhoneScreen(
+        controller: SignupPhoneController(_FakeSender(), PhoneCooldownStore(_mem())))));
+    expect(find.textContaining('문자로 인증번호를 보내드립니다'), findsOneWidget);
+    expect(find.textContaining('병원에서 연락드릴 때도 이 번호를 씁니다'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-PHONE-02] 형식이 틀린 번호는 인증번호를 받을 수 없다(검증 문구)', (t) async {
+    await t.pumpWidget(MaterialApp(home: SignupPhoneScreen(
+        controller: SignupPhoneController(_FakeSender(), PhoneCooldownStore(_mem())))));
+    await t.enterText(find.byType(TextField), '010123'); // 짧음
+    await t.tap(find.text('인증번호 받기'));
+    await t.pump();
+    expect(find.textContaining('전화번호'), findsWidgets); // 칸 아래 오류(FieldTextInput)
+  });
+}
+```
+Run: `flutter test test/features/auth/signup_phone_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 7b: `SignupPhoneScreen` + `SignupPhoneController` 구현** — `patient_app/lib/features/auth/signup_phone_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/phone_cooldown.dart';
+import '../../widgets/action_button.dart';
+import '../../widgets/field_error.dart';
+
+/// Supabase Auth phone OTP 발송의 얇은 인터페이스(테스트에서 Fake로 대체).
+abstract class AuthOtpSender {
+  Future<void> sendSignupOtp(String phone); // supabase.auth.signInWithOtp(phone, shouldCreateUser: true)
+}
+
+enum PhoneSendResult { sent, alreadySent }
+
+class SignupPhoneController {
+  final AuthOtpSender sender;
+  final PhoneCooldownStore cooldown;
+  SignupPhoneController(this.sender, this.cooldown);
+
+  /// AUTH-PHONE-03·04 — 쿨다운이 남았으면 새로 보내지 않고(BTN-COOL-07) 그대로 ②로,
+  /// 아니면 발송하고 번호에 쿨다운을 건다.
+  Future<PhoneSendResult> submit(String phone, DateTime now) async {
+    if (cooldown.remainingSeconds(phone, now) > 0) return PhoneSendResult.alreadySent;
+    await sender.sendSignupOtp(phone);
+    await cooldown.start(phone, now);
+    return PhoneSendResult.sent;
+  }
+}
+
+String? validatePhone(String v) {
+  final digits = v.replaceAll(RegExp(r'\D'), '');
+  if (!RegExp(r'^010\d{8}$').hasMatch(digits)) return '전화번호를 정확히 입력해주세요';
+  return null;
+}
+
+class SignupPhoneScreen extends StatefulWidget {
+  final SignupPhoneController controller;
+  const SignupPhoneScreen({super.key, required this.controller});
+  @override
+  State<SignupPhoneScreen> createState() => _SignupPhoneScreenState();
+}
+
+class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
+  final _form = FieldErrorController();
+  final _phone = TextEditingController();
+  bool _busy = false;
+
+  Future<void> _submit() async {
+    if (!_form.validateAll()) return; // AUTH-PHONE-02: 버튼 누를 때 전체 검사(ERR-FLD-04)
+    setState(() => _busy = true);
+    final digits = _phone.text.replaceAll(RegExp(r'\D'), '');
+    final r = await widget.controller.submit(digits, DateTime.now());
+    if (!mounted) return;
+    setState(() => _busy = false);
+    // AUTH-PHONE-04: 쿨다운이 남았으면 「방금 인증번호를 보내드렸습니다」와 함께 ②로.
+    context.go('/signup/otp', extra: {'phone': digits, 'alreadySent': r == PhoneSendResult.alreadySent});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('전화번호 입력')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        // AUTH-PHONE-01: 번호를 정확히 넣을 이유를 준다.
+        const Text('문자로 인증번호를 보내드립니다'),
+        const Text('병원에서 연락드릴 때도 이 번호를 씁니다', style: TextStyle(fontSize: 13)),
+        const SizedBox(height: 16),
+        FieldTextInput(label: '전화번호', controller: _phone, form: _form, validate: validatePhone),
+        const SizedBox(height: 24),
+        ActionButton(
+          label: '인증번호 받기',
+          busyLabel: '인증번호 보내는 중…', // AUTH-PHONE-03 = BTN-BUSY-01
+          busy: _busy,
+          onPressed: _submit,
+        ),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/signup_phone_screen_test.dart` → Expected: PASS(4 tests).
+
+- [ ] **Step 8: 인증번호 화면 ② — 6칸·유효시간·재발송·마스킹·실패 (`AUTH-OTP-01`~`11`) 공용**
+
+> 본인확인 4종이 공유한다(가입 ② · 비밀번호 찾기 ② · 가족 연결). `purpose`로 번호 표시(가입=전체 `AUTH-OTP-05` / 그 외=마스킹 `AUTH-OTP-06`)와 막다른 길 링크(가족 연결 `AUTH-OTP-11`)를 가른다. 재발송은 Task 12 `CooldownButton`, 실패 문구는 `InlineError`. **`AUTH-OTP-04`(서버 만료 5분)는 Step 1에서 config로 반영**했다.
+
+- [ ] **Step 8a: 실패 테스트** — `patient_app/test/features/auth/otp_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:hospital_patient_app/core/phone_cooldown.dart';
+import 'package:hospital_patient_app/features/auth/otp_screen.dart';
+
+class _MockStorage extends Mock implements FlutterSecureStorage {}
+
+_MockStorage _mem() {
+  final s = _MockStorage();
+  final m = <String, String?>{};
+  when(() => s.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer((i) async => m[i.namedArguments[#key] as String] = i.namedArguments[#value] as String?);
+  when(() => s.read(key: any(named: 'key'))).thenAnswer((i) async => m[i.namedArguments[#key] as String]);
+  when(() => s.delete(key: any(named: 'key'))).thenAnswer((i) async => m.remove(i.namedArguments[#key] as String));
+  return s;
+}
+
+OtpScreen _screen({
+  OtpPurpose purpose = OtpPurpose.signup,
+  int validitySeconds = 300,
+  Future<String?> Function(String)? onVerify,
+}) =>
+    OtpScreen(
+      phone: '01011115678',
+      purpose: purpose,
+      validitySeconds: validitySeconds,
+      cooldown: PhoneCooldownStore(_mem()),
+      onResend: () async {},
+      onVerify: onVerify ?? (_) async => null,
+      onSuccess: () {},
+    );
+
+void main() {
+  testWidgets('[AUTH-OTP-01] 숫자 6칸 + 숫자 키패드', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen()));
+    expect(find.byType(TextField), findsNWidgets(6));
+    final f = t.widget<TextField>(find.byType(TextField).first);
+    expect(f.keyboardType, TextInputType.number);
+  });
+
+  testWidgets('[AUTH-OTP-03] 유효 시간은 5:00(=300초)에서 시작한다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen()));
+    expect(find.textContaining('5:00'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-OTP-02] 0이 되면 입력칸 대신 [인증번호 다시 받기]만 남긴다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(validitySeconds: 1)));
+    await t.pump(const Duration(seconds: 1));
+    await t.pump();
+    expect(find.byType(TextField), findsNothing);            // 입력칸 사라짐
+    expect(find.textContaining('다시 받기'), findsOneWidget);   // 재발송만
+  });
+
+  testWidgets('[AUTH-OTP-05] 가입은 번호를 가리지 않고 전부 보여준다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(purpose: OtpPurpose.signup)));
+    expect(find.textContaining('010-1111-5678'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-OTP-06] 비밀번호 찾기·가족 연결은 가운데를 가린다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(purpose: OtpPurpose.passwordFind)));
+    expect(find.textContaining('010-****-5678'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-OTP-07] 재발송 버튼은 Task 12 CooldownButton을 쓴다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen()));
+    expect(find.textContaining('인증번호 다시 받기'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-OTP-08] 「연달아 누르면 마지막 문자만 유효합니다」 안내', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen()));
+    expect(find.textContaining('연달아 누르면 마지막 문자만 유효합니다'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-OTP-09] 인증 실패면 서버 문장을 버튼 위에 붙이고 칸을 비운다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(onVerify: (_) async => '인증번호가 올바르지 않습니다')));
+    for (final f in find.byType(TextField).evaluate()) {
+      await t.enterText(find.byWidget(f.widget), '1');
+    }
+    await t.tap(find.text('확인'));
+    await t.pumpAndSettle();
+    expect(find.text('인증번호가 올바르지 않습니다'), findsOneWidget); // 서버 문장 그대로(ERR-MSG-01)
+    final first = t.widget<TextField>(find.byType(TextField).first);
+    expect(first.controller!.text, isEmpty); // 칸을 비운다
+  });
+
+  testWidgets('[AUTH-OTP-10] 확인 후 무슨 일이 일어나는지 화면 안에서 미리 말한다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(purpose: OtpPurpose.signup)));
+    expect(find.textContaining('인증되면'), findsOneWidget); // 예: '인증되면 기본정보 입력으로 넘어갑니다'
+  });
+
+  testWidgets('[AUTH-OTP-11] 가족 연결에는 「휴대폰이 없는 가족인가요?」 링크', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(purpose: OtpPurpose.familyLink)));
+    expect(find.textContaining('휴대폰이 없는 가족인가요?'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-OTP-11] 가입에는 그 링크가 없다(막다른 길 링크는 가족 연결 전용)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(purpose: OtpPurpose.signup)));
+    expect(find.textContaining('휴대폰이 없는 가족인가요?'), findsNothing);
+  });
+}
+```
+Run: `flutter test test/features/auth/otp_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 8b: `OtpScreen` 구현** — `patient_app/lib/features/auth/otp_screen.dart`
+
+```dart
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../core/phone_cooldown.dart';
+import '../../core/tokens.dart';
+import '../../widgets/cooldown_button.dart';
+import '../../widgets/inline_error.dart';
+
+enum OtpPurpose { signup, passwordFind, familyLink }
+
+String _fmtPhone(String p) =>
+    '${p.substring(0, 3)}-${p.substring(3, 7)}-${p.substring(7)}'; // 010-1111-5678
+String _maskPhone(String p) =>
+    '${p.substring(0, 3)}-****-${p.substring(7)}'; // AUTH-OTP-06
+
+const _afterHint = {
+  OtpPurpose.signup: '인증되면 기본정보 입력으로 넘어갑니다',
+  OtpPurpose.passwordFind: '인증되면 새 비밀번호를 정하는 화면으로 넘어갑니다',
+  OtpPurpose.familyLink: '인증되면 가족으로 연결됩니다',
+};
+
+class OtpScreen extends StatefulWidget {
+  final String phone;
+  final OtpPurpose purpose;
+  final int validitySeconds; // AUTH-OTP-03 기본 300(5분). 테스트에서 짧게 준다.
+  final PhoneCooldownStore cooldown;
+  final Future<void> Function() onResend;
+  final Future<String?> Function(String code) onVerify; // null=성공, 아니면 서버 오류 문구
+  final VoidCallback onSuccess;
+
+  const OtpScreen({
+    super.key,
+    required this.phone,
+    required this.purpose,
+    required this.cooldown,
+    required this.onResend,
+    required this.onVerify,
+    required this.onSuccess,
+    this.validitySeconds = 300,
+  });
+
+  @override
+  State<OtpScreen> createState() => _OtpScreenState();
+}
+
+class _OtpScreenState extends State<OtpScreen> {
+  late final List<TextEditingController> _boxes;
+  late final List<FocusNode> _nodes;
+  Timer? _timer;
+  late int _left;
+  String? _error;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _boxes = List.generate(6, (_) => TextEditingController());
+    _nodes = List.generate(6, (_) => FocusNode());
+    _left = widget.validitySeconds;
+    _timer = Timer.periodic(const Duration(seconds: 1), (tm) {
+      setState(() => _left = _left > 0 ? _left - 1 : 0);
+      if (_left <= 0) tm.cancel(); // AUTH-OTP-02: 0이 되면 입력칸을 접고 재발송만 남긴다
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    for (final c in _boxes) c.dispose();
+    for (final n in _nodes) n.dispose();
+    super.dispose();
+  }
+
+  String get _code => _boxes.map((c) => c.text).join();
+
+  Future<void> _verify() async {
+    setState(() => _busy = true);
+    final err = await widget.onVerify(_code);
+    if (!mounted) return;
+    if (err == null) {
+      setState(() => _busy = false);
+      widget.onSuccess();
+      return;
+    }
+    // AUTH-OTP-09: 서버 문장을 버튼 위에 붙이고(ERR-MSG-01), 칸을 비우고 첫 칸에 커서.
+    setState(() {
+      _error = err;
+      _busy = false;
+      for (final c in _boxes) c.clear();
+    });
+    _nodes.first.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = widget.purpose == OtpPurpose.signup ? _fmtPhone(widget.phone) : _maskPhone(widget.phone);
+    final mm = _left ~/ 60, ss = _left % 60;
+    return Scaffold(
+      appBar: AppBar(title: const Text('인증번호 입력')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        Text('$shown 로 보냈습니다'),                                       // AUTH-OTP-05·06
+        const Text('연달아 누르면 마지막 문자만 유효합니다', style: TextStyle(fontSize: 13)), // AUTH-OTP-08
+        Text(_afterHint[widget.purpose]!, style: const TextStyle(fontSize: 13)),        // AUTH-OTP-10
+        const SizedBox(height: 16),
+        if (_left > 0) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(6, (i) => SizedBox(
+              width: 44,
+              child: TextField(
+                controller: _boxes[i],
+                focusNode: _nodes[i],
+                keyboardType: TextInputType.number,           // AUTH-OTP-01
+                maxLength: 1,
+                textAlign: TextAlign.center,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(counterText: ''),
+                onChanged: (v) {
+                  if (v.isNotEmpty && i < 5) _nodes[i + 1].requestFocus();
+                },
+              ),
+            )),
+          ),
+          const SizedBox(height: 8),
+          // AUTH-OTP-02: 남은 시간(주의색). 0이 되면 이 블록 자체가 사라진다.
+          Text('남은 시간 $mm:${ss.toString().padLeft(2, '0')}',
+              style: const TextStyle(color: AppTokens.warn)),
+          const SizedBox(height: 16),
+          if (_error != null) InlineError(_error),           // AUTH-OTP-09(버튼 위 붙박이)
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
+            onPressed: _busy ? null : _verify,
+            child: Text(_busy ? '확인 중…' : '확인'),
+          ),
+        ],
+        const SizedBox(height: 12),
+        // AUTH-OTP-07: 재발송은 번호 기준 쿨다운(Task 12 CooldownButton).
+        CooldownButton(
+          phone: widget.phone,
+          label: '인증번호 다시 받기',
+          store: widget.cooldown,
+          onSend: () async {
+            await widget.onResend();
+            return null;
+          },
+        ),
+        // AUTH-OTP-11: 가족 연결만 막다른 길 링크.
+        if (widget.purpose == OtpPurpose.familyLink)
+          TextButton(onPressed: () {}, child: const Text('휴대폰이 없는 가족인가요?')),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/otp_screen_test.dart` → Expected: PASS(11 tests).
+
+- [ ] **Step 9: 가입 진행점 + 비밀번호·기본정보 화면 ③ (`AUTH-SIGNUP-01`~`10` · `AUTH-PROFILE-01`·`03`·`03b`·`03e`·`04`·`05`·`06`·`07`·`08`)**
+
+> ⭐ **가입은 별도 화면 4개**(⓪동의 ①전화 ②인증 ③비밀번호·기본정보 — AUTH-SIGNUP-01). 진행점은 `⓪=1 ①=2 ②=3 ③=4`(AUTH-SIGNUP-03). **③에서 성별을 미리 골라두지 않는다**(AUTH-SIGNUP-06b·06d — 기본값은 조용히 답을 만든다). 앱을 껐다 켜 ②통과+③미완료면 **③으로 되돌린다**(AUTH-SIGNUP-08 = Step 4 `profileMissingProvider` 라우팅).
+
+- [ ] **Step 9a: 진행점 위젯** — `signup_flow.dart`
+
+- [ ] **Step 9a-i: 실패 테스트** — `patient_app/test/features/auth/signup_flow_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/auth/signup_flow.dart';
+
+void main() {
+  testWidgets('[AUTH-SIGNUP-03] 점 4개 + N단계/4단계', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: SignupProgress(step: 3))));
+    expect(find.text('3단계 / 4단계'), findsOneWidget);
+    expect(find.byKey(const Key('signup-dot')), findsNWidgets(4)); // 점 4개
+  });
+
+  test('[AUTH-SIGNUP-01] 가입 단계는 별도 화면 4개다(⓪=1 ①=2 ②=3 ③=4)', () {
+    // 진행점의 단계 매핑이 4단계로 고정. 한 화면 조건부(AUTH-SIGNUP-02)가 아니라 라우트가 4개.
+    expect(SignupStep.values.map((s) => s.display), ['1단계 / 4단계', '2단계 / 4단계', '3단계 / 4단계', '4단계 / 4단계']);
+  });
+
+  test('[AUTH-SIGNUP-04] 진행 표시가 인증번호 화면을 3단계로 센다(1→1→3 오류를 바로잡음)', () {
+    expect(SignupStep.otp.display, '3단계 / 4단계'); // ② 인증번호 = 3단계
+  });
+}
+```
+
+- [ ] **Step 9a-ii: 구현** — `patient_app/lib/features/auth/signup_flow.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../core/tokens.dart';
+
+/// 가입 4단계(AUTH-SIGNUP-01). ⓪동의=1 ①전화=2 ②인증=3 ③기본정보=4(AUTH-SIGNUP-03·04).
+enum SignupStep {
+  consent(1), phone(2), otp(3), profile(4);
+
+  const SignupStep(this.number);
+  final int number;
+  String get display => '$number단계 / 4단계';
+}
+
+class SignupProgress extends StatelessWidget {
+  final int step; // 1~4
+  const SignupProgress({super.key, required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(4, (i) => Container(
+          key: const Key('signup-dot'),
+          width: 8, height: 8,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: i < step ? AppTokens.primary : AppTokens.grayDone,
+          ),
+        )),
+      ),
+      const SizedBox(height: 4),
+      Text('$step단계 / 4단계', style: const TextStyle(fontSize: 12, color: AppTokens.grayPending)),
+    ]);
+  }
+}
+```
+> 📌 **뒤로가기(AUTH-SIGNUP-05)**: 라우트는 `/signup`(⓪) → `/signup/phone`(①) → `/signup/otp`(②) → `/signup/step3`(③). ⓪에서 뒤로 = 랜딩, ①②③에서 뒤로 = 앞 단계. 동의 체크는 `consentProvider`가 화면 밖에 살아 그대로 남는다(CONSENT-STEP-08). 라우트 등록은 `router.dart`(Task 0 골격)에 추가한다.
+Run: `flutter test test/features/auth/signup_flow_test.dart` → Expected: PASS(3 tests).
+
+- [ ] **Step 9b: 비밀번호·기본정보 화면 ③** — `signup_profile_screen.dart`
+
+- [ ] **Step 9b-i: 실패 테스트** — `patient_app/test/features/auth/signup_profile_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
+import 'package:hospital_patient_app/features/auth/signup_profile_screen.dart';
+
+class _FakeRepo implements SignupProfileRepo {
+  int pwSet = 0, created = 0;
+  String? failWith;
+  @override
+  Future<void> setPassword(String pw) async => pwSet++;
+  @override
+  Future<void> createProfile({required String name, required String birthDate,
+      required String gender, required bool adsAgreed, required String termsVersion}) async {
+    if (failWith != null) throw ApiException(failWith!);
+    created++;
+  }
+}
+
+SignupProfileScreen _screen(_FakeRepo repo) =>
+    SignupProfileScreen(controller: SignupProfileController(repo), onDone: () {});
+
+void main() {
+  testWidgets('[AUTH-PROFILE-04] 이름·생년월일·성별 세 칸(전화는 ①에서 받았다)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    expect(find.text('이름'), findsOneWidget);
+    expect(find.text('생년월일'), findsOneWidget);
+    expect(find.text('성별'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-SIGNUP-06] 성별은 남·여 + 왜 묻는지(문진 문항 노출에 쓰입니다)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    expect(find.text('남'), findsOneWidget);
+    expect(find.text('여'), findsOneWidget);
+    expect(find.textContaining('문진 문항 노출에 쓰입니다'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-SIGNUP-06b] 성별을 미리 골라두지 않는다 — 하나 눌러야 [가입 완료]가 산다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    final before = t.widget<FilledButton>(find.widgetWithText(FilledButton, '가입 완료'));
+    expect(before.onPressed, isNull); // 미선택이면 꺼짐
+    await t.tap(find.text('여'));
+    await t.pump();
+    final after = t.widget<FilledButton>(find.widgetWithText(FilledButton, '가입 완료'));
+    expect(after.onPressed, isNotNull);
+  });
+
+  testWidgets('[AUTH-SIGNUP-06d] 초기 성별은 어느 쪽도 선택돼 있지 않다(기본값 F 없음)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    // 두 칸 모두 비선택 상태의 표식: 선택된 ChoiceChip이 0개
+    final selected = tester_selectedChips(t);
+    expect(selected, 0);
+  });
+
+  testWidgets('[AUTH-PROFILE-01] 비밀번호 조건을 미리 보여주고 충족되면 ✓로 바뀐다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    expect(find.textContaining('8자 이상'), findsOneWidget);
+    expect(find.textContaining('영문'), findsOneWidget);
+    await t.enterText(find.byKey(const Key('pw')), 'abc12345'); // 8자+영문숫자
+    await t.pump();
+    expect(find.textContaining('✓'), findsWidgets); // 충족 표시
+  });
+
+  testWidgets('[AUTH-PROFILE-03] 비밀번호 눈 토글(기본 가림)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    final pw = t.widget<TextField>(find.byKey(const Key('pw')));
+    expect(pw.obscureText, isTrue); // 기본 가림
+    expect(find.byIcon(Icons.visibility_off), findsWidgets);
+  });
+
+  testWidgets('[AUTH-PROFILE-03b] 확인 칸을 둔다(비밀번호 + 비밀번호 확인)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    expect(find.byKey(const Key('pw')), findsOneWidget);
+    expect(find.byKey(const Key('pw-confirm')), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-PROFILE-05] 생년월일은 날짜 선택기로 받는다(자유 입력 아님)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    await t.tap(find.byKey(const Key('birth')));
+    await t.pumpAndSettle();
+    expect(find.byType(CalendarDatePicker), findsOneWidget); // YYYY-MM-DD 자유 입력이 아니다
+  });
+
+  testWidgets('[AUTH-SIGNUP-07] 가입 완료 성공이면 홈으로(축하 화면 없음)', (t) async {
+    final repo = _FakeRepo();
+    var done = false;
+    await t.pumpWidget(MaterialApp(home: SignupProfileScreen(
+        controller: SignupProfileController(repo), onDone: () => done = true)));
+    await _fillValid(t);
+    await t.tap(find.text('가입 완료'));
+    await t.pumpAndSettle();
+    expect(repo.pwSet, 1);
+    expect(repo.created, 1);
+    expect(done, isTrue); // 홈으로(별도 축하 화면 없음)
+  });
+
+  testWidgets('[AUTH-PROFILE-08] 실패면 버튼 위 오류, ①②를 다시 시키지 않는다', (t) async {
+    final repo = _FakeRepo()..failWith = '가입에 실패했습니다. 잠시 후 다시 시도해주세요.';
+    await t.pumpWidget(MaterialApp(home: SignupProfileScreen(
+        controller: SignupProfileController(repo), onDone: () {})));
+    await _fillValid(t);
+    await t.tap(find.text('가입 완료'));
+    await t.pumpAndSettle();
+    expect(find.text('가입에 실패했습니다. 잠시 후 다시 시도해주세요.'), findsOneWidget);
+    // 여전히 ③ 화면 — ①②로 되돌리지 않는다(인증은 이미 끝났다)
+    expect(find.text('가입 완료'), findsOneWidget);
+  });
+}
+```
+`_fillValid`(이름·생년월일·비번 두 칸·성별 채우기)와 `tester_selectedChips`는 테스트 헬퍼로 파일 상단에 둔다. `AUTH-SIGNUP-08·09·10`(껐다 켜면 ③으로 되돌림·근거·출입증 안 버림)은 **Step 4의 `profileMissingProvider` 라우팅**이 실현하며 `profile_status_test.dart`에서 확인했다 — 여기서는 화면이 그 재진입을 견디는지(상태 없이 새로 그려짐) 본다. `AUTH-PROFILE-03c·03d·03e`(확인 칸 근거·기각·적용 범위)는 `-03b`(확인 칸을 둔다)의 근거라 같은 자리에서 닫힌다.
+Run: `flutter test test/features/auth/signup_profile_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 9b-ii: 구현** — `patient_app/lib/features/auth/signup_profile_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../core/api_client.dart';
+import '../../core/tokens.dart';
+
+const _termsVersion = '2026-08-01';
+
+/// 비밀번호 설정 + 프로필 생성(Supabase updateUser + POST /patients). 테스트에서 Fake로 대체.
+abstract class SignupProfileRepo {
+  Future<void> setPassword(String pw);
+  Future<void> createProfile({
+    required String name,
+    required String birthDate,
+    required String gender,
+    required bool adsAgreed,
+    required String termsVersion,
+  });
+}
+
+class SignupProfileController {
+  final SignupProfileRepo repo;
+  SignupProfileController(this.repo);
+
+  /// AUTH-SIGNUP-07 / AUTH-PROFILE-08 — 성공이면 null, 실패면 서버 문장(버튼 위 오류).
+  /// ①②(전화·인증)를 다시 시키지 않는다 — 인증은 이미 끝났고 세션이 있다.
+  Future<String?> submit({
+    required String password,
+    required String name,
+    required String birthDate,
+    required String gender,
+    required bool adsAgreed,
+  }) async {
+    try {
+      await repo.setPassword(password);
+      await repo.createProfile(
+          name: name, birthDate: birthDate, gender: gender,
+          adsAgreed: adsAgreed, termsVersion: _termsVersion);
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
+  }
+}
+
+bool passwordOk(String pw) => pw.length >= 8 && RegExp(r'[A-Za-z]').hasMatch(pw) && RegExp(r'\d').hasMatch(pw);
+
+class SignupProfileScreen extends StatefulWidget {
+  final SignupProfileController controller;
+  final bool adsAgreed;   // consentProvider.ads에서 넘어온다
+  final VoidCallback onDone;
+  const SignupProfileScreen(
+      {super.key, required this.controller, this.adsAgreed = false, required this.onDone});
+  @override
+  State<SignupProfileScreen> createState() => _SignupProfileScreenState();
+}
+
+class _SignupProfileScreenState extends State<SignupProfileScreen> {
+  final _name = TextEditingController();
+  final _pw = TextEditingController();
+  final _pwConfirm = TextEditingController();
+  DateTime? _birth;
+  String? _gender; // AUTH-SIGNUP-06b·06d — null로 시작(미리 고르지 않는다)
+  bool _obscure = true, _obscure2 = true, _busy = false;
+  String? _error;
+
+  bool get _canSubmit =>
+      _gender != null && passwordOk(_pw.text) && _pw.text == _pwConfirm.text &&
+      _name.text.trim().isNotEmpty && _birth != null;
+
+  Future<void> _submit() async {
+    setState(() { _busy = true; _error = null; });
+    final err = await widget.controller.submit(
+      password: _pw.text, name: _name.text.trim(),
+      birthDate: '${_birth!.year}-${_birth!.month.toString().padLeft(2, '0')}-${_birth!.day.toString().padLeft(2, '0')}',
+      gender: _gender!, adsAgreed: widget.adsAgreed);
+    if (!mounted) return;
+    setState(() { _busy = false; _error = err; });
+    if (err == null) widget.onDone(); // AUTH-SIGNUP-07: 홈으로(축하 화면 없음)
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('기본정보 입력')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        TextField(controller: _name, decoration: const InputDecoration(labelText: '이름'),
+            onChanged: (_) => setState(() {})),
+        const SizedBox(height: 12),
+        // AUTH-PROFILE-05: 생년월일은 날짜 선택기(자유 입력 아님).
+        InkWell(
+          key: const Key('birth'),
+          onTap: () async {
+            final d = await showDatePicker(
+                context: context, firstDate: DateTime(1900), lastDate: DateTime.now(),
+                initialDate: DateTime(1970));
+            if (d != null) setState(() => _birth = d);
+          },
+          child: InputDecorator(
+            decoration: const InputDecoration(labelText: '생년월일'),
+            child: Text(_birth == null ? '날짜 선택' : '${_birth!.year}-${_birth!.month}-${_birth!.day}'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // AUTH-SIGNUP-06: 성별 + 왜 묻는지.
+        const Text('성별'),
+        const Text('(문진 문항 노출에 쓰입니다)', style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
+        Row(children: [
+          ChoiceChip(label: const Text('남'), selected: _gender == 'M', onSelected: (_) => setState(() => _gender = 'M')),
+          const SizedBox(width: 8),
+          ChoiceChip(label: const Text('여'), selected: _gender == 'F', onSelected: (_) => setState(() => _gender = 'F')),
+        ]),
+        const SizedBox(height: 16),
+        // AUTH-PROFILE-01: 조건을 미리 보여주고 충족되면 ✓.
+        Text('${passwordOk(_pw.text) ? '✓' : '·'} 8자 이상, 영문·숫자 함께'),
+        TextField(
+          key: const Key('pw'), controller: _pw, obscureText: _obscure,
+          decoration: InputDecoration(
+            labelText: '비밀번호',
+            suffixIcon: IconButton( // AUTH-PROFILE-03: 눈 토글(기본 가림)
+              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _obscure = !_obscure)),
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        // AUTH-PROFILE-03b: 확인 칸(눈을 안 눌러도 두 번 친 것이 다르면 잡는다).
+        TextField(
+          key: const Key('pw-confirm'), controller: _pwConfirm, obscureText: _obscure2,
+          decoration: InputDecoration(
+            labelText: '비밀번호 확인',
+            suffixIcon: IconButton(
+              icon: Icon(_obscure2 ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _obscure2 = !_obscure2)),
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 24),
+        if (_error != null) ...[Text(_error!, style: const TextStyle(color: AppTokens.warn)), const SizedBox(height: 8)],
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
+          onPressed: (_canSubmit && !_busy) ? _submit : null, // AUTH-SIGNUP-06b
+          child: Text(_busy ? '가입 중…' : '가입 완료'),
+        ),
+      ]),
+    );
+  }
+}
+```
+> 📌 **AUTH-PROFILE-03e**(확인 칸이 있는 곳 = 가입 ③·비밀번호 찾기·설정 변경, 로그인 없음)는 세 곳이 같은 두-칸 패턴을 쓰는 것으로 지켜진다 — 로그인(Task 14)은 `AUTH-LOGIN-04`로 확인 칸을 두지 않는다.
+Run: `flutter test test/features/auth/signup_profile_screen_test.dart` → Expected: PASS(10 tests).
+
+- [ ] **Step 10: 새 비밀번호 화면 — 이름 칸·조건·막다른 길 (`AUTH-PWNEW-01·02·03·04·05·06·07·08·12·13·14·16·17`)**
+
+> ⭐ **이름 칸(AUTH-PWNEW-08·13)이 이 화면의 심장** — 번호를 물려받은 사람은 이름을 몰라 반드시 병원 경로로 가고(깔때기), 그때 갭 #44 탐지가 저절로 일어난다. **판정은 `[비밀번호 바꾸기]`를 누를 때 서버가 한 번만**(AUTH-PWNEW-17 = Step 3 `verify_name_and_reset`) — 치는 도중 실시간으로 맞다/틀리다를 알려주지 않는다(이름 맞히기를 쉽게 만들지 않는다). **두 경로(비밀번호 찾기·중복 갈림길)가 이 화면을 공유**(AUTH-PWNEW-05).
+
+- [ ] **Step 10a: 실패 테스트** — `patient_app/test/features/auth/new_password_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
+import 'package:hospital_patient_app/features/auth/new_password_screen.dart';
+
+class _FakeReset implements PasswordResetRepo {
+  int calls = 0;
+  String? failWith;
+  @override
+  Future<void> reset(String name, String password) async {
+    calls++;
+    if (failWith != null) throw ApiException(failWith!);
+  }
+}
+
+Future<void> _fill(WidgetTester t, {String name = '홍길동', String pw = 'abc12345'}) async {
+  await t.enterText(find.byKey(const Key('name')), name);
+  await t.enterText(find.byKey(const Key('newpw')), pw);
+  await t.enterText(find.byKey(const Key('newpw-confirm')), pw);
+  await t.pump();
+}
+
+NewPasswordScreen _screen(_FakeReset repo, {VoidCallback? onDone}) =>
+    NewPasswordScreen(controller: NewPasswordController(repo), onDone: onDone ?? () {});
+
+void main() {
+  testWidgets('[AUTH-PWNEW-08] 새 비밀번호 위에 「등록하신 이름」 칸이 있다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.text('등록하신 이름'), findsOneWidget);
+    expect(find.byKey(const Key('name')), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-PWNEW-01] 새 비밀번호 + 한 번 더, 각각 눈 토글', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.byKey(const Key('newpw')), findsOneWidget);
+    expect(find.byKey(const Key('newpw-confirm')), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_off), findsNWidgets(2)); // 두 칸 각각
+  });
+
+  testWidgets('[AUTH-PWNEW-02] 조건 네 줄(8자·영문숫자·두 칸 같음·피하기)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.textContaining('8자 이상'), findsOneWidget);
+    expect(find.textContaining('영문과 숫자'), findsOneWidget);
+    expect(find.textContaining('두 칸이 서로 같음'), findsOneWidget);
+    expect(find.textContaining('전화번호·생년월일은 피해'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-PWNEW-03] 마지막 줄은 권고(·)라 ✓ 조건과 모양이 다르다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.textContaining('· 전화번호·생년월일은 피해'), findsOneWidget); // 차단 아님(·)
+  });
+
+  testWidgets('[AUTH-PWNEW-06] 빠져나갈 문 — 비밀번호가 기억나셨나요? › 로그인하기', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.textContaining('비밀번호가 기억나셨나요?'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-PWNEW-07] 「원래 쓰시던 비밀번호를 그대로 쓰셔도 됩니다」를 쓰지 않는다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.textContaining('그대로 쓰셔도 됩니다'), findsNothing);
+  });
+
+  testWidgets('[AUTH-PWNEW-12] 막다른 길 방지 — 이름이 기억나지 않거나 맞지 않나요? ›', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.textContaining('이름이 기억나지 않거나 맞지 않나요?'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-PWNEW-16] 생년월일까지 묻지 않는다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
+    expect(find.textContaining('생년월일'), findsNothing);
+  });
+
+  testWidgets('[AUTH-PWNEW-17] 치는 도중에는 이름 맞다/틀리다를 알려주지 않는다 — 누를 때 한 번만', (t) async {
+    final repo = _FakeReset();
+    await t.pumpWidget(MaterialApp(home: _screen(repo)));
+    await t.enterText(find.byKey(const Key('name')), '홍');
+    await t.pump();
+    expect(repo.calls, 0); // 치는 동안 서버를 부르지 않는다
+    expect(find.textContaining('일치'), findsNothing); // 실시간 판정 표시 없음
+  });
+
+  testWidgets('[AUTH-PWNEW-04] 변경 성공이면 로그인 화면으로 보낸다', (t) async {
+    final repo = _FakeReset();
+    var done = false;
+    await t.pumpWidget(MaterialApp(home: _screen(repo, onDone: () => done = true)));
+    await _fill(t);
+    await t.tap(find.text('비밀번호 바꾸기'));
+    await t.pumpAndSettle();
+    expect(repo.calls, 1);
+    expect(done, isTrue); // 로그인 화면으로(다시 로그인)
+  });
+}
+```
+`AUTH-PWNEW-05`(두 경로 공유)·`13`(병원 깔때기의 값어치)·`14`(가족·지인엔 무력한 한계)는 서버 대조(Step 3)와 화면 공유 구조로 실현되는 **근거·경계 규칙**이라, `-08`(이름 칸)·`-12`(막다른 길 출구)·`verify_name_and_reset`(Step 3) 테스트가 함께 닫는다.
+Run: `flutter test test/features/auth/new_password_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 10b: `NewPasswordScreen` 구현** — `patient_app/lib/features/auth/new_password_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/api_client.dart';
+import '../../core/tokens.dart';
+
+/// 서버 경유 재설정(Step 3 `POST /patients/me/password-reset`)의 얇은 인터페이스.
+abstract class PasswordResetRepo {
+  Future<void> reset(String name, String password); // 실패 시 ApiException(서버 문장)
+}
+
+class NewPasswordController {
+  final PasswordResetRepo repo;
+  NewPasswordController(this.repo);
+
+  /// AUTH-PWNEW-17 — [비밀번호 바꾸기]를 누를 때 서버가 한 번만 판정한다. 성공이면 null, 실패면 서버 문장.
+  Future<String?> submit(String name, String password) async {
+    try {
+      await repo.reset(name, password);
+      return null;
+    } on ApiException catch (e) {
+      return e.message; // '등록된 이름과 다릅니다' 등(AUTH-PWNEW-11)
+    }
+  }
+}
+
+bool _pwOk(String pw) => pw.length >= 8 && RegExp(r'[A-Za-z]').hasMatch(pw) && RegExp(r'\d').hasMatch(pw);
+
+class NewPasswordScreen extends StatefulWidget {
+  final NewPasswordController controller;
+  final VoidCallback onDone; // 보통 '/login'으로 이동
+  const NewPasswordScreen({super.key, required this.controller, required this.onDone});
+  @override
+  State<NewPasswordScreen> createState() => _NewPasswordScreenState();
+}
+
+class _NewPasswordScreenState extends State<NewPasswordScreen> {
+  final _name = TextEditingController();
+  final _pw = TextEditingController();
+  final _pw2 = TextEditingController();
+  bool _o1 = true, _o2 = true, _busy = false;
+  String? _error;
+
+  bool get _match => _pw.text.isNotEmpty && _pw.text == _pw2.text;
+
+  Future<void> _submit() async {
+    setState(() { _busy = true; _error = null; });
+    final err = await widget.controller.submit(_name.text, _pw.text);
+    if (!mounted) return;
+    setState(() { _busy = false; _error = err; });
+    if (err == null) widget.onDone(); // AUTH-PWNEW-04: 로그인 화면으로
+  }
+
+  Widget _cond(bool ok, String text) => Text('${ok ? '✓' : '·'} $text');
+
+  @override
+  Widget build(BuildContext context) {
+    final canSubmit = _name.text.trim().isNotEmpty && _pwOk(_pw.text) && _match;
+    return Scaffold(
+      appBar: AppBar(title: const Text('새 비밀번호')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        // AUTH-PWNEW-08: 이름 칸을 새 비밀번호 '위에' 둔다.
+        const Text('등록하신 이름'),
+        TextField(key: const Key('name'), controller: _name, onChanged: (_) => setState(() {})),
+        const SizedBox(height: 16),
+        // AUTH-PWNEW-02·03: 조건 — 앞 셋은 ✓(차단), 마지막은 ·(권고).
+        _cond(_pwOk(_pw.text), '8자 이상'),
+        _cond(RegExp(r'[A-Za-z]').hasMatch(_pw.text) && RegExp(r'\d').hasMatch(_pw.text), '영문과 숫자를 함께'),
+        _cond(_match, '두 칸이 서로 같음'),
+        const Text('· 전화번호·생년월일은 피해주세요'), // 권고(차단 아님)
+        const SizedBox(height: 8),
+        TextField(
+          key: const Key('newpw'), controller: _pw, obscureText: _o1,
+          decoration: InputDecoration(
+            labelText: '새 비밀번호',
+            suffixIcon: IconButton(
+              icon: Icon(_o1 ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _o1 = !_o1))),
+          onChanged: (_) => setState(() {}), // 화면 조건 표시용 — 서버는 부르지 않는다(AUTH-PWNEW-17)
+        ),
+        TextField(
+          key: const Key('newpw-confirm'), controller: _pw2, obscureText: _o2,
+          decoration: InputDecoration(
+            labelText: '한 번 더 입력',
+            suffixIcon: IconButton(
+              icon: Icon(_o2 ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _o2 = !_o2))),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 16),
+        if (_error != null) ...[Text(_error!, style: const TextStyle(color: AppTokens.warn)), const SizedBox(height: 8)],
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
+          onPressed: (canSubmit && !_busy) ? _submit : null,
+          child: Text(_busy ? '바꾸는 중…' : '비밀번호 바꾸기'),
+        ),
+        const SizedBox(height: 12),
+        // AUTH-PWNEW-12: 오타·개명으로 진짜 환자가 잠기지 않게 병원 안내 출구.
+        TextButton(onPressed: () => context.go('/phone-change'),
+            child: const Text('이름이 기억나지 않거나 맞지 않나요? ›')),
+        // AUTH-PWNEW-06: 기억난 사람이 굳이 바꾸지 않아도 되게.
+        TextButton(onPressed: () => context.go('/login'),
+            child: const Text('비밀번호가 기억나셨나요? › 로그인하기')),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/new_password_screen_test.dart` → Expected: PASS(10 tests).
+
+- [ ] **Step 11: 전화번호 변경 안내 화면 (`AUTH-TEL-01·02·03·04·05`)**
+
+> ⭐ **앱은 경로만 알려준다(AUTH-TEL-01)** — 앱에서 번호를 바꿔주면 이름·생년월일만 알면 남의 계정을 가져갈 수 있다(갭 #10). 방문·전화 **둘 다** 열어 둔다(AUTH-TEL-05 — 방문만 요구하면 거동이 불편한 어르신에게 또 다른 막다른 길).
+
+- [ ] **Step 11a: 실패 테스트** — `patient_app/test/features/auth/phone_change_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/auth/phone_change_screen.dart';
+
+void main() {
+  testWidgets('[AUTH-TEL-01] 앱에서 번호를 바꾸지 않는다 — 입력칸이 없다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: PhoneChangeScreen()));
+    expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('[AUTH-TEL-02] 본문 두 문장(방문·전화 + 이력 유지)', (t) async {
+    await t.pumpWidget(const MaterialApp(home: PhoneChangeScreen()));
+    expect(find.textContaining('병원에 방문하시거나 전화해 주세요'), findsOneWidget);
+    expect(find.textContaining('그동안의 예약과 방문 이력은 그대로 유지됩니다'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-TEL-03] 확인 절차 세 줄을 미리 안내', (t) async {
+    await t.pumpWidget(const MaterialApp(home: PhoneChangeScreen()));
+    expect(find.textContaining('이름'), findsWidgets);
+    expect(find.textContaining('최근 방문일'), findsOneWidget);
+    expect(find.textContaining('새 번호로 인증번호'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-TEL-04] [병원 전화번호로 문의] 버튼(tel: 연결)', (t) async {
+    await t.pumpWidget(const MaterialApp(home: PhoneChangeScreen()));
+    expect(find.text('병원 전화번호로 문의'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-TEL-05] 방문만 요구하지 않는다 — 전화 경로가 함께 있다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: PhoneChangeScreen()));
+    // 본문이 '방문하시거나 전화해'로 둘을 함께 제시하고, 전화 버튼이 있다.
+    expect(find.text('병원 전화번호로 문의'), findsOneWidget);
+    expect(find.textContaining('방문하시거나 전화'), findsOneWidget);
+  });
+}
+```
+Run: `flutter test test/features/auth/phone_change_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 11b: `PhoneChangeScreen` 구현** — `patient_app/lib/features/auth/phone_change_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../core/tokens.dart';
+
+const _hospitalTel = '02-000-0000'; // 배포 시 병원 정보로 치환
+
+/// 전화번호가 바뀐 사람에게 경로만 안내한다(AUTH-TEL-01) — 앱에서 번호를 바꾸지 않는다.
+class PhoneChangeScreen extends StatelessWidget {
+  const PhoneChangeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('전화번호 변경')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        // AUTH-TEL-02·05: 방문·전화 둘 다 + 이력 유지.
+        const Text('병원에 방문하시거나 전화해 주세요'),
+        const SizedBox(height: 8),
+        const Text('본인 확인 후 직원이 등록된 전화번호를 바꿔드립니다. '
+            '그동안의 예약과 방문 이력은 그대로 유지됩니다.'),
+        const SizedBox(height: 24),
+        // AUTH-TEL-03: 확인 절차 세 줄을 미리 안내한다.
+        const Text('확인 절차', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text('· 이름 · 생년월일'),
+        const Text('· 최근 방문일 · 진료받은 과'),
+        const Text('· 새 번호로 인증번호 발송'),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
+          icon: const Icon(Icons.call),
+          // AUTH-TEL-04: 전화 앱으로 연결.
+          onPressed: () => launchUrl(Uri.parse('tel:$_hospitalTel')),
+          label: const Text('병원 전화번호로 문의'),
+        ),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/phone_change_screen_test.dart` → Expected: PASS(5 tests).
+
+- [ ] **Step 12: 커밋**
+
+```bash
+git add supabase/migrations/00024_patient_consents.sql supabase/config.toml \
+  backend/app/services/consent_service.py backend/app/services/password_reset_service.py \
+  backend/app/routers/patient_consent.py backend/app/routers/patient_password_reset.py \
+  backend/app/services/patient_profile_service.py backend/app/main.py backend/tests/ \
+  patient_app/lib/core/api_client.dart patient_app/lib/core/profile_status.dart \
+  patient_app/lib/core/router.dart \
+  patient_app/lib/features/auth/ patient_app/test/
+git commit -m "feat: 환자앱 Task 13 — 가입 5화면(동의·전화·인증·기본정보·새비번)+번호변경 안내 83규칙"
+```
+
+> 📌 **규칙 커버리지(83)**: `CONSENT-*`(22 — STEP·ITEM·ALL·BTN·LATER·LOG·ADS) · `AUTH-LAND-*`(4) · `AUTH-PHONE-*`(4) · `AUTH-OTP-*`(11) · `AUTH-SIGNUP-*`(12) · `AUTH-PROFILE-*`(8) · `AUTH-PWNEW-*`(17) · `AUTH-TEL-*`(5).
+> ⭐ **양방향 악수 갚음**: `profileMissingProvider`(Task 11 라우터가 기다리던 것) 정의 + Task 11 router 주석의 낡은 "404"를 실제 계약 "403"으로 정정.
+> ⚠️ **Task 14가 소비할 계약**: `NewPasswordScreen`(비밀번호 찾기·중복 갈림길이 라우팅) · `OtpScreen`(비밀번호 찾기 ②·가족 연결도 공유) · `PhoneChangeScreen`(PWFIND-06·PWNEW-12 링크 대상).
+> ⚠️ **T0 보강 2건**: `ApiException.statusCode`(403 구분) · config.toml(비밀번호 8자·OTP 5분).
+>
+> 📌 **근거·메타 규칙 8건 — 값이 없어 관측 테스트가 아니라 「어느 테스트가 실현하는가」로 닫는다**(값 없는 규칙은 구현·손검수 몫):
+> - `CONSENT-STEP-02`(왜 맨 앞인가 = 순서, 개인정보보호법 15조): `CONSENT-STEP-01`(자리)과 `record_consents`(프로필 생성 시점 기록)의 구조가 실현 — 전화번호를 받기 전에 동의 화면이 온다.
+> - `CONSENT-ALL-02`(왜 필수만 켜는가 = 사전 동의가 법적 요건): `CONSENT-ALL-01` 테스트(「모두 동의」가 광고를 켜지 않음)가 실현.
+> - `AUTH-PROFILE-06`(자유 입력 생년월일 제거): `AUTH-PROFILE-05` 테스트(`CalendarDatePicker` — 자유 입력이 아님)가 실현.
+> - `AUTH-PROFILE-07`(가입 완료 성공 → 홈, 축하 화면 없음): `AUTH-SIGNUP-07` 테스트(`onDone` 호출, 별도 화면 없음)가 실현 — 같은 [가입 완료] 버튼이다.
+> - `AUTH-SIGNUP-09`(껐다 켜는 이유 = 문자가 안 와서)·`AUTH-SIGNUP-10`(⛔ 출입증 버리고 랜딩으로 안 보냄): `AUTH-SIGNUP-08` + Step 4 `profileMissingProvider` 라우팅(`signedIn && missing → /signup/step3`)이 실현 — 계정은 서버에 남고 ③으로 되돌린다.
+> - `AUTH-PWNEW-13`(이름 칸의 값어치 = 병원 깔때기)·`AUTH-PWNEW-14`(가족·지인엔 무력한 한계): `AUTH-PWNEW-08`(이름 칸)·`AUTH-PWNEW-12`(막다른 길 출구) 테스트 + Step 3 `verify_name_and_reset`(서버 대조)가 실현 — 이름을 모르면 병원 경로로 가고 그때 갭 #44 탐지가 일어난다.
