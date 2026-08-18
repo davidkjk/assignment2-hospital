@@ -3888,3 +3888,318 @@ git commit -m "feat: 환자앱 Task 10 — 환자용 라우터 6종 연결 + 통
 > 📌 **백엔드 계약(0~10) 완료 지점**이다. 다음(11~12)은 프론트 전역(오프라인·세션만료·오류/빈상태/버튼상태), 그다음 화면(13~31)이 이 REST 표면을 `ApiClient`로 소비한다.
 > ⚠️ **경로 충돌 없음 확인**: 환자 라우터는 `/patients`·`/family`·`/catalog`·`/bookings`·`/my`·`/device-tokens`로, 직원 `/staff`·`/appointments`·`/medical-records`와 겹치지 않는다(같은 `/appointments`를 환자·직원이 나눠 쓰지 않는다 — 환자 예약은 `/bookings`·`/my/appointments`).
 > ⚠️ **`get_current_auth_user_id`는 `POST /patients` 단 하나** — 나머지 전부 `get_current_patient`(등록·활성 환자만 403 게이트). 이 경계가 흐려지면 미등록 유저가 다른 엔드포인트에 닿는다.
+
+---
+
+## Task 11: 프론트 전역 — 오프라인 캐시 · 세션 만료 분리 · 잠금화면 알림 경계 · 전역 이동 규칙
+
+> **담당 규칙(43)**: `OFF-*`(26 — CACHE·BAN·DO·STALE·AUTH·BACK) · `PUSH-BODY-*`(9 — **클라이언트 몫만**, 본문 내용은 서버 소유·교차참조) · `NAV-GLOBAL-*`(8). ⭐ **백엔드 0~10과 달리 규칙을 처음 담는 태스크** — 화면 태스크(13~31)가 소비할 전역 계층(providers·widgets·router guard)을 짓는다.
+>
+> ⭐⭐ **이 태스크의 심장 = 세션 만료 「분리」(갭 #38)**: Task 0의 `AuthStatus{signedOut, signedIn}`은 `session==null` 하나로 로그아웃을 판정해 **오프라인과 만료를 구분하지 못한다**(`OFF-AUTH-05`). 여기서 **`expiredOffline`(읽기전용)**을 더해 — **온라인에서 받은 401만 진짜 로그아웃**(→ 로그인 화면), **오프라인 중 실패는 만료로 안 본다**(보관본을 읽기전용으로 계속 보여줌). 근거: 결정 B-2(2026-08-04) · `OFF-AUTH-01·04` · `NAV-GLOBAL-03`. *"30분 만료는 공용 PC용 장치다. 개인 폰엔 위협 모형이 안 맞고 폰 잠금이 1차 방어선"*(결정 문서 1032).
+>
+> ⚠️ **PUSH 경계(⭐ 재소유 금지 — 경계 갭 교훈 적용)**: `PUSH-BODY-*`의 **본문 내용 규칙은 서버 소유**다 — `PUSH-BODY-01`(진료과·의사명·증상 금지)·`02`(가족 대상자 이름 = Task 9 `target_name`, 이미 구현)·`03`(새는 범위)·`05`(제목 「병원 안내」)·`06·08`(자유텍스트 두 겹)은 **Task 9 `notification_service.MESSAGES`/직원웹 T28**이 정한다. **Task 11은 클라이언트 몫만**: FCM 수신·표시·토큰 등록(Task 10 `/device-tokens`)·**`PUSH-BODY-04`(잠금화면 내용 감추기 안 씀 → 채널 가시성 기본 유지)**. `PUSH-BODY-09`(문자 미리보기)는 문자라 앱과 무관(직원웹). 아래 Step 4에 서버/클라 대조표.
+>
+> ⚠️ **NAV-GLOBAL 중 06·07·08은 Task 12 위젯에 의존**(양방향 악수): `06`(처리 중 이탈 확인)=`BTN-EXIT-*`, `07`(조회 실패 머묾)=`EMPTY-ERR-*`, `08`(미완료 신청 홈 카드)=`BTN-KILL-*` — **전부 Task 12 소유.** Task 11은 **라우터 정책(어디로 가나/안 가나)**을 정하고 위젯은 Task 12가 채운다. Task 12 본문에 이 셋의 위젯이 실제로 있어야 닫힌다.
+>
+> ⚠️ **캐시 범위(`OFF-CACHE-03`)**: **앞으로 갈 예약 목록만**(본인+가족 혼합, `OFF-CACHE-01`). 문진·이력·상담은 **담지 않는다**(지하 대기실 문제와 무관하고 폰에 남는 개인정보만 는다). 서버가 필요한 그 화면들은 오프라인 시 `EMPTY-OFF-01`(Task 12)의 빈 화면.
+
+**Files:**
+- Create: `patient_app/lib/core/connectivity.dart`(`connectivityProvider`) · `patient_app/lib/core/offline_cache.dart`(`UpcomingCache`) · `patient_app/lib/core/session_guard.dart`(`expiredOfflineProvider`·`effectiveAuthProvider`·`handleUnauthorized`) · `patient_app/lib/core/push.dart`(`PushService`)
+- Create: `patient_app/lib/widgets/offline_banner.dart`(`OfflineBanner`) · `patient_app/lib/widgets/app_shell.dart`(배너+하단탭 래퍼)
+- Modify: `patient_app/lib/features/auth/auth_state.dart`(`AuthStatus`에 `expiredOffline` 추가) · `patient_app/lib/core/router.dart`(전역 redirect 가드 — `NAV-GLOBAL-03·04·05`) · `patient_app/lib/core/api_client.dart`(401 콜백 훅) · `pubspec.yaml`(`connectivity_plus`·`flutter_secure_storage`·`firebase_messaging`)
+- Test: `patient_app/test/session_guard_test.dart` · `offline_cache_test.dart` · `offline_banner_test.dart` · `router_guard_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - Task 0: `apiClientProvider`·`ApiClient`·`supabaseClientProvider`·`authStateChangesProvider`·`AuthState`·`AuthStatus`·시각 토큰(`tokens.dart`)·`appRouter`
+  - Task 10: `POST/DELETE /device-tokens`(FCM 토큰 등록/해제) · `GET /my/appointments`(캐시 갱신 원본)
+- Produces:
+  - `connectivityProvider`(`StreamProvider<bool>` 온라인 여부) · `UpcomingCache`(save/read/clear·`isStale`) · `expiredOfflineProvider`·`effectiveAuthProvider`(`Provider<AuthStatus>`)·`handleUnauthorized(ref)` · `OfflineBanner`·`AppShell` · `PushService`(register/unregister/onMessage) · 라우터 전역 가드
+  - 화면 태스크(13~31)가 소비: `effectiveAuthProvider`로 읽기전용 판정, `AppShell`로 배너·탭, `UpcomingCache`로 오프라인 홈.
+
+- [ ] **Step 1: 연결성 + 오프라인 배너 (`OFF-BAN-*`·`NAV-GLOBAL-01·02`)**
+
+`patient_app/lib/core/connectivity.dart`:
+```dart
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// NAV-GLOBAL-01: 오프라인이 돼도 화면을 옮기지 않는다 — 이 provider는 배너·버튼상태만 바꾼다(하던 일을 안 빼앗는다).
+// 초기값은 '온라인 가정'(첫 프레임에 배너가 깜빡이지 않게); 실제 상태가 오면 갱신.
+final connectivityProvider = StreamProvider<bool>((ref) async* {
+  yield (await Connectivity().checkConnectivity()) != ConnectivityResult.none;
+  yield* Connectivity().onConnectivityChanged.map((r) => r != ConnectivityResult.none);
+});
+```
+
+`patient_app/lib/widgets/offline_banner.dart`:
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/connectivity.dart';
+import '../core/offline_cache.dart';
+import '../core/session_guard.dart';
+import '../core/tokens.dart';
+import '../features/auth/auth_state.dart';
+
+// OFF-BAN-01: 한 줄 고정 띠. OFF-BAN-02: 옅은 주황 배경(주의색 배경 금지의 예외 1건 — 전면 상태 배너 한정).
+// OFF-BAN-03: 절대 시각('오후 3:12 기준'). OFF-BAN-04: 날짜 넘어가면 날짜를 앞에. OFF-BAN-06: 카드마다 꼬리표 안 단다(띠 하나뿐).
+// OFF-AUTH-02: 만료가 겹치면 둘째 줄에 '연결되면 다시 로그인해 주세요'(팝업 안 띄운다).
+class OfflineBanner extends ConsumerWidget {
+  const OfflineBanner({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final online = ref.watch(connectivityProvider).valueOrNull ?? true;
+    final auth = ref.watch(effectiveAuthProvider);
+    final expired = auth == AuthStatus.expiredOffline;
+    if (online && !expired) return const SizedBox.shrink();            // OFF-BACK-01: 복구되면 조용히 사라진다
+
+    final cachedAt = ref.watch(upcomingCacheProvider).valueOrNull?.savedAt;
+    return Material(
+      color: AppTokens.offlineBannerBg,                                // OFF-BAN-02: 옅은 주황(tokens.dart에 추가)
+      child: SafeArea(bottom: false, child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text('인터넷 연결 없음 · ${_asOf(cachedAt)} 기준 정보',       // OFF-BAN-01·03·04
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          if (expired) const Text('연결되면 다시 로그인해 주세요'),      // OFF-AUTH-02
+        ]),
+      )),
+    );
+  }
+
+  static String _asOf(DateTime? t) {
+    if (t == null) return '방금';
+    final now = DateTime.now();
+    final hh = t.hour < 12 ? '오전 ${t.hour == 0 ? 12 : t.hour}' : '오후 ${t.hour == 12 ? 12 : t.hour - 12}';
+    final time = '$hh:${t.minute.toString().padLeft(2, '0')}';
+    if (t.year == now.year && t.month == now.month && t.day == now.day) return time;   // OFF-BAN-03
+    final y = now.subtract(const Duration(days: 1));
+    if (t.year == y.year && t.month == y.month && t.day == y.day) return '어제 $time'; // OFF-BAN-04
+    return '${t.month}월 ${t.day}일';                                                    // OFF-BAN-04
+  }
+}
+```
+
+`patient_app/lib/widgets/app_shell.dart` — 모든 탭 화면을 감싸 배너를 맨 위에 얹는다(`NAV-GLOBAL-01`: 화면은 그대로, 띠만 얹음):
+```dart
+import 'package:flutter/material.dart';
+import 'offline_banner.dart';
+
+class AppShell extends StatelessWidget {
+  const AppShell({super.key, required this.body, required this.bottomTabs});
+  final Widget body;
+  final Widget bottomTabs;                    // EMPTY-TAB-01·NAV-GLOBAL-02: 오프라인에도 탭은 눌린다(막지 않는다)
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        const OfflineBanner(),                // OFF-BAN-05(QR 전체화면은 그 화면이 같은 줄을 따로 넣는다 — 셸 밖이라 cross-ref)
+        Expanded(child: body),
+        bottomTabs,
+      ]);
+}
+```
+
+- [ ] **Step 2: 오프라인 캐시 (`OFF-CACHE-*`·`OFF-DO-*`·`OFF-STALE-*`)**
+
+`patient_app/lib/core/offline_cache.dart`:
+```dart
+import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+// OFF-CACHE-02: 앱 샌드박스(Keychain/EncryptedSharedPrefs) — 로그아웃·탈퇴 시 clear.
+// OFF-CACHE-04: iOS 보호등급을 first_unlock로 '명시' 지정(기본값에 안 맡긴다). OFF-CACHE-05: 앱 자체 암호화 안 함(OS에 맡김).
+// OFF-CACHE-06: iCloud·구글 백업에서 제외(백업할 가치 0인데 병원 밖 클라우드에 예약정보가 복제된다).
+// OFF-CACHE-07: Keychain 항목은 synchronizable=false라 백업에서 제외된다 — '대개 포함되는 쪽'으로 안 만들도록 명시.
+const _storage = FlutterSecureStorage(
+  iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),   // OFF-CACHE-04
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
+);
+
+class CachedUpcoming {
+  const CachedUpcoming({required this.items, required this.savedAt});
+  final List<Map<String, dynamic>> items;
+  final DateTime savedAt;
+  // OFF-STALE-01: 저장 후 24시간 초과면 '오래된 보관본'. OFF-STALE-04: 전날·당일 알림을 못 받았다는 뜻이라 24h.
+  bool get isStale => DateTime.now().difference(savedAt) > const Duration(hours: 24);
+}
+
+class UpcomingCache {
+  static const _key = 'upcoming_appointments_v1';
+
+  // OFF-CACHE-01: 서버에서 '앞으로 갈 예약 목록'을 받을 때 통째로 저장(본인+가족 혼합, 골라내지 않음).
+  // OFF-CACHE-03: 예약 목록만 — 문진·이력·상담은 담지 않는다.
+  Future<void> save(List<Map<String, dynamic>> upcoming) async {
+    await _storage.write(key: _key,
+        value: jsonEncode({'savedAt': DateTime.now().toIso8601String(), 'items': upcoming}));
+  }
+
+  Future<CachedUpcoming?> read() async {
+    final raw = await _storage.read(key: _key);
+    if (raw == null) return null;
+    final m = jsonDecode(raw) as Map<String, dynamic>;
+    return CachedUpcoming(
+      items: (m['items'] as List).cast<Map<String, dynamic>>(),
+      savedAt: DateTime.parse(m['savedAt'] as String));
+  }
+
+  Future<void> clear() => _storage.delete(key: _key);       // OFF-CACHE-02: 로그아웃·탈퇴 시 호출
+}
+
+final upcomingCacheProvider = FutureProvider<CachedUpcoming?>((ref) => UpcomingCache().read());
+```
+
+> 📌 **`OFF-DO-01·02`는 화면 태스크가 소비하는 계약**: 오프라인에서 되는 것 = 예약 카드·예약번호·QR 전체화면(`OFF-DO-01`, 홈/예약 화면 태스크가 `UpcomingCache`를 읽어 그린다). 안 되는 것 = 변경·취소·문진 저장 → **버튼 비활성 + 이유 문구**(`OFF-DO-02` → `BTN-STATE-03`, Task 12). `OFF-STALE-02`(QR·번호는 24h 넘어도 살려둠 — 접수 판단은 직원 몫)·`OFF-STALE-03`(카드 안 주의 한 줄 = `DISP-WARN-01` 좌측 4px 바, 배경 없음)도 카드 위젯(예약 화면 태스크)이 `isStale`을 읽어 얹는다. **Task 11은 `isStale` 판정과 캐시를 제공**하고 그림은 화면이 그린다.
+
+- [ ] **Step 3: 세션 만료 분리 (`OFF-AUTH-*`·`NAV-GLOBAL-03`·갭 #38) — ⭐ 심장**
+
+`patient_app/lib/features/auth/auth_state.dart` (Modify — Task 0의 enum에 한 값 추가):
+```dart
+// expiredOffline 신설(갭 #38): 세션이 없는데 '오프라인 중'이라 진짜 로그아웃인지 알 수 없는 상태.
+// 이 동안 보관본을 읽기전용으로 계속 보여준다(OFF-AUTH-01) — 로그인 화면으로 튕기지 않는다.
+enum AuthStatus { signedOut, signedIn, expiredOffline }
+```
+
+`patient_app/lib/core/session_guard.dart`:
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'connectivity.dart';
+import 'providers.dart';
+import '../features/auth/auth_state.dart';
+
+// 오프라인 중 401(만료 추정)을 받은 적이 있음 — 온라인 복구 시 초기화되고 진짜 재로그인으로 넘어간다.
+final expiredOfflineProvider = StateProvider<bool>((_) => false);
+
+// ⭐ 세 신호를 합쳐 '실효 인증 상태'를 낸다. 화면·라우터는 authStateChangesProvider가 아니라 이걸 본다.
+final effectiveAuthProvider = Provider<AuthStatus>((ref) {
+  final base = ref.watch(authStateChangesProvider).valueOrNull?.status ?? AuthStatus.signedOut;
+  final online = ref.watch(connectivityProvider).valueOrNull ?? true;
+  final offlineExpired = ref.watch(expiredOfflineProvider);
+  if (base == AuthStatus.signedIn) return AuthStatus.signedIn;
+  if (!online && offlineExpired) return AuthStatus.expiredOffline;   // OFF-AUTH-01: 읽기전용 유지, 로그인 안 보냄
+  return AuthStatus.signedOut;                                       // OFF-AUTH-04·NAV-GLOBAL-03: 온라인 401만 여기
+});
+
+// ApiClient가 401을 받으면 부른다(Step 5 배관). OFF-AUTH-04: 네트워크 실패와 인증 실패를 구분한다.
+Future<void> handleUnauthorized(Ref ref) async {
+  final online = ref.read(connectivityProvider).valueOrNull ?? true;
+  if (online) {
+    ref.read(expiredOfflineProvider.notifier).state = false;
+    await ref.read(supabaseClientProvider).auth.signOut();          // → session null → 라우터가 /login (NAV-GLOBAL-03)
+  } else {
+    ref.read(expiredOfflineProvider.notifier).state = true;         // 지하 대기실 튕김 방지(갭 #38 · OFF-AUTH-01)
+  }
+}
+```
+
+> 📌 `OFF-AUTH-03`(가족·이력·상담은 만료+오프라인에도 `EMPTY-OFF-01`, 변경·취소는 `BTN-STATE-03` — **오프라인일 때와 동작이 같아 규칙을 새로 안 만든다**)·`OFF-AUTH-05`(플랜의 `session==null` 단일 판정이 갭 #38의 출발점)는 이 분리로 해소된다. `OFF-BACK-01`(복구되고 내용 같으면 배너만 조용히 사라짐)·`OFF-BACK-02`(내용 바뀌면 문장으로 알리고 다시 그림 = 갭 #17·#18 「내가 보던 것이 바뀜」 규칙 발동, 화면 태스크)도 여기 연결.
+
+- [ ] **Step 4: 잠금화면 알림 — 클라이언트 몫 (`PUSH-BODY-*`)**
+
+⭐ **서버/클라 대조표**(재소유 금지 — 경계 갭 교훈):
+
+| 규칙 | 무엇 | 소유 |
+|---|---|---|
+| `PUSH-BODY-01` 진료과·의사명·증상 금지 | 본문 내용 | **서버**(Task 9 `MESSAGES` — 이미 안전) |
+| `PUSH-BODY-02` 가족 대상자 이름 유지 | 본문 내용 | **서버**(Task 9 `target_name` — 구현됨) |
+| `PUSH-BODY-03` 새는 범위 = 「예약 있다」까지 | 본문 내용 | **서버**(Task 9) |
+| `PUSH-BODY-05` 제목 「병원 안내」 | 알림 제목 | **서버**(발송 페이로드) |
+| `PUSH-BODY-06` 자유텍스트 두 겹(푸시는 「도착했습니다」만) | 본문 내용 | **직원웹 T28** |
+| `PUSH-BODY-07` ⚠️ `BODY-04`와 혼동 금지 — 기각된 건 「OS에 감춰달라 부탁」, 두 겹은 「안 보내기」 | 개념 경계 | **직원웹 T28**(두 겹 발송 시 적용) |
+| `PUSH-BODY-08` 정해진 11종은 그대로 본문 발송(두 겹은 자유텍스트만) | 본문 내용 | **서버**(Task 9 `MESSAGES`) |
+| `PUSH-BODY-09` 문자 미리보기 | 문자(앱 무관) | **직원웹 T30** |
+| **`PUSH-BODY-04`** 잠금화면 감추기 **안 씀** | **채널 가시성** | **⭐ Task 11(여기)** |
+| FCM 수신·표시·토큰 등록·탭 라우팅 | 클라이언트 전달 | **⭐ Task 11(여기)** |
+
+`patient_app/lib/core/push.dart`:
+```dart
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'api_client.dart';
+
+class PushService {
+  PushService(this._api);
+  final ApiClient _api;
+
+  // PUSH-BODY-04: 잠금화면 내용을 앱이 감추지 않는다 — Android 채널 가시성을 기본(PUBLIC)으로 두고
+  //   VISIBILITY_PRIVATE를 '설정하지 않는다'. iOS는 기본 표시. 한쪽만 되는 감추기를 안 써 두 기기가 갈리지 않는다.
+  //   (본문 내용은 서버가 이미 안전하게 만든다 — PUSH-BODY-01~03. 여기서 본문을 다시 만들지 않는다.)
+  Future<void> init() async {
+    await FirebaseMessaging.instance.requestPermission();
+    // 채널은 기본 중요도 + 기본 가시성. lockscreenVisibility를 secret/private으로 낮추지 않는다.
+  }
+
+  // 로그인 직후: FCM 토큰을 Task 10 엔드포인트로 등록(같은 기기 재등록은 서버가 on conflict로 무해).
+  Future<void> registerToken() async {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) await _api.post('/device-tokens', {'fcm_token': token});
+  }
+
+  // 로그아웃·탈퇴: 등록 해제(죽은 토큰의 남은 절반은 서버 T30가 발송 시 정리 — #100).
+  Future<void> unregisterToken() async {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) await _api.delete('/device-tokens', body: {'fcm_token': token});
+  }
+}
+```
+
+> 📌 **알림 탭 → 목적지**는 `NOTI-*`(알림함, Task 18)가 정한다 — 여기선 앱을 열어 홈으로 보내는 기본 배관만. 종류별 딥링크는 Task 18에서 이 `PushService`에 붙인다(양방향 악수: Task 18이 목적지 표를 채운다).
+
+- [ ] **Step 5: 라우터 전역 가드 (`NAV-GLOBAL-03·04·05`) + ApiClient 401 훅**
+
+`patient_app/lib/core/router.dart` (Modify — Task 0 골격에 `redirect` 추가):
+```dart
+// 전역 redirect: effectiveAuthProvider(세 신호 합성)를 읽어 어디로 갈지/안 갈지 정한다.
+redirect: (context, state) {
+  final container = ProviderScope.containerOf(context);
+  final auth = container.read(effectiveAuthProvider);
+  final loc = state.matchedLocation;
+  final protected = !loc.startsWith('/login') && !loc.startsWith('/signup');
+
+  // NAV-GLOBAL-03: 진짜 로그아웃(온라인 401)만 로그인으로. expiredOffline은 여기서 걸리지 않는다.
+  if (auth == AuthStatus.signedOut && protected) return '/login';
+  // OFF-AUTH-01: expiredOffline이면 캐시 읽기전용 화면 유지 — 로그인으로 보내지 않는다(리다이렉트 없음).
+  if (auth == AuthStatus.expiredOffline) return null;
+  // NAV-GLOBAL-04(갭 #43): 인증됐지만 프로필 미완료면 가입 ③으로. profileCompleteProvider는 GET /patients/me 404로 판정.
+  if (auth == AuthStatus.signedIn && container.read(profileMissingProvider) && !loc.startsWith('/signup')) {
+    return '/signup/step3';
+  }
+  // NAV-GLOBAL-05: 민감 경로(설정·가족·탈퇴)이고 떠난 지 5분 지났으면 재인증 먼저(AUTH-REAUTH-*, 가입 태스크 13).
+  if (_isSensitive(loc) && container.read(sensitiveReauthGuardProvider).needsReauth) return '/reauth?next=$loc';
+  return null;
+},
+```
+
+`patient_app/lib/core/api_client.dart` (Modify — 401 시 콜백 훅 한 줄):
+```dart
+// 응답이 401이면 주입된 onUnauthorized를 부른다. 오프라인/온라인 판정은 session_guard.handleUnauthorized가 한다.
+// (Task 0 ApiClient에 `void Function()? onUnauthorized` 선택 인자를 더하고, providers.dart에서 handleUnauthorized로 배선.)
+if (response.statusCode == 401) { onUnauthorized?.call(); throw ApiException('세션이 만료되었습니다.'); }
+```
+
+> 📌 **NAV-GLOBAL 나머지는 정책만 여기, 위젯은 Task 12**(양방향 악수): `NAV-GLOBAL-06`(처리 중 이탈)→`BTN-EXIT-*` 확인 팝업 · `NAV-GLOBAL-07`(조회 실패)→`EMPTY-ERR-01` 빈 상태·머묾 · `NAV-GLOBAL-08`(미완료 신청 재실행)→홈 카드 `BTN-KILL-03`·⛔자동 재신청 안 함 `BTN-KILL-07`. **Task 12가 이 셋의 위젯을 실제로 만들어야 닫힌다** — Task 12 커버리지에 포함. `NAV-GLOBAL-01·NAV-GLOBAL-02`는 Step 1(배너·셸)에서 이미 닫혔다.
+
+- [ ] **Step 6: 테스트**
+
+- `session_guard_test.dart`: ①온라인+401 → `signOut` 호출됨·`signedOut`(NAV-GLOBAL-03) ②오프라인+401 → `expiredOffline`·`signOut` 안 부름(갭 #38) ③오프라인 복구 → 플래그 초기화.
+- `offline_cache_test.dart`: save→read 왕복·`isStale`(25h 경과 true·23h false, OFF-STALE-01)·`clear`(OFF-CACHE-02)·문진/이력 키 없음(OFF-CACHE-03).
+- `offline_banner_test.dart`: 온라인이면 `SizedBox.shrink`·오프라인이면 절대시각 문구(OFF-BAN-03)·만료 겹치면 둘째 줄(OFF-AUTH-02)·어제 날짜 접두(OFF-BAN-04).
+- `router_guard_test.dart`: signedOut+보호경로→`/login`·expiredOffline→리다이렉트 없음(OFF-AUTH-01)·signedIn+프로필없음→`/signup/step3`(NAV-GLOBAL-04).
+
+Run: `cd patient_app && flutter test`
+Expected: 전체 PASS
+
+- [ ] **Step 7: 커밋**
+
+```bash
+git add patient_app/lib/core/connectivity.dart patient_app/lib/core/offline_cache.dart \
+  patient_app/lib/core/session_guard.dart patient_app/lib/core/push.dart \
+  patient_app/lib/widgets/offline_banner.dart patient_app/lib/widgets/app_shell.dart \
+  patient_app/lib/features/auth/auth_state.dart patient_app/lib/core/router.dart \
+  patient_app/lib/core/api_client.dart patient_app/pubspec.yaml patient_app/test/
+git commit -m "feat: 환자앱 Task 11 — 전역 오프라인 캐시·세션만료 분리(갭 #38)·잠금알림 클라경계·NAV-GLOBAL 가드"
+```
+
+> 📌 **규칙 커버리지**: `OFF-CACHE-01~07`·`OFF-BAN-01~06`·`OFF-DO-01~02`·`OFF-STALE-01~04`·`OFF-AUTH-01~05`·`OFF-BACK-01~02`(26) + `PUSH-BODY-04`+클라 배관(나머지 PUSH-BODY는 서버 소유·대조표) + `NAV-GLOBAL-01~08`(8, 단 06·07·08 위젯은 Task 12). ⚠️ **화면이 소비할 계약**(`OFF-DO`·`OFF-STALE-02·03`의 그림)은 카드 위젯 태스크가 `UpcomingCache`·`isStale`을 읽어 그린다 — Task 11은 판정·저장·전역 배관을 제공.
+> ⚠️ **갭 #43(NAV-GLOBAL-04 프로필 미완료 라우팅)**은 여기서 라우터 정책으로 처음 구현된다 — `profileMissingProvider`(GET /patients/me 404 판정)는 가입 태스크(13)와 짝. Task 13 본문에 `profileMissingProvider` 정의가 있어야 닫힌다(양방향 악수).
