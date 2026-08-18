@@ -3367,3 +3367,524 @@ git commit -m "feat: 📝 환자앱 Task 9 본문 — 알림 dispatcher 판정 �
 > 📌 **`channel`은 한 이벤트당 한 줄·한 채널**이다(00011 dedup이 채널 단위가 아니라서). marketing의 「앱+문자 동시」는 직원 `enqueue_send`(직원웹 T28)의 별도 경로다.
 > ⚠️ **발견(보고 대상)**: 직원웹 T29 `00035`가 만드는 `notification_settings`(`send_sms` 칸)는 ④ `00013 notification_type_settings`(`also_sms` 칸)와 **같은 목적·다른 이름의 중복**이다. 이 태스크는 실제 적용된 정본 `00013`을 소비한다. 직원웹 쪽 정합화는 별건(설계 병합/구현 단계에서 하나로 통일).
 > ⚠️ **낡은 단방향 표기 교정**: Global Constraints 표의 「`consent`→Task 1(칸)」은 낡았다 — Task 1 본문이 「`consent`→Task 13」으로 정정했다(CLAUDE.md 함정 ①). `consent`(광고 동의)는 Task 13 소유라 트랜잭션만 다루는 이 태스크와 무관하다.
+
+---
+
+## Task 10: 환자용 라우터 연결 + 통합 테스트
+
+> **담당 규칙**: 없음(백엔드 계약의 마지막 조각). Tasks 2~9가 만든 서비스 함수를 **HTTP 엔드포인트로 노출**하고, 프론트 화면 태스크(13~31)가 `ApiClient`로 부를 REST 표면을 완성한다. 규칙은 화면 태스크가 담는다.
+>
+> ⭐ **이 태스크는 「연결」이다 — 새 로직을 짓지 않는다.** 라우터는 **① 인증 의존성으로 `PatientContext`를 얻고 ② 요청 본문을 서비스 시그니처로 옮기고 ③ 서비스가 던진 `AppError`는 전역 핸들러가 HTTP로 바꾼다**(1단계 `app.core.errors`의 `app_error_handler` — 라우터에 `try/except` 금지). 직원용 `require_role` 대신 **`get_current_patient`**(Task 2)를 쓴다.
+>
+> ⚠️ **경계 갭 방지 — 노출 커버리지 표**(자기 점검, 「경계 갭 대조표」 정신): Tasks 2~9가 Produces한 서비스가 **하나도 안 빠지고** 엔드포인트를 갖는지 아래로 대조한다. 라우터 연결은 조용히 한 함수를 빠뜨리기 쉬운 자리다(화면이 그제서야 "부를 게 없다"고 발견).
+>
+> | 서비스(모듈) | 함수 | 엔드포인트 |
+> |---|---|---|
+> | `patient_profile_service` | `register_profile` | `POST /patients` |
+> | 〃 | `get_my_profile` | `GET /patients/me` |
+> | 〃 | `deactivate_self` | `DELETE /patients/me` |
+> | `patient_family_service` | `list/add/update/unlink_family_member` | `GET/POST/PATCH/DELETE /family[/{id}]` |
+> | `patient_catalog_service` | `list_departments`·`list_doctors`·`list_available_dates`·`list_available_slots`·`get_hospital_info` | `GET /catalog/*` |
+> | `patient_booking_service` | `create_booking`·`change_booking` | `POST /bookings` · `PATCH /bookings/{id}` |
+> | 〃 | `cancel_appointment`·`request_support` | `POST /bookings/{id}/cancel` · `/support` |
+> | `patient_questionnaire_service` | `get_template`·`get_response`·`save_response` | `GET/PUT /my/appointments/{id}/questionnaire[/template]` |
+> | `patient_appointment_query_service` | `list_my_appointments`·`get_appointment_detail`·`get_queue_status` | `GET /my/appointments[/{id}[/queue]]` |
+> | `patient_history_service` | `list_visit_history` | `GET /my/history` |
+> | `device_token_service` | `register_token`·`unregister_token` | `POST/DELETE /device-tokens` |
+>
+> ⚠️ **`source`는 클라이언트에서 안 받는다** — `POST /bookings`는 본문에 `source` 칸을 두지 않고 `create_booking(..., source='app')` 기본값을 쓴다(앱 API로 `source` 조작 불가 — 색인 「예약 서비스 공유」, staff 라우터의 `source="staff"` 고정과 같은 태도). `request_id`(멱등 키)는 **클라이언트가 만든 UUID**를 본문으로 받는다.
+> ⚠️ **가입 직후 엔드포인트만 `get_current_auth_user_id`** — `POST /patients`(프로필 등록)는 아직 `patients` 행이 없어 `get_current_patient`가 403을 낸다. 이 하나만 **`get_current_auth_user_id`**(Task 2 — patients 행 없어도 통과)를 쓰고, 나머지 전부 `get_current_patient`.
+
+**Files:**
+- Create: `backend/app/routers/patient_profile.py` · `patient_family.py` · `patient_catalog.py` · `patient_bookings.py` · `patient_appointments.py` · `patient_device_tokens.py`
+- Modify: `backend/app/main.py`(6개 라우터 `include_router` 등록)
+- Test: `backend/tests/test_patient_routers_integration.py`
+
+**Interfaces:**
+- Consumes:
+  - `get_current_patient`·`get_current_auth_user_id`·`PatientContext`(Task 2 `app.core.patient_security`) · `AppError`·`app_error_handler`(1단계 `app.core.errors` — 이미 등록됨)
+  - 서비스 8종(위 커버리지 표) · 테스트 헬퍼 `seed_patient`·`seed_staff`·`client`·`committed_conn`(conftest — `seed_patient`은 Task 1이 추가)
+- Produces:
+  - REST 엔드포인트 표면(위 표). 프론트 화면 태스크(13~31)가 `ApiClient`로 소비한다.
+
+- [ ] **Step 1: 통합 테스트 작성(실패)** — `backend/tests/test_patient_routers_integration.py`
+
+```python
+import time
+import uuid
+from datetime import date
+
+import pytest
+from jose import jwt
+
+from app.core.config import settings
+from tests.conftest import seed_patient, seed_staff
+
+
+def make_token(auth_user_id: str) -> str:
+    payload = {"sub": auth_user_id, "aud": "authenticated",
+               "role": "authenticated", "exp": int(time.time()) + 3600}
+    return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
+
+
+async def _seed_auth_user(conn) -> str:
+    """가입 전(patients 행 없는 auth 유저) — POST /patients 검증용. seed_staff의 auth.users 삽입과 같은 꼴."""
+    uid = uuid.uuid4()
+    await conn.execute(
+        "insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role) "
+        "values ($1, $2, '', now(), now(), now(), 'authenticated', 'authenticated')",
+        uid, f"{uid}@test.local")
+    return str(uid)
+
+
+def _hdr(token): return {"Authorization": f"Bearer {token}"}
+
+
+# ── 인증 경계 ───────────────────────────────────────────────
+def test_patient_endpoints_require_auth(client):
+    # 토큰이 없으면 401 — 대표 3경로.
+    assert client.get("/patients/me").status_code == 401
+    assert client.get("/my/appointments").status_code == 401
+    assert client.post("/bookings", json={}).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_unregistered_auth_user_gets_403_on_patient_only_routes(client, committed_conn):
+    # 토큰은 유효하나 patients 행이 없다 → get_current_patient가 403(등록/중지 구분 안 함).
+    uid = await _seed_auth_user(committed_conn)
+    assert client.get("/patients/me", headers=_hdr(make_token(uid))).status_code == 403
+
+
+# ── 프로필: 가입 직후 엔드포인트는 get_current_auth_user_id ──
+@pytest.mark.asyncio
+async def test_register_then_get_me(client, committed_conn):
+    uid = await _seed_auth_user(committed_conn)
+    reg = client.post("/patients", headers=_hdr(make_token(uid)),
+                      json={"name": "김환자", "birth_date": "1980-05-05", "gender": "F"})
+    assert reg.status_code == 200 and "patient_id" in reg.json()
+    me = client.get("/patients/me", headers=_hdr(make_token(uid)))     # 이제 patients 행이 있다
+    assert me.status_code == 200 and me.json()["name"] == "김환자"
+
+
+# ── 예약 생성: source는 서버가 'app'으로 고정, 멱등 ──────────
+async def _seed_bookable(conn):
+    """진료과·의사·빈 슬롯 하나. (department_id, doctor_id, slot_id) 반환."""
+    admin = await seed_staff(conn, role="admin")
+    dept = await conn.fetchval("insert into departments (name) values ('내과') returning id")
+    doctor = await seed_staff(conn, role="doctor")
+    await conn.execute("update staff set department_id=$1 where id=$2", dept, doctor["staff_id"])
+    slot = await conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date + 7, '10:00', '빈시간') returning id", doctor["staff_id"])
+    return dept, doctor["staff_id"], slot
+
+
+@pytest.mark.asyncio
+async def test_create_booking_via_api_fixes_source_app_and_is_idempotent(client, committed_conn):
+    me = await seed_patient(committed_conn)
+    dept, doctor, slot = await _seed_bookable(committed_conn)
+    req = str(uuid.uuid4())
+    body = {"for_patient_id": str(me["patient_id"]), "department_id": str(dept),
+            "doctor_id": str(doctor), "slot_id": str(slot), "reason": "감기", "request_id": req}
+    r1 = client.post("/bookings", headers=_hdr(make_token(str(me["auth_user_id"]))), json=body)
+    r2 = client.post("/bookings", headers=_hdr(make_token(str(me["auth_user_id"]))), json=body)  # 같은 request_id
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert r1.json()["appointment_id"] == r2.json()["appointment_id"]                 # 멱등(00020)
+    row = await committed_conn.fetchrow(
+        "select source from appointments where id=$1", uuid.UUID(r1.json()["appointment_id"]))
+    assert row["source"] == "app"                                                     # 클라이언트가 못 바꾼다
+
+
+@pytest.mark.asyncio
+async def test_change_booking_stale_lock_surfaces_409(client, committed_conn):
+    # 낙관적 잠금 위반(APPT-RACE-01)이 AppError(409)로 HTTP에 그대로 뜬다.
+    me = await seed_patient(committed_conn)
+    dept, doctor, slot = await _seed_bookable(committed_conn)
+    body = {"for_patient_id": str(me["patient_id"]), "department_id": str(dept),
+            "doctor_id": str(doctor), "slot_id": str(slot), "reason": "감기", "request_id": str(uuid.uuid4())}
+    appt = client.post("/bookings", headers=_hdr(make_token(str(me["auth_user_id"]))), json=body).json()["appointment_id"]
+    slot2 = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date + 8, '11:00', '빈시간') returning id", doctor)
+    r = client.patch(f"/bookings/{appt}", headers=_hdr(make_token(str(me["auth_user_id"]))),
+                     json={"new_slot_id": str(slot2), "reason": "변경",
+                           "expected_updated_at": "2000-01-01T00:00:00+00:00"})   # 낡은 시각
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_cancel_returns_flag_shape_not_error(client, committed_conn):
+    # Task 10 배선 검증: 취소는 오류가 아니라 200 + {cancelled, after_deadline} 모양을 준다(막다른 길 금지).
+    # 마감 전/후 값 자체는 Task 6 단위테스트 몫 — 여기선 미래 슬롯이라 마감 전이라 cancelled:true가 안정적.
+    me = await seed_patient(committed_conn)
+    dept, doctor, slot = await _seed_bookable(committed_conn)                     # current_date+7 슬롯 = 마감 전
+    body = {"for_patient_id": str(me["patient_id"]), "department_id": str(dept),
+            "doctor_id": str(doctor), "slot_id": str(slot), "reason": "감기", "request_id": str(uuid.uuid4())}
+    appt = client.post("/bookings", headers=_hdr(make_token(str(me["auth_user_id"]))), json=body).json()["appointment_id"]
+    updated = await committed_conn.fetchval("select updated_at from appointments where id=$1", uuid.UUID(appt))
+    r = client.post(f"/bookings/{appt}/cancel", headers=_hdr(make_token(str(me["auth_user_id"]))),
+                    json={"expected_updated_at": updated.isoformat()})
+    assert r.status_code == 200
+    assert r.json()["cancelled"] is True and r.json()["after_deadline"] is False   # 두 칸 모두 온다
+
+
+# ── 나머지 라우터 배선 스모크(각 1건) ───────────────────────
+@pytest.mark.asyncio
+async def test_family_add_and_list(client, committed_conn):
+    me = await seed_patient(committed_conn)
+    add = client.post("/family", headers=_hdr(make_token(str(me["auth_user_id"]))),
+                      json={"name": "김가족", "birth_date": "2015-01-01", "gender": "M", "relation": "자녀"})
+    assert add.status_code == 200
+    lst = client.get("/family", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert lst.status_code == 200 and any(f["name"] == "김가족" for f in lst.json())
+
+
+@pytest.mark.asyncio
+async def test_catalog_departments(client, committed_conn):
+    me = await seed_patient(committed_conn)
+    await committed_conn.execute("insert into departments (name) values ('정형외과')")
+    r = client.get("/catalog/departments", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and any(d["name"] == "정형외과" for d in r.json())
+
+
+@pytest.mark.asyncio
+async def test_my_appointments_and_device_token(client, committed_conn):
+    me = await seed_patient(committed_conn)
+    tok = make_token(str(me["auth_user_id"]))
+    assert client.get("/my/appointments", headers=_hdr(tok)).status_code == 200          # 빈 목록도 200
+    assert client.post("/device-tokens", headers=_hdr(tok), json={"fcm_token": "fcm-x"}).status_code == 200
+    assert client.request("DELETE", "/device-tokens", headers=_hdr(tok), json={"fcm_token": "fcm-x"}).status_code == 200
+```
+
+Run: `cd backend && pytest tests/test_patient_routers_integration.py -v`
+Expected: FAIL(라우터 없음 → 404/모듈 없음)
+
+- [ ] **Step 2: 라우터 구현 + 등록**
+
+`backend/app/routers/patient_profile.py`:
+```python
+from datetime import date
+from uuid import UUID
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.core.patient_security import PatientContext, get_current_auth_user_id, get_current_patient
+from app.services import patient_profile_service
+
+router = APIRouter(tags=["patient-profile"])
+
+
+class RegisterProfileRequest(BaseModel):
+    name: str
+    birth_date: date
+    gender: str
+
+
+@router.post("/patients")
+async def register_profile(body: RegisterProfileRequest,
+                           auth_user_id: UUID = Depends(get_current_auth_user_id)) -> dict:
+    # 가입 직후 — patients 행이 아직 없으므로 get_current_patient가 아니라 auth_user_id 의존성.
+    patient_id = await patient_profile_service.register_profile(
+        auth_user_id, body.name, body.birth_date, body.gender)
+    return {"patient_id": patient_id}
+
+
+@router.get("/patients/me")
+async def get_my_profile(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await patient_profile_service.get_my_profile(patient)
+
+
+@router.delete("/patients/me")
+async def deactivate_self(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    await patient_profile_service.deactivate_self(patient)
+    return {"status": "deactivated"}
+```
+
+`backend/app/routers/patient_family.py`:
+```python
+from datetime import date
+from uuid import UUID
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.core.patient_security import PatientContext, get_current_patient
+from app.services import patient_family_service
+
+router = APIRouter(prefix="/family", tags=["patient-family"])
+
+
+class AddFamilyRequest(BaseModel):
+    name: str
+    birth_date: date
+    gender: str
+    relation: str
+    phone: str | None = None
+
+
+class UpdateFamilyRequest(BaseModel):
+    name: str
+    birth_date: date
+    gender: str
+    relation: str
+
+
+@router.get("")
+async def list_family(patient: PatientContext = Depends(get_current_patient)) -> list[dict]:
+    return await patient_family_service.list_family_members(patient)
+
+
+@router.post("")
+async def add_family(body: AddFamilyRequest,
+                     patient: PatientContext = Depends(get_current_patient)) -> dict:
+    fid = await patient_family_service.add_family_member(
+        patient, body.name, body.birth_date, body.gender, body.relation, body.phone)
+    return {"family_patient_id": fid}
+
+
+@router.patch("/{family_patient_id}")
+async def update_family(family_patient_id: UUID, body: UpdateFamilyRequest,
+                        patient: PatientContext = Depends(get_current_patient)) -> dict:
+    await patient_family_service.update_family_member(
+        patient, family_patient_id, body.name, body.birth_date, body.gender, body.relation)
+    return {"status": "updated"}
+
+
+@router.delete("/{family_patient_id}")
+async def unlink_family(family_patient_id: UUID,
+                        patient: PatientContext = Depends(get_current_patient)) -> dict:
+    await patient_family_service.unlink_family_member(patient, family_patient_id)
+    return {"status": "unlinked"}
+```
+
+`backend/app/routers/patient_catalog.py`:
+```python
+from datetime import date
+from uuid import UUID
+
+from fastapi import APIRouter, Depends
+from app.core.patient_security import PatientContext, get_current_patient
+from app.services import patient_catalog_service
+
+router = APIRouter(prefix="/catalog", tags=["patient-catalog"])
+
+
+@router.get("/departments")
+async def departments(patient: PatientContext = Depends(get_current_patient)) -> list[dict]:
+    return await patient_catalog_service.list_departments(patient)
+
+
+@router.get("/departments/{department_id}/doctors")
+async def doctors(department_id: UUID, patient: PatientContext = Depends(get_current_patient)) -> list[dict]:
+    return await patient_catalog_service.list_doctors(department_id, patient)
+
+
+@router.get("/doctors/{doctor_id}/dates")
+async def dates(doctor_id: UUID, patient: PatientContext = Depends(get_current_patient)) -> list[str]:
+    return await patient_catalog_service.list_available_dates(doctor_id, patient)
+
+
+@router.get("/doctors/{doctor_id}/slots")
+async def slots(doctor_id: UUID, target_date: date,   # 쿼리 ?target_date=YYYY-MM-DD (파라미터명이 date 타입을 가리지 않게)
+                patient: PatientContext = Depends(get_current_patient)) -> list[dict]:
+    return await patient_catalog_service.list_available_slots(doctor_id, target_date, patient)
+
+
+@router.get("/hospital")
+async def hospital(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await patient_catalog_service.get_hospital_info(patient)
+```
+
+`backend/app/routers/patient_bookings.py`:
+```python
+from datetime import datetime
+from uuid import UUID
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.core.patient_security import PatientContext, get_current_patient
+from app.services import patient_booking_service
+
+router = APIRouter(prefix="/bookings", tags=["patient-bookings"])
+
+
+class CreateBookingRequest(BaseModel):
+    for_patient_id: UUID
+    department_id: UUID
+    doctor_id: UUID
+    slot_id: UUID
+    reason: str
+    request_id: UUID                     # 클라이언트가 만든 멱등 키(00020)
+
+
+class ChangeBookingRequest(BaseModel):
+    new_slot_id: UUID
+    reason: str
+    expected_updated_at: datetime        # 낙관적 잠금(APPT-RACE-01)
+
+
+class CancelRequest(BaseModel):
+    expected_updated_at: datetime
+
+
+class SupportRequest(BaseModel):
+    request_type: str                    # '취소' | '변경'
+
+
+@router.post("")
+async def create_booking(body: CreateBookingRequest,
+                         patient: PatientContext = Depends(get_current_patient)) -> dict:
+    # source는 본문에서 안 받는다 — 앱 라우터는 항상 'app'(기본값). 클라이언트가 조작 못 함.
+    appointment_id = await patient_booking_service.create_booking(
+        patient, body.for_patient_id, body.department_id, body.doctor_id,
+        body.slot_id, body.reason, body.request_id)
+    return {"appointment_id": appointment_id}
+
+
+@router.patch("/{appointment_id}")
+async def change_booking(appointment_id: UUID, body: ChangeBookingRequest,
+                         patient: PatientContext = Depends(get_current_patient)) -> dict:
+    new_id = await patient_booking_service.change_booking(
+        patient, appointment_id, body.new_slot_id, body.reason, body.expected_updated_at)
+    return {"appointment_id": new_id}
+
+
+@router.post("/{appointment_id}/cancel")
+async def cancel_booking(appointment_id: UUID, body: CancelRequest,
+                         patient: PatientContext = Depends(get_current_patient)) -> dict:
+    # 마감 후는 오류가 아니라 {cancelled:false, after_deadline:true} — 화면이 CANCEL-LATE 팝업.
+    return await patient_booking_service.cancel_appointment(patient, appointment_id, body.expected_updated_at)
+
+
+@router.post("/{appointment_id}/support")
+async def request_support(appointment_id: UUID, body: SupportRequest,
+                          patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await patient_booking_service.request_support(patient, appointment_id, body.request_type)
+```
+
+`backend/app/routers/patient_appointments.py`:
+```python
+from uuid import UUID
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.core.patient_security import PatientContext, get_current_patient
+from app.services import (patient_appointment_query_service as query_service,
+                          patient_history_service, patient_questionnaire_service)
+
+router = APIRouter(prefix="/my", tags=["patient-my"])
+
+
+class SaveQuestionnaireRequest(BaseModel):
+    answers: list[dict]
+    complete: bool = False
+
+
+@router.get("/appointments")
+async def my_appointments(patient: PatientContext = Depends(get_current_patient)) -> list[dict]:
+    return await query_service.list_my_appointments(patient)
+
+
+@router.get("/appointments/{appointment_id}")
+async def appointment_detail(appointment_id: UUID,
+                             patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await query_service.get_appointment_detail(patient, appointment_id)
+
+
+@router.get("/appointments/{appointment_id}/queue")
+async def queue_status(appointment_id: UUID,
+                       patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await query_service.get_queue_status(patient, appointment_id)
+
+
+@router.get("/appointments/{appointment_id}/questionnaire/template")
+async def questionnaire_template(appointment_id: UUID,
+                                 patient: PatientContext = Depends(get_current_patient)) -> dict | None:
+    return await patient_questionnaire_service.get_template(patient, appointment_id)
+
+
+@router.get("/appointments/{appointment_id}/questionnaire")
+async def get_questionnaire(appointment_id: UUID,
+                            patient: PatientContext = Depends(get_current_patient)) -> dict | None:
+    return await patient_questionnaire_service.get_response(patient, appointment_id)
+
+
+@router.put("/appointments/{appointment_id}/questionnaire")
+async def save_questionnaire(appointment_id: UUID, body: SaveQuestionnaireRequest,
+                             patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await patient_questionnaire_service.save_response(
+        patient, appointment_id, body.answers, body.complete)
+
+
+@router.get("/history")
+async def visit_history(for_patient_id: UUID, cursor: str | None = None, limit: int = 20,
+                        patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await patient_history_service.list_visit_history(patient, for_patient_id, cursor, limit)
+```
+
+`backend/app/routers/patient_device_tokens.py`:
+```python
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.core.patient_security import PatientContext, get_current_patient
+from app.services import device_token_service
+
+router = APIRouter(prefix="/device-tokens", tags=["patient-device-tokens"])
+
+
+class DeviceTokenRequest(BaseModel):
+    fcm_token: str
+
+
+@router.post("")
+async def register_device_token(body: DeviceTokenRequest,
+                                patient: PatientContext = Depends(get_current_patient)) -> dict:
+    await device_token_service.register_token(patient, body.fcm_token)
+    return {"status": "registered"}
+
+
+@router.delete("")
+async def unregister_device_token(body: DeviceTokenRequest,
+                                  patient: PatientContext = Depends(get_current_patient)) -> dict:
+    await device_token_service.unregister_token(patient, body.fcm_token)
+    return {"status": "unregistered"}
+```
+
+`backend/app/main.py`에 6개 라우터를 등록(기존 import·등록 줄 옆에 추가):
+```python
+from app.routers import (patient_appointments, patient_bookings, patient_catalog,
+                         patient_device_tokens, patient_family, patient_profile)
+# ... 기존 staff/appointments/medical_records 등록 아래 ...
+app.include_router(patient_profile.router)
+app.include_router(patient_family.router)
+app.include_router(patient_catalog.router)
+app.include_router(patient_bookings.router)
+app.include_router(patient_appointments.router)
+app.include_router(patient_device_tokens.router)
+```
+
+Run: `cd backend && pytest tests/test_patient_routers_integration.py -v`
+Expected: 통합 테스트 전부 PASS
+
+- [ ] **Step 3: 백엔드 전체 회귀**
+
+Run: `cd backend && pytest -q`
+Expected: 1단계 + Tasks 1~10 전부 PASS(라우터 추가로 인한 회귀 0 — 새 경로는 기존 `/appointments`·`/staff`·`/medical-records`와 겹치지 않는다)
+
+- [ ] **Step 4: 커밋**
+
+```bash
+git add backend/app/routers/patient_profile.py backend/app/routers/patient_family.py \
+  backend/app/routers/patient_catalog.py backend/app/routers/patient_bookings.py \
+  backend/app/routers/patient_appointments.py backend/app/routers/patient_device_tokens.py \
+  backend/app/main.py backend/tests/test_patient_routers_integration.py
+git commit -m "feat: 환자앱 Task 10 — 환자용 라우터 6종 연결 + 통합 테스트(source='app' 고정·멱등·409 배선)"
+```
+
+> 📌 **백엔드 계약(0~10) 완료 지점**이다. 다음(11~12)은 프론트 전역(오프라인·세션만료·오류/빈상태/버튼상태), 그다음 화면(13~31)이 이 REST 표면을 `ApiClient`로 소비한다.
+> ⚠️ **경로 충돌 없음 확인**: 환자 라우터는 `/patients`·`/family`·`/catalog`·`/bookings`·`/my`·`/device-tokens`로, 직원 `/staff`·`/appointments`·`/medical-records`와 겹치지 않는다(같은 `/appointments`를 환자·직원이 나눠 쓰지 않는다 — 환자 예약은 `/bookings`·`/my/appointments`).
+> ⚠️ **`get_current_auth_user_id`는 `POST /patients` 단 하나** — 나머지 전부 `get_current_patient`(등록·활성 환자만 403 게이트). 이 경계가 흐려지면 미등록 유저가 다른 엔드포인트에 닿는다.
