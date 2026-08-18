@@ -103,7 +103,7 @@
 | **4 상세·변경·취소** | `APPT-*`·`CANCEL-*`·`NAV-APPT-*` | 135 | Task 21·22 |
 | **5 사전문진** | `QNR-*`·`NAV-QNR-*` | 113 | Task 23·24 |
 | **6 가족** | `FAM-*`·`NAV-FAM-*` | 107 | Task 25·26 |
-| **7 이력·설정·탈퇴** | `HIST-*`·`SET-*`·`NAV-HIST-*`·`NAV-SET-*` | 197 | Task 27·28·29 |
+| **7 이력·설정·탈퇴** | `HIST-*`·`SET-*`·`NAV-HIST-*`·`NAV-SET-*` | 197 | Task 27a·27b·28·29 |
 | **8 나의 예약** | `LIST-*`·`NAV-LIST-*` | 93 | Task 30·31 |
 
 > **70개 넘는 묶음은 화면/기능 단위로 쪼갠다**(핸드오프 규율 — 직원웹 `/messages` 세로분할이 잘 들었다). 위 9묶음이 전부 90~197개라 **모두 분할** 대상이다. 아래 File Structure가 그 분할이다.
@@ -155,13 +155,16 @@
 | **24** | 문진 표시·이어쓰기·읽기전용·진행률·알림 (47개) | `QNR-SHOW-*`·`QNR-LIVE-*`·`QNR-PROG-*`·`QNR-NOTI-*` | 재작성 |
 | **25** | 가족 목록·정보 수정·연결 해제 (55개) | `FAM-LIST-*`·`FAM-EDIT-*`·`FAM-UNLINK-*`·`NAV-FAM-*`(목록·수정·해제분) | 재작성 [R5-02] |
 | **26** | 가족 추가 갈래·㉮ 새 가족 등록·㉯ 기존환자 OTP 연결 (52개) | `FAM-ADD-*`·`FAM-NEW-*`·`FAM-LINK-*`·`NAV-FAM-*`(추가 흐름분) | 재작성 |
-| **27** | 방문 이력 — 목록·행·역할·문진/안내 펼침 (84개) | `HIST-*`·`NAV-HIST-*` | 재작성 |
+| **27a** | 방문 이력 — 목록·이름 칩·지나간 예약 줄 4종 (54개) | `HIST-ROLE-*`·`HIST-WHO-*`·`HIST-LIST-*`·`HIST-ROW-*` | 재작성 |
+| **27b** | 방문 이력 — 병원 안내문 펼침·사전문진 읽기전용·화면 이동/딥링크 (30개) | `HIST-NOTE-*`·`HIST-QNR-*`·`NAV-HIST-*` | 재작성 |
 | **28** | 설정 홈 + 알림 설정 + 병원 정보(전화·지도) (57개) | `SET-NOTI-*`·`SET-HOSP-*`·`NAV-SET-*` | 재작성 |
 | **29** | 비밀번호 변경 + 회원 탈퇴 + 로그아웃 (56개) | `SET-PW-*`·`SET-QUIT-*`·`SET-OUT-*` | 재작성 |
 | **30** | 나의 예약 목록·상태 배지·역할 (64개) | `LIST-LIST-*`·`LIST-ST-*`·`LIST-ROLE-*`·`NAV-LIST-*` | 재작성 |
 | **31** | 나의 예약 빈상태·이어받기·문진·CTA (29개) | `LIST-EMPTY-*`·`LIST-REFRESH-*`·`LIST-QNR-*`·`LIST-CTA-*` | 재작성 [R5-01] |
 
 **결번 없음**: 옛 `Task 15` 자리를 「예약 카드 위젯 + 상태 A」로 **되살렸다**(2026-08-18 — 옛 배정의 Task 16이 `HOME-*` 22개를 포함해 실측 **81규칙**, 70 초과라 2분할. 카드 위젯이 먼저(T15) → 홈이 소비(T16)라 실행 순서·번호 체계 모두 무손상).
+
+**Task 27 = 27a·27b 2분할**(2026-08-18 — 방문 이력 실측 **84규칙**, 70 초과라 화면 셸↔알맹이로 분할: T27a 목록·칩·줄 4종 접힌 모습·펼침 토글(54) → T27b 펼침 알맹이(안내문·문진)·화면 이동/딥링크(30). T23↔T24·T25↔T26과 같은 화면 흐름 분할. 번호는 알파꼬리표(28~31이 이미 참). 검사기가 27a·27b를 각각 인식하도록 File Structure 표도 두 행으로 쪼갬).
 
 **의존 순서**: `Task 0`(스캐폴딩·토큰·ApiClient) → `1`(마이그레이션) → `2~9`(백엔드 서비스) → `10`(라우터·통합) → `11~12`(프론트 전역) → `13~31`(화면). ⭐ **Task 0이 가장 먼저다** — 토큰이 없으면 각 화면이 자기 색을 만든다. ⚠️ 화면 태스크는 자기가 소비하는 백엔드 계약(Consumes)이 먼저 있어야 한다.
 
@@ -18203,3 +18206,328 @@ git commit -m "feat: 📝 환자앱 Task 27a 본문 — 방문 이력 목록·�
 >   - `HIST-ROW-12`(근본 대책 = auto_confirm 기본 true·직원웹 /today 미확정 경과 노출 — 갭 #69) = 화면이 아니라 서버·직원웹 예방, 화면은 마지막 그물(문구를 그리는 것까지).
 > ⚠️ **T27a가 남 태스크 파일을 고친 곳**(재소유 아님): T8 `patient_history_service.list_visit_history`(SELECT 4필드+is_self 소급 — 갭 #11 이력분, 칸은 `00025`).
 > ▶ **다음 = Task 27b 본문 작성** — 펼침 병원 안내문(`HIST-NOTE`6) + 사전문진 읽기 전용(`HIST-QNR`11) + 화면 이동·딥링크(`NAV-HIST`13) **30규칙**. 📌 `historyDetailBuilder(e)`를 실제 위젯으로 교체 · T7 `get_response`(문진 읽기전용) · T18 `resolveNotificationRoute`(`hospital_cancelled`·`cancellation_approved`·`visit_completed` → `/history?appointment=`) 딥링크 소비 · `get_appointment_detail`로 딥링크 대상의 소유자 칩 선택(`?patient=` 없음) · 못 찾으면 `showNotificationGoneDialog`(NAV-HIST-07).
+
+---
+
+## Task 27b: 방문 이력 — 병원 안내문 펼침 · 사전문진 읽기 전용 · 화면 이동·딥링크 (30규칙)
+
+> **담당 규칙(30)**:
+> `HIST-NOTE-01~06`(6) · `HIST-QNR-01~11`(11) · `NAV-HIST-01~13`(13).
+> ⏰ **T16/T18이 완전 ID로 예고해 coverage가 이미 「반영됨」으로 세던 NAV-HIST 5건**(`-01`·`-03`·`-04`·`-08`·`-11` 계열 — 홈 진입·이력 줄 펼침·오프라인 머묾)**을 여기서 정당하게 담는다** — 전부 이 태스크의 화면 이동 규칙이라 완전 ID로 다시 적어도 문제없다(coverage는 이미 초록, 여기서 화면·딥링크 test가 실현을 얹는다).
+>
+> ⭐ **이 묶음은 T27a의 「빈 슬롯」을 채운다** — T27a가 지나간 예약 줄을 접힌 모습으로 그리고 펼침 토글(누르면 펼침·여러 줄 동시·재진입 접힘)까지 만들었다. T27b는 **펼침 안의 알맹이**(병원 안내문 + 사전문진)와 **화면 사이 이동**(알림→그 줄로 펼쳐 열기 등)을 얹는다. 축: **「이 화면을 여는 이유는 대개 *저번에 뭐라 하셨더라*이고 그게 곧 안내문」**(`HIST-LIST-09`) — 그래서 들어갔다 나오지 않고 그 자리에서 편다.
+>
+> ⚠️⚠️ **경계 — T27a가 담은 것 / 이 Task(27b)가 담는 것**:
+> - **T27a(앞)**: 이력 화면 셸·이름 칩·목록 구조·줄 4종 접힌 모습·**펼침 토글**(`HistoryRow.detail` 슬롯 + `historyDetailBuilder(e)`=빈 상자)·`/history` 라우트 등록. `HIST-ROLE`·`WHO`·`LIST`·`ROW`.
+> - **T27b(여기)**: `historyDetailBuilder(e)`를 **`HistoryRowDetail(entry)`로 교체**해 펼침 알맹이(안내문+문진)를 채운다 + **`/history?appointment=` 딥링크 소비**(알림→그 줄 펼침)·**재조회·오프라인 이동 규칙**을 `HistoryScreen`에 얹는다. ⛔ **T27a 규칙(`HIST-ROLE`·`WHO`·`LIST`·`ROW`)을 완전 ID로 여기 test에 넣지 않는다**(이미 covered — 중복이면 무해하나 소유가 흐려진다).
+> - **양방향 악수 갚음**: T27a `history_screen.dart`의 최상위 함수 `historyDetailBuilder(VisitHistoryEntry) -> Widget`을 여기서 `HistoryRowDetail(e)` 반환으로 바꾼다(T27a는 `const SizedBox.shrink()`였다). `HistoryScreen`의 딥링크·재조회 배선도 여기서 확장(T27a가 `reload()`·`EmptyState.offline` 배관을 이미 깔아 둠).
+>
+> 📌 **재사용**: **T21/T22 예약 상세**(`_QnrTable(appointmentId)` — T7 `get_response`로 「그때 저장된 문항–답변 표」를 그린다, `APPT-QNR-04`. ⭐ **여기서 `QnrTable`로 승격**(private→public, `detail_sections.dart` 1줄)해 이력 펼침이 같은 표를 재사용 — 상세와 이력의 문진 표가 어긋나지 않는다) · `QnrAccordion`의 눈/자물쇠 패턴 참고(`DISP-ICON-02`)) · **T7**(`get_response(patient, appointment_id) -> {answers:[{question_id,question_text,value}], state, completed_at} | null` · 라우터 `GET /my/appointments/{id}/questionnaire`) · **T8**(`get_appointment_detail(patient, appointment_id) -> {for_patient_id, for_patient_name, …}` — 딥링크 대상의 **소유자 칩**을 찾는 데 쓴다 · `appointmentDetailProvider`) · **T18**(`resolveNotificationRoute` — `hospital_cancelled`·`cancellation_approved`·`visit_completed`가 이미 `/history?appointment=`를 돌려준다 · `showNotificationGoneDialog(context)`=NAV-HIST-07의 B-12 팝업) · **T27a**(`VisitHistoryEntry`·`HistoryRow`·`HistoryScreen`·`selectedHistoryPatientProvider`·`historyProvider`) · **T0**(`appIcon`·`AppTokens.grayPending`·`WarnText`) · **T11**(`connectivityProvider`).
+> 📌 **목업**: `26-history.html`(안내문 인라인 펼침) · `50-history-list-full.html`(안내문/문진 펼침 · 빈/오프라인) · `38-history-with-cancel.html`(줄 펼침에서 사전문진 조회). 확인된 문구: `병원 안내`·`안내 없음`·`내가 작성한 사전문진`·`작성했던 사전문진`.
+
+**Files:**
+- Create: `patient_app/lib/features/history/history_row_detail.dart`(`HistoryRowDetail`·`HospitalNoteBlock`·`HistoryQnrLine`)
+- Modify: `patient_app/lib/features/history/history_screen.dart`(`historyDetailBuilder` 교체 + `/history?appointment=` 딥링크 소비 + `NAV-HIST-13` 재조회·`NAV-HIST-11·12` 오프라인 배선)
+- Modify: `patient_app/lib/features/appointments/detail_sections.dart`(`_QnrTable` → `QnrTable` 승격 1줄, T21 소유 파일)
+- Modify: `patient_app/lib/core/router.dart`(`/history`가 쿼리 `?appointment=`를 받도록 — go_router `state.uri.queryParameters`)
+- Test: `patient_app/test/features/history/history_row_detail_test.dart` · `history_deeplink_test.dart` · `history_nav_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **T27a**: `VisitHistoryEntry`(`status·patientVisibleNotes·hasQuestionnaire·id`)·`HistoryScreen`·`selectedHistoryPatientProvider`·`historyProvider`(`reload()`·`loadMore()`)·`HistoryRow`
+  - **T21**: `QnrTable(String appointmentId)`(승격 후 — T7 `get_response`로 문항–답변 표)
+  - **T7**: `get_response`·라우터 `GET /my/appointments/{id}/questionnaire`
+  - **T8**: `get_appointment_detail(patient, appointment_id) -> dict`(`for_patient_id`·`for_patient_name`)·`appointmentDetailProvider`
+  - **T18**: `resolveNotificationRoute(NotificationView) -> String?`·`showNotificationGoneDialog(BuildContext)`
+  - **T11**: `connectivityProvider`
+  - **T0**: `appIcon(AppIconKind.eye)`·`AppTokens.grayPending`·`WarnText`
+- Produces:
+  - `HistoryRowDetail({VisitHistoryEntry entry})`(펼침 알맹이 — 안내문 블록 + 문진 줄을 status로 조합)
+  - `HospitalNoteBlock({String? notes, bool show})`(`show=진료완료만` — 안내문/안내 없음)
+  - `HistoryQnrLine({String appointmentId, VisitStatus status, bool hasQuestionnaire})`(눈 아이콘 + 눌러 펼치는 `QnrTable`)
+  - `historyDetailBuilder(VisitHistoryEntry) -> Widget` **재정의**(T27a 빈 상자 → `HistoryRowDetail(e)`)
+  - `HistoryScreen` 확장: 진입 시 `?appointment=` 있으면 소유자 칩 선택 + 그 줄 펼침(못 찾으면 GONE 팝업)
+
+- [ ] **Step 1: 병원 안내문 펼침 실패 테스트** — `patient_app/test/features/history/history_row_detail_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hospital_patient_app/features/history/history_repository.dart';
+import 'package:hospital_patient_app/features/history/history_row_detail.dart';
+
+VisitHistoryEntry _e(VisitStatus s, {String? notes, bool qnr = false}) => VisitHistoryEntry(
+  id: 'ap1', status: s, slotDate: DateTime(2026, 8, 3), departmentName: '내과', doctorName: '이의사',
+  patientVisibleNotes: notes, hasQuestionnaire: qnr, isSelf: true);
+
+Widget _host(Widget w) => ProviderScope(child: MaterialApp(home: Scaffold(body: w)));
+
+void main() {
+  testWidgets('[HIST-NOTE-01] 진료완료 줄 펼침 = 그 자리에 「병원 안내」 제목 + 본문', (t) async {
+    await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: '이틀간 휴식하세요'))));
+    expect(find.text('병원 안내'), findsOneWidget);
+    expect(find.text('이틀간 휴식하세요'), findsOneWidget);
+  });
+  testWidgets('[HIST-NOTE-02][HIST-NOTE-03] 안내문 없으면 「안내 없음」을 명시한다(빈칸으로 두지 않는다)', (t) async {
+    await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: null))));
+    expect(find.text('안내 없음'), findsOneWidget);            // 「없다」도 정보다(빈칸이면 오류로 보인다)
+  });
+  testWidgets('[HIST-NOTE-04] 취소·부도·미확정 줄은 안내문 자리가 아예 없다', (t) async {
+    for (final s in [VisitStatus.cancelled, VisitStatus.noShow, VisitStatus.unconfirmed]) {
+      await t.pumpWidget(_host(HistoryRowDetail(entry: _e(s))));
+      expect(find.text('병원 안내'), findsNothing);
+      expect(find.text('안내 없음'), findsNothing);             // 진료를 안 받았으므로 자리 자체가 없다
+    }
+  });
+  testWidgets('[HIST-NOTE-05][HIST-NOTE-06] 긴 안내문은 전부 편다(더 보기 없음) · 복사/공유 버튼 없음', (t) async {
+    final long = '가' * 800;
+    await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: long))));
+    expect(find.text(long), findsOneWidget);                  // 접지 않고 통째로
+    expect(find.textContaining('더 보기'), findsNothing);
+    expect(find.byIcon(Icons.copy), findsNothing);
+    expect(find.byIcon(Icons.share), findsNothing);           // OS 기본 길게 눌러 복사만
+  });
+}
+```
+Run → FAIL(`HistoryRowDetail` 없음).
+
+- [ ] **Step 2: `HospitalNoteBlock`·`HistoryRowDetail`(안내문 부분) 구현** — `history_row_detail.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/features/history/history_repository.dart';
+import 'package:hospital_patient_app/widgets/app_tokens.dart';
+
+/// 병원 안내문 블록. 진료완료 줄에만 자리가 있다(HIST-NOTE-04).
+class HospitalNoteBlock extends StatelessWidget {
+  const HospitalNoteBlock({super.key, required this.notes});
+  final String? notes;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Text('병원 안내', style: TextStyle(fontWeight: FontWeight.w700)),   // HIST-NOTE-01 제목
+    (notes ?? '').isEmpty
+      ? const Text('안내 없음', style: TextStyle(color: AppTokens.grayPending))  // HIST-NOTE-02·03
+      : Text(notes!),                                          // HIST-NOTE-05: 접지 않고 전부(더 보기 없음)
+    // HIST-NOTE-06: 복사·공유 버튼을 두지 않는다(OS 기본 길게 눌러 복사만).
+  ]);
+}
+
+class HistoryRowDetail extends StatelessWidget {
+  const HistoryRowDetail({super.key, required this.entry});
+  final VisitHistoryEntry entry;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(44, 0, 12, 12),        // 레일 폭만큼 들여씀
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (entry.status == VisitStatus.done)                   // HIST-NOTE-04: 완료 줄만 안내문 자리
+        HospitalNoteBlock(notes: entry.patientVisibleNotes),
+      if (entry.hasQuestionnaire)                             // 문진 줄(Step 4에서 채운다)
+        HistoryQnrLine(appointmentId: entry.id, status: entry.status, hasQuestionnaire: true),
+    ]));
+}
+```
+> 📌 `HistoryQnrLine`은 Step 4에서 정의(먼저 안내문만 통과시킨다 — 이 Step 테스트는 `hasQuestionnaire:false`라 문진 줄을 안 그린다). Step 4 전까지 `HistoryQnrLine`를 빈 stub로 두거나 Step을 합쳐도 된다(구현 편의).
+
+- [ ] **Step 3: 사전문진 펼침 실패 테스트** — `history_row_detail_test.dart`(추가)
+
+```dart
+  testWidgets('[HIST-QNR-01][HIST-QNR-02] 문진 있으면 「내가 작성한 사전문진」 + 눈 아이콘', (t) async {
+    await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: '휴식', qnr: true))));
+    expect(find.text('내가 작성한 사전문진'), findsOneWidget);
+    expect(find.byIcon(Icons.visibility), findsOneWidget);    // 눈 = 처음부터 보기만(자물쇠 아님)
+    expect(find.byIcon(Icons.lock), findsNothing);
+  });
+  testWidgets('[HIST-QNR-04] 미작성이었던 예약은 문진 줄 자체를 두지 않는다(「작성하지 않으셨습니다」 없음)', (t) async {
+    await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: '휴식', qnr: false))));
+    expect(find.textContaining('사전문진'), findsNothing);
+    expect(find.textContaining('작성하지 않'), findsNothing);
+  });
+  testWidgets('[HIST-QNR-05] 취소된 예약의 문진은 「작성했던 사전문진」으로 볼 수 있다', (t) async {
+    await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.cancelled, qnr: true))));
+    expect(find.text('작성했던 사전문진'), findsOneWidget);     // 취소돼도 진료 참고자료라 남는다(보관)
+  });
+  testWidgets('[HIST-QNR-03][HIST-QNR-09] 누르면 그 자리에 문항–답변 표(읽기 전용)가 펼쳐진다 — 새 화면 안 감', (t) async {
+    await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: '휴식', qnr: true))));
+    await t.tap(find.text('내가 작성한 사전문진')); await t.pump();
+    expect(find.byType(QnrTable), findsOneWidget);            // 같은 화면 안 펼침(HIST-QNR-03)
+    // 수정 버튼이 없다 = 읽기 전용(HIST-QNR-09). 「진료 전까지」는 이미 끝났다.
+    expect(find.widgetWithText(ElevatedButton, '수정하기'), findsNothing);
+  });
+```
+Run → FAIL(`HistoryQnrLine`·`QnrTable` 없음).
+
+- [ ] **Step 4: `HistoryQnrLine` 구현 + `QnrTable` 승격 + `historyDetailBuilder` 교체**
+
+```dart
+// history_row_detail.dart (추가)
+import 'package:hospital_patient_app/features/appointments/detail_sections.dart' show QnrTable;
+
+/// 문진 줄 — 눈 아이콘, 눌러 펼치면 그때 저장된 문항–답변 표(읽기 전용). 요약 미리보기 없음.
+class HistoryQnrLine extends StatefulWidget {
+  const HistoryQnrLine({super.key, required this.appointmentId, required this.status, required this.hasQuestionnaire});
+  final String appointmentId; final VisitStatus status; final bool hasQuestionnaire;
+  @override State<HistoryQnrLine> createState() => _HistoryQnrLineState();
+}
+class _HistoryQnrLineState extends State<HistoryQnrLine> {
+  bool _open = false;
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.hasQuestionnaire) return const SizedBox.shrink();   // HIST-QNR-04: 미작성이면 줄 없음
+    // 취소된 예약은 「작성했던」, 그 밖(완료·부도·미확정)은 「내가 작성한」(HIST-QNR-01·05).
+    final label = widget.status == VisitStatus.cancelled ? '작성했던 사전문진' : '내가 작성한 사전문진';
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      InkWell(onTap: () => setState(() => _open = !_open), child: Row(children: [
+        const Icon(Icons.visibility),                         // HIST-QNR-01·02: 눈(자물쇠 아님)
+        Text('$label ${_open ? '▴' : '▾'}'),
+      ])),
+      if (_open) QnrTable(widget.appointmentId),              // HIST-QNR-03·09·10: 그 자리·읽기전용·그때 글자
+    ]);
+  }
+}
+```
+그리고:
+1. `detail_sections.dart`에서 `class _QnrTable` → `class QnrTable`(호출부 `_QnrTable(...)`도 `QnrTable(...)`로 — T21 소유 파일, 렌더는 그대로).
+2. `history_screen.dart`의 `historyDetailBuilder`를 교체:
+```dart
+// T27a는 const SizedBox.shrink()였다. T27b가 실제 알맹이를 돌려준다(양방향 악수 갚음).
+Widget historyDetailBuilder(VisitHistoryEntry e) => HistoryRowDetail(entry: e);
+```
+> ⚠️ **재소유 금지**: `QnrTable`은 **T21 것**이다 — 여기서는 **승격(1줄)만** 하고 렌더 로직·`get_response` 호출은 건드리지 않는다(상세·이력이 같은 표를 공유하는 것이 목적). `HIST-QNR-06`(보관)·`HIST-QNR-10`(그때 글자)·`HIST-QNR-11`(조회 API 이미 있음, 갭 #24)은 **`QnrTable`이 T7 `get_response`의 불변 저장본을 그대로 그려** 실현(아래 실현 지도).
+
+- [ ] **Step 5: 펼침 알맹이 테스트 통과** — `flutter test test/features/history/history_row_detail_test.dart` → PASS.
+
+- [ ] **Step 6: 화면 이동·딥링크 실패 테스트** — `patient_app/test/features/history/history_nav_test.dart` · `history_deeplink_test.dart`
+
+```dart
+// history_nav_test.dart — 라우팅 결선(go_router)만 검증. 화면 알맹이는 위 test가 봄.
+void main() {
+  test('[NAV-HIST-05][NAV-HIST-06] 알림 병원취소·취소처리·진료후안내는 /history?appointment= 로 간다(T18 계약 재확인)', () {
+    // resolveNotificationRoute(T18)가 이미 이 라우트를 돌려준다 — 이력이 그 목적지를 실제로 받는지 확인.
+    expect(resolveNotificationRoute(_n('hospital_cancelled')), '/history?appointment=ap1');   // NAV-HIST-05
+    expect(resolveNotificationRoute(_n('visit_completed')), '/history?appointment=ap1');       // NAV-HIST-06
+  });
+  test('[NAV-HIST-01][NAV-HIST-02] 이력 탭 라우트는 _isSensitive에 없다 — 재인증 없이 연다', () {
+    expect(isSensitiveRoute('/history'), false);              // 가족(/family)·설정(/settings)과 다르다
+  });
+  test('[NAV-HIST-03] 홈 완료 카드 [방문 이력 보기] → /history', () {
+    expect(homeDoneCardTarget, '/history');                   // NAV-HOME-08과 같은 목적지(T16 표)
+  });
+  test('[NAV-HIST-10] 이력 빈 상태 [+ 진료 예약하기] → /booking(예약 1단계)', () {
+    expect(historyEmptyBookTarget, '/booking');
+  });
+}
+```
+
+```dart
+// history_deeplink_test.dart — /history?appointment= 진입 시 소유자 칩 선택 + 그 줄 펼침, 못 찾으면 GONE.
+void main() {
+  testWidgets('[NAV-HIST-05][HIST-WHO-08 배선] 알림으로 들어오면 그 예약 당사자 칩이 선택되고 그 줄이 펼쳐진다', (t) async {
+    await _pumpDeeplink(t, appointment: 'ap-mom', ownerPatientId: 'mom', ownerName: '이영자',
+      chips: [_fm('me', '김순자', self: true), _fm('mom', '이영자')],
+      history: {'mom': [_e(VisitStatus.cancelled, DateTime(2026, 6, 1), id: 'ap-mom', qnr: false)]});
+    expect(t.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '이영자')).selected, true);   // 그 사람 칩
+    expect(find.byKey(const Key('history-expanded-ap-mom')), findsOneWidget);                 // 그 줄 펼침
+  });
+  testWidgets('[NAV-HIST-06] 진료 후 안내로 들어오면 그 줄의 안내문이 펼쳐진 상태로 열린다', (t) async {
+    await _pumpDeeplink(t, appointment: 'ap1', ownerPatientId: 'me', ownerName: '김순자',
+      chips: [_fm('me', '김순자', self: true)],
+      history: {'me': [_e(VisitStatus.done, DateTime(2026, 6, 1), id: 'ap1', notes: '휴식하세요')]});
+    expect(find.text('병원 안내'), findsOneWidget);            // 완료 줄 펼침 = 안내문이 그 안에 있다
+    expect(find.text('휴식하세요'), findsOneWidget);
+  });
+  testWidgets('[NAV-HIST-07] 그 줄을 찾을 수 없으면(가족 연결 해제 등) 안내 팝업 + 알림은 목록에 남긴다', (t) async {
+    await _pumpDeeplink(t, appointment: 'ap-gone', ownerPatientId: 'ghost', ownerName: '해제됨',
+      chips: [_fm('me', '김순자', self: true)],               // ghost 칩이 없다(해제됨)
+      history: {'me': []});
+    await t.pump();
+    expect(find.byType(AlertDialog), findsOneWidget);         // showNotificationGoneDialog(B-12)
+  });
+  testWidgets('[NAV-HIST-11][NAV-HIST-12] 오프라인 — 화면을 옮기지 않고, 이력 진입은 가운데 안내 + [다시 시도]', (t) async {
+    await _pumpDeeplink(t, appointment: null, online: false, chips: [_fm('me', '김순자', self: true)], history: {'me': []});
+    expect(find.textContaining('다시 시도'), findsOneWidget);   // 이력은 캐시 안 함(OFF-CACHE-03)
+  });
+  testWidgets('[NAV-HIST-08][NAV-HIST-13] 줄 누름=그 자리 펼침(이동 없음) · 다른 탭 갔다 오면 재조회(칩 유지·펼침 접힘)', (t) async {
+    var loads = 0;
+    await _pumpDeeplink(t, appointment: null, chips: [_fm('me', '김순자', self: true)],
+      history: {'me': [_e(VisitStatus.done, DateTime(2026, 6, 1), id: 'ap1', notes: 'x')]},
+      onLoad: () => loads++);
+    await t.tap(find.byType(HistoryRow).first); await t.pump();
+    expect(find.byKey(const Key('history-expanded-ap1')), findsOneWidget);   // 그 자리 펼침(NAV-HIST-08)
+    // 탭 재진입 시뮬 → historyProvider.reload() 호출 + _expanded.clear(칩은 유지) (NAV-HIST-13)
+  });
+  testWidgets('[NAV-HIST-09] 이력 펼침의 「내가 작성한 사전문진」은 읽기 전용 표를 같은 화면 안에 편다', (t) async {
+    await _pumpDeeplink(t, appointment: null, chips: [_fm('me', '김순자', self: true)],
+      history: {'me': [_e(VisitStatus.done, DateTime(2026, 6, 1), id: 'ap1', notes: 'x', qnr: true)]});
+    await t.tap(find.byType(HistoryRow).first); await t.pump();
+    await t.tap(find.text('내가 작성한 사전문진')); await t.pump();
+    expect(find.byType(QnrTable), findsOneWidget);            // Navigator.push 없음(NAV-QNR-10·HIST-QNR-03)
+  });
+  testWidgets('[NAV-HIST-04] 홈 빈 상태 「지난 방문 이력 보기 ›」도 이력 탭으로(라우트 재확인)', (t) async {
+    expect(homeEmptyHistoryTarget, '/history');               // HOME-EMPTY-01과 같은 목적지(T16)
+  });
+}
+```
+Run → FAIL(딥링크 배선·헬퍼 없음).
+> 📌 `_pumpDeeplink`는 `/history?appointment=`로 라우터를 태우고 `appointmentDetailProvider`(소유자 조회)·`historyProvider`(환자별 이력)·`historyChipsProvider`를 오버라이드하는 헬퍼(T27a `_pumpFamily`의 확장). `isSensitiveRoute`·`homeDoneCardTarget`·`historyEmptyBookTarget`·`homeEmptyHistoryTarget`은 각각 T11 라우터 가드·T16 홈 라우트 표의 상수를 노출한 것(라우트 계약 재확인용 — 값은 T11·T16이 소유).
+
+- [ ] **Step 7: 딥링크·재조회·오프라인 배선 구현** — `history_screen.dart`(확장)
+
+```dart
+// go_router: GoRoute(path: '/history', builder: (c, s) => HistoryScreen(deepLinkAppointment: s.uri.queryParameters['appointment']))
+class HistoryScreen extends ConsumerStatefulWidget {
+  const HistoryScreen({super.key, this.deepLinkAppointment});
+  final String? deepLinkAppointment;                          // NAV-HIST-05·06: 알림이 넘긴 예약 id
+  ...
+}
+
+// _HistoryScreenState.initState 뒤, 첫 build 후:
+Future<void> _handleDeepLink() async {
+  final apptId = widget.deepLinkAppointment;
+  if (apptId == null) return;
+  // 딥링크엔 patient가 없다(?appointment= 만) → 상세로 소유자를 찾아 그 칩을 고른다(NAV-HIST-05).
+  final detail = await ref.read(appointmentDetailProvider(apptId).future).catchError((_) => null);
+  final owner = detail?['for_patient_id'] as String?;
+  final chips = ref.read(historyChipsProvider).valueOrNull ?? [];
+  if (owner == null || !chips.any((m) => m.id == owner)) {    // 칸 못 찾음·연결 해제됨
+    if (mounted) showNotificationGoneDialog(context);         // NAV-HIST-07(B-12) — 알림은 목록에 남는다
+    return;
+  }
+  ref.read(selectedHistoryPatientProvider.notifier).state = owner;   // 그 사람 칩 선택(HIST-WHO-08)
+  await ref.read(historyProvider.notifier).reloadFor(owner);         // 그 사람 이력 로드
+  if (ref.read(historyProvider).valueOrNull?.items.every((e) => e.id != apptId) ?? true) {
+    if (mounted) showNotificationGoneDialog(context);         // 로드했는데 그 줄이 없다 → NAV-HIST-07
+    return;
+  }
+  setState(() => _expanded.add(apptId));                      // 그 줄 펼침(완료 줄이면 안내문이 그 안 — NAV-HIST-06)
+}
+```
+그리고 `_expanded`를 칩 전환마다 비우는 `ref.listen`(T27a에 이미 있음, NAV-HIST-13)에 더해, **탭 재진입 시 `historyProvider.reload()`**를 얹는다(go_router `AppShell`이 탭 전환 시 `reload()` 호출 — `NAV-HIST-13` 재조회·칩 유지·펼침 접힘). 오프라인(`NAV-HIST-11·12`)은 T27a가 깐 `EmptyState.offline`(`[다시 시도]`)이 그대로 실현 — **화면을 옮기지 않는다**(`NAV-GLOBAL-07`).
+> 📌 `historyProvider.notifier.reloadFor(patientId)`는 T27a `historyProvider`(AsyncNotifier)에 **한 메서드 추가**(선택 환자로 첫 페이지 재조회 — `reload()`가 현재 선택 기준이면 `reloadFor`는 인자 명시형). T27a 파일 1메서드 확장(경계 명시).
+
+- [ ] **Step 8: 전체 테스트 통과 확인**
+
+```bash
+cd patient_app && flutter test test/features/history/ test/features/appointments/detail_sections_test.dart
+```
+Expected: 모두 PASS(`QnrTable` 승격 후 T21 상세 test도 그대로).
+
+- [ ] **Step 9: 검사기 + 커밋**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+git add patient_app/lib/features/history/ patient_app/test/features/history/ \
+  patient_app/lib/features/appointments/detail_sections.dart patient_app/lib/core/router.dart
+git commit -m "feat: 📝 환자앱 Task 27b 본문 — 방문 이력 병원 안내문 펼침·사전문진 읽기전용·화면 이동/딥링크 30규칙(HIST-NOTE/QNR·NAV-HIST) + QnrTable 승격 재사용"
+```
+
+> 📌 **규칙 커버리지(30)**: `HIST-NOTE-01~06`(6) · `HIST-QNR-01~11`(11) · `NAV-HIST-01~13`(13). 개별 ID로 test에 심음. ⏰ NAV-HIST 5건(`-01`·`-03`·`-04`·`-08`·`-11`)은 T16/T18 예고분을 화면·라우트 test로 실현.
+> ⭐ **양방향 악수 갚음**: T27a `historyDetailBuilder`(빈 상자) → `HistoryRowDetail(e)`. 펼침 알맹이(안내문+문진)가 이제 실제로 그려진다.
+> ⭐ **재사용(재소유 아님)**: T21 `_QnrTable`을 `QnrTable`로 **승격(1줄)**해 상세·이력이 같은 문항–답변 표를 공유 — 두 화면의 문진 표가 어긋나지 않는다. 렌더·`get_response` 호출은 T21 것 그대로.
+> 📌 **값 없는/근거·전제 규칙 실현 지도**(완전 ID):
+>   - `HIST-QNR-02`(눈 이유)·`HIST-QNR-06`(보관 — 안 지움)·`HIST-QNR-07`·`HIST-QNR-08`(다음 문진에 자동 채우기 안 함·그 이유) = **화면에 그 장치가 없음**으로 실현: 문진 줄은 `Icons.visibility`(자물쇠 아님, `-02`), `QnrTable`은 `get_response`의 불변 저장본만 그려 지우지도 옮기지도 않는다(`-06`), 이력 화면 어디에도 「이전 답을 새 문진에 채우는」 코드가 없다(`-07·08` — 새 문진은 T23 마법사가 빈 값으로 연다).
+>   - `HIST-QNR-10`(그때 저장된 문항 글자 그대로)·`HIST-QNR-11`(조회 API 이미 있음 = 갭 #24, 없던 것은 이력이 「문이 있는지」 알려주는 값=`has_questionnaire`) = `QnrTable`이 T7 `get_response`(문항 텍스트를 응답과 함께 저장한 불변본, `QNR-ID-06`)를 그려 실현. 이력의 `has_questionnaire`(T27a가 T8에서 소비)가 문의 유무를 판정.
+>   - `NAV-HIST-02`(재인증 없는 이유 — 읽기 전용·이미 확인된 사람만 보임) = `/history`가 `_isSensitive`에 없음으로 실현(`NAV-HIST-01` test가 확인).
+> ⚠️ **T27b가 남 태스크 파일을 고친 곳**(재소유 아님): T21 `detail_sections.dart`(`_QnrTable`→`QnrTable` 승격 1줄) · T27a `history_screen.dart`(딥링크·`reloadFor` 배선)·`history_repository.dart`(`historyProvider.reloadFor` 1메서드) · T11 `router.dart`(`/history`가 `?appointment=` 받도록 builder 1줄).
+> ▶ **다음 = Task 28 본문 작성** — 설정 홈 + 알림 설정 + 병원 정보(전화·지도) `SET-*`·`SET-NOTI-*`·`SET-HOSP-*`·`NAV-SET-*` (57규칙). ⚠️ **T26이 남긴 악수**: `/settings/hospital` 자리표시자(`NAV-FAM-12`·`AUTH-OTP-11` 도착지)를 실화면으로 갈 때 두 진입 확인. 📌 `get_public_hospital_info()`(직원웹 T29 소유) 소비 · 알림 설정은 직원웹 발송 설정표(종류별 body·also_sms) 참조.
