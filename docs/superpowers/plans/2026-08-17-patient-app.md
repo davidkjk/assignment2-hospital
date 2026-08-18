@@ -9243,4 +9243,319 @@ git commit -m "feat: 환자앱 Task 15 — 예약 카드 위젯 + 상태 A(공�
 > 📌 **값 없는/구조 규칙 — 「어느 테스트가 실현하는가」로 닫는다**: `CARD-REQ-01`·`CARD-UNCONF-01`(직원확인후확정 병원만): 서버가 `예약신청`을 줄 때만 본문이 뜨는 구조(`resolveCardState`)가 실현 — 즉시확정이면 이 상태가 오지 않는다. `CARD-UNCONF-10`(자정 이후 이력행): T8 `list_visit_history`가 담당(카드는 자정 전만 그림). `CARD-UNCONF-11`(끝난 카드 아님): `isFinishedCard(unconf)=false` 테스트가 실현(`CARD-LIFE`는 T17). `CARD-UNCONF-12`(애초에 안 생기게): 예방은 서버(auto_confirm 기본 true·직원웹 /today) 몫이라 화면에 코드가 없다는 사실이 규칙 — 화면은 마지막 그물. `CARD-CHG-07`(방아쇠=#12 낙관적 잠금): `hospital_change_prev_time`이 채워질 때만 배너가 뜨는 데이터 조건이 실현.
 > ⚠️ **T17이 이어받을 자리**: `AppointmentCard._cardBody`·`_actions`의 상태 B 케이스(`confirmed·arrived·inTreatment·done·cancelled·late`) + `AppointmentCardState`의 B 본문 + `isFinishedCard`(CARD-LIFE, 진료완료·취소됨만 true) + QR·문진 줄·오프라인 카드.
 
-> ▶ **다음 = Task 16 본문 작성** — 홈 프레임 + 하단 탭 셸 43규칙(`HOME-*` 22 · `NAV-HOME-*` 21). Task 16은 `AppShell`(T11)·`UpcomingCache`(오프라인 홈)·예약 조회 서비스(T8)를 소비하고, **T15의 `AppointmentCard`를 배치**(여러 예약을 카드 목록으로)하며 하단 탭 셸(`NAV-HOME-*`)을 만든다. ⚠️ **먼저 직원웹 T2 `reschedule_appointment`·병원발 취소에 `hospital_change_prev_time·kind` 쓰기 소급 반영**(경계 #17, 이번 세션 남은 작업).
+---
+
+## Task 16: 홈 프레임 + 하단 탭 셸 (43규칙)
+
+> **담당 규칙(43)**: `HOME-ROLE-*`(1) · `HOME-SCOPE-*`(3) · `HOME-CARD-*`(4) · `HOME-INFO-*`(3) · `HOME-EMPTY-*`(3) · `HOME-BAR-*`(3) · `HOME-KILL-*`(2) · `HOME-REFRESH-*`(3) · `NAV-HOME-*`(21). ⭐ **로그인 후 첫 화면 + 앱 전체의 탭 골격을 만드는 태스크**다. T15의 `AppointmentCard`를 **배치**(여러 예약을 하루치로)하고, T11의 `AppShell`에 홈 본문·하단 탭을 끼우며, NAV-HOME 21개로 홈에서 갈 수 있는 모든 곳을 라우트로 잇는다.
+>
+> ⭐⭐ **이 태스크의 심장 = 「가장 가까운 하루치만」(`HOME-SCOPE-01`)**: 홈은 "다음에 갈 곳"만 보여준다(`HOME-ROLE-01`) — 오늘 예약이 있으면 오늘 것, 없으면 **다음 예약이 있는 날 하루치**만. **그 뒤의 예약은 끌어오지 않는다**(`HOME-SCOPE-02·03`) — 자정이면 저절로 다음 예약이 주인공이 되고, 놓칠 위험은 이미 전날·당일 알림 2종이 막는다(사용자 되물음 *"내일 예약을 보여줘야 할 이유가 있나?"*로 확정, B-9). ⚠️ **옛 플랜은 `list.first`로 첫 건만 꺼냈다**(`HOME-CARD-04`, 갭 — 서버는 목록을 주므로 앱만 고친다). `selectHomeDay`가 하루치 **전부**를 골라 1건이면 히어로 카드, 2건+면 사람별 줄로 묶는다.
+>
+> ⭐⭐ **두 번째 심장 = 탭을 막지 않는다(`AppShell`·`NAV-GLOBAL-02`)**: 하단 탭은 오프라인에도 눌린다(막으면 "끌 수 없는 스위치"·고장으로 읽힘). 홈이 오프라인이면 탭을 죽이는 대신 **`UpcomingCache`(폰에 저장한 예약 보관본)**를 읽어 카드를 그대로 보여준다(`OFF-DO-01`) — 지하 대기실이 오프라인 결정의 출발점이었다.
+>
+> ⚠️ **경계(재소유 금지)**: ① 셸·배너·오프라인 캐시·인증 판정은 **Task 11 소비**(`AppShell({body, bottomTabs})`·`UpcomingCache`·`upcomingCacheProvider`·`CachedUpcoming`·`effectiveAuthProvider`·`connectivityProvider`). ② 예약 카드 한 장·상태 판정은 **Task 15 소비**(`AppointmentCard`·`AppointmentView.fromJson`·`resolveCardState`) — 여기서는 **여러 장을 배치**만. ③ 빈 상태·미완료 신청 카드는 **Task 12 소비**(`EmptyState.zero/offline/error`·`PendingRequestCard`·`pendingRequestProvider`). ④ 예약 목록·병원 정보는 **Task 8·4 소비**(`list_my_appointments`·`get_queue_status`·`get_hospital_info`). ⑤ 안 읽은 알림 개수(`HOME-BAR-02`)·알림함 화면·알림→목적지 구현(`NAV-HOME-16·17`)은 **Task 18 소유** — 여기서는 `unreadNotificationCountProvider`를 **소비**하고 종 배지·라우트만 만든다(양방향 악수).
+>
+> ⚠️ **낡은 단방향 표기 대조(핸드오프 함정 ①)**: `HOME-CARD-04`·`HOME-BAR-03`·`HOME-INFO`의 근거가 옛 플랜 줄번호(`plans:6640·6705·6762`)를 가리키는데, 이는 *"플랜을 고쳐야 한다"*는 **패치 지시**(옛 코드가 `list.first`·종 없음)이고 여기 재작성이 그 패치의 실현이다.
+
+**Files:**
+- Create: `patient_app/lib/features/home/home_scope.dart`(`selectHomeDay` — `HOME-ROLE-01`·`HOME-SCOPE-*`·`HOME-CARD-04` 순수 함수)
+- Create: `patient_app/lib/features/home/home_data.dart`(`homeAppointmentsProvider` — 온라인 `list_my_appointments`+캐시 저장 / 오프라인 `UpcomingCache` 폴백)
+- Create: `patient_app/lib/features/home/home_screen.dart`(`HomeScreen` — 카드 배치·앱바·빈 상태·미완료 신청·갱신)
+- Create: `patient_app/lib/features/home/home_multi_card.dart`(`HomeMultiCard` — `HOME-CARD-02·03` 사람별 줄)
+- Create: `patient_app/lib/features/home/hospital_info_row.dart`(`HospitalInfoRow` — `HOME-INFO-*`)
+- Create: `patient_app/lib/features/home/notification_bell.dart`(`NotificationBell` — `HOME-BAR-01·02`, `unreadNotificationCountProvider` 소비)
+- Create: `patient_app/lib/features/home/main_tabs.dart`(`mainTabs` — 하단 탭 5개, `DISP-ICON-03` 라벨)
+- Modify: `patient_app/lib/core/router.dart`(`/home`을 `AppShell`+`HomeScreen`으로 + `NAV-HOME-*` 라우트)
+- Test: `patient_app/test/features/home/{home_scope,home_data,home_screen,home_multi_card,hospital_info_row,notification_bell}_test.dart` · `test/features/home/home_routes_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - Task 0: `AppTokens`·`appIcon`·`ApiClient`
+  - Task 8: `list_my_appointments`(dict 목록) · `get_queue_status`
+  - Task 4: `get_hospital_info(patient) -> {hospital_address, hospital_phone}`
+  - Task 11: `AppShell({body, bottomTabs})`·`UpcomingCache`(save/read/clear)·`upcomingCacheProvider`·`CachedUpcoming`(items·savedAt·isStale)·`effectiveAuthProvider`·`connectivityProvider`·`OfflineBanner`
+  - Task 12: `EmptyState.zero/offline/error`·`PendingRequestCard`·`pendingRequestProvider`
+  - Task 15: `AppointmentCard`·`AppointmentView`(`.fromJson`)·`resolveCardState`·`formatKoreanTime`
+  - Task 18(미작성): `unreadNotificationCountProvider`(`Provider<int>` — 종 배지가 소비, T18이 채운다)
+- Produces:
+  - `selectHomeDay(List<AppointmentView>, DateTime now) -> List<AppointmentView>` (가장 가까운 하루치, 정렬 완료·빈 리스트면 0건)
+  - `homeAppointmentsProvider`(`FutureProvider<List<AppointmentView>>`) · `HomeScreen` · `HomeMultiCard` · `HospitalInfoRow` · `NotificationBell`
+  - `mainTabs`(`Widget` — 5탭 `BottomNavigationBar`) · **홈 라우트 표**(`NAV-HOME`): `/home`·`/qr/:id`·`/appointments/:id`·`/questionnaire/:id`·`/history`·`/notifications`·`/settings`·`/booking`·`/chat`
+  - **Task 30(나의 예약)이 소비**: `HomeMultiCard`(사람별 줄 견본) · **Task 18이 소비**: `NotificationBell`·`/notifications` 라우트
+
+- [ ] **Step 1: `selectHomeDay` 실패 테스트 (`HOME-SCOPE-01·02·03`·`HOME-ROLE-01`·`HOME-CARD-04`)** — `test/features/home/home_scope_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/home/home_scope.dart';
+
+AppointmentView _v(String id, String status, DateTime slot, {String name = '본인'}) =>
+    AppointmentView.fromJson({
+      'id': id, 'status': status, 'for_patient_name': name, 'booking_code': 'A-$id',
+      'department_name': '내과', 'doctor_name': '이의사', 'has_questionnaire': false,
+      'slot_date': slot.toIso8601String().substring(0, 10),
+      'start_time': '${slot.hour.toString().padLeft(2, '0')}:00',
+      'hospital_change_prev_time': null, 'hospital_change_kind': null,
+    });
+
+void main() {
+  final now = DateTime(2026, 8, 18, 9, 0);
+
+  test('[HOME-SCOPE-01] 오늘 예약이 있으면 오늘 하루치만 고른다', () {
+    final today = _v('1', '예약확정', DateTime(2026, 8, 18, 14));
+    final tomorrow = _v('2', '예약확정', DateTime(2026, 8, 19, 10));
+    final picked = selectHomeDay([today, tomorrow], now);
+    expect(picked.map((a) => a.id), ['1']);          // 내일 것은 빠진다(HOME-SCOPE-02)
+  });
+  test('[HOME-SCOPE-01] 오늘 예약이 없으면 다음 예약이 있는 날 하루치를 고른다', () {
+    final d20 = _v('3', '예약확정', DateTime(2026, 8, 20, 11));
+    final d22 = _v('4', '예약확정', DateTime(2026, 8, 22, 11));
+    expect(selectHomeDay([d22, d20], now).map((a) => a.id), ['3']);   // 22일 것은 안 끌어온다
+  });
+  test('[HOME-SCOPE-03] 오늘이 끝난 카드뿐이면 다음 예약을 끌어오지 않는다', () {
+    final doneToday = _v('5', '진료완료', DateTime(2026, 8, 18, 8));
+    final next = _v('6', '예약확정', DateTime(2026, 8, 20, 11));
+    // 오늘에 살아있는 카드가 없어도 다음날을 올리지 않는다 → 오늘의 끝난 카드만(자정이면 저절로 넘어감)
+    expect(selectHomeDay([doneToday, next], now).map((a) => a.id), ['5']);
+  });
+  test('[HOME-CARD-04] 하루치를 전부 고른다(첫 건만 꺼내지 않는다)', () {
+    final a = _v('7', '예약확정', DateTime(2026, 8, 18, 14), name: '본인');
+    final b = _v('8', '예약확정', DateTime(2026, 8, 18, 15), name: '김순자');
+    expect(selectHomeDay([a, b], now).length, 2);    // list.first가 아니라 그날 전부
+  });
+  test('[HOME-CARD-03] 같은 날은 빠른 시각이 위, 같은 시각이면 본인이 가족보다 위', () {
+    final family = _v('9', '예약확정', DateTime(2026, 8, 18, 14), name: '김순자');
+    final me = _v('10', '예약확정', DateTime(2026, 8, 18, 14), name: '본인');
+    expect(selectHomeDay([family, me], now).first.id, '10');   // 본인 먼저
+  });
+  test('[HOME-ROLE-01] 지나간(다른 날 완료) 예약은 홈에 오지 않는다', () {
+    final past = _v('11', '진료완료', DateTime(2026, 8, 10, 9));
+    final next = _v('12', '예약확정', DateTime(2026, 8, 20, 11));
+    expect(selectHomeDay([past, next], now).map((a) => a.id), ['12']);  // 과거는 이력 탭 몫
+  });
+}
+```
+Run → Expected: FAIL.
+
+- [ ] **Step 2: `selectHomeDay` 구현** — `patient_app/lib/features/home/home_scope.dart`
+
+```dart
+import 'appointment_view.dart';
+
+/// 홈에 올릴 「가장 가까운 하루치」를 고른다(HOME-ROLE-01·SCOPE-01·02·03·CARD-03·04).
+/// 규칙: 오늘 카드가 하나라도 있으면 오늘 날짜의 전부, 없으면 미래에서 가장 이른 날짜의 전부.
+/// 과거(다른 날)는 버린다 — 홈은 "다음에 갈 곳". 다음 예약을 끌어오지 않는다(자정에 저절로 넘어감).
+List<AppointmentView> selectHomeDay(List<AppointmentView> all, DateTime now) {
+  final today = DateTime(now.year, now.month, now.day);
+  DateTime? dayOf(AppointmentView a) => a.slotStart == null
+      ? null : DateTime(a.slotStart!.year, a.slotStart!.month, a.slotStart!.day);
+
+  final todays = all.where((a) => dayOf(a) == today).toList();
+  final List<AppointmentView> chosen;
+  if (todays.isNotEmpty) {
+    chosen = todays;                                    // SCOPE-01·03: 오늘이 끝난 것뿐이어도 오늘만
+  } else {
+    final future = all.where((a) => dayOf(a) != null && dayOf(a)!.isAfter(today)).toList();
+    if (future.isEmpty) return [];                      // 0건 → HOME-EMPTY
+    future.sort((x, y) => x.slotStart!.compareTo(y.slotStart!));
+    final firstDay = dayOf(future.first);
+    chosen = future.where((a) => dayOf(a) == firstDay).toList();   // SCOPE-02: 그 하루만
+  }
+  chosen.sort((x, y) {                                  // CARD-03: 빠른 시각 위, 같으면 본인 먼저
+    final t = x.slotStart!.compareTo(y.slotStart!);
+    if (t != 0) return t;
+    return (x.forPatientName == '본인' ? 0 : 1).compareTo(y.forPatientName == '본인' ? 0 : 1);
+  });
+  return chosen;
+}
+```
+> ⚠️ **본인 판정은 이름 문자열이 아니라 관계 플래그로**(구현 시): 여기 예시는 테스트 가독성용이며, 실제로는 `AppointmentView`에 `isSelf`(account_patient_id == for_patient_id)를 두어 판정한다 — 이름이 '본인'인 가족은 없지만 동명이인 방어. **완료 보고에 「`isSelf` 필드 추가」를 T15 `AppointmentView`로 소급**할지 짚는다.
+Run → Expected: PASS.
+
+- [ ] **Step 3: `homeAppointmentsProvider` — 온·오프라인 (`HOME-REFRESH-01`·`HOME-EMPTY-03`·`OFF-DO-01`)** — `test/features/home/home_data_test.dart`
+
+```dart
+test('[HOME-REFRESH-01] 온라인이면 서버를 다시 조회하고 그 결과를 캐시에 저장한다', () async {
+  final api = _FakeApi(returns: [_json('1', '예약확정')]);
+  final cache = _SpyCache();
+  final list = await loadHomeAppointments(api: api, cache: cache, online: true);
+  expect(list.first.id, '1');
+  expect(cache.saved, isNotNull);        // OFF-CACHE-01: 받은 목록을 통째로 저장
+});
+test('[HOME-EMPTY-03][OFF-DO-01] 오프라인이면 서버를 부르지 않고 캐시 보관본을 읽는다', () async {
+  final api = _ThrowingApi();            // 부르면 실패(오프라인이라 부르면 안 됨)
+  final cache = _SpyCache(cached: [_json('9', '진료대기')]);
+  final list = await loadHomeAppointments(api: api, cache: cache, online: false);
+  expect(list.first.id, '9');            // 0건이 아니라 보관본 — "예약 없음" 거짓말을 피한다
+});
+```
+> 구현: `loadHomeAppointments`는 `online`이면 `GET /appointments/mine`(T8 `list_my_appointments`) 조회 후 `cache.save(raw)` 하고 `AppointmentView.fromJson` 매핑; 오프라인이면 `cache.read()`의 `items`를 매핑(없으면 `null` → 화면은 `EmptyState.offline`). `homeAppointmentsProvider`가 `connectivityProvider`를 읽어 분기.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `HomeScreen` 카드 배치 실패 테스트 (`HOME-CARD-01·02`)** — `test/features/home/home_screen_test.dart`
+
+```dart
+testWidgets('[HOME-CARD-01] 그날 예약이 1건이면 큰 히어로 카드(AppointmentCard) 하나', (t) async {
+  await t.pumpWidget(_home([_view('1', '예약확정', name: '본인')]));
+  expect(find.byType(AppointmentCard), findsOneWidget);
+  expect(find.byType(HomeMultiCard), findsNothing);
+});
+testWidgets('[HOME-CARD-02] 그날 예약이 2건 이상이면 사람별 줄로 묶은 카드', (t) async {
+  await t.pumpWidget(_home([_view('1', '예약확정', name: '본인'), _view('2', '예약확정', name: '김순자')]));
+  expect(find.byType(HomeMultiCard), findsOneWidget);
+  expect(find.textContaining('김순자'), findsOneWidget);   // 각 줄에 이름
+});
+```
+> 구현: `HomeScreen`이 `selectHomeDay(list, now)`로 하루치를 얻고 — `length == 1`이면 `AppointmentCard(view: day.first, ...)`(T15 히어로), `>= 2`면 `HomeMultiCard(views: day)`. 0이면 빈 상태(Step 6).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: `HomeMultiCard`(사람별 줄) 실패 테스트 → 구현 (`HOME-CARD-02·03`)** — `test/features/home/home_multi_card_test.dart`
+
+```dart
+testWidgets('[HOME-CARD-02] 각 줄에 시각 레일 + 이름 + 관계 + [QR] 버튼', (t) async {
+  await t.pumpWidget(_wrap(HomeMultiCard(views: [
+    _view('1', '예약확정', name: '본인', code: 'A-1'),
+    _view('2', '예약확정', name: '김순자', code: 'A-2'),
+  ])));
+  expect(find.widgetWithText(ActionButton, 'QR'), findsNWidgets(2));   // 확정 예약마다 QR 줄
+  expect(find.textContaining('오전 9:00'), findsWidgets);              // 시각 레일
+});
+testWidgets('[HOME-CARD-02] 확인 중(신청)인 줄은 QR 대신 확인 중 글자', (t) async {
+  await t.pumpWidget(_wrap(HomeMultiCard(views: [_view('3', '예약신청', name: '본인')])));
+  expect(find.text('확인 중'), findsOneWidget);   // CARD-REQ-06와 같은 규칙(줄 형태)
+  expect(find.widgetWithText(ActionButton, 'QR'), findsNothing);
+});
+```
+> 구현: `HomeMultiCard`는 `AppCard`(T0) 안에 `views`를 줄로 — 각 줄 = 시각(`formatKoreanTime`) 레일 + `for_patient_name` + 관계 + (`booking_code`가 있으면 `[QR]`, `예약신청`이면 `확인 중` 글자 `CARD-REQ-06`). 정렬은 `selectHomeDay`가 이미 함(HOME-CARD-03).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: 빈 상태 + 병원 정보 + 미완료 신청 (`HOME-EMPTY-*`·`HOME-INFO-*`·`HOME-KILL-*`)** — `test/features/home/home_screen_test.dart`(이어서)
+
+```dart
+testWidgets('[HOME-EMPTY-01] 0건이면 안내 + [진료 예약하기] + 지난 방문 이력 보기', (t) async {
+  await t.pumpWidget(_home([]));
+  expect(find.textContaining('예약된 진료가 없습니다'), findsOneWidget);
+  expect(find.widgetWithText(ActionButton, '진료 예약하기'), findsOneWidget);
+  expect(find.textContaining('지난 방문 이력 보기'), findsOneWidget);
+});
+testWidgets('[HOME-EMPTY-02] 빈 상태에 "최근 방문" 줄을 넣지 않는다', (t) async {
+  await t.pumpWidget(_home([]));
+  expect(find.textContaining('최근 방문'), findsNothing);   // 홈이 과거를 보여주지 않는다
+});
+testWidgets('[HOME-INFO-01] 카드 아래 병원 주소·전화 두 줄', (t) async {
+  await t.pumpWidget(_home([_view('1', '예약확정')], hospital: {'hospital_address': '서울 A', 'hospital_phone': '02-1'}));
+  expect(find.textContaining('서울 A'), findsOneWidget);
+  expect(find.textContaining('02-1'), findsOneWidget);
+});
+testWidgets('[HOME-INFO-02] 병원 정보 조회 실패면 조용히 숨기고 카드는 그대로', (t) async {
+  await t.pumpWidget(_home([_view('1', '예약확정')], hospital: null));   // 조회 실패
+  expect(find.byType(AppointmentCard), findsOneWidget);       // 카드는 보인다
+  expect(find.byType(HospitalInfoRow), findsNothing);          // 정보 줄만 사라진다
+});
+testWidgets('[HOME-KILL-01] 결과 못 받은 신청이 있으면 카드 위에 안내 줄', (t) async {
+  await t.pumpWidget(_home([_view('1', '예약확정')], pending: true));
+  expect(find.byType(PendingRequestCard), findsOneWidget);
+  expect(tester.getTopLeft(find.byType(PendingRequestCard)).dy
+       < tester.getTopLeft(find.byType(AppointmentCard)).dy, isTrue);   // 카드 위
+});
+testWidgets('[HOME-KILL-02] 0건 빈 상태에서도 미완료 신청 줄은 빈 상태 위에 뜬다', (t) async {
+  await t.pumpWidget(_home([], pending: true));
+  expect(find.byType(PendingRequestCard), findsOneWidget);   // "신청이 날아갔다"로 읽히지 않게
+});
+```
+> 구현: `HomeScreen`이 `homeAppointmentsProvider`를 watch — 오프라인/에러면 `EmptyState.offline/error`(HOME-EMPTY-03), 0건이면 `EmptyState.zero`(문구·`[진료 예약하기]`·이력 링크, HOME-EMPTY-01·02는 "최근 방문" 미포함), 아니면 카드. `pendingRequestProvider`가 있으면 최상단에 `PendingRequestCard`(HOME-KILL-01·02, T12). `HospitalInfoRow`는 `get_hospital_info` 성공 시만 카드 아래(HOME-INFO-01·02), 탭 → 전화/지도(HOME-INFO-03·`NAV-HOME-09·10`).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: 앱바 종 + 배지 (`HOME-BAR-01·02·03`)** — `test/features/home/notification_bell_test.dart`
+
+```dart
+testWidgets('[HOME-BAR-01] 앱바 우상단에 종(알림함) + 톱니(설정) 두 개, 햄버거 없음', (t) async {
+  await t.pumpWidget(_home([_view('1', '예약확정')]));
+  expect(find.byType(NotificationBell), findsOneWidget);
+  expect(find.byIcon(Icons.settings), findsOneWidget);
+  expect(find.byIcon(Icons.menu), findsNothing);       // 햄버거 없음
+});
+testWidgets('[HOME-BAR-02] 안 읽은 알림이 있으면 개수 배지', (t) async {
+  await t.pumpWidget(_wrap(NotificationBell(unreadCount: 3)));
+  expect(find.text('3'), findsOneWidget);
+});
+testWidgets('[HOME-BAR-02] 안 읽은 알림이 0이면 배지가 사라진다(숫자 0을 그리지 않는다)', (t) async {
+  await t.pumpWidget(_wrap(NotificationBell(unreadCount: 0)));
+  expect(find.text('0'), findsNothing);                // 0 배지를 그리지 않는다
+});
+```
+> 구현: `NotificationBell({unreadCount})` — 종 아이콘 + `unreadCount >= 1`일 때만 배지(`0`은 안 그림, HOME-BAR-02). 홈은 `unreadNotificationCountProvider`(T18)를 watch해 `unreadCount`를 넘긴다(HOME-BAR-03의 "종 추가"가 실현). 종 탭 → `/notifications`(NAV-HOME-12).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 8: 갱신 + 실시간 (`HOME-REFRESH-02·03`)** — `test/features/home/home_screen_test.dart`(이어서)
+
+```dart
+testWidgets('[HOME-REFRESH-02] 도착·진료대기·진료중 카드가 있으면 실시간 구독을 연다', (t) async {
+  final sub = _SpyRealtime();
+  await t.pumpWidget(_home([_view('1', '진료대기')], realtime: sub));
+  expect(sub.subscribed, isTrue);      // 대기실에서 아무것도 안 눌러도 저절로 바뀐다
+});
+testWidgets('[HOME-REFRESH-02] 끝난 카드만 있으면 실시간 구독을 열지 않는다', (t) async {
+  final sub = _SpyRealtime();
+  await t.pumpWidget(_home([_view('1', '진료완료')], realtime: sub));
+  expect(sub.subscribed, isFalse);     // 바뀔 것이 없는데 연결을 붙잡지 않는다
+});
+```
+> 구현: `HomeScreen`은 진입/pull-to-refresh 시 `ref.invalidate(homeAppointmentsProvider)`(HOME-REFRESH-01). 하루치에 `도착·진료대기·진료중`이 있으면 그 예약들의 Realtime 구독을 연다(HOME-REFRESH-02, `AppShell`과 같은 연결). 갱신 결과가 다르면 `OFF-BACK-02`(T11 규칙)를 따른다(HOME-REFRESH-03 — 화면을 통째로 갈아엎지 않고 카드만 바뀜, `NAV-HOME-21`).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 9: 하단 탭 + `NAV-HOME` 라우팅 (`NAV-HOME-*`)** — `test/features/home/home_routes_test.dart`
+
+```dart
+testWidgets('[NAV-HOME-19] 로그인 후 홈에는 하단 탭 바가 있다(로그인 전엔 없음)', (t) async {
+  await t.pumpWidget(_app(initial: '/home'));
+  expect(find.byType(BottomNavigationBar), findsOneWidget);
+});
+testWidgets('[NAV-HOME-01] 홈에서 예약 카드를 누르면 예약 상세로 간다', (t) async {
+  await t.pumpWidget(_app(initial: '/home', appts: [_view('a1', '예약확정')]));
+  await t.tap(find.byType(AppointmentCard));
+  await t.pumpAndSettle();
+  expect(find.text('예약 상세'), findsOneWidget);       // /appointments/a1
+});
+testWidgets('[NAV-HOME-14] 0건 빈 상태의 [진료 예약하기]는 예약 1단계로 간다', (t) async {
+  await t.pumpWidget(_app(initial: '/home', appts: []));
+  await t.tap(find.widgetWithText(ActionButton, '진료 예약하기'));
+  await t.pumpAndSettle();
+  expect(find.text('예약 1단계'), findsOneWidget);       // /booking
+});
+testWidgets('[NAV-HOME-12] 종을 누르면 알림함으로 가고, 들어온 순간 전부 읽음이다', (t) async {
+  final marker = _SpyReadMarker();
+  await t.pumpWidget(_app(initial: '/home', readMarker: marker));
+  await t.tap(find.byType(NotificationBell));
+  await t.pumpAndSettle();
+  expect(marker.markedAllRead, isTrue);   // NOTI-READ(T18 창구를 홈이 호출)
+});
+testWidgets('[NAV-HOME-15] 병원발 변경 [확인]은 화면을 옮기지 않고 안내문만 사라진다', (t) async {
+  await t.pumpWidget(_app(initial: '/home', appts: [_changedView('a1')]));
+  await t.tap(find.widgetWithText(ActionButton, '확인'));
+  await t.pumpAndSettle();
+  expect(find.byType(HomeScreen), findsOneWidget);       // 여전히 홈(이동 없음)
+});
+testWidgets('[NAV-HOME-07] 잠긴 문진 줄은 눌리지 않는다(가지 않는다)', (t) async {
+  await t.pumpWidget(_app(initial: '/home', appts: [_view('a1', '진료중', questionnaire: true)]));
+  expect(find.byIcon(Icons.lock), findsOneWidget);       // 자물쇠(DISP-ICON-01)
+});
+```
+> 구현: `mainTabs` = `BottomNavigationBar`(홈·예약·문진·이력·설정 5탭, `DISP-ICON-03` 아이콘+라벨). `/home`은 `AppShell(body: HomeScreen, bottomTabs: mainTabs)`. 홈발 라우트(완전 ID로 편다 — 검사기는 축약 `05·06·07`을 못 읽는다): `NAV-HOME-01`(카드→`/appointments/:id`) · `NAV-HOME-02`(`[QR]`→`/qr/:id`) · `NAV-HOME-05`(문진 미작성 줄→`/questionnaire/:id`) · `NAV-HOME-06`(문진 완료 줄→상세 펼침) · `NAV-HOME-07`(문진 잠김 줄→안 감·자물쇠) · `NAV-HOME-08`(`[방문 이력 보기]`→`/history`) · `NAV-HOME-09`(전화번호→전화 앱) · `NAV-HOME-10`(주소→지도 앱, 주소 문자열) · `NAV-HOME-11`(`[상담 채팅 연결]`→`/chat`) · `NAV-HOME-12`(종→`/notifications`+전부 읽음) · `NAV-HOME-13`(톱니→`/settings`) · `NAV-HOME-14`(`[진료 예약하기]`→`/booking`) · `NAV-HOME-15`(변경 `[확인]`=`acknowledge_hospital_change`·이동 없음). `NAV-HOME-16`·`NAV-HOME-17`(알림함 내부 이동)은 라우트 표만 여기, 화면은 T18. `NAV-HOME-18·19`(딥링크)·`20`(뒤로=앱 종료)·`21`(실시간=화면 안 옮김)은 구조로 실현(아래 커버리지 노트).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 10: 전체 테스트 + 커밋**
+
+```bash
+cd patient_app && flutter test test/features/home/
+git add patient_app/lib/features/home/ patient_app/lib/core/router.dart patient_app/test/features/home/
+git commit -m "feat: 환자앱 Task 16 — 홈 프레임 + 하단 탭 셸 43규칙(하루치 스코프·사람별 줄·병원정보·종배지·NAV-HOME)"
+```
+
+> 📌 **규칙 커버리지(43)**: `HOME-ROLE-01`(1) · `HOME-SCOPE-01·02·03`(3) · `HOME-CARD-01·02·03·04`(4) · `HOME-INFO-01·02·03`(3) · `HOME-EMPTY-01·02·03`(3) · `HOME-BAR-01·02·03`(3) · `HOME-KILL-01·02`(2) · `HOME-REFRESH-01·02·03`(3) · `NAV-HOME-01~21`(21).
+> 📌 **값 없는/구조·라우팅 규칙 — 「어느 테스트가 실현하는가」로 닫는다**: `NAV-HOME-03`·`NAV-HOME-04`(QR 좌우 밀기·접수 완료 자동 안 닫힘): `/qr/:id` 라우트 + QR 화면은 **T17 소유**(`QR-*`) — 여기서는 카드 `[QR]`이 그 라우트를 여는 배선만(`NAV-HOME-02`는 Step 9 test). `NAV-HOME-16`·`NAV-HOME-17`(알림함 내부 이동): 화면은 **T18**, 여기선 라우트 표만. `NAV-HOME-18·19`(딥링크): `PushService`(T11)가 여는 목적지 라우트가 실현 — 뒤로가면 홈(스택에 홈만). `NAV-HOME-20`(뒤로=앱 종료): 홈에 `WillPopScope`를 두지 않아 시스템 기본(앱 종료)이 실현 — `[NAV-HOME-19]` 탭 테스트가 로그인 화면 부재를 확인. `NAV-HOME-21`(실시간 상태 변경=화면 안 옮김): `HomeScreen`이 provider 갱신으로 카드 가운데만 바꾸고 `Navigator`를 부르지 않는 구조가 실현(`HOME-REFRESH-02` 테스트가 같은 장치). `HOME-BAR-03`(종 추가)·`HOME-CARD-04`(list.first 폐기): 옛 플랜 패치 지시라 재작성이 곧 실현.
+> ⚠️ **T18(알림함)이 이어받을 자리**: `unreadNotificationCountProvider`(종 배지가 소비) · `/notifications` 화면 · `NAV-HOME-16·17`의 알림→목적지 표(`NOTI-GO-*`) · 종 탭 시 「전부 읽음」 창구(`NOTI-READ`). **양방향 악수** — 여기서 `NotificationBell`·라우트·읽음 호출 지점을 만들고 T18이 개수·화면·목적지를 채운다.
+> 📌 **T15 `AppointmentView`에 `isSelf` 소급 제안**: 홈 정렬(HOME-CARD-03 본인 먼저)이 이름 문자열('본인')이 아니라 `account_patient_id == for_patient_id` 플래그를 써야 정확하다 — T15 모델에 `isSelf` 한 줄 추가(구현 시).
+
+> ▶ **다음 = Task 17 본문 작성** — 예약 카드 상태 B(지연·취소·완료·오프라인·문진·입장) + QR 70규칙(`CARD-LATE-*`·`CARD-CXL-*`·`CARD-DONE-*`·`CARD-OFF-*`·`CARD-QNR-*`·`CARD-IN-*`·`CARD-OK-*`·`CARD-DOC-*`·`CARD-LIFE-*`·`QR-*`). ⭐ **T15의 `AppointmentCard`·`AppointmentCardState`에 상태 B 케이스를 더한다**(양방향 악수) + `isFinishedCard`(CARD-LIFE) + QR 전체화면. ⚠️ 70규칙이라 경계 확인(70 넘으면 쪼갠다 — QR을 별도로 뺄지 실측).
