@@ -7615,3 +7615,1187 @@ git commit -m "feat: 환자앱 Task 13 — 가입 5화면(동의·전화·인증
 > - `AUTH-PROFILE-07`(가입 완료 성공 → 홈, 축하 화면 없음): `AUTH-SIGNUP-07` 테스트(`onDone` 호출, 별도 화면 없음)가 실현 — 같은 [가입 완료] 버튼이다.
 > - `AUTH-SIGNUP-09`(껐다 켜는 이유 = 문자가 안 와서)·`AUTH-SIGNUP-10`(⛔ 출입증 버리고 랜딩으로 안 보냄): `AUTH-SIGNUP-08` + Step 4 `profileMissingProvider` 라우팅(`signedIn && missing → /signup/step3`)이 실현 — 계정은 서버에 남고 ③으로 되돌린다.
 > - `AUTH-PWNEW-13`(이름 칸의 값어치 = 병원 깔때기)·`AUTH-PWNEW-14`(가족·지인엔 무력한 한계): `AUTH-PWNEW-08`(이름 칸)·`AUTH-PWNEW-12`(막다른 길 출구) 테스트 + Step 3 `verify_name_and_reset`(서버 대조)가 실현 — 이름을 모르면 병원 경로로 가고 그때 갭 #44 탐지가 일어난다.
+
+---
+
+## Task 14: 로그인 · 비밀번호 찾기 · 중복번호/번호재활용 · 재인증 · 세션 + 인증 라우팅 (64규칙)
+
+> **담당 규칙(64)**: `AUTH-LOGIN-*`(9) · `AUTH-PWFIND-*`(8) · `AUTH-DUP-*`(17) · `AUTH-REAUTH-*`(5) · `AUTH-SESS-*`(5) · `NAV-AUTH-*`(20). ⭐ **Task 13이 만든 화면·위젯을 「이어 붙이는」 태스크**다 — 새 화면은 로그인·비밀번호 찾기 ①·갈림길·재인증 넷뿐이고, 나머지는 **T13 위젯(`OtpScreen`·`NewPasswordScreen`·`PhoneChangeScreen`)에 실제 콜백을 배선**하고 **인증 라우트 표(NAV-AUTH)를 완성**하는 일이다.
+>
+> ⭐⭐ **이 태스크의 심장 = 「같은 문을 세 걸음에서 한 걸음으로 줄이지 않는다」(AUTH-DUP)**: 이 앱은 문자를 받을 수 있으면 계정에 들어갈 수 있는 구조가 요구사항 4.1상 원래 맞다(비밀번호 찾기). 그러나 이미 가입한 번호로 `[회원가입]`을 다시 눌러도 **문자 인증만으로 홈에 들여보내지 않는다**(AUTH-DUP-05) — 인증 후 **갈림길 화면**을 띄워 로그인(세션 폐기)이나 비밀번호 바꾸기(흔적이 남는 경로)로 보낸다. 흔적이 남느냐가 「폰을 잠깐 빌려간 사람」을 가른다(AUTH-DUP-06).
+>
+> ⭐⭐ **두 번째 심장 = 재인증은 문자가 아니라 비밀번호(AUTH-REAUTH-01)**: 가족관리·설정에 들어갈 때마다 SMS를 보내면 느리고 비용이 든다. 민감 화면을 떠난 지 5분이 지나 재진입하면 비밀번호를 한 번 더 묻는다(AUTH-REAUTH-04). **Task 11 라우터 가드가 `sensitiveReauthGuardProvider`·`_isSensitive`를 이미 기다린다** — 여기서 정의해야 닫힌다(양방향 악수, `profileMissingProvider`와 같은 꼴).
+>
+> ⚠️ **경계(재소유 금지)**: ① 화면 위젯은 **Task 12를 소비**(`ActionButton`·`FieldTextInput`+`FieldErrorController`·`InlineError`) · **Task 13을 소비**(`OtpScreen`+`OtpPurpose`·`NewPasswordScreen`+`NewPasswordController`·`PhoneChangeScreen`·`AuthOtpSender`·`PasswordResetRepo`·`PhoneSendResult`·`SignupPhoneController`·`SignupProfileScreen`·`profileStatusProvider`). 여기서 다시 만들지 않는다. ② **가입 화면(⓪①③) 자체는 T13 소유** — 여기서는 `/signup/*` **라우트에 실제 콜백을 배선**할 뿐(NAV-AUTH-03·04·05·08·09)이고 화면 위젯은 손대지 않는다. ③ 로그아웃 **버튼·화면은 Task 29**(`SET-OUT-*`) 소유 — 여기서는 `AuthRepo.signOut()`이 **예약 보관본까지 지우는 행위**(AUTH-SESS-04)만 제공하고 Task 29가 소비한다.
+>
+> ⚠️ **원문 대조에서 걸러낸 낡은 단방향 표기 2건(핸드오프 함정 ①)**:
+> - **`NAV-AUTH-15`**("새 비밀번호 → 홈")는 **`AUTH-PWNEW-04`**("변경 성공 → 로그인 화면으로 보내 다시 로그인 — 손으로 한 번 쳐보는 것이 기억에 남는다")가 **더 구체적·후행 결정**이고 T13 `NewPasswordScreen(onDone)`이 `/login`으로 이미 구현했다(T13 test `[AUTH-PWNEW-04]`). → **`/new-password`의 `onDone`은 `/login`으로 잇고**, NAV-AUTH-15는 이 결정으로 **갱신**한다(Step 7에서 「홈」이 아니라 로그인으로 감을 테스트가 못박는다).
+> - **`NAV-AUTH-16`**("문자 안 옴 → 도움말 시트(겹침)")는 **`AUTH-PWFIND-06`**("문자가 오지 않나요? → 번호 변경 안내 `AUTH-TEL`로 가는 링크")와 목적지가 갈렸다. PWFIND-06이 구체적이므로 **인증 화면 아래 링크가 `PhoneChangeScreen`을 `push`**(겹침 — 뒤로 가면 인증 화면 유지, NAV-AUTH-16의 「화면을 떠나지 않는다」 충족)하는 것으로 **통합**한다.
+
+**Files:**
+- Create: `patient_app/lib/features/auth/auth_repo.dart`(`AuthRepo` 추상 + `SupabaseAuthRepo` 실체 + `authRepoProvider` — T13 추상 인터페이스의 실제 백엔드 배관)
+- Create: `patient_app/lib/features/auth/login_screen.dart`(`LoginScreen`+`LoginController`+`PhoneHyphenFormatter` — AUTH-LOGIN)
+- Create: `patient_app/lib/features/auth/password_find_screen.dart`(`PasswordFindScreen`+`PasswordFindController` — AUTH-PWFIND ①)
+- Create: `patient_app/lib/features/auth/duplicate_account_screen.dart`(`DuplicateAccountScreen` — AUTH-DUP 갈림길)
+- Create: `patient_app/lib/features/auth/reauth_screen.dart`(`ReauthScreen`+`ReauthController` — AUTH-REAUTH)
+- Create: `patient_app/lib/core/sensitive_reauth.dart`(`SensitiveReauthGuard`+`sensitiveReauthGuardProvider` — Task 11 라우터가 기다리는 것)
+- Modify: `patient_app/lib/features/auth/otp_screen.dart`(비밀번호 찾기 목적일 때 「문자가 오지 않나요?」 링크 한 줄 추가 — AUTH-PWFIND-06/NAV-AUTH-16, `AUTH-OTP-11`의 가족 링크와 같은 `purpose` 분기 패턴)
+- Modify: `patient_app/lib/core/router.dart`(인증 라우트 표 완성 — 골격 자리표시자를 실제 화면·콜백으로 교체 + `_isSensitive` 정의)
+- Modify: `supabase/config.toml`(세션 갱신표 회전 확인 — AUTH-SESS-02, 이미 켜져 있으면 주석만)
+- Test: `patient_app/test/features/auth/{auth_repo,login_screen,password_find_screen,duplicate_account_screen,reauth_screen}_test.dart` · `test/core/sensitive_reauth_test.dart` · `test/features/auth/auth_routes_test.dart` · `test/features/auth/otp_pwfind_link_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - Task 0: `AppTokens`·`ApiClient`·`ApiException`(+`statusCode`, T13 보강)·`apiClientProvider`·`supabaseClientProvider`·`authStateChangesProvider`·`AuthStatus`·`appRouter`
+  - Task 11: `effectiveAuthProvider`(라우터 가드가 이미 소비) · `UpcomingCache`(`clear()` — 로그아웃 시 예약 보관본 삭제) · 라우터 `redirect`가 `sensitiveReauthGuardProvider`·`_isSensitive`를 기다림(여기서 정의)
+  - Task 12: `ActionButton`·`FieldTextInput`+`FieldErrorController`·`InlineError`
+  - Task 13: `OtpScreen`+`OtpPurpose`·`NewPasswordScreen`+`NewPasswordController`·`PhoneChangeScreen`·`AuthOtpSender`·`PasswordResetRepo`·`PhoneSendResult`·`PhoneCooldownStore`·`SignupPhoneController`·`ConsentScreen`·`SignupProfileScreen`·`profileStatusProvider`·`POST /patients/me/password-reset`
+- Produces:
+  - `AuthRepo`(`sendOtp(createUser:)`·`verifyOtp`·`signInWithPassword`·`reauthenticate`·`hasProfile`·`signOut`) + `authRepoProvider` — 로그아웃·재인증·중복 판정의 단일 창구
+  - `LoginController`·`PasswordFindController`·`ReauthController` · `LoginScreen`·`PasswordFindScreen`·`DuplicateAccountScreen`·`ReauthScreen`
+  - `SensitiveReauthGuard`(`needsReauth`·`markPassed()`) + `sensitiveReauthGuardProvider` · `_isSensitive(loc)`(router 내부)
+  - **완성된 인증 라우트 표**(NAV-AUTH): `/login`·`/password-find`·`/password-find/otp`·`/signup/otp`(분기 배선)·`/signup/step3`·`/duplicate`·`/new-password`·`/phone-change`·`/reauth`
+  - Task 29가 소비: `AuthRepo.signOut()`(로그아웃 버튼이 부른다) · Task 25·26이 소비: `/reauth?next=` 가드(민감 화면 진입)
+
+- [ ] **Step 1: `AuthRepo` — 로그인·OTP·재인증·로그아웃의 단일 창구 (`AUTH-LOGIN-05·06` · `AUTH-PWFIND-04` · `AUTH-SESS-04` · `AUTH-DUP-04`)**
+
+> ⭐ **T13은 화면이 부를 추상 인터페이스(`AuthOtpSender`·`PasswordResetRepo`)만 두고 실제 배관은 남겼다.** 여기서 `AuthRepo`가 그 둘을 **한 몸으로 구현**하고 로그인·재인증·로그아웃·중복 판정을 더한다. 화면·컨트롤러는 **추상 `AuthRepo`에만 의존**(테스트는 `FakeAuthRepo`)하고, `SupabaseAuthRepo`는 Supabase·`ApiClient`·`UpcomingCache`를 잇는 얇은 접착제다.
+> 📌 **로그인 실패는 여기서 한 문장으로 뭉갠다(AUTH-LOGIN-05·개인정보 열거 방지)** — 어느 쪽이 틀렸는지 서버가 뭐라 하든 `null`(성공) 아니면 `전화번호 또는 비밀번호가 올바르지 않습니다` 하나만 올려보낸다. **횟수로 잠그는 코드는 넣지 않는다(AUTH-LOGIN-06)** — 남의 번호로 남을 잠글 수 있고 어르신에게 막다른 길이다.
+
+- [ ] **Step 1a: 실패 테스트** — `patient_app/test/features/auth/auth_repo_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
+import 'package:hospital_patient_app/core/offline_cache.dart';
+import 'package:hospital_patient_app/features/auth/auth_repo.dart';
+
+class _MockGoTrue extends Mock implements GoTrueClient {}
+
+class _MockApi extends Mock implements ApiClient {}
+
+/// UpcomingCache의 clear() 호출만 지켜보는 스파이(나머지는 Fake라 부르면 실패한다).
+class _SpyCache extends Fake implements UpcomingCache {
+  bool cleared = false;
+  @override
+  Future<void> clear() async => cleared = true;
+}
+
+void main() {
+  setUpAll(() => registerFallbackValue(OtpType.sms));
+
+  test('[AUTH-PWFIND-04] 비밀번호 찾기 발송은 shouldCreateUser:false로 보낸다', () async {
+    final auth = _MockGoTrue();
+    when(() => auth.signInWithOtp(phone: any(named: 'phone'), shouldCreateUser: any(named: 'shouldCreateUser')))
+        .thenAnswer((_) async {});
+    final repo = SupabaseAuthRepo(auth: auth, api: _MockApi(), cache: _SpyCache());
+    await repo.sendOtp('01011112222', createUser: false);
+    // 아무 번호나 넣는 것만으로 빈 계정이 생기지 않게 한다(갭 #39).
+    verify(() => auth.signInWithOtp(phone: '+821011112222', shouldCreateUser: false)).called(1);
+  });
+
+  test('[AUTH-LOGIN-05] 로그인 실패는 원인을 나누지 않고 한 문장으로만 돌려준다', () async {
+    final auth = _MockGoTrue();
+    when(() => auth.signInWithPassword(phone: any(named: 'phone'), password: any(named: 'password')))
+        .thenThrow(const AuthException('Invalid login credentials'));
+    final repo = SupabaseAuthRepo(auth: auth, api: _MockApi(), cache: _SpyCache());
+    final msg = await repo.signInWithPassword('01011112222', 'wrongpw12');
+    expect(msg, '전화번호 또는 비밀번호가 올바르지 않습니다'); // 어느 쪽이 틀렸는지 말하지 않는다
+  });
+
+  test('[AUTH-LOGIN-06] 여러 번 실패해도 잠그지 않는다 — 매번 다시 시도할 수 있다', () async {
+    final auth = _MockGoTrue();
+    when(() => auth.signInWithPassword(phone: any(named: 'phone'), password: any(named: 'password')))
+        .thenThrow(const AuthException('Invalid login credentials'));
+    final repo = SupabaseAuthRepo(auth: auth, api: _MockApi(), cache: _SpyCache());
+    for (var i = 0; i < 6; i++) {
+      final msg = await repo.signInWithPassword('01011112222', 'wrongpw12');
+      expect(msg, isNotNull); // 여섯 번째도 「잠김」이 아니라 같은 실패 문구(막다른 길 없음)
+    }
+  });
+
+  test('[AUTH-SESS-04][AUTH-DUP-04] signOut은 세션과 함께 예약 보관본을 지운다', () async {
+    final auth = _MockGoTrue();
+    when(() => auth.signOut()).thenAnswer((_) async {});
+    final cache = _SpyCache();
+    final repo = SupabaseAuthRepo(auth: auth, api: _MockApi(), cache: cache);
+    await repo.signOut();
+    verify(() => auth.signOut()).called(1);
+    expect(cache.cleared, isTrue); // OFF-CACHE-02: 폰에 저장한 예약 보관본을 함께 지운다
+  });
+
+  test('[AUTH-DUP-02] hasProfile — 프로필이 있으면(200) true, 없으면(403) false', () async {
+    final api = _MockApi();
+    when(() => api.get<dynamic>(any(), any())).thenAnswer((_) async => {'patient_id': 'x'});
+    final repo = SupabaseAuthRepo(auth: _MockGoTrue(), api: api, cache: _SpyCache());
+    expect(await repo.hasProfile(), isTrue);
+
+    when(() => api.get<dynamic>(any(), any())).thenThrow(ApiException('e', statusCode: 403));
+    expect(await repo.hasProfile(), isFalse); // 인증만 통과·프로필 없음 → 가입 미완료로 본다
+  });
+}
+```
+Run: `flutter test test/features/auth/auth_repo_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 1b: `AuthRepo` 구현** — `patient_app/lib/features/auth/auth_repo.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/api_client.dart';
+import '../../core/offline_cache.dart';
+import '../../core/providers.dart';
+import 'signup_phone_screen.dart';   // AuthOtpSender(추상)
+import 'new_password_screen.dart';   // PasswordResetRepo(추상)
+
+/// 010… → +8210…(Supabase는 E.164를 받는다). 숫자만 남겨 변환한다.
+String toE164(String phone) {
+  final d = phone.replaceAll(RegExp(r'\D'), '');
+  return d.startsWith('0') ? '+82${d.substring(1)}' : '+82$d';
+}
+
+/// 로그인·OTP·재인증·로그아웃·중복 판정의 단일 창구. 화면·컨트롤러는 이 추상에만 의존한다.
+abstract class AuthRepo implements AuthOtpSender, PasswordResetRepo {
+  Future<void> sendOtp(String phone, {required bool createUser});
+  Future<String?> verifyOtp(String phone, String code);        // null=성공, 아니면 화면에 띄울 문구
+  Future<String?> signInWithPassword(String phone, String password); // 〃
+  Future<String?> reauthenticate(String password);             // 현재 세션의 번호로 비밀번호 재확인
+  Future<bool> hasProfile();                                   // GET /patients/me == 200
+  Future<void> signOut();                                      // 세션 + 예약 보관본 삭제(AUTH-SESS-04)
+}
+
+class SupabaseAuthRepo implements AuthRepo {
+  SupabaseAuthRepo({required this.auth, required this.api, required this.cache});
+  final GoTrueClient auth;
+  final ApiClient api;
+  final UpcomingCache cache;
+
+  static const _loginFail = '전화번호 또는 비밀번호가 올바르지 않습니다'; // AUTH-LOGIN-05
+  static const _otpFail = '인증번호가 올바르지 않습니다';                 // AUTH-OTP-09(서버 문장 대체)
+
+  @override
+  Future<void> sendSignupOtp(String phone) => sendOtp(phone, createUser: true); // AuthOtpSender
+
+  @override
+  Future<void> sendOtp(String phone, {required bool createUser}) =>
+      auth.signInWithOtp(phone: toE164(phone), shouldCreateUser: createUser);
+
+  @override
+  Future<String?> verifyOtp(String phone, String code) async {
+    try {
+      await auth.verifyOTP(phone: toE164(phone), token: code, type: OtpType.sms);
+      return null;
+    } on AuthException {
+      return _otpFail;
+    }
+  }
+
+  @override
+  Future<String?> signInWithPassword(String phone, String password) async {
+    try {
+      await auth.signInWithPassword(phone: toE164(phone), password: password);
+      return null;
+    } on AuthException {
+      return _loginFail; // AUTH-LOGIN-05·06: 원인을 나누지도, 횟수로 잠그지도 않는다
+    }
+  }
+
+  @override
+  Future<String?> reauthenticate(String password) async {
+    final phone = auth.currentUser?.phone;                 // 이미 로그인된 세션의 번호
+    if (phone == null) return _loginFail;
+    return signInWithPassword(phone, password);            // AUTH-REAUTH-01: 문자가 아니라 비밀번호
+  }
+
+  @override
+  Future<bool> hasProfile() async {
+    try {
+      await api.get<dynamic>('/patients/me', (j) => j);
+      return true;
+    } on ApiException catch (e) {
+      if (e.statusCode == 403) return false;               // 인증만 통과·프로필 없음
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> signOut() async {
+    await auth.signOut();
+    await cache.clear();                                    // AUTH-SESS-04 = OFF-CACHE-02
+  }
+
+  @override
+  Future<void> reset(String name, String password) =>      // PasswordResetRepo — 서버 경유(갭 #78)
+      api.post<void>('/patients/me/password-reset', (_) {},
+          body: {'name': name, 'password': password});
+}
+
+final authRepoProvider = Provider<AuthRepo>((ref) => SupabaseAuthRepo(
+      auth: ref.watch(supabaseClientProvider).auth,
+      api: ref.watch(apiClientProvider),
+      cache: ref.watch(upcomingCacheProvider),
+    ));
+```
+
+> 📌 **`upcomingCacheProvider`는 Task 11이 만든다** — 없으면 Task 11 `offline_cache.dart`에 `final upcomingCacheProvider = Provider<UpcomingCache>(...)`를 더한다(경계 크랙 방지: T11이 `UpcomingCache`를 클래스로만 두고 provider를 안 냈으면 여기서 채운다). `api.post`/`api.get`의 시그니처(파서 인자)는 Task 0 `ApiClient`를 따른다.
+
+Run: `flutter test test/features/auth/auth_repo_test.dart` → Expected: PASS(5 tests).
+
+- [ ] **Step 2: 로그인 화면 (`AUTH-LOGIN-01`~`09` · `NAV-AUTH-10·11·12`)**
+
+> ⭐ **평소 로그인은 전화번호 + 비밀번호 두 칸**(AUTH-LOGIN-01) — 문자 인증을 쓰지 않는다(OTP는 가입 시 1회뿐). 확인 칸은 두지 않고(AUTH-LOGIN-04 — 틀리면 다시 치면 된다), 실패는 어느 쪽이 틀렸는지 말하지 않는 한 문장(AUTH-LOGIN-05). 아래에 「비밀번호를 잊으셨나요?」(→ 비밀번호 찾기, LOGIN-07/NAV-AUTH-11)와 「전화번호가 바뀌어 로그인할 수 없나요? ›」(→ 번호 변경 안내, LOGIN-08/NAV-AUTH-12) 두 출구를 둔다.
+
+- [ ] **Step 2a: 실패 테스트** — `patient_app/test/features/auth/login_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/auth/auth_repo.dart';
+import 'package:hospital_patient_app/features/auth/login_screen.dart';
+
+/// 성공/실패를 골라 돌려주는 얇은 Fake(로그인만 쓰므로 나머지는 미구현).
+class _FakeAuth extends Fake implements AuthRepo {
+  String? loginResult; // null=성공
+  int loginCalls = 0;
+  @override
+  Future<String?> signInWithPassword(String phone, String password) async {
+    loginCalls++;
+    return loginResult;
+  }
+}
+
+LoginScreen _screen(_FakeAuth a, {String? prefillPhone, void Function(String)? onNavigate}) =>
+    LoginScreen(
+      controller: LoginController(a),
+      prefillPhone: prefillPhone,
+      onSuccess: () => onNavigate?.call('home'),
+      onForgot: () => onNavigate?.call('forgot'),
+      onPhoneChanged: () => onNavigate?.call('phone-change'),
+    );
+
+void main() {
+  testWidgets('[AUTH-LOGIN-01] 전화번호 + 비밀번호 두 칸, 문자 인증 칸은 없다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth())));
+    expect(find.byKey(const Key('login-phone')), findsOneWidget);
+    expect(find.byKey(const Key('login-password')), findsOneWidget);
+    expect(find.textContaining('인증번호'), findsNothing); // OTP 칸 없음
+  });
+
+  testWidgets('[AUTH-LOGIN-02] 전화번호 칸은 숫자 키패드 + 앱이 하이픈을 넣는다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth())));
+    final tf = t.widget<TextField>(find.byKey(const Key('login-phone')));
+    expect(tf.keyboardType, TextInputType.phone);
+    await t.enterText(find.byKey(const Key('login-phone')), '01011115678');
+    await t.pump();
+    expect(find.text('010-1111-5678'), findsOneWidget); // 사용자는 하이픈을 치지 않았다
+  });
+
+  testWidgets('[AUTH-LOGIN-03] 비밀번호 칸에 눈 토글(기본 가림)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth())));
+    final pw = t.widget<TextField>(find.byKey(const Key('login-password')));
+    expect(pw.obscureText, isTrue); // 기본 가림
+    expect(find.byIcon(Icons.visibility_off), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-LOGIN-04] 확인 칸을 두지 않는다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth())));
+    expect(find.byKey(const Key('login-password-confirm')), findsNothing);
+  });
+
+  testWidgets('[AUTH-LOGIN-05] 실패는 어느 쪽이 틀렸는지 말하지 않는 한 문장', (t) async {
+    final a = _FakeAuth()..loginResult = '전화번호 또는 비밀번호가 올바르지 않습니다';
+    await t.pumpWidget(MaterialApp(home: _screen(a)));
+    await t.enterText(find.byKey(const Key('login-phone')), '01011115678');
+    await t.enterText(find.byKey(const Key('login-password')), 'wrongpw12');
+    await t.tap(find.text('로그인'));
+    await t.pumpAndSettle();
+    expect(find.text('전화번호 또는 비밀번호가 올바르지 않습니다'), findsOneWidget);
+    expect(find.textContaining('비밀번호가 틀렸'), findsNothing); // 원인을 나누지 않는다
+  });
+
+  testWidgets('[AUTH-LOGIN-06] 여러 번 실패해도 버튼이 잠기지 않는다', (t) async {
+    final a = _FakeAuth()..loginResult = '전화번호 또는 비밀번호가 올바르지 않습니다';
+    await t.pumpWidget(MaterialApp(home: _screen(a)));
+    await t.enterText(find.byKey(const Key('login-phone')), '01011115678');
+    await t.enterText(find.byKey(const Key('login-password')), 'wrongpw12');
+    for (var i = 0; i < 5; i++) {
+      await t.tap(find.text('로그인'));
+      await t.pumpAndSettle();
+    }
+    expect(a.loginCalls, 5); // 다섯 번째도 서버를 부른다(계정을 잠그지 않는다)
+  });
+
+  testWidgets('[AUTH-LOGIN-07][NAV-AUTH-11] 「비밀번호를 잊으셨나요?」 → 비밀번호 찾기', (t) async {
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), onNavigate: (d) => nav = d)));
+    await t.tap(find.text('비밀번호를 잊으셨나요?'));
+    expect(nav, 'forgot');
+  });
+
+  testWidgets('[AUTH-LOGIN-08][NAV-AUTH-12] 「전화번호가 바뀌어…」 → 번호 변경 안내', (t) async {
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), onNavigate: (d) => nav = d)));
+    await t.tap(find.textContaining('전화번호가 바뀌어'));
+    expect(nav, 'phone-change');
+  });
+
+  testWidgets('[AUTH-LOGIN-09][NAV-AUTH-10] 성공하면 홈으로 보낸다', (t) async {
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), onNavigate: (d) => nav = d)));
+    await t.enterText(find.byKey(const Key('login-phone')), '01011115678');
+    await t.enterText(find.byKey(const Key('login-password')), 'rightpw12');
+    await t.tap(find.text('로그인'));
+    await t.pumpAndSettle();
+    expect(nav, 'home'); // 랜딩·로그인은 뒤로가기로 돌아갈 수 없다(라우트가 go로 교체 — Step 7)
+  });
+}
+```
+Run: `flutter test test/features/auth/login_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 2b: `LoginScreen` + `LoginController` + `PhoneHyphenFormatter` 구현** — `patient_app/lib/features/auth/login_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../core/tokens.dart';
+import '../../widgets/action_button.dart';
+import 'auth_repo.dart';
+
+/// AUTH-LOGIN-02 — 사용자는 숫자만 치고 앱이 010-XXXX-XXXX로 하이픈을 넣는다.
+class PhoneHyphenFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue _, TextEditingValue next) {
+    final d = next.text.replaceAll(RegExp(r'\D'), '');
+    final b = StringBuffer();
+    for (var i = 0; i < d.length && i < 11; i++) {
+      if (i == 3 || i == 7) b.write('-');
+      b.write(d[i]);
+    }
+    final s = b.toString();
+    return TextEditingValue(text: s, selection: TextSelection.collapsed(offset: s.length));
+  }
+}
+
+class LoginController {
+  LoginController(this.repo);
+  final AuthRepo repo;
+
+  /// null=성공, 아니면 화면에 붙일 한 문장(AUTH-LOGIN-05). 숫자만 뽑아 넘긴다.
+  Future<String?> submit(String phone, String password) =>
+      repo.signInWithPassword(phone.replaceAll(RegExp(r'\D'), ''), password);
+}
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({
+    super.key,
+    required this.controller,
+    required this.onSuccess,
+    required this.onForgot,
+    required this.onPhoneChanged,
+    this.prefillPhone, // NAV-AUTH-06: 갈림길에서 넘어오면 번호가 채워진 채로 온다
+  });
+  final LoginController controller;
+  final VoidCallback onSuccess;
+  final VoidCallback onForgot;
+  final VoidCallback onPhoneChanged;
+  final String? prefillPhone;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  late final TextEditingController _phone =
+      TextEditingController(text: widget.prefillPhone == null ? '' : _hyphen(widget.prefillPhone!));
+  final _pw = TextEditingController();
+  bool _obscure = true, _busy = false;
+  String? _error;
+
+  static String _hyphen(String d) =>
+      PhoneHyphenFormatter().formatEditUpdate(TextEditingValue.empty, TextEditingValue(text: d)).text;
+
+  Future<void> _submit() async {
+    setState(() { _busy = true; _error = null; });
+    final err = await widget.controller.submit(_phone.text, _pw.text);
+    if (!mounted) return;
+    setState(() { _busy = false; _error = err; });
+    if (err == null) widget.onSuccess(); // AUTH-LOGIN-09
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('로그인')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        TextField(
+          key: const Key('login-phone'), controller: _phone,
+          keyboardType: TextInputType.phone,                          // AUTH-LOGIN-02
+          inputFormatters: [PhoneHyphenFormatter()],
+          style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]), // 고정폭 숫자
+          decoration: const InputDecoration(labelText: '전화번호'),
+        ),
+        TextField(
+          key: const Key('login-password'), controller: _pw, obscureText: _obscure, // AUTH-LOGIN-03
+          decoration: InputDecoration(
+            labelText: '비밀번호',
+            suffixIcon: IconButton(
+              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _obscure = !_obscure))),
+        ),
+        const SizedBox(height: 16),
+        // AUTH-LOGIN-05: 실패 문구는 버튼 위 붙박이(ERR-POS-01).
+        if (_error != null) ...[Text(_error!, style: const TextStyle(color: AppTokens.warn)), const SizedBox(height: 8)],
+        ActionButton(label: '로그인', busyLabel: '로그인 중…', busy: _busy, onPressed: _submit),
+        const SizedBox(height: 12),
+        // AUTH-LOGIN-07: 버튼 아래 가운데.
+        Center(child: TextButton(onPressed: widget.onForgot, child: const Text('비밀번호를 잊으셨나요?'))),
+        // AUTH-LOGIN-08: 그 아래 한 줄 더.
+        Center(child: TextButton(onPressed: widget.onPhoneChanged,
+            child: const Text('전화번호가 바뀌어 로그인할 수 없나요? ›'))),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/login_screen_test.dart` → Expected: PASS(9 tests).
+
+- [ ] **Step 3: 비밀번호 찾기 ① — 전화번호 확인 (`AUTH-PWFIND-01·03·04·05·07` · `NAV-AUTH-13`)**
+
+> ⭐ **가입 여부를 알려주지 않는다(PWFIND-03)** — 맞든 틀리든 같은 화면(인증번호 입력)으로 진행한다. 발송은 **`shouldCreateUser:false`**(PWFIND-04 — 아무 번호나 넣는 것만으로 빈 계정이 생기지 않게)이고, 미가입 번호면 문자는 오지 않고 시간만 흐른다(PWFIND-05). 구조는 회원가입과 **앞 세 칸이 같다**(번호 → 문자 → 로그인됨) — 다른 것은 마지막이 프로필 생성이냐 비밀번호 변경이냐뿐(PWFIND-07).
+
+- [ ] **Step 3a: 실패 테스트** — `patient_app/test/features/auth/password_find_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/auth/auth_repo.dart';
+import 'package:hospital_patient_app/features/auth/password_find_screen.dart';
+import 'package:hospital_patient_app/features/auth/signup_phone_screen.dart'; // PhoneSendResult
+
+class _FakeAuth extends Fake implements AuthRepo {
+  bool? sentCreateUser;
+  bool throwOnSend = false;
+  @override
+  Future<void> sendOtp(String phone, {required bool createUser}) async {
+    if (throwOnSend) throw Exception('user not found');
+    sentCreateUser = createUser;
+  }
+}
+
+void main() {
+  test('[AUTH-PWFIND-04] 발송은 shouldCreateUser:false로 나간다', () async {
+    final a = _FakeAuth();
+    final r = await PasswordFindController(a).submit('01011112222', DateTime(2026));
+    expect(a.sentCreateUser, isFalse);
+    expect(r, PhoneSendResult.sent);
+  });
+
+  test('[AUTH-PWFIND-03][AUTH-PWFIND-05] 미가입 번호라 발송이 실패해도 그대로 진행한다', () async {
+    final a = _FakeAuth()..throwOnSend = true; // 가입 안 된 번호
+    // 예외를 삼키고(가입 여부를 드러내지 않음) 인증 화면으로 넘어간다.
+    final r = await PasswordFindController(a).submit('01099998888', DateTime(2026));
+    expect(r, PhoneSendResult.sent); // 화면 흐름으로도 가입 여부를 알리지 않는다
+  });
+
+  testWidgets('[AUTH-PWFIND-01] 첫 화면은 전화번호 한 칸 + [인증번호 받기]', (t) async {
+    await t.pumpWidget(MaterialApp(
+      home: PasswordFindScreen(controller: PasswordFindController(_FakeAuth()), onSent: (_) {}),
+    ));
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('인증번호 받기'), findsOneWidget);
+  });
+
+  testWidgets('[NAV-AUTH-13] [인증번호 받기]를 누르면 인증 화면으로(번호 전달)', (t) async {
+    String? sentPhone;
+    await t.pumpWidget(MaterialApp(
+      home: PasswordFindScreen(
+        controller: PasswordFindController(_FakeAuth()),
+        onSent: (phone) => sentPhone = phone),
+    ));
+    await t.enterText(find.byType(TextField), '01011112222');
+    await t.tap(find.text('인증번호 받기'));
+    await t.pumpAndSettle();
+    expect(sentPhone, '01011112222');
+  });
+}
+```
+Run: `flutter test test/features/auth/password_find_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 3b: `PasswordFindScreen` + `PasswordFindController` 구현** — `patient_app/lib/features/auth/password_find_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../widgets/action_button.dart';
+import '../../widgets/field_error.dart';
+import 'auth_repo.dart';
+import 'signup_phone_screen.dart'; // PhoneSendResult · validatePhone(재사용)
+
+class PasswordFindController {
+  PasswordFindController(this.repo);
+  final AuthRepo repo;
+
+  /// AUTH-PWFIND-03·04·05 — createUser:false로 최선 발송하고, 실패해도(미가입) 삼켜서
+  /// 가입 여부를 드러내지 않고 그대로 인증 화면으로 넘어간다.
+  Future<PhoneSendResult> submit(String phone, DateTime now) async {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    try {
+      await repo.sendOtp(digits, createUser: false);
+    } catch (_) {
+      // 미가입 번호 등 — 알리지 않는다(개인정보 열거 방지).
+    }
+    return PhoneSendResult.sent;
+  }
+}
+
+class PasswordFindScreen extends StatefulWidget {
+  const PasswordFindScreen({super.key, required this.controller, required this.onSent});
+  final PasswordFindController controller;
+  final void Function(String phone) onSent; // 인증 화면으로(번호 전달)
+  @override
+  State<PasswordFindScreen> createState() => _PasswordFindScreenState();
+}
+
+class _PasswordFindScreenState extends State<PasswordFindScreen> {
+  final _form = FieldErrorController();
+  final _phone = TextEditingController();
+  bool _busy = false;
+
+  Future<void> _submit() async {
+    if (!_form.validateAll()) return;
+    setState(() => _busy = true);
+    final digits = _phone.text.replaceAll(RegExp(r'\D'), '');
+    await widget.controller.submit(digits, DateTime.now());
+    if (!mounted) return;
+    setState(() => _busy = false);
+    widget.onSent(digits); // NAV-AUTH-13: 미가입도 그대로 진행
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('비밀번호 찾기')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        const Text('가입하신 전화번호로 인증번호를 보내드립니다'),
+        const SizedBox(height: 16),
+        FieldTextInput(label: '전화번호', controller: _phone, form: _form, validate: validatePhone),
+        const SizedBox(height: 24),
+        ActionButton(label: '인증번호 받기', busyLabel: '인증번호 보내는 중…', busy: _busy, onPressed: _submit),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/password_find_screen_test.dart` → Expected: PASS(4 tests).
+
+- [ ] **Step 4: 인증 화면에 「문자가 오지 않나요?」 링크 추가 (`AUTH-PWFIND-06` · `NAV-AUTH-16`)**
+
+> ⭐ **T13 `OtpScreen`은 가족 연결 목적일 때만 막다른 길 링크를 붙였다(AUTH-OTP-11).** 비밀번호 찾기 목적일 때도 같은 자리에 「문자가 오지 않나요? ›」를 붙여 **번호 변경 안내(`PhoneChangeScreen`)로 `push`**한다(PWFIND-06). ⚠️ **`go`가 아니라 `push`** — 뒤로 가면 인증 화면으로 돌아온다(NAV-AUTH-16 「화면을 떠나지 않는다」). 진짜로 번호가 바뀐 사람과 가입한 적 없는 사람이 **같은 화면에서 막히므로** 둘 다 병원으로 안내한다.
+
+- [ ] **Step 4a: 실패 테스트** — `patient_app/test/features/auth/otp_pwfind_link_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/phone_cooldown.dart';
+import 'package:hospital_patient_app/features/auth/otp_screen.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+class _MockStorage extends Mock implements FlutterSecureStorage {}
+PhoneCooldownStore _store() {
+  final s = _MockStorage();
+  when(() => s.read(key: any(named: 'key'))).thenAnswer((_) async => null);
+  when(() => s.write(key: any(named: 'key'), value: any(named: 'value'))).thenAnswer((_) async {});
+  return PhoneCooldownStore(s);
+}
+
+OtpScreen _screen(OtpPurpose purpose) => OtpScreen(
+      phone: '01011115678', purpose: purpose, cooldown: _store(),
+      onResend: () async {}, onVerify: (_) async => null, onSuccess: () {});
+
+void main() {
+  testWidgets('[AUTH-PWFIND-06] 비밀번호 찾기 인증 화면에 「문자가 오지 않나요?」 링크가 있다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(OtpPurpose.passwordFind)));
+    expect(find.text('문자가 오지 않나요?'), findsOneWidget);
+  });
+
+  testWidgets('[NAV-AUTH-16] 가입 목적 인증 화면에는 그 링크가 없다(목적별 분기)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(OtpPurpose.signup)));
+    expect(find.text('문자가 오지 않나요?'), findsNothing);
+  });
+}
+```
+Run: `flutter test test/features/auth/otp_pwfind_link_test.dart` → Expected: FAIL(링크 없음).
+
+- [ ] **Step 4b: `otp_screen.dart`에 한 줄 추가** — `patient_app/lib/features/auth/otp_screen.dart` (Modify)
+
+`AUTH-OTP-11`(가족 연결 링크) 바로 아래에 목적별 분기를 하나 더 둔다. ⚠️ **T13 테스트를 깨지 않는 순수 추가**다(기존 요소를 지우지 않는다):
+```dart
+        // AUTH-OTP-11: 가족 연결만 막다른 길 링크.
+        if (widget.purpose == OtpPurpose.familyLink)
+          TextButton(onPressed: () {}, child: const Text('휴대폰이 없는 가족인가요?')),
+        // AUTH-PWFIND-06 / NAV-AUTH-16: 비밀번호 찾기는 「문자가 오지 않나요?」 → 번호 변경 안내로 push(겹침).
+        if (widget.purpose == OtpPurpose.passwordFind)
+          TextButton(
+            onPressed: () => Navigator.of(context).pushNamed('/phone-change'),
+            child: const Text('문자가 오지 않나요?')),
+```
+> 📌 라우트 이름 이동은 Step 7 라우터가 `/phone-change`를 등록해 실현한다. 테스트는 링크 **존재·목적 분기**만 본다(내비게이션은 Step 7 `auth_routes_test.dart`가 검증).
+
+Run: `flutter test test/features/auth/otp_pwfind_link_test.dart` + `flutter test test/features/auth/otp_screen_test.dart`(T13) → Expected: 둘 다 PASS(11 + 2).
+
+- [ ] **Step 5: 이미 가입한 번호 — 갈림길 화면 (`AUTH-DUP-01`~`17` · `NAV-AUTH-05·06·07`)**
+
+> ⭐ **인증 후에만 뜬다(AUTH-DUP-02).** 가입하려던 사람이 그 번호에 이미 프로필이 있으면 ③ 대신 이 화면을 띄운다 — `이미 가입하신 번호입니다` + `[로그인하러 가기]`(주, 세션 폐기 후 로그인) + `비밀번호를 잊으셨나요?` `[비밀번호 바꾸기]`(새 비밀번호 화면) + 셋째 줄 `이 번호를 최근에 새로 받으셨나요? ›`(번호 변경 안내). ⛔ **곧바로 홈으로 들여보내지 않는다(AUTH-DUP-05)** — 그러면 문자 인증만으로 로그인이 되어 「평소 로그인은 비밀번호」 결정을 앱이 스스로 우회한다.
+
+- [ ] **Step 5a: 실패 테스트** — `patient_app/test/features/auth/duplicate_account_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/auth/auth_repo.dart';
+import 'package:hospital_patient_app/features/auth/duplicate_account_screen.dart';
+
+class _FakeAuth extends Fake implements AuthRepo {
+  int signOutCalls = 0;
+  @override
+  Future<void> signOut() async => signOutCalls++;
+}
+
+DuplicateAccountScreen _screen(_FakeAuth a, {void Function(String)? onNavigate}) =>
+    DuplicateAccountScreen(
+      phone: '01011115678',
+      repo: a,
+      onLogin: () => onNavigate?.call('login'),
+      onChangePassword: () => onNavigate?.call('new-password'),
+      onRecentlyReceived: () => onNavigate?.call('phone-change'),
+    );
+
+void main() {
+  testWidgets('[AUTH-DUP-02] 안내 문구와 두 버튼 + 셋째 줄이 있다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth())));
+    expect(find.text('이미 가입하신 번호입니다'), findsOneWidget);
+    expect(find.text('로그인하러 가기'), findsOneWidget);
+    expect(find.text('비밀번호 바꾸기'), findsOneWidget);
+    expect(find.textContaining('이 번호를 최근에 새로 받으셨나요?'), findsOneWidget); // AUTH-DUP-14
+  });
+
+  testWidgets('[AUTH-DUP-16] [비밀번호 바꾸기]를 없애지 않는다(진짜 환자가 더 많다)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth())));
+    expect(find.text('비밀번호 바꾸기'), findsOneWidget);
+  });
+
+  testWidgets('[AUTH-DUP-03][AUTH-DUP-04][NAV-AUTH-06] [로그인하러 가기]는 세션을 버리고 로그인으로', (t) async {
+    final a = _FakeAuth();
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(a, onNavigate: (d) => nav = d)));
+    await t.tap(find.text('로그인하러 가기'));
+    await t.pumpAndSettle();
+    expect(a.signOutCalls, 1); // 문자 인증으로 생긴 세션을 버린다(모순 방지)
+    expect(nav, 'login');
+  });
+
+  testWidgets('[AUTH-DUP-05] [로그인하러 가기]는 곧바로 홈으로 보내지 않는다', (t) async {
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), onNavigate: (d) => nav = d)));
+    await t.tap(find.text('로그인하러 가기'));
+    await t.pumpAndSettle();
+    expect(nav, isNot('home')); // 문자 인증만으로 로그인되지 않는다
+  });
+
+  testWidgets('[AUTH-DUP-09][NAV-AUTH-07] [비밀번호 바꾸기]는 새 비밀번호 화면으로(세션 유지)', (t) async {
+    final a = _FakeAuth();
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(a, onNavigate: (d) => nav = d)));
+    await t.tap(find.text('비밀번호 바꾸기'));
+    await t.pumpAndSettle();
+    expect(nav, 'new-password');
+    expect(a.signOutCalls, 0); // 세션을 유지해야 서버 경유 재설정이 통과한다
+  });
+
+  testWidgets('[AUTH-DUP-14] 셋째 줄 → 번호 변경 안내(앱은 판정하지 않는다)', (t) async {
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), onNavigate: (d) => nav = d)));
+    await t.tap(find.textContaining('이 번호를 최근에 새로 받으셨나요?'));
+    await t.pumpAndSettle();
+    expect(nav, 'phone-change');
+  });
+}
+```
+Run: `flutter test test/features/auth/duplicate_account_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 5b: `DuplicateAccountScreen` 구현** — `patient_app/lib/features/auth/duplicate_account_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../core/tokens.dart';
+import '../../widgets/action_button.dart';
+import 'auth_repo.dart';
+
+/// AUTH-DUP-02 — 인증 후에만 뜨는 갈림길. 문자 인증만으로 홈에 들여보내지 않는다(AUTH-DUP-05).
+class DuplicateAccountScreen extends StatelessWidget {
+  const DuplicateAccountScreen({
+    super.key,
+    required this.phone,
+    required this.repo,
+    required this.onLogin,           // 세션 폐기 후 로그인(번호 채워진 채)
+    required this.onChangePassword,  // 새 비밀번호 화면(세션 유지)
+    required this.onRecentlyReceived,// 번호 변경 안내
+  });
+  final String phone;
+  final AuthRepo repo;
+  final VoidCallback onLogin;
+  final VoidCallback onChangePassword;
+  final VoidCallback onRecentlyReceived;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('회원가입')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        const Text('이미 가입하신 번호입니다', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 24),
+        // AUTH-DUP-03·04: 주 버튼. 문자 인증으로 생긴 세션을 버리고(signOut) 로그인으로 — 비밀번호를 치게 한다.
+        ActionButton(label: '로그인하러 가기', onPressed: () async {
+          await repo.signOut();
+          onLogin();
+        }),
+        const SizedBox(height: 24),
+        const Text('비밀번호를 잊으셨나요?'),
+        const SizedBox(height: 8),
+        // AUTH-DUP-09·16: 없애지 않는다 — 비밀번호를 잊은 진짜 환자가 훨씬 많다. 세션은 유지(서버 재설정에 필요).
+        OutlinedButton(onPressed: onChangePassword, child: const Text('비밀번호 바꾸기')),
+        const SizedBox(height: 24),
+        // AUTH-DUP-14: 셋째 줄 — 앱은 아무것도 판정하지 않고 병원 안내로 보낸다.
+        TextButton(
+          onPressed: onRecentlyReceived,
+          child: const Text('이 번호를 최근에 새로 받으셨나요? ›', style: TextStyle(color: AppTokens.grayPending))),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/duplicate_account_screen_test.dart` → Expected: PASS(6 tests).
+
+- [ ] **Step 6: 민감 화면 재인증 — 화면 + 5분 가드 (`AUTH-REAUTH-01`~`05` · `NAV-AUTH-17` · `NAV-GLOBAL-05` 실체화)**
+
+> ⭐ **수단은 문자가 아니라 비밀번호(REAUTH-01)** — 가족관리·설정 진입마다 SMS를 보내면 느리고 비용이 든다. **떠난 지 5분이 지나 재진입하면** 다시 묻고, 5분 이내면 묻지 않는다(REAUTH-04). 대상은 가족 관리·설정(REAUTH-05). ⚠️ **Task 11 라우터가 `sensitiveReauthGuardProvider`·`_isSensitive`를 이미 부른다** — 여기서 정의해야 그 가드가 닫힌다.
+
+- [ ] **Step 6a: 실패 테스트(가드)** — `patient_app/test/core/sensitive_reauth_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/sensitive_reauth.dart';
+
+void main() {
+  test('[AUTH-REAUTH-04] 한 번도 통과 안 했으면 재인증이 필요하다', () {
+    final g = SensitiveReauthGuard(now: () => DateTime(2026, 1, 1, 12, 0));
+    expect(g.needsReauth, isTrue);
+  });
+
+  test('[AUTH-REAUTH-04] 통과 직후 5분 이내면 다시 묻지 않는다', () {
+    var t = DateTime(2026, 1, 1, 12, 0);
+    final g = SensitiveReauthGuard(now: () => t);
+    g.markPassed();
+    t = DateTime(2026, 1, 1, 12, 4, 59); // 4분 59초 뒤
+    expect(g.needsReauth, isFalse);
+  });
+
+  test('[AUTH-REAUTH-04] 5분을 넘기면 다시 묻는다', () {
+    var t = DateTime(2026, 1, 1, 12, 0);
+    final g = SensitiveReauthGuard(now: () => t);
+    g.markPassed();
+    t = DateTime(2026, 1, 1, 12, 5, 1); // 5분 1초 뒤
+    expect(g.needsReauth, isTrue);
+  });
+}
+```
+
+- [ ] **Step 6b: `SensitiveReauthGuard` 구현** — `patient_app/lib/core/sensitive_reauth.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// AUTH-REAUTH-04 — 민감 화면을 떠난 뒤 5분 초과 후 재진입하면 비밀번호를 다시 묻는다.
+class SensitiveReauthGuard {
+  SensitiveReauthGuard({DateTime Function()? now}) : _now = now ?? DateTime.now;
+  final DateTime Function() _now;
+  DateTime? _lastPassedAt;
+  static const window = Duration(minutes: 5); // 요구사항 4.1「민감한 화면」
+
+  bool get needsReauth {
+    final t = _lastPassedAt;
+    if (t == null) return true;                 // 아직 한 번도 재인증을 통과하지 않았다
+    return _now().difference(t) > window;       // 5분 초과면 다시 묻는다
+  }
+
+  void markPassed() => _lastPassedAt = _now();  // 재인증 성공 시각 기록
+}
+
+final sensitiveReauthGuardProvider =
+    Provider<SensitiveReauthGuard>((ref) => SensitiveReauthGuard());
+```
+
+- [ ] **Step 6c: 실패 테스트(화면)** — `patient_app/test/features/auth/reauth_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/sensitive_reauth.dart';
+import 'package:hospital_patient_app/features/auth/auth_repo.dart';
+import 'package:hospital_patient_app/features/auth/reauth_screen.dart';
+
+class _FakeAuth extends Fake implements AuthRepo {
+  String? result; // null=성공
+  @override
+  Future<String?> reauthenticate(String password) async => result;
+}
+
+ReauthScreen _screen(_FakeAuth a, SensitiveReauthGuard g,
+        {void Function(String)? onNavigate}) =>
+    ReauthScreen(
+      controller: ReauthController(a),
+      guard: g,
+      onPassed: () => onNavigate?.call('next'),
+      onForgot: () => onNavigate?.call('forgot'),
+    );
+
+void main() {
+  testWidgets('[AUTH-REAUTH-01] 비밀번호 칸이다 — 인증번호(문자) 칸이 아니다', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), SensitiveReauthGuard())));
+    expect(find.byKey(const Key('reauth-password')), findsOneWidget);
+    expect(find.textContaining('인증번호'), findsNothing);
+  });
+
+  testWidgets('[AUTH-REAUTH-03] 눈 토글(기본 가림)', (t) async {
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), SensitiveReauthGuard())));
+    final pw = t.widget<TextField>(find.byKey(const Key('reauth-password')));
+    expect(pw.obscureText, isTrue);
+  });
+
+  testWidgets('[AUTH-REAUTH-02][NAV-AUTH-17] 「비밀번호를 잊으셨나요?」 → 비밀번호 찾기', (t) async {
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth(), SensitiveReauthGuard(), onNavigate: (d) => nav = d)));
+    await t.tap(find.text('비밀번호를 잊으셨나요?'));
+    expect(nav, 'forgot');
+  });
+
+  testWidgets('[AUTH-REAUTH-04] 성공하면 가드에 통과를 기록하고 원래 화면으로', (t) async {
+    final g = SensitiveReauthGuard();
+    String? nav;
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth()..result = null, g, onNavigate: (d) => nav = d)));
+    await t.enterText(find.byKey(const Key('reauth-password')), 'mypw1234');
+    await t.tap(find.text('확인'));
+    await t.pumpAndSettle();
+    expect(g.needsReauth, isFalse); // markPassed 됨 → 5분간 다시 안 묻는다
+    expect(nav, 'next');
+  });
+
+  testWidgets('[AUTH-REAUTH-01] 틀리면 문구를 띄우고 통과시키지 않는다', (t) async {
+    final g = SensitiveReauthGuard();
+    await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth()..result = '전화번호 또는 비밀번호가 올바르지 않습니다', g)));
+    await t.enterText(find.byKey(const Key('reauth-password')), 'wrongpw1');
+    await t.tap(find.text('확인'));
+    await t.pumpAndSettle();
+    expect(find.text('전화번호 또는 비밀번호가 올바르지 않습니다'), findsOneWidget);
+    expect(g.needsReauth, isTrue); // 통과 기록 없음
+  });
+}
+```
+Run: `flutter test test/features/auth/reauth_screen_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 6d: `ReauthScreen` + `ReauthController` 구현** — `patient_app/lib/features/auth/reauth_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../core/sensitive_reauth.dart';
+import '../../core/tokens.dart';
+import '../../widgets/action_button.dart';
+import 'auth_repo.dart';
+
+class ReauthController {
+  ReauthController(this.repo);
+  final AuthRepo repo;
+  Future<String?> submit(String password) => repo.reauthenticate(password); // AUTH-REAUTH-01
+}
+
+class ReauthScreen extends StatefulWidget {
+  const ReauthScreen({
+    super.key,
+    required this.controller,
+    required this.guard,
+    required this.onPassed,
+    required this.onForgot,
+  });
+  final ReauthController controller;
+  final SensitiveReauthGuard guard;
+  final VoidCallback onPassed; // 원래 가려던 민감 화면으로
+  final VoidCallback onForgot; // 비밀번호 찾기(막다른 길 방지)
+  @override
+  State<ReauthScreen> createState() => _ReauthScreenState();
+}
+
+class _ReauthScreenState extends State<ReauthScreen> {
+  final _pw = TextEditingController();
+  bool _obscure = true, _busy = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    setState(() { _busy = true; _error = null; });
+    final err = await widget.controller.submit(_pw.text);
+    if (!mounted) return;
+    if (err == null) {
+      widget.guard.markPassed();       // AUTH-REAUTH-04: 통과 시각 기록 → 5분간 다시 안 묻는다
+      widget.onPassed();
+      return;
+    }
+    setState(() { _busy = false; _error = err; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('본인 확인')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        const Text('민감한 정보를 열기 전에 비밀번호를 한 번 더 확인합니다'),
+        const SizedBox(height: 16),
+        TextField(
+          key: const Key('reauth-password'), controller: _pw, obscureText: _obscure, // AUTH-REAUTH-01·03
+          decoration: InputDecoration(
+            labelText: '비밀번호',
+            suffixIcon: IconButton(
+              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
+              onPressed: () => setState(() => _obscure = !_obscure))),
+        ),
+        const SizedBox(height: 16),
+        if (_error != null) ...[Text(_error!, style: const TextStyle(color: AppTokens.warn)), const SizedBox(height: 8)],
+        ActionButton(label: '확인', busyLabel: '확인 중…', busy: _busy, onPressed: _submit),
+        const SizedBox(height: 12),
+        // AUTH-REAUTH-02: 막다른 길 방지 — 이 화면에도 둔다.
+        Center(child: TextButton(onPressed: widget.onForgot, child: const Text('비밀번호를 잊으셨나요?'))),
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/auth/reauth_screen_test.dart` + `test/core/sensitive_reauth_test.dart` → Expected: PASS(5 + 3).
+
+- [ ] **Step 7: 인증 라우트 표 완성 + `_isSensitive` + 세션 (`NAV-AUTH-01`~`20` · `AUTH-DUP-02` 분기 · `AUTH-SESS-01·02·03·05` · `AUTH-PWFIND-08` · `AUTH-PWNEW-04`)**
+
+> ⭐ **여기서 T13·T14 화면이 하나의 지도로 이어진다.** 골격(Task 0)의 자리표시자 라우트를 실제 화면·콜백으로 교체하고, **가입 ② 인증 성공의 분기**(프로필 없음 → ③ / 있음 → 갈림길, AUTH-DUP-02·NAV-AUTH-04·05)를 배선한다. `_isSensitive`도 여기서 정의(Task 11 가드가 부른다). ⚠️ **`go`는 히스토리를 교체**하므로 로그인·가입·비밀번호 변경 성공 후 뒤로가기로 돌아갈 수 없다(AUTH-LOGIN-09·NAV-AUTH-08·10·15).
+
+- [ ] **Step 7a: 실패 테스트(라우트 표)** — `patient_app/test/features/auth/auth_routes_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hospital_patient_app/core/router.dart';
+import 'package:hospital_patient_app/features/auth/login_screen.dart';
+import 'package:hospital_patient_app/features/auth/password_find_screen.dart';
+import 'package:hospital_patient_app/features/auth/reauth_screen.dart';
+import 'package:hospital_patient_app/features/auth/phone_change_screen.dart';
+
+Future<void> _pump(WidgetTester t, String location) async {
+  final router = buildAppRouter(initialLocation: location); // 테스트가 시작 위치를 준다
+  await t.pumpWidget(ProviderScope(child: MaterialApp.router(routerConfig: router)));
+  await t.pumpAndSettle();
+}
+
+void main() {
+  testWidgets('[NAV-AUTH-01] /login → 로그인 화면', (t) async {
+    await _pump(t, '/login');
+    expect(find.byType(LoginScreen), findsOneWidget);
+  });
+
+  testWidgets('[NAV-AUTH-11] /password-find → 비밀번호 찾기 ①', (t) async {
+    await _pump(t, '/password-find');
+    expect(find.byType(PasswordFindScreen), findsOneWidget);
+  });
+
+  testWidgets('[NAV-AUTH-12] /phone-change → 번호 변경 안내', (t) async {
+    await _pump(t, '/phone-change');
+    expect(find.byType(PhoneChangeScreen), findsOneWidget);
+  });
+
+  testWidgets('[NAV-AUTH-17] /reauth?next=/settings → 재인증 화면', (t) async {
+    await _pump(t, '/reauth?next=/settings');
+    expect(find.byType(ReauthScreen), findsOneWidget);
+  });
+
+  testWidgets('[NAV-AUTH-19] 로그인 전 화면에는 하단 탭이 없다', (t) async {
+    await _pump(t, '/login');
+    expect(find.byType(BottomNavigationBar), findsNothing);
+  });
+
+  test('[AUTH-REAUTH-05] 민감 경로 판정 — 가족·설정만', () {
+    expect(isSensitiveLocation('/family'), isTrue);
+    expect(isSensitiveLocation('/settings/notifications'), isTrue);
+    expect(isSensitiveLocation('/home'), isFalse);
+    expect(isSensitiveLocation('/booking'), isFalse);
+  });
+}
+```
+> 📌 이 테스트는 `buildAppRouter({initialLocation})`(테스트가 시작 위치를 주입)와 `isSensitiveLocation`(내부 `_isSensitive`의 공개 래퍼)을 요구한다 — Step 7b에서 낸다.
+
+Run: `flutter test test/features/auth/auth_routes_test.dart` → Expected: FAIL(심볼 없음).
+
+- [ ] **Step 7b: 라우터 배선** — `patient_app/lib/core/router.dart` (Modify)
+
+Task 0 골격 + Task 11 `redirect`를 유지한 채, ① 자리표시자 라우트를 실제 화면·콜백으로 교체하고 ② `_isSensitive`와 그 공개 래퍼를 두고 ③ 라우터를 **함수로 감싸** 테스트가 시작 위치를 주입할 수 있게 한다:
+```dart
+// AUTH-REAUTH-05 — 민감 경로는 가족·설정뿐. Task 11 redirect가 이 판정을 부른다.
+bool _isSensitive(String loc) => loc.startsWith('/family') || loc.startsWith('/settings');
+bool isSensitiveLocation(String loc) => _isSensitive(loc); // 테스트용 공개 래퍼
+
+/// 인증 성공 후 가입 미완료(프로필 없음)면 ③으로, 이미 프로필이 있으면 갈림길로(AUTH-DUP-02).
+Future<void> _afterSignupOtp(BuildContext context, WidgetRef ref, String phone) async {
+  final exists = await ref.read(authRepoProvider).hasProfile();
+  if (!context.mounted) return;
+  if (exists) {
+    context.go('/duplicate', extra: {'phone': phone}); // NAV-AUTH-05
+  } else {
+    context.go('/signup/step3');                        // NAV-AUTH-04
+  }
+}
+
+GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
+  initialLocation: initialLocation,
+  redirect: _authRedirect, // Task 11에서 옮겨 온 전역 가드(effectiveAuthProvider·profileMissing·sensitiveReauth)
+  routes: [
+    GoRoute(path: '/login', builder: (c, s) {
+      final extra = s.extra as Map?; // NAV-AUTH-06: 갈림길에서 온 번호
+      final next = s.uri.queryParameters['next']; // NAV-AUTH-18: 딥링크 목적지
+      return Consumer(builder: (c, ref, _) => LoginScreen(
+        controller: LoginController(ref.read(authRepoProvider)),
+        prefillPhone: extra?['phone'] as String?,
+        onSuccess: () => c.go(next ?? '/home'),         // AUTH-LOGIN-09·NAV-AUTH-10·18
+        onForgot: () => c.push('/password-find'),        // NAV-AUTH-11
+        onPhoneChanged: () => c.push('/phone-change'),   // NAV-AUTH-12
+      ));
+    }),
+    // ⓪동의 → ①전화 → ②인증(분기) → ③기본정보 (화면은 T13, 여기선 콜백만 잇는다)
+    GoRoute(path: '/signup', builder: (c, s) => const ConsentScreen()),           // NAV-AUTH-02
+    GoRoute(path: '/signup/phone', builder: (c, s) => Consumer(builder: (c, ref, _) =>
+        SignupPhoneScreen(controller: SignupPhoneController(
+            ref.read(authRepoProvider), ref.read(phoneCooldownProvider))))),      // NAV-AUTH-03
+    GoRoute(path: '/signup/otp', builder: (c, s) {
+      final extra = s.extra as Map;
+      final phone = extra['phone'] as String;
+      return Consumer(builder: (c, ref, _) {
+        final repo = ref.read(authRepoProvider);
+        return OtpScreen(
+          phone: phone, purpose: OtpPurpose.signup, cooldown: ref.read(phoneCooldownProvider),
+          onResend: () => repo.sendOtp(phone, createUser: true),
+          onVerify: (code) => repo.verifyOtp(phone, code),
+          onSuccess: () => _afterSignupOtp(c, ref, phone));               // NAV-AUTH-04·05
+      });
+    }),
+    GoRoute(path: '/signup/step3', builder: (c, s) => const SignupProfileScreen()), // NAV-AUTH-08·09
+    GoRoute(path: '/duplicate', builder: (c, s) {
+      final phone = (s.extra as Map)['phone'] as String;
+      return Consumer(builder: (c, ref, _) => DuplicateAccountScreen(
+        phone: phone, repo: ref.read(authRepoProvider),
+        onLogin: () => c.go('/login', extra: {'phone': phone}),  // NAV-AUTH-06(번호 채워)
+        onChangePassword: () => c.go('/new-password'),           // NAV-AUTH-07
+        onRecentlyReceived: () => c.push('/phone-change')));     // AUTH-DUP-14
+    }),
+    GoRoute(path: '/password-find', builder: (c, s) => Consumer(builder: (c, ref, _) =>
+        PasswordFindScreen(
+          controller: PasswordFindController(ref.read(authRepoProvider)),
+          onSent: (phone) => c.push('/password-find/otp', extra: {'phone': phone})))), // NAV-AUTH-13
+    GoRoute(path: '/password-find/otp', builder: (c, s) {
+      final phone = (s.extra as Map)['phone'] as String;
+      return Consumer(builder: (c, ref, _) {
+        final repo = ref.read(authRepoProvider);
+        return OtpScreen(
+          phone: phone, purpose: OtpPurpose.passwordFind, cooldown: ref.read(phoneCooldownProvider),
+          onResend: () => repo.sendOtp(phone, createUser: false),
+          onVerify: (code) => repo.verifyOtp(phone, code),
+          onSuccess: () => c.go('/new-password'));                        // NAV-AUTH-14
+      });
+    }),
+    GoRoute(path: '/new-password', builder: (c, s) => Consumer(builder: (c, ref, _) =>
+        NewPasswordScreen(
+          controller: NewPasswordController(ref.read(authRepoProvider)),
+          onDone: () => c.go('/login')))),  // AUTH-PWNEW-04(로그인 화면으로) — NAV-AUTH-15 갱신
+    GoRoute(path: '/phone-change', builder: (c, s) => const PhoneChangeScreen()),
+    GoRoute(path: '/reauth', builder: (c, s) {
+      final next = s.uri.queryParameters['next'] ?? '/home';
+      return Consumer(builder: (c, ref, _) => ReauthScreen(
+        controller: ReauthController(ref.read(authRepoProvider)),
+        guard: ref.read(sensitiveReauthGuardProvider),
+        onPassed: () => c.go(next),        // NAV-GLOBAL-05: 원래 가려던 민감 화면으로
+        onForgot: () => c.push('/password-find'))); // NAV-AUTH-17
+    }),
+    // 보호 화면(홈·예약·가족·이력·설정)은 이후 태스크가 AppShell로 감싼다(NAV-AUTH-19: 인증 전엔 탭 없음).
+    ...protectedRoutesPlaceholder,
+  ],
+);
+
+final GoRouter appRouter = buildAppRouter(); // main.dart가 쓰는 기본 인스턴스
+```
+> 📌 **`phoneCooldownProvider`·`ConsentScreen`·`SignupPhoneScreen`·`SignupProfileScreen`·`OtpScreen`·`NewPasswordScreen`·`PhoneChangeScreen`은 T12·T13 산출물**을 import한다. `_authRedirect`는 Task 11이 `redirect:` 인라인으로 둔 것을 **이름 있는 함수로 빼기만** 한다(로직 무변경 — `sensitiveReauthGuardProvider`·`profileMissingProvider`·`effectiveAuthProvider`를 그대로 읽는다). `protectedRoutesPlaceholder`는 Task 0 골격의 홈·예약·가족·이력·설정 자리표시자(이후 태스크가 교체).
+
+- [ ] **Step 7c: 실패 테스트(세션 행동)** — `test/features/auth/auth_routes_test.dart`에 이어서
+
+```dart
+  testWidgets('[AUTH-SESS-01][NAV-AUTH-09] 자동 로그인 — 다시 켜도 매번 로그인시키지 않는다', (t) async {
+    // effectiveAuthProvider가 signedIn이면 보호 경로가 /login으로 튕기지 않는다(리다이렉트 없음).
+    final router = buildAppRouter(initialLocation: '/home');
+    await t.pumpWidget(ProviderScope(
+      overrides: [effectiveAuthProvider.overrideWithValue(AuthStatus.signedIn),
+                  profileMissingProvider.overrideWithValue(false)],
+      child: MaterialApp.router(routerConfig: router)));
+    await t.pumpAndSettle();
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/home'); // 로그인으로 안 튕긴다
+  });
+
+  test('[AUTH-SESS-02] 갱신표 회전이 켜져 있어 30분마다 로그인하지 않는다', () {
+    final cfg = File('supabase/config.toml').readAsStringSync();
+    expect(cfg.contains('enable_refresh_token_rotation = true'), isTrue);
+  });
+```
+> ⚠️ `File`을 쓰려면 `import 'dart:io';`. `[AUTH-SESS-02]`는 백엔드 설정 파일을 보는 순수 테스트라 `flutter test`가 아니라 리포 루트에서 도는 편이 낫지만, 경로를 리포 기준으로 열면 함께 통과한다(CI 작업 디렉토리 = 리포 루트).
+
+- [ ] **Step 7d: config.toml 확인** — `supabase/config.toml`
+
+`enable_refresh_token_rotation = true`가 이미 있으면(1단계 기본) 주석만 남기고, 없으면 켠다(AUTH-SESS-02 — 출입증 30분이지만 갱신표로 자동 연장):
+```toml
+# AUTH-SESS-01·02 — 자동 로그인. JWT는 30분이지만 갱신표(refresh token)가 자동 연장한다.
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+```
+Run: `cd patient_app && flutter test test/features/auth/auth_routes_test.dart` → Expected: PASS(8 tests).
+
+- [ ] **Step 8: 전체 테스트 + 커밋**
+
+Run: `cd patient_app && flutter test` → Expected: 전체 PASS · `cd backend && pytest`(T13 백엔드 회귀) → Expected: PASS
+
+```bash
+git add patient_app/lib/features/auth/auth_repo.dart \
+  patient_app/lib/features/auth/login_screen.dart \
+  patient_app/lib/features/auth/password_find_screen.dart \
+  patient_app/lib/features/auth/duplicate_account_screen.dart \
+  patient_app/lib/features/auth/reauth_screen.dart \
+  patient_app/lib/features/auth/otp_screen.dart \
+  patient_app/lib/core/sensitive_reauth.dart patient_app/lib/core/router.dart \
+  supabase/config.toml patient_app/test/
+git commit -m "feat: 환자앱 Task 14 — 로그인·비번찾기·중복번호·재인증·세션 + 인증 라우팅 64규칙"
+```
+
+> 📌 **규칙 커버리지(64)**: `AUTH-LOGIN-01~09`(9) · `AUTH-PWFIND-01~08`(8) · `AUTH-DUP-01~17`(17) · `AUTH-REAUTH-01~05`(5) · `AUTH-SESS-01~05`(5) · `NAV-AUTH-01~20`(20).
+> ⭐ **양방향 악수 갚음**: `sensitiveReauthGuardProvider`·`_isSensitive`(Task 11 라우터가 기다리던 것) 정의 + `/signup/otp` 분기(프로필 없음→③/있음→갈림길)로 가입 라우팅 완성.
+> ⚠️ **낡은 단방향 표기 2건 갱신**: `NAV-AUTH-15`(→홈)은 `AUTH-PWNEW-04`(→로그인)로, `NAV-AUTH-16`(도움말 시트)은 `AUTH-PWFIND-06`(번호 변경 push)로 통합 — 둘 다 후행·구체 결정 우선.
+>
+> 📌 **근거·경계·구조 규칙 — 값이 없어 관측 테스트가 아니라 「어느 테스트가 실현하는가」로 닫는다**(값 없는 규칙은 구현·손검수 몫):
+> - **AUTH-DUP 근거·한계 10건** — `AUTH-DUP-01`·`AUTH-DUP-12`(인증 전 아무 말/차단 안 함): `PasswordFindController`·`SignupPhoneController`에 사전 판정 코드가 없다는 구조가 실현(`AUTH-PWFIND-03` 테스트가 같은 원리). `AUTH-DUP-06`·`AUTH-DUP-07`·`AUTH-DUP-08`(흔적·배경·가족 위험 근거): `AUTH-DUP-04`(signOut)·`AUTH-DUP-09`(비밀번호 변경 경로) 테스트가 실현 — 조용한 로그인 대신 흔적이 남는 경로만 연다(문을 3걸음에서 1걸음으로 줄이지 않는다). `AUTH-DUP-10`·`AUTH-DUP-11`(같은 비밀번호 문제 없음·서버 동작 무관): 갈림길이 로그인/재설정 둘로만 갈라 **같은 값을 칠 이유가 없는** 구조가 실현 — 서버가 같은 비밀번호를 거절하는지 확인하지 않아도 결과가 같다. `AUTH-DUP-13`(번호 재활용→재설정 이름 막힘): 갈림길 `[비밀번호 바꾸기]`→`NewPasswordScreen`(이름 칸, T13 `AUTH-PWNEW-08`)이 실현. `AUTH-DUP-15`(문이지 방어 아님): `[비밀번호 바꾸기]`가 눌리되 그 앞을 이름 칸이 막는 구조. `AUTH-DUP-17`(탐지·복구는 병원 쪽): 갭 #44 — staff-web T30·환자 상세, ⑤ 범위 밖(대조표 등록).
+> - **AUTH-PWFIND 구조 2건** — `AUTH-PWFIND-02`(한 위젯 세 단계 → 플랜 패치): 라우트가 `/password-find`→`/password-find/otp`→`/new-password` **세 화면**으로 갈라진 구조가 실현. `AUTH-PWFIND-07`(회원가입과 앞 세 칸 같음): `OtpScreen`·번호 화면을 **공유**하고 마지막만 `NewPasswordScreen`으로 가는 라우트가 실현. `AUTH-PWFIND-08`(② 통과 후 앱 꺼짐→그냥 홈): 비밀번호 찾기는 **프로필이 온전한 계정**이라 `profileMissingProvider`가 false → `/signup/step3` 리다이렉트가 걸리지 않는다(가입과 달리 되돌릴 것이 없다) — `[AUTH-SESS-01]` 테스트(signedIn+프로필 있음→튕기지 않음)가 같은 장치를 확인.
+> - **AUTH-SESS 구조 2건** — `AUTH-SESS-03`(오프라인+만료→`OFF-AUTH`): Task 11이 소유(여기서 재정의 안 함). `AUTH-SESS-05`(강제 로그아웃 없음): 시간 경과로 로그아웃하는 코드·타이머가 **없다는 것**과 재인증이 민감 경로에만 걸리는 구조(`_isSensitive`)가 실현 — 요구사항 4.1이 「민감한 화면」에만 재인증을 요구했다.
+> - **NAV-AUTH 그림 밖 3건** — `NAV-AUTH-18`(딥링크→로그인 후 원목적지): `/login`이 `?next=`를 읽어 성공 후 `go(next)` 하는 배선이 실현(`onSuccess: c.go(next ?? '/home')`). `NAV-AUTH-19`(로그인 전 하단 탭 없음): 인증 라우트에 `AppShell`을 씌우지 않는 구조 — `[NAV-AUTH-19]` 테스트가 `BottomNavigationBar` 부재로 확인. `NAV-AUTH-20`(가입②서 뒤로 여러 번→랜딩, 쿨다운 번호 기준): `push` 체인의 pop과 `PhoneCooldownStore`(번호 키, T12 `BTN-COOL-07`)가 실현 — 쿨다운은 T13 `[AUTH-PHONE-04]`가 이미 확인.
+
+> ▶ **다음 = Task 16 본문 작성** — 홈 프레임 + 예약 카드 상태 A(대기·미확정·변경·요청) 83규칙(`HOME-*`·`NAV-HOME-*`·`CARD-COMMON-*`·`CARD-WAIT-*`·`CARD-UNCONF-*`·`CARD-REQ-*`·`CARD-CHG-*`). ⚠️ **결번 Task 15는 건너뛴다**(가입/로그인이 13·14로 합쳐짐). Task 16은 `AppShell`(T11)·`UpcomingCache`(오프라인 홈)·예약 조회 서비스(T8)를 소비하고 하단 탭 셸(`NAV-HOME-*`)을 만든다.
