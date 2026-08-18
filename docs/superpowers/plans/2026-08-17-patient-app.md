@@ -17858,11 +17858,12 @@ Widget _row(VisitHistoryEntry e) =>
     _host(HistoryRow(entry: e, expanded: false, onToggle: () {}, detail: const SizedBox.shrink()));
 
 void main() {
-  testWidgets('[HIST-LIST-04] 날짜 레일 — 월 작게 / 일 크게, 고정폭', (t) async {
+  testWidgets('[HIST-LIST-04] 날짜 레일 — 월 작게 / 일 크게(고정폭) / 요일 작게', (t) async {
     await t.pumpWidget(_host(const DateRail(date: null, color: Colors.grey)));  // null이어도 깨지지 않음
-    await t.pumpWidget(_host(DateRail(date: DateTime(2026, 8, 3), color: AppTokens.primary)));
+    await t.pumpWidget(_host(DateRail(date: DateTime(2026, 8, 3), color: AppTokens.primary)));  // 2026-08-03 = 월요일
     expect(find.text('8월'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
+    expect(find.text('(월)'), findsOneWidget);                 // 요일(기억의 실마리 — 목업 50·26·38)
   });
   testWidgets('[HIST-LIST-05][HIST-ROW-01] 진료완료+안내문 있으면 레일 딥틸 + 「진료 완료」 배지', (t) async {
     await t.pumpWidget(_row(_e(VisitStatus.done, notes: '휴식하세요')));
@@ -17954,8 +17955,12 @@ class DateRail extends StatelessWidget {
       Text('${date!.day}', style: TextStyle(                                            // 크게·고정폭
         fontSize: 22, fontWeight: FontWeight.w800, color: color,
         fontFeatures: const [FontFeature.tabularFigures()])),
+      Text('(${_weekdayKo(date!)})', style: TextStyle(fontSize: 11, color: color)),      // HIST-LIST-04: 요일
     ]));
 }
+
+const _weekdayNames = ['월', '화', '수', '목', '금', '토', '일'];  // DateTime.weekday: 월=1
+String _weekdayKo(DateTime d) => _weekdayNames[d.weekday - 1];
 
 class VisitBadge extends StatelessWidget {
   const VisitBadge({super.key, required this.status});
