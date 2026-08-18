@@ -10383,4 +10383,942 @@ git commit -m "feat: 환자앱 Task 18 — 알림함 목록·읽음(seen_at)·�
 > ⚠️ **신설 마이그레이션 `00026_notifications_seen_at.sql`** — 직원웹도 `00017+`를 쓰므로 실제 번호는 구현 시점 확정(먼저 적용하는 쪽 우선). `patients` 한 칸이라 의존 없음.
 > 📌 **`chat_reply` 타입은 4단계(챗봇)가 `MESSAGES`·`notification_log`에 추가**한다 — 여기 `resolveNotificationRoute`의 `chat_reply→/chat`은 미리 깔아 둔 배선(`NOTI-GO-05`). 그전엔 그 타입의 행이 없어 무해.
 
-> ▶ **다음 = Task 19 본문 작성** — 예약 1~4단계(본인/가족·과·의사·날짜) + 값 보존 **71규칙**(`NAV-BOOK-*`·`BOOK-WHO-*`·`BOOK-DEPT-*`·`BOOK-DOC-*`·`BOOK-DATE-*`·`BOOK-NAV-*`·`BOOK-KEEP-*`, `[R5-01]`). ⚠️ **갭 #7 확정갭이 여기서 발화**(`list_doctors`가 id·name만 — 전공·소개·사진 없음, T4 확장핀). 의사 선택 화면(`BOOK-DOC-*`)이 그 필드를 요구하면 T4 카탈로그에 `specialty`·`bio`·`photo_url` 소급 + 마이그레이션 필요(직원웹 `00026`·팔레트와 별개). 📌 **재사용**: T12 `FieldTextInput`·`ActionButton`·`showExitConfirm`(마법사 중단) · T11 라우터 가드 · `BOOK-KEEP-*`(마법사 값 보존=`B-15` 중복 ID 주의). ⚠️ `writing-plans` 먼저 호출 + 범위·축약은 완전 ID로 펴서.
+---
+
+## Task 19: 예약 마법사 1~4단계 (대상·진료과·의사·날짜) + 값 보존 + 갭 #7·#9 소급
+
+> **담당 규칙(71)**: `BOOK-NAV-01~10`(10) · `BOOK-KEEP-01~07`(7) · `BOOK-WHO-01~09`(9) · `BOOK-DEPT-01~03`(3) · `BOOK-DOC-01~09`(9) · `BOOK-DATE-01~09`(9) · `NAV-BOOK-01~24`(24).
+> ⭐ **여기서 확정 갭 2건을 닫는다**(핸드오프가 예고한 「T4 확장 핀」 발화):
+> - **갭 #7**(의사 전공·사진): 직원웹 `00026_staff_profile_palette.sql`이 이미 `staff`에 `specialty·bio·photo_url` 칸 + `doctor-photos` 버킷(공개 읽기, `STAFF-PROFILE-06`)을 얹었다 → **새 마이그레이션 없이** T4 `list_doctors`의 SELECT에 `specialty·photo_url`을 더한다(`bio`는 화면 비노출 = `BOOK-DOC-06`, 챗봇 지식용). `BOOK-DOC-07`의 「이름밖에 못 띄운다」가 이 스텝으로 해소된다.
+> - **갭 #9**(진료요일 「월·수·금 오전」 한 줄 요약): `list_doctors`가 `schedule_summary` 문자열을 함께 반환한다. 요약 규칙(같은 시간대 요일 묶기·연속 3일↑은 `월~금` 축약·오전/오후/종일 판정)은 **서버 한 곳**(`summarize_schedule` 순수 함수)에 둔다 — 앱·챗봇·직원웹이 같은 문장을 쓴다(결정 문서 「계산은 서버 한 곳」).
+> ⚠️ **경계 명시(NAV-BOOK 전부가 T19인데 5~8단계 화면은 T20 소유)**: `NAV-BOOK-11~20`(5~8단계 전환)은 **화면 위젯이 아니라 마법사 셸의 상태 전이 규칙**으로 검증한다 — `BookingController`의 `_step` 전이만 단위 테스트로 못박고, 5~8단계 화면(BookTime·Why·Conf·Done)과 신청(`book_slot`)은 **Task 20이 셸의 `switch`에 끼운다**. 마법사 셸(전 단계를 아는 단일 상태머신)은 T19가 소유하고 T20이 뒷 절반을 붙이는 구조라, 71을 쪼개면 셸이 두 태스크에 중복된다(그래서 한 태스크 유지 — 사용자 승인 2026-08-18).
+
+**Files:**
+- Modify: `backend/app/services/patient_catalog_service.py`(`list_doctors` 확장 — 갭 #7·#9)
+- Create: `backend/app/services/doctor_schedule_summary.py`(`summarize_schedule` 순수 함수 — 갭 #9)
+- Test: `backend/tests/test_doctor_schedule_summary.py`(속성) · `backend/tests/test_patient_catalog_service.py`(확장)
+- Create: `patient_app/lib/features/booking/catalog_repository.dart`(`Department`·`Doctor` 모델 · `CatalogRepository` · providers)
+- Create: `patient_app/lib/features/booking/booking_controller.dart`(`BookingSelection`·`BookingController`·`bookingProvider`)
+- Create: `patient_app/lib/features/booking/booking_wizard.dart`(마법사 셸 — 진행 막대·뒤로·요약 딱지·단계 switch)
+- Create: `patient_app/lib/features/booking/steps/who_step.dart`·`dept_step.dart`·`doctor_step.dart`·`date_step.dart`
+- Modify: `patient_app/lib/core/router.dart`(`/booking` placeholder → `BookingWizard`, `NAV-BOOK-01·02` 진입)
+- Test: `patient_app/test/features/booking/*`
+
+**Interfaces:**
+- Consumes:
+  - `patient_family_service.list_family_members(patient) -> list[dict]`(Task 3 — 대상 목록 본인+가족)
+  - `patient_catalog_service.list_departments`·`list_available_dates`(Task 4) · `staff.specialty·bio·photo_url`(직원웹 `00026`) · `doctor_schedule_rules(doctor_id, weekday, start_time, end_time)`(`00002`) · `app.db.admin_client.get_admin_client`(1단계)
+  - `GET /catalog/departments` · `GET /catalog/departments/{department_id}/doctors`(응답 확장) · `GET /catalog/doctors/{doctor_id}/dates`(Task 4 라우터)
+  - Task 12: `ActionButton({label, busyLabel, onPressed, busy, disabledReason})` · `EmptyState.zero/error/offline` · `showExitConfirm` · `InlineError({message})`
+  - Task 11: `connectivityProvider`(`StreamProvider<bool>`) · `handleUnauthorized(ref)` · `AppShell`(하단 탭) · 라우터 전역 가드
+  - Task 16: 홈 `[+ 진료 예약하기]`(0건 빈 상태) · 예약 탭 `[+ 새 예약하기]` → `context.go('/booking')` 진입점
+- Produces:
+  - `list_doctors` 확장 반환 `{id, name, specialty, photo_url, schedule_summary}` — 3단계 화면 · 4단계 챗봇 지식(`bio`)이 소비
+  - `summarize_schedule(rules: list[dict]) -> str` — 서버 한 곳의 진료요일 요약(챗봇·직원웹 재사용 가능)
+  - `BookingSelection`(patient·department·doctor·date + `copyWith`) · `BookingController`(`selectPatient`·`selectDepartment`·`selectDoctor`·`selectDate`·`back`·`reset`·`step`) · `bookingProvider`(`StateNotifierProvider` — 앱 생존 동안 유지, 폰 저장 안 함) — **Task 20이 이어받아 5~8단계(시간·이유·확인·완료)와 `submit()`을 붙인다**
+  - `BookingWizard` 셸(진행 막대 `N단계 / 8단계 · 이름` · 뒤로 하나 · 요약 딱지) — Task 20이 `switch(step)`에 5~8단계 위젯을 끼운다
+  - 2단계 상담봇 시트 진입 훅 `onOpenDeptBot` — **Task 20 `BOOK-BOT-*`이 시트 UI를 실체화**(여기선 시트를 여는 라우팅만)
+
+- [ ] **Step 1: 진료요일 요약 순수 함수 실패 테스트 (갭 #9)** — `backend/tests/test_doctor_schedule_summary.py`
+
+```python
+from datetime import time
+import pytest
+from app.services.doctor_schedule_summary import summarize_schedule
+
+def _r(weekday, start, end): return {"weekday": weekday, "start_time": start, "end_time": end}
+
+def test_summary_groups_same_period_nonconsecutive_days():
+    # [BOOK-DOC-03] 월(0)·수(2)·금(4) 오전 → "월·수·금 오전" (같은 시간대 요일을 · 로 묶는다)
+    rules = [_r(0, time(9,0), time(12,0)), _r(2, time(9,0), time(12,0)), _r(4, time(9,0), time(12,0))]
+    assert summarize_schedule(rules) == "월·수·금 오전"
+
+def test_summary_compresses_three_or_more_consecutive_days():
+    # [BOOK-DOC-03] 월~금(0~4) 오전이 연속 3일 이상이면 "월~금 오전"으로 축약
+    rules = [_r(w, time(9,0), time(12,0)) for w in range(5)]
+    assert summarize_schedule(rules) == "월~금 오전"
+
+def test_summary_period_boundaries():
+    # [BOOK-DOC-09] 오전/오후/종일 판정 — end<=12 오전, start>=12 오후, 걸치면 종일
+    assert summarize_schedule([_r(0, time(9,0), time(12,0))]) == "월 오전"
+    assert summarize_schedule([_r(1, time(13,0), time(17,0))]) == "화 오후"
+    assert summarize_schedule([_r(2, time(9,0), time(17,0))]) == "수 종일"
+
+def test_summary_multiple_periods_ordered():
+    # [BOOK-DOC-03] 시간대가 섞이면 오전 → 오후 순으로 이어붙인다
+    rules = [_r(0, time(9,0), time(12,0)), _r(1, time(13,0), time(17,0))]
+    assert summarize_schedule(rules) == "월 오전, 화 오후"
+
+def test_summary_empty_is_placeholder():
+    # [BOOK-DOC-09] 규칙이 하나도 없으면 빈 문자열이 아니라 안내 문구(카드가 휑하지 않게)
+    assert summarize_schedule([]) == "진료시간 문의"
+
+@pytest.mark.parametrize("mask", range(1, 128))  # 요일 0~6의 모든 부분집합(비지 않는)
+def test_summary_never_crashes_and_covers_all_days(mask):
+    # 🎲 [BOOK-DOC-03] 임의 요일 집합에서 크래시 없고, 고른 요일 이름이 결과에 모두 포함된다(값-형식 코드 = 갭 #127 종류 방지)
+    wd = [w for w in range(7) if mask & (1 << w)]
+    rules = [_r(w, time(9,0), time(12,0)) for w in wd]
+    out = summarize_schedule(rules)
+    names = ["월","화","수","목","금","토","일"]
+    # "월~금" 축약이면 양끝만, 아니면 각 이름이 들어간다 — 최소한 첫·끝 요일 이름은 항상 보인다
+    assert names[wd[0]] in out and names[wd[-1]] in out
+```
+Run → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 2: `summarize_schedule` 구현 + 통과**
+
+```python
+# backend/app/services/doctor_schedule_summary.py
+# 갭 #9 — 의사별 진료요일을 사람이 읽는 한 줄로. 앱·챗봇·직원웹이 같은 문장을 쓰도록 서버 한 곳에 둔다.
+from datetime import time
+
+_WD = ["월", "화", "수", "목", "금", "토", "일"]  # doctor_schedule_rules.weekday: 0=월 ~ 6=일(00002 check)
+_NOON = time(12, 0)
+_PERIOD_ORDER = {"오전": 0, "오후": 1, "종일": 2}
+
+
+def _period(start: time, end: time) -> str:
+    if end <= _NOON:
+        return "오전"
+    if start >= _NOON:
+        return "오후"
+    return "종일"
+
+
+def _compress_days(weekdays: list[int]) -> str:
+    # 연속 구간이 3일 이상이면 "월~금", 아니면 "·"로 나열. 혼재하면 구간별로.
+    runs: list[list[int]] = []
+    for w in sorted(set(weekdays)):
+        if runs and w == runs[-1][-1] + 1:
+            runs[-1].append(w)
+        else:
+            runs.append([w])
+    labels: list[str] = []
+    for run in runs:
+        if len(run) >= 3:
+            labels.append(f"{_WD[run[0]]}~{_WD[run[-1]]}")
+        else:
+            labels.extend(_WD[w] for w in run)
+    return "·".join(labels)
+
+
+def summarize_schedule(rules: list[dict]) -> str:
+    """rules: [{weekday:int, start_time:time, end_time:time}]. 진료요일 한 줄 요약."""
+    if not rules:
+        return "진료시간 문의"
+    by_period: dict[str, list[int]] = {}
+    for r in rules:
+        by_period.setdefault(_period(r["start_time"], r["end_time"]), []).append(r["weekday"])
+    parts = [
+        f"{_compress_days(days)} {period}"
+        for period, days in sorted(by_period.items(), key=lambda kv: _PERIOD_ORDER.get(kv[0], 9))
+    ]
+    return ", ".join(parts)
+```
+Run → Expected: PASS(속성 포함 전체).
+
+- [ ] **Step 3: `list_doctors` 확장 실패 테스트 (갭 #7·#9)** — `backend/tests/test_patient_catalog_service.py`에 추가
+
+```python
+from datetime import time
+
+@pytest.mark.asyncio
+async def test_list_doctors_returns_profile_and_schedule(db_conn):
+    # [BOOK-DOC-02][BOOK-DOC-07] 갭 #7 — 사진·전공을 함께 반환한다(직원웹 00026이 얹은 staff 칸).
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    dept = await db_conn.fetchval("insert into departments (name, is_active) values ('내과', true) returning id")
+    doc = await seed_staff(db_conn, role="doctor", department_id=dept)
+    # 직원웹 00026 칸을 채운다(구현 시점엔 이미 존재하는 칸).
+    await db_conn.execute("update staff set specialty=$2, photo_url=$3 where id=$1",
+                          doc["staff_id"], "소화기내과", "https://cdn/doc.jpg")
+    # 갭 #9 — 진료요일: 월·수·금 오전.
+    for w in (0, 2, 4):
+        await db_conn.execute(
+            "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments) "
+            "values ($1,$2,'09:00','12:00',20,10)", doc["staff_id"], w)
+    docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(db_conn)))
+    assert docs[0]["specialty"] == "소화기내과"
+    assert docs[0]["photo_url"] == "https://cdn/doc.jpg"
+    assert docs[0]["schedule_summary"] == "월·수·금 오전"   # 갭 #9 서버 요약
+    assert "bio" not in docs[0]                             # [BOOK-DOC-06] bio는 화면 비노출 — 반환하지 않는다
+
+@pytest.mark.asyncio
+async def test_list_doctors_photo_url_null_when_absent(db_conn):
+    # [BOOK-DOC-05] 사진 없는 의사는 photo_url=None → 화면이 회색 원+첫 글자로 그린다.
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    dept = await db_conn.fetchval("insert into departments (name, is_active) values ('내과', true) returning id")
+    doc = await seed_staff(db_conn, role="doctor", department_id=dept)
+    docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(db_conn)))
+    assert docs[0]["photo_url"] is None and docs[0]["schedule_summary"] == "진료시간 문의"
+```
+Run → Expected: FAIL(반환에 새 키 없음).
+
+- [ ] **Step 4: `list_doctors` 확장 구현 (갭 #7·#9)**
+
+`backend/app/services/patient_catalog_service.py`의 `list_doctors`를 아래로 교체(핀 주석 제거):
+
+```python
+from collections import defaultdict
+from app.db.admin_client import get_admin_client
+from app.services.doctor_schedule_summary import summarize_schedule
+
+async def list_doctors(department_id: UUID, patient: PatientContext) -> list[dict]:
+    # 갭 #7: staff의 전공·사진을 함께 반환(직원웹 00026이 얹은 칸). bio는 화면 비노출(BOOK-DOC-06)이라 뺀다.
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select id, name, specialty, photo_url from staff "
+            "where role='doctor' and department_id=$1 and is_active order by name",
+            department_id)
+    doctors = [dict(r) for r in rows]
+    if not doctors:
+        return []
+    # 갭 #9: 진료요일 요약. doctor_schedule_rules는 staff 전용 RLS라 admin_client로 읽는다(진료요일은 민감정보 아님).
+    ids = [str(d["id"]) for d in doctors]
+    resp = (get_admin_client().table("doctor_schedule_rules")
+            .select("doctor_id, weekday, start_time, end_time").in_("doctor_id", ids).execute())
+    by_doctor: dict[str, list[dict]] = defaultdict(list)
+    for r in resp.data:
+        by_doctor[str(r["doctor_id"])].append({
+            "weekday": r["weekday"],
+            "start_time": time.fromisoformat(r["start_time"]),
+            "end_time": time.fromisoformat(r["end_time"]),
+        })
+    for d in doctors:
+        d["schedule_summary"] = summarize_schedule(by_doctor.get(str(d["id"]), []))
+    return doctors  # {id, name, specialty, photo_url, schedule_summary}
+```
+`from datetime import time`을 import에 추가. 라우터(`GET /catalog/departments/{department_id}/doctors`)는 dict를 그대로 반환하므로 응답이 자동 확장된다. Run → Expected: PASS.
+> 📌 **역참조 반영(경계 갭 마감)**: 이 스텝으로 `BOOK-DOC-07`(「지금 플랜으로는 이름밖에 못 띄운다」)·`BOOK-DATE`와 무관한 갭 #7·#9가 닫힌다 → `screen-behaviors.md`의 `BOOK-DOC-07`에 `~~이름밖에 못 띄운다~~ ✅ 해소(2026-08-18, T19 — list_doctors가 specialty·photo_url·schedule_summary 반환)` 역참조, 결정 문서 「기능 갭」 #7·#9 체크박스 완료 표시, 경계 갭 대조표 #7 `list_doctors id·name만` → `해소`로 갱신(이 세 곳은 Step 13 커밋 전 함께 수정).
+
+- [ ] **Step 5: 프론트 카탈로그 저장소 + 모델** — `patient_app/lib/features/booking/catalog_repository.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/api_client.dart';           // Task 0 얇은 ApiClient(apiClientProvider)
+
+class Department {
+  final String id, name;
+  const Department(this.id, this.name);
+  factory Department.fromJson(Map<String, dynamic> j) => Department(j['id'], j['name']);
+}
+
+class Doctor {
+  final String id, name;
+  final String? specialty, photoUrl;   // 갭 #7 — null이면 화면이 회색 원(BOOK-DOC-05)
+  final String scheduleSummary;        // 갭 #9 — 서버가 만든 "월·수·금 오전"
+  const Doctor(this.id, this.name, this.specialty, this.photoUrl, this.scheduleSummary);
+  factory Doctor.fromJson(Map<String, dynamic> j) =>
+      Doctor(j['id'], j['name'], j['specialty'], j['photo_url'], j['schedule_summary'] ?? '진료시간 문의');
+}
+
+class CatalogRepository {
+  CatalogRepository(this._api);
+  final ApiClient _api;
+  Future<List<Department>> departments() async =>
+      (await _api.getJsonList('/catalog/departments')).map(Department.fromJson).toList();
+  Future<List<Doctor>> doctors(String deptId) async =>
+      (await _api.getJsonList('/catalog/departments/$deptId/doctors')).map(Doctor.fromJson).toList();
+  Future<List<DateTime>> dates(String doctorId) async =>
+      (await _api.getJsonList('/catalog/doctors/$doctorId/dates')).map((d) => DateTime.parse(d as String)).toList();
+}
+
+final catalogRepositoryProvider = Provider((ref) => CatalogRepository(ref.read(apiClientProvider)));
+// 단계별 조회 — 앞 선택이 바뀌면 자동 무효화되도록 family로.
+final departmentsProvider = FutureProvider.autoDispose((ref) => ref.read(catalogRepositoryProvider).departments());
+final doctorsProvider = FutureProvider.autoDispose.family<List<Doctor>, String>(
+    (ref, deptId) => ref.read(catalogRepositoryProvider).doctors(deptId));
+final availableDatesProvider = FutureProvider.autoDispose.family<List<DateTime>, String>(
+    (ref, doctorId) => ref.read(catalogRepositoryProvider).dates(doctorId));
+```
+테스트(`test/features/booking/catalog_repository_test.dart`): `Doctor.fromJson`이 `photo_url:null`을 `photoUrl==null`로, `schedule_summary` 누락을 `'진료시간 문의'`로 파싱하는지. Run → FAIL → 위 구현 → PASS.
+
+- [ ] **Step 6: 마법사 상태 `BookingController` — 앞 단계 변경 시 뒤 버림 + 값 보존** — `patient_app/lib/features/booking/booking_controller.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'catalog_repository.dart';
+
+class BookingTarget {            // 1단계 대상(본인/가족)
+  final String patientId, name;  // BOOK-WHO-02 — 본인도 실제 환자 UUID
+  final String? relation;        // 본인이면 null, 가족이면 "어머니" 등(BOOK-WHO-03)
+  const BookingTarget(this.patientId, this.name, this.relation);
+}
+
+class BookingSelection {
+  final int step;                    // 0=대상 1=진료과 2=의사 3=날짜 (4~7=Task 20)
+  final BookingTarget? target;
+  final Department? department;
+  final Doctor? doctor;
+  final DateTime? date;
+  const BookingSelection({this.step = 0, this.target, this.department, this.doctor, this.date});
+  BookingSelection copyWith({int? step, BookingTarget? target, Department? department, Doctor? doctor, DateTime? date}) =>
+      BookingSelection(step: step ?? this.step, target: target ?? this.target,
+          department: department ?? this.department, doctor: doctor ?? this.doctor, date: date ?? this.date);
+}
+
+class BookingController extends StateNotifier<BookingSelection> {
+  BookingController() : super(const BookingSelection());
+
+  // 앞 단계에서 값을 (재)선택하면 그 뒤 단계 값을 전부 버린다(BOOK-NAV-05) — 의사마다 진료시간이 달라서.
+  void selectTarget(BookingTarget t) =>
+      state = BookingSelection(step: 1, target: t);                       // 대상 바꾸면 과·의사·날짜 초기화
+  void selectDepartment(Department d) =>
+      state = BookingSelection(step: 2, target: state.target, department: d);   // 과 바꾸면 의사·날짜 초기화
+  void selectDoctor(Doctor doc) =>
+      state = BookingSelection(step: 3, target: state.target, department: state.department, doctor: doc); // 의사 바꾸면 날짜 초기화
+  void selectDate(DateTime d) =>
+      state = state.copyWith(step: 4, date: d);                           // 4단계(시간)로 — 화면은 Task 20
+
+  void back() { if (state.step > 0) state = state.copyWith(step: state.step - 1); }  // BOOK-NAV-04 한 단계씩
+  void goToStep(int s) => state = state.copyWith(step: s);               // BOOK-RACE 등 특정 단계 복귀(Task 20이 씀)
+  void reset() => state = const BookingSelection();                       // BOOK-KEEP-03·06 — 항상 1단계부터
+}
+
+// 앱 생존 동안 유지(autoDispose 아님) → 하단 탭 다녀와도 그대로(BOOK-KEEP-01).
+// 폰에 저장하지 않으므로 앱을 껐다 켜면 초기값(BOOK-KEEP-03).
+final bookingProvider = StateNotifierProvider<BookingController, BookingSelection>((ref) => BookingController());
+```
+
+테스트(`test/features/booking/booking_controller_test.dart`) — **NAV-BOOK 전이·값 보존을 화면 없이 검증**:
+
+```dart
+void main() {
+  late ProviderContainer c;
+  BookingController ctl() => c.read(bookingProvider.notifier);
+  BookingSelection st() => c.read(bookingProvider);
+  const t1 = BookingTarget('p1', '김순자', null);
+  const dInternal = Department('d1', '내과');
+  const doc1 = Doctor('doc1', '김의사', '소화기', null, '월·수·금 오전');
+  setUp(() => c = ProviderContainer());
+  tearDown(() => c.dispose());
+
+  test('[BOOK-NAV-05] 앞 단계 값을 바꾸면 그 뒤 단계 선택값을 전부 버린다', () {
+    ctl().selectTarget(t1); ctl().selectDepartment(dInternal); ctl().selectDoctor(doc1);
+    ctl().selectDate(DateTime(2026, 8, 20));
+    expect(st().doctor, doc1);
+    ctl().selectDepartment(const Department('d2', '정형외과'));   // 2단계를 다시 고름
+    expect(st().doctor, isNull);                                  // 3·4단계가 버려졌다
+    expect(st().date, isNull);
+    expect(st().department!.id, 'd2');
+  });
+
+  test('[BOOK-KEEP-03] reset은 전부 버리고 1단계로 — 앱 재시작·새 예약 진입 시', () {
+    ctl().selectTarget(t1); ctl().selectDepartment(dInternal);
+    ctl().reset();
+    expect(st().step, 0); expect(st().target, isNull); expect(st().department, isNull);
+  });
+
+  test('[BOOK-KEEP-06] + 새 예약하기는 이어붙이지 않는다 — 진입이 reset을 부른다', () {
+    ctl().selectTarget(t1); ctl().selectDepartment(dInternal);
+    // 진입점(NAV-BOOK-01·02)이 reset() 후 마법사를 연다.
+    ctl().reset();
+    expect(st().step, 0);
+  });
+
+  test('[BOOK-KEEP-01] 상태가 앱 생존 동안 유지된다(autoDispose 아님) — 탭 이동 후 복귀', () {
+    ctl().selectTarget(t1); ctl().selectDepartment(dInternal);
+    // bookingProvider를 다시 읽어도(다른 탭에서 돌아온 상황) 같은 인스턴스라 값이 남아 있다.
+    expect(c.read(bookingProvider).department, dInternal);
+    expect(c.read(bookingProvider).step, 1);
+  });
+}
+```
+> 📌 **값 없는/구조 규칙 — 어느 test가 실현하나**: `BOOK-KEEP-02`(막지 않기로 해놓고 날리면 결과적으로 막은 것)·`BOOK-KEEP-04`(앱 재시작 복원은 지난 날짜 검사 등 규칙을 늘린다)는 결정 **근거**라 `BOOK-KEEP-01`(유지)·`BOOK-KEEP-03`(재시작 초기화) 두 동작이 실현한다. `BOOK-KEEP-05`(1단계에서 뒤로 = 마법사 나감, 팝업 없음)는 Step 7 셸의 뒤로 처리(`step==0`이면 `context.pop`, 확인창 없음)가 실현. `BOOK-KEEP-07`(BTN-KILL과 다름 = 서버에 아무것도 안 남음)은 이 controller가 메모리 상태만 두고 신청 전까지 서버 호출이 없음으로 실현.
+Run → Expected: PASS.
+
+- [ ] **Step 7: 마법사 셸 `BookingWizard` (BOOK-NAV) + 진입 라우팅** — `patient_app/lib/features/booking/booking_wizard.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/connectivity.dart';        // Task 11 connectivityProvider
+import '../../widgets/empty_state.dart';       // Task 12 EmptyState
+import 'booking_controller.dart';
+import 'steps/who_step.dart';
+import 'steps/dept_step.dart';
+import 'steps/doctor_step.dart';
+import 'steps/date_step.dart';
+
+const _stepNames = ['대상 선택', '진료과', '의사 선택', '날짜 선택', '시간 선택', '방문 이유', '최종 확인', '완료'];
+
+class BookingWizard extends ConsumerWidget {
+  const BookingWizard({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sel = ref.watch(bookingProvider);
+    final step = sel.step;
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        if (step == 0) {
+          context.pop();                       // BOOK-KEEP-05 — 1단계 뒤로 = 마법사 나감(팝업 없음)
+        } else {
+          ref.read(bookingProvider.notifier).back();   // BOOK-NAV-04 — 한 단계씩
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: const BackButton(),          // BOOK-NAV-03 — 뒤로 버튼 하나만(단계 칩·점프 없음)
+          title: Text('${step + 1}단계 / 8단계 · ${_stepNames[step]}'),  // BOOK-NAV-02 — 숫자+단계 이름
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(4),
+            child: LinearProgressIndicator(value: (step + 1) / 8),        // 진행 막대
+          ),
+        ),
+        body: Column(children: [
+          if (step >= 1) _SummaryChips(sel),     // BOOK-NAV-06 — 2단계부터 읽기 전용 회색 요약 딱지
+          Expanded(child: switch (step) {        // BOOK-NAV-01 — 한 화면에 한 질문
+            0 => const WhoStep(),
+            1 => const DeptStep(),
+            2 => const DoctorStep(),
+            3 => const DateStep(),
+            _ => const _LaterStepPlaceholder(),  // 4~7단계(시간·이유·확인·완료)는 Task 20이 끼운다
+          }),
+        ]),
+      ),
+    );
+  }
+}
+
+// 읽기 전용 회색 딱지 — 버튼처럼 보이지 않게(BOOK-NAV-06). 누를 수 없다.
+class _SummaryChips extends StatelessWidget {
+  const _SummaryChips(this.sel);
+  final BookingSelection sel;
+  @override
+  Widget build(BuildContext context) {
+    final chips = <String>[
+      if (sel.target != null) sel.target!.name,
+      if (sel.department != null) sel.department!.name,
+      if (sel.doctor != null) sel.doctor!.name,
+    ];
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Wrap(spacing: 6, children: [
+        for (final c in chips)
+          Chip(label: Text(c), backgroundColor: const Color(0xFFEEF1F4)),   // 회색, onPressed 없음
+      ]),
+    );
+  }
+}
+
+class _LaterStepPlaceholder extends StatelessWidget {   // Task 20 자리표시(테스트에서 4단계 이후로 안 감)
+  const _LaterStepPlaceholder();
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+```
+
+진입점(`router.dart`의 `/booking` placeholder 교체 + 홈·예약탭 버튼):
+
+```dart
+GoRoute(
+  path: '/booking',
+  builder: (c, s) => const BookingWizard(),
+  redirect: (c, s) {
+    // BOOK-NAV-09 — 예약은 오프라인에서 못 한다. 진입점 버튼이 이미 회색이지만 딥링크 방어로 한 번 더.
+    final online = ProviderScope.containerOf(c).read(connectivityProvider).valueOrNull ?? true;
+    return online ? null : '/home';    // NAV-BOOK-22 — 마법사 중간 딥링크는 만들지 않는다(항상 1단계 진입)
+  },
+),
+```
+> 진입은 항상 `ref.read(bookingProvider.notifier).reset()` 후 `context.go('/booking')`(홈 `[+ 진료 예약하기]`=`NAV-BOOK-02`/`NAV-HOME-14`, 예약 탭 `[+ 새 예약하기]`=`NAV-BOOK-01`). `BOOK-KEEP-06`(항상 1단계) 실현. 진입점 버튼은 `ActionButton(disabledReason: '인터넷이 연결되면 예약하실 수 있습니다')`로 오프라인 시 회색(`BOOK-NAV-09`·`BTN-STATE-03`).
+
+테스트(`booking_wizard_test.dart`):
+
+```dart
+testWidgets('[BOOK-NAV-02] 진행 표시는 숫자와 단계 이름을 함께 쓴다', (t) async {
+  await _pumpWizard(t, step: 0);
+  expect(find.text('1단계 / 8단계 · 대상 선택'), findsOneWidget);
+});
+testWidgets('[BOOK-NAV-03][BOOK-NAV-04] 뒤로 버튼 하나로 한 단계씩 되돌아간다', (t) async {
+  final c = await _pumpWizard(t, step: 2);
+  expect(find.byType(BackButton), findsOneWidget);   // 하나만
+  await t.tap(find.byType(BackButton)); await t.pump();
+  expect(c.read(bookingProvider).step, 1);           // 마법사를 나가지 않고 한 단계
+});
+testWidgets('[BOOK-NAV-06] 2단계부터 고른 값이 읽기 전용 회색 딱지로 보인다', (t) async {
+  await _pumpWizard(t, step: 1, target: const BookingTarget('p1', '김순자', null));
+  final chip = t.widget<Chip>(find.byType(Chip));
+  expect(chip.backgroundColor, const Color(0xFFEEF1F4));  // 버튼 아님(onPressed 없음)
+  expect(find.text('김순자'), findsOneWidget);
+});
+testWidgets('[BOOK-KEEP-05] 1단계에서 뒤로 누르면 확인창 없이 마법사를 나간다', (t) async {
+  await _pumpWizard(t, step: 0);
+  await t.tap(find.byType(BackButton)); await t.pumpAndSettle();
+  expect(find.byType(AlertDialog), findsNothing);     // 팝업 없음(대상 하나뿐이라)
+});
+testWidgets('[BOOK-NAV-01] 마법사는 한 화면에 한 질문 = 단계별 하나의 스텝 위젯만 보인다', (t) async {
+  await _pumpWizard(t, step: 0);
+  expect(find.byType(WhoStep), findsOneWidget);
+  expect(find.byType(DeptStep), findsNothing);
+});
+```
+> `BOOK-NAV-07`(값 안 고르면 못 넘어감)은 각 스텝이 「선택 = 다음 단계 이동」이라 다음 버튼 자체가 없어 실현(Step 8~11에서 확인) — 6단계 건너뛰기만 예외(Task 20). `BOOK-NAV-08`(8단계 뒤로 = 홈)·`BOOK-NAV-10`(조회 실패 시 그 단계 머묾)은 각각 Task 20(완료 화면)·Step 9~11(EmptyState.error)에서 실현. `BOOK-NAV-09`는 위 진입 redirect + 진입점 버튼.
+Run → Expected: PASS.
+
+- [ ] **Step 8: 1단계 대상 선택 `WhoStep` (BOOK-WHO)** — `patient_app/lib/features/booking/steps/who_step.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../widgets/empty_state.dart';
+import '../booking_controller.dart';
+import '../family_targets_provider.dart';   // 본인+가족 목록(아래)
+
+class WhoStep extends ConsumerWidget {
+  const WhoStep({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final targets = ref.watch(bookingTargetsProvider);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Padding(padding: EdgeInsets.all(16),
+        child: Text('누구의 예약인가요?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800))), // BOOK-WHO-04
+      Expanded(child: targets.when(
+        error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(bookingTargetsProvider)),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        data: (list) => ListView(children: [
+          for (final tgt in list)                               // BOOK-WHO-01 본인 맨 위 + 가족
+            ListTile(
+              title: Text(tgt.name),
+              subtitle: tgt.relation == null ? null : Text(tgt.relation!),  // BOOK-WHO-03 관계 함께
+              onTap: () => ref.read(bookingProvider.notifier).selectTarget(tgt),  // 선택=2단계로
+            ),
+          ListTile(                                             // BOOK-WHO-07 항상(가족 수 무관), 맨 아래
+            leading: const Icon(Icons.person_add_alt),
+            title: const Text('+ 가족 추가하기'),
+            onTap: () => context.go('/family'),                 // BOOK-WHO-09 가족 탭으로(마법사는 살아 있다)
+          ),
+        ]),
+      )),
+    ]);
+  }
+}
+```
+
+`bookingTargetsProvider`(`family_targets_provider.dart`) — 본인+가족을 한 목록으로, 본인 맨 위:
+
+```dart
+final bookingTargetsProvider = FutureProvider.autoDispose<List<BookingTarget>>((ref) async {
+  final me = await ref.read(myProfileProvider.future);        // Task 13 본인 프로필(patientId·name)
+  final family = await ref.read(familyRepositoryProvider).list();  // Task 3 list_family_members
+  return [
+    BookingTarget(me.patientId, me.name, null),                // BOOK-WHO-02 본인도 실제 UUID('self' 금지)
+    for (final f in family) BookingTarget(f.patientId, f.name, f.relation),
+  ];
+});
+```
+
+테스트(`who_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-WHO-01][BOOK-WHO-03] 본인이 맨 위, 가족은 이름+관계로 나온다', (t) async {
+  await _pumpWho(t, targets: [
+    const BookingTarget('me', '김순자', null),
+    const BookingTarget('mom', '박영자', '어머니'),
+  ]);
+  expect(find.text('김순자'), findsOneWidget);
+  expect(find.text('어머니'), findsOneWidget);           // 관계 표시
+  final tiles = t.widgetList<ListTile>(find.byType(ListTile)).toList();
+  expect((tiles.first.title as Text).data, '김순자');    // 본인 맨 위
+});
+testWidgets('[BOOK-WHO-02] 대상을 고르면 실제 patientId가 상태에 담긴다(문자열 self 아님)', (t) async {
+  final c = await _pumpWho(t, targets: [const BookingTarget('uuid-1', '김순자', null)]);
+  await t.tap(find.text('김순자')); await t.pump();
+  expect(c.read(bookingProvider).target!.patientId, 'uuid-1');
+  expect(c.read(bookingProvider).step, 1);              // 2단계로
+});
+testWidgets('[BOOK-WHO-04] 질문 문구는 "누구의 예약인가요?"', (t) async {
+  await _pumpWho(t, targets: []);
+  expect(find.text('누구의 예약인가요?'), findsOneWidget);
+});
+testWidgets('[BOOK-WHO-05][BOOK-WHO-06] 가족이 0명이어도 1단계를 건너뛰지 않고 본인 한 줄을 보여준다', (t) async {
+  await _pumpWho(t, targets: [const BookingTarget('me', '김순자', null)]);
+  expect(find.text('누구의 예약인가요?'), findsOneWidget);   // 화면이 존재(진행 막대가 2단계부터 시작하지 않는다)
+  expect(find.text('김순자'), findsOneWidget);
+});
+testWidgets('[BOOK-WHO-07][BOOK-WHO-08] 가족이 있어도 + 가족 추가하기가 목록 맨 아래에 항상 있다', (t) async {
+  await _pumpWho(t, targets: [
+    const BookingTarget('me', '김순자', null), const BookingTarget('mom', '박영자', '어머니'),
+  ]);
+  expect(find.text('+ 가족 추가하기'), findsOneWidget);      // 0명 한정 아님 — 막다른 길 방지
+});
+testWidgets('[BOOK-WHO-09] + 가족 추가하기는 가족 탭으로 이동한다(마법사 상태는 유지)', (t) async {
+  final c = await _pumpWho(t, targets: [const BookingTarget('me', '김순자', null)]);
+  await t.tap(find.text('+ 가족 추가하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/family');
+  expect(c.read(bookingProvider).step, 0);              // 마법사는 뒤에 살아 있다(BOOK-KEEP-01)
+});
+```
+Run → Expected: PASS.
+
+- [ ] **Step 9: 2단계 진료과 `DeptStep` (BOOK-DEPT) + 상담봇 시트 진입 훅** — `patient_app/lib/features/booking/steps/dept_step.dart`
+
+```dart
+class DeptStep extends ConsumerWidget {
+  const DeptStep({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final depts = ref.watch(departmentsProvider);
+    return depts.when(
+      error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(departmentsProvider)), // BOOK-NAV-10
+      loading: () => const Center(child: CircularProgressIndicator()),
+      data: (list) => list.isEmpty
+        ? EmptyState.zero(message: '표시할 진료과가 없습니다')   // BOOK-DEPT-03 — [다시 시도] 없음
+        : ListView(children: [
+            for (final d in list)
+              ListTile(
+                title: Text(d.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)), // BOOK-DEPT-01 이름만
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => ref.read(bookingProvider.notifier).selectDepartment(d),
+              ),
+            _DeptBotEntry(onTap: () => openDeptBot(context, ref)),   // BOOK-DEPT-02 맨 아래 상담 진입점
+          ]),
+    );
+  }
+}
+
+// BOOK-DEPT-02 — 점선 테두리 + 연한 딥틸 배경, "어느 과인지 모르겠어요"
+class _DeptBotEntry extends StatelessWidget { /* 점선 컨테이너 + 두 줄 문구 + onTap */ }
+
+// NAV-BOOK-06 — 상담봇 시트를 연다(화면을 떠나지 않는 겹침). ⚠️ 시트 UI(BOOK-BOT-*)는 Task 20이 실체화.
+Future<void> openDeptBot(BuildContext context, WidgetRef ref) => showModalBottomSheet(
+  context: context, isScrollControlled: true,
+  builder: (_) => const DeptBotSheet(),   // Task 20이 채운다. 지금은 진입/닫힘 라우팅만 검증.
+);
+```
+
+테스트(`dept_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-DEPT-01] 진료과는 이름만 굵게 + 우측 화살표로 보인다', (t) async {
+  await _pumpDept(t, depts: [const Department('d1', '내과')]);
+  final title = t.widget<Text>(find.text('내과'));
+  expect(title.style!.fontWeight, FontWeight.w800);
+  expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+});
+testWidgets('[BOOK-DEPT-02] 목록 맨 아래에 "어느 과인지 모르겠어요" 상담 진입점이 있다', (t) async {
+  await _pumpDept(t, depts: [const Department('d1', '내과')]);
+  expect(find.text('어느 과인지 모르겠어요'), findsOneWidget);
+});
+testWidgets('[BOOK-DEPT-03] 진료과 0건이면 [다시 시도] 없는 빈 상태', (t) async {
+  await _pumpDept(t, depts: []);
+  expect(find.text('다시 시도'), findsNothing);       // 실패가 아니라 사실
+});
+testWidgets('[NAV-BOOK-05] 진료과를 누르면 3단계 의사로 간다(대상 유지)', (t) async {
+  final c = await _pumpDept(t, depts: [const Department('d1', '내과')], target: const BookingTarget('me','김순자',null));
+  await t.tap(find.text('내과')); await t.pump();
+  expect(c.read(bookingProvider).step, 2);
+  expect(c.read(bookingProvider).target!.name, '김순자');   // 1단계 값 보존
+});
+testWidgets('[NAV-BOOK-06] 어느 과인지 모르겠어요는 상담봇 시트를 띄운다(화면 안 떠남)', (t) async {
+  await _pumpDept(t, depts: [const Department('d1', '내과')]);
+  await t.tap(find.text('어느 과인지 모르겠어요')); await t.pumpAndSettle();
+  expect(find.byType(DeptBotSheet), findsOneWidget);     // 겹침 시트. DeptStep은 여전히 뒤에 있다
+});
+testWidgets('[NAV-BOOK-08] 시트를 닫으면 아무것도 고르지 않은 2단계 그대로', (t) async {
+  final c = await _pumpDept(t, depts: [const Department('d1', '내과')]);
+  await t.tap(find.text('어느 과인지 모르겠어요')); await t.pumpAndSettle();
+  Navigator.of(t.element(find.byType(DeptStep))).pop();  // ✕·쓸어내림
+  await t.pumpAndSettle();
+  expect(c.read(bookingProvider).department, isNull);    // 선택 없음
+  expect(c.read(bookingProvider).step, 1);
+});
+```
+> `NAV-BOOK-07`(시트의 `○○과로 계속하기` → 3단계, 그 과 선택됨)은 **Task 20**이 시트를 실체화할 때 `ref.read(bookingProvider.notifier).selectDepartment(추천과)`를 호출하도록 배선한다 — T19는 `selectDepartment`가 그 계약(2단계 선택 후 step=2)임을 Step 6에서 이미 못박았다. `NAV-BOOK-04`(1단계 `+가족추가` → 가족 탭)는 `BOOK-WHO-09` 테스트가 실현.
+Run → Expected: PASS.
+
+- [ ] **Step 10: 3단계 의사 `DoctorStep` (BOOK-DOC — 갭 #7·#9 소비)** — `patient_app/lib/features/booking/steps/doctor_step.dart`
+
+```dart
+class DoctorStep extends ConsumerWidget {
+  const DoctorStep({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sel = ref.watch(bookingProvider);
+    final docs = ref.watch(doctorsProvider(sel.department!.id));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),   // BOOK-DOC-08 대상은 작고 차분한 보조 라벨
+        child: Text('${sel.target!.name} 님', style: const TextStyle(fontSize: 13, color: Color(0xFF5D7183)))),
+      Expanded(child: docs.when(
+        error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(doctorsProvider(sel.department!.id))),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        data: (list) => ListView(children: [
+          for (final d in list)
+            InkWell(                                          // BOOK-DOC-01 줄 전체가 터치 영역
+              onTap: () => ref.read(bookingProvider.notifier).selectDoctor(d),
+              child: Padding(padding: const EdgeInsets.all(12), child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,   // BOOK-DOC-04 세로 가운데
+                children: [
+                  _DoctorAvatar(d),                          // BOOK-DOC-02 원형 60px / BOOK-DOC-05 없으면 회색 원+첫 글자
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(d.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),       // 이름(맨 위)
+                    Text(d.scheduleSummary, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: Color(0xFF0B6E70))), // 진료시간
+                    if (d.specialty != null)
+                      Text(d.specialty!, style: const TextStyle(fontSize: 13.5, color: Color(0xFF5D7183))),  // 분야
+                  ])),
+                ],
+              )),
+            ),
+        ]),
+      )),
+    ]);
+  }
+}
+
+class _DoctorAvatar extends StatelessWidget {
+  const _DoctorAvatar(this.d);
+  final Doctor d;
+  @override
+  Widget build(BuildContext context) {
+    if (d.photoUrl != null) {
+      return CircleAvatar(radius: 30, backgroundImage: NetworkImage(d.photoUrl!));  // BOOK-DOC-02
+    }
+    return CircleAvatar(radius: 30, backgroundColor: const Color(0xFFCED6DE),       // BOOK-DOC-05
+      child: Text(d.name.characters.first, style: const TextStyle(fontSize: 20, color: Colors.white)));
+  }
+}
+```
+
+테스트(`doctor_step_test.dart`):
+
+```dart
+const _withPhoto = Doctor('d1', '김의사', '소화기내과', 'https://cdn/a.jpg', '월·수·금 오전');
+const _noPhoto   = Doctor('d2', '이의사', null, null, '진료시간 문의');
+
+testWidgets('[BOOK-DOC-02][BOOK-DOC-03] 사진 원형 + 이름/진료시간/분야 세 줄', (t) async {
+  await _pumpDoctor(t, docs: [_withPhoto]);
+  expect(find.byType(CircleAvatar), findsOneWidget);
+  expect(find.text('김의사'), findsOneWidget);
+  expect(find.text('월·수·금 오전'), findsOneWidget);     // 갭 #9 서버 요약을 그대로 표시
+  expect(find.text('소화기내과'), findsOneWidget);         // 갭 #7 전공
+});
+testWidgets('[BOOK-DOC-05] 사진 없는 의사는 회색 원 + 이름 첫 글자', (t) async {
+  await _pumpDoctor(t, docs: [_noPhoto]);
+  final av = t.widget<CircleAvatar>(find.byType(CircleAvatar));
+  expect(av.backgroundColor, const Color(0xFFCED6DE));
+  expect(find.text('이'), findsOneWidget);                 // 첫 글자('사진 없음' 문구 아님)
+});
+testWidgets('[BOOK-DOC-06] 소개글(bio)은 화면에 나타나지 않는다', (t) async {
+  await _pumpDoctor(t, docs: [_withPhoto]);
+  // Doctor 모델에 bio 필드 자체가 없다(list_doctors가 반환 안 함) → 화면에 문장 카드가 없다.
+  expect(find.textContaining('소개'), findsNothing);
+});
+testWidgets('[BOOK-DOC-08] 예약 대상은 작고 차분한 보조 라벨(강조 아님)', (t) async {
+  await _pumpDoctor(t, docs: [_withPhoto], target: const BookingTarget('me', '김순자', null));
+  final lbl = t.widget<Text>(find.text('김순자 님'));
+  expect(lbl.style!.fontSize, 13);                         // 의사 이름(18)보다 작다 — 같은 무게 아님
+  expect(lbl.style!.color, const Color(0xFF5D7183));
+});
+testWidgets('[BOOK-DOC-01][BOOK-DOC-04] 의사 줄 전체가 터치 영역이고 누르면 4단계로', (t) async {
+  final c = await _pumpDoctor(t, docs: [_withPhoto]);
+  await t.tap(find.text('김의사')); await t.pump();          // 이름을 눌러도 줄 전체가 반응
+  expect(c.read(bookingProvider).step, 3);
+});
+testWidgets('[BOOK-DOC-07][BOOK-DOC-09] 전공·사진·진료시간이 실제로 채워진다(정기 진료시간만, 다음가능시간 없음)', (t) async {
+  await _pumpDoctor(t, docs: [_withPhoto]);
+  expect(find.text('소화기내과'), findsOneWidget);          // 갭 #7 해소 — 이름 외 정보가 있다
+  expect(find.text('월·수·금 오전'), findsOneWidget);       // 정기 진료시간
+  expect(find.textContaining('다음 가능'), findsNothing);   // 다음 가능 시간은 표시하지 않는다
+});
+```
+Run → Expected: PASS.
+
+- [ ] **Step 11: 4단계 날짜 `DateStep` (BOOK-DATE)** — `patient_app/lib/features/booking/steps/date_step.dart`
+
+```dart
+class DateStep extends ConsumerWidget {
+  const DateStep({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sel = ref.watch(bookingProvider);
+    final dates = ref.watch(availableDatesProvider(sel.doctor!.id));   // 8주 이내 빈 날짜(Task 4)
+    return dates.when(
+      error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(availableDatesProvider(sel.doctor!.id))),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      data: (available) => _MonthCalendar(
+        available: available.toSet(),                                  // BOOK-DATE-02 테두리
+        maxDate: DateTime.now().add(const Duration(days: 56)),         // BOOK-DATE-06 8주
+        minMonth: DateTime(DateTime.now().year, DateTime.now().month), // BOOK-DATE-07 이전 달 비활성
+        onPick: (d) => ref.read(bookingProvider.notifier).selectDate(d),
+      ),
+    );
+  }
+}
+// _MonthCalendar: ‹ 2026년 8월 › 헤더 + 요일 머리글 + 격자.
+//   예약 가능일 = 테두리(BOOK-DATE-02) / 그 밖 = 흐린 숫자·비활성(BOOK-DATE-03) / 하단 범례 2개(BOOK-DATE-04).
+//   다음 달 ›: maxDate가 속한 달 이후면 비활성 + "예약은 8주 뒤까지 가능합니다"(BOOK-DATE-06).
+//   이전 달 ‹: 이번 달이면 비활성(BOOK-DATE-07).
+```
+
+테스트(`date_step_test.dart`):
+
+```dart
+testWidgets('[BOOK-DATE-01] 월 단위 달력 — 월 헤더 + 요일 머리글 + 날짜 격자', (t) async {
+  await _pumpDate(t, available: [DateTime(2026, 8, 20)], now: DateTime(2026, 8, 10));
+  expect(find.textContaining('2026년 8월'), findsOneWidget);
+  expect(find.text('일'), findsOneWidget); expect(find.text('토'), findsOneWidget);  // 요일 머리글
+});
+testWidgets('[BOOK-DATE-02][BOOK-DATE-03] 가능한 날은 테두리, 그 밖의 날은 흐린 숫자로 남고 못 누른다', (t) async {
+  final c = await _pumpDate(t, available: [DateTime(2026, 8, 20)], now: DateTime(2026, 8, 10));
+  await t.tap(find.text('21')); await t.pump();               // 진료 없는 날
+  expect(c.read(bookingProvider).date, isNull);               // 못 누른다(숨기지 않고 흐리게)
+  await t.tap(find.text('20')); await t.pump();
+  expect(c.read(bookingProvider).date, DateTime(2026, 8, 20)); // 가능일은 눌린다
+});
+testWidgets('[BOOK-DATE-04][BOOK-DATE-05] 하단 범례는 예약 가능 / 진료 없음 둘뿐(휴진·마감·꽉참을 묶는다)', (t) async {
+  await _pumpDate(t, available: [DateTime(2026, 8, 20)], now: DateTime(2026, 8, 10));
+  expect(find.text('예약 가능'), findsOneWidget);
+  expect(find.text('진료 없음'), findsOneWidget);
+  expect(find.text('휴진'), findsNothing);                     // 셋을 나누지 않는다(범례 넷 금지)
+});
+testWidgets('[BOOK-DATE-06] 8주 뒤가 속한 달 이후로는 다음 달이 비활성 + 이유 한 줄', (t) async {
+  await _pumpDate(t, available: const [], now: DateTime(2026, 8, 10));
+  // 8주 뒤 = 10월 초. 10월 표시 상태에서 › 비활성 + 안내.
+  expect(find.text('예약은 8주 뒤까지 가능합니다'), findsOneWidget);
+});
+testWidgets('[BOOK-DATE-07] 이번 달에서는 이전 달 ‹가 비활성이다', (t) async {
+  await _pumpDate(t, available: [DateTime(2026, 8, 20)], now: DateTime(2026, 8, 10));
+  final prev = t.widget<IconButton>(find.byKey(const Key('cal-prev')));
+  expect(prev.onPressed, isNull);                             // 지난 날짜로 갈 이유 없음
+});
+testWidgets('[NAV-BOOK-10] 날짜를 누르면 5단계 시간으로 넘어간다(controller step=4)', (t) async {
+  final c = await _pumpDate(t, available: [DateTime(2026, 8, 20)], now: DateTime(2026, 8, 10));
+  await t.tap(find.text('20')); await t.pump();
+  expect(c.read(bookingProvider).step, 4);                   // 5단계 화면은 Task 20
+});
+```
+> `BOOK-DATE-08`(8주 상수)·`BOOK-DATE-09`(마감 지남) 구현 전제 두 ⚠️는 **Task 4 `list_bookable_slots`/`list_available_dates`가 서버에서 이미 판정**(8주·`booking_deadline`)하므로, 앱은 서버가 준 날짜 집합만 테두리로 그린다 → 앱이 8을 하드코딩하지 않는다(달력의 `maxDate`는 UI 회색 처리용 상한일 뿐, 실제 가능일은 서버 목록이 결정). 두 갭은 T4에서 닫혔고 여기서 소비만 한다.
+Run → Expected: PASS.
+
+- [ ] **Step 12: NAV-BOOK 화면 이동 표 — 상태 전이로 전수 검증** — `test/features/booking/nav_book_test.dart`
+
+> 마법사 셸(전 단계를 아는 단일 상태머신)의 전이를 `BookingController`/셸 단위로 못박는다. **5~8단계 화면(Task 20)이 없어도** `_step` 전이 규칙은 여기서 확정된다.
+
+```dart
+void main() {
+  late ProviderContainer c;
+  BookingController ctl() => c.read(bookingProvider.notifier);
+  const t1 = BookingTarget('p1', '김순자', null);
+  const dep = Department('d1', '내과');
+  const doc = Doctor('doc1', '김의사', '소화기', null, '월 오전');
+  setUp(() { c = ProviderContainer(); });
+  tearDown(() => c.dispose());
+
+  test('[NAV-BOOK-01] 예약 탭 + 새 예약하기 → 1단계(reset 후 진입)', () {
+    ctl().selectTarget(t1); ctl().reset();               // 진입이 reset
+    expect(c.read(bookingProvider).step, 0);
+  });
+  test('[NAV-BOOK-02] 홈 0건 빈 상태 + 새 예약하기 → 1단계', () {
+    ctl().reset(); expect(c.read(bookingProvider).step, 0);
+  });
+  test('[NAV-BOOK-03] 1단계 대상 선택 → 2단계', () {
+    ctl().selectTarget(t1); expect(c.read(bookingProvider).step, 1);
+  });
+  test('[NAV-BOOK-09] 3단계 의사 선택 → 4단계, 의사 바꾸면 날짜 버림', () {
+    ctl().selectTarget(t1); ctl().selectDepartment(dep); ctl().selectDoctor(doc); ctl().selectDate(DateTime(2026,8,20));
+    ctl().selectDoctor(const Doctor('doc2','이의사',null,null,'화 오후'));
+    expect(c.read(bookingProvider).step, 3);             // 다시 4단계(날짜)로
+    expect(c.read(bookingProvider).date, isNull);        // 날짜 버려짐(BOOK-NAV-05)
+  });
+  test('[NAV-BOOK-11] 5단계 시각 선택 → 6단계(step=5) — Task 20이 화면을 붙인다', () {
+    _advanceToStep(ctl(), 4);                            // 4단계(시간)까지
+    ctl().goToStep(5);                                   // Task 20 selectSlot이 부를 전이
+    expect(c.read(bookingProvider).step, 5);
+  });
+  test('[NAV-BOOK-12] 5단계 [다른 날짜 고르기] → 4단계', () {
+    _advanceToStep(ctl(), 4); ctl().goToStep(3);
+    expect(c.read(bookingProvider).step, 3);
+  });
+  test('[NAV-BOOK-13] 6단계 [다음]/건너뛰기 → 7단계', () {
+    _advanceToStep(ctl(), 5); ctl().goToStep(6);
+    expect(c.read(bookingProvider).step, 6);
+  });
+  test('[NAV-BOOK-16] 신청 실패(그 시간 이미 참) → 5단계 시간 선택으로', () {
+    _advanceToStep(ctl(), 6); ctl().goToStep(4);         // Task 20 book_slot 충돌 시 전이(BOOK-RACE 계열, T20 소유)
+    expect(c.read(bookingProvider).step, 4);
+  });
+}
+```
+
+나머지 NAV-BOOK 전이는 화면·라우팅 위젯 테스트로(같은 파일):
+
+```dart
+testWidgets('[NAV-BOOK-04] 1단계 + 가족 추가하기 → 가족 탭(마법사 유지)', (t) async { /* BOOK-WHO-09와 동일 경로 */ });
+testWidgets('[NAV-BOOK-07] 상담봇 시트 ○○과로 계속하기 → 3단계, 그 과 선택됨(Task 20이 selectDepartment 배선)', (t) async {
+  // T19는 계약만: selectDepartment(추천과) 호출 시 step==2 + department 세팅됨을 확인.
+  final c = ProviderContainer();
+  c.read(bookingProvider.notifier).selectTarget(const BookingTarget('me','김순자',null));
+  c.read(bookingProvider.notifier).selectDepartment(const Department('rec','추천내과'));
+  expect(c.read(bookingProvider).step, 2);
+  expect(c.read(bookingProvider).department!.id, 'rec');
+});
+testWidgets('[NAV-BOOK-14] 7단계 신청 성공 → 8단계 완료(step=7), 완료에서 뒤로는 홈', (t) async {
+  final c = ProviderContainer(); _advanceToStep(c.read(bookingProvider.notifier), 6);
+  c.read(bookingProvider.notifier).goToStep(7);           // Task 20 submit 성공 전이
+  expect(c.read(bookingProvider).step, 7);                // BOOK-NAV-08: 8단계 뒤로=홈은 Task 20 완료 화면
+});
+testWidgets('[NAV-BOOK-15] 7단계 신청 실패(서버 오류) → 7단계 그대로(화면 안 옮김)', (t) async {
+  final c = ProviderContainer(); _advanceToStep(c.read(bookingProvider.notifier), 6);
+  // 실패해도 goToStep을 호출하지 않는다 → step 유지(버튼 위 붙박이 오류는 Task 20 화면).
+  expect(c.read(bookingProvider).step, 6);
+});
+testWidgets('[NAV-BOOK-17] 8단계 완료 사전문진 작성하기 → 사전문진 1번 문항', (t) async { /* 완료 화면=Task 20, 라우트 /questionnaire 확인 */ });
+testWidgets('[NAV-BOOK-18] 8단계 완료 나중에 할게요 → 홈', (t) async { /* Task 20 완료 화면 CTA */ });
+testWidgets('[NAV-BOOK-19] 처리 중 이탈 팝업 [기다리기] → 7단계 그대로', (t) async { /* showExitConfirm(Task 12)의 취소 분기 */ });
+testWidgets('[NAV-BOOK-20] 처리 중 이탈 팝업 [나가기] → 나가려던 곳(신청은 계속)', (t) async { /* BTN-EXIT-01 */ });
+testWidgets('[NAV-BOOK-21] 하단 탭 다녀와도 그 단계 그대로(아무것도 묻지 않음)', (t) async {
+  final c = await _pumpWizardInShell(t, step: 2);         // AppShell(Task 11) 안에서
+  await t.tap(find.text('홈'));   await t.pumpAndSettle(); // 다른 탭
+  await t.tap(find.text('예약')); await t.pumpAndSettle(); // 예약 탭 복귀
+  expect(c.read(bookingProvider).step, 2);                // BOOK-KEEP-01
+  expect(find.byType(AlertDialog), findsNothing);
+});
+testWidgets('[NAV-BOOK-22] 마법사 중간 딥링크는 만들지 않는다 — /booking 진입은 항상 1단계', (t) async {
+  // router redirect + 진입이 reset() → 어떤 진입도 step 0에서 시작.
+  final c = await _pumpRouteBooking(t);
+  expect(c.read(bookingProvider).step, 0);
+});
+testWidgets('[NAV-BOOK-23] 마법사 도중 오프라인 → 화면 안 옮기고 그 단계 유지', (t) async {
+  final c = await _pumpWizard(t, step: 2, online: false);
+  expect(c.read(bookingProvider).step, 2);               // 하던 일 안 빼앗음(다음 버튼에서 실패로 알림)
+});
+testWidgets('[NAV-BOOK-24] 온라인 401만 로그아웃 — 오프라인 실패는 만료로 안 본다', (t) async {
+  // Task 11 handleUnauthorized: online이면 로그인 화면, offline이면 그대로.
+  final c = ProviderContainer();
+  // 오프라인 상태에서의 실패는 effectiveAuth를 signedOut으로 바꾸지 않는다(OFF-AUTH-04).
+  expect(handleUnauthorizedRedirect(online: false), isNull);
+  expect(handleUnauthorizedRedirect(online: true), '/login');
+});
+```
+> `_advanceToStep(ctl, n)`은 대상→과→의사→날짜를 차례로 선택해 `step==n`까지 올리는 테스트 헬퍼. `NAV-BOOK-11~20`의 화면 본체와 `book_slot`·`submit()`은 **Task 20**이 붙이며, T19는 위 전이 계약(`goToStep`/`selectDate`가 어느 step으로 가는지)을 확정한다. `NAV-BOOK-17·18·19·20`은 완료 화면·이탈 팝업이 Task 20 소유라 라우트/`showExitConfirm` 분기만 얇게 검증(전이 규칙은 이 표가 원본).
+Run → Expected: PASS.
+
+- [ ] **Step 13: 갭 역참조 3곳 반영 + 전체 테스트 + 커밋**
+
+먼저 갭 #7·#9 마감을 세 원본에 역참조(경계 갭 방지 — 단방향 링크 금지):
+1. `docs/design/screen-behaviors.md` `BOOK-DOC-07`: `~~⚠️ staff에 전공·소개·사진 칸이 없다 → 갭 #7 / 진료요일 한 줄 요약 API가 없다 → 갭 #9. 지금 플랜으로는 이름밖에 못 띄운다~~ ✅ **해소(2026-08-18, T19)** — 직원웹 00026 칸을 `list_doctors`가 `specialty·photo_url` 반환(갭 #7), `schedule_summary` 서버 요약 반환(갭 #9). 사진·전공·진료시간이 채워진다`
+2. `docs/superpowers/specs/2026-07-31-ui-design-decisions.md` 「기능 갭」 #7·#9: `- [ ]` → `- [x]` + `✅ 환자앱 T19에서 반영(2026-08-18) — list_doctors 확장(specialty·photo_url·schedule_summary), 마이그레이션은 직원웹 00026 재사용(신설 없음)`
+3. 같은 문서 「경계 갭 대조표」 #7 행: `⚠️ 확인됨 … list_doctors가 id·name만` → `✅ 해소(T19) … specialty·photo_url·schedule_summary 반환`
+
+```bash
+cd backend && pytest tests/test_doctor_schedule_summary.py tests/test_patient_catalog_service.py -v
+cd ../patient_app && flutter test test/features/booking/
+git add backend/app/services/doctor_schedule_summary.py backend/app/services/patient_catalog_service.py backend/tests/ \
+  patient_app/lib/features/booking/ patient_app/test/features/booking/ patient_app/lib/core/router.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 환자앱 Task 19 — 예약 마법사 1~4단계 71규칙(BOOK-WHO/DEPT/DOC/DATE·NAV-BOOK) + 갭 #7·#9 해소"
+```
+
+> 📌 **규칙 커버리지(71)**: `BOOK-NAV-01~10`(10) · `BOOK-KEEP-01~07`(7) · `BOOK-WHO-01~09`(9) · `BOOK-DEPT-01~03`(3) · `BOOK-DOC-01~09`(9) · `BOOK-DATE-01~09`(9) · `NAV-BOOK-01~24`(24). 범위·축약 없이 개별 ID로 test에 심었다(T16·17·18 교훈).
+> ⭐ **갭 #7·#9 확정 마감**: 핸드오프가 예고한 「T4 확장 핀」이 여기서 발화·해소. `list_doctors`가 `{id, name, specialty, photo_url, schedule_summary}` 반환 — **새 마이그레이션 없이**(직원웹 `00026` 칸·`doctor-photos` 버킷 재사용) + `summarize_schedule` 순수 함수(서버 한 곳, 챗봇·직원웹 재사용 가능). `BOOK-DOC-07`의 「이름밖에 못 띄운다」가 닫혔다.
+> ⭐ **경계 명시(NAV-BOOK 전부 T19 · 5~8단계 화면은 T20)**: 마법사 셸은 전 단계를 아는 단일 상태머신이라 T19가 소유하고, `NAV-BOOK-11~20`의 전이 규칙을 `BookingController._step`으로 못박았다. Task 20은 이 전이 계약(`goToStep`·`selectDate`) 위에 5~8단계 **화면 위젯**(`BOOK-TIME/WHY/CONF/DONE`)·상담봇 시트(`BOOK-BOT`)·`book_slot`/`submit()`·`BOOK-RACE`·`BOOK-TODAY`·`BOOK-HOLD`를 붙인다(71 유지 = 셸 중복 방지, 사용자 승인).
+> 📌 **값 없는/구조 규칙 실현 지도**: `BOOK-NAV-05`(뒤 단계 버림)=`selectTarget/Department/Doctor`가 뒤 필드를 새 객체로 리셋 · `BOOK-KEEP-01`(탭 복귀 유지)=`bookingProvider` autoDispose 아님 · `BOOK-KEEP-02`·`BOOK-KEEP-04`(근거)=01·03 동작이 실현 · `BOOK-KEEP-05`(1단계 뒤로 팝업 없음)=셸 `PopScope` · `BOOK-KEEP-07`(BTN-KILL과 다름)=신청 전 서버 무접촉 · `BOOK-NAV-07`(값 없으면 못 넘어감)=선택=이동이라 다음 버튼 부재 · `BOOK-DOC-06`(bio 비노출)=모델에 bio 필드 없음 · `BOOK-DATE-08·09`(8주·마감)=T4 서버 판정 소비.
+> ⚠️ **신설 마이그레이션 없음** — 갭 #7 칸은 직원웹 `00026`, 갭 #9는 순수 함수 + `admin_client` 조회(RLS 우회는 진료요일=비민감). T4 `list_doctors` 서비스만 확장(백엔드 파일 2개 수정/신설).
+> 📌 **Task 20 인계 발판**(5~8단계 · 66규칙): `BOOK-TIME-01~08` · `BOOK-WHY-01~06` · `BOOK-CONF-01~09`(04b·c·d·e 포함) · `BOOK-DONE-01~07`(01b·c 포함) · `BOOK-RACE-01~09` · `BOOK-TODAY-01~13` · `BOOK-HOLD-01~06` · `BOOK-BOT-01~08` + `NAV-BOOK-11~20` 화면 본체. `request_id`는 Task 20이 마법사 진입 때 만든다(멱등, 플랜 `:2002`). 확정 갭 소급 후보: `BOOK-TODAY`의 갭 #45·#46(T4 `list_bookable_slots`가 이미 닫음 — 소비만).
+
+> ▶ **다음 = Task 20 본문 작성** — 예약 5~8단계(시간·방문이유·최종확인·완료) + 동시충돌·당일예약·상담봇 시트 **66규칙**(`BOOK-TIME-*`·`BOOK-WHY-*`·`BOOK-CONF-*`·`BOOK-DONE-*`·`BOOK-RACE-*`·`BOOK-TODAY-*`·`BOOK-HOLD-*`·`BOOK-BOT-*` + `NAV-BOOK-11~20` 화면 본체). 📌 **재사용**: T19 `BookingController`·`bookingProvider`·`BookingWizard` 셸(전이 계약 위에 화면 얹기) · T4 `list_available_slots`/`list_bookable_slots`(당일 30분·마감·8주 서버 판정) · T5 `book_slot`(멱등 `request_id`) · T12 `ActionButton`(BUSY)·`showExitConfirm`(BTN-EXIT)·`PendingRequestCard`(BTN-KILL). ⚠️ `writing-plans` 먼저 호출 + 범위·축약은 완전 ID로. ⚠️ 상담봇 시트(`BOOK-BOT`)는 챗봇 엔진 제한모드(결정 E4)라 4단계와 도구계약 공유 — 도구 금지·긴급 예외 규칙 확인.
