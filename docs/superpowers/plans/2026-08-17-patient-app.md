@@ -172,7 +172,12 @@
 <!-- 태스크 본문은 여기부터. 세션마다 한 태스크씩 `test('[규칙ID] …')` 문장으로 채운다.
      지킬 조건: ①테스트 한 줄에 규칙 ID 하나 + 값 assert ②Consumes/Produces는 이름으로
      ③규칙에 DB 칸이 나오면 서버 층 짝 확인. 다 쓰면 plan-coverage-check + plan-prefix-check 경고 0 확인 후 커밋.
-     ⚠️ 태스크 헤딩은 `## Task N:`(더블 해시) — prefix-check의 `task_spans`가 이 형식만 본다. -->
+     ⚠️ 태스크 헤딩은 `## Task N:`(더블 해시) — prefix-check의 `task_spans`가 이 형식만 본다.
+     ⛔ **다음 태스크 몫을 완전 ID로 예고하지 말 것**(`QNR-PROG-08`) — coverage는 플랜 전체에서 ID를
+        글자로 찾아 「반영됨」으로 세므로, 예고한 순간 그 규칙이 **missing에서 사라지고** 정작
+        그 태스크를 쓸 때 안 보인다. 예고는 **계열명**(`QNR-PROG 계열`)이나 범위(`ID~NN`)로.
+        T23·T24·T25가 연속으로 어겼다 → 2026-08-18 `plan-prefix-check`에 **⏰ 검사**를 붙였다.
+        태스크를 시작할 때 ⏰ 줄이 있으면 **missing 목록을 믿지 말고** 그 ID를 담당분에 직접 더한다. -->
 
 ## Task 0: Flutter 스캐폴딩 + 시각 토큰(테마) + 공통 표시 위젯 + ApiClient·인증상태
 

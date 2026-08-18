@@ -128,14 +128,14 @@ def rule_debt(plan, plan_text, spans, assigned):
     area = next((a for a, p in cov.PLANS.items()
                  if pathlib.Path(p).name == plan.name), None)
     if area is None:                       # 재작성본이 아닌 플랜 — 셀 기준이 없다
-        return None, [], 0, {}             # ⚠️ 반환 개수를 부르는 쪽과 맞춘다(3개면 터진다)
+        return None, [], 0, {}, {}         # ⚠️ 반환 개수를 부르는 쪽과 맞춘다(모자라면 터진다)
     defined = cov.defined_rules(cov.area_text(cov.load(cov.BEHAVIORS), area))
     lines = plan_text.split("\n")
     body = {t: "\n".join(lines[s:e]) for t, (s, e) in spans.items()}
     mention_re = re.compile(cov.RULE_MENTION_RE)
     said = {t: set(mention_re.findall(txt)) for t, txt in body.items()}
 
-    debt, orphan, later, elsewhere = {}, [], 0, {}
+    debt, orphan, later, elsewhere, premature = {}, [], 0, {}, {}
     anywhere = {r for s in said.values() for r in s}
     for rid in sorted(defined - set(cov.RULE_WHITELIST)):
         best = None
@@ -148,6 +148,21 @@ def rule_debt(plan, plan_text, spans, assigned):
             # 아무 데도 없으면 「아무도 안 찾는」 것이라 따로 알린다.
             if rid not in anywhere:
                 orphan.append(rid)
+        elif best[0] not in spans and rid in anywhere:
+            # ⚠️⚠️ 검사기 결함 7번째(2026-08-18 발견) — **미리 세어진 규칙**.
+            #    소유 태스크가 **아직 안 쓰였는데** 다른(이미 쓴) 태스크가 그 규칙을
+            #    **완전 ID로 산문에 적었다.** 그 순간 `plan-coverage-check`가 「반영됨」으로
+            #    세어 버리고, 정작 그 태스크를 쓸 때 **missing 목록에 안 뜬다** — 즉
+            #    「빠뜨림 0」을 보증하던 안전망이 그 규칙만 **조용히 걷힌다.**
+            #    실제 사고: T23이 *"문구는 T24가 채운다"*라며 `QNR-PROG-08`·`QNR-NOTI-06`을
+            #    완전 ID로 예고 → T24 작성 때 missing에서 사라져 하마터면 구현 없이 넘어갈 뻔했다.
+            #    T25도 `NAV-FAM-07`로 같은 일을 반복했다(세 태스크 연속).
+            #    ⭐ 아래 🔀(이미 쓴 태스크끼리의 규칙 단위 분담)와 **성격이 다르다** —
+            #      그쪽은 「이미 누가 담았다」이고, 이쪽은 「아무도 안 담았는데 담긴 것으로 보인다」.
+            #      섞어 놓으면 *"대부분 의도한 분담"*이라는 라벨에 묻혀 사람이 안 본다.
+            #    ⛔ 예고는 **계열명**(`QNR-PROG 계열`)이나 범위(`ID~NN`)로 쓸 것.
+            premature.setdefault(best[0], []).append(
+                (rid, sorted(t for t in said if rid in said[t])))
         elif rid in anywhere and rid not in said.get(best[0], ()):
             # ⚠️ 오탐을 만들지 않으려고 **셋째 칸**을 둔다.
             #    배정 표는 접두어 단위(`CAL-COLOR-*`)인데 실제 분담은 규칙 단위인 일이 흔하다 —
@@ -160,7 +175,7 @@ def rule_debt(plan, plan_text, spans, assigned):
                 later += 1                 # 아직 안 쓴 태스크 것 — 빚이 아니다
         elif rid not in said[best[0]]:
             debt.setdefault(best[0], []).append(rid)
-    return debt, orphan, later, elsewhere
+    return debt, orphan, later, elsewhere, premature
 
 
 # ⚠️⚠️ 검사기 결함 6번째(2026-08-16) — **미결 경고 97건 중 44건이 오탐이었다.**
@@ -1030,7 +1045,7 @@ def main():
         print("     ⭐ 근거가 「목업/검토 때 뒤집힐 수 있음」이면 그 목업이 있는지 먼저 볼 것 —")
         print("       있으면 낡은 표시다(실제 사례: STAFF-* 9건 ↔ 목업 79).")
 
-    debt, loose, later, elsewhere = rule_debt(plan, "\n".join(lines), spans, assigned)
+    debt, loose, later, elsewhere, premature = rule_debt(plan, "\n".join(lines), spans, assigned)
     if debt:
         total = sum(len(v) for v in debt.values())
         print(f"\n💸 **이미 쓴 태스크가 빠뜨린 규칙 {total}개** (태스크 {len(debt)}개) "
@@ -1042,6 +1057,16 @@ def main():
         print("     ⚠️ 「근거 원문」 줄에 적는 것은 구현이 아니다 — 그래서 이 수에 남아 있다.")
     elif debt is not None:
         print("\n✅ 이미 쓴 태스크가 빠뜨린 규칙이 없다.")
+    if premature:
+        total = sum(len(v) for v in premature.values())
+        print(f"\n⏰ **아직 안 쓴 태스크의 규칙 {total}개가 이미 「반영됨」으로 세어지고 있다** "
+              f"— 그 태스크를 쓸 때 missing에 안 뜬다:")
+        for t, items in sorted(premature.items(), key=lambda kv: -len(kv[1])):
+            head = ", ".join(f"{r}(T{'·'.join(map(str, w))}가 언급)" for r, w in items[:4])
+            print(f"   장차 Task {t:<3} {len(items):>3}개 — {head}"
+                  + (f" 외 {len(items) - 4}건" if len(items) > 4 else ""))
+        print("   → 이미 쓴 태스크가 **완전 ID로 예고**해서 생긴다. 예고는 계열명(`QNR-PROG 계열`)으로 쓸 것.")
+        print("     ⚠️ 그 태스크를 쓸 때는 **missing 목록을 믿지 말고** 이 줄의 ID를 담당분에 직접 더할 것.")
     if elsewhere:
         total = sum(len(v) for v in elsewhere.values())
         print(f"\n🔀 배정 표의 주인과 **다른 태스크 본문**에 적힌 규칙 {total}개 — 대부분 의도한 분담이다:")
