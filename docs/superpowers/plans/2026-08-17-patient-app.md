@@ -17539,3 +17539,667 @@ git commit -m "feat: 📝 환자앱 Task 26 본문 — 가족 추가 갈래·㉮
 > ⚠️ **T28에 넘기는 악수**: `/settings/hospital`을 **자리표시자**로 열어 두었다(`NAV-FAM-12`·`AUTH-OTP-11`의 도착지). T28이 `SET-HOSP-*` 실화면으로 갈아끼울 때 **이 두 진입을 함께 확인**할 것.
 > 📌 **값 없는/근거 규칙 실현 지도**: `FAM-ADD-02·05`·`FAM-NEW-04·12·14`·`FAM-LINK-07·11·16·19`=근거 규칙(짝이 되는 동작 규칙이 실현하고, test는 그 근거가 화면·서버에서 실제로 성립하는지 본다) · `FAM-NEW-05`·`FAM-LINK-02·08`=⚠️ 구현 전제(패치를 여기서 실행) · `FAM-LINK-17`=직원웹 갭 #2·#19가 짝(앱은 「병원에 문의」로 보내는 것까지).
 > ▶ **다음 = Task 27 본문 작성** — 방문 이력(목록·행·역할·문진/안내 펼침 `HIST-*`·`NAV-HIST-*` **84규칙**). ⚠️ **착수 전에 ⏰ 3건을 눈으로 판단할 것**: T8 서버가 이미 구현한 `HIST-LIST 계열 2건`·`HIST-ROLE 계열 1건`에 **화면 test가 또 필요한가**(핸드오프 「⏰」 참조 — ⛔ 여기서 완전 ID로 적으면 coverage가 미리 세어 T27이 놓친다). 📌 T8 조회(`list_visit_history` 20건 커서·4상태)·T25 `FamilyMember`(이름 칩)·T17 `isFinishedCard`를 소비한다.
+
+---
+
+## Task 27a: 방문 이력 — 목록·이름 칩·지나간 예약 줄 4종 (54규칙)
+
+> **담당 규칙(54)**:
+> `HIST-ROLE-01~09`(9) · `HIST-WHO-01~10`(10) · `HIST-LIST-01~21`(21) · `HIST-ROW-01~14`(14).
+> ⏰ **T8이 완전 ID로 예고해 coverage가 이미 「반영됨」으로 세던 3건을 여기서 정당하게 담는다** — `HIST-ROLE-01`(탭이 4상태를 다 그리는지=화면 test 있음) · `HIST-LIST-15`(화면이 초기 20건을 요청·소비=페이지네이션 test) · `HIST-LIST-20`(몇 년 전 줄도 화면이 안 거르고 그림=화면 test 있음). ⛔ **미래 태스크가 아니므로 완전 ID로 적어도 문제없다**(coverage는 이미 초록, 여기서 화면 test가 실현을 얹는다).
+>
+> ⭐⭐ **이 묶음의 축 = 「이력 탭은 지나간 예약 전체」**(`HIST-ROLE-01`, 2026-08-01 뒤집음) — 「진료받은 기록」만 모으는 곳이 아니다. 줄 4종: `진료완료`·`취소됨`·`방문하지 않음`(부도)·`확정되지 않음`(B-39). ⭐ **갭 4건이 서버 조회 한 줄에서 나온다**(`HIST-ROLE-08·09`) — ⛔ 따로 고치지 않고 T8이 조회를 「지나간 예약 전체」로 한 번에 넓혔다(4상태 파생 + 문진 여부). T27a는 그 결과를 **소비해 그린다**.
+>
+> ⚠️⚠️ **경계 — 이 Task(27a)가 담는 것 / T27b가 담는 것**(84규칙 > 70이라 2분할 — T15↔T17·T23↔T24와 같은 화면 셸↔알맹이 패턴):
+> - **T27a(여기)**: 이력 화면 셸 + **이름 칩**(본인↔가족) + **목록 구조**(연도 헤더·날짜 레일·20건 이어받기 3상태·빈/오프라인/실패) + **지나간 예약 줄 4종**(접힌 모습: 진료과·의사·상태 배지·취소선·취소 주체 한 줄·미확정 안내 한 줄) + **줄 펼침 상호작용**(누르면 펼침·여러 줄 동시·재진입 접힘 — `HIST-LIST-08·09·10·11`). **줄 펼침 안의 알맹이**(안내문·문진)는 **빈 슬롯**(`detailBuilder`)으로 두고 **T27b가 채운다**(양방향 악수).
+> - **T27b(다음)**: 펼침 안의 **병원 안내문**(`HIST-NOTE`) + **사전문진 읽기 전용**(`HIST-QNR`) + **화면 이동·딥링크**(`NAV-HIST` — 알림에서 그 줄로 펼쳐 열기 등). ⛔ **T27b 규칙(`HIST-NOTE`·`HIST-QNR`·`NAV-HIST`)을 완전 ID로 여기 test에 넣지 않는다**(coverage가 미리 세어 T27b가 놓친다).
+> - **재인증은 여기서 다시 정하지 않는다** — `NAV-HIST-01·02`가 「이력은 재인증 없음」을 못박고 그건 T27b 몫. 이력 탭 진입은 T11 라우터 가드의 `_isSensitive`에 `/history`가 **없어야** 한다(가족·설정과 다르다).
+>
+> ⚠️⚠️ **경계 갭 1건을 여기서 닫는다**(⭐ 해소 즉시 설계문서 반영 — Step 8에 포함): **`list_visit_history`가 취소 주체를 안 내려준다.** `HIST-ROW-02·03`(`취소됨 · 누가` + 취소 날짜·시각)은 `cancelled_by`·`cancelled_by_relation`·`cancelled_by_name`·`cancelled_at`을 요구하는데, **T17의 #11 소급은 `list_my_appointments`·`get_appointment_detail`에만** 들어갔고 **이력 조회는 별도 쿼리**라 이 4필드가 없다(원문 `:2848~2853` 대조 확인). → **`list_visit_history` SELECT에 4필드 + `is_self`를 소급**한다. ⭐ **칸은 이미 있다**(`00025_cancellation_actor.sql`, T6 취소 서비스·직원웹 취소가 채운다) — 마이그레이션 없이 SELECT만 넓힌다. **CxlBody(T17)와 같은 의미**로 렌더해 카드와 이력의 취소 문구가 어긋나지 않게 한다.
+>
+> 📌 **문진 여부는 `has_questionnaire` 하나면 충분**(갭 #24 이미 닫힘) — 이력은 「지난 문진 **읽기 전용**」이라 진행률(answered/total)이 필요 없다. T24의 `questionnaire_state`·`answered`·`total` 3필드 소급은 **홈 줄**(`list_my_appointments`)에만 갔고 **이력엔 오지 않는다**(원문 `:14269` 대조 — 의도된 경계, 이력에 3필드를 끌어오지 않는다).
+>
+> 📌 **재사용**: **T8 백엔드**(`list_visit_history(patient, for_patient_id, cursor, limit) -> {items, next_cursor}` — 4상태·20건 커서·`patient_visible_notes`·`has_questionnaire`. 여기서 취소 주체 4필드 소급) · **T25**(`FamilyMember`·`familyListProvider` — 본인 먼저·이름 오름차순·해제자 제외=갭 #61 T2가 닫음. 이름 칩이 그대로 재사용) · **T12 위젯**(`EmptyState.zero/offline/error`·`InlineError`) · **T0**(`AppCard`·`StatusLabel`·`WarnText`·`appIcon`·`AppTokens.primary`(딥틸 #0B6E70)·`grayDone`) · **T11**(`connectivityProvider`) · **T17**(`isFinishedCard` — 종료 판정 참고, 이력은 애초에 종료 줄만) · **T10 라우터**(`GET /my/history`).
+> 📌 **목업**: `50-history-list-full.html`(정식 크기 — 줄 4종·20건 이어받기 3상태·빈/오프라인, ✅ **B-44 확정**) · `26-history.html`(레일 목록형) · `38-history-with-cancel.html`(취소·부도 줄 ⚠️ **날짜에 취소선 — 어긋남**, `HIST-ROW-04`는 진료과·의사 이름에만). 확인된 문구: `진료 완료`·`취소됨`·`방문하지 않음`·`확정되지 않음`·`병원에서 취소`·`본인 취소`·`아직 방문하신 기록이 없습니다`·`불러오는 중…`·`처음부터 모두 보여드렸습니다`.
+
+**Files:**
+- Create: `patient_app/lib/features/history/history_repository.dart`(`VisitHistoryEntry`·`VisitStatus`·`HistoryRepository`·`selectedHistoryPatientProvider`·`historyProvider`·`historyChipsProvider`)
+- Create: `patient_app/lib/features/history/history_screen.dart`(`HistoryScreen`·`NameChips`·`DateRail`·`VisitBadge`·`HistoryRow`·`historyDetailBuilderRef`)
+- Modify: `backend/app/services/patient_history_service.py`(`list_visit_history` SELECT에 취소 주체 4필드 + `is_self` 소급 — 갭 #11 이력분)
+- Modify: `patient_app/lib/core/router.dart`(`/history`를 `_Placeholder('방문이력')`에서 `HistoryScreen`으로 교체)
+- Test: `backend/tests/test_patient_history_service.py`(확장 — 취소 주체) · `patient_app/test/features/history/history_repository_test.dart` · `history_chips_test.dart` · `history_row_test.dart` · `history_screen_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **T8**: `list_visit_history(patient, for_patient_id, cursor=None, limit=20) -> {"items": [...], "next_cursor": str|None}`(각 item: `id·status·slot_date·department_name·doctor_name·visit_status`(`진료완료|취소됨|방문하지않음|확정되지않음`)·`patient_visible_notes`·`has_questionnaire`). **여기서 4필드+is_self 소급 추가**.
+  - **T25**: `FamilyMember`(`id·name·is_self`·…)·`familyListProvider`(`FutureProvider<List<FamilyMember>>` — 본인 먼저·이름 오름차순, 해제자 제외)
+  - **T12**: `EmptyState.zero({message, nextAction})`·`EmptyState.offline({screenName, onRetry})`·`EmptyState.error({onRetry})`·`InlineError({message})`
+  - **T0**: `AppCard`·`StatusLabel`·`WarnText`·`appIcon`·`AppTokens`(`primary`·`grayDone`·`grayPending`)
+  - **T11**: `connectivityProvider`(`Provider<bool>` — 온라인 여부)
+  - **T10**: 라우터 `GET /my/history?for_patient_id=&cursor=`
+- Produces:
+  - SQL/서비스: `list_visit_history` 반환에 `cancelled_by`(`'hospital'|'patient'|null`)·`cancelled_by_relation`·`cancelled_by_name`·`cancelled_at`·`is_self`(bool, `account_patient_id = for_patient_id`) 추가
+  - `enum VisitStatus { done, cancelled, noShow, unconfirmed }` + `visitStatusFromServer(String) -> VisitStatus`
+  - `VisitHistoryEntry({id, status:VisitStatus, slotDate:DateTime?, departmentName, doctorName, patientVisibleNotes:String?, hasQuestionnaire:bool, cancelledBy:String?, cancelledByRelation:String?, cancelledByName:String?, cancelledAt:DateTime?, isSelf:bool})` + `.fromJson`
+  - `HistoryRepository.list(forPatientId, {cursor}) -> ({List<VisitHistoryEntry> items, String? nextCursor})`
+  - `selectedHistoryPatientProvider`(`StateProvider<String?>` — 선택된 칩의 patient id, null=본인 초기) · `historyChipsProvider`(칩 목록=familyList 재노출) · `historyProvider`(선택 환자의 페이지 상태 `AsyncNotifier`)
+  - `HistoryScreen` · `NameChips({members, selectedId, onSelect})` · `DateRail({date, color})` · `VisitBadge({status})` · `HistoryRow({entry, expanded, onToggle, detail})`(`detail`=펼침 슬롯 위젯, T27b가 실제 위젯 주입)
+  - ⭐ **양방향 악수**: `HistoryRow`가 `detail` 파라미터(펼침 알맹이 위젯)를 받아 그리기만 한다 — T27a는 `const SizedBox.shrink()`(빈 슬롯)를 넘겨 펼침 토글·다중 펼침·재진입 접힘을 검증하고, **T27b가 `HistoryRowDetail(entry)`(안내문+문진)를 실제로 주입**한다.
+
+- [ ] **Step 1: 백엔드 — 취소 주체 4필드 소급 실패 테스트** — `backend/tests/test_patient_history_service.py`(기존 파일에 추가)
+
+```python
+@pytest.mark.asyncio
+async def test_history_includes_cancel_actor_fields(db_conn):
+    # HIST-ROW-02·03: 이력 조회가 '취소됨 · 누가' + 취소 시각을 그리려면 4필드가 와야 한다.
+    # 칸은 00025(취소 주체)에 이미 있다 — 이력 SELECT만 넓힌다(마이그레이션 없음).
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id=$1 where id=$2", dept, doctor["staff_id"])
+    me = _ctx(await seed_patient(db_conn)); did = doctor["staff_id"]
+    aid = await _past(db_conn, me, dept, did, "병원취소", "2026-02-10")
+    await db_conn.execute(                                  # 직원웹 취소가 채우는 칸(여기선 seed로 흉내)
+        "update appointments set cancelled_by='hospital', cancelled_at='2026-02-05T15:12:00' where id=$1", aid)
+    res = await h.list_visit_history(me, me.id)
+    row = next(i for i in res["items"] if i["visit_status"] == "취소됨")
+    assert row["cancelled_by"] == "hospital"
+    assert row["cancelled_at"] is not None
+    assert row["is_self"] is True                          # 본인 예약(account_patient_id = for_patient_id)
+```
+Run: `cd backend && pytest tests/test_patient_history_service.py::test_history_includes_cancel_actor_fields -v`
+Expected: FAIL(`KeyError: 'cancelled_by'` — SELECT에 없다).
+
+- [ ] **Step 2: 백엔드 구현 — SELECT 4필드+is_self 소급** — `backend/app/services/patient_history_service.py`
+
+`list_visit_history`의 SELECT 절(원문 `:2848~2853`)에 아래를 더한다(⭐ 칸은 `00025`에 이미 있어 조회만 넓힌다):
+
+```python
+        rows = await conn.fetch(
+            "select a.id, a.status, s.slot_date, d.name as department_name, st.name as doctor_name, "
+            "  n.patient_visible_notes, "
+            "  a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at, "  # 갭 #11 이력분(HIST-ROW-02·03)
+            "  (a.account_patient_id = a.for_patient_id) as is_self, "                           # HIST-ROW-02 본인/가족 갈래
+            "  case a.status when '진료완료' then '진료완료' "
+            "       when '환자취소' then '취소됨' when '병원취소' then '취소됨' "
+            "       when '예약부도' then '방문하지않음' else '확정되지않음' end as visit_status, "
+            "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire "
+            "from appointments a "
+            "join departments d on d.id=a.department_id "
+            "join staff st on st.id=a.doctor_id "
+            "left join appointment_slots s on s.id=a.slot_id "
+            "left join patient_medical_notes n on n.appointment_id=a.id "
+            f"where a.for_patient_id = $1 and {_HISTORY_WHERE} {keyset}"
+            "order by s.slot_date desc nulls last, a.id desc "
+            f"limit ${len(params)}", *params)
+```
+> ⚠️ **`cancelled_by_relation`·`cancelled_by_name`·`cancelled_at` 칸이 아직 없으면**(구현 순서상 Task 6 후행) `00025_cancellation_actor.sql`에서 만든다 — 완료 보고에 짚는다. T17이 카드용으로 이미 같은 칸을 참조하므로 **한 마이그레이션**으로 합쳐진다(중복 생성 금지).
+
+- [ ] **Step 3: 백엔드 테스트 통과 확인** — `cd backend && pytest tests/test_patient_history_service.py -v` → PASS(기존 4상태·커서 테스트도 그대로).
+
+- [ ] **Step 4: `VisitHistoryEntry` 모델 + 리포지토리 실패 테스트** — `patient_app/test/features/history/history_repository_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/history/history_repository.dart';
+
+Map<String, dynamic> _row(String vs, {String? by, String? rel, String? name, bool self = true, bool qnr = false}) => {
+  'id': 'ap1', 'status': '병원취소', 'slot_date': '2026-02-10',
+  'department_name': '내과', 'doctor_name': '이의사', 'patient_visible_notes': null,
+  'visit_status': vs, 'has_questionnaire': qnr, 'is_self': self,
+  'cancelled_by': by, 'cancelled_by_relation': rel, 'cancelled_by_name': name,
+  'cancelled_at': by == null ? null : '2026-02-05T15:12:00',
+};
+
+void main() {
+  test('[HIST-ROLE-03] 서버 4상태를 4개 enum으로 옮긴다', () {
+    expect(visitStatusFromServer('진료완료'), VisitStatus.done);
+    expect(visitStatusFromServer('취소됨'), VisitStatus.cancelled);
+    expect(visitStatusFromServer('방문하지않음'), VisitStatus.noShow);
+    expect(visitStatusFromServer('확정되지않음'), VisitStatus.unconfirmed);
+  });
+  test('[HIST-ROW-02] 취소 주체 4필드를 담는다(카드와 같은 의미)', () {
+    final e = VisitHistoryEntry.fromJson(_row('취소됨', by: 'patient', rel: '배우자', name: '김순자', self: false));
+    expect(e.cancelledBy, 'patient');
+    expect(e.cancelledByRelation, '배우자');
+    expect(e.cancelledByName, '김순자');
+    expect(e.isSelf, false);
+  });
+  test('[HIST-ROW-03] 취소 시각을 담는다', () {
+    final e = VisitHistoryEntry.fromJson(_row('취소됨', by: 'hospital'));
+    expect(e.cancelledAt, DateTime.parse('2026-02-05T15:12:00'));
+  });
+  test('[HIST-ROLE-06] 서버가 내려준 patient_visible_notes만 담는다(증상·진단은 아예 없다)', () {
+    final e = VisitHistoryEntry.fromJson({..._row('진료완료'), 'patient_visible_notes': '휴식하세요'});
+    expect(e.patientVisibleNotes, '휴식하세요');
+    // 모델에 symptoms·diagnosis 같은 칸이 없다 — 서버가 안 보내므로 담을 자리도 없다.
+  });
+}
+```
+Run: `cd patient_app && flutter test test/features/history/history_repository_test.dart` → FAIL(모듈 없음).
+
+- [ ] **Step 5: `history_repository.dart` 구현**
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
+import 'package:hospital_patient_app/features/family/family_repository.dart';  // FamilyMember·familyListProvider
+
+/// 지나간 예약 줄 4종. HIST-ROLE-03. (앞으로 갈 예약 5종은 홈·예약 탭 몫 — 여기 안 온다.)
+enum VisitStatus { done, cancelled, noShow, unconfirmed }
+
+VisitStatus visitStatusFromServer(String s) => switch (s) {
+  '진료완료' => VisitStatus.done,
+  '취소됨' => VisitStatus.cancelled,
+  '방문하지않음' => VisitStatus.noShow,
+  _ => VisitStatus.unconfirmed,          // '확정되지않음'
+};
+
+/// 이력 한 줄. 서버가 안 보내는 것(증상·진단)은 담을 칸조차 없다(HIST-ROLE-06).
+class VisitHistoryEntry {
+  final String id;
+  final VisitStatus status;
+  final DateTime? slotDate;
+  final String departmentName, doctorName;
+  final String? patientVisibleNotes;      // 진료완료 줄만 값이 있다(HIST-NOTE — 렌더는 T27b)
+  final bool hasQuestionnaire;            // 갭 #24 — 문진 문이 있는지(펼침 렌더는 T27b)
+  final String? cancelledBy;              // 'hospital' | 'patient' | null
+  final String? cancelledByRelation, cancelledByName;
+  final DateTime? cancelledAt;
+  final bool isSelf;                      // account_patient_id == for_patient_id
+  VisitHistoryEntry({required this.id, required this.status, this.slotDate,
+    required this.departmentName, required this.doctorName, this.patientVisibleNotes,
+    required this.hasQuestionnaire, this.cancelledBy, this.cancelledByRelation,
+    this.cancelledByName, this.cancelledAt, required this.isSelf});
+
+  factory VisitHistoryEntry.fromJson(Map<String, dynamic> j) => VisitHistoryEntry(
+    id: j['id'], status: visitStatusFromServer(j['visit_status']),
+    slotDate: j['slot_date'] == null ? null : DateTime.parse(j['slot_date']),
+    departmentName: j['department_name'], doctorName: j['doctor_name'],
+    patientVisibleNotes: j['patient_visible_notes'], hasQuestionnaire: j['has_questionnaire'] == true,
+    cancelledBy: j['cancelled_by'], cancelledByRelation: j['cancelled_by_relation'],
+    cancelledByName: j['cancelled_by_name'],
+    cancelledAt: j['cancelled_at'] == null ? null : DateTime.parse(j['cancelled_at']),
+    isSelf: j['is_self'] == true);
+}
+
+class HistoryPage { final List<VisitHistoryEntry> items; final String? nextCursor;
+  const HistoryPage(this.items, this.nextCursor); }
+
+class HistoryRepository {
+  HistoryRepository(this._api);
+  final ApiClient _api;
+  Future<HistoryPage> list(String forPatientId, {String? cursor}) async {
+    final q = {'for_patient_id': forPatientId, if (cursor != null) 'cursor': cursor};
+    final j = await _api.getJson('/my/history', query: q);           // GET /my/history(T10)
+    return HistoryPage(
+      [for (final r in (j['items'] as List)) VisitHistoryEntry.fromJson(r)],
+      j['next_cursor'] as String?);
+  }
+}
+
+final historyRepositoryProvider = Provider((ref) => HistoryRepository(ref.read(apiClientProvider)));
+
+/// 이력 칩 = 가족 목록 그대로(본인 먼저·이름순·해제자 제외는 familyListProvider가 이미 함).
+final historyChipsProvider = FutureProvider<List<FamilyMember>>((ref) => ref.watch(familyListProvider.future));
+
+/// 선택된 칩의 patient id. null이면 진입 기본 = 본인(HIST-WHO-03).
+final selectedHistoryPatientProvider = StateProvider<String?>((ref) => null);
+```
+> 📌 **`historyProvider`(페이지네이션 상태)는 Step 11 화면과 함께** — 화면이 스크롤 끝을 감지해 다음 페이지를 이어 붙이는 `AsyncNotifier`라 화면 로직과 한 덩어리다(여기 리포지토리는 순수 조회까지).
+
+- [ ] **Step 6: 리포지토리 테스트 통과** — `flutter test test/features/history/history_repository_test.dart` → PASS.
+
+- [ ] **Step 7: 이름 칩 실패 테스트** — `patient_app/test/features/history/history_chips_test.dart`
+
+```dart
+// HIST-WHO: 본인 먼저·이름순, 가족 0명이면 칩 줄 자체를 감춤, 5명↑ 가로 스크롤, 칩 눌러도 화면 안 옮김.
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/family/family_repository.dart';
+import 'package:hospital_patient_app/features/history/history_screen.dart';
+
+FamilyMember _m(String id, String name, {bool self = false}) =>
+    FamilyMember(id: id, name: name, isSelf: self);   // 그 밖 필드는 기본값(칩엔 이름·본인 여부만 쓴다)
+
+Widget _host(Widget w) => MaterialApp(home: Scaffold(body: w));
+
+void main() {
+  testWidgets('[HIST-WHO-01][HIST-WHO-02] 가로 이름 칩 — 본인 맨 앞, 가족은 이름 오름차순', (t) async {
+    final members = [_m('me', '김순자', self: true), _m('b', '김병수'), _m('a', '김가영')];
+    await t.pumpWidget(_host(NameChips(members: members, selectedId: 'me', onSelect: (_) {})));
+    final chips = t.widgetList<Text>(find.byType(Text)).map((e) => e.data).toList();
+    expect(chips.first, '김순자');                          // 본인 먼저(HIST-WHO-02)
+    expect(chips.indexOf('김가영') < chips.indexOf('김병수'), true);  // 가족 이름 오름차순
+  });
+  testWidgets('[HIST-WHO-03] 기본 선택은 본인', (t) async {
+    // selectedId=null로 들어와도 본인이 강조된다(HistoryScreen이 null→본인 id로 해석 — Step 11에서 검증).
+    final members = [_m('me', '김순자', self: true)];
+    await t.pumpWidget(_host(NameChips(members: members, selectedId: 'me', onSelect: (_) {})));
+    expect(find.text('김순자'), findsOneWidget);
+  });
+  testWidgets('[HIST-WHO-04] 가족 0명이면 칩 줄 자체를 감춘다(본인 칩 하나만 남기지 않는다)', (t) async {
+    await t.pumpWidget(_host(NameChips(members: [_m('me', '김순자', self: true)], selectedId: 'me', onSelect: (_) {})));
+    expect(find.byType(NameChips), findsOneWidget);
+    expect(find.byKey(const Key('history-chip-row')), findsNothing);   // 렌더된 칩 줄이 없다
+  });
+  testWidgets('[HIST-WHO-05] 5명 이상이면 가로 스크롤(줄바꿈 아님)', (t) async {
+    final members = [_m('me', '나', self: true), _m('1', 'ㄱ'), _m('2', 'ㄴ'), _m('3', 'ㄷ'), _m('4', 'ㄹ'), _m('5', 'ㅁ')];
+    await t.pumpWidget(_host(NameChips(members: members, selectedId: 'me', onSelect: (_) {})));
+    final sv = t.widget<SingleChildScrollView>(find.byKey(const Key('history-chip-row')));
+    expect(sv.scrollDirection, Axis.horizontal);           // Wrap이 아니라 가로 스크롤
+  });
+  testWidgets('[HIST-WHO-10] 칩을 누르면 콜백만 부른다 — 화면을 옮기지 않는다', (t) async {
+    String? picked;
+    final members = [_m('me', '김순자', self: true), _m('a', '김가영')];
+    await t.pumpWidget(_host(NameChips(members: members, selectedId: 'me', onSelect: (id) => picked = id)));
+    await t.tap(find.text('김가영'));
+    expect(picked, 'a');                                    // Navigator.push 없음 — 목록만 갈아끼운다
+  });
+}
+```
+Run → FAIL(`NameChips` 없음).
+> ⚠️ **`HIST-WHO-06·07·08·09`는 여기 완전 ID로 쓰지 않고 다른 곳이 실현**(아래 분담 — coverage 중복 방지): `-06`(해제한 가족 사라짐)·`-07`(구현 전제 갭 #61)은 **Step 11 화면 test**가 `historyChipsProvider`(=`familyListProvider`, 해제자 이미 제외)로 확인, `-08`(알림으로 들어오면 그 사람 칩 선택)은 **T27b `NAV-HIST-05·06`** 몫(딥링크), `-09`(진료과 필터 안 둠)는 **화면에 그 위젯이 없음**으로 Step 11이 실현.
+
+- [ ] **Step 8: `NameChips` 구현 + 설계문서 반영(취소 주체 갭)** — `history_screen.dart`(칩 부분)
+
+```dart
+class NameChips extends StatelessWidget {
+  const NameChips({super.key, required this.members, required this.selectedId, required this.onSelect});
+  final List<FamilyMember> members;
+  final String? selectedId;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (members.length <= 1) return const SizedBox.shrink();   // HIST-WHO-04: 가족 0명이면 칩 줄 없음
+    final sorted = [...members]..sort((x, y) {                 // HIST-WHO-02: 본인 먼저, 가족 이름순
+      if (x.isSelf != y.isSelf) return x.isSelf ? -1 : 1;
+      return x.name.compareTo(y.name);
+    });
+    return SingleChildScrollView(
+      key: const Key('history-chip-row'),
+      scrollDirection: Axis.horizontal,                        // HIST-WHO-05: 가로 스크롤(줄바꿈 아님)
+      child: Row(children: [
+        for (final m in sorted)
+          Padding(padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(m.name),
+              selected: m.id == selectedId,
+              onSelected: (_) => onSelect(m.id))),            // HIST-WHO-10: 콜백만(화면 안 옮김)
+      ]));
+  }
+}
+```
+> ⭐ **설계문서 반영(갭 — 이 커밋에 함께, 플랜에 미루지 않는다)**:
+> - `screen-behaviors.md` `HIST-ROW-02` 근거 칸에 `✅ 취소 주체 4필드는 이력 조회에 없어 T27a가 소급(갭 #11 이력분)` 한 줄.
+> - `ui-design-decisions.md` **경계 갭 대조표**에 `#11-hist` 행 추가 — *"`list_visit_history`가 취소 주체를 안 내려줘 `HIST-ROW-02·03`이 못 그린다. T17의 #11 소급은 카드 조회에만 갔다. → 이력 SELECT에 4필드+is_self 소급(칸은 00025 재사용, 마이그레이션 없음)"*.
+
+- [ ] **Step 9: 날짜 레일 · 상태 배지 · 줄 4종 실패 테스트** — `patient_app/test/features/history/history_row_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/history/history_repository.dart';
+import 'package:hospital_patient_app/features/history/history_screen.dart';
+import 'package:hospital_patient_app/widgets/app_tokens.dart';
+
+VisitHistoryEntry _e(VisitStatus s, {String? notes, String? by, String? rel, String? name,
+    bool self = true, bool qnr = false}) => VisitHistoryEntry(
+  id: 'ap1', status: s, slotDate: DateTime(2026, 8, 3), departmentName: '내과', doctorName: '이의사',
+  patientVisibleNotes: notes, hasQuestionnaire: qnr, cancelledBy: by, cancelledByRelation: rel,
+  cancelledByName: name, cancelledAt: by == null ? null : DateTime(2026, 7, 18, 15, 12), isSelf: self);
+
+Widget _host(Widget w) => MaterialApp(home: Scaffold(body: w));
+Widget _row(VisitHistoryEntry e) =>
+    _host(HistoryRow(entry: e, expanded: false, onToggle: () {}, detail: const SizedBox.shrink()));
+
+void main() {
+  testWidgets('[HIST-LIST-04] 날짜 레일 — 월 작게 / 일 크게, 고정폭', (t) async {
+    await t.pumpWidget(_host(const DateRail(date: null, color: Colors.grey)));  // null이어도 깨지지 않음
+    await t.pumpWidget(_host(DateRail(date: DateTime(2026, 8, 3), color: AppTokens.primary)));
+    expect(find.text('8월'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+  });
+  testWidgets('[HIST-LIST-05][HIST-ROW-01] 진료완료+안내문 있으면 레일 딥틸 + 「진료 완료」 배지', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.done, notes: '휴식하세요')));
+    expect(find.widgetWithText(VisitBadge, '진료 완료'), findsOneWidget);
+    final rail = t.widget<DateRail>(find.byType(DateRail));
+    expect(rail.color, AppTokens.primary);                    // 딥틸
+  });
+  testWidgets('[HIST-LIST-06] 안내 없는 완료·취소·부도·미확정은 레일 옅은 회색', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.done, notes: null)));    // 완료지만 안내 없음
+    expect(t.widget<DateRail>(find.byType(DateRail)).color, AppTokens.grayPending);
+  });
+  testWidgets('[HIST-LIST-07] 줄 본문 = 진료과 · 의사 + 오른쪽 상태 배지', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.done, notes: '휴식하세요')));
+    expect(find.textContaining('내과'), findsOneWidget);
+    expect(find.textContaining('이의사'), findsOneWidget);
+    expect(find.byType(VisitBadge), findsOneWidget);
+  });
+  testWidgets('[HIST-ROW-02][HIST-ROW-05] 취소 줄 — 병원취소는 「병원에서 취소」, 직원 이름 없음', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.cancelled, by: 'hospital')));
+    expect(find.widgetWithText(VisitBadge, '취소됨'), findsOneWidget);
+    expect(find.textContaining('병원에서 취소'), findsOneWidget);
+    expect(find.textContaining('님'), findsNothing);          // 직원 이름 안 씀(HIST-ROW-05)
+  });
+  testWidgets('[HIST-ROW-02] 취소 줄 — 가족이면 「배우자 김순자 님 취소」, 본인이면 「본인 취소」', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.cancelled, by: 'patient', rel: '배우자', name: '김순자', self: false)));
+    expect(find.textContaining('배우자 김순자 님 취소'), findsOneWidget);
+    await t.pumpWidget(_row(_e(VisitStatus.cancelled, by: 'patient', self: true)));
+    expect(find.textContaining('본인 취소'), findsOneWidget);
+  });
+  testWidgets('[HIST-ROW-03] 취소 줄은 취소한 날짜·시각을 한 줄 더 보여준다', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.cancelled, by: 'hospital')));
+    expect(find.textContaining('7월 18일'), findsOneWidget);
+    expect(find.textContaining('오후 3:12'), findsOneWidget);
+  });
+  testWidgets('[HIST-ROW-04] 취소 줄은 진료과·의사 이름에 취소선 — ⛔ 날짜엔 긋지 않는다(B-44)', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.cancelled, by: 'hospital')));
+    final deptDoctor = t.widget<Text>(find.byKey(const Key('history-row-title')));
+    expect(deptDoctor.style?.decoration, TextDecoration.lineThrough);   // 진료과·의사에 취소선
+    // 날짜 레일 텍스트엔 취소선이 없다(B-44 — 없어진 것은 날짜가 아니라 진료).
+    expect(t.widget<Text>(find.text('3')).style?.decoration ?? TextDecoration.none, TextDecoration.none);
+  });
+  testWidgets('[HIST-ROW-06][HIST-ROW-07] 부도 줄 — 「방문하지 않음」·취소선 없음·금지문구 없음', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.noShow)));
+    expect(find.widgetWithText(VisitBadge, '방문하지 않음'), findsOneWidget);
+    expect(t.widget<Text>(find.byKey(const Key('history-row-title'))).style?.decoration ?? TextDecoration.none,
+        TextDecoration.none);                                  // 취소선 없음(예약은 살아 있었다)
+    expect(find.textContaining('안 오셨'), findsNothing);       // 책망 문구 금지
+    expect(find.textContaining('부도'), findsNothing);          // 내부 상태 이름 금지
+  });
+  testWidgets('[HIST-ROW-09][HIST-ROW-10][HIST-ROW-11] 미확정 줄 — 「확정되지 않음」·회색·취소선 없음 + 안내 한 줄', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.unconfirmed)));
+    expect(find.widgetWithText(VisitBadge, '확정되지 않음'), findsOneWidget);
+    expect(find.textContaining('병원에서 확정하지 않아 진료가 진행되지 않았습니다'), findsOneWidget);
+    expect(t.widget<Text>(find.byKey(const Key('history-row-title'))).style?.decoration ?? TextDecoration.none,
+        TextDecoration.none);                                  // 부도로 찍지 않는다(환자 탓 아님)
+  });
+  testWidgets('[HIST-ROW-13] 상태 배지는 글자만(배경 없음) — 완료=딥틸, 나머지=회색', (t) async {
+    await t.pumpWidget(_row(_e(VisitStatus.done, notes: '휴식하세요')));
+    final done = t.widget<VisitBadge>(find.byType(VisitBadge));
+    expect(done.status, VisitStatus.done);                     // 색 매핑은 위젯 안(배경 상자 없음)
+  });
+  testWidgets('[HIST-ROW-14] 어느 줄에도 [다시 예약하기] 버튼을 붙이지 않는다', (t) async {
+    for (final s in VisitStatus.values) {
+      await t.pumpWidget(_row(_e(s)));
+      expect(find.textContaining('다시 예약'), findsNothing);
+    }
+  });
+}
+```
+Run → FAIL(`DateRail`·`VisitBadge`·`HistoryRow` 없음).
+
+- [ ] **Step 10: `DateRail`·`VisitBadge`·`HistoryRow` 구현** — `history_screen.dart`
+
+```dart
+String _cancelActorText(VisitHistoryEntry e) {                 // CxlBody(T17)와 같은 의미 — 카드·이력 일치
+  if (e.cancelledBy == 'hospital') return '병원에서 취소';       // HIST-ROW-05: 직원 이름 없음
+  if (e.isSelf) return '본인 취소';                             // HIST-ROW-02
+  return '${e.cancelledByRelation ?? ''} ${e.cancelledByName ?? ''} 님 취소'.trim();
+}
+
+class DateRail extends StatelessWidget {
+  const DateRail({super.key, required this.date, required this.color});
+  final DateTime? date; final Color color;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 44,                                                 // HIST-LIST-04: 고정폭
+    child: date == null ? const SizedBox() : Column(children: [
+      Text('${date!.month}월', style: TextStyle(fontSize: 12, color: color)),          // 작게
+      Text('${date!.day}', style: TextStyle(                                            // 크게·고정폭
+        fontSize: 22, fontWeight: FontWeight.w800, color: color,
+        fontFeatures: const [FontFeature.tabularFigures()])),
+    ]));
+}
+
+class VisitBadge extends StatelessWidget {
+  const VisitBadge({super.key, required this.status});
+  final VisitStatus status;
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {                   // HIST-ROW-01·06·09·13
+      VisitStatus.done => ('진료 완료', AppTokens.primary),
+      VisitStatus.cancelled => ('취소됨', AppTokens.grayDone),
+      VisitStatus.noShow => ('방문하지 않음', AppTokens.grayDone),
+      VisitStatus.unconfirmed => ('확정되지 않음', AppTokens.grayDone),
+    };
+    return Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700));   // 글자만·배경 없음
+  }
+}
+
+class HistoryRow extends StatelessWidget {
+  const HistoryRow({super.key, required this.entry, required this.expanded,
+      required this.onToggle, required this.detail});
+  final VisitHistoryEntry entry;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget detail;                                         // ⭐ 펼침 슬롯 — T27a는 빈 상자, T27b가 알맹이
+  @override
+  Widget build(BuildContext context) {
+    final struck = entry.status == VisitStatus.cancelled;      // HIST-ROW-04: 취소만 취소선
+    final railColor = (entry.status == VisitStatus.done && (entry.patientVisibleNotes ?? '').isNotEmpty)
+        ? AppTokens.primary : AppTokens.grayPending;           // HIST-LIST-05·06
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      InkWell(onTap: onToggle, child: Row(children: [          // HIST-LIST-08: 누르면 펼침(이동 없음)
+        DateRail(date: entry.slotDate, color: railColor),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${entry.departmentName} · ${entry.doctorName}',
+            key: const Key('history-row-title'),
+            style: TextStyle(decoration: struck ? TextDecoration.lineThrough : null)),  // HIST-ROW-04
+          if (entry.status == VisitStatus.cancelled) ...[
+            Text('취소됨 · ${_cancelActorText(entry)}'),        // HIST-ROW-02
+            if (entry.cancelledAt != null)
+              Text(formatKoreanDateTime2(entry.cancelledAt!), style: const TextStyle(color: AppTokens.grayDone)),  // HIST-ROW-03
+          ],
+          if (entry.status == VisitStatus.unconfirmed)
+            const Text('병원에서 확정하지 않아 진료가 진행되지 않았습니다'),   // HIST-ROW-11
+        ])),
+        VisitBadge(status: entry.status),                      // HIST-LIST-07 오른쪽 배지
+      ])),
+      if (expanded) detail,                                     // T27b가 채운다(HIST-NOTE·HIST-QNR)
+    ]);
+  }
+}
+```
+> 📌 `formatKoreanDateTime2`(`7월 18일 오후 3:12`)는 기존 `formatKoreanDateTime`(일시 크게, `:12043`) 옆에 「월 일 오전/오후 h:mm」 짧은형이 없으면 한 줄 추가(있으면 재사용). 완료 보고에 짚는다.
+
+- [ ] **Step 11: 목록 화면 — 연도 헤더·펼침 상태·20건 이어받기 3상태·빈/오프라인 실패 테스트** — `patient_app/test/features/history/history_screen_test.dart`
+
+```dart
+// HistoryScreen을 ProviderScope로 감싸 historyChipsProvider·historyProvider·connectivityProvider를 주입해 검증.
+// (오버라이드 헬퍼 _pump는 T25 family_list_screen_test와 같은 골격 — familyList/history를 가짜 리포지토리로 채운다.)
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hospital_patient_app/features/history/history_repository.dart';
+import 'package:hospital_patient_app/features/history/history_screen.dart';
+import 'package:hospital_patient_app/features/family/family_repository.dart';
+
+VisitHistoryEntry _e(VisitStatus s, DateTime d, {bool qnr = false}) => VisitHistoryEntry(
+  id: 'ap-${d.toIso8601String()}', status: s, slotDate: d, departmentName: '내과', doctorName: '이의사',
+  patientVisibleNotes: s == VisitStatus.done ? '휴식하세요' : null, hasQuestionnaire: qnr, isSelf: true);
+
+void main() {
+  testWidgets('[HIST-ROLE-01][HIST-ROLE-03] 이력 탭은 지나간 예약 전체 — 4상태를 다 그린다(진료완료만이 아니다)', (t) async {
+    await _pump(t, items: [
+      _e(VisitStatus.noShow, DateTime(2026, 3, 10)), _e(VisitStatus.cancelled, DateTime(2026, 2, 10)),
+      _e(VisitStatus.done, DateTime(2026, 1, 10)), _e(VisitStatus.unconfirmed, DateTime(2020, 1, 1)),
+    ]);
+    expect(find.widgetWithText(VisitBadge, '진료 완료'), findsOneWidget);
+    expect(find.widgetWithText(VisitBadge, '취소됨'), findsOneWidget);
+    expect(find.widgetWithText(VisitBadge, '방문하지 않음'), findsOneWidget);
+    expect(find.widgetWithText(VisitBadge, '확정되지 않음'), findsOneWidget);   // HIST-ROLE-01: 다 온다
+  });
+  testWidgets('[HIST-ROLE-04] 앞으로 갈 예약 5종(신청·확정·도착·대기·진료중)은 이력에 오지 않는다', (t) async {
+    // 서버(T8 _HISTORY_WHERE)가 진행 5종을 애초에 안 보낸다 — 화면은 그 배지 어휘를 그리지 않는다(홈·예약 탭 몫).
+    await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 1, 10))]);
+    for (final w in ['진료 대기', '예약 확정', '진료 중', '도착']) {
+      expect(find.widgetWithText(VisitBadge, w), findsNothing);
+    }
+  });
+  testWidgets('[HIST-WHO-08] 특정 사람으로 선택을 걸고 열면 그 사람 칩이 선택된 채 그 사람 이력이 뜬다', (t) async {
+    // 알림 딥링크(NAV-HIST-05·06, T27b)가 쓰는 「칩 선택 기전」 — 여기선 provider를 걸어 그 기전만 검증한다.
+    await _pumpFamily(t, chips: [_fm('me', '김순자', self: true), _fm('mom', '이영자')],
+        preselect: 'mom', itemsByPatient: {'mom': [_e(VisitStatus.done, DateTime(2026, 6, 1))]});
+    final momChip = t.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '이영자'));
+    expect(momChip.selected, true);                             // 그 사람 칩이 선택됨
+    expect(find.byType(HistoryRow), findsOneWidget);            // 그 사람 이력이 로드됨
+  });
+  testWidgets('[HIST-WHO-09] 진료과 필터 위젯을 두지 않는다(가족 전환 자리를 밀어내지 않게)', (t) async {
+    await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 1, 10))]);
+    expect(find.byKey(const Key('history-department-filter')), findsNothing);
+    expect(find.byType(DropdownButton), findsNothing);          // 어떤 형태의 진료과 필터도 없다
+  });
+  testWidgets('[HIST-LIST-01][HIST-LIST-02][HIST-LIST-03] 최신 위 + 해 바뀌는 자리마다(올해도) 연도 헤더', (t) async {
+    await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 5, 1)), _e(VisitStatus.done, DateTime(2025, 12, 1))]);
+    expect(find.text('2026'), findsOneWidget);                 // 올해에도 헤더(HIST-LIST-03)
+    expect(find.text('2025'), findsOneWidget);
+  });
+  testWidgets('[HIST-LIST-20] 몇 년 전 줄도 화면이 안 거르고 그린다(기간 제한 없음)', (t) async {
+    await _pump(t, items: [_e(VisitStatus.done, DateTime(2018, 4, 1))]);
+    expect(find.text('2018'), findsOneWidget);                 // 오래돼도 막다른 길을 만들지 않는다
+  });
+  testWidgets('[HIST-LIST-08][HIST-LIST-10][HIST-LIST-11] 누르면 펼침 · 여러 줄 동시 · 재진입 접힘', (t) async {
+    await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 5, 1)), _e(VisitStatus.done, DateTime(2026, 4, 1))]);
+    // 펼침 슬롯은 Key('history-detail-<id>')로 식별(T27a는 SizedBox, T27b가 알맹이).
+    await t.tap(find.byType(HistoryRow).first); await t.pump();
+    expect(find.byKey(Key('history-expanded-${'ap-${DateTime(2026, 5, 1).toIso8601String()}'}')), findsOneWidget);
+    await t.tap(find.byType(HistoryRow).last); await t.pump();  // 두 번째도 — 첫 번째가 닫히지 않는다
+    expect(find.byType(HistoryRow).evaluate().length, 2);
+    // 재진입(칩 전환) → 모두 접힘은 selectedHistoryPatientProvider 변경으로 펼침 집합 초기화(구현서 검증).
+  });
+  testWidgets('[HIST-LIST-12] 0건 — 안내 + [진료 예약하기], [다시 시도] 없음', (t) async {
+    await _pump(t, items: []);
+    expect(find.textContaining('아직 방문하신 기록이 없습니다'), findsOneWidget);
+    expect(find.textContaining('진료 예약하기'), findsOneWidget);
+    expect(find.textContaining('다시 시도'), findsNothing);
+  });
+  testWidgets('[HIST-LIST-13][HIST-LIST-14] 오프라인·조회 실패는 같은 한 벌 — 가운데 안내 + [다시 시도]', (t) async {
+    await _pump(t, items: [], online: false);
+    expect(find.textContaining('다시 시도'), findsOneWidget);   // 이력은 캐시 안 함(OFF-CACHE-03)
+  });
+  testWidgets('[HIST-LIST-15][HIST-LIST-16][HIST-LIST-17][HIST-LIST-18] 20건 먼저 · 내리면 이어붙음 · 불러오는 중 · 끝 알림', (t) async {
+    await _pump(t, items: [for (var i = 0; i < 20; i++) _e(VisitStatus.done, DateTime(2026, 1, 1).add(Duration(days: i)))],
+        nextCursor: '2025-12-31|apX');                          // 다음 페이지 있음
+    expect(find.byType(HistoryRow), findsNWidgets(20));         // HIST-LIST-15: 20건
+    // 끝까지 받으면(next_cursor=null) 「처음부터 모두 보여드렸습니다」 한 줄(HIST-LIST-18) — nextCursor=null 케이스로 재검.
+    await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 1, 1))], nextCursor: null);
+    expect(find.textContaining('처음부터 모두 보여드렸습니다'), findsOneWidget);
+  });
+  testWidgets('[HIST-LIST-19] 이어받기 실패 — 맨 아래 [다시 시도], ⛔ 이미 받은 줄은 지우지 않는다', (t) async {
+    await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 1, 1))], nextCursor: 'x', appendFails: true);
+    // 아래로 스크롤 → 이어받기 시도 실패 → [다시 시도] 뜨고 기존 1줄 유지.
+    await t.drag(find.byType(HistoryRow).first, const Offset(0, -600)); await t.pump();
+    expect(find.byType(HistoryRow), findsOneWidget);           // 기존 줄 보존
+    expect(find.textContaining('다시 시도'), findsWidgets);
+  });
+}
+```
+Run → FAIL(`HistoryScreen`·`_pump` 없음).
+> 📌 **테스트 헬퍼**(T25 `family_list_screen_test` 오버라이드 골격): `_pump(t, {items, nextCursor, online, appendFails})` — `historyProvider`를 items/nextCursor/appendFails로 흉내내는 가짜 `AsyncNotifier`로, `familyListProvider`를 본인 1명으로, `connectivityProvider`를 online으로 오버라이드. `_pumpFamily(t, {chips, preselect, itemsByPatient})` — 칩 여러 명 + `selectedHistoryPatientProvider` 초깃값 + 환자별 이력을 주입하는 변형(`HIST-WHO-08` 칩 선택 기전용). `_fm(id, name, {self})` = 칩용 `FamilyMember` 축약자.
+> 📌 **`HIST-WHO-06`·`HIST-WHO-07`(해제한 가족은 칩에서 사라진다 · 구현 전제 갭 #61)**: `historyChipsProvider`=`familyListProvider`가 **해제자를 이미 제외**한다(T2가 `list_accessible_patient_ids()`에서 걸러 갭 #61을 닫음 — 「닫혔다고 적혀 있다」≠「닫혔다」라 여기 case로 확인). `_pump`의 familyList에 해제된 가족을 넣지 않는 것으로 두 규칙을 검증(추가 case 1개 — `[HIST-WHO-06][HIST-WHO-07]`).
+
+- [ ] **Step 12: `HistoryScreen` 구현 + 라우터 교체**
+
+```dart
+/// 이력 탭. 칩으로 사람 하나 골라 그 사람의 지나간 예약 전체를 본다(HIST-ROLE-01).
+class HistoryScreen extends ConsumerStatefulWidget {
+  const HistoryScreen({super.key});
+  @override ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  final _scroll = ScrollController();
+  final Set<String> _expanded = {};                            // 펼친 줄 id(여러 개 가능 — HIST-LIST-10)
+
+  @override void initState() { super.initState(); _scroll.addListener(_maybeLoadMore); }
+  void _maybeLoadMore() {                                       // 끝 가까우면 다음 20건(HIST-LIST-16)
+    if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 400) {
+      ref.read(historyProvider.notifier).loadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = ref.watch(historyChipsProvider);
+    final selfId = chips.valueOrNull?.firstWhere((m) => m.isSelf).id;
+    final selected = ref.watch(selectedHistoryPatientProvider) ?? selfId;   // HIST-WHO-03: 기본 본인
+    ref.listen(selectedHistoryPatientProvider, (_, __) => setState(_expanded.clear));  // HIST-LIST-11 재진입 접힘
+    final page = ref.watch(historyProvider);
+    return Scaffold(appBar: AppBar(title: const Text('이력')), body: Column(children: [
+      chips.when(
+        data: (ms) => NameChips(members: ms, selectedId: selected, onSelect: (id) =>
+          ref.read(selectedHistoryPatientProvider.notifier).state = id),   // HIST-WHO-10
+        loading: () => const SizedBox(), error: (_, __) => const SizedBox()),
+      Expanded(child: page.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => EmptyState.offline(screenName: '이력',           // HIST-LIST-13·14 한 벌
+          onRetry: () => ref.read(historyProvider.notifier).reload()),
+        data: (st) => st.items.isEmpty
+          ? EmptyState.zero(message: '아직 방문하신 기록이 없습니다',        // HIST-LIST-12
+              nextAction: TextButton(onPressed: () => context.go('/booking'), child: const Text('+ 진료 예약하기')))
+          : ListView(controller: _scroll, children: [
+              ..._withYearHeaders(st.items),                    // HIST-LIST-01·02·03
+              if (st.loadingMore) const Padding(padding: EdgeInsets.all(12),
+                child: Text('◌ 불러오는 중…')),                  // HIST-LIST-17
+              if (st.appendError) TextButton(onPressed: () => ref.read(historyProvider.notifier).loadMore(),
+                child: const Text('다시 시도')),                 // HIST-LIST-19(기존 줄 유지)
+              if (st.next == null && !st.loadingMore)
+                const Padding(padding: EdgeInsets.all(12),
+                  child: Text('처음부터 모두 보여드렸습니다')),      // HIST-LIST-18
+            ]))),
+    ]));
+  }
+
+  List<Widget> _withYearHeaders(List<VisitHistoryEntry> items) {
+    final out = <Widget>[]; int? lastYear;
+    for (final e in items) {                                   // 최신 위(서버가 이미 정렬 — HIST-LIST-01)
+      final y = e.slotDate?.year;
+      if (y != null && y != lastYear) { out.add(Text('$y', key: Key('year-$y'))); lastYear = y; }
+      out.add(HistoryRow(entry: e, expanded: _expanded.contains(e.id),
+        onToggle: () => setState(() => _expanded.contains(e.id) ? _expanded.remove(e.id) : _expanded.add(e.id)),
+        detail: KeyedSubtree(key: Key('history-expanded-${e.id}'),
+          child: historyDetailBuilder(e))));                   // ⭐ T27a: SizedBox 반환. T27b가 이 함수를 채운다.
+    }
+    return out;
+  }
+}
+
+/// ⭐ 양방향 악수: T27a는 빈 상자를 돌려준다. T27b가 이 함수를 병원 안내문+문진 위젯으로 바꾼다.
+Widget historyDetailBuilder(VisitHistoryEntry e) => const SizedBox.shrink();
+```
+그리고 `historyProvider`(페이지 상태 AsyncNotifier — 첫 조회·`loadMore`·`reload`, `loadingMore`·`appendError`·`next` 필드)를 `history_repository.dart`에 정의한다(선택된 환자 바뀌면 첫 페이지 재조회 — `NAV-HIST-13`의 재조회 근거이나 그 규칙은 T27b가 test). 라우터에서 `/history`의 `_Placeholder`를 `const HistoryScreen()`으로 교체한다.
+> ⚠️ **재소유 금지**: `NAV-HIST-13`(재진입 재조회)·`NAV-HIST-11·12`(오프라인)는 **T27b 규칙**이다 — 여기 `reload()`·`EmptyState.offline` 배관은 깔되 **완전 ID test는 T27b**가 얹는다(coverage 중복 방지).
+
+- [ ] **Step 13: 전체 테스트 통과 확인**
+
+```bash
+cd backend && pytest tests/test_patient_history_service.py -v
+cd ../patient_app && flutter test test/features/history/
+```
+Expected: 모두 PASS.
+
+- [ ] **Step 14: 검사기 + 커밋**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+git add backend/app/services/patient_history_service.py backend/tests/test_patient_history_service.py \
+  patient_app/lib/features/history/ patient_app/test/features/history/ patient_app/lib/core/router.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 📝 환자앱 Task 27a 본문 — 방문 이력 목록·이름 칩·지나간 예약 줄 4종 54규칙(HIST-ROLE/WHO/LIST/ROW) + 취소 주체 4필드 이력 조회 소급(갭 #11 이력분)"
+```
+
+> 📌 **규칙 커버리지(54)**: `HIST-ROLE-01~09`(9) · `HIST-WHO-01~10`(10) · `HIST-LIST-01~21`(21) · `HIST-ROW-01~14`(14). 개별 ID로 test에 심음. ⏰ 3건(`HIST-ROLE-01`·`HIST-LIST-15`·`HIST-LIST-20`)은 T8 예고분을 화면 test로 실현.
+> ⭐ **경계 갭 해소 1건**: `list_visit_history`가 취소 주체를 안 내려주던 것(`HIST-ROW-02·03`) → SELECT에 4필드+is_self 소급(칸은 `00025` 재사용, 마이그레이션 없음). 3곳 반영: 백엔드 조회 · `screen-behaviors` `HIST-ROW-02` 근거 · `ui-design-decisions` 경계 갭 대조표 `#11-hist`.
+> ⭐ **양방향 악수**: `HistoryRow.detail` 슬롯 + `historyDetailBuilder(e)`(T27a=빈 상자)를 **T27b가 병원 안내문+문진 위젯으로 채운다**. 펼침 토글·다중 펼침·재진입 접힘은 T27a가 검증 완료.
+> 📌 **값 없는/근거·전제 규칙 실현 지도**(완전 ID로 — coverage가 축약 `·05·07`을 못 센다):
+>   - `HIST-ROLE-02`(탭 이름이 「이력」이지 「방문 이력」 아님)·`HIST-ROLE-05`(줄은 당일 자정 이후 나타남 — 그날은 홈 카드가 듦)·`HIST-ROLE-07`(안내문 수정돼도 언제나 최신만·「수정됨」 표시 없음) = **수명·근거 규칙**. 화면에 그 위젯/코드가 **없음**으로 실현(test는 「4상태만 오고 진행 5종은 안 온다」`HIST-ROLE-04` + 모델에 옛 판/수정표시 칸이 없음으로 확인).
+>   - `HIST-ROLE-06`(증상·진단은 서버가 안 보냄) = 모델(`VisitHistoryEntry`)에 `symptoms`·`diagnosis` 칸이 **아예 없다**(Step 4 test가 확인).
+>   - `HIST-ROLE-08`·`HIST-ROLE-09`·`HIST-LIST-21`·`HIST-ROW-08` = ⚠️ **구현 전제**(옛 조회가 `진료완료` 한 줄이라 취소·부도·미확정·문진이 안 왔다) → T8이 조회를 「지나간 예약 전체」로 **한 번에** 넓혀 실현, 화면은 4상태를 소비(Step 1~3 + 4상태 test).
+>   - `HIST-LIST-09`(펼침이 「그 자리」인 이유 = 저번에 뭐라 하셨더라를 매번 드나들지 않게) = `HIST-LIST-08`의 **자리 펼침**(`Navigator.push` 없음)으로 실현(Step 11 펼침 test가 이동 없음을 확인).
+>   - `HIST-ROW-12`(근본 대책 = auto_confirm 기본 true·직원웹 /today 미확정 경과 노출 — 갭 #69) = 화면이 아니라 서버·직원웹 예방, 화면은 마지막 그물(문구를 그리는 것까지).
+> ⚠️ **T27a가 남 태스크 파일을 고친 곳**(재소유 아님): T8 `patient_history_service.list_visit_history`(SELECT 4필드+is_self 소급 — 갭 #11 이력분, 칸은 `00025`).
+> ▶ **다음 = Task 27b 본문 작성** — 펼침 병원 안내문(`HIST-NOTE`6) + 사전문진 읽기 전용(`HIST-QNR`11) + 화면 이동·딥링크(`NAV-HIST`13) **30규칙**. 📌 `historyDetailBuilder(e)`를 실제 위젯으로 교체 · T7 `get_response`(문진 읽기전용) · T18 `resolveNotificationRoute`(`hospital_cancelled`·`cancellation_approved`·`visit_completed` → `/history?appointment=`) 딥링크 소비 · `get_appointment_detail`로 딥링크 대상의 소유자 칩 선택(`?patient=` 없음) · 못 찾으면 `showNotificationGoneDialog`(NAV-HIST-07).
