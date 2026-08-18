@@ -4203,3 +4203,1446 @@ git commit -m "feat: 환자앱 Task 11 — 전역 오프라인 캐시·세션만
 
 > 📌 **규칙 커버리지**: `OFF-CACHE-01~07`·`OFF-BAN-01~06`·`OFF-DO-01~02`·`OFF-STALE-01~04`·`OFF-AUTH-01~05`·`OFF-BACK-01~02`(26) + `PUSH-BODY-04`+클라 배관(나머지 PUSH-BODY는 서버 소유·대조표) + `NAV-GLOBAL-01~08`(8, 단 06·07·08 위젯은 Task 12). ⚠️ **화면이 소비할 계약**(`OFF-DO`·`OFF-STALE-02·03`의 그림)은 카드 위젯 태스크가 `UpcomingCache`·`isStale`을 읽어 그린다 — Task 11은 판정·저장·전역 배관을 제공.
 > ⚠️ **갭 #43(NAV-GLOBAL-04 프로필 미완료 라우팅)**은 여기서 라우터 정책으로 처음 구현된다 — `profileMissingProvider`(GET /patients/me 404 판정)는 가입 태스크(13)와 짝. Task 13 본문에 `profileMissingProvider` 정의가 있어야 닫힌다(양방향 악수).
+
+---
+
+## Task 12: 프론트 전역 — 오류 표시 · 버튼 상태(Busy/쿨다운/유언) · 빈 상태 · 확인·막힘 팝업 (58규칙)
+
+> **담당 규칙(58)**: `ERR-*`(18 — MSG·KIND·FLD·POS·GONE·RETRY) · `BTN-*`(28 — SCOPE·BUSY·STATE·TIME·EXIT·KILL·COOL) · `EMPTY-*`(8 — LAY·OFF·ERR·ZERO·TAB) · `BLOCK-*`(4 — EXIT·TIME·CONF·CHG). ⭐ **화면 태스크(13~31)가 소비할 「공용 위젯 상자」** — 오류 문구·버튼·빈 화면·확인 팝업을 한 벌로 짓고, 각 화면은 그리기만 한다.
+>
+> ⭐⭐ **이 태스크의 심장 = 「누를 것이 이미 있으면 [다시 시도]를 만들지 않는다」(`ERR-RETRY-03`)**: 버튼을 눌러 실패한 것(동작 실패)은 **그 버튼을 다시 누르면 되므로** 오류 문구만 버튼 위에 붙인다(`InlineError`). 화면 진입과 함께 저절로 일어나는 조회가 실패한 것은 **다시 할 수단이 화면에 없으므로** `[다시 시도]`가 달린 빈 화면을 준다(`EmptyState`). 이 한 줄이 `ERR-*`와 `EMPTY-*`를 가른다.
+>
+> ⚠️ **양방향 악수(Task 11이 정책만 정하고 위젯은 여기서 실체화)**: `NAV-GLOBAL-06`(처리 중 이탈)=`showExitConfirm`(`BTN-EXIT-*`) · `NAV-GLOBAL-07`(조회 실패 머묾)=`EmptyState.error`(`EMPTY-ERR-01`) · `NAV-GLOBAL-08`(미완료 신청 재실행)=`PendingRequestCard`(`BTN-KILL-03·07`). **Task 11 라우터 가드가 이 세 위젯을 호출**하므로, 여기서 실제 위젯이 있어야 닫힌다.
+>
+> ⚠️ **경계(재소유 금지)**: ① 실제 **서버 호출·Busy 해제 타이밍**은 각 화면 태스크가 자기 화면의 `Notifier`에서 한다 — Task 12는 **상태를 받아 그리는 위젯**만 만든다(`busy` 플래그·`errorText`를 파라미터로 받음). ② **딥틸 색(`#0B6E70`)이 Task 0 `tokens.dart`에 없다**(T0 누락 — `gray`·`warn`만 있음). `BTN-STATE-01·02`가 「진한/흐린 딥틸」을 못박으므로 **Step 1에서 `tokens.dart`에 `primary`·`primaryBusy`를 보강**한다(값 근거: 목업 `--primary:#0B6E70` 66회, 처리 중 흐림 = opacity .72 계열). ③ `ERR-POS-01`의 「좌측 4px 바·배경 없음」은 Task 0 `WarnText`가 이미 그 모양이라 **재사용**한다.
+
+**Files:**
+- Modify: `patient_app/lib/core/tokens.dart`(`primary`·`primaryBusy` 딥틸 2색 추가 — T0 누락 보강)
+- Create: `patient_app/lib/widgets/action_button.dart`(`ActionButton` — `BTN-SCOPE`·`BUSY`·`STATE`·`TIME`)
+- Create: `patient_app/lib/widgets/inline_error.dart`(`InlineError` — 동작 실패 오류 `ERR-MSG`·`KIND`·`POS`·`GONE`·`RETRY`)
+- Create: `patient_app/lib/widgets/field_error.dart`(`FieldTextInput`·`FormErrorController` — 입력 검증 `ERR-FLD`)
+- Create: `patient_app/lib/core/pending_request.dart`(`PendingRequestStore`·`pendingRequestProvider` — `BTN-KILL` 유언장)
+- Create: `patient_app/lib/widgets/pending_request_card.dart`(`PendingRequestCard` — 죽었다 켠 뒤 홈 안내 `BTN-KILL-03·04·05`)
+- Create: `patient_app/lib/core/phone_cooldown.dart`(`PhoneCooldownStore`·`phoneCooldownProvider` — `BTN-COOL` 번호 기준)
+- Create: `patient_app/lib/widgets/cooldown_button.dart`(`CooldownButton` — `BTN-COOL` 카운트다운)
+- Create: `patient_app/lib/widgets/empty_state.dart`(`EmptyState` — `EMPTY-*`)
+- Create: `patient_app/lib/widgets/block_dialog.dart`(`showBlockDialog`·`showExitConfirm` — `BLOCK-*`·`BTN-EXIT-*`)
+- Test: `patient_app/test/widgets/action_button_test.dart` · `inline_error_test.dart` · `field_error_test.dart` · `pending_request_test.dart` · `cooldown_button_test.dart` · `empty_state_test.dart` · `block_dialog_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - Task 0: `AppTokens`(`primary`·`primaryBusy`·`grayPending`·`grayDone`·`warn`) · `WarnText`(좌측 4px 바 위젯) · `apiClientProvider`·`ApiClient`
+  - Task 11: `connectivityProvider`(`StreamProvider<bool>`) — 오프라인 판정(`EMPTY-OFF-01`·`EMPTY-TAB-*`) · `handleUnauthorized` 흐름과 무관(만료는 T11 소유)
+- Produces:
+  - `ActionButton({label, busyLabel, onPressed, busy, disabledReason})` · `InlineError({message})`(+ `ErrorKind` 배치 규칙) · `FieldTextInput`·`FormErrorController`(칸별 오류·검사 시점·자동 스크롤) · `PendingRequestStore`(begin/complete/dismiss·`pendingRequestProvider`) · `PendingRequestCard` · `PhoneCooldownStore`(startedAt·remainingSeconds·`phoneCooldownProvider`) · `CooldownButton` · `EmptyState.offline/error/zero/named` · `showBlockDialog`·`showExitConfirm`
+  - 화면 태스크(13~31)가 소비: 저장·변경 버튼=`ActionButton`, 조회 실패 화면=`EmptyState.error`, 0건=`EmptyState.zero`, 예약 변경 확인=`showBlockDialog(before/after)`, 인증번호 재발송=`CooldownButton`.
+
+- [ ] **Step 1: `ActionButton` — 서버 변경 버튼의 4가지 상태 (`BTN-SCOPE-01·02` · `BTN-BUSY-01·02` · `BTN-STATE-01·02·03` · `BTN-TIME-01`)**
+
+먼저 T0 `tokens.dart`에 딥틸 2색을 보강한다(없으면 `BTN-STATE` 색을 못 그린다).
+
+`patient_app/lib/core/tokens.dart` (Modify — `AppTokens` 클래스 안, `warn` 아래에 추가):
+```dart
+  // BTN-STATE-01/02 — 딥틸(primary). 평소=진한 딥틸, 처리 중=흐린 딥틸(회색 아님).
+  // 값 근거: 목업 `--primary:#0B6E70`(66회). 처리 중 흐림은 primary를 opacity로 낮춘 계열(목업 처리 중 버튼 .72).
+  static const Color primary = Color(0xFF0B6E70);
+  static const Color primaryBusy = Color(0xBF0B6E70); // 알파 0xBF ≈ .75 — 흐린 딥틸(회색으로 칠하지 않는다)
+```
+
+- [ ] **Step 1a: 실패 테스트** — `test/widgets/action_button_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
+import 'package:hospital_patient_app/widgets/action_button.dart';
+
+FilledButton _btn(WidgetTester t) =>
+    t.widget<FilledButton>(find.byType(FilledButton));
+
+Color _bg(WidgetTester t) =>
+    _btn(t).style!.backgroundColor!.resolve({}) as Color;
+
+void main() {
+  // BTN-STATE-02는 "회색으로 칠하지 않는다"가 핵심 — 처리 중 색이 회색 계열이 아님을 못박는다.
+  test('[BTN-STATE-02] 처리 중 색은 회색 두 토큰 어느 것도 아니다(흐린 딥틸)', () {
+    expect(AppTokens.primaryBusy == AppTokens.grayPending, isFalse);
+    expect(AppTokens.primaryBusy == AppTokens.grayDone, isFalse);
+  });
+
+  testWidgets('[BTN-SCOPE-01] 서버를 바꾸는 버튼을 누르면 onPressed가 실행된다', (t) async {
+    var tapped = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '예약 신청하기', busyLabel: '예약 신청 중…',
+      onPressed: () => tapped = true))));
+    await t.tap(find.byType(FilledButton));
+    expect(tapped, isTrue);
+  });
+
+  testWidgets('[BTN-SCOPE-02] 읽기 전용 버튼이 아님 — 상태(busyLabel)를 반드시 요구한다', (t) async {
+    // ActionButton은 busyLabel이 required다. 조회·이동 버튼(상태 없음)은 이 위젯을 쓰지 않는다.
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '예약 신청하기', busyLabel: '예약 신청 중…', onPressed: () {}))));
+    expect(find.text('예약 신청하기'), findsOneWidget); // 평소 라벨
+  });
+
+  testWidgets('[BTN-BUSY-01] 처리 중에도 글자를 지우지 않고 진행형으로 바꾼다', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '예약 신청하기', busyLabel: '예약 신청 중…', busy: true, onPressed: () {}))));
+    expect(find.text('예약 신청 중…'), findsOneWidget);
+    expect(find.text('예약 신청하기'), findsNothing);
+  });
+
+  testWidgets('[BTN-BUSY-02] 처리 중 다시 누르면 무시한다', (t) async {
+    var count = 0;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '신청', busyLabel: '신청 중…', busy: true, onPressed: () => count++))));
+    await t.tap(find.byType(FilledButton));
+    expect(count, 0);
+  });
+
+  testWidgets('[BTN-STATE-01] 평소 배경은 진한 딥틸(primary)', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '신청', busyLabel: '신청 중…', onPressed: () {}))));
+    expect(_bg(t), AppTokens.primary);
+  });
+
+  testWidgets('[BTN-STATE-02] 처리 중 배경은 흐린 딥틸(primaryBusy)', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '신청', busyLabel: '신청 중…', busy: true, onPressed: () {}))));
+    expect(_bg(t), AppTokens.primaryBusy);
+  });
+
+  testWidgets('[BTN-STATE-03] 비활성이면 회색 + 이유 문구를 함께 보여준다', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '변경하기', busyLabel: '변경 중…', onPressed: () {},
+      disabledReason: '오프라인 상태에서는 변경할 수 없습니다'))));
+    expect(_bg(t), AppTokens.grayDone);                       // 회색
+    expect(find.text('오프라인 상태에서는 변경할 수 없습니다'), findsOneWidget); // 이유 문구
+  });
+
+  testWidgets('[BTN-TIME-01] 앱은 스스로 타임아웃을 걸지 않는다 — busy는 외부가 풀 때까지 유지', (t) async {
+    var count = 0;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ActionButton(
+      label: '신청', busyLabel: '신청 중…', busy: true, onPressed: () => count++))));
+    await t.pump(const Duration(minutes: 5)); // 5분 지나도
+    await t.tap(find.byType(FilledButton));
+    expect(count, 0);                          // 여전히 무시(자동 해제 없음)
+    expect(find.text('신청 중…'), findsOneWidget);
+  });
+}
+```
+Run: `flutter test test/widgets/action_button_test.dart` → Expected: FAIL(`action_button.dart` 없음).
+
+- [ ] **Step 1b: `ActionButton` 구현** — `patient_app/lib/widgets/action_button.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+
+/// 서버에 무언가를 남기거나 바꾸는 버튼(BTN-SCOPE-01). 조회·화면 이동·펼치기 등 읽기만 하는
+/// 동작(BTN-SCOPE-02)은 이 위젯을 쓰지 않는다 — 상태(busy)가 필요 없는 일반 버튼을 쓴다.
+///
+/// 상태별 모양:
+/// - 평소: 진한 딥틸 + 흰 글자(BTN-STATE-01)
+/// - 처리 중: 흐린 딥틸 + 흰 글자, 라벨은 진행형으로 유지(BTN-BUSY-01·BTN-STATE-02) — 회색으로 칠하지 않는다
+/// - 비활성: 회색 + 회색 글자 + 이유 문구(BTN-STATE-03)
+///
+/// BTN-TIME-01: 앱은 스스로 시간제한을 걸지 않는다. busy는 오직 호출자(화면 Notifier)가
+/// 서버 응답을 받아 false로 되돌릴 때만 풀린다. 처리 중 다시 눌러도 무시한다(BTN-BUSY-02).
+class ActionButton extends StatelessWidget {
+  final String label;           // 평소 라벨
+  final String busyLabel;       // 처리 중 진행형 라벨(required — 상태 있는 버튼임을 타입으로 강제)
+  final bool busy;              // 서버 응답 대기 중
+  final String? disabledReason; // null이 아니면 비활성 + 이 이유 문구 노출(BTN-STATE-03)
+  final VoidCallback onPressed;
+
+  const ActionButton({
+    super.key,
+    required this.label,
+    required this.busyLabel,
+    required this.onPressed,
+    this.busy = false,
+    this.disabledReason,
+  });
+
+  bool get _disabled => disabledReason != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg = _disabled
+        ? AppTokens.grayDone
+        : (busy ? AppTokens.primaryBusy : AppTokens.primary);
+    final Color fg = _disabled ? AppTokens.grayPending : Colors.white;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: bg,
+            foregroundColor: fg,
+          ),
+          // 버튼은 enabled로 두어 위 배경색을 유지하고(회색·흐린 딥틸을 Material 기본 disabled 스타일에
+          // 뺏기지 않게), busy/비활성일 때 콜백만 내부에서 무시한다(BTN-BUSY-02·BTN-STATE-03·BTN-TIME-01).
+          onPressed: () {
+            if (busy || _disabled) return;
+            onPressed();
+          },
+          child: Text(busy ? busyLabel : label),
+        ),
+        if (_disabled)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              disabledReason!,
+              style: const TextStyle(color: AppTokens.grayPending, fontSize: 13),
+            ),
+          ),
+      ],
+    );
+  }
+}
+```
+Run: `flutter test test/widgets/action_button_test.dart` → Expected: PASS(9 tests).
+
+- [ ] **Step 2: `InlineError` — 버튼 동작이 실패했을 때의 오류 문구 (`ERR-MSG-01·02` · `ERR-KIND-01` · `ERR-POS-01·02·03` · `ERR-GONE-01·02·03` · `ERR-RETRY-01·03·04`)**
+
+> **범위**: 화면은 떠 있고 **내가 누른 버튼만 실패**한 경우. 조회 자체가 실패해 화면을 못 연 경우는 `EmptyState`(Step 6). 이 경계가 `ERR-RETRY-03`(누를 것이 있으면 만들지 않는다)이다.
+
+- [ ] **Step 2a: 실패 테스트** — `test/widgets/inline_error_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
+import 'package:hospital_patient_app/widgets/warn_text.dart';
+import 'package:hospital_patient_app/widgets/inline_error.dart';
+
+Widget _host(Widget child) => MaterialApp(home: Scaffold(body: child));
+
+void main() {
+  testWidgets('[ERR-MSG-01] 서버가 준 문장을 그대로 쓴다 — 앱이 다시 쓰지 않는다', (t) async {
+    await t.pumpWidget(_host(const InlineError('이미 예약된 시간입니다. 다른 시간을 선택해주세요.')));
+    expect(find.text('이미 예약된 시간입니다. 다른 시간을 선택해주세요.'), findsOneWidget);
+  });
+
+  testWidgets('[ERR-MSG-02] 위젯은 메시지를 가공하지 않는다(자르기·접두어 금지) — 서버 한글 문장을 신뢰', (t) async {
+    const long = '요청을 처리할 수 없습니다. 잠시 후 다시 시도하시거나 병원으로 문의해주세요.';
+    await t.pumpWidget(_host(const InlineError(long)));
+    expect(find.text(long), findsOneWidget); // 통째로. "오류: " 같은 접두어를 붙이지 않는다.
+  });
+
+  testWidgets('[ERR-KIND-01] 동작 실패 오류는 특정 칸이 아니라 버튼에 귀속 — 필드명을 받지 않는다', (t) async {
+    // InlineError 생성자에는 fieldName이 없다. 입력 검증(칸 아래)은 FieldTextInput(Step 3)이 담는다.
+    await t.pumpWidget(_host(const InlineError('마감된 진료입니다')));
+    expect(find.byType(InlineError), findsOneWidget);
+  });
+
+  testWidgets('[ERR-POS-01] 좌측 4px 바 + 주의색 + 배경 없음(WarnText 재사용)', (t) async {
+    await t.pumpWidget(_host(const InlineError('실패했습니다')));
+    expect(find.byType(WarnText), findsOneWidget); // WarnText가 좌측 4px 바·warn색·배경없음을 보장
+    final deco = t.widget<Container>(find.descendant(
+        of: find.byType(WarnText), matching: find.byType(Container))).decoration as BoxDecoration;
+    expect(deco.border!.left.width, AppTokens.warnBarWidth); // 4px
+    expect(deco.color, isNull);                              // 배경 없음
+  });
+
+  testWidgets('[ERR-POS-02] 오류가 시야 밖이면 그 위치로 자동 스크롤한다', (t) async {
+    final controller = ScrollController();
+    await t.pumpWidget(_host(_Toggler(controller)));
+    // 처음엔 리스트 아래쪽 오류 자리가 화면 밖.
+    expect(find.text('버튼 동작이 실패했습니다'), findsNothing);
+    await t.tap(find.text('오류 켜기'));
+    await t.pumpAndSettle();
+    // 자동 스크롤로 오류가 화면에 들어온다.
+    expect(find.text('버튼 동작이 실패했습니다'), findsOneWidget);
+    expect(controller.offset, greaterThan(0));
+  });
+
+  testWidgets('[ERR-POS-03] 스낵바를 쓰지 않는다 — 인라인 위젯이라 사라지지 않는다', (t) async {
+    await t.pumpWidget(_host(const InlineError('실패')));
+    await t.pump(const Duration(seconds: 5));
+    expect(find.byType(SnackBar), findsNothing); // 스낵바 아님
+    expect(find.text('실패'), findsOneWidget);     // 5초 뒤에도 그대로(자동 소멸 없음)
+  });
+
+  testWidgets('[ERR-GONE-01] 입력을 고쳐 풀리는 오류는 message=null이 되면 즉시 사라진다', (t) async {
+    await t.pumpWidget(_host(const InlineError('형식이 올바르지 않습니다')));
+    expect(find.text('형식이 올바르지 않습니다'), findsOneWidget);
+    await t.pumpWidget(_host(const InlineError(null))); // 화면이 오류를 지움
+    expect(find.text('형식이 올바르지 않습니다'), findsNothing);
+    expect(find.byType(SizedBox), findsWidgets); // null이면 빈 자리(SizedBox.shrink)
+  });
+
+  testWidgets('[ERR-GONE-02] 다시 눌러 푸는 오류도 message=null 전환으로 사라진다', (t) async {
+    await t.pumpWidget(_host(const InlineError('저장에 실패했습니다')));
+    await t.pumpWidget(_host(const InlineError(null))); // 다시 누르는 순간 화면이 null로(◌ 저장 중…)
+    expect(find.text('저장에 실패했습니다'), findsNothing);
+  });
+
+  testWidgets('[ERR-GONE-03] 스크롤 등 무관한 조작에는 사라지지 않는다', (t) async {
+    await t.pumpWidget(_host(const InlineError('마감된 진료입니다')));
+    await t.drag(find.byType(InlineError), const Offset(0, -50)); // 무관한 조작
+    await t.pump();
+    expect(find.text('마감된 진료입니다'), findsOneWidget); // 그대로
+  });
+
+  testWidgets('[ERR-RETRY-01] 버튼을 눌러 실패한 오류에는 [다시 시도]를 만들지 않는다', (t) async {
+    await t.pumpWidget(_host(const InlineError('신청에 실패했습니다')));
+    expect(find.text('다시 시도'), findsNothing);
+    expect(find.textContaining('다시 시도'), findsNothing);
+  });
+
+  testWidgets('[ERR-RETRY-03] 누를 것이 이미 있으면 재시도 버튼을 만들지 않는다(InlineError엔 없음)', (t) async {
+    // 원래 버튼을 다시 누르면 되므로 InlineError는 어떤 버튼도 갖지 않는다.
+    await t.pumpWidget(_host(const InlineError('실패')));
+    expect(find.byType(ElevatedButton), findsNothing);
+    expect(find.byType(TextButton), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+  });
+
+  testWidgets('[ERR-RETRY-04] InlineError는 원래 버튼의 글자를 건드리지 않는다 — 오류만 위에 얹는다', (t) async {
+    // InlineError는 버튼과 독립된 위젯이라, 실패해도 아래 버튼 라벨을 "다시 시도"로 바꾸지 않는다.
+    await t.pumpWidget(_host(Column(children: const [
+      InlineError('신청에 실패했습니다'),
+      Text('예약 신청하기'), // 아래 버튼 라벨(그대로)
+    ])));
+    expect(find.text('예약 신청하기'), findsOneWidget);
+    expect(find.text('다시 시도'), findsNothing);
+  });
+}
+
+/// ERR-POS-02 검증용 — 오류가 리스트 맨 아래(화면 밖)에 있고, 버튼으로 켜면 자동 스크롤되는지 본다.
+class _Toggler extends StatefulWidget {
+  final ScrollController controller;
+  const _Toggler(this.controller);
+  @override
+  State<_Toggler> createState() => _TogglerState();
+}
+
+class _TogglerState extends State<_Toggler> {
+  bool on = false;
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      controller: widget.controller,
+      children: [
+        ElevatedButton(onPressed: () => setState(() => on = true), child: const Text('오류 켜기')),
+        const SizedBox(height: 2000), // 오류 자리를 화면 밖으로 밀어냄
+        InlineError(on ? '버튼 동작이 실패했습니다' : null),
+      ],
+    );
+  }
+}
+```
+Run: `flutter test test/widgets/inline_error_test.dart` → Expected: FAIL(`inline_error.dart` 없음).
+
+- [ ] **Step 2b: `InlineError` 구현** — `patient_app/lib/widgets/inline_error.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'warn_text.dart';
+
+/// 버튼 동작이 실패했을 때의 오류 문구. **화면은 떠 있고 내가 누른 버튼만 실패**한 경우에 쓴다
+/// (조회 실패로 화면을 못 연 경우는 EmptyState). 실패한 버튼 바로 위에 붙인다(ERR-KIND-01·ERR-POS-01).
+///
+/// - `message`는 **서버가 준 한글 문장 그대로**(ERR-MSG-01·02) — 위젯이 다시 쓰거나 접두어를 붙이지 않는다.
+/// - 모양은 Task 0 `WarnText`(좌측 4px 바·주의색·배경 없음, ERR-POS-01)를 그대로 쓴다.
+/// - **스낵바·상단 띠가 아니라 인라인**이라 스스로 사라지지 않는다(ERR-POS-03). 오류가 사라지는 것은
+///   오직 화면이 `message=null`로 바꿀 때다 — 입력을 고쳐(ERR-GONE-01)·버튼을 다시 눌러(ERR-GONE-02)
+///   막힘이 풀렸을 때. 스크롤 등 무관한 조작에는 그대로 남는다(ERR-GONE-03).
+/// - **재시도 버튼을 만들지 않는다**(ERR-RETRY-01·03) — 원래 버튼을 다시 누르면 되고, 원래 버튼의
+///   글자도 바꾸지 않는다(ERR-RETRY-04, InlineError는 버튼과 독립된 위젯).
+class InlineError extends StatefulWidget {
+  final String? message; // null이면 아무것도 그리지 않는다(막힘이 풀림).
+  const InlineError(this.message, {super.key});
+
+  @override
+  State<InlineError> createState() => _InlineErrorState();
+}
+
+class _InlineErrorState extends State<InlineError> {
+  @override
+  void didUpdateWidget(covariant InlineError old) {
+    super.didUpdateWidget(old);
+    // ERR-POS-02: 없던 오류가 생기면, 그 위치가 시야 밖일 수 있으니 화면을 그 자리로 자동 스크롤한다.
+    if (old.message == null && widget.message != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Scrollable.ensureVisible(context,
+              duration: const Duration(milliseconds: 200), alignment: 0.5);
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.message == null) return const SizedBox.shrink();
+    return WarnText(widget.message!); // ERR-POS-01: 좌측 4px 바·주의색·배경 없음
+  }
+}
+```
+Run: `flutter test test/widgets/inline_error_test.dart` → Expected: PASS(12 tests).
+
+- [ ] **Step 3: `FieldTextInput` + `FieldErrorController` — 입력 검증 오류 (`ERR-FLD-01·02·03·04·05`)**
+
+> **`ERR-KIND-01`의 다른 쪽**: 입력 검증 오류(앱이 보고 바로 아는 것 — 형식·필수·길이)는 **틀린 칸 바로 아래**에 붙인다. 동작 실패(서버에 물어야 아는 것)의 `InlineError`(버튼 위)와 자리가 다르다.
+
+- [ ] **Step 3a: 실패 테스트** — `test/widgets/field_error_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/widgets/field_error.dart';
+
+Widget _host(Widget child) => MaterialApp(home: Scaffold(body: child));
+String? _min8(String v) => v.length < 8 ? '8자 이상 입력해주세요' : null;
+String? _required(String v) => v.isEmpty ? '필수 항목입니다' : null;
+
+void main() {
+  testWidgets('[ERR-FLD-02] 타이핑 도중에는 검사하지 않는다', (t) async {
+    final form = FieldErrorController();
+    final c = TextEditingController();
+    await t.pumpWidget(_host(FieldTextInput(
+        label: '비밀번호', controller: c, form: form, validate: _min8)));
+    await t.enterText(find.byType(TextField), '123'); // 3자까지만 침
+    await t.pump();
+    expect(find.text('8자 이상 입력해주세요'), findsNothing); // 아직 나무라지 않는다
+  });
+
+  testWidgets('[ERR-FLD-03] 그 칸을 떠날 때 검사한다', (t) async {
+    final form = FieldErrorController();
+    final c = TextEditingController();
+    await t.pumpWidget(_host(FieldTextInput(
+        label: '비밀번호', controller: c, form: form, validate: _min8)));
+    await t.enterText(find.byType(TextField), '123');
+    FocusManager.instance.primaryFocus?.unfocus(); // 칸을 떠남(blur)
+    await t.pump();
+    expect(find.text('8자 이상 입력해주세요'), findsOneWidget);
+  });
+
+  testWidgets('[ERR-FLD-01] 여러 칸이 동시에 틀리면 각 칸마다 문구가 붙는다', (t) async {
+    final form = FieldErrorController();
+    final name = TextEditingController();   // 비어 있음
+    final phone = TextEditingController();  // 비어 있음
+    await t.pumpWidget(_host(Column(children: [
+      FieldTextInput(label: '이름', controller: name, form: form, validate: _required),
+      FieldTextInput(label: '전화', controller: phone, form: form, validate: _required),
+    ])));
+    form.validateAll();
+    await t.pump();
+    expect(find.text('필수 항목입니다'), findsNWidgets(2)); // 각 칸 아래 하나씩
+  });
+
+  testWidgets('[ERR-FLD-04] 버튼을 누를 때 건드리지 않은 칸도 전체 재검사된다', (t) async {
+    final form = FieldErrorController();
+    final birth = TextEditingController(); // 아예 건드리지 않음(포커스도 준 적 없음)
+    await t.pumpWidget(_host(FieldTextInput(
+        label: '생년월일', controller: birth, form: form, validate: _required)));
+    expect(find.text('필수 항목입니다'), findsNothing);
+    final ok = form.validateAll();     // 버튼 누를 때
+    await t.pump();
+    expect(ok, isFalse);
+    expect(find.text('필수 항목입니다'), findsOneWidget); // 이때 걸린다
+  });
+
+  testWidgets('[ERR-FLD-05] 오류가 여럿이면 첫 오류 칸으로 자동 스크롤한다', (t) async {
+    final scroll = ScrollController();
+    final form = FieldErrorController();
+    final a = TextEditingController();
+    final b = TextEditingController();
+    await t.pumpWidget(_host(ListView(controller: scroll, children: [
+      const SizedBox(height: 2000),   // 첫 필드를 화면 아래로 밀어냄
+      FieldTextInput(label: '이름', controller: a, form: form, validate: _required),
+      const SizedBox(height: 1500),
+      FieldTextInput(label: '전화', controller: b, form: form, validate: _required),
+    ])));
+    expect(find.text('이름'), findsNothing); // 시작 시 첫 오류 칸은 화면 밖
+    form.validateAll();
+    await t.pumpAndSettle();
+    expect(scroll.offset, greaterThan(0));  // 첫 오류 칸으로 스크롤됨
+    expect(find.text('필수 항목입니다'), findsWidgets);
+  });
+}
+```
+Run: `flutter test test/widgets/field_error_test.dart` → Expected: FAIL(`field_error.dart` 없음).
+
+- [ ] **Step 3b: `FieldTextInput` + `FieldErrorController` 구현** — `patient_app/lib/widgets/field_error.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+
+/// 폼 전체의 검사 시점을 조율한다. 각 FieldTextInput이 스스로 등록/해제한다.
+class FieldErrorController {
+  final List<_FieldHandle> _fields = [];
+  void _register(_FieldHandle h) => _fields.add(h);
+  void _unregister(_FieldHandle h) => _fields.remove(h);
+
+  /// 버튼을 누를 때 전체를 다시 검사한다(ERR-FLD-04) — 건드리지 않은 칸도 이때 걸린다.
+  /// 오류가 여럿이면 화면에 배치된 순서상 첫 오류 칸으로 자동 스크롤한다(ERR-FLD-05).
+  /// 모두 통과면 true.
+  bool validateAll() {
+    _FieldHandle? firstBad;
+    for (final f in _fields) {
+      if (!f.validate()) firstBad ??= f;
+    }
+    firstBad?.ensureVisible();
+    return firstBad == null;
+  }
+}
+
+class _FieldHandle {
+  final bool Function() validate;      // 오류면 표시하고 false 반환
+  final void Function() ensureVisible; // 자기 위치로 스크롤
+  _FieldHandle(this.validate, this.ensureVisible);
+}
+
+class FieldTextInput extends StatefulWidget {
+  final String label;
+  final TextEditingController controller;
+  final FieldErrorController form;
+  final String? Function(String value) validate; // null=통과, 문자열=칸 아래 오류 문구
+  const FieldTextInput({
+    super.key,
+    required this.label,
+    required this.controller,
+    required this.form,
+    required this.validate,
+  });
+
+  @override
+  State<FieldTextInput> createState() => _FieldTextInputState();
+}
+
+class _FieldTextInputState extends State<FieldTextInput> {
+  final FocusNode _node = FocusNode();
+  late final _FieldHandle _handle;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _handle = _FieldHandle(_runValidate, _scrollToSelf);
+    widget.form._register(_handle);
+    // ERR-FLD-03: 그 칸을 떠날 때(포커스를 잃을 때) 검사한다.
+    _node.addListener(() {
+      if (!_node.hasFocus) _runValidate();
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.form._unregister(_handle);
+    _node.dispose();
+    super.dispose();
+  }
+
+  bool _runValidate() {
+    final msg = widget.validate(widget.controller.text);
+    if (mounted) setState(() => _error = msg);
+    return msg == null;
+  }
+
+  void _scrollToSelf() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Scrollable.ensureVisible(context,
+            duration: const Duration(milliseconds: 200), alignment: 0.5);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: widget.controller,
+          focusNode: _node,
+          decoration: InputDecoration(labelText: widget.label),
+          // ERR-FLD-02: 타이핑 도중에는 (처음) 검사하지 않는다. 단 이미 떠 있는 오류는 입력을
+          // 건드리는 즉시 지운다(ERR-GONE-01) — 맞게 고치고 있는 사람을 계속 나무라지 않는다.
+          onChanged: (_) {
+            if (_error != null) setState(() => _error = null);
+          },
+        ),
+        if (_error != null) // ERR-FLD-01: 틀린 칸 바로 아래에, 칸마다 따로 붙는다
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(_error!,
+                style: const TextStyle(color: AppTokens.warn, fontSize: 13)),
+          ),
+      ],
+    );
+  }
+}
+```
+Run: `flutter test test/widgets/field_error_test.dart` → Expected: PASS(5 tests).
+
+- [ ] **Step 4: `PendingRequestStore` + `PendingRequestCard` — 죽는 앱의 유언장 (`BTN-KILL-01·02·03·04·05·06·07`)**
+
+> ⭐ **죽는 앱은 유언을 남길 수 없다** — 그래서 **요청을 보내기 직전에 미리 적어두고**(BTN-KILL-01), 무사히 응답을 받으면 지운다(BTN-KILL-02). 앱이 그 사이에 죽어 다시 켜지면 적어둔 것이 남아 홈에 안내가 뜬다(BTN-KILL-03). ⚠️ **NAV-GLOBAL-08 위젯 = 이 카드**(Task 11 라우터가 홈에 배치).
+>
+> ⛔ **자동 재시도 금지(BTN-KILL-07)**: 멱등성이 없어(갭 #15) 스스로 다시 신청하면 예약이 확실히 두 건 생긴다. 카드는 **`[예약 목록에서 확인]` 한 길만** 주고 `[다시 신청]`을 두지 않는다.
+
+- [ ] **Step 4a: 실패 테스트** — `test/widgets/pending_request_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:hospital_patient_app/core/pending_request.dart';
+import 'package:hospital_patient_app/widgets/pending_request_card.dart';
+
+class _MockStorage extends Mock implements FlutterSecureStorage {}
+
+/// 실제 secure storage 대신 메모리 맵으로 흉내낸다.
+_MockStorage _memStorage() {
+  final s = _MockStorage();
+  final mem = <String, String?>{};
+  when(() => s.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer((i) async => mem[i.namedArguments[#key] as String] =
+          i.namedArguments[#value] as String?);
+  when(() => s.read(key: any(named: 'key')))
+      .thenAnswer((i) async => mem[i.namedArguments[#key] as String]);
+  when(() => s.delete(key: any(named: 'key')))
+      .thenAnswer((i) async => mem.remove(i.namedArguments[#key] as String));
+  return s;
+}
+
+void main() {
+  test('[BTN-KILL-01] 요청을 보내기 직전에 유언(종류+신청 시각)을 적는다', () async {
+    final store = PendingRequestStore(_memStorage());
+    final at = DateTime(2026, 8, 17, 10, 2);
+    await store.begin(PendingKind.book, at);
+    final read = await store.read();
+    expect(read!.kind, PendingKind.book);
+    expect(read.startedAt, at);
+  });
+
+  test('[BTN-KILL-02] 응답이 도착하면(성공·실패 무관) 즉시 지운다', () async {
+    final store = PendingRequestStore(_memStorage());
+    await store.begin(PendingKind.book, DateTime(2026, 8, 17, 10, 2));
+    await store.complete();
+    expect(await store.read(), isNull);
+  });
+
+  test('[BTN-KILL-04] 문구에 "방금"을 쓰지 않고 적어둔 절대 시각을 넣는다', () {
+    expect(koreanTime(DateTime(2026, 8, 17, 10, 2)), '오전 10:02');
+    expect(koreanTime(DateTime(2026, 8, 17, 14, 5)), '오후 2:05');
+    final msg = const PendingRequest(PendingKind.book, null).homeMessageAt(
+        DateTime(2026, 8, 17, 10, 2));
+    expect(msg.contains('방금'), isFalse);
+    expect(msg.contains('오전 10:02'), isTrue);
+  });
+
+  test('[BTN-KILL-06] 대상은 예약 신청·변경뿐 — 문진 저장·취소·탈퇴는 종류에 없다', () {
+    expect(PendingKind.values, [PendingKind.book, PendingKind.change]);
+  });
+
+  testWidgets('[BTN-KILL-03] 앱을 다시 켜면 홈에 안내 한 줄 + [예약 목록에서 확인]이 뜬다', (t) async {
+    final store = PendingRequestStore(_memStorage());
+    await store.begin(PendingKind.book, DateTime(2026, 8, 17, 10, 2));
+    await t.pumpWidget(ProviderScope(
+      overrides: [pendingRequestStoreProvider.overrideWithValue(store)],
+      child: MaterialApp(home: Scaffold(
+          body: PendingRequestCard(onConfirm: () {}))),
+    ));
+    await t.pumpAndSettle();
+    expect(find.textContaining('오전 10:02에 신청하신 예약의 결과를 확인하지 못했습니다'), findsOneWidget);
+    expect(find.text('예약 목록에서 확인'), findsOneWidget);
+  });
+
+  testWidgets('[BTN-KILL-05] 안내를 확인하면(버튼 탭) 유언을 지우고 onConfirm을 부른다', (t) async {
+    final store = PendingRequestStore(_memStorage());
+    await store.begin(PendingKind.book, DateTime(2026, 8, 17, 10, 2));
+    var confirmed = false;
+    await t.pumpWidget(ProviderScope(
+      overrides: [pendingRequestStoreProvider.overrideWithValue(store)],
+      child: MaterialApp(home: Scaffold(
+          body: PendingRequestCard(onConfirm: () => confirmed = true))),
+    ));
+    await t.pumpAndSettle();
+    await t.tap(find.text('예약 목록에서 확인'));
+    await t.pumpAndSettle();
+    expect(confirmed, isTrue);
+    expect(await store.read(), isNull); // 지워짐
+  });
+
+  testWidgets('[BTN-KILL-07] 자동 재시도·[다시 신청] 버튼을 두지 않는다', (t) async {
+    final store = PendingRequestStore(_memStorage());
+    await store.begin(PendingKind.book, DateTime(2026, 8, 17, 10, 2));
+    await t.pumpWidget(ProviderScope(
+      overrides: [pendingRequestStoreProvider.overrideWithValue(store)],
+      child: MaterialApp(home: Scaffold(body: PendingRequestCard(onConfirm: () {}))),
+    ));
+    await t.pumpAndSettle();
+    expect(find.textContaining('다시 신청'), findsNothing);
+    expect(find.textContaining('재신청'), findsNothing);
+  });
+}
+```
+Run: `flutter test test/widgets/pending_request_test.dart` → Expected: FAIL(`pending_request.dart` 없음).
+
+- [ ] **Step 4b: `PendingRequestStore` 구현** — `patient_app/lib/core/pending_request.dart`
+
+```dart
+import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+/// BTN-KILL-06 — 유언을 남기는 동작은 **다시 하면 결과가 하나 더 생기는 것**뿐이다:
+/// 예약 신청·예약 변경. 문진 저장·취소·연결 해제·탈퇴는 두 번 해도 결과가 같아 대상이 아니다.
+enum PendingKind { book, change }
+
+/// 오전/오후 12시간제 한국어 시각. BTN-KILL-04: "방금" 대신 이 절대 시각을 문구에 넣는다
+/// (배터리 방전이면 몇 시간 뒤에 켤 수 있어 "방금"은 사실이 아니게 된다).
+String koreanTime(DateTime t) {
+  final ampm = t.hour < 12 ? '오전' : '오후';
+  var h = t.hour % 12;
+  if (h == 0) h = 12;
+  return '$ampm $h:${t.minute.toString().padLeft(2, '0')}';
+}
+
+class PendingRequest {
+  final PendingKind kind;
+  final DateTime? startedAt; // 저장에서 읽으면 채워진다
+  const PendingRequest(this.kind, this.startedAt);
+
+  Map<String, dynamic> toJson() =>
+      {'kind': kind.name, 'startedAt': startedAt!.toIso8601String()};
+  static PendingRequest fromJson(Map<String, dynamic> j) => PendingRequest(
+      PendingKind.values.byName(j['kind'] as String),
+      DateTime.parse(j['startedAt'] as String));
+
+  /// BTN-KILL-03·04 — 홈 안내 한 줄. 적어둔 시각을 넣는다.
+  String get homeMessage => homeMessageAt(startedAt!);
+  String homeMessageAt(DateTime at) {
+    final label = kind == PendingKind.book ? '예약' : '예약 변경';
+    return '${koreanTime(at)}에 신청하신 $label의 결과를 확인하지 못했습니다';
+  }
+}
+
+const _kPendingKey = 'pending_request';
+
+class PendingRequestStore {
+  final FlutterSecureStorage _storage;
+  PendingRequestStore(this._storage);
+
+  /// BTN-KILL-01: 요청을 보내기 직전에 유언을 남긴다.
+  Future<void> begin(PendingKind kind, DateTime at) => _storage.write(
+      key: _kPendingKey, value: jsonEncode(PendingRequest(kind, at).toJson()));
+
+  /// BTN-KILL-02: 응답이 도착하면 즉시 지운다.
+  Future<void> complete() => _storage.delete(key: _kPendingKey);
+
+  /// BTN-KILL-05: 안내를 확인하거나 닫으면 지운다.
+  Future<void> dismiss() => _storage.delete(key: _kPendingKey);
+
+  /// 앱을 다시 켰을 때 남아 있는 유언을 읽는다(BTN-KILL-03). 없으면 null.
+  Future<PendingRequest?> read() async {
+    final raw = await _storage.read(key: _kPendingKey);
+    if (raw == null) return null;
+    return PendingRequest.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+  }
+}
+
+final pendingRequestStoreProvider = Provider<PendingRequestStore>(
+    (ref) => PendingRequestStore(const FlutterSecureStorage()));
+
+/// 홈이 구독한다 — 앱을 다시 켰을 때 남은 유언을 읽어 카드로 그린다.
+final pendingRequestProvider =
+    FutureProvider<PendingRequest?>((ref) => ref.watch(pendingRequestStoreProvider).read());
+```
+
+- [ ] **Step 4c: `PendingRequestCard` 구현** — `patient_app/lib/widgets/pending_request_card.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/pending_request.dart';
+
+/// 앱이 죽은 뒤 다시 켰을 때 홈 맨 위에 뜨는 안내(BTN-KILL-03). 남은 유언이 없으면 아무것도
+/// 그리지 않는다. `[예약 목록에서 확인]`을 누르면 유언을 지우고(BTN-KILL-05) `onConfirm`을
+/// 부른다 — 이동 경로는 소비하는 화면(홈, Task 13+)이 넣는다.
+///
+/// ⛔ BTN-KILL-07: `[다시 신청]`을 두지 않는다. 멱등성이 없어 자동·수동 재신청은 예약을 두 건 만든다.
+class PendingRequestCard extends ConsumerWidget {
+  final VoidCallback onConfirm; // 보통 '/my'(나의 예약)로 이동
+  const PendingRequestCard({super.key, required this.onConfirm});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(pendingRequestProvider).valueOrNull;
+    if (pending == null) return const SizedBox.shrink();
+    return Card(
+      child: ListTile(
+        title: Text(pending.homeMessage), // BTN-KILL-03·04: 적어둔 시각을 넣은 한 줄
+        trailing: TextButton(
+          onPressed: () async {
+            await ref.read(pendingRequestStoreProvider).dismiss(); // BTN-KILL-05
+            ref.invalidate(pendingRequestProvider);
+            onConfirm();
+          },
+          child: const Text('예약 목록에서 확인'),
+        ),
+      ),
+    );
+  }
+}
+```
+Run: `flutter test test/widgets/pending_request_test.dart` → Expected: PASS(7 tests).
+
+- [ ] **Step 5: `PhoneCooldownStore` + `CooldownButton` — 「다시 누르는 게 정상」인 버튼의 쿨다운 (`BTN-COOL-01`~`10`)**
+
+> ⭐ **화면이 아니라 「그 전화번호」에 건다(BTN-COOL-04·05)**: 앱을 껐다 켜면 로그인 화면으로 돌아가는데, 화면에 쿨다운을 걸면 껐다 켠 사람(문자가 안 올 때 중장년층이 가장 먼저 하는 대처)에게는 쿨다운이 사라진다. 그래서 **번호 기준**으로 저장하고 재시작에도 유지한다. **횟수 제한은 두지 않는다(BTN-COOL-03)** — 쿨다운은 문을 닫지 않고 천천히 연다.
+>
+> ⚠️ **서버가 진짜 막는 곳(BTN-COOL-06·10)**: 화면의 카운트다운은 표시용 1초 그리기고, 실제 판정·거절은 서버(번호 기준 30초)가 한다. 두 값이 어긋나면 **서버가 이긴다** — 서버가 거절하며 내려준 남은 초로 로컬을 맞춘다.
+
+- [ ] **Step 5a: 실패 테스트 (Store 로직)** — `test/widgets/cooldown_button_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:hospital_patient_app/core/phone_cooldown.dart';
+import 'package:hospital_patient_app/widgets/cooldown_button.dart';
+
+class _MockStorage extends Mock implements FlutterSecureStorage {}
+
+_MockStorage _memStorage([Map<String, String?>? shared]) {
+  final s = _MockStorage();
+  final mem = shared ?? <String, String?>{};
+  when(() => s.write(key: any(named: 'key'), value: any(named: 'value')))
+      .thenAnswer((i) async =>
+          mem[i.namedArguments[#key] as String] = i.namedArguments[#value] as String?);
+  when(() => s.read(key: any(named: 'key')))
+      .thenAnswer((i) async => mem[i.namedArguments[#key] as String]);
+  when(() => s.delete(key: any(named: 'key')))
+      .thenAnswer((i) async => mem.remove(i.namedArguments[#key] as String));
+  return s;
+}
+
+const _a = '01011112222';
+const _b = '01033334444';
+
+void main() {
+  test('[BTN-COOL-02] 누른 직후 남은 시간은 30초에서 시작한다', () async {
+    final store = PhoneCooldownStore(_memStorage());
+    final t0 = DateTime(2026, 8, 17, 10, 0, 0);
+    await store.start(_a, t0);
+    expect(store.remainingSeconds(_a, t0), 30);
+    expect(store.remainingSeconds(_a, t0.add(const Duration(seconds: 1))), 29); // 1초씩 줄어든다
+  });
+
+  test('[BTN-COOL-03] 횟수 제한이 없다 — 여러 사이클을 돌려도 시간만 본다', () async {
+    final store = PhoneCooldownStore(_memStorage());
+    var t = DateTime(2026, 8, 17, 10, 0, 0);
+    for (var i = 0; i < 5; i++) {
+      await store.start(_a, t);
+      expect(store.remainingSeconds(_a, t), 30); // 매번 정상적으로 다시 열린다(막다른 길 없음)
+      t = t.add(const Duration(seconds: 31));
+    }
+  });
+
+  test('[BTN-COOL-04] 화면이 아니라 번호에 건다 — 앱 재시작(새 Store)에도 유지된다', () async {
+    final shared = <String, String?>{};
+    final t0 = DateTime(2026, 8, 17, 10, 0, 0);
+    await PhoneCooldownStore(_memStorage(shared)).start(_a, t0);
+    final revived = PhoneCooldownStore(_memStorage(shared)); // 재시작 흉내
+    await revived.load();
+    expect(revived.remainingSeconds(_a, t0.add(const Duration(seconds: 5))), 25);
+  });
+
+  test('[BTN-COOL-05] 껐다 켜도(로그인 화면으로 가도) 같은 번호면 쿨다운이 살아 있다', () async {
+    final shared = <String, String?>{};
+    final t0 = DateTime(2026, 8, 17, 10, 0, 0);
+    await PhoneCooldownStore(_memStorage(shared)).start(_a, t0);
+    final afterRestart = PhoneCooldownStore(_memStorage(shared));
+    await afterRestart.load();
+    expect(afterRestart.remainingSeconds(_a, t0.add(const Duration(seconds: 10))), greaterThan(0));
+  });
+
+  test('[BTN-COOL-06] 서버가 거절하며 내려준 남은 초로 로컬을 맞춘다', () async {
+    final store = PhoneCooldownStore(_memStorage());
+    final now = DateTime(2026, 8, 17, 10, 0, 0);
+    await store.syncFromServer(_a, 20, now);
+    expect(store.remainingSeconds(_a, now), 20);
+  });
+
+  test('[BTN-COOL-07] 재시작 후 같은 번호에 쿨다운이 남았으면 다시 보내지 않는다(remaining>0으로 판단)', () async {
+    final shared = <String, String?>{};
+    final t0 = DateTime(2026, 8, 17, 10, 0, 0);
+    await PhoneCooldownStore(_memStorage(shared)).start(_a, t0);
+    final revived = PhoneCooldownStore(_memStorage(shared));
+    await revived.load();
+    // AUTH 화면은 이 값이 0보다 크면 새로 보내지 않고 인증번호 입력 화면으로 넘어간다.
+    expect(revived.remainingSeconds(_a, t0.add(const Duration(seconds: 3))) > 0, isTrue);
+  });
+
+  test('[BTN-COOL-09] 다른 번호는 정상 발송 — 쿨다운은 번호마다 따로 센다', () async {
+    final store = PhoneCooldownStore(_memStorage());
+    final now = DateTime(2026, 8, 17, 10, 0, 0);
+    await store.start(_a, now);
+    expect(store.remainingSeconds(_a, now), 30);
+    expect(store.remainingSeconds(_b, now), 0); // b는 시작한 적 없다
+  });
+
+  test('[BTN-COOL-10] 로컬과 서버가 어긋나면 서버가 이긴다', () async {
+    final store = PhoneCooldownStore(_memStorage());
+    final now = DateTime(2026, 8, 17, 10, 0, 0);
+    await store.start(_a, now);                 // 로컬은 30초라고 생각
+    await store.syncFromServer(_a, 5, now);      // 서버는 5초 남았다고 함
+    expect(store.remainingSeconds(_a, now), 5);  // 서버 승
+  });
+
+  testWidgets('[BTN-COOL-01] 대상 버튼(인증번호 다시 받기)을 누르면 발송되고 쿨다운이 시작된다', (t) async {
+    final store = PhoneCooldownStore(_memStorage());
+    var sent = 0;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CooldownButton(
+      phone: _a, label: '인증번호 다시 받기', store: store,
+      onSend: () async { sent++; return null; }))));
+    expect(find.text('인증번호 다시 받기'), findsOneWidget);
+    await t.tap(find.byType(CooldownButton));
+    await t.pump();
+    expect(sent, 1);
+    expect(store.remainingSeconds(_a, DateTime.now()), greaterThan(0)); // 번호에 쿨다운 걸림
+    await t.pumpWidget(const SizedBox()); // timer dispose
+  });
+
+  testWidgets('[BTN-COOL-08] 쿨다운 중에는 버튼에 남은 시간을 숫자로 보여준다', (t) async {
+    final store = PhoneCooldownStore(_memStorage());
+    await store.start(_a, DateTime.now()); // 지금 시작 → 약 30초
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CooldownButton(
+      phone: _a, label: '인증번호 다시 받기', store: store, onSend: () async => null))));
+    await t.pump();
+    expect(find.textContaining('초 후 다시 받기'), findsOneWidget); // 남은 시간 표시
+    expect(find.text('인증번호 다시 받기'), findsNothing);            // 평소 라벨은 숨김
+    await t.pumpWidget(const SizedBox());
+  });
+}
+```
+Run: `flutter test test/widgets/cooldown_button_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 5b: `PhoneCooldownStore` 구현** — `patient_app/lib/core/phone_cooldown.dart`
+
+```dart
+import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+/// 인증번호 재발송·새로고침 등 「다시 누르는 것이 정상 동작」인 버튼의 쿨다운을, 화면이 아니라
+/// **전화번호 기준**으로 관리한다(BTN-COOL-04·05). 재시작에도 유지되도록 저장한다.
+class PhoneCooldownStore {
+  static const int cooldownSeconds = 30;
+  static const String _key = 'phone_cooldown';
+
+  final FlutterSecureStorage _storage;
+  final Map<String, DateTime> _startedAt = {};
+
+  PhoneCooldownStore(this._storage);
+
+  /// 앱 시작 시 한 번 불러 재시작 전 쿨다운을 되살린다(BTN-COOL-04·05·07).
+  Future<void> load() async {
+    final raw = await _storage.read(key: _key);
+    if (raw == null) return;
+    final m = jsonDecode(raw) as Map<String, dynamic>;
+    _startedAt
+      ..clear()
+      ..addAll(m.map((k, v) => MapEntry(k, DateTime.parse(v as String))));
+  }
+
+  Future<void> _persist() => _storage.write(
+      key: _key,
+      value: jsonEncode(_startedAt.map((k, v) => MapEntry(k, v.toIso8601String()))));
+
+  /// BTN-COOL-01·04: 재발송 등을 눌렀을 때 그 번호에 쿨다운을 시작한다.
+  Future<void> start(String phone, DateTime at) async {
+    _startedAt[phone] = at;
+    await _persist();
+  }
+
+  /// BTN-COOL-06·10: 서버가 거절하며 내려준 남은 초로 로컬을 맞춘다. 서버가 진실이다.
+  Future<void> syncFromServer(String phone, int remaining, DateTime now) async {
+    _startedAt[phone] = now.subtract(Duration(seconds: cooldownSeconds - remaining));
+    await _persist();
+  }
+
+  /// 남은 초(BTN-COOL-02·08). BTN-COOL-03: 횟수가 아니라 시간만 본다.
+  /// BTN-COOL-09: 시작한 적 없는 번호는 0(정상 발송).
+  int remainingSeconds(String phone, DateTime now) {
+    final s = _startedAt[phone];
+    if (s == null) return 0;
+    final left = cooldownSeconds - now.difference(s).inSeconds;
+    return left > 0 ? left : 0;
+  }
+}
+
+final phoneCooldownStoreProvider = Provider<PhoneCooldownStore>(
+    (ref) => PhoneCooldownStore(const FlutterSecureStorage()));
+```
+
+- [ ] **Step 5c: `CooldownButton` 구현** — `patient_app/lib/widgets/cooldown_button.dart`
+
+```dart
+import 'dart:async';
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+import '../core/phone_cooldown.dart';
+
+/// 「다시 누르는 것이 정상 동작」인 버튼(BTN-COOL-01: 인증번호 다시 받기·새로고침·조회 실패의 [다시 시도]).
+/// 누른 뒤 `[ N초 후 다시 받기 ]`로 바뀌어 1초씩 줄어들고(BTN-COOL-02·08), 0이 되면 원래대로 돌아온다.
+/// 쿨다운은 번호 기준으로 Store가 관리하고, 화면 카운트다운은 그것을 1초마다 그린다(BTN-COOL-10).
+class CooldownButton extends StatefulWidget {
+  final String phone;
+  final String label;
+  final PhoneCooldownStore store;
+
+  /// 실제 발송. 서버가 거절하며 남은 초를 주면 그 값을, 정상 발송이면 null을 돌려준다(BTN-COOL-06·10).
+  final Future<int?> Function() onSend;
+
+  const CooldownButton({
+    super.key,
+    required this.phone,
+    required this.label,
+    required this.store,
+    required this.onSend,
+  });
+
+  @override
+  State<CooldownButton> createState() => _CooldownButtonState();
+}
+
+class _CooldownButtonState extends State<CooldownButton> {
+  Timer? _timer;
+  int _remaining = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _ensureTicking();
+  }
+
+  void _refresh() => _remaining = widget.store.remainingSeconds(widget.phone, DateTime.now());
+
+  void _ensureTicking() {
+    _timer?.cancel();
+    if (_remaining > 0) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (tm) {
+        setState(_refresh);
+        if (_remaining <= 0) tm.cancel(); // 시간만 본다(BTN-COOL-03)
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _press() async {
+    if (_remaining > 0) return; // 쿨다운 중엔 무시(막다른 길 아님 — 시간이 열어준다)
+    final serverRemaining = await widget.onSend();
+    if (serverRemaining != null) {
+      await widget.store.syncFromServer(widget.phone, serverRemaining, DateTime.now());
+    } else {
+      await widget.store.start(widget.phone, DateTime.now()); // BTN-COOL-01·04
+    }
+    if (!mounted) return;
+    setState(_refresh);
+    _ensureTicking();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onCooldown = _remaining > 0;
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: onCooldown ? AppTokens.grayDone : AppTokens.primary,
+        foregroundColor: onCooldown ? AppTokens.grayPending : Colors.white,
+      ),
+      onPressed: () {
+        if (!onCooldown) _press();
+      },
+      child: Text(onCooldown ? '$_remaining초 후 다시 받기' : widget.label),
+    );
+  }
+}
+```
+Run: `flutter test test/widgets/cooldown_button_test.dart` → Expected: PASS(11 tests).
+
+- [ ] **Step 6: `EmptyState` — 오프라인·서버오류·0건을 한 벌의 모양으로 (`EMPTY-LAY-01·02` · `EMPTY-OFF-01` · `EMPTY-ERR-01` · `EMPTY-ZERO-01·02` · `EMPTY-TAB-01·02` · `ERR-RETRY-02`)**
+
+> **한 벌의 문법 = 「아이콘 + 왜 비었는지 + 무엇을 하면 되는지 + 나가는 문 하나」**(EMPTY-LAY-01). 하얀 빈 화면을 두지 않고, 설명에 **화면 이름**을 넣어 "여기가 원래 무엇을 보여주는 곳인지"를 남긴다(EMPTY-LAY-02).
+>
+> ⭐ **`ERR-RETRY-02·03`의 다른 쪽**: 조회는 화면 진입과 함께 저절로 일어나 다시 할 수단이 화면에 없다 → 그래서 `EmptyState`(조회 실패·오프라인)에는 **`[다시 시도]`를 만들어 준다.** (버튼을 눌러 실패한 것은 `InlineError`라 만들지 않는다 — Step 2.)
+
+- [ ] **Step 6a: 실패 테스트** — `test/widgets/empty_state_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/widgets/app_shell.dart';
+import 'package:hospital_patient_app/widgets/empty_state.dart';
+
+Widget _host(Widget child) => MaterialApp(home: Scaffold(body: child));
+
+void main() {
+  testWidgets('[EMPTY-LAY-01] 아이콘 + 설명 + 나가는 문 하나 — 하얀 빈 화면이 아니다', (t) async {
+    await t.pumpWidget(_host(EmptyState.error(onRetry: () {})));
+    expect(find.byType(Icon), findsOneWidget);         // 아이콘
+    expect(find.text('정보를 불러오지 못했습니다'), findsOneWidget); // 설명
+    expect(find.text('다시 시도'), findsOneWidget);      // 나가는 문
+  });
+
+  testWidgets('[EMPTY-LAY-02] 설명 문장에 화면 이름을 넣는다', (t) async {
+    await t.pumpWidget(_host(EmptyState.offline(screenName: '가족 목록', onRetry: () {})));
+    expect(find.text('연결되면 가족 목록을 볼 수 있습니다'), findsOneWidget);
+  });
+
+  testWidgets('[EMPTY-OFF-01] 오프라인 문구 3종', (t) async {
+    await t.pumpWidget(_host(EmptyState.offline(screenName: '이력', onRetry: () {})));
+    expect(find.text('인터넷이 연결되어 있지 않습니다'), findsOneWidget);
+    expect(find.text('연결되면 이력을 볼 수 있습니다'), findsOneWidget);
+    expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  testWidgets('[EMPTY-ERR-01] 서버 오류(조회 실패) 문구 3종', (t) async {
+    await t.pumpWidget(_host(EmptyState.error(onRetry: () {})));
+    expect(find.text('정보를 불러오지 못했습니다'), findsOneWidget);
+    expect(find.text('잠시 후 다시 시도해주세요'), findsOneWidget);
+    expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  testWidgets('[EMPTY-ZERO-01] 0건은 같은 문법 + 그 화면의 다음 행동', (t) async {
+    await t.pumpWidget(_host(EmptyState.zero(
+        message: '예약된 진료가 없습니다',
+        nextAction: FilledButton(onPressed: () {}, child: const Text('+ 새 예약하기')))));
+    expect(find.text('예약된 진료가 없습니다'), findsOneWidget);
+    expect(find.text('+ 새 예약하기'), findsOneWidget);
+  });
+
+  testWidgets('[EMPTY-ZERO-02] 할 일이 없는 화면(알림함)엔 [다시 시도]를 두지 않는다', (t) async {
+    await t.pumpWidget(_host(EmptyState.zero(message: '알림이 없습니다'))); // nextAction 없음
+    expect(find.text('알림이 없습니다'), findsOneWidget);
+    expect(find.text('다시 시도'), findsNothing); // 실패가 아니라 사실이므로
+  });
+
+  testWidgets('[ERR-RETRY-02] 조회 실패·오프라인엔 [다시 시도]를 만들고 누르면 콜백이 실행된다', (t) async {
+    var retried = 0;
+    await t.pumpWidget(_host(EmptyState.error(onRetry: () => retried++)));
+    await t.tap(find.text('다시 시도'));
+    expect(retried, 1);
+  });
+
+  testWidgets('[EMPTY-TAB-01] 하단 탭은 오프라인에도 눌린다 — 막지 않는다', (t) async {
+    var tabTapped = 0;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: AppShell(
+      body: EmptyState.offline(screenName: '이력', onRetry: () {}),
+      bottomTabs: Row(children: [
+        TextButton(onPressed: () => tabTapped++, child: const Text('예약')),
+      ]),
+    ))));
+    await t.tap(find.text('예약')); // 오프라인이어도
+    expect(tabTapped, 1);           // 눌린다
+  });
+
+  testWidgets('[EMPTY-TAB-02] 오프라인 탭을 눌러도 팝업으로 되돌리지 않는다', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: AppShell(
+      body: EmptyState.offline(screenName: '가족 목록', onRetry: () {}),
+      bottomTabs: Row(children: [
+        TextButton(onPressed: () {}, child: const Text('가족')),
+      ]),
+    ))));
+    await t.tap(find.text('가족'));
+    await t.pump();
+    expect(find.byType(Dialog), findsNothing);      // 팝업 없음
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+}
+```
+Run: `flutter test test/widgets/empty_state_test.dart` → Expected: FAIL(`empty_state.dart` 없음).
+
+- [ ] **Step 6b: `EmptyState` 구현** — `patient_app/lib/widgets/empty_state.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+
+/// 오프라인·서버 오류·0건을 **한 벌의 모양**으로 처리한다(EMPTY-LAY-01):
+/// 「아이콘 + 왜 비었는지 + (무엇을 하면 되는지) + 나가는 문 하나」. 하얀 빈 화면을 두지 않는다.
+class EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String message; // 설명 한 줄. 화면 이름을 넣는다(EMPTY-LAY-02).
+  final String? hint;   // 둘째 줄
+  final Widget? action; // 나가는 문/다음 행동. null이면 그리지 않는다(EMPTY-ZERO-02).
+
+  const EmptyState({
+    super.key,
+    required this.icon,
+    required this.message,
+    this.hint,
+    this.action,
+  });
+
+  /// EMPTY-OFF-01 — 오프라인. 조회 수단이 화면에 없으므로 [다시 시도]를 준다(ERR-RETRY-02).
+  factory EmptyState.offline({required String screenName, required VoidCallback onRetry}) =>
+      EmptyState(
+        icon: Icons.wifi_off,
+        message: '인터넷이 연결되어 있지 않습니다',
+        hint: '연결되면 $screenName을 볼 수 있습니다', // EMPTY-LAY-02
+        action: _RetryButton(onRetry),
+      );
+
+  /// EMPTY-ERR-01 — 서버 오류(조회 실패).
+  factory EmptyState.error({required VoidCallback onRetry}) => EmptyState(
+        icon: Icons.error_outline,
+        message: '정보를 불러오지 못했습니다',
+        hint: '잠시 후 다시 시도해주세요',
+        action: _RetryButton(onRetry),
+      );
+
+  /// EMPTY-ZERO-01 — 목록이 실제로 비어 있음. 같은 문법 + 그 화면의 다음 행동(`nextAction`).
+  /// EMPTY-ZERO-02 — 할 일이 없는 화면(알림함 등)은 `nextAction`을 주지 않는다 → 버튼도 [다시 시도]도 없다.
+  factory EmptyState.zero({required String message, Widget? nextAction}) => EmptyState(
+        icon: Icons.inbox_outlined,
+        message: message,
+        action: nextAction,
+      );
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: AppTokens.grayPending),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            if (hint != null) ...[
+              const SizedBox(height: 4),
+              Text(hint!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppTokens.grayPending)),
+            ],
+            if (action != null) ...[const SizedBox(height: 16), action!],
+          ],
+        ),
+      );
+}
+
+class _RetryButton extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _RetryButton(this.onRetry);
+  @override
+  Widget build(BuildContext context) =>
+      OutlinedButton(onPressed: onRetry, child: const Text('다시 시도'));
+}
+```
+Run: `flutter test test/widgets/empty_state_test.dart` → Expected: PASS(9 tests).
+
+> 📌 **`EMPTY-TAB-01·02`는 Task 11 `AppShell`의 계약을 확인한다** — 셸은 `bottomTabs`를 오프라인에도 그대로 렌더(비활성·팝업 없음)하고, 오프라인 화면은 탭을 막는 대신 그 자리에 `EmptyState.offline`을 보여준다. 위 두 테스트가 그 계약을 못박는다(T11은 주석으로만 언급 → 여기서 실제 검증).
+
+- [ ] **Step 7: `showBlockDialog` + `showExitConfirm` — 확인·막힘 팝업 (`BLOCK-EXIT-01` · `BLOCK-TIME-01` · `BLOCK-CONF-01` · `BLOCK-CHG-01` · `BTN-EXIT-01·02·03`)**
+
+> ⭐ **`showExitConfirm`은 `BTN-TIME-01`(시간제한 없음)의 탈출구다(BTN-EXIT-03)**: 앱이 시간을 재서 요청을 끊는 대신, 처리 중 이탈을 사람이 판단하게 한다. 그래서 본문은 **`나가셔도 신청은 계속 진행됩니다`**이지 ⛔`나가시면 신청이 취소됩니다`가 아니다(BTN-EXIT-02 — 거짓말이고 중복 예약을 만든다). ⚠️ **NAV-GLOBAL-06 위젯 = 이 함수**(Task 11 라우터가 처리 중 이탈 시 호출).
+
+- [ ] **Step 7a: 실패 테스트** — `test/widgets/block_dialog_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
+import 'package:hospital_patient_app/widgets/block_dialog.dart';
+
+/// 버튼을 눌러 다이얼로그를 띄우는 껍데기 — context를 얻기 위한 발판.
+Widget _launcher(void Function(BuildContext) onTap) => MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (ctx) =>
+              ElevatedButton(onPressed: () => onTap(ctx), child: const Text('열기')),
+        ),
+      ),
+    );
+
+void main() {
+  testWidgets('[BLOCK-EXIT-01] 모든 막힘 팝업에는 [닫기]가 있다', (t) async {
+    await t.pumpWidget(_launcher((ctx) =>
+        showBlockDialog(ctx, title: '점검 중입니다', message: '지금은 이용할 수 없습니다')));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    expect(find.text('닫기'), findsOneWidget);
+  });
+
+  testWidgets('[BLOCK-TIME-01] 소요 시간 추정 문구(곧·보통)는 assert로 막는다', (t) async {
+    await t.pumpWidget(_launcher((_) {}));
+    final ctx = t.element(find.text('열기'));
+    expect(() => showBlockDialog(ctx, title: '점검 중', message: '곧 복구됩니다'),
+        throwsAssertionError);
+    expect(() => showBlockDialog(ctx, title: '점검 중', message: '보통 1~2시간 걸립니다'),
+        throwsAssertionError);
+  });
+
+  testWidgets('[BLOCK-CONF-01] 되돌릴 수 없는 동작의 빨간 버튼은 확인창 안에만 있다', (t) async {
+    await t.pumpWidget(_launcher((ctx) => showBlockDialog(ctx,
+        title: '가족 연결을 해제할까요?',
+        message: '해제하면 이 가족의 예약을 대신 관리할 수 없습니다',
+        confirmLabel: '연결 해제',
+        destructive: true,
+        onConfirm: () {})));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    final btn = t.widget<TextButton>(find.ancestor(
+        of: find.text('연결 해제'), matching: find.byType(TextButton)));
+    expect(btn.style!.foregroundColor!.resolve({}), AppTokens.warn); // 확인창 안의 주의색 버튼
+  });
+
+  testWidgets('[BLOCK-CHG-01] 변경 확인창은 변경 전 → 후를 함께 보여준다', (t) async {
+    await t.pumpWidget(_launcher((ctx) => showBlockDialog(ctx,
+        title: '예약을 변경할까요?',
+        message: '아래 내용으로 변경됩니다',
+        before: '8월 20일(수) 오전 10:00',
+        after: '8월 21일(목) 오후 2:30',
+        confirmLabel: '변경하기',
+        onConfirm: () {})));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('8월 20일(수) 오전 10:00'), findsOneWidget); // 전
+    expect(find.textContaining('8월 21일(목) 오후 2:30'), findsOneWidget);  // 후
+  });
+
+  testWidgets('[BTN-EXIT-01] 처리 중 이탈 확인 — 제목·본문·[기다리기]·[나가기]', (t) async {
+    await t.pumpWidget(_launcher((ctx) => showExitConfirm(ctx)));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    expect(find.text('예약을 신청하는 중입니다'), findsOneWidget);
+    expect(find.text('나가셔도 신청은 계속 진행됩니다. 결과는 예약 목록에서 확인하실 수 있습니다.'),
+        findsOneWidget);
+    expect(find.text('기다리기'), findsOneWidget);
+    expect(find.text('나가기'), findsOneWidget);
+  });
+
+  testWidgets('[BTN-EXIT-02] 금지 문구 "나가시면 신청이 취소됩니다"를 쓰지 않는다', (t) async {
+    await t.pumpWidget(_launcher((ctx) => showExitConfirm(ctx)));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('취소됩니다'), findsNothing);
+  });
+
+  testWidgets('[BTN-EXIT-03] [나가기]는 시간제한 없는 대기의 탈출구 — true를 돌려준다', (t) async {
+    bool? result;
+    await t.pumpWidget(_launcher((ctx) async => result = await showExitConfirm(ctx)));
+    await t.tap(find.text('열기'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('나가기'));
+    await t.pumpAndSettle();
+    expect(result, isTrue); // 사람이 나가기를 택하면 이탈 허용(앱이 시간을 재지 않는다)
+  });
+}
+```
+Run: `flutter test test/widgets/block_dialog_test.dart` → Expected: FAIL(`block_dialog.dart` 없음).
+
+- [ ] **Step 7b: `showBlockDialog` + `showExitConfirm` 구현** — `patient_app/lib/widgets/block_dialog.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../core/tokens.dart';
+
+/// 막힘·확인 팝업. 어떤 경우에도 **빠져나갈 문([닫기])을 둔다**(BLOCK-EXIT-01 — 막다른 길 금지).
+///
+/// - `confirmLabel`을 주면 확인 버튼이 하나 더 생긴다. `destructive: true`면 그 버튼이 주의색이다
+///   (BLOCK-CONF-01: 되돌릴 수 없는 동작의 빨간 버튼은 확인창 안에서만).
+/// - `before`/`after`를 주면 변경 전 → 후를 함께 보여준다(BLOCK-CHG-01).
+/// - BLOCK-TIME-01: **소요 시간을 추정하는 문구(곧·보통)를 막는다** — 지킬 수 없는 약속이다.
+Future<void> showBlockDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String? before,
+  String? after,
+  String? confirmLabel,
+  VoidCallback? onConfirm,
+  bool destructive = false,
+}) {
+  assert(!_hasTimeEstimate(title) && !_hasTimeEstimate(message),
+      'BLOCK-TIME-01: 소요 시간을 추정하지 않는다(`곧`·`보통` 등 금지) — 지킬 수 없는 약속');
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(message),
+          if (before != null && after != null) ...[
+            const SizedBox(height: 12),
+            Text('변경 전   $before'),
+            Text('변경 후   $after'),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('닫기')),
+        if (confirmLabel != null)
+          TextButton(
+            style: destructive
+                ? TextButton.styleFrom(foregroundColor: AppTokens.warn)
+                : null,
+            onPressed: () {
+              Navigator.pop(ctx);
+              onConfirm?.call();
+            },
+            child: Text(confirmLabel),
+          ),
+      ],
+    ),
+  );
+}
+
+bool _hasTimeEstimate(String s) => s.contains('곧') || s.contains('보통');
+
+/// 처리 중 이탈 확인(BTN-EXIT-01). 앱이 시간을 재는 대신 사람이 판단하게 하는, `BTN-TIME-01`의
+/// 탈출구다(BTN-EXIT-03). [나가기]면 true, [기다리기]·바깥 탭이면 false.
+/// ⛔ BTN-EXIT-02: `나가시면 신청이 취소됩니다`를 쓰지 않는다 — 거짓말이고 중복 예약을 만든다.
+Future<bool> showExitConfirm(BuildContext context) async {
+  final r = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('예약을 신청하는 중입니다'),
+      content: const Text('나가셔도 신청은 계속 진행됩니다. 결과는 예약 목록에서 확인하실 수 있습니다.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('기다리기')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('나가기')),
+      ],
+    ),
+  );
+  return r ?? false;
+}
+```
+Run: `flutter test test/widgets/block_dialog_test.dart` → Expected: PASS(7 tests).
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add patient_app/lib/core/tokens.dart patient_app/lib/core/pending_request.dart \
+  patient_app/lib/core/phone_cooldown.dart \
+  patient_app/lib/widgets/action_button.dart patient_app/lib/widgets/inline_error.dart \
+  patient_app/lib/widgets/field_error.dart patient_app/lib/widgets/pending_request_card.dart \
+  patient_app/lib/widgets/cooldown_button.dart patient_app/lib/widgets/empty_state.dart \
+  patient_app/lib/widgets/block_dialog.dart patient_app/test/widgets/
+git commit -m "feat: 환자앱 Task 12 — 전역 공용 위젯(오류·버튼상태·쿨다운·유언장·빈상태·막힘팝업) 58규칙"
+```
+
+> 📌 **규칙 커버리지(58)**: `ERR-MSG-01·02`·`ERR-KIND-01`·`ERR-FLD-01~05`·`ERR-POS-01~03`·`ERR-GONE-01~03`·`ERR-RETRY-01~04`(18) · `BTN-SCOPE-01·02`·`BTN-BUSY-01·02`·`BTN-STATE-01~03`·`BTN-TIME-01`·`BTN-EXIT-01~03`·`BTN-KILL-01~07`·`BTN-COOL-01~10`(28) · `EMPTY-LAY-01·02`·`EMPTY-OFF-01`·`EMPTY-ERR-01`·`EMPTY-ZERO-01·02`·`EMPTY-TAB-01·02`(8) · `BLOCK-EXIT-01`·`BLOCK-TIME-01`·`BLOCK-CONF-01`·`BLOCK-CHG-01`(4).
+> ⚠️ **T11이 산문으로만 언급해 coverage에 잡혔던 6건**(`BTN-KILL-03·07`·`BTN-STATE-03`·`EMPTY-OFF-01`·`EMPTY-ERR-01`)을 여기서 **실제 `test()`로** 담아 가짜 커버(👻)를 실물로 바꿨다.
+> ⚠️ **화면 태스크(13~31)가 소비할 계약**: 저장·변경 버튼=`ActionButton`(busy·disabledReason는 화면 Notifier가 넘김) · 동작 실패=`InlineError(message)` · 입력 폼=`FieldTextInput`+`FieldErrorController.validateAll()` · 조회 실패/오프라인/0건=`EmptyState.error/offline/zero` · 예약 변경 확인=`showBlockDialog(before/after)` · 처리 중 이탈=`showExitConfirm` · 인증번호 재발송=`CooldownButton` · 미완료 신청 홈 카드=`PendingRequestCard`(예약·변경 경로가 `PendingRequestStore.begin/complete` 호출).
