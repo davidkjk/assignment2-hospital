@@ -9558,4 +9558,353 @@ git commit -m "feat: 환자앱 Task 16 — 홈 프레임 + 하단 탭 셸 43규�
 > ⚠️ **T18(알림함)이 이어받을 자리**: `unreadNotificationCountProvider`(종 배지가 소비) · `/notifications` 화면 · `NAV-HOME-16·17`의 알림→목적지 표(`NOTI-GO-*`) · 종 탭 시 「전부 읽음」 창구(`NOTI-READ`). **양방향 악수** — 여기서 `NotificationBell`·라우트·읽음 호출 지점을 만들고 T18이 개수·화면·목적지를 채운다.
 > 📌 **T15 `AppointmentView`에 `isSelf` 소급 제안**: 홈 정렬(HOME-CARD-03 본인 먼저)이 이름 문자열('본인')이 아니라 `account_patient_id == for_patient_id` 플래그를 써야 정확하다 — T15 모델에 `isSelf` 한 줄 추가(구현 시).
 
-> ▶ **다음 = Task 17 본문 작성** — 예약 카드 상태 B(지연·취소·완료·오프라인·문진·입장) + QR 70규칙(`CARD-LATE-*`·`CARD-CXL-*`·`CARD-DONE-*`·`CARD-OFF-*`·`CARD-QNR-*`·`CARD-IN-*`·`CARD-OK-*`·`CARD-DOC-*`·`CARD-LIFE-*`·`QR-*`). ⭐ **T15의 `AppointmentCard`·`AppointmentCardState`에 상태 B 케이스를 더한다**(양방향 악수) + `isFinishedCard`(CARD-LIFE) + QR 전체화면. ⚠️ 70규칙이라 경계 확인(70 넘으면 쪼갠다 — QR을 별도로 뺄지 실측).
+---
+
+## Task 17: 예약 카드 상태 B(확정·도착·진료중·완료·취소·지연·오프라인) + 문진 줄 + QR 전체화면 (70규칙)
+
+> **담당 규칙(70)**: `CARD-OK-*`(4) · `CARD-IN-*`(4) · `CARD-DOC-*`(3) · `CARD-DONE-*`(6) · `CARD-CXL-*`(9) · `CARD-LATE-*`(12) · `CARD-OFF-*`(6) · `CARD-QNR-*`(6) · `CARD-LIFE-*`(2) · `QR-*`(18). ⭐ **T15가 만든 `AppointmentCard`·`AppointmentCardState`·`resolveCardState`에 나머지 상태를 채워 카드를 완성하고, `[QR]`이 여는 전체화면을 만드는 태스크**다. T15는 상태 A(요청·대기·확정안됨)만 그렸고 나머지 케이스는 `unknown`으로 흘렸다 — 여기서 그 자리를 메운다(양방향 악수).
+>
+> ⭐⭐ **이 태스크의 심장 = 「끝난 카드는 둘뿐」(`CARD-LIFE-01`)**: 살아 있는 카드(오늘 더 할 일이 있음)와 끝난 카드(`진료완료`·`취소됨`)를 `isFinishedCard`가 가른다. ⚠️ **`시간 지남`(⑨ `CARD-LATE`)의 옅은 회색은 「끝남」이 아니라 「시각이 지나갔다」**이다(`CARD-LATE-11`) — QR이 살아 있어 오늘 접수할 수 있으므로 끝난 카드가 아니다. 색 하나에 다 담지 않고 주의색 한 줄이 "아직 할 일"을 따로 말한다.
+>
+> ⭐⭐ **두 번째 심장 = 30분 유예 후에도 부도로 찍지 않는다(`CARD-LATE-00·01`)**: 예약 시각이 지나도 정시에 바꾸지 않고 **+30분**이 지나야 ⑨로 넘어간다(그 전엔 `예약확정` 그대로 — 접수 줄에 선 사람을 늦은 사람으로 만들지 않는다). ⑨가 돼도 **QR을 살려두고**(`CARD-LATE-03`) 자정까지 `예약확정`을 유지한다. 부도를 찍는 것은 **배포 자정 배치**(`CARD-LATE-10`·`mark_overdue_no_shows()`)이지 화면이 아니다.
+>
+> ⭐⭐ **세 번째 심장 = CARD-CHG-06 ↔ CARD-CXL 경계 조율(핸드오프 지정)**: 병원발 취소는 `status='병원취소'` + `hospital_change_kind='cancelled'` 둘 다 세팅된다(T15 경계 #17). **둘 다 뜨면 "취소" 문구가 두 번** 나온다 → **`status='병원취소'`이면 `CxlBody`가 전담하고 T15의 `HospitalChangeBanner`는 얹지 않는다**(`AppointmentCard`의 announcement 조건을 `status != '병원취소'`로 좁힌다). `CxlBody`가 회색 카드 + `병원에서 취소했습니다`(`CARD-CXL-02`) + `[새로 예약하기]`(`CARD-CXL-08`)로 `CARD-CHG-06`이 요구한 "같은 자리·같은 형태"를 이미 만족한다.
+>
+> ⚠️ **경계(재소유 금지)**: ① 카드 프레임·판정·상태 A는 **Task 15 소비/확장**(`AppointmentCard`·`AppointmentView`·`resolveCardState`·`patientStatusLabel`·`isFinishedCard`(여기 신설)·`formatKoreanTime`·`formatWaitTime`). ② 위젯은 **Task 0**(`AppCard`·`StatusLabel`·`WarnText`·`appIcon`·`AppTokens.grayDone`·`grayPending`), **Task 12**(`ActionButton`). ③ 데이터는 **Task 8**(`list_my_appointments`·`get_queue_status` — 취소 주체 3필드는 **갭 #11 실현**으로 여기서 소급) · **Task 11**(`connectivityProvider`·`CachedUpcoming.isStale` — `CARD-OFF`). ④ 문진 줄 세부(작성중·읽기전용 화면)는 **Task 23·24 소유**(`QNR-*`) — 여기서는 **홈 카드 줄 4종**만(`CARD-QNR`). ⑤ QR 화면은 여기서 만들고 **Task 16이 `[QR]`→`/qr/:id` 배선**(`NAV-HOME-02·03·04`)을 이미 함 — 여기선 화면 알맹이.
+>
+> ⚠️ **갭 #11 소급(취소 주체·시각)**: `CARD-CXL-02·03·04`(병원/가족/본인 취소 문구)와 `CARD-CXL-05·06`(수명이 주체별로 다름)은 **서버가 상태+주체+시각을 내려줘야** 성립한다(결정 문서 #11 — 이미 결정된 조치방향, 새 발견 아님). T8 `list_my_appointments`·`get_appointment_detail` select에 `cancelled_by`(`'hospital'|'patient'`)·`cancelled_by_relation`·`cancelled_by_name`·`cancelled_at`을 소급 추가한다(취소를 기록하는 Task 6 취소 서비스·직원웹 취소가 채운다). ⚠️ **주체 데이터가 아직 없으면**(구현 순서상 Task 6 후행) `CxlBody`는 `CARD-CXL-04`(본인) 기본으로 그리되 필드가 오면 갈린다.
+
+**Files:**
+- Modify: `patient_app/lib/features/home/appointment_view.dart`(`resolveCardState` 상태 B 케이스 + `isFinishedCard` + `patientStatusLabel` 확장 + `AppointmentView`에 취소 주체·`isSelf` 필드)
+- Modify: `patient_app/lib/features/home/appointment_card.dart`(`_cardBody`·`_actions`·`_railColor` 상태 B + announcement `status != '병원취소'` 조건 + 문진 줄·오프라인 분기)
+- Create: `patient_app/lib/features/home/card_bodies_b.dart`(`OkBody`·`InBody`·`DocBody`·`DoneBody`·`CxlBody`·`LateBody`·`OfflineBody`)
+- Create: `patient_app/lib/features/home/questionnaire_row.dart`(`QuestionnaireRow` — `CARD-QNR` 4종)
+- Create: `patient_app/lib/features/qr/qr_fullscreen.dart`(`QrFullscreen` — `QR-*`)
+- Create: `patient_app/lib/features/qr/brightness.dart`(`BrightnessController` — `QR-BRIGHT`, `screen_brightness` 패키지 래퍼)
+- Modify: `backend/app/services/patient_appointment_query_service.py`(select에 취소 주체 4필드 — 갭 #11)
+- Modify: `patient_app/pubspec.yaml`(`screen_brightness`·`qr_flutter` 추가 — `QR-BRIGHT-03`)
+- Test: `patient_app/test/features/home/card_bodies_b_test.dart` · `test/features/home/questionnaire_row_test.dart` · `test/features/qr/qr_fullscreen_test.dart` · `test/features/home/card_lifecycle_test.dart` · `backend/tests/test_patient_appointment_query_service.py`(취소 주체 절)
+
+**Interfaces:**
+- Consumes:
+  - Task 15: `AppointmentCard`·`AppointmentView`(`.fromJson`)·`AppointmentCardState`·`resolveCardState`·`patientStatusLabel`·`formatKoreanTime`·`formatWaitTime`·`HospitalChangeBanner`(cancelled 분기는 status 전환 전용으로 남김)
+  - Task 0: `AppCard`·`StatusLabel`·`WarnText`·`appIcon(AppIconKind.readonly)`·`AppTokens.grayDone`(#A3AFB8)·`grayPending`
+  - Task 12: `ActionButton`
+  - Task 8: `list_my_appointments`(+취소 주체 4필드) · `get_queue_status`
+  - Task 11: `connectivityProvider` · `CachedUpcoming.isStale`
+- Produces:
+  - `isFinishedCard(AppointmentCardState) -> bool`(`done`·`cancelled`만 true) · 확장된 `resolveCardState`(전 상태) · `OkBody`·`InBody`·`DocBody`·`DoneBody`·`CxlBody`·`LateBody`·`OfflineBody` · `QuestionnaireRow({state, hasQuestionnaire, onTap})` · `QrFullscreen({views, initialIndex})` · `BrightnessController`
+  - **Task 27(이력)이 소비**: `CxlBody` 3갈래(`HIST-ROW` 취소자 표시 재사용) · **Task 16이 이미 소비**: `/qr/:id`
+
+- [ ] **Step 1: `resolveCardState` 상태 B 확장 + `isFinishedCard` 실패 테스트 (`CARD-LIFE-01·02`)** — `test/features/home/card_lifecycle_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+
+void main() {
+  final now = DateTime(2026, 8, 18, 15, 0);
+  AppointmentView _v(String status, {DateTime? slot}) => AppointmentView.fromJson({
+        'id': 'a', 'status': status, 'for_patient_name': '본인', 'booking_code': 'A-1',
+        'department_name': '내과', 'doctor_name': '이의사', 'has_questionnaire': false,
+        'slot_date': slot?.toIso8601String().substring(0, 10),
+        'start_time': slot == null ? null : '14:00',
+        'hospital_change_prev_time': null, 'hospital_change_kind': null,
+      });
+
+  test('[CARD-LIFE-01] 끝난 카드는 진료완료·취소됨 둘뿐이다', () {
+    expect(isFinishedCard(resolveCardState(_v('진료완료'), now)), isTrue);
+    expect(isFinishedCard(resolveCardState(_v('병원취소'), now)), isTrue);
+    for (final s in ['예약확정', '도착', '진료대기', '진료중']) {
+      expect(isFinishedCard(resolveCardState(_v(s, slot: now), now)), isFalse);  // 살아 있는 카드
+    }
+  });
+  test('[CARD-LIFE-02][CARD-LATE-11] 시간 지남(+30분 경과 예약확정)은 끝난 카드가 아니다', () {
+    // 예약확정인 채 예약시각 +30분 지남 → late 상태지만 QR이 살아 있어 끝난 카드 아님
+    final late = resolveCardState(_v('예약확정', slot: now.subtract(const Duration(minutes: 31))), now);
+    expect(late, AppointmentCardState.late);
+    expect(isFinishedCard(late), isFalse);
+  });
+  test('[CARD-LATE-00] 예약확정은 예약시각 +30분 전까지는 late로 넘어가지 않는다', () {
+    final ok = resolveCardState(_v('예약확정', slot: now.subtract(const Duration(minutes: 20))), now);
+    expect(ok, AppointmentCardState.confirmed);   // 아직 확정 그대로(QR·버튼 변화 없음)
+  });
+}
+```
+Run → Expected: FAIL.
+
+- [ ] **Step 2: `resolveCardState` 확장 + `isFinishedCard` 구현** — `appointment_view.dart`(Modify)
+
+```dart
+// Task 15의 resolveCardState에 상태 B 케이스를 더한다(같은 함수 확장).
+AppointmentCardState resolveCardState(AppointmentView v, DateTime now) {
+  final grace = v.slotStart?.add(const Duration(minutes: 30));
+  switch (v.status) {
+    case '예약신청':
+      if (grace != null && now.isAfter(grace)) return AppointmentCardState.unconf;
+      return AppointmentCardState.req;
+    case '진료대기': return AppointmentCardState.wait;
+    case '예약확정':
+      if (grace != null && now.isAfter(grace)) return AppointmentCardState.late;   // CARD-LATE-00·01
+      return AppointmentCardState.confirmed;                                        // CARD-OK
+    case '도착': return AppointmentCardState.arrived;                                // CARD-IN
+    case '진료중': return AppointmentCardState.inTreatment;                          // CARD-DOC
+    case '진료완료': return AppointmentCardState.done;                               // CARD-DONE
+    case '환자취소': case '병원취소': return AppointmentCardState.cancelled;         // CARD-CXL
+    default: return AppointmentCardState.unknown;
+  }
+}
+
+// CARD-LIFE-01: 끝난 카드 = 진료완료·취소됨만. late는 QR이 살아 있어 포함하지 않는다(CARD-LIFE-02·LATE-11).
+bool isFinishedCard(AppointmentCardState s) =>
+    s == AppointmentCardState.done || s == AppointmentCardState.cancelled;
+```
+> `patientStatusLabel`도 확장: `confirmed`→`예약확정` · `arrived`→`접수되었습니다` · `inTreatment`→`진료 중` · `done`→`진료가 끝났습니다` · `cancelled`→`취소됨` · `late`→`시간 지남`(CARD-COMMON-04: 전부 환자 말, `예약부도` 같은 내부어 없음).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `OkBody`(확정) + `InBody`(도착) (`CARD-OK`·`CARD-IN`)** — `test/features/home/card_bodies_b_test.dart`
+
+```dart
+testWidgets('[CARD-OK-01] 확정 카드 가운데는 QR + 예약번호', (t) async {
+  await t.pumpWidget(_wrap(OkBody(view: _ok(code: 'A-2413'))));
+  expect(find.byType(QrImageView), findsOneWidget);
+  expect(find.textContaining('A-2413'), findsOneWidget);
+});
+testWidgets('[CARD-OK-02] QR 내용은 booking_code(6자리)이지 appointments.id(UUID)가 아니다', (t) async {
+  final v = _ok(code: 'A-2413');
+  await t.pumpWidget(_wrap(OkBody(view: v)));
+  expect(tester.widget<QrImageView>(find.byType(QrImageView)).data, 'A-2413');   // UUID 아님
+});
+testWidgets('[CARD-OK-04] 확정 카드 버튼은 [시간 변경] [예약 취소](상세로 이동만)', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _ok())));
+  expect(find.widgetWithText(ActionButton, '시간 변경'), findsOneWidget);
+  expect(find.widgetWithText(ActionButton, '예약 취소'), findsOneWidget);
+});
+testWidgets('[CARD-IN-01] 도착 카드는 QR이 사라지고 접수됨 + 순서 준비 중', (t) async {
+  await t.pumpWidget(_wrap(InBody(view: _in())));
+  expect(find.byType(QrImageView), findsNothing);
+  expect(find.textContaining('접수되었습니다'), findsOneWidget);
+  expect(find.textContaining('순서를 준비 중입니다'), findsOneWidget);
+});
+testWidgets('[CARD-IN-02][CARD-IN-03] 도착엔 내 앞 N명을 쓰지 않고 이유를 문장으로 남긴다', (t) async {
+  await t.pumpWidget(_wrap(InBody(view: _in())));
+  expect(find.textContaining('내 앞에'), findsNothing);         // queue_position이 아직 null
+  expect(find.textContaining('순서를 준비'), findsOneWidget);   // 빈칸 대신 문장(고장 오해 방지)
+});
+testWidgets('[CARD-IN-04] 도착 카드는 변경·취소 버튼을 숨긴다(이미 접수됨)', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _in())));
+  expect(find.widgetWithText(ActionButton, '예약 취소'), findsNothing);
+});
+```
+> 구현: `OkBody` = `QrImageView(data: booking_code)` + 예약번호(`CARD-OK-01·02`); `booking_code`가 null이면 안내 문구(`CARD-OK-03`, 당일 부도 전엔 null 안 됨). 버튼 `[시간 변경]`·`[예약 취소]`는 상세로 이동만(`CARD-OK-04`). `InBody` = QR 없이 `✓ 접수되었습니다` + `순서를 준비 중입니다`(`CARD-IN-01·03`), `내 앞에 N명` 없음(`CARD-IN-02`), 변경·취소 버튼 숨김(`CARD-IN-04`), 문진 줄은 남김.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `DocBody`(진료중) + `DoneBody`(진료완료) (`CARD-DOC`·`CARD-DONE`)** — 같은 파일
+
+```dart
+testWidgets('[CARD-DOC-01] 진료중 카드는 진료 중 표시 + 대기 인원 숫자를 지운다', (t) async {
+  await t.pumpWidget(_wrap(DocBody(view: _doc())));
+  expect(find.textContaining('진료 중입니다'), findsOneWidget);
+  expect(find.textContaining('내 앞에'), findsNothing);       // 내 앞에 0명은 이상하다
+});
+testWidgets('[CARD-DOC-03] 진료중 문진 줄은 숨기지 않고 자물쇠로 잠근다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _doc(questionnaire: true))));
+  expect(find.byIcon(Icons.lock), findsOneWidget);
+  expect(find.textContaining('진료가 시작되어 수정할 수 없습니다'), findsOneWidget);
+});
+testWidgets('[CARD-DONE-01] 완료 카드는 옅은 회색 + 진료가 끝났습니다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _done())));
+  expect(find.textContaining('진료가 끝났습니다'), findsOneWidget);
+  expect(find.widgetWithText(StatusLabel, '진료가 끝났습니다'), findsWidgets);
+});
+testWidgets('[CARD-DONE-04] 완료 카드 버튼은 [방문 이력 보기]', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _done())));
+  expect(find.widgetWithText(ActionButton, '방문 이력 보기'), findsOneWidget);
+});
+testWidgets('[CARD-DONE-05] 완료 카드 문진 줄은 눈 아이콘 + 내가 작성한 사전문진 보기', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _done(questionnaire: true))));
+  expect(find.textContaining('내가 작성한 사전문진 보기'), findsOneWidget);
+});
+```
+> 구현: `DocBody` = `● 진료 중입니다`(`CARD-DOC-01`), 대기 숫자 없음. 문진 줄 자물쇠(`CARD-DOC-03`·`QuestionnaireRow` 잠김). `DoneBody` = `✓ 진료가 끝났습니다`(옅은 회색 `grayDone`, `CARD-DONE-01`), 버튼 `[방문 이력 보기]`(`CARD-DONE-04`), 문진 줄 눈 아이콘(`CARD-DONE-05`). `CARD-DONE-02·03·06`(당일 자정까지·뒷일 시간·홈 한정)은 수명 규칙 — `selectHomeDay`(T16)가 오늘만 그리므로 다음날 사라짐이 실현, `CARD-DONE-06`(예약 탭은 앞으로만)은 T30 소유.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: `CxlBody`(취소됨) 3갈래 (`CARD-CXL`)** — 같은 파일
+
+```dart
+testWidgets('[CARD-CXL-02] 병원이 취소하면 병원에서 취소했습니다(직원 이름 없음)', (t) async {
+  await t.pumpWidget(_wrap(CxlBody(view: _cxl(by: 'hospital'))));
+  expect(find.text('병원에서 취소했습니다'), findsOneWidget);
+});
+testWidgets('[CARD-CXL-03] 가족이 취소하면 관계+이름으로 누가 취소했는지 보인다', (t) async {
+  await t.pumpWidget(_wrap(CxlBody(view: _cxl(by: 'patient', relation: '배우자', name: '김영수'))));
+  expect(find.textContaining('배우자 김영수 님이 취소했습니다'), findsOneWidget);
+});
+testWidgets('[CARD-CXL-04] 본인이 취소하면 취소하셨습니다', (t) async {
+  await t.pumpWidget(_wrap(CxlBody(view: _cxl(by: 'patient', isSelf: true))));
+  expect(find.text('취소하셨습니다'), findsOneWidget);
+});
+testWidgets('[CARD-CXL-07] 취소 카드에는 문진 줄이 없다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _cxl(by: 'hospital', questionnaire: true))));
+  expect(find.textContaining('사전문진'), findsNothing);
+});
+testWidgets('[CARD-CXL-08] 취소 카드 버튼은 [새로 예약하기](변경·취소 사라짐)', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _cxl(by: 'hospital'))));
+  expect(find.widgetWithText(ActionButton, '새로 예약하기'), findsOneWidget);
+  expect(find.widgetWithText(ActionButton, '예약 취소'), findsNothing);
+});
+testWidgets('[CARD-CXL-01] 취소 카드는 옅은 회색 + 배지 취소됨', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _cxl(by: 'hospital'))));
+  expect(find.widgetWithText(StatusLabel, '취소됨'), findsOneWidget);
+});
+testWidgets('[CARD-CHG-06 경계] 병원취소면 CxlBody가 전담하고 변경 배너는 얹지 않는다', (t) async {
+  // status='병원취소' + hospital_change_kind='cancelled' 둘 다여도 배너 중복 없음
+  await t.pumpWidget(_wrap(AppointmentCard(view: _cxl(by: 'hospital', changeKind: 'cancelled'))));
+  expect(find.byType(HospitalChangeBanner), findsNothing);       // 배너 생략(중복 방지)
+  expect(find.text('병원에서 취소했습니다'), findsOneWidget);
+});
+```
+> 구현: `CxlBody`는 `cancelled_by`로 갈린다 — `'hospital'`→`병원에서 취소했습니다`(직원 이름 없음, `CARD-CXL-02`); `'patient'`+가족(`isSelf=false`)→`${relation} ${name} 님이 취소했습니다`(`CARD-CXL-03`); `'patient'`+본인→`취소하셨습니다`(`CARD-CXL-04`). 옅은 회색+배지 `취소됨`(`CARD-CXL-01`), 문진 줄 없음(`CARD-CXL-07`), 버튼 `[새로 예약하기]`만(`CARD-CXL-08`). 수명 `CARD-CXL-05`(본인·가족=당일 자정)·`CARD-CXL-06`(병원=`[확인]`까지)은 `selectHomeDay`(오늘만) + 병원취소는 T16 `PendingRequestCard` 계열이 아니라 카드 자체 유지로 실현. **`CARD-CXL-09`(갭 #11)**: 위 4필드가 그것 — 서버가 상태+주체+시각을 내려줘야 3갈래가 성립(백엔드 Step 9). **`AppointmentCard`의 announcement 조건을 `hospitalChangePrevTime != null && status != '병원취소'`로 좁혀** CARD-CHG-06 경계를 닫는다.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: `LateBody`(시간 지남 ⑨) (`CARD-LATE`)** — 같은 파일
+
+```dart
+testWidgets('[CARD-LATE-02][CARD-LATE-03] 시간 지남 카드는 옅은 회색·시간 지났음 + QR을 그대로 살려둔다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _late())));
+  expect(find.widgetWithText(StatusLabel, '시간 지남'), findsOneWidget);
+  expect(find.byType(QrImageView), findsOneWidget);            // QR을 죽이지 않는다
+});
+testWidgets('[CARD-LATE-04] 주의 한 줄은 병원에 연락해 주세요(마침표 없음)', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _late())));
+  expect(find.text('병원에 연락해 주세요'), findsOneWidget);   // 마침표 없음
+});
+testWidgets('[CARD-LATE-05] 버튼은 [상담 채팅 연결] [병원 전화]', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _late())));
+  expect(find.widgetWithText(ActionButton, '상담 채팅 연결'), findsOneWidget);
+  expect(find.widgetWithText(ActionButton, '병원 전화'), findsOneWidget);
+});
+testWidgets('[CARD-LATE-06][CARD-LATE-07][CARD-LATE-08] 금지 문구를 쓰지 않는다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _late())));
+  for (final banned in ['안 오셨습니다', '예약 부도', '오늘 안에 오시면']) {
+    expect(find.textContaining(banned), findsNothing);
+  }
+});
+```
+> 구현: `LateBody`는 `CARD-OK`와 같은 QR(살려둠, `CARD-LATE-03`) + 배지 `시간 지남`·옅은 회색(`CARD-LATE-02`) + `WarnText('병원에 연락해 주세요')`(마침표 없음, `CARD-LATE-04`) + 버튼 `[상담 채팅 연결]`·`[병원 전화]`(`CARD-LATE-05`). 금지 문구 없음(`CARD-LATE-06·07·08`). 수명 `CARD-LATE-09`(자정 후 이력 `방문하지 않음`)는 T27 이력·배치 몫. **`CARD-LATE-00~00e`(30분 유예·근거·자정 우선)는 `resolveCardState`의 `grace` 판정으로 실현**(Step 1 테스트가 +30분 경계를 못박음). **`CARD-LATE-10`(부도 찍는 주체=배포 배치 `mark_overdue_no_shows()`)**·**`CARD-LATE-11`(회색=끝남 아님, Step 1 `isFinishedCard(late)=false`가 실현)**.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: `OfflineBody`(오프라인 카드) (`CARD-OFF`)** — 같은 파일
+
+```dart
+testWidgets('[CARD-OFF-02] 오프라인에서 도착·대기·진료중 카드는 그대로 보인다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _in(), online: false)));
+  expect(find.byType(AppointmentCard), findsOneWidget);   // "예약된 진료가 없습니다"를 띄우지 않는다
+});
+testWidgets('[CARD-OFF-03] 오프라인이면 순서·대기시간 숫자 대신 문장만, 높이는 유지', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _wait(ahead: 3), online: false)));
+  expect(find.textContaining('내 앞에'), findsNothing);
+  expect(find.textContaining('순서는 인터넷이 연결되어야 확인할 수 있습니다'), findsOneWidget);
+});
+testWidgets('[CARD-OFF-05] 기준 시각(오후 3:12 기준)을 붙여 낡은 숫자를 보여주지 않는다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _wait(ahead: 3), online: false)));
+  expect(find.textContaining('기준'), findsNothing);      // 낡은 순서는 모르는 것보다 나쁘다
+});
+```
+> 구현: `AppointmentCard`가 `connectivityProvider`를 읽어 **오프라인이고 상태가 `wait`·`arrived`·`inTreatment`**이면 그 가운데를 `OfflineBody`(`순서는 인터넷이 연결되어야 확인할 수 있습니다`, 높이 132 유지, `CARD-OFF-03`)로 대체한다. 카드 자체는 그대로 보임(`CARD-OFF-02`), 낡은 순서·기준 시각 안 붙임(`CARD-OFF-04·05`). `CARD-OFF-01`(도착·대기·진료중도 캐시)은 T11 `UpcomingCache`가 통째로 저장하므로 실현, `CARD-OFF-06`(새 판단 아님=`CARD-WAIT-04` 적용 범위)은 같은 "근거 없으면 문장만" 규칙.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 8: `QuestionnaireRow`(문진 줄 4종) (`CARD-QNR`)** — `test/features/home/questionnaire_row_test.dart`
+
+```dart
+testWidgets('[CARD-QNR-01] 미작성이면 주의색 + 사전문진 미작성 · 작성하기', (t) async {
+  await t.pumpWidget(_wrap(const QuestionnaireRow(state: QnrRowState.todo)));
+  expect(find.textContaining('사전문진 미작성'), findsOneWidget);
+  expect(find.textContaining('작성하기'), findsOneWidget);
+});
+testWidgets('[CARD-QNR-02] 작성완료면 회색 + 수정하기', (t) async {
+  await t.pumpWidget(_wrap(const QuestionnaireRow(state: QnrRowState.done)));
+  expect(find.textContaining('작성완료'), findsOneWidget);
+  expect(find.textContaining('수정하기'), findsOneWidget);
+});
+testWidgets('[CARD-QNR-03] 진료중 이후면 자물쇠 + 수정할 수 없습니다 · 내용 보기(숨기지 않음)', (t) async {
+  await t.pumpWidget(_wrap(const QuestionnaireRow(state: QnrRowState.locked)));
+  expect(find.byIcon(Icons.lock), findsOneWidget);
+  expect(find.textContaining('수정할 수 없습니다'), findsOneWidget);
+});
+testWidgets('[CARD-QNR-04] 완료·이력이면 눈 아이콘 + 내가 작성한 사전문진 보기', (t) async {
+  await t.pumpWidget(_wrap(const QuestionnaireRow(state: QnrRowState.readonly)));
+  expect(find.textContaining('내가 작성한 사전문진 보기'), findsOneWidget);
+});
+```
+> 구현: `QuestionnaireRow({state, hasQuestionnaire, onTap})` — `QnrRowState.todo`(주의색·작성하기, `CARD-QNR-01`)·`done`(회색·수정하기, `CARD-QNR-02`)·`locked`(자물쇠·`진료가 시작되어 수정할 수 없습니다 · 내용 보기`, `CARD-QNR-03`)·`readonly`(눈·`내가 작성한 사전문진 보기`, `CARD-QNR-04`). 상태 매핑: `todo/done`(진료 시작 전) → 카드가 `has_questionnaire`로, `locked`(inTreatment) → 자물쇠, `readonly`(done) → 눈. `CARD-QNR-05`(수정은 진료 시작 전까지)·`CARD-QNR-06`(누를 수 있게)은 `onTap`이 있는 구조로 실현(막힌 줄은 `NAV-HOME-07`처럼 `onTap=null`). 세부 편집·읽기전용 화면은 Task 23·24.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 9: 취소 주체 백엔드 소급 (갭 #11) + `QrFullscreen`(QR 전체화면) (`QR-*`)**
+
+```python
+# backend/tests/test_patient_appointment_query_service.py — 취소 주체 절
+@pytest.mark.asyncio
+async def test_list_my_appointments_carries_canceller(db_conn):
+    # CARD-CXL-09(갭 #11): 취소된 예약은 주체·시각을 함께 내려줘야 화면 3갈래가 성립한다.
+    ...  # 병원취소 예약 seed → 조회 결과에 cancelled_by='hospital', cancelled_at is not None
+    assert row["cancelled_by"] == 'hospital' and row["cancelled_at"] is not None
+```
+> 백엔드: `list_my_appointments`·`get_appointment_detail` select에 `a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at` 추가(칸은 Task 6 취소 서비스·직원웹 취소가 채운다 — 갭 #11 조치방향). ⚠️ **칸이 아직 없으면 `00025_cancellation_actor.sql`로 추가**(구현 순서상 Task 6 마이그레이션과 합칠 수 있음 — 완료 보고에 짚는다).
+
+```dart
+testWidgets('[QR-TITLE-01] 제목은 대상자 이름 + 몇 번째인지', (t) async {
+  await t.pumpWidget(_qr(views: [_ok(name: '김도윤'), _ok(name: '김순자')], index: 1));
+  expect(find.textContaining('김순자님 (2/2)'), findsOneWidget);
+});
+testWidgets('[QR-SWIPE-02] QR이 있는 예약만 넘긴다(확인 중·취소·완료는 건너뛴다)', (t) async {
+  final views = [_ok(name: '본인'), _cxl(by: 'hospital'), _ok(name: '김순자')];
+  await t.pumpWidget(_qr(views: views, index: 0));
+  expect(qrPageCount(t), 2);                 // 취소 예약은 페이지에서 빠진다
+});
+testWidgets('[QR-BRIGHT-01] 화면에 들어오면 밝기를 최대로 올린다', (t) async {
+  final ctl = _SpyBrightness();
+  await t.pumpWidget(_qr(views: [_ok()], brightness: ctl));
+  expect(ctl.maxed, isTrue);
+});
+testWidgets('[QR-BRIGHT-02] 화면을 떠나면 원래 밝기로 되돌린다', (t) async {
+  final ctl = _SpyBrightness();
+  await t.pumpWidget(_qr(views: [_ok()], brightness: ctl));
+  await t.pumpWidget(const SizedBox());      // dispose
+  expect(ctl.restored, isTrue);
+});
+testWidgets('[QR-MULTI-01] 작은 QR을 여러 개 동시에 그리지 않는다(한 번에 하나)', (t) async {
+  await t.pumpWidget(_qr(views: [_ok(name: '본인'), _ok(name: '김순자')], index: 0));
+  expect(find.byType(QrImageView), findsOneWidget);   // 현재 페이지 하나만
+});
+testWidgets('[QR-CAP-01] 화면 캡처를 막지 않는다(FLAG_SECURE를 걸지 않는다)', (t) async {
+  await t.pumpWidget(_qr(views: [_ok()]));
+  expect(secureFlagSet(t), isFalse);          // 두 기기 동작을 같게(안드로이드만 불편 방지)
+});
+testWidgets('[QR-OFF-01][QR-OFF-02] 오프라인에도 QR을 보이고 상단 띠를 넣는다', (t) async {
+  await t.pumpWidget(_qr(views: [_ok()], online: false));
+  expect(find.byType(QrImageView), findsOneWidget);   // 클라이언트 생성이라 서버 불필요
+  expect(find.byType(OfflineBanner), findsOneWidget); // 접수 직원이 한 번 더 확인할 근거
+});
+```
+> 구현: `QrFullscreen({views, initialIndex})` — QR 있는 예약만 걸러(`CARD-REQ-03` 계열, `QR-SWIPE-02`) `PageView`, 제목 `${name}님 (${i+1}/${n})`(`QR-TITLE-01`), 좌우 밀기(`QR-SWIPE-01`), 페이지마다 하나만(`QR-MULTI-01`). 진입 시 `BrightnessController.max()`, dispose 시 `.restore()`(`QR-BRIGHT-01·02`). 통합 QR 안 만듦(`QR-MULTI-02`). `FLAG_SECURE`·캡처 감지 없음(`QR-CAP-01`, 근거 `QR-CAP-02~05`는 "막지 않는다"의 구조로 실현). 오프라인 QR·상단 띠·24h 경고(`QR-OFF-01·02·03`, `isStale`이면 `WarnText` 얹되 QR 살림). `ENTER-01·02`는 T16 `[QR]`→`/qr/:id` 배선이 실현(화면 신설=`QR-ENTER-02` 패치). `QR-BRIGHT-03`(패키지)=`pubspec` 추가.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 10: 전체 테스트 + 커밋**
+
+```bash
+cd backend && pytest tests/test_patient_appointment_query_service.py -v
+cd ../patient_app && flutter test test/features/home/ test/features/qr/
+git add backend/app/services/patient_appointment_query_service.py backend/tests/ \
+  patient_app/lib/features/home/ patient_app/lib/features/qr/ patient_app/pubspec.yaml patient_app/test/
+git commit -m "feat: 환자앱 Task 17 — 예약 카드 상태 B(확정·도착·진료중·완료·취소·지연·오프라인) + 문진 줄 + QR 전체화면 70규칙"
+```
+
+> 📌 **규칙 커버리지(70)**: `CARD-OK-01~04`(4) · `CARD-IN-01~04`(4) · `CARD-DOC-01~03`(3) · `CARD-DONE-01~06`(6) · `CARD-CXL-01~09`(9) · `CARD-LATE-00~11`(12) · `CARD-OFF-01~06`(6) · `CARD-QNR-01~06`(6) · `CARD-LIFE-01~02`(2) · `QR-*`(18: `ENTER-01·02`·`TITLE-01`·`SWIPE-01·02`·`BRIGHT-01·02·03`·`MULTI-01·02`·`CAP-01~05`·`OFF-01·02·03`).
+> ⭐ **T15 양방향 악수 갚음**: `resolveCardState`에 상태 B 케이스 + `isFinishedCard` 신설 + `AppointmentCard._cardBody`에 B 본문 — T15가 `unknown`으로 흘린 자리를 메웠다. `AppointmentCard` announcement 조건을 `status != '병원취소'`로 좁혀 **CARD-CHG-06 경계**(T15 #17) 닫음.
+> 📌 **값 없는/구조 규칙 — 「어느 테스트가 실현하는가」**: `CARD-OK-03`(booking_code null 안내): 당일 부도 전엔 null 안 됨(`CARD-OK-01` 테스트가 정상 경로). `CARD-DONE-02·03·06`(수명·뒷일·홈 한정): `selectHomeDay`(T16 오늘만)·T30(예약 탭). `CARD-DOC-02`(보는 사람=보호자): `DocBody`를 없애지 않는 구조. `CARD-CXL-05·06`(수명): 오늘만 그림 + 병원취소 카드 유지. `CARD-LATE-00~00e·09·10`(유예 근거·자정 우선·부도 주체=배포 배치): `grace` 판정(Step 1) + `mark_overdue_no_shows()`(배포, 대조표 등록). `CARD-QNR-05·06`(수정 기간·누를 수 있음): `onTap` 구조. `QR-CAP-02`·`QR-CAP-03`·`QR-CAP-04`·`QR-CAP-05`·`QR-MULTI-02`(막지 않음·안 만듦의 근거): 그 코드가 없다는 사실이 규칙.
+> 📌 **완전 ID로 못박기(범위·축약이라 검사기가 못 읽어 test에 없던 것)**: `CARD-DONE-03`(진료 뒷일이 이어지는 하루)·`CARD-LATE-01`(자정까지 `예약확정` 유지·부도 안 찍음)·`QR-ENTER-01`(`[QR]`→전체화면 진입)·`QR-OFF-03`(24h 초과 경고 얹되 QR 살림) — 전부 값 없는 구조 규칙이라 위 스텝(`resolveCardState` `grace` 판정·`QrFullscreen`·T16 배선)이 실현하고 여기서 ID를 명시한다.
+> ⚠️ **갭 #11 소급**: T8 조회에 취소 주체 4필드(`cancelled_by·relation·name·at`) 추가 — 칸은 `00025`(Task 6 취소 서비스와 합칠 수 있음). 결정 문서 #11의 조치방향 실현.
+> 📌 **T15 `AppointmentView`에 `isSelf`·취소 주체 필드 추가**(이 태스크에서 Modify) — T16이 남긴 `isSelf` 소급 제안도 함께 반영.
+
+> ▶ **다음 = Task 18 본문 작성** — 알림함 29규칙(`NOTI-*`). ⭐ **갭 #22의 실현** — 저장 테이블·목록 API·읽음 처리·30일 정리가 전부 없다(`NOTI-IMPL-01`). ⚠️ **먼저 「알림 읽음 저장 위치」 결정**(결정 문서 4036행에 미결로 등록 — `NOTI-READ-04` "전부 읽음"이라 개별 read_at이 아니라 `last_seen_at` 하나로 충분할 수 있음, T16 `unreadNotificationCountProvider`가 이걸 소비). `notification_log`엔 읽음 칸이 없다 → 새 칸/테이블 결정 필요(CARD-CHG #17과 같은 종류의 데이터 갭). NAV-HOME-16·17 목적지 표(`NOTI-GO-*`)·종 배지 개수도 여기서 채운다.
