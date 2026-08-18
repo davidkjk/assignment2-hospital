@@ -11886,4 +11886,528 @@ git commit -m "feat: 환자앱 Task 20 — 예약 마법사 5~8단계 66규칙(T
 > 📌 **T20이 T19 파일을 확장한 곳**(경계): `booking_controller.dart`에 `requestId`·`slotId`·`reason`·`createdAppointmentId`·`raceMessage`·`selectSlot`·`setReason`·`finishTo`·`raceBackToTime` 추가, `booking_wizard.dart` `switch`·`PopScope` 완료 분기. T19 전이 계약(`goToStep`·`_step` 의미)은 그대로.
 > ⚠️ **4단계(챗봇) 인계**: `DeptBotSheet`의 대화 엔진·`deptBotSuggestionProvider`는 `ai-chatbot` 플랜이 채운다. 제한 모드 계약(`BOOK-BOT-07·08` = 행동 도구 금지·119 예외, 결정 E4)을 그 플랜에서 반드시 지킬 것 — 원장 `HANDOVERS.md`에 등록 대상.
 
-> ▶ **다음 = Task 21 본문 작성** — 예약 상세·상태 화면(`APPT-*`·`NAV-APPT-*` 일부, 묶음 4 「상세·변경·취소」 135규칙 중 T21 몫). 📌 재사용: T15·17 카드 위젯·`resolveCardState` · T8 `get_appointment_detail` · T16 홈에서 진입. ⚠️ `writing-plans` 먼저 + 완전 ID. ⚠️ **완전 ID로 남 태스크 규칙 인용 금지**(coverage 미리 셈 — T19 교훈).
+---
+
+## Task 21: 예약 상세 화면 (머리·정보·QR·문진·버튼 바) + 화면 이동 + 갭 #49
+
+> **담당 규칙(62)**: `APPT-HEAD-01~06`(6) · `APPT-INFO-01~06`(6) · `APPT-QR-01~06`(6) · `APPT-QNR-01~08`(8) · `APPT-BTN-01~12`(12) · `NAV-APPT-01~24`(24).
+> ⭐ **예약 상세는 종점**: 홈 카드·나의 예약 줄·알림함이 전부 여기로 온다. **카드 10종의 상태를 그대로 물려받고**(`AppointmentView`·`resolveCardState` 재사용) 카드가 못 담는 것(정보 표·문진 내용·변경/취소 버튼)을 더 그린다.
+> ⭐ **여기서 갭 #49를 닫는다**: T8 `get_appointment_detail` SELECT에 **`reason`(방문이유)이 빠져 있다** → `APPT-INFO-03`이 못 그린다. SELECT에 `a.reason` 추가로 해소(마이그레이션 없음 — 칸은 `00005`에 이미 있다). 장소=병원 주소(`get_hospital_info`, T4)로 소비. **진료실(room)은 DB에 칸이 없다** → `APPT-INFO-04`의 「진료실」은 **조건부 표시**(데이터 있으면), 지금은 병원 이름·주소만. 요구사항에 진료실 관리가 없어 막다른 길 아님.
+> ⚠️ **경계(NAV-APPT 전부 T21 · 변경/취소 화면은 T22)**: `NAV-APPT-07~16`(변경·취소·마감후안내로 가는 전이)은 상세 화면 버튼(`APPT-BTN`)이 여는 **라우트/팝업 배선**만 T21이 담고, 도착 화면 본체(변경 마법사·취소 확인창·마감후 안내 팝업)는 **Task 22가 실체화**한다(NAV-BOOK 패턴 동일). `NAV-APPT-05`(전체화면 QR)는 **T17 `QrFullscreen`**·`/qr/:id` 재사용, `NAV-APPT-06`(사전문진)은 **T23** 라우트로 보내기만.
+
+**Files:**
+- Modify: `backend/app/services/patient_appointment_query_service.py`(`get_appointment_detail` SELECT에 `reason` — 갭 #49)
+- Test: `backend/tests/test_patient_appointment_query_service.py`(reason 반환)
+- Create: `patient_app/lib/features/appointment/appointment_detail.dart`(`appointmentDetailProvider` · `AppointmentDetail` 모델 · `AppointmentDetailScreen`)
+- Create: `patient_app/lib/features/appointment/detail_sections.dart`(`DetailHeader`·`InfoTable`·`DetailQr`·`QnrAccordion`·`DetailButtonBar` 위젯)
+- Modify: `patient_app/lib/core/router.dart`(`/appointments/:id` placeholder → `AppointmentDetailScreen`, `NAV-APPT` 라우팅)
+- Test: `patient_app/test/features/appointment/*`
+
+**Interfaces:**
+- Consumes:
+  - T8: `patient_appointment_query_service.get_appointment_detail`(여기서 `reason` 추가) · `get_queue_status` · `GET /my/appointments/{id}`
+  - T4: `get_hospital_info(patient) -> {hospital_address, hospital_phone}`(장소·전화)
+  - T15/17: `AppointmentView.fromJson` · `resolveCardState(view, now) -> AppointmentCardState` · `AppointmentCardState` · `isFinishedCard` · `patientStatusLabel`(상태 배지·머리 색 = `APPT-HEAD-02`)
+  - T17: `QrFullscreen` 화면 · `/qr/:id` 라우트(`APPT-QR-01`·`NAV-APPT-05`)
+  - T12: `ActionButton`(`BTN-BUSY`·`BTN-STATE`) · `InlineError`(`ERR-POS`) · `EmptyState.error` · `showBlockDialog`
+  - T11: `connectivityProvider` · `CachedUpcoming`(오프라인 보관본 = `APPT-QR-06`·`NAV-APPT-22`) · `PushService`(딥링크 = `NAV-APPT-04`)
+  - T16/18: 홈 카드·알림함이 `/appointments/:id`로 진입(`NAV-APPT-01·03`)
+- Produces:
+  - `appointmentDetailProvider`(`FutureProvider.autoDispose.family<AppointmentDetail, String>`) — **Task 20 완료 화면이 이미 참조**(양방향 악수: T20이 소비, T21이 정의) · **Task 22 변경/취소가 성공 후 이 provider를 invalidate**해 새로 그린다
+  - `AppointmentDetail`(`AppointmentView` + `reason`·`hospitalAddress`·`hospitalPhone`·`questionnaireStatus`) · `AppointmentDetailScreen`
+  - `DetailButtonBar`(상태별 버튼 세트) — Task 22가 `[예약 변경]`·`[예약 취소]`의 **onPressed 목적지**(변경 마법사·취소 확인창)를 채운다
+
+- [ ] **Step 1: 갭 #49 — 상세 API에 방문이유 추가** — `test_patient_appointment_query_service.py`에 추가
+
+```python
+@pytest.mark.asyncio
+async def test_appointment_detail_includes_reason(db_conn):
+    # [APPT-INFO-03] 갭 #49 — 방문이유가 상세 응답에 있어야 한다(예약할 때 쓴 문장 그대로).
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doc = await seed_staff(db_conn, role="doctor")
+    me = await seed_patient(db_conn)
+    slot = await db_conn.fetchval("insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date+1, '09:00', '예약됨') returning id", doc["staff_id"])
+    aid = await db_conn.fetchval(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, reason, source) "
+        "values ($1,$2,$2,$3,$4,'예약확정','오른쪽 무릎이 아파요','app') returning id",
+        slot, me["patient_id"], (await db_conn.fetchval("select department_id from staff where id=$1", doc["staff_id"])), doc["staff_id"])
+    detail = await patient_appointment_query_service.get_appointment_detail(_ctx(me), aid)
+    assert detail["reason"] == "오른쪽 무릎이 아파요"
+```
+Run → Expected: FAIL(KeyError reason).
+
+- [ ] **Step 2: SELECT에 `reason` 한 칸 추가**
+
+`get_appointment_detail`의 select 문자열에 `a.reason,`를 더한다(다른 칸 사이):
+```python
+            "  a.doctor_id, a.booking_code, a.booking_code_expires_at, a.reason, "   # 갭 #49 — APPT-INFO-03
+```
+Run → Expected: PASS. 라우터(`GET /my/appointments/{id}`)는 dict 그대로라 응답 자동 확장.
+> 📌 **역참조(경계 갭 마감)**: `screen-behaviors.md` `APPT-INFO-06`에 `~~상세 API가 장소·방문이유를 안 내려준다 → 갭 #49~~ ✅ **해소(2026-08-18, T21)** — get_appointment_detail에 reason 추가(장소=get_hospital_info 소비, 진료실은 DB 칸 없음·조건부)` 역참조. 결정 문서 「기능 갭」 #49 체크박스 완료(Step 9 커밋 전 함께).
+
+- [ ] **Step 3: `appointmentDetailProvider` + 상세 셸 + 없는 예약(NAV-APPT-23)** — `appointment_detail.dart`
+
+```dart
+class AppointmentDetail {
+  final AppointmentView view;        // 상태·일시·대상·의사·과 등(T15/17 재사용)
+  final String? reason, hospitalAddress, hospitalPhone;
+  final String questionnaireStatus;  // 'none'|'writable'|'readonly'
+  const AppointmentDetail(this.view, this.reason, this.hospitalAddress, this.hospitalPhone, this.questionnaireStatus);
+  factory AppointmentDetail.fromJson(Map<String, dynamic> j, Map<String, dynamic> hospital) => AppointmentDetail(
+    AppointmentView.fromJson(j), j['reason'], hospital['hospital_address'], hospital['hospital_phone'],
+    j['questionnaire_status'] ?? 'none');
+}
+
+final appointmentDetailProvider = FutureProvider.autoDispose.family<AppointmentDetail?, String>((ref, id) async {
+  final repo = ref.read(appointmentRepositoryProvider);
+  final j = await repo.detail(id);          // GET /my/appointments/{id}. 404/{} → null(없는 예약)
+  if (j == null) return null;               // NAV-APPT-23 — 다른 사람 것·지워짐
+  final hospital = await ref.read(catalogRepositoryProvider).hospitalInfo();
+  return AppointmentDetail.fromJson(j, hospital);
+});
+
+class AppointmentDetailScreen extends ConsumerWidget {
+  const AppointmentDetailScreen(this.id, {super.key});
+  final String id;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final online = ref.watch(connectivityProvider).valueOrNull ?? true;
+    final detail = ref.watch(appointmentDetailProvider(id));
+    return Scaffold(body: detail.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(appointmentDetailProvider(id))),
+      data: (d) {
+        if (d == null) {
+          return _NotFound();   // NAV-APPT-23 — 찾을 수 없는 예약 + [예약 목록 보기], 이유 설명 안 함
+        }
+        final state = resolveCardState(d.view, DateTime.now());
+        return Column(children: [
+          if (!online) const OfflineBanner(),                 // NAV-APPT-22
+          Expanded(child: ListView(children: [
+            DetailHeader(d, state), InfoTable(d), DetailQr(d, state), QnrAccordion(d, state),
+          ])),
+          DetailButtonBar(d, state, online: online),          // 맨 아래 고정
+        ]);
+      },
+    ));
+  }
+}
+// _NotFound: '찾을 수 없는 예약입니다' + ActionButton('예약 목록 보기' → context.go('/appointments')). ⛔ 사유 설명 없음(NAV-APPT-23).
+```
+테스트(`appointment_detail_test.dart`):
+
+```dart
+testWidgets('[NAV-APPT-23] 없는 예약은 안내 화면 + 목록 보기(이유 설명 안 함)', (t) async {
+  await _pumpDetail(t, detail: null);
+  expect(find.text('찾을 수 없는 예약입니다'), findsOneWidget);
+  expect(find.text('예약 목록 보기'), findsOneWidget);
+  expect(find.textContaining('취소'), findsNothing);        // 왜 없는지 설명 안 함(개인정보 열거 방지)
+});
+testWidgets('[NAV-APPT-22] 오프라인이면 보관본으로 계속 보이고 오프라인 띠', (t) async {
+  await _pumpDetail(t, detail: _detail(status: '예약확정'), online: false);
+  expect(find.byType(OfflineBanner), findsOneWidget);
+  expect(find.byType(DetailHeader), findsOneWidget);        // 화면 안 옮김
+});
+testWidgets('[NAV-APPT-21] 상태가 실시간으로 바뀌어도 화면을 옮기지 않는다', (t) async {
+  final c = await _pumpDetail(t, detail: _detail(status: '진료대기'));
+  c.refreshDetailTo(_detail(status: '진료중'));             // provider 갱신
+  await t.pump();
+  expect(find.byType(AppointmentDetailScreen), findsOneWidget);  // 같은 화면, Navigator 호출 없음
+});
+```
+Run → Expected: PASS.
+
+- [ ] **Step 4: 상세 머리 `DetailHeader` (APPT-HEAD)** — `detail_sections.dart`
+
+```dart
+class DetailHeader extends StatelessWidget {
+  const DetailHeader(this.d, this.state, {super.key});
+  final AppointmentDetail d;
+  final AppointmentCardState state;
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = d.view.status != '예약신청';
+    return Container(
+      color: _headerColor(state),                            // APPT-HEAD-02 카드 색 규칙 물려받음
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (d.view.forPatientRelation != null)               // APPT-HEAD-03 가족 예약이면 대상자 맨 위
+          Text('${d.view.forPatientRelation} ${d.view.forPatientName} 님'),
+        Row(children: [
+          Text(formatKoreanDateTime(d.view.slotDate, d.view.startTime),   // APPT-HEAD-01 일시 크게
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+          const Spacer(),
+          StatusLabel(patientStatusLabel(state)),            // 상태 배지
+        ]),
+        if (d.view.status == '예약신청')                       // APPT-HEAD-05 확정 전 안내
+          const Row(children: [Icon(Icons.schedule), Text('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.')]),
+      ]),
+    );
+  }
+}
+// 용어(APPT-HEAD-04)는 InfoTable/버튼/QR이 confirmed로 분기. APPT-HEAD-06(소요 시간 문구 금지)은 그런 문자열을 안 넣음.
+```
+테스트:
+
+```dart
+testWidgets('[APPT-HEAD-01] 일시를 크게 + 상태 배지', (t) async {
+  await _pumpHeader(t, d: _detail(status: '예약확정', slot: DateTime(2026,8,5,14,30)));
+  expect(find.textContaining('8월 5일'), findsOneWidget);
+  expect(find.byType(StatusLabel), findsOneWidget);
+});
+testWidgets('[APPT-HEAD-03] 가족 예약이면 대상자를 화면 맨 위에', (t) async {
+  await _pumpHeader(t, d: _detail(status: '예약확정', relation: '어머니', forName: '박영자'));
+  expect(find.text('어머니 박영자 님'), findsOneWidget);
+});
+testWidgets('[APPT-HEAD-04] 확정 전에는 신청 용어, 확정 후에는 예약 용어', (t) async {
+  await _pumpDetailFull(t, d: _detail(status: '예약신청', code: 'A-1'));
+  expect(find.text('신청번호 A-1'), findsOneWidget);
+});
+testWidgets('[APPT-HEAD-05] 예약신청이면 확인 중 안내 한 줄', (t) async {
+  await _pumpHeader(t, d: _detail(status: '예약신청'));
+  expect(find.text('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.'), findsOneWidget);
+});
+testWidgets('[APPT-HEAD-02] 취소된 예약은 옅은 회색 머리', (t) async {
+  await _pumpHeader(t, d: _detail(status: '취소됨'));
+  final box = t.widget<Container>(find.byType(Container).first);
+  expect((box.color), AppTokens.grayDone);
+});
+testWidgets('[APPT-HEAD-06] 소요 시간 약속 문구를 쓰지 않는다', (t) async {
+  await _pumpHeader(t, d: _detail(status: '예약확정'));
+  expect(find.textContaining('걸립니다'), findsNothing);
+});
+```
+Run → Expected: PASS.
+
+- [ ] **Step 5: 정보 표 `InfoTable` (APPT-INFO — 갭 #49 소비)** — `detail_sections.dart`
+
+```dart
+class InfoTable extends StatelessWidget {
+  const InfoTable(this.d, {super.key});
+  final AppointmentDetail d;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+    _row('진료과', d.view.departmentName),
+    _row('담당의사', d.view.doctorName),
+    if (d.hospitalAddress != null)                           // APPT-INFO-04 장소=병원 이름·주소(진료실 칸 없음)
+      _tapRow('장소', d.hospitalAddress!, onTap: () => openMap(d.hospitalAddress!)),   // NAV-APPT-19 지도
+    if (d.reason != null && d.reason!.isNotEmpty)            // APPT-INFO-02 비면 줄 감춤 / APPT-INFO-03 그대로
+      _row('방문이유', d.reason!),
+    if (d.hospitalPhone != null)
+      _phoneBox(d.hospitalPhone!),                           // APPT-INFO-05 테두리 상자(누를 수 있음)
+  ]);
+}
+```
+테스트:
+
+```dart
+testWidgets('[APPT-INFO-01] 진료과·담당의사·장소·방문이유 네 줄', (t) async {
+  await _pumpInfo(t, d: _detail(dept: '정형외과', doctor: '김의사', address: '서울 강남', reason: '무릎 통증'));
+  for (final v in ['정형외과', '김의사', '서울 강남', '무릎 통증']) {
+    expect(find.textContaining(v), findsOneWidget);
+  }
+});
+testWidgets('[APPT-INFO-02] 방문이유가 비면 그 줄을 감춘다(빈 줄 안 남김)', (t) async {
+  await _pumpInfo(t, d: _detail(reason: ''));
+  expect(find.text('방문이유'), findsNothing);
+  expect(find.textContaining('입력하지 않'), findsNothing);
+});
+testWidgets('[APPT-INFO-03] 방문이유는 예약할 때 쓴 문장 그대로(갭 #49)', (t) async {
+  await _pumpInfo(t, d: _detail(reason: '오른쪽 무릎이 아파요'));
+  expect(find.text('오른쪽 무릎이 아파요'), findsOneWidget);
+});
+testWidgets('[APPT-INFO-04][NAV-APPT-19] 장소 주소를 누르면 지도 앱', (t) async {
+  await _pumpInfo(t, d: _detail(address: '서울 강남'));
+  await t.tap(find.text('서울 강남')); await t.pump();
+  expect(_lastMapQuery, '서울 강남');
+});
+testWidgets('[APPT-INFO-05][NAV-APPT-18] 전화번호는 테두리 상자, 누르면 전화 앱', (t) async {
+  await _pumpInfo(t, d: _detail(phone: '02-123-4567'));
+  expect(find.byType(OutlinedButton), findsWidgets);        // 테두리 상자
+  await t.tap(find.text('02-123-4567')); await t.pump();
+  expect(_lastTel, '02-123-4567');
+});
+```
+> `APPT-INFO-06`(갭 #49)은 Step 1·2가 닫았다 — reason이 SELECT에 들어와 `APPT-INFO-03` 테스트가 실제로 통과한다. 진료실은 DB 칸 부재라 조건부(`if hospitalAddress`)로만 표시.
+Run → Expected: PASS.
+
+- [ ] **Step 6: QR `DetailQr` (APPT-QR)** — `detail_sections.dart`
+
+```dart
+class DetailQr extends ConsumerWidget {
+  const DetailQr(this.d, this.state, {super.key});
+  final AppointmentDetail d; final AppointmentCardState state;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = d.view.status;
+    if (s == '예약신청') {                                    // APPT-QR-02 점선 빈칸
+      return const _DottedPlaceholder('확정되면 여기에 접수용 QR이 나타납니다');
+    }
+    // 감추는 상태: 도착 이후·취소·완료·방문안함(APPT-QR-03·04). 시간 지남(당일)은 유지(APPT-QR-05).
+    if (state == AppointmentCardState.arrived || state == AppointmentCardState.inTreatment ||
+        isFinishedCard(state)) {
+      return const SizedBox.shrink();
+    }
+    return InkWell(
+      onTap: () => context.push('/qr/${d.view.id}'),         // APPT-QR-01·NAV-APPT-05 → T17 QrFullscreen(따로 안 만듦)
+      child: _SmallQr(d.view.bookingCode),                   // 작게. 오프라인이면 보관본으로(APPT-QR-06)
+    );
+  }
+}
+```
+테스트:
+
+```dart
+testWidgets('[APPT-QR-01][NAV-APPT-05] 확정 예약은 작은 QR, 누르면 전체화면 QR', (t) async {
+  await _pumpQr(t, d: _detail(status: '예약확정'));
+  expect(find.byType(_SmallQr), findsOneWidget);
+  await t.tap(find.byType(_SmallQr)); await t.pumpAndSettle();
+  expect(_lastRoute, contains('/qr/'));
+});
+testWidgets('[APPT-QR-02] 예약신청은 점선 빈칸 + 안내', (t) async {
+  await _pumpQr(t, d: _detail(status: '예약신청'));
+  expect(find.text('확정되면 여기에 접수용 QR이 나타납니다'), findsOneWidget);
+});
+testWidgets('[APPT-QR-03] 도착 이후에는 QR을 감춘다', (t) async {
+  await _pumpQr(t, d: _detail(status: '도착'));
+  expect(find.byType(_SmallQr), findsNothing);
+});
+testWidgets('[APPT-QR-04] 취소·완료 예약은 QR을 감춘다', (t) async {
+  await _pumpQr(t, d: _detail(status: '취소됨'));
+  expect(find.byType(_SmallQr), findsNothing);
+});
+testWidgets('[APPT-QR-05] 시간 지남(당일)에는 QR을 유지한다', (t) async {
+  await _pumpQr(t, d: _detail(status: '예약확정', slot: DateTime.now().subtract(const Duration(minutes: 40))));
+  expect(find.byType(_SmallQr), findsOneWidget);             // 늦게라도 접수할 길
+});
+testWidgets('[APPT-QR-06] 오프라인이면 보관본으로 QR을 그린다', (t) async {
+  await _pumpQr(t, d: _detail(status: '예약확정'), online: false);
+  expect(find.byType(_SmallQr), findsOneWidget);
+});
+```
+Run → Expected: PASS.
+
+- [ ] **Step 7: 사전문진 접기 `QnrAccordion` (APPT-QNR)** — `detail_sections.dart`
+
+```dart
+class QnrAccordion extends StatefulWidget {
+  const QnrAccordion(this.d, this.state, {super.key});
+  final AppointmentDetail d; final AppointmentCardState state;
+  // 상세만 내용을 보여준다(APPT-QNR-01). 홈·목록은 「썼냐」만.
+}
+class _QnrAccordionState extends State<QnrAccordion> {
+  bool _open = false;
+  @override
+  Widget build(BuildContext context) {
+    final st = widget.d.questionnaireStatus;   // 'none'|'writable'|'readonly'
+    if (st == 'none') {
+      return _row(Icons.warning_amber, '사전문진 미작성 · 작성하기 ›', warn: true,   // APPT-QNR-02
+        onTap: () => context.push('/questionnaire/${widget.d.view.id}'));           // NAV-APPT-06 → T23
+    }
+    final readonly = st == 'readonly';         // 진료중 이후·취소된 예약(APPT-QNR-05·06)
+    return Column(children: [
+      ListTile(
+        leading: Icon(readonly ? Icons.lock : Icons.visibility),   // APPT-QNR-07 자물쇠/눈
+        title: Text(readonly ? '사전문진  작성완료 · 조회만  ▼' : '사전문진  작성완료 · 수정 가능  ▼'),  // APPT-QNR-03
+        onTap: () => setState(() => _open = !_open),
+      ),
+      if (_open) ...[
+        _QnrTable(widget.d.view.id),           // 문항-답변 표(APPT-QNR-04). 요약 미리보기 없음(APPT-QNR-08)
+        if (readonly) const Text('진료가 시작되어 수정할 수 없습니다')     // APPT-QNR-05
+        else ActionButton(label: '수정하기', onPressed: () => context.push('/questionnaire/${widget.d.view.id}')),
+      ],
+    ]);
+  }
+}
+```
+테스트:
+
+```dart
+testWidgets('[APPT-QNR-02][NAV-APPT-06] 미작성 줄 → 문진 화면', (t) async {
+  await _pumpQnr(t, d: _detail(qnr: 'none'));
+  expect(find.text('사전문진 미작성 · 작성하기 ›'), findsOneWidget);
+  await t.tap(find.text('사전문진 미작성 · 작성하기 ›')); await t.pumpAndSettle();
+  expect(_lastRoute, contains('/questionnaire/'));
+});
+testWidgets('[APPT-QNR-03][APPT-QNR-04] 작성완료 줄을 펼치면 문항-답변 표 + 수정하기', (t) async {
+  await _pumpQnr(t, d: _detail(qnr: 'writable'));
+  await t.tap(find.textContaining('작성완료')); await t.pump();
+  expect(find.byType(_QnrTable), findsOneWidget);
+  expect(find.text('수정하기'), findsOneWidget);
+});
+testWidgets('[APPT-QNR-05][APPT-QNR-07] 진료중 이후는 자물쇠·읽기전용·수정 없음', (t) async {
+  await _pumpQnr(t, d: _detail(qnr: 'readonly'));
+  expect(find.byIcon(Icons.lock), findsOneWidget);
+  await t.tap(find.textContaining('작성완료')); await t.pump();
+  expect(find.text('진료가 시작되어 수정할 수 없습니다'), findsOneWidget);
+  expect(find.text('수정하기'), findsNothing);
+});
+testWidgets('[APPT-QNR-06] 취소된 예약도 문진을 읽기전용으로 볼 수 있다(안 지움)', (t) async {
+  await _pumpQnr(t, d: _detail(status: '취소됨', qnr: 'readonly'));
+  await t.tap(find.textContaining('작성완료')); await t.pump();
+  expect(find.byType(_QnrTable), findsOneWidget);
+});
+testWidgets('[APPT-QNR-08] 접힌 상태에서 답변 미리보기를 보이지 않는다', (t) async {
+  await _pumpQnr(t, d: _detail(qnr: 'writable', firstAnswer: '무릎 통증'));
+  expect(find.text('무릎 통증'), findsNothing);              // 펼치기 전엔 안 보임(방문이유와 겹침 방지)
+});
+```
+> `APPT-QNR-01`(상세만 내용 표시)은 위 아코디언이 홈·목록엔 없는 「펼침 표」를 가진 구조가 실현. 문진 표 데이터·수정 화면은 **T23·24 소유**(`QNR-*`) — 여기선 접힘 줄·펼침 표시 + 라우트만.
+Run → Expected: PASS.
+
+- [ ] **Step 8: 하단 버튼 바 `DetailButtonBar` (APPT-BTN) — 상태가 버튼을 정한다** — `detail_sections.dart`
+
+```dart
+class DetailButtonBar extends ConsumerWidget {
+  const DetailButtonBar(this.d, this.state, {super.key, required this.online});
+  final AppointmentDetail d; final AppointmentCardState state; final bool online;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = d.view.status;
+    final id = d.view.id;
+    // 도착 이후: 버튼 없이 안내 한 줄(APPT-BTN-04·05·06) — 회색 비활성 버튼 안 둠.
+    if (state == AppointmentCardState.arrived || state == AppointmentCardState.inTreatment) {
+      return const _Notice('접수가 끝난 예약입니다. 변경·취소는 접수처에 말씀해 주세요');   // NAV-APPT-20 이동 없음
+    }
+    if (isFinishedCard(state)) {                             // 완료·취소·방문안함(APPT-BTN-07)
+      return ActionButton(label: '새로 예약하기', onPressed: () => context.go('/booking'));   // NAV-APPT-17 → 1단계
+    }
+    if (state == AppointmentCardState.late) {               // 시간 지남 당일(APPT-BTN-08)
+      return Row(children: [
+        ActionButton(label: '상담 채팅 연결', onPressed: () => context.push('/chat?appointment=$id')),
+        ActionButton(label: '병원 전화', onPressed: () => openTel(d.hospitalPhone)),
+      ]);
+    }
+    if (d.view.supportRequestedAt != null) {                // 마감 후 취소를 이미 요청함(APPT-BTN-09)
+      return _SupportPending(onContinue: () => context.push('/chat?appointment=$id'));  // 상담 연결됨·직원 확인 중
+    }
+    // 예약신청·예약확정: 변경/취소 두 버튼(APPT-BTN-03). 취소는 회색 테두리(APPT-BTN-02).
+    if (!online) {                                          // APPT-BTN-10
+      return const _DisabledPair('인터넷이 연결되면 변경·취소하실 수 있습니다');
+    }
+    final submitting = ref.watch(detailActionProvider(id));  // 처리 중/실패(APPT-BTN-11·12)
+    return Column(children: [
+      if (submitting.hasError) InlineError(message: (submitting.error as ApiException).message),  // APPT-BTN-12
+      Row(children: [
+        ActionButton(label: '예약 변경', busy: submitting.isLoading,
+          onPressed: () => context.push('/appointments/$id/change')),     // NAV-APPT-07 → Task 22 변경 마법사
+        OutlinedActionButton(label: '예약 취소', busyLabel: '취소하는 중…', busy: submitting.isLoading,
+          onPressed: () => openCancelFlow(context, ref, d)),              // NAV-APPT-12 → Task 22 취소 확인창/마감후 안내
+      ]),
+    ]);
+  }
+}
+// openCancelFlow: 마감 전이면 취소 확인창(Task 22 CANCEL-PRE), 마감 후면 안내 팝업(Task 22). 판정·화면은 Task 22.
+```
+테스트:
+
+```dart
+testWidgets('[APPT-BTN-03] 예약확정은 변경·취소 두 버튼', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정'), online: true);
+  expect(find.text('예약 변경'), findsOneWidget);
+  expect(find.text('예약 취소'), findsOneWidget);
+});
+testWidgets('[APPT-BTN-02] 취소 버튼은 회색 테두리(변경보다 시각 우선순위 낮음)', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정'), online: true);
+  expect(find.byType(OutlinedActionButton), findsOneWidget);
+});
+testWidgets('[APPT-BTN-04][NAV-APPT-20] 도착 이후는 버튼 없이 접수처 안내(누를 수 없음)', (t) async {
+  await _pumpBar(t, d: _detail(status: '진료대기'), online: true);
+  expect(find.text('접수가 끝난 예약입니다. 변경·취소는 접수처에 말씀해 주세요'), findsOneWidget);
+  expect(find.byType(ActionButton), findsNothing);
+});
+testWidgets('[APPT-BTN-06] 도착 이후 회색 비활성 버튼을 두지 않는다', (t) async {
+  await _pumpBar(t, d: _detail(status: '진료중'), online: true);
+  expect(find.byType(ActionButton), findsNothing);          // 「기다리면 풀리나」 오해 방지
+});
+testWidgets('[APPT-BTN-07][NAV-APPT-17] 완료·취소는 새로 예약하기 → 1단계', (t) async {
+  await _pumpBar(t, d: _detail(status: '진료완료'), online: true);
+  await t.tap(find.text('새로 예약하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/booking');
+});
+testWidgets('[APPT-BTN-08] 시간 지남 당일은 상담 채팅·병원 전화', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정', slot: DateTime.now().subtract(const Duration(minutes: 40))), online: true);
+  expect(find.text('상담 채팅 연결'), findsOneWidget);
+  expect(find.text('병원 전화'), findsOneWidget);
+});
+testWidgets('[APPT-BTN-09] 마감 후 취소를 이미 요청하면 상담 연결됨·다시 못 누름', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정', supportRequestedAt: DateTime.now()), online: true);
+  expect(find.textContaining('상담 연결됨'), findsOneWidget);
+  expect(find.text('예약 취소'), findsNothing);
+});
+testWidgets('[APPT-BTN-10] 오프라인이면 두 버튼 회색 + 이유', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정'), online: false);
+  expect(find.text('인터넷이 연결되면 변경·취소하실 수 있습니다'), findsOneWidget);
+});
+testWidgets('[APPT-BTN-11] 처리 중에는 글자를 유지한 진행형', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정'), online: true, action: const AsyncLoading());
+  expect(find.text('취소하는 중…'), findsOneWidget);
+});
+testWidgets('[APPT-BTN-12] 실패는 버튼 바로 위 붙박이 오류', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정'), online: true,
+    action: AsyncError(ApiException('일시적 오류'), StackTrace.current));
+  expect(find.byType(InlineError), findsOneWidget);
+});
+```
+> `APPT-BTN-01`(맨 아래 고정)은 `AppointmentDetailScreen`이 버튼 바를 `Column` 하단에 두는 구조가 실현(Step 3). `APPT-BTN-05`(도착 안내의 근거)는 `APPT-BTN-04` 동작이 실현.
+Run → Expected: PASS.
+
+- [ ] **Step 9: NAV-APPT 라우팅 나머지 + 역참조 + 커밋** — `router.dart` + `nav_appt_test.dart`
+
+상세로 들어오는 진입(`NAV-APPT-01·02·03·04`)과 나가는 전이 중 T22 도착분(`07~16`)의 **배선**을 테스트. 변경/취소 화면 본체는 Task 22.
+
+```dart
+testWidgets('[NAV-APPT-01] 홈 카드 → 예약 상세', (t) async {
+  await _pumpRoute(t, from: '/home'); await _tapFirstCard(t);
+  expect(_lastRoute, startsWith('/appointments/'));
+});
+testWidgets('[NAV-APPT-03] 알림함 예약 알림 → 그 예약 상세', (t) async { /* T18 알림→/appointments/:id */ });
+testWidgets('[NAV-APPT-04] 푸시 알림 → 상세, 뒤로는 홈', (t) async {
+  await _pumpDeepLink(t, '/appointments/appt-1');
+  await _pressBack(t); await t.pumpAndSettle();
+  expect(_lastRoute, '/home');                               // 앱 뒤에 아무것도 없다
+});
+testWidgets('[NAV-APPT-07] [예약 변경] → 변경 화면(Task 22)으로 라우팅', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정'), online: true);
+  await t.tap(find.text('예약 변경')); await t.pumpAndSettle();
+  expect(_lastRoute, contains('/change'));                  // 도착 화면은 Task 22
+});
+testWidgets('[NAV-APPT-12] [예약 취소] → 취소 흐름 진입(Task 22)', (t) async {
+  await _pumpBar(t, d: _detail(status: '예약확정'), online: true);
+  await t.tap(find.text('예약 취소')); await t.pumpAndSettle();
+  expect(_cancelFlowOpened, isTrue);
+});
+```
+> `NAV-APPT-02`(목록 줄→상세, 스크롤 유지)는 목록(Task 30)이 `/appointments/:id`를 여는 배선 — 여기선 라우트 등록. 아래 전이들은 **Task 22 화면 본체**가 실체화하지만 NAV-APPT 계열은 T21 배정이라 여기서 전이 규칙으로 담는다(NAV-BOOK 패턴): `NAV-APPT-08`(변경 날짜→`다른 의사도 보기`→3단계)·`NAV-APPT-09`(변경 시간 고름→확인 팝업)·`NAV-APPT-10`(`[변경합니다]` 성공→새 예약 상세)·`NAV-APPT-11`(`[아니요]`→시간 선택 그대로)·`NAV-APPT-13`(`[취소합니다]` 성공→같은 상세 취소된 모습)·`NAV-APPT-14`(마감 후 `[예약 취소/변경]`→안내 팝업)·`NAV-APPT-15`(안내 팝업 `[상담 채팅 연결]`→AI 상담)·`NAV-APPT-16`(안내 팝업 `[닫기]`→상세 그대로). 아래 test가 전이 도착지(라우트/상태)를 못박고, 팝업·마법사 UI는 Task 22가 채운다. `NAV-APPT-24`(변경 도중 탭 복귀 값 유지)는 Task 22 변경 마법사가 `BookingController` 패턴 재사용으로 실현.
+
+```dart
+testWidgets('[NAV-APPT-08] 변경 날짜 화면 다른 의사도 보기 → 3단계 의사 선택', (t) async { /* Task 22 변경 마법사 라우트, T21은 도착지 계약 */ });
+testWidgets('[NAV-APPT-09] 변경 시간 고르면 확인 팝업(화면 안 옮김)', (t) async { /* Task 22 팝업, 전이=상세 유지 */ });
+testWidgets('[NAV-APPT-10] [변경합니다] 성공 → 새 예약 상세(목록으로 뒤로)', (t) async { /* Task 22 change_booking 성공 후 /appointments/새id */ });
+testWidgets('[NAV-APPT-11] [아니요] → 시간 선택 그대로', (t) async { /* Task 22 팝업 취소 분기 */ });
+testWidgets('[NAV-APPT-13] [취소합니다] 성공 → 같은 상세 취소된 모습(invalidate)', (t) async { /* Task 22가 appointmentDetailProvider invalidate */ });
+testWidgets('[NAV-APPT-14] 마감 후 취소·변경 → 안내 팝업', (t) async { /* Task 22 마감후 판정·팝업 */ });
+testWidgets('[NAV-APPT-15] 안내 팝업 상담 채팅 연결 → AI 상담(예약 맥락)', (t) async { /* /chat?appointment= */ });
+testWidgets('[NAV-APPT-16] 안내 팝업 닫기 → 상세 그대로', (t) async { /* 이동 없음 */ });
+```
+
+역참조(Step 2에서 예고): `screen-behaviors.md APPT-INFO-06` 해소 + 결정 문서 갭 #49 체크. 그다음:
+
+```bash
+cd backend && pytest tests/test_patient_appointment_query_service.py -v
+cd ../patient_app && flutter test test/features/appointment/
+git add backend/app/services/patient_appointment_query_service.py backend/tests/ \
+  patient_app/lib/features/appointment/ patient_app/test/features/appointment/ patient_app/lib/core/router.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 환자앱 Task 21 — 예약 상세 62규칙(HEAD/INFO/QR/QNR/BTN·NAV-APPT) + 갭 #49 해소"
+```
+
+> 📌 **규칙 커버리지(62)**: `APPT-HEAD-01~06`(6) · `APPT-INFO-01~06`(6) · `APPT-QR-01~06`(6) · `APPT-QNR-01~08`(8) · `APPT-BTN-01~12`(12) · `NAV-APPT-01~24`(24). 개별 ID로 test에 심음(축약 없음 — T16~20 교훈).
+> ⭐ **갭 #49 해소**: `get_appointment_detail`에 `reason` 추가(마이그레이션 없음, `00005`에 칸 존재). 장소=`get_hospital_info` 소비, 진료실은 DB 칸 부재라 조건부. `APPT-INFO-06` 역참조.
+> ⭐ **경계(NAV-APPT 전부 T21 · 변경/취소 화면 T22)**: 상세 버튼이 여는 라우트/팝업 배선을 T21이 담고(`NAV-APPT-07·12`), 변경 마법사·취소 확인창·마감후 안내(`NAV-APPT-08~11·13~16`) 본체는 Task 22. `NAV-APPT-05`=T17 `QrFullscreen`, `NAV-APPT-06`=T23 문진 라우트.
+> 📌 **값 없는/구조 규칙 실현 지도**: `APPT-HEAD-02`(머리 색)=`resolveCardState`+`_headerColor` · `APPT-HEAD-04`(용어)=confirmed 분기 · `APPT-HEAD-06`·`APPT-QNR-08`·`APPT-QR-03·04`=해당 문구·위젯 부재 · `APPT-BTN-01`(맨 아래 고정)=Column 하단 · `APPT-BTN-05`=`04` 근거 · `APPT-QNR-01`=상세만 펼침 표 · `NAV-APPT-20`(안내는 글자)=버튼 아닌 Text · `NAV-APPT-21`(실시간)=provider 갱신·Navigator 무호출.
+> ⚠️ **T20 양방향 악수 갚음**: `appointmentDetailProvider`를 여기서 정의(T20 완료 화면이 참조). Task 22가 변경/취소 성공 후 이 provider를 `invalidate`해 상세를 새로 그린다.
+> ⚠️ **신설 마이그레이션 없음** — 갭 #49는 SELECT 한 칸 추가(`reason`). 진료실 칸 부재는 요구사항에 없어 갭 아님(조건부 표시로 마감).
+
+> ▶ **다음 = Task 22 본문 작성** — 예약 변경·취소·마감 후 상담 **73규칙**(`APPT-CHG-01~21`·`APPT-RACE-01~08`·`CANCEL-PRE`·`CANCEL-NEW`·`CANCEL-LATE`·`CANCEL-REJ`·`CANCEL-DONE`). 📌 재사용: T19/20 `BookingController`·`BookingWizard`(변경=날짜·시간 재선택, `APPT-CHG-05`) · T5 `change_booking`(낙관적 잠금 `expected_updated_at`·문진 이동) · T6 취소 서비스(`CANCEL-*`) · T21 `appointmentDetailProvider`(성공 후 invalidate)·`DetailButtonBar`(버튼 onPressed 채움). ⚠️ 마감 후 취소·변경 = **`support_requested_at` 공통 처리**(결정 E3·갭 #24, `request_type`으로 구분) · **환자 노출 문구는 "상담(직원 확인)으로 연결됐다"만**. ⚠️ 73개라 70 초과 — **쪼갤지 먼저 판단**(변경 vs 취소). `writing-plans` 먼저 + 완전 ID(남 태스크 규칙 완전 ID 인용 금지).
