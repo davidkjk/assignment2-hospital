@@ -153,8 +153,8 @@
 | **22** | 예약 변경·취소·마감 후 상담 (73개) | `APPT-CHG-*`·`APPT-RACE-*`·`CANCEL-*` | 재작성 |
 | **23** | 사전문진 작성 — 문항·자동저장·진행률·ID (66개) | `NAV-QNR-*`·`QNR-FORM-*`·`QNR-TYPE-*`·`QNR-REQ-*`·`QNR-ID-*`·`QNR-STATE-*` | 재작성 |
 | **24** | 문진 표시·이어쓰기·읽기전용·진행률·알림 (47개) | `QNR-SHOW-*`·`QNR-LIVE-*`·`QNR-PROG-*`·`QNR-NOTI-*` | 재작성 |
-| **25** | 가족 목록·추가·신규 프로필 (56개) | `NAV-FAM-*`·`FAM-LIST-*`·`FAM-ADD-*`·`FAM-NEW-*` | 재작성 |
-| **26** | 가족 기존환자 OTP 연결·수정·해제 (51개) | `FAM-LINK-*`·`FAM-EDIT-*`·`FAM-UNLINK-*` | 재작성 [R5-02] |
+| **25** | 가족 목록·정보 수정·연결 해제 (55개) | `FAM-LIST-*`·`FAM-EDIT-*`·`FAM-UNLINK-*`·`NAV-FAM-*`(목록·수정·해제분) | 재작성 [R5-02] |
+| **26** | 가족 추가 갈래·㉮ 새 가족 등록·㉯ 기존환자 OTP 연결 (52개) | `FAM-ADD-*`·`FAM-NEW-*`·`FAM-LINK-*`·`NAV-FAM-*`(추가 흐름분) | 재작성 |
 | **27** | 방문 이력 — 목록·행·역할·문진/안내 펼침 (84개) | `HIST-*`·`NAV-HIST-*` | 재작성 |
 | **28** | 설정 홈 + 알림 설정 + 병원 정보(전화·지도) (57개) | `SET-NOTI-*`·`SET-HOSP-*`·`NAV-SET-*` | 재작성 |
 | **29** | 비밀번호 변경 + 회원 탈퇴 + 로그아웃 (56개) | `SET-PW-*`·`SET-QUIT-*`·`SET-OUT-*` | 재작성 |
@@ -15117,3 +15117,937 @@ git commit -m "feat: 환자앱 Task 24 — 사전문진 진행률·성별 노출
 > ⚠️ **T24가 남 태스크 파일을 고친 곳**(재소유 아님·최소 확장): T23 `questionnaire_controller/wizard/resume/confirm`(비워 둔 자리 채움 + `QnrState` 3필드) · T17 `questionnaire_row`(`writing` 종 추가) · T15 `appointment_view`(문진 3필드) · T21 `appointment_providers`(`status` getter 1줄) · T7 `patient_questionnaire_service`(함수 2개 추가) · T9 `notification_service`(`remaining` 인자·문구 2벌) · T8 `patient_appointment_query_service`(조인 3필드).
 > 📌 **값 없는/경계 규칙 실현 지도**: `QNR-SHOW-06·07·08·09`=직원웹 `DOCTOR-QNR`(의사 화면의 `표시되지 않음`) · `QNR-SHOW-11`=가족 화면 계열(T25·26, 성별 필수·연결 가족 읽기 전용) · `QNR-NOTI-01`의 스케줄=배포 플랜 · `QNR-LIVE-10`=T5 서버 이관의 근거 · `QNR-PROG-11·12`=문구가 「남은 수」인 이유와 고친 이력.
 > ▶ **다음 = Task 25 본문 작성** — 묶음 6 가족(`FAM-*`·`NAV-FAM-*` 107규칙 = Task 25·26 분담). 담당 규칙 수 먼저 집계(70 넘으면 쪼갬). 📌 재사용: T3 가족 백엔드(`add_family_member`·`list_family_members`·`link_existing_patient_by_otp`)·T14 재인증 가드(`SensitiveReauthGuard`)·T12 위젯. ⚠️ **`QNR-SHOW-11`이 가리키는 성별 규칙**(성별 필수·기본 선택 없음 / 연결 가족은 읽기 전용+병원 문의)이 T25·26 몫이다 — 문진 「보일 대상」의 뿌리라 빠뜨리면 갭 #57이 입력 쪽에서 되살아난다.
+
+---
+
+## Task 25: 가족 목록 + 정보 수정 + 연결 해제 (55규칙)
+
+> **담당 규칙(55)**:
+> `FAM-LIST-01~13`(13) · `FAM-EDIT-01~15`(15) · `FAM-UNLINK-01~14`(14) · `NAV-FAM-01·02·03·04·05·06·13·14·15·16·18·19·20`(13).
+>
+> ⭐⭐ **이 묶음의 축 = 「그 사람의 정보」와 「나와의 관계」는 다른 것이다.** 이름·생년월일·성별은 **병원의 환자 기록**(`patients` — 진료기록이 붙어 있다)이고, 관계는 **내 연결선**(`patient_family_links` — 내 주소록에 가깝다)이다. 수정 권한·해제·열람이 **전부 이 구분에서 갈린다**(결정 B-31).
+>
+> ⚠️⚠️ **경계 — 이 Task(25)가 담는 것 / T26이 담는 것**(묶음 6을 화면 흐름 순서로 나눔 — T21↔T22·T23↔T24와 같은 패턴):
+> - **T25(여기)**: 재인증 통과 후의 **가족 목록** → **가족 정보 수정**(관계·신원) → **연결 해제**. 목록의 `[가족 추가하기]` 버튼과 그 이동(`NAV-FAM-06`)까지 — **버튼과 그 버튼이 하는 일은 같은 화면 코드**라 함께 담는다.
+> - **T26(다음)**: 갈래 선택 화면 본체와 ㉮ 새 가족 등록 · ㉯ 기존 환자 연결(`FAM-ADD`·`FAM-NEW`·`FAM-LINK` 계열) + 그 안의 화면 이동(`NAV-FAM` 후반 — 갈래 선택 이후 전이). ⛔ **T26 규칙을 완전 ID로 test에 넣지 않는다**(coverage가 미리 세어 T26이 놓친다).
+> - **재인증은 여기서 다시 정하지 않는다** — `AUTH-REAUTH` 계열(T14)이 이미 전부 덮는다. T25는 **통과한 뒤부터**이고, T11 라우터 가드(`_isSensitive('/family')`)와 T14 `SensitiveReauthGuard`가 이미 배선돼 있다(`NAV-FAM-01·02·03`은 그 배선이 가족 탭에서 실제로 도는지 확인하는 test).
+>
+> ⚠️⚠️ **경계 갭 2건을 여기서 닫는다**(⭐ 해소 즉시 설계문서 반영 — Step 10에 포함):
+> - **㉮/㉯ 출처 구분이 DB에도 서버 응답에도 없다**(신규 발견 — 어느 갭 번호에도 없었다). `FAM-EDIT-03`(새 가족은 수정 가능)과 `FAM-EDIT-05`(연결 가족은 읽기 전용)를 가르려면 **「이 환자 행을 앱 사용자가 만들었나」**를 알아야 한다. → `patients.app_created_by`(`00029`) 신설, `add_family_member`가 채운다.
+> - **갭 #63**(진료 이력 유무): `FAM-EDIT-07·08`(본인 카드)이 요구하는 값이 **프로필·가족 목록 응답 어디에도 없다.** → `has_visit_history`를 서버가 계산해 내려준다.
+> - ⭐ **판정은 서버가 한 번에 한다** — 앱이 두 값을 받아 제 손으로 조합하면 화면마다 어긋난다. 서버가 **`can_edit_identity`(고칠 수 있나)와 `identity_lock_reason`(왜 못 고치나)** 둘을 계산해 내려주고, 앱은 **잠그고 문구만 고른다**(사용자 결정 2026-08-18: 「출처 칸 + 진료 이력」 A안).
+> - ⛔ **화면만 막으면 안 된다** — `update_family_member`가 지금 `update_patient_basic_info()`를 **무조건** 부른다. 서버를 직접 부르면 딸이 아버지의 병원 기록을 그대로 고칠 수 있다(B-31이 지목한 바로 그 상태). **서버도 같은 판정으로 거절**한다(심층 방어).
+>
+> 📌 **판정식**(세 경우가 이것 하나로 전부 갈린다):
+> - **본인 카드**: `has_visit_history == false` → 고칠 수 있다(`FAM-EDIT-07`) / `true` → 읽기 전용 `진료 기록이 있어 병원에서만 수정할 수 있습니다`(`FAM-EDIT-08`)
+> - **가족**: `app_created_by is not null && has_visit_history == false` → 고칠 수 있다(`FAM-EDIT-03`) / 아니면 읽기 전용 `병원에 문의하시면 수정해 드립니다`(`FAM-EDIT-05`)
+> - ⭐ **㉯로 연결했지만 진료 이력이 0건인 사람**(병원이 등록만 해둔 환자)도 **출처 칸 덕에 막힌다** — 이력만으로 판정했다면 이 사람의 생년월일이 앱에서 고쳐지고, 요구사항 3.5가 막으려던 **접수 화면의 동명이인 뒤바뀜**이 그대로 일어난다.
+>
+> 📌 재사용: **T3 백엔드**(`list_family_members`·`update_family_member`·`unlink_family_member`·RPC `update_family_link_relation_self`·`unlink_family_link_self`) · **T10 라우터**(`GET/POST/PATCH/DELETE /family[/{id}]`) · **T14**(`SensitiveReauthGuard`·`/reauth?next=`) · **T11**(라우터 `_isSensitive`·`connectivityProvider`) · **T12 위젯**(`ActionButton`·`FieldTextInput`·`EmptyState.offline`·`showBlockDialog`) · **T0**(`AppCard`·`StatusLabel`·`WarnText`·`appIcon`).
+> 📌 **목업**: `22-family-v2.html`(수정 반영본 — 카드형 A안 채택) · `21-family.html`(A/B 비교안). 확인된 문구: 관계 칩 `본인` · `연결 해제` · `가족 추가하기` · 차단 팝업 `먼저 예약을 취소해 주세요` · 해제 확인창 `병원 기록에는 그대로 남지만, 앱에서는 더 이상 보이지 않습니다`.
+
+**Files:**
+- Create: `supabase/migrations/00029_patients_app_created_by.sql`(출처 칸 — `FAM-EDIT-03·05`의 전제)
+- Create: `patient_app/lib/features/family/family_repository.dart`(`FamilyMember`·`FamilyRepository`·`familyListProvider`)
+- Create: `patient_app/lib/features/family/family_list_screen.dart`(`FamilyListScreen`·`FamilyCard`)
+- Create: `patient_app/lib/features/family/family_edit_screen.dart`(`FamilyEditScreen`·`RelationChips`·`LockedFieldNote`)
+- Create: `patient_app/lib/features/family/unlink_section.dart`(`UnlinkSection`·`showUnlinkConfirm`·`showUnlinkBlocked`)
+- Modify: `backend/app/services/patient_family_service.py`(`list_family_members` 확장 + `update_family_member`·`unlink_family_member` 서버 방어) · `backend/app/routers/patient_family.py`(수정 요청 본문을 관계/신원으로 나눔)
+- Modify: `patient_app/lib/core/router.dart`(`/family`를 `_Placeholder`에서 `FamilyListScreen`으로 교체 + `/family/:id/edit`)
+- Test: `backend/tests/test_patient_family_service.py`(확장) · `patient_app/test/features/family/family_repository_test.dart` · `family_list_screen_test.dart` · `family_edit_screen_test.dart` · `unlink_test.dart` · `family_nav_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **T3**: `list_family_members(patient) -> list[dict]`(현재 `id·name·birth_date·gender·relation·phone·phone_borrowed`) · `update_family_member(patient, family_patient_id, name, birth_date, gender, relation)` · `unlink_family_member(patient, family_patient_id)` · RPC `update_family_link_relation_self`·`unlink_family_link_self` · `add_family_member(...)`(T26이 부른다 — 여기서는 `app_created_by`를 채우도록 1줄만 고친다)
+  - **T8**: `list_my_appointments`(다가오는 예약 판정 기준 `_LIVE` 상태 집합) · `appointmentDetailProvider`
+  - **T14**: `SensitiveReauthGuard`(`needsReauth`·`markPassed()`) · `/reauth?next=` · `AuthRepo`
+  - **T12**: `ActionButton({label, busyLabel, busy, onPressed, disabledReason})` · `FieldTextInput` · `EmptyState.offline` · `showBlockDialog`
+  - **T0**: `AppCard` · `StatusLabel` · `WarnText` · `appIcon` · `AppTokens`
+- Produces:
+  - SQL: `patients.app_created_by uuid references patients(id)`(null = 병원·가입 경로에서 온 행)
+  - `list_family_members` 반환 확장: `is_self`·`has_visit_history`·`can_edit_identity`·`identity_lock_reason`(`'linked'|'has_history'|null`)·`upcoming`(`{appointment_id, slot_date, start_time, department_name} | null`)
+  - `FamilyMember`(위 필드 + `phoneBorrowed`) · `FamilyRepository.list()·updateRelation()·updateIdentity()·unlink()` · `familyListProvider`
+  - `FamilyListScreen` · `FamilyCard({member, onEdit, onTapUpcoming})` · `FamilyEditScreen({familyPatientId})` · `UnlinkSection` · `showUnlinkConfirm` · `showUnlinkBlocked`
+
+- [ ] **Step 1: 출처 칸 `00029` — 「이 환자 행을 앱이 만들었나」 (`FAM-EDIT-03·05`의 전제)**
+
+> ⚠️ **이 칸이 없으면 `FAM-EDIT-03`과 `FAM-EDIT-05`를 가를 수 없다.** 지금 `patients`에는 그 행이 **병원 접수에서 만들어졌는지, 앱 사용자가 가족으로 등록했는지**를 구분할 값이 하나도 없다(`00003_patients.sql` 실물 확인 — `name·birth_date·gender·phone·is_active`뿐).
+> 📌 **boolean이 아니라 uuid로 둔다** — 저장 비용이 같은데 「누가 만들었나」까지 남아, 나중에 직원웹 병합·감사에서 *"이 명부 행은 어느 보호자가 만든 것인가"*를 답할 수 있다. 자기참조 FK(`patients` → `patients`)라 순환 문제는 없다.
+
+`supabase/migrations/00029_patients_app_created_by.sql`:
+
+```sql
+-- FAM-EDIT-03·05 — 「그 사람의 정보」를 앱에서 고칠 수 있는지 가르려면
+-- 그 환자 행이 **앱 사용자가 만든 것인지**를 알아야 한다.
+-- null = 병원 접수·가입 경로에서 온 행(= 병원 기록이 원본, 앱이 덮으면 안 된다)
+alter table patients
+  add column app_created_by uuid references patients(id);
+
+comment on column patients.app_created_by is
+  '앱에서 가족으로 등록해 만든 행이면 만든 계정의 patients.id. 병원 접수·본인 가입으로 생긴 행은 null.';
+
+-- 「내가 만든 가족 명부 행」을 찾는 조회에 쓴다(가족 목록 판정).
+create index patients_app_created_by_idx on patients (app_created_by) where app_created_by is not null;
+```
+
+`backend/tests/test_patient_family_service.py`에 이어서:
+
+```python
+@pytest.mark.asyncio
+async def test_add_family_member_marks_app_created(db_conn):
+    """[FAM-EDIT-03] ㉮로 만든 가족은 「앱이 만든 행」으로 표시된다 — 나중에 수정 권한을 가르는 근거."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(
+        me, "김어머니", date(1950, 3, 1), "F", "부모")
+    assert await db_conn.fetchval("select app_created_by from patients where id=$1", fid) == me.id
+
+@pytest.mark.asyncio
+async def test_hospital_registered_patient_has_null_origin(db_conn):
+    """[FAM-EDIT-05] 병원이 등록한 환자 행은 null — 앱이 만든 것이 아니다."""
+    pid = await db_conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) "
+        "values ('박아버지','1948-05-05','M','01099998888') returning id")
+    assert await db_conn.fetchval("select app_created_by from patients where id=$1", pid) is None
+```
+
+구현: `add_family_member`의 `insert into patients (...)`에 **`app_created_by` 한 칸을 더한다**(값은 `patient.id`). 다른 호출부는 없다.
+
+Run: `cd backend && pytest tests/test_patient_family_service.py -k origin -v` → PASS.
+
+- [ ] **Step 2: `list_family_members` 확장 — 본인 카드·다가오는 예약·수정 가능 판정 (`FAM-LIST-01·02·03·06·07·08·09`, `FAM-EDIT-03·05·07·08·10`)**
+
+> ⭐ **판정을 서버가 한 번에 끝낸다**(`can_edit_identity`·`identity_lock_reason`). 앱이 `app_created_by`와 `has_visit_history`를 받아 제 손으로 조합하면 **가족 목록·수정 화면·나중에 생길 다른 화면이 각자 판정**하게 되고, 한 곳만 고쳐지면 어긋난다 — 진행률을 서버 한 곳에서 센 것(`QNR-PROG-04`)과 같은 처리다.
+> ⭐ **본인도 이 목록에 들어온다**(`FAM-LIST-01·09`) — 지금 함수는 **가족만** 돌려준다. 본인 카드를 화면이 따로 만들면 「본인은 정렬에서 빠져 맨 위」(`FAM-LIST-02`)·「본인은 연결 해제가 없다」(`FAM-LIST-09`)를 화면이 또 판정해야 한다. **서버가 `is_self`를 단 한 줄로 맨 앞에 넣어 준다.**
+> 📌 **다가오는 예약은 「가장 가까운 1건만」**(`FAM-LIST-07`) — 가족 관리 화면은 예약 목록이 아니다. 판정 상태 집합은 **T8이 쓰는 것과 같은 값**을 쓴다(`FAM-LIST-08`).
+
+`backend/tests/test_patient_family_service.py`에 이어서:
+
+```python
+@pytest.mark.asyncio
+async def test_list_puts_self_first_then_names(db_conn):
+    """[FAM-LIST-01][FAM-LIST-02][FAM-LIST-09] 본인이 맨 위, 가족은 이름 오름차순."""
+    me = await _seed_account(db_conn, name="김보호")
+    await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    await patient_family_service.add_family_member(me, "강아들", date(2015,1,1), "M", "아들")
+    rows = await patient_family_service.list_family_members(me)
+    assert [r["name"] for r in rows] == ["김보호", "강아들", "홍길동"]   # 본인은 정렬에서 빠진다
+    assert rows[0]["is_self"] is True and rows[0]["relation"] == "본인"
+    assert all(r["is_self"] is False for r in rows[1:])
+
+@pytest.mark.asyncio
+async def test_list_carries_birth_and_gender_for_card_line(db_conn):
+    """[FAM-LIST-03] 카드 한 줄에 쓸 생년월일·성별이 함께 온다."""
+    me = await _seed_account(db_conn)
+    await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    row = next(r for r in await patient_family_service.list_family_members(me) if not r["is_self"])
+    assert row["birth_date"] == "1950-01-01" and row["gender"] == "M"
+
+@pytest.mark.asyncio
+async def test_list_includes_nearest_upcoming_only(db_conn):
+    """[FAM-LIST-06][FAM-LIST-07] 다가오는 예약은 가장 가까운 1건만 — 가족 화면은 예약 목록이 아니다."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    await _seed_appt_for(db_conn, fid, slot_date=date(2026,9,3), status="예약확정", dept="정형외과")
+    await _seed_appt_for(db_conn, fid, slot_date=date(2026,9,1), status="예약확정", dept="내과")
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
+    assert row["upcoming"]["slot_date"] == "2026-09-01"          # 가까운 것 하나
+    assert row["upcoming"]["department_name"] == "내과"
+    assert "appointment_id" in row["upcoming"]                    # 눌러서 상세로 갈 수 있어야 한다
+
+@pytest.mark.asyncio
+async def test_list_upcoming_excludes_finished_states(db_conn):
+    """[FAM-LIST-08] 「다가오는」에 진료완료·취소됨·예약부도는 들지 않는다."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    for st in ("진료완료", "취소됨", "예약부도"):
+        await _seed_appt_for(db_conn, fid, slot_date=date(2026,9,1), status=st)
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
+    assert row["upcoming"] is None
+
+@pytest.mark.asyncio
+async def test_can_edit_identity_new_family_without_history(db_conn):
+    """[FAM-EDIT-03] ㉮로 만든 가족이고 진료 이력이 없으면 신원을 고칠 수 있다."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
+    assert row["can_edit_identity"] is True and row["identity_lock_reason"] is None
+
+@pytest.mark.asyncio
+async def test_can_edit_identity_linked_family_is_locked_even_without_history(db_conn):
+    """[FAM-EDIT-05] ㉯로 연결한 가족은 **진료 이력이 0건이어도** 읽기 전용.
+
+    ⭐ 이력만으로 판정했다면 병원이 등록만 해둔 환자의 생년월일이 앱에서 고쳐지고,
+       요구사항 3.5가 막으려던 접수 화면의 동명이인 뒤바뀜이 그대로 일어난다.
+    """
+    me = await _seed_account(db_conn)
+    fid = await _seed_hospital_patient_linked_to(db_conn, me)   # app_created_by is null, 진료 0건
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
+    assert row["can_edit_identity"] is False
+    assert row["identity_lock_reason"] == "linked"
+    assert row["has_visit_history"] is False                     # 이력은 없는데도 잠긴다
+
+@pytest.mark.asyncio
+async def test_can_edit_identity_self_without_history(db_conn):
+    """[FAM-EDIT-07] 본인은 진료 이력이 없으면 고칠 수 있다 — 가입 직후 오타는 스스로 고친다."""
+    me = await _seed_account(db_conn)
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["is_self"])
+    assert row["can_edit_identity"] is True and row["identity_lock_reason"] is None
+
+@pytest.mark.asyncio
+async def test_can_edit_identity_self_with_history_is_locked(db_conn):
+    """[FAM-EDIT-08][FAM-EDIT-10] 진료 이력이 생기면 본인도 읽기 전용 — 그 값을 서버가 내려준다(갭 #63)."""
+    me = await _seed_account(db_conn)
+    await _seed_appt_for(db_conn, me.id, slot_date=date(2026,8,1), status="진료완료")
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["is_self"])
+    assert row["has_visit_history"] is True
+    assert row["can_edit_identity"] is False and row["identity_lock_reason"] == "has_history"
+
+@pytest.mark.asyncio
+async def test_relation_is_always_editable(db_conn):
+    """[FAM-EDIT-01] 관계는 누구에게나 항상 수정 가능 — 신원 잠금과 별개다."""
+    me = await _seed_account(db_conn)
+    fid = await _seed_hospital_patient_linked_to(db_conn, me)    # 신원은 잠긴 가족
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
+    assert row["can_edit_identity"] is False
+    await patient_family_service.update_family_relation(me, fid, "배우자")   # 그래도 관계는 바뀐다
+    after = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
+    assert after["relation"] == "배우자"
+```
+
+Run: `cd backend && pytest tests/test_patient_family_service.py -v` → Expected: FAIL(`is_self` 없음).
+
+- [ ] **Step 2b: 구현** — `backend/app/services/patient_family_service.py`
+
+```python
+_UPCOMING_STATUSES = ("예약신청", "예약확정", "도착", "진료대기", "진료중")   # FAM-LIST-08 (T8 _LIVE와 같은 뜻)
+
+
+def _identity_lock(row) -> tuple[bool, str | None]:
+    """FAM-EDIT-01·03·05·07·08 — 「그 사람의 정보」를 앱에서 고칠 수 있나.
+
+    ⭐ 세 경우가 이 한 곳에서 갈린다. 앱이 조합하지 않는다(화면마다 어긋나지 않게).
+    """
+    if row["has_visit_history"]:
+        return False, "has_history"          # 본인·가족 공통 — 진료기록이 붙었다
+    if not row["is_self"] and row["app_created_by"] is None:
+        return False, "linked"               # ㉯로 온 가족 — 병원 기록이 원본(이력 0건이어도 잠근다)
+    return True, None                        # ㉮ 새 가족 · 이력 없는 본인
+
+
+async def list_family_members(patient) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select p.id, p.name, p.birth_date, p.gender, p.app_created_by, "
+            "       coalesce(l.relation, '본인') as relation, "               # FAM-LIST-09 본인 칩
+            "       (p.id = $1) as is_self, "
+            "       coalesce(p.phone, acct.phone) as phone, (p.phone is null) as phone_borrowed, "
+            "       exists (select 1 from appointments v "
+            "               where v.for_patient_id = p.id and v.status = '진료완료') as has_visit_history, "
+            "       up.id as up_id, up.slot_date as up_date, up.start_time as up_time, "
+            "       up.department_name as up_dept "
+            "from patients p "
+            "join patients acct on acct.id = $1 "
+            "left join patient_family_links l "
+            "       on l.family_patient_id = p.id and l.account_patient_id = $1 and l.is_active "
+            "left join lateral ("                                             # FAM-LIST-06·07 가장 가까운 1건
+            "   select a.id, s.slot_date, s.start_time, d.name as department_name "
+            "   from appointments a "
+            "   join appointment_slots s on s.id = a.slot_id "
+            "   join departments d on d.id = a.department_id "
+            "   where a.for_patient_id = p.id and a.status = any($2::text[]) "
+            "     and s.slot_date >= current_date "
+            "   order by s.slot_date, s.start_time limit 1"
+            ") up on true "
+            "where p.id = $1 or l.id is not null "                            # 본인 + 활성 연결 가족
+            "order by (p.id = $1) desc, p.name",                              # FAM-LIST-01·02
+            patient.id, list(_UPCOMING_STATUSES))
+
+    out = []
+    for r in rows:
+        d = dict(r)
+        can_edit, reason = _identity_lock(d)
+        out.append({
+            "id": d["id"], "name": d["name"], "birth_date": str(d["birth_date"]),
+            "gender": d["gender"], "relation": d["relation"], "is_self": d["is_self"],
+            "phone": d["phone"], "phone_borrowed": d["phone_borrowed"],
+            "has_visit_history": d["has_visit_history"],                      # 갭 #63
+            "can_edit_identity": can_edit, "identity_lock_reason": reason,    # FAM-EDIT-01~10
+            "upcoming": None if d["up_id"] is None else {
+                "appointment_id": d["up_id"], "slot_date": str(d["up_date"]),
+                "start_time": str(d["up_time"]), "department_name": d["up_dept"]},
+        })
+    return out
+```
+
+> 📌 **`has_visit_history`의 뜻은 「완료된 진료가 1건 이상」**(갭 #63 원문 그대로) — 예약만 잡고 안 온 사람은 아직 병원 기록이 굳지 않았다.
+> 📌 **본인 행에는 연결선이 없다** — `left join`이라 `relation`이 null이고 `coalesce`가 `본인`을 넣는다(`FAM-LIST-09`).
+
+Run: `cd backend && pytest tests/test_patient_family_service.py -v` → PASS.
+
+- [ ] **Step 3: 서버 방어 — 관계와 신원을 나눠 받고, 잠긴 신원은 서버가 거절 (`FAM-EDIT-01·02·05·08`)**
+
+> ⚠️⚠️ **화면만 막으면 뚫린다.** 지금 `update_family_member`는 이름·생년월일·성별을 받아 **`update_patient_basic_info()`를 무조건** 부른다 — 앱에서 칸을 회색으로 만들어도 **서버를 직접 부르면 딸이 아버지의 병원 기록을 고칠 수 있다.** B-31이 *"지금 계획대로면 `update_patient_basic_info()`가 둘을 구분하지 않아 딸이 아버지의 병원 기록을 폰에서 고칠 수 있다"*라고 지목한 상태 그대로다.
+> ⭐ **창구를 둘로 나눈다** — `update_family_relation`(누구에게나 항상 열림)과 `update_family_identity`(판정 통과해야 열림). **한 함수가 두 일을 하지 않는다**(`FAM-EDIT-01`의 「나눈다」를 코드 구조로 실현).
+
+```python
+@pytest.mark.asyncio
+async def test_update_identity_rejected_for_linked_family(db_conn):
+    """[FAM-EDIT-05][FAM-EDIT-02] 연결 가족의 신원은 서버가 거절한다 — 화면 잠금은 두 번째 그물이다."""
+    me = await _seed_account(db_conn)
+    fid = await _seed_hospital_patient_linked_to(db_conn, me)
+    with pytest.raises(AppError) as e:
+        await patient_family_service.update_family_identity(me, fid, "다른이름", date(1950,1,1), "F")
+    assert e.value.status_code == 403
+    assert await db_conn.fetchval("select name from patients where id=$1", fid) != "다른이름"
+
+@pytest.mark.asyncio
+async def test_update_identity_rejected_for_self_with_history(db_conn):
+    """[FAM-EDIT-08] 진료 이력이 있는 본인도 서버가 거절한다."""
+    me = await _seed_account(db_conn)
+    await _seed_appt_for(db_conn, me.id, slot_date=date(2026,8,1), status="진료완료")
+    with pytest.raises(AppError) as e:
+        await patient_family_service.update_family_identity(me, me.id, "새이름", date(1980,1,1), "M")
+    assert e.value.status_code == 403
+
+@pytest.mark.asyncio
+async def test_update_identity_allowed_for_new_family(db_conn):
+    """[FAM-EDIT-03] ㉮로 만든 가족은 통과한다 — 보호자가 유일한 정보원이다."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    await patient_family_service.update_family_identity(me, fid, "홍길순", date(1951,2,2), "F")
+    row = await db_conn.fetchrow("select name, birth_date, gender from patients where id=$1", fid)
+    assert row["name"] == "홍길순" and row["gender"] == "F"
+
+@pytest.mark.asyncio
+async def test_update_relation_never_blocked(db_conn):
+    """[FAM-EDIT-01] 관계는 신원이 잠긴 사람에게도 항상 열려 있다 — 「내 연결선」이라서."""
+    me = await _seed_account(db_conn)
+    fid = await _seed_hospital_patient_linked_to(db_conn, me)
+    await patient_family_service.update_family_relation(me, fid, "며느리")     # 자유 입력도 통과
+    assert (await _relation_of(db_conn, me, fid)) == "며느리"
+
+@pytest.mark.asyncio
+async def test_update_relation_rejects_self(db_conn):
+    """[FAM-LIST-09] 본인 카드에는 관계가 없다 — 연결선 자체가 없으므로 바꿀 것도 없다."""
+    me = await _seed_account(db_conn)
+    with pytest.raises(AppError):
+        await patient_family_service.update_family_relation(me, me.id, "아들")
+```
+
+구현:
+
+```python
+async def _member_row(conn, patient, target_id: UUID) -> dict:
+    """판정에 필요한 최소 정보 한 줄. list_family_members와 같은 기준을 쓴다."""
+    row = await conn.fetchrow(
+        "select p.id, p.app_created_by, (p.id = $1) as is_self, "
+        "       exists (select 1 from appointments v "
+        "               where v.for_patient_id = p.id and v.status = '진료완료') as has_visit_history, "
+        "       l.id as link_id "
+        "from patients p "
+        "left join patient_family_links l "
+        "       on l.family_patient_id = p.id and l.account_patient_id = $1 and l.is_active "
+        "where p.id = $2 and (p.id = $1 or l.id is not null)",
+        patient.id, target_id)
+    if row is None:
+        raise AppError("본인 또는 연결된 가족만 수정할 수 있습니다.", status_code=403)
+    return dict(row)
+
+
+async def update_family_identity(patient, target_patient_id: UUID, name, birth_date, gender) -> None:
+    """FAM-EDIT-02·03·05·07·08 — 「그 사람의 정보」(병원의 환자 기록)."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await _member_row(conn, patient, target_patient_id)
+        can_edit, reason = _identity_lock(row)
+        if not can_edit:
+            # ⛔ 화면이 잠근 것을 서버도 잠근다(심층 방어). 문구는 화면이 reason으로 고른다.
+            raise AppError(
+                "병원에 문의하시면 수정해 드립니다." if reason == "linked"
+                else "진료 기록이 있어 병원에서만 수정할 수 있습니다.", status_code=403)
+        await conn.execute("select update_patient_basic_info($1,$2,$3,$4)",
+                           target_patient_id, name, birth_date, gender)
+
+
+async def update_family_relation(patient, family_patient_id: UUID, relation: str) -> None:
+    """FAM-EDIT-01·12 — 「나와의 관계」(내 연결선). 누구에게나 항상 열려 있다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await _member_row(conn, patient, family_patient_id)
+        if row["link_id"] is None:                       # 본인에게는 연결선이 없다(FAM-LIST-09)
+            raise AppError("본인에게는 관계를 설정할 수 없습니다.", status_code=400)
+        await conn.execute("select update_family_link_relation_self($1,$2)", row["link_id"], relation)
+```
+
+> ⚠️ **옛 `update_family_member`(둘을 한 번에 하던 함수)는 지운다** — 남겨두면 그 창구로 그대로 뚫린다. 라우터 `PATCH /family/{id}`도 **본문에 따라 두 함수로 나눠** 부른다(`relation`만 오면 관계, `name·birth_date·gender`가 오면 신원). T3의 호출부는 이 태스크 밖에 없다(grep 확인 대상).
+
+Run: `cd backend && pytest tests/test_patient_family_service.py -v` → PASS.
+
+- [ ] **Step 4: 연결 해제 — 다가오는 예약이 있으면 서버가 막는다 (`FAM-UNLINK-03·04·11·12·13`)**
+
+> ⭐ **막는 것이 답이다.** 기각안 둘 다 더 나쁘다 — ⛔ 예약을 함께 자동 취소(**탭 한 번으로 예약이 사라진다**) · ⛔ 예약을 두고 연결만 끊기(**취소도 변경도 못 하는 유령 예약**이 남는다 — 가장 나쁨).
+> 📌 **병원 기록은 지우지 않는다**(`FAM-UNLINK-11`) — 연결선만 비활성화한다(R5-02). 그래서 **다시 연결할 수 있다**(`FAM-UNLINK-12`), 그 재연결이 `unique` 제약에 걸리던 것(`FAM-UNLINK-13`·갭 #59)은 **T3가 `on conflict … do update`로 이미 닫았다** — 여기서는 **그 길이 실제로 열려 있는지** test로 확인한다.
+
+```python
+@pytest.mark.asyncio
+async def test_unlink_blocked_when_upcoming_exists(db_conn):
+    """[FAM-UNLINK-03] 다가오는 예약이 있으면 서버가 막고, 화면이 안내할 재료를 함께 준다."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    appt = await _seed_appt_for(db_conn, fid, slot_date=date(2026,9,1), status="예약확정")
+    with pytest.raises(AppError) as e:
+        await patient_family_service.unlink_family_member(me, fid)
+    assert e.value.status_code == 409
+    assert e.value.detail["appointment_id"] == appt        # [예약 보러 가기]가 쓸 값(NAV-FAM-15)
+
+@pytest.mark.asyncio
+async def test_unlink_allowed_when_only_finished_appointments(db_conn):
+    """[FAM-UNLINK-03][FAM-LIST-08] 끝난 예약은 막지 않는다 — 「다가오는」이 아니다."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    await _seed_appt_for(db_conn, fid, slot_date=date(2026,7,1), status="진료완료")
+    await patient_family_service.unlink_family_member(me, fid)     # 통과한다
+    assert all(r["id"] != fid for r in await patient_family_service.list_family_members(me))
+
+@pytest.mark.asyncio
+async def test_unlink_keeps_patient_row(db_conn):
+    """[FAM-UNLINK-11] 병원 명부의 그 사람 행은 지우지 않는다 — 연결선만 비활성."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    await patient_family_service.unlink_family_member(me, fid)
+    assert await db_conn.fetchval("select count(*) from patients where id=$1", fid) == 1
+    assert await db_conn.fetchval(
+        "select is_active from patient_family_links where family_patient_id=$1", fid) is False
+
+@pytest.mark.asyncio
+async def test_unlinked_family_disappears_from_list_and_history(db_conn):
+    """[FAM-UNLINK-08][FAM-LIST-13] 해제하면 목록에서 사라지고 이력 접근 목록에서도 빠진다."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    await patient_family_service.unlink_family_member(me, fid)
+    assert all(r["id"] != fid for r in await patient_family_service.list_family_members(me))
+    # 갭 #61 — 접근 목록도 같은 기준을 본다(Task 2가 `활성 링크만`으로 이미 닫았다).
+    assert fid not in await list_accessible_patient_ids(me)
+
+@pytest.mark.asyncio
+async def test_relink_after_unlink_succeeds(db_conn):
+    """[FAM-UNLINK-12][FAM-UNLINK-13] 해제한 가족을 다시 이을 수 있다(갭 #59가 닫혔는지 확인)."""
+    me = await _seed_account(db_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "부모")
+    await patient_family_service.unlink_family_member(me, fid)
+    again = await patient_family_service.add_family_member(me, "홍길동", date(1950,1,1), "M", "배우자")
+    assert again == fid                                    # 새 행을 만들지 않고 옛 링크를 되살린다
+    row = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
+    assert row["relation"] == "배우자"                      # 관계는 새로 준 값으로 갱신
+```
+
+구현(`unlink_family_member`에 차단 한 덩어리 추가):
+
+```python
+async def unlink_family_member(patient, family_patient_id: UUID) -> None:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await _member_row(conn, patient, family_patient_id)
+        if row["link_id"] is None:
+            raise AppError("본인은 연결을 해제할 수 없습니다.", status_code=400)   # FAM-UNLINK-02
+        # FAM-UNLINK-03 — 유령 예약을 만들지 않는다. 화면이 안내할 예약을 함께 돌려준다.
+        upcoming = await conn.fetchrow(
+            "select a.id, s.slot_date, s.start_time, d.name as department_name "
+            "from appointments a join appointment_slots s on s.id=a.slot_id "
+            "join departments d on d.id=a.department_id "
+            "where a.for_patient_id=$1 and a.status = any($2::text[]) and s.slot_date >= current_date "
+            "order by s.slot_date, s.start_time limit 1",
+            family_patient_id, list(_UPCOMING_STATUSES))
+        if upcoming is not None:
+            raise AppError("먼저 예약을 취소해 주세요.", status_code=409, detail={
+                "appointment_id": upcoming["id"], "slot_date": str(upcoming["slot_date"]),
+                "start_time": str(upcoming["start_time"]),
+                "department_name": upcoming["department_name"]})
+        await conn.execute("select unlink_family_link_self($1)", row["link_id"])   # [R5-02] 링크만 비활성
+```
+
+Run: `cd backend && pytest tests/test_patient_family_service.py -v` → PASS.
+
+- [ ] **Step 5: `FamilyRepository` — 모델 + API 배관**
+
+> 규칙 없음(배관). 서버가 계산한 판정 값을 **앱이 다시 조합하지 않는다**는 것만 test로 못박는다.
+
+`patient_app/test/features/family/family_repository_test.dart`:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/family/family_repository.dart';
+
+void main() {
+  test('FamilyMember.fromJson은 서버 판정을 그대로 싣는다 — 앱이 다시 계산하지 않는다', () {
+    final m = FamilyMember.fromJson({
+      'id': 'p1', 'name': '홍길동', 'birth_date': '1950-01-01', 'gender': 'M',
+      'relation': '부모', 'is_self': false, 'phone': '01011112222', 'phone_borrowed': true,
+      'has_visit_history': false, 'can_edit_identity': false, 'identity_lock_reason': 'linked',
+      'upcoming': {'appointment_id': 'a1', 'slot_date': '2026-09-01',
+                   'start_time': '14:00:00', 'department_name': '내과'},
+    });
+    expect(m.canEditIdentity, isFalse);            // 서버 값 그대로
+    expect(m.identityLockReason, 'linked');
+    expect(m.upcoming!.appointmentId, 'a1');
+    expect(m.phoneBorrowed, isTrue);               // 보호자 번호를 빌려 쓰는 가족(#3)
+  });
+
+  test('upcoming이 null이면 다가오는 예약 줄이 없다', () {
+    final m = FamilyMember.fromJson({
+      'id': 'p1', 'name': '홍길동', 'birth_date': '1950-01-01', 'gender': 'M',
+      'relation': '부모', 'is_self': false, 'phone': null, 'phone_borrowed': false,
+      'has_visit_history': true, 'can_edit_identity': false, 'identity_lock_reason': 'has_history',
+      'upcoming': null});
+    expect(m.upcoming, isNull);
+  });
+}
+```
+
+- [ ] **Step 5b: 구현** — `patient_app/lib/features/family/family_repository.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/api_client.dart';
+
+class UpcomingBrief {
+  const UpcomingBrief({required this.appointmentId, required this.slotDate,
+    required this.startTime, required this.departmentName});
+  final String appointmentId, slotDate, startTime, departmentName;
+  factory UpcomingBrief.fromJson(Map<String, dynamic> j) => UpcomingBrief(
+    appointmentId: j['appointment_id'] as String, slotDate: j['slot_date'] as String,
+    startTime: j['start_time'] as String, departmentName: j['department_name'] as String);
+}
+
+class FamilyMember {
+  const FamilyMember({required this.id, required this.name, required this.birthDate,
+    required this.gender, required this.relation, required this.isSelf,
+    required this.canEditIdentity, this.identityLockReason, required this.hasVisitHistory,
+    this.phone, required this.phoneBorrowed, this.upcoming});
+  final String id, name, birthDate, gender, relation;
+  final bool isSelf, canEditIdentity, hasVisitHistory, phoneBorrowed;
+  final String? identityLockReason;   // 'linked' | 'has_history' | null (FAM-EDIT-05·08 문구 선택)
+  final String? phone;
+  final UpcomingBrief? upcoming;
+
+  factory FamilyMember.fromJson(Map<String, dynamic> j) => FamilyMember(
+    id: j['id'] as String, name: j['name'] as String, birthDate: j['birth_date'] as String,
+    gender: j['gender'] as String, relation: j['relation'] as String,
+    isSelf: j['is_self'] == true, canEditIdentity: j['can_edit_identity'] == true,
+    identityLockReason: j['identity_lock_reason'] as String?,
+    hasVisitHistory: j['has_visit_history'] == true,
+    phone: j['phone'] as String?, phoneBorrowed: j['phone_borrowed'] == true,
+    upcoming: j['upcoming'] == null
+      ? null : UpcomingBrief.fromJson(Map<String, dynamic>.from(j['upcoming'])));
+}
+
+class UnlinkBlocked implements Exception {          // 409 + 예약 정보(FAM-UNLINK-03)
+  const UnlinkBlocked(this.upcoming);
+  final UpcomingBrief upcoming;
+}
+
+class FamilyRepository {
+  FamilyRepository(this._api);
+  final ApiClient _api;
+
+  Future<List<FamilyMember>> list() async {
+    final rows = await _api.getList('/family');
+    return [for (final r in rows) FamilyMember.fromJson(Map<String, dynamic>.from(r))];
+  }
+
+  Future<void> updateRelation(String id, String relation) =>
+    _api.patch('/family/$id', {'relation': relation});                       // FAM-EDIT-01
+
+  Future<void> updateIdentity(String id, {required String name,
+    required String birthDate, required String gender}) =>
+    _api.patch('/family/$id', {'name': name, 'birth_date': birthDate, 'gender': gender});
+
+  Future<void> unlink(String id) async {
+    try {
+      await _api.delete('/family/$id');
+    } on ApiException catch (e) {
+      if (e.statusCode == 409 && e.detail != null) {                          // FAM-UNLINK-03
+        throw UnlinkBlocked(UpcomingBrief.fromJson(Map<String, dynamic>.from(e.detail!)));
+      }
+      rethrow;
+    }
+  }
+}
+
+final familyRepositoryProvider = Provider((ref) => FamilyRepository(ref.read(apiClientProvider)));
+final familyListProvider = FutureProvider.autoDispose<List<FamilyMember>>(
+  (ref) => ref.read(familyRepositoryProvider).list());
+```
+
+Run: `flutter test test/features/family/family_repository_test.dart` → PASS.
+
+- [ ] **Step 6: 가족 목록 화면 (`FAM-LIST-01~13`, `NAV-FAM-04·05·06`)**
+
+`patient_app/test/features/family/family_list_screen_test.dart`:
+
+```dart
+testWidgets('[FAM-LIST-01][FAM-LIST-02][FAM-LIST-09] 본인 카드가 맨 위 · 관계 칩 「본인」 · 가족은 이름순', (t) async {
+  await _pumpList(t, [_self(name: '김보호'), _fam(name: '홍길동'), _fam(name: '강아들')]);
+  final names = _cardNamesInOrder(t);
+  expect(names.first, '김보호');
+  expect(names.sublist(1), ['강아들', '홍길동']);            // 서버 정렬을 그대로 그린다
+  expect(find.widgetWithText(FamilyCard, '본인'), findsOneWidget);
+});
+
+testWidgets('[FAM-LIST-03] 카드는 관계 칩 + 이름 + 「생년월일 · 성별」 한 줄', (t) async {
+  await _pumpList(t, [_fam(name: '홍길동', birth: '1950-01-01', gender: 'M', relation: '부모')]);
+  expect(find.text('부모'), findsOneWidget);
+  expect(find.text('홍길동'), findsOneWidget);
+  expect(find.textContaining('1950-01-01'), findsOneWidget);
+  expect(find.textContaining('남'), findsOneWidget);          // F/M을 사람 말로 바꿔 보여준다
+});
+
+testWidgets('[FAM-LIST-04][FAM-LIST-05] 카드 행동은 [정보 수정] 하나뿐 — [예약하기]·[연결 해제]를 두지 않는다', (t) async {
+  await _pumpList(t, [_fam(name: '홍길동')]);
+  expect(find.text('정보 수정'), findsOneWidget);
+  expect(find.text('예약하기'), findsNothing);                // 예약 1단계가 「누구의 예약인가」를 이미 묻는다
+  expect(find.text('연결 해제'), findsNothing);               // 되돌리기 어려워 수정 화면 안쪽으로 민다
+});
+
+testWidgets('[FAM-LIST-06][NAV-FAM-05] 다가오는 예약 줄을 누르면 예약 상세로', (t) async {
+  await _pumpList(t, [_fam(name: '홍길동', upcoming: _up(id: 'a1', date: '2026-09-01', dept: '내과'))]);
+  expect(find.textContaining('9월 1일'), findsOneWidget);
+  expect(find.textContaining('내과'), findsOneWidget);
+  await t.tap(find.textContaining('내과')); await t.pumpAndSettle();
+  expect(_lastRoute, '/appointments/a1');
+});
+
+testWidgets('[FAM-LIST-07] 예약이 여러 건이어도 줄은 하나 — 서버가 가장 가까운 1건만 준다', (t) async {
+  await _pumpList(t, [_fam(name: '홍길동', upcoming: _up(id: 'a1', date: '2026-09-01', dept: '내과'))]);
+  expect(find.byType(UpcomingRow), findsOneWidget);
+});
+
+testWidgets('[FAM-LIST-08] 끝난 예약뿐이면 줄이 없다', (t) async {
+  await _pumpList(t, [_fam(name: '홍길동', upcoming: null)]);
+  expect(find.byType(UpcomingRow), findsNothing);
+});
+
+testWidgets('[FAM-LIST-10][NAV-FAM-06] [가족 추가하기]는 항상 맨 아래에 있고 갈래 선택으로 간다', (t) async {
+  await _pumpList(t, [_self(name: '김보호')]);               // 가족 0명이어도
+  expect(find.text('가족 추가하기'), findsOneWidget);
+  await t.tap(find.text('가족 추가하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/family/add');
+});
+
+testWidgets('[FAM-LIST-11] 가족 0명이어도 「등록된 가족이 없습니다」를 두지 않는다 — 본인 카드가 화면을 채운다', (t) async {
+  await _pumpList(t, [_self(name: '김보호')]);
+  expect(find.textContaining('등록된 가족이 없습니다'), findsNothing);
+  expect(find.byType(FamilyCard), findsOneWidget);
+});
+
+testWidgets('[FAM-LIST-12] 가족 10명이면 버튼은 그대로 있고 누르면 안내 팝업 — 죽은 버튼을 만들지 않는다', (t) async {
+  await _pumpList(t, [_self(name: '김보호'), ...List.generate(10, (i) => _fam(name: '가족$i'))]);
+  final btn = find.text('가족 추가하기');
+  expect(btn, findsOneWidget);
+  expect(tester.widget<ActionButton>(find.byType(ActionButton).last).onPressed, isNotNull);
+  await t.tap(btn); await t.pumpAndSettle();
+  expect(find.textContaining('최대 10명'), findsOneWidget);   // 문구 본체는 T26(FAM-NEW 계열) 소유
+  expect(_lastRoute, isNot('/family/add'));                   // 갈래 선택으로 넘어가지 않는다
+});
+
+testWidgets('[FAM-LIST-13] 해제한 가족은 목록에서 사라진다 — 회색·「해제됨」으로 남기지 않는다', (t) async {
+  await _pumpList(t, [_self(name: '김보호'), _fam(name: '홍길동')]);
+  _server.removeFamily('홍길동');
+  await _refresh(t);
+  expect(find.text('홍길동'), findsNothing);
+  expect(find.textContaining('해제됨'), findsNothing);
+});
+
+testWidgets('[NAV-FAM-04] 카드 [정보 수정] → 가족 정보 수정', (t) async {
+  await _pumpList(t, [_fam(id: 'p1', name: '홍길동')]);
+  await t.tap(find.text('정보 수정')); await t.pumpAndSettle();
+  expect(_lastRoute, '/family/p1/edit');
+});
+```
+
+> 구현: `FamilyListScreen`은 `familyListProvider`를 그대로 그린다(정렬·본인 판정을 **화면이 다시 하지 않는다** — `FAM-LIST-01·02`는 서버 `order by`가 실현). `FamilyCard`는 `AppCard`(T0) 안에 `StatusLabel`(관계 칩) + 이름 + `${birthDate} · ${genderLabel}` 한 줄 + `upcoming != null`이면 `UpcomingRow` + `[정보 수정]`(T12 `ActionButton`). `genderLabel`은 `'M'→'남'`·`'F'→'여'`(DB 코드를 사람 말로). 상한 안내는 `showBlockDialog`(T12) — **문구 본체와 서버 거절은 T26 소유**라 여기서는 「버튼이 살아 있고 안내가 뜬다」만 담는다(`FAM-LIST-12`).
+
+Run: `flutter test test/features/family/family_list_screen_test.dart` → PASS.
+
+- [ ] **Step 7: 가족 정보 수정 화면 (`FAM-EDIT-01~15`, `NAV-FAM-13`)**
+
+> ⭐ **화면이 두 덩어리로 나뉜다** — 위는 **「그 사람의 정보」**(이름·생년월일·성별 — 잠길 수 있다), 아래는 **「나와의 관계」**(관계 칩 — 누구에게나 항상 열려 있다). 이 시각적 분리가 규칙 `FAM-EDIT-01`을 사용자가 **보고 알게** 만든다.
+> ⛔ **회색 비활성 칸으로 만들고 끝내지 않는다**(`FAM-EDIT-15`) — 왜 못 고치는지와 어디로 가야 하는지를 **바로 아래 한 줄로** 밝힌다. 막다른 길 금지.
+
+`patient_app/test/features/family/family_edit_screen_test.dart`:
+
+```dart
+testWidgets('[FAM-EDIT-01] 화면이 「그 사람의 정보」와 「나와의 관계」로 나뉜다', (t) async {
+  await _pumpEdit(t, _fam(name: '홍길동', canEdit: true));
+  expect(find.text('그분의 정보'), findsOneWidget);
+  expect(find.text('나와의 관계'), findsOneWidget);
+});
+
+testWidgets('[FAM-EDIT-03][FAM-EDIT-04] ㉮로 만든 가족은 이름·생년월일·성별을 전부 고칠 수 있다', (t) async {
+  await _pumpEdit(t, _fam(name: '홍길동', canEdit: true, lockReason: null));
+  expect(_isEnabled(t, '이름'), isTrue);
+  expect(_isEnabled(t, '생년월일'), isTrue);
+  expect(_genderButtonsEnabled(t), isTrue);
+  expect(find.textContaining('병원에 문의'), findsNothing);
+});
+
+testWidgets('[FAM-EDIT-05][FAM-EDIT-15] ㉯로 온 가족은 읽기 전용 + 「병원에 문의하시면 수정해 드립니다」 한 줄', (t) async {
+  await _pumpEdit(t, _fam(name: '홍길동', canEdit: false, lockReason: 'linked'));
+  expect(_isEnabled(t, '이름'), isFalse);
+  expect(_isEnabled(t, '생년월일'), isFalse);
+  expect(find.text('병원에 문의하시면 수정해 드립니다'), findsOneWidget);   // 어디로 가야 하는지
+});
+
+test('[FAM-EDIT-06] ㉯ 가족을 잠그는 이유 — 요구사항 3.5가 동명이인을 생년월일·연락처로 구분하라고 지정한다', () {
+  // 앱이 그 값을 덮으면 접수 화면에서 사람이 뒤바뀐다(갭 #34와 같은 자리).
+  // 그래서 판정에 「진료 이력」만 쓰지 않고 「병원 기록에서 온 행인가」(app_created_by)를 함께 본다.
+  const lockedEvenWithoutHistory = true;
+  expect(lockedEvenWithoutHistory, isTrue);   // 이력 0건이어도 잠긴다(Step 2 백엔드 test가 값으로 확인)
+});
+
+testWidgets('[FAM-EDIT-07] 진료 이력이 없는 본인은 고칠 수 있다 — 가입 직후 오타는 스스로', (t) async {
+  await _pumpEdit(t, _self(name: '김보호', canEdit: true, lockReason: null));
+  expect(_isEnabled(t, '이름'), isTrue);
+});
+
+testWidgets('[FAM-EDIT-08][FAM-EDIT-09] 진료 이력이 있는 본인은 「진료 기록이 있어 병원에서만 수정할 수 있습니다」', (t) async {
+  await _pumpEdit(t, _self(name: '김보호', canEdit: false, lockReason: 'has_history'));
+  expect(_isEnabled(t, '이름'), isFalse);
+  expect(find.text('진료 기록이 있어 병원에서만 수정할 수 있습니다'), findsOneWidget);
+  // ⛔ 전부 잠그면 "병원에 간 적도 없는데 병원에 문의하라"는 화면이 된다 → 이력 없는 본인은 위 test처럼 열린다.
+});
+
+testWidgets('[FAM-EDIT-10] 잠금 판정은 서버가 준 값으로 — 앱이 이력 API를 따로 부르지 않는다', (t) async {
+  await _pumpEdit(t, _fam(canEdit: false, lockReason: 'has_history'));
+  expect(_historyApiCalls, 0);                    // 오프라인·캐시에서 어긋나지 않게(갭 #63)
+  expect(_isEnabled(t, '이름'), isFalse);
+});
+
+testWidgets('[FAM-EDIT-11] 성별은 두 칸 중 하나 · 미리 골라두지 않는다', (t) async {
+  await _pumpEdit(t, _fam(gender: '', canEdit: true));        // 값이 비었을 때
+  expect(_selectedGender(t), isNull);
+  expect(_saveButton(t).onPressed, isNull);                    // 고르기 전에는 저장이 안 살아난다
+  await t.tap(find.text('여')); await t.pump();
+  expect(_saveButton(t).onPressed, isNotNull);
+});
+
+testWidgets('[FAM-EDIT-12][FAM-EDIT-13] 관계 칩 4종 + 「기타 +」 자유 입력', (t) async {
+  await _pumpEdit(t, _fam(relation: '부모', canEdit: false, lockReason: 'linked'));
+  for (final r in ['아들', '딸', '배우자', '부모']) {
+    expect(find.widgetWithText(RelationChips, r), findsOneWidget);
+  }
+  await t.tap(find.text('기타 +')); await t.pumpAndSettle();
+  await t.enterText(find.byType(TextField).last, '며느리');    // 손자·형제·며느리를 4종으로 담을 수 없다
+  await t.tap(find.text('저장하기')); await t.pumpAndSettle();
+  expect(_savedRelation, '며느리');                            // 신원이 잠긴 가족도 관계는 저장된다
+});
+
+testWidgets('[FAM-EDIT-14] 저장 버튼은 처리 중 「◌ 저장 중…」 — 글자를 지우지 않는다', (t) async {
+  await _pumpEdit(t, _fam(canEdit: true));
+  _server.delaySave();
+  await t.tap(find.text('저장하기')); await t.pump();
+  expect(find.text('저장 중…'), findsOneWidget);
+  expect(_saveButton(t).onPressed, isNull);                    // 중복 클릭 방지(BTN-BUSY 계열)
+});
+
+testWidgets('[FAM-EDIT-02][NAV-FAM-13] 저장 성공하면 가족 목록으로', (t) async {
+  await _pumpEdit(t, _fam(id: 'p1', canEdit: true));
+  await t.tap(find.text('저장하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/family');
+  // 두 창구로 나눠 부른다 — 관계는 내 연결선, 신원은 병원의 환자 기록(FAM-EDIT-02).
+  expect(_patchBodies.any((b) => b.containsKey('relation')), isTrue);
+  expect(_patchBodies.any((b) => b.containsKey('birth_date')), isTrue);
+});
+
+testWidgets('[FAM-EDIT-02] 신원이 잠긴 사람을 저장하면 관계만 보낸다 — 잠긴 칸을 서버로 보내지 않는다', (t) async {
+  await _pumpEdit(t, _fam(canEdit: false, lockReason: 'linked'));
+  await t.tap(find.text('저장하기')); await t.pumpAndSettle();
+  expect(_patchBodies.every((b) => !b.containsKey('birth_date')), isTrue);
+});
+```
+
+> 구현: `FamilyEditScreen`은 `familyListProvider`에서 그 사람 하나를 골라 그린다(별도 상세 API를 두지 않는다 — 목록이 이미 모든 필드를 싣는다). 상단 **「그분의 정보」**(본인이면 **「내 정보」**) 절: `FieldTextInput`(T12) 3종을 `enabled: member.canEditIdentity`로 두고, 잠겼으면 그 아래 `LockedFieldNote(reason)`가 문구를 고른다(`'linked'` → `병원에 문의하시면 수정해 드립니다` / `'has_history'` → `진료 기록이 있어 병원에서만 수정할 수 있습니다`). 하단 **「나와의 관계」** 절: `RelationChips`(4종 + `기타 +`) — **본인 카드에는 이 절을 그리지 않는다**(연결선이 없다). `[저장하기]`는 `ActionButton(busyLabel: '저장 중…')`이고, **잠겼으면 관계만·열렸으면 둘 다** PATCH한다.
+
+Run: `flutter test test/features/family/family_edit_screen_test.dart` → PASS.
+
+- [ ] **Step 8: 연결 해제 (`FAM-UNLINK-01~14`, `NAV-FAM-14·15·16`)**
+
+> ⭐ **되돌릴 수 없는 동작은 눈에 덜 띄게** — 수정 화면 **안쪽**, 구분선 아래, 붉은 테두리, **저장 버튼과 멀리**(`FAM-UNLINK-01`). 카드에 두지 않은 이유와 같다(`FAM-LIST-05`).
+> ⭐ **확인창 문구가 지킬 수 있는 약속이어야 한다**(`FAM-UNLINK-06·07`) — 이전 문구 `과거 예약 이력은 그대로 남습니다`는 **「내가 계속 볼 수 있다」로 읽힌다.** 실제로는 보안 규칙이 해제된 연결을 인정하지 않아 **못 본다.** `안 오셨습니다`·`오늘 안에 오시면 됩니다`와 같은 계열의 거짓말이 된다.
+
+`patient_app/test/features/family/unlink_test.dart`:
+
+```dart
+testWidgets('[FAM-UNLINK-01] 해제는 수정 화면 안쪽 구분선 아래 · 저장 버튼과 떨어져 있다', (t) async {
+  await _pumpEdit(t, _fam(canEdit: true));
+  expect(find.byType(UnlinkSection), findsOneWidget);
+  expect(find.byType(Divider), findsWidgets);
+  final saveY = t.getCenter(find.text('저장하기')).dy;
+  final unlinkY = t.getCenter(find.text('연결 해제')).dy;
+  expect(unlinkY - saveY, greaterThan(80));         // 실수로 누르지 않게 멀리
+});
+
+testWidgets('[FAM-UNLINK-02] 본인 카드에는 연결 해제가 없다 — 탈퇴는 설정에서', (t) async {
+  await _pumpEdit(t, _self(canEdit: true));
+  expect(find.byType(UnlinkSection), findsNothing);
+});
+
+testWidgets('[FAM-UNLINK-03][FAM-UNLINK-04][NAV-FAM-15] 다가오는 예약이 있으면 막고 그 예약을 보여준다', (t) async {
+  _server.unlinkBlockedBy(_up(id: 'a1', date: '2026-09-01', dept: '내과'));
+  await _pumpEdit(t, _fam(canEdit: true));
+  await t.tap(find.text('연결 해제')); await t.pumpAndSettle();
+  expect(find.text('먼저 예약을 취소해 주세요'), findsOneWidget);
+  expect(find.textContaining('9월 1일'), findsOneWidget);       // 어느 예약인지 보여준다
+  expect(find.textContaining('내과'), findsOneWidget);
+  expect(find.text('닫기'), findsOneWidget);
+  await t.tap(find.text('예약 보러 가기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/appointments/a1');
+});
+
+testWidgets('[NAV-FAM-16] 차단 팝업 [닫기]는 그 자리(가족 정보 수정)에 남는다 — 빠져나갈 문', (t) async {
+  _server.unlinkBlockedBy(_up(id: 'a1'));
+  await _pumpEdit(t, _fam(id: 'p1', canEdit: true));
+  await t.tap(find.text('연결 해제')); await t.pumpAndSettle();
+  await t.tap(find.text('닫기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/family/p1/edit');
+  expect(find.byType(FamilyEditScreen), findsOneWidget);
+});
+
+testWidgets('[FAM-UNLINK-05][FAM-UNLINK-06] 예약이 없으면 확인창 — 지킬 수 있는 문구로', (t) async {
+  await _pumpEdit(t, _fam(canEdit: true));
+  await t.tap(find.text('연결 해제')); await t.pumpAndSettle();
+  expect(find.text('병원 기록에는 그대로 남지만, 앱에서는 더 이상 보이지 않습니다'), findsOneWidget);
+  expect(find.textContaining('과거 예약 이력은 그대로 남습니다'), findsNothing);   // 지킬 수 없는 약속
+});
+
+test('[FAM-UNLINK-07] 옛 문구를 버린 이유 — 「과거 예약 이력은 그대로 남습니다」는 지킬 수 없는 약속이었다', () {
+  // 「내가 계속 볼 수 있다」로 읽히는데, 보안 규칙(patient_owns)이 해제된 연결을 인정하지 않아 못 본다.
+  // `안 오셨습니다`·`오늘 안에 오시면 됩니다`·`나가시면 취소됩니다`와 같은 계열의 거짓말이 된다.
+  const banned = '과거 예약 이력은 그대로 남습니다';
+  const current = '병원 기록에는 그대로 남지만, 앱에서는 더 이상 보이지 않습니다';
+  expect(current.contains('앱에서는 더 이상 보이지 않습니다'), isTrue);   // 실제로 일어나는 일만 말한다
+  expect(current == banned, isFalse);
+});
+
+testWidgets('[FAM-UNLINK-08][FAM-UNLINK-09][NAV-FAM-14] 해제 성공하면 목록으로 · 그 카드가 사라져 있다', (t) async {
+  await _pumpEdit(t, _fam(id: 'p1', name: '홍길동', canEdit: true));
+  await t.tap(find.text('연결 해제')); await t.pumpAndSettle();
+  await t.tap(find.text('연결 해제하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/family');
+  expect(find.text('홍길동'), findsNothing);
+});
+
+testWidgets('[FAM-UNLINK-14] 해제 버튼은 처리 중 중복 클릭을 막는다', (t) async {
+  await _pumpEdit(t, _fam(canEdit: true));
+  _server.delayUnlink();
+  await t.tap(find.text('연결 해제')); await t.pumpAndSettle();
+  await t.tap(find.text('연결 해제하기')); await t.pump();
+  expect(_confirmButton(t).onPressed, isNull);
+  expect(_unlinkCalls, 1);                          // 두 번 눌러도 한 번만 간다
+});
+
+test('[FAM-UNLINK-10][FAM-UNLINK-11][FAM-UNLINK-12][FAM-UNLINK-13] 해제 뒤 상태는 서버가 지킨다 — 앱은 목록을 다시 받는다', () {
+  // FAM-UNLINK-11(환자 행 유지)·12(재연결 가능)·13(갭 #59 on conflict)은 Step 4 백엔드 test가 담고,
+  // FAM-UNLINK-10(갭 #61 접근 목록도 같은 기준)은 Task 2 `list_accessible_patient_ids`가 「활성 링크만」으로 닫았다.
+  // 앱이 할 일은 해제 후 목록을 새로 받는 것뿐 — 화면이 자체 판단으로 칩을 지우거나 남기지 않는다.
+  expect(FamilyRepository, isNotNull);
+});
+```
+
+> 구현: `UnlinkSection`(본인이면 그리지 않음) → `[연결 해제]`를 누르면 **앱이 이미 들고 있는 `member.upcoming`으로 즉시 가른다** — 있으면 `showUnlinkBlocked`(팝업 + `[닫기]`·`[예약 보러 가기]`), 없으면 `showUnlinkConfirm`(확인창 + `[연결 해제하기]`) → 확인하면 `unlink(id)` **한 번** 호출.
+> ⭐ **왜 앱이 먼저 가르나**: 규칙은 *"누르면 막는다"*(`FAM-UNLINK-03`)라 **누른 즉시** 갈려야 한다. 서버를 먼저 부르면 예약이 없는 사람은 확인창도 없이 해제돼 버리고(`FAM-UNLINK-05` 위반), 확인창을 먼저 띄우면 예약이 있는 사람이 *확인 → 다시 거절*로 **두 번 놀란다.**
+> ⭐ **서버 409는 두 번째 그물이다** — 목록이 낡아 앱이 못 걸러낸 경우(다른 폰에서 방금 예약을 잡았다) `unlink()`가 `UnlinkBlocked`를 던지고, 앱은 **같은 차단 팝업**을 띄운다. 판정 자체는 서버가 원본(Step 4)이고, 앱의 선판정은 **반응 속도를 위한 것**이지 권한 판정이 아니다.
+
+Run: `flutter test test/features/family/unlink_test.dart` → PASS.
+
+- [ ] **Step 9: 라우팅·재인증·오프라인 (`NAV-FAM-01·02·03·18·19·20`)**
+
+> 📌 **재인증 배관은 이미 있다** — T11 라우터가 `_isSensitive('/family')`로 `/reauth?next=`로 보내고(`NAV-FAM-01`), T14 `SensitiveReauthGuard.needsReauth`가 5분을 센다(`NAV-FAM-02`). 이 Step은 **그 배관이 가족 탭에서 실제로 도는지** 확인하는 test다 — 배선을 새로 만들지 않는다.
+> ⚠️ **`NAV-FAM-20`(알림 「가족 연결 해제」)은 갈 곳이 없는 알림이다** — 그 가족은 이미 목록에 없다. 안내 팝업을 띄우고 **알림은 목록에 남긴다**(지우면 사용자가 「내가 뭘 눌렀지?」가 된다). T18이 만든 `showNotificationGoneDialog`를 그대로 쓴다.
+
+`patient_app/test/features/family/family_nav_test.dart`:
+
+```dart
+testWidgets('[NAV-FAM-01] 가족 탭을 누르면 재인증 화면을 거쳐 목록으로', (t) async {
+  _reauth.needsReauth = true;                       // 마지막 사용 후 5분 초과
+  await _tapTab(t, '가족');
+  expect(_lastRoute, '/reauth?next=/family');
+  await _passReauth(t);
+  expect(_lastRoute, '/family');
+});
+
+testWidgets('[NAV-FAM-02] 5분 이내 재진입이면 목록으로 바로', (t) async {
+  _reauth.needsReauth = false;
+  await _tapTab(t, '가족');
+  expect(_lastRoute, '/family');                    // 비밀번호를 다시 묻지 않는다
+});
+
+testWidgets('[NAV-FAM-03] 재인증 화면의 「비밀번호를 잊으셨나요?」 → 비밀번호 찾기(막다른 길 방지)', (t) async {
+  _reauth.needsReauth = true;
+  await _tapTab(t, '가족');
+  await t.tap(find.text('비밀번호를 잊으셨나요?')); await t.pumpAndSettle();
+  expect(_lastRoute, startsWith('/password-find'));
+});
+
+testWidgets('[NAV-FAM-18] 가족 화면에서 오프라인이 되어도 화면을 옮기지 않는다', (t) async {
+  await _pumpList(t, [_self(name: '김보호'), _fam(name: '홍길동')]);
+  _connectivity.goOffline(); await t.pumpAndSettle();
+  expect(_lastRoute, '/family');                    // 그 자리에 남는다(NAV-GLOBAL 계열)
+  expect(find.text('홍길동'), findsOneWidget);       // 이미 그린 것은 사라지지 않는다
+});
+
+testWidgets('[NAV-FAM-19] 오프라인에서 가족 탭을 처음 열면 가운데 안내 + [다시 시도]', (t) async {
+  _connectivity.goOffline();
+  await _openFamilyCold(t);                          // 저장해 둔 것이 없다(가족 목록은 캐시 대상이 아니다)
+  expect(find.byType(EmptyState), findsOneWidget);
+  expect(find.text('다시 시도'), findsOneWidget);
+  await t.tap(find.text('다시 시도')); await t.pumpAndSettle();
+  expect(_listCalls, 2);                             // 다시 부른다(막다른 길이 아니다)
+});
+
+testWidgets('[NAV-FAM-20] 알림 「가족 연결 해제」를 누르면 갈 곳이 없다 — 안내 팝업 + 알림은 남는다', (t) async {
+  await _tapNotification(t, type: 'family_unlinked', appointmentId: null);
+  expect(find.byType(AlertDialog), findsOneWidget);
+  expect(find.textContaining('연결이 해제'), findsOneWidget);
+  await t.tap(find.text('확인')); await t.pumpAndSettle();
+  expect(_notificationStillInList('family_unlinked'), isTrue);   // 목록에서 지우지 않는다
+  expect(_lastRoute, '/notifications');                          // 알림함에 그대로 있다
+});
+```
+
+> 구현: `router.dart`의 `/family` 자리표시자를 `FamilyListScreen`으로 바꾸고 `/family/:id/edit`(`FamilyEditScreen`)를 더한다. `_isSensitive`는 **이미 `/family`를 포함**하므로 손대지 않는다. 오프라인 빈 상태는 `EmptyState.offline`(T12)이고 **가족 목록은 오프라인 캐시 대상이 아니다**(T11이 캐시하는 것은 예약 목록뿐 — 가족 명부를 폰에 남기지 않는다). `NAV-FAM-20`은 T18 `resolveNotificationRoute`에 `family_unlinked` 한 줄을 더해 `showNotificationGoneDialog`로 보낸다.
+
+Run: `flutter test test/features/family/family_nav_test.dart` → PASS.
+
+- [ ] **Step 10: 설계문서 반영(갭 #63·출처 칸) + 검사기 + 커밋**
+
+**① `docs/design/screen-behaviors.md`** — 뒤집힌 쪽에 역참조:
+
+- `FAM-EDIT-10`: `⚠️ 「진료 이력이 있는가」를 서버가 내려줘야 한다 — 지금 프로필 응답에 그 값이 없다 → 갭 #63` → `~~⚠️ …~~ ✅ **해소(2026-08-18, 환자앱 T25)** — `list_family_members`가 `has_visit_history`와 **판정 결과(`can_edit_identity`·`identity_lock_reason`)까지** 내려준다. 앱은 조합하지 않는다`
+- `FAM-EDIT-05`: 근거 칸에 `+ 판정 = app_created_by(00029) is null · 이력 0건이어도 잠근다(환자앱 T25)` 한 줄 덧붙임 — **이력만으로 판정하지 않는 이유**가 규칙 표에서 바로 보이게.
+- `FAM-UNLINK-13`(갭 #59): `지금은 막혀 있다` → `~~지금은 막혀 있다~~ ✅ **해소(환자앱 T3 `on conflict … do update`, T25가 재연결 test로 확인)**`
+- `FAM-UNLINK-10`(갭 #61): `접근 목록은 안 막는다` → `~~접근 목록은 안 막는다~~ ✅ **해소(환자앱 T2 `list_accessible_patient_ids` 「활성 링크만」)**`
+
+**② `docs/superpowers/specs/2026-07-31-ui-design-decisions.md`**:
+
+- `#63` → `[x]` + `✅ 해소(2026-08-18, 환자앱 T25) — has_visit_history + 판정 결과를 서버가 내려준다.`
+- `#59`·`#61` → `[x]` + 각각 T3·T2에서 닫혔음을 한 줄(T25가 test로 확인).
+- 🆕 **경계 갭 대조표에 「㉮/㉯ 출처 구분」 행 추가** — 갭 번호가 없던 신규 발견. 채우는 쪽=환자앱 T26(㉮ 등록)·병원 접수(직원웹, null 그대로), 읽는 쪽=환자앱 T25 판정.
+
+**③ 검사기 + 커밋**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+cd backend && pytest tests/test_patient_family_service.py -v
+cd ../patient_app && flutter test test/features/family/
+git add supabase/migrations/00029_patients_app_created_by.sql \
+  backend/app/services/patient_family_service.py backend/app/routers/patient_family.py backend/tests/ \
+  patient_app/lib/features/family/ patient_app/test/features/family/ patient_app/lib/core/router.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 환자앱 Task 25 — 가족 목록·정보 수정·연결 해제 55규칙(FAM-LIST/EDIT/UNLINK·NAV-FAM) + 갭 #63·출처 칸 해소"
+```
+
+> 📌 **규칙 커버리지(55)**: `FAM-LIST-01~13`(13) · `FAM-EDIT-01~15`(15) · `FAM-UNLINK-01~14`(14) · `NAV-FAM-01·02·03·04·05·06·13·14·15·16·18·19·20`(13). 개별 ID로 test에 심음.
+> ⭐ **갭 해소 3건**: **#63**(진료 이력 유무 — 여기서 실현) · **#59·#61**(T3·T2가 닫은 것을 **실제로 열렸는지** test로 확인 — 「닫혔다고 적혀 있다」와 「닫혔다」는 다르다).
+> ⭐ **신규 경계 갭 1건**: ㉮/㉯ 출처 구분(`patients.app_created_by`, `00029`) — 어느 갭 번호에도 없던 것. **이력만으로 판정했다면 병원이 등록만 해둔 환자의 생년월일이 앱에서 고쳐졌다.**
+> ⚠️ **T25가 남 태스크 파일을 고친 곳**(재소유 아님): T3 `patient_family_service`(`list` 확장 · `update_family_member` → `update_family_identity`/`update_family_relation` **분리** · `unlink`에 차단) · T10 `patient_family.py`(PATCH 본문 분기) · T11 `router.dart`(`/family` 실화면) · T18 `resolveNotificationRoute`(`family_unlinked` 1줄).
+> 📌 **값 없는/경계 규칙 실현 지도**: `FAM-LIST-05`·`FAM-EDIT-04·06·09·13`·`FAM-UNLINK-04·07·09`=근거 규칙(짝이 되는 동작 규칙이 실현) · `FAM-UNLINK-10·11·12·13`=서버·타 태스크가 실현하고 여기서 확인 · `FAM-LIST-12`의 상한 문구·서버 거절=T26(`FAM-NEW` 계열).
+> ▶ **다음 = Task 26 본문 작성** — 가족 추가 갈래 선택 + ㉮ 새 가족 등록 + ㉯ 기존 환자 연결(`FAM-ADD`·`FAM-NEW`·`FAM-LINK` 계열 + `NAV-FAM` 후반 = **52규칙**). 📌 재사용: T25 `FamilyRepository`·`familyListProvider`(등록·연결 성공 후 invalidate) · T3 `add_family_member`(`app_created_by` 채움·10명 상한·재활성화) · T13/T14 OTP 화면 패턴. ⚠️ **갭 #58**(계정 열거 — 0건·2건에도 항상 200)·**#60**(본인·이미 연결 판정)·**#62**(상한 서버 거절)가 전부 T26 몫이다. ⚠️ `link_existing_patient_by_otp`는 T3가 **501로 막아 두었다**(4단계에서 해제) — T26은 그 전제 위에서 화면·문구를 담고, 501 해제 조건을 원장에 남긴다.
