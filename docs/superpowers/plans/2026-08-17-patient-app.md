@@ -98,7 +98,7 @@
 |---|---|---:|---|
 | **0 전역** | `OFF-*`·`ERR-*`·`BTN-*`·`EMPTY-*`·`BLOCK-*`·`PUSH-*`·`DISP-*`·`NAV-GLOBAL-*` | 113 | Task 0(DISP)·11·12 |
 | **1 앱 시작** | `CONSENT-*`·`AUTH-*`·`NAV-AUTH-*` | 147 | Task 13·14 |
-| **2 홈·카드·QR·알림함** | `HOME-*`·`CARD-*`·`QR-*`·`NOTI-*`·`NAV-HOME-*` | 182 | Task 16·17·18 |
+| **2 홈·카드·QR·알림함** | `HOME-*`·`CARD-*`·`QR-*`·`NOTI-*`·`NAV-HOME-*` | 182 | Task 15·16·17·18 |
 | **3 예약 8단계** | `BOOK-*`·`NAV-BOOK-*` | 137 | Task 19·20 |
 | **4 상세·변경·취소** | `APPT-*`·`CANCEL-*`·`NAV-APPT-*` | 135 | Task 21·22 |
 | **5 사전문진** | `QNR-*`·`NAV-QNR-*` | 113 | Task 23·24 |
@@ -143,7 +143,8 @@
 |---|---|---|---|
 | **13** | 가입 — 동의→전화→OTP→기본정보→비밀번호 (83개) | `CONSENT-*`·`AUTH-LAND-*`·`AUTH-TEL-*`·`AUTH-PHONE-*`·`AUTH-OTP-*`·`AUTH-SIGNUP-*`·`AUTH-PROFILE-*`·`AUTH-PWNEW-*` | 재작성 |
 | **14** | 로그인·비밀번호 찾기·중복/번호재활용·재인증·세션 + 인증 내비 (64개) | `AUTH-LOGIN-*`·`AUTH-PWFIND-*`·`AUTH-DUP-*`·`AUTH-REAUTH-*`·`AUTH-SESS-*`·`NAV-AUTH-*` | 재작성 |
-| **16** | 홈 프레임 + 예약 카드 상태 A(대기·미확정·변경·요청) (83개) | `HOME-*`·`NAV-HOME-*`·`CARD-COMMON-*`·`CARD-WAIT-*`·`CARD-UNCONF-*`·`CARD-REQ-*`·`CARD-CHG-*` | 재작성 |
+| **15** | 예약 카드 위젯 + 상태 A(공통·요청·대기·미확정·변경) (38개) | `CARD-COMMON-*`·`CARD-REQ-*`·`CARD-WAIT-*`·`CARD-UNCONF-*`·`CARD-CHG-*` | 재작성 |
+| **16** | 홈 프레임 + 하단 탭 셸 (43개) | `HOME-*`·`NAV-HOME-*` | 재작성 |
 | **17** | 예약 카드 상태 B(지연·취소·완료·오프라인·문진·입장) + QR (70개) | `CARD-LATE-*`·`CARD-CXL-*`·`CARD-DONE-*`·`CARD-OFF-*`·`CARD-QNR-*`·`CARD-IN-*`·`CARD-OK-*`·`CARD-DOC-*`·`CARD-LIFE-*`·`QR-*` | 재작성 |
 | **18** | 알림함 — 목록·읽음·비었음 (29개) | `NOTI-*` | 재작성 |
 | **19** | 예약 1~4단계(본인/가족·과·의사·날짜) + 값 보존 (71개) | `NAV-BOOK-*`·`BOOK-WHO-*`·`BOOK-DEPT-*`·`BOOK-DOC-*`·`BOOK-DATE-*`·`BOOK-NAV-*`·`BOOK-KEEP-*` | 재작성 [R5-01] |
@@ -160,7 +161,7 @@
 | **30** | 나의 예약 목록·상태 배지·역할 (64개) | `LIST-LIST-*`·`LIST-ST-*`·`LIST-ROLE-*`·`NAV-LIST-*` | 재작성 |
 | **31** | 나의 예약 빈상태·이어받기·문진·CTA (29개) | `LIST-EMPTY-*`·`LIST-REFRESH-*`·`LIST-QNR-*`·`LIST-CTA-*` | 재작성 [R5-01] |
 
-**결번**: `Task 15`(옛 번호 자리 비움 — 가입/로그인이 13·14로 합쳐짐).
+**결번 없음**: 옛 `Task 15` 자리를 「예약 카드 위젯 + 상태 A」로 **되살렸다**(2026-08-18 — 옛 배정의 Task 16이 `HOME-*` 22개를 포함해 실측 **81규칙**, 70 초과라 2분할. 카드 위젯이 먼저(T15) → 홈이 소비(T16)라 실행 순서·번호 체계 모두 무손상).
 
 **의존 순서**: `Task 0`(스캐폴딩·토큰·ApiClient) → `1`(마이그레이션) → `2~9`(백엔드 서비스) → `10`(라우터·통합) → `11~12`(프론트 전역) → `13~31`(화면). ⭐ **Task 0이 가장 먼저다** — 토큰이 없으면 각 화면이 자기 색을 만든다. ⚠️ 화면 태스크는 자기가 소비하는 백엔드 계약(Consumes)이 먼저 있어야 한다.
 
@@ -2522,6 +2523,7 @@ git commit -m "feat: 📝 환자앱 Task 7 본문 — 사전문진 서비스(완
 > ⚠️ **조회는 RLS에 맡긴다** — `patients_can_read_own_appointments`(Task 1, `patient_owns(for_patient_id) or account`)가 본인+가족만 거르므로 서비스가 소유 목록을 따로 안 만든다. 이력은 `for_patient_id` 파라미터로 한 사람만 좁힌다(못 보는 가족이면 RLS가 빈 결과).
 > ⚠️ **안내문은 `patient_medical_notes` 뷰(Task 1)** — `medical_records` 직접 조회 금지(의료진 전용 메모가 새지 않게). 완료 줄만 안내문, 취소·부도·미확정 줄은 안내문 자리 없음(`HIST-NOTE-04`).
 > ⚠️ **미정의 엣지(규칙에 없음)**: `예약확정`인 채 시각이 지난 예약(직원이 완료 처리를 깜빡)은 `HIST-ROW-09`가 `예약신청`만 「확정되지않음」으로 정해 **규칙이 다루지 않는다.** 여기서는 이력에 넣지 않는다(추측 금지). auto_confirm 기본 true라 드물지만, 발견 시 규칙 결정 필요 → 완료 보고에 짚음.
+> ⚠️ **CARD-CHG 두 칸 소급(2026-08-18, T15 착수 중 발견 — 경계 갭 #17)**: 조회 select에 `a.hospital_change_prev_time, a.hospital_change_kind`를 얹었다(위 두 함수). **스키마 칸은 직원웹 T2 마이그레이션**이 만들고 `reschedule_appointment`·병원발 취소가 채운다 — 여기선 **읽기만**. 환자 `[확인]`으로 비우는 창구(`acknowledge_hospital_change`)는 **T15**가 백엔드째 만든다. 결정·기각안은 결정 문서 「③ 병원발 변경 안내문 → 데이터 저장 방식」.
 
 **Files:**
 - Create: `supabase/migrations/00022_wait_estimate.sql` · `backend/app/services/patient_appointment_query_service.py` · `backend/app/services/patient_history_service.py`
@@ -2702,6 +2704,7 @@ async def list_my_appointments(patient: PatientContext) -> list[dict]:
         rows = await conn.fetch(
             "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, "
             "  a.booking_code, a.booking_code_expires_at, "
+            "  a.hospital_change_prev_time, a.hospital_change_kind, "  # CARD-CHG(직원웹 T2가 채움·환자 [확인]이 비움)
             "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
             "  s.slot_date, s.start_time, "
             "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire "
@@ -2720,6 +2723,7 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
         row = await conn.fetchrow(
             "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, a.queue_position, "
             "  a.doctor_id, a.booking_code, a.booking_code_expires_at, "
+            "  a.hospital_change_prev_time, a.hospital_change_kind, "  # CARD-CHG(직원웹 T2가 채움·환자 [확인]이 비움)
             "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
             "  s.slot_date, s.start_time "
             "from appointments a "
@@ -8798,4 +8802,445 @@ git commit -m "feat: 환자앱 Task 14 — 로그인·비번찾기·중복번호
 > - **AUTH-SESS 구조 2건** — `AUTH-SESS-03`(오프라인+만료→`OFF-AUTH`): Task 11이 소유(여기서 재정의 안 함). `AUTH-SESS-05`(강제 로그아웃 없음): 시간 경과로 로그아웃하는 코드·타이머가 **없다는 것**과 재인증이 민감 경로에만 걸리는 구조(`_isSensitive`)가 실현 — 요구사항 4.1이 「민감한 화면」에만 재인증을 요구했다.
 > - **NAV-AUTH 그림 밖 3건** — `NAV-AUTH-18`(딥링크→로그인 후 원목적지): `/login`이 `?next=`를 읽어 성공 후 `go(next)` 하는 배선이 실현(`onSuccess: c.go(next ?? '/home')`). `NAV-AUTH-19`(로그인 전 하단 탭 없음): 인증 라우트에 `AppShell`을 씌우지 않는 구조 — `[NAV-AUTH-19]` 테스트가 `BottomNavigationBar` 부재로 확인. `NAV-AUTH-20`(가입②서 뒤로 여러 번→랜딩, 쿨다운 번호 기준): `push` 체인의 pop과 `PhoneCooldownStore`(번호 키, T12 `BTN-COOL-07`)가 실현 — 쿨다운은 T13 `[AUTH-PHONE-04]`가 이미 확인.
 
-> ▶ **다음 = Task 16 본문 작성** — 홈 프레임 + 예약 카드 상태 A(대기·미확정·변경·요청) 83규칙(`HOME-*`·`NAV-HOME-*`·`CARD-COMMON-*`·`CARD-WAIT-*`·`CARD-UNCONF-*`·`CARD-REQ-*`·`CARD-CHG-*`). ⚠️ **결번 Task 15는 건너뛴다**(가입/로그인이 13·14로 합쳐짐). Task 16은 `AppShell`(T11)·`UpcomingCache`(오프라인 홈)·예약 조회 서비스(T8)를 소비하고 하단 탭 셸(`NAV-HOME-*`)을 만든다.
+---
+
+## Task 15: 예약 카드 위젯 + 상태 A(공통·요청·대기·미확정·변경) (38규칙)
+
+> **담당 규칙(38)**: `CARD-COMMON-*`(6) · `CARD-REQ-*`(6) · `CARD-WAIT-*`(7 — 04·08은 T8 백엔드가 이미 담음) · `CARD-UNCONF-*`(12) · `CARD-CHG-*`(7). ⭐ **홈(T16)·나의예약(T30)·상세(T21)가 소비할 「예약 카드」 라이브러리의 뼈대와 상태 A 본문을 만드는 태스크**다. 카드는 **머리(이름·배지) / 가운데(132px 고정) / 아래(문진 줄·버튼)** 세 층이고, 상태가 바뀌면 **가운데만 갈아 끼운다**(`CARD-COMMON-06`·`DISP-CARD-01`). 여기서 공통 프레임 + 상태 A(확인 중·진료대기·확정안됨) 본문 + 병원발 변경 안내문을 만들고, **상태 B(확정·도착·진료중·완료·취소·지연·오프라인)는 T17이 같은 `AppointmentCard`에 케이스를 더한다**(양방향 악수).
+>
+> ⭐⭐ **이 태스크의 심장 = 「병원 내부 상태 이름을 환자 말로 바꾼다」(`CARD-COMMON-04`)**: 서버 `status`는 `예약신청·진료대기·예약부도` 같은 **업무용 이름**이다. 카드는 이것을 절대 그대로 쓰지 않고(`도착`→`접수되었습니다`), 상태 판정 함수 하나(`resolveCardState`)가 서버 상태 + **유예(예약 시각 +30분)**를 합쳐 카드 종류를 정한다. **같은 `예약신청`이 유예 전이면 「확인 중」(`CARD-REQ`), 유예를 넘기면 「확정되지 않음」(`CARD-UNCONF`)**으로 갈리는 것이 이 판정의 핵심이다(`CARD-UNCONF-02` — T17 `CARD-LATE`(확정 예약)와 같은 30분 유예).
+>
+> ⭐⭐ **두 번째 심장 = 병원발 변경 안내문은 상태와 직교한다(`CARD-CHG`)**: 어떤 카드든 `hospital_change_prev_time`이 `null`이 아니면 카드 **위에 한 덩어리로** 안내문을 얹는다(`DISP-ATT-01`). `[확인]`을 누르면 **서버 두 칸을 비워**(백엔드 `acknowledge_hospital_change`) 안내문이 사라지고, **앱을 껐다 켜도 서버 상태라 다시 뜬다**(`CARD-CHG-04` — 이 앱에서 "봤다는 사실"이 서버에 남는 유일한 곳). 데이터 결정·기각안은 결정 문서 「③ 병원발 변경 안내문 → 데이터 저장 방식」, 경계는 대조표 `#17`.
+>
+> ⚠️ **경계(재소유 금지)**: ① 카드 프레임·132px·배지·주의 한 줄·안내 붙임은 **Task 0을 소비**(`AppCard(body, announcement)`·`StatusLabel`·`WarnText`·`AppTokens.grayPending/grayDone/warn/cardBodyHeight`). 여기서 다시 만들지 않는다. ② 버튼은 **Task 12를 소비**(`ActionButton` — `[확인]`·`[상담 채팅 연결]` 등). ③ 예약 데이터·대기 인원은 **Task 8을 소비**(`list_my_appointments` dict·`get_queue_status`) — 카드는 서버 계산을 **표시만** 한다(대기 분 계산은 T8, 5분 반올림·`약`은 여기 `formatWaitTime`). ④ **상태 B 본문·QR·문진 줄·오프라인 카드는 T17 소유** — 여기서는 `AppointmentCardState`에 자리만 두고 `unknown`으로 흘린다. ⑤ 목록(여러 카드 배치)은 홈 T16·나의예약 T30 — 여기서는 **카드 한 장**만 만든다.
+>
+> ⚠️ **낡은 단방향/직교 표기 대조(핸드오프 함정 ①)**: `CARD-WAIT-03`("다른 상태에선 대기 문장을 안 띄운다")은 옛 플랜이 *"상태와 무관하게 항상 그린다"*였던 것을 뒤집은 **후행 결정**(`plans:6751` 패치) — 여기서는 `wait` 본문 안에서만 그 문장을 둔다. `CARD-WAIT-09`("`내 앞 대기 인원: 3명`→`내 앞에 3명`")도 옛 문구를 고치는 패치라, 테스트가 **새 문구**를 못박는다.
+
+**Files:**
+- Backend:
+  - Modify: `backend/app/services/patient_booking_service.py` — `acknowledge_hospital_change(patient, appointment_id)` 추가(`CARD-CHG-04` — 두 칸을 `null`로, RLS가 소유 확인)
+  - Modify: `backend/app/routers/patient_appointments.py`(또는 예약 라우터) — `POST /appointments/{id}/acknowledge-change`
+  - Test: `backend/tests/test_patient_booking_service.py`(해당 함수 절 추가)
+- Frontend:
+  - Create: `patient_app/lib/features/home/appointment_view.dart`(`AppointmentView`+`fromJson` · `QueueStatus` · `AppointmentCardState` enum · `resolveCardState`)
+  - Create: `patient_app/lib/core/wait_format.dart`(`formatWaitTime` — `CARD-WAIT-05·06·07`)
+  - Create: `patient_app/lib/features/home/appointment_card.dart`(`AppointmentCard` — 공통 프레임 `CARD-COMMON` + 상태→본문 라우팅. T17이 케이스 확장)
+  - Create: `patient_app/lib/features/home/card_bodies_a.dart`(`ReqBody`·`WaitBody`·`UnconfBody` — 상태 A 가운데 본문)
+  - Create: `patient_app/lib/features/home/hospital_change_banner.dart`(`HospitalChangeBanner` — `CARD-CHG` 안내문)
+  - Test: `patient_app/test/features/home/{appointment_view,appointment_card,card_bodies_a,hospital_change_banner}_test.dart` · `test/core/wait_format_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - Task 0: `AppCard({body, announcement})` · `StatusLabel({text, color})` · `WarnText(text)` · `AppTokens.grayPending`(#7E8E99)·`grayDone`(#A3AFB8)·`warn`·`cardBodyHeight`(132) · `appIcon` · `ApiClient`·`ApiException`
+  - Task 12: `ActionButton({label, onPressed, busy})`
+  - Task 8: `list_my_appointments` dict(`status·booking_code·for_patient_name·slot_date·start_time·hospital_change_prev_time·hospital_change_kind·has_questionnaire` 등) · `get_queue_status`(`patients_ahead`·`estimated_wait_minutes`) · 직원웹 T2가 만든 `appointments.hospital_change_prev_time·hospital_change_kind` 칸
+  - Task 2: `PatientContext`·`get_current_patient` · `acquire_as`·`AppError`
+- Produces:
+  - `AppointmentView`(`.fromJson`) · `QueueStatus` · `enum AppointmentCardState { req, wait, unconf, confirmed, arrived, inTreatment, done, cancelled, late, unknown }`(A만 구현·B는 T17) · `resolveCardState(AppointmentView, DateTime now) -> AppointmentCardState`
+  - `formatWaitTime({required int patientsAhead, int? minutes}) -> String` · `AppointmentCard({required AppointmentView view, QueueStatus? queue, VoidCallback? onAcknowledge})` · `HospitalChangeBanner`
+  - 백엔드 `acknowledge_hospital_change(patient, appointment_id) -> None`
+  - **T16(홈)이 소비**: `AppointmentCard`·`resolveCardState`·`AppointmentView.fromJson` · **T17이 확장**: `AppointmentCard`의 상태 B 케이스·`AppointmentCardState`의 B 상태 본문
+
+- [ ] **Step 1: 백엔드 [확인] 창구 실패 테스트 (`CARD-CHG-04`)** — `backend/tests/test_patient_booking_service.py`
+
+```python
+@pytest.mark.asyncio
+async def test_acknowledge_hospital_change_clears_both_columns(db_conn):
+    # CARD-CHG-04: 환자가 [확인]하면 두 칸이 비고, 그래야 앱을 껐다 켜도 안내문이 다시 뜨지 않는다.
+    admin, doctor_id, dept = await _seed_doctor_dept(db_conn)
+    me = _ctx(await seed_patient(db_conn))
+    aid = await db_conn.fetchval(
+        "insert into appointments (account_patient_id, for_patient_id, department_id, doctor_id, status, source, "
+        "  hospital_change_prev_time, hospital_change_kind) "
+        "values ($1,$1,$2,$3,'예약확정','app', now(), 'changed') returning id", me.id, dept, doctor_id)
+    await booking.acknowledge_hospital_change(me, aid)
+    row = await db_conn.fetchrow(
+        "select hospital_change_prev_time, hospital_change_kind from appointments where id=$1", aid)
+    assert row["hospital_change_prev_time"] is None and row["hospital_change_kind"] is None
+```
+Run → Expected: FAIL(함수 없음).
+
+- [ ] **Step 2: `acknowledge_hospital_change` 구현** — `backend/app/services/patient_booking_service.py`
+
+```python
+async def acknowledge_hospital_change(patient: PatientContext, appointment_id: UUID) -> None:
+    """CARD-CHG-04: 병원발 변경/취소 안내문의 [확인]. 두 칸을 비운다(RLS가 본인+가족만 통과).
+    스키마 칸은 직원웹 T2가 만들고 reschedule/병원발 취소가 채운다(경계 #17) — 여기선 비우기만."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        await conn.execute(
+            "update appointments set hospital_change_prev_time=null, hospital_change_kind=null where id=$1",
+            appointment_id)  # RLS: patients_can_update_own_appointments 범위 밖이면 0행(조용히 통과)
+```
+Run → Expected: PASS.
+
+- [ ] **Step 3: 라우터 배선 + 테스트** — `POST /appointments/{id}/acknowledge-change`
+
+```python
+@router.post("/appointments/{appointment_id}/acknowledge-change", status_code=204)
+async def acknowledge_change(appointment_id: UUID, patient: PatientContext = Depends(get_current_patient)):
+    await patient_booking_service.acknowledge_hospital_change(patient, appointment_id)
+```
+Test: 라우터가 서비스를 그대로 노출하는지(`patch`로 서비스 호출 1회 확인). Run → PASS.
+
+- [ ] **Step 4: `formatWaitTime` 실패 테스트 (`CARD-WAIT-05·06·07`)** — `patient_app/test/core/wait_format_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/wait_format.dart';
+
+void main() {
+  test('[CARD-WAIT-05] 내 앞 0명이면 분이 아니라 곧 들어가십니다', () {
+    expect(formatWaitTime(patientsAhead: 0, minutes: 0), '곧 들어가십니다');
+  });
+  test('[CARD-WAIT-06] 60분을 넘으면 정확한 분 대신 약 1시간 이상', () {
+    expect(formatWaitTime(patientsAhead: 5, minutes: 75), '예상 대기시간 약 1시간 이상');
+  });
+  test('[CARD-WAIT-07] 5분 단위로 반올림하고 약을 반드시 붙인다', () {
+    expect(formatWaitTime(patientsAhead: 2, minutes: 23), '예상 대기시간 약 25분'); // 23→25 반올림, 약
+  });
+  test('[CARD-WAIT-04] 근거 분이 없으면(null) 대기시간 줄을 만들지 않는다', () {
+    expect(formatWaitTime(patientsAhead: 2, minutes: null), ''); // 인원만 보이고 시간 문구는 빈 문자열
+  });
+}
+```
+Run → Expected: FAIL(함수 없음).
+
+- [ ] **Step 5: `formatWaitTime` 구현** — `patient_app/lib/core/wait_format.dart`
+
+```dart
+/// 대기 문구 표시 규칙. 서버(T8)는 raw 분만 주고, 5분 반올림·`약`·경계 문구는 여기서 입힌다.
+/// CARD-WAIT-05(0명=곧)·06(60분 초과=약 1시간 이상)·07(5분 반올림+약)·04(근거 없음=빈 줄).
+String formatWaitTime({required int patientsAhead, int? minutes}) {
+  if (patientsAhead == 0) return '곧 들어가십니다';        // WAIT-05
+  if (minutes == null) return '';                          // WAIT-04: 숫자를 만들지 않는다
+  if (minutes > 60) return '예상 대기시간 약 1시간 이상';   // WAIT-06
+  final rounded = ((minutes + 2) ~/ 5) * 5;               // WAIT-07: 5분 반올림
+  return '예상 대기시간 약 $rounded분';                     // WAIT-07: `약`을 반드시
+}
+```
+Run → Expected: PASS.
+
+- [ ] **Step 6: `AppointmentView` + `resolveCardState` 실패 테스트 (`CARD-REQ-01`·`CARD-UNCONF-02`·`CARD-COMMON-04`)** — `test/features/home/appointment_view_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+
+AppointmentView _v(String status, {DateTime? slot}) => AppointmentView.fromJson({
+      'id': 'a1', 'status': status, 'for_patient_name': '김순자', 'booking_code': null,
+      'department_name': '내과', 'doctor_name': '이의사', 'has_questionnaire': false,
+      'slot_date': slot?.toIso8601String().substring(0, 10), 'start_time': slot == null ? null : '14:00',
+      'hospital_change_prev_time': null, 'hospital_change_kind': null,
+    });
+
+void main() {
+  final base = DateTime(2026, 8, 18, 14, 0);
+
+  test('[CARD-REQ-01] 예약신청이고 유예(30분) 전이면 확인 중 카드', () {
+    expect(resolveCardState(_v('예약신청', slot: base), base.add(const Duration(minutes: 10))),
+        AppointmentCardState.req);
+  });
+  test('[CARD-UNCONF-02] 예약신청인 채 예약 시각 +30분을 넘기면 확정되지 않음 카드', () {
+    expect(resolveCardState(_v('예약신청', slot: base), base.add(const Duration(minutes: 31))),
+        AppointmentCardState.unconf);
+  });
+  test('[CARD-WAIT-03] 진료대기 상태만 wait 본문을 받는다(다른 상태엔 대기 문장이 없다)', () {
+    expect(resolveCardState(_v('진료대기'), base), AppointmentCardState.wait);
+    expect(resolveCardState(_v('예약확정', slot: base), base), isNot(AppointmentCardState.wait));
+  });
+  test('[CARD-COMMON-04] 카드 상태 라벨은 병원 내부 이름을 그대로 노출하지 않는다', () {
+    // 서버 내부 이름 '진료대기'가 상태 라벨 문구에 그대로 나오지 않는다(환자 말로 바꾼다).
+    expect(patientStatusLabel(AppointmentCardState.wait), isNot(contains('진료대기')));
+  });
+}
+```
+Run → Expected: FAIL.
+
+- [ ] **Step 7: `AppointmentView` + `resolveCardState` 구현** — `patient_app/lib/features/home/appointment_view.dart`
+
+```dart
+/// T8 list_my_appointments 한 줄을 담는 뷰 모델. 서버 status를 화면이 직접 읽지 않게 감싼다.
+class AppointmentView {
+  final String id, status, forPatientName, departmentName, doctorName;
+  final String? bookingCode;
+  final DateTime? slotStart;                  // slot_date + start_time
+  final DateTime? hospitalChangePrevTime;     // CARD-CHG: null이면 미확인 변경 없음
+  final String? hospitalChangeKind;           // 'changed' | 'cancelled'
+  final bool hasQuestionnaire;
+  AppointmentView({required this.id, required this.status, required this.forPatientName,
+      required this.departmentName, required this.doctorName, this.bookingCode,
+      this.slotStart, this.hospitalChangePrevTime, this.hospitalChangeKind,
+      required this.hasQuestionnaire});
+
+  factory AppointmentView.fromJson(Map<String, dynamic> j) {
+    DateTime? slot;
+    if (j['slot_date'] != null && j['start_time'] != null) {
+      slot = DateTime.parse('${j['slot_date']}T${j['start_time']}');
+    }
+    return AppointmentView(
+      id: j['id'], status: j['status'], forPatientName: j['for_patient_name'],
+      departmentName: j['department_name'], doctorName: j['doctor_name'],
+      bookingCode: j['booking_code'], slotStart: slot, hasQuestionnaire: j['has_questionnaire'] == true,
+      hospitalChangePrevTime: j['hospital_change_prev_time'] == null
+          ? null : DateTime.parse(j['hospital_change_prev_time']),
+      hospitalChangeKind: j['hospital_change_kind'],
+    );
+  }
+  bool get isConfirmedBefore => status != '예약신청';  // COMMON-02/03: 확정 전/후 용어 분기
+}
+
+enum AppointmentCardState { req, wait, unconf, confirmed, arrived, inTreatment, done, cancelled, late, unknown }
+
+/// 서버 status + 30분 유예로 카드 종류를 정한다. 상태 A만 여기서 확정, B는 T17이 채운다.
+AppointmentCardState resolveCardState(AppointmentView v, DateTime now) {
+  final grace = v.slotStart?.add(const Duration(minutes: 30));   // CARD-UNCONF-02 · T17 CARD-LATE와 같은 유예
+  switch (v.status) {
+    case '예약신청':
+      if (grace != null && now.isAfter(grace)) return AppointmentCardState.unconf;  // UNCONF-02
+      return AppointmentCardState.req;                                              // REQ-01
+    case '진료대기':
+      return AppointmentCardState.wait;
+    default:
+      return AppointmentCardState.unknown;   // 상태 B — T17이 case를 더한다
+  }
+}
+
+/// CARD-COMMON-04: 내부 상태 이름을 환자 말로. (상태 A 배지 문구)
+String patientStatusLabel(AppointmentCardState s) => switch (s) {
+      AppointmentCardState.req => '확인 중',            // CARD-REQ-02
+      AppointmentCardState.wait => '진료를 기다리는 중', // '진료대기'를 쓰지 않는다
+      AppointmentCardState.unconf => '확정되지 않음',    // CARD-UNCONF-03·03b
+      _ => '',
+    };
+```
+Run → Expected: PASS.
+
+- [ ] **Step 8: `AppointmentCard` 공통 프레임 실패 테스트 (`CARD-COMMON`)** — `test/features/home/appointment_card_test.dart`
+
+```dart
+testWidgets('[CARD-COMMON-01] 카드는 누구의 예약인지(대상자 이름)를 먼저 쓴다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _req(name: '김순자', code: 'A-2413'))));
+  expect(find.textContaining('김순자'), findsOneWidget);      // 대상자 이름이 보인다
+});
+testWidgets('[CARD-COMMON-02] 확정 전에는 신청번호 · 신청 취소로 부른다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _req(code: 'A-2413'))));
+  expect(find.textContaining('신청번호'), findsOneWidget);    // 예약번호가 아니라 신청번호
+});
+testWidgets('[CARD-COMMON-03] 확정 후에는 예약번호로 부른다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _wait(code: 'A-2413'))));
+  expect(find.textContaining('예약번호'), findsOneWidget);
+});
+testWidgets('[CARD-COMMON-05] 상태는 색만이 아니라 배지 글자로도 구분된다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _req())));
+  expect(find.widgetWithText(StatusLabel, '확인 중'), findsOneWidget);  // 글자 배지 존재
+});
+testWidgets('[CARD-COMMON-06] 가운데 본문은 132px로 고정된다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _req())));
+  expect(tester_bodyHeight(t), AppTokens.cardBodyHeight);   // 상태가 바뀌어도 높이 불변
+});
+```
+Run → Expected: FAIL.
+
+- [ ] **Step 9: `AppointmentCard` 공통 프레임 구현** — `patient_app/lib/features/home/appointment_card.dart`
+
+```dart
+/// 예약 카드 공통 프레임. 머리(이름·배지) + 가운데(AppCard body 132px) + 아래(버튼).
+/// 병원발 변경 안내문은 상태와 직교하게 announcement로 얹는다(CARD-CHG-01·05).
+class AppointmentCard extends StatelessWidget {
+  final AppointmentView view;
+  final QueueStatus? queue;
+  final VoidCallback? onAcknowledge;
+  const AppointmentCard({super.key, required this.view, this.queue, this.onAcknowledge});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = resolveCardState(view, DateTime.now());
+    final numberLabel = view.isConfirmedBefore ? '예약번호' : '신청번호';  // COMMON-02/03
+    return AppCard(
+      announcement: view.hospitalChangePrevTime == null
+          ? null
+          : HospitalChangeBanner(view: view, onConfirm: onAcknowledge),  // CARD-CHG-01·05
+      body: Column(children: [
+        Row(children: [
+          Text('${view.forPatientName} · $numberLabel ${view.bookingCode ?? ''}'),  // COMMON-01
+          StatusLabel(text: patientStatusLabel(state), color: _railColor(state)),   // COMMON-04·05
+        ]),
+        SizedBox(height: AppTokens.cardBodyHeight, child: _cardBody(state)),         // COMMON-06
+        _actions(state),
+      ]),
+    );
+  }
+
+  Color _railColor(AppointmentCardState s) => switch (s) {
+        AppointmentCardState.req => AppTokens.grayPending,     // CARD-REQ-02 (#7E8E99)
+        AppointmentCardState.unconf => AppTokens.grayPending,  // CARD-UNCONF-03 (옅은 회색 계열)
+        _ => AppTokens.grayDone,
+      };
+
+  Widget _cardBody(AppointmentCardState s) => switch (s) {
+        AppointmentCardState.req => const ReqBody(),
+        AppointmentCardState.wait => WaitBody(queue: queue),
+        AppointmentCardState.unconf => const UnconfBody(),
+        _ => const SizedBox.shrink(),   // 상태 B — T17이 채운다
+      };
+  // _actions: 상태별 버튼. 상태 A 규칙은 각 본문 스텝에서 못박는다.
+}
+```
+Run → Expected: PASS.
+
+- [ ] **Step 10: `ReqBody`(확인 중) 실패 테스트 → 구현 (`CARD-REQ`)** — `test/features/home/card_bodies_a_test.dart`
+
+```dart
+testWidgets('[CARD-REQ-03] 확인 중에는 QR을 그리지 않고 안내 문구를 둔다', (t) async {
+  await t.pumpWidget(_wrap(const ReqBody()));
+  expect(find.textContaining('확정되면 여기에 접수용 QR이 나타납니다'), findsOneWidget);
+  expect(find.byType(QrImageView), findsNothing);            // QR 위젯 없음
+});
+testWidgets('[CARD-REQ-04] 카드 위 안내는 병원이 확인하는 중임을 알린다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _req())));
+  expect(find.textContaining('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.'), findsOneWidget);
+});
+testWidgets('[CARD-REQ-05] 소요 시간을 약속하지 않는다(보통 1~2시간 금지)', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _req())));
+  expect(find.textContaining('시간'), findsNothing);         // 소요 시간 추정 문구 없음
+});
+testWidgets('[CARD-REQ-06] 여러 줄 목록의 QR 버튼 자리에는 확인 중 글자가 온다', (t) async {
+  await t.pumpWidget(_wrap(ReqBody(compact: true)));
+  expect(find.text('확인 중'), findsOneWidget);
+});
+```
+> 구현: `ReqBody`는 점선 빈칸 + `확정되면 여기에 접수용 QR이 나타납니다`(REQ-03), 카드 위 `WarnText('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.')` + 시계 아이콘(REQ-04, `AppointmentCard`가 `req`일 때 announcement가 아닌 상단 안내로 얹음). **소요 시간 문구를 두지 않는다**(REQ-05). `compact`면 `[QR]` 자리에 `확인 중`(REQ-06). REQ-01("직원확인후확정 병원만")은 서버가 `예약신청`을 줄 때만 이 본문이 뜨는 구조로 실현(즉시확정이면 이 상태가 오지 않는다).
+Run → Expected: FAIL → 구현 → PASS.
+
+- [ ] **Step 11: `WaitBody`(진료대기) 실패 테스트 → 구현 (`CARD-WAIT`)** — 같은 파일
+
+```dart
+testWidgets('[CARD-WAIT-01] 대기 본문은 내 앞 인원 + 예상 대기시간 + 변동 안내를 함께 보인다', (t) async {
+  await t.pumpWidget(_wrap(WaitBody(queue: const QueueStatus(patientsAhead: 3, estimatedWaitMinutes: 25))));
+  expect(find.textContaining('내 앞에 3명'), findsOneWidget);
+  expect(find.textContaining('예상 대기시간 약 25분'), findsOneWidget);
+});
+testWidgets('[CARD-WAIT-02] 마지막 문장은 요구사항 4.5 문장을 글자 그대로 쓴다', (t) async {
+  await t.pumpWidget(_wrap(WaitBody(queue: const QueueStatus(patientsAhead: 3, estimatedWaitMinutes: 25))));
+  expect(find.text('예상 대기시간은 변동될 수 있습니다'), findsOneWidget);   // 글자 그대로
+});
+testWidgets('[CARD-WAIT-09] 내 앞 인원 문구는 내 앞에 N명 형식이다(내 앞 대기 인원: 아님)', (t) async {
+  await t.pumpWidget(_wrap(WaitBody(queue: const QueueStatus(patientsAhead: 3, estimatedWaitMinutes: null))));
+  expect(find.textContaining('내 앞에 3명'), findsOneWidget);
+  expect(find.textContaining('내 앞 대기 인원'), findsNothing);
+});
+```
+> 구현: `WaitBody`는 `내 앞에 ${queue.patientsAhead}명`(WAIT-01·09) + `formatWaitTime(...)`(빈 문자열이면 그 줄을 접는다, WAIT-04) + 고정 문장 `예상 대기시간은 변동될 수 있습니다`(WAIT-02). 이 문장은 **wait 본문 안에만** 있어 다른 상태에는 나오지 않는다(WAIT-03 — `resolveCardState` Step 6 테스트가 상태 격리를 못박음).
+Run → Expected: FAIL → 구현 → PASS.
+
+- [ ] **Step 12: `UnconfBody`(확정되지 않음) 실패 테스트 → 구현 (`CARD-UNCONF`)** — 같은 파일
+
+```dart
+testWidgets('[CARD-UNCONF-03] 확정되지 않음 카드는 옅은 회색 + 확정되지 않음 배지', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf())));
+  expect(find.widgetWithText(StatusLabel, '확정되지 않음'), findsOneWidget);
+});
+testWidgets('[CARD-UNCONF-03b] 시간 지남이 아니라 확정되지 않음으로 부른다(세 화면 같은 이름)', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf())));
+  expect(find.textContaining('시간 지남'), findsNothing);
+});
+testWidgets('[CARD-UNCONF-04][CARD-UNCONF-04b] 원인 먼저 — 확인이 끝나지 않았음을 먼저, 할 일을 나중에', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf())));
+  final cause = tester.getTopLeft(find.text('병원 확인이 끝나지 않았습니다')).dy;
+  final todo = tester.getTopLeft(find.text('병원에 연락해 주세요')).dy;
+  expect(cause < todo, isTrue);      // 원인이 위, 할 일이 아래
+});
+testWidgets('[CARD-UNCONF-05] 가운데는 점선 빈칸 + 아직 확정되지 않아 접수용 QR이 없습니다', (t) async {
+  await t.pumpWidget(_wrap(const UnconfBody()));
+  expect(find.textContaining('아직 확정되지 않아 접수용 QR이 없습니다'), findsOneWidget);
+  expect(find.byType(QrImageView), findsNothing);
+});
+testWidgets('[CARD-UNCONF-06] 버튼은 상담 채팅 연결 · 병원 전화', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf())));
+  expect(find.widgetWithText(ActionButton, '상담 채팅 연결'), findsOneWidget);
+  expect(find.widgetWithText(ActionButton, '병원 전화'), findsOneWidget);
+});
+testWidgets('[CARD-UNCONF-06b] 다시 예약하기 버튼을 두지 않는다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf())));
+  expect(find.textContaining('다시 예약'), findsNothing);   // 중복 예약 방지
+});
+testWidgets('[CARD-UNCONF-07] 문진 줄이 사라진다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf(hasQuestionnaire: true))));
+  expect(find.textContaining('사전문진'), findsNothing);
+});
+testWidgets('[CARD-UNCONF-08] 번호는 신청번호로 부른다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf(code: 'A-2413'))));
+  expect(find.textContaining('신청번호'), findsOneWidget);
+});
+testWidgets('[CARD-UNCONF-09] 금지 문구 — 안 오셨습니다·예약 부도·오늘 안에·소요시간을 쓰지 않는다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf())));
+  for (final banned in ['안 오셨습니다', '예약 부도', '오늘 안에']) {
+    expect(find.textContaining(banned), findsNothing);
+  }
+});
+testWidgets('[CARD-UNCONF-09b] 사과 문장을 앱이 쓰지 않는다(사과는 병원 몫)', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _unconf())));
+  expect(find.textContaining('죄송'), findsNothing);
+});
+testWidgets('[CARD-UNCONF-11] 확정되지 않음은 끝난 카드가 아니다(살아 있는 카드)', (t) async {
+  // isFinishedCard는 진료완료·취소됨만 true(CARD-LIFE, T17 소유) — A에서 unconf가 false임을 못박는다.
+  expect(isFinishedCard(AppointmentCardState.unconf), isFalse);
+});
+```
+> 구현: `UnconfBody`는 점선 빈칸 + `아직 확정되지 않아 접수용 QR이 없습니다`(UNCONF-05·QR 없음). 카드 위 `WarnText` **두 줄**(원인 `병원 확인이 끝나지 않았습니다` → 할 일 `병원에 연락해 주세요`, UNCONF-04·04b). 버튼 `[상담 채팅 연결]`·`[병원 전화]`(UNCONF-06), `[다시 예약하기]` 없음(UNCONF-06b). 문진 줄 제거(UNCONF-07), 신청번호(UNCONF-08), 금지·사과 문구 없음(UNCONF-09·09b). `UNCONF-01`(직원확인후확정만)·`10`(자정 이후 이력행 — T8 이력이 담당·T15 카드는 자정 전만)·`12`(애초에 안 생기게 — 백엔드 auto_confirm·직원웹 /today, 화면은 마지막 그물)은 **구조로 실현**: 카드는 서버가 `예약신청` + 유예 경과를 줄 때만 그리고, 예방은 서버 몫이라 여기 코드가 없다는 사실이 곧 규칙 준수(완료 보고에 명시).
+Run → Expected: FAIL → 구현 → PASS.
+
+- [ ] **Step 13: `HospitalChangeBanner`(병원발 변경) 실패 테스트 → 구현 (`CARD-CHG`)** — `test/features/home/hospital_change_banner_test.dart`
+
+```dart
+testWidgets('[CARD-CHG-02] 변경 안내는 전·후 시각을 함께 보이고 [확인]을 둔다', (t) async {
+  await t.pumpWidget(_wrap(HospitalChangeBanner(
+      view: _changed(prev: DateTime(2026, 8, 18, 14, 30), next: DateTime(2026, 8, 18, 16, 0)), onConfirm: () {})));
+  expect(find.textContaining('병원 사정으로 시간이 변경되었습니다'), findsOneWidget);
+  expect(find.textContaining('오후 2:30 → 오후 4:00'), findsOneWidget);   // 전 → 후
+  expect(find.widgetWithText(ActionButton, '확인'), findsOneWidget);
+});
+testWidgets('[CARD-CHG-03] 카드 본문은 이미 새 시간으로 그리고 배지는 확정됨 그대로', (t) async {
+  final v = _changed(prev: DateTime(2026, 8, 18, 14, 30), next: DateTime(2026, 8, 18, 16, 0)); // status 예약확정
+  await t.pumpWidget(_wrap(AppointmentCard(view: v)));
+  expect(find.textContaining('오후 4:00'), findsWidgets);   // 본문 시각은 새 시간
+});
+testWidgets('[CARD-CHG-04] [확인]을 누르면 onConfirm(=서버 acknowledge)이 불린다', (t) async {
+  var acked = false;
+  await t.pumpWidget(_wrap(HospitalChangeBanner(
+      view: _changed(prev: DateTime(2026, 8, 18, 14, 30), next: DateTime(2026, 8, 18, 16, 0)),
+      onConfirm: () => acked = true)));
+  await t.tap(find.widgetWithText(ActionButton, '확인'));
+  expect(acked, isTrue);   // 두 칸을 비우는 서버 호출로 이어진다(껐다 켜도 안 뜸)
+});
+testWidgets('[CARD-CHG-06] 병원발 취소는 예약이 취소되었음을 알리고 [새로 예약하기]를 준다', (t) async {
+  await t.pumpWidget(_wrap(HospitalChangeBanner(view: _cancelled(), onConfirm: () {})));
+  expect(find.textContaining('병원 사정으로 예약이 취소되었습니다'), findsOneWidget);
+  expect(find.widgetWithText(ActionButton, '새로 예약하기'), findsOneWidget);
+});
+testWidgets('[CARD-CHG-01][CARD-CHG-05] 안내문은 그 카드 위에 간격 없이 한 덩어리로 붙는다', (t) async {
+  await t.pumpWidget(_wrap(AppointmentCard(view: _changed(
+      prev: DateTime(2026, 8, 18, 14, 30), next: DateTime(2026, 8, 18, 16, 0)))));
+  // AppCard.announcement 슬롯(DISP-ATT-01)에 배너가 들어가 카드와 간격 0으로 붙는다.
+  expect(find.byType(HospitalChangeBanner), findsOneWidget);
+});
+```
+> 구현: `HospitalChangeBanner`는 `hospitalChangeKind`로 갈린다 — `'changed'`면 `병원 사정으로 시간이 변경되었습니다` + `${fmt(prev)} → ${fmt(slotStart)}`(CHG-02) + `[확인]`(→`onConfirm`, CHG-04); `'cancelled'`면 `병원 사정으로 예약이 취소되었습니다` + `[새로 예약하기]`(CHG-06). 카드는 이 배너를 `AppCard.announcement`로 얹어 간격 0(CHG-01·05·`DISP-ATT-01`), 본문은 이미 새 시간(CHG-03). `CARD-CHG-07`(방아쇠=낙관적 잠금 #12)은 **데이터로 실현** — 직원웹 `reschedule_appointment`가 옛 시각을 `hospital_change_prev_time`에 넣어야만 배너가 뜬다(그 칸이 null이면 안 뜬다). 시각 포맷 `오후 h:mm`은 `formatKoreanTime` 헬퍼(wait_format.dart 옆).
+Run → Expected: FAIL → 구현 → PASS.
+
+- [ ] **Step 14: 전체 테스트 + 커밋**
+
+```bash
+cd backend && pytest tests/test_patient_booking_service.py -v
+cd ../patient_app && flutter test test/features/home/ test/core/wait_format_test.dart
+git add backend/app/services/patient_booking_service.py backend/app/routers/ backend/tests/ \
+  patient_app/lib/features/home/ patient_app/lib/core/wait_format.dart patient_app/test/
+git commit -m "feat: 환자앱 Task 15 — 예약 카드 위젯 + 상태 A(공통·요청·대기·확정안됨·병원발변경) 38규칙 + CARD-CHG 두 칸(#17)"
+```
+
+> 📌 **규칙 커버리지(38)**: `CARD-COMMON-01~06`(6) · `CARD-REQ-01~06`(6) · `CARD-WAIT-01·02·03·05·06·07·09`(7 — 04·08은 T8 백엔드가 담음) · `CARD-UNCONF-01~12`(12) · `CARD-CHG-01~07`(7).
+> ⭐ **경계 갭 #17 갚음**: `hospital_change_prev_time·hospital_change_kind` 두 칸으로 CARD-CHG 실현 — 읽기(T8 조회)·비우기(T15 `acknowledge_hospital_change`)는 여기, 채우기는 직원웹 T2(소급). 결정·기각안은 결정 문서 「③ 병원발 변경 안내문」.
+> 📌 **값 없는/구조 규칙 — 「어느 테스트가 실현하는가」로 닫는다**: `CARD-REQ-01`·`CARD-UNCONF-01`(직원확인후확정 병원만): 서버가 `예약신청`을 줄 때만 본문이 뜨는 구조(`resolveCardState`)가 실현 — 즉시확정이면 이 상태가 오지 않는다. `CARD-UNCONF-10`(자정 이후 이력행): T8 `list_visit_history`가 담당(카드는 자정 전만 그림). `CARD-UNCONF-11`(끝난 카드 아님): `isFinishedCard(unconf)=false` 테스트가 실현(`CARD-LIFE`는 T17). `CARD-UNCONF-12`(애초에 안 생기게): 예방은 서버(auto_confirm 기본 true·직원웹 /today) 몫이라 화면에 코드가 없다는 사실이 규칙 — 화면은 마지막 그물. `CARD-CHG-07`(방아쇠=#12 낙관적 잠금): `hospital_change_prev_time`이 채워질 때만 배너가 뜨는 데이터 조건이 실현.
+> ⚠️ **T17이 이어받을 자리**: `AppointmentCard._cardBody`·`_actions`의 상태 B 케이스(`confirmed·arrived·inTreatment·done·cancelled·late`) + `AppointmentCardState`의 B 본문 + `isFinishedCard`(CARD-LIFE, 진료완료·취소됨만 true) + QR·문진 줄·오프라인 카드.
+
+> ▶ **다음 = Task 16 본문 작성** — 홈 프레임 + 하단 탭 셸 43규칙(`HOME-*` 22 · `NAV-HOME-*` 21). Task 16은 `AppShell`(T11)·`UpcomingCache`(오프라인 홈)·예약 조회 서비스(T8)를 소비하고, **T15의 `AppointmentCard`를 배치**(여러 예약을 카드 목록으로)하며 하단 탭 셸(`NAV-HOME-*`)을 만든다. ⚠️ **먼저 직원웹 T2 `reschedule_appointment`·병원발 취소에 `hospital_change_prev_time·kind` 쓰기 소급 반영**(경계 #17, 이번 세션 남은 작업).
