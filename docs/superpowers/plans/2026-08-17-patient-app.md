@@ -14029,3 +14029,1091 @@ git commit -m "feat: 환자앱 Task 23 — 사전문진 작성 마법사 60규�
 > ⭐ **라우트 정본 통일**: `/questionnaire/:id`(홈·알림이 쓰던 정본)에 실제 화면을 끼우고 T20 완료 화면 링크 1줄 + 그 test 1건을 맞춤. 앱 라우트와 백엔드 API 경로(`/my/appointments/{id}/questionnaire`)는 별개임을 명확히.
 > 📌 **값 없는/경계 규칙 실현 지도**: `QNR-FORM-01~05·09`=직원웹 `upsert_template`(앱은 서버가 거른 양식 소비·감추지 않음) · `QNR-REQ-06~09`=의사 화면 `DOCTOR-QNR`(앱이 안 막는 것의 짝) · `QNR-REQ-04·05`=`required` 뜻(「병원 확인 항목」, `QNR-REQ-01·02`가 실현) · `NAV-QNR-06`=요구사항 4.3 근거(`NAV-QNR-05` 도착이 실현) · `QNR-FORM-08`=30문항→화면 30개(진행률·이어쓰기 중요).
 > ⚠️ **T24로 넘긴 계열**(여기서 담지 않음): `QNR-SHOW-*`·`QNR-LIVE-*`·`QNR-PROG-*`·`QNR-NOTI-*` — 마법사 진행률 표시·이어쓰기 문구·확인 화면 읽기전용 렌더는 T24가 이 셸에 얹는다.
+
+---
+
+## Task 24: 사전문진 진행률·성별 노출·발밑 변화·미작성 알림 (40규칙)
+
+> **담당 규칙(40)**:
+> `QNR-PROG-03·06·07·08·09·10·11·12`(8) · `QNR-SHOW-02·03·04·06·07·08·09·10·11`(9) · `QNR-LIVE-01·02·03·04·05·06·07·08·10·11·12·13·14·15`(14) · `QNR-NOTI-01·02·03·04·05·06·07·08·09`(9).
+> 📌 `QNR-PROG-01·02·04·05`(진행률 계산 본체)·`QNR-SHOW-01·05`(성별 필터)·`QNR-LIVE-09`(미완성 문진 이관)는 **서버가 이미 담았다**(T7 `compute_progress`·`_visible` / T5 `move_questionnaire_response`) — 여기서는 **받아 쓰기만** 한다.
+> ⚠️ **`QNR-PROG-08·10`·`QNR-NOTI-06`은 커버리지상 이미 「반영」으로 세어져 있으나 실현이 없다** — T7·T23이 *"문구는 T24가 채운다"*라고 **완전 ID로 예고**해 검사기가 커버로 세어버린 것이다(T23 착수 때 `QNR-LIVE-01·05·11`에서 잡았던 함정이 이 셋에 남았다). **실현은 이 태스크가 한다**(Step 2·4·6). ⛔ 앞으로 남 태스크 규칙은 계열명으로만 예고할 것.
+>
+> ⭐ **이 태스크의 축**: 「같은 수를 두 곳에서 세면 어긋난다」. 진행률은 **서버 한 곳**(`compute_progress`)에서 나오고, 화면 셋(마법사 상단·홈 줄·이어쓰기)과 알림 하나가 **그 값을 글자만 다르게** 쓴다(`QNR-PROG-04·09`). 알림만 「남은 수」인 이유는 자리의 목적이 다르기 때문이다 — 화면은 「어디까지 왔나」, 알림은 「무엇을 해야 하나」(`QNR-PROG-11`).
+>
+> ⚠️⚠️ **경계 — 이 Task(24)가 담는 것 / 남이 담은 것**:
+> - **T24(여기)**: 진행률 문구 3종 + 알림 문구 2벌·대상 조회 · 성별 값 표준화(DB 제약) · 취소 시 읽기전용 전환 배너 · 양식 고정.
+> - **T23 소유(확장만)**: 마법사 셸·이어쓰기·확인 화면 본체(`QuestionnaireWizard`·`ResumeScreen`·`ConfirmScreen`·`QnrController`) — T23이 **자리(`QnrProgressHeader`·`ResumeSummary`·`ConfirmScreen(readOnly:)`)를 비워 두었고 여기서 채운다.** 라우팅·상태 분기(`NAV-QNR`)는 재소유하지 않는다.
+> - **T17 소유(확장만)**: 홈 카드 문진 줄 `QuestionnaireRow`(`CARD-QNR` 4종) — 여기서는 **작성 중일 때 진행률 꼬리표 한 줄**만 얹는다.
+> - **직원웹 몫**(경계 명시 test로 담는다 — Step 9): `QNR-SHOW-06·07·08·09`(의사 화면의 `표시되지 않음` 구분)는 **`DOCTOR-QNR-*`**(직원웹)이 그린다. 앱에는 의사 화면이 없다.
+> - **배포(⑤ 미작성) 몫**: `QNR-NOTI-01`의 **배치 스케줄(전날 몇 시에 도는가·cron)**은 `plans/2026-07-27-deployment.md`. 여기서는 **그 배치가 부를 함수**(대상 조회 + 문구)를 완성한다 → 원장 `HANDOVERS.md`에 등록.
+>
+> ⚠️⚠️ **갭 2건을 여기서 해소한다**(⭐ 해소 즉시 설계문서에 반영 — Step 12에 포함, 「나중에」로 미루지 않는다):
+> - **갭 #53**(미작성 알림): ① 대상 판정이 **문진 행 존재 여부**라 1문항만 쓴 사람에게 알림이 안 간다 → **`completed_at` 없는 사람 전부**로 넓힌다(`QNR-NOTI-02·07`). ② 문구가 두 파일에 다르고, 그중 하나(`아직 작성하지 않으셨습니다`)는 **작성 중인 사람에게 거짓말**이다 → **미작성/작성 중 두 벌**로 나눈다(`QNR-NOTI-03·04·05·08`). ③ 대상이 `예약확정`만이라 `예약신청` 구간이 빠진다 → `EDITABLE_STATUSES` 전체로(`QNR-NOTI-09`).
+> - **갭 #57**(성별 표준화): `patients.gender`에 **값 제약이 없다**(`00003_patients.sql:5` 실물 확인 — `gender text not null`뿐). 직원이 `여`라고 치면 「여성 환자만」 문항이 그 환자에게 **조용히 사라진다**. 직원웹은 **입력 UI를 이미 버튼 2개·F/M으로 고쳤으나**(`QUEUE-WALK-06·07`) **DB 제약과 기존 데이터 정리는 아무도 담지 않았다** → 여기서 `check` 제약 + 백필(`QNR-SHOW-10`).
+>
+> 📌 **목업 대조 완료**(문구는 목업이 원본): `56-questionnaire-types.html` — 마법사 `3번 / 8문항` · 홈 줄 `📋 사전문진 작성 중 (3/8) · 이어서 쓰기 ›` · 이어쓰기 `8문항 중 3개를 작성하셨습니다.` · 알림 `5문항 남았습니다`(⑤가 두 줄을 나란히 놓아 `QNR-PROG-12`의 반대 뜻 오류가 드러났다).
+
+**Files:**
+- Create: `patient_app/lib/features/questionnaire/qnr_progress_text.dart`(`qnrHeaderText`·`qnrResumeText`·`qnrRowText` — 순수 포맷터 3종)
+- Create: `patient_app/lib/features/questionnaire/qnr_live_banner.dart`(`QnrCancelledBanner` — 취소 안내 + `[확인]`)
+- Create: `supabase/migrations/00028_patients_gender_check.sql`(갭 #57 — 백필 + `check (gender in ('F','M'))`)
+- Modify: `patient_app/lib/features/questionnaire/questionnaire_wizard.dart`(`QnrProgressHeader` 본문) · `resume_screen.dart`(`ResumeSummary` 본문) · `confirm_screen.dart`(읽기전용 값 렌더) · `questionnaire_controller.dart`(진입 시 양식 고정 + 취소 감지 `liveCancelled`) · `questionnaire_entry.dart`(취소돼도 화면 유지)
+- Modify: `patient_app/lib/features/home/questionnaire_row.dart`(작성 중 진행률 꼬리표) · `patient_app/lib/features/home/appointment_view.dart`(문진 3필드 소비) · `patient_app/lib/features/appointment/appointment_providers.dart`(`AppointmentDetail.status` getter 1줄)
+- Modify: `backend/app/services/patient_questionnaire_service.py`(`build_reminder_body`·`list_reminder_targets`) · `backend/app/services/notification_service.py`(문구 키 2벌 + `remaining` 슬롯) · `backend/app/services/patient_appointment_query_service.py`(문진 상태·진행률 3필드 소급)
+- Test: `patient_app/test/features/questionnaire/qnr_progress_text_test.dart` · `qnr_live_test.dart` · `qnr_show_boundary_test.dart` · `patient_app/test/features/home/questionnaire_row_test.dart`(확장) · `backend/tests/test_questionnaire_reminder.py` · `backend/tests/test_patient_questionnaire_service.py`(확장) · `backend/tests/test_patient_appointment_query_service.py`(확장)
+
+**Interfaces:**
+- Consumes:
+  - **T7**: `compute_progress(questions, gender, answers) -> {"answered", "total"}`(순수함수 — 알림 배치가 **재사용**한다) · `_visible(question, gender)` · `EDITABLE_STATUSES` · `get_response -> {..., "state", "answered", "total"}`
+  - **T9**: `notification_service.notify_patient(account_patient_id, notification_type, *, kind, target_name, appointment_id)` · `MESSAGES` · `notification_type_settings(notification_type primary key, body, also_sms)`(④ `00013` 실물 — **CHECK 제약 없음**을 확인했으므로 문구 키를 한 줄 더 넣을 수 있다)
+  - **T23**: `QnrState`(`questions`·`answers`·`index`·`status`) · `QnrController` · `questionnaireProvider(appointmentId)` · `QuestionnaireWizard` · `ResumeScreen` · `ConfirmScreen(appointmentId, readOnly, returnTo)` · `QuestionnaireEntry` · `editableStatuses`
+  - **T17/T15**: `QuestionnaireRow({state, hasQuestionnaire, onTap})` · `QnrRowState` · `AppointmentView`(취소 주체 `cancelledBy`(`'hospital'|'patient'`)·`cancelledByRelation`·`cancelledByName`·`isSelf`) · `AppTokens.grayPending`
+  - **T8/T21**: `list_my_appointments` · `get_appointment_detail` · `appointmentDetailProvider` · `AppointmentDetail`
+- Produces:
+  - `qnrHeaderText(index, total) -> String`(`'3번 / 8문항'`) · `qnrResumeText(answered, total) -> String`(`'8문항 중 3개를 작성하셨습니다.'`) · `qnrRowText(answered, total) -> String`(`'사전문진 작성 중 (3/8)'`)
+  - `QnrCancelledBanner({cancelledBy, relation, name, isSelf, onAcknowledge})`
+  - `patient_questionnaire_service.build_reminder_body(state, answered, total) -> tuple[str, int | None]`(문구 키 + 남은 수) · `list_reminder_targets(conn, target_date) -> list[dict]`
+  - `notification_service.notify_patient(..., remaining: int | None = None)`(문구 키 갈림 + `{remaining}` 치환)
+  - `list_my_appointments`/`get_appointment_detail` 반환에 `questionnaire_state`·`questionnaire_answered`·`questionnaire_total` 3필드
+  - SQL: `patients.gender` 백필 + `check (gender in ('F','M'))`
+
+- [ ] **Step 1: 진행률 문구 3종 — 순수 포맷터 (`QNR-PROG-03·06·08·09`)**
+
+> ⭐ **왜 포맷터를 한 파일에 모으나**: 세 자리(마법사 상단·이어쓰기·홈 줄)가 **같은 숫자**를 써야 한다(`QNR-PROG-09`). 각 화면이 제 손으로 문자열을 만들면 한 곳만 고쳐져 어긋난다 — 숫자는 서버 한 곳(`compute_progress`), **글자는 이 파일 한 곳**이다.
+> ⚠️ 분모는 **환자 성별에 따라 달라진다**(`QNR-PROG-03` — 남성에겐 임신 문항이 안 보이므로 `8문항`이 아니라 `7문항`). 포맷터는 **받은 total을 그대로 쓸 뿐 자기가 세지 않는다** — 이것이 `QNR-PROG-03`이 화면에서 성립하는 방식이다.
+
+`patient_app/test/features/questionnaire/qnr_progress_text_test.dart`:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/questionnaire/qnr_progress_text.dart';
+
+void main() {
+  test('[QNR-PROG-06] 마법사 상단은 「N번 / M문항」 — 지금 몇 번째 문항인지', () {
+    expect(qnrHeaderText(index: 0, total: 8), '1번 / 8문항');   // index는 0부터, 사람에겐 1부터
+    expect(qnrHeaderText(index: 2, total: 8), '3번 / 8문항');   // 목업 56 ⑤
+  });
+
+  test('[QNR-PROG-08] 이어쓰기 화면은 「M문항 중 N개를 작성하셨습니다.」 — 한 것의 수', () {
+    expect(qnrResumeText(answered: 3, total: 8), '8문항 중 3개를 작성하셨습니다.');
+  });
+
+  test('[QNR-PROG-07] 홈·나의 예약 줄은 「사전문진 작성 중 (N/M)」', () {
+    expect(qnrRowText(answered: 3, total: 8), '사전문진 작성 중 (3/8)');
+  });
+
+  test('[QNR-PROG-09] 세 자리는 같은 숫자를 쓴다 — 각자 계산하지 않는다', () {
+    // 같은 (answered=3, total=8)에서 나온 세 문구에 3과 8이 모두 살아 있다.
+    const a = 3, t = 8;
+    expect(qnrHeaderText(index: a, total: t), contains('$t문항'));
+    expect(qnrResumeText(answered: a, total: t), allOf(contains('$t문항'), contains('$a개')));
+    expect(qnrRowText(answered: a, total: t), contains('($a/$t)'));
+  });
+
+  test('[QNR-PROG-03] 분모는 성별에 따라 달라진다 — 포맷터는 받은 total을 그대로 쓴다(자기가 세지 않음)', () {
+    // 같은 진료과라도 남성은 임신 문항이 빠져 분모가 준다(서버 compute_progress가 준 값).
+    expect(qnrRowText(answered: 3, total: 8), contains('(3/8)'));   // 여성 환자
+    expect(qnrRowText(answered: 3, total: 7), contains('(3/7)'));   // 남성 환자 — 문항 하나가 안 보임
+  });
+
+  test('[QNR-PROG-03] 분모가 0이어도 깨지지 않는다 — 문진을 받지 않는 진료과', () {
+    expect(qnrRowText(answered: 0, total: 0), '사전문진 작성 중 (0/0)');   // 화면이 이 값을 그릴 일은 없다(진입 방어)
+  });
+}
+```
+
+Run: `flutter test test/features/questionnaire/qnr_progress_text_test.dart` → Expected: FAIL(파일 없음).
+
+- [ ] **Step 1b: 포맷터 구현** — `patient_app/lib/features/questionnaire/qnr_progress_text.dart`
+
+```dart
+/// 진행률 문구 한 곳 — 숫자는 서버(compute_progress) 한 곳에서 오고, 글자는 여기 한 곳에서 만든다.
+/// QNR-PROG-09: 마법사 상단·이어쓰기·홈 줄이 같은 값을 쓴다. 각 화면이 제 손으로 만들지 않는다.
+library;
+
+/// QNR-PROG-06: 마법사 상단 「3번 / 8문항」. index는 0부터 세는 자리, 사람에게는 1부터 보인다.
+String qnrHeaderText({required int index, required int total}) => '${index + 1}번 / $total문항';
+
+/// QNR-PROG-08: 이어쓰기 「8문항 중 3개를 작성하셨습니다.」 — 「한 것」의 수(알림만 「남은 수」, QNR-PROG-10).
+String qnrResumeText({required int answered, required int total}) => '$total문항 중 $answered개를 작성하셨습니다.';
+
+/// QNR-PROG-07: 홈·나의 예약 줄 「사전문진 작성 중 (3/8)」. 뒤의 `· 이어서 쓰기 ›`는 줄 위젯이 붙인다.
+String qnrRowText({required int answered, required int total}) => '사전문진 작성 중 ($answered/$total)';
+```
+
+Run: 같은 명령 → PASS.
+
+- [ ] **Step 2: 마법사 상단·이어쓰기 문구 배선 — T23이 비워 둔 자리를 채운다 (`QNR-PROG-06·08`)**
+
+> 📌 T23은 `QnrProgressHeader`를 `'${index + 1} / $total'`(임시), `ResumeSummary`를 `SizedBox.shrink()`(빈 자리)로 두고 *"문구는 T24"*라고 적었다. 여기서 **그 두 위젯의 본문만** 바꾼다 — 셸·라우팅은 손대지 않는다.
+> ⚠️ 이어쓰기 숫자는 **화면이 세지 않는다**: `QnrState.answers.length`를 쓰면 성별로 안 보이는 문항이 분모에서 빠진 것과 어긋날 수 있다 → 서버가 준 `answered`·`total`을 컨트롤러가 들고 있어야 한다(Step 2b에서 `QnrState`에 2필드 추가).
+
+`patient_app/test/features/questionnaire/qnr_progress_text_test.dart`에 이어서(위젯 절):
+
+```dart
+testWidgets('[QNR-PROG-06] 마법사 상단에 「3번 / 8문항」이 그려진다', (t) async {
+  await t.pumpWidget(MaterialApp(home: Scaffold(
+    appBar: AppBar(title: const QnrProgressHeader(index: 2, total: 8)))));
+  expect(find.text('3번 / 8문항'), findsOneWidget);
+});
+
+testWidgets('[QNR-PROG-08] 이어쓰기 화면에 「8문항 중 3개를 작성하셨습니다.」가 그려진다', (t) async {
+  await t.pumpWidget(const MaterialApp(home: Scaffold(
+    body: ResumeSummary(answered: 3, total: 8))));
+  expect(find.text('8문항 중 3개를 작성하셨습니다.'), findsOneWidget);
+});
+
+testWidgets('[QNR-PROG-09] 이어쓰기 숫자는 화면이 세지 않고 서버 값을 쓴다 — 답이 4개 있어도 서버가 3이면 3', (t) async {
+  // 성별로 안 보이는 문항의 옛 답이 answers에 남아 있어도 화면 숫자는 서버 값(3)을 따른다.
+  await t.pumpWidget(const MaterialApp(home: Scaffold(body: ResumeSummary(answered: 3, total: 8))));
+  expect(find.textContaining('3개'), findsOneWidget);
+  expect(find.textContaining('4개'), findsNothing);
+});
+```
+
+- [ ] **Step 2b: 두 위젯 본문 교체 + `QnrState` 2필드** — `questionnaire_wizard.dart`·`resume_screen.dart`·`questionnaire_controller.dart`
+
+`questionnaire_controller.dart`(T23 파일) — `QnrState`에 서버 진행률 2필드를 싣는다:
+
+```dart
+class QnrState {
+  const QnrState({required this.questions, required this.answers,
+    required this.index, required this.status, this.answered = 0, this.total = 0,
+    this.submitting = false, this.loading = true, this.liveCancelled = false});
+  final List<Question> questions;
+  final Map<String, String> answers;
+  final int index;
+  final String status;
+  final int answered, total;      // ⭐ 서버 compute_progress 값 그대로(QNR-PROG-04·09). 화면이 세지 않는다.
+  final bool submitting, loading;
+  final bool liveCancelled;       // Step 10에서 쓴다(QNR-LIVE-01)
+
+  QnrState copyWith({List<Question>? questions, Map<String, String>? answers,
+    int? index, String? status, int? answered, int? total,
+    bool? submitting, bool? loading, bool? liveCancelled}) => QnrState(
+    questions: questions ?? this.questions, answers: answers ?? this.answers,
+    index: index ?? this.index, status: status ?? this.status,
+    answered: answered ?? this.answered, total: total ?? this.total,
+    submitting: submitting ?? this.submitting, loading: loading ?? this.loading,
+    liveCancelled: liveCancelled ?? this.liveCancelled);
+
+  Question? get current => index >= 0 && index < questions.length ? questions[index] : null;
+}
+```
+
+`_load()`·`next()`·`submit()`이 서버 값을 그대로 싣는다(T23 코드에 2줄씩 추가):
+
+```dart
+  Future<void> _load() async {
+    final data = await _repo.load(_appointmentId);
+    state = QnrState(questions: data.questions, answers: Map.of(data.answers),
+      index: 0, status: data.state, loading: false,
+      answered: data.answered, total: data.total);        // ⭐ 서버가 센 값(QNR-PROG-04)
+  }
+
+  Future<void> next() async {
+    final prog = await _repo.save(_appointmentId, _answerList(), complete: false);
+    state = state.copyWith(status: prog.state, answered: prog.answered, total: prog.total,
+      index: (state.index + 1).clamp(0, state.questions.length));
+  }
+```
+
+> 📌 `QnrData`(T23 모델)에 `answered`·`total`을 싣는다 — 서버 `get_response`가 이미 두 값을 돌려주므로(`{"answers","state","answered","total","completed_at"}`) **새 API가 아니라 이미 오던 값을 안 버리는 것**이다. 응답이 `null`(미작성)이면 `answered=0`, `total=template.total`.
+
+`questionnaire_wizard.dart` — `QnrProgressHeader` 본문 교체:
+
+```dart
+import 'qnr_progress_text.dart';
+
+/// QNR-PROG-06: 마법사 상단 진행률. 문구는 qnr_progress_text 한 곳에서 만든다(QNR-PROG-09).
+class QnrProgressHeader extends StatelessWidget {
+  const QnrProgressHeader({super.key, required this.index, required this.total});
+  final int index, total;
+  @override
+  Widget build(BuildContext context) => Text(qnrHeaderText(index: index, total: total));
+}
+```
+
+> ⚠️ 상단 `total`은 **문항 수**(`st.questions.length`)이고 서버 `total`과 같은 값이다 — 서버가 **보이는 문항만** 내려주므로(`get_template`) 둘이 갈리지 않는다. 마법사는 화면 수와 맞아야 하므로 `questions.length`를 그대로 쓴다(T23 배선 유지).
+
+`resume_screen.dart` — `ResumeSummary` 본문 교체 + 호출부 1줄:
+
+```dart
+import 'qnr_progress_text.dart';
+
+/// QNR-PROG-08: 이어쓰기 요약. 숫자는 서버 값(QNR-PROG-04·09) — 화면이 answers를 세지 않는다.
+class ResumeSummary extends StatelessWidget {
+  const ResumeSummary({super.key, required this.answered, required this.total});
+  final int answered, total;
+  @override
+  Widget build(BuildContext context) => Text(qnrResumeText(answered: answered, total: total),
+    style: const TextStyle(fontSize: 18));
+}
+```
+
+```dart
+// 기존: const ResumeSummary(),
+ResumeSummary(answered: st.answered, total: st.total),   // 서버 값(QNR-PROG-08·09)
+```
+
+Run: `flutter test test/features/questionnaire/` → PASS.
+
+- [ ] **Step 3: 홈 줄 진행률 — 백엔드 3필드 소급 + `QuestionnaireRow` 꼬리표 (`QNR-PROG-07·09`)**
+
+> ⚠️⚠️ **경계 갭(여기서 닫는다)**: T8 `list_my_appointments`는 문진에 대해 **`has_questionnaire`(행이 있느냐) 하나만** 내려준다(`exists (select 1 from questionnaire_responses …)`). 그래서 ① **1문항만 쓴 사람이 홈에서 「작성완료 · 수정하기」로 보이고**(갭 #50이 홈 줄에 그대로 남아 있다) ② `사전문진 작성 중 (3/8)`을 **그릴 재료가 없다**. → 조회 서비스에 **`questionnaire_state`·`questionnaire_answered`·`questionnaire_total` 3필드**를 소급 추가한다.
+> ⭐ **N+1을 만들지 않는다**: 진행률은 성별 필터가 걸려 SQL만으로는 못 센다 → 한 번의 쿼리로 **양식 questions·환자 gender·답 배열**까지 끌어온 뒤, 파이썬에서 **T7 `compute_progress`를 그대로 호출**한다(같은 함수 = 같은 숫자, `QNR-PROG-04`). 다가오는 예약만 도는 목록이라 행 수가 적다.
+
+`backend/tests/test_patient_appointment_query_service.py`에 이어서(문진 진행률 절):
+
+```python
+@pytest.mark.asyncio
+async def test_qnr_progress_fields_on_list(db_conn):
+    """[QNR-PROG-07][QNR-PROG-09] 홈 줄이 쓸 진행률을 서버가 내려준다 — 화면이 세지 않는다."""
+    ctx = await _seed_appt(db_conn, gender="F")
+    await _seed_template(db_conn, ctx["department_id"], [
+        {"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"},
+        {"id": "q2", "text": "임신 가능성", "type": "예/아니오", "required": True, "visible_to": "여성 환자만"},
+        {"id": "q3", "text": "증상", "type": "장문형", "required": False, "visible_to": "모든 환자"},
+    ])
+    await patient_questionnaire_service.save_response(
+        ctx["me"], ctx["appointment_id"],
+        [{"question_id": "q1", "question_text": "키", "value": "170"}], complete=False)
+
+    rows = await patient_appointment_query_service.list_my_appointments(ctx["me"])
+    row = next(r for r in rows if r["id"] == ctx["appointment_id"])
+    assert row["questionnaire_state"] == "작성 중"      # 완료 표시 없음(갭 #50 — 행 존재로 판정하지 않는다)
+    assert row["questionnaire_answered"] == 1
+    assert row["questionnaire_total"] == 3              # 여성이라 임신 문항이 분모에 든다
+
+@pytest.mark.asyncio
+async def test_qnr_progress_total_differs_by_gender(db_conn):
+    """[QNR-PROG-03] 같은 진료과라도 남성은 분모가 하나 준다 — 홈 줄 숫자도 따라 갈린다."""
+    ctx = await _seed_appt(db_conn, gender="M")
+    await _seed_template(db_conn, ctx["department_id"], [
+        {"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"},
+        {"id": "q2", "text": "임신 가능성", "type": "예/아니오", "required": True, "visible_to": "여성 환자만"},
+    ])
+    rows = await patient_appointment_query_service.list_my_appointments(ctx["me"])
+    row = next(r for r in rows if r["id"] == ctx["appointment_id"])
+    assert row["questionnaire_total"] == 1              # 임신 문항이 빠졌다
+    assert row["questionnaire_state"] == "미작성"       # 행이 없으면 미작성
+
+@pytest.mark.asyncio
+async def test_qnr_state_done_only_after_submit(db_conn):
+    """[QNR-PROG-07] 「작성완료」는 [제출하기]를 누른 뒤에만 — 자동 저장으로는 안 찍힌다(홈 줄이 거짓말하지 않는다)."""
+    ctx = await _seed_appt(db_conn, gender="F")
+    await _seed_template(db_conn, ctx["department_id"],
+        [{"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"}])
+    await patient_questionnaire_service.save_response(
+        ctx["me"], ctx["appointment_id"],
+        [{"question_id": "q1", "question_text": "키", "value": "170"}], complete=True)
+    rows = await patient_appointment_query_service.list_my_appointments(ctx["me"])
+    assert next(r for r in rows if r["id"] == ctx["appointment_id"])["questionnaire_state"] == "작성완료"
+```
+
+Run: `cd backend && pytest tests/test_patient_appointment_query_service.py -k qnr -v` → Expected: FAIL(`KeyError: questionnaire_state`).
+
+- [ ] **Step 3b: 조회 서비스 소급 구현** — `backend/app/services/patient_appointment_query_service.py`
+
+```python
+from app.services.patient_questionnaire_service import compute_progress  # ⭐ 같은 함수 = 같은 숫자(QNR-PROG-04)
+
+_QNR_JOIN = (
+    "  qr.answers as _qnr_answers, qr.completed_at as _qnr_completed_at, "
+    "  qt.questions as _qnr_questions, p.gender as _qnr_gender "
+)
+_QNR_FROM = (
+    "left join questionnaire_responses qr on qr.appointment_id = a.id "
+    "left join questionnaire_templates qt on qt.department_id = a.department_id "
+)
+
+
+def _qnr_fields(row: dict) -> dict:
+    """QNR-PROG-07·09: 홈 줄이 쓸 상태·진행률. 갭 #50 — 행 존재가 아니라 completed_at으로 갈린다."""
+    questions = _load(row.get("_qnr_questions") or [])
+    answers = _load(row.get("_qnr_answers") or [])
+    prog = compute_progress(questions, row.get("_qnr_gender") or "", answers)
+    if row.get("_qnr_answers") is None:
+        state = "미작성"                                   # 행 없음
+    elif row.get("_qnr_completed_at") is not None:
+        state = "작성완료"                                 # [제출하기]를 누른 것만(QNR-STATE-04)
+    else:
+        state = "작성 중"                                  # ⭐ 1문항만 쓴 사람이 여기 — 갭 #50이 닫힌다
+    return {"questionnaire_state": state,
+            "questionnaire_answered": prog["answered"], "questionnaire_total": prog["total"]}
+```
+
+`list_my_appointments`·`get_appointment_detail`의 select에 `_QNR_JOIN`·`_QNR_FROM`을 끼우고, 반환을 다음처럼 바꾼다:
+
+```python
+    return [{**_strip_private(dict(r)), **_qnr_fields(dict(r))} for r in rows]
+    # _strip_private: 밑줄로 시작하는 조인 원재료(_qnr_*)는 응답에서 뺀다 — 화면은 3필드만 본다.
+```
+
+> 📌 **`has_questionnaire`는 그대로 둔다**(T8·T17이 이미 쓰고 있다) — 새 3필드가 그것을 **더 정확한 값으로 대체**하되, 지우면 T17 카드가 깨진다. T17 `QuestionnaireRow` 상태 매핑을 `questionnaire_state`로 옮기는 것은 아래 Step 3c(같은 커밋).
+> ⚠️ **양식이 진료과당 1개**라는 전제(`00008_questionnaire_template_unique.sql`)에 기대어 `left join … limit 1` 없이 조인한다 — 유니크 제약이 실물로 있으므로 행이 불어나지 않는다.
+
+- [ ] **Step 3c: `QuestionnaireRow`에 진행률 꼬리표 (`QNR-PROG-07`)** — `patient_app/lib/features/home/questionnaire_row.dart`(T17 파일 확장)
+
+`patient_app/test/features/home/questionnaire_row_test.dart`에 이어서:
+
+```dart
+testWidgets('[QNR-PROG-07] 작성 중이면 「사전문진 작성 중 (3/8) · 이어서 쓰기 ›」', (t) async {
+  await t.pumpWidget(_wrap(const QuestionnaireRow(
+    state: QnrRowState.writing, answered: 3, total: 8)));
+  expect(find.textContaining('사전문진 작성 중 (3/8)'), findsOneWidget);
+  expect(find.textContaining('이어서 쓰기'), findsOneWidget);      // 「작성하기」가 아니다
+});
+
+testWidgets('[QNR-PROG-07] 1문항만 쓴 사람은 「작성완료」로 보이지 않는다(갭 #50)', (t) async {
+  // 옛 판정(행 존재)이면 done으로 보였다 — 이제 서버가 「작성 중」을 준다.
+  await t.pumpWidget(_wrap(const QuestionnaireRow(
+    state: QnrRowState.writing, answered: 1, total: 8)));
+  expect(find.textContaining('작성완료'), findsNothing);
+  expect(find.textContaining('수정하기'), findsNothing);
+});
+
+testWidgets('[QNR-PROG-09] 홈 줄 숫자는 서버 값을 그대로 쓴다 — 줄이 세지 않는다', (t) async {
+  await t.pumpWidget(_wrap(const QuestionnaireRow(state: QnrRowState.writing, answered: 3, total: 7)));
+  expect(find.textContaining('(3/7)'), findsOneWidget);   // 남성 환자(분모 7)
+});
+```
+
+구현: `QnrRowState`에 **`writing`을 한 종 추가**하고(`todo`·`writing`·`done`·`locked`·`readonly`), `writing`일 때만 `qnrRowText(answered, total)` + `· 이어서 쓰기 ›`를 그린다. 색은 `todo`와 같은 **주의색**(할 일이 남았다 — `QNR-STATE-05`가 「미작성·작성 중」을 한 색으로 묶은 것과 일치). 상태 매핑은 `has_questionnaire` 대신 서버 `questionnaire_state`를 쓴다:
+
+```dart
+QnrRowState resolveQnrRow(String state, {required bool inTreatment, required bool finished}) {
+  if (finished) return QnrRowState.readonly;          // CARD-QNR-04(눈)
+  if (inTreatment) return QnrRowState.locked;         // CARD-QNR-03(자물쇠)
+  switch (state) {
+    case '작성완료': return QnrRowState.done;          // CARD-QNR-02(회색·수정하기)
+    case '작성 중':  return QnrRowState.writing;       // ⭐ QNR-PROG-07 — 새 종
+    default:        return QnrRowState.todo;          // CARD-QNR-01(주의색·작성하기)
+  }
+}
+```
+
+> 📌 `AppointmentView`(T15/17)에 `questionnaireState`·`questionnaireAnswered`·`questionnaireTotal` 3필드를 `fromJson`에 싣는다(1줄씩). `hasQuestionnaire`는 남겨 두되 **행 판정에는 더 이상 쓰지 않는다** — 옛 값을 읽는 곳이 없어야 갭 #50이 되살아나지 않는다.
+
+Run: `flutter test test/features/home/questionnaire_row_test.dart` → PASS.
+
+- [ ] **Step 4: 미작성 알림 문구 2벌 — 「남은 수」 (`QNR-NOTI-03·04·05·06·08`, `QNR-PROG-10·11·12`)**
+
+> ⭐⭐ **알림만 「남은 수」를 쓴다**(`QNR-PROG-10`). 화면 셋은 「지금 어디까지 왔나」를 보여주는 자리이고, 알림은 「지금 무엇을 해야 하나」를 말하는 자리라 **남은 양이 재촉으로 기능**한다(`QNR-PROG-11`).
+> ⚠️ **옛 문구가 같은 값을 반대 뜻으로 썼다**(`QNR-PROG-12`) — `3문항 남았습니다`의 `3`은 실은 **「한 것」의 수**였다. 8문항 중 3개를 했으면 남은 것은 **5개**다. 목업 56 ⑤가 두 줄을 나란히 놓아 드러났다(사용자 지적, 2026-08-05 · 결정 B-47).
+> ⛔ **`아직 작성하지 않으셨습니다`는 작성 중인 사람에게 쓰지 않는다**(`QNR-NOTI-05`) — 4문항을 쓴 사람에게 **사실이 아니다.** 「앱이 사실이 아닌 말을 하지 않는다」.
+> 📌 **숫자 출처는 화면과 같은 서버 값**(`QNR-NOTI-06`) — 배치가 따로 세지 않고 T7 `compute_progress`를 그대로 부른다.
+
+`backend/tests/test_questionnaire_reminder.py`:
+
+```python
+import pytest
+from app.services import patient_questionnaire_service as qsvc
+
+
+def test_body_for_unwritten():
+    """[QNR-NOTI-03] 미작성이면 「내일 진료 전 사전문진을 작성해 주세요」."""
+    key, remaining = qsvc.build_reminder_body(state="미작성", answered=0, total=8)
+    assert key == "questionnaire_missing"
+    assert remaining is None                      # 숫자를 넣지 않는다(셀 것이 없다)
+
+
+def test_body_for_partial_uses_remaining():
+    """[QNR-NOTI-04][QNR-PROG-10] 작성 중이면 「남은 수」 — 8문항 중 3개를 했으면 5다."""
+    key, remaining = qsvc.build_reminder_body(state="작성 중", answered=3, total=8)
+    assert key == "questionnaire_partial"
+    assert remaining == 5                         # ⭐ 3이 아니다(QNR-PROG-12가 고친 것)
+
+
+def test_partial_remaining_is_never_negative():
+    """[QNR-PROG-10] 답이 분모보다 많아도(양식이 줄었을 때) 음수를 말하지 않는다."""
+    _key, remaining = qsvc.build_reminder_body(state="작성 중", answered=9, total=8)
+    assert remaining == 0
+
+
+def test_completed_gets_no_reminder():
+    """[QNR-NOTI-02] 완료 표시가 있으면 대상이 아니다 — 문구를 만들 일이 없다."""
+    assert qsvc.build_reminder_body(state="작성완료", answered=8, total=8) is None
+
+
+def test_messages_have_both_bodies_and_no_false_sentence():
+    """[QNR-NOTI-05][QNR-NOTI-08] 문구는 두 벌이고, 작성 중 문구에 「작성하지 않으셨습니다」가 없다."""
+    from app.services.notification_service import MESSAGES
+    assert "questionnaire_missing" in MESSAGES and "questionnaire_partial" in MESSAGES
+    partial = MESSAGES["questionnaire_partial"]
+    assert "작성하지 않으" not in partial          # 사실이 아닌 말(QNR-NOTI-05)
+    assert "{remaining}" in partial                # 남은 수 자리(QNR-PROG-10)
+
+
+def test_message_wording_matches_mockup():
+    """[QNR-NOTI-03][QNR-NOTI-04][QNR-NOTI-08] 두 파일에 다르게 있던 문구를 하나로 통일한다(갭 #53)."""
+    from app.services.notification_service import MESSAGES
+    assert MESSAGES["questionnaire_missing"] == "내일 진료 전 사전문진을 작성해 주세요."
+    assert MESSAGES["questionnaire_partial"] == \
+        "작성하시던 사전문진이 {remaining}문항 남았습니다. 내일 진료 전에 마쳐 주세요."
+
+
+def test_progress_source_is_shared_function():
+    """[QNR-NOTI-06][QNR-PROG-04] 알림은 화면과 같은 compute_progress를 쓴다 — 따로 세지 않는다."""
+    questions = [{"id": "q1", "visible_to": "모든 환자"}, {"id": "q2", "visible_to": "여성 환자만"}]
+    prog = qsvc.compute_progress(questions, "M", [{"question_id": "q1"}])
+    _key, remaining = qsvc.build_reminder_body(state="작성 중", **prog)
+    assert prog["total"] == 1 and remaining == 0   # 남성은 분모 1 — 다 쓴 셈이라 남은 것이 없다
+```
+
+Run: `cd backend && pytest tests/test_questionnaire_reminder.py -v` → Expected: FAIL(`build_reminder_body` 없음).
+
+- [ ] **Step 4b: 문구 빌더 + `MESSAGES` 두 벌 구현**
+
+`backend/app/services/patient_questionnaire_service.py`(끝에 추가):
+
+```python
+def build_reminder_body(state: str, answered: int, total: int) -> tuple[str, int | None] | None:
+    """QNR-NOTI-03·04: 상태에 따라 문구 키를 고르고, 작성 중이면 「남은 수」를 함께 준다.
+
+    ⭐ 남은 수 = total − answered (QNR-PROG-10). 화면 셋이 쓰는 「한 것」의 수와 **같은 값에서 나오지만
+    글자가 다르다** — 알림은 「무엇을 해야 하나」를 말하는 자리라 남은 양이 재촉으로 기능한다(QNR-PROG-11).
+    ⚠️ 예전 문구의 3은 「한 것」의 수였다(QNR-PROG-12) — 같은 값을 반대 뜻으로 쓰고 있었다.
+    """
+    if state == "작성완료":
+        return None                                   # QNR-NOTI-02: 대상이 아니다
+    if state == "미작성":
+        return ("questionnaire_missing", None)        # QNR-NOTI-03
+    remaining = max(total - answered, 0)              # 양식이 줄어도 음수를 말하지 않는다
+    return ("questionnaire_partial", remaining)       # QNR-NOTI-04
+```
+
+`backend/app/services/notification_service.py` — `MESSAGES`를 두 벌로(갭 #53 문구 통일):
+
+```python
+MESSAGES = {
+    ...
+    # 갭 #53: 한 벌이던 문구를 상태별 두 벌로 나눈다. 「아직 작성하지 않으셨습니다」는
+    # 작성 중인 사람에게 사실이 아니라 쓰지 않는다(QNR-NOTI-05).
+    "questionnaire_missing": "내일 진료 전 사전문진을 작성해 주세요.",
+    "questionnaire_partial": "작성하시던 사전문진이 {remaining}문항 남았습니다. 내일 진료 전에 마쳐 주세요.",
+    ...
+}
+```
+
+> ⚠️ **옛 값 `사전문진 작성을 부탁드립니다.`는 지운다** — 같은 키를 새 문구로 덮는 것이라 호출부는 그대로다.
+> 📌 **`notification_type_settings`에 `questionnaire_partial` 줄을 넣을 수 있나** — ④ `00013` 실물에 **CHECK 제약이 없다**(`notification_type text primary key`뿐, 파일 확인 완료) → **마이그레이션 없이** 병원이 두 문구를 각각 고칠 수 있다. ⚠️ 직원웹 T29가 만드는 `notification_settings`(다른 이름·`send_sms` 칸)는 이 표와 **중복**이며 CHECK로 10종을 박아 두었다 — T9가 이미 **보고 대상으로 기록**한 정합화 건이고, 통일 시 **`questionnaire_partial`을 11번째 종으로 넣어야** 이 화면이 두 문구를 다 보여준다. Step 12에서 원장 `HANDOVERS.md`에 이 조건을 덧붙인다.
+
+- [ ] **Step 5: `notify_patient`에 「남은 수」 배관 (`QNR-NOTI-04·06`)**
+
+> 📌 **notification_type은 `questionnaire_missing` 하나로 둔다** — 환자 선호도 스위치(「문진 안내」)가 둘로 갈리면 *"작성 중 알림만 끄기"* 같은 이상한 선택지가 생기고, 알림함 목적지 매핑(`NOTI-GO`)·dedup도 둘로 갈린다. **갈리는 것은 문구뿐**이므로 문구 키만 나눈다.
+
+`backend/tests/test_questionnaire_reminder.py`에 이어서:
+
+```python
+@pytest.mark.asyncio
+async def test_notify_patient_fills_remaining(db_conn, sent_bodies):
+    """[QNR-NOTI-04] 「{remaining}」 자리가 서버 값으로 채워진다."""
+    await notification_service.notify_patient(
+        patient_id, "questionnaire_missing", appointment_id=appt_id, remaining=5)
+    assert "5문항 남았습니다" in sent_bodies[-1]
+
+@pytest.mark.asyncio
+async def test_notify_patient_without_remaining_uses_missing_body(db_conn, sent_bodies):
+    """[QNR-NOTI-03] remaining이 없으면 미작성 문구 — 숫자 자리가 남지 않는다."""
+    await notification_service.notify_patient(
+        patient_id, "questionnaire_missing", appointment_id=appt_id)
+    assert sent_bodies[-1] == "내일 진료 전 사전문진을 작성해 주세요."
+    assert "{" not in sent_bodies[-1]
+
+@pytest.mark.asyncio
+async def test_preference_off_silences_both_bodies(db_conn, sent_bodies):
+    """[QNR-NOTI-04] 문구가 두 벌이어도 선호도는 한 스위치다 — 끄면 둘 다 안 간다."""
+    await _set_pref(db_conn, patient_id, "questionnaire_missing", enabled=False)
+    await notification_service.notify_patient(
+        patient_id, "questionnaire_missing", appointment_id=appt_id, remaining=5)
+    assert sent_bodies == []
+```
+
+구현(`notify_patient` 서명 + 문구 고르는 두 줄):
+
+```python
+async def notify_patient(
+    account_patient_id: UUID,
+    notification_type: str,
+    *,
+    kind: str = "transactional",
+    target_name: str | None = None,
+    appointment_id: UUID | None = None,
+    remaining: int | None = None,        # ⭐ 문진 알림의 「남은 수」(QNR-NOTI-04·QNR-PROG-10)
+) -> None:
+    ...
+        # 선호도(1)는 notification_type으로 본다 — 문구가 둘이어도 스위치는 하나다.
+        ...
+        # 2) 문구 — 문진 알림만 상태에 따라 키가 갈린다(갭 #53). 나머지는 종류 = 키.
+        message_key = "questionnaire_partial" \
+            if (notification_type == "questionnaire_missing" and remaining is not None) \
+            else notification_type
+        setting = await conn.fetchrow(
+            "select body from notification_type_settings where notification_type=$1", message_key)
+        base = (setting["body"] if setting and setting["body"] else None) \
+            or MESSAGES.get(message_key, "새 소식이 있습니다.")
+        ...
+        body = base.replace("{when}", when).replace("{remaining}", str(remaining or ""))
+```
+
+> 📌 `{remaining}`도 `{when}`과 **같은 슬롯 규칙**을 따른다(#125) — 값이 없으면 빈 문자열로 채워 **그 자리만 조용히 빠진다.** 미작성 문구엔 애초에 슬롯이 없어 아무 일도 일어나지 않는다.
+> 📌 `notification_log`에 남는 `notification_type`은 여전히 `questionnaire_missing` 하나다 — 알림함 목적지(문진 화면)와 dedup이 갈리지 않는다.
+
+Run: `cd backend && pytest tests/test_questionnaire_reminder.py -v` → PASS.
+
+- [ ] **Step 6: 알림 대상 조회 — 「완료 표시가 없는 사람 전부」 (`QNR-NOTI-01·02·07·09`)**
+
+> ⚠️⚠️ **갭 #53의 본체**: 옛 배치는 대상을 **문진 행이 있느냐**로 갈랐다 → **1문항만 쓴 사람에게 알림이 안 갔다.** 홈 줄과 **같은 판정을 쓰던 탓에 두 장치가 동시에 꺼졌다**(Step 3이 홈 줄을, 여기가 알림을 고친다 — 같은 뿌리라 함께 닫아야 한다).
+> ⚠️ 옛 배치는 대상 상태도 **`예약확정`만**이었다 → 문진은 `예약신청`에서도 쓸 수 있어(`EDITABLE_STATUSES`) **확정이 늦어지면 알림이 아예 안 갔다**(`QNR-NOTI-09`). 같은 상수를 써서 **문진을 쓸 수 있는 구간 = 알림이 가는 구간**으로 맞춘다.
+> 📌 **발송 시점(전날·하루 1회)은 배치가 정한다**(`QNR-NOTI-01`) — 이 함수는 **「그날 대상이 누구인가」**만 답한다. cron·시각은 배포 플랜(⑤ 미작성) 몫이라 Step 12에서 원장에 등록한다.
+
+`backend/tests/test_questionnaire_reminder.py`에 이어서(대상 절):
+
+```python
+@pytest.mark.asyncio
+async def test_target_includes_partially_written(db_conn):
+    """[QNR-NOTI-02][QNR-NOTI-07] 1문항만 쓴 사람도 대상이다 — 갭 #53(행 존재로 가르지 않는다)."""
+    ctx = await _seed_appt(db_conn, gender="F", status="예약확정", slot_date=TOMORROW)
+    await _seed_template(db_conn, ctx["department_id"], _THREE_QUESTIONS)
+    await qsvc.save_response(ctx["me"], ctx["appointment_id"],
+        [{"question_id": "q1", "question_text": "키", "value": "170"}], complete=False)
+    targets = await qsvc.list_reminder_targets(db_conn, TOMORROW)
+    row = next(t for t in targets if t["appointment_id"] == ctx["appointment_id"])
+    assert row["state"] == "작성 중" and row["answered"] == 1 and row["total"] == 3
+
+@pytest.mark.asyncio
+async def test_target_includes_unwritten(db_conn):
+    """[QNR-NOTI-02] 미작성도 대상이다 — 둘 다 「완료 표시가 없는 사람」."""
+    ctx = await _seed_appt(db_conn, gender="F", status="예약확정", slot_date=TOMORROW)
+    await _seed_template(db_conn, ctx["department_id"], _THREE_QUESTIONS)
+    targets = await qsvc.list_reminder_targets(db_conn, TOMORROW)
+    assert next(t for t in targets if t["appointment_id"] == ctx["appointment_id"])["state"] == "미작성"
+
+@pytest.mark.asyncio
+async def test_target_excludes_completed(db_conn):
+    """[QNR-NOTI-02] 완료 표시가 있으면 빠진다 — 다 쓴 사람을 재촉하지 않는다."""
+    ctx = await _seed_appt(db_conn, gender="F", status="예약확정", slot_date=TOMORROW)
+    await _seed_template(db_conn, ctx["department_id"], _THREE_QUESTIONS)
+    await qsvc.save_response(ctx["me"], ctx["appointment_id"], _ALL_ANSWERS, complete=True)
+    targets = await qsvc.list_reminder_targets(db_conn, TOMORROW)
+    assert all(t["appointment_id"] != ctx["appointment_id"] for t in targets)
+
+@pytest.mark.asyncio
+async def test_target_includes_requested_status(db_conn):
+    """[QNR-NOTI-09] 「예약신청」도 대상이다 — 확정이 늦어져도 알림이 간다(옛 배치는 예약확정만)."""
+    ctx = await _seed_appt(db_conn, gender="F", status="예약신청", slot_date=TOMORROW)
+    await _seed_template(db_conn, ctx["department_id"], _THREE_QUESTIONS)
+    targets = await qsvc.list_reminder_targets(db_conn, TOMORROW)
+    assert any(t["appointment_id"] == ctx["appointment_id"] for t in targets)
+
+@pytest.mark.asyncio
+async def test_target_excludes_cancelled_and_other_days(db_conn):
+    """[QNR-NOTI-01][QNR-NOTI-09] 그날 예약만, 살아 있는 예약만."""
+    cancelled = await _seed_appt(db_conn, gender="F", status="취소됨", slot_date=TOMORROW)
+    later = await _seed_appt(db_conn, gender="F", status="예약확정", slot_date=TOMORROW + timedelta(days=3))
+    targets = await qsvc.list_reminder_targets(db_conn, TOMORROW)
+    ids = {t["appointment_id"] for t in targets}
+    assert cancelled["appointment_id"] not in ids and later["appointment_id"] not in ids
+
+@pytest.mark.asyncio
+async def test_target_carries_account_owner_not_family_member(db_conn):
+    """[QNR-NOTI-01] 알림은 늘 계정 소유자에게 간다 — 가족 예약이면 대상자 이름을 함께 준다."""
+    ctx = await _seed_family_appt(db_conn, owner="김보호", member="김어머니", slot_date=TOMORROW)
+    targets = await qsvc.list_reminder_targets(db_conn, TOMORROW)
+    row = next(t for t in targets if t["appointment_id"] == ctx["appointment_id"])
+    assert row["account_patient_id"] == ctx["owner_id"]      # 받는 사람
+    assert row["target_name"] == "김어머니"                   # 본문에 들어갈 대상자(PUSH-BODY 계열, T9 소유)
+
+@pytest.mark.asyncio
+async def test_target_total_uses_patient_gender(db_conn):
+    """[QNR-NOTI-06] 배치가 따로 세지 않는다 — 진료받는 사람의 성별로 compute_progress를 부른다."""
+    ctx = await _seed_appt(db_conn, gender="M", status="예약확정", slot_date=TOMORROW)
+    await _seed_template(db_conn, ctx["department_id"], _THREE_QUESTIONS)  # 하나가 여성 전용
+    row = next(t for t in await qsvc.list_reminder_targets(db_conn, TOMORROW)
+               if t["appointment_id"] == ctx["appointment_id"])
+    assert row["total"] == 2                                 # 여성 전용 문항이 빠졌다
+```
+
+Run: `cd backend && pytest tests/test_questionnaire_reminder.py -k target -v` → Expected: FAIL(`list_reminder_targets` 없음).
+
+- [ ] **Step 6b: 대상 조회 구현** — `patient_questionnaire_service.py`(끝에 추가)
+
+```python
+async def list_reminder_targets(conn, target_date) -> list[dict]:
+    """QNR-NOTI-01·02·09: 그날 진료가 있고 **완료 표시가 없는** 사람 전부.
+
+    ⭐ 갭 #53 — 옛 배치는 「문진 행이 있느냐」로 갈라 1문항만 쓴 사람을 빠뜨렸다.
+      완료 판정은 오직 completed_at이다(QNR-STATE-04와 같은 기준 = 홈 줄과 같은 판정).
+    ⭐ 대상 상태는 EDITABLE_STATUSES 전체 — 문진을 쓸 수 있는 구간과 알림이 가는 구간을 맞춘다(QNR-NOTI-09).
+    ⚠️ 배치(전날 몇 시·하루 1회)는 배포 플랜 몫. 여기는 「그날 대상이 누구인가」만 답한다.
+    """
+    rows = await conn.fetch(
+        "select a.id as appointment_id, a.for_patient_id, "
+        "       fl.account_patient_id as account_patient_id, "
+        "       p.name as target_name, p.gender as gender, "
+        "       qr.answers as answers, qr.completed_at as completed_at, "
+        "       qt.questions as questions "
+        "from appointments a "
+        "join patients p on p.id = a.for_patient_id "
+        "join appointment_slots s on s.id = a.slot_id "
+        "left join questionnaire_responses qr on qr.appointment_id = a.id "
+        "left join questionnaire_templates qt on qt.department_id = a.department_id "
+        "left join lateral ("
+        "   select coalesce(l.account_patient_id, a.for_patient_id) as account_patient_id "
+        "   from patient_family_links l where l.family_patient_id = a.for_patient_id limit 1"
+        ") fl on true "
+        "where s.slot_date = $1 "
+        "  and a.status = any($2::text[]) "
+        "  and qr.completed_at is null",           # ⭐ 미작성 + 작성 중 둘 다(QNR-NOTI-02)
+        target_date, list(EDITABLE_STATUSES))
+
+    out = []
+    for r in rows:
+        answers = _load(r["answers"] or [])
+        prog = compute_progress(_load(r["questions"] or []), r["gender"] or "", answers)
+        state = "미작성" if r["answers"] is None else "작성 중"   # completed_at이 null인 것만 왔다
+        out.append({
+            "appointment_id": r["appointment_id"],
+            "account_patient_id": r["account_patient_id"] or r["for_patient_id"],
+            "target_name": r["target_name"] if r["account_patient_id"] != r["for_patient_id"] else None,
+            "state": state, **prog,
+        })
+    return out
+```
+
+> 📌 **배치가 이 둘을 이어 붙인다**(배포 플랜이 쓸 3줄 — 여기 적어 두면 그쪽에서 재발명하지 않는다):
+>
+> ```python
+> for t in await list_reminder_targets(conn, tomorrow):
+>     built = build_reminder_body(t["state"], t["answered"], t["total"])
+>     if built is None:            # 방어 — 조회가 이미 완료자를 걸렀다
+>         continue
+>     _key, remaining = built
+>     await notify_patient(t["account_patient_id"], "questionnaire_missing",
+>                          appointment_id=t["appointment_id"],
+>                          target_name=t["target_name"], remaining=remaining)
+> ```
+>
+> ⚠️ **문진 양식이 없는 진료과**(0문항)면 `total=0`이라 「0문항 남았습니다」가 나간다 → 배치 루프에서 **`t["total"] == 0`이면 건너뛴다**(문진을 받지 않는 진료과는 재촉할 것이 없다 — `QNR-FORM-04`가 0문항을 정상으로 허용한 것의 짝). 이 한 줄도 원장에 함께 적는다.
+
+- [ ] **Step 7: 성별 값 표준화 — `00028` 백필 + `check` (`QNR-SHOW-10`, 갭 #57)**
+
+> ⚠️⚠️ **「보일 대상」의 전제 조건이다** — 값이 갈리면 조건 자체가 성립하지 않는다. 실물 확인: `00003_patients.sql:5`가 **`gender text not null`뿐**이고 값 제약이 없다. 직원이 `여`라고 치면 그대로 저장되고, 「여성 환자만」으로 지정한 **임신 문항이 그 환자에게 조용히 사라진다.** 요구사항 4.4가 「병원이 꼭 확인해야 하는 항목」이라 부른 것이 없는 줄도 모르게 빠진다.
+> 📌 **입력 UI 쪽은 이미 닫혔다** — 직원웹은 버튼 2개·기본 선택 없음·`F`/`M` 저장(`QUEUE-WALK` 계열), 환자앱 가입도 `ChoiceChip` `M`/`F`(T13). **남은 것은 DB 제약과 기존 데이터**이고, 그것을 아무 태스크도 담지 않았다 → 여기서 닫는다.
+> ⚠️ **백필을 먼저, 제약을 나중에.** 순서를 바꾸면 기존 행 때문에 마이그레이션이 통째로 실패한다.
+
+`supabase/migrations/00028_patients_gender_check.sql`:
+
+```sql
+-- 갭 #57(QNR-SHOW-10) — 성별 값이 표준화돼 있지 않아 문진 「보일 대상」이 조용히 어긋난다.
+-- 00003은 gender text not null 뿐이라 '여'·'남'·'female' 같은 값이 그대로 저장된다.
+-- ⚠️ 백필 → 제약 순서. 반대로 하면 기존 행 때문에 통째로 실패한다.
+
+update patients set gender = 'F'
+ where gender in ('여', '여성', 'f', 'female', 'FEMALE', 'Female', '여자');
+update patients set gender = 'M'
+ where gender in ('남', '남성', 'm', 'male', 'MALE', 'Male', '남자');
+
+-- 위 목록에 없는 값이 남아 있으면 제약이 실패한다 — 그때는 사람이 봐야 한다(조용히 뭉개지 않는다).
+-- 확인용: select distinct gender from patients where gender not in ('F','M');
+
+alter table patients
+  add constraint patients_gender_check check (gender in ('F', 'M'));
+```
+
+`backend/tests/test_patient_questionnaire_service.py`에 이어서:
+
+```python
+@pytest.mark.asyncio
+async def test_gender_check_rejects_free_text(db_conn):
+    """[QNR-SHOW-10] '여'는 이제 저장되지 않는다 — 문진 「보일 대상」이 어긋날 길을 막는다."""
+    with pytest.raises(Exception):     # asyncpg.CheckViolationError
+        await db_conn.execute(
+            "insert into patients (name, birth_date, gender, phone) "
+            "values ('홍길동','1985-03-01','여','01012345678')")
+
+@pytest.mark.asyncio
+async def test_gender_backfill_maps_korean_values(db_conn):
+    """[QNR-SHOW-10] 이미 들어와 있던 '여'·'남'은 F·M으로 정리된다(마이그레이션 백필)."""
+    rows = await db_conn.fetch("select distinct gender from patients")
+    assert {r["gender"] for r in rows} <= {"F", "M"}
+
+@pytest.mark.asyncio
+async def test_visible_to_works_after_standardization(db_conn):
+    """[QNR-SHOW-10] 값이 표준화돼야 「여성 환자만」 문항이 실제로 뜬다 — 갭 #57이 닫힌 증거."""
+    ctx = await _seed_appt(db_conn, gender="F")
+    await _seed_template(db_conn, ctx["department_id"], [
+        {"id": "q1", "text": "임신 가능성", "type": "예/아니오", "required": True, "visible_to": "여성 환자만"}])
+    tpl = await patient_questionnaire_service.get_template(ctx["me"], ctx["appointment_id"])
+    assert [q["id"] for q in tpl["questions"]] == ["q1"]    # 옛 '여' 값이었다면 빠졌을 문항
+```
+
+Run: `cd backend && pytest tests/test_patient_questionnaire_service.py -k gender -v` → PASS.
+
+> ⚠️ **마이그레이션 번호**: 환자앱이 잡아 둔 것은 `00017`(T1)·`00018`(T3)·`00019`(T4)·`00020`(T5)·`00021`(T7)·`00022`(T8)·`00023`(T9)·`00026`(T18)·`00027`(T22)이고 **`00028`이 다음 자리**다. 직원웹도 `00017+`를 쓰므로 **실제 번호는 구현 시점에 확정**한다(먼저 적용하는 쪽 우선). `add constraint`라 이름만 안 겹치면 순서는 자유롭다.
+
+- [ ] **Step 8: 성별 노출의 판단 기준과 출처 — 앱이 로그인 사용자를 쓰지 않는다 (`QNR-SHOW-02·03·04·11`)**
+
+> ⭐⭐ **가장 사고 나기 쉬운 규칙**: 앱은 **로그인 사용자 정보를 늘 들고 있다.** 그대로 쓰면 **딸이 아버지 문진을 대신 쓸 때 아버지에게 임신 문항이 뜬다**(`QNR-SHOW-02`). 그래서 판정을 **앱에 두지 않고 서버가 `for_patient_id`로** 한다(T7 `_appt_and_template`이 `for_patient_id`의 `gender`를 읽는다) — 앱은 **받은 문항을 그대로 그릴 뿐 거르지 않는다.**
+> 📌 이 Step은 **앱이 무엇을 하지 않는가**를 못박는 경계 test다. 「하지 않는다」는 test로 남기지 않으면 나중에 누군가 「성별 필터가 없네」 하고 앱에 넣는다.
+
+`patient_app/test/features/questionnaire/qnr_show_boundary_test.dart`:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/question_field.dart';
+
+void main() {
+  test('[QNR-SHOW-02] 앱은 로그인 사용자 성별로 문항을 거르지 않는다 — 서버가 준 것을 그대로 그린다', () {
+    // 딸(F) 계정으로 아버지(M) 문진을 열어도, 서버가 아버지 기준으로 이미 걸러 보낸다.
+    final data = QnrData.fromServer(
+      template: {'id': 't1', 'total': 1, 'questions': [
+        {'id': 'q1', 'text': '전립선 관련 증상', 'type': '예/아니오', 'required': false}]},
+      response: null);
+    expect(data.questions.length, 1);            // 앱에는 성별 인자가 아예 없다
+    expect(data.questions.single.id, 'q1');
+  });
+
+  test('[QNR-SHOW-02] QnrData.fromServer 서명에 성별이 없다 — 앱이 판정할 수단을 두지 않는다', () {
+    // 계약: template + response 둘뿐. 성별을 넘길 자리가 없어야 「그냥 쓰면 아버지에게 임신 문항」이 불가능해진다.
+    final data = QnrData.fromServer(template: {'id': 't1', 'total': 0, 'questions': []}, response: null);
+    expect(data.questions, isEmpty);
+  });
+
+  testWidgets('[QNR-SHOW-02] 안 보이는 문항은 화면에도 진행률에도 없다 — 서버가 이미 뺐다', (t) async {
+    // 남성 환자의 양식(임신 문항 제외, total=2)을 받으면 마법사는 2문항짜리로 돈다.
+    final data = QnrData.fromServer(
+      template: {'id': 't1', 'total': 2, 'questions': [
+        {'id': 'q1', 'text': '키', 'type': '단답형', 'required': false},
+        {'id': 'q3', 'text': '증상', 'type': '장문형', 'required': false}]},
+      response: null);
+    expect(data.questions.map((q) => q.id), ['q1', 'q3']);   // q2(임신)는 서버에서 이미 빠졌다
+  });
+
+  test('[QNR-SHOW-03] 새 가족의 성별 출처 = 보호자가 등록할 때 넣은 값(add_family_member의 gender)', () {
+    // 앱 가입·가족 추가 화면이 F/M을 보내고, 그 값이 patients.gender가 되어 「보일 대상」을 가른다.
+    const allowed = {'F', 'M'};
+    expect(allowed.contains('F'), isTrue);      // 자유 입력을 만들지 않는다(갭 #57·QNR-SHOW-10)
+  });
+
+  test('[QNR-SHOW-04] 「기존 환자 연결」로 들어온 가족은 병원 기록의 성별을 쓴다 — 연결 절차가 성별을 받지 않는다', () {
+    // confirm_family_link_otp는 이름·생년월일·전화로 기존 환자를 잇는다. 성별 입력칸이 없다.
+    // → 화면이 성별을 물어보지 않는 것이 정상이고, 값은 병원이 등록한 것이 원본이다.
+    const linkFields = ['name', 'birth_date', 'phone', 'otp'];
+    expect(linkFields.contains('gender'), isFalse);
+  });
+
+  test('[QNR-SHOW-11] 성별 필수·기본 선택 없음, 연결 가족은 읽기 전용 — 가족 화면 계열이 실현한다', () {
+    // 성별을 조용히 기본값으로 채우면(예: 여성) 그 값이 「보일 대상」을 가른다 —
+    // 「없는 질문은 없는 줄도 모른다」. 그래서 FAM-NEW 계열이 기본 선택 없이 필수로 받고,
+    // 병원 기록에서 온 가족은 FAM-EDIT 계열이 읽기 전용 + 병원 문의로 막는다(Task 25·26 소유).
+    const ownedByFamilyTasks = ['FAM-NEW 계열(성별 필수·기본 선택 없음)', 'FAM-EDIT 계열(읽기 전용·병원 문의)'];
+    expect(ownedByFamilyTasks.length, 2);
+  });
+}
+```
+
+Run: `flutter test test/features/questionnaire/qnr_show_boundary_test.dart` → PASS.
+
+- [ ] **Step 9: 의사 화면 몫 — `표시되지 않음` 구분 (`QNR-SHOW-06·07·08·09`)**
+
+> ⚠️ **직원웹(`DOCTOR-QNR-*`) 소유이지만 `QNR-*` 접두어라 이 플랜의 커버리지에 잡힌다** — T23이 `QNR-REQ-06~09`를 경계 test로 담은 것과 같은 방식으로 여기서 경계를 못박는다. 앱에는 의사 화면이 없다.
+> ⭐ **왜 필요한가**: 「답변 없음」과 「표시되지 않음」은 **의사가 할 일이 다르다**(`QNR-SHOW-07`) — 앞은 *"왜 안 쓰셨어요?"*, 뒤는 *"성별이 잘못 등록됐나?"*. 그래서 **성별 등록 오류를 진료 현장에서 잡는다**(`QNR-SHOW-09` — 고칠 사람이 바로 거기 있다). 갭 #57의 DB 제약이 앞으로 들어올 값을 막고, 이 표시가 **이미 잘못 들어간 값**을 잡는다. 두 장치가 짝이다.
+
+`patient_app/test/features/questionnaire/qnr_show_boundary_test.dart`에 이어서:
+
+```dart
+  test('[QNR-SHOW-06] required 문항이 「보일 대상」 때문에 안 보였으면 의사 화면이 그 사실을 적는다', () {
+    // 「▌표시되지 않음 (여성 환자 문항 · 이 환자는 남성으로 등록)」 — 직원웹 DOCTOR-QNR 소유.
+    // 앱은 그 문항을 애초에 받지 않으므로(QNR-SHOW-02) 앱이 그릴 수 있는 화면이 아니다.
+    const ownedByStaffWeb = 'DOCTOR-QNR';
+    expect(ownedByStaffWeb, 'DOCTOR-QNR');
+  });
+
+  test('[QNR-SHOW-07] 「답변 없음」과 「표시되지 않음」은 다른 표시다 — 의사가 할 일이 다르다', () {
+    // 앞: 환자가 비우고 넘어갔다(정상일 수 있다 — 알레르기 없음). 뒤: 성별 등록이 의심된다.
+    const labels = {'답변 없음', '표시되지 않음'};
+    expect(labels.length, 2);          // 한 글자로 합치지 않는다
+  });
+
+  test('[QNR-SHOW-08] required가 아닌 문항은 표시하지 않는다 — 남성마다 임신 문항이 뜨면 잡음', () {
+    // 「표시되지 않음」은 required 문항에만 붙는다. 범위를 넓히면 의사 화면이 안내로 뒤덮인다.
+    bool showsNotice({required bool isRequired}) => isRequired;
+    expect(showsNotice(isRequired: true), isTrue);
+    expect(showsNotice(isRequired: false), isFalse);
+  });
+
+  test('[QNR-SHOW-09] 성별 오류를 진료 현장에서 잡는다 — 앱이 막지 않고 사람이 처리한다(같은 계열 판단)', () {
+    // 앱이 성별을 재확인시키거나 문진을 막지 않는다(QNR-REQ 계열의 「앱은 아무도 막지 않는다」와 같은 뿌리).
+    // 고칠 수 있는 사람(직원·의사)이 있는 자리에서 드러나게 한다.
+    const blockedInApp = false;
+    expect(blockedInApp, isFalse);
+  });
+```
+
+Run: 같은 명령 → PASS.
+
+- [ ] **Step 10: 작성 중 예약이 취소됨 — 그 자리에서 읽기 전용 전환 (`QNR-LIVE-01·02·03·04·05`)**
+
+> ⭐ **화면을 옮기지 않는다.** 글을 쓰던 사람의 화면을 빼앗지 않는 것은 전역 규칙(`NAV-GLOBAL-07`)이고, 문진도 예외가 아니다 — **그 자리에서 읽기 전용으로 바뀐다**(`QNR-LIVE-01`). 모양은 `진료중` 이후의 읽기 전용(`APPT-QNR-05`)과 **같다** — 새 모양을 만들지 않는다.
+> ⭐ **쓴 내용을 지우지 않는다**(`QNR-LIVE-05`) — 취소돼도 문진은 남는다(`CANCEL-DONE-07`). **입력칸만 잠기고 `[다음]`·`[제출하기]`가 사라진다.**
+> 📌 취소 주체 3갈래(병원 / 가족 이름 / 본인)와 **병원발만 `[확인]`**은 카드에서 이미 쓰는 규칙 그대로다(`CARD-CXL` 계열·T17 `CxlBody`) — **문구 조립을 다시 만들지 않고 같은 필드를 읽는다**(`AppointmentView.cancelledBy`·`cancelledByRelation`·`cancelledByName`·`isSelf`).
+
+`patient_app/test/features/questionnaire/qnr_live_test.dart`:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:patient_app/features/questionnaire/qnr_live_banner.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_controller.dart';
+
+void main() {
+  testWidgets('[QNR-LIVE-01][QNR-LIVE-05] 취소되면 그 자리에서 읽기 전용 — 입력칸은 잠기고 [다음]·[제출하기]가 사라진다', (t) async {
+    await _pumpWizard(t, cancelled: true, answers: {'q1': '170'});
+    expect(find.text('170'), findsOneWidget);          // 쓴 내용은 그대로 보인다
+    expect(find.text('다음'), findsNothing);            // 진행 버튼이 사라진다
+    expect(find.text('제출하기'), findsNothing);
+    expect(_currentRoute, '/questionnaire/appt-1');    // ⛔ 화면을 옮기지 않았다
+  });
+
+  testWidgets('[QNR-LIVE-02] 안내는 「이 예약이 취소되었습니다 · 병원에서 취소」 + 「지금까지 작성하신 내용은 그대로 남습니다.」', (t) async {
+    await t.pumpWidget(_wrap(const QnrCancelledBanner(cancelledBy: 'hospital', isSelf: false)));
+    expect(find.textContaining('이 예약이 취소되었습니다'), findsOneWidget);
+    expect(find.textContaining('병원에서 취소'), findsOneWidget);
+    expect(find.text('지금까지 작성하신 내용은 그대로 남습니다.'), findsOneWidget);
+  });
+
+  testWidgets('[QNR-LIVE-03] 취소 주체 3갈래 — 병원 / 가족 이름 / 본인', (t) async {
+    await t.pumpWidget(_wrap(const QnrCancelledBanner(cancelledBy: 'hospital', isSelf: false)));
+    expect(find.textContaining('병원에서 취소'), findsOneWidget);
+
+    await t.pumpWidget(_wrap(const QnrCancelledBanner(
+      cancelledBy: 'patient', isSelf: false, relation: '배우자', name: '김영희')));
+    expect(find.textContaining('배우자 김영희 님이 취소'), findsOneWidget);
+
+    await t.pumpWidget(_wrap(const QnrCancelledBanner(cancelledBy: 'patient', isSelf: true)));
+    expect(find.textContaining('취소하셨습니다'), findsOneWidget);
+  });
+
+  testWidgets('[QNR-LIVE-04] [확인]은 병원이 취소했을 때만 — 나머지는 저절로 사라진다', (t) async {
+    await t.pumpWidget(_wrap(const QnrCancelledBanner(cancelledBy: 'hospital', isSelf: false)));
+    expect(find.text('확인'), findsOneWidget);
+
+    await t.pumpWidget(_wrap(const QnrCancelledBanner(cancelledBy: 'patient', isSelf: true)));
+    expect(find.text('확인'), findsNothing);            // 본인이 한 일에 [확인]을 요구하지 않는다
+  });
+
+  testWidgets('[QNR-LIVE-04] [확인]을 누르면 안내가 사라진다(문진 화면은 그대로 남는다)', (t) async {
+    var acked = false;
+    await t.pumpWidget(_wrap(QnrCancelledBanner(
+      cancelledBy: 'hospital', isSelf: false, onAcknowledge: () => acked = true)));
+    await t.tap(find.text('확인')); await t.pump();
+    expect(acked, isTrue);
+    expect(_currentRoute, '/questionnaire/appt-1');    // 눌러도 화면을 옮기지 않는다
+  });
+
+  test('[QNR-LIVE-01] 컨트롤러는 취소를 상태로만 기록한다 — 화면 이동을 일으키지 않는다', () async {
+    final ctl = _ctl(); await ctl.ready;
+    ctl.markCancelled();
+    expect(ctl.state.liveCancelled, isTrue);
+    expect(ctl.state.answers.isNotEmpty, isTrue);      // 쓴 답을 버리지 않는다(QNR-LIVE-05)
+  });
+}
+```
+
+Run: `flutter test test/features/questionnaire/qnr_live_test.dart` → Expected: FAIL(`qnr_live_banner.dart` 없음).
+
+- [ ] **Step 10b: 배너 + 읽기전용 전환 구현**
+
+`patient_app/lib/features/questionnaire/qnr_live_banner.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import '../../widgets/warn_text.dart';   // WarnText(T0) — 주의색 세로줄 ▌
+
+/// QNR-LIVE-02·03·04: 문진을 쓰던 중 예약이 취소됐을 때의 안내.
+/// 취소 주체 3갈래는 카드(CARD-CXL 계열)와 같은 값·같은 말투를 쓴다 — 새 문구 체계를 만들지 않는다.
+class QnrCancelledBanner extends StatelessWidget {
+  const QnrCancelledBanner({super.key, required this.cancelledBy, required this.isSelf,
+    this.relation, this.name, this.onAcknowledge});
+  final String cancelledBy;          // 'hospital' | 'patient'
+  final bool isSelf;
+  final String? relation, name;
+  final VoidCallback? onAcknowledge;
+
+  String get _actor {
+    if (cancelledBy == 'hospital') return '병원에서 취소';          // QNR-LIVE-03 ①
+    if (!isSelf) return '$relation $name 님이 취소';                // ② 가족(이름 문자열이 아니라 isSelf로 판정)
+    return '취소하셨습니다';                                        // ③ 본인
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start, children: [
+      WarnText('이 예약이 취소되었습니다 · $_actor'),
+      const SizedBox(height: 4),
+      const Text('지금까지 작성하신 내용은 그대로 남습니다.'),      // QNR-LIVE-05를 말로도 알린다
+      // QNR-LIVE-04: 병원발만 [확인]. 본인·가족이 한 일은 눌러 지울 것이 없다.
+      if (cancelledBy == 'hospital')
+        Align(alignment: Alignment.centerRight,
+          child: TextButton(onPressed: onAcknowledge, child: const Text('확인'))),
+    ]);
+}
+```
+
+`questionnaire_controller.dart` — 취소를 상태로만 기록한다(화면을 옮기지 않는다):
+
+```dart
+  /// QNR-LIVE-01: 예약이 취소됐다는 사실만 켠다. 화면 이동·답 삭제는 하지 않는다(QNR-LIVE-05).
+  void markCancelled() => state = state.copyWith(liveCancelled: true);
+```
+
+`questionnaire_wizard.dart` — 취소되면 잠근다(T23 셸에 조건 3줄):
+
+```dart
+    final detail = ref.watch(appointmentDetailProvider(widget.appointmentId));
+    final status = detail.valueOrNull?.status;
+    // 서버 상태가 편집 구간을 벗어나면(취소·진료중 등) 그 자리에서 읽기 전용(QNR-LIVE-01·NAV-QNR-18).
+    final locked = status != null && !editableStatuses.contains(status);
+    ...
+    body: Column(children: [
+      if (locked && status == '취소됨')
+        QnrCancelledBanner(cancelledBy: v.cancelledBy, isSelf: v.isSelf,
+          relation: v.cancelledByRelation, name: v.cancelledByName,
+          onAcknowledge: () => ref.read(appointmentRepositoryProvider)
+            .acknowledgeHospitalChange(widget.appointmentId)),   // T15 창구 재사용
+      ...
+      QuestionField(question: q, value: st.answers[q.id],
+        onChanged: locked ? null : (v) => ...),                  // 입력칸 잠금(QNR-LIVE-05)
+      if (!locked) Row(children: [ ... 이전/다음 ... ]),           // 진행 버튼이 사라진다
+    ])
+```
+
+> 📌 **`ConfirmScreen`도 같다** — T23이 이미 `readOnly`면 `[제출하기]`를 그리지 않도록 만들어 두었다. 여기서는 취소 배너를 위에 얹기만 한다(`readOnly: true`는 `QuestionnaireEntry`가 이미 상태로 판정).
+> ⚠️ **`[확인]` 창구**: 병원발 안내를 지우는 창구는 T15가 만든 `acknowledge_hospital_change`다 — **취소 안내도 같은 창구를 쓴다**(병원발은 「봤다는 사실」이 중요하다는 같은 규칙). 새 API를 만들지 않는다.
+> ⚠️ **`AppointmentDetail`에 `status` getter 1줄**(`String get status => view.status;`) — T23이 `detail.valueOrNull?.status`로 쓰고 있으므로 모델 쪽에 이 한 줄이 있어야 타입이 맞는다(타입 일관성 점검에서 잡힌 것).
+
+- [ ] **Step 11: 예약이 변경됨 / 양식이 바뀜 — 흔들지 않는다 (`QNR-LIVE-06·07·08·10·11·12·13·14·15`)**
+
+> ⭐ **변경 쪽은 「할 일이 없다」가 답이었다** — 문진 화면에 있으면서 **스스로 변경할 수는 없으니**(같은 앱) 가족이 다른 폰에서 시간만 옮긴 것이고, **같은 사람·같은 과·같은 증상**이라 쓰던 답이 달라질 이유가 없다(`QNR-LIVE-07`). 시간이 바뀐 사실은 **예약 카드와 알림이 이미 알린다** — 문진 화면이 또 알리지 않는다(`QNR-LIVE-08`).
+> ⭐ **양식은 진입 시 받은 것으로 그 회차 끝까지**(`QNR-LIVE-11`) — 눈앞의 문항이 사라지지 않고, 진행률이 `(3/6)`→`(3/9)`처럼 **도중에 흔들리지 않는다**(`QNR-LIVE-12`). 새 양식은 **다음에 이어쓰기로 들어올 때** 반영되고(`QNR-LIVE-13`), 문항 고유 번호 덕에 **쓴 답이 그대로 붙은 채** 이어진다(`QNR-LIVE-14`).
+> 📌 **새로 만들 것이 없다**(`QNR-LIVE-15`) — 진입 시 양식을 한 번 불러오는 구조가 이미 그 동작이다(T23 `QnrController._load`). 이 Step은 **그 성질이 유지되는지 test로 못박는 것**이 일이다(나중에 누군가 「실시간 반영」을 넣지 않도록).
+
+`patient_app/test/features/questionnaire/qnr_live_test.dart`에 이어서:
+
+```dart
+  test('[QNR-LIVE-06][QNR-LIVE-07] 예약 시간이 바뀌어도 문진은 아무것도 하지 않는다 — 그대로 이어 쓴다', () async {
+    final ctl = _ctl(answers: {'q1': '170'}); await ctl.ready;
+    ctl.goTo(1);
+    _serverChangesAppointmentTime();          // 가족이 다른 폰에서 시간을 옮겼다
+    expect(ctl.state.index, 1);               // 자리를 잃지 않는다
+    expect(ctl.state.answers['q1'], '170');   // 쓴 답도 그대로
+    expect(ctl.state.liveCancelled, isFalse); // 취소가 아니므로 잠기지 않는다
+  });
+
+  testWidgets('[QNR-LIVE-08] 시간이 바뀌어도 문진 화면은 안내를 띄우지 않는다 — 카드·알림이 이미 알렸다', (t) async {
+    await _pumpWizard(t, changedTime: true);
+    expect(find.textContaining('변경'), findsNothing);   // 문진 화면은 조용하다
+    expect(find.text('다음'), findsOneWidget);           // 계속 쓸 수 있다
+  });
+
+  test('[QNR-LIVE-10] 미완성 문진은 버리지 않는다 — 4문항 써둔 사람이 처음부터 다시 쓰지 않는다', () async {
+    // 서버(Task 5 change_booking)가 completed_at 그대로 옮겨 「작성 중」이 유지된다.
+    // 앱이 할 일은 「새 예약 id로 다시 열면 그 답이 그대로 있다」를 믿고 그리는 것뿐이다.
+    final ctl = _ctl(answers: {'q1': '170', 'q2': '없음', 'q3': '가끔', 'q4': '아니오'}); await ctl.ready;
+    expect(ctl.state.answers.length, 4);
+    expect(ctl.state.status, '작성 중');
+  });
+
+  test('[QNR-LIVE-11][QNR-LIVE-12] 관리자가 양식을 바꿔도 이 회차는 진입 때 받은 양식으로 끝까지 간다', () async {
+    final repo = _FakeRepo(_data(qs: _sixQuestions));
+    final ctl = QnrController(repo, 'appt-1'); await ctl.ready;
+    expect(ctl.state.questions.length, 6);
+    repo.serverQuestions = _nineQuestions;    // 관리자가 3문항을 더 넣었다
+    await ctl.next();                          // 자동 저장이 서버를 다녀와도
+    expect(ctl.state.questions.length, 6);     // ⭐ 눈앞의 양식은 흔들리지 않는다
+    expect(ctl.state.total, 6);                // 진행률 분모도 (3/6)→(3/9)로 안 뛴다
+  });
+
+  test('[QNR-LIVE-13][QNR-LIVE-14] 새 양식은 다음에 이어쓰기로 들어올 때 — 쓴 답이 그대로 붙는다', () async {
+    final repo = _FakeRepo(_data(qs: _sixQuestions, ans: {'q1': '170', 'q2': '없음'}));
+    repo.serverQuestions = _nineQuestions;    // 다음 진입 시점의 양식
+    final ctl = QnrController(repo, 'appt-1'); await ctl.ready;   // 새로 들어온다
+    expect(ctl.state.questions.length, 9);    // 새 양식으로 이어진다
+    expect(ctl.state.answers['q1'], '170');   // 고유 번호 덕에 답이 그대로 붙는다(QNR-ID 계열)
+    expect(ctl.state.answers['q2'], '없음');
+  });
+
+  test('[QNR-LIVE-15] 양식은 진입 시 한 번만 불러온다 — 실시간 구독을 두지 않는다', () async {
+    final repo = _FakeRepo(_data(qs: _sixQuestions));
+    final ctl = QnrController(repo, 'appt-1'); await ctl.ready;
+    await ctl.next(); await ctl.next();
+    expect(repo.loadCalls, 1);                // 저장은 여러 번, 양식 로드는 한 번
+  });
+```
+
+구현: **새 코드가 거의 없다.** `next()`가 `save`의 응답에서 `state`·`answered`·`total`만 취하고 **`questions`는 건드리지 않는 것**이 `QNR-LIVE-11·12`이며, `_load()`가 생성자에서 한 번만 도는 것이 `QNR-LIVE-15`다(T23 구조 그대로). 위 test들은 **그 성질을 고정**한다. 유일한 추가는 `QnrState.total`이 `save` 응답으로 갱신될 때 **진입 시 문항 수와 어긋나지 않게** 하는 방어 1줄:
+
+```dart
+  Future<void> next() async {
+    final prog = await _repo.save(_appointmentId, _answerList(), complete: false);
+    state = state.copyWith(status: prog.state, answered: prog.answered,
+      total: state.questions.length,          // ⭐ QNR-LIVE-12: 분모는 이 회차 양식으로 고정(서버가 늘어도 안 흔듦)
+      index: (state.index + 1).clamp(0, state.questions.length));
+  }
+```
+
+Run: `flutter test test/features/questionnaire/qnr_live_test.dart` → PASS.
+
+- [ ] **Step 12: 설계문서 반영(갭 #53·#57 해소) + 검사기 + 커밋**
+
+> ⭐⭐ **갭을 해소하면 그 즉시 설계문서에 반영한다** — T19·21·22가 *"커밋 전 반영"*이라 적고 실제로는 안 해서 낡은 미결이 남았던 전례가 있다(`57947ef`로 뒤늦게 일괄 수습). **이 커밋에 함께 넣는다.**
+
+**① `docs/design/screen-behaviors.md`** — 뒤집힌 쪽에 역참조를 박는다(단방향 링크 금지):
+
+- `QNR-NOTI-07`: `⚠️ 지금 판정은 문진 행 존재 여부다` → `~~⚠️ 지금 판정은 문진 행 존재 여부다~~ ✅ **해소(2026-08-18, 환자앱 T24)** — 대상 판정을 completed_at으로 바꿔 「작성 중」도 대상에 든다(`list_reminder_targets`). 홈 줄도 같은 판정으로 함께 고쳤다`
+- `QNR-NOTI-08`: `⚠️ 같은 알림 문구가 두 파일에 다르게 있다` → `~~⚠️ …~~ ✅ **해소(2026-08-18, 환자앱 T24)** — MESSAGES에 questionnaire_missing·questionnaire_partial 두 벌로 통일`
+- `QNR-NOTI-09`: `⚠️ 대상이 예약확정만이다` → `~~⚠️ …~~ ✅ **해소(2026-08-18, 환자앱 T24)** — EDITABLE_STATUSES 전체로 넓힘`
+- `QNR-SHOW-10`: `⚠️ 성별 값이 표준화돼 있지 않다 … → 갭 #57` → `~~⚠️ …~~ ✅ **해소(2026-08-18, 환자앱 T24)** — 00028 백필 + check (gender in ('F','M')). 입력 UI는 직원웹 QUEUE-WALK 계열·환자앱 가입이 이미 F/M`
+- `QNR-STATE-07`(갭 #50의 홈 줄 잔재): `1문항만 쓰고 나가도 작성완료로 보인다` → `~~…~~ ✅ **해소(2026-08-18, 환자앱 T24)** — 조회 서비스가 questionnaire_state를 내려주고 홈 줄이 「작성 중 (N/M)」을 그린다`
+
+**② `docs/superpowers/specs/2026-07-31-ui-design-decisions.md`** — 갭 목록 체크 + 반영 노트:
+
+- `#53` → `[x]` + `✅ 해소(2026-08-18, 환자앱 T24) — 대상=completed_at 없는 사람 전부·상태=EDITABLE_STATUSES 전체·문구 두 벌(questionnaire_missing/partial, 「남은 수」). 배치 스케줄은 배포 플랜.`
+- `#57` → `[x]` + `✅ 해소(2026-08-18, 환자앱 T24) — 00028 백필+check. ⚠️ 직원웹 notification_settings 통일 시 questionnaire_partial을 11번째 종으로 넣어야 병원이 두 문구를 다 고칠 수 있다.`
+- `#50` → 홈 줄 조각까지 닫혔음을 한 줄 덧붙인다(문진 화면은 T7·T23이, **홈 줄은 T24**가 닫았다).
+
+**③ 원장 `HANDOVERS.md`** — 배포 플랜(⑤ 미작성)이 받을 것 2건:
+
+- `QNR-NOTI-01` **전날 리마인더 배치**: `list_reminder_targets(conn, tomorrow)` → `build_reminder_body` → `notify_patient(..., remaining=)` 3줄을 그대로 쓴다. **하루 1회**, 기존 전날 리마인더에 얹는다. ⚠️ `total == 0`(문진 없는 진료과)이면 건너뛴다.
+- **`notification_settings` ↔ `notification_type_settings` 정합화**(T9가 이미 보고한 중복): 통일 시 종류 CHECK에 **`questionnaire_partial`**을 넣어야 병원이 「작성 중」 문구를 고칠 수 있다.
+
+**④ 검사기 + 커밋**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+cd backend && pytest tests/test_questionnaire_reminder.py tests/test_patient_questionnaire_service.py \
+  tests/test_patient_appointment_query_service.py -v
+cd ../patient_app && flutter test test/features/questionnaire/ test/features/home/questionnaire_row_test.dart
+git add supabase/migrations/00028_patients_gender_check.sql \
+  backend/app/services/patient_questionnaire_service.py backend/app/services/notification_service.py \
+  backend/app/services/patient_appointment_query_service.py backend/tests/ \
+  patient_app/lib/features/questionnaire/ patient_app/test/features/questionnaire/ \
+  patient_app/lib/features/home/questionnaire_row.dart patient_app/lib/features/home/appointment_view.dart \
+  patient_app/test/features/home/questionnaire_row_test.dart \
+  patient_app/lib/features/appointment/appointment_providers.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md HANDOVERS.md
+git commit -m "feat: 환자앱 Task 24 — 사전문진 진행률·성별 노출·발밑 변화·미작성 알림 40규칙(QNR-PROG/SHOW/LIVE/NOTI) + 갭 #53·#57 해소"
+```
+
+> 📌 **규칙 커버리지(40)**: `QNR-PROG-03·06·07·08·09·10·11·12`(8) · `QNR-SHOW-02·03·04·06·07·08·09·10·11`(9) · `QNR-LIVE-01·02·03·04·05·06·07·08·10·11·12·13·14·15`(14) · `QNR-NOTI-01·02·03·04·05·06·07·08·09`(9). 개별 ID로 test에 심음. 검사기 기준 **신규 37** + 이미 「반영」으로 세어져 있던 **3건(`QNR-PROG-08·10`·`QNR-NOTI-06`)의 실현**.
+> ⭐ **묶음 5 완결**(T23 작성 셸 + T24 표시·알림 = 113규칙). 문진에 남는 미배정 없음.
+> ⭐ **갭 2건 해소**: #53(알림 대상·문구) · #57(성별 표준화). 둘 다 **설계문서 반영을 이 커밋에 포함**(플랜에 미루지 않는다).
+> ⚠️ **T24가 남 태스크 파일을 고친 곳**(재소유 아님·최소 확장): T23 `questionnaire_controller/wizard/resume/confirm`(비워 둔 자리 채움 + `QnrState` 3필드) · T17 `questionnaire_row`(`writing` 종 추가) · T15 `appointment_view`(문진 3필드) · T21 `appointment_providers`(`status` getter 1줄) · T7 `patient_questionnaire_service`(함수 2개 추가) · T9 `notification_service`(`remaining` 인자·문구 2벌) · T8 `patient_appointment_query_service`(조인 3필드).
+> 📌 **값 없는/경계 규칙 실현 지도**: `QNR-SHOW-06·07·08·09`=직원웹 `DOCTOR-QNR`(의사 화면의 `표시되지 않음`) · `QNR-SHOW-11`=가족 화면 계열(T25·26, 성별 필수·연결 가족 읽기 전용) · `QNR-NOTI-01`의 스케줄=배포 플랜 · `QNR-LIVE-10`=T5 서버 이관의 근거 · `QNR-PROG-11·12`=문구가 「남은 수」인 이유와 고친 이력.
+> ▶ **다음 = Task 25 본문 작성** — 묶음 6 가족(`FAM-*`·`NAV-FAM-*` 107규칙 = Task 25·26 분담). 담당 규칙 수 먼저 집계(70 넘으면 쪼갬). 📌 재사용: T3 가족 백엔드(`add_family_member`·`list_family_members`·`link_existing_patient_by_otp`)·T14 재인증 가드(`SensitiveReauthGuard`)·T12 위젯. ⚠️ **`QNR-SHOW-11`이 가리키는 성별 규칙**(성별 필수·기본 선택 없음 / 연결 가족은 읽기 전용+병원 문의)이 T25·26 몫이다 — 문진 「보일 대상」의 뿌리라 빠뜨리면 갭 #57이 입력 쪽에서 되살아난다.
