@@ -16056,3 +16056,1486 @@ git commit -m "feat: 환자앱 Task 25 — 가족 목록·정보 수정·연결 
 > ⚠️ **T25가 남 태스크 파일을 고친 곳**(재소유 아님): T3 `patient_family_service`(`list` 확장 · `update_family_member` → `update_family_identity`/`update_family_relation` **분리** · `unlink`에 차단) · T10 `patient_family.py`(PATCH 본문 분기) · T11 `router.dart`(`/family` 실화면) · T18 `resolveNotificationRoute`(`family_unlinked` 1줄).
 > 📌 **값 없는/경계 규칙 실현 지도**: `FAM-LIST-05`·`FAM-EDIT-04·06·09·13`·`FAM-UNLINK-04·07·09`=근거 규칙(짝이 되는 동작 규칙이 실현) · `FAM-UNLINK-10·11·12·13`=서버·타 태스크가 실현하고 여기서 확인 · `FAM-LIST-12`의 상한 문구·서버 거절=T26(`FAM-NEW` 계열).
 > ▶ **다음 = Task 26 본문 작성** — 가족 추가 갈래 선택 + ㉮ 새 가족 등록 + ㉯ 기존 환자 연결(`FAM-ADD`·`FAM-NEW`·`FAM-LINK` 계열 + `NAV-FAM` 후반 = **52규칙**). 📌 재사용: T25 `FamilyRepository`·`familyListProvider`(등록·연결 성공 후 invalidate) · T3 `add_family_member`(`app_created_by` 채움·10명 상한·재활성화) · T13/T14 OTP 화면 패턴. ⚠️ **갭 #58**(계정 열거 — 0건·2건에도 항상 200)·**#60**(본인·이미 연결 판정)·**#62**(상한 서버 거절)가 전부 T26 몫이다. ⚠️ `link_existing_patient_by_otp`는 T3가 **501로 막아 두었다**(4단계에서 해제) — T26은 그 전제 위에서 화면·문구를 담고, 501 해제 조건을 원장에 남긴다.
+
+---
+
+## Task 26: 가족 추가 — 갈래 선택 · ㉮ 새 가족 등록 · ㉯ 기존 환자 OTP 연결 (52규칙)
+
+> **담당 규칙(52)**:
+> `FAM-ADD-01~07`(7) · `FAM-NEW-01~16`(16) · `FAM-LINK-01~22`(22) · `NAV-FAM-07·08·09·10·11·12·17`(7).
+>
+> ⭐⭐ **이 묶음의 축 = 「두 갈래는 다른 기능이다」.** ㉮는 **병원 명부에 새 사람을 만드는 일**(인증 없음·수정 가능·실패할 것이 없다)이고, ㉯는 **이미 있는 사람의 진료기록에 나를 잇는 일**(남의 휴대폰 인증·읽기 전용·틀리면 남의 기록에 연결된다)이다. 인증 유무·수정 권한·실패했을 때 갈 곳이 **전부** 다르므로 **갈래를 먼저 묻는 화면을 따로 둔다**(`FAM-ADD-01·02`).
+>
+> ⚠️⚠️ **경계 — T25가 담은 것 / 이 Task(26)가 담는 것**:
+> - **T25**: 가족 **목록** → 정보 수정 → 연결 해제. 목록의 `[가족 추가하기]` 버튼과 그 이동(`NAV-FAM-06`)까지.
+> - **T26(여기)**: 그 버튼을 누른 **뒤부터** — 갈래 선택 화면 본체 · ㉮ 등록 화면 · ㉯ 입력·인증 화면 · 그 안의 이동(`NAV-FAM-07~12`) + **예약 1단계에서 들어오는 문**(`NAV-FAM-17`).
+> - **재인증은 여기서 다시 정하지 않는다** — `/family/*`는 T11 `_isSensitive`가 이미 덮는다(`NAV-FAM-01·02·03`은 T25가 확인 완료).
+> - ⛔ **`SET-HOSP-*`(병원 안내 화면 본체)는 T28 소유다.** 여기서는 `NAV-FAM-12`가 **도착할 라우트만** 등록하고 화면은 자리표시자로 둔다(T11이 `/family`에 해준 것과 같은 배선 — T28이 실화면으로 갈아끼운다).
+>
+> ⚠️⚠️ **여기서 닫는 갭 4건**(⭐ 해소 즉시 설계문서 반영 — Step 11에 포함):
+> - **#58 계정 열거** — 서버가 후보 0건·2건일 때 `404 일치하는 기록을 특정할 수 없습니다`를 그대로 준다. ⭐ **앱에서 가릴 수 있는 종류가 아니다**(서버를 직접 부르면 그대로 노출). → **항상 200 + `request_id`**, 문자만 안 보낸다. **응답 시간도 갈리지 않게** 한다.
+> - **#60 본인·이미 연결** — 아무도 안 막아 **내 폰으로 인증번호가 오고 가족 목록에 내가 두 번** 뜬다. → 서버가 판정한다(앱의 목록은 낡을 수 있다).
+> - **#62 상한 없음** — 가족 추가는 **`patients`에 새 행을 만드는 일**이고 해제해도 그 행은 명부에 남는다. 상한이 없으면 **잠글 수 없는 문**이 된다. → **10명을 서버가 거절**(㉮·㉯ 양쪽).
+> - **#16 OTP 재발송 서버 제한 없음** — 화면에만 쿨다운을 두면 **앱을 거치지 않는 요청은 그대로 통과**하고 문자 비용이 무제한이다. → **30초 간격을 서버가 검사**하고 `429` + 남은 초를 준다(앱 버튼 숫자와 같은 값).
+>
+> ⚠️⚠️ **낡은 예고를 여기서 정정한다 — `link_existing_patient_by_otp`의 `501`**:
+> T3가 *"4단계에서 본인확인 창구가 생기면 푼다"*며 `501`로 막아 두었다. ⭐ **「4단계」는 AI 상담봇이고 본인확인과 무관하다 — 이 예고가 낡았다.** 원문 대조 결과:
+> - **R5-01의 조치는** *"기존 환자 연결이 필요하면 본인확인·동의 절차를 거치는 **별도 보안 함수로 분리**한다"*(`consistency-review-2026-07-28-round2-5-consolidated.md:113`) — **막으라는 것이 아니라 분리하라는 것**이다.
+> - **결정 문서가 이미 확정**했다 — *"환자 인증은 Supabase Auth phone 프로바이더가 직접 처리한다(백엔드 OTP 코드 없음). **가족 연결 OTP만 별도 서비스다**"*(`ui-design-decisions.md:1128`).
+> - ⭐ **왜 별도여야 하는지가 핵심이다**: 가입·비밀번호 찾기는 `signInWithOtp`/`verifyOTP`(T14 `SupabaseAuthRepo`)를 쓰는데, 그것은 **그 번호의 세션을 발급한다.** 가족 연결에 그대로 쓰면 **어머니 번호로 인증한 순간 딸이 어머니로 로그인**된다. `FAM-LINK-05`가 *"네 가지 본인확인 중 유일하게 남의 번호로 발송한다"*고 적어 둔 것이 바로 이 차이다.
+> → **이 Task가 그 별도 창구를 만들고 `501`을 푼다.** 501을 그대로 두면 `FAM-LINK` 22규칙이 전부 죽은 화면 위에 놓인다.
+>
+> ⚠️ **`NAV-FAM-17` ↔ `BOOK-WHO-09`·`NAV-BOOK-04` 충돌 해소(사용자 결정 2026-08-18)**: 같은 버튼(예약 1단계 `+ 가족 추가하기`)의 목적지를 진본이 **서로 다르게** 적어 두었다(갈래 선택 ↔ 가족 탭). 서로를 근거로 인용해 어느 쪽이 나중 결정인지도 알 수 없었다. → **갈래 선택으로 확정.** 버튼을 누른 사람은 이미 「가족을 추가하겠다」고 정한 상태이고, 가족 목록은 **방금 1단계에서 본 명단과 같다.** T19가 심은 `context.go('/family')` 한 줄과 그 test 1건을 여기서 맞춘다(T23이 T20 완료화면 링크를 고친 것과 같은 처리).
+>
+> 📌 재사용: **T3**(`add_family_member` — `app_created_by` 채움·10명 상한·soft-delete 재활성화) · **T25**(`FamilyRepository`·`familyListProvider`·`FamilyMember`·`RelationChips`) · **T13**(`OtpScreen`+`OtpPurpose.familyLink`·`PhoneCooldownStore`·`toE164`) · **T12**(`ActionButton`·`FieldTextInput`+`FieldErrorController`·`InlineError`·`showBlockDialog`) · **T0**(`AppCard`·`WarnText`·`appIcon`·`AppTokens`) · **직원웹 T30**(`SmsClient` — 배관은 소비만, 실 제공자 연결은 배포).
+> 📌 **목업**: `25-family-add-final.html`(확정본 — 갈래 선택 ①, ㉮ ②, ㉯ 입력 ②, ㉯ 인증 ③) · `23-family-add.html`(초안) · `24-verify-screens.html`(본인확인 4종 비교). 확정 문구는 아래 각 Step에 그대로 옮겼다.
+
+**Files:**
+- Create: `supabase/migrations/00030_family_link_requests.sql`(가족 연결 OTP 요청 표 — `FAM-LINK-04·08`의 전제)
+- Create: `backend/app/services/family_link_otp_service.py`(`request_family_link_otp`·`confirm_family_link_otp`)
+- Create: `backend/tests/test_family_link_otp_service.py`
+- Create: `patient_app/lib/features/family/family_add_repository.dart`(`FamilyAddRepo`·`familyAddRepoProvider`·`LinkDraft`·`linkDraftProvider`)
+- Create: `patient_app/lib/features/family/family_add_choice_screen.dart`(`FamilyAddChoiceScreen`)
+- Create: `patient_app/lib/features/family/family_new_screen.dart`(`FamilyNewScreen`)
+- Create: `patient_app/lib/features/family/family_link_form_screen.dart`(`FamilyLinkFormScreen`)
+- Create: `patient_app/lib/features/family/family_link_otp_page.dart`(`FamilyLinkOtpPage`)
+- Modify: `backend/app/services/patient_family_service.py`(`link_existing_patient_by_otp` **501 제거** — 새 서비스로 위임) · `backend/app/routers/patient_family.py`(연결 2엔드포인트 + 상한 409 통과)
+- Modify: `patient_app/lib/core/router.dart`(`/family/add`·`/family/add/new`·`/family/add/link`·`/family/add/link/otp` + `/settings/hospital` 자리표시자)
+- Modify: `patient_app/lib/features/auth/otp_screen.dart`(**T13 소유** — `AUTH-OTP-11` 링크의 죽은 `onPressed: () {}` 한 줄 배선)
+- Modify: `patient_app/lib/features/booking/steps/who_step.dart:1줄`(T19 소유 — `NAV-FAM-17` 목적지 정정) · `patient_app/test/features/booking/who_step_test.dart:기대값 1건`
+- Test: `patient_app/test/features/family/family_add_choice_test.dart` · `family_new_test.dart` · `family_link_form_test.dart` · `family_link_otp_test.dart` · `family_add_nav_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **T3**: `add_family_member(patient, name, birth_date, gender, relation, phone=None) -> UUID`(10명 상한 `409` · `app_created_by=patient.id` 채움 · soft-delete 링크 재활성화) · `MAX_ACTIVE_FAMILY = 10`
+  - **T25**: `FamilyRepository.list()` · `familyListProvider`(등록·연결 성공 후 `invalidate`) · `FamilyMember` · `RelationChips({selected, onChanged})`
+  - **T13**: `OtpScreen({phone, purpose, cooldown, onResend, onVerify, onSuccess, validitySeconds})` · `OtpPurpose.familyLink` · `PhoneCooldownStore` · `toE164(String)`
+  - **T12**: `ActionButton({label, busyLabel, busy, onPressed, disabledReason})` · `FieldTextInput({label, controller, form, validate})` · `FieldErrorController.validateAll()` · `InlineError(message)` · `showBlockDialog(context, {title, message, confirmLabel, onConfirm})`
+  - **T0**: `AppCard` · `WarnText` · `appIcon` · `AppTokens`
+  - **직원웹 T30**: `notify_clients.SmsClient.send_sms(phone, body)`(배관만 소비 — 실 제공자 연결은 배포 플랜)
+- Produces:
+  - SQL: `family_link_requests`(`id`·`requesting_patient_id`·`target_patient_id` **nullable(#58)**·`phone_hash`·`relation`·`code_hash`·`expires_at`·`verified_at`·`attempts`·`created_at`)
+  - `family_link_otp_service.request_family_link_otp(patient, name, birth_date, phone, relation, sms_client=None) -> UUID`(**항상 성공** — 본인·이미 연결·상한·쿨다운만 예외) · `confirm_family_link_otp(patient, request_id, code) -> UUID`(연결된 `family_patient_id`) · `OTP_TTL_MINUTES = 5` · `RESEND_INTERVAL_SECONDS = 30` · `MAX_CODE_ATTEMPTS = 5`
+  - HTTP: `POST /family/link/request -> {"request_id"}` · `POST /family/link/confirm -> {"family_patient_id"}`
+  - `FamilyAddRepo.addNew(...)·requestLink(...)·confirmLink(...)` · `LinkDraft`(㉯ 입력값 보존 — `NAV-FAM-10`) · `FamilyAddChoiceScreen` · `FamilyNewScreen` · `FamilyLinkFormScreen` · `FamilyLinkOtpPage`
+  - 라우트 `/family/add`(갈래) · `/family/add/new`(㉮) · `/family/add/link`(㉯ 입력) · `/family/add/link/otp`(㉯ 인증) · `/settings/hospital`(**자리표시자 — T28이 갈아끼운다**)
+
+---
+
+- [ ] **Step 1: `00030` 가족 연결 요청 표 — 「후보를 못 찾아도 행을 남긴다」 (`FAM-LINK-04`·`FAM-LINK-08`)**
+
+> ⭐⭐ **이 표의 설계가 갭 #58의 답이다.** 흔한 구현은 *"후보를 못 찾으면 아무것도 안 만들고 404"*인데, 그러면 **응답 자체가 「그 사람이 이 병원 환자인가」를 알려준다.** 여기서는 **후보를 못 찾아도 똑같이 행을 만들고 똑같이 `request_id`를 돌려준다** — `target_patient_id`만 `null`이다.
+> ⭐ **그 결과 인증 단계에 특별한 분기가 없다**: 코드 6자리는 **후보가 없어도 만들어 저장**하고 문자만 안 보낸다. 사용자가 아무 숫자나 넣으면 **해시가 안 맞아 실패**한다 — 「대상 없음」을 위한 `if`가 아예 필요 없으므로 **분기에서 새는 시간차도 없다**(#58의 *"응답 시간도 갈리지 않게"*).
+> 📌 **`phone_hash`를 둔다(번호 원문이 아니라)** — 쿨다운은 **전화번호 기준**(B-3·`FAM-LINK-05`)인데, 조회에 실패한 번호를 원문으로 쌓아두면 **입력해 본 번호 목록**이 남는다. 해시면 같은 번호인지 비교는 되고 목록은 남지 않는다.
+> 📌 **`relation`을 요청 시점에 저장**한다 — 확인 단계에서 클라이언트가 다시 보내게 하면 **인증받은 사람과 다른 관계로 바꿔치기**할 수 있고, 무엇보다 `FAM-LINK-02`(관계를 입력받는다)가 두 화면에 걸쳐 있어 값이 떠돈다.
+> ⛔ **RLS는 켜되 정책은 두지 않는다** — 정책이 없으면 `authenticated`·`anon` 모두 기본 거부다. 이 표는 **서비스 역할 커넥션만** 읽고 쓴다(클라이언트가 직접 볼 이유가 없다).
+
+`supabase/migrations/00030_family_link_requests.sql`:
+
+```sql
+-- 이미 병원에 등록된 환자(㉯)를 가족으로 연결할 때, 요청자가 그 사람의 휴대폰에 접근할 수 있는지
+-- 확인하는 임시 인증 요청.
+--
+-- ⭐ 갭 #58(계정 열거 방지) — 후보를 찾지 못했을 때도 이 행을 만든다(target_patient_id = null).
+--    행을 안 만들면 응답이 갈리고, 응답이 갈리면 "그 사람이 이 병원 환자인가"가 새어 나간다.
+create table family_link_requests (
+  id                    uuid primary key default gen_random_uuid(),
+  requesting_patient_id uuid not null references patients(id),
+  target_patient_id     uuid references patients(id),   -- #58: 후보 0건·2건이면 null. 그래도 행은 남는다.
+  phone_hash            text not null,                  -- 쿨다운은 번호 기준(B-3). 원문을 쌓지 않는다.
+  relation              text not null,                  -- FAM-LINK-02: 입력한 관계를 연결 때 그대로 쓴다.
+  code_hash             text not null,                  -- 대상이 없어도 무작위 코드를 만들어 넣는다(분기 없음).
+  expires_at            timestamptz not null,           -- FAM-LINK-04: 5분
+  verified_at           timestamptz,
+  attempts              smallint not null default 0,    -- 6자리를 무한히 넣어보지 못하게(아래 주석)
+  created_at            timestamptz not null default now()
+);
+
+-- #16: 재발송 간격(30초)을 서버가 검사한다 — 번호 기준과 요청자 기준 둘 다 이 인덱스로 본다.
+create index family_link_requests_rate_idx
+  on family_link_requests (requesting_patient_id, created_at desc);
+create index family_link_requests_phone_rate_idx
+  on family_link_requests (phone_hash, created_at desc);
+
+alter table family_link_requests enable row level security;
+-- 정책 없음 = 전부 거부. family_link_otp_service가 서비스 역할 커넥션으로만 접근한다.
+
+comment on table family_link_requests is
+  '㉯ 기존 환자 가족 연결의 본인확인 요청. 후보를 못 찾아도 행을 남긴다(갭 #58 계정 열거 방지).';
+```
+
+> ⚠️ **`attempts`는 규칙에 없는 것을 하나 더한 것이다**(사용자 확인 대상): 인증번호는 6자리라 경우의 수가 100만인데, 유효시간 5분 동안 **횟수 제한이 없으면 자동 도구가 수천 번을 시도**할 수 있다. R5-01이 「본인확인 절차를 거치라」고 지목한 자리이므로 **5회 초과 시 그 요청을 폐기**(다시 받기로 안내)하는 한 줄을 넣었다. 화면에는 새 요소가 없다(기존 실패 문구를 그대로 쓴다).
+
+- [ ] **Step 2: 마이그레이션 적용**
+
+Run: `supabase db reset`
+Expected: 오류 없이 적용됨. `family_link_requests`가 생기고 `target_patient_id`가 **nullable**이다.
+
+```bash
+psql "$DB_URL" -c "\d family_link_requests" | grep target_patient_id   # not null 이 없어야 한다(#58)
+```
+
+- [ ] **Step 3: 실패 테스트 — 요청 창구 (`FAM-LINK-04·05·06·07·08·09·10·11·12·13·18·19·20·22`)**
+
+> ⭐ **이 파일이 갭 #58·#60·#62·#16을 한꺼번에 지키는 그물이다.** 화면 test로는 못 잡는다 — *"서버를 직접 부르면"*이 갭 #58의 본문이므로 **서비스 함수를 직접 부르는 test**여야 한다.
+
+`backend/tests/test_family_link_otp_service.py`:
+
+```python
+import hashlib
+from datetime import date, datetime, timedelta, timezone
+
+import pytest
+
+from app.core.errors import AppError
+from app.services import family_link_otp_service as svc
+from app.services import patient_family_service
+
+
+class _FakeSms:
+    def __init__(self):
+        self.sent: list[tuple[str, str]] = []
+
+    def send_sms(self, phone: str, body: str) -> None:
+        self.sent.append((phone, body))
+
+
+async def _seed_hospital_patient(db_conn, *, name="김영수", birth=date(1948, 5, 20), phone="01012345678"):
+    """병원 접수에서 등록된 환자 — 앱이 만든 행이 아니다(app_created_by is null)."""
+    return await db_conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) values ($1,$2,'M',$3) returning id",
+        name, birth, phone)
+
+
+@pytest.mark.asyncio
+async def test_sends_code_when_exactly_one_match(db_conn):
+    """[FAM-LINK-04][FAM-LINK-20] 정확히 1건일 때만 그 사람 번호로 6자리를 보낸다."""
+    me = await _seed_account(db_conn)
+    target = await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+    assert rid is not None
+    assert len(sms.sent) == 1
+    to, body = sms.sent[0]
+    assert to == "01012345678"                      # FAM-LINK-05: 남의 번호로 나간다
+    assert "가족 연결" in body and "5분" in body      # 갭 #42: 한글 문자
+    code = "".join(ch for ch in body if ch.isdigit() and len(ch) == 1)
+    assert len([c for c in body if c.isdigit()]) >= 6
+    row = await db_conn.fetchrow("select * from family_link_requests where id=$1", rid)
+    assert row["target_patient_id"] == target
+    assert row["relation"] == "부모"                 # FAM-LINK-02: 입력한 관계를 보관한다
+    assert row["expires_at"] > datetime.now(timezone.utc) + timedelta(minutes=4)   # FAM-LINK-04: 5분
+
+
+@pytest.mark.asyncio
+async def test_no_match_still_returns_request_id_and_sends_nothing(db_conn):
+    """[FAM-LINK-06][FAM-LINK-08] 후보 0건이어도 화면은 똑같이 진행한다 — 문자만 오지 않는다."""
+    me = await _seed_account(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="없는사람", birth_date=date(1900, 1, 1), phone="01000000000",
+        relation="부모", sms_client=sms)
+    assert rid is not None                           # 404가 아니다(갭 #58)
+    assert sms.sent == []
+    row = await db_conn.fetchrow("select * from family_link_requests where id=$1", rid)
+    assert row["target_patient_id"] is None          # 행은 남는다 — 응답을 갈리게 하지 않으려고
+    assert row["code_hash"] is not None              # 코드도 만든다(분기 자체를 없앤다)
+
+
+@pytest.mark.asyncio
+async def test_two_matches_behaves_like_no_match(db_conn):
+    """[FAM-LINK-18][FAM-LINK-19][FAM-LINK-20] 동명이인 2건이면 특정하지 않는다 — 0건과 같은 응답."""
+    me = await _seed_account(db_conn)
+    await _seed_hospital_patient(db_conn)
+    await _seed_hospital_patient(db_conn)            # 이름·생년월일·번호가 같은 두 행
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+    assert rid is not None and sms.sent == []        # 잘못 이으면 남의 진료기록에 연결된다
+    assert await db_conn.fetchval(
+        "select target_patient_id from family_link_requests where id=$1", rid) is None
+
+
+@pytest.mark.asyncio
+async def test_self_is_rejected_with_plain_reason(db_conn):
+    """[FAM-LINK-10][FAM-LINK-11][FAM-LINK-12] 본인은 사실대로 막는다 — 내가 아는 정보는 열거가 아니다."""
+    me = await _seed_account(db_conn, name="김보호", birth=date(1980, 2, 2), phone="01099998888")
+    sms = _FakeSms()
+    with pytest.raises(AppError) as e:
+        await svc.request_family_link_otp(
+            me, name="김보호", birth_date=date(1980, 2, 2), phone="01099998888",
+            relation="부모", sms_client=sms)
+    assert e.value.status_code == 409
+    assert "본인은 가족으로 추가할 수 없습니다" in str(e.value)
+    assert sms.sent == []                            # 내 폰으로 인증번호가 오지 않는다
+
+
+@pytest.mark.asyncio
+async def test_already_linked_is_rejected_with_plain_reason(db_conn):
+    """[FAM-LINK-09][FAM-LINK-12] 이미 연결된 가족도 사실대로 — 서버가 판정한다(앱 목록은 낡을 수 있다)."""
+    me = await _seed_account(db_conn)
+    target = await _seed_hospital_patient(db_conn)
+    await _force_link(db_conn, me.id, target, relation="부모")
+    with pytest.raises(AppError) as e:
+        await svc.request_family_link_otp(
+            me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+            relation="부모", sms_client=_FakeSms())
+    assert e.value.status_code == 409
+    assert "이미 가족으로 연결되어 있습니다" in str(e.value)
+
+
+@pytest.mark.asyncio
+async def test_family_limit_blocks_before_sending(db_conn):
+    """[#62] 상한 10명은 문자를 보내기 전에 걸린다 — ㉯도 명부에 연결선을 하나 더 만드는 일이다."""
+    me = await _seed_account(db_conn)
+    for i in range(10):
+        await patient_family_service.add_family_member(me, f"가족{i}", date(2010, 1, 1), "M", "자녀")
+    await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    with pytest.raises(AppError) as e:
+        await svc.request_family_link_otp(
+            me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+            relation="부모", sms_client=sms)
+    assert e.value.status_code == 409 and "최대 10명" in str(e.value)
+    assert sms.sent == []
+
+
+@pytest.mark.asyncio
+async def test_resend_interval_is_enforced_by_server(db_conn):
+    """[FAM-LINK-22][#16] 30초 간격은 서버가 검사한다 — 앱 쿨다운은 앱을 거치는 요청만 막는다."""
+    me = await _seed_account(db_conn)
+    await _seed_hospital_patient(db_conn)
+    args = dict(name="김영수", birth_date=date(1948, 5, 20), phone="01012345678", relation="부모")
+    await svc.request_family_link_otp(me, sms_client=_FakeSms(), **args)
+    with pytest.raises(AppError) as e:
+        await svc.request_family_link_otp(me, sms_client=_FakeSms(), **args)
+    assert e.value.status_code == 429
+    assert e.value.retry_after_seconds > 0           # 앱이 버튼 숫자를 서버 값에 맞춘다
+    # 31초 전에 보낸 것으로 되돌리면 다시 통과한다.
+    await db_conn.execute(
+        "update family_link_requests set created_at = now() - interval '31 seconds' "
+        "where requesting_patient_id=$1", me.id)
+    assert await svc.request_family_link_otp(me, sms_client=_FakeSms(), **args) is not None
+
+
+@pytest.mark.asyncio
+async def test_cooldown_follows_the_phone_number_not_the_account(db_conn):
+    """[FAM-LINK-05] 쿨다운 기준은 전화번호다 — 남의 번호로 보내는 유일한 창구라 번호를 지켜야 한다."""
+    a = await _seed_account(db_conn, name="딸", phone="01011112222")
+    b = await _seed_account(db_conn, name="아들", phone="01033334444")
+    await _seed_hospital_patient(db_conn)
+    args = dict(name="김영수", birth_date=date(1948, 5, 20), phone="01012345678", relation="부모")
+    await svc.request_family_link_otp(a, sms_client=_FakeSms(), **args)
+    with pytest.raises(AppError) as e:
+        await svc.request_family_link_otp(b, sms_client=_FakeSms(), **args)   # 다른 계정, 같은 번호
+    assert e.value.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_target_without_phone_is_indistinguishable(db_conn):
+    """[FAM-LINK-13] 번호가 바뀐 가족: 새 번호로는 0건이라 문자가 오지 않는다 — 화면은 똑같다."""
+    me = await _seed_account(db_conn)
+    await _seed_hospital_patient(db_conn, phone="01012345678")     # 병원 기록엔 옛 번호
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01055556666",   # 새 번호
+        relation="부모", sms_client=sms)
+    assert rid is not None and sms.sent == []       # 앱이 판정할 수 없다 → 병원 문의 경로(FAM-LINK-14)
+```
+
+Run: `cd backend && pytest tests/test_family_link_otp_service.py -v`
+Expected: FAIL(`ModuleNotFoundError: app.services.family_link_otp_service`)
+
+- [ ] **Step 4: 실패 테스트 — 확인 창구 (`FAM-LINK-02·21`)**
+
+> ⭐ **연결이 실제로 일어나는 곳은 여기 하나다.** 요청 창구는 문자만 보낸다 — 인증을 통과해야 `patient_family_links`에 줄이 생긴다. `[R5-01]`이 요구한 *"본인확인 절차를 거치는 별도 보안 함수"*가 정확히 이 함수다.
+
+`backend/tests/test_family_link_otp_service.py`에 이어서:
+
+```python
+@pytest.mark.asyncio
+async def test_confirm_links_with_typed_relation(db_conn):
+    """[FAM-LINK-02][FAM-LINK-21] 관계는 입력한 값으로 저장된다 — '가족(연결)' 하드코딩을 버린다."""
+    me = await _seed_account(db_conn)
+    target = await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+    code = _extract_code(sms.sent[0][1])
+    linked = await svc.confirm_family_link_otp(me, rid, code)
+    assert linked == target
+    assert await db_conn.fetchval(
+        "select relation from patient_family_links where account_patient_id=$1 and family_patient_id=$2",
+        me.id, target) == "부모"
+
+
+@pytest.mark.asyncio
+async def test_confirm_keeps_hospital_record_as_hospital_owned(db_conn):
+    """[FAM-EDIT 계열 전제] ㉯로 이은 사람의 환자 행은 병원 것이다 — app_created_by를 채우지 않는다."""
+    me = await _seed_account(db_conn)
+    target = await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+    await svc.confirm_family_link_otp(me, rid, _extract_code(sms.sent[0][1]))
+    assert await db_conn.fetchval("select app_created_by from patients where id=$1", target) is None
+    # → T25 판정에서 can_edit_identity=false, identity_lock_reason='linked'가 된다.
+
+
+@pytest.mark.asyncio
+async def test_confirm_rejects_wrong_expired_and_foreign_requests(db_conn):
+    """틀린 코드·만료·남의 요청은 전부 막는다 — 그리고 대상 없는 요청도 '틀림'으로 끝난다(#58)."""
+    me = await _seed_account(db_conn)
+    other = await _seed_account(db_conn, phone="01077776666")
+    await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+
+    with pytest.raises(AppError) as e:
+        await svc.confirm_family_link_otp(me, rid, "000000")
+    assert "인증번호가 올바르지 않습니다" in str(e.value)
+
+    with pytest.raises(AppError):                                  # 남의 요청 id
+        await svc.confirm_family_link_otp(other, rid, _extract_code(sms.sent[0][1]))
+
+    await db_conn.execute("update family_link_requests set expires_at = now() - interval '1 minute' where id=$1", rid)
+    with pytest.raises(AppError) as e:
+        await svc.confirm_family_link_otp(me, rid, _extract_code(sms.sent[0][1]))
+    assert "만료" in str(e.value)
+
+
+@pytest.mark.asyncio
+async def test_confirm_on_phantom_request_fails_like_a_wrong_code(db_conn):
+    """[FAM-LINK-06][FAM-LINK-07] 대상 없는 요청도 「틀린 인증번호」로 끝난다 — 특별한 분기가 없다."""
+    me = await _seed_account(db_conn)
+    rid = await svc.request_family_link_otp(
+        me, name="없는사람", birth_date=date(1900, 1, 1), phone="01000000000",
+        relation="부모", sms_client=_FakeSms())
+    with pytest.raises(AppError) as e:
+        await svc.confirm_family_link_otp(me, rid, "123456")
+    assert "인증번호가 올바르지 않습니다" in str(e.value)   # 「그런 환자 없습니다」가 아니다
+
+
+@pytest.mark.asyncio
+async def test_confirm_is_single_use(db_conn):
+    """한 번 쓴 요청은 다시 못 쓴다 — 문자를 한 번 본 사람이 계속 연결을 만들 수 없다."""
+    me = await _seed_account(db_conn)
+    await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+    code = _extract_code(sms.sent[0][1])
+    await svc.confirm_family_link_otp(me, rid, code)
+    with pytest.raises(AppError) as e:
+        await svc.confirm_family_link_otp(me, rid, code)
+    assert "이미 처리된 요청입니다" in str(e.value)
+
+
+@pytest.mark.asyncio
+async def test_confirm_stops_after_five_wrong_attempts(db_conn):
+    """6자리를 무한히 넣어보지 못하게 한다(Step 1 주석 — 규칙 밖의 추가 방어)."""
+    me = await _seed_account(db_conn)
+    await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+    for _ in range(5):
+        with pytest.raises(AppError):
+            await svc.confirm_family_link_otp(me, rid, "000000")
+    with pytest.raises(AppError) as e:
+        await svc.confirm_family_link_otp(me, rid, _extract_code(sms.sent[0][1]))   # 맞는 코드여도
+    assert "다시 받아" in str(e.value)
+
+
+@pytest.mark.asyncio
+async def test_confirm_reactivates_previously_unlinked(db_conn):
+    """[FAM-UNLINK-12] 해제했던 가족을 ㉯로 다시 이으면 같은 줄이 되살아난다(새 줄을 만들지 않는다)."""
+    me = await _seed_account(db_conn)
+    target = await _seed_hospital_patient(db_conn)
+    await _force_link(db_conn, me.id, target, relation="부모")
+    await patient_family_service.unlink_family_member(me, target)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="어머니", sms_client=sms)
+    assert await svc.confirm_family_link_otp(me, rid, _extract_code(sms.sent[0][1])) == target
+    rows = await db_conn.fetch(
+        "select relation, is_active from patient_family_links "
+        "where account_patient_id=$1 and family_patient_id=$2", me.id, target)
+    assert len(rows) == 1 and rows[0]["is_active"] is True and rows[0]["relation"] == "어머니"
+
+
+@pytest.mark.asyncio
+async def test_confirm_rechecks_the_limit(db_conn):
+    """[#62] 상한은 확인 시점에도 다시 본다 — 요청과 확인 사이에 다른 창에서 10명을 채울 수 있다."""
+    me = await _seed_account(db_conn)
+    await _seed_hospital_patient(db_conn)
+    sms = _FakeSms()
+    rid = await svc.request_family_link_otp(
+        me, name="김영수", birth_date=date(1948, 5, 20), phone="01012345678",
+        relation="부모", sms_client=sms)
+    for i in range(10):
+        await patient_family_service.add_family_member(me, f"가족{i}", date(2010, 1, 1), "M", "자녀")
+    with pytest.raises(AppError) as e:
+        await svc.confirm_family_link_otp(me, rid, _extract_code(sms.sent[0][1]))
+    assert e.value.status_code == 409 and "최대 10명" in str(e.value)
+```
+
+`_extract_code`·`_force_link`는 파일 상단 헬퍼:
+
+```python
+import re
+
+def _extract_code(body: str) -> str:
+    """문자 본문에서 6자리 코드만 뽑는다(테스트 전용 — 실제 앱은 사용자가 문자를 보고 친다)."""
+    m = re.search(r"\b(\d{6})\b", body)
+    assert m, f"문자에 6자리 코드가 없다: {body}"
+    return m.group(1)
+
+async def _force_link(db_conn, account_id, family_id, *, relation: str) -> None:
+    await db_conn.execute(
+        "insert into patient_family_links (account_patient_id, family_patient_id, relation) values ($1,$2,$3)",
+        account_id, family_id, relation)
+```
+
+Run: `cd backend && pytest tests/test_family_link_otp_service.py -v` → Expected: 전부 FAIL(모듈 없음)
+
+- [ ] **Step 5: `family_link_otp_service.py` 구현 — R5-01의 「별도 보안 함수」**
+
+`backend/app/services/family_link_otp_service.py`:
+
+```python
+"""㉯ 기존 환자를 가족으로 연결 — 본인확인(OTP) 창구.
+
+[R5-01] 클라이언트가 남의 patient id를 가족 링크에 직접 넣지 못하게 하고,
+        기존 환자 연결은 **이 함수를 통해서만** 일어나게 한다.
+
+⚠️ Supabase Auth의 signInWithOtp/verifyOTP를 쓰지 않는다. 그것은 그 번호의 **세션을 발급**해서,
+   어머니 번호로 인증한 순간 딸이 어머니로 로그인된다. 여기서 필요한 것은 로그인이 아니라
+   "그 번호에 닿을 수 있는가"의 확인뿐이다(FAM-LINK-05 — 네 가지 본인확인 중 유일하게 남의 번호).
+"""
+
+import hashlib
+import hmac
+import re
+import secrets
+from datetime import date, datetime, timedelta, timezone
+from uuid import UUID
+
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.db.pool import get_pool
+from app.integrations.notify_clients import get_sms_client
+from app.services.patient_family_service import MAX_ACTIVE_FAMILY
+
+OTP_TTL_MINUTES = 5           # FAM-LINK-04 — 화면이 세는 5:00과 같은 값
+RESEND_INTERVAL_SECONDS = 30  # FAM-LINK-22 · 갭 #16 — 앱 쿨다운과 같은 값을 서버도 센다
+MAX_CODE_ATTEMPTS = 5         # 6자리를 무한히 넣어보지 못하게(Step 1 주석)
+
+_LIMIT_MESSAGE = f"가족은 최대 {MAX_ACTIVE_FAMILY}명까지 등록하실 수 있습니다."
+
+
+def _digits(phone: str) -> str:
+    return re.sub(r"\D", "", phone or "")
+
+
+def _hash(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+async def request_family_link_otp(
+    patient: PatientContext,
+    *,
+    name: str,
+    birth_date: date,
+    phone: str,
+    relation: str,
+    sms_client=None,
+) -> UUID:
+    """인증번호를 보낸다. ⭐ 후보를 못 찾아도 **성공**한다(갭 #58).
+
+    사실대로 알려주는 예외는 둘뿐이다(갭 #60 — 요청자가 이미 아는 정보라 열거가 아니다):
+      · 본인          → 409 본인은 가족으로 추가할 수 없습니다
+      · 이미 연결됨   → 409 이미 가족으로 연결되어 있습니다
+    그 밖의 「없다·여럿이다·번호가 다르다」는 **전부 같은 성공 응답**이다.
+    """
+    sms_client = sms_client or get_sms_client()
+    phone_digits = _digits(phone)
+    phone_hash = _hash(phone_digits)
+    pool = await get_pool()
+
+    async with pool.acquire() as conn:
+        # ① 재발송 간격(갭 #16) — 번호 기준(B-3)과 요청자 기준을 함께 본다.
+        last = await conn.fetchval(
+            "select max(created_at) from family_link_requests "
+            "where phone_hash = $1 or requesting_patient_id = $2",
+            phone_hash, patient.id)
+        if last is not None:
+            waited = (datetime.now(timezone.utc) - last).total_seconds()
+            if waited < RESEND_INTERVAL_SECONDS:
+                raise AppError(
+                    "인증번호는 30초 뒤에 다시 받으실 수 있습니다.",
+                    status_code=429,
+                    retry_after_seconds=int(RESEND_INTERVAL_SECONDS - waited) + 1)
+
+        # ② 상한(갭 #62) — ㉯도 연결선을 하나 더 만드는 일이다. 문자를 보내기 **전에** 막는다.
+        active = await conn.fetchval(
+            "select count(*) from patient_family_links where account_patient_id=$1 and is_active",
+            patient.id)
+        if active >= MAX_ACTIVE_FAMILY:
+            raise AppError(_LIMIT_MESSAGE, status_code=409)
+
+        # ③ 후보 조회 — 이름·생년월일·전화번호 셋이 모두 맞고 **정확히 1건**일 때만 특정한다.
+        #    요구사항 3.5: 이름+생년월일로는 사람을 특정할 수 없다(FAM-LINK-18·19·20).
+        candidates = await conn.fetch(
+            "select id from patients "
+            "where name = $1 and birth_date = $2 and regexp_replace(coalesce(phone,''), '\\D', '', 'g') = $3",
+            name, birth_date, phone_digits)
+        target_id = candidates[0]["id"] if len(candidates) == 1 else None
+
+        # ④ 사실대로 알려주는 두 경우(갭 #60). 서버가 판정한다 — 앱이 든 목록은 낡을 수 있다.
+        if target_id is not None:
+            if target_id == patient.id:
+                raise AppError("본인은 가족으로 추가할 수 없습니다.", status_code=409)
+            already = await conn.fetchval(
+                "select 1 from patient_family_links "
+                "where account_patient_id=$1 and family_patient_id=$2 and is_active",
+                patient.id, target_id)
+            if already:
+                raise AppError("이미 가족으로 연결되어 있습니다.", status_code=409)
+
+        # ⑤ ⭐ 코드는 **대상이 없어도** 만들어 저장한다 — 여기에 if가 없어야 응답 시간이 안 갈린다(#58).
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        request_id = await conn.fetchval(
+            "insert into family_link_requests "
+            "  (requesting_patient_id, target_patient_id, phone_hash, relation, code_hash, expires_at) "
+            "values ($1,$2,$3,$4,$5,$6) returning id",
+            patient.id, target_id, phone_hash, relation, _hash(code),
+            datetime.now(timezone.utc) + timedelta(minutes=OTP_TTL_MINUTES))
+
+    # ⑥ 문자만 갈린다(화면은 안 갈린다). 갭 #42 — 본문은 한글이다.
+    if target_id is not None:
+        sms_client.send_sms(
+            phone_digits,
+            f"[병원] 가족 연결 인증번호는 {code}입니다. {OTP_TTL_MINUTES}분 안에 입력해 주세요.")
+    return request_id
+
+
+async def confirm_family_link_otp(patient: PatientContext, request_id: UUID, code: str) -> UUID:
+    """인증번호가 맞으면 연결선을 만든다(또는 해제됐던 줄을 되살린다). 연결된 환자 id를 돌려준다."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            req = await conn.fetchrow(
+                "select * from family_link_requests where id = $1 for update", request_id)
+            if req is None or req["requesting_patient_id"] != patient.id:
+                raise AppError("요청을 찾을 수 없습니다.", status_code=404)
+            if req["verified_at"] is not None:
+                raise AppError("이미 처리된 요청입니다.", status_code=400)
+            if req["expires_at"] < datetime.now(timezone.utc):
+                raise AppError("인증번호가 만료되었습니다. 다시 받아 주세요.", status_code=400)
+            if req["attempts"] >= MAX_CODE_ATTEMPTS:
+                raise AppError("인증번호를 여러 번 잘못 입력하셨습니다. 다시 받아 주세요.", status_code=400)
+
+            # ⭐ 대상이 없는 요청(#58)도 여기서 끝난다 — code_hash가 보낸 적 없는 무작위 값이라
+            #    어떤 숫자를 넣어도 맞지 않는다. 「대상 없음」을 위한 분기가 아예 없다.
+            if not hmac.compare_digest(req["code_hash"], _hash(code)):
+                await conn.execute(
+                    "update family_link_requests set attempts = attempts + 1 where id = $1", request_id)
+                raise AppError("인증번호가 올바르지 않습니다.", status_code=400)
+
+            # 상한을 다시 본다(갭 #62) — 요청과 확인 사이에 다른 창에서 채웠을 수 있다.
+            active = await conn.fetchval(
+                "select count(*) from patient_family_links where account_patient_id=$1 and is_active",
+                patient.id)
+            if active >= MAX_ACTIVE_FAMILY:
+                raise AppError(_LIMIT_MESSAGE, status_code=409)
+
+            await conn.execute(
+                "update family_link_requests set verified_at = now() where id = $1", request_id)
+            # [#59] 해제됐던 줄이 있으면 되살린다(새 줄을 만들면 unique 제약에 걸린다).
+            await conn.execute(
+                "insert into patient_family_links (account_patient_id, family_patient_id, relation) "
+                "values ($1,$2,$3) "
+                "on conflict (account_patient_id, family_patient_id) do update "
+                "  set is_active = true, unlinked_at = null, relation = excluded.relation",
+                patient.id, req["target_patient_id"], req["relation"])
+            # ⛔ patients.app_created_by는 건드리지 않는다 — 이 행은 병원이 만든 기록이다.
+            #    T25 판정이 이 null을 보고 신원 칸을 잠근다(identity_lock_reason='linked').
+    return req["target_patient_id"]
+```
+
+`patient_family_service.py`의 `link_existing_patient_by_otp`를 **위임으로 바꾼다**(501 제거):
+
+```python
+async def link_existing_patient_by_otp(patient, phone: str, otp: str):
+    # [R5-01] ✅ 해소(환자앱 T26) — 본인확인 창구를 family_link_otp_service로 분리했다.
+    #         옛 501 주석의 「4단계에서 푼다」는 낡았다(4단계=AI 상담봇, 본인확인과 무관).
+    raise AppError(
+        "가족 연결은 인증번호 요청(/family/link/request) 후 확인(/family/link/confirm)으로 진행합니다.",
+        status_code=400)
+```
+
+Run: `cd backend && pytest tests/test_family_link_otp_service.py tests/test_patient_family_service.py -v`
+Expected: 전부 PASS(연결 15 + 기존 가족 서비스 test 유지)
+
+> ⚠️ `AppError`에 `retry_after_seconds`가 없으면 여기서 **선택 인자 한 칸을 더한다**(`app/core/errors.py`) — 라우터가 `Retry-After` 헤더로 옮긴다. 기존 호출부는 기본값 `None`이라 영향이 없다.
+
+- [ ] **Step 6: 라우터 2엔드포인트 (`FAM-NEW-11` 서버 거절 통로)**
+
+`backend/app/routers/patient_family.py`에 더한다:
+
+```python
+class FamilyLinkRequestIn(BaseModel):
+    name: str
+    birth_date: date
+    phone: str
+    relation: str                       # FAM-LINK-02 — '가족(연결)' 하드코딩을 버린다
+
+
+class FamilyLinkConfirmIn(BaseModel):
+    request_id: UUID
+    code: str
+
+
+@router.post("/family/link/request")
+async def request_family_link(body: FamilyLinkRequestIn, patient=Depends(get_current_patient)):
+    # ⭐ 이 엔드포인트는 「보냈다」만 답한다 — 찾았는지 여부를 응답으로 만들지 않는다(갭 #58).
+    request_id = await family_link_otp_service.request_family_link_otp(
+        patient, name=body.name, birth_date=body.birth_date,
+        phone=body.phone, relation=body.relation)
+    return {"request_id": str(request_id)}
+
+
+@router.post("/family/link/confirm")
+async def confirm_family_link(body: FamilyLinkConfirmIn, patient=Depends(get_current_patient)):
+    family_patient_id = await family_link_otp_service.confirm_family_link_otp(
+        patient, body.request_id, body.code)
+    return {"family_patient_id": str(family_patient_id)}
+```
+
+`backend/tests/test_patient_routers_integration.py`(T10 소유 파일)에 이어서:
+
+```python
+@pytest.mark.asyncio
+async def test_family_link_request_always_200(client, auth_headers):
+    """[FAM-LINK-08] HTTP 층에서도 갈리지 않는다 — 서버를 직접 불러도 열거가 안 된다(갭 #58)."""
+    hit = await client.post("/family/link/request", headers=auth_headers, json={
+        "name": "김영수", "birth_date": "1948-05-20", "phone": "01012345678", "relation": "부모"})
+    miss = await client.post("/family/link/request", headers=auth_headers, json={
+        "name": "없는사람", "birth_date": "1900-01-01", "phone": "01000000000", "relation": "부모"})
+    assert hit.status_code == miss.status_code == 200
+    assert set(hit.json()) == set(miss.json()) == {"request_id"}   # 본문 모양도 같다
+
+
+@pytest.mark.asyncio
+async def test_family_limit_returns_409_with_message(client, auth_headers, ten_family_members):
+    """[FAM-NEW-10][FAM-NEW-11] 상한은 서버가 거절하고, 화면은 그 문장을 그대로 띄운다."""
+    r = await client.post("/family", headers=auth_headers, json={
+        "name": "열한번째", "birth_date": "2010-01-01", "gender": "M", "relation": "자녀"})
+    assert r.status_code == 409
+    assert "최대 10명" in r.json()["detail"]
+```
+
+Run: `cd backend && pytest tests/test_patient_routers_integration.py -k family -v` → Expected: PASS
+
+- [ ] **Step 7: 커밋(백엔드)**
+
+```bash
+git add supabase/migrations/00030_family_link_requests.sql \
+  backend/app/services/family_link_otp_service.py backend/app/services/patient_family_service.py \
+  backend/app/routers/patient_family.py backend/app/core/errors.py \
+  backend/tests/test_family_link_otp_service.py backend/tests/test_patient_routers_integration.py
+git commit -m "feat: 가족 연결 본인확인 창구(00030) — 갭 #58 항상200·#60 본인/중복·#62 상한·#16 서버쿨다운 + R5-01 501 해제"
+```
+
+- [ ] **Step 8: 갈래 선택 화면 (`FAM-ADD-01·02·03·04·05·06·07` · `NAV-FAM-07`)**
+
+> ⭐ **이 화면이 이 묶음에서 가장 값싼 안전장치다.** 두 경로는 인증 유무·수정 권한·실패했을 때 갈 곳이 전부 다른데, 한 화면에 섞으면 **어느 쪽으로 가는지 모른 채 진행**한다(`FAM-ADD-02`). 화면 하나에 결정 하나.
+> ⭐ **㉯ 설명에 「휴대폰이 없거나 번호가 바뀐 가족」을 미리 적는다**(`FAM-ADD-04·05`) — 인증번호 화면까지 가서 알면 **이미 문자가 발송된 뒤**다. 목업 25 ①의 확정 문구를 그대로 쓴다.
+> 📌 **상한은 진입 전에 막는다**(`FAM-ADD-07`) — 목록의 버튼(`FAM-LIST-12`, T25)은 이미 팝업을 띄우지만, **예약 1단계에서 들어오는 문**(`NAV-FAM-17`)이 하나 더 있다. 그래서 **화면 자신이** 진입 시 한 번 더 본다.
+
+`patient_app/test/features/family/family_add_choice_test.dart`:
+
+```dart
+void main() {
+  testWidgets('[FAM-ADD-01] 갈래를 먼저 묻는 화면이 따로 있다 — 두 선택지', (t) async {
+    await _pumpChoice(t);
+    expect(find.text('우리 병원이 처음이에요'), findsOneWidget);
+    expect(find.text('전에 진료받은 적이 있어요'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);         // 여기서는 아무것도 입력받지 않는다
+  });
+
+  testWidgets('[FAM-ADD-02] 고르기 전에는 [다음]이 살아나지 않는다 — 모른 채 진행시키지 않는다', (t) async {
+    await _pumpChoice(t);
+    expect(_next(t).onPressed, isNull);
+    await t.tap(find.text('우리 병원이 처음이에요')); await t.pump();
+    expect(_next(t).onPressed, isNotNull);
+  });
+
+  testWidgets('[FAM-ADD-03] ㉮ 설명: 이름·생년월일만 적으면 바로 등록', (t) async {
+    await _pumpChoice(t);
+    expect(find.textContaining('이름·생년월일만 적으면 바로 등록됩니다'), findsOneWidget);
+  });
+
+  testWidgets('[FAM-ADD-04] ㉯ 설명: 그분 휴대폰으로 인증번호 + 주의색 한 줄', (t) async {
+    await _pumpChoice(t);
+    expect(find.textContaining('그분 휴대폰으로 인증번호'), findsOneWidget);
+    final warn = t.widget<WarnText>(find.byType(WarnText));
+    expect(warn.text, contains('휴대폰이 없거나 번호가 바뀐 가족이면'));
+    expect(warn.text, contains('병원에 문의'));            // 헛걸음을 여기서 막는다
+  });
+
+  testWidgets('[FAM-ADD-05] 그 안내는 인증번호 화면보다 앞이다 — 문자 발송 전에 읽는다', (t) async {
+    await _pumpChoice(t);
+    // 이 화면에는 아직 어떤 발송 창구도 불리지 않았다.
+    expect(_repo.requestCalls, 0);
+    expect(find.textContaining('병원에 문의'), findsOneWidget);
+  });
+
+  testWidgets('[FAM-ADD-06][NAV-FAM-07] 뒤로 가면 가족 목록 — 그리고 다시 들어오면 다시 고를 수 있다', (t) async {
+    await _pumpChoice(t);
+    await t.tap(find.text('우리 병원이 처음이에요')); await t.pump();
+    await t.tap(_nextFinder); await t.pumpAndSettle();
+    expect(_lastRoute, '/family/add/new');
+    await _tapBack(t); await t.pumpAndSettle();
+    expect(_lastRoute, '/family/add');                    // 갈래 선택으로 돌아온다(막다른 길 금지)
+    expect(_selected(t), isNull);                          // 고른 것이 남아 강제되지 않는다
+    await _tapBack(t); await t.pumpAndSettle();
+    expect(_lastRoute, '/family');                        // NAV-FAM-07
+  });
+
+  testWidgets('[FAM-ADD-07] 이미 10명이면 화면에 들어오기 전에 안내 팝업으로 막는다', (t) async {
+    await _pumpChoice(t, members: _tenMembers());
+    await t.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.textContaining('최대 10명'), findsOneWidget);
+    await t.tap(find.text('닫기')); await t.pumpAndSettle();
+    expect(_lastRoute, '/family');                        // 빈 화면에 남겨두지 않는다
+  });
+}
+```
+
+Run: `flutter test test/features/family/family_add_choice_test.dart` → Expected: FAIL(화면 없음)
+
+`patient_app/lib/features/family/family_add_choice_screen.dart`:
+
+```dart
+enum FamilyAddBranch { newPatient, existingPatient }   // ㉮ / ㉯
+
+class FamilyAddChoiceScreen extends ConsumerStatefulWidget {
+  const FamilyAddChoiceScreen({super.key});
+  @override
+  ConsumerState<FamilyAddChoiceScreen> createState() => _FamilyAddChoiceScreenState();
+}
+
+class _FamilyAddChoiceScreenState extends ConsumerState<FamilyAddChoiceScreen> {
+  FamilyAddBranch? _branch;   // FAM-ADD-02: 고르기 전에는 진행하지 않는다
+  bool _guarded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final members = ref.watch(familyListProvider);
+
+    // FAM-ADD-07: 진입 전에 상한을 본다. 목록 버튼(T25)에 더해 예약 1단계(NAV-FAM-17)로도 들어온다.
+    members.whenData((list) {
+      final linked = list.where((m) => !m.isSelf).length;
+      if (linked >= 10 && !_guarded) {
+        _guarded = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await showBlockDialog(context,
+              title: '가족 추가',
+              message: '가족은 최대 10명까지 등록하실 수 있습니다.\n더 필요하시면 병원에 문의해 주세요.',
+              confirmLabel: '닫기');
+          if (context.mounted) context.go('/family');   // 막다른 길을 만들지 않는다
+        });
+      }
+    });
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('가족 추가')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        const Text('어떤 가족을 추가하시나요?', style: AppTokens.titleL),
+        const Text('둘 중 맞는 쪽을 골라주세요'),
+        const SizedBox(height: 16),
+
+        // FAM-ADD-03 — ㉮.
+        _BranchCard(
+          selected: _branch == FamilyAddBranch.newPatient,
+          onTap: () => setState(() => _branch = FamilyAddBranch.newPatient),
+          title: '우리 병원이 처음이에요',
+          body: '아직 진료받은 적이 없는 가족입니다. 이름·생년월일만 적으면 바로 등록됩니다.',
+        ),
+        const SizedBox(height: 12),
+
+        // FAM-ADD-04·05 — ㉯. 주의색 한 줄을 **여기**에 둔다(문자 발송 전에 읽는 자리).
+        _BranchCard(
+          selected: _branch == FamilyAddBranch.existingPatient,
+          onTap: () => setState(() => _branch = FamilyAddBranch.existingPatient),
+          title: '전에 진료받은 적이 있어요',
+          body: '이미 병원에 기록이 있는 가족입니다. 본인 확인을 위해 그분 휴대폰으로 인증번호를 보냅니다.',
+          warn: const WarnText(
+              '휴대폰이 없거나 번호가 바뀐 가족이면 병원에 문의해 주세요. 직원이 확인 후 연결해 드립니다.'),
+        ),
+        const SizedBox(height: 24),
+
+        ActionButton(
+          label: '다음',
+          busyLabel: '이동 중…',
+          disabledReason: _branch == null ? '위에서 한 가지를 골라주세요' : null,
+          onPressed: () => context.push(
+              _branch == FamilyAddBranch.newPatient ? '/family/add/new' : '/family/add/link'),
+        ),
+      ]),
+    );
+  }
+}
+```
+
+> 구현 메모: `_BranchCard`는 `AppCard`(T0)에 선택 테두리를 두른 것이다 — 라디오 점 대신 **카드 전체가 눌림 대상**이라 어르신이 맞히기 쉽다(목업 25 ①). `context.push`이므로 **뒤로 가면 이 화면으로 돌아온다**(`FAM-ADD-06`) — `_branch`는 화면 상태라 새로 그려지면 비어 있고, 그것이 *"다시 고를 수 있다"*의 실체다.
+
+Run: `flutter test test/features/family/family_add_choice_test.dart` → Expected: PASS(6)
+
+- [ ] **Step 9: ㉮ 새 가족 등록 (`FAM-NEW-01~16` · `NAV-FAM-08`)**
+
+> ⭐⭐ **성별을 미리 골라두지 않는 것이 이 화면의 심장이다**(`FAM-NEW-03·04·05`). 옛 플랜은 `String _gender = 'F'`로 시작했다(`plans/2026-07-27-patient-app.md:5376`) — **성별 칸을 안 건드리면 조용히 여성으로 저장**되고, 그 값이 사전문진 「보일 대상」(`QNR-SHOW-01`)을 가른다. **없는 질문은 없는 줄도 모른다** — 아들에게 임신 문항이 뜬다. 여기서 그 기본값을 버린다(가입 ③ `AUTH-SIGNUP-06b`와 같은 처리).
+> ⭐ **전화번호는 선택이고, 비우면 보호자 번호를 「빌려」 표시한다**(`FAM-NEW-07·08·09`) — ⛔ **보호자 번호를 복사해 저장하지 않는다.** 복사하면 보호자가 번호를 바꿨을 때 **옛 번호가 아이 행에 남는다**(갭 #3). 저장은 `null`, 표시만 `coalesce`(T3 `list_family_members`가 이미 `phone_borrowed`로 알려준다).
+> 📌 **중복 경고는 상시 노출**이다(`FAM-NEW-13·14`) — 다만 **본체는 갈래 선택 화면**이고 이것은 잘못 들어온 사람을 위한 **두 번째 그물**이다.
+
+`patient_app/test/features/family/family_new_test.dart`:
+
+```dart
+void main() {
+  testWidgets('[FAM-NEW-01] 입력은 이름·생년월일·성별·관계 + 전화번호(선택)', (t) async {
+    await _pumpNew(t);
+    for (final label in ['이름', '생년월일', '성별', '나와의 관계']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.textContaining('전화번호'), findsOneWidget);
+    expect(find.textContaining('없으면 비워두세요'), findsOneWidget);
+  });
+
+  testWidgets('[FAM-NEW-02][FAM-NEW-03] 성별은 남·여 필수이고, 미리 골라두지 않는다', (t) async {
+    await _pumpNew(t);
+    expect(find.text('남'), findsOneWidget);
+    expect(find.text('여'), findsOneWidget);
+    expect(_selectedGender(t), isNull);                     // 어느 쪽도 선택돼 있지 않다
+    // 하나를 눌러야 [등록하기]가 살아난다 — 버튼은 화면에 있지만 눌리지 않는다.
+    expect(find.widgetWithText(ActionButton, '등록하기'), findsOneWidget);
+    expect(_submit(t).onPressed, isNull);
+    await t.tap(find.text('남')); await t.pump();
+    expect(_submit(t).onPressed, isNotNull);                // 등록하기가 살아났다
+  });
+
+  testWidgets('[FAM-NEW-04][FAM-NEW-05] 기본값이 조용히 답을 만들지 않는다 — 안 고르면 서버로 안 간다', (t) async {
+    await _pumpNew(t);
+    await _fillNameAndBirth(t);
+    await t.tap(find.text('등록하기')); await t.pumpAndSettle();
+    expect(_repo.addCalls, isEmpty);                        // 'F'가 몰래 실려 나가지 않는다
+  });
+
+  testWidgets('[FAM-NEW-06] 성별 라벨 옆에 왜 묻는지 — 가입 화면과 같은 문구', (t) async {
+    await _pumpNew(t);
+    expect(find.text('(문진 문항 노출에 쓰입니다)'), findsOneWidget);
+  });
+
+  testWidgets('[FAM-NEW-07][FAM-NEW-08][FAM-NEW-09] 전화번호를 비워도 등록되고, 보호자 번호를 복사하지 않는다', (t) async {
+    await _pumpNew(t);
+    expect(find.textContaining('비워두시면'), findsOneWidget);
+    expect(find.textContaining('보호자(내) 번호'), findsOneWidget);
+    await _fillValid(t, phone: '');
+    await t.tap(find.text('등록하기')); await t.pumpAndSettle();
+    expect(_repo.addCalls.single.phone, isNull);            // 빈 문자열도 아니고 내 번호도 아니다
+    expect(_repo.otpCalls, 0);                              // ㉮는 인증하지 않는다
+  });
+
+  testWidgets('[FAM-NEW-10][FAM-NEW-11][FAM-NEW-12] 상한은 서버가 거절하고 화면은 그 문장을 팝업으로', (t) async {
+    await _pumpNew(t);
+    _repo.failAddWith(409, '가족은 최대 10명까지 등록하실 수 있습니다.');
+    await _fillValid(t);
+    await t.tap(find.text('등록하기')); await t.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.textContaining('최대 10명'), findsOneWidget);
+    expect(find.textContaining('병원에 문의해 주세요'), findsOneWidget);
+    expect(find.text('닫기'), findsOneWidget);
+  });
+
+  testWidgets('[FAM-NEW-13][FAM-NEW-14] 중복 경고는 화면 위 상시 안내다(팝업이 아니다)', (t) async {
+    await _pumpNew(t);
+    expect(find.textContaining('이미 병원에 방문·예약하신 적 있는 가족이라면'), findsOneWidget);
+    expect(find.textContaining('과거 기록과 별도로 관리됩니다'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);         // 본체는 갈래 선택 화면이다
+  });
+
+  testWidgets('[FAM-NEW-15] 등록 버튼은 처리 중 「◌ 등록 중…」 — 두 번 눌리지 않는다', (t) async {
+    await _pumpNew(t);
+    _repo.delayAdd();
+    await _fillValid(t);
+    await t.tap(find.text('등록하기')); await t.pump();
+    expect(find.text('등록 중…'), findsOneWidget);
+    expect(_submit(t).onPressed, isNull);
+  });
+
+  testWidgets('[FAM-NEW-16][NAV-FAM-08] 성공하면 가족 목록 — 갈래 선택은 뒤에 남기지 않는다', (t) async {
+    await _pumpNew(t);
+    await _fillValid(t);
+    await t.tap(find.text('등록하기')); await t.pumpAndSettle();
+    expect(_lastRoute, '/family');
+    expect(_routeStack, isNot(contains('/family/add')));    // 뒤로 눌러 등록 화면으로 안 돌아간다
+    expect(_familyListInvalidated, isTrue);                 // 새 카드가 목록에 있다
+  });
+}
+```
+
+Run: `flutter test test/features/family/family_new_test.dart` → Expected: FAIL(화면 없음)
+
+`patient_app/lib/features/family/family_new_screen.dart`:
+
+```dart
+class FamilyNewScreen extends ConsumerStatefulWidget {
+  const FamilyNewScreen({super.key});
+  @override
+  ConsumerState<FamilyNewScreen> createState() => _FamilyNewScreenState();
+}
+
+class _FamilyNewScreenState extends ConsumerState<FamilyNewScreen> {
+  final _form = FieldErrorController();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  DateTime? _birth;
+  String? _gender;        // FAM-NEW-03·04·05 ⭐ 기본값을 두지 않는다('F'로 시작하지 않는다)
+  String _relation = '아들';
+  bool _busy = false;
+
+  bool get _ready => _gender != null;   // FAM-NEW-02 — 성별을 고르기 전에는 버튼이 죽어 있다
+
+  Future<void> _submit() async {
+    if (!_form.validateAll() || _birth == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(familyAddRepoProvider).addNew(
+            name: _name.text.trim(),
+            birthDate: _birth!,
+            gender: _gender!,
+            relation: _relation,
+            // FAM-NEW-08 ⛔ 비어 있으면 null — 보호자 번호를 복사해 넣지 않는다(갭 #3).
+            phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+          );
+      ref.invalidate(familyListProvider);                 // FAM-NEW-16 — 새 카드가 목록에 있다
+      if (mounted) context.go('/family');                 // NAV-FAM-08 — 갈래 선택을 뒤에 안 남긴다
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      if (e.statusCode == 409) {
+        // FAM-NEW-10·11 — 판정은 서버가 했다. 화면은 그 문장을 막힘 안내 모양으로 보여줄 뿐이다.
+        await showBlockDialog(context,
+            title: '가족 추가',
+            message: '${e.message}\n더 필요하시면 병원에 문의해 주세요.',
+            confirmLabel: '닫기');
+      } else {
+        setState(() => _error = e.message);               // 그 밖의 실패는 버튼 위 붙박이(ERR 계열)
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('가족 정보')),
+        body: ListView(padding: const EdgeInsets.all(16), children: [
+          // FAM-NEW-13·14 — 상시 안내(두 번째 그물).
+          const WarnText('이미 병원에 방문·예약하신 적 있는 가족이라면 새로 추가하지 마세요. '
+              '새로 추가하면 과거 기록과 별도로 관리됩니다.'),
+          const SizedBox(height: 16),
+
+          FieldTextInput(
+            label: '이름', controller: _name, form: _form,
+            validate: (v) => v.trim().isEmpty ? '이름을 적어주세요' : null),
+
+          // 생년월일 — 가입 ③과 같은 방식(달력에서 고른다).
+          InkWell(
+            onTap: () async {
+              final picked = await showDatePicker(
+                  context: context, initialDate: DateTime(1990),
+                  firstDate: DateTime(1900), lastDate: DateTime.now());
+              if (picked != null) setState(() => _birth = picked);
+            },
+            child: InputDecorator(
+              decoration: const InputDecoration(labelText: '생년월일'),
+              child: Text(_birth == null
+                  ? '날짜 선택'
+                  : '${_birth!.year}년 ${_birth!.month}월 ${_birth!.day}일'),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // FAM-NEW-02·06 — 성별 + 왜 묻는지(가입 화면과 같은 문구).
+          const Text('성별'),
+          const Text('(문진 문항 노출에 쓰입니다)',
+              style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
+          Row(children: [
+            ChoiceChip(label: const Text('남'), selected: _gender == 'M',
+                onSelected: (_) => setState(() => _gender = 'M')),
+            const SizedBox(width: 8),
+            ChoiceChip(label: const Text('여'), selected: _gender == 'F',
+                onSelected: (_) => setState(() => _gender = 'F')),
+          ]),
+          const SizedBox(height: 16),
+
+          const Text('나와의 관계'),
+          RelationChips(                                   // T25가 만든 것을 그대로 쓴다(4종 + 기타 +)
+              selected: _relation, onChanged: (r) => setState(() => _relation = r)),
+          const SizedBox(height: 16),
+
+          // FAM-NEW-07 — 선택 입력. 라벨에 「없으면 비워두세요」를 붙여 필수처럼 보이지 않게 한다.
+          FieldTextInput(
+            label: '전화번호 (없으면 비워두세요)', controller: _phone, form: _form,
+            validate: (v) => v.trim().isEmpty || _isPhone(v) ? null : '휴대폰 번호 형식이 아닙니다'),
+          const Text('비워두시면 보호자(내) 번호로 표시되고, 알림도 내 휴대폰으로 옵니다.',
+              style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
+          const SizedBox(height: 8),
+          // FAM-NEW-09 — 이 번호는 인증하지 않는다. 병원이 연락할 때 쓰는 값이고 알림은 계정 소유자에게 간다.
+
+          InlineError(_error),
+          ActionButton(
+            label: '등록하기', busyLabel: '등록 중…', busy: _busy,     // FAM-NEW-15
+            disabledReason: _ready ? null : '성별을 골라주세요',
+            onPressed: _submit),
+        ]),
+      );
+}
+```
+
+Run: `flutter test test/features/family/family_new_test.dart` → Expected: PASS(9)
+
+- [ ] **Step 10: ㉯ 정보 입력 화면 (`FAM-LINK-01·02·03·14·15·16·17` · `NAV-FAM-09·12`)**
+
+> ⭐ **안내 상자의 자리가 이 화면인 것이 결정 B-36의 요점이다**(`FAM-LINK-15`) — 인증번호 화면은 **이미 문자가 발송된 뒤**라 늦다. 그리고 문구를 *"휴대폰이 없는"*에서 **"휴대폰이 없거나, 번호가 바뀐"**으로 넓힌 이유(`FAM-LINK-16`): 번호 변경이 훨씬 흔한데, 좁은 문구를 읽은 사람은 *"우리 어머니는 휴대폰 있으니 상관없네"* 하고 지나쳐 **문자가 영영 안 오는 화면에 갇힌다.**
+> ⭐ **성별을 묻지 않는다**(`FAM-LINK-03`) — 병원 기록의 값을 그대로 쓴다. ㉮와 칸이 다른 이유가 여기서 눈에 보인다.
+> 📌 **입력값은 인증번호 화면에 다녀와도 남는다**(`NAV-FAM-10`) — `linkDraftProvider`(autoDispose 아님)에 담는다. 예약 마법사 `BOOK-KEEP-01`과 같은 처리다.
+
+`patient_app/test/features/family/family_link_form_test.dart`:
+
+```dart
+void main() {
+  testWidgets('[FAM-LINK-01] 입력은 이름·생년월일·휴대폰 번호·관계', (t) async {
+    await _pumpLinkForm(t);
+    for (final label in ['이름', '생년월일', '휴대폰 번호', '나와의 관계']) {
+      expect(find.textContaining(label), findsOneWidget);
+    }
+  });
+
+  testWidgets('[FAM-LINK-03] 성별은 묻지 않는다 — 병원 기록의 값을 쓴다', (t) async {
+    await _pumpLinkForm(t);
+    expect(find.text('성별'), findsNothing);
+    expect(find.text('남'), findsNothing);
+  });
+
+  testWidgets('[FAM-LINK-02] 관계를 입력받아 서버로 보낸다 — 「가족(연결)」로 굳히지 않는다', (t) async {
+    await _pumpLinkForm(t);
+    await _fillLink(t);
+    await t.tap(find.text('기타 +')); await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField).last, '장인어른');
+    await t.tap(find.text('인증번호 받기')); await t.pumpAndSettle();
+    expect(_repo.requestCalls.single.relation, '장인어른');
+  });
+
+  testWidgets('[FAM-LINK-14][FAM-LINK-15] 안내 상자는 이 화면에 있다 — 문자를 보내기 전이다', (t) async {
+    await _pumpLinkForm(t);
+    expect(find.text('휴대폰이 없거나, 번호가 바뀐 가족인가요? ›'), findsOneWidget);
+    expect(find.textContaining('병원에 문의하시면 직원이 확인 후 연결해 드립니다'), findsOneWidget);
+    expect(_repo.requestCalls, isEmpty);                    // 아직 아무 문자도 안 나갔다
+  });
+
+  testWidgets('[FAM-LINK-16] 문구는 「없거나」와 「바뀐」을 함께 적는다 — 번호 변경이 더 흔하다', (t) async {
+    await _pumpLinkForm(t);
+    final box = find.text('휴대폰이 없거나, 번호가 바뀐 가족인가요? ›');
+    expect(box, findsOneWidget);
+    expect(find.text('휴대폰이 없는 가족인가요?'), findsNothing);   // 좁은 옛 문구를 쓰지 않는다
+  });
+
+  testWidgets('[FAM-LINK-17][NAV-FAM-12] 안내 상자를 누르면 병원 안내 화면으로', (t) async {
+    await _pumpLinkForm(t);
+    await t.tap(find.text('휴대폰이 없거나, 번호가 바뀐 가족인가요? ›')); await t.pumpAndSettle();
+    expect(_lastRoute, '/settings/hospital');               // 전화·길찾기가 있는 화면
+  });
+
+  testWidgets('[NAV-FAM-09] [인증번호 받기] 성공 → 인증번호 입력 화면', (t) async {
+    await _pumpLinkForm(t);
+    await _fillLink(t);
+    await t.tap(find.text('인증번호 받기')); await t.pumpAndSettle();
+    expect(_lastRoute, '/family/add/link/otp');
+  });
+
+  testWidgets('[FAM-LINK-06] 병원 기록에 없는 사람이어도 화면은 똑같이 넘어간다', (t) async {
+    await _pumpLinkForm(t);
+    _repo.nextRequestFindsNobody();                          // 서버는 200 + request_id만 준다
+    await _fillLink(t);
+    await t.tap(find.text('인증번호 받기')); await t.pumpAndSettle();
+    expect(_lastRoute, '/family/add/link/otp');              // 「그런 환자 없습니다」가 없다
+    expect(find.textContaining('없습니다'), findsNothing);
+  });
+
+  testWidgets('[FAM-LINK-09][FAM-LINK-10] 본인·이미 연결은 그 자리에서 알려준다', (t) async {
+    await _pumpLinkForm(t);
+    _repo.failRequestWith(409, '이미 가족으로 연결되어 있습니다');
+    await _fillLink(t);
+    await t.tap(find.text('인증번호 받기')); await t.pumpAndSettle();
+    expect(find.textContaining('이미 가족으로 연결되어 있습니다'), findsOneWidget);
+    expect(find.text('가족 목록 보기'), findsOneWidget);       // 막다른 길을 만들지 않는다
+    expect(_lastRoute, '/family/add/link');                   // 화면을 옮기지 않는다
+
+    await t.tap(find.text('가족 목록 보기')); await t.pumpAndSettle();
+    expect(_lastRoute, '/family');
+  });
+
+  testWidgets('[FAM-LINK-22] 인증번호 버튼은 처리 중 잠기고, 다시 받기는 30초 쿨다운(번호 기준)', (t) async {
+    await _pumpLinkForm(t);
+    _repo.delayRequest();
+    await _fillLink(t);
+    await t.tap(find.text('인증번호 받기')); await t.pump();
+    expect(_sendButton(t).onPressed, isNull);
+    await t.pumpAndSettle();
+    expect(await _cooldown.remainingFor('01012345678'), greaterThan(0));
+  });
+}
+```
+
+Run: `flutter test test/features/family/family_link_form_test.dart` → Expected: FAIL(화면 없음)
+
+`patient_app/lib/features/family/family_link_form_screen.dart`:
+
+```dart
+class FamilyLinkFormScreen extends ConsumerStatefulWidget { ... }
+
+class _FamilyLinkFormScreenState extends ConsumerState<FamilyLinkFormScreen> {
+  // ... _name·_birth·_phone·_relation + _form(FieldErrorController) + _busy·_error
+
+  Future<void> _send() async {
+    if (!_form.validateAll() || _birth == null) return;
+    setState(() => _busy = true);
+    try {
+      final requestId = await ref.read(familyAddRepoProvider).requestLink(
+            name: _name.text.trim(), birthDate: _birth!,
+            phone: _phone.text.trim(), relation: _relation);
+      // NAV-FAM-10 — 입력값을 남겨 둔다(인증 화면에서 뒤로 오면 그대로 있어야 한다).
+      ref.read(linkDraftProvider.notifier).state = LinkDraft(
+          name: _name.text.trim(), birthDate: _birth!, phone: _phone.text.trim(),
+          relation: _relation, requestId: requestId);
+      await ref.read(phoneCooldownProvider).start(_phone.text.trim());   // FAM-LINK-22(번호 기준)
+      if (mounted) context.push('/family/add/link/otp');                 // NAV-FAM-09
+    } on ApiError catch (e) {
+      // FAM-LINK-09·10 — 이 둘만 사실대로 온다(그 밖의 실패는 열거 방지로 성공처럼 진행한다).
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _showFamilyListLink = e.message.contains('이미 가족으로');
+      });
+      if (e.statusCode == 429 && e.retryAfterSeconds != null) {
+        await ref.read(phoneCooldownProvider)
+            .startWith(_phone.text.trim(), e.retryAfterSeconds!);        // 서버 값에 버튼을 맞춘다
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('가족 확인')),
+        body: ListView(padding: const EdgeInsets.all(16), children: [
+          const Text('가족분 정보를 입력해 주세요', style: AppTokens.titleL),
+          const Text('입력하신 휴대폰으로 인증번호를 보냅니다'),
+          const SizedBox(height: 16),
+
+          FieldTextInput(label: '이름', controller: _name, form: _form,
+              validate: (v) => v.trim().isEmpty ? '이름을 적어주세요' : null),
+          _birthField(),                                   // ㉮와 같은 달력
+          FieldTextInput(label: '휴대폰 번호', controller: _phone, form: _form,
+              validate: (v) => _isPhone(v) ? null : '휴대폰 번호를 적어주세요'),
+          // FAM-LINK-03 ⛔ 성별 칸은 두지 않는다 — 병원 기록의 값을 쓴다.
+
+          const SizedBox(height: 16),
+          const Text('나와의 관계'),
+          RelationChips(selected: _relation, onChanged: (r) => setState(() => _relation = r)),
+          const SizedBox(height: 16),
+
+          // FAM-LINK-14·15·16·17 — 자리는 이 화면, 문구는 「없거나 · 바뀐」 둘 다.
+          // NAV-FAM-12 — 병원 안내(전화·길찾기)로 보낸다. 앱이 판정할 수 없는 경우의 유일한 출구다.
+          AppCard(
+            onTap: () => context.push('/settings/hospital'),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+              Text('휴대폰이 없거나, 번호가 바뀐 가족인가요? ›'),
+              SizedBox(height: 4),
+              Text('병원에 전화하거나 방문하시면 직원이 확인 후 연결해 드립니다.',
+                  style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
+            ]),
+          ),
+          const SizedBox(height: 16),
+
+          InlineError(_error),
+          if (_showFamilyListLink)                          // FAM-LINK-09 — 막다른 길을 만들지 않는다
+            TextButton(onPressed: () => context.go('/family'), child: const Text('가족 목록 보기')),
+          ActionButton(label: '인증번호 받기', busyLabel: '보내는 중…', busy: _busy, onPressed: _send),
+        ]),
+      );
+}
+```
+
+Run: `flutter test test/features/family/family_link_form_test.dart` → Expected: PASS(10)
+
+- [ ] **Step 11: ㉯ 인증번호 화면 배선 (`FAM-LINK-04·05·11·12·13·18·19·20·21` · `NAV-FAM-10·11`)**
+
+> ⭐ **화면을 새로 만들지 않는다** — T13 `OtpScreen(purpose: familyLink)`가 6칸·5분 카운트·30초 재발송·`AUTH-OTP-06` 마스킹·`AUTH-OTP-11` 링크를 이미 담고 있다. 여기서는 **그 화면에 콜백 3개를 꽂는 얇은 페이지**만 만든다(재소유 금지).
+> ⭐ **T13이 남긴 죽은 링크를 여기서 갚는다** — `AUTH-OTP-11`의 `onPressed: () {}`가 아무 데도 안 간다. `NAV-FAM-12`와 **같은 곳**(`/settings/hospital`)으로 잇는다.
+> 📌 `FAM-LINK-11·12·18·19·20`은 **근거 규칙**이다(왜 이렇게 하는가). 실현은 서버 test(Step 3~4)가 못박았고, 여기서는 **화면이 그 판정을 흉내 내지 않는지**를 본다 — 앱이 제 손으로 「이 사람 없네」를 판단하는 순간 열거 방지가 무너진다.
+
+`patient_app/test/features/family/family_link_otp_test.dart`:
+
+```dart
+void main() {
+  testWidgets('[FAM-LINK-04][FAM-LINK-05] 6자리·5:00 · 마스킹된 그분 번호(내 번호가 아니다)', (t) async {
+    await _pumpOtp(t, draft: _draft(phone: '01012345678'));
+    expect(find.byType(TextField), findsNWidgets(6));
+    expect(find.textContaining('5:00'), findsOneWidget);
+    expect(find.textContaining('010-****-5678'), findsOneWidget);   // AUTH-OTP-06
+    expect(find.textContaining(_myPhone), findsNothing);
+  });
+
+  testWidgets('[FAM-LINK-11][FAM-LINK-12] 앱은 「대상이 있나」를 스스로 판정하지 않는다', (t) async {
+    await _pumpOtp(t, draft: _draft());
+    // 화면이 가진 것은 request_id뿐 — 후보 존재 여부를 담은 값이 아예 없다.
+    expect(_repo.lastRequestResult.keys, ['request_id']);
+    expect(find.textContaining('확인되었습니다'), findsNothing);
+  });
+
+  testWidgets('[FAM-LINK-13][FAM-LINK-18][FAM-LINK-19][FAM-LINK-20] 문자가 안 와도 여기서 막다른 길이 아니다', (t) async {
+    await _pumpOtp(t, draft: _draft());
+    expect(find.text('휴대폰이 없는 가족인가요?'), findsOneWidget);   // T13 AUTH-OTP-11 링크
+    await t.tap(find.text('휴대폰이 없는 가족인가요?')); await t.pumpAndSettle();
+    expect(_lastRoute, '/settings/hospital');                        // 죽어 있던 링크를 이었다
+  });
+
+  testWidgets('[FAM-LINK-21][NAV-FAM-11] 인증 성공 → 가족 목록에 새 카드, 관계는 입력한 값', (t) async {
+    await _pumpOtp(t, draft: _draft(relation: '어머니'));
+    await _enterCode(t, '123456');
+    await t.pumpAndSettle();
+    expect(_repo.confirmCalls.single.code, '123456');
+    expect(_lastRoute, '/family');
+    expect(_familyListInvalidated, isTrue);
+    expect(_routeStack, isNot(contains('/family/add')));            // 추가 흐름을 뒤에 안 남긴다
+  });
+
+  testWidgets('[NAV-FAM-10] 뒤로 가면 정보 입력 화면이고 값이 그대로 있다', (t) async {
+    await _pumpOtp(t, draft: _draft(name: '김영수', phone: '01012345678'));
+    await _tapBack(t); await t.pumpAndSettle();
+    expect(_lastRoute, '/family/add/link');
+    expect(find.text('김영수'), findsOneWidget);                     // 다시 치게 하지 않는다
+    expect(find.text('01012345678'), findsOneWidget);
+  });
+
+  testWidgets('[FAM-LINK-22] 다시 받기는 30초 쿨다운 — 서버가 429를 주면 그 숫자에 맞춘다', (t) async {
+    await _pumpOtp(t, draft: _draft(), validitySeconds: 1);
+    await t.pump(const Duration(seconds: 2));                       // AUTH-OTP-02: 입력칸이 접힌다
+    _repo.failRequestWith(429, '인증번호는 30초 뒤에 다시 받으실 수 있습니다.', retryAfter: 12);
+    await t.tap(find.text('인증번호 다시 받기')); await t.pumpAndSettle();
+    expect(find.textContaining('12'), findsOneWidget);              // 앱 숫자가 서버 값을 따른다
+  });
+}
+```
+
+`patient_app/lib/features/family/family_link_otp_page.dart`:
+
+```dart
+class FamilyLinkOtpPage extends ConsumerWidget {
+  const FamilyLinkOtpPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final draft = ref.watch(linkDraftProvider);
+    if (draft == null) return const _NoDraftFallback();   // 딥링크로 바로 들어온 경우 입력 화면으로
+
+    final repo = ref.read(familyAddRepoProvider);
+    return OtpScreen(                                     // ⭐ T13 화면을 그대로 쓴다(재소유 금지)
+      phone: draft.phone,
+      purpose: OtpPurpose.familyLink,                     // AUTH-OTP-06 마스킹 · AUTH-OTP-11 링크
+      cooldown: ref.read(phoneCooldownProvider),
+      onResend: () async {
+        final rid = await repo.requestLink(
+            name: draft.name, birthDate: draft.birthDate,
+            phone: draft.phone, relation: draft.relation);
+        ref.read(linkDraftProvider.notifier).state = draft.copyWith(requestId: rid);
+      },
+      onVerify: (code) async {
+        try {
+          await repo.confirmLink(requestId: draft.requestId, code: code);
+          return null;                                     // 성공
+        } on ApiError catch (e) {
+          return e.message;                                // AUTH-OTP-09 — 서버 문장 그대로
+        }
+      },
+      onSuccess: () {
+        ref.invalidate(familyListProvider);                // FAM-LINK-21 — 새 카드가 목록에 있다
+        ref.read(linkDraftProvider.notifier).state = null; // 다음 추가가 옛 값을 물려받지 않게
+        context.go('/family');                             // NAV-FAM-11
+      },
+    );
+  }
+}
+```
+
+`patient_app/lib/features/auth/otp_screen.dart`(**T13 소유 파일 — 죽은 링크 1줄 배선**):
+
+```dart
+        // AUTH-OTP-11: 가족 연결만 막다른 길 링크. (T26: 목적지를 이었다 — NAV-FAM-12와 같은 곳)
+        if (widget.purpose == OtpPurpose.familyLink)
+          TextButton(
+            onPressed: () => Navigator.of(context).pushNamed('/settings/hospital'),
+            child: const Text('휴대폰이 없는 가족인가요?')),
+```
+
+Run: `flutter test test/features/family/family_link_otp_test.dart test/features/auth/otp_screen_test.dart`
+Expected: PASS(6 + T13 11건 그대로)
+
+- [ ] **Step 12: 저장소·라우트·예약 1단계 문 (`NAV-FAM-17`)**
+
+`patient_app/lib/features/family/family_add_repository.dart`:
+
+```dart
+class LinkDraft {                       // NAV-FAM-10 — 인증 화면에 다녀와도 값이 남는다
+  final String name; final DateTime birthDate; final String phone;
+  final String relation; final String requestId;
+  const LinkDraft({required this.name, required this.birthDate, required this.phone,
+                   required this.relation, required this.requestId});
+  LinkDraft copyWith({String? requestId}) => LinkDraft(
+      name: name, birthDate: birthDate, phone: phone, relation: relation,
+      requestId: requestId ?? this.requestId);
+}
+
+// ⛔ autoDispose가 아니다 — 화면을 벗어나도 살아 있어야 「뒤로 = 값 유지」가 성립한다(BOOK-KEEP-01과 같은 처리).
+final linkDraftProvider = StateProvider<LinkDraft?>((ref) => null);
+
+class FamilyAddRepo {
+  final ApiClient api;
+  FamilyAddRepo(this.api);
+
+  Future<String> addNew({required String name, required DateTime birthDate,
+      required String gender, required String relation, String? phone}) async {
+    final r = await api.post('/family', body: {
+      'name': name, 'birth_date': _ymd(birthDate), 'gender': gender,
+      'relation': relation, 'phone': phone,          // FAM-NEW-08 — null 그대로 보낸다
+    });
+    return r['id'] as String;
+  }
+
+  Future<String> requestLink({required String name, required DateTime birthDate,
+      required String phone, required String relation}) async {
+    final r = await api.post('/family/link/request', body: {
+      'name': name, 'birth_date': _ymd(birthDate), 'phone': phone, 'relation': relation});
+    return r['request_id'] as String;                // ⭐ 이 응답에 「찾았는지」는 없다(갭 #58)
+  }
+
+  Future<String> confirmLink({required String requestId, required String code}) async {
+    final r = await api.post('/family/link/confirm',
+        body: {'request_id': requestId, 'code': code});
+    return r['family_patient_id'] as String;
+  }
+}
+
+final familyAddRepoProvider = Provider((ref) => FamilyAddRepo(ref.read(apiClientProvider)));
+```
+
+`patient_app/lib/core/router.dart`(T11 소유 — 라우트만 더한다):
+
+```dart
+    GoRoute(path: '/family/add', builder: (c, s) => const FamilyAddChoiceScreen()),
+    GoRoute(path: '/family/add/new', builder: (c, s) => const FamilyNewScreen()),
+    GoRoute(path: '/family/add/link', builder: (c, s) => const FamilyLinkFormScreen()),
+    GoRoute(path: '/family/add/link/otp', builder: (c, s) => const FamilyLinkOtpPage()),
+    // ⚠️ 자리표시자 — SET-HOSP 화면 본체는 Task 28 소유다. NAV-FAM-12·AUTH-OTP-11의 도착지만 먼저 연다.
+    GoRoute(path: '/settings/hospital', builder: (c, s) => const _Placeholder('병원 안내')),
+```
+
+`patient_app/lib/features/booking/steps/who_step.dart`(**T19 소유 — 1줄**):
+
+```dart
+            // NAV-FAM-17(사용자 결정 2026-08-18): 가족 목록이 아니라 **갈래 선택**으로 바로 보낸다.
+            // 누른 사람은 이미 「가족을 추가하겠다」고 정했고, 목록은 방금 이 1단계에서 본 명단과 같다.
+            // BOOK-KEEP-01: push라 마법사는 뒤에 살아 있다 — 돌아오면 1단계에 그 가족이 늘어나 있다.
+            onTap: () => context.push('/family/add'),          // 옛: context.go('/family')
+```
+
+`patient_app/test/features/family/family_add_nav_test.dart`:
+
+```dart
+testWidgets('[NAV-FAM-17] 예약 1단계의 + 가족 추가하기 → 갈래 선택(마법사는 뒤에 살아 있다)', (t) async {
+  await _pumpBookingStep1(t);
+  await t.tap(find.text('+ 가족 추가하기')); await t.pumpAndSettle();
+  expect(_lastRoute, '/family/add');
+  expect(_bookingController.step, 1);                 // 마법사 상태가 살아 있다(BOOK-KEEP 계열)
+  await _tapBack(t); await t.pumpAndSettle();
+  expect(_lastRoute, '/booking');                     // 하던 예약으로 돌아온다
+});
+```
+
+`patient_app/test/features/booking/who_step_test.dart`(**T19 소유 — 기대값 1건**):
+
+```dart
+// 옛: expect(_lastRoute, '/family');
+expect(_lastRoute, '/family/add');   // NAV-FAM-17 확정(2026-08-18) — 갈래 선택으로 바로
+```
+
+Run: `flutter test test/features/family/ test/features/booking/who_step_test.dart` → Expected: 전부 PASS
+
+- [ ] **Step 13: 설계문서 반영(갭 #58·#60·#62·#16 · R5-01 · NAV-FAM-17) + 검사기 + 커밋**
+
+**① `docs/design/screen-behaviors.md`** — 뒤집힌 쪽에 역참조를 박는다(⭐ 새 결정에만 적으면 단방향이 된다):
+
+- `FAM-LINK-08`(갭 #58): `~~서버가 0건·2건 이상일 때 404를 그대로 준다 → 앱에서 가릴 수 없는 종류~~ ✅ **해소(2026-08-18, 환자앱 T26)** — `request_family_link_otp`가 후보를 못 찾아도 **행을 만들고 200 + `request_id`**를 준다(`target_patient_id`만 null). 코드도 만들어 저장하므로 확인 단계에 분기가 없다 = 시간차도 없다`
+- `FAM-LINK-12`(갭 #60): `서버가 판정한다` 근거 칸에 `+ ✅ 실현(환자앱 T26 — 본인·이미 연결만 409로 사실대로, 그 밖은 전부 같은 성공 응답)` 덧붙임
+- `FAM-LINK-02`: `~~플랜은 관계를 '가족(연결)'로 하드코딩한다 → 플랜 패치~~ ✅ **해소(환자앱 T26)** — 요청 시 입력한 관계를 `family_link_requests.relation`에 보관했다가 연결 때 그대로 쓴다`
+- `FAM-NEW-05`: `~~플랜이 기본값 'F'로 시작한다 → 플랜 패치 대상~~ ✅ **해소(환자앱 T26)** — `String? _gender = null`. 고르기 전에는 `[등록하기]`가 죽어 있다`
+- `FAM-NEW-11`(갭 #62): 근거 칸에 `+ ✅ 실현(환자앱 T26 — ㉮ `add_family_member`·㉯ 요청/확인 **세 곳 모두** 409)`
+- `FAM-LINK-22`(갭 #16): `+ ⭐ 쿨다운은 **서버도 센다**(환자앱 T26 — 30초 미만이면 429 + 남은 초. 앱만 세면 앱을 거치지 않는 요청이 통과한다)`
+- `BOOK-WHO-09`·`NAV-BOOK-04`: `~~가족 탭으로 이동~~ ✅ **정정(2026-08-18, 사용자 결정)** — **갈래 선택 화면**(`/family/add`)으로 바로. `NAV-FAM-17`과 어긋나 있던 것을 맞췄다(환자앱 T26이 T19 구현 1줄 정정)`
+- `NAV-FAM-17`: 비고에 `+ ✅ 확정(2026-08-18) — 충돌하던 `BOOK-WHO-09`·`NAV-BOOK-04`를 이쪽으로 맞췄다`
+
+**② `docs/superpowers/specs/2026-07-31-ui-design-decisions.md`**:
+
+- `#58`·`#60`·`#62`·`#16` → `[x]` + 각각 `✅ 해소(2026-08-18, 환자앱 T26)` 한 줄(무엇으로 닫았는지 포함)
+- 🆕 **결정 항목 신설 「예약 1단계에서 가족을 추가할 때 어디로 보내나」** — 확정=갈래 선택, 기각=가족 목록(*"방금 1단계에서 본 명단을 또 보여주고 버튼을 한 번 더 누르게 한다"*), ⚠️ **진본 두 곳이 서로를 근거로 인용하며 다르게 적혀 있던 사례**로 기록
+- 🆕 **경계 갭 대조표에 `#R5-01` 행 추가** — *"`link_existing_patient_by_otp` 501의 해제 조건이 「4단계」로 적혀 있었으나 4단계=AI 상담봇이라 무관. 실제 조건은 「별도 OTP 창구」였고 환자앱 T26이 만들며 해제"*
+- ⛔ **`HANDOVERS`에 남길 것**: 가족 연결 문자의 **실 발송**은 `SmsClient` 제공자 연결(배포 플랜 #122)이 되어야 실제로 나간다 — T26은 배관까지만 소비한다
+
+**③ 검사기 + 커밋**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+cd backend && pytest tests/test_family_link_otp_service.py tests/test_patient_family_service.py -v
+cd ../patient_app && flutter test test/features/family/ test/features/auth/otp_screen_test.dart test/features/booking/who_step_test.dart
+git add supabase/migrations/00030_family_link_requests.sql backend/ \
+  patient_app/lib/features/family/ patient_app/test/features/family/ \
+  patient_app/lib/features/auth/otp_screen.dart patient_app/lib/features/booking/steps/who_step.dart \
+  patient_app/test/features/booking/who_step_test.dart patient_app/lib/core/router.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 📝 환자앱 Task 26 본문 — 가족 추가 갈래·㉮ 등록·㉯ OTP 연결 52규칙 + 갭 #58·#60·#62·#16 해소 + R5-01 501 해제 + NAV-FAM-17 충돌 확정"
+```
+
+> 📌 **규칙 커버리지(52)**: `FAM-ADD-01~07`(7) · `FAM-NEW-01~16`(16) · `FAM-LINK-01~22`(22) · `NAV-FAM-07·08·09·10·11·12·17`(7). 개별 ID로 test에 심음.
+> ⭐ **갭 해소 4건**: **#58**(계정 열거 — 항상 200·분기 없음) · **#60**(본인·이미 연결만 사실대로) · **#62**(상한 10명을 세 곳에서 거절) · **#16**(재발송 30초를 서버가 검사).
+> ⭐ **낡은 예고 1건 정정**: `link_existing_patient_by_otp`의 `501`이 *"4단계에서 푼다"*고 적혀 있었으나 **4단계=AI 상담봇**으로 본인확인과 무관했다. R5-01의 실제 조치는 **「별도 보안 함수로 분리」**였고 결정문서(`:1128`)가 *"가족 연결 OTP만 별도 서비스"*로 이미 확정해 두었다 — 여기서 만들고 해제.
+> ⭐ **진본 충돌 1건 확정**: `NAV-FAM-17` ↔ `BOOK-WHO-09`·`NAV-BOOK-04`(같은 버튼, 다른 목적지). **갈래 선택으로 확정**하고 T19 구현 1줄·test 1건을 맞췄다.
+> ⚠️ **T26이 남 태스크 파일을 고친 곳**(재소유 아님): T3 `patient_family_service.link_existing_patient_by_otp`(501 제거·위임) · T10 `patient_family.py`(연결 2엔드포인트) · T11 `router.dart`(라우트 5개) · T13 `otp_screen.dart`(죽은 링크 1줄 배선) · T19 `who_step.dart`(목적지 1줄) + 그 test 1건.
+> ⚠️ **T28에 넘기는 악수**: `/settings/hospital`을 **자리표시자**로 열어 두었다(`NAV-FAM-12`·`AUTH-OTP-11`의 도착지). T28이 `SET-HOSP-*` 실화면으로 갈아끼울 때 **이 두 진입을 함께 확인**할 것.
+> 📌 **값 없는/근거 규칙 실현 지도**: `FAM-ADD-02·05`·`FAM-NEW-04·12·14`·`FAM-LINK-07·11·16·19`=근거 규칙(짝이 되는 동작 규칙이 실현하고, test는 그 근거가 화면·서버에서 실제로 성립하는지 본다) · `FAM-NEW-05`·`FAM-LINK-02·08`=⚠️ 구현 전제(패치를 여기서 실행) · `FAM-LINK-17`=직원웹 갭 #2·#19가 짝(앱은 「병원에 문의」로 보내는 것까지).
+> ▶ **다음 = Task 27 본문 작성** — 방문 이력(목록·행·역할·문진/안내 펼침 `HIST-*`·`NAV-HIST-*` **84규칙**). ⚠️ **착수 전에 ⏰ 3건을 눈으로 판단할 것**: T8 서버가 이미 구현한 `HIST-LIST 계열 2건`·`HIST-ROLE 계열 1건`에 **화면 test가 또 필요한가**(핸드오프 「⏰」 참조 — ⛔ 여기서 완전 ID로 적으면 coverage가 미리 세어 T27이 놓친다). 📌 T8 조회(`list_visit_history` 20건 커서·4상태)·T25 `FamilyMember`(이름 칩)·T17 `isFinishedCard`를 소비한다.
