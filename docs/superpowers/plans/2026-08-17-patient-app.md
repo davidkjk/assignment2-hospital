@@ -146,7 +146,7 @@
 | **15** | 예약 카드 위젯 + 상태 A(공통·요청·대기·미확정·변경) (38개) | `CARD-COMMON-*`·`CARD-REQ-*`·`CARD-WAIT-*`·`CARD-UNCONF-*`·`CARD-CHG-*` | 재작성 |
 | **16** | 홈 프레임 + 하단 탭 셸 (43개) | `HOME-*`·`NAV-HOME-*` | 재작성 |
 | **17** | 예약 카드 상태 B(지연·취소·완료·오프라인·문진·입장) + QR (70개) | `CARD-LATE-*`·`CARD-CXL-*`·`CARD-DONE-*`·`CARD-OFF-*`·`CARD-QNR-*`·`CARD-IN-*`·`CARD-OK-*`·`CARD-DOC-*`·`CARD-LIFE-*`·`QR-*` | 재작성 |
-| **18** | 알림함 — 목록·읽음·비었음 (29개) | `NOTI-*` | 재작성 |
+| **18** | 알림함 — 목록·읽음·비었음·목적지·갈곳없음 (30개) | `NOTI-*` | 재작성 |
 | **19** | 예약 1~4단계(본인/가족·과·의사·날짜) + 값 보존 (71개) | `NAV-BOOK-*`·`BOOK-WHO-*`·`BOOK-DEPT-*`·`BOOK-DOC-*`·`BOOK-DATE-*`·`BOOK-NAV-*`·`BOOK-KEEP-*` | 재작성 [R5-01] |
 | **20** | 예약 5~8단계(시간·이유·확인·신청/확정) + 슬롯충돌·멱등 (66개) | `BOOK-TIME-*`·`BOOK-TODAY-*`·`BOOK-WHY-*`·`BOOK-CONF-*`·`BOOK-DONE-*`·`BOOK-HOLD-*`·`BOOK-RACE-*`·`BOOK-BOT-*` | 재작성 |
 | **21** | 예약 상세 — 헤더·정보·QR·문진·버튼 (62개) | `APPT-HEAD-*`·`APPT-INFO-*`·`APPT-QR-*`·`APPT-QNR-*`·`APPT-BTN-*`·`NAV-APPT-*` | 재작성 |
@@ -9907,4 +9907,480 @@ git commit -m "feat: 환자앱 Task 17 — 예약 카드 상태 B(확정·도착
 > ⚠️ **갭 #11 소급**: T8 조회에 취소 주체 4필드(`cancelled_by·relation·name·at`) 추가 — 칸은 `00025`(Task 6 취소 서비스와 합칠 수 있음). 결정 문서 #11의 조치방향 실현.
 > 📌 **T15 `AppointmentView`에 `isSelf`·취소 주체 필드 추가**(이 태스크에서 Modify) — T16이 남긴 `isSelf` 소급 제안도 함께 반영.
 
-> ▶ **다음 = Task 18 본문 작성** — 알림함 29규칙(`NOTI-*`). ⭐ **갭 #22의 실현** — 저장 테이블·목록 API·읽음 처리·30일 정리가 전부 없다(`NOTI-IMPL-01`). ⚠️ **먼저 「알림 읽음 저장 위치」 결정**(결정 문서 4036행에 미결로 등록 — `NOTI-READ-04` "전부 읽음"이라 개별 read_at이 아니라 `last_seen_at` 하나로 충분할 수 있음, T16 `unreadNotificationCountProvider`가 이걸 소비). `notification_log`엔 읽음 칸이 없다 → 새 칸/테이블 결정 필요(CARD-CHG #17과 같은 종류의 데이터 갭). NAV-HOME-16·17 목적지 표(`NOTI-GO-*`)·종 배지 개수도 여기서 채운다.
+---
+
+## Task 18: 알림함 — 목록·읽음(전부)·비었음·종류별 목적지·갈 곳 없어진 알림 (30규칙)
+
+> **담당 규칙(30)**: `NOTI-LIST-*`(1) · `NOTI-READ-*`(8: 01~08) · `NOTI-KEEP-*`(2) · `NOTI-GO-*`(6) · `NOTI-GONE-*`(6) · `NOTI-OFF-*`(1) · `NOTI-EMPTY-*`(3) · `NOTI-CACHE-*`(1) · `NOTI-BODY-*`(1) · `NOTI-IMPL-*`(1). ⭐ **갭 #22의 실현 태스크** — 발송 표(`notification_log`, ④ `00011`)는 있으나 **목록 조회·읽음 처리·종류별 목적지가 전부 없었다**(`NOTI-IMPL-01`). T16이 남긴 양방향 악수(`unreadNotificationCountProvider`·`/notifications` 라우트·종 탭 시 읽음 창구)를 여기서 **채운다**.
+>
+> ⭐⭐ **이 태스크의 첫 번째 심장 = 「읽음」 저장 = `patients.notifications_seen_at` 한 칸**(결정 확정 2026-08-18, 「알림함 데이터 저장 방식」). B-11이 **「알림함을 열면 그때까지 온 알림이 전부 읽음」**(개별 추적 아님, `NOTI-READ-04·06`)으로 정했으니 **계정당 시각 하나**면 충분하다. 안 읽은 개수 = `notification_log`에서 `patient_id = 이 계정` 중 `sent_at > notifications_seen_at`인 건수(`NOTI-READ-08`). 읽음 처리 = 알림함에 들어오는 순간 `seen_at = now()` **한 번**. ⚠️ **개별 `read_at` 칸·별도 reads 표는 기각**(발송 로그에 읽음 얹기·`NOTI-READ-06` 위반). ⚠️ **가족 조인 없음** — `notify_patient`(T9)는 **항상 계정 소유자에게** 보내고 가족 예약은 대상자 이름을 **본문에** 넣으므로 `notification_log.patient_id`는 언제나 로그인 계정이다.
+>
+> ⭐⭐ **두 번째 심장 = 「종류 → 눌렀을 때 가는 곳」 표**(결정 문서: *"이 표가 이 화면의 핵심 결정이다"*). `notify_patient.MESSAGES`의 `notification_type` 10종을 목적지로 가른다(`NOTI-GO-*`): 예약 상세(신청·확정·변경·리마인더·취소거부) / **이력 탭의 그 줄**(병원취소·취소처리·진료후안내 — `예약이 이미 없다`) / 사전문진 화면(문진안내) / 상담방(상담답변 — 4단계). `appointment_id`는 `notification_log`에 이미 있다.
+>
+> ⭐⭐ **세 번째 심장 = 갈 곳이 없어진 알림(`NOTI-GONE-*`, 결정 B-12)**: 알림은 30일 남는데 그 사이 목적지가 사라질 수 있다(가족 연결 해제가 가장 흔함 · 예약 변경 = 취소+새 예약 · 문진 안내 후 취소 · 계정 병합 #34). **누른 그 순간에만** 목적지 존재를 확인하고(`NOTI-GONE-03` — 목록 그릴 때 전수 확인 금지), 없으면 **안내 팝업 + 이동 안 함 + 알림은 목록에 그대로**(`NOTI-GONE-01·02`). 문구는 **사유를 단정하지 않고 두 가능성**(`예약이 취소되었거나 가족 연결이 해제되었을 수 있습니다`, `NOTI-GONE-04`).
+>
+> ⚠️ **경계(재소유 금지)**: ① 종 아이콘·배지·`/notifications` 라우트·`unreadNotificationCountProvider` **선언**은 **Task 16 소비**(`NotificationBell`·홈 라우트 표) — 여기서는 **개수를 채우고**(provider 본체) 화면을 만든다(양방향 악수). ② 빈 상태·오프라인·오류 3종은 **Task 12 소비**(`EmptyState.zero/offline/error`). ③ 오프라인 배너·연결 판정은 **Task 11 소비**(`connectivityProvider`·`OfflineBanner`). ④ 알림 **본문 문구·PUSH 규칙 적용은 Task 9가 발송 시점에 이미** 함(`NOTI-BODY-01` — 알림함은 저장된 `body`를 **그대로 표시**만, 진료과·의사·증상을 다시 붙이지 않는다). ⑤ 예약 상세·이력·문진 화면 자체는 **Task 21·27·23 소유** — 여기서는 그 라우트로 **보내기만**. ⑥ 딥링크(`NAV-HOME-18·19`)로 앱에 들어온 경우의 목적지 이동·갈곳없음 팝업은 **Task 11 `PushService` 소비** — 여기서 만드는 `resolveNotificationDestination`·`showNotificationGoneDialog`를 그쪽이 재사용(`NOTI-GONE-05`).
+>
+> ⚠️ **읽음 처리 순서(색 바가 살아 있으려면)**: 목록은 **현재 `seen_at` 기준**으로 `is_read`를 계산해 내려준다(이번에 새로 온 것은 색 바가 보인다, `NOTI-READ-01`). 화면이 뜬 **직후** `seen_at = now()`로 갱신(`NOTI-READ-04`) → 배지 0. 그래서 색 바는 **이번 열람엔 보이고 다음 열람엔 사라진다**("색 바도 함께 사라진다"의 뜻). 순서를 뒤집어(먼저 갱신 후 조회) 그리면 색 바가 영영 안 보여 `NOTI-READ-01`이 죽는다.
+>
+> ⚠️ **화면 태스크가 자기 백엔드를 소유한다**(T13 consent·T15 `acknowledge_hospital_change` 선례) — 알림 목록/읽음 서비스·라우터·`00026` 마이그레이션을 이 태스크가 만든다. Task 9(발송)는 `notification_log`에 **쓰기만**, 읽음은 안 건드린다.
+
+**Files:**
+- Create: `supabase/migrations/00026_notifications_seen_at.sql`(`patients.notifications_seen_at` 칸 — 결정 「데이터 저장 방식」)
+- Create: `backend/app/services/patient_notification_service.py`(`list_notifications`·`count_unread`·`mark_all_read`)
+- Create: `backend/app/routers/patient_notifications.py`(`GET /my/notifications`·`GET /my/notifications/unread-count`·`POST /my/notifications/read`)
+- Modify: `backend/app/main.py`(`include_router(patient_notifications.router)`)
+- Create: `patient_app/lib/features/notifications/notification_view.dart`(`NotificationView` 모델 + `notificationTitle`·`notificationImportant`·`notificationDateGroup`·`resolveNotificationRoute` 순수 함수)
+- Create: `patient_app/lib/features/notifications/notification_data.dart`(`notificationRepoProvider`·`notificationsProvider`·`unreadNotificationCountProvider`(T16 이어받음)·`markNotificationsRead`)
+- Create: `patient_app/lib/features/notifications/notification_inbox.dart`(`NotificationInbox` 화면 — 목록·날짜 묶음·색 바·30일 안내·빈 상태·탭→목적지)
+- Create: `patient_app/lib/features/notifications/notification_gone_dialog.dart`(`showNotificationGoneDialog`·`resolveNotificationDestination` — 딥링크 T11도 재사용)
+- Modify: `backend/tests/test_patient_routers_integration.py`(알림 3엔드포인트 인증·읽음 절 추가)
+- Test: `backend/tests/test_patient_notification_service.py` · `patient_app/test/features/notifications/{notification_view,notification_data,notification_inbox,notification_gone}_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - Task 0: `AppTokens`(`primary`(#0B6E70 딥틸)·`warn`·`grayDone`)·`appIcon(AppIconKind…)`·`ApiClient`·`formatKoreanTime`
+  - Task 2: `PatientContext`·`get_current_patient` · `acquire_as` · `AppError`(1단계) · `app_error_handler`(라우터 try/except 금지)
+  - Task 11: `connectivityProvider`·`OfflineBanner`
+  - Task 12: `EmptyState.zero/offline/error`
+  - Task 16: `unreadNotificationCountProvider`(`Provider<int>` 선언 — 여기서 본체를 채운다)·`/notifications` 라우트(여기 화면을 끼운다)·홈 라우트 표(`/appointments/:id`·`/history`·`/questionnaire/:id`·`/chat`)
+  - ④ `notification_log(id, appointment_id, patient_id, notification_type, kind, channel, delivery_status, body, sent_at)`(`00011`) · `patients`(`00026`이 칸 추가) · Task 9 `notification_service.MESSAGES`(타입 10종의 원본)
+- Produces:
+  - `patient_notification_service.list_notifications(patient) -> list[dict]`(각 dict: `id`·`notification_type`·`kind`·`body`·`appointment_id`·`sent_at`·`is_read`) · `count_unread(patient) -> int` · `mark_all_read(patient) -> None`
+  - REST: `GET /my/notifications` · `GET /my/notifications/unread-count` · `POST /my/notifications/read`
+  - Dart: `NotificationView`(`.fromJson`) · `notificationTitle(String) -> String` · `notificationImportant(String) -> bool` · `notificationDateGroup(DateTime sentAt, DateTime now) -> String` · `resolveNotificationRoute(NotificationView) -> String?`(목적지 라우트, 없으면 `null`) · `notificationsProvider`(`FutureProvider<List<NotificationView>>`) · `unreadNotificationCountProvider`(본체) · `markNotificationsRead(WidgetRef) -> Future<void>` · `resolveNotificationDestination(WidgetRef, NotificationView) -> Future<bool>`(누른 순간 존재 확인) · `showNotificationGoneDialog(BuildContext)` · `NotificationInbox`
+
+- [ ] **Step 1: `00026` 마이그레이션 — `patients.notifications_seen_at`**
+
+`supabase/migrations/00026_notifications_seen_at.sql`:
+```sql
+-- 갭 #22·B-11(결정 2026-08-18 「알림함 데이터 저장 방식」): 알림 「읽음」을 담을 유일한 칸.
+-- 「알림함을 열면 전부 읽음」(NOTI-READ-04)이라 계정당 시각 하나로 충분하다.
+--   안 읽은 개수 = notification_log에서 patient_id=이 계정 중 sent_at > notifications_seen_at.
+--   읽음 처리 = 알림함 진입 순간 이 칸을 now()로.
+-- ⛔ notification_log(발송 로그)에 read_at을 얹지 않는다 — 발송 관심사와 읽음 관심사를 섞지 않는다(기각 ①).
+-- ⚠️ 번호는 Task 17(00025 cancellation_actor) 다음 = 00026. 직원웹도 00017+ 대역을 쓰므로 실제 번호는 구현 시점 확정.
+alter table patients add column if not exists notifications_seen_at timestamptz;
+-- NULL = 한 번도 알림함을 안 연 계정 → 모든 알림이 안 읽음(coalesce로 -infinity 취급).
+```
+
+- [ ] **Step 2: 백엔드 목록·개수·읽음 실패 테스트** — `backend/tests/test_patient_notification_service.py`
+
+```python
+import pytest
+from datetime import datetime, timedelta, timezone
+
+from app.core.patient_security import PatientContext
+from app.services import patient_notification_service as n
+from tests.conftest import seed_patient
+
+
+def _ctx(s): return PatientContext(id=s["patient_id"], auth_user_id=s["auth_user_id"])
+
+
+async def _log(db_conn, patient_id, *, ntype="confirmed", body="예약이 확정되었습니다.",
+               kind="transactional", sent_at=None, appointment_id=None):
+    # notification_log(00011)에 한 줄. 서비스 역할로 넣는다(발송이 하는 일 대역).
+    return await db_conn.fetchval(
+        "insert into notification_log (appointment_id, patient_id, notification_type, kind, channel, "
+        "delivery_status, body, sent_at) values ($1,$2,$3,$4,'push','발송완료',$5, coalesce($6, now())) "
+        "returning id",
+        appointment_id, patient_id, ntype, kind, body, sent_at)
+
+
+@pytest.mark.asyncio
+async def test_unread_counts_only_after_seen_at(db_conn):
+    # NOTI-READ-08: seen_at 이후에 온 것만 안 읽음. seen_at이 null이면 전부 안 읽음.
+    me = await seed_patient(db_conn)
+    old = datetime.now(timezone.utc) - timedelta(hours=2)
+    await _log(db_conn, me["patient_id"], sent_at=old)          # 2시간 전
+    await _log(db_conn, me["patient_id"])                        # 방금
+    assert await n.count_unread(_ctx(me)) == 2                   # seen_at null → 둘 다 안 읽음
+    await db_conn.execute("update patients set notifications_seen_at=$2 where id=$1",
+                          me["patient_id"], datetime.now(timezone.utc) - timedelta(hours=1))
+    assert await n.count_unread(_ctx(me)) == 1                   # 1시간 전 이후로 온 것만(방금 1건)
+
+
+@pytest.mark.asyncio
+async def test_list_marks_is_read_against_current_seen_at(db_conn):
+    # NOTI-READ-01·02: 목록은 현재 seen_at 기준 is_read를 준다(색 바가 이번 열람에 보이도록).
+    me = await seed_patient(db_conn)
+    old = await _log(db_conn, me["patient_id"], sent_at=datetime.now(timezone.utc) - timedelta(days=1))
+    await db_conn.execute("update patients set notifications_seen_at=now() where id=$1", me["patient_id"])
+    fresh = await _log(db_conn, me["patient_id"])               # seen_at 이후 도착
+    rows = await n.list_notifications(_ctx(me))
+    by_id = {r["id"]: r for r in rows}
+    assert by_id[old]["is_read"] is True and by_id[fresh]["is_read"] is False
+
+
+@pytest.mark.asyncio
+async def test_list_excludes_older_than_30_days_and_orders_desc(db_conn):
+    # NOTI-KEEP-01: 30일까지만. 최신순.
+    me = await seed_patient(db_conn)
+    await _log(db_conn, me["patient_id"], body="오래됨", sent_at=datetime.now(timezone.utc) - timedelta(days=31))
+    await _log(db_conn, me["patient_id"], body="어제", sent_at=datetime.now(timezone.utc) - timedelta(days=1))
+    await _log(db_conn, me["patient_id"], body="방금")
+    bodies = [r["body"] for r in await n.list_notifications(_ctx(me))]
+    assert bodies == ["방금", "어제"] and "오래됨" not in bodies   # 31일 전은 빠지고 최신순
+
+
+@pytest.mark.asyncio
+async def test_list_only_my_rows(db_conn):
+    # 남의 알림은 안 보인다(patient_id = 이 계정만). RLS가 아니라 서비스 where로 좁힌다(발송은 서비스 역할이 씀).
+    me = await seed_patient(db_conn)
+    other = await seed_patient(db_conn, phone="010-9")
+    await _log(db_conn, other["patient_id"], body="남의 것")
+    await _log(db_conn, me["patient_id"], body="내 것")
+    bodies = [r["body"] for r in await n.list_notifications(_ctx(me))]
+    assert bodies == ["내 것"]
+
+
+@pytest.mark.asyncio
+async def test_mark_all_read_zeroes_unread(db_conn):
+    # NOTI-READ-04: mark_all_read 한 번이면 배지가 0이 된다.
+    me = await seed_patient(db_conn)
+    await _log(db_conn, me["patient_id"]); await _log(db_conn, me["patient_id"])
+    assert await n.count_unread(_ctx(me)) == 2
+    await n.mark_all_read(_ctx(me))
+    assert await n.count_unread(_ctx(me)) == 0
+```
+Run: `cd backend && pytest tests/test_patient_notification_service.py -v` → Expected: FAIL(모듈 없음).
+
+- [ ] **Step 3: 백엔드 서비스 구현** — `backend/app/services/patient_notification_service.py`
+
+```python
+from uuid import UUID
+
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+
+# 알림함은 로그인 본인 커넥션(RLS)으로 읽는다. notification_log의 SELECT는 본인 행만 보여야 하므로
+# where patient_id = 이 계정으로 좁힌다(발송은 서비스 역할이 쓰지만, 읽기는 본인만).
+_LIST_SQL = """
+    select id, appointment_id, notification_type, kind, body, sent_at,
+           (notifications_seen_at is not null and sent_at <= notifications_seen_at) as is_read
+      from notification_log nl
+      cross join lateral (select notifications_seen_at from patients where id = $1) p
+     where nl.patient_id = $1
+       and nl.sent_at > now() - interval '30 days'
+     order by nl.sent_at desc
+"""
+
+
+async def list_notifications(patient: PatientContext) -> list[dict]:
+    """NOTI-LIST-01·READ-01·02·KEEP-01: 30일 이내, 최신순, is_read는 현재 seen_at 기준(갱신 전)."""
+    async with acquire_as(patient) as conn:
+        rows = await conn.fetch(_LIST_SQL, patient.id)
+        return [dict(r) for r in rows]
+
+
+async def count_unread(patient: PatientContext) -> int:
+    """NOTI-READ-08: 종 배지. seen_at 이후에 온 것만. null이면 전부."""
+    async with acquire_as(patient) as conn:
+        return await conn.fetchval(
+            "select count(*) from notification_log nl "
+            "where nl.patient_id = $1 and nl.sent_at > now() - interval '30 days' "
+            "and nl.sent_at > coalesce("
+            "  (select notifications_seen_at from patients where id = $1), '-infinity'::timestamptz)",
+            patient.id,
+        )
+
+
+async def mark_all_read(patient: PatientContext) -> None:
+    """NOTI-READ-04: 알림함 진입 순간 한 번. seen_at을 now()로 → 배지 0."""
+    async with acquire_as(patient) as conn:
+        await conn.execute("update patients set notifications_seen_at = now() where id = $1", patient.id)
+```
+> ⚠️ `acquire_as(patient)`는 본인 RLS 커넥션(Task 2 선례). `notification_log`의 RLS는 ④가 서비스 역할 전용으로 뒀을 수 있어 **서비스가 `where patient_id=$1`로 명시적으로 좁힌다**(본인 것만). `patients` UPDATE는 본인 행만 — Task 1 RLS `patients_can_update_own`이 막아 준다.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: 라우터 + 통합(인증·읽음) 실패 테스트 → 구현** — `patient_notifications.py` + `main.py` + 통합 테스트
+
+```python
+# backend/tests/test_patient_routers_integration.py — 알림 절 추가
+@pytest.mark.asyncio
+async def test_notifications_require_auth(client):
+    assert client.get("/my/notifications").status_code == 401
+    assert client.post("/my/notifications/read", json={}).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_notifications_list_read_flow(client, committed_conn):
+    me = await seed_patient(committed_conn)
+    await committed_conn.execute(
+        "insert into notification_log (patient_id, notification_type, kind, channel, delivery_status, body) "
+        "values ($1,'confirmed','transactional','push','발송완료','예약이 확정되었습니다.')", me["patient_id"])
+    h = _hdr(make_token(str(me["auth_user_id"])))
+    assert client.get("/my/notifications/unread-count", headers=h).json()["unread"] == 1
+    lst = client.get("/my/notifications", headers=h)
+    assert lst.status_code == 200 and lst.json()[0]["is_read"] is False
+    client.post("/my/notifications/read", headers=h)                       # 알림함 진입 대역
+    assert client.get("/my/notifications/unread-count", headers=h).json()["unread"] == 0
+```
+> 구현 `patient_notifications.py`: `router = APIRouter(prefix="/my/notifications", tags=["notifications"])` — `GET ""` → `list_notifications(patient)`; `GET "/unread-count"` → `{"unread": count_unread(patient)}`; `POST "/read"` → `mark_all_read(patient)` 후 `{"ok": True}`. 전부 `patient: PatientContext = Depends(get_current_patient)`. `try/except` 없음(AppError는 전역 핸들러). `main.py`에 `include_router` 한 줄.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: `NotificationView` 모델 + 순수 함수(제목·중요도·날짜묶음·목적지) 실패 테스트** — `test/features/notifications/notification_view_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/notifications/notification_view.dart';
+
+NotificationView _n(String type, {String? appt = 'ap1', bool read = false}) =>
+    NotificationView.fromJson({
+      'id': 'n-$type', 'notification_type': type, 'kind': 'transactional',
+      'body': '예약 안내', 'appointment_id': appt, 'is_read': read,
+      'sent_at': '2026-08-18T09:00:00Z',
+    });
+
+void main() {
+  test('[NOTI-GO-01] 신청·확정·변경·리마인더·취소거부는 예약 상세로 간다', () {
+    for (final t in ['requested', 'confirmed', 'changed', 'reminder_day_before',
+                     'reminder_today', 'cancellation_rejected']) {
+      expect(resolveNotificationRoute(_n(t)), '/appointments/ap1');
+    }
+  });
+  test('[NOTI-GO-03] 병원취소·취소처리는 이력 탭의 그 줄로 간다(예약이 이미 없다)', () {
+    expect(resolveNotificationRoute(_n('hospital_cancelled')), '/history?appointment=ap1');
+    expect(resolveNotificationRoute(_n('cancellation_approved')), '/history?appointment=ap1');
+  });
+  test('[NOTI-GO-06] 진료 후 안내는 이력 탭의 그 줄(안내문 펼침)로 간다', () {
+    expect(resolveNotificationRoute(_n('visit_completed')), '/history?appointment=ap1');
+  });
+  test('[NOTI-GO-04] 사전문진 안내는 문진 작성 화면으로 간다', () {
+    expect(resolveNotificationRoute(_n('questionnaire_missing')), '/questionnaire/ap1');
+  });
+  test('[NOTI-GO-05] 상담 답변은 상담방으로 간다(4단계 챗봇)', () {
+    expect(resolveNotificationRoute(_n('chat_reply', appt: null)), '/chat');
+  });
+  test('[NOTI-GO-02] 병원발 변경도 예약 상세로 가되 appointment_id가 없으면 목적지 없음(갈 곳 없음 판정)', () {
+    expect(resolveNotificationRoute(_n('changed', appt: null)), isNull);   // → 탭 시 GONE 팝업
+  });
+  test('[NOTI-READ-01] 중요(변경·취소)는 주의색, 일반은 딥틸로 가른다', () {
+    for (final t in ['changed', 'hospital_cancelled', 'cancellation_approved', 'cancellation_rejected']) {
+      expect(notificationImportant(t), isTrue);
+    }
+    for (final t in ['confirmed', 'reminder_today', 'questionnaire_missing', 'visit_completed']) {
+      expect(notificationImportant(t), isFalse);
+    }
+  });
+  test('[NOTI-LIST-01] 제목은 종류별로 다르다', () {
+    expect(notificationTitle('confirmed'), '예약 확정');
+    expect(notificationTitle('questionnaire_missing'), '사전문진 안내');
+    expect(notificationTitle('hospital_cancelled'), '예약 취소');
+  });
+  test('[NOTI-LIST-01] 날짜 묶음은 오늘/어제/그 밖 날짜로 가른다', () {
+    final now = DateTime(2026, 8, 18, 15);
+    expect(notificationDateGroup(DateTime(2026, 8, 18, 9), now), '오늘');
+    expect(notificationDateGroup(DateTime(2026, 8, 17, 9), now), '어제');
+    expect(notificationDateGroup(DateTime(2026, 8, 10, 9), now), '8월 10일');
+  });
+}
+```
+Run → FAIL.
+
+- [ ] **Step 6: 모델 + 순수 함수 구현** — `patient_app/lib/features/notifications/notification_view.dart`
+
+```dart
+class NotificationView {
+  final String id;
+  final String notificationType;
+  final String kind;
+  final String body;              // Task 9가 PUSH 규칙대로 만든 표시 문구(대상자 이름 포함) — 그대로 쓴다(NOTI-BODY-01)
+  final String? appointmentId;
+  final DateTime sentAt;
+  final bool isRead;
+  NotificationView({required this.id, required this.notificationType, required this.kind,
+    required this.body, required this.appointmentId, required this.sentAt, required this.isRead});
+  factory NotificationView.fromJson(Map<String, dynamic> j) => NotificationView(
+        id: j['id'] as String,
+        notificationType: j['notification_type'] as String,
+        kind: j['kind'] as String? ?? 'transactional',
+        body: j['body'] as String,
+        appointmentId: j['appointment_id'] as String?,
+        sentAt: DateTime.parse(j['sent_at'] as String).toLocal(),
+        isRead: j['is_read'] as bool? ?? false,
+      );
+}
+
+/// NOTI-GO-*: 종류 → 눌렀을 때 가는 라우트. null이면 목적지 없음(탭 시 갈 곳 없음 팝업).
+String? resolveNotificationRoute(NotificationView n) {
+  switch (n.notificationType) {
+    case 'requested': case 'confirmed': case 'changed':
+    case 'reminder_day_before': case 'reminder_today': case 'cancellation_rejected':
+      return n.appointmentId == null ? null : '/appointments/${n.appointmentId}';   // GO-01·02
+    case 'hospital_cancelled': case 'cancellation_approved': case 'visit_completed':
+      return n.appointmentId == null ? null : '/history?appointment=${n.appointmentId}';  // GO-03·06(이력)
+    case 'questionnaire_missing':
+      return n.appointmentId == null ? null : '/questionnaire/${n.appointmentId}';   // GO-04
+    case 'chat_reply':
+      return '/chat';                                                                // GO-05(4단계)
+    default:
+      return null;
+  }
+}
+
+/// NOTI-READ-01: 중요(변경·취소)=주의색 / 일반=딥틸.
+bool notificationImportant(String type) => const {
+      'changed', 'hospital_cancelled', 'cancellation_approved', 'cancellation_rejected',
+    }.contains(type);
+
+/// NOTI-LIST-01: 종류별 제목.
+String notificationTitle(String type) => switch (type) {
+      'requested' => '예약 신청',
+      'confirmed' => '예약 확정',
+      'changed' => '예약 변경',
+      'reminder_day_before' => '내일 예약 안내',
+      'reminder_today' => '오늘 예약 안내',
+      'hospital_cancelled' => '예약 취소',
+      'cancellation_approved' => '취소 처리',
+      'cancellation_rejected' => '취소 안내',
+      'questionnaire_missing' => '사전문진 안내',
+      'visit_completed' => '진료 후 안내',
+      'chat_reply' => '상담 답변',
+      _ => '알림',
+    };
+
+/// NOTI-LIST-01: 날짜 묶음 머리(오늘/어제/M월 D일).
+String notificationDateGroup(DateTime sentAt, DateTime now) {
+  final d = DateTime(sentAt.year, sentAt.month, sentAt.day);
+  final today = DateTime(now.year, now.month, now.day);
+  final diff = today.difference(d).inDays;
+  if (diff <= 0) return '오늘';
+  if (diff == 1) return '어제';
+  return '${sentAt.month}월 ${sentAt.day}일';
+}
+```
+Run → PASS.
+
+- [ ] **Step 7: Repo·providers·읽음 창구 실패 테스트 → 구현** — `notification_data.dart` + `test/features/notifications/notification_data_test.dart`
+
+```dart
+test('[NOTI-CACHE-01] 오프라인이면 서버를 부르지 않고 빈 목록(캐시하지 않는다)', () async {
+  final api = _ThrowingApi();               // 부르면 실패
+  final list = await loadNotifications(api: api, online: false);
+  expect(list, isEmpty);                    // 예약 목록과 달리 알림은 폰에 저장하지 않는다(OFF-CACHE-03)
+});
+test('[NOTI-READ-04] markNotificationsRead 후 배지 개수 provider가 0을 준다', () async {
+  final api = _FakeApi(unread: 3);
+  final container = ProviderContainer(overrides: [notificationApiProvider.overrideWithValue(api)]);
+  expect(container.read(unreadNotificationCountProvider), 0);  // 로딩 중엔 0(Provider<int> 계약, T16)
+  await container.read(notificationRepoProvider).markAllRead();
+  expect(api.markedRead, isTrue);            // POST /my/notifications/read 를 불렀다
+});
+test('[NOTI-READ-08] 배지 개수는 unread-count 응답을 그대로 노출한다', () async {
+  final api = _FakeApi(unread: 3);
+  final container = ProviderContainer(overrides: [notificationApiProvider.overrideWithValue(api)]);
+  await container.read(unreadCountAsyncProvider.future);
+  expect(container.read(unreadNotificationCountProvider), 3);
+});
+```
+> 구현: `loadNotifications({api, online})` — `online`이면 `GET /my/notifications` → `NotificationView.fromJson` 매핑, `online=false`면 **부르지 않고 `[]`**(NOTI-CACHE-01·OFF-CACHE-03, 예약과 달리 캐시 없음). `notificationsProvider`(`FutureProvider`)가 `connectivityProvider`를 읽어 분기. `unreadCountAsyncProvider`(`FutureProvider<int>` — `GET /unread-count`), `unreadNotificationCountProvider`(`Provider<int>`, **T16이 선언한 타입 유지** — `ref.watch(unreadCountAsyncProvider).maybeWhen(data: (n) => n, orElse: () => 0)`). `notificationRepoProvider.markAllRead()` = `POST /my/notifications/read` 후 `ref.invalidate(unreadCountAsyncProvider)`. `markNotificationsRead(ref)` = 화면이 진입 시 부르는 얇은 래퍼(레포 호출 + 무효화).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 8: `NotificationInbox` 화면 — 목록·색 바·30일 안내·빈 상태·진입 시 읽음 (`NOTI-LIST`·`READ-01~03·05·07`·`KEEP`·`EMPTY`·`OFF`·`BODY`)** — `test/features/notifications/notification_inbox_test.dart`
+
+```dart
+testWidgets('[NOTI-LIST-01][NOTI-BODY-01] 목록은 날짜 묶음·제목·본문(저장된 그대로)·시각을 보인다', (t) async {
+  await t.pumpWidget(_inbox([_n('confirmed', body: '민준님 예약이 확정되었습니다.')]));
+  expect(find.text('오늘'), findsOneWidget);                 // 날짜 묶음 머리
+  expect(find.text('예약 확정'), findsOneWidget);            // 제목
+  expect(find.text('민준님 예약이 확정되었습니다.'), findsOneWidget);  // 본문 그대로(진료과·의사 안 붙임)
+});
+testWidgets('[NOTI-READ-01] 안 읽은 알림은 왼쪽 색 바 — 중요는 주의색, 일반은 딥틸', (t) async {
+  await t.pumpWidget(_inbox([_n('hospital_cancelled', read: false), _n('confirmed', read: false)]));
+  expect(barColor(t, '예약 취소'), AppTokens.warn);          // 중요=주의색
+  expect(barColor(t, '예약 확정'), AppTokens.primary);       // 일반=딥틸
+});
+testWidgets('[NOTI-READ-02] 읽은 알림은 색 바가 없고 글자가 회색', (t) async {
+  await t.pumpWidget(_inbox([_n('confirmed', read: true)]));
+  expect(hasBar(t, '예약 확정'), isFalse);
+  expect(textColor(t, '예약 확정'), AppTokens.grayDone);
+});
+testWidgets('[NOTI-READ-03] 읽지 않은 알림의 배경을 물들이지 않는다(면적 최소)', (t) async {
+  await t.pumpWidget(_inbox([_n('hospital_cancelled', read: false)]));
+  expect(rowBackgroundTinted(t, '예약 취소'), isFalse);       // 색은 4px 바에만
+});
+testWidgets('[NOTI-KEEP-02] 목록 하단에 30일 보관 안내', (t) async {
+  await t.pumpWidget(_inbox([_n('confirmed')]));
+  expect(find.text('알림은 30일 동안 보관됩니다'), findsOneWidget);
+});
+testWidgets('[NOTI-READ-04] 화면에 들어오면 읽음 창구를 부른다(배지가 0이 된다)', (t) async {
+  final api = _FakeApi(items: [_json('confirmed')], unread: 1);
+  await t.pumpWidget(_inboxApp(api));
+  await t.pumpAndSettle();
+  expect(api.markedRead, isTrue);                            // 진입 순간 mark_all_read
+});
+testWidgets('[NOTI-EMPTY-01][NOTI-EMPTY-02] 0건이면 안내만, [다시 시도] 없음', (t) async {
+  await t.pumpWidget(_inbox([]));
+  expect(find.textContaining('받은 알림이 없습니다'), findsOneWidget);
+  expect(find.textContaining('여기에서 알려드립니다'), findsOneWidget);
+  expect(find.widgetWithText(ActionButton, '다시 시도'), findsNothing);  // 실패가 아니라 사실
+});
+testWidgets('[NOTI-EMPTY-03][NOTI-OFF-01] 오프라인·조회 실패면 [다시 시도]가 붙는다', (t) async {
+  await t.pumpWidget(_inboxOffline());
+  expect(find.widgetWithText(ActionButton, '다시 시도'), findsOneWidget);   // EmptyState.offline
+});
+```
+> 구현: `NotificationInbox`가 `notificationsProvider`를 watch — 데이터면 날짜 묶음(`notificationDateGroup`)으로 섹션, 각 줄 = (안 읽음이면 왼쪽 4px 바 `notificationImportant?warn:primary`, `NOTI-READ-01`) + `appIcon` + `notificationTitle` + `body`(그대로, `NOTI-BODY-01`) + `formatKoreanTime(sentAt)`. 읽은 줄은 바 없음·`grayDone` 글자(`NOTI-READ-02`), 배경 안 물들임(`NOTI-READ-03`). 하단 `알림은 30일 동안 보관됩니다`(`NOTI-KEEP-02`, 목록은 `NOTI-KEEP-01`대로 읽어도 사라지지 않음 = 서버가 안 지움). 0건 → `EmptyState.zero`(`받은 알림이 없습니다` + `예약이 확정되거나 변경되면 여기에서 알려드립니다`, `[다시 시도]` 없음 `NOTI-EMPTY-01·02`). 오프라인/에러 → `EmptyState.offline/error`(`[다시 시도]` 있음 `NOTI-EMPTY-03`). ⭐ **진입 시**(`initState`/첫 build 후 `ref.read`) `markNotificationsRead(ref)` → 배지 0(`NOTI-READ-04`) — **목록 조회가 먼저 끝난 뒤** 부른다(색 바 보존, 위 「읽음 처리 순서」). `NOTI-READ-05·07`(근거·배지·색바 안 나눔)은 이 단일 seen_at 구조가 실현. `NOTI-OFF-01`(끈 알림은 알림함에도 없음)은 Task 9가 끈 알림의 `notification_log` 행 자체를 안 만들어 자동 실현(테스트는 오프라인 빈 화면과 함께 확인).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 9: 탭 → 목적지 이동 + 갈 곳 없어진 알림 팝업 (`NOTI-GO-*`·`NOTI-GONE-*`·`NAV-HOME-16·17`)** — `test/features/notifications/notification_gone_test.dart`
+
+```dart
+testWidgets('[NOTI-GO-01][NAV-HOME-16] 알림을 누르면 종류별 목적지로 간다', (t) async {
+  await t.pumpWidget(_inboxApp(_FakeApi(items: [_json('confirmed', appt: 'ap1')]), destinationExists: true));
+  await t.pumpAndSettle();
+  await t.tap(find.text('예약 확정'));
+  await t.pumpAndSettle();
+  expect(find.text('예약 상세'), findsOneWidget);            // /appointments/ap1
+});
+testWidgets('[NOTI-GONE-01][NOTI-GONE-02][NAV-HOME-17] 갈 곳이 없으면 팝업만·이동 안 함·알림은 남는다', (t) async {
+  await t.pumpWidget(_inboxApp(_FakeApi(items: [_json('confirmed', appt: 'ap1')]), destinationExists: false));
+  await t.pumpAndSettle();
+  await t.tap(find.text('예약 확정'));
+  await t.pumpAndSettle();
+  expect(find.textContaining('더 이상 볼 수 없습니다'), findsOneWidget);       // 안내 팝업(GONE-01)
+  expect(find.text('예약 상세'), findsNothing);                                 // 이동하지 않음
+  expect(find.text('예약 확정'), findsOneWidget);                              // 알림은 목록에 그대로(GONE-02)
+});
+testWidgets('[NOTI-GONE-04] 팝업 문구는 사유를 단정하지 않고 두 가능성을 함께 적는다', (t) async {
+  await t.pumpWidget(_inboxApp(_FakeApi(items: [_json('confirmed', appt: 'ap1')]), destinationExists: false));
+  await t.pumpAndSettle();
+  await t.tap(find.text('예약 확정'));
+  await t.pumpAndSettle();
+  expect(find.textContaining('예약이 취소되었거나 가족 연결이 해제되었을 수 있습니다'), findsOneWidget);
+});
+testWidgets('[NOTI-GONE-03] 목적지 확인은 누른 그 순간에만 한다(목록 그릴 때 전수 확인 안 함)', (t) async {
+  final api = _FakeApi(items: List.generate(5, (i) => _json('confirmed', appt: 'ap$i')));
+  await t.pumpWidget(_inboxApp(api, destinationExists: true));
+  await t.pumpAndSettle();
+  expect(api.existChecks, 0);              // 목록 5줄을 그렸어도 존재 확인 0회
+  await t.tap(find.text('예약 확정').first);
+  await t.pumpAndSettle();
+  expect(api.existChecks, 1);              // 누른 한 줄만 확인
+});
+```
+> 구현: 줄 탭 → `openNotification(context, ref, view)`: `route = resolveNotificationRoute(view)`; `route == null`이면 바로 `showNotificationGoneDialog`(목적지 자체가 없음). 아니면 `resolveNotificationDestination(ref, view)`로 **누른 그 순간** 존재 확인(`NOTI-GONE-03`) — 예약 기반이면 `GET /my/appointments/{id}`(없음/권한없음 → false), `chat`은 true(4단계). false면 `showNotificationGoneDialog`(팝업 + 이동 안 함 + 목록 유지, `NOTI-GONE-01·02`), true면 `context.go(route)`(`NAV-HOME-16`). `showNotificationGoneDialog` 문구 = `이 예약은 더 이상 볼 수 없습니다` / `예약이 취소되었거나 가족 연결이 해제되었을 수 있습니다` / `[닫기]`(`NOTI-GONE-04`). ⭐ **`resolveNotificationDestination`·`showNotificationGoneDialog`는 딥링크(Task 11 `PushService`)도 재사용**(`NOTI-GONE-05` — 잠금화면 푸시로 들어와 목적지가 사라진 경우 같은 팝업, 목적지는 홈). `NOTI-GONE-06`(일어나는 경우 목록)은 결정 근거라 팝업 문구가 실현.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 10: 전체 테스트 + 커밋**
+
+```bash
+cd backend && pytest tests/test_patient_notification_service.py tests/test_patient_routers_integration.py -v
+cd ../patient_app && flutter test test/features/notifications/
+git add supabase/migrations/00026_notifications_seen_at.sql backend/app/services/patient_notification_service.py \
+  backend/app/routers/patient_notifications.py backend/app/main.py backend/tests/ \
+  patient_app/lib/features/notifications/ patient_app/test/features/notifications/
+git commit -m "feat: 환자앱 Task 18 — 알림함 목록·읽음(seen_at)·목적지·갈곳없음 30규칙(NOTI-*)"
+```
+
+> 📌 **규칙 커버리지(30)**: `NOTI-LIST-01`(1) · `NOTI-READ-01~08`(8) · `NOTI-KEEP-01·02`(2) · `NOTI-GO-01~06`(6) · `NOTI-GONE-01~06`(6) · `NOTI-OFF-01`(1) · `NOTI-EMPTY-01·02·03`(3) · `NOTI-CACHE-01`(1) · `NOTI-BODY-01`(1) · `NOTI-IMPL-01`(1).
+> ⭐ **T16 양방향 악수 갚음**: `unreadNotificationCountProvider` **본체**(T16은 `Provider<int>` 선언만)·`/notifications` 화면·종 탭 진입 시 읽음 창구(`markNotificationsRead`)를 채웠다. `NAV-HOME-16`(알림→목적지)·`NAV-HOME-17`(갈 곳 없음 팝업)의 목적지 표(`NOTI-GO-*`)가 여기서 실현.
+> ⭐ **결정 「알림함 데이터 저장 방식」 실현**: `00026 notifications_seen_at` 한 칸 = 읽음 저장(개별 read_at·별도 표 기각). `NOTI-IMPL-01`이 가리킨 「저장 테이블(④ 있음)·목록 API(신설)·읽음 처리(seen_at)·30일 정리(조회 `where sent_at > now()-30d`)」 4조각을 전부 닫음.
+> 📌 **값 없는/구조 규칙 — 「어느 테스트가 실현하는가」**: `NOTI-READ-05`(근거=새로 온 게 있나)·`NOTI-READ-06`(개별 읽음 기각)·`NOTI-READ-07`(배지·색바 안 나눔): 단일 `seen_at` 구조 자체가 실현(Step 2 `count_unread` + Step 8 색 바). `NOTI-KEEP-01`(읽어도 안 지움): 서버가 삭제 안 함 = Step 3 조회에 삭제 없음(30일 지난 것만 필터, 실제 행은 배포 cron 몫). `NOTI-OFF-01`(끈 알림 알림함에도 없음): Task 9가 끈 알림의 로그 행을 안 만듦 → 조회에 안 걸림. `NOTI-GONE-05`(딥링크도 같은 팝업): `resolveNotificationDestination`·`showNotificationGoneDialog`를 T11이 재사용. `NOTI-GONE-06`(일어나는 경우): 팝업 문구가 두 가능성으로 실현.
+> 📌 **완전 ID로 못박기**: `NOTI-READ-01~08`·`NOTI-GO-01~06`·`NOTI-GONE-01~06`·`NOTI-EMPTY-01·02·03`을 범위·축약 없이 개별 ID로 test에 심었다(검사기가 축약을 못 읽는 함정 방지 — T16·T17 교훈).
+> ⚠️ **신설 마이그레이션 `00026_notifications_seen_at.sql`** — 직원웹도 `00017+`를 쓰므로 실제 번호는 구현 시점 확정(먼저 적용하는 쪽 우선). `patients` 한 칸이라 의존 없음.
+> 📌 **`chat_reply` 타입은 4단계(챗봇)가 `MESSAGES`·`notification_log`에 추가**한다 — 여기 `resolveNotificationRoute`의 `chat_reply→/chat`은 미리 깔아 둔 배선(`NOTI-GO-05`). 그전엔 그 타입의 행이 없어 무해.
+
+> ▶ **다음 = Task 19 본문 작성** — 예약 1~4단계(본인/가족·과·의사·날짜) + 값 보존 **71규칙**(`NAV-BOOK-*`·`BOOK-WHO-*`·`BOOK-DEPT-*`·`BOOK-DOC-*`·`BOOK-DATE-*`·`BOOK-NAV-*`·`BOOK-KEEP-*`, `[R5-01]`). ⚠️ **갭 #7 확정갭이 여기서 발화**(`list_doctors`가 id·name만 — 전공·소개·사진 없음, T4 확장핀). 의사 선택 화면(`BOOK-DOC-*`)이 그 필드를 요구하면 T4 카탈로그에 `specialty`·`bio`·`photo_url` 소급 + 마이그레이션 필요(직원웹 `00026`·팔레트와 별개). 📌 **재사용**: T12 `FieldTextInput`·`ActionButton`·`showExitConfirm`(마법사 중단) · T11 라우터 가드 · `BOOK-KEEP-*`(마법사 값 보존=`B-15` 중복 ID 주의). ⚠️ `writing-plans` 먼저 호출 + 범위·축약은 완전 ID로 펴서.
