@@ -12848,3 +12848,1184 @@ git commit -m "feat: 환자앱 Task 22 — 예약 변경·취소·마감후상�
 > ⚠️ **신설 마이그레이션 `00027_cancel_rejected.sql`** — 실제 번호는 구현 시점(직원웹도 `00017+`). `appointments` 2칸이라 의존 없음.
 
 > ▶ **다음 = Task 23 본문 작성** — 사전문진 작성/조회(묶음 5 `QNR-*`·`NAV-QNR-*` 113규칙 = Task 23·24 분담). 담당 규칙 수 먼저 집계(70 넘으면 쪼갬). 📌 재사용: T21 `APPT-QNR`(상세 문진 줄)·`/questionnaire/:id` 라우트 · T7 문진 백엔드(`get_template`·`save_response`) · `BOOK-WHY` reason→1번 초기값(갭 #23). `writing-plans` 먼저 + 완전 ID(남 태스크 규칙 완전 ID 인용 금지, 담당 접두어 전체 ID 명시 대조).
+
+---
+
+## Task 23: 사전문진 작성 마법사 — 문항 1개씩·자동저장·이어쓰기·확인/제출 (60규칙)
+
+> **담당 규칙(60 · 검사기 카운트 59 + 알파벳 꼬리표 `QNR-FORM-06b`)**:
+> `NAV-QNR-01~19`(19) · `QNR-TYPE-01~09`(9) · `QNR-ID-01·03·04·05·07·08·09·10`(8 — `02·06`은 **T7 서버가 이미 담음**) · `QNR-REQ-01~11`(11) · `QNR-STATE-05·06·07`(3 — `01·02·03·04·08`은 **T7 서버**) · `QNR-FORM-01~09`+`06b`(10).
+>
+> ⭐ **묶음 5는 플랜과 가장 크게 어긋나 있었다**(`screen-behaviors.md:3974`) — 결정이 **명시적으로 기각한 「한 페이지 스크롤 폼」**이 옛 구현이었다(`plans/2026-07-27-patient-app.md:6429~6512`). 이 Task가 **마법사·자동저장·이어쓰기·확인 화면**을 세운다. 옛 폼은 버린다.
+> ⭐ **이 묶음의 축**: 문진은 **의료법 10년 보관 대상인 진료기록의 일부**다. 「지금 쓰는 중」과 「이미 남은 기록」을 다르게 다루는 것이 규칙 대부분의 뿌리(`QNR-STATE`·`QNR-ID-06`·`QNR-FORM-06b`).
+>
+> ⚠️⚠️ **경계 — 이 Task(23)가 담는 것 / T24가 얹는 것**(묶음 5를 세로로 나눔, T19↔T20 셸 분할과 같은 패턴):
+> - **T23(여기)**: 마법사 셸(문항 1개=화면 1개)·문항 타입 3종 렌더·자동저장·이어쓰기 화면·확인 화면(수정 모드)·진입 라우트 상태 분기·`NAV-QNR` 전부·「앱은 아무도 막지 않는다」(`QNR-REQ`).
+> - **T24(다음)**: 진행률 표시 문구(`QNR-PROG-*` — 마법사 상단 `N번/M문항`·이어쓰기·홈 줄)·성별 노출(`QNR-SHOW-*`)·작성 중 발밑이 바뀔 때 읽기 전용 전환(`QNR-LIVE-*`)·미작성 알림(`QNR-NOTI-*`). ⛔ **T24 규칙을 완전 ID로 test에 넣지 않는다**(coverage가 미리 세어 T24가 놓친다) — 마법사 상단 위치 표시·읽기전용 렌더 자리만 두고 계열명으로만 주석.
+> - **읽기 전용 확인 화면**: 그리로 **보내는 라우트**(`NAV-QNR-04·10`)는 T23, 화면의 **읽기전용 렌더**(입력칸 잠김·미표시 구분)는 `QNR-LIVE 계열`·`QNR-SHOW`라 **T24**. `ConfirmScreen(readOnly:)` 플래그 자리만 T23이 둔다.
+>
+> ⚠️⚠️ **직원웹 몫이지만 `QNR-*` 접두어라 patient-app coverage에 잡히는 규칙**(경계 명시 test로 담는다 — Step 8):
+> - `QNR-FORM-01·02·03·05·09`(상한 30문항·초과 거절)·`QNR-FORM-04`(하한 0문항 허용)·`QNR-REQ-11`(관리자 필수 체크박스): **관리자 `/admin/questionnaires`**(직원웹 `QADM-*`)가 서버 `upsert_template`에서 검증. 앱은 **서버가 이미 거른 양식을 받아 전부 그린다**(감추지 않음 = `QNR-FORM-03`).
+> - `QNR-REQ-06·07·08·09`: **의사 화면**(직원웹 `DOCTOR-QNR-*`)이 빈칸·미완성을 눈에 띄게 그린다. 「앱이 안 막는다」(`QNR-REQ-01~03`)가 성립하려면 반드시 있어야 하므로 여기 규칙으로 적고 **경계 test로 담는다**.
+> - `QNR-REQ-04·05`: `required`의 뜻(「환자가 반드시」가 아니라 「병원이 확인할 항목」) — 근거 규칙, `QNR-REQ-01·02`(안 막음)가 실현.
+>
+> ⭐ **라우트 통일(경계 조정)**: `/questionnaire/:id`가 정본이다 — 홈 라우트 표(T16 `NAV-HOME-05`)·알림(T18 `resolveNotificationRoute`)이 이미 이 경로를 쓴다. **T20 완료 화면(`done_step.dart`)만 `/my/appointments/$id/questionnaire`로 어긋나 있다**(백엔드 API 경로와 혼동). T23이 실제 화면을 `/questionnaire/:id`에 끼우고, **T20 링크 1줄 + 그 test 1건을 정본으로 맞춘다**(T14가 `otp_screen.dart` 1줄 고친 전례).
+>
+> 📌 재사용: **T7 백엔드**(`get_template`·`get_response`·`save_response`·`compute_progress`) · **T12 위젯**(`ActionButton`·`FieldTextInput`·`EmptyState`·`showExitConfirm`/`BTN-EXIT`) · **T8/T20** `appointmentDetailProvider`(예약 status로 읽기전용 판정) · **T11** 라우터.
+
+**Files:**
+- Create: `patient_app/lib/features/questionnaire/questionnaire_repository.dart`(`Question`·`Answer`·`QnrData`·`QnrProgress`·`QuestionnaireRepository`·`questionnaireRepositoryProvider`)
+- Create: `patient_app/lib/features/questionnaire/questionnaire_controller.dart`(`QnrState`·`QnrController`·`questionnaireProvider`)
+- Create: `patient_app/lib/features/questionnaire/question_field.dart`(`QuestionField` — 타입 3종 렌더)
+- Create: `patient_app/lib/features/questionnaire/questionnaire_wizard.dart`(`QuestionnaireWizard` — 마법사 셸)
+- Create: `patient_app/lib/features/questionnaire/resume_screen.dart`(`ResumeScreen` — 이어쓰기)
+- Create: `patient_app/lib/features/questionnaire/confirm_screen.dart`(`ConfirmScreen` — 확인·수정·제출)
+- Create: `patient_app/lib/features/questionnaire/questionnaire_entry.dart`(`QuestionnaireEntry` — `/questionnaire/:id` 진입 상태 분기)
+- Modify: `patient_app/lib/core/router.dart`(`/questionnaire/:id` 라우트를 `_Placeholder`에서 `QuestionnaireEntry`로 교체) · `patient_app/lib/features/booking/steps/done_step.dart:링크 1줄`(라우트 통일) · `patient_app/test/features/booking/done_step_test.dart:NAV-BOOK-17 기대값 1건`
+- Test: `patient_app/test/features/questionnaire/questionnaire_repository_test.dart` · `questionnaire_controller_test.dart` · `question_field_test.dart` · `questionnaire_wizard_test.dart` · `resume_screen_test.dart` · `confirm_screen_test.dart` · `questionnaire_entry_test.dart` · `questionnaire_boundary_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - T7 서버(라우터 `GET /my/appointments/{id}/questionnaire[/template]`·`PUT …/questionnaire`): `get_template -> {"id", "questions": [{id,text,type,required}], "total"}`(보이는 문항만·성별 필터 서버 완료) · `get_response -> {"id","answers","state","answered","total","completed_at"} | null` · `save_response(answers: [{question_id,question_text,value}], complete: bool) -> {"id","state","answered","total"}`
+  - T12: `ActionButton({label, busyLabel, onPressed, busy, disabledReason})` · `FieldTextInput` · `EmptyState.error/offline` · `showExitConfirm`(`BTN-EXIT`)
+  - T8/T20: `appointmentDetailProvider(String id)`(`AsyncValue<AppointmentDetail>` — `.status` 사용) · `EDITABLE_STATUSES = {'예약신청','예약확정','도착','진료대기'}`(읽기전용 판정)
+  - T11: `appRouter`(`GoRouter`) · `apiClient`(Dio 등 T2 배관)
+- Produces:
+  - `Question({id, text, type, required})` · `Answer({questionId, questionText, value})` · `QnrData({id, questions, answers, state})` · `QnrProgress({state, answered, total})`
+  - `QuestionnaireRepository.load(appointmentId) -> QnrData`(template+response 합침) · `.save(appointmentId, List<Answer>, {complete}) -> QnrProgress`
+  - `QnrController`(`answer(questionId, value)`·`next()`·`prev()`·`goTo(index)`·`submit()`·`state`) · `questionnaireProvider`(`StateNotifierProvider.family<QnrController, QnrState, String>` — appointmentId별)
+  - `QuestionField({question, value, onChanged})` · `QuestionnaireWizard({appointmentId, startIndex})` · `ResumeScreen({appointmentId})` · `ConfirmScreen({appointmentId, readOnly})` · `QuestionnaireEntry({appointmentId})`
+
+- [ ] **Step 1: `QuestionnaireRepository` — 모델 + API 배관(T7 소비)**
+
+> 규칙 없음(T7 서버 계약을 소비하는 배관). `Answer`가 `{question_id, question_text, value}`로 직렬화되는 것만 test로 못박는다 — 스냅샷 형식(`QNR-ID-02`)은 T7이 소유하나, **클라가 그때 본 질문 글자를 함께 보내야** 서버가 스냅샷을 남길 수 있다.
+
+`patient_app/test/features/questionnaire/questionnaire_repository_test.dart`:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+
+void main() {
+  test('Answer.toJson은 {question_id, question_text, value} 형식(T7 스냅샷 계약)', () {
+    final a = Answer(questionId: 'q3', questionText: '복용 중인 약이 있으신가요?', value: '예');
+    expect(a.toJson(), {'question_id': 'q3', 'question_text': '복용 중인 약이 있으신가요?', 'value': '예'});
+  });
+
+  test('QnrData.fromServer는 template.questions와 response.answers를 합쳐 question_id로 value를 매긴다', () {
+    final data = QnrData.fromServer(
+      template: {'id': 't1', 'questions': [
+        {'id': 'q1', 'text': '키', 'type': '단답형', 'required': false},
+        {'id': 'q2', 'text': '증상', 'type': '장문형', 'required': true},
+      ], 'total': 2},
+      response: {'answers': [{'question_id': 'q1', 'question_text': '키', 'value': '170'}], 'state': '작성 중'},
+    );
+    expect(data.questions.map((q) => q.id), ['q1', 'q2']);
+    expect(data.answers['q1'], '170');   // 답이 있는 문항
+    expect(data.answers.containsKey('q2'), isFalse);  // 안 쓴 문항은 키 없음
+    expect(data.state, '작성 중');
+  });
+
+  test('QnrData.fromServer는 response가 null이면 답 없음·미작성', () {
+    final data = QnrData.fromServer(
+      template: {'id': 't1', 'questions': [{'id': 'q1', 'text': '키', 'type': '단답형', 'required': false}], 'total': 1},
+      response: null);
+    expect(data.answers, isEmpty);
+    expect(data.state, '미작성');
+  });
+}
+```
+
+- [ ] **Step 1b: `QuestionnaireRepository` 구현** — `questionnaire_repository.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/api_client.dart';   // T2 배관(apiClientProvider)
+
+class Question {
+  const Question({required this.id, required this.text, required this.type, required this.required});
+  final String id;        // 고유 번호 = 열쇠(안 바뀜, QNR-ID-01·03)
+  final String text;      // 그때 본 글자 = 기록(QNR-ID-02·03)
+  final String type;      // '단답형' | '장문형' | '예/아니오'
+  final bool required;
+  factory Question.fromJson(Map<String, dynamic> j) => Question(
+    id: j['id'] as String, text: j['text'] as String,
+    type: j['type'] as String, required: (j['required'] as bool?) ?? false);
+}
+
+class Answer {
+  const Answer({required this.questionId, required this.questionText, required this.value});
+  final String questionId, questionText, value;
+  Map<String, dynamic> toJson() =>
+    {'question_id': questionId, 'question_text': questionText, 'value': value};
+}
+
+class QnrData {
+  const QnrData({required this.id, required this.questions, required this.answers, required this.state});
+  final String id;
+  final List<Question> questions;          // 진입 시 고정 = 그 회차 끝까지(QNR-LIVE 계열, 실현은 controller)
+  final Map<String, String> answers;       // question_id -> value
+  final String state;                      // '미작성' | '작성 중' | '작성완료'
+
+  factory QnrData.fromServer({required Map<String, dynamic> template, Map<String, dynamic>? response}) {
+    final qs = (template['questions'] as List).map((e) => Question.fromJson(e as Map<String, dynamic>)).toList();
+    final ans = <String, String>{};
+    for (final a in (response?['answers'] as List? ?? [])) {
+      ans[a['question_id'] as String] = (a['value'] as String?) ?? '';
+    }
+    return QnrData(id: template['id'] as String, questions: qs,
+      answers: ans, state: (response?['state'] as String?) ?? '미작성');  // 행 없음=미작성(QNR-STATE-07 짝)
+  }
+}
+
+class QnrProgress {
+  const QnrProgress({required this.state, required this.answered, required this.total});
+  final String state; final int answered, total;
+  factory QnrProgress.fromJson(Map<String, dynamic> j) => QnrProgress(
+    state: j['state'] as String, answered: j['answered'] as int, total: j['total'] as int);
+}
+
+class QuestionnaireRepository {
+  QuestionnaireRepository(this._api);
+  final ApiClient _api;
+
+  Future<QnrData> load(String appointmentId) async {
+    final tpl = await _api.get('/my/appointments/$appointmentId/questionnaire/template');
+    final res = await _api.get('/my/appointments/$appointmentId/questionnaire');  // null 가능
+    return QnrData.fromServer(template: tpl as Map<String, dynamic>, response: res as Map<String, dynamic>?);
+  }
+
+  Future<QnrProgress> save(String appointmentId, List<Answer> answers, {bool complete = false}) async {
+    final res = await _api.put('/my/appointments/$appointmentId/questionnaire',
+      body: {'answers': answers.map((a) => a.toJson()).toList(), 'complete': complete});
+    return QnrProgress.fromJson(res as Map<String, dynamic>);
+  }
+}
+
+final questionnaireRepositoryProvider =
+  Provider((ref) => QuestionnaireRepository(ref.read(apiClientProvider)));
+```
+
+Run: `flutter test test/features/questionnaire/questionnaire_repository_test.dart` → PASS.
+
+- [ ] **Step 2: `QnrController` — 상태 3종·문항 열쇠·양식 변경 대응 (`QNR-STATE-05·06·07`, `QNR-ID-01·03·04·05·07·08·09·10`)**
+
+> 문항의 **열쇠는 고유 번호**(`QNR-ID-01·03`)다 — `answers`를 `Map<question_id, value>`로 든다. 진입 시 받은 `questions`를 controller가 **고정**해 그 회차 끝까지 쓴다(양식이 바뀌어도 눈앞 문항이 안 사라짐 = `QNR-ID-04`·`QNR-LIVE 계열`의 뿌리; 다음 이어쓰기 진입에서 새 양식을 받는다 = `QNR-ID-05`). 지운 문항은 번호가 달라 답이 안 붙는 것이 **의도된 동작**(`QNR-ID-07`).
+
+`patient_app/test/features/questionnaire/questionnaire_controller_test.dart`:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_controller.dart';
+
+class _FakeRepo implements QuestionnaireRepository {
+  _FakeRepo(this._data); QnrData _data; final saved = <List<Answer>>[]; bool lastComplete = false;
+  @override Future<QnrData> load(String id) async => _data;
+  @override Future<QnrProgress> save(String id, List<Answer> a, {bool complete = false}) async {
+    saved.add(a); lastComplete = complete;
+    return QnrProgress(state: complete ? '작성완료' : '작성 중', answered: a.length, total: _data.questions.length);
+  }
+  // ignore: unused_element
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+QnrData _data({List<Question>? qs, Map<String, String>? ans, String state = '미작성'}) => QnrData(
+  id: 't1', state: state, answers: ans ?? {},
+  questions: qs ?? const [
+    Question(id: 'q1', text: '키', type: '단답형', required: false),
+    Question(id: 'q2', text: '복용 중인 약이 있으신가요?', type: '예/아니오', required: true),
+  ]);
+
+QnrController _ctl(_FakeRepo repo) {
+  final c = ProviderContainer(overrides: [questionnaireRepositoryProvider.overrideWithValue(repo)]);
+  addTearDown(c.dispose);
+  final ctl = c.read(questionnaireProvider('appt-1').notifier);
+  return ctl;
+}
+
+void main() {
+  test('[QNR-ID-01][QNR-ID-03] 답은 질문 글자가 아니라 고유 번호(question_id)를 열쇠로 든다', () async {
+    final repo = _FakeRepo(_data()); final ctl = _ctl(repo); await ctl.ready;
+    ctl.answer('q1', '170');
+    expect(ctl.state.answers['q1'], '170');   // 열쇠는 'q1'이지 '키'가 아니다
+  });
+
+  test('[QNR-ID-04] 진입 시 받은 문항을 고정한다 — 뒤에서 글자가 바뀌어도 눈앞 문항·답 그대로', () async {
+    // load가 준 글자('복용 중인 약이 있으신가요?')를 controller가 그 회차 내내 유지한다.
+    final repo = _FakeRepo(_data(ans: {'q2': '예'}, state: '작성 중')); final ctl = _ctl(repo); await ctl.ready;
+    expect(ctl.state.questions[1].text, '복용 중인 약이 있으신가요?');
+    expect(ctl.state.answers['q2'], '예');    // 답이 그대로 붙어 있다
+  });
+
+  test('[QNR-ID-05] 다음 이어쓰기 진입은 새로 load하여 바뀐 글자를 받는다', () async {
+    final repo = _FakeRepo(_data(qs: [const Question(id: 'q1', text: '키(cm)', type: '단답형', required: false)]));
+    final ctl = _ctl(repo); await ctl.ready;
+    expect(ctl.state.questions.first.text, '키(cm)');   // 새 진입 = 새 양식
+  });
+
+  test('[QNR-ID-07] 문항을 지우고 새로 만들면 번호가 달라 답이 안 붙는다(의도된 동작)', () async {
+    // 옛 답은 'q1'에 있었는데 새 양식 문항 번호가 'q9'면 매칭되지 않는다.
+    final repo = _FakeRepo(_data(qs: [const Question(id: 'q9', text: '키', type: '단답형', required: false)],
+      ans: {'q1': '170'}));
+    final ctl = _ctl(repo); await ctl.ready;
+    expect(ctl.state.answers.containsKey('q9'), isFalse);   // 다른 질문이므로 안 붙는다
+  });
+
+  test('[QNR-STATE-07] 문진 행이 없으면 미작성 — completed_at으로 판정(행 존재 아님)', () async {
+    final repo = _FakeRepo(_data(state: '미작성')); final ctl = _ctl(repo); await ctl.ready;
+    expect(ctl.state.status, '미작성');
+  });
+
+  test('[QNR-STATE-05][QNR-STATE-06] 상태 색: 미작성·작성 중=주의색, 작성완료=회색', () {
+    expect(qnrStatusColor('미작성'), QnrStatusColor.pending);   // 주의색(할 일 남음)
+    expect(qnrStatusColor('작성 중'), QnrStatusColor.pending);
+    expect(qnrStatusColor('작성완료'), QnrStatusColor.done);    // 회색(끝난 일)
+  });
+
+  test('[QNR-ID-08][QNR-ID-09] 양식이 바뀌어도 막지 않고 처음부터 다시 쓰게 하지 않는다(답 유지)', () async {
+    // 작성 중 답 q1=170을 그대로 안고 새 양식(q1 유지 + q3 추가)으로 이어진다.
+    final repo = _FakeRepo(_data(
+      qs: [const Question(id: 'q1', text: '키', type: '단답형', required: false),
+           const Question(id: 'q3', text: '몸무게', type: '단답형', required: false)],
+      ans: {'q1': '170'}, state: '작성 중'));
+    final ctl = _ctl(repo); await ctl.ready;
+    expect(ctl.state.answers['q1'], '170');       // 다시 안 쓴다
+    expect(ctl.state.questions.length, 2);        // 막지 않고 새 문항까지 이어간다
+  });
+
+  test('[QNR-ID-10] 답은 controller가 question_text(그때 글자)를 함께 실어 save한다', () async {
+    final repo = _FakeRepo(_data()); final ctl = _ctl(repo); await ctl.ready;
+    ctl.answer('q1', '170'); await ctl.next();
+    expect(repo.saved.last.first.questionText, '키');   // 글자로 매칭 아님을 서버가 스냅샷으로 보존
+  });
+}
+```
+
+- [ ] **Step 2b: `QnrController` 구현** — `questionnaire_controller.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'questionnaire_repository.dart';
+
+enum QnrStatusColor { pending, done }
+
+/// QNR-STATE-05·06: 미작성·작성 중=주의색(할 일 남음), 작성완료=회색(끝난 일).
+QnrStatusColor qnrStatusColor(String state) =>
+  state == '작성완료' ? QnrStatusColor.done : QnrStatusColor.pending;
+
+class QnrState {
+  const QnrState({required this.questions, required this.answers,
+    required this.index, required this.status, this.submitting = false, this.loading = true});
+  final List<Question> questions;
+  final Map<String, String> answers;   // question_id -> value (QNR-ID-01·03 열쇠 = 번호)
+  final int index;
+  final String status;                 // 서버 state: 미작성/작성 중/작성완료
+  final bool submitting, loading;
+
+  QnrState copyWith({List<Question>? questions, Map<String, String>? answers,
+    int? index, String? status, bool? submitting, bool? loading}) => QnrState(
+    questions: questions ?? this.questions, answers: answers ?? this.answers,
+    index: index ?? this.index, status: status ?? this.status,
+    submitting: submitting ?? this.submitting, loading: loading ?? this.loading);
+
+  Question? get current => index >= 0 && index < questions.length ? questions[index] : null;
+}
+
+class QnrController extends StateNotifier<QnrState> {
+  QnrController(this._repo, this._appointmentId)
+    : super(const QnrState(questions: [], answers: {}, index: 0, status: '미작성')) {
+    ready = _load();
+  }
+  final QuestionnaireRepository _repo;
+  final String _appointmentId;
+  late final Future<void> ready;
+
+  Future<void> _load() async {
+    // QNR-ID-04·QNR-LIVE 계열: 진입 시 받은 문항을 그 회차 내내 고정한다(뒤에서 안 흔들림).
+    final data = await _repo.load(_appointmentId);
+    state = QnrState(questions: data.questions, answers: Map.of(data.answers),
+      index: 0, status: data.state, loading: false);
+  }
+
+  void answer(String questionId, String value) =>
+    state = state.copyWith(answers: {...state.answers, questionId: value});
+
+  List<Answer> _answerList() => [
+    for (final q in state.questions)
+      if (state.answers.containsKey(q.id))
+        Answer(questionId: q.id, questionText: q.text, value: state.answers[q.id]!),
+  ];
+
+  /// 문항을 넘길 때마다 자동 저장(complete=false) — QNR-STATE-04는 여기서 완료를 안 찍는다.
+  Future<void> next() async {
+    final prog = await _repo.save(_appointmentId, _answerList(), complete: false);  // QNR-ID-10 글자 동봉
+    state = state.copyWith(status: prog.state,
+      index: (state.index + 1).clamp(0, state.questions.length));
+  }
+
+  void prev() => state = state.copyWith(index: (state.index - 1).clamp(0, state.questions.length));
+  void goTo(int i) => state = state.copyWith(index: i.clamp(0, state.questions.length));
+
+  Future<QnrProgress> submit() async {
+    state = state.copyWith(submitting: true);
+    final prog = await _repo.save(_appointmentId, _answerList(), complete: true);  // 이때만 완료 표시
+    state = state.copyWith(submitting: false, status: prog.state);
+    return prog;
+  }
+}
+
+final questionnaireProvider =
+  StateNotifierProvider.family<QnrController, QnrState, String>(
+    (ref, appointmentId) => QnrController(ref.read(questionnaireRepositoryProvider), appointmentId));
+```
+
+Run: `flutter test test/features/questionnaire/questionnaire_controller_test.dart` → PASS.
+
+- [ ] **Step 3: `QuestionField` — 문항 타입 3종 렌더 (`QNR-TYPE-01~09`)**
+
+> 종류는 이미 정의돼 있다 — `단답형`·`장문형`·`예/아니오` 3종(직원웹 `QUESTION_TYPES`). ⚠️ 옛 앱은 이를 무시하고 항상 자유 입력 한 칸만 그렸다(`plans/2026-07-27-patient-app.md:6489`). 여기서 타입대로 그린다. 한 화면에 한 문항이라 `예/아니오`를 아주 크게 놓을 수 있다(`QNR-TYPE-03`). 「있는지」 문항은 **새 종류를 만들지 않고 병원이 문항 두 개로 나눈다**(`QNR-TYPE-04·05·06·08`) — 앱은 나눠진 문항을 각각 그릴 뿐이다.
+
+`patient_app/test/features/questionnaire/question_field_test.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/question_field.dart';
+
+Future<void> _pump(WidgetTester t, Question q, {String? value, void Function(String)? onChanged}) =>
+  t.pumpWidget(MaterialApp(home: Scaffold(body:
+    QuestionField(question: q, value: value, onChanged: onChanged ?? (_) {}))));
+
+void main() {
+  testWidgets('[QNR-TYPE-01] 단답형 = 한 줄 입력칸', (t) async {
+    await _pump(t, const Question(id: 'q1', text: '키', type: '단답형', required: false));
+    final tf = t.widget<TextField>(find.byType(TextField));
+    expect(tf.maxLines, 1);
+  });
+
+  testWidgets('[QNR-TYPE-02] 장문형 = 여러 줄 입력칸', (t) async {
+    await _pump(t, const Question(id: 'q1', text: '증상', type: '장문형', required: false));
+    final tf = t.widget<TextField>(find.byType(TextField));
+    expect(tf.maxLines, greaterThan(1));
+  });
+
+  testWidgets('[QNR-TYPE-03] 예/아니오 = 큰 버튼 2개(입력칸 아님)', (t) async {
+    await _pump(t, const Question(id: 'q1', text: '흡연하십니까?', type: '예/아니오', required: false));
+    expect(find.widgetWithText(OutlinedButton, '예'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '아니오'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('[QNR-TYPE-09] 예/아니오를 눌러 고른 값이 onChanged로 나간다', (t) async {
+    String? got;
+    await _pump(t, const Question(id: 'q1', text: '흡연?', type: '예/아니오', required: false),
+      onChanged: (v) => got = v);
+    await t.tap(find.widgetWithText(OutlinedButton, '예'));
+    expect(got, '예');
+  });
+
+  testWidgets('[QNR-TYPE-03] 고른 예/아니오 버튼이 눈에 띄게 강조된다', (t) async {
+    await _pump(t, const Question(id: 'q1', text: '흡연?', type: '예/아니오', required: false), value: '아니오');
+    // 선택된 버튼은 채워진 배경(강조), 나머지는 외곽선만.
+    expect(find.byKey(const Key('yesno-selected-아니오')), findsOneWidget);
+  });
+
+  testWidgets('[QNR-TYPE-04][QNR-TYPE-05] 「있는지」는 한 문항이 아니라 나눠진 두 문항으로 온다(각각 그린다)', (t) async {
+    // 앱은 새 종류를 만들지 않는다 — 예/아니오 문항과 단답형 문항을 각각 QuestionField로 그린다.
+    await _pump(t, const Question(id: 'q1', text: '복용 중인 약이 있으신가요?', type: '예/아니오', required: true));
+    expect(find.text('복용 중인 약이 있으신가요?'), findsOneWidget);
+    await _pump(t, const Question(id: 'q2', text: '어떤 약을 드시고 계신가요?', type: '단답형', required: false));
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('[QNR-TYPE-06] 나눠 쓰는 이유 — 「있음」만으로는 의사가 쓸 게 없어 뒤 문항이 실제 정보를 받는다', (t) async {
+    // 후속 단답형이 자유 입력을 받는다(알레르기가 무엇인지).
+    await _pump(t, const Question(id: 'q2', text: '어떤 알레르기가 있으신가요?', type: '단답형', required: false));
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('[QNR-TYPE-07] 「아니오」인 사람의 후속 문항은 비운 채 넘어갈 수 있다(막지 않음)', (t) async {
+    // 후속 문항도 그냥 QuestionField — 비어도 다음으로 갈 수 있음은 마법사(Step 4)가 실현.
+    await _pump(t, const Question(id: 'q2', text: '어떤 약?', type: '단답형', required: false));
+    final tf = t.widget<TextField>(find.byType(TextField));
+    expect(tf.controller?.text ?? '', '');   // 비운 상태 허용
+  });
+
+  testWidgets('[QNR-TYPE-08] 나누는 판단은 병원 몫 — 앱은 서버가 준 type을 그대로 그린다', (t) async {
+    // 같은 주제라도 서버가 '예/아니오'로 주면 버튼, '단답형'으로 주면 입력칸.
+    await _pump(t, const Question(id: 'q1', text: '임신 가능성이 있으신가요?', type: '예/아니오', required: true));
+    expect(find.widgetWithText(OutlinedButton, '예'), findsOneWidget);
+  });
+}
+```
+
+- [ ] **Step 3b: `QuestionField` 구현** — `question_field.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'questionnaire_repository.dart';
+
+/// 문항 하나를 그 type에 맞게 그린다(QNR-TYPE). 값은 부모(마법사)가 들고 onChanged로 올려받는다.
+class QuestionField extends StatelessWidget {
+  const QuestionField({super.key, required this.question, required this.value, required this.onChanged});
+  final Question question;
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (question.type) {
+      case '예/아니오':
+        return Row(children: [
+          _yesNo(context, '예'), const SizedBox(width: 12), _yesNo(context, '아니오'),
+        ]);
+      case '장문형':
+        return TextField(
+          controller: TextEditingController(text: value ?? '')..selection = _end(value),
+          maxLines: 5, minLines: 3, onChanged: onChanged,
+          decoration: const InputDecoration(border: OutlineInputBorder()));
+      case '단답형':
+      default:
+        return TextField(
+          controller: TextEditingController(text: value ?? '')..selection = _end(value),
+          maxLines: 1, onChanged: onChanged,
+          decoration: const InputDecoration(border: OutlineInputBorder()));
+    }
+  }
+
+  Widget _yesNo(BuildContext context, String label) {
+    final selected = value == label;
+    final child = Expanded(child: SizedBox(height: 72,   // 큰 버튼 2개(QNR-TYPE-03)
+      child: selected
+        ? FilledButton(key: Key('yesno-selected-$label'),
+            onPressed: () => onChanged(label), child: Text(label, style: const TextStyle(fontSize: 20)))
+        : OutlinedButton(onPressed: () => onChanged(label),
+            child: Text(label, style: const TextStyle(fontSize: 20)))));
+    return child;
+  }
+
+  TextSelection _end(String? v) => TextSelection.collapsed(offset: (v ?? '').length);
+}
+```
+
+Run: `flutter test test/features/questionnaire/question_field_test.dart` → PASS.
+
+- [ ] **Step 4: `QuestionnaireWizard` 셸 — 문항 화면·자동저장·필수 안 막음·뒤로 (`QNR-REQ-01·10`, `NAV-QNR-13·16·17`, `QNR-FORM-08`)**
+
+> ⭐ **앱은 아무도 막지 않는다**(`QNR-REQ`) — 필수 문항을 비우고 `[다음]`을 눌러도 넘어간다(`QNR-REQ-01`). 미비한 문진은 **사람이 처리한다**(예약 부도를 즉시 안 찍고 마감까지 미룬 것과 같은 계열). 옛 앱이 `required`를 완전히 무시하던 동작이 **이 결정에선 맞다**(`QNR-REQ-10`).
+> 뒤로·탭은 **확인 팝업 없이 그냥 나간다**(`NAV-QNR-16`) — 문항마다 자동 저장돼 잃을 것이 없다. 단 **저장 요청이 진행 중일 때만** `BTN-EXIT` 팝업이 적용된다(`NAV-QNR-17`). 진행률 상단 표시(`N번/M문항`)와 이어쓰기 화면은 **30문항일 때 특히 중요**하다(`QNR-FORM-08` — 문항 1개=화면 1개라 화면 30개).
+> 📌 **진행률 문구 자체**(`3번 / 8문항`)는 `QNR-PROG` 계열 = **T24 소유**. 여기서는 위치 표시 위젯 자리만 두고 규칙 ID를 test에 넣지 않는다.
+
+`patient_app/test/features/questionnaire/questionnaire_wizard_test.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_controller.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_wizard.dart';
+
+class _FakeRepo implements QuestionnaireRepository {
+  _FakeRepo(this._data, {this.saveDelay = Duration.zero}); QnrData _data; final Duration saveDelay;
+  final saved = <List<Answer>>[];
+  @override Future<QnrData> load(String id) async => _data;
+  @override Future<QnrProgress> save(String id, List<Answer> a, {bool complete = false}) async {
+    await Future.delayed(saveDelay); saved.add(a);
+    return QnrProgress(state: complete ? '작성완료' : '작성 중', answered: a.length, total: _data.questions.length);
+  }
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+QnrData _form(int n, {Map<String, String>? ans}) => QnrData(id: 't1', state: '미작성', answers: ans ?? {},
+  questions: [for (var i = 1; i <= n; i++)
+    Question(id: 'q$i', text: '문항 $i', type: '단답형', required: i == 1)]);
+
+String? _lastRoute;
+Future<void> _pump(WidgetTester t, _FakeRepo repo, {int start = 0, int n = 3}) async {
+  final router = GoRouter(initialLocation: '/q', routes: [
+    GoRoute(path: '/q', builder: (c, s) => QuestionnaireWizard(appointmentId: 'appt-1', startIndex: start)),
+    GoRoute(path: '/questionnaire/appt-1/confirm', builder: (c, s) { _lastRoute = '/questionnaire/appt-1/confirm'; return const Scaffold(body: Text('확인')); }),
+    GoRoute(path: '/home', builder: (c, s) { _lastRoute = '/home'; return const Scaffold(body: Text('홈')); }),
+  ]);
+  await t.pumpWidget(ProviderScope(overrides: [
+    questionnaireRepositoryProvider.overrideWithValue(repo)],
+    child: MaterialApp.router(routerConfig: router)));
+  await t.pumpAndSettle();
+}
+
+void main() {
+  testWidgets('[QNR-REQ-01] 필수 문항을 비우고 [다음]을 눌러도 넘어간다(앱이 안 막음)', (t) async {
+    final repo = _FakeRepo(_form(3)); await _pump(t, repo);   // 1번 문항 required=true
+    await t.tap(find.text('다음')); await t.pumpAndSettle();
+    expect(find.text('문항 2'), findsOneWidget);              // 비운 채로 2번으로 넘어갔다
+  });
+
+  testWidgets('[QNR-REQ-10] 비운 필수 문항은 빈 채로 자동 저장된다(막지도 경고도 안 함)', (t) async {
+    final repo = _FakeRepo(_form(3)); await _pump(t, repo);
+    await t.tap(find.text('다음')); await t.pumpAndSettle();
+    // 안 쓴 문항은 answers에 안 담기고, 저장은 그대로 진행된다(경고 없음).
+    expect(repo.saved.isNotEmpty, isTrue);
+    expect(find.textContaining('필수'), findsNothing);        // 필수 경고를 세우지 않는다
+  });
+
+  testWidgets('[NAV-QNR-13] 마지막 문항에서 [다음] → 확인 화면', (t) async {
+    final repo = _FakeRepo(_form(2)); await _pump(t, repo, start: 1, n: 2);  // 2번(마지막)에서 시작
+    await t.tap(find.text('다음')); await t.pumpAndSettle();
+    expect(_lastRoute, '/questionnaire/appt-1/confirm');
+  });
+
+  testWidgets('[NAV-QNR-16] 마법사 도중 뒤로 = 확인 팝업 없이 그냥 나간다(자동저장돼 잃을 것 없음)', (t) async {
+    final repo = _FakeRepo(_form(3)); await _pump(t, repo, start: 1);
+    await t.pageBack(); await t.pumpAndSettle();
+    expect(find.textContaining('작성 중인 내용'), findsNothing);   // BTN-EXIT 팝업이 뜨지 않는다
+  });
+
+  testWidgets('[NAV-QNR-17] 저장 요청이 진행 중일 때 나가면 BTN-EXIT 확인 팝업', (t) async {
+    final repo = _FakeRepo(_form(3), saveDelay: const Duration(seconds: 2)); await _pump(t, repo);
+    await t.enterText(find.byType(TextField), '170');
+    await t.tap(find.text('다음'));   // 저장 진행 중(2초) — pumpAndSettle 안 함
+    await t.pump(const Duration(milliseconds: 100));
+    await t.pageBack(); await t.pump();
+    expect(find.textContaining('저장'), findsWidgets);         // 진행 중이라 확인 팝업(BTN-EXIT-01)
+  });
+
+  testWidgets('[QNR-FORM-08] 30문항이면 문항 30개를 화면 하나씩 넘긴다(진행률·이어쓰기가 중요해짐)', (t) async {
+    final repo = _FakeRepo(_form(30)); await _pump(t, repo, start: 29, n: 30);
+    expect(find.text('문항 30'), findsOneWidget);              // 30번째 화면까지 도달 가능
+  });
+}
+```
+
+- [ ] **Step 4b: `QuestionnaireWizard` 구현** — `questionnaire_wizard.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../widgets/action_button.dart';
+import '../../widgets/exit_confirm.dart';   // showExitConfirm(BTN-EXIT), T12
+import 'questionnaire_controller.dart';
+import 'question_field.dart';
+
+class QuestionnaireWizard extends ConsumerStatefulWidget {
+  const QuestionnaireWizard({super.key, required this.appointmentId, this.startIndex = 0});
+  final String appointmentId; final int startIndex;
+  @override ConsumerState<QuestionnaireWizard> createState() => _WizardState();
+}
+
+class _WizardState extends ConsumerState<QuestionnaireWizard> {
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 이어쓰기/특정 문항 진입 지원(NAV-QNR-12·15 대상 index).
+    WidgetsBinding.instance.addPostFrameCallback((_) =>
+      ref.read(questionnaireProvider(widget.appointmentId).notifier).goTo(widget.startIndex));
+  }
+
+  Future<void> _next() async {
+    final ctl = ref.read(questionnaireProvider(widget.appointmentId).notifier);
+    final st = ref.read(questionnaireProvider(widget.appointmentId));
+    setState(() => _saving = true);
+    await ctl.next();   // 자동 저장(complete=false) — 필수 비어도 그대로 진행(QNR-REQ-01·10)
+    setState(() => _saving = false);
+    if (!mounted) return;
+    if (st.index >= st.questions.length - 1) {
+      context.go('/questionnaire/${widget.appointmentId}/confirm');   // 마지막 → 확인(NAV-QNR-13)
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final st = ref.watch(questionnaireProvider(widget.appointmentId));
+    if (st.loading || st.current == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final q = st.current!;
+    return PopScope(
+      canPop: !_saving,   // 저장 중이면 시스템 pop을 막고 확인 팝업(NAV-QNR-17)
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;               // NAV-QNR-16: 저장 중 아니면 그냥 나감(팝업 없음)
+        final leave = await showExitConfirm(context);   // BTN-EXIT-01(저장 진행 중일 때만 온다)
+        if (leave == true && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          // 진행률 문구(N번/M문항)는 QNR-PROG 계열 = T24가 채운다. 여기는 자리만.
+          title: QnrProgressHeader(index: st.index, total: st.questions.length)),
+        body: Padding(padding: const EdgeInsets.all(16), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(q.text, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            QuestionField(question: q, value: st.answers[q.id],
+              onChanged: (v) => ref.read(questionnaireProvider(widget.appointmentId).notifier).answer(q.id, v)),
+            const Spacer(),
+            Row(children: [
+              if (st.index > 0)
+                Expanded(child: OutlinedButton(
+                  onPressed: () => ref.read(questionnaireProvider(widget.appointmentId).notifier).prev(),
+                  child: const Text('이전'))),
+              if (st.index > 0) const SizedBox(width: 12),
+              Expanded(child: ActionButton(label: '다음', busy: _saving, onPressed: _next)),
+            ]),
+          ])),
+      ));
+  }
+}
+
+/// 진행률 위치 표시 자리 — 실제 문구·규칙은 QNR-PROG(T24). 여기서는 T24가 교체할 수 있게 최소 표시만.
+class QnrProgressHeader extends StatelessWidget {
+  const QnrProgressHeader({super.key, required this.index, required this.total});
+  final int index, total;
+  @override
+  Widget build(BuildContext context) => Text('${index + 1} / $total');   // 문구 다듬기는 T24
+}
+```
+
+Run: `flutter test test/features/questionnaire/questionnaire_wizard_test.dart` → PASS.
+
+- [ ] **Step 5: `ResumeScreen` — 이어쓰기 화면 (`NAV-QNR-11·12`)**
+
+> 작성 중인 문진에 들어오면 마법사 1번이 아니라 **이어쓰기 화면**이 먼저 뜬다. `[처음부터 보기]`는 1번으로(`NAV-QNR-11`), `[N번부터 이어서]`는 안 쓴 첫 문항으로(`NAV-QNR-12`) 보낸다.
+> 📌 안내 문구(`8문항 중 3개를 작성하셨습니다`)의 숫자는 `QNR-PROG-08` = **T24 소유**. 여기서는 어느 index로 보내는가(라우팅)만 담고, 문구는 T24가 채운다.
+
+`patient_app/test/features/questionnaire/resume_screen_test.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_controller.dart';
+import 'package:patient_app/features/questionnaire/resume_screen.dart';
+
+class _FakeRepo implements QuestionnaireRepository {
+  _FakeRepo(this._data); final QnrData _data;
+  @override Future<QnrData> load(String id) async => _data;
+  @override Future<QnrProgress> save(String id, List<Answer> a, {bool complete = false}) async =>
+    QnrProgress(state: '작성 중', answered: a.length, total: _data.questions.length);
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+String? _route;
+Future<void> _pump(WidgetTester t) async {
+  // 8문항 중 3개 작성(q1·q2·q3), 첫 미작성 = index 3(4번).
+  final data = QnrData(id: 't1', state: '작성 중',
+    answers: {'q1': 'a', 'q2': 'b', 'q3': 'c'},
+    questions: [for (var i = 1; i <= 8; i++) Question(id: 'q$i', text: '문항 $i', type: '단답형', required: false)]);
+  final router = GoRouter(initialLocation: '/r', routes: [
+    GoRoute(path: '/r', builder: (c, s) => const ResumeScreen(appointmentId: 'appt-1')),
+    GoRoute(path: '/wiz', builder: (c, s) { _route = '${s.uri}'; return const Scaffold(body: Text('마법사')); }),
+  ]);
+  await t.pumpWidget(ProviderScope(overrides: [
+    questionnaireRepositoryProvider.overrideWithValue(_FakeRepo(data))],
+    child: MaterialApp.router(routerConfig: router)));
+  await t.pumpAndSettle();
+}
+
+void main() {
+  testWidgets('[NAV-QNR-11] [처음부터 보기] → 마법사 1번 문항(index 0)', (t) async {
+    await _pump(t);
+    await t.tap(find.text('처음부터 보기')); await t.pumpAndSettle();
+    expect(_route, contains('start=0'));
+  });
+
+  testWidgets('[NAV-QNR-12] [이어서] → 안 쓴 첫 문항(4번 = index 3)', (t) async {
+    await _pump(t);
+    await t.tap(find.textContaining('이어서')); await t.pumpAndSettle();
+    expect(_route, contains('start=3'));
+  });
+}
+```
+
+- [ ] **Step 5b: `ResumeScreen` 구현** — `resume_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../widgets/action_button.dart';
+import 'questionnaire_controller.dart';
+
+class ResumeScreen extends ConsumerWidget {
+  const ResumeScreen({super.key, required this.appointmentId});
+  final String appointmentId;
+
+  int _firstUnanswered(List questions, Map answers) {
+    for (var i = 0; i < questions.length; i++) {
+      if (!answers.containsKey(questions[i].id)) return i;
+    }
+    return questions.length - 1;   // 다 썼으면 마지막
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final st = ref.watch(questionnaireProvider(appointmentId));
+    if (st.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final resumeAt = _firstUnanswered(st.questions, st.answers);
+    return Scaffold(
+      appBar: AppBar(title: const Text('사전문진')),
+      body: Padding(padding: const EdgeInsets.all(16), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // 안내 문구(N문항 중 X개…)는 QNR-PROG-08 = T24가 채운다.
+          const ResumeSummary(),
+          const Spacer(),
+          ActionButton(label: '${resumeAt + 1}번부터 이어서',              // NAV-QNR-12
+            onPressed: () => context.go('/wiz?start=$resumeAt')),
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: () => context.go('/wiz?start=0'),      // NAV-QNR-11
+            child: const Text('처음부터 보기')),
+        ])),
+    );
+  }
+}
+
+/// 진행률 요약 문구 자리 — QNR-PROG-08(T24)이 채운다.
+class ResumeSummary extends StatelessWidget {
+  const ResumeSummary({super.key});
+  @override Widget build(BuildContext context) => const SizedBox.shrink();
+}
+```
+
+> 📌 실제 라우트 경로는 Step 7에서 `/questionnaire/:id`(마법사)로 배선한다 — 위 `/wiz?start=`는 이어쓰기가 **어느 문항으로 보내는가**를 못박는 test용 표현이고, Step 7 entry가 `startIndex`로 연결한다.
+
+Run: `flutter test test/features/questionnaire/resume_screen_test.dart` → PASS.
+
+- [ ] **Step 6: `ConfirmScreen` — 확인·항목별 고치기·제출 (`NAV-QNR-14·15`, `QNR-REQ-02`)**
+
+> 마지막 문항 다음은 **확인 화면**이다. 항목별 `[고치기]`는 **그 문항으로** 보내고(`NAV-QNR-14`) — ⭐ 1번부터 다시 훑게 하지 않는다 — 고친 뒤 다시 확인 화면으로 돌아온다. `[제출하기]`는 **필수 문항이 비어 있어도 제출한다**(`QNR-REQ-02` — 막지 않고 경고도 없음). 제출 후 **왔던 곳으로 돌아간다**(`NAV-QNR-15`) — 왔던 곳 판정은 Step 7 entry가 넘겨준다.
+> ⚠️ `readOnly` 플래그 자리를 둔다 — 읽기전용 렌더(입력칸 잠김·미표시 구분)는 `QNR-LIVE 계열`·`QNR-SHOW` = **T24**. 여기서는 `readOnly`면 `[고치기]`·`[제출하기]`를 숨기는 것까지만.
+
+`patient_app/test/features/questionnaire/confirm_screen_test.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_controller.dart';
+import 'package:patient_app/features/questionnaire/confirm_screen.dart';
+
+class _FakeRepo implements QuestionnaireRepository {
+  _FakeRepo(this._data); final QnrData _data; bool submitted = false;
+  @override Future<QnrData> load(String id) async => _data;
+  @override Future<QnrProgress> save(String id, List<Answer> a, {bool complete = false}) async {
+    if (complete) submitted = true;
+    return QnrProgress(state: complete ? '작성완료' : '작성 중', answered: a.length, total: _data.questions.length);
+  }
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+String? _route;
+Future<void> _pump(WidgetTester t, {bool readOnly = false, Map<String, String>? ans, String returnTo = '/home'}) async {
+  final data = QnrData(id: 't1', state: '작성 중', answers: ans ?? {'q1': '170'},
+    questions: const [
+      Question(id: 'q1', text: '키', type: '단답형', required: false),
+      Question(id: 'q2', text: '증상', type: '장문형', required: true)]);   // q2 필수·비어 있음
+  final repo = _FakeRepo(data);
+  final router = GoRouter(initialLocation: '/c', routes: [
+    GoRoute(path: '/c', builder: (c, s) => ConfirmScreen(appointmentId: 'appt-1', readOnly: readOnly, returnTo: returnTo)),
+    GoRoute(path: '/wiz', builder: (c, s) { _route = '${s.uri}'; return const Scaffold(body: Text('문항')); }),
+    GoRoute(path: '/home', builder: (c, s) { _route = '/home'; return const Scaffold(body: Text('홈')); }),
+    GoRoute(path: '/appointments/appt-1', builder: (c, s) { _route = '/appointments/appt-1'; return const Scaffold(body: Text('상세')); }),
+  ]);
+  await t.pumpWidget(ProviderScope(overrides: [
+    questionnaireRepositoryProvider.overrideWithValue(repo)],
+    child: MaterialApp.router(routerConfig: router)));
+  await t.pumpAndSettle();
+  addTearDown(() => _route = null);
+  return;
+}
+
+void main() {
+  testWidgets('[NAV-QNR-14] 항목별 [고치기] → 그 문항으로(1번부터 다시 안 훑음)', (t) async {
+    await _pump(t);
+    await t.tap(find.byKey(const Key('edit-q2')));   // 2번 고치기
+    await t.pumpAndSettle();
+    expect(_route, contains('start=1'));             // 2번(index 1)으로 바로
+  });
+
+  testWidgets('[NAV-QNR-15] [제출하기] → 왔던 곳으로 돌아간다(홈에서 왔으면 홈)', (t) async {
+    await _pump(t, returnTo: '/home');
+    await t.tap(find.text('제출하기')); await t.pumpAndSettle();
+    expect(_route, '/home');
+  });
+
+  testWidgets('[NAV-QNR-15] 예약 상세에서 왔으면 제출 후 상세로 돌아간다', (t) async {
+    await _pump(t, returnTo: '/appointments/appt-1');
+    await t.tap(find.text('제출하기')); await t.pumpAndSettle();
+    expect(_route, '/appointments/appt-1');
+  });
+
+  testWidgets('[QNR-REQ-02] 필수 문항(q2)이 비어 있어도 제출된다(막지도 경고도 안 함)', (t) async {
+    await _pump(t, ans: {'q1': '170'});   // q2(필수) 비어 있음
+    expect(find.textContaining('필수'), findsNothing);       // 경고를 세우지 않는다
+    await t.tap(find.text('제출하기')); await t.pumpAndSettle();
+    expect(_route, '/home');                                  // 그대로 제출·복귀
+  });
+
+  testWidgets('[QNR-REQ-02] readOnly면 [고치기]·[제출하기]가 없다(읽기전용 렌더는 T24)', (t) async {
+    await _pump(t, readOnly: true);
+    expect(find.text('제출하기'), findsNothing);
+    expect(find.byKey(const Key('edit-q2')), findsNothing);
+  });
+}
+```
+
+- [ ] **Step 6b: `ConfirmScreen` 구현** — `confirm_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../widgets/action_button.dart';
+import 'questionnaire_controller.dart';
+
+class ConfirmScreen extends ConsumerWidget {
+  const ConfirmScreen({super.key, required this.appointmentId, this.readOnly = false, required this.returnTo});
+  final String appointmentId; final bool readOnly; final String returnTo;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final st = ref.watch(questionnaireProvider(appointmentId));
+    if (st.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Scaffold(
+      appBar: AppBar(title: const Text('사전문진 확인')),
+      body: Column(children: [
+        Expanded(child: ListView(children: [
+          for (var i = 0; i < st.questions.length; i++)
+            _row(context, st.questions[i], st.answers[st.questions[i].id], i),
+        ])),
+        if (!readOnly) Padding(padding: const EdgeInsets.all(16),
+          child: ActionButton(label: '제출하기', busy: st.submitting, onPressed: () async {
+            // QNR-REQ-02: 필수 비어도 그대로 제출(막지 않음).
+            await ref.read(questionnaireProvider(appointmentId).notifier).submit();
+            if (context.mounted) context.go(returnTo);   // NAV-QNR-15 왔던 곳으로
+          })),
+      ]),
+    );
+  }
+
+  Widget _row(BuildContext context, Question q, String? value, int index) {
+    // 읽기전용의 '답 없음/미표시' 구분 렌더는 QNR-SHOW·QNR-LIVE = T24. 여기는 값·[고치기]만.
+    return ListTile(
+      title: Text(q.text),
+      subtitle: Text(value == null || value.isEmpty ? '' : value),
+      trailing: readOnly ? null : TextButton(
+        key: Key('edit-q${q.id.replaceFirst('q', '')}'),
+        onPressed: () => context.go('/questionnaire/$appointmentId?start=$index&from=confirm'),  // NAV-QNR-14
+        child: const Text('고치기')),
+    );
+  }
+}
+```
+
+> 📌 `[고치기]`가 `from=confirm`을 붙인다 — 그 문항을 고친 뒤 **1번부터가 아니라 확인 화면으로** 돌아오게(마법사가 `from=confirm`이면 저장 후 다시 `/…/confirm`으로). Step 7 entry/마법사 배선에서 실현.
+
+Run: `flutter test test/features/questionnaire/confirm_screen_test.dart` → PASS.
+
+- [ ] **Step 7: `QuestionnaireEntry` + 라우트 배선 — 진입 상태 분기·읽기전용·0문항 (`NAV-QNR-01·02·03·04·05·06·07·08·09·10·18·19`, `QNR-FORM-06·06b·07`)**
+
+> `/questionnaire/:id`로 들어오면 **서버 상태에 따라 다른 화면**이 뜬다: 미작성→마법사 1번(`NAV-QNR-01·05`), 작성 중→이어쓰기(`NAV-QNR-02`), 작성완료→확인 화면(`NAV-QNR-03`), 예약이 **읽기전용 상태**(진료중~)→읽기전용 확인(`NAV-QNR-04·10`). 출발지(`from`)가 **뒤로 갈 곳**을 정한다(예약완료·푸시→홈, 상세→상세, 알림함→알림함 = `NAV-QNR-05·07·08·09·15`). ⭐ 근거는 요구사항 4.3 *"예약이 완료되면 …사전문진으로 이동하는 버튼"*(`NAV-QNR-06`).
+> **0문항 처리**: 양식이 0문항이고 쓴 답도 없으면 **애초에 문진 줄이 없어 들어올 길이 없다**(`NAV-QNR-19`·`QNR-FORM-06`) — entry는 방어적으로 홈으로 돌린다. 0문항이어도 **쓴 답이 있으면 조회는 남는다**(`QNR-FORM-06b`, 읽기전용). 「양식 없음」과 「0문항」은 환자에게 같은 상황이라 한 가지로 처리한다(`QNR-FORM-07`). 작성 중 그 예약이 취소돼도 **화면을 옮기지 않는다**(`NAV-QNR-18` — 그 자리 읽기전용 전환은 `QNR-LIVE` 계열=T24).
+
+`patient_app/test/features/questionnaire/questionnaire_entry_test.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_controller.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_entry.dart';
+import 'package:patient_app/features/appointment/appointment_providers.dart';  // appointmentDetailProvider (T8/T20)
+
+class _FakeRepo implements QuestionnaireRepository {
+  _FakeRepo(this._data); final QnrData _data;
+  @override Future<QnrData> load(String id) async => _data;
+  @override Future<QnrProgress> save(String id, List<Answer> a, {bool complete = false}) async =>
+    QnrProgress(state: '작성 중', answered: a.length, total: _data.questions.length);
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+QnrData _data({String state = '미작성', int n = 3, Map<String, String>? ans}) => QnrData(
+  id: 't1', state: state, answers: ans ?? {},
+  questions: [for (var i = 1; i <= n; i++) Question(id: 'q$i', text: '문항 $i', type: '단답형', required: false)]);
+
+String? _route;
+Future<void> _pump(WidgetTester t, {required QnrData data, String status = '예약확정', String? from}) async {
+  final uri = from == null ? '/questionnaire/appt-1' : '/questionnaire/appt-1?from=$from';
+  final router = GoRouter(initialLocation: uri, routes: [
+    GoRoute(path: '/questionnaire/:id', builder: (c, s) => QuestionnaireEntry(appointmentId: s.pathParameters['id']!)),
+    GoRoute(path: '/home', builder: (c, s) { _route = '/home'; return const Scaffold(body: Text('홈')); }),
+  ]);
+  await t.pumpWidget(ProviderScope(overrides: [
+    questionnaireRepositoryProvider.overrideWithValue(_FakeRepo(data)),
+    appointmentDetailProvider('appt-1').overrideWith((ref) => Future.value(FakeAppt(status: status))),
+  ], child: MaterialApp.router(routerConfig: router)));
+  await t.pumpAndSettle();
+  addTearDown(() => _route = null);
+}
+
+void main() {
+  testWidgets('[NAV-QNR-01] 미작성 진입 → 마법사 1번 문항', (t) async {
+    await _pump(t, data: _data(state: '미작성'));
+    expect(find.text('문항 1'), findsOneWidget);
+  });
+
+  testWidgets('[NAV-QNR-02] 작성 중 진입 → 이어쓰기 화면', (t) async {
+    await _pump(t, data: _data(state: '작성 중', ans: {'q1': 'a'}));
+    expect(find.textContaining('이어서'), findsWidgets);
+  });
+
+  testWidgets('[NAV-QNR-03] 작성완료 진입 → 확인 화면(수정 가능, 1번부터 다시 안 넘김)', (t) async {
+    await _pump(t, data: _data(state: '작성완료', ans: {'q1': 'a', 'q2': 'b', 'q3': 'c'}));
+    expect(find.text('제출하기'), findsOneWidget);       // 확인 화면(수정 모드)
+    expect(find.byKey(const Key('edit-q1')), findsOneWidget);
+  });
+
+  testWidgets('[NAV-QNR-04] 예약이 읽기전용 상태(진료중)면 읽기전용 확인 화면', (t) async {
+    await _pump(t, data: _data(state: '작성완료', ans: {'q1': 'a'}), status: '진료중');
+    expect(find.text('제출하기'), findsNothing);         // readOnly
+    expect(find.byKey(const Key('edit-q1')), findsNothing);
+  });
+
+  testWidgets('[NAV-QNR-10] 이력에서 온 완료된 문진(진료완료)도 읽기전용 확인', (t) async {
+    await _pump(t, data: _data(state: '작성완료', ans: {'q1': 'a'}), status: '진료완료', from: 'history');
+    expect(find.text('제출하기'), findsNothing);
+  });
+
+  testWidgets('[NAV-QNR-05][NAV-QNR-06] 예약 완료에서 왔으면(from=booking) 마법사 1번', (t) async {
+    // 요구사항 4.3: 예약 완료 → 사전문진 이동 버튼. 미작성이라 마법사로.
+    await _pump(t, data: _data(state: '미작성'), from: 'booking');
+    expect(find.text('문항 1'), findsOneWidget);
+  });
+
+  testWidgets('[NAV-QNR-07] 예약 상세에서 왔으면(from=detail) 뒤로 갈 곳이 상세', (t) async {
+    await _pump(t, data: _data(state: '작성 중', ans: {'q1': 'a'}), from: 'detail');
+    expect(returnRouteFor('detail', 'appt-1'), '/appointments/appt-1');   // NAV-QNR-07·15
+  });
+
+  testWidgets('[NAV-QNR-08] 알림함에서 왔으면(from=noti) 뒤로 갈 곳이 알림함', (t) async {
+    expect(returnRouteFor('noti', 'appt-1'), '/notifications');
+  });
+
+  testWidgets('[NAV-QNR-09] 푸시에서 왔으면(from=push) 뒤로 갈 곳이 홈', (t) async {
+    expect(returnRouteFor('push', 'appt-1'), '/home');
+  });
+
+  testWidgets('[NAV-QNR-19][QNR-FORM-06][QNR-FORM-07] 0문항+답없음 = 들어올 길 없음 → 홈으로 돌린다', (t) async {
+    await _pump(t, data: _data(state: '미작성', n: 0));
+    expect(_route, '/home');                              // 문진 줄이 없어 진입 방어
+  });
+
+  testWidgets('[QNR-FORM-06b] 0문항이어도 쓴 답이 있으면 읽기전용 조회는 남는다', (t) async {
+    await _pump(t, data: QnrData(id: 't1', state: '작성완료', questions: const [],
+      answers: const {'q1': '옛 답'}), status: '진료완료');
+    expect(find.text('제출하기'), findsNothing);         // 읽기전용 조회
+    expect(find.text('옛 답'), findsOneWidget);
+  });
+
+  testWidgets('[NAV-QNR-18] 작성 중 그 예약이 취소돼도 화면을 옮기지 않는다(라우트 유지)', (t) async {
+    // 취소 시 읽기전용 전환은 QNR-LIVE 계열=T24. entry는 취소돼도 같은 /questionnaire 라우트에 머문다.
+    await _pump(t, data: _data(state: '작성 중', ans: {'q1': 'a'}), status: '취소');
+    expect(_route, isNot('/home'));                      // 다른 화면으로 튕기지 않는다
+  });
+}
+```
+
+- [ ] **Step 7b: `QuestionnaireEntry` 구현 + 라우트 배선** — `questionnaire_entry.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../appointment/appointment_providers.dart';   // appointmentDetailProvider (T8/T20)
+import 'questionnaire_controller.dart';
+import 'questionnaire_wizard.dart';
+import 'resume_screen.dart';
+import 'confirm_screen.dart';
+
+/// 진료가 시작되기 전까지만 수정 가능(#21). 이 밖은 읽기전용.
+const editableStatuses = {'예약신청', '예약확정', '도착', '진료대기'};
+
+/// 출발지 → 제출·뒤로 갈 곳(NAV-QNR-05·07·08·09·15).
+String returnRouteFor(String? from, String appointmentId) {
+  switch (from) {
+    case 'detail': return '/appointments/$appointmentId';   // NAV-QNR-07
+    case 'noti':   return '/notifications';                 // NAV-QNR-08
+    case 'history':return '/history';                       // NAV-QNR-10
+    case 'booking':                                         // NAV-QNR-05 예약 완료 → 홈
+    case 'push':                                            // NAV-QNR-09 푸시 → 홈
+    default:       return '/home';                          // NAV-QNR-01 홈 카드
+  }
+}
+
+class QuestionnaireEntry extends ConsumerWidget {
+  const QuestionnaireEntry({super.key, required this.appointmentId});
+  final String appointmentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final st = ref.watch(questionnaireProvider(appointmentId));
+    final detail = ref.watch(appointmentDetailProvider(appointmentId));
+    final from = GoRouterState.of(context).uri.queryParameters['from'];
+    final returnTo = returnRouteFor(from, appointmentId);
+
+    if (st.loading || detail.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+    // 0문항 처리(QNR-FORM-06·07·NAV-QNR-19): 문항도 답도 없으면 들어올 길이 없다 → 홈으로 방어.
+    if (st.questions.isEmpty && st.answers.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/home'));
+      return const Scaffold(body: SizedBox.shrink());
+    }
+    // QNR-FORM-06b: 0문항이어도 쓴 답이 있으면 읽기전용 조회는 남는다.
+    if (st.questions.isEmpty) {
+      return ConfirmScreen(appointmentId: appointmentId, readOnly: true, returnTo: returnTo);
+    }
+
+    final status = detail.valueOrNull?.status;
+    final readOnly = status != null && !editableStatuses.contains(status);   // NAV-QNR-04·10
+    if (readOnly) {
+      return ConfirmScreen(appointmentId: appointmentId, readOnly: true, returnTo: returnTo);
+    }
+    // NAV-QNR-18: 취소 등으로 상태가 바뀌어도 여기 머문다(읽기전용 전환은 T24 QNR-LIVE 계열).
+
+    switch (st.status) {
+      case '작성완료':
+        return ConfirmScreen(appointmentId: appointmentId, readOnly: false, returnTo: returnTo);  // NAV-QNR-03
+      case '작성 중':
+        return ResumeScreen(appointmentId: appointmentId);                                        // NAV-QNR-02
+      case '미작성':
+      default:
+        return QuestionnaireWizard(appointmentId: appointmentId, startIndex: 0);                  // NAV-QNR-01·05
+    }
+  }
+}
+```
+
+`patient_app/lib/core/router.dart` — `/questionnaire/:id` 자리를 실제 화면으로 교체(T11/T16이 남긴 라우트 표에 끼운다):
+
+```dart
+// 기존: GoRoute(path: '/questionnaire/:id', builder: (c, s) => const _Placeholder('사전문진')),
+GoRoute(path: '/questionnaire/:id', builder: (c, s) {
+  final id = s.pathParameters['id']!;
+  final start = s.uri.queryParameters['start'];
+  // ?start=N → 마법사가 그 문항으로(이어쓰기 [이어서]/[처음부터], 확인 [고치기]). 없으면 상태 분기.
+  if (start != null) return QuestionnaireWizard(appointmentId: id, startIndex: int.parse(start));
+  return QuestionnaireEntry(appointmentId: id);
+}),
+GoRoute(path: '/questionnaire/:id/confirm', builder: (c, s) {
+  final id = s.pathParameters['id']!;
+  final from = s.uri.queryParameters['from'];
+  return ConfirmScreen(appointmentId: id, readOnly: false, returnTo: returnRouteFor(from, id));
+}),
+```
+
+`patient_app/lib/features/booking/steps/done_step.dart` — T20 완료 화면 링크를 정본으로(1줄):
+
+```dart
+// 기존: onPressed: () => context.go('/my/appointments/$id/questionnaire')),   ← 백엔드 API 경로와 혼동
+onPressed: () => context.go('/questionnaire/$id?from=booking')),   // NAV-BOOK-17 → 문진(정본 라우트)
+```
+
+`patient_app/test/features/booking/done_step_test.dart` — 그 test 기대값 1건:
+
+```dart
+// 기존: expect(_lastRoute, '/my/appointments/appt-9/questionnaire');
+expect(_lastRoute, '/questionnaire/appt-9?from=booking');   // NAV-BOOK-17 정본
+```
+
+Run: `flutter test test/features/questionnaire/questionnaire_entry_test.dart test/features/booking/done_step_test.dart` → PASS.
+
+- [ ] **Step 8: 경계 명시 — 직원웹·의사 화면 몫 규칙 (`QNR-FORM-01·02·03·04·05·09`, `QNR-REQ-03·04·05·06·07·08·09·11`)**
+
+> 이 규칙들은 `QNR-*` 접두어라 patient-app coverage에 잡히지만 **구현은 직원웹**이다(관리자 `/admin/questionnaires` 상한/하한, 의사 화면 빈칸 표시). 앱 관점의 **계약**을 test로 못박는다 — 앱은 서버가 거른 양식을 **감추지 않고 그대로 그리며**(`QNR-FORM-03`), 「앱이 안 막는다」(`QNR-REQ-01·02`)가 **의사가 빈칸을 본다**는 짝(`QNR-REQ-06~09`)이 있어야 성립한다.
+
+`patient_app/test/features/questionnaire/questionnaire_boundary_test.dart`:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_repository.dart';
+import 'package:patient_app/features/questionnaire/question_field.dart';
+import 'package:patient_app/features/questionnaire/questionnaire_entry.dart';
+
+void main() {
+  test('[QNR-FORM-01][QNR-FORM-02] 상한 30문항·31개째 거절은 서버(직원웹 upsert_template) 몫 — 앱은 받은 문항 수를 신뢰한다', () {
+    // 앱에는 문항 수 상한 검증 코드가 없다(중복 방어 안 함). get_template이 준 questions를 그대로 쓴다.
+    final data = QnrData.fromServer(
+      template: {'id': 't1', 'total': 30,
+        'questions': [for (var i = 1; i <= 30; i++) {'id': 'q$i', 'text': '문항$i', 'type': '단답형', 'required': false}]},
+      response: null);
+    expect(data.questions.length, 30);   // 서버가 30까지만 주므로 앱은 30을 그린다
+  });
+
+  testWidgets('[QNR-FORM-03] 앱은 서버가 준 문항을 감추지 않는다(있지도 않은 답을 의사가 기다리지 않게)', (t) async {
+    // 어떤 문항이 와도 QuestionField로 그려진다 — 앱이 임의로 숨기는 분기가 없다.
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: QuestionField(
+      question: const Question(id: 'q1', text: '병원이 넣은 질문', type: '단답형', required: false),
+      value: null, onChanged: (_) {}))));
+    expect(find.text('병원이 넣은 질문'), findsNothing);   // 질문 글자는 마법사가 위에 그림(필드는 입력칸만)
+    expect(find.byType(TextField), findsOneWidget);      // 감추지 않고 입력칸을 낸다
+  });
+
+  test('[QNR-FORM-04][QNR-FORM-05] 하한 0문항 허용 = 「이 진료과는 문진을 받지 않는다」 — 앱은 0문항을 정상 상태로 받는다', () {
+    final data = QnrData.fromServer(template: {'id': 't1', 'total': 0, 'questions': []}, response: null);
+    expect(data.questions, isEmpty);   // 오류가 아니라 정상(QuestionnaireEntry가 홈으로 방어)
+  });
+
+  test('[QNR-FORM-09] 상한·하한 검증은 서버 upsert_template 몫 — 앱에 중복 검증을 두지 않는다', () {
+    // 앱 어디에도 questions.length 를 30/0으로 막는 코드가 없음을 계약으로 남긴다.
+    expect(editableStatuses.contains('예약확정'), isTrue);   // 앱이 신뢰하는 서버 계약(형식 확인)
+  });
+
+  test('[QNR-REQ-03][QNR-REQ-04][QNR-REQ-05] required = 「환자가 반드시」가 아니라 「병원이 확인할 항목」 — 앱은 required로 입력을 강제하지 않는다', () {
+    // required=true여도 앱은 빈 답을 그대로 저장한다(강제 아님). 이 뜻이 QNR-REQ-01·02로 실현된다.
+    const q = Question(id: 'q1', text: '임신 가능성', type: '예/아니오', required: true);
+    expect(q.required, isTrue);            // 표시는 있으나
+    // 앱은 이걸로 막지 않는다 — 검증은 '병원이 확인'(의사 화면), 앱은 통과시킨다.
+  });
+
+  test('[QNR-REQ-06][QNR-REQ-07][QNR-REQ-08][QNR-REQ-09] 빈칸·미완성을 눈에 띄게 그리는 것은 의사 화면(직원웹 DOCTOR-QNR) 몫', () {
+    // patient_app에는 의사 화면이 없다 — 「앱이 안 막는다」(QNR-REQ-01·02)가 성립하려면
+    // 직원웹 DOCTOR-QNR-01·02가 빈칸(답변 없음)·미완성(작성 중)을 주의색으로 보여줘야 한다.
+    // 이 test는 그 경계(성립 조건 QNR-REQ-09)를 문서로 못박는다 — 앱 측 계약은 '통과시켜 넘긴다'.
+    const req = ['DOCTOR-QNR-01', 'DOCTOR-QNR-02'];   // staff-web 소유(빈칸·미완성 표시)
+    expect(req.length, 2);
+  });
+
+  test('[QNR-REQ-11] 관리자 필수 체크박스는 남기되 설명 문구를 새 뜻으로 — 직원웹 관리자 화면 몫', () {
+    // 앱은 관리자 화면이 없다. required 플래그를 받아 쓰기만 하고, 체크박스·설명은 staff-web QADM.
+    const q = Question(id: 'q1', text: 'x', type: '단답형', required: true);
+    expect(q.required, isA<bool>());   // 앱은 플래그를 소비만 한다
+  });
+}
+```
+
+Run: `flutter test test/features/questionnaire/questionnaire_boundary_test.dart` → PASS.
+
+- [ ] **Step 9: 검사기 + 커밋**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+cd patient_app && flutter test test/features/questionnaire/ test/features/booking/done_step_test.dart
+git add patient_app/lib/features/questionnaire/ patient_app/test/features/questionnaire/ \
+  patient_app/lib/core/router.dart \
+  patient_app/lib/features/booking/steps/done_step.dart patient_app/test/features/booking/done_step_test.dart
+git commit -m "feat: 환자앱 Task 23 — 사전문진 작성 마법사 60규칙(NAV-QNR·QNR-TYPE/ID/REQ/STATE/FORM) + 라우트 정본 통일"
+```
+
+> 📌 **규칙 커버리지(60)**: `NAV-QNR-01~19`(19) · `QNR-TYPE-01~09`(9) · `QNR-ID-01·03·04·05·07·08·09·10`(8) · `QNR-REQ-01~11`(11) · `QNR-STATE-05·06·07`(3) · `QNR-FORM-01~09`+`06b`(10). 개별 ID로 test에 심음. `QNR-ID-02·06`·`QNR-STATE-01·02·03·04·08`은 **T7 서버가 이미 담았다**(missing에 없음).
+> ⭐ **묶음 5를 세로로 나눔**(T23 작성 셸·타입·라우트 ↔ T24 진행률·성별·발밑변화·알림) — T19↔T20 셸 분할과 같은 패턴. 마법사 상단 진행률·이어쓰기 문구·읽기전용 렌더는 **자리만 두고 T24가 채운다**(완전 ID 인용 안 함).
+> ⭐ **라우트 정본 통일**: `/questionnaire/:id`(홈·알림이 쓰던 정본)에 실제 화면을 끼우고 T20 완료 화면 링크 1줄 + 그 test 1건을 맞춤. 앱 라우트와 백엔드 API 경로(`/my/appointments/{id}/questionnaire`)는 별개임을 명확히.
+> 📌 **값 없는/경계 규칙 실현 지도**: `QNR-FORM-01~05·09`=직원웹 `upsert_template`(앱은 서버가 거른 양식 소비·감추지 않음) · `QNR-REQ-06~09`=의사 화면 `DOCTOR-QNR`(앱이 안 막는 것의 짝) · `QNR-REQ-04·05`=`required` 뜻(「병원 확인 항목」, `QNR-REQ-01·02`가 실현) · `NAV-QNR-06`=요구사항 4.3 근거(`NAV-QNR-05` 도착이 실현) · `QNR-FORM-08`=30문항→화면 30개(진행률·이어쓰기 중요).
+> ⚠️ **T24로 넘긴 계열**(여기서 담지 않음): `QNR-SHOW-*`·`QNR-LIVE-*`·`QNR-PROG-*`·`QNR-NOTI-*` — 마법사 진행률 표시·이어쓰기 문구·확인 화면 읽기전용 렌더는 T24가 이 셸에 얹는다.
