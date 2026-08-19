@@ -1054,3 +1054,675 @@ git commit -m "feat: 📝 상담봇 Task 1 본문 — 통합 대화 스키마(ch
 ```
 
 > **Task 1 완료 조건**: 세 표·제약·트리거·인덱스·RLS 초록불 · 세션/티켓·익명 FK는 미생성(칼럼만) 확인 · 시스템 이벤트가 `chat_messages`에 단일 원장으로 남음 확인. 화면 규칙 0개라 `plan-coverage-check` 커버 수 불변(정상), `plan-prefix-check`는 소유 접두어 없어 빚·미배정 0.
+
+## Task 2: AI 세션 + 직원 티켓 생명주기 + 원자 배정 (`ai_chat_sessions` · `support_tickets` + `claim`/`send`/`close`)
+
+> **화면 규칙 0개.** 이 태스크는 상담의 두 경계를 만든다: **AI 상담 단위**(30분 무활동 만료)와 **직원 티켓**(`pending→in_progress→answered`). 핵심은 **원자성** — 두 직원이 같은 티켓을 동시에 열어도 한 명만 맡고(§8-1), 일반 `[보내기]`는 티켓을 닫지 않으며 `[상담 종료]`만 `answered`로 만들고(§8-2), 완료 티켓은 재개 불가·재문의는 새 티켓이며(§8-3), 같은 `client_message_id` 재전송은 한 행만 만들고(§8-4), AI 만료 배치와 새 메시지가 경쟁해도 한 세션이 동시에 `active`·`expired`가 되지 않는다(§8-5). Task 1의 `chat_messages` 앞선 FK(세션·티켓)를 여기서 채운다.
+>
+> **근거 원본**: 3A §4.2(tickets)·§4.4(sessions)·§6(인덱스)·§7(RLS)·§8(원자성 1~5). 서비스 패턴은 1단계 `backend/app/services/appointment_service.py`(security definer SQL 함수 + `acquire_as` Python 래퍼)를 그대로 따른다.
+>
+> ⭐ **이월 핸드오버 3건을 여기서 담는다**(`docs/design/spec-index/HANDOVERS.md` — 본문에 담기면 `plan-prefix-check` 경고가 사라진다):
+> - **`SUPPORT-CAL-DUP` 계열**(직원웹 T14 → 여기) — 한 예약에 상담이 여럿일 때 캘린더 ⚠ 하나가 무엇을 대표하나. **여기서 「대표 = thread당 열린 티켓(partial unique로 하나 보장) → 없으면 가장 최근 answered」로 티켓 모델을 확정**한다. ⚠ 화면 렌더·완전 ID(`-01`)는 Task 18이 담는다(여기서 완전 ID로 쓰면 coverage가 미리 세어버린다 — ⏰).
+> - **`TICKET-DETAIL-NOTIFY` 계열**(환자앱 T28 → 여기) — 6번째 토글 `support_reply`가 거는 답변 알림. **`close_ticket`이 `answered`를 찍고, 실제 발송(배칭·`staff_chat_reply`/`support_answered` 문구)은 Task 3 dispatcher**가 한다. 여기선 답변 알림이 키로 삼는 상태(`answered`)를 만든다. 완전 ID는 Task 17.
+> - **`PTDET-SUPPORT-03`**(환자앱 정본 → 여기) — 환자상세 상담 문의 **최신순 + ID 동점키 서버 정렬**. `list_thread_tickets`가 `order by created_at desc, id desc`로 담는다. 환자상세 섹션 렌더는 Task 19.
+
+**Files:**
+- Create: `supabase/migrations/00037_chat_sessions_tickets.sql`
+- Create: `backend/app/services/chat/ticket_service.py` · `backend/app/services/chat/ai_session_service.py`
+- Create: `backend/tests/test_chat_sessions_tickets_schema.py` · `backend/tests/test_ticket_service.py` · `backend/tests/test_ai_session_service.py`
+
+**Interfaces:**
+- Consumes: Task 1 `chat_threads`·`chat_messages`(앞선 FK 칼럼)·`chat_read_states` · `patients`·`staff`·`appointments`(`00005`) · `private.current_staff_id()`·`private.is_active_staff()`·`patient_owns()`·`private.current_patient_id()` · `acquire_as`·`AppError`(1단계) · 테스트 `db_conn`·`set_session_auth`·`seed_staff`·`seed_patient`·`seed_chat_thread`
+- Produces (뒤 태스크가 소비할 이름):
+  - 표 `ai_chat_sessions`(§4.4 전체 칼럼) · `support_tickets`(§4.2 + `appointment_id` nullable FK — 공백 3) · `support_ticket_assignment_history`(§4.2)
+  - `chat_messages`에 붙는 FK `chat_messages_ai_session_fk`·`chat_messages_ticket_fk` + 트리거 `trg_validate_chat_message_session_thread`(세션/티켓↔메시지 상담방 일치, Task 1 이월분)
+  - SQL 함수(security definer): `claim_ticket(uuid) -> support_tickets` · `close_ticket(uuid) -> support_tickets` · `staff_send_ticket_message(uuid, text, uuid) -> chat_messages`(멱등·status 불변) · `create_support_ticket(uuid thread, uuid source_ai_session, uuid appointment, uuid previous) -> support_tickets` · `create_ai_session(uuid thread, text cont_type, uuid cont_ai, uuid cont_ticket, text summary) -> ai_chat_sessions` · `record_ai_activity(uuid) -> void`(30분 연장·active만) · `expire_idle_ai_sessions() -> int`(만료 배치)
+  - Python: `ticket_service.claim_ticket / close_ticket / staff_send_message / list_thread_tickets` · `ai_session_service.create_session / record_activity / expire_idle_sessions`
+  - 인덱스: `idx_tickets_one_open`(thread당 열린 티켓 partial unique) · `idx_tickets_queue`·`idx_tickets_assigned`·`idx_ai_sessions_one_active`·`idx_ai_sessions_expiry`
+  - RLS: 직원 티켓/세션/상담방/메시지 읽기(`private.is_active_staff()`, 역할 좁히기는 Task 16~19) · 환자 자기 세션·티켓 읽기
+- ⚠️ **아직 안 하는 것**: **재배정** `reassign_ticket`은 Task 17(`TICKET-DETAIL-REASSIGN` 계열) · **AI→직원 인계 오케스트레이션**(만료 세션 종료 + 티켓 생성 체인)은 Task 5 · **답변 알림 실제 발송·배칭**은 Task 3. Task 2는 그 원자 primitive만 만든다.
+
+- [ ] **Step 1: 실패하는 스키마 계약 테스트 작성**
+
+`backend/tests/test_chat_sessions_tickets_schema.py`:
+```python
+import uuid
+from datetime import datetime, timedelta, timezone
+
+import pytest
+import asyncpg
+
+from tests.conftest import seed_staff, seed_patient
+from tests.conftest_chat import seed_chat_thread
+
+
+async def _new_session(conn, thread_id, **cols):
+    cols.setdefault("expires_at", datetime.now(timezone.utc) + timedelta(minutes=30))
+    keys = list(cols)
+    ph = ", ".join(f"${i+2}" for i in range(len(keys)))
+    return await conn.fetchval(
+        f"insert into ai_chat_sessions (thread_id, {', '.join(keys)}) values ($1, {ph}) returning id",
+        thread_id, *[cols[k] for k in keys])
+
+
+@pytest.mark.asyncio
+async def test_ai_session_active_forbids_ended_fields(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _new_session(db_conn, t, status="active", ended_at=datetime.now(timezone.utc))
+
+
+@pytest.mark.asyncio
+async def test_ai_session_expired_requires_inactivity_reason(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _new_session(db_conn, t, status="expired",
+                           ended_at=datetime.now(timezone.utc), end_reason="staff_handoff")
+
+
+@pytest.mark.asyncio
+async def test_only_one_active_session_per_thread(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    await _new_session(db_conn, t, status="active")
+    with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+        await _new_session(db_conn, t, status="active")
+
+
+@pytest.mark.asyncio
+async def test_ai_session_continuation_source_xor(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    prev = await _new_session(db_conn, t, status="expired",
+                              ended_at=datetime.now(timezone.utc), end_reason="inactivity_timeout")
+    # continuation_source_type=ai_session인데 티켓 출처까지 채우면 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _new_session(db_conn, t, continuation_source_type="ai_session",
+                           continued_from_ai_session_id=prev, continued_from_ticket_id=uuid.uuid4())
+
+
+async def _new_ticket(conn, thread_id, **cols):
+    keys = list(cols)
+    ph = ", ".join(f"${i+2}" for i in range(len(keys))) if keys else ""
+    sql = (f"insert into support_tickets (thread_id, {', '.join(keys)}) values ($1, {ph}) returning id"
+           if keys else "insert into support_tickets (thread_id) values ($1) returning id")
+    return await conn.fetchval(sql, thread_id, *[cols[k] for k in keys])
+
+
+@pytest.mark.asyncio
+async def test_ticket_answered_requires_closed_fields(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    # answered인데 종료 주체·시각 없음 → 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _new_ticket(db_conn, t, status="answered")
+
+
+@pytest.mark.asyncio
+async def test_only_one_open_ticket_per_thread(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    await _new_ticket(db_conn, t, status="pending")
+    with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+        await _new_ticket(db_conn, t, status="pending")
+
+
+@pytest.mark.asyncio
+async def test_message_session_thread_must_match(db_conn):
+    p = await seed_patient(db_conn)
+    t1 = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    t2 = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s2 = await _new_session(db_conn, t2, status="active")
+    # 메시지 thread=t1인데 세션은 t2 소속 → 트리거가 막는다(§4.3).
+    with pytest.raises(asyncpg.exceptions.RaiseError):
+        await db_conn.execute(
+            "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content) "
+            "values ($1, $2, 'bot', 'text', '엇갈린 상담방')", t1, s2)
+```
+
+- [ ] **Step 2: 테스트 실패 확인** — Run: `cd backend && pytest tests/test_chat_sessions_tickets_schema.py -v` → Expected: FAIL(`relation "ai_chat_sessions" does not exist`).
+
+- [ ] **Step 3: 마이그레이션 작성**
+
+`supabase/migrations/00037_chat_sessions_tickets.sql`:
+```sql
+-- 3-A 통합 대화 스키마 ② AI 상담 단위 + 직원 티켓 생명주기 + 원자 배정 (§4.2·§4.4·§8).
+-- Task 1 chat_messages의 앞선 FK(세션·티켓)를 채우고, 세션/티켓↔메시지 상담방 일치 트리거를 얹는다.
+-- ⚠️ 번호(예시 00037)는 적용 시점에 확정(Global Constraints).
+
+-- ── ai_chat_sessions: 30분 경계를 가진 AI 상담 단위 (§4.4) ──
+create table ai_chat_sessions (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references chat_threads(id),
+  status text not null default 'active' check (status in ('active', 'expired', 'ended')),
+  started_at timestamptz not null default now(),
+  last_activity_at timestamptz not null default now(),
+  expires_at timestamptz not null,          -- last_activity_at + 30분. 만료 후보 조회용(§4.4)
+  ended_at timestamptz,
+  end_reason text check (end_reason in ('inactivity_timeout', 'staff_handoff', 'new_question')),
+  closing_summary text,
+  summary_last_message_id uuid references chat_messages(id),
+  summary_created_at timestamptz,
+  continuation_source_type text check (continuation_source_type in ('ai_session', 'support_ticket')),
+  continued_from_ai_session_id uuid references ai_chat_sessions(id),
+  continued_from_ticket_id uuid,            -- FK support_tickets — 아래에서 표 생성 후 alter
+  continuation_summary text,
+  created_at timestamptz not null default now(),
+  -- 상태 ↔ 종료 사유 정합 (§4.4)
+  constraint ai_sessions_status_reason check (
+    case status
+      when 'active'  then ended_at is null and end_reason is null
+      when 'expired' then end_reason = 'inactivity_timeout'
+      when 'ended'   then end_reason in ('staff_handoff', 'new_question')
+    end
+  ),
+  -- 이어가기 출처 XOR + continuation_source_type 일치 (§4.4)
+  constraint ai_sessions_continuation_consistent check (
+    (continuation_source_type is null
+       and continued_from_ai_session_id is null and continued_from_ticket_id is null)
+    or (continuation_source_type = 'ai_session'
+       and continued_from_ai_session_id is not null and continued_from_ticket_id is null)
+    or (continuation_source_type = 'support_ticket'
+       and continued_from_ticket_id is not null and continued_from_ai_session_id is null)
+  )
+);
+create unique index idx_ai_sessions_one_active on ai_chat_sessions (thread_id) where status = 'active';  -- thread당 active 하나(§4.4·§6)
+create index idx_ai_sessions_expiry on ai_chat_sessions (expires_at) where status = 'active';            -- 만료 배치(§6)
+
+-- ── support_tickets: 직원 상담 생명주기 (§4.2) + 예약 연결(공백 3) ──
+create table support_tickets (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references chat_threads(id),
+  source_ai_session_id uuid references ai_chat_sessions(id),
+  previous_ticket_id uuid references support_tickets(id),  -- 재문의가 직전 answered 티켓을 가리킴(재개 아님)
+  appointment_id uuid references appointments(id),         -- 공백3: 취소·변경 상담이 어느 예약인지 DB가 보장(nullable — 일반 문의는 없음)
+  status text not null default 'pending' check (status in ('pending', 'in_progress', 'answered')),
+  assigned_staff_id uuid references staff(id),
+  assigned_at timestamptz,
+  started_at timestamptz,
+  closed_by_staff_id uuid references staff(id),
+  closed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- answered면 종료 주체·시각 둘 다, 그 외엔 둘 다 null (§4.2)
+  constraint tickets_closed_fields check (
+    (status = 'answered' and closed_by_staff_id is not null and closed_at is not null)
+    or (status <> 'answered' and closed_by_staff_id is null and closed_at is null)
+  )
+);
+-- thread당 열린 티켓(pending|in_progress) 최대 하나(§4.2·§6). 재문의는 새 PK. ⭐ SUPPORT-CAL-DUP 계열 대표 티켓의 근거(완전 ID=Task 18).
+create unique index idx_tickets_one_open on support_tickets (thread_id) where status in ('pending', 'in_progress');
+create index idx_tickets_queue on support_tickets (status, created_at) where status in ('pending', 'in_progress');  -- 직원 큐(접수순)
+create index idx_tickets_assigned on support_tickets (assigned_staff_id, status, updated_at);
+create index idx_tickets_thread on support_tickets (thread_id, created_at);
+create index idx_tickets_appointment on support_tickets (appointment_id) where appointment_id is not null;
+
+alter table ai_chat_sessions
+  add constraint ai_sessions_continued_ticket_fk
+  foreign key (continued_from_ticket_id) references support_tickets(id);
+
+-- 배정·이관 감사 이력 (§4.2). support_tickets.assigned_staff_id가 현재값, 이 표가 변경 이력.
+create table support_ticket_assignment_history (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references support_tickets(id),
+  from_staff_id uuid references staff(id),        -- 최초 배정이면 null
+  to_staff_id uuid not null references staff(id),
+  changed_by_staff_id uuid not null references staff(id),
+  changed_at timestamptz not null default now()
+);
+create index idx_ticket_assignment_ticket on support_ticket_assignment_history (ticket_id, changed_at);
+
+-- ── Task 1 chat_messages 앞선 FK를 채운다 (설계결정 3) ──
+alter table chat_messages
+  add constraint chat_messages_ai_session_fk foreign key (ai_chat_session_id) references ai_chat_sessions(id),
+  add constraint chat_messages_ticket_fk     foreign key (support_ticket_id)  references support_tickets(id);
+
+-- 세션/티켓의 thread_id는 메시지 thread_id와 같아야 한다 (§4.3, Task 1에서 이월).
+create or replace function validate_chat_message_session_thread()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare v_thread uuid;
+begin
+  if new.ai_chat_session_id is not null then
+    select thread_id into v_thread from public.ai_chat_sessions where id = new.ai_chat_session_id;
+    if v_thread is distinct from new.thread_id then
+      raise exception 'AI 세션의 상담방이 메시지 상담방과 다릅니다.' using errcode = 'P0001';
+    end if;
+  end if;
+  if new.support_ticket_id is not null then
+    select thread_id into v_thread from public.support_tickets where id = new.support_ticket_id;
+    if v_thread is distinct from new.thread_id then
+      raise exception '티켓의 상담방이 메시지 상담방과 다릅니다.' using errcode = 'P0001';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_validate_chat_message_session_thread
+  before insert on chat_messages for each row execute function validate_chat_message_session_thread();
+
+-- ══ 원자 primitive (security definer) ══
+
+-- 원자 배정(§8-1, Global Constraint): 티켓 상세 열기가 pending 티켓을 자동 배정. 경쟁 패자는 raise.
+create or replace function claim_ticket(p_ticket_id uuid)
+returns support_tickets language plpgsql security definer set search_path = '' as $$
+declare v_staff uuid; v_prev uuid; v_row public.support_tickets; v_cur public.support_tickets;
+begin
+  v_staff := private.current_staff_id();
+  if v_staff is null then raise exception '직원만 상담을 맡을 수 있습니다.' using errcode = 'P0001'; end if;
+  select assigned_staff_id into v_prev from public.support_tickets where id = p_ticket_id for update;
+  update public.support_tickets
+     set assigned_staff_id = v_staff, status = 'in_progress',
+         assigned_at = now(), started_at = coalesce(started_at, now()), updated_at = now()
+   where id = p_ticket_id and status = 'pending'
+   returning * into v_row;
+  if found then
+    insert into public.support_ticket_assignment_history (ticket_id, from_staff_id, to_staff_id, changed_by_staff_id)
+    values (p_ticket_id, v_prev, v_staff, v_staff);
+    return v_row;
+  end if;
+  -- pending이 아니었다. 내가 이미 맡은 것을 다시 연 것이면 재배정 없이 그대로 반환.
+  select * into v_cur from public.support_tickets where id = p_ticket_id;
+  if v_cur.status = 'in_progress' and v_cur.assigned_staff_id = v_staff then
+    return v_cur;
+  end if;
+  raise exception '이미 다른 직원이 맡았어요.' using errcode = 'P0001';  -- 경쟁 패자
+end;
+$$;
+
+-- 별도 [상담 종료]만 answered. 일반 [보내기]는 이걸 부르지 않는다(§8-2). in_progress만 종료 가능.
+create or replace function close_ticket(p_ticket_id uuid)
+returns support_tickets language plpgsql security definer set search_path = '' as $$
+declare v_staff uuid; v_row public.support_tickets;
+begin
+  v_staff := private.current_staff_id();
+  if v_staff is null then raise exception '직원만 상담을 종료할 수 있습니다.' using errcode = 'P0001'; end if;
+  update public.support_tickets
+     set status = 'answered', closed_by_staff_id = v_staff, closed_at = now(), updated_at = now()
+   where id = p_ticket_id and status = 'in_progress'
+   returning * into v_row;
+  if not found then raise exception '진행 중인 상담만 종료할 수 있습니다.' using errcode = 'P0001'; end if;
+  return v_row;  -- ⭐ TICKET-DETAIL-NOTIFY 계열: 답변 알림이 키로 삼는 answered를 여기서 찍는다(발송은 Task 3, 완전 ID=Task 17).
+end;
+$$;
+
+-- 직원 답변 전송(§8-2·§8-4): status 불변. 종료 티켓엔 금지. client_message_id 재전송은 멱등.
+create or replace function staff_send_ticket_message(p_ticket_id uuid, p_content text, p_client_message_id uuid default null)
+returns chat_messages language plpgsql security definer set search_path = '' as $$
+declare v_staff uuid; v_thread uuid; v_status text; v_row public.chat_messages;
+begin
+  v_staff := private.current_staff_id();
+  if v_staff is null then raise exception '직원만 답변할 수 있습니다.' using errcode = 'P0001'; end if;
+  select thread_id, status into v_thread, v_status from public.support_tickets where id = p_ticket_id;
+  if v_thread is null then raise exception '없는 상담입니다.' using errcode = 'P0001'; end if;
+  if v_status = 'answered' then
+    raise exception '종료된 상담에는 메시지를 보낼 수 없습니다. 재문의는 새 상담으로 만드세요.' using errcode = 'P0001';
+  end if;
+  insert into public.chat_messages
+    (thread_id, support_ticket_id, sender_type, sender_staff_id, message_type, content, client_message_id)
+  values (v_thread, p_ticket_id, 'staff', v_staff, 'text', p_content, p_client_message_id)
+  on conflict (client_message_id) where client_message_id is not null do nothing
+  returning * into v_row;
+  if v_row.id is null and p_client_message_id is not null then          -- 재전송 멱등: 기존 행 반환
+    select * into v_row from public.chat_messages where client_message_id = p_client_message_id;
+  end if;
+  update public.chat_threads set last_activity_at = now(), updated_at = now() where id = v_thread;
+  return v_row;
+end;
+$$;
+
+-- 재문의(§8-3): 직전 answered 티켓을 가리키는 새 티켓. 열린 티켓이 있으면 partial unique가 막는다.
+create or replace function create_support_ticket(
+  p_thread_id uuid, p_source_ai_session_id uuid default null,
+  p_appointment_id uuid default null, p_previous_ticket_id uuid default null)
+returns support_tickets language plpgsql security definer set search_path = '' as $$
+declare v_row public.support_tickets; v_prev public.support_tickets;
+begin
+  if p_previous_ticket_id is not null then
+    select * into v_prev from public.support_tickets where id = p_previous_ticket_id;
+    if v_prev.thread_id is distinct from p_thread_id then
+      raise exception '재문의는 같은 상담방에서만 만들 수 있습니다.' using errcode = 'P0001';
+    end if;
+    if v_prev.status <> 'answered' then
+      raise exception '이전 상담이 종료된 뒤에만 재문의할 수 있습니다.' using errcode = 'P0001';
+    end if;
+  end if;
+  insert into public.support_tickets (thread_id, source_ai_session_id, appointment_id, previous_ticket_id)
+  values (p_thread_id, p_source_ai_session_id, p_appointment_id, p_previous_ticket_id)
+  returning * into v_row;
+  return v_row;
+exception when unique_violation then                                     -- 이미 열린 티켓이 있다
+  raise exception '이미 직원 확인을 기다리는 상담이 있어요.' using errcode = 'P0001';
+end;
+$$;
+
+-- 새 AI 상담 단위(§4.4). [이전 내용 이어서]=출처 채움, [새 질문 시작]=출처 null.
+create or replace function create_ai_session(
+  p_thread_id uuid, p_continuation_source_type text default null,
+  p_continued_from_ai_session_id uuid default null, p_continued_from_ticket_id uuid default null,
+  p_continuation_summary text default null)
+returns ai_chat_sessions language plpgsql security definer set search_path = '' as $$
+declare v_row public.ai_chat_sessions;
+begin
+  insert into public.ai_chat_sessions
+    (thread_id, expires_at, continuation_source_type,
+     continued_from_ai_session_id, continued_from_ticket_id, continuation_summary)
+  values (p_thread_id, now() + interval '30 minutes', p_continuation_source_type,
+          p_continued_from_ai_session_id, p_continued_from_ticket_id, p_continuation_summary)
+  returning * into v_row;
+  return v_row;
+exception when unique_violation then                                     -- thread당 active 하나
+  raise exception '이미 진행 중인 AI 상담이 있어요.' using errcode = 'P0001';
+end;
+$$;
+
+-- 30분 연장(§4.4·§8-5): active만. active가 아니면 raise → 만료 배치와 상호배제(둘 다 status='active' 잠금).
+create or replace function record_ai_activity(p_session_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  update public.ai_chat_sessions
+     set last_activity_at = now(), expires_at = now() + interval '30 minutes'
+   where id = p_session_id and status = 'active';
+  if not found then raise exception '만료되었거나 종료된 AI 상담입니다.' using errcode = 'P0001'; end if;
+end;
+$$;
+
+-- 만료 배치(§8-5): now >= expires_at인 active만 조건부로 expired. 새 메시지의 record_ai_activity와 경쟁해도 하나만 이긴다.
+create or replace function expire_idle_ai_sessions()
+returns integer language plpgsql security definer set search_path = '' as $$
+declare v_count int;
+begin
+  with expired as (
+    update public.ai_chat_sessions
+       set status = 'expired', ended_at = now(), end_reason = 'inactivity_timeout'
+     where status = 'active' and now() >= expires_at
+     returning id)
+  select count(*) into v_count from expired;
+  return v_count;
+end;
+$$;
+
+-- ── RLS (§7) ──
+alter table ai_chat_sessions enable row level security;
+alter table support_tickets enable row level security;
+alter table support_ticket_assignment_history enable row level security;
+grant select on table ai_chat_sessions to authenticated;
+grant select on table support_tickets to authenticated;
+grant select on table support_ticket_assignment_history to authenticated;
+
+-- 환자는 자기 상담방의 세션·티켓을 읽는다.
+create policy "patients_read_own_ai_sessions" on ai_chat_sessions
+  for select using (exists (select 1 from chat_threads t
+    where t.id = ai_chat_sessions.thread_id and t.owner_type = 'patient' and patient_owns(t.patient_id)));
+create policy "patients_read_own_tickets" on support_tickets
+  for select using (exists (select 1 from chat_threads t
+    where t.id = support_tickets.thread_id and t.owner_type = 'patient' and patient_owns(t.patient_id)));
+
+-- 직원(활성)은 티켓·세션·이력을 읽는다. 정확한 역할 범위(의사/접수/관리자)는 동작명세 권한 계약(Task 16~19)이 좁힌다(§7).
+create policy "staff_read_tickets" on support_tickets for select using (private.is_active_staff());
+create policy "staff_read_ticket_ai_sessions" on ai_chat_sessions for select using (private.is_active_staff());
+create policy "staff_read_assignment_history" on support_ticket_assignment_history for select using (private.is_active_staff());
+
+-- Task 1에서 이월된 직원 상담방·메시지 읽기: 티켓이 걸린 상담방(직원이 볼 수 있는 것).
+create policy "staff_read_thread_of_tickets" on chat_threads for select using (
+  private.is_active_staff() and exists (select 1 from support_tickets tk where tk.thread_id = chat_threads.id));
+create policy "staff_read_messages_of_tickets" on chat_messages for select using (
+  private.is_active_staff() and exists (select 1 from support_tickets tk where tk.thread_id = chat_messages.thread_id));
+```
+
+- [ ] **Step 4: 마이그레이션 적용 → 스키마 테스트 통과**
+
+Run: `supabase migration up && cd backend && pytest tests/test_chat_sessions_tickets_schema.py -v` → Expected: PASS. (`supabase db reset` 금지.)
+
+- [ ] **Step 5: Python 서비스 래퍼 작성**
+
+`backend/app/services/chat/ticket_service.py`:
+```python
+from uuid import UUID
+
+import asyncpg
+
+from app.core.errors import AppError
+from app.db.pool import acquire_as
+
+
+def _to_dict(row) -> dict:
+    return dict(row) if row is not None else None
+
+
+async def claim_ticket(auth_user_id: str, ticket_id: UUID) -> dict:
+    async with acquire_as(auth_user_id) as conn:
+        try:
+            row = await conn.fetchrow("select * from claim_ticket($1)", ticket_id)
+        except asyncpg.exceptions.RaiseError as e:
+            # 경쟁 패자·권한 없음은 한글 메시지 그대로 409로. 파이썬 예외 원문 노출 금지.
+            raise AppError(str(e), 409)
+        return _to_dict(row)
+
+
+async def close_ticket(auth_user_id: str, ticket_id: UUID) -> dict:
+    async with acquire_as(auth_user_id) as conn:
+        try:
+            row = await conn.fetchrow("select * from close_ticket($1)", ticket_id)
+        except asyncpg.exceptions.RaiseError as e:
+            raise AppError(str(e), 409)
+        return _to_dict(row)
+
+
+async def staff_send_message(auth_user_id: str, ticket_id: UUID, content: str,
+                             client_message_id: UUID | None = None) -> dict:
+    if not content or not content.strip():
+        raise AppError("보낼 내용을 입력해 주세요.", 400)
+    async with acquire_as(auth_user_id) as conn:
+        try:
+            row = await conn.fetchrow(
+                "select * from staff_send_ticket_message($1, $2, $3)", ticket_id, content, client_message_id)
+        except asyncpg.exceptions.RaiseError as e:
+            raise AppError(str(e), 409)
+        return _to_dict(row)
+
+
+async def list_thread_tickets(auth_user_id: str, thread_id: UUID) -> list[dict]:
+    # PTDET-SUPPORT-03: 최신순 + ID 동점키 서버 정렬. 화면(Task 19)이 계산하지 않는다.
+    async with acquire_as(auth_user_id) as conn:
+        rows = await conn.fetch(
+            "select * from support_tickets where thread_id = $1 order by created_at desc, id desc", thread_id)
+        return [dict(r) for r in rows]
+```
+
+`backend/app/services/chat/ai_session_service.py`:
+```python
+from uuid import UUID
+
+import asyncpg
+
+from app.core.errors import AppError
+from app.db.pool import acquire_as, get_pool
+
+
+async def create_session(auth_user_id: str, thread_id: UUID, *,
+                         continuation_source_type: str | None = None,
+                         continued_from_ai_session_id: UUID | None = None,
+                         continued_from_ticket_id: UUID | None = None,
+                         continuation_summary: str | None = None) -> dict:
+    async with acquire_as(auth_user_id) as conn:
+        try:
+            row = await conn.fetchrow(
+                "select * from create_ai_session($1, $2, $3, $4, $5)",
+                thread_id, continuation_source_type,
+                continued_from_ai_session_id, continued_from_ticket_id, continuation_summary)
+        except asyncpg.exceptions.RaiseError as e:
+            raise AppError(str(e), 409)
+        return dict(row)
+
+
+async def record_activity(auth_user_id: str, session_id: UUID) -> None:
+    async with acquire_as(auth_user_id) as conn:
+        try:
+            await conn.execute("select record_ai_activity($1)", session_id)
+        except asyncpg.exceptions.RaiseError as e:
+            raise AppError(str(e), 409)
+
+
+async def expire_idle_sessions() -> int:
+    # 만료 배치는 서버 주체 실행(배포 cron). 여기선 풀 커넥션으로 직접 부른다(RLS 우회 함수).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval("select expire_idle_ai_sessions()")
+```
+
+- [ ] **Step 6: 원자성 서비스 테스트 작성 (§8-1~5)**
+
+`backend/tests/test_ticket_service.py`:
+```python
+import uuid
+import pytest
+
+from app.services.chat import ticket_service
+from tests.conftest import seed_staff, seed_patient, set_session_auth
+from tests.conftest_chat import seed_chat_thread
+
+
+async def _open_ticket(conn, thread_id):
+    return await conn.fetchval(
+        "insert into support_tickets (thread_id) values ($1) returning id", thread_id)
+
+
+@pytest.mark.asyncio
+async def test_two_staff_claim_only_one_wins(db_conn, monkeypatch):
+    # §8-1. 같은 pending 티켓을 두 직원이 열면 한 명만 in_progress로 가져간다.
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ticket = await _open_ticket(db_conn, t)
+    a = await seed_staff(db_conn, role="doctor")
+    b = await seed_staff(db_conn, role="doctor")
+    # acquire_as를 우회해 같은 트랜잭션 db_conn에서 직접 함수를 부르며 직원만 바꿔 경쟁을 재현.
+    await set_session_auth(db_conn, a["auth_user_id"])
+    won = await db_conn.fetchrow("select * from claim_ticket($1)", ticket)
+    assert won["status"] == "in_progress" and won["assigned_staff_id"] == a["staff_id"]
+    await set_session_auth(db_conn, b["auth_user_id"])
+    with pytest.raises(Exception) as exc:      # asyncpg RaiseError
+        await db_conn.fetchrow("select * from claim_ticket($1)", ticket)
+    assert "이미 다른 직원이 맡았어요" in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_send_keeps_in_progress_only_close_answers(db_conn):
+    # §8-2. 일반 보내기는 status 불변, close만 answered.
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ticket = await _open_ticket(db_conn, t)
+    st = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, st["auth_user_id"])
+    await db_conn.fetchrow("select * from claim_ticket($1)", ticket)
+    await db_conn.fetchrow("select * from staff_send_ticket_message($1, $2, null)", ticket, "확인했습니다")
+    assert await db_conn.fetchval("select status from support_tickets where id=$1", ticket) == "in_progress"
+    closed = await db_conn.fetchrow("select * from close_ticket($1)", ticket)
+    assert closed["status"] == "answered" and closed["closed_by_staff_id"] == st["staff_id"]
+
+
+@pytest.mark.asyncio
+async def test_closed_ticket_rejects_message_and_reticket_makes_new(db_conn):
+    # §8-3. 완료 티켓은 메시지 거부, 재문의는 새 티켓(previous_ticket_id로 연결).
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ticket = await _open_ticket(db_conn, t)
+    st = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, st["auth_user_id"])
+    await db_conn.fetchrow("select * from claim_ticket($1)", ticket)
+    await db_conn.fetchrow("select * from close_ticket($1)", ticket)
+    with pytest.raises(Exception) as exc:
+        await db_conn.fetchrow("select * from staff_send_ticket_message($1, $2, null)", ticket, "추가 답변")
+    assert "종료된 상담" in str(exc.value)
+    new = await db_conn.fetchrow("select * from create_support_ticket($1, null, null, $2)", t, ticket)
+    assert new["id"] != ticket and new["previous_ticket_id"] == ticket and new["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_client_message_id_makes_one_row(db_conn):
+    # §8-4. 같은 client_message_id 재전송은 한 행만(멱등).
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ticket = await _open_ticket(db_conn, t)
+    st = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, st["auth_user_id"])
+    await db_conn.fetchrow("select * from claim_ticket($1)", ticket)
+    cid = uuid.uuid4()
+    m1 = await db_conn.fetchrow("select * from staff_send_ticket_message($1, $2, $3)", ticket, "답변", cid)
+    m2 = await db_conn.fetchrow("select * from staff_send_ticket_message($1, $2, $3)", ticket, "답변", cid)
+    assert m1["id"] == m2["id"]
+    assert await db_conn.fetchval(
+        "select count(*) from chat_messages where client_message_id=$1", cid) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_tickets_latest_first_with_id_tiebreak(db_conn):
+    # PTDET-SUPPORT-03. 같은 created_at이어도 id 내림차순 동점키로 안정 정렬.
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ids = []
+    for _ in range(3):
+        ids.append(await db_conn.fetchval(
+            "insert into support_tickets (thread_id, status, closed_by_staff_id, closed_at, created_at) "
+            "values ($1, 'answered', "
+            "  (select id from staff limit 1), now(), '2026-08-01T09:00:00Z') returning id", t))
+    # seed staff for the closed_by FK above.
+    rows = await db_conn.fetch(
+        "select id from support_tickets where thread_id=$1 order by created_at desc, id desc", t)
+    got = [r["id"] for r in rows]
+    assert got == sorted(ids, reverse=True)
+```
+
+`backend/tests/test_ai_session_service.py`:
+```python
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from tests.conftest import seed_patient
+from tests.conftest_chat import seed_chat_thread
+
+
+@pytest.mark.asyncio
+async def test_expire_batch_and_activity_are_mutually_exclusive(db_conn):
+    # §8-5. 만료 지난 active를 배치가 expired로 만들면, 그 세션의 record_ai_activity는 거부된다.
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    past = datetime.now(timezone.utc) - timedelta(minutes=1)
+    sid = await db_conn.fetchval(
+        "insert into ai_chat_sessions (thread_id, status, expires_at) values ($1, 'active', $2) returning id",
+        t, past)
+    n = await db_conn.fetchval("select expire_idle_ai_sessions()")
+    assert n >= 1
+    assert await db_conn.fetchval("select status from ai_chat_sessions where id=$1", sid) == "expired"
+    with pytest.raises(Exception) as exc:
+        await db_conn.execute("select record_ai_activity($1)", sid)
+    assert "만료" in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_only_one_active_session_via_create(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    await db_conn.fetchrow("select * from create_ai_session($1, null, null, null, null)", t)
+    with pytest.raises(Exception) as exc:
+        await db_conn.fetchrow("select * from create_ai_session($1, null, null, null, null)", t)
+    assert "이미 진행 중인 AI 상담" in str(exc.value)
+```
+
+> ⚠️ **테스트 구현 메모(⑦ 착수 시)**: `test_two_staff_claim_only_one_wins`는 진짜 동시성이 아니라 **같은 트랜잭션에서 직원만 바꿔** 조건부 UPDATE의 승패를 검증한다. 진짜 원자성은 `claim_ticket`의 `where status='pending'` + row lock이 보장한다(두 커넥션 동시 실행도 한 UPDATE만 매칭). `test_list_tickets_latest_first_with_id_tiebreak`는 `closed_by_staff_id` FK 때문에 staff를 먼저 시드해야 한다(스텁의 `select id from staff limit 1`을 실제 시드로 바꿀 것).
+
+- [ ] **Step 7: 테스트 통과 확인** — Run: `cd backend && pytest tests/test_chat_sessions_tickets_schema.py tests/test_ticket_service.py tests/test_ai_session_service.py -v` → Expected: PASS(전체 초록불).
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add supabase/migrations/00037_chat_sessions_tickets.sql \
+        backend/app/services/chat/ticket_service.py backend/app/services/chat/ai_session_service.py \
+        backend/tests/test_chat_sessions_tickets_schema.py backend/tests/test_ticket_service.py \
+        backend/tests/test_ai_session_service.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 2 본문 — AI 세션·티켓 생명주기·원자 배정(claim/send/close 분리) + §8 원자성 1~5 테스트. 이월 SUPPORT-CAL-DUP(대표 티켓)·TICKET-DETAIL-NOTIFY(close→answered)·PTDET-SUPPORT-03(정렬) 담음"
+```
+
+> **Task 2 완료 조건**: 세 표·FK·트리거·원자 primitive·RLS 초록불 · §8-1~5 테스트 통과 · 일반 `[보내기]`가 status를 바꾸지 않고 `[상담 종료]`만 `answered`임 확인 · 완료 티켓 재개 불가·재문의 새 PK 확인. 화면 규칙 0개라 coverage 불변, prefix-check 빚·미배정 0. 이월 3건이 본문에 담겨 HANDOVERS 경고가 줄어듦.
