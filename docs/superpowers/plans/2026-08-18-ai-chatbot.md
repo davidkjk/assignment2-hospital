@@ -2734,3 +2734,288 @@ git commit -m "feat: 📝 상담봇 Task 5 본문 — 오케스트레이션 3갈
 ```
 
 > **Task 5 완료 조건**: 응급(결정적·AI없음)·6조건 감시·라우터(문진 유지)·제한모드(행동형→안내형·응급 항상)·CHAT-LEN 넛지 초록불 · 오케스트레이션 state 칼럼 추가 확인 · RAG/에이전트는 주입식(Task 6·7 채움) 확인. MR2-08 미결 닫힘(요약·기각 하드컷). coverage 불변, prefix-check 빚·미배정 0·⏰0.
+
+## Task 6: 카드·도구 계약 (payload 스키마 · 방문이유 · quick_replies · 예약 중 제한모드)
+
+> **화면 규칙 0개.** 이 태스크는 상담봇이 대화 피드에 보내는 **카드 8종의 서버 계약**을 만든다: 어떤 데이터(payload)를 담고, 앱의 어떤 판단·상태·문구를 **재현**하는지. Task 5 오케스트레이터의 행동형 갈래(`agent_fn`)가 여기서 만든 카드를 방출한다. 화면 규칙(`CCARD-*` 계열)은 Task 12·13이 담으므로 **여기서 완전 ID를 쓰지 않는다**(⏰ 회피) — Task 6은 payload·빌더·생성 규칙이라는 **서버 계약**만.
+>
+> **근거 원본**: 카드 계약 정본 `docs/design/chatbot-card-catalog.md`(8종 상태·버튼 표) · 정본 §2(카드↔규칙 재현 매핑) · 결정로그 R2-1(**채팅 전용 카드 형태** — 넓은 세로+윗꼬리표, 앱 레이아웃 복사 아님)·L816-833(quick_replies)·#8(방문이유)·E4(제한모드).
+>
+> ⭐ **이 태스크의 설계 결정 3건(기각안 포함)**:
+> 1. **카드는 표시 스냅샷이지 실행의 진실이 아니다.** `[예약 신청하기]`는 환자앱 `create_booking`(멱등 `request_id`·서버가 `list_bookable_slots`로 슬롯 재검증·`BOOK-RACE` 409 처리)을 부른다. 카드 payload의 `department_id·doctor_id·slot_id`를 위변조해도 **서버가 다시 검증**한다. *기각: 옛 `chat_booking_cards` 위변조 방지표* — `create_booking`이 이미 서버 재검증하므로 중복(카탈로그 §1 원칙 5·정본 §0 「자체 계산 금지」).
+> 2. **카드 형태는 채팅 전용(R2-1)** — 넓은 세로 + 상단 윗꼬리표 + 강조 테두리로 일반 봇 말풍선과 구분. **앱 전체화면 레이아웃 복사가 아니다.** 앱에서 가져오는 것은 **판단·상태·문구·실행 결과(규칙)** 뿐이다. *기각: 앱 카드 레이아웃 그대로 복사*(R2-1 정면충돌) · *기각: 의료 안내 아이콘·좌측 바 임의 도입*(R2-1 기각안). 픽셀 세부(여백·열 수)는 목업 몫(플랜 미결 아님).
+> 3. **`card_type` 어휘는 서비스 층(빌더)이 강제하고 DB payload는 자유 jsonb 유지**(T1 결정). quick_replies·system은 카드와 payload 모양이 달라 DB에 한 스키마를 못 박으면 셋을 다 담을 수 없다. *기각: payload에 카드별 CHECK* — 유형마다 모양이 달라 제약이 비대해지고 T6 어휘 변경마다 마이그레이션.
+
+**Files:**
+- Create: `backend/app/services/chat/card_builder.py` · `backend/app/services/chat/quick_replies.py` · `backend/app/services/chat/restricted_mode.py`
+- Create: `backend/tests/test_card_builder.py` · `backend/tests/test_quick_replies.py` · `backend/tests/test_restricted_mode.py`
+
+**Interfaces:**
+- Consumes: 환자앱(3단계) `patient_booking_service.create_booking`·`catalog_service.list_bookable_slots`·`appointment_query_service.get_appointment_detail`·문진 상태(진행률·state) — 카드는 **소비만**(자체 계산 금지) · Task 5 `orchestrator`(행동형 `agent_fn`가 빌더 호출) · Task 0 `get_chat_model`(quick_replies 대화중 생성, 모킹)
+- Produces (뒤 태스크가 소비할 이름):
+  - `card_builder.CARD_TYPES`(8종: `time_select`·`booking_confirm`·`booking_done`·`cancel_confirm`·`cancel_done`·`cancel_reject`·`questionnaire`·`quick_replies`) · payload 스키마(각 카드가 담는 key) · 빌더 `build_time_select_card`·`build_booking_confirm_card`·`build_booking_done_card`·`build_cancel_confirm_card`·`build_questionnaire_card`(패턴 동일한 나머지 포함) · `validate_card_payload(payload) -> None`
+  - `card_builder.collect_visit_reason(text) -> str`(방문이유 ≤100자 선택입력, 문진 첫 문항 초기값 — #8·`BOOK-WHY` 재현) · `BOOKING_CONFIRM_BUTTON = "예약 신청하기"`(설정과 무관 고정)
+  - `quick_replies.START_WITH_UPCOMING`·`START_NO_UPCOMING`(고정 4개씩) · `build_start_quick_replies(has_upcoming) -> list[str]`(AI 없음) · `generate_conversational(last_question, model=None) -> list[str]`(AI 3~4개, 진단·처방 금지, 성공 때만)
+  - `restricted_mode.ALLOWED_CARD_TYPES_RESTRICTED`(공집합 — 행동형 카드 전부 금지) · `assert_card_allowed(card_type, restricted)` · `CONTINUE_TO_DEPARTMENT_LABEL`(`"○○과로 계속하기"` 형식 — 유일 행동 출구)
+- ⚠️ **아직 안 하는 것**: 카드 **화면 렌더·완전 규칙**(`CCARD-*` 계열)=Task 12·13 · 제한모드 시트 UI(`DeptBotSheet`)=환자앱 T20이 이 엔진 주입 · 실제 예약 실행=환자앱 `create_booking`(카드는 호출만).
+
+- [ ] **Step 1: 실패하는 카드 빌더 테스트 작성**
+
+`backend/tests/test_card_builder.py`:
+```python
+import pytest
+
+from app.services.chat import card_builder as cb
+
+
+def test_booking_confirm_button_is_fixed_regardless_of_settings():
+    # 버튼 문구는 auto_confirm 설정과 무관하게 "예약 신청하기"로 통일(카탈로그 §2 상태1).
+    assert cb.BOOKING_CONFIRM_BUTTON == "예약 신청하기"
+
+
+def test_booking_confirm_card_shows_relation_and_optional_reason():
+    card = cb.build_booking_confirm_card(
+        for_patient_id="p1", patient_name="김OO", relation="어머니",
+        department_name="내과", doctor_name="이의사", slot_at="2026-08-20T14:00:00+09:00",
+        visit_reason="두통")
+    assert card["card_type"] == "booking_confirm"
+    assert card["relation"] == "어머니" and card["visit_reason"] == "두통"
+    assert card["button"] == "예약 신청하기"
+
+
+def test_booking_confirm_does_not_invent_empty_reason():
+    # 방문이유가 비면 없는 값을 만들어 채우지 않는다(카탈로그 §2 정합성).
+    card = cb.build_booking_confirm_card(
+        for_patient_id="p1", patient_name="김OO", relation=None,
+        department_name="내과", doctor_name="이의사", slot_at="2026-08-20T14:00:00+09:00",
+        visit_reason=None)
+    assert card["visit_reason"] is None
+
+
+def test_visit_reason_capped_at_100_chars():
+    # BOOK-WHY: 최대 100자 선택 입력(#8).
+    assert len(cb.collect_visit_reason("가" * 200)) == 100
+    assert cb.collect_visit_reason("   ") == ""   # 공백만이면 빈 값(선택 입력)
+
+
+def test_booking_done_distinguishes_apply_vs_confirm():
+    applied = cb.build_booking_done_card(status="예약신청", number="A-123")
+    confirmed = cb.build_booking_done_card(status="예약확정", number="R-777")
+    assert applied["number_label"] == "신청번호" and confirmed["number_label"] == "예약번호"
+    assert applied["headline"] != confirmed["headline"]
+
+
+def test_booking_done_zero_questionnaire_has_no_button():
+    # 0문항이면 [사전문진 작성하기] 버튼·(0/0)·독립 문진 카드를 만들지 않는다(카탈로그 §3 상태4).
+    card = cb.build_booking_done_card(status="예약확정", number="R-1", question_count=0)
+    assert card["questionnaire_button"] is None
+    assert card["questionnaire_note"] == "작성할 문진이 없습니다"
+
+
+def test_questionnaire_card_uses_server_progress_not_recomputed():
+    # 진행률은 서버 계산값을 그대로 담는다(자체 계산 금지, QNR-PROG 재현).
+    card = cb.build_questionnaire_card(state="작성중", answered=3, total=8)
+    assert card["answered"] == 3 and card["total"] == 8 and card["state"] == "작성중"
+
+
+def test_validate_rejects_unknown_card_type():
+    with pytest.raises(ValueError):
+        cb.validate_card_payload({"card_type": "made_up"})
+```
+
+- [ ] **Step 2: 테스트 실패 확인** — Run: `cd backend && pytest tests/test_card_builder.py -v` → Expected: FAIL(`No module named ...card_builder`).
+
+- [ ] **Step 3: 카드 빌더 구현**
+
+`backend/app/services/chat/card_builder.py`:
+```python
+# 상담봇 채팅 카드의 서버 계약. 카드는 앱의 판단·상태·문구를 재현하는 표시 스냅샷이며 실행의 진실이 아니다.
+# (실제 예약은 [예약 신청하기] → 환자앱 create_booking. 카드 payload를 위변조해도 서버가 재검증.)
+CARD_TYPES = {
+    "time_select", "booking_confirm", "booking_done",
+    "cancel_confirm", "cancel_done", "cancel_reject",
+    "questionnaire", "quick_replies",
+}
+
+BOOKING_CONFIRM_BUTTON = "예약 신청하기"     # auto_confirm 설정과 무관하게 고정(카탈로그 §2)
+VISIT_REASON_MAX = 100                        # BOOK-WHY: 최대 100자 선택 입력(#8)
+
+
+def collect_visit_reason(text: str | None) -> str:
+    if not text or not text.strip():
+        return ""                             # 선택 입력 — 비면 빈 값(없는 값 만들지 않음)
+    return text.strip()[:VISIT_REASON_MAX]
+
+
+def build_booking_confirm_card(*, for_patient_id, patient_name, relation,
+                               department_name, doctor_name, slot_at, visit_reason) -> dict:
+    # 여섯 항목 한 묶음 재확인(대상·과·의사·일시·방문이유·장소). 방문이유 비면 그대로 None.
+    return {
+        "card_type": "booking_confirm",
+        "for_patient_id": for_patient_id, "patient_name": patient_name, "relation": relation,
+        "department_name": department_name, "doctor_name": doctor_name, "slot_at": slot_at,
+        "visit_reason": (visit_reason or None),
+        "button": BOOKING_CONFIRM_BUTTON, "state": "정상",
+    }
+
+
+def build_time_select_card(*, candidates: list[dict], state: str = "정상") -> dict:
+    # candidates는 환자앱 list_bookable_slots 결과(당일 지난 시각·마감·30분 이내 제외는 서버가 판정).
+    # 0개면 state="빈" + reason + [다른 날짜 고르기](카탈로그 §1 상태2). 카드가 "가능"을 자체 확정하지 않는다.
+    return {"card_type": "time_select", "candidates": candidates, "state": state}
+
+
+def build_booking_done_card(*, status: str, number: str, question_count: int | None = None) -> dict:
+    is_applied = status == "예약신청"
+    card = {
+        "card_type": "booking_done",
+        "headline": "예약이 신청되었습니다" if is_applied else "예약이 확정되었습니다",
+        "number_label": "신청번호" if is_applied else "예약번호",
+        "number": number,
+        "questionnaire_button": None, "questionnaire_note": None,
+    }
+    if question_count == 0:
+        card["questionnaire_note"] = "작성할 문진이 없습니다"     # 0문항: 버튼·(0/0) 없음(카탈로그 §3 상태4)
+    elif question_count is None or question_count >= 1:
+        card["questionnaire_button"] = "사전문진 작성하기"
+    return card
+
+
+def build_cancel_confirm_card(*, appointment_id, target_summary) -> dict:
+    # 마감 전/30분 이내만. 사유 입력·"취소" 타이핑 요구 없음. [아니요]/[취소합니다](카탈로그 §4).
+    return {"card_type": "cancel_confirm", "appointment_id": appointment_id,
+            "target_summary": target_summary, "buttons": ["아니요", "취소합니다"], "state": "정상"}
+
+
+def build_questionnaire_card(*, state: str, answered: int, total: int,
+                             appointment_id=None) -> dict:
+    # 상태·서버 진행률·진입만. 문항을 대화문으로 나열하지 않는다(카탈로그 §7). 진행률은 서버값 그대로.
+    return {"card_type": "questionnaire", "appointment_id": appointment_id,
+            "state": state, "answered": answered, "total": total}
+
+
+def validate_card_payload(payload: dict) -> None:
+    ct = payload.get("card_type")
+    if ct not in CARD_TYPES:
+        raise ValueError(f"알 수 없는 카드 종류입니다: {ct}")
+```
+
+> 나머지 빌더(`build_cancel_done_card`·`build_cancel_reject_card`)는 위와 같은 패턴이다 — 카탈로그 §5·§6의 상태·버튼을 payload key로 옮긴다: 취소결과=`{card_type:'cancel_done', cancelled_by, relation, name, at, button:'새로 예약하기'}`, 취소반려=`{card_type:'cancel_reject', reject_reason, buttons:['확인','다시 문의하기']}`. 구현 시 카탈로그 §5·§6 표를 그대로 따른다.
+
+- [ ] **Step 4: quick_replies + 제한모드 구현·테스트**
+
+`backend/app/services/chat/quick_replies.py`:
+```python
+# 빠른답변: 누르면 그 문장이 "환자가 보낸 말풍선"으로 저장된다(제어 신호 아님). 자유 입력은 항상 열림.
+from langchain_core.prompts import ChatPromptTemplate
+
+from app.integrations.langchain_client import get_chat_model
+
+# 시작 묶음은 AI를 부르지 않는다 — 앱이 다가오는 예약 유무로 고정 4개를 고른다(결정로그 L820-825).
+START_WITH_UPCOMING = ["내 예약 확인해줘", "예약을 바꾸고 싶어요", "진료 전에 준비할 게 있나요", "주차할 수 있나요"]
+START_NO_UPCOMING = ["진료시간이 어떻게 되나요", "어느 과에 가야 할지 모르겠어요", "예약하려면 어떻게 하나요", "주차할 수 있나요"]
+
+
+def build_start_quick_replies(has_upcoming: bool) -> list[str]:
+    return START_WITH_UPCOMING if has_upcoming else START_NO_UPCOMING
+
+
+async def generate_conversational(last_question: str, model=None) -> list[str]:
+    # 대화 중 묶음: AI가 3~4개 생성. 진단·처방 유도 금지. 실패·로딩 표시 없음 — 성공 때만 반환.
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "환자가 이어서 물어볼 만한 짧은 질문 3~4개를 줄바꿈으로만 제안하세요. "
+                   "진단·처방을 유도하거나 환자가 병명을 단정한 듯한 문장은 만들지 마세요."),
+        ("human", "직전 봇 답변: {q}"),
+    ])
+    try:
+        resp = await (prompt | (model or get_chat_model())).ainvoke({"q": last_question})
+    except Exception:
+        return []                            # 실패는 상담 전체 오류로 확대하지 않는다(자유 입력 유지)
+    lines = [l.strip() for l in getattr(resp, "content", "").splitlines() if l.strip()]
+    return lines[:4]
+```
+
+`backend/app/services/chat/restricted_mode.py`:
+```python
+# 예약 중 상담(제한모드, E4): 정보성 안내·진료과 추천만. 행동형 카드 전부 금지, 유일 출구는 "○○과로 계속하기".
+# Task 5 orchestrator(restricted=True)와 짝. 앱 DeptBotSheet(환자앱 T20)가 이 엔진을 주입한다.
+from app.core.errors import AppError
+
+ALLOWED_CARD_TYPES_RESTRICTED: set[str] = set()   # 시간선택·예약확인·예약완료·취소·문진 카드 전부 금지(카탈로그 §8)
+
+
+def continue_to_department_label(department_name: str) -> str:
+    return f"{department_name}로 계속하기"           # 유일한 행동 출구 — 마법사에 과를 돌려준다
+
+
+def assert_card_allowed(card_type: str, restricted: bool) -> None:
+    if restricted and card_type not in ALLOWED_CARD_TYPES_RESTRICTED:
+        raise AppError("예약 중 상담에서는 이 카드를 보낼 수 없습니다.", 409)
+```
+
+`backend/tests/test_quick_replies.py`:
+```python
+import pytest
+
+from app.services.chat import quick_replies as qr
+
+
+def test_start_bundles_are_fixed_and_ai_free():
+    assert qr.build_start_quick_replies(True) == qr.START_WITH_UPCOMING
+    assert qr.build_start_quick_replies(False) == qr.START_NO_UPCOMING
+    assert "주차할 수 있나요" in qr.build_start_quick_replies(True)
+
+
+@pytest.mark.asyncio
+async def test_conversational_returns_up_to_4_on_success():
+    class M:
+        async def ainvoke(self, _):
+            class R: content = "질문1\n질문2\n질문3\n질문4\n질문5"
+            return R()
+    out = await qr.generate_conversational("주차는 지하 1층입니다", model=M())
+    assert out == ["질문1", "질문2", "질문3", "질문4"]   # 3~4개 제한
+
+
+@pytest.mark.asyncio
+async def test_conversational_failure_is_silent():
+    class Boom:
+        async def ainvoke(self, _):
+            raise RuntimeError("llm down")
+    assert await qr.generate_conversational("x", model=Boom()) == []   # 빈 목록, 상담 오류로 확대 안 함
+```
+
+`backend/tests/test_restricted_mode.py`:
+```python
+import pytest
+
+from app.core.errors import AppError
+from app.services.chat import restricted_mode as rm
+
+
+def test_restricted_blocks_all_action_cards():
+    for ct in ["time_select", "booking_confirm", "booking_done", "cancel_confirm", "questionnaire"]:
+        with pytest.raises(AppError):
+            rm.assert_card_allowed(ct, restricted=True)
+
+
+def test_unrestricted_allows_cards():
+    rm.assert_card_allowed("booking_confirm", restricted=False)   # 예외 없음
+
+
+def test_continue_label():
+    assert rm.continue_to_department_label("내과") == "내과로 계속하기"
+```
+
+- [ ] **Step 5: 테스트 통과 확인** — Run: `cd backend && pytest tests/test_card_builder.py tests/test_quick_replies.py tests/test_restricted_mode.py -v` → Expected: PASS(전체 초록불).
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add backend/app/services/chat/card_builder.py backend/app/services/chat/quick_replies.py \
+        backend/app/services/chat/restricted_mode.py backend/tests/test_card_builder.py \
+        backend/tests/test_quick_replies.py backend/tests/test_restricted_mode.py \
+        docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 6 본문 — 카드 8종 payload 계약·방문이유(#8)·quick_replies(#20)·예약 중 제한모드(E4). 카드=표시 스냅샷(실행은 create_booking 재검증), 채팅 전용 형태(R2-1), 위변조방지표 기각"
+```
+
+> **Task 6 완료 조건**: 카드 빌더(8종 payload·방문이유 100자·0문항 버튼없음·서버 진행률 소비)·quick_replies(고정 4개·대화중 3~4개·실패 무음)·제한모드(행동형 카드 전부 금지·유일 출구 ○○과로 계속하기) 초록불 · `create_booking`이 실행 주체임(카드는 호출만) 확인. coverage 불변, prefix-check 빚·미배정 0·⏰0(`CCARD-*` 완전 ID 미사용).
