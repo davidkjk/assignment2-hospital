@@ -3696,3 +3696,229 @@ git commit -m "feat: 📝 상담봇 Task 8 본문 — 품질 검토(상담 단�
 ```
 
 > **Task 8 완료 조건**: 상담 단위 검토(문제없음 저장·미검토 우선 정렬)·오답 신고 bad inbox(source 2종)·적용→예시은행+KB 승인 경유·미해결 임베딩 저장 초록불 · 「문제없음」과 「아직 안 봄」 구분 확인 · 즉시 KB 라이브 금지 확인. 품질 저장 모델 미결 닫힘(SD-08). coverage 불변, prefix-check 빚·미배정 0·⏰0.
+
+## Task 9: 상담봇 라우터 연결 + 메시지 파이프라인 + §8 통합 테스트
+
+> **화면 규칙 0개.** 백엔드 계약의 **마지막 태스크** — Task 1~8 서비스를 HTTP 엔드포인트(환자·익명·직원·관리자)로 묶고, **메시지 처리 파이프라인**(환자 메시지 저장 → `record_ai_activity` → `orchestrate` → 인계면 티켓·시스템 메시지·미해결 기록 / 답변이면 봇 메시지·근거 스냅샷 → 직원 답변이면 배칭)을 조립한다. 그리고 **3-A 원자성 수용 조건 12개(§8)를 통합 테스트 목록**으로 확인한다(단위는 T2·T3, 여기서 라우터·파이프라인을 통과해도 유지되는지).
+>
+> **근거 원본**: 3A §8(원자성 12)·§9(완료 기준) · 옛 플랜 `docs/superpowers/plans/2026-07-27-ai-chatbot.md:56-58`(라우터 3종) · 1단계 라우터 패턴 `backend/app/routers/appointments.py`(`APIRouter`·`Depends(require_role)`·Pydantic).
+>
+> ⭐ **설계 결정(기각안 포함)**: **메시지 파이프라인은 서버 한 곳(`chat_flow_service.handle_patient_message`)에 조립하고, 라우터는 얇게 둔다.** LLM·임베더는 여기서 `get_chat_model()`·`get_embedding_client()`로 주입(테스트는 모킹). *기각: 라우터마다 오케스트레이션 조립* — 환자·익명·마감후연결이 파이프라인을 각자 복제해 어긋난다.
+
+**Files:**
+- Create: `backend/app/routers/chat.py`(환자·익명) · `backend/app/routers/staff_chat.py`(직원) · `backend/app/routers/admin_chat.py`(관리자)
+- Create: `backend/app/services/chat/chat_flow_service.py`(파이프라인 조립)
+- Modify: `backend/app/main.py`(라우터 3개 include)
+- Create: `backend/tests/test_chat_integration.py`(§8 1~12 추적)
+
+**Interfaces:**
+- Consumes: Task 1~8 전부 — `ticket_service`·`ai_session_service`·`orchestrator`·`card_builder`·`rag_service`·`quality_service`·`answer_feedback_service`·`kb_service`·`enqueue_staff_reply_notification`·`create_support_ticket`·`anonymous_service` · `get_chat_model`·`get_embedding_client` · 1단계 `require_role`·`get_current_staff` · 3단계 환자 인증 의존성(`get_current_patient` 전제)
+- Produces:
+  - `chat_flow_service.handle_patient_message(session, content, *, client_message_id, embedder, model) -> dict`(파이프라인 — orchestrate 결과를 메시지·티켓·근거·미해결로 반영)
+  - 라우터: `POST /chat/messages`·`POST /chat/sessions`(새/이어가기)·`POST /chat/read`(배치 확인)·`GET /chat/threads/{id}/messages` · `GET /staff/chat/tickets`·`POST /staff/chat/tickets/{id}/claim|messages|close` · `POST /admin/chat/kb`·`.../kb/{id}/approve`·`.../feedback/{id}/apply|reject`·`GET /admin/chat/quality`
+  - 익명 의존성 `get_anonymous_session`(헤더 `X-Anon-Token` → `anonymous_service.upsert_session`)
+- ⚠️ **아직 안 하는 것**: 화면(앱·웹·직원·관리자)=Task 10~22 · 실제 SMS/push 발송=dispatcher(배포) · 배포 배치.
+
+- [ ] **Step 1: 파이프라인 서비스 작성**
+
+`backend/app/services/chat/chat_flow_service.py`:
+```python
+from uuid import UUID
+
+from app.db.pool import get_pool
+from app.services.chat import orchestrator, rag_service, quality_service, ticket_service
+from app.services.chat.ai_session_service import record_activity
+
+
+async def handle_patient_message(session, content: str, *, thread_id: UUID,
+                                 client_message_id: UUID | None, embedder, model) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # 1. 환자 메시지 저장(멱등). AI 세션 문맥.
+        pmsg = await conn.fetchrow(
+            "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, sender_patient_id, "
+            "message_type, content, client_message_id) "
+            "select $1,$2,'patient', t.patient_id, 'text', $3, $4 from chat_threads t where t.id=$1 "
+            "on conflict (client_message_id) where client_message_id is not null do nothing returning *",
+            thread_id, session.id, content, client_message_id)
+        # 2. 30분 연장(만료됐으면 record_activity가 막는다 → 상위에서 새 세션 안내).
+        await conn.execute("select record_ai_activity($1)", session.id)
+        # 3. 최근 히스토리(롤링 윈도우).
+        hist = await conn.fetch(
+            "select content from chat_messages where thread_id=$1 and content is not null "
+            "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW)
+    history_texts = [h["content"] for h in reversed(hist)]
+
+    async def rag_fn(s, m):
+        return await rag_service.rag_answer(m, embedder=embedder, model=model)
+
+    out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
+                                         rag_fn=rag_fn, model=model)
+    async with pool.acquire() as conn:
+        if out["route_taken"] == "handoff":
+            # AI 세션 종료 + 티켓 생성 + 시스템 메시지. no_answer면 미해결 기록.
+            await conn.execute(
+                "update ai_chat_sessions set status='ended', ended_at=now(), end_reason='staff_handoff' where id=$1",
+                session.id)
+            ticket = await conn.fetchrow(
+                "select * from create_support_ticket($1, $2, null, null)", thread_id, session.id)
+            await conn.execute(
+                "insert into chat_messages (thread_id, support_ticket_id, sender_type, message_type, payload) "
+                "values ($1,$2,'system','system', $3)", thread_id, ticket["id"],
+                '{"event":"staff_handoff","reason":"' + out["handoff_reason"] + '"}')
+            if out["handoff_reason"] == "no_answer":
+                await quality_service.record_unresolved(ticket["id"], content, embedder)
+            return {"route_taken": "handoff", "ticket_id": ticket["id"], "reason": out["handoff_reason"]}
+        # 봇 답변(응급·rag·department_guide). route_taken 기록 + 근거 스냅샷.
+        bmsg = await conn.fetchrow(
+            "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken) "
+            "values ($1,$2,'bot','text',$3,$4) returning id", thread_id, session.id,
+            out.get("reply") or "", out["route_taken"])
+    if out.get("sources"):
+        await rag_service.record_answer_sources(bmsg["id"], out["sources"])
+    return {"route_taken": out["route_taken"], "message_id": bmsg["id"],
+            "reply": out.get("reply"), "restricted_block": out.get("restricted_block")}
+```
+
+- [ ] **Step 2: 라우터 작성(얇게)**
+
+`backend/app/routers/chat.py`(발췌 — 환자 메시지 전송):
+```python
+from uuid import UUID
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.core.security import get_current_patient   # 3단계 환자 인증
+from app.integrations.embedding_client import get_embedding_client
+from app.integrations.langchain_client import get_chat_model
+from app.services.chat import chat_flow_service, ai_session_service
+
+router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+class SendMessageRequest(BaseModel):
+    thread_id: UUID
+    ai_chat_session_id: UUID
+    content: str
+    client_message_id: UUID | None = None
+
+
+@router.post("/messages")
+async def send_message(body: SendMessageRequest, patient=Depends(get_current_patient)):
+    # session 로드는 서비스가 소유권과 함께 검증한다. 여기선 얇게 위임.
+    session = await ai_session_service.load_owned_session(patient, body.ai_chat_session_id, body.thread_id)
+    return await chat_flow_service.handle_patient_message(
+        session, body.content, thread_id=body.thread_id, client_message_id=body.client_message_id,
+        embedder=get_embedding_client(), model=get_chat_model())
+```
+
+`backend/app/routers/staff_chat.py`(발췌 — 티켓 큐·배정·답변·종료):
+```python
+from uuid import UUID
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from app.core.security import get_current_staff, StaffContext
+from app.services.chat import ticket_service
+from app.services.chat.enqueue import enqueue_after_reply   # staff_send 후 배칭 호출 래퍼
+
+router = APIRouter(prefix="/staff/chat", tags=["staff-chat"])
+
+
+@router.post("/tickets/{ticket_id}/claim")
+async def claim(ticket_id: UUID, staff: StaffContext = Depends(get_current_staff)):
+    return await ticket_service.claim_ticket(staff.auth_user_id, ticket_id)   # 경쟁 패자=409
+
+
+class ReplyRequest(BaseModel):
+    content: str
+    client_message_id: UUID | None = None
+
+
+@router.post("/tickets/{ticket_id}/messages")
+async def reply(ticket_id: UUID, body: ReplyRequest, staff: StaffContext = Depends(get_current_staff)):
+    msg = await ticket_service.staff_send_message(staff.auth_user_id, ticket_id, body.content, body.client_message_id)
+    await enqueue_after_reply(msg["id"])   # 보고 있으면 즉시읽음, 아니면 배치(§8-6~8)
+    return msg
+
+
+@router.post("/tickets/{ticket_id}/close")
+async def close(ticket_id: UUID, staff: StaffContext = Depends(get_current_staff)):
+    return await ticket_service.close_ticket(staff.auth_user_id, ticket_id)   # answered=이때만
+```
+
+> 관리자 `admin_chat.py`는 같은 패턴으로 `kb_service`·`answer_feedback_service`·`quality_service`를 `Depends(require_role("admin"))` 뒤에 위임한다(KB 승인·bad inbox 적용/반려·품질 목록). `main.py`에 세 라우터 `include_router`.
+
+- [ ] **Step 3: §8 원자성 12개 통합 테스트 (추적 목록)**
+
+> ⭐ **§8 12개 = 상담봇 스키마 단계의 완료 기준.** 대부분 T2·T3에서 단위로 검증했고, 여기서는 **라우터·파이프라인을 통과해도 유지되는지**를 통합으로 확인한다. 아래 추적표의 각 항목이 초록불이어야 Task 9가 닫힌다.
+
+`backend/tests/test_chat_integration.py`(핵심 통합 3건 + 나머지 추적):
+```python
+import uuid
+import pytest
+
+from app.services.chat import chat_flow_service
+from tests.conftest import seed_patient, seed_staff
+from tests.conftest_chat import seed_chat_thread, FakeEmbedder
+
+
+class _RagModel:
+    async def ainvoke(self, _):
+        class R: content = "rag"      # 라우터가 rag로 분류
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_no_answer_message_creates_handoff_ticket_and_unresolved(committed_conn):
+    # §8 파이프라인: 봇이 못 답하면(빈 KB → no_answer) 티켓 생성 + 미해결 기록 + AI 세션 staff_handoff 종료.
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    s = await committed_conn.fetchrow(
+        "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()+interval '30 min') returning *", t)
+    out = await chat_flow_service.handle_patient_message(
+        s, "우리 동네 약국 어디", thread_id=t, client_message_id=uuid.uuid4(),
+        embedder=FakeEmbedder(), model=_RagModel())
+    assert out["route_taken"] == "handoff" and out["reason"] == "no_answer"
+    tk = await committed_conn.fetchrow("select status from support_tickets where id=$1", out["ticket_id"])
+    assert tk["status"] == "pending"
+    assert await committed_conn.fetchval(
+        "select count(*) from unresolved_questions where ticket_id=$1", out["ticket_id"]) == 1
+    assert await committed_conn.fetchval(
+        "select status from ai_chat_sessions where id=$1", s["id"]) == "ended"
+    # cleanup
+    await committed_conn.execute("delete from unresolved_questions where ticket_id=$1", out["ticket_id"])
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", t)
+    await committed_conn.execute("delete from support_tickets where id=$1", out["ticket_id"])
+    await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
+
+
+# 나머지 §8 추적: 아래는 단위 테스트가 이미 보증한다. 통합에서 재확인할 항목만 여기에 둔다.
+#  §8-1 두 직원 claim 한 명 승 ......... test_ticket_service.test_two_staff_claim_only_one_wins
+#  §8-2 send 유지·close만 answered ...... test_ticket_service.test_send_keeps_in_progress_only_close_answers
+#  §8-3 완료 티켓 재개불가·재문의 새 PK .. test_ticket_service.test_closed_ticket_rejects_message_and_reticket_makes_new
+#  §8-4 동일 client_message_id 한 행 ..... test_ticket_service.test_duplicate_client_message_id_makes_one_row
+#  §8-5 만료 배치↔활동 상호배제 ......... test_ai_session_service.test_expire_batch_and_activity_are_mutually_exclusive
+#  §8-6 연속 답변 한 배치 ............... test_chat_notification_batching.test_consecutive_replies_make_one_batch
+#  §8-7 확인 후 새 배치 ................. test_chat_notification_batching.test_ack_then_new_reply_makes_new_batch
+#  §8-8 보고 있으면 배치 없음 ........... test_chat_notification_batching.test_viewing_makes_no_batch_and_marks_read
+#  §8-9 익명 해시=환자여도 미연결 ....... test_chat_notification_batching.test_anonymous_hash_matching_patient_does_not_link
+#  §8-11 익명도 SMS 대상·patient_id null . test_chat_notification_batching.test_anonymous_verified_contact_gets_batch_with_null_patient
+#  §8-12 두 경로 같은 파이프라인 ........ (위 6·11이 함께 보증) + notification_recipient.resolve_recipient
+#  §8-10 Realtime 재연결 커서 복원 ...... 구현 시 통합(커서 조회는 chat_messages(thread_id, created_at, id) 인덱스)
+```
+
+- [ ] **Step 4: 테스트 통과 확인** — Run: `cd backend && pytest tests/test_chat_integration.py -v` → Expected: PASS. (§8 나머지는 위 추적 파일들 실행 시 초록불.)
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add backend/app/routers/chat.py backend/app/routers/staff_chat.py backend/app/routers/admin_chat.py \
+        backend/app/services/chat/chat_flow_service.py backend/app/main.py \
+        backend/tests/test_chat_integration.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 9 본문 — 라우터 3종(환자·익명/직원/관리자) + 메시지 파이프라인 조립 + §8 원자성 12개 통합 추적. 백엔드 계약(0~9) 완결"
+```
+
+> **Task 9 완료 조건**: 파이프라인(메시지 저장→활동연장→orchestrate→인계 티켓/미해결·봇 답변/근거)·라우터 3종·§8 통합(no_answer→티켓+미해결+세션종료) 초록불 · §8 12개 추적표가 전부 초록불(단위+통합) 확인. ⭐ **백엔드 계약(Task 0~9) 완결 — 3-A §9 완료 기준 충족.** coverage 불변, prefix-check 빚·미배정 0·⏰0.
