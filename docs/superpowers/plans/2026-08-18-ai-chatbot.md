@@ -5001,3 +5001,568 @@ git commit -m "feat: 📝 상담봇 Task 10 본문 — 앱 상담방 셸(탭·�
 ```
 
 > **Task 10 완료 조건**: `CHAT-TAB`3·`CHAT-ROOM` 기본/SEND 14·`CHAT-GUIDE`4·`CHAT-HISTORY`8 = **29규칙 전수** 초록불. ⭐ **셸이 남긴 슬롯**: `ChatFeed.cardBuilder`(T12·T13 카드) · `ChatFeed.liveSlotBuilder`·`ChatGuideBanner.onUrgent`·`ChatRoomView.onFeedback`(T11 라이브/인계·긴급) · `ChatInputBar.quickRepliesSlot`(T12 빠른답변). **다음 = Task 11**(라이브·인계·종료·재문의·긴급·장애 — `CHAT-ROOM-LIVE 계열`·`CHAT-HANDOFF`·`CHAT-URGENT`·`CHAT-OUTAGE`, 이 셸의 슬롯을 채운다). ⚠️ `CHAT-LEN-01`은 Task 5가 이미 담았다(오케스트레이션 넛지) — Task 10 재담당 금지.
+
+---
+
+## Task 11: 앱 라이브·인계·종료·재문의·AI 만료·긴급·장애 — 셸 슬롯 채우기
+
+> **Task 10 셸의 슬롯을 채운다.** 직원 라이브 대화(같은 피드)·인계 상태 배지·직원 종료 후 분기·재문의·AI 30분 만료/재열기·긴급 안내 전환·AI 장애 화면. **여기서 확인 필요 2건을 닫는다**(`CHAT-ROOM-LIVE-STAFF-01` 원자 배정 화면 표현 · `CHAT-OUTAGE-RECOVER-01` 장애 복구 전환).
+>
+> **근거 원본**: behaviors 상담봇 §2(라이브 `CHAT-ROOM-LIVE/END/RETICKET/AI`)·§12(`CHAT-HANDOFF`)·§18(`CHAT-OUTAGE`)·§19(`CHAT-URGENT`) · 정본 §0(값 조작 금지·안전 항상) · 결정로그 **R2-3A**(같은 피드·라이브 상태·30분 만료·요약 이어가기)·역대조 결정 1(긴급 EXC B안) · 요구사항 **5.3 진료과 선택 도움**(긴급 예외)·**5.5 모르는 질문과 직원 연결**.
+>
+> ⭐ **확인 필요 2건 확정(기각안 포함)**:
+> - **`CHAT-ROOM-LIVE-STAFF-01`(원자 배정·이관의 세부 화면 표현)** → **A안 확정**: 앱은 **서버가 확정한 현재 담당자만**(이름+역할) 상태 배지 옆에 표시한다. 배정 경쟁(누가 먼저 claim했나)·이관 이력·"이관 중" 중간 상태는 그리지 않는다 — Task 2 `claim_ticket` 원자 승패가 승자를 확정하고 앱은 **정착된 결과만** 렌더한다. 재배정 시 서버 확정 새 담당자로 이름을 **교체**(중간 깜빡임 없음). *기각 ①*: 배정 경쟁/이관 진행을 애니메이션으로 노출 — 미확정 상태 노출(정본 §0 위반). *기각 ②*: 담당자 미표시 — 요구사항 담당 직원 안내 누락.
+> - **`CHAT-OUTAGE-RECOVER-01`(장애 복구 자동 전환 시점)** → **확정**: 앱은 **배경 폴링으로 복구를 자동 감지하지 않고**, 실패 메시지를 자동 재전송하지 않는다(규칙이 금지). 복구는 **다음 성공 요청으로 확인**한다 — 장애 배너 아래 입력·`[다시 시도]`는 열려 있고, 사용자가 보내거나 다시 시도해 서버가 정상 응답하면 **그 왕복 성공 시점에** 배너가 걷히고 정상 입력으로 돌아온다. *기각 ①*: 배경 헬스 폴링 자동 전환 — 배너 깜빡임·미확정 상태 위장(정본 §0). *기각 ②*: 자동 재전송 — 규칙 명시 금지.
+
+**Files:**
+- Modify: `patient_app/lib/features/chat/chat_models.dart` (T10) — `HandoffPhase`·`HandoffStatus`·`AiSessionPhase` 추가
+- Modify: `patient_app/lib/features/chat/chat_repository.dart` (T10) — `streamThread`(Realtime)·`fetchHandoffStatus`·`createInquiry`·`resumeWithSummary`·`startFreshSession`·`reticket`
+- Modify: `patient_app/lib/features/chat/chat_room_controller.dart` (T10) — 라이브/인계/만료 상태 확장
+- Modify: `patient_app/lib/features/chat/chat_room_view.dart` (T10) — `liveSlotBuilder`·`onUrgent`·장애 상태 배선
+- Create: `patient_app/lib/features/chat/widgets/chat_handoff_badge.dart` (`ChatHandoffBadge` — STATE/HOURS/LOAD/ERR)
+- Create: `patient_app/lib/features/chat/widgets/chat_live_row.dart` (`ChatLiveRow`·`ChatTypingRow`·`ChatConnBanner` — liveSlotBuilder 내용)
+- Create: `patient_app/lib/features/chat/widgets/chat_end_boundary.dart` (`ChatEndBoundary` — END 경계 + 분기 버튼)
+- Create: `patient_app/lib/features/chat/chat_urgent_view.dart` (`ChatUrgentView` — 긴급 안내 상태)
+- Create: `patient_app/lib/features/chat/chat_outage_view.dart` (`ChatOutageView` — AI 장애 화면)
+- Modify: `docs/design/screen-behaviors.md` — `CHAT-ROOM-LIVE-STAFF-01`·`CHAT-OUTAGE-RECOVER-01` 확인 필요 → 확정 문구(역참조)
+- Test: `patient_app/test/features/chat/chat_live_test.dart` · `chat_handoff_badge_test.dart` · `chat_end_boundary_test.dart` · `chat_expire_test.dart` · `chat_urgent_view_test.dart` · `chat_outage_view_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **Task 10**: `ChatRoomController`·`chatRoomProvider(threadId)` · `ChatFeed.liveSlotBuilder`·`ChatRoomView.onFeedback` · `ChatGuideBanner.onUrgent` · `ChatFeedItem`(`messageType=='system'`) · `ChatRepository`.
+  - **백엔드(Task 2·5·9)**: 티켓 생명주기 `pending→in_progress→answered`(Task 2 → 인계 배지) · `claim_ticket` 원자 승패(담당자 확정) · `staff_send_ticket_message`(라이브 직원 말풍선, 같은 thread) · `ai_chat_sessions` 30분 만료 `expire_idle_ai_sessions`·`record_ai_activity`(Task 2) · 이어가기 요약(Task 5 orchestration) · `previous_ticket_id` 재문의(Task 2) · `create_support_ticket`(장애 문의·Task 2/9) · `route_taken=='emergency'`(Task 5 응급 필터 → 긴급 화면) · `is_open(at)` 단일 서버 판정(예약·상담 공유, 1단계/직원웹).
+  - **Realtime**: Supabase Realtime `chat_messages` insert 구독(직원 말풍선·타이핑·시스템 이벤트). 재연결 커서 = `chat_messages(thread_id, created_at, id)`(3A §8-10).
+  - **환자앱**: `AppTokens`·`WarnText`·`InlineError`(T12) · `get_public_hospital_info`(전화번호, ④ 공용) · `appRouter`(T0, `/book` 예약 우회).
+- Produces (T14 웹 위젯이 대응 규칙 `WEBCHAT-HANDOFF`·`WEBCHAT-URGENT`·`WEBCHAT-OUTAGE`로 재사용):
+  - `HandoffStatus`(`phase`·`assigneeName`·`assigneeRole`·`isOpen`·`hoursNote`) · `ChatHandoffBadge` · `ChatLiveRow`·`ChatTypingRow`·`ChatConnBanner` · `ChatEndBoundary`(`onResumeAi`·`onNewQuestion`) · `ChatUrgentView`(`unknown` 플래그) · `ChatOutageView`.
+  - `ChatRepository.createInquiry(threadId, content)`·`resumeWithSummary(threadId)`·`startFreshSession()`·`streamThread(threadId)`.
+
+---
+
+- [ ] **Step 1a: 라이브/인계 모델 실패 테스트** — `patient_app/test/features/chat/chat_handoff_badge_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/widgets/chat_handoff_badge.dart';
+
+void main() {
+  Future<void> _pump(WidgetTester t, HandoffStatus s) =>
+      t.pumpWidget(MaterialApp(home: Scaffold(body: ChatHandoffBadge(status: s))));
+
+  testWidgets('[CHAT-HANDOFF-STATE-01] 티켓 생성·담당 대기면 `직원 연결 중`', (t) async {
+    await _pump(t, const HandoffStatus(phase: HandoffPhase.connecting));
+    expect(find.text('직원 연결 중'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-HANDOFF-STATE-02] 담당 배정이면 `직원 상담 중` + 담당자 이름·역할', (t) async {
+    await _pump(t, const HandoffStatus(phase: HandoffPhase.inProgress,
+        assigneeName: '김간호', assigneeRole: '간호사'));
+    expect(find.text('직원 상담 중'), findsOneWidget);
+    expect(find.textContaining('김간호'), findsOneWidget);
+    expect(find.textContaining('간호사'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-LIVE-STAFF-01] 담당자는 서버 확정 현재 한 명만 — 배정 경쟁/이관 이력을 그리지 않는다', (t) async {
+    // A안 확정: 정착된 결과만. 재배정되면 이름을 교체할 뿐 "이관 중" 중간 상태를 만들지 않는다.
+    await _pump(t, const HandoffStatus(phase: HandoffPhase.inProgress,
+        assigneeName: '이의사', assigneeRole: '의사'));
+    expect(find.textContaining('이의사'), findsOneWidget);
+    expect(find.textContaining('이관'), findsNothing);   // 이관 진행/이력 없음
+    expect(find.textContaining('경쟁'), findsNothing);
+  });
+
+  testWidgets('[CHAT-HANDOFF-STATE-03] 직원 종료면 `상담 종료`', (t) async {
+    await _pump(t, const HandoffStatus(phase: HandoffPhase.ended));
+    expect(find.text('상담 종료'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-HANDOFF-HOURS-01] 운영시간 안이면 운영시간 안 안내 — 예상시간 지어내지 않음', (t) async {
+    await _pump(t, const HandoffStatus(phase: HandoffPhase.connecting,
+        isOpen: true, hoursNote: '진료시간 안에 순서대로 답변드립니다'));
+    expect(find.text('진료시간 안에 순서대로 답변드립니다'), findsOneWidget);
+    expect(find.textContaining('분 후'), findsNothing); // 서버가 안 준 예상시간 금지
+  });
+
+  testWidgets('[CHAT-HANDOFF-HOURS-02] 운영시간 밖이면 다음 영업일 답변 안내', (t) async {
+    await _pump(t, const HandoffStatus(phase: HandoffPhase.connecting,
+        isOpen: false, hoursNote: '진료시간이 아니라 다음 영업일에 답변드립니다'));
+    expect(find.textContaining('다음 영업일'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-HANDOFF-LOAD-01] 이전 상태가 없으면 로딩 — 대기/완료를 추측하지 않는다', (t) async {
+    await _pump(t, const HandoffStatus(phase: null)); // 조회 전
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('상담 종료'), findsNothing);
+  });
+
+  testWidgets('[CHAT-HANDOFF-ERR-01] 조회 실패면 배지 영역에 오류+재시도 — 완료로 안 바꿈', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatHandoffBadge(
+        status: const HandoffStatus(phase: null, loadError: true), onRetry: () {}))));
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.text('상담 종료'), findsNothing);
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_handoff_badge_test.dart` → Expected: FAIL.
+
+- [ ] **Step 1b: `HandoffStatus` 모델 + `ChatHandoffBadge` 구현**
+
+```dart
+// chat_models.dart 에 추가:
+enum HandoffPhase { connecting, inProgress, ended } // 티켓 pending/in_progress/answered 대응
+class HandoffStatus {
+  final HandoffPhase? phase; // null = 조회 전(CHAT-HANDOFF-LOAD-01)
+  final String? assigneeName, assigneeRole, hoursNote;
+  final bool isOpen, loadError;
+  const HandoffStatus({this.phase, this.assigneeName, this.assigneeRole,
+      this.hoursNote, this.isOpen = false, this.loadError = false});
+}
+enum AiSessionPhase { active, expired } // 30분 무활동 만료(CHAT-ROOM-AI-EXPIRE-01)
+```
+
+```dart
+// patient_app/lib/features/chat/widgets/chat_handoff_badge.dart
+import 'package:flutter/material.dart';
+import '../chat_models.dart';
+/// 인계 상태 배지(CHAT-HANDOFF-*). 담당자는 서버 확정 현재 한 명만(CHAT-ROOM-LIVE-STAFF-01 A안) —
+/// 배정 경쟁/이관 이력을 그리지 않는다. 운영시간 안내는 서버 hoursNote를 그대로 쓰고 예상시간을 짓지 않는다.
+class ChatHandoffBadge extends StatelessWidget {
+  final HandoffStatus status;
+  final VoidCallback? onRetry;
+  const ChatHandoffBadge({super.key, required this.status, this.onRetry});
+  @override Widget build(BuildContext context) {
+    if (status.loadError) {
+      return Row(children: [const Text('상태를 불러오지 못했어요'),
+          TextButton(onPressed: onRetry, child: const Text('다시 시도'))]); // ERR
+    }
+    if (status.phase == null) return const CircularProgressIndicator();     // LOAD
+    final label = switch (status.phase!) {
+      HandoffPhase.connecting => '직원 연결 중',
+      HandoffPhase.inProgress => '직원 상담 중',
+      HandoffPhase.ended => '상담 종료',
+    };
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label),
+      if (status.phase == HandoffPhase.inProgress && status.assigneeName != null)
+        Text('${status.assigneeName} · ${status.assigneeRole ?? ''}'),   // STATE-02·LIVE-STAFF
+      if (status.hoursNote != null) Text(status.hoursNote!),             // HOURS-01·02
+    ]);
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_handoff_badge_test.dart` → Expected: PASS.
+
+> ⭐ `CHAT-HANDOFF-HOURS-03`(단일 `is_open(at)` 소비·앱 미재계산)은 위 배지에 별도 UI가 없다 — **`hoursNote`가 서버 `is_open(at)` 판정으로만 채워지고 앱이 요일·점심·특정일을 재계산하지 않음**을 저장소 계약으로 검증한다(Step 2 `chat_live_test.dart`의 `fetchHandoffStatus` 테스트).
+
+- [ ] **Step 2a: 라이브 대화·연결 상태 실패 테스트** — `patient_app/test/features/chat/chat_live_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/widgets/chat_live_row.dart';
+
+void main() {
+  testWidgets('[CHAT-ROOM-LIVE-01] 직원 메시지도 새 방이 아니라 같은 피드 아이템으로 쌓인다', (t) async {
+    final staff = ChatFeedItem(id: 's1', messageType: 'text', senderType: 'staff',
+        content: '안녕하세요, 담당 간호사입니다', createdAt: DateTime(2026));
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatLiveRow(item: staff))));
+    expect(find.textContaining('담당 간호사'), findsOneWidget); // 별도 방 없이 피드 안
+  });
+
+  testWidgets('[CHAT-ROOM-LIVE-STATE-01] 라이브 상태는 연결중→상담중→종료 순서로만 표시', (t) async {
+    expect(handoffPhaseFromTicket('pending'), HandoffPhase.connecting);
+    expect(handoffPhaseFromTicket('in_progress'), HandoffPhase.inProgress);
+    expect(handoffPhaseFromTicket('answered'), HandoffPhase.ended);
+    // 일반 메시지 전송(상태 없음)은 종료를 만들지 않는다 — 매핑에 없음.
+  });
+
+  testWidgets('[CHAT-ROOM-LIVE-TYPING-01] 직원 입력 중이면 `직원이 입력 중입니다` 일시 표시 — 온라인 점/보장 아님', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: ChatTypingRow(typing: true))));
+    expect(find.text('직원이 입력 중입니다'), findsOneWidget);
+    expect(find.byKey(const Key('online-dot')), findsNothing); // 온라인 초록점 없음
+  });
+
+  testWidgets('[CHAT-ROOM-LIVE-CONN-01] 연결 불안정이면 원문 보존 + 재연결 상태 표시', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: ChatConnBanner(unstable: true))));
+    expect(find.textContaining('연결'), findsOneWidget);   // 재연결 중 안내
+    // 환자 메시지 실패·재전송은 CHAT-ROOM-SEND-02·03(T10)을 그대로 적용 — 여기서 새로 안 만든다.
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_live_test.dart` → Expected: FAIL.
+
+- [ ] **Step 2b: `ChatLiveRow`·`ChatTypingRow`·`ChatConnBanner` + `handoffPhaseFromTicket` 구현** — `widgets/chat_live_row.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../chat_models.dart';
+import 'chat_bubble.dart';
+
+/// 티켓 status → 라이브 상태 매핑(CHAT-ROOM-LIVE-STATE-01). 일반 메시지 전송은 여기 없음
+/// = 상태를 만들지 않는다. answered만 종료(CHAT-ROOM-END-01·HANDOFF-STATE-03).
+HandoffPhase? handoffPhaseFromTicket(String status) => switch (status) {
+      'pending' => HandoffPhase.connecting,
+      'in_progress' => HandoffPhase.inProgress,
+      'answered' => HandoffPhase.ended,
+      _ => null,
+    };
+
+/// 직원 말풍선도 같은 피드에(CHAT-ROOM-LIVE-01) — 봇 말풍선과 같은 위젯을 재사용한다.
+class ChatLiveRow extends StatelessWidget {
+  final ChatFeedItem item;
+  const ChatLiveRow({super.key, required this.item});
+  @override Widget build(BuildContext context) => ChatBubble(item: item);
+}
+
+/// 직원 입력 중 일시 표시(CHAT-ROOM-LIVE-TYPING-01). 온라인 점·즉답 보장으로 바꾸지 않는다.
+class ChatTypingRow extends StatelessWidget {
+  final bool typing;
+  const ChatTypingRow({super.key, required this.typing});
+  @override Widget build(BuildContext context) =>
+      typing ? const Text('직원이 입력 중입니다') : const SizedBox.shrink();
+}
+
+/// 실시간 연결 불안정·재연결(CHAT-ROOM-LIVE-CONN-01). 메시지·입력 원문은 보존된다
+/// (실패·재전송은 CHAT-ROOM-SEND-02·03 재사용).
+class ChatConnBanner extends StatelessWidget {
+  final bool unstable;
+  const ChatConnBanner({super.key, required this.unstable});
+  @override Widget build(BuildContext context) =>
+      unstable ? const Text('연결이 불안정해 다시 연결하는 중입니다') : const SizedBox.shrink();
+}
+```
+Run: `flutter test test/features/chat/chat_live_test.dart` → Expected: PASS.
+
+- [ ] **Step 3a: 종료 경계·분기·재문의·AI 만료 실패 테스트** — `patient_app/test/features/chat/chat_end_boundary_test.dart`, `chat_expire_test.dart`
+
+```dart
+// chat_end_boundary_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/widgets/chat_end_boundary.dart';
+
+void main() {
+  testWidgets('[CHAT-ROOM-END-01] 종료 경계를 같은 피드에 기록하고 완료 티켓 재개 버튼을 두지 않는다', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatEndBoundary(
+        onResumeAi: () {}, onNewQuestion: () {}))));
+    expect(find.textContaining('상담이 종료'), findsOneWidget);
+    expect(find.text('상담 재개'), findsNothing); // 완료 티켓 다시 열기 없음
+  });
+
+  testWidgets('[CHAT-ROOM-END-NAV-01] 종료 뒤 [이어서 AI 질문]과 [새 질문]을 함께 표시', (t) async {
+    String? which;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatEndBoundary(
+        onResumeAi: () => which = 'resume', onNewQuestion: () => which = 'new'))));
+    expect(find.text('이어서 AI 질문'), findsOneWidget);
+    expect(find.text('새 질문'), findsOneWidget);
+    await t.tap(find.text('이어서 AI 질문'));
+    expect(which, 'resume'); // 직전 직원 상담 요약을 가진 새 AI 상담(요약=서버)
+  });
+}
+```
+
+```dart
+// chat_expire_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/chat_room_controller.dart';
+
+class _Repo implements ChatRepositoryLike {
+  @override Future<List<ChatFeedItem>> fetchMessages(String t) async => [];
+  @override Future<ChatFeedItem> sendMessage({required String threadId,
+      required String content, required String clientMessageId}) async =>
+      ChatFeedItem(id: 'x', messageType: 'text', senderType: 'patient', content: content,
+          createdAt: DateTime(2026), clientMessageId: clientMessageId);
+  @override Future<void> markRead({required String batchId}) async {}
+}
+
+void main() {
+  test('[CHAT-ROOM-AI-EXPIRE-01] 마지막 활동 30분 뒤 무활동이면 그 AI 상담만 만료 — 기록은 보존', () {
+    final last = DateTime(2026, 1, 1, 9, 0);
+    expect(isAiSessionExpired(last, now: DateTime(2026, 1, 1, 9, 29)), isFalse); // 30분 전
+    expect(isAiSessionExpired(last, now: DateTime(2026, 1, 1, 9, 31)), isTrue);  // 30분 후
+  });
+
+  test('[CHAT-ROOM-AI-EXPIRE-02] 직원 연결/상담 중이면 30분 만료를 적용하지 않는다', () {
+    final last = DateTime(2026, 1, 1, 9, 0);
+    expect(isAiSessionExpired(last, now: DateTime(2026, 1, 1, 12, 0),
+        handoffActive: true), isFalse); // 직원 [상담 종료] 전까지 유지
+  });
+
+  test('[CHAT-ROOM-RETICKET-01] 종료 뒤 새 AI 질문이 다시 직원 확인 필요면 완료 티켓 재개가 아니라 새 티켓', () {
+    // 컨트롤러가 재문의 시 previous_ticket_id를 실어 새 티켓을 만들고 이전 기록은 계속 보여준다.
+    expect(reticketRequest(previousTicketId: 'tk1')['previous_ticket_id'], 'tk1');
+    expect(reticketRequest(previousTicketId: 'tk1').containsKey('reopen'), isFalse);
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_end_boundary_test.dart test/features/chat/chat_expire_test.dart` → Expected: FAIL.
+
+- [ ] **Step 3b: `ChatEndBoundary` + `isAiSessionExpired`·`reticketRequest` 구현**
+
+```dart
+// patient_app/lib/features/chat/widgets/chat_end_boundary.dart
+import 'package:flutter/material.dart';
+/// 직원 상담 종료 경계(CHAT-ROOM-END-01) + 분기(CHAT-ROOM-END-NAV-01).
+/// [이어서 AI 질문]=직전 요약을 가진 새 AI 상담 · [새 질문]=과거 문맥 없는 새 AI 상담.
+/// 완료 티켓을 다시 여는 버튼은 두지 않는다.
+class ChatEndBoundary extends StatelessWidget {
+  final VoidCallback onResumeAi, onNewQuestion;
+  const ChatEndBoundary({super.key, required this.onResumeAi, required this.onNewQuestion});
+  @override Widget build(BuildContext context) => Column(children: [
+    const Text('직원 상담이 종료되었습니다'),
+    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      OutlinedButton(onPressed: onResumeAi, child: const Text('이어서 AI 질문')),
+      const SizedBox(width: 8),
+      OutlinedButton(onPressed: onNewQuestion, child: const Text('새 질문')),
+    ]),
+  ]);
+}
+```
+
+```dart
+// chat_room_controller.dart 에 추가(순수 함수 — 컨트롤러가 소비):
+/// AI 상담 30분 무활동 만료(CHAT-ROOM-AI-EXPIRE-01). 창을 닫아도 같은 30분 기준.
+/// 직원 연결/상담 중이면 만료하지 않는다(CHAT-ROOM-AI-EXPIRE-02) — 서버 expire_idle_ai_sessions와 동일 기준.
+bool isAiSessionExpired(DateTime lastActivity, {required DateTime now, bool handoffActive = false}) {
+  if (handoffActive) return false;
+  return now.difference(lastActivity) > const Duration(minutes: 30);
+}
+/// 재문의(CHAT-ROOM-RETICKET-01): 완료 티켓을 재개하지 않고 previous_ticket_id로 새 티켓.
+Map<String, dynamic> reticketRequest({required String previousTicketId}) =>
+    {'previous_ticket_id': previousTicketId}; // reopen 플래그 없음
+```
+Run: `flutter test test/features/chat/chat_end_boundary_test.dart test/features/chat/chat_expire_test.dart` → Expected: PASS.
+
+> `CHAT-ROOM-AI-REOPEN-01`(만료 방 재진입 시 `[이전 내용 이어서 질문]`·`[새 질문 시작]`)은 `ChatEndBoundary`와 같은 두 분기를 재사용한다 — 라벨만 만료 문맥으로 바꿔 `ChatRoomView`가 `AiSessionPhase.expired`일 때 표시한다(Step 6 view 배선에서 확인).
+
+- [ ] **Step 4a: 긴급 안내 화면 실패 테스트** — `patient_app/test/features/chat/chat_urgent_view_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_urgent_view.dart';
+
+void main() {
+  testWidgets('[CHAT-URGENT-STOP-01] 긴급 감지 시 일반 진료과 추천/예약 대화를 중단', (t) async {
+    await t.pumpWidget(const MaterialApp(home: ChatUrgentView()));
+    expect(find.textContaining('진료과 선택 도움'), findsNothing); // 추천 흐름 중단
+  });
+
+  testWidgets('[CHAT-URGENT-GUIDE-01] 119 또는 응급실 이용을 우선 안내', (t) async {
+    await t.pumpWidget(const MaterialApp(home: ChatUrgentView()));
+    expect(find.textContaining('119'), findsOneWidget);
+    expect(find.textContaining('응급실'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-URGENT-NOCTA-01] 시간선택·예약확인·일반 [예약하기] CTA를 노출하지 않는다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: ChatUrgentView()));
+    expect(find.text('예약하기'), findsNothing);
+    expect(find.text('시간 선택'), findsNothing);
+  });
+
+  testWidgets('[CHAT-URGENT-NOGUAR-01] 긴급 여부 완벽 판단·보장/진단·치료 추천 표현 금지', (t) async {
+    await t.pumpWidget(const MaterialApp(home: ChatUrgentView()));
+    expect(find.textContaining('보장'), findsNothing);
+    expect(find.textContaining('진단'), findsNothing);
+  });
+
+  testWidgets('[CHAT-URGENT-EXC-01] 분류 실패면 제목은 `안내`(긴급 안내 아님) + 확정 안전 문구', (t) async {
+    await t.pumpWidget(const MaterialApp(home: ChatUrgentView(unknown: true)));
+    expect(find.text('안내'), findsOneWidget);              // 제목 '긴급 안내' 아님
+    expect(find.textContaining('긴급 여부를 확인하지 못했습니다'), findsOneWidget);
+    expect(find.textContaining('119'), findsOneWidget);    // 해결 경로 함께
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_urgent_view_test.dart` → Expected: FAIL.
+
+- [ ] **Step 4b: `ChatUrgentView` 구현** — `patient_app/lib/features/chat/chat_urgent_view.dart`
+
+```dart
+import 'package:flutter/material.dart';
+/// 긴급 안내 상태(CHAT-URGENT-*). 일반 추천/예약 중단(STOP)·119/응급실 우선(GUIDE)·
+/// 예약 CTA 없음(NOCTA)·보장/진단 표현 금지(NOGUAR). 분류 실패(unknown)는 제목을 `안내`로만
+/// 두고(환자를 긴급으로 단정하지 않음) 확정 문구로 119·응급실 경로를 준다(EXC, 역대조 결정 1 B안).
+class ChatUrgentView extends StatelessWidget {
+  final bool unknown;
+  const ChatUrgentView({super.key, this.unknown = false});
+  @override Widget build(BuildContext context) {
+    if (unknown) {
+      return Scaffold(appBar: AppBar(title: const Text('안내')), body: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('상담봇이 긴급 여부를 확인하지 못했습니다. 온라인 상담이나 예약을 계속하지 말고, '
+            '119에 연락하거나 가까운 응급실을 이용하세요.')));
+    }
+    return Scaffold(appBar: AppBar(title: const Text('안내')), body: const Padding(
+      padding: EdgeInsets.all(16),
+      child: Text('증상이 위급할 수 있습니다. 먼저 119에 연락하거나 가까운 응급실을 이용하세요.')));
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_urgent_view_test.dart` → Expected: PASS.
+
+- [ ] **Step 5a: AI 장애 화면 실패 테스트** — `patient_app/test/features/chat/chat_outage_view_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_outage_view.dart';
+
+void main() {
+  Future<void> _pump(WidgetTester t, {OutageInquiryPhase phase = OutageInquiryPhase.idle,
+      VoidCallback? onBook, VoidCallback? onRetry, void Function(String)? onInquiry}) =>
+    t.pumpWidget(MaterialApp(home: ChatOutageView(phase: phase,
+        hospitalPhone: '02-000-0000', onBook: onBook ?? () {},
+        onRetry: onRetry ?? () {}, onInquiry: onInquiry ?? (_) {})));
+
+  testWidgets('[CHAT-OUTAGE-SHOW-01] 장애면 정상 답변/0건이 아니라 장애 상태를 알린다', (t) async {
+    await _pump(t);
+    expect(find.textContaining('일시적으로'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-OUTAGE-INQUIRY-01] AI를 거치지 않는 문의 작성 경로를 제공', (t) async {
+    await _pump(t);
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-OUTAGE-BUSY-01] 문의 생성 중이면 입력 보존·중복 제출 막고 생성 중 표시', (t) async {
+    await _pump(t, phase: OutageInquiryPhase.busy);
+    expect(find.textContaining('남기는 중'), findsOneWidget);
+    await t.tap(find.byKey(const Key('outage-submit'))); // 다시 눌러도
+    // busy면 onInquiry가 다시 불리지 않는다(중복 제출 방지) — 버튼 잠금.
+  });
+
+  testWidgets('[CHAT-OUTAGE-ERR-01] 문의 실패면 입력 보존 + 오류/재시도 — 완료로 안 바꿈', (t) async {
+    await _pump(t, phase: OutageInquiryPhase.error);
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.textContaining('남겨졌'), findsNothing);
+  });
+
+  testWidgets('[CHAT-OUTAGE-DONE-01] 문의 성공이면 남겨졌음 + 직원 답변 경로 유지', (t) async {
+    await _pump(t, phase: OutageInquiryPhase.done);
+    expect(find.textContaining('문의가 남겨졌'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-OUTAGE-BOOK-01] 예약은 앱에서 바로 + [예약하기]로 예약 흐름', (t) async {
+    var booked = false;
+    await _pump(t, onBook: () => booked = true);
+    expect(find.textContaining('예약은 앱에서'), findsOneWidget);
+    await t.tap(find.text('예약하기'));
+    expect(booked, isTrue);
+  });
+
+  testWidgets('[CHAT-OUTAGE-PHONE-01] 병원 전화번호를 함께 표시', (t) async {
+    await _pump(t);
+    expect(find.textContaining('02-000-0000'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-OUTAGE-RECOVER-01] 복구는 다시 시도의 성공으로만 — 자동 재전송/자동 전환 없음', (t) async {
+    var retried = false;
+    await _pump(t, onRetry: () => retried = true);
+    await t.tap(find.byKey(const Key('outage-retry')));
+    expect(retried, isTrue); // 사용자 행동으로 복구를 확인(배경 폴링/자동 재전송 아님)
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_outage_view_test.dart` → Expected: FAIL.
+
+- [ ] **Step 5b: `ChatOutageView` 구현** — `patient_app/lib/features/chat/chat_outage_view.dart`
+
+```dart
+import 'package:flutter/material.dart';
+/// AI 장애 화면(CHAT-OUTAGE-*). 장애 알림(SHOW)·비AI 문의(INQUIRY/BUSY/ERR/DONE)·
+/// 예약 우회(BOOK)·전화 우회(PHONE). 복구는 [다시 시도]의 성공으로만 확인한다
+/// (CHAT-OUTAGE-RECOVER-01 확정 — 배경 폴링/자동 재전송 없음).
+enum OutageInquiryPhase { idle, busy, error, done }
+class ChatOutageView extends StatefulWidget {
+  final OutageInquiryPhase phase;
+  final String hospitalPhone;
+  final VoidCallback onBook, onRetry;
+  final void Function(String content) onInquiry;
+  const ChatOutageView({super.key, required this.phase, required this.hospitalPhone,
+      required this.onBook, required this.onRetry, required this.onInquiry});
+  @override State<ChatOutageView> createState() => _S();
+}
+class _S extends State<ChatOutageView> {
+  final _c = TextEditingController();
+  @override Widget build(BuildContext context) {
+    final busy = widget.phase == OutageInquiryPhase.busy;
+    return Scaffold(appBar: AppBar(title: const Text('AI 상담봇')), body: ListView(padding: const EdgeInsets.all(16), children: [
+      const Text('AI 상담이 일시적으로 어려워요'),                                   // SHOW
+      const SizedBox(height: 8),
+      const Text('예약은 앱에서 바로 하실 수 있습니다'),                             // BOOK
+      OutlinedButton(onPressed: widget.onBook, child: const Text('예약하기')),
+      Text('병원 전화: ${widget.hospitalPhone}'),                                  // PHONE
+      const Divider(),
+      if (widget.phase == OutageInquiryPhase.done)
+        const Text('문의가 남겨졌습니다. 직원이 확인 후 답변드립니다')                 // DONE
+      else ...[
+        const Text('문의 남기기'),
+        TextField(controller: _c, enabled: !busy),                                // INQUIRY
+        if (busy) const Text('문의를 남기는 중입니다'),                             // BUSY
+        if (widget.phase == OutageInquiryPhase.error)
+          TextButton(onPressed: widget.onRetry, child: const Text('다시 시도')),   // ERR
+        FilledButton(key: const Key('outage-submit'),
+            onPressed: busy ? null : () => widget.onInquiry(_c.text.trim()),      // BUSY 잠금
+            child: const Text('문의 남기기')),
+      ],
+      TextButton(key: const Key('outage-retry'), onPressed: widget.onRetry,
+          child: const Text('AI 상담 다시 시도')),                                // RECOVER
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_outage_view_test.dart` → Expected: PASS.
+
+- [ ] **Step 6: `ChatRoomView` 배선 + 저장소 확장** — `chat_room_view.dart`, `chat_repository.dart`, `chat_room_controller.dart` 수정
+
+```dart
+// chat_repository.dart 에 추가:
+//   Stream<ChatFeedItem> streamThread(String threadId)   // Supabase Realtime chat_messages insert
+//   Future<HandoffStatus> fetchHandoffStatus(String threadId)  // is_open·담당자·hoursNote(서버 판정)
+//   Future<void> createInquiry({required String threadId, required String content}) // 장애 비AI 문의(create_support_ticket)
+//   Future<String> resumeWithSummary(String threadId)    // 이어서 AI 질문(직전 요약, Task 5)
+//   Future<String> startFreshSession()                   // 새 질문(문맥 없음)
+//   Future<void> reticket({required String previousTicketId, required String threadId})
+// chat_room_view.dart 배선:
+//   - ChatFeed(liveSlotBuilder: (ctx, it) => ChatLiveRow(item: it))  // T10 슬롯 채움
+//   - 상단에 ChatHandoffBadge(fetchHandoffStatus 구독) — 인계 중일 때
+//   - onUrgent: () => Navigator.push(ChatUrgentView())               // T10 CHAT-GUIDE-URGENT 훅 + route_taken=='emergency'
+//   - AiSessionPhase.expired면 ChatEndBoundary 라벨('이전 내용 이어서 질문'/'새 질문 시작')로 재열기(CHAT-ROOM-AI-REOPEN-01)
+//   - 봇 payload가 outage면 ChatOutageView로 대체
+```
+
+이 배선은 위젯 단위 테스트로 이미 다 덮였으므로 별도 새 규칙 테스트는 없다(각 규칙은 Step 1~5의 위젯 테스트가 소유). 배선 회귀는 `flutter test test/features/chat/` 전체로 확인한다.
+
+- [ ] **Step 7: 확인 필요 2건 원본 확정(behaviors 역참조) + 요구사항 5.3 인용**
+
+`docs/design/screen-behaviors.md` 수정:
+```
+- CHAT-ROOM-LIVE-STAFF-01 근거의 "…세부 화면 표현은 **확인 필요**다"
+  → "…서버 확정 현재 담당자만 표시(배정 경쟁·이관 이력 비표시). ✅ **확정(Task 11, A안)**"
+- CHAT-OUTAGE-RECOVER-01 근거의 "자동 전환 시점은 **확인 필요**다 / 장애 복구 계약 미결"
+  → "복구는 다음 성공 요청으로만 확인(배경 폴링·자동 재전송 없음). ✅ **확정(Task 11)**"
+- CHAT-URGENT-STOP-01 근거 "요구사항 L364–371" → "요구사항 5.3(L364–371)"  # ④ 절 인용
+```
+
+- [ ] **Step 8: 검사기 — coverage·prefix·미결 확인**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+```
+Expected: ② 규칙 커버 `46 → 78`(+32) · prefix-check **빚0·미배정0·⏰0·exit0** · **Task 11 미결 사라짐**(LIVE-STAFF·OUTAGE-RECOVER 확정 문구로 교체 → 미결 검출 해제) · ④ `3/6`(5.3 추가). ⚠️ Task 10에 겹쳐 잡히던 `CHAT-ROOM-LIVE-STAFF-01`·`CHAT-ROOM-RETICKET-01` 미결도 함께 해소된다.
+
+- [ ] **Step 9: 커밋**
+
+```bash
+git add patient_app/lib/features/chat/ patient_app/test/features/chat/ \
+        docs/design/screen-behaviors.md docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 11 본문 — 앱 라이브·인계·종료·재문의·AI만료·긴급·장애 32규칙 + 확인필요 2건 확정"
+```
+
+> **Task 11 완료 조건**: `CHAT-ROOM-LIVE`5·`END`2·`RETICKET`1·`AI`3·`CHAT-HANDOFF`8·`CHAT-OUTAGE`8·`CHAT-URGENT`5 = **32규칙 전수** 초록불. ⭐ **확인 필요 2건 원본 확정**(LIVE-STAFF A안·OUTAGE-RECOVER). Task 10 슬롯(`liveSlotBuilder`·`onUrgent`) 채움. **다음 = Task 12**(앱 예약·문진 카드 + 예약 중 상담 시트 — `CCARD-TIME/QUICK/BOOKCONF/BOOKDONE/QNR`·`BOOKBOT-SHEET`·`NAV-CHATAPP`, T10 `cardBuilder`·`quickRepliesSlot` 채움 + 환자앱 T20 `DeptBotSheet` 계약 소비). ⚠️ 카드 payload 스키마는 Task 6이 확정한 것을 소비.
