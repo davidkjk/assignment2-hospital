@@ -620,3 +620,437 @@ git commit -m "feat: 📝 상담봇 Task 0 본문 — 웹위젯(webchat/) Vite R
 ```
 
 > **Task 0 완료 조건**: `webchat` 렌더·빌드 초록불 · 백엔드 임베딩(순서 복원·한글 오류)·모델 팩토리·모킹 fixture 초록불 · `business_hour_*` 미추가 확인. 화면 규칙 0개라 `plan-coverage-check`의 커버 수는 변하지 않고(정상), `plan-prefix-check`는 이 태스크가 소유한 접두어가 없어 빚·미배정 0이어야 한다.
+
+## Task 1: 마이그레이션 — 통합 대화 스키마 (`chat_threads` · `chat_messages` · `chat_read_states` + RLS)
+
+> **화면 규칙 0개.** 이 태스크는 3-A 통합 스키마의 **뿌리 세 표**를 만든다: 환자에게 보이는 「같은 상담방」 루트(`chat_threads`) · AI·환자·직원·시스템 이벤트의 단일 시간순 원장(`chat_messages`, 공백 1·2·6) · 참여자별 확인 위치(`chat_read_states`). AI 세션·티켓은 **Task 2**, 익명 소유권은 **Task 3**, 근거 스냅샷·보존은 **Task 4**가 얹는다. 그래서 테스트는 `test('[규칙ID] …')`가 아니라 **스키마 계약 검증**(제약·트리거·인덱스·RLS)이다.
+>
+> **근거 원본**: 3-A 스키마 요구 `.claude/codex-work/orchestration/3A-schema-requirements-2026-08-13.md` §4.1(threads)·§4.3(messages)·§4.6(read_states)·§6(인덱스)·§7(RLS) — 결정로그 `docs/superpowers/specs/2026-07-31-ui-design-decisions.md:4371-4465`에 병합됨. enum 허용값·의미는 §3.
+>
+> ⭐ **이 태스크의 설계 결정 3건(기각안 포함 — 뒤 태스크가 이 계약을 소비하므로 여기서 못박는다)**:
+> 1. **시스템 경계(공백 6)를 `chat_messages`에 담는다** — `message_type='system'` + `sender_type='system'`(3A §3 `chat_sender_type`에 `system` 한 값 추가). *기각: 별도 `chat_events` 표* — 3A §2가 요구하는 「`thread_id, created_at, id` 한 화면 연속 이력」을 두 표 UNION+중복제거로 복원해야 해 재연결 커서(§6)와 어긋난다. 단일 원장이 3-A의 핵심 목표(SD-01).
+> 2. **`content`는 nullable** — 3A §4.3 기저는 text-only라 `content NOT NULL`이지만, 공백 2·6으로 `card`·`quick_replies`·`system` 유형을 더하면 본문이 없고 **`payload jsonb`가 알맹이**다. CHECK로 「`text` 유형만 content 필수·비어있지 않음」을 강제한다. *기각: content NOT NULL 유지* — 카드·시스템 메시지에 가짜 요약 문자열을 억지로 넣게 된다.
+> 3. **앞선 FK는 대상 표를 만드는 태스크가 건다** — `ai_chat_session_id`·`support_ticket_id`(Task 2), `anonymous_session_id`·`sender_anonymous_session_id`·`reader_anonymous_session_id`(Task 3)는 여기서 **`uuid` 칼럼으로만** 만들고 FK 제약은 없다. 세션/티켓 XOR·발신자 형태 CHECK는 FK 없이도 거므로 여기서 전부 건다. 세션/티켓의 `thread_id` 일치 트리거는 그 표가 생기는 Task 2가 얹는다. *기각: Task 1이 sessions/tickets를 미리 빈 표로 만들기* — 스켈레톤 배정(Task 2 소유)과 어긋나고 한 표를 두 마이그레이션이 나눠 갖는다.
+
+**Files:**
+- Create: `supabase/migrations/00036_chat_core_schema.sql` (⚠️ **번호 00036은 예시** — 환자앱·직원웹이 `00017~00035`를 공유하므로 적용 시점에 그 뒤 다음 번호로 확정한다. Global Constraints 「마이그레이션 번호는 같은 대역을 공유」)
+- Create: `backend/tests/test_chat_core_schema.py`
+- Modify: `backend/tests/conftest_chat.py` (Task 0이 만든 파일 — `seed_chat_thread` 헬퍼 추가, Task 2~4 재사용)
+
+**Interfaces:**
+- Consumes: `patients`(`00003`)·`staff`(`00001`) 표 · `private.current_patient_id()`·`patient_owns(uuid)`(환자앱 `00017`, security definer·활성 링크만) · `private.is_active_staff()`·`private.current_staff_id()`(`00001`) · 테스트 픽스처 `db_conn`·`set_session_auth`·`seed_staff`(`backend/tests/conftest.py`)·`seed_patient`(환자앱이 `conftest.py`에 추가) · Task 0 `conftest_chat.py`
+- Produces (뒤 태스크가 소비할 이름):
+  - 표 `chat_threads(id, owner_type, patient_id, anonymous_session_id, last_activity_at, created_at, updated_at)`
+  - 표 `chat_messages(id, thread_id, ai_chat_session_id, support_ticket_id, sender_type, sender_patient_id, sender_anonymous_session_id, sender_staff_id, message_type, content, payload, client_message_id, created_at)`
+  - 표 `chat_read_states(id, thread_id, reader_type, reader_patient_id, reader_anonymous_session_id, reader_staff_id, last_read_message_id, last_read_at, active_view_until, updated_at)`
+  - CHECK 허용값(3A §3): `chat_threads.owner_type ∈ {patient, anonymous_web}` · `chat_messages.sender_type ∈ {patient, bot, staff, system}` · `chat_messages.message_type ∈ {text, card, quick_replies, system}` · `chat_read_states.reader_type ∈ {patient, anonymous_web, staff}`
+  - 트리거 함수 `validate_chat_message_sender_thread()`(발신자↔상담방 소유권 일치) · 트리거 `trg_validate_chat_message_sender_thread`
+  - 인덱스 이름: `idx_chat_messages_thread`·`idx_chat_messages_ticket`·`idx_chat_messages_session`·`idx_chat_messages_client_msg`(non-null 전역 unique) · `idx_chat_read_states_patient/anon/staff`(참여자·상담방 partial unique)
+  - RLS 정책: `patients_read_own_threads`·`patients_read_own_messages`·`patients_manage_own_read_state`. **직원 읽기 정책과 세션/티켓 `thread_id` 일치 트리거는 Task 2가 추가한다**(티켓 배정에 달림).
+  - 헬퍼 `conftest_chat.seed_chat_thread(conn, *, patient_id=None, anonymous_session_id=None) -> uuid`
+- ⚠️ **아직 만들지 않는 것**: `payload jsonb`의 **카드 스키마**(어떤 키가 어떤 카드인지)는 Task 6이 카드 계약으로 확정한다. Task 1은 `payload`를 자유 jsonb로 두고 형태 CHECK(유형별 not-null)만 건다.
+
+- [ ] **Step 1: 실패하는 스키마 계약 테스트 작성**
+
+`backend/tests/conftest_chat.py`에 헬퍼 추가(파일 맨 아래):
+```python
+async def seed_chat_thread(conn, *, patient_id=None, anonymous_session_id=None):
+    """chat_threads 한 행을 만들고 id를 돌려준다. owner_type은 넘긴 소유자로 자동 판정.
+    익명 세션 FK는 Task 3 전이므로 여기선 아무 uuid나 받는다(제약·트리거 테스트용)."""
+    if patient_id is not None:
+        return await conn.fetchval(
+            "insert into chat_threads (owner_type, patient_id) values ('patient', $1) returning id",
+            patient_id)
+    return await conn.fetchval(
+        "insert into chat_threads (owner_type, anonymous_session_id) values ('anonymous_web', $1) returning id",
+        anonymous_session_id)
+```
+
+`backend/tests/test_chat_core_schema.py`:
+```python
+import uuid
+import pytest
+import asyncpg
+
+from tests.conftest import seed_staff, set_session_auth
+from tests.conftest_chat import seed_chat_thread
+
+# patient 시드는 환자앱이 conftest.py에 넣은 seed_patient을 쓴다(챗봇은 3단계 뒤에 구현).
+from tests.conftest import seed_patient
+
+
+async def _insert_message(conn, thread_id, **cols):
+    keys = list(cols)
+    ph = ", ".join(f"${i+2}" for i in range(len(keys)))
+    return await conn.fetchval(
+        f"insert into chat_messages (thread_id, {', '.join(keys)}) "
+        f"values ($1, {ph}) returning id",
+        thread_id, *[cols[k] for k in keys])
+
+
+@pytest.mark.asyncio
+async def test_thread_owner_xor_rejects_both(db_conn):
+    p = await seed_patient(db_conn)
+    # owner_type=patient인데 anonymous_session_id까지 채우면 XOR 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await db_conn.execute(
+            "insert into chat_threads (owner_type, patient_id, anonymous_session_id) "
+            "values ('patient', $1, $2)", p["patient_id"], uuid.uuid4())
+
+
+@pytest.mark.asyncio
+async def test_thread_patient_requires_patient_id(db_conn):
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await db_conn.execute(
+            "insert into chat_threads (owner_type) values ('patient')")
+
+
+@pytest.mark.asyncio
+async def test_message_requires_exactly_one_of_session_or_ticket(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    # 둘 다 null → XOR 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, sender_type="bot", content=None,
+                              message_type="text", payload=None)
+    # 둘 다 채움 → XOR 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              support_ticket_id=uuid.uuid4(), sender_type="bot",
+                              message_type="text", content="x")
+
+
+@pytest.mark.asyncio
+async def test_text_message_requires_nonempty_content_and_null_payload(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    # text인데 content 공백 → 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="bot", message_type="text", content="   ")
+    # text인데 payload 채움 → 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="bot", message_type="text",
+                              content="안녕하세요", payload={"x": 1})
+
+
+@pytest.mark.asyncio
+async def test_card_message_requires_payload(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="bot", message_type="card", payload=None)
+    # payload 있으면 성공(카드는 봇 발신).
+    mid = await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                                sender_type="bot", message_type="card",
+                                payload={"card_type": "예약제안_카드"})
+    assert mid is not None
+
+
+@pytest.mark.asyncio
+async def test_system_message_type_pairs_with_system_sender(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    # message_type=system인데 sender_type=bot → system_pairing 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="bot", message_type="system",
+                              payload={"event": "ai_expired"})
+    # 짝이 맞으면 성공(시스템 이벤트는 단일 원장에 남는다 = 공백 6).
+    mid = await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                                sender_type="system", message_type="system",
+                                payload={"event": "staff_handoff"})
+    assert mid is not None
+
+
+@pytest.mark.asyncio
+async def test_bot_sender_forbids_person_fks(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="bot", sender_patient_id=p["patient_id"],
+                              message_type="text", content="봇인데 환자 FK")
+
+
+@pytest.mark.asyncio
+async def test_staff_sender_requires_ticket_and_staff(db_conn):
+    p = await seed_patient(db_conn)
+    st = await seed_staff(db_conn, role="doctor")
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    # 직원 발신인데 티켓이 아니라 세션에 넣음 → 형태 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="staff", sender_staff_id=st["staff_id"],
+                              message_type="text", content="직원 답변")
+    # 티켓 문맥이면 성공.
+    mid = await _insert_message(db_conn, t, support_ticket_id=uuid.uuid4(),
+                                sender_type="staff", sender_staff_id=st["staff_id"],
+                                message_type="text", content="직원 답변")
+    assert mid is not None
+
+
+@pytest.mark.asyncio
+async def test_sender_thread_ownership_trigger(db_conn):
+    p1 = await seed_patient(db_conn, phone="010-1111-1111")
+    p2 = await seed_patient(db_conn, phone="010-2222-2222")
+    t = await seed_chat_thread(db_conn, patient_id=p1["patient_id"])
+    # 상담방 소유자는 p1인데 발신 환자가 p2 → 트리거가 막는다(§4.3).
+    with pytest.raises(asyncpg.exceptions.RaiseError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="patient", sender_patient_id=p2["patient_id"],
+                              message_type="text", content="남의 방에 쓰기")
+
+
+@pytest.mark.asyncio
+async def test_client_message_id_is_globally_unique_when_present(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    cid = uuid.uuid4()
+    await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                          sender_type="patient", sender_patient_id=p["patient_id"],
+                          message_type="text", content="첫 전송", client_message_id=cid)
+    # 같은 client_message_id 재전송 → 멱등(한 행만) = unique 위반으로 차단(§4.3, §6).
+    with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="patient", sender_patient_id=p["patient_id"],
+                              message_type="text", content="재전송", client_message_id=cid)
+
+
+@pytest.mark.asyncio
+async def test_client_message_id_null_is_allowed_multiple_times(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    # 봇·시스템 메시지는 client_message_id가 없다(null 여러 개 허용 = partial unique).
+    for _ in range(3):
+        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+                              sender_type="bot", message_type="text", content="봇")
+
+
+@pytest.mark.asyncio
+async def test_read_state_one_row_per_participant(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    await db_conn.execute(
+        "insert into chat_read_states (thread_id, reader_type, reader_patient_id) "
+        "values ($1, 'patient', $2)", t, p["patient_id"])
+    with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+        await db_conn.execute(
+            "insert into chat_read_states (thread_id, reader_type, reader_patient_id) "
+            "values ($1, 'patient', $2)", t, p["patient_id"])
+
+
+@pytest.mark.asyncio
+async def test_read_state_reader_shape(db_conn):
+    p = await seed_patient(db_conn)
+    st = await seed_staff(db_conn, role="doctor")
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    # reader_type=patient인데 staff FK를 채움 → 형태 위반.
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await db_conn.execute(
+            "insert into chat_read_states (thread_id, reader_type, reader_patient_id, reader_staff_id) "
+            "values ($1, 'patient', $2, $3)", t, p["patient_id"], st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_patient_rls_reads_only_own_thread(db_conn):
+    p1 = await seed_patient(db_conn, phone="010-1111-1111", with_auth=True)
+    p2 = await seed_patient(db_conn, phone="010-2222-2222", with_auth=True)
+    t1 = await seed_chat_thread(db_conn, patient_id=p1["patient_id"])
+    t2 = await seed_chat_thread(db_conn, patient_id=p2["patient_id"])
+    await set_session_auth(db_conn, p1["auth_user_id"])
+    rows = await db_conn.fetch("select id from chat_threads")
+    ids = {r["id"] for r in rows}
+    assert t1 in ids and t2 not in ids  # p1은 자기 상담방만 본다(§7)
+```
+
+- [ ] **Step 2: 테스트 실패 확인 (표 없음)**
+
+Run: `cd backend && pytest tests/test_chat_core_schema.py -v`
+Expected: FAIL — `relation "chat_threads" does not exist`.
+
+- [ ] **Step 3: 마이그레이션 작성**
+
+`supabase/migrations/00036_chat_core_schema.sql`:
+```sql
+-- 3-A 통합 대화 스키마 ① 대화 루트 + 단일 메시지 원장 + 읽음 상태 (공백 1·2·6).
+-- 근거: 3A 스키마 요구 §4.1·§4.3·§4.6·§6·§7 (.claude/codex-work/orchestration/3A-schema-requirements-2026-08-13.md;
+--       결정로그 ui-design-decisions:4371-4465에 병합). enum은 관례대로 text+check(3A §3 허용), 허용값은 3A §3 영문.
+-- ⚠️ 번호(예시 00036)는 환자앱·직원웹(00017~00035) 뒤 다음 번호로 적용 시점 확정(Global Constraints).
+-- ⚠️ 앞선 FK: ai_chat_sessions·support_tickets(Task 2)·anonymous_chat_sessions(Task 3)는 아직 없다.
+--    그 대상 칼럼은 여기서 uuid로만 만들고 FK 제약은 대상 표를 만드는 Task 2·3이 alter로 건다.
+
+-- ── chat_threads: 환자에게 보이는 "같은 상담방"의 안정적 루트 (§4.1) ──
+create table chat_threads (
+  id uuid primary key default gen_random_uuid(),
+  owner_type text not null check (owner_type in ('patient', 'anonymous_web')),
+  patient_id uuid references patients(id),              -- owner_type=patient일 때만
+  anonymous_session_id uuid,                            -- FK는 Task 3(anonymous_chat_sessions)
+  last_activity_at timestamptz not null default now(),  -- 목록 정렬용 전체 마지막 활동. AI 30분 만료 판단엔 쓰지 않음(§4.1)
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- 소유권 XOR: patient면 patient_id만, anonymous_web이면 anonymous_session_id만 (§4.1)
+  constraint chat_threads_owner_xor check (
+    (owner_type = 'patient'       and patient_id is not null and anonymous_session_id is null)
+    or (owner_type = 'anonymous_web' and anonymous_session_id is not null and patient_id is null)
+  )
+);
+-- 익명 세션 하나가 여러 상담방을 가질 수 있으므로 anonymous_session_id는 unique로 만들지 않는다(§4.1).
+create index idx_chat_threads_patient  on chat_threads (patient_id) where patient_id is not null;
+create index idx_chat_threads_anon     on chat_threads (anonymous_session_id) where anonymous_session_id is not null;
+create index idx_chat_threads_activity on chat_threads (last_activity_at desc);
+
+-- ── chat_messages: Realtime 단일 메시지 원장 (§4.3) + 카드 payload(공백2) + 시스템 이벤트(공백6) ──
+create table chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references chat_threads(id),
+  ai_chat_session_id uuid,           -- FK Task 2. 세션 XOR 티켓(정확히 하나)
+  support_ticket_id  uuid,           -- FK Task 2
+  sender_type text not null check (sender_type in ('patient', 'bot', 'staff', 'system')),
+  sender_patient_id           uuid references patients(id),
+  sender_anonymous_session_id uuid,  -- FK Task 3
+  sender_staff_id             uuid references staff(id),
+  message_type text not null default 'text'
+    check (message_type in ('text', 'card', 'quick_replies', 'system')),
+  content text,                      -- text 유형 본문. card/quick_replies/system은 payload가 알맹이(설계결정 2)
+  payload jsonb,                     -- 카드 스냅샷·빠른답변 버튼·시스템 이벤트 종류(카드 스키마는 Task 6)
+  client_message_id uuid,            -- 환자·직원 재전송 멱등 키(§4.3)
+  created_at timestamptz not null default now(),
+
+  -- 세션 XOR 티켓: 정확히 하나 (§4.3)
+  constraint chat_messages_session_ticket_xor check (
+    (ai_chat_session_id is not null) <> (support_ticket_id is not null)
+  ),
+  -- 발신 주체별 형태 (§4.3)
+  constraint chat_messages_sender_shape check (
+    case sender_type
+      when 'patient' then
+        ((sender_patient_id is not null) <> (sender_anonymous_session_id is not null))
+        and sender_staff_id is null
+      when 'staff' then
+        sender_staff_id is not null and sender_patient_id is null
+        and sender_anonymous_session_id is null and support_ticket_id is not null
+      when 'bot' then
+        sender_patient_id is null and sender_anonymous_session_id is null
+        and sender_staff_id is null and ai_chat_session_id is not null
+      when 'system' then
+        sender_patient_id is null and sender_anonymous_session_id is null
+        and sender_staff_id is null
+      else false
+    end
+  ),
+  -- 유형별 본문/payload (공백2·6; 설계결정 2 — 3A text-only content not null을 카드/시스템 추가로 완화)
+  constraint chat_messages_type_shape check (
+    case message_type
+      when 'text'          then content is not null and length(btrim(content)) > 0 and payload is null
+      when 'card'          then payload is not null
+      when 'quick_replies' then payload is not null
+      when 'system'        then payload is not null
+      else false
+    end
+  ),
+  -- 시스템 유형 ↔ 시스템 발신자는 짝이다(설계결정 1: 단일 원장에 시스템 경계 보존).
+  constraint chat_messages_system_pairing check (
+    (message_type = 'system') = (sender_type = 'system')
+  )
+);
+-- 상담방 타임라인·재연결 누락 조회(§6). client_message_id는 non-null 전역 unique(고엔트로피 UUID 1회 논리 전송).
+create index idx_chat_messages_thread  on chat_messages (thread_id, created_at, id);
+create index idx_chat_messages_ticket  on chat_messages (support_ticket_id, created_at, id) where support_ticket_id is not null;
+create index idx_chat_messages_session on chat_messages (ai_chat_session_id, created_at, id) where ai_chat_session_id is not null;
+create unique index idx_chat_messages_client_msg on chat_messages (client_message_id) where client_message_id is not null;
+
+-- 발신자↔상담방 소유권 일치(§4.3): 로그인 환자 발신자는 상담방 patient_id, 익명 발신자는 상담방 anonymous_session_id와 같아야 한다.
+-- (세션/티켓의 thread_id 일치 트리거는 그 표를 만드는 Task 2가 얹는다.) RLS 우회를 위해 security definer + public 정규화.
+create or replace function validate_chat_message_sender_thread()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare v_patient_id uuid; v_anon_id uuid;
+begin
+  select patient_id, anonymous_session_id into v_patient_id, v_anon_id
+    from public.chat_threads where id = new.thread_id;
+  if new.sender_patient_id is not null and new.sender_patient_id is distinct from v_patient_id then
+    raise exception '메시지 발신 환자가 상담방 소유자와 다릅니다.' using errcode = 'P0001';
+  end if;
+  if new.sender_anonymous_session_id is not null and new.sender_anonymous_session_id is distinct from v_anon_id then
+    raise exception '메시지 발신 익명 세션이 상담방과 다릅니다.' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_validate_chat_message_sender_thread
+  before insert on chat_messages
+  for each row execute function validate_chat_message_sender_thread();
+
+-- ── chat_read_states: 참여자별 확인 위치 + "지금 보고 있음" heartbeat (§4.6) ──
+create table chat_read_states (
+  id uuid primary key default gen_random_uuid(),
+  thread_id uuid not null references chat_threads(id),
+  reader_type text not null check (reader_type in ('patient', 'anonymous_web', 'staff')),
+  reader_patient_id           uuid references patients(id),
+  reader_anonymous_session_id uuid,   -- FK Task 3
+  reader_staff_id             uuid references staff(id),
+  last_read_message_id uuid references chat_messages(id),
+  last_read_at timestamptz,
+  active_view_until timestamptz,      -- 짧은 열람 heartbeat 만료. 영구 is_viewing=true 금지(§4.6)
+  updated_at timestamptz not null default now(),
+  constraint chat_read_states_reader_shape check (
+    case reader_type
+      when 'patient'       then reader_patient_id is not null and reader_anonymous_session_id is null and reader_staff_id is null
+      when 'anonymous_web' then reader_anonymous_session_id is not null and reader_patient_id is null and reader_staff_id is null
+      when 'staff'         then reader_staff_id is not null and reader_patient_id is null and reader_anonymous_session_id is null
+      else false
+    end
+  )
+);
+-- 참여자·상담방 조합당 한 행(§4.6) — reader_type별 부분 unique로 세 종류를 각각 강제.
+create unique index idx_chat_read_states_patient on chat_read_states (thread_id, reader_patient_id)           where reader_type = 'patient';
+create unique index idx_chat_read_states_anon    on chat_read_states (thread_id, reader_anonymous_session_id) where reader_type = 'anonymous_web';
+create unique index idx_chat_read_states_staff   on chat_read_states (thread_id, reader_staff_id)             where reader_type = 'staff';
+create index idx_chat_read_states_last_read on chat_read_states (last_read_message_id) where last_read_message_id is not null;
+
+-- ── RLS (§7) — 이 태스크가 담을 수 있는 것만. 직원 읽기는 티켓 배정에 달렸으므로 Task 2가 추가한다. ──
+alter table chat_threads     enable row level security;
+alter table chat_messages    enable row level security;
+alter table chat_read_states enable row level security;
+grant select on table chat_threads  to authenticated;
+grant select on table chat_messages to authenticated;
+grant select, insert, update on table chat_read_states to authenticated;
+
+-- 환자는 본인·가족(활성 링크) 소유 상담방과 그 메시지를 읽는다. 익명 상담방·메시지는 백엔드가 토큰 해시로
+-- 범위를 좁혀 서비스 역할로 반환한다(§7·§4.5). 메시지·봇·시스템 쓰기는 send_message 등 서비스 함수(Task 2)로만.
+create policy "patients_read_own_threads" on chat_threads
+  for select using (owner_type = 'patient' and patient_owns(patient_id));
+
+create policy "patients_read_own_messages" on chat_messages
+  for select using (exists (
+    select 1 from chat_threads t
+    where t.id = chat_messages.thread_id and t.owner_type = 'patient' and patient_owns(t.patient_id)));
+
+-- 환자는 자기 읽음 커서만 만들고 갱신한다(상담방 열람 heartbeat 포함).
+create policy "patients_manage_own_read_state" on chat_read_states
+  for all
+  using (reader_type = 'patient' and reader_patient_id = private.current_patient_id()
+    and exists (select 1 from chat_threads t where t.id = chat_read_states.thread_id and patient_owns(t.patient_id)))
+  with check (reader_type = 'patient' and reader_patient_id = private.current_patient_id()
+    and exists (select 1 from chat_threads t where t.id = chat_read_states.thread_id and patient_owns(t.patient_id)));
+```
+
+- [ ] **Step 4: 마이그레이션 적용 → 테스트 통과**
+
+Run: `supabase migration up && cd backend && pytest tests/test_chat_core_schema.py -v`
+Expected: PASS(전체 초록불). ⚠️ `supabase db reset` 금지(Global Constraints) — 로컬 DB는 공용. `migration up`으로만 적용한다.
+
+> **적용 전 확인**: 환자앱 `00017`(`patient_owns`·`private.current_patient_id`)과 `seed_patient`(conftest)이 이미 적용/존재해야 이 테스트가 돈다. 챗봇은 3단계(환자앱) 뒤에 구현하므로 정상 전제다. 없으면 「환자앱 먼저」로 막고 넘어가지 말 것.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add supabase/migrations/00036_chat_core_schema.sql \
+        backend/tests/test_chat_core_schema.py backend/tests/conftest_chat.py \
+        docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 1 본문 — 통합 대화 스키마(chat_threads·chat_messages·chat_read_states) 마이그레이션 + RLS. 시스템 이벤트 단일 원장·content nullable·앞선 FK 지연 3결정 명시, 제약·트리거·인덱스 계약 테스트"
+```
+
+> **Task 1 완료 조건**: 세 표·제약·트리거·인덱스·RLS 초록불 · 세션/티켓·익명 FK는 미생성(칼럼만) 확인 · 시스템 이벤트가 `chat_messages`에 단일 원장으로 남음 확인. 화면 규칙 0개라 `plan-coverage-check` 커버 수 불변(정상), `plan-prefix-check`는 소유 접두어 없어 빚·미배정 0.
