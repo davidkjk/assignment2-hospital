@@ -2215,3 +2215,176 @@ git commit -m "feat: 📝 상담봇 Task 3 본문 — 익명 소유권(토큰해
 ```
 
 > **Task 3 완료 조건**: 익명 표·연락처·배치·notification_log 확장·FK 백필 초록불 · §8-6~9·11·12 테스트 통과 · enqueue가 `notification_log`에 직접 쓰지 않음(배치만) 확인 · 익명 해시가 환자와 같아도 `patient_id` 미연결 확인. coverage 불변, prefix-check 빚·미배정 0.
+
+## Task 4: 근거 스냅샷 + 보존/파기 클래스 (`chat_message_sources` · `retention_classes`)
+
+> **화면 규칙 0개.** 이 태스크가 **3-A 통합 스키마 공백 7건을 전부 닫는다**(1·2·6=T1 · 나머지 세션/티켓=T2 · 익명/배칭=T3 · **여기서 5·7**). 둘을 만든다: **① 답변 근거 스냅샷**(`chat_message_sources` — 봇 답변이 쓴 KB 조각의 당시 제목·본문·순서·유사도를 박제해, 지식이 재임베딩·수정돼도 과거 답변 근거가 깨지지 않음, 공백 5·SD-06) · **② 보존·파기 클래스**(`retention_classes` — 법정 강제 2개·병원 방침 4개를 구조로만, 실제 파기 배치는 법무 게이트라 BLOCKED, 공백 7·SD-09).
+>
+> **근거 원본**: 3A §4(공백 5 = 색인 line 441 ERD 권고 `chat_message_sources`)·§9(보존) · 정본 보존표 `.claude/codex-work/orchestration/3A-schema-requirements-2026-08-13.md:449-462`(6 클래스, 조사=`W-02-retention-research-2026-08-13.md`). SD-06·SD-09 = 색인 `SPECINDEX-ai-chatbot.md:190·193`.
+>
+> ⭐ **이 태스크의 설계 결정 2건(기각안 포함)**:
+> 1. **`chat_message_sources.chunk_id`는 하드 FK가 아니라 소프트 참조(`uuid`, FK 없음).** 근거 스냅샷의 존재 이유가 바로 **조각이 재임베딩·삭제돼도 과거 답변 근거를 보존**하는 것이다(공백 5: 옛 `source_chunk_ids uuid[]`가 재생성 시 깨졌다). 하드 FK면 조각 삭제가 근거를 지우거나 삭제를 막는다. KB 조각표는 Task 7이 만들므로 **앞선 FK 문제도 함께 피한다**. *기각: `chunk_id`를 KB 조각 하드 FK로* — provenance가 조각 수명에 묶인다.
+> 2. **보존은 구조(클래스 lookup + 태그 칼럼)만, 파기 배치는 BLOCKED.** 법정값(진료기록 10년·감사 2년)은 코드 강제로 **화면 설정칸을 만들지 않고**(직원이 줄이면 법 위반), 방침값 4개(기본 1년)는 DB 초기값. **실제 TTL 파기 배치는 법무 게이트**(직원웹 #14 보존기간과 **같은 법·같은 조사** — 의료법 시규 §15·안전성확보 §8 원문 재확인 공통). *기각: 전역 TTL 하나* — 6개 데이터군의 법정기간이 달라 한 값으로 묶으면 위법(정본 §4 「전역 TTL 금지」).
+
+**Files:**
+- Create: `supabase/migrations/00039_chat_sources_retention.sql`
+- Create: `backend/tests/test_chat_sources_retention_schema.py`
+
+**Interfaces:**
+- Consumes: Task 1 `chat_messages`(봇 답변 메시지) · `acquire_as`·`db_conn`·`seed_patient`·`seed_staff`·`seed_chat_thread`
+- Produces:
+  - 표 `chat_message_sources(id, message_id FK chat_messages, chunk_id uuid 소프트, rank int, similarity numeric, title_snapshot text, body_snapshot text, created_at)` + 봇 메시지만 참조하는 트리거
+  - 표 `retention_classes(id text pk, retention_period interval null, enforcement text, legal_basis text, notes text)` — 6 클래스 시드
+  - `chat_messages.retention_class text references retention_classes(id) default 'consultation_message'` (재편입 시 `medical_record`로 재분류 = BLOCKED)
+  - 근거·순위 조회 인덱스 `idx_message_sources_message`
+- ⚠️ **아직 안 하는 것**: **클래스별 TTL 파기 배치**(법무 게이트·배포) · KB 조각표·재임베딩(Task 7) · 진료기록 편입 시 `medical_record` 재분류 잡(BLOCKED). Task 4는 **칸·클래스·스냅샷 구조만**.
+
+- [ ] **Step 1: 실패하는 스키마 테스트 작성**
+
+`backend/tests/test_chat_sources_retention_schema.py`:
+```python
+import uuid
+import pytest
+import asyncpg
+
+from tests.conftest import seed_patient, seed_staff
+from tests.conftest_chat import seed_chat_thread
+
+
+async def _bot_msg(conn, thread_id):
+    return await conn.fetchval(
+        "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content) "
+        "values ($1, $2, 'bot', 'text', '주차는 지하 1층입니다') returning id", thread_id, uuid.uuid4())
+
+
+@pytest.mark.asyncio
+async def test_source_stores_snapshot_and_soft_chunk_ref(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    m = await _bot_msg(db_conn, t)
+    # chunk_id는 소프트 참조 — 존재하지 않는 uuid를 넣어도 FK 위반이 아니다(조각표는 Task 7).
+    sid = await db_conn.fetchval(
+        "insert into chat_message_sources (message_id, chunk_id, rank, similarity, title_snapshot, body_snapshot) "
+        "values ($1,$2,1,0.87,'주차 안내','지하 1층 30분 무료') returning id", m, uuid.uuid4())
+    row = await db_conn.fetchrow("select * from chat_message_sources where id=$1", sid)
+    assert row["title_snapshot"] == "주차 안내" and row["rank"] == 1
+    assert float(row["similarity"]) == pytest.approx(0.87)
+
+
+@pytest.mark.asyncio
+async def test_source_must_reference_bot_message(db_conn):
+    p = await seed_patient(db_conn)
+    st = await seed_staff(db_conn, role="doctor")
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    tk = await db_conn.fetchval("insert into support_tickets (thread_id) values ($1) returning id", t)
+    staff_m = await db_conn.fetchval(
+        "insert into chat_messages (thread_id, support_ticket_id, sender_type, sender_staff_id, "
+        "message_type, content) values ($1,$2,'staff',$3,'text','직원 답변') returning id", t, tk, st["staff_id"])
+    # 근거는 봇 답변에만 붙는다. 직원 메시지에 붙이면 트리거가 막는다.
+    with pytest.raises(asyncpg.exceptions.RaiseError):
+        await db_conn.execute(
+            "insert into chat_message_sources (message_id, rank, title_snapshot, body_snapshot) "
+            "values ($1,1,'x','y')", staff_m)
+
+
+@pytest.mark.asyncio
+async def test_retention_classes_seeded(db_conn):
+    n = await db_conn.fetchval("select count(*) from retention_classes")
+    assert n == 6
+    med = await db_conn.fetchrow("select * from retention_classes where id='medical_record'")
+    assert med["enforcement"] == "code_forced"
+    assert med["retention_period"].days >= 3650  # 10년 = 코드 강제(의료법 시규 §15)
+    cons = await db_conn.fetchrow("select * from retention_classes where id='consultation_message'")
+    assert cons["enforcement"] == "policy_default"  # 방침값(법정 없음, 기본 1년)
+
+
+@pytest.mark.asyncio
+async def test_chat_message_defaults_to_consultation_retention(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    m = await _bot_msg(db_conn, t)
+    assert await db_conn.fetchval(
+        "select retention_class from chat_messages where id=$1", m) == "consultation_message"
+```
+
+- [ ] **Step 2: 테스트 실패 확인** — Run: `cd backend && pytest tests/test_chat_sources_retention_schema.py -v` → Expected: FAIL(`relation "chat_message_sources" does not exist`).
+
+- [ ] **Step 3: 마이그레이션 작성**
+
+`supabase/migrations/00039_chat_sources_retention.sql`:
+```sql
+-- 3-A 통합 대화 스키마 ④ 답변 근거 스냅샷 + 보존/파기 클래스 (공백 5·7, SD-06·09).
+-- ⚠️ 번호(예시 00039)는 적용 시점에 확정.
+
+-- ── chat_message_sources: 봇 답변이 쓴 KB 조각의 당시 스냅샷 (공백 5) ──
+-- chunk_id는 소프트 참조(하드 FK 아님) — 조각이 재임베딩·삭제돼도 스냅샷은 남아야 한다(설계결정 1).
+create table chat_message_sources (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references chat_messages(id),  -- 근거가 붙는 봇 답변 메시지
+  chunk_id uuid,                                          -- KB 조각 조회 편의용 소프트 참조(조각표=Task 7)
+  rank int not null,                                      -- 당시 검색 순위
+  similarity numeric,                                     -- 당시 유사도 점수
+  title_snapshot text,                                    -- 답변 당시 조각 제목(문구 수정 뒤에도 보존)
+  body_snapshot text,                                     -- 답변 당시 조각 본문
+  created_at timestamptz not null default now()
+);
+create index idx_message_sources_message on chat_message_sources (message_id, rank);
+
+-- 근거는 봇 답변에만 붙는다(직원·환자·시스템 메시지엔 금지).
+create or replace function validate_source_is_bot_message()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare v_sender text;
+begin
+  select sender_type into v_sender from public.chat_messages where id = new.message_id;
+  if v_sender is distinct from 'bot' then
+    raise exception '답변 근거는 봇 답변 메시지에만 붙일 수 있습니다.' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+create trigger trg_validate_source_is_bot_message
+  before insert on chat_message_sources for each row execute function validate_source_is_bot_message();
+
+-- ── retention_classes: 보존·파기 클래스 (공백 7, SD-09) ──
+-- 전역 TTL 금지 → 6 클래스 분리(정본 §4). 법정값=코드 강제(설정칸 없음), 방침값=DB 기본 1년.
+-- ⚠️ 실제 클래스별 TTL 파기 배치는 법무 게이트라 BLOCKED — 이 표는 구조·값 기록만(설계결정 2).
+create table retention_classes (
+  id text primary key,
+  retention_period interval,                              -- null = "원 데이터와 동일"(pseudonymous)
+  enforcement text not null check (enforcement in ('code_forced', 'policy_default')),
+  legal_basis text,
+  notes text
+);
+insert into retention_classes (id, retention_period, enforcement, legal_basis, notes) values
+  ('medical_record',            interval '10 years', 'code_forced',
+     '의료법 시행규칙 §15', '진료기록 편입분. 직원이 줄일 수 없음(설정칸 없음)'),
+  ('access_audit',              interval '2 years',  'code_forced',
+     '개인정보 안전성 확보조치 기준 §8', '직원 감사로그(민감정보 시스템)'),
+  ('pseudonymous_or_tokenized', null,                'code_forced',
+     '개인정보보호법 §58의2', '암호화 전화·재식별 토큰. 원 데이터 파기 시 함께'),
+  ('appointment_operation',     interval '1 year',   'policy_default',
+     null, '비진료 예약·운영. 법정 없음 — 병원 처리방침으로 조정'),
+  ('consultation_message',      interval '1 year',   'policy_default',
+     null, '상담·챗봇. 진료 편입분은 medical_record로 이관/복제(BLOCKED)'),
+  ('notification_delivery',     interval '1 year',   'policy_default',
+     null, '발송로그. 본문 미저장/최소화');
+
+-- 상담 데이터군의 기본 클래스 태그. 진료기록 편입 시 medical_record 재분류 잡은 BLOCKED(법무·배포).
+alter table chat_messages
+  add column retention_class text not null default 'consultation_message'
+    references retention_classes(id);
+-- 익명 연락처(암호화 전화)는 pseudonymous_or_tokenized 군, 발송로그는 notification_delivery 군 —
+-- 태그 칼럼을 표마다 늘리지 않고 표↔클래스 매핑을 파기 배치(BLOCKED)가 코드로 안다. 여기선 문서화만.
+```
+
+- [ ] **Step 4: 마이그레이션 적용 → 테스트 통과** — Run: `supabase migration up && cd backend && pytest tests/test_chat_sources_retention_schema.py -v` → Expected: PASS.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add supabase/migrations/00039_chat_sources_retention.sql \
+        backend/tests/test_chat_sources_retention_schema.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 4 본문 — 근거 스냅샷(chat_message_sources 소프트 chunk참조)·보존 클래스(retention_classes 6종·파기 배치 BLOCKED). 공백 7건 전부 닫힘(SD-06·09)"
+```
+
+> **Task 4 완료 조건**: 근거 스냅샷·6 보존 클래스·`retention_class` 태그 초록불 · `chunk_id`가 하드 FK 아님(없는 uuid 삽입 성공) 확인 · 근거가 봇 메시지에만 붙음 확인 · 파기 배치는 미생성(BLOCKED) 확인. ⭐ **3-A 통합 스키마 공백 7건 전부 닫힘**(T1~T4). coverage 불변, prefix-check 빚·미배정 0.
