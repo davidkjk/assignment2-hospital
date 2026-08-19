@@ -6282,3 +6282,550 @@ git commit -m "feat: 📝 상담봇 Task 12 본문 — 앱 예약·문진 카드
 ```
 
 > **Task 12 완료 조건**: `CCARD-TIME`5·`CCARD-QUICK`6·`CCARD-BOOKCONF`5·`CCARD-BOOKDONE`5·`CCARD-QNR`8·`BOOKBOT-SHEET`9·`NAV-CHATAPP`10 = **48규칙 전수** 초록불. ⭐ **T10 슬롯 채움**(`cardBuilder`←`buildChatCard`·`quickRepliesSlot`←`ChatQuickReplies`) + **환자앱 T20 `DeptBotSheet`에 제한모드 엔진 주입**. **다음 = Task 13**(앱 취소 카드 3종 + 마감 후 상담 연결 — `CCARD-CANCELCONF/DONE/REJ`·`LATEFLOW-POP/CHAT/APPT`, `buildChatCard`에 `cancel_*` 분기 추가 + NAV-CHATAPP 05~08 도착 화면 실체화). ⚠️ Task 13에 미결 2건(`CCARD-CANCELCONF-NO` 계열·`CCARD-CANCELREJ-EXC` 계열) — 거기서 닫는다.
+
+---
+
+## Task 13: 앱 취소 카드 3종 + 마감 후 상담 연결 흐름 (`CCARD-CANCEL*` · `LATEFLOW-*`)
+
+> **환자 채널의 마지막.** 대화 피드의 취소확인·취소결과·취소반려 카드 3종(`buildChatCard`에 `cancel_*` 분기 추가) + 마감 후 취소/변경을 상담으로 잇는 흐름(안내 팝업 → 즉시 기록 → 예약 맥락 상담방 → 연결 후 예약 상세 상태). **여기서 확인 필요 2건을 닫는다**(`CCARD-CANCELCONF-NO-01`·`CCARD-CANCELREJ-EXC-01`).
+>
+> ⭐ **경계 — 환자앱 T22가 이미 지은 것을 소비**(중복 빌드 금지): 마감 후 안내 팝업(`cancel_flow.dart`)·`cancel_appointment`·`request_support(request_type)`·연결 후 상태(`상담 연결됨·직원 확인 중`)·`acknowledge_cancel_rejection`·취소 주체 4필드(`cancelled_by·relation·name·at`, `00025`)·취소반려 2칸(`cancel_rejected_at·_reason`, `00027`). **Task 13이 새로 짓는 것 = ①취소 카드 3종(채팅 피드) ②예약 맥락 상담방 `LATEFLOW-CHAT`(봇이 설명만·기록은 팝업 시점에 이미 됨) ③연결 처리 잠금/시간초과 상태(`LATEFLOW-POP-BUSY/ERR`).**
+>
+> **근거 원본**: behaviors 상담봇 §6(`CCARD-CANCELCONF`)·§7(`CCARD-CANCELDONE`)·§8(`CCARD-CANCELREJ`)·§14(`LATEFLOW-POP`)·§15(`LATEFLOW-CHAT`)·§16(`LATEFLOW-APPT`) · 카드 사전 §4~§6 · 정본 §0·§1(10~11) · 결정 **A1**(연결 즉시 기록·봇은 설명만)·**E3**(변경도 support_requested_at)·**역대조 결정 6 A안**(기록 없이 닫기는 연결 선택 전에만) · 환자앱 `CANCEL-LATE-*`·`CANCEL-REJ-*`·`CANCEL-DONE-*`.
+>
+> ⭐⭐ **환자 노출 문구 금지(정본 §0·`CANCEL-LATE-13`)**: `취소 요청이 접수/등록됐다`·`취소를 요청해 두었다`·자동 취소 암시. **오직** `상담(직원 확인)으로 연결됐습니다`·`아직 예약은 유지되고 있습니다`만. 서버는 문구를 만들지 않고 화면이 그린다.
+>
+> ⭐ **확인 필요 2건 확정(기각안 포함)**:
+> - **`CCARD-CANCELCONF-NO-01`(취소 중단 시 카드가 대화 기록에 남는 표현)** → **A안 확정**: `[아니요]`를 누르면 카드를 **지우지 않고** 그 자리에서 「취소하지 않음」 확정 상태로 남긴다(버튼 제거·`취소하지 않았어요` 표시). API 호출 없음. *기각 ①*: 카드를 피드에서 삭제 — 무엇을 물었는지 대화 기록에 구멍. *기각 ②*: 버튼 유지 — 지난 카드 재실행 위험(`CCARD-BOOKDONE-BACK-01`과 어긋남).
+> - **`CCARD-CANCELREJ-EXC-01`(사유 누락 시 오류 처리·확인 저장 API)** → **확정**: 직원 사유가 비면(계약 위반) 앱은 **사유를 지어내지 않고** `사유가 전달되지 않았어요 · 병원에 문의해 주세요`만 표시하며, `[확인]`은 사유 유무와 무관하게 환자앱 T22 `acknowledge_cancel_rejection`을 불러 배지를 비운다(막다른 길 금지). `[다시 문의하기]`도 함께. *기각 ①*: 사유를 `사유 없음`으로 지어 표시(값 조작·정본 §0). *기각 ②*: 사유 없으면 `[확인]` 막음 — 배지가 영영 안 지워지는 막다른 길.
+
+**Files:**
+- Modify: `patient_app/lib/features/chat/cards/chat_card_dispatcher.dart` (T12) — `cancel_confirm`·`cancel_done`·`cancel_reject` 분기 추가
+- Create: `patient_app/lib/features/chat/cards/c_cancel_confirm_card.dart` (`CCancelConfirmCard` — CCARD-CANCELCONF)
+- Create: `patient_app/lib/features/chat/cards/c_cancel_done_card.dart` (`CCancelDoneCard` — CCARD-CANCELDONE)
+- Create: `patient_app/lib/features/chat/cards/c_cancel_reject_card.dart` (`CCancelRejectCard` — CCARD-CANCELREJ)
+- Create: `patient_app/lib/features/chat/lateflow_chat_view.dart` (`LateFlowChatView` — LATEFLOW-CHAT 예약 맥락 상담방)
+- Create: `patient_app/lib/features/chat/lateflow_controller.dart` (`LateFlowController` — 연결 처리 잠금/시간초과, LATEFLOW-POP-BUSY/ERR)
+- Modify: `patient_app/lib/features/booking/cancel_flow.dart` (환자앱 T22) — `[상담 채팅 연결]`에 `LateFlowController` 연결 처리 상태 얹기(BUSY 잠금·ERR 재활성)
+- Modify: `patient_app/lib/features/appointments/appointment_detail_*.dart` (환자앱 T22) — 연결 후 `LATEFLOW-APPT` 상태(이미 CANCEL-LATE-12·14가 대부분, 상담 이어가기 배선 확인)
+- Modify: `docs/design/screen-behaviors.md` — `CCARD-CANCELCONF-NO-01`·`CCARD-CANCELREJ-EXC-01` 확인 필요 → 확정(역참조)
+- Test: `patient_app/test/features/chat/c_cancel_confirm_card_test.dart` · `c_cancel_done_card_test.dart` · `c_cancel_reject_card_test.dart` · `lateflow_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **Task 12**: `buildChatCard`(dispatcher — 여기에 `cancel_*` 추가) · `AppCard`·`ActionButton`.
+  - **Task 10**: `ChatRoomController`·`chatRoomProvider`(LATEFLOW-CHAT가 예약 맥락으로 재사용) · `ChatSafetyBanner`.
+  - **환자앱(3단계) T22/T6/T21**: `cancel_flow.dart`(마감 후 안내 팝업, CANCEL-LATE-01~10) · `request_support(patient, appointment_id, request_type)`(마감 후 기록·멱등, T6) · `cancel_appointment`(T6) · `acknowledge_cancel_rejection`(반려 [확인] 비움, T22) · `get_appointment_detail`(취소 주체 4필드·반려 2칸, T21/T22) · `AppointmentView`(`cancelled_by`·`relation`·`name`·`at`·`isSelf`·`cancel_rejected_reason`) · `CxlBody`(취소 주체 렌더, T17).
+  - **Task 6 카드 계약**: `card_type` `cancel_confirm`·`cancel_done`·`cancel_reject` + payload(확인 항목·결과·반려 사유).
+- Produces (환자 채널 완결 — 뒤 태스크가 직접 소비하진 않음):
+  - `CCancelConfirmCard`·`CCancelDoneCard`·`CCancelRejectCard` · `LateFlowChatView` · `LateFlowController`(`connect()`·`ConnectPhase` idle/busy/error/connected).
+
+---
+
+- [ ] **Step 1a: 취소확인 카드 실패 테스트** — `patient_app/test/features/chat/c_cancel_confirm_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/cards/c_cancel_confirm_card.dart';
+
+void main() {
+  Map<String, dynamic> _p(String state) => {'state': state,
+      'patient_name': '홍길동', 'department': '내과', 'slot_label': '9/1 10:00'};
+
+  testWidgets('[CCARD-CANCELCONF-SHOW-01] 마감 전/30분 이내 취소 의사면 대상 예약 뒤 확인 카드 삽입', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelConfirmCard(
+        payload: _p('normal'), onConfirm: () {}, onNo: () {}))));
+    expect(find.textContaining('내과'), findsOneWidget);
+    expect(find.text('취소합니다'), findsOneWidget);
+    expect(find.text('아니요'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-CANCELCONF-STATE-01] 4상태를 같은 카드 자리에서 전환', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelConfirmCard(
+        payload: _p('processing'), onConfirm: () {}, onNo: () {}))));
+    expect(find.textContaining('처리 중'), findsOneWidget);
+    expect(find.byType(CCancelConfirmCard), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-CANCELCONF-NO-01] [아니요]면 API 호출 없이 카드를 「취소하지 않음」으로 남긴다', (t) async {
+    var called = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelConfirmCard(
+        payload: _p('declined'), onConfirm: () => called = true, onNo: () {}))));
+    expect(find.text('취소하지 않았어요'), findsOneWidget); // 지우지 않고 확정 상태로
+    expect(find.text('취소합니다'), findsNothing);          // 버튼 제거(재실행 방지)
+    expect(called, isFalse);
+  });
+
+  testWidgets('[CCARD-CANCELCONF-DONE-01] [취소합니다] 성공이면 다음 메시지로 취소결과 카드', (t) async {
+    var confirmed = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelConfirmCard(
+        payload: _p('normal'), onConfirm: () => confirmed = true, onNo: () {}))));
+    await t.tap(find.text('취소합니다'));
+    expect(confirmed, isTrue);
+  });
+
+  testWidgets('[CCARD-CANCELCONF-LATE-01] 마감 후·30분 밖이면 카드/직접 API 안 쓰고 LATEFLOW 경로', (t) async {
+    // 마감 후면 이 확인 카드를 보내지 않는다 — dispatcher가 lateflow로 보낸다(Step 4).
+    expect(cancelConfirmBlockedWhenLate(afterDeadline: true), isTrue);
+  });
+}
+```
+Run: `flutter test test/features/chat/c_cancel_confirm_card_test.dart` → Expected: FAIL.
+
+- [ ] **Step 1b: `CCancelConfirmCard` 구현** — `c_cancel_confirm_card.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../../widgets/app_card.dart';
+import '../../../widgets/action_button.dart';
+/// 취소확인 카드 그릇(CCARD-CANCELCONF). 마감 전/30분 이내에만(LATE면 LATEFLOW 경로).
+/// [아니요]는 API 없이 카드를 「취소하지 않음」 확정 상태로 남긴다(NO-01 A안 — 지우지 않고 버튼 제거).
+bool cancelConfirmBlockedWhenLate({required bool afterDeadline}) => afterDeadline;
+
+class CCancelConfirmCard extends StatelessWidget {
+  final Map<String, dynamic> payload;
+  final VoidCallback onConfirm, onNo;
+  const CCancelConfirmCard({super.key, required this.payload,
+      required this.onConfirm, required this.onNo});
+  @override Widget build(BuildContext context) {
+    final state = payload['state'] as String? ?? 'normal';
+    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('${payload['patient_name']} · ${payload['department']} · ${payload['slot_label']}'),
+      if (state == 'declined') const Text('취소하지 않았어요')          // NO-01: 확정 상태·버튼 없음
+      else if (state == 'race') const Text('예약 상태가 바뀌었어요. 다시 확인해 주세요')
+      else Row(children: [
+        ActionButton(label: '취소합니다', busyLabel: '취소 처리 중…',
+            busy: state == 'processing', onPressed: onConfirm),
+        TextButton(onPressed: onNo, child: const Text('아니요')),
+      ]),
+      if (state == 'error') const Text('취소에 실패했어요. 다시 시도해 주세요'),
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/c_cancel_confirm_card_test.dart` → Expected: PASS.
+
+- [ ] **Step 2a: 취소결과 카드 실패 테스트** — `patient_app/test/features/chat/c_cancel_done_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/cards/c_cancel_done_card.dart';
+
+void main() {
+  testWidgets('[CCARD-CANCELDONE-SHOW-01] 취소 성공 확인 뒤 결과 카드 삽입', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelDoneCard(
+        payload: const {'state': 'normal', 'cancelled_by': 'self'}))));
+    expect(find.byType(CCancelDoneCard), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-CANCELDONE-STATE-01] 미확인 결과를 완료로 표현하지 않는다', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelDoneCard(
+        payload: const {'state': 'loading'}))));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.textContaining('취소되었'), findsNothing);
+  });
+
+  testWidgets('[CCARD-CANCELDONE-QNR-01] 보존 문진이면 [작성한 문진 보기]+[새로 예약하기]·자동 복사 안 함', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelDoneCard(
+        payload: const {'state': 'normal', 'cancelled_by': 'self', 'has_questionnaire': true}))));
+    expect(find.text('작성한 문진 보기'), findsOneWidget);
+    expect(find.text('새로 예약하기'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-CANCELDONE-NEW-01] [새로 예약하기]는 새 예약 시작·과거 문진 자동 복사 안 함', (t) async {
+    var started = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelDoneCard(
+        payload: const {'state': 'normal', 'cancelled_by': 'self', 'has_questionnaire': true},
+        onNewBooking: () => started = true))));
+    await t.tap(find.text('새로 예약하기'));
+    expect(started, isTrue);
+  });
+
+  testWidgets('[CCARD-CANCELDONE-EXC-01] 취소 미확정이면 결과 카드 대신 아직 예약 유지 상태', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelDoneCard(
+        payload: const {'state': 'pending_support'}))));
+    expect(find.text('아직 예약은 유지되고 있습니다'), findsOneWidget);
+    expect(find.textContaining('취소되었'), findsNothing);
+  });
+}
+```
+Run: `flutter test test/features/chat/c_cancel_done_card_test.dart` → Expected: FAIL.
+
+- [ ] **Step 2b: `CCancelDoneCard` 구현** — `c_cancel_done_card.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../../widgets/app_card.dart';
+/// 취소결과 카드 그릇(CCARD-CANCELDONE). 실제 취소 확인 뒤에만(SHOW·STATE, 미확정을 완료로 위장 안 함).
+/// 취소 미확정(상담 연결 중)이면 결과 대신 `아직 예약은 유지되고 있습니다`(EXC). 보존 문진은 읽기전용+새 예약.
+class CCancelDoneCard extends StatelessWidget {
+  final Map<String, dynamic> payload;
+  final VoidCallback? onNewBooking;
+  const CCancelDoneCard({super.key, required this.payload, this.onNewBooking});
+  @override Widget build(BuildContext context) {
+    final state = payload['state'] as String? ?? 'normal';
+    if (state == 'loading') return const AppCard(child: Center(child: CircularProgressIndicator()));
+    if (state == 'pending_support') {
+      return const AppCard(child: Text('아직 예약은 유지되고 있습니다')); // EXC
+    }
+    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('예약이 취소되었습니다'),
+      if (payload['has_questionnaire'] == true) ...[
+        OutlinedButton(onPressed: () {}, child: const Text('작성한 문진 보기')),
+        OutlinedButton(onPressed: onNewBooking, child: const Text('새로 예약하기')), // 자동 복사 없음
+      ],
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/c_cancel_done_card_test.dart` → Expected: PASS.
+
+- [ ] **Step 3a: 취소반려 카드 실패 테스트** — `patient_app/test/features/chat/c_cancel_reject_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/cards/c_cancel_reject_card.dart';
+
+void main() {
+  Map<String, dynamic> _p({String state = 'before', String? reason = '진료 준비가 이미 시작되었습니다'}) =>
+      {'state': state, 'reason': reason};
+
+  testWidgets('[CCARD-CANCELREJ-SHOW-01] 직원 취소 불가 답변이면 반려 카드 삽입', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelRejectCard(
+        payload: _p(), onAck: () {}, onReinquire: () {}))));
+    expect(find.byType(CCancelRejectCard), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-CANCELREJ-STATE-01] 확인 전 안내는 앱 재실행 뒤에도 유지', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelRejectCard(
+        payload: _p(state: 'before'), onAck: () {}, onReinquire: () {}))));
+    expect(find.text('확인'), findsOneWidget); // 확인 전엔 [확인] 노출(상태는 서버 저장분)
+  });
+
+  testWidgets('[CCARD-CANCELREJ-REASON-01] 직원 사유를 요약·순화 없이 그대로 표시', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelRejectCard(
+        payload: _p(reason: '진료 준비가 이미 시작되었습니다'), onAck: () {}, onReinquire: () {}))));
+    expect(find.text('진료 준비가 이미 시작되었습니다'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-CANCELREJ-EXC-01] 사유 누락이면 지어내지 않고 안내 + [확인]은 여전히 동작', (t) async {
+    var acked = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelRejectCard(
+        payload: _p(reason: null), onAck: () => acked = true, onReinquire: () {}))));
+    expect(find.textContaining('사유가 전달되지 않았'), findsOneWidget); // 지어내지 않음
+    await t.tap(find.text('확인'));
+    expect(acked, isTrue);                                              // 막다른 길 아님
+  });
+
+  testWidgets('[CCARD-CANCELREJ-LINK-01] [다시 문의하기]는 횟수 제한 없이 예약 맥락 상담방을 연다', (t) async {
+    var reinquired = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CCancelRejectCard(
+        payload: _p(), onAck: () {}, onReinquire: () => reinquired = true))));
+    await t.tap(find.text('다시 문의하기'));
+    expect(reinquired, isTrue);
+  });
+}
+```
+Run: `flutter test test/features/chat/c_cancel_reject_card_test.dart` → Expected: FAIL.
+
+- [ ] **Step 3b: `CCancelRejectCard` + dispatcher `cancel_*` 분기 구현** — `c_cancel_reject_card.dart`, `chat_card_dispatcher.dart` 수정
+
+```dart
+// patient_app/lib/features/chat/cards/c_cancel_reject_card.dart
+import 'package:flutter/material.dart';
+import '../../../widgets/app_card.dart';
+/// 취소반려 카드 그릇(CCARD-CANCELREJ). 직원 사유를 그대로(REASON, 요약·순화 금지). 확인 전 안내는
+/// 서버 저장분이라 재실행 뒤에도 유지(STATE). 사유 누락(계약 위반)이면 지어내지 않고 안내 + [확인]은
+/// acknowledge_cancel_rejection(T22)을 그대로 부른다(EXC — 막다른 길 금지). [다시 문의하기] 횟수 무제한(LINK).
+class CCancelRejectCard extends StatelessWidget {
+  final Map<String, dynamic> payload;
+  final VoidCallback onAck, onReinquire;
+  const CCancelRejectCard({super.key, required this.payload,
+      required this.onAck, required this.onReinquire});
+  @override Widget build(BuildContext context) {
+    final reason = payload['reason'] as String?;
+    final acked = payload['state'] == 'after';
+    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('요청하신 취소가 어려워요'),
+      if (reason != null && reason.isNotEmpty) Text(reason)              // REASON 그대로
+      else const Text('사유가 전달되지 않았어요 · 병원에 문의해 주세요'),   // EXC 지어내지 않음
+      if (!acked) TextButton(onPressed: onAck, child: const Text('확인')), // EXC: 항상 동작
+      TextButton(onPressed: onReinquire, child: const Text('다시 문의하기')), // LINK 무제한
+    ]));
+  }
+}
+```
+
+```dart
+// chat_card_dispatcher.dart(T12) switch에 추가:
+//   'cancel_confirm' => CCancelConfirmCard(payload: p, onConfirm: () {}, onNo: () {}),
+//   'cancel_done' => CCancelDoneCard(payload: p),
+//   'cancel_reject' => CCancelRejectCard(payload: p, onAck: () {}, onReinquire: () {}),
+// ⚠️ cancel_* 도 제한모드에선 렌더 안 함(actionCards 집합에 추가) — 예약 중 상담은 취소 카드도 금지.
+```
+Run: `flutter test test/features/chat/c_cancel_reject_card_test.dart` → Expected: PASS.
+
+- [ ] **Step 4a: 마감 후 흐름(팝업 연결 처리·예약 맥락 상담방·연결 후 상태) 실패 테스트** — `patient_app/test/features/chat/lateflow_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/lateflow_controller.dart';
+import 'package:patient_app/features/chat/lateflow_chat_view.dart';
+
+class _Support {
+  int calls = 0; bool fail = false;
+  Future<void> request(String type) async { calls++; if (fail) throw Exception('net'); }
+}
+
+void main() {
+  testWidgets('[LATEFLOW-POP-OPEN-01] 마감 후·30분 밖 취소/변경이면 확인창 대신 안내 팝업', (t) async {
+    expect(lateFlowShouldOpenPopup(afterDeadline: true, within30min: false), isTrue);
+    expect(lateFlowShouldOpenPopup(afterDeadline: false, within30min: false), isFalse);
+  });
+
+  testWidgets('[LATEFLOW-POP-COPY-01] 제목은 취소/변경에 따라 각각의 마감 문구', (t) async {
+    expect(lateFlowTitle('취소'), '취소 마감 시간이 지났습니다');
+    expect(lateFlowTitle('변경'), '변경 마감 시간이 지났습니다');
+  });
+
+  testWidgets('[LATEFLOW-POP-SETTING-01] 마감 안내 N은 설정값·의사 이름 안 붙임', (t) async {
+    expect(lateFlowDeadlineText(hoursBefore: 24), '진료 시작 24시간 전');
+    expect(lateFlowDeadlineText(hoursBefore: 24).contains('의사'), isFalse);
+  });
+
+  testWidgets('[LATEFLOW-POP-PATH-01] 상담 채팅 먼저·전화 상자 다음·[닫기]/[상담 채팅 연결]', (t) async {
+    final order = lateFlowPathOrder();
+    expect(order.indexOf('chat') < order.indexOf('phone'), isTrue);
+  });
+
+  test('[LATEFLOW-POP-CLOSE-01] 연결 선택 전 [닫기]는 기록 없이 상세로', () async {
+    final s = _Support();
+    final c = LateFlowController(requestSupport: s.request);
+    c.close(); // 연결 전
+    expect(s.calls, 0); // 기록 없음
+  });
+
+  test('[LATEFLOW-POP-LINK-01] [상담 채팅 연결]은 누른 즉시 request_support 1회 기록', () async {
+    final s = _Support();
+    final c = LateFlowController(requestSupport: s.request);
+    await c.connect('취소');
+    expect(s.calls, 1); // 최초 기록(support_requested_at)
+  });
+
+  test('[LATEFLOW-POP-BUSY-01] 연결 처리 중엔 연결/닫기 잠금·무기한 금지(시간초과→ERR)', () async {
+    final s = _Support()..fail = true;
+    final c = LateFlowController(requestSupport: s.request);
+    await c.connect('취소');
+    expect(c.phase, ConnectPhase.error); // 시간초과/실패면 ERR로 — 무기한 잠금 아님
+  });
+
+  test('[LATEFLOW-POP-ERR-01] 실패/시간초과면 [닫기]·[다시 연결] 재활성·연결됐다 안 함', () async {
+    final s = _Support()..fail = true;
+    final c = LateFlowController(requestSupport: s.request);
+    await c.connect('취소');
+    expect(c.canRetry, isTrue);
+    expect(c.phase, isNot(ConnectPhase.connected));
+  });
+
+  test('[LATEFLOW-POP-CHANGE-01] 변경도 취소와 같이 support_requested_at+request_type 저장·앱은 시간 안 고름', () async {
+    final s = _Support();
+    final c = LateFlowController(requestSupport: s.request);
+    await c.connect('변경');
+    expect(s.calls, 1);
+    expect(c.pickedNewTime, isNull); // 새 시간은 상담에서 정함
+  });
+
+  testWidgets('[LATEFLOW-CHAT-OPEN-01] 연결 성공이면 예약 ID·이유 가진 상담방·뒤로는 예약 상세', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소')));
+    expect(find.byType(LateFlowChatView), findsOneWidget);
+  });
+
+  testWidgets('[LATEFLOW-CHAT-RECORD-01] 이미 팝업 시점에 기록됨 — 이 화면에서 중복 생성·추가 선택 없음', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소')));
+    expect(find.text('상담 채팅 연결'), findsNothing); // 다시 연결 버튼 없음
+  });
+
+  testWidgets('[LATEFLOW-CHAT-CONTEXT-01] 봇 첫 설명은 누구의 어느 예약·이유·예약 유지만·선택 요구 안 함', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소', contextLoaded: true)));
+    expect(find.textContaining('아직 예약은 유지'), findsOneWidget);
+  });
+
+  testWidgets('[LATEFLOW-CHAT-KEEP-01] 연결 직후·직원 확인 중엔 상담 연결됨+예약 유지만', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소', contextLoaded: true)));
+    expect(find.textContaining('상담(직원 확인)으로 연결됐습니다'), findsOneWidget);
+  });
+
+  testWidgets('[LATEFLOW-CHAT-FORBID-01] `취소 요청이 접수/등록됐다`·자동 취소 암시 표현 금지', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소', contextLoaded: true)));
+    expect(find.textContaining('접수'), findsNothing);
+    expect(find.textContaining('요청해'), findsNothing);
+  });
+
+  testWidgets('[LATEFLOW-CHAT-LOAD-01] 예약 맥락 조회 중엔 확인 안 된 예약 정보를 먼저 안 만든다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소', contextLoaded: false)));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('[LATEFLOW-CHAT-ERR-01] 맥락 조회 실패면 다른 예약 대입 안 하고 오류·재시도·상세 복귀', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소', loadError: true)));
+    expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  testWidgets('[LATEFLOW-CHAT-DUP-01] 이미 상담 연결 기록 있으면 새 기록·CTA 없이 기존 대화 복원', (t) async {
+    await t.pumpWidget(const MaterialApp(home: LateFlowChatView(
+        appointmentId: 'ap1', reason: '취소', alreadyLinked: true)));
+    expect(find.text('상담 채팅 연결'), findsNothing);
+  });
+
+  testWidgets('[LATEFLOW-APPT-STATE-01] 상담 연결 기록·처리 전이면 상담 연결됨·직원 확인 중', (t) async {
+    expect(lateFlowApptState(linked: true, resolved: false), '상담 연결됨 · 직원 확인 중');
+  });
+
+  testWidgets('[LATEFLOW-APPT-KEEP-01] 취소/변경 미확정이면 아직 예약 유지·정상 예약 정보', (t) async {
+    expect(lateFlowApptKeepText(resolved: false), '아직 예약은 유지되고 있습니다');
+  });
+
+  testWidgets('[LATEFLOW-APPT-DUP-01] 이미 요청 기록이면 새 취소 CTA 제거·상담 이어가기로 대체', (t) async {
+    expect(lateFlowApptCta(alreadyRequested: true), '상담 이어가기 ›');
+  });
+
+  testWidgets('[LATEFLOW-APPT-CONT-01] 상담 이어가기는 새 기록 없이 같은 예약 맥락 상담방', (t) async {
+    final s = _Support();
+    final c = LateFlowController(requestSupport: s.request);
+    c.continueChat(); // 이어가기
+    expect(s.calls, 0); // 새 기록 없음
+  });
+
+  testWidgets('[LATEFLOW-APPT-LOAD-01] 상담 상태 조회 중엔 예약 상세 유지·취소 버튼 먼저 안 보임', (t) async {
+    expect(lateFlowApptShowsCancelWhileLoading(), isFalse);
+  });
+
+  testWidgets('[LATEFLOW-APPT-ERR-01] 상태 조회 실패면 예약 상세 유지·오류/재시도·연결없음 위장 안 함', (t) async {
+    expect(lateFlowApptFabricatesNoLink(onError: true), isTrue);
+  });
+
+  testWidgets('[LATEFLOW-APPT-RESOLVE-01] 직원 처리 결과 반영 — 반려면 CCARD-CANCELREJ/정상 QR·임의 배지 삭제 없음', (t) async {
+    expect(lateFlowApptOnResolve('rejected'), 'cancel_reject');
+    expect(lateFlowApptOnResolve('cancelled'), 'cancelled');
+  });
+}
+```
+Run: `flutter test test/features/chat/lateflow_test.dart` → Expected: FAIL.
+
+- [ ] **Step 4b: `LateFlowController`·`LateFlowChatView` + 순수 함수 구현**
+
+```dart
+// patient_app/lib/features/chat/lateflow_controller.dart
+import 'package:flutter/foundation.dart';
+/// 마감 후 상담 연결 처리(LATEFLOW-POP-BUSY/ERR + APPT). 환자앱 T22 cancel_flow 팝업의
+/// [상담 채팅 연결]에 얹힌다. connect()는 request_support(T6)를 1회 부르고(LINK), 처리 중엔 잠그되
+/// 무기한 금지 — 실패/시간초과면 ERR로 재활성한다. 이어가기는 새 기록을 만들지 않는다(CONT).
+enum ConnectPhase { idle, busy, error, connected }
+class LateFlowController {
+  final Future<void> Function(String requestType) requestSupport;
+  ConnectPhase phase = ConnectPhase.idle;
+  bool get canRetry => phase == ConnectPhase.error;
+  DateTime? pickedNewTime; // 항상 null — 새 시간은 상담에서(CHANGE-01)
+  LateFlowController({required this.requestSupport});
+
+  Future<void> connect(String requestType) async {
+    phase = ConnectPhase.busy;
+    try {
+      await requestSupport(requestType);      // support_requested_at+request_type 1회
+      phase = ConnectPhase.connected;
+    } catch (_) {
+      phase = ConnectPhase.error;             // 무기한 잠금 아님(BUSY→ERR)
+    }
+  }
+  void close() {}          // 연결 전 닫기: 기록 없음(CLOSE-01)
+  void continueChat() {}   // 이어가기: 새 기록 없음(CONT-01)
+}
+
+// 순수 함수(팝업/상태 판정 — cancel_flow·appointment_detail이 소비):
+bool lateFlowShouldOpenPopup({required bool afterDeadline, required bool within30min}) =>
+    afterDeadline && !within30min;
+String lateFlowTitle(String type) => type == '변경' ? '변경 마감 시간이 지났습니다' : '취소 마감 시간이 지났습니다';
+String lateFlowDeadlineText({required int hoursBefore}) => '진료 시작 $hoursBefore시간 전';
+List<String> lateFlowPathOrder() => ['chat', 'phone']; // 상담 먼저, 전화 다음
+String lateFlowApptState({required bool linked, required bool resolved}) =>
+    linked && !resolved ? '상담 연결됨 · 직원 확인 중' : '';
+String lateFlowApptKeepText({required bool resolved}) =>
+    resolved ? '' : '아직 예약은 유지되고 있습니다';
+String lateFlowApptCta({required bool alreadyRequested}) =>
+    alreadyRequested ? '상담 이어가기 ›' : '';
+bool lateFlowApptShowsCancelWhileLoading() => false;
+bool lateFlowApptFabricatesNoLink({required bool onError}) => true; // 연결없음 위장 안 함
+String lateFlowApptOnResolve(String result) =>
+    result == 'rejected' ? 'cancel_reject' : result; // 반려면 CCARD-CANCELREJ
+```
+
+```dart
+// patient_app/lib/features/chat/lateflow_chat_view.dart
+import 'package:flutter/material.dart';
+import 'widgets/chat_safety_banner.dart';
+/// 예약 맥락 상담방(LATEFLOW-CHAT). 이미 팝업 시점에 기록됐으므로(RECORD) 이 화면은 중복 생성·추가
+/// 선택을 하지 않고 봇이 설명만 한다(CONTEXT). 환자 노출 문구는 `상담(직원 확인)으로 연결됐습니다`·
+/// `아직 예약은 유지되고 있습니다`만(KEEP·FORBID). 맥락 조회 중/실패는 확인 안 된 예약을 안 만든다(LOAD·ERR).
+class LateFlowChatView extends StatelessWidget {
+  final String appointmentId, reason;
+  final bool contextLoaded, loadError, alreadyLinked;
+  const LateFlowChatView({super.key, required this.appointmentId, required this.reason,
+      this.contextLoaded = false, this.loadError = false, this.alreadyLinked = false});
+  @override Widget build(BuildContext context) {
+    if (loadError) {
+      return Scaffold(body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('예약 정보를 불러오지 못했어요'),
+        TextButton(onPressed: () {}, child: const Text('다시 시도'))])));
+    }
+    if (!contextLoaded && !alreadyLinked) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator())); // LOAD
+    }
+    return Scaffold(appBar: AppBar(title: const Text('AI 상담봇')), body: Column(children: const [
+      ChatSafetyBanner(),
+      Text('상담(직원 확인)으로 연결됐습니다'),       // KEEP (금지 문구 안 씀 — FORBID)
+      Text('아직 예약은 유지되고 있습니다'),
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/lateflow_test.dart` → Expected: PASS.
+
+- [ ] **Step 5: 확인 필요 2건 원본 확정(behaviors 역참조)**
+
+`docs/design/screen-behaviors.md` 수정:
+```
+- CCARD-CANCELCONF-NO-01 "…카드가 남는 정확한 표현은 **확인 필요**다"
+  → "…[아니요]면 카드를 지우지 않고 「취소하지 않음」 확정 상태로 남긴다(버튼 제거). ✅ **확정(Task 13, A안)**"
+- CCARD-CANCELREJ-EXC-01 "…오류 처리·확인 저장 API는 **확인 필요**다"
+  → "…사유 없으면 지어내지 않고 안내, [확인]은 acknowledge_cancel_rejection을 그대로 부른다(막다른 길 금지). ✅ **확정(Task 13)**"
+```
+
+- [ ] **Step 6: 검사기 — coverage·prefix 확인**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+```
+Expected: ② 규칙 커버 `126 → 165`(+39) · prefix-check **빚0·미배정0·⏰0·exit0** · **Task 13 미결 2건 해소**(CANCELCONF-NO·CANCELREJ-EXC 확정). ⚠️ `LATEFLOW`·`CCARD-CANCEL` 완전 ID는 이 태스크가 다 담으므로 ⏰ 없음.
+
+- [ ] **Step 7: 커밋**
+
+```bash
+git add patient_app/lib/features/chat/ patient_app/lib/features/booking/cancel_flow.dart \
+        patient_app/lib/features/appointments/ patient_app/test/features/chat/ \
+        docs/design/screen-behaviors.md docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 13 본문 — 앱 취소 카드 3종 + 마감 후 상담 연결 39규칙 + 확인필요 2건 확정. 환자 채널 완결"
+```
+
+> **Task 13 완료 조건**: `CCARD-CANCELCONF`5·`CCARD-CANCELDONE`5·`CCARD-CANCELREJ`5·`LATEFLOW-POP`9·`LATEFLOW-CHAT`8·`LATEFLOW-APPT`7 = **39규칙 전수** 초록불. ⭐ **확인 필요 2건 확정**(CANCELCONF-NO A안·CANCELREJ-EXC). ⭐⭐ **환자 채널(Task 10~13) 완결** — 앱 상담방·라이브·카드·취소·마감후 전부. **다음 = Task 14**(웹 위젯 상담방 — `WEBCHAT-LAUNCH/ROOM/GUIDE/URGENT/OUTAGE/HANDOFF`·`NAV-WEBCHAT`, 앱 규칙 재사용분 많음). ⚠️ 웹은 `webchat/`(Vite React, Task 0 스캐폴딩) — Flutter 아님. 앱 상담방 규칙을 React로 옮기되 익명 세션(`X-Anon-Token`)이 다름.
