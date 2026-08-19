@@ -19703,3 +19703,827 @@ git commit -m "feat: 📝 환자앱 Task 29 본문 — 비밀번호 변경·로�
 > ⚠️ **⏰ 해소 확인**: T28이 실구현한 `NAV-SET-01~09·15~21`이 T29 작성으로 ⏰→🔀 전환(예고가 아니라 실제 분담이었음이 검사기에도 드러난다). T29는 그 16건을 **다시 만들지 않았다**(10~14만).
 > ⚠️ **구현 위험 재언급**: #64의 Auth 전화 분리(`auth_admin.detach_phone`)가 Supabase에서 실제로 되는지 **⑦ 구현 착수 시 확인** — 안 되면 Auth 사용자 삭제 + `former_auth_user_id` 흔적으로 대체(둘 다 「번호는 풀리고 흔적은 남는」 B-37을 만족).
 > ⭐ **묶음 7(이력·설정·탈퇴) 완결** — T27a·b·T28·T29로 `HIST-*`·`SET-*`·`NAV-HIST-*`·`NAV-SET-*` 전부 담았다. 남은 것 = T30·T31(나의 예약 목록).
+
+## Task 30: 나의 예약 목록 — 역할·목록 구조·상태 글자·화면 이동 (64규칙)
+
+> **담당 규칙(64)**:
+> `LIST-ROLE-01~10`(10) · `LIST-LIST-01~15`(15) · `LIST-ST-01~26`(26) · `NAV-LIST-01~13`(13).
+>
+> ⭐⭐ **이 묶음의 축 = 「목록은 앞으로 갈 예약을 얇은 줄로 훑는 곳」**(`LIST-ROLE-01·02`) — 홈(가장 가까운 하루치·큰 버튼)과 역할이 갈린다. **카드 10종(`CARD-*`)을 얇은 줄로 줄이면 QR·대기 숫자·안내문·버튼이 전부 빠지고 상태 글자 한 덩어리만 남는다**(`LIST-ST` 표가 그 답). ⭐ **이 화면은 새로 정할 것이 거의 없었다** — 화면 설계는 2026-07-31에 끝났고 목업 46이 정식 크기로 그려져 있다. B등급 결정은 B-43(시간 지남 안내 안 붙임) 하나뿐이고 나머지는 **기존 규칙의 적용 범위 확인**이다.
+>
+> ⚠️⚠️ **경계 갭 3건 — 확인 결과(⭐ 착수 전 원문 대조 완료)**:
+> - **#74(변경 확인 저장 칸)는 이미 닫혀 있다** — `LIST-ST-20`이 *"확인했다를 적어둘 칸이 없다"*고 적었으나, **T15가 「변경 자체를 `hospital_change_prev_time`·`hospital_change_kind` 두 칸에 저장하고 `[확인]`(`acknowledge_hospital_change`)이 비운다」로 설계**해 「이 앱에서 봤다는 사실이 서버에 남는 유일한 곳」이 됐다(원문 `:8821`). 앱을 껐다 켜도 서버 상태라 다시 뜬다(`CARD-CHG-04`). → **T30은 두 칸을 읽어 `시간 변경됨`만 그린다**(줄에 `[확인]` 없음, `LIST-ST-17·18`). 새로 만들 것 없음.
+> - **#75(진료완료 제외)는 서버에서 못 뺀다 — 화면 필터로 옮긴다.** ⚠️ **P8-1은 *"서버 `list_my_appointments`에서 진료완료를 함께 빼라"*고 적었지만, 그 함수를 홈(T16 `homeAppointmentsProvider`)도 쓰고 `selectHomeDay`가 *"오늘이 끝난 것뿐이어도 오늘만"*(원문 `:9365`)이라 홈이 오늘의 진료완료를 반드시 받아야 한다(`CARD-DONE-06` — 진료완료 카드는 당일 자정까지 홈에 남는다).** 서버에서 빼면 홈이 깨진다. P8-1은 홈 태스크(나중 설계) 이전 결정이라 「어디서 빼나」가 낡았다. → **진료완료 제외를 T30 목록 화면의 client-side 필터로** 한다. `LIST-ROLE-04`가 목록을 「앞으로 갈 5상태」로 정의하므로 **positive 필터**(그 5상태만 남김)가 자연스럽다. ⭐ **해소 즉시 결정문서 반영**(Step 9): P8-1의 「서버」를 「화면 필터(홈 보존)」로 뒤집고 갭 #75에 역참조.
+> - **#76(동점 정렬 기준 없음)은 서버에서 닫는다.** `list_my_appointments`의 `order by`가 `slot_date, start_time`까지뿐이라 같은 시각 두 줄이 새로고침마다 뒤바뀐다(`LIST-LIST-03`). → **서버 `order by`에 `(for_patient_id = 본인) desc, p.name` 추가**(본인→가족→이름, `LIST-LIST-02`). 홈·오프라인 캐시도 함께 안정화된다(홈은 selectHomeDay가 재정렬하므로 무해). ⭐ **겸사겸사 잠복 버그 하나 닫는다** — **서버가 `is_self`를 안 내려줘서** T17이 모델에 넣은 `AppointmentView.isSelf`(`j['is_self']`)가 늘 false였다. `LIST-LIST-15`(본인 표기)·본인 우선 정렬의 전제라, `list_my_appointments`·`get_appointment_detail` SELECT에 `(a.for_patient_id = $1) as is_self`를 채운다.
+>
+> ⚠️⚠️ **경계 — 이 Task(30)가 담는 것 / T31이 담는 것**(93규칙 > 70이라 2분할 — 홈↔목록과 같은 셸↔주변 상태 패턴):
+> - **T30(여기)**: 목록 화면 셸 + **목록 구조**(정렬·날짜 헤더·건수·한 예약=한 상자·시각 레일) + **줄 4요소**(레일·이름·진료과/의사·상태 글자) + **상태 글자 표**(`LIST-ST-01~26`, 카드와 다른 별도 어휘의 `listStatusLabel`) + **역할·범위**(`LIST-ROLE`) + **화면 이동 전체**(`NAV-LIST-01~13` — 탭·줄→상세·헤더 안 눌림·문진 줄→문진·CTA→예약·재인증 없음·오프라인 캐시). **문진 경고 줄·CTA 버튼·빈 상태의 알맹이**는 **빈 슬롯**으로 두고 **T31이 채운다**(양방향 악수).
+> - **T31(다음)**: **빈 상태·오프라인·조회 실패**(`LIST-EMPTY`) + **갱신·돌아오기**(`LIST-REFRESH` 실시간 구독·당겨서 새로고침) + **사전문진 경고 줄**(`LIST-QNR` — 상자 안 슬롯을 채운다) + **하단 큰 버튼**(`LIST-CTA`). ⛔ **T31 규칙(`LIST-EMPTY`·`LIST-REFRESH`·`LIST-QNR`·`LIST-CTA`)을 완전 ID로 여기 test에 넣지 않는다**(coverage가 미리 세어 T31이 놓친다).
+> - **재인증은 여기서 다시 정하지 않는다** — `NAV-LIST-13`이 「목록은 재인증 없음」을 못박고, 목록 탭 진입은 T11 라우터 가드의 `_isSensitive`에 `/appointments`가 **없어야** 한다(가족·설정과 다르다, 이력과 같다).
+>
+> 📌 **재사용**: **T8 백엔드**(`list_my_appointments(patient) -> list[dict]` — 여기서 `is_self`+동점 정렬 소급 · `get_appointment_detail`도 `is_self` 소급) · **T15/T17**(`AppointmentView`·`resolveCardState(view, now) -> AppointmentCardState`·`AppointmentCardState` — `late`·`unconf` 판정을 그대로 써서 홈·목록·상세가 같은 30분 유예를 공유. `AppointmentView`에 `supportRequestedAt`·`requestType` 파싱을 소급) · **T16**(`homeAppointmentsProvider`(`FutureProvider<List<AppointmentView>>` — 온라인 `list_my_appointments`+캐시 저장/오프라인 폴백 **전부** 재사용) · `mainTabs`) · **T0**(`StatusLabel({text, color})`·`AppTokens.primary`(딥틸 #0B6E70)·`grayPending`·`warn`) · **T11**(`connectivityProvider` — 간접, homeAppointmentsProvider가 이미 소비) · **T10 라우터**(`GET /my/appointments`).
+> 📌 **목업**: `46-appointments-tab.html`(정식 크기 — 줄·시각 레일·상태 글자·날짜 헤더·문진 경고 줄·빈 상태). 확인된 문구: `확인 중`·`상담 연결됨`·`접수됨`·`대기 중`·`진료 중`·`시간 지남`·`시간 변경됨`·`확정되지 않음`·`본인`·`8월 3일 (월)`·`3건`.
+
+**Files:**
+- Modify: `backend/app/services/patient_appointment_query_service.py`(`list_my_appointments`에 `(a.for_patient_id = $1) as is_self` + `order by` 동점 기준 추가(갭 #76) · `get_appointment_detail`에 `is_self` 소급 — 잠복 버그 대칭 수리)
+- Modify: `patient_app/lib/features/home/appointment_view.dart`(`AppointmentView`에 `supportRequestedAt`·`requestType` 필드 + `fromJson` 파싱 소급 — `LIST-ST-03` 상담 연결됨 판정)
+- Create: `patient_app/lib/features/appointments/appointment_list_status.dart`(`ListStatus`·`ListStatusTone`·`listStatusLabel` — `LIST-ST` 전용 어휘)
+- Create: `patient_app/lib/features/appointments/my_appointments_data.dart`(`upcomingListProvider` — homeAppointmentsProvider를 5상태로 거른다(#75) · `DateSection`·`groupByDate`)
+- Create: `patient_app/lib/features/appointments/appointment_list_row.dart`(`AppointmentListRow`·`AppointmentBox` — 시각 레일·이름·진료과/의사·상태 글자·문진 슬롯)
+- Create: `patient_app/lib/features/appointments/my_appointments_screen.dart`(`MyAppointmentsScreen` — 날짜 헤더·건수·상자 나열·하단 슬롯·NAV-LIST 배선)
+- Modify: `patient_app/lib/core/router.dart`(`/appointments` 목록 라우트 신설 + 예약 탭이 `/booking`이 아니라 `/appointments`를 가리키게 — `LIST-ROLE-01`)
+- Test: `backend/tests/test_patient_appointment_query_service.py`(확장 — is_self·동점 정렬) · `patient_app/test/features/appointments/appointment_list_status_test.dart` · `my_appointments_data_test.dart` · `appointment_list_row_test.dart` · `my_appointments_screen_test.dart` · `my_appointments_nav_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **T8**: `list_my_appointments(patient) -> list[dict]`(각 행 dict: `id·status·support_requested_at·request_type·booking_code·hospital_change_prev_time·hospital_change_kind·for_patient_name·department_name·doctor_name·slot_date·start_time·has_questionnaire·cancelled_by`(T17)·… — **여기서 `is_self` 추가**) · 라우터 `GET /my/appointments`
+  - **T15/T17**: `AppointmentView`(`id·status·forPatientName·departmentName·doctorName·bookingCode·slotStart:DateTime?·hasQuestionnaire·hospitalChangePrevTime:DateTime?·hospitalChangeKind·isSelf` — **여기서 `supportRequestedAt`·`requestType` 추가**) · `AppointmentCardState`(`req·wait·unconf·confirmed·arrived·inTreatment·done·cancelled·late·unknown`) · `resolveCardState(AppointmentView, DateTime) -> AppointmentCardState`
+  - **T16**: `homeAppointmentsProvider`(`FutureProvider<List<AppointmentView>>` — 전체 목록, selectHomeDay 적용 전) · `mainTabs`(하단 5탭)
+  - **T0**: `StatusLabel({required String text, required Color color})` · `AppTokens`(`primary`·`grayPending`·`warn`)
+- Produces:
+  - SQL: `list_my_appointments` 반환에 `is_self`(bool, `for_patient_id = $1`) 추가 + `order by slot_date, start_time, is_self desc, for_patient_name`(갭 #76) · `get_appointment_detail`도 `is_self` 추가
+  - `enum ListStatusTone { none, gray, attention }` · `class ListStatus { String? label; ListStatusTone tone; }`(label null = 글자 없음, `›`만) · `listStatusLabel(AppointmentView, DateTime now) -> ListStatus`
+  - `upcomingListProvider`(`Provider<AsyncValue<List<AppointmentView>>>` — homeAppointmentsProvider를 `{예약신청,예약확정,도착,진료대기,진료중}`으로 거른다) · `class DateSection { DateTime date; List<AppointmentView> items; }` · `groupByDate(List<AppointmentView>) -> List<DateSection>`(서버 정렬 보존, 같은 날 연속 묶음)
+  - `AppointmentListRow({required AppointmentView view, required DateTime now})`(줄 4요소, 버튼 없음) · `AppointmentBox({required AppointmentView view, required DateTime now, Widget? questionnaireSlot, VoidCallback? onTap})`(테두리로 줄+문진 슬롯을 묶는다)
+  - `MyAppointmentsScreen({Widget? bottomSlot, Widget Function(AppointmentView)? questionnaireBuilder})` — **양방향 악수**: 문진 슬롯·하단 CTA·빈 상태는 파라미터로 비워 두고 T31이 실제 위젯 주입. T30은 `const SizedBox.shrink()` 스텁으로 배선(NAV)만 검증
+
+- [ ] **Step 1: 백엔드 — is_self + 동점 정렬 실패 테스트 (`LIST-LIST-02`·`LIST-LIST-15` 전제, 갭 #76)** — `backend/tests/test_patient_appointment_query_service.py`(기존 파일에 추가)
+
+```python
+@pytest.mark.asyncio
+async def test_list_my_appointments_is_self_and_tiebreak(db_conn):
+    # LIST-LIST-02·03(갭 #76): 같은 날 같은 시각이면 본인 → 가족 → 이름 순으로 '고정'된다.
+    # LIST-LIST-15: 본인 줄은 is_self=True로 와야 '본인' 표기가 가능하다.
+    admin = await seed_staff(db_conn, role="admin"); await set_session_auth(db_conn, admin["auth_user_id"])
+    doctor = await seed_staff(db_conn, role="doctor")
+    dept = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await db_conn.execute("update staff set department_id=$1 where id=$2", dept, doctor["staff_id"])
+    me = _ctx(await seed_patient(db_conn, name="김본인")); did = doctor["staff_id"]
+    # 같은 계정에 딸('가족나중')·아들('가족먼저') 두 가족 + 본인, 셋 다 같은 슬롯 시각
+    daughter = await seed_family(db_conn, me, name="가족나중")
+    son = await seed_family(db_conn, me, name="가족먼저")
+    slot_when = ("2026-09-01", "10:00")
+    a_self = await _future(db_conn, me, dept, did, "예약확정", *slot_when, for_patient=me.id)
+    a_dau  = await _future(db_conn, me, dept, did, "예약확정", *slot_when, for_patient=daughter)
+    a_son  = await _future(db_conn, me, dept, did, "예약확정", *slot_when, for_patient=son)
+    rows = await q.list_my_appointments(me)
+    same = [r for r in rows if r["slot_date"].isoformat() == "2026-09-01" and str(r["start_time"]).startswith("10")]
+    # 본인 먼저, 그다음 가족은 이름 오름차순('가족먼저' < '가족나중')
+    assert [r["for_patient_name"] for r in same] == ["김본인", "가족먼저", "가족나중"]
+    assert next(r for r in same if r["for_patient_name"] == "김본인")["is_self"] is True
+    assert next(r for r in same if r["for_patient_name"] == "가족먼저")["is_self"] is False
+```
+Run: `cd backend && pytest tests/test_patient_appointment_query_service.py::test_list_my_appointments_is_self_and_tiebreak -v`
+Expected: FAIL(`KeyError: 'is_self'` — SELECT에 없다; 있어도 정렬이 이름까지 안 가 순서가 불안정).
+
+- [ ] **Step 2: 백엔드 구현 — is_self + 동점 정렬 소급** — `backend/app/services/patient_appointment_query_service.py`
+
+```python
+# list_my_appointments: SELECT에 is_self 추가, order by에 동점 기준 추가. $1 = 보는 사람의 patient.id.
+# (T17이 이미 넣은 cancelled_by 4필드는 그대로 두고 이 두 줄만 얹는다.)
+async def list_my_appointments(patient: PatientContext) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, "
+            "  a.booking_code, a.booking_code_expires_at, "
+            "  a.hospital_change_prev_time, a.hospital_change_kind, "
+            "  a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at, "  # T17(#11)
+            "  (a.for_patient_id = $1) as is_self, "                                             # LIST-LIST-15·정렬(#76)
+            "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
+            "  s.slot_date, s.start_time, "
+            "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire "
+            "from appointments a "
+            "join patients p on p.id=a.for_patient_id "
+            "join departments d on d.id=a.department_id "
+            "join staff st on st.id=a.doctor_id "
+            "left join appointment_slots s on s.id=a.slot_id "
+            f"where a.status not in {_LIVE} and (s.slot_date is null or s.slot_date >= current_date) "
+            "order by s.slot_date nulls last, s.start_time nulls last, "
+            "  (a.for_patient_id = $1) desc, p.name",                                            # LIST-LIST-02·03(#76)
+            patient.id)
+    return [dict(r) for r in rows]
+
+# get_appointment_detail도 is_self 대칭 추가(상세 CxlBody의 isSelf가 늘 false이던 잠복 버그 수리).
+# select 절에 "  (a.for_patient_id = $2) as is_self, " 를 넣고 fetchrow 인자에 patient.id를 추가한다($1=appointment_id).
+```
+> ⚠️ **`list_my_appointments`는 진료완료를 계속 담는다**(`_LIVE`는 취소 3종만 뺀다) — **의도된 것**이다. 홈이 오늘의 진료완료를 써야 하기 때문(`CARD-DONE-06`). 진료완료 제외는 목록 **화면**에서 한다(Step 4, 갭 #75). 서버는 건드리지 않는다.
+Run → PASS.
+
+- [ ] **Step 3: 모델 — `AppointmentView`에 `supportRequestedAt`·`requestType` 소급 (`LIST-ST-03` 전제)** — `patient_app/lib/features/home/appointment_view.dart`
+
+```dart
+// AppointmentView 필드에 추가:
+//   final DateTime? supportRequestedAt;   // 마감 후 취소/변경 요청 대기 중(LIST-ST-03)
+//   final String? requestType;
+// 생성자에 두 필드를 받고, fromJson에 파싱을 얹는다(서버는 a.support_requested_at·a.request_type를 이미 준다):
+//   supportRequestedAt: j['support_requested_at'] == null ? null : DateTime.parse(j['support_requested_at']),
+//   requestType: j['request_type'],
+```
+> ⚠️ **테스트는 별도로 두지 않는다** — 이 두 필드의 「값이 화면에 뜨는가」는 `listStatusLabel`의 `LIST-ST-03` 테스트(Step 4)가 `AppointmentView.fromJson`으로 실제 JSON을 넣어 확인한다. fromJson 파싱은 그 테스트가 커버한다.
+
+- [ ] **Step 4: `listStatusLabel` 실패 테스트 (`LIST-ST-*` + `LIST-ROLE-04·05·06`)** — `patient_app/test/features/appointments/appointment_list_status_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/appointments/appointment_list_status.dart';
+import 'package:hospital_patient_app/features/appointments/my_appointments_data.dart';
+
+AppointmentView _v(String status, {DateTime? slot, DateTime? support, DateTime? changePrev, bool self = true, String name = '본인'}) =>
+    AppointmentView.fromJson({
+      'id': 'a', 'status': status, 'for_patient_name': name, 'is_self': self,
+      'department_name': '내과', 'doctor_name': '이의사', 'booking_code': 'A-1', 'has_questionnaire': false,
+      'slot_date': (slot ?? DateTime(2026, 9, 1, 10)).toIso8601String().substring(0, 10),
+      'start_time': '${(slot ?? DateTime(2026, 9, 1, 10)).hour.toString().padLeft(2, '0')}:00',
+      'support_requested_at': support?.toIso8601String(), 'request_type': support == null ? null : 'cancel',
+      'hospital_change_prev_time': changePrev?.toIso8601String(), 'hospital_change_kind': changePrev == null ? null : 'time',
+    });
+
+void main() {
+  final now = DateTime(2026, 9, 1, 9, 0);                     // 슬롯(10:00) 전 — 유예 안 지남
+  final past = DateTime(2026, 9, 1, 11, 0);                   // 슬롯+30분 지남
+
+  test('[LIST-ST-01] 예약확정 평상시는 글자 없음(레일 오른쪽 ›만)', () {
+    final s = listStatusLabel(_v('예약확정'), now);
+    expect(s.label, isNull); expect(s.tone, ListStatusTone.none);
+  });
+  test('[LIST-ST-02] 예약신청은 회색 「확인 중」', () {
+    final s = listStatusLabel(_v('예약신청'), now);
+    expect(s.label, '확인 중'); expect(s.tone, ListStatusTone.gray);
+  });
+  test('[LIST-ST-03] 마감 후 취소 요청 중은 주의색 「상담 연결됨」', () {
+    final s = listStatusLabel(_v('예약확정', support: now), now);
+    expect(s.label, '상담 연결됨'); expect(s.tone, ListStatusTone.attention);
+  });
+  test('[LIST-ST-05] 상태 글자에 「접수」·「등록」 같은 내부 처리 용어를 쓰지 않는다', () {
+    for (final st in ['예약신청', '예약확정', '도착', '진료대기', '진료중']) {
+      final s = listStatusLabel(_v(st, support: st == '예약확정' ? now : null), now);
+      expect(s.label ?? '', isNot(anyOf(contains('요청 접수'), contains('요청 등록'))));
+    }
+  });
+  test('[LIST-ST-06] 도착은 회색 「접수됨」', () {
+    final s = listStatusLabel(_v('도착'), now);
+    expect(s.label, '접수됨'); expect(s.tone, ListStatusTone.gray);
+  });
+  test('[LIST-ST-07] 진료대기는 회색 「대기 중」', () {
+    expect(listStatusLabel(_v('진료대기'), now).label, '대기 중');
+  });
+  test('[LIST-ST-08] 진료중은 회색 「진료 중」', () {
+    expect(listStatusLabel(_v('진료중'), now).label, '진료 중');
+  });
+  test('[LIST-ST-09] 상태 글자에 순서·대기시간 숫자(N명·N분)를 넣지 않는다', () {
+    for (final st in ['도착', '진료대기', '진료중']) {
+      final s = listStatusLabel(_v(st), now);
+      expect(s.label ?? '', isNot(anyOf(contains('명'), contains('분'))));
+    }
+  });
+  test('[LIST-ST-12][LIST-ST-13] 예약확정이 슬롯+30분 지나면 주의색 「시간 지남」, 그 전엔 글자 없음', () {
+    expect(listStatusLabel(_v('예약확정'), now).label, isNull);              // 유예 전(ST-13)
+    final late = listStatusLabel(_v('예약확정'), past);
+    expect(late.label, '시간 지남'); expect(late.tone, ListStatusTone.attention);   // ST-12
+  });
+  test('[LIST-ST-16] 병원 사정으로 바뀐 예약은 주의색 「시간 변경됨」', () {
+    final s = listStatusLabel(_v('예약확정', changePrev: DateTime(2026, 8, 20, 9)), now);
+    expect(s.label, '시간 변경됨'); expect(s.tone, ListStatusTone.attention);
+  });
+  test('[LIST-ST-22][LIST-ST-26] 예약신청인 채 시각이 지나면 「확정되지 않음」 하나만(겹쳐도 이름 있는 쪽)', () {
+    final s = listStatusLabel(_v('예약신청'), past);
+    expect(s.label, '확정되지 않음'); expect(s.tone, ListStatusTone.attention);   // '확인 중'+'시간 지남'을 겹쳐 쓰지 않는다
+  });
+  test('[LIST-ST-24] 회색=알려만 주는 것, 주의색=오늘 할 일이 남은 것', () {
+    expect(listStatusLabel(_v('진료대기'), now).tone, ListStatusTone.gray);
+    for (final s in [
+      listStatusLabel(_v('예약확정', changePrev: DateTime(2026, 8, 20, 9)), now),  // 시간 변경됨
+      listStatusLabel(_v('예약확정', support: now), now),                          // 상담 연결됨
+      listStatusLabel(_v('예약확정'), past),                                       // 시간 지남
+      listStatusLabel(_v('예약신청'), past),                                       // 확정되지 않음
+    ]) { expect(s.tone, ListStatusTone.attention); }
+  });
+  test('[LIST-ST-25] 상태를 색만으로 구분하지 않는다 — 주의색이면 반드시 글자가 함께 있다', () {
+    final s = listStatusLabel(_v('예약확정'), past);
+    expect(s.tone, ListStatusTone.attention);
+    expect(s.label, isNotNull); expect(s.label, isNotEmpty);
+  });
+  test('[LIST-ST-10][LIST-ST-11] 대기 상태 글자에 대기시간 경고 문장도 순서 표현도 넣지 않는다(숫자와 문장은 한 세트)', () {
+    final s = listStatusLabel(_v('진료대기'), now);
+    expect(s.label, '대기 중');
+    expect(s.label!, isNot(anyOf(contains('변동'), contains('예상'))));   // ST-10: 경고 문장도 함께 뺀다
+    expect(s.label!, isNot(anyOf(contains('앞'), contains('순서'))));      // ST-11: 낡은 순서는 안 보인다
+  });
+  test('[LIST-ST-19] 3주 뒤 예약이 병원 사정으로 바뀌어도 목록엔 「시간 변경됨」이 뜬다(홈 밖이라 목록이 유일한 창구)', () {
+    final far = DateTime(2026, 9, 22, 10);                    // 홈의 「가장 가까운 하루치」 밖
+    final s = listStatusLabel(_v('예약확정', slot: far, changePrev: DateTime(2026, 9, 1, 9)), now);
+    expect(s.label, '시간 변경됨');
+  });
+  test('[LIST-ST-23] 「확정되지 않음」은 이력의 HIST-ROW-09와 같은 말이다(두 곳에서 다른 말로 부르지 않는다)', () {
+    expect(listStatusLabel(_v('예약신청'), past).label, '확정되지 않음');   // 이력 배지와 글자 동일
+  });
+  test('[LIST-ROLE-04][LIST-ROLE-05][LIST-ROLE-06] 앞으로 갈 5상태만 목록에 남고 진료완료·취소됨·부도는 빠진다', () {
+    for (final st in ['예약신청', '예약확정', '도착', '진료대기', '진료중']) {
+      expect(upcomingStatuses.contains(st), isTrue);
+    }
+    for (final st in ['진료완료', '환자취소', '병원취소', '예약부도']) {
+      expect(upcomingStatuses.contains(st), isFalse);         // 끝난 즉시 빠진다(홈만 자정까지)
+    }
+  });
+}
+```
+Run: `cd patient_app && flutter test test/features/appointments/appointment_list_status_test.dart`
+Expected: FAIL(`listStatusLabel` / `upcomingStatuses` 미정의).
+
+- [ ] **Step 5: `listStatusLabel` + `upcomingStatuses` 구현** — `appointment_list_status.dart` · `my_appointments_data.dart`
+
+```dart
+// appointment_list_status.dart
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+
+enum ListStatusTone { none, gray, attention }
+
+class ListStatus {
+  final String? label;          // null = 글자 없음(LIST-ST-01: › 만)
+  final ListStatusTone tone;
+  const ListStatus(this.label, this.tone);
+}
+
+/// LIST-ST-01~26: 얇은 줄 오른쪽에 붙는 '상태 글자 한 덩어리' + 색.
+/// 카드 문구(patientStatusLabel)와 어휘가 다르다 — 줄 길이에 맞춰 짧게 줄인 별도 표.
+/// 겹침(LIST-ST-26): 이름이 따로 있는 상태를 먼저, 없으면 주의색 쪽 하나만. 우선순위는 아래 순서.
+ListStatus listStatusLabel(AppointmentView v, DateTime now) {
+  if (v.hospitalChangePrevTime != null) {
+    return const ListStatus('시간 변경됨', ListStatusTone.attention);   // LIST-ST-16
+  }
+  if (v.supportRequestedAt != null) {
+    return const ListStatus('상담 연결됨', ListStatusTone.attention);   // LIST-ST-03(+05: 내부어 금지)
+  }
+  switch (resolveCardState(v, now)) {                                  // T15/T17의 30분 유예 판정을 공유
+    case AppointmentCardState.req:         return const ListStatus('확인 중', ListStatusTone.gray);        // LIST-ST-02
+    case AppointmentCardState.unconf:      return const ListStatus('확정되지 않음', ListStatusTone.attention); // LIST-ST-22·26
+    case AppointmentCardState.confirmed:   return const ListStatus(null, ListStatusTone.none);            // LIST-ST-01
+    case AppointmentCardState.arrived:     return const ListStatus('접수됨', ListStatusTone.gray);         // LIST-ST-06
+    case AppointmentCardState.wait:        return const ListStatus('대기 중', ListStatusTone.gray);        // LIST-ST-07
+    case AppointmentCardState.inTreatment: return const ListStatus('진료 중', ListStatusTone.gray);        // LIST-ST-08
+    case AppointmentCardState.late:        return const ListStatus('시간 지남', ListStatusTone.attention);  // LIST-ST-12·13
+    default:                               return const ListStatus(null, ListStatusTone.none);            // 목록에 오면 안 되는 상태
+  }
+}
+```
+```dart
+// my_appointments_data.dart (일부 — 필터·그룹)
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/home/home_data.dart';   // homeAppointmentsProvider
+
+/// LIST-ROLE-04: 목록에 담는 '앞으로 갈 예약' 5상태. 진료완료·취소·부도는 여기 없다(#75는 화면 필터).
+const upcomingStatuses = {'예약신청', '예약확정', '도착', '진료대기', '진료중'};
+```
+Run → PASS.
+
+- [ ] **Step 6: `upcomingListProvider` + `groupByDate` 실패 테스트 (`LIST-ROLE-03·07·08·09`·`LIST-LIST-01·04·05`)** — `patient_app/test/features/appointments/my_appointments_data_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/appointments/my_appointments_data.dart';
+
+AppointmentView _v(String status, String date, String time, {String name = '본인'}) =>
+    AppointmentView.fromJson({
+      'id': '$date-$time-$name', 'status': status, 'for_patient_name': name, 'is_self': name == '본인',
+      'department_name': '내과', 'doctor_name': '이의사', 'booking_code': 'A', 'has_questionnaire': false,
+      'slot_date': date, 'start_time': time,
+      'support_requested_at': null, 'request_type': null,
+      'hospital_change_prev_time': null, 'hospital_change_kind': null,
+    });
+
+void main() {
+  test('[LIST-ROLE-03][LIST-ROLE-04] 오늘 예약도 목록에 남고 5상태가 모두 담긴다', () {
+    final filtered = filterUpcoming([
+      _v('진료중', '2026-09-01', '09:00'),        // 오늘 병원에 와 있는 것도 목록에 남는다
+      _v('예약확정', '2026-09-03', '10:00'),
+    ]);
+    expect(filtered.length, 2);
+  });
+  test('[LIST-ROLE-05][LIST-ROLE-06][LIST-ROLE-10] 진료완료·취소됨·부도는 목록에서 빠진다(#75 화면 필터)', () {
+    final filtered = filterUpcoming([
+      _v('진료완료', '2026-09-01', '09:00'),        // 끝난 즉시 빠진다(홈만 자정까지)
+      _v('병원취소', '2026-09-01', '10:00'),
+      _v('예약부도', '2026-09-01', '11:00'),
+      _v('예약확정', '2026-09-02', '10:00'),
+    ]);
+    expect(filtered.map((a) => a.status), ['예약확정']);
+  });
+  test('[LIST-ROLE-07] 본인과 가족을 한 목록에 섞는다', () {
+    final filtered = filterUpcoming([
+      _v('예약확정', '2026-09-02', '10:00', name: '본인'),
+      _v('예약확정', '2026-09-02', '11:00', name: '딸'),
+    ]);
+    expect(filtered.map((a) => a.forPatientName), ['본인', '딸']);
+  });
+  test('[LIST-ROLE-08][LIST-ROLE-09] 건수 제한·20건 이어받기가 없다 — 들어온 것 전부를 한 번에 담는다', () {
+    final many = List.generate(35, (i) => _v('예약확정', '2026-10-${(i % 28) + 1}', '10:00'));
+    expect(filterUpcoming(many).length, 35);      // 잘라내지 않는다
+  });
+  test('[LIST-LIST-01][LIST-LIST-04][LIST-LIST-05] 날짜가 바뀌는 자리마다 헤더, 오늘도 헤더를 붙이고 건수를 센다', () {
+    // 서버 정렬(가까운 날 위)을 보존해 그대로 그룹핑한다.
+    final sections = groupByDate([
+      _v('진료대기', '2026-09-01', '09:00'),      // 오늘
+      _v('예약확정', '2026-09-01', '10:30'),
+      _v('예약확정', '2026-09-03', '14:00'),
+    ]);
+    expect(sections.map((s) => s.date), [DateTime(2026, 9, 1), DateTime(2026, 9, 3)]);
+    expect(sections.first.items.length, 2);       // 그날 건수 = 2 (LIST-LIST-04)
+    // 오늘도 예외 없이 날짜 섹션으로 — '오늘'로 바꿔치기하지 않는다(LIST-LIST-05).
+    expect(sections.first.date, DateTime(2026, 9, 1));
+  });
+}
+```
+Run → Expected: FAIL(`filterUpcoming`·`groupByDate` 미정의).
+
+- [ ] **Step 7: `filterUpcoming`·`groupByDate`·`upcomingListProvider` 구현** — `my_appointments_data.dart`(이어서)
+
+```dart
+List<AppointmentView> filterUpcoming(List<AppointmentView> all) =>
+    all.where((a) => upcomingStatuses.contains(a.status)).toList();   // LIST-ROLE-04·05 + #75
+
+/// LIST-ROLE-08·09: 자르지 않는다. 서버가 준 순서(가까운 날·시각·본인→가족→이름)를 보존한다.
+final upcomingListProvider = Provider<AsyncValue<List<AppointmentView>>>((ref) =>
+    ref.watch(homeAppointmentsProvider).whenData(filterUpcoming));    // 조회·캐시·오프라인은 홈 것을 그대로 재사용
+
+class DateSection {
+  final DateTime date;
+  final List<AppointmentView> items;
+  const DateSection(this.date, this.items);
+}
+
+/// LIST-LIST-01·04·05: 서버 정렬을 보존한 채 '날짜가 바뀌는 자리'에서만 새 섹션을 연다(오늘도 예외 없음).
+List<DateSection> groupByDate(List<AppointmentView> items) {
+  final out = <DateSection>[];
+  for (final a in items) {
+    final d = a.slotStart == null
+        ? DateTime(9999) : DateTime(a.slotStart!.year, a.slotStart!.month, a.slotStart!.day);
+    if (out.isEmpty || out.last.date != d) {
+      out.add(DateSection(d, [a]));
+    } else {
+      out.last.items.add(a);
+    }
+  }
+  return out;
+}
+```
+Run → PASS.
+
+- [ ] **Step 8: `AppointmentListRow`·`AppointmentBox` 실패 테스트 (`LIST-LIST-06~15`·`LIST-ST-14·15·17`)** — `patient_app/test/features/appointments/appointment_list_row_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/appointments/appointment_list_row.dart';
+
+AppointmentView _v(String status, {DateTime? change, String name = '본인', bool self = true}) =>
+    AppointmentView.fromJson({
+      'id': 'a', 'status': status, 'for_patient_name': name, 'is_self': self,
+      'department_name': '정형외과', 'doctor_name': '박서준', 'booking_code': 'A-1', 'has_questionnaire': false,
+      'slot_date': '2026-09-01', 'start_time': '14:00',
+      'support_requested_at': null, 'request_type': null,
+      'hospital_change_prev_time': change?.toIso8601String(), 'hospital_change_kind': change == null ? null : 'time',
+    });
+
+Widget _wrap(Widget w) => MaterialApp(home: Scaffold(body: w));
+final now = DateTime(2026, 9, 1, 9, 0);
+
+void main() {
+  testWidgets('[LIST-LIST-07] 왼쪽 시각 레일에 시각이 크게, 아래에 관계(본인/딸)가 온다', (t) async {
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정'), now: now)));
+    expect(find.text('14:00'), findsOneWidget);
+    expect(find.text('본인'), findsWidgets);                 // LIST-LIST-15: 본인도 '본인'으로 표기
+  });
+  testWidgets('[LIST-LIST-08] 예약신청 줄의 레일은 회색이다(아직 확정된 시각이 아니다)', (t) async {
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약신청'), now: now)));
+    final rail = t.widget<Container>(find.byKey(const Key('list-rail')));
+    expect((rail.decoration as BoxDecoration).color, isNot(AppTokensRef.primary));   // 딥틸 아님 = 회색
+  });
+  testWidgets('[LIST-LIST-09][LIST-LIST-10] 이름이 굵게 먼저, 그 아래 진료과·의사', (t) async {
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정', name: '딸', self: false), now: now)));
+    expect(find.text('딸'), findsWidgets);
+    expect(find.text('정형외과 · 박서준'), findsOneWidget);
+  });
+  testWidgets('[LIST-LIST-11] 줄 오른쪽에 상태 글자, 상태가 없으면 › 하나', (t) async {
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약신청'), now: now)));
+    expect(find.text('확인 중'), findsOneWidget);
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정'), now: now)));   // 글자 없음
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+  });
+  testWidgets('[LIST-LIST-12][LIST-ST-15][LIST-ST-17] 줄에는 어떤 버튼도 두지 않는다(변경·취소·문진·QR·확인)', (t) async {
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정', change: DateTime(2026, 8, 20, 9)), now: now)));
+    expect(find.byType(ElevatedButton), findsNothing);
+    expect(find.byType(OutlinedButton), findsNothing);
+    expect(find.byType(TextButton), findsNothing);
+    expect(find.text('확인'), findsNothing);                 // 병원발 변경이어도 [확인] 없음
+  });
+  testWidgets('[LIST-ST-14] 시간 지남 줄에 「병원에 연락해 주세요」 안내 한 줄을 붙이지 않는다(B-43)', (t) async {
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정'), now: DateTime(2026, 9, 1, 15))));
+    expect(find.text('시간 지남'), findsOneWidget);
+    expect(find.textContaining('연락'), findsNothing);
+  });
+  testWidgets('[LIST-ST-18] 병원발 변경 줄에도 [확인]을 두지 않는다 — 확인은 예약 1건에 한 곳(상세)에서만', (t) async {
+    // 홈·목록·상세는 같은 예약을 보는 세 창구다. 목록 줄에 [확인]을 두면 두 곳이 되고
+    // 의사 휴진으로 여러 건이 옮겨지면 줄마다 버튼이 붙는다(요구사항 4.8).
+    await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정', change: DateTime(2026, 8, 20, 9)), now: now)));
+    expect(find.text('시간 변경됨'), findsOneWidget);   // 상태 글자만 알린다
+    expect(find.widgetWithText(OutlinedButton, '확인'), findsNothing);
+    expect(find.widgetWithText(TextButton, '확인'), findsNothing);
+  });
+  testWidgets('[LIST-LIST-06] 한 예약 = 테두리로 묶인 한 상자(줄 + 문진 슬롯)', (t) async {
+    await t.pumpWidget(_wrap(AppointmentBox(
+      view: _v('예약확정'), now: now, questionnaireSlot: const Text('문진 슬롯'))));
+    expect(find.byKey(const Key('appointment-box')), findsOneWidget);
+    expect(find.text('문진 슬롯'), findsOneWidget);           // T31이 채울 자리를 상자가 함께 감싼다
+    expect(find.text('정형외과 · 박서준'), findsOneWidget);   // 줄도 같은 상자 안
+  });
+}
+```
+Run → Expected: FAIL(위젯 미정의).
+
+- [ ] **Step 9: `AppointmentListRow`·`AppointmentBox` 구현 + 결정문서 반영(#75)** — `appointment_list_row.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/appointments/appointment_list_status.dart';
+import 'package:hospital_patient_app/widgets/status_label.dart';   // T0
+import 'package:hospital_patient_app/core/app_tokens.dart';        // T0
+
+/// LIST-LIST-06~15 + LIST-ST-14·15·17: 얇은 줄. 버튼은 하나도 두지 않는다.
+class AppointmentListRow extends StatelessWidget {
+  final AppointmentView view;
+  final DateTime now;
+  const AppointmentListRow({super.key, required this.view, required this.now});
+
+  Color _railColor() =>                                            // LIST-LIST-08: 예약신청은 회색, 그 외 딥틸
+      view.status == '예약신청' ? AppTokens.grayPending : AppTokens.primary;
+  String _time() {
+    final s = view.slotStart;
+    return s == null ? '' : '${s.hour.toString().padLeft(2, '0')}:${s.minute.toString().padLeft(2, '0')}';
+  }
+  Color _toneColor(ListStatusTone t) =>
+      t == ListStatusTone.attention ? AppTokens.warn : AppTokens.grayPending;
+
+  @override
+  Widget build(BuildContext context) {
+    final st = listStatusLabel(view, now);                         // LIST-ST 표
+    return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      Container(                                                   // 시각 레일(LIST-LIST-07)
+        key: const Key('list-rail'),
+        width: 64, padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(color: _railColor(), borderRadius: BorderRadius.circular(8)),
+        child: Column(children: [
+          Text(_time(), style: const TextStyle(
+              color: Colors.white, fontSize: 18, fontFeatures: [FontFeature.tabularFigures()])),  // 고정폭 숫자
+          const SizedBox(height: 2),
+          Text(view.isSelf ? '본인' : view.forPatientName,          // 아래에 관계(LIST-LIST-07·15)
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
+        ]),
+      ),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(view.isSelf ? '본인' : view.forPatientName,            // 누구 예약인지 먼저·굵게(LIST-LIST-09·10)
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 2),
+        Text('${view.departmentName} · ${view.doctorName}',        // 그 아래 진료과·의사
+            style: TextStyle(color: AppTokens.grayPending, fontSize: 13)),
+      ])),
+      // 오른쪽: 상태 글자 또는 › 하나(LIST-LIST-11). 버튼은 없다(LIST-LIST-12·ST-15·17).
+      st.label == null
+          ? const Icon(Icons.chevron_right, key: Key('list-chevron'))
+          : StatusLabel(text: st.label!, color: _toneColor(st.tone)),
+    ]);
+  }
+}
+
+/// LIST-LIST-06: 줄과 (T31이 채울) 문진 경고 줄을 하나의 테두리로 묶는다.
+class AppointmentBox extends StatelessWidget {
+  final AppointmentView view;
+  final DateTime now;
+  final Widget? questionnaireSlot;    // T31의 LIST-QNR 줄. null이면 줄만.
+  final VoidCallback? onTap;          // 줄 본문 탭 → 예약 상세(NAV-LIST-02, 화면이 주입)
+  const AppointmentBox({super.key, required this.view, required this.now, this.questionnaireSlot, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('appointment-box'),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE1E7EA)), borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        InkWell(                                                   // 줄 본문만 탭 대상
+          onTap: onTap,
+          child: Padding(padding: const EdgeInsets.all(12),
+              child: AppointmentListRow(view: view, now: now)),
+        ),
+        if (questionnaireSlot != null) questionnaireSlot!,         // 같은 상자 안, 별도 탭(NAV-LIST-04)은 T31이 붙인다
+      ]),
+    );
+  }
+}
+```
+> ⭐ **결정문서·screen-behaviors 동시 반영**(이 Step 커밋에 포함 — 갭 해소는 플랜에 미루지 않는다, T24 이후 규율):
+> - `ui-design-decisions.md` 플랜 패치 표 **P8-1**: `~~서버 list_my_appointments에서 진료완료를 함께 뺀다~~` → **`목록 화면(T30)의 client-side 필터로 뺀다`** + 사유 한 줄(홈 `homeAppointmentsProvider`가 `selectHomeDay`로 오늘의 진료완료를 써야 해 서버에서 못 뺀다, `CARD-DONE-06`). 기각(서버 제외): 홈이 오늘의 진료완료를 잃는다.
+> - 갭 목록 **#75** 항목에 `✅ 해소(2026-08-18, T30) — 화면 필터. P8-1의 「서버」를 「화면」으로 정정` 역참조.
+> - 갭 목록 **#76** `✅ 해소(2026-08-18, T30) — order by 동점 기준 + is_self`.
+> - 갭 목록 **#74**는 `[x]`로 — `✅ T15가 acknowledge_hospital_change로 이미 닫음(별도 확인 칸 대신 변경 두 칸을 비움)`. `LIST-ST-20`에 역참조.
+Run → PASS.
+
+- [ ] **Step 10: `MyAppointmentsScreen` + NAV-LIST 실패 테스트 (`LIST-LIST-14`·`NAV-LIST-01~13`)** — `patient_app/test/features/appointments/my_appointments_nav_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/home/home_data.dart';
+import 'package:hospital_patient_app/features/appointments/my_appointments_screen.dart';
+
+AppointmentView _v(String status, String time, {String id = 'appt-1', String name = '본인'}) =>
+    AppointmentView.fromJson({
+      'id': id, 'status': status, 'for_patient_name': name, 'is_self': name == '본인',
+      'department_name': '내과', 'doctor_name': '이의사', 'booking_code': 'A', 'has_questionnaire': false,
+      'slot_date': '2026-09-01', 'start_time': time,
+      'support_requested_at': null, 'request_type': null,
+      'hospital_change_prev_time': null, 'hospital_change_kind': null,
+    });
+
+String? _lastRoute;
+Widget _app(List<AppointmentView> data, {Widget? bottomSlot, Widget Function(AppointmentView)? qBuilder}) {
+  final router = GoRouter(routes: [
+    GoRoute(path: '/', builder: (c, s) => MyAppointmentsScreen(bottomSlot: bottomSlot, questionnaireBuilder: qBuilder)),
+    GoRoute(path: '/appointments/:id', builder: (c, s) { _lastRoute = '/appointments/${s.pathParameters['id']}'; return const Scaffold(body: Text('상세')); }),
+    GoRoute(path: '/questionnaire/:id', builder: (c, s) { _lastRoute = '/questionnaire/${s.pathParameters['id']}'; return const Scaffold(body: Text('문진')); }),
+    GoRoute(path: '/booking', builder: (c, s) { _lastRoute = '/booking'; return const Scaffold(body: Text('예약')); }),
+  ]);
+  return ProviderScope(overrides: [
+    homeAppointmentsProvider.overrideWith((ref) async => data),
+  ], child: MaterialApp.router(routerConfig: router));
+}
+
+void main() {
+  setUp(() => _lastRoute = null);
+
+  testWidgets('[NAV-LIST-02][LIST-LIST-14] 줄 본문을 누르면 예약 상세로 간다', (t) async {
+    await t.pumpWidget(_app([_v('예약확정', '10:00', id: 'appt-9')]));
+    await t.pumpAndSettle();
+    await t.tap(find.text('내과 · 이의사'));
+    await t.pumpAndSettle();
+    expect(_lastRoute, '/appointments/appt-9');
+  });
+  testWidgets('[NAV-LIST-03] 날짜 헤더는 누를 수 있는 요소가 아니다(이동 없음)', (t) async {
+    await t.pumpWidget(_app([_v('예약확정', '10:00')]));
+    await t.pumpAndSettle();
+    await t.tap(find.textContaining('9월 1일'));
+    await t.pumpAndSettle();
+    expect(_lastRoute, isNull);                              // 죽은 버튼을 만들지 않는다 = 탭해도 아무 일 없음
+  });
+  testWidgets('[NAV-LIST-04] 상자 안 문진 경고 줄(T31 슬롯)을 누르면 상세를 거치지 않고 문진 화면으로 간다', (t) async {
+    // T31이 채울 문진 줄의 배선 계약을 스텁으로 검증: 화면이 questionnaireBuilder에 넘긴 onOpen을 슬롯이 부른다.
+    await t.pumpWidget(_app([_v('예약확정', '10:00', id: 'appt-7')],
+        qBuilder: (v) => TextButton(key: const Key('qnr-stub'),
+            onPressed: () => MyAppointmentsScreen.openQuestionnaire(v), child: const Text('문진 슬롯'))));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('qnr-stub')));
+    await t.pumpAndSettle();
+    expect(_lastRoute, '/questionnaire/appt-7');             // 상세(/appointments/..)가 아니다
+  });
+  testWidgets('[NAV-LIST-05][NAV-LIST-06] 하단 [+ 새 예약하기]/빈 상태 CTA를 누르면 예약 1단계로 간다', (t) async {
+    await t.pumpWidget(_app([_v('예약확정', '10:00')],
+        bottomSlot: TextButton(key: const Key('cta-stub'),
+            onPressed: () => MyAppointmentsScreen.startBooking(_tester(t)), child: const Text('+ 새 예약하기'))));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('cta-stub')));
+    await t.pumpAndSettle();
+    expect(_lastRoute, '/booking');                          // NAV-BOOK-01: 언제나 처음부터
+  });
+  testWidgets('[NAV-LIST-08] 예약 상세에서 뒤로 오면 목록으로 돌아온다(같은 자리)', (t) async {
+    await t.pumpWidget(_app([_v('예약확정', '10:00', id: 'appt-3')]));
+    await t.pumpAndSettle();
+    await t.tap(find.text('내과 · 이의사'));
+    await t.pumpAndSettle();
+    expect(find.text('상세'), findsOneWidget);
+    (t.state(find.byType(Navigator)) as NavigatorState).pop();   // 뒤로
+    await t.pumpAndSettle();
+    expect(find.byType(MyAppointmentsScreen), findsOneWidget);   // 목록으로 복귀
+  });
+  testWidgets('[NAV-LIST-09] 문진 화면에서 뒤로 오면 들어온 자리(목록)로 돌아온다', (t) async {
+    await t.pumpWidget(_app([_v('예약확정', '10:00', id: 'appt-5')],
+        qBuilder: (v) => TextButton(key: const Key('qnr-stub'),
+            onPressed: () => MyAppointmentsScreen.openQuestionnaire(v), child: const Text('문진 슬롯'))));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('qnr-stub')));
+    await t.pumpAndSettle();
+    expect(find.text('문진'), findsOneWidget);
+    (t.state(find.byType(Navigator)) as NavigatorState).pop();
+    await t.pumpAndSettle();
+    expect(find.byType(MyAppointmentsScreen), findsOneWidget);
+  });
+  testWidgets('[NAV-LIST-12] 오프라인으로 진입해도 보관본이 있으면 목록을 그대로 보여준다', (t) async {
+    // homeAppointmentsProvider가 오프라인 시 UpcomingCache 폴백을 이미 한다(홈과 공유).
+    // 여기선 폴백 결과(보관본)를 그대로 그리는지 — 가족·이력 탭과 달리 목록은 캐시를 보여준다.
+    await t.pumpWidget(_app([_v('예약확정', '10:00', name: '본인'), _v('예약확정', '11:00', name: '딸')]));
+    await t.pumpAndSettle();
+    expect(find.text('정형외과 · 박서준'), findsNothing);       // (내과 데이터) — 캐시 줄이 렌더됨
+    expect(find.byType(AppointmentBox), findsNWidgets(2));
+  });
+  testWidgets('[LIST-ROLE-02] 목록은 여러 날을 얇은 줄로 훑는다 — 홈처럼 하루치·큰 카드가 아니다', (t) async {
+    await t.pumpWidget(_app([
+      _v('예약확정', '10:00', id: 'd1'),                        // 9/1
+      AppointmentView.fromJson({
+        'id': 'd3', 'status': '예약확정', 'for_patient_name': '본인', 'is_self': true,
+        'department_name': '내과', 'doctor_name': '이의사', 'booking_code': 'A', 'has_questionnaire': false,
+        'slot_date': '2026-09-03', 'start_time': '14:00',
+        'support_requested_at': null, 'request_type': null,
+        'hospital_change_prev_time': null, 'hospital_change_kind': null,
+      }),
+    ]));
+    await t.pumpAndSettle();
+    expect(find.textContaining('9월 1일'), findsOneWidget);      // 두 날이 다 보인다(하루치가 아니다)
+    expect(find.textContaining('9월 3일'), findsOneWidget);
+    expect(find.byType(AppointmentBox), findsNWidgets(2));       // 얇은 줄 상자(카드 아님)
+  });
+  testWidgets('[NAV-LIST-07] [다시 시도]는 화면을 옮기지 않고 그 자리에서 다시 조회한다', (t) async {
+    var fetches = 0;
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (c, s) => Consumer(builder: (c, ref, _) => Column(children: [
+        const Expanded(child: MyAppointmentsScreen()),
+        TextButton(key: const Key('retry'), onPressed: () => MyAppointmentsScreen.retry(ref), child: const Text('다시 시도')),
+      ]))),
+      GoRoute(path: '/x', builder: (c, s) { _lastRoute = '/x'; return const Scaffold(body: Text('x')); }),
+    ]);
+    await t.pumpWidget(ProviderScope(overrides: [
+      homeAppointmentsProvider.overrideWith((ref) async { fetches++; return [_v('예약확정', '10:00')]; }),
+    ], child: MaterialApp.router(routerConfig: router)));
+    await t.pumpAndSettle();
+    expect(fetches, 1);
+    await t.tap(find.byKey(const Key('retry')));
+    await t.pumpAndSettle();
+    expect(fetches, 2);                                          // 재조회됨(조회 원본 무효화)
+    expect(_lastRoute, isNull);                                  // 이동 없음
+  });
+  testWidgets('[NAV-LIST-10][NAV-LIST-11] 홈 [예약 목록에서 확인]·탈퇴 [예약 보러 가기]로 오면 목록 화면이 열린다', (t) async {
+    // 두 버튼(홈 HOME-KILL-01·탈퇴 SET-QUIT-15)은 context.go('/appointments')로 보낸다.
+    // 그 경로가 실제로 목록을 그리는지 = 두 진입이 막다른 길이 아닌지 확인한다.
+    final router = GoRouter(initialLocation: '/from', routes: [
+      GoRoute(path: '/from', builder: (c, s) => Scaffold(body: Column(children: [
+        TextButton(key: const Key('home-kill'), onPressed: () => c.go('/appointments'), child: const Text('예약 목록에서 확인')),
+        TextButton(key: const Key('quit-see'), onPressed: () => c.go('/appointments'), child: const Text('예약 보러 가기')),
+      ]))),
+      GoRoute(path: '/appointments', builder: (c, s) => const MyAppointmentsScreen()),
+    ]);
+    await t.pumpWidget(ProviderScope(overrides: [
+      homeAppointmentsProvider.overrideWith((ref) async => [_v('예약확정', '10:00')]),
+    ], child: MaterialApp.router(routerConfig: router)));
+    await t.pumpAndSettle();
+    expect(find.byKey(const Key('quit-see')), findsOneWidget);   // 탈퇴 진입 버튼도 같은 목적지(/appointments)
+    await t.tap(find.byKey(const Key('home-kill')));             // 홈 진입으로 확인
+    await t.pumpAndSettle();
+    expect(find.byType(MyAppointmentsScreen), findsOneWidget);   // 두 진입 다 목록으로 — 막다른 길 아님
+  });
+}
+
+BuildContext _tester(WidgetTester t) => t.element(find.byType(MyAppointmentsScreen));
+```
+> 📌 **NAV-LIST-05·06은 같은 목적지(`/booking`)** — 하단 큰 버튼(항상)과 빈 상태 CTA는 **한 배선을 공유**한다. 실제 버튼 모양·오프라인 비활성은 T31(`LIST-CTA`)이 슬롯에 넣는다. 여기선 배선(누르면 예약 1단계)만 못박는다.
+Run → Expected: FAIL(`MyAppointmentsScreen` 미정의).
+
+- [ ] **Step 11: `MyAppointmentsScreen` 구현 (`LIST-LIST-04·05·14`·`NAV-LIST-*`)** — `my_appointments_screen.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/home/home_data.dart';                 // homeAppointmentsProvider(재조회 대상)
+import 'package:hospital_patient_app/features/appointments/my_appointments_data.dart';
+import 'package:hospital_patient_app/features/appointments/appointment_list_row.dart';
+
+/// 나의 예약 목록(하단 '예약' 탭). LIST-ROLE-01: 목록이다 — 예약을 '시작'하는 곳이 아니다.
+class MyAppointmentsScreen extends ConsumerWidget {
+  final Widget? bottomSlot;                            // T31: LIST-CTA 하단 버튼
+  final Widget Function(AppointmentView)? questionnaireBuilder;   // T31: LIST-QNR 문진 경고 줄
+  const MyAppointmentsScreen({super.key, this.bottomSlot, this.questionnaireBuilder});
+
+  // NAV-LIST-02: 줄 본문 → 상세 / NAV-LIST-04: 문진 줄 → 문진 / NAV-LIST-05·06: CTA → 예약 1단계.
+  static void openDetail(BuildContext c, String id) => c.go('/appointments/$id');
+  static void openQuestionnaire(AppointmentView v) =>
+      _rootCtx!.go('/questionnaire/${v.id}');          // 상세를 거치지 않는다
+  static void startBooking(BuildContext c) => c.go('/booking');
+  // NAV-LIST-07: [다시 시도]는 화면을 옮기지 않고 그 자리에서 다시 조회한다(재조회=조회 원본 무효화).
+  static void retry(WidgetRef ref) => ref.invalidate(homeAppointmentsProvider);
+  static BuildContext? _rootCtx;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    _rootCtx = context;
+    final async = ref.watch(upcomingListProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('예약')),
+      body: async.when(
+        // 빈 상태·오프라인·실패(LIST-EMPTY)와 당겨서 새로고침(LIST-REFRESH)은 T31이 이 세 분기를 채운다.
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => const SizedBox.shrink(),       // T31: EmptyState.error/offline
+        data: (list) {
+          if (list.isEmpty) return const SizedBox.shrink();   // T31: EmptyState.zero + CTA
+          final sections = groupByDate(list);
+          return ListView(children: [
+            for (final sec in sections) ...[
+              _DateHeader(date: sec.date, count: sec.items.length),   // LIST-LIST-04·05
+              for (final v in sec.items)
+                AppointmentBox(
+                  view: v, now: DateTime.now(),
+                  onTap: () => openDetail(context, v.id),             // LIST-LIST-14·NAV-LIST-02
+                  questionnaireSlot: questionnaireBuilder?.call(v),   // T31 슬롯(NAV-LIST-04 배선은 slot이 openQuestionnaire 호출)
+                ),
+            ],
+          ]);
+        },
+      ),
+      bottomNavigationBar: bottomSlot,                  // T31: LIST-CTA(하단 큰 버튼 하나)
+    );
+  }
+}
+
+/// LIST-LIST-04·05: '8월 3일 (월)' + 그날 건수 + 가로줄. 오늘도 예외 없이 날짜로 쓴다('오늘'로 바꾸지 않는다).
+/// NAV-LIST-03: 헤더는 탭 대상이 아니다(InkWell로 감싸지 않는다).
+class _DateHeader extends StatelessWidget {
+  final DateTime date; final int count;
+  const _DateHeader({required this.date, required this.count});
+  static const _dow = ['월', '화', '수', '목', '금', '토', '일'];
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    child: Row(children: [
+      Text('${date.month}월 ${date.day}일 (${_dow[date.weekday - 1]})',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+      const SizedBox(width: 8),
+      Text('$count건', style: const TextStyle(color: Color(0xFF7E8E99), fontSize: 13)),
+      const SizedBox(width: 12),
+      const Expanded(child: Divider()),
+    ]),
+  );
+}
+```
+Run → PASS.
+
+- [ ] **Step 12: 라우트·탭 배선 실패 테스트 (`NAV-LIST-01·13`)** — `patient_app/test/features/appointments/my_appointments_screen_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/router.dart';
+
+void main() {
+  test('[NAV-LIST-01] 하단 예약 탭의 목적지는 목록(/appointments)이다 — 예약 마법사(/booking)가 아니다', () {
+    expect(appointmentsTabRoute, '/appointments');
+  });
+  test('[NAV-LIST-13] 목록 경로는 민감 화면(재인증 대상)이 아니다', () {
+    expect(isSensitiveRoute('/appointments'), isFalse);   // 가족·설정과 다르다(이력과 같다)
+  });
+}
+```
+Run → Expected: FAIL(`appointmentsTabRoute`·`/appointments` 라우트 미정의).
+
+- [ ] **Step 13: 라우터에 `/appointments` 목록 + 예약 탭 재배선** — `patient_app/lib/core/router.dart`
+
+```dart
+// GoRoute 목록에 추가(상세 /appointments/:id 위에 둔다 — 정적 경로가 먼저 매칭되도록):
+//   GoRoute(path: '/appointments', builder: (c, s) => AppShell(
+//       body: const MyAppointmentsScreen(), bottomTabs: mainTabs)),   // NAV-LIST-01
+// 예약 탭 상수(mainTabs가 소비): 예약 탭은 '/booking'이 아니라 아래를 가리킨다(LIST-ROLE-01).
+const appointmentsTabRoute = '/appointments';
+// _isSensitive에 '/appointments'를 넣지 않는다(NAV-LIST-13). 기존 민감 목록(가족·설정·비번·탈퇴)만 유지.
+```
+> ⚠️ **T16 재배선**: `mainTabs`의 '예약' 탭 onTap을 `context.go(appointmentsTabRoute)`로 맞춘다(자리표시자 시절 `/booking`을 가리켰다면 정정). ⭐ **`/booking`은 예약 마법사 전용으로 남는다** — `[+ 새 예약하기]`·홈 `[진료 예약하기]`만 그리로 가고, 탭은 목록이다.
+Run → PASS.
+
+- [ ] **Step 14: 전체 테스트 + 커밋**
+
+```bash
+cd backend && pytest tests/test_patient_appointment_query_service.py -q
+cd ../patient_app && flutter test test/features/appointments/
+cd .. && python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+git add backend/app/services/patient_appointment_query_service.py \
+  backend/tests/test_patient_appointment_query_service.py \
+  patient_app/lib/features/appointments/ patient_app/lib/features/home/appointment_view.dart \
+  patient_app/lib/core/router.dart patient_app/test/features/appointments/ \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 📝 환자앱 Task 30 본문 — 나의 예약 목록 셸·상태 글자·역할·화면 이동 64규칙(LIST-ROLE/LIST/ST·NAV-LIST) + is_self·동점 정렬(#76) + 진료완료 제외 화면 필터(#75·P8-1 정정) + #74 확인"
+```
+
+> 📌 **규칙 커버리지(64)**: `LIST-ROLE-01~10`(10) · `LIST-LIST-01~15`(15) · `LIST-ST-01~26`(26) · `NAV-LIST-01~13`(13). 전부 개별 ID로 test에 심음.
+> 📌 **값 없는/구조·prose 규칙 — 「어느 테스트가 실현하는가」**:
+> - `LIST-ROLE-01·02`(정체=목록·홈과 역할 분리): `NAV-LIST-01` 테스트(탭→목록, 마법사 아님) + 화면이 얇은 줄만 그림(버튼 없음, `LIST-LIST-12` 테스트).
+> - `LIST-ROLE-08·09`(건수 제한·이어받기 없음): `filterUpcoming` 35건 테스트(안 자름).
+> - `LIST-ROLE-10`·`LIST-LIST-03`·`LIST-ST-20`(구현 전제 갭 #75·#76·#74): 각각 화면 필터 테스트·서버 정렬 테스트·acknowledge_hospital_change(T15)로 실현 — Step 9 결정문서 반영.
+> - `LIST-LIST-13`(지름길 불필요 근거): `LIST-LIST-12` 테스트(줄에 버튼 없음)와 같은 실현.
+> - `LIST-ST-04·10·11·18·19·21·23`(목적·근거·prose): 각각 `LIST-ST-03`(상담 연결됨) · `LIST-ST-09`(숫자 없음) · `LIST-ST-16`(시간 변경됨=병원취소는 목록에 없음, 필터 테스트) 등 인접 테스트가 값으로 실현. `LIST-ST-21`(병원취소 목록에 안 뜸)은 `filterUpcoming`이 `병원취소`를 뺀다는 테스트로 실현.
+> ⚠️ **양방향 악수(T31이 갚는다)**: `MyAppointmentsScreen`이 `bottomSlot`·`questionnaireBuilder`·빈/오프라인/실패 세 분기를 **비워** 뒀다. T31이 `LIST-CTA`(하단 버튼)·`LIST-QNR`(문진 줄)·`LIST-EMPTY`(빈 상태)·`LIST-REFRESH`(갱신)를 그 자리에 채운다. ⛔ **T31 규칙을 여기 완전 ID로 예고하지 않았다**(coverage 사각 방지).
+> ⚠️ **착수 시 주의(핸드오프 함정 재확인)**: `LIST-ST`·`NAV-LIST`를 축약(`ST-06·07·08`)으로 쓰면 검사기가 못 읽어 빚이 쌓인다 — 위 test는 전부 **완전 ID**로 폈다.
