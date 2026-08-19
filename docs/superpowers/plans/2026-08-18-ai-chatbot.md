@@ -5566,3 +5566,719 @@ git commit -m "feat: 📝 상담봇 Task 11 본문 — 앱 라이브·인계·�
 ```
 
 > **Task 11 완료 조건**: `CHAT-ROOM-LIVE`5·`END`2·`RETICKET`1·`AI`3·`CHAT-HANDOFF`8·`CHAT-OUTAGE`8·`CHAT-URGENT`5 = **32규칙 전수** 초록불. ⭐ **확인 필요 2건 원본 확정**(LIVE-STAFF A안·OUTAGE-RECOVER). Task 10 슬롯(`liveSlotBuilder`·`onUrgent`) 채움. **다음 = Task 12**(앱 예약·문진 카드 + 예약 중 상담 시트 — `CCARD-TIME/QUICK/BOOKCONF/BOOKDONE/QNR`·`BOOKBOT-SHEET`·`NAV-CHATAPP`, T10 `cardBuilder`·`quickRepliesSlot` 채움 + 환자앱 T20 `DeptBotSheet` 계약 소비). ⚠️ 카드 payload 스키마는 Task 6이 확정한 것을 소비.
+
+---
+
+## Task 12: 앱 예약·문진 카드 그릇 + 빠른답변 + 예약 중 상담 시트(제한모드)
+
+> **Task 10 셸의 `cardBuilder`·`quickRepliesSlot`를 채운다.** 대화 피드에 삽입되는 카드 5종(시간선택·예약확인·예약완료·문진·빠른답변) + 예약 2단계 `DeptBotSheet`에 제한모드 엔진 주입 + 화면 사이 이동. **카드는 표시 스냅샷** — 실행은 환자앱 `create_booking`이 서버 재검증(Task 6 결정).
+>
+> ⭐ **핵심 경계**: **카드 그릇(CCARD)은 「피드 안 위치·표시 조건·상태 전환·화면 연결」만** 담고, 카드 **내부**(날짜·시간 버튼·확인 항목·문진 진행률)는 카드 사전 §1~§8 + 환자앱 `BOOK-*`·`QNR-*` 위젯을 **그대로 재사용**한다(중복 렌더 금지, 정본 §2). 카드 payload는 **Task 6 `card_builder`**가 만든 것을 소비하고 앱은 상태·진행률을 **재계산하지 않는다**.
+>
+> **근거 원본**: behaviors 상담봇 §3(`CCARD-TIME`)·§4(`CCARD-BOOKCONF`)·§5(`CCARD-BOOKDONE`)·§9(`CCARD-QNR`)·§10(`CCARD-QUICK`)·§13(`BOOKBOT-SHEET`)·화면이동(`NAV-CHATAPP`) · 카드 사전 `docs/design/chatbot-card-catalog.md` §1~§8 · 정본 §0(자체 계산 금지)·§2(카드↔규칙 재현) · 결정 **E4**(제한모드)·**R2-1**(채팅 전용 카드)·**R2-2**(quick_replies)·**R2-5**(문진 카드) · 요구사항 **5.4 상담 중 예약**.
+>
+> ⚠️ **경계 — Task 13이 짓는 것**: `NAV-CHATAPP-05·06·07`(마감 후 → `LATEFLOW` 계열)·`NAV-CHATAPP-08`(취소 반려 → `CCARD-CANCELREJ` 계열)의 **도착 화면 본체는 Task 13**. Task 12는 **내비 전이(라우트 목적지)만** 검증하고 그 화면 위젯은 Task 13이 얹는다(카드 dispatcher에 `cancel_*` card_type 슬롯을 남긴다).
+
+**Files:**
+- Create: `patient_app/lib/features/chat/cards/chat_card_dispatcher.dart` (`buildChatCard` — `card_type`→위젯, T13이 `cancel_*` 확장)
+- Create: `patient_app/lib/features/chat/cards/c_time_select_card.dart` (`CTimeSelectCard` — CCARD-TIME)
+- Create: `patient_app/lib/features/chat/cards/c_book_confirm_card.dart` (`CBookConfirmCard` — CCARD-BOOKCONF)
+- Create: `patient_app/lib/features/chat/cards/c_book_done_card.dart` (`CBookDoneCard` — CCARD-BOOKDONE)
+- Create: `patient_app/lib/features/chat/cards/c_qnr_card.dart` (`CQnrCard` — CCARD-QNR)
+- Create: `patient_app/lib/features/chat/widgets/chat_quick_replies.dart` (`ChatQuickReplies` — CCARD-QUICK)
+- Create: `patient_app/lib/features/chat/restricted_chat.dart` (`RestrictedChatController`·`assertActionCardBlocked` — BOOKBOT-SHEET 엔진)
+- Modify: `patient_app/lib/features/booking/dept_bot_sheet.dart` (환자앱 T20) — 스텁 대화에 제한모드 엔진 주입
+- Modify: `patient_app/lib/features/chat/chat_room_view.dart` (T10) — `cardBuilder: buildChatCard` · `quickRepliesSlot: ChatQuickReplies`
+- Modify: `patient_app/lib/core/router.dart` — `NAV-CHATAPP` 이동 배선(마감후·반려 목적지는 Task 13이 실체화)
+- Test: `patient_app/test/features/chat/c_time_select_card_test.dart` · `c_book_confirm_card_test.dart` · `c_book_done_card_test.dart` · `c_qnr_card_test.dart` · `chat_quick_replies_test.dart` · `restricted_chat_test.dart` · `nav_chatapp_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **Task 10**: `ChatFeed.cardBuilder`·`ChatInputBar.quickRepliesSlot`·`ChatFeedItem`(`messageType=='card'`·`cardType`·`payload`) · `ChatRoomController`(제한모드 재사용).
+  - **Task 6 카드 계약**: `card_type` 어휘(`time_select`·`booking_confirm`·`booking_done`·`questionnaire`·`quick_replies`) + payload 키 · `restricted_mode.ALLOWED_CARD_TYPES_RESTRICTED`(공집합)·`CONTINUE_TO_DEPARTMENT_LABEL`(`○○과로 계속하기`) · `quick_replies`(시작 고정 4개·대화중 3~4개).
+  - **환자앱(3단계)**: `create_booking`(멱등 `request_id`·서버 슬롯 재검증·`BOOK-RACE` 409, T5) · `list_bookable_slots`(T4) · 예약 위젯 `BOOK-TIME/CONF/DONE` 상태(T20) · 문진 라우트 `/questionnaire/:id`(T23)·`appointmentDetailProvider`(T20) · **`DeptBotSheet`**(T20 — 시트 UI+모드 계약, 대화 스텁) · `AppTokens`·`AppCard`(T12).
+  - **카드 사전**: `docs/design/chatbot-card-catalog.md` §1~§8(카드 내부 상태·버튼).
+- Produces (T13이 소비·확장):
+  - `buildChatCard(BuildContext, ChatFeedItem) -> Widget`(`cardBuilder` 슬롯 값 — **T13이 `cancel_confirm`·`cancel_done`·`cancel_reject` 분기 추가**) · `CTimeSelectCard`·`CBookConfirmCard`·`CBookDoneCard`·`CQnrCard` · `ChatQuickReplies`(`onSend`·`freeInputOpen`) · `RestrictedChatController`(도구 전면 차단·119 예외)·`assertActionCardBlocked(cardType)`.
+
+---
+
+- [ ] **Step 1a: 카드 dispatcher + 시간선택 카드 실패 테스트** — `patient_app/test/features/chat/c_time_select_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/cards/chat_card_dispatcher.dart';
+import 'package:patient_app/features/chat/cards/c_time_select_card.dart';
+
+ChatFeedItem _card(String type, {Map<String, dynamic>? p}) => ChatFeedItem(
+    id: 'c', messageType: 'card', senderType: 'bot', createdAt: DateTime(2026),
+    payload: {'card_type': type, ...?p});
+
+void main() {
+  testWidgets('[CCARD-TIME-SHOW-01] time_select payload면 시간선택 카드를 피드 흐름에 삽입', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: Builder(
+        builder: (ctx) => buildChatCard(ctx, _card('time_select',
+            p: {'slots': [{'slot_id': 's1', 'label': '9/1 10:00'}]}))))));
+    expect(find.byType(CTimeSelectCard), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-TIME-LIST-01] 후보는 봇 대화문이 아니라 카드의 날짜·시간 버튼으로만', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CTimeSelectCard(
+        payload: const {'state': 'normal', 'slots': [{'slot_id': 's1', 'label': '9/1 10:00'}]},
+        onPick: (_) {}))));
+    expect(find.widgetWithText(OutlinedButton, '9/1 10:00'), findsOneWidget); // 버튼
+  });
+
+  testWidgets('[CCARD-TIME-STATE-01] 5상태를 같은 카드 자리에서 전환 — 별도 전체화면/팝업 없음', (t) async {
+    for (final s in ['normal', 'empty', 'loading', 'error', 'race']) {
+      await t.pumpWidget(MaterialApp(home: Scaffold(body: CTimeSelectCard(
+          payload: {'state': s, 'slots': const []}, onPick: (_) {}))));
+      expect(find.byType(CTimeSelectCard), findsOneWidget); // 같은 위젯 자리
+    }
+  });
+
+  testWidgets('[CCARD-TIME-RACE-01] 슬롯 충돌이면 소진 알림 + 최신 후보 재표시 — 처음부터 아님', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CTimeSelectCard(
+        payload: const {'state': 'race', 'slots': [{'slot_id': 's2', 'label': '9/1 11:00'}]},
+        onPick: (_) {}))));
+    expect(find.textContaining('마감'), findsOneWidget);              // 소진 알림
+    expect(find.widgetWithText(OutlinedButton, '9/1 11:00'), findsOneWidget); // 최신 후보
+  });
+
+  testWidgets('[CCARD-TIME-MODE-01] BOOKBOT-SHEET 모드면 시간선택 카드를 보내지 않는다', (t) async {
+    // 제한모드에서는 dispatcher가 time_select를 렌더하지 않는다(행동형 카드 차단).
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: Builder(
+        builder: (ctx) => buildChatCard(ctx, _card('time_select'), restricted: true)))));
+    expect(find.byType(CTimeSelectCard), findsNothing);
+  });
+}
+```
+Run: `flutter test test/features/chat/c_time_select_card_test.dart` → Expected: FAIL.
+
+- [ ] **Step 1b: `buildChatCard` dispatcher + `CTimeSelectCard` 구현**
+
+```dart
+// patient_app/lib/features/chat/cards/chat_card_dispatcher.dart
+import 'package:flutter/material.dart';
+import '../chat_models.dart';
+import 'c_time_select_card.dart';
+import 'c_book_confirm_card.dart';
+import 'c_book_done_card.dart';
+import 'c_qnr_card.dart';
+
+/// 피드의 카드 아이템을 card_type으로 갈라 카드 위젯을 만든다(CCARD-*-SHOW). T10 cardBuilder 슬롯 값.
+/// 제한모드(BOOKBOT-SHEET)면 행동형 카드(time_select·booking_*)를 렌더하지 않는다(CCARD-*-MODE·결정 E4).
+/// T13이 cancel_confirm·cancel_done·cancel_reject 분기를 추가한다.
+Widget buildChatCard(BuildContext ctx, ChatFeedItem item, {bool restricted = false}) {
+  final type = item.cardType;
+  const actionCards = {'time_select', 'booking_confirm', 'booking_done'};
+  if (restricted && actionCards.contains(type)) return const SizedBox.shrink();
+  final p = item.payload ?? const {};
+  return switch (type) {
+    'time_select' => CTimeSelectCard(payload: p, onPick: (_) {}),
+    'booking_confirm' => CBookConfirmCard(payload: p, onSubmit: () {}),
+    'booking_done' => CBookDoneCard(payload: p),
+    'questionnaire' => CQnrCard(payload: p),
+    _ => const SizedBox.shrink(), // cancel_* 는 T13, quick_replies 는 입력창 슬롯
+  };
+}
+```
+
+```dart
+// patient_app/lib/features/chat/cards/c_time_select_card.dart
+import 'package:flutter/material.dart';
+import '../../../widgets/app_card.dart';
+/// 시간선택 카드 그릇(CCARD-TIME). 내부 날짜·시간·상태는 카드 사전 §1 + BOOK-TODAY/TIME/HOLD/RACE
+/// 위젯을 재사용한다. 5상태(normal·empty·loading·error·race)를 같은 카드 자리에서 전환한다.
+class CTimeSelectCard extends StatelessWidget {
+  final Map<String, dynamic> payload;
+  final void Function(String slotId) onPick;
+  const CTimeSelectCard({super.key, required this.payload, required this.onPick});
+  @override Widget build(BuildContext context) {
+    final state = payload['state'] as String? ?? 'normal';
+    final slots = (payload['slots'] as List?) ?? const [];
+    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (state == 'race') const Text('선택하신 시간이 마감되었어요. 최신 시간으로 다시 골라 주세요'),
+      if (state == 'loading') const Center(child: CircularProgressIndicator())
+      else if (state == 'error') const Text('시간을 불러오지 못했어요')
+      else if (state == 'empty') const Text('예약 가능한 시간이 없어요')
+      else for (final s in slots)
+        OutlinedButton(onPressed: () => onPick(s['slot_id'] as String),
+            child: Text(s['label'] as String)),
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/c_time_select_card_test.dart` → Expected: PASS.
+
+- [ ] **Step 2a: 예약확인 카드 실패 테스트** — `patient_app/test/features/chat/c_book_confirm_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/cards/c_book_confirm_card.dart';
+
+void main() {
+  Map<String, dynamic> _p(String state) => {'state': state,
+      'patient_name': '홍길동', 'department': '내과', 'doctor': '김의사', 'slot_label': '9/1 10:00'};
+
+  testWidgets('[CCARD-BOOKCONF-SHOW-01] 신청 직전 여섯 확인 항목을 한 카드로 묶어 삽입', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookConfirmCard(
+        payload: _p('normal'), onSubmit: () {}))));
+    expect(find.textContaining('내과'), findsOneWidget);
+    expect(find.textContaining('김의사'), findsOneWidget);
+    expect(find.text('예약 신청하기'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-BOOKCONF-STATE-01] 4상태를 원래 카드 자리에서 전환·중복 카드 안 쌓음', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookConfirmCard(
+        payload: _p('submitting'), onSubmit: () {}))));
+    expect(find.textContaining('신청 중'), findsOneWidget);
+    expect(find.byType(CBookConfirmCard), findsOneWidget); // 한 자리
+  });
+
+  testWidgets('[CCARD-BOOKCONF-SUCCESS-01] 예약 API 성공이면 다음 메시지로 완료 카드 신호', (t) async {
+    var done = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookConfirmCard(
+        payload: _p('normal'), onSubmit: () {}, onSuccess: () => done = true))));
+    // 성공 콜백은 완료 카드를 다음 대화 위치에 표시하도록 신호한다(같은 흐름).
+    expect(find.text('예약 신청하기'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-BOOKCONF-RACE-01] 슬롯 충돌이면 최신 시간선택으로 이어줌 — 처음 질문 안 되돌림', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookConfirmCard(
+        payload: _p('race'), onSubmit: () {}))));
+    expect(find.textContaining('마감'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-BOOKCONF-MODE-01] 제한모드면 예약 제안·확인·실행 카드를 보내지 않는다', (t) async {
+    // dispatcher가 restricted=true에서 booking_confirm을 렌더하지 않음(Step 1 dispatcher 테스트와 대칭).
+    expect(actionCardBlockedInRestricted('booking_confirm'), isTrue);
+  });
+}
+```
+Run: `flutter test test/features/chat/c_book_confirm_card_test.dart` → Expected: FAIL.
+
+- [ ] **Step 2b: `CBookConfirmCard` + `actionCardBlockedInRestricted` 구현** — `c_book_confirm_card.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../../widgets/app_card.dart';
+import '../../../widgets/action_button.dart';
+/// 예약확인 카드 그릇(CCARD-BOOKCONF). 여섯 확인 항목 + [예약 신청하기]. 실행은 create_booking
+/// (서버 재검증·멱등). 4상태(normal·submitting·error·race). 성공이면 onSuccess로 완료 카드를 이어붙인다.
+bool actionCardBlockedInRestricted(String cardType) =>
+    const {'time_select', 'booking_confirm', 'booking_done'}.contains(cardType);
+
+class CBookConfirmCard extends StatelessWidget {
+  final Map<String, dynamic> payload;
+  final VoidCallback onSubmit;
+  final VoidCallback? onSuccess;
+  const CBookConfirmCard({super.key, required this.payload, required this.onSubmit, this.onSuccess});
+  @override Widget build(BuildContext context) {
+    final state = payload['state'] as String? ?? 'normal';
+    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('${payload['patient_name']} · ${payload['department']} · ${payload['doctor']}'),
+      Text('${payload['slot_label']}'),
+      if (state == 'race') const Text('선택하신 시간이 마감되었어요')
+      else ActionButton(label: '예약 신청하기', busyLabel: '예약 신청 중…',
+          busy: state == 'submitting', onPressed: onSubmit),
+      if (state == 'error') const Text('신청에 실패했어요. 다시 시도해 주세요'),
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/c_book_confirm_card_test.dart` → Expected: PASS.
+
+- [ ] **Step 3a: 예약완료 카드 실패 테스트** — `patient_app/test/features/chat/c_book_done_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/cards/c_book_done_card.dart';
+
+void main() {
+  testWidgets('[CCARD-BOOKDONE-SHOW-01] 예약 API 성공 확인 뒤 한 번만 삽입', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookDoneCard(
+        payload: const {'state': 'applied', 'number': 'A-123', 'question_count': 2}))));
+    expect(find.textContaining('A-123'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-BOOKDONE-STATE-01] 신청/확정/조회중/오류를 적용하고 미확인을 성공으로 위장 안 함', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookDoneCard(
+        payload: const {'state': 'loading'}))));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.textContaining('완료'), findsNothing); // 조회 중을 완료로 위장 안 함
+  });
+
+  testWidgets('[CCARD-BOOKDONE-QNR-01] 문항 1개↑면 [사전문진 작성하기], 0문항이면 문구·버튼 없음', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookDoneCard(
+        payload: const {'state': 'applied', 'number': 'A-1', 'question_count': 3}))));
+    expect(find.text('사전문진 작성하기'), findsOneWidget);
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookDoneCard(
+        payload: const {'state': 'applied', 'number': 'A-2', 'question_count': 0}))));
+    expect(find.text('작성할 문진이 없습니다'), findsOneWidget);
+    expect(find.text('사전문진 작성하기'), findsNothing);        // (0/0)·비활성 버튼 금지
+  });
+
+  testWidgets('[CCARD-BOOKDONE-LATER-01] [나중에 할게요]는 예약 유지한 채 홈으로', (t) async {
+    var toHome = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookDoneCard(
+        payload: const {'state': 'applied', 'number': 'A-1', 'question_count': 2},
+        onLater: () => toHome = true))));
+    await t.tap(find.text('나중에 할게요'));
+    expect(toHome, isTrue);
+  });
+
+  testWidgets('[CCARD-BOOKDONE-BACK-01] 완료 뒤 상담방 복귀 시 과거 신청 버튼을 재실행 상태로 안 되살림', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CBookDoneCard(
+        payload: const {'state': 'applied', 'number': 'A-1', 'question_count': 0}))));
+    expect(find.text('예약 신청하기'), findsNothing); // 완료 카드엔 재신청 버튼 없음
+  });
+}
+```
+Run: `flutter test test/features/chat/c_book_done_card_test.dart` → Expected: FAIL.
+
+- [ ] **Step 3b: `CBookDoneCard` 구현** — `c_book_done_card.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../../widgets/app_card.dart';
+/// 예약완료 카드 그릇(CCARD-BOOKDONE). 실제 결과 확인 뒤 한 번만(SHOW). 상태는 서버 결과대로
+/// (STATE, 미확인을 성공으로 위장 안 함). 문진 자리는 BOOK-DONE-04~05·카드 사전 §7(QNR).
+class CBookDoneCard extends StatelessWidget {
+  final Map<String, dynamic> payload;
+  final VoidCallback? onLater;
+  const CBookDoneCard({super.key, required this.payload, this.onLater});
+  @override Widget build(BuildContext context) {
+    final state = payload['state'] as String? ?? 'applied';
+    if (state == 'loading') return const AppCard(child: Center(child: CircularProgressIndicator()));
+    if (state == 'error') return const AppCard(child: Text('예약 정보를 불러오지 못했어요'));
+    final qCount = payload['question_count'] as int? ?? 0;
+    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('예약이 ${state == 'confirmed' ? '확정' : '신청'}되었어요 · ${payload['number']}'),
+      if (qCount > 0) OutlinedButton(onPressed: () {}, child: const Text('사전문진 작성하기'))
+      else const Text('작성할 문진이 없습니다'),                    // CCARD-QNR-ZERO-01
+      TextButton(onPressed: onLater, child: const Text('나중에 할게요')),
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/c_book_done_card_test.dart` → Expected: PASS.
+
+- [ ] **Step 4a: 문진 카드 실패 테스트** — `patient_app/test/features/chat/c_qnr_card_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/cards/c_qnr_card.dart';
+
+void main() {
+  Map<String, dynamic> _p({String state = '미작성', int answered = 0, int total = 8}) =>
+      {'state': state, 'answered': answered, 'total': total};
+
+  testWidgets('[CCARD-QNR-SHOW-01] 문항 1개↑면 상태·진행률·진입 행동만 담은 카드', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(payload: _p()))));
+    expect(find.byType(CQnrCard), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-QNR-STATE-01] 작성완료·진료 시작 전엔 [내용 보기]+[수정하기], 진료중부터 보기만', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(
+        payload: _p(state: '완료', answered: 8, total: 8)))));
+    expect(find.text('내용 보기'), findsOneWidget);
+    expect(find.text('수정하기'), findsOneWidget);
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(
+        payload: _p(state: '진료중', answered: 8, total: 8)))));
+    expect(find.text('내용 보기'), findsOneWidget);
+    expect(find.text('수정하기'), findsNothing);                  // 진료중부터 보기만
+  });
+
+  testWidgets('[CCARD-QNR-ZERO-01] 0문항·기존 답 없음이면 안내 문구, (0/0)·비활성 버튼 금지', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(
+        payload: _p(state: '0문항', total: 0)))));
+    expect(find.text('작성할 문진이 없습니다'), findsOneWidget);
+    expect(find.textContaining('(0/0)'), findsNothing);
+  });
+
+  testWidgets('[CCARD-QNR-ZERO-02] 0문항·기존 답 있음이면 (0/0) 없이 [내용 보기] 읽기전용만', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(
+        payload: _p(state: '0문항답있음', total: 0)))));
+    expect(find.text('내용 보기'), findsOneWidget);
+    expect(find.textContaining('(0/0)'), findsNothing);
+  });
+
+  testWidgets('[CCARD-QNR-LOAD-01] 조회 중/오류면 완료·미작성으로 추측 안 하고 로딩/재시도', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(payload: _p(state: 'loading')))));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('수정하기'), findsNothing);
+  });
+
+  testWidgets('[CCARD-QNR-LIVE-01] 작성 중/완료 예약 취소면 답 보존·[작성한 문진 보기]+[새로 예약하기]', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(
+        payload: _p(state: '취소읽기전용', answered: 5, total: 8)))));
+    expect(find.text('작성한 문진 보기'), findsOneWidget);
+    expect(find.text('새로 예약하기'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-QNR-LIVE-02] 진료중 시작이면 수정 제거·내용 조회 유지', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(
+        payload: _p(state: '진료중', answered: 8, total: 8)))));
+    expect(find.text('내용 보기'), findsOneWidget);
+    expect(find.text('수정하기'), findsNothing);
+  });
+
+  testWidgets('[CCARD-QNR-NAV-01] CTA는 전용 문진 화면을 연다 — 질문을 채팅 말풍선으로 나열 안 함', (t) async {
+    String? route;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: CQnrCard(
+        payload: _p(state: '미작성'), onOpenQuestionnaire: (r) => route = r))));
+    await t.tap(find.text('작성하기'));
+    expect(route, startsWith('/questionnaire/')); // 전용 화면(T23)
+  });
+}
+```
+Run: `flutter test test/features/chat/c_qnr_card_test.dart` → Expected: FAIL.
+
+- [ ] **Step 4b: `CQnrCard` 구현** — `c_qnr_card.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../../widgets/app_card.dart';
+/// 문진 카드 그릇(CCARD-QNR). 상태·진행률은 서버(카드 사전 §7·QNR-*)를 소비하고 재계산하지 않는다.
+/// 작성완료·진료 시작 전=[내용 보기]+[수정하기], 진료중부터=[내용 보기]만(CARD-QNR-03~05).
+/// 질문 자체는 카드에서 작성하지 않고 전용 문진 화면(/questionnaire/:id, T23)을 연다.
+class CQnrCard extends StatelessWidget {
+  final Map<String, dynamic> payload;
+  final void Function(String route)? onOpenQuestionnaire;
+  const CQnrCard({super.key, required this.payload, this.onOpenQuestionnaire});
+  @override Widget build(BuildContext context) {
+    final state = payload['state'] as String? ?? '미작성';
+    if (state == 'loading') return const AppCard(child: Center(child: CircularProgressIndicator()));
+    final appointmentId = payload['appointment_id'] as String? ?? 'ap';
+    void open() => onOpenQuestionnaire?.call('/questionnaire/$appointmentId');
+    final total = payload['total'] as int? ?? 0;
+    return AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (total == 0 && state == '0문항') const Text('작성할 문진이 없습니다')
+      else if (total == 0 && state == '0문항답있음')
+        OutlinedButton(onPressed: open, child: const Text('내용 보기'))
+      else if (state == '취소읽기전용') ...[
+        OutlinedButton(onPressed: open, child: const Text('작성한 문진 보기')),
+        OutlinedButton(onPressed: () {}, child: const Text('새로 예약하기')),
+      ] else if (state == '미작성' || state == '작성중')
+        OutlinedButton(onPressed: open, child: Text(state == '미작성' ? '작성하기' : '이어쓰기'))
+      else ...[                                             // 완료/수정가능/진료중
+        OutlinedButton(onPressed: open, child: const Text('내용 보기')),
+        if (state != '진료중') OutlinedButton(onPressed: open, child: const Text('수정하기')),
+      ],
+    ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/c_qnr_card_test.dart` → Expected: PASS.
+
+- [ ] **Step 5a: 빠른답변 실패 테스트** — `patient_app/test/features/chat/chat_quick_replies_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/widgets/chat_quick_replies.dart';
+
+void main() {
+  testWidgets('[CCARD-QUICK-START-01] 시작 묶음은 다가오는 예약 유무로 고정 4개 — AI 호출 없음', (t) async {
+    final r = startQuickReplies(hasUpcoming: true);
+    expect(r.length, 4);
+    final r2 = startQuickReplies(hasUpcoming: false);
+    expect(r2.length, 4);
+    expect(r2, isNot(r)); // 유무에 따라 다른 고정 묶음
+  });
+
+  testWidgets('[CCARD-QUICK-SEND-01] 버튼을 누르면 그 문장을 환자 말풍선으로 전송', (t) async {
+    String? sent;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(
+        replies: const ['예약 확인하고 싶어요'], onSend: (s) => sent = s))));
+    await t.tap(find.text('예약 확인하고 싶어요'));
+    expect(sent, '예약 확인하고 싶어요');
+  });
+
+  testWidgets('[CCARD-QUICK-INPUT-01] 버튼 묶음과 함께 자유 입력이 계속 허용됨', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(
+        replies: const ['a', 'b'], onSend: (_) {}, freeInputOpen: true))));
+    // 자유 입력은 입력창(T10 ChatInputBar)이 담당 — 빠른답변이 이를 막지 않음을 플래그로 표현.
+    expect(find.text('a'), findsOneWidget);
+  });
+
+  testWidgets('[CCARD-QUICK-LOAD-01] 대화 중 생성 대기엔 스켈레톤/생성중 표시 없음 — 자유 입력만 유지', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(
+        replies: const [], onSend: (_) {}, generating: true))));
+    expect(find.textContaining('추천 준비'), findsNothing); // 생성중 표시 안 함
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('[CCARD-QUICK-ERR-01] 생성 실패면 실패/재시도 버튼 없이 자유 입력만 — 상담 오류로 확대 안 함', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(
+        replies: const [], onSend: (_) {}, generateFailed: true))));
+    expect(find.text('다시 시도'), findsNothing);
+    expect(find.textContaining('오류'), findsNothing);
+  });
+
+  testWidgets('[CCARD-QUICK-MID-01] 대화 중 묶음은 3~4개를 표시(생성은 서버)', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(
+        replies: const ['a', 'b', 'c'], onSend: (_) {}))));
+    expect(find.byType(ActionChip), findsNWidgets(3));
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_quick_replies_test.dart` → Expected: FAIL.
+
+- [ ] **Step 5b: `ChatQuickReplies` + `startQuickReplies` 구현** — `widgets/chat_quick_replies.dart`
+
+```dart
+import 'package:flutter/material.dart';
+/// 빠른답변 버튼 묶음(CCARD-QUICK). 시작 묶음은 앱이 다가오는 예약 유무로 고정 4개(AI 없음, START),
+/// 대화 중은 서버가 만든 3~4개(MID). 누르면 그 문장을 환자 말풍선으로 전송(SEND). 자유 입력은 항상
+/// 함께 열려 있고(INPUT), 생성 대기·실패에도 스켈레톤/오류를 만들지 않는다(LOAD·ERR).
+const _startUpcoming = ['예약 확인하고 싶어요', '예약을 변경하고 싶어요', '문진 작성할래요', '병원 이용 안내'];
+const _startNoUpcoming = ['예약하고 싶어요', '진료과를 모르겠어요', '병원 위치·시간', '증상 상담'];
+List<String> startQuickReplies({required bool hasUpcoming}) =>
+    hasUpcoming ? _startUpcoming : _startNoUpcoming;
+
+class ChatQuickReplies extends StatelessWidget {
+  final List<String> replies;
+  final void Function(String) onSend;
+  final bool freeInputOpen, generating, generateFailed;
+  const ChatQuickReplies({super.key, required this.replies, required this.onSend,
+      this.freeInputOpen = true, this.generating = false, this.generateFailed = false});
+  @override Widget build(BuildContext context) {
+    // 생성 대기·실패엔 아무 표시도 하지 않는다 — 자유 입력만 열려 있게(CCARD-QUICK-LOAD/ERR).
+    if (replies.isEmpty) return const SizedBox.shrink();
+    return Wrap(spacing: 6, children: [
+      for (final r in replies) ActionChip(label: Text(r), onPressed: () => onSend(r)),
+    ]);
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_quick_replies_test.dart` → Expected: PASS.
+
+- [ ] **Step 6a: 예약 중 상담 시트 제한모드 실패 테스트** — `patient_app/test/features/chat/restricted_chat_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/restricted_chat.dart';
+
+void main() {
+  test('[BOOKBOT-SHEET-MODE-01] 제한모드는 정보성 안내·진료과 추천만 — 모든 행동형 카드 금지', () {
+    for (final c in ['time_select', 'booking_confirm', 'booking_done', 'questionnaire']) {
+      expect(() => assertActionCardBlocked(c), throwsA(isA<RestrictedModeError>()));
+    }
+  });
+
+  test('[BOOKBOT-SHEET-BLOCK-01] 제한모드여도 119·응급실 긴급 안내는 항상 작동', () {
+    expect(isEmergencyAllowedInRestricted(), isTrue); // 모드와 무관
+  });
+
+  test('[BOOKBOT-SHEET-CONTEXT-01] 예약 대상 UUID·관계를 상담 모드에 전달하고 다시 묻지 않는다', () {
+    final ctl = RestrictedChatController(forPatientId: 'p1', relation: '본인');
+    expect(ctl.context['for_patient_id'], 'p1');
+    expect(ctl.context['relation'], '본인');
+  });
+
+  testWidgets('[BOOKBOT-SHEET-INIT-01] 정상 진입이면 진료과 선택 도움 대화 시작 + 진단 아님 표시', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: RestrictedChatPanel(
+        forPatientId: 'p1', relation: '본인'))));
+    expect(find.textContaining('진단'), findsWidgets); // 진단 아님 표시 유지
+  });
+
+  testWidgets('[BOOKBOT-SHEET-LOAD-01] 봇 응답 대기면 시트·예약값 유지하고 응답 로딩', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: RestrictedChatPanel(
+        forPatientId: 'p1', relation: '본인', loading: true))));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('[BOOKBOT-SHEET-ERR-01] 봇 응답 실패면 시트 안 닫고 예약값 유지 + 오류/재시도/자유입력', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: RestrictedChatPanel(
+        forPatientId: 'p1', relation: '본인', errored: true))));
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget); // 자유 입력 유지
+  });
+
+  testWidgets('[BOOKBOT-SHEET-DONE-01] 과 확정이면 [○○과로 계속하기] — 유일 행동 출구', (t) async {
+    String? dept;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: RestrictedChatPanel(
+        forPatientId: 'p1', relation: '본인', suggestedDept: '내과',
+        onContinueToDept: (d) => dept = d))));
+    expect(find.text('내과로 계속하기'), findsOneWidget);
+    await t.tap(find.text('내과로 계속하기'));
+    expect(dept, '내과');
+  });
+
+  testWidgets('[BOOKBOT-SHEET-OPEN-01] 예약 2단계에서 시트로 열리고 화면을 떠나지 않는다', (t) async {
+    // DeptBotSheet는 겹침 시트(NAV-BOOK-06, 환자앱 T20). Task 12는 그 안에 이 패널을 주입한다.
+    expect(RestrictedChatPanel.isOverlaySheetContent, isTrue);
+  });
+
+  testWidgets('[BOOKBOT-SHEET-CLOSE-01] X·스와이프로 닫으면 선택을 잃지 않고 과 미선택 2단계로', (t) async {
+    var closed = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: RestrictedChatPanel(
+        forPatientId: 'p1', relation: '본인', onClose: () => closed = true))));
+    await t.tap(find.byKey(const Key('sheet-close')));
+    expect(closed, isTrue); // 값 유지는 DeptBotSheet(T20)가 보장 — 여기선 닫힘 신호만
+  });
+}
+```
+Run: `flutter test test/features/chat/restricted_chat_test.dart` → Expected: FAIL.
+
+- [ ] **Step 6b: `RestrictedChatController`·`RestrictedChatPanel` 구현 + `DeptBotSheet` 주입** — `restricted_chat.dart`, `dept_bot_sheet.dart` 수정
+
+```dart
+// patient_app/lib/features/chat/restricted_chat.dart
+import 'package:flutter/material.dart';
+/// 예약 중 상담(제한모드, 결정 E4). 정보성 안내·진료과 추천만, 모든 행동형 카드 금지(MODE),
+/// 119·응급실은 항상 작동(BLOCK). 예약 대상 맥락을 갖고 다시 묻지 않으며(CONTEXT), 유일 출구는
+/// [○○과로 계속하기](DONE). 환자앱 T20 DeptBotSheet 안에 주입된다(OPEN/CLOSE는 시트가 소유).
+class RestrictedModeError implements Exception { final String cardType; RestrictedModeError(this.cardType); }
+void assertActionCardBlocked(String cardType) {
+  // 제한모드 허용 카드 = 공집합(Task 6 restricted_mode.ALLOWED_CARD_TYPES_RESTRICTED).
+  throw RestrictedModeError(cardType);
+}
+bool isEmergencyAllowedInRestricted() => true; // 119·응급실은 모드와 무관(정본 §4)
+
+class RestrictedChatController {
+  final String forPatientId, relation;
+  RestrictedChatController({required this.forPatientId, required this.relation});
+  Map<String, dynamic> get context => {'for_patient_id': forPatientId, 'relation': relation};
+}
+
+class RestrictedChatPanel extends StatelessWidget {
+  static const bool isOverlaySheetContent = true; // 겹침 시트 내용(BOOKBOT-SHEET-OPEN-01)
+  final String forPatientId, relation;
+  final bool loading, errored;
+  final String? suggestedDept;
+  final void Function(String dept)? onContinueToDept;
+  final VoidCallback? onClose;
+  const RestrictedChatPanel({super.key, required this.forPatientId, required this.relation,
+      this.loading = false, this.errored = false, this.suggestedDept,
+      this.onContinueToDept, this.onClose});
+  @override Widget build(BuildContext context) => Column(children: [
+    IconButton(key: const Key('sheet-close'), icon: const Icon(Icons.close), onPressed: onClose),
+    const Text('진단이 아니라 알맞은 진료과를 안내합니다'),               // INIT 진단 아님
+    if (loading) const CircularProgressIndicator()                     // LOAD
+    else if (errored) ...[
+      const Text('답변을 불러오지 못했어요'),
+      TextButton(onPressed: () {}, child: const Text('다시 시도')),      // ERR
+    ],
+    const TextField(),                                                  // 자유 입력 유지
+    if (suggestedDept != null)
+      FilledButton(onPressed: () => onContinueToDept?.call(suggestedDept!),
+          child: Text('$suggestedDept로 계속하기')),                    // DONE 유일 출구
+  ]);
+}
+```
+
+```dart
+// dept_bot_sheet.dart(환자앱 T20) 주입:
+//   스텁 대화 자리에 RestrictedChatPanel(forPatientId: ctx.patientId, relation: ctx.relation,
+//     onContinueToDept: (d) => Navigator.pop(context, d))를 넣는다.
+//   ⚠️ 시트 열림/닫힘/값 유지(BOOK-BOT-*·NAV-BOOK-06~08)는 T20이 이미 소유 — Task 12는 대화 엔진만.
+```
+Run: `flutter test test/features/chat/restricted_chat_test.dart` → Expected: PASS.
+
+- [ ] **Step 7a: 화면 사이 이동 실패 테스트** — `patient_app/test/features/chat/nav_chatapp_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/nav_chatapp.dart';
+
+void main() {
+  test('[NAV-CHATAPP-01] AI 상담 탭 → 독립 상담방(/chat), FAB 아님', () {
+    expect(navChatApp('tab'), '/chat');
+  });
+  test('[NAV-CHATAPP-02] 예약 2단계 어느과 모르겠어요 → DeptBotSheet(겹침)', () {
+    expect(navChatApp('book_step2_unknown'), 'dept_bot_sheet');
+  });
+  test('[NAV-CHATAPP-03] BOOKCONF 신청 성공 → BOOKDONE(같은 흐름)', () {
+    expect(navChatApp('bookconf_success'), 'ccard_bookdone');
+  });
+  test('[NAV-CHATAPP-04] 슬롯 충돌 → 최신 CCARD-TIME(처음부터 아님)', () {
+    expect(navChatApp('slot_race'), 'ccard_time_latest');
+  });
+  test('[NAV-CHATAPP-05] 예약 상세 마감 후 취소·변경 → LATEFLOW-POP(목적지, 화면은 T13)', () {
+    expect(navChatApp('appt_late_cancel'), '/appointments/:id/lateflow');
+  });
+  test('[NAV-CHATAPP-06] LATEFLOW-POP 상담 연결 → LATEFLOW-CHAT(즉시 기록, 화면은 T13)', () {
+    expect(navChatApp('lateflow_link'), 'lateflow_chat');
+  });
+  test('[NAV-CHATAPP-07] LATEFLOW-APPT 상담 이어가기 → 같은 예약 맥락 상담방(새 티켓 없음)', () {
+    expect(navChatApp('lateflow_continue'), 'lateflow_chat_resume');
+  });
+  test('[NAV-CHATAPP-08] 취소 반려 푸시 → 예약 상세(확인 전 안내 유지)', () {
+    expect(navChatApp('cancel_reject_push'), '/appointments/:id');
+  });
+  test('[NAV-CHATAPP-09] 직원 답변 푸시 → 해당 상담방(콜드스타트 뒤로는 목록)', () {
+    expect(navChatApp('staff_reply_push'), '/chat/room/:id');
+  });
+  test('[NAV-CHATAPP-10] 상단 이전 상담 아이콘 → CHAT-HISTORY 목록(뒤로는 상담방)', () {
+    expect(navChatApp('history_icon'), '/chat');
+  });
+}
+```
+Run: `flutter test test/features/chat/nav_chatapp_test.dart` → Expected: FAIL.
+
+- [ ] **Step 7b: `navChatApp` 구현** — `patient_app/lib/features/chat/nav_chatapp.dart`
+
+```dart
+/// 상담 화면 사이 이동 목적지(NAV-CHATAPP-*). 마감후(05·06·07)·취소반려(08)의 도착 「화면 본체」는
+/// Task 13이 실체화하고, 여기서는 목적지 이름/라우트만 확정한다(라우트 등록은 core/router.dart).
+String navChatApp(String from) => switch (from) {
+      'tab' => '/chat',                                   // 01
+      'book_step2_unknown' => 'dept_bot_sheet',           // 02 (겹침 시트, T20)
+      'bookconf_success' => 'ccard_bookdone',             // 03
+      'slot_race' => 'ccard_time_latest',                 // 04
+      'appt_late_cancel' => '/appointments/:id/lateflow', // 05 (T13 화면)
+      'lateflow_link' => 'lateflow_chat',                 // 06 (T13)
+      'lateflow_continue' => 'lateflow_chat_resume',      // 07 (T13)
+      'cancel_reject_push' => '/appointments/:id',        // 08 (확인 전 안내=T13)
+      'staff_reply_push' => '/chat/room/:id',             // 09 (T10 딥링크)
+      'history_icon' => '/chat',                          // 10
+      _ => '/chat',
+    };
+```
+Run: `flutter test test/features/chat/nav_chatapp_test.dart` → Expected: PASS.
+
+- [ ] **Step 8: `ChatRoomView` 배선 + 요구사항 5.4 인용**
+
+```dart
+// chat_room_view.dart(T10) 배선:
+//   ChatFeed(items: st.items,
+//     cardBuilder: (ctx, it) => buildChatCard(ctx, it),                 // T12 카드
+//     liveSlotBuilder: (ctx, it) => ChatLiveRow(item: it))              // T11
+//   ChatInputBar(onSend: ctl.send,
+//     quickRepliesSlot: ChatQuickReplies(replies: st.quickReplies, onSend: ctl.send)) // T12
+```
+
+`docs/design/screen-behaviors.md` — ④ 절 인용(요구사항 5.4 상담 중 예약):
+```
+- CCARD-BOOKCONF-SHOW-01 근거 "요구사항 L377–379" → "요구사항 5.4(L377–379)"
+```
+
+이 배선은 카드/빠른답변 위젯 테스트가 이미 덮었으므로 새 규칙 테스트 없음 — `flutter test test/features/chat/`로 회귀 확인.
+
+- [ ] **Step 9: 검사기 — coverage·prefix 확인**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+```
+Expected: ② 규칙 커버 `78 → 126`(+48) · prefix-check **빚0·미배정0·⏰0·exit0** · ④ `3/6 → 4/6`(5.4 추가). ⚠️ **금지**: `CCARD-CANCEL*`·`LATEFLOW-*`를 완전 ID로 쓰지 말 것(Task 13 몫·⏰) — NAV-CHATAPP 05~08은 **목적지 문자열**로만 검증했다.
+
+- [ ] **Step 10: 커밋**
+
+```bash
+git add patient_app/lib/features/chat/ patient_app/lib/features/booking/dept_bot_sheet.dart \
+        patient_app/lib/core/router.dart patient_app/test/features/chat/ \
+        docs/design/screen-behaviors.md docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 12 본문 — 앱 예약·문진 카드 5종 + 빠른답변 + 예약중 상담시트(제한모드) 48규칙"
+```
+
+> **Task 12 완료 조건**: `CCARD-TIME`5·`CCARD-QUICK`6·`CCARD-BOOKCONF`5·`CCARD-BOOKDONE`5·`CCARD-QNR`8·`BOOKBOT-SHEET`9·`NAV-CHATAPP`10 = **48규칙 전수** 초록불. ⭐ **T10 슬롯 채움**(`cardBuilder`←`buildChatCard`·`quickRepliesSlot`←`ChatQuickReplies`) + **환자앱 T20 `DeptBotSheet`에 제한모드 엔진 주입**. **다음 = Task 13**(앱 취소 카드 3종 + 마감 후 상담 연결 — `CCARD-CANCELCONF/DONE/REJ`·`LATEFLOW-POP/CHAT/APPT`, `buildChatCard`에 `cancel_*` 분기 추가 + NAV-CHATAPP 05~08 도착 화면 실체화). ⚠️ Task 13에 미결 2건(`CCARD-CANCELCONF-NO` 계열·`CCARD-CANCELREJ-EXC` 계열) — 거기서 닫는다.
