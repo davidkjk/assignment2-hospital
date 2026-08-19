@@ -3019,3 +3019,384 @@ git commit -m "feat: 📝 상담봇 Task 6 본문 — 카드 8종 payload 계약
 ```
 
 > **Task 6 완료 조건**: 카드 빌더(8종 payload·방문이유 100자·0문항 버튼없음·서버 진행률 소비)·quick_replies(고정 4개·대화중 3~4개·실패 무음)·제한모드(행동형 카드 전부 금지·유일 출구 ○○과로 계속하기) 초록불 · `create_booking`이 실행 주체임(카드는 호출만) 확인. coverage 불변, prefix-check 빚·미배정 0·⏰0(`CCARD-*` 완전 ID 미사용).
+
+## Task 7: 지식베이스(KB) — pgvector 검색 · 승인·재임베딩 · 제한 자료 · 의사 소개 원본
+
+> **화면 규칙 0개.** 상담봇 안내형(RAG)의 **지식 원본과 검색**을 만든다: 관리자가 쓴 자료(`kb_documents`)를 조각내(`kb_chunks`) 임베딩하고, **승인된 조각만** 검색 근거로 쓴다. Task 5 오케스트레이터의 안내형 갈래(`rag_fn`)가 여기 검색을 주입받는다. Task 4의 `chat_message_sources.chunk_id`(소프트 참조)가 여기 `kb_chunks`를 가리킨다.
+>
+> **근거 원본**: 옛 플랜 `docs/superpowers/plans/2026-07-27-ai-chatbot.md:325-410`(KB 스키마·`match_kb_chunks`·R4-01 `pending_*`) · 정본 §1(item 7 의사 소개 원본·item 8 진료시간 KB 제거)·§0(A3 제한 자료) · 결정 A2·A3·G-06.
+>
+> ⭐ **이 태스크가 닫는 미결(발판 → 여기서 확정)**:
+> - **제한 자료 검색 숫자 튜닝** — 원칙은 A3 확정(제한 원문 별도 블록). **엔진 결정 = 코사인 유사도 임계값 `RAG_SIMILARITY_THRESHOLD=0.70`**(최상위 조각이 이보다 낮으면 근거 부족 → `no_answer` 인계). ⚠️ 실제 데이터로 튜닝하는 값이라 상수+주석(KB 실측 후 조정).
+>
+> ⭐ **설계 결정 3건(기각안 포함)**:
+> 1. **승인 전 기존본 유지(A2·G-06·R4-01)** — 이미 승인된 자료를 고치면 `title/content/is_restricted`(라이브)는 그대로 두고 `pending_*`에 담는다. 챗봇은 **재임베딩 성공 전까지 라이브로 답한다.** `approve_pending_edit`이 라이브를 이전 이력에 저장 → 재청킹·재임베딩을 **한 트랜잭션**으로(실패 시 옛 조각·옛 답 유지). *기각: 수정 즉시 라이브 덮어쓰기* — 재임베딩이 실패하면 자료와 검색 인덱스가 어긋난다.
+> 2. **진료시간·의사 소개는 KB에 넣지 않는다** — 진료시간·휴진은 `hospital_hours` 단일 판정(item 8), 의사 소개는 `staff.specialty/bio/photo_url` **원본을 읽는다**(item 7). *기각: KB에 `진료시간`·`의사소개` 분류 중복 저장* — 원본과 KB가 갈라져 낡은 답을 준다.
+> 3. **제한 자료(A3)는 병원 문구 글자 그대로, 봇 생성문 밖 별도 블록.** 질문 전체가 제한 주제면 제한 문구+`[직원 연결]`만, 일반 자료가 함께 걸리면 일반은 평소대로 답하고 제한 원문만 별도 블록. *기각: 제한 주제면 전부 차단* — 무관한 일반 안내까지 막는다(A3 기각안).
+
+**Files:**
+- Create: `supabase/migrations/00041_kb_pgvector.sql`
+- Create: `backend/app/services/chat/kb_service.py` · `backend/app/services/chat/rag_service.py`
+- Create: `backend/tests/test_kb_schema.py` · `backend/tests/test_kb_service.py` · `backend/tests/test_rag_service.py`
+
+**Interfaces:**
+- Consumes: Task 0 `EmbeddingClient`·`get_chat_model`·`fake_embedder`(테스트) · Task 4 `chat_message_sources`(근거 기록) · `staff`(의사 소개 원본) · `private.is_active_staff()`·`private.is_admin()` · `get_pool`·`acquire_as`·`AppError` · pgvector 확장
+- Produces:
+  - 표 `kb_documents`(`status draft/approved/archived`·`is_restricted`·`pending_*` 6칸·이력 키) · `kb_chunks(embedding vector(1536))` · `kb_document_revisions` · 함수 `match_kb_chunks(query_embedding vector, match_count int)`(**승인 조각만**)
+  - `kb_service.create_document`·`submit_edit`(→pending)·`approve_document`(draft→approved 재임베딩)·`approve_pending_edit`(라이브 교체+이력+재임베딩 트랜잭션)·`reject_pending_edit`·`archive_document`·`chunk_text` · `list_revisions`
+  - `rag_service.rag_answer(message, *, embedder, model, match_count=5) -> dict`(`{reply|no_answer|restricted_block, sources, actions}`) · `record_answer_sources(message_id, sources)`(→`chat_message_sources` 스냅샷) · `RAG_SIMILARITY_THRESHOLD=0.70` · `get_doctor_intro(doctor_id) -> dict`(staff 원본)
+- ⚠️ **아직 안 하는 것**: KB 관리 **화면**(`KBADM-*`)=Task 20 · 품질·오답 신고(`answer_feedback`·예시은행)=Task 8 · 배포 임베딩 배치=배포. Task 7은 검색·승인·재임베딩 서버 약속만.
+
+- [ ] **Step 1: 실패하는 KB 스키마 테스트 작성**
+
+`backend/tests/test_kb_schema.py`:
+```python
+import pytest
+from tests.conftest import seed_staff
+
+
+@pytest.mark.asyncio
+async def test_pgvector_and_kb_tables_exist(db_conn):
+    ext = await db_conn.fetchval("select 1 from pg_extension where extname='vector'")
+    assert ext == 1
+    for t in ("kb_documents", "kb_chunks", "kb_document_revisions"):
+        assert await db_conn.fetchval(
+            "select 1 from information_schema.tables where table_name=$1", t) == 1
+
+
+@pytest.mark.asyncio
+async def test_match_returns_approved_chunks_only(db_conn):
+    # 승인 자료 1건 + 초안 1건 → 검색에 승인 조각만.
+    vec = "[" + ",".join(["0.1"] * 1536) + "]"
+    ap = await db_conn.fetchval(
+        "insert into kb_documents (title, content, status) values ('주차','지하1층','approved') returning id")
+    dr = await db_conn.fetchval(
+        "insert into kb_documents (title, content, status) values ('초안','승인전','draft') returning id")
+    await db_conn.execute(
+        "insert into kb_chunks (document_id, chunk_index, content, embedding) values ($1,0,'지하 1층 주차장',$2::vector)", ap, vec)
+    await db_conn.execute(
+        "insert into kb_chunks (document_id, chunk_index, content, embedding) values ($1,0,'승인 전 내용',$2::vector)", dr, vec)
+    rows = await db_conn.fetch("select content from match_kb_chunks($1::vector, 10)", vec)
+    contents = {r["content"] for r in rows}
+    assert "지하 1층 주차장" in contents and "승인 전 내용" not in contents
+```
+
+- [ ] **Step 2: 실패 확인 → 마이그레이션 작성**
+
+Run: `cd backend && pytest tests/test_kb_schema.py -v` → FAIL. 그다음 `supabase/migrations/00041_kb_pgvector.sql`:
+```sql
+-- 상담봇 안내형(RAG) 지식 원본 + pgvector 검색. 승인된 조각만 검색 근거로 쓴다(요구사항 5.6).
+-- 진료시간·의사 소개는 KB에 넣지 않는다(item 7·8 — hospital_hours·staff 원본이 정본). ⚠️ 번호 예시 00041.
+create extension if not exists vector;
+
+create table kb_documents (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  category text not null default '기타',
+  content text not null,
+  status text not null default 'draft' check (status in ('draft', 'approved', 'archived')),
+  is_restricted boolean not null default false,   -- A3: true면 근거로 재생성하지 않고 원문 그대로 별도 블록 안내
+  -- R4-01·A2·G-06: 승인된 문서 수정은 라이브(title/content/is_restricted)를 두고 pending_*에 담는다.
+  -- 재승인(approve_pending_edit) 전까지 챗봇은 라이브로 답한다.
+  has_pending_edit boolean not null default false,
+  pending_title text, pending_category text, pending_content text, pending_is_restricted boolean,
+  pending_updated_by uuid references staff(id), pending_updated_at timestamptz,
+  created_by uuid references staff(id), approved_by uuid references staff(id),
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+  approved_at timestamptz
+);
+
+create table kb_chunks (        -- 검색 단위. 원본 승인/재승인 시 전량 재생성.
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid not null references kb_documents(id) on delete cascade,
+  chunk_index int not null,
+  content text not null,
+  embedding vector(1536) not null
+);
+create index idx_kb_chunks_embedding on kb_chunks using hnsw (embedding vector_cosine_ops);
+
+create table kb_document_revisions (   -- 라이브 교체 전 옛 값을 먼저 저장(G-06·1단계 medical_record_revisions 패턴).
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid not null references kb_documents(id) on delete cascade,
+  previous_title text not null, previous_category text not null, previous_content text not null,
+  previous_is_restricted boolean not null,
+  changed_by uuid references staff(id), changed_at timestamptz not null default now()
+);
+create index idx_kb_revisions_document on kb_document_revisions (document_id, changed_at desc);
+
+-- 승인 조각만 코사인 유사도 상위 match_count개.
+create function match_kb_chunks(query_embedding vector(1536), match_count int)
+returns table (id uuid, document_id uuid, content text, title text, is_restricted boolean, similarity float)
+language sql stable as $$
+  select c.id, c.document_id, c.content, d.title, d.is_restricted,
+         1 - (c.embedding <=> query_embedding) as similarity
+  from kb_chunks c join kb_documents d on d.id = c.document_id
+  where d.status = 'approved'
+  order by c.embedding <=> query_embedding
+  limit match_count
+$$;
+
+alter table kb_documents enable row level security;
+alter table kb_chunks enable row level security;
+alter table kb_document_revisions enable row level security;
+-- 직원은 근거 확인용 조회. 작성·수정·승인은 백엔드 경유(관리자 검사). 봇 검색은 서비스 역할(match_kb_chunks).
+create policy kb_documents_staff_select on kb_documents for select to authenticated using (private.is_active_staff());
+create policy kb_chunks_staff_select on kb_chunks for select to authenticated using (private.is_active_staff());
+create policy kb_revisions_staff_select on kb_document_revisions for select to authenticated using (private.is_active_staff());
+```
+적용: `supabase migration up` → `pytest tests/test_kb_schema.py -v` PASS.
+
+- [ ] **Step 3: KB 서비스 — 승인·재임베딩·pending 작성**
+
+`backend/app/services/chat/kb_service.py`:
+```python
+from uuid import UUID
+
+from app.core.errors import AppError
+from app.db.pool import get_pool
+
+
+def chunk_text(content: str, *, max_len: int = 500) -> list[str]:
+    # 단순 청킹: 빈 줄 문단 우선, 너무 길면 max_len로 자른다(검색 단위).
+    parts, buf = [], ""
+    for para in content.split("\n\n"):
+        para = para.strip()
+        if not para:
+            continue
+        if len(buf) + len(para) + 2 > max_len and buf:
+            parts.append(buf); buf = para
+        else:
+            buf = f"{buf}\n\n{para}" if buf else para
+    if buf:
+        parts.append(buf)
+    return parts or [content.strip()]
+
+
+async def _reembed(conn, doc_id: UUID, content: str, embedder) -> None:
+    # 옛 조각 삭제 + 새 조각 삽입을 같은 트랜잭션에서. 실패하면 옛 조각·옛 답 유지(A2).
+    chunks = chunk_text(content)
+    vectors = await embedder.embed(chunks)
+    await conn.execute("delete from kb_chunks where document_id=$1", doc_id)
+    for i, (c, v) in enumerate(zip(chunks, vectors)):
+        await conn.execute(
+            "insert into kb_chunks (document_id, chunk_index, content, embedding) values ($1,$2,$3,$4::vector)",
+            doc_id, i, c, "[" + ",".join(map(str, v)) + "]")
+
+
+async def approve_document(doc_id: UUID, embedder) -> None:
+    # draft → approved(최초 승인): 청킹+임베딩 후 승인. 재임베딩 실패 시 승인도 롤백.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            doc = await conn.fetchrow("select content, status from kb_documents where id=$1", doc_id)
+            if doc is None:
+                raise AppError("없는 자료입니다.", 404)
+            await _reembed(conn, doc_id, doc["content"], embedder)
+            await conn.execute(
+                "update kb_documents set status='approved', approved_at=now(), updated_at=now() where id=$1", doc_id)
+
+
+async def submit_edit(doc_id: UUID, *, title, category, content, is_restricted, staff_id) -> None:
+    # 승인된 문서 수정 → pending_*에 담고 라이브는 그대로. 챗봇은 계속 라이브로 답한다(A2·R4-01).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "update kb_documents set has_pending_edit=true, pending_title=$2, pending_category=$3, "
+            "pending_content=$4, pending_is_restricted=$5, pending_updated_by=$6, pending_updated_at=now() "
+            "where id=$1", doc_id, title, category, content, is_restricted, staff_id)
+
+
+async def approve_pending_edit(doc_id: UUID, embedder) -> None:
+    # 라이브를 이력에 저장 → pending을 라이브로 → 재청킹·재임베딩. 전부 한 트랜잭션(G-06·A2).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            d = await conn.fetchrow("select * from kb_documents where id=$1 and has_pending_edit", doc_id)
+            if d is None:
+                raise AppError("반영할 수정 내용이 없습니다.", 409)
+            await conn.execute(
+                "insert into kb_document_revisions (document_id, previous_title, previous_category, "
+                "previous_content, previous_is_restricted, changed_by) values ($1,$2,$3,$4,$5,$6)",
+                doc_id, d["title"], d["category"], d["content"], d["is_restricted"], d["pending_updated_by"])
+            await conn.execute(
+                "update kb_documents set title=pending_title, category=pending_category, content=pending_content, "
+                "is_restricted=pending_is_restricted, has_pending_edit=false, pending_title=null, "
+                "pending_category=null, pending_content=null, pending_is_restricted=null, "
+                "approved_at=now(), updated_at=now() where id=$1", doc_id)
+            new_content = d["pending_content"]
+            await _reembed(conn, doc_id, new_content, embedder)
+```
+
+- [ ] **Step 4: RAG 서비스 + 제한 자료 + 의사 소개 작성**
+
+`backend/app/services/chat/rag_service.py`:
+```python
+from uuid import UUID
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+from app.db.pool import get_pool
+from app.integrations.langchain_client import get_chat_model
+
+RAG_SIMILARITY_THRESHOLD = 0.70   # 최상위 조각이 이보다 낮으면 근거 부족 → no_answer 인계. 실측 튜닝 대상.
+
+
+async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5) -> dict:
+    qvec = (await embedder.embed([message]))[0]
+    vec = "[" + ",".join(map(str, qvec)) + "]"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        chunks = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, match_count)
+    if not chunks or chunks[0]["similarity"] < RAG_SIMILARITY_THRESHOLD:
+        return {"no_answer": True}          # 근거 부족 → 인계(no_answer)
+    restricted = [c for c in chunks if c["is_restricted"]]
+    normal = [c for c in chunks if not c["is_restricted"]]
+    sources = [{"chunk_id": c["id"], "title_snapshot": c["title"], "body_snapshot": c["content"],
+                "rank": i, "similarity": float(c["similarity"])} for i, c in enumerate(chunks)]
+    # A3: 질문 전체가 제한 주제(일반 근거 없음)면 제한 원문 + [직원 연결]만.
+    if restricted and not normal:
+        return {"reply": None, "restricted_block": restricted[0]["content"],
+                "actions": ["직원 연결"], "sources": sources}
+    # 일반 자료로 평소대로 답하고, 제한 자료가 함께 걸리면 원문 그대로 별도 블록으로 덧붙인다.
+    context = "\n\n".join(c["content"] for c in normal)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "아래 병원 자료만 근거로 간결히 답하세요. 자료에 없으면 모른다고 하세요.\n{context}"),
+        ("human", "{q}"),
+    ])
+    reply = await (prompt | (model or get_chat_model()) | StrOutputParser()).ainvoke(
+        {"context": context, "q": message})
+    result = {"reply": reply, "sources": sources}
+    if restricted:
+        result["restricted_block"] = restricted[0]["content"]   # 봇이 살 붙이지 않은 원문 그대로
+    return result
+
+
+async def record_answer_sources(message_id: UUID, sources: list[dict]) -> None:
+    # 봇 답변 근거를 당시 스냅샷으로 박제한다(Task 4 chat_message_sources). chunk_id는 소프트 참조.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for s in sources:
+            await conn.execute(
+                "insert into chat_message_sources (message_id, chunk_id, rank, similarity, "
+                "title_snapshot, body_snapshot) values ($1,$2,$3,$4,$5,$6)",
+                message_id, s["chunk_id"], s["rank"], s["similarity"], s["title_snapshot"], s["body_snapshot"])
+
+
+async def get_doctor_intro(doctor_id: UUID) -> dict:
+    # 의사 소개는 KB가 아니라 staff 원본을 읽는다(item 7 — 중복 저장 금지).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "select id, name, specialty, bio, photo_url from staff where id=$1", doctor_id)
+    return dict(row) if row else None
+```
+
+> ⚠️ **구현 메모(⑦)**: `staff.specialty/bio/photo_url` 칸은 직원웹·환자앱이 만드는 것으로 전제됐다(#7). 착수 시 존재를 확인하고, 없으면 그 태스크와 순서를 맞춘다(먼저 만드는 쪽 우선).
+
+- [ ] **Step 5: KB·RAG 서비스 테스트 작성**
+
+`backend/tests/test_kb_service.py`:
+```python
+import pytest
+
+from app.services.chat import kb_service
+from tests.conftest import seed_staff
+from tests.conftest_chat import FakeEmbedder
+
+
+@pytest.mark.asyncio
+async def test_approve_chunks_and_embeds(committed_conn):
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, created_by) "
+        "values ('주차','지하 1층 30분 무료입니다.','draft',$1) returning id", st["staff_id"])
+    await kb_service.approve_document(doc, FakeEmbedder())
+    status = await committed_conn.fetchval("select status from kb_documents where id=$1", doc)
+    n = await committed_conn.fetchval("select count(*) from kb_chunks where document_id=$1", doc)
+    assert status == "approved" and n >= 1
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_edit_stays_pending_until_approved(committed_conn):
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, created_by) "
+        "values ('주차','옛 내용','approved',$1) returning id", st["staff_id"])
+    await kb_service.submit_edit(doc, title="주차", category="기타", content="새 내용",
+                                 is_restricted=False, staff_id=st["staff_id"])
+    live = await committed_conn.fetchrow("select content, has_pending_edit, pending_content from kb_documents where id=$1", doc)
+    assert live["content"] == "옛 내용" and live["has_pending_edit"] and live["pending_content"] == "새 내용"
+    await kb_service.approve_pending_edit(doc, FakeEmbedder())
+    after = await committed_conn.fetchrow("select content, has_pending_edit from kb_documents where id=$1", doc)
+    assert after["content"] == "새 내용" and after["has_pending_edit"] is False
+    rev = await committed_conn.fetchval(
+        "select previous_content from kb_document_revisions where document_id=$1", doc)
+    assert rev == "옛 내용"   # 라이브 교체 전 이력 저장(G-06)
+    await committed_conn.execute("delete from kb_document_revisions where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+```
+
+`backend/tests/test_rag_service.py`:
+```python
+import pytest
+
+from app.services.chat import rag_service
+from tests.conftest import seed_staff
+from tests.conftest_chat import FakeEmbedder
+
+
+class _Fixed:
+    # 임계값 판정을 통제하려고 질의·조각 벡터를 같게 만들어 유사도=1로 만든다.
+    async def embed(self, texts): return [[1.0] + [0.0] * 1535 for _ in texts]
+
+
+class _Model:
+    async def ainvoke(self, _):
+        class R: content = "지하 1층에 주차할 수 있습니다."
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_restricted_only_returns_verbatim_and_staff_action(committed_conn):
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, is_restricted) "
+        "values ('보험 상담','보험 관련은 직원에게 문의하세요.','approved',true) returning id")
+    await committed_conn.execute(
+        "insert into kb_chunks (document_id, chunk_index, content, embedding) "
+        "values ($1,0,'보험 관련은 직원에게 문의하세요.',$2::vector)", doc, "[" + ",".join(["1.0"]+["0.0"]*1535) + "]")
+    out = await rag_service.rag_answer("보험 되나요", embedder=_Fixed(), model=_Model())
+    assert out.get("reply") is None
+    assert out["restricted_block"] == "보험 관련은 직원에게 문의하세요."   # 글자 그대로, 봇 생성 아님
+    assert "직원 연결" in out["actions"]
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_low_similarity_becomes_no_answer():
+    # 승인 조각이 하나도 없으면(빈 KB) 근거 부족 → no_answer.
+    out = await rag_service.rag_answer("아무거나", embedder=FakeEmbedder(), model=_Model())
+    assert out.get("no_answer") is True
+```
+
+- [ ] **Step 6: 테스트 통과 확인** — Run: `cd backend && pytest tests/test_kb_schema.py tests/test_kb_service.py tests/test_rag_service.py -v` → Expected: PASS. (⚠️ `committed_conn` 쓰는 테스트는 뒤에서 직접 정리 — chat/kb 표는 `_cleanup_committed_data`에 없으니 각 테스트가 지운다.)
+
+- [ ] **Step 7: 커밋**
+
+```bash
+git add supabase/migrations/00041_kb_pgvector.sql backend/app/services/chat/kb_service.py \
+        backend/app/services/chat/rag_service.py backend/tests/test_kb_schema.py \
+        backend/tests/test_kb_service.py backend/tests/test_rag_service.py \
+        docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 7 본문 — KB pgvector 검색·승인/재임베딩(승인전 라이브 유지 A2/G-06)·제한자료 별도블록(A3)·의사소개 원본(#7). 검색 임계값 0.70 미결 닫음"
+```
+
+> **Task 7 완료 조건**: KB 표·`match_kb_chunks`(승인만)·승인 재임베딩·`pending_*`(라이브 유지)·이력·제한자료 원문 별도블록·의사소개 staff 원본 초록불 · 검색 임계값 상수 확인 · `chunk_id` 스냅샷 기록 확인. 제한 자료 검색 튜닝 미결 닫힘. coverage 불변, prefix-check 빚·미배정 0·⏰0.
