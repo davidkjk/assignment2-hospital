@@ -19273,3 +19273,433 @@ git commit -m "feat: 📝 환자앱 Task 28 본문 — 설정 홈·알림 설정
 > ⚠️ **⏰ 재확인 완료**: 이 태스크는 SET-NOTI·SET-HOSP·NAV-SET를 **처음** 적는다(이전 태스크의 완전 ID 예고 0건 — 착수 시 grep 확인). 실현 지도(값 없는 규칙)는 **계열명**으로 적어 후속 태스크 몫을 커버로 세지 않게 한다.
 > ⚠️ **T29에 넘기는 악수**: `/settings/password`·`/settings/withdraw`·`/settings/logout` 세 자리표시자 라우트(`NAV-SET-05·08·09` 도착지) — T29가 `SET-PW/QUIT/OUT-*` 실화면·실동작으로 갈아끼우고 `NAV-SET-10~14`를 담는다.
 > ⭐ **양방향 악수 갚음(T26→T28)**: `/settings/hospital` 자리표시자를 `HospitalInfoScreen`으로 교체 — `NAV-FAM-12`·`AUTH-OTP-11`의 도착지가 실화면이 됐다.
+
+---
+
+## Task 29: 비밀번호 변경 + 회원 탈퇴 + 로그아웃 (61규칙)
+
+> **묶음 7 설정의 뒷절.** `SET-PW-*`16 · `SET-OUT-*`12 · `SET-QUIT-*`28 · `NAV-SET-*`(10~14)5 = **61**(<70, 단일 태스크). T28이 설정 홈·알림·병원 정보를 담고 **로그아웃·탈퇴·비번변경 목적지를 자리표시자로 넘겼다** — 이 태스크가 실화면·실동작으로 갈아끼운다.
+>
+> **요구사항 절**: 4.1(회원 탈퇴) · 4.8(입력·버튼 원칙). 갭 **#64**(탈퇴가 재가입을 막음 — B-37)·**#70**(설정 화면 부재의 마지막 조각 = 탈퇴 API 앱 코드·차단 판정)·**#73**(비번 변경 시 다른 기기 세션이 안 끊김)을 닫는다.
+>
+> ⭐⭐ **이 태스크가 닫는 갭 3건** — 커밋에 설계문서 반영 함께(T24 이후 규율):
+> - **#64(B-37 확정)** 탈퇴 시 ① Auth 계정에서 **전화번호 분리**(계정 행은 흔적으로 남김) ② `patients.auth_user_id`를 **비우고** `deactivated_at`·`former_auth_user_id` 남김 ③ 재가입 자동 연결(번호+이름+생년월일 3개 일치·후보 1건)이 **탈퇴한 본인 행을 후보에 포함**(auth_user_id를 비웠으니 T13 자동연결이 자동으로 집는다). ⚠️ **정지만 푸는 것으로 고치면 안 됨**(번호 재배정자가 옛 계정에 로그인) — 이름+생년월일 일치 요건이 그걸 막는다.
+> - **#70(마지막 조각)** 탈퇴 화면·`POST /me/deactivate`를 부르는 앱 코드·차단 판정(`list_withdrawal_blocks`)이 어디에도 없었다 → 이 태스크가 만든다.
+> - **#73** 비번 변경 성공 시 **다른 기기 세션을 함께 끊는다**(현재 기기 유지) — `auth.signOut(SignOutScope.others)`. 끊긴 기기는 다음 요청 401에서 `OFF-AUTH-04`(온라인 401만 진짜 로그아웃)가 로그인으로 보낸다.
+>
+> ⚠️⚠️ **구현 위험(플랜에 명시 — 착수 시 실측)**: #64의 「Auth에서 전화번호만 분리하고 계정 행은 남긴다」가 **Supabase admin API로 실제 가능한지 확인 필요**. `auth.admin.updateUserById(id, {phone: None})`이 null 전화를 허용하지 않으면, 차선책은 **Auth 사용자 삭제 + `patients.former_auth_user_id`에 옛 id 보관**(흔적은 patients 행에 남고 auth 행만 제거). ⛔ **순수 SQL로 `auth.users`를 직접 건드리지 말 것**(Supabase 내부 스키마 — 버전 업 시 깨진다). block 판정·patients 칸 변경만 SQL(SECURITY DEFINER), Auth 조작은 백엔드 admin API 경유.
+
+**Files:**
+- Create: `supabase/migrations/00032_patient_withdrawal.sql`(`patients.deactivated_at`·`former_auth_user_id` + `deactivate_patient_self()` 재작성 + `list_withdrawal_blocks()`) / Test: `backend/tests/test_00032_withdrawal.py`
+- Modify: `backend/app/services/patient_profile_service.py`(`get_withdrawal_blocks`·`deactivate_self` — admin API 전화 분리 오케스트레이션) / Test: `backend/tests/test_patient_profile_service.py`(탈퇴 절)
+- Modify: `backend/app/routers/patient_settings.py`(`GET /me/withdrawal-blocks`·`POST /me/deactivate` 추가) / Test: `backend/tests/test_patient_routers_integration.py`(탈퇴 절)
+- Create: `patient_app/lib/features/settings/settings_password_screen.dart`·`settings_password_controller.dart` / Test: `patient_app/test/features/settings/settings_password_test.dart`
+- Create: `patient_app/lib/features/settings/logout_confirm.dart`(`showLogoutConfirm` — SET-OUT 팝업+실행) / Test: `patient_app/test/features/settings/logout_test.dart`
+- Create: `patient_app/lib/features/settings/withdraw_screen.dart`·`withdraw_repository.dart` / Test: `patient_app/test/features/settings/withdraw_test.dart`
+- Modify: `patient_app/lib/features/settings/settings_home_screen.dart`(T28 소유 — 로그아웃 버튼 onTap을 `push('/settings/logout')`에서 `showLogoutConfirm(context)`로 1줄 교체) · `patient_app/lib/core/router.dart`(`/settings/password`→`SettingsPasswordScreen` · `/settings/withdraw`→`WithdrawScreen` · `/settings/logout` 자리표시자 **삭제**=팝업이라 라우트 불필요 · `NAV-SET-10~14` 배선) / Test: `patient_app/test/features/settings/settings_routes_test.dart`(T28 파일에 탈퇴/비번 라우트 절 추가)
+
+**Interfaces:**
+- Consumes:
+  - **T14 `AuthRepo`**(재소유 금지) — `signOut()`(예약 보관본까지 지움 = `SET-OUT-07`·`AUTH-SESS-04`) · `reauthenticate` · `authRepoProvider`. 로그아웃 실행의 단일 창구.
+  - **T14 `SensitiveReauthGuard`** — 설정 진입 시 이미 재인증을 통과(`SET-PW-02` 「현재 비번 다시 안 물음」의 근거).
+  - **T13 `NewPasswordScreen`**(재사용) — 새 비밀번호 두 칸·눈 토글·조건 3줄 UI(`AUTH-PWNEW`와 **같은 화면 부품**). `SettingsPasswordScreen`이 **onSubmit만 갈아끼워** 감싼다(설정 변경 경로 = `updateUser`+다른 기기 끊기, 이름 대조 없음). ⚠️ **`SET-PW-11` 서버 비번 조건(8자·영문숫자)은 T13이 `config.toml`에 이미 반영** — 여기서 다시 하지 않는다(#25 닫힘).
+  - **T9 `device_token_service.unregister_token(patient, fcm_token)`** — 로그아웃·탈퇴 시 현재 기기 토큰 해제(`SET-OUT-08`·`SET-QUIT-23`).
+  - **T12 위젯** — `ActionButton`(BUSY — `SET-PW-12`·`SET-OUT-10`·`SET-QUIT-21`) · `InlineError`(`SET-PW-16` 붙박이 오류) · `connectivityProvider`(오프라인 — `SET-OUT-12`·`SET-QUIT-27`).
+  - **T28 `SettingsHomeScreen`** — 로그아웃 버튼(`logout-button`)·탈퇴 글씨(`withdraw-text`)·비번 변경 줄이 여기 있다. T29는 목적지만 실화면으로 잇는다.
+  - **T31/예약 탭**(`/my/appointments` 또는 `/history`) — `NAV-SET-11`(탈퇴 막힘 → `[예약 보러 가기]`)의 목적지.
+- Produces(마지막 설정 태스크 — 넘길 것 없음):
+  - `patient_profile_service.get_withdrawal_blocks(patient) -> list[dict]`(막는 예약 = 내 것 + ㉮ 가족, 다가오는 것만) · `deactivate_self(patient) -> None`(차단 재검사 후 Auth 전화 분리 + `auth_user_id` null + `deactivated_at`)
+  - SQL `list_withdrawal_blocks()`·`deactivate_patient_self()`(재작성) · `patients.deactivated_at`·`former_auth_user_id` 칸
+  - `showLogoutConfirm(BuildContext) -> Future<void>`(SET-OUT 팝업+실행) · `SettingsPasswordScreen`·`WithdrawScreen`
+
+**근거 원문:** `SET-PW-01~16`(`screen-behaviors.md:4554~4569`) · `SET-OUT-01~12`(`:4590~4601`) · `SET-QUIT-01~28`(`:4607~4634`) · `NAV-SET-10~14`(`:4649~4653`) · 요구사항 4.1·4.8 · 결정 문서 「설정」·「회원 탈퇴」(B-37·B-42) · 갭 #64·#70·#73 · 옛 서버 `deactivate_patient_self`(`plans/2026-07-27-patient-app.md:131`) · B-37 재가입 자동연결.
+
+- [ ] **Step 1: 마이그레이션 `00032` — 탈퇴 흔적 칸 + 차단 판정 + deactivate 재작성**
+
+실패 테스트(`backend/tests/test_00032_withdrawal.py`):
+```python
+import pytest
+from app.db import acquire_as, acquire_service
+
+@pytest.mark.asyncio
+async def test_차단_판정은_내예약과_㉮가족예약만_센다(db_conn, seed_patient, seed_family, book_appt):
+    """[SET-QUIT-11][SET-QUIT-12] 다가오는 예약이 막는다 — 내 것 + 자기 계정 없는 가족(㉮).
+    ㉯(자기 계정 있는 가족)의 예약은 막지 않는다(그 사람이 자기 앱에서 관리)."""
+    me = await seed_patient(db_conn)
+    mom = await seed_family(db_conn, account=me, with_auth=False)   # ㉮
+    dad = await seed_family(db_conn, account=me, with_auth=True)    # ㉯
+    await book_appt(db_conn, patient=me, days_ahead=3)
+    await book_appt(db_conn, patient=mom, days_ahead=5)
+    await book_appt(db_conn, patient=dad, days_ahead=5)             # ㉯ — 안 막는다
+    async with acquire_as(str(me.auth_user_id)) as conn:
+        blocks = await conn.fetch("select * from list_withdrawal_blocks()")
+    ids = {(b["patient_name"], b["is_family"]) for b in blocks}
+    assert (me.name, False) in ids and (mom.name, True) in ids
+    assert dad.name not in {b["patient_name"] for b in blocks}      # ㉯ 제외
+
+@pytest.mark.asyncio
+async def test_지난_예약과_취소된_예약은_안_막는다(db_conn, seed_patient, book_appt):
+    """[SET-QUIT-11] 「다가오는」만 막는다 — 지난·취소·완료는 탈퇴를 막지 않는다."""
+    me = await seed_patient(db_conn)
+    await book_appt(db_conn, patient=me, days_ahead=-1)             # 지난 것
+    await book_appt(db_conn, patient=me, days_ahead=3, status="취소됨")
+    async with acquire_as(str(me.auth_user_id)) as conn:
+        blocks = await conn.fetch("select * from list_withdrawal_blocks()")
+    assert blocks == []
+
+@pytest.mark.asyncio
+async def test_탈퇴는_auth_id를_비우고_흔적을_남긴다(db_conn, seed_patient):
+    """[SET-QUIT-09][갭 #64] 탈퇴가 auth_user_id를 비워야 재가입 자동연결이 그 행을 후보로 집는다.
+    ⛔ is_active=false만으로는 옛 auth_user_id가 남아 재가입·병합이 막힌다(B-37이 뒤집은 것)."""
+    me = await seed_patient(db_conn)
+    async with acquire_as(str(me.auth_user_id)) as conn:
+        await conn.execute("select deactivate_patient_self()")
+    async with acquire_service() as svc:
+        row = await svc.fetchrow("select is_active, auth_user_id, deactivated_at, former_auth_user_id "
+                                 "from patients where id=$1", me.patient_id)
+    assert row["is_active"] is False
+    assert row["auth_user_id"] is None                      # ⭐ 비웠다 = 재가입 후보가 된다
+    assert row["deactivated_at"] is not None                # 흔적
+    assert row["former_auth_user_id"] == me.auth_user_id    # 「누가 탈퇴했나」
+
+@pytest.mark.asyncio
+async def test_다가오는_예약이_있으면_deactivate가_거부한다(db_conn, seed_patient, book_appt):
+    """[SET-QUIT-11] 서버도 차단을 재검사한다 — 화면이 막아도 오래된 화면·직접호출을 막는다."""
+    me = await seed_patient(db_conn)
+    await book_appt(db_conn, patient=me, days_ahead=3)
+    async with acquire_as(str(me.auth_user_id)) as conn:
+        with pytest.raises(Exception):
+            await conn.execute("select deactivate_patient_self()")
+```
+구현 `supabase/migrations/00032_patient_withdrawal.sql`:
+```sql
+-- Task 29 — 회원 탈퇴(갭 #64·#70). ⚠️ 실제 적용 번호는 구현 시점 확정(00031 다음).
+alter table patients
+  add column if not exists deactivated_at timestamptz,
+  add column if not exists former_auth_user_id uuid;   -- [SET-QUIT-09] 「누가 언제 탈퇴했나」 흔적
+
+-- [SET-QUIT-11·12] 차단 판정: 다가오는 예약 = 내 것 + 자기 계정 없는 가족(㉮).
+create or replace function list_withdrawal_blocks()
+returns table(appointment_id uuid, slot_date date, start_time time,
+              department text, patient_name text, is_family boolean)
+language sql security definer set search_path = '' as $$
+  with me as (select private.current_patient_id() as pid)
+  select a.id, s.slot_date, s.start_time, d.name, p.name,
+         (a.patient_id <> (select pid from me))
+  from public.appointments a
+  join public.appointment_slots s on s.id = a.slot_id
+  join public.departments d on d.id = a.department_id
+  join public.patients p on p.id = a.patient_id
+  where a.status in ('예약신청','예약확정') and s.slot_date >= current_date
+    and ( a.patient_id = (select pid from me)                       -- 내 예약
+       or a.patient_id in (                                         -- ㉮ 가족(앱 계정 없음)
+            select l.family_patient_id from public.patient_family_links l
+            join public.patients fp on fp.id = l.family_patient_id
+            where l.account_patient_id = (select pid from me) and l.is_active
+              and fp.auth_user_id is null ) )                       -- ㉮ = auth_user_id 없음
+  order by s.slot_date, s.start_time;
+$$;
+
+-- [SET-QUIT-09][갭 #64] 재작성 — is_active=false + auth_user_id 비우기 + 흔적. 차단 재검사.
+-- ⚠️ Auth 계정의 전화번호 분리는 이 함수 밖(백엔드 admin API, deactivate_self가 오케스트레이션).
+create or replace function deactivate_patient_self()
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_patient_id uuid;
+begin
+  v_patient_id := private.current_patient_id();
+  if v_patient_id is null then
+    raise exception '활성 상태의 환자만 탈퇴할 수 있습니다.' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from list_withdrawal_blocks()) then           -- [SET-QUIT-11] 서버 재검사
+    raise exception '다가오는 예약이 있어 탈퇴할 수 없습니다.' using errcode = 'P0001';
+  end if;
+  update public.patients
+    set is_active = false, deactivated_at = now(),
+        former_auth_user_id = auth_user_id, auth_user_id = null      -- ⭐ 비운다(B-37)
+    where id = v_patient_id;
+end;
+$$;
+revoke execute on function deactivate_patient_self() from public;
+grant execute on function deactivate_patient_self() to authenticated;
+grant execute on function list_withdrawal_blocks() to authenticated;
+```
+Run: `pytest backend/tests/test_00032_withdrawal.py -v` → Expected: PASS.
+
+> ⚠️ **재가입 자동연결(#64 ③)은 여기서 안 만든다** — auth_user_id를 비운 것으로 충분하다. T13/T2의 재가입 자동연결이 `auth_user_id is null`인 행을 번호+이름+생년월일로 집으므로, 탈퇴한 본인 행이 자동으로 후보가 된다(옛 플랜 `:1415`). **경계 노트만 남긴다**(T13 소유 로직 재소유 금지).
+
+- [ ] **Step 2: `deactivate_self` — Auth 전화 분리 오케스트레이션**
+
+실패 테스트(`backend/tests/test_patient_profile_service.py` 탈퇴 절):
+```python
+@pytest.mark.asyncio
+async def test_deactivate는_Auth전화분리와_SQL을_함께_한다(db_conn, seed_patient, fake_admin):
+    """[SET-QUIT-09][갭 #64] 탈퇴 = ① Auth에서 전화 분리(admin) ② SQL로 auth_user_id 비우기.
+    둘 다 해야 「번호는 풀리고 흔적은 남는」 B-37 상태가 된다."""
+    me = await seed_patient(db_conn)
+    await patient_profile_service.deactivate_self(me)
+    assert fake_admin.phone_detached_for == me.auth_user_id     # ① Auth 전화 분리
+    async with acquire_service() as svc:
+        row = await svc.fetchrow("select auth_user_id from patients where id=$1", me.patient_id)
+    assert row["auth_user_id"] is None                          # ② SQL 반영
+
+@pytest.mark.asyncio
+async def test_차단이_있으면_Auth를_건드리기_전에_멈춘다(db_conn, seed_patient, book_appt, fake_admin):
+    """[SET-QUIT-11] 차단이면 SQL이 예외 → Auth 전화를 분리하지 않는다(부분 실행 방지)."""
+    me = await seed_patient(db_conn)
+    await book_appt(db_conn, patient=me, days_ahead=3)
+    with pytest.raises(Exception):
+        await patient_profile_service.deactivate_self(me)
+    assert fake_admin.phone_detached_for is None                # Auth 안 건드림
+```
+구현 `patient_profile_service.deactivate_self`:
+```python
+async def get_withdrawal_blocks(patient: PatientContext) -> list[dict]:
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch("select * from list_withdrawal_blocks()")
+    return [dict(r) for r in rows]
+
+async def deactivate_self(patient: PatientContext) -> None:
+    """[SET-QUIT-09] 순서: ① 차단 확인+auth_user_id 비우기(SQL, 원자) → ② Auth 전화 분리(admin).
+    ⚠️ SQL을 먼저 성공시켜 차단 예외가 Auth 조작 앞에서 멈추게 한다(부분 실행 방지)."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        await conn.execute("select deactivate_patient_self()")   # 차단이면 여기서 예외
+    # ⚠️ 구현 위험(착수 시 확인): admin API가 phone=null을 허용하는지. 안 되면 Auth 사용자 삭제로 대체
+    #    (former_auth_user_id에 옛 id를 이미 남겼으므로 흔적은 patients 행에 있다).
+    await auth_admin.detach_phone(patient.auth_user_id)          # ① Auth 계정에서 전화 분리
+```
+Run: 위 테스트 → Expected: PASS.
+
+- [ ] **Step 3: 라우터 — 탈퇴 차단 조회 + 실행**
+
+실패 테스트(`backend/tests/test_patient_routers_integration.py` 탈퇴 절):
+```python
+@pytest.mark.asyncio
+async def test_탈퇴_차단_조회(client, patient_headers, book_appt_for_caller):
+    """[SET-QUIT-15] 막는 예약 목록을 화면이 받아 나열한다."""
+    await book_appt_for_caller(days_ahead=3)
+    r = await client.get("/me/withdrawal-blocks", headers=patient_headers)
+    assert r.status_code == 200 and len(r.json()) == 1
+
+@pytest.mark.asyncio
+async def test_탈퇴_실행(client, patient_headers):
+    """[SET-QUIT-19] 막는 예약이 없으면 탈퇴가 처리된다."""
+    r = await client.post("/me/deactivate", headers=patient_headers)
+    assert r.status_code == 200
+```
+구현 — `backend/app/routers/patient_settings.py`에 추가:
+```python
+@router.get("/withdrawal-blocks")
+async def withdrawal_blocks(patient: PatientContext = Depends(get_current_patient)) -> list[dict]:
+    return await patient_profile_service.get_withdrawal_blocks(patient)   # [SET-QUIT-15]
+
+@router.post("/deactivate")
+async def deactivate(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    await patient_profile_service.deactivate_self(patient)                # [SET-QUIT-19]
+    return {"ok": True}
+```
+Run: 위 → Expected: PASS.
+
+- [ ] **Step 4: 비밀번호 변경 화면 — 재사용 + 다른 기기 끊기**
+
+실패 테스트(`patient_app/test/features/settings/settings_password_test.dart`):
+```dart
+test('[SET-PW-02][SET-PW-03] 현재 비밀번호를 묻지 않고, 문구로 그 이유를 밝힌다', () async {
+  await _pumpPw(t);
+  expect(find.textContaining('본인 확인을 마쳤으니'), findsOneWidget);   // SET-PW-03
+  expect(find.textContaining('현재 비밀번호'), findsNothing);           // SET-PW-02 안 물음
+});
+
+test('[SET-PW-13][SET-PW-14][SET-PW-15] 성공하면 설정으로 돌아가고, 다른 기기 세션을 끊는다', () async {
+  final auth = _FakeAuth();
+  final c = SettingsPasswordController(auth);
+  await c.submit('newpass12', 'newpass12');
+  expect(auth.updatedPassword, 'newpass12');
+  expect(auth.otherSessionsRevoked, true);     // ⭐ #73 — 다른 기기만(현재 기기 유지)
+  expect(c.state.done, true);                  // 설정으로 (SET-PW-13, 다시 로그인 안 시킴)
+});
+
+test('[SET-PW-16] 서버가 거절하면 버튼 바로 위 붙박이 오류', () async {
+  final auth = _FakeAuth()..failUpdate = true;
+  final c = SettingsPasswordController(auth);
+  await c.submit('newpass12', 'newpass12');
+  expect(c.state.error, isNotNull);
+});
+```
+구현: `SettingsPasswordScreen`은 T13 `NewPasswordScreen`을 감싸(두 칸·눈 토글·조건 3줄 `SET-PW-04·05·06·07·08·09·10` 그대로 재사용) `onSubmit`을 `SettingsPasswordController.submit`으로 준다:
+```dart
+class SettingsPasswordController extends StateNotifier<...> {
+  final AuthGateway auth;
+  Future<void> submit(String pw, String confirm) async {
+    state = state.busy();                                  // [SET-PW-12] ◌ 바꾸는 중…
+    try {
+      await auth.updateUser(password: pw);                 // [SET-PW-13] 설정 변경 경로(이름 대조 없음)
+      await auth.signOut(SignOutScope.others);             // [SET-PW-14·15] #73 다른 기기만
+      state = state.copyWith(done: true);                  // 설정으로 (다시 로그인 안 시킴)
+    } catch (e) {
+      state = state.copyWith(error: '비밀번호를 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요.'); // [SET-PW-16]
+    }
+  }
+}
+```
+> 📌 실현 지도(완전 ID 개별): `SET-PW-01`(화면 이유=노출 시 정상 경로)=화면 존재로 실현 · T13 `NewPasswordScreen` 재사용으로 실현: `SET-PW-04`(새 비번+확인 두 칸)·`SET-PW-05`(확인 칸 유지)·`SET-PW-06`(조건 3줄 미리 표시)·`SET-PW-07`(충족 시 초록 ✓)·`SET-PW-08`(눈 토글, 기본 가려짐)·`SET-PW-09`(켜짐 딥틸)·`SET-PW-10`(터치 44×44) — 같은 필드 위젯을 그대로 얹는다 · `SET-PW-11`(서버 8자·영문숫자)=T13 `config.toml` 이미 반영(#25 닫힘, 여기선 소비).
+Run: `flutter test test/features/settings/settings_password_test.dart` → Expected: PASS.
+
+- [ ] **Step 5: 로그아웃 — 확인 팝업 + 실행**
+
+실패 테스트(`patient_app/test/features/settings/logout_test.dart`):
+```dart
+testWidgets('[SET-OUT-01][SET-OUT-03][SET-OUT-04][SET-OUT-06] 평범한 버튼 → 안심시키는 확인 팝업', (t) async {
+  await _pumpSettingsHome(t);
+  await t.tap(find.byKey(const Key('logout-button')));
+  await t.pumpAndSettle();
+  expect(find.textContaining('예약 내용은 그대로 남아 있습니다'), findsOneWidget);  // SET-OUT-04
+  expect(find.text('그대로 둘게요'), findsOneWidget);
+  expect(find.text('로그아웃'), findsWidgets);                                    // SET-OUT-06
+});
+
+testWidgets('[SET-OUT-07][SET-OUT-08][SET-OUT-11][NAV-SET-08] 실행하면 캐시·토큰 지우고 랜딩으로', (t) async {
+  await _pumpSettingsHome(t);
+  await t.tap(find.byKey(const Key('logout-button'))); await t.pumpAndSettle();
+  await t.tap(find.text('로그아웃').last); await t.pumpAndSettle();
+  verify(() => authRepo.signOut()).called(1);              // SET-OUT-07 예약 보관본 삭제 포함
+  verify(() => tokens.unregister_token(any(), any())).called(1);  // SET-OUT-08
+  expect(_loc(), '/landing');                              // SET-OUT-11 랜딩(뒤로 못 감)
+});
+
+testWidgets('[SET-OUT-09] 토큰 해제가 실패해도 로그아웃 자체는 진행한다', (t) async {
+  when(() => tokens.unregister_token(any(), any())).thenThrow(Exception());
+  await _confirmLogout(t);
+  verify(() => authRepo.signOut()).called(1);              // 붙잡지 않는다
+  expect(_loc(), '/landing');
+});
+
+testWidgets('[SET-OUT-12] 오프라인이어도 로그아웃은 된다(폰에서 지우는 일이 본체)', (t) async {
+  await _confirmLogout(t, offline: true);
+  verify(() => authRepo.signOut()).called(1);
+  expect(_loc(), '/landing');
+});
+```
+구현 `showLogoutConfirm(context)` — 확인 다이얼로그(`SET-OUT-03`), 로그아웃 버튼은 붉은색 아님(`SET-OUT-01`)이고 그 이유는 **되돌릴 수 있는 동작이라 탈퇴와 무게가 같아 보이면 안 됨**(`SET-OUT-02`). 팝업은 겁주는 게 아니라 **안심시키는 것**(`SET-OUT-05` — 예약이 사라진다는 오해를 푼다) · 버튼 `[그대로 둘게요]`·`[로그아웃]` 둘 다 평범한 색(`SET-OUT-06`) → `[로그아웃]`이면: `try { unregister_token } catch { /* SET-OUT-09 무시 */ }` → `authRepo.signOut()`(`SET-OUT-07`) → `go('/landing')`(`SET-OUT-11`). 처리 중 `◌ 로그아웃 중…`(`SET-OUT-10`, `BTN-BUSY`). 오프라인 무관(`SET-OUT-12`).
+> 📌 T28 `SettingsHomeScreen`의 로그아웃 버튼 onTap을 `push('/settings/logout')`에서 `showLogoutConfirm(context)`로 **1줄 교체**(T28 파일 수정 — 재소유 아님). `/settings/logout` 자리표시자 라우트는 삭제(팝업이라 불필요).
+Run: `flutter test test/features/settings/logout_test.dart` → Expected: PASS.
+
+- [ ] **Step 6: 회원 탈퇴 화면 — 3단 무게·고지·차단·최종 확인**
+
+실패 테스트(`patient_app/test/features/settings/withdraw_test.dart`):
+```dart
+testWidgets('[SET-QUIT-01][SET-QUIT-04][SET-QUIT-05][SET-QUIT-06][SET-QUIT-07][SET-QUIT-08] 전용 화면에 고지 네 줄', (t) async {
+  await _pumpWithdraw(t, blocks: []);
+  expect(find.textContaining('법으로 정해진 기간 동안 병원에 보관'), findsOneWidget);  // SET-QUIT-04·05
+  expect(find.textContaining('예약·가족·사전문진을 더 이상 볼 수 없'), findsOneWidget); // SET-QUIT-06
+  expect(find.textContaining('가족 연결이 모두 해제'), findsOneWidget);               // SET-QUIT-07
+  expect(find.textContaining('같은 휴대폰 번호로 다시 가입'), findsOneWidget);         // SET-QUIT-08
+});
+
+testWidgets('[SET-QUIT-03][SET-QUIT-19][SET-QUIT-20] 무게 3단 — 화면 안 붉은 테두리 → 확인창 채운 빨강', (t) async {
+  await _pumpWithdraw(t, blocks: []);
+  final btn = tester.widget<OutlinedButton>(find.byKey(const Key('withdraw-proceed')));
+  expect((btn.style!.side!.resolve({})!.color), _red);       // 화면: 붉은 테두리(SET-QUIT-03)
+  await t.tap(find.byKey(const Key('withdraw-proceed'))); await t.pumpAndSettle();
+  expect(find.textContaining('정말 탈퇴하시겠어요'), findsOneWidget);                  // SET-QUIT-19 최종창
+  final fill = tester.widget<ElevatedButton>(find.byKey(const Key('withdraw-final')));
+  expect(fill.style!.backgroundColor!.resolve({}), _red);    // 확인창: 채운 빨강(SET-QUIT-20)
+});
+
+testWidgets('[SET-QUIT-11][SET-QUIT-15][SET-QUIT-17][SET-QUIT-18][NAV-SET-11] 막는 예약이 있으면 목록 + 비활성 버튼(사라지지 않음)', (t) async {
+  await _pumpWithdraw(t, blocks: [_block(name: '김순자', dept: '내과', isFamily: true)]);
+  expect(find.text('먼저 예약을 취소해 주세요'), findsOneWidget);      // SET-QUIT-15
+  expect(find.textContaining('김순자'), findsOneWidget);              // 가족이면 이름
+  final btn = tester.widget<OutlinedButton>(find.byKey(const Key('withdraw-proceed')));
+  expect(btn.onPressed, isNull);                                     // SET-QUIT-17 회색으로 남음
+  expect(find.textContaining('먼저 예약을 취소'), findsWidgets);       // SET-QUIT-18 비활성 이유
+  await t.tap(find.byKey(const Key('go-appointments')));             // NAV-SET-11
+  expect(_loc(), anyOf('/my/appointments', '/history'));
+});
+
+testWidgets('[SET-QUIT-16] ㉯ 가족 예약이 있으면 왜 어떤 건 안 뜨는지 설명한다', (t) async {
+  await _pumpWithdraw(t, blocks: [_block(name: '나', isFamily: false)], hasSelfAccountFamily: true);
+  expect(find.textContaining('직접 앱을 쓰시는 가족의 예약은 그대로 유지'), findsOneWidget);
+});
+
+testWidgets('[SET-QUIT-19][SET-QUIT-21][SET-QUIT-26][NAV-SET-10][NAV-SET-12] 확인창에서 탈퇴 실행 → 랜딩', (t) async {
+  await _pumpWithdraw(t, blocks: []);
+  await t.tap(find.byKey(const Key('withdraw-proceed'))); await t.pumpAndSettle();  // NAV-SET-10
+  await t.tap(find.byKey(const Key('withdraw-final')));  await t.pump();
+  expect(find.textContaining('탈퇴 처리 중'), findsOneWidget);         // SET-QUIT-21
+  await t.pumpAndSettle();
+  verify(() => repo.deactivate()).called(1);
+  verify(() => tokens.unregister_token(any(), any())).called(1);      // SET-QUIT-23
+  expect(_loc(), '/landing');                                         // SET-QUIT-26·NAV-SET-12
+});
+
+testWidgets('[NAV-SET-13] 확인창에서 [아니요]는 탈퇴 화면 그 자리로', (t) async {
+  await _pumpWithdraw(t, blocks: []);
+  await t.tap(find.byKey(const Key('withdraw-proceed'))); await t.pumpAndSettle();
+  await t.tap(find.text('아니요')); await t.pumpAndSettle();
+  expect(find.byType(WithdrawScreen), findsOneWidget);                // 빠져나갈 문
+});
+
+testWidgets('[SET-QUIT-27] 오프라인이면 탈퇴 버튼 비활성 + 이유(되돌릴 수 없어 막는다)', (t) async {
+  await _pumpWithdraw(t, blocks: [], offline: true);
+  final btn = tester.widget<OutlinedButton>(find.byKey(const Key('withdraw-proceed')));
+  expect(btn.onPressed, isNull);
+  expect(find.textContaining('인터넷에 연결된 뒤에'), findsOneWidget);
+});
+```
+구현 `withdraw_screen.dart`:
+- `withdraw_repository.dart`: `blocks()`(→ `GET /me/withdrawal-blocks`) · `deactivate()`(→ `POST /me/deactivate`). `withdrawBlocksProvider`(FutureProvider).
+- 화면: 고지 4줄(`SET-QUIT-04·06·07·08`) · 진입 시 `blocks()` 조회. 막으면(`SET-QUIT-11`) `먼저 예약을 취소해 주세요` 제목 + 막은 예약만 나열(가족이면 이름, `SET-QUIT-15`) + ㉯ 가족 있으면 설명 한 줄(`SET-QUIT-16`) + `[예약 보러 가기]`(`go-appointments`, `NAV-SET-11`) + `withdraw-proceed` **비활성 회색·이유**(`SET-QUIT-17·18`). 안 막으면 `withdraw-proceed`(붉은 테두리, `SET-QUIT-03`) → 최종 확인창(`SET-QUIT-19`, `withdraw-final` 채운 빨강 `SET-QUIT-20`) → `[탈퇴합니다]`면 `◌ 탈퇴 처리 중…`(`SET-QUIT-21`) → `unregister_token`(`SET-QUIT-23`) → `repo.deactivate()` → `go('/landing')` + `탈퇴 처리가 완료되었습니다`(`SET-QUIT-26`). `[아니요]`(`NAV-SET-13`)는 확인창 닫기. 오프라인이면 `withdraw-proceed` 비활성+이유(`SET-QUIT-27`).
+> 📌 실현 지도(값 없는/근거 규칙): `SET-QUIT-02`(팝업 하나에 다 담지 않는 이유)·`SET-QUIT-13`·`SET-QUIT-14`(㉮/㉯ 차단 기각안)=차단 판정이 서버에서 ㉮만 세는 것으로 실현(Step 1 test) · `SET-QUIT-09`(재가입 거짓말 전제)=`00032`가 auth_user_id 비워 **해소** · `SET-QUIT-10`(로컬 캐시 문구 안 씀)=화면에 그 문구 없음 · `SET-QUIT-22`(폰 보관본 지움)=탈퇴 후 랜딩 = 세션 종료로 캐시 무효(`SET-OUT-07`과 같은 자리, 탈퇴는 세션도 끊김) · `SET-QUIT-24`(㉮ 가족 행은 명부에 남음)=`deactivate`가 patients 본인 행만 건드림(가족 행·링크 무변경, Step 1) · `SET-QUIT-25`(㉮ 재연결은 병원 문의)=`FAM-LINK-14`와 같은 원칙, 화면에 앱 재연결 경로 없음 · `SET-QUIT-28`(구현 전제 갭 #70)=이 태스크가 앱 코드·차단 판정 **해소**.
+Run: `flutter test test/features/settings/withdraw_test.dart` → Expected: PASS.
+
+- [ ] **Step 7: 라우터 배선 — 자리표시자 교체 + NAV-SET-10~14**
+
+실패 테스트(`patient_app/test/features/settings/settings_routes_test.dart` 탈퇴/비번 절 추가):
+```dart
+testWidgets('[NAV-SET-05→실화면] /settings/password는 SettingsPasswordScreen', (t) async {
+  await _pumpAt(t, '/settings/password');
+  expect(find.byType(SettingsPasswordScreen), findsOneWidget);   // T28 자리표시자 교체
+});
+testWidgets('[NAV-SET-09→실화면] /settings/withdraw는 WithdrawScreen', (t) async {
+  await _pumpAt(t, '/settings/withdraw');
+  expect(find.byType(WithdrawScreen), findsOneWidget);
+});
+testWidgets('[NAV-SET-14] 비밀번호 변경 성공 → 설정으로 (비밀번호를 바꿨습니다)', (t) async {
+  await _pumpAt(t, '/settings/password');
+  await _succeedPasswordChange(t);
+  expect(_loc(), '/settings');
+  expect(find.textContaining('비밀번호를 바꿨습니다'), findsOneWidget);
+});
+```
+구현 — `patient_app/lib/core/router.dart`(Modify): T28이 넣은 세 자리표시자 중 `/settings/password`·`/settings/withdraw`를 실화면으로, `/settings/logout`은 삭제(팝업). `SettingsPasswordScreen`의 `onDone`이 `go('/settings')` + 스낵/한 줄 `비밀번호를 바꿨습니다`(`NAV-SET-14`·`SET-PW-13`).
+```dart
+GoRoute(path: '/settings/password', builder: (c, s) => const SettingsPasswordScreen()), // NAV-SET-05·14
+GoRoute(path: '/settings/withdraw', builder: (c, s) => const WithdrawScreen()),          // NAV-SET-09·10~13
+// /settings/logout 라우트 삭제 — showLogoutConfirm 팝업으로 (NAV-SET-08)
+```
+Run: `flutter test test/features/settings/` → Expected: 전부 PASS.
+
+- [ ] **Step 8: 설계문서 반영 + 검사기 + 커밋**
+
+설계문서를 이 커밋에 함께 고친다:
+1. `screen-behaviors.md`: `SET-QUIT-09`(갭 #64) `~~지금 구현으론 거짓말~~ ✅ **해소(2026-08-18, T29)** — 00032가 탈퇴 시 auth_user_id를 비우고 흔적 남김·재가입 자동연결이 그 행을 집는다` · `SET-QUIT-28`(갭 #70) 해소 역참조 · `SET-PW-15`(갭 #73) `✅ 해소 — auth.signOut(others)`.
+2. `ui-design-decisions.md` 「기능 갭」: **#64 `[x]`**(B-37 반영: 00032·auth_user_id 비움·흔적·재가입 후보) · **#70 이미 `[x]`**(T28에서)에 T29로 탈퇴 완결 한 줄 추가 · **#73 `[x]`**(다른 기기 signOut) · 경계 갭 대조표 필요 시 갱신.
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+```
+→ **빚0·exit0** 확인. ⭐ **NAV-SET-01~09·15~21의 ⏰ 16건이 이제 🔀로 바뀐다**(T29가 NAV-SET-* 접두어 주인이고 작성됐으므로 — T28 본문의 그 16건은 「주인 T29·본문 T28」 = 🔀 정상 분담). T29 본문엔 `NAV-SET-10~14`만.
+```bash
+git add supabase/migrations/00032_patient_withdrawal.sql \
+  backend/app/services/patient_profile_service.py backend/app/routers/patient_settings.py \
+  backend/tests/test_00032_withdrawal.py backend/tests/test_patient_profile_service.py \
+  backend/tests/test_patient_routers_integration.py \
+  patient_app/lib/features/settings/ patient_app/test/features/settings/ patient_app/lib/core/router.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md
+git commit -m "feat: 📝 환자앱 Task 29 본문 — 비밀번호 변경·로그아웃·회원 탈퇴 61규칙(SET-PW/OUT/QUIT·NAV-SET 10~14) + 00032 탈퇴 재작성(auth_user_id 비움·차단 판정) + 갭 #64·#70·#73 해소"
+```
+
+> 📌 **규칙 커버리지(61)**: `SET-PW-01~16`(16) · `SET-OUT-01~12`(12) · `SET-QUIT-01~28`(28) · `NAV-SET-10~14`(5). 전부 개별 ID로 test에 심음.
+> ⚠️ **⏰ 해소 확인**: T28이 실구현한 `NAV-SET-01~09·15~21`이 T29 작성으로 ⏰→🔀 전환(예고가 아니라 실제 분담이었음이 검사기에도 드러난다). T29는 그 16건을 **다시 만들지 않았다**(10~14만).
+> ⚠️ **구현 위험 재언급**: #64의 Auth 전화 분리(`auth_admin.detach_phone`)가 Supabase에서 실제로 되는지 **⑦ 구현 착수 시 확인** — 안 되면 Auth 사용자 삭제 + `former_auth_user_id` 흔적으로 대체(둘 다 「번호는 풀리고 흔적은 남는」 B-37을 만족).
+> ⭐ **묶음 7(이력·설정·탈퇴) 완결** — T27a·b·T28·T29로 `HIST-*`·`SET-*`·`NAV-HIST-*`·`NAV-SET-*` 전부 담았다. 남은 것 = T30·T31(나의 예약 목록).
