@@ -9,7 +9,7 @@
   "plans": {
     "staff-web": "docs/superpowers/plans/2026-08-15-staff-web.md",
     "patient-app": "docs/superpowers/plans/2026-08-17-patient-app.md",
-    "ai-chatbot": "docs/superpowers/plans/2026-07-27-ai-chatbot.md"
+    "ai-chatbot": "docs/superpowers/plans/2026-08-18-ai-chatbot.md"
   },
   "_area_markers": "screen-behaviors.md의 영역 경계. 줄번호가 아니라 절 제목으로 찾는다(문서가 자라도 안 깨진다). [시작제목, 끝제목] — 끝이 null이면 문서 끝까지.",
   "area_markers": {
