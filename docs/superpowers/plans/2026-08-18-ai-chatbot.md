@@ -1726,3 +1726,492 @@ git commit -m "feat: 📝 상담봇 Task 2 본문 — AI 세션·티켓 생명�
 ```
 
 > **Task 2 완료 조건**: 세 표·FK·트리거·원자 primitive·RLS 초록불 · §8-1~5 테스트 통과 · 일반 `[보내기]`가 status를 바꾸지 않고 `[상담 종료]`만 `answered`임 확인 · 완료 티켓 재개 불가·재문의 새 PK 확인. 화면 규칙 0개라 coverage 불변, prefix-check 빚·미배정 0. 이월 3건이 본문에 담겨 HANDOVERS 경고가 줄어듦.
+
+## Task 3: 익명 소유권 + 수신자 추상화 + 알림 배칭 (`anonymous_chat_*` · `NotificationRecipient` · `chat_notification_batches`)
+
+> **화면 규칙 0개.** 이 태스크는 세 가지를 만든다: **① 익명 웹 소유권**(브라우저 토큰 해시 + 검증된 SMS 연락처, 전화번호가 환자와 같아도 계정 자동 연결 금지) · **② 수신자 추상화**(등록 환자와 익명 연락처를 하나의 `NotificationRecipient` 계약으로 — 목적지 확인 adapter만 둘, 배칭·발송 파이프라인은 하나) · **③ 미확인 연속 답변 배칭**(사용자가 상담방을 안 볼 때만 연속 직원 답변을 한 배치로 묶어 알림 한 번). Task 1·2의 앞선 익명 FK(`chat_threads`·`chat_messages`·`chat_read_states`의 `anonymous_session_id`)를 여기서 채운다.
+>
+> **근거 원본**: 3A §4.5(익명 세션·연락처)·§4.7(배칭)·§5(`NotificationRecipient`·`#115·#119 notification_log` 연결)·§8(6~9·11·12). 기존 `notification_log`는 **`00011`에 이미 적용됨**(익명 칼럼·`kind`·`delivery_status`·`retry_count` 존재) → 3A §5 두 갈래 중 **「먼저 적용됨 → 후속 마이그레이션에서 3-A FK·허용값만 확장」**을 택한다(표 복제 금지).
+>
+> ⭐ **이 태스크의 설계 결정 2건(기각안 포함)**:
+> 1. **배칭 enqueue는 `chat_notification_batches`만 만들고 `notification_log`에 직접 쓰지 않는다.** §5 파이프라인 「배치 생성 → NotificationRecipient 해석 → 공통 dispatcher → notification_log 결과/재시도」에서 **실제 발송·채널(push/sms)·재시도는 공통 dispatcher**(직원웹 T30 `dispatch_service` + 배포 cron, 상담봇과 공유)가 배치를 읽어 처리한다. Task 3은 배치 + `notification_requested_at`까지. *기각: enqueue가 notification_log 행을 바로 insert* — `channel`(NOT NULL)을 dispatcher가 아직 정하지 못했고, 발송 결과·재시도 원장을 두 곳에서 쓰게 된다.
+> 2. **익명 연락처 검증·복호화 목적지는 adapter가 감춘다.** `notify_patient()`(등록 환자 device/phone)와 익명 adapter(검증된 익명 전화 복호화)는 **목적지 확인만 다르고** 배칭·`notification_log`·재시도는 한 파이프라인. *기각: 익명용 별도 배칭 규칙·별도 발송 결과표* (§5 금지).
+
+**Files:**
+- Create: `supabase/migrations/00038_anonymous_chat_notifications.sql`
+- Create: `backend/app/services/chat/anonymous_service.py` · `backend/app/services/chat/notification_recipient.py`
+- Create: `backend/tests/test_anonymous_chat_schema.py` · `backend/tests/test_chat_notification_batching.py`
+
+**Interfaces:**
+- Consumes: Task 1·2 `chat_threads`·`chat_messages`·`chat_read_states`·`support_tickets` · `notification_log`(`00011` — `id, patient_id, sender_staff_id, target_count, notification_type, kind, channel, delivery_status, failure_code, retry_count, anonymous_session_id, anonymous_contact_id`) · `patients`·`staff` · `acquire_as`·`get_pool`·`AppError` · 테스트 `db_conn`·`seed_patient`·`seed_staff`·`seed_chat_thread`
+- Produces:
+  - 표 `anonymous_chat_sessions`(§4.5 — `token_hash` unique·`last_seen_at`·`revoked_at`) · `anonymous_chat_contacts`(§4.5 — `contact_value_ciphertext`·`contact_value_hash`·`verified_at`·`answer_notification_enabled_at`) · `chat_notification_batches`(§4.7 전체)
+  - `chat_threads.anonymous_session_id`·`chat_messages.sender_anonymous_session_id`·`chat_read_states.reader_anonymous_session_id`에 붙는 FK(Task 1·2 이월분)
+  - `notification_log` 확장: `recipient_type`·`chat_notification_batch_id`(unique FK) 칼럼 + `anonymous_session_id`/`anonymous_contact_id`에 FK + `notification_type` 값 `staff_chat_reply` 사용
+  - SQL 함수(security definer): `upsert_anonymous_session(text token_hash) -> anonymous_chat_sessions` · `record_verified_anonymous_contact(uuid session, text ciphertext, text hash) -> anonymous_chat_contacts` · `enqueue_staff_reply_notification(uuid message_id) -> uuid`(배치 생성/확장, 즉시읽음이면 null) · `acknowledge_chat_batches(uuid thread, text reader_type, uuid reader_id) -> void`
+  - Python: `anonymous_service.upsert_session / record_verified_contact` · `notification_recipient.resolve_recipient(batch_row) -> dict`(등록 환자면 `notify_patient` 대상, 익명이면 검증 연락처 참조 — dispatcher가 복호화·발송)
+  - RLS: 익명 표는 authenticated 직접 조회 금지(백엔드가 토큰 해시로 범위 좁혀 서비스 역할 반환) · 직원은 배치·연락처 마스킹만
+- ⚠️ **아직 안 하는 것**: **실제 SMS/push 발송·재시도·`notification_log` 행 생성**은 공통 dispatcher(직원웹 T30·배포) · **웹 OTP 챌린지 UI·복호화 키 설정**은 Task 15·배포 · **익명 상담을 로그인 계정으로 이관**은 범위 밖(3A §4.5, 별도 인증·감사 필요).
+
+- [ ] **Step 1: 실패하는 익명 스키마 테스트 작성**
+
+`backend/tests/test_anonymous_chat_schema.py`:
+```python
+import uuid
+import pytest
+import asyncpg
+
+from tests.conftest import seed_patient, seed_staff
+from tests.conftest_chat import seed_chat_thread
+
+
+@pytest.mark.asyncio
+async def test_anonymous_session_token_hash_unique(db_conn):
+    h = "hash-" + uuid.uuid4().hex
+    await db_conn.execute("insert into anonymous_chat_sessions (token_hash) values ($1)", h)
+    with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+        await db_conn.execute("insert into anonymous_chat_sessions (token_hash) values ($1)", h)
+
+
+@pytest.mark.asyncio
+async def test_anonymous_thread_fk_now_enforced(db_conn):
+    # Task 1은 anonymous_session_id를 FK 없는 uuid로 뒀다. Task 3이 FK를 채웠으니 없는 세션은 거부된다.
+    with pytest.raises(asyncpg.exceptions.ForeignKeyViolationError):
+        await db_conn.execute(
+            "insert into chat_threads (owner_type, anonymous_session_id) values ('anonymous_web', $1)",
+            uuid.uuid4())
+
+
+@pytest.mark.asyncio
+async def test_anonymous_contact_stores_hash_and_ciphertext(db_conn):
+    sid = await db_conn.fetchval(
+        "insert into anonymous_chat_sessions (token_hash) values ($1) returning id", "h-" + uuid.uuid4().hex)
+    cid = await db_conn.fetchval(
+        "insert into anonymous_chat_contacts (anonymous_session_id, contact_kind, "
+        "contact_value_ciphertext, contact_value_hash) values ($1,'phone','ENC','PHASH') returning id", sid)
+    row = await db_conn.fetchrow("select * from anonymous_chat_contacts where id=$1", cid)
+    assert row["contact_value_ciphertext"] == "ENC" and row["contact_value_hash"] == "PHASH"
+    assert row["verified_at"] is None  # 검증 전엔 알림·복원 불가(§4.5)
+
+
+@pytest.mark.asyncio
+async def test_batch_recipient_patient_shape(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    tk = await db_conn.fetchval("insert into support_tickets (thread_id) values ($1) returning id", t)
+    st = await seed_staff(db_conn, role="doctor")
+    m = await db_conn.fetchval(
+        "insert into chat_messages (thread_id, support_ticket_id, sender_type, sender_staff_id, "
+        "message_type, content) values ($1,$2,'staff',$3,'text','답변') returning id", t, tk, st["staff_id"])
+    # recipient_type=patient인데 익명 연락처까지 채우면 위반(§4.7).
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await db_conn.execute(
+            "insert into chat_notification_batches (thread_id, ticket_id, recipient_type, "
+            "recipient_patient_id, recipient_anonymous_contact_id, first_message_id, last_message_id) "
+            "values ($1,$2,'patient',$3,$4,$5,$5)", t, tk, p["patient_id"], uuid.uuid4(), m)
+
+
+@pytest.mark.asyncio
+async def test_one_open_batch_per_ticket_recipient(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    tk = await db_conn.fetchval("insert into support_tickets (thread_id) values ($1) returning id", t)
+    st = await seed_staff(db_conn, role="doctor")
+    m = await db_conn.fetchval(
+        "insert into chat_messages (thread_id, support_ticket_id, sender_type, sender_staff_id, "
+        "message_type, content) values ($1,$2,'staff',$3,'text','답변') returning id", t, tk, st["staff_id"])
+    await db_conn.execute(
+        "insert into chat_notification_batches (thread_id, ticket_id, recipient_type, "
+        "recipient_patient_id, first_message_id, last_message_id) values ($1,$2,'patient',$3,$4,$4)",
+        t, tk, p["patient_id"], m)
+    with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+        await db_conn.execute(
+            "insert into chat_notification_batches (thread_id, ticket_id, recipient_type, "
+            "recipient_patient_id, first_message_id, last_message_id) values ($1,$2,'patient',$3,$4,$4)",
+            t, tk, p["patient_id"], m)
+```
+
+- [ ] **Step 2: 테스트 실패 확인** — Run: `cd backend && pytest tests/test_anonymous_chat_schema.py -v` → Expected: FAIL(`relation "anonymous_chat_sessions" does not exist`).
+
+- [ ] **Step 3: 마이그레이션 작성**
+
+`supabase/migrations/00038_anonymous_chat_notifications.sql`:
+```sql
+-- 3-A 통합 대화 스키마 ③ 익명 소유권 + 알림 배칭 + notification_log 연결 (§4.5·§4.7·§5).
+-- notification_log는 00011에 이미 적용 → 표 복제 없이 FK·허용값·배치 링크만 확장(§5 두 갈래 중 후자).
+-- ⚠️ 번호(예시 00038)는 적용 시점에 확정.
+
+-- ── anonymous_chat_sessions: 브라우저 익명 토큰의 단방향 해시 (§4.5) ──
+create table anonymous_chat_sessions (
+  id uuid primary key default gen_random_uuid(),        -- 내부 PK. 브라우저에 노출할 토큰이 아님
+  token_hash text not null unique,                      -- 고엔트로피 원문 토큰의 해시. 원문 저장 금지
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+-- 토큰 만료 기간은 3-A 미확정(§4.5). 임의 제품값을 넣지 않는다 — 회전·폐기 가능성만 둔다(revoked_at).
+
+-- ── anonymous_chat_contacts: 익명 직원답변 SMS용 검증 연락처 (§4.5) ──
+create table anonymous_chat_contacts (
+  id uuid primary key default gen_random_uuid(),
+  anonymous_session_id uuid not null references anonymous_chat_sessions(id),
+  contact_kind text not null default 'phone' check (contact_kind in ('phone')),
+  contact_value_ciphertext text not null,               -- 원문 전화번호 암호화 저장(평문 금지)
+  contact_value_hash text not null,                     -- 정규화 번호의 단방향 해시(검증·중복용, 환자 추측매칭 금지)
+  verified_at timestamptz,                              -- 소유 확인 시각. 알림·복원은 검증 후만(§4.5)
+  answer_notification_enabled_at timestamptz,           -- 이 상담 답변 SMS 수신 동의 시각(광고 동의 아님)
+  revoked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index idx_anon_contacts_session on anonymous_chat_contacts (anonymous_session_id, contact_kind)
+  where revoked_at is null;
+
+-- ── Task 1·2 익명 앞선 FK를 채운다 (설계결정 3) ──
+alter table chat_threads     add constraint chat_threads_anon_fk
+  foreign key (anonymous_session_id) references anonymous_chat_sessions(id);
+alter table chat_messages    add constraint chat_messages_sender_anon_fk
+  foreign key (sender_anonymous_session_id) references anonymous_chat_sessions(id);
+alter table chat_read_states add constraint chat_read_states_reader_anon_fk
+  foreign key (reader_anonymous_session_id) references anonymous_chat_sessions(id);
+
+-- ── chat_notification_batches: 미확인 연속 직원 답변 한 묶음 (§4.7) ──
+create table chat_notification_batches (
+  id uuid primary key default gen_random_uuid(),        -- PK 및 알림 멱등 키
+  thread_id uuid not null references chat_threads(id),
+  ticket_id uuid not null references support_tickets(id),
+  recipient_type text not null check (recipient_type in ('patient', 'anonymous_chat_contact')),
+  recipient_patient_id uuid references patients(id),
+  recipient_anonymous_session_id uuid references anonymous_chat_sessions(id),
+  recipient_anonymous_contact_id uuid references anonymous_chat_contacts(id),
+  first_message_id uuid not null references chat_messages(id),
+  last_message_id uuid not null references chat_messages(id),
+  message_count int not null default 1 check (message_count > 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  notification_requested_at timestamptz,                -- 알림 발송 요청 시각(한 번만)
+  acknowledged_at timestamptz,                          -- 사용자가 이 묶음을 확인한 시각
+  -- 수신자 형태 (§4.7): patient면 patient_id만, anonymous_chat_contact면 세션+연락처 둘 다
+  constraint batch_recipient_shape check (
+    (recipient_type = 'patient'
+       and recipient_patient_id is not null
+       and recipient_anonymous_session_id is null and recipient_anonymous_contact_id is null)
+    or (recipient_type = 'anonymous_chat_contact'
+       and recipient_patient_id is null
+       and recipient_anonymous_session_id is not null and recipient_anonymous_contact_id is not null)
+  )
+);
+-- 티켓·수신자당 열린 배치(acknowledged_at is null) 하나 — 동시 답변 중복 방지(§4.7·§8-6).
+create unique index idx_batch_open_patient on chat_notification_batches (ticket_id, recipient_patient_id)
+  where acknowledged_at is null and recipient_type = 'patient';
+create unique index idx_batch_open_anon on chat_notification_batches (ticket_id, recipient_anonymous_contact_id)
+  where acknowledged_at is null and recipient_type = 'anonymous_chat_contact';
+create index idx_batch_thread on chat_notification_batches (thread_id, created_at);
+
+-- ── notification_log 확장(§5) — 표 복제 없이 FK·배치 링크만 ──
+alter table notification_log
+  add column recipient_type text check (recipient_type in ('patient', 'anonymous_chat_contact')),
+  add column chat_notification_batch_id uuid references chat_notification_batches(id),
+  add constraint notification_log_anon_session_fk
+    foreign key (anonymous_session_id) references anonymous_chat_sessions(id),
+  add constraint notification_log_anon_contact_fk
+    foreign key (anonymous_contact_id) references anonymous_chat_contacts(id);
+-- 한 배치에 로그 한 행(§5). 상담 답변 알림의 dispatcher 멱등 자물쇠.
+create unique index idx_notification_log_batch on notification_log (chat_notification_batch_id)
+  where chat_notification_batch_id is not null;
+-- 익명 세션별 발송 이력 조회(§6).
+create index idx_notification_log_anon_session on notification_log (anonymous_session_id, sent_at)
+  where anonymous_session_id is not null;
+
+-- ══ 익명 소유권 primitive ══
+-- 같은 브라우저 토큰(해시)이면 기존 세션 반환, 없으면 생성. 원문 토큰은 백엔드가 해시해서 넘긴다(DB에 원문 없음).
+create or replace function upsert_anonymous_session(p_token_hash text)
+returns anonymous_chat_sessions language plpgsql security definer set search_path = '' as $$
+declare v_row public.anonymous_chat_sessions;
+begin
+  update public.anonymous_chat_sessions set last_seen_at = now()
+    where token_hash = p_token_hash and revoked_at is null
+    returning * into v_row;
+  if found then return v_row; end if;
+  insert into public.anonymous_chat_sessions (token_hash) values (p_token_hash) returning * into v_row;
+  return v_row;
+end;
+$$;
+
+-- 연락처 소유 확인 완료(SMS OTP 성공 뒤 호출, 챌린지는 Task 15). 검증+수신 동의를 함께 찍는다.
+-- ⚠️ contact_value_hash가 patients.phone과 같아도 chat_threads.patient_id를 채우지 않는다(§4.5·§8-9).
+create or replace function record_verified_anonymous_contact(
+  p_session_id uuid, p_ciphertext text, p_hash text)
+returns anonymous_chat_contacts language plpgsql security definer set search_path = '' as $$
+declare v_row public.anonymous_chat_contacts;
+begin
+  insert into public.anonymous_chat_contacts
+    (anonymous_session_id, contact_kind, contact_value_ciphertext, contact_value_hash,
+     verified_at, answer_notification_enabled_at)
+  values (p_session_id, 'phone', p_ciphertext, p_hash, now(), now())
+  returning * into v_row;
+  return v_row;
+end;
+$$;
+
+-- ══ 배칭 primitive (§4.7·§8-6~8) ══
+-- 직원 답변 메시지 뒤 호출. 수신자가 보고 있으면 즉시 읽음(배치·알림 없음), 아니면 배치 생성/확장.
+-- notification_log 행은 만들지 않는다(설계결정 1) — 배치+notification_requested_at까지. dispatcher가 발송.
+create or replace function enqueue_staff_reply_notification(p_message_id uuid)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare
+  v_msg public.chat_messages; v_thread public.chat_threads;
+  v_rtype text; v_patient uuid; v_anon_session uuid; v_anon_contact uuid;
+  v_viewing boolean; v_batch uuid;
+begin
+  select * into v_msg from public.chat_messages where id = p_message_id;
+  if v_msg.sender_type <> 'staff' or v_msg.support_ticket_id is null then
+    raise exception '직원 티켓 답변만 알림 배치가 됩니다.' using errcode = 'P0001';
+  end if;
+  select * into v_thread from public.chat_threads where id = v_msg.thread_id;
+  if v_thread.owner_type = 'patient' then
+    v_rtype := 'patient'; v_patient := v_thread.patient_id;
+  else
+    v_rtype := 'anonymous_chat_contact'; v_anon_session := v_thread.anonymous_session_id;
+    select id into v_anon_contact from public.anonymous_chat_contacts
+      where anonymous_session_id = v_anon_session and contact_kind = 'phone'
+        and verified_at is not null and answer_notification_enabled_at is not null and revoked_at is null
+      order by verified_at desc limit 1;
+    if v_anon_contact is null then return null; end if;   -- 검증 연락처 없으면 SMS 대상 없음 → 배치·알림 없음
+  end if;
+  -- 지금 보고 있으면(§8-8) 즉시 읽음, 배치·알림 없음.
+  select (active_view_until is not null and active_view_until > now()) into v_viewing
+    from public.chat_read_states
+    where thread_id = v_thread.id
+      and ((v_rtype='patient' and reader_type='patient' and reader_patient_id=v_patient)
+        or (v_rtype='anonymous_chat_contact' and reader_type='anonymous_web'
+            and reader_anonymous_session_id=v_anon_session));
+  if coalesce(v_viewing, false) then
+    update public.chat_read_states set last_read_message_id=p_message_id, last_read_at=now(), updated_at=now()
+      where thread_id = v_thread.id
+        and ((v_rtype='patient' and reader_type='patient' and reader_patient_id=v_patient)
+          or (v_rtype='anonymous_chat_contact' and reader_type='anonymous_web'
+              and reader_anonymous_session_id=v_anon_session));
+    return null;
+  end if;
+  -- 열린 배치가 있으면 확장(알림 재요청 안 함, §8-7), 없으면 새로 + 알림 한 번 요청.
+  update public.chat_notification_batches
+     set last_message_id=p_message_id, message_count=message_count+1, updated_at=now()
+   where ticket_id=v_msg.support_ticket_id and acknowledged_at is null
+     and ((v_rtype='patient' and recipient_patient_id=v_patient)
+       or (v_rtype='anonymous_chat_contact' and recipient_anonymous_contact_id=v_anon_contact))
+   returning id into v_batch;
+  if found then return v_batch; end if;
+  insert into public.chat_notification_batches
+    (thread_id, ticket_id, recipient_type, recipient_patient_id,
+     recipient_anonymous_session_id, recipient_anonymous_contact_id,
+     first_message_id, last_message_id, message_count, notification_requested_at)
+  values (v_thread.id, v_msg.support_ticket_id, v_rtype,
+     case when v_rtype='patient' then v_patient end,
+     case when v_rtype='anonymous_chat_contact' then v_anon_session end,
+     case when v_rtype='anonymous_chat_contact' then v_anon_contact end,
+     p_message_id, p_message_id, 1, now())
+  returning id into v_batch;
+  return v_batch;   -- dispatcher가 notification_requested_at 있고 log 없는 배치를 집어 발송(§5)
+exception when unique_violation then
+  -- 동시 답변 경쟁: 다른 트랜잭션이 방금 배치를 만들었다 → 그 배치를 확장한다(§8-6).
+  update public.chat_notification_batches
+     set last_message_id=p_message_id, message_count=message_count+1, updated_at=now()
+   where ticket_id=v_msg.support_ticket_id and acknowledged_at is null
+     and ((v_rtype='patient' and recipient_patient_id=v_patient)
+       or (v_rtype='anonymous_chat_contact' and recipient_anonymous_contact_id=v_anon_contact))
+   returning id into v_batch;
+  return v_batch;
+end;
+$$;
+
+-- 사용자가 상담방을 확인하면 열린 배치를 닫는다(§8-7). 그 뒤 새 답변은 새 배치.
+create or replace function acknowledge_chat_batches(p_thread_id uuid, p_reader_type text, p_reader_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  update public.chat_notification_batches
+     set acknowledged_at = now(), updated_at = now()
+   where thread_id = p_thread_id and acknowledged_at is null
+     and ((p_reader_type='patient' and recipient_patient_id = p_reader_id)
+       or (p_reader_type='anonymous_web' and recipient_anonymous_session_id = p_reader_id));
+end;
+$$;
+
+-- ── RLS (§7) ── 익명 표는 authenticated 직접 조회 금지(백엔드가 토큰 해시 검증 후 서비스 역할로 범위 반환).
+alter table anonymous_chat_sessions enable row level security;
+alter table anonymous_chat_contacts enable row level security;
+alter table chat_notification_batches enable row level security;
+-- grant/policy 없음: 익명 세션·연락처·배치는 서비스 역할(RLS 우회 함수)로만 접근. 직원 화면(Task 17~19)이
+-- 필요로 하는 마스킹 표시는 서비스 계층이 만든다(§4.5·§7 — 로그·payload에 원문 연락처·토큰 해시 노출 금지).
+```
+
+- [ ] **Step 4: 마이그레이션 적용 → 스키마 테스트 통과** — Run: `supabase migration up && cd backend && pytest tests/test_anonymous_chat_schema.py -v` → Expected: PASS.
+
+- [ ] **Step 5: Python 서비스 작성**
+
+`backend/app/services/chat/anonymous_service.py`:
+```python
+import hashlib
+from uuid import UUID
+
+from app.db.pool import get_pool
+
+
+def hash_token(raw_token: str) -> str:
+    # 원문 토큰은 저장하지 않는다(§4.5). 백엔드만 원문을 받아 해시로 바꿔 넘긴다.
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+async def upsert_session(raw_token: str) -> dict:
+    # 익명 위젯은 로그인 세션이 아니므로 서비스 역할 커넥션으로 처리한다(RLS 우회 함수).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("select * from upsert_anonymous_session($1)", hash_token(raw_token))
+        return dict(row)
+
+
+async def record_verified_contact(session_id: UUID, ciphertext: str, phone_hash: str) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "select * from record_verified_anonymous_contact($1, $2, $3)", session_id, ciphertext, phone_hash)
+        return dict(row)
+```
+
+`backend/app/services/chat/notification_recipient.py`:
+```python
+from uuid import UUID
+
+from app.db.pool import get_pool
+
+# NotificationRecipient 계약(§5): 목적지 확인 adapter만 두 종류, 이후 파이프라인은 하나.
+# 실제 발송·복호화·재시도는 공통 dispatcher(직원웹 T30 dispatch_service)가 이 반환값으로 수행한다.
+
+
+async def resolve_recipient(batch_id: UUID) -> dict:
+    """배치 하나를 발송 대상 계약으로 푼다. 등록 환자면 patient_id(기존 notify_patient 대상),
+    익명이면 검증된 연락처 참조(ciphertext는 dispatcher가 복호화). patients 가짜 행·추측 매칭 금지(§5)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        b = await conn.fetchrow("select * from chat_notification_batches where id=$1", batch_id)
+        if b["recipient_type"] == "patient":
+            return {"recipient_type": "patient", "patient_id": b["recipient_patient_id"],
+                    "channel_policy": "patient_channel", "message_class": "transactional"}
+        c = await conn.fetchrow(
+            "select id, contact_value_ciphertext from anonymous_chat_contacts where id=$1",
+            b["recipient_anonymous_contact_id"])
+        return {"recipient_type": "anonymous_chat_contact",
+                "anonymous_session_id": b["recipient_anonymous_session_id"],
+                "anonymous_contact_id": c["id"], "contact_ciphertext": c["contact_value_ciphertext"],
+                "channel": "sms", "message_class": "transactional"}  # 익명 직원답변은 항상 sms·transactional(§5)
+```
+
+- [ ] **Step 6: 배칭 원자성 테스트 작성 (§8-6~9·11·12)**
+
+`backend/tests/test_chat_notification_batching.py`:
+```python
+import uuid
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from tests.conftest import seed_patient, seed_staff
+from tests.conftest_chat import seed_chat_thread
+
+
+async def _ticket(conn, thread_id):
+    return await conn.fetchval("insert into support_tickets (thread_id, status) values ($1,'in_progress') returning id", thread_id)
+
+
+async def _staff_msg(conn, thread_id, ticket_id, staff_id):
+    return await conn.fetchval(
+        "insert into chat_messages (thread_id, support_ticket_id, sender_type, sender_staff_id, "
+        "message_type, content) values ($1,$2,'staff',$3,'text','답변') returning id", thread_id, ticket_id, staff_id)
+
+
+@pytest.mark.asyncio
+async def test_consecutive_replies_make_one_batch(db_conn):
+    # §8-6. 연속 직원 답변 둘은 한 배치로 묶이고 알림은 한 번만 요청된다.
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    tk = await _ticket(db_conn, t); st = await seed_staff(db_conn, role="doctor")
+    b1 = await db_conn.fetchval("select enqueue_staff_reply_notification($1)",
+                                await _staff_msg(db_conn, t, tk, st["staff_id"]))
+    b2 = await db_conn.fetchval("select enqueue_staff_reply_notification($1)",
+                                await _staff_msg(db_conn, t, tk, st["staff_id"]))
+    assert b1 == b2
+    row = await db_conn.fetchrow("select message_count, notification_requested_at from chat_notification_batches where id=$1", b1)
+    assert row["message_count"] == 2 and row["notification_requested_at"] is not None
+    assert await db_conn.fetchval("select count(*) from chat_notification_batches where ticket_id=$1", tk) == 1
+
+
+@pytest.mark.asyncio
+async def test_ack_then_new_reply_makes_new_batch(db_conn):
+    # §8-7. 확인 뒤 새 답변은 이전 배치를 다시 열지 않고 새 배치.
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    tk = await _ticket(db_conn, t); st = await seed_staff(db_conn, role="doctor")
+    b1 = await db_conn.fetchval("select enqueue_staff_reply_notification($1)",
+                                await _staff_msg(db_conn, t, tk, st["staff_id"]))
+    await db_conn.execute("select acknowledge_chat_batches($1,'patient',$2)", t, p["patient_id"])
+    b2 = await db_conn.fetchval("select enqueue_staff_reply_notification($1)",
+                                await _staff_msg(db_conn, t, tk, st["staff_id"]))
+    assert b2 is not None and b2 != b1
+
+
+@pytest.mark.asyncio
+async def test_viewing_makes_no_batch_and_marks_read(db_conn):
+    # §8-8. 상담방을 보고 있으면 배치·알림 없이 즉시 읽음.
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    tk = await _ticket(db_conn, t); st = await seed_staff(db_conn, role="doctor")
+    await db_conn.execute(
+        "insert into chat_read_states (thread_id, reader_type, reader_patient_id, active_view_until) "
+        "values ($1,'patient',$2,$3)", t, p["patient_id"], datetime.now(timezone.utc) + timedelta(seconds=30))
+    m = await _staff_msg(db_conn, t, tk, st["staff_id"])
+    b = await db_conn.fetchval("select enqueue_staff_reply_notification($1)", m)
+    assert b is None
+    assert await db_conn.fetchval("select count(*) from chat_notification_batches where ticket_id=$1", tk) == 0
+    assert await db_conn.fetchval(
+        "select last_read_message_id from chat_read_states where thread_id=$1 and reader_patient_id=$2",
+        t, p["patient_id"]) == m
+
+
+@pytest.mark.asyncio
+async def test_anonymous_hash_matching_patient_does_not_link(db_conn):
+    # §8-9. 익명 연락처 해시가 기존 환자 전화와 같아도 chat_thread.patient_id가 자동 연결되지 않는다.
+    p = await seed_patient(db_conn, phone="010-5555-5555")
+    sid = await db_conn.fetchval("insert into anonymous_chat_sessions (token_hash) values ($1) returning id", "h"+uuid.uuid4().hex)
+    # 같은 번호 해시로 익명 연락처를 검증해도 익명 상담방은 여전히 patient_id=null.
+    await db_conn.execute("select record_verified_anonymous_contact($1,'ENC','SAME-AS-PATIENT-HASH')", sid)
+    t = await seed_chat_thread(db_conn, anonymous_session_id=sid)
+    row = await db_conn.fetchrow("select owner_type, patient_id from chat_threads where id=$1", t)
+    assert row["owner_type"] == "anonymous_web" and row["patient_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_anonymous_verified_contact_gets_batch_with_null_patient(db_conn):
+    # §8-11·12. patients 행·기기 토큰이 없는 익명도 검증 연락처로 배치가 생기고 patient_id=null.
+    sid = await db_conn.fetchval("insert into anonymous_chat_sessions (token_hash) values ($1) returning id", "h"+uuid.uuid4().hex)
+    await db_conn.execute("select record_verified_anonymous_contact($1,'ENC','PHASH')", sid)
+    t = await seed_chat_thread(db_conn, anonymous_session_id=sid)
+    tk = await _ticket(db_conn, t); st = await seed_staff(db_conn, role="doctor")
+    b = await db_conn.fetchval("select enqueue_staff_reply_notification($1)",
+                               await _staff_msg(db_conn, t, tk, st["staff_id"]))
+    row = await db_conn.fetchrow("select recipient_type, recipient_patient_id, recipient_anonymous_contact_id from chat_notification_batches where id=$1", b)
+    assert row["recipient_type"] == "anonymous_chat_contact"
+    assert row["recipient_patient_id"] is None and row["recipient_anonymous_contact_id"] is not None
+```
+
+- [ ] **Step 7: 테스트 통과 확인** — Run: `cd backend && pytest tests/test_anonymous_chat_schema.py tests/test_chat_notification_batching.py -v` → Expected: PASS.
+
+- [ ] **Step 8: 커밋**
+
+```bash
+git add supabase/migrations/00038_anonymous_chat_notifications.sql \
+        backend/app/services/chat/anonymous_service.py backend/app/services/chat/notification_recipient.py \
+        backend/tests/test_anonymous_chat_schema.py backend/tests/test_chat_notification_batching.py \
+        docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 3 본문 — 익명 소유권(토큰해시·검증연락처)·수신자 추상화(NotificationRecipient)·알림 배칭 + §8 6~9·11·12. enqueue는 배치만·발송은 공통 dispatcher, 익명 해시=환자여도 자동연결 금지"
+```
+
+> **Task 3 완료 조건**: 익명 표·연락처·배치·notification_log 확장·FK 백필 초록불 · §8-6~9·11·12 테스트 통과 · enqueue가 `notification_log`에 직접 쓰지 않음(배치만) 확인 · 익명 해시가 환자와 같아도 `patient_id` 미연결 확인. coverage 불변, prefix-check 빚·미배정 0.
