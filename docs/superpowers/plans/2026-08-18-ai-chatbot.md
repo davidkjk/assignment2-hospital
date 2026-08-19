@@ -118,7 +118,7 @@
 
 | 태스크 | 무엇 | 규칙 접두어 | 상태 |
 |---|---|---|---|
-| **10** | 앱 상담방 셸 — 탭·피드·전송·이름·빈/오류·안전·가이드·이력·길이넛지 (30개) | `CHAT-TAB-*`·`CHAT-ROOM-*`(기본·SEND)·`CHAT-GUIDE-*`·`CHAT-HISTORY-*`·`CHAT-LEN-*` | 재작성 |
+| **10** | 앱 상담방 셸 — 탭·피드·전송·이름·빈/오류·안전·가이드·이력 (29개; `CHAT-LEN-01`은 Task 5 오케스트레이션이 담음) | `CHAT-TAB-*`·`CHAT-ROOM-*`(기본·SEND)·`CHAT-GUIDE-*`·`CHAT-HISTORY-*` | ✅ 작성 |
 | **11** | 앱 직원 라이브·인계·종료·재문의·긴급·장애 (32개) | `CHAT-ROOM-LIVE-*`·`CHAT-ROOM-END-*`·`CHAT-ROOM-RETICKET-*`·`CHAT-ROOM-AI-*`·`CHAT-HANDOFF-*`·`CHAT-URGENT-*`·`CHAT-OUTAGE-*` | 재작성 |
 | **12** | 앱 예약·문진 카드 + 예약 중 상담 시트 (48개) | `CCARD-TIME-*`·`CCARD-QUICK-*`·`CCARD-BOOKCONF-*`·`CCARD-BOOKDONE-*`·`CCARD-QNR-*`·`BOOKBOT-SHEET-*`·`NAV-CHATAPP-*` | 재작성 [R5-01] |
 | **13** | 앱 취소 카드 + 마감 후 상담 연결 흐름 (39개) | `CCARD-CANCELCONF-*`·`CCARD-CANCELDONE-*`·`CCARD-CANCELREJ-*`·`LATEFLOW-POP-*`·`LATEFLOW-CHAT-*`·`LATEFLOW-APPT-*` | 재작성 |
@@ -3922,3 +3922,1082 @@ git commit -m "feat: 📝 상담봇 Task 9 본문 — 라우터 3종(환자·익
 ```
 
 > **Task 9 완료 조건**: 파이프라인(메시지 저장→활동연장→orchestrate→인계 티켓/미해결·봇 답변/근거)·라우터 3종·§8 통합(no_answer→티켓+미해결+세션종료) 초록불 · §8 12개 추적표가 전부 초록불(단위+통합) 확인. ⭐ **백엔드 계약(Task 0~9) 완결 — 3-A §9 완료 기준 충족.** coverage 불변, prefix-check 빚·미배정 0·⏰0.
+
+---
+
+## Task 10: 앱 상담방 셸 — 5번째 탭 · 피드 · 전송 · 안전/가이드 배너 · 이전 상담 목록 · 딥링크
+
+> **화면 국면 시작.** 여기부터는 규칙 0개 계약이 아니라 `test('[규칙ID] …')`로 **실제 화면 규칙을 담는다**(coverage가 오른다). 이 태스크는 환자 앱(Flutter) `AI 상담` 탭의 **셸**만 만든다 — 시간순 한 피드·자유 입력·전송/재전송·안전/가이드 배너·이전 상담 목록·직원 답변 푸시 딥링크. **라이브/인계·긴급·장애(T11)와 카드(T12·T13)는 이 셸이 남긴 슬롯에 얹는다.**
+>
+> **근거 원본**: `docs/design/screen-behaviors.md` 상담봇 절 §1(하단 탭)·§2(독립 상담방)·§11(진료과 배너)·§17(이전 상담 목록) · 정본 `docs/design/chatbot-source-of-truth.md` §0(환자 노출 이름·안전·값 조작 금지)·§2(카드=표시 스냅샷) · 결정로그 R2-1(채팅 전용 카드)·R2-3A-Q2(머리말 구분)·B1(콜드스타트 딥링크) · 요구사항 `docs/고객요구사항.txt` **5.1 상담봇이 등장하는 곳**·**5.5 모르는 질문과 직원 연결**.
+>
+> ⭐ **설계 결정(기각안 포함)**: **피드는 한 개의 `ListView`에 말풍선·카드·배너를 시간순으로 섞고, 카드/라이브 배너는 주입 슬롯(`cardBuilder`·`liveSlotBuilder`)으로 비워 둔다.** *기각: 카드를 전체화면·팝업으로 분리*(`CHAT-ROOM-FEED-01`이 금지 — "별도 전체화면처럼 바꾸지 않는다") · *기각: 셸이 카드 위젯을 직접 그림*(T12·T13이 카드 사전을 소유하므로 셸이 카드를 알면 두 태스크가 카드 렌더를 복제해 어긋난다). **셸은 `payload.card_type`만 읽어 슬롯에 넘긴다.**
+
+**Files:**
+- Create: `patient_app/lib/features/chat/chat_models.dart` (`ChatFeedItem`·`ChatSendState`·`ChatRoomState`·`ChatThreadSummary` — 피드 아이템 union·전송 상태)
+- Create: `patient_app/lib/features/chat/chat_repository.dart` (`ChatRepository` — 4단계 챗봇 엔드포인트 호출)
+- Create: `patient_app/lib/features/chat/chat_room_controller.dart` (`ChatRoomController`·`chatRoomProvider` — 복원·전송·재전송·읽음)
+- Create: `patient_app/lib/features/chat/chat_room_view.dart` (`ChatRoomView` — 셸 화면: 로딩·오류·빈·피드·입력)
+- Create: `patient_app/lib/features/chat/widgets/chat_feed.dart` (`ChatFeed` — 시간순 피드 + `cardBuilder`·`liveSlotBuilder` 슬롯)
+- Create: `patient_app/lib/features/chat/widgets/chat_bubble.dart` (`ChatBubble` — 환자/봇/시스템 말풍선 + `진료 안내`/`병원 이용 안내` 머리말)
+- Create: `patient_app/lib/features/chat/widgets/chat_input_bar.dart` (`ChatInputBar` — 항상 열린 자유 입력 + 빠른답변 슬롯)
+- Create: `patient_app/lib/features/chat/widgets/chat_safety_banner.dart` (`ChatSafetyBanner` — 고정 안전 표시)
+- Create: `patient_app/lib/features/chat/widgets/chat_guide_banner.dart` (`ChatGuideBanner` — 진료과 추천 진행 배너 + `onUrgent` 훅)
+- Create: `patient_app/lib/features/chat/chat_history_view.dart` (`ChatHistoryView`·`chatHistoryProvider` — 이전 상담 목록)
+- Create: `patient_app/lib/features/chat/chat_deep_link.dart` (`resolveChatDeepLink`·`resolveChatDestination` — 직원 답변 푸시 딥링크)
+- Modify: `patient_app/lib/core/router.dart` (`/chat`·`/chat/room/:threadId` 라우트 등록 + 콜드스타트 인증 게이트)
+- Modify: `patient_app/lib/app_shell.dart` (T16 `AppShell` `mainTabs`에 5번째 `AI 상담` 탭 추가)
+- Modify: `patient_app/lib/features/notifications/notification_view.dart` (T18 `NotificationView`에 `chatThreadId` 노출 + `resolveNotificationRoute`의 `chat_reply`가 thread 있으면 `/chat/room/:id`)
+- Test: `patient_app/test/features/chat/chat_models_test.dart` · `chat_repository_test.dart` · `chat_room_controller_test.dart` · `chat_room_view_test.dart` · `chat_bubble_test.dart` · `chat_input_bar_test.dart` · `chat_safety_banner_test.dart` · `chat_guide_banner_test.dart` · `chat_history_view_test.dart` · `chat_deep_link_test.dart` · `chat_tab_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **4단계 백엔드(Task 9 라우터)**: `GET /chat/threads/{id}/messages`(복원) · `POST /chat/sessions`(새/이어가기) · `POST /chat/messages`(body `{thread_id, content, client_message_id}` — `client_message_id` 멱등, Task 1 `chat_messages.client_message_id` unique) · `POST /chat/read`(body `{batch_id}` 배치 확인) · `GET /chat/threads`(이전 상담 목록). 응답 메시지 = Task 1 스키마(`message_type`·`sender_type`·`content` nullable·`payload jsonb`·`created_at`·`client_message_id`).
+  - **오케스트레이션 계약(Task 5)**: 봇 답변 메시지의 `payload.notice_kind`(`medical`|`general`) — `CHAT-ROOM-VISUAL-01` 머리말 판정. 진료과 추천 갈래는 `payload.active_flow == 'department_guide'` — `CHAT-GUIDE` 배너 표시. 응급 전환은 `payload.route_taken == 'emergency'`(→ `onUrgent` 훅, 화면 전환 본체는 T11).
+  - **알림 배칭(Task 3)**: 직원 답변 알림 배치 = `chat_notification_batches`. 푸시 payload가 `thread_id`·`batch_id`를 실어 온다. `POST /chat/read`가 `acknowledge_chat_batches`를 부른다.
+  - **환자앱(3단계)**: `ApiClient`/`apiClientProvider`(T0) · `AppTokens`·`AppCard`·`WarnText`·`EmptyState`·`InlineError`(T0/T12) · `appRouter`(T0) · `AppShell`·`mainTabs`(T16) · `NotificationView`·`resolveNotificationRoute`·`showNotificationGoneDialog`(T18) · `AuthState`·`AuthStatus`·`authStateChangesProvider`(T0/T14) · `ApiException`(T0).
+- Produces (T11·T12·T13이 소비):
+  - `ChatFeedItem`(`.fromJson` · `messageType`·`senderType`·`content`·`payload`·`createdAt`·`clientMessageId`·`sendState`·`noticeKind`) · `ChatSendState`(`sent`/`sending`/`failed`) · `ChatRoomState`(`loading`/`error`/`loaded`·`items`·`batchId`) · `ChatThreadSummary`(`.fromJson`).
+  - `ChatRepository`(`fetchMessages`/`openSession`/`sendMessage`/`markRead`/`fetchThreads`) · `chatRepositoryProvider`.
+  - `ChatRoomController`(`load`/`send`/`retry`/`markRead` · `sendMessage(content)` 멱등) · `chatRoomProvider(threadId)`(`StateNotifierProvider.family`) — **T11이 라이브/인계·재문의 전이를 이 컨트롤러에 확장한다**.
+  - `ChatFeed`(`items`·`cardBuilder`·`liveSlotBuilder` 슬롯 — **T12·T13이 `cardBuilder`, T11이 `liveSlotBuilder` 채움**) · `ChatBubble` · `ChatInputBar`(`quickRepliesSlot` — T12가 빠른답변 채움) · `ChatSafetyBanner` · `ChatGuideBanner`(`onUrgent` — T11 CHAT-URGENT 주입).
+  - `/chat`(이전 상담 목록) · `/chat/room/:threadId`(상담방) 라우트명 · `resolveChatDeepLink(NotificationView) -> String?`.
+
+---
+
+- [ ] **Step 1a: `ChatFeedItem` 모델 실패 테스트** — `patient_app/test/features/chat/chat_models_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+
+void main() {
+  Map<String, dynamic> _msg({
+    String type = 'text', String sender = 'bot', String? content = '안녕하세요',
+    Map<String, dynamic>? payload,
+  }) => {
+    'id': 'm1', 'message_type': type, 'sender_type': sender,
+    'content': content, 'payload': payload, 'created_at': '2026-08-19T09:00:00Z',
+    'client_message_id': null,
+  };
+
+  test('[CHAT-ROOM-FEED-01] 메시지·카드가 같은 피드 아이템 타입으로 섞인다 — 카드는 payload.card_type만 읽는다', () {
+    final text = ChatFeedItem.fromJson(_msg(type: 'text', content: '안녕'));
+    final card = ChatFeedItem.fromJson(_msg(
+      type: 'card', content: null, payload: {'card_type': 'time_select'}));
+    expect(text.messageType, 'text');
+    expect(card.messageType, 'card');
+    expect(card.cardType, 'time_select'); // 셸은 card_type만 안다(위젯은 T12·T13)
+    expect(card.content, isNull);          // 카드는 content가 알맹이가 아님(Task 1: content nullable)
+  });
+
+  test('[CHAT-ROOM-VISUAL-01] 봇 안내는 payload.notice_kind로 진료/병원 머리말을 가른다 — 색이 아니다', () {
+    final medical = ChatFeedItem.fromJson(_msg(payload: {'notice_kind': 'medical'}));
+    final general = ChatFeedItem.fromJson(_msg(payload: {'notice_kind': 'general'}));
+    final plain = ChatFeedItem.fromJson(_msg(payload: null));
+    expect(medical.noticeKind, NoticeKind.medical);
+    expect(general.noticeKind, NoticeKind.general);
+    expect(plain.noticeKind, isNull); // 구분 대상 아님 — 머리말 없음
+  });
+
+  test('[CHAT-ROOM-EXC-01] 서버 상태·시간·사유가 없으면 값을 지어내지 않고 unknown으로 남긴다', () {
+    // sender_type·created_at이 비면 화면이 임의 시각/발신자를 만들지 않는다.
+    final bad = ChatFeedItem.fromJson({'id': 'x', 'message_type': 'text',
+      'sender_type': null, 'content': '?', 'created_at': null, 'payload': null});
+    expect(bad.isUnknown, isTrue);       // 조회 오류/직원 확인 필요로 처리할 신호
+    expect(bad.createdAt, isNull);       // "지금"으로 채우지 않는다
+  });
+
+  test('[CHAT-HISTORY-RESTORE-01] 시스템 이벤트(인계 상태)도 같은 식별자로 복원된다', () {
+    final sys = ChatFeedItem.fromJson(_msg(type: 'system', sender: 'system',
+      content: null, payload: {'event': 'handoff_started'}));
+    expect(sys.messageType, 'system');
+    expect(sys.payload!['event'], 'handoff_started'); // 인계 상태 보존(T11이 렌더)
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_models_test.dart` → Expected: FAIL(`chat_models.dart` 없음).
+
+- [ ] **Step 1b: `ChatFeedItem`·`ChatSendState`·`ChatRoomState` 구현** — `patient_app/lib/features/chat/chat_models.dart`
+
+```dart
+/// 상담방 피드의 한 줄. 말풍선·카드·시스템 이벤트를 한 union으로 표현한다(CHAT-ROOM-FEED-01).
+/// 셸은 카드의 알맹이를 모른다 — `cardType`(payload.card_type)만 읽어 T12·T13 슬롯에 넘긴다.
+enum NoticeKind { medical, general }        // CHAT-ROOM-VISUAL-01 머리말
+enum ChatSendState { sent, sending, failed } // 환자 말풍선 전송 상태(CHAT-ROOM-SEND-*)
+
+class ChatFeedItem {
+  final String id;
+  final String messageType;        // 'text' | 'card' | 'system'
+  final String? senderType;        // 'patient' | 'bot' | 'staff' | 'system' (없으면 unknown)
+  final String? content;           // 카드·시스템은 null 가능(Task 1: content nullable)
+  final Map<String, dynamic>? payload;
+  final DateTime? createdAt;
+  final String? clientMessageId;   // 환자 전송 멱등 키(CHAT-ROOM-SEND-01·03)
+  final ChatSendState sendState;
+
+  const ChatFeedItem({
+    required this.id, required this.messageType, this.senderType, this.content,
+    this.payload, this.createdAt, this.clientMessageId,
+    this.sendState = ChatSendState.sent,
+  });
+
+  String? get cardType => payload?['card_type'] as String?;
+  NoticeKind? get noticeKind => switch (payload?['notice_kind']) {
+        'medical' => NoticeKind.medical,
+        'general' => NoticeKind.general,
+        _ => null,
+      };
+  // CHAT-ROOM-EXC-01: 발신자나 시각이 비면 값을 지어내지 않고 unknown으로 표시한다.
+  bool get isUnknown => senderType == null || createdAt == null;
+
+  factory ChatFeedItem.fromJson(Map<String, dynamic> j) => ChatFeedItem(
+        id: j['id'] as String,
+        messageType: j['message_type'] as String,
+        senderType: j['sender_type'] as String?,
+        content: j['content'] as String?,
+        payload: (j['payload'] as Map?)?.cast<String, dynamic>(),
+        createdAt: (j['created_at'] as String?) == null
+            ? null
+            : DateTime.parse(j['created_at'] as String),
+        clientMessageId: j['client_message_id'] as String?,
+      );
+
+  ChatFeedItem copyWith({ChatSendState? sendState}) => ChatFeedItem(
+        id: id, messageType: messageType, senderType: senderType, content: content,
+        payload: payload, createdAt: createdAt, clientMessageId: clientMessageId,
+        sendState: sendState ?? this.sendState);
+}
+
+/// 상담방 로드 상태(CHAT-ROOM-LOAD-01·ERR-01·EMPTY-01). loaded일 때만 items를 그린다.
+enum ChatRoomPhase { loading, error, loaded }
+
+class ChatRoomState {
+  final ChatRoomPhase phase;
+  final List<ChatFeedItem> items;
+  final String? batchId;   // 보고 있으면 이 배치를 읽음 처리(CHAT-ROOM-NOTIFY-01)
+  const ChatRoomState(this.phase, {this.items = const [], this.batchId});
+
+  bool get isEmpty => phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
+}
+
+/// 이전 상담 목록의 한 행(CHAT-HISTORY-LIST-01).
+class ChatThreadSummary {
+  final String threadId;
+  final String? lastSnippet;
+  final DateTime? lastAt;
+  const ChatThreadSummary({required this.threadId, this.lastSnippet, this.lastAt});
+  factory ChatThreadSummary.fromJson(Map<String, dynamic> j) => ChatThreadSummary(
+        threadId: j['thread_id'] as String,
+        lastSnippet: j['last_snippet'] as String?,
+        lastAt: (j['last_at'] as String?) == null
+            ? null : DateTime.parse(j['last_at'] as String));
+}
+```
+Run: `flutter test test/features/chat/chat_models_test.dart` → Expected: PASS.
+
+- [ ] **Step 2a: `ChatRepository` 실패 테스트** — `patient_app/test/features/chat/chat_repository_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:patient_app/core/api_client.dart';
+import 'package:patient_app/features/chat/chat_repository.dart';
+
+void main() {
+  ChatRepository _repo(MockClient mock) => ChatRepository(ApiClient(
+        baseUrl: 'http://x', tokenProvider: () async => 'tk', httpClient: mock));
+
+  test('[CHAT-ROOM-SEND-01] 전송은 client_message_id를 실어 보낸다 — 서버 멱등 키', () async {
+    String? sentBody;
+    final r = _repo(MockClient((req) async {
+      sentBody = req.body;
+      return http.Response('{"id":"m9"}', 200);
+    }));
+    await r.sendMessage(threadId: 't1', content: '안녕', clientMessageId: 'c-123');
+    expect(sentBody, contains('c-123'));
+    expect(sentBody, contains('안녕'));
+  });
+
+  test('[CHAT-ROOM-SEND-03] 재전송은 같은 client_message_id를 그대로 재사용한다', () async {
+    final ids = <String>[];
+    final r = _repo(MockClient((req) async {
+      ids.add(RegExp(r'"client_message_id":"([^"]+)"').firstMatch(req.body)!.group(1)!);
+      return http.Response('{"id":"m9"}', 200);
+    }));
+    await r.sendMessage(threadId: 't1', content: 'x', clientMessageId: 'same');
+    await r.sendMessage(threadId: 't1', content: 'x', clientMessageId: 'same'); // 재전송
+    expect(ids, ['same', 'same']); // 새 키를 만들지 않는다 → 서버가 중복 저장 거부
+  });
+
+  test('[CHAT-HISTORY-LIST-01] fetchThreads가 이전 상담 요약 목록을 준다', () async {
+    final r = _repo(MockClient((req) async => http.Response(
+        '[{"thread_id":"t1","last_snippet":"두통","last_at":"2026-08-18T10:00:00Z"}]', 200)));
+    final list = await r.fetchThreads();
+    expect(list.single.threadId, 't1');
+    expect(list.single.lastSnippet, '두통');
+  });
+
+  test('[CHAT-ROOM-NOTIFY-01] markRead는 batch_id로 확인 배치를 닫는다', () async {
+    String? body;
+    final r = _repo(MockClient((req) async { body = req.body; return http.Response('{}', 200); }));
+    await r.markRead(batchId: 'b5');
+    expect(body, contains('b5'));
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_repository_test.dart` → Expected: FAIL(`chat_repository.dart` 없음).
+
+- [ ] **Step 2b: `ChatRepository` 구현** — `patient_app/lib/features/chat/chat_repository.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/api_client.dart';
+import '../../core/providers.dart';
+import 'chat_models.dart';
+
+/// 4단계 챗봇 라우터(Task 9)의 얇은 클라이언트. 오케스트레이션·멱등은 전부 서버가 하고,
+/// 여기서는 client_message_id를 실어 보내기만 한다(CHAT-ROOM-SEND-01·03).
+class ChatRepository {
+  final ApiClient _api;
+  ChatRepository(this._api);
+
+  Future<List<ChatFeedItem>> fetchMessages(String threadId) async {
+    final res = await _api.get('/chat/threads/$threadId/messages');
+    return (res as List).map((e) => ChatFeedItem.fromJson(e)).toList();
+  }
+
+  Future<String> openSession({String? resumeFrom}) async {
+    final res = await _api.post('/chat/sessions',
+        body: resumeFrom == null ? {} : {'resume_from': resumeFrom});
+    return res['thread_id'] as String;
+  }
+
+  Future<ChatFeedItem> sendMessage({
+    required String threadId, required String content, required String clientMessageId,
+  }) async {
+    final res = await _api.post('/chat/messages', body: {
+      'thread_id': threadId, 'content': content, 'client_message_id': clientMessageId,
+    });
+    return ChatFeedItem.fromJson(res);
+  }
+
+  Future<void> markRead({required String batchId}) =>
+      _api.post('/chat/read', body: {'batch_id': batchId});
+
+  Future<List<ChatThreadSummary>> fetchThreads() async {
+    final res = await _api.get('/chat/threads');
+    return (res as List).map((e) => ChatThreadSummary.fromJson(e)).toList();
+  }
+}
+
+final chatRepositoryProvider = Provider<ChatRepository>(
+    (ref) => ChatRepository(ref.watch(apiClientProvider)));
+```
+Run: `flutter test test/features/chat/chat_repository_test.dart` → Expected: PASS.
+
+- [ ] **Step 3a: `ChatRoomController` 실패 테스트(복원·전송·재전송)** — `patient_app/test/features/chat/chat_room_controller_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/chat_room_controller.dart';
+
+// 가짜 저장소: 시나리오를 주입한다.
+class _FakeRepo implements ChatRepositoryLike {
+  List<ChatFeedItem>? messages; Object? loadError; Object? sendError;
+  final List<String> sentIds = [];
+  @override Future<List<ChatFeedItem>> fetchMessages(String t) async {
+    if (loadError != null) throw loadError!;
+    return messages ?? [];
+  }
+  @override Future<ChatFeedItem> sendMessage({required String threadId,
+      required String content, required String clientMessageId}) async {
+    sentIds.add(clientMessageId);
+    if (sendError != null) throw sendError!;
+    return ChatFeedItem(id: 'srv', messageType: 'text', senderType: 'patient',
+        content: content, createdAt: DateTime(2026), clientMessageId: clientMessageId);
+  }
+  @override Future<void> markRead({required String batchId}) async {}
+}
+
+void main() {
+  test('[CHAT-ROOM-LOAD-01] 시작은 loading — 첫 상담/0건을 먼저 그리지 않는다', () {
+    final c = ChatRoomController(_FakeRepo(), threadId: 't1');
+    expect(c.state.phase, ChatRoomPhase.loading); // load() 전엔 loaded/empty가 아님
+  });
+
+  test('[CHAT-ROOM-EMPTY-01] 복원 0건이면 오류가 아니라 empty(loaded)로 — 시작 안내 자리', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    expect(c.state.phase, ChatRoomPhase.loaded);
+    expect(c.state.isEmpty, isTrue); // 조회 오류가 아니다(ERR과 구분)
+  });
+
+  test('[CHAT-ROOM-ERR-01] 복원 실패는 error — 새 빈 대화로 덮어쓰지 않는다', () async {
+    final repo = _FakeRepo()..loadError = Exception('boom');
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    expect(c.state.phase, ChatRoomPhase.error); // empty가 아니다(빈 대화 위장 금지)
+  });
+
+  test('[CHAT-ROOM-SEND-01] 전송 중엔 sending 말풍선을 낙관적으로 넣고 같은 메시지 중복 전송을 막는다', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    final f = c.send('두통이 있어요'); // await 전 상태 확인
+    final optimistic = c.state.items.last;
+    expect(optimistic.sendState, ChatSendState.sending);
+    c.send('두통이 있어요'); // 같은 내용 즉시 재탭 — 진행 중이면 무시(중복 방지)
+    expect(c.state.items.where((i) => i.senderType == 'patient').length, 1);
+    await f;
+    expect(c.state.items.last.sendState, ChatSendState.sent);
+  });
+
+  test('[CHAT-ROOM-SEND-02] 전송 실패는 원문을 failed로 보존하고 봇 처리를 시작하지 않는다', () async {
+    final repo = _FakeRepo()..messages = [] ..sendError = Exception('net');
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('안녕');
+    final last = c.state.items.last;
+    expect(last.sendState, ChatSendState.failed);
+    expect(last.content, '안녕');            // 원문 보존
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isFalse); // 봇 답변 없음
+  });
+
+  test('[CHAT-ROOM-SEND-03] 재전송은 같은 client_message_id로 다시 보내고 새 말풍선을 안 만든다', () async {
+    final repo = _FakeRepo()..messages = [] ..sendError = Exception('net');
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('안녕');
+    final failedId = c.state.items.last.clientMessageId;
+    repo.sendError = null;                   // 이번엔 성공
+    await c.retry(failedId!);
+    expect(repo.sentIds, [failedId, failedId]); // 같은 키 재사용
+    expect(c.state.items.where((i) => i.senderType == 'patient').length, 1); // 중복 없음
+  });
+
+  test('[CHAT-ROOM-NOTIFY-01] 상담방을 열면(load) 미확인 배치를 읽음 처리한다 — 보는 중엔 알리지 않는다', () async {
+    var readBatch;
+    final repo = _FakeRepo();
+    final c = ChatRoomController(repo, threadId: 't1', onMarkRead: (b) => readBatch = b);
+    await c.load(batchId: 'b7');
+    expect(readBatch, 'b7'); // 열람 = 확인 → 서버가 그 배치로 새 알림을 내지 않는다
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_room_controller_test.dart` → Expected: FAIL(`chat_room_controller.dart` 없음).
+
+- [ ] **Step 3b: `ChatRoomController`·`chatRoomProvider` 구현** — `patient_app/lib/features/chat/chat_room_controller.dart`
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'chat_models.dart';
+import 'chat_repository.dart';
+
+/// 테스트에서 가짜 저장소를 주입하기 위한 최소 계약.
+abstract class ChatRepositoryLike {
+  Future<List<ChatFeedItem>> fetchMessages(String threadId);
+  Future<ChatFeedItem> sendMessage({required String threadId, required String content,
+      required String clientMessageId});
+  Future<void> markRead({required String batchId});
+}
+
+/// 상담방 셸의 상태 기계. 복원(CHAT-ROOM-LOAD/EMPTY/ERR)·전송(SEND-01·02·03)·읽음(NOTIFY-01).
+/// T11이 라이브/인계·재문의 전이를 이 컨트롤러에 확장한다(같은 피드·같은 식별자).
+class ChatRoomController extends StateNotifier<ChatRoomState> {
+  final ChatRepositoryLike _repo;
+  final String threadId;
+  final void Function(String batchId)? onMarkRead;
+  int _seq = 0;
+  ChatRoomController(this._repo, {required this.threadId, this.onMarkRead})
+      : super(const ChatRoomState(ChatRoomPhase.loading));
+
+  Future<void> load({String? batchId}) async {
+    state = const ChatRoomState(ChatRoomPhase.loading);
+    try {
+      final items = await _repo.fetchMessages(threadId);
+      state = ChatRoomState(ChatRoomPhase.loaded, items: items, batchId: batchId);
+      if (batchId != null) {                 // CHAT-ROOM-NOTIFY-01: 열람 = 확인
+        onMarkRead?.call(batchId);
+        await _repo.markRead(batchId: batchId);
+      }
+    } catch (_) {
+      state = const ChatRoomState(ChatRoomPhase.error); // 빈 대화로 덮지 않는다
+    }
+  }
+
+  String _newClientId() => '${DateTime.now().microsecondsSinceEpoch}-${_seq++}';
+
+  Future<void> send(String content) async {
+    // CHAT-ROOM-SEND-01: 진행 중인 같은 내용이 있으면 중복 전송을 막는다.
+    final dup = state.items.any((i) =>
+        i.senderType == 'patient' && i.content == content &&
+        i.sendState == ChatSendState.sending);
+    if (dup) return;
+    final cid = _newClientId();
+    final optimistic = ChatFeedItem(id: cid, messageType: 'text', senderType: 'patient',
+        content: content, createdAt: DateTime.now(), clientMessageId: cid,
+        sendState: ChatSendState.sending);
+    state = ChatRoomState(ChatRoomPhase.loaded,
+        items: [...state.items, optimistic], batchId: state.batchId);
+    await _deliver(cid, content);
+  }
+
+  Future<void> retry(String clientMessageId) async {
+    final item = state.items.firstWhere((i) => i.clientMessageId == clientMessageId);
+    _replace(clientMessageId, item.copyWith(sendState: ChatSendState.sending));
+    await _deliver(clientMessageId, item.content!); // 같은 키 재사용(CHAT-ROOM-SEND-03)
+  }
+
+  Future<void> _deliver(String cid, String content) async {
+    try {
+      await _repo.sendMessage(threadId: threadId, content: content, clientMessageId: cid);
+      _replace(cid, state.items.firstWhere((i) => i.clientMessageId == cid)
+          .copyWith(sendState: ChatSendState.sent));
+    } catch (_) {
+      // CHAT-ROOM-SEND-02: 원문 보존 + failed. 봇 처리를 시작하지 않는다(성공 위장 금지).
+      _replace(cid, state.items.firstWhere((i) => i.clientMessageId == cid)
+          .copyWith(sendState: ChatSendState.failed));
+    }
+  }
+
+  void _replace(String cid, ChatFeedItem next) {
+    state = ChatRoomState(ChatRoomPhase.loaded,
+        items: [for (final i in state.items) i.clientMessageId == cid ? next : i],
+        batchId: state.batchId);
+  }
+}
+
+final chatRoomProvider = StateNotifierProvider.family<ChatRoomController, ChatRoomState, String>(
+    (ref, threadId) {
+  final repo = ref.watch(chatRepositoryProvider);
+  return ChatRoomController(_RepoAdapter(repo), threadId: threadId,
+      onMarkRead: (_) {});
+});
+
+// 실 저장소를 컨트롤러 계약에 맞춘다(sendMessage 시그니처 동일).
+class _RepoAdapter implements ChatRepositoryLike {
+  final ChatRepository _r; _RepoAdapter(this._r);
+  @override Future<List<ChatFeedItem>> fetchMessages(String t) => _r.fetchMessages(t);
+  @override Future<ChatFeedItem> sendMessage({required String threadId,
+      required String content, required String clientMessageId}) =>
+      _r.sendMessage(threadId: threadId, content: content, clientMessageId: clientMessageId);
+  @override Future<void> markRead({required String batchId}) => _r.markRead(batchId: batchId);
+}
+```
+Run: `flutter test test/features/chat/chat_room_controller_test.dart` → Expected: PASS.
+
+- [ ] **Step 4a: `ChatBubble` 실패 테스트(이름·머리말)** — `patient_app/test/features/chat/chat_bubble_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/widgets/chat_bubble.dart';
+
+void main() {
+  Future<void> _pump(WidgetTester t, ChatFeedItem item) => t.pumpWidget(
+      MaterialApp(home: Scaffold(body: ChatBubble(item: item))));
+
+  testWidgets('[CHAT-ROOM-NAME-01] 봇 발신자 이름은 AI 상담봇', (t) async {
+    await _pump(t, const ChatFeedItem(id: 'm', messageType: 'text',
+        senderType: 'bot', content: '안녕하세요'));
+    expect(find.text('AI 상담봇'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-VISUAL-01] 의료 안내는 `진료 안내`, 일반은 `병원 이용 안내` 머리말', (t) async {
+    await _pump(t, ChatFeedItem(id: 'm', messageType: 'text', senderType: 'bot',
+        content: '내과를 추천합니다', payload: const {'notice_kind': 'medical'}));
+    expect(find.text('진료 안내'), findsOneWidget);
+    await _pump(t, ChatFeedItem(id: 'm', messageType: 'text', senderType: 'bot',
+        content: '주차는 지하 1층', payload: const {'notice_kind': 'general'}));
+    expect(find.text('병원 이용 안내'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-SEND-02] 전송 실패 말풍선엔 원문과 [재전송]이 함께 있다', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatBubble(
+        item: const ChatFeedItem(id: 'm', messageType: 'text', senderType: 'patient',
+            content: '안녕', sendState: ChatSendState.failed),
+        onRetry: () {}))));
+    expect(find.text('안녕'), findsOneWidget);   // 원문 보존
+    expect(find.text('재전송'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-EXC-01] unknown 아이템은 시각을 지어내지 않고 확인 필요로 표시', (t) async {
+    await _pump(t, const ChatFeedItem(id: 'm', messageType: 'text',
+        senderType: null, content: '?', createdAt: null));
+    expect(find.textContaining('확인'), findsOneWidget); // 임의 시각/발신자 없음
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_bubble_test.dart` → Expected: FAIL(`chat_bubble.dart` 없음).
+
+- [ ] **Step 4b: `ChatBubble` 구현** — `patient_app/lib/features/chat/widgets/chat_bubble.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import '../../../core/tokens.dart';
+import '../chat_models.dart';
+
+/// 한 말풍선. 봇 이름은 AI 상담봇(CHAT-ROOM-NAME-01), 의료/일반 구분은 색이 아니라
+/// 작은 머리말(CHAT-ROOM-VISUAL-01), 전송 실패는 원문 보존 + [재전송](CHAT-ROOM-SEND-02).
+class ChatBubble extends StatelessWidget {
+  final ChatFeedItem item;
+  final VoidCallback? onRetry;
+  const ChatBubble({super.key, required this.item, this.onRetry});
+
+  String? get _heading => switch (item.noticeKind) {
+        NoticeKind.medical => '진료 안내',
+        NoticeKind.general => '병원 이용 안내',
+        null => null,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.isUnknown) {
+      return const Padding(padding: EdgeInsets.all(8),
+          child: Text('직원 확인이 필요한 항목입니다', style: TextStyle(color: AppTokens.grayDone)));
+    }
+    final isBot = item.senderType == 'bot';
+    return Column(
+      crossAxisAlignment: isBot ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+      children: [
+        if (isBot) const Text('AI 상담봇', style: TextStyle(fontSize: 12)),
+        if (_heading != null) Text(_heading!, style: const TextStyle(fontSize: 11)),
+        Container(padding: const EdgeInsets.all(10), child: Text(item.content ?? '')),
+        if (item.sendState == ChatSendState.failed)
+          TextButton(onPressed: onRetry, child: const Text('재전송')),
+      ],
+    );
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_bubble_test.dart` → Expected: PASS.
+
+- [ ] **Step 5a: `ChatInputBar`·`ChatSafetyBanner` 실패 테스트** — `patient_app/test/features/chat/chat_input_bar_test.dart`, `chat_safety_banner_test.dart`
+
+```dart
+// chat_input_bar_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/widgets/chat_input_bar.dart';
+
+void main() {
+  testWidgets('[CHAT-ROOM-INPUT-01] 자유 입력창은 빠른답변이 있어도 항상 열려 있다', (t) async {
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatInputBar(
+      onSend: (_) {},
+      quickRepliesSlot: const Text('빠른답변1'), // 빠른답변이 있어도
+    ))));
+    expect(find.byType(TextField), findsOneWidget);        // 입력창 존재
+    final field = t.widget<TextField>(find.byType(TextField));
+    expect(field.enabled, isNot(false));                    // 비활성이 아니다
+    expect(find.text('빠른답변1'), findsOneWidget);          // 슬롯도 함께
+  });
+
+  testWidgets('[CHAT-ROOM-INPUT-01] 빠른답변 슬롯이 없어도 입력창은 열려 있다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: ChatInputBar(onSend: _noop))));
+    expect(find.byType(TextField), findsOneWidget);
+  });
+}
+void _noop(String _) {}
+```
+
+```dart
+// chat_safety_banner_test.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/widgets/chat_safety_banner.dart';
+
+void main() {
+  testWidgets('[CHAT-ROOM-SAFE-01] 진단이 아닌 진료과·병원 이용 안내임을 대화 중 계속 표시', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(body: ChatSafetyBanner())));
+    expect(find.textContaining('진단'), findsOneWidget);       // 진단이 아님을 명시
+    expect(find.textContaining('진료과'), findsOneWidget);
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_input_bar_test.dart test/features/chat/chat_safety_banner_test.dart` → Expected: FAIL.
+
+- [ ] **Step 5b: `ChatInputBar`·`ChatSafetyBanner` 구현**
+
+```dart
+// patient_app/lib/features/chat/widgets/chat_input_bar.dart
+import 'package:flutter/material.dart';
+/// 자유 입력창은 항상 열려 있다(CHAT-ROOM-INPUT-01). 빠른답변은 위 슬롯으로만 얹고
+/// 입력을 대체하지 않는다 — 빠른답변만 쓰도록 강제하지 않는다.
+class ChatInputBar extends StatefulWidget {
+  final void Function(String content) onSend;
+  final Widget? quickRepliesSlot; // T12가 CCARD-QUICK을 채운다
+  const ChatInputBar({super.key, required this.onSend, this.quickRepliesSlot});
+  @override State<ChatInputBar> createState() => _ChatInputBarState();
+}
+class _ChatInputBarState extends State<ChatInputBar> {
+  final _c = TextEditingController();
+  @override Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
+    if (widget.quickRepliesSlot != null) widget.quickRepliesSlot!,
+    Row(children: [
+      Expanded(child: TextField(controller: _c,
+          decoration: const InputDecoration(hintText: '메시지를 입력하세요'))),
+      IconButton(icon: const Icon(Icons.send), onPressed: () {
+        if (_c.text.trim().isEmpty) return;
+        widget.onSend(_c.text.trim()); _c.clear();
+      }),
+    ]),
+  ]);
+}
+```
+
+```dart
+// patient_app/lib/features/chat/widgets/chat_safety_banner.dart
+import 'package:flutter/material.dart';
+/// 대화 내내 고정되는 안전 표시(CHAT-ROOM-SAFE-01). 진단·처방·확정 표현을 쓰지 않는
+/// 도우미임을 계속 식별 가능하게 한다.
+class ChatSafetyBanner extends StatelessWidget {
+  const ChatSafetyBanner({super.key});
+  @override Widget build(BuildContext context) => const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Text('진단이 아니라 알맞은 진료과와 병원 이용을 안내합니다', style: TextStyle(fontSize: 12)));
+}
+```
+Run: `flutter test test/features/chat/chat_input_bar_test.dart test/features/chat/chat_safety_banner_test.dart` → Expected: PASS.
+
+- [ ] **Step 6a: `ChatGuideBanner` 실패 테스트(진료과 추천 배너 4종)** — `patient_app/test/features/chat/chat_guide_banner_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/chat/widgets/chat_guide_banner.dart';
+
+void main() {
+  testWidgets('[CHAT-GUIDE-SHOW-01] 진료과 선택 도움 중이면 진행 배너를 고정 표시', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(
+        body: ChatGuideBanner(active: true))));
+    expect(find.textContaining('진료과 선택 도움'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-GUIDE-SAFE-01] 배너 표시 중엔 진단이 아니라 진료과 안내·최종선택 환자 문구', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(
+        body: ChatGuideBanner(active: true))));
+    expect(find.textContaining('진단'), findsWidgets);       // 진단이 아님
+    expect(find.textContaining('최종'), findsOneWidget);      // 최종 선택은 환자
+  });
+
+  testWidgets('[CHAT-GUIDE-HIDE-01] 진료과 추천 갈래가 아니면 배너를 표시하지 않는다', (t) async {
+    await t.pumpWidget(const MaterialApp(home: Scaffold(
+        body: ChatGuideBanner(active: false))));
+    expect(find.textContaining('진료과 선택 도움'), findsNothing);
+  });
+
+  testWidgets('[CHAT-GUIDE-URGENT-01] 긴급 감지 시 추천을 중단하고 onUrgent를 부른다(전환 본체=T11)', (t) async {
+    var urgent = false;
+    await t.pumpWidget(MaterialApp(home: Scaffold(
+        body: ChatGuideBanner(active: true, urgentDetected: true,
+            onUrgent: () => urgent = true))));
+    await t.pump();
+    expect(urgent, isTrue);                    // CHAT-URGENT로 넘기는 훅
+    expect(find.textContaining('진료과 선택 도움'), findsNothing); // 추천 흐름 중단
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_guide_banner_test.dart` → Expected: FAIL.
+
+- [ ] **Step 6b: `ChatGuideBanner` 구현** — `patient_app/lib/features/chat/widgets/chat_guide_banner.dart`
+
+```dart
+import 'package:flutter/material.dart';
+/// 진료과 추천(문진 체인) 진행 배너(CHAT-GUIDE-*). 추천 중임을 고정 표시하고(SHOW),
+/// 진단이 아니라 가능한 진료과 안내이며 최종 선택은 환자임을 함께 붙인다(SAFE).
+/// 추천 갈래가 아니면 숨기고(HIDE), 긴급이 감지되면 흐름을 중단하고 onUrgent로 넘긴다(URGENT).
+/// 실제 CHAT-URGENT 화면 전환은 T11이 onUrgent에 주입한다.
+class ChatGuideBanner extends StatelessWidget {
+  final bool active;
+  final bool urgentDetected;
+  final VoidCallback? onUrgent;
+  const ChatGuideBanner({super.key, required this.active,
+      this.urgentDetected = false, this.onUrgent});
+
+  @override
+  Widget build(BuildContext context) {
+    if (urgentDetected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => onUrgent?.call());
+      return const SizedBox.shrink();          // 추천·예약 흐름 중단
+    }
+    if (!active) return const SizedBox.shrink(); // CHAT-GUIDE-HIDE-01
+    return const Padding(padding: EdgeInsets.all(8), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('진료과 선택 도움 진행 중'),
+        Text('진단이 아니라 가능한 진료과를 안내하며 최종 선택은 환자가 확인합니다',
+            style: TextStyle(fontSize: 11)),
+      ]));
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_guide_banner_test.dart` → Expected: PASS.
+
+- [ ] **Step 7a: `ChatRoomView` 실패 테스트(로딩·오류·빈·피드·안전배너·피드백)** — `patient_app/test/features/chat/chat_room_view_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/chat_room_controller.dart';
+import 'package:patient_app/features/chat/chat_room_view.dart';
+
+// 상태를 직접 심는 가짜 컨트롤러 provider override.
+ProviderScope _scope(ChatRoomState st, {void Function()? onFeedback}) => ProviderScope(
+    overrides: [chatRoomProvider('t1').overrideWith((ref) => _StubCtl(st))],
+    child: MaterialApp(home: ChatRoomView(threadId: 't1', onFeedback: onFeedback)));
+
+class _StubCtl extends StateNotifier<ChatRoomState> implements ChatRoomController {
+  _StubCtl(super.s);
+  @override noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+void main() {
+  ChatFeedItem _bot(String c) => ChatFeedItem(id: c, messageType: 'text',
+      senderType: 'bot', content: c, createdAt: DateTime(2026));
+
+  testWidgets('[CHAT-ROOM-LOAD-01] loading이면 복원 로딩만 — 빈/피드를 먼저 그리지 않는다', (t) async {
+    await t.pumpWidget(_scope(const ChatRoomState(ChatRoomPhase.loading)));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.textContaining('상담'), findsNothing); // 첫 상담 안내를 미리 안 그림
+  });
+
+  testWidgets('[CHAT-ROOM-ERR-01] error면 조회 오류 + [다시 시도]', (t) async {
+    await t.pumpWidget(_scope(const ChatRoomState(ChatRoomPhase.error)));
+    expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-EMPTY-01] 0건이면 오류가 아니라 시작 안내 + 빠른답변 슬롯', (t) async {
+    await t.pumpWidget(_scope(const ChatRoomState(ChatRoomPhase.loaded, items: [])));
+    expect(find.text('다시 시도'), findsNothing);           // 오류 아님
+    expect(find.byKey(const Key('chat-empty-guide')), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-FEED-01] loaded면 한 피드에 말풍선을 시간순으로 쌓고 전체화면으로 안 바꾼다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [_bot('안녕'), _bot('무엇을 도와드릴까요')])));
+    expect(find.text('안녕'), findsOneWidget);
+    expect(find.text('무엇을 도와드릴까요'), findsOneWidget);
+    expect(find.byType(ChatRoomView), findsOneWidget);      // 같은 화면 안(별도 전체화면 없음)
+  });
+
+  testWidgets('[CHAT-ROOM-SAFE-01] 안전 배너가 대화 화면에 항상 붙어 있다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [_bot('안녕')])));
+    expect(find.textContaining('진단이 아니라'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-FEEDBACK-01] 봇 답변의 `도움이 안 됐어요`를 누르면 인계 연결 콜백을 부른다', (t) async {
+    var called = false;
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [_bot('안녕')]),
+        onFeedback: () => called = true));
+    await t.tap(find.byKey(const Key('chat-feedback-btn')).first);
+    expect(called, isTrue); // 답변+맥락을 직원 인계 대상으로(본체=T11 라이브)
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_room_view_test.dart` → Expected: FAIL(`chat_room_view.dart` 없음).
+
+- [ ] **Step 7b: `ChatRoomView`·`ChatFeed` 구현** — `chat_room_view.dart`, `widgets/chat_feed.dart`
+
+```dart
+// patient_app/lib/features/chat/widgets/chat_feed.dart
+import 'package:flutter/material.dart';
+import '../chat_models.dart';
+import 'chat_bubble.dart';
+/// 시간순 한 피드(CHAT-ROOM-FEED-01). 카드는 셸이 그리지 않고 cardBuilder 슬롯으로 넘긴다
+/// (T12·T13이 카드 사전을 소유). 라이브/인계 줄은 liveSlotBuilder(T11). 별도 전체화면 없음.
+class ChatFeed extends StatelessWidget {
+  final List<ChatFeedItem> items;
+  final Widget Function(BuildContext, ChatFeedItem)? cardBuilder;   // T12·T13
+  final Widget Function(BuildContext, ChatFeedItem)? liveSlotBuilder; // T11
+  final void Function(String clientMessageId)? onRetry;
+  final void Function(ChatFeedItem)? onFeedback;
+  const ChatFeed({super.key, required this.items, this.cardBuilder,
+      this.liveSlotBuilder, this.onRetry, this.onFeedback});
+
+  @override
+  Widget build(BuildContext context) => ListView.builder(
+    itemCount: items.length,
+    itemBuilder: (ctx, i) {
+      final it = items[i];
+      if (it.messageType == 'card' && cardBuilder != null) return cardBuilder!(ctx, it);
+      if (it.messageType == 'system' && liveSlotBuilder != null) return liveSlotBuilder!(ctx, it);
+      return Column(children: [
+        ChatBubble(item: it, onRetry: it.clientMessageId == null
+            ? null : () => onRetry?.call(it.clientMessageId!)),
+        if (it.senderType == 'bot')
+          TextButton(key: const Key('chat-feedback-btn'),
+              onPressed: () => onFeedback?.call(it), child: const Text('도움이 안 됐어요')),
+      ]);
+    });
+}
+```
+
+```dart
+// patient_app/lib/features/chat/chat_room_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'chat_models.dart';
+import 'chat_room_controller.dart';
+import 'widgets/chat_feed.dart';
+import 'widgets/chat_input_bar.dart';
+import 'widgets/chat_safety_banner.dart';
+
+/// 상담방 셸. 로딩(CHAT-ROOM-LOAD-01)·오류(ERR-01)·빈(EMPTY-01)·피드(FEED-01)를 가르고
+/// 안전 배너(SAFE-01)와 입력창(INPUT-01)을 항상 붙인다. 이름은 AI 상담봇(NAME-01).
+class ChatRoomView extends ConsumerWidget {
+  final String threadId;
+  final VoidCallback? onFeedback; // 봇 답변 피드백 → 인계(T11)
+  const ChatRoomView({super.key, required this.threadId, this.onFeedback});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final st = ref.watch(chatRoomProvider(threadId));
+    final ctl = ref.read(chatRoomProvider(threadId).notifier);
+    return Scaffold(
+      appBar: AppBar(title: const Text('AI 상담봇')), // CHAT-ROOM-NAME-01
+      body: Column(children: [
+        const ChatSafetyBanner(),                     // CHAT-ROOM-SAFE-01 (항상)
+        Expanded(child: switch (st.phase) {
+          ChatRoomPhase.loading => const Center(child: CircularProgressIndicator()),
+          ChatRoomPhase.error => Center(child: Column(mainAxisSize: MainAxisSize.min,
+              children: [const Text('대화를 불러오지 못했어요'),
+                TextButton(onPressed: () => ctl.load(), child: const Text('다시 시도'))])),
+          ChatRoomPhase.loaded => st.isEmpty
+              ? const Center(key: Key('chat-empty-guide'),
+                  child: Text('무엇을 도와드릴까요? 아래에서 골라 보세요'))
+              : ChatFeed(items: st.items, onRetry: ctl.retry,
+                  onFeedback: (_) => onFeedback?.call()),
+        }),
+        ChatInputBar(onSend: ctl.send),               // CHAT-ROOM-INPUT-01 (항상 열림)
+      ]),
+    );
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_room_view_test.dart` → Expected: PASS.
+
+- [ ] **Step 8a: `ChatHistoryView` 실패 테스트(이전 상담 목록 5종)** — `patient_app/test/features/chat/chat_history_view_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:patient_app/features/chat/chat_models.dart';
+import 'package:patient_app/features/chat/chat_history_view.dart';
+
+ProviderScope _scope(AsyncValue<List<ChatThreadSummary>> v, {void Function(String)? onOpen}) =>
+    ProviderScope(overrides: [chatHistoryProvider.overrideWith((ref) => v)],
+        child: MaterialApp(home: ChatHistoryView(onOpen: onOpen)));
+
+void main() {
+  final one = [const ChatThreadSummary(threadId: 't1', lastSnippet: '두통 상담')];
+
+  testWidgets('[CHAT-HISTORY-LOAD-01] 최초 조회 중엔 목록 로딩만 — 0건을 먼저 안 그린다', (t) async {
+    await t.pumpWidget(_scope(const AsyncLoading()));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.textContaining('첫 상담'), findsNothing);
+  });
+
+  testWidgets('[CHAT-HISTORY-EMPTY-01] 0건이면 첫 상담 안내 — 조회 오류와 구분', (t) async {
+    await t.pumpWidget(_scope(const AsyncData([])));
+    expect(find.textContaining('첫 상담'), findsOneWidget);
+    expect(find.text('다시 시도'), findsNothing);
+  });
+
+  testWidgets('[CHAT-HISTORY-ERR-01] 조회 실패면 오류 + [다시 시도] — 과거 없다고 말하지 않는다', (t) async {
+    await t.pumpWidget(_scope(AsyncError(Exception('x'), StackTrace.empty)));
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.textContaining('첫 상담'), findsNothing);
+  });
+
+  testWidgets('[CHAT-HISTORY-LIST-01] 1건 이상이면 식별 가능한 행으로 표시', (t) async {
+    await t.pumpWidget(_scope(AsyncData(one)));
+    expect(find.text('두통 상담'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-HISTORY-RESTORE-01] 행을 누르면 그 방 식별자로 복원 이동한다', (t) async {
+    String? opened;
+    await t.pumpWidget(_scope(AsyncData(one), onOpen: (id) => opened = id));
+    await t.tap(find.text('두통 상담'));
+    expect(opened, 't1'); // 같은 threadId로 /chat/room/:id 복원
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_history_view_test.dart` → Expected: FAIL.
+
+- [ ] **Step 8b: `ChatHistoryView`·`chatHistoryProvider` 구현** — `patient_app/lib/features/chat/chat_history_view.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'chat_models.dart';
+import 'chat_repository.dart';
+
+/// 이전 상담 목록(CHAT-HISTORY-*). 로딩(LOAD)·0건(EMPTY)·오류(ERR)·목록(LIST)·복원(RESTORE).
+final chatHistoryProvider = FutureProvider<List<ChatThreadSummary>>(
+    (ref) => ref.watch(chatRepositoryProvider).fetchThreads());
+
+class ChatHistoryView extends ConsumerWidget {
+  final void Function(String threadId)? onOpen;
+  const ChatHistoryView({super.key, this.onOpen});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final v = ref.watch(chatHistoryProvider);
+    return Scaffold(appBar: AppBar(title: const Text('AI 상담')), body: v.when(
+      loading: () => const Center(child: CircularProgressIndicator()),      // LOAD
+      error: (_, __) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('상담 목록을 불러오지 못했어요'),
+        TextButton(onPressed: () => ref.invalidate(chatHistoryProvider),
+            child: const Text('다시 시도'))])),                              // ERR
+      data: (list) => list.isEmpty
+          ? const Center(child: Text('첫 상담을 시작해 보세요'))               // EMPTY
+          : ListView(children: [for (final s in list) ListTile(              // LIST
+              title: Text(s.lastSnippet ?? '상담'),
+              onTap: () => onOpen?.call(s.threadId))]),                      // RESTORE
+    ));
+  }
+}
+```
+Run: `flutter test test/features/chat/chat_history_view_test.dart` → Expected: PASS.
+
+- [ ] **Step 9a: 딥링크 실패 테스트(직원 답변 푸시)** — `patient_app/test/features/chat/chat_deep_link_test.dart`
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:patient_app/features/notifications/notification_view.dart';
+import 'package:patient_app/features/chat/chat_deep_link.dart';
+
+void main() {
+  NotificationView _n({String? thread}) => NotificationView.fromJson({
+    'id': 'n1', 'notification_type': 'chat_reply', 'appointment_id': null,
+    'chat_thread_id': thread, 'sent_at': '2026-08-19T09:00:00Z',
+  });
+
+  test('[CHAT-HISTORY-DEEP-01] thread가 있으면 그 상담방으로 이동한다', () {
+    expect(resolveChatDeepLink(_n(thread: 't9')), '/chat/room/t9');
+  });
+
+  test('[CHAT-HISTORY-DEEP-02] thread가 없으면 이전 상담 목록(/chat)으로 — 뒤로가기 도착지', () {
+    expect(resolveChatDeepLink(_n(thread: null)), '/chat');
+  });
+
+  test('[CHAT-HISTORY-DEEP-01] T18 resolveNotificationRoute도 thread면 방으로 정밀화된다', () {
+    // 셸이 T18의 chat_reply → /chat 폴백을 thread 있을 때만 방으로 좁힌다.
+    expect(resolveNotificationRoute(_n(thread: 't9')), '/chat/room/t9');
+    expect(resolveNotificationRoute(_n(thread: null)), '/chat'); // 폴백 유지
+  });
+}
+```
+
+`chat_deep_link.dart`의 대상 오류 처리(DEEP-03)는 위젯 레벨에서 확인한다 — `chat_room_view_test.dart`에 추가:
+
+```dart
+  testWidgets('[CHAT-HISTORY-DEEP-03] 딥링크 대상이 없으면 다른 방을 열지 않고 오류+목록 복귀', (t) async {
+    // 방 없음(404) → 조회 오류 상태 + [이전 상담으로] 경로. showNotificationGoneDialog 재사용.
+    await t.pumpWidget(_scope(const ChatRoomState(ChatRoomPhase.error)));
+    expect(find.text('다시 시도'), findsOneWidget); // 임의의 다른 방을 열지 않는다
+  });
+```
+Run: `flutter test test/features/chat/chat_deep_link_test.dart` → Expected: FAIL(`chat_deep_link.dart` 없음).
+
+- [ ] **Step 9b: 딥링크 구현 + T18 정밀화** — `chat_deep_link.dart`, `notification_view.dart` 수정
+
+```dart
+// patient_app/lib/features/chat/chat_deep_link.dart
+import '../notifications/notification_view.dart';
+/// 직원 답변 푸시(chat_reply)의 도착지(CHAT-HISTORY-DEEP-01·02). thread가 있으면 그 방,
+/// 없으면 이전 상담 목록(/chat) — 콜드스타트 뒤로가기 도착지이기도 하다(DEEP-02).
+/// 대상 오류(방 없음·권한 없음)는 방을 열 때 확인해 다른 방을 열지 않는다(DEEP-03, 화면에서 처리).
+String resolveChatDeepLink(NotificationView n) =>
+    n.chatThreadId != null ? '/chat/room/${n.chatThreadId}' : '/chat';
+```
+
+T18 `notification_view.dart` 수정(양방향 악수 — 낡은 폴백 정밀화):
+```dart
+// NotificationView에 chatThreadId 노출(notification_log/배치가 실어 옴):
+//   final String? chatThreadId;  // .fromJson에서 j['chat_thread_id']
+// resolveNotificationRoute의 chat_reply 분기를 좁힌다(폴백 /chat은 유지):
+//   'chat_reply' => n.chatThreadId != null ? '/chat/room/${n.chatThreadId}' : '/chat',
+// ⚠️ T18 기존 테스트(chat_reply, thread 없음 → '/chat')는 그대로 통과한다.
+```
+Run: `flutter test test/features/chat/chat_deep_link_test.dart` → Expected: PASS.
+
+- [ ] **Step 10a: 5번째 탭 + 라우트 실패 테스트** — `patient_app/test/features/chat/chat_tab_test.dart`
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:patient_app/app_shell.dart';
+
+void main() {
+  testWidgets('[CHAT-TAB-NAV-01] AI 상담은 FAB가 아니라 5번째 하단 탭이다', (t) async {
+    await t.pumpWidget(const ProviderScope(child: MaterialApp(home: AppShell())));
+    expect(find.byType(FloatingActionButton), findsNothing); // FAB 아님
+    expect(find.text('AI 상담'), findsOneWidget);              // 탭 라벨
+    final bar = t.widget<NavigationBar>(find.byType(NavigationBar));
+    expect(bar.destinations.length, 5);                       // 5번째 탭
+    expect((bar.destinations.last as NavigationDestination).label, 'AI 상담');
+  });
+
+  testWidgets('[CHAT-TAB-STATE-01] 상담 탭을 누르면 다른 탭과 같은 방식으로 선택 상태가 된다', (t) async {
+    await t.pumpWidget(const ProviderScope(child: MaterialApp(home: AppShell())));
+    await t.tap(find.text('AI 상담'));
+    await t.pumpAndSettle();
+    final bar = t.widget<NavigationBar>(find.byType(NavigationBar));
+    expect(bar.selectedIndex, 4); // 5번째(0-based 4) 선택
+  });
+
+  testWidgets('[CHAT-TAB-HANDOFF-01] 직원 인계 중이어도 탭 이름은 AI 상담 그대로', (t) async {
+    // 인계 사실은 방 안 배지(CHAT-HANDOFF 계열, T11)로만 — 탭 라벨은 바뀌지 않는다.
+    await t.pumpWidget(const ProviderScope(child: MaterialApp(home: AppShell(chatHandoffActive: true))));
+    expect(find.text('AI 상담'), findsOneWidget);
+    expect(find.textContaining('직원'), findsNothing); // 탭 라벨에 인계 표기 없음
+  });
+}
+```
+Run: `flutter test test/features/chat/chat_tab_test.dart` → Expected: FAIL(탭 미추가).
+
+- [ ] **Step 10b: `AppShell` 5번째 탭 + 라우터 등록** — `app_shell.dart`, `core/router.dart` 수정
+
+```dart
+// app_shell.dart (T16) mainTabs에 5번째 추가:
+//   NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'AI 상담'),
+//   ⚠️ CHAT-TAB-HANDOFF-01: 라벨은 인계 상태와 무관하게 'AI 상담' 고정.
+//      chatHandoffActive는 방 안 배지(T11)로만 쓰고 탭 라벨엔 반영하지 않는다.
+//   탭 본문은 ChatHistoryView(/chat) — 목록에서 방으로 들어간다.
+```
+
+```dart
+// core/router.dart 에 라우트 추가(콜드스타트 인증 게이트 — CHAT-HISTORY-DEEP-02):
+// GoRoute(path: '/chat', builder: (_, __) => const ChatHistoryView()),
+// GoRoute(path: '/chat/room/:threadId', redirect: _requireAuth,  // 미인증이면 로그인→복귀
+//   builder: (c, s) => ChatRoomView(threadId: s.pathParameters['threadId']!)),
+// _requireAuth: authStateChangesProvider가 authenticated가 아니면 '/login?next=<현재경로>'.
+```
+Run: `flutter test test/features/chat/chat_tab_test.dart` → Expected: PASS.
+
+- [ ] **Step 11: 검사기 — coverage·prefix 경고 0 확인**
+
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+```
+Expected: ② 규칙 커버 `17 → 46`(Task 10의 29개 반영) · prefix-check **빚0·미배정0·⏰0·exit0**. `CHAT-ROOM-EXC-01`은 "직원 확인 필요 상태" 문구 때문에 미결 오탐으로 뜰 수 있으나 실제 결정된 규칙이다(값 조작 금지 상태 = 결정됨). 요구사항 절 **5.1·5.5**가 이 태스크 규칙에 인용돼 ④ 인용 수가 오른다.
+
+- [ ] **Step 12: 커밋**
+
+```bash
+git add patient_app/lib/features/chat/ patient_app/lib/core/router.dart \
+        patient_app/lib/app_shell.dart patient_app/lib/features/notifications/notification_view.dart \
+        patient_app/test/features/chat/ docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 10 본문 — 앱 상담방 셸(탭·피드·전송·안전/가이드 배너·이전 상담·딥링크) 29규칙. 화면 국면 시작"
+```
+
+> **Task 10 완료 조건**: `CHAT-TAB`3·`CHAT-ROOM` 기본/SEND 14·`CHAT-GUIDE`4·`CHAT-HISTORY`8 = **29규칙 전수** 초록불. ⭐ **셸이 남긴 슬롯**: `ChatFeed.cardBuilder`(T12·T13 카드) · `ChatFeed.liveSlotBuilder`·`ChatGuideBanner.onUrgent`·`ChatRoomView.onFeedback`(T11 라이브/인계·긴급) · `ChatInputBar.quickRepliesSlot`(T12 빠른답변). **다음 = Task 11**(라이브·인계·종료·재문의·긴급·장애 — `CHAT-ROOM-LIVE 계열`·`CHAT-HANDOFF`·`CHAT-URGENT`·`CHAT-OUTAGE`, 이 셸의 슬롯을 채운다). ⚠️ `CHAT-LEN-01`은 Task 5가 이미 담았다(오케스트레이션 넛지) — Task 10 재담당 금지.
