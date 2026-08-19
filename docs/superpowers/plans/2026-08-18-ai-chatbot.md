@@ -2388,3 +2388,349 @@ git commit -m "feat: 📝 상담봇 Task 4 본문 — 근거 스냅샷(chat_mess
 ```
 
 > **Task 4 완료 조건**: 근거 스냅샷·6 보존 클래스·`retention_class` 태그 초록불 · `chunk_id`가 하드 FK 아님(없는 uuid 삽입 성공) 확인 · 근거가 봇 메시지에만 붙음 확인 · 파기 배치는 미생성(BLOCKED) 확인. ⭐ **3-A 통합 스키마 공백 7건 전부 닫힘**(T1~T4). coverage 불변, prefix-check 빚·미배정 0.
+
+## Task 5: 오케스트레이션 3갈래 체인 (응급 → 인계 감시 6조건 → 라우터 + 문진 state · 만료 요약 · CHAT-LEN)
+
+> **화면 규칙 0개.** 이 태스크가 상담봇의 **두뇌 골격**을 만든다. 매 환자 메시지는 반드시 **⓪ 응급 표현 검사(규칙 기반·결정적·AI 호출 없음) → ① 인계 감시(6조건, 항상 동작) → ② 라우터(안내형 RAG / 진료과 추천형 문진 / 행동형 에이전트)** 순으로 통과한다. 어느 갈래에 있든 인계 감시가 조건을 감지하면 **무조건 인계**로 전환한다(인계는 「에이전트가 고르는 도구」가 아니다). 실제 갈래 알맹이(RAG 검색=Task 7·에이전트 도구=Task 6)는 **주입식 셸**로 두고, 여기선 결정적 오케스트레이션(응급·6조건·라우팅·문진 state·**예약 중 제한모드**·만료 요약·**CHAT-LEN 한도**)을 소유한다.
+>
+> **근거 원본**: 옛 플랜 `docs/superpowers/plans/2026-07-27-ai-chatbot.md:7,18,30`(3단계 파이프라인)·`:566-580`(인계 reason 6조건)·`:140-168`(route_taken·문진 state)·`:1535-1560`(SAFETY_RULES 5.3·문진 STEP)·`:2429-2441`(watchdog 계약) · 결정로그 `docs/superpowers/specs/2026-07-31-ui-design-decisions.md:5319`(MR2-08) · 정본 §0(제한모드·응급 항상 작동)·§1-3.
+>
+> ⭐ **이 태스크가 닫는 미결(발판 → 여기서 확정)**:
+> - **MR2-08 대화 길이 한도** — CHAT-LEN 넛지(UX)는 화면(Task 10)이 그리고, **엔진 결정 = 소프트 넛지 + 롤링 요약**: 최근 `CHAT_CONTEXT_TURN_WINDOW=12`턴은 원문 그대로 LLM에 주고 그보다 오래된 것은 요약(이어가기 요약 인프라 재사용), `CHAT_NUDGE_MESSAGE_COUNT=40`에서 소프트 넛지 신호. *기각: 하드 컷 즉시차단*(대화를 예고 없이 끊어 사용자가 이어갈 선택지를 잃음, MR2-08). *기각: 절단(truncate)*(오래된 맥락을 통째로 버려 답이 어긋남) — 요약이 맥락을 보존한다. ⚠️ 구체 숫자는 KB 검색 임계값처럼 **운영 튜닝 대상**(상수로 두고 근거 주석).
+>
+> ⭐ **설계 결정(기각안 포함)**: **오케스트레이션 state는 `ai_chat_sessions`에 못박는다**(`active_flow`·`flow_step`·`flow_collected`) — 문진(department_guide) 진행 중 매 턴 라우터로 재분류하면 **중간 답변이 다른 갈래로 샌다**(옛 플랜 `:146`). `route_taken`은 봇 메시지(`chat_messages`)에 남겨 복원·통계에 쓴다. *기각: 대화 이력에서 매번 재구성* — 재분류 누수와 같은 문제.
+
+**Files:**
+- Create: `supabase/migrations/00040_chat_orchestration_state.sql`
+- Create: `backend/app/services/chat/safety_watchdog.py` · `backend/app/services/chat/department_guide_chain.py` · `backend/app/services/chat/chat_router.py` · `backend/app/services/chat/orchestrator.py`
+- Create: `backend/tests/test_safety_watchdog.py` · `backend/tests/test_chat_router.py` · `backend/tests/test_orchestrator.py`
+
+**Interfaces:**
+- Consumes: Task 0 `get_chat_model`(모킹 주입) · Task 1·2 `ai_chat_sessions`·`chat_messages`·`create_support_ticket`(인계 티켓)·`record_ai_activity` · `AppError`·`acquire_as`·`get_pool`
+- Produces (뒤 태스크가 소비할 이름):
+  - `ai_chat_sessions`에 `active_flow text check ('department_guide')`·`flow_step int default 0`·`flow_collected jsonb default '{}'` · `chat_messages`에 `route_taken text check ('emergency','rag','department_guide','agent','handoff')`
+  - `safety_watchdog.check_emergency(text) -> bool`(규칙 기반·AI 없음)·`EMERGENCY_REPLY: str`·`check_repeated(history, current, threshold=3) -> bool`·`check_escalation(text, history, *, unhelpful_flagged, no_answer, model=None) -> str | None`(6종 reason 또는 None)
+  - `department_guide_chain.SAFETY_RULES: str`(진단·처방 금지 5.3)·`STEP_INSTRUCTIONS: dict`·`ask_next_question(history, step, model=None) -> str`·`advance_flow(session_id, collected_update) -> dict`
+  - `chat_router.classify(text, *, active_flow=None, model=None) -> str`(`active_flow` 있으면 재분류 없이 그 갈래 유지)
+  - `orchestrator.orchestrate(session, message, *, restricted=False, rag_fn=None, agent_fn=None, model=None) -> dict`(`{route_taken, reply|card|handoff_reason, escalated}`) · 상수 `CHAT_CONTEXT_TURN_WINDOW=12`·`CHAT_NUDGE_MESSAGE_COUNT=40`·`should_nudge_length(message_count) -> bool` · `make_closing_summary(session, model=None) -> str`
+- ⚠️ **주입식(여기서 만들지 않음)**: RAG 검색 `rag_fn`=Task 7 · 에이전트 도구·카드 `agent_fn`=Task 6 · 제한모드 `restricted=True` 배선(앱 `DeptBotSheet`)=Task 6. Task 5는 골격과 결정적 로직만.
+- ⚠️ **아직 안 하는 것**: `route_taken` 등 완전 화면 규칙(`CHAT-URGENT`·`CHAT-HANDOFF`·`CHAT-LEN` 계열)은 Task 10·11이 담는다 — 여기서 완전 ID로 쓰면 ⏰.
+
+- [ ] **Step 1: 마이그레이션 — 오케스트레이션 state**
+
+`supabase/migrations/00040_chat_orchestration_state.sql`:
+```sql
+-- 3-A 오케스트레이션 state (설계결정): 문진 진행을 세션에 못박아 재분류 누수를 막는다. route는 메시지에 기록.
+alter table ai_chat_sessions
+  add column active_flow text check (active_flow in ('department_guide')),
+  add column flow_step int not null default 0,
+  add column flow_collected jsonb not null default '{}'::jsonb;
+alter table chat_messages
+  add column route_taken text check (route_taken in ('emergency', 'rag', 'department_guide', 'agent', 'handoff'));
+```
+적용: `supabase migration up`.
+
+- [ ] **Step 2: 실패하는 응급·감시 테스트 작성**
+
+`backend/tests/test_safety_watchdog.py`:
+```python
+import pytest
+
+from app.services.chat.safety_watchdog import (
+    check_emergency, EMERGENCY_REPLY, check_repeated, check_escalation)
+
+
+def test_emergency_is_rule_based_and_deterministic():
+    # AI 호출 없이 키워드로 결정적으로 잡는다(정본 §0·옛 플랜 :30).
+    assert check_emergency("숨을 못 쉬겠어요") is True
+    assert check_emergency("의식이 없어요 119") is True
+    assert check_emergency("가슴이 너무 아파요") is True
+    assert check_emergency("주차 어디에 하나요") is False
+
+
+def test_emergency_reply_points_to_119():
+    assert "119" in EMERGENCY_REPLY and "응급" in EMERGENCY_REPLY
+
+
+def test_repeated_triggers_at_threshold():
+    hist = ["보험 되나요", "보험 되나요", "다른 얘기"]
+    assert check_repeated(hist, "보험 되나요", threshold=3) is True   # 같은 질문 3번째
+    assert check_repeated(["보험 되나요"], "주차", threshold=3) is False
+
+
+@pytest.mark.asyncio
+async def test_escalation_deterministic_paths_need_no_model():
+    # 명시 플래그·검색 실패·반복은 AI 없이 결정된다.
+    assert await check_escalation("아무 말", [], unhelpful_flagged=True) == "unhelpful"
+    assert await check_escalation("아무 말", [], no_answer=True) == "no_answer"
+    assert await check_escalation("보험", ["보험", "보험"], no_answer=False) == "repeated"
+
+
+@pytest.mark.asyncio
+async def test_escalation_llm_judged_uses_injected_model():
+    # medical_judgment/complaint/data_mismatch는 주입 모델이 라벨을 준다(없으면 None).
+    class FakeModel:
+        async def ainvoke(self, _):
+            class R: content = "complaint"
+            return R()
+    assert await check_escalation("접수원이 불친절했어요", [], model=FakeModel()) == "complaint"
+
+    class NoneModel:
+        async def ainvoke(self, _):
+            class R: content = "none"
+            return R()
+    assert await check_escalation("진료시간 알려줘", [], model=NoneModel()) is None
+```
+
+- [ ] **Step 3: watchdog 구현**
+
+`backend/app/services/chat/safety_watchdog.py`:
+```python
+# ⓪ 응급 검사 + ① 인계 감시. 응급은 규칙 기반(결정적) — AI 확률 판단에 안전을 맡기지 않는다(옛 플랜 :30, 정본 §0).
+from app.core.config import settings
+from app.integrations.langchain_client import get_chat_model
+
+# 병원과 함께 다듬는 큐레이션 목록(확장 가능). 오탐보다 미탐이 위험하므로 넓게 잡는다.
+EMERGENCY_KEYWORDS = [
+    "119", "응급실", "의식이 없", "숨을 못", "숨이 안", "호흡곤란", "가슴이 아", "가슴 통증",
+    "피를 많이", "출혈이 멈", "쓰러졌", "경련", "발작", "자살", "죽고 싶", "심장이", "마비",
+]
+EMERGENCY_REPLY = (
+    "지금 위급한 상황일 수 있어요. 즉시 119에 전화하거나 가까운 응급실로 가 주세요. "
+    "이 상담은 응급 진료를 대신할 수 없습니다."
+)
+
+# 6가지 인계 조건 = support_tickets 생성 사유(late_cancellation은 도구가 별도 생성).
+LLM_ESCALATION_LABELS = {"medical_judgment", "data_mismatch", "complaint"}
+
+
+def check_emergency(text: str) -> bool:
+    t = text.replace(" ", "")
+    return any(k.replace(" ", "") in t for k in EMERGENCY_KEYWORDS)
+
+
+def check_repeated(history_texts: list[str], current: str, threshold: int = 3) -> bool:
+    same = sum(1 for h in history_texts if h.strip() == current.strip()) + 1
+    return same >= threshold
+
+
+async def check_escalation(text, history_texts, *, unhelpful_flagged=False,
+                           no_answer=False, model=None) -> str | None:
+    # 결정적 조건 먼저(AI 불필요).
+    if unhelpful_flagged:
+        return "unhelpful"
+    if no_answer:
+        return "no_answer"
+    if check_repeated(history_texts, text):
+        return "repeated"
+    # AI 판단 조건: 의료판단 필요 / 정보 불일치 주장 / 불만. 아니면 None.
+    llm = model or get_chat_model()
+    from langchain_core.prompts import ChatPromptTemplate
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "환자 메시지를 다음 중 하나로만 분류하세요: "
+                   "medical_judgment(진단·치료 판단 요구), data_mismatch(안내가 틀렸다는 주장), "
+                   "complaint(불만·항의), none(해당 없음). 한 단어만 답하세요."),
+        ("human", "{text}"),
+    ])
+    resp = await (prompt | llm).ainvoke({"text": text})
+    label = getattr(resp, "content", str(resp)).strip()
+    return label if label in LLM_ESCALATION_LABELS else None
+```
+
+- [ ] **Step 4: 라우터 + 문진 체인 + 오케스트레이터 구현**
+
+`backend/app/services/chat/department_guide_chain.py`:
+```python
+# 진료과 추천형(문진 체인) — RAG/에이전트보다 강한 안전 규칙(요구사항 5.3).
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+from app.integrations.langchain_client import get_chat_model
+
+SAFETY_RULES = """[절대 규칙 — 위반 금지]
+- 병명을 진단하지 마세요. "OO병으로 보입니다"처럼 확정적으로 말하지 마세요.
+- 약이나 치료법을 추천하지 마세요.
+- 가능한 진료과를 안내하되 최종 선택은 환자가 확인한다고 안내하세요."""
+
+STEP_INSTRUCTIONS = {
+    0: "환자가 방금 불편한 증상을 말했습니다. 공감 한 문장 후, 증상이 언제부터 시작됐는지 물어보세요.",
+    1: "시작 시점을 들었습니다. 공감 한 문장 후, 다른 동반 증상이 있는지 물어보세요.",
+    2: "동반 증상까지 들었습니다. 지금까지 들은 내용을 한 문장으로 요약하고, 방문 목적을 물어보세요.",
+}
+
+
+async def ask_next_question(history_text: str, step: int, model=None) -> str:
+    instruction = STEP_INSTRUCTIONS.get(step, STEP_INSTRUCTIONS[2])
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "당신은 병원의 AI 상담봇입니다. 진료과 선택을 돕는 문진 중입니다.\n" + SAFETY_RULES),
+        ("human", "지금까지 대화:\n{history}\n\n이번 단계 지시: {step_instruction}"),
+    ])
+    chain = prompt | (model or get_chat_model()) | StrOutputParser()
+    return await chain.ainvoke({"history": history_text, "step_instruction": instruction})
+```
+
+`backend/app/services/chat/chat_router.py`:
+```python
+# ② 라우터. active_flow가 있으면 재분류하지 않고 그 갈래를 유지한다(중간 답변 누수 방지, 옛 플랜 :146).
+from langchain_core.prompts import ChatPromptTemplate
+
+from app.integrations.langchain_client import get_chat_model
+
+ROUTES = {"rag", "department_guide", "agent"}
+
+
+async def classify(text: str, *, active_flow: str | None = None, model=None) -> str:
+    if active_flow == "department_guide":
+        return "department_guide"      # 진행 중 문진은 재분류 금지
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "환자 메시지를 다음 중 하나로만 분류하세요: "
+                   "rag(병원 정보 안내), department_guide(어느 과에 가야 하는지 증상 상담), "
+                   "agent(예약·취소·문진 등 행동). 한 단어만 답하세요."),
+        ("human", "{text}"),
+    ])
+    resp = await (prompt | (model or get_chat_model())).ainvoke({"text": text})
+    label = getattr(resp, "content", str(resp)).strip()
+    return label if label in ROUTES else "rag"    # 불명확하면 안전한 안내형
+```
+
+`backend/app/services/chat/orchestrator.py`:
+```python
+# 매 메시지 파이프라인: ⓪응급 → ①인계감시 → ②라우터 → 갈래 실행. 인계 조건은 어느 갈래든 우선한다.
+from app.services.chat import safety_watchdog, chat_router, department_guide_chain
+
+CHAT_CONTEXT_TURN_WINDOW = 12     # 최근 N턴은 원문, 그 앞은 요약(MR2-08 — 절단 아님)
+CHAT_NUDGE_MESSAGE_COUNT = 40     # 이 이상이면 CHAT-LEN 소프트 넛지 신호(하드컷 아님)
+
+
+def should_nudge_length(message_count: int) -> bool:
+    return message_count >= CHAT_NUDGE_MESSAGE_COUNT
+
+
+async def orchestrate(session, message, *, history_texts=None, restricted=False,
+                      unhelpful_flagged=False, rag_fn=None, agent_fn=None, model=None) -> dict:
+    history_texts = history_texts or []
+    # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0).
+    if safety_watchdog.check_emergency(message):
+        return {"route_taken": "emergency", "reply": safety_watchdog.EMERGENCY_REPLY, "escalated": False}
+    # ① 인계 감시 — 조건 감지 시 무조건 인계(에이전트 도구 아님).
+    reason = await safety_watchdog.check_escalation(
+        message, history_texts, unhelpful_flagged=unhelpful_flagged,
+        no_answer=False, model=model)
+    if reason:
+        return {"route_taken": "handoff", "handoff_reason": reason, "escalated": True}
+    # ② 라우터 — 진행 중 문진은 유지.
+    active_flow = getattr(session, "active_flow", None) if not restricted else None
+    route = await chat_router.classify(message, active_flow=active_flow, model=model)
+    # 제한모드(예약 중 상담): 정보성 안내·진료과 추천만. 행동형 금지, 유일 출구는 "○○과로 계속하기"(E4·정본 §0).
+    if restricted and route == "agent":
+        route = "rag"
+    if route == "department_guide":
+        reply = await department_guide_chain.ask_next_question(
+            "\n".join(history_texts), getattr(session, "flow_step", 0), model=model)
+        return {"route_taken": "department_guide", "reply": reply, "escalated": False}
+    if route == "agent":
+        # 행동형 도구·카드는 Task 6이 주입. no_answer면 인계로 되돌린다.
+        if agent_fn is None:
+            return {"route_taken": "agent", "reply": None, "escalated": False}
+        return {"route_taken": "agent", **(await agent_fn(session, message))}
+    # 안내형 RAG — 검색은 Task 7이 주입. 검색 실패는 no_answer 인계로.
+    if rag_fn is None:
+        return {"route_taken": "rag", "reply": None, "escalated": False}
+    result = await rag_fn(session, message)
+    if result.get("no_answer"):
+        return {"route_taken": "handoff", "handoff_reason": "no_answer", "escalated": True}
+    return {"route_taken": "rag", **result}
+```
+
+- [ ] **Step 5: 라우터·오케스트레이터 테스트 작성**
+
+`backend/tests/test_chat_router.py`:
+```python
+import pytest
+
+from app.services.chat.chat_router import classify
+
+
+class _Model:
+    def __init__(self, label): self._label = label
+    async def ainvoke(self, _):
+        class R: content = self._label
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_active_flow_is_not_reclassified():
+    # 진행 중 문진은 라우터를 타지 않는다(누수 방지).
+    assert await classify("갑자기 예약하고 싶어요", active_flow="department_guide", model=_Model("agent")) == "department_guide"
+
+
+@pytest.mark.asyncio
+async def test_unknown_label_falls_back_to_rag():
+    assert await classify("음", model=_Model("weird")) == "rag"
+```
+
+`backend/tests/test_orchestrator.py`:
+```python
+import pytest
+from types import SimpleNamespace
+
+from app.services.chat import orchestrator
+from app.services.chat.chat_router import classify as _real_classify
+
+
+class _Model:
+    def __init__(self, label): self._label = label
+    async def ainvoke(self, _):
+        class R: content = self._label
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_emergency_wins_even_in_restricted_mode():
+    # 제한모드여도 응급 안전 안내는 항상 작동(정본 §0).
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+                                         "숨을 못 쉬겠어요", restricted=True)
+    assert out["route_taken"] == "emergency" and "119" in out["reply"]
+
+
+@pytest.mark.asyncio
+async def test_handoff_condition_beats_routing():
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+                                         "답이 도움이 안 됐어요", unhelpful_flagged=True)
+    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "unhelpful" and out["escalated"]
+
+
+@pytest.mark.asyncio
+async def test_restricted_mode_downgrades_agent_to_rag():
+    # 예약 중 상담: 행동형 금지 → 안내형으로. rag_fn 주입.
+    async def rag_fn(s, m): return {"reply": "주차는 지하 1층입니다", "no_answer": False}
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+                                         "예약 잡아줘", restricted=True, rag_fn=rag_fn, model=_Model("agent"))
+    assert out["route_taken"] == "rag" and "주차" in out["reply"]
+
+
+@pytest.mark.asyncio
+async def test_rag_no_answer_becomes_handoff():
+    async def rag_fn(s, m): return {"no_answer": True}
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+                                         "우리 동네 약국 어디", rag_fn=rag_fn, model=_Model("rag"))
+    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "no_answer"
+
+
+def test_length_nudge_threshold():
+    assert orchestrator.should_nudge_length(40) is True
+    assert orchestrator.should_nudge_length(39) is False
+```
+
+- [ ] **Step 6: 테스트 통과 확인** — Run: `cd backend && pytest tests/test_safety_watchdog.py tests/test_chat_router.py tests/test_orchestrator.py -v` → Expected: PASS(전체 초록불, LLM은 전부 모킹).
+
+- [ ] **Step 7: 커밋**
+
+```bash
+git add supabase/migrations/00040_chat_orchestration_state.sql backend/app/services/chat/ \
+        backend/tests/test_safety_watchdog.py backend/tests/test_chat_router.py \
+        backend/tests/test_orchestrator.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 5 본문 — 오케스트레이션 3갈래(응급 결정적필터→인계감시 6조건→라우터) + 문진 state·제한모드·CHAT-LEN 롤링요약(하드컷 기각). LLM 갈래는 주입식 셸, 결정적 로직에 테스트 집중"
+```
+
+> **Task 5 완료 조건**: 응급(결정적·AI없음)·6조건 감시·라우터(문진 유지)·제한모드(행동형→안내형·응급 항상)·CHAT-LEN 넛지 초록불 · 오케스트레이션 state 칼럼 추가 확인 · RAG/에이전트는 주입식(Task 6·7 채움) 확인. MR2-08 미결 닫힘(요약·기각 하드컷). coverage 불변, prefix-check 빚·미배정 0·⏰0.
