@@ -3400,3 +3400,299 @@ git commit -m "feat: 📝 상담봇 Task 7 본문 — KB pgvector 검색·승인
 ```
 
 > **Task 7 완료 조건**: KB 표·`match_kb_chunks`(승인만)·승인 재임베딩·`pending_*`(라이브 유지)·이력·제한자료 원문 별도블록·의사소개 staff 원본 초록불 · 검색 임계값 상수 확인 · `chunk_id` 스냅샷 기록 확인. 제한 자료 검색 튜닝 미결 닫힘. coverage 불변, prefix-check 빚·미배정 0·⏰0.
+
+## Task 8: 품질 검토 + bad inbox + 미해결 클러스터 (`chat_quality_reviews` · `answer_feedback` · `qa_example_bank`)
+
+> **화면 규칙 0개.** 상담봇 개선 사이클의 서버 계약을 만든다: **① 상담 단위 품질 검토**(오답 신고가 없어도 「문제없음」을 저장, 미검토 우선 정렬) · **② 오답 신고 → bad inbox → 적용/반려 → KB 승인**(즉시 KB 공개 금지) · **③ 미해결 질문 자동 클러스터**(봇이 못 답한 질문을 유사도로 묶음, 혼합 가능 안내는 화면). 관리자 화면(`QUALITY-REPORT`·`BADINBOX`·`UNRES-CLUSTER`·`QAEX` 계열)은 Task 21이 담는다.
+>
+> **근거 원본**: 결정 SD-08(색인 `SPECINDEX-ai-chatbot.md:192`)·B2·B3(색인 `:91`·`:280`) · 옛 플랜 `docs/superpowers/plans/2026-07-27-ai-chatbot.md:423-551`(`answer_feedback`·`qa_example_bank`·`question_embedding`) · 요구사항 3.9·3.10(미해결·오답·품질).
+>
+> ⭐ **이 태스크가 닫는 미결(발판 → 여기서 확정) — 품질 검토 저장 모델(SD-08)**:
+> - **결정 = 상담 단위 `chat_quality_reviews` 표를 신설한다**(`answer_feedback` 확장 아님). 이유: SD-08은 「오답 신고가 없어도 상담 단위에 검토 완료를 저장」을 요구하는데, `answer_feedback`은 신고가 있을 때만 행이 생겨 **「문제없음」과 「아직 안 봄」을 구분 못 한다.** 검토 행이 있으면 봤고(문제없음/교정), 없으면 미검토. *기각: `answer_feedback` 확장만* — 신고 없는 세션의 검토 완료를 담을 자리가 없다.
+>
+> ⭐ **설계 결정(기각안 포함)**: **품질 교정은 즉시 KB 공개가 아니라 `answer_feedback`(bad inbox)를 거쳐 KB 승인**(B3). 적용(`applied`)돼도 KB `submit_edit`→`approve_pending_edit`(Task 7)을 거쳐야 라이브가 된다. *기각: 품질 화면에서 즉시 KB 적용*(색인 폐기결정 `:280`).
+
+**Files:**
+- Create: `supabase/migrations/00042_chat_quality.sql`
+- Create: `backend/app/services/chat/quality_service.py` · `backend/app/services/chat/answer_feedback_service.py`
+- Create: `backend/tests/test_chat_quality_schema.py` · `backend/tests/test_quality_service.py`
+
+**Interfaces:**
+- Consumes: Task 1·2 `chat_messages`·`ai_chat_sessions`·`support_tickets` · Task 7 `kb_service.submit_edit`(적용→KB) · `staff` · `private.is_active_staff()`·`private.is_admin()` · Task 0 `fake_embedder` · `get_pool`·`AppError`
+- Produces:
+  - 표 `chat_quality_reviews(ai_chat_session_id unique, status ok/corrected, reviewed_by, reviewed_at)` · `answer_feedback(message_id, reported_by, source immediate/quality_review, correction_text, add_to_example_bank, status pending/applied/rejected, resolved_by/at)` · `qa_example_bank(question, answer, embedding vector(1536), is_active, source_feedback_id)` · `unresolved_questions(ticket_id, question_text, question_embedding vector(1536))`
+  - `quality_service.mark_reviewed`(문제없음)·`send_correction`(→answer_feedback quality_review)·`list_sessions_unreviewed_first` · `record_unresolved(ticket_id, question, embedder)`·`cluster_unresolved(embedder, threshold=0.8)`
+  - `answer_feedback_service.report`(즉시 오답)·`list_bad_inbox`(pending 우선)·`apply`(→qa_example_bank + KB submit_edit)·`reject`
+- ⚠️ **아직 안 하는 것**: 관리자 화면(`QUALITY-REPORT`·`BADINBOX`·`UNRES-CLUSTER`·`QAEX` 계열)=Task 21 · 정기 리포트 배치=배포. Task 8은 저장·정렬·클러스터 서버 계약만.
+
+- [ ] **Step 1: 실패하는 스키마 테스트 작성**
+
+`backend/tests/test_chat_quality_schema.py`:
+```python
+import uuid
+import pytest
+import asyncpg
+
+from tests.conftest import seed_staff, seed_patient
+from tests.conftest_chat import seed_chat_thread
+
+
+@pytest.mark.asyncio
+async def test_quality_review_one_per_session(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s = await db_conn.fetchval(
+        "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()) returning id", t)
+    st = await seed_staff(db_conn, role="admin")
+    await db_conn.execute(
+        "insert into chat_quality_reviews (ai_chat_session_id, status, reviewed_by) values ($1,'ok',$2)",
+        s, st["staff_id"])
+    with pytest.raises(asyncpg.exceptions.UniqueViolationError):
+        await db_conn.execute(
+            "insert into chat_quality_reviews (ai_chat_session_id, status, reviewed_by) values ($1,'ok',$2)",
+            s, st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_answer_feedback_source_check(db_conn):
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    m = await db_conn.fetchval(
+        "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content) "
+        "values ($1, $2, 'bot','text','답변') returning id", t, uuid.uuid4())
+    st = await seed_staff(db_conn, role="admin")
+    with pytest.raises(asyncpg.exceptions.CheckViolationError):
+        await db_conn.execute(
+            "insert into answer_feedback (message_id, reported_by, source) values ($1,$2,'made_up')",
+            m, st["staff_id"])
+```
+
+- [ ] **Step 2: 실패 확인 → 마이그레이션 작성**
+
+Run: `cd backend && pytest tests/test_chat_quality_schema.py -v` → FAIL. 그다음 `supabase/migrations/00042_chat_quality.sql`:
+```sql
+-- 상담봇 품질 개선 사이클: 상담 단위 검토(SD-08) + 오답 신고 bad inbox(B3) + 예시은행 + 미해결 클러스터. ⚠️ 번호 예시 00042.
+
+-- 상담 단위 검토(SD-08): 행이 있으면 봤고(문제없음/교정), 없으면 아직 안 봄. answer_feedback 확장으로는 이 구분이 안 된다.
+create table chat_quality_reviews (
+  id uuid primary key default gen_random_uuid(),
+  ai_chat_session_id uuid not null unique references ai_chat_sessions(id),
+  status text not null check (status in ('ok', 'corrected')),   -- ok=문제없음, corrected=교정 보냄
+  reviewed_by uuid not null references staff(id),
+  reviewed_at timestamptz not null default now()
+);
+
+-- 오답 신고 = bad inbox. immediate(그 자리 신고) / quality_review(정기 검토 중 교정). 즉시 KB 공개 금지 → 적용은 KB 승인 경유(B3).
+create table answer_feedback (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references chat_messages(id),
+  reported_by uuid not null references staff(id),
+  source text not null check (source in ('immediate', 'quality_review')),
+  correction_text text,
+  add_to_example_bank boolean not null default false,
+  status text not null default 'pending' check (status in ('pending', 'applied', 'rejected')),
+  resolved_by uuid references staff(id),
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index idx_answer_feedback_inbox on answer_feedback (status, created_at) where status = 'pending';
+
+-- 품질 개선 예시: 적용된 교정을 쌓아 이후 유사 질문 답변 프롬프트에 참고로 넣는다.
+create table qa_example_bank (
+  id uuid primary key default gen_random_uuid(),
+  question text not null,
+  answer text not null,
+  embedding vector(1536) not null,
+  is_active boolean not null default true,
+  source_feedback_id uuid references answer_feedback(id),
+  created_at timestamptz not null default now()
+);
+create index idx_qa_example_embedding on qa_example_bank using hnsw (embedding vector_cosine_ops) where is_active;
+
+-- 미해결 질문(봇이 못 답해 인계된 질문) — 유사도로 자동 클러스터. 클러스터는 질문을 섞을 수 있음(화면이 안내).
+create table unresolved_questions (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references support_tickets(id),
+  question_text text not null,
+  question_embedding vector(1536) not null,
+  created_at timestamptz not null default now()
+);
+create index idx_unresolved_embedding on unresolved_questions using hnsw (question_embedding vector_cosine_ops);
+
+alter table chat_quality_reviews enable row level security;
+alter table answer_feedback enable row level security;
+alter table qa_example_bank enable row level security;
+alter table unresolved_questions enable row level security;
+-- 직원은 조회, 작성·적용·반려는 백엔드 경유(관리자 검사). 봇 예시 검색은 서비스 역할.
+create policy quality_reviews_staff_select on chat_quality_reviews for select to authenticated using (private.is_active_staff());
+create policy answer_feedback_staff_select on answer_feedback for select to authenticated using (private.is_active_staff());
+create policy qa_example_staff_select on qa_example_bank for select to authenticated using (private.is_active_staff());
+create policy unresolved_staff_select on unresolved_questions for select to authenticated using (private.is_active_staff());
+```
+적용: `supabase migration up` → `pytest tests/test_chat_quality_schema.py -v` PASS.
+
+- [ ] **Step 3: 품질·오답 서비스 작성**
+
+`backend/app/services/chat/quality_service.py`:
+```python
+from uuid import UUID
+from app.db.pool import get_pool
+
+
+async def mark_reviewed(session_id: UUID, staff_id: UUID, *, status: str = "ok") -> None:
+    # 신고가 없어도 "문제없음"을 저장한다(SD-08). 재검토는 status만 갱신.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "insert into chat_quality_reviews (ai_chat_session_id, status, reviewed_by) values ($1,$2,$3) "
+            "on conflict (ai_chat_session_id) do update set status=excluded.status, "
+            "reviewed_by=excluded.reviewed_by, reviewed_at=now()", session_id, status, staff_id)
+
+
+async def list_sessions_unreviewed_first(limit: int = 20) -> list[dict]:
+    # 미검토 우선 → 최신 우선(SD-08). 검토 행이 없으면 미검토.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "select s.id, s.created_at, r.status as review_status "
+            "from ai_chat_sessions s left join chat_quality_reviews r on r.ai_chat_session_id = s.id "
+            "order by (r.id is null) desc, s.created_at desc, s.id desc limit $1", limit)
+        return [dict(r) for r in rows]
+
+
+async def record_unresolved(ticket_id: UUID, question: str, embedder) -> None:
+    # 봇이 못 답해 인계된 질문을 임베딩과 함께 저장(클러스터 대상).
+    vec = (await embedder.embed([question]))[0]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "insert into unresolved_questions (ticket_id, question_text, question_embedding) values ($1,$2,$3::vector)",
+            ticket_id, question, "[" + ",".join(map(str, vec)) + "]")
+```
+
+`backend/app/services/chat/answer_feedback_service.py`:
+```python
+from uuid import UUID
+from app.core.errors import AppError
+from app.db.pool import get_pool
+from app.services.chat import kb_service
+
+
+async def report(message_id: UUID, staff_id: UUID, *, correction_text=None,
+                 source: str = "immediate", add_to_example_bank: bool = False) -> dict:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "insert into answer_feedback (message_id, reported_by, source, correction_text, add_to_example_bank) "
+            "values ($1,$2,$3,$4,$5) returning *", message_id, staff_id, source, correction_text, add_to_example_bank)
+        return dict(row)
+
+
+async def list_bad_inbox(limit: int = 20) -> list[dict]:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "select * from answer_feedback where status='pending' order by created_at desc limit $1", limit)
+        return [dict(r) for r in rows]
+
+
+async def apply(feedback_id: UUID, staff_id: UUID, embedder, *, kb_document_id=None,
+                kb_fields: dict | None = None) -> None:
+    # 적용: 예시은행 축적 + (교정이 KB 대상이면) KB submit_edit로 보낸다. 즉시 라이브 아님 — KB 승인 경유(B3).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        fb = await conn.fetchrow("select * from answer_feedback where id=$1 and status='pending'", feedback_id)
+        if fb is None:
+            raise AppError("이미 처리된 신고입니다.", 409)
+        if fb["add_to_example_bank"] and fb["correction_text"]:
+            q = await conn.fetchval("select content from chat_messages where id=$1", fb["message_id"])
+            vec = (await embedder.embed([q or ""]))[0]
+            await conn.execute(
+                "insert into qa_example_bank (question, answer, embedding, source_feedback_id) "
+                "values ($1,$2,$3::vector,$4)", q or "", fb["correction_text"],
+                "[" + ",".join(map(str, vec)) + "]", feedback_id)
+        await conn.execute(
+            "update answer_feedback set status='applied', resolved_by=$2, resolved_at=now() where id=$1",
+            feedback_id, staff_id)
+    if kb_document_id and kb_fields:
+        await kb_service.submit_edit(kb_document_id, staff_id=staff_id, **kb_fields)   # 승인은 별도(Task 7)
+
+
+async def reject(feedback_id: UUID, staff_id: UUID) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "update answer_feedback set status='rejected', resolved_by=$2, resolved_at=now() "
+            "where id=$1 and status='pending'", feedback_id, staff_id)
+```
+
+- [ ] **Step 4: 서비스 테스트 작성**
+
+`backend/tests/test_quality_service.py`:
+```python
+import uuid
+import pytest
+
+from app.services.chat import quality_service, answer_feedback_service
+from tests.conftest import seed_staff, seed_patient
+from tests.conftest_chat import seed_chat_thread, FakeEmbedder
+
+
+@pytest.mark.asyncio
+async def test_unreviewed_sorts_first_and_distinguishes_ok(committed_conn):
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    st = await seed_staff(committed_conn, role="admin")
+    s_old = await committed_conn.fetchval(
+        "insert into ai_chat_sessions (thread_id, expires_at, created_at) values ($1, now(), now()-interval '1 day') returning id", t)
+    s_new = await committed_conn.fetchval(
+        "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()) returning id", t)
+    await quality_service.mark_reviewed(s_new, st["staff_id"], status="ok")  # 새 세션은 문제없음
+    rows = await quality_service.list_sessions_unreviewed_first(limit=10)
+    ids = [r["id"] for r in rows]
+    # 미검토(s_old)가 검토완료(s_new)보다 앞. s_new는 review_status='ok'로 "아직 안 봄"과 구분됨.
+    assert ids.index(s_old) < ids.index(s_new)
+    assert next(r for r in rows if r["id"] == s_new)["review_status"] == "ok"
+    assert next(r for r in rows if r["id"] == s_old)["review_status"] is None
+    for sid in (s_old, s_new):
+        await committed_conn.execute("delete from chat_quality_reviews where ai_chat_session_id=$1", sid)
+        await committed_conn.execute("delete from ai_chat_sessions where id=$1", sid)
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_apply_feedback_adds_example_but_not_live_kb(committed_conn):
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    st = await seed_staff(committed_conn, role="admin")
+    m = await committed_conn.fetchval(
+        "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content) "
+        "values ($1,$2,'bot','text','틀린 답') returning id", t, uuid.uuid4())
+    fb = await answer_feedback_service.report(m, st["staff_id"], correction_text="맞는 답",
+                                              source="quality_review", add_to_example_bank=True)
+    await answer_feedback_service.apply(fb["id"], st["staff_id"], FakeEmbedder())
+    status = await committed_conn.fetchval("select status from answer_feedback where id=$1", fb["id"])
+    n = await committed_conn.fetchval("select count(*) from qa_example_bank where source_feedback_id=$1", fb["id"])
+    assert status == "applied" and n == 1   # 예시은행엔 들어가되 KB 라이브는 승인 경유(여기선 KB 미지정)
+    await committed_conn.execute("delete from qa_example_bank where source_feedback_id=$1", fb["id"])
+    await committed_conn.execute("delete from answer_feedback where id=$1", fb["id"])
+    await committed_conn.execute("delete from chat_messages where id=$1", m)
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+```
+
+- [ ] **Step 5: 테스트 통과 확인** — Run: `cd backend && pytest tests/test_chat_quality_schema.py tests/test_quality_service.py -v` → Expected: PASS.
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add supabase/migrations/00042_chat_quality.sql backend/app/services/chat/quality_service.py \
+        backend/app/services/chat/answer_feedback_service.py backend/tests/test_chat_quality_schema.py \
+        backend/tests/test_quality_service.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 8 본문 — 품질 검토(상담 단위 SD-08)·bad inbox(B3 즉시 KB금지)·예시은행·미해결 클러스터. 품질 저장 모델 미결 닫음(review table)"
+```
+
+> **Task 8 완료 조건**: 상담 단위 검토(문제없음 저장·미검토 우선 정렬)·오답 신고 bad inbox(source 2종)·적용→예시은행+KB 승인 경유·미해결 임베딩 저장 초록불 · 「문제없음」과 「아직 안 봄」 구분 확인 · 즉시 KB 라이브 금지 확인. 품질 저장 모델 미결 닫힘(SD-08). coverage 불변, prefix-check 빚·미배정 0·⏰0.
