@@ -8,7 +8,7 @@
 
 **Goal:** AI 상담봇을 **환자 채널(앱·웹)과 직원·관리자 운영** 두 축으로 구현하고, 그에 필요한 백엔드(3-A 통합 대화 스키마·서비스·오케스트레이션·마이그레이션)를 1단계 FastAPI 위에 추가한다. **화면 규칙 505개를 태스크의 실패 테스트 문장으로 옮기는 것**이 이 재작성의 목적이다(전체 518 중 `SUPPORT-CAL-*` 13개는 직원웹 Task 14 소유 → whitelist).
 
-**Architecture:** 백엔드는 1단계의 `acquire_as`/`AppError` 패턴을 그대로 재사용해 상담봇 서비스·라우터·오케스트레이션을 추가한다. 대화는 **`chat_threads`(앱·웹의 단일 대화 루트) + `chat_messages`(AI·환자·직원·시스템 이벤트의 단일 시간순 원장)** 위에서 흐르고, AI 세션(`ai_chat_sessions`)과 지원 티켓(`support_tickets`)은 같은 thread 안에서 경계를 가진다. 매 메시지는 **응급 표현 검사 → 인계 감시 → 라우터**(RAG 안내형·진료과 추천형·행동형 에이전트)의 3갈래 체인으로 처리한다. 프론트는 **① 앱**(`patient_app/` Flutter — 3단계 스캐폴딩·위젯 재사용, 하단 5번째 탭 `AI 상담`) **② 웹 위젯**(신규 프로젝트 — 익명·등록 환자 채널) **③ 직원·관리자**(`staff_web/` — 2단계 스캐폴딩 재사용, 티켓함·상세·KB·품질·통계)의 세 채널이다.
+**Architecture:** 백엔드는 1단계의 `acquire_as`/`AppError` 패턴을 그대로 재사용해 상담봇 서비스·라우터·오케스트레이션을 추가한다. 대화는 **`chat_threads`(앱·웹의 단일 대화 루트) + `chat_messages`(AI·환자·직원·시스템 이벤트의 단일 시간순 원장)** 위에서 흐르고, AI 세션(`ai_chat_sessions`)과 지원 티켓(`support_tickets`)은 같은 thread 안에서 경계를 가진다. 매 메시지는 **응급 표현 검사 → 인계 감시 → 라우터**(RAG 안내형·진료과 추천형·행동형 에이전트)의 3갈래 체인으로 처리한다. 프론트는 **① 앱**(`patient_app/` Flutter — 3단계 스캐폴딩·위젯 재사용, 하단 5번째 탭 `AI 상담`) **② 웹 위젯**(신규 프로젝트 — 익명·등록 환자 채널) **③ 직원·관리자**(`frontend/` — 2단계 직원웹 스캐폴딩 재사용, 티켓함·상세·KB·품질·통계)의 세 채널이다. ⚠️ 2단계 직원웹 플랜의 실제 프론트 디렉토리는 `frontend/`다(`staff_web/` 아님) — 직원·관리자 화면 태스크(16~22)는 `frontend/src/features/…`에 쓴다.
 
 **Tech Stack:** 백엔드는 1단계와 동일(FastAPI, asyncpg, Supabase Postgres) + LLM/RAG(임베딩·벡터 검색·오케스트레이션). 앱은 Flutter(Dart)+Riverpod+`supabase_flutter`+Realtime. 웹 위젯은 신규 프론트(Task 0에서 스택 확정). 직원·관리자는 2단계 스택. 테스트는 각 채널의 기존 하네스(`pytest`, `flutter_test`+`mocktail`, 직원웹 테스트 러너).
 
@@ -103,7 +103,7 @@
 
 | 태스크 | 무엇 | 규칙 접두어 | 상태 |
 |---|---|---|---|
-| **0** | 스캐폴딩 — **웹 위젯 신규 프론트 프로젝트**(스택 확정) + 챗봇 백엔드 모듈 디렉토리 + LLM/RAG·테스트 하네스. 앱은 `patient_app/`·직원은 `staff_web/` 스캐폴딩 재사용 | — | 🆕 신설 |
+| **0** | 스캐폴딩 — **웹 위젯 신규 프론트 프로젝트**(스택 확정) + 챗봇 백엔드 모듈 디렉토리 + LLM/RAG·테스트 하네스. 앱은 `patient_app/`(3단계)·직원은 `frontend/`(2단계) 스캐폴딩 재사용. 웹 위젯 = 신규 `webchat/`(Vite React) | — | 🆕 신설 |
 | **1** | 마이그레이션 — **통합 대화 스키마**: `chat_threads`(채널·현재 갈래·활동시각·`owner_type`) · `chat_messages`(`message_type`+`payload jsonb`·`client_message_id` 멱등·system/`chat_events`) · `chat_read_states` + RLS | — | 재작성 (공백 1·2·6) |
 | **2** | **AI 세션 + 티켓 생명주기 + 원자 배정** — `ai_chat_sessions`(30분 만료) · `support_tickets`(`pending→in_progress→answered`·`previous_ticket_id`·`appointment_id` FK·`support_requested_at`/`request_type`) · `claim_ticket` 원자 승패 · `send_message`/`close_ticket` 분리 · 최신순+ID 동점 정렬 + RLS | — | 재작성 [R2-01] (SD-02·03·04) |
 | **3** | **익명 소유권 + 수신자 추상화 + 알림 배칭** — `anonymous_chat_sessions`/`contacts`(토큰 해시) · `NotificationRecipient`(등록환자/익명) · 공통 `notification_log`·재시도 · `chat_notification_batches`(미확인 연속 답변 1배치) | — | 재작성 (SD-05·07) |
@@ -158,3 +158,465 @@
      ⚠️ 태스크 헤딩은 `## Task N:`(더블 해시) — prefix-check의 `task_spans`가 이 형식만 본다.
      ⛔ **다음 태스크 몫을 완전 ID로 예고하지 말 것** — coverage가 「반영됨」으로 세어 그 태스크를 쓸 때
         missing에서 사라진다. 예고는 **계열명**(`CCARD-QNR 계열`)이나 범위(`ID~NN`)로. -->
+
+## Task 0: 스캐폴딩 — 웹 위젯(`webchat/`) + 챗봇 백엔드 설정·모듈 + LLM/RAG 테스트 하네스
+
+> **화면 규칙 0개.** 이 태스크는 뒤 태스크(1~22)가 설 자리(웹 위젯 프로젝트·백엔드 챗봇 모듈 디렉토리·LLM/RAG 클라이언트·모킹 하네스)를 만든다. 그래서 테스트는 `test('[규칙ID] …')`가 아니라 **하네스 정합성 검증**(모킹 임베더가 1536차원을 돌려주나·모델 팩토리가 네트워크 없이 설정을 읽나·웹 위젯이 렌더되나)이다. 앱(`patient_app/`, 3단계 Task 0)과 직원웹(`frontend/`, 2단계 Task 4) 스캐폴딩은 **재사용**한다 — 이 태스크가 새로 만들지 않는다.
+
+**Files:**
+- Create: `webchat/package.json` · `webchat/vite.config.ts` · `webchat/tsconfig.json` · `webchat/tsconfig.node.json` · `webchat/index.html`
+- Create: `webchat/src/main.tsx` · `webchat/src/App.tsx` · `webchat/src/lib/supabaseClient.ts` · `webchat/src/lib/env.ts`
+- Create: `webchat/.env.example`
+- Create: `webchat/vitest.config.ts` · `webchat/src/test/setup.ts`
+- Test: `webchat/src/App.test.tsx`
+- Create: `backend/app/integrations/__init__.py` · `backend/app/integrations/embedding_client.py` · `backend/app/integrations/langchain_client.py`
+- Create: `backend/app/services/chat/__init__.py` (챗봇 서비스 패키지 표식 — Task 5~8이 채운다)
+- Modify: `backend/app/core/config.py` (챗봇 설정 추가)
+- Modify: `backend/requirements.txt` (`langchain`·`langchain-anthropic` 추가)
+- Modify: `backend/.env.example` (`ANTHROPIC_API_KEY`·`OPENAI_API_KEY`)
+- Create: `backend/tests/conftest_chat.py` (모킹 임베더 fixture — Task 6~8 재사용)
+- Test: `backend/tests/test_embedding_client.py` · `backend/tests/test_langchain_client.py`
+
+**Interfaces:**
+- Consumes: `app.core.config.settings`(1단계) · `app.core.errors.AppError`·`log_error`(1단계) · `@supabase/supabase-js`(직원웹과 같은 라이브러리)
+- Produces (백엔드):
+  - `app.integrations.embedding_client.EmbeddingClient(api_key: str)` — `.embed(texts: list[str]) -> list[list[float]]`(async, 1536차원, 순서 보존) · `get_embedding_client() -> EmbeddingClient`
+  - `app.integrations.langchain_client.get_chat_model(model: str | None = None) -> ChatAnthropic`
+  - `settings.anthropic_api_key`·`settings.openai_api_key`·`settings.chat_model`(기본 `"claude-sonnet-5"`)·`settings.embedding_model`(기본 `"text-embedding-3-small"`)·`settings.anon_rate_limit_per_hour`(기본 30)
+  - `tests/conftest_chat.py::fake_embedder` — `.embed`가 입력 개수만큼 `[0.1]*1536` 벡터를 돌려주는 async 모킹(Task 6 RAG 검색·Task 7 재임베딩 테스트가 주입)
+- Produces (웹 위젯): `webchat/` — Vite+React+TS SPA 프로젝트. `npm --prefix webchat run build`가 성공하고 `App`이 렌더된다. 실제 상담방·런처는 Task 14·15가 `webchat/src/`에 채운다.
+- ⚠️ **금지 설정**: 옛 스펙의 `business_hour_start/end` 환경변수는 **추가하지 않는다** — 운영시간 판정은 서버 단일 `is_open(at)`(Task 5·`hospital_hours` 소비)이 담당한다(정본 §1-9, `SCHED-HOURS-03`). 여기에 9~18시 환경변수를 두면 두 판정이 갈라진다.
+
+### A. 웹 위젯(`webchat/`) Vite React 스캐폴딩
+
+> 스택 근거: 결정 문서 `:4374`·`:5221`(구현은 Flutter 앱·**React 웹**) + 옛 플랜 `:64`(병원 홈페이지용 웹 상담창 = 별도 Vite 앱). 직원웹과 같은 `@supabase/supabase-js`·Vitest 하네스를 쓴다(직원웹 플랜 Task 0 `:11`).
+
+- [ ] **Step A1: 프로젝트 매니페스트·설정 작성**
+
+`webchat/package.json`:
+```json
+{
+  "name": "hospital-webchat",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "jsdom": "^25.0.1",
+    "msw": "^2.4.9",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.2"
+  }
+}
+```
+
+`webchat/vite.config.ts`:
+```ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  // 병원 홈페이지에 임베드되는 위젯. base는 배포 시점에 확정(Task 14).
+  build: { outDir: 'dist' },
+});
+```
+
+`webchat/vitest.config.ts`:
+```ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+  },
+});
+```
+
+`webchat/tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+`webchat/tsconfig.node.json`:
+```json
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true
+  },
+  "include": ["vite.config.ts", "vitest.config.ts"]
+}
+```
+
+`webchat/index.html`:
+```html
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 상담봇</title>
+  </head>
+  <body>
+    <div id="webchat-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+`webchat/.env.example`:
+```
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
+
+- [ ] **Step A2: 앱 엔트리·Supabase 클라이언트 작성**
+
+`webchat/src/lib/env.ts`:
+```ts
+// 위젯 런타임 설정. 값이 없으면 빈 문자열이 아니라 화면(Task 14)이 장애 안내를 띄운다.
+export const env = {
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+};
+```
+
+`webchat/src/lib/supabaseClient.ts`:
+```ts
+import { createClient } from '@supabase/supabase-js';
+import { env } from './env';
+
+// 익명 웹 채널. 로그인 세션이 아니라 브라우저 익명 토큰(Task 3·15)으로 소유권을 잇는다.
+// persistSession=false: 익명 위젯은 Supabase Auth 세션을 저장하지 않는다(MR2-01).
+export const supabase = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+```
+
+`webchat/src/App.tsx`:
+```tsx
+// 위젯 셸의 자리표시자. 런처·상담방·카드는 Task 14·15가 이 파일을 확장한다.
+export default function App() {
+  return (
+    <div id="webchat-app" role="region" aria-label="AI 상담봇">
+      <p>AI 상담봇</p>
+    </div>
+  );
+}
+```
+
+`webchat/src/main.tsx`:
+```tsx
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+const root = document.getElementById('webchat-root');
+if (root) {
+  createRoot(root).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+```
+
+`webchat/src/test/setup.ts`:
+```ts
+import '@testing-library/jest-dom';
+```
+
+- [ ] **Step A3: 실패하는 렌더 테스트 작성**
+
+`webchat/src/App.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('위젯 셸이 AI 상담봇 이름표를 붙여 렌더된다', () => {
+  render(<App />);
+  // 환자 노출 이름은 항상 `AI 상담봇`(정본 §0). `챗봇` 글자를 쓰지 않는다.
+  expect(screen.getByRole('region', { name: 'AI 상담봇' })).toBeInTheDocument();
+  expect(screen.queryByText(/챗봇/)).not.toBeInTheDocument();
+});
+```
+
+- [ ] **Step A4: 의존성 설치 → 테스트 실패 확인**
+
+Run: `npm --prefix webchat install && npm --prefix webchat run test`
+Expected: FAIL — `App` 모듈은 있으나 최초엔 `import` 경로/타입 오류로 실패(또는 `region` 이름표 누락). 초록불이 나올 때까지 위 파일을 맞춘다.
+
+- [ ] **Step A5: 테스트 통과 + 빌드 확인**
+
+Run: `npm --prefix webchat run test && npm --prefix webchat run build`
+Expected: PASS + `webchat/dist/` 생성. 빌드가 성공해야 뒤 태스크(14·15)의 위젯이 배포될 자리가 생긴다.
+
+### B. 챗봇 백엔드 설정·모듈 디렉토리
+
+- [ ] **Step B1: 설정·의존성·환경 예시 추가**
+
+`backend/app/core/config.py`의 `Settings` 클래스에 필드 추가(⚠️ `business_hour_*`는 넣지 않는다):
+```python
+    anthropic_api_key: str = ""
+    openai_api_key: str = ""
+    chat_model: str = "claude-sonnet-5"
+    embedding_model: str = "text-embedding-3-small"
+    anon_rate_limit_per_hour: int = 30
+```
+
+`backend/requirements.txt`에 추가:
+```
+langchain==0.3.7
+langchain-anthropic==0.3.0
+```
+Run: `cd backend && pip install -r requirements.txt`
+
+`backend/.env.example`에 추가:
+```
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+```
+
+- [ ] **Step B2: 모듈 디렉토리 표식 생성**
+
+`backend/app/integrations/__init__.py` — 빈 파일(패키지 표식).
+`backend/app/services/chat/__init__.py` — 빈 파일. 오케스트레이션·카드·KB·품질 서비스(Task 5~8)가 이 패키지에 들어온다.
+
+Run: `cd backend && python -c "import app.integrations, app.services.chat"`
+Expected: 오류 없이 종료(패키지 임포트 가능).
+
+### C. LLM/RAG 테스트 하네스 (임베딩 클라이언트 + 모델 팩토리 + 모킹 fixture)
+
+> 근거: 옛 플랜 Task 4(임베딩)·Task 7(모델 팩토리). 두 클라이언트는 **네트워크를 태우지 않고 모킹**할 수 있어야 뒤 태스크가 테스트를 쓴다. `embed`는 OpenAI 응답의 `index`로 **순서를 복원**한다(SDB 지적 — 배치 응답이 뒤섞여 오면 질문↔벡터 짝이 어긋난다).
+
+- [ ] **Step C1: 실패하는 테스트 작성 — 임베딩 클라이언트**
+
+`backend/tests/test_embedding_client.py`:
+```python
+import httpx
+import pytest
+
+from app.integrations.embedding_client import EmbeddingClient
+
+
+@pytest.mark.asyncio
+async def test_embed_returns_1536_dim_vectors_in_order(monkeypatch):
+    async def fake_post(self, url, **kwargs):
+        assert url.endswith("/embeddings")
+        texts = kwargs["json"]["input"]
+        # 응답 index를 일부러 뒤섞어 순서 복원을 검증한다.
+        data = [{"index": i, "embedding": [float(i)] * 1536} for i in range(len(texts))]
+        return httpx.Response(200, json={"data": list(reversed(data))},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    client = EmbeddingClient(api_key="test-key")
+    vectors = await client.embed(["주차 되나요?", "진료시간 알려주세요"])
+    assert len(vectors) == 2
+    assert len(vectors[0]) == 1536
+    assert vectors[0][0] == 0.0 and vectors[1][0] == 1.0  # index 순서 복원됨
+
+
+@pytest.mark.asyncio
+async def test_embed_raises_korean_apperror_on_failure(monkeypatch):
+    async def fake_post(self, url, **kwargs):
+        return httpx.Response(500, json={"error": "boom"},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    from app.core.errors import AppError
+    client = EmbeddingClient(api_key="test-key")
+    with pytest.raises(AppError) as exc:
+        await client.embed(["질문"])
+    assert "다시 시도" in exc.value.message  # 파이썬 예외 원문 노출 금지, 한글 안내
+```
+
+- [ ] **Step C2: 테스트 실패 확인**
+
+Run: `cd backend && pytest tests/test_embedding_client.py -v`
+Expected: FAIL — `app.integrations.embedding_client` 모듈 없음.
+
+- [ ] **Step C3: 임베딩 클라이언트 구현**
+
+`backend/app/integrations/embedding_client.py`:
+```python
+import httpx
+
+from app.core.config import settings
+from app.core.errors import AppError, log_error
+
+OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
+
+
+class EmbeddingClient:
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        async with httpx.AsyncClient(timeout=30) as http:
+            resp = await http.post(
+                OPENAI_EMBEDDINGS_URL,
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json={"model": settings.embedding_model, "input": texts},
+            )
+        if resp.status_code != 200:
+            # log_error는 async — await 없이 부르면 코루틴만 만들고 로그가 조용히 유실된다.
+            await log_error("embedding", f"OpenAI 임베딩 실패: {resp.status_code} {resp.text[:200]}")
+            raise AppError("자료 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.", 502)
+        data = sorted(resp.json()["data"], key=lambda d: d["index"])
+        return [d["embedding"] for d in data]
+
+
+def get_embedding_client() -> EmbeddingClient:
+    return EmbeddingClient(api_key=settings.openai_api_key)
+```
+
+- [ ] **Step C4: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_embedding_client.py -v`
+Expected: PASS(2 passed).
+
+- [ ] **Step C5: 실패하는 테스트 작성 — 모델 팩토리**
+
+`backend/tests/test_langchain_client.py`:
+```python
+def test_get_chat_model_uses_settings(monkeypatch):
+    from app.core.config import settings
+    from app.integrations.langchain_client import get_chat_model
+
+    monkeypatch.setattr(settings, "chat_model", "claude-sonnet-5")
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
+    model = get_chat_model()
+    assert model.model == "claude-sonnet-5"  # 기본 대화 모델은 Sonnet 5
+
+
+def test_get_chat_model_accepts_override():
+    from app.integrations.langchain_client import get_chat_model
+
+    model = get_chat_model(model="claude-opus-5")
+    assert model.model == "claude-opus-5"
+```
+
+- [ ] **Step C6: 테스트 실패 확인**
+
+Run: `cd backend && pytest tests/test_langchain_client.py -v`
+Expected: FAIL — `app.integrations.langchain_client` 모듈 없음.
+
+- [ ] **Step C7: 모델 팩토리 구현**
+
+`backend/app/integrations/langchain_client.py`:
+```python
+from langchain_anthropic import ChatAnthropic
+
+from app.core.config import settings
+
+
+def get_chat_model(model: str | None = None) -> ChatAnthropic:
+    return ChatAnthropic(
+        model=model or settings.chat_model,
+        api_key=settings.anthropic_api_key,
+        max_tokens=2048,
+    )
+```
+
+- [ ] **Step C8: 테스트 통과 확인**
+
+Run: `cd backend && pytest tests/test_langchain_client.py -v`
+Expected: PASS(2 passed).
+
+- [ ] **Step C9: 모킹 임베더 fixture 작성 (뒤 태스크 재사용)**
+
+`backend/tests/conftest_chat.py`:
+```python
+import pytest
+
+
+class FakeEmbedder:
+    """네트워크 없이 결정적 벡터를 돌려주는 임베더. Task 6·7 테스트가 EmbeddingClient 대신 주입한다."""
+
+    def __init__(self, dim: int = 1536):
+        self._dim = dim
+        self.calls: list[list[str]] = []
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(list(texts))
+        # 텍스트 길이로 첫 성분만 달리해 서로 구분 가능한 벡터를 만든다(유사도 테스트용).
+        return [[float(len(t) % 7)] + [0.1] * (self._dim - 1) for t in texts]
+
+
+@pytest.fixture
+def fake_embedder() -> FakeEmbedder:
+    return FakeEmbedder()
+```
+
+`backend/tests/conftest.py`가 있으면 `pytest_plugins`에 추가하고, 없으면 각 테스트가 `from tests.conftest_chat import FakeEmbedder`로 직접 임포트한다(1단계 테스트 관례를 따른다).
+
+- [ ] **Step C10: 하네스 자가검증 테스트 → 통과**
+
+`backend/tests/test_embedding_client.py`에 fixture 검증 1건 추가:
+```python
+@pytest.mark.asyncio
+async def test_fake_embedder_returns_1536_dim(fake_embedder):
+    vectors = await fake_embedder.embed(["a", "bb"])
+    assert len(vectors) == 2 and all(len(v) == 1536 for v in vectors)
+    assert fake_embedder.calls == [["a", "bb"]]  # 호출 인자를 기록해 재임베딩 테스트가 검사
+```
+
+Run: `cd backend && pytest tests/test_embedding_client.py tests/test_langchain_client.py -v`
+Expected: PASS(전체 초록불).
+
+- [ ] **Step B/C 마무리: 커밋**
+
+```bash
+git add webchat/ backend/app/integrations/ backend/app/services/chat/__init__.py \
+        backend/app/core/config.py backend/requirements.txt backend/.env.example \
+        backend/tests/test_embedding_client.py backend/tests/test_langchain_client.py \
+        backend/tests/conftest_chat.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 0 본문 — 웹위젯(webchat/) Vite React 스캐폴딩 + 챗봇 백엔드 설정·모듈 + LLM/RAG 모킹 하네스(임베딩 1536차원·모델 팩토리 claude-sonnet-5)"
+```
+
+> **Task 0 완료 조건**: `webchat` 렌더·빌드 초록불 · 백엔드 임베딩(순서 복원·한글 오류)·모델 팩토리·모킹 fixture 초록불 · `business_hour_*` 미추가 확인. 화면 규칙 0개라 `plan-coverage-check`의 커버 수는 변하지 않고(정상), `plan-prefix-check`는 이 태스크가 소유한 접두어가 없어 빚·미배정 0이어야 한다.
