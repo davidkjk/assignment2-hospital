@@ -20527,3 +20527,244 @@ git commit -m "feat: 📝 환자앱 Task 30 본문 — 나의 예약 목록 셸�
 > - `LIST-ST-04·10·11·18·19·21·23`(목적·근거·prose): 각각 `LIST-ST-03`(상담 연결됨) · `LIST-ST-09`(숫자 없음) · `LIST-ST-16`(시간 변경됨=병원취소는 목록에 없음, 필터 테스트) 등 인접 테스트가 값으로 실현. `LIST-ST-21`(병원취소 목록에 안 뜸)은 `filterUpcoming`이 `병원취소`를 뺀다는 테스트로 실현.
 > ⚠️ **양방향 악수(T31이 갚는다)**: `MyAppointmentsScreen`이 `bottomSlot`·`questionnaireBuilder`·빈/오프라인/실패 세 분기를 **비워** 뒀다. T31이 `LIST-CTA`(하단 버튼)·`LIST-QNR`(문진 줄)·`LIST-EMPTY`(빈 상태)·`LIST-REFRESH`(갱신)를 그 자리에 채운다. ⛔ **T31 규칙을 여기 완전 ID로 예고하지 않았다**(coverage 사각 방지).
 > ⚠️ **착수 시 주의(핸드오프 함정 재확인)**: `LIST-ST`·`NAV-LIST`를 축약(`ST-06·07·08`)으로 쓰면 검사기가 못 읽어 빚이 쌓인다 — 위 test는 전부 **완전 ID**로 폈다.
+
+---
+
+## Task 31: 나의 예약 목록 — 빈 상태·오프라인·조회 실패·갱신·문진 경고 줄·하단 버튼 (29규칙)
+
+> **담당 규칙(29)**:
+> `LIST-EMPTY-01~10`(10) · `LIST-QNR-01~08`(8) · `LIST-REFRESH-01~06`(6) · `LIST-CTA-01~05`(5).
+>
+> ⭐⭐ **이 묶음의 축 = 「T30이 그린 목록 셸에 주변 상태를 채운다」** — 묶음 8을 홈↔목록처럼 셸(T30)↔주변(T31)으로 세로 분할한 뒷절반. T30이 `MyAppointmentsScreen`에 `bottomSlot`·`questionnaireBuilder`·빈/오프라인/실패 세 분기를 **빈 슬롯**으로 두고 NAV 배선만 검증했다(양방향 악수). 여기서 그 슬롯을 실제 위젯으로 채워 **묶음 8·환자앱 화면 태스크를 완결**한다(이후 챗봇 ⑤만 남음).
+>
+> ⚠️ **경계 — T31이 담는 것 / 이미 있는 것**:
+> - **T31(여기)**: 하단 큰 버튼(`LIST-CTA`)·문진 경고 줄(`LIST-QNR`)·빈/오프라인/실패 세 분기(`LIST-EMPTY`)·갱신과 실시간 구독(`LIST-REFRESH`).
+> - **T30이 이미 함(재정의 금지)**: 목록 셸·줄·상태 글자·`filterUpcoming`(앞으로 갈 5상태)·`listStatusLabel`·정렬·NAV-LIST 배선(줄→상세·문진 줄→문진·CTA→예약). `MyAppointmentsScreen.openQuestionnaire(view)`·`/booking` 이동은 T30이 못박음 — 여기선 **위젯 모양·조건**만 슬롯에 넣는다.
+>
+> 📌 **재사용**:
+> - **T16** `homeAppointmentsProvider`(`FutureProvider<List<AppointmentView>>` — 온라인 `list_my_appointments` + `UpcomingCache` 오프라인 폴백). **새로고침 = `ref.invalidate(homeAppointmentsProvider)`.** 실시간 구독 = 홈이 쓴 구독 객체(`realtime: sub`·`sub.subscribed` — 활성 예약 있으면 구독, `진료완료`뿐이면 해제)를 목록도 재사용.
+> - **T12** `EmptyState.zero/offline/error`(빈/오프라인/실패 한 벌) · `ActionButton({label, busyLabel, onPressed, disabledReason})`(하단 버튼·오프라인 비활성=`disabledReason`).
+> - **T11** `connectivityProvider`(오프라인 판정) · `CachedUpcoming.isStale`(24시간 경과 = `OFF-STALE-01`) · 오프라인 띠(`OFF-BAN`)·돌아온 값 다름(`OFF-BACK-02`).
+> - **T0** `WarnText`(주의색 한 줄·좌측 4px 바 = `DISP-WARN-01`) · **T24** `qnr_progress_text`(작성 중 진행률 `(3/8)` = `QNR-PROG-07·10`). ⛔ T17 `QuestionnaireRow`는 **재사용하지 않는다** — 목록은 완료·진료중을 **숨기고**(`LIST-QNR-02·04`) 카드는 보이므로 가시성 규칙이 다르다. 같은 `WarnText`+진행률로 **목록 전용 얇은 줄**만 만든다.
+> - **T30** `MyAppointmentsScreen({bottomSlot, questionnaireBuilder})`·`AppointmentBox({questionnaireSlot})`·`MyAppointmentsScreen.openQuestionnaire(view)`·`filterUpcoming`.
+> 📌 **목업**: `46-appointments-tab.html`. 확인된 문구: `예약된 진료가 없습니다`·`가까운 날짜로 예약하실 수 있습니다`·`+ 새 예약하기`·`사전문진 미작성 · 작성하기`·`사전문진 작성 중 (3/8) · 이어서 쓰기`.
+>
+> ⚠️⚠️ **착수 시 확인 1건(잠복 버그 후보 — T30 `is_self`와 같은 종류)**: `LIST-QNR`은 `AppointmentView`의 문진 상태(`questionnaireState`·`answered`·`total`)를 읽는다. T24가 **조회 서비스**(`list_my_appointments`)엔 3필드를 소급했으나(HANDOFF T24), **`AppointmentView.fromJson`이 이 3필드를 파싱하는지** 착수 시 확인할 것. 안 되어 있으면 여기서 소급(파싱 1줄 + 필드 3개) — T30이 `is_self`를 채운 것과 대칭. 파싱이 없으면 `LIST-QNR-03`의 `(3/8)`이 늘 비어 나온다.
+
+**Files:**
+- Create: `patient_app/lib/features/appointments/appointment_list_qnr_line.dart`(`appointmentListQnrLine(AppointmentView view, {required VoidCallback onOpen}) -> Widget?` — `LIST-QNR`. 완료·진료중이후·미보유면 `null`)
+- Create: `patient_app/lib/features/appointments/appointment_list_cta.dart`(`AppointmentListCta({required bool offline, required VoidCallback onNewBooking})` — `LIST-CTA` 하단 버튼)
+- Modify: `patient_app/lib/features/appointments/my_appointments_screen.dart`(T30 — 슬롯 기본값을 실제 위젯으로 채우고, `AsyncValue.when`에 빈/오프라인/실패 세 분기 + `RefreshIndicator`(당겨서 새로고침) + 실시간 구독 + 상세에서 돌아올 때 스크롤 보존 = `LIST-EMPTY`·`LIST-REFRESH`)
+- Test: `patient_app/test/features/appointments/appointment_list_qnr_line_test.dart` · `appointment_list_cta_test.dart` · `my_appointments_screen_state_test.dart`
+
+**Interfaces:**
+- Consumes: `AppointmentView`(`status`·`isSelf`·`forPatientName`·문진 `questionnaireState`/`answered`/`total`) · `homeAppointmentsProvider`·실시간 구독 객체(T16) · `connectivityProvider`·`CachedUpcoming.isStale`(T11) · `EmptyState`·`ActionButton`(T12) · `WarnText`(T0) · `qnrProgressText(answered, total)`(T24) · `MyAppointmentsScreen.openQuestionnaire`·`filterUpcoming`·`AppointmentBox`(T30).
+- Produces: 없음(마지막 화면 태스크). 묶음 8 완결.
+
+- [ ] **Step 1: 하단 큰 버튼 `AppointmentListCta` (`LIST-CTA`)** — `appointment_list_cta.dart`
+
+```dart
+// test/features/appointments/appointment_list_cta_test.dart
+testWidgets('[LIST-CTA-01][LIST-CTA-02] 항상 화면 하단에 「+ 새 예약하기」 하나', (t) async {
+  await t.pumpWidget(_wrap(AppointmentListCta(offline: false, onNewBooking: () {})));
+  expect(find.text('+ 새 예약하기'), findsOneWidget);
+});
+testWidgets('[LIST-CTA-04] 누르면 예약 1단계로 (onNewBooking 호출)', (t) async {
+  var went = false;
+  await t.pumpWidget(_wrap(AppointmentListCta(offline: false, onNewBooking: () => went = true)));
+  await t.tap(find.text('+ 새 예약하기'));
+  expect(went, isTrue);
+});
+testWidgets('[LIST-CTA-05] 오프라인이면 비활성 + 이유 문구(숨기지 않는다)', (t) async {
+  var went = false;
+  await t.pumpWidget(_wrap(AppointmentListCta(offline: true, onNewBooking: () => went = true)));
+  await t.tap(find.text('+ 새 예약하기'));
+  expect(went, isFalse);                                   // 비활성
+  expect(find.textContaining('연결'), findsWidgets);        // disabledReason 문구 노출
+});
+```
+> 구현: `AppointmentListCta`는 T12 `ActionButton`을 감싼다 — `ActionButton(label: '+ 새 예약하기', busyLabel: '+ 새 예약하기', onPressed: onNewBooking, disabledReason: offline ? '오프라인 상태에서는 예약할 수 없어요' : null)`(`LIST-CTA-05`=`BTN-STATE-03`·`OFF-DO-02`). 이 버튼은 예약 마법사로의 **이동**이라 `busy`는 없다(`busyLabel`은 required라 라벨과 동일). 화면 하단 고정은 `MyAppointmentsScreen`이 `bottomNavigationBar`/`Column` 하단에 놓아 실현(Step 3, `LIST-CTA-01·02`).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: 문진 경고 줄 `appointmentListQnrLine` (`LIST-QNR`)** — `appointment_list_qnr_line.dart`
+
+```dart
+// test/features/appointments/appointment_list_qnr_line_test.dart
+AppointmentView _qv(String status, {String qnr = '미작성', int answered = 0, int total = 8}) =>
+    _view(status, questionnaireState: qnr, answered: answered, total: total);
+
+testWidgets('[LIST-QNR-01][LIST-QNR-08] 미작성 → 배경 없이 주의색 한 줄 「사전문진 미작성 · 작성하기」', (t) async {
+  final w = appointmentListQnrLine(_qv('예약확정', qnr: '미작성'), onOpen: () {});
+  await t.pumpWidget(_wrap(w!));
+  expect(find.textContaining('사전문진 미작성'), findsOneWidget);
+  expect(find.textContaining('작성하기'), findsOneWidget);
+  expect(find.byType(WarnText), findsOneWidget);           // DISP-WARN-01: 배경 없이 글자 + 좌측 4px 바
+});
+testWidgets('[LIST-QNR-03] 작성 중 → 「사전문진 작성 중 (3/8) · 이어서 쓰기」', (t) async {
+  final w = appointmentListQnrLine(_qv('예약확정', qnr: '작성 중', answered: 3, total: 8), onOpen: () {});
+  await t.pumpWidget(_wrap(w!));
+  expect(find.textContaining('작성 중 (3/8)'), findsOneWidget);
+  expect(find.textContaining('이어서 쓰기'), findsOneWidget);
+});
+test('[LIST-QNR-02][LIST-QNR-05] 작성완료 → null (목록엔 안 뜨고, 완료분은 상세에서 본다)', () {
+  expect(appointmentListQnrLine(_qv('예약확정', qnr: '작성완료'), onOpen: () {}), isNull);
+});
+test('[LIST-QNR-04] 진료중 이후 → null (지금 할 일이 있는 줄에만 준다)', () {
+  expect(appointmentListQnrLine(_qv('진료중', qnr: '미작성'), onOpen: () {}), isNull);
+  expect(appointmentListQnrLine(_qv('도착', qnr: '작성 중'), onOpen: () {}), isNull);   // 도착=진료 임박도 목록 경고 대상 아님(진료중 이후 계열)
+});
+testWidgets('[LIST-QNR-06] 누르면 문진 화면으로 (상세를 거치지 않는다)', (t) async {
+  var opened = false;
+  final w = appointmentListQnrLine(_qv('예약확정', qnr: '미작성'), onOpen: () => opened = true);
+  await t.pumpWidget(_wrap(w!));
+  await t.tap(find.byType(WarnText));
+  expect(opened, isTrue);                                  // onOpen = MyAppointmentsScreen.openQuestionnaire (NAV-LIST-04)
+});
+testWidgets('[LIST-QNR-07] 왼쪽을 레일 폭만큼 띄워 같은 상자임을 보인다', (t) async {
+  final w = appointmentListQnrLine(_qv('예약확정', qnr: '미작성'), onOpen: () {});
+  await t.pumpWidget(_wrap(w!));
+  final pad = t.widget<Padding>(find.ancestor(of: find.byType(WarnText), matching: find.byType(Padding)).first);
+  expect((pad.padding as EdgeInsets).left, kListRailWidth);  // 레일 폭(T30 상수)만큼 들여쓴다
+});
+```
+> 구현: 순수 함수 `appointmentListQnrLine(view, {onOpen}) -> Widget?`.
+> - **가시성**: `진료중`·`도착`·`진료대기` 등 진료 임박/이후이거나(`isBeforeTreatment(view.status)==false`) 문진이 `작성완료`·미보유면 **`null` 반환**(`LIST-QNR-02·04·05`). "지금 할 일이 있는 줄"(=진료 시작 전 + 미작성/작성 중)에만 그린다.
+> - **문구**: `미작성` → `사전문진 미작성 · 작성하기 ›`(`LIST-QNR-01`) · `작성 중` → `사전문진 작성 중 ${qnrProgressText(view.answered, view.total)} · 이어서 쓰기 ›`(`LIST-QNR-03`, `qnrProgressText`=`(3/8)`, T24 재사용).
+> - **모양**: `WarnText`(배경 없이 글자 + 좌측 4px 바, `LIST-QNR-08`=`DISP-WARN-01`)를 `Padding(left: kListRailWidth)`로 감싼다(`LIST-QNR-07`). `WarnText`에 `onTap: onOpen`(`LIST-QNR-06`).
+> - `isBeforeTreatment`는 T30/T15 상태 판정 재사용(진료 시작 전 = `예약신청`·`예약확정`). `kListRailWidth`는 T30이 시각 레일 폭으로 정의한 상수.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: 빈 상태·오프라인·조회 실패 세 분기 (`LIST-EMPTY`) + 슬롯 조립 (`LIST-CTA-03`)** — `my_appointments_screen.dart` 수정
+
+```dart
+// test/features/appointments/my_appointments_screen_state_test.dart
+// _screen(...)은 homeAppointmentsProvider·connectivityProvider를 override해 상태를 만든다.
+testWidgets('[LIST-EMPTY-01][LIST-EMPTY-02][LIST-EMPTY-03][LIST-CTA-03] 온라인 0건 → 안내 + 하단 CTA, [다시 시도]·최근 방문 없음', (t) async {
+  await t.pumpWidget(_screen(data: [], online: true));
+  expect(find.text('예약된 진료가 없습니다'), findsOneWidget);
+  expect(find.textContaining('가까운 날짜로'), findsOneWidget);
+  expect(find.text('+ 새 예약하기'), findsOneWidget);           // 0건에도 CTA(LIST-CTA-03)
+  expect(find.textContaining('다시 시도'), findsNothing);        // LIST-EMPTY-02: 실패가 아니라 사실
+  expect(find.textContaining('최근 방문'), findsNothing);        // LIST-EMPTY-03
+});
+testWidgets('[LIST-EMPTY-04][LIST-EMPTY-05] 오프라인 + 보관본 있음 → 보관본 그대로 + 오프라인 띠(모습 온라인과 같음)', (t) async {
+  await t.pumpWidget(_screen(data: [_view('예약확정')], online: false, cached: true));
+  expect(find.byType(AppointmentBox), findsOneWidget);          // 목록을 그대로 보여준다
+  expect(find.byType(OfflineBanner), findsOneWidget);           // 맨 위 오프라인 띠(OFF-BAN)
+});
+testWidgets('[LIST-EMPTY-06] 보관본 24시간 초과 → 화면 위쪽에 경고 한 번(줄마다 아님)', (t) async {
+  await t.pumpWidget(_screen(data: [_view('예약확정')], online: false, cached: true, stale: true));
+  expect(find.textContaining('시간이 지난'), findsOneWidget);    // OFF-STALE-01, 한 번만
+});
+testWidgets('[LIST-EMPTY-07] 오프라인 + 보관본 없음 → EmptyState.offline + [다시 시도]', (t) async {
+  await t.pumpWidget(_screen(data: null, online: false, cached: false));
+  expect(find.byType(EmptyState), findsOneWidget);
+  expect(find.textContaining('다시 시도'), findsOneWidget);      // EMPTY-OFF-01
+});
+testWidgets('[LIST-EMPTY-08][LIST-EMPTY-10] 조회 실패 → EmptyState.error(오프라인과 같은 모양), 예외 원문 안 뜸', (t) async {
+  await t.pumpWidget(_screen(error: Exception('psycopg: relation ...'), online: true));
+  expect(find.byType(EmptyState), findsOneWidget);
+  expect(find.textContaining('psycopg'), findsNothing);         // LIST-EMPTY-10: Text('$e') 금지(P8-7)
+});
+testWidgets('[LIST-EMPTY-09] 오프라인·실패엔 0건 화면(예약된 진료가 없습니다)을 띄우지 않는다', (t) async {
+  await t.pumpWidget(_screen(data: null, online: false, cached: false));
+  expect(find.text('예약된 진료가 없습니다'), findsNothing);      // 0건이 아니라 「모르는 것」
+});
+```
+> 구현: `MyAppointmentsScreen`의 데이터 소비를 세 분기로 나눈다. `homeAppointmentsProvider`(AsyncValue) + `connectivityProvider`를 함께 읽어:
+> - **online + data 있음** → 목록(T30) + 실시간 구독(Step 4).
+> - **online + data 빈 리스트** → `filterUpcoming` 결과 0건이므로 `EmptyState.zero(title: '예약된 진료가 없습니다', message: '가까운 날짜로 예약하실 수 있습니다')`(`LIST-EMPTY-01`). **[다시 시도] 없음**(`LIST-EMPTY-02` — `EmptyState.zero`는 `onRetry`를 받지 않는다) · **최근 방문 줄 없음**(`LIST-EMPTY-03`).
+> - **offline + 캐시 있음**(`connectivity==offline && data 있음`) → 목록 그대로 + 맨 위 `OfflineBanner`(`LIST-EMPTY-04·05`). `CachedUpcoming.isStale`면 그 아래 경고 한 줄 **한 번만**(`LIST-EMPTY-06`=`OFF-STALE-01`).
+> - **offline + 캐시 없음** → `EmptyState.offline(screenName: '예약', onRetry: () => ref.invalidate(homeAppointmentsProvider))`(`LIST-EMPTY-07`).
+> - **error** → `EmptyState.error(onRetry: ...)`(`LIST-EMPTY-08`) — `AsyncValue.error`를 `Text('$e')`로 찍지 않는다(`LIST-EMPTY-10`, 갭 #14 계열·P8-7 해소).
+> - ⛔ **offline/error일 때 0건 분기로 새지 않게** 분기 순서를 `error → offline → (online: empty | list)`로 둔다(`LIST-EMPTY-09` — 0건은 online에서만).
+> - **하단 CTA**: `bottomSlot`이 null이면 기본으로 `AppointmentListCta(offline: connectivity==offline, onNewBooking: () => context.go('/booking'))`를 넣는다(Step 1). 빈 상태·오프라인·실패 어느 분기든 **하단에 항상**(`LIST-CTA-01·02`), 특히 0건에 있어야 막다른 길이 아니다(`LIST-CTA-03`).
+> - **문진 슬롯**: `questionnaireBuilder`가 null이면 기본으로 `(view) => appointmentListQnrLine(view, onOpen: () => MyAppointmentsScreen.openQuestionnaire(view))`(Step 2)를 `AppointmentBox.questionnaireSlot`에 넘긴다.
+> ⚠️ T30의 슬롯 주입 테스트가 계속 통과하도록, 파라미터가 주어지면 그것을 쓰고 **null일 때만** 실제 위젯을 만든다.
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: 갱신·실시간 구독·스크롤 보존 (`LIST-REFRESH`)** — `my_appointments_screen.dart` 수정
+
+```dart
+testWidgets('[LIST-REFRESH-01] 화면에 들어올 때·아래로 당길 때 다시 조회한다', (t) async {
+  final spy = _InvalidateSpy();
+  await t.pumpWidget(_screen(data: [_view('예약확정')], online: true, onInvalidate: spy));
+  expect(spy.count, 1);                                        // 진입 시 1회
+  await t.fling(find.byType(RefreshIndicator), const Offset(0, 300), 1000);
+  await t.pumpAndSettle();
+  expect(spy.count, 2);                                        // 당겨서 새로고침 시 재조회(HOME-REFRESH-01)
+});
+testWidgets('[LIST-REFRESH-06] 다른 탭 갔다 돌아오면 다시 조회한다', (t) async {
+  final spy = _InvalidateSpy();
+  await t.pumpWidget(_shellWith(tab: 0, spy: spy));            // 예약 탭
+  await _switchTab(t, 2);                                      // 이력 탭
+  await _switchTab(t, 0);                                      // 예약 탭 복귀
+  expect(spy.count, greaterThan(1));                           // 복귀 시 재조회(NAV-HIST-13과 같은 규칙)
+});
+testWidgets('[LIST-REFRESH-02] 보는 동안 활성 예약이 있으면 실시간 구독한다', (t) async {
+  final sub = _SpySub();
+  await t.pumpWidget(_screen(data: [_view('진료대기')], online: true, realtime: sub));
+  expect(sub.subscribed, isTrue);                              // 대기실에서 아무것도 안 눌러도 저절로 바뀐다
+});
+testWidgets('[LIST-REFRESH-02] 바뀔 것이 없으면(진료완료뿐) 구독을 붙잡지 않는다', (t) async {
+  final sub = _SpySub();
+  await t.pumpWidget(_screen(data: [], online: true, realtime: sub));   // filterUpcoming 결과 0건
+  expect(sub.subscribed, isFalse);
+});
+testWidgets('[LIST-REFRESH-03] 병원이 승인하면 「확인 중」이 저절로 사라지고 레일이 딥틸로 바뀐다', (t) async {
+  final ctl = _StreamCtl();
+  await t.pumpWidget(_screen(data: [_view('예약신청')], online: true, stream: ctl));
+  expect(find.text('확인 중'), findsOneWidget);
+  ctl.push([_view('예약확정')]);                                // 실시간 이벤트 = 승인
+  await t.pumpAndSettle();
+  expect(find.text('확인 중'), findsNothing);                   // 저절로 사라짐(A등급)
+});
+testWidgets('[LIST-REFRESH-04] 갱신 결과가 내가 보던 것과 다르면 OFF-BACK-02를 따른다', (t) async {
+  // 상세를 열어 둔 예약이 갱신으로 사라지면(취소·완료) OFF-BACK-02(내가 보던 것이 바뀜)로 처리
+  await t.pumpWidget(_screen(data: [_view('예약확정', id: 'A')], online: true));
+  // 갱신 후 A가 목록에서 빠짐 → 다음 상세 진입 시 OFF-BACK-02 경로(재조회·안내)
+  expect(offBackApplies(before: ['A'], after: []), isTrue);
+});
+testWidgets('[LIST-REFRESH-05] 상세에서 돌아오면 같은 자리·같은 스크롤 위치', (t) async {
+  await t.pumpWidget(_screen(data: List.generate(20, (i) => _view('예약확정', id: '$i')), online: true));
+  await t.drag(find.byType(ListView), const Offset(0, -600));  // 아래로 스크롤
+  await t.pumpAndSettle();
+  final before = _scrollOffset(t);
+  await t.tap(find.byKey(const Key('row-10')));                // 상세 진입
+  await t.pumpAndSettle();
+  await t.pageBack();                                          // 뒤로
+  await t.pumpAndSettle();
+  expect(_scrollOffset(t), before);                            // NAV-LIST-08·NAV-APPT-02
+});
+```
+> 구현:
+> - **재조회**(`LIST-REFRESH-01`): `initState`/`ref.listen`이 아니라 화면 진입 시 `homeAppointmentsProvider`가 자연히 로드되고, `RefreshIndicator(onRefresh: () async => ref.invalidate(homeAppointmentsProvider))`로 당겨서 새로고침. `LIST-REFRESH-06`(탭 복귀)은 `AutoDisposeFutureProvider`가 아니므로 T16 `mainTabs`가 탭 복귀 시 `invalidate`하도록 배선(홈과 같은 규칙 = `NAV-HIST-13`).
+> - **실시간 구독**(`LIST-REFRESH-02`): 홈이 쓴 구독 객체를 목록도 연결한다 — `filterUpcoming` 결과에 **활성 예약(도착·진료대기·진료중·예약신청·예약확정)이 있으면 `subscribe`, 없으면(0건) 구독 안 함**. 이벤트가 오면 `ref.invalidate`. 구독 객체는 홈/목록이 공유하는 단일 규칙(연결을 붙잡지 않는다).
+> - **자동 갱신 반영**(`LIST-REFRESH-03`): 실시간 이벤트로 `예약신청`→`예약확정`이 오면 `listStatusLabel`이 `확인 중`→(글자 없음), 레일 색이 `grayPending`→`primary`(딥틸)로 자동으로 다시 그려진다(A등급, 스트림→invalidate→rebuild).
+> - **결과 다름**(`LIST-REFRESH-04`): 갱신으로 보던 예약이 빠지면 T11 `OFF-BACK-02` 경로를 따른다(내가 보던 것이 바뀌었을 때의 공용 규칙 — 목록은 다시 그리기만, 상세 진입 시 안내).
+> - **스크롤 보존**(`LIST-REFRESH-05`): 목록 `ListView`에 `PageStorageKey('my-appointments')`를 주어 상세에서 `pop`으로 돌아올 때 위치를 복원(`NAV-LIST-08`·`NAV-APPT-02`).
+Run → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: 검사기 + 커밋**
+
+```bash
+cd patient_app && flutter test test/features/appointments/
+cd .. && python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+# 기대: T31 29규칙(LIST-EMPTY 10·LIST-QNR 8·LIST-REFRESH 6·LIST-CTA 5) 전부 커버, 빚0·⏰0·exit0
+git add patient_app/lib/features/appointments/appointment_list_qnr_line.dart \
+  patient_app/lib/features/appointments/appointment_list_cta.dart \
+  patient_app/lib/features/appointments/my_appointments_screen.dart \
+  patient_app/test/features/appointments/ \
+  docs/superpowers/plans/2026-08-17-patient-app.md
+git commit -m "feat: 📝 환자앱 Task 31 본문 — 나의 예약 목록 빈상태·오프라인·갱신·문진 경고 줄·하단 버튼 29규칙(LIST-EMPTY/QNR/REFRESH/CTA) + T30 슬롯 갚음 + 묶음 8·환자앱 화면 완결"
+```
+
+> 📌 **규칙 커버리지(29)**: `LIST-EMPTY-01~10`(10) · `LIST-QNR-01~08`(8) · `LIST-REFRESH-01~06`(6) · `LIST-CTA-01~05`(5). 전부 개별 ID로 test에 심음.
+> 📌 **값 없는/prose 규칙 — 「어느 테스트가 실현하는가」**:
+> - `LIST-QNR-05`(완료분은 상세에서): `LIST-QNR-02` 테스트(작성완료→null)로 실현 — 목록에 안 뜨므로 상세(`APPT-QNR`)에서만 본다.
+> - `LIST-CTA-01·02`(항상·화면당 하나): Step 3 조립에서 세 분기 모두 하단에 CTA 하나가 뜨는 것으로 실현(빈·오프라인·실패·목록).
+> - `LIST-EMPTY-05`(모습 온라인과 같음): `LIST-EMPTY-04` 테스트(오프라인에서도 `AppointmentBox`가 온라인과 같은 위젯)로 실현 — 목록은 숫자를 애초에 안 써(`LIST-ST-09`) 오프라인에서 지울 것이 없다.
+> - `LIST-REFRESH-04`(OFF-BACK-02): `offBackApplies` 헬퍼로 「보던 예약이 빠졌을 때 공용 규칙을 탄다」를 실현(전용 화면은 T11 규칙).
+> ⚠️ **착수 시**: `LIST-EMPTY`·`LIST-QNR`·`LIST-REFRESH`·`LIST-CTA`를 축약(`EMPTY-04·05`)으로 쓰면 검사기가 못 읽는다 — 위 test는 전부 **완전 ID**. 문진 3필드 `AppointmentView.fromJson` 파싱 여부를 **가장 먼저** 확인(위 「착수 시 확인 1건」).
+> ⭐ **묶음 8 완결·환자앱 화면 태스크(13~31) 전부 작성 완료** — 다음은 챗봇(⑤ `ai-chatbot`)뿐.
