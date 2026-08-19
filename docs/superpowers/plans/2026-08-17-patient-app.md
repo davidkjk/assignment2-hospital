@@ -157,8 +157,8 @@
 | **26** | 가족 추가 갈래·㉮ 새 가족 등록·㉯ 기존환자 OTP 연결 (52개) | `FAM-ADD-*`·`FAM-NEW-*`·`FAM-LINK-*`·`NAV-FAM-*`(추가 흐름분) | 재작성 |
 | **27a** | 방문 이력 — 목록·이름 칩·지나간 예약 줄 4종 (54개) | `HIST-ROLE-*`·`HIST-WHO-*`·`HIST-LIST-*`·`HIST-ROW-*` | 재작성 |
 | **27b** | 방문 이력 — 병원 안내문 펼침·사전문진 읽기전용·화면 이동/딥링크 (30개) | `HIST-NOTE-*`·`HIST-QNR-*`·`NAV-HIST-*` | 재작성 |
-| **28** | 설정 홈 + 알림 설정 + 병원 정보(전화·지도) (57개) | `SET-NOTI-*`·`SET-HOSP-*`·`NAV-SET-*` | 재작성 |
-| **29** | 비밀번호 변경 + 회원 탈퇴 + 로그아웃 (56개) | `SET-PW-*`·`SET-QUIT-*`·`SET-OUT-*` | 재작성 |
+| **28** | 설정 홈 + 알림 설정 + 병원 정보(전화·지도) (68개 — `NAV-SET-*` 01~09·15~21 16개 포함, 접두어 주인은 T29·본문은 여기라 🔀) | `SET-HOME-*`·`SET-NOTI-*`·`SET-HOSP-*` | 재작성 |
+| **29** | 비밀번호 변경 + 회원 탈퇴 + 로그아웃 (61개 — `NAV-SET-*` 접두어 주인, 본문엔 10~14만) | `SET-PW-*`·`SET-QUIT-*`·`SET-OUT-*`·`NAV-SET-*` | 재작성 |
 | **30** | 나의 예약 목록·상태 배지·역할 (64개) | `LIST-LIST-*`·`LIST-ST-*`·`LIST-ROLE-*`·`NAV-LIST-*` | 재작성 |
 | **31** | 나의 예약 빈상태·이어받기·문진·CTA (29개) | `LIST-EMPTY-*`·`LIST-REFRESH-*`·`LIST-QNR-*`·`LIST-CTA-*` | 재작성 [R5-01] |
 
@@ -18535,4 +18535,741 @@ git commit -m "feat: 📝 환자앱 Task 27b 본문 — 방문 이력 병원 안
 >   - `HIST-QNR-10`(그때 저장된 문항 글자 그대로)·`HIST-QNR-11`(조회 API 이미 있음 = 갭 #24, 없던 것은 이력이 「문이 있는지」 알려주는 값=`has_questionnaire`) = `QnrTable`이 T7 `get_response`(문항 텍스트를 응답과 함께 저장한 불변본, `QNR-ID-06`)를 그려 실현. 이력의 `has_questionnaire`(T27a가 T8에서 소비)가 문의 유무를 판정.
 >   - `NAV-HIST-02`(재인증 없는 이유 — 읽기 전용·이미 확인된 사람만 보임) = `/history`가 `_isSensitive`에 없음으로 실현(`NAV-HIST-01` test가 확인).
 > ⚠️ **T27b가 남 태스크 파일을 고친 곳**(재소유 아님): T21 `detail_sections.dart`(`_QnrTable`→`QnrTable` 승격 1줄) · T27a `history_screen.dart`(딥링크·`reloadFor` 배선)·`history_repository.dart`(`historyProvider.reloadFor` 1메서드) · T11 `router.dart`(`/history`가 `?appointment=` 받도록 builder 1줄).
-> ▶ **다음 = Task 28 본문 작성** — 설정 홈 + 알림 설정 + 병원 정보(전화·지도) `SET-*`·`SET-NOTI-*`·`SET-HOSP-*`·`NAV-SET-*` (57규칙). ⚠️ **T26이 남긴 악수**: `/settings/hospital` 자리표시자(`NAV-FAM-12`·`AUTH-OTP-11` 도착지)를 실화면으로 갈 때 두 진입 확인. 📌 `get_public_hospital_info()`(직원웹 T29 소유) 소비 · 알림 설정은 직원웹 발송 설정표(종류별 body·also_sms) 참조.
+> ▶ **다음 = Task 28 본문** — 아래에 작성됨.
+
+---
+
+## Task 28: 설정 홈 + 알림 설정 + 병원 정보(전화·지도) (68규칙)
+
+> **묶음 7의 설정 앞절.** `SET-HOME-*`16 · `SET-NOTI-*`26 · `SET-HOSP-*`10 · `NAV-SET-*`(01~09·15~21)16 = **68**. 뒷절(비밀번호 변경·회원 탈퇴·로그아웃 `SET-PW/QUIT/OUT-*`·`NAV-SET-*` 10~14)은 **Task 29**.
+>
+> **요구사항 절**: 4.7(알림·문자, `:317~323`) · 4.8(입력·버튼 원칙) · **`:350`(환자 앱 병원 안내 = 진료시간과 휴진일)**. 이 태스크가 그 절들을 규칙으로 구현한다.
+>
+> ⭐⭐ **이 태스크가 닫는 갭 4건** — 커밋에 설계문서 반영을 **함께** 넣는다(플랜에 미루지 않는다 · T24 이후 규율):
+> - **#70 설정 화면 부재** — 플랜에 설정 화면이 통째로 없었다(`/settings`=`_Placeholder`). 이 태스크가 실화면으로 갈아끼운다.
+> - **#5 알림 선호 저장·판정** — `notification_preferences`(칸·발송 판정)는 ④·T9가 이미 만들었으나 **환자 본인 읽기/수정 RLS 정책이 없다**(`00012`가 *"3단계에서 추가"*라 미뤄 둠). `00031`이 그 정책을 신설하고 그 위에 GET/PATCH API+6토글 화면을 얹는다.
+> - **#SET-HOSP-HOURS(신규 경계 갭) — 진료시간 창구 부재** — `SET-HOSP-05`(진료시간 4줄)의 자료가 `hospital_hours`·`hospital_closures`(직원웹 T29 `00025` 소유)에 있는데 **환자앱이 읽을 창구가 없다.** `get_public_hospital_info()`는 **주소·전화만**(`HSETX-SEC-01` 보안 검사가 다른 필드를 금지) 준다. ⭐ **사용자 결정(2026-08-18) = ㉯ 전용 창구 신설** — 기존 보안 창구를 건드리지 않고 `get_hospital_hours()`를 새로 만들어 진료시간·휴진일만 읽는다(기각 ㉮ 기존 창구 확장=`HSETX-SEC-01` 안전장치를 풂 / 기각 ㉰ 진료시간 생략=요구사항 `:350` 위반).
+> - **#72(재확인만)** — 문자 발송 on/off·대상 판단은 **직원웹** 몫(`SET-NOTI-25`). 이 태스크는 앱에 문자 스위치를 **두지 않음**을 규칙으로 확정(B-41)하고 갭 소유를 직원웹으로 남긴다.
+
+**Files:**
+- Create: `supabase/migrations/00031_patient_notification_prefs_and_public_hours.sql` / Test: `backend/tests/test_00031_patient_settings_policies.py`
+- Create: `backend/app/services/patient_notification_prefs_service.py` / Test: `backend/tests/test_patient_notification_prefs_service.py`
+- Modify: `backend/app/services/patient_catalog_service.py`(`get_hospital_hours` 추가) / Test: `backend/tests/test_patient_catalog_service.py`(진료시간 절 추가)
+- Create: `backend/app/routers/patient_settings.py`(알림 선호 GET/PATCH) / Modify: `backend/app/routers/patient_catalog.py`(`GET /catalog/hospital/hours` 추가) / Test: `backend/tests/test_patient_routers_integration.py`(설정 절 추가)
+- Create: `patient_app/lib/features/settings/notification_prefs_repository.dart`·`notification_settings_controller.dart`·`notification_settings_screen.dart` / Test: `patient_app/test/features/settings/notification_settings_test.dart`
+- Create: `patient_app/lib/features/settings/hospital_hours_format.dart`(순수 포매터)·`hospital_info_screen.dart`·`hospital_info_repository.dart` / Test: `patient_app/test/features/settings/hospital_info_test.dart`·`hospital_hours_format_test.dart`
+- Create: `patient_app/lib/features/settings/settings_home_screen.dart` / Test: `patient_app/test/features/settings/settings_home_test.dart`
+- Modify: `patient_app/lib/core/router.dart`(`/settings`→`SettingsHomeScreen` 교체 · `/settings/notifications` 신설 · `/settings/hospital`→`HospitalInfoScreen`으로 T26 자리표시자 교체 · `/settings/password`·`/settings/withdraw`·`/settings/logout` 자리표시자 신설=T29 몫) / Test: `patient_app/test/features/settings/settings_routes_test.dart`
+
+**Interfaces:**
+- Consumes:
+  - **T14 재인증 가드**(재소유 금지) — `sensitiveReauthGuardProvider`·`isSensitiveLocation`·라우터 `redirect`(`_authRedirect`). `_isSensitive`가 이미 `/settings`를 포함(`startsWith('/settings')`)하고 `SensitiveReauthGuard.window=5분`을 판정한다. ⭐ **`SET-HOME-02·03`·`NAV-SET-01·02`는 이 가드가 이미 실현** — 이 태스크는 소비·확인만 한다.
+  - **T14 `ReauthScreen`**(`/reauth?next=`) · **T14 `PasswordFindScreen`**(`NAV-SET-03`=재인증 화면의 `비밀번호를 잊으셨나요?`→`/password-find`, `NAV-AUTH-11`과 같은 목적지).
+  - **T12 위젯** — `EmptyState.offline/error`(오프라인·조회 실패) · `ActionButton`(BUSY·STATE) · `InlineError`(저장 실패 한 줄) · `showBlockDialog`(중요 알림 끄기 안내 팝업). 여기서 다시 만들지 않는다.
+  - **T11** — `connectivityProvider`(오프라인 판정) · `AppShell`(설정 화면들은 하단 탭 밖 push라 셸 없이 뜬다 — `NAV-SET-18` 뒤로).
+  - **T9 `notify_patient`** — `notification_preferences.enabled`를 **발송 직전** 읽어 거른다(이미 구현, 이 태스크가 그 값을 채우는 화면을 제공). 6토글↔`notification_type` 매핑은 **이 태스크가 정의**(아래 `TOGGLE_GROUPS`).
+  - **직원웹 T29** — `get_public_hospital_info()`(주소·전화, `patient_catalog_service.get_hospital_info` 경유) · `hospital_hours`·`hospital_closures` 표(**읽기만** — `get_hospital_hours`가 `acquire_as(patient)`로 SELECT, `00031`이 환자 읽기 정책을 얹는다).
+  - **T25 가족 목록**(`/family`) — `NAV-SET-06` 목적지 · **T13 `AUTH-TEL-*`**(`SET-HOME-08` 전화번호 변경 안내 = `/phone-change`).
+- Produces(T29·챗봇이 소비):
+  - `patient_notification_prefs_service.get_prefs(patient) -> dict[str,bool]`(6키 `appt_change·appt_status·appt_reminder·questionnaire·visit_note·support_reply`, 줄 없으면 `True`) · `set_pref(patient, group: str, enabled: bool) -> dict[str,bool]`(그룹의 모든 `notification_type` 행을 upsert, 갱신된 6키 반환 · 모르는 group이면 `AppError` 400)
+  - `TOGGLE_GROUPS: dict[str, list[str]]` — 6토글↔`notification_type` 매핑(서버 한 곳). **`support_reply`의 `support_answered`는 4단계 챗봇이 보낼 종류**(HANDOVERS 등록 — 챗봇이 그 이름으로 `notify_patient`를 부르면 이 선호가 이미 적용된다).
+  - `patient_catalog_service.get_hospital_hours(patient) -> {weekdays: list[dict×7], closures: list[dict]}` — `weekdays[i] = {weekday:0~6, is_closed:bool, open:str|None, close:str|None, lunch_start:str|None, lunch_end:str|None}` · `closures = [{date:str, memo:str}]`(오늘 이후, 오름차순).
+  - `formatHospitalHours(HospitalHours) -> HospitalHoursLines`(순수 Dart) — `SET-HOSP-05`의 4줄(평일·토요일·점심시간·휴진일)을 만든다. **T29·챗봇이 병원 안내를 그릴 때 재사용**할 수 있게 순수 함수로 분리.
+  - 자리표시자 라우트 `/settings/password`·`/settings/withdraw`·`/settings/logout` — **T29가 실화면·실동작으로 갈아끼운다**(T26→T28 `/settings/hospital` 악수의 대칭).
+
+**근거 원문:** `SET-HOME-01~16`(`screen-behaviors.md:4502~4517`) · `SET-NOTI-01~26`(`:4523~4548`) · `SET-HOSP-01~10`(`:4575~4584`) · `NAV-SET-01~09·15~21`(`:4640~4660`) · 요구사항 4.7 `:317~323`·4.8·`:350`·`:644~650`(문자=먼저 뺄 항목) · 결정 문서 「설정」·「알림 설정」(B-41)·「병원 정보」 · 갭 #5·#14·#26·#70·#72 · `00012_notification_preferences.sql`(칸·「줄 없으면 켜짐」) · T9 `notify_patient`(`plans:3230~3299`) · 직원웹 `00025_hospital_hours_closures`·`get_public_hospital_info`(`HSETX-SEC-01`).
+
+- [ ] **Step 1: 마이그레이션 `00031` — 환자 알림 선호 RLS + 병원 진료시간 읽기 정책**
+
+먼저 실패 테스트(`backend/tests/test_00031_patient_settings_policies.py`):
+```python
+import pytest
+from app.db import acquire_as, acquire_service
+
+# [SET-NOTI-18][갭 #5] 00012는 칸만 만들고 "환자 본인 정책은 3단계"라 미뤄 뒀다 → 여기서 연다.
+@pytest.mark.asyncio
+async def test_환자는_자기_알림선호만_읽고_쓴다(db_conn, seed_patient):
+    """[SET-NOTI-12][SET-NOTI-15] 스위치를 움직이면 그 자리에서 서버에 저장된다 —
+    저장/조회가 환자 본인 커넥션(RLS)으로 통해야 화면이 즉시 저장을 할 수 있다."""
+    me = await seed_patient(db_conn)
+    other = await seed_patient(db_conn)
+    async with acquire_as(str(me.auth_user_id)) as conn:
+        await conn.execute(
+            "insert into notification_preferences (patient_id, notification_type, enabled) "
+            "values ($1,'confirmed',false)", me.patient_id)                 # 본인 write OK
+        rows = await conn.fetch("select notification_type from notification_preferences")
+        assert {r["notification_type"] for r in rows} == {"confirmed"}      # 본인 것만 보인다
+        with pytest.raises(Exception):                                       # 남의 것 write 거부
+            await conn.execute(
+                "insert into notification_preferences (patient_id, notification_type, enabled) "
+                "values ($1,'confirmed',false)", other.patient_id)
+
+@pytest.mark.asyncio
+async def test_환자는_병원_진료시간을_읽을_수_있다(db_conn, seed_patient):
+    """[SET-HOSP-05][갭 #SET-HOSP-HOURS] 진료시간·휴진일은 공개 정보다 —
+    환자 커넥션으로 hospital_hours·hospital_closures를 읽을 수 있어야 SET-HOSP 화면이 그린다.
+    ⛔ 쓰기는 못 한다(직원 전용) — 읽기 정책만 연다."""
+    me = await seed_patient(db_conn)
+    async with acquire_service() as svc:   # 직원 역할로 시드
+        await svc.execute("insert into hospital_hours (weekday, open_time, close_time) "
+                          "values (1, '09:00', '18:00') on conflict do nothing")
+    async with acquire_as(str(me.auth_user_id)) as conn:
+        rows = await conn.fetch("select weekday, open_time from hospital_hours")
+        assert any(r["weekday"] == 1 for r in rows)                          # 읽기 OK
+        with pytest.raises(Exception):                                       # 쓰기 거부
+            await conn.execute("update hospital_hours set close_time='20:00' where weekday=1")
+```
+Run: `pytest backend/tests/test_00031_patient_settings_policies.py -v` → Expected: FAIL(정책 없어 본인 것도 못 읽거나, 병원시간 읽기 거부).
+
+구현 `supabase/migrations/00031_patient_notification_prefs_and_public_hours.sql`:
+```sql
+-- Task 28 — 00012가 3단계로 미룬 「환자 본인 알림 선호」 정책 + 진료시간 공개 읽기(갭 #5·#SET-HOSP-HOURS).
+-- ⚠️ 실제 적용 번호는 구현 시점 확정(직원웹도 00017+를 쓴다 — 먼저 적용하는 쪽 우선).
+
+-- ① 환자 본인만 자기 알림 선호를 select/insert/update. (dispatcher는 서비스 역할이라 정책 밖.)
+--    patient_id → auth.uid() 매핑은 patients.auth_user_id(00017, T1)를 경유한다(다른 표들과 동일 패턴).
+create policy patient_reads_own_notification_prefs on notification_preferences
+  for select using (patient_id in (select id from patients where auth_user_id = auth.uid()));
+create policy patient_writes_own_notification_prefs on notification_preferences
+  for insert with check (patient_id in (select id from patients where auth_user_id = auth.uid()));
+create policy patient_updates_own_notification_prefs on notification_preferences
+  for update using (patient_id in (select id from patients where auth_user_id = auth.uid()))
+           with check (patient_id in (select id from patients where auth_user_id = auth.uid()));
+
+-- ② 진료시간·휴진일은 공개 정보 → 로그인 환자(authenticated)가 읽기만. 쓰기는 직원 전용(정책 신설 안 함).
+--    ⭐ 경계: hospital_hours·hospital_closures 표 자체는 직원웹 T29(00025) 소유다. 여기서는 「읽기 문」만 얹는다
+--    (departments를 환자가 acquire_as로 읽는 것과 같은 꼴 — 표는 남의 것, 읽기 정책은 소비자가 연다).
+create policy authenticated_reads_hospital_hours on hospital_hours
+  for select to authenticated using (true);
+create policy authenticated_reads_hospital_closures on hospital_closures
+  for select to authenticated using (true);
+```
+Run: 위 테스트 → Expected: PASS.
+
+> ⚠️ **🏷 검사 주의**: 이 마이그레이션은 `create policy`만 있고 `drop policy`가 없다 — `check-sql-drop-targets.py`에 걸릴 게 없다. `00012`가 만든 `grant select,insert,update ... to authenticated`는 이미 있으므로 grant는 다시 하지 않는다(정책이 없어 무효였던 것을 정책으로 여는 것).
+
+- [ ] **Step 2: `patient_notification_prefs_service` — 6토글↔종류 매핑 + GET/PATCH**
+
+실패 테스트(`backend/tests/test_patient_notification_prefs_service.py`):
+```python
+import pytest
+from app.core.errors import AppError
+from app.services import patient_notification_prefs_service as prefs
+
+def test_여섯_토글이_열_종류를_빠짐없이_덮는다():
+    """[SET-NOTI-04] 2묶음·6토글. 열 가지 notification_type이 정확히 한 토글씩에 든다 —
+    빠지면 그 알림은 끌 방법이 없고(원칙 SET-NOTI-01 위반), 겹치면 한 토글이 남의 알림을 끈다."""
+    from app.services.notification_service import MESSAGES  # T9의 코드 기본 문구 표(=발송되는 종류)
+    covered = [t for types in prefs.TOGGLE_GROUPS.values() for t in types]
+    assert len(covered) == len(set(covered))                       # 겹침 없음
+    # support_answered(챗봇 4단계)를 뺀 나머지는 MESSAGES와 정확히 일치
+    assert set(covered) - {"support_answered"} == set(MESSAGES)
+
+def test_토글_묶음이_설계대로다():
+    """[SET-NOTI-04][SET-NOTI-05] 예약 3토글(변경·취소 / 신청·확정 / 전날·당일) + 그밖 3토글."""
+    assert prefs.TOGGLE_GROUPS["appt_change"] == \
+        ["changed", "hospital_cancelled", "cancellation_approved", "cancellation_rejected"]
+    assert prefs.TOGGLE_GROUPS["appt_reminder"] == ["reminder_day_before", "reminder_today"]
+    assert prefs.TOGGLE_GROUPS["questionnaire"] == ["questionnaire_missing", "questionnaire_partial"]
+
+@pytest.mark.asyncio
+async def test_줄이_없으면_여섯_토글이_모두_켜짐(db_conn, seed_patient):
+    """[SET-NOTI-01][00012 「줄 없으면 켜짐」] 새 환자는 아무 선호 행이 없다 → 전부 True."""
+    me = await seed_patient(db_conn)
+    got = await prefs.get_prefs(me)
+    assert got == {k: True for k in prefs.TOGGLE_GROUPS}            # 6키 전부 True
+
+@pytest.mark.asyncio
+async def test_토글을_끄면_그_그룹의_모든_종류가_꺼진다(db_conn, seed_patient):
+    """[SET-NOTI-12][SET-NOTI-01] 「변경·취소」 하나를 끄면 그 그룹의 네 종류가 다 off.
+    T9 notify_patient가 종류별로 enabled를 읽으므로 그룹의 모든 행을 써야 실제로 안 온다."""
+    me = await seed_patient(db_conn)
+    after = await prefs.set_pref(me, "appt_change", enabled=False)
+    assert after["appt_change"] is False and after["appt_status"] is True   # 그 토글만
+    got = await prefs.get_prefs(me)
+    assert got["appt_change"] is False                                       # 다시 읽어도 off
+    # 그룹 네 종류가 모두 enabled=false 행으로 저장됐다
+    async with __import__("app.db", fromlist=["acquire_as"]).acquire_as(str(me.auth_user_id)) as conn:
+        rows = await conn.fetch("select notification_type, enabled from notification_preferences "
+                                "where patient_id=$1", me.patient_id)
+    off = {r["notification_type"] for r in rows if not r["enabled"]}
+    assert off == set(prefs.TOGGLE_GROUPS["appt_change"])
+
+@pytest.mark.asyncio
+async def test_모르는_토글은_거부(db_conn, seed_patient):
+    """[SET-NOTI-12] 화면에 없는 group 키가 오면 400 — 임의 종류를 끄는 우회를 막는다."""
+    me = await seed_patient(db_conn)
+    with pytest.raises(AppError):
+        await prefs.set_pref(me, "everything", enabled=False)
+```
+Run: `pytest backend/tests/test_patient_notification_prefs_service.py -v` → Expected: FAIL(모듈 없음).
+
+구현 `backend/app/services/patient_notification_prefs_service.py`:
+```python
+from app.core.errors import AppError
+from app.core.patient_security import PatientContext
+from app.db import acquire_as
+
+# [SET-NOTI-04] 6토글 = 2묶음. 각 토글이 덮는 notification_type(T9 MESSAGES와 일치, 서버 한 곳).
+#   예약에 관한 알림: 변경·취소 / 신청·확정 / 전날·당일
+#   그 밖의 알림:     사전문진 안내 / 진료 후 안내 / 상담 답변
+# ⚠️ support_answered는 4단계(챗봇)가 보낼 종류다 — 지금 MESSAGES엔 없지만 토글을 미리 두어야
+#    챗봇이 그 이름으로 notify_patient를 부를 때 이 선호가 이미 걸린다(HANDOVERS 등록).
+TOGGLE_GROUPS: dict[str, list[str]] = {
+    # ── 예약에 관한 알림 ──
+    "appt_change":   ["changed", "hospital_cancelled", "cancellation_approved", "cancellation_rejected"],
+    "appt_status":   ["requested", "confirmed"],
+    "appt_reminder": ["reminder_day_before", "reminder_today"],
+    # ── 그 밖의 알림 ──
+    "questionnaire": ["questionnaire_missing", "questionnaire_partial"],
+    "visit_note":    ["visit_completed"],
+    "support_reply": ["support_answered"],  # 4단계 챗봇
+}
+# 종류 → 토글(역인덱스). GET에서 저장된 off 행을 토글로 접을 때 쓴다.
+_TYPE_TO_GROUP = {t: g for g, types in TOGGLE_GROUPS.items() for t in types}
+
+
+async def get_prefs(patient: PatientContext) -> dict[str, bool]:
+    """[SET-NOTI-01] 6토글 상태. 줄이 없으면 켜짐(00012 기본). 그룹 안 종류는 늘 함께 쓰이므로 일치한다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch(
+            "select notification_type, enabled from notification_preferences where patient_id=$1",
+            patient.patient_id)
+    result = {g: True for g in TOGGLE_GROUPS}                 # 기본 전부 켜짐
+    for r in rows:
+        g = _TYPE_TO_GROUP.get(r["notification_type"])
+        if g is not None and not r["enabled"]:
+            result[g] = False                                # 그룹 안 하나라도 off면 토글 off
+    return result
+
+
+async def set_pref(patient: PatientContext, group: str, enabled: bool) -> dict[str, bool]:
+    """[SET-NOTI-12] 토글 하나 = 그 그룹의 모든 종류를 upsert. 즉시 저장(호출측이 [저장] 버튼을 안 둔다)."""
+    if group not in TOGGLE_GROUPS:
+        raise AppError("unknown_notification_group", status=400)  # [SET-NOTI-12] 화면에 없는 키 거부
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        async with conn.transaction():
+            for ntype in TOGGLE_GROUPS[group]:
+                await conn.execute(
+                    "insert into notification_preferences (patient_id, notification_type, enabled) "
+                    "values ($1,$2,$3) "
+                    "on conflict (patient_id, notification_type) do update set enabled=excluded.enabled",
+                    patient.patient_id, ntype, enabled)
+    return await get_prefs(patient)
+```
+Run: 위 테스트 → Expected: PASS.
+
+- [ ] **Step 3: `get_hospital_hours` — 진료시간·휴진일 읽기(㉯ 전용 창구)**
+
+실패 테스트(`backend/tests/test_patient_catalog_service.py`에 절 추가):
+```python
+@pytest.mark.asyncio
+async def test_진료시간과_예정_휴진을_함께_준다(db_conn, seed_patient, seed_hospital_hours):
+    """[SET-HOSP-05][갭 #SET-HOSP-HOURS] ㉯ 전용 창구 — 요일 7줄 + 오늘 이후 휴진.
+    ⛔ get_public_hospital_info(주소·전화)와 별개다 — 그 보안 창구는 안 건드린다."""
+    me = await seed_patient(db_conn)
+    await seed_hospital_hours(db_conn, weekday=1, open="09:00", close="18:00",
+                              lunch_start="12:30", lunch_end="14:00")
+    await seed_hospital_hours(db_conn, weekday=0, is_closed=True)   # 일요일 휴진
+    await db_conn.execute("insert into hospital_closures (closure_date, memo) "
+                          "values (current_date + 3, '창립기념일')")
+    got = await patient_catalog_service.get_hospital_hours(me)
+    assert len(got["weekdays"]) == 7                                # 0~6 늘 일곱 줄
+    mon = next(d for d in got["weekdays"] if d["weekday"] == 1)
+    assert mon["open"] == "09:00" and mon["lunch_start"] == "12:30"
+    sun = next(d for d in got["weekdays"] if d["weekday"] == 0)
+    assert sun["is_closed"] is True
+    assert got["closures"] == [{"date": str(date.today() + timedelta(days=3)), "memo": "창립기념일"}]
+
+@pytest.mark.asyncio
+async def test_지난_휴진은_안_준다(db_conn, seed_patient):
+    """[SET-HOSP-05] 휴진일 줄은 「앞으로」만 — 지나간 휴무를 보여주면 안내가 아니라 소음이다."""
+    me = await seed_patient(db_conn)
+    await db_conn.execute("insert into hospital_closures (closure_date, memo) "
+                          "values (current_date - 1, '지난 휴무')")
+    got = await patient_catalog_service.get_hospital_hours(me)
+    assert got["closures"] == []
+```
+Run: `pytest backend/tests/test_patient_catalog_service.py -k hospital_hours -v` → Expected: FAIL.
+
+구현 — `backend/app/services/patient_catalog_service.py`에 추가:
+```python
+async def get_hospital_hours(patient: PatientContext) -> dict:
+    """[SET-HOSP-05] 진료시간·휴진일(㉯ 전용 창구). hospital_hours·hospital_closures를 읽기만 한다
+    (표는 직원웹 T29 소유 — 00031이 환자 읽기 정책을 얹었다). 표시 문구는 화면(formatHospitalHours)이 만든다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        hrows = await conn.fetch(
+            "select weekday, is_closed, open_time, close_time, lunch_start, lunch_end "
+            "from hospital_hours order by weekday")
+        crows = await conn.fetch(
+            "select closure_date, memo from hospital_closures "
+            "where closure_date >= current_date order by closure_date")
+    by_wd = {r["weekday"]: r for r in hrows}
+    def _t(v):  # time|None → 'HH:MM'|None (화면이 문자열만 받게)
+        return v.strftime("%H:%M") if v is not None else None
+    weekdays = []
+    for wd in range(7):                                    # 0~6 늘 일곱 줄(없는 요일은 휴진으로)
+        r = by_wd.get(wd)
+        if r is None:
+            weekdays.append({"weekday": wd, "is_closed": True,
+                             "open": None, "close": None, "lunch_start": None, "lunch_end": None})
+        else:
+            weekdays.append({"weekday": wd, "is_closed": r["is_closed"],
+                             "open": _t(r["open_time"]), "close": _t(r["close_time"]),
+                             "lunch_start": _t(r["lunch_start"]), "lunch_end": _t(r["lunch_end"])})
+    return {"weekdays": weekdays,
+            "closures": [{"date": str(r["closure_date"]), "memo": r["memo"]} for r in crows]}
+```
+Run: 위 테스트 → Expected: PASS.
+
+- [ ] **Step 4: 라우터 — 알림 선호 GET/PATCH + 진료시간**
+
+실패 테스트(`backend/tests/test_patient_routers_integration.py`에 설정 절 추가):
+```python
+@pytest.mark.asyncio
+async def test_알림선호_조회와_토글(client, patient_headers):
+    """[SET-NOTI-12] GET로 6토글, PATCH로 하나를 끄면 갱신된 6토글이 온다."""
+    r = await client.get("/me/notification-preferences", headers=patient_headers)
+    assert r.status_code == 200 and r.json()["appt_change"] is True
+    r2 = await client.patch("/me/notification-preferences",
+                            json={"group": "appt_change", "enabled": False}, headers=patient_headers)
+    assert r2.status_code == 200 and r2.json()["appt_change"] is False
+
+@pytest.mark.asyncio
+async def test_모르는_그룹은_400(client, patient_headers):
+    """[SET-NOTI-12] 화면에 없는 키는 400."""
+    r = await client.patch("/me/notification-preferences",
+                           json={"group": "everything", "enabled": False}, headers=patient_headers)
+    assert r.status_code == 400
+
+@pytest.mark.asyncio
+async def test_진료시간_조회(client, patient_headers, seed_hospital_hours):
+    """[SET-HOSP-05] GET /catalog/hospital/hours → 요일 7줄."""
+    r = await client.get("/catalog/hospital/hours", headers=patient_headers)
+    assert r.status_code == 200 and len(r.json()["weekdays"]) == 7
+```
+구현 — `backend/app/routers/patient_settings.py`(신설):
+```python
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from app.core.patient_security import PatientContext, get_current_patient
+from app.services import patient_notification_prefs_service as prefs
+
+router = APIRouter(prefix="/me", tags=["patient-settings"])
+
+class TogglePatch(BaseModel):
+    group: str
+    enabled: bool
+
+@router.get("/notification-preferences")
+async def get_prefs(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await prefs.get_prefs(patient)
+
+@router.patch("/notification-preferences")
+async def patch_pref(body: TogglePatch,
+                     patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await prefs.set_pref(patient, body.group, body.enabled)   # [SET-NOTI-12] 즉시 저장
+```
+그리고 `backend/app/routers/patient_catalog.py`에 한 줄 추가(`@router.get("/hospital")` 아래):
+```python
+@router.get("/hospital/hours")
+async def hospital_hours(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await patient_catalog_service.get_hospital_hours(patient)   # [SET-HOSP-05] 진료시간·휴진
+```
+그리고 `backend/app/main.py`(또는 라우터 등록 파일)에 `patient_settings.router`를 `include_router` 한다.
+Run: `pytest backend/tests/test_patient_routers_integration.py -k "notification or hospital" -v` → Expected: PASS.
+
+- [ ] **Step 5: 알림 설정 — 저장소 + 컨트롤러(즉시 저장·실패 시 되돌림)**
+
+실패 테스트(`patient_app/test/features/settings/notification_settings_test.dart` 일부):
+```dart
+test('[SET-NOTI-12] 스위치를 켜면 그 자리에서 PATCH를 보낸다(저장 버튼 없음)', () async {
+  final api = _FakeApi()..prefs = {'appt_status': true};
+  final c = NotificationSettingsController(NotificationPrefsRepository(api));
+  await c.load();
+  await c.toggle('appt_status', false);
+  expect(api.lastPatch, {'group': 'appt_status', 'enabled': false});   // 즉시 PATCH
+  expect(c.state.prefs['appt_status'], false);
+});
+
+test('[SET-NOTI-13] 저장 실패면 스위치를 원래 자리로 되돌리고 그 줄에 오류를 단다', () async {
+  final api = _FakeApi()..prefs = {'appt_status': true}..failNextPatch = true;
+  final c = NotificationSettingsController(NotificationPrefsRepository(api));
+  await c.load();
+  await c.toggle('appt_status', false);
+  expect(c.state.prefs['appt_status'], true);          // ⭐ 되돌림 — 켜진 채로 두면 온다고 믿는다
+  expect(c.state.errorFor['appt_status'], isNotNull);  // 그 줄 아래 오류 한 줄
+});
+
+test('[SET-NOTI-14] 저장 중에는 그 토글만 잠긴다(화면 전체가 아니라)', () async {
+  final api = _FakeApi()..prefs = {'appt_status': true}..hold = true;   // 응답 보류
+  final c = NotificationSettingsController(NotificationPrefsRepository(api));
+  await c.load();
+  final f = c.toggle('appt_status', false);
+  expect(c.state.busy.contains('appt_status'), true);   // 그 줄만 busy
+  expect(c.state.busy.contains('appt_change'), false);  // 다른 줄은 자유
+  api.release(); await f;
+  expect(c.state.busy.contains('appt_status'), false);
+});
+```
+구현: `NotificationPrefsRepository`(`getPrefs()`→`Map<String,bool>` · `setPref(group, enabled)`→`Map<String,bool>`, ` apiClient` 소비) + `NotificationSettingsController`(`AsyncNotifier` 아님 — 낙관적 토글 상태머신):
+```dart
+class NotificationSettingsState {
+  final Map<String, bool> prefs;
+  final Set<String> busy;                  // [SET-NOTI-14] 저장 중인 토글
+  final Map<String, String> errorFor;      // [SET-NOTI-13] 줄별 오류
+  final bool loading; final bool loadError;
+  // ...copyWith
+}
+
+class NotificationSettingsController extends StateNotifier<NotificationSettingsState> {
+  final NotificationPrefsRepository repo;
+  NotificationSettingsController(this.repo) : super(const NotificationSettingsState.initial());
+
+  Future<void> load() async {
+    try { state = state.copyWith(prefs: await repo.getPrefs(), loading: false); }
+    catch (_) { state = state.copyWith(loading: false, loadError: true); }
+  }
+
+  Future<void> toggle(String group, bool value) async {
+    final prev = state.prefs[group] ?? true;
+    // 낙관적 반영 + 그 줄만 busy + 이전 오류 지움
+    state = state.copyWith(prefs: {...state.prefs, group: value},
+        busy: {...state.busy, group}, errorFor: {...state.errorFor}..remove(group));
+    try {
+      final fresh = await repo.setPref(group, value);           // [SET-NOTI-12] 즉시 저장
+      state = state.copyWith(prefs: fresh, busy: {...state.busy}..remove(group));
+    } catch (e) {
+      // [SET-NOTI-13] 되돌리고 그 줄에 오류
+      state = state.copyWith(prefs: {...state.prefs, group: prev},
+          busy: {...state.busy}..remove(group),
+          errorFor: {...state.errorFor, group: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.'});
+    }
+  }
+}
+```
+Run: `flutter test test/features/settings/notification_settings_test.dart` → Expected: 위 3건 PASS.
+
+- [ ] **Step 6: 알림 설정 화면 — 6토글·2묶음·중요 알림·끄기 안내 팝업**
+
+실패 테스트(같은 파일, 위젯):
+```dart
+testWidgets('[SET-NOTI-04] 2묶음 6토글이 뜬다 — 「받는 방법」 묶음은 없다', (t) async {
+  await _pumpNoti(t, prefs: _allOn);
+  expect(find.text('예약에 관한 알림'), findsOneWidget);
+  expect(find.text('그 밖의 알림'), findsOneWidget);
+  expect(find.byType(SwitchListTile), findsNWidgets(6));
+  expect(find.textContaining('문자로도 받기'), findsNothing);   // [SET-NOTI-19] B-41
+  expect(find.textContaining('받는 방법'), findsNothing);
+});
+
+testWidgets('[SET-NOTI-05] 중요 알림(변경·취소)만 붉은 글씨 + 왼쪽 4px 붉은 띠', (t) async {
+  await _pumpNoti(t, prefs: _allOn);
+  final tile = tester.widget<Container>(find.byKey(const Key('noti-appt_change')));
+  expect((tile.decoration as BoxDecoration).border!.left.width, 4);  // 4px 띠, 배경은 안 칠함
+});
+
+testWidgets('[SET-NOTI-07][SET-NOTI-09][NAV-SET-17] 중요 알림을 끄면 안내 팝업 뒤 꺼진다(막지 않음)', (t) async {
+  await _pumpNoti(t, prefs: _allOn);
+  await t.tap(find.byKey(const Key('switch-appt_change')));
+  await t.pumpAndSettle();
+  expect(find.textContaining('예약 시간이 바뀌거나 취소될 때'), findsOneWidget);  // [SET-NOTI-08] 문구
+  expect(find.text('그대로 둘게요'), findsOneWidget);
+  expect(find.text('끄기'), findsOneWidget);                                    // [SET-NOTI-09]
+  await t.tap(find.text('끄기')); await t.pumpAndSettle();
+  expect(controller.state.prefs['appt_change'], false);                         // 그대로 꺼진다
+});
+
+testWidgets('[SET-NOTI-10] 안내 팝업은 한 번만 — 두 번째 끄기부터는 안 뜬다', (t) async {
+  await _pumpNoti(t, prefs: _allOn);
+  await _toggleImportantOffThenOn(t);        // 껐다(팝업) 다시 켬
+  await t.tap(find.byKey(const Key('switch-appt_change')));  // 두 번째 끄기
+  await t.pumpAndSettle();
+  expect(find.text('끄기'), findsNothing);   // 팝업 없이 바로 꺼진다
+});
+
+testWidgets('[SET-NOTI-11] 그 밖의 알림은 팝업 없이 그냥 꺼진다', (t) async {
+  await _pumpNoti(t, prefs: _allOn);
+  await t.tap(find.byKey(const Key('switch-visit_note')));
+  await t.pumpAndSettle();
+  expect(find.text('끄기'), findsNothing);
+  expect(controller.state.prefs['visit_note'], false);
+});
+
+testWidgets('[SET-NOTI-13] 저장 실패 시 그 줄 아래 오류 한 줄', (t) async {
+  await _pumpNoti(t, prefs: _allOn, failPatch: true);
+  await t.tap(find.byKey(const Key('switch-appt_status')));
+  await t.pumpAndSettle();
+  expect(find.textContaining('저장하지 못했습니다'), findsOneWidget);
+});
+
+testWidgets('[SET-NOTI-16][SET-NOTI-17] 화면은 「거르는 자리」를 설명하지 발송을 흉내내지 않는다', (t) async {
+  await _pumpNoti(t, prefs: _allOn);
+  // 끈 알림이 알림함/잠금화면에 남지 않는 것은 서버가 애초에 안 보내서다(SET-NOTI-15) —
+  // 화면엔 그 사실을 담는 코드가 없다(서버 판정만 소비). 부연 문구로 확인.
+  expect(find.textContaining('앱을 설치하지 않'), findsNothing);  // 앱은 판정하지 않는다
+});
+```
+구현 `notification_settings_screen.dart`:
+```dart
+// [SET-NOTI-04] 2묶음 · 6토글. 각 토글의 라벨·소속·중요 여부.
+const _groups = [
+  ('예약에 관한 알림', [
+    ('appt_change',   '예약 변경·취소 안내', true),   // ⭐ 중요(SET-NOTI-05)
+    ('appt_status',   '예약 신청·확정 안내', false),
+    ('appt_reminder', '예약 전날·당일 안내', false),
+  ]),
+  ('그 밖의 알림', [
+    ('questionnaire', '사전문진 안내', false),
+    ('visit_note',    '진료 후 안내', false),
+    ('support_reply', '상담 답변 안내', false),
+  ]),
+];
+```
+- 각 토글은 `SwitchListTile`(키 `switch-<group>`), 줄 컨테이너 키 `noti-<group>`.
+- 중요 토글: `Container(decoration: BoxDecoration(border: Border(left: BorderSide(color: red, width: 4))))` + 라벨 붉은 글씨(`SET-NOTI-05`) — ⭐ **스위치 동작은 다른 토글과 똑같다·잠그지 않는다**(`SET-NOTI-06` — 위 `SET-NOTI-07` test가 「끄기」로 실제로 꺼지는 것을 확인).
+- `onChanged`: `group=='appt_change' && value==false && !_importantWarnShown` 이면 `showBlockDialog`(T12) 문구(`SET-NOTI-08`)·버튼 `[그대로 둘게요]`/`[끄기]`(`SET-NOTI-09`) → `[끄기]`면 `controller.toggle(...)` 후 `_importantWarnShown=true`(`SET-NOTI-10`). 그 밖 토글·두 번째 끄기부터는 바로 `controller.toggle`(`SET-NOTI-11`).
+- 저장 중 그 스위치만 `busy`면 비활성(`SET-NOTI-14`), 실패면 그 줄 아래 `InlineError`(`SET-NOTI-13`).
+- 오프라인(`connectivityProvider`)이면 스위치 전체 비활성 + `BTN-STATE-03` 이유 한 줄(`SET-HOME-16`과 같은 자리).
+
+> 📌 **값 없는/근거 규칙 실현 지도(완전 ID 개별)**: `SET-NOTI-01`(6종 전부 끌 수 있음)=6토글이 전부 켜고 끌 수 있음(잠긴 스위치 0개)으로 실현 · `SET-NOTI-02`(이유①: OS에서 앱 알림 자체를 끌 수 있으니 앱이 잠가도 소용없다)·`SET-NOTI-03`(이유②: 알림이 유일 통로 아님·직원이 전화로도 안내)=화면에 **잠긴 스위치가 없음**으로 실현(위 `SET-NOTI-04` test가 6토글 전부 조작 가능함을 확인) · `SET-NOTI-15`·`SET-NOTI-16`(앱이 아니라 서버가 발송 전 거른다)=화면에 「앱 측 필터·수신 후 숨김」 코드가 **없음**으로 실현(위 `[SET-NOTI-16][SET-NOTI-17]` test가 확인) · `SET-NOTI-17`(끈 알림은 알림함에도 안 남음)=서버 미발송의 결과라 화면 코드 없음 · `SET-NOTI-18`(구현 전제 갭 #5)=`00031`+API로 **해소** · **문자를 앱 스위치로 두지 않는 이유 네 갈래** — `SET-NOTI-20`(요구사항 4.7 주어=병원, 앱 미설치자가 첫 대상이라 앱 스위치일 수 없음)·`SET-NOTI-21`(문자=「범위 커지면 먼저 뺄 항목」이라 죽은 스위치 위험)·`SET-NOTI-22`(켰는데 안 오면 지킬 수 없는 약속)·`SET-NOTI-24`(문자 발송 판단은 병원 몫)=전부 `SET-NOTI-19`의 「문자로도 받기 스위치 없음」으로 실현(위 `SET-NOTI-04` test) · `SET-NOTI-23`(문자 원하는 어르신은 병원으로)=`SET-HOSP-02` 전화 걸기가 그 문 · `SET-NOTI-25`(갭 #72 직원웹 몫)=HANDOVERS 잔류 · `SET-NOTI-26`(딸린 수정 완료)=흐름도·결정문서 이미 삭제 반영(문서 상태).
+
+- [ ] **Step 7: 진료시간 포매터(순수) — 4줄 만들기**
+
+실패 테스트(`patient_app/test/features/settings/hospital_hours_format_test.dart`):
+```dart
+test('[SET-HOSP-05] 평일·토요일·점심시간·휴진일 네 줄로 접는다', () {
+  final lines = formatHospitalHours(HospitalHours(
+    weekdays: [
+      // 월~금 동일, 토 반일, 일 휴진
+      for (var wd = 1; wd <= 5; wd++) Day(wd, open: '09:00', close: '18:00', lunchStart: '12:30', lunchEnd: '14:00'),
+      Day(6, open: '09:00', close: '13:00'),
+      Day(0, isClosed: true),
+    ],
+    closures: [Closure('2026-08-21', '창립기념일')],
+  ));
+  expect(lines.weekday, '평일 09:00–18:00');
+  expect(lines.saturday, '토요일 09:00–13:00');
+  expect(lines.lunch, '점심시간 12:30–14:00');
+  expect(lines.closed, contains('일요일'));
+  expect(lines.closed, contains('8월 21일 창립기념일'));   // 예정 휴진도 휴진일 줄에
+});
+
+test('[SET-HOSP-05] 평일이 서로 다르면 요일별로 편다(억지로 묶지 않는다)', () {
+  final lines = formatHospitalHours(HospitalHours(weekdays: [
+    Day(1, open: '09:00', close: '18:00'), Day(2, open: '09:00', close: '17:00'),
+    for (var wd = 3; wd <= 6; wd++) Day(wd, isClosed: true), Day(0, isClosed: true),
+  ], closures: []));
+  expect(lines.weekday, contains('월요일'));   // 묶을 수 없으면 요일별
+  expect(lines.weekday, contains('화요일'));
+});
+```
+구현 `hospital_hours_format.dart` — 순수 함수. 월~금이 전부 같으면 `평일 …` 한 줄, 다르면 요일별 줄. 토요일 별도. 점심은 대표(평일) 값. 휴진일 = `isClosed` 요일 이름 + 예정 휴진(`M월 D일 메모`). 모두 문자열만 다룬다(서버가 `'HH:MM'`로 줌).
+
+- [ ] **Step 8: 병원 정보 화면 — 전화·진료시간·주소·길찾기**
+
+실패 테스트(`patient_app/test/features/settings/hospital_info_test.dart`):
+```dart
+testWidgets('[SET-HOSP-02][SET-HOSP-04][NAV-SET-15] [전화 걸기]가 가장 크고 번호를 함께 보여주며 전화 앱을 연다', (t) async {
+  await _pumpHosp(t, info: _info, hours: _hours);
+  expect(find.text('02-1234-5678'), findsOneWidget);            // 번호를 함께
+  await t.tap(find.byKey(const Key('call-button')));
+  expect(_launched, 'tel:0212345678');                          // 폰 전화 앱(누를 필요 없이)
+});
+
+testWidgets('[SET-HOSP-05] 진료시간 네 줄이 보인다', (t) async {
+  await _pumpHosp(t, info: _info, hours: _hours);
+  expect(find.textContaining('평일 09:00–18:00'), findsOneWidget);
+  expect(find.textContaining('점심시간'), findsOneWidget);
+});
+
+testWidgets('[SET-HOSP-06][SET-HOSP-07][NAV-SET-16] 주소·상세 위치 + 길찾기가 주소 문자열을 지도 앱에 넘긴다', (t) async {
+  await _pumpHosp(t, info: _info, hours: _hours);
+  expect(find.textContaining('본관 1층 종합접수'), findsOneWidget);   // [SET-HOSP-06]
+  await t.tap(find.byKey(const Key('map-button')));
+  expect(_launched, contains(Uri.encodeComponent('서울시 강남구')));   // [SET-HOSP-07·08] 좌표 아님
+});
+
+testWidgets('[SET-HOSP-09] 지도 앱이 없으면 오류 한 줄(막다른 길 아님)', (t) async {
+  await _pumpHosp(t, info: _info, hours: _hours, mapCanLaunch: false);
+  await t.tap(find.byKey(const Key('map-button')));
+  await t.pump();
+  expect(find.textContaining('지도 앱을 열 수 없습니다'), findsOneWidget);
+});
+
+testWidgets('[SET-HOSP-10] 오프라인이어도 화면은 열리고 [전화 걸기]는 동작한다', (t) async {
+  await _pumpHosp(t, info: _info, hours: _hoursError, offline: true);   // 진료시간 조회 실패
+  await t.tap(find.byKey(const Key('call-button')));                    // 전화는 인터넷 불필요
+  expect(_launched, startsWith('tel:'));
+  expect(find.byKey(const Key('call-button')), findsOneWidget);
+});
+```
+구현 `hospital_info_screen.dart`:
+- `hospital_info_repository.dart`: `getInfo()`(→ `/catalog/hospital` 주소·전화) · `getHours()`(→ `/catalog/hospital/hours`). 둘을 각각 `FutureProvider`로.
+- 화면: 상단 큰 `ActionButton`(`call-button`, `SET-HOSP-02`) + 번호 텍스트 → `url_launcher`로 `tel:` (`SET-HOSP-04`·`NAV-SET-15`). 진료시간 카드=`formatHospitalHours`의 4줄. 주소+상세위치(`SET-HOSP-06`) + `[지도 앱으로 길 찾기]`(`map-button`)=`geo:`/`https://maps?q=`에 주소 문자열 인코딩(`SET-HOSP-07`), `canLaunchUrl` 실패면 `InlineError`(`SET-HOSP-09`).
+- 진료시간 조회 실패/오프라인이면 그 카드만 `EmptyState.offline`(마지막 값 없으면), 전화·주소는 유지(`SET-HOSP-10`). ⭐ **전화는 늘 동작**(오프라인 무관).
+
+> 📌 실현 지도: `SET-HOSP-01`(자료 재사용)=`getInfo`+`getHours` 두 창구 소비(㉯) · `SET-HOSP-03`(전화가 크게 오는 이유)=`call-button`이 화면 최상단 최대 크기로 배치됨으로 실현 · `SET-HOSP-08`(좌표 저장 안 함)=`map-button`이 좌표가 아니라 주소 문자열만 넘김(위 test).
+
+- [ ] **Step 9: 설정 홈 — 6블록**
+
+실패 테스트(`patient_app/test/features/settings/settings_home_test.dart`):
+```dart
+testWidgets('[SET-HOME-04] 여섯 블록이 순서대로 있다', (t) async {
+  await _pumpSettings(t, me: _me);
+  for (final s in ['내 정보', '알림', '계정', '병원', '로그아웃', '회원 탈퇴']) {
+    expect(find.textContaining(s), findsWidgets);
+  }
+});
+
+testWidgets('[SET-HOME-05][SET-HOME-06] 내 정보는 이름·전화를 가리지 않고 보여주기만 한다(못 누름)', (t) async {
+  await _pumpSettings(t, me: _me);   // 김순자 / 010-1234-5678
+  expect(find.text('김순자'), findsOneWidget);
+  expect(find.text('010-1234-5678'), findsOneWidget);        // 마스킹 없음
+  final infoTile = find.byKey(const Key('block-myinfo'));
+  expect(tester.widget<InkWell>(infoTile).onTap, isNull);    // 누를 수 없다
+});
+
+testWidgets('[SET-HOME-08][NAV-...] 전화번호를 바꾸려 하면 AUTH-TEL 안내로 보낸다', (t) async {
+  await _pumpSettings(t, me: _me);
+  await t.tap(find.byKey(const Key('change-phone')));
+  expect(_lastRoute, '/phone-change');                       // 앱에서 못 바꾼다 → 병원 방문 안내
+});
+
+testWidgets('[SET-HOME-12][SET-HOME-13][SET-HOME-14] 로그아웃은 평범한 버튼, 탈퇴는 맨 아래 작은 회색 밑줄', (t) async {
+  await _pumpSettings(t, me: _me);
+  final logout = tester.widget<ElevatedButton>(find.byKey(const Key('logout-button')));
+  expect((logout.style!.backgroundColor!.resolve({}) == Colors.red), false);  // 붉은색 아님
+  final quit = tester.widget<Text>(find.byKey(const Key('withdraw-text')));
+  expect(quit.style!.decoration, TextDecoration.underline);                    // 밑줄 작은 회색
+});
+
+testWidgets('[SET-HOME-15] 오프라인이어도 설정 화면은 열린다(내 정보·병원은 받아둔 값)', (t) async {
+  await _pumpSettings(t, me: _me, offline: true);
+  expect(find.text('김순자'), findsOneWidget);               // 화면 열림
+});
+
+testWidgets('[SET-HOME-16] 오프라인이면 알림 설정 줄은 이유와 함께 비활성(진입 자체는 막지 않음)', (t) async {
+  await _pumpSettings(t, me: _me, offline: true);
+  expect(find.textContaining('인터넷에 연결되면'), findsWidgets);  // 이유 한 줄(BTN-STATE-03)
+});
+```
+구현 `settings_home_screen.dart` — 6블록(`SET-HOME-04`):
+- ① 내 정보(`block-myinfo`): 이름+전화 텍스트(가리지 않음, `SET-HOME-05`·`SET-HOME-06`), `onTap:null` — ⭐ **수정 문을 여기 두지 않는다**(`SET-HOME-07` — 이름·생년월일·성별 수정은 `계정 › 가족 관리`의 본인 카드가 이미 그 자리). 전화번호 변경은 별도 작은 링크 `change-phone`→`/phone-change`(`SET-HOME-08`, `AUTH-TEL` 안내).
+- ② 알림: `알림 설정 ›` + 부연 `받을 알림을 고를 수 있습니다`(`SET-HOME-09`) → `/settings/notifications`(`NAV-SET-04`). 오프라인이면 비활성+이유(`SET-HOME-16`, `NAV-SET-20`).
+- ③ 계정: `비밀번호 변경 ›`→`/settings/password`(자리표시자=T29, `NAV-SET-05`) · `가족 관리 ›`→`/family`(`NAV-SET-06`, 재인증 다시 안 물음 — 방금 통과) (`SET-HOME-10`).
+- ④ 병원: `한빛병원` + `02-1234-5678 · 강남구 ›` 한 줄(`SET-HOME-11`) → `/settings/hospital`(`NAV-SET-07`).
+- ⑤ 로그아웃 버튼(`logout-button`, 평범 색, `SET-HOME-12`) → `/settings/logout`(자리표시자=T29, `NAV-SET-08`).
+- ⑥ 회원 탈퇴(`withdraw-text`, 맨 아래 작은 회색 밑줄, 버튼 아님, `SET-HOME-13·14`) → `/settings/withdraw`(자리표시자=T29, `NAV-SET-09`).
+- 오프라인이어도 화면 자체는 열림(`SET-HOME-15`, `NAV-SET-20`) — 내 정보·병원 한 줄은 이미 받아둔 값.
+
+> ⚠️ **경계(T29 몫 — 재소유 금지)**: 로그아웃 확인 팝업·실행(`SET-OUT-*`)·회원 탈퇴 화면(`SET-QUIT-*`)·비밀번호 변경(`SET-PW-*`)·`NAV-SET-10~14`는 **Task 29**가 소유한다. 이 태스크는 세 목적지를 **자리표시자 라우트**로 열어 두고 진입만 잇는다(T26이 `/settings/hospital`을 나에게 넘긴 것과 같은 악수의 대칭). `NAV-SET-08·09` test는 「그 줄을 누르면 그 라우트로 간다」까지만 확인하고, 팝업·랜딩 이동은 T29가 `SET-OUT` 계열·`SET-QUIT` 계열로 test한다.
+
+- [ ] **Step 10: 라우터 배선 — SET-HOME 진입·NAV-SET**
+
+실패 테스트(`patient_app/test/features/settings/settings_routes_test.dart`):
+```dart
+testWidgets('[NAV-SET-01][NAV-SET-02][SET-HOME-02][SET-HOME-03] 설정은 민감 경로 — 5분 지났으면 재인증 먼저', (t) async {
+  // T14 가드 소비 확인: /settings는 _isSensitive에 든다.
+  expect(isSensitiveLocation('/settings'), isTrue);
+  expect(isSensitiveLocation('/settings/notifications'), isTrue);
+  expect(isSensitiveLocation('/settings/hospital'), isTrue);
+});
+
+testWidgets('[NAV-SET-03] 재인증 화면의 「비밀번호를 잊으셨나요?」는 비밀번호 찾기로', (t) async {
+  await _pumpAt(t, '/reauth?next=/settings');
+  await t.tap(find.text('비밀번호를 잊으셨나요?'));
+  await t.pumpAndSettle();
+  expect(find.byType(PasswordFindScreen), findsOneWidget);   // T14 화면 소비
+});
+
+testWidgets('[NAV-SET-04] 설정 → 알림 설정', (t) async {
+  await _pumpSettingsRoute(t);
+  await t.tap(find.byKey(const Key('go-notifications')));
+  await t.pumpAndSettle();
+  expect(find.byType(NotificationSettingsScreen), findsOneWidget);
+});
+
+testWidgets('[NAV-SET-07] 설정 → 병원 정보(T26 자리표시자를 실화면으로 갈아끼웠다)', (t) async {
+  await _pumpAt(t, '/settings/hospital');
+  expect(find.byType(HospitalInfoScreen), findsOneWidget);   // _Placeholder 아님
+  expect(find.text('병원 안내'), findsNothing);              // 옛 자리표시자 문구 사라짐
+});
+
+testWidgets('[NAV-SET-05][NAV-SET-08][NAV-SET-09] 비번변경·로그아웃·탈퇴는 T29 자리표시자로 간다', (t) async {
+  await _pumpSettingsRoute(t);
+  await t.tap(find.byKey(const Key('go-password')));
+  await t.pumpAndSettle(); expect(_loc(), '/settings/password');
+});
+
+testWidgets('[NAV-SET-06] 설정 → 가족 관리(재인증 다시 안 물음)', (t) async {
+  await _pumpSettingsRoute(t);            // 방금 재인증 통과 상태
+  await t.tap(find.byKey(const Key('go-family')));
+  await t.pumpAndSettle();
+  expect(find.byType(FamilyListScreen), findsOneWidget);     // /reauth로 안 튕긴다
+});
+
+testWidgets('[NAV-SET-18] 설정 하위에서 뒤로 = 한 단계 위', (t) async {
+  await _pumpAt(t, '/settings/notifications');
+  await t.pageBack(); await t.pumpAndSettle();
+  expect(_loc(), '/settings');
+});
+
+testWidgets('[NAV-SET-19][NAV-SET-20] 오프라인이 돼도 화면을 옮기지 않고, 오프라인 진입도 화면은 열린다', (t) async {
+  await _pumpSettingsRoute(t, offline: true);
+  expect(find.byType(SettingsHomeScreen), findsOneWidget);   // 안 옮김·열림
+});
+
+testWidgets('[NAV-SET-21] 「가족 연결 해제」 알림은 갈 곳이 없다 — 안내 팝업, 알림은 목록에 남긴다', (t) async {
+  // T18 resolveNotificationRoute의 family_unlinked → 갈 곳 없음(B-12)을 설정 맥락에서 재확인.
+  await _pumpNotificationTapped(t, type: 'family_unlinked');
+  expect(find.textContaining('더 이상 볼 수 없'), findsOneWidget);
+  expect(_loc(), isNot('/family'));                          // 이동 안 함
+});
+```
+구현 — `patient_app/lib/core/router.dart`(Modify · T0 골격·T11 redirect·T14 `_isSensitive` 유지):
+```dart
+// [SET-HOME-01][갭 #70] /settings 자리표시자를 실화면으로. T14 redirect가 이 경로를 이미 지킨다.
+GoRoute(path: '/settings', builder: (c, s) => const SettingsHomeScreen()),            // NAV-SET-01·02
+GoRoute(path: '/settings/notifications', builder: (c, s) => const NotificationSettingsScreen()), // NAV-SET-04
+GoRoute(path: '/settings/hospital', builder: (c, s) => const HospitalInfoScreen()),   // NAV-SET-07 (T26 자리표시자 교체)
+// ── 아래 셋은 T29가 실화면·실동작으로 갈아끼운다(자리표시자) ──
+GoRoute(path: '/settings/password', builder: (c, s) => const _Placeholder('비밀번호 변경')), // NAV-SET-05
+GoRoute(path: '/settings/withdraw', builder: (c, s) => const _Placeholder('회원 탈퇴')),      // NAV-SET-09
+GoRoute(path: '/settings/logout',   builder: (c, s) => const _Placeholder('로그아웃')),      // NAV-SET-08
+```
+⚠️ **T26이 넣은 `/settings/hospital` 자리표시자 줄을 위 실화면 줄로 교체**(중복 라우트 금지) — T26 커밋의 `_Placeholder('병원 안내')`를 지운다. `AUTH-OTP-11`·`NAV-FAM-12`의 도착지가 이제 실화면이 된다(두 진입 확인 = `NAV-FAM-12` test·`AUTH-OTP-11` test가 여전히 `/settings/hospital`로 가고, 그 화면이 `HospitalInfoScreen`이 됐음).
+Run: `flutter test test/features/settings/` → Expected: 전부 PASS.
+
+- [ ] **Step 11: 설계문서 반영(갭 4건) + 검사기 + 커밋**
+
+먼저 설계문서를 이 커밋에 **함께** 고친다(T24 이후 규율 — 플랜에 미루지 않는다):
+1. `docs/design/screen-behaviors.md`:
+   - `SET-NOTI-18`(갭 #5): `~~구현 전제 — 저장할 곳이 없다~~ ✅ **해소(2026-08-18, T28)** — 00031 환자 RLS + GET/PATCH /me/notification-preferences + 6토글 화면`
+   - `SET-HOSP-01`: `~~GET /app/hospital-info 재사용(주소·진료시간·전화)~~ ✅ **정정(2026-08-18, T28)** — 진료시간은 그 창구에 없어(HSETX-SEC-01 주소·전화만) get_hospital_hours 전용 창구를 신설(㉯). 주소·전화는 get_hospital_info 그대로.`
+   - `SET-HOSP-05`: 역참조 한 줄 — `자료 창구 = get_hospital_hours(hospital_hours·hospital_closures, 00031 읽기 정책). 표시 4줄 = formatHospitalHours(화면).`
+2. `docs/superpowers/specs/2026-07-31-ui-design-decisions.md`「기능 갭」:
+   - #5 `[x]` + 반영노트(00031·API·화면) · #70 `[x]`(설정 화면 신설) · 경계 갭 대조표에 **`#SET-HOSP-HOURS` 신규행**(진료시간 창구 부재 → ㉯ 전용 창구, 기각 ㉮·㉰ 근거) · #72 재확인(직원웹 잔류).
+3. `docs/design/spec-index/HANDOVERS.md`: **`support_reply`(=`support_answered`) 등록** — 4단계 챗봇이 이 `notification_type`으로 `notify_patient`를 부르면 T28 알림 선호가 이미 적용됨(챗봇 플랜이 그 이름을 쓰도록 못박음).
+```bash
+python3 docs/design/spec-index/plan-coverage-check.py --area patient-app
+python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-17-patient-app.md
+```
+→ **빚(💸)0·🕳0(SET-HOME이 이제 T28 배정으로 tracked)·exit0** 확인.
+> ⚠️⚠️ **`NAV-SET-*` 소유는 T29 접두어로 뒀다(검사기 한계 대응)**: 검사기는 접두어를 통째로 한 태스크에 배정하고 `NAV-SET-*(01~09·15~21)` 같은 범위 쪼갬을 못 읽는다. T28이 미작성 `NAV-SET-10~14`(탈퇴 최종확인·비번변경 성공 — **T29 화면 내부**라 T28이 test할 수 없다)를 소유하면 **5건이 T28 빚**이 된다. 그래서 소유를 **T29**로 넘겨 빚0을 지켰다. 그 결과 **T28이 실제 구현하는 `NAV-SET-01~09·15~21` 16건이 `⏰`로 뜬다**(「미작성 T29의 규칙을 T28이 완전 ID로 언급」으로 보임) — 그러나 이는 **예고가 아니라 실제 구현**이다(위 Step 10에 진짜 test가 있다). ⭐ **T29를 쓰면 이 16건은 자동으로 🔀(의도된 분담)로 바뀐다.** ⛔ **T29 착수 때 주의**: `--list-missing-rules`에 `NAV-SET-01~09·15~21`이 **안 뜬다**(T28이 이미 담음) — T29는 **`NAV-SET-10~14`만** 추가하고, 이미 담긴 16건을 다시 만들지 말 것(이 ⏰ 줄이 그 16건을 가리킨다).
+```bash
+git add supabase/migrations/00031_patient_notification_prefs_and_public_hours.sql \
+  backend/app/services/patient_notification_prefs_service.py backend/app/services/patient_catalog_service.py \
+  backend/app/routers/patient_settings.py backend/app/routers/patient_catalog.py backend/app/main.py \
+  backend/tests/test_00031_patient_settings_policies.py backend/tests/test_patient_notification_prefs_service.py \
+  backend/tests/test_patient_catalog_service.py backend/tests/test_patient_routers_integration.py \
+  patient_app/lib/features/settings/ patient_app/test/features/settings/ patient_app/lib/core/router.dart \
+  docs/design/screen-behaviors.md docs/superpowers/specs/2026-07-31-ui-design-decisions.md docs/design/spec-index/HANDOVERS.md
+git commit -m "feat: 📝 환자앱 Task 28 본문 — 설정 홈·알림 설정 6토글·병원 정보 68규칙(SET-HOME/NOTI/HOSP·NAV-SET) + 00031 환자 알림 RLS·진료시간 전용 창구(㉯) + 갭 #5·#70·#SET-HOSP-HOURS 해소"
+```
+
+> 📌 **규칙 커버리지(68)**: `SET-HOME-01~16`(16) · `SET-NOTI-01~26`(26) · `SET-HOSP-01~10`(10) · `NAV-SET-01~09`(9)+`15~21`(7)=16. 전부 개별 ID로 test에 심음.
+> ⚠️ **⏰ 재확인 완료**: 이 태스크는 SET-NOTI·SET-HOSP·NAV-SET를 **처음** 적는다(이전 태스크의 완전 ID 예고 0건 — 착수 시 grep 확인). 실현 지도(값 없는 규칙)는 **계열명**으로 적어 후속 태스크 몫을 커버로 세지 않게 한다.
+> ⚠️ **T29에 넘기는 악수**: `/settings/password`·`/settings/withdraw`·`/settings/logout` 세 자리표시자 라우트(`NAV-SET-05·08·09` 도착지) — T29가 `SET-PW/QUIT/OUT-*` 실화면·실동작으로 갈아끼우고 `NAV-SET-10~14`를 담는다.
+> ⭐ **양방향 악수 갚음(T26→T28)**: `/settings/hospital` 자리표시자를 `HospitalInfoScreen`으로 교체 — `NAV-FAM-12`·`AUTH-OTP-11`의 도착지가 실화면이 됐다.
