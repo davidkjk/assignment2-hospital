@@ -6829,3 +6829,936 @@ git commit -m "feat: 📝 상담봇 Task 13 본문 — 앱 취소 카드 3종 + 
 ```
 
 > **Task 13 완료 조건**: `CCARD-CANCELCONF`5·`CCARD-CANCELDONE`5·`CCARD-CANCELREJ`5·`LATEFLOW-POP`9·`LATEFLOW-CHAT`8·`LATEFLOW-APPT`7 = **39규칙 전수** 초록불. ⭐ **확인 필요 2건 확정**(CANCELCONF-NO A안·CANCELREJ-EXC). ⭐⭐ **환자 채널(Task 10~13) 완결** — 앱 상담방·라이브·카드·취소·마감후 전부. **다음 = Task 14**(웹 위젯 상담방 — `WEBCHAT-LAUNCH/ROOM/GUIDE/URGENT/OUTAGE/HANDOFF`·`NAV-WEBCHAT`, 앱 규칙 재사용분 많음). ⚠️ 웹은 `webchat/`(Vite React, Task 0 스캐폴딩) — Flutter 아님. 앱 상담방 규칙을 React로 옮기되 익명 세션(`X-Anon-Token`)이 다름.
+
+---
+
+## Task 14: 웹 위젯 상담방 — 런처·방·가이드·긴급·장애·인계 (`WEBCHAT-LAUNCH/ROOM/GUIDE/URGENT/OUTAGE/HANDOFF` · `NAV-WEBCHAT`)
+
+> **환자 채널의 웹 절반을 연다.** 병원 홈페이지 우하단 런처 → 자기완결 위젯 상담방(피드·전송·재전송·로딩/오류)·진료과 추천 배너·긴급 안내·AI 장애 화면·인계 상태 배지, 그리고 이 위젯 안에서의 화면 이동(`NAV-WEBCHAT`). **42규칙 전수.**
+>
+> ⚠️⚠️ **웹은 Flutter가 아니라 React다.** 상담방은 `webchat/`(Vite+React+TS, **Task 0 스캐폴딩**)에 짓는다 — `patient_app/`(Flutter)을 손대지 않는다. 테스트는 **Vitest + `@testing-library/react`**(Task 0가 깐 하네스), `flutter test`가 아니다. 앱 상담방(Task 10·11)의 **규칙·상태·문구는 그대로 재사용**하되 코드는 React로 다시 쓴다 — 공유되는 것은 **같은 백엔드 API·서버 판정값**(`is_open(at)`·티켓 생명주기·오케스트레이션)이지 위젯 코드가 아니다.
+>
+> ⭐ **앱과 다른 단 하나 = 익명 세션.** 웹 위젯은 **로그인이 없다.** 소유권은 브라우저 **익명 토큰**(`X-Anon-Token` 헤더, Task 3 `anonymous_chat_sessions` 토큰 해시)으로 잇는다. Supabase Auth 세션을 저장하지 않는다(`persistSession=false`, Task 0). 같은 브라우저는 토큰으로 복원하고 **다른 기기 이어보기는 제공하지 않는다**(MR2-01). 이 delta가 `WEBCHAT-ROOM-03~05`·`NAV-WEBCHAT-06`의 핵심이다.
+>
+> **근거 원본**: behaviors **웹 위젯 §A**(신규 본체 `WEBCHAT-LAUNCH`5·`WEBCHAT-ROOM`10·`WEBCHAT-OUTAGE`6)·**§B**(앱 재사용 `WEBCHAT-GUIDE`3·`WEBCHAT-HANDOFF`7·`WEBCHAT-URGENT`4)·`NAV-WEBCHAT`7 · 정본 §0(환자 노출 이름 `AI 상담봇`·값 조작 금지·환자 노출 문구)·§1(9 운영시간·17 장애)·§3 · 요구사항 **L342~344**(웹 상담창)·**L477~480**(위젯 문맥)·**L364~371**(긴급)·**L357**(인증 관문) · 앱 짝 Task 10·11 `Produces` · 백엔드 계약 Task 9 라우터(`/chat/*`)·Task 3 익명 계약.
+>
+> ⭐ **경계 — Task 15가 받을 것(중복 빌드 금지)**: 로그인/가입 분기 모달 `WEBMOD-AUTH`·익명 인계 폼 `WEBANON-HANDOFF`·웹 카드 `WEBCARD-*`(시간/예약확인/완료/취소/문진/빠른답변)는 **전부 Task 15**다. Task 14는 이들로 가는 **콜백 슬롯만** 남긴다: `onAuthGate(pendingAction)`(→ `WEBMOD-AUTH`)·`onHandoffNeeded(summary)`(→ `WEBANON-HANDOFF`)·`renderCard(payload)`(→ `WEBCARD`). 이 슬롯의 **문맥 보존·복귀**(NAV-WEBCHAT-02·03·05)는 Task 14가 검증하고, 슬롯 **안의 화면**은 Task 15가 채운다.
+>
+> ⭐ **낡은 미결 1건 해소(`NAV-WEBCHAT-04`)**: behaviors가 *"가입 완료 후 복귀 방식은 확인 필요"*라고 남겨 뒀으나 **이미 `WEBMOD-AUTH` 계열(가입 완료, MR2-03)이 확정**했다 — 가입 완료 후 복귀는 **자동이 아니라 수동(재확인 카드)**. 단방향 링크(옛 항목에 역참조 없음)라 낡은 채 남아 있었다. 이 태스크 커밋에서 behaviors `NAV-WEBCHAT-04`에 **해소 역참조**를 박는다(→ `WEBMOD-AUTH`·`WEBCARD-BOOKCONF` 계열, Task 15 소유). Task 14 nav는 **로그인 복귀**만 담고, **가입 복귀=재확인 카드**는 Task 15 WEBMOD로 넘긴다.
+>
+> ⭐ **확인 필요 1건 = 배포로 흡수(`WEBCHAT-HANDOFF-03`)**: *"정확한 알림 도달 문구·배치는 확인 필요"* 중 **위젯이 관찰하는 부분은 이미 확정**이다 — 근거 없는 분 단위 예상시간을 만들지 않고, 런처 미읽음은 **점 ● 하나**(숫자 배지 금지, `WEBCHAT-LAUNCH-05`), 배칭 판정(미확인 연속 답변 1묶음)은 **서버 몫**(Task 3 `enqueue_staff_reply_notification`·`notification_recipient`). 남은 것은 **실제 SMS 발송 문구·시점**뿐이고 이는 **dispatcher(배포)** 소관이라 기존 알림 dispatcher 계약에 흡수된다(새 결정·새 HANDOVER 없음). 위젯은 상태 배지만 렌더한다.
+
+**Files:**
+- Modify: `webchat/src/App.tsx` (Task 0) — 셸 자리표시자를 `<WebchatWidget/>` 마운트로 교체
+- Create: `webchat/src/api/webchatApi.ts` (`WebchatApi` 인터페이스 + `createWebchatApi(baseUrl)` — `/chat/*` REST + `X-Anon-Token`)
+- Create: `webchat/src/state/anonSession.ts` (`loadAnonToken`·`saveAnonToken`·`clearAnonToken` — `localStorage` 키 `webchat_anon_token`)
+- Create: `webchat/src/state/useWebchat.ts` (세션 시작/복원·전송/재전송·조회오류·배치 확인 훅 — 앱 `ChatRoomController` 대응)
+- Create: `webchat/src/widget/WebchatWidget.tsx` (런처+방 셸 — 열림/닫힘·미읽음 점·콜백 슬롯 배선)
+- Create: `webchat/src/widget/Launcher.tsx` (`Launcher` — `WEBCHAT-LAUNCH`)
+- Create: `webchat/src/widget/ChatRoom.tsx` (`ChatRoom` — `WEBCHAT-ROOM` 셸: 머리말·피드·입력·가이드/인계 슬롯·`renderCard` 슬롯)
+- Create: `webchat/src/widget/GuideBanner.tsx` (`GuideBanner` — `WEBCHAT-GUIDE`)
+- Create: `webchat/src/widget/HandoffBadge.tsx` (`HandoffBadge` — `WEBCHAT-HANDOFF`)
+- Create: `webchat/src/widget/UrgentNotice.tsx` (`UrgentNotice` — `WEBCHAT-URGENT`)
+- Create: `webchat/src/widget/OutageNotice.tsx` (`OutageNotice` — `WEBCHAT-OUTAGE`)
+- Modify: `docs/design/screen-behaviors.md` — `NAV-WEBCHAT-04` 확인 필요 → 해소 역참조(단방향 링크 수리)
+- Test: `webchat/src/widget/Launcher.test.tsx` · `ChatRoom.test.tsx` · `GuideBanner.test.tsx` · `HandoffBadge.test.tsx` · `UrgentNotice.test.tsx` · `OutageNotice.test.tsx` · `WebchatWidget.test.tsx` · `webchat/src/state/useWebchat.test.tsx`
+
+**Interfaces:**
+- Consumes:
+  - **Task 0(webchat 스캐폴딩)**: `webchat/src/lib/supabaseClient.ts`(익명, `persistSession=false`) · `webchat/src/lib/env.ts`(`supabaseUrl`·`supabaseAnonKey`, 값 없으면 화면이 장애 안내) · Vitest+`@testing-library/react` 하네스(`src/test/setup.ts`).
+  - **Task 9(라우터)**: `POST /chat/sessions`(새/이어가기) · `POST /chat/messages`(멱등 `client_message_id`) · `GET /chat/threads/{id}/messages` · `POST /chat/read`(배치 확인) · 익명 의존성 **헤더 `X-Anon-Token`** → `get_anonymous_session`(Task 3 `upsert_session`). 오케스트레이션 결과 `route_taken`(`emergency`→긴급·`handoff`→인계·`rag`/`department_guide`→답변)은 서버가 준다(앱과 동일 파이프라인 `handle_patient_message`).
+  - **Task 3(익명 계약)**: `anonymous_chat_sessions` 토큰 해시 소유권 · 미확인 연속 직원 답변 1배치(`enqueue_staff_reply_notification`) · 익명 검증 연락처는 **SMS 답변 수신용만**(`notification_recipient.resolve_recipient`) — 위젯은 배칭을 만들지 않고 서버 판정을 표시만 한다.
+  - **서버 판정(앱·웹 공유)**: 단일 `is_open(at)`(운영시간·점심·특정일 예외, 1단계/직원웹) · 티켓 생명주기 `pending→in_progress→answered`(Task 2 → 인계 배지 `대기중`·`직원 확인중`·`답변완료`) · 병원 전화번호 `get_public_hospital_info`(④ 공용).
+  - **앱 짝(규칙·문구 재사용 대상)**: Task 10 `CHAT-ROOM`/`CHAT-GUIDE`·Task 11 `CHAT-HANDOFF`(`HandoffStatus` 모양)·`CHAT-URGENT`·`CHAT-OUTAGE` — **코드가 아니라 규칙·상태·한글 문구**를 옮긴다.
+- Produces (Task 15 웹 카드·인증이 소비):
+  - `useWebchat()` 훅 반환 `{ phase, session, messages, handoff, guide, send, resend, retryLoad, acknowledgeView }` — `phase: 'firstConsult'|'restoring'|'ready'|'loadError'`.
+  - `WebchatWidget` 콜백 슬롯(Task 15가 화면을 채운다): `onAuthGate(action: PendingAction)`·`onHandoffNeeded(summary: HandoffSummary)`·`renderCard(payload)`. `PendingAction`·`HandoffSummary` 타입은 여기서 정의.
+  - `ChatRoom`(재사용 셸: `guideSlot`·`handoffSlot`·`renderCard` 프롭)·`HandoffBadge`·`GuideBanner`·`UrgentNotice`·`OutageNotice` 컴포넌트.
+  - `webchatApi`(`startOrRestoreSession`·`sendMessage`·`fetchMessages`·`fetchHandoff`·`acknowledgeBatches`) · `anonSession`(토큰 저장소).
+- ⚠️ **아직 안 하는 것**: `WEBMOD-AUTH`·`WEBANON-HANDOFF`·`WEBCARD-*`=**Task 15** · 실제 SMS 발송=dispatcher(배포) · 위젯 임베드 스크립트·`base` 확정=배포.
+
+---
+
+- [ ] **Step 1: API 클라이언트 + 익명 토큰 저장소(계약 골격)**
+
+> 위젯이 소비하는 백엔드 계약을 타입으로 못박는다. 실제 fetch는 `createWebchatApi`가 감싸고, 테스트는 이 인터페이스의 **가짜 구현**을 주입한다(네트워크 없음). 익명 토큰은 `localStorage`에 두어 **같은 브라우저**만 복원한다(`WEBCHAT-ROOM-04`).
+
+`webchat/src/api/webchatApi.ts`:
+```ts
+export type SenderType = 'patient' | 'bot' | 'staff' | 'system';
+export type MessageType = 'text' | 'card' | 'system';
+export type SendState = 'sending' | 'sent' | 'failed';
+
+export type ThreadMessage = {
+  id: string;
+  senderType: SenderType;
+  messageType: MessageType;
+  content: string | null;         // 카드/시스템은 null 가능(payload가 알맹이)
+  payload?: Record<string, unknown> | null;
+  clientMessageId?: string;
+  sendState?: SendState;          // 클라 로컬 전송 상태(낙관적 말풍선)
+};
+
+export type HandoffPhase = 'connecting' | 'inProgress' | 'answered'; // 티켓 pending/in_progress/answered
+export type HandoffStatus = {
+  phase: HandoffPhase | null;     // null = 조회 전(로딩)
+  assigneeName?: string;
+  assigneeRole?: string;
+  isOpen: boolean;                // 서버 단일 is_open(at)
+  hoursNote?: string;             // 운영시간 안/밖 안내(서버 문구)
+  loadError?: boolean;
+};
+
+export type SessionState = {
+  threadId: string;
+  aiSessionId: string;
+  anonToken: string;              // 서버가 발급/확인한 익명 토큰
+  messages: ThreadMessage[];
+};
+
+export type GuideState = { active: boolean; text: string };
+
+export interface WebchatApi {
+  // 익명 토큰이 있으면 복원, 없으면 첫 상담 세션 시작. 서버가 토큰을 확정해 돌려준다.
+  startOrRestoreSession(anonToken: string | null): Promise<SessionState>;
+  fetchMessages(threadId: string): Promise<ThreadMessage[]>;
+  // 멱등: 같은 clientMessageId면 서버가 한 행만 만든다(§8-4). route_taken을 결과로 준다.
+  sendMessage(args: {
+    threadId: string; aiSessionId: string; content: string; clientMessageId: string;
+  }): Promise<{ routeTaken: string; botMessage?: ThreadMessage; handoffTicketId?: string }>;
+  fetchHandoff(threadId: string): Promise<HandoffStatus>;
+  acknowledgeBatches(threadId: string): Promise<void>; // POST /chat/read
+}
+
+const ANON_HEADER = 'X-Anon-Token'; // Task 9 익명 의존성 헤더
+
+export function createWebchatApi(baseUrl: string): WebchatApi {
+  const call = async (path: string, init: RequestInit, anonToken: string | null) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as object) };
+    if (anonToken) headers[ANON_HEADER] = anonToken; // 로그인이 아니라 익명 토큰으로 소유권을 잇는다
+    const resp = await fetch(baseUrl + path, { ...init, headers });
+    if (!resp.ok) throw new Error(`webchat_api_${resp.status}`); // 화면이 한글 오류로 변환(개발자 오류문 노출 금지)
+    return resp.json();
+  };
+  return {
+    async startOrRestoreSession(anonToken) {
+      const j = await call('/chat/sessions', { method: 'POST', body: JSON.stringify({ channel: 'web' }) }, anonToken);
+      return j as SessionState;
+    },
+    async fetchMessages(threadId) {
+      const j = await call(`/chat/threads/${threadId}/messages`, { method: 'GET' }, null);
+      return j.messages as ThreadMessage[];
+    },
+    async sendMessage(a) {
+      return call('/chat/messages', { method: 'POST', body: JSON.stringify(a) }, null);
+    },
+    async fetchHandoff(threadId) {
+      return call(`/chat/threads/${threadId}/handoff`, { method: 'GET' }, null);
+    },
+    async acknowledgeBatches(threadId) {
+      await call('/chat/read', { method: 'POST', body: JSON.stringify({ threadId }) }, null);
+    },
+  };
+}
+```
+
+`webchat/src/state/anonSession.ts`:
+```ts
+const KEY = 'webchat_anon_token'; // 같은 브라우저만. 다른 기기엔 없다(WEBCHAT-ROOM-05).
+
+export const loadAnonToken = (): string | null => {
+  try { return localStorage.getItem(KEY); } catch { return null; }
+};
+export const saveAnonToken = (token: string): void => {
+  try { localStorage.setItem(KEY, token); } catch { /* 저장 불가여도 세션은 진행 */ }
+};
+export const clearAnonToken = (): void => {
+  try { localStorage.removeItem(KEY); } catch { /* noop */ }
+};
+```
+
+- [ ] **Step 2: 런처 `WEBCHAT-LAUNCH` — 실패 테스트 → 구현**
+
+`webchat/src/widget/Launcher.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Launcher } from './Launcher';
+
+test('[WEBCHAT-LAUNCH-01] 위젯 닫힘이면 `AI 상담봇` 여는 단일 런처를 표시한다', () => {
+  render(<Launcher open={false} hasUnread={false} onOpen={() => {}} onClose={() => {}} />);
+  const btn = screen.getByRole('button', { name: 'AI 상담봇 열기' });
+  expect(btn).toBeInTheDocument();
+  expect(screen.getAllByRole('button')).toHaveLength(1); // 진입점은 하나
+  expect(screen.queryByText(/챗봇/)).not.toBeInTheDocument(); // 환자 노출 이름은 AI 상담봇
+});
+
+test('[WEBCHAT-LAUNCH-02] 닫힌 런처를 누르면 방 열기를 요청한다(세션 복원은 위젯이 이어받음)', async () => {
+  const onOpen = vi.fn();
+  render(<Launcher open={false} hasUnread={false} onOpen={onOpen} onClose={() => {}} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  expect(onOpen).toHaveBeenCalledTimes(1);
+});
+
+test('[WEBCHAT-LAUNCH-03] 위젯 열림에서 닫기는 onClose만 부른다 — 대화/토큰 삭제 아님', async () => {
+  const onClose = vi.fn();
+  render(<Launcher open={true} hasUnread={false} onOpen={() => {}} onClose={onClose} />);
+  // 닫기는 셸이 제공(LAUNCH-04). 런처는 열림 표시만.
+  expect(screen.queryByRole('button', { name: 'AI 상담봇 열기' })).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled(); // 렌더만으로 아무것도 지우지 않는다
+});
+
+test('[WEBCHAT-LAUNCH-04] 위젯 열림이면 런처가 별도 진입점처럼 보이지 않게 열림 상태를 표시한다', () => {
+  render(<Launcher open={true} hasUnread={false} onOpen={() => {}} onClose={() => {}} />);
+  const launcher = screen.getByLabelText('AI 상담봇 런처');
+  expect(launcher).toHaveAttribute('data-open', 'true'); // 열림 표시(두 개의 상담 진입점 금지)
+  expect(screen.queryByRole('button', { name: 'AI 상담봇 열기' })).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-LAUNCH-05] 닫힘 중 직원 답변 도착이면 점 ● 하나만 — 숫자 배지 없음', () => {
+  render(<Launcher open={false} hasUnread={true} onOpen={() => {}} onClose={() => {}} />);
+  expect(screen.getByLabelText('새 답변 있음')).toBeInTheDocument(); // 점 표식
+  expect(screen.queryByText(/^\d+$/)).not.toBeInTheDocument(); // 숫자 배지 금지(결정 B4)
+});
+```
+
+`webchat/src/widget/Launcher.tsx`:
+```tsx
+export type LauncherProps = { open: boolean; hasUnread: boolean; onOpen: () => void; onClose: () => void };
+
+export function Launcher({ open, hasUnread, onOpen }: LauncherProps) {
+  return (
+    <div aria-label="AI 상담봇 런처" data-open={open ? 'true' : 'false'}>
+      {!open && (
+        <button type="button" aria-label="AI 상담봇 열기" onClick={onOpen}>
+          AI 상담봇
+          {hasUnread && <span aria-label="새 답변 있음" role="img">●</span>}
+        </button>
+      )}
+    </div>
+  );
+}
+```
+Run: `npm --prefix webchat run test -- Launcher` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: 방 셸 `WEBCHAT-ROOM` 표시부 — 실패 테스트 → 구현**
+
+> 세션 생명주기(첫상담/복원/로딩/오류)는 Step 4의 훅이, **표시·전송 상호작용**은 이 컴포넌트가 담는다. 전송 실패 말풍선·재전송·인증 왕복 문맥 보존을 여기서 검증한다.
+
+`webchat/src/widget/ChatRoom.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { ChatRoom } from './ChatRoom';
+import type { ThreadMessage } from '../api/webchatApi';
+
+const base = {
+  onSend: () => {}, onResend: () => {}, onRetryLoad: () => {},
+  guideSlot: null, handoffSlot: null, renderCard: () => null,
+};
+
+test('[WEBCHAT-ROOM-01] 자기완결 위젯 경계 — 전체화면이 아니라 위젯 영역으로 표시', () => {
+  render(<ChatRoom phase="ready" messages={[]} {...base} />);
+  const region = screen.getByRole('region', { name: 'AI 상담봇' });
+  expect(region).toHaveAttribute('data-widget', 'true'); // 테두리·그림자 위젯(홈페이지와 분리)
+});
+
+test('[WEBCHAT-ROOM-02] 머리말은 `AI 상담봇` + 같은 문맥에 가이드/인계 슬롯', () => {
+  render(<ChatRoom phase="ready" messages={[]} {...base}
+    guideSlot={<div>추천 진행 중</div>} handoffSlot={<div>대기중</div>} />);
+  expect(screen.getByRole('banner')).toHaveTextContent('AI 상담봇');
+  expect(screen.getByText('추천 진행 중')).toBeInTheDocument();
+  expect(screen.getByText('대기중')).toBeInTheDocument();
+});
+
+test('[WEBCHAT-ROOM-03] 첫 상담이면 빈 오류가 아니라 첫 안내 + 자유 입력', () => {
+  render(<ChatRoom phase="firstConsult" messages={[]} {...base} />);
+  expect(screen.getByPlaceholderText('메시지를 입력하세요')).toBeEnabled(); // 자유 입력 열림
+  expect(screen.queryByText(/오류|실패/)).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-ROOM-06] 로딩 중이면 로딩 표시 — 기존 메시지를 가리지 않는다', () => {
+  const msgs: ThreadMessage[] = [{ id: 'm1', senderType: 'bot', messageType: 'text', content: '안녕하세요' }];
+  render(<ChatRoom phase="restoring" messages={msgs} {...base} />);
+  expect(screen.getByRole('status')).toHaveTextContent('불러오는 중'); // 조회 중
+  expect(screen.getByText('안녕하세요')).toBeInTheDocument();          // 과거 메시지 유지
+});
+
+test('[WEBCHAT-ROOM-07] 조회 오류면 한글 오류 + [다시 시도] — 입력/토큰 안 지움', async () => {
+  const onRetryLoad = vi.fn();
+  render(<ChatRoom phase="loadError" messages={[]} {...base} onRetryLoad={onRetryLoad} />);
+  expect(screen.getByText('대화를 불러오지 못했어요.')).toBeInTheDocument(); // 개발자 오류문 금지
+  await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+  expect(onRetryLoad).toHaveBeenCalledTimes(1);
+  expect(screen.getByPlaceholderText('메시지를 입력하세요')).toBeInTheDocument(); // 첫 상담으로 안 바뀜
+});
+
+test('[WEBCHAT-ROOM-08] 전송하면 환자 말풍선을 전송 중으로 표시하고 같은 메시지 중복 전송을 막는다', async () => {
+  const onSend = vi.fn();
+  const sending: ThreadMessage[] = [{ id: 'local-1', senderType: 'patient', messageType: 'text',
+    content: '주차 되나요?', sendState: 'sending', clientMessageId: 'c1' }];
+  render(<ChatRoom phase="ready" messages={sending} {...base} onSend={onSend} />);
+  const bubble = screen.getByText('주차 되나요?').closest('[data-send-state]');
+  expect(bubble).toHaveAttribute('data-send-state', 'sending'); // 성공 말풍선처럼 위장 금지
+  const input = screen.getByPlaceholderText('메시지를 입력하세요');
+  await userEvent.type(input, '주차 되나요?{enter}');
+  // 전송 중인 동일 메시지 재전송을 막는다(멱등 clientMessageId는 훅이 부여)
+  expect(onSend).toHaveBeenCalledTimes(1);
+});
+
+test('[WEBCHAT-ROOM-09] 전송 실패면 성공처럼 표시 안 하고 [재전송]을 실패 말풍선 가까이 둔다', async () => {
+  const onResend = vi.fn();
+  const failed: ThreadMessage[] = [{ id: 'local-2', senderType: 'patient', messageType: 'text',
+    content: '예약 되나요?', sendState: 'failed', clientMessageId: 'c2' }];
+  render(<ChatRoom phase="ready" messages={failed} {...base} onResend={onResend} />);
+  const bubble = screen.getByText('예약 되나요?').closest('[data-send-state]');
+  expect(bubble).toHaveAttribute('data-send-state', 'failed');
+  await userEvent.click(screen.getByRole('button', { name: '재전송' }));
+  expect(onResend).toHaveBeenCalledWith('c2'); // 동일 메시지 재전송(다른 대화 안 만듦)
+});
+
+test('[WEBCHAT-ROOM-10] 인증 모달 왕복 뒤 메시지·전송 완료가 유지된다(비번은 기록에 안 섞음)', () => {
+  const msgs: ThreadMessage[] = [
+    { id: 'm1', senderType: 'patient', messageType: 'text', content: '내 예약 보여줘', sendState: 'sent' },
+  ];
+  // 모달을 닫고 돌아온 상태를 같은 messages로 다시 렌더 → 문맥 유지
+  const { rerender } = render(<ChatRoom phase="ready" messages={msgs} {...base} />);
+  rerender(<ChatRoom phase="ready" messages={msgs} {...base} />);
+  expect(screen.getByText('내 예약 보여줘')).toBeInTheDocument();
+  expect(screen.queryByText(/비밀번호/)).not.toBeInTheDocument(); // 인증 입력은 상담 기록에 없음
+});
+```
+
+`webchat/src/widget/ChatRoom.tsx`:
+```tsx
+import type { ReactNode } from 'react';
+import { useState } from 'react';
+import type { ThreadMessage } from '../api/webchatApi';
+
+export type WebchatPhase = 'firstConsult' | 'restoring' | 'ready' | 'loadError';
+export type ChatRoomProps = {
+  phase: WebchatPhase;
+  messages: ThreadMessage[];
+  onSend: (text: string) => void;
+  onResend: (clientMessageId: string) => void;
+  onRetryLoad: () => void;
+  guideSlot: ReactNode;
+  handoffSlot: ReactNode;
+  renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
+};
+
+export function ChatRoom(p: ChatRoomProps) {
+  const [draft, setDraft] = useState('');
+  return (
+    <section role="region" aria-label="AI 상담봇" data-widget="true">
+      <header role="banner">AI 상담봇{p.guideSlot}{p.handoffSlot}</header>
+      {p.phase === 'restoring' && <div role="status">불러오는 중…</div>}
+      <ul>
+        {p.messages.map((m) => (
+          <li key={m.id} data-send-state={m.sendState ?? 'sent'}>
+            {m.messageType === 'card' ? p.renderCard(m.payload) : m.content}
+            {m.sendState === 'failed' && (
+              <button type="button" onClick={() => m.clientMessageId && p.onResend(m.clientMessageId)}>재전송</button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {p.phase === 'loadError' && (
+        <div>
+          <p>대화를 불러오지 못했어요.</p>
+          <button type="button" onClick={p.onRetryLoad}>다시 시도</button>
+        </div>
+      )}
+      <form onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { p.onSend(draft.trim()); setDraft(''); } }}>
+        <input placeholder="메시지를 입력하세요" value={draft} onChange={(e) => setDraft(e.target.value)} />
+      </form>
+    </section>
+  );
+}
+```
+Run: `npm --prefix webchat run test -- ChatRoom` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: 세션 훅 `useWebchat` — 첫상담/복원/오류·전송 멱등·다른기기 없음**
+
+> `WEBCHAT-ROOM-03·04·05`(세션 생명주기)와 `WEBCHAT-ROOM-08·09`(전송 멱등/실패)의 **상태 기계**를 훅으로 검증한다. 가짜 `WebchatApi`를 주입해 네트워크 없이 돌린다.
+
+`webchat/src/state/useWebchat.test.tsx`:
+```tsx
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { useWebchat } from './useWebchat';
+import type { WebchatApi, SessionState } from '../api/webchatApi';
+import { saveAnonToken, loadAnonToken, clearAnonToken } from './anonSession';
+
+const session: SessionState = { threadId: 't1', aiSessionId: 's1', anonToken: 'TOK', messages: [] };
+function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
+  return {
+    startOrRestoreSession: vi.fn(async () => session),
+    fetchMessages: vi.fn(async () => []),
+    sendMessage: vi.fn(async () => ({ routeTaken: 'rag', botMessage: {
+      id: 'b1', senderType: 'bot', messageType: 'text', content: '네, 가능합니다' } })),
+    fetchHandoff: vi.fn(async () => ({ phase: null, isOpen: true })),
+    acknowledgeBatches: vi.fn(async () => {}),
+    ...over,
+  };
+}
+beforeEach(() => clearAnonToken());
+
+test('[WEBCHAT-ROOM-03] 익명 토큰이 없으면 첫 상담 세션을 시작하고 서버 토큰을 저장한다', async () => {
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith(null); // 토큰 없음 → 첫 상담
+  await waitFor(() => expect(result.current.phase).toBe('ready'));
+  expect(loadAnonToken()).toBe('TOK'); // 같은 브라우저 복원용으로 저장
+});
+
+test('[WEBCHAT-ROOM-04] 유효한 익명 토큰이 있으면 복원 — 이름/연락처를 다시 묻지 않는다', async () => {
+  saveAnonToken('OLD');
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith('OLD'); // 토큰으로 기존 대화 복원
+  expect(result.current.askedForContact).toBe(false);            // 새 방으로 가장 안 함
+});
+
+test('[WEBCHAT-ROOM-05] 다른 기기(토큰 없음)엔 이어보기 경로가 없다 — 이름/전화로 추측 조회 안 함', async () => {
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  expect(loadAnonToken()).toBeNull();          // 다른 기기엔 토큰이 없다
+  await act(async () => { await result.current.open(); });
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith(null); // 새 익명 세션일 뿐, 남의 상담을 찾지 않음
+  expect(result.current.crossDeviceResume).toBe(false);
+});
+
+test('[WEBCHAT-ROOM-07] 세션 조회 실패면 loadError — 토큰을 지우지 않는다', async () => {
+  saveAnonToken('KEEP');
+  const api = fakeApi({ startOrRestoreSession: vi.fn(async () => { throw new Error('webchat_api_500'); }) });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await waitFor(() => expect(result.current.phase).toBe('loadError'));
+  expect(loadAnonToken()).toBe('KEEP'); // 조회 실패로 토큰 삭제 금지
+});
+
+test('[WEBCHAT-ROOM-08] 전송은 clientMessageId를 부여해 멱등 — 같은 전송 중 메시지를 중복 전송하지 않는다', async () => {
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('주차 되나요?'); });
+  const call = (api.sendMessage as any).mock.calls[0][0];
+  expect(typeof call.clientMessageId).toBe('string');       // 멱등 키 부여(§8-4)
+  expect(call.content).toBe('주차 되나요?');
+});
+
+test('[WEBCHAT-ROOM-09] 전송 실패면 말풍선을 failed로 두고 resend는 같은 clientMessageId로 재전송', async () => {
+  const send = vi.fn()
+    .mockRejectedValueOnce(new Error('webchat_api_500'))
+    .mockResolvedValueOnce({ routeTaken: 'rag' });
+  const api = fakeApi({ sendMessage: send });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('예약 되나요?'); });
+  const failed = result.current.messages.find((m) => m.sendState === 'failed');
+  expect(failed?.content).toBe('예약 되나요?');
+  await act(async () => { await result.current.resend(failed!.clientMessageId!); });
+  expect(send.mock.calls[0][0].clientMessageId).toBe(send.mock.calls[1][0].clientMessageId); // 동일 키
+});
+```
+
+`webchat/src/state/useWebchat.ts`:
+```ts
+import { useCallback, useRef, useState } from 'react';
+import type { WebchatApi, SessionState, ThreadMessage, HandoffStatus, GuideState } from '../api/webchatApi';
+import type { WebchatPhase } from '../widget/ChatRoom';
+import { loadAnonToken, saveAnonToken } from './anonSession';
+
+const uuid = () => crypto.randomUUID();
+
+export function useWebchat(api: WebchatApi) {
+  const [phase, setPhase] = useState<WebchatPhase>('firstConsult');
+  const [session, setSession] = useState<SessionState | null>(null);
+  const [messages, setMessages] = useState<ThreadMessage[]>([]);
+  const [handoff, setHandoff] = useState<HandoffStatus>({ phase: null, isOpen: false });
+  const [guide, setGuide] = useState<GuideState>({ active: false, text: '' });
+  const inFlight = useRef<Set<string>>(new Set()); // 중복 전송 방지(clientMessageId)
+
+  const open = useCallback(async () => {
+    const token = loadAnonToken();          // 같은 브라우저만. 다른 기기엔 null(WEBCHAT-ROOM-05)
+    setPhase(token ? 'restoring' : 'firstConsult');
+    try {
+      const s = await api.startOrRestoreSession(token); // 토큰 없으면 새 익명 세션(추측 조회 안 함)
+      saveAnonToken(s.anonToken);
+      setSession(s); setMessages(s.messages); setPhase('ready');
+    } catch {
+      setPhase('loadError');                // 토큰은 지우지 않는다(WEBCHAT-ROOM-07)
+    }
+  }, [api]);
+
+  const dispatchSend = useCallback(async (content: string, clientMessageId: string) => {
+    if (!session || inFlight.current.has(clientMessageId)) return; // 멱등 중복 차단
+    inFlight.current.add(clientMessageId);
+    setMessages((m) => upsertLocal(m, { content, clientMessageId, sendState: 'sending' }));
+    try {
+      const out = await api.sendMessage({ threadId: session.threadId, aiSessionId: session.aiSessionId, content, clientMessageId });
+      setMessages((m) => markSent(m, clientMessageId, out.botMessage));
+      if (out.routeTaken === 'department_guide') setGuide({ active: true, text: '진료과 안내 진행 중' });
+      else if (out.routeTaken !== 'department_guide') setGuide((g) => ({ ...g, active: false }));
+    } catch {
+      setMessages((m) => markFailed(m, clientMessageId)); // 성공 위장 금지(WEBCHAT-ROOM-09)
+    } finally {
+      inFlight.current.delete(clientMessageId);
+    }
+  }, [api, session]);
+
+  const send = useCallback((content: string) => dispatchSend(content, uuid()), [dispatchSend]);
+  const resend = useCallback((clientMessageId: string) => {
+    const prev = messages.find((x) => x.clientMessageId === clientMessageId);
+    if (prev) return dispatchSend(prev.content ?? '', clientMessageId); // 동일 키 재전송
+  }, [dispatchSend, messages]);
+
+  return {
+    phase, session, messages, handoff, guide,
+    askedForContact: false, crossDeviceResume: false, // 익명 웹은 이름/연락처를 방 진입에서 묻지 않는다
+    open, send, resend,
+    retryLoad: open,
+    acknowledgeView: useCallback(async () => { if (session) await api.acknowledgeBatches(session.threadId); }, [api, session]),
+    setHandoff,
+  };
+}
+
+// 낙관적 말풍선 헬퍼(전송 중/성공/실패 상태 전이)
+function upsertLocal(list: ThreadMessage[], p: { content: string; clientMessageId: string; sendState: 'sending' }): ThreadMessage[] {
+  return [...list, { id: `local-${p.clientMessageId}`, senderType: 'patient', messageType: 'text', ...p }];
+}
+function markSent(list: ThreadMessage[], cid: string, bot?: ThreadMessage): ThreadMessage[] {
+  const next = list.map((m) => (m.clientMessageId === cid ? { ...m, sendState: 'sent' as const } : m));
+  return bot ? [...next, bot] : next;
+}
+function markFailed(list: ThreadMessage[], cid: string): ThreadMessage[] {
+  return list.map((m) => (m.clientMessageId === cid ? { ...m, sendState: 'failed' as const } : m));
+}
+```
+Run: `npm --prefix webchat run test -- useWebchat` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: 진료과 추천 배너 `WEBCHAT-GUIDE`(앱 `CHAT-GUIDE` 재사용)**
+
+`webchat/src/widget/GuideBanner.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import { GuideBanner } from './GuideBanner';
+
+test('[WEBCHAT-GUIDE-01] 추천 갈래 진행 중이면 위젯 안에 현재 안내 갈래를 고정 표시(비진단)', () => {
+  render(<GuideBanner active={true} text="증상에 맞는 진료과를 안내 중입니다" />);
+  const banner = screen.getByRole('note', { name: '진료과 추천 안내' });
+  expect(banner).toHaveTextContent('증상에 맞는 진료과를 안내 중입니다');
+  expect(banner).not.toHaveTextContent(/진단|처방/); // 앱 CHAT-GUIDE 비진단 원칙
+});
+
+test('[WEBCHAT-GUIDE-02] 추천 갈래가 끝나면 배너를 표시하지 않는다 — 상시 의료 경고로 남기지 않음', () => {
+  render(<GuideBanner active={false} text="증상에 맞는 진료과를 안내 중입니다" />);
+  expect(screen.queryByRole('note', { name: '진료과 추천 안내' })).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-GUIDE-03] 배너는 위젯 셸 안에서 메시지와 함께 스크롤돼도 의미가 유지되게 고정 표시', () => {
+  render(<GuideBanner active={true} text="안내 진행 중" />);
+  expect(screen.getByRole('note', { name: '진료과 추천 안내' })).toHaveAttribute('data-pinned', 'true');
+});
+```
+
+`webchat/src/widget/GuideBanner.tsx`:
+```tsx
+export function GuideBanner({ active, text }: { active: boolean; text: string }) {
+  if (!active) return null; // 갈래 종료 시 사라진다(WEBCHAT-GUIDE-02)
+  return <div role="note" aria-label="진료과 추천 안내" data-pinned="true">{text}</div>;
+}
+```
+Run: `npm --prefix webchat run test -- GuideBanner` → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: 인계 상태 배지 `WEBCHAT-HANDOFF`(앱 `CHAT-HANDOFF` 재사용)**
+
+`webchat/src/widget/HandoffBadge.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { HandoffBadge } from './HandoffBadge';
+import type { HandoffStatus } from '../api/webchatApi';
+const pump = (s: HandoffStatus, onRetry = () => {}) => render(<HandoffBadge status={s} onRetry={onRetry} />);
+
+test('[WEBCHAT-HANDOFF-01] 인계 뒤 대기중/직원 확인중/답변완료를 같은 API 상태로 표시', () => {
+  pump({ phase: 'connecting', isOpen: true });
+  expect(screen.getByText('대기중')).toBeInTheDocument();
+  pump({ phase: 'inProgress', isOpen: true, assigneeName: '김간호', assigneeRole: '간호사' });
+  expect(screen.getByText('직원 확인중')).toBeInTheDocument();
+  pump({ phase: 'answered', isOpen: true });
+  expect(screen.getByText('답변완료')).toBeInTheDocument();
+});
+
+test('[WEBCHAT-HANDOFF-02] 운영시간 판정은 서버 is_open 결과를 쓴다 — 환경변수 9~18시 금지', () => {
+  // isOpen은 서버가 준 값이며 위젯은 클라 시계로 재판정하지 않는다.
+  pump({ phase: 'connecting', isOpen: false, hoursNote: '다음 영업일에 답변드립니다' });
+  expect(screen.getByText('다음 영업일에 답변드립니다')).toBeInTheDocument();
+});
+
+test('[WEBCHAT-HANDOFF-03] 운영시간 안 연결이면 상담 중 표시 — 근거 없는 분 단위 예상시간을 만들지 않는다', () => {
+  pump({ phase: 'inProgress', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' });
+  expect(screen.getByText('직원 확인중')).toBeInTheDocument();
+  expect(screen.queryByText(/분 후|분 뒤|예상/)).not.toBeInTheDocument(); // 서버가 안 준 예상시간 금지
+});
+
+test('[WEBCHAT-HANDOFF-04] 운영시간 밖이면 다음 영업일 답변 안내(같은 판정에서 얻은 문구)', () => {
+  pump({ phase: 'connecting', isOpen: false, hoursNote: '다음 영업일에 순서대로 답변드립니다' });
+  expect(screen.getByText('다음 영업일에 순서대로 답변드립니다')).toBeInTheDocument();
+});
+
+test('[WEBCHAT-HANDOFF-05] 상태 조회 중이면 이전 배지를 임의로 바꾸지 않고 조회 중을 표시', () => {
+  pump({ phase: null, isOpen: true }); // 조회 전
+  expect(screen.getByRole('status')).toHaveTextContent('상태 확인 중');
+  expect(screen.queryByText('답변완료')).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-HANDOFF-06] 상태 조회 오류면 답변완료로 가장하지 않고 한글 오류 + 재조회', async () => {
+  const onRetry = vi.fn();
+  pump({ phase: null, isOpen: true, loadError: true }, onRetry);
+  expect(screen.getByText('상태를 불러오지 못했어요.')).toBeInTheDocument();
+  expect(screen.queryByText('답변완료')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+  expect(onRetry).toHaveBeenCalledTimes(1);
+});
+
+test('[WEBCHAT-HANDOFF-07] 환자 노출 문구는 `상담(직원 확인)으로 연결됐습니다`만 — 취소 접수/등록 암시 금지', () => {
+  pump({ phase: 'connecting', isOpen: true });
+  expect(screen.getByText('상담(직원 확인)으로 연결됐습니다')).toBeInTheDocument();
+  expect(screen.queryByText(/취소 요청.*(접수|등록)|예약이 취소/)).not.toBeInTheDocument();
+});
+```
+
+`webchat/src/widget/HandoffBadge.tsx`:
+```tsx
+import type { HandoffStatus } from '../api/webchatApi';
+
+const LABEL: Record<'connecting' | 'inProgress' | 'answered', string> = {
+  connecting: '대기중', inProgress: '직원 확인중', answered: '답변완료',
+};
+
+export function HandoffBadge({ status, onRetry }: { status: HandoffStatus; onRetry: () => void }) {
+  if (status.loadError) {
+    return (
+      <div>
+        <p>상태를 불러오지 못했어요.</p>
+        <button type="button" onClick={onRetry}>다시 시도</button>
+      </div>
+    );
+  }
+  if (status.phase === null) return <div role="status">상태 확인 중…</div>;
+  return (
+    <div>
+      <span>{LABEL[status.phase]}</span>
+      {status.assigneeName && <span>{status.assigneeName} {status.assigneeRole}</span>}
+      {status.hoursNote && <p>{status.hoursNote}</p>}
+      <p>상담(직원 확인)으로 연결됐습니다</p>
+    </div>
+  );
+}
+```
+Run: `npm --prefix webchat run test -- HandoffBadge` → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: 긴급 안내 `WEBCHAT-URGENT`(앱 `CHAT-URGENT` 재사용)**
+
+`webchat/src/widget/UrgentNotice.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import { UrgentNotice } from './UrgentNotice';
+
+test('[WEBCHAT-URGENT-01] 긴급 표현 감지면 일반 예약 대화를 멈추고 119/응급실 이용을 안내', () => {
+  render(<UrgentNotice bookingCtaVisible={false} contactRequested={false} />);
+  expect(screen.getByText(/119|응급실/)).toBeInTheDocument();
+});
+
+test('[WEBCHAT-URGENT-02] 긴급 여부를 완벽히 보장하거나 진단한 것처럼 표현하지 않는다', () => {
+  render(<UrgentNotice bookingCtaVisible={false} contactRequested={false} />);
+  expect(screen.queryByText(/진단|확실히|반드시 응급/)).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-URGENT-03] 긴급 안내 중 시간선택·예약확인 등 일반 예약 CTA를 함께 노출하지 않는다', () => {
+  render(<UrgentNotice bookingCtaVisible={false} contactRequested={false} />);
+  expect(screen.queryByRole('button', { name: /시간 선택|예약 신청/ })).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-URGENT-04] 익명 웹에서 인증·연락처를 긴급 안내보다 먼저 요구하지 않는다', () => {
+  render(<UrgentNotice bookingCtaVisible={false} contactRequested={false} />);
+  expect(screen.queryByPlaceholderText(/전화번호|연락처/)).not.toBeInTheDocument(); // 인계 폼은 직원 문의 선택 후(Task 15)
+});
+```
+
+`webchat/src/widget/UrgentNotice.tsx`:
+```tsx
+export function UrgentNotice({ bookingCtaVisible, contactRequested }:
+  { bookingCtaVisible: boolean; contactRequested: boolean }) {
+  return (
+    <div role="alert">
+      <p>증상이 급하면 119 또는 가까운 응급실을 바로 이용해 주세요.</p>
+      {/* bookingCtaVisible=false: 긴급 중 일반 예약 CTA 금지(URGENT-03) */}
+      {/* contactRequested=false: 연락처 수집은 직원 문의 선택 후에만(URGENT-04) */}
+    </div>
+  );
+}
+```
+Run: `npm --prefix webchat run test -- UrgentNotice` → FAIL → 구현 → PASS.
+
+- [ ] **Step 8: AI 장애 화면 `WEBCHAT-OUTAGE`(신규 본체)**
+
+`webchat/src/widget/OutageNotice.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { OutageNotice } from './OutageNotice';
+const base = { hospitalPhone: '02-000-0000', onLeaveInquiry: () => {}, onRetry: () => {} };
+
+test('[WEBCHAT-OUTAGE-01] 한글 장애 안내 — 예약·진료기록까지 장애라고 확대하지 않는다', () => {
+  render(<OutageNotice phase="idle" {...base} />);
+  expect(screen.getByText(/상담 답변에 일시적인 문제/)).toBeInTheDocument();
+  expect(screen.queryByText(/예약.*(불가|장애)|진료기록.*(불가|장애)/)).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-OUTAGE-02] [문의 남기기]를 누르면 기존 문맥으로 직원 문의를 시작한다(익명은 인계 폼=Task 15)', async () => {
+  const onLeaveInquiry = vi.fn();
+  render(<OutageNotice phase="idle" {...base} onLeaveInquiry={onLeaveInquiry} />);
+  await userEvent.click(screen.getByRole('button', { name: '문의 남기기' }));
+  expect(onLeaveInquiry).toHaveBeenCalledTimes(1); // 봇 응답 없이 대화 문맥으로 인계
+});
+
+test('[WEBCHAT-OUTAGE-03] 제출 중이면 원래 동작을 잠그고 완료로 가장하지 않는다(중복 티켓 방지)', () => {
+  render(<OutageNotice phase="submitting" {...base} />);
+  expect(screen.getByRole('button', { name: '문의 남기기' })).toBeDisabled();
+  expect(screen.queryByText(/연결됐습니다/)).not.toBeInTheDocument(); // 아직 완료 아님
+});
+
+test('[WEBCHAT-OUTAGE-04] 제출 실패면 한글 오류 + 재시도, 기존 대화/입력값 보존', async () => {
+  const onRetry = vi.fn();
+  render(<OutageNotice phase="error" {...base} onRetry={onRetry} />);
+  expect(screen.getByText('문의를 남기지 못했어요.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+  expect(onRetry).toHaveBeenCalledTimes(1);
+});
+
+test('[WEBCHAT-OUTAGE-05] 제출 완료면 `상담(직원 확인)으로 연결됐습니다`만 — 접수/등록·AI 복구 암시 금지', () => {
+  render(<OutageNotice phase="done" {...base} />);
+  expect(screen.getByText('상담(직원 확인)으로 연결됐습니다')).toBeInTheDocument();
+  expect(screen.queryByText(/접수|등록|복구|정상화/)).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-OUTAGE-06] 비상 CTA는 병원 전화번호 + [문의 남기기]가 주 경로 — 앱 예약은 보조 문구만', () => {
+  render(<OutageNotice phase="idle" {...base} />);
+  expect(screen.getByText('02-000-0000')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '문의 남기기' })).toBeInTheDocument();
+  const appNote = screen.getByText(/환자 앱/);
+  expect(appNote.closest('[data-role="secondary"]')).not.toBeNull(); // 앱 예약은 주 CTA가 아니다
+});
+```
+
+`webchat/src/widget/OutageNotice.tsx`:
+```tsx
+export type OutagePhase = 'idle' | 'submitting' | 'error' | 'done';
+export function OutageNotice({ phase, hospitalPhone, onLeaveInquiry, onRetry }:
+  { phase: OutagePhase; hospitalPhone: string; onLeaveInquiry: () => void; onRetry: () => void }) {
+  if (phase === 'done') return <p>상담(직원 확인)으로 연결됐습니다</p>;
+  return (
+    <div role="alert">
+      <p>상담 답변에 일시적인 문제가 있어요. 예약·진료기록은 그대로 이용할 수 있어요.</p>
+      <p>{hospitalPhone}</p>
+      <button type="button" onClick={onLeaveInquiry} disabled={phase === 'submitting'}>문의 남기기</button>
+      {phase === 'error' && (
+        <>
+          <p>문의를 남기지 못했어요.</p>
+          <button type="button" onClick={onRetry}>다시 시도</button>
+        </>
+      )}
+      <p data-role="secondary">더 빠른 예약은 환자 앱에서도 할 수 있어요.</p>
+    </div>
+  );
+}
+```
+Run: `npm --prefix webchat run test -- OutageNotice` → FAIL → 구현 → PASS.
+
+- [ ] **Step 9: 위젯 셸 + 화면 이동 `NAV-WEBCHAT` — 콜백 슬롯·문맥 보존**
+
+> 런처↔방 열림/닫힘, 인증 관문·익명 인계 콜백(Task 15로 가는 슬롯)의 **문맥 보존·복귀**, 마감 후 취소/변경에서 **새 화면을 만들지 않음**을 위젯 셸에서 검증한다. `WEBMOD-AUTH`·`WEBANON-HANDOFF` 자체 화면은 Task 15가 채우므로, 여기선 **콜백이 올바른 인자로 불리고 방 위치가 보존되는지**만 본다.
+
+`webchat/src/widget/WebchatWidget.test.tsx`:
+```tsx
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { WebchatWidget } from './WebchatWidget';
+import type { WebchatApi, SessionState } from '../api/webchatApi';
+import { saveAnonToken, clearAnonToken, loadAnonToken } from '../state/anonSession';
+
+const session: SessionState = { threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
+  messages: [{ id: 'm1', senderType: 'patient', messageType: 'text', content: '내 예약 보여줘', sendState: 'sent' }] };
+function fakeApi(): WebchatApi {
+  return {
+    startOrRestoreSession: vi.fn(async () => session),
+    fetchMessages: vi.fn(async () => session.messages),
+    sendMessage: vi.fn(async () => ({ routeTaken: 'rag' })),
+    fetchHandoff: vi.fn(async () => ({ phase: 'connecting', isOpen: true })),
+    acknowledgeBatches: vi.fn(async () => {}),
+  };
+}
+beforeEach(() => clearAnonToken());
+
+test('[NAV-WEBCHAT-01] 닫힌 런처를 누르면 방을 열고 같은 브라우저 익명 세션을 복원한다', async () => {
+  saveAnonToken('OLD');
+  const api = fakeApi();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => expect(screen.getByRole('region', { name: 'AI 상담봇' })).toBeInTheDocument());
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith('OLD'); // 익명 세션 복원
+});
+
+test('[NAV-WEBCHAT-02] 로그인 필요 행동이면 선택·대화 문맥을 보존하고 onAuthGate(인증 관문)를 연다', async () => {
+  const onAuthGate = vi.fn();
+  const api = fakeApi();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={onAuthGate} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
+  await userEvent.click(await screen.findByRole('button', { name: '내 예약 조회' }));
+  expect(onAuthGate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'view_my_appointments' })); // 원래 행동 보존
+});
+
+test('[NAV-WEBCHAT-03] 인증 모달을 닫으면 원래 행동을 실행하지 않고 같은 익명 방 위치로 돌아온다', async () => {
+  const api = fakeApi();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
+  await userEvent.click(await screen.findByRole('button', { name: '내 예약 조회' }));
+  // 콜백만 부르고 방은 그대로(모달 화면은 Task 15). 원래 메시지 문맥 유지.
+  expect(screen.getByText('내 예약 보여줘')).toBeInTheDocument();
+  expect(api.sendMessage).not.toHaveBeenCalled(); // 원래 행동은 인증 전 실행 안 됨
+});
+
+test('[NAV-WEBCHAT-04] 로그인 완료면 최신 값을 조회해 원래 행동으로 복귀한다(가입 완료 복귀=재확인 카드는 Task 15)', async () => {
+  const api = fakeApi();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
+  // 로그인 완료 콜백(Task 15가 실제 모달에서 부른다)을 시뮬레이트 → 최신 조회 트리거
+  await userEvent.click(await screen.findByRole('button', { name: '내 예약 조회' }));
+  // WEBMOD-AUTH 계열(가입 완료)은 자동 실행이 아니라 재확인 카드다 — 위젯이 자동 신청을 하지 않음을 확인
+  expect(api.sendMessage).not.toHaveBeenCalled();
+});
+
+test('[NAV-WEBCHAT-05] 익명 인계가 필요하면 onHandoffNeeded로 폼을 열고 성공하면 인계 상태로 돌아온다', async () => {
+  const onHandoffNeeded = vi.fn();
+  const api = fakeApi();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={onHandoffNeeded} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
+  await userEvent.click(await screen.findByRole('button', { name: '직원에게 문의' }));
+  expect(onHandoffNeeded).toHaveBeenCalledWith(expect.objectContaining({ threadId: 't1' })); // 대화 요약 문맥 전달
+});
+
+test('[NAV-WEBCHAT-06] 같은 브라우저는 토큰으로 복원, 다른 기기(토큰 없음)엔 이어보기 경로가 없다', async () => {
+  const api = fakeApi(); // 토큰 저장 안 함 = 다른 기기
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith(null); // 새 익명 세션, 남의 상담 추측 조회 없음
+  expect(screen.queryByRole('button', { name: /다른 기기.*이어보기/ })).not.toBeInTheDocument();
+});
+
+test('[NAV-WEBCHAT-07] 웹에서 마감 후 취소·변경은 앱 팝업/예약 맥락 화면을 복제하거나 새 이동을 만들지 않는다', async () => {
+  const api = fakeApi();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
+  // 앱 전용 마감 후 팝업/예약 맥락 화면이 웹에 없음(미결이라 새 화면 금지)
+  expect(screen.queryByText(/마감 후 취소|예약 맥락/)).not.toBeInTheDocument();
+});
+```
+
+`webchat/src/widget/WebchatWidget.tsx`:
+```tsx
+import { useState, type ReactNode } from 'react';
+import type { WebchatApi } from '../api/webchatApi';
+import { useWebchat } from '../state/useWebchat';
+import { Launcher } from './Launcher';
+import { ChatRoom } from './ChatRoom';
+import { GuideBanner } from './GuideBanner';
+import { HandoffBadge } from './HandoffBadge';
+
+export type PendingAction = { kind: 'view_my_appointments' | 'book' | 'cancel'; payload?: Record<string, unknown> };
+export type HandoffSummary = { threadId: string; summary: string[] };
+export type WidgetProps = {
+  api: WebchatApi;
+  hospitalPhone: string;
+  onAuthGate: (action: PendingAction) => void;      // → WEBMOD-AUTH(Task 15)
+  onHandoffNeeded: (summary: HandoffSummary) => void; // → WEBANON-HANDOFF(Task 15)
+  renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode; // → WEBCARD(Task 15)
+};
+
+export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard }: WidgetProps) {
+  const [open, setOpen] = useState(false);
+  const w = useWebchat(api);
+
+  const openRoom = async () => { setOpen(true); await w.open(); };
+  return (
+    <>
+      <Launcher open={open} hasUnread={w.handoff.phase === 'answered'} onOpen={openRoom} onClose={() => setOpen(false)} />
+      {open && (
+        <div>
+          <button type="button" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
+          <ChatRoom
+            phase={w.phase}
+            messages={w.messages}
+            onSend={w.send}
+            onResend={w.resend}
+            onRetryLoad={w.retryLoad}
+            guideSlot={<GuideBanner active={w.guide.active} text={w.guide.text} />}
+            handoffSlot={<HandoffBadge status={w.handoff} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />}
+            renderCard={renderCard}
+          />
+          {/* 로그인 필요 행동·직원 문의는 콜백만 부른다 — 화면은 Task 15. 원래 행동은 인증/인계 전 실행하지 않는다. */}
+          <button type="button" onClick={() => onAuthGate({ kind: 'view_my_appointments' })}>내 예약 조회</button>
+          <button type="button" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
+        </div>
+      )}
+    </>
+  );
+}
+```
+
+`webchat/src/App.tsx`(Task 0 자리표시자 → 마운트):
+```tsx
+import { WebchatWidget } from './widget/WebchatWidget';
+import { createWebchatApi } from './api/webchatApi';
+import { env } from './lib/env';
+
+const api = createWebchatApi(env.supabaseUrl ? `${env.supabaseUrl}/functions/v1` : '');
+
+export default function App() {
+  return (
+    <div id="webchat-app" role="region" aria-label="AI 상담봇">
+      <WebchatWidget
+        api={api}
+        hospitalPhone=""          {/* 배포 시 get_public_hospital_info로 주입 */}
+        onAuthGate={() => {}}      {/* Task 15: WEBMOD-AUTH */}
+        onHandoffNeeded={() => {}} {/* Task 15: WEBANON-HANDOFF */}
+        renderCard={() => null}    {/* Task 15: WEBCARD */}
+      />
+    </div>
+  );
+}
+```
+Run: `npm --prefix webchat run test -- WebchatWidget` → FAIL → 구현 → PASS. (Task 0의 `App.test.tsx` region 이름표 테스트도 계속 초록불)
+
+- [ ] **Step 10: 전수 초록불 + 검사기 + 커밋**
+
+Run: `npm --prefix webchat run test && npm --prefix webchat run build` → 42규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `165 → 207`(+42) · prefix-check **빚0·미배정0·⏰0·exit0** · **낡은 미결 `NAV-WEBCHAT-04` 해소**(behaviors 역참조). ⚠️ `WEBMOD-AUTH`·`WEBANON-HANDOFF`·`WEBCARD-*`는 Task 15 소유라 이 태스크가 완전 ID로 예고하지 않는다(⏰ 방지 — 콜백 슬롯은 이름으로만 참조).
+
+```bash
+git add webchat/src/ webchat/src/widget/ webchat/src/state/ webchat/src/api/ \
+        docs/design/screen-behaviors.md docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 14 본문 — 웹 위젯 상담방 42규칙(React/Vitest) + NAV-WEBCHAT-04 낡은 미결 해소. 익명 세션(X-Anon-Token) delta"
+```
+
+> **Task 14 완료 조건**: `WEBCHAT-LAUNCH`5·`WEBCHAT-ROOM`10·`WEBCHAT-GUIDE`3·`WEBCHAT-HANDOFF`7·`WEBCHAT-URGENT`4·`WEBCHAT-OUTAGE`6·`NAV-WEBCHAT`7 = **42규칙 전수** 초록불(Vitest). ⭐ **웹은 React** — `patient_app/`(Flutter) 무손. ⭐ **낡은 미결 `NAV-WEBCHAT-04` 해소**(가입 복귀=재확인 카드, → `WEBMOD-AUTH` 계열 Task 15). ⭐ **경계**: `WEBMOD-AUTH`·`WEBANON-HANDOFF`·`WEBCARD-*`=**Task 15**(콜백 슬롯 `onAuthGate`·`onHandoffNeeded`·`renderCard`만 남김). **다음 = Task 15**(웹 카드 + 인증 후 재확인 + 익명 연락처 45규칙 — `WEBCARD-*`·`WEBMOD-AUTH-*`·`WEBANON-HANDOFF-*`). ⚠️ Task 15가 이 콜백 슬롯을 실제 화면으로 채우고 익명 인계 전화번호(SMS 답변 수신용만)를 받는다.
