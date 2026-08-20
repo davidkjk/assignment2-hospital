@@ -11733,3 +11733,682 @@ git commit -m "feat: 📝 상담봇 Task 20 본문 — 관리자 KB 목록·편�
 ```
 
 > **Task 20 완료 조건**: `KBADM-LIST`(`01`~`09` = 9) + `KBADM-EDITOR`(`01·02·03·05`~`17` = 16, `04`는 Task 7) + `KBADM-HISTORY`(`01`~`09` = 9) = **34규칙 전수** 초록불(Vitest). ⭐ **관리자 채널 시작**(`features/kbadmin/`·`is_active_admin`). ⭐ **승인 전 비공개·승인 성공 전 기존본 유지**(저장=`pending_*`, 재임베딩 트랜잭션 성공 전 옛 답 유지). ⭐ **제한 체크박스 문구 글자 그대로**(`상담봇이 직접 답변하지 않고 이 문구만 그대로 보여줍니다`), 답변 반영은 Task 7. ⭐ **승인 후 정정=이전 버전 편집→재승인**(A2, 승인 취소 아님). ⭐ **소비 계약 6건 선언**: 목록·상세·저장(PUT→pending)·반려·보관·이력. ⚠️ **경계**: 제한 답변 반영(`EDITOR-04`)=Task 7 RAG · 오답/품질/미해결=**Task 21** · 순위/통계/관리자 내비=**Task 22** · 상태 enum/정렬(`LIST-03`)·승인 실패 원자성(`EDITOR-12`)·기존 자료 폐기(`EDITOR-17`)·삭제 정책(`HISTORY-09`)=확인 필요. **다음 = Task 21**(미해결 클러스터·오답 신고·품질 리포트·예시·bad inbox, 59개=최대 태스크).
+
+---
+
+## Task 21: 관리자 품질·미해결 + 직원 오답 신고 작성 — 미해결 클러스터·오답 처리함·품질 리포트·참고 예시·오답 신고 폼 (`UNRES-CLUSTER-*` · `BADINBOX-REVIEW-*` · `QUALITY-REPORT-*` · `QAEX-LIST-*` · `BADRPT-FORM-*`)
+
+> **최대 태스크(59규칙).** 그래도 70 미만이라 분할하지 않는다. **두 채널에 걸친다** — `BADRPT-FORM`(직원 오답 신고 작성 폼)은 **직원 콘솔**(`features/support/`·`is_active_staff`)이고, 나머지 4개(미해결·오답 처리함·품질·예시)는 **관리자**(`features/quality/`·`is_active_admin`)다. `BADRPT-FORM`은 Task 19가 `NAV-STFSUP-06`에서 **계열명으로만** 예고해 뒀으니 여기서 완전 ID로 담는다.
+>
+> ⚠️⚠️ **관리자 셸 + 직원 셸.** 관리자 4화면은 사이드바 `상담봇` 그룹 아래(`NAV-ADM` 계열=**Task 22** 소유·여기선 계열명 참조), 직원 오답 신고 폼은 전체 상담 기록·티켓 상세에서 봇 답변의 `잘못된 답변`으로 진입하는 **별도 전체 화면**이다(`NAV-STFSUP-06·13`=Task 19 소유·계열명 참조). React+TS+**Vitest**+`@testing-library/react`. `patient_app/`·`webchat/` 무손.
+>
+> ⭐ **자동 클러스터는 확정 분류가 아니다(`UNRES-CLUSTER-04`·`QTOP-RANK` 계열=Task 22도 같은 원칙).** 유사 질문 묶음에는 `비슷한 질문끼리 자동으로 묶어본 결과이며 실제로 다른 질문이 섞여 있을 수 있습니다`를 **항상 함께** 보여준다. 임베딩 누락 질문이 있으면 전체를 집계했다고 단정하지 않는다(`UNRES-CLUSTER-11`).
+>
+> ⭐ **0건·빈 상태·계약 부재를 각각 구분한다(정본 §0·§4).** 조회 성공 뒤 실제 0건일 때만 빈 상태다. 집계 실패는 오류+재시도(`UNRES-CLUSTER-09`·`BADINBOX-REVIEW-12`·`QUALITY-REPORT-11`·`QAEX-LIST-10`), 서버가 집계를 아예 제공하지 않으면 `현재 집계할 수 없음`(`UNRES-CLUSTER-10`) — 이 셋을 서로 뒤바꿔 표시하지 않는다.
+>
+> ⭐ **승인 전 미반영·교정만으로 즉시 반영 금지(결정 B3·G-06).** 오답 반영(`BADINBOX-REVIEW-03`)·품질 교정 저장(`QUALITY-REPORT-05·08`)은 안내자료 수정·승인(Task 20) 또는 참고 예시 등록을 **거쳐야** 봇 답변이 된다. `[반영]`·교정 저장만으로 미승인 내용을 답변에 쓰지 않는다.
+>
+> ⭐ **출처를 구분한다(결정 B3).** 그 자리 오답 신고는 `source = realtime_report`, 품질 리포트에서 온 교정은 `source = quality_review`로 저장해 한 처리함(`BADINBOX-REVIEW-01`)에 나란히 보이되 출처를 `품질 리뷰`로 구분한다. 품질 교정 저장은 `[처리함으로 가기 ›]`로 오답 신고 처리함에 연결한다(`QUALITY-REPORT-08`).
+>
+> ⭐ **B2 — 오답 신고 저장 후 복귀(`BADRPT-FORM-SAVE-03`·`EXIT-01`).** 저장 성공·작성 취소 모두 왔던 전체 상담 기록/티켓 상세의 **직전 필터·검색어·스크롤 위치**로 돌아간다. 저장 성공은 `오답 신고 처리함에 저장됐으며 아직 상담봇에 반영된 것이 아님`을 알린 뒤 같은 신고의 중복 제출을 막는다.
+>
+> ⭐ **모르는 것 안 지어냄(정본 §0).** `확인 필요` 규칙(`UNRES-CLUSTER-01·02·05·10·11`·`BADINBOX-REVIEW-04·05·09`·`QUALITY-REPORT-01`·`QAEX-LIST-03·07`·`BADRPT-FORM-VALID-01·LIVE-01`)은 근거 없는 값·차단 조건·정렬을 임의로 만들지 않고 `확인 필요`/`unknown`으로 노출한다.
+>
+> ⚠️⚠️ **소비 계약 선언(Task 9 라우터에 `POST /admin/chat/feedback/{id}/apply|reject`·`GET /admin/chat/quality`만 있음 — 나머지는 이름으로 못박음)**:
+> - **직원 오답 신고 저장** `POST /staff/chat/feedback`(←`answer_feedback_service.report`, `source=realtime_report`·`add_to_example_bank`) — staff 라우터에 없어 **선언**.
+> - **오답 처리함 목록** `GET /admin/chat/feedback?status=pending`(←`list_bad_inbox`)·**상세** `GET /admin/chat/feedback/{id}` — **선언**(라우터엔 `apply`·`reject`만).
+> - **미해결 클러스터 집계** `GET /admin/chat/unresolved?from=&to=`·**상세** `GET /admin/chat/unresolved/{clusterId}` — ⚠️ Task 8엔 `record_unresolved`(적재)만 있고 **클러스터 집계 함수 자체가 없다** → 집계 계약 부재(`UNRES-CLUSTER-10`이 이 부재를 `현재 집계할 수 없음`으로 다룬다). **선언**.
+> - **품질 상세 원문** `GET /admin/chat/quality/{sessionId}`·**교정 저장** `POST /admin/chat/quality/{sessionId}/correct`(←`report`, `source=quality_review`) — **선언**(라우터엔 `GET /admin/chat/quality` 목록만).
+> - **참고 예시 목록** `GET /admin/chat/examples?active=true`(←`qa_example_bank where is_active`)·**비활성** `POST /admin/chat/examples/{id}/deactivate` — **선언**.
+>
+> ⚠️⚠️ **소비 계약 갭 — source enum 문자열 불일치(⑦ 조정)**: behaviors는 즉시 신고를 **`realtime_report`**(`BADRPT-FORM-SOURCE-01`)로 쓰는데, Task 8 `answer_feedback_service.report(source="immediate")` 기본값·스키마 주석은 **`immediate/quality_review`**다. 즉시 신고의 enum 문자열이 `realtime_report`(화면 명세) vs `immediate`(백엔드)로 **다르다.** 여기서는 화면 명세대로 `realtime_report`를 보내는 것으로 테스트하고, **어느 문자열로 통일할지는 ⑦ 구현 때 확정**한다(임의로 백엔드를 고치지 않는다). 처리함 구분에 쓰이는 `quality_review`는 양쪽 일치.
+>
+> **근거 원본**: behaviors **미해결 §4**(`UNRES-CLUSTER-*` 11, `:5661~5671`)·**오답 처리함 §5**(`BADINBOX-REVIEW-*` 12, `:5677~5688`)·**품질 리포트 §6**(`QUALITY-REPORT-*` 12, `:5694~5705`)·**참고 예시 §7**(`QAEX-LIST-*` 10, `:5711~5720`)·**오답 신고 작성 §4(직원)**(`BADRPT-FORM-*` 14, `:5477~5490`) · 요구사항 **3.9/3.10·L204~224·L388·L403~409** · 결정 **B2**(저장 후 스크롤 복귀)·**B3**(`quality_review`로 bad inbox)·**SD-08**(신고 없어도 검토 저장·미검토 우선) · 정본 §0·§4 · 백엔드 **Task 8**(`quality_service`·`answer_feedback_service` · 표 `chat_quality_reviews`·`answer_feedback`·`qa_example_bank`·`unresolved_questions`) · 목업 **107**(직원 오답 신고)·**113**(미해결)·**114**(오답 처리함)·**115**(품질+예시) · 2단계 셸(`is_active_admin`·`is_active_staff`·`BTN-BUSY`·`ERR-POS`·`ERR-RETRY`·`EMPTY-ZERO`).
+
+**Files:**
+- Create: `frontend/src/features/support/badReportApi.ts` (`BadReportApi` — 직원 오답 신고 저장·대상 답변 조회 소비 계약)
+- Create: `frontend/src/features/support/BadReportForm.tsx` (`BadReportForm` — 대상 고정·올바른 안내·예시 체크·저장(비반영)·로딩/오류·취소 복귀)
+- Create: `frontend/src/features/quality/qualityApi.ts` (`QualityApi` — 미해결 집계·오답 처리함·품질 목록/상세/교정·참고 예시 소비 계약)
+- Create: `frontend/src/features/quality/UnresolvedClusters.tsx` (`UnresolvedClusters` — 기간·묶음·한계 안내·상세·빈/로딩/오류/계약부재/임베딩누락)
+- Create: `frontend/src/features/quality/BadAnswerInbox.tsx` (`BadAnswerInbox` — 실시간·품질 출처 구분·상세·반영/반려·처리 중/실패/완료/동시/빈/로딩/오류)
+- Create: `frontend/src/features/quality/QualityReport.tsx` (`QualityReport` — 목록+우측 상세 패널·미검토 우선 20건·교정 저장→quality_review·빈/로딩/오류/원문오류)
+- Create: `frontend/src/features/quality/ExampleBank.tsx` (`ExampleBank` — 예시 목록·비활성(삭제 아님)·처리 중/실패/완료/동시/빈/로딩/오류)
+- Test: 위 각 파일의 `*.test.ts(x)`
+
+**Interfaces:**
+- Consumes:
+  - **Task 8(`answer_feedback_service`)** — `report(message_id, staff_id, *, correction_text, source, add_to_example_bank)`·`list_bad_inbox(limit)`·`apply(feedback_id, staff_id, embedder, *, kb_document_id, kb_fields)`·`reject(feedback_id, staff_id)` · 표 `answer_feedback(message_id, source immediate|quality_review, correction_text, add_to_example_bank, status pending/applied/rejected)`.
+  - **Task 8(`quality_service`)** — `list_sessions_unreviewed_first(limit)`(미검토 우선→최신)·`mark_reviewed`·`record_unresolved(ticket_id, question, embedder)`(적재만) · 표 `chat_quality_reviews`·`qa_example_bank(is_active, source_feedback_id)`·`unresolved_questions(question_embedding)`.
+  - ⚠️ **라우터 없는 엔드포인트는 소비 계약 선언**(위 헤더 목록): `POST /staff/chat/feedback`·`GET /admin/chat/feedback[?status][/{id}]`·`GET /admin/chat/unresolved[/{clusterId}]`·`GET/POST /admin/chat/quality/{sessionId}[/correct]`·`GET /admin/chat/examples`·`POST /admin/chat/examples/{id}/deactivate`. **미해결 클러스터 집계 함수는 Task 8에 아예 없음** → `UNRES-CLUSTER-10` 계약 부재로 소비.
+  - **Task 20 흐름 연결** — `BADINBOX-REVIEW-03` 반영·`UNRES-CLUSTER-06` 자료 추가·`QUALITY-REPORT-08` 교정은 Task 20 KB `submit_edit`→승인으로 이어진다(자동 승인 아님). Task 20 `KbEditor`를 목적지로 소비.
+  - **2단계 셸** — 관리자 `private.is_active_admin()`·직원 `private.is_active_staff()` RLS · `BTN-BUSY`(저장/처리 중 잠금)·`ERR-POS`·`ERR-RETRY`·`EMPTY-ZERO` · 관리자 사이드바 `상담봇` 그룹·직원 지원 내비(`NAV-ADM`·`NAV-STFSUP` 계열=타 태스크).
+- Produces (⑦ 구현·Task 22가 소비):
+  - `badReportApi`(`reportBadAnswer·getTargetMessage`) · `BadReportForm`.
+  - `qualityApi`(`listUnresolved·getUnresolvedCluster·listBadInbox·getFeedback·applyFeedback·rejectFeedback·listQualitySessions·getQualitySession·saveQualityCorrection·listExamples·deactivateExample`).
+  - `UnresolvedClusters`·`BadAnswerInbox`·`QualityReport`·`ExampleBank`.
+- ⚠️ **아직 안 하는 것**: 질문 순위·챗봇 통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM` 계열=**Task 22**) · KB 편집/승인 화면(`KBADM-*`=Task 20) · 위 엔드포인트·클러스터 집계·임베딩 유사도의 **실제 서버 구현**(Task 8·소비 계약만, ⑦) · source enum 문자열 통일(`realtime_report`↔`immediate`, ⑦) · 각 `확인 필요` 규칙의 **계약 확정**(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책, 근거 생기면).
+
+---
+
+- [ ] **Step 1: `badReportApi` + `qualityApi` — 두 채널 소비 계약**
+
+> 직원 오답 신고 저장(`report`, `source=realtime_report`)과 관리자 품질/미해결/처리함/예시 계약을 타입으로 못박는다. ⚠️ 대부분 라우터에 없어 **소비 계약 선언**. source 문자열은 화면 명세(`realtime_report`)를 따르되 ⑦에서 백엔드(`immediate`)와 통일.
+
+`frontend/src/features/support/badReportApi.ts`:
+```ts
+export type BadReportSource = "realtime_report" | "quality_review";
+export type TargetMessage = { id: string; role: "bot" | "user" | "staff"; content: string };
+export type BadReportInput = { messageId: string; correctionText: string; addToExampleBank: boolean };
+
+export interface BadReportApi {
+  getTargetMessage(messageId: string): Promise<TargetMessage>;               // GET /staff/chat/messages/{id} ⚠️계약선언
+  reportBadAnswer(d: BadReportInput): Promise<{ id: string }>;               // POST /staff/chat/feedback (source=realtime_report) ⚠️계약선언
+}
+
+export function createBadReportApi(baseUrl: string): BadReportApi {
+  const call = async (path: string, init?: RequestInit) => {
+    const resp = await fetch(baseUrl + path, { credentials: "include", ...init });
+    if (!resp.ok) throw new Error(`bad_report_${resp.status}`);
+    return resp.json();
+  };
+  return {
+    getTargetMessage: (id) => call(`/staff/chat/messages/${id}`),
+    reportBadAnswer: (d) => call(`/staff/chat/feedback`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      // ⚠️ 화면 명세대로 realtime_report. 백엔드 기본값 immediate와 통일은 ⑦.
+      body: JSON.stringify({ message_id: d.messageId, correction_text: d.correctionText,
+        add_to_example_bank: d.addToExampleBank, source: "realtime_report" as BadReportSource }),
+    }),
+  };
+}
+```
+
+`frontend/src/features/quality/qualityApi.ts`:
+```ts
+export type Cluster = { id: string; representative: string; count: number };
+export type UnresolvedResult =
+  | { kind: "clusters"; clusters: Cluster[]; embeddingGap: boolean }   // 임베딩 누락 있으면 embeddingGap
+  | { kind: "no_contract" };                                          // 서버가 집계 미제공 (UNRES-CLUSTER-10)
+export type Feedback = { id: string; source: "realtime_report" | "quality_review";
+  question: string; botAnswer: string; correction: string | null; hasSources: boolean; status: string };
+export type QualitySession = { id: string; at: string; questionSummary: string; channel: "app" | "web";
+  hasKbSource: boolean; reported: boolean; reviewStatus: "unreviewed" | "ok" | "corrected" };
+export type Example = { id: string; question: string; answer: string; active: boolean };
+
+export interface QualityApi {
+  listUnresolved(range: { from: string; to: string }): Promise<UnresolvedResult>; // GET /admin/chat/unresolved ⚠️선언
+  getUnresolvedCluster(id: string): Promise<{ representative: string; questions: string[] }>; // ⚠️선언
+  listBadInbox(): Promise<Feedback[]>;                                 // GET /admin/chat/feedback?status=pending ⚠️선언
+  getFeedback(id: string): Promise<Feedback>;                          // GET /admin/chat/feedback/{id} ⚠️선언
+  applyFeedback(id: string): Promise<void>;                            // POST /admin/chat/feedback/{id}/apply
+  rejectFeedback(id: string): Promise<void>;                           // POST /admin/chat/feedback/{id}/reject
+  listQualitySessions(range: { from: string; to: string }, page: number): Promise<{ items: QualitySession[] }>; // GET /admin/chat/quality
+  getQualitySession(id: string): Promise<{ question: string; answer: string; kbSource: string | null }>; // ⚠️선언
+  saveQualityCorrection(id: string, correction: string): Promise<void>; // POST /admin/chat/quality/{id}/correct (source=quality_review) ⚠️선언
+  listExamples(active: boolean): Promise<Example[]>;                    // GET /admin/chat/examples ⚠️선언
+  deactivateExample(id: string): Promise<void>;                        // POST /admin/chat/examples/{id}/deactivate ⚠️선언
+}
+```
+
+`frontend/src/features/support/badReportApi.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createBadReportApi } from "./badReportApi";
+
+describe("badReportApi", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("[Step1] reportBadAnswer는 POST /staff/chat/feedback로 source=realtime_report를 보낸다(품질 교정과 출처 구분)", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id: "f1" }), { status: 200 }));
+    await createBadReportApi("http://x").reportBadAnswer({ messageId: "msg1", correctionText: "예약은 앱에서", addToExampleBank: true });
+    expect(m.mock.calls[0][0]).toBe("http://x/staff/chat/feedback");
+    const body = JSON.parse((m.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.source).toBe("realtime_report");
+    expect(body.add_to_example_bank).toBe(true);
+  });
+});
+```
+Run: `npm --prefix frontend run test -- badReportApi` → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: `BadReportForm` — 직원 오답 신고 작성 (`BADRPT-FORM-*` 14규칙)**
+
+> 봇 답변을 신고 대상으로 고정(`TARGET-01`), 봇 답변이 아니면 저장 안 함(`TARGET-02`), 대상 없으면 빈 신고 안 만들고 복귀 경로(`EMPTY-01`). 올바른 안내 작성(`CORR-01`)·예시 체크(`EXAMPLE-01`)·`source=realtime_report` 저장(`SOURCE-01`). 필수/길이는 확인 필요·임의 차단 안 함(`VALID-01`). 저장 중 잠금(`SAVE-01`)·실패 보존(`SAVE-02`)·성공은 `아직 반영 아님`+중복 차단+스크롤 복귀(`SAVE-03`, B2). 대상 로딩(`LOAD-01`)·대상 오류는 성공처럼 진행 안 함(`ERR-01`). Realtime는 선택 ID 유지·삭제/수정 계약 확인 필요(`LIVE-01`). 취소는 저장 없이 직전 필터·스크롤 복귀(`EXIT-01`).
+
+`frontend/src/features/support/BadReportForm.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { BadReportForm } from "./BadReportForm";
+
+const target = { id: "msg1", role: "bot" as const, content: "예약은 전화로만 가능합니다" };
+const mkApi = (o: Partial<Record<string, unknown>> = {}) => ({
+  getTargetMessage: vi.fn().mockResolvedValue(target),
+  reportBadAnswer: vi.fn().mockResolvedValue({ id: "f1" }),
+  ...o,
+}) as any;
+
+describe("BadReportForm (BADRPT-FORM-*)", () => {
+  it("[BADRPT-FORM-TARGET-01] 선택한 봇 답변을 신고 대상으로 고정해 보여준다", async () => {
+    render(<BadReportForm api={mkApi()} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    expect(await screen.findByText(/예약은 전화로만 가능합니다/)).toBeVisible();
+    expect(screen.getByTestId("bad-report-target").dataset.messageId).toBe("msg1");
+  });
+
+  it("[BADRPT-FORM-TARGET-02] 선택 메시지가 봇 답변이 아니면 저장하지 않는다", async () => {
+    const api = mkApi({ getTargetMessage: vi.fn().mockResolvedValue({ id: "msg2", role: "user", content: "안녕" }) });
+    render(<BadReportForm api={api} messageId="msg2" onDone={vi.fn()} onCancel={vi.fn()} />);
+    await screen.findByText(/봇 답변만 신고할 수 있습니다/);
+    expect(screen.queryByRole("button", { name: /저장/ })).toBeNull(); // 저장 경로 없음
+  });
+
+  it("[BADRPT-FORM-EMPTY-01] 대상 ID가 없으면 빈 신고를 만들지 않고 상담 기록 복귀 경로를 준다", async () => {
+    render(<BadReportForm api={mkApi()} messageId={null} onDone={vi.fn()} onCancel={vi.fn()} />);
+    expect(await screen.findByText(/신고할 봇 답변이 없습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /상담 기록으로/ })).toBeVisible();
+  });
+
+  it("[BADRPT-FORM-CORR-01] 올바른 안내를 작성할 수 있는 입력칸을 제공한다", async () => {
+    render(<BadReportForm api={mkApi()} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    expect(await screen.findByLabelText(/올바른 안내/)).toBeVisible();
+  });
+
+  it("[BADRPT-FORM-EXAMPLE-01] '향후 유사 질문 예시로도 사용' 체크박스를 둔다", async () => {
+    render(<BadReportForm api={mkApi()} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    expect(await screen.findByRole("checkbox", { name: /향후 유사 질문 예시로도 사용/ })).toBeVisible();
+  });
+
+  it("[BADRPT-FORM-SOURCE-01] 저장 시 source=realtime_report로 보내 품질 교정(quality_review)과 출처를 구분한다", async () => {
+    const api = mkApi();
+    render(<BadReportForm api={api} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText(/올바른 안내/), { target: { value: "예약은 앱에서도 됩니다" } });
+    fireEvent.click(screen.getByRole("button", { name: /저장/ }));
+    await waitFor(() => expect(api.reportBadAnswer).toHaveBeenCalled());
+    expect(api.reportBadAnswer.mock.calls[0][0]).toMatchObject({ messageId: "msg1" });
+    // source 문자열은 badReportApi가 realtime_report로 실어보냄(Step1에서 검증)
+  });
+
+  it("[BADRPT-FORM-VALID-01] 올바른 안내가 비어도 근거 없는 최소·최대 길이 차단을 만들지 않는다(확인 필요)", async () => {
+    render(<BadReportForm api={mkApi()} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    const save = await screen.findByRole("button", { name: /저장/ });
+    expect(save).not.toBeDisabled(); // 임의 길이 검증으로 저장을 막지 않음
+  });
+
+  it("[BADRPT-FORM-SAVE-01] 저장 중 입력·체크를 보존하고 저장 버튼 중복 클릭을 막는다", async () => {
+    const api = mkApi({ reportBadAnswer: vi.fn(() => new Promise(() => {})) });
+    render(<BadReportForm api={api} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText(/올바른 안내/), { target: { value: "교정문" } });
+    fireEvent.click(screen.getByRole("button", { name: /저장/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /저장 중/ })).toBeDisabled());
+    expect((screen.getByLabelText(/올바른 안내/) as HTMLTextAreaElement).value).toBe("교정문");
+  });
+
+  it("[BADRPT-FORM-SAVE-02] 저장 실패는 작성값을 보존하고 폼 안에 오류·재시도를 표시한다", async () => {
+    const api = mkApi({ reportBadAnswer: vi.fn().mockRejectedValue(new Error("x")) });
+    render(<BadReportForm api={api} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText(/올바른 안내/), { target: { value: "교정문" } });
+    fireEvent.click(screen.getByRole("button", { name: /저장/ }));
+    expect(await screen.findByText(/저장하지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect((screen.getByLabelText(/올바른 안내/) as HTMLTextAreaElement).value).toBe("교정문");
+  });
+
+  it("[BADRPT-FORM-SAVE-03] 저장 성공은 '아직 반영 아님'을 알리고 중복 제출을 막은 뒤 왔던 위치로 복귀한다(B2)", async () => {
+    const onDone = vi.fn();
+    render(<BadReportForm api={mkApi()} messageId="msg1" onDone={onDone} onCancel={vi.fn()} returnScroll={420} />);
+    fireEvent.change(await screen.findByLabelText(/올바른 안내/), { target: { value: "교정문" } });
+    fireEvent.click(screen.getByRole("button", { name: /저장/ }));
+    expect(await screen.findByText(/아직 상담봇에 반영된 것은 아닙니다/)).toBeVisible();
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith({ scroll: 420 })); // 스크롤 복귀
+    expect(screen.getByRole("button", { name: /저장/ })).toBeDisabled(); // 중복 제출 차단
+  });
+
+  it("[BADRPT-FORM-LOAD-01] 대상 조회 중 로딩을 표시하고 다른 답변을 임의로 대입하지 않는다", () => {
+    const api = mkApi({ getTargetMessage: vi.fn(() => new Promise(() => {})) });
+    render(<BadReportForm api={api} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByLabelText("대상 답변 로딩")).toBeVisible();
+    expect(screen.queryByTestId("bad-report-target")).toBeNull(); // 대입 없음
+  });
+
+  it("[BADRPT-FORM-ERR-01] 대상 조회 실패는 성공처럼 진행하지 않고 돌아가기·재시도를 준다", async () => {
+    const api = mkApi({ getTargetMessage: vi.fn().mockRejectedValue(new Error("x")) });
+    render(<BadReportForm api={api} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />);
+    expect(await screen.findByText(/대상 답변을 불러오지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^저장$/ })).toBeNull(); // 저장 진행 불가
+  });
+
+  it("[BADRPT-FORM-LIVE-01] 작성 중 대상 대화 갱신에도 선택 메시지 ID를 유지한다(삭제·수정 계약 확인 필요)", async () => {
+    const { rerender } = render(<BadReportForm api={mkApi()} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} liveTick={0} />);
+    await screen.findByTestId("bad-report-target");
+    rerender(<BadReportForm api={mkApi()} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} liveTick={1} />);
+    expect(screen.getByTestId("bad-report-target").dataset.messageId).toBe("msg1"); // 유지
+  });
+
+  it("[BADRPT-FORM-EXIT-01] 취소는 저장 없이 직전 필터·스크롤 위치로 복귀한다", async () => {
+    const onCancel = vi.fn();
+    const api = mkApi();
+    render(<BadReportForm api={api} messageId="msg1" onDone={vi.fn()} onCancel={onCancel} returnScroll={420} />);
+    fireEvent.click(await screen.findByRole("button", { name: /취소/ }));
+    expect(onCancel).toHaveBeenCalledWith({ scroll: 420 });
+    expect(api.reportBadAnswer).not.toHaveBeenCalled(); // 저장 없음
+  });
+});
+```
+Run: `npm --prefix frontend run test -- BadReportForm` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `UnresolvedClusters` — 미해결 질문 모아보기 (`UNRES-CLUSTER-*` 11규칙)**
+
+> 기간 집계(경계·시간대 확인 필요, `01`)·미해결/반복만·타 사유 안 섞음(사유 매핑 확인 필요, `02`)·`대표 질문+N건` 내림차순(`03`)·자동 묶음 한계 안내 항상(`04`)·상세는 별도 전체 화면+복귀 시 필터·스크롤 복원(표시필드·정렬 확인 필요, `05`)·자료 보강은 KB 작성으로·승인 전 미반영(`06`)·빈 상태는 실제 0건만(`07`)·로딩은 기간 유지·임시 0건/이전 결과 안 보임(`08`)·오류는 같은 기간 재시도(`09`)·집계 계약 부재는 `현재 집계할 수 없음`·0건/빈 차트 안 만듦(`10`)·임베딩 누락은 전체 집계라 단정 안 함·확인 필요(`11`).
+
+`frontend/src/features/quality/UnresolvedClusters.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { UnresolvedClusters } from "./UnresolvedClusters";
+
+const clusters = [
+  { id: "c1", representative: "주차 어디에 하나요", count: 12 },
+  { id: "c2", representative: "주말에도 하나요", count: 5 },
+];
+const ok = { kind: "clusters" as const, clusters, embeddingGap: false };
+const mkApi = (o: Partial<Record<string, unknown>> = {}) => ({
+  listUnresolved: vi.fn().mockResolvedValue(ok),
+  getUnresolvedCluster: vi.fn().mockResolvedValue({ representative: "주차 어디에 하나요", questions: ["주차장 어디", "주차 되나요"] }),
+  ...o,
+}) as any;
+const range = { from: "2026-08-01", to: "2026-08-19" };
+
+describe("UnresolvedClusters (UNRES-CLUSTER-*)", () => {
+  it("[UNRES-CLUSTER-01] 유효 기간을 선택하면 그 기간의 미해결 집계를 조회한다", async () => {
+    const api = mkApi();
+    render(<UnresolvedClusters api={api} range={range} />);
+    await waitFor(() => expect(api.listUnresolved).toHaveBeenCalledWith(range));
+  });
+
+  it("[UNRES-CLUSTER-02] 집계 대상을 미해결로만 두고 사유 라벨로 타 인계 사유와 섞지 않는다", async () => {
+    render(<UnresolvedClusters api={mkApi()} range={range} />);
+    await screen.findByText(/주차 어디에 하나요/);
+    expect(screen.getByTestId("unresolved-scope").dataset.scope).toBe("unresolved_only");
+  });
+
+  it("[UNRES-CLUSTER-03] 유사 질문을 '대표 질문 + N건'으로 건수 내림차순 표시한다", async () => {
+    render(<UnresolvedClusters api={mkApi()} range={range} />);
+    const rows = await screen.findAllByTestId("cluster-row");
+    expect(rows[0]).toHaveTextContent("주차 어디에 하나요");
+    expect(rows[0]).toHaveTextContent("12건");
+    expect(Number(rows[0].dataset.count)).toBeGreaterThan(Number(rows[1].dataset.count)); // 내림차순
+  });
+
+  it("[UNRES-CLUSTER-04] 자동 묶음 한계 안내를 항상 함께 표시한다", async () => {
+    render(<UnresolvedClusters api={mkApi()} range={range} />);
+    expect(await screen.findByText(/실제로 다른 질문이 섞여 있을 수 있습니다/)).toBeVisible();
+  });
+
+  it("[UNRES-CLUSTER-05] 묶음 상세를 별도 전체 화면으로 열고 복귀 시 필터·스크롤을 복원한다", async () => {
+    const onOpenDetail = vi.fn();
+    render(<UnresolvedClusters api={mkApi()} range={range} onOpenDetail={onOpenDetail} />);
+    fireEvent.click((await screen.findAllByTestId("cluster-row"))[0]);
+    expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({ clusterId: "c1", restore: expect.anything() }));
+  });
+
+  it("[UNRES-CLUSTER-06] 상세의 자료 보강은 안내자료 작성으로 이동한다(승인 전 미반영)", async () => {
+    const onAddKb = vi.fn();
+    render(<UnresolvedClusters api={mkApi()} range={range} detailClusterId="c1" onAddKb={onAddKb} />);
+    fireEvent.click(await screen.findByRole("button", { name: /안내자료로 보강/ }));
+    expect(onAddKb).toHaveBeenCalledWith(expect.objectContaining({ from: "unresolved" }));
+  });
+
+  it("[UNRES-CLUSTER-07] 집계 성공·0건은 실제 빈 상태로만 표시한다", async () => {
+    render(<UnresolvedClusters api={mkApi({ listUnresolved: vi.fn().mockResolvedValue({ kind: "clusters", clusters: [], embeddingGap: false }) })} range={range} />);
+    expect(await screen.findByText(/미해결 질문이 없습니다/)).toBeVisible();
+  });
+
+  it("[UNRES-CLUSTER-08] 로딩은 기간을 유지하고 임시 0건이나 이전 기간 결과를 보이지 않는다", () => {
+    render(<UnresolvedClusters api={mkApi({ listUnresolved: vi.fn(() => new Promise(() => {})) })} range={range} />);
+    expect(screen.getByLabelText("집계 로딩")).toBeVisible();
+    expect(screen.queryByText(/미해결 질문이 없습니다/)).toBeNull();
+    expect(screen.queryByTestId("cluster-row")).toBeNull();
+  });
+
+  it("[UNRES-CLUSTER-09] 집계 실패는 오류와 같은 기간 재시도를 표시한다", async () => {
+    render(<UnresolvedClusters api={mkApi({ listUnresolved: vi.fn().mockRejectedValue(new Error("x")) })} range={range} />);
+    expect(await screen.findByText(/집계하지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+  });
+
+  it("[UNRES-CLUSTER-10] 집계 계약 부재는 '현재 집계할 수 없음'이며 0건·빈 차트를 만들지 않는다", async () => {
+    render(<UnresolvedClusters api={mkApi({ listUnresolved: vi.fn().mockResolvedValue({ kind: "no_contract" }) })} range={range} />);
+    expect(await screen.findByText("현재 집계할 수 없음")).toBeVisible();
+    expect(screen.queryByText(/미해결 질문이 없습니다/)).toBeNull(); // 0건과 구분
+  });
+
+  it("[UNRES-CLUSTER-11] 임베딩 누락이 있으면 전체 집계라 단정하지 않고 확인 필요를 표시한다", async () => {
+    render(<UnresolvedClusters api={mkApi({ listUnresolved: vi.fn().mockResolvedValue({ kind: "clusters", clusters, embeddingGap: true }) })} range={range} />);
+    expect(await screen.findByText(/일부 질문이 집계에서 빠졌을 수 있습니다/)).toBeVisible();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- UnresolvedClusters` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `BadAnswerInbox` — 오답 신고 처리함 (`BADINBOX-REVIEW-*` 12규칙)**
+
+> 실시간·품질 교정을 한 처리함에 나란히·`quality_review`는 `품질 리뷰`로 구분(`01`)·상세는 출처/대상/봇답변/올바른안내/근거·없는 근거 안 만듦(`02`)·`[반영]`은 KB 수정·승인 경유·즉시 답변 안 씀(`03`)·예시 추가는 확인 끝난 교정만·원자성 확인 필요(`04`)·`[반려]`는 자료·예시 불변·사유 필수 확인 필요(`05`)·처리 중 중복 차단(`06`)·실패는 미처리 유지·반영됐다 표시 안 함(`07`)·완료는 결과 명확+목록 갱신·승인 필요분 별도 구분(`08`)·동시 처리는 최신 상태·덮어쓰기 안 함·충돌 UI 확인 필요(`09`)·빈 상태(`10`)·로딩은 처리 버튼 숨김(`11`)·오류는 0건/근거 없음으로 안 바꿈(`12`).
+
+`frontend/src/features/quality/BadAnswerInbox.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { BadAnswerInbox } from "./BadAnswerInbox";
+
+const items = [
+  { id: "f1", source: "realtime_report" as const, question: "주차 되나요", botAnswer: "안 됩니다", correction: "지하 2층", hasSources: true, status: "pending" },
+  { id: "f2", source: "quality_review" as const, question: "주말 진료", botAnswer: "안 함", correction: "토요일 오전", hasSources: false, status: "pending" },
+];
+const mkApi = (o: Partial<Record<string, unknown>> = {}) => ({
+  listBadInbox: vi.fn().mockResolvedValue(items),
+  getFeedback: vi.fn().mockResolvedValue(items[0]),
+  applyFeedback: vi.fn().mockResolvedValue(undefined),
+  rejectFeedback: vi.fn().mockResolvedValue(undefined),
+  ...o,
+}) as any;
+
+describe("BadAnswerInbox (BADINBOX-REVIEW-*)", () => {
+  it("[BADINBOX-REVIEW-01] 실시간·품질 교정을 나란히 표시하고 quality_review는 '품질 리뷰'로 구분한다", async () => {
+    render(<BadAnswerInbox api={mkApi()} />);
+    const rows = await screen.findAllByTestId("inbox-row");
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.dataset.id === "f2")).toHaveTextContent("품질 리뷰");
+  });
+
+  it("[BADINBOX-REVIEW-02] 상세는 출처·대상 질문·봇 답변·올바른 안내·근거를 보이고 없는 근거를 만들지 않는다", async () => {
+    render(<BadAnswerInbox api={mkApi({ getFeedback: vi.fn().mockResolvedValue(items[1]) })} selectedId="f2" />);
+    expect(await screen.findByText(/근거 자료 없음/)).toBeVisible(); // hasSources=false
+    expect(screen.getByText(/토요일 오전/)).toBeVisible();
+  });
+
+  it("[BADINBOX-REVIEW-03] [반영]은 안내자료 수정·승인 흐름으로 연결하고 즉시 답변에 쓰지 않는다", async () => {
+    const onApplyToKb = vi.fn();
+    render(<BadAnswerInbox api={mkApi()} selectedId="f1" onApplyToKb={onApplyToKb} />);
+    fireEvent.click(await screen.findByRole("button", { name: /반영/ }));
+    expect(onApplyToKb).toHaveBeenCalledWith(expect.objectContaining({ feedbackId: "f1", requiresApproval: true }));
+  });
+
+  it("[BADINBOX-REVIEW-04] 예시 추가는 확인이 끝난 교정만 참고 예시로 등록한다", async () => {
+    const api = mkApi();
+    render(<BadAnswerInbox api={api} selectedId="f1" addToExample />);
+    fireEvent.click(await screen.findByRole("button", { name: /반영/ }));
+    await waitFor(() => expect(api.applyFeedback).toHaveBeenCalledWith("f1"));
+  });
+
+  it("[BADINBOX-REVIEW-05] [반려]는 승인 자료·참고 예시를 바꾸지 않는다", async () => {
+    const api = mkApi();
+    render(<BadAnswerInbox api={api} selectedId="f1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /반려/ }));
+    await waitFor(() => expect(api.rejectFeedback).toHaveBeenCalledWith("f1"));
+    expect(api.applyFeedback).not.toHaveBeenCalled(); // 자료·예시 불변
+  });
+
+  it("[BADINBOX-REVIEW-06] 처리 중에는 같은 신고의 중복 처리를 막는다", async () => {
+    const api = mkApi({ applyFeedback: vi.fn(() => new Promise(() => {})) });
+    render(<BadAnswerInbox api={api} selectedId="f1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /반영/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /반영/ })).toBeDisabled());
+    expect(screen.getByRole("button", { name: /반려/ })).toBeDisabled();
+  });
+
+  it("[BADINBOX-REVIEW-07] 처리 실패는 미처리 유지·오류·재시도이며 반영됐다고 표시하지 않는다", async () => {
+    render(<BadAnswerInbox api={mkApi({ applyFeedback: vi.fn().mockRejectedValue(new Error("x")) })} selectedId="f1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /반영/ }));
+    expect(await screen.findByText(/처리하지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.queryByText(/반영 완료/)).toBeNull();
+  });
+
+  it("[BADINBOX-REVIEW-08] 처리 완료는 결과를 명확히 표시하고 목록 상태를 갱신한다", async () => {
+    render(<BadAnswerInbox api={mkApi()} selectedId="f1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /반려/ }));
+    expect(await screen.findByText(/반려 처리했습니다/)).toBeVisible();
+  });
+
+  it("[BADINBOX-REVIEW-09] 동시 처리(다른 관리자 선처리)는 최신 상태를 보이고 성공으로 덮지 않는다", async () => {
+    render(<BadAnswerInbox api={mkApi({ applyFeedback: vi.fn().mockRejectedValue(Object.assign(new Error("conflict"), { status: 409 })) })} selectedId="f1" />);
+    fireEvent.click(await screen.findByRole("button", { name: /반영/ }));
+    expect(await screen.findByText(/이미 다른 관리자가 처리했습니다/)).toBeVisible();
+    expect(screen.queryByText(/반영 완료/)).toBeNull();
+  });
+
+  it("[BADINBOX-REVIEW-10] 조회 성공·0건은 '처리할 오답 신고가 없습니다'를 표시한다", async () => {
+    render(<BadAnswerInbox api={mkApi({ listBadInbox: vi.fn().mockResolvedValue([]) })} />);
+    expect(await screen.findByText("처리할 오답 신고가 없습니다")).toBeVisible();
+  });
+
+  it("[BADINBOX-REVIEW-11] 로딩 중에는 로딩을 표시하고 처리 버튼을 노출하지 않는다", () => {
+    render(<BadAnswerInbox api={mkApi({ listBadInbox: vi.fn(() => new Promise(() => {})) })} />);
+    expect(screen.getByLabelText("처리함 로딩")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /반영/ })).toBeNull();
+  });
+
+  it("[BADINBOX-REVIEW-12] 조회 실패는 오류·재시도이며 0건·근거 없음으로 바꾸지 않는다", async () => {
+    render(<BadAnswerInbox api={mkApi({ listBadInbox: vi.fn().mockRejectedValue(new Error("x")) })} />);
+    expect(await screen.findByText(/불러오지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.queryByText("처리할 오답 신고가 없습니다")).toBeNull();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- BadAnswerInbox` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: `QualityReport` — 상담 품질 리포트 (`QUALITY-REPORT-*` 12규칙)**
+
+> 기간 선택·목록/상세 패널 같은 기간 유지(경계 확인 필요, `01`)·개인정보 없이 일시/질문요약/경로/근거유무/신고유무/검토상태·미검토 우선 최신순 20건·신고여부는 별도 필터(`02`)·근거/신고 구분·`없음`과 `조회 실패` 분리(`03`)·상세는 목록 유지+우측 패널·전체 화면 안 여는 R2-3 예외(`04`)·신고 없던 답변에도 교정·교정만으로 즉시 반영 안 함(`05`)·저장 중 중복 차단·입력 유지(`06`)·실패는 보존·재시도·반영 완료 표시 안 함(`07`)·성공은 `source=quality_review`로 처리함 등록+안내 문구+`[처리함으로 가기 ›]`·자동 승인 표현 안 함(`08`)·빈 상태(`09`)·로딩은 기간·선택 유지(`10`)·오류는 0건/근거 없음 위장 안 함(`11`)·원문 조회 오류는 정상 부재로 위장 안 하고 원문 없이 교정 안 함·재시도(`12`).
+
+`frontend/src/features/quality/QualityReport.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { QualityReport } from "./QualityReport";
+
+const sessions = [
+  { id: "s1", at: "2026-08-19T09:00", questionSummary: "주차 문의", channel: "app" as const, hasKbSource: true, reported: false, reviewStatus: "unreviewed" as const },
+  { id: "s2", at: "2026-08-18T09:00", questionSummary: "주말 진료", channel: "web" as const, hasKbSource: false, reported: true, reviewStatus: "ok" as const },
+];
+const mkApi = (o: Partial<Record<string, unknown>> = {}) => ({
+  listQualitySessions: vi.fn().mockResolvedValue({ items: sessions }),
+  getQualitySession: vi.fn().mockResolvedValue({ question: "주차 되나요", answer: "안 됩니다", kbSource: "주차 안내" }),
+  saveQualityCorrection: vi.fn().mockResolvedValue(undefined),
+  ...o,
+}) as any;
+const range = { from: "2026-08-01", to: "2026-08-19" };
+
+describe("QualityReport (QUALITY-REPORT-*)", () => {
+  it("[QUALITY-REPORT-01] 기간을 선택하면 목록·상세 패널이 같은 기간을 유지해 조회한다", async () => {
+    const api = mkApi();
+    render(<QualityReport api={api} range={range} />);
+    await waitFor(() => expect(api.listQualitySessions).toHaveBeenCalledWith(range, 1));
+  });
+
+  it("[QUALITY-REPORT-02] 개인정보 없이 미검토 우선 최신순 20건을 표시하고 신고여부는 별도 필터로 둔다", async () => {
+    render(<QualityReport api={mkApi()} range={range} />);
+    const rows = await screen.findAllByTestId("quality-row");
+    expect(rows[0].dataset.id).toBe("s1"); // 미검토(unreviewed) 우선
+    expect(screen.queryByText(/010-/)).toBeNull(); // 연락처 없음
+    expect(screen.getByTestId("quality-page-size").dataset.size).toBe("20");
+    expect(screen.getByRole("button", { name: /오답 신고만/ })).toBeVisible(); // 별도 필터
+  });
+
+  it("[QUALITY-REPORT-03] 근거·신고 여부를 구분하고 '없음'과 '조회 실패'를 분리한다", async () => {
+    render(<QualityReport api={mkApi()} range={range} />);
+    const s2 = (await screen.findAllByTestId("quality-row")).find((r) => r.dataset.id === "s2")!;
+    expect(s2).toHaveTextContent("근거 없음"); // hasKbSource=false → 없음(조회 실패 아님)
+  });
+
+  it("[QUALITY-REPORT-04] 상세는 왼쪽 목록을 유지한 우측 패널에서 열고 전체 화면으로 열지 않는다(R2-3 예외)", async () => {
+    render(<QualityReport api={mkApi()} range={range} selectedId="s1" />);
+    expect(await screen.findByTestId("quality-detail-panel")).toBeVisible();
+    expect(screen.getByTestId("quality-list")).toBeVisible(); // 목록 유지
+    expect(screen.getByTestId("quality-detail-panel").dataset.fullscreen).toBe("false");
+  });
+
+  it("[QUALITY-REPORT-05] 신고가 없던 답변에도 교정을 남기며 교정만으로 승인 자료를 바꾸지 않는다", async () => {
+    render(<QualityReport api={mkApi()} range={range} selectedId="s1" />);
+    expect(await screen.findByLabelText(/올바른 안내/)).toBeVisible(); // reported=false여도 교정 가능
+  });
+
+  it("[QUALITY-REPORT-06] 교정 저장 중 중복 저장을 막고 입력을 유지한다", async () => {
+    const api = mkApi({ saveQualityCorrection: vi.fn(() => new Promise(() => {})) });
+    render(<QualityReport api={api} range={range} selectedId="s1" />);
+    fireEvent.change(await screen.findByLabelText(/올바른 안내/), { target: { value: "지하 2층" } });
+    fireEvent.click(screen.getByRole("button", { name: /교정 저장/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /저장 중/ })).toBeDisabled());
+    expect((screen.getByLabelText(/올바른 안내/) as HTMLTextAreaElement).value).toBe("지하 2층");
+  });
+
+  it("[QUALITY-REPORT-07] 교정 저장 실패는 입력 보존·재시도이며 반영 완료로 표시하지 않는다", async () => {
+    render(<QualityReport api={mkApi({ saveQualityCorrection: vi.fn().mockRejectedValue(new Error("x")) })} range={range} selectedId="s1" />);
+    fireEvent.change(await screen.findByLabelText(/올바른 안내/), { target: { value: "지하 2층" } });
+    fireEvent.click(screen.getByRole("button", { name: /교정 저장/ }));
+    expect(await screen.findByText(/저장하지 못했습니다/)).toBeVisible();
+    expect((screen.getByLabelText(/올바른 안내/) as HTMLTextAreaElement).value).toBe("지하 2층");
+  });
+
+  it("[QUALITY-REPORT-08] 저장 성공은 quality_review로 처리함 등록 안내와 [처리함으로 가기]를 보이고 자동 반영을 표현하지 않는다", async () => {
+    const api = mkApi();
+    render(<QualityReport api={api} range={range} selectedId="s1" />);
+    fireEvent.change(await screen.findByLabelText(/올바른 안내/), { target: { value: "지하 2층" } });
+    fireEvent.click(screen.getByRole("button", { name: /교정 저장/ }));
+    await waitFor(() => expect(api.saveQualityCorrection).toHaveBeenCalledWith("s1", "지하 2층"));
+    expect(await screen.findByText(/처리함에서 \[반영\/반려\] 검토를 거쳐야/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /처리함으로 가기/ })).toBeVisible();
+  });
+
+  it("[QUALITY-REPORT-09] 조회 성공·0건은 검토할 상담이 없음을 표시한다", async () => {
+    render(<QualityReport api={mkApi({ listQualitySessions: vi.fn().mockResolvedValue({ items: [] }) })} range={range} />);
+    expect(await screen.findByText(/검토할 상담이 없습니다/)).toBeVisible();
+  });
+
+  it("[QUALITY-REPORT-10] 로딩은 기간과 선택 맥락을 유지한 채 로딩을 표시한다", () => {
+    render(<QualityReport api={mkApi({ listQualitySessions: vi.fn(() => new Promise(() => {})) })} range={range} selectedId="s1" />);
+    expect(screen.getByLabelText("품질 목록 로딩")).toBeVisible();
+    expect(screen.getByTestId("quality-range").dataset.from).toBe("2026-08-01"); // 기간 유지
+  });
+
+  it("[QUALITY-REPORT-11] 조회 실패는 오류·재시도이며 0건·근거 없음으로 위장하지 않는다", async () => {
+    render(<QualityReport api={mkApi({ listQualitySessions: vi.fn().mockRejectedValue(new Error("x")) })} range={range} />);
+    expect(await screen.findByText(/불러오지 못했습니다/)).toBeVisible();
+    expect(screen.queryByText(/검토할 상담이 없습니다/)).toBeNull();
+  });
+
+  it("[QUALITY-REPORT-12] 원문 조회 오류는 정상 부재로 위장하지 않고 원문 없이 교정을 막으며 재시도를 준다", async () => {
+    render(<QualityReport api={mkApi({ getQualitySession: vi.fn().mockRejectedValue(new Error("x")) })} range={range} selectedId="s1" />);
+    expect(await screen.findByText(/원문을 불러오지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /교정 저장/ })).toBeNull(); // 원문 없이 교정 불가
+  });
+});
+```
+Run: `npm --prefix frontend run test -- QualityReport` → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: `ExampleBank` — 참고 예시 관리 (`QAEX-LIST-*` 10규칙)**
+
+> 승인된 교정 참고 예시 목록(`01`)·원 질문+교정 답변 함께·추가 필드는 계약 있을 때만(`02`)·비활성화는 삭제 아님·재활성화 확인 필요(`03`)·처리 중 중복 차단(`04`)·실패는 활성 유지·재시도(`05`)·완료는 비활성 반영·삭제됐다 표현 안 함(`06`)·동시 변경은 최신 상태·성공 위장 안 함·충돌 확인 필요(`07`)·빈 상태(`08`)·로딩(`09`)·오류는 0건으로 표시 안 함(`10`).
+
+`frontend/src/features/quality/ExampleBank.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ExampleBank } from "./ExampleBank";
+
+const examples = [
+  { id: "e1", question: "주차 되나요", answer: "지하 2층", active: true },
+  { id: "e2", question: "주말 진료", answer: "토요일 오전", active: true },
+];
+const mkApi = (o: Partial<Record<string, unknown>> = {}) => ({
+  listExamples: vi.fn().mockResolvedValue(examples),
+  deactivateExample: vi.fn().mockResolvedValue(undefined),
+  ...o,
+}) as any;
+
+describe("ExampleBank (QAEX-LIST-*)", () => {
+  it("[QAEX-LIST-01] 승인된 교정 참고 예시를 목록으로 보여준다", async () => {
+    const api = mkApi();
+    render(<ExampleBank api={api} />);
+    expect(await screen.findAllByTestId("example-row")).toHaveLength(2);
+    expect(api.listExamples).toHaveBeenCalledWith(true); // 활성만
+  });
+
+  it("[QAEX-LIST-02] 원 질문과 교정 답변을 함께 표시한다", async () => {
+    render(<ExampleBank api={mkApi()} />);
+    const row = (await screen.findAllByTestId("example-row"))[0];
+    expect(row).toHaveTextContent("주차 되나요");
+    expect(row).toHaveTextContent("지하 2층");
+  });
+
+  it("[QAEX-LIST-03] 비활성화는 삭제가 아니라 참고하지 않는 비활성 상태로 바꾼다", async () => {
+    const api = mkApi();
+    render(<ExampleBank api={api} />);
+    fireEvent.click((await screen.findAllByRole("button", { name: /비활성화/ }))[0]);
+    await waitFor(() => expect(api.deactivateExample).toHaveBeenCalledWith("e1"));
+    expect(screen.queryByRole("button", { name: /삭제/ })).toBeNull(); // 삭제 아님
+  });
+
+  it("[QAEX-LIST-04] 비활성화 진행 중에는 해당 예시의 중복 조작을 막는다", async () => {
+    const api = mkApi({ deactivateExample: vi.fn(() => new Promise(() => {})) });
+    render(<ExampleBank api={api} />);
+    fireEvent.click((await screen.findAllByRole("button", { name: /비활성화/ }))[0]);
+    await waitFor(() => expect((screen.getAllByTestId("example-row")[0].querySelector("button") as HTMLButtonElement).disabled).toBe(true));
+  });
+
+  it("[QAEX-LIST-05] 비활성화 실패는 예시를 활성 유지하고 오류·재시도를 표시한다", async () => {
+    render(<ExampleBank api={mkApi({ deactivateExample: vi.fn().mockRejectedValue(new Error("x")) })} />);
+    fireEvent.click((await screen.findAllByRole("button", { name: /비활성화/ }))[0]);
+    expect(await screen.findByText(/처리하지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.getAllByTestId("example-row")[0].dataset.active).toBe("true"); // 활성 유지
+  });
+
+  it("[QAEX-LIST-06] 비활성화 성공은 비활성 상태를 반영하고 삭제됐다고 표현하지 않는다", async () => {
+    render(<ExampleBank api={mkApi()} />);
+    fireEvent.click((await screen.findAllByRole("button", { name: /비활성화/ }))[0]);
+    expect(await screen.findByText(/비활성 처리했습니다/)).toBeVisible();
+    expect(screen.queryByText(/삭제했습니다/)).toBeNull();
+  });
+
+  it("[QAEX-LIST-07] 동시 변경(다른 관리자 선처리)은 최신 상태를 다시 조회하고 성공으로 가장하지 않는다", async () => {
+    render(<ExampleBank api={mkApi({ deactivateExample: vi.fn().mockRejectedValue(Object.assign(new Error("conflict"), { status: 409 })) })} />);
+    fireEvent.click((await screen.findAllByRole("button", { name: /비활성화/ }))[0]);
+    expect(await screen.findByText(/이미 다른 관리자가 변경했습니다/)).toBeVisible();
+    expect(screen.queryByText(/비활성 처리했습니다/)).toBeNull();
+  });
+
+  it("[QAEX-LIST-08] 조회 성공·0건은 '등록된 참고 예시가 없습니다'를 표시한다", async () => {
+    render(<ExampleBank api={mkApi({ listExamples: vi.fn().mockResolvedValue([]) })} />);
+    expect(await screen.findByText("등록된 참고 예시가 없습니다")).toBeVisible();
+  });
+
+  it("[QAEX-LIST-09] 목록 조회 중에는 예시 영역에 로딩을 표시한다", () => {
+    render(<ExampleBank api={mkApi({ listExamples: vi.fn(() => new Promise(() => {})) })} />);
+    expect(screen.getByLabelText("예시 로딩")).toBeVisible();
+  });
+
+  it("[QAEX-LIST-10] 목록 조회 실패는 오류·재시도이며 0건으로 표시하지 않는다", async () => {
+    render(<ExampleBank api={mkApi({ listExamples: vi.fn().mockRejectedValue(new Error("x")) })} />);
+    expect(await screen.findByText(/불러오지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.queryByText("등록된 참고 예시가 없습니다")).toBeNull();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- ExampleBank` → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: 전수 초록불 + 검사기 + 커밋**
+
+Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 59규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `+59`(`UNRES-CLUSTER` 11 + `BADINBOX-REVIEW` 12 + `QUALITY-REPORT` 12 + `QAEX-LIST` 10 + `BADRPT-FORM` 14) → 누계 `421→480`(미커버 97→38, 남은 38=Task 22) · prefix-check **빚0·미배정0·⏰0**. ⚠️ 타 태스크 소유(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM`·`KBADM`·`CHATLOG-LIST`·`TICKET-DETAIL` 계열=Task 20·22·직원)는 **계열명(숫자 0개)으로만** 참조했다(⏰ 방지). `BTN-BUSY`·`ERR-POS`·`ERR-RETRY`·`EMPTY-ZERO`(2단계 셸)는 ai-chatbot 규칙 아님(참조만).
+
+```bash
+git add frontend/src/features/support/ frontend/src/features/quality/ docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 21 본문 — 미해결 클러스터·오답 처리함·품질 리포트·예시·직원 오답 신고 59규칙(최대 태스크). 자동 클러스터 한계 안내·0건↔계약부재↔오류 구분·승인 전 미반영·B2 복귀. 소비 계약 9건 선언·source enum 불일치 갭(⑦)"
+```
+
+> **Task 21 완료 조건**: `UNRES-CLUSTER`(`01`~`11` = 11) + `BADINBOX-REVIEW`(`01`~`12` = 12) + `QUALITY-REPORT`(`01`~`12` = 12) + `QAEX-LIST`(`01`~`10` = 10) + `BADRPT-FORM`(`TARGET`2·`EMPTY`1·`CORR`1·`EXAMPLE`1·`SOURCE`1·`VALID`1·`SAVE`3·`LOAD`1·`ERR`1·`LIVE`1·`EXIT`1 = 14) = **59규칙 전수** 초록불(Vitest). ⭐ **두 채널**: 직원 오답 신고(`features/support/`·`is_active_staff`) + 관리자 품질(`features/quality/`·`is_active_admin`). ⭐ **자동 클러스터 한계 안내 항상**·**0건↔집계 실패↔계약 부재를 각각 구분**·**승인 전 미반영(교정·반영만으로 즉시 답변 안 씀)**·**출처 구분(realtime_report↔quality_review)**·**B2 저장/취소 후 스크롤 복귀**. ⭐ **소비 계약 9건 선언**: 직원 신고 저장·오답 목록/상세·미해결 집계/상세·품질 상세/교정·예시 목록/비활성. ⚠️ **경계**: 질문 순위·통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM`)=**Task 22** · KB 편집/승인(`KBADM`)=Task 20 · **source enum 문자열 통일(`realtime_report`↔`immediate`)**·미해결 클러스터 집계 함수 부재·각 `확인 필요`(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책)=⑦ 조정. **다음 = Task 22**(질문 순위·챗봇 통계·관리자 내비, 38개 → 챗봇 4단계 완결).
