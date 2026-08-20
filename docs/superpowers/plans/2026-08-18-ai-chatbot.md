@@ -10224,4 +10224,550 @@ git add frontend/src/features/support/ docs/superpowers/plans/2026-08-18-ai-chat
 git commit -m "feat: 📝 상담봇 Task 17 본문 — 티켓 상세 46규칙(인계 요약·전체 대화·답변/보내기·별도 종료·이관·라이브·미확인/알림). 백엔드 계약 갭 2개 소비 선언"
 ```
 
-> **Task 17 완료 조건**: `LAYOUT`1·`SUM`2·`CONV`1·`OPEN`3·`ASSIGN`2·`REASSIGN`5·`REPLY`5·`LIVE`4·`STATUS`3·`TYPING`1·`UNREAD`2·`READ`2·`NOTIFY`4·`CONTACT`1·`CLOSE-SEP`1·`CLOSE`4·`SCOPE`1·`LOAD`1·`EMPTY`1·`ERR`2 = **46규칙 전수** 초록불(Vitest). ⭐ **직원웹 `frontend/`** — `patient_app/`·`webchat/` 무손. ⭐ **되돌릴 수 없는 종료**: `[상담 종료]`=확인창 안에서만·미전송 경고, 일반 `[보내기]`는 `answered`로 안 바꿈. ⭐ **백엔드 계약 갭 2개 소비 선언**: `GET /staff/chat/tickets/{id}`(Task 9 미명시)·`reassign_ticket`+`POST .../reassign`(Task 2 미명시) + 부수(`.../read`·`GET /staff/active`). ⚠️⚠️ **갭 #128(미결)**: 의료판단 이관으로 의사에게 넘긴 티켓의 **의사 도착 화면 없음** — 이관 드롭다운엔 활성 직원 전부 넣되 도착 화면은 안 만듦(경계). 해소는 이후 `SHELL-NAV`·의료 escalation과 함께. **다음 = Task 18**(`/today` 상담 행·사이드패널·`SUPPORT-CAL-*` 캘린더 상태·`NAV-STFSUP`).
+> **Task 17 완료 조건**: `LAYOUT`1·`SUM`2·`CONV`1·`OPEN`3·`ASSIGN`2·`REASSIGN`5·`REPLY`5·`LIVE`4·`STATUS`3·`TYPING`1·`UNREAD`2·`READ`2·`NOTIFY`4·`CONTACT`1·`CLOSE-SEP`1·`CLOSE`4·`SCOPE`1·`LOAD`1·`EMPTY`1·`ERR`2 = **46규칙 전수** 초록불(Vitest). ⭐ **직원웹 `frontend/`** — `patient_app/`·`webchat/` 무손. ⭐ **되돌릴 수 없는 종료**: `[상담 종료]`=확인창 안에서만·미전송 경고, 일반 `[보내기]`는 `answered`로 안 바꿈. ⭐ **백엔드 계약 갭 2개 소비 선언**: `GET /staff/chat/tickets/{id}`(Task 9 미명시)·`reassign_ticket`+`POST .../reassign`(Task 2 미명시) + 부수(`.../read`·`GET /staff/active`). ⚠️⚠️ **갭 #128(미결)**: 의료판단 이관으로 의사에게 넘긴 티켓의 **의사 도착 화면 없음** — 이관 드롭다운엔 활성 직원 전부 넣되 도착 화면은 안 만듦(경계). 해소는 이후 `SHELL-NAV`·의료 escalation과 함께. **다음 = Task 18**(`/today` 상담 행·사이드패널·대표 ⚠).
+
+---
+
+## Task 18: `/today` 상담 행 · 예약 사이드패널 취소·변경·반려 · 대표 ⚠ (`SUPPORT-TODAY-*` · `SUPPORT-PANEL-*` · `SUPPORT-CAL-DUP-01`)
+
+> **직원웹 `/today`·`/calendar` 셸에 「상담·티켓 계약 레이어」를 얹는다.** 마감 후 취소·변경 요청은 **독립 수치 카드를 만들지 않고**(역대조 결정 4·E3), 기존 `확인 필요한 예약` 카드에 **환자 한 명당 한 줄**로 섞이며, 처리는 **예약 캘린더 ⚠ → 기존 예약 사이드패널**에서 하고, 대화는 문의 티켓함이 맡는다. `/cancellation-requests` 전용 대기열 화면은 없다. **34규칙 전수**.
+>
+> ⚠️⚠️ **경계 — staff-web(2단계)이 이미 지은 셸을 소비한다(중복 빌드 금지).** `/today`의 `확인 필요한 예약` 카드 프레임·비상담 행(일정변경 영향)·카드 정렬·`GET /today/summary`(지원 요청을 예약과 **함께** 반환)는 **staff-web Task 8·13**이 소유한다. 예약 캘린더 셸·⚠ 심벌·`CAL-PANEL` 사이드패널 프레임·`reschedule_appointment`(변경)·취소 서버 경로는 **staff-web Task 14**가 소유한다. 이 태스크가 새로 짓는 것 = **①상담 행의 데이터 매핑·셀·`[예약·상담 보기]` 배선(`SUPPORT-TODAY`) ②대표 ⚠ 선정 순수함수(`SUPPORT-CAL-DUP-01`) ③사이드패널의 「상담 컨텍스트 섹션 + 반려 + 티켓 보내기/상담 종료 통합」(`SUPPORT-PANEL`).**
+>
+> ⚠️⚠️ **직원웹은 `frontend/`(2단계 직원웹 스캐폴딩).** React+TS+**Vitest**+`@testing-library/react`. 화면은 `frontend/src/features/support/`에 짓는다(Task 16·17과 같은 폴더). `patient_app/`(Flutter)·`webchat/`(환자 웹) 무손. Realtime은 2단계 훅 `useRealtimeSubscription(table, onChange)`을 재사용한다(`support_tickets`·`appointments` — `/today` 셸이 이미 여는 **같은 연결**을 구독만 한다, `SHELL-LIVE-02`).
+>
+> ⭐ **수치 카드로 뭉치지 않는다(역대조 결정 4·`TODAY-LAY-02`).** 「취소 요청 N건」·「변경 요청 N건」 같은 **독립 소계 타일을 절대 만들지 않는다**(`SUPPORT-TODAY-CANCEL-01`·`CHANGE-01`). 취소·변경 상담은 처리할 **환자 한 명당 한 줄**로 `확인 필요한 예약` 카드에 들어가고 사유 칸에 `취소 상담 · 직원 확인 중`/`변경 상담 · 직원 확인 중`만 적는다. 카드 머리 건수 = **보이는 환자 행 수**.
+>
+> ⭐ **희망 일시를 저장·표시하지 않는다(E3).** 마감 후 변경 상담은 `request_type`으로 「변경」임만 표시하고 **실제 새 시간은 직원이 캘린더에서 고른다**(`SUPPORT-TODAY-CHANGE-01`·`SUPPORT-PANEL-CHANGE-02`). 공통 필드는 `appointments.support_requested_at`·`request_type`뿐이며 희망 일시 칸을 만들지 않는다(`SUPPORT-PANEL-SCOPE-01`).
+>
+> ⭐ **두 진입점은 같은 티켓의 두 얼굴이다(`SUPPORT-TODAY-EXC-01`·`TODAY-RESCHED-27` 계열).** `/today` 상담 행과 문의 티켓함은 **같은 티켓 ID·상태**를 가리키는 두 진입점이라, 별도 요청·별도 완료 상태를 만들지 않는다. 화면 값이 어긋나면 화면으로 맞추지 않고 **서버(같은 티켓 ID·상태)를 재조회**한다(정본 §0 공동 서버 값 원칙).
+>
+> ⭐ **대표 ⚠는 이미 정해진 값을 렌더만 한다(`SUPPORT-CAL-DUP-01` — Task 2에서 확정).** 한 예약에 상담 기록이 여럿이어도 ⚠를 겹쳐 그리지 않고 **대표 하나**만 그린다. 대표 = **thread당 열린 티켓(`pending`|`in_progress`, `idx_tickets_one_open` partial unique로 하나 보장) → 없으면 가장 최근 `answered`**(Task 2 티켓 모델이 확정, `plan:1065·1255`). 패널에는 `상담 N건` 개수를 병기한다. `screen-behaviors.md:5539`의 옛 `⏳ 확인 필요`(후보 ①②)는 **낡은 표시** — 이 스텝에서 역참조로 해소한다.
+>
+> ⭐ **되돌릴 수 없는 것은 서버 결과로만 확정(정본 §0).** 예약 취소·변경·반려는 **성공 전 상태로 표시**하고(`SUPPORT-PANEL-ERR-01`·`RACE-01`), 답변 전송만으로 티켓을 **종료로 표현하지 않는다**(`REPLY-01` → `in_progress` 유지). 예약 처리와 티켓 답변의 **원자성·부분 성공 복구는 계약 미결**이라, 한쪽만 성공했는데 둘 다 완료로 보이지 않게만 한다(`TX-01` — 확인 필요, 임의 계약 안 만듦).
+>
+> ⚠️⚠️ **소비 계약 선언(staff-web·핸드오버에 걸려 있어 여기서 이름으로 못박음)**:
+> - **반려 액션** — `SUPPORT-PANEL-REJECT-01/02`의 실제 창구·백엔드는 **`CANCEL-REJ-*` 이관 핸드오버(받을 영역=staff-web)**에 걸려 있다: `appointments.cancel_rejected_at`·`cancel_rejected_reason`(환자앱 `00027`) 채우기 + `notify_patient(appointment, 'cancellation_rejected')`. Task 18은 **패널의 반려 UI**만 짓되 사유 입력 위치·필수·버튼 이름은 **확인 필요**로 남기고(`REJECT-02`), 폐지된 대기열 `[반려]` 버튼을 복원하지 않는다. 서버 액션은 staff-web 소유.
+> - **`/today/summary` 지원 요청 부분** — staff-web Task 13이 `pending_inquiries_count` 하드코딩을 실제 query로 교체하고 지원 요청을 예약과 함께 반환한다. Task 18은 그 반환 형태를 **소비 계약**으로 선언(예약별 `support_requested_at`·`request_type`·대표 `ticket_id`·`ticket_status`).
+>
+> **근거 원본**: behaviors **오늘 현황 상담 카드 §6**(`SUPPORT-TODAY-*` 13, `:5510~5526`)·**캘린더 상담 경고 §7**(`SUPPORT-CAL-DUP-01`, `:5539`)·**사이드패널 §8**(`SUPPORT-PANEL-*` 20, `:5549~5571`·`SCOPE-01` `:5597`) · staff-web `/today` `TODAY-RESCHED-23~28`·`TODAY-LAY-02`·`TODAY-LIVE-01~04`·`TODAY-RACE-01~03`(`:533~591`) · 캘린더 `CAL-PANEL-01~05`(`:982~986`)·`SUPPORT-CAL-WARN` 계열(직원웹 T14 소유) · 정본 §0·§1(13~14)·§3·§4 · 요구사항 **L204·L208~209·L514**(직원 확인·답변만으로 종료 금지)·**3.3**(취소·변경 처리) · 결정 **E3**(취소·변경 공통 `support_requested_at`)·**역대조 결정 4**(수치 카드 폐기·환자별 한 줄·두 진입점 동기화) · 티켓 모델 **Task 2**(`support_tickets`·`idx_tickets_one_open`·`appointment_id` FK)·**Task 17**(`staffTicketDetailApi`·`useTicketDetail`·`[보내기]`/`[상담 종료]`) · 이관 핸드오버 `CANCEL-REJ-*`(`HANDOVERS.md`).
+
+**Files:**
+- Create: `frontend/src/features/support/todaySupportApi.ts` (`TodaySupportApi` + `createTodaySupportApi()` — `/today/summary` 지원 요청 부분 조회)
+- Create: `frontend/src/features/support/pickRepresentativeSupport.ts` (`pickRepresentativeSupport()` — 대표 ⚠ 선정 순수함수, `SUPPORT-CAL-DUP-01`)
+- Create: `frontend/src/features/support/useTodaySupport.ts` (pending 문의 카운트 + 상담 행 목록·로딩·오류·라이브·두 진입점 정합 상태 기계)
+- Create: `frontend/src/features/support/SupportReservationRow.tsx` (`SupportReservationRow` — 사유 칸 `취소/변경 상담 · 직원 확인 중` + `[예약·상담 보기]` 단일 버튼)
+- Create: `frontend/src/features/support/ReservationSupportPanel.tsx` (`ReservationSupportPanel` — `CAL-PANEL` 위 상담 컨텍스트 섹션 + 취소/변경 위임 + 반려 UI + 티켓 보내기/상담 종료 통합 + 처리 상태·경쟁·라이브)
+- Test: 위 각 파일의 `*.test.ts(x)`
+
+**Interfaces:**
+- Consumes:
+  - **staff-web `/today`(Task 8·13)** — `GET /today/summary`가 예약과 **함께** 반환하는 지원 요청 배열을 소비 계약으로 선언: 예약별 `{ appointment_id, patient_name, support_requested_at, request_type: 'cancel'|'change', ticket_id(대표), ticket_status }`. `확인 필요한 예약` 카드 프레임·비상담 행·카드 정렬은 staff-web 소유 — 이 태스크는 **상담 행 셀·데이터 훅**만 그 카드에 마운트한다. `SHELL-LIVE-02`(셸과 같은 실시간 연결)·`EMPTY-ZERO` 패턴.
+  - **staff-web `/calendar`(Task 14)** — 예약 캘린더 셸·⚠ 심벌(`SUPPORT-CAL-WARN` 계열)·`CAL-PANEL` 사이드패널 프레임(`열기·격자 밀기·✕`)·`reschedule_appointment`(변경 절차)·취소 서버 경로. Task 18의 `ReservationSupportPanel`은 이 패널 **안의 상담 섹션·반려·답변 통합**만 제공한다.
+  - **Task 17(티켓 상세)** — `staffTicketDetailApi.sendMessage(ticketId, body, requestId)`(일반 `[보내기]` → `in_progress` 유지, `REPLY-01`) · `.closeTicket(ticketId)`(`[상담 종료]` → `answered`, `DONE-02`) · `.getDetail(ticketId)`(읽기 전용 티켓 요약 — 패널에 **복제하지 않고** 요약만) · `TicketStatus`. 문의함 티켓·대화로의 이동은 `NAV-STFSUP` 계열(Task 19)이 배선.
+  - **Task 2(티켓 모델)** — `support_tickets(status, appointment_id, thread_id, created_at)` · `idx_tickets_one_open`(thread당 열린 티켓 하나 보장) — 대표 선정의 DB 근거. `appointments.support_requested_at`·`request_type`(E3 공통 필드).
+  - **핸드오버 `CANCEL-REJ-*`(받을 영역=staff-web)** — 반려 서버 액션(`cancel_rejected_reason` 필수 + `notify_patient(...,'cancellation_rejected')`). Task 18은 **반려 UI 상태**만 소비 계약으로 선언(정확한 사유 입력 위치·필수·버튼 이름은 `REJECT-02`에서 확인 필요).
+  - **2단계 직원웹** — `useRealtimeSubscription(table, onChange)`(`support_tickets`·`appointments`) · `BTN-BUSY`(처리 중 잠금)·`ERR-POS`(동작 실패 위치)·`SHELL-LIVE`(끊김·복구·기준 시각)·`EMPTY-ZERO`·`CAL-PANEL`(격자 밀기·✕) 패턴 · `private.is_active_staff()` RLS.
+- Produces (Task 19·⑦ 구현이 소비):
+  - `useTodaySupport()` 훅 반환 `{ phase, pendingInquiryCount, rows, live, refetch }`.
+  - `SupportReservationRow`(상담 행 셀 — staff-web `확인 필요한 예약` 카드가 마운트).
+  - `ReservationSupportPanel`(캘린더 사이드패널의 상담 섹션 — `<ReservationSupportPanel appointmentId reps ticketApi onCancel onChange onReject onReplyDone />`).
+  - `pickRepresentativeSupport(tickets)`(대표 ⚠ 선정 — `SUPPORT-CAL-DUP-01`, ⑦ 렌더·서버 양쪽이 같은 규칙을 쓴다).
+- ⚠️ **아직 안 하는 것**: `확인 필요한 예약` 카드 프레임·비상담 행·정렬(staff-web T8) · 예약 캘린더 셸·⚠ 심벌·`CAL-PANEL` 프레임·`reschedule_appointment`(staff-web T14) · 반려 **서버 액션**(`CANCEL-REJ` 핸드오버=staff-web) · 문의함↔캘린더↔패널 **내비 규칙**(`NAV-STFSUP` 계열=Task 19) · 환자상세 상담 섹션·상담 로그(Task 19) · 예약+답변 **원자성 계약**(`TX-01`=확인 필요, 미결).
+
+---
+
+- [ ] **Step 1: `todaySupportApi` — `/today/summary`의 지원 요청 부분 소비 계약 (조회)**
+
+> staff-web `/today`가 예약과 함께 반환하는 지원 요청 배열을 타입으로 못박는다. `pending 문의 카운트`(`SUPPORT-TODAY-COUNT-01`)와 예약별 상담 행(`request_type`·대표 `ticket_id`·`ticket_status`·`support_requested_at`)을 한 응답에서 읽는다. ⚠️ **희망 일시 필드는 타입에 없다**(E3 — 저장·표시 안 함). 테스트는 가짜 fetch를 주입한다.
+
+`frontend/src/features/support/todaySupportApi.ts`:
+```ts
+import type { TicketStatus } from "./staffChatApi";
+
+export type SupportRequestType = "cancel" | "change";
+
+// /today/summary가 예약과 함께 반환하는 지원 요청 한 건(대표 티켓 기준).
+// ⚠️ 희망 일시(desired_at) 필드는 없다 — E3: 저장·표시하지 않는다.
+export type SupportRow = {
+  appointmentId: string;
+  patientName: string;
+  supportRequestedAt: string;      // appointments.support_requested_at
+  requestType: SupportRequestType; // 'cancel' | 'change'
+  ticketId: string;                // 대표 티켓(SUPPORT-CAL-DUP-01)
+  ticketStatus: TicketStatus;
+};
+
+export type TodaySupport = {
+  pendingInquiryCount: number;     // pending 티켓 건수(일반 상담 카드, COUNT-01)
+  rows: SupportRow[];              // 확인 필요한 예약 카드에 섞일 상담 행
+};
+
+export interface TodaySupportApi {
+  getTodaySupport(): Promise<TodaySupport>; // GET /today/summary 의 support 부분(staff-web T13이 함께 반환)
+}
+
+export function createTodaySupportApi(baseUrl: string): TodaySupportApi {
+  return {
+    getTodaySupport: async () => {
+      const resp = await fetch(`${baseUrl}/today/summary`, { credentials: "include" });
+      if (!resp.ok) throw new Error(`today_support_${resp.status}`);
+      const j = await resp.json();
+      // /today/summary는 예약·일정변경·지원요청을 함께 담는다 — 여기선 support 부분만 취한다.
+      return { pendingInquiryCount: j.pending_inquiry_count ?? 0, rows: j.support_rows ?? [] };
+    },
+  };
+}
+```
+
+`frontend/src/features/support/todaySupportApi.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createTodaySupportApi } from "./todaySupportApi";
+
+describe("todaySupportApi", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("[Step1] /today/summary의 support 부분만 취해 카운트·행으로 정규화한다", async () => {
+    const body = JSON.stringify({
+      appointments: [{ id: "irrelevant" }],   // 예약 부분은 무시
+      pending_inquiry_count: 2,
+      support_rows: [{ appointmentId: "a1", patientName: "김환자", supportRequestedAt: "2026-08-19T02:00:00Z",
+                       requestType: "cancel", ticketId: "t1", ticketStatus: "pending" }],
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body, { status: 200 }));
+    const r = await createTodaySupportApi("http://x").getTodaySupport();
+    expect(r.pendingInquiryCount).toBe(2);
+    expect(r.rows).toHaveLength(1);
+    expect(r.rows[0]).not.toHaveProperty("desiredAt"); // E3: 희망 일시 없음
+  });
+});
+```
+Run: `npm --prefix frontend run test -- todaySupportApi` → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: `pickRepresentativeSupport` — 대표 ⚠ 선정 순수함수 (`SUPPORT-CAL-DUP-01`, 1규칙)**
+
+> Task 2 티켓 모델이 확정한 값을 순수함수로 렌더 가능하게 만든다: **대표 = 열린 티켓(`pending`|`in_progress`) → 없으면 가장 최근 `answered`**. ⚠를 여러 개 겹쳐 그리지 않고 대표 하나 + `상담 N건` 개수만 낸다. `idx_tickets_one_open`이 열린 티켓을 thread당 하나로 보장하므로 후보가 여럿이면 그만큼 `count`로 병기한다.
+
+`frontend/src/features/support/pickRepresentativeSupport.ts`:
+```ts
+import type { TicketStatus } from "./staffChatApi";
+
+export type DupTicket = { ticketId: string; status: TicketStatus; createdAt: string };
+export type Representative = { ticketId: string; count: number } | null;
+
+// SUPPORT-CAL-DUP-01 — 대표 = 열린 티켓(pending|in_progress) → 없으면 가장 최근 answered.
+// ⚠는 대표 하나만. count는 같은 예약에 붙은 상담 기록 수(패널에 "상담 N건").
+export function pickRepresentativeSupport(tickets: DupTicket[]): Representative {
+  if (tickets.length === 0) return null;
+  const open = tickets.filter((t) => t.status === "pending" || t.status === "in_progress");
+  const rep = open.length > 0
+    ? open[0]                                              // 열린 티켓(one_open으로 하나 보장)
+    : [...tickets].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]; // 가장 최근 answered
+  return { ticketId: rep.ticketId, count: tickets.length };
+}
+```
+
+`frontend/src/features/support/pickRepresentativeSupport.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { pickRepresentativeSupport } from "./pickRepresentativeSupport";
+
+describe("pickRepresentativeSupport", () => {
+  it("[SUPPORT-CAL-DUP-01] 열린 티켓이 있으면 그것을 대표로 하고 상담 건수를 병기한다", () => {
+    const rep = pickRepresentativeSupport([
+      { ticketId: "old", status: "answered", createdAt: "2026-08-18T00:00:00Z" },
+      { ticketId: "open", status: "in_progress", createdAt: "2026-08-19T00:00:00Z" },
+    ]);
+    expect(rep).toEqual({ ticketId: "open", count: 2 }); // 대표=열린 티켓, ⚠ 하나·개수 2
+  });
+
+  it("[SUPPORT-CAL-DUP-01] 열린 티켓이 없으면 가장 최근 answered를 대표로 한다", () => {
+    const rep = pickRepresentativeSupport([
+      { ticketId: "older", status: "answered", createdAt: "2026-08-17T00:00:00Z" },
+      { ticketId: "newer", status: "answered", createdAt: "2026-08-19T00:00:00Z" },
+    ]);
+    expect(rep?.ticketId).toBe("newer"); // 겹쳐 그리지 않고 최근 answered 하나
+  });
+});
+```
+Run: `npm --prefix frontend run test -- pickRepresentativeSupport` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `useTodaySupport` — pending 카운트·행 목록·로딩·오류·라이브·두 진입점 정합 (`COUNT-01`·`EMPTY-01`·`LOAD-01`·`ERR-01`·`LIVE-01/02/03`·`EXC-01`, 8규칙)**
+
+> pending 문의 카운트는 실제 건수(`COUNT-01`), 0건이면 0건 상태를 내되 카드 숨김 여부는 **확인 필요**로 남긴다(`EMPTY-01`). 로딩은 **행 목록의 부분 로딩**이고 0건(행 없음)으로 먼저 그리지 않는다(`LOAD-01`). 오류도 행 없음으로 위장하지 않는다(`ERR-01`). 새 취소·변경 상담은 행을 추가·갱신하고(`LIVE-01`), 끊기면 마지막 목록+기준 시각 유지(`LIVE-02`), 복구 시 서버 재조회로 정합화(`LIVE-03`). 화면 값이 문의함·캘린더와 어긋나면 화면으로 맞추지 않고 **서버(같은 티켓 ID·상태)를 재조회**한다(`EXC-01` — 두 진입점 동기화).
+
+`frontend/src/features/support/useTodaySupport.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { useTodaySupport } from "./useTodaySupport";
+import type { TodaySupport, TodaySupportApi } from "./todaySupportApi";
+
+const mk = (over: Partial<TodaySupport> = {}): TodaySupport => ({ pendingInquiryCount: 0, rows: [], ...over });
+const fakeApi = (impl: () => Promise<TodaySupport>): TodaySupportApi => ({ getTodaySupport: impl });
+
+describe("useTodaySupport", () => {
+  it("[SUPPORT-TODAY-COUNT-01] pending 문의 실제 건수를 그대로 노출한다", async () => {
+    const { result } = renderHook(() => useTodaySupport(fakeApi(async () => mk({ pendingInquiryCount: 3 }))));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.pendingInquiryCount).toBe(3);
+  });
+
+  it("[SUPPORT-TODAY-EMPTY-01] pending 0건은 0건 상태로 노출하되 카드를 임의로 숨기지 않는다", async () => {
+    const { result } = renderHook(() => useTodaySupport(fakeApi(async () => mk({ pendingInquiryCount: 0 }))));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.pendingInquiryCount).toBe(0);
+    expect(result.current.hideCard).toBeUndefined(); // 숨김 여부는 확인 필요 — 훅이 정하지 않는다
+  });
+
+  it("[SUPPORT-TODAY-LOAD-01] 최초 로딩은 loading이며 rows=[]를 0건 결과로 단정하지 않는다", async () => {
+    let resolve!: (v: TodaySupport) => void;
+    const { result } = renderHook(() => useTodaySupport(fakeApi(() => new Promise((r) => (resolve = r)))));
+    expect(result.current.phase).toBe("loading");          // 부분 로딩
+    expect(result.current.phase).not.toBe("ready");        // 0건으로 먼저 그리지 않음
+    await act(async () => resolve(mk()));
+  });
+
+  it("[SUPPORT-TODAY-ERR-01] 조회 실패는 error이며 행 없음으로 위장하지 않는다", async () => {
+    const { result } = renderHook(() => useTodaySupport(fakeApi(async () => { throw new Error("x"); })));
+    await waitFor(() => expect(result.current.phase).toBe("error"));
+    expect(result.current.phase).not.toBe("ready"); // 빈 목록(성공)으로 표시 금지
+  });
+
+  it("[SUPPORT-TODAY-LIVE-01] 새 상담 기록 수신 시 행을 추가·갱신한다", async () => {
+    let call = 0;
+    const api = fakeApi(async () => (call++ === 0 ? mk() : mk({ rows: [{ appointmentId: "a1", patientName: "김", supportRequestedAt: "t", requestType: "cancel", ticketId: "t1", ticketStatus: "pending" }] })));
+    const { result } = renderHook(() => useTodaySupport(api));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await act(async () => result.current.live.onChange()); // 실시간 이벤트 → 재조회
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+  });
+
+  it("[SUPPORT-TODAY-LIVE-02] 실시간이 끊기면 마지막 행 목록과 기준 시각을 유지한다", async () => {
+    const { result } = renderHook(() => useTodaySupport(fakeApi(async () => mk({ rows: [{ appointmentId: "a1", patientName: "김", supportRequestedAt: "t", requestType: "cancel", ticketId: "t1", ticketStatus: "pending" }] }))));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    act(() => result.current.live.onDisconnect());
+    expect(result.current.rows).toHaveLength(1);         // 목록 유지
+    expect(result.current.live.staleSince).toBeTruthy(); // 기준 시각 표시
+  });
+
+  it("[SUPPORT-TODAY-LIVE-03] 복구 시 서버 행 목록을 다시 조회해 정합화한다", async () => {
+    const impl = vi.fn(async () => mk());
+    const { result } = renderHook(() => useTodaySupport(fakeApi(impl)));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await act(async () => result.current.live.onReconnect());
+    expect(impl).toHaveBeenCalledTimes(2); // 재조회
+    expect(result.current.live.staleSince).toBeNull();
+  });
+
+  it("[SUPPORT-TODAY-EXC-01] 문의함·캘린더와 어긋나면 화면 값으로 맞추지 않고 서버를 재조회한다", async () => {
+    const impl = vi.fn(async () => mk());
+    const { result } = renderHook(() => useTodaySupport(fakeApi(impl)));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await act(async () => result.current.refetch("mismatch")); // 불일치 감지 → 서버 재조회(로컬 병합 아님)
+    expect(impl).toHaveBeenCalledTimes(2);
+  });
+});
+```
+구현은 `useTicketDetail`(Task 17)과 같은 상태 기계 패턴 + `useRealtimeSubscription` 배선. Run: `npm --prefix frontend run test -- useTodaySupport` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `SupportReservationRow` — 상담 행 셀 + `[예약·상담 보기]` (`CANCEL-01/02/03`·`CHANGE-01`·`COUNT-02`, 5규칙)**
+
+> `확인 필요한 예약` 카드에 마운트되는 **환자 한 명당 한 줄** 셀. 사유 칸은 `취소 상담 · 직원 확인 중`(`CANCEL-01`)/`변경 상담 · 직원 확인 중`(`CHANGE-01`), 버튼은 `[예약·상담 보기]` **하나**(`CANCEL-02` — `/cancellation-requests` 아님, 캘린더+패널로). ⛔ **독립 수치 카드·소계 타일을 만들지 않는다**(`CANCEL-01`). 상담 0건이면 그 행이 없을 뿐 카드를 숨기고 말고 할 것이 없다(`CANCEL-03`). 일반 상담 카드(pending)를 누르면 문의 티켓함 `새 문의` 탭으로(`COUNT-02` — 배선은 `NAV-STFSUP` 계열=Task 19).
+
+`frontend/src/features/support/SupportReservationRow.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { SupportReservationRow, SupportInquiryCard } from "./SupportReservationRow";
+import type { SupportRow } from "./todaySupportApi";
+
+const row = (over: Partial<SupportRow> = {}): SupportRow => ({
+  appointmentId: "a1", patientName: "김환자", supportRequestedAt: "2026-08-19T02:00:00Z",
+  requestType: "cancel", ticketId: "t1", ticketStatus: "pending", ...over });
+
+describe("SupportReservationRow", () => {
+  it("[SUPPORT-TODAY-CANCEL-01] 취소 상담은 환자 한 줄로 '취소 상담 · 직원 확인 중'을 표시하고 수치 카드를 만들지 않는다", () => {
+    render(<SupportReservationRow row={row({ requestType: "cancel" })} onOpen={vi.fn()} />);
+    expect(screen.getByText("취소 상담 · 직원 확인 중")).toBeVisible();
+    expect(screen.queryByText(/취소 요청 \d+건/)).toBeNull(); // 별도 소계 타일 금지
+  });
+
+  it("[SUPPORT-TODAY-CHANGE-01] 변경 상담은 '변경 상담 · 직원 확인 중'이며 희망 일시를 표시하지 않는다", () => {
+    render(<SupportReservationRow row={row({ requestType: "change" })} onOpen={vi.fn()} />);
+    expect(screen.getByText("변경 상담 · 직원 확인 중")).toBeVisible();
+    expect(screen.queryByText(/희망|원하는 시간/)).toBeNull(); // E3: 희망 일시 없음
+  });
+
+  it("[SUPPORT-TODAY-CANCEL-02] [예약·상담 보기]는 /cancellation-requests가 아니라 예약 캘린더+패널을 연다", async () => {
+    const onOpen = vi.fn();
+    render(<SupportReservationRow row={row()} onOpen={onOpen} />);
+    await userEvent.click(screen.getByRole("button", { name: "예약·상담 보기" }));
+    expect(onOpen).toHaveBeenCalledWith({ appointmentId: "a1", ticketId: "t1", target: "calendar-panel" });
+    // 배선은 NAV-STFSUP 계열(Task 19) — target 값으로 /cancellation-requests 경유 안 함을 못박는다
+  });
+
+  it("[SUPPORT-TODAY-CANCEL-03] 상담 0건이면 행이 없을 뿐 카드 프레임(비상담 행)은 그대로 둔다", () => {
+    render(<SupportInquiryCard supportRows={[]} otherRows={[<tr key="x"><td>일정변경 영향</td></tr>]} />);
+    expect(screen.queryByText(/상담 · 직원 확인 중/)).toBeNull(); // 상담 행 없음
+    expect(screen.getByText("일정변경 영향")).toBeVisible();       // 카드는 다른 행으로 유지
+  });
+
+  it("[SUPPORT-TODAY-COUNT-02] 일반 상담 카드를 누르면 문의 티켓함 '새 문의' 탭으로 이동을 요청한다", async () => {
+    const onOpenInbox = vi.fn();
+    render(<SupportInquiryCard pendingInquiryCount={3} onOpenInbox={onOpenInbox} />);
+    await userEvent.click(screen.getByRole("button", { name: /확인 필요 상담 문의/ }));
+    expect(onOpenInbox).toHaveBeenCalledWith("new"); // 새 문의 탭(NAV-STFSUP 계열이 실제 라우팅)
+  });
+});
+```
+Run: `npm --prefix frontend run test -- SupportReservationRow` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: `ReservationSupportPanel` 상담 컨텍스트 + 취소/변경 위임 (`OPEN-01`·`CONTEXT-01`·`CANCEL-01`·`CHANGE-01`·`CHANGE-02`·`EMPTY-01`·`SCOPE-01`, 7규칙)**
+
+> `CAL-PANEL`(staff-web T14) 안에 상담 섹션을 얹는다. ⚠ 예약에서 열면 예약 정보·변경·취소·사유 + **상담 확인 필요 상태**를 함께 보인다(`OPEN-01`). 대화 맥락은 **패널에 복제하지 않고** 문의함 티켓·대화로 가는 경로만 준다(`CONTEXT-01`). 취소·변경은 **기존 패널 절차에 위임**한다(`CANCEL-01`·`CHANGE-01` → staff-web `onCancel`/`onChange`). 변경 상담 데이터는 `support_requested_at`+`request_type`(변경)만 쓰고 희망 일시는 저장·표시하지 않는다(`CHANGE-02`·`SCOPE-01`). 일반 예약 블록(상담 연결 없음)에서 열면 상담·반려 상태를 **만들어 표시하지 않는다**(`EMPTY-01`).
+
+`frontend/src/features/support/ReservationSupportPanel.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ReservationSupportPanel } from "./ReservationSupportPanel";
+import type { TicketStatus } from "./staffChatApi";
+
+const rep = (over = {}) => ({ ticketId: "t1", ticketStatus: "pending" as TicketStatus, requestType: "cancel" as const,
+  supportRequestedAt: "2026-08-19T02:00:00Z", count: 1, ...over });
+const base = { appointmentId: "a1", onCancel: vi.fn(), onChange: vi.fn(), onReject: vi.fn(),
+  ticketApi: { getDetail: vi.fn().mockResolvedValue({ summary: {}, status: "pending" }),
+               sendMessage: vi.fn(), closeTicket: vi.fn() }, onOpenTicket: vi.fn() };
+
+describe("ReservationSupportPanel — 상담 컨텍스트·취소·변경", () => {
+  it("[SUPPORT-PANEL-OPEN-01] ⚠ 예약에서 열면 예약 처리와 상담 확인 필요 상태를 함께 표시한다", async () => {
+    render(<ReservationSupportPanel {...base} representative={rep()} />);
+    expect(await screen.findByText(/상담 확인 필요/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /취소/ })).toBeVisible();   // 기존 예약 처리도 함께
+    expect(screen.getByRole("button", { name: /변경/ })).toBeVisible();
+  });
+
+  it("[SUPPORT-PANEL-CONTEXT-01] 전체 대화를 패널에 복제하지 않고 문의함 티켓·대화로 가는 경로만 준다", async () => {
+    const onOpenTicket = vi.fn();
+    render(<ReservationSupportPanel {...base} onOpenTicket={onOpenTicket} representative={rep()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "상담 전체 보기" }));
+    expect(onOpenTicket).toHaveBeenCalledWith("t1");
+    expect(screen.queryAllByTestId("conv-message")).toHaveLength(0); // 대화 말풍선 복제 없음
+  });
+
+  it("[SUPPORT-PANEL-CANCEL-01] 취소는 기존 패널의 취소·사유 절차에 위임한다", async () => {
+    const onCancel = vi.fn();
+    render(<ReservationSupportPanel {...base} onCancel={onCancel} representative={rep()} />);
+    await userEvent.click(await screen.findByRole("button", { name: /취소 처리/ }));
+    expect(onCancel).toHaveBeenCalledWith("a1"); // 재구현하지 않고 staff-web 절차 호출
+  });
+
+  it("[SUPPORT-PANEL-CHANGE-01] 변경은 기존 패널의 캘린더 새 시간 선택 절차에 위임한다", async () => {
+    const onChange = vi.fn();
+    render(<ReservationSupportPanel {...base} onChange={onChange} representative={rep({ requestType: "change" })} />);
+    await userEvent.click(await screen.findByRole("button", { name: /변경 처리/ }));
+    expect(onChange).toHaveBeenCalledWith("a1");
+  });
+
+  it("[SUPPORT-PANEL-CHANGE-02] 변경 상담은 request_type만 쓰고 희망 일시를 저장·표시하지 않는다", async () => {
+    render(<ReservationSupportPanel {...base} representative={rep({ requestType: "change" })} />);
+    expect(await screen.findByText(/변경 상담/)).toBeVisible();
+    expect(screen.queryByText(/희망 일시|원하는 시간/)).toBeNull(); // 새 시간은 직원이 캘린더에서
+  });
+
+  it("[SUPPORT-PANEL-EMPTY-01] 상담 연결이 없는 일반 예약이면 상담·반려 상태를 만들어 표시하지 않는다", async () => {
+    render(<ReservationSupportPanel {...base} representative={null} />);
+    expect(await screen.findByRole("button", { name: /취소/ })).toBeVisible(); // 일반 예약 패널로 동작
+    expect(screen.queryByText(/상담 확인 필요|반려/)).toBeNull();
+  });
+
+  it("[SUPPORT-PANEL-SCOPE-01] 마감 후 취소·변경 상담은 공통 필드만 쓰고 희망 일시 입력칸을 만들지 않는다", async () => {
+    render(<ReservationSupportPanel {...base} representative={rep()} />);
+    await screen.findByText(/상담 확인 필요/);
+    expect(screen.queryByLabelText(/희망 일시|원하는 시간/)).toBeNull(); // support_requested_at·request_type만
+  });
+});
+```
+Run: `npm --prefix frontend run test -- ReservationSupportPanel` → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: 패널 반려 + 티켓 답변 + 상담 종료 통합 (`REJECT-01`·`REJECT-02`·`REPLY-01`·`DONE-02`·`TX-01`, 5규칙)**
+
+> 취소 불가 답변(반려)은 예약·QR을 **정상 유지**하고 직원 사유 + `취소가 어렵다는 답변을 받았습니다`를 환자에게 전달한다(`REJECT-01` — 서버 액션은 `CANCEL-REJ` 핸드오버=staff-web 소유, 여기선 UI만). 반려 입력 UI의 사유 입력 위치·필수·버튼 이름은 **확인 필요**이며 폐지 대기열 `[반려]`를 복원하지 않는다(`REJECT-02`). 직원 답변은 **티켓 일반 `[보내기]`**(Task 17 `sendMessage`)를 쓰고 답변만으로 종료하지 않는다(`REPLY-01` → `in_progress` 유지). 상담 종료는 **`[상담 종료]`(Task 17 `closeTicket`)가 성공한 때에만** `answered`로 표시하고 환자 앱의 `상담 종료` 상태를 반영한다(`DONE-02`). 예약 처리와 티켓 답변의 **원자성·부분 성공 복구는 계약 미결**이라 한쪽만 성공했는데 둘 다 완료로 보이지 않게만 한다(`TX-01`).
+
+`frontend/src/features/support/ReservationSupportPanel.reply.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ReservationSupportPanel } from "./ReservationSupportPanel";
+
+const mkApi = () => ({ getDetail: vi.fn().mockResolvedValue({ summary: {}, status: "in_progress" }),
+  sendMessage: vi.fn().mockResolvedValue({ id: "m1" }), closeTicket: vi.fn().mockResolvedValue(undefined) });
+const rep = (over = {}) => ({ ticketId: "t1", ticketStatus: "in_progress" as const, requestType: "cancel" as const,
+  supportRequestedAt: "t", count: 1, ...over });
+
+describe("ReservationSupportPanel — 반려·답변·종료", () => {
+  it("[SUPPORT-PANEL-REJECT-01] 반려는 예약을 정상 유지하고 '취소가 어렵다는 답변' 문구를 전달한다", async () => {
+    const onReject = vi.fn();
+    render(<ReservationSupportPanel appointmentId="a1" representative={rep()} ticketApi={mkApi()}
+      onCancel={vi.fn()} onChange={vi.fn()} onReject={onReject} onOpenTicket={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: /취소가 어렵다는 답변|취소 불가/ }));
+    expect(onReject).toHaveBeenCalledWith("a1"); // 예약 취소 아님 — 유지한 채 사유 전달(서버 액션=staff-web)
+  });
+
+  it("[SUPPORT-PANEL-REJECT-02] 반려 UI는 폐지된 대기열 [반려] 버튼을 복원하지 않는다(사유 계약은 확인 필요)", async () => {
+    render(<ReservationSupportPanel appointmentId="a1" representative={rep()} ticketApi={mkApi()}
+      onCancel={vi.fn()} onChange={vi.fn()} onReject={vi.fn()} onOpenTicket={vi.fn()} />);
+    await screen.findByText(/상담 확인 필요/);
+    expect(screen.queryByText("취소요청 대기열")).toBeNull();      // 폐지 화면 복원 금지
+    expect(screen.queryByRole("button", { name: "승인" })).toBeNull(); // 대기열 승인/반려 쌍 복원 금지
+  });
+
+  it("[SUPPORT-PANEL-REPLY-01] 직원 답변은 티켓 [보내기]를 쓰고 답변만으로 종료하지 않는다", async () => {
+    const api = mkApi();
+    render(<ReservationSupportPanel appointmentId="a1" representative={rep()} ticketApi={api}
+      onCancel={vi.fn()} onChange={vi.fn()} onReject={vi.fn()} onOpenTicket={vi.fn()} />);
+    await userEvent.type(await screen.findByLabelText("답변"), "확인했습니다");
+    await userEvent.click(screen.getByRole("button", { name: "보내기" }));
+    expect(api.sendMessage).toHaveBeenCalled();
+    expect(api.closeTicket).not.toHaveBeenCalled(); // 보내기 ≠ 종료 (in_progress 유지)
+  });
+
+  it("[SUPPORT-PANEL-DONE-02] [상담 종료]가 성공한 때에만 answered로 표시한다", async () => {
+    const api = mkApi();
+    render(<ReservationSupportPanel appointmentId="a1" representative={rep()} ticketApi={api}
+      onCancel={vi.fn()} onChange={vi.fn()} onReject={vi.fn()} onOpenTicket={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "상담 종료" }));
+    await userEvent.click(await screen.findByRole("button", { name: "종료" })); // 확인창(Task 17 CLOSE-02)
+    expect(api.closeTicket).toHaveBeenCalledWith("t1");
+    expect(await screen.findByText("상담 종료")).toBeVisible();
+  });
+
+  it("[SUPPORT-PANEL-TX-01] 예약 처리만 성공하고 답변이 실패하면 둘 다 완료로 보이지 않는다", async () => {
+    const api = mkApi();
+    api.sendMessage.mockRejectedValueOnce(new Error("net"));
+    const onCancel = vi.fn().mockResolvedValue(undefined);
+    render(<ReservationSupportPanel appointmentId="a1" representative={rep()} ticketApi={api}
+      onCancel={onCancel} onChange={vi.fn()} onReject={vi.fn()} onOpenTicket={vi.fn()} />);
+    await userEvent.type(await screen.findByLabelText("답변"), "취소 처리했습니다");
+    await userEvent.click(screen.getByRole("button", { name: "보내기" }));
+    expect(await screen.findByText(/답변을 보내지 못했습니다/)).toBeVisible(); // 부분 성공을 완료로 표시 안 함
+    expect(screen.queryByText("상담 종료")).toBeNull();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- ReservationSupportPanel.reply` → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: 패널 처리 상태·경쟁·라이브 (`LOAD-01`·`BUSY-01`·`ERR-01`·`DONE-01`·`RACE-01`·`LIVE-01`·`LIVE-02`·`CLOSE-01`, 8규칙)**
+
+> 패널 로딩은 예약·상담 영역에 로딩을 표시하고 처리 버튼은 **최신 상태 확인 전 비활성**(`LOAD-01`). 처리 중은 패널 유지·중복 클릭 방지·같은 위치 처리 중 표시(`BUSY-01`, `BTN-BUSY`). 처리 실패는 성공 전 상태로 표시하고 패널 안에 실패+재시도(`ERR-01`, `ERR-POS`). 취소·변경 성공 시 최신 예약 상태·블록·상담 경고를 갱신(`DONE-01`). 다른 직원이 먼저 처리하면 늦은 동작을 적용하지 않고 `다른 직원이 먼저 처리했습니다`(`RACE-01`, `TODAY-RACE` 계열). 패널이 열린 중 다른 직원 처리는 **자동으로 닫지 않고** 최신 상태로 갱신(`LIVE-01`), 끊기면 패널·입력 유지+캘린더 배너 기준 시각(`LIVE-02`). 닫기는 기존 `✕`로 캘린더 원폭 복귀하고 **닫기만으로 처리 완료·반려를 만들지 않는다**(`CLOSE-01`, `CAL-PANEL-05`).
+
+`frontend/src/features/support/ReservationSupportPanel.state.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ReservationSupportPanel } from "./ReservationSupportPanel";
+
+const mkApi = () => ({ getDetail: vi.fn().mockResolvedValue({ summary: {}, status: "in_progress" }),
+  sendMessage: vi.fn(), closeTicket: vi.fn() });
+const rep = (over = {}) => ({ ticketId: "t1", ticketStatus: "in_progress" as const, requestType: "cancel" as const,
+  supportRequestedAt: "t", count: 1, ...over });
+const props = (over = {}) => ({ appointmentId: "a1", representative: rep(), ticketApi: mkApi(),
+  onCancel: vi.fn(), onChange: vi.fn(), onReject: vi.fn(), onOpenTicket: vi.fn(), ...over });
+
+describe("ReservationSupportPanel — 상태·경쟁·라이브", () => {
+  it("[SUPPORT-PANEL-LOAD-01] 로딩 중에는 처리 버튼을 최신 상태 확인 전까지 비활성화한다", async () => {
+    const api = mkApi();
+    let resolve!: (v: unknown) => void;
+    api.getDetail.mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<ReservationSupportPanel {...props({ ticketApi: api })} />);
+    expect(screen.getByRole("button", { name: /취소 처리/ })).toBeDisabled();
+    await act(async () => resolve({ summary: {}, status: "in_progress" }));
+  });
+
+  it("[SUPPORT-PANEL-BUSY-01] 처리 중에는 패널을 유지하고 중복 클릭을 막는다", async () => {
+    const onCancel = vi.fn(() => new Promise<void>(() => {})); // 영원히 처리 중
+    render(<ReservationSupportPanel {...props({ onCancel })} />);
+    const btn = await screen.findByRole("button", { name: /취소 처리/ });
+    await userEvent.click(btn);
+    expect(btn).toBeDisabled();               // 중복 클릭 방지
+    expect(screen.getByText(/처리 중/)).toBeVisible();
+  });
+
+  it("[SUPPORT-PANEL-ERR-01] 처리 실패는 성공 전 상태로 두고 패널 안에 실패·재시도를 둔다", async () => {
+    const onCancel = vi.fn().mockRejectedValue(new Error("net"));
+    render(<ReservationSupportPanel {...props({ onCancel })} />);
+    await userEvent.click(await screen.findByRole("button", { name: /취소 처리/ }));
+    expect(await screen.findByText(/처리하지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeVisible();
+  });
+
+  it("[SUPPORT-PANEL-DONE-01] 취소·변경 성공 시 최신 예약 상태·상담 경고를 갱신한다", async () => {
+    const onDone = vi.fn();
+    const onCancel = vi.fn().mockResolvedValue(undefined);
+    render(<ReservationSupportPanel {...props({ onCancel, onDone })} />);
+    await userEvent.click(await screen.findByRole("button", { name: /취소 처리/ }));
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalled()); // 캘린더 블록·⚠ 갱신 신호
+  });
+
+  it("[SUPPORT-PANEL-RACE-01] 다른 직원이 먼저 처리하면 늦은 동작을 적용하지 않고 안내만 한다", async () => {
+    const onCancel = vi.fn().mockRejectedValue(Object.assign(new Error("conflict"), { status: 409 }));
+    render(<ReservationSupportPanel {...props({ onCancel })} />);
+    await userEvent.click(await screen.findByRole("button", { name: /취소 처리/ }));
+    expect(await screen.findByText("다른 직원이 먼저 처리했습니다")).toBeVisible();
+    expect(screen.queryByText(/새로고침 후 다시 시도/)).toBeNull(); // TODAY-RACE-02: 이미 갱신됨
+  });
+
+  it("[SUPPORT-PANEL-LIVE-01] 패널이 열린 중 다른 직원이 처리해도 자동으로 닫지 않고 갱신한다", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<ReservationSupportPanel {...props()} onClose={onClose} />);
+    await screen.findByText(/상담 확인 필요/);
+    rerender(<ReservationSupportPanel {...props({ representative: rep({ ticketStatus: "answered" }) })} onClose={onClose} />);
+    expect(onClose).not.toHaveBeenCalled();          // 자동 닫힘 없음
+    expect(await screen.findByText("상담 종료")).toBeVisible(); // 최신 상태로 갱신
+  });
+
+  it("[SUPPORT-PANEL-LIVE-02] 실시간이 끊겨도 패널·입력을 유지하고 기준 시각 배너를 적용한다", async () => {
+    render(<ReservationSupportPanel {...props({ live: { connected: false, staleSince: "2026-08-19T02:05:00Z" } })} />);
+    await userEvent.type(await screen.findByLabelText("답변"), "작성 중");
+    expect(screen.getByLabelText("답변")).toHaveValue("작성 중"); // 입력 유지
+    expect(screen.getByText(/실시간 연결이 끊김|기준 시각/)).toBeVisible();
+  });
+
+  it("[SUPPORT-PANEL-CLOSE-01] ✕로 닫으면 캘린더 원폭으로 돌아가고 닫기만으로 처리·반려를 만들지 않는다", async () => {
+    const onClose = vi.fn(); const onCancel = vi.fn(); const onReject = vi.fn();
+    render(<ReservationSupportPanel {...props({ onCancel, onReject })} onClose={onClose} />);
+    await userEvent.click(await screen.findByRole("button", { name: "닫기" }));
+    expect(onClose).toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onReject).not.toHaveBeenCalled();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- ReservationSupportPanel.state` → FAIL → 구현 → PASS.
+
+- [ ] **Step 8: 전수 초록불 + 검사기 + 역참조 + 커밋**
+
+먼저 `screen-behaviors.md`의 `SUPPORT-CAL-DUP-01`을 **낡은 `⏳ 확인 필요`에서 해소로 역참조**한다(뒤집힌 쪽에 역참조 원칙 — Task 2가 이미 확정한 값).
+
+`docs/design/screen-behaviors.md` `SUPPORT-CAL-DUP-01` 동작 칸:
+```
+~~어떤 기록을 대표하고 어떻게 묶을지는 **확인 필요**다~~ ✅ **해소(2026-08-19, Task 2 티켓 모델)** — 대표 = **thread당 열린 티켓(`pending`|`in_progress`, `idx_tickets_one_open` partial unique로 하나 보장) → 없으면 가장 최근 `answered`**. 패널에 `상담 N건` 병기. ⚠는 대표 하나만. ai-chatbot 플랜 Task 18이 렌더(`pickRepresentativeSupport`)
+```
+⛔ **`HANDOVERS.md`의 `SUPPORT-CAL-DUP-01` 행은 지우지 않는다**(받으면 검사기가 저절로 조용해진다 — 원장 규칙).
+
+Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 34규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `+33`(`SUPPORT-TODAY` 13 + `SUPPORT-PANEL` 20; `SUPPORT-CAL-DUP-01`은 이월 참조로 이미 셈) · prefix-check **빚0·미배정0·⏰0** + `SUPPORT-CAL-DUP-01` 이관 핸드오버 **회수(조용)**. ⚠️ 타 태스크 소유 규칙(`NAV-STFSUP`·`SUPPORT-CAL-WARN`·`TODAY-RESCHED`·`TODAY-LIVE`·`TODAY-RACE`·`CAL-PANEL`·`TICKET-DETAIL` 계열)은 **계열명(숫자 0개)으로만** 참조했다(완전 단일 ID 금지 — ⏰ 방지). `SHELL-LIVE`·`BTN-BUSY`·`ERR-POS`·`EMPTY-ZERO`·`reschedule_appointment`(2단계 staff-web)는 ai-chatbot 규칙이 아니라 커버리지에 안 잡힌다(근거 참조만).
+
+```bash
+git add frontend/src/features/support/ docs/design/screen-behaviors.md docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 18 본문 — /today 상담 행·예약 사이드패널 취소/변경/반려·대표 ⚠ 34규칙. SUPPORT-CAL-DUP-01 이관 회수(대표=열린 티켓→최근 answered)"
+```
+
+> **Task 18 완료 조건**: `SUPPORT-TODAY`(`COUNT`2·`EMPTY`1·`CANCEL`3·`CHANGE`1·`LOAD`1·`ERR`1·`LIVE`3·`EXC`1 = 13) + `SUPPORT-PANEL`(`OPEN`1·`CONTEXT`1·`CANCEL`1·`CHANGE`2·`REJECT`2·`REPLY`1·`TX`1·`LOAD`1·`EMPTY`1·`BUSY`1·`ERR`1·`DONE`2·`RACE`1·`LIVE`2·`CLOSE`1·`SCOPE`1 = 20) + `SUPPORT-CAL-DUP-01`(1) = **34규칙 전수** 초록불(Vitest). ⭐ **직원웹 `frontend/`** — `patient_app/`·`webchat/` 무손. ⭐ **수치 카드 금지**: 취소·변경은 환자별 한 줄로 `확인 필요한 예약` 카드에만, 독립 소계 타일 없음. ⭐ **희망 일시 안 씀**: `support_requested_at`·`request_type`만, 새 시간은 캘린더에서. ⭐ **대표 ⚠ = 열린 티켓 → 없으면 가장 최근 answered**(Task 2 확정값 렌더, `screen-behaviors.md` 역참조 해소). ⭐ **소비 계약 선언 2건**: `/today/summary` 지원 요청 부분(staff-web T13)·반려 서버 액션(`CANCEL-REJ` 핸드오버=staff-web). ⚠️ **경계**: `확인 필요한 예약` 카드 프레임·캘린더 셸·`CAL-PANEL`·`reschedule_appointment`=staff-web · 문의함↔캘린더 내비(`NAV-STFSUP` 계열)·환자상세 상담 섹션·상담 로그=**Task 19** · 예약+답변 원자성(`TX-01`)=확인 필요(미결). **다음 = Task 19**(환자상세 상담 섹션 + 상담 로그 + 지원 내비).
