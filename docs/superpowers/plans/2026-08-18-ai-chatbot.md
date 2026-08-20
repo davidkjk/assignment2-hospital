@@ -11263,3 +11263,473 @@ git commit -m "feat: 📝 상담봇 Task 19 본문 — 환자상세 상담 섹�
 ```
 
 > **Task 19 완료 조건**: `PTSUP-SECT`(`LINK`1·`EMPTY`1·`LOAD`1·`ERR`1·`ORDER`1·`BLOCK`1·`LIVE`2·`NAV`1·`PRIV`1·`EXC`1 = 11) + `CHATLOG-LIST`(`SCOPE`1·`FILTER`3·`ROW`1·`SOURCE`3·`EMPTY`1·`LOAD`1·`ERR`1·`LIVE`1·`ORDER`1·`DETAIL`1·`EXC`1 = 15) + `NAV-STFSUP`(`01`~`14` = 14) = **40규칙 전수** 초록불(Vitest). ⭐ **직원웹 `frontend/`** — `patient_app/`·`webchat/` 무손. ⭐ **모르는 것 안 지어냄**: 근거 없음·계약 밖 값·0건을 실패와 구분. ⭐ **확인 필요 3건 존중**: `CHATLOG-LIST-LIVE-01`·`ORDER-01`·`PTSUP-SECT-LIVE-01`은 `unknown`으로 노출·값 발명 안 함. ⭐ **`PTSUP-SECT-BLOCK-01` 해소**(Task 2 마이그·정렬 존재 → 실제 조회 소비, `screen-behaviors.md` 역참조). ⭐ **소비 계약 3건 선언**: 상담 로그 목록(`GET /staff/chat/logs`)·근거(`.../messages/{id}/sources`)·환자 범위 티켓(`list_patient_support_tickets`). ⚠️ **경계**: `/patients/:id` 셸·`PTDET-SUPPORT`=staff-web · 오답 신고 폼(`BADRPT-FORM`)=Task 21 · 관리자 화면=Task 20~22. **다음 = Task 20**(관리자 KB 목록·편집·이력·제한문구, `KBADM-*`). ⭐⭐ **직원 채널(16~19) 완결.**
+
+---
+
+## Task 20: 관리자 병원 안내자료(KB) — 목록·편집/승인·수정이력·제한문구 (`KBADM-LIST-*` · `KBADM-EDITOR-*` · `KBADM-HISTORY-*`)
+
+> **관리자 채널의 첫 화면.** 병원 안내자료를 **작성·수정하되 저장만으로 공개하지 않고**, 별도 `[승인]`이 재청킹·재임베딩에 성공한 뒤에만 봇 답변 근거가 된다. 승인 성공 전에는 **기존 승인본을 그대로 유지**(재임베딩 실패해도 옛 답이 안 깨짐). 승인 후 정정은 **수정이력에서 이전 버전을 편집→재승인**(승인 취소·되돌리기가 아님). 제한 자료는 체크박스로 표시만 하고, **답변에 어떻게 반영되는지는 Task 7 RAG가 소유**(`KBADM-EDITOR-04`, A3). **34규칙 전수**(`KBADM-EDITOR-04` 제외 — Task 7이 담음).
+>
+> ⚠️⚠️ **관리자 셸(직원 셸과 다름).** 사이드바 4번째 그룹 `상담봇` 아래 관리자 화면이다(`SHELL-NAV`·`NAV-ADM` 계열=**Task 22** 소유·여기선 계열명 참조). 화면은 `frontend/src/features/kbadmin/`에 짓는다(직원 `features/support/`와 별 폴더). React+TS+**Vitest**+`@testing-library/react`. `patient_app/`·`webchat/` 무손. 권한은 `private.is_active_admin()`(직원 `is_active_staff`와 다른 관리자 RLS — 2단계 관리자 셸 재사용).
+>
+> ⭐ **승인 전 비공개·승인 성공 전 기존본 유지(요구사항 3.8·결정 A2·G-06).** 저장(`submit_edit`)은 **`pending_*`에 담고 라이브(`title/content/is_restricted`)를 즉시 안 바꾼다**(`EDITOR-06`). 승인은 **재청킹·재임베딩을 한 트랜잭션**으로 하고, 성공 전에는 기존 승인본을 유지한다(`EDITOR-10`). 승인 실패의 **부분 반영 여부는 원자성 계약이 없어 확인 필요** — 성공으로 추측하지 않는다(`EDITOR-12`). 승인은 **되돌릴 수 없는 동작**이라 확인을 받고(`EDITOR-09`), 승인 완료엔 승인 취소 버튼을 두지 않는다(`EDITOR-13`).
+>
+> ⭐ **분류에서 의사 소개·진료시간을 빼는다(정본 §1(7~8)·`EDITOR-02`).** KB 분류는 위치·주차·예약규칙·검사준비·FAQ 등 승인 자료뿐. `진료과·의사 소개`는 `staff.specialty`·`bio`·`photo_url`, `진료시간·휴진일`은 운영시간·특정일 원본에서 읽는다(중복 저장 금지). 기존 KB에 그런 자료가 남아 있으면 재승인 허용 안 함(`EDITOR-17` — 마이그레이션·폐기는 확인 필요).
+>
+> ⭐ **제한 체크박스 문구는 글자 그대로(`EDITOR-03`).** 체크박스 이름은 정확히 **`상담봇이 직접 답변하지 않고 이 문구만 그대로 보여줍니다`**, 저장값은 `is_restricted`. 제한 자료가 **답변에 어떻게 반영되는지**(일반 자료는 평소대로·제한 주제만 원문 별도 블록·질문 전체가 제한이면 문구+`[직원 연결]`만)는 `KBADM-EDITOR` 계열의 답변 규칙(Task 7 RAG·A3)이 담는다 — 여기선 **관리자 편집 화면만**.
+>
+> ⭐ **승인 후 정정 = 이전 버전 편집→재승인(결정 A2·`EDITOR-14`·`HISTORY-04·05`).** `수정이력 보기`에서 이전 버전의 `[편집]`을 눌러 그 내용을 편집 폼에 **prefill**하고, 관리자가 확인·수정한 뒤 `[승인]`+되돌릴 수 없음 확인창을 거쳐 재임베딩한다. **자동 승인·승인 취소·자동 복원이 아니다.** 감사이력에 새 항목을 남긴다.
+>
+> ⭐ **모르는 것 안 지어냄(정본 §0).** 조회 성공 뒤 실제 0건일 때만 빈 상태이고, 조회 실패·집계 부재를 0건으로 표시하지 않는다(`LIST-06·08`·`HISTORY-06·08`). 상태 enum·표시명·정렬(`LIST-03`)·삭제 정책(`HISTORY-09`)은 **근거가 없어 확인 필요** — 임의로 만들지 않는다.
+>
+> ⚠️⚠️ **소비 계약 선언(Task 9 라우터에 `POST /admin/chat/kb`·`.../kb/{id}/approve`만 있음 — 나머지는 이름으로 못박음)**:
+> - **목록** `GET /admin/chat/kb?category=&status=` · **상세** `GET /admin/chat/kb/{id}`(편집 prefill) · **저장** `PUT /admin/chat/kb/{id}`(←`submit_edit`→pending) · **반려** `POST .../reject`(←`reject_pending_edit`) · **보관** `POST .../archive`(←`archive_document`) · **이력** `GET .../kb/{id}/revisions`(←`list_revisions`) — 모두 **소비 계약 선언**. `POST /admin/chat/kb`(생성 ←`create_document`)·`POST .../approve`(←`approve_document`/`approve_pending_edit`)는 라우터에 있음.
+>
+> **근거 원본**: behaviors **KB 목록 §1**(`KBADM-LIST-*` 9, `:5609~5619`)·**편집/승인 §2**(`KBADM-EDITOR-*` 16, `:5625~5641`)·**수정이력 §3**(`KBADM-HISTORY-*` 9, `:5647~5655`) · 요구사항 **3.8/L188~200**(승인 전 비공개·승인·수정 이력·금지 문구)·**L405·L407·L409** · 결정 **A2**(이전 버전 편집→재승인)·**A3**(제한 원문 별도 블록=`EDITOR-04`, Task 7) · 정본 §0·§1(7~8)·§4 · 백엔드 **Task 7**(`kb_service`: `create_document·submit_edit·approve_document·approve_pending_edit·reject_pending_edit·archive_document·list_revisions·chunk_text` · 표 `kb_documents`(`pending_*` 6칸)·`kb_document_revisions`) · 2단계 관리자 셸(`is_active_admin`·`BTN-BUSY`·`ERR-POS`·`EMPTY-ZERO`·`ERR-RETRY`).
+
+**Files:**
+- Create: `frontend/src/features/kbadmin/kbAdminApi.ts` (`KbAdminApi` + `createKbAdminApi()` — 목록·상세·생성·저장·승인·반려·보관·이력 소비 계약)
+- Create: `frontend/src/features/kbadmin/useKbList.ts` (분류·상태 필터·로딩·오류·빈 상태 상태 기계)
+- Create: `frontend/src/features/kbadmin/KbList.tsx` (`KbList`·`KbRow` — 분류/상태 필터·승인/제한 표시·행 선택)
+- Create: `frontend/src/features/kbadmin/KbEditor.tsx` (`KbEditor` — 편집 폼·분류(의사소개/진료시간 제외)·제한 체크박스·저장(비공개)·로딩/오류/분류예외)
+- Create: `frontend/src/features/kbadmin/KbApproveFlow.tsx` (`KbApproveFlow` — 승인 확인창·재임베딩 중·성공 전 기존본 유지·실패 원자성·완료·승인 후 정정)
+- Create: `frontend/src/features/kbadmin/KbHistory.tsx` (`KbHistory` — 이력 목록·범위·읽기전용 상세·이전 버전 [편집]→재승인·빈/로딩/오류/대상없음)
+- Test: 위 각 파일의 `*.test.ts(x)`
+
+**Interfaces:**
+- Consumes:
+  - **Task 7(`kb_service`)** — `create_document`·`submit_edit`(→`pending_*`)·`approve_document`(draft→approved 재임베딩)·`approve_pending_edit`(라이브 교체+이력+재임베딩 **한 트랜잭션**)·`reject_pending_edit`·`archive_document`·`list_revisions` · 표 `kb_documents`(`status draft/approved/archived`·`is_restricted`·`pending_title/pending_content/pending_is_restricted` 등 `pending_*` 6칸)·`kb_document_revisions`. ⚠️ **목록·상세·저장·반려·보관·이력 엔드포인트는 라우터에 없어 소비 계약 선언**.
+  - **Task 7 RAG(경계)** — 제한 자료의 답변 반영(`KBADM-EDITOR-04`·A3)은 `rag_service`가 담는다. Task 20은 `is_restricted` 체크박스 저장까지만.
+  - **원본 경계** — `진료과·의사 소개`=`staff.specialty`·`bio`·`photo_url`(코2·코3)·`진료시간·휴진일`=운영시간 원본(코2). KB 분류로 만들지 않는다(`EDITOR-02·17`).
+  - **2단계 관리자 셸** — `private.is_active_admin()` RLS · `BTN-BUSY`(저장/승인 중 잠금)·`ERR-POS`·`ERR-RETRY`·`EMPTY-ZERO` · 관리자 사이드바 `상담봇` 그룹(`NAV-ADM` 계열=Task 22).
+- Produces (Task 21·22·⑦ 구현이 소비):
+  - `useKbList()` 훅 `{ phase, docs, filters, setFilter }`.
+  - `KbList`·`KbEditor`·`KbApproveFlow`·`KbHistory`.
+  - `kbAdminApi`(`listDocs·getDoc·createDoc·submitEdit·approveDoc·rejectEdit·archiveDoc·listRevisions`).
+- ⚠️ **아직 안 하는 것**: 제한 자료 답변 반영(`KBADM-EDITOR-04`=Task 7 RAG) · 오답 신고 처리함·품질·미해결(`BADINBOX-REVIEW`·`QUALITY-REPORT`·`UNRES-CLUSTER` 계열=**Task 21**) · 질문 순위·통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM` 계열=**Task 22**) · KB 서비스·재임베딩의 **실제 서버 구현**(Task 7·소비 계약만) · 상태 enum/정렬(`LIST-03`)·승인 실패 원자성(`EDITOR-12`)·기존 자료 폐기(`EDITOR-17`)·삭제 정책(`HISTORY-09`)의 **계약 확정**(확인 필요).
+
+---
+
+- [ ] **Step 1: `kbAdminApi` — 목록·상세·생성·저장·승인·반려·보관·이력 소비 계약**
+
+> Task 7 `kb_service`를 감싸는 관리자 API를 타입으로 못박는다. 저장(`submitEdit`)은 **`pending_*`에 담고 라이브를 안 바꾼다**(승인 전 비공개). 승인은 재임베딩 트랜잭션(`approve`). ⚠️ 목록·상세·저장·반려·보관·이력은 라우터에 없어 **소비 계약 선언**.
+
+`frontend/src/features/kbadmin/kbAdminApi.ts`:
+```ts
+export type KbStatus = "draft" | "approved" | "archived";
+export type KbDoc = {
+  id: string;
+  title: string;
+  category: string;
+  status: KbStatus;
+  isRestricted: boolean;
+  hasPendingEdit: boolean;  // pending_* 채워짐 — 라이브와 다른 수정본 대기
+};
+export type KbDetail = KbDoc & { content: string; pendingTitle: string | null; pendingContent: string | null };
+export type KbRevision = { id: string; at: string; title: string; content: string; approvedBy: string | null };
+export type KbQuery = { category?: string; status?: KbStatus };
+
+export interface KbAdminApi {
+  listDocs(q: KbQuery): Promise<KbDoc[]>;                      // GET /admin/chat/kb ⚠️계약선언
+  getDoc(id: string): Promise<KbDetail>;                       // GET /admin/chat/kb/{id} ⚠️계약선언
+  createDoc(d: { title: string; content: string; category: string; isRestricted: boolean }): Promise<KbDoc>; // POST /admin/chat/kb
+  submitEdit(id: string, d: { title: string; content: string; isRestricted: boolean }): Promise<void>; // PUT → pending ⚠️계약선언
+  approveDoc(id: string): Promise<void>;                       // POST .../approve (재임베딩 트랜잭션)
+  rejectEdit(id: string): Promise<void>;                       // POST .../reject ⚠️계약선언
+  archiveDoc(id: string): Promise<void>;                       // POST .../archive ⚠️계약선언
+  listRevisions(id: string): Promise<KbRevision[]>;            // GET .../revisions ⚠️계약선언
+}
+
+export function createKbAdminApi(baseUrl: string): KbAdminApi {
+  const call = async (path: string, init?: RequestInit) => {
+    const resp = await fetch(baseUrl + path, { credentials: "include", ...init });
+    if (!resp.ok) throw new Error(`kb_admin_${resp.status}`);
+    return resp.status === 204 ? undefined : resp.json();
+  };
+  const j = (body: unknown, method = "POST"): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const qs = (q: KbQuery) => new URLSearchParams(Object.entries(q).filter(([, v]) => v != null) as [string, string][]).toString();
+  return {
+    listDocs: (q) => call(`/admin/chat/kb?${qs(q)}`),
+    getDoc: (id) => call(`/admin/chat/kb/${id}`),
+    createDoc: (d) => call(`/admin/chat/kb`, j(d)),
+    submitEdit: (id, d) => call(`/admin/chat/kb/${id}`, j(d, "PUT")).then(() => undefined),
+    approveDoc: (id) => call(`/admin/chat/kb/${id}/approve`, { method: "POST" }).then(() => undefined),
+    rejectEdit: (id) => call(`/admin/chat/kb/${id}/reject`, { method: "POST" }).then(() => undefined),
+    archiveDoc: (id) => call(`/admin/chat/kb/${id}/archive`, { method: "POST" }).then(() => undefined),
+    listRevisions: (id) => call(`/admin/chat/kb/${id}/revisions`),
+  };
+}
+```
+
+`frontend/src/features/kbadmin/kbAdminApi.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createKbAdminApi } from "./kbAdminApi";
+
+describe("kbAdminApi", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("[Step1] submitEdit는 PUT으로 보내 pending에 담는다(승인 전 비공개 — 라이브 안 바꿈)", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 204 }));
+    await createKbAdminApi("http://x").submitEdit("d1", { title: "주차", content: "지하2층", isRestricted: false });
+    expect((m.mock.calls[0][1] as RequestInit).method).toBe("PUT");
+    expect(m.mock.calls[0][0]).toBe("http://x/admin/chat/kb/d1");
+  });
+
+  it("[Step1] listDocs는 category·status를 쿼리로 실어 GET한다", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("[]", { status: 200 }));
+    await createKbAdminApi("http://x").listDocs({ category: "주차", status: "approved" });
+    expect(m.mock.calls[0][0]).toBe("http://x/admin/chat/kb?category=%EC%A3%BC%EC%B0%A8&status=approved");
+  });
+
+  it("[Step1] approveDoc은 POST .../approve로 재임베딩 트랜잭션을 호출한다", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 204 }));
+    await createKbAdminApi("http://x").approveDoc("d1");
+    expect(m.mock.calls[0][0]).toBe("http://x/admin/chat/kb/d1/approve");
+  });
+});
+```
+Run: `npm --prefix frontend run test -- kbAdminApi` → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: `useKbList` + `KbList` — 목록·분류/상태 필터·승인/제한 표시·빈/로딩/오류·행 선택 (`KBADM-LIST-01`~`09`, 9규칙)**
+
+> 목록을 분류·상태 필터와 함께 표시하고 의사 소개·진료시간을 KB 분류로 만들지 않는다(`LIST-01·02`). 상태 필터는 선택 상태만 재조회하되 **enum·표시명·정렬은 확인 필요**(`LIST-03`). 승인된 자료를 구분 표시하고 미승인 저장본을 근거처럼 안 보인다(`LIST-04`). `is_restricted`는 `답하면 안 되는 내용`으로 구분(`LIST-05`). 빈 상태는 `조건에 맞는 안내자료가 없습니다`+필터 해제, 조회 실패를 이걸로 대체 안 함(`LIST-06`). 로딩은 이전 조건 유지·이전 결과를 새 조건처럼 안 보임(`LIST-07`). 오류는 `안내자료를 불러오지 못했습니다`+`[다시 시도]`, 0건으로 표시 안 함(`LIST-08`). 행 선택은 편집 상세를 별도 전체 화면으로 열고 복귀 시 필터·스크롤 복원(`LIST-09`).
+
+`frontend/src/features/kbadmin/KbList.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { KbList } from "./KbList";
+import type { KbDoc } from "./kbAdminApi";
+
+const doc = (over: Partial<KbDoc> = {}): KbDoc => ({ id: "d1", title: "주차 안내", category: "위치·주차",
+  status: "approved", isRestricted: false, hasPendingEdit: false, ...over });
+
+describe("KbList", () => {
+  it("[KBADM-LIST-01] 안내자료를 목록으로 표시하고 분류·상태 필터를 제공한다", () => {
+    render(<KbList docs={[doc()]} phase="ready" filters={{}} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("주차 안내")).toBeVisible();
+    expect(screen.getByLabelText("분류")).toBeInTheDocument();
+    expect(screen.getByLabelText("상태")).toBeInTheDocument();
+  });
+
+  it("[KBADM-LIST-02] 분류에 진료과·의사 소개, 진료시간·휴진일을 KB 분류로 넣지 않는다", () => {
+    render(<KbList docs={[doc()]} phase="ready" filters={{}} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    const options = Array.from(screen.getByLabelText("분류").querySelectorAll("option")).map((o) => o.textContent);
+    expect(options).not.toContain("진료과·의사 소개");
+    expect(options).not.toContain("진료시간·휴진일");
+  });
+
+  it("[KBADM-LIST-03] 상태 필터를 바꾸면 그 상태만 재조회하되 enum·정렬을 발명하지 않는다", async () => {
+    const onFilter = vi.fn();
+    render(<KbList docs={[doc()]} phase="ready" filters={{}} onFilter={onFilter} onOpen={vi.fn()} statusContract="unknown" />);
+    await userEvent.selectOptions(screen.getByLabelText("상태"), "draft");
+    expect(onFilter).toHaveBeenCalledWith({ status: "draft" });
+    expect(screen.getByTestId("kb-list").dataset.statusContract).toBe("unknown"); // 표시명·정렬 확인 필요
+  });
+
+  it("[KBADM-LIST-04] 승인된 자료를 구분 표시하고 미승인 저장본을 근거처럼 보이지 않는다", () => {
+    render(<KbList docs={[doc({ status: "approved" }), doc({ id: "d2", status: "draft", title: "임시본" })]} phase="ready" filters={{}} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("주차 안내").closest("[data-doc]")!.textContent).toMatch(/승인됨/);
+    expect(screen.getByText("임시본").closest("[data-doc]")!.textContent).not.toMatch(/답변 근거/);
+  });
+
+  it("[KBADM-LIST-05] is_restricted 자료는 '답하면 안 되는 내용'으로 구분한다", () => {
+    render(<KbList docs={[doc({ isRestricted: true })]} phase="ready" filters={{}} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText(/답하면 안 되는 내용/)).toBeVisible();
+  });
+
+  it("[KBADM-LIST-06] 0건은 '조건에 맞는 안내자료가 없습니다'이며 조회 실패를 대체하지 않는다", () => {
+    render(<KbList docs={[]} phase="empty" filters={{ category: "주차" }} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("조건에 맞는 안내자료가 없습니다")).toBeVisible();
+    expect(screen.queryByText(/불러오지 못했/)).toBeNull();
+  });
+
+  it("[KBADM-LIST-07] 로딩은 이전 조건을 유지하고 이전 결과를 새 조건 결과로 가장하지 않는다", () => {
+    render(<KbList docs={[doc()]} phase="loading" filters={{ category: "주차" }} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByLabelText("목록 로딩")).toBeVisible();
+    expect(screen.getByLabelText("분류")).toHaveValue("주차"); // 이전 조건 유지
+  });
+
+  it("[KBADM-LIST-08] 오류는 '안내자료를 불러오지 못했습니다'+[다시 시도]이며 0건으로 표시하지 않는다", () => {
+    render(<KbList docs={[]} phase="error" filters={{}} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("안내자료를 불러오지 못했습니다")).toBeVisible();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeVisible();
+    expect(screen.queryByText("조건에 맞는 안내자료가 없습니다")).toBeNull();
+  });
+
+  it("[KBADM-LIST-09] 행 선택은 편집 상세를 열고 복귀 시 직전 필터·스크롤을 복원한다", async () => {
+    const onOpen = vi.fn();
+    render(<KbList docs={[doc()]} phase="ready" filters={{ category: "주차" }} onFilter={vi.fn()} onOpen={onOpen} />);
+    await userEvent.click(screen.getByText("주차 안내"));
+    expect(onOpen).toHaveBeenCalledWith({ id: "d1", fullscreen: true, restore: { category: "주차" } });
+  });
+});
+```
+Run: `npm --prefix frontend run test -- KbList` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `KbEditor` — 편집·분류·제한 체크박스·저장(비공개)·로딩/오류/분류예외 (`KBADM-EDITOR-01`·`02`·`03`·`05`·`06`·`07`·`08`·`15`·`16`·`17`, 10규칙)**
+
+> 편집 폼은 작성·수정하되 **저장만으로 공개하지 않는다**(`EDITOR-01`). 분류에서 의사 소개·진료시간을 제외(`EDITOR-02`). 제한 체크박스 이름은 **정확히** `상담봇이 직접 답변하지 않고 이 문구만 그대로 보여줍니다`, 저장값 `is_restricted`(`EDITOR-03`). 승인된 병원 자료만 답변 근거(`EDITOR-05` — 표시로만). 저장은 승인 전 저장본으로 담고 현재 승인본을 즉시 안 바꿈(`EDITOR-06`). 저장 중 중복 방지·편집값 유지(`EDITOR-07`), 저장 실패는 편집값 보존+`[다시 시도]`·승인된 것으로 표시 안 함(`EDITOR-08`). 기존 자료 로딩은 빈 새 자료처럼 안 보임(`EDITOR-15`), 로딩 오류는 새 자료 작성으로 전환 안 함(`EDITOR-16`). 기존 KB에 의사 소개·진료시간 자료가 남아 있으면 중복 저장·재승인 허용 안 함(`EDITOR-17` — 마이그레이션은 확인 필요).
+
+`frontend/src/features/kbadmin/KbEditor.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { KbEditor } from "./KbEditor";
+import type { KbAdminApi, KbDetail } from "./kbAdminApi";
+
+const detail = (over: Partial<KbDetail> = {}): KbDetail => ({ id: "d1", title: "주차 안내", category: "위치·주차",
+  status: "approved", isRestricted: false, hasPendingEdit: false, content: "지하 2층", pendingTitle: null, pendingContent: null, ...over });
+const mkApi = (over: Partial<KbAdminApi> = {}): KbAdminApi => ({
+  listDocs: vi.fn(), getDoc: vi.fn().mockResolvedValue(detail()), createDoc: vi.fn(),
+  submitEdit: vi.fn().mockResolvedValue(undefined), approveDoc: vi.fn(), rejectEdit: vi.fn(),
+  archiveDoc: vi.fn(), listRevisions: vi.fn(), ...over });
+
+describe("KbEditor", () => {
+  it("[KBADM-EDITOR-01] 저장만으로 공개하지 않는다(승인 버튼과 저장 버튼이 다르다)", async () => {
+    render(<KbEditor api={mkApi()} docId="d1" />);
+    await screen.findByDisplayValue("주차 안내");
+    expect(screen.getByRole("button", { name: "저장" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "승인" })).toBeVisible(); // 저장≠공개
+  });
+
+  it("[KBADM-EDITOR-02] 분류 선택지에 진료과·의사 소개, 진료시간·휴진일을 제공하지 않는다", async () => {
+    render(<KbEditor api={mkApi()} docId="d1" />);
+    const opts = Array.from((await screen.findByLabelText("분류")).querySelectorAll("option")).map((o) => o.textContent);
+    expect(opts).not.toContain("진료과·의사 소개");
+    expect(opts).not.toContain("진료시간·휴진일");
+  });
+
+  it("[KBADM-EDITOR-03] 제한 체크박스 이름은 정확히 지정 문구이고 저장값은 is_restricted다", async () => {
+    const api = mkApi();
+    render(<KbEditor api={api} docId="d1" />);
+    const cb = await screen.findByLabelText("상담봇이 직접 답변하지 않고 이 문구만 그대로 보여줍니다");
+    await userEvent.click(cb);
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+    expect(api.submitEdit).toHaveBeenCalledWith("d1", expect.objectContaining({ isRestricted: true }));
+  });
+
+  it("[KBADM-EDITOR-05] 승인된 자료만 답변 근거임을 표시로 알린다(미승인은 근거 아님)", async () => {
+    render(<KbEditor api={mkApi({ getDoc: vi.fn().mockResolvedValue(detail({ status: "draft" })) })} docId="d1" />);
+    expect(await screen.findByText(/승인해야 답변에 반영/)).toBeVisible();
+  });
+
+  it("[KBADM-EDITOR-06] 저장은 pending에 담고 현재 승인본을 즉시 바꾸지 않는다", async () => {
+    const api = mkApi();
+    render(<KbEditor api={api} docId="d1" />);
+    await userEvent.clear(await screen.findByLabelText("내용"));
+    await userEvent.type(screen.getByLabelText("내용"), "지하 3층");
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+    expect(api.submitEdit).toHaveBeenCalled();  // submitEdit(=pending), approveDoc 아님
+    expect(api.approveDoc).not.toHaveBeenCalled();
+  });
+
+  it("[KBADM-EDITOR-07] 저장 중에는 중복 저장을 막고 편집값을 유지한다", async () => {
+    const api = mkApi({ submitEdit: vi.fn(() => new Promise<void>(() => {})) });
+    render(<KbEditor api={api} docId="d1" />);
+    const save = await screen.findByRole("button", { name: "저장" });
+    await userEvent.click(save);
+    expect(save).toBeDisabled();
+    expect(screen.getByLabelText("내용")).toHaveValue("지하 2층");
+  });
+
+  it("[KBADM-EDITOR-08] 저장 실패는 편집값을 보존하고 재시도를 표시하며 승인된 것으로 표시하지 않는다", async () => {
+    const api = mkApi({ submitEdit: vi.fn().mockRejectedValue(new Error("net")) });
+    render(<KbEditor api={api} docId="d1" />);
+    await userEvent.click(await screen.findByRole("button", { name: "저장" }));
+    expect(await screen.findByRole("button", { name: "다시 시도" })).toBeVisible();
+    expect(screen.getByLabelText("내용")).toHaveValue("지하 2층");
+    expect(screen.queryByText(/반영되었습니다/)).toBeNull();
+  });
+
+  it("[KBADM-EDITOR-15] 기존 자료 로딩 중에는 빈 새 자료처럼 보이지 않고 로딩을 표시한다", async () => {
+    const api = mkApi({ getDoc: vi.fn(() => new Promise(() => {})) });
+    render(<KbEditor api={api} docId="d1" />);
+    expect(screen.getByLabelText("자료 로딩")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "저장" })).toBeNull();
+  });
+
+  it("[KBADM-EDITOR-16] 기존 자료 로딩 오류는 새 자료 작성으로 전환하지 않고 오류·재시도를 표시한다", async () => {
+    const api = mkApi({ getDoc: vi.fn().mockRejectedValue(new Error("x")) });
+    render(<KbEditor api={api} docId="d1" />);
+    expect(await screen.findByRole("button", { name: "다시 시도" })).toBeVisible();
+    expect(screen.queryByLabelText("내용")).not.toHaveValue?.("");
+  });
+
+  it("[KBADM-EDITOR-17] 기존 KB에 의사 소개·진료시간 자료가 남아 있으면 재승인을 막고 원본 관리를 안내한다", async () => {
+    render(<KbEditor api={mkApi({ getDoc: vi.fn().mockResolvedValue(detail({ category: "진료시간·휴진일" })) })} docId="d1" />);
+    expect(await screen.findByText(/정본 원본으로 관리/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "승인" })).toBeDisabled();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- KbEditor` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `KbApproveFlow` — 승인 확인·재임베딩·기존본 유지·실패 원자성·완료·승인 후 정정 (`KBADM-EDITOR-09`·`10`·`11`·`12`·`13`·`14`, 6규칙)**
+
+> `[승인]`은 **되돌릴 수 없는 동작**임을 알리고 명시적 확인을 받는다(`EDITOR-09`). 승인은 저장된 수정본을 재청킹·재임베딩하고 **성공 전에는 기존 승인본을 유지**(`EDITOR-10`). 승인 중에는 버튼 재클릭 불가·`승인하여 반영 중` 표시·완료 전 성공/자동 종료 안 함(`EDITOR-11`). 승인 실패는 실패를 표시하고 **부분 반영 여부는 확인 필요**·성공으로 추측 안 함(`EDITOR-12`). 승인 완료는 `승인되어 AI 상담봇 답변에 반영되었습니다`·승인 취소 버튼 없음(`EDITOR-13`). 승인 후 정정은 `수정이력 보기`에서 이전 버전 `[편집]`→편집 폼→다시 `[승인]`, 자동 승인·승인 취소가 아님(`EDITOR-14`, A2).
+
+`frontend/src/features/kbadmin/KbApproveFlow.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { KbApproveFlow } from "./KbApproveFlow";
+import type { KbAdminApi } from "./kbAdminApi";
+
+const mkApi = (over: Partial<KbAdminApi> = {}): KbAdminApi => ({
+  listDocs: vi.fn(), getDoc: vi.fn(), createDoc: vi.fn(), submitEdit: vi.fn(),
+  approveDoc: vi.fn().mockResolvedValue(undefined), rejectEdit: vi.fn(), archiveDoc: vi.fn(),
+  listRevisions: vi.fn(), ...over });
+
+describe("KbApproveFlow", () => {
+  it("[KBADM-EDITOR-09] 승인은 되돌릴 수 없음을 알리고 확인창 안에서만 실행된다", async () => {
+    const api = mkApi();
+    render(<KbApproveFlow api={api} docId="d1" onGotoRevision={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "승인" }));
+    expect(screen.getByText(/되돌릴 수 없/)).toBeVisible();
+    expect(api.approveDoc).not.toHaveBeenCalled();        // 확인 전엔 실행 안 함
+    await userEvent.click(screen.getByRole("button", { name: "승인하여 반영" }));
+    expect(api.approveDoc).toHaveBeenCalledWith("d1");
+  });
+
+  it("[KBADM-EDITOR-10] 승인 성공 전에는 기존 승인본이 유지됨을 전제로 라이브를 바꾸지 않는다", async () => {
+    const api = mkApi({ approveDoc: vi.fn(() => new Promise<void>(() => {})) });
+    render(<KbApproveFlow api={api} docId="d1" onGotoRevision={vi.fn()} liveTitle="주차(라이브)" />);
+    await userEvent.click(screen.getByRole("button", { name: "승인" }));
+    await userEvent.click(screen.getByRole("button", { name: "승인하여 반영" }));
+    expect(screen.getByText("주차(라이브)")).toBeVisible(); // 완료 전 라이브 유지
+  });
+
+  it("[KBADM-EDITOR-11] 승인 중에는 재클릭을 막고 '승인하여 반영 중'을 표시하며 완료 전 종료하지 않는다", async () => {
+    const api = mkApi({ approveDoc: vi.fn(() => new Promise<void>(() => {})) });
+    render(<KbApproveFlow api={api} docId="d1" onGotoRevision={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "승인" }));
+    const confirm = screen.getByRole("button", { name: "승인하여 반영" });
+    await userEvent.click(confirm);
+    expect(confirm).toBeDisabled();
+    expect(screen.getByText("승인하여 반영 중")).toBeVisible();
+  });
+
+  it("[KBADM-EDITOR-12] 승인 실패는 성공으로 추측하지 않고 부분 반영 여부를 확인 필요로 표시한다", async () => {
+    const api = mkApi({ approveDoc: vi.fn().mockRejectedValue(new Error("embed")) });
+    render(<KbApproveFlow api={api} docId="d1" onGotoRevision={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "승인" }));
+    await userEvent.click(screen.getByRole("button", { name: "승인하여 반영" }));
+    expect(await screen.findByText(/승인에 실패/)).toBeVisible();
+    expect(screen.queryByText("승인되어 AI 상담봇 답변에 반영되었습니다")).toBeNull();
+  });
+
+  it("[KBADM-EDITOR-13] 승인 완료는 반영 문구를 표시하고 승인 취소 버튼을 제공하지 않는다", async () => {
+    render(<KbApproveFlow api={mkApi()} docId="d1" onGotoRevision={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "승인" }));
+    await userEvent.click(screen.getByRole("button", { name: "승인하여 반영" }));
+    expect(await screen.findByText("승인되어 AI 상담봇 답변에 반영되었습니다")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "승인 취소" })).toBeNull();
+  });
+
+  it("[KBADM-EDITOR-14] 승인 후 정정은 수정이력의 이전 버전 [편집]으로 가고 자동 승인·승인 취소가 아니다", async () => {
+    const onGotoRevision = vi.fn();
+    render(<KbApproveFlow api={mkApi()} docId="d1" onGotoRevision={onGotoRevision} approved />);
+    await userEvent.click(screen.getByRole("button", { name: "수정이력 보기" }));
+    expect(onGotoRevision).toHaveBeenCalledWith("d1"); // 이력→[편집]→재승인 경로(취소 아님)
+    expect(screen.queryByRole("button", { name: "승인 취소" })).toBeNull();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- KbApproveFlow` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: `KbHistory` — 수정이력 목록·범위·읽기전용·이전 버전 편집·빈/로딩/오류/대상없음 (`KBADM-HISTORY-01`~`09`, 9규칙)**
+
+> 선택 자료의 이전 내용·수정 기록을 최신 시각부터 표시(`HISTORY-01`), 현재 자료 한 건의 이력만·다른 자료 안 섞음(`HISTORY-02`). 이력 상세는 그 시점 내용을 읽기 전용으로·기록에 없는 사유·승인자 안 지어냄(`HISTORY-03`). 승인 후 정정 경로는 이전 버전 행 `[편집]` 제공·승인 취소/되돌리기/자동 복원으로 표현 안 함(`HISTORY-04`, A2). 이전 버전 `[편집]`은 그 내용을 편집 폼에 prefill해 **새 수정본**으로 다루고 `[승인]`+되돌릴 수 없음 확인창→재임베딩·자동 승인 안 함·감사이력 새 항목(`HISTORY-05`, A2). 빈 상태 `이전 수정이력이 없습니다`·현재 내용과 혼동 안 함(`HISTORY-06`). 로딩은 대상 자료 식별 유지(`HISTORY-07`). 오류는 `수정이력을 불러오지 못했습니다`+재시도·`이력 없음`으로 표시 안 함(`HISTORY-08`). 대상 없음은 이유 추측 안 하고 목록 이동 경로 제공·삭제 정책은 확인 필요(`HISTORY-09`).
+
+`frontend/src/features/kbadmin/KbHistory.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { KbHistory } from "./KbHistory";
+import type { KbAdminApi, KbRevision } from "./kbAdminApi";
+
+const rev = (over: Partial<KbRevision> = {}): KbRevision => ({ id: "r1", at: "2026-08-19T00:00:00Z",
+  title: "주차 안내", content: "지하 2층", approvedBy: "김관리", ...over });
+const mkApi = (over: Partial<KbAdminApi> = {}): KbAdminApi => ({
+  listDocs: vi.fn(), getDoc: vi.fn(), createDoc: vi.fn(), submitEdit: vi.fn(), approveDoc: vi.fn(),
+  rejectEdit: vi.fn(), archiveDoc: vi.fn(),
+  listRevisions: vi.fn().mockResolvedValue([rev({ id: "r2", at: "2026-08-20T00:00:00Z", content: "지하 3층" }), rev()]), ...over });
+
+describe("KbHistory", () => {
+  it("[KBADM-HISTORY-01] 이전 내용·수정 기록을 최신 시각부터 표시한다", async () => {
+    render(<KbHistory api={mkApi()} docId="d1" onEditRevision={vi.fn()} />);
+    const rows = await screen.findAllByTestId("kb-rev");
+    expect(rows[0].textContent).toContain("지하 3층"); // 최신 위
+  });
+
+  it("[KBADM-HISTORY-02] 현재 자료 한 건의 이력만 표시하고 다른 자료 이력을 섞지 않는다", async () => {
+    const api = mkApi();
+    render(<KbHistory api={api} docId="d1" onEditRevision={vi.fn()} />);
+    await screen.findAllByTestId("kb-rev");
+    expect(api.listRevisions).toHaveBeenCalledWith("d1"); // 현재 자료 범위만
+  });
+
+  it("[KBADM-HISTORY-03] 이력 상세는 읽기 전용이고 기록에 없는 사유·승인자를 지어내지 않는다", async () => {
+    render(<KbHistory api={mkApi({ listRevisions: vi.fn().mockResolvedValue([rev({ approvedBy: null })]) })} docId="d1" onEditRevision={vi.fn()} />);
+    await userEvent.click((await screen.findAllByTestId("kb-rev"))[0]);
+    expect(screen.getByText("지하 2층")).toBeVisible();
+    expect(screen.queryByText(/승인자:/)).toBeNull(); // 없는 승인자 안 지어냄
+  });
+
+  it("[KBADM-HISTORY-04] 이전 버전 행에 [편집]을 제공하고 승인 취소·되돌리기로 표현하지 않는다", async () => {
+    render(<KbHistory api={mkApi()} docId="d1" onEditRevision={vi.fn()} />);
+    expect((await screen.findAllByRole("button", { name: "편집" })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /되돌리기|승인 취소/ })).toBeNull();
+  });
+
+  it("[KBADM-HISTORY-05] 이전 버전 [편집]은 그 내용을 새 수정본으로 prefill해 편집 폼으로 넘긴다", async () => {
+    const onEditRevision = vi.fn();
+    render(<KbHistory api={mkApi()} docId="d1" onEditRevision={onEditRevision} />);
+    await userEvent.click((await screen.findAllByRole("button", { name: "편집" }))[0]);
+    expect(onEditRevision).toHaveBeenCalledWith(expect.objectContaining({ prefillFrom: "r2", asNewDraft: true }));
+  });
+
+  it("[KBADM-HISTORY-06] 이력 0건은 '이전 수정이력이 없습니다'이며 현재 내용과 혼동하지 않는다", async () => {
+    render(<KbHistory api={mkApi({ listRevisions: vi.fn().mockResolvedValue([]) })} docId="d1" onEditRevision={vi.fn()} />);
+    expect(await screen.findByText("이전 수정이력이 없습니다")).toBeVisible();
+  });
+
+  it("[KBADM-HISTORY-07] 로딩은 대상 자료 식별을 유지하고 이력 영역에 로딩을 표시한다", () => {
+    render(<KbHistory api={mkApi({ listRevisions: vi.fn(() => new Promise(() => {})) })} docId="d1" onEditRevision={vi.fn()} />);
+    expect(screen.getByLabelText("이력 로딩")).toBeVisible();
+    expect(screen.getByTestId("kb-history").dataset.doc).toBe("d1"); // 대상 유지
+  });
+
+  it("[KBADM-HISTORY-08] 오류는 '수정이력을 불러오지 못했습니다'+재시도이며 이력 없음으로 표시하지 않는다", async () => {
+    render(<KbHistory api={mkApi({ listRevisions: vi.fn().mockRejectedValue(new Error("x")) })} docId="d1" onEditRevision={vi.fn()} />);
+    expect(await screen.findByText("수정이력을 불러오지 못했습니다")).toBeVisible();
+    expect(screen.queryByText("이전 수정이력이 없습니다")).toBeNull();
+  });
+
+  it("[KBADM-HISTORY-09] 대상 없음은 이유를 추측하지 않고 목록 이동 경로를 제공한다(삭제 정책 확인 필요)", async () => {
+    render(<KbHistory api={mkApi({ listRevisions: vi.fn().mockRejectedValue(Object.assign(new Error("nf"), { status: 404 })) })} docId="d1" onEditRevision={vi.fn()} />);
+    expect(await screen.findByText(/자료를 찾을 수 없습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /목록으로/ })).toBeVisible();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- KbHistory` → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: 전수 초록불 + 검사기 + 커밋**
+
+Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 34규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `+34`(`KBADM-LIST` 9 + `KBADM-EDITOR` 16 + `KBADM-HISTORY` 9) · prefix-check **빚0·미배정0·⏰0**. ⚠️ `KBADM-EDITOR-04`(제한 자료 답변 반영)는 **Task 7(RAG)이 소유·이미 커버**돼, 여기서는 경계 포인터로만 참조한다(Task 7이 앞 태스크라 완전 ID를 적어도 ⏰·중복 커버가 안 생긴다 — Task 19가 `PTDET-SUPPORT` 완전 ID를 참조한 것과 같은 패턴). 이 태스크가 **테스트로 검증하는** `KBADM-EDITOR`는 `04`를 뺀 16개다. 타 태스크 소유(`BADINBOX-REVIEW`·`QUALITY-REPORT`·`NAV-ADM`·`QTOP-RANK`·`BOTSTAT-DASH` 계열)도 계열명만. `BTN-BUSY`·`ERR-POS`·`ERR-RETRY`·`EMPTY-ZERO`(2단계 관리자 셸)는 ai-chatbot 규칙 아님(참조만).
+
+```bash
+git add frontend/src/features/kbadmin/ docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 20 본문 — 관리자 KB 목록·편집/승인·수정이력 34규칙. 승인 전 비공개·승인 성공 전 기존본 유지·이전 버전 편집→재승인(A2). KB 조회/저장/반려/보관/이력 계약 6건 선언"
+```
+
+> **Task 20 완료 조건**: `KBADM-LIST`(`01`~`09` = 9) + `KBADM-EDITOR`(`01·02·03·05`~`17` = 16, `04`는 Task 7) + `KBADM-HISTORY`(`01`~`09` = 9) = **34규칙 전수** 초록불(Vitest). ⭐ **관리자 채널 시작**(`features/kbadmin/`·`is_active_admin`). ⭐ **승인 전 비공개·승인 성공 전 기존본 유지**(저장=`pending_*`, 재임베딩 트랜잭션 성공 전 옛 답 유지). ⭐ **제한 체크박스 문구 글자 그대로**(`상담봇이 직접 답변하지 않고 이 문구만 그대로 보여줍니다`), 답변 반영은 Task 7. ⭐ **승인 후 정정=이전 버전 편집→재승인**(A2, 승인 취소 아님). ⭐ **소비 계약 6건 선언**: 목록·상세·저장(PUT→pending)·반려·보관·이력. ⚠️ **경계**: 제한 답변 반영(`EDITOR-04`)=Task 7 RAG · 오답/품질/미해결=**Task 21** · 순위/통계/관리자 내비=**Task 22** · 상태 enum/정렬(`LIST-03`)·승인 실패 원자성(`EDITOR-12`)·기존 자료 폐기(`EDITOR-17`)·삭제 정책(`HISTORY-09`)=확인 필요. **다음 = Task 21**(미해결 클러스터·오답 신고·품질 리포트·예시·bad inbox, 59개=최대 태스크).
