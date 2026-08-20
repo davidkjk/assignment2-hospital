@@ -10771,3 +10771,495 @@ git commit -m "feat: 📝 상담봇 Task 18 본문 — /today 상담 행·예약
 ```
 
 > **Task 18 완료 조건**: `SUPPORT-TODAY`(`COUNT`2·`EMPTY`1·`CANCEL`3·`CHANGE`1·`LOAD`1·`ERR`1·`LIVE`3·`EXC`1 = 13) + `SUPPORT-PANEL`(`OPEN`1·`CONTEXT`1·`CANCEL`1·`CHANGE`2·`REJECT`2·`REPLY`1·`TX`1·`LOAD`1·`EMPTY`1·`BUSY`1·`ERR`1·`DONE`2·`RACE`1·`LIVE`2·`CLOSE`1·`SCOPE`1 = 20) + `SUPPORT-CAL-DUP-01`(1) = **34규칙 전수** 초록불(Vitest). ⭐ **직원웹 `frontend/`** — `patient_app/`·`webchat/` 무손. ⭐ **수치 카드 금지**: 취소·변경은 환자별 한 줄로 `확인 필요한 예약` 카드에만, 독립 소계 타일 없음. ⭐ **희망 일시 안 씀**: `support_requested_at`·`request_type`만, 새 시간은 캘린더에서. ⭐ **대표 ⚠ = 열린 티켓 → 없으면 가장 최근 answered**(Task 2 확정값 렌더, `screen-behaviors.md` 역참조 해소). ⭐ **소비 계약 선언 2건**: `/today/summary` 지원 요청 부분(staff-web T13)·반려 서버 액션(`CANCEL-REJ` 핸드오버=staff-web). ⚠️ **경계**: `확인 필요한 예약` 카드 프레임·캘린더 셸·`CAL-PANEL`·`reschedule_appointment`=staff-web · 문의함↔캘린더 내비(`NAV-STFSUP` 계열)·환자상세 상담 섹션·상담 로그=**Task 19** · 예약+답변 원자성(`TX-01`)=확인 필요(미결). **다음 = Task 19**(환자상세 상담 섹션 + 상담 로그 + 지원 내비).
+
+---
+
+## Task 19: 환자상세 상담 섹션 + 전체 상담 로그 + 지원 내비 (`PTSUP-SECT-*` · `CHATLOG-LIST-*` · `NAV-STFSUP-*`)
+
+> **직원 상담 운영의 마지막 조각 셋을 짓는다.** ① **환자상세 상담 문의 섹션**(`/patients/:id` 안, staff-web `PTDET-SUPPORT-*`를 delta로 소비) · ② **전체 상담 기록**(앱·웹 대화를 한 목록에서 채널·갈래 필터·근거와 함께) · ③ **지원 화면 사이 내비**(문의함·상세·캘린더·패널·상담로그·오답신고·환자상세를 오갈 때 **필터·검색어·스크롤·선택 맥락 복원**). **40규칙 전수**.
+>
+> ⚠️⚠️ **경계 — 이미 지은 것을 소비(중복 빌드 금지).** `/patients/:id` 환자상세 셸·`PTDET-SUPPORT-01~05`(질문·상담봇 안내·인계 이유·3단계 상태·현재 환자 범위·최신순·0건/실패 표시)는 **staff-web(2단계)**이 소유한다 — `PTSUP-SECT`는 이를 **재정의하지 않고 delta만**(Realtime 정책·BLOCK·현재환자 격리·전환 정합). 문의 티켓함·상세는 **Task 16·17**, `/today`·캘린더·패널은 **Task 18**이 지었다 — `NAV-STFSUP`는 그 화면들 사이를 **오가는 규칙**이지 화면을 다시 만들지 않는다.
+>
+> ⚠️⚠️ **직원웹은 `frontend/`(2단계).** React+TS+**Vitest**+`@testing-library/react`. 화면은 `frontend/src/features/support/`(Task 16~18과 같은 폴더). `patient_app/`(Flutter)·`webchat/`(환자 웹) 무손. Realtime은 2단계 훅 `useRealtimeSubscription(table, onChange)` 재사용.
+>
+> ⭐ **모르는 것을 지어내지 않는다(정본 §0).** 근거 자료가 없으면 `근거 자료 없음`으로 표시하고 승인 자료가 있던 것처럼 꾸미지 않는다(`CHATLOG-LIST-SOURCE-02`). 계약 밖 채널·갈래 값은 앱·웹/기존 갈래로 **임의 치환하지 않고** 알 수 없는 값임을 표시한다(`CHATLOG-LIST-EXC-01`). 0건은 조회 실패와 **구분**한다(`EMPTY-01`).
+>
+> ⭐ **근거 없는 계약을 임의로 만들지 않는다(확인 필요 3건 그대로 존중).** `CHATLOG-LIST-LIVE-01`(전체 기록 목록 Realtime 구독 여부)·`CHATLOG-LIST-ORDER-01`(정렬 방향·동점 키·페이지 크기·이어보기)·`PTSUP-SECT-LIVE-01`(섹션 Realtime 구독)은 **근거가 없어** 수동 갱신인지 자동인지·정렬 방향을 **임의로 정하지 않는다**. 훅은 이 미결을 `unknown`/`manual`로 노출하고 값을 발명하지 않는다.
+>
+> ⭐⭐ **낡은 BLOCK 1건 해소(`PTSUP-SECT-BLOCK-01` — Task 2가 이미 풂).** 규칙은 *"`support_tickets` 마이그레이션과 ID 동점 키가 없으므로 가짜 카드로 완료 처리하지 않고 BLOCKED"*라고 적혔지만, **Task 2가 `support_tickets`(마이그레이션)와 `list_thread_tickets`의 안정 정렬(`order by created_at desc, id desc` — `PTDET-SUPPORT-03` 회수)을 이미 만들었다**(`plan:1067·1526`). 따라서 두 블로커가 **해소**됐다 — `PTSUP-SECT`는 **가짜 카드가 아니라 실제 조회를 소비**한다. 남은 것은 **환자 범위 조회**(thread를 통한 patient-scoped 목록)인데, 이는 아래 소비 계약으로 선언한다. `screen-behaviors.md:5503`의 `BLOCKED` 표식은 이 스텝에서 역참조로 갱신한다.
+>
+> ⚠️⚠️ **소비 계약 선언(라우터에 아직 없어 여기서 이름으로 못박음 — Task 16·17과 같은 성격)**:
+> - **전체 상담 로그 목록** `GET /staff/chat/logs?channel=&route_taken=` — 앱·웹 대화를 한 목록으로(`SCOPE-01`), `channel`(Task 1 `chat_threads`)·`route_taken`(Task 5 `chat_messages`, `emergency|rag|department_guide|agent|handoff`)로 필터. **Task 9 라우터에 없음 → 소비 계약 선언.**
+> - **봇 답변 근거** `GET /staff/chat/messages/{id}/sources` ← `chat_message_sources`(Task 4: `rank`·`similarity`·`title_snapshot`·`body_snapshot`). **소비 계약 선언.**
+> - **환자 범위 상담 티켓** `GET /staff/patients/{id}/support-tickets` ← `list_patient_support_tickets(patient_id)`(thread 소유주로 조인, `order by created_at desc, id desc`). **Task 2는 `list_thread_tickets`(thread 범위)만 → patient 범위는 소비 계약 선언.**
+>
+> **근거 원본**: behaviors **환자상세 상담 섹션 §5**(`PTSUP-SECT-*` 11, `:5498~5508`)·**전체 상담 기록 §3**(`CHATLOG-LIST-*` 15, `:5457~5471`)·**화면 사이 이동**(`NAV-STFSUP-*` 14, `:5577~5590`) · 기반 `PTDET-SUPPORT-01~05`(staff-web, `:1649~1653`)·`chat_message_sources`(Task 4)·`route_taken`/`channel`(Task 5·1) · 정본 §0·§1(15)·§3·§4 · 요구사항 **L206**(원본 대화)·**L344**(앱·웹 한 목록)·**L405~406**(답변 근거)·**3.5·3.9**(환자상세 상담·미해결) · 결정 **R2-3**(전체화면+복귀 시 필터·검색어·스크롤 복원, 문의 티켓함만 분할 예외)·**역대조 결정 4 후속**(문의 티켓함 예외) · 티켓 모델 **Task 2**(`list_thread_tickets`·`PTDET-SUPPORT-03` 회수)·화면 **Task 16·17·18**(내비 도착지).
+
+**Files:**
+- Create: `frontend/src/features/support/chatLogApi.ts` (`ChatLogApi` + `createChatLogApi()` — 상담 로그 목록·근거 조회 소비 계약)
+- Create: `frontend/src/features/support/useChatLogs.ts` (채널·갈래 필터·재조회·로딩·오류·라이브(확인필요)·정렬(확인필요)·계약 밖 값 상태 기계)
+- Create: `frontend/src/features/support/ChatLogList.tsx` (`ChatLogList`·`ChatLogRow` — 앱·웹 한 목록·채널/갈래 텍스트 구분·0건/로딩/오류)
+- Create: `frontend/src/features/support/ChatLogSources.tsx` (`ChatLogSources` — 봇 답변 근거·근거 없음·근거 오류·상세 진입)
+- Create: `frontend/src/features/support/patientSupportApi.ts` (`PatientSupportApi` — 환자 범위 상담 티켓 소비 계약)
+- Create: `frontend/src/features/support/PatientSupportSection.tsx` (`PatientSupportSection` — `PTDET-SUPPORT` delta: 현재환자 격리·전환 정합·Realtime(확인필요)·BLOCK 해소·0건/오류)
+- Create: `frontend/src/features/support/navStfsup.ts` (`resolveStfsupNav`·`restoreContext` — 14개 화면 이동·필터/검색어/스크롤/선택 맥락 복원, 문의 티켓함 분할 예외)
+- Test: 위 각 파일의 `*.test.ts(x)`
+
+**Interfaces:**
+- Consumes:
+  - **staff-web `/patients/:id`(2단계)** — `PTDET-SUPPORT-01~05`(카드 내용·3단계 상태 번역·최신순·0건/실패 문구)를 **그대로 소비**(재정의 안 함). 환자상세 셸·`PTDET-LOAD-01~02`(섹션 로딩/오류)·`EMPTY-ZERO`·`EMPTY-ERR`.
+  - **Task 2(티켓 모델)** — `list_thread_tickets`(안정 정렬, `PTDET-SUPPORT-03` 회수) · ⚠️ **`list_patient_support_tickets(patient_id)`는 thread 범위만 있어 소비 계약 선언**(patient-scoped). `support_tickets(status, thread_id, appointment_id, created_at)`.
+  - **Task 4(근거 스냅샷)** — `chat_message_sources(message_id, rank, similarity, title_snapshot, body_snapshot)` → ⚠️ **`GET /staff/chat/messages/{id}/sources`는 라우터에 없어 소비 계약 선언**.
+  - **Task 5·1(대화 원장)** — `chat_messages.route_taken`(`emergency|rag|department_guide|agent|handoff`)·`chat_threads.channel`(앱·웹) → ⚠️ **`GET /staff/chat/logs?channel=&route_taken=`는 라우터에 없어 소비 계약 선언**.
+  - **Task 16·17·18(내비 도착지)** — 문의 티켓함(`TicketInbox`·분할 작업공간)·티켓 상세(`TicketDetail`)·`/today` 상담 행(`SupportReservationRow`)·예약 캘린더+`ReservationSupportPanel`. `NAV-STFSUP`는 이 화면들 사이 이동·복귀만.
+  - **2단계 직원웹** — `useRealtimeSubscription` · `SEARCH-FILT`(필터 재조회)·`ERR-RETRY`·`EMPTY-ZERO`·`SHELL-LIVE`·`SHELL-URL-01`(딥링크 방어)·`NAV-SHELL-05·08`(세션 만료·권한 거절) 패턴 · `private.is_active_staff()` RLS.
+- Produces (⑦ 구현·타 화면이 소비):
+  - `useChatLogs()` 훅 `{ phase, rows, filters, setFilter, live, order }`(`live.mode='unknown'`·`order.contract='unknown'` — 미결 노출).
+  - `ChatLogList`·`ChatLogRow`·`ChatLogSources`(전체 상담 기록 화면).
+  - `PatientSupportSection`(환자상세 상담 섹션 — `<PatientSupportSection patientId api onOpenTicket />`).
+  - `resolveStfsupNav(from, event)` → `{ to, restore }` · `restoreContext(key)`(필터·검색어·스크롤·선택 맥락).
+- ⚠️ **아직 안 하는 것**: `/patients/:id` 셸·`PTDET-SUPPORT` 표시(staff-web) · 오답 신고 작성 폼(`BADRPT-FORM` 계열=**Task 21**) · 관리자 KB·품질·순위(Task 20·21·22) · 상담 로그 목록/근거/patient-scoped 조회의 **실제 서버 구현**(소비 계약만 — ⑦) · 3개 확인 필요(`CHATLOG-LIST-LIVE-01`·`ORDER-01`·`PTSUP-SECT-LIVE-01`)의 **계약 확정**(근거 생기면).
+
+---
+
+- [ ] **Step 1: `chatLogApi` — 상담 로그 목록·근거 조회 소비 계약**
+
+> 앱·웹 대화를 한 목록으로 반환하는 `GET /staff/chat/logs`와 봇 답변 근거 `GET .../messages/{id}/sources`를 타입으로 못박는다(둘 다 라우터에 없어 **소비 계약 선언**). `channel`·`route_taken`은 서버 enum을 그대로 받고, **계약 밖 값도 버리지 않고 그대로 실어** 화면이 `EXC`로 처리하게 한다.
+
+`frontend/src/features/support/chatLogApi.ts`:
+```ts
+export type Channel = "app" | "web";
+export type RouteTaken = "emergency" | "rag" | "department_guide" | "agent" | "handoff";
+
+// 계약 밖 값도 버리지 않는다(EXC-01) — 알 수 없는 문자열을 그대로 실어 화면이 표시하게.
+export type ChatLogRow = {
+  threadId: string;
+  channel: Channel | string;      // 계약 밖이면 원문 문자열
+  routeTaken: RouteTaken | string;
+  lastMessagePreview: string;
+  at: string;
+};
+export type ChatLogSource = { rank: number; similarity: number | null; titleSnapshot: string; bodySnapshot: string };
+
+export type ChatLogQuery = { channel?: Channel; routeTaken?: RouteTaken };
+
+export interface ChatLogApi {
+  listLogs(q: ChatLogQuery): Promise<ChatLogRow[]>;               // GET /staff/chat/logs ⚠️계약선언
+  listSources(messageId: string): Promise<ChatLogSource[]>;       // GET .../messages/{id}/sources ⚠️계약선언
+}
+
+export function createChatLogApi(baseUrl: string): ChatLogApi {
+  const qs = (q: ChatLogQuery) =>
+    new URLSearchParams(Object.entries(q).filter(([, v]) => v != null) as [string, string][]).toString();
+  const get = async (path: string) => {
+    const resp = await fetch(baseUrl + path, { credentials: "include" });
+    if (!resp.ok) throw new Error(`chat_log_${resp.status}`);
+    return resp.json();
+  };
+  return {
+    listLogs: (q) => get(`/staff/chat/logs?${qs(q)}`),
+    listSources: (id) => get(`/staff/chat/messages/${id}/sources`),
+  };
+}
+```
+
+`frontend/src/features/support/chatLogApi.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createChatLogApi } from "./chatLogApi";
+
+describe("chatLogApi", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("[Step1] listLogs는 channel·route_taken를 쿼리스트링으로 실어 GET한다", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("[]", { status: 200 }));
+    await createChatLogApi("http://x").listLogs({ channel: "web", routeTaken: "rag" });
+    expect(m.mock.calls[0][0]).toBe("http://x/staff/chat/logs?channel=web&routeTaken=rag");
+  });
+
+  it("[Step1] listSources는 message id로 근거 스냅샷을 GET한다", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("[]", { status: 200 }));
+    await createChatLogApi("http://x").listSources("m1");
+    expect(m.mock.calls[0][0]).toBe("http://x/staff/chat/messages/m1/sources");
+  });
+});
+```
+Run: `npm --prefix frontend run test -- chatLogApi` → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: `useChatLogs` — 필터·재조회·로딩·오류·라이브(확인필요)·정렬(확인필요)·계약 밖 (`FILTER-03`·`LOAD-01`·`ERR-01`·`LIVE-01`·`ORDER-01`·`EXC-01`, 6규칙)**
+
+> 필터를 바꾸면 목록과 0건 상태를 **새 조건으로 다시 조회**한다(`FILTER-03`). 최초 로딩은 목록 자리에 로딩이고 0건 문구를 먼저 그리지 않는다(`LOAD-01`). 조회 실패는 오류+재시도(`ERR-01`). ⭐ **Realtime 구독 여부·정렬 방향·페이지는 근거가 없어** 훅이 `live.mode='unknown'`·`order.contract='unknown'`으로 노출하고 **임의로 정하지 않는다**(`LIVE-01`·`ORDER-01`). 계약 밖 채널·갈래 값은 앱·웹/기존 갈래로 **치환하지 않고** 표시 대상으로 보존한다(`EXC-01`).
+
+`frontend/src/features/support/useChatLogs.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { useChatLogs } from "./useChatLogs";
+import type { ChatLogApi, ChatLogRow } from "./chatLogApi";
+
+const row = (over: Partial<ChatLogRow> = {}): ChatLogRow => ({ threadId: "th1", channel: "app",
+  routeTaken: "rag", lastMessagePreview: "두통", at: "2026-08-19T00:00:00Z", ...over });
+const api = (listLogs: ChatLogApi["listLogs"]): ChatLogApi => ({ listLogs, listSources: vi.fn() });
+
+describe("useChatLogs", () => {
+  it("[CHATLOG-LIST-FILTER-03] 필터를 바꾸면 새 조건으로 다시 조회한다", async () => {
+    const listLogs = vi.fn(async (q) => (q.channel === "web" ? [row({ channel: "web" })] : [row()]));
+    const { result } = renderHook(() => useChatLogs(api(listLogs)));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await act(async () => result.current.setFilter({ channel: "web" }));
+    expect(listLogs).toHaveBeenLastCalledWith({ channel: "web" });
+    expect(result.current.rows[0].channel).toBe("web");
+  });
+
+  it("[CHATLOG-LIST-LOAD-01] 최초 로딩은 loading이며 0건 문구를 먼저 내지 않는다", async () => {
+    let resolve!: (v: ChatLogRow[]) => void;
+    const { result } = renderHook(() => useChatLogs(api(() => new Promise((r) => (resolve = r)))));
+    expect(result.current.phase).toBe("loading");
+    expect(result.current.phase).not.toBe("empty");
+    await act(async () => resolve([]));
+  });
+
+  it("[CHATLOG-LIST-ERR-01] 조회 실패는 error이며 0건으로 위장하지 않는다", async () => {
+    const { result } = renderHook(() => useChatLogs(api(async () => { throw new Error("x"); })));
+    await waitFor(() => expect(result.current.phase).toBe("error"));
+    expect(result.current.phase).not.toBe("empty");
+  });
+
+  it("[CHATLOG-LIST-LIVE-01] Realtime 구독 여부는 근거가 없어 unknown으로 노출하고 임의로 켜지 않는다", async () => {
+    const { result } = renderHook(() => useChatLogs(api(async () => [row()])));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.live.mode).toBe("unknown"); // 자동/수동을 발명하지 않음
+  });
+
+  it("[CHATLOG-LIST-ORDER-01] 정렬 방향·동점 키·페이지는 근거가 없어 unknown으로 노출한다", async () => {
+    const { result } = renderHook(() => useChatLogs(api(async () => [row()])));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.order.contract).toBe("unknown"); // 서버 계약 확정 전까지 정렬 발명 금지
+  });
+
+  it("[CHATLOG-LIST-EXC-01] 계약 밖 채널·갈래 값을 임의 치환하지 않고 알 수 없는 값으로 보존한다", async () => {
+    const { result } = renderHook(() => useChatLogs(api(async () => [row({ channel: "sms", routeTaken: "??" })])));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.rows[0].channel).toBe("sms");  // app/web으로 치환 안 함
+    expect(result.current.rows[0].routeTaken).toBe("??");
+  });
+});
+```
+Run: `npm --prefix frontend run test -- useChatLogs` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `ChatLogList`·`ChatLogRow` — 앱·웹 한 목록·채널/갈래 구분·0건 (`SCOPE-01`·`FILTER-01`·`FILTER-02`·`ROW-01`·`EMPTY-01`, 5규칙)**
+
+> 모바일 앱·웹 상담창 대화를 **같은 목록**에서 본다(`SCOPE-01`). 채널 필터(`FILTER-01`)·갈래 필터(`FILTER-02`)를 제공하고, 행은 채널·갈래를 **텍스트로 구분**하며 대화 맥락을 열 수 있게 한다(`ROW-01`). 0건은 `조건에 맞는 상담 기록이 없습니다`로 조회 실패와 **구분**한다(`EMPTY-01`).
+
+`frontend/src/features/support/ChatLogList.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ChatLogList } from "./ChatLogList";
+import type { ChatLogRow } from "./chatLogApi";
+
+const rows: ChatLogRow[] = [
+  { threadId: "app1", channel: "app", routeTaken: "rag", lastMessagePreview: "두통", at: "t1" },
+  { threadId: "web1", channel: "web", routeTaken: "handoff", lastMessagePreview: "예약 문의", at: "t2" },
+];
+
+describe("ChatLogList", () => {
+  it("[CHATLOG-LIST-SCOPE-01] 앱·웹 대화를 같은 목록에서 보여준다", () => {
+    render(<ChatLogList rows={rows} phase="ready" filters={{}} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("두통")).toBeVisible();     // 앱
+    expect(screen.getByText("예약 문의")).toBeVisible(); // 웹 — 한 목록
+  });
+
+  it("[CHATLOG-LIST-FILTER-01] 채널 필터를 바꾸면 상위에 조건 변경을 알린다", async () => {
+    const onFilter = vi.fn();
+    render(<ChatLogList rows={rows} phase="ready" filters={{}} onFilter={onFilter} onOpen={vi.fn()} />);
+    await userEvent.selectOptions(screen.getByLabelText("채널"), "web");
+    expect(onFilter).toHaveBeenCalledWith({ channel: "web" });
+  });
+
+  it("[CHATLOG-LIST-FILTER-02] 갈래 필터를 바꾸면 route_taken 조건을 상위에 알린다", async () => {
+    const onFilter = vi.fn();
+    render(<ChatLogList rows={rows} phase="ready" filters={{}} onFilter={onFilter} onOpen={vi.fn()} />);
+    await userEvent.selectOptions(screen.getByLabelText("갈래"), "handoff");
+    expect(onFilter).toHaveBeenCalledWith({ routeTaken: "handoff" });
+  });
+
+  it("[CHATLOG-LIST-ROW-01] 행은 채널·갈래를 텍스트로 구분하고 열 수 있다", async () => {
+    const onOpen = vi.fn();
+    render(<ChatLogList rows={rows} phase="ready" filters={{}} onFilter={vi.fn()} onOpen={onOpen} />);
+    const webRow = screen.getByText("예약 문의").closest("[role='row'],li,tr")!;
+    expect(webRow.textContent).toMatch(/웹/);        // 채널 텍스트
+    expect(webRow.textContent).toMatch(/직원 연결|인계/); // 갈래(handoff) 텍스트
+    await userEvent.click(screen.getByText("예약 문의"));
+    expect(onOpen).toHaveBeenCalledWith("web1");
+  });
+
+  it("[CHATLOG-LIST-EMPTY-01] 0건은 '조건에 맞는 상담 기록이 없습니다'로 조회 실패와 구분한다", () => {
+    render(<ChatLogList rows={[]} phase="empty" filters={{ channel: "web" }} onFilter={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("조건에 맞는 상담 기록이 없습니다")).toBeVisible();
+    expect(screen.queryByText(/불러오지 못했|다시 시도/)).toBeNull(); // 실패 아님
+  });
+});
+```
+Run: `npm --prefix frontend run test -- ChatLogList` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `ChatLogSources` + 상세 진입 — 봇 답변 근거·근거 없음·근거 오류·전체화면 상세 (`SOURCE-01`·`SOURCE-02`·`SOURCE-03`·`DETAIL-01`, 4규칙)**
+
+> 봇 답변을 선택하면 그 답변이 쓴 **승인 근거 자료**를 표시한다(`SOURCE-01`). 근거가 없으면 `근거 자료 없음`으로 표시하고 있던 것처럼 꾸미지 않는다(`SOURCE-02`). 근거 조회가 실패하면 봇 답변은 유지하고 **근거 영역에만** 오류+재시도(`SOURCE-03`). 행·봇 답변 선택 시 상담 원문·AI 답변·답변 근거를 **별도 전체 화면**으로 열고, 목록으로 돌아오면 직전 필터·검색어·스크롤을 복원한다(`DETAIL-01` → `NAV-STFSUP-13` 위임).
+
+`frontend/src/features/support/ChatLogSources.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { ChatLogSources } from "./ChatLogSources";
+import type { ChatLogApi, ChatLogSource } from "./chatLogApi";
+
+const api = (listSources: ChatLogApi["listSources"]): ChatLogApi => ({ listSources, listLogs: vi.fn() });
+const src: ChatLogSource[] = [{ rank: 1, similarity: 0.82, titleSnapshot: "주차 안내", bodySnapshot: "지하 2층" }];
+
+describe("ChatLogSources", () => {
+  it("[CHATLOG-LIST-SOURCE-01] 봇 답변이 쓴 승인 근거 자료를 표시한다", async () => {
+    render(<ChatLogSources api={api(async () => src)} messageId="m1" />);
+    expect(await screen.findByText("주차 안내")).toBeVisible();
+  });
+
+  it("[CHATLOG-LIST-SOURCE-02] 근거가 없으면 '근거 자료 없음'으로 표시하고 꾸미지 않는다", async () => {
+    render(<ChatLogSources api={api(async () => [])} messageId="m1" />);
+    expect(await screen.findByText("근거 자료 없음")).toBeVisible();
+  });
+
+  it("[CHATLOG-LIST-SOURCE-03] 근거 조회 오류는 근거 영역에만 오류·재시도를 표시한다", async () => {
+    render(<ChatLogSources api={api(async () => { throw new Error("x"); })} messageId="m1" />);
+    expect(await screen.findByRole("button", { name: "다시 시도" })).toBeVisible();
+  });
+
+  it("[CHATLOG-LIST-DETAIL-01] 상세는 별도 전체 화면으로 열고 복귀 시 직전 필터·스크롤을 복원한다", async () => {
+    const onOpenDetail = vi.fn();
+    render(<ChatLogSources api={api(async () => src)} messageId="m1" onOpenDetail={onOpenDetail} restoreKey="chatlog:web:scroll120" />);
+    (await screen.findByRole("button", { name: /상세 보기/ })).click();
+    expect(onOpenDetail).toHaveBeenCalledWith({ messageId: "m1", fullscreen: true, restoreKey: "chatlog:web:scroll120" });
+  });
+});
+```
+Run: `npm --prefix frontend run test -- ChatLogSources` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: `PatientSupportSection` — `PTDET-SUPPORT` delta (`LINK-01`·`EMPTY-01`·`LOAD-01`·`ERR-01`·`ORDER-01`·`BLOCK-01`·`LIVE-01`·`LIVE-02`·`NAV-01`·`PRIV-01`·`EXC-01`, 11규칙)**
+
+> 카드 내용·상태는 staff-web `PTDET-SUPPORT-01~04`를 **그대로 소비**하고 재정의하지 않는다(`LINK-01`). 0건은 `PTDET-SUPPORT-05` 문구(`EMPTY-01`), 섹션 로딩은 다른 상세를 지우지 않고 섹션만(`LOAD-01`), 오류도 섹션에만(`ERR-01`). 정렬은 최신순+ID 동점키(`ORDER-01` — Task 2 `list_thread_tickets` 회수분). ⭐ **`BLOCK-01` 해소**: Task 2가 `support_tickets`·안정 정렬을 만들어 **가짜 카드가 아니라 실제 patient-scoped 조회를 소비**한다(patient 범위 함수는 소비 계약). ⭐ **Realtime 구독은 근거가 없어 `unknown`**(`LIVE-01` — 티켓함과 같다고 추측 안 함), 수동 정합화(`[다시 시도]`·재진입)는 현재 환자 범위로 재조회(`LIVE-02`). 카드 선택은 별도 전체 화면(`NAV-01` → `NAV-STFSUP-07·13`). **현재 환자 범위만**, Realtime·재시도에도 다른 환자 문의 안 섞음(`PRIV-01`), 환자 전환 시 이전 결과 안 남기고 새 범위로 재조회(`EXC-01`).
+
+`frontend/src/features/support/PatientSupportSection.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { PatientSupportSection } from "./PatientSupportSection";
+import type { PatientSupportApi, PatientTicket } from "./patientSupportApi";
+
+const ticket = (over: Partial<PatientTicket> = {}): PatientTicket => ({ id: "t1", patientId: "p1",
+  question: "약 정보", status: "pending", createdAt: "2026-08-19T00:00:00Z", ...over });
+const api = (impl: PatientSupportApi["listPatientTickets"]): PatientSupportApi => ({ listPatientTickets: impl });
+
+describe("PatientSupportSection", () => {
+  it("[PTSUP-SECT-LINK-01] 카드 내용·상태는 PTDET-SUPPORT를 그대로 소비한다(재정의 안 함)", async () => {
+    render(<PatientSupportSection patientId="p1" api={api(async () => [ticket()])} onOpenTicket={vi.fn()} />);
+    expect(await screen.findByText("약 정보")).toBeVisible();
+    expect(screen.getByText("새 문의")).toBeVisible(); // pending → PTDET-SUPPORT-02 번역
+  });
+
+  it("[PTSUP-SECT-EMPTY-01] 0건은 PTDET-SUPPORT-05 문구를 쓴다", async () => {
+    render(<PatientSupportSection patientId="p1" api={api(async () => [])} onOpenTicket={vi.fn()} />);
+    expect(await screen.findByText("직원에게 전달된 상담 문의가 없습니다")).toBeVisible();
+  });
+
+  it("[PTSUP-SECT-LOAD-01] 섹션 로딩은 이 섹션만 로딩이고 다른 상세를 지우지 않는다", async () => {
+    let resolve!: (v: PatientTicket[]) => void;
+    render(<PatientSupportSection patientId="p1" api={api(() => new Promise((r) => (resolve = r)))} onOpenTicket={vi.fn()} sibling={<div>진료 기록</div>} />);
+    expect(screen.getByText("진료 기록")).toBeVisible();       // 다른 섹션 유지
+    expect(screen.getByLabelText("상담 문의 로딩")).toBeVisible();
+    await act(async () => resolve([]));
+  });
+
+  it("[PTSUP-SECT-ERR-01] 섹션 오류는 이 섹션에만 실패·재시도를 표시한다", async () => {
+    render(<PatientSupportSection patientId="p1" api={api(async () => { throw new Error("x"); })} onOpenTicket={vi.fn()} sibling={<div>진료 기록</div>} />);
+    expect(await screen.findByRole("button", { name: "다시 시도" })).toBeVisible();
+    expect(screen.getByText("진료 기록")).toBeVisible();
+  });
+
+  it("[PTSUP-SECT-ORDER-01] 최신 생성 시각 위·동점은 티켓 ID를 마지막 키로 정렬한다", async () => {
+    const list = [ticket({ id: "b", createdAt: "2026-08-19T00:00:00Z" }), ticket({ id: "a", createdAt: "2026-08-19T00:00:00Z" }),
+                  ticket({ id: "c", question: "최신", createdAt: "2026-08-20T00:00:00Z" })];
+    render(<PatientSupportSection patientId="p1" api={api(async () => list)} onOpenTicket={vi.fn()} />);
+    const cards = await screen.findAllByTestId("ptsup-card");
+    expect(cards[0].textContent).toContain("최신");        // 최신 생성 시각 위
+    expect(cards[1].getAttribute("data-ticket")).toBe("a"); // 동점 → id 오름차순 마지막 키
+  });
+
+  it("[PTSUP-SECT-BLOCK-01] Task 2 마이그레이션·정렬이 있으므로 가짜 카드가 아니라 실제 조회를 소비한다", async () => {
+    const impl = vi.fn(async () => [ticket()]);
+    render(<PatientSupportSection patientId="p1" api={api(impl)} onOpenTicket={vi.fn()} />);
+    await waitFor(() => expect(impl).toHaveBeenCalledWith("p1")); // patient-scoped 실제 조회(가짜 카드 아님)
+  });
+
+  it("[PTSUP-SECT-LIVE-01] Realtime 구독은 근거가 없어 unknown이며 티켓함과 같다고 추측하지 않는다", async () => {
+    const { container } = render(<PatientSupportSection patientId="p1" api={api(async () => [ticket()])} onOpenTicket={vi.fn()} />);
+    await screen.findByText("약 정보");
+    expect(container.querySelector("[data-live='unknown']")).toBeTruthy();
+  });
+
+  it("[PTSUP-SECT-LIVE-02] [다시 시도]·재진입은 현재 환자 범위로 다시 조회한다", async () => {
+    const impl = vi.fn(async () => [ticket()]);
+    render(<PatientSupportSection patientId="p1" api={api(impl)} onOpenTicket={vi.fn()} />);
+    await screen.findByText("약 정보");
+    await userEvent.click(screen.getByRole("button", { name: "새로고침" }));
+    expect(impl).toHaveBeenLastCalledWith("p1");
+  });
+
+  it("[PTSUP-SECT-NAV-01] 카드 선택은 티켓·대화 상세를 별도 전체 화면으로 연다", async () => {
+    const onOpenTicket = vi.fn();
+    render(<PatientSupportSection patientId="p1" api={api(async () => [ticket()])} onOpenTicket={onOpenTicket} />);
+    await userEvent.click(await screen.findByText("약 정보"));
+    expect(onOpenTicket).toHaveBeenCalledWith({ ticketId: "t1", fullscreen: true });
+  });
+
+  it("[PTSUP-SECT-PRIV-01] 현재 환자 티켓만 표시하고 다른 환자 문의를 섞지 않는다", async () => {
+    render(<PatientSupportSection patientId="p1" api={api(async () => [ticket({ patientId: "p1" }), ticket({ id: "t2", patientId: "p2", question: "남의 것" })])} onOpenTicket={vi.fn()} />);
+    await screen.findByText("약 정보");
+    expect(screen.queryByText("남의 것")).toBeNull(); // patient_id 불일치 방어
+  });
+
+  it("[PTSUP-SECT-EXC-01] 환자가 바뀌면 이전 환자 결과를 남기지 않고 새 범위로 재조회한다", async () => {
+    const impl = vi.fn(async (id: string) => [ticket({ id, patientId: id, question: `${id} 문의` })]);
+    const { rerender } = render(<PatientSupportSection patientId="p1" api={api(impl)} onOpenTicket={vi.fn()} />);
+    await screen.findByText("p1 문의");
+    rerender(<PatientSupportSection patientId="p2" api={api(impl)} onOpenTicket={vi.fn()} />);
+    await screen.findByText("p2 문의");
+    expect(screen.queryByText("p1 문의")).toBeNull(); // 이전 환자 결과 안 남김
+  });
+});
+```
+Run: `npm --prefix frontend run test -- PatientSupportSection` → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: `navStfsup` context-restore ① — 카드→상세·복귀 (`NAV-STFSUP-01`~`07`, 7규칙)**
+
+> 상담·질문·신고 상세를 오갈 때 **필터·검색어·스크롤·선택 맥락을 복원**한다. `/today` 일반 상담 카드→문의함 `새 문의` 탭(`01`). 문의 티켓함은 **분할 작업공간** — 왼쪽 목록 유지·오른쪽 상세만 교체, 좁은 창은 전체폭+`[문의 목록]` 복귀(`02`). 티켓 상세 `[보내기]` 성공은 같은 전체 화면에 머무름·봇 복귀 안 함(`03`). 의료판단 재배정 성공도 같은 상세에 머무름(`04`). 전체 상담 기록·봇 답변→상세, 뒤로 시 복원(`05`). 봇 답변 `잘못된 답변`→오답 신고 작성(별도 전체화면, 저장/취소 후 복원)(`06` — 폼은 Task 21). 환자상세 상담 문의→티켓·대화 상세, 현재 환자+필터 복원(`07`).
+
+`frontend/src/features/support/navStfsup.step1.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { resolveStfsupNav } from "./navStfsup";
+
+describe("navStfsup ① 카드→상세·복귀", () => {
+  it("[NAV-STFSUP-01] /today 일반 상담 카드 선택은 문의함 '새 문의' 탭으로 가고 뒤로는 /today", () => {
+    const r = resolveStfsupNav({ from: "today-inquiry-card" }, { type: "select" });
+    expect(r).toMatchObject({ to: "inbox", tab: "new", back: "today" });
+  });
+
+  it("[NAV-STFSUP-02] 문의 티켓함은 분할 작업공간 — 왼쪽 목록 유지·오른쪽 상세만 교체(좁은 창은 [문의 목록] 복귀)", () => {
+    const r = resolveStfsupNav({ from: "inbox", narrow: false }, { type: "selectTicket", ticketId: "t1" });
+    expect(r).toMatchObject({ to: "inbox-detail", keepLeftList: true, replace: "right" });
+    const narrow = resolveStfsupNav({ from: "inbox", narrow: true }, { type: "selectTicket", ticketId: "t1" });
+    expect(narrow).toMatchObject({ to: "inbox-detail", fullWidth: true, backLabel: "문의 목록" });
+  });
+
+  it("[NAV-STFSUP-03] 티켓 상세 [보내기] 성공은 같은 전체 화면에 머무르고 봇 복귀·목록 이동을 하지 않는다", () => {
+    const r = resolveStfsupNav({ from: "inbox-detail" }, { type: "sendSuccess" });
+    expect(r).toMatchObject({ to: "inbox-detail", stay: true });
+    expect(r).not.toHaveProperty("botReturn");
+  });
+
+  it("[NAV-STFSUP-04] 의료판단 재배정 성공은 같은 상세에 머물며 새 담당자·처리 중을 표시한다", () => {
+    const r = resolveStfsupNav({ from: "inbox-detail" }, { type: "reassignSuccess" });
+    expect(r).toMatchObject({ to: "inbox-detail", stay: true });
+  });
+
+  it("[NAV-STFSUP-05] 전체 상담 기록에서 상담·봇 답변 선택은 별도 전체 화면을 열고 뒤로 시 필터·검색어·스크롤을 복원한다", () => {
+    const r = resolveStfsupNav({ from: "chatlog", restoreKey: "chatlog:web:s120" }, { type: "select", messageId: "m1" });
+    expect(r).toMatchObject({ to: "chatlog-detail", fullscreen: true, restore: "chatlog:web:s120" });
+  });
+
+  it("[NAV-STFSUP-06] 봇 답변 '잘못된 답변'은 오답 신고 작성을 별도 전체 화면으로 열고 저장/취소 후 직전 위치로 복원한다", () => {
+    const r = resolveStfsupNav({ from: "chatlog", restoreKey: "chatlog:web:s120" }, { type: "reportBad", messageId: "m1" });
+    expect(r).toMatchObject({ to: "badrpt-form", fullscreen: true, restore: "chatlog:web:s120" }); // 폼 자체는 Task 21
+  });
+
+  it("[NAV-STFSUP-07] 환자상세 상담 문의 카드 선택은 티켓·대화 상세를 열고 현재 환자+필터를 복원한다", () => {
+    const r = resolveStfsupNav({ from: "patient-support", patientId: "p1", restoreKey: "ptsup:p1:s0" }, { type: "select", ticketId: "t1" });
+    expect(r).toMatchObject({ to: "ticket-detail", fullscreen: true, restore: "ptsup:p1:s0", patientId: "p1" });
+  });
+});
+```
+Run: `npm --prefix frontend run test -- navStfsup.step1` → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: `navStfsup` context-restore ② — 예약·캘린더·패널·공통 (`NAV-STFSUP-08`~`14`, 7규칙)**
+
+> `/today` 취소·변경 상담 행 `[예약·상담 보기]`→해당 예약 선택된 캘린더+패널(`/cancellation-requests` 안 감)(`08`). 캘린더 ⚠ 예약 선택→기존 예약 사이드패널(`09`). 사이드패널 대화 맥락→티켓·대화 상세, 돌아오면 캘린더 날짜·필터·스크롤·같은 패널 복원(`10`). 사이드패널 처리 완료·반려→캘린더에 머물러 최신 상태(`11`). 모든 직원 상담 화면 세션 만료·권한 오류→로그인 복귀·권한 거절, 환자·대화 노출 안 함(`12`). ⭐ **공통 복원 규칙**(`13`): 출발 화면의 직전 필터·검색어·스크롤·선택 맥락 복원 — **문의 티켓함만 분할 예외**(왼쪽 목록·탭·정렬·스크롤+오른쪽 상세, 좁은 창 `[문의 목록]`), 나머지는 R2-3 전체화면 원칙. 복원값 저장 위치·만료·새로고침 유지는 **확인 필요**. 티켓 상세 `[캘린더에서 예약 처리]`→해당 날짜·예약 선택된 캘린더(패널 하나), 저장 후 문의함 같은 탭·티켓·대화·작성 중 답변 복원, 캘린더에 상담용 두 번째 패널·전체 대화 복제 안 함(`14`).
+
+`frontend/src/features/support/navStfsup.step2.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { resolveStfsupNav } from "./navStfsup";
+
+describe("navStfsup ② 예약·캘린더·패널·공통", () => {
+  it("[NAV-STFSUP-08] /today 상담 행 [예약·상담 보기]는 예약 선택된 캘린더+패널로 가고 /cancellation-requests를 경유하지 않는다", () => {
+    const r = resolveStfsupNav({ from: "today-support-row", appointmentId: "a1" }, { type: "openReservation" });
+    expect(r).toMatchObject({ to: "calendar", selectAppointment: "a1", openPanel: true });
+    expect(r.to).not.toBe("cancellation-requests");
+  });
+
+  it("[NAV-STFSUP-09] 캘린더 ⚠ 예약 선택은 기존 예약 사이드패널을 연다", () => {
+    const r = resolveStfsupNav({ from: "calendar" }, { type: "selectWarnAppointment", appointmentId: "a1" });
+    expect(r).toMatchObject({ to: "calendar", openPanel: true, appointmentId: "a1" });
+  });
+
+  it("[NAV-STFSUP-10] 사이드패널 대화 맥락은 티켓·대화 상세를 열고 돌아오면 캘린더·같은 패널을 복원한다", () => {
+    const r = resolveStfsupNav({ from: "reservation-panel", appointmentId: "a1", restoreKey: "cal:0819:panel:a1" }, { type: "openConversation", ticketId: "t1" });
+    expect(r).toMatchObject({ to: "ticket-detail", fullscreen: true, restore: "cal:0819:panel:a1" });
+  });
+
+  it("[NAV-STFSUP-11] 사이드패널 처리 완료·반려는 캘린더에 머물러 최신 예약·⚠ 상태를 확인한다", () => {
+    const r = resolveStfsupNav({ from: "reservation-panel" }, { type: "processDone" });
+    expect(r).toMatchObject({ to: "calendar", stay: true });
+  });
+
+  it("[NAV-STFSUP-12] 세션 만료·권한 오류는 로그인 복귀·권한 거절이며 환자·대화 내용을 노출하지 않는다", () => {
+    const r = resolveStfsupNav({ from: "inbox-detail" }, { type: "authError", reason: "expired" });
+    expect(r).toMatchObject({ to: "login", exposeContent: false });
+  });
+
+  it("[NAV-STFSUP-13] 공통 복원 — 문의 티켓함만 분할 예외, 나머지는 전체화면 필터·스크롤 복원(저장 범위는 확인 필요)", () => {
+    expect(resolveStfsupNav({ from: "inbox", restoreKey: "inbox:new:s40" }, { type: "back" }))
+      .toMatchObject({ split: true, restore: "inbox:new:s40" });          // 분할 예외
+    const chatlog = resolveStfsupNav({ from: "chatlog", restoreKey: "chatlog:web:s120" }, { type: "back" });
+    expect(chatlog).toMatchObject({ fullscreen: true, restore: "chatlog:web:s120" }); // R2-3 전체화면
+    expect(chatlog.persistenceContract).toBe("unknown");                   // 저장 위치·만료 확인 필요
+  });
+
+  it("[NAV-STFSUP-14] 티켓 상세 [캘린더에서 예약 처리]는 캘린더로 갔다가 저장 후 문의함 맥락을 복원하고 두 번째 패널·전체 대화를 복제하지 않는다", () => {
+    const r = resolveStfsupNav({ from: "inbox-detail", appointmentId: "a1", restoreKey: "inbox:t1:draft" }, { type: "processInCalendar" });
+    expect(r).toMatchObject({ to: "calendar", selectAppointment: "a1", singlePanel: true, restoreAfterSave: "inbox:t1:draft" });
+    expect(r).not.toHaveProperty("duplicateConversation");
+  });
+});
+```
+Run: `npm --prefix frontend run test -- navStfsup.step2` → FAIL → 구현 → PASS.
+
+- [ ] **Step 8: 전수 초록불 + 검사기 + 역참조 + 커밋**
+
+먼저 `screen-behaviors.md`의 `PTSUP-SECT-BLOCK-01`을 **낡은 `BLOCKED`에서 해소로 역참조**한다(Task 2가 마이그레이션·안정 정렬을 이미 만들었으므로 — DUP-01과 같은 낡은 미결).
+
+`docs/design/screen-behaviors.md` `PTSUP-SECT-BLOCK-01` 동작 칸:
+```
+~~`support_tickets` 마이그레이션과 ID 동점 키가 없으므로 가짜 카드로 완료 처리하지 않고 `BLOCKED`로 남긴다~~ ✅ **해소(2026-08-19, ai-chatbot Task 2)** — `support_tickets` 마이그레이션(`00037`)과 안정 정렬(`list_thread_tickets` `order by created_at desc, id desc`, `PTDET-SUPPORT-03` 회수)이 존재한다. 가짜 카드가 아니라 **실제 patient-scoped 조회**를 소비한다(patient 범위 함수 `list_patient_support_tickets`는 Task 19 소비 계약). Realtime 구독은 여전히 근거 없어 `PTSUP-SECT-LIVE-01`이 확인 필요로 유지
+```
+
+Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 40규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `+40`(`PTSUP-SECT` 11 + `CHATLOG-LIST` 15 + `NAV-STFSUP` 14) · prefix-check **빚0·미배정0·⏰0**. ⚠️ 타 태스크 소유 규칙(`PTDET-SUPPORT`·`TICKET-INBOX`·`TICKET-DETAIL`·`SUPPORT-TODAY`·`SUPPORT-PANEL`·`BADRPT-FORM` 계열)은 **계열명(숫자 0개)으로만** 참조했다(⏰ 방지). `SEARCH-FILT`·`ERR-RETRY`·`EMPTY-ZERO`·`SHELL-LIVE`·`PTDET-LOAD`(2단계 staff-web)는 ai-chatbot 규칙이 아니라 커버리지에 안 잡힌다.
+
+```bash
+git add frontend/src/features/support/ docs/design/screen-behaviors.md docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 19 본문 — 환자상세 상담 섹션·전체 상담 로그·지원 내비 40규칙. PTSUP-SECT-BLOCK-01 해소(Task 2 마이그·정렬). 상담 로그/근거/patient-scoped 조회 계약 3건 선언"
+```
+
+> **Task 19 완료 조건**: `PTSUP-SECT`(`LINK`1·`EMPTY`1·`LOAD`1·`ERR`1·`ORDER`1·`BLOCK`1·`LIVE`2·`NAV`1·`PRIV`1·`EXC`1 = 11) + `CHATLOG-LIST`(`SCOPE`1·`FILTER`3·`ROW`1·`SOURCE`3·`EMPTY`1·`LOAD`1·`ERR`1·`LIVE`1·`ORDER`1·`DETAIL`1·`EXC`1 = 15) + `NAV-STFSUP`(`01`~`14` = 14) = **40규칙 전수** 초록불(Vitest). ⭐ **직원웹 `frontend/`** — `patient_app/`·`webchat/` 무손. ⭐ **모르는 것 안 지어냄**: 근거 없음·계약 밖 값·0건을 실패와 구분. ⭐ **확인 필요 3건 존중**: `CHATLOG-LIST-LIVE-01`·`ORDER-01`·`PTSUP-SECT-LIVE-01`은 `unknown`으로 노출·값 발명 안 함. ⭐ **`PTSUP-SECT-BLOCK-01` 해소**(Task 2 마이그·정렬 존재 → 실제 조회 소비, `screen-behaviors.md` 역참조). ⭐ **소비 계약 3건 선언**: 상담 로그 목록(`GET /staff/chat/logs`)·근거(`.../messages/{id}/sources`)·환자 범위 티켓(`list_patient_support_tickets`). ⚠️ **경계**: `/patients/:id` 셸·`PTDET-SUPPORT`=staff-web · 오답 신고 폼(`BADRPT-FORM`)=Task 21 · 관리자 화면=Task 20~22. **다음 = Task 20**(관리자 KB 목록·편집·이력·제한문구, `KBADM-*`). ⭐⭐ **직원 채널(16~19) 완결.**

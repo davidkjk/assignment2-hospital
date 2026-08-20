@@ -5500,7 +5500,7 @@
 | `PTSUP-SECT-LOAD-01` | 섹션 로딩 | 환자 상세는 열렸고 티켓만 응답 대기 | 상담 문의 섹션만 로딩 상태로 두고 다른 환자 상세 섹션을 지우지 않는다 | 인벤토리 §3 직원웹 5 `섹션 로딩`; `PTDET-LOAD-01~02` |
 | `PTSUP-SECT-ERR-01` | 섹션 오류 | 티켓 조회 실패 | 상담 문의 섹션에만 실패와 `[다시 시도]`를 표시하고 다른 상세 정보는 유지한다 | `PTDET-SUPPORT-05`; `PTDET-LOAD-02` |
 | `PTSUP-SECT-ORDER-01` | 최신순 | 티켓 여러 개 | 생성 시각 내림차순, 동점은 티켓 ID를 마지막 키로 삼는 계약을 요구한다 | `PTDET-SUPPORT-03`; 정본 §1(15) |
-| `PTSUP-SECT-BLOCK-01` | 구현 상태 | 서버 계약 미구현 | `support_tickets` 마이그레이션과 ID 동점 키가 없으므로 가짜 카드로 완료 처리하지 않고 `BLOCKED`로 남긴다 | 정본 §4 `환자 상세 상담 문의`; `PTDET-SUPPORT-03` |
+| `PTSUP-SECT-BLOCK-01` | 구현 상태 | 서버 계약 | ~~`support_tickets` 마이그레이션과 ID 동점 키가 없으므로 가짜 카드로 완료 처리하지 않고 `BLOCKED`로 남긴다~~ ✅ **해소(2026-08-19, `ai-chatbot` Task 2)** — `support_tickets` 마이그레이션(`00037`)과 안정 정렬(`list_thread_tickets` `order by created_at desc, id desc`, `PTDET-SUPPORT-03` 회수)이 이제 존재한다. 가짜 카드가 아니라 **실제 patient-scoped 조회**를 소비한다(patient 범위 함수 `list_patient_support_tickets`는 `ai-chatbot` Task 19 소비 계약). ⚠️ Realtime 구독은 **여전히 근거가 없어** `PTSUP-SECT-LIVE-01`이 확인 필요로 유지된다 | 정본 §4 `환자 상세 상담 문의`; `PTDET-SUPPORT-03`; `ai-chatbot` Task 2·Task 19 |
 | `PTSUP-SECT-LIVE-01` | Realtime 정책 | 섹션을 열어 둠 | **확인 필요** — 이 섹션의 Realtime 구독은 근거가 없다. 티켓함과 같다고 추측하지 않는다 | `PTDET-SUPPORT-01~05`에 Realtime 규칙 없음; 정본 §4 |
 | `PTSUP-SECT-LIVE-02` | 수동 정합화 | `[다시 시도]` 또는 환자 상세 재진입 | 현재 환자 ID 범위로 다시 조회해 최신 상태를 표시한다 | `PTDET-SUPPORT-04~05`; `PTDET-LOAD-04` |
 | `PTSUP-SECT-NAV-01` | 카드 선택 | 티켓·대화 맥락 열기 | 티켓·대화 상세를 별도 전체 화면으로 열고, 돌아오면 현재 환자와 직전 필터·검색어·스크롤 위치를 복원한다 | 결정회의 L86–98 안건 3; ledger `R2-3`; `PTDET-SUPPORT-04`; `NAV-STFSUP-07·13` |
