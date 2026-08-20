@@ -8722,4 +8722,461 @@ git add webchat/src/ \
 git commit -m "feat: 📝 상담봇 Task 15 본문 — 웹 카드 8종 + 인증 후 재확인(WEBMOD-AUTH) + 익명 인계 폼 45규칙(React/Vitest). 환자 채널 완결"
 ```
 
-> **Task 15 완료 조건**: `WEBMOD-AUTH`9·`WEBANON-HANDOFF`9·`WEBCARD-TIME`3·`BOOKCONF`4·`BOOKDONE`3·`CANCELCONF`3·`CANCELDONE`3·`CANCELREJ`3·`QNR`4·`QUICK`4 = **45규칙 전수** 초록불(Vitest). ⭐ **웹은 React** — `patient_app/`(Flutter) 무손. ⭐ **MR2-03 구현**: 로그인·가입 완료 후 자동 실행 금지 → 재확인 카드([신청]/[취소] 눌러야 확정). ⭐ **경계**: 위젯 내부에 로그인·OTP·가입 화면 없음(`WEBMOD-AUTH-03` — `WebAuth` 어댑터로 기존 흐름 연결) · 실제 SMS 발송=dispatcher(배포) · 웹 문진 화면 없음(앱 경로 안내만). ⭐⭐ **환자 채널(앱 10~13 + 웹 14~15) 완결.** **다음 = Task 16**(직원 티켓함 — `TICKET-LIST-*`·`NAV-STAFFCHAT-*`).
+> **Task 15 완료 조건**: `WEBMOD-AUTH`9·`WEBANON-HANDOFF`9·`WEBCARD-TIME`3·`BOOKCONF`4·`BOOKDONE`3·`CANCELCONF`3·`CANCELDONE`3·`CANCELREJ`3·`QNR`4·`QUICK`4 = **45규칙 전수** 초록불(Vitest). ⭐ **웹은 React** — `patient_app/`(Flutter) 무손. ⭐ **MR2-03 구현**: 로그인·가입 완료 후 자동 실행 금지 → 재확인 카드([신청]/[취소] 눌러야 확정). ⭐ **경계**: 위젯 내부에 로그인·OTP·가입 화면 없음(`WEBMOD-AUTH-03` — `WebAuth` 어댑터로 기존 흐름 연결) · 실제 SMS 발송=dispatcher(배포) · 웹 문진 화면 없음(앱 경로 안내만). ⭐⭐ **환자 채널(앱 10~13 + 웹 14~15) 완결.** **다음 = Task 16**(직원 티켓함 — `TICKET-INBOX-*` 17규칙).
+
+---
+
+## Task 16: 직원 문의 티켓함 — 분할 작업공간·상태 탭·접수순·원자 배정·경쟁 패자·Realtime (`TICKET-INBOX-*`)
+
+> **직원 채널을 연다.** 상담봇이 직원에게 넘긴 문의를 처리하는 **문의 티켓함** — `새 문의`·`처리 중`·`답변 완료` 3개 상태 탭, 접수순 목록, **왼쪽 티켓 목록 + 오른쪽 넓은 상세 작업공간**의 분할 화면, `새 문의` 행 선택 시 **원자적 배정(claim)**과 경쟁 패자 처리, 그리고 Realtime 반영. **17규칙 전수.** ⚠️ 오른쪽 상세 **내용**은 Task 17(`TICKET-DETAIL-*`)이 채운다 — Task 16은 **왼쪽 목록 + 행 선택→claim→상세 열기(승/패)** + `detailSlot`만.
+>
+> ⚠️⚠️ **직원웹은 `frontend/`(2단계 직원웹 스캐폴딩).** React+TS+**Vitest**+`@testing-library/react`(webchat와 같은 스택이나 **다른 프로젝트**). 화면은 `frontend/src/features/support/`에 짓는다. `patient_app/`(Flutter)·`webchat/`(환자 웹) 무손. Realtime은 2단계 훅 `useRealtimeSubscription(table, onChange)`를 재사용한다.
+>
+> ⭐ **원자 배정 = 서버가 승패를 정한다.** `새 문의`(pending) 행을 선택하면 프론트가 `claim_ticket`(Task 2, `POST /staff/chat/tickets/{id}/claim`)을 부른다 — 서버가 `where status='pending'` + row lock으로 **한 명만** `in_progress`로 전환·배정한다. **승자**는 오른쪽 상세를 열고(→ Task 17), **패자**는 상세를 열지 않고 목록을 유지한 채 `이미 다른 직원이 맡았어요`(서버 409 문구)와 **최신 담당자**(재조회)를 본다. 프론트가 승패를 추측하지 않는다(`TICKET-INBOX-ROW-01`·`TICKET-DETAIL-OPEN` 계열).
+>
+> ⭐ **경계 — Task 17이 받을 것(중복 빌드 금지)**: 오른쪽 상세 작업공간의 **내용**(인계 요약 5항목·전체 대화·답변/보내기·별도 상담 종료·이관·라이브·알림)은 전부 `TICKET-DETAIL-*`=**Task 17**. Task 16은 상세로 가는 **슬롯**만 남긴다: `detailSlot(selectedTicket)`. 재열람 의미(내 것/남의 것/answered 읽기전용)도 Task 17(`TICKET-DETAIL-OPEN` 계열)이며, Task 16의 행 선택은 **pending→claim, 그 외→상세 슬롯 위임**까지만.
+>
+> ⭐ **폐지된 취소요청 대기열은 만들지 않는다(`TICKET-INBOX-SCOPE-01`).** 취소·변경 예약 **일**은 `/today`·캘린더 ⚠·기존 패널이 맡고, 취소·변경 **대화**는 이 문의함이 맡는다(#25 폐지). `/cancellation-requests` 경로·화면·빈 상태를 새로 만들지 않는다.
+>
+> ⭐ **모르는 상태를 만들어 말하지 않는다.** enum은 `pending`·`in_progress`·`answered` 셋뿐이고 그 밖의 값은 **탭으로 임의 번역하지 않고 조회 오류로**(`TICKET-INBOX-EXC-01`, 정본 §0). `support_tickets` 계약이 없으면 **가짜 0건을 그리지 않고 `BLOCKED`**(`TICKET-INBOX-BLOCK-01`).
+>
+> **근거 원본**: behaviors **문의 티켓함 §1**(`TICKET-INBOX-*` 17) + `TICKET-INBOX-SCOPE-01`(경계 절) · 정본 §0(모르는 상태 금지)·§1(13 취소요청 대기열 폐지)·§3·§4 · 요구사항 **L206~210**(직원 상담·인계·의료판단 전달) · **역대조 결정 2**(접수순 `created_at ASC, id ASC`)·**결정 3**(C안: 별도 담당 지정 없음·열람 시 자동 배정)·**R2-3A**(상태 탭·자동 전환) · 백엔드 **Task 2**(`claim_ticket` 원자 승패·`support_tickets`·`idx_tickets_queue` 접수순 인덱스)·**Task 9**(`GET /staff/chat/tickets`·`POST .../claim`) · 2단계 직원웹 `useRealtimeSubscription`·`SHELL-LIVE`·`EMPTY`·`ERR-RETRY` 패턴.
+
+**Files:**
+- Create: `frontend/src/features/support/staffChatApi.ts` (`StaffChatApi` 인터페이스 + `createStaffChatApi()` — `GET /staff/chat/tickets?status=`·`POST /staff/chat/tickets/{id}/claim`)
+- Create: `frontend/src/features/support/useTicketInbox.ts` (탭·목록·접수순·빈/로딩/오류·EXC·BLOCK·Realtime 상태 훅)
+- Create: `frontend/src/features/support/TicketInbox.tsx` (`TicketInbox` — 분할 셸: 왼쪽 탭+목록, 오른쪽 `detailSlot`)
+- Create: `frontend/src/features/support/TicketRow.tsx` (`TicketRow` — 행 표시 + 선택→claim→열기/패자)
+- Test: `frontend/src/features/support/staffChatApi.test.ts` · `useTicketInbox.test.tsx` · `TicketInbox.test.tsx`
+
+**Interfaces:**
+- Consumes:
+  - **Task 9(직원 라우터)**: `GET /staff/chat/tickets?status={pending|in_progress|answered}` → 접수순(`created_at ASC, id ASC`) 티켓 목록 · `POST /staff/chat/tickets/{id}/claim` → 성공 시 배정된 티켓(`in_progress`), 경쟁 패자면 **409**(`이미 다른 직원이 맡았어요.`). 인증=`get_current_staff`(2단계 세션).
+  - **Task 2(티켓 계약)**: `claim_ticket` 원자 승패(내가 이미 맡은 것 재선택은 멱등 반환) · `support_tickets` 상태(`pending`→`in_progress`→`answered`) · `idx_tickets_queue (status, created_at)` 접수순 뒷받침 · 예약 상담 티켓 필드(`request_type`·`appointment_id`).
+  - **2단계 직원웹**: `frontend/src/lib/useRealtimeSubscription(table, onChange)` Realtime 구독 훅 · `SHELL-LIVE`(끊김·복구 표시)·`EMPTY`(탭별 0건·레이아웃)·`ERR-RETRY`(전체/부분 오류)·`BTN-BUSY`(처리 중 잠금) 패턴 · `private.is_active_staff()` RLS·역할 범위.
+- Produces (Task 17 상세가 소비):
+  - `TicketInbox`(분할 셸 — `detailSlot: (ticket: InboxTicket | null) => ReactNode` 프롭으로 오른쪽 상세를 Task 17이 채운다).
+  - `InboxTicket` 타입(행·상세 공용 — `id`·`status`·`patientQuestion`·`handoffReason`·`createdAt`·`assigneeName`·`requestType`·`appointmentSummary`).
+  - `useTicketInbox()` 훅 반환 `{ tab, setTab, phase, tickets, counts, loserNotice, selectTicket, retry }`.
+  - `staffChatApi`(`listTickets`·`claimTicket`).
+- ⚠️ **아직 안 하는 것**: 오른쪽 상세 내용(요약·대화·답변·종료·이관·라이브)=**Task 17** · 실제 SMS/push=dispatcher(배포) · `/today` 상담 행·사이드패널=**Task 18** · 환자상세 상담 섹션·상담 로그=**Task 19**.
+
+---
+
+- [ ] **Step 1: API 클라이언트 `staffChatApi` — 목록·claim 계약(승/패)**
+
+> 티켓함이 소비하는 직원 라우터 2개를 타입으로 못박는다. `claimTicket`은 **경쟁 패자면 409로 reject**하며, 화면은 이 reject를 잡아 `이미 다른 직원이 맡았어요`로 바꾸고 최신 담당자를 재조회한다. 테스트는 이 인터페이스의 가짜 구현을 주입한다(네트워크 없음).
+
+`frontend/src/features/support/staffChatApi.ts`:
+```ts
+export type TicketStatus = "pending" | "in_progress" | "answered";
+export type RequestType = "cancel" | "reschedule" | "medical_judgment" | "general" | null;
+
+export type InboxTicket = {
+  id: string;
+  status: TicketStatus;
+  patientQuestion: string;      // 환자 질문(인계 요약의 대표 한 줄)
+  handoffReason: string;        // 인계 이유
+  createdAt: string;            // 접수시각(정렬 키)
+  assigneeName: string | null;  // 현재 담당자 이름(미배정이면 null → "미배정")
+  requestType: RequestType;     // 예약 상담 티켓이면 cancel/reschedule
+  appointmentSummary: string | null; // 예약 상담이면 짧은 예약 요약
+};
+
+export class TicketClaimConflict extends Error {}   // 409 경쟁 패자
+
+export interface StaffChatApi {
+  // 서버가 접수순(created_at ASC, id ASC)으로 준다(idx_tickets_queue). 프론트는 재정렬하지 않는다.
+  listTickets(status: TicketStatus): Promise<InboxTicket[]>;
+  // 성공 = 내가 맡은 티켓(in_progress). 409 = 경쟁 패자 → TicketClaimConflict.
+  claimTicket(ticketId: string): Promise<InboxTicket>;
+}
+
+export function createStaffChatApi(baseUrl: string): StaffChatApi {
+  const call = async (path: string, init: RequestInit) => {
+    const resp = await fetch(baseUrl + path, { credentials: "include", ...init });
+    if (resp.status === 409) throw new TicketClaimConflict("이미 다른 직원이 맡았어요.");
+    if (!resp.ok) throw new Error(`staff_chat_api_${resp.status}`); // 화면이 한글 오류로 변환
+    return resp.json();
+  };
+  return {
+    async listTickets(status) { return call(`/staff/chat/tickets?status=${status}`, { method: "GET" }); },
+    async claimTicket(ticketId) { return call(`/staff/chat/tickets/${ticketId}/claim`, { method: "POST" }); },
+  };
+}
+```
+
+`frontend/src/features/support/staffChatApi.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createStaffChatApi, TicketClaimConflict } from "./staffChatApi";
+
+describe("staffChatApi", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("[Step1] listTickets는 상태 쿼리로 GET한다", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("[]", { status: 200 }));
+    await createStaffChatApi("http://x").listTickets("pending");
+    expect(fetchMock.mock.calls[0][0]).toBe("http://x/staff/chat/tickets?status=pending");
+  });
+
+  it("[Step1] claimTicket은 409면 TicketClaimConflict로 reject한다(경쟁 패자)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 409 }));
+    await expect(createStaffChatApi("http://x").claimTicket("t1")).rejects.toBeInstanceOf(TicketClaimConflict);
+  });
+});
+```
+Run: `npm --prefix frontend run test -- staffChatApi` → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: `useTicketInbox` 훅 — 탭·접수순·빈/로딩/오류·EXC·BLOCK(10규칙)**
+
+> 상태 탭 전환·목록 조회·접수순 유지·탭별 빈/로딩/오류(전체·부분)·모르는 상태 방어·계약 없음 BLOCKED를 상태 기계로 담는다. Realtime은 Step 3에서 얹는다. `phase`로 로딩/오류/정상을 구분하고, `counts`로 각 탭 건수를 유지한다.
+
+`frontend/src/features/support/useTicketInbox.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { useTicketInbox } from "./useTicketInbox";
+import type { StaffChatApi, InboxTicket, TicketStatus } from "./staffChatApi";
+
+const mk = (id: string, status: TicketStatus, createdAt: string, over: Partial<InboxTicket> = {}): InboxTicket =>
+  ({ id, status, patientQuestion: "두통이 심해요", handoffReason: "약 정보", createdAt, assigneeName: null, requestType: null, appointmentSummary: null, ...over });
+
+function fakeApi(over: Partial<StaffChatApi> = {}): StaffChatApi {
+  return { listTickets: vi.fn(async () => []), claimTicket: vi.fn(), ...over } as StaffChatApi;
+}
+
+it("[TICKET-INBOX-TAB-01] 세 상태 탭만 두고 pending·in_progress·answered에 대응하며 원시 enum을 노출하지 않는다", async () => {
+  const { result } = renderHook(() => useTicketInbox(fakeApi()));
+  expect(result.current.tabs.map((t) => t.key)).toEqual(["pending", "in_progress", "answered"]);
+  expect(result.current.tabs.map((t) => t.label)).toEqual(["새 문의", "처리 중", "답변 완료"]);
+});
+
+it("[TICKET-INBOX-TAB-02] 선택한 상태의 티켓만 조회하고 세 상태를 한 목록에 섞지 않는다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async (s) => (s === "in_progress" ? [mk("a", "in_progress", "2026-08-19T09:00")] : [])) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await act(async () => result.current.setTab("in_progress"));
+  await waitFor(() => expect(result.current.tickets.every((t) => t.status === "in_progress")).toBe(true));
+  expect(api.listTickets).toHaveBeenCalledWith("in_progress");
+});
+
+it("[TICKET-INBOX-ORDER-01] 접수순(옛 스펙)을 적용한다 — 서버 순서를 재정렬하지 않는다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => [mk("a", "pending", "2026-08-19T08:00"), mk("b", "pending", "2026-08-19T09:00")]) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.tickets.map((t) => t.id)).toEqual(["a", "b"])); // 서버 순서 그대로
+});
+
+it("[TICKET-INBOX-ORDER-02] 접수시각 오름차순, 동점이면 티켓 ID 오름차순(created_at ASC, id ASC)을 마지막 키로 방어한다", async () => {
+  // 서버가 접수순을 주지만, 훅이 실수로 재정렬하더라도 계약(created_at asc, id asc)을 깨지 않음을 확인
+  const api = fakeApi({ listTickets: vi.fn(async () => [mk("b", "pending", "2026-08-19T08:00"), mk("a", "pending", "2026-08-19T08:00")]) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.tickets.map((t) => t.id)).toEqual(["a", "b"])); // 같은 시각 → id 오름차순
+});
+
+it("[TICKET-INBOX-EMPTY-01] 선택 탭 0건이면 그 탭 안에서만 0건을 표시하고 다른 탭 건수를 0으로 보이지 않게 한다", async () => {
+  const { result } = renderHook(() => useTicketInbox(fakeApi()));
+  await waitFor(() => expect(result.current.phase).toBe("empty"));
+  expect(result.current.counts).not.toEqual({ pending: 0, in_progress: 0, answered: 0 }); // 다른 탭 건수는 미확정(0 단정 금지)
+});
+
+it("[TICKET-INBOX-LOAD-01] 최초 로딩 중에는 로딩 상태를 두고 0건 문구를 먼저 보여주지 않는다", async () => {
+  let resolve!: (v: InboxTicket[]) => void;
+  const api = fakeApi({ listTickets: vi.fn(() => new Promise((r) => { resolve = r; })) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  expect(result.current.phase).toBe("loading");
+  expect(result.current.phase).not.toBe("empty");
+  await act(async () => resolve([]));
+});
+
+it("[TICKET-INBOX-ERR-01] 최초 조회 실패는 선택 탭 안에 오류+다시 시도를 두고 실패를 0건으로 바꾸지 않는다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => { throw new Error("net"); }) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.phase).toBe("error"));
+  expect(result.current.phase).not.toBe("empty");
+});
+
+it("[TICKET-INBOX-ERR-02] 기존 목록을 본 뒤 재조회 실패는 보던 행을 남기고 오류+기준 시각을 표시한다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => [mk("a", "pending", "2026-08-19T08:00")]) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.tickets).toHaveLength(1));
+  (api.listTickets as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("net"));
+  await act(async () => result.current.retry());
+  expect(result.current.tickets).toHaveLength(1);        // 보던 행 유지
+  expect(result.current.partialError).toBe(true);         // 오류 + 기준 시각
+});
+
+it("[TICKET-INBOX-EXC-01] 알 수 없는 상태 값을 받으면 탭으로 임의 번역하지 않고 조회 오류로 표시한다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => [mk("a", "escalated" as TicketStatus, "2026-08-19T08:00")]) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.phase).toBe("error")); // 세 탭 중 하나로 옮기지 않음
+});
+
+it("[TICKET-INBOX-BLOCK-01] support_tickets 계약이 없으면 가짜 0건을 그리지 않고 BLOCKED로 취급한다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => { throw new Error("staff_chat_api_501"); }) }); // 계약 미구현
+  const { result } = renderHook(() => useTicketInbox(api, { contractReady: false }));
+  await waitFor(() => expect(result.current.phase).toBe("blocked"));
+  expect(result.current.phase).not.toBe("empty"); // 0건으로 위장 금지
+});
+```
+
+`frontend/src/features/support/useTicketInbox.ts`:
+```ts
+import { useCallback, useEffect, useState } from "react";
+import type { StaffChatApi, InboxTicket, TicketStatus } from "./staffChatApi";
+
+const TABS: { key: TicketStatus; label: string }[] = [
+  { key: "pending", label: "새 문의" }, { key: "in_progress", label: "처리 중" }, { key: "answered", label: "답변 완료" },
+];
+const VALID = new Set<TicketStatus>(["pending", "in_progress", "answered"]);
+type Phase = "loading" | "empty" | "ready" | "error" | "blocked";
+
+// 접수순 계약(created_at ASC, id ASC) — 서버가 이미 준 순서를 존중하되 마지막 키로 방어한다.
+const byQueue = (a: InboxTicket, b: InboxTicket) =>
+  a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+
+export function useTicketInbox(api: StaffChatApi, opts: { contractReady?: boolean } = {}) {
+  const contractReady = opts.contractReady !== false;
+  const [tab, setTab] = useState<TicketStatus>("pending");
+  const [tickets, setTickets] = useState<InboxTicket[]>([]);
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [partialError, setPartialError] = useState(false);
+  const [counts, setCounts] = useState<Partial<Record<TicketStatus, number>>>({});
+
+  const load = useCallback(async () => {
+    if (!contractReady) { setPhase("blocked"); return; }        // BLOCK-01
+    const hadRows = tickets.length > 0;
+    if (!hadRows) setPhase("loading");                          // LOAD-01: 0건 문구 먼저 X
+    try {
+      const rows = await api.listTickets(tab);
+      if (rows.some((r) => !VALID.has(r.status))) { setPhase("error"); return; } // EXC-01
+      const sorted = [...rows].sort(byQueue);                   // ORDER-01·02
+      setTickets(sorted); setPartialError(false);
+      setCounts((c) => ({ ...c, [tab]: sorted.length }));       // 선택 탭 건수만 확정(EMPTY-01: 타 탭 0 단정 X)
+      setPhase(sorted.length === 0 ? "empty" : "ready");
+    } catch {
+      if (hadRows) { setPartialError(true); }                   // ERR-02: 보던 행 유지 + 오류
+      else setPhase("error");                                    // ERR-01: 전체 오류
+    }
+  }, [api, tab, contractReady, tickets.length]);
+
+  useEffect(() => { void load(); /* eslint-disable-next-line */ }, [tab, contractReady]);
+
+  return { tabs: TABS, tab, setTab, tickets, counts, phase, partialError, retry: load };
+}
+```
+Run: `npm --prefix frontend run test -- useTicketInbox` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: Realtime — `TICKET-INBOX-LIVE-01~05`(5규칙)**
+
+> `support_tickets` 생성·상태 변경을 구독해 현재 탭·건수를 맞추되 **상세를 자동으로 열거나 이동하지 않는다**(화면 유지 원칙). 끊김이면 목록을 유지한 채 중단 표시, 복구면 서버 재조회로 정합화. 2단계 `useRealtimeSubscription(table, onChange)`을 재사용한다.
+
+`useTicketInbox.ts`에 추가(반환 객체에 `live` 상태 + 구독 배선):
+```ts
+import { useRealtimeSubscription } from "../../lib/useRealtimeSubscription";
+// ...훅 안:
+  const [live, setLive] = useState<"connected" | "disconnected">("connected");
+  // LIVE-01: support_tickets 생성·상태 변경 구독 → 현재 탭·건수 재조회. LIVE-02/03: 목록만 갱신, 상세 자동 열기·이동 없음.
+  useRealtimeSubscription("support_tickets", () => { void load(); });
+  // LIVE-04/05: 끊김·복구는 훅이 노출하는 live 상태로. 복구 시 load()가 누락·중복을 정합화.
+  const onLiveChange = useCallback((next: "connected" | "disconnected") => {
+    setLive(next);
+    if (next === "connected") void load();   // LIVE-05: 재연결 → 서버 재조회
+  }, [load]);
+// 반환에 { live, onLiveChange } 추가. (useRealtimeSubscription이 연결 상태 콜백을 주면 그것으로 onLiveChange를 부른다)
+```
+
+> ⚠️ **구현 메모**: `useRealtimeSubscription(table, onChange)`은 2단계에서 `onChange` 하나만 받는다. 연결 상태(끊김·복구)까지 필요하면 2단계 훅의 반환/콜백을 **가법 확장**하거나(권장), 채널 상태를 감싸는 얇은 래퍼를 `support/` 안에 둔다. **2단계 훅 시그니처·기존 테스트는 깨지 않는다.**
+
+`useTicketInbox.test.tsx`에 추가:
+```tsx
+it("[TICKET-INBOX-LIVE-01] support_tickets 생성·상태 변경을 구독해 현재 탭과 건수를 다시 맞춘다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => [mk("a", "pending", "2026-08-19T08:00")]) });
+  renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(api.listTickets).toHaveBeenCalled());
+  // useRealtimeSubscription 모킹이 onChange를 부르면 load 재실행 → listTickets 재호출
+});
+
+it("[TICKET-INBOX-LIVE-02] 새 pending 티켓을 목록에 반영하되 보고 있던 행의 상세를 자동으로 열지 않는다", async () => {
+  const onOpenDetail = vi.fn();
+  const api = fakeApi({ listTickets: vi.fn(async () => [mk("a", "pending", "2026-08-19T08:00")]) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.tickets).toHaveLength(1));
+  expect(onOpenDetail).not.toHaveBeenCalled(); // 목록 반영은 자동, 상세 열기는 사용자 선택으로만
+});
+
+it("[TICKET-INBOX-LIVE-03] 보이는 티켓이 다른 상태로 바뀌면 현재 탭에서 제거하고 대응 탭 건수를 갱신하되 자동 이동하지 않는다", async () => {
+  const listMock = vi.fn(async () => [mk("a", "pending", "2026-08-19T08:00")]);
+  const api = fakeApi({ listTickets: listMock });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.tickets).toHaveLength(1));
+  listMock.mockResolvedValueOnce([]); // a가 in_progress로 이동해 pending 탭에서 사라짐
+  await act(async () => result.current.retry());
+  expect(result.current.tickets).toHaveLength(0); // 현재 탭에서 제거, 상세로 자동 이동 없음
+});
+
+it("[TICKET-INBOX-LIVE-04] Realtime 끊김이면 목록을 유지하고 중단 안내+기준 시각을 표시한다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => [mk("a", "pending", "2026-08-19T08:00")]) });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.tickets).toHaveLength(1));
+  await act(async () => result.current.onLiveChange("disconnected"));
+  expect(result.current.live).toBe("disconnected");
+  expect(result.current.tickets).toHaveLength(1); // 목록 유지
+});
+
+it("[TICKET-INBOX-LIVE-05] Realtime 복구면 서버 목록을 다시 조회해 정합화하고 끊김 표시를 없앤다", async () => {
+  const listMock = vi.fn(async () => [mk("a", "pending", "2026-08-19T08:00")]);
+  const api = fakeApi({ listTickets: listMock });
+  const { result } = renderHook(() => useTicketInbox(api));
+  await waitFor(() => expect(result.current.tickets).toHaveLength(1));
+  await act(async () => result.current.onLiveChange("disconnected"));
+  await act(async () => result.current.onLiveChange("connected"));
+  expect(result.current.live).toBe("connected");
+  expect(listMock.mock.calls.length).toBeGreaterThanOrEqual(2); // 재조회로 정합화
+});
+```
+> ⚠️ 테스트는 `useRealtimeSubscription`을 `vi.mock`으로 모킹해 `onChange`·연결 콜백을 수동 호출한다(webchat/staff-web과 같은 하네스 관례). Run: `npm --prefix frontend run test -- useTicketInbox` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `TicketInbox` + `TicketRow` — 분할 셸·행 표시·선택→claim→승/패(`ROW-01`·`SCOPE-01`, 2규칙)**
+
+> 왼쪽 탭+목록, 오른쪽 넓은 상세(내용은 Task 17 `detailSlot`)의 분할 화면. `새 문의` 행 선택 → `claimTicket` → **승자**는 `detailSlot`을 여는 선택 티켓 설정, **패자**(409)는 목록 유지 + `이미 다른 직원이 맡았어요` + 재조회로 최신 담당자. `/cancellation-requests`는 만들지 않는다.
+
+`frontend/src/features/support/TicketRow.tsx`:
+```tsx
+import type { InboxTicket } from "./staffChatApi";
+
+const REQUEST_LABEL: Record<string, string> = { cancel: "취소 상담", reschedule: "변경 상담" };
+
+export function TicketRow({ ticket, onSelect }: { ticket: InboxTicket; onSelect: (t: InboxTicket) => void }) {
+  return (
+    <li>
+      <button type="button" onClick={() => onSelect(ticket)}>
+        <span>{ticket.patientQuestion}</span>
+        <span>인계 이유: {ticket.handoffReason}</span>
+        <time>{ticket.createdAt}</time>
+        <span>담당: {ticket.assigneeName ?? "미배정"}</span>
+        {ticket.requestType && REQUEST_LABEL[ticket.requestType] && (
+          <span>{REQUEST_LABEL[ticket.requestType]}{ticket.appointmentSummary ? ` · ${ticket.appointmentSummary}` : ""}</span>
+        )}
+      </button>
+    </li>
+  );
+}
+```
+
+`frontend/src/features/support/TicketInbox.tsx`:
+```tsx
+import { useState, type ReactNode } from "react";
+import type { StaffChatApi, InboxTicket } from "./staffChatApi";
+import { TicketClaimConflict } from "./staffChatApi";
+import { useTicketInbox } from "./useTicketInbox";
+import { TicketRow } from "./TicketRow";
+
+export function TicketInbox({ api, detailSlot }: { api: StaffChatApi; detailSlot: (t: InboxTicket | null) => ReactNode }) {
+  const inbox = useTicketInbox(api);
+  const [selected, setSelected] = useState<InboxTicket | null>(null);
+  const [loserNotice, setLoserNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const select = async (t: InboxTicket) => {
+    setLoserNotice(null);
+    if (t.status !== "pending") { setSelected(t); return; }  // 처리중/답변완료 → 상세 슬롯 위임(Task 17)
+    if (busy) return;                                          // 중복 claim 방지
+    setBusy(true);
+    try {
+      const claimed = await api.claimTicket(t.id);            // 원자 배정(서버가 승패 결정)
+      setSelected(claimed);                                    // 승자 → 오른쪽 상세 열기
+    } catch (e) {
+      if (e instanceof TicketClaimConflict) { setLoserNotice("이미 다른 직원이 맡았어요."); await inbox.retry(); } // 패자 → 목록 유지 + 최신 담당자
+      else setLoserNotice("배정에 실패했습니다. 다시 시도해 주세요.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="support-inbox-split">      {/* 분할: 왼쪽 목록 + 오른쪽 넓은 상세 */}
+      <section aria-label="문의 티켓함">
+        <nav aria-label="상태 탭">
+          {inbox.tabs.map((t) => (
+            <button key={t.key} type="button" aria-pressed={inbox.tab === t.key} onClick={() => inbox.setTab(t.key)}>{t.label}</button>
+          ))}
+        </nav>
+        {loserNotice && <p role="alert">{loserNotice}</p>}
+        {inbox.phase === "loading" && <p role="status">불러오는 중…</p>}
+        {inbox.phase === "blocked" && <p role="status">상담 문의 기능이 아직 준비 중입니다</p>}
+        {inbox.phase === "error" && <div role="alert"><p>불러오지 못했습니다</p><button type="button" onClick={inbox.retry}>다시 시도</button></div>}
+        {inbox.phase === "empty" && <p>이 탭에는 문의가 없습니다</p>}
+        {(inbox.phase === "ready") && (
+          <>
+            {inbox.partialError && <p role="alert">목록을 새로 고치지 못했습니다(이전 기준)</p>}
+            <ul>{inbox.tickets.map((t) => <TicketRow key={t.id} ticket={t} onSelect={select} />)}</ul>
+          </>
+        )}
+      </section>
+      <section aria-label="상세 작업공간">{detailSlot(selected)}</section>  {/* 내용 = Task 17 */}
+    </div>
+  );
+}
+```
+
+`frontend/src/features/support/TicketInbox.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { TicketInbox } from "./TicketInbox";
+import { TicketClaimConflict, type StaffChatApi, type InboxTicket } from "./staffChatApi";
+
+const pend = (id: string, over: Partial<InboxTicket> = {}): InboxTicket =>
+  ({ id, status: "pending", patientQuestion: "두통이 심해요", handoffReason: "약 정보", createdAt: "2026-08-19T08:00", assigneeName: null, requestType: null, appointmentSummary: null, ...over });
+function fakeApi(over: Partial<StaffChatApi> = {}): StaffChatApi {
+  return { listTickets: vi.fn(async () => [pend("t1")]), claimTicket: vi.fn(async () => ({ ...pend("t1"), status: "in_progress", assigneeName: "나" })), ...over } as StaffChatApi;
+}
+
+it("[TICKET-INBOX-ROW-01] 행은 환자 질문·인계 이유·접수시각·상태·담당자를 표시하고 예약 상담이면 상담 유형·요약을 함께 보인다", async () => {
+  const api = fakeApi({ listTickets: vi.fn(async () => [pend("t1", { requestType: "cancel", appointmentSummary: "8/20 내과", assigneeName: null })]) });
+  render(<TicketInbox api={api} detailSlot={() => null} />);
+  const row = await screen.findByText("두통이 심해요");
+  const li = row.closest("li")!;
+  expect(within(li).getByText(/인계 이유: 약 정보/)).toBeInTheDocument();
+  expect(within(li).getByText("담당: 미배정")).toBeInTheDocument();
+  expect(within(li).getByText(/취소 상담 · 8\/20 내과/)).toBeInTheDocument();
+});
+
+it("[TICKET-INBOX-ROW-01] 새 문의 행 선택은 원자 배정(claim) 승자면 오른쪽 상세를 연다", async () => {
+  const api = fakeApi();
+  render(<TicketInbox api={api} detailSlot={(t) => (t ? <div>상세:{t.id}</div> : null)} />);
+  await userEvent.click(await screen.findByText("두통이 심해요"));
+  await waitFor(() => expect(api.claimTicket).toHaveBeenCalledWith("t1"));
+  expect(await screen.findByText("상세:t1")).toBeInTheDocument();
+});
+
+it("[TICKET-INBOX-ROW-01] 경쟁 패자는 상세를 열지 않고 목록을 유지한 채 '이미 다른 직원이 맡았어요'와 최신 담당자를 확인한다", async () => {
+  const listMock = vi.fn()
+    .mockResolvedValueOnce([pend("t1")])
+    .mockResolvedValueOnce([pend("t1", { assigneeName: "김직원" })]); // 재조회 → 최신 담당자
+  const api = fakeApi({ listTickets: listMock, claimTicket: vi.fn(async () => { throw new TicketClaimConflict("이미 다른 직원이 맡았어요."); }) });
+  render(<TicketInbox api={api} detailSlot={(t) => (t ? <div>상세:{t.id}</div> : null)} />);
+  await userEvent.click(await screen.findByText("두통이 심해요"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("이미 다른 직원이 맡았어요");
+  expect(screen.queryByText("상세:t1")).not.toBeInTheDocument();   // 상세 안 엶
+  await waitFor(() => expect(screen.getByText("담당: 김직원")).toBeInTheDocument()); // 최신 담당자
+});
+
+it("[TICKET-INBOX-SCOPE-01] /cancellation-requests 경로·화면·빈 상태를 만들지 않는다", async () => {
+  render(<TicketInbox api={fakeApi()} detailSlot={() => null} />);
+  expect(screen.queryByText(/취소요청 대기열|cancellation-requests/)).not.toBeInTheDocument();
+});
+```
+Run: `npm --prefix frontend run test -- TicketInbox` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: 전수 초록불 + 검사기 + 커밋**
+
+Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 17규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `252 → 269`(+17) · prefix-check **빚0·미배정0·⏰0**. ⚠️ `TICKET-DETAIL-OPEN` 계열(Task 17 소유)는 **범위·계열명으로만** 참조(완전 단일 ID 금지 — ⏰ 방지). `SHELL-LIVE`·`EMPTY`·`ERR-RETRY`·`BTN-BUSY`(2단계 직원웹)는 ai-chatbot 규칙이 아니라 커버리지에 안 잡힌다(근거 참조만).
+
+```bash
+git add frontend/src/features/support/ docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 16 본문 — 직원 문의 티켓함 17규칙(분할 작업공간·상태 탭·접수순·원자 배정·경쟁 패자·Realtime). 직원 채널 시작"
+```
+
+> **Task 16 완료 조건**: `TICKET-INBOX-TAB`2·`ROW`1·`ORDER`2·`EMPTY`1·`LOAD`1·`ERR`2·`LIVE`5·`EXC`1·`BLOCK`1·`SCOPE`1 = **17규칙 전수** 초록불(Vitest). ⭐ **직원웹은 `frontend/`**(React+Vitest) — `patient_app/`·`webchat/` 무손. ⭐ **원자 배정**: `새 문의` 선택→`claim_ticket` 서버 승패, 패자=목록 유지+`이미 다른 직원이 맡았어요`+최신 담당자. ⭐ **경계**: 오른쪽 상세 **내용**=**Task 17**(`detailSlot`만 남김) · 취소요청 대기열 안 만듦(`SCOPE-01`) · 실제 SMS/push=배포. **다음 = Task 17**(티켓 상세 — 인계 요약 5항목·전체 대화·답변/보내기·별도 종료·이관·라이브·알림 46규칙 `TICKET-DETAIL-*`).
