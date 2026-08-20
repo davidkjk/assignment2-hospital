@@ -10397,7 +10397,7 @@ git commit -m "feat: 환자앱 Task 18 — 알림함 목록·읽음(seen_at)·�
 
 > **담당 규칙(71)**: `BOOK-NAV-01~10`(10) · `BOOK-KEEP-01~07`(7) · `BOOK-WHO-01~09`(9) · `BOOK-DEPT-01~03`(3) · `BOOK-DOC-01~09`(9) · `BOOK-DATE-01~09`(9) · `NAV-BOOK-01~24`(24).
 > ⭐ **여기서 확정 갭 2건을 닫는다**(핸드오프가 예고한 「T4 확장 핀」 발화):
-> - **갭 #7**(의사 전공·사진): 직원웹 `00026_staff_profile_palette.sql`이 이미 `staff`에 `specialty·bio·photo_url` 칸 + `doctor-photos` 버킷(공개 읽기, `STAFF-PROFILE-06`)을 얹었다 → **새 마이그레이션 없이** T4 `list_doctors`의 SELECT에 `specialty·photo_url`을 더한다(`bio`는 화면 비노출 = `BOOK-DOC-06`, 챗봇 지식용). `BOOK-DOC-07`의 「이름밖에 못 띄운다」가 이 스텝으로 해소된다.
+> - **갭 #7**(의사 전공·사진): 직원웹 `00042_staff_profile_palette.sql`이 이미 `staff`에 `specialty·bio·photo_url` 칸 + `doctor-photos` 버킷(공개 읽기, `STAFF-PROFILE-06`)을 얹었다 → **새 마이그레이션 없이** T4 `list_doctors`의 SELECT에 `specialty·photo_url`을 더한다(`bio`는 화면 비노출 = `BOOK-DOC-06`, 챗봇 지식용). `BOOK-DOC-07`의 「이름밖에 못 띄운다」가 이 스텝으로 해소된다.
 > - **갭 #9**(진료요일 「월·수·금 오전」 한 줄 요약): `list_doctors`가 `schedule_summary` 문자열을 함께 반환한다. 요약 규칙(같은 시간대 요일 묶기·연속 3일↑은 `월~금` 축약·오전/오후/종일 판정)은 **서버 한 곳**(`summarize_schedule` 순수 함수)에 둔다 — 앱·챗봇·직원웹이 같은 문장을 쓴다(결정 문서 「계산은 서버 한 곳」).
 > ⚠️ **경계 명시(NAV-BOOK 전부가 T19인데 5~8단계 화면은 T20 소유)**: `NAV-BOOK-11~20`(5~8단계 전환)은 **화면 위젯이 아니라 마법사 셸의 상태 전이 규칙**으로 검증한다 — `BookingController`의 `_step` 전이만 단위 테스트로 못박고, 5~8단계 화면(BookTime·Why·Conf·Done)과 신청(`book_slot`)은 **Task 20이 셸의 `switch`에 끼운다**. 마법사 셸(전 단계를 아는 단일 상태머신)은 T19가 소유하고 T20이 뒷 절반을 붙이는 구조라, 71을 쪼개면 셸이 두 태스크에 중복된다(그래서 한 태스크 유지 — 사용자 승인 2026-08-18).
 

@@ -1055,7 +1055,7 @@ git commit -m "feat: pg_dump 일일 백업 잡 추가 (14일 보관, Supabase St
 - ⛔ 제외 `예약신청` — 이력 `확정되지 않음`(`HIST-ROW-09`). **부도로 찍으면 거짓말**이다(`CARD-LATE-06` — 환자가 안 간 게 아니라 **확정이 안 나 못 간 것**). #69는 이 배치가 손대지 않는다(아래 경계).
 
 **Files:**
-- Create: `supabase/migrations/00043_overdue_no_shows.sql` — ① `appointment_status_history.changed_by` nullable 완화(null = 시스템 자동) ② `mark_overdue_no_shows() returns int` 함수
+- Create: `supabase/migrations/00059_overdue_no_shows.sql` — ① `appointment_status_history.changed_by` nullable 완화(null = 시스템 자동) ② `mark_overdue_no_shows() returns int` 함수
 - Create: `backend/app/jobs/overdue.py`
 - Test: `backend/tests/test_overdue_job.py`
 
@@ -1158,7 +1158,7 @@ Expected: FAIL (`app.jobs.overdue` 모듈·`mark_overdue_no_shows()` 함수 없�
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00043_overdue_no_shows.sql`:
+`supabase/migrations/00059_overdue_no_shows.sql`:
 ```sql
 -- 갭 #28 · 원장 CARD-LATE-10: 예약확정인 채 시각이 지난 예약을 자정에 '예약부도'로 전환한다.
 
@@ -1238,7 +1238,7 @@ Expected: PASS
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add supabase/migrations/00043_overdue_no_shows.sql backend/app/jobs/overdue.py backend/tests/test_overdue_job.py
+git add supabase/migrations/00059_overdue_no_shows.sql backend/app/jobs/overdue.py backend/tests/test_overdue_job.py
 git commit -m "feat: 자정 부도 처리 배치 mark_overdue_no_shows() — 예약확정 경과→예약부도, 시스템 행위자 이력(changed_by null), 예약신청 제외(#28·CARD-LATE-10)"
 ```
 

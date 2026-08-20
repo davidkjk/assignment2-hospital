@@ -633,7 +633,7 @@ git commit -m "feat: 📝 상담봇 Task 0 본문 — 웹위젯(webchat/) Vite R
 > 3. **앞선 FK는 대상 표를 만드는 태스크가 건다** — `ai_chat_session_id`·`support_ticket_id`(Task 2), `anonymous_session_id`·`sender_anonymous_session_id`·`reader_anonymous_session_id`(Task 3)는 여기서 **`uuid` 칼럼으로만** 만들고 FK 제약은 없다. 세션/티켓 XOR·발신자 형태 CHECK는 FK 없이도 거므로 여기서 전부 건다. 세션/티켓의 `thread_id` 일치 트리거는 그 표가 생기는 Task 2가 얹는다. *기각: Task 1이 sessions/tickets를 미리 빈 표로 만들기* — 스켈레톤 배정(Task 2 소유)과 어긋나고 한 표를 두 마이그레이션이 나눠 갖는다.
 
 **Files:**
-- Create: `supabase/migrations/00036_chat_core_schema.sql` (⚠️ **번호 00036은 예시** — 환자앱·직원웹이 `00017~00035`를 공유하므로 적용 시점에 그 뒤 다음 번호로 확정한다. Global Constraints 「마이그레이션 번호는 같은 대역을 공유」)
+- Create: `supabase/migrations/00052_chat_core_schema.sql` (⚠️ **번호 00036은 예시** — 환자앱·직원웹이 `00017~00035`를 공유하므로 적용 시점에 그 뒤 다음 번호로 확정한다. Global Constraints 「마이그레이션 번호는 같은 대역을 공유」)
 - Create: `backend/tests/test_chat_core_schema.py`
 - Modify: `backend/tests/conftest_chat.py` (Task 0이 만든 파일 — `seed_chat_thread` 헬퍼 추가, Task 2~4 재사용)
 
@@ -873,7 +873,7 @@ Expected: FAIL — `relation "chat_threads" does not exist`.
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00036_chat_core_schema.sql`:
+`supabase/migrations/00052_chat_core_schema.sql`:
 ```sql
 -- 3-A 통합 대화 스키마 ① 대화 루트 + 단일 메시지 원장 + 읽음 상태 (공백 1·2·6).
 -- 근거: 3A 스키마 요구 §4.1·§4.3·§4.6·§6·§7 (.claude/codex-work/orchestration/3A-schema-requirements-2026-08-13.md;
@@ -1047,7 +1047,7 @@ Expected: PASS(전체 초록불). ⚠️ `supabase db reset` 금지(Global Const
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add supabase/migrations/00036_chat_core_schema.sql \
+git add supabase/migrations/00052_chat_core_schema.sql \
         backend/tests/test_chat_core_schema.py backend/tests/conftest_chat.py \
         docs/superpowers/plans/2026-08-18-ai-chatbot.md
 git commit -m "feat: 📝 상담봇 Task 1 본문 — 통합 대화 스키마(chat_threads·chat_messages·chat_read_states) 마이그레이션 + RLS. 시스템 이벤트 단일 원장·content nullable·앞선 FK 지연 3결정 명시, 제약·트리거·인덱스 계약 테스트"
@@ -1067,7 +1067,7 @@ git commit -m "feat: 📝 상담봇 Task 1 본문 — 통합 대화 스키마(ch
 > - **`PTDET-SUPPORT-03`**(환자앱 정본 → 여기) — 환자상세 상담 문의 **최신순 + ID 동점키 서버 정렬**. `list_thread_tickets`가 `order by created_at desc, id desc`로 담는다. 환자상세 섹션 렌더는 Task 19.
 
 **Files:**
-- Create: `supabase/migrations/00037_chat_sessions_tickets.sql`
+- Create: `supabase/migrations/00053_chat_sessions_tickets.sql`
 - Create: `backend/app/services/chat/ticket_service.py` · `backend/app/services/chat/ai_session_service.py`
 - Create: `backend/tests/test_chat_sessions_tickets_schema.py` · `backend/tests/test_ticket_service.py` · `backend/tests/test_ai_session_service.py`
 
@@ -1186,7 +1186,7 @@ async def test_message_session_thread_must_match(db_conn):
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00037_chat_sessions_tickets.sql`:
+`supabase/migrations/00053_chat_sessions_tickets.sql`:
 ```sql
 -- 3-A 통합 대화 스키마 ② AI 상담 단위 + 직원 티켓 생명주기 + 원자 배정 (§4.2·§4.4·§8).
 -- Task 1 chat_messages의 앞선 FK(세션·티켓)를 채우고, 세션/티켓↔메시지 상담방 일치 트리거를 얹는다.
@@ -1718,7 +1718,7 @@ async def test_only_one_active_session_via_create(db_conn):
 - [ ] **Step 8: 커밋**
 
 ```bash
-git add supabase/migrations/00037_chat_sessions_tickets.sql \
+git add supabase/migrations/00053_chat_sessions_tickets.sql \
         backend/app/services/chat/ticket_service.py backend/app/services/chat/ai_session_service.py \
         backend/tests/test_chat_sessions_tickets_schema.py backend/tests/test_ticket_service.py \
         backend/tests/test_ai_session_service.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
@@ -1738,7 +1738,7 @@ git commit -m "feat: 📝 상담봇 Task 2 본문 — AI 세션·티켓 생명�
 > 2. **익명 연락처 검증·복호화 목적지는 adapter가 감춘다.** `notify_patient()`(등록 환자 device/phone)와 익명 adapter(검증된 익명 전화 복호화)는 **목적지 확인만 다르고** 배칭·`notification_log`·재시도는 한 파이프라인. *기각: 익명용 별도 배칭 규칙·별도 발송 결과표* (§5 금지).
 
 **Files:**
-- Create: `supabase/migrations/00038_anonymous_chat_notifications.sql`
+- Create: `supabase/migrations/00054_anonymous_chat_notifications.sql`
 - Create: `backend/app/services/chat/anonymous_service.py` · `backend/app/services/chat/notification_recipient.py`
 - Create: `backend/tests/test_anonymous_chat_schema.py` · `backend/tests/test_chat_notification_batching.py`
 
@@ -1835,7 +1835,7 @@ async def test_one_open_batch_per_ticket_recipient(db_conn):
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00038_anonymous_chat_notifications.sql`:
+`supabase/migrations/00054_anonymous_chat_notifications.sql`:
 ```sql
 -- 3-A 통합 대화 스키마 ③ 익명 소유권 + 알림 배칭 + notification_log 연결 (§4.5·§4.7·§5).
 -- notification_log는 00011에 이미 적용 → 표 복제 없이 FK·허용값·배치 링크만 확장(§5 두 갈래 중 후자).
@@ -2207,7 +2207,7 @@ async def test_anonymous_verified_contact_gets_batch_with_null_patient(db_conn):
 - [ ] **Step 8: 커밋**
 
 ```bash
-git add supabase/migrations/00038_anonymous_chat_notifications.sql \
+git add supabase/migrations/00054_anonymous_chat_notifications.sql \
         backend/app/services/chat/anonymous_service.py backend/app/services/chat/notification_recipient.py \
         backend/tests/test_anonymous_chat_schema.py backend/tests/test_chat_notification_batching.py \
         docs/superpowers/plans/2026-08-18-ai-chatbot.md
@@ -2227,7 +2227,7 @@ git commit -m "feat: 📝 상담봇 Task 3 본문 — 익명 소유권(토큰해
 > 2. **보존은 구조(클래스 lookup + 태그 칼럼)만, 파기 배치는 BLOCKED.** 법정값(진료기록 10년·감사 2년)은 코드 강제로 **화면 설정칸을 만들지 않고**(직원이 줄이면 법 위반), 방침값 4개(기본 1년)는 DB 초기값. **실제 TTL 파기 배치는 법무 게이트**(직원웹 #14 보존기간과 **같은 법·같은 조사** — 의료법 시규 §15·안전성확보 §8 원문 재확인 공통). *기각: 전역 TTL 하나* — 6개 데이터군의 법정기간이 달라 한 값으로 묶으면 위법(정본 §4 「전역 TTL 금지」).
 
 **Files:**
-- Create: `supabase/migrations/00039_chat_sources_retention.sql`
+- Create: `supabase/migrations/00055_chat_sources_retention.sql`
 - Create: `backend/tests/test_chat_sources_retention_schema.py`
 
 **Interfaces:**
@@ -2311,7 +2311,7 @@ async def test_chat_message_defaults_to_consultation_retention(db_conn):
 
 - [ ] **Step 3: 마이그레이션 작성**
 
-`supabase/migrations/00039_chat_sources_retention.sql`:
+`supabase/migrations/00055_chat_sources_retention.sql`:
 ```sql
 -- 3-A 통합 대화 스키마 ④ 답변 근거 스냅샷 + 보존/파기 클래스 (공백 5·7, SD-06·09).
 -- ⚠️ 번호(예시 00039)는 적용 시점에 확정.
@@ -2382,7 +2382,7 @@ alter table chat_messages
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add supabase/migrations/00039_chat_sources_retention.sql \
+git add supabase/migrations/00055_chat_sources_retention.sql \
         backend/tests/test_chat_sources_retention_schema.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
 git commit -m "feat: 📝 상담봇 Task 4 본문 — 근거 스냅샷(chat_message_sources 소프트 chunk참조)·보존 클래스(retention_classes 6종·파기 배치 BLOCKED). 공백 7건 전부 닫힘(SD-06·09)"
 ```
@@ -2401,7 +2401,7 @@ git commit -m "feat: 📝 상담봇 Task 4 본문 — 근거 스냅샷(chat_mess
 > ⭐ **설계 결정(기각안 포함)**: **오케스트레이션 state는 `ai_chat_sessions`에 못박는다**(`active_flow`·`flow_step`·`flow_collected`) — 문진(department_guide) 진행 중 매 턴 라우터로 재분류하면 **중간 답변이 다른 갈래로 샌다**(옛 플랜 `:146`). `route_taken`은 봇 메시지(`chat_messages`)에 남겨 복원·통계에 쓴다. *기각: 대화 이력에서 매번 재구성* — 재분류 누수와 같은 문제.
 
 **Files:**
-- Create: `supabase/migrations/00040_chat_orchestration_state.sql`
+- Create: `supabase/migrations/00056_chat_orchestration_state.sql`
 - Create: `backend/app/services/chat/safety_watchdog.py` · `backend/app/services/chat/department_guide_chain.py` · `backend/app/services/chat/chat_router.py` · `backend/app/services/chat/orchestrator.py`
 - Create: `backend/tests/test_safety_watchdog.py` · `backend/tests/test_chat_router.py` · `backend/tests/test_orchestrator.py`
 
@@ -2418,7 +2418,7 @@ git commit -m "feat: 📝 상담봇 Task 4 본문 — 근거 스냅샷(chat_mess
 
 - [ ] **Step 1: 마이그레이션 — 오케스트레이션 state**
 
-`supabase/migrations/00040_chat_orchestration_state.sql`:
+`supabase/migrations/00056_chat_orchestration_state.sql`:
 ```sql
 -- 3-A 오케스트레이션 state (설계결정): 문진 진행을 세션에 못박아 재분류 누수를 막는다. route는 메시지에 기록.
 alter table ai_chat_sessions
@@ -2727,7 +2727,7 @@ def test_length_nudge_threshold():
 - [ ] **Step 7: 커밋**
 
 ```bash
-git add supabase/migrations/00040_chat_orchestration_state.sql backend/app/services/chat/ \
+git add supabase/migrations/00056_chat_orchestration_state.sql backend/app/services/chat/ \
         backend/tests/test_safety_watchdog.py backend/tests/test_chat_router.py \
         backend/tests/test_orchestrator.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
 git commit -m "feat: 📝 상담봇 Task 5 본문 — 오케스트레이션 3갈래(응급 결정적필터→인계감시 6조건→라우터) + 문진 state·제한모드·CHAT-LEN 롤링요약(하드컷 기각). LLM 갈래는 주입식 셸, 결정적 로직에 테스트 집중"
@@ -3035,7 +3035,7 @@ git commit -m "feat: 📝 상담봇 Task 6 본문 — 카드 8종 payload 계약
 > 3. **제한 자료(A3)는 병원 문구 글자 그대로, 봇 생성문 밖 별도 블록.** 질문 전체가 제한 주제면 제한 문구+`[직원 연결]`만, 일반 자료가 함께 걸리면 일반은 평소대로 답하고 제한 원문만 별도 블록. *기각: 제한 주제면 전부 차단* — 무관한 일반 안내까지 막는다(A3 기각안).
 
 **Files:**
-- Create: `supabase/migrations/00041_kb_pgvector.sql`
+- Create: `supabase/migrations/00057_kb_pgvector.sql`
 - Create: `backend/app/services/chat/kb_service.py` · `backend/app/services/chat/rag_service.py`
 - Create: `backend/tests/test_kb_schema.py` · `backend/tests/test_kb_service.py` · `backend/tests/test_rag_service.py`
 
@@ -3083,7 +3083,7 @@ async def test_match_returns_approved_chunks_only(db_conn):
 
 - [ ] **Step 2: 실패 확인 → 마이그레이션 작성**
 
-Run: `cd backend && pytest tests/test_kb_schema.py -v` → FAIL. 그다음 `supabase/migrations/00041_kb_pgvector.sql`:
+Run: `cd backend && pytest tests/test_kb_schema.py -v` → FAIL. 그다음 `supabase/migrations/00057_kb_pgvector.sql`:
 ```sql
 -- 상담봇 안내형(RAG) 지식 원본 + pgvector 검색. 승인된 조각만 검색 근거로 쓴다(요구사항 5.6).
 -- 진료시간·의사 소개는 KB에 넣지 않는다(item 7·8 — hospital_hours·staff 원본이 정본). ⚠️ 번호 예시 00041.
@@ -3392,7 +3392,7 @@ async def test_low_similarity_becomes_no_answer():
 - [ ] **Step 7: 커밋**
 
 ```bash
-git add supabase/migrations/00041_kb_pgvector.sql backend/app/services/chat/kb_service.py \
+git add supabase/migrations/00057_kb_pgvector.sql backend/app/services/chat/kb_service.py \
         backend/app/services/chat/rag_service.py backend/tests/test_kb_schema.py \
         backend/tests/test_kb_service.py backend/tests/test_rag_service.py \
         docs/superpowers/plans/2026-08-18-ai-chatbot.md
@@ -3413,7 +3413,7 @@ git commit -m "feat: 📝 상담봇 Task 7 본문 — KB pgvector 검색·승인
 > ⭐ **설계 결정(기각안 포함)**: **품질 교정은 즉시 KB 공개가 아니라 `answer_feedback`(bad inbox)를 거쳐 KB 승인**(B3). 적용(`applied`)돼도 KB `submit_edit`→`approve_pending_edit`(Task 7)을 거쳐야 라이브가 된다. *기각: 품질 화면에서 즉시 KB 적용*(색인 폐기결정 `:280`).
 
 **Files:**
-- Create: `supabase/migrations/00042_chat_quality.sql`
+- Create: `supabase/migrations/00058_chat_quality.sql`
 - Create: `backend/app/services/chat/quality_service.py` · `backend/app/services/chat/answer_feedback_service.py`
 - Create: `backend/tests/test_chat_quality_schema.py` · `backend/tests/test_quality_service.py`
 
@@ -3469,7 +3469,7 @@ async def test_answer_feedback_source_check(db_conn):
 
 - [ ] **Step 2: 실패 확인 → 마이그레이션 작성**
 
-Run: `cd backend && pytest tests/test_chat_quality_schema.py -v` → FAIL. 그다음 `supabase/migrations/00042_chat_quality.sql`:
+Run: `cd backend && pytest tests/test_chat_quality_schema.py -v` → FAIL. 그다음 `supabase/migrations/00058_chat_quality.sql`:
 ```sql
 -- 상담봇 품질 개선 사이클: 상담 단위 검토(SD-08) + 오답 신고 bad inbox(B3) + 예시은행 + 미해결 클러스터. ⚠️ 번호 예시 00042.
 
@@ -3689,7 +3689,7 @@ async def test_apply_feedback_adds_example_but_not_live_kb(committed_conn):
 - [ ] **Step 6: 커밋**
 
 ```bash
-git add supabase/migrations/00042_chat_quality.sql backend/app/services/chat/quality_service.py \
+git add supabase/migrations/00058_chat_quality.sql backend/app/services/chat/quality_service.py \
         backend/app/services/chat/answer_feedback_service.py backend/tests/test_chat_quality_schema.py \
         backend/tests/test_quality_service.py docs/superpowers/plans/2026-08-18-ai-chatbot.md
 git commit -m "feat: 📝 상담봇 Task 8 본문 — 품질 검토(상담 단위 SD-08)·bad inbox(B3 즉시 KB금지)·예시은행·미해결 클러스터. 품질 저장 모델 미결 닫음(review table)"
