@@ -701,15 +701,21 @@ git commit -m "test: 시나리오 9(권한+RLS 이중 확인)·10(통계 API) �
 
 ### Task 6: 리마인더 발송 잡 (크론이 실행할 명령)
 
+> **[2026-08-20 ⑤ 반입 개정]** 이 태스크는 환자앱 3단계·직원웹 2단계가 알림 소유를 확정한 뒤 **네 곳이 어긋나 있었다.** 그대로 두면 리마인더가 라우팅·제목에서 사라지고, 가족 예약 리마인더가 조용히 안 나가고, 사전문진 알림이 1문항만 쓴 사람에게 안 간다(갭 #53). 개정 넷:
+> 1. **문구는 소비만 한다** — `reminder_day_before`/`reminder_today`/`questionnaire_missing`/`questionnaire_partial` 문구는 **환자앱 T9(`00013`·`{when}` 날짜·시각 슬롯)·T24(2벌 분리)가 소유**한다. 이 잡이 `MESSAGES`에 키를 더하면 **두 곳에 같은 문구가 갈라진다** → 추가를 **삭제**한다.
+> 2. **`reminder_tomorrow` → `reminder_day_before`로 통일** — 환자앱 알림 라우팅(`NOTI-GO-01`)·제목 맵·`notification_settings` CHECK가 전부 **`reminder_day_before`**를 쓴다. `reminder_tomorrow`는 어디에도 없는 **죽은 이름**이라 이 잡이 보내면 알림함에서 목적지·제목을 못 찾는다.
+> 3. **수신자는 `account_patient_id`(계정 소유자)** — 옛 코드는 `for_patient_id`(진료받는 사람)에게 보냈다. 가족 예약이면 그 사람은 계정이 없어 `notify_patient`가 **보낼 수단을 못 찾고 조용히 무발송**한다. 계정 소유자에게 보내고 대상자 이름은 `target_name`으로 넘긴다(`PUSH-BODY-02`).
+> 4. **사전문진 대상 판정 = 환자앱 T24 소비**(원장 `HANDOVERS.md` **QNR-NOTI-01** 해소) — 옛 배치는 「문진 행이 있느냐」로 갈라 **1문항만 쓴 사람을 빠뜨렸다**(갭 #53). `list_reminder_targets`(`completed_at is null` 전부·`EDITABLE_STATUSES` 전 구간)와 `build_reminder_body`(미작성/작성 중 2벌·남은 수)를 **그대로 소비**하고, 이 잡은 **「전날 하루 1회」 시점만** 정한다. `total == 0`(문진 없는 진료과)이면 건너뛴다.
+
 **Files:**
 - Create: `backend/app/jobs/__init__.py` (빈 파일)
 - Create: `backend/app/jobs/reminders.py`
-- Modify: `backend/app/services/notification_service.py` (`MESSAGES` dict에 3개 키 추가)
 - Test: `backend/tests/test_reminder_job.py`
+- ⛔ ~~Modify `notification_service.py` (`MESSAGES` 키 추가)~~ — **삭제**(문구는 환자앱 T9/T24 소유, 개정 1)
 
 **Interfaces:**
-- Consumes: `app.db.pool.get_pool`, `app.services.notification_service.notify_patient(patient_id, notification_type)`
-- Produces: `app.jobs.reminders.send_reminders(today: date | None = None) -> dict` (`{"reminder_today": int, "reminder_tomorrow": int, "questionnaire_missing": int}`), CLI 실행 `python -m app.jobs.reminders`
+- Consumes: `app.db.pool.get_pool`; `app.services.notification_service.notify_patient(account_patient_id, notification_type, *, appointment_id, target_name, remaining)`(환자앱 T9 소유); `app.services.patient_questionnaire_service.list_reminder_targets(conn, target_date)`·`build_reminder_body(state, answered, total)`(환자앱 T24 소유 — 원장 QNR-NOTI-01)
+- Produces: `app.jobs.reminders.send_reminders(today: date | None = None) -> dict` (`{"reminder_today": int, "reminder_day_before": int, "questionnaire": int}`), CLI 실행 `python -m app.jobs.reminders`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -717,17 +723,23 @@ git commit -m "test: 시나리오 9(권한+RLS 이중 확인)·10(통계 API) �
 ```python
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 
+from app.services.patient_questionnaire_service import build_reminder_body
 from tests.conftest import seed_patient, seed_staff
 
 
-async def _seed_confirmed_appointment(conn, slot_date_offset: int):
+async def _seed_confirmed_appointment(conn, slot_date_offset: int, *, owner=None, member_name=None):
+    """확정 예약 1건. member_name을 주면 가족 예약(account≠for)으로 만든다 — 계정 소유자와 진료 대상자가 다르다."""
     dept_id = await conn.fetchval("insert into departments (name) values ('리마인더과') returning id")
     doctor = await seed_staff(conn, role="doctor", department_id=dept_id)
     receptionist = await seed_staff(conn, role="receptionist")
-    patient = await seed_patient(conn, name="리마인더환자", phone="01088887777")
+    owner = owner or await seed_patient(conn, name="리마인더환자", phone="01088887777")
+    for_patient = owner
+    if member_name:
+        for_patient = await seed_patient(conn, name=member_name, phone="01077776666")
     slot_id = await conn.fetchval(
         "insert into appointment_slots (doctor_id, slot_date, start_time) "
         "values ($1, current_date + $2, '10:00') returning id",
@@ -737,28 +749,70 @@ async def _seed_confirmed_appointment(conn, slot_date_offset: int):
     await conn.execute(
         "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, "
         "doctor_id, reason, status, source, created_by) "
-        "values ($1, $2, $2, $3, $4, '검진', '예약확정', 'staff', $5)",
-        slot_id, patient["patient_id"], dept_id, doctor["staff_id"], receptionist["staff_id"],
+        "values ($1, $2, $3, $4, $5, '검진', '예약확정', 'staff', $6)",
+        slot_id, owner["patient_id"], for_patient["patient_id"], dept_id,
+        doctor["staff_id"], receptionist["staff_id"],
     )
-    return patient["patient_id"]
+    return owner["patient_id"], for_patient["patient_id"]
 
 
 @pytest.mark.asyncio
-async def test_send_reminders_notifies_today_and_tomorrow(committed_conn):
-    today_patient = await _seed_confirmed_appointment(committed_conn, 0)
-    tomorrow_patient = await _seed_confirmed_appointment(committed_conn, 1)
-
-    with patch("app.jobs.reminders.notification_service") as mock_ns:
-        mock_ns.notify_patient = AsyncMock()
+async def test_send_reminders_routes_today_and_day_before(committed_conn):
+    """[리마인더] 확정 예약은 오늘=reminder_today·내일=reminder_day_before로 라우팅한다 — 죽은 옛 이름(reminder_tomorrow)을 쓰지 않는다(개정 2)."""
+    today_owner, _ = await _seed_confirmed_appointment(committed_conn, 0)
+    tomorrow_owner, _ = await _seed_confirmed_appointment(committed_conn, 1)
+    with patch("app.jobs.reminders.notification_service") as ns, \
+         patch("app.jobs.reminders.qsvc") as qsvc:
+        ns.notify_patient = AsyncMock()
+        qsvc.list_reminder_targets = AsyncMock(return_value=[])   # 이 테스트는 확정 리마인더만 본다
         from app.jobs.reminders import send_reminders
         counts = await send_reminders()
+    routed = {(str(c.args[0]), c.args[1]) for c in ns.notify_patient.await_args_list}
+    types = {t for _, t in routed}
+    assert (str(today_owner), "reminder_today") in routed
+    assert (str(tomorrow_owner), "reminder_day_before") in routed
+    assert "reminder_tomorrow" not in types                       # NOTI-GO-01·제목 맵에 없는 죽은 이름
+    assert counts["reminder_today"] >= 1 and counts["reminder_day_before"] >= 1
 
-    called = [(str(c.args[0]), c.args[1]) for c in mock_ns.notify_patient.await_args_list]
-    assert (str(today_patient), "reminder_today") in called
-    assert (str(tomorrow_patient), "reminder_tomorrow") in called
-    assert counts["reminder_today"] >= 1 and counts["reminder_tomorrow"] >= 1
-    # 내일 예약인데 사전문진 미작성 → questionnaire_missing 알림도 발생
-    assert (str(tomorrow_patient), "questionnaire_missing") in called
+
+@pytest.mark.asyncio
+async def test_reminder_goes_to_account_owner_with_target_name(committed_conn):
+    """[리마인더] 가족 예약은 계정 소유자에게 가고 대상자 이름을 target_name으로 넘긴다 — 진료 대상자에게 직접 보내지 않는다(개정 3 · 가족 예약 누락 방지)."""
+    owner, member = await _seed_confirmed_appointment(committed_conn, 1, member_name="김어머니")
+    with patch("app.jobs.reminders.notification_service") as ns, \
+         patch("app.jobs.reminders.qsvc") as qsvc:
+        ns.notify_patient = AsyncMock()
+        qsvc.list_reminder_targets = AsyncMock(return_value=[])
+        from app.jobs.reminders import send_reminders
+        await send_reminders()
+    recipients = {str(c.args[0]) for c in ns.notify_patient.await_args_list}
+    assert str(owner) in recipients and str(member) not in recipients   # 소유자에게만
+    call = next(c for c in ns.notify_patient.await_args_list if str(c.args[0]) == str(owner))
+    assert call.args[1] == "reminder_day_before" and call.kwargs["target_name"] == "김어머니"
+
+
+@pytest.mark.asyncio
+async def test_questionnaire_reminder_consumes_t24_and_skips_zero_total(committed_conn):
+    """[QNR-NOTI-01] 사전문진 알림은 T24 list_reminder_targets/build_reminder_body를 소비한다 — 0문항 진료과는 건너뛰고(개정 4), 남은 수를 계정 소유자에게 보낸다."""
+    owner_a, appt_a = uuid4(), uuid4()   # 작성 중(3문항 중 1개) → 대상
+    owner_b, appt_b = uuid4(), uuid4()   # 문진 없는 진료과(0문항) → 건너뜀
+    with patch("app.jobs.reminders.notification_service") as ns, \
+         patch("app.jobs.reminders.qsvc") as qsvc:
+        ns.notify_patient = AsyncMock()
+        qsvc.list_reminder_targets = AsyncMock(return_value=[
+            {"appointment_id": appt_a, "account_patient_id": owner_a, "target_name": None,
+             "state": "작성 중", "answered": 1, "total": 3},
+            {"appointment_id": appt_b, "account_patient_id": owner_b, "target_name": None,
+             "state": "미작성", "answered": 0, "total": 0},
+        ])
+        qsvc.build_reminder_body = build_reminder_body   # 문구 규칙은 T24 소유 — 실제 함수를 그대로 소비
+        from app.jobs.reminders import send_reminders
+        counts = await send_reminders()
+    qnr = [c for c in ns.notify_patient.await_args_list if c.args[1] == "questionnaire_missing"]
+    assert len(qnr) == 1                                  # 0문항(appt_b)은 건너뛴다
+    assert qnr[0].args[0] == owner_a                      # 계정 소유자에게(개정 3)
+    assert qnr[0].kwargs["remaining"] == 2                # 3 − 1 = 2 (QNR-NOTI-04, T24 소유)
+    assert counts["questionnaire"] == 1
 ```
 
 - [ ] **Step 2: 실행해 실패 확인**
@@ -768,24 +822,23 @@ Expected: FAIL (`app.jobs.reminders` 모듈 없음)
 
 - [ ] **Step 3: 구현**
 
-`backend/app/services/notification_service.py`의 `MESSAGES` dict에 추가:
-```python
-    "reminder_tomorrow": "내일 진료 예약이 있습니다. 예약 시간을 확인해주세요.",
-    "reminder_today": "오늘 진료 예약이 있습니다. 늦지 않게 방문해주세요.",
-    "questionnaire_missing": "내일 진료 전 사전문진을 아직 작성하지 않으셨습니다. 앱에서 작성해주세요.",
-```
+> ⛔ **`MESSAGES` 키를 여기서 더하지 않는다**(개정 1). `reminder_day_before`·`reminder_today`는 환자앱 T9가 `{when}`(날짜·시각) 슬롯과 함께, `questionnaire_missing`·`questionnaire_partial`은 환자앱 T24가 2벌로 이미 소유한다. 이 잡은 **`notify_patient`를 부르기만** 하고 문구는 소비한다 — 본문·날짜·남은 수 치환은 전부 `notify_patient` 안에서 일어난다.
 
 > **[2026-07-28 재검증 — 1차 문서 반영]** Railway cron은 `0 23 * * *`(UTC)를 "08:00 KST"로 환산해 스케줄만 등록한다(Task 16 Step 1). 하지만 Railway 컨테이너의 OS 타임존은 기본 UTC이므로, 잡 안에서 `date.today()`를 그대로 쓰면 KST 자정~09:00 사이에 실행되는 다른 잡(백업 등)이나 이 잡이 재실행될 때 "오늘"이 KST 기준과 하루 어긋날 수 있다(예: KST 08:00 = UTC 전날 23:00 — 이 시각엔 문제없지만, 수동 재실행이나 디버깅 시 UTC 자정 근처면 날짜가 밀린다). `zoneinfo`로 한국 시간대를 명시 변환해 이 경계 오류를 원천 차단한다.
 
 `backend/app/jobs/reminders.py`:
 ```python
-"""매일 아침 크론이 실행하는 리마인더 발송 잡. 실행: python -m app.jobs.reminders"""
+"""매일 아침 크론이 실행하는 리마인더 발송 잡. 실행: python -m app.jobs.reminders
+
+⑤ 반입 개정(2026-08-20): 문구는 소비만(환자앱 T9/T24 소유) · reminder_day_before로 통일 ·
+수신자는 계정 소유자(account_patient_id) · 사전문진 대상은 T24 list_reminder_targets 소비(QNR-NOTI-01)."""
 import asyncio
 from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 from app.db.pool import get_pool
 from app.services import notification_service
+from app.services import patient_questionnaire_service as qsvc   # 환자앱 T24 — 사전문진 대상·문구 소유
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -801,26 +854,43 @@ def _today_kst() -> date:
 async def send_reminders(today: date | None = None) -> dict:
     today = today or _today_kst()
     tomorrow = today + timedelta(days=1)
-    counts = {"reminder_today": 0, "reminder_tomorrow": 0, "questionnaire_missing": 0}
+    counts = {"reminder_today": 0, "reminder_day_before": 0, "questionnaire": 0}
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # (1) 확정 예약 리마인더 — 오늘/내일.
+        #     수신자는 account_patient_id(계정 소유자, 00005:40 NOT NULL) — 가족 예약도 소유자에게 간다(개정 3).
+        #     날짜·시각({when})은 notify_patient가 appointment_id로 채운다(#125). 가족 예약이면 target_name도.
         rows = await conn.fetch(
             """
-            select a.id, a.for_patient_id, s.slot_date,
-                   exists (select 1 from questionnaire_responses q where q.appointment_id = a.id) as has_questionnaire
+            select a.id, a.account_patient_id, s.slot_date,
+                   case when a.for_patient_id <> a.account_patient_id
+                        then (select name from patients where id = a.for_patient_id) end as target_name
             from appointments a
             join appointment_slots s on s.id = a.slot_id
             where a.status = '예약확정' and s.slot_date in ($1, $2)
             """,
             today, tomorrow,
         )
-    for row in rows:
-        ntype = "reminder_today" if row["slot_date"] == today else "reminder_tomorrow"
-        await notification_service.notify_patient(row["for_patient_id"], ntype)
-        counts[ntype] += 1
-        if row["slot_date"] == tomorrow and not row["has_questionnaire"]:
-            await notification_service.notify_patient(row["for_patient_id"], "questionnaire_missing")
-            counts["questionnaire_missing"] += 1
+        for row in rows:
+            ntype = "reminder_today" if row["slot_date"] == today else "reminder_day_before"
+            await notification_service.notify_patient(
+                row["account_patient_id"], ntype,
+                appointment_id=row["id"], target_name=row["target_name"])
+            counts[ntype] += 1
+
+        # (2) 사전문진 미작성/작성 중 — 내일 대상. 대상·문구·남은 수는 환자앱 T24가 소유(QNR-NOTI-01·갭 #53).
+        #     이 잡은 「전날 하루 1회」 시점만 정한다. 옛 「문진 행 존재」 판정은 폐기됐다(그대로 옮기면 안 된다).
+        for t in await qsvc.list_reminder_targets(conn, tomorrow):
+            if t["total"] == 0:                # 문진을 받지 않는 진료과(0문항) — 재촉할 것이 없다(QNR-FORM-04의 짝)
+                continue
+            built = qsvc.build_reminder_body(t["state"], t["answered"], t["total"])
+            if built is None:                  # 방어 — 조회가 이미 완료자를 걸렀다
+                continue
+            _key, remaining = built
+            await notification_service.notify_patient(
+                t["account_patient_id"], "questionnaire_missing",
+                appointment_id=t["appointment_id"], target_name=t["target_name"], remaining=remaining)
+            counts["questionnaire"] += 1
     print(f"[reminders] {counts}")
     return counts
 
@@ -828,6 +898,8 @@ async def send_reminders(today: date | None = None) -> dict:
 if __name__ == "__main__":
     asyncio.run(send_reminders())
 ```
+
+> 📌 **`list_reminder_targets`의 수신자 해석 vs `appointments.account_patient_id`** — 확정 리마인더(1)는 `appointments.account_patient_id`(권위 있는 소유자 칸, NOT NULL)를 직접 쓴다. 사전문진(2)은 T24 함수가 `patient_family_links` 래터럴 조인으로 푼 `account_patient_id`를 신뢰한다. **⑦ 구현 때 확인**: 두 경로가 같은 값을 주는지(가족 링크 행이 없는데 `for_patient_id ≠ account_patient_id`인 예약이 있으면 T24의 `coalesce(l.account_patient_id, a.for_patient_id)`가 대상자를 반환해 어긋날 수 있음) — 어긋나면 T24 쿼리를 `appointments.account_patient_id` 기준으로 통일(환자앱 T24 몫, 여기서 고치지 않음).
 
 - [ ] **Step 4: 실행해 통과 확인**
 
@@ -837,8 +909,8 @@ Expected: PASS
 - [ ] **Step 5: 커밋**
 
 ```bash
-git add backend/app/jobs/ backend/app/services/notification_service.py backend/tests/test_reminder_job.py
-git commit -m "feat: 전날·당일·사전문진 리마인더 발송 잡 추가"
+git add backend/app/jobs/ backend/tests/test_reminder_job.py
+git commit -m "feat: 전날·당일 리마인더 + 사전문진 미작성 알림 발송 잡(수신자=계정 소유자·문구는 환자앱 T9/T24 소비·QNR-NOTI-01)"
 ```
 
 ---
@@ -969,6 +1041,337 @@ Expected: `dump ok, bytes: <0보다 큰 수>` (pg_dump가 로컬 Supabase DB를 
 git add backend/app/jobs/backup.py backend/tests/test_backup_job.py backend/app/core/config.py
 git commit -m "feat: pg_dump 일일 백업 잡 추가 (14일 보관, Supabase Storage 업로드)"
 ```
+
+---
+
+### Task 7B: 자정 부도 처리 배치 — `mark_overdue_no_shows()` (갭 #28 · 원장 CARD-LATE-10 · #69 경계)
+
+> **[2026-08-20 ⑤ 반입 신설]** 원장 `HANDOVERS.md`의 **CARD-LATE-10**(patient-app T8·T17 → deployment) 해소. 환자앱은 부도를 **「표시」만** 하고(이력=`방문하지않음`·홈 카드 ⑨), 「전환」은 시스템 배치라 환자 세션 서비스와 안 맞아 배포로 넘어왔다. 결정 ㉮(2026-08-17, 사용자): 공용 SQL 함수 + **자정 KST 크론**(리마인더 잡 옆, Task 16).
+> ⭐ **함수만 미리 만들지 않는다** — 부르는 크론이 없으면 고아 함수(🧱)가 된다. 이 태스크가 **함수·크론(Task 16)·테스트를 한 세트로** 낸다(리마인더 잡 선례).
+
+**대상·제외 (결정 ㉮):**
+- 전환: `status='예약확정' and slot_date < current_date`(자정 넘겨 어제까지·당일 제외) → `'예약부도'`.
+- ⛔ 제외 `도착`·`진료대기`·`진료중` — 사람이 `/today` `TODAY-YDAY`에서 처리(직원 몫, staff-web).
+- ⛔ 제외 `예약신청` — 이력 `확정되지 않음`(`HIST-ROW-09`). **부도로 찍으면 거짓말**이다(`CARD-LATE-06` — 환자가 안 간 게 아니라 **확정이 안 나 못 간 것**). #69는 이 배치가 손대지 않는다(아래 경계).
+
+**Files:**
+- Create: `supabase/migrations/00043_overdue_no_shows.sql` — ① `appointment_status_history.changed_by` nullable 완화(null = 시스템 자동) ② `mark_overdue_no_shows() returns int` 함수
+- Create: `backend/app/jobs/overdue.py`
+- Test: `backend/tests/test_overdue_job.py`
+
+**Interfaces:**
+- Consumes: `app.db.pool.get_pool`, SQL `mark_overdue_no_shows()`
+- Produces: `app.jobs.overdue.run() -> int`(부도 처리 건수), CLI `python -m app.jobs.overdue`; SQL 함수 `mark_overdue_no_shows()`(Task 16 크론이 호출)
+
+> 📌 **번호 `00043`은 잠정** — 배포는 마지막 단계라 이 마이그레이션은 환자앱·직원웹·상담봇 마이그레이션 뒤에 온다. 실제 번호는 **적용 시점의 최고 번호 + 1**로 확정한다(HANDOFF 「참고」의 대역 공유 주의).
+
+**시스템 행위자 이력 — 왜 이렇게 푸나 (실물 확인 2026-08-20):**
+- `appointment_status_history.changed_by`는 `NOT NULL references staff(id)`(`00005:145`)이고 `staff.auth_user_id`는 `auth.users`를 필수 참조한다(`00001:13`) → **가짜 시스템 직원은 auth.users 행까지 필요해 무겁다.**
+- 이력 트리거 `log_appointment_status_change`(`00005:379`, SECURITY DEFINER)는 `auth.uid()`로 직원을 찾고 **못 찾으면 이력 행을 조용히 건너뛴다**(`00005:392~393` — NOT NULL 위반으로 시드/배치가 깨지는 것 방지). 배치는 auth 세션이 없어 **부도 전이 이력이 안 남는다** — 이것이 CARD-LATE-10이 배포에 넘긴 「시스템 행위자」 문제다.
+- ⭐ **결정**: `changed_by`를 nullable로 완화(null = 시스템 자동)하고, 함수가 **SECURITY DEFINER 권한으로 이력 행을 직접 기록**한다(`reason='시각 경과 자동 부도 처리'`). 공용 트리거는 **그대로 둔다** — 배치 UPDATE 때 auth가 없어 스킵하므로 함수의 직접 기록과 **중복이 없고**, 기존 시드의 「조용히 스킵」도 보존된다.
+  - ⚠️ 기각 A(가짜 시스템 직원): auth.users 관리 부담·직원 목록 오염. 기각 B(공용 트리거에 GUC 행위자 주입): 트리거 blast-radius가 커진다 — 함수 직접 기록이 국소적이다.
+- `booking_code`는 **손대지 않는다** — `expire_booking_code_on_terminal_status` 트리거(`00005:116`, BEFORE)가 `예약부도` 전이 시 자동으로 null 처리한다. `CARD-OK-03`의 「당일 부도 전엔 null 안 됨」은 이 배치가 **어제자만** 다루므로(`booking_code_expires_at = slot_date + 1일`이 이미 지남) 무관하다.
+- ⚠️ **⑦ 구현 때 확인**: `changed_by`가 nullable이 되므로 **직원웹 이력 렌더가 null을 「시스템(자동)」으로** 표시해야 한다(지금 NOT NULL 전제로 짠 곳이 있으면 방어) — staff-web 몫.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`backend/tests/test_overdue_job.py`:
+```python
+import pytest
+
+from tests.conftest import seed_patient, seed_staff
+
+
+async def _seed_appt(conn, *, status, day_offset):
+    dept_id = await conn.fetchval("insert into departments (name) values ('부도과') returning id")
+    doctor = await seed_staff(conn, role="doctor", department_id=dept_id)
+    receptionist = await seed_staff(conn, role="receptionist")
+    patient = await seed_patient(conn, name="부도환자", phone="01000000000")
+    slot_id = await conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) "
+        "values ($1, current_date + $2, '10:00') returning id",
+        doctor["staff_id"], day_offset)
+    await conn.execute("update appointment_slots set status='예약됨' where id=$1", slot_id)
+    return await conn.fetchval(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, "
+        "doctor_id, reason, status, source, created_by) "
+        "values ($1,$2,$2,$3,$4,'검진',$5,'staff',$6) returning id",
+        slot_id, patient["patient_id"], dept_id, doctor["staff_id"], status, receptionist["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_marks_confirmed_past_as_no_show(committed_conn):
+    """[CARD-LATE-10] 어제자 예약확정은 예약부도로 전환된다."""
+    appt = await _seed_appt(committed_conn, status="예약확정", day_offset=-1)
+    from app.jobs.overdue import run
+    count = await run()
+    assert await committed_conn.fetchval("select status from appointments where id=$1", appt) == "예약부도"
+    assert count >= 1
+
+
+@pytest.mark.asyncio
+async def test_records_system_actor_history(committed_conn):
+    """[CARD-LATE-10] 부도 전이는 changed_by=null(시스템 자동) 이력을 남긴다 — 배치 행위자 경로."""
+    appt = await _seed_appt(committed_conn, status="예약확정", day_offset=-1)
+    from app.jobs.overdue import run
+    await run()
+    row = await committed_conn.fetchrow(
+        "select changed_by, reason from appointment_status_history "
+        "where appointment_id=$1 and to_status='예약부도'", appt)
+    assert row is not None and row["changed_by"] is None
+    assert row["reason"] == "시각 경과 자동 부도 처리"
+
+
+@pytest.mark.asyncio
+async def test_clears_booking_code_on_no_show(committed_conn):
+    """[CARD-OK-03] 부도 후 booking_code는 종결-상태 트리거가 비운다(재사용 가능)."""
+    appt = await _seed_appt(committed_conn, status="예약확정", day_offset=-1)
+    assert await committed_conn.fetchval("select booking_code from appointments where id=$1", appt) is not None
+    from app.jobs.overdue import run
+    await run()
+    assert await committed_conn.fetchval("select booking_code from appointments where id=$1", appt) is None
+
+
+@pytest.mark.asyncio
+async def test_same_day_confirmed_not_touched(committed_conn):
+    """[결정㉮] 당일 예약확정은 건드리지 않는다 — slot_date < current_date만."""
+    appt = await _seed_appt(committed_conn, status="예약확정", day_offset=0)
+    from app.jobs.overdue import run
+    await run()
+    assert await committed_conn.fetchval("select status from appointments where id=$1", appt) == "예약확정"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["도착", "진료대기", "진료중", "예약신청"])
+async def test_excluded_statuses_not_touched(committed_conn, status):
+    """[결정㉮][HIST-ROW-09] 도착·진료대기·진료중(사람 처리)·예약신청(확정되지 않음)은 부도로 안 찍는다."""
+    appt = await _seed_appt(committed_conn, status=status, day_offset=-1)
+    from app.jobs.overdue import run
+    await run()
+    assert await committed_conn.fetchval("select status from appointments where id=$1", appt) == status
+```
+
+- [ ] **Step 2: 실행해 실패 확인**
+
+Run: `cd backend && pytest tests/test_overdue_job.py -v`
+Expected: FAIL (`app.jobs.overdue` 모듈·`mark_overdue_no_shows()` 함수 없음)
+
+- [ ] **Step 3: 마이그레이션 작성**
+
+`supabase/migrations/00043_overdue_no_shows.sql`:
+```sql
+-- 갭 #28 · 원장 CARD-LATE-10: 예약확정인 채 시각이 지난 예약을 자정에 '예약부도'로 전환한다.
+
+-- ① 시스템 자동 전이는 행위자(직원)가 없다 → changed_by를 nullable로(null = 시스템 자동 처리).
+alter table appointment_status_history alter column changed_by drop not null;
+comment on column appointment_status_history.changed_by is
+  '전이를 일으킨 직원. null이면 시스템 자동 처리(배치) — 예: mark_overdue_no_shows()의 자정 부도.';
+
+-- ② 자정 부도 처리 함수. SECURITY DEFINER로 이력을 직접 기록한다(공용 트리거는 auth 없어 스킵 → 중복 없음).
+create or replace function mark_overdue_no_shows()
+returns int
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count int;
+begin
+  with overdue as (
+    update public.appointments a
+       set status = '예약부도'
+      from public.appointment_slots s
+     where s.id = a.slot_id
+       and a.status = '예약확정'          -- ⛔ 도착·진료대기·진료중·예약신청은 여기서 안 걸린다(결정㉮)
+       and s.slot_date < current_date     -- 자정 넘겨 어제까지(당일 제외)
+    returning a.id
+  ),
+  logged as (
+    insert into public.appointment_status_history (appointment_id, from_status, to_status, changed_by, reason)
+    select id, '예약확정', '예약부도', null, '시각 경과 자동 부도 처리'   -- null = 시스템 자동
+      from overdue
+    returning 1
+  )
+  select count(*) into v_count from logged;
+  return v_count;
+end;
+$$;
+
+comment on function mark_overdue_no_shows() is
+  '갭 #28/CARD-LATE-10: status=예약확정 & slot_date<current_date → 예약부도. 자정 KST 크론이 호출. 도착/진료대기/진료중/예약신청 제외.';
+```
+
+- [ ] **Step 4: 잡 구현**
+
+`backend/app/jobs/overdue.py`:
+```python
+"""자정 크론이 실행하는 부도 처리 배치. 실행: python -m app.jobs.overdue
+갭 #28 · 원장 CARD-LATE-10: 예약확정인 채 시각이 지난 예약을 예약부도로 전환한다.
+⭐ 날짜 경계는 SQL의 current_date(DB 세션 타임존)로 판정한다 — 크론 등록(Task 16)이 자정 KST에 돌리므로,
+   리마인더 잡(Task 6)처럼 Python에서 KST 날짜를 계산할 필요가 없다(비교가 DB 안에서 끝난다)."""
+import asyncio
+
+from app.db.pool import get_pool
+
+
+async def run() -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        count = await conn.fetchval("select mark_overdue_no_shows()")
+    print(f"[overdue] marked {count} no-show(s)")
+    return count
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
+```
+
+- [ ] **Step 5: 실행해 통과 확인**
+
+Run: `cd backend && pytest tests/test_overdue_job.py -v`
+Expected: PASS
+
+**#69 경계 · auto_confirm 기본값 (배치가 하지 않는 것):**
+- **`예약신청` 경과는 이 배치가 손대지 않는다**(위 제외). #69의 세 조치 — 카드 ⑨ 대우 + **별도 문구**, 이력 「확정되지 않음」 줄(`HIST-ROW-09`, 부도 줄과 구분), `/today` 미확정 경과 예약 — 는 **화면 계산**(환자앱·직원웹 몫)이지 상태 전환이 아니다. 배치가 `예약신청`을 `예약부도`로 찍으면 `CARD-LATE-06`이 금지한 거짓 부도가 된다.
+- **예방책 = `auto_confirm_app_bookings` 기본값 `true`**(#69·#29·B-39). 이 칸은 **환자앱 `00020`이 `default true`(if not exists)로 소유**한다(`plans/2026-08-17-patient-app.md:1674`) — 아무 설정도 안 한 병원의 앱 예약이 **즉시 `예약확정`**이 되어 `예약신청`으로 방치되는 경로 자체를 막는다. ⚠️ **Task 9 데모 시드가 이 기본값을 쓰는지 확인**(hospital_settings 행을 만들 때 `auto_confirm_app_bookings`를 명시하지 않으면 기본 true) — 시연에서 앱 예약이 바로 확정으로 보이는지 스모크(Task 19)에서 함께 확인.
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add supabase/migrations/00043_overdue_no_shows.sql backend/app/jobs/overdue.py backend/tests/test_overdue_job.py
+git commit -m "feat: 자정 부도 처리 배치 mark_overdue_no_shows() — 예약확정 경과→예약부도, 시스템 행위자 이력(changed_by null), 예약신청 제외(#28·CARD-LATE-10)"
+```
+
+---
+
+### Task 7C: 발송·만료 배치 크론 잡 + Twilio outbound 콜백 배선 (#118·#104·#122 · 디스패처 공유)
+
+> **[2026-08-20 ⑤ 반입 신설]** 실제 SMS/push 발송 **디스패처 코드 자체는 직원웹 T30이 소유**한다(`dispatch_service`·`notify_clients`·`message_results` 라우터의 `POST /provider/status-callback`·서명검증). 배포의 몫은 **① 자격증명(env) ② 공개 콜백주소 ③ 디스패처를 주기적으로 미는 크론**뿐이다 — "새로 만들기"가 아니라 **배선**이다. 소비 계약 넷: `claim_scheduled`(예약 발송) · `run_retry_worker`(재시도) · 상담봇 답변 배치 dispatch(`chat_notification_batches`) · `expire_idle_ai_sessions`(AI 세션 만료).
+
+**무엇이 배포 몫이고 무엇이 아닌가:**
+- ⛔ **디스패처·제공자 클라이언트·콜백 수신·서명검증** = 직원웹 T30(+상담봇 공유). 여기서 만들지 않는다.
+- ✅ **statusCallback URL 주입(#122)** — outbound 문자를 보낼 때 `messages.create(..., status_callback=f"{PUBLIC_BASE_URL}/provider/status-callback")`로 **공개주소를 실어 보내야** 업체가 도달/실패를 되알린다. T30 `notify_clients.py`가 "실제 자격증명은 배포"로 남긴 자리다(`staff-web.md:12948`·요약표 #122 *"배포 ⑤에서 messages.create에 URL 주입"*).
+- ✅ **예약 발송 전용 cron**(#118·#104) — `SEND-LATER-02`가 *"예약 발송 전용 cron을 하나 더 둔다(10분마다 큐 확인) · ⛔ 08:00 리마인더 잡에 얹지 않는다 — 분리한다"*고 못박았다. 야간 광고(#104)는 이 흐름의 특수 경우 하나다(`SEND-NIGHT-02`가 예약으로 미룬 것을 시각 되면 이 cron이 발송, `SEND-LATER-01`). **발송 시점 동의 재확인은 T30이** 한다(`SEND-LATER-04` — 그 사이 수신거부한 사람이 빠진다).
+- ✅ **상담봇 답변 배치 dispatch + AI 세션 만료** — 상담봇 §5가 *"실제 발송·재시도는 공통 dispatcher(직원웹 T30 + 배포 cron)가 배치를 읽어 처리"*(`ai-chatbot.md:1737`), 세션 만료도 *"서버 주체 실행(배포 cron)"*(`:1569`)이라 명시했다.
+
+**Files:**
+- Create: `backend/app/jobs/dispatch.py` — 발송·만료를 미는 크론 잡
+- Modify: `backend/app/clients/notify_clients.py`(직원웹 T30) — 문자 발송에 `status_callback` URL 주입(`PUBLIC_BASE_URL` 소비)
+- Test: `backend/tests/test_dispatch_job.py`
+
+**Interfaces:**
+- Consumes: `app.db.pool.get_pool`; `app.services.dispatch_service.claim_scheduled()`·`run_retry_worker()`(직원웹 T30); `app.services.ai_session_service.expire_idle_sessions()`(상담봇 T2 — `expire_idle_ai_sessions()` 래퍼); **`app.services.chat_notification_service.dispatch_pending_batches(conn) -> int`**(⚠️ 아래 「디스패처 공유 다리」 — 선언 계약); `app.core.config.settings.public_base_url`
+- Produces: `app.jobs.dispatch.run() -> dict`, CLI `python -m app.jobs.dispatch`(Task 16 크론이 자주 호출); `notify_clients` 문자 발송의 `status_callback` 배선
+
+> ⚠️⚠️ **디스패처 공유 다리(seam) — 선언 계약, ⑦에서 확정**: 상담봇은 `chat_notification_batches`에 `notification_requested_at`까지만 쓰고(`ai-chatbot.md:1737`, 설계결정 1 — `notification_log`에 직접 안 씀), 직원웹 T30 `send_now`는 **`notification_log` 행**을 실어 보낸다. **그 사이를 잇는 함수**(배치 → `resolve_recipient`(상담봇 T3) → `notification_log` 행 생성 → `send_now`(T30))는 **어느 플랜에도 이름이 없다.** 이 잡이 그 다리를 `chat_notification_service.dispatch_pending_batches(conn)`로 **소비 선언**한다 — 실제 배선은 ⑦ 구현 때 상담봇 T3 `resolve_recipient` + T30 `send_now`로 잇는다(익명이면 `ANON_CONTACT_ENCRYPTION_KEY`로 연락처 복호화). **여기서 발명하지 않는다.**
+
+- [ ] **Step 1: statusCallback URL 배선 (#122) — 실패 테스트**
+
+`backend/tests/test_dispatch_job.py`:
+```python
+import pytest
+from unittest.mock import AsyncMock, patch
+
+
+def test_sms_client_injects_public_status_callback(monkeypatch):
+    """[#122] 문자 발송은 messages.create에 PUBLIC_BASE_URL 기반 statusCallback을 실어 보낸다 — 없으면 업체가 도달/실패를 되알릴 곳이 없다."""
+    from app.clients import notify_clients
+    monkeypatch.setattr(notify_clients.settings, "public_base_url", "https://api.example.com")
+    captured = {}
+
+    class FakeTwilio:
+        class messages:
+            @staticmethod
+            def create(**kw):
+                captured.update(kw)
+                class _M: sid = "SM1"
+                return _M()
+
+    client = notify_clients.make_sms_client(twilio=FakeTwilio())     # 팩토리는 T30 소유, URL 주입만 배포
+    client.send(to="+8210...", body="x")
+    assert captured["status_callback"] == "https://api.example.com/provider/status-callback"
+```
+
+- [ ] **Step 2: 발송·만료 크론 잡 — 실패 테스트 (오케스트레이션)**
+
+```python
+@pytest.mark.asyncio
+async def test_dispatch_run_drives_all_four_consumers(db_conn):
+    """[#118][#104] 크론 1회 = 예약발송 claim + 재시도 워커 + 상담봇 배치 + AI 세션 만료를 각각 민다."""
+    with patch("app.jobs.dispatch.dispatch_service") as ds, \
+         patch("app.jobs.dispatch.chat_notification_service") as cns, \
+         patch("app.jobs.dispatch.ai_session_service") as ai:
+        ds.claim_scheduled = AsyncMock()
+        ds.run_retry_worker = AsyncMock()
+        cns.dispatch_pending_batches = AsyncMock(return_value=2)
+        ai.expire_idle_sessions = AsyncMock(return_value=1)
+        from app.jobs.dispatch import run
+        counts = await run()
+    ds.claim_scheduled.assert_awaited_once()      # 예약 발송(#118) — 야간 미룬 광고 포함(#104)
+    ds.run_retry_worker.assert_awaited_once()      # 재시도(RETRY-01~05)
+    cns.dispatch_pending_batches.assert_awaited_once()   # 상담봇 답변 배치
+    ai.expire_idle_sessions.assert_awaited_once()  # AI 세션 30분 만료
+    assert counts["chat_batches"] == 2 and counts["expired_sessions"] == 1
+```
+
+- [ ] **Step 3: 실행해 실패 확인** → Run: `cd backend && pytest tests/test_dispatch_job.py -v` → FAIL(`app.jobs.dispatch` 없음·`status_callback` 미주입)
+
+- [ ] **Step 4: 구현**
+
+`notify_clients.py`(T30)의 문자 발송에 URL 주입:
+```python
+# make_sms_client 팩토리(T30)가 반환하는 SmsClient.send() 안:
+self._twilio.messages.create(
+    to=to, from_=self._from_number, body=body,
+    status_callback=f"{settings.public_base_url}/provider/status-callback",   # #122 — 배포가 채운다
+)
+```
+
+`backend/app/jobs/dispatch.py`:
+```python
+"""발송·만료 배치. 크론이 자주(예: 5~10분) 실행. 실행: python -m app.jobs.dispatch
+
+배포 몫 = 디스패처를 미는 것뿐. 디스패처 코드는 직원웹 T30 + 상담봇 소유.
+- 예약 발송: SEND-LATER-02(전용 cron·리마인더에 안 얹음). 야간 광고(#104)는 SEND-NIGHT-02가 예약으로 미룬 것을 여기서 발송.
+- 발송 시점 동의 재확인(SEND-LATER-04)·채널 폴백·재시도 판정은 T30 dispatch_service가 한다."""
+import asyncio
+
+from app.db.pool import get_pool
+from app.services import dispatch_service            # 직원웹 T30
+from app.services import chat_notification_service   # 상담봇 T3 — dispatch_pending_batches(선언 계약)
+from app.services import ai_session_service          # 상담봇 T2 — expire_idle_sessions
+
+
+async def run() -> dict:
+    counts = {"chat_batches": 0, "expired_sessions": 0}
+    # (1) 예약 발송 큐 — pending 원자 claim 후 send_now (#118·#104). 자체 커넥션 관리(T30 계약: 인자 없음).
+    await dispatch_service.claim_scheduled()
+    # (2) 재시도 워커 — 일시 실패만, 시각 도래한 것만 (RETRY-01~05).
+    await dispatch_service.run_retry_worker()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # (3) 상담봇 답변 배치 — notification_requested_at 있고 log 없는 배치를 발송(디스패처 공유 다리).
+        counts["chat_batches"] = await chat_notification_service.dispatch_pending_batches(conn)
+        # (4) AI 세션 만료 — 30분 무활동 종료(상담봇 T2 expire_idle_ai_sessions).
+        counts["expired_sessions"] = await ai_session_service.expire_idle_sessions(conn)
+    print(f"[dispatch] {counts}")
+    return counts
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
+```
+
+- [ ] **Step 5: 실행해 통과 확인** → PASS
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add backend/app/jobs/dispatch.py backend/app/clients/notify_clients.py backend/tests/test_dispatch_job.py
+git commit -m "feat: 발송·만료 배치 크론(예약발송·재시도·상담봇 배치·AI 세션 만료) + Twilio outbound statusCallback URL 배선(#118·#104·#122)"
+```
+
+> 📌 **공개 라우트 노출은 Task 16에서** — `POST /provider/status-callback`은 Twilio가 바깥에서 호출하므로 **JWT 없이 접근 가능**해야 한다(서명검증은 T30이 함). Railway가 이 경로를 공개로 노출하는지·인증 미들웨어에서 제외되는지는 Task 16 크론 등록 때 함께 확인한다.
 
 ---
 
@@ -1906,6 +2309,9 @@ TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_FROM_NUMBER=
 FCM_SERVICE_ACCOUNT_JSON=
+# ⑤ 반입(2026-08-20): 발송 공개주소·상담봇 복호화
+PUBLIC_BASE_URL=              # Railway 백엔드 공개주소(https://<railway>.up.railway.app). Twilio outbound statusCallback URL 구성용(#122). 끝 슬래시 없이.
+ANON_CONTACT_ENCRYPTION_KEY=  # 상담봇 익명 상담 연락처 복호화 키 — dispatcher가 문자 폴백 때 복호화. ⚠️ 이름은 상담봇 익명 서비스 상수와 일치시킨다(실제 구현 기준)
 # AI 상담봇 (4단계)
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
@@ -1955,7 +2361,7 @@ Railway 대시보드 → New Project → Deploy from GitHub repo → 이 저장�
 
 - [ ] **Step 3: 환경변수 입력**
 
-Task 13의 `.env.example` 목록 전체를 Railway Variables 화면에 실값으로 입력 (원격 Supabase 값, Twilio, FCM, Anthropic, OpenAI, `ALLOWED_ORIGINS`).
+Task 13의 `.env.example` 목록 전체를 Railway Variables 화면에 실값으로 입력 (원격 Supabase 값, Twilio, FCM, Anthropic, OpenAI, `ALLOWED_ORIGINS`, **`PUBLIC_BASE_URL`·`ANON_CONTACT_ENCRYPTION_KEY`**(⑤ 반입)). ⚠️ **`PUBLIC_BASE_URL`은 이 서비스가 배포된 뒤에야 실제 주소를 안다** — 배포 후 Railway가 발급한 `https://<...>.up.railway.app`를 이 변수에 채우고 재배포한다(Twilio outbound statusCallback URL이 이 값으로 구성됨, #122). `ANON_CONTACT_ENCRYPTION_KEY`는 상담봇 익명 연락처 복호화 키(문자 폴백 때 사용).
 
 - [ ] **Step 3.5: CORS 미들웨어 추가**
 
@@ -2086,13 +2492,15 @@ git push origin main
 
 ---
 
-### Task 16: Railway cron 2종 등록 + 백업 복구 리허설
+### Task 16: Railway cron 등록(4종) + 백업 복구 리허설
+
+> **[2026-08-20 ⑤ 반입]** 크론이 **2종 → 4종**으로 는다. 신설 잡(Task 7B 자정 부도·Task 7C 발송/만료)은 **부르는 크론이 없으면 고아 함수(🧱)**가 되므로 여기서 스케줄을 등록한다(함수·크론·테스트 한 세트 원칙). `POST /provider/status-callback` 공개 노출도 이 태스크에서 확인한다(#122).
 
 **Files:** 없음 (플랫폼 설정 + 리허설)
 
 **Interfaces:**
-- Consumes: `python -m app.jobs.reminders`(Task 6), `python -m app.jobs.backup`(Task 7)
-- Produces: 매일 자동 실행되는 크론 2개, 복구 절차 검증 완료
+- Consumes: `python -m app.jobs.reminders`(Task 6), `python -m app.jobs.backup`(Task 7), `python -m app.jobs.overdue`(Task 7B), `python -m app.jobs.dispatch`(Task 7C)
+- Produces: 자동 실행 크론 **4개**(리마인더·백업·자정 부도·발송/만료), `/provider/status-callback` 공개 접근 확인, 복구 절차 검증 완료
 
 - [ ] **Step 1: 알림 크론 서비스 생성**
 
@@ -2107,11 +2515,24 @@ Railway 프로젝트 → New Service → 같은 저장소, Root Directory `backe
 nixPkgs = ["...", "postgresql_16"]
 ```
 
+- [ ] **Step 2B: 자정 부도 처리 크론 생성 (Task 7B)**
+
+같은 방식으로 새 크론 서비스. Cron Schedule `0 15 * * *`(= **00:00 KST**, 자정), Start Command `python -m app.jobs.overdue`. 환경변수 동일.
+주: 날짜 경계는 SQL `current_date`(DB 세션)로 판정한다 — 리마인더 잡처럼 Python KST 변환이 필요 없다(어제자 예약확정만 부도, 당일 제외). 자정 직후에 돌아 어제까지 경과분을 정리한다.
+
+- [ ] **Step 2C: 발송·만료 크론 생성 (Task 7C)**
+
+같은 방식으로 새 크론 서비스. Cron Schedule `*/5 * * * *`(**5분마다**), Start Command `python -m app.jobs.dispatch`.
+- 예약 발송 큐(#118)는 `SEND-LATER-02`가 10분 주기를 요구하나 재시도(`RETRY` 1분·5분)·AI 세션 만료(30분)와 한 잡에 묶어 **5분 주기**로 돌린다(각 소비 함수가 「시각 도래한 것만」 집으므로 더 자주 돌아도 헛일이 없다). ⛔ **08:00 리마인더 잡에 얹지 않는다**(`SEND-LATER-02` — 분리).
+- ⚠️ **`POST /provider/status-callback` 공개 노출 확인(#122)**: Twilio가 바깥에서 이 경로로 도달/실패를 되알린다 → **JWT 없이 접근 가능**해야 한다(서명검증은 T30). 배포된 백엔드에 `curl -i -X POST https://<서비스>.up.railway.app/provider/status-callback`로 401/403이 **아닌** 응답(서명 없음 → 400/422)이 오는지 확인. 401이면 인증 미들웨어에서 이 경로를 제외한다.
+
 - [ ] **Step 3: 수동 트리거로 즉시 검증**
 
 Railway에서 각 크론 서비스 "Run now"(수동 실행) → 로그 확인:
-- 알림: `[reminders] {'reminder_today': N, ...}` 출력 + 데모 환자 기기 또는 SMS 수신 확인(내일자 예약확정 데이터가 시드에 존재)
+- 알림: `[reminders] {'reminder_today': N, 'reminder_day_before': N, 'questionnaire': N}` 출력 + 데모 환자 기기 또는 SMS 수신 확인(내일자 예약확정·미작성 문진 데이터가 시드에 존재)
 - 백업: `[backup] uploaded backup-....sql.gz` 출력 + Supabase Storage `backups` 버킷에 파일 존재 확인
+- 자정 부도: `[overdue] marked N no-show(s)` 출력 + 데모에 어제자 `예약확정`을 하나 심어 두고 실행 후 `예약부도`로 바뀌는지·이력에 `changed_by=null` 줄이 남는지 확인
+- 발송·만료: `[dispatch] {'chat_batches': N, 'expired_sessions': N}` 출력 + 예약 발송 큐에 심어 둔 건이 나가는지·30분 지난 AI 세션이 종료되는지 확인
 
 - [ ] **Step 4: 백업 복구 리허설 (필수 — 복원 안 되는 백업은 백업이 아님)**
 
