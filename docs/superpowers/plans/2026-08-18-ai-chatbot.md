@@ -12412,3 +12412,534 @@ git commit -m "feat: 📝 상담봇 Task 21 본문 — 미해결 클러스터·�
 ```
 
 > **Task 21 완료 조건**: `UNRES-CLUSTER`(`01`~`11` = 11) + `BADINBOX-REVIEW`(`01`~`12` = 12) + `QUALITY-REPORT`(`01`~`12` = 12) + `QAEX-LIST`(`01`~`10` = 10) + `BADRPT-FORM`(`TARGET`2·`EMPTY`1·`CORR`1·`EXAMPLE`1·`SOURCE`1·`VALID`1·`SAVE`3·`LOAD`1·`ERR`1·`LIVE`1·`EXIT`1 = 14) = **59규칙 전수** 초록불(Vitest). ⭐ **두 채널**: 직원 오답 신고(`features/support/`·`is_active_staff`) + 관리자 품질(`features/quality/`·`is_active_admin`). ⭐ **자동 클러스터 한계 안내 항상**·**0건↔집계 실패↔계약 부재를 각각 구분**·**승인 전 미반영(교정·반영만으로 즉시 답변 안 씀)**·**출처 구분(realtime_report↔quality_review)**·**B2 저장/취소 후 스크롤 복귀**. ⭐ **소비 계약 9건 선언**: 직원 신고 저장·오답 목록/상세·미해결 집계/상세·품질 상세/교정·예시 목록/비활성. ⚠️ **경계**: 질문 순위·통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM`)=**Task 22** · KB 편집/승인(`KBADM`)=Task 20 · **source enum 문자열 통일(`realtime_report`↔`immediate`)**·미해결 클러스터 집계 함수 부재·각 `확인 필요`(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책)=⑦ 조정. **다음 = Task 22**(질문 순위·챗봇 통계·관리자 내비, 38개 → 챗봇 4단계 완결).
+
+---
+
+## Task 22: 관리자 질문 순위 · 챗봇 처리 현황(통계) · 관리자 화면 내비 — 챗봇 4단계 완결 (`QTOP-RANK-*` · `BOTSTAT-DASH-*` · `NAV-ADM-*`)
+
+> **챗봇 4단계 마지막 태스크(38규칙).** = `QTOP-RANK-*`(11) + `BOTSTAT-DASH-*`(15) + `NAV-ADM-*`(12). 끝나면 상담봇 규칙 커버 **480→518(100%)**·미커버 **38→0**. **전부 관리자 화면**(`features/botstats/`·`is_active_admin`). React+TS+**Vitest**+`@testing-library/react`. `patient_app/`·`webchat/`·직원 `features/support/` 무손.
+>
+> ⚠️⚠️ **관리자 셸·117 통합 화면.** 목업 116의 「전체 질문 순위」는 **별도 메뉴가 아니라** 117 상담봇 처리 현황 화면 **안의 한 섹션**이다(116→117 흡수, `AD-069`·`MR2-06`·Global Constraints). 사이드바 `상담봇` 그룹의 항목 이름은 `상담봇 현황`이며(`SHELL-NAV-01/04` 계열=코2 소유·계열명 참조), 이 화면 하나가 **① 많이 들어온 질문(`QTOP-RANK`) ② 운영 지표(`BOTSTAT-DASH`)** 두 섹션을 담는다.
+>
+> ⭐ **직원웹 통계 부품을 재사용한다(`BOTSTAT-DASH`).** 상담봇 지표는 2단계 직원웹 운영 통계(`/admin/stats`)의 부품 계열 — `STAT-SCOPE`(기간)·`STAT-METRIC`(지표·유입원 3분류)·`STAT-STATE`(로딩/0건/오류/오프라인)·`STAT-DRILL`(드릴다운)·`STAT-MASK`(소수 셀 억제)·`STAT-EXPORT`(CSV)·`STAT-AUDIT`(열람 감사) — 를 **재사용**해 상담봇 지표(문의 수·자체 안내·직원 연결·유입 3분류 `app`/`staff`/`chatbot`)를 얹는다. ⚠️ 이 `STAT-*` 계열은 **직원웹(코2) 소유**라 여기선 **계열명(숫자 0개)으로만** 참조한다(⏰ 방지). 새 통계 부품을 만들지 않는다.
+>
+> ⭐ **자동 유사도 묶음은 확정 분류가 아니다(`QTOP-RANK-04`).** 많이 들어온 질문은 `대표 질문 + N건`으로 묶되 `자동으로 비슷한 질문끼리 묶어본 결과이며 실제로 다른 질문이 섞여 있을 수 있습니다`를 **함께** 보여준다. 임베딩 불가 질문이 있으면 전체를 대표한다고 단정하지 않는다(`QTOP-RANK-11`). Task 21 `UNRES-CLUSTER` 계열과 **같은 원칙**(계열명 참조).
+>
+> ⭐ **유효한 0건 ↔ 계약 부재를 각각 구분한다(정본 §0·§4).** 조회 성공 뒤 실제 결과가 0일 때만 `0건`(`BOTSTAT-DASH-04`·`QTOP-RANK-07`)이다. 서버가 집계를 **아예 제공하지 않으면** `현재 집계할 수 없음`(`BOTSTAT-DASH-05`·`QTOP-RANK-10`) — placeholder 0·빈 차트·합성 수치를 만들지 않는다. 일부 지표만 계약이 있으면 가능한 것만 실제 값, 나머지는 각각 `현재 집계할 수 없음`(`BOTSTAT-DASH-06`) — 묶음 전체를 0으로 만들지 않는다. 로딩(`-07`)·오류+재시도(`-08`)·오프라인(`-09`)은 이전 결과·캐시를 현재 값으로 가장하지 않는다.
+>
+> ⭐ **CSV는 화면과 일부러 다르다(`BOTSTAT-DASH-13`, `STAT-MASK`/`STAT-EXPORT` 계열).** 화면 수치는 전부 공개하지만 **CSV로 내보낼 때만** 환자 기준 셀이 5건 미만이면 가리고 이유를 표시한다(파일이 병원 밖으로 나가므로). 화면 수치엔 이 억제를 적용하지 않는다. 집계 계약 없음·조회 실패·오프라인이면 다운로드를 실행하지 않고 빈/0건 파일도 만들지 않는다(`BOTSTAT-DASH-14`).
+>
+> ⭐ **감사 payload에 원본 개인정보·검색어 금지(`BOTSTAT-DASH-15`, `STAT-AUDIT` 계열).** 상세 열기·CSV 생성은 **실행자·시각·지표·기간·대상 건수·억제 여부만** 감사하고 환자명·전화·생년월일·검색어를 복사하지 않는다. 드릴다운 명단은 **서버가 준 마스킹 표시값만** 쓰고 클라이언트가 원본을 임의 가공하지 않는다(`BOTSTAT-DASH-11`, `STAT-DRILL` 계열).
+>
+> ⭐ **승인 전 미반영·자동 승인 금지(`NAV-ADM-04~08`, 결정 A2·B3·G-06).** 관리자 화면 사이의 흐름 — 미해결→자료 추가·오답 신고→반영·품질→처리함·질문 순위→FAQ 보강 — 은 전부 **안내자료 승인(코 Task 20 `KBADM` 계열)을 거쳐야** 답변에 반영된다. `[반영]`·FAQ 보강·이전 버전 편집만으로 미승인 내용을 봇 답변에 쓰지 않는다. 이 도착 화면들(`KBADM`·`UNRES-CLUSTER`·`BADINBOX-REVIEW`·`QUALITY-REPORT` 계열)은 **Task 20·21 소유**라 여기선 계열명으로만 참조하고, Task 22는 **내비 계약(어디로 가고 무엇을 보존하나)만** 소유한다.
+>
+> ⭐ **모르는 복원 계약을 지어내지 않는다(`NAV-ADM-12`, 정본 §4).** 관리자 10화면의 뒤로·목록 복귀 시 필터·기간·스크롤 보존은 **근거가 없으므로 화면별로 `확인 필요`**이며 임의로 확정하지 않는다. 근거가 확실한 곳(`BOTSTAT-DASH`의 기간·지표 유지=`STAT-DRILL` 계열, `QTOP-RANK-05`의 묶음 상세 복귀=`ledger R2-3`)만 보존을 단정한다.
+>
+> ⚠️⚠️ **소비 계약 선언(Task 9 라우터에 상담봇 통계 엔드포인트가 없음 — 전부 이름으로 못박음)**:
+> - **많이 들어온 질문 집계** `GET /admin/chat/stats/ranking?from=&to=`·**묶음 상세** `GET /admin/chat/stats/ranking/{clusterId}?from=&to=` — Task 8엔 `record_unresolved`(적재)만 있고 **전체 질문 유사도 클러스터 집계 함수 자체가 없다**(Task 21이 미해결 클러스터에서 이미 확인한 부재와 같은 뿌리) → 집계 계약 부재를 `QTOP-RANK-10`이 `현재 집계할 수 없음`으로 다룬다. **선언**.
+> - **상담봇 운영 지표** `GET /admin/chat/stats?from=&to=`(문의 수·자체 안내·직원 연결·유입 3분류) — 직원웹 `get_stats`가 `pending_inquiries_count=0` **하드코딩 placeholder**이고 상담봇 집계·유입원 3분류 API는 `BLOCKED-BEFORE-MERGE`(`STAT-METRIC` 계열 근거) → 계약 부재를 `BOTSTAT-DASH-05`가 다룬다. **선언**.
+> - **지표 드릴다운** `GET /admin/chat/stats/{metric}/detail?from=&to=`(마스킹 DTO)·**CSV** `GET /admin/chat/stats/export.csv?from=&to=`(k=5 억제) — 직원웹 `STAT-DRILL`·`STAT-EXPORT`·`STAT-MASK` 계열과 같은 마스킹·억제 계약을 소비. **선언**.
+>
+> ⚠️⚠️ **경계·확인 필요(⑦ 조정)**: ① 위 엔드포인트·전체 질문 클러스터 집계·유입원 3분류 API·마스킹 DTO·CSV 억제 로직의 **실제 서버 구현**은 `BLOCKED-BEFORE-MERGE`(소비 계약만, ⑦). ② `QTOP-RANK`의 **기간 경계·시간대**(`-01`)·**TOP N의 N·동률 정렬**(`-03`)·**묶음 상세 개인정보 범위·정렬**(`-05`)·**임베딩 누락 수·별도 그룹 처리**(`-11`)는 근거가 없어 `확인 필요` — 임의 확정하지 않는다. ③ `NAV-ADM-12` 관리자 10화면 복원 계약은 화면별 `확인 필요`. ④ 상담봇 지표 감사(`STAT-AUDIT-02`)·유입원 3분류·소수 셀 억제의 저장/조회는 직원웹 `B-4 BLOCKED-BEFORE-MERGE`와 같은 게이트.
+>
+> **근거 원본**: behaviors **§9 상담봇 처리 현황(117 통합)**(`QTOP-RANK-*` 11 `:5730~5740`·`BOTSTAT-DASH-*` 15 `:5746~5760`)·**§화면 사이 이동**(`NAV-ADM-*` 12 `:5766~5777`) · 요구사항 **3.10 운영 통계**(`:213~224` — 예약/취소/부도/방문·진료과·의사별·시간대별·대기·앱/직원 비율·**상담봇 문의 수·자체 안내/직원 연결·많이 들어온 질문**)·**3.9**(`:204~211` — 자주 들어오지만 못 답한 질문 별도 모아보기) · 결정 **AD-069/MR2-06**(116→117 흡수, 별도 최상위 메뉴 없음)·**A2**(이전 버전 편집→별도 승인)·**B3**(품질 교정=`quality_review`로 처리함)·`ledger R2-3`(상세는 전체 화면·복귀 시 필터/스크롤 복원) · 정본 §0·§1(16)·§3·§4 · **직원웹 부품**(`STAT-SCOPE`·`STAT-METRIC`·`STAT-STATE`·`STAT-DRILL`·`STAT-MASK`·`STAT-EXPORT`·`STAT-AUDIT` 계열=코2 소유) · 백엔드 **Task 8·9**(`record_unresolved` 적재만·상담봇 통계 함수 부재) · 목업 **116**(질문 순위)·**117**(대시보드 통합) · 2단계 셸(`is_active_admin`·`SHELL-NAV` 4그룹·`EMPTY-ZERO`·`EMPTY-ERR`·`ERR-RETRY`·`EMPTY-OFF`).
+
+**Files:**
+- Create: `frontend/src/features/botstats/botStatsApi.ts` (`BotStatsApi` — 질문 순위·상담봇 지표·드릴다운·CSV 소비 계약. 대부분 라우터에 없어 **선언**)
+- Create: `frontend/src/features/botstats/QuestionRanking.tsx` (`QuestionRanking` — 117 화면의 「많이 들어온 질문」 섹션·기간·묶음·한계 안내·묶음 상세·FAQ 보강·빈/로딩/오류/계약부재/임베딩누락)
+- Create: `frontend/src/features/botstats/BotStatsDashboard.tsx` (`BotStatsDashboard` — 117 상담봇 처리 현황·유입 3분류·상담봇 지표 묶음·유효0/계약부재/부분/로딩/오류/오프라인·드릴다운·마스킹·CSV·CSV보호·CSV불가·감사)
+- Create: `frontend/src/features/botstats/adminBotNav.ts` (`resolveAdminBotNav` — 관리자 상담봇 화면 사이 내비 계약: 도착·승인 경유 여부·보존 계약. 도착 화면은 타 태스크 소유·계열명 참조)
+- Test: 위 각 파일의 `*.test.ts(x)`
+
+**Interfaces:**
+- Consumes:
+  - **Task 8/9(상담봇 집계 — 대부분 부재)** — `record_unresolved(ticket_id, question, embedder)`(적재만; **전체 질문 클러스터 집계 함수 없음**) · 직원웹 `get_stats(from_date, to_date)`의 `pending_inquiries_count`는 **placeholder 0**. 상담봇 지표·유입원 3분류·드릴다운·CSV 억제는 `BLOCKED-BEFORE-MERGE`.
+  - ⚠️ **라우터 없는 엔드포인트는 소비 계약 선언**(위 헤더): `GET /admin/chat/stats/ranking[/{clusterId}]`·`GET /admin/chat/stats`·`GET /admin/chat/stats/{metric}/detail`·`GET /admin/chat/stats/export.csv`. **전체 질문 클러스터 집계 함수는 없음** → `QTOP-RANK-10`·`BOTSTAT-DASH-05` 계약 부재로 소비.
+  - **직원웹 통계 부품(코2 소유, 계열명 참조)** — `STAT-SCOPE`(기간 선택·유효성)·`STAT-METRIC`(예약 유입원 3분류·상담봇 지표)·`STAT-STATE`(로딩/0건/오류/오프라인)·`STAT-DRILL`(드릴다운·마스킹 DTO)·`STAT-MASK`(k=5 CSV 억제)·`STAT-EXPORT`(집계 CSV)·`STAT-AUDIT`(드릴다운·CSV 감사 payload 경계) 계열의 판단·상태·마스킹·억제·감사 계약을 재사용한다.
+  - **Task 20·21 흐름 도착(계열명 참조)** — `NAV-ADM-05~08`의 도착은 안내자료 편집(`KBADM` 계열=Task 20 `KbEditor`)·오답 처리함(`BADINBOX-REVIEW` 계열=Task 21 `BadAnswerInbox`); 미해결·품질 상세(`UNRES-CLUSTER`·`QUALITY-REPORT` 계열=Task 21)에서 출발. 도착 화면을 재구현하지 않고 내비 계약만 소유.
+  - **2단계 셸** — 관리자 `private.is_active_admin()` RLS · 사이드바 `상담봇` 그룹 `상담봇 현황`(`SHELL-NAV-01/04` 계열=코2) · `EMPTY-ZERO`·`EMPTY-ERR`·`ERR-RETRY`·`EMPTY-OFF`(상태 부품).
+- Produces (⑦ 구현이 소비):
+  - `botStatsApi`(`getRanking·getRankingCluster·getMetrics·getDrill·exportCsv`).
+  - `QuestionRanking`·`BotStatsDashboard`.
+  - `resolveAdminBotNav(from, action, opts)` — 관리자 상담봇 내비 계약.
+- ⚠️ **아직 안 하는 것**: 위 엔드포인트·전체 질문 클러스터 집계·유입원 3분류 API·드릴다운 마스킹 DTO·CSV k=5 억제·상담봇 지표 감사 저장의 **실제 서버 구현**(소비 계약만, ⑦ `BLOCKED-BEFORE-MERGE`) · 직원웹 운영 통계 화면 자체(`STAT-*`=코2) · KB 편집/승인(`KBADM`=Task 20)·미해결/오답/품질/예시(`UNRES-CLUSTER`·`BADINBOX-REVIEW`·`QUALITY-REPORT`·`QAEX-LIST`=Task 21) · 각 `확인 필요`(기간 경계·시간대·TOP N의 N·동률/상세 정렬·개인정보 범위·임베딩 누락 처리·관리자 10화면 복원 계약)의 **계약 확정**(근거 생기면).
+
+---
+
+- [ ] **Step 1: `botStatsApi` + `adminBotNav` — 소비 계약 + 내비 계약**
+
+> 질문 순위·상담봇 지표·드릴다운·CSV를 타입으로 못박는다(대부분 라우터에 없어 **선언**). 유효한 0건은 `{ kind: "value"; count: 0 }`, 계약 부재는 `{ kind: "no_contract" }`로 **타입에서부터 구분**해 화면이 둘을 뒤섞지 못하게 한다. `adminBotNav`는 관리자 화면 사이의 도착·승인 경유·보존 계약을 순수 함수로 둔다.
+
+`frontend/src/features/botstats/botStatsApi.ts`:
+```ts
+export type DateRange = { from: string; to: string };
+
+// ── 많이 들어온 질문(QTOP-RANK) ──
+export type RankCluster = { id: string; representative: string; count: number };
+export type RankingResult =
+  | { kind: "clusters"; clusters: RankCluster[]; embeddingGap: boolean } // 임베딩 불가 질문 있으면 embeddingGap (QTOP-RANK-11)
+  | { kind: "empty" }        // 집계 성공·질문 0건 (QTOP-RANK-07)
+  | { kind: "no_contract" }; // 서버가 전체 질문 집계 미제공 (QTOP-RANK-10)
+export type RankClusterDetail = { representative: string; questions: string[] };
+
+// ── 운영 지표(BOTSTAT-DASH) ──
+// 유효한 0건과 계약 부재를 타입에서 구분한다(정본 §0·§4).
+export type MetricValue =
+  | { kind: "value"; count: number; drillable: boolean } // 실제 값(0건 포함, BOTSTAT-DASH-04)
+  | { kind: "no_contract" };                             // 집계 계약 부재(BOTSTAT-DASH-05)
+export type InflowShare =
+  | { kind: "value"; app: number; staff: number; chatbot: number } // 3분류 비율(BOTSTAT-DASH-02)
+  | { kind: "no_contract" };
+export type BotMetrics = {
+  inflow: InflowShare;        // 예약 유입원 3분류(app/staff/chatbot)
+  inquiries: MetricValue;     // 문의 수
+  selfServed: MetricValue;    // 자체 안내
+  handedOff: MetricValue;     // 직원 연결
+};
+export type DrillRow = { patientMasked: string; at: string }; // 서버가 준 마스킹 표시값만(BOTSTAT-DASH-11)
+
+export interface BotStatsApi {
+  getRanking(range: DateRange): Promise<RankingResult>;                         // GET /admin/chat/stats/ranking ⚠️선언
+  getRankingCluster(id: string, range: DateRange): Promise<RankClusterDetail>;  // GET /admin/chat/stats/ranking/{id} ⚠️선언
+  getMetrics(range: DateRange): Promise<BotMetrics>;                            // GET /admin/chat/stats ⚠️선언
+  getDrill(metric: string, range: DateRange): Promise<DrillRow[]>;             // GET /admin/chat/stats/{metric}/detail ⚠️선언(STAT-DRILL 계열)
+  exportCsv(range: DateRange): Promise<Blob>;                                   // GET /admin/chat/stats/export.csv ⚠️선언(STAT-EXPORT 계열)
+}
+
+export function createBotStatsApi(baseUrl: string): BotStatsApi {
+  const call = async (path: string) => {
+    const resp = await fetch(baseUrl + path, { credentials: "include" });
+    if (resp.status === 501) return { kind: "no_contract" as const }; // 서버가 집계 미제공(계약 부재)
+    if (!resp.ok) throw new Error(`bot_stats_${resp.status}`);
+    return resp.json();
+  };
+  const qs = (r: DateRange) => `from=${encodeURIComponent(r.from)}&to=${encodeURIComponent(r.to)}`;
+  return {
+    getRanking: (r) => call(`/admin/chat/stats/ranking?${qs(r)}`),
+    getRankingCluster: (id, r) => call(`/admin/chat/stats/ranking/${id}?${qs(r)}`),
+    getMetrics: (r) => call(`/admin/chat/stats?${qs(r)}`),
+    getDrill: (metric, r) => call(`/admin/chat/stats/${metric}/detail?${qs(r)}`),
+    exportCsv: async (r) => {
+      const resp = await fetch(`${baseUrl}/admin/chat/stats/export.csv?${qs(r)}`, { credentials: "include" });
+      if (!resp.ok) throw new Error(`bot_stats_csv_${resp.status}`);
+      return resp.blob();
+    },
+  };
+}
+```
+
+`frontend/src/features/botstats/adminBotNav.ts`:
+```ts
+// 관리자 상담봇 화면 사이 내비 계약(NAV-ADM-*). 순수 함수 — 라우팅·보존 규칙만 소유하고
+// 도착 화면(KBADM=Task20 · UNRES/BADINBOX/QUALITY=Task21 · STAT drill=코2)은 재구현하지 않는다.
+export type AdminBotScreen =
+  | "kb-list" | "kb-editor" | "kb-history"        // 안내자료(KBADM 계열=Task20)
+  | "unresolved-detail" | "badinbox" | "badinbox-detail"
+  | "quality-detail" | "ranking-detail"
+  | "botstats" | "botstats-drill"                 // 상담봇 처리 현황(이 태스크)
+  | "hours" | "hours-day";                        // 운영시간(SCHED 계열=코2)
+
+export type NavAction =
+  | "new-kb" | "open-kb-row" | "open-history" | "edit-prev-version"
+  | "add-kb" | "apply-report" | "save-correction" | "faq-boost"
+  | "open-metric-card" | "select-date" | "back-to-list";
+
+// 보존 계약: 근거가 확실한 것만 true, 근거 없으면 "unknown"(임의 확정 안 함, NAV-ADM-12/정본 §4).
+export type Preserve = { filters?: boolean | "unknown"; scroll?: boolean | "unknown"; period?: boolean };
+export type NavGo = { to: AdminBotScreen; approvalRequired?: boolean; publishesOnSave?: boolean; preserve: Preserve };
+export type NavStay = { to: null; reason: string; retry: true }; // 이동 안 함(계약없음/오류/오프라인)
+export type NavResult = NavGo | NavStay;
+
+// 숫자 카드의 상세 계약 상태
+export type CardState = "has_contract" | "no_contract" | "error" | "offline";
+
+export function resolveAdminBotNav(
+  from: AdminBotScreen,
+  action: NavAction,
+  opts: { cardState?: CardState } = {},
+): NavResult {
+  switch (action) {
+    case "new-kb":            return { to: "kb-editor", publishesOnSave: false, preserve: {} };            // NAV-ADM-01
+    case "open-kb-row":       return { to: "kb-editor", preserve: {} };                                    // NAV-ADM-02 (대상 조회 실패해도 새 자료로 전환은 화면 몫)
+    case "open-history":      return { to: "kb-history", preserve: {} };                                   // NAV-ADM-03 (뒤로=같은 자료 편집)
+    case "edit-prev-version": return { to: "kb-editor", approvalRequired: true, preserve: {} };            // NAV-ADM-04 (자동 승인·승인 취소 아님)
+    case "add-kb":            return { to: "kb-editor", approvalRequired: true, preserve: {} };            // NAV-ADM-05 (승인 성공 뒤에만 반영)
+    case "apply-report":      return { to: "kb-editor", approvalRequired: true, preserve: {} };            // NAV-ADM-06 (자동 승인 금지)
+    case "save-correction":   return { to: "badinbox", approvalRequired: true, preserve: {} };            // NAV-ADM-07 (source=quality_review 등록된 처리함)
+    case "faq-boost":         return { to: "kb-editor", approvalRequired: true, preserve: {} };            // NAV-ADM-08 (승인 전 미반영)
+    case "open-metric-card":                                                                               // NAV-ADM-09/10
+      if (opts.cardState === "has_contract") return { to: "botstats-drill", preserve: { period: true } }; // 닫으면 기간·지표 유지
+      return { to: null, reason: opts.cardState ?? "no_contract", retry: true };                          // 계약없음/오류/오프라인 → 이동 안 함
+    case "select-date":       return { to: "hours-day", preserve: {} };                                    // NAV-ADM-11 (같은 화면 특정일 상세)
+    case "back-to-list":                                                                                   // NAV-ADM-12
+      return { to: from, preserve: { filters: "unknown", scroll: "unknown" } };                            // 근거 없어 화면별 확인 필요
+  }
+}
+```
+
+`frontend/src/features/botstats/adminBotNav.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { resolveAdminBotNav } from "./adminBotNav";
+
+describe("adminBotNav (NAV-ADM-*)", () => {
+  it("[NAV-ADM-01] 안내자료 목록의 [새 안내자료]는 편집 화면으로 가되 저장만으로 공개하지 않는다", () => {
+    const r = resolveAdminBotNav("kb-list", "new-kb");
+    expect(r).toMatchObject({ to: "kb-editor", publishesOnSave: false });
+  });
+
+  it("[NAV-ADM-02] 안내자료 행 선택은 수정 화면으로 간다(대상 조회 실패 시 새 자료로 전환하지 않음)", () => {
+    const r = resolveAdminBotNav("kb-list", "open-kb-row");
+    expect(r).toMatchObject({ to: "kb-editor" });
+    // publishesOnSave 미표시 = 새 자료 강제 전환 계약 없음
+    expect((r as { publishesOnSave?: boolean }).publishesOnSave).toBeUndefined();
+  });
+
+  it("[NAV-ADM-03] 편집의 [수정이력 보기]는 이력으로 가고 뒤로 가면 같은 자료 편집으로 돌아온다", () => {
+    expect(resolveAdminBotNav("kb-editor", "open-history")).toMatchObject({ to: "kb-history" });
+  });
+
+  it("[NAV-ADM-04] 이전 버전 [편집]은 편집 폼으로 가되 별도 승인 필요(자동 승인·승인 취소 아님)", () => {
+    expect(resolveAdminBotNav("kb-history", "edit-prev-version")).toMatchObject({ to: "kb-editor", approvalRequired: true });
+  });
+
+  it("[NAV-ADM-05] 미해결 질문 상세의 안내자료 추가는 편집으로 가고 승인 성공 뒤에만 반영된다", () => {
+    expect(resolveAdminBotNav("unresolved-detail", "add-kb")).toMatchObject({ to: "kb-editor", approvalRequired: true });
+  });
+
+  it("[NAV-ADM-06] 오답 신고 상세의 [반영]은 자료 수정/예시 추가로 가되 자동 승인하지 않는다", () => {
+    expect(resolveAdminBotNav("badinbox-detail", "apply-report")).toMatchObject({ to: "kb-editor", approvalRequired: true });
+  });
+
+  it("[NAV-ADM-07] 품질 리포트 교정 저장은 source=quality_review가 등록된 오답 신고 처리함으로 간다", () => {
+    expect(resolveAdminBotNav("quality-detail", "save-correction")).toMatchObject({ to: "badinbox", approvalRequired: true });
+  });
+
+  it("[NAV-ADM-08] 전체 질문 순위 상세의 FAQ 보강은 안내자료 작성으로 가되 승인 전 미반영", () => {
+    expect(resolveAdminBotNav("ranking-detail", "faq-boost")).toMatchObject({ to: "kb-editor", approvalRequired: true });
+  });
+
+  it("[NAV-ADM-09] 계약 있는 숫자 카드는 같은 기간 상세로 가고 닫으면 기간·지표를 유지한다", () => {
+    expect(resolveAdminBotNav("botstats", "open-metric-card", { cardState: "has_contract" }))
+      .toMatchObject({ to: "botstats-drill", preserve: { period: true } });
+  });
+
+  it("[NAV-ADM-10] 계약 없음·오류·오프라인 카드는 상세/CSV로 이동하지 않고 현재 상태·재시도를 유지한다", () => {
+    for (const cardState of ["no_contract", "error", "offline"] as const) {
+      const r = resolveAdminBotNav("botstats", "open-metric-card", { cardState });
+      expect(r.to).toBeNull();
+      expect((r as { retry: boolean }).retry).toBe(true);
+    }
+  });
+
+  it("[NAV-ADM-11] 운영시간 화면의 특정 날짜 선택은 같은 화면의 특정일 변경 상세로 간다", () => {
+    expect(resolveAdminBotNav("hours", "select-date")).toMatchObject({ to: "hours-day" });
+  });
+
+  it("[NAV-ADM-12] 관리자 화면의 목록 복귀는 필터·스크롤 보존을 임의로 확정하지 않고 확인 필요로 남긴다", () => {
+    const r = resolveAdminBotNav("badinbox", "back-to-list") as { preserve: { filters: unknown; scroll: unknown } };
+    expect(r.preserve.filters).toBe("unknown");
+    expect(r.preserve.scroll).toBe("unknown");
+  });
+});
+```
+
+`frontend/src/features/botstats/botStatsApi.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createBotStatsApi } from "./botStatsApi";
+
+describe("botStatsApi", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("[Step1] getRanking은 기간을 쿼리로 실어 GET /admin/chat/stats/ranking을 호출한다", async () => {
+    const m = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ kind: "empty" }), { status: 200 }));
+    await createBotStatsApi("http://x").getRanking({ from: "2026-08-01", to: "2026-08-20" });
+    expect(String(m.mock.calls[0][0])).toBe("http://x/admin/chat/stats/ranking?from=2026-08-01&to=2026-08-20");
+  });
+
+  it("[Step1] 서버가 501을 주면(집계 미제공) no_contract로 소비한다(임의 0건 위장 금지)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 501 }));
+    const r = await createBotStatsApi("http://x").getMetrics({ from: "a", to: "b" });
+    expect(r).toEqual({ kind: "no_contract" });
+  });
+});
+```
+Run: `npm --prefix frontend run test -- botstats/adminBotNav botstats/botStatsApi` → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: `QuestionRanking` — 많이 들어온 질문 섹션 (`QTOP-RANK-*` 11규칙)**
+
+> 117 화면 안의 섹션이다(`QTOP-RANK-*`, 116 흡수). 기간 집계(`-01`)·성공/실패 무관 전체 질문(`-02`, 미해결만 집계와 안 섞음)·`대표 질문+N건` TOP N(`-03`)·자동 묶음 한계 안내 항상(`-04`)·묶음 상세 전체 화면+복귀(`-05`)·FAQ 보강은 승인 전 미반영(`-06`)·빈 상태(`-07`)·로딩은 이전 순위 안 보임(`-08`)·오류+재시도는 0건 위장 안 함(`-09`)·계약 부재 `현재 집계할 수 없음`(`-10`)·임베딩 누락은 전체 대표 단정 안 함(`-11`).
+
+`frontend/src/features/botstats/QuestionRanking.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { QuestionRanking } from "./QuestionRanking";
+import type { RankingResult } from "./botStatsApi";
+
+const clusters = {
+  kind: "clusters" as const, embeddingGap: false,
+  clusters: [
+    { id: "c1", representative: "주차 되나요", count: 42 },
+    { id: "c2", representative: "예약 취소는 어떻게", count: 31 },
+  ],
+};
+const mkApi = (ranking: RankingResult | (() => Promise<RankingResult>) = clusters, o = {}) => ({
+  getRanking: typeof ranking === "function" ? vi.fn(ranking) : vi.fn().mockResolvedValue(ranking),
+  getRankingCluster: vi.fn().mockResolvedValue({ representative: "주차 되나요", questions: ["주차 가능?", "주차장 있어요?"] }),
+  ...o,
+}) as any;
+
+const range = { from: "2026-08-01", to: "2026-08-20" };
+
+describe("QuestionRanking (QTOP-RANK-*)", () => {
+  it("[QTOP-RANK-01] 유효한 기간을 선택하면 그 기간의 질문 집계를 조회한다", async () => {
+    const api = mkApi();
+    render(<QuestionRanking api={api} range={range} onFaqBoost={vi.fn()} />);
+    await waitFor(() => expect(api.getRanking).toHaveBeenCalledWith(range));
+  });
+
+  it("[QTOP-RANK-02] 답변 성공·실패와 무관하게 전체 질문을 집계한다(미해결만 집계와 섞지 않음)", async () => {
+    render(<QuestionRanking api={mkApi()} range={range} onFaqBoost={vi.fn()} />);
+    expect(await screen.findByText(/전체 질문 기준/)).toBeVisible();
+    expect(screen.queryByText(/미해결 질문만/)).toBeNull();
+  });
+
+  it("[QTOP-RANK-03] 유사 질문을 '대표 질문 + N건'으로 묶어 건수 내림차순으로 표시한다", async () => {
+    render(<QuestionRanking api={mkApi()} range={range} onFaqBoost={vi.fn()} />);
+    const rows = await screen.findAllByTestId("rank-row");
+    expect(rows[0]).toHaveTextContent("주차 되나요");
+    expect(rows[0]).toHaveTextContent("42건");
+    expect(rows[1]).toHaveTextContent("31건"); // 내림차순
+  });
+
+  it("[QTOP-RANK-04] 자동 유사도 묶음에 다른 질문이 섞일 수 있음을 항상 안내하고 확정 분류처럼 쓰지 않는다", async () => {
+    render(<QuestionRanking api={mkApi()} range={range} onFaqBoost={vi.fn()} />);
+    expect(await screen.findByText(/자동으로 비슷한 질문끼리 묶어본 결과이며 실제로 다른 질문이 섞여 있을 수 있습니다/)).toBeVisible();
+  });
+
+  it("[QTOP-RANK-05] 순위 행을 선택하면 묶음 상세를 별도 전체 화면으로 열고, 목록 복귀 시 직전 필터·스크롤을 복원한다", async () => {
+    const api = mkApi();
+    render(<QuestionRanking api={api} range={range} onFaqBoost={vi.fn()} />);
+    fireEvent.click((await screen.findAllByTestId("rank-row"))[0]);
+    await waitFor(() => expect(api.getRankingCluster).toHaveBeenCalledWith("c1", range));
+    expect(await screen.findByText("주차 가능?")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /목록으로/ }));
+    // 복귀 시 목록이 그대로(재조회로 스크롤·필터 초기화하지 않음)
+    expect(await screen.findByTestId("ranking-list")).toHaveAttribute("data-restored", "true");
+  });
+
+  it("[QTOP-RANK-06] 묶음을 자료로 만들기를 누르면 안내자료 작성으로 연결하며 승인 전에는 반영하지 않는다", async () => {
+    const onFaqBoost = vi.fn();
+    render(<QuestionRanking api={mkApi()} range={range} onFaqBoost={onFaqBoost} />);
+    fireEvent.click((await screen.findAllByTestId("rank-row"))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: /자료로 만들기/ }));
+    expect(onFaqBoost).toHaveBeenCalledWith("c1"); // 도착=KBADM(Task20)·승인 경유는 adminBotNav(NAV-ADM-08)
+    expect(screen.queryByText(/답변에 반영했습니다/)).toBeNull();
+  });
+
+  it("[QTOP-RANK-07] 집계 성공·질문 0건은 '집계할 질문이 없습니다'를 표시한다", async () => {
+    render(<QuestionRanking api={mkApi({ kind: "empty" })} range={range} onFaqBoost={vi.fn()} />);
+    expect(await screen.findByText(/집계할 질문이 없습니다/)).toBeVisible();
+  });
+
+  it("[QTOP-RANK-08] 집계 중에는 기간을 유지하고 로딩을 표시하며 이전 기간 순위를 새 결과로 보이지 않는다", () => {
+    render(<QuestionRanking api={mkApi(() => new Promise(() => {}))} range={range} onFaqBoost={vi.fn()} />);
+    expect(screen.getByLabelText("질문 순위 로딩")).toBeVisible();
+    expect(screen.queryByTestId("rank-row")).toBeNull();
+  });
+
+  it("[QTOP-RANK-09] 집계 실패는 오류·같은 기간 재시도를 표시하고 0건으로 위장하지 않는다", async () => {
+    render(<QuestionRanking api={mkApi(() => Promise.reject(new Error("x")))} range={range} onFaqBoost={vi.fn()} />);
+    expect(await screen.findByText(/집계하지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.queryByText(/집계할 질문이 없습니다/)).toBeNull();
+  });
+
+  it("[QTOP-RANK-10] 서버가 전체 질문 집계를 제공하지 않으면 '현재 집계할 수 없음'을 표시한다(임시 0·합성 순위 금지)", async () => {
+    render(<QuestionRanking api={mkApi({ kind: "no_contract" })} range={range} onFaqBoost={vi.fn()} />);
+    expect(await screen.findByText("현재 집계할 수 없음")).toBeVisible();
+    expect(screen.queryByTestId("rank-row")).toBeNull();
+    expect(screen.queryByText(/집계할 질문이 없습니다/)).toBeNull(); // 계약 부재 ≠ 0건
+  });
+
+  it("[QTOP-RANK-11] 임베딩 불가 질문이 있으면 전체 질문을 모두 대표한다고 단정하지 않는다", async () => {
+    render(<QuestionRanking api={mkApi({ ...clusters, embeddingGap: true })} range={range} onFaqBoost={vi.fn()} />);
+    expect(await screen.findByText(/일부 질문은 묶음에 포함되지 않았을 수 있습니다/)).toBeVisible();
+  });
+});
+```
+Run: `npm --prefix frontend run test -- botstats/QuestionRanking` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `BotStatsDashboard` — 상담봇 처리 현황(운영 지표) (`BOTSTAT-DASH-*` 15규칙)**
+
+> 117 상담봇 처리 현황 화면(직원웹 `STAT-*` 부품 재사용·계열명 참조). 기간(`-01`)·유입 3분류(`-02`)·상담봇 지표 묶음(`-03`)·유효한 0건(`-04`)·계약 부재 `현재 집계할 수 없음`(`-05`)·부분 계약(`-06`)·로딩(`-07`)·오류(`-08`)·오프라인(`-09`)·드릴다운(`-10`)·마스킹 표시값만(`-11`)·CSV(`-12`)·CSV k=5 억제(`-13`)·CSV 불가(`-14`)·감사 payload 경계(`-15`). ⚠️ `QuestionRanking`(Step2)을 이 화면의 한 섹션으로 함께 렌더한다.
+
+`frontend/src/features/botstats/BotStatsDashboard.test.tsx`:
+```tsx
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { BotStatsDashboard } from "./BotStatsDashboard";
+import type { BotMetrics } from "./botStatsApi";
+
+const V = (count: number, drillable = true) => ({ kind: "value" as const, count, drillable });
+const full: BotMetrics = {
+  inflow: { kind: "value", app: 60, staff: 30, chatbot: 10 },
+  inquiries: V(120), selfServed: V(80), handedOff: V(40, false),
+};
+const mkApi = (metrics: BotMetrics | (() => Promise<BotMetrics>) = full, o = {}) => ({
+  getMetrics: typeof metrics === "function" ? vi.fn(metrics) : vi.fn().mockResolvedValue(metrics),
+  getRanking: vi.fn().mockResolvedValue({ kind: "empty" }),
+  getRankingCluster: vi.fn(),
+  getDrill: vi.fn().mockResolvedValue([{ patientMasked: "홍*동", at: "2026-08-10" }]),
+  exportCsv: vi.fn().mockResolvedValue(new Blob(["기간,값\n"], { type: "text/csv" })),
+  ...o,
+}) as any;
+const range = { from: "2026-08-01", to: "2026-08-20" };
+const audit = vi.fn();
+
+describe("BotStatsDashboard (BOTSTAT-DASH-*)", () => {
+  beforeEach(() => audit.mockClear());
+
+  it("[BOTSTAT-DASH-01] 선택 기간을 같은 화면에서 조회하고 결과 제목에 기간을 표시한다", async () => {
+    const api = mkApi();
+    render(<BotStatsDashboard api={api} range={range} onAudit={audit} />);
+    await waitFor(() => expect(api.getMetrics).toHaveBeenCalledWith(range));
+    expect(await screen.findByText(/2026-08-01 ~ 2026-08-20/)).toBeVisible();
+  });
+
+  it("[BOTSTAT-DASH-02] 예약 유입원을 app·staff·chatbot 별도 비율로 표시하고 챗봇을 앱/직원에 섞지 않는다", async () => {
+    render(<BotStatsDashboard api={mkApi()} range={range} onAudit={audit} />);
+    const inflow = await screen.findByTestId("inflow");
+    expect(inflow).toHaveTextContent("앱 60%");
+    expect(inflow).toHaveTextContent("직원 30%");
+    expect(inflow).toHaveTextContent("챗봇 10%");
+  });
+
+  it("[BOTSTAT-DASH-03] 상담봇 지표(문의 수·자체 안내·직원 연결)를 예약 지표와 분리된 묶음으로 표시한다", async () => {
+    render(<BotStatsDashboard api={mkApi()} range={range} onAudit={audit} />);
+    const bot = await screen.findByTestId("bot-metrics");
+    expect(bot).toHaveTextContent("문의 수120");
+    expect(bot).toHaveTextContent("자체 안내80");
+    expect(bot).toHaveTextContent("직원 연결40");
+  });
+
+  it("[BOTSTAT-DASH-04] 계약 존재·실제 0건은 '0건'을 표시하고 기간을 바꿀 수 있게 둔다", async () => {
+    render(<BotStatsDashboard api={mkApi({ ...full, inquiries: V(0) })} range={range} onAudit={audit} />);
+    expect(await screen.findByTestId("metric-inquiries")).toHaveTextContent("0건");
+    expect(screen.getByLabelText(/기간/)).toBeVisible();
+  });
+
+  it("[BOTSTAT-DASH-05] 집계 계약이 없으면 '현재 집계할 수 없음'을 표시하고 placeholder 0·빈 차트를 금지한다", async () => {
+    render(<BotStatsDashboard api={mkApi({ ...full, inflow: { kind: "no_contract" } })} range={range} onAudit={audit} />);
+    expect(await screen.findByTestId("inflow")).toHaveTextContent("현재 집계할 수 없음");
+    expect(screen.getByTestId("inflow")).not.toHaveTextContent("0%");
+  });
+
+  it("[BOTSTAT-DASH-06] 일부 지표만 집계 가능하면 가능한 것만 실제 값·나머지는 각각 '현재 집계할 수 없음'(묶음 전체를 0으로 만들지 않음)", async () => {
+    render(<BotStatsDashboard api={mkApi({ ...full, selfServed: { kind: "no_contract" } })} range={range} onAudit={audit} />);
+    expect(await screen.findByTestId("metric-inquiries")).toHaveTextContent("120");    // 실제 값 유지
+    expect(screen.getByTestId("metric-selfServed")).toHaveTextContent("현재 집계할 수 없음");
+    expect(screen.getByTestId("metric-selfServed")).not.toHaveTextContent("0건");
+  });
+
+  it("[BOTSTAT-DASH-07] 조회 중에는 기간을 유지하고 로딩을 표시하며 이전 결과를 새 응답으로 가장하지 않는다", () => {
+    render(<BotStatsDashboard api={mkApi(() => new Promise(() => {}))} range={range} onAudit={audit} />);
+    expect(screen.getByLabelText("현황 로딩")).toBeVisible();
+    expect(screen.queryByTestId("bot-metrics")).toBeNull();
+  });
+
+  it("[BOTSTAT-DASH-08] 서버·유효성 오류는 오류·같은 기간 재시도를 표시하고 마지막 결과·0건을 현재 값처럼 표시하지 않는다", async () => {
+    render(<BotStatsDashboard api={mkApi(() => Promise.reject(new Error("x")))} range={range} onAudit={audit} />);
+    expect(await screen.findByText(/불러오지 못했습니다/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+    expect(screen.queryByText("0건")).toBeNull();
+  });
+
+  it("[BOTSTAT-DASH-09] 오프라인은 캐시를 최신 집계로 가장하지 않고 오프라인·재시도를 표시한다", async () => {
+    render(<BotStatsDashboard api={mkApi(() => Promise.reject(Object.assign(new Error("off"), { offline: true })))} range={range} onAudit={audit} />);
+    expect(await screen.findByText(/오프라인/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /다시 시도/ })).toBeVisible();
+  });
+
+  it("[BOTSTAT-DASH-10] 상세 계약 있는 숫자 카드만 상세를 열고, 상세 계약 없는 지표는 클릭 가능하게 가장하지 않는다", async () => {
+    const api = mkApi();
+    render(<BotStatsDashboard api={api} range={range} onAudit={audit} />);
+    fireEvent.click(await screen.findByTestId("metric-inquiries")); // drillable:true
+    await waitFor(() => expect(api.getDrill).toHaveBeenCalledWith("inquiries", range));
+    expect(screen.getByTestId("metric-handedOff")).toHaveAttribute("aria-disabled", "true"); // drillable:false
+  });
+
+  it("[BOTSTAT-DASH-11] 드릴다운 명단은 서버가 준 마스킹 표시값만 쓰고 원본을 클라이언트가 가공하지 않는다", async () => {
+    render(<BotStatsDashboard api={mkApi()} range={range} onAudit={audit} />);
+    fireEvent.click(await screen.findByTestId("metric-inquiries"));
+    expect(await screen.findByText("홍*동")).toBeVisible(); // 서버 마스킹 그대로
+  });
+
+  it("[BOTSTAT-DASH-12] CSV는 현재 기간·지표 기준 집계로 생성하고 환자 상세 명단을 자동 포함하지 않는다", async () => {
+    const api = mkApi();
+    render(<BotStatsDashboard api={api} range={range} onAudit={audit} />);
+    fireEvent.click(await screen.findByRole("button", { name: /CSV 내보내기/ }));
+    await waitFor(() => expect(api.exportCsv).toHaveBeenCalledWith(range));
+  });
+
+  it("[BOTSTAT-DASH-13] CSV에서만 5건 미만 셀을 가리고 이유를 표시하며, 화면 수치엔 이 억제를 적용하지 않는다", async () => {
+    // 화면은 소수 셀도 그대로 공개
+    render(<BotStatsDashboard api={mkApi({ ...full, handedOff: V(3, false) })} range={range} onAudit={audit} />);
+    expect(await screen.findByTestId("metric-handedOff")).toHaveTextContent("3건"); // 화면은 억제 없음
+    expect(screen.getByTestId("metric-handedOff")).not.toHaveTextContent("소수 인원 보호");
+    // CSV 다운로드 직전 억제 안내 한 줄
+    fireEvent.click(screen.getByRole("button", { name: /CSV 내보내기/ }));
+    expect(await screen.findByText(/소수 인원 보호로 일부 셀이 비공개될 수 있습니다/)).toBeVisible();
+  });
+
+  it("[BOTSTAT-DASH-14] 집계 계약 없음·조회 실패·오프라인이면 다운로드를 실행하지 않고 빈/0건 파일을 만들지 않는다", async () => {
+    const api = mkApi(() => Promise.reject(new Error("x")));
+    render(<BotStatsDashboard api={api} range={range} onAudit={audit} />);
+    await screen.findByText(/불러오지 못했습니다/);
+    expect(screen.queryByRole("button", { name: /CSV 내보내기/ })).toBeNull(); // 조회 실패 상태에선 내보내기 자체가 없음
+    expect(api.exportCsv).not.toHaveBeenCalled();
+  });
+
+  it("[BOTSTAT-DASH-15] 상세 열기·CSV는 실행자·시각·지표·기간·대상 건수·억제 여부만 감사하고 환자명·전화·검색어를 payload에 넣지 않는다", async () => {
+    render(<BotStatsDashboard api={mkApi()} range={range} onAudit={audit} />);
+    fireEvent.click(await screen.findByTestId("metric-inquiries"));
+    await waitFor(() => expect(audit).toHaveBeenCalled());
+    const payload = audit.mock.calls[0][0];
+    expect(payload).toMatchObject({ action: "stats_drilldown", metric: "inquiries", from: range.from, to: range.to });
+    expect(JSON.stringify(payload)).not.toContain("홍*동"); // 환자명·마스킹 명단도 payload에 복사 안 함
+  });
+});
+```
+Run: `npm --prefix frontend run test -- botstats/BotStatsDashboard` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: 117 화면 조립 — `QuestionRanking` 섹션 + `BotStatsDashboard` + 사이드바 진입 확인**
+
+> 116(질문 순위)이 별도 메뉴가 아니라 117 안의 섹션임을 화면 조립으로 못박는다(`AD-069`·`MR2-06`). 별도 라우트/최상위 메뉴를 만들지 않는다. 사이드바 `상담봇` 그룹의 `상담봇 현황` 하나로 진입한다(`SHELL-NAV` 계열=코2 참조).
+
+`frontend/src/features/botstats/BotStatsDashboard.test.tsx`에 이어서:
+```tsx
+describe("BotStatsDashboard 조립 (116→117 흡수)", () => {
+  it("[Step4] 상담봇 처리 현황 화면 하나 안에 '운영 지표'와 '많이 들어온 질문' 두 섹션이 함께 있고 별도 라우트가 없다", async () => {
+    render(<BotStatsDashboard api={mkApi()} range={range} onAudit={audit} />);
+    expect(await screen.findByRole("heading", { name: /운영 지표/ })).toBeVisible();
+    expect(screen.getByRole("heading", { name: /많이 들어온 질문/ })).toBeVisible(); // 116 섹션이 117 안에
+  });
+});
+```
+Run: `npm --prefix frontend run test -- botstats/` → 전 섹션 PASS.
+
+- [ ] **Step 5: 전수 초록불 + 검사기 + 커밋 (챗봇 4단계 완결)**
+
+Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 38규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `+38`(`QTOP-RANK` 11 + `BOTSTAT-DASH` 15 + `NAV-ADM` 12) → 누계 `480→518`(**미커버 38→0 · 100%**) · prefix-check **빚0·미배정0·⏰0**. ⚠️ 타 태스크·타 영역 소유(`STAT-SCOPE`·`STAT-METRIC`·`STAT-STATE`·`STAT-DRILL`·`STAT-MASK`·`STAT-EXPORT`·`STAT-AUDIT`=코2 · `KBADM`·`UNRES-CLUSTER`·`BADINBOX-REVIEW`·`QUALITY-REPORT`·`QAEX-LIST`=Task 20·21 · `SHELL-NAV`=코2)는 **계열명(숫자 0개)으로만** 참조했다(⏰ 방지). `EMPTY-ZERO`·`EMPTY-ERR`·`ERR-RETRY`·`EMPTY-OFF`(2단계 상태 부품)는 ai-chatbot 규칙 아님(참조만).
+
+```bash
+git add frontend/src/features/botstats/ docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 22 본문 — 질문 순위·챗봇 처리 현황(통계)·관리자 내비 38규칙(챗봇 4단계 완결). 116→117 흡수·직원웹 STAT 부품 재사용·자동 묶음 한계 안내·유효0↔계약부재 구분·CSV k=5 억제·감사 payload 개인정보 금지·승인 전 미반영. 소비 계약 5건 선언(전체 질문 클러스터 집계 함수 부재)"
+```
+
+> **Task 22 완료 조건**: `QTOP-RANK`(`01`~`11` = 11) + `BOTSTAT-DASH`(`01`~`15` = 15) + `NAV-ADM`(`01`~`12` = 12) = **38규칙 전수** 초록불(Vitest). ⭐ **116→117 흡수**: 질문 순위는 별도 메뉴가 아니라 상담봇 처리 현황(117) 화면 안의 한 섹션(`AD-069`·`MR2-06`). ⭐ **직원웹 `STAT-*` 부품 재사용**(코2 소유·계열명): 기간·유입원 3분류·상태·드릴다운·마스킹·CSV·감사. ⭐ **자동 유사도 묶음 한계 안내 항상**(`QTOP-RANK-04`)·**유효한 0건↔계약 부재를 각각 구분**(`현재 집계할 수 없음`, `BOTSTAT-DASH-05`·`QTOP-RANK-10`)·**부분 계약은 가능한 것만**(`-06`)·**CSV만 k=5 억제**(화면은 전부 공개, `-13`)·**감사 payload에 환자명·전화·검색어 금지**(`-15`)·**승인 전 미반영·자동 승인 금지**(`NAV-ADM-04~08`). ⭐ **소비 계약 5건 선언**: 질문 순위 집계/상세·상담봇 지표·드릴다운·CSV — **전체 질문 클러스터 집계 함수는 Task 8에 없음**(`QTOP-RANK-10` 계약 부재로 소비). ⚠️ **경계**: `STAT-*` 실제 서버 구현·유입원 3분류 API·마스킹 DTO·CSV 억제·감사 저장=`BLOCKED-BEFORE-MERGE`(⑦) · 각 `확인 필요`(기간 경계·시간대·TOP N의 N·동률/상세 정렬·개인정보 범위·임베딩 누락 처리·관리자 10화면 복원)=⑦ 조정. **🎉 이 태스크로 상담봇 규칙 커버 100%(518/518)·챗봇 4단계 완결.** 다음 = ⑤ 마무리(decision-consistency-check·직원웹 감사 명단 7건·배포 플랜 ⑤ 미작성분) — `HANDOFF.md` 「⑤ 다 쓰면 할 일」.
