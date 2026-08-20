@@ -1260,7 +1260,7 @@ git commit -m "feat: 자정 부도 처리 배치 mark_overdue_no_shows() — 예
 - Test: `backend/tests/test_dispatch_job.py`
 
 **Interfaces:**
-- Consumes: `app.db.pool.get_pool`; `app.services.dispatch_service.claim_scheduled()`·`run_retry_worker()`(직원웹 T30); `app.services.ai_session_service.expire_idle_sessions()`(상담봇 T2 — `expire_idle_ai_sessions()` 래퍼); **`app.services.chat_notification_service.dispatch_pending_batches(conn) -> int`**(⚠️ 아래 「디스패처 공유 다리」 — 선언 계약); `app.core.config.settings.public_base_url`
+- Consumes: `app.db.pool.get_pool`; `app.services.dispatch_service.claim_scheduled()`·`run_retry_worker()`(직원웹 T30); `app.services.chat.ai_session_service.expire_idle_sessions()`(상담봇 T2 — `expire_idle_ai_sessions()` 래퍼, 인자 없음·C1-4); **`app.services.chat_notification_service.dispatch_pending_batches(conn) -> int`**(⚠️ 아래 「디스패처 공유 다리」 — 선언 계약); `app.core.config.settings.public_base_url`
 - Produces: `app.jobs.dispatch.run() -> dict`, CLI `python -m app.jobs.dispatch`(Task 16 크론이 자주 호출); `notify_clients` 문자 발송의 `status_callback` 배선
 
 > ⚠️⚠️ **디스패처 공유 다리(seam) — 선언 계약, ⑦에서 확정**: 상담봇은 `chat_notification_batches`에 `notification_requested_at`까지만 쓰고(`ai-chatbot.md:1737`, 설계결정 1 — `notification_log`에 직접 안 씀), 직원웹 T30 `send_now`는 **`notification_log` 행**을 실어 보낸다. **그 사이를 잇는 함수**(배치 → `resolve_recipient`(상담봇 T3) → `notification_log` 행 생성 → `send_now`(T30))는 **어느 플랜에도 이름이 없다.** 이 잡이 그 다리를 `chat_notification_service.dispatch_pending_batches(conn)`로 **소비 선언**한다 — 실제 배선은 ⑦ 구현 때 상담봇 T3 `resolve_recipient` + T30 `send_now`로 잇는다(익명이면 `ANON_CONTACT_ENCRYPTION_KEY`로 연락처 복호화). **여기서 발명하지 않는다.**
@@ -1339,7 +1339,7 @@ import asyncio
 from app.db.pool import get_pool
 from app.services import dispatch_service            # 직원웹 T30
 from app.services import chat_notification_service   # 상담봇 T3 — dispatch_pending_batches(선언 계약)
-from app.services import ai_session_service          # 상담봇 T2 — expire_idle_sessions
+from app.services.chat import ai_session_service     # 상담봇 T2 — expire_idle_sessions (C1-4: 챗봇 서비스는 app.services.chat 패키지)
 
 
 async def run() -> dict:
@@ -1353,7 +1353,8 @@ async def run() -> dict:
         # (3) 상담봇 답변 배치 — notification_requested_at 있고 log 없는 배치를 발송(디스패처 공유 다리).
         counts["chat_batches"] = await chat_notification_service.dispatch_pending_batches(conn)
         # (4) AI 세션 만료 — 30분 무활동 종료(상담봇 T2 expire_idle_ai_sessions).
-        counts["expired_sessions"] = await ai_session_service.expire_idle_sessions(conn)
+        #     C1-4: 래퍼는 인자 없음(자체 커넥션 관리) — conn 넘기지 않는다.
+        counts["expired_sessions"] = await ai_session_service.expire_idle_sessions()
     print(f"[dispatch] {counts}")
     return counts
 
