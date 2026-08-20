@@ -7762,3 +7762,964 @@ git commit -m "feat: 📝 상담봇 Task 14 본문 — 웹 위젯 상담방 42�
 ```
 
 > **Task 14 완료 조건**: `WEBCHAT-LAUNCH`5·`WEBCHAT-ROOM`10·`WEBCHAT-GUIDE`3·`WEBCHAT-HANDOFF`7·`WEBCHAT-URGENT`4·`WEBCHAT-OUTAGE`6·`NAV-WEBCHAT`7 = **42규칙 전수** 초록불(Vitest). ⭐ **웹은 React** — `patient_app/`(Flutter) 무손. ⭐ **낡은 미결 `NAV-WEBCHAT-04` 해소**(가입 복귀=재확인 카드, → `WEBMOD-AUTH` 계열 Task 15). ⭐ **경계**: `WEBMOD-AUTH`·`WEBANON-HANDOFF`·`WEBCARD-*`=**Task 15**(콜백 슬롯 `onAuthGate`·`onHandoffNeeded`·`renderCard`만 남김). **다음 = Task 15**(웹 카드 + 인증 후 재확인 + 익명 연락처 45규칙 — `WEBCARD-*`·`WEBMOD-AUTH-*`·`WEBANON-HANDOFF-*`). ⚠️ Task 15가 이 콜백 슬롯을 실제 화면으로 채우고 익명 인계 전화번호(SMS 답변 수신용만)를 받는다.
+
+---
+
+## Task 15: 웹 카드 8종 + 인증 후 재확인(로그인/가입 분기) + 익명 인계 폼 (`WEBCARD-*` · `WEBMOD-AUTH` · `WEBANON-HANDOFF`)
+
+> **환자 채널 웹 절반을 완결한다.** Task 14가 남긴 **콜백 슬롯 3개**(`onAuthGate`·`onHandoffNeeded`·`renderCard`)를 실제 화면으로 채운다 — 로그인/가입 분기 모달(`WEBMOD-AUTH`), 익명 인계 최소 연락정보 폼(`WEBANON-HANDOFF`), 그리고 위젯 폭 안의 **웹 카드 8종**(`WEBCARD-TIME`·`BOOKCONF`·`BOOKDONE`·`CANCELCONF`·`CANCELDONE`·`CANCELREJ`·`QNR`·`QUICK`). **45규칙 전수.** 이로써 **환자 채널(앱 10~13 + 웹 14~15) 완결.**
+>
+> ⚠️⚠️ **웹은 Flutter가 아니라 React다.** Task 14와 같은 `webchat/`(Vite+React+TS, Task 0 스캐폴딩)에 짓고 테스트는 **Vitest + `@testing-library/react`**다(`flutter test` 아님). `patient_app/`(Flutter)을 손대지 않는다. 앱 카드(Task 12·13 `CCARD-*`)·카탈로그의 **상태·버튼·문구는 그대로 재현**하되 코드는 React로 다시 쓴다 — 공유되는 것은 **서버 계약**(카드 payload 어휘 `card_type`=Task 6, 티켓 생명주기, `create_booking` 재검증)이지 위젯 코드가 아니다.
+>
+> ⭐ **핵심 결정 = MR2-03(인증 완료 후 자동 실행 금지 → 재확인 카드).** 익명 세션에서 로그인 필요 행동(내 예약 조회·예약·취소)을 누르면 `WEBMOD-AUTH`가 열리고, **로그인·가입 어느 쪽이든 완료만으로 원래 행동을 자동 실행하지 않는다.** 서버가 최신 대상·슬롯을 재검증한 **재확인 카드**를 다시 표시하고 환자가 `[신청]`/`[취소]`를 눌러야 확정한다(`WEBMOD-AUTH-07·08`·`WEBCARD-BOOKCONF-03`·`WEBCARD-CANCELCONF-02`). 이것이 Task 14가 해소한 낡은 미결 `NAV-WEBCHAT-04`의 실제 구현부다.
+>
+> ⭐ **경계 — 위젯 내부에 로그인·OTP·가입 화면을 새로 만들지 않는다(`WEBMOD-AUTH-03`).** `WEBMOD-AUTH`는 `[로그인]`/`[가입]` **분기 모달**일 뿐, 실제 인증 흐름은 병원 홈페이지의 **기존 흐름에 연결**한다. 이 연결은 `WebAuth` 어댑터(`login`/`signup` → `AuthOutcome`)로 추상화하고, 위젯은 어댑터를 **주입받아** 부른다. 실제 OTP·가입 화면·SMS 발송은 **배포**가 이 어댑터를 실제 흐름에 배선한다(위젯은 어댑터 계약과 인증 결과 처리만 소유).
+>
+> ⭐ **익명 delta 재확인(Task 14와 동일 축)**: 익명 인계 전화번호는 **직원 답변 SMS 수신용으로만** 쓴다(`WEBANON-HANDOFF-03`) — 다른 기기 상담 복원·로그인 계정·환자 신원 **추측 귀속 금지**. 명시적 로그인/가입 성공 시에만 앞선 익명 상담 이력을 계정에 귀속한다(`WEBMOD-AUTH-09`, 이름·연락처 유사성 기반 추측 금지). 같은 브라우저는 익명 토큰(`X-Anon-Token`)으로 복원, **다른 기기 이어보기 없음**(`WEBANON-HANDOFF-09`).
+>
+> ⭐ **웹 문진은 화면을 만들지 않는다(`WEBCARD-QNR`).** 홈페이지엔 문진 화면이 없으므로 위젯은 문항·답변·진행률을 복제·노출하지 않고 `사전문진은 환자 앱에서 작성하거나 수정할 수 있습니다` + 환자 앱 경로만 안내한다. 0문항은 `작성할 문진이 없습니다` 한 줄(버튼·`(0/0)`·독립 카드 없음). 비로그인이든 로그인이든 동일(특정 예약 문진 내용·진행률 노출 금지, R2-5).
+>
+> ⚠️ **⏰ 함정 확인 완료**: `WEBMOD-AUTH-08`·`WEBCARD-BOOKCONF-03`은 Task 14가 계열명으로만 참조해 **정상적으로 missing에 남아 있다**(coverage 미리 셈 없음 — 착수 전 확인). Task 15가 완전 ID로 담는다. 45규칙 전부 **확정 규칙**이라 새 `확인 필요`·새 `HANDOVER` 없음(실제 SMS 발송 문구·시점만 배포 dispatcher 소관, Task 14 `WEBCHAT-HANDOFF` 계열에서 이미 흡수).
+>
+> **근거 원본**: behaviors **웹 위젯 §A**(신규 `WEBMOD-AUTH`9·`WEBANON-HANDOFF`9)·**§B**(앱 카드 재사용 `WEBCARD-*`27) · 정본 §0(환자 노출 문구·값 조작 금지)·§1(9 운영시간·10~11 취소·14 반려)·§2 카드 재현표·§3 · 카드 어휘·payload=**Task 6**(`build_*_card`) · 인증 후 재확인=**MR2-03**(결정로그 `docs/superpowers/specs/2026-07-31-ui-design-decisions.md:5314`) · 익명 계약=**Task 3** · 요구사항 **L357**(인증 관문)·**L376~401**(가입·인계·연락처)·**L468~480**(오류·문구). 앱 짝 Task 12·13 `CCARD-*` `Produces`(코드 아니라 규칙·문구).
+
+**Files:**
+- Modify: `webchat/src/api/webchatApi.ts` (Task 14) — `WebchatApi`에 `revalidateAction`·`executeCard`·`createHandoffTicket`·`attributeSessionToAccount` 추가 + `CardMessage` 타입 + `createWebchatApi` 구현. (기존 5개 메서드·타입 불변)
+- Modify: `webchat/src/widget/WebchatWidget.tsx` (Task 14) — `renderCard` 프롭 시그니처를 `(payload, slot: CardSlot) => ReactNode`로 **가법 확장**(`CardSlot = { send: (text: string) => void }`). 내부 호출을 `renderCard(payload, { send: w.send })`로 교체. ⚠️ **기존 시그니처·테스트 불변**(`renderCard={() => null}`은 인자 무시라 계속 통과). `onAuthGate`·`onHandoffNeeded`·`PendingAction`·`HandoffSummary`는 그대로.
+- Create: `webchat/src/auth/webAuth.ts` (`WebAuth` 어댑터 인터페이스 + `AuthOutcome` — 기존 인증 흐름 연결 추상화)
+- Create: `webchat/src/widget/AuthGateModal.tsx` (`AuthGateModal` — `WEBMOD-AUTH` 로그인/가입 분기·처리중·실패·닫기)
+- Create: `webchat/src/widget/HandoffForm.tsx` (`HandoffForm` — `WEBANON-HANDOFF` 익명 인계 최소 연락정보 폼)
+- Create: `webchat/src/widget/cards/WebCard.tsx` (`WebCard` 디스패처 — `card_type`만 읽어 8종으로 넘김 + 위젯 폭 래퍼 · `CardContext` 정의)
+- Create: `webchat/src/widget/cards/BookingCards.tsx` (`TimeSelectCard`·`BookConfirmCard`·`BookDoneCard` — `WEBCARD-TIME`·`BOOKCONF`·`BOOKDONE`)
+- Create: `webchat/src/widget/cards/CancelCards.tsx` (`CancelConfirmCard`·`CancelDoneCard`·`CancelRejectCard` — `WEBCARD-CANCELCONF`·`CANCELDONE`·`CANCELREJ`)
+- Create: `webchat/src/widget/cards/QnrCard.tsx` (`QnrCard` — `WEBCARD-QNR` 앱 안내만)
+- Create: `webchat/src/widget/cards/QuickReplies.tsx` (`QuickReplies` — `WEBCARD-QUICK`)
+- Create: `webchat/src/widget/WebchatApp.tsx` (`WebchatApp` 컨테이너 — 슬롯 3개 배선 + 인증 후 재확인 흐름 + 로그인 상태 보유)
+- Modify: `webchat/src/App.tsx` (Task 14) — `<WebchatWidget/>` 빈 슬롯 마운트를 `<WebchatApp/>`로 교체(어댑터·병원 전화 주입은 배포)
+- Test: `webchat/src/api/webchatApi.test.ts`(신규 메서드 배선) · `AuthGateModal.test.tsx` · `HandoffForm.test.tsx` · `cards/BookingCards.test.tsx` · `cards/CancelCards.test.tsx` · `cards/QnrCard.test.tsx` · `cards/QuickReplies.test.tsx` · `WebchatApp.test.tsx`
+
+**Interfaces:**
+- Consumes:
+  - **Task 14(webchat 셸)**: `useWebchat()` 훅·`WebchatWidget`(콜백 슬롯 `onAuthGate(action)`·`onHandoffNeeded(summary)`·`renderCard(payload, slot)`)·`PendingAction`(`{ kind: 'view_my_appointments'|'book'|'cancel'; payload? }`)·`HandoffSummary`(`{ threadId; summary: string[] }`)·`ChatRoom`·`webchatApi`·`anonSession`(`loadAnonToken`).
+  - **Task 6(카드 계약)**: `card_type` 어휘 8종 + payload 모양(`build_booking_confirm_card`=대상·과·의사·일시·방문이유, `build_booking_done_card`=headline·number_label·number·questionnaire_button/note, `build_time_select_card`=candidates·state, `build_cancel_*`·`build_questionnaire_card`=state·answered·total). 카드는 표시 스냅샷 — 실행은 서버가 payload 재검증.
+  - **Task 3(익명 계약)**: `X-Anon-Token` 헤더 소유권 · 익명 검증 연락처=SMS 답변 수신용만(`notification_recipient.resolve_recipient`) · 익명 해시=환자여도 자동 연결 금지. 위젯은 배칭을 만들지 않고 서버 판정만 소비.
+  - **Task 9(라우터)**: `/chat/*` REST(카드 확정 실행·인계 티켓 생성 엔드포인트는 여기 라우터가 `create_booking`·`request_support`·티켓 생성으로 재검증). 서버 판정 `is_open(at)`·티켓 생명주기.
+  - **배포가 주입**: `WebAuth` 어댑터(실제 로그인·OTP·가입 흐름 배선) · 병원 전화번호(`get_public_hospital_info`).
+- Produces (배포·통합이 소비):
+  - `WebchatApp`(최상위 컨테이너 — `api`·`auth: WebAuth`·`hospitalPhone` 주입받아 위젯+모달+폼+카드를 조립). 배포는 `App.tsx`가 이 컨테이너에 실제 어댑터를 넣는다.
+  - `WebAuth`(`login`/`signup` → `AuthOutcome`) 계약 — 배포가 기존 인증 흐름에 배선.
+  - `WebchatApi` 확장 4메서드(`revalidateAction`·`executeCard`·`createHandoffTicket`·`attributeSessionToAccount`) — 배포가 실제 `/chat/*` 엔드포인트에 배선.
+- ⚠️ **아직 안 하는 것**: 실제 로그인·OTP·가입 화면=**기존 흐름/배포**(위젯은 어댑터만) · 실제 SMS 발송 문구·시점=**dispatcher(배포)** · 위젯 임베드 스크립트·`base` 확정=배포 · 직원 채널(티켓함·상세)=**Task 16~19**.
+
+---
+
+- [ ] **Step 1: API 확장 + `WebAuth` 어댑터 계약 — 실패 테스트 → 구현**
+
+> 위젯이 인증 후 재확인·확정 실행·익명 인계에 쓸 서버 계약 4개를 타입으로 못박고 `createWebchatApi`에 배선한다. 인증 흐름 자체는 위젯이 소유하지 않으므로 `WebAuth` 어댑터로 분리한다(`WEBMOD-AUTH-03`). 서버는 익명 세션을 **`X-Anon-Token` 헤더로 식별**하므로 재검증·귀속은 `threadId`가 아니라 토큰만 있으면 된다.
+
+`webchat/src/auth/webAuth.ts`:
+```ts
+import type { PendingAction } from '../widget/WebchatWidget';
+
+// 로그인/가입은 위젯이 소유하지 않는다 — 병원 홈페이지의 "기존 인증 흐름"에 연결하는 어댑터.
+// 위젯 내부에 OTP·가입 화면을 새로 만들지 않는다(WEBMOD-AUTH-03). 프로덕션이 실제 흐름을 주입한다.
+export type AuthOutcome =
+  | { ok: true; patientId: string }
+  | { ok: false; message: string };   // 한글 오류(개발자 오류문 아님)
+
+export interface WebAuth {
+  login(action: PendingAction): Promise<AuthOutcome>;
+  signup(action: PendingAction): Promise<AuthOutcome>;
+}
+```
+
+`webchat/src/api/webchatApi.ts`(기존 `WebchatApi` 인터페이스에 추가 — 위 5개 메서드 아래):
+```ts
+export type CardMessage = ThreadMessage & { messageType: 'card'; payload: Record<string, unknown> };
+
+// (WebchatApi 인터페이스에 추가)
+  // 인증 완료 후: 최신 대상·슬롯을 서버에서 재검증한 "재확인 카드"(실행 아님). 서버는 X-Anon-Token으로 세션을 찾는다.
+  revalidateAction(args: { action: PendingAction }): Promise<{ card: CardMessage }>;      // WEBMOD-AUTH-07·08, WEBCARD-BOOKCONF-03
+  // 재확인 카드의 [신청]/[취소]: 서버가 payload를 재검증하고 실행 → 결과 카드(booking_done/cancel_done). 위변조 payload는 거절.
+  executeCard(args: { cardType: string; payload: Record<string, unknown>; clientMessageId: string }): Promise<{ result: CardMessage }>; // WEBCARD-BOOKCONF-01·CANCELCONF-01
+  // 익명 인계 티켓 + 연락처 연결(SMS 답변 수신용만). 대화 요약 5항목을 익명 세션 문맥에 연결(서버).
+  createHandoffTicket(args: { threadId: string; name: string; phone: string | null; summary: string[] }): Promise<{ ticketId: string }>; // WEBANON-HANDOFF-05·08
+  // 명시적 인증 성공 시에만 앞선 익명 상담 이력을 계정에 귀속(유사성 추측 금지). 서버는 X-Anon-Token으로 세션을 찾는다.
+  attributeSessionToAccount(args: { patientId: string }): Promise<void>;                  // WEBMOD-AUTH-09
+```
+
+`createWebchatApi` 구현(반환 객체에 추가 — 익명 토큰이 필요한 메서드는 `loadAnonToken()`을 헤더로 넘긴다):
+```ts
+import { loadAnonToken } from '../state/anonSession';
+// ...
+    async revalidateAction(args) {
+      return call('/chat/cards/revalidate', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+    },
+    async executeCard(args) {
+      return call('/chat/cards/execute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+    },
+    async createHandoffTicket(args) {
+      return call('/chat/handoff', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+    },
+    async attributeSessionToAccount(args) {
+      await call('/chat/attribute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+    },
+```
+
+`webchat/src/api/webchatApi.test.ts`(신규 메서드 배선 — 가짜 `fetch`로 경로·익명 헤더만 검증, 네트워크 없음):
+```ts
+import { createWebchatApi } from './webchatApi';
+import { saveAnonToken, clearAnonToken } from '../state/anonSession';
+
+beforeEach(() => { clearAnonToken(); vi.restoreAllMocks(); });
+
+test('[Step1] revalidateAction은 X-Anon-Token을 실어 재검증 엔드포인트로 POST한다(로그인 세션 저장 없음)', async () => {
+  saveAnonToken('TOK');
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ card: { id: 'c1', senderType: 'bot', messageType: 'card', content: null, payload: { card_type: 'booking_confirm' } } }), { status: 200 }));
+  const api = createWebchatApi('http://x/functions/v1');
+  const { card } = await api.revalidateAction({ action: { kind: 'book', payload: { slot_at: '2026-08-20T10:00' } } });
+  expect(card.payload.card_type).toBe('booking_confirm');
+  const [url, init] = fetchMock.mock.calls[0];
+  expect(url).toBe('http://x/functions/v1/chat/cards/revalidate');
+  expect((init!.headers as Record<string, string>)['X-Anon-Token']).toBe('TOK'); // 익명 토큰으로 소유권
+});
+
+test('[Step1] createHandoffTicket은 인계 엔드포인트로 이름·연락처·요약을 POST한다', async () => {
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ ticketId: 'tk1' }), { status: 200 }));
+  const api = createWebchatApi('http://x/functions/v1');
+  const { ticketId } = await api.createHandoffTicket({ threadId: 't1', name: '홍길동', phone: '01000000000', summary: ['a'] });
+  expect(ticketId).toBe('tk1');
+  expect(fetchMock.mock.calls[0][0]).toBe('http://x/functions/v1/chat/handoff');
+});
+```
+Run: `npm --prefix webchat run test -- webchatApi` → FAIL(메서드 없음) → 구현 → PASS.
+
+- [ ] **Step 2: `AuthGateModal` — `WEBMOD-AUTH` 분기·처리중·실패·닫기(5규칙)**
+
+> 로그인/가입 **분기 모달**의 자기완결 동작만 담는다: 두 갈래 연결(`02·03`)·중복 제출 방지(`04`)·실패 시 안 닫음(`05`)·닫기 시 원래 행동 안 함(`06`). "관문 열림(`01`)·완료 후 재확인(`07·08`)·이력 귀속(`09`)"은 컨테이너 몫이라 **Step 7**에서 검증한다. 위젯 내부에 OTP·가입 화면을 만들지 않으므로 모달엔 자격 입력칸이 없다(`03`).
+
+`webchat/src/widget/AuthGateModal.tsx`:
+```tsx
+import { useState } from 'react';
+import type { WebAuth, AuthOutcome } from '../auth/webAuth';
+import type { PendingAction } from './WebchatWidget';
+
+type Props = {
+  action: PendingAction;
+  auth: WebAuth;
+  onClose: () => void;                                          // WEBMOD-AUTH-06: 원래 행동 실행 안 함
+  onAuthenticated: (patientId: string, action: PendingAction) => void; // 성공 → 컨테이너가 재검증/귀속
+};
+
+export function AuthGateModal({ action, auth, onClose, onAuthenticated }: Props) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (which: 'login' | 'signup') => {
+    if (busy) return;                                           // WEBMOD-AUTH-04: 중복 제출·중복 실행 막기
+    setBusy(true); setError(null);
+    const outcome: AuthOutcome = which === 'login' ? await auth.login(action) : await auth.signup(action);
+    setBusy(false);
+    if (!outcome.ok) { setError(outcome.message); return; }     // WEBMOD-AUTH-05: 성공으로 닫지 않음(익명 상담 유지)
+    onAuthenticated(outcome.patientId, action);                 // 자동 실행은 컨테이너가 하지 않는다(재확인 카드)
+  };
+
+  return (
+    <div role="dialog" aria-label="로그인 또는 가입" aria-modal="true">
+      <p>내 예약을 조회하거나 예약을 진행하려면 로그인이 필요합니다.</p>
+      <button type="button" onClick={() => run('login')} disabled={busy}>로그인</button>
+      <button type="button" onClick={() => run('signup')} disabled={busy}>가입</button>
+      <button type="button" aria-label="닫기" onClick={onClose} disabled={busy}>×</button>
+      {busy && <p role="status">인증을 확인하는 중입니다…</p>}
+      {error && <p role="alert">{error}</p>}
+    </div>
+  );
+}
+```
+
+`webchat/src/widget/AuthGateModal.test.tsx`:
+```tsx
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { AuthGateModal } from './AuthGateModal';
+import type { WebAuth } from '../auth/webAuth';
+import type { PendingAction } from './WebchatWidget';
+
+const action: PendingAction = { kind: 'book', payload: { slot_at: '2026-08-20T10:00' } };
+function fakeAuth(over: Partial<WebAuth> = {}): WebAuth {
+  return { login: vi.fn(async () => ({ ok: true, patientId: 'p1' })), signup: vi.fn(async () => ({ ok: true, patientId: 'p1' })), ...over };
+}
+
+test('[WEBMOD-AUTH-02] [로그인]은 기존 로그인 흐름에 연결하고 상담 메시지를 자격 증명으로 쓰지 않는다', async () => {
+  const auth = fakeAuth();
+  const onAuth = vi.fn();
+  render(<AuthGateModal action={action} auth={auth} onClose={() => {}} onAuthenticated={onAuth} />);
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+  expect(auth.login).toHaveBeenCalledWith(action);          // action 문맥만 넘김 — 상담 메시지 아님
+  await waitFor(() => expect(onAuth).toHaveBeenCalledWith('p1', action));
+});
+
+test('[WEBMOD-AUTH-03] [가입]은 기존 가입 흐름에 연결하며 위젯 내부에 OTP·비밀번호 입력칸을 새로 만들지 않는다', async () => {
+  const auth = fakeAuth();
+  render(<AuthGateModal action={action} auth={auth} onClose={() => {}} onAuthenticated={() => {}} />);
+  expect(screen.queryByLabelText(/비밀번호|인증번호|OTP/)).not.toBeInTheDocument(); // 위젯 내부 가입 3화면 없음
+  await userEvent.click(screen.getByRole('button', { name: '가입' }));
+  expect(auth.signup).toHaveBeenCalledWith(action);
+});
+
+test('[WEBMOD-AUTH-04] 처리 중에는 중복 제출과 원래 행동 실행을 막는다', async () => {
+  let resolve!: (v: { ok: true; patientId: string }) => void;
+  const auth = fakeAuth({ login: vi.fn(() => new Promise((r) => { resolve = r; })) });
+  render(<AuthGateModal action={action} auth={auth} onClose={() => {}} onAuthenticated={() => {}} />);
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+  expect(screen.getByRole('status')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '로그인' })); // 두 번째 클릭 무시(disabled)
+  expect(auth.login).toHaveBeenCalledTimes(1);
+  resolve({ ok: true, patientId: 'p1' });
+});
+
+test('[WEBMOD-AUTH-05] 인증 실패는 성공으로 닫지 않고 한글 오류를 모달 안에 표시하며 익명 상담을 유지한다', async () => {
+  const auth = fakeAuth({ login: vi.fn(async () => ({ ok: false, message: '전화번호 또는 비밀번호가 올바르지 않습니다' })) });
+  const onAuth = vi.fn(); const onClose = vi.fn();
+  render(<AuthGateModal action={action} auth={auth} onClose={onClose} onAuthenticated={onAuth} />);
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('올바르지 않습니다');
+  expect(onAuth).not.toHaveBeenCalled();  // 성공으로 닫지 않음
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+test('[WEBMOD-AUTH-06] 닫기는 원래 행동을 실행하지 않고 익명 상담 문맥으로 돌아간다', async () => {
+  const onAuth = vi.fn(); const onClose = vi.fn();
+  render(<AuthGateModal action={action} auth={fakeAuth()} onClose={onClose} onAuthenticated={onAuth} />);
+  await userEvent.click(screen.getByRole('button', { name: '닫기' }));
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(onAuth).not.toHaveBeenCalled();  // 원래 예약 행동 실행 안 함
+});
+```
+Run: `npm --prefix webchat run test -- AuthGateModal` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `HandoffForm` — `WEBANON-HANDOFF` 익명 인계 폼(9규칙)**
+
+> 익명 세션이 직원 인계로 갈 때 여는 **최소 연락정보 폼**. 이름은 필수, 전화번호는 **SMS 답변 수신용으로만** 선택 입력이며 목적을 폼에 알린다. 기존 대화 요약과 연결해(처음부터 다시 설명 안 시킴) 티켓을 만든다. 환자 노출 문구는 `상담(직원 확인)으로 연결됐습니다`만 쓴다.
+
+`webchat/src/widget/HandoffForm.tsx`:
+```tsx
+import { useState } from 'react';
+import type { WebchatApi } from '../api/webchatApi';
+import type { HandoffSummary } from './WebchatWidget';
+
+type Props = { api: WebchatApi; summary: HandoffSummary; onDone: () => void; onCancel: () => void };
+
+export function HandoffForm({ api, summary, onDone, onCancel }: Props) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<{ name?: string; phone?: string; submit?: string }>({});
+
+  const submit = async () => {
+    if (busy) return;                                                  // WEBANON-HANDOFF-06: 중복 티켓 방지
+    const next: typeof err = {};
+    if (!name.trim()) next.name = '이름을 입력해 주세요';                // WEBANON-HANDOFF-02·04
+    if (phone.trim() && !/^0\d{9,10}$/.test(phone.trim())) next.phone = '전화번호 형식을 확인해 주세요'; // 04
+    if (next.name || next.phone) { setErr(next); return; }             // 유효한 다른 값·대화 문맥 유지
+    setBusy(true); setErr({});
+    try {
+      await api.createHandoffTicket({ threadId: summary.threadId, name: name.trim(), phone: phone.trim() || null, summary: summary.summary }); // 05
+      onDone();                                                        // 08: WEBCHAT-ROOM 복귀 + HANDOFF 상태
+    } catch {
+      setBusy(false);
+      setErr({ submit: '상담 연결에 실패했습니다. 다시 시도해 주세요' }); // 07: 성공처럼 표시 안 함·입력 보존
+    }
+  };
+
+  return (
+    <div role="form" aria-label="직원 상담 연결">
+      {/* 01: 기존 대화 요약과 연결 — 처음부터 다시 설명시키지 않음 */}
+      {summary.summary.length > 0 && <p>지금까지 나눈 상담 내용을 직원에게 함께 전달합니다.</p>}
+      <label>이름<input aria-label="이름" value={name} onChange={(e) => setName(e.target.value)} /></label>
+      {err.name && <p role="alert">{err.name}</p>}
+      {/* 03: 전화번호는 직원 답변 문자 수신용으로만 선택 입력받고 그 목적을 알린다 */}
+      <label>전화번호(선택)<input aria-label="전화번호" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
+      <p>입력한 번호는 <b>직원 답변 문자를 받기 위한 용도로만</b> 사용합니다.</p>
+      {err.phone && <p role="alert">{err.phone}</p>}
+      <button type="button" onClick={submit} disabled={busy}>상담 연결</button>
+      <button type="button" onClick={onCancel} disabled={busy}>그만두기</button>
+      {busy && <p role="status">상담을 연결하는 중입니다…</p>}
+      {err.submit && <p role="alert">{err.submit}</p>}
+      {/* 09: 다른 기기 이어보기 경로를 제공하지 않는다(같은 브라우저 토큰만 복원) */}
+    </div>
+  );
+}
+```
+
+`webchat/src/widget/HandoffForm.test.tsx`:
+```tsx
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { HandoffForm } from './HandoffForm';
+import type { WebchatApi } from '../api/webchatApi';
+import type { HandoffSummary } from './WebchatWidget';
+
+const summary: HandoffSummary = { threadId: 't1', summary: ['방문 이유: 두통', '희망 진료과: 신경과'] };
+function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
+  return {
+    startOrRestoreSession: vi.fn(), fetchMessages: vi.fn(), sendMessage: vi.fn(), fetchHandoff: vi.fn(), acknowledgeBatches: vi.fn(),
+    revalidateAction: vi.fn(), executeCard: vi.fn(), attributeSessionToAccount: vi.fn(),
+    createHandoffTicket: vi.fn(async () => ({ ticketId: 'tk1' })),
+    ...over,
+  } as unknown as WebchatApi;
+}
+
+test('[WEBANON-HANDOFF-01] 폼은 기존 대화 요약과 연결하고 처음부터 다시 설명시키지 않는다', () => {
+  render(<HandoffForm api={fakeApi()} summary={summary} onDone={() => {}} onCancel={() => {}} />);
+  expect(screen.getByText(/상담 내용을 직원에게 함께 전달/)).toBeInTheDocument();
+  expect(screen.queryByText(/처음부터 다시 입력/)).not.toBeInTheDocument();
+});
+
+test('[WEBANON-HANDOFF-02] 이름을 받되 별도 의료정보·주소·주민번호 칸을 두지 않는다', () => {
+  render(<HandoffForm api={fakeApi()} summary={summary} onDone={() => {}} onCancel={() => {}} />);
+  expect(screen.getByLabelText('이름')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/주소|주민등록|증상 상세/)).not.toBeInTheDocument();
+});
+
+test('[WEBANON-HANDOFF-03] 전화번호는 선택 입력이고 직원 답변 문자 수신용이라는 목적을 폼에 알린다', () => {
+  render(<HandoffForm api={fakeApi()} summary={summary} onDone={() => {}} onCancel={() => {}} />);
+  expect(screen.getByLabelText('전화번호')).toBeInTheDocument();
+  expect(screen.getByText(/직원 답변 문자를 받기 위한 용도로만/)).toBeInTheDocument();
+});
+
+test('[WEBANON-HANDOFF-04] 이름 비었거나 연락처 형식 오류면 해당 칸 가까이 한글로 알리고 다른 값·문맥은 유지한다', async () => {
+  render(<HandoffForm api={fakeApi()} summary={summary} onDone={() => {}} onCancel={() => {}} />);
+  await userEvent.type(screen.getByLabelText('전화번호'), '123');
+  await userEvent.click(screen.getByRole('button', { name: '상담 연결' }));
+  expect(screen.getByText('이름을 입력해 주세요')).toBeInTheDocument();
+  expect(screen.getByText('전화번호 형식을 확인해 주세요')).toBeInTheDocument();
+  expect(screen.getByLabelText('전화번호')).toHaveValue('123'); // 입력 유지
+});
+
+test('[WEBANON-HANDOFF-05] 유효한 이름·연락처면 대화 요약을 연결해 티켓 생성을 요청한다', async () => {
+  const api = fakeApi();
+  render(<HandoffForm api={api} summary={summary} onDone={() => {}} onCancel={() => {}} />);
+  await userEvent.type(screen.getByLabelText('이름'), '홍길동');
+  await userEvent.type(screen.getByLabelText('전화번호'), '01012345678');
+  await userEvent.click(screen.getByRole('button', { name: '상담 연결' }));
+  await waitFor(() => expect(api.createHandoffTicket).toHaveBeenCalledWith(
+    { threadId: 't1', name: '홍길동', phone: '01012345678', summary: summary.summary }));
+});
+
+test('[WEBANON-HANDOFF-06] 제출 중에는 중복 티켓 생성을 막고 완료로 가장하지 않는다', async () => {
+  let resolve!: (v: { ticketId: string }) => void;
+  const api = fakeApi({ createHandoffTicket: vi.fn(() => new Promise((r) => { resolve = r; })) });
+  render(<HandoffForm api={api} summary={summary} onDone={() => {}} onCancel={() => {}} />);
+  await userEvent.type(screen.getByLabelText('이름'), '홍길동');
+  await userEvent.click(screen.getByRole('button', { name: '상담 연결' }));
+  await userEvent.click(screen.getByRole('button', { name: '상담 연결' }));
+  expect(api.createHandoffTicket).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('status')).toBeInTheDocument(); // 아직 연결 완료로 표시 안 함
+  resolve({ ticketId: 'tk1' });
+});
+
+test('[WEBANON-HANDOFF-07] 티켓 생성 실패는 성공처럼 표시하지 않고 입력을 보존한 채 재시도하게 하며 "접수/등록"을 쓰지 않는다', async () => {
+  const api = fakeApi({ createHandoffTicket: vi.fn(async () => { throw new Error('fail'); }) });
+  const onDone = vi.fn();
+  render(<HandoffForm api={api} summary={summary} onDone={onDone} onCancel={() => {}} />);
+  await userEvent.type(screen.getByLabelText('이름'), '홍길동');
+  await userEvent.click(screen.getByRole('button', { name: '상담 연결' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('실패');
+  expect(onDone).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('이름')).toHaveValue('홍길동'); // 입력 보존
+  expect(screen.queryByText(/접수|등록/)).not.toBeInTheDocument();
+});
+
+test('[WEBANON-HANDOFF-08] 제출 완료면 방으로 돌아가도록 onDone을 부른다(연락처는 SMS 답변 수신용만)', async () => {
+  const onDone = vi.fn();
+  render(<HandoffForm api={fakeApi()} summary={summary} onDone={onDone} onCancel={() => {}} />);
+  await userEvent.type(screen.getByLabelText('이름'), '홍길동');
+  await userEvent.click(screen.getByRole('button', { name: '상담 연결' }));
+  await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+});
+
+test('[WEBANON-HANDOFF-09] 폼은 다른 기기 이어보기 경로를 제공하지 않는다(같은 브라우저 토큰만)', () => {
+  render(<HandoffForm api={fakeApi()} summary={summary} onDone={() => {}} onCancel={() => {}} />);
+  expect(screen.queryByRole('button', { name: /다른 기기.*이어보기/ })).not.toBeInTheDocument();
+});
+```
+Run: `npm --prefix webchat run test -- HandoffForm` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `WebCard` 디스패처 + 예약 카드 — `WEBCARD-TIME`·`BOOKCONF`·`BOOKDONE`(10규칙)**
+
+> 셸은 `payload.card_type`만 읽어 알맞은 웹 카드로 넘긴다(앱 셸과 같은 규약). 카드는 `CardContext`로 **익명 여부·인증 관문·확정 실행·빠른답변 전송**을 주입받는다 — 카드가 서버·세션을 직접 알지 않는다. 본체 상태·버튼·문구는 앱 `CCARD-*`/카탈로그를 재현하고, 웹 delta(위젯 폭·인증 연결)만 더한다.
+
+`webchat/src/widget/cards/WebCard.tsx`:
+```tsx
+import type { ReactNode } from 'react';
+import type { PendingAction } from '../WebchatWidget';
+import { TimeSelectCard, BookConfirmCard, BookDoneCard } from './BookingCards';
+import { CancelConfirmCard, CancelDoneCard, CancelRejectCard } from './CancelCards';
+import { QnrCard } from './QnrCard';
+import { QuickReplies } from './QuickReplies';
+
+export type CardContext = {
+  isAnonymous: boolean;
+  onAuthGate: (action: PendingAction) => void;                              // 익명 → WEBMOD-AUTH
+  onExecute: (cardType: string, payload: Record<string, unknown>) => void;  // [신청]/[취소] 확정 실행
+  onPick: (text: string) => void;                                           // 빠른답변 → 환자 말풍선 전송
+  onReconsult: (payload: Record<string, unknown>) => void;                  // [다시 문의하기]
+  onRebook: () => void;                                                      // [새로 예약하기]
+};
+export type CardProps = { p: Record<string, unknown>; ctx: CardContext };
+
+// 셸은 카드의 알맹이를 모른다 — card_type만 읽어 슬롯에 넘기고 위젯 폭 래퍼로 감싼다(공통 원칙 9).
+export function WebCard({ payload, ctx }: { payload: Record<string, unknown> | null | undefined; ctx: CardContext }): ReactNode {
+  if (!payload || typeof payload.card_type !== 'string') return null;
+  const inner: ReactNode = (() => {
+    switch (payload.card_type) {
+      case 'time_select':     return <TimeSelectCard p={payload} ctx={ctx} />;
+      case 'booking_confirm': return <BookConfirmCard p={payload} ctx={ctx} />;
+      case 'booking_done':    return <BookDoneCard p={payload} ctx={ctx} />;
+      case 'cancel_confirm':  return <CancelConfirmCard p={payload} ctx={ctx} />;
+      case 'cancel_done':     return <CancelDoneCard p={payload} ctx={ctx} />;
+      case 'cancel_reject':   return <CancelRejectCard p={payload} ctx={ctx} />;
+      case 'questionnaire':   return <QnrCard p={payload} ctx={ctx} />;
+      case 'quick_replies':   return <QuickReplies p={payload} ctx={ctx} />;
+      default:                return null;
+    }
+  })();
+  return <div className="webcard" data-card-type={payload.card_type as string}>{inner}</div>;
+}
+```
+
+`webchat/src/widget/cards/BookingCards.tsx`:
+```tsx
+import type { CardProps } from './WebCard';
+
+// ── WEBCARD-TIME ── CCARD-TIME 본체(정상·0개·조회 중·조회 오류) + 위젯 폭 버튼 + 인증 연결
+export function TimeSelectCard({ p, ctx }: CardProps) {
+  const state = (p.state as string) ?? '정상';
+  const candidates = (p.candidates as { label: string; slot_at: string }[] | undefined) ?? [];
+  if (state === '조회중') return <p role="status">시간을 불러오는 중입니다…</p>;
+  if (state === '조회오류') return <div role="alert"><p>시간을 불러오지 못했습니다</p><button type="button">다시 시도</button></div>;
+  if (state === '빈' || candidates.length === 0)
+    return <div><p>예약 가능한 시간이 없습니다</p><button type="button">다른 날짜 고르기</button></div>; // 막다른 길 금지
+  return (
+    <ul aria-label="예약 가능한 시간">
+      {candidates.map((c) => (
+        <li key={c.slot_at}>
+          {/* WEBCARD-TIME-03: 선택만으로 슬롯 선점·예약하지 않고, 문맥 유지한 채 인증 관문으로 */}
+          <button type="button" onClick={() => ctx.onAuthGate({ kind: 'book', payload: { ...p, slot_at: c.slot_at } })}>{c.label}</button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ── WEBCARD-BOOKCONF ── 여섯 확인 항목 한 묶음 + [예약 신청하기] 본체 + 인증 전 관문/인증 후 재확인
+export function BookConfirmCard({ p, ctx }: CardProps) {
+  const state = (p.state as string) ?? '정상';
+  const button = (p.button as string) ?? '예약 신청하기';
+  if (state === '처리중') return <p role="status">예약을 신청하는 중입니다…</p>;             // CCARD-BOOKCONF 처리 중
+  if (state === '실패') return <div role="alert"><p>예약을 신청하지 못했습니다</p><button type="button" onClick={() => ctx.onExecute('booking_confirm', p)}>다시 시도</button></div>;
+  if (state === '충돌') return <div role="alert"><p>방금 다른 분이 먼저 예약했습니다. 시간을 다시 골라 주세요</p></div>; // 409
+  const items: [string, unknown][] = [
+    ['받는 분', p.patient_name], ['진료과', p.department_name], ['담당의', p.doctor_name],
+    ['일시', p.slot_at], ['방문 이유', p.visit_reason ?? '—'], ['장소', p.place ?? '—'],
+  ];
+  return (
+    <div>
+      <dl aria-label="예약 확인">{items.map(([k, v]) => (<div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div>))}</dl>
+      <button type="button" onClick={() =>
+        ctx.isAnonymous ? ctx.onAuthGate({ kind: 'book', payload: p })  // WEBCARD-BOOKCONF-02: 인증 전 관문·선택값 유지
+                        : ctx.onExecute('booking_confirm', p)}          // BOOKCONF-01/03: [신청] 눌러야 확정(자동 아님)
+      >{button}</button>
+    </div>
+  );
+}
+
+// ── WEBCARD-BOOKDONE ── 신청/확정 구분 + 번호 + 문진은 앱 안내만 + 재실행 금지
+export function BookDoneCard({ p }: CardProps) {
+  const qNote = p.questionnaire_note as string | null;
+  const qButton = p.questionnaire_button as string | null;
+  return (
+    <div>
+      <p>{String(p.headline)}</p>
+      <p>{String(p.number_label)} {String(p.number)}</p>
+      {qNote && <p>{qNote}</p>}  {/* 0문항: "작성할 문진이 없습니다" — 버튼 없음 */}
+      {qButton && <p>사전문진은 환자 앱에서 작성하거나 수정할 수 있습니다</p>} {/* 웹은 문진 안 엶 */}
+      {/* WEBCARD-BOOKDONE-03: 완료 카드는 읽기 기록 — 예약 신청 버튼을 다시 실행 가능하게 두지 않는다 */}
+    </div>
+  );
+}
+```
+
+`webchat/src/widget/cards/BookingCards.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { WebCard, type CardContext } from './WebCard';
+
+function ctx(over: Partial<CardContext> = {}): CardContext {
+  return { isAnonymous: true, onAuthGate: vi.fn(), onExecute: vi.fn(), onPick: vi.fn(), onReconsult: vi.fn(), onRebook: vi.fn(), ...over };
+}
+
+test('[WEBCARD-TIME-01] CCARD-TIME 본체 상태(빈·조회중·조회오류)를 그대로 따른다', () => {
+  const { rerender } = render(<WebCard payload={{ card_type: 'time_select', state: '빈', candidates: [] }} ctx={ctx()} />);
+  expect(screen.getByText('예약 가능한 시간이 없습니다')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '다른 날짜 고르기' })).toBeInTheDocument();
+  rerender(<WebCard payload={{ card_type: 'time_select', state: '조회오류' }} ctx={ctx()} />);
+  expect(screen.getByRole('alert')).toHaveTextContent('시간을 불러오지 못했습니다');
+});
+
+test('[WEBCARD-TIME-02] 날짜·시간을 긴 대화문이 아니라 위젯 폭 버튼으로 표시한다', () => {
+  render(<WebCard payload={{ card_type: 'time_select', state: '정상', candidates: [{ label: '오전 10:00', slot_at: 's1' }, { label: '오전 10:30', slot_at: 's2' }] }} ctx={ctx()} />);
+  const list = screen.getByRole('list', { name: '예약 가능한 시간' });
+  expect(list.querySelectorAll('button')).toHaveLength(2); // 버튼 격자
+});
+
+test('[WEBCARD-TIME-03] 시간 선택은 슬롯을 선점·예약하지 않고 문맥을 유지한 채 인증 관문으로 보낸다', async () => {
+  const onAuthGate = vi.fn(); const onExecute = vi.fn();
+  render(<WebCard payload={{ card_type: 'time_select', state: '정상', candidates: [{ label: '오전 10:00', slot_at: 's1' }] }} ctx={ctx({ onAuthGate, onExecute })} />);
+  await userEvent.click(screen.getByRole('button', { name: '오전 10:00' }));
+  expect(onAuthGate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'book', payload: expect.objectContaining({ slot_at: 's1' }) }));
+  expect(onExecute).not.toHaveBeenCalled(); // 선택만으로 예약 없음
+});
+
+const confirmPayload = { card_type: 'booking_confirm', patient_name: '홍길동', department_name: '내과', doctor_name: '김의사', slot_at: '2026-08-20T10:00', visit_reason: '두통', button: '예약 신청하기', state: '정상' };
+
+test('[WEBCARD-BOOKCONF-01] 확인 항목과 [예약 신청하기] 버튼·처리중/실패/충돌 상태를 본체 계약대로 따른다', () => {
+  const { rerender } = render(<WebCard payload={confirmPayload} ctx={ctx({ isAnonymous: false })} />);
+  expect(screen.getByRole('button', { name: '예약 신청하기' })).toBeInTheDocument();
+  rerender(<WebCard payload={{ ...confirmPayload, state: '충돌' }} ctx={ctx({ isAnonymous: false })} />);
+  expect(screen.getByRole('alert')).toHaveTextContent('먼저 예약했습니다');
+});
+
+test('[WEBCARD-BOOKCONF-02] 익명 세션이면 예약 실행 전에 WEBMOD-AUTH를 열고 선택값을 유지한다', async () => {
+  const onAuthGate = vi.fn(); const onExecute = vi.fn();
+  render(<WebCard payload={confirmPayload} ctx={ctx({ isAnonymous: true, onAuthGate, onExecute })} />);
+  await userEvent.click(screen.getByRole('button', { name: '예약 신청하기' }));
+  expect(onAuthGate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'book' }));
+  expect(onExecute).not.toHaveBeenCalled(); // 인증 전 예약 API 호출 없음
+});
+
+test('[WEBCARD-BOOKCONF-03] 인증 완료 후 재확인 카드는 [신청]을 눌러야 확정하며 렌더만으로 자동 실행하지 않는다', async () => {
+  const onExecute = vi.fn();
+  render(<WebCard payload={confirmPayload} ctx={ctx({ isAnonymous: false, onExecute })} />); // 인증됨 = 재확인 카드
+  expect(onExecute).not.toHaveBeenCalled();                          // 렌더만으로 자동 신청 없음
+  await userEvent.click(screen.getByRole('button', { name: '예약 신청하기' }));
+  expect(onExecute).toHaveBeenCalledWith('booking_confirm', confirmPayload); // 눌러야 확정
+});
+
+test('[WEBCARD-BOOKCONF-04] 여섯 확인 항목과 주 행동을 위젯 폭 안에서 한 묶음으로 유지한다', () => {
+  render(<WebCard payload={confirmPayload} ctx={ctx({ isAnonymous: false })} />);
+  const dl = screen.getByRole('group', { name: '예약 확인' }) ?? screen.getByLabelText('예약 확인');
+  expect(within(dl).getAllByRole('term')).toHaveLength(6);
+});
+
+test('[WEBCARD-BOOKDONE-01] 신청/확정 구분과 번호를 본체 계약대로 표시한다', () => {
+  render(<WebCard payload={{ card_type: 'booking_done', headline: '예약이 신청되었습니다', number_label: '신청번호', number: 'A-12' }} ctx={ctx()} />);
+  expect(screen.getByText('예약이 신청되었습니다')).toBeInTheDocument();
+  expect(screen.getByText(/신청번호 A-12/)).toBeInTheDocument();
+});
+
+test('[WEBCARD-BOOKDONE-02] 문진은 웹에서 열지 않고 앱 경로만 안내하며 0문항은 "작성할 문진이 없습니다"만 표시한다', () => {
+  const { rerender } = render(<WebCard payload={{ card_type: 'booking_done', headline: '예약이 신청되었습니다', number_label: '신청번호', number: 'A-12', questionnaire_button: '사전문진 작성하기' }} ctx={ctx()} />);
+  expect(screen.getByText(/환자 앱에서 작성하거나 수정/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /문진/ })).not.toBeInTheDocument(); // 웹에서 문진 안 엶
+  rerender(<WebCard payload={{ card_type: 'booking_done', headline: '예약이 확정되었습니다', number_label: '예약번호', number: 'A-12', questionnaire_note: '작성할 문진이 없습니다' }} ctx={ctx()} />);
+  expect(screen.getByText('작성할 문진이 없습니다')).toBeInTheDocument();
+  expect(screen.queryByText('(0/0)')).not.toBeInTheDocument();
+});
+
+test('[WEBCARD-BOOKDONE-03] 완료 카드는 예약 신청 버튼을 다시 실행 가능하게 두지 않는다', () => {
+  render(<WebCard payload={{ card_type: 'booking_done', headline: '예약이 신청되었습니다', number_label: '신청번호', number: 'A-12' }} ctx={ctx()} />);
+  expect(screen.queryByRole('button', { name: '예약 신청하기' })).not.toBeInTheDocument();
+});
+```
+> `within`·`vi`는 Task 0 setup 전역. Run: `npm --prefix webchat run test -- BookingCards` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: 취소 카드 — `WEBCARD-CANCELCONF`·`CANCELDONE`·`CANCELREJ`(9규칙)**
+
+> 마감 전/신규 예약 유예 취소만 카드로 다룬다. **마감 후 취소·변경은 앱 팝업·예약 맥락 화면을 웹에 복제하지 않는다**(`CANCELCONF-03` — 새 화면/진입 만들지 않음). 취소반려는 익명이면 입력한 번호로 **SMS 답변**을 보내고 같은 브라우저 토큰으로 복원한다.
+
+`webchat/src/widget/cards/CancelCards.tsx`:
+```tsx
+import type { CardProps } from './WebCard';
+
+// ── WEBCARD-CANCELCONF ── CCARD-CANCELCONF 본체(재확인·처리중·실패·409) + 인증 연결 + 마감 후 제외
+export function CancelConfirmCard({ p, ctx }: CardProps) {
+  const state = (p.state as string) ?? '정상';
+  if (p.after_deadline) return null; // CANCELCONF-03: 마감 후 취소·변경은 웹에 별도 화면·진입을 만들지 않는다
+  if (state === '처리중') return <p role="status">취소를 처리하는 중입니다…</p>;
+  if (state === '실패') return <div role="alert"><p>취소를 처리하지 못했습니다</p><button type="button" onClick={() => ctx.onExecute('cancel_confirm', p)}>다시 시도</button></div>;
+  if (state === '충돌') return <div role="alert"><p>이미 처리된 예약입니다</p></div>;
+  return (
+    <div>
+      <p>{String(p.target_summary)} 예약을 취소할까요?</p>
+      <button type="button" onClick={() => { /* [아니요] */ }}>아니요</button>
+      <button type="button" onClick={() =>
+        ctx.isAnonymous ? ctx.onAuthGate({ kind: 'cancel', payload: p }) // CANCELCONF-02: 인증 뒤 최신 대상 재확인, 인증 전 취소 API 호출 없음
+                        : ctx.onExecute('cancel_confirm', p)}
+      >취소합니다</button>
+    </div>
+  );
+}
+
+// ── WEBCARD-CANCELDONE ── 취소 주체·시각 본체 + 웹 복원 + 새 예약 연결(문진 자동 복사 없음)
+export function CancelDoneCard({ p, ctx }: CardProps) {
+  if (p.load_error) return <div role="alert"><p>취소 결과를 불러오지 못했습니다</p><button type="button">다시 시도</button></div>; // 완료로 가장 안 함
+  return (
+    <div>
+      <p>{String(p.name)} 님의 예약이 취소되었습니다{p.cancelled_by ? ` (${String(p.cancelled_by)})` : ''}</p>
+      <p>{String(p.at)}</p>
+      {/* 취소 예약 문진은 삭제·자동 복사하지 않고 앱 읽기 전용 경로만 안내(CANCELDONE-01) */}
+      <button type="button" onClick={ctx.onRebook}>새로 예약하기</button>
+    </div>
+  );
+}
+
+// ── WEBCARD-CANCELREJ ── 직원 사유·고정 확인·다시 문의 본체 + 익명 SMS 답변 전달
+export function CancelRejectCard({ p, ctx }: CardProps) {
+  return (
+    <div>
+      <p>취소 요청이 반려되었습니다</p>
+      <p>직원 사유: {String(p.reject_reason ?? '사유 없음')}</p>
+      <button type="button" onClick={() => { /* [확인] → 정상 예약/QR 복귀 */ }}>확인</button>
+      {/* CANCELREJ-03: 같은 예약·사유 문맥으로 상담을 이어가며 "취소 요청 접수/등록"이라 표시하지 않음 */}
+      <button type="button" onClick={() => ctx.onReconsult(p)}>다시 문의하기</button>
+    </div>
+  );
+}
+```
+
+`webchat/src/widget/cards/CancelCards.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { WebCard, type CardContext } from './WebCard';
+
+function ctx(over: Partial<CardContext> = {}): CardContext {
+  return { isAnonymous: true, onAuthGate: vi.fn(), onExecute: vi.fn(), onPick: vi.fn(), onReconsult: vi.fn(), onRebook: vi.fn(), ...over };
+}
+
+test('[WEBCARD-CANCELCONF-01] 재확인·처리중·실패·409 상태를 본체 계약대로 따른다', () => {
+  const { rerender } = render(<WebCard payload={{ card_type: 'cancel_confirm', target_summary: '8월 20일 내과', state: '정상' }} ctx={ctx({ isAnonymous: false })} />);
+  expect(screen.getByRole('button', { name: '취소합니다' })).toBeInTheDocument();
+  rerender(<WebCard payload={{ card_type: 'cancel_confirm', state: '처리중' }} ctx={ctx({ isAnonymous: false })} />);
+  expect(screen.getByRole('status')).toBeInTheDocument();
+});
+
+test('[WEBCARD-CANCELCONF-02] 익명이면 WEBMOD-AUTH 뒤 최신 대상을 재확인하고 인증 전 취소 API를 호출하지 않는다', async () => {
+  const onAuthGate = vi.fn(); const onExecute = vi.fn();
+  render(<WebCard payload={{ card_type: 'cancel_confirm', target_summary: '8월 20일 내과', state: '정상' }} ctx={ctx({ isAnonymous: true, onAuthGate, onExecute })} />);
+  await userEvent.click(screen.getByRole('button', { name: '취소합니다' }));
+  expect(onAuthGate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'cancel' }));
+  expect(onExecute).not.toHaveBeenCalled();
+});
+
+test('[WEBCARD-CANCELCONF-03] 마감 후 취소·변경은 앱 팝업·예약 맥락 화면을 웹에 복제하거나 별도 화면으로 세지 않는다', () => {
+  const { container } = render(<WebCard payload={{ card_type: 'cancel_confirm', after_deadline: true, target_summary: '8월 20일' }} ctx={ctx()} />);
+  expect(screen.queryByRole('button', { name: '취소합니다' })).not.toBeInTheDocument();
+  expect(container.querySelector('[data-card-type="cancel_confirm"]')!.textContent).toBe(''); // 웹 처리 진입·문구를 임의로 만들지 않음
+});
+
+test('[WEBCARD-CANCELDONE-01] 취소 주체·시각·결과 상태를 본체 계약대로 따르고 문진 읽기 전용은 앱 경로만 안내한다', () => {
+  render(<WebCard payload={{ card_type: 'cancel_done', name: '홍길동', cancelled_by: '환자', at: '2026-08-19 10:00' }} ctx={ctx()} />);
+  expect(screen.getByText(/홍길동 님의 예약이 취소되었습니다/)).toBeInTheDocument();
+  expect(screen.queryByText(/문진 진행률|답변 보기/)).not.toBeInTheDocument(); // 웹에서 문진 내용·진행률 안 엶
+});
+
+test('[WEBCARD-CANCELDONE-02] 재방문 시 취소 결과를 서버에서 다시 읽고 조회 오류를 취소 완료로 가장하지 않는다', () => {
+  render(<WebCard payload={{ card_type: 'cancel_done', load_error: true }} ctx={ctx()} />);
+  expect(screen.getByRole('alert')).toHaveTextContent('취소 결과를 불러오지 못했습니다');
+  expect(screen.queryByText(/취소되었습니다/)).not.toBeInTheDocument();
+});
+
+test('[WEBCARD-CANCELDONE-03] [새로 예약하기]는 웹 예약 흐름으로 연결하되 보존 문진을 자동 복사하지 않는다', async () => {
+  const onRebook = vi.fn();
+  render(<WebCard payload={{ card_type: 'cancel_done', name: '홍길동', at: '2026-08-19' }} ctx={ctx({ onRebook })} />);
+  await userEvent.click(screen.getByRole('button', { name: '새로 예약하기' }));
+  expect(onRebook).toHaveBeenCalledTimes(1); // 자동 복사 없이 새 흐름 진입(로그인 필요 시 컨테이너가 WEBMOD-AUTH)
+});
+
+test('[WEBCARD-CANCELREJ-01] 직원 사유·고정 확인·다시 문의 규칙을 본체 계약대로 따른다', () => {
+  render(<WebCard payload={{ card_type: 'cancel_reject', reject_reason: '이미 진료가 시작되었습니다' }} ctx={ctx()} />);
+  expect(screen.getByText(/직원 사유: 이미 진료가 시작되었습니다/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '확인' })).toBeInTheDocument();
+});
+
+test('[WEBCARD-CANCELREJ-02] 사유 누락이어도 고정 확인 문구를 표시한다(직원 답변 문자 전달은 서버·익명 토큰 복원)', () => {
+  render(<WebCard payload={{ card_type: 'cancel_reject', reject_reason: null }} ctx={ctx()} />);
+  expect(screen.getByText(/사유 없음/)).toBeInTheDocument();
+  expect(screen.getByText('취소 요청이 반려되었습니다')).toBeInTheDocument();
+});
+
+test('[WEBCARD-CANCELREJ-03] [다시 문의하기]는 같은 예약·사유 문맥으로 이어가며 "취소 요청 접수/등록"이라 표시하지 않는다', async () => {
+  const onReconsult = vi.fn();
+  const p = { card_type: 'cancel_reject', reject_reason: '진료 시작' };
+  render(<WebCard payload={p} ctx={ctx({ onReconsult })} />);
+  await userEvent.click(screen.getByRole('button', { name: '다시 문의하기' }));
+  expect(onReconsult).toHaveBeenCalledWith(p);
+  expect(screen.queryByText(/접수|등록/)).not.toBeInTheDocument();
+});
+```
+Run: `npm --prefix webchat run test -- CancelCards` → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: 문진·빠른답변 카드 — `WEBCARD-QNR`·`WEBCARD-QUICK`(8규칙)**
+
+> **웹 문진은 화면을 만들지 않는다** — 문항·답변·진행률을 복제·노출하지 않고 앱 경로만 안내한다(로그인 여부 무관). 0문항은 한 줄. **빠른답변**은 버튼 문장 그대로 환자 말풍선으로 전송하고(자유 입력은 항상 열림), 생성 중·실패에 별도 로딩/실패 UI를 두지 않는다.
+
+`webchat/src/widget/cards/QnrCard.tsx`:
+```tsx
+import type { CardProps } from './WebCard';
+
+// ── WEBCARD-QNR ── 웹엔 문진 화면이 없다. 앱 경로만 안내. 내용·진행률 노출 금지(로그인 무관).
+export function QnrCard({ p }: CardProps) {
+  if ((p.total as number | undefined) === 0)
+    return <p>작성할 문진이 없습니다</p>; // 0문항: 한 줄. 버튼·(0/0)·독립 카드 없음
+  return (
+    <div>
+      <p>사전문진은 환자 앱에서 작성하거나 수정할 수 있습니다</p>
+      <p>환자 앱에서 확인해 주세요</p>
+      {/* 특정 예약의 문항·답변·진행률을 조회·노출하지 않고, 웹 문진 열기 흐름으로 보내지 않는다 */}
+    </div>
+  );
+}
+```
+
+`webchat/src/widget/cards/QuickReplies.tsx`:
+```tsx
+import type { CardProps } from './WebCard';
+
+// ── WEBCARD-QUICK ── CCARD-QUICK 본체(시작 고정·대화 중 3~4개·진단/처방 금지) + 전송 연결 + 자유 입력 항상 열림
+export function QuickReplies({ p, ctx }: CardProps) {
+  const state = p.state as string | undefined;
+  if (state === '생성중' || state === '생성실패') return null; // 별도 로딩·실패·재시도 UI 없음(자유 입력은 ChatRoom이 연다)
+  const options = (p.options as string[] | undefined) ?? [];
+  if (options.length === 0) return null;
+  return (
+    <div aria-label="빠른 답변">
+      {options.map((o) => (
+        <button key={o} type="button" onClick={() => ctx.onPick(o)}>{o}</button> // 버튼 문장 그대로 환자 말풍선 전송
+      ))}
+    </div>
+  );
+}
+```
+
+`webchat/src/widget/cards/QnrCard.test.tsx`:
+```tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { WebCard, type CardContext } from './WebCard';
+
+function ctx(over: Partial<CardContext> = {}): CardContext {
+  return { isAnonymous: true, onAuthGate: vi.fn(), onExecute: vi.fn(), onPick: vi.fn(), onReconsult: vi.fn(), onRebook: vi.fn(), ...over };
+}
+
+test('[WEBCARD-QNR-01] 위젯에 문항·답변·편집 화면을 복제하지 않고 앱 경로만 안내한다', () => {
+  render(<WebCard payload={{ card_type: 'questionnaire', state: '작성중', answered: 1, total: 6, appointment_id: 'a1' }} ctx={ctx()} />);
+  expect(screen.getByText(/환자 앱에서 작성하거나 수정/)).toBeInTheDocument();
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument(); // 웹 전용 문진 카드·입력 없음
+});
+
+test('[WEBCARD-QNR-02] 비로그인 사용자에게 특정 예약의 문진 내용·진행률을 노출하지 않고 웹 문진 열기로 보내지 않는다', () => {
+  render(<WebCard payload={{ card_type: 'questionnaire', state: '작성중', answered: 3, total: 6, appointment_id: 'a1' }} ctx={ctx({ isAnonymous: true })} />);
+  expect(screen.queryByText(/3\/6|진행률|문진 열기/)).not.toBeInTheDocument();
+  expect(screen.getByText(/환자 앱에서 확인/)).toBeInTheDocument();
+});
+
+test('[WEBCARD-QNR-03] 로그인 웹 사용자에게도 웹 문진 화면을 만들지 않고 앱 읽기 전용 경로만 안내한다', () => {
+  render(<WebCard payload={{ card_type: 'questionnaire', state: '완료', answered: 6, total: 6 }} ctx={ctx({ isAnonymous: false })} />);
+  expect(screen.getByText(/환자 앱에서 작성하거나 수정/)).toBeInTheDocument();
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+});
+
+test('[WEBCARD-QNR-04] 0문항은 "작성할 문진이 없습니다" 한 줄만 표시하고 버튼·(0/0)·독립 카드를 만들지 않는다', () => {
+  render(<WebCard payload={{ card_type: 'questionnaire', state: '없음', answered: 0, total: 0 }} ctx={ctx()} />);
+  expect(screen.getByText('작성할 문진이 없습니다')).toBeInTheDocument();
+  expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  expect(screen.queryByText('(0/0)')).not.toBeInTheDocument();
+});
+
+test('[WEBCARD-QUICK-01] 시작 고정 묶음·대화 중 추천을 본체 계약대로 버튼으로 표시한다', () => {
+  render(<WebCard payload={{ card_type: 'quick_replies', options: ['예약하고 싶어요', '진료과를 모르겠어요'] }} ctx={ctx()} />);
+  expect(screen.getByRole('button', { name: '예약하고 싶어요' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '진료과를 모르겠어요' })).toBeInTheDocument();
+});
+
+test('[WEBCARD-QUICK-02] 빠른 답변 선택은 버튼 문장 그대로 환자 말풍선으로 전송한다', async () => {
+  const onPick = vi.fn();
+  render(<WebCard payload={{ card_type: 'quick_replies', options: ['예약하고 싶어요'] }} ctx={ctx({ onPick })} />);
+  await userEvent.click(screen.getByRole('button', { name: '예약하고 싶어요' }));
+  expect(onPick).toHaveBeenCalledWith('예약하고 싶어요');
+});
+
+test('[WEBCARD-QUICK-03] 자유 입력은 빠른 답변의 유무·생성 상태와 무관하게 늘 열려 있다(ChatRoom 입력)', () => {
+  // 빠른답변 카드가 없어도 방의 자유 입력은 존재 — 카드 유무가 입력을 잠그지 않는다
+  render(<WebCard payload={{ card_type: 'quick_replies', state: '생성실패' }} ctx={ctx()} />);
+  expect(screen.queryByLabelText('빠른 답변')).not.toBeInTheDocument(); // 카드는 안 뜨지만
+  // 자유 입력 자체는 WEBCHAT-ROOM 입력(Task 14)이 담당 — 여기선 카드가 입력을 막지 않음을 확인
+});
+
+test('[WEBCARD-QUICK-04] 추천 생성 중·실패에 별도 로딩·실패·재시도를 표시하지 않고 성공 시에만 추천을 보인다', () => {
+  const { rerender } = render(<WebCard payload={{ card_type: 'quick_replies', state: '생성중' }} ctx={ctx()} />);
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  expect(screen.queryByText(/추천을 불러오지 못/)).not.toBeInTheDocument();
+  rerender(<WebCard payload={{ card_type: 'quick_replies', state: '정상', options: ['예약하고 싶어요'] }} ctx={ctx()} />);
+  expect(screen.getByRole('button', { name: '예약하고 싶어요' })).toBeInTheDocument(); // 성공 시에만 표시
+});
+```
+> `WEBCARD-QUICK-03`의 자유 입력 상시 개방은 Task 14 `WEBCHAT-ROOM` 입력이 본체다 — 카드는 입력을 잠그지 않음만 여기서 확인(전송 중·실패는 `WEBCHAT-ROOM-08~09`). Run: `npm --prefix webchat run test -- QnrCard` → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: `WebchatApp` 컨테이너 — 슬롯 3개 배선 + 인증 후 재확인 흐름(`WEBMOD-AUTH-01·07·08·09`)**
+
+> Task 14 콜백 슬롯을 실제 모달·폼·카드로 잇는다. 컨테이너가 **로그인 상태(patientId)**·**열린 모달/폼**·**인증 후 재확인 카드**를 보유한다. 여기서 담는 4규칙은 셸이 아니라 **컨테이너 국면**이다: 관문 열림·문맥 보존(`01`), 로그인 완료→최신 조회·확인 안 건너뜀(`07`), 가입 완료→재확인 카드(`08`), 명시 인증→이력 귀속(`09`). 익명 토큰은 `X-Anon-Token`이 실어 서버가 세션을 찾으므로 컨테이너는 `threadId`를 몰라도 된다.
+
+`webchat/src/widget/WebchatApp.tsx`:
+```tsx
+import { useState } from 'react';
+import type { WebchatApi, CardMessage } from '../api/webchatApi';
+import type { WebAuth } from '../auth/webAuth';
+import { WebchatWidget, type PendingAction, type HandoffSummary } from './WebchatWidget';
+import { AuthGateModal } from './AuthGateModal';
+import { HandoffForm } from './HandoffForm';
+import { WebCard, type CardContext } from './cards/WebCard';
+
+export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth: WebAuth; hospitalPhone: string }) {
+  const [authAction, setAuthAction] = useState<PendingAction | null>(null);
+  const [handoff, setHandoff] = useState<HandoffSummary | null>(null);
+  const [reconfirm, setReconfirm] = useState<CardMessage | null>(null);
+  const [patientId, setPatientId] = useState<string | null>(null);
+
+  const cardCtx = (send: (t: string) => void): CardContext => ({
+    isAnonymous: !patientId,
+    onAuthGate: setAuthAction,                               // 카드의 로그인 필요 행동 → 관문
+    onExecute: async (cardType, payload) => { const { result } = await api.executeCard({ cardType, payload, clientMessageId: crypto.randomUUID() }); setReconfirm(null); void result; },
+    onPick: send,
+    onReconsult: () => {}, onRebook: () => setAuthAction({ kind: 'book' }),
+  });
+
+  const afterAuth = async (pid: string, action: PendingAction) => {
+    setPatientId(pid);
+    await api.attributeSessionToAccount({ patientId: pid });  // WEBMOD-AUTH-09: 명시 인증에만 귀속
+    setAuthAction(null);
+    if (action.kind === 'view_my_appointments') { await api.revalidateAction({ action }); return; } // WEBMOD-AUTH-07: 최신 조회
+    const { card } = await api.revalidateAction({ action });  // WEBMOD-AUTH-08 / BOOKCONF-03: 재확인 카드(자동 실행 없음)
+    setReconfirm(card);
+  };
+
+  return (
+    <div id="webchat-app" role="region" aria-label="AI 상담봇">
+      <WebchatWidget
+        api={api} hospitalPhone={hospitalPhone}
+        onAuthGate={setAuthAction}                            // WEBMOD-AUTH-01: 관문 열기(원래 행동·문맥 보존)
+        onHandoffNeeded={setHandoff}
+        renderCard={(payload, slot) => <WebCard payload={payload} ctx={cardCtx(slot.send)} />}
+      />
+      {authAction && <AuthGateModal action={authAction} auth={auth} onClose={() => setAuthAction(null)} onAuthenticated={afterAuth} />}
+      {handoff && <HandoffForm api={api} summary={handoff} onDone={() => setHandoff(null)} onCancel={() => setHandoff(null)} />}
+      {reconfirm && (
+        <div role="dialog" aria-label="예약 재확인">
+          <WebCard payload={reconfirm.payload} ctx={cardCtx(() => {})} />
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+`webchat/src/App.tsx`(Task 14 마운트 교체):
+```tsx
+import { WebchatApp } from './widget/WebchatApp';
+import { createWebchatApi } from './api/webchatApi';
+import { createWebAuth } from './auth/webAuth';   // 배포가 실제 흐름에 배선
+import { env } from './lib/env';
+
+const api = createWebchatApi(env.supabaseUrl ? `${env.supabaseUrl}/functions/v1` : '');
+
+export default function App() {
+  return <WebchatApp api={api} auth={createWebAuth()} hospitalPhone="" />; // hospitalPhone·auth 배선은 배포
+}
+```
+> `createWebAuth()`는 배포가 실제 로그인/가입 흐름에 잇는 팩토리(위젯 계약상 자리만 — 실제 화면은 기존 흐름). 테스트는 가짜 `WebAuth`를 주입한다.
+
+`webchat/src/widget/WebchatApp.test.tsx`:
+```tsx
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { WebchatApp } from './WebchatApp';
+import type { WebchatApi } from '../api/webchatApi';
+import type { WebAuth } from '../auth/webAuth';
+
+function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
+  return {
+    startOrRestoreSession: vi.fn(async () => ({ threadId: 't1', aiSessionId: 's1', anonToken: 'TOK', messages: [] })),
+    fetchMessages: vi.fn(async () => []), sendMessage: vi.fn(async () => ({ routeTaken: 'rag' })),
+    fetchHandoff: vi.fn(async () => ({ phase: null, isOpen: true })), acknowledgeBatches: vi.fn(async () => {}),
+    revalidateAction: vi.fn(async () => ({ card: { id: 'c1', senderType: 'bot', messageType: 'card', content: null, payload: { card_type: 'booking_confirm', patient_name: '홍길동', department_name: '내과', doctor_name: '김의사', slot_at: '2026-08-20T10:00', button: '예약 신청하기', state: '정상' } } })),
+    executeCard: vi.fn(async () => ({ result: { id: 'd1', senderType: 'bot', messageType: 'card', content: null, payload: { card_type: 'booking_done', headline: '예약이 신청되었습니다', number_label: '신청번호', number: 'A-1' } } })),
+    createHandoffTicket: vi.fn(async () => ({ ticketId: 'tk1' })),
+    attributeSessionToAccount: vi.fn(async () => {}),
+    ...over,
+  } as unknown as WebchatApi;
+}
+function fakeAuth(): WebAuth { return { login: vi.fn(async () => ({ ok: true, patientId: 'p1' })), signup: vi.fn(async () => ({ ok: true, patientId: 'p1' })) }; }
+
+async function openRoom() { await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' })); await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' })); }
+
+test('[WEBMOD-AUTH-01] 로그인 필요 행동을 누르면 관문 모달을 열고 원래 행동·익명 문맥을 보존한다(자동 실행 없음)', async () => {
+  const api = fakeApi();
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(screen.getByRole('button', { name: '내 예약 조회' }));
+  expect(screen.getByRole('dialog', { name: '로그인 또는 가입' })).toBeInTheDocument();
+  expect(api.executeCard).not.toHaveBeenCalled();     // 인증 전 원래 행동 실행 없음
+});
+
+test('[WEBMOD-AUTH-07] 로그인 완료는 최신 서버 값을 조회하고 예약 실행은 확인 단계를 건너뛰지 않는다', async () => {
+  const api = fakeApi();
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(screen.getByRole('button', { name: '내 예약 조회' }));
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+  await waitFor(() => expect(api.revalidateAction).toHaveBeenCalledWith({ action: { kind: 'view_my_appointments' } })); // 최신 조회
+  expect(api.executeCard).not.toHaveBeenCalled();     // 확인 단계 안 건너뜀
+});
+
+test('[WEBMOD-AUTH-08] 가입 완료는 재확인 카드를 다시 표시하고 인증만으로 자동 실행하지 않는다', async () => {
+  const api = fakeApi();
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  // 예약 관문을 카드가 아니라 직접 열어 가입 경로만 검증(카드 경유는 Step 4에서 검증)
+  await userEvent.click(screen.getByRole('button', { name: '내 예약 조회' })); // 관문 오픈 트리거 재사용
+  // 가입 후 book 액션 재확인은 revalidate 카드가 뜨는지로 확인 → book 액션 시뮬레이트
+});
+
+test('[WEBMOD-AUTH-09] 명시적 로그인 성공 시에만 앞선 익명 이력을 계정에 귀속한다', async () => {
+  const api = fakeApi();
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  expect(api.attributeSessionToAccount).not.toHaveBeenCalled(); // 인증 전엔 귀속 없음(유사성 추측 금지)
+  await userEvent.click(screen.getByRole('button', { name: '내 예약 조회' }));
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+  await waitFor(() => expect(api.attributeSessionToAccount).toHaveBeenCalledWith({ patientId: 'p1' }));
+});
+```
+> ⚠️ `WEBMOD-AUTH-08`의 "가입 완료→재확인 카드"는 `book`/`cancel` 액션에서만 재확인 카드가 뜬다. Task 14 위젯의 "내 예약 조회" 버튼은 `view` 액션이라, 08 테스트는 **book 액션을 여는 카드 경로**(Step 4 `WEBCARD-BOOKCONF-02`)와 `afterAuth`의 `signup→revalidateAction→setReconfirm`을 함께 검증하도록 구현 시 book 관문 버튼을 추가하거나 카드에서 연다. 구현자는 위 골격에서 book 액션 → `auth.signup` → `revalidateAction` → `role="dialog"[name=예약 재확인]` 카드 표시를 assert하도록 완성한다(자동 `executeCard` 호출 없음).
+
+Run: `npm --prefix webchat run test -- WebchatApp` → FAIL → 구현 → PASS. (Task 14 `WebchatWidget.test`·`App.test`도 계속 초록불 — `renderCard` 가법 확장은 기존 `() => null` 호출과 호환)
+
+- [ ] **Step 8: 전수 초록불 + 검사기 + 커밋**
+
+Run: `npm --prefix webchat run test && npm --prefix webchat run build` → 45규칙 전 테스트 PASS + 빌드 성공 + Task 14 회귀 없음.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `207 → 252`(+45) · prefix-check **빚0·미배정0·⏰0·exit0**. ⚠️ 카드 본체 계약이 참조하는 앱 규칙(`WEBCHAT-ROOM-08~09` 등)은 **범위·계열명으로만** 적어 ⏰를 만들지 않는다(완전 단일 ID 금지). `WEBMOD-AUTH-08`·`WEBCARD-BOOKCONF-03`은 이 태스크가 완전 ID로 담아 missing에서 사라진다.
+
+```bash
+git add webchat/src/ \
+        docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 15 본문 — 웹 카드 8종 + 인증 후 재확인(WEBMOD-AUTH) + 익명 인계 폼 45규칙(React/Vitest). 환자 채널 완결"
+```
+
+> **Task 15 완료 조건**: `WEBMOD-AUTH`9·`WEBANON-HANDOFF`9·`WEBCARD-TIME`3·`BOOKCONF`4·`BOOKDONE`3·`CANCELCONF`3·`CANCELDONE`3·`CANCELREJ`3·`QNR`4·`QUICK`4 = **45규칙 전수** 초록불(Vitest). ⭐ **웹은 React** — `patient_app/`(Flutter) 무손. ⭐ **MR2-03 구현**: 로그인·가입 완료 후 자동 실행 금지 → 재확인 카드([신청]/[취소] 눌러야 확정). ⭐ **경계**: 위젯 내부에 로그인·OTP·가입 화면 없음(`WEBMOD-AUTH-03` — `WebAuth` 어댑터로 기존 흐름 연결) · 실제 SMS 발송=dispatcher(배포) · 웹 문진 화면 없음(앱 경로 안내만). ⭐⭐ **환자 채널(앱 10~13 + 웹 14~15) 완결.** **다음 = Task 16**(직원 티켓함 — `TICKET-LIST-*`·`NAV-STAFFCHAT-*`).
