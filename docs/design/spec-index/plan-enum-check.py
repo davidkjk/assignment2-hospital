@@ -75,16 +75,33 @@ FAMILIES = [
         "note": "DB/환자앱=한국어, 직원웹·챗봇 DTO=영문(변환기 없음, C4-5).",
     },
     {
-        "label": "chat stats source (상담봇 유입원/신고 소스)",
-        "values": ["app", "staff", "chatbot", "web", "realtime_report", "immediate"],
+        "label": "chat inflow source (상담봇 유입원)",
+        "values": ["app", "staff", "chatbot", "web"],
         "canonical": {"app", "staff", "chatbot", "web"},
-        "note": "유입원 3~4분류가 정본. realtime_report(UI/규칙)↔immediate(Task 8 CHECK) 충돌(C3-3).",
+        "note": "유입원 3~4분류가 정본(chat_sessions.source 계열). 신고 출처(answer_feedback.source)와는 다른 칸 — 분리 검사.",
+    },
+    {
+        # answer_feedback.source — 오답 신고 출처. 유입원과 다른 칸이라 별도 family.
+        "label": "answer_feedback source (오답 신고 출처)",
+        "values": ["realtime_report", "quality_review", "immediate"],
+        "canonical": {"realtime_report", "quality_review"},
+        "note": "즉시 신고=realtime_report(화면 명세 정본)·정기 검토=quality_review. ~~immediate~~ 폐기(C3-3 통일 2026-08-20).",
     },
 ]
 
 # 값이 '문자열'·"문자열" 리터럴로 등장하는지(단어 경계 포함)
 def literal_re(v):
     return re.compile(r"['\"]" + re.escape(v) + r"['\"]")
+
+# 그 값 '자체'가 죽은 위치에 있으면 산 값으로 세지 않는다. 죽은 위치 두 가지:
+#   ① 취소선 스팬 ~~...값...~~ 안(역참조로 폐기 표시한 옛 이름)
+#   ② 부재 단언 "값" not in ...(예: assert "reminder_tomorrow" not in types)
+# 줄 전체를 guard로 보지 않고 '그 값의 리터럴'만 지워서 판정 → 같은 줄에 산 값과 죽은 값이 공존해도 정확.
+def counts_as_live(v, line):
+    line = re.sub(r"~~.*?~~", "", line)                                    # 취소선 = 죽음
+    lit = r"['\"]" + re.escape(v) + r"['\"]"
+    line = re.sub(lit + r"\s*not in\b", "", line)                          # "값" not in = 부재 단언
+    return re.search(lit, line) is not None
 
 def scan():
     # plan -> full text
@@ -101,15 +118,15 @@ def scan():
         ctx = fam.get("context")
         used = {}  # value -> [plan,...]
         for v in fam["values"]:
-            rx = literal_re(v)
             plans_hit = []
             for k, t in texts.items():
                 if ctx is None:
-                    if rx.search(t):
+                    # 죽은 위치(취소선·부재 단언)의 리터럴은 산 값으로 세지 않는다
+                    if any(counts_as_live(v, ln) for ln in t.splitlines()):
                         plans_hit.append(k)
                 else:
-                    # 문맥(context)을 언급한 줄에서만 값 리터럴을 센다
-                    if any(rx.search(ln) and ctx.search(ln) for ln in t.splitlines()):
+                    # 문맥(context)을 언급한 줄에서만 값 리터럴을 센다(죽은 위치 제외)
+                    if any(counts_as_live(v, ln) and ctx.search(ln) for ln in t.splitlines()):
                         plans_hit.append(k)
             if plans_hit:
                 used[v] = sorted(plans_hit)

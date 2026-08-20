@@ -1063,7 +1063,7 @@ git commit -m "feat: 📝 상담봇 Task 1 본문 — 통합 대화 스키마(ch
 >
 > ⭐ **이월 핸드오버 3건을 여기서 담는다**(`docs/design/spec-index/HANDOVERS.md` — 본문에 담기면 `plan-prefix-check` 경고가 사라진다):
 > - **`SUPPORT-CAL-DUP` 계열**(직원웹 T14 → 여기) — 한 예약에 상담이 여럿일 때 캘린더 ⚠ 하나가 무엇을 대표하나. **여기서 「대표 = thread당 열린 티켓(partial unique로 하나 보장) → 없으면 가장 최근 answered」로 티켓 모델을 확정**한다. ⚠ 화면 렌더·완전 ID(`-01`)는 Task 18이 담는다(여기서 완전 ID로 쓰면 coverage가 미리 세어버린다 — ⏰).
-> - **`TICKET-DETAIL-NOTIFY` 계열**(환자앱 T28 → 여기) — 6번째 토글 `support_reply`가 거는 답변 알림. **`close_ticket`이 `answered`를 찍고, 실제 발송(배칭·`staff_chat_reply`/`support_answered` 문구)은 Task 3 dispatcher**가 한다. 여기선 답변 알림이 키로 삼는 상태(`answered`)를 만든다. 완전 ID는 Task 17.
+> - **`TICKET-DETAIL-NOTIFY` 계열**(환자앱 T28 → 여기) — 6번째 토글 `support_reply`가 거는 답변 알림. **`close_ticket`이 `answered`를 찍고, 실제 발송(배칭·`notification_type`=`support_answered`)은 Task 3 dispatcher**가 한다. 여기선 답변 알림이 키로 삼는 상태(`answered`)를 만든다. 완전 ID는 Task 17. (C3-2 정본 통일 2026-08-20: ~~staff_chat_reply~~ → `support_answered` — 토글·라우팅·발송이 한 이름.)
 > - **`PTDET-SUPPORT-03`**(환자앱 정본 → 여기) — 환자상세 상담 문의 **최신순 + ID 동점키 서버 정렬**. `list_thread_tickets`가 `order by created_at desc, id desc`로 담는다. 환자상세 섹션 렌더는 Task 19.
 
 **Files:**
@@ -1747,7 +1747,7 @@ git commit -m "feat: 📝 상담봇 Task 2 본문 — AI 세션·티켓 생명�
 - Produces:
   - 표 `anonymous_chat_sessions`(§4.5 — `token_hash` unique·`last_seen_at`·`revoked_at`) · `anonymous_chat_contacts`(§4.5 — `contact_value_ciphertext`·`contact_value_hash`·`verified_at`·`answer_notification_enabled_at`) · `chat_notification_batches`(§4.7 전체)
   - `chat_threads.anonymous_session_id`·`chat_messages.sender_anonymous_session_id`·`chat_read_states.reader_anonymous_session_id`에 붙는 FK(Task 1·2 이월분)
-  - `notification_log` 확장: `recipient_type`·`chat_notification_batch_id`(unique FK) 칼럼 + `anonymous_session_id`/`anonymous_contact_id`에 FK + `notification_type` 값 `staff_chat_reply` 사용
+  - `notification_log` 확장: `recipient_type`·`chat_notification_batch_id`(unique FK) 칼럼 + `anonymous_session_id`/`anonymous_contact_id`에 FK + `notification_type` 값 `support_answered` 사용 (C3-2 정본 통일 2026-08-20, ~~staff_chat_reply~~)
   - SQL 함수(security definer): `upsert_anonymous_session(text token_hash) -> anonymous_chat_sessions` · `record_verified_anonymous_contact(uuid session, text ciphertext, text hash) -> anonymous_chat_contacts` · `enqueue_staff_reply_notification(uuid message_id) -> uuid`(배치 생성/확장, 즉시읽음이면 null) · `acknowledge_chat_batches(uuid thread, text reader_type, uuid reader_id) -> void`
   - Python: `anonymous_service.upsert_session / record_verified_contact` · `notification_recipient.resolve_recipient(batch_row) -> dict`(등록 환자면 `notify_patient` 대상, 익명이면 검증 연락처 참조 — dispatcher가 복호화·발송)
   - RLS: 익명 표는 authenticated 직접 조회 금지(백엔드가 토큰 해시로 범위 좁혀 서비스 역할 반환) · 직원은 배치·연락처 마스킹만
@@ -3420,7 +3420,7 @@ git commit -m "feat: 📝 상담봇 Task 7 본문 — KB pgvector 검색·승인
 **Interfaces:**
 - Consumes: Task 1·2 `chat_messages`·`ai_chat_sessions`·`support_tickets` · Task 7 `kb_service.submit_edit`(적용→KB) · `staff` · `private.is_active_staff()`·`private.is_admin()` · Task 0 `fake_embedder` · `get_pool`·`AppError`
 - Produces:
-  - 표 `chat_quality_reviews(ai_chat_session_id unique, status ok/corrected, reviewed_by, reviewed_at)` · `answer_feedback(message_id, reported_by, source immediate/quality_review, correction_text, add_to_example_bank, status pending/applied/rejected, resolved_by/at)` · `qa_example_bank(question, answer, embedding vector(1536), is_active, source_feedback_id)` · `unresolved_questions(ticket_id, question_text, question_embedding vector(1536))`
+  - 표 `chat_quality_reviews(ai_chat_session_id unique, status ok/corrected, reviewed_by, reviewed_at)` · `answer_feedback(message_id, reported_by, source realtime_report/quality_review, correction_text, add_to_example_bank, status pending/applied/rejected, resolved_by/at)` · `qa_example_bank(question, answer, embedding vector(1536), is_active, source_feedback_id)` · `unresolved_questions(ticket_id, question_text, question_embedding vector(1536))`
   - `quality_service.mark_reviewed`(문제없음)·`send_correction`(→answer_feedback quality_review)·`list_sessions_unreviewed_first` · `record_unresolved(ticket_id, question, embedder)`·`cluster_unresolved(embedder, threshold=0.8)`
   - `answer_feedback_service.report`(즉시 오답)·`list_bad_inbox`(pending 우선)·`apply`(→qa_example_bank + KB submit_edit)·`reject`
 - ⚠️ **아직 안 하는 것**: 관리자 화면(`QUALITY-REPORT`·`BADINBOX`·`UNRES-CLUSTER`·`QAEX` 계열)=Task 21 · 정기 리포트 배치=배포. Task 8은 저장·정렬·클러스터 서버 계약만.
@@ -3482,12 +3482,13 @@ create table chat_quality_reviews (
   reviewed_at timestamptz not null default now()
 );
 
--- 오답 신고 = bad inbox. immediate(그 자리 신고) / quality_review(정기 검토 중 교정). 즉시 KB 공개 금지 → 적용은 KB 승인 경유(B3).
+-- 오답 신고 = bad inbox. realtime_report(그 자리 신고) / quality_review(정기 검토 중 교정). 즉시 KB 공개 금지 → 적용은 KB 승인 경유(B3).
+-- ✅ source 정본 통일(2026-08-20, C3-3): 화면 명세(BADRPT-FORM-SOURCE-01·결정 B3·목업 107)의 realtime_report로 백엔드를 맞춤. ~~immediate~~ 폐기.
 create table answer_feedback (
   id uuid primary key default gen_random_uuid(),
   message_id uuid not null references chat_messages(id),
   reported_by uuid not null references staff(id),
-  source text not null check (source in ('immediate', 'quality_review')),
+  source text not null check (source in ('realtime_report', 'quality_review')),
   correction_text text,
   add_to_example_bank boolean not null default false,
   status text not null default 'pending' check (status in ('pending', 'applied', 'rejected')),
@@ -3579,7 +3580,7 @@ from app.services.chat import kb_service
 
 
 async def report(message_id: UUID, staff_id: UUID, *, correction_text=None,
-                 source: str = "immediate", add_to_example_bank: bool = False) -> dict:
+                 source: str = "realtime_report", add_to_example_bank: bool = False) -> dict:  # C3-3 정본(2026-08-20): 화면 명세와 통일
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -3947,7 +3948,7 @@ git commit -m "feat: 📝 상담봇 Task 9 본문 — 라우터 3종(환자·익
 - Create: `patient_app/lib/features/chat/chat_deep_link.dart` (`resolveChatDeepLink`·`resolveChatDestination` — 직원 답변 푸시 딥링크)
 - Modify: `patient_app/lib/core/router.dart` (`/chat`·`/chat/room/:threadId` 라우트 등록 + 콜드스타트 인증 게이트)
 - Modify: `patient_app/lib/app_shell.dart` (T16 `AppShell` `mainTabs`에 5번째 `AI 상담` 탭 추가)
-- Modify: `patient_app/lib/features/notifications/notification_view.dart` (T18 `NotificationView`에 `chatThreadId` 노출 + `resolveNotificationRoute`의 `chat_reply`가 thread 있으면 `/chat/room/:id`)
+- Modify: `patient_app/lib/features/notifications/notification_view.dart` (T18 `NotificationView`에 `chatThreadId` 노출 + `resolveNotificationRoute`의 `support_answered`가 thread 있으면 `/chat/room/:id`)
 - Test: `patient_app/test/features/chat/chat_models_test.dart` · `chat_repository_test.dart` · `chat_room_controller_test.dart` · `chat_room_view_test.dart` · `chat_bubble_test.dart` · `chat_input_bar_test.dart` · `chat_safety_banner_test.dart` · `chat_guide_banner_test.dart` · `chat_history_view_test.dart` · `chat_deep_link_test.dart` · `chat_tab_test.dart`
 
 **Interfaces:**
@@ -4875,7 +4876,7 @@ import 'package:patient_app/features/chat/chat_deep_link.dart';
 
 void main() {
   NotificationView _n({String? thread}) => NotificationView.fromJson({
-    'id': 'n1', 'notification_type': 'chat_reply', 'appointment_id': null,
+    'id': 'n1', 'notification_type': 'support_answered', 'appointment_id': null,  // C3-2 정본(2026-08-20)
     'chat_thread_id': thread, 'sent_at': '2026-08-19T09:00:00Z',
   });
 
@@ -4888,7 +4889,7 @@ void main() {
   });
 
   test('[CHAT-HISTORY-DEEP-01] T18 resolveNotificationRoute도 thread면 방으로 정밀화된다', () {
-    // 셸이 T18의 chat_reply → /chat 폴백을 thread 있을 때만 방으로 좁힌다.
+    // 셸이 T18의 support_answered → /chat 폴백을 thread 있을 때만 방으로 좁힌다.
     expect(resolveNotificationRoute(_n(thread: 't9')), '/chat/room/t9');
     expect(resolveNotificationRoute(_n(thread: null)), '/chat'); // 폴백 유지
   });
@@ -4911,7 +4912,7 @@ Run: `flutter test test/features/chat/chat_deep_link_test.dart` → Expected: FA
 ```dart
 // patient_app/lib/features/chat/chat_deep_link.dart
 import '../notifications/notification_view.dart';
-/// 직원 답변 푸시(chat_reply)의 도착지(CHAT-HISTORY-DEEP-01·02). thread가 있으면 그 방,
+/// 직원 답변 푸시(support_answered)의 도착지(CHAT-HISTORY-DEEP-01·02). thread가 있으면 그 방,
 /// 없으면 이전 상담 목록(/chat) — 콜드스타트 뒤로가기 도착지이기도 하다(DEEP-02).
 /// 대상 오류(방 없음·권한 없음)는 방을 열 때 확인해 다른 방을 열지 않는다(DEEP-03, 화면에서 처리).
 String resolveChatDeepLink(NotificationView n) =>
@@ -4922,9 +4923,9 @@ T18 `notification_view.dart` 수정(양방향 악수 — 낡은 폴백 정밀화
 ```dart
 // NotificationView에 chatThreadId 노출(notification_log/배치가 실어 옴):
 //   final String? chatThreadId;  // .fromJson에서 j['chat_thread_id']
-// resolveNotificationRoute의 chat_reply 분기를 좁힌다(폴백 /chat은 유지):
-//   'chat_reply' => n.chatThreadId != null ? '/chat/room/${n.chatThreadId}' : '/chat',
-// ⚠️ T18 기존 테스트(chat_reply, thread 없음 → '/chat')는 그대로 통과한다.
+// resolveNotificationRoute의 support_answered 분기를 좁힌다(폴백 /chat은 유지):
+//   'support_answered' => n.chatThreadId != null ? '/chat/room/${n.chatThreadId}' : '/chat',
+// ⚠️ T18 기존 테스트(support_answered, thread 없음 → '/chat')는 그대로 통과한다. (C3-2 정본 통일 2026-08-20)
 ```
 Run: `flutter test test/features/chat/chat_deep_link_test.dart` → Expected: PASS.
 
@@ -11761,7 +11762,7 @@ git commit -m "feat: 📝 상담봇 Task 20 본문 — 관리자 KB 목록·편�
 > - **품질 상세 원문** `GET /admin/chat/quality/{sessionId}`·**교정 저장** `POST /admin/chat/quality/{sessionId}/correct`(←`report`, `source=quality_review`) — **선언**(라우터엔 `GET /admin/chat/quality` 목록만).
 > - **참고 예시 목록** `GET /admin/chat/examples?active=true`(←`qa_example_bank where is_active`)·**비활성** `POST /admin/chat/examples/{id}/deactivate` — **선언**.
 >
-> ⚠️⚠️ **소비 계약 갭 — source enum 문자열 불일치(⑦ 조정)**: behaviors는 즉시 신고를 **`realtime_report`**(`BADRPT-FORM-SOURCE-01`)로 쓰는데, Task 8 `answer_feedback_service.report(source="immediate")` 기본값·스키마 주석은 **`immediate/quality_review`**다. 즉시 신고의 enum 문자열이 `realtime_report`(화면 명세) vs `immediate`(백엔드)로 **다르다.** 여기서는 화면 명세대로 `realtime_report`를 보내는 것으로 테스트하고, **어느 문자열로 통일할지는 ⑦ 구현 때 확정**한다(임의로 백엔드를 고치지 않는다). 처리함 구분에 쓰이는 `quality_review`는 양쪽 일치.
+> ~~⚠️⚠️ **소비 계약 갭 — source enum 문자열 불일치(⑦ 조정)**: behaviors는 즉시 신고를 `realtime_report`로, Task 8 백엔드는 `immediate`로 달랐다.~~ ✅ **해소(2026-08-20, C3-3)** — **`realtime_report`로 통일**(사용자 확정). 화면 명세(`BADRPT-FORM-SOURCE-01`·결정 B3·목업 107·프론트 DTO)를 정본으로 두고 **백엔드 CHECK·서비스 기본값을 `realtime_report`로 맞췄다**(위 스키마·`report()` 기본값 수정 완료). 처리함 구분의 `quality_review`는 원래부터 양쪽 일치.
 >
 > **근거 원본**: behaviors **미해결 §4**(`UNRES-CLUSTER-*` 11, `:5661~5671`)·**오답 처리함 §5**(`BADINBOX-REVIEW-*` 12, `:5677~5688`)·**품질 리포트 §6**(`QUALITY-REPORT-*` 12, `:5694~5705`)·**참고 예시 §7**(`QAEX-LIST-*` 10, `:5711~5720`)·**오답 신고 작성 §4(직원)**(`BADRPT-FORM-*` 14, `:5477~5490`) · 요구사항 **3.9/3.10·L204~224·L388·L403~409** · 결정 **B2**(저장 후 스크롤 복귀)·**B3**(`quality_review`로 bad inbox)·**SD-08**(신고 없어도 검토 저장·미검토 우선) · 정본 §0·§4 · 백엔드 **Task 8**(`quality_service`·`answer_feedback_service` · 표 `chat_quality_reviews`·`answer_feedback`·`qa_example_bank`·`unresolved_questions`) · 목업 **107**(직원 오답 신고)·**113**(미해결)·**114**(오답 처리함)·**115**(품질+예시) · 2단계 셸(`is_active_admin`·`is_active_staff`·`BTN-BUSY`·`ERR-POS`·`ERR-RETRY`·`EMPTY-ZERO`).
 
@@ -11777,7 +11778,7 @@ git commit -m "feat: 📝 상담봇 Task 20 본문 — 관리자 KB 목록·편�
 
 **Interfaces:**
 - Consumes:
-  - **Task 8(`answer_feedback_service`)** — `report(message_id, staff_id, *, correction_text, source, add_to_example_bank)`·`list_bad_inbox(limit)`·`apply(feedback_id, staff_id, embedder, *, kb_document_id, kb_fields)`·`reject(feedback_id, staff_id)` · 표 `answer_feedback(message_id, source immediate|quality_review, correction_text, add_to_example_bank, status pending/applied/rejected)`.
+  - **Task 8(`answer_feedback_service`)** — `report(message_id, staff_id, *, correction_text, source, add_to_example_bank)`·`list_bad_inbox(limit)`·`apply(feedback_id, staff_id, embedder, *, kb_document_id, kb_fields)`·`reject(feedback_id, staff_id)` · 표 `answer_feedback(message_id, source realtime_report|quality_review, correction_text, add_to_example_bank, status pending/applied/rejected)`.
   - **Task 8(`quality_service`)** — `list_sessions_unreviewed_first(limit)`(미검토 우선→최신)·`mark_reviewed`·`record_unresolved(ticket_id, question, embedder)`(적재만) · 표 `chat_quality_reviews`·`qa_example_bank(is_active, source_feedback_id)`·`unresolved_questions(question_embedding)`.
   - ⚠️ **라우터 없는 엔드포인트는 소비 계약 선언**(위 헤더 목록): `POST /staff/chat/feedback`·`GET /admin/chat/feedback[?status][/{id}]`·`GET /admin/chat/unresolved[/{clusterId}]`·`GET/POST /admin/chat/quality/{sessionId}[/correct]`·`GET /admin/chat/examples`·`POST /admin/chat/examples/{id}/deactivate`. **미해결 클러스터 집계 함수는 Task 8에 아예 없음** → `UNRES-CLUSTER-10` 계약 부재로 소비.
   - **Task 20 흐름 연결** — `BADINBOX-REVIEW-03` 반영·`UNRES-CLUSTER-06` 자료 추가·`QUALITY-REPORT-08` 교정은 Task 20 KB `submit_edit`→승인으로 이어진다(자동 승인 아님). Task 20 `KbEditor`를 목적지로 소비.
@@ -11786,13 +11787,13 @@ git commit -m "feat: 📝 상담봇 Task 20 본문 — 관리자 KB 목록·편�
   - `badReportApi`(`reportBadAnswer·getTargetMessage`) · `BadReportForm`.
   - `qualityApi`(`listUnresolved·getUnresolvedCluster·listBadInbox·getFeedback·applyFeedback·rejectFeedback·listQualitySessions·getQualitySession·saveQualityCorrection·listExamples·deactivateExample`).
   - `UnresolvedClusters`·`BadAnswerInbox`·`QualityReport`·`ExampleBank`.
-- ⚠️ **아직 안 하는 것**: 질문 순위·챗봇 통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM` 계열=**Task 22**) · KB 편집/승인 화면(`KBADM-*`=Task 20) · 위 엔드포인트·클러스터 집계·임베딩 유사도의 **실제 서버 구현**(Task 8·소비 계약만, ⑦) · source enum 문자열 통일(`realtime_report`↔`immediate`, ⑦) · 각 `확인 필요` 규칙의 **계약 확정**(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책, 근거 생기면).
+- ⚠️ **아직 안 하는 것**: 질문 순위·챗봇 통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM` 계열=**Task 22**) · KB 편집/승인 화면(`KBADM-*`=Task 20) · 위 엔드포인트·클러스터 집계·임베딩 유사도의 **실제 서버 구현**(Task 8·소비 계약만, ⑦) · 각 `확인 필요` 규칙의 **계약 확정**(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책, 근거 생기면).
 
 ---
 
 - [ ] **Step 1: `badReportApi` + `qualityApi` — 두 채널 소비 계약**
 
-> 직원 오답 신고 저장(`report`, `source=realtime_report`)과 관리자 품질/미해결/처리함/예시 계약을 타입으로 못박는다. ⚠️ 대부분 라우터에 없어 **소비 계약 선언**. source 문자열은 화면 명세(`realtime_report`)를 따르되 ⑦에서 백엔드(`immediate`)와 통일.
+> 직원 오답 신고 저장(`report`, `source=realtime_report`)과 관리자 품질/미해결/처리함/예시 계약을 타입으로 못박는다. ⚠️ 대부분 라우터에 없어 **소비 계약 선언**. source 문자열은 `realtime_report`로 통일 완료(C3-3, 2026-08-20 — 백엔드도 이 이름).
 
 `frontend/src/features/support/badReportApi.ts`:
 ```ts
@@ -11815,7 +11816,7 @@ export function createBadReportApi(baseUrl: string): BadReportApi {
     getTargetMessage: (id) => call(`/staff/chat/messages/${id}`),
     reportBadAnswer: (d) => call(`/staff/chat/feedback`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      // ⚠️ 화면 명세대로 realtime_report. 백엔드 기본값 immediate와 통일은 ⑦.
+      // realtime_report 정본 — 백엔드 CHECK·기본값도 이 이름(C3-3 통일 2026-08-20).
       body: JSON.stringify({ message_id: d.messageId, correction_text: d.correctionText,
         add_to_example_bank: d.addToExampleBank, source: "realtime_report" as BadReportSource }),
     }),
@@ -12411,7 +12412,7 @@ git add frontend/src/features/support/ frontend/src/features/quality/ docs/super
 git commit -m "feat: 📝 상담봇 Task 21 본문 — 미해결 클러스터·오답 처리함·품질 리포트·예시·직원 오답 신고 59규칙(최대 태스크). 자동 클러스터 한계 안내·0건↔계약부재↔오류 구분·승인 전 미반영·B2 복귀. 소비 계약 9건 선언·source enum 불일치 갭(⑦)"
 ```
 
-> **Task 21 완료 조건**: `UNRES-CLUSTER`(`01`~`11` = 11) + `BADINBOX-REVIEW`(`01`~`12` = 12) + `QUALITY-REPORT`(`01`~`12` = 12) + `QAEX-LIST`(`01`~`10` = 10) + `BADRPT-FORM`(`TARGET`2·`EMPTY`1·`CORR`1·`EXAMPLE`1·`SOURCE`1·`VALID`1·`SAVE`3·`LOAD`1·`ERR`1·`LIVE`1·`EXIT`1 = 14) = **59규칙 전수** 초록불(Vitest). ⭐ **두 채널**: 직원 오답 신고(`features/support/`·`is_active_staff`) + 관리자 품질(`features/quality/`·`is_active_admin`). ⭐ **자동 클러스터 한계 안내 항상**·**0건↔집계 실패↔계약 부재를 각각 구분**·**승인 전 미반영(교정·반영만으로 즉시 답변 안 씀)**·**출처 구분(realtime_report↔quality_review)**·**B2 저장/취소 후 스크롤 복귀**. ⭐ **소비 계약 9건 선언**: 직원 신고 저장·오답 목록/상세·미해결 집계/상세·품질 상세/교정·예시 목록/비활성. ⚠️ **경계**: 질문 순위·통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM`)=**Task 22** · KB 편집/승인(`KBADM`)=Task 20 · **source enum 문자열 통일(`realtime_report`↔`immediate`)**·미해결 클러스터 집계 함수 부재·각 `확인 필요`(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책)=⑦ 조정. **다음 = Task 22**(질문 순위·챗봇 통계·관리자 내비, 38개 → 챗봇 4단계 완결).
+> **Task 21 완료 조건**: `UNRES-CLUSTER`(`01`~`11` = 11) + `BADINBOX-REVIEW`(`01`~`12` = 12) + `QUALITY-REPORT`(`01`~`12` = 12) + `QAEX-LIST`(`01`~`10` = 10) + `BADRPT-FORM`(`TARGET`2·`EMPTY`1·`CORR`1·`EXAMPLE`1·`SOURCE`1·`VALID`1·`SAVE`3·`LOAD`1·`ERR`1·`LIVE`1·`EXIT`1 = 14) = **59규칙 전수** 초록불(Vitest). ⭐ **두 채널**: 직원 오답 신고(`features/support/`·`is_active_staff`) + 관리자 품질(`features/quality/`·`is_active_admin`). ⭐ **자동 클러스터 한계 안내 항상**·**0건↔집계 실패↔계약 부재를 각각 구분**·**승인 전 미반영(교정·반영만으로 즉시 답변 안 씀)**·**출처 구분(realtime_report↔quality_review)**·**B2 저장/취소 후 스크롤 복귀**. ⭐ **소비 계약 9건 선언**: 직원 신고 저장·오답 목록/상세·미해결 집계/상세·품질 상세/교정·예시 목록/비활성. ⚠️ **경계**: 질문 순위·통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM`)=**Task 22** · KB 편집/승인(`KBADM`)=Task 20 · 미해결 클러스터 집계 함수 부재·각 `확인 필요`(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책)=⑦ 조정. (source enum은 `realtime_report`로 통일 완료 — C3-3, 2026-08-20.) **다음 = Task 22**(질문 순위·챗봇 통계·관리자 내비, 38개 → 챗봇 4단계 완결).
 
 ---
 

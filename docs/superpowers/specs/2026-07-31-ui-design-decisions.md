@@ -4871,9 +4871,9 @@ Realtime 요구:
 
 | 칼럼/변경 | 요구사항 |
 |---|---|
-| `notification_type` 허용값 | `staff_chat_reply` 추가 |
+| `notification_type` 허용값 | `support_answered` 추가 ✅ **정본 통일(2026-08-20, C3-2)** — ~~`staff_chat_reply`~~ 폐기. 상담 답변 알림은 환자앱 선호 토글(`TOGGLE_GROUPS["support_reply"]`)·라우팅·발송이 모두 `support_answered` 한 이름을 쓴다(옛 `chat_reply`/`staff_chat_reply` 분열 해소). |
 | `recipient_type` | `notification_recipient_type`; 등록 환자와 익명 연락처를 공통 발송 계약으로 구분 |
-| `message_class` | `notification_message_class`; `staff_chat_reply`는 항상 `transactional` |
+| `message_class` | `notification_message_class`; `support_answered`(상담 답변)는 항상 `transactional` |
 | `chat_notification_batch_id` | nullable FK → `chat_notification_batches.id`, 상담 답변 알림에서는 not null 및 unique |
 | `appointment_id` | 상담 알림은 예약과 무관할 수 있으므로 nullable 허용 |
 | `patient_id` | `recipient_type = patient`일 때만 사용. 익명 연락처 수신에서는 반드시 `null` |

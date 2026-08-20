@@ -10159,7 +10159,7 @@ void main() {
     expect(resolveNotificationRoute(_n('questionnaire_missing')), '/questionnaire/ap1');
   });
   test('[NOTI-GO-05] 상담 답변은 상담방으로 간다(4단계 챗봇)', () {
-    expect(resolveNotificationRoute(_n('chat_reply', appt: null)), '/chat');
+    expect(resolveNotificationRoute(_n('support_answered', appt: null)), '/chat');  // C3-2 정본(2026-08-20)
   });
   test('[NOTI-GO-02] 병원발 변경도 예약 상세로 가되 appointment_id가 없으면 목적지 없음(갈 곳 없음 판정)', () {
     expect(resolveNotificationRoute(_n('changed', appt: null)), isNull);   // → 탭 시 GONE 팝업
@@ -10221,8 +10221,8 @@ String? resolveNotificationRoute(NotificationView n) {
       return n.appointmentId == null ? null : '/history?appointment=${n.appointmentId}';  // GO-03·06(이력)
     case 'questionnaire_missing':
       return n.appointmentId == null ? null : '/questionnaire/${n.appointmentId}';   // GO-04
-    case 'chat_reply':
-      return '/chat';                                                                // GO-05(4단계)
+    case 'support_answered':
+      return '/chat';                                                                // GO-05(4단계) · C3-2 정본(2026-08-20, ~~chat_reply~~ 통일)
     default:
       return null;
   }
@@ -10245,7 +10245,7 @@ String notificationTitle(String type) => switch (type) {
       'cancellation_rejected' => '취소 안내',
       'questionnaire_missing' => '사전문진 안내',
       'visit_completed' => '진료 후 안내',
-      'chat_reply' => '상담 답변',
+      'support_answered' => '상담 답변',   // C3-2 정본(2026-08-20, ~~chat_reply~~ 통일)
       _ => '알림',
     };
 
@@ -10389,7 +10389,7 @@ git commit -m "feat: 환자앱 Task 18 — 알림함 목록·읽음(seen_at)·�
 > 📌 **값 없는/구조 규칙 — 「어느 테스트가 실현하는가」**: `NOTI-READ-05`(근거=새로 온 게 있나)·`NOTI-READ-06`(개별 읽음 기각)·`NOTI-READ-07`(배지·색바 안 나눔): 단일 `seen_at` 구조 자체가 실현(Step 2 `count_unread` + Step 8 색 바). `NOTI-KEEP-01`(읽어도 안 지움): 서버가 삭제 안 함 = Step 3 조회에 삭제 없음(30일 지난 것만 필터, 실제 행은 배포 cron 몫). `NOTI-OFF-01`(끈 알림 알림함에도 없음): Task 9가 끈 알림의 로그 행을 안 만듦 → 조회에 안 걸림. `NOTI-GONE-05`(딥링크도 같은 팝업): `resolveNotificationDestination`·`showNotificationGoneDialog`를 T11이 재사용. `NOTI-GONE-06`(일어나는 경우): 팝업 문구가 두 가능성으로 실현.
 > 📌 **완전 ID로 못박기**: `NOTI-READ-01~08`·`NOTI-GO-01~06`·`NOTI-GONE-01~06`·`NOTI-EMPTY-01·02·03`을 범위·축약 없이 개별 ID로 test에 심었다(검사기가 축약을 못 읽는 함정 방지 — T16·T17 교훈).
 > ⚠️ **신설 마이그레이션 `00026_notifications_seen_at.sql`** — 직원웹도 `00017+`를 쓰므로 실제 번호는 구현 시점 확정(먼저 적용하는 쪽 우선). `patients` 한 칸이라 의존 없음.
-> 📌 **`chat_reply` 타입은 4단계(챗봇)가 `MESSAGES`·`notification_log`에 추가**한다 — 여기 `resolveNotificationRoute`의 `chat_reply→/chat`은 미리 깔아 둔 배선(`NOTI-GO-05`). 그전엔 그 타입의 행이 없어 무해.
+> 📌 **`support_answered` 타입은 4단계(챗봇)가 `MESSAGES`·`notification_log`에 추가**한다 — 여기 `resolveNotificationRoute`의 `support_answered→/chat`은 미리 깔아 둔 배선(`NOTI-GO-05`). 그전엔 그 타입의 행이 없어 무해. ✅ **C3-2 정본 통일(2026-08-20)**: ~~chat_reply~~ → `support_answered`(선호 토글 TOGGLE_GROUPS·챗봇 배치와 한 이름 — 발송·라우팅·토글이 모두 맞음).
 
 ---
 

@@ -236,7 +236,7 @@ async def test_anonymous_recipient_columns(db_conn):
         """
         insert into notification_log
           (notification_type, channel, anonymous_session_id, anonymous_contact_id)
-        values ('chat_reply', 'sms', $1, $2) returning id
+        values ('support_answered', 'sms', $1, $2) returning id  -- C3-2 정본(2026-08-20, ~~chat_reply~~ 통일)
         """,
         uuid.uuid4(), uuid.uuid4(),
     )
