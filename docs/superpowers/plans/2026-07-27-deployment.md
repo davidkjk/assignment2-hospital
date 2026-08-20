@@ -1063,7 +1063,7 @@ git commit -m "feat: pg_dump 일일 백업 잡 추가 (14일 보관, Supabase St
 - Consumes: `app.db.pool.get_pool`, SQL `mark_overdue_no_shows()`
 - Produces: `app.jobs.overdue.run() -> int`(부도 처리 건수), CLI `python -m app.jobs.overdue`; SQL 함수 `mark_overdue_no_shows()`(Task 16 크론이 호출)
 
-> 📌 **번호 `00043`은 잠정** — 배포는 마지막 단계라 이 마이그레이션은 환자앱·직원웹·상담봇 마이그레이션 뒤에 온다. 실제 번호는 **적용 시점의 최고 번호 + 1**로 확정한다(HANDOFF 「참고」의 대역 공유 주의).
+> 📌 **번호 `00059`은 잠정** — 배포는 마지막 단계라 이 마이그레이션은 환자앱·직원웹·상담봇 마이그레이션 뒤에 온다. 실제 번호는 **적용 시점의 최고 번호 + 1**로 확정한다(HANDOFF 「참고」의 대역 공유 주의).
 
 **시스템 행위자 이력 — 왜 이렇게 푸나 (실물 확인 2026-08-20):**
 - `appointment_status_history.changed_by`는 `NOT NULL references staff(id)`(`00005:145`)이고 `staff.auth_user_id`는 `auth.users`를 필수 참조한다(`00001:13`) → **가짜 시스템 직원은 auth.users 행까지 필요해 무겁다.**

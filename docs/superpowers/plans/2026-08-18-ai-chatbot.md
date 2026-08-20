@@ -11250,7 +11250,7 @@ Run: `npm --prefix frontend run test -- navStfsup.step2` → FAIL → 구현 →
 
 `docs/design/screen-behaviors.md` `PTSUP-SECT-BLOCK-01` 동작 칸:
 ```
-~~`support_tickets` 마이그레이션과 ID 동점 키가 없으므로 가짜 카드로 완료 처리하지 않고 `BLOCKED`로 남긴다~~ ✅ **해소(2026-08-19, ai-chatbot Task 2)** — `support_tickets` 마이그레이션(`00037`)과 안정 정렬(`list_thread_tickets` `order by created_at desc, id desc`, `PTDET-SUPPORT-03` 회수)이 존재한다. 가짜 카드가 아니라 **실제 patient-scoped 조회**를 소비한다(patient 범위 함수 `list_patient_support_tickets`는 Task 19 소비 계약). Realtime 구독은 여전히 근거 없어 `PTSUP-SECT-LIVE-01`이 확인 필요로 유지
+~~`support_tickets` 마이그레이션과 ID 동점 키가 없으므로 가짜 카드로 완료 처리하지 않고 `BLOCKED`로 남긴다~~ ✅ **해소(2026-08-19, ai-chatbot Task 2)** — `support_tickets` 마이그레이션(`00053`)과 안정 정렬(`list_thread_tickets` `order by created_at desc, id desc`, `PTDET-SUPPORT-03` 회수)이 존재한다. 가짜 카드가 아니라 **실제 patient-scoped 조회**를 소비한다(patient 범위 함수 `list_patient_support_tickets`는 Task 19 소비 계약). Realtime 구독은 여전히 근거 없어 `PTSUP-SECT-LIVE-01`이 확인 필요로 유지
 ```
 
 Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 40규칙 전 테스트 PASS + 빌드 성공.

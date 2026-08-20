@@ -797,7 +797,7 @@ git commit -m "feat: 📝 환자앱 Task 0 — 스캐폴딩 + 시각 토큰(DISP
 >
 > ⚠️ **경계(중복 금지 — grep으로 대조 완료 2026-08-17)**:
 > - ④ 공용 마이그레이션 `00010~00016`이 **이미** 만든 것은 **다시 만들지 않는다**: `appointments.support_requested_at`+`request_type`(`00010`) · `notification_log`(`00011`) · `notification_preferences`(`00012`) · `notification_type_settings`(`00013`) · `patients.sms_dead`(`00014`) · `access_audit_log.phone_reveal`(`00015`) · `scheduled_notifications`(`00016`).
-> - **직원웹 Task 29(`00035`)가 소유**하는 `hospital_settings.auto_confirm_app_bookings`(기본 `true`·AD-051)·`hospital_address`·`hospital_phone`은 여기서 만들지 않고 **`get_public_hospital_info()`로 소비만** 한다(Task 21·28 홈/병원정보).
+> - **직원웹 Task 29(`00051`)가 소유**하는 `hospital_settings.auto_confirm_app_bookings`(기본 `true`·AD-051)·`hospital_address`·`hospital_phone`은 여기서 만들지 않고 **`get_public_hospital_info()`로 소비만** 한다(Task 21·28 홈/병원정보).
 > - ⛔ **`cancellation_requested_at` 부활 금지** — ④ `support_requested_at`으로 대체됨(폐기·교체 결정).
 > - **기능별 마이그레이션은 각 태스크가 소유**: 예약 멱등 키→Task 5 · 문진 부분저장/문항ID/스냅샷 칸→Task 7 · `device_tokens`→Task 9 · 가입 동의 `consent`→Task 13. 이 Task 1은 **신원·RLS 기반만**.
 > - 📌 마이그레이션 번호 `00017`은 논리 번호다 — 직원웹도 `00017+`를 쓰므로 **실제 번호는 구현 시점에 확정**(먼저 적용하는 쪽이 다음 번호). 순서 의존만 지킨다.
@@ -1662,7 +1662,7 @@ git commit -m "feat: 예약 카탈로그 + list_bookable_slots 단일 판정 함
 >
 > ⚠️ **옛 플랜의 `raise AppError(str(exc))`(예외 원문 노출)를 답습하지 않는다** — DB 예외 원문을 환자에게 그대로 보이면 안 된다(직원웹 결정 #20과 같은 원칙). 일반 실패는 안전 문구로 감싼다.
 >
-> ⚠️ **`auto_confirm_app_bookings` 칸은 1단계에 없다**(00004는 `cancellation_deadline_hours`만). #29(AD-051)로 신설되며, **기본값이 `true`**라 앱 예약의 기본 결과는 **`예약확정`**이다(옛 플랜의 「기본은 예약신청」을 뒤집는다). 이 칸의 **설정 화면은 직원웹 T29(`00035`) 소유**지만, 예약 생성이 반드시 읽어야 하고 의존 순서상 화면보다 앞서므로 **칸의 물리적 생성은 `00020`이 `add column if not exists`로** 한다(직원웹 `00035`도 같은 문장 — 「먼저 적용하는 쪽 우선」, 충돌 없음).
+> ⚠️ **`auto_confirm_app_bookings` 칸은 1단계에 없다**(00004는 `cancellation_deadline_hours`만). #29(AD-051)로 신설되며, **기본값이 `true`**라 앱 예약의 기본 결과는 **`예약확정`**이다(옛 플랜의 「기본은 예약신청」을 뒤집는다). 이 칸의 **설정 화면은 직원웹 T29(`00051`) 소유**지만, 예약 생성이 반드시 읽어야 하고 의존 순서상 화면보다 앞서므로 **칸의 물리적 생성은 `00020`이 `add column if not exists`로** 한다(직원웹 `00051`도 같은 문장 — 「먼저 적용하는 쪽 우선」, 충돌 없음).
 
 **Files:**
 - Create: `supabase/migrations/00020_booking_idempotency.sql` · `backend/app/services/patient_booking_service.py`
@@ -1729,7 +1729,7 @@ alter table appointments add column request_id uuid;
 create unique index idx_appointments_account_request
   on appointments (account_patient_id, request_id);
 
--- #29(AD-051): 앱 예약 자동확정 기본값 true. 설정 화면은 직원웹 T29(00035) 소유이나
+-- #29(AD-051): 앱 예약 자동확정 기본값 true. 설정 화면은 직원웹 T29(00051) 소유이나
 -- 예약 생성이 반드시 읽어야 하고 의존 순서상 앞서므로 칸의 물리적 생성은 여기서 한다.
 -- 직원웹 00035도 같은 문장을 써도 무해하다(먼저 적용하는 쪽 우선).
 alter table hospital_settings
@@ -2903,7 +2903,7 @@ git commit -m "feat: 📝 환자앱 Task 8 본문 — 예약 조회 + 이력 4�
 >
 > ⚠️ **④ 공용표는 재생성 금지**(`00011~00016` 이미 적용): `notification_log`(`00011` — `channel` NOT NULL·`delivery_status` 기본 `발송중`·부분 dedup 인덱스) · `notification_preferences`(`00012` — 줄 없으면 켜짐) · `notification_type_settings`(`00013` — `body`·`also_sms`, 줄 없으면 코드 기본) · `patients.sms_dead`(`00014`) · `scheduled_notifications`(`00016`). 이 태스크는 **`device_tokens`만 신설**한다.
 >
-> ⚠️ **`hospital_settings.sms_enabled`(병원 문자 전체 on/off, #111)의 원소유는 직원웹 T29(`00035`)**지만 발송이 반드시 읽어야 하고 의존 순서상 화면보다 앞서므로 `00023`이 **`add column if not exists`로 물리적 생성만** 한다(Task 5의 `auto_confirm_app_bookings` 선례 — 「먼저 적용하는 쪽 우선」, 충돌 없음). `sms_recipients`·`sms_opt_out_number`(대량발송·광고 전용)는 만들지 않는다.
+> ⚠️ **`hospital_settings.sms_enabled`(병원 문자 전체 on/off, #111)의 원소유는 직원웹 T29(`00051`)**지만 발송이 반드시 읽어야 하고 의존 순서상 화면보다 앞서므로 `00023`이 **`add column if not exists`로 물리적 생성만** 한다(Task 5의 `auto_confirm_app_bookings` 선례 — 「먼저 적용하는 쪽 우선」, 충돌 없음). `sms_recipients`·`sms_opt_out_number`(대량발송·광고 전용)는 만들지 않는다.
 >
 > ⚠️ **채널은 한 이벤트당 한 줄·한 채널**이다 — `00011`의 dedup 부분 인덱스가 `(appointment_id, notification_type)` 단위라 push·sms 두 줄을 쓰면 유니크 위반이 난다. 트랜잭션 알림은 **push 우선, 토큰 없으면 sms 폴백**(`SEND-CH-01` 기본값)의 단일 채널로 처리한다. `channel`엔 **실제 보낸 값**을 넣는다(#120 — 상수 `'push'` 박기 금지).
 >
@@ -2919,7 +2919,7 @@ git commit -m "feat: 📝 환자앱 Task 8 본문 — 예약 조회 + 이력 4�
 - Consumes:
   - `PatientContext`(Task 2) · `acquire_as`·`get_pool`(1단계 `app.db.pool`) · `AppError`·`log_error`(1단계 `app.core.errors`)
   - `dispatch_service.send_now(notification_ids: list[UUID], conn) -> None`(직원웹 T30 — 실제 배달)
-  - `notification_log`·`notification_preferences`·`notification_type_settings`·`patients.sms_dead`(④ `00011~00014`) · `hospital_settings.sms_enabled`(직원웹 T29 `00035`, `00023`이 `if not exists`로 선생성) · `appointments`·`appointment_slots`(1단계 — 날짜·시각 치환)
+  - `notification_log`·`notification_preferences`·`notification_type_settings`·`patients.sms_dead`(④ `00011~00014`) · `hospital_settings.sms_enabled`(직원웹 T29 `00051`, `00023`이 `if not exists`로 선생성) · `appointments`·`appointment_slots`(1단계 — 날짜·시각 치환)
   - `private.current_patient_id()`·`patient_owns()`(Task 1) · `private.is_active_staff()`(1단계)
   - `patient_booking_service.create_booking(...)`·`change_booking(...)`(Task 5 — 여기서 Modify)
 - Produces:
@@ -2960,7 +2960,7 @@ create policy "staff_can_read_device_tokens" on device_tokens
 create index idx_device_tokens_patient on device_tokens (patient_id);
 
 -- #111: notify_patient가 병원 문자정책(문자 전체 on/off)을 판정에 넣는다(HSET-SMS-01 ①).
--- 칸의 원소유는 직원웹 T29(00035)지만 발송이 반드시 읽어야 하고 순서상 화면보다 앞서므로 물리적 생성만 한다.
+-- 칸의 원소유는 직원웹 T29(00051)지만 발송이 반드시 읽어야 하고 순서상 화면보다 앞서므로 물리적 생성만 한다.
 -- 직원웹 00035도 같은 칸을 default true로 만든다 — 먼저 적용하는 쪽이 만들고 뒤는 no-op(if not exists).
 alter table hospital_settings
   add column if not exists sms_enabled boolean not null default true;
@@ -3377,7 +3377,7 @@ git commit -m "feat: 📝 환자앱 Task 9 본문 — 알림 dispatcher 판정 �
 
 > 📌 **`dispatch_service`는 직원웹 T30 소유**(`staff-web.md:12923`). 구현 순서 1→2→3이라 이 태스크를 구현할 시점엔 `backend/app/services/dispatch_service.py`가 이미 존재한다. 테스트는 `send_now`를 monkeypatch로 스텁해 판정만 검증한다 — 실제 푸시/문자·콜백·재시도·죽은토큰은 T30이 담당한다.
 > 📌 **`channel`은 한 이벤트당 한 줄·한 채널**이다(00011 dedup이 채널 단위가 아니라서). marketing의 「앱+문자 동시」는 직원 `enqueue_send`(직원웹 T28)의 별도 경로다.
-> ⚠️ **발견(보고 대상)**: 직원웹 T29 `00035`가 만드는 `notification_settings`(`send_sms` 칸)는 ④ `00013 notification_type_settings`(`also_sms` 칸)와 **같은 목적·다른 이름의 중복**이다. 이 태스크는 실제 적용된 정본 `00013`을 소비한다. 직원웹 쪽 정합화는 별건(설계 병합/구현 단계에서 하나로 통일).
+> ⚠️ **발견(보고 대상)**: 직원웹 T29 `00051`가 만드는 `notification_settings`(`send_sms` 칸)는 ④ `00013 notification_type_settings`(`also_sms` 칸)와 **같은 목적·다른 이름의 중복**이다. 이 태스크는 실제 적용된 정본 `00013`을 소비한다. 직원웹 쪽 정합화는 별건(설계 병합/구현 단계에서 하나로 통일).
 > ⚠️ **낡은 단방향 표기 교정**: Global Constraints 표의 「`consent`→Task 1(칸)」은 낡았다 — Task 1 본문이 「`consent`→Task 13」으로 정정했다(CLAUDE.md 함정 ①). `consent`(광고 동의)는 Task 13 소유라 트랜잭션만 다루는 이 태스크와 무관하다.
 
 ---
@@ -10415,7 +10415,7 @@ git commit -m "feat: 환자앱 Task 18 — 알림함 목록·읽음(seen_at)·�
 **Interfaces:**
 - Consumes:
   - `patient_family_service.list_family_members(patient) -> list[dict]`(Task 3 — 대상 목록 본인+가족)
-  - `patient_catalog_service.list_departments`·`list_available_dates`(Task 4) · `staff.specialty·bio·photo_url`(직원웹 `00026`) · `doctor_schedule_rules(doctor_id, weekday, start_time, end_time)`(`00002`) · `app.db.admin_client.get_admin_client`(1단계)
+  - `patient_catalog_service.list_departments`·`list_available_dates`(Task 4) · `staff.specialty·bio·photo_url`(직원웹 `00042`) · `doctor_schedule_rules(doctor_id, weekday, start_time, end_time)`(`00002`) · `app.db.admin_client.get_admin_client`(1단계)
   - `GET /catalog/departments` · `GET /catalog/departments/{department_id}/doctors`(응답 확장) · `GET /catalog/doctors/{doctor_id}/dates`(Task 4 라우터)
   - Task 12: `ActionButton({label, busyLabel, onPressed, busy, disabledReason})` · `EmptyState.zero/error/offline` · `showExitConfirm` · `InlineError({message})`
   - Task 11: `connectivityProvider`(`StreamProvider<bool>`) · `handleUnauthorized(ref)` · `AppShell`(하단 탭) · 라우터 전역 가드
@@ -11323,10 +11323,10 @@ git commit -m "feat: 환자앱 Task 19 — 예약 마법사 1~4단계 71규칙(B
 ```
 
 > 📌 **규칙 커버리지(71)**: `BOOK-NAV-01~10`(10) · `BOOK-KEEP-01~07`(7) · `BOOK-WHO-01~09`(9) · `BOOK-DEPT-01~03`(3) · `BOOK-DOC-01~09`(9) · `BOOK-DATE-01~09`(9) · `NAV-BOOK-01~24`(24). 범위·축약 없이 개별 ID로 test에 심었다(T16·17·18 교훈).
-> ⭐ **갭 #7·#9 확정 마감**: 핸드오프가 예고한 「T4 확장 핀」이 여기서 발화·해소. `list_doctors`가 `{id, name, specialty, photo_url, schedule_summary}` 반환 — **새 마이그레이션 없이**(직원웹 `00026` 칸·`doctor-photos` 버킷 재사용) + `summarize_schedule` 순수 함수(서버 한 곳, 챗봇·직원웹 재사용 가능). `BOOK-DOC-07`의 「이름밖에 못 띄운다」가 닫혔다.
+> ⭐ **갭 #7·#9 확정 마감**: 핸드오프가 예고한 「T4 확장 핀」이 여기서 발화·해소. `list_doctors`가 `{id, name, specialty, photo_url, schedule_summary}` 반환 — **새 마이그레이션 없이**(직원웹 `00042` 칸·`doctor-photos` 버킷 재사용) + `summarize_schedule` 순수 함수(서버 한 곳, 챗봇·직원웹 재사용 가능). `BOOK-DOC-07`의 「이름밖에 못 띄운다」가 닫혔다.
 > ⭐ **경계 명시(NAV-BOOK 전부 T19 · 5~8단계 화면은 T20)**: 마법사 셸은 전 단계를 아는 단일 상태머신이라 T19가 소유하고, `NAV-BOOK-11~20`의 전이 규칙을 `BookingController._step`으로 못박았다. Task 20은 이 전이 계약(`goToStep`·`selectDate`) 위에 5~8단계 **화면 위젯**(`BOOK-TIME/WHY/CONF/DONE`)·상담봇 시트(`BOOK-BOT`)·`book_slot`/`submit()`·`BOOK-RACE`·`BOOK-TODAY`·`BOOK-HOLD`를 붙인다(71 유지 = 셸 중복 방지, 사용자 승인).
 > 📌 **값 없는/구조 규칙 실현 지도**: `BOOK-NAV-05`(뒤 단계 버림)=`selectTarget/Department/Doctor`가 뒤 필드를 새 객체로 리셋 · `BOOK-KEEP-01`(탭 복귀 유지)=`bookingProvider` autoDispose 아님 · `BOOK-KEEP-02`·`BOOK-KEEP-04`(근거)=01·03 동작이 실현 · `BOOK-KEEP-05`(1단계 뒤로 팝업 없음)=셸 `PopScope` · `BOOK-KEEP-07`(BTN-KILL과 다름)=신청 전 서버 무접촉 · `BOOK-NAV-07`(값 없으면 못 넘어감)=선택=이동이라 다음 버튼 부재 · `BOOK-DOC-06`(bio 비노출)=모델에 bio 필드 없음 · `BOOK-DATE-08·09`(8주·마감)=T4 서버 판정 소비.
-> ⚠️ **신설 마이그레이션 없음** — 갭 #7 칸은 직원웹 `00026`, 갭 #9는 순수 함수 + `admin_client` 조회(RLS 우회는 진료요일=비민감). T4 `list_doctors` 서비스만 확장(백엔드 파일 2개 수정/신설).
+> ⚠️ **신설 마이그레이션 없음** — 갭 #7 칸은 직원웹 `00042`, 갭 #9는 순수 함수 + `admin_client` 조회(RLS 우회는 진료요일=비민감). T4 `list_doctors` 서비스만 확장(백엔드 파일 2개 수정/신설).
 > 📌 **Task 20 인계 발판**(5~8단계 · 66규칙): `BOOK-TIME-01~08` · `BOOK-WHY-01~06` · `BOOK-CONF-01~09`(04b·c·d·e 포함) · `BOOK-DONE-01~07`(01b·c 포함) · `BOOK-RACE-01~09` · `BOOK-TODAY-01~13` · `BOOK-HOLD-01~06` · `BOOK-BOT-01~08` + `NAV-BOOK-11~20` 화면 본체. `request_id`는 Task 20이 마법사 진입 때 만든다(멱등, 플랜 `:2002`). 확정 갭 소급 후보: `BOOK-TODAY`의 갭 #45·#46(T4 `list_bookable_slots`가 이미 닫음 — 소비만).
 
 ---
