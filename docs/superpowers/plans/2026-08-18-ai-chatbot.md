@@ -9180,3 +9180,1048 @@ git commit -m "feat: 📝 상담봇 Task 16 본문 — 직원 문의 티켓함 1
 ```
 
 > **Task 16 완료 조건**: `TICKET-INBOX-TAB`2·`ROW`1·`ORDER`2·`EMPTY`1·`LOAD`1·`ERR`2·`LIVE`5·`EXC`1·`BLOCK`1·`SCOPE`1 = **17규칙 전수** 초록불(Vitest). ⭐ **직원웹은 `frontend/`**(React+Vitest) — `patient_app/`·`webchat/` 무손. ⭐ **원자 배정**: `새 문의` 선택→`claim_ticket` 서버 승패, 패자=목록 유지+`이미 다른 직원이 맡았어요`+최신 담당자. ⭐ **경계**: 오른쪽 상세 **내용**=**Task 17**(`detailSlot`만 남김) · 취소요청 대기열 안 만듦(`SCOPE-01`) · 실제 SMS/push=배포. **다음 = Task 17**(티켓 상세 — 인계 요약 5항목·전체 대화·답변/보내기·별도 종료·이관·라이브·알림 46규칙 `TICKET-DETAIL-*`).
+
+## Task 17: 직원 티켓 상세 — 인계 요약·전체 대화·답변/보내기·별도 종료·이관·라이브·미확인/알림 (`TICKET-DETAIL-*`)
+
+> **Task 16이 남긴 `detailSlot`을 실제 상세 작업공간으로 채운다.** 왼쪽 목록에서 티켓을 선택하면 오른쪽 넓은 상세가 열린다 — 위에서 아래로 **담당 이관 → 인계 요약 5항목 → 전체 대화(라이브) → 답변 입력/`[보내기]` → 따로 `[상담 종료]`**. **46규칙 전수.** ⚠️ 왼쪽 목록·탭·행 선택→claim은 **Task 16**이 이미 함 — Task 17은 **오른쪽 내용**만.
+>
+> ⚠️⚠️ **직원웹은 `frontend/`(2단계 직원웹 스캐폴딩).** React+TS+**Vitest**+`@testing-library/react`. 화면은 `frontend/src/features/support/`에 짓는다(Task 16과 같은 폴더, `detailSlot`으로 합류). `patient_app/`(Flutter)·`webchat/`(환자 웹) 무손. Realtime은 2단계 훅 `useRealtimeSubscription(table, onChange)`을 재사용한다(`chat_messages`·`support_tickets` 두 테이블).
+>
+> ⭐ **되돌릴 수 없는 동작 원칙(정본).** `answered`는 재개 불가다 → **`[상담 종료]`는 확인창 안에서만** 실행하고(`CLOSE-02`), 빈번·안전한 `[보내기]`와 **인접 배치하지 않는다**(`CLOSE-SEP-01`). 일반 `[보내기]`만으로는 절대 `answered`로 바꾸지 않는다(`REPLY-04`).
+>
+> ⭐ **모르는 상태·사유를 만들어 말하지 않는다(정본 §0).** 인계 요약 항목이 비면 **없음을 표시**하고 지어내지 않는다(`SUM-02`). 자동 배정 성공 전에는 `처리 중`이라고 단정하지 않는다(`LOAD-01`). 라이브가 끊기면 전송·종료 결과를 **성공으로 추측하지 않는다**(`LIVE-03`). 환자 미확인을 전송 실패로 표현하지 않는다(`READ-01`).
+>
+> ⭐ **원자 배정은 서버가 정한다(Task 16과 같은 계약).** 상세 진입 자체가 열람 배정이다 — `pending`+미배정 티켓을 열면 서버가 한 명만 `in_progress`로 자동 전환·배정한다(`OPEN-01`). 경쟁 패자·남의 `in_progress`는 상세를 **열거나 읽기 전용으로 보여주지 않고 목록으로 돌려보낸다**(`OPEN-02`·`OPEN-03`). **별도 `[담당 지정]`·`[내가 맡기]` 버튼을 두지 않는다**(`ASSIGN-02`) — 자동 배정과 중복이다.
+>
+> ⚠️⚠️ **경계 — 이 태스크가 소비 선언만 하고 만들지 않는 것**:
+> - **갭 #128(미결·의사 도착 화면 없음)**: 의료판단 이관(`REASSIGN-01`)으로 의사에게 넘어간 티켓을 **의사가 볼 화면이 없다**(`SHELL-NAV` 계열=의사는 진료화면·환자검색만). Task 17은 이관 드롭다운에 **활성 직원 전부**를 넣되(막다른 길 금지, `REASSIGN-05` 확정), **의사 도착 화면은 만들지 않는다.** 해소는 Task 17 이후 `SHELL-NAV`·의료 escalation 모델과 함께.
+> - **실제 SMS/push 발송·배칭**은 dispatcher(배포). Task 17은 **표시**만 — 환자 미확인(`READ`)·자리비움 문자 발송됨(`NOTIFY-03`)·답변 알림(`NOTIFY-01·02`)은 서버가 만든 상태를 **읽어서 표시**하지 직원 동작이나 도달 완료로 표현하지 않는다.
+> - `/today` 상담 행·사이드패널=**Task 18** · 환자상세 상담 섹션·상담 로그=**Task 19**.
+>
+> ⚠️⚠️ **백엔드 계약 갭 2개 — Task 17이 소비 계약으로 명시·배선한다("선언은 됐으나 함수 미정" 범주, Task 16 티켓함 목록 조회와 같은 성격)**:
+> - ① **상세 조회** `GET /staff/chat/tickets/{id}`(요약 5항목 + 전체 대화 + 담당자 + 연락처 마스킹) — **Task 9 Produces에 명시 안 됨**(목록 `GET /staff/chat/tickets`만 있음). Task 17이 Consumes 계약으로 선언.
+> - ② **이관** `POST /staff/chat/tickets/{id}/reassign` ← `reassign_ticket(ticket_id, to_staff_id)`(`assigned_staff_id`만 변경·`in_progress` 유지, `REASSIGN-02`) — **Task 2 서비스 목록에 없음.** Task 17이 Consumes 계약으로 선언.
+> - 부수: **활성 직원 목록** `GET /staff/active`(이관 드롭다운, 2단계 직원 디렉터리 재사용·없으면 신규) · **미확인 해소** `POST /staff/chat/tickets/{id}/read`(`UNREAD-02`).
+>
+> **근거 원본**: behaviors **티켓 상세 §2**(`TICKET-DETAIL-*` 46, `:5406~5451`) · 정본 §0(모르는 상태 금지)·§3 · 요구사항 **L206~210**(직원 상담·인계·의료판단 전달)·**L393~401**(인계 요약 5항목)·**L512~514**(의료판단 전달·답변만으로 종료 금지) · **결정회의 안건 3-A**(상태 탭·자동 배정·라이브·미확인·알림)·**R2-3A**·**MR2-09**(send/close 분리·레이아웃) · **확인 필요 6건 해소(2026-08-19)**: `REASSIGN-05`(모든 활성 직원)·`CLOSE-02`(확인창 O+미전송 경고)·`TYPING-01`(디바운스 3초)·`UNREAD-01`(숫자 배지 없음)·`UNREAD-02`·`READ-02`(읽은 시각 미노출)=목업 105 · 백엔드 **Task 2**(`claim_ticket`·`staff_send_ticket_message` status불변·멱등·`close_ticket`만 answered)·**Task 9**(`.../messages`·`.../close`·`.../claim`)·**Task 3**(익명 연락처 `record_verified_anonymous_contact`·자리비움 문자 dispatcher) · **`CONTACT-01`**=`WEBANON-HANDOFF` 계열·`WEBCHAT-LAUNCH` 계열 연동 · 2단계 직원웹 `useRealtimeSubscription`·`SHELL-LIVE`·`BTN-BUSY`·`ERR-POS`·`EMPTY-ZERO` 패턴.
+
+**Files:**
+- Create: `frontend/src/features/support/staffTicketDetailApi.ts` (`StaffTicketDetailApi` + `createStaffTicketDetailApi()` — 상세 조회·답변·종료·이관·읽음·활성 직원)
+- Create: `frontend/src/features/support/useTicketDetail.ts` (열람/재열람·상태·로딩·오류·라이브·미확인/읽음·답변·이관·종료 상태 기계)
+- Create: `frontend/src/features/support/HandoffSummary.tsx` (`HandoffSummary` — 5항목 라벨 + 없음 표시 + 담당자)
+- Create: `frontend/src/features/support/TicketConversation.tsx` (`TicketConversation` — 시간순·발신 주체·미확인/읽음/문자발송·비었음/오류)
+- Create: `frontend/src/features/support/ReplyBox.tsx` (`ReplyBox` — 답변 입력·`[보내기]`·전송 중·실패 보존)
+- Create: `frontend/src/features/support/ReassignControl.tsx` (`ReassignControl` — 의료판단 강조·활성 직원 드롭다운·처리 중·실패)
+- Create: `frontend/src/features/support/CloseTicketDialog.tsx` (`CloseTicketDialog` — 확인창·미전송 답변 경고)
+- Create: `frontend/src/features/support/TicketDetail.tsx` (`TicketDetail` — `detailSlot` 채우는 조립: 이관→요약→대화→답변→종료 순)
+- Test: 위 각 파일의 `*.test.ts(x)`
+
+**Interfaces:**
+- Consumes:
+  - **Task 9(직원 라우터)** — ⚠️ **상세 조회 `GET /staff/chat/tickets/{id}`는 Produces 미명시 → 여기서 소비 계약 선언**: 요약 5항목+전체 대화+담당자{name,role}+연락처 마스킹 반환. · `POST /staff/chat/tickets/{id}/messages`(답변 **멱등** `request_id`) → `in_progress` 유지 · `POST .../close` → `answered` · `POST .../claim`(Task 16이 이미 씀, 딥링크 재사용) · ⚠️ **`POST .../reassign` + `POST .../read` + `GET /staff/active`는 소비 계약 선언**. 인증=`get_current_staff`.
+  - **Task 2(티켓 primitive)** — `claim_ticket`(원자 승패·멱등, `OPEN-01`) · `staff_send_ticket_message`(status 불변·멱등, `REPLY-04`) · `close_ticket`(**answered는 이때만**, `CLOSE-01`) · ⚠️ **`reassign_ticket(ticket_id, to_staff_id)`는 Task 2 목록에 없음 → 소비 계약 선언**(`assigned_staff_id`만 변경·`in_progress` 유지, `REASSIGN-02`).
+  - **Task 3(익명·알림)** — 익명 연락처 검증본(`record_verified_anonymous_contact`) → 상세는 **마스킹만**(`CONTACT-01`) · 자리비움 문자 발송 표시(`NOTIFY-03`)·답변 알림 배칭(`NOTIFY-01·02`)은 서버 상태를 **읽어서 표시**.
+  - **2단계 직원웹** — `frontend/src/lib/useRealtimeSubscription(table, onChange)`(`chat_messages`·`support_tickets`) · `SHELL-LIVE`(끊김·복구)·`BTN-BUSY`(처리 중 잠금)·`ERR-POS`(동작 실패 위치)·`EMPTY-ZERO` 패턴 · `private.is_active_staff()` RLS.
+  - **Task 16** — `TicketInbox`의 `detailSlot: (ticket: InboxTicket | null) => ReactNode` 슬롯(이 상세가 그 슬롯 함수의 본체) · `InboxTicket`·`TicketStatus`·`TicketClaimConflict`(재사용).
+- Produces (Task 18·19·SUPPORT-PANEL이 소비):
+  - `TicketDetail`(상세 본체 — `<TicketDetail api={detailApi} ticket={t} onLoserBackToList={fn} />`, Task 16 `detailSlot`에 꽂는다).
+  - `useTicketDetail()` 훅 반환 `{ phase, detail, isReadOnly, statusLabel, send, sending, close, closing, reassign, reassigning, markRead, live }`.
+  - `staffTicketDetailApi`(`getDetail`·`sendMessage`·`closeTicket`·`reassignTicket`·`markRead`·`listActiveStaff`).
+- ⚠️ **아직 안 하는 것**: 의사 도착 화면(**갭 #128**·`SHELL-NAV`) · 실제 SMS/push 발송(dispatcher·배포) · `/today` 상담 행·사이드패널=**Task 18** · 환자상세 상담 섹션·상담 로그=**Task 19** · 온라인 초록 점·사진·파일·음성·반응(`SCOPE-01`이 금지).
+
+---
+
+- [ ] **Step 1: 상세 API 클라이언트 `staffTicketDetailApi` — 조회·답변(멱등)·종료·이관·읽음·활성 직원 계약**
+
+> 상세가 소비하는 직원 라우터를 타입으로 못박는다. ⚠️ 이 중 **상세 조회·이관·읽음·활성 직원은 Task 9/2에 함수가 아직 없어 여기서 소비 계약으로 선언**한다(백엔드 갭 2개+부수). `sendMessage`는 **멱등 `requestId`**(중복 전송 방지·`REPLY-02`), `claim`은 **409면 `TicketClaimConflict`**(딥링크 경쟁 패자·`OPEN-02`), 없는·권한 없는 티켓은 **404/403 → `TicketNotFound`**(`ERR-02`). 테스트는 가짜 구현을 주입한다.
+
+`frontend/src/features/support/staffTicketDetailApi.ts`:
+```ts
+import { TicketClaimConflict, type TicketStatus } from "./staffChatApi";
+
+export type StaffRole = "reception" | "doctor" | "admin";
+export type Sender = "patient" | "ai" | "staff" | "system";
+
+// 인계 요약 5항목 — 값이 없으면 null(SUM-02: 지어내지 않음)
+export type HandoffSummary = {
+  patientAsked: string | null;     // 환자가 궁금해한 내용
+  botConfirmed: string | null;     // 상담봇이 확인한 정보
+  alreadyGuided: string | null;    // 이미 안내한 내용
+  unresolvedReason: string | null; // 해결되지 않은 이유
+  staffShouldCheck: string | null; // 직원이 확인할 사항
+};
+
+export type ConvMessage = {
+  id: string;
+  sender: Sender;
+  body: string | null;             // 카드/시스템은 null 가능
+  at: string;
+  patientRead: boolean;            // 직원 메시지를 환자가 읽었나(READ-01/02)
+  staffUnread: boolean;            // 환자 메시지를 직원이 아직 확인 안 함(UNREAD-01/02)
+  smsSent: boolean;               // 익명 웹 자리비움 문자 발송됨(NOTIFY-03)
+};
+
+// 연락처는 절대 실제 전화번호를 담지 않는다(CONTACT-01): 마스킹 결과만
+export type Contact = { anonymous: boolean; hasPhone: boolean };
+
+export type TicketDetail = {
+  id: string;
+  status: TicketStatus;
+  reason: string;                  // 인계 이유. "medical_judgment"면 의료판단 전달 강조(REASSIGN-01)
+  assignee: { name: string; role: StaffRole } | null;
+  isMine: boolean;                 // 현재 직원이 담당자인가(OPEN-03)
+  summary: HandoffSummary;
+  messages: ConvMessage[];
+  contact: Contact;
+};
+
+export type ActiveStaff = { id: string; name: string; role: StaffRole };
+
+export class TicketNotFound extends Error {}   // 404/403 딥링크(ERR-02)
+
+export interface StaffTicketDetailApi {
+  getDetail(ticketId: string): Promise<TicketDetail>;                 // GET /staff/chat/tickets/{id} ⚠️계약선언
+  claim(ticketId: string): Promise<TicketDetail>;                     // POST .../claim (딥링크 OPEN-01; 409→Conflict)
+  sendMessage(ticketId: string, body: string, requestId: string): Promise<ConvMessage>; // POST .../messages 멱등
+  closeTicket(ticketId: string): Promise<void>;                      // POST .../close → answered
+  reassignTicket(ticketId: string, toStaffId: string): Promise<TicketDetail>; // POST .../reassign ⚠️계약선언
+  markRead(ticketId: string, messageId: string): Promise<void>;      // POST .../read (UNREAD-02) ⚠️계약선언
+  listActiveStaff(): Promise<ActiveStaff[]>;                          // GET /staff/active (이관 대상) ⚠️계약선언
+}
+
+export function createStaffTicketDetailApi(baseUrl: string): StaffTicketDetailApi {
+  const call = async (path: string, init: RequestInit) => {
+    const resp = await fetch(baseUrl + path, { credentials: "include", ...init });
+    if (resp.status === 409) throw new TicketClaimConflict("이미 다른 직원이 맡았어요.");
+    if (resp.status === 404 || resp.status === 403) throw new TicketNotFound("ticket_not_found");
+    if (!resp.ok) throw new Error(`staff_ticket_detail_${resp.status}`);
+    return resp.status === 204 ? undefined : resp.json();
+  };
+  const j = (body: unknown): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return {
+    getDetail: (id) => call(`/staff/chat/tickets/${id}`, { method: "GET" }),
+    claim: (id) => call(`/staff/chat/tickets/${id}/claim`, { method: "POST" }),
+    sendMessage: (id, body, requestId) => call(`/staff/chat/tickets/${id}/messages`, j({ body, request_id: requestId })),
+    closeTicket: (id) => call(`/staff/chat/tickets/${id}/close`, { method: "POST" }).then(() => undefined),
+    reassignTicket: (id, to) => call(`/staff/chat/tickets/${id}/reassign`, j({ to_staff_id: to })),
+    markRead: (id, messageId) => call(`/staff/chat/tickets/${id}/read`, j({ message_id: messageId })).then(() => undefined),
+    listActiveStaff: () => call(`/staff/active`, { method: "GET" }),
+  };
+}
+```
+
+`frontend/src/features/support/staffTicketDetailApi.test.ts`:
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createStaffTicketDetailApi, TicketNotFound } from "./staffTicketDetailApi";
+import { TicketClaimConflict } from "./staffChatApi";
+
+describe("staffTicketDetailApi", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("[Step1] sendMessage는 request_id를 실어 멱등 POST한다", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    await createStaffTicketDetailApi("http://x").sendMessage("t1", "안녕하세요", "req-1");
+    expect(m.mock.calls[0][0]).toBe("http://x/staff/chat/tickets/t1/messages");
+    expect(JSON.parse((m.mock.calls[0][1] as RequestInit).body as string)).toEqual({ body: "안녕하세요", request_id: "req-1" });
+  });
+
+  it("[Step1] getDetail이 404/403이면 TicketNotFound로 reject한다(딥링크 방어)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 404 }));
+    await expect(createStaffTicketDetailApi("http://x").getDetail("nope")).rejects.toBeInstanceOf(TicketNotFound);
+  });
+
+  it("[Step1] claim이 409면 TicketClaimConflict로 reject한다(딥링크 경쟁 패자)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 409 }));
+    await expect(createStaffTicketDetailApi("http://x").claim("t1")).rejects.toBeInstanceOf(TicketClaimConflict);
+  });
+
+  it("[Step1] reassignTicket은 to_staff_id를 실어 POST .../reassign한다", async () => {
+    const m = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    await createStaffTicketDetailApi("http://x").reassignTicket("t1", "s9");
+    expect(m.mock.calls[0][0]).toBe("http://x/staff/chat/tickets/t1/reassign");
+    expect(JSON.parse((m.mock.calls[0][1] as RequestInit).body as string)).toEqual({ to_staff_id: "s9" });
+  });
+});
+```
+Run: `npm --prefix frontend run test -- staffTicketDetailApi` → FAIL → 구현 → PASS.
+
+- [ ] **Step 2: `useTicketDetail` — 열람/재열람·상태·로딩·권한(`OPEN-01/02/03`·`STATUS-01/02/03`·`LOAD-01`·`ERR-02`, 8규칙)**
+
+> 상세 진입 = 열람 배정이다. `pending`+미배정이면 `claim`으로 자동 전환(`OPEN-01`), 경쟁 패자·남의 `in_progress`는 상세를 열지 않고 **목록으로 돌려보낸다**(`OPEN-02`·`OPEN-03`), `answered`는 읽기 전용(`OPEN-03`). 상태는 `pending`=`직원 연결 중`·`in_progress`=`직원 상담 중`·`answered`=`상담 종료`로만 이름 붙이고(`STATUS-01`), 창 닫기·30분 만료로 종료하지 않는다(`STATUS-02·03`은 "종료 트리거 아님"을 훅이 보장). 로딩 중 `처리 중` 단정 금지(`LOAD-01`), 404/403은 내용 없이 복귀 경로(`ERR-02`).
+
+`frontend/src/features/support/useTicketDetail.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { useTicketDetail } from "./useTicketDetail";
+import { TicketNotFound, type StaffTicketDetailApi, type TicketDetail } from "./staffTicketDetailApi";
+import { TicketClaimConflict } from "./staffChatApi";
+
+const mkDetail = (over: Partial<TicketDetail> = {}): TicketDetail => ({
+  id: "t1", status: "in_progress", reason: "약 정보", assignee: { name: "나", role: "reception" },
+  isMine: true, summary: { patientAsked: "두통약 정보", botConfirmed: null, alreadyGuided: null, unresolvedReason: null, staffShouldCheck: null },
+  messages: [], contact: { anonymous: false, hasPhone: false }, ...over,
+});
+function fakeApi(over: Partial<StaffTicketDetailApi> = {}): StaffTicketDetailApi {
+  return { getDetail: vi.fn(async () => mkDetail()), claim: vi.fn(async () => mkDetail()), sendMessage: vi.fn(), closeTicket: vi.fn(),
+    reassignTicket: vi.fn(), markRead: vi.fn(), listActiveStaff: vi.fn(async () => []), ...over } as StaffTicketDetailApi;
+}
+
+it("[TICKET-DETAIL-OPEN-01] pending·미배정 티켓을 열면 상세 조회와 함께 in_progress로 자동 전환하고 연 직원을 배정한다", async () => {
+  const claim = vi.fn(async () => mkDetail({ status: "in_progress", isMine: true, assignee: { name: "나", role: "reception" } }));
+  const api = fakeApi({ getDetail: vi.fn(async () => mkDetail({ status: "pending", isMine: false, assignee: null })), claim });
+  const { result } = renderHook(() => useTicketDetail(api, "t1"));
+  await waitFor(() => expect(claim).toHaveBeenCalledWith("t1"));   // 열람 = 자동 배정
+  await waitFor(() => expect(result.current.detail?.status).toBe("in_progress"));
+});
+
+it("[TICKET-DETAIL-OPEN-02] 두 직원이 같은 pending을 거의 동시에 열면 늦은 직원은 상세를 열지 않고 목록으로 돌아가 '이미 다른 직원이 맡았어요'를 받는다", async () => {
+  const onLoser = vi.fn();
+  const api = fakeApi({ getDetail: vi.fn(async () => mkDetail({ status: "pending", isMine: false, assignee: null })),
+    claim: vi.fn(async () => { throw new TicketClaimConflict("이미 다른 직원이 맡았어요."); }) });
+  const { result } = renderHook(() => useTicketDetail(api, "t1", { onLoserBackToList: onLoser }));
+  await waitFor(() => expect(onLoser).toHaveBeenCalledWith("이미 다른 직원이 맡았어요."));
+  expect(result.current.phase).not.toBe("ready");   // 상세/읽기전용으로 열지 않음
+});
+
+it("[TICKET-DETAIL-OPEN-03] 다른 직원이 담당한 in_progress는 목록으로 돌려보내고, answered는 읽기 전용으로 열되 재개하지 않는다", async () => {
+  const onLoser = vi.fn();
+  const others = fakeApi({ getDetail: vi.fn(async () => mkDetail({ status: "in_progress", isMine: false, assignee: { name: "김직원", role: "reception" } })) });
+  renderHook(() => useTicketDetail(others, "t1", { onLoserBackToList: onLoser }));
+  await waitFor(() => expect(onLoser).toHaveBeenCalled());   // 남의 in_progress → 복귀
+  const answered = fakeApi({ getDetail: vi.fn(async () => mkDetail({ status: "answered", isMine: true })) });
+  const { result } = renderHook(() => useTicketDetail(answered, "t2"));
+  await waitFor(() => expect(result.current.phase).toBe("ready"));
+  expect(result.current.isReadOnly).toBe(true);   // answered = 읽기 전용, claim 재실행 없음
+  expect(answered.claim).not.toHaveBeenCalled();
+});
+
+it("[TICKET-DETAIL-STATUS-01] pending=직원 연결 중, in_progress=직원 상담 중, answered=상담 종료로 표시한다", async () => {
+  const { result } = renderHook(() => useTicketDetail(fakeApi({ getDetail: vi.fn(async () => mkDetail({ status: "answered", isMine: true })) }), "t1"));
+  await waitFor(() => expect(result.current.statusLabel).toBe("상담 종료"));
+});
+
+it("[TICKET-DETAIL-STATUS-02] 창을 닫거나 화면을 벗어나는 것만으로 진행 중 상담을 종료하지 않는다(unmount가 close를 부르지 않음)", async () => {
+  const api = fakeApi();
+  const { unmount } = renderHook(() => useTicketDetail(api, "t1"));
+  await waitFor(() => expect(api.getDetail).toHaveBeenCalled());
+  unmount();
+  expect(api.closeTicket).not.toHaveBeenCalled();   // 이탈 ≠ 종료
+});
+
+it("[TICKET-DETAIL-STATUS-03] AI 30분 무활동 만료를 직원 상담에 적용하지 않는다(만료 타이머로 상태를 answered로 바꾸지 않음)", async () => {
+  vi.useFakeTimers();
+  const api = fakeApi();
+  const { result } = renderHook(() => useTicketDetail(api, "t1"));
+  await act(async () => { await Promise.resolve(); });
+  act(() => vi.advanceTimersByTime(31 * 60 * 1000));   // 31분 경과
+  expect(result.current.detail?.status).not.toBe("answered");
+  expect(api.closeTicket).not.toHaveBeenCalled();
+  vi.useRealTimers();
+});
+
+it("[TICKET-DETAIL-LOAD-01] 요약·대화 응답 대기 중에는 로딩을 두고 자동 배정 성공 전 '처리 중'이라고 단정하지 않는다", async () => {
+  let resolve!: (d: TicketDetail) => void;
+  const api = fakeApi({ getDetail: vi.fn(() => new Promise((r) => { resolve = r; })) });
+  const { result } = renderHook(() => useTicketDetail(api, "t1"));
+  expect(result.current.phase).toBe("loading");
+  expect(result.current.statusLabel).not.toBe("직원 상담 중");   // 성공 전 단정 금지
+  await act(async () => resolve(mkDetail()));
+});
+
+it("[TICKET-DETAIL-ERR-02] 없는·권한 없는 티켓(404/403)은 내용을 노출하지 않고 목록으로 돌아갈 경로를 준다", async () => {
+  const api = fakeApi({ getDetail: vi.fn(async () => { throw new TicketNotFound("x"); }) });
+  const { result } = renderHook(() => useTicketDetail(api, "gone"));
+  await waitFor(() => expect(result.current.phase).toBe("notfound"));
+  expect(result.current.detail).toBeNull();   // 내용 노출 안 함
+});
+```
+
+`frontend/src/features/support/useTicketDetail.ts`:
+```ts
+import { useCallback, useEffect, useRef, useState } from "react";
+import { TicketClaimConflict, type TicketStatus } from "./staffChatApi";
+import { TicketNotFound, type StaffTicketDetailApi, type TicketDetail, type ConvMessage } from "./staffTicketDetailApi";
+
+type Phase = "loading" | "ready" | "notfound";
+const STATUS_LABEL: Record<TicketStatus, string> = { pending: "직원 연결 중", in_progress: "직원 상담 중", answered: "상담 종료" };
+
+export function useTicketDetail(api: StaffTicketDetailApi, ticketId: string, opts: { onLoserBackToList?: (msg: string) => void } = {}) {
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [detail, setDetail] = useState<TicketDetail | null>(null);
+  const onLoser = opts.onLoserBackToList;
+
+  const load = useCallback(async () => {
+    setPhase("loading"); setDetail(null);
+    try {
+      let d = await api.getDetail(ticketId);
+      // OPEN-01: pending·미배정 → 열람 자동 배정. OPEN-02: 경쟁 패자 → 목록 복귀.
+      if (d.status === "pending" && !d.assignee) {
+        d = await api.claim(ticketId);
+      }
+      // OPEN-03: 남의 in_progress → 상세 열지 않고 목록으로. answered는 읽기 전용으로 연다.
+      if (d.status === "in_progress" && !d.isMine) { onLoser?.("이미 다른 직원이 맡았어요."); setPhase("loading"); return; }
+      setDetail(d); setPhase("ready");
+    } catch (e) {
+      if (e instanceof TicketClaimConflict) { onLoser?.("이미 다른 직원이 맡았어요."); return; }   // OPEN-02
+      if (e instanceof TicketNotFound) { setPhase("notfound"); return; }                          // ERR-02
+      setPhase("notfound");
+    }
+  }, [api, ticketId, onLoser]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // STATUS-02·03: 이탈/만료로 close를 부르는 타이머·정리 로직을 두지 않는다(명시적 종료만 — Step 9).
+  const isReadOnly = detail?.status === "answered";   // OPEN-03 answered
+  const statusLabel = detail ? STATUS_LABEL[detail.status] : "";   // LOAD-01: detail 없으면 빈 문자열
+
+  // 아래 반환 필드는 Step 5~9에서 채운다(send/close/reassign/markRead/live). 여기서는 자리만.
+  const patchDetail = useCallback((fn: (d: TicketDetail) => TicketDetail) => setDetail((d) => (d ? fn(d) : d)), []);
+  const mergeMessages = useCallback((msgs: ConvMessage[]) => patchDetail((d) => ({ ...d, messages: msgs })), [patchDetail]);
+
+  return { phase, detail, isReadOnly, statusLabel, reload: load, patchDetail, mergeMessages, api, ticketId };
+}
+```
+> ⚠️ **STATUS-02·03은 부재를 검증하는 규칙**이다 — 훅에 이탈·만료 종료 로직을 **두지 않음**이 곧 통과다(테스트가 `closeTicket` 미호출을 확인). Run: `npm --prefix frontend run test -- useTicketDetail` → FAIL → 구현 → PASS.
+
+- [ ] **Step 3: `HandoffSummary` — 인계 요약 5항목 + 없음 표시 + 담당자(`SUM-01/02`·`ASSIGN-01`, 3규칙)**
+
+> 인계 요약 5항목을 라벨과 함께 모두 표시하고, 값이 없으면 **지어내지 않고 없음을 표시**한다(`SUM-02`). 담당자 이름·역할을 함께 보인다(`ASSIGN-01`).
+
+`frontend/src/features/support/HandoffSummary.tsx`:
+```tsx
+import type { HandoffSummary as Summary, StaffRole } from "./staffTicketDetailApi";
+
+const LABELS: [keyof Summary, string][] = [
+  ["patientAsked", "환자가 궁금해한 내용"], ["botConfirmed", "상담봇이 확인한 정보"], ["alreadyGuided", "이미 안내한 내용"],
+  ["unresolvedReason", "해결되지 않은 이유"], ["staffShouldCheck", "직원이 확인할 사항"],
+];
+const ROLE: Record<StaffRole, string> = { reception: "접수", doctor: "의사", admin: "관리자" };
+
+export function HandoffSummary({ summary, assignee }: { summary: Summary; assignee: { name: string; role: StaffRole } | null }) {
+  return (
+    <section aria-label="인계 요약">
+      {assignee && <p>담당: {assignee.name} · {ROLE[assignee.role]}</p>}  {/* ASSIGN-01 */}
+      <dl>
+        {LABELS.map(([key, label]) => (
+          <div key={key}>
+            <dt>{label}</dt>
+            <dd>{summary[key] ?? <span data-empty>내용 없음</span>}</dd>  {/* SUM-02: 지어내지 않음 */}
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+```
+
+`frontend/src/features/support/HandoffSummary.test.tsx`:
+```tsx
+import { describe, it, expect } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { HandoffSummary } from "./HandoffSummary";
+
+const full = { patientAsked: "두통약 정보", botConfirmed: "타이레놀 안내함", alreadyGuided: "복용법 안내", unresolvedReason: "용량 초과 문의", staffShouldCheck: "기저질환 확인" };
+
+it("[TICKET-DETAIL-SUM-01] 요약 5항목을 라벨과 함께 모두 표시한다", () => {
+  render(<HandoffSummary summary={full} assignee={null} />);
+  for (const label of ["환자가 궁금해한 내용", "상담봇이 확인한 정보", "이미 안내한 내용", "해결되지 않은 이유", "직원이 확인할 사항"]) {
+    expect(screen.getByText(label)).toBeInTheDocument();
+  }
+  expect(screen.getByText("두통약 정보")).toBeInTheDocument();
+});
+
+it("[TICKET-DETAIL-SUM-02] 항목 값이 비면 없는 내용을 만들어 채우지 않고 '내용 없음'을 표시한다", () => {
+  render(<HandoffSummary summary={{ ...full, unresolvedReason: null, staffShouldCheck: null }} assignee={null} />);
+  const emptied = screen.getAllByText("내용 없음");
+  expect(emptied).toHaveLength(2);   // 빈 두 항목만 없음 표시(나머지는 실제 값)
+});
+
+it("[TICKET-DETAIL-ASSIGN-01] in_progress면 현재 배정 직원의 이름과 역할을 표시한다", () => {
+  render(<HandoffSummary summary={full} assignee={{ name: "박접수", role: "reception" }} />);
+  expect(screen.getByText("담당: 박접수 · 접수")).toBeInTheDocument();
+});
+```
+Run: `npm --prefix frontend run test -- HandoffSummary` → FAIL → 구현 → PASS.
+
+- [ ] **Step 4: `TicketConversation` — 전체 대화·비었음·부분 오류(`CONV-01`·`EMPTY-01`·`ERR-01`, 3규칙)**
+
+> AI·직원 연결·환자/직원의 여러 차례 메시지·상담 종료를 **같은 상담방에서 시간 순서·발신 주체 구분**으로 표시한다(`CONV-01`). 대화 0건은 `원본 대화가 없습니다`로(조회 실패·로딩과 구분, `EMPTY-01`), 요약은 됐는데 대화만 실패하면 **대화 영역에만** 오류+`[다시 시도]`(`ERR-01`). 미확인/읽음/문자발송 배지는 Step 6에서 얹는다.
+
+`frontend/src/features/support/TicketConversation.tsx`:
+```tsx
+import type { ConvMessage, Sender } from "./staffTicketDetailApi";
+
+const SENDER_LABEL: Record<Sender, string> = { patient: "환자", ai: "상담봇", staff: "직원", system: "안내" };
+
+export function TicketConversation(props: {
+  messages: ConvMessage[]; convError: boolean; onRetryConv: () => void;
+  renderBadges?: (m: ConvMessage) => React.ReactNode;   // Step 6이 주입(미확인/읽음/문자)
+}) {
+  const { messages, convError, onRetryConv, renderBadges } = props;
+  if (convError) {   // ERR-01: 대화 영역에만 오류
+    return <div role="alert" aria-label="대화 오류"><p>대화를 불러오지 못했습니다</p><button type="button" onClick={onRetryConv}>다시 시도</button></div>;
+  }
+  if (messages.length === 0) return <p aria-label="대화">원본 대화가 없습니다</p>;   // EMPTY-01
+  return (
+    <ol aria-label="대화">
+      {messages.map((m) => (
+        <li key={m.id} data-sender={m.sender}>
+          <span>{SENDER_LABEL[m.sender]}</span>
+          <time>{m.at}</time>
+          <span>{m.body}</span>
+          {renderBadges?.(m)}
+        </li>
+      ))}
+    </ol>
+  );
+}
+```
+
+`frontend/src/features/support/TicketConversation.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { TicketConversation } from "./TicketConversation";
+import type { ConvMessage } from "./staffTicketDetailApi";
+
+const mk = (id: string, sender: ConvMessage["sender"], body: string, at: string): ConvMessage =>
+  ({ id, sender, body, at, patientRead: false, staffUnread: false, smsSent: false });
+
+it("[TICKET-DETAIL-CONV-01] AI·직원·환자 메시지와 상담 종료를 같은 상담방에 시간 순서·발신 주체 구분으로 표시한다", () => {
+  const msgs = [mk("1", "patient", "두통이 심해요", "09:00"), mk("2", "ai", "증상 확인할게요", "09:01"),
+    mk("3", "staff", "직원입니다", "09:05"), mk("4", "system", "상담이 종료되었습니다", "09:10")];
+  render(<TicketConversation messages={msgs} convError={false} onRetryConv={() => {}} />);
+  const items = screen.getAllByRole("listitem");
+  expect(items.map((li) => li.getAttribute("data-sender"))).toEqual(["patient", "ai", "staff", "system"]); // 시간 순서
+  expect(within(items[2]).getByText("직원")).toBeInTheDocument();   // 발신 주체 구분
+});
+
+it("[TICKET-DETAIL-EMPTY-01] 티켓은 있으나 대화 0건이면 '원본 대화가 없습니다'를 표시하고 오류·로딩으로 위장하지 않는다", () => {
+  render(<TicketConversation messages={[]} convError={false} onRetryConv={() => {}} />);
+  expect(screen.getByText("원본 대화가 없습니다")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("[TICKET-DETAIL-ERR-01] 요약은 성공하고 대화만 실패하면 대화 영역에만 오류+다시 시도를 표시한다", () => {
+  const retry = vi.fn();
+  render(<TicketConversation messages={[]} convError={true} onRetryConv={retry} />);
+  expect(within(screen.getByRole("alert")).getByText("대화를 불러오지 못했습니다")).toBeInTheDocument();
+  screen.getByText("다시 시도").click();
+  expect(retry).toHaveBeenCalled();
+});
+```
+Run: `npm --prefix frontend run test -- TicketConversation` → FAIL → 구현 → PASS.
+
+- [ ] **Step 5: 라이브 — 대화·티켓 Realtime + 직원 입력 중(`LIVE-01/02/03/04`·`TYPING-01`, 5규칙)**
+
+> 같은 `chat_messages`의 새 환자·직원 메시지를 즉시 반영(`LIVE-01`), 다른 직원의 자동 배정·이관·종료·전송은 화면을 이동시키지 않고 라이브 값만 갱신(`LIVE-02`). 끊김이면 대화·입력값을 유지하고 **결과를 성공으로 추측하지 않으며**(`LIVE-03`), 복구면 서버 재조회로 정합화(`LIVE-04`). 직원이 답변을 작성 중이면 `직원 입력 중`을 환자 상담방에 전달하고 **유휴 3초면 해제**(디바운스, `TYPING-01` 확정값).
+
+`useTicketDetail.ts`에 추가(반환에 `live`·`disconnected`·`onTyping` + 구독):
+```ts
+import { useRealtimeSubscription } from "../../lib/useRealtimeSubscription";
+// ...훅 안:
+  const [live, setLive] = useState<"connected" | "disconnected">("connected");
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // LIVE-01: chat_messages 새 메시지 → 대화 재조회(현재 티켓만). LIVE-02: support_tickets 변경 → 담당/상태/미확인만 갱신, 이동 없음.
+  useRealtimeSubscription("chat_messages", () => { if (detail && live === "connected") void reloadConversation(); });
+  useRealtimeSubscription("support_tickets", () => { if (detail && live === "connected") void reloadTicketMeta(); });
+
+  const reloadConversation = useCallback(async () => {
+    try { const d = await api.getDetail(ticketId); mergeMessages(d.messages); }   // 최신 대화만 반영
+    catch { /* LIVE-03: 실패를 성공으로 바꾸지 않음 — 기존 유지 */ }
+  }, [api, ticketId, mergeMessages]);
+  const reloadTicketMeta = useCallback(async () => {
+    try { const d = await api.getDetail(ticketId); patchDetail((cur) => ({ ...cur, status: d.status, assignee: d.assignee, isMine: d.isMine })); }
+    catch { /* 유지 */ }
+  }, [api, ticketId, patchDetail]);
+
+  // LIVE-03/04: 연결 상태. 복구 시 대화·메타 재조회로 누락·중복 정합화.
+  const onLiveChange = useCallback((next: "connected" | "disconnected") => {
+    setLive(next);
+    if (next === "connected") { void reloadConversation(); void reloadTicketMeta(); }
+  }, [reloadConversation, reloadTicketMeta]);
+
+  // TYPING-01: 타이핑 시 입력 중 신호, 유휴 3초면 해제(디바운스).
+  const setTyping = useCallback((emit: (on: boolean) => void) => {
+    emit(true);
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => emit(false), 3000);
+  }, []);
+// 반환에 { live, onLiveChange, reloadConversation, setTyping } 추가.
+```
+
+`useTicketDetail.test.tsx`에 추가:
+```tsx
+it("[TICKET-DETAIL-LIVE-01] 같은 chat_messages의 새 메시지를 원본 대화에 즉시 반영한다", async () => {
+  const first = mkDetail({ messages: [] });
+  const withMsg = mkDetail({ messages: [{ id: "m1", sender: "patient", body: "추가 질문", at: "09:20", patientRead: false, staffUnread: true, smsSent: false }] });
+  const getDetail = vi.fn().mockResolvedValueOnce(first).mockResolvedValue(withMsg);
+  const { result } = renderHook(() => useTicketDetail(fakeApi({ getDetail }), "t1"));
+  await waitFor(() => expect(result.current.detail).not.toBeNull());
+  await act(async () => { await result.current.reloadConversation(); });
+  expect(result.current.detail?.messages).toHaveLength(1);
+});
+
+it("[TICKET-DETAIL-LIVE-02] 다른 직원의 배정·이관·종료·전송은 화면을 이동시키지 않고 담당자·상태만 최신 값으로 바꾼다", async () => {
+  const before = mkDetail({ status: "in_progress", assignee: { name: "나", role: "reception" }, isMine: true });
+  const after = mkDetail({ status: "answered", assignee: { name: "나", role: "reception" }, isMine: true });
+  const getDetail = vi.fn().mockResolvedValueOnce(before).mockResolvedValue(after);
+  const { result } = renderHook(() => useTicketDetail(fakeApi({ getDetail }), "t1"));
+  await waitFor(() => expect(result.current.detail?.status).toBe("in_progress"));
+  await act(async () => { await result.current.onLiveChange("connected"); });
+  expect(result.current.detail?.status).toBe("answered");   // 값만 갱신, 훅은 그대로 살아있음(이동 없음)
+});
+
+it("[TICKET-DETAIL-LIVE-03] Realtime 끊김이면 대화·입력값을 유지하고 전송·종료 결과를 성공으로 추측하지 않는다", async () => {
+  const { result } = renderHook(() => useTicketDetail(fakeApi(), "t1"));
+  await waitFor(() => expect(result.current.detail).not.toBeNull());
+  await act(async () => { await result.current.onLiveChange("disconnected"); });
+  expect(result.current.live).toBe("disconnected");
+  expect(result.current.detail).not.toBeNull();   // 대화 유지
+});
+
+it("[TICKET-DETAIL-LIVE-04] Realtime 복구면 서버에서 대화·상태·담당자를 다시 조회해 누락·중복을 정합화한다", async () => {
+  const getDetail = vi.fn(async () => mkDetail());
+  const { result } = renderHook(() => useTicketDetail(fakeApi({ getDetail }), "t1"));
+  await waitFor(() => expect(getDetail).toHaveBeenCalledTimes(1));
+  await act(async () => { await result.current.onLiveChange("disconnected"); });
+  await act(async () => { await result.current.onLiveChange("connected"); });
+  expect(getDetail.mock.calls.length).toBeGreaterThanOrEqual(2);   // 복구 재조회
+});
+
+it("[TICKET-DETAIL-TYPING-01] 답변 작성 중이면 입력 중 신호를 보내고 유휴 3초면 해제한다(디바운스)", async () => {
+  vi.useFakeTimers();
+  const { result } = renderHook(() => useTicketDetail(fakeApi(), "t1"));
+  await act(async () => { await Promise.resolve(); });
+  const emit = vi.fn();
+  act(() => result.current.setTyping(emit));
+  expect(emit).toHaveBeenLastCalledWith(true);
+  act(() => vi.advanceTimersByTime(3000));
+  expect(emit).toHaveBeenLastCalledWith(false);   // 유휴 3초 → 해제
+  vi.useRealTimers();
+});
+```
+> ⚠️ 테스트는 `useRealtimeSubscription`을 `vi.mock`으로 모킹해 콜백을 수동 호출하고, `reloadConversation`/`onLiveChange`/`setTyping`을 직접 부른다(Task 16과 같은 하네스 관례). Run: `npm --prefix frontend run test -- useTicketDetail` → FAIL → 구현 → PASS.
+
+- [ ] **Step 6: 미확인·읽음·답변 알림·익명 연락처(`UNREAD-01/02`·`READ-01/02`·`NOTIFY-01/02/03/04`·`CONTACT-01`, 9규칙)**
+
+> 직원이 아직 확인 않은 환자 메시지는 `새 메시지 · 미확인`으로 묶어 표시하고 **숫자 배지는 두지 않는다**(`UNREAD-01` 확정). 직원이 상세를 열어 그 메시지를 보면 확인 처리하고 여러 기기는 **서버 확인 상태로 정합화**(`UNREAD-02` 확정). 직원 메시지에 `환자 미확인`을 표시하되 **전송 실패로 표현하지 않고**(`READ-01`), 환자가 읽으면 배지만 해소하고 **읽은 시각은 노출하지 않는다**(`READ-02` 확정). 답변 알림은 서버가 미확인 연속 답변을 한 묶음으로 **환자에게 알림 1회**만(`NOTIFY-01`), 확인 뒤 새 답변은 새 알림 1회(`NOTIFY-02`) — 이 화면은 그 결과를 **표시만** 한다. 익명 웹은 실제 전화번호 대신 마스킹(`CONTACT-01`), 자리비움 문자 발송은 `자리 비움 · 답변 문자로 발송됨`(`NOTIFY-03`), 연락처 없으면 문자 미발송·`연락처 없음 · 위젯 미읽음 점으로 안내`(`NOTIFY-04`).
+
+`TicketConversation.tsx`에 배지 렌더 추가 + `ContactBanner` 컴포넌트:
+```tsx
+// TicketConversation은 renderBadges로 배지를 받는다. 배지 생성기 makeBadges를 같은 파일에 둔다.
+import type { ConvMessage, Contact } from "./staffTicketDetailApi";
+
+export function messageBadges(m: ConvMessage): string[] {
+  const b: string[] = [];
+  if (m.sender === "patient" && m.staffUnread) b.push("새 메시지 · 미확인");        // UNREAD-01: 문구 하나, 숫자 없음
+  if (m.sender === "staff" && !m.patientRead) b.push("환자 미확인");                 // READ-01: 실패 아님
+  if (m.sender === "staff" && m.smsSent) b.push("자리 비움 · 답변 문자로 발송됨");   // NOTIFY-03
+  return b;
+}
+
+export function ContactBanner({ contact }: { contact: Contact }) {
+  if (!contact.anonymous) return null;   // 등록 환자는 앱 알림 — 연락처 마스킹 배너 없음
+  return <p aria-label="연락처">{contact.hasPhone ? "연락처 있음 · 문자 알림 가능" : "연락처 없음 · 위젯 미읽음 점으로 안내"}</p>;
+  // CONTACT-01/NOTIFY-04: 실제 번호·직접 문자 버튼 없음. 연락처 없는데 문자 도달 가능으로 표시 안 함.
+}
+```
+
+`useTicketDetail.ts`에 `markReadVisible` 추가(`UNREAD-02`):
+```ts
+  // UNREAD-02: 상세를 열어 미확인 환자 메시지를 보면 서버 확인 상태를 갱신한다(여러 기기는 서버로 정합화).
+  const markReadVisible = useCallback(async () => {
+    const unread = detail?.messages.filter((m) => m.sender === "patient" && m.staffUnread) ?? [];
+    for (const m of unread) { try { await api.markRead(ticketId, m.id); } catch { /* 재연결 시 재조회로 정합 */ } }
+    if (unread.length) patchDetail((d) => ({ ...d, messages: d.messages.map((m) => (m.staffUnread ? { ...m, staffUnread: false } : m)) }));
+  }, [api, ticketId, detail, patchDetail]);
+// 반환에 { markReadVisible } 추가. (TicketDetail이 mount·대화 표시 시 호출)
+```
+
+`frontend/src/features/support/TicketConversation.badges.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { TicketConversation, messageBadges, ContactBanner } from "./TicketConversation";
+import { useTicketDetail } from "./useTicketDetail";
+import type { ConvMessage, StaffTicketDetailApi, TicketDetail } from "./staffTicketDetailApi";
+
+const mk = (over: Partial<ConvMessage>): ConvMessage => ({ id: "m", sender: "patient", body: "x", at: "09:00", patientRead: false, staffUnread: false, smsSent: false, ...over });
+
+it("[TICKET-DETAIL-UNREAD-01] 미확인 환자 메시지는 '새 메시지 · 미확인'으로 묶어 표시하고 숫자 수량 배지를 두지 않는다", () => {
+  const msgs = [mk({ id: "1", sender: "patient", staffUnread: true }), mk({ id: "2", sender: "patient", staffUnread: true })];
+  render(<TicketConversation messages={msgs} convError={false} onRetryConv={() => {}} renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} />);
+  expect(screen.getAllByText("새 메시지 · 미확인")).toHaveLength(2);
+  expect(screen.queryByText(/^\d+$/)).not.toBeInTheDocument();   // 숫자 배지 없음
+});
+
+it("[TICKET-DETAIL-UNREAD-02] 직원이 상세를 열어 미확인 메시지를 보면 서버 확인 상태를 갱신하고 미확인 표시를 해소한다", async () => {
+  const markRead = vi.fn(async () => {});
+  const detail: TicketDetail = { id: "t1", status: "in_progress", reason: "x", assignee: { name: "나", role: "reception" }, isMine: true,
+    summary: { patientAsked: null, botConfirmed: null, alreadyGuided: null, unresolvedReason: null, staffShouldCheck: null },
+    messages: [mk({ id: "1", sender: "patient", staffUnread: true })], contact: { anonymous: false, hasPhone: false } };
+  const api = { getDetail: vi.fn(async () => detail), claim: vi.fn(), sendMessage: vi.fn(), closeTicket: vi.fn(), reassignTicket: vi.fn(), markRead, listActiveStaff: vi.fn(async () => []) } as unknown as StaffTicketDetailApi;
+  const { result } = renderHook(() => useTicketDetail(api, "t1"));
+  await waitFor(() => expect(result.current.detail).not.toBeNull());
+  await act(async () => { await result.current.markReadVisible(); });
+  expect(markRead).toHaveBeenCalledWith("t1", "1");
+  expect(result.current.detail?.messages[0].staffUnread).toBe(false);
+});
+
+it("[TICKET-DETAIL-READ-01] 환자가 아직 안 읽은 직원 메시지에 '환자 미확인'을 표시하되 전송 실패로 표현하지 않는다", () => {
+  render(<TicketConversation messages={[mk({ id: "1", sender: "staff", body: "답변", patientRead: false })]} convError={false} onRetryConv={() => {}}
+    renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} />);
+  expect(screen.getByText("환자 미확인")).toBeInTheDocument();
+  expect(screen.queryByText(/전송 실패|보내지 못/)).not.toBeInTheDocument();
+});
+
+it("[TICKET-DETAIL-READ-02] 환자가 직원 메시지를 확인하면 '환자 미확인'만 해소하고 읽은 시각(타임스탬프)은 노출하지 않는다", () => {
+  render(<TicketConversation messages={[mk({ id: "1", sender: "staff", body: "답변", patientRead: true })]} convError={false} onRetryConv={() => {}}
+    renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} />);
+  expect(screen.queryByText("환자 미확인")).not.toBeInTheDocument();
+  expect(screen.queryByText(/읽음 \d|확인 시각|읽은 시각/)).not.toBeInTheDocument();   // 읽은 시각 미노출
+});
+
+it("[TICKET-DETAIL-NOTIFY-01] 미확인 연속 직원 답변은 서버가 한 묶음 알림 1회로 처리하고 화면은 환자 미확인 상태를 유지한다(발송은 표시하지 않음)", () => {
+  const msgs = [mk({ id: "1", sender: "staff", body: "답변1", patientRead: false }), mk({ id: "2", sender: "staff", body: "답변2", patientRead: false })];
+  render(<TicketConversation messages={msgs} convError={false} onRetryConv={() => {}} renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} />);
+  expect(screen.getAllByText("환자 미확인")).toHaveLength(2);   // 연속 미확인 유지, 화면이 알림을 발송·중복 표시하지 않음
+});
+
+it("[TICKET-DETAIL-NOTIFY-02] 등록 환자가 상담방을 보는 중이거나 상태 변경만 있으면 답변 알림 표시를 만들지 않는다", () => {
+  const msgs = [mk({ id: "1", sender: "staff", body: "답변", patientRead: true })];   // 이미 확인함
+  render(<TicketConversation messages={msgs} convError={false} onRetryConv={() => {}} renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} />);
+  expect(screen.queryByText(/알림 발송|문자로 발송/)).not.toBeInTheDocument();
+});
+
+it("[TICKET-DETAIL-NOTIFY-03] 연락처를 남긴 익명 사용자가 자리 비움일 때 발송된 직원 답변에 '자리 비움 · 답변 문자로 발송됨'을 작게 표시한다", () => {
+  render(<TicketConversation messages={[mk({ id: "1", sender: "staff", body: "답변", patientRead: false, smsSent: true })]} convError={false} onRetryConv={() => {}}
+    renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} />);
+  expect(screen.getByText("자리 비움 · 답변 문자로 발송됨")).toBeInTheDocument();
+});
+
+it("[TICKET-DETAIL-NOTIFY-04] 익명 사용자가 전화번호를 안 남기면 '연락처 없음 · 위젯 미읽음 점으로 안내'만 표시하고 문자 발송됨을 표시하지 않는다", () => {
+  render(<><ContactBanner contact={{ anonymous: true, hasPhone: false }} />
+    <TicketConversation messages={[mk({ id: "1", sender: "staff", body: "답변", patientRead: false, smsSent: false })]} convError={false} onRetryConv={() => {}}
+      renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} /></>);
+  expect(screen.getByText("연락처 없음 · 위젯 미읽음 점으로 안내")).toBeInTheDocument();
+  expect(screen.queryByText(/문자로 발송됨/)).not.toBeInTheDocument();
+});
+
+it("[TICKET-DETAIL-CONTACT-01] 익명 웹 티켓은 실제 전화번호 대신 마스킹 상태를 표시하고 직원이 직접 문자 보내는 버튼을 제공하지 않는다", () => {
+  render(<ContactBanner contact={{ anonymous: true, hasPhone: true }} />);
+  expect(screen.getByText("연락처 있음 · 문자 알림 가능")).toBeInTheDocument();
+  expect(screen.queryByText(/010-|문자 보내기|직접 발송/)).not.toBeInTheDocument();   // 번호·직접 문자 버튼 없음
+});
+```
+Run: `npm --prefix frontend run test -- TicketConversation.badges useTicketDetail` → FAIL → 구현 → PASS.
+
+- [ ] **Step 7: `ReplyBox` — 답변 입력·`[보내기]`·전송 중·실패 보존(`REPLY-01/02/03/04/05`, 5규칙)**
+
+> 직원 답변을 입력해 같은 상담방에 **여러 차례** 직원 말풍선으로 보낸다(`REPLY-01`). 전송 중에는 **중복 전송을 막고 입력값을 보존**(`REPLY-02`), 실패하면 **`answered`로 바꾸지 않고 입력을 보존**+재시도(`REPLY-03`), 성공하면 직원 말풍선을 저장·전달하고 **티켓은 `in_progress` 유지**(일반 `[보내기]`만으로 종료·`answered` 금지, `REPLY-04`). `answered` 티켓은 다시 열거나 재답변하지 않고 재문의는 **새 티켓**(`REPLY-05`) — 읽기 전용이면 입력·보내기를 비활성.
+
+`frontend/src/features/support/ReplyBox.tsx`:
+```tsx
+import { useId, useState } from "react";
+
+export function ReplyBox(props: {
+  readOnly: boolean; sending: boolean;
+  onSend: (body: string) => Promise<void>; onDraftChange?: (v: string) => void;
+}) {
+  const { readOnly, sending, onSend, onDraftChange } = props;
+  const [draft, setDraft] = useState("");
+  const [failed, setFailed] = useState(false);
+  const id = useId();
+
+  if (readOnly) return <p aria-label="답변 불가">종료된 상담입니다. 재문의는 새 상담으로 접수됩니다.</p>;   // REPLY-05
+
+  const submit = async () => {
+    if (sending || draft.trim() === "") return;   // REPLY-02: 중복·빈 전송 방지
+    setFailed(false);
+    try { await onSend(draft.trim()); setDraft(""); onDraftChange?.(""); }   // REPLY-04 성공: 입력 비움(티켓 in_progress 유지는 훅)
+    catch { setFailed(true); /* REPLY-03: draft 보존 */ }
+  };
+  return (
+    <section aria-label="답변 작성">
+      <label htmlFor={id}>답변</label>
+      <textarea id={id} value={draft} disabled={sending}
+        onChange={(e) => { setDraft(e.target.value); onDraftChange?.(e.target.value); }} />
+      <button type="button" onClick={submit} disabled={sending || draft.trim() === ""} aria-busy={sending}>
+        {sending ? "보내는 중…" : "보내기"}
+      </button>
+      {failed && <p role="alert">보내지 못했습니다. 다시 시도해 주세요.</p>}
+    </section>
+  );
+}
+```
+
+`useTicketDetail.ts`에 `send` 추가(`REPLY-04` 상태 불변):
+```ts
+  const [sending, setSending] = useState(false);
+  const send = useCallback(async (body: string) => {
+    if (sending) return;                          // REPLY-02
+    setSending(true);
+    const requestId = crypto.randomUUID();        // REPLY-02: 멱등 키
+    try {
+      const msg = await api.sendMessage(ticketId, body, requestId);   // status 불변(REPLY-04)
+      patchDetail((d) => ({ ...d, messages: [...d.messages, msg] }));  // 티켓 상태는 그대로(answered로 안 바꿈)
+    } finally { setSending(false); }              // 실패는 rethrow → ReplyBox가 draft 보존(REPLY-03)
+  }, [api, ticketId, sending, patchDetail]);
+// send 실패를 ReplyBox가 잡도록 try에서 catch하지 않고 finally만. (throw 유지)
+// 반환에 { send, sending } 추가.
+```
+
+`frontend/src/features/support/ReplyBox.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ReplyBox } from "./ReplyBox";
+
+it("[TICKET-DETAIL-REPLY-01] 직원 답변을 입력해 여러 차례 보낼 수 있다", async () => {
+  const onSend = vi.fn(async () => {});
+  render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />);
+  await userEvent.type(screen.getByLabelText("답변"), "첫 답변");
+  await userEvent.click(screen.getByText("보내기"));
+  await waitFor(() => expect(onSend).toHaveBeenCalledWith("첫 답변"));
+  await userEvent.type(screen.getByLabelText("답변"), "둘째 답변");
+  await userEvent.click(screen.getByText("보내기"));
+  expect(onSend).toHaveBeenCalledTimes(2);   // 여러 차례
+});
+
+it("[TICKET-DETAIL-REPLY-02] 전송 중에는 중복 전송을 막고 입력값을 보존하며 전송 중 상태를 표시한다", () => {
+  render(<ReplyBox readOnly={false} sending={true} onSend={vi.fn()} />);
+  const btn = screen.getByRole("button", { name: /보내는 중/ });
+  expect(btn).toBeDisabled();                       // 중복 전송 방지
+  expect(btn).toHaveAttribute("aria-busy", "true");
+});
+
+it("[TICKET-DETAIL-REPLY-03] 전송 실패면 티켓을 answered로 바꾸지 않고 입력을 보존하며 재시도 경로를 표시한다", async () => {
+  const onSend = vi.fn(async () => { throw new Error("net"); });
+  render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />);
+  await userEvent.type(screen.getByLabelText("답변"), "보존될 답변");
+  await userEvent.click(screen.getByText("보내기"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("다시 시도");
+  expect(screen.getByLabelText("답변")).toHaveValue("보존될 답변");   // 입력 보존
+});
+
+it("[TICKET-DETAIL-REPLY-04] 성공하면 입력을 비우고(티켓 in_progress 유지) 보내기만으로 상담을 닫지 않는다", async () => {
+  const onSend = vi.fn(async () => {});
+  render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />);
+  await userEvent.type(screen.getByLabelText("답변"), "정상 답변");
+  await userEvent.click(screen.getByText("보내기"));
+  await waitFor(() => expect(screen.getByLabelText("답변")).toHaveValue(""));
+  expect(screen.queryByText(/상담 종료|종료되었/)).not.toBeInTheDocument();   // 종료 아님
+});
+
+it("[TICKET-DETAIL-REPLY-05] answered 티켓은 다시 열거나 재답변하지 않고 재문의는 새 상담으로 접수됨을 안내한다", () => {
+  render(<ReplyBox readOnly={true} sending={false} onSend={vi.fn()} />);
+  expect(screen.getByText(/재문의는 새 상담으로/)).toBeInTheDocument();
+  expect(screen.queryByLabelText("답변")).not.toBeInTheDocument();   // 입력칸 없음
+});
+```
+Run: `npm --prefix frontend run test -- ReplyBox useTicketDetail` → FAIL → 구현 → PASS.
+
+- [ ] **Step 8: `ReassignControl` — 담당 이관·의료판단 전달(`REASSIGN-01/02/03/04/05`·`ASSIGN-02`, 6규칙)**
+
+> 의료판단(`reason=medical_judgment`)이면 접수 직원이 임의로 답하지 않도록 **`담당 의사에게 전달`을 강조**하고 의사·관리자만 선택·재배정(`REASSIGN-01`). 일반(`reason≠medical_judgment`)은 강조 없이 **모든 활성 직원** 드롭다운으로 이관(`REASSIGN-05` 확정 — 의사 전용 답변 화면이 없어 역할 제한 시 막다른 길). 재배정 성공은 **`assigned_staff_id`만 바꾸고 `in_progress` 유지**(`REASSIGN-02`), 처리 중엔 선택·버튼 잠금(`REASSIGN-03`), 실패는 기존 담당자·상태 유지+재시도(`REASSIGN-04`). **별도 `[담당 지정]`·`[내가 맡기]`는 두지 않는다**(`ASSIGN-02` — 자동 배정과 중복).
+
+`frontend/src/features/support/ReassignControl.tsx`:
+```tsx
+import { useEffect, useState } from "react";
+import type { ActiveStaff, StaffRole } from "./staffTicketDetailApi";
+
+export function ReassignControl(props: {
+  reason: string; busy: boolean; loadStaff: () => Promise<ActiveStaff[]>;
+  onReassign: (toStaffId: string) => Promise<void>;
+}) {
+  const { reason, busy, loadStaff, onReassign } = props;
+  const isMedical = reason === "medical_judgment";
+  const [staff, setStaff] = useState<ActiveStaff[]>([]);
+  const [pick, setPick] = useState("");
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => { void loadStaff().then(setStaff).catch(() => setStaff([])); }, [loadStaff]);
+  // REASSIGN-01: 의료판단은 의사·관리자만. REASSIGN-05: 일반은 모든 활성 직원.
+  const options = isMedical ? staff.filter((s) => s.role === "doctor" || s.role === "admin") : staff;
+
+  const submit = async () => {
+    if (busy || pick === "") return;   // REASSIGN-03: 잠금
+    setFailed(false);
+    try { await onReassign(pick); } catch { setFailed(true); }   // REASSIGN-04: 기존 담당자·상태 유지
+  };
+  return (
+    <section aria-label="담당 이관">
+      {/* ASSIGN-02: [담당 지정]·[내가 맡기] 버튼을 두지 않는다 — 자동 배정과 중복 */}
+      {isMedical && <p data-emphasis role="note">의료 판단이 필요한 문의입니다. 임의로 답하지 말고 담당 의사에게 전달하세요.</p>}
+      <label htmlFor="reassign-to">{isMedical ? "담당 의사에게 전달" : "담당 이관"}</label>
+      <select id="reassign-to" value={pick} disabled={busy} onChange={(e) => setPick(e.target.value)}>
+        <option value="">직원 선택</option>
+        {options.map((s) => <option key={s.id} value={s.id}>{s.name} · {ROLE[s.role]}</option>)}
+      </select>
+      <button type="button" onClick={submit} disabled={busy || pick === ""} aria-busy={busy}>
+        {busy ? "전달 중…" : isMedical ? "의사에게 전달" : "이관"}
+      </button>
+      {failed && <p role="alert">이관에 실패했습니다. 다시 시도해 주세요.</p>}
+    </section>
+  );
+}
+const ROLE: Record<StaffRole, string> = { reception: "접수", doctor: "의사", admin: "관리자" };
+```
+
+`useTicketDetail.ts`에 `reassign` 추가(`REASSIGN-02` 상태 유지):
+```ts
+  const [reassigning, setReassigning] = useState(false);
+  const reassign = useCallback(async (toStaffId: string) => {
+    setReassigning(true);
+    try {
+      const d = await api.reassignTicket(ticketId, toStaffId);   // assigned_staff_id만 변경·in_progress 유지(REASSIGN-02)
+      patchDetail((cur) => ({ ...cur, assignee: d.assignee, isMine: d.isMine, status: d.status }));
+    } finally { setReassigning(false); }   // 실패는 rethrow → ReassignControl이 기존 유지(REASSIGN-04)
+  }, [api, ticketId, patchDetail]);
+// 반환에 { reassign, reassigning, listActiveStaff: api.listActiveStaff } 추가.
+```
+
+`frontend/src/features/support/ReassignControl.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ReassignControl } from "./ReassignControl";
+import type { ActiveStaff } from "./staffTicketDetailApi";
+
+const staff: ActiveStaff[] = [{ id: "r1", name: "박접수", role: "reception" }, { id: "d1", name: "이의사", role: "doctor" }, { id: "a1", name: "관리자", role: "admin" }];
+
+it("[TICKET-DETAIL-REASSIGN-01] 의료판단 티켓은 담당 의사에게 전달을 강조하고 의사·관리자만 선택지에 둔다", async () => {
+  render(<ReassignControl reason="medical_judgment" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={vi.fn()} />);
+  expect(await screen.findByRole("note")).toHaveTextContent("담당 의사에게 전달");
+  await waitFor(() => expect(screen.getByText("이의사 · 의사")).toBeInTheDocument());
+  expect(screen.queryByText("박접수 · 접수")).not.toBeInTheDocument();   // 접수는 제외
+});
+
+it("[TICKET-DETAIL-REASSIGN-05] 일반 이관은 의료판단 강조 없이 모든 활성 직원을 드롭다운에 둔다", async () => {
+  render(<ReassignControl reason="general" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={vi.fn()} />);
+  expect(screen.queryByRole("note")).not.toBeInTheDocument();   // 강조 없음
+  await waitFor(() => expect(screen.getByText("박접수 · 접수")).toBeInTheDocument());
+  expect(screen.getByText("이의사 · 의사")).toBeInTheDocument();
+  expect(screen.getByText("관리자 · 관리자")).toBeInTheDocument();   // 접수·의사·관리자 전부
+});
+
+it("[TICKET-DETAIL-REASSIGN-02] 재배정 성공은 담당자만 바꾸고 상태는 in_progress로 유지한다(훅이 status 유지)", async () => {
+  const onReassign = vi.fn(async () => {});
+  render(<ReassignControl reason="general" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={onReassign} />);
+  await userEvent.selectOptions(await screen.findByLabelText("담당 이관"), "d1");
+  await userEvent.click(screen.getByText("이관"));
+  expect(onReassign).toHaveBeenCalledWith("d1");   // reassignTicket이 in_progress·assignee만 반영(훅 계약)
+});
+
+it("[TICKET-DETAIL-REASSIGN-03] 요청 중에는 선택과 전달 버튼을 잠그고 처리 중임을 표시한다", async () => {
+  render(<ReassignControl reason="general" busy={true} loadStaff={vi.fn(async () => staff)} onReassign={vi.fn()} />);
+  await waitFor(() => expect(screen.getByLabelText("담당 이관")).toBeDisabled());
+  expect(screen.getByRole("button", { name: /전달 중/ })).toBeDisabled();
+});
+
+it("[TICKET-DETAIL-REASSIGN-04] 재배정 실패면 기존 담당자·in_progress를 유지하고 오류+재시도를 전달 영역에 표시한다", async () => {
+  const onReassign = vi.fn(async () => { throw new Error("net"); });
+  render(<ReassignControl reason="general" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={onReassign} />);
+  await userEvent.selectOptions(await screen.findByLabelText("담당 이관"), "d1");
+  await userEvent.click(screen.getByText("이관"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("다시 시도");
+});
+
+it("[TICKET-DETAIL-ASSIGN-02] 별도 담당 지정·내가 맡기 버튼을 두지 않는다(자동 배정과 중복)", () => {
+  render(<ReassignControl reason="general" busy={false} loadStaff={vi.fn(async () => [])} onReassign={vi.fn()} />);
+  expect(screen.queryByText(/담당 지정|내가 맡기/)).not.toBeInTheDocument();
+});
+```
+Run: `npm --prefix frontend run test -- ReassignControl useTicketDetail` → FAIL → 구현 → PASS.
+
+- [ ] **Step 9: `CloseTicketDialog` + 종료 분리(`CLOSE-SEP-01`·`CLOSE-01/02/03/04`, 5규칙)**
+
+> `[상담 종료]`는 일반 `[보내기]`와 **분리**해 제공하고(`CLOSE-01`), **인접 배치하지 않는다**(`CLOSE-SEP-01` — 오클릭 방지). 종료는 **확인창 안에서만** 실행하고, 확인창에 **작성 중 미전송 답변**이 있으면 `먼저 보낼까요?` 경고를 함께 표시(`CLOSE-02` 확정). 종료 성공은 `answered`로 전환하고 종료 경계를 상담방에 남긴다(`CLOSE-02`), 처리 중엔 `[보내기]`·`[상담 종료]` 중복 실행 막고 처리 중 표시(`CLOSE-03`), 실패는 `in_progress` 유지+대화·입력 보존+재시도(`CLOSE-04`).
+
+`frontend/src/features/support/CloseTicketDialog.tsx`:
+```tsx
+import { useState } from "react";
+
+export function CloseTicketButton(props: { closing: boolean; hasUnsentDraft: boolean; onConfirmClose: () => Promise<void> }) {
+  const { closing, hasUnsentDraft, onConfirmClose } = props;
+  const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const confirm = async () => {
+    setFailed(false);
+    try { await onConfirmClose(); setOpen(false); }
+    catch { setFailed(true); }   // CLOSE-04: in_progress 유지, 대화·입력 보존은 상위
+  };
+  return (
+    <section aria-label="상담 종료" data-detached>   {/* CLOSE-SEP-01: 보내기와 분리 배치 */}
+      <button type="button" onClick={() => setOpen(true)} disabled={closing}>상담 종료</button>
+      {open && (
+        <div role="dialog" aria-label="상담 종료 확인" aria-modal="true">
+          <p>이 상담을 종료할까요? 종료하면 다시 열 수 없습니다.</p>
+          {hasUnsentDraft && <p role="alert">작성 중인 답변이 있어요. 먼저 보낼까요?</p>}   {/* CLOSE-02: 미전송 경고 */}
+          <button type="button" onClick={confirm} disabled={closing} aria-busy={closing}>{closing ? "종료 중…" : "상담 종료"}</button>
+          <button type="button" onClick={() => setOpen(false)} disabled={closing}>취소</button>
+          {failed && <p role="alert">종료하지 못했습니다. 다시 시도해 주세요.</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+```
+
+`useTicketDetail.ts`에 `close` 추가(`answered`는 여기서만):
+```ts
+  const [closing, setClosing] = useState(false);
+  const close = useCallback(async () => {
+    setClosing(true);
+    try { await api.closeTicket(ticketId); patchDetail((d) => ({ ...d, status: "answered" })); }   // CLOSE-02: answered
+    finally { setClosing(false); }   // 실패 rethrow → CLOSE-04(in_progress 유지·다이얼로그가 표시)
+  }, [api, ticketId, patchDetail]);
+// 반환에 { close, closing } 추가.
+```
+
+`frontend/src/features/support/CloseTicketDialog.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { CloseTicketButton } from "./CloseTicketDialog";
+
+it("[TICKET-DETAIL-CLOSE-01] 일반 보내기와 분리된 직원 전용 [상담 종료]를 제공한다", () => {
+  render(<CloseTicketButton closing={false} hasUnsentDraft={false} onConfirmClose={vi.fn()} />);
+  expect(screen.getByRole("button", { name: "상담 종료" })).toBeInTheDocument();
+});
+
+it("[TICKET-DETAIL-CLOSE-SEP-01] 상담 종료를 보내기와 인접 배치하지 않도록 분리 컨테이너에 둔다", () => {
+  const { container } = render(<CloseTicketButton closing={false} hasUnsentDraft={false} onConfirmClose={vi.fn()} />);
+  expect(container.querySelector('[data-detached]')).toBeInTheDocument();   // 답변 입력·전송 영역과 분리
+});
+
+it("[TICKET-DETAIL-CLOSE-02] 종료는 확인창 안에서만 실행하고, 미전송 답변이 있으면 먼저 보낼까요 경고를 함께 표시한다", async () => {
+  const onConfirmClose = vi.fn(async () => {});
+  render(<CloseTicketButton closing={false} hasUnsentDraft={true} onConfirmClose={onConfirmClose} />);
+  expect(onConfirmClose).not.toHaveBeenCalled();   // 바로 종료 안 됨
+  await userEvent.click(screen.getByRole("button", { name: "상담 종료" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toHaveTextContent("먼저 보낼까요?");   // 미전송 경고
+  await userEvent.click(within(dialog).getByRole("button", { name: "상담 종료" }));
+  expect(onConfirmClose).toHaveBeenCalled();   // 확인 후에만 실행
+});
+
+it("[TICKET-DETAIL-CLOSE-03] 종료 처리 중에는 보내기·상담 종료 중복 실행을 막고 처리 중 상태를 표시한다", async () => {
+  render(<CloseTicketButton closing={true} hasUnsentDraft={false} onConfirmClose={vi.fn()} />);
+  expect(screen.getByRole("button", { name: /상담 종료/ })).toBeDisabled();
+});
+
+it("[TICKET-DETAIL-CLOSE-04] 종료 실패면 in_progress를 유지하고 종료 실패·재시도를 종료 동작 가까이에 표시한다", async () => {
+  const onConfirmClose = vi.fn(async () => { throw new Error("net"); });
+  render(<CloseTicketButton closing={false} hasUnsentDraft={false} onConfirmClose={onConfirmClose} />);
+  await userEvent.click(screen.getByRole("button", { name: "상담 종료" }));
+  await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "상담 종료" }));
+  expect(await screen.findByText(/종료하지 못했습니다/)).toBeInTheDocument();
+});
+```
+> ⚠️ `within`은 `@testing-library/react`에서 import한다. Run: `npm --prefix frontend run test -- CloseTicketDialog` → FAIL → 구현 → PASS.
+
+- [ ] **Step 10: `TicketDetail` 조립 — 레이아웃 순서·범위(`LAYOUT-01`·`SCOPE-01`, 2규칙) + `detailSlot` 합류**
+
+> 위에서 아래로 **이관 → 인계 요약 → 전체 대화 → 답변 입력/`[보내기]` → 따로 `[상담 종료]`** 순으로 조립한다(`LAYOUT-01`). 라이브 기능은 새 메시지·상태·입력 중·재전송·재연결·알림·미확인·자동 배정/이관·상담 종료만 두고 **온라인 초록 점·사진·파일·음성·반응은 만들지 않는다**(`SCOPE-01`). 이 컴포넌트가 Task 16 `detailSlot`의 본체다.
+
+`frontend/src/features/support/TicketDetail.tsx`:
+```tsx
+import { useEffect } from "react";
+import type { InboxTicket } from "./staffChatApi";
+import type { StaffTicketDetailApi } from "./staffTicketDetailApi";
+import { useTicketDetail } from "./useTicketDetail";
+import { HandoffSummary } from "./HandoffSummary";
+import { TicketConversation, messageBadges, ContactBanner } from "./TicketConversation";
+import { ReplyBox } from "./ReplyBox";
+import { ReassignControl } from "./ReassignControl";
+import { CloseTicketButton } from "./CloseTicketDialog";
+
+export function TicketDetail(props: { api: StaffTicketDetailApi; ticket: InboxTicket; onLoserBackToList: (msg: string) => void }) {
+  const { api, ticket, onLoserBackToList } = props;
+  const d = useTicketDetail(api, ticket.id, { onLoserBackToList });
+  const [draft, setDraft] = useState("");
+  useEffect(() => { if (d.phase === "ready") void d.markReadVisible(); }, [d.phase]);   // UNREAD-02
+
+  if (d.phase === "loading") return <p role="status">불러오는 중…</p>;                 // LOAD-01
+  if (d.phase === "notfound") return <div role="alert"><p>티켓을 찾을 수 없습니다</p><button type="button" onClick={() => onLoserBackToList("")}>티켓함으로</button></div>; // ERR-02
+  const detail = d.detail!;
+
+  return (
+    <article aria-label="티켓 상세">
+      <p>{d.statusLabel}{d.live === "disconnected" && " · 연결 불안정"}</p>
+      {/* LAYOUT-01 순서: ① 담당 이관(맨 위) */}
+      {!d.isReadOnly && <ReassignControl reason={detail.reason} busy={d.reassigning} loadStaff={d.listActiveStaff} onReassign={d.reassign} />}
+      {/* ② 인계 요약 */}
+      <HandoffSummary summary={detail.summary} assignee={detail.assignee} />
+      <ContactBanner contact={detail.contact} />
+      {/* ③ 전체 대화(주 영역) */}
+      <TicketConversation messages={detail.messages} convError={false} onRetryConv={d.reloadConversation}
+        renderBadges={(m) => messageBadges(m).map((t) => <em key={t}>{t}</em>)} />
+      {/* ④ 답변 입력/보내기 */}
+      <ReplyBox readOnly={d.isReadOnly} sending={d.sending} onSend={d.send} onDraftChange={setDraft} />
+      {/* ⑤ 따로 상담 종료(분리) */}
+      {!d.isReadOnly && <CloseTicketButton closing={d.closing} hasUnsentDraft={draft.trim() !== ""} onConfirmClose={d.close} />}
+    </article>
+  );
+}
+```
+> ⚠️ `useState`를 import에 추가(`import { useEffect, useState } from "react"`).
+
+`frontend/src/features/support/TicketDetail.test.tsx`:
+```tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { TicketDetail } from "./TicketDetail";
+import type { StaffTicketDetailApi, TicketDetail as TD } from "./staffTicketDetailApi";
+import type { InboxTicket } from "./staffChatApi";
+
+const ticket: InboxTicket = { id: "t1", status: "in_progress", patientQuestion: "두통", handoffReason: "약", createdAt: "09:00", assigneeName: "나", requestType: null, appointmentSummary: null };
+const detail: TD = { id: "t1", status: "in_progress", reason: "general", assignee: { name: "나", role: "reception" }, isMine: true,
+  summary: { patientAsked: "두통약", botConfirmed: null, alreadyGuided: null, unresolvedReason: null, staffShouldCheck: null },
+  messages: [{ id: "m1", sender: "patient", body: "질문", at: "09:00", patientRead: false, staffUnread: false, smsSent: false }],
+  contact: { anonymous: false, hasPhone: false } };
+function fakeApi(): StaffTicketDetailApi {
+  return { getDetail: vi.fn(async () => detail), claim: vi.fn(async () => detail), sendMessage: vi.fn(), closeTicket: vi.fn(),
+    reassignTicket: vi.fn(), markRead: vi.fn(async () => {}), listActiveStaff: vi.fn(async () => []) } as unknown as StaffTicketDetailApi;
+}
+
+it("[TICKET-DETAIL-LAYOUT-01] 위에서 아래로 담당 이관 → 인계 요약 → 전체 대화 → 답변 입력/보내기 → 따로 상담 종료 순으로 배치한다", async () => {
+  render(<TicketDetail api={fakeApi()} ticket={ticket} onLoserBackToList={vi.fn()} />);
+  await waitFor(() => expect(screen.getByLabelText("인계 요약")).toBeInTheDocument());
+  const order = ["담당 이관", "인계 요약", "대화", "답변 작성", "상담 종료"].map((l) => screen.getByLabelText(l).compareDocumentPosition);
+  const regions = ["담당 이관", "인계 요약", "대화", "답변 작성", "상담 종료"].map((l) => screen.getByLabelText(l));
+  for (let i = 0; i < regions.length - 1; i++) {
+    expect(regions[i].compareDocumentPosition(regions[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();   // 순서 보장
+  }
+});
+
+it("[TICKET-DETAIL-SCOPE-01] 온라인 초록 점·사진·파일·음성·메시지 반응을 만들지 않는다", async () => {
+  const { container } = render(<TicketDetail api={fakeApi()} ticket={ticket} onLoserBackToList={vi.fn()} />);
+  await waitFor(() => expect(screen.getByLabelText("대화")).toBeInTheDocument());
+  expect(container.querySelector('input[type="file"]')).not.toBeInTheDocument();       // 파일 없음
+  expect(screen.queryByText(/온라인|사진 첨부|음성|반응 추가/)).not.toBeInTheDocument();  // 초록 점·사진·음성·반응 없음
+});
+```
+Run: `npm --prefix frontend run test -- TicketDetail` → FAIL → 구현 → PASS.
+
+- [ ] **Step 11: 전수 초록불 + 검사기 + 커밋**
+
+Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 46규칙 전 테스트 PASS + 빌드 성공.
+Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`
+Expected: ② 규칙 커버 `269 → 315`(+46) · prefix-check **빚0·미배정0·⏰0**. ⚠️ 타 ai-chatbot 태스크 소유 규칙(`TICKET-INBOX`·`NAV-STFSUP`·`SUPPORT-PANEL`·`WEBANON-HANDOFF`·`WEBCHAT-LAUNCH` 계열)은 **계열명(숫자 0개)으로만** 참조했다(완전 단일 ID 금지 — ⏰ 방지). `SHELL-LIVE`·`BTN-BUSY`·`ERR-POS`·`EMPTY-ZERO`(2단계 직원웹)는 ai-chatbot 규칙이 아니라 커버리지에 안 잡힌다(근거 참조만).
+
+```bash
+git add frontend/src/features/support/ docs/superpowers/plans/2026-08-18-ai-chatbot.md
+git commit -m "feat: 📝 상담봇 Task 17 본문 — 티켓 상세 46규칙(인계 요약·전체 대화·답변/보내기·별도 종료·이관·라이브·미확인/알림). 백엔드 계약 갭 2개 소비 선언"
+```
+
+> **Task 17 완료 조건**: `LAYOUT`1·`SUM`2·`CONV`1·`OPEN`3·`ASSIGN`2·`REASSIGN`5·`REPLY`5·`LIVE`4·`STATUS`3·`TYPING`1·`UNREAD`2·`READ`2·`NOTIFY`4·`CONTACT`1·`CLOSE-SEP`1·`CLOSE`4·`SCOPE`1·`LOAD`1·`EMPTY`1·`ERR`2 = **46규칙 전수** 초록불(Vitest). ⭐ **직원웹 `frontend/`** — `patient_app/`·`webchat/` 무손. ⭐ **되돌릴 수 없는 종료**: `[상담 종료]`=확인창 안에서만·미전송 경고, 일반 `[보내기]`는 `answered`로 안 바꿈. ⭐ **백엔드 계약 갭 2개 소비 선언**: `GET /staff/chat/tickets/{id}`(Task 9 미명시)·`reassign_ticket`+`POST .../reassign`(Task 2 미명시) + 부수(`.../read`·`GET /staff/active`). ⚠️⚠️ **갭 #128(미결)**: 의료판단 이관으로 의사에게 넘긴 티켓의 **의사 도착 화면 없음** — 이관 드롭다운엔 활성 직원 전부 넣되 도착 화면은 안 만듦(경계). 해소는 이후 `SHELL-NAV`·의료 escalation과 함께. **다음 = Task 18**(`/today` 상담 행·사이드패널·`SUPPORT-CAL-*` 캘린더 상태·`NAV-STFSUP`).
