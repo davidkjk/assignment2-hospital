@@ -19835,7 +19835,7 @@ AppointmentView _v(String status, {DateTime? slot, DateTime? support, DateTime? 
       'department_name': '내과', 'doctor_name': '이의사', 'booking_code': 'A-1', 'has_questionnaire': false,
       'slot_date': (slot ?? DateTime(2026, 9, 1, 10)).toIso8601String().substring(0, 10),
       'start_time': '${(slot ?? DateTime(2026, 9, 1, 10)).hour.toString().padLeft(2, '0')}:00',
-      'support_requested_at': support?.toIso8601String(), 'request_type': support == null ? null : 'cancel',
+      'support_requested_at': support?.toIso8601String(), 'request_type': support == null ? null : '취소',
       'hospital_change_prev_time': changePrev?.toIso8601String(), 'hospital_change_kind': changePrev == null ? null : 'time',
     });
 

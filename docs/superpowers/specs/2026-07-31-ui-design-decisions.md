@@ -4882,6 +4882,12 @@ Realtime 요구:
 
 `recipient_type = patient`이면 `patient_id`만, `recipient_type = anonymous_chat_contact`이면 `anonymous_session_id`와 `anonymous_contact_id`만 수신자 참조로 존재해야 한다. 익명 이력에 `patient_id`를 채우지 않는다.
 
+> ✅ **결정: enum 한/영 정본 = 「각 칸의 DB 저장 언어에 맞춘다」(2026-08-20, 사용자 확정 · C3·C4 enum 축)**
+> - **예약 status(`00005`)·요청종류 `request_type`(`00010`) = 한국어 정본** → 코드·API·프론트도 **한국어 end-to-end**(변환기 없음). 직원웹 SQL이 한국어 칸을 영문 `status in ('confirmed','requested')`으로 조회하던 **버그(C4-3)를 `('예약확정','예약신청')`으로** 해소. 요청종류 DTO `cancel/change` → `취소/변경`(C4-5). 실제 status 9값=`예약신청·예약확정·도착·진료대기·진료중·진료완료·환자취소·병원취소·예약부도`.
+> - **알림 종류 `notification_type`·유입원 `source`·신고출처 `answer_feedback.source` = 영문 정본**(DB가 영문) → 그대로 영문 유지. 이름만 같은 형제(알림 `confirmed`, 티켓 `RequestType`의 `cancel/reschedule`, `hospital_change_kind` 등)는 **다른 칸이라 건드리지 않는다.**
+> - 기각안: 「모두 한국어 통일」 — ①② 계열은 DB가 영문이라 CHECK까지 뜯어야 하고 blast radius가 크며(내부 코드표라 화면 노출 없음) 이득이 없어 기각. 규칙=**언어 통일보다 「각 칸=자기 DB 언어 일치」**가 안 깨진다.
+> - 검사기 `plan-enum-check.py`가 게이트(5 family 전부 ✅). 상세 해소 로그·바꾼 file:line은 `FINAL-SYNTHESIS.md` C3·C4.
+
 `notification_log`의 수신자 참조는 연결된 `chat_notification_batches`의 수신자 참조와 같아야 한다. 따라서 익명 로그의 `anonymous_session_id`는 배치→티켓→상담방의 익명 세션과 일치하고, `anonymous_contact_id`도 그 세션에 속해야 한다.
 
 한 `chat_notification_batch_id`에는 `notification_log` 한 행만 존재한다. 실패 재시도는 같은 행의 `delivery_status`, `failure_code`, `retry_count`를 갱신하며 새 배치·새 사용자 알림을 만들지 않는다. 도달 여부와 실패는 `system_error_log`가 아니라 수신자·배치 문맥을 가진 `notification_log`에 남긴다.

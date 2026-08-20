@@ -57,15 +57,24 @@ FAMILIES = [
     },
     {
         "label": "appointment status (예약 상태)",
-        # confirmed/requested/changed 등은 notification_type로도 정당히 쓰인다.
-        # status/상태 칸을 언급한 줄로 문맥을 좁혀 오염을 막는다.
-        "context": re.compile(r"\bstatus\b|상태|appointment_status"),
+        # 예약 status는 한국어 정본(00005). 정본=한국어 e2e(2026-08-20) → 영문은 정본 밖.
+        # 문맥을 '예약' status 관용구로 좁혀 다른 칸(notify_patient 인자·다른 테이블 status)을 배제한다.
+        "context": re.compile(
+            r"from appointments|seed_appointment|\.status\b|status\s+in\s*\(|"
+            r"status\s*[=:]\s*['\"]|예약\s*상태|appointment_status"),
+        # 이름만 같은 다른 테이블 status 배제(스케줄 알림·알림 로그).
+        "exclude": re.compile(r"scheduled_notifications|notification_log"),
+        # 실제 00005 값. 영문(confirmed/requested)은 미변환 잔여를 잡으려 남김(정본 밖).
         "values": [
-            "예약신청", "예약확정", "취소요청", "취소됨", "변경됨", "완료", "노쇼",
-            "requested", "confirmed", "cancelled", "changed", "completed", "no_show",
+            "예약신청", "예약확정", "도착", "진료대기", "진료중", "진료완료",
+            "환자취소", "병원취소", "예약부도",
+            "requested", "confirmed",
         ],
-        "canonical": {"예약신청", "예약확정", "취소요청", "취소됨", "변경됨", "완료", "노쇼"},
-        "note": "DB enum은 한국어 정본. 영문 비교(status in ('confirmed'..))는 0건 오집계(C4-3).",
+        "canonical": {
+            "예약신청", "예약확정", "도착", "진료대기", "진료중", "진료완료",
+            "환자취소", "병원취소", "예약부도",
+        },
+        "note": "DB enum(00005)은 한국어 정본. 정본=한국어 e2e(2026-08-20) — 영문 status in ('confirmed'..)는 0건 오집계(C4-3, 해소).",
     },
     {
         "label": "request_type (예약요청 종류)",
@@ -116,17 +125,20 @@ def scan():
     families = []
     for fam in FAMILIES:
         ctx = fam.get("context")
+        exc = fam.get("exclude")  # 이 정규식에 걸리는 줄은 이름만 같은 다른 칸 → 세지 않는다
         used = {}  # value -> [plan,...]
         for v in fam["values"]:
             plans_hit = []
             for k, t in texts.items():
                 if ctx is None:
                     # 죽은 위치(취소선·부재 단언)의 리터럴은 산 값으로 세지 않는다
-                    if any(counts_as_live(v, ln) for ln in t.splitlines()):
+                    if any(counts_as_live(v, ln) and not (exc and exc.search(ln))
+                           for ln in t.splitlines()):
                         plans_hit.append(k)
                 else:
-                    # 문맥(context)을 언급한 줄에서만 값 리터럴을 센다(죽은 위치 제외)
-                    if any(counts_as_live(v, ln) and ctx.search(ln) for ln in t.splitlines()):
+                    # 문맥(context)을 언급한 줄에서만 값 리터럴을 센다(죽은 위치·exclude 제외)
+                    if any(counts_as_live(v, ln) and ctx.search(ln) and not (exc and exc.search(ln))
+                           for ln in t.splitlines()):
                         plans_hit.append(k)
             if plans_hit:
                 used[v] = sorted(plans_hit)

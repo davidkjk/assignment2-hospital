@@ -10263,7 +10263,7 @@ git commit -m "feat: 📝 상담봇 Task 17 본문 — 티켓 상세 46규칙(�
 
 **Interfaces:**
 - Consumes:
-  - **staff-web `/today`(Task 8·13)** — `GET /today/summary`가 예약과 **함께** 반환하는 지원 요청 배열을 소비 계약으로 선언: 예약별 `{ appointment_id, patient_name, support_requested_at, request_type: 'cancel'|'change', ticket_id(대표), ticket_status }`. `확인 필요한 예약` 카드 프레임·비상담 행·카드 정렬은 staff-web 소유 — 이 태스크는 **상담 행 셀·데이터 훅**만 그 카드에 마운트한다. `SHELL-LIVE-02`(셸과 같은 실시간 연결)·`EMPTY-ZERO` 패턴.
+  - **staff-web `/today`(Task 8·13)** — `GET /today/summary`가 예약과 **함께** 반환하는 지원 요청 배열을 소비 계약으로 선언: 예약별 `{ appointment_id, patient_name, support_requested_at, request_type: '취소'|'변경', ticket_id(대표), ticket_status }`. `확인 필요한 예약` 카드 프레임·비상담 행·카드 정렬은 staff-web 소유 — 이 태스크는 **상담 행 셀·데이터 훅**만 그 카드에 마운트한다. `SHELL-LIVE-02`(셸과 같은 실시간 연결)·`EMPTY-ZERO` 패턴.
   - **staff-web `/calendar`(Task 14)** — 예약 캘린더 셸·⚠ 심벌(`SUPPORT-CAL-WARN` 계열)·`CAL-PANEL` 사이드패널 프레임(`열기·격자 밀기·✕`)·`reschedule_appointment`(변경 절차)·취소 서버 경로. Task 18의 `ReservationSupportPanel`은 이 패널 **안의 상담 섹션·반려·답변 통합**만 제공한다.
   - **Task 17(티켓 상세)** — `staffTicketDetailApi.sendMessage(ticketId, body, requestId)`(일반 `[보내기]` → `in_progress` 유지, `REPLY-01`) · `.closeTicket(ticketId)`(`[상담 종료]` → `answered`, `DONE-02`) · `.getDetail(ticketId)`(읽기 전용 티켓 요약 — 패널에 **복제하지 않고** 요약만) · `TicketStatus`. 문의함 티켓·대화로의 이동은 `NAV-STFSUP` 계열(Task 19)이 배선.
   - **Task 2(티켓 모델)** — `support_tickets(status, appointment_id, thread_id, created_at)` · `idx_tickets_one_open`(thread당 열린 티켓 하나 보장) — 대표 선정의 DB 근거. `appointments.support_requested_at`·`request_type`(E3 공통 필드).
@@ -10286,7 +10286,7 @@ git commit -m "feat: 📝 상담봇 Task 17 본문 — 티켓 상세 46규칙(�
 ```ts
 import type { TicketStatus } from "./staffChatApi";
 
-export type SupportRequestType = "cancel" | "change";
+export type SupportRequestType = "취소" | "변경";   // 예약 request_type 정본=한국어 e2e(2026-08-20, DB 00010과 일치)
 
 // /today/summary가 예약과 함께 반환하는 지원 요청 한 건(대표 티켓 기준).
 // ⚠️ 희망 일시(desired_at) 필드는 없다 — E3: 저장·표시하지 않는다.
@@ -10294,7 +10294,7 @@ export type SupportRow = {
   appointmentId: string;
   patientName: string;
   supportRequestedAt: string;      // appointments.support_requested_at
-  requestType: SupportRequestType; // 'cancel' | 'change'
+  requestType: SupportRequestType; // '취소' | '변경'
   ticketId: string;                // 대표 티켓(SUPPORT-CAL-DUP-01)
   ticketStatus: TicketStatus;
 };
@@ -10438,7 +10438,7 @@ describe("useTodaySupport", () => {
 
   it("[SUPPORT-TODAY-LIVE-01] 새 상담 기록 수신 시 행을 추가·갱신한다", async () => {
     let call = 0;
-    const api = fakeApi(async () => (call++ === 0 ? mk() : mk({ rows: [{ appointmentId: "a1", patientName: "김", supportRequestedAt: "t", requestType: "cancel", ticketId: "t1", ticketStatus: "pending" }] })));
+    const api = fakeApi(async () => (call++ === 0 ? mk() : mk({ rows: [{ appointmentId: "a1", patientName: "김", supportRequestedAt: "t", requestType: "취소", ticketId: "t1", ticketStatus: "pending" }] })));
     const { result } = renderHook(() => useTodaySupport(api));
     await waitFor(() => expect(result.current.phase).toBe("ready"));
     await act(async () => result.current.live.onChange()); // 실시간 이벤트 → 재조회
@@ -10446,7 +10446,7 @@ describe("useTodaySupport", () => {
   });
 
   it("[SUPPORT-TODAY-LIVE-02] 실시간이 끊기면 마지막 행 목록과 기준 시각을 유지한다", async () => {
-    const { result } = renderHook(() => useTodaySupport(fakeApi(async () => mk({ rows: [{ appointmentId: "a1", patientName: "김", supportRequestedAt: "t", requestType: "cancel", ticketId: "t1", ticketStatus: "pending" }] }))));
+    const { result } = renderHook(() => useTodaySupport(fakeApi(async () => mk({ rows: [{ appointmentId: "a1", patientName: "김", supportRequestedAt: "t", requestType: "취소", ticketId: "t1", ticketStatus: "pending" }] }))));
     await waitFor(() => expect(result.current.phase).toBe("ready"));
     act(() => result.current.live.onDisconnect());
     expect(result.current.rows).toHaveLength(1);         // 목록 유지
