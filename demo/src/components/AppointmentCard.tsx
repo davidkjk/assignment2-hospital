@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '@/mock/types'
+import { bookingCodeLabel } from '@/mock/types'
 import { Button } from '@/components/ui/button'
 
 // 선명한 채운 색으로 상태를 구분한다(어르신 가독성·플랫 테마에서 또렷하게).
@@ -35,6 +36,15 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             <p className="text-sm text-muted-foreground">
               {appt.deptName} · {appt.doctorName} 선생님
             </p>
+            {/* 예약번호(CARD-COMMON-01·02·03): 확정 전=신청번호 / 확정 후=예약번호. QR이 안 될 때 접수에 불러 주는 번호. */}
+            {appt.bookingCode && (
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {bookingCodeLabel(appt.status)}{' '}
+                <span className="font-semibold tabular-nums tracking-wider text-foreground">
+                  {appt.bookingCode}
+                </span>
+              </p>
+            )}
           </div>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[appt.status]}`}
@@ -57,28 +67,33 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
           </Button>
         )}
 
-        {/* 사전문진 줄 (CARD-QNR-01·02): 미작성=강조, 작성완료=회색. 클릭 시 문진 화면. */}
+        {/* 사전문진 줄 (CARD-QNR-01·02·03): 미작성·작성중=강조, 작성완료=회색. 클릭 시 문진 화면. */}
         {appt.questionnaireStatus && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              // 작성완료면 확인 화면으로(NAV-QNR-03), 미작성이면 1번 문항부터(NAV-QNR-01).
+              // 작성완료면 확인 화면으로(NAV-QNR-03), 그 외(미작성·작성중)는 문진으로(NAV-QNR-01).
               navigate(
                 '/questionnaire',
                 appt.questionnaireStatus === '작성완료' ? { state: { review: true } } : undefined,
               )
             }}
             className={`mt-3 flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium ${
-              appt.questionnaireStatus === '미작성'
-                ? 'bg-primary/10 text-primary ring-1 ring-primary/30'
-                : 'text-muted-foreground'
+              appt.questionnaireStatus === '작성완료'
+                ? 'text-muted-foreground'
+                : 'bg-primary/10 text-primary ring-1 ring-primary/30'
             }`}
           >
             <span>
-              {appt.questionnaireStatus === '미작성'
-                ? '사전문진 미작성 · 작성하기'
-                : '사전문진 작성완료 · 수정하기'}
+              {appt.questionnaireStatus === '미작성' && '사전문진 미작성 · 작성하기'}
+              {appt.questionnaireStatus === '작성중' &&
+                `사전문진 작성 중${
+                  appt.questionnaireProgress
+                    ? ` (${appt.questionnaireProgress.answered}/${appt.questionnaireProgress.total})`
+                    : ''
+                } · 이어서 쓰기`}
+              {appt.questionnaireStatus === '작성완료' && '사전문진 작성완료 · 수정하기'}
             </span>
             <span aria-hidden="true">›</span>
           </button>

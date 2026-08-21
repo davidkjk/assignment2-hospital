@@ -4,7 +4,26 @@ import { Button } from '@/components/ui/button'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { initialAppointments, patients } from '@/mock/data'
 import type { Appointment } from '@/mock/types'
+import { bookingCodeLabel } from '@/mock/types'
 import { formatDateHeader } from './format'
+
+/**
+ * 나의 예약 목록의 사전문진 줄(LIST-QNR-01·02·03).
+ * 미작성 → `사전문진 미작성 · 작성하기` · 작성중 → `사전문진 작성 중 (n/m) · 이어서 쓰기`.
+ * 작성완료(02)·값 없음은 줄을 그리지 않는다 — 「지금 할 일이 있는 줄」에만 준다.
+ */
+function questionnaireLine(appointment: Appointment): string | null {
+  switch (appointment.questionnaireStatus) {
+    case '미작성':
+      return '사전문진 미작성 · 작성하기'
+    case '작성중': {
+      const p = appointment.questionnaireProgress
+      return `사전문진 작성 중${p ? ` (${p.answered}/${p.total})` : ''} · 이어서 쓰기`
+    }
+    default:
+      return null
+  }
+}
 
 const UPCOMING_STATUSES = new Set<Appointment['status']>([
   '예약신청',
@@ -102,6 +121,8 @@ export function MyAppointments() {
                       const status = listStatus(appointment.status)
                       const pending = appointment.status === '예약신청'
 
+                      const qnrLine = questionnaireLine(appointment)
+
                       return (
                         <div key={appointment.id} className="overflow-hidden rounded-xl border bg-card">
                           <button
@@ -125,6 +146,15 @@ export function MyAppointments() {
                                 <p className="truncate text-sm text-muted-foreground">
                                   {appointment.deptName} · {appointment.doctorName} 선생님
                                 </p>
+                                {/* 예약번호(CARD-COMMON-02·03): 확정 전=신청번호 / 확정 후=예약번호 */}
+                                {appointment.bookingCode && (
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {bookingCodeLabel(appointment.status)}{' '}
+                                    <span className="font-semibold tabular-nums tracking-wider text-foreground">
+                                      {appointment.bookingCode}
+                                    </span>
+                                  </p>
+                                )}
                               </div>
                               <div className="flex shrink-0 items-center gap-1 text-sm">
                                 {status ? (
@@ -137,6 +167,19 @@ export function MyAppointments() {
                               </div>
                             </div>
                           </button>
+
+                          {/* 사전문진 줄(LIST-QNR-01·03): 미작성·작성중만. 상자 안 아래에 주의색 한 줄. */}
+                          {qnrLine && (
+                            <button
+                              type="button"
+                              data-testid="questionnaire-line"
+                              onClick={() => navigate('/questionnaire')}
+                              className="flex w-full items-center justify-between border-t border-primary/20 bg-primary/10 px-3 py-2 text-left text-sm font-medium text-primary"
+                            >
+                              <span>{qnrLine}</span>
+                              <span aria-hidden="true">›</span>
+                            </button>
+                          )}
                         </div>
                       )
                     })}

@@ -11,8 +11,9 @@ test('로그인→홈→예약 8단계→완료 후 나의 예약 목록에 1건
   await user.click(screen.getByRole('button', { name: '로그인' }))
   expect(screen.getAllByTestId('appt-card')).toHaveLength(3)
 
-  // 홈 → 예약 마법사
-  await user.click(screen.getByRole('button', { name: /진료 예약하기/ }))
+  // 홈 → 예약 탭 → 새 예약하기 (HOME-SCOPE-02: 홈엔 예약 버튼 없음, 진입은 '예약' 탭)
+  await user.click(screen.getByRole('button', { name: '예약' }))
+  await user.click(screen.getByRole('button', { name: /새 예약하기/ }))
 
   // 1 대상 → 2 진료과 → 3 의사
   await user.click(screen.getByRole('button', { name: /김순자/ }))

@@ -94,6 +94,7 @@ export const initialAppointments: Appointment[] = [
     status: '진료대기',
     hasQR: true,
     questionnaireStatus: '작성완료',
+    bookingCode: 'K7P2Q9',
   },
   {
     id: 'appt-2',
@@ -105,6 +106,7 @@ export const initialAppointments: Appointment[] = [
     status: '예약확정',
     hasQR: true,
     questionnaireStatus: '미작성',
+    bookingCode: 'M4T8XR',
   },
   {
     id: 'appt-3',
@@ -115,6 +117,7 @@ export const initialAppointments: Appointment[] = [
     time: '16:30',
     status: '예약신청',
     hasQR: false,
+    bookingCode: '3F9WK2',
   },
   // 며칠 뒤 (나의 예약 탭에 보인다)
   {
@@ -127,6 +130,7 @@ export const initialAppointments: Appointment[] = [
     status: '예약확정',
     hasQR: true,
     questionnaireStatus: '미작성',
+    bookingCode: 'B6N5H1',
   },
   {
     id: 'appt-5',
@@ -137,6 +141,10 @@ export const initialAppointments: Appointment[] = [
     time: '11:30',
     status: '예약확정',
     hasQR: true,
+    // 작성 중 예약(LIST-QNR-03 · CARD-QNR) — 진행률을 함께 보인다.
+    questionnaireStatus: '작성중',
+    questionnaireProgress: { answered: 3, total: 8 },
+    bookingCode: 'Q2R7YT',
   },
   {
     id: 'appt-6',
@@ -147,5 +155,6 @@ export const initialAppointments: Appointment[] = [
     time: '15:30',
     status: '예약신청',
     hasQR: false,
+    bookingCode: 'W8L3P5',
   },
 ]

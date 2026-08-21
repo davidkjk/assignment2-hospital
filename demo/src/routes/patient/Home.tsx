@@ -77,15 +77,9 @@ export function Home() {
           )}
         </main>
 
-        {/* TODO(다음 세션): 정본상 예약 있을 때 홈 하단 예약 버튼은 없어야 한다
-            (HOME-SCOPE-02·HOME-ROLE-01, 진입은 '예약' 탭). 제거 시 App.test·wizard.flow도 함께 고칠 것. */}
-        {todayAppointments.length > 0 && (
-          <div className="border-t p-4">
-            <Button size="lg" className="h-12 w-full text-base" onClick={() => navigate('/book')}>
-              <CalendarPlus className="mr-1 h-5 w-5" /> 진료 예약하기
-            </Button>
-          </div>
-        )}
+        {/* 예약이 있을 때는 홈 하단에 예약 버튼을 두지 않는다(HOME-SCOPE-02·HOME-ROLE-01):
+            새 예약 진입은 하단 탭 '예약'(→ + 새 예약하기)이 담당한다(역할 분리).
+            0건 빈 상태의 [진료 예약하기]만 남는다(NAV-HOME-14·HOME-EMPTY-01). */}
       </div>
     </PhoneFrame>
   )

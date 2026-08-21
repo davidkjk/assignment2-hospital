@@ -53,6 +53,16 @@ export function QrFullscreen() {
               ))}
             </div>
 
+            {/* 예약번호(CARD-OK-01·02): QR이 안 읽힐 때 접수 데스크에 불러 주는 6자리 번호. */}
+            {appt.bookingCode && (
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">예약번호</p>
+                <p className="text-2xl font-bold tabular-nums tracking-[0.2em] text-foreground">
+                  {appt.bookingCode}
+                </p>
+              </div>
+            )}
+
             <p className="text-base font-semibold">
               {appt.deptName} · {appt.doctorName} 선생님
             </p>
