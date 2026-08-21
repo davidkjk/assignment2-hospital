@@ -6,6 +6,8 @@ import { useBookingState, TOTAL_STEPS } from './useBookingState'
 import { Step1Who } from './steps/Step1Who'
 import { Step2Dept } from './steps/Step2Dept'
 import { Step3Doctor } from './steps/Step3Doctor'
+import { Step4Date } from './steps/Step4Date'
+import { Step5Time } from './steps/Step5Time'
 
 export type StepProps = ReturnType<typeof useBookingState>
 
@@ -53,6 +55,10 @@ function StepBody({ wizard }: { wizard: StepProps }) {
       return <Step2Dept wizard={wizard} />
     case 3:
       return <Step3Doctor wizard={wizard} />
+    case 4:
+      return <Step4Date wizard={wizard} />
+    case 5:
+      return <Step5Time wizard={wizard} />
     default:
       return (
         <p className="mt-10 text-center text-muted-foreground">
