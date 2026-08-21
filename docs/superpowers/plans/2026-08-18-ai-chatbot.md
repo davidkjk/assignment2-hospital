@@ -1739,7 +1739,7 @@ git commit -m "feat: 📝 상담봇 Task 2 본문 — AI 세션·티켓 생명�
 
 **Files:**
 - Create: `supabase/migrations/00054_anonymous_chat_notifications.sql`
-- Create: `backend/app/services/chat/anonymous_service.py` · `backend/app/services/chat/notification_recipient.py` · `backend/app/services/chat/anonymous_contact_codec.py`(익명 연락처 암복호 — C1-3)
+- Create: `backend/app/services/chat/anonymous_service.py` · `backend/app/services/chat/notification_recipient.py` · `backend/app/services/chat/anonymous_contact_codec.py`(익명 연락처 암복호 — C1-3) · `backend/app/services/chat/chat_notification_service.py`(발송 다리 `dispatch_pending_batches` 소유 — C1-1, 본문 배선 ⑦)
 - Create: `backend/tests/test_anonymous_chat_schema.py` · `backend/tests/test_chat_notification_batching.py`
 
 **Interfaces:**
@@ -1750,6 +1750,7 @@ git commit -m "feat: 📝 상담봇 Task 2 본문 — AI 세션·티켓 생명�
   - `notification_log` 확장: `recipient_type`·`chat_notification_batch_id`(unique FK) 칼럼 + `anonymous_session_id`/`anonymous_contact_id`에 FK + `notification_type` 값 `support_answered` 사용 (C3-2 정본 통일 2026-08-20, ~~staff_chat_reply~~)
   - SQL 함수(security definer): `upsert_anonymous_session(text token_hash) -> anonymous_chat_sessions` · `record_verified_anonymous_contact(uuid session, text ciphertext, text hash) -> anonymous_chat_contacts` · `enqueue_staff_reply_notification(uuid message_id) -> uuid`(배치 생성/확장, 즉시읽음이면 null) · `acknowledge_chat_batches(uuid thread, text reader_type, uuid reader_id) -> void`
   - Python: `anonymous_service.upsert_session / record_verified_contact` · `notification_recipient.resolve_recipient(batch_row) -> dict`(등록 환자면 `notify_patient` 대상, 익명이면 검증 연락처 참조 — dispatcher가 복호화·발송)
+  - **발송 다리 소유(C1-1, 2026-08-20)**: `chat_notification_service.dispatch_pending_batches(conn) -> int` — **이 다리를 챗봇 Task 3가 소유·계약**한다(배포는 소비 선언만·`deployment:1266`). 계약: `notification_requested_at`은 있고 `notification_log` 행이 아직 없는 `chat_notification_batches`를 돌며 → `resolve_recipient` → **`notification_log` 행 생성**(등록=`notify_patient` 대상·익명=`support_answered`·sms·transactional + `chat_notification_batch_id` unique) → 실제 발송은 T30 `send_now`가 그 행을 집어 감. 반환=처리 건수. ⚠️ **본문 배선은 ⑦**(여기선 이름·시그니처·소유만 확정) — `Create: backend/app/services/chat/chat_notification_service.py`.
   - RLS: 익명 표는 authenticated 직접 조회 금지(백엔드가 토큰 해시로 범위 좁혀 서비스 역할 반환) · 직원은 배치·연락처 마스킹만
 - ⚠️ **아직 안 하는 것**: **실제 SMS/push 발송·재시도·`notification_log` 행 생성**은 공통 dispatcher(직원웹 T30·배포) · **웹 OTP 챌린지 UI·복호화 키 설정**은 Task 15·배포 · **익명 상담을 로그인 계정으로 이관**은 범위 밖(3A §4.5, 별도 인증·감사 필요).
 
