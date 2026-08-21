@@ -4,6 +4,8 @@ import { PhoneFrame } from '@/components/PhoneFrame'
 import { Progress } from '@/components/ui/progress'
 import { useBookingState, TOTAL_STEPS } from './useBookingState'
 import { Step1Who } from './steps/Step1Who'
+import { Step2Dept } from './steps/Step2Dept'
+import { Step3Doctor } from './steps/Step3Doctor'
 
 export type StepProps = ReturnType<typeof useBookingState>
 
@@ -47,6 +49,10 @@ function StepBody({ wizard }: { wizard: StepProps }) {
   switch (wizard.state.step) {
     case 1:
       return <Step1Who wizard={wizard} />
+    case 2:
+      return <Step2Dept wizard={wizard} />
+    case 3:
+      return <Step3Doctor wizard={wizard} />
     default:
       return (
         <p className="mt-10 text-center text-muted-foreground">
