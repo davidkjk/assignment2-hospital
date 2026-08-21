@@ -2,11 +2,13 @@ import { useNavigate } from 'react-router-dom'
 import type { Appointment } from '@/mock/types'
 import { Button } from '@/components/ui/button'
 
+// 선명한 채운 색으로 상태를 구분한다(어르신 가독성·플랫 테마에서 또렷하게).
+// 예약확정=브랜드 딥틸, 예약신청=주황(대기), 진료대기=파랑, 접수완료=보라.
 const STATUS_STYLE: Record<Appointment['status'], string> = {
-  예약신청: 'bg-amber-100 text-amber-800',
-  예약확정: 'bg-emerald-100 text-emerald-800',
-  진료대기: 'bg-sky-100 text-sky-800',
-  접수완료: 'bg-violet-100 text-violet-800',
+  예약신청: 'bg-amber-500 text-white',
+  예약확정: 'bg-primary text-primary-foreground',
+  진료대기: 'bg-sky-600 text-white',
+  접수완료: 'bg-violet-600 text-white',
 }
 
 /** 홈의 예약 카드 한 장. 왼쪽 시각(레일 느낌) + 환자·과·의사 + 상태 배지 + QR(있는 예약만). */
@@ -69,7 +71,7 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             }}
             className={`mt-3 flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium ${
               appt.questionnaireStatus === '미작성'
-                ? 'bg-secondary text-secondary-foreground'
+                ? 'bg-primary/10 text-primary ring-1 ring-primary/30'
                 : 'text-muted-foreground'
             }`}
           >
