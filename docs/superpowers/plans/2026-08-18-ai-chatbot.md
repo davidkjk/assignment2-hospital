@@ -3740,6 +3740,7 @@ git commit -m "feat: 📝 상담봇 Task 8 본문 — 품질 검토(상담 단�
 - Produces:
   - `chat_flow_service.handle_patient_message(session, content, *, client_message_id, embedder, model) -> dict`(파이프라인 — orchestrate 결과를 메시지·티켓·근거·미해결로 반영)
   - 라우터: `POST /chat/messages`·`POST /chat/sessions`(새/이어가기)·`POST /chat/read`(배치 확인)·`GET /chat/threads/{id}/messages` · `GET /staff/chat/tickets`·`POST /staff/chat/tickets/{id}/claim|messages|close` · `POST /admin/chat/kb`·`.../kb/{id}/approve`·`.../feedback/{id}/apply|reject`·`GET /admin/chat/quality`
+  - 웹 위젯 카드 액션 라우터(Task 15 `webchatApi`가 소비, 익명 `X-Anon-Token`): `POST /chat/cards/revalidate`(인증 후 재확인 카드 — 서버가 최신 대상·슬롯 재검증)·`POST /chat/cards/execute`(재확인 카드 `[신청]`/`[취소]` — `create_booking`/취소로 payload 재검증·실행, 위변조 거절)·`POST /chat/handoff`(익명 인계 티켓+연락처 연결 ← `create_support_ticket`)·`POST /chat/attribute`(명시적 로그인/가입 성공 시에만 익명 이력 귀속). ⚠️ **표기 정정(2026-08-20, 브리프A 🟠 이월분)** — Task 15가 `revalidateAction`·`executeCard`·`createHandoffTicket`·`attributeSessionToAccount`로 소비하는데 이 4경로가 라우터 목록에서 빠져 있었다(prose `:7853`엔 있었음). 실배선은 ⑦/배포.
   - 익명 의존성 `get_anonymous_session`(헤더 `X-Anon-Token` → `anonymous_service.upsert_session`)
 - ⚠️ **아직 안 하는 것**: 화면(앱·웹·직원·관리자)=Task 10~22 · 실제 SMS/push 발송=dispatcher(배포) · 배포 배치.
 
