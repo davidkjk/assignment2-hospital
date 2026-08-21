@@ -32,7 +32,7 @@ export function Password() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate('/settings')}
-            className="-ml-2 rounded-full p-1 hover:bg-muted"
+            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -69,7 +69,7 @@ export function Password() {
                     type="button"
                     aria-label={showPassword ? '새 비밀번호 숨기기' : '새 비밀번호 보기'}
                     onClick={() => setShowPassword((current) => !current)}
-                    className="absolute right-0 top-0 flex h-8 w-10 items-center justify-center text-muted-foreground hover:text-foreground"
+                    className="absolute right-0 top-0 flex h-8 w-10 items-center justify-center text-primary hover:text-primary/80"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -93,14 +93,14 @@ export function Password() {
                     type="button"
                     aria-label={showConfirmation ? '새 비밀번호 확인 숨기기' : '새 비밀번호 확인 보기'}
                     onClick={() => setShowConfirmation((current) => !current)}
-                    className="absolute right-0 top-0 flex h-8 w-10 items-center justify-center text-muted-foreground hover:text-foreground"
+                    className="absolute right-0 top-0 flex h-8 w-10 items-center justify-center text-primary hover:text-primary/80"
                   >
                     {showConfirmation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-2 rounded-xl border bg-muted/30 p-4" aria-label="비밀번호 조건">
+              <div className="space-y-2 rounded-xl border bg-primary/5 p-4" aria-label="비밀번호 조건">
                 <PasswordCondition valid={hasEightCharacters} text="8자 이상" />
                 <PasswordCondition valid={hasLetterAndNumber} text="영문과 숫자를 함께" />
                 <PasswordCondition valid={passwordsMatch} text="두 칸이 서로 같음" />

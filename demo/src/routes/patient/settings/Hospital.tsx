@@ -16,7 +16,7 @@ export function Hospital() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate('/settings')}
-            className="-ml-2 rounded-full p-1 hover:bg-muted"
+            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -34,27 +34,27 @@ export function Hospital() {
               <div className="space-y-3 border-t pt-4">
                 <a
                   href={`tel:${hospitalInfo.phone}`}
-                  className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted"
+                  className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-primary/5"
                 >
-                  <Phone className="h-5 w-5 text-muted-foreground" />
+                  <Phone className="h-5 w-5 text-primary" />
                   <span className="flex-1">
                     <span className="block text-xs text-muted-foreground">전화</span>
                     <span className="block font-medium">{hospitalInfo.phone}</span>
                   </span>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  <ExternalLink className="h-4 w-4 text-primary" />
                 </a>
                 <a
                   href={hospitalInfo.mapUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted"
+                  className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-primary/5"
                 >
-                  <MapPin className="h-5 w-5 text-muted-foreground" />
+                  <MapPin className="h-5 w-5 text-primary" />
                   <span className="flex-1">
                     <span className="block text-xs text-muted-foreground">주소</span>
                     <span className="block font-medium">{hospitalInfo.address}</span>
                   </span>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  <ExternalLink className="h-4 w-4 text-primary" />
                 </a>
               </div>
             </CardContent>

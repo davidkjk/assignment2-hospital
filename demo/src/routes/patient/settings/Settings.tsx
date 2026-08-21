@@ -15,7 +15,7 @@ export function Settings() {
       <PhoneFrame>
         <div data-testid="settings" className="flex h-full flex-col">
           <main className="flex flex-1 flex-col items-center justify-center gap-4 px-5 text-center">
-            <LogOut className="h-8 w-8 text-muted-foreground" />
+            <LogOut className="h-8 w-8 text-primary" />
             <h1 className="text-lg font-bold">로그아웃했어요</h1>
             <Button onClick={() => navigate('/')}>로그인 화면으로</Button>
           </main>
@@ -37,7 +37,7 @@ export function Settings() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate('/home')}
-            className="-ml-2 rounded-full p-1 hover:bg-muted"
+            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -51,8 +51,8 @@ export function Settings() {
             </h2>
             <Card>
               <CardContent className="flex items-center gap-3 py-4">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                  <UserRound className="h-5 w-5 text-muted-foreground" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <UserRound className="h-5 w-5 text-primary" />
                 </span>
                 <div>
                   <p className="font-medium">{accountSnapshot.name}</p>
@@ -112,7 +112,7 @@ export function Settings() {
 
           <section className="space-y-3">
             <Button variant="outline" className="w-full" onClick={() => setLoggedOut(true)}>
-              <LogOut className="mr-2 h-4 w-4" /> 로그아웃
+              <LogOut className="mr-2 h-4 w-4 text-primary" /> 로그아웃
             </Button>
             {withdrawItem && (
               <button
@@ -146,11 +146,11 @@ function SettingsLink({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-xl border bg-card px-4 py-4 text-left hover:bg-muted"
+      className="flex w-full items-center gap-3 rounded-xl border bg-card px-4 py-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
     >
-      <span className="text-muted-foreground">{icon}</span>
+      <span className="text-primary">{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className="block font-medium">{label} <span className="text-muted-foreground">›</span></span>
+        <span className="block font-medium">{label} <span className="text-primary">›</span></span>
         <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
       </span>
     </button>
