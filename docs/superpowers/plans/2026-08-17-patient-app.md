@@ -925,8 +925,10 @@ create policy "patients_can_update_own_appointments" on appointments
 
 alter table appointment_status_history alter column changed_by drop not null;
 alter table appointment_status_history add column changed_by_patient_id uuid references patients(id);
-alter table appointment_status_history add constraint appointment_status_history_actor_check
-  check (changed_by is not null or changed_by_patient_id is not null);
+-- C6-#6(2026-08-20): 「actor 하나는 반드시」 CHECK를 두지 않는다 — 시스템 자동 이력(배포 00059 mark_overdue_no_shows)은
+--   두 actor가 모두 null이다(배포 Task 7B `⭐ 결정` 「changed_by null = 시스템 자동」, deployment:1071 · 직원웹은 null을
+--   「시스템(자동)」으로 렌더 deployment:1074). CHECK를 걸면 SECURITY DEFINER도 못 뚫어 그 함수의 CTE가 전부 롤백된다.
+--   사용자 경로의 actor 보장은 트리거(both-null이면 이력 스킵)+`patients_can_insert_note_history` 정책(changed_by_patient_id 필수)이 한다.
 create policy "patients_can_read_own_status_history" on appointment_status_history
   for select using (exists (select 1 from appointments a
     where a.id = appointment_status_history.appointment_id and patient_owns(a.account_patient_id)));

@@ -1069,6 +1069,7 @@ git commit -m "feat: pg_dump 일일 백업 잡 추가 (14일 보관, Supabase St
 - `appointment_status_history.changed_by`는 `NOT NULL references staff(id)`(`00005:145`)이고 `staff.auth_user_id`는 `auth.users`를 필수 참조한다(`00001:13`) → **가짜 시스템 직원은 auth.users 행까지 필요해 무겁다.**
 - 이력 트리거 `log_appointment_status_change`(`00005:379`, SECURITY DEFINER)는 `auth.uid()`로 직원을 찾고 **못 찾으면 이력 행을 조용히 건너뛴다**(`00005:392~393` — NOT NULL 위반으로 시드/배치가 깨지는 것 방지). 배치는 auth 세션이 없어 **부도 전이 이력이 안 남는다** — 이것이 CARD-LATE-10이 배포에 넘긴 「시스템 행위자」 문제다.
 - ⭐ **결정**: `changed_by`를 nullable로 완화(null = 시스템 자동)하고, 함수가 **SECURITY DEFINER 권한으로 이력 행을 직접 기록**한다(`reason='시각 경과 자동 부도 처리'`). 공용 트리거는 **그대로 둔다** — 배치 UPDATE 때 auth가 없어 스킵하므로 함수의 직접 기록과 **중복이 없고**, 기존 시드의 「조용히 스킵」도 보존된다.
+  - ✅ **C6-#6 정합(2026-08-20)**: 환자앱 Task 1이 걸던 `appointment_status_history_actor_check`(`changed_by is not null or changed_by_patient_id is not null`)가 이 시스템 null INSERT를 **CHECK 위반으로 롤백**시키던 것 → 그 CHECK를 **두지 않도록** 환자앱 마이그레이션 정합(SECURITY DEFINER도 CHECK는 못 뚫음). 사용자 경로 actor 보장은 트리거+note insert 정책이 유지. 근거=FINAL-SYNTHESIS C6-#6.
   - ⚠️ 기각 A(가짜 시스템 직원): auth.users 관리 부담·직원 목록 오염. 기각 B(공용 트리거에 GUC 행위자 주입): 트리거 blast-radius가 커진다 — 함수 직접 기록이 국소적이다.
 - `booking_code`는 **손대지 않는다** — `expire_booking_code_on_terminal_status` 트리거(`00005:116`, BEFORE)가 `예약부도` 전이 시 자동으로 null 처리한다. `CARD-OK-03`의 「당일 부도 전엔 null 안 됨」은 이 배치가 **어제자만** 다루므로(`booking_code_expires_at = slot_date + 1일`이 이미 지남) 무관하다.
 - ⚠️ **⑦ 구현 때 확인**: `changed_by`가 nullable이 되므로 **직원웹 이력 렌더가 null을 「시스템(자동)」으로** 표시해야 한다(지금 NOT NULL 전제로 짠 곳이 있으면 방어) — staff-web 몫.
