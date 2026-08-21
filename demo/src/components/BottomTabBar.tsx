@@ -31,7 +31,7 @@ function activeKeyFor(pathname: string): TabKey | null {
 export function BottomTabBar() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  if (HIDE_ON.has(pathname)) return null
+  if (HIDE_ON.has(pathname) || pathname === '/signup' || pathname.startsWith('/auth/')) return null
   const active = activeKeyFor(pathname)
 
   return (

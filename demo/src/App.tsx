@@ -10,6 +10,7 @@ import { questionnaireRoutes } from '@/routes/patient/questionnaire/routes'
 import { familyRoutes } from '@/routes/patient/family/routes'
 import { settingsRoutes } from '@/routes/patient/settings/routes'
 import { notificationsRoutes } from '@/routes/patient/notifications/routes'
+import { authRoutes } from '@/routes/patient/auth/routes'
 
 export const routes: RouteObject[] = [
   { path: '/', element: <Login /> },
@@ -17,6 +18,7 @@ export const routes: RouteObject[] = [
   { path: '/qr', element: <QrFullscreen /> },
   { path: '/book', element: <BookingWizard /> },
   { path: '/chat', element: <Chat /> },
+  ...authRoutes,
   ...apptRoutes,
   ...questionnaireRoutes,
   ...familyRoutes,

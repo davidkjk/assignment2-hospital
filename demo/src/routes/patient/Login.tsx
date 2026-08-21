@@ -32,6 +32,13 @@ export function Login() {
           >
             회원가입
           </Button>
+          <button
+            type="button"
+            onClick={() => navigate('/auth/tel-change')}
+            className="py-1 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+          >
+            전화번호가 바뀌어 로그인할 수 없나요? ›
+          </button>
           <p className="mt-2 text-center text-xs text-muted-foreground">
             데모 화면입니다 · 실제 로그인 없이 진행됩니다
           </p>
