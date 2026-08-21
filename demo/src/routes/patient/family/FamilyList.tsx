@@ -42,7 +42,7 @@ function MemberCard({ member, onEdit, onAppointment }: {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="mb-2 flex items-center gap-2">
-              <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">{member.relation}</span>
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{member.relation}</span>
               <h2 className="truncate text-base font-bold">{member.name}</h2>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -59,10 +59,10 @@ function MemberCard({ member, onEdit, onAppointment }: {
             type="button"
             data-testid={`family-appointment-${appointment.id}`}
             onClick={() => onAppointment(appointment)}
-            className="mt-4 flex w-full items-center justify-between rounded-lg border bg-muted/40 px-3 py-2 text-left hover:bg-muted"
+            className="mt-4 flex w-full items-center justify-between rounded-lg border bg-card px-3 py-2 text-left transition-colors hover:border-primary hover:bg-primary/5"
           >
             <span className="flex items-center gap-2 text-sm">
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+              <CalendarDays className="h-4 w-4 text-primary" />
               <span>
                 {appointmentDateLabel(appointment)} · {appointment.deptName}
               </span>

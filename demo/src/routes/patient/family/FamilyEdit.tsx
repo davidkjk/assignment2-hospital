@@ -66,7 +66,16 @@ export function FamilyEdit() {
       <form className="flex flex-col gap-5" onSubmit={save}>
         <div>
           <h2 className="text-xl font-bold">{editableMember.name}님의 정보</h2>
-          <p className="mt-2 text-sm text-muted-foreground">관계는 언제든지 바꿀 수 있어요.</p>
+          {identityEditable ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              이름·생년월일·성별과 관계를 바꿀 수 있어요.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">
+              진료 기록이 있어 <b className="font-semibold text-foreground">이름·생년월일·성별은 병원에서만</b> 바꿀 수
+              있어요. 관계는 여기서 언제든 바꿀 수 있어요.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

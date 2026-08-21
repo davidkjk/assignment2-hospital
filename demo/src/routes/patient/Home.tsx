@@ -19,7 +19,12 @@ export function Home() {
       <div data-testid="home-screen" className="flex h-full flex-col">
         {/* 앱바 */}
         <header className="flex items-center justify-between border-b px-5 py-4">
-          <span className="text-lg font-bold">가온병원</span>
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+              H
+            </span>
+            <span className="text-lg font-bold text-primary">가온병원</span>
+          </div>
           <div className="flex items-center gap-1">
             <button
               aria-label="알림"

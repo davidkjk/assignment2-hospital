@@ -20,12 +20,12 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
       role="button"
       tabIndex={0}
       onClick={() => navigate(`/appt/${appt.id}`)}
-      className="flex cursor-pointer gap-3 rounded-2xl border bg-card p-4 hover:bg-muted/50"
+      className="flex cursor-pointer gap-3 rounded-2xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/40"
     >
       {/* 시각 레일 */}
       <div className="flex w-14 shrink-0 flex-col items-center">
-        <span className="text-lg font-bold tabular-nums">{appt.time}</span>
-        <span className="mt-1 h-full w-px flex-1 bg-border" />
+        <span className="text-lg font-bold tabular-nums text-primary">{appt.time}</span>
+        <span className="mt-1 h-full w-px flex-1 bg-primary/25" />
       </div>
 
       <div className="flex-1">
