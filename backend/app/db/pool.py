@@ -1,3 +1,13 @@
+"""DB 연결 풀 — 두 접근 경로를 구분한다(C6-#9, 2026-08-20).
+
+- `async with (await get_pool()).acquire() as conn:` (raw) = **서비스역할 경로**: RLS를 우회한다.
+  디스패처(`send_now`)·시스템 배치(`mark_overdue_no_shows`·`expire_idle_ai_sessions`)·상담봇 발송 다리처럼
+  「인증 사용자 세션 없이 도는」 특권 쓰기가 이 경로를 쓴다.
+  ⚠️ **운영 계약**: `DATABASE_URL`은 반드시 **RLS를 우회하는 DB 역할**(연결 소유자 또는 `BYPASSRLS`)로 접속해야
+     이 경로가 의도대로 동작한다. authenticated로 접속하면 디스패처/배치가 조용히 RLS에 막힌다(2D-F13).
+- `async with acquire_as(auth_user_id) as conn:` = **인증 사용자 경로**: `set local role authenticated`로
+  내려 RLS 적용. 사용자 범위 읽기/쓰기(환자 본인·직원 역할 정책 대상)가 이 경로를 쓴다.
+"""
 import json
 from contextlib import asynccontextmanager
 

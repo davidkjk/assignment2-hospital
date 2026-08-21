@@ -2312,7 +2312,8 @@ SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_JWT_SECRET=
-DATABASE_URL=
+DATABASE_URL=   # ⚠️ C6-#9: RLS를 우회하는 DB 역할로 접속해야 한다(연결 소유자/BYPASSRLS). raw get_pool() 경로(디스패처·배치)가
+                #   이 전제 위에서만 동작한다 — authenticated로 접속하면 발송/부도/만료 배치가 조용히 RLS에 막힌다. (backend/app/db/pool.py 계약)
 # 알림
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=

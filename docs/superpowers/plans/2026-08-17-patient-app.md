@@ -2964,6 +2964,9 @@ create table device_tokens (
 );
 
 alter table device_tokens enable row level security;
+-- C6-#5(2026-08-20): 본인 관리 정책은 아래에 있으나 테이블 grant가 없어 register/unregister(authenticated 세션)가
+--   권한부족으로 실패했다 → authenticated에 insert/delete/select grant. 행 범위는 아래 RLS 정책이 「본인 것만」으로 막는다.
+grant select, insert, delete on table device_tokens to authenticated;
 
 -- 로그인 본인만 자기 토큰을 관리한다(가족은 로그인하지 않으므로 토큰이 없다 — current_patient_id로 못박아 가족 id 등록 방지).
 create policy "patients_can_manage_own_device_tokens" on device_tokens
