@@ -40,7 +40,10 @@ async def get_current_staff(request: Request) -> StaffContext:
         )
 
     if row is None or not row["is_active"]:
-        raise HTTPException(status_code=403, detail="사용 중지된 계정이거나 등록되지 않은 계정입니다.")
+        # 계정 열거 방지: 미등록·비활성·staff 행 없음을 구분하지 않고 동일한
+        # 401/일반 문구로 정규화한다. 상태를 드러내면 로그인 화면이 「이 이메일이
+        # 이 병원 직원인지」를 확인하는 도구가 된다(STAFF-LOGIN-07·STAFF-LOGIN-11).
+        raise HTTPException(status_code=401, detail="로그인 정보를 확인해 주세요.")
 
     return StaffContext(
         id=row["id"],
