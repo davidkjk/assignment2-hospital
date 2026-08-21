@@ -8,7 +8,7 @@ test('나의 예약 목록에서 예약 줄을 누르면 상세로 이동한다'
   renderApp(routes, ['/appointments'])
 
   expect(screen.getByTestId('my-appointments')).toBeInTheDocument()
-  expect(screen.getAllByTestId('appointment-row')).toHaveLength(2)
+  expect(screen.getAllByTestId('appointment-row')).toHaveLength(6)
 
   await user.click(screen.getAllByTestId('appointment-row')[0])
   expect(screen.getByTestId('appt-detail')).toBeInTheDocument()

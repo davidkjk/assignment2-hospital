@@ -15,9 +15,9 @@ test('로그인 버튼이 홈으로 보낸다', async () => {
   expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 })
 
-test('홈에 초기 예약 2건이 보이고 예약 버튼이 마법사로 이동한다', async () => {
+test('홈에 오늘 예약이 보이고 예약 버튼이 마법사로 이동한다', async () => {
   renderApp(routes, ['/home'])
-  expect(screen.getByText('김순자')).toBeInTheDocument()
+  expect(screen.getAllByText('김순자').length).toBeGreaterThan(0)
   expect(screen.getByText('박말순')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: /진료 예약하기/ }))
   expect(screen.getByTestId('book-screen')).toBeInTheDocument()

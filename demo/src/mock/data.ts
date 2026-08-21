@@ -74,9 +74,16 @@ export function getSlots(doctorId: string, date: string): Slot[] {
   return slots
 }
 
-// ── 홈에 보일 초기 예약(시각 오름차순, 본인 우선) ──
-const today = toISO(new Date())
+// ── 초기 예약. 홈은 오늘치만(HOME-SCOPE), 나의 예약 탭은 다가오는 전체를 본다 ──
+export const today = toISO(new Date())
+function daysFromToday(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + n)
+  return toISO(d)
+}
+
 export const initialAppointments: Appointment[] = [
+  // 오늘 (홈에 보인다)
   {
     id: 'appt-1',
     patientName: '김순자',
@@ -98,5 +105,47 @@ export const initialAppointments: Appointment[] = [
     status: '예약확정',
     hasQR: true,
     questionnaireStatus: '미작성',
+  },
+  {
+    id: 'appt-3',
+    patientName: '김순자',
+    deptName: '정형외과',
+    doctorName: '박강우',
+    date: today,
+    time: '16:30',
+    status: '예약신청',
+    hasQR: false,
+  },
+  // 며칠 뒤 (나의 예약 탭에 보인다)
+  {
+    id: 'appt-4',
+    patientName: '김민준',
+    deptName: '이비인후과',
+    doctorName: '정우재',
+    date: daysFromToday(2),
+    time: '10:00',
+    status: '예약확정',
+    hasQR: true,
+    questionnaireStatus: '미작성',
+  },
+  {
+    id: 'appt-5',
+    patientName: '김순자',
+    deptName: '피부과',
+    doctorName: '윤지호',
+    date: daysFromToday(5),
+    time: '11:30',
+    status: '예약확정',
+    hasQR: true,
+  },
+  {
+    id: 'appt-6',
+    patientName: '박말순',
+    deptName: '내과',
+    doctorName: '한서연',
+    date: daysFromToday(9),
+    time: '15:30',
+    status: '예약신청',
+    hasQR: false,
   },
 ]

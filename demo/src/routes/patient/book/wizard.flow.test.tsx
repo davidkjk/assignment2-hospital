@@ -3,13 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { routes } from '@/App'
 import { renderApp } from '@/test-utils'
 
-test('로그인→홈→예약 8단계→완료 후 홈에 예약이 1건 늘어난다', async () => {
+test('로그인→홈→예약 8단계→완료 후 나의 예약 목록에 1건 늘어난다', async () => {
   const user = userEvent.setup()
   renderApp(routes, ['/'])
 
-  // 로그인 → 홈
+  // 로그인 → 홈 (홈은 오늘치 3건, HOME-SCOPE)
   await user.click(screen.getByRole('button', { name: '로그인' }))
-  expect(screen.getAllByTestId('appt-card')).toHaveLength(2)
+  expect(screen.getAllByTestId('appt-card')).toHaveLength(3)
 
   // 홈 → 예약 마법사
   await user.click(screen.getByRole('button', { name: /진료 예약하기/ }))

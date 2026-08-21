@@ -15,9 +15,9 @@ test('진료과별 의사 목록이 있다', () => {
   expect(doctorsByDept[departments[0].id].length).toBeGreaterThan(0)
 })
 
-test('초기 예약이 시각 오름차순', () => {
-  const times = initialAppointments.map((a) => a.time)
-  expect([...times].sort()).toEqual(times)
+test('초기 예약이 날짜·시각 오름차순', () => {
+  const keys = initialAppointments.map((a) => `${a.date}T${a.time}`)
+  expect([...keys].sort()).toEqual(keys)
 })
 
 test('예약 가능일은 주말을 제외한 8일', () => {

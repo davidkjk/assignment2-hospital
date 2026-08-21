@@ -4,12 +4,15 @@ import { PhoneFrame } from '@/components/PhoneFrame'
 import { Button } from '@/components/ui/button'
 import { AppointmentCard } from '@/components/AppointmentCard'
 import { useAppointments } from '@/state/appointments'
+import { today } from '@/mock/data'
 
 // 정본 묶음 2(screen-behaviors.md:3027~3336), NAV-HOME-*.
 // 가장 가까운 하루치 예약을 카드로, [+ 진료 예약하기]로 마법사 진입.
 export function Home() {
   const navigate = useNavigate()
   const { appointments } = useAppointments()
+  // 홈은 가장 가까운 하루치만 보인다(HOME-SCOPE-01). 나머지는 '예약' 탭이 담당.
+  const todayAppointments = appointments.filter((a) => a.date === today)
 
   return (
     <PhoneFrame>
@@ -46,7 +49,7 @@ export function Home() {
             </button>
           </div>
 
-          {appointments.length === 0 ? (
+          {todayAppointments.length === 0 ? (
             <div className="mt-16 flex flex-col items-center gap-4 text-center">
               <p className="text-muted-foreground">예정된 예약이 없습니다</p>
               <Button onClick={() => navigate('/book')}>
@@ -55,7 +58,7 @@ export function Home() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {appointments.map((a) => (
+              {todayAppointments.map((a) => (
                 <AppointmentCard key={a.id} appt={a} />
               ))}
             </div>
@@ -63,7 +66,7 @@ export function Home() {
         </main>
 
         {/* 하단 고정 예약 버튼 */}
-        {appointments.length > 0 && (
+        {todayAppointments.length > 0 && (
           <div className="border-t p-4">
             <Button
               size="lg"
