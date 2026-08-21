@@ -42,7 +42,7 @@ export function Notifications() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate('/settings')}
-            className="-ml-2 rounded-full p-1 hover:bg-muted"
+            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -75,7 +75,7 @@ export function Notifications() {
                         aria-checked={enabled[item.id]}
                         aria-label={`${item.label} ${enabled[item.id] ? '켜짐' : '꺼짐'}`}
                         onClick={() => toggle(item.id, item.important)}
-                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors ${enabled[item.id] ? 'border-primary bg-primary' : 'border-border bg-muted'}`}
+                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors hover:border-primary ${enabled[item.id] ? 'border-primary bg-primary' : 'border-border bg-muted'}`}
                       >
                         <span
                           className={`ml-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled[item.id] ? 'translate-x-5' : 'translate-x-0'}`}

@@ -25,7 +25,7 @@ export function Step1Who({ wizard }: { wizard: StepProps }) {
               {p.name}
               <span className="ml-2 text-sm font-normal text-muted-foreground">{p.relation}</span>
             </span>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-5 w-5 text-primary" />
           </button>
         ))}
 

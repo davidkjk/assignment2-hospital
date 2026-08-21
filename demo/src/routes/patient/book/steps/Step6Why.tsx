@@ -20,7 +20,7 @@ export function Step6Why({ wizard }: { wizard: StepProps }) {
       />
       <div className="mt-1 text-right text-xs text-muted-foreground">{value.length}/100</div>
 
-      <div className="mt-3 rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+      <div className="mt-3 rounded-xl bg-primary/5 p-3 text-xs text-muted-foreground">
         여기 적으신 내용은 나중에 작성하실 사전문진의 첫 문항에 그대로 옮겨져 있습니다. 거기서 더
         자세히 고쳐 쓰실 수 있습니다.
       </div>

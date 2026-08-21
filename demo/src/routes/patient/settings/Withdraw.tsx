@@ -27,7 +27,7 @@ export function Withdraw() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate('/settings')}
-            className="-ml-2 rounded-full p-1 hover:bg-muted"
+            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -67,9 +67,9 @@ export function Withdraw() {
               </section>
 
               {reauthenticated && withdrawalPolicy.hasUpcomingAppointments ? (
-                <section className="space-y-3 rounded-xl border bg-muted/30 p-4" role="alert">
+                <section className="space-y-3 rounded-xl border bg-primary/5 p-4" role="alert">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                     <div className="space-y-2">
                       <h2 className="font-bold">현재 탈퇴하실 수 없습니다</h2>
                       <p className="text-sm leading-6 text-muted-foreground">

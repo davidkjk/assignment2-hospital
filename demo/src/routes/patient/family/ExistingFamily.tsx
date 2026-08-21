@@ -48,8 +48,8 @@ export function ExistingFamily() {
     <FamilyPage testId="family-add-existing" title="기존 환자 연결" onBack={() => navigate('/family/add')}>
       {connected ? (
         <div className="flex flex-col items-center gap-4 py-12 text-center">
-          <div className="rounded-full bg-muted p-4">
-            <ShieldCheck className="h-8 w-8" />
+          <div className="rounded-full bg-primary/10 p-4">
+            <ShieldCheck className="h-8 w-8 text-primary" />
           </div>
           <div>
             <h2 className="text-xl font-bold">연결됐어요</h2>
@@ -129,7 +129,7 @@ export function ExistingFamily() {
 
           <form className="flex flex-col gap-3 border-t pt-5" onSubmit={connect}>
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" />
+              <ShieldCheck className="h-4 w-4 text-primary" />
               <h3 className="font-semibold">인증번호 입력</h3>
             </div>
             {otpSent ? (

@@ -55,12 +55,12 @@ function HistoryRow({ record }: { record: HistoryAppointment }) {
   const isCancelled = record.status === '환자취소' || record.status === '병원취소'
 
   return (
-    <Card data-testid={`history-row-${record.id}`} className="overflow-visible">
+    <Card data-testid={`history-row-${record.id}`} className="overflow-visible transition-colors hover:border-primary">
       <button
         type="button"
         aria-expanded={expanded}
         onClick={() => setExpanded((current) => !current)}
-        className="flex w-full items-stretch gap-3 p-4 text-left hover:bg-muted/50"
+        className="flex w-full items-stretch gap-3 p-4 text-left transition-colors hover:bg-primary/5"
       >
         <span
           className={`flex w-12 shrink-0 flex-col items-center justify-center border-l-4 pl-2 ${isCompleted && record.note ? 'border-primary' : 'border-muted-foreground/30'}`}
@@ -75,7 +75,7 @@ function HistoryRow({ record }: { record: HistoryAppointment }) {
             <span className={`truncate font-medium ${isCancelled ? 'line-through' : ''}`}>
               {record.deptName} · {record.doctorName}
             </span>
-            <span className="shrink-0 text-muted-foreground">
+            <span className="shrink-0 text-primary">
               <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
             </span>
           </span>
@@ -105,18 +105,18 @@ function HistoryRow({ record }: { record: HistoryAppointment }) {
           )}
 
           {record.questionnaire && (
-            <section className="rounded-lg border bg-muted/30">
+            <section className="rounded-lg border bg-primary/5">
               <button
                 type="button"
                 aria-expanded={questionnaireOpen}
                 onClick={() => setQuestionnaireOpen((current) => !current)}
-                className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left text-sm font-medium hover:bg-muted/60"
+                className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left text-sm font-medium transition-colors hover:bg-primary/5"
               >
                 <span className="flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <Eye className="h-4 w-4 text-primary" />
                   내가 작성한 사전문진
                 </span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${questionnaireOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 text-primary transition-transform ${questionnaireOpen ? 'rotate-180' : ''}`} />
               </button>
               {questionnaireOpen && (
                 <div className="space-y-3 border-t px-3 py-3">
@@ -172,7 +172,7 @@ export function History() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate('/home')}
-            className="-ml-2 rounded-full p-1 hover:bg-muted"
+            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -188,7 +188,7 @@ export function History() {
                   type="button"
                   aria-pressed={person.id === selectedPatientId}
                   onClick={() => selectPatient(person)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-sm ${person.id === selectedPatientId ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background hover:bg-muted'}`}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-sm transition-colors ${person.id === selectedPatientId ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background hover:border-primary hover:bg-primary/5'}`}
                 >
                   {person.name}
                 </button>

@@ -26,7 +26,7 @@ export function Step3Doctor({ wizard }: { wizard: StepProps }) {
             }}
             className="flex items-center gap-3 rounded-2xl border bg-card p-3 text-left hover:border-primary"
           >
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-muted text-lg font-bold text-muted-foreground">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
               {doc.name.charAt(0)}
             </span>
             <span className="flex flex-col">

@@ -25,10 +25,10 @@ export function FamilyAdd() {
               type="button"
               aria-label="우리 병원이 처음이에요"
               onClick={() => navigate('/family/add/new')}
-              className="flex w-full items-center gap-3 p-4 text-left hover:bg-muted"
+              className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-primary/5"
             >
-              <span className="rounded-full bg-muted p-2">
-                <UserRoundPlus className="h-5 w-5" />
+              <span className="rounded-full bg-primary/10 p-2">
+                <UserRoundPlus className="h-5 w-5 text-primary" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold">우리 병원이 처음이에요</span>
@@ -36,7 +36,7 @@ export function FamilyAdd() {
                   이름·생년월일만 적으면 바로 등록됩니다
                 </span>
               </span>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              <ChevronRight className="h-5 w-5 text-primary" />
             </button>
           </CardContent>
         </Card>
@@ -47,10 +47,10 @@ export function FamilyAdd() {
               type="button"
               aria-label="전에 진료받은 적이 있어요"
               onClick={() => navigate('/family/add/existing')}
-              className="flex w-full items-center gap-3 p-4 text-left hover:bg-muted"
+              className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-primary/5"
             >
-              <span className="rounded-full bg-muted p-2">
-                <UserRoundSearch className="h-5 w-5" />
+              <span className="rounded-full bg-primary/10 p-2">
+                <UserRoundSearch className="h-5 w-5 text-primary" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold">전에 진료받은 적이 있어요</span>
@@ -61,7 +61,7 @@ export function FamilyAdd() {
                   휴대폰이 없으면 병원에 문의해 주세요
                 </span>
               </span>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              <ChevronRight className="h-5 w-5 text-primary" />
             </button>
           </CardContent>
         </Card>

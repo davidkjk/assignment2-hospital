@@ -63,15 +63,15 @@ export function Notifications() {
       <div data-testid="notifications" className="flex h-full flex-col bg-background">
         <header className="flex items-center gap-2 border-b px-4 py-3">
           <Button variant="ghost" size="icon" aria-label="홈으로" onClick={() => navigate('/home')}>
-            <ArrowLeft aria-hidden="true" />
+            <ArrowLeft className="text-primary" aria-hidden="true" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-lg font-bold">알림함</h1>
+            <h1 className="text-lg font-bold text-primary">알림함</h1>
             {unreadCount > 0 && (
               <p className="text-xs text-muted-foreground">새 알림 {unreadCount}개</p>
             )}
           </div>
-          <Bell className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          <Bell className="h-5 w-5 text-primary" aria-hidden="true" />
         </header>
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
@@ -107,10 +107,10 @@ export function Notifications() {
                               : item.important
                                 ? 'border-l-4 border-l-destructive text-foreground'
                                 : 'border-l-4 border-l-primary text-foreground'
-                          }`}
+                          } transition-colors hover:bg-primary/5`}
                           onClick={() => openNotification(item)}
                         >
-                          <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                          <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-2 font-semibold">
                               {item.title}
@@ -137,7 +137,7 @@ export function Notifications() {
           <button
             type="button"
             onClick={() => navigate('/cards')}
-            className="mt-6 w-full rounded-xl border border-dashed py-3 text-center text-xs text-muted-foreground hover:bg-muted"
+            className="mt-6 w-full rounded-xl border border-dashed py-3 text-center text-xs text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5"
           >
             (데모) 예약 카드 10종 상태 모음 보기 ›
           </button>

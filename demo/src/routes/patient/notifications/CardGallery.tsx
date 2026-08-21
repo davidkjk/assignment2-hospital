@@ -13,13 +13,13 @@ export function CardGallery() {
       <div data-testid="card-gallery" className="flex h-full flex-col bg-background">
         <header className="flex items-center gap-2 border-b px-4 py-3">
           <Button variant="ghost" size="icon" aria-label="뒤로" onClick={() => navigate(-1)}>
-            <ArrowLeft aria-hidden="true" />
+            <ArrowLeft className="text-primary" aria-hidden="true" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-lg font-bold">예약 카드 상태 모음</h1>
+            <h1 className="text-lg font-bold text-primary">예약 카드 상태 모음</h1>
             <p className="text-xs text-muted-foreground">시연·QA용 10종 갤러리</p>
           </div>
-          <Layers3 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          <Layers3 className="h-5 w-5 text-primary" aria-hidden="true" />
         </header>
 
         <main className="flex-1 overflow-y-auto px-5 py-5">

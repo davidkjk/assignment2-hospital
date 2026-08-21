@@ -13,7 +13,7 @@ export function Step8Done({ wizard }: { wizard: StepProps }) {
       data-testid="book-done"
       className="flex h-full flex-col items-center justify-center gap-4 text-center"
     >
-      <CheckCircle2 className="h-16 w-16 text-emerald-500" />
+      <CheckCircle2 className="h-16 w-16 text-primary" />
       <h1 className="text-xl font-bold">예약이 확정되었습니다</h1>
       <p className="text-sm text-muted-foreground">
         {state.date} {state.time}
