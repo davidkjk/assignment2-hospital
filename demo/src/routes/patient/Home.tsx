@@ -18,17 +18,33 @@ export function Home() {
         <header className="flex items-center justify-between border-b px-5 py-4">
           <span className="text-lg font-bold">가온병원</span>
           <div className="flex items-center gap-1">
-            <button aria-label="알림" className="rounded-full p-2 hover:bg-muted">
+            <button
+              aria-label="알림"
+              onClick={() => navigate('/notifications')}
+              className="rounded-full p-2 hover:bg-muted"
+            >
               <Bell className="h-5 w-5" />
             </button>
-            <button aria-label="설정" className="rounded-full p-2 hover:bg-muted">
+            <button
+              aria-label="설정"
+              onClick={() => navigate('/settings')}
+              className="rounded-full p-2 hover:bg-muted"
+            >
               <Settings className="h-5 w-5" />
             </button>
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
-          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">오늘의 예약</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-muted-foreground">오늘의 예약</h2>
+            <button
+              onClick={() => navigate('/appointments')}
+              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              전체 예약 보기 ›
+            </button>
+          </div>
 
           {appointments.length === 0 ? (
             <div className="mt-16 flex flex-col items-center gap-4 text-center">

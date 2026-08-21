@@ -133,6 +133,14 @@ export function Notifications() {
           <p className="mt-8 text-center text-xs text-muted-foreground">
             알림은 30일 동안 보관됩니다
           </p>
+
+          <button
+            type="button"
+            onClick={() => navigate('/cards')}
+            className="mt-6 w-full rounded-xl border border-dashed py-3 text-center text-xs text-muted-foreground hover:bg-muted"
+          >
+            (데모) 예약 카드 10종 상태 모음 보기 ›
+          </button>
         </main>
 
         {showGoneNotice && (

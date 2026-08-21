@@ -13,7 +13,13 @@ const STATUS_STYLE: Record<Appointment['status'], string> = {
 export function AppointmentCard({ appt }: { appt: Appointment }) {
   const navigate = useNavigate()
   return (
-    <div data-testid="appt-card" className="flex gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+    <div
+      data-testid="appt-card"
+      role="button"
+      tabIndex={0}
+      onClick={() => navigate(`/appt/${appt.id}`)}
+      className="flex cursor-pointer gap-3 rounded-2xl border bg-card p-4 shadow-sm hover:bg-muted/50"
+    >
       {/* 시각 레일 */}
       <div className="flex w-14 shrink-0 flex-col items-center">
         <span className="text-lg font-bold tabular-nums">{appt.time}</span>
@@ -40,7 +46,10 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             variant="outline"
             size="sm"
             className="mt-3 w-full"
-            onClick={() => navigate('/qr')}
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate('/qr')
+            }}
           >
             접수 QR 보기
           </Button>
