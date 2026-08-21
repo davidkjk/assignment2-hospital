@@ -16665,13 +16665,21 @@ async def confirm_family_link_otp(patient: PatientContext, request_id: UUID, cod
 
             await conn.execute(
                 "update family_link_requests set verified_at = now() where id = $1", request_id)
-            # [#59] 해제됐던 줄이 있으면 되살린다(새 줄을 만들면 unique 제약에 걸린다).
-            await conn.execute(
-                "insert into patient_family_links (account_patient_id, family_patient_id, relation) "
-                "values ($1,$2,$3) "
-                "on conflict (account_patient_id, family_patient_id) do update "
-                "  set is_active = true, unlinked_at = null, relation = excluded.relation",
-                patient.id, req["target_patient_id"], req["relation"])
+            # [#59][C2-#2 2026-08-20] 해제됐던 줄이 있으면 되살린다. staff-web 00045가 unique를 partial(`where is_active`)로
+            #   바꿨기 때문에 `on conflict (account_patient_id, family_patient_id)`가 그 partial index를 추론하지 못해
+            #   런타임 오류가 난다 → 형제 add_family_member(:1405)처럼 explicit SELECT + UPDATE/INSERT로 한다.
+            existing = await conn.fetchval(
+                "select id from patient_family_links "
+                "where account_patient_id=$1 and family_patient_id=$2 and not is_active",
+                patient.id, req["target_patient_id"])
+            if existing is not None:
+                await conn.execute(
+                    "update patient_family_links set is_active=true, unlinked_at=null, relation=$2 where id=$1",
+                    existing, req["relation"])
+            else:
+                await conn.execute(
+                    "insert into patient_family_links (account_patient_id, family_patient_id, relation) values ($1,$2,$3)",
+                    patient.id, req["target_patient_id"], req["relation"])
             # ⛔ patients.app_created_by는 건드리지 않는다 — 이 행은 병원이 만든 기록이다.
             #    T25 판정이 이 null을 보고 신원 칸을 잠근다(identity_lock_reason='linked').
     return req["target_patient_id"]
