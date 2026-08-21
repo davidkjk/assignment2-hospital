@@ -19,12 +19,12 @@ export function FamilyPage({ testId, title, children, onBack }: FamilyPageProps)
               type="button"
               aria-label="뒤로"
               onClick={onBack}
-              className="-ml-2 rounded-full p-1 hover:bg-muted"
+              className="-ml-2 rounded-full p-1 hover:bg-primary/5"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5 text-primary" />
             </button>
           ) : null}
-          <h1 className="text-lg font-bold">{title}</h1>
+          <h1 className="text-lg font-bold text-primary">{title}</h1>
         </header>
         <main className="flex-1 overflow-y-auto px-5 py-5">{children}</main>
       </div>
@@ -57,7 +57,7 @@ export function FamilyDialog({ testId, title, children, onClose }: FamilyDialogP
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+            className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5"
           >
             닫기
           </button>
