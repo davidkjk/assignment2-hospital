@@ -3,7 +3,7 @@ from uuid import UUID
 
 import asyncpg
 
-from app.core.errors import AppError
+from app.core.errors import AppError, pg_error_to_app_error
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
 from app.services.slot_service import book_slot
@@ -85,12 +85,15 @@ async def create_appointment(
                 break
             except asyncpg.UniqueViolationError as exc:
                 if "booking_code" not in str(exc):
-                    raise AppError(str(exc), status_code=400) from exc
+                    # booking_code 외의 유니크 위반(슬롯 이중예약 백스톱 등)은
+                    # 원문을 숨기고 로그+고정 문구로.
+                    raise (await pg_error_to_app_error(exc, "appointment.create")) from exc
                 last_exc = exc
                 continue
             except asyncpg.PostgresError as exc:
-                # 트리거가 raise exception으로 던진 메시지는 이미 한글 안내문이다.
-                raise AppError(str(exc), status_code=400) from exc
+                # 트리거가 raise exception(P0…)으로 던진 메시지는 이미 한글 안내문이라
+                # 그대로 노출하고, 그 밖의 드라이버 오류는 로그+고정 문구로.
+                raise (await pg_error_to_app_error(exc, "appointment.create")) from exc
         else:
             raise AppError("예약번호 발급에 실패했습니다. 다시 시도해주세요.", status_code=409) from last_exc
         return appointment_id
@@ -133,7 +136,9 @@ async def transition_status(
                 new_status, appointment_id,
             )
         except asyncpg.PostgresError as exc:
-            raise AppError(str(exc), status_code=400) from exc
+            # enforce_appointment_status_transition 트리거의 한글 안내(P0…)는 그대로,
+            # 그 밖의 드라이버 오류는 로그+고정 문구로.
+            raise (await pg_error_to_app_error(exc, "appointment.transition")) from exc
 
     if conn is not None:
         return await _run(conn)
