@@ -1,6 +1,6 @@
-import { ChevronLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { useSignupState, TOTAL_SIGNUP_STEPS } from './signupState'
 import { ConsentStep } from './steps/ConsentStep'
 import { PhoneStep } from './steps/PhoneStep'
@@ -23,36 +23,26 @@ export function SignupWizard() {
   return (
     <PhoneFrame>
       <div data-testid="signup-screen" className="flex h-full flex-col">
-        <header className="border-b px-5 py-4">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="뒤로"
-              onClick={onBack}
-              className="-ml-2 rounded-full p-1 hover:bg-muted"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </button>
-            <h1 className="text-lg font-bold">회원가입</h1>
-          </div>
+        <ScreenHeader title="회원가입" onBack={onBack} />
 
-          <div className="mt-4 flex items-center gap-2" aria-label={`${state.step + 1}단계 / 4단계`}>
-            <div className="flex flex-1 items-center gap-1" aria-hidden="true">
-              {Array.from({ length: TOTAL_SIGNUP_STEPS }, (_, index) => (
-                <span
-                  key={index}
-                  data-testid="signup-progress-dot"
-                  className={`h-2 flex-1 rounded-full ${
-                    index <= state.step ? 'bg-primary' : 'bg-muted'
-                  }`}
-                />
-              ))}
-            </div>
-            <span className="shrink-0 text-xs font-semibold text-muted-foreground">
-              {state.step + 1}단계 / 4단계
-            </span>
+        {/* 진행 표시는 헤더 밴드 아래 회색 띠에(정본 목업 회원가입: teal 헤더 + 회색 진행 띠) */}
+        <div
+          className="flex items-center gap-3 bg-muted px-5 py-2.5"
+          aria-label={`${state.step + 1}단계 / 4단계`}
+        >
+          <div className="flex flex-1 items-center gap-1" aria-hidden="true">
+            {Array.from({ length: TOTAL_SIGNUP_STEPS }, (_, index) => (
+              <span
+                key={index}
+                data-testid="signup-progress-dot"
+                className={`h-2 flex-1 rounded-full ${index <= state.step ? 'bg-primary' : 'bg-border'}`}
+              />
+            ))}
           </div>
-        </header>
+          <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+            {state.step + 1}단계 / 4단계
+          </span>
+        </div>
 
         <main className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           {state.step === 0 && <ConsentStep {...wizard} />}

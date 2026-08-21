@@ -1,4 +1,5 @@
-import { ChevronLeft, MessageCircle, UserRound } from 'lucide-react'
+import { MessageCircle, UserRound } from 'lucide-react'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -16,20 +17,7 @@ export function ApptCancel() {
   return (
     <PhoneFrame>
       <div data-testid="appt-cancel" className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-4 py-4">
-          <button
-            type="button"
-            aria-label="뒤로"
-            onClick={() => navigate(-1)}
-            className="rounded-full p-1 hover:bg-primary/5"
-          >
-            <ChevronLeft className="h-6 w-6 text-primary" aria-hidden="true" />
-          </button>
-          <div>
-            <p className="text-base font-bold">예약 취소 상담</p>
-            <p className="text-xs text-muted-foreground">예약 정보를 확인하고 상담으로 연결합니다</p>
-          </div>
-        </header>
+        <ScreenHeader title="예약 취소 상담" onBack={() => navigate(-1)} />
 
         <main className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <h1 className="text-xl font-bold">취소 상담을 연결할까요?</h1>

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
-  ArrowLeft,
   Bell,
   CalendarCheck2,
   CalendarClock,
@@ -12,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { Button } from '@/components/ui/button'
 import type { NotificationItem, NotificationKind } from './mockData'
 import { initialNotifications } from './mockData'
@@ -61,18 +61,20 @@ export function Notifications() {
   return (
     <PhoneFrame>
       <div data-testid="notifications" className="flex h-full flex-col bg-background">
-        <header className="flex items-center gap-2 border-b px-4 py-3">
-          <Button variant="ghost" size="icon" aria-label="홈으로" onClick={() => navigate('/home')}>
-            <ArrowLeft className="text-primary" aria-hidden="true" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-primary">알림함</h1>
-            {unreadCount > 0 && (
-              <p className="text-xs text-muted-foreground">새 알림 {unreadCount}개</p>
-            )}
-          </div>
-          <Bell className="h-5 w-5 text-primary" aria-hidden="true" />
-        </header>
+        <ScreenHeader
+          title="알림함"
+          onBack={() => navigate('/home')}
+          right={
+            <span className="flex items-center gap-1.5">
+              <Bell className="h-5 w-5" aria-hidden="true" />
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs font-semibold">
+                  {unreadCount}
+                </span>
+              )}
+            </span>
+          }
+        />
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
           {groups.length === 0 ? (

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ChevronLeft } from 'lucide-react'
+
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { Button } from '@/components/ui/button'
 import { notificationGroups } from './mockData'
 
@@ -37,17 +38,7 @@ export function Notifications() {
   return (
     <PhoneFrame>
       <div data-testid="settings-notifications" className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-5 py-4">
-          <button
-            type="button"
-            aria-label="뒤로"
-            onClick={() => navigate('/settings')}
-            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <h1 className="text-lg font-bold">알림 설정</h1>
-        </header>
+        <ScreenHeader title="알림 설정" onBack={() => navigate('/settings')} />
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
           <p className="mb-5 text-sm text-muted-foreground">알림을 움직이면 바로 저장됩니다.</p>

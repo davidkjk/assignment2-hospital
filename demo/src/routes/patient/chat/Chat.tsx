@@ -1,6 +1,7 @@
 import { MessageCircle, Send, Sparkles } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 
 // AI 상담 탭(하단 탭 5번째). 상담봇은 별도 트랙이라 데모에서는 시작 화면 목업만 둔다.
 // 단, 예약 취소 마감 후 연결(CANCEL-LATE-10)로 들어오면 봇이 예약 정보·연결 사실·
@@ -21,10 +22,7 @@ export function Chat() {
   return (
     <PhoneFrame>
       <div data-testid="chat" className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-5 py-4">
-          <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h1 className="text-lg font-bold">AI 상담</h1>
-        </header>
+        <ScreenHeader title="AI 상담" icon={<MessageCircle className="h-5 w-5" />} />
 
         <main className="flex-1 overflow-y-auto px-5 py-6">
           {cancel ? (

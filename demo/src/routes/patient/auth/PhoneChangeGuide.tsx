@@ -1,6 +1,7 @@
-import { ChevronLeft, Phone, ShieldCheck } from 'lucide-react'
+import { Phone, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { hospitalInfo } from '@/routes/patient/settings/mockData'
 
 const CHECK_STEPS = ['이름·생년월일', '최근 방문일·진료받은 과', '새 번호로 인증번호 발송']
@@ -12,17 +13,7 @@ export function PhoneChangeGuide() {
   return (
     <PhoneFrame>
       <div data-testid="phone-change-guide" className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-5 py-4">
-          <button
-            type="button"
-            aria-label="뒤로"
-            onClick={() => navigate('/')}
-            className="-ml-2 rounded-full p-1 hover:bg-muted"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <h1 className="text-lg font-bold">전화번호 변경 안내</h1>
-        </header>
+        <ScreenHeader title="전화번호 변경 안내" onBack={() => navigate('/')} />
 
         <main className="flex-1 overflow-y-auto px-5 py-6">
           <div className="flex items-center gap-2 text-primary">

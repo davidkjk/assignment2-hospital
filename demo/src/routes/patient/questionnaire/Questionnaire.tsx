@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
-import { CheckCircle2, ChevronLeft, Pencil, Send } from 'lucide-react'
+import { CheckCircle2, Pencil, Send } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { Progress } from '@/components/ui/progress'
 import {
   DEMO_PATIENT_GENDER,
@@ -121,20 +122,15 @@ function QuestionnaireHeader({
   const currentLabel = isReview ? '최종 확인' : `${currentIndex + 1}번 문항`
 
   return (
-    <header className="border-b px-5 py-4">
-      <div className="mb-3 flex items-center gap-2">
-        <Button aria-label="뒤로" className="-ml-2" onClick={onBack} size="icon" variant="ghost">
-          <ChevronLeft className="h-5 w-5 text-primary" />
-        </Button>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-primary">사전문진</p>
-          <p className="text-xs text-muted-foreground">
-            {currentLabel} · {progress}/{total}문항 작성
-          </p>
-        </div>
+    <>
+      <ScreenHeader title="사전문진" onBack={onBack} />
+      <div className="flex items-center gap-3 bg-muted px-5 py-2.5">
+        <Progress aria-label="문진 진행률" value={total === 0 ? 0 : (progress / total) * 100} className="flex-1" />
+        <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+          {currentLabel} · {progress}/{total}
+        </span>
       </div>
-      <Progress aria-label="문진 진행률" value={total === 0 ? 0 : (progress / total) * 100} />
-    </header>
+    </>
   )
 }
 

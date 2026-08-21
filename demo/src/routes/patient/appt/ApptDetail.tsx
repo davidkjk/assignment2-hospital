@@ -1,4 +1,5 @@
-import { ChevronLeft, ExternalLink, MapPin, Phone, QrCode, UserRound } from 'lucide-react'
+import { ExternalLink, MapPin, Phone, QrCode, UserRound } from 'lucide-react'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -47,20 +48,7 @@ export function ApptDetail() {
   return (
     <PhoneFrame>
       <div data-testid="appt-detail" className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-4 py-4">
-          <button
-            type="button"
-            aria-label="뒤로"
-            onClick={() => navigate(-1)}
-            className="rounded-full p-1 hover:bg-primary/5"
-          >
-            <ChevronLeft className="h-6 w-6 text-primary" aria-hidden="true" />
-          </button>
-          <div>
-            <p className="text-base font-bold">예약 상세</p>
-            <p className="text-xs text-muted-foreground">{appointment.patientName}님의 예약</p>
-          </div>
-        </header>
+        <ScreenHeader title="예약 상세" onBack={() => navigate(-1)} />
 
         <main className="min-h-0 flex-1 overflow-y-auto">
           <section className="border-b bg-primary/5 px-5 py-5">
