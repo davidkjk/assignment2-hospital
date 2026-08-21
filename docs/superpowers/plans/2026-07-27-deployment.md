@@ -1273,7 +1273,8 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 
-def test_sms_client_injects_public_status_callback(monkeypatch):
+@pytest.mark.asyncio
+async def test_sms_client_injects_public_status_callback(monkeypatch):
     """[#122] 문자 발송은 messages.create에 PUBLIC_BASE_URL 기반 statusCallback을 실어 보낸다 — 없으면 업체가 도달/실패를 되알릴 곳이 없다."""
     from app.clients import notify_clients
     monkeypatch.setattr(notify_clients.settings, "public_base_url", "https://api.example.com")
@@ -1288,8 +1289,9 @@ def test_sms_client_injects_public_status_callback(monkeypatch):
                 return _M()
 
     client = notify_clients.make_sms_client(twilio=FakeTwilio())     # 팩토리는 T30 소유, URL 주입만 배포
-    client.send(to="+8210...", body="x")
-    assert captured["status_callback"] == "https://api.example.com/provider/status-callback"
+    sid = await client.send("+8210...", "x")                         # ⓐ 계약(2026-08-20): async·전화번호 위치인자·SID 반환(#7)
+    assert sid == "SM1"
+    assert captured["to"] == "+8210..." and captured["status_callback"] == "https://api.example.com/provider/status-callback"
 ```
 
 - [ ] **Step 2: 발송·만료 크론 잡 — 실패 테스트 (오케스트레이션)**
@@ -1320,11 +1322,13 @@ async def test_dispatch_run_drives_all_four_consumers(db_conn):
 
 `notify_clients.py`(T30)의 문자 발송에 URL 주입:
 ```python
-# make_sms_client 팩토리(T30)가 반환하는 SmsClient.send() 안:
-self._twilio.messages.create(
-    to=to, from_=self._from_number, body=body,
-    status_callback=f"{settings.public_base_url}/provider/status-callback",   # #122 — 배포가 채운다
-)
+# make_sms_client 팩토리(T30)가 반환하는 SmsClient.send(phone, body) 안 (ⓐ 얇은 부품: 전화번호만 받는다·#2·#7):
+async def send(self, phone: str, body: str) -> str:                 # async·전화번호 위치인자·SID 반환(T30 정본 계약)
+    msg = self._twilio.messages.create(
+        to=phone, from_=self._from_number, body=body,
+        status_callback=f"{settings.public_base_url}/provider/status-callback",   # #122 — 배포가 채운다
+    )
+    return msg.sid                                                  # provider_msg_id — send_now가 notification_log에 기록
 ```
 
 `backend/app/jobs/dispatch.py`:
