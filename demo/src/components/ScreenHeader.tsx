@@ -22,7 +22,7 @@ export function ScreenHeader({
   return (
     <header
       data-testid={testId}
-      className="flex h-12 items-center gap-2 bg-primary px-4 text-primary-foreground"
+      className="flex h-12 items-center gap-2 bg-primary px-4 text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
     >
       {onBack ? (
         <button

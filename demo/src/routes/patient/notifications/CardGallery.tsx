@@ -1,7 +1,7 @@
-import { ArrowLeft, Layers3 } from 'lucide-react'
+import { Layers3 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
-import { Button } from '@/components/ui/button'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { StatusCard } from './StatusCard'
 import { demoAppointments } from './mockData'
 
@@ -11,16 +11,11 @@ export function CardGallery() {
   return (
     <PhoneFrame>
       <div data-testid="card-gallery" className="flex h-full flex-col bg-background">
-        <header className="flex items-center gap-2 border-b px-4 py-3">
-          <Button variant="ghost" size="icon" aria-label="뒤로" onClick={() => navigate(-1)}>
-            <ArrowLeft className="text-primary" aria-hidden="true" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-primary">예약 카드 상태 모음</h1>
-            <p className="text-xs text-muted-foreground">시연·QA용 10종 갤러리</p>
-          </div>
-          <Layers3 className="h-5 w-5 text-primary" aria-hidden="true" />
-        </header>
+        <ScreenHeader
+          title="예약 카드 상태 모음"
+          onBack={() => navigate(-1)}
+          icon={<Layers3 className="h-5 w-5" />}
+        />
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
           <p className="mb-5 text-sm text-muted-foreground">

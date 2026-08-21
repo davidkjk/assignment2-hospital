@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Bell, CalendarPlus, Settings } from 'lucide-react'
+import { Bell, CalendarPlus, Plus, Settings } from 'lucide-react'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { Button } from '@/components/ui/button'
 import { AppointmentCard } from '@/components/AppointmentCard'
@@ -18,10 +18,10 @@ export function Home() {
     <PhoneFrame>
       <div data-testid="home-screen" className="flex h-full flex-col">
         {/* 브랜드 앱바 — 다른 화면과 같은 딥틸 밴드로 통일(로고는 흰 배경에 딥틸 H) */}
-        <header className="flex h-12 items-center justify-between bg-primary px-5 text-primary-foreground">
+        <header className="flex h-12 items-center justify-between bg-primary px-5 text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,0.08)]">
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-xs font-bold text-primary">
-              H
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-primary">
+              <Plus className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
             </span>
             <span className="text-base font-medium tracking-normal">가온병원</span>
           </div>
