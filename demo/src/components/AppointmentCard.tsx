@@ -13,7 +13,7 @@ const STATUS_STYLE: Record<Appointment['status'], string> = {
 export function AppointmentCard({ appt }: { appt: Appointment }) {
   const navigate = useNavigate()
   return (
-    <div className="flex gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+    <div data-testid="appt-card" className="flex gap-3 rounded-2xl border bg-card p-4 shadow-sm">
       {/* 시각 레일 */}
       <div className="flex w-14 shrink-0 flex-col items-center">
         <span className="text-lg font-bold tabular-nums">{appt.time}</span>

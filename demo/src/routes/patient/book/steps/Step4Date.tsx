@@ -43,6 +43,7 @@ export function Step4Date({ wizard }: { wizard: StepProps }) {
             <button
               key={date}
               disabled={!ok}
+              data-testid={ok ? 'available-date' : undefined}
               onClick={() => {
                 setField('date', date)
                 next()

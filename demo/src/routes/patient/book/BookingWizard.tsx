@@ -8,6 +8,9 @@ import { Step2Dept } from './steps/Step2Dept'
 import { Step3Doctor } from './steps/Step3Doctor'
 import { Step4Date } from './steps/Step4Date'
 import { Step5Time } from './steps/Step5Time'
+import { Step6Why } from './steps/Step6Why'
+import { Step7Confirm } from './steps/Step7Confirm'
+import { Step8Done } from './steps/Step8Done'
 
 export type StepProps = ReturnType<typeof useBookingState>
 
@@ -19,7 +22,8 @@ export function BookingWizard() {
   const { state, back } = wizard
 
   const onBack = () => {
-    if (state.step === 1) navigate('/home')
+    // 1단계 뒤로는 마법사 나가기(BOOK-KEEP-05), 8단계(완료) 뒤로도 홈(BOOK-NAV-08)
+    if (state.step === 1 || state.step === TOTAL_STEPS) navigate('/home')
     else back()
   }
 
@@ -59,11 +63,13 @@ function StepBody({ wizard }: { wizard: StepProps }) {
       return <Step4Date wizard={wizard} />
     case 5:
       return <Step5Time wizard={wizard} />
+    case 6:
+      return <Step6Why wizard={wizard} />
+    case 7:
+      return <Step7Confirm wizard={wizard} />
+    case 8:
+      return <Step8Done wizard={wizard} />
     default:
-      return (
-        <p className="mt-10 text-center text-muted-foreground">
-          {wizard.stepName} 단계 — 다음 태스크에서 채웁니다
-        </p>
-      )
+      return null
   }
 }

@@ -25,6 +25,7 @@ export function Step5Time({ wizard }: { wizard: StepProps }) {
           {list.map((s) => (
             <button
               key={s.time}
+              data-testid="time-slot"
               onClick={() => choose(s.time)}
               className="rounded-xl border py-3 text-sm font-semibold tabular-nums hover:border-primary hover:bg-primary hover:text-primary-foreground"
             >
