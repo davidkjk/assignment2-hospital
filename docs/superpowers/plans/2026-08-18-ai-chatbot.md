@@ -3063,7 +3063,8 @@ git commit -m "feat: 📝 상담봇 Task 6 본문 — 카드 8종 payload 계약
 - Consumes: Task 0 `EmbeddingClient`·`get_chat_model`·`fake_embedder`(테스트) · Task 4 `chat_message_sources`(근거 기록) · `staff`(의사 소개 원본) · `private.is_active_staff()`·`private.is_admin()` · `get_pool`·`acquire_as`·`AppError` · pgvector 확장
 - Produces:
   - 표 `kb_documents`(`status draft/approved/archived`·`is_restricted`·`pending_*` 6칸·이력 키) · `kb_chunks(embedding vector(1536))` · `kb_document_revisions` · 함수 `match_kb_chunks(query_embedding vector, match_count int)`(**승인 조각만**)
-  - `kb_service.create_document`·`submit_edit`(→pending)·`approve_document`(draft→approved 재임베딩)·`approve_pending_edit`(라이브 교체+이력+재임베딩 트랜잭션)·`reject_pending_edit`·`archive_document`·`chunk_text` · `list_revisions`
+  - `kb_service` **본문(이 태스크 구현)**: `submit_edit`(→pending)·`approve_document`(draft→approved 재임베딩)·`approve_pending_edit`(라이브 교체+이력+재임베딩 트랜잭션)·`chunk_text`(+내부 `_reembed`)
+  - `kb_service` **서명만 선언 — 본문은 ⑦ 배선(관리자 KB 경로가 소비)**: `create_document`(←`POST /admin/chat/kb`)·`reject_pending_edit`(←`POST .../reject`)·`archive_document`(←`POST .../archive`)·`list_revisions`(←`GET .../revisions`). ⚠️ Task 7 서비스 본문에는 아직 없다 — Task 20이 소비 계약으로 선언하므로 ⑦ 구현 때 이 4개 본문·권한/트랜잭션·반환 DTO·테스트를 채운다. **생산 완료로 세지 말 것**(C5-F1 표기 정정, 2026-08-20).
   - `rag_service.rag_answer(message, *, embedder, model, match_count=5) -> dict`(`{reply|no_answer|restricted_block, sources, actions}`) · `record_answer_sources(message_id, sources)`(→`chat_message_sources` 스냅샷) · `RAG_SIMILARITY_THRESHOLD=0.70` · `get_doctor_intro(doctor_id) -> dict`(staff 원본)
 - ⚠️ **아직 안 하는 것**: KB 관리 **화면**(`KBADM-*`)=Task 20 · 품질·오답 신고(`answer_feedback`·예시은행)=Task 8 · 배포 임베딩 배치=배포. Task 7은 검색·승인·재임베딩 서버 약속만.
 
@@ -3441,9 +3442,10 @@ git commit -m "feat: 📝 상담봇 Task 7 본문 — KB pgvector 검색·승인
 - Consumes: Task 1·2 `chat_messages`·`ai_chat_sessions`·`support_tickets` · Task 7 `kb_service.submit_edit`(적용→KB) · `staff` · `private.is_active_staff()`·`private.is_admin()` · Task 0 `fake_embedder` · `get_pool`·`AppError`
 - Produces:
   - 표 `chat_quality_reviews(ai_chat_session_id unique, status ok/corrected, reviewed_by, reviewed_at)` · `answer_feedback(message_id, reported_by, source realtime_report/quality_review, correction_text, add_to_example_bank, status pending/applied/rejected, resolved_by/at)` · `qa_example_bank(question, answer, embedding vector(1536), is_active, source_feedback_id)` · `unresolved_questions(ticket_id, question_text, question_embedding vector(1536))`
-  - `quality_service.mark_reviewed`(문제없음)·`send_correction`(→answer_feedback quality_review)·`list_sessions_unreviewed_first` · `record_unresolved(ticket_id, question, embedder)`·`cluster_unresolved(embedder, threshold=0.8)`
+  - `quality_service.mark_reviewed`(문제없음)·`list_sessions_unreviewed_first` · `record_unresolved(ticket_id, question, embedder)`(적재만)
   - `answer_feedback_service.report`(즉시 오답)·`list_bad_inbox`(pending 우선)·`apply`(→qa_example_bank + KB submit_edit)·`reject`
-- ⚠️ **아직 안 하는 것**: 관리자 화면(`QUALITY-REPORT`·`BADINBOX`·`UNRES-CLUSTER`·`QAEX` 계열)=Task 21 · 정기 리포트 배치=배포. Task 8은 저장·정렬·클러스터 서버 계약만.
+  - ⚠️ **`send_correction`·`cluster_unresolved`는 Produces에서 뺀다**(C5-F4 표기 정정, 2026-08-20 — 본문 0건인데 생산 완료로 표기됐던 것): 품질 교정은 별도 함수 없이 `answer_feedback_service.report(..., source='quality_review')` 재사용(이미 생산) · 미해결 **클러스터 집계 함수는 이 태스크가 만들지 않는다**(적재는 `record_unresolved`만) → Task 21 `UNRES-CLUSTER-10`·Task 22 `QTOP-RANK-10`이 **집계 계약 부재**(`현재 집계할 수 없음`)로 소비하고 실제 집계는 ⑦.
+- ⚠️ **아직 안 하는 것**: 관리자 화면(`QUALITY-REPORT`·`BADINBOX`·`UNRES-CLUSTER`·`QAEX` 계열)=Task 21 · 정기 리포트 배치=배포 · **미해결 클러스터 집계**=⑦(위 F4). Task 8은 저장·정렬·오답 처리 서버 계약만.
 
 - [ ] **Step 1: 실패하는 스키마 테스트 작성**
 
@@ -11805,6 +11807,7 @@ git commit -m "feat: 📝 상담봇 Task 20 본문 — 관리자 KB 목록·편�
 > - **미해결 클러스터 집계** `GET /admin/chat/unresolved?from=&to=`·**상세** `GET /admin/chat/unresolved/{clusterId}` — ⚠️ Task 8엔 `record_unresolved`(적재)만 있고 **클러스터 집계 함수 자체가 없다** → 집계 계약 부재(`UNRES-CLUSTER-10`이 이 부재를 `현재 집계할 수 없음`으로 다룬다). **선언**.
 > - **품질 상세 원문** `GET /admin/chat/quality/{sessionId}`·**교정 저장** `POST /admin/chat/quality/{sessionId}/correct`(←`report`, `source=quality_review`) — **선언**(라우터엔 `GET /admin/chat/quality` 목록만).
 > - **참고 예시 목록** `GET /admin/chat/examples?active=true`(←`qa_example_bank where is_active`)·**비활성** `POST /admin/chat/examples/{id}/deactivate` — **선언**.
+> - **대상 봇 메시지 조회** `GET /staff/chat/messages/{id}`(←`badReportApi.getTargetMessage`) — 직원이 상담 기록에서 오답 신고를 열 때 대상 봇 메시지를 채운다. staff 라우터에 없어 **선언**(C5-F7 표기 정정, 2026-08-20 — 공식 계약 수에서 빠져 있던 10번째. Task 9/⑦가 권한·봇 메시지 역할·없는 대상 처리까지 생산).
 >
 > ~~⚠️⚠️ **소비 계약 갭 — source enum 문자열 불일치(⑦ 조정)**: behaviors는 즉시 신고를 `realtime_report`로, Task 8 백엔드는 `immediate`로 달랐다.~~ ✅ **해소(2026-08-20, C3-3)** — **`realtime_report`로 통일**(사용자 확정). 화면 명세(`BADRPT-FORM-SOURCE-01`·결정 B3·목업 107·프론트 DTO)를 정본으로 두고 **백엔드 CHECK·서비스 기본값을 `realtime_report`로 맞췄다**(위 스키마·`report()` 기본값 수정 완료). 처리함 구분의 `quality_review`는 원래부터 양쪽 일치.
 >
@@ -11824,7 +11827,7 @@ git commit -m "feat: 📝 상담봇 Task 20 본문 — 관리자 KB 목록·편�
 - Consumes:
   - **Task 8(`answer_feedback_service`)** — `report(message_id, staff_id, *, correction_text, source, add_to_example_bank)`·`list_bad_inbox(limit)`·`apply(feedback_id, staff_id, embedder, *, kb_document_id, kb_fields)`·`reject(feedback_id, staff_id)` · 표 `answer_feedback(message_id, source realtime_report|quality_review, correction_text, add_to_example_bank, status pending/applied/rejected)`.
   - **Task 8(`quality_service`)** — `list_sessions_unreviewed_first(limit)`(미검토 우선→최신)·`mark_reviewed`·`record_unresolved(ticket_id, question, embedder)`(적재만) · 표 `chat_quality_reviews`·`qa_example_bank(is_active, source_feedback_id)`·`unresolved_questions(question_embedding)`.
-  - ⚠️ **라우터 없는 엔드포인트는 소비 계약 선언**(위 헤더 목록): `POST /staff/chat/feedback`·`GET /admin/chat/feedback[?status][/{id}]`·`GET /admin/chat/unresolved[/{clusterId}]`·`GET/POST /admin/chat/quality/{sessionId}[/correct]`·`GET /admin/chat/examples`·`POST /admin/chat/examples/{id}/deactivate`. **미해결 클러스터 집계 함수는 Task 8에 아예 없음** → `UNRES-CLUSTER-10` 계약 부재로 소비.
+  - ⚠️ **라우터 없는 엔드포인트는 소비 계약 선언**(위 헤더 목록, **10건**): `POST /staff/chat/feedback`·`GET /staff/chat/messages/{id}`(대상 봇 메시지)·`GET /admin/chat/feedback[?status][/{id}]`·`GET /admin/chat/unresolved[/{clusterId}]`·`GET/POST /admin/chat/quality/{sessionId}[/correct]`·`GET /admin/chat/examples`·`POST /admin/chat/examples/{id}/deactivate`. **미해결 클러스터 집계 함수는 Task 8에 아예 없음** → `UNRES-CLUSTER-10` 계약 부재로 소비.
   - **Task 20 흐름 연결** — `BADINBOX-REVIEW-03` 반영·`UNRES-CLUSTER-06` 자료 추가·`QUALITY-REPORT-08` 교정은 Task 20 KB `submit_edit`→승인으로 이어진다(자동 승인 아님). Task 20 `KbEditor`를 목적지로 소비.
   - **2단계 셸** — 관리자 `private.is_active_admin()`·직원 `private.is_active_staff()` RLS · `BTN-BUSY`(저장/처리 중 잠금)·`ERR-POS`·`ERR-RETRY`·`EMPTY-ZERO` · 관리자 사이드바 `상담봇` 그룹·직원 지원 내비(`NAV-ADM`·`NAV-STFSUP` 계열=타 태스크).
 - Produces (⑦ 구현·Task 22가 소비):
@@ -12453,10 +12456,10 @@ Expected: ② 규칙 커버 `+59`(`UNRES-CLUSTER` 11 + `BADINBOX-REVIEW` 12 + `Q
 
 ```bash
 git add frontend/src/features/support/ frontend/src/features/quality/ docs/superpowers/plans/2026-08-18-ai-chatbot.md
-git commit -m "feat: 📝 상담봇 Task 21 본문 — 미해결 클러스터·오답 처리함·품질 리포트·예시·직원 오답 신고 59규칙(최대 태스크). 자동 클러스터 한계 안내·0건↔계약부재↔오류 구분·승인 전 미반영·B2 복귀. 소비 계약 9건 선언·source enum 불일치 갭(⑦)"
+git commit -m "feat: 📝 상담봇 Task 21 본문 — 미해결 클러스터·오답 처리함·품질 리포트·예시·직원 오답 신고 59규칙(최대 태스크). 자동 클러스터 한계 안내·0건↔계약부재↔오류 구분·승인 전 미반영·B2 복귀. 소비 계약 10건 선언·source enum 불일치 갭(⑦)"
 ```
 
-> **Task 21 완료 조건**: `UNRES-CLUSTER`(`01`~`11` = 11) + `BADINBOX-REVIEW`(`01`~`12` = 12) + `QUALITY-REPORT`(`01`~`12` = 12) + `QAEX-LIST`(`01`~`10` = 10) + `BADRPT-FORM`(`TARGET`2·`EMPTY`1·`CORR`1·`EXAMPLE`1·`SOURCE`1·`VALID`1·`SAVE`3·`LOAD`1·`ERR`1·`LIVE`1·`EXIT`1 = 14) = **59규칙 전수** 초록불(Vitest). ⭐ **두 채널**: 직원 오답 신고(`features/support/`·`is_active_staff`) + 관리자 품질(`features/quality/`·`is_active_admin`). ⭐ **자동 클러스터 한계 안내 항상**·**0건↔집계 실패↔계약 부재를 각각 구분**·**승인 전 미반영(교정·반영만으로 즉시 답변 안 씀)**·**출처 구분(realtime_report↔quality_review)**·**B2 저장/취소 후 스크롤 복귀**. ⭐ **소비 계약 9건 선언**: 직원 신고 저장·오답 목록/상세·미해결 집계/상세·품질 상세/교정·예시 목록/비활성. ⚠️ **경계**: 질문 순위·통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM`)=**Task 22** · KB 편집/승인(`KBADM`)=Task 20 · 미해결 클러스터 집계 함수 부재·각 `확인 필요`(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책)=⑦ 조정. (source enum은 `realtime_report`로 통일 완료 — C3-3, 2026-08-20.) **다음 = Task 22**(질문 순위·챗봇 통계·관리자 내비, 38개 → 챗봇 4단계 완결).
+> **Task 21 완료 조건**: `UNRES-CLUSTER`(`01`~`11` = 11) + `BADINBOX-REVIEW`(`01`~`12` = 12) + `QUALITY-REPORT`(`01`~`12` = 12) + `QAEX-LIST`(`01`~`10` = 10) + `BADRPT-FORM`(`TARGET`2·`EMPTY`1·`CORR`1·`EXAMPLE`1·`SOURCE`1·`VALID`1·`SAVE`3·`LOAD`1·`ERR`1·`LIVE`1·`EXIT`1 = 14) = **59규칙 전수** 초록불(Vitest). ⭐ **두 채널**: 직원 오답 신고(`features/support/`·`is_active_staff`) + 관리자 품질(`features/quality/`·`is_active_admin`). ⭐ **자동 클러스터 한계 안내 항상**·**0건↔집계 실패↔계약 부재를 각각 구분**·**승인 전 미반영(교정·반영만으로 즉시 답변 안 씀)**·**출처 구분(realtime_report↔quality_review)**·**B2 저장/취소 후 스크롤 복귀**. ⭐ **소비 계약 10건 선언**: 직원 신고 저장·대상 봇 메시지 조회(`GET /staff/chat/messages/{id}`)·오답 목록/상세·미해결 집계/상세·품질 상세/교정·예시 목록/비활성. ⚠️ **경계**: 질문 순위·통계·관리자 내비(`QTOP-RANK`·`BOTSTAT-DASH`·`NAV-ADM`)=**Task 22** · KB 편집/승인(`KBADM`)=Task 20 · 미해결 클러스터 집계 함수 부재·각 `확인 필요`(기간 경계·정렬·필수 검증·재활성화·충돌 UI·삭제 정책)=⑦ 조정. (source enum은 `realtime_report`로 통일 완료 — C3-3, 2026-08-20.) **다음 = Task 22**(질문 순위·챗봇 통계·관리자 내비, 38개 → 챗봇 4단계 완결).
 
 ---
 
