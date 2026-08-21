@@ -124,10 +124,10 @@ function QuestionnaireHeader({
     <header className="border-b px-5 py-4">
       <div className="mb-3 flex items-center gap-2">
         <Button aria-label="뒤로" className="-ml-2" onClick={onBack} size="icon" variant="ghost">
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-5 w-5 text-primary" />
         </Button>
         <div className="min-w-0">
-          <p className="text-sm font-semibold">사전문진</p>
+          <p className="text-sm font-semibold text-primary">사전문진</p>
           <p className="text-xs text-muted-foreground">
             {currentLabel} · {progress}/{total}문항 작성
           </p>
@@ -180,7 +180,7 @@ function QuestionStep({
         <div className="mb-6 flex items-start justify-between gap-3">
           <div>
             <p className="mb-2 text-sm text-muted-foreground">진료 전 확인</p>
-            <h1 className="text-xl font-bold leading-relaxed">{question.text}</h1>
+            <h1 className="text-xl font-bold leading-relaxed text-primary">{question.text}</h1>
             {progress > 0 && (
               <p className="mt-3 text-sm text-muted-foreground">
                 {total}문항 중 {progress}개를 작성하셨습니다. 이어서 작성하고 있어요.
@@ -188,7 +188,7 @@ function QuestionStep({
             )}
           </div>
           {question.required && (
-            <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">필수</span>
+            <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">필수</span>
           )}
         </div>
 
@@ -210,7 +210,7 @@ function QuestionStep({
       </div>
 
       <div className="mt-8 flex gap-2 border-t pt-4">
-        <Button className="flex-1" disabled={isFirstQuestion} onClick={onBack} variant="outline">
+        <Button className="flex-1 hover:border-primary" disabled={isFirstQuestion} onClick={onBack} variant="outline">
           이전
         </Button>
         <Button className="flex-1" onClick={onNext}>
@@ -244,7 +244,7 @@ function QuestionInput({
           return (
             <Button
               aria-pressed={isSelected}
-              className="h-auto justify-between whitespace-normal rounded-2xl px-4 py-4 text-left"
+              className="h-auto justify-between whitespace-normal rounded-2xl px-4 py-4 text-left hover:border-primary"
               key={option}
               onClick={() =>
                 question.type === 'single' ? answer(question.id, option) : toggleOption(option)
@@ -268,7 +268,7 @@ function QuestionInput({
           return (
             <Button
               aria-pressed={isSelected}
-              className="h-24 rounded-2xl text-base"
+              className="h-24 rounded-2xl text-base hover:border-primary"
               key={option}
               onClick={() => answer(question.id, option)}
               variant={isSelected ? 'default' : 'outline'}
@@ -356,7 +356,7 @@ function QuestionnaireReview({
               <CardHeader className="border-b">
                 <div className="flex items-start justify-between gap-3">
                   <CardTitle className="leading-relaxed">{question.text}</CardTitle>
-                  <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
                     {status}
                   </span>
                 </div>
@@ -372,7 +372,7 @@ function QuestionnaireReview({
                 {isVisible && visibleIndex !== undefined && (
                   <Button
                     aria-label={`${question.text} 수정`}
-                    className="shrink-0"
+                    className="shrink-0 text-primary hover:bg-primary/5"
                     onClick={() => onEdit(question.id)}
                     size="sm"
                     variant="ghost"
