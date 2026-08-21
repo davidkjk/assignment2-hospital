@@ -22,7 +22,7 @@ export function ScreenHeader({
   return (
     <header
       data-testid={testId}
-      className="flex items-center gap-2 bg-primary px-4 py-3.5 text-primary-foreground"
+      className="flex h-12 items-center gap-2 bg-primary px-4 text-primary-foreground"
     >
       {onBack ? (
         <button
@@ -35,7 +35,7 @@ export function ScreenHeader({
         </button>
       ) : null}
       {icon ? <span aria-hidden="true">{icon}</span> : null}
-      <h1 className="text-base font-bold">{title}</h1>
+      <h1 className="text-[15px] font-medium">{title}</h1>
       {right ? <div className="ml-auto flex items-center gap-1">{right}</div> : null}
     </header>
   )

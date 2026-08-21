@@ -37,7 +37,7 @@ export function BottomTabBar() {
   return (
     <nav
       data-testid="bottom-tab-bar"
-      className="flex shrink-0 items-stretch border-t border-border bg-background shadow-[0_-2px_10px_rgba(0,0,0,0.06)]"
+      className="flex shrink-0 items-stretch border-t border-primary/15 bg-accent shadow-[0_-2px_10px_rgba(0,0,0,0.06)]"
     >
       {TABS.map((tab) => {
         const Icon = tab.icon

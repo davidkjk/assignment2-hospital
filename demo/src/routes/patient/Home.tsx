@@ -17,26 +17,26 @@ export function Home() {
   return (
     <PhoneFrame>
       <div data-testid="home-screen" className="flex h-full flex-col">
-        {/* 앱바 */}
-        <header className="flex items-center justify-between border-b px-5 py-4">
+        {/* 브랜드 앱바 — 다른 화면과 같은 딥틸 밴드로 통일(로고는 흰 배경에 딥틸 H) */}
+        <header className="flex h-12 items-center justify-between bg-primary px-5 text-primary-foreground">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-xs font-bold text-primary">
               H
             </span>
-            <span className="text-lg font-bold text-primary">가온병원</span>
+            <span className="text-[15px] font-medium">가온병원</span>
           </div>
           <div className="flex items-center gap-1">
             <button
               aria-label="알림"
               onClick={() => navigate('/notifications')}
-              className="rounded-full p-2 hover:bg-muted"
+              className="-mr-1 rounded-full p-1.5 hover:bg-white/15"
             >
               <Bell className="h-5 w-5" />
             </button>
             <button
               aria-label="설정"
               onClick={() => navigate('/settings')}
-              className="rounded-full p-2 hover:bg-muted"
+              className="rounded-full p-1.5 hover:bg-white/15"
             >
               <Settings className="h-5 w-5" />
             </button>

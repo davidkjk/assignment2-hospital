@@ -7,13 +7,14 @@ type FamilyPageProps = {
   title: string
   children: ReactNode
   onBack?: () => void
+  icon?: ReactNode
 }
 
-export function FamilyPage({ testId, title, children, onBack }: FamilyPageProps) {
+export function FamilyPage({ testId, title, children, onBack, icon }: FamilyPageProps) {
   return (
     <PhoneFrame>
       <div data-testid={testId} className="flex h-full flex-col">
-        <ScreenHeader title={title} onBack={onBack} />
+        <ScreenHeader title={title} onBack={onBack} icon={icon} />
         <main className="flex-1 overflow-y-auto px-5 py-5">{children}</main>
       </div>
     </PhoneFrame>

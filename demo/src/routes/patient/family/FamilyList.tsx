@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarDays, ChevronRight, Pencil, UserRoundPlus } from 'lucide-react'
+import { CalendarDays, ChevronRight, Pencil, Users, UserRoundPlus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { initialAppointments } from '@/mock/data'
 import type { Appointment } from '@/mock/types'
@@ -84,7 +84,7 @@ export function FamilyList() {
     .sort((left, right) => left.name.localeCompare(right.name, 'ko'))
 
   return (
-    <FamilyPage testId="family-list" title="가족 관리">
+    <FamilyPage testId="family-list" title="가족 관리" icon={<Users className="h-5 w-5" />}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
           본인과 연결된 가족의 정보를 관리할 수 있어요.
