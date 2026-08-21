@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft } from 'lucide-react'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 
 type FamilyPageProps = {
   testId: string
@@ -13,19 +13,7 @@ export function FamilyPage({ testId, title, children, onBack }: FamilyPageProps)
   return (
     <PhoneFrame>
       <div data-testid={testId} className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-5 py-4">
-          {onBack ? (
-            <button
-              type="button"
-              aria-label="뒤로"
-              onClick={onBack}
-              className="-ml-2 rounded-full p-1 hover:bg-primary/5"
-            >
-              <ArrowLeft className="h-5 w-5 text-primary" />
-            </button>
-          ) : null}
-          <h1 className="text-lg font-bold text-primary">{title}</h1>
-        </header>
+        <ScreenHeader title={title} onBack={onBack} />
         <main className="flex-1 overflow-y-auto px-5 py-5">{children}</main>
       </div>
     </PhoneFrame>

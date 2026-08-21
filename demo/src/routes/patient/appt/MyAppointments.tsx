@@ -2,6 +2,7 @@ import { CalendarDays, CalendarPlus, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { initialAppointments, patients } from '@/mock/data'
 import type { Appointment } from '@/mock/types'
 import { bookingCodeLabel } from '@/mock/types'
@@ -87,13 +88,7 @@ export function MyAppointments() {
   return (
     <PhoneFrame>
       <div data-testid="my-appointments" className="flex h-full flex-col">
-        <header className="flex items-center gap-3 border-b px-5 py-4">
-          <CalendarDays className="h-5 w-5" aria-hidden="true" />
-          <div>
-            <p className="text-base font-bold">나의 예약</p>
-            <p className="text-xs text-muted-foreground">앞으로 방문할 예약을 확인하세요</p>
-          </div>
-        </header>
+        <ScreenHeader title="나의 예약" icon={<CalendarDays className="h-5 w-5" />} />
 
         <main className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           {groups.length === 0 ? (

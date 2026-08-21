@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { CalendarPlus, ChevronDown, ChevronLeft, Eye } from 'lucide-react'
+import { CalendarPlus, ChevronDown, Eye, History as HistoryIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { patients } from '@/mock/data'
@@ -63,10 +64,14 @@ function HistoryRow({ record }: { record: HistoryAppointment }) {
         className="flex w-full items-stretch gap-3 p-4 text-left transition-colors hover:bg-primary/5"
       >
         <span
-          className={`flex w-12 shrink-0 flex-col items-center justify-center border-l-4 pl-2 ${isCompleted && record.note ? 'border-primary' : 'border-muted-foreground/30'}`}
+          className={`flex w-12 shrink-0 flex-col items-center justify-center border-l-4 pl-2 ${isCompleted ? 'border-primary' : 'border-muted-foreground/30'}`}
         >
           <span className="text-xs text-muted-foreground">{rail.month}</span>
-          <span className="font-mono text-2xl font-semibold leading-none">{rail.day}</span>
+          <span
+            className={`font-mono text-2xl font-semibold leading-none ${isCompleted ? 'text-primary' : ''}`}
+          >
+            {rail.day}
+          </span>
           <span className="text-xs text-muted-foreground">{rail.weekday}</span>
         </span>
 
@@ -167,17 +172,7 @@ export function History() {
   return (
     <PhoneFrame>
       <div data-testid="history" className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-5 py-4">
-          <button
-            type="button"
-            aria-label="뒤로"
-            onClick={() => navigate('/home')}
-            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <h1 className="text-lg font-bold">이력</h1>
-        </header>
+        <ScreenHeader title="이력" icon={<HistoryIcon className="h-5 w-5" />} />
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
           {people.length > 1 && (
@@ -211,7 +206,13 @@ export function History() {
                 lastYear = year
                 return (
                   <div key={record.id} className="space-y-2">
-                    {showYear && <h2 className="pt-2 text-sm font-semibold text-muted-foreground">{year}</h2>}
+                    {/* 연도 구분: 글자 + 가로줄(정본 목업 .yr .rule) — 사람들이 이력에서 연/월 구분을 중요시함 */}
+                    {showYear && (
+                      <div className="flex items-center gap-3 pt-2">
+                        <h2 className="text-base font-bold text-foreground">{year}년</h2>
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+                    )}
                     <HistoryRow record={record} />
                   </div>
                 )
