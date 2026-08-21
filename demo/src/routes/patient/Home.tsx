@@ -23,7 +23,7 @@ export function Home() {
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-white text-xs font-bold text-primary">
               H
             </span>
-            <span className="text-[15px] font-medium">가온병원</span>
+            <span className="text-base font-medium tracking-normal">가온병원</span>
           </div>
           <div className="flex items-center gap-1">
             <button

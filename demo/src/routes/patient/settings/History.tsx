@@ -3,6 +3,7 @@ import { CalendarPlus, ChevronDown, Eye, History as HistoryIcon } from 'lucide-r
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { ScreenHeader } from '@/components/ScreenHeader'
+import { StatusBadge, type BadgeTone } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { patients } from '@/mock/data'
@@ -33,18 +34,19 @@ function formatTimestamp(value: string | undefined) {
   return `${date.month} ${date.day}일 ${period} ${displayHour}:${minute}`
 }
 
-function statusLabel(record: HistoryAppointment) {
+// 이력 상태 → 공용 StatusBadge 라벨·톤(홈·예약과 같은 배지 부품을 쓴다). 짧게 쓰고 상세는 하단 줄에.
+function historyBadge(record: HistoryAppointment): { label: string; tone: BadgeTone } {
   switch (record.status) {
     case '진료완료':
-      return '진료 완료'
+      return { label: '진료 완료', tone: 'teal' }
     case '환자취소':
-      return '취소됨 · 본인 취소'
+      return { label: '취소됨', tone: 'muted' }
     case '병원취소':
-      return '취소됨 · 병원에서 취소'
+      return { label: '병원 취소', tone: 'muted' }
     case '예약부도':
-      return '방문하지 않음'
+      return { label: '방문 안 함', tone: 'gray' }
     case '미확정':
-      return '확정되지 않음'
+      return { label: '확정 안 됨', tone: 'amber' }
   }
 }
 
@@ -66,13 +68,13 @@ function HistoryRow({ record }: { record: HistoryAppointment }) {
         <span
           className={`flex w-12 shrink-0 flex-col items-center justify-center border-l-4 pl-2 ${isCompleted ? 'border-primary' : 'border-muted-foreground/30'}`}
         >
-          <span className="text-xs text-muted-foreground">{rail.month}</span>
+          {/* 월은 그룹 헤더로 올렸다 — 레일은 일 + 요일만(중복 제거·월이 헤더에서 크게 보임) */}
           <span
             className={`font-mono text-2xl font-semibold leading-none ${isCompleted ? 'text-primary' : ''}`}
           >
             {rail.day}
           </span>
-          <span className="text-xs text-muted-foreground">{rail.weekday}</span>
+          <span className="mt-0.5 text-xs text-muted-foreground">{rail.weekday}</span>
         </span>
 
         <span className="min-w-0 flex-1">
@@ -84,8 +86,8 @@ function HistoryRow({ record }: { record: HistoryAppointment }) {
               <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
             </span>
           </span>
-          <span className={`mt-1 block text-sm ${isCompleted ? 'text-primary' : 'text-muted-foreground'}`}>
-            {statusLabel(record)}
+          <span className="mt-1.5 block">
+            <StatusBadge label={historyBadge(record).label} tone={historyBadge(record).tone} />
           </span>
           {isCancelled && (
             <span className="mt-1 block text-xs text-muted-foreground">
@@ -168,6 +170,7 @@ export function History() {
   }
 
   let lastYear = ''
+  let lastMonth = ''
 
   return (
     <PhoneFrame>
@@ -201,16 +204,25 @@ export function History() {
           ) : (
             <div className="space-y-3">
               {visibleHistory.map((record) => {
-                const year = formatDateRail(record.date).year
-                const showYear = year !== lastYear
-                lastYear = year
+                const rail = formatDateRail(record.date)
+                const showYear = rail.year !== lastYear
+                const monthKey = `${rail.year}-${rail.month}`
+                const showMonth = monthKey !== lastMonth
+                lastYear = rail.year
+                lastMonth = monthKey
                 return (
                   <div key={record.id} className="space-y-2">
-                    {/* 연도 구분: 글자 + 가로줄(정본 목업 .yr .rule) — 사람들이 이력에서 연/월 구분을 중요시함 */}
+                    {/* 연/월 구분 — 사람들이 이력에서 연·월 구분을 중요시함. 월은 그룹 헤더로(레일 중복 제거) */}
                     {showYear && (
-                      <div className="flex items-center gap-3 pt-2">
-                        <h2 className="text-base font-bold text-foreground">{year}년</h2>
+                      <div className="flex items-center gap-3 pt-3">
+                        <h2 className="text-base font-bold text-foreground">{rail.year}년</h2>
                         <span className="h-px flex-1 bg-border" />
+                      </div>
+                    )}
+                    {showMonth && (
+                      <div className="flex items-center gap-3 pt-1">
+                        <h3 className="text-sm font-semibold text-primary">{rail.month}</h3>
+                        <span className="h-px flex-1 bg-primary/15" />
                       </div>
                     )}
                     <HistoryRow record={record} />
