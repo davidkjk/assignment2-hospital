@@ -53,7 +53,7 @@ const BADGE_LABEL: Record<CardStatus, string> = {
 function AttentionNotice({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2 border-l-4 border-destructive px-3 py-2 text-sm">
-      <Clock3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
       <div>{children}</div>
     </div>
   )
@@ -64,7 +64,7 @@ function QrPreview({ bookingCode }: { bookingCode?: string }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed">
-          <QrCode className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+          <QrCode className="h-10 w-10 text-primary" aria-hidden="true" />
         </div>
         <p className="text-sm text-muted-foreground">접수용 QR을 준비 중입니다</p>
       </div>
@@ -77,7 +77,7 @@ function QrPreview({ bookingCode }: { bookingCode?: string }) {
         className="flex h-20 w-20 items-center justify-center rounded-lg border bg-background"
         aria-label="접수용 QR"
       >
-        <QrCode className="h-16 w-16" aria-hidden="true" />
+        <QrCode className="h-16 w-16 text-primary" aria-hidden="true" />
       </div>
       <div>
         <p className="text-sm font-semibold">접수용 QR</p>
@@ -93,7 +93,7 @@ function StatusBody({ appointment }: { appointment: DemoAppointment }) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed">
-            <QrCode className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+            <QrCode className="h-10 w-10 text-primary" aria-hidden="true" />
           </div>
           <p className="text-sm text-muted-foreground">확정되면 여기에 접수용 QR이 나타납니다</p>
         </div>
@@ -103,7 +103,7 @@ function StatusBody({ appointment }: { appointment: DemoAppointment }) {
     case '도착':
       return (
         <div className="flex h-full flex-col items-center justify-center text-center">
-          <CheckCircle2 className="h-9 w-9" aria-hidden="true" />
+          <CheckCircle2 className="h-9 w-9 text-primary" aria-hidden="true" />
           <p className="mt-2 font-semibold">접수되었습니다</p>
           <p className="text-sm text-muted-foreground">순서를 준비 중입니다</p>
         </div>
@@ -118,7 +118,7 @@ function StatusBody({ appointment }: { appointment: DemoAppointment }) {
             : `예상 대기시간 약 ${appointment.waitMinutes ?? 0}분`
       return (
         <div className="flex h-full flex-col items-center justify-center text-center">
-          <Activity className="h-8 w-8" aria-hidden="true" />
+          <Activity className="h-8 w-8 text-primary" aria-hidden="true" />
           <p className="mt-1 text-lg font-semibold">
             {queueAhead === 0 ? '곧 들어가십니다' : `내 앞에 ${queueAhead}명`}
           </p>
@@ -130,7 +130,7 @@ function StatusBody({ appointment }: { appointment: DemoAppointment }) {
     case '진료중':
       return (
         <div className="flex h-full flex-col items-center justify-center text-center">
-          <Stethoscope className="h-9 w-9" aria-hidden="true" />
+          <Stethoscope className="h-9 w-9 text-primary" aria-hidden="true" />
           <p className="mt-2 text-lg font-semibold">진료 중입니다</p>
           <p className="text-sm text-muted-foreground">보호자분은 잠시 대기해 주세요</p>
         </div>
@@ -138,21 +138,21 @@ function StatusBody({ appointment }: { appointment: DemoAppointment }) {
     case '진료완료':
       return (
         <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
-          <Check className="h-9 w-9" aria-hidden="true" />
+          <Check className="h-9 w-9 text-primary" aria-hidden="true" />
           <p className="mt-2 font-semibold">진료가 끝났습니다</p>
         </div>
       )
     case '환자취소':
       return (
         <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
-          <XCircle className="h-9 w-9" aria-hidden="true" />
+          <XCircle className="h-9 w-9 text-primary" aria-hidden="true" />
           <p className="mt-2 font-semibold">취소하셨습니다</p>
         </div>
       )
     case '병원취소':
       return (
         <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
-          <Hospital className="h-9 w-9" aria-hidden="true" />
+          <Hospital className="h-9 w-9 text-primary" aria-hidden="true" />
           <p className="mt-2 font-semibold">병원에서 취소했습니다</p>
         </div>
       )
@@ -162,7 +162,7 @@ function StatusBody({ appointment }: { appointment: DemoAppointment }) {
       return (
         <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed">
-            <QrCode className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+            <QrCode className="h-10 w-10 text-primary" aria-hidden="true" />
           </div>
           <p className="text-sm text-muted-foreground">아직 확정되지 않아 접수용 QR이 없습니다</p>
         </div>
@@ -174,7 +174,7 @@ function QuestionnaireLine({ status, onOpen }: { status: CardStatus; onOpen: () 
   if (status === '진료중') {
     return (
       <div className="flex items-start gap-2 border-t pt-3 text-sm text-muted-foreground">
-        <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <span>진료가 시작되어 수정할 수 없습니다 · 내용 보기 ›</span>
       </div>
     )
@@ -187,7 +187,7 @@ function QuestionnaireLine({ status, onOpen }: { status: CardStatus; onOpen: () 
         className="flex w-full items-center gap-2 border-t pt-3 text-left text-sm text-muted-foreground hover:text-foreground"
         onClick={onOpen}
       >
-        <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <Eye className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <span>내가 작성한 사전문진 보기 ›</span>
       </button>
     )
@@ -248,13 +248,13 @@ function StatusActions({ appointment }: { appointment: DemoAppointment }) {
       return (
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate('/chat')}>
-            <MessageCircle className="h-4 w-4" aria-hidden="true" /> 상담 채팅 연결
+            <MessageCircle className="h-4 w-4 text-primary" aria-hidden="true" /> 상담 채팅 연결
           </Button>
           <a
-            className="inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium hover:bg-muted"
+            className="inline-flex h-7 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-colors hover:border-primary hover:bg-primary/5"
             href="tel:02-1234-5678"
           >
-            <Phone className="h-4 w-4" aria-hidden="true" /> 병원 전화
+            <Phone className="h-4 w-4 text-primary" aria-hidden="true" /> 병원 전화
           </a>
         </div>
       )
@@ -324,7 +324,7 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
         </CardHeader>
 
         <CardContent className="space-y-3 pt-4">
-          <div className="h-[132px] rounded-lg border bg-muted/40 px-3">
+          <div className="h-[132px] rounded-lg border bg-primary/5 px-3">
             <StatusBody appointment={appointment} />
           </div>
 
