@@ -84,7 +84,7 @@ export function FamilyList() {
     .sort((left, right) => left.name.localeCompare(right.name, 'ko'))
 
   return (
-    <FamilyPage testId="family-list" title="가족 관리">
+    <FamilyPage testId="family-list" title="가족 관리" activeTab="family">
       <div className="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
           본인과 연결된 가족의 정보를 관리할 수 있어요.

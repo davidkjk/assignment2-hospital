@@ -27,9 +27,9 @@ test('로그인→홈→예약 8단계→완료 후 홈에 예약이 1건 늘어
   await user.click(screen.getByRole('button', { name: '다음' }))
   await user.click(screen.getByRole('button', { name: '이대로 예약하기' }))
 
-  // 8 완료 → 홈으로
+  // 8 완료 → [나중에 할게요]로 홈 복귀 (BOOK-DONE-04: 큰 버튼은 사전문진 작성하기)
   expect(screen.getByTestId('book-done')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '홈으로' }))
+  await user.click(screen.getByRole('button', { name: '나중에 할게요' }))
 
   // 홈 예약이 2 → 3건
   expect(screen.getAllByTestId('appt-card')).toHaveLength(3)

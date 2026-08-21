@@ -27,6 +27,9 @@ export type Slot = {
 
 export type AppointmentStatus = '예약확정' | '예약신청' | '진료대기' | '접수완료'
 
+/** 사전문진 작성 상태(CARD-QNR-01·02). 값이 없으면 문진 줄을 그리지 않는다. */
+export type QuestionnaireStatus = '미작성' | '작성완료'
+
 export type Appointment = {
   id: string
   patientName: string
@@ -36,4 +39,5 @@ export type Appointment = {
   time: string // 'HH:MM'
   status: AppointmentStatus
   hasQR: boolean
+  questionnaireStatus?: QuestionnaireStatus
 }

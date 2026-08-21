@@ -86,6 +86,7 @@ export const initialAppointments: Appointment[] = [
     time: '09:30',
     status: '진료대기',
     hasQR: true,
+    questionnaireStatus: '작성완료',
   },
   {
     id: 'appt-2',
@@ -96,5 +97,6 @@ export const initialAppointments: Appointment[] = [
     time: '14:00',
     status: '예약확정',
     hasQR: true,
+    questionnaireStatus: '미작성',
   },
 ]

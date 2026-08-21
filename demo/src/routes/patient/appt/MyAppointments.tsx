@@ -66,7 +66,7 @@ export function MyAppointments() {
   const groups = groupAppointments(upcomingAppointments())
 
   return (
-    <PhoneFrame>
+    <PhoneFrame activeTab="appointments">
       <div data-testid="my-appointments" className="flex h-full flex-col">
         <header className="flex items-center gap-3 border-b px-5 py-4">
           <CalendarDays className="h-5 w-5" aria-hidden="true" />

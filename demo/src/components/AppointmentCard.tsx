@@ -54,6 +54,29 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             접수 QR 보기
           </Button>
         )}
+
+        {/* 사전문진 줄 (CARD-QNR-01·02): 미작성=강조, 작성완료=회색. 클릭 시 문진 화면. */}
+        {appt.questionnaireStatus && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate('/questionnaire')
+            }}
+            className={`mt-3 flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium ${
+              appt.questionnaireStatus === '미작성'
+                ? 'bg-secondary text-secondary-foreground'
+                : 'text-muted-foreground'
+            }`}
+          >
+            <span>
+              {appt.questionnaireStatus === '미작성'
+                ? '사전문진 미작성 · 작성하기'
+                : '사전문진 작성완료 · 수정하기'}
+            </span>
+            <span aria-hidden="true">›</span>
+          </button>
+        )}
       </div>
     </div>
   )

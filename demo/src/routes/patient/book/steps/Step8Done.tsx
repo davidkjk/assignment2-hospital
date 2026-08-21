@@ -20,9 +20,19 @@ export function Step8Done({ wizard }: { wizard: StepProps }) {
         <br />
         {state.dept?.name} · {state.doctor?.name} 선생님
       </p>
-      <Button className="mt-4 w-40" onClick={() => navigate('/home')}>
-        홈으로
-      </Button>
+      {/* BOOK-DONE-04: 큰 버튼 [사전문진 작성하기] + 작은 글씨 [나중에 할게요] */}
+      <div className="mt-4 flex w-full flex-col items-center gap-2 px-8">
+        <Button className="w-full" onClick={() => navigate('/questionnaire')}>
+          사전문진 작성하기
+        </Button>
+        <button
+          type="button"
+          onClick={() => navigate('/home')}
+          className="py-1 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        >
+          나중에 할게요
+        </button>
+      </div>
     </div>
   )
 }
