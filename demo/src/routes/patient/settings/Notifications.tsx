@@ -75,10 +75,10 @@ export function Notifications() {
                         aria-checked={enabled[item.id]}
                         aria-label={`${item.label} ${enabled[item.id] ? '켜짐' : '꺼짐'}`}
                         onClick={() => toggle(item.id, item.important)}
-                        className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${enabled[item.id] ? 'border-primary bg-primary' : 'border-border bg-muted'}`}
+                        className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors ${enabled[item.id] ? 'border-primary bg-primary' : 'border-border bg-muted'}`}
                       >
                         <span
-                          className={`absolute top-1 h-5 w-5 rounded-full bg-background shadow transition-transform ${enabled[item.id] ? 'translate-x-5' : 'translate-x-1'}`}
+                          className={`ml-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled[item.id] ? 'translate-x-5' : 'translate-x-0'}`}
                         />
                       </button>
                     </div>

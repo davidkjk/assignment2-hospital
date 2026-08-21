@@ -128,5 +128,6 @@
     }
   html {
     @apply font-sans;
+    font-size: 17px; /* 어르신 가독성 — rem 기반이라 전 화면 글자가 비례로 커진다 */
     }
 }
