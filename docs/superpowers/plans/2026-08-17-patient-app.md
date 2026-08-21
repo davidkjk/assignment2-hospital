@@ -2027,14 +2027,30 @@ git commit -m "feat: 📝 환자앱 Task 5 본문 — 예약 생성/변경 서�
 > ⚠️ **마이그레이션 없음** — 필요한 칸은 전부 있다(`support_requested_at`·`request_type` = ④ `00010` · `cancellation_deadline_hours` = `00004` · `created_at` = `00005`).
 
 **Files:**
+- Create: `supabase/migrations/00025_cancellation_actor.sql` — **취소 주체·시각 4칼럼**(갭 #11·C2-#6 유령 DDL 해소, 2026-08-20). ⭐ **이 표를 실제로 만드는 유일한 소유자**다(전엔 "만든다"는 참조만 있고 DDL이 없어 T8/T17/T27 SELECT가 `column does not exist`로 터졌다). 번호 `00025`=환자앱 ledger 몫, `appointments`(1단계 `00005`)를 alter.
 - Modify: `backend/app/services/patient_booking_service.py`(`cancel_appointment`·`request_support` 추가)
 - Test: `backend/tests/test_patient_booking_service.py`(취소·지원요청 테스트 추가)
 
 **Interfaces:**
 - Consumes: `PatientContext`(Task 2) · `acquire_as` · `AppError` · `release_slot(slot_id, actor, conn=None)`(Task 4) · `CHANGEABLE_STATUSES`(Task 5, 같은 모듈) · `appointments`·`appointment_slots`·`hospital_settings.cancellation_deadline_hours`(`00004`) · `appointment_status_history`(정책 `patients_can_insert_note_history` — Task 1) · `support_requested_at`·`request_type`(`00010`)
+- Produces(스키마): `appointments`에 `cancelled_by text check (cancelled_by in ('hospital','patient'))`·`cancelled_by_relation text`·`cancelled_by_name text`·`cancelled_at timestamptz` — 환자앱 T8/T17/T27이 읽고(`'hospital'|'patient'` 판별자), 환자 취소는 이 서비스가 `'patient'`, 병원 취소는 직원웹이 `'hospital'`을 쓴다(직원 신원은 `appointment_status_history.changed_by`에 이미 있어 중복 안 함).
 - Produces:
   - `patient_booking_service.cancel_appointment(patient: PatientContext, appointment_id: UUID, expected_updated_at: datetime) -> dict` — `{"cancelled": bool, "after_deadline": bool}`. `cancelled=True`면 즉시 취소됨(마감 전 또는 30분 유예). `cancelled=False, after_deadline=True`면 화면이 `CANCEL-LATE` 팝업을 띄운다.
   - `patient_booking_service.request_support(patient: PatientContext, appointment_id: UUID, request_type: str) -> dict` — `{"support_requested": bool, "already_requested": bool}`. `request_type`은 `'취소'`/`'변경'`.
+
+- [ ] **Step 0: 취소 주체 마이그레이션** — `supabase/migrations/00025_cancellation_actor.sql`
+
+```sql
+-- 갭 #11·C2-#6(2026-08-20) — 취소 주체·시각. appointments(00005)에 4칼럼 추가.
+-- 이 파일이 유일한 생성 주체다(전엔 참조만 있고 DDL 부재 → SELECT가 column does not exist로 실패했다).
+-- cancelled_by는 환자앱이 읽는 text 판별자('hospital'|'patient'). 직원 신원은 appointment_status_history.changed_by에 이미 있다.
+alter table appointments
+  add column if not exists cancelled_by text check (cancelled_by in ('hospital','patient')),
+  add column if not exists cancelled_by_relation text,   -- 가족 대행 취소면 관계(예: '자녀')
+  add column if not exists cancelled_by_name text,        -- 가족 대행 취소면 이름(CARD-CXL-03 '${relation} ${name} 님이 취소')
+  add column if not exists cancelled_at timestamptz;
+-- RLS·grant는 appointments가 표 단위로 이미 준다. 값 채우기는 이 서비스(환자='patient')·직원웹 취소(='hospital').
+```
 
 - [ ] **Step 1: 취소 실패 테스트(마감 전·30분 유예·마감 후·낙관적 잠금)** — `test_patient_booking_service.py`에 추가
 
@@ -2185,8 +2201,9 @@ async def cancel_appointment(patient: PatientContext, appointment_id: UUID,
 
         if within_grace or before_deadline:
             try:
-                await conn.execute(
-                    "update appointments set status='환자취소', updated_at=now() where id=$1", appointment_id)
+                await conn.execute(                                # C2-#6: 취소 주체=환자쪽. 병원취소는 직원웹이 'hospital'을 쓴다.
+                    "update appointments set status='환자취소', cancelled_by='patient', cancelled_at=now(), "
+                    "updated_at=now() where id=$1", appointment_id)  # 가족 대행분의 relation/name 채우기는 CARD-CXL-03 write 로직(⑦)
             except asyncpg.PostgresError as exc:  # 원문 노출 금지
                 raise AppError("예약을 취소할 수 없습니다. 잠시 후 다시 시도해주세요.", status_code=400) from exc
             if row["slot_id"] is not None:
@@ -9858,7 +9875,7 @@ async def test_list_my_appointments_carries_canceller(db_conn):
     ...  # 병원취소 예약 seed → 조회 결과에 cancelled_by='hospital', cancelled_at is not None
     assert row["cancelled_by"] == 'hospital' and row["cancelled_at"] is not None
 ```
-> 백엔드: `list_my_appointments`·`get_appointment_detail` select에 `a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at` 추가(칸은 Task 6 취소 서비스·직원웹 취소가 채운다 — 갭 #11 조치방향). ⚠️ **칸이 아직 없으면 `00025_cancellation_actor.sql`로 추가**(구현 순서상 Task 6 마이그레이션과 합칠 수 있음 — 완료 보고에 짚는다).
+> 백엔드: `list_my_appointments`·`get_appointment_detail` select에 `a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at` 추가(칸은 Task 6 취소 서비스·직원웹 취소가 채운다 — 갭 #11 조치방향). ✅ **칸은 Task 6 `00025_cancellation_actor.sql`이 만든다(C2-#6 해소 2026-08-20)** — 이 SELECT는 그 칸을 소비만 한다(예전 「칸이 아직 없으면」 헤지는 해소).
 
 ```dart
 testWidgets('[QR-TITLE-01] 제목은 대상자 이름 + 몇 번째인지', (t) async {
@@ -9967,7 +9984,7 @@ git commit -m "feat: 환자앱 Task 17 — 예약 카드 상태 B(확정·도착
 --   안 읽은 개수 = notification_log에서 patient_id=이 계정 중 sent_at > notifications_seen_at.
 --   읽음 처리 = 알림함 진입 순간 이 칸을 now()로.
 -- ⛔ notification_log(발송 로그)에 read_at을 얹지 않는다 — 발송 관심사와 읽음 관심사를 섞지 않는다(기각 ①).
--- ⚠️ 번호는 Task 17(00025 cancellation_actor) 다음 = 00026. 직원웹도 00017+ 대역을 쓰므로 실제 번호는 구현 시점 확정.
+-- ⚠️ 번호는 Task 6(00025 cancellation_actor) 다음 = 00026. (00025 DDL 소유=Task 6로 확정, C2-#6 2026-08-20.)
 alter table patients add column if not exists notifications_seen_at timestamptz;
 -- NULL = 한 번도 알림함을 안 연 계정 → 모든 알림이 안 읽음(coalesce로 -infinity 취급).
 ```
@@ -17644,7 +17661,7 @@ Expected: FAIL(`KeyError: 'cancelled_by'` — SELECT에 없다).
             "order by s.slot_date desc nulls last, a.id desc "
             f"limit ${len(params)}", *params)
 ```
-> ⚠️ **`cancelled_by_relation`·`cancelled_by_name`·`cancelled_at` 칸이 아직 없으면**(구현 순서상 Task 6 후행) `00025_cancellation_actor.sql`에서 만든다 — 완료 보고에 짚는다. T17이 카드용으로 이미 같은 칸을 참조하므로 **한 마이그레이션**으로 합쳐진다(중복 생성 금지).
+> ✅ **`cancelled_by`·`_relation`·`_name`·`cancelled_at` 칸은 Task 6 `00025_cancellation_actor.sql`이 만든다(C2-#6 해소 2026-08-20)** — T17·T27은 소비만(중복 생성 금지). 옛 「칸이 아직 없으면 만든다」 헤지는 해소.
 
 - [ ] **Step 3: 백엔드 테스트 통과 확인** — `cd backend && pytest tests/test_patient_history_service.py -v` → PASS(기존 4상태·커서 테스트도 그대로).
 
