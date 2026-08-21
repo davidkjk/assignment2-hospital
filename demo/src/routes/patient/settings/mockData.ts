@@ -42,10 +42,14 @@ function toISO(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-function buildHistoryAppointment(index: number, patient: Patient): HistoryAppointment {
-  const date = index < 20 ? new Date(2026, 7, 19 - index) : new Date(2025, 11, 18 - (index - 20) * 7)
-  const [deptName, doctorName] = departmentPattern[index % departmentPattern.length]
-  const status = statusPattern[index % statusPattern.length]
+function buildHistoryAppointment(index: number, patient: Patient, seed: number): HistoryAppointment {
+  // seed(사람 순번)로 과·상태·날짜를 어긋나게 해 사람마다 이력 내용이 다르게 보이도록 한다.
+  const date =
+    index < 20
+      ? new Date(2026, 7, 19 - index - seed * 3)
+      : new Date(2025, 11, 18 - (index - 20) * 7 - seed * 5)
+  const [deptName, doctorName] = departmentPattern[(index + seed) % departmentPattern.length]
+  const status = statusPattern[(index + seed * 2) % statusPattern.length]
   const dateValue = toISO(date)
   const hasNote = status === '진료완료' && index % 3 !== 1
   const hasQuestionnaire = status === '진료완료' && index % 2 === 0
@@ -70,11 +74,15 @@ function buildHistoryAppointment(index: number, patient: Patient): HistoryAppoin
   }
 }
 
-/** 최근 20건 뒤에 이어 받을 수 있도록 25건을 준비한 데모 이력 데이터. */
+// 사람마다 건수를 달리해(본인 많이·가족 적게) 칩을 바꾸면 목록이 확연히 달라지게 한다.
+// 본인은 20건 이어받기 데모를 위해 25건 유지.
+const HISTORY_COUNT: Record<string, number> = { 'p-self': 25, 'p-mom': 9, 'p-son': 4 }
+
+/** 최근 20건 뒤에 이어 받을 수 있도록 사람별로 준비한 데모 이력 데이터. */
 export const historyAppointments: HistoryAppointment[] = patients
-  .flatMap((patient) =>
-    Array.from({ length: 25 }, (_, index) => ({
-      ...buildHistoryAppointment(index, patient),
+  .flatMap((patient, seed) =>
+    Array.from({ length: HISTORY_COUNT[patient.id] ?? 6 }, (_, index) => ({
+      ...buildHistoryAppointment(index, patient, seed),
       id: `history-${patient.id}-${String(index + 1).padStart(2, '0')}`,
     })),
   )

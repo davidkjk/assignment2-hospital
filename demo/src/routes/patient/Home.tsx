@@ -60,6 +60,13 @@ export function Home() {
               <Button onClick={() => navigate('/book')}>
                 <CalendarPlus className="mr-1 h-4 w-4" /> 진료 예약하기
               </Button>
+              <button
+                type="button"
+                onClick={() => navigate('/history')}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                지난 방문 이력 보기 ›
+              </button>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -70,14 +77,11 @@ export function Home() {
           )}
         </main>
 
-        {/* 하단 고정 예약 버튼 */}
+        {/* TODO(다음 세션): 정본상 예약 있을 때 홈 하단 예약 버튼은 없어야 한다
+            (HOME-SCOPE-02·HOME-ROLE-01, 진입은 '예약' 탭). 제거 시 App.test·wizard.flow도 함께 고칠 것. */}
         {todayAppointments.length > 0 && (
           <div className="border-t p-4">
-            <Button
-              size="lg"
-              className="h-12 w-full text-base"
-              onClick={() => navigate('/book')}
-            >
+            <Button size="lg" className="h-12 w-full text-base" onClick={() => navigate('/book')}>
               <CalendarPlus className="mr-1 h-5 w-5" /> 진료 예약하기
             </Button>
           </div>
