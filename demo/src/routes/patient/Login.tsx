@@ -3,7 +3,7 @@ import { PhoneFrame } from '@/components/PhoneFrame'
 import { Button } from '@/components/ui/button'
 
 // 정본 묶음 1(screen-behaviors.md:2746~2992). 데모라 실제 인증/OTP는 생략하고
-// [로그인]이 홈으로 진입시킨다. 회원가입 4단계는 이후 세션 범위.
+// [로그인]은 홈으로, [회원가입]은 네 단계 목업으로 진입시킨다.
 export function Login() {
   const navigate = useNavigate()
   return (
@@ -28,7 +28,7 @@ export function Login() {
             variant="outline"
             size="lg"
             className="h-12 w-full text-base"
-            onClick={() => navigate('/home')}
+            onClick={() => navigate('/signup')}
           >
             회원가입
           </Button>
