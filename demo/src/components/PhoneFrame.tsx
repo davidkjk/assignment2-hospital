@@ -1,13 +1,12 @@
 import type { ReactNode } from 'react'
 import { BottomTabBar } from './BottomTabBar'
-import type { TabKey } from './BottomTabBar'
 
 /**
  * 환자 앱은 휴대폰 앱이므로 데모는 390×844 폰 틀 안에 렌더한다(설계 §4).
- * activeTab을 주면 전역 셸의 하단 탭바를 함께 그린다(홈·예약·가족·이력·AI 상담).
- * 상세·마법사·설정 하위 등 탭이 아닌 화면은 activeTab 없이 뒤로가기로만 이동한다.
+ * 하단 탭바는 전역 셸이라 로그인 후 모든 화면에 늘 보인다(정본 NAV-APPT-24·BOOK-KEEP-01).
+ * 어느 탭에 해당하는지, 로그인 전·QR 몰입에서 숨길지는 BottomTabBar가 현재 경로로 스스로 판정한다.
  */
-export function PhoneFrame({ children, activeTab }: { children: ReactNode; activeTab?: TabKey }) {
+export function PhoneFrame({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-neutral-200 p-6">
       <div
@@ -15,7 +14,7 @@ export function PhoneFrame({ children, activeTab }: { children: ReactNode; activ
         className="relative flex h-[844px] w-[390px] flex-col overflow-hidden rounded-[2.5rem] border-8 border-neutral-900 bg-background shadow-2xl"
       >
         <div className="min-h-0 w-full flex-1 overflow-y-auto">{children}</div>
-        {activeTab && <BottomTabBar active={activeTab} />}
+        <BottomTabBar />
       </div>
     </div>
   )

@@ -155,7 +155,7 @@ export function ExistingFamily() {
           </form>
 
           <div className="rounded-xl border p-3">
-            <p className="font-medium">휴대폰이 없거나, 번호가 바뀐 가족인가요? ›</p>
+            <p className="font-medium">휴대폰이 없거나, 번호가 바뀐 가족인가요?</p>
             <p className="mt-1 text-sm text-muted-foreground">
               병원에 문의하시면 직원이 확인 후 연결해 드립니다.
             </p>

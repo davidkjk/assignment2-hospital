@@ -10,7 +10,7 @@ const QUICK_QUESTIONS = [
 
 export function Chat() {
   return (
-    <PhoneFrame activeTab="chat">
+    <PhoneFrame>
       <div data-testid="chat" className="flex h-full flex-col">
         <header className="flex items-center gap-2 border-b px-5 py-4">
           <MessageCircle className="h-5 w-5" aria-hidden="true" />

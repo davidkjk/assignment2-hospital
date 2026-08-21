@@ -1,20 +1,17 @@
 import type { ReactNode } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { PhoneFrame } from '@/components/PhoneFrame'
-import type { TabKey } from '@/components/BottomTabBar'
 
 type FamilyPageProps = {
   testId: string
   title: string
   children: ReactNode
   onBack?: () => void
-  /** 가족 탭 최상위(목록)에서만 하단 탭바를 띄운다. 추가·수정 하위 화면은 생략. */
-  activeTab?: TabKey
 }
 
-export function FamilyPage({ testId, title, children, onBack, activeTab }: FamilyPageProps) {
+export function FamilyPage({ testId, title, children, onBack }: FamilyPageProps) {
   return (
-    <PhoneFrame activeTab={activeTab}>
+    <PhoneFrame>
       <div data-testid={testId} className="flex h-full flex-col">
         <header className="flex items-center gap-2 border-b px-5 py-4">
           {onBack ? (

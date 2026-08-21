@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { CheckCircle2, ChevronLeft, Pencil, Send } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,12 +14,35 @@ import {
   questionnaireQuestions,
   type QuestionnaireQuestion,
 } from './mockData'
-import { useQuestionnaireState, type AnswerValue } from './useQuestionnaireState'
+import { useQuestionnaireState, type AnswerMap, type AnswerValue } from './useQuestionnaireState'
+
+// 작성완료 상태로 수정하러 들어올 때 채워 보일 가짜 기존 답(데모).
+function buildSampleAnswers(questions: QuestionnaireQuestion[]): AnswerMap {
+  const map: AnswerMap = {}
+  for (const q of questions) {
+    if (q.type === 'single') map[q.id] = q.options?.[0] ?? ''
+    else if (q.type === 'multiple') map[q.id] = q.options?.slice(0, 1) ?? []
+    else if (q.type === 'yes-no') map[q.id] = '아니오'
+    else map[q.id] = '특별한 증상은 없습니다.'
+  }
+  return map
+}
 
 export function Questionnaire() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // 홈 카드의 '작성완료 · 수정하기'로 들어오면 처음부터가 아니라 확인 화면으로 연다(NAV-QNR-03).
+  const reviewMode = (location.state as { review?: boolean } | null)?.review === true
   const visibleQuestions = useMemo(() => getVisibleQuestions(DEMO_PATIENT_GENDER), [])
-  const wizard = useQuestionnaireState(visibleQuestions)
+  const initialAnswers = useMemo(
+    () => (reviewMode ? buildSampleAnswers(visibleQuestions) : {}),
+    [reviewMode, visibleQuestions],
+  )
+  const wizard = useQuestionnaireState(
+    visibleQuestions,
+    initialAnswers,
+    reviewMode ? 'review' : 'questions',
+  )
 
   const handleBack = () => {
     if (wizard.isSubmitted) {
@@ -72,6 +95,7 @@ export function Questionnaire() {
               onNext={wizard.next}
               progress={wizard.progress}
               question={wizard.currentQuestion}
+              returnToReview={wizard.returnToReview}
               total={wizard.total}
             />
           ) : null}
@@ -124,6 +148,7 @@ function QuestionStep({
   onNext,
   progress,
   question,
+  returnToReview,
   total,
 }: {
   answer: (questionId: string, value: AnswerValue) => void
@@ -135,6 +160,7 @@ function QuestionStep({
   onNext: () => boolean
   progress: number
   question: QuestionnaireQuestion
+  returnToReview: boolean
   total: number
 }) {
   const selected = Array.isArray(currentAnswer) ? currentAnswer : []
@@ -188,7 +214,7 @@ function QuestionStep({
           이전
         </Button>
         <Button className="flex-1" onClick={onNext}>
-          {isLastQuestion ? '최종 확인' : '다음'}
+          {returnToReview ? '확인으로 돌아가기' : isLastQuestion ? '최종 확인' : '다음'}
         </Button>
       </div>
     </section>

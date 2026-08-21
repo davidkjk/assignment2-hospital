@@ -34,10 +34,18 @@ function firstUnansweredIndex(questions: readonly QuestionnaireQuestion[], answe
 export function useQuestionnaireState(
   questions: readonly QuestionnaireQuestion[] = questionnaireQuestions,
   initialAnswers: AnswerMap = {},
+  initialPhase: QuestionnairePhase = 'questions',
 ) {
   const [answers, setAnswers] = useState<AnswerMap>(() => ({ ...initialAnswers }))
-  const [currentIndex, setCurrentIndex] = useState(() => firstUnansweredIndex(questions, initialAnswers))
-  const [phase, setPhase] = useState<QuestionnairePhase>('questions')
+  const [currentIndex, setCurrentIndex] = useState(() =>
+    initialPhase === 'review'
+      ? Math.max(questions.length - 1, 0)
+      : firstUnansweredIndex(questions, initialAnswers),
+  )
+  const [phase, setPhase] = useState<QuestionnairePhase>(initialPhase)
+  // 리뷰(확인 화면)에서 [수정]으로 특정 문항에 왔는지. true면 저장 후 순차 진행이 아니라
+  // 확인 화면으로 바로 복귀한다(정본 NAV-QNR-14: 1번부터 다시 훑지 않는다).
+  const [returnToReview, setReturnToReview] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const currentQuestion = questions[currentIndex]
@@ -79,13 +87,20 @@ export function useQuestionnaireState(
       setError(null)
     }
 
+    // 리뷰에서 [수정]으로 온 문항이면, 저장 후 순차 진행하지 않고 확인 화면으로 복귀한다.
+    if (returnToReview) {
+      setReturnToReview(false)
+      setPhase('review')
+      return true
+    }
+
     if (currentIndex >= questions.length - 1) {
       setPhase('review')
     } else {
       setCurrentIndex((index) => Math.min(index + 1, questions.length - 1))
     }
     return true
-  }, [answer, answers, currentIndex, currentQuestion, questions.length])
+  }, [answer, answers, currentIndex, currentQuestion, questions.length, returnToReview])
 
   const back = useCallback(() => {
     setError(null)
@@ -101,6 +116,8 @@ export function useQuestionnaireState(
   const goTo = useCallback(
     (index: number) => {
       if (phase !== 'questions' && phase !== 'review') return
+      // 확인 화면에서 [수정]으로 진입한 것이면, 그 문항 저장 후 확인 화면으로 돌아가도록 표시.
+      if (phase === 'review') setReturnToReview(true)
       setCurrentIndex(Math.min(Math.max(index, 0), Math.max(questions.length - 1, 0)))
       setPhase('questions')
       setError(null)
@@ -130,6 +147,7 @@ export function useQuestionnaireState(
     phase,
     progress,
     questionIndex: currentIndex,
+    returnToReview,
     submit,
     total: questions.length,
   }

@@ -51,7 +51,7 @@ export function ApptDetail() {
           <button
             type="button"
             aria-label="뒤로"
-            onClick={() => navigate('/appointments')}
+            onClick={() => navigate(-1)}
             className="rounded-full p-1 hover:bg-muted"
           >
             <ChevronLeft className="h-6 w-6" aria-hidden="true" />

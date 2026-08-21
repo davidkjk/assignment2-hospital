@@ -61,7 +61,11 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              navigate('/questionnaire')
+              // 작성완료면 확인 화면으로(NAV-QNR-03), 미작성이면 1번 문항부터(NAV-QNR-01).
+              navigate(
+                '/questionnaire',
+                appt.questionnaireStatus === '작성완료' ? { state: { review: true } } : undefined,
+              )
             }}
             className={`mt-3 flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium ${
               appt.questionnaireStatus === '미작성'

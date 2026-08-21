@@ -12,7 +12,7 @@ export function Home() {
   const { appointments } = useAppointments()
 
   return (
-    <PhoneFrame activeTab="home">
+    <PhoneFrame>
       <div data-testid="home-screen" className="flex h-full flex-col">
         {/* 앱바 */}
         <header className="flex items-center justify-between border-b px-5 py-4">

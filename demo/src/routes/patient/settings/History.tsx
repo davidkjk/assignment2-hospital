@@ -165,7 +165,7 @@ export function History() {
   let lastYear = ''
 
   return (
-    <PhoneFrame activeTab="history">
+    <PhoneFrame>
       <div data-testid="history" className="flex h-full flex-col">
         <header className="flex items-center gap-2 border-b px-5 py-4">
           <button

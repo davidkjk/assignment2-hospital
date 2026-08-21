@@ -69,7 +69,7 @@ export function ApptChange() {
             <button
               type="button"
               aria-label="뒤로"
-              onClick={() => navigate(`/appt/${appointment.id}`)}
+              onClick={() => navigate(-1)}
               className="-ml-2 rounded-full p-1 hover:bg-muted"
             >
               <ChevronLeft className="h-6 w-6" aria-hidden="true" />
