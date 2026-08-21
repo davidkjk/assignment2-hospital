@@ -14,6 +14,7 @@
 - **시연용 데모**다. 실제 Supabase·인증·OTP·예약 로직 **없음**. 버튼이 경로를 바꾸고, 가짜 데이터를 읽어 화면을 보여주는 게 전부.
 - **해피패스만** 구현한다. 오프라인·낙관적 잠금·409 충돌·예외 마스킹 등 **눈에 안 보이는 엣지 규칙은 제외**(범위 밖).
 - 작업 디렉토리는 `demo/`. 모든 명령은 `cd demo` 후 실행.
+- **이 워크트리는 새 체크아웃이라 `demo/node_modules`가 없다.** 맨 처음 한 번 `cd demo && npm install`을 실행한 뒤 vitest/build를 돌려라.
 
 ### 기술 스택 (슬라이스1과 동일 — 반드시 맞출 것)
 - Vite + React 18 + TypeScript + TailwindCSS + **shadcn/ui 기본(회색) 테마** + `lucide-react` 아이콘 + `react-router-dom`.
