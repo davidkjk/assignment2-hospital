@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Bell, ChevronLeft, ChevronRight, Hospital, LogOut, Settings2, UserRound } from 'lucide-react'
+import { Bell, ChevronRight, Hospital, LogOut, Settings2, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { accountSnapshot, settingsItems } from './mockData'
@@ -32,17 +33,7 @@ export function Settings() {
   return (
     <PhoneFrame>
       <div data-testid="settings" className="flex h-full flex-col">
-        <header className="flex items-center gap-2 border-b px-5 py-4">
-          <button
-            type="button"
-            aria-label="뒤로"
-            onClick={() => navigate('/home')}
-            className="-ml-2 rounded-full p-1 transition-colors hover:bg-primary/5"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <h1 className="text-lg font-bold">설정</h1>
-        </header>
+        <ScreenHeader title="설정" onBack={() => navigate('/home')} />
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
           <section aria-labelledby="account-heading" className="mb-5 space-y-2">
@@ -88,12 +79,7 @@ export function Settings() {
                 onClick={() => navigate(passwordItem.path)}
               />
             )}
-            <SettingsLink
-              icon={<UserRound className="h-5 w-5" />}
-              label="가족 관리"
-              description="가족 정보를 관리합니다"
-              onClick={() => navigate('/family')}
-            />
+            {/* '가족 관리'는 하단 '가족' 탭이 담당(SET-HOME-07: 설정에 수정 문을 따로 만들지 않는다) → 중복 제거 */}
           </section>
 
           <section aria-labelledby="hospital-heading" className="mb-5 space-y-2">
