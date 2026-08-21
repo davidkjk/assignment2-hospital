@@ -16,7 +16,7 @@ const MANAGEABLE_STATUSES = new Set<Appointment['status']>(['예약신청', '예
 
 function StatusBadge({ status }: { status: Appointment['status'] }) {
   return (
-    <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground">
+    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
       {status}
     </span>
   )
@@ -52,9 +52,9 @@ export function ApptDetail() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate(-1)}
-            className="rounded-full p-1 hover:bg-muted"
+            className="rounded-full p-1 hover:bg-primary/5"
           >
-            <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+            <ChevronLeft className="h-6 w-6 text-primary" aria-hidden="true" />
           </button>
           <div>
             <p className="text-base font-bold">예약 상세</p>
@@ -63,12 +63,12 @@ export function ApptDetail() {
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto">
-          <section className="border-b bg-muted px-5 py-5">
+          <section className="border-b bg-primary/5 px-5 py-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xl font-bold">{formatAppointmentDateTime(appointment.date, appointment.time)}</p>
                 <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
+                  <UserRound className="h-4 w-4 text-primary" aria-hidden="true" />
                   {appointment.patientName} · {relation}
                 </p>
               </div>
@@ -89,7 +89,7 @@ export function ApptDetail() {
             {locationState.changeComplete && (
               <div
                 role="status"
-                className="flex items-center gap-2 rounded-xl border border-primary bg-secondary p-3 text-sm font-semibold"
+                className="flex items-center gap-2 rounded-xl border border-primary bg-primary/10 p-3 text-sm font-semibold text-primary"
               >
                 <span>예약번호가 새로 발급되었습니다</span>
               </div>
@@ -107,14 +107,14 @@ export function ApptDetail() {
                       rel="noreferrer"
                       className="flex items-start gap-1 hover:underline"
                     >
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                       <span>
                         {detail.place}
                         <span className="mt-1 block text-xs font-normal text-muted-foreground">
                           {detail.address} · 지도 앱으로 길 찾기
                         </span>
                       </span>
-                      <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
                     </a>
                   </InfoRow>
                   {detail.reason && <InfoRow label="방문이유">{detail.reason}</InfoRow>}
@@ -124,9 +124,9 @@ export function ApptDetail() {
 
             <a
               href={`tel:${detail.phone}`}
-              className="flex items-center gap-3 rounded-xl border bg-card p-3 text-sm hover:bg-muted"
+              className="flex items-center gap-3 rounded-xl border bg-card p-3 text-sm hover:border-primary hover:bg-primary/5"
             >
-              <Phone className="h-5 w-5" aria-hidden="true" />
+              <Phone className="h-5 w-5 text-primary" aria-hidden="true" />
               <span>
                 <span className="block font-semibold">병원 전화</span>
                 <span className="text-muted-foreground">{detail.phone}</span>
@@ -141,7 +141,7 @@ export function ApptDetail() {
                     <p className="text-sm text-muted-foreground">병원 도착 후 접수할 때 사용하세요</p>
                   </div>
                   <Button type="button" variant="outline" onClick={() => navigate('/qr')}>
-                    <QrCode className="mr-1 h-4 w-4" aria-hidden="true" /> QR 보기
+                    <QrCode className="mr-1 h-4 w-4 text-primary" aria-hidden="true" /> QR 보기
                   </Button>
                 </CardContent>
               </Card>
@@ -168,7 +168,7 @@ export function ApptDetail() {
               </Button>
             </div>
           ) : (
-            <p className="rounded-lg bg-muted p-3 text-center text-sm text-muted-foreground">
+            <p className="rounded-lg bg-primary/5 p-3 text-center text-sm text-muted-foreground">
               접수가 끝난 예약입니다. 변경·취소는 접수처에 말씀해 주세요
             </p>
           )}

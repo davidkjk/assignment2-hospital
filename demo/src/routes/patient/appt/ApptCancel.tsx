@@ -21,9 +21,9 @@ export function ApptCancel() {
             type="button"
             aria-label="뒤로"
             onClick={() => navigate(-1)}
-            className="rounded-full p-1 hover:bg-muted"
+            className="rounded-full p-1 hover:bg-primary/5"
           >
-            <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+            <ChevronLeft className="h-6 w-6 text-primary" aria-hidden="true" />
           </button>
           <div>
             <p className="text-base font-bold">예약 취소 상담</p>

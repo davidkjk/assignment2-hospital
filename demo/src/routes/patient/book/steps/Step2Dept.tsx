@@ -19,7 +19,7 @@ export function Step2Dept({ wizard }: { wizard: StepProps }) {
             className="flex items-center justify-between rounded-2xl border bg-card p-4 text-left hover:border-primary"
           >
             <span className="text-lg font-bold">{d.name}</span>
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <ChevronRight className="h-5 w-5 text-primary" />
           </button>
         ))}
 

@@ -33,8 +33,8 @@ export function BookingWizard() {
         {/* 진행 헤더 */}
         <header className="border-b px-5 py-4">
           <div className="mb-3 flex items-center gap-2">
-            <button aria-label="뒤로" onClick={onBack} className="-ml-2 rounded-full p-1 hover:bg-muted">
-              <ChevronLeft className="h-6 w-6" />
+            <button aria-label="뒤로" onClick={onBack} className="-ml-2 rounded-full p-1 hover:bg-primary/5">
+              <ChevronLeft className="h-6 w-6 text-primary" />
             </button>
             <span className="text-sm font-semibold text-muted-foreground">
               {state.step}단계 / {TOTAL_STEPS}단계 · {wizard.stepName}

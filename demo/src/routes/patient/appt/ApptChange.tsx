@@ -70,9 +70,9 @@ export function ApptChange() {
               type="button"
               aria-label="뒤로"
               onClick={() => navigate(-1)}
-              className="-ml-2 rounded-full p-1 hover:bg-muted"
+              className="-ml-2 rounded-full p-1 hover:bg-primary/5"
             >
-              <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+              <ChevronLeft className="h-6 w-6 text-primary" aria-hidden="true" />
             </button>
             <div>
               <p className="text-base font-bold">예약 변경</p>
@@ -81,7 +81,7 @@ export function ApptChange() {
               </p>
             </div>
           </div>
-          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-primary/10">
             <div className={`h-full bg-primary transition-all ${step === 'date' ? 'w-1/2' : 'w-full'}`} />
           </div>
         </header>
@@ -98,7 +98,7 @@ export function ApptChange() {
           {step === 'date' ? (
             <section aria-labelledby="change-date-title">
               <div className="mb-3 flex items-center gap-2">
-                <CalendarDays className="h-5 w-5" aria-hidden="true" />
+                <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
                 <h1 id="change-date-title" className="text-lg font-bold">변경할 날짜를 골라주세요</h1>
               </div>
               <div className="flex flex-col gap-2">
@@ -108,7 +108,7 @@ export function ApptChange() {
                     type="button"
                     data-testid="change-date"
                     onClick={() => chooseDate(date)}
-                    className="flex items-center justify-between rounded-xl border bg-card p-4 text-left hover:border-primary hover:bg-muted"
+                    className="flex items-center justify-between rounded-xl border bg-card p-4 text-left hover:border-primary hover:bg-primary/5"
                   >
                     <span className="font-semibold">{formatDateHeader(date)}</span>
                     {date === appointment.date && (
@@ -122,7 +122,7 @@ export function ApptChange() {
             <section aria-labelledby="change-time-title">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Clock3 className="h-5 w-5" aria-hidden="true" />
+                  <Clock3 className="h-5 w-5 text-primary" aria-hidden="true" />
                   <h1 id="change-time-title" className="text-lg font-bold">변경할 시간을 골라주세요</h1>
                 </div>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setStep('date')}>
@@ -145,7 +145,7 @@ export function ApptChange() {
                             type="button"
                             data-testid="change-time"
                             onClick={() => chooseTime(time)}
-                            className="rounded-xl border bg-card px-2 py-3 text-sm font-semibold hover:border-primary hover:bg-muted"
+                            className="rounded-xl border bg-card px-2 py-3 text-sm font-semibold hover:border-primary hover:bg-primary/5"
                           >
                             {formatTime(time)}
                           </button>
@@ -168,8 +168,8 @@ export function ApptChange() {
               className="w-full max-w-[358px] rounded-2xl border bg-card p-5 shadow-xl"
             >
               <div className="mb-4 flex items-start gap-3">
-                <div className="rounded-full bg-muted p-2">
-                  <Check className="h-5 w-5" aria-hidden="true" />
+                <div className="rounded-full bg-primary/10 p-2">
+                  <Check className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
                 <div>
                   <h2 id="change-confirm-title" className="font-bold">이 시간으로 예약을 변경할까요?</h2>
