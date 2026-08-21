@@ -1,0 +1,36 @@
+import {
+  patients,
+  departments,
+  doctorsByDept,
+  initialAppointments,
+  getAvailableDates,
+  getSlots,
+} from './data'
+
+test('본인이 환자 목록 맨 위(BOOK-WHO-01)', () => {
+  expect(patients[0].relation).toBe('본인')
+})
+
+test('진료과별 의사 목록이 있다', () => {
+  expect(doctorsByDept[departments[0].id].length).toBeGreaterThan(0)
+})
+
+test('초기 예약이 시각 오름차순', () => {
+  const times = initialAppointments.map((a) => a.time)
+  expect([...times].sort()).toEqual(times)
+})
+
+test('예약 가능일은 주말을 제외한 8일', () => {
+  const dates = getAvailableDates('doc-im-1', new Date('2026-08-21T00:00:00'))
+  expect(dates).toHaveLength(8)
+  for (const d of dates) {
+    const day = new Date(d + 'T00:00:00').getDay()
+    expect(day).not.toBe(0)
+    expect(day).not.toBe(6)
+  }
+})
+
+test('슬롯은 항상 최소 한 덩어리 이상', () => {
+  const slots = getSlots('doc-im-1', '2026-08-24')
+  expect(slots.length).toBeGreaterThan(0)
+})
