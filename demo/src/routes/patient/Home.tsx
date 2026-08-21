@@ -1,11 +1,63 @@
+import { useNavigate } from 'react-router-dom'
+import { Bell, CalendarPlus, Settings } from 'lucide-react'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { Button } from '@/components/ui/button'
+import { AppointmentCard } from '@/components/AppointmentCard'
+import { useAppointments } from '@/state/appointments'
 
-// Task 4에서 실제 홈으로 채운다. 지금은 라우팅 골격 확인용 placeholder.
+// 정본 묶음 2(screen-behaviors.md:3027~3336), NAV-HOME-*.
+// 가장 가까운 하루치 예약을 카드로, [+ 진료 예약하기]로 마법사 진입.
 export function Home() {
+  const navigate = useNavigate()
+  const { appointments } = useAppointments()
+
   return (
     <PhoneFrame>
-      <div data-testid="home-screen" className="p-6">
-        <h1 className="text-xl font-bold">홈</h1>
+      <div data-testid="home-screen" className="flex h-full flex-col">
+        {/* 앱바 */}
+        <header className="flex items-center justify-between border-b px-5 py-4">
+          <span className="text-lg font-bold">가온병원</span>
+          <div className="flex items-center gap-1">
+            <button aria-label="알림" className="rounded-full p-2 hover:bg-muted">
+              <Bell className="h-5 w-5" />
+            </button>
+            <button aria-label="설정" className="rounded-full p-2 hover:bg-muted">
+              <Settings className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto px-5 py-5">
+          <h2 className="mb-3 text-sm font-semibold text-muted-foreground">오늘의 예약</h2>
+
+          {appointments.length === 0 ? (
+            <div className="mt-16 flex flex-col items-center gap-4 text-center">
+              <p className="text-muted-foreground">예정된 예약이 없습니다</p>
+              <Button onClick={() => navigate('/book')}>
+                <CalendarPlus className="mr-1 h-4 w-4" /> 진료 예약하기
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {appointments.map((a) => (
+                <AppointmentCard key={a.id} appt={a} />
+              ))}
+            </div>
+          )}
+        </main>
+
+        {/* 하단 고정 예약 버튼 */}
+        {appointments.length > 0 && (
+          <div className="border-t p-4">
+            <Button
+              size="lg"
+              className="h-12 w-full text-base"
+              onClick={() => navigate('/book')}
+            >
+              <CalendarPlus className="mr-1 h-5 w-5" /> 진료 예약하기
+            </Button>
+          </div>
+        )}
       </div>
     </PhoneFrame>
   )

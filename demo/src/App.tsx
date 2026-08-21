@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { Login } from '@/routes/patient/Login'
 import { Home } from '@/routes/patient/Home'
+import { QrFullscreen } from '@/routes/patient/QrFullscreen'
 
 // Book는 이후 태스크에서 채운다. 지금은 라우팅 골격.
 function BookPlaceholder() {
@@ -17,5 +18,6 @@ function BookPlaceholder() {
 export const routes: RouteObject[] = [
   { path: '/', element: <Login /> },
   { path: '/home', element: <Home /> },
+  { path: '/qr', element: <QrFullscreen /> },
   { path: '/book', element: <BookPlaceholder /> },
 ]

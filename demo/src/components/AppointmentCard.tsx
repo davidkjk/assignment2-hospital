@@ -1,0 +1,51 @@
+import { useNavigate } from 'react-router-dom'
+import type { Appointment } from '@/mock/types'
+import { Button } from '@/components/ui/button'
+
+const STATUS_STYLE: Record<Appointment['status'], string> = {
+  예약신청: 'bg-amber-100 text-amber-800',
+  예약확정: 'bg-emerald-100 text-emerald-800',
+  진료대기: 'bg-sky-100 text-sky-800',
+  접수완료: 'bg-violet-100 text-violet-800',
+}
+
+/** 홈의 예약 카드 한 장. 왼쪽 시각(레일 느낌) + 환자·과·의사 + 상태 배지 + QR(있는 예약만). */
+export function AppointmentCard({ appt }: { appt: Appointment }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex gap-3 rounded-2xl border bg-card p-4 shadow-sm">
+      {/* 시각 레일 */}
+      <div className="flex w-14 shrink-0 flex-col items-center">
+        <span className="text-lg font-bold tabular-nums">{appt.time}</span>
+        <span className="mt-1 h-full w-px flex-1 bg-border" />
+      </div>
+
+      <div className="flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-base font-bold">{appt.patientName}</p>
+            <p className="text-sm text-muted-foreground">
+              {appt.deptName} · {appt.doctorName} 선생님
+            </p>
+          </div>
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[appt.status]}`}
+          >
+            {appt.status}
+          </span>
+        </div>
+
+        {appt.hasQR && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => navigate('/qr')}
+          >
+            접수 QR 보기
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
