@@ -674,14 +674,14 @@ void main() {
   test('성공 응답을 파싱해서 반환한다', () async {
     final mock = MockClient((r) async => http.Response(jsonEncode({'appointment_id': 'a1'}), 200));
     final client = ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 'tk', httpClient: mock);
-    final result = await client.post('/app/appointments', {'reason': '감기'}, (j) => j['appointment_id'] as String);
+    final result = await client.post('/bookings', {'reason': '감기'}, (j) => j['appointment_id'] as String);
     expect(result, 'a1');
   });
   test('실패 응답이면 한글 detail을 담은 ApiException을 던진다(예외 원문 노출 금지)', () async {
     final mock = MockClient((r) async => http.Response(jsonEncode({'detail': '이미 선택된 시간입니다.'}), 409));
     final client = ApiClient(baseUrl: 'http://localhost:8000', tokenProvider: () async => 'tk', httpClient: mock);
     expect(
-      () => client.post('/app/appointments', {}, (j) => j),
+      () => client.post('/bookings', {}, (j) => j),
       throwsA(isA<ApiException>().having((e) => e.message, 'message', '이미 선택된 시간입니다.')),
     );
   });
@@ -1979,7 +1979,16 @@ async def change_booking(patient: PatientContext, appointment_id: UUID, new_slot
 
         try:
             await conn.execute("select set_config('app.status_change_reason', '예약 변경으로 인한 자동 취소', true)")
-            await conn.execute("update appointments set status='환자취소', updated_at=now() where id=$1", appointment_id)
+            # APPT-RACE-01: 위에서 본 버전(expected_updated_at)과 같을 때만 취소가 성사되도록 UPDATE에
+            # 낙관적 잠금을 함께 싣는다. 같은 화면 버전을 본 두 change_booking이 서로 다른 새 슬롯으로
+            # 동시에 진행해도, 이 조건부 UPDATE의 row lock으로 한쪽만 원래 예약을 취소한다 — 진 쪽은
+            # UPDATE 0 → 409로 롤백되어 방금 잡은 새 슬롯도 트랜잭션과 함께 되돌려진다. SELECT 시점
+            # 비교(위 row["updated_at"])만으로는 그 사이 두 요청이 모두 통과해 예약 하나가 둘로 분열됐다.
+            cancelled = await conn.execute(
+                "update appointments set status='환자취소', updated_at=now() where id=$1 and updated_at=$2",
+                appointment_id, expected_updated_at)
+            if cancelled == "UPDATE 0":
+                raise AppError("예약이 이미 변경되었습니다.", status_code=409)
             if row["slot_id"] is not None:
                 await release_slot(row["slot_id"], patient, conn=conn)
             new_status = await _initial_status(conn)
@@ -3444,6 +3453,7 @@ git commit -m "feat: 📝 환자앱 Task 9 본문 — 알림 dispatcher 판정 �
 - [ ] **Step 1: 통합 테스트 작성(실패)** — `backend/tests/test_patient_routers_integration.py`
 
 ```python
+import asyncio
 import time
 import uuid
 from datetime import date
@@ -3452,6 +3462,9 @@ import pytest
 from jose import jwt
 
 from app.core.config import settings
+from app.core.errors import AppError
+from app.core.security import PatientContext
+from app.services import patient_booking_service
 from tests.conftest import seed_patient, seed_staff
 
 
@@ -3544,6 +3557,42 @@ async def test_change_booking_stale_lock_surfaces_409(client, committed_conn):
                      json={"new_slot_id": str(slot2), "reason": "변경",
                            "expected_updated_at": "2000-01-01T00:00:00+00:00"})   # 낡은 시각
     assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_change_booking_concurrent_same_version_only_one_wins(committed_conn):
+    # APPT-RACE-01 동시성(갭 #12): 같은 화면 버전(expected_updated_at)을 본 두 변경 요청이 서로 다른
+    # 새 슬롯으로 동시에 진행해도, 취소 UPDATE의 낙관적 잠금(where updated_at)으로 한쪽만 성공하고
+    # 다른 쪽은 409여야 한다. SELECT 시점 비교만 있던 이전 코드는 둘 다 통과해 예약이 둘로 분열됐다.
+    # 동기 TestClient로는 진짜 동시 호출이 안 되므로 서비스 계층을 asyncio.gather로 직접 부른다
+    # (change_booking이 각자 acquire_as로 자기 커넥션을 얻어 진짜 병렬이 된다).
+    me = await seed_patient(committed_conn)
+    dept, doctor, slot = await _seed_bookable(committed_conn)
+    ctx = PatientContext(id=me["patient_id"], auth_user_id=me["auth_user_id"])
+    old_id = await patient_booking_service.create_booking(
+        ctx, for_patient_id=me["patient_id"], department_id=dept,
+        doctor_id=doctor, slot_id=slot, reason="감기", request_id=uuid.uuid4())
+    slot_a = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date + 8, '11:00', '빈시간') returning id", doctor)
+    slot_b = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date + 9, '12:00', '빈시간') returning id", doctor)
+    uat = await committed_conn.fetchval("select updated_at from appointments where id=$1", old_id)
+
+    results = await asyncio.gather(
+        patient_booking_service.change_booking(ctx, old_id, slot_a, reason="A", expected_updated_at=uat),
+        patient_booking_service.change_booking(ctx, old_id, slot_b, reason="B", expected_updated_at=uat),
+        return_exceptions=True,
+    )
+    wins = [r for r in results if not isinstance(r, Exception)]
+    losses = [r for r in results if isinstance(r, AppError)]
+    assert len(wins) == 1 and len(losses) == 1 and losses[0].status_code == 409
+    # 원래 예약은 정확히 한 번만 '환자취소'가 되고, 살아있는 새 예약도 딱 한 건만 생겼다.
+    assert await committed_conn.fetchval("select status from appointments where id=$1", old_id) == "환자취소"
+    assert await committed_conn.fetchval(
+        "select count(*) from appointments where account_patient_id=$1 and status <> '환자취소'",
+        me["patient_id"]) == 1
 
 
 @pytest.mark.asyncio
@@ -11372,7 +11421,7 @@ git commit -m "feat: 환자앱 Task 19 — 예약 마법사 1~4단계 71규칙(B
 - Consumes:
   - T19: `bookingProvider`·`BookingController`(`selectSlot`·`goToStep`·`reset`) · `BookingSelection`(target·department·doctor·date) · `BookingWizard` 셸 · `availableSlotsProvider`(아래 신설, T4 `list_available_slots` 소비)
   - T4: `GET /catalog/doctors/{doctor_id}/slots?target_date=`(`list_bookable_slots` — 당일 30분·마감·8주 서버 판정) · `get_hospital_info`(`BOOK-CONF-02` 장소)
-  - T5: `patient_booking_service.create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason, request_id, source='app') -> UUID`(멱등) · 라우터 `POST /my/appointments`
+  - T5: `patient_booking_service.create_booking(patient, for_patient_id, department_id, doctor_id, slot_id, reason, request_id, source='app') -> UUID`(멱등) · 라우터 `POST /bookings`
   - T8: `GET /my/appointments/{id}`(완료 화면이 `booking_code`·`status` 조회 — `BOOK-DONE-01b·01c·02·03`)
   - T12: `ActionButton`(`BTN-BUSY`) · `showExitConfirm`(`BTN-EXIT`) · `PendingRequestCard`/`pendingRequestProvider`(`BTN-KILL`) · `InlineError`(`ERR-POS`) · `EmptyState.zero/error`
 - Produces:
@@ -11661,7 +11710,7 @@ class BookingRepository {
   BookingRepository(this._api);
   final ApiClient _api;
   // 멱등 request_id를 보낸다. 반환 appointment_id.
-  Future<String> createBooking(BookingSelection s) => _api.post('/my/appointments', {
+  Future<String> createBooking(BookingSelection s) => _api.post('/bookings', {
     'for_patient_id': s.target!.patientId, 'department_id': s.department!.id,
     'doctor_id': s.doctor!.id, 'slot_id': s.slotId, 'reason': s.reason ?? '',
     'request_id': s.requestId,

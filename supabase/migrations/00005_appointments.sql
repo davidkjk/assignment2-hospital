@@ -62,6 +62,16 @@ create table appointments (
 -- 대신 만료된 코드는 아래 트리거/배치가 booking_code를 NULL로 비워 값을 재사용 가능하게 만든다.
 create unique index idx_appointments_booking_code on appointments (booking_code);
 
+-- [정합성 검토 브리프B/APPT-RACE] slot_id는 nullable FK일 뿐이라, book_slot()의 조건부 UPDATE를
+-- 거치지 않는 직접 INSERT(향후 환자 앱/챗봇 예약 경로 우회 포함)로 같은 slot_id에 활성 예약을 여러 건
+-- 만들 수 있었다 — enforce_appointment_consistency() 트리거는 담당의 일치만 볼 뿐 중복 점유는 보지 않는다.
+-- 슬롯을 실제로 점유하는 '살아있는' 예약은 같은 slot_id에 최대 한 건만 존재하도록 DB가 최종 심판한다.
+-- 취소류(환자취소/병원취소/예약부도)는 슬롯을 놓아준 상태이므로 유니크에서 제외해 재예약을 허용한다
+-- (release_slot()이 슬롯 status를 '빈시간'으로 되돌리는 것과 짝을 이룬다). 부분 인덱스 조건절은
+-- IMMUTABLE 비교(slot_id is not null·status not in 상수)뿐이라 마이그레이션이 실패하지 않는다.
+create unique index idx_appointments_active_slot on appointments (slot_id)
+  where slot_id is not null and status not in ('환자취소', '병원취소', '예약부도');
+
 -- [정합성 검토 R4-04] 6자리 코드 생성: 대문자+숫자, 혼동되는 0/O, 1/I 제외. 충돌 시 재시도는 호출부(트리거)가 담당한다.
 create or replace function generate_booking_code()
 returns text
