@@ -29,10 +29,10 @@ test('예약 변경은 전후 확인 후 새 예약 상세로 이동한다', asy
   expect(screen.getByText('예약번호가 새로 발급되었습니다')).toBeInTheDocument()
 })
 
-test('취소는 상담 연결 즉시 직원 확인 안내를 보여준다', async () => {
+test('취소는 상담 채팅 연결을 누르면 채팅으로 이동해 예약 유지를 안내한다', async () => {
   const user = userEvent.setup()
   renderApp(routes, ['/appt/appt-2/cancel'])
 
   await user.click(screen.getByRole('button', { name: '상담 채팅 연결' }))
-  expect(screen.getByTestId('appt-cancel')).toHaveTextContent('상담(직원 확인)으로 연결됐어요')
+  expect(screen.getByTestId('chat-cancel-intro')).toHaveTextContent('예약은 그대로 유지')
 })

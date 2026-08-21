@@ -1,5 +1,4 @@
-import { CheckCircle2, ChevronLeft, MessageCircle, UserRound } from 'lucide-react'
-import { useState } from 'react'
+import { ChevronLeft, MessageCircle, UserRound } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -7,11 +6,12 @@ import { PhoneFrame } from '@/components/PhoneFrame'
 import { formatAppointmentDateTime } from './format'
 import { getAppointment } from './mockData'
 
+// 취소 마감 후 취소 상담(CANCEL-LATE-*). [상담 채팅 연결]을 누르면 채팅 화면으로
+// 이동해 봇이 예약 정보·연결 사실·예약이 유지됨을 설명한다(CANCEL-LATE-10).
 export function ApptCancel() {
   const navigate = useNavigate()
   const { id } = useParams()
   const appointment = getAppointment(id)
-  const [connected, setConnected] = useState(false)
 
   return (
     <PhoneFrame>
@@ -41,8 +41,8 @@ export function ApptCancel() {
             <CardContent className="space-y-3 p-4">
               <p className="text-sm font-semibold">상담할 예약</p>
               <div className="flex items-start gap-3">
-                <div className="rounded-full bg-muted p-2">
-                  <UserRound className="h-5 w-5" aria-hidden="true" />
+                <div className="rounded-full bg-primary/10 p-2">
+                  <UserRound className="h-5 w-5 text-primary" aria-hidden="true" />
                 </div>
                 <div>
                   <p className="font-bold">{appointment.patientName}</p>
@@ -59,21 +59,6 @@ export function ApptCancel() {
               </p>
             </CardContent>
           </Card>
-
-          {connected && (
-            <div
-              role="status"
-              className="mt-5 flex items-start gap-3 rounded-xl border border-primary bg-secondary p-4"
-            >
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              <div>
-                <p className="font-bold">상담(직원 확인)으로 연결됐어요</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  직원이 예약을 확인하고 취소 상담을 이어갑니다.
-                </p>
-              </div>
-            </div>
-          )}
         </main>
 
         <footer className="sticky bottom-0 border-t bg-background p-4">
@@ -81,11 +66,19 @@ export function ApptCancel() {
             type="button"
             size="lg"
             className="h-12 w-full text-base"
-            disabled={connected}
-            onClick={() => setConnected(true)}
+            onClick={() =>
+              navigate('/chat', {
+                state: {
+                  context: 'cancel',
+                  patientName: appointment.patientName,
+                  when: formatAppointmentDateTime(appointment.date, appointment.time),
+                  dept: appointment.deptName,
+                },
+              })
+            }
           >
             <MessageCircle className="mr-1 h-5 w-5" aria-hidden="true" />
-            {connected ? '상담 연결됨' : '상담 채팅 연결'}
+            상담 채팅 연결
           </Button>
         </footer>
       </div>
