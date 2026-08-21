@@ -1417,13 +1417,15 @@ exception when unique_violation then                                     -- thre
 end;
 $$;
 
--- 30분 연장(§4.4·§8-5): active만. active가 아니면 raise → 만료 배치와 상호배제(둘 다 status='active' 잠금).
+-- 30분 연장(§4.4·§8-5): active면서 아직 만료 경계 전(now < expires_at)만. 아니면 raise → 만료 배치와 상호배제.
+-- C6-#8 F03(2026-08-20): status='active'만 걸면 지연 배치 전 30분 초과 세션에 새 메시지가 와도 다시 30분 연장돼
+--   만료 경계를 넘긴 세션이 되살아난다 → `now() < expires_at`를 함께 걸어 경계에서 만료/수락 중 하나만 이기게 한다.
 create or replace function record_ai_activity(p_session_id uuid)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   update public.ai_chat_sessions
      set last_activity_at = now(), expires_at = now() + interval '30 minutes'
-   where id = p_session_id and status = 'active';
+   where id = p_session_id and status = 'active' and now() < expires_at;
   if not found then raise exception '만료되었거나 종료된 AI 상담입니다.' using errcode = 'P0001'; end if;
 end;
 $$;
@@ -3754,15 +3756,18 @@ async def handle_patient_message(session, content: str, *, thread_id: UUID,
                                  client_message_id: UUID | None, embedder, model) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
-        # 1. 환자 메시지 저장(멱등). AI 세션 문맥.
-        pmsg = await conn.fetchrow(
-            "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, sender_patient_id, "
-            "message_type, content, client_message_id) "
-            "select $1,$2,'patient', t.patient_id, 'text', $3, $4 from chat_threads t where t.id=$1 "
-            "on conflict (client_message_id) where client_message_id is not null do nothing returning *",
-            thread_id, session.id, content, client_message_id)
-        # 2. 30분 연장(만료됐으면 record_activity가 막는다 → 상위에서 새 세션 안내).
-        await conn.execute("select record_ai_activity($1)", session.id)
+        # 1+2 원자적으로(C6-#8 F05): 메시지 저장과 활동갱신이 한 트랜잭션 — 만료면 record_activity가 raise하며
+        #   방금 넣은 환자 메시지도 함께 롤백된다(만료 세션에 고아 메시지 + 409 방지).
+        async with conn.transaction():
+            # 1. 환자 메시지 저장(멱등). AI 세션 문맥.
+            pmsg = await conn.fetchrow(
+                "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, sender_patient_id, "
+                "message_type, content, client_message_id) "
+                "select $1,$2,'patient', t.patient_id, 'text', $3, $4 from chat_threads t where t.id=$1 "
+                "on conflict (client_message_id) where client_message_id is not null do nothing returning *",
+                thread_id, session.id, content, client_message_id)
+            # 2. 30분 연장(만료됐으면 record_activity가 막는다 → 상위에서 새 세션 안내).
+            await conn.execute("select record_ai_activity($1)", session.id)
         # 3. 최근 히스토리(롤링 윈도우).
         hist = await conn.fetch(
             "select content from chat_messages where thread_id=$1 and content is not null "
@@ -3794,6 +3799,11 @@ async def handle_patient_message(session, content: str, *, thread_id: UUID,
             "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken) "
             "values ($1,$2,'bot','text',$3,$4) returning id", thread_id, session.id,
             out.get("reply") or "", out["route_taken"])
+        # C6-#8 F04: 봇 답변도 활동이다(정본 last_activity=환자|봇 메시지 시각) → expires_at 갱신.
+        #   best-effort(raise 안 함): 응답 저장이 만료 때문에 500나면 안 되므로 record_ai_activity 대신 직접 UPDATE.
+        await conn.execute(
+            "update ai_chat_sessions set last_activity_at=now(), expires_at=now()+interval '30 minutes' "
+            "where id=$1 and status='active' and now() < expires_at", session.id)
     if out.get("sources"):
         await rag_service.record_answer_sources(bmsg["id"], out["sources"])
     return {"route_taken": out["route_taken"], "message_id": bmsg["id"],
@@ -5316,6 +5326,7 @@ void main() {
   test('[CHAT-ROOM-AI-EXPIRE-01] 마지막 활동 30분 뒤 무활동이면 그 AI 상담만 만료 — 기록은 보존', () {
     final last = DateTime(2026, 1, 1, 9, 0);
     expect(isAiSessionExpired(last, now: DateTime(2026, 1, 1, 9, 29)), isFalse); // 30분 전
+    expect(isAiSessionExpired(last, now: DateTime(2026, 1, 1, 9, 30)), isTrue);  // [C6-#8 F06] 정확히 30분=만료(서버 >= 와 일치)
     expect(isAiSessionExpired(last, now: DateTime(2026, 1, 1, 9, 31)), isTrue);  // 30분 후
   });
 
@@ -5362,7 +5373,8 @@ class ChatEndBoundary extends StatelessWidget {
 /// 직원 연결/상담 중이면 만료하지 않는다(CHAT-ROOM-AI-EXPIRE-02) — 서버 expire_idle_ai_sessions와 동일 기준.
 bool isAiSessionExpired(DateTime lastActivity, {required DateTime now, bool handoffActive = false}) {
   if (handoffActive) return false;
-  return now.difference(lastActivity) > const Duration(minutes: 30);
+  // C6-#8 F06(2026-08-20): 서버 primitive가 `now() >= expires_at`(정확히 30분=만료)라 client도 `>=`로 맞춘다.
+  return now.difference(lastActivity) >= const Duration(minutes: 30);
 }
 /// 재문의(CHAT-ROOM-RETICKET-01): 완료 티켓을 재개하지 않고 previous_ticket_id로 새 티켓.
 Map<String, dynamic> reticketRequest({required String previousTicketId}) =>
