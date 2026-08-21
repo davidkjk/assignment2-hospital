@@ -12,7 +12,7 @@ export function CardGallery() {
     <PhoneFrame>
       <div data-testid="card-gallery" className="flex h-full flex-col bg-background">
         <header className="flex items-center gap-2 border-b px-4 py-3">
-          <Button variant="ghost" size="icon" aria-label="홈으로" onClick={() => navigate('/home')}>
+          <Button variant="ghost" size="icon" aria-label="뒤로" onClick={() => navigate(-1)}>
             <ArrowLeft aria-hidden="true" />
           </Button>
           <div className="flex-1">
