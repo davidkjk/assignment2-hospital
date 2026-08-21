@@ -3709,6 +3709,7 @@ git commit -m "feat: 📝 상담봇 Task 8 본문 — 품질 검토(상담 단�
 **Files:**
 - Create: `backend/app/routers/chat.py`(환자·익명) · `backend/app/routers/staff_chat.py`(직원) · `backend/app/routers/admin_chat.py`(관리자)
 - Create: `backend/app/services/chat/chat_flow_service.py`(파이프라인 조립)
+- Create: `backend/app/services/chat/enqueue.py`(`enqueue_after_reply` 래퍼 — staff_chat 라우터가 소비, C1-6)
 - Modify: `backend/app/main.py`(라우터 3개 include)
 - Create: `backend/tests/test_chat_integration.py`(§8 1~12 추적)
 
@@ -3846,6 +3847,19 @@ async def reply(ticket_id: UUID, body: ReplyRequest, staff: StaffContext = Depen
 @router.post("/tickets/{ticket_id}/close")
 async def close(ticket_id: UUID, staff: StaffContext = Depends(get_current_staff)):
     return await ticket_service.close_ticket(staff.auth_user_id, ticket_id)   # answered=이때만
+```
+
+**위 라우터가 쓰는 `enqueue_after_reply` 래퍼 정의(C1-6 신설, 2026-08-20)** — `import`(3824)·호출(3842)만 있고 정의·파일이 없어 배선 불가였다. SQL `enqueue_staff_reply_notification(message_id) -> uuid`(배치 생성/확장, 즉시읽음이면 null)를 감싸는 얇은 Python 래퍼:
+```python
+# backend/app/services/chat/enqueue.py
+from uuid import UUID
+from app.db.pool import get_pool
+
+async def enqueue_after_reply(message_id: UUID) -> UUID | None:
+    """staff_send 후 배칭. 수신자가 상담방을 보고 있으면 즉시읽음(None), 아니면 배치 생성/확장(§8-6~8)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval("select enqueue_staff_reply_notification($1)", message_id)
 ```
 
 > 관리자 `admin_chat.py`는 같은 패턴으로 `kb_service`·`answer_feedback_service`·`quality_service`를 `Depends(require_role("admin"))` 뒤에 위임한다(KB 승인·bad inbox 적용/반려·품질 목록). `main.py`에 세 라우터 `include_router`.
