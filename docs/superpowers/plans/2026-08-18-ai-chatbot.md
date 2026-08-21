@@ -1739,7 +1739,7 @@ git commit -m "feat: 📝 상담봇 Task 2 본문 — AI 세션·티켓 생명�
 
 **Files:**
 - Create: `supabase/migrations/00054_anonymous_chat_notifications.sql`
-- Create: `backend/app/services/chat/anonymous_service.py` · `backend/app/services/chat/notification_recipient.py`
+- Create: `backend/app/services/chat/anonymous_service.py` · `backend/app/services/chat/notification_recipient.py` · `backend/app/services/chat/anonymous_contact_codec.py`(익명 연락처 암복호 — C1-3)
 - Create: `backend/tests/test_anonymous_chat_schema.py` · `backend/tests/test_chat_notification_batching.py`
 
 **Interfaces:**
@@ -2075,6 +2075,23 @@ async def record_verified_contact(session_id: UUID, ciphertext: str, phone_hash:
         row = await conn.fetchrow(
             "select * from record_verified_anonymous_contact($1, $2, $3)", session_id, ciphertext, phone_hash)
         return dict(row)
+```
+
+**익명 연락처 대칭 암복호 codec(C1-3 신설, 2026-08-20)** — 키만 선언되고(배포 env `ANON_CONTACT_ENCRYPTION_KEY`) codec 함수가 없어 저장(암호화)·문자 폴백(복호화) 양쪽이 배선 불가였다. `record_verified_contact`에 넘기는 `ciphertext`는 `encrypt_contact(phone)`, dispatcher가 `resolve_recipient`의 `contact_ciphertext`를 `decrypt_contact(...)`로 푼다. **상수명은 배포 env와 일치**(deployment:2315 요구):
+```python
+# backend/app/services/chat/anonymous_contact_codec.py
+from cryptography.fernet import Fernet
+from app.core.config import settings
+
+_fernet = Fernet(settings.anon_contact_encryption_key.encode())   # env ANON_CONTACT_ENCRYPTION_KEY (Fernet base64 키)
+
+def encrypt_contact(plaintext: str) -> str:
+    """저장 시: 검증된 전화번호 원문 → ciphertext(record_verified_contact 인자). 평문 저장 금지(§4.5)."""
+    return _fernet.encrypt(plaintext.encode()).decode()
+
+def decrypt_contact(ciphertext: str) -> str:
+    """발송 시: dispatcher(문자 폴백)가 resolve_recipient의 contact_ciphertext를 실제 전화번호로."""
+    return _fernet.decrypt(ciphertext.encode()).decode()
 ```
 
 `backend/app/services/chat/notification_recipient.py`:
