@@ -46,6 +46,11 @@ import {
   Stethoscope as PhStethoscope,
   WarningCircle,
   XCircle as PhXCircle,
+  ChartBar,
+  MagnifyingGlass,
+  Flag,
+  SealQuestion,
+  Confetti,
 } from '@phosphor-icons/react'
 
 type PhProps = ComponentProps<typeof House>
@@ -102,3 +107,8 @@ export const FileText = make(PhFileText)
 export const LockKeyhole = make(LockKey)
 export const Stethoscope = make(PhStethoscope)
 export const XCircle = make(PhXCircle)
+export const BarChart3 = make(ChartBar)
+export const Search = make(MagnifyingGlass, 'bold')
+export const FlagIcon = make(Flag)
+export const SealQuestionIcon = make(SealQuestion)
+export const ConfettiIcon = make(Confetti)

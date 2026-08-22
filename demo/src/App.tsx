@@ -11,6 +11,7 @@ import { familyRoutes } from '@/routes/patient/family/routes'
 import { settingsRoutes } from '@/routes/patient/settings/routes'
 import { notificationsRoutes } from '@/routes/patient/notifications/routes'
 import { authRoutes } from '@/routes/patient/auth/routes'
+import { staffRoutes } from '@/routes/staff/routes'
 
 export const routes: RouteObject[] = [
   { path: '/', element: <Login /> },
@@ -24,4 +25,5 @@ export const routes: RouteObject[] = [
   ...familyRoutes,
   ...settingsRoutes,
   ...notificationsRoutes,
+  ...staffRoutes,
 ]
