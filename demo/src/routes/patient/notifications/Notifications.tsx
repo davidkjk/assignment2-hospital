@@ -135,14 +135,7 @@ export function Notifications() {
           <p className="mt-8 text-center text-xs text-muted-foreground">
             알림은 30일 동안 보관됩니다
           </p>
-
-          <button
-            type="button"
-            onClick={() => navigate('/cards')}
-            className="mt-6 w-full rounded-xl border border-dashed py-3 text-center text-xs text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5"
-          >
-            (데모) 예약 카드 10종 상태 모음 보기 ›
-          </button>
+          {/* 카드 10종 모음(QA)은 로그인 화면 QA 버튼으로 옮겼으므로 여기서는 제거(중복). 라우트 /cards는 유지. */}
         </main>
 
         {showGoneNotice && (
