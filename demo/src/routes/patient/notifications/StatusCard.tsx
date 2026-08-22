@@ -186,7 +186,7 @@ function QuestionnaireLine({ appointment, onOpen }: { appointment: DemoAppointme
   // 진료가 시작되면 잠긴다(CARD-QNR: 진료중 이후 수정 불가).
   if (status === '진료중') {
     return (
-      <div className="flex items-start gap-2 border-t pt-3 text-sm text-muted-foreground">
+      <div className="flex items-start gap-2 border-t pt-3 text-base text-muted-foreground">
         <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <span>진료가 시작되어 수정할 수 없습니다 · 내용 보기 ›</span>
       </div>
@@ -198,7 +198,7 @@ function QuestionnaireLine({ appointment, onOpen }: { appointment: DemoAppointme
     return (
       <button
         type="button"
-        className="flex w-full items-center gap-2 border-t pt-3 text-left text-sm text-muted-foreground hover:text-foreground"
+        className="flex w-full items-center gap-2 border-t pt-3 text-left text-base text-muted-foreground hover:text-foreground"
         onClick={onOpen}
       >
         <Eye className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
@@ -224,7 +224,7 @@ function QuestionnaireLine({ appointment, onOpen }: { appointment: DemoAppointme
   return (
     <button
       type="button"
-      className="flex w-full items-center gap-2 border-t pt-3 text-left text-sm text-primary hover:underline"
+      className="flex w-full items-center gap-2 border-t pt-3 text-left text-base text-primary hover:underline"
       onClick={onOpen}
     >
       <Stethoscope className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -322,20 +322,21 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
         </AttentionNotice>
       )}
 
-      <Card>
+      {/* 홈 카드도 앱 전체 글자 크기(17px)에 맞춘다 — 카드 기본 text-sm이라 작아 보였다(사용자 지적). */}
+      <Card className="text-base">
         <CardHeader className="gap-2 border-b">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <CardTitle className="truncate">
+              <CardTitle className="truncate text-lg">
                 {appointment.patientName} · {appointment.relation}
               </CardTitle>
-              <CardDescription className="mt-1">
+              <CardDescription className="mt-1 text-base">
                 {appointment.time} · {appointment.department} · {appointment.doctor} 선생님
               </CardDescription>
             </div>
             <StatusBadge label={BADGE_LABEL[appointment.status]} tone={STATUS_TONE[appointment.status]} />
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {appointment.status === '예약신청' || appointment.status === '미확정'
               ? '신청번호'
               : '예약번호'}{' '}
@@ -351,7 +352,7 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
           <QuestionnaireLine appointment={appointment} onOpen={() => navigate('/questionnaire')} />
 
           <div className="flex items-center justify-between gap-3 border-t pt-3">
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               {appointment.department} · {appointment.doctor} 선생님
             </div>
             <StatusActions appointment={appointment} />
