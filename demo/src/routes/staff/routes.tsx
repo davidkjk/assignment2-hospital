@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router-dom'
 import { StaffShell } from './StaffShell'
 import { StaffLogin } from './auth/Login'
 import { Today } from './today/Today'
+import { Queue } from './queue/Queue'
 import { StaffPlaceholder } from './Placeholder'
 
 // 직원 웹 데모 라우트 — /staff/*. 폰 프레임 없이 StaffShell(데스크톱) 레이아웃.
@@ -18,7 +19,7 @@ export const staffRoutes: RouteObject[] = [
       { index: true, element: <Today /> },
       { path: 'today', element: <Today /> },
       // 업무
-      { path: 'queue', element: p('대기 목록') },
+      { path: 'queue', element: <Queue /> },
       { path: 'checkin', element: p('QR·예약번호 접수') },
       { path: 'calendar', element: p('예약 캘린더') },
       { path: 'patients', element: p('환자 검색') },

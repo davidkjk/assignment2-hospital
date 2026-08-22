@@ -135,3 +135,77 @@ export const navBadges: Record<string, number> = {
   '/staff/tickets': 3,
   '/staff/messages': 2,
 }
+
+// ── 대기 목록 (/queue) — QUEUE-* ──
+export type QueueStatus = 'not_arrived' | 'arrived' | 'waiting' | 'in_progress' | 'done' | 'cancelled'
+export type CancelKind = '환자 취소' | '병원 취소' | '예약 부도'
+
+// 7개 상태 탭 (QUEUE-TAB-01) — 한 번에 하나, 0명도 숨기지 않음(QUEUE-TAB-06)
+export const QUEUE_TABS: { key: QueueStatus | 'all'; label: string }[] = [
+  { key: 'all', label: '전체' },
+  { key: 'not_arrived', label: '아직 안 옴' },
+  { key: 'arrived', label: '도착' },
+  { key: 'waiting', label: '진료 대기' },
+  { key: 'in_progress', label: '진료 중' },
+  { key: 'done', label: '진료 완료' },
+  { key: 'cancelled', label: '취소·부도' },
+]
+
+export interface QueuePatient {
+  id: string
+  name: string
+  birth: string
+  tel?: string
+  dept: string
+  doctor: string
+  status: QueueStatus
+  apptTime: string // 예약 시각 (아직 안 옴 탭의 순번 자리)
+  waitMin?: number // 도착=경과 / 진료 대기=대기 / 진료 중=진행 분
+  order?: number // 진료 대기 순번 (병원 전체 기준, QUEUE-ORDER-03)
+  emergency?: boolean
+  emergencyBy?: string // '오늘 09:32 · 박지민'
+  walkIn?: boolean
+  cancelKind?: CancelKind
+}
+
+export const queuePatients: QueuePatient[] = [
+  // 아직 안 옴 (예약확정, 미접수)
+  { id: 'q1', name: '이말녀', birth: '1955-08-17', tel: '010-2841-5678', dept: '내과', doctor: '한서연', status: 'not_arrived', apptTime: '09:00' },
+  { id: 'q2', name: '윤도현', birth: '1990-02-28', tel: '010-3092-1043', dept: '피부과', doctor: '윤지호', status: 'not_arrived', apptTime: '09:30' },
+  { id: 'q3', name: '조현우', birth: '1982-06-04', tel: '010-7734-2201', dept: '안과', doctor: '오세림', status: 'not_arrived', apptTime: '10:20' },
+  // 도착 (체크인, 진료 대기 전)
+  { id: 'q4', name: '배수정', birth: '1975-03-22', dept: '정형외과', doctor: '박강우', status: 'arrived', apptTime: '09:15', waitMin: 8 },
+  { id: 'q5', name: '문상호', birth: '1968-10-11', dept: '내과', doctor: '이정훈', status: 'arrived', apptTime: '09:40', waitMin: 3 },
+  // 진료 대기 (순번 부여)
+  { id: 'q6', name: '정순남', birth: '1948-05-21', dept: '정형외과', doctor: '박강우', status: 'waiting', apptTime: '08:50', waitMin: 52, order: 1, emergency: true, emergencyBy: '오늘 09:32 · 박지민' },
+  { id: 'q7', name: '김태호', birth: '1972-11-03', dept: '내과', doctor: '이정훈', status: 'waiting', apptTime: '09:05', waitMin: 38, order: 2 },
+  { id: 'q8', name: '한지아', birth: '1995-01-19', dept: '내과', doctor: '이정훈', status: 'waiting', apptTime: '09:20', waitMin: 21, order: 3 },
+  { id: 'q9', name: '오세훈', birth: '1960-07-08', dept: '이비인후과', doctor: '정우재', status: 'waiting', apptTime: '09:35', waitMin: 12, order: 4, walkIn: true },
+  { id: 'q10', name: '신보라', birth: '2001-12-30', dept: '내과', doctor: '한서연', status: 'waiting', apptTime: '09:45', waitMin: 6, order: 5 },
+  // 진료 중
+  { id: 'q11', name: '강대식', birth: '1953-04-02', dept: '정형외과', doctor: '박강우', status: 'in_progress', apptTime: '09:00', waitMin: 14 },
+  { id: 'q12', name: '류하은', birth: '1988-09-17', dept: '피부과', doctor: '윤지호', status: 'in_progress', apptTime: '09:10', waitMin: 6 },
+  // 진료 완료
+  { id: 'q13', name: '백승우', birth: '1979-02-14', dept: '내과', doctor: '이정훈', status: 'done', apptTime: '08:30' },
+  { id: 'q14', name: '전미경', birth: '1965-11-28', dept: '안과', doctor: '오세림', status: 'done', apptTime: '08:40' },
+  { id: 'q15', name: '고은채', birth: '1998-05-09', dept: '이비인후과', doctor: '정우재', status: 'done', apptTime: '08:45' },
+  // 취소·부도 (세 종류 구분, QUEUE-BTN-09)
+  { id: 'q16', name: '남기훈', birth: '1971-08-23', dept: '내과', doctor: '한서연', status: 'cancelled', apptTime: '09:00', cancelKind: '환자 취소' },
+  { id: 'q17', name: '허영란', birth: '1957-03-30', dept: '정형외과', doctor: '최다인', status: 'cancelled', apptTime: '09:20', cancelKind: '예약 부도' },
+  { id: 'q18', name: '임재현', birth: '1984-12-05', dept: '피부과', doctor: '윤지호', status: 'cancelled', apptTime: '10:00', cancelKind: '병원 취소' },
+]
+
+/** 탭별 인원 수 (0도 표시, QUEUE-TAB-06) */
+export function queueCount(key: QueueStatus | 'all'): number {
+  if (key === 'all') return queuePatients.length
+  return queuePatients.filter((p) => p.status === key).length
+}
+
+/** 대기시간 글자 — 탭마다 다름 (QUEUE-ROW-06) */
+export function waitLabel(p: QueuePatient): string | null {
+  if (p.waitMin == null) return null
+  if (p.status === 'arrived') return `${p.waitMin}분 경과`
+  if (p.status === 'waiting') return `${p.waitMin}분 대기`
+  if (p.status === 'in_progress') return `${p.waitMin}분째`
+  return null
+}
