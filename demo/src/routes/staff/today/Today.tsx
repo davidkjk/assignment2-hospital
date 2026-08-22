@@ -16,6 +16,9 @@ import {
 // 정본이 요구하는 순서: 「지금 처리할 것」(문제 우선)이 맨 위, 「오늘 요약」 숫자는 그 아래.
 // 요구사항 3.2: "숫자만 보여주는 화면보다 지금 처리해야 할 환자와 문제가 먼저".
 
+const REDUCED_MOTION =
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
 const TONE_TEXT: Record<SummaryTile['tone'], string> = {
   teal: 'text-primary',
   amber: 'text-amber-600',
@@ -176,7 +179,10 @@ function Row({ card, row }: { card: ProblemCard; row: ProblemRow }) {
 
 function ProblemCardView({ card }: { card: ProblemCard }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+    <section
+      id={`today-card-${card.kind}`}
+      className="scroll-mt-4 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]"
+    >
       {/* 카드 제목 — 좌측 4px 주의색 바 + 주의색 건수, 배경 안 칠함 (TODAY-CARD-01) */}
       <div className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
         <span className="h-4 w-1 rounded-full bg-amber-500" />
@@ -194,59 +200,96 @@ function ProblemCardView({ card }: { card: ProblemCard }) {
 
 export function Today() {
   const navigate = useNavigate()
+  // 할 일 숫자 버튼 → 해당 카드로 점프(목록이 한 화면을 넘쳐도 바로 간다)
+  const scrollToCard = (kind: string) =>
+    document.getElementById(`today-card-${kind}`)?.scrollIntoView({
+      behavior: REDUCED_MOTION ? 'auto' : 'smooth',
+      block: 'start',
+    })
+
   return (
-    <div className="mx-auto max-w-4xl px-6 py-5">
-      {/* ── 지금 처리할 것 (맨 위) ── */}
-      <div className="mb-2.5 flex items-center gap-2">
-        <h2 className="text-base font-bold">지금 처리할 것</h2>
-        <span className="rounded-full bg-amber-500/12 px-2 py-0.5 text-xs font-bold text-amber-700 tabular-nums">
-          {problemTotal}
-        </span>
-      </div>
-      <div className="flex flex-col gap-3">
-        {problemCards.map((c) => (
-          <ProblemCardView key={c.kind} card={c} />
-        ))}
-      </div>
-
-      {/* ── 오늘 요약 (아래) ── */}
-      <h2 className="mb-2.5 mt-8 text-base font-bold">오늘 요약</h2>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-        {summaryTiles.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => navigate('/staff/queue')}
-            className="rounded-xl border border-border/70 bg-card px-3.5 py-3 text-left shadow-[0_1px_2px_rgba(16,45,50,0.04)] transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
-          >
-            <div className={`text-2xl font-bold tabular-nums ${TONE_TEXT[t.tone]}`}>{t.count}</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">{t.label}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* 의사별 대기 인원 (TODAY-DOC-01: 진료과 생략 안 함) */}
-      <div className="mt-3 rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-        <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">의사별 대기 인원</h3>
-        <div className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-          {doctorWaits.map((d) => (
-            <button
-              key={d.dept + d.doctor}
-              onClick={() => navigate('/staff/queue')}
-              className="flex items-center justify-between rounded-lg px-2 py-1.5 text-left hover:bg-muted"
-            >
-              <span>
-                <span className="text-muted-foreground">{d.dept}</span> {d.doctor}
-              </span>
-              <span className="font-semibold tabular-nums">
-                {d.waiting}
-                <span className="ml-0.5 text-sm font-normal text-muted-foreground">명</span>
-              </span>
-            </button>
-          ))}
+    <div className="mx-auto max-w-6xl px-6 py-5">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        {/* ── 주 컬럼: 지금 처리할 것 (정본대로 전부 표시, TODAY-LAY-01·ORDER-02) ── */}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-3">
+            {problemCards.map((c) => (
+              <ProblemCardView key={c.kind} card={c} />
+            ))}
+          </div>
         </div>
+
+        {/* ── 오른쪽 사이드 레일 (넓은 화면에서 따라 붙음) — 요약은 부차라 오른쪽(TODAY-LAY-01 위계 유지) ── */}
+        <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-5 lg:w-72">
+          {/* 지금 처리할 것 — 숫자 버튼(누르면 해당 카드로 점프). 카드 3종 제목 스타일 통일 */}
+          <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <h3 className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              지금 처리할 것
+              <span className="rounded-full bg-amber-500/12 px-1.5 py-0.5 text-[0.7rem] font-bold text-amber-700 tabular-nums">
+                {problemTotal}
+              </span>
+            </h3>
+            <div className="flex flex-col gap-0.5">
+              {problemCards.map((c) => (
+                <button
+                  key={c.kind}
+                  onClick={() => scrollToCard(c.kind)}
+                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    {c.title}
+                  </span>
+                  <span className="font-bold tabular-nums text-amber-600">{c.rows.length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 오늘 요약 6타일 (전부 /queue로, TODAY-SUM-03) */}
+          <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">오늘 요약</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+              {summaryTiles.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => navigate('/staff/queue')}
+                  className="rounded-lg border border-border/70 bg-card px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
+                >
+                  <div className={`text-xl font-bold tabular-nums ${TONE_TEXT[t.tone]}`}>{t.count}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{t.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 의사별 대기 인원 (TODAY-DOC-01: 진료과 생략 안 함) */}
+          <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              의사별 대기 인원
+            </h3>
+            <div className="flex flex-col gap-0.5">
+              {doctorWaits.map((d) => (
+                <button
+                  key={d.dept + d.doctor}
+                  onClick={() => navigate('/staff/queue')}
+                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
+                >
+                  <span>
+                    <span className="text-muted-foreground">{d.dept}</span> {d.doctor}
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {d.waiting}
+                    <span className="ml-0.5 text-sm font-normal text-muted-foreground">명</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
       </div>
 
-      <p className="mt-5 text-center text-xs text-muted-foreground">
+      <p className="mt-6 text-center text-xs text-muted-foreground">
         데모 화면입니다 · 가짜 데이터로 정상 흐름을 보여 줍니다
       </p>
     </div>

@@ -69,6 +69,8 @@ export const problemCards: ProblemCard[] = [
     rows: [
       { id: 'w1', time: '09:10', name: '정순남', birth: '1948-05-21', dept: '정형외과', doctor: '박강우', reason: '52분 대기' },
       { id: 'w2', time: '09:25', name: '김태호', birth: '1972-11-03', dept: '내과', doctor: '이정훈', reason: '38분 대기' },
+      { id: 'w3', time: '08:55', name: '조말순', birth: '1951-02-14', dept: '내과', doctor: '한서연', reason: '47분 대기' },
+      { id: 'w4', time: '09:30', name: '배기수', birth: '1963-09-08', dept: '안과', doctor: '오세림', reason: '33분 대기' },
     ],
   },
   {
@@ -77,6 +79,7 @@ export const problemCards: ProblemCard[] = [
     rows: [
       { id: 'n1', time: '09:00', name: '이말녀', birth: '1955-08-17', dept: '내과', doctor: '한서연', reason: '예약 시각 40분 지남', tel: '010-2841-5678' },
       { id: 'n2', time: '09:30', name: '윤도현', birth: '1990-02-28', dept: '피부과', doctor: '윤지호', reason: '예약 시각 10분 지남', tel: '010-3092-1043' },
+      { id: 'n3', time: '09:45', name: '강현주', birth: '1978-06-19', dept: '정형외과', doctor: '박강우', reason: '예약 시각 5분 지남', tel: '010-5521-8834' },
     ],
   },
   {
@@ -84,6 +87,7 @@ export const problemCards: ProblemCard[] = [
     title: '전일 미완료',
     rows: [
       { id: 'y1', time: '8/20 16:30', name: '한복순', birth: '1943-12-09', dept: '내과', doctor: '이정훈', reason: '진료 중인 채로 마감' },
+      { id: 'y2', time: '8/20 17:10', name: '문영식', birth: '1959-04-27', dept: '피부과', doctor: '윤지호', reason: '진료 중인 채로 마감' },
     ],
   },
   {
@@ -93,6 +97,8 @@ export const problemCards: ProblemCard[] = [
       { id: 'r1', time: '8/23 14:00', future: true, name: '오정례', birth: '1951-07-30', dept: '이비인후과', doctor: '정우재', reason: '8/23 휴진 등록됨' },
       { id: 'r2', time: '8/23 15:20', future: true, name: '강민서', birth: '1988-04-11', dept: '이비인후과', doctor: '정우재', reason: '8/23 휴진 등록됨', smsFailed: '안내 못 함' },
       { id: 'r3', time: '8/22 11:00', future: true, name: '서준영', birth: '1979-09-25', dept: '안과', doctor: '오세림', reason: '취소 상담 · 직원 확인 중' },
+      { id: 'r4', time: '8/24 09:40', future: true, name: '신복동', birth: '1946-11-02', dept: '내과', doctor: '이정훈', reason: '8/24 휴진 등록됨' },
+      { id: 'r5', time: '8/22 16:30', future: true, name: '한가람', birth: '1992-03-15', dept: '안과', doctor: '오세림', reason: '변경 상담 · 직원 확인 중' },
     ],
   },
 ]
