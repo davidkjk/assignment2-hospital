@@ -142,9 +142,14 @@ export function Queue() {
   }
   const arrive = (id: string) => transition(id, (p) => ({ ...p, status: 'arrived', waitMin: 0 }))
   const toWaiting = (id: string) => {
-    const nextOrder = Math.max(0, ...patients.filter((p) => p.status === 'waiting').map((p) => p.order ?? 0)) + 1
-    transition(id, (p) => ({ ...p, status: 'waiting', order: nextOrder, waitMin: 0 })) // 새로 선 사람은 줄 맨 뒤
+    const p0 = patients.find((p) => p.id === id)
+    // 되돌렸다 다시 진행하면 원래 순번으로(UNDO-ORDER-01), 처음이면 줄 맨 뒤
+    const order = p0?.order ?? Math.max(0, ...patients.filter((p) => p.status === 'waiting').map((p) => p.order ?? 0)) + 1
+    transition(id, (p) => ({ ...p, status: 'waiting', order, waitMin: 0 }))
   }
+  // 되돌리기 — 한 칸 뒤로(UNDO-SCOPE-01), 접수직원 구간(UNDO-ROLE-01)
+  const revertToNotArrived = (id: string) => transition(id, (p) => ({ ...p, status: 'not_arrived', waitMin: undefined }))
+  const revertToArrived = (id: string) => transition(id, (p) => ({ ...p, status: 'arrived', waitMin: 0 })) // order 보관(UNDO-ORDER-01)
 
   // ── 드래그 순서 변경(①, 진료 대기 탭만) ──
   // targetId 앞에 dragId를 끼운 결과 배열
@@ -198,12 +203,17 @@ export function Queue() {
           <Btn key="t" onClick={() => setRevealed((s) => new Set(s).add(p.id))}>번호 보기</Btn>,
         ]
       case 'arrived':
-        return [<Btn key="w" variant="primary" onClick={() => toWaiting(p.id)}>진료 대기로</Btn>, detail]
+        return [
+          <Btn key="w" variant="primary" onClick={() => toWaiting(p.id)}>진료 대기로</Btn>,
+          <Btn key="u" variant="outline" onClick={() => revertToNotArrived(p.id)}>되돌리기</Btn>,
+          detail,
+        ]
       case 'waiting':
         return [
-          <Btn key="u" variant="outline" onClick={() => setUrgFor({ p, turningOn: !p.emergency })}>
+          <Btn key="e" variant="outline" onClick={() => setUrgFor({ p, turningOn: !p.emergency })}>
             {p.emergency ? '응급/주의 해제' : '응급/주의 표시'}
           </Btn>,
+          <Btn key="u" variant="outline" onClick={() => revertToArrived(p.id)}>되돌리기</Btn>,
           detail,
         ]
       case 'in_progress':

@@ -32,6 +32,7 @@ import {
   Users,
   X,
 } from '@/components/icons'
+import { CheckinPanel } from './checkin/CheckinPanel'
 import { ROLE_LABEL, navBadges, type StaffRole } from './mockData'
 import { useStaff } from './staffState'
 
@@ -57,7 +58,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { to: '/staff/today', label: '오늘의 현황', icon: Activity },
       { to: '/staff/queue', label: '대기 목록', icon: Users },
-      { to: '/staff/checkin', label: '접수', icon: QrCode },
+      // 접수(QR·예약번호)는 사이드바가 아니라 헤더 [QR 접수] 패널로 이동 — 새 예약·당일 방문과 같은 '창구 시작 동작' 묶음.
       { to: '/staff/calendar', label: '예약 캘린더', icon: CalendarDays },
       { to: '/staff/patients', label: '환자 검색', icon: Search },
       { to: '/staff/tickets', label: '문의 티켓함', icon: MessageCircle },
@@ -237,6 +238,7 @@ function Header() {
   const { staff } = useStaff()
   const navigate = useNavigate()
   const [confirmOut, setConfirmOut] = useState(false)
+  const [checkinOpen, setCheckinOpen] = useState(false)
   const { logout } = useStaff()
 
   return (
@@ -258,6 +260,12 @@ function Header() {
         {staff.role !== 'doctor' && (
           <>
             <span className="mx-1 h-6 w-px bg-border" />
+            <button
+              onClick={() => setCheckinOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-card px-3 py-2 text-sm font-medium shadow-[var(--elevation-card)] hover:bg-muted"
+            >
+              <QrCode className="h-4 w-4 text-primary" />QR 접수
+            </button>
             <button className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90">
               <CalendarPlus className="h-4 w-4" />새 예약
             </button>
@@ -267,6 +275,8 @@ function Header() {
           </>
         )}
       </div>
+
+      {checkinOpen && <CheckinPanel onClose={() => setCheckinOpen(false)} />}
 
       {confirmOut && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 px-4">
