@@ -5,6 +5,7 @@ import { Today } from './today/Today'
 import { Queue } from './queue/Queue'
 import { Checkin } from './checkin/Checkin'
 import { PatientDetail } from './patient/PatientDetail'
+import { PatientSearch } from './patients/PatientSearch'
 import { StaffPlaceholder } from './Placeholder'
 
 // 직원 웹 데모 라우트 — /staff/*. 폰 프레임 없이 StaffShell(데스크톱) 레이아웃.
@@ -24,7 +25,7 @@ export const staffRoutes: RouteObject[] = [
       { path: 'queue', element: <Queue /> },
       { path: 'checkin', element: <Checkin /> },
       { path: 'calendar', element: p('예약 캘린더') },
-      { path: 'patients', element: p('환자 검색') },
+      { path: 'patients', element: <PatientSearch /> },
       { path: 'patients/:id', element: <PatientDetail /> },
       { path: 'tickets', element: p('문의 티켓함') },
       { path: 'chatlog', element: p('전체 상담 기록') },
