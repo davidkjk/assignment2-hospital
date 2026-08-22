@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { DoctorAvatar } from '@/components/DoctorAvatar'
 import { useAppointments } from '@/state/appointments'
 import type { Appointment } from '@/mock/types'
 import type { StepProps } from '../BookingWizard'
@@ -37,11 +38,18 @@ export function Step7Confirm({ wizard }: { wizard: StepProps }) {
     <div className="flex h-full flex-col">
       <h1 className="mb-5 text-xl font-bold">이대로 예약할까요?</h1>
 
-      <div className="divide-y rounded-2xl border">
+      <div className="divide-y rounded-2xl bg-card shadow-(--elevation-card)">
         {rows.map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-4 px-4 py-3">
+          <div key={k} className="flex items-center justify-between gap-4 px-4 py-3">
             <span className="text-sm text-muted-foreground">{k}</span>
-            <span className="text-right text-sm font-semibold">{v}</span>
+            {k === '의사' && state.doctor ? (
+              <span className="flex items-center gap-2 text-right text-sm font-semibold">
+                <DoctorAvatar seed={state.doctor.name} name={state.doctor.name} className="h-7 w-7" />
+                {v}
+              </span>
+            ) : (
+              <span className="text-right text-sm font-semibold">{v}</span>
+            )}
           </div>
         ))}
       </div>

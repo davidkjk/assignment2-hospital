@@ -10,6 +10,7 @@ import {
   UserRound,
 } from '@/components/icons'
 import { ScreenHeader } from '@/components/ScreenHeader'
+import { DoctorAvatar } from '@/components/DoctorAvatar'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -150,7 +151,12 @@ export function ApptDetail() {
               <CardContent className="pt-2">
                 <dl>
                   <InfoRow label="진료과">{appointment.deptName}</InfoRow>
-                  <InfoRow label="담당의사">{appointment.doctorName} 선생님</InfoRow>
+                  <InfoRow label="담당의사">
+                    <span className="flex items-center gap-2">
+                      <DoctorAvatar seed={appointment.doctorName} name={appointment.doctorName} className="h-7 w-7" />
+                      {appointment.doctorName} 선생님
+                    </span>
+                  </InfoRow>
                   <InfoRow label="장소">
                     <a
                       href={`https://maps.google.com/?q=${encodeURIComponent(detail.address)}`}
