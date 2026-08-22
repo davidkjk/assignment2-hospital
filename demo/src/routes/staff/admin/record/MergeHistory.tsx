@@ -1,152 +1,285 @@
-// data-testid: staff-merge-history
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ClipboardList,
+  ExternalLink,
+  FileText,
+  History,
+  LockKeyhole,
+  Pencil,
+  ShieldCheck,
+  X,
+} from '@/components/icons'
+import { EmptyState, PageHead, StaffPage, StatusBadge, btnGhost, btnPrimary } from '../../_ui'
 
-import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, History, LockKeyhole, ShieldCheck, X } from '@/components/icons'
+// 병합 되돌림 이력 (/staff/admin/merge-history) — MHIST-*.
+// 병합을 만드는 화면이 아니라 이미 발생한 병합을 조회·되돌림하는 별도 화면(결정16).
+// 6단계: 목록 → 상세 → 사유(1~200자) → 확인창(읽음 체크) → 완료 / 되돌림불가 잠김.
+// 목록 행에 즉시 되돌림 버튼 없음(MHIST-LIST-01). data-testid="staff-merge-history".
 
-import { PageHead, Panel, StaffPage, StatusBadge, Tag, Toolbar, btnGhost, btnLink, btnPrimary } from '../../_ui'
-import { mergeHistory, type MergeHistoryEvent, type MergeHistoryStatus } from './mockData'
+type Status = '되돌림 가능' | '되돌림 완료' | '되돌림불가'
 
-const statusTone: Record<MergeHistoryStatus, 'green' | 'gray' | 'amber'> = {
-  '되돌림 가능': 'green',
-  '되돌림 완료': 'gray',
-  되돌림불가: 'amber',
+interface Event {
+  id: string
+  mergedAt: string
+  actor: string
+  rep: { id: string; name: string }
+  absorbed: { id: string; name: string }
+  status: Status
+  lockReason?: string // 되돌림불가 사유
+  preserve: { appts: number; qnr: number; records: number; audits: number }
 }
 
-function PatientLabel({ label, patient }: { label: string; patient: MergeHistoryEvent['representative'] }) {
-  return <div><div className="text-xs text-muted-foreground">{label}</div><div className="mt-0.5 font-semibold">{patient.name} · {patient.displayId}</div></div>
-}
+const EVENTS: Event[] = [
+  { id: 'm1024', mergedAt: '2026.08.21 15:03:20', actor: '한지우', rep: { id: 'P-1041', name: '이수현' }, absorbed: { id: 'P-2277', name: '이수현' }, status: '되돌림 가능', preserve: { appts: 15, qnr: 10, records: 10, audits: 25 } },
+  { id: 'm1019', mergedAt: '2026.08.19 11:42:08', actor: '김서연', rep: { id: 'P-0880', name: '박서준' }, absorbed: { id: 'P-1990', name: '박서준' }, status: '되돌림 완료', preserve: { appts: 8, qnr: 5, records: 7, audits: 13 } },
+  { id: 'm1007', mergedAt: '2026.08.14 09:20:55', actor: '한지우', rep: { id: 'P-0512', name: '정도현' }, absorbed: { id: 'P-1620', name: '정도현' }, status: '되돌림불가', lockReason: '병합 후 대표 환자에 새 진료기록 3건이 생성되어 계보를 안전하게 분리할 수 없습니다.', preserve: { appts: 20, qnr: 14, records: 12, audits: 30 } },
+  { id: 'm0998', mergedAt: '2026.08.11 16:31:12', actor: '김서연', rep: { id: 'P-0333', name: '최유나' }, absorbed: { id: 'P-1450', name: '최유나' }, status: '되돌림 가능', preserve: { appts: 5, qnr: 4, records: 3, audits: 9 } },
+]
+
+const STATUS_TONE: Record<Status, 'teal' | 'gray' | 'slate'> = { '되돌림 가능': 'teal', '되돌림 완료': 'gray', '되돌림불가': 'slate' }
 
 export function MergeHistory() {
   const navigate = useNavigate()
-  const [status, setStatus] = useState<MergeHistoryStatus | '전체'>('전체')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [events, setEvents] = useState(EVENTS)
+  const [view, setView] = useState<'list' | 'detail' | 'reason' | 'done'>('list')
+  const [selId, setSelId] = useState<string | null>(null)
   const [reason, setReason] = useState('')
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [acknowledged, setAcknowledged] = useState(false)
-  const [completedIds, setCompletedIds] = useState<string[]>([])
-  const [auditMemo, setAuditMemo] = useState('')
-  const [memoSaved, setMemoSaved] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [read, setRead] = useState(false)
 
-  const rows = useMemo(() => mergeHistory.filter((event) => status === '전체' || event.status === status), [status])
-  const selected = mergeHistory.find((event) => event.id === selectedId) ?? null
-  const selectedStatus: MergeHistoryStatus | null = selected
-    ? completedIds.includes(selected.id) ? '되돌림 완료' : selected.status
-    : null
+  const sel = events.find((e) => e.id === selId) ?? null
 
-  const selectEvent = (event: MergeHistoryEvent) => {
-    setSelectedId(event.id)
-    setReason('')
-    setConfirmOpen(false)
-    setAcknowledged(false)
-    setAuditMemo('')
-    setMemoSaved(false)
-  }
-
-  const completeUndo = () => {
-    if (!selected || !acknowledged || !reason.trim()) return
-    setCompletedIds((ids) => [...ids, selected.id])
-    setConfirmOpen(false)
-    setAcknowledged(false)
+  function open(e: Event) { setSelId(e.id); setView('detail'); setReason(''); setConfirming(false); setRead(false) }
+  function backToList() { setView('list'); setSelId(null); setReason(''); setConfirming(false); setRead(false) }
+  function confirmUndo() {
+    if (!sel) return
+    setEvents((cur) => cur.map((e) => (e.id === sel.id ? { ...e, status: '되돌림 완료' } : e)))
+    setConfirming(false)
+    setView('done')
   }
 
   return (
-    <StaffPage testid="staff-merge-history" max="max-w-7xl">
-      <PageHead title="병합 되돌림 이력" sub="지난 병합을 확인하고, 필요한 경우 관리자 검토를 거쳐 되돌립니다" />
+    <StaffPage testid="staff-merge-history" max="max-w-[1100px]">
+      <PageHead title="병합 이력" sub="이미 처리한 병합을 확인하고 필요하면 관리자가 직접 되돌립니다" />
 
-      {!selected ? (
-        <>
-          <Panel className="mb-4">
-            <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><p className="text-sm font-semibold">병합과 되돌림은 서로 다른 감사 사건으로 남습니다</p><p className="mt-0.5 text-xs text-muted-foreground">목록 행에서는 즉시 되돌릴 수 없습니다. 상세에서 보존 상태와 사유를 확인한 뒤 확인창을 거칩니다.</p></div></div>
-          </Panel>
-          <Toolbar
-            left={
-              <select aria-label="되돌림 상태 필터" value={status} onChange={(event) => setStatus(event.target.value as MergeHistoryStatus | '전체')} className="h-9 rounded-lg border border-input bg-card px-3 text-sm">
-                <option>전체</option><option>되돌림 가능</option><option>되돌림 완료</option><option>되돌림불가</option>
-              </select>
-            }
-            right={<span className="text-xs text-muted-foreground">최근 20건 · 병합 시각 최신순</span>}
-          />
-          <Panel pad="p-0">
-            <div className="grid grid-cols-[10.5rem_7rem_1fr_1fr_8rem] gap-3 border-b border-border bg-muted px-4 py-2 text-xs font-semibold text-muted-foreground">
-              <span>병합 시각</span><span>실행자</span><span>대표 환자</span><span>병합된 대상</span><span>상태</span>
+      {view === 'list' && (
+        events.length === 0 ? (
+          <div className="rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <EmptyState icon={<History className="h-6 w-6" />} title="병합 되돌림 이력이 없습니다" hint="중복 환자 후보 화면에서 병합을 처리하면 여기에 기록됩니다" />
+            <div className="flex justify-center pb-6">
+              <button onClick={() => navigate('/staff/admin/patient-merge-candidates')} className={btnGhost}>병합 후보 보기</button>
             </div>
-            <div className="divide-y divide-border/60">
-              {rows.map((event) => {
-                const rowStatus = completedIds.includes(event.id) ? '되돌림 완료' : event.status
-                return (
-                  <button key={event.id} onClick={() => selectEvent(event)} className="grid w-full grid-cols-[10.5rem_7rem_1fr_1fr_8rem] items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted">
-                    <span className="text-xs tabular-nums text-muted-foreground">{event.mergedAt}</span>
-                    <span className="font-semibold">{event.staff}</span>
-                    <PatientLabel label={event.id.toUpperCase()} patient={event.representative} />
-                    <PatientLabel label="비활성화된 대상" patient={event.merged} />
-                    <div><StatusBadge status={rowStatus} tone={statusTone[rowStatus]} /><span className={`${btnLink} mt-1 block`}>상세 보기</span></div>
-                  </button>
-                )
-              })}
-            </div>
-          </Panel>
-        </>
-      ) : (
-        <>
-          <button className={`${btnGhost} mb-3`} onClick={() => setSelectedId(null)}><ArrowLeft className="h-4 w-4" />이력으로 돌아가기</button>
-          <div className="mb-3 flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">병합 이벤트 상세</h3><p className="text-xs text-muted-foreground">{selected.id.toUpperCase()} · {selected.mergedAt} · {selected.staff}</p></div>{selectedStatus && <StatusBadge status={selectedStatus} tone={statusTone[selectedStatus]} />}</div>
-
-          <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-            <div className="space-y-4">
-              <Panel title="병합 대상">
-                <div className="grid grid-cols-2 gap-3"><div className="rounded-lg bg-primary/10 p-3"><PatientLabel label="대표 환자" patient={selected.representative} /></div><div className="rounded-lg bg-muted p-3"><PatientLabel label="병합된 대상" patient={selected.merged} /></div></div>
-              </Panel>
-              <Panel title="보존된 기록">
-                <p className="text-sm font-medium">{selected.recordCounts}</p>
-                <p className="mt-2 text-xs text-muted-foreground">원본 예약·문진·진료기록·수정 이력·기존 감사 행은 삭제되지 않았습니다. 되돌림은 계보 연결을 정정하며 이미 열람된 기록은 되돌릴 수 없습니다.</p>
-              </Panel>
-
-              {selectedStatus === '되돌림 가능' && (
-                <Panel title="되돌림 사유">
-                  <label className="text-xs font-medium text-muted-foreground" htmlFor="undo-reason">필수 · 1~200자</label>
-                  <textarea id="undo-reason" value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} placeholder="오병합으로 판단한 근거를 구체적으로 입력하세요" className="mt-1 min-h-28 w-full resize-none rounded-lg border border-input bg-card p-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
-                  <div className="mt-1 flex justify-between text-xs"><span className={reason.trim() ? 'text-muted-foreground' : 'text-primary'}>{reason.trim() ? '확인창에서 한 번 더 검토합니다' : '되돌림 사유를 입력해주세요'}</span><span className="tabular-nums text-muted-foreground">{reason.length}/200</span></div>
-                  <div className="mt-3 flex justify-end"><button className={btnGhost} disabled={!reason.trim()} onClick={() => setConfirmOpen(true)}><LockKeyhole className="h-4 w-4" />확인으로 계속</button></div>
-                </Panel>
-              )}
-
-              {selectedStatus === '되돌림 완료' && (
-                <Panel title={<span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-primary" />되돌림 완료</span>}>
-                  <p className="text-sm">처리 시각 · {completedIds.includes(selected.id) ? '2026.08.22 10:25:11' : selected.undoneAt}</p>
-                  <p className="mt-1 text-sm">관리자 · 김서연</p>
-                  <p className="mt-1 text-sm">사유 · {completedIds.includes(selected.id) ? reason : selected.undoReason}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">계보 연결만 정정했으며 원본과 기존 감사 행은 보존되었습니다. 별도 병합 되돌림 감사 사건이 생성되었습니다.</p>
-                </Panel>
-              )}
-
-              {selectedStatus === '되돌림불가' && (
-                <Panel title={<span className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" />되돌림불가</span>}>
-                  <p className="text-sm font-medium">{selected.lockReason}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">새 기록을 덮어쓰거나 삭제하는 강제 우회는 제공하지 않습니다. 영향받은 환자 상세를 검토하고 감사 메모를 남기세요.</p>
-                  <button className={`${btnGhost} mt-3`} onClick={() => navigate(`/staff/patients/${selected.merged.id}`)}>대상 환자 상세 <ExternalLink className="h-4 w-4" /></button>
-                </Panel>
-              )}
-            </div>
-
-            <aside className="space-y-4">
-              <Panel title="감사 경계"><p className="text-xs leading-5 text-muted-foreground">병합 이벤트와 되돌림 이벤트는 환자정보 열람 기록과 섞이지 않습니다. 실행 관리자·시각·대표·대상·사유·결과를 별도 사건으로 남깁니다.</p></Panel>
-              {selectedStatus === '되돌림불가' && <Panel title="감사 메모"><textarea value={auditMemo} maxLength={200} onChange={(event) => setAuditMemo(event.target.value)} placeholder="잠김 상태에서 확인한 내용을 기록하세요" className="min-h-24 w-full resize-none rounded-lg border border-input bg-card p-3 text-sm" /><button className={`${btnGhost} mt-2 w-full justify-center`} disabled={!auditMemo.trim()} onClick={() => setMemoSaved(true)}>{memoSaved ? '감사 메모 저장됨' : '감사 메모 남기기'}</button>{memoSaved && <p className="mt-2 text-xs text-muted-foreground">운영 참고 메모이며 되돌림 성공으로 표시되지 않습니다.</p>}</Panel>}
-              <Panel title="이벤트 정보"><dl className="space-y-2 text-xs"><div className="flex justify-between"><dt className="text-muted-foreground">이벤트</dt><dd className="font-medium">{selected.id.toUpperCase()}</dd></div><div className="flex justify-between"><dt className="text-muted-foreground">병합 관리자</dt><dd className="font-medium">{selected.staff}</dd></div><div className="flex justify-between"><dt className="text-muted-foreground">현재 상태</dt><dd><Tag>{selectedStatus}</Tag></dd></div></dl></Panel>
-            </aside>
           </div>
-        </>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/70 bg-muted/40 text-left text-xs font-semibold text-muted-foreground">
+                  <th className="w-[170px] px-4 py-2.5 font-semibold">병합 시각</th>
+                  <th className="w-[96px] px-4 py-2.5 font-semibold">실행자</th>
+                  <th className="px-4 py-2.5 font-semibold">대표 · 병합된 대상</th>
+                  <th className="w-[120px] px-4 py-2.5 font-semibold">상태</th>
+                  <th className="w-[104px] px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {events.map((e) => (
+                  <tr key={e.id} className="align-middle transition-colors hover:bg-muted/40">
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground">{e.mergedAt}</td>
+                    <td className="px-4 py-3">{e.actor}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">{e.rep.name}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">{e.rep.id}</span>
+                        <span className="text-muted-foreground">←</span>
+                        <span>{e.absorbed.name}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">{e.absorbed.id}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><StatusBadge status={e.status} tone={STATUS_TONE[e.status]} /></td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => open(e)} className="text-xs font-medium text-primary hover:underline">상세 보기</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
-      {confirmOpen && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4" role="dialog" aria-modal="true" aria-label="병합 되돌림 확인">
-          <Panel className="w-full max-w-xl" pad="p-0">
-            <div className="flex items-start justify-between border-b border-border px-4 py-3"><div><h3 className="font-semibold">병합 되돌림 확인</h3><p className="mt-0.5 text-xs text-muted-foreground">별도 감사 사건이 남는 관리자 작업입니다</p></div><button className={btnGhost} aria-label="닫기" onClick={() => setConfirmOpen(false)}><X className="h-4 w-4" /></button></div>
-            <div className="space-y-4 p-4 text-sm"><div className="grid grid-cols-2 gap-3"><div className="rounded-lg bg-primary/10 p-3"><PatientLabel label="대표 환자" patient={selected.representative} /></div><div className="rounded-lg bg-muted p-3"><PatientLabel label="분리할 대상" patient={selected.merged} /></div></div><div><div className="text-xs text-muted-foreground">되돌림 사유</div><p className="mt-1 rounded-lg bg-muted p-3 font-medium">{reason}</p></div><ul className="space-y-1 text-muted-foreground"><li>· 원본 행과 기존 감사 기록은 지우지 않습니다.</li><li>· 이미 열람된 기록은 되돌릴 수 없습니다.</li><li>· 최신 되돌림 가능 상태와 관리자 권한을 다시 검사합니다.</li></ul><label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-3"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" /><span>보존 범위·열람 제한·감사 사건 잔존을 읽었습니다</span></label></div>
-            <div className="flex justify-end gap-2 border-t border-border px-4 py-3"><button className={btnGhost} onClick={() => setConfirmOpen(false)}>취소</button>{acknowledged && <button className={btnPrimary} onClick={completeUndo}><History className="h-4 w-4" />되돌림 확정</button>}</div>
-          </Panel>
-        </div>
+      {view === 'detail' && sel && <Detail event={sel} onBack={backToList} onReview={() => setView('reason')} onOpenPatient={(id) => navigate(`/staff/patients/${id}`)} />}
+
+      {view === 'reason' && sel && (
+        <ReasonStep
+          event={sel}
+          reason={reason}
+          onReason={setReason}
+          onBack={() => setView('detail')}
+          onContinue={() => setConfirming(true)}
+        />
+      )}
+
+      {view === 'done' && sel && <DoneStep event={sel} reason={reason} onBack={backToList} />}
+
+      {confirming && sel && (
+        <ConfirmDialog event={sel} reason={reason} read={read} onRead={setRead} onCancel={() => setConfirming(false)} onConfirm={confirmUndo} />
       )}
     </StaffPage>
+  )
+}
+
+// ── 2단계 상세 (MHIST-DETAIL-*) + 6단계 잠김 (MHIST-LOCK-*) ──
+function Detail({ event, onBack, onReview, onOpenPatient }: { event: Event; onBack: () => void; onReview: () => void; onOpenPatient: (id: string) => void }) {
+  const locked = event.status !== '되돌림 가능'
+  const P = event.preserve
+  const preserveRows = [
+    { Icon: CalendarDays, label: '예약', n: P.appts },
+    { Icon: ClipboardList, label: '문진 응답', n: P.qnr },
+    { Icon: FileText, label: '진료기록', n: P.records },
+    { Icon: ShieldCheck, label: '열람 감사', n: P.audits },
+  ]
+  return (
+    <div>
+      <button onClick={onBack} className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"><ArrowLeft className="h-4 w-4" /> 이력으로</button>
+
+      <section className="rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><History className="h-4 w-4 text-primary" />병합 이벤트 {event.id}</h3>
+          <StatusBadge status={event.status} tone={STATUS_TONE[event.status]} />
+        </div>
+        <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <div className="flex justify-between"><dt className="text-muted-foreground">병합 시각</dt><dd className="tabular-nums">{event.mergedAt}</dd></div>
+          <div className="flex justify-between"><dt className="text-muted-foreground">실행자</dt><dd>{event.actor}</dd></div>
+          <div className="flex justify-between"><dt className="text-muted-foreground">대표 환자</dt><dd className="font-medium">{event.rep.name} <span className="text-xs tabular-nums text-muted-foreground">{event.rep.id}</span></dd></div>
+          <div className="flex justify-between"><dt className="text-muted-foreground">병합된 대상</dt><dd>{event.absorbed.name} <span className="text-xs tabular-nums text-muted-foreground">{event.absorbed.id}</span></dd></div>
+        </dl>
+      </section>
+
+      {/* 보존 상태 read-only (MHIST-DETAIL-02) */}
+      <section className="mt-3 rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+        <h4 className="text-sm font-semibold">원본 보존 상태</h4>
+        <p className="mt-0.5 text-xs text-muted-foreground">원본 레코드는 삭제되지 않았고 대표가 계보를 따라 함께 읽습니다.</p>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {preserveRows.map((r) => (
+            <div key={r.label} className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><r.Icon className="h-3.5 w-3.5" />{r.label}</div>
+              <div className="mt-0.5 text-lg font-bold tabular-nums">{r.n}<span className="ml-0.5 text-xs font-normal text-muted-foreground">건 보존</span></div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 분기 (MHIST-DETAIL-03) */}
+      {locked ? (
+        <section className="mt-3 rounded-xl border border-border/70 bg-muted/30 p-4">
+          <div className="flex items-start gap-2">
+            <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="text-sm">
+              <div className="font-semibold">{event.status === '되돌림 완료' ? '이미 되돌림 처리됨' : '되돌릴 수 없는 병합입니다'}</div>
+              <div className="mt-0.5 text-muted-foreground">{event.lockReason ?? '이 병합은 이미 되돌림 처리되어 다시 되돌릴 수 없습니다.'}</div>
+            </div>
+          </div>
+          {event.status === '되돌림불가' && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={() => onOpenPatient(event.absorbed.id)} className={btnGhost}><ExternalLink className="h-4 w-4" /> 대상 환자 열기</button>
+              <button className={btnGhost}><Pencil className="h-4 w-4" /> 감사메모 저장</button>
+            </div>
+          )}
+        </section>
+      ) : (
+        <div className="mt-4 flex justify-end">
+          <button onClick={onReview} className={btnGhost}><History className="h-4 w-4" /> 되돌림 검토</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── 3단계 사유 입력 (MHIST-REASON-*) ──
+function ReasonStep({ event, reason, onReason, onBack, onContinue }: { event: Event; reason: string; onReason: (v: string) => void; onBack: () => void; onContinue: () => void }) {
+  const len = reason.length
+  const valid = len >= 1 && len <= 200
+  return (
+    <div>
+      <button onClick={onBack} className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"><ArrowLeft className="h-4 w-4" /> 상세로</button>
+      <section className="rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+        <h3 className="text-sm font-semibold">되돌림 사유</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{event.rep.name}({event.rep.id}) ← {event.absorbed.name}({event.absorbed.id}) 병합을 왜 되돌리는지 남깁니다. 이 사유는 감사 기록에 함께 저장됩니다.</p>
+        <textarea
+          value={reason}
+          onChange={(e) => onReason(e.target.value.slice(0, 200))}
+          rows={3}
+          placeholder="예 · 다른 사람으로 확인되어 정정"
+          className="mt-3 w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+        />
+        <div className="mt-1 flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">{len === 0 ? '사유를 입력해 주세요' : ''}</span>
+          <span className={`tabular-nums ${len >= 200 ? 'text-rose-600' : 'text-muted-foreground'}`}>{len}/200</span>
+        </div>
+        <div className="mt-3 flex justify-end gap-2">
+          <button onClick={onBack} className={btnGhost}>취소</button>
+          <button onClick={onContinue} disabled={!valid} className={btnPrimary}>확인으로 계속</button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+// ── 4단계 확인창 (MHIST-CONFIRM-*) — 읽음 체크 후에만 파괴 버튼 ──
+function ConfirmDialog({ event, reason, read, onRead, onCancel, onConfirm }: { event: Event; reason: string; read: boolean; onRead: (v: boolean) => void; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="undo-title" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-border/70 bg-card p-6 shadow-[var(--elevation-card)]">
+        <div className="mb-1 flex items-start justify-between">
+          <h2 id="undo-title" className="text-lg font-bold">병합을 되돌릴까요?</h2>
+          <button onClick={onCancel} className="rounded-full p-1 hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></button>
+        </div>
+        <dl className="mt-3 space-y-2 rounded-lg border border-border/60 bg-muted/30 p-3 text-sm">
+          <div className="flex justify-between"><dt className="text-muted-foreground">대표 · 대상</dt><dd className="font-medium">{event.rep.name} {event.rep.id} ← {event.absorbed.name} {event.absorbed.id}</dd></div>
+          <div className="flex justify-between"><dt className="text-muted-foreground">병합 시각</dt><dd className="tabular-nums">{event.mergedAt}</dd></div>
+          <div><dt className="text-muted-foreground">되돌림 사유</dt><dd className="mt-0.5">{reason}</dd></div>
+        </dl>
+        <div className="mt-3 flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>원본 예약·문진·진료기록·감사 기록은 지우지 않고 계보 연결만 끊습니다. <strong className="font-semibold">병합 당시 이미 열람된 기록은 되돌릴 수 없습니다.</strong> 되돌림도 별도 감사 기록으로 남습니다.</span>
+        </div>
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={read} onChange={(e) => onRead(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--primary)]" />
+          <span>보존 범위·열람 제한·감사 잔존 안내를 읽고 이해했습니다.</span>
+        </label>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onCancel} className={btnGhost}>취소</button>
+          <button onClick={onConfirm} disabled={!read} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40">
+            <History className="h-4 w-4" /> 되돌림 확정
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 5단계 완료 (MHIST-DONE-*) ──
+function DoneStep({ event, reason, onBack }: { event: Event; reason: string; onBack: () => void }) {
+  return (
+    <section className="rounded-xl border border-border/70 bg-card p-6 text-center shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600"><CheckCircle2 className="h-7 w-7" /></div>
+      <h3 className="mt-3 text-base font-bold">되돌림 완료</h3>
+      <p className="mt-1 text-sm text-muted-foreground">{event.rep.name} {event.rep.id} ← {event.absorbed.name} {event.absorbed.id} 병합의 계보 연결을 끊었습니다.</p>
+      <dl className="mx-auto mt-4 max-w-sm space-y-1.5 rounded-lg border border-border/60 bg-muted/30 p-3 text-left text-sm">
+        <div className="flex justify-between"><dt className="text-muted-foreground">처리 시각</dt><dd className="tabular-nums">방금</dd></div>
+        <div className="flex items-center gap-1.5"><dt className="text-muted-foreground">사유</dt><dd>{reason}</dd></div>
+      </dl>
+      <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><Check className="h-3.5 w-3.5 text-emerald-600" />원본 예약·문진·진료기록·기존 감사 행은 그대로 보존되고, 되돌림도 별도 감사 기록으로 남았습니다.</p>
+      <div className="mt-4 flex justify-center gap-2">
+        <button onClick={onBack} className={btnPrimary}>이력으로 돌아가기</button>
+      </div>
+    </section>
   )
 }

@@ -1,121 +1,250 @@
-import { useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, UserPlus, Users, X } from '@/components/icons'
-import { PageHead, Panel, Segmented, StaffPage, StatusBadge, Tag, btnGhost, btnPrimary } from '../../_ui'
-import { staffMembers, type StaffMember, type StaffRole } from './mockData'
+import { useState } from 'react'
+import { UserPlus, AlertTriangle, X } from '@/components/icons'
+import { StaffPage, PageHead, EmptyState, btnPrimary, btnGhost, btnLink } from '../../_ui'
+import { staffMembers, PALETTE, ME, type StaffMember, type StaffRole } from './mockData'
 
-// 직원 관리 (/admin/staff) — STAFF-* · data-testid="staff-admin-staff".
-type Filter = 'all' | 'active' | 'stopped'
+// 직원 관리 (/staff/admin/staff) — STAFF-*.
+// 왼쪽 직원 목록(활성·중지 함께) + 오른쪽 초대 폼(또는 의사 프로필 편집).
+// 의사 [중지] → 확인창에 영향 미래 예약 건수·날짜·시각 → 확정하면 자동 취소 없이
+//   needs_rescheduling '확인 필요' 큐로(STAFF-DEACT-*, 결정10 A안). data-testid="staff-admin-staff".
+
+const ROLE_TONE: Record<StaffRole, string> = {
+  관리자: 'bg-primary/12 text-primary',
+  의사: 'bg-sky-100 text-sky-700',
+  접수직원: 'bg-slate-100 text-slate-700',
+}
+
+type Filter = '전체' | '활성' | '중지됨'
+type RightPanel = { mode: 'invite' } | { mode: 'profile'; id: string }
 
 export function StaffAdmin() {
-  const [members, setMembers] = useState(staffMembers)
-  const [filter, setFilter] = useState<Filter>('all')
-  const [role, setRole] = useState<StaffRole>('접수직원')
-  const [inviteSent, setInviteSent] = useState(false)
-  const [confirming, setConfirming] = useState<StaffMember | null>(null)
+  const [staff, setStaff] = useState<StaffMember[]>(staffMembers)
+  const [filter, setFilter] = useState<Filter>('전체')
+  const [right, setRight] = useState<RightPanel>({ mode: 'invite' })
+  const [deactivating, setDeactivating] = useState<StaffMember | null>(null)
 
-  const filtered = useMemo(() => members.filter((member) => {
-    if (filter === 'active') return member.status === '활성'
-    if (filter === 'stopped') return member.status === '정지'
-    return true
-  }), [filter, members])
-
-  const count = (key: Filter) => {
-    if (key === 'active') return members.filter((member) => member.status === '활성').length
-    if (key === 'stopped') return members.filter((member) => member.status === '정지').length
-    return members.length
+  const counts = {
+    전체: staff.length,
+    활성: staff.filter((s) => s.active).length,
+    중지됨: staff.filter((s) => !s.active).length,
   }
-
-  const stopMember = () => {
-    if (!confirming) return
-    setMembers((current) => current.map((member) => member.id === confirming.id ? { ...member, status: '정지' as const } : member))
-    setConfirming(null)
-  }
+  const rows = staff
+    .filter((s) => (filter === '전체' ? true : filter === '활성' ? s.active : !s.active))
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
 
   return (
-    <StaffPage testid="staff-admin-staff" max="max-w-7xl">
-      <PageHead title="직원 관리" sub="직원 계정과 역할을 관리하고 초대를 보냅니다" />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <Panel
-          title={<span className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" />직원 목록</span>}
-          action={<Segmented options={[{ key: 'all', label: '전체' }, { key: 'active', label: '활성' }, { key: 'stopped', label: '중지됨' }]} value={filter} onChange={setFilter} count={count} />}
-          pad="p-0"
-        >
-          <div className="grid grid-cols-[minmax(190px,1.4fr)_100px_110px_85px_150px] gap-3 border-b border-border/70 bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
-            <span>직원</span><span>역할</span><span>소속</span><span>상태</span><span className="text-right">작업</span>
-          </div>
-          <ul className="divide-y divide-border/60">
-            {filtered.map((member) => (
-              <li key={member.id} className={`grid grid-cols-[minmax(190px,1.4fr)_100px_110px_85px_150px] items-center gap-3 px-4 py-3 text-sm ${member.status === '정지' ? 'bg-muted/40 text-muted-foreground' : ''}`}>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 font-semibold text-foreground">
-                    <span>{member.name}</span>
-                    {member.invitePending && <Tag className="!bg-primary/10 !text-primary">초대함 · 아직 안 들어옴</Tag>}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">{member.email} · {member.lastLogin}</div>
-                </div>
-                <Tag className={member.role === '의사' ? '!bg-primary/10 !text-primary' : ''}>{member.role}</Tag>
-                <span>{member.department}</span>
-                <StatusBadge status={member.status} />
-                <div className="flex justify-end gap-1.5">
-                  {member.invitePending && <button className={btnGhost}>재초대</button>}
-                  {member.status === '활성' && member.id !== 's1' && (
-                    <button onClick={() => setConfirming(member)} className={btnGhost}>중지 검토</button>
-                  )}
-                </div>
-              </li>
+    <StaffPage max="max-w-6xl" testid="staff-admin-staff">
+      <PageHead title="직원 관리" sub="직원을 초대하고 역할·진료과·상태를 관리합니다" />
+
+      <div className="flex gap-4">
+        {/* 왼쪽: 목록 */}
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex items-center gap-1.5">
+            {(['전체', '활성', '중지됨'] as Filter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                  filter === f ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {f} <span className="tabular-nums">{counts[f]}</span>
+              </button>
             ))}
-          </ul>
-        </Panel>
+          </div>
 
-        <Panel title={<span className="flex items-center gap-2"><UserPlus className="h-4 w-4 text-primary" />직원 추가</span>}>
-          <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); setInviteSent(true) }}>
-            <Field label="이름"><input required className={inputClass} placeholder="직원 이름" /></Field>
-            <Field label="이메일"><input required type="email" className={inputClass} placeholder="name@hospital.kr" /></Field>
-            <Field label="역할">
-              <select value={role} onChange={(event) => setRole(event.target.value as StaffRole)} className={inputClass}>
-                <option>접수직원</option><option>의사</option><option>관리자</option>
-              </select>
-            </Field>
-            {role === '의사' && <Field label="소속 진료과"><select required className={inputClass}><option value="">진료과 선택</option><option>내과</option><option>피부과</option><option>정형외과</option></select></Field>}
-            <p className="text-xs text-muted-foreground">비밀번호는 받지 않습니다. 직원에게 로그인 초대 메일이 전송됩니다.</p>
-            {inviteSent && <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary"><CheckCircle2 className="h-4 w-4" />초대했습니다.</div>}
-            <button className={`${btnPrimary} w-full justify-center`}><UserPlus className="h-4 w-4" />초대 보내기</button>
-          </form>
-        </Panel>
-      </div>
-
-      {confirming && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4" role="dialog" aria-modal="true" aria-labelledby="stop-staff-title">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 id="stop-staff-title" className="font-bold">{confirming.name} 직원을 중지할까요?</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{confirming.role} · {confirming.department}. 중지 후 로그인 세션도 끊깁니다.</p>
-              </div>
-              <button onClick={() => setConfirming(null)} className="text-muted-foreground" aria-label="닫기"><X className="h-5 w-5" /></button>
-            </div>
-            {confirming.role === '의사' && (
-              <div className="mt-4 rounded-lg border border-border bg-muted/60 p-3">
-                <div className="flex gap-2 font-semibold"><AlertTriangle className="mt-0.5 h-4 w-4 text-primary" />확인 필요한 예약 {confirming.affectedAppointments?.length ?? 0}건</div>
-                <p className="mt-1 text-xs text-muted-foreground">자동 취소·재배정하지 않습니다. 중지 후 오늘 현황의 「확인 필요」 큐에서 예약별로 처리합니다.</p>
-                <ul className="mt-2 space-y-1 text-sm tabular-nums">
-                  {confirming.affectedAppointments?.map((appointment) => <li key={`${appointment.date}-${appointment.time}`}>{appointment.date} · {appointment.time}</li>)}
-                </ul>
-              </div>
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            {rows.length === 0 ? (
+              <EmptyState title="해당하는 직원이 없습니다" />
+            ) : (
+              rows.map((s) => {
+                const activeRow = right.mode === 'profile' && right.id === s.id
+                return (
+                  <div
+                    key={s.id}
+                    className={`flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 ${activeRow ? 'bg-primary/5' : ''}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{s.name}</span>
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${ROLE_TONE[s.role]}`}>{s.role}</span>
+                        {s.department && <span className="text-xs text-muted-foreground">{s.department}</span>}
+                        {!s.active && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">중지됨</span>}
+                        {s.invitePending && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">⚑ 초대함 · 아직 안 들어옴</span>}
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {s.invitePending ? s.inviteSent : s.lastLogin ? `마지막 로그인 ${s.lastLogin}` : '로그인 기록 없음'}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {s.active && s.role === '의사' && (
+                        <button className={`${btnGhost} px-2.5 py-1`} onClick={() => setRight({ mode: 'profile', id: s.id })}>프로필</button>
+                      )}
+                      {s.invitePending && <button className={btnLink}>재초대</button>}
+                      {s.active && s.name !== ME && !s.invitePending && (
+                        <button className="rounded-lg border border-border bg-card px-2.5 py-1 text-sm font-medium text-muted-foreground hover:bg-muted" onClick={() => setDeactivating(s)}>중지</button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
             )}
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setConfirming(null)} className={btnGhost}>취소</button>
-              <button onClick={stopMember} className={btnPrimary}>사용 중지 확정</button>
-            </div>
           </div>
         </div>
+
+        {/* 오른쪽: 초대 폼 또는 프로필 편집 */}
+        <div className="w-80 shrink-0">
+          {right.mode === 'invite' ? (
+            <InvitePanel />
+          ) : (
+            <ProfilePanel member={staff.find((s) => s.id === right.id)!} onClose={() => setRight({ mode: 'invite' })} />
+          )}
+        </div>
+      </div>
+
+      {deactivating && (
+        <DeactivateConfirm
+          member={deactivating}
+          onClose={() => setDeactivating(null)}
+          onDone={() => {
+            setStaff((prev) => prev.map((x) => (x.id === deactivating.id ? { ...x, active: false } : x)))
+            setDeactivating(null)
+          }}
+        />
       )}
     </StaffPage>
   )
 }
 
-const inputClass = 'h-9 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40'
+function InvitePanel() {
+  const [role, setRole] = useState<StaffRole>('접수직원')
+  return (
+    <div className="rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+      <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold"><UserPlus className="h-4 w-4" /> 직원 초대</h3>
+      <Labeled label="이메일"><input type="email" placeholder="staff@gaon.kr" className={inputCls} /></Labeled>
+      <Labeled label="이름"><input placeholder="이름" className={inputCls} /></Labeled>
+      <Labeled label="역할">
+        <div className="flex gap-1.5">
+          {(['접수직원', '의사', '관리자'] as StaffRole[]).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRole(r)}
+              className={`flex-1 rounded-lg border px-2 py-1.5 text-sm ${role === r ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground'}`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </Labeled>
+      {role === '의사' && (
+        <Labeled label="소속 진료과">
+          <select className={inputCls}>
+            <option>내과</option>
+            <option>정형외과</option>
+          </select>
+        </Labeled>
+      )}
+      <button className={`${btnPrimary} mt-1 w-full justify-center`}>초대</button>
+      <p className="mt-2 text-[11px] text-muted-foreground">비밀번호는 직원이 초대 메일에서 직접 설정합니다.</p>
+    </div>
+  )
+}
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block text-sm"><span className="mb-1 block font-medium">{label}</span>{children}</label>
+function ProfilePanel({ member, onClose }: { member: StaffMember; onClose: () => void }) {
+  const pal = member.color != null ? member.color : 0
+  const [color, setColor] = useState(pal)
+  return (
+    <div className="rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">{member.name} 선생님 프로필</h3>
+        <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기"><X className="h-4 w-4" /></button>
+      </div>
+      <div className="mb-3 flex items-center gap-3">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold" style={{ background: PALETTE[color].fill, color: PALETTE[color].ink }}>
+          {member.name[0]}
+        </div>
+        <div>
+          <button className={`${btnGhost} py-1.5`}>사진 바꾸기</button>
+          <p className="mt-1 text-[11px] text-muted-foreground">JPG·PNG · 최대 2MB</p>
+        </div>
+      </div>
+      <Labeled label="전문분야 · 환자 앱 의사 카드에 그대로 보입니다">
+        <input defaultValue={member.specialty ?? ''} className={inputCls} />
+      </Labeled>
+      <Labeled label="소개글 · 환자에게는 안 보이고 상담봇이 답할 때만 씁니다">
+        <textarea defaultValue={member.bio ?? ''} rows={3} className={inputCls} />
+      </Labeled>
+      <div className="mb-3">
+        <div className="mb-1.5 text-xs font-medium text-muted-foreground">캘린더 색</div>
+        <div className="flex flex-wrap gap-1.5">
+          {PALETTE.map((p, i) => (
+            <button
+              key={i}
+              onClick={() => setColor(i)}
+              className={`h-7 w-7 rounded-md ${color === i ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+              style={{ background: p.fill }}
+              aria-label={`색 ${i + 1}`}
+            />
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">이 색은 모든 직원의 화면에서 함께 바뀝니다.</p>
+      </div>
+      <button className={`${btnPrimary} w-full justify-center`}>저장</button>
+    </div>
+  )
+}
+
+// 의사 중지 확인 — 영향 예약 미리보기 + 확인 필요 큐 (STAFF-DEACT-04·06·07)
+function DeactivateConfirm({ member, onClose, onDone }: { member: StaffMember; onClose: () => void; onDone: () => void }) {
+  const isDoctor = member.role === '의사'
+  const impacted = isDoctor
+    ? [
+        { at: '8/23 (토) 10:30' },
+        { at: '8/25 (월) 09:00' },
+        { at: '8/25 (월) 14:20' },
+      ]
+    : []
+  return (
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <h3 className="text-base font-bold">{member.name} 님을 사용 중지할까요?</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {member.role}{member.department ? ` · ${member.department}` : ''} · 사용 중지하면 이 계정의 로그인 세션도 끊깁니다.
+        </p>
+
+        {isDoctor && impacted.length > 0 && (
+          <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+              <AlertTriangle className="h-4 w-4 text-amber-600" /> 확인 필요한 예약 {impacted.length}건
+            </p>
+            <ul className="mt-1.5 space-y-0.5 text-sm text-amber-900/90">
+              {impacted.map((a, i) => (
+                <li key={i} className="tabular-nums">· {a.at}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-amber-900/80">
+              자동으로 취소·재배정하지 않습니다. 「지금 처리할 것」의 확인 필요 목록으로 넘겨, 접수 직원이 환자별로 옮기거나 취소한 뒤 안내합니다.
+            </p>
+          </div>
+        )}
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={btnGhost} onClick={onClose}>취소</button>
+          <button className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700" onClick={onDone}>
+            사용 중지
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const inputCls = 'w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40'
+function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-3">
+      <div className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</div>
+      {children}
+    </div>
+  )
 }

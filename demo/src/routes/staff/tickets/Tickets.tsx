@@ -1,246 +1,312 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, CalendarDays, CheckCircle2, MessageCircle, Send, UserRound } from '@/components/icons'
-import { EmptyState, PageHead, Panel, Segmented, StaffPage, StatusBadge, Tag, btnGhost, btnPrimary } from '../_ui'
-import { useStaff } from '../staffState'
-import { ACTIVE_STAFF, INITIAL_TICKETS, ticketsForStatus, type Ticket, type TicketStatus } from './mockData'
+import { CalendarDays, MessageCircle, Sparkles, UserRound, Check, AlertTriangle } from '@/components/icons'
+import { StaffPage, PageHead, Segmented, EmptyState, btnPrimary, btnGhost } from '../_ui'
+import {
+  INITIAL_TICKETS,
+  ticketsForStatus,
+  ACTIVE_STAFF,
+  type Ticket,
+  type TicketStatus,
+  type TicketMessage,
+} from './mockData'
 
-// 문의 티켓함 (/staff/tickets) — TICKET-INBOX-* + TICKET-DETAIL-*.
-// data-testid="staff-tickets". 새 문의 선택은 현재 직원 자동 배정과 처리 중 전환을 함께 수행한다.
+// 문의 티켓함 (/staff/tickets) — TICKET-INBOX-* · TICKET-DETAIL-*.
+// 분할 화면: 왼쪽 티켓 목록(상태 탭 3개) + 오른쪽 넓은 상세 작업공간.
+// 새 문의 행 선택 → 그 직원에게 배정 + pending→in_progress + 상세 열림 (TICKET-DETAIL-OPEN-01).
+// 상세 순서: 담당 이관 → 인계 요약 5항목 → 전체 대화 → 답변+보내기 → (분리) 상담 종료.
+// [상담 종료]는 확인창 안에서만(TICKET-DETAIL-CLOSE-02). data-testid="staff-tickets".
 
+const ME = '김서연' // 로그인 직원 (데모)
+const STATUS_LABEL: Record<TicketStatus, string> = {
+  pending: '직원 연결 중',
+  in_progress: '직원 상담 중',
+  answered: '상담 종료',
+}
 const TABS: { key: TicketStatus; label: string }[] = [
   { key: 'pending', label: '새 문의' },
   { key: 'in_progress', label: '처리 중' },
   { key: 'answered', label: '답변 완료' },
 ]
 
-const LIVE_STATUS: Record<TicketStatus, string> = {
-  pending: '직원 연결 중',
-  in_progress: '직원 상담 중',
-  answered: '상담 종료',
+export function Tickets() {
+  const [tickets, setTickets] = useState<Ticket[]>(INITIAL_TICKETS)
+  const [tab, setTab] = useState<TicketStatus>('pending')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const rows = ticketsForStatus(tickets, tab)
+  const selected = tickets.find((t) => t.id === selectedId) ?? null
+
+  const openTicket = (t: Ticket) => {
+    if (t.status === 'pending') {
+      // 선택과 동시에 배정 + pending→in_progress (TICKET-DETAIL-OPEN-01)
+      setTickets((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: 'in_progress', assignee: ME } : x)))
+      setTab('in_progress')
+    }
+    setSelectedId(t.id)
+  }
+
+  const patch = (id: string, up: Partial<Ticket>) =>
+    setTickets((prev) => prev.map((x) => (x.id === id ? { ...x, ...up } : x)))
+
+  return (
+    <StaffPage max="max-w-full" testid="staff-tickets" footer={false}>
+      <PageHead title="문의 티켓함" sub="상담봇이 직원에게 넘긴 문의를 맡아 답합니다" />
+
+      <div className="flex gap-4" style={{ height: 'calc(100vh - 11rem)' }}>
+        {/* 왼쪽: 상태 탭 + 목록 */}
+        <div className="flex w-96 shrink-0 flex-col">
+          <Segmented
+            options={TABS}
+            value={tab}
+            onChange={(k) => setTab(k)}
+            count={(k) => tickets.filter((t) => t.status === k).length}
+          />
+          <div className="mt-2 flex-1 space-y-1.5 overflow-y-auto pr-1">
+            {rows.length === 0 ? (
+              <EmptyState title={`${TABS.find((t) => t.key === tab)?.label} 문의가 없습니다`} hint="다른 탭을 확인해 보세요." />
+            ) : (
+              rows.map((t) => (
+                <TicketRow key={t.id} t={t} active={t.id === selectedId} onClick={() => openTicket(t)} />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* 오른쪽: 상세 작업공간 */}
+        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+          {selected ? (
+            <TicketDetail
+              key={selected.id}
+              t={selected}
+              onReassign={(name) => patch(selected.id, { assignee: name })}
+              onReply={(msg) => patch(selected.id, { messages: [...selected.messages, msg] })}
+              onClose={() => patch(selected.id, { status: 'answered' })}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <EmptyState
+                icon={<MessageCircle className="h-6 w-6" />}
+                title="문의를 선택하세요"
+                hint="왼쪽에서 문의를 고르면 대화와 인계 요약이 여기에 열립니다."
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </StaffPage>
+  )
 }
 
-function TicketRow({ ticket, selected, onSelect }: { ticket: Ticket; selected: boolean; onSelect: () => void }) {
+function TicketRow({ t, active, onClick }: { t: Ticket; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onSelect} className={`w-full px-3 py-3 text-left transition-colors hover:bg-muted/60 ${selected ? 'bg-primary/10' : ''}`}>
+    <button
+      onClick={onClick}
+      className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
+        active ? 'border-primary bg-primary/5' : 'border-border/70 bg-card hover:bg-muted'
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 font-semibold leading-5">{ticket.question}</div>
-        {ticket.unread && <Tag className="!bg-primary/10 !text-primary">새 메시지 · 미확인</Tag>}
+        <span className="line-clamp-2 text-sm font-medium">{t.question}</span>
+        {t.unread && <span className="mt-1 shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-medium text-white">새 메시지</span>}
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">{ticket.handoffReason}</div>
-      {ticket.bookingType && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Tag className="!bg-primary/10 !text-primary">{ticket.bookingType}</Tag>
-          <span className="text-xs text-muted-foreground">{ticket.bookingSummary}</span>
+      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{t.handoffReason}</p>
+      {t.bookingType && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">{t.bookingType}</span>
+          <span className="text-[11px] text-muted-foreground">{t.bookingSummary}</span>
         </div>
       )}
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span className="tabular-nums">{ticket.createdLabel}</span>
-        <span>담당 · {ticket.assignee ?? '미배정'}</span>
+      <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>{t.createdLabel}</span>
+        <span>{t.assignee ?? '미배정'}</span>
       </div>
     </button>
   )
 }
 
 function TicketDetail({
-  ticket,
-  draft,
-  onDraftChange,
-  onSend,
-  onTransfer,
-  onAskClose,
+  t,
+  onReassign,
+  onReply,
+  onClose,
 }: {
-  ticket: Ticket
-  draft: string
-  onDraftChange: (value: string) => void
-  onSend: () => void
-  onTransfer: (name: string) => void
-  onAskClose: () => void
+  t: Ticket
+  onReassign: (name: string) => void
+  onReply: (msg: TicketMessage) => void
+  onClose: () => void
 }) {
   const navigate = useNavigate()
-  const [nextAssignee, setNextAssignee] = useState(ticket.assignee ?? ACTIVE_STAFF[0].name)
-  const readonly = ticket.status === 'answered'
-  const summary = [
-    ['환자가 궁금해한 내용', ticket.summary.question],
-    ['상담봇이 확인한 정보', ticket.summary.confirmed],
-    ['이미 안내한 내용', ticket.summary.guided],
-    ['해결되지 않은 이유', ticket.summary.unresolved],
-    ['직원이 확인할 사항', ticket.summary.staffCheck],
-  ]
+  const [draft, setDraft] = useState('')
+  const [confirmClose, setConfirmClose] = useState(false)
+  const readOnly = t.status === 'answered'
+  const isMedical = t.reason === 'medical_judgment'
 
-  const transferTargets = ticket.reason === 'medical_judgment'
-    ? ACTIVE_STAFF.filter((member) => member.role === '의사' || member.role === '관리자')
-    : ACTIVE_STAFF
+  const send = () => {
+    if (!draft.trim()) return
+    onReply({ id: `m${Date.now()}`, sender: '직원', text: draft.trim(), time: '지금' })
+    setDraft('')
+  }
 
   return (
-    <div className="space-y-3">
-      <Panel
-        title={<span className="flex items-center gap-2"><UserRound className="h-4 w-4 text-primary" />담당 이관</span>}
-        action={<StatusBadge status={LIVE_STATUS[ticket.status]} tone={ticket.status === 'answered' ? 'gray' : 'sky'} />}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm">현재 담당 · <strong>{ticket.assignee ?? '미배정'}</strong></span>
-          {ticket.assignee && <Tag>{ACTIVE_STAFF.find((member) => member.name === ticket.assignee)?.role ?? '직원'}</Tag>}
-          {!readonly && (
-            <div className="ml-auto flex items-center gap-2">
-              <select value={nextAssignee} onChange={(event) => setNextAssignee(event.target.value)} className="h-9 rounded-lg border border-input bg-card px-3 text-sm outline-none">
-                {transferTargets.map((member) => <option key={member.id} value={member.name}>{member.name} · {member.role}</option>)}
-              </select>
-              <button onClick={() => onTransfer(nextAssignee)} className={btnGhost}>{ticket.reason === 'medical_judgment' ? '담당 의사에게 전달' : '이관'}</button>
-            </div>
-          )}
-        </div>
-        {ticket.reason === 'medical_judgment' && !readonly && (
-          <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-primary"><AlertTriangle className="h-4 w-4" />의료 판단 문의는 의사 또는 관리자에게 전달해 주세요.</div>
-        )}
-      </Panel>
-
-      <Panel title="인계 요약">
-        <dl className="grid grid-cols-1 gap-x-5 gap-y-3 text-sm xl:grid-cols-2">
-          {summary.map(([label, value], index) => (
-            <div key={label} className={index === 4 ? 'xl:col-span-2' : ''}>
-              <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-              <dd className="mt-0.5">{value || '없음'}</dd>
-            </div>
-          ))}
-        </dl>
-        {ticket.contactNote && <div className="mt-3 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">{ticket.contactNote}</div>}
-        {ticket.bookingType && (
-          <button onClick={() => navigate('/staff/calendar')} className={`${btnGhost} mt-3`}><CalendarDays className="h-4 w-4 text-primary" />캘린더에서 예약 처리</button>
-        )}
-      </Panel>
-
-      <Panel title={<span className="flex items-center gap-2"><MessageCircle className="h-4 w-4 text-primary" />전체 대화</span>}>
-        {ticket.messages.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">원본 대화가 없습니다</div>
+    <div className="flex h-full flex-col">
+      {/* ① 담당 이관 (맨 위) — TICKET-DETAIL-LAYOUT-01 */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-4 py-3">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${readOnly ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
+          {STATUS_LABEL[t.status]}
+        </span>
+        <span className="text-sm text-muted-foreground">담당</span>
+        {readOnly ? (
+          <span className="text-sm font-medium">{t.assignee ?? '미배정'}</span>
         ) : (
-          <ol className="space-y-3">
-            {ticket.messages.map((message) => (
-              <li key={message.id} className={`flex ${message.sender === '환자' ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-[78%] rounded-xl px-3 py-2 text-sm ${message.sender === '환자' ? 'bg-muted' : message.sender === 'AI' ? 'border border-border bg-card' : 'bg-primary text-primary-foreground'}`}>
-                  <div className={`mb-1 text-xs font-semibold ${message.sender === '직원' ? 'text-primary-foreground' : 'text-muted-foreground'}`}>{message.sender}</div>
-                  <div>{message.text}</div>
-                  <div className={`mt-1 text-right text-[11px] ${message.sender === '직원' ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>{message.time}</div>
-                  {message.unreadByPatient && <div className="mt-1 text-[11px]">환자 미확인</div>}
-                </div>
-              </li>
-            ))}
-          </ol>
+          <>
+            <select
+              value={t.assignee ?? ''}
+              onChange={(e) => onReassign(e.target.value)}
+              className="h-8 rounded-lg border border-input bg-card px-2 text-sm outline-none focus:border-ring"
+            >
+              {ACTIVE_STAFF.map((s) => (
+                <option key={s.id} value={s.name}>{s.name} · {s.role}</option>
+              ))}
+            </select>
+            <button className={`${btnGhost} py-1.5`}>이관</button>
+            {isMedical && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">
+                <AlertTriangle className="h-3.5 w-3.5" /> 의료 판단 — 담당 의사에게 전달하세요
+              </span>
+            )}
+          </>
         )}
-      </Panel>
+        {t.bookingType && (
+          <button className={`${btnGhost} ml-auto py-1.5`} onClick={() => navigate('/staff/calendar')}>
+            <CalendarDays className="h-4 w-4" /> 캘린더에서 예약 처리
+          </button>
+        )}
+      </div>
 
-      {!readonly && (
-        <>
-          <Panel title="답변 작성">
-            <textarea value={draft} onChange={(event) => onDraftChange(event.target.value)} rows={3} placeholder="환자에게 보낼 답변을 작성하세요" className="w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
-            <div className="mt-2 flex justify-end"><button disabled={!draft.trim()} onClick={onSend} className={btnPrimary}><Send className="h-4 w-4" />보내기</button></div>
-          </Panel>
-          <Panel>
-            <div className="flex items-center justify-between gap-4">
-              <div><div className="text-sm font-semibold">상담 마무리</div><div className="mt-0.5 text-xs text-muted-foreground">종료한 상담은 다시 열 수 없습니다.</div></div>
-              <button onClick={onAskClose} className={btnGhost}>종료 확인 열기</button>
-            </div>
-          </Panel>
-        </>
+      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        {/* ② 인계 요약 5항목 — 없으면 "없음" (TICKET-DETAIL-SUM-*) */}
+        <section className="rounded-xl border border-border/70 bg-muted/20 p-3">
+          <h3 className="mb-2 text-sm font-semibold">인계 요약</h3>
+          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <SummaryItem label="환자가 궁금해한 내용" value={t.summary.question} />
+            <SummaryItem label="상담봇이 확인한 정보" value={t.summary.confirmed} />
+            <SummaryItem label="이미 안내한 내용" value={t.summary.guided} />
+            <SummaryItem label="해결되지 않은 이유" value={t.summary.unresolved} />
+            <SummaryItem label="직원이 확인할 사항" value={t.summary.staffCheck} />
+          </dl>
+          {t.contactNote && <p className="mt-2 text-xs text-muted-foreground">{t.contactNote}</p>}
+        </section>
+
+        {/* ③ 전체 대화 (시간순, 발신 주체 구분) */}
+        <section>
+          <h3 className="mb-2 text-sm font-semibold">전체 대화</h3>
+          <div className="space-y-2">
+            {t.messages.map((m) => (
+              <Bubble key={m.id} m={m} />
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* ④ 답변 입력 + 보내기 / ⑤ (분리) 상담 종료 */}
+      {readOnly ? (
+        <div className="border-t border-border/70 px-4 py-3 text-center text-sm text-muted-foreground">
+          상담이 종료된 문의입니다 · 읽기 전용
+        </div>
+      ) : (
+        <div className="border-t border-border/70 px-4 py-3">
+          <div className="flex items-end gap-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={2}
+              placeholder="환자에게 보낼 답변을 적습니다"
+              className="min-w-0 flex-1 resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+            />
+            <button className={btnPrimary} onClick={send} disabled={!draft.trim()}>보내기</button>
+          </div>
+          {/* 되돌릴 수 없는 [상담 종료]는 [보내기]와 분리 (TICKET-DETAIL-CLOSE-SEP-01) */}
+          <div className="mt-3 flex items-center justify-between border-t border-dashed border-border/60 pt-3">
+            <span className="text-xs text-muted-foreground">상담이 끝났다면 종료합니다. 종료하면 다시 열 수 없습니다.</span>
+            <button
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+              onClick={() => setConfirmClose(true)}
+            >
+              상담 종료
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmClose && (
+        <CloseConfirm hasDraft={!!draft.trim()} onSendFirst={() => { send(); setConfirmClose(false) }} onClose={() => setConfirmClose(false)} onDone={() => { onClose(); setConfirmClose(false) }} />
       )}
     </div>
   )
 }
 
-export function Tickets() {
-  const { staff } = useStaff()
-  const [tickets, setTickets] = useState(INITIAL_TICKETS)
-  const [tab, setTab] = useState<TicketStatus>('pending')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [draft, setDraft] = useState('')
-  const [confirmingClose, setConfirmingClose] = useState(false)
-  const selected = tickets.find((ticket) => ticket.id === selectedId) ?? null
-  const visible = useMemo(() => ticketsForStatus(tickets, tab), [tickets, tab])
-
-  function selectTicket(ticket: Ticket) {
-    setDraft('')
-    setConfirmingClose(false)
-    if (ticket.status === 'pending') {
-      setTickets((current) => current.map((item) => item.id === ticket.id ? { ...item, status: 'in_progress', assignee: staff.name, unread: false } : item))
-      setTab('in_progress')
-    } else {
-      setTickets((current) => current.map((item) => item.id === ticket.id ? { ...item, unread: false } : item))
-    }
-    setSelectedId(ticket.id)
-  }
-
-  function updateSelected(change: (ticket: Ticket) => Ticket) {
-    if (!selectedId) return
-    setTickets((current) => current.map((ticket) => ticket.id === selectedId ? change(ticket) : ticket))
-  }
-
-  function sendReply() {
-    const text = draft.trim()
-    if (!text) return
-    updateSelected((ticket) => ({ ...ticket, messages: [...ticket.messages, { id: `local-${ticket.messages.length}`, sender: '직원', text, time: '방금', unreadByPatient: true }] }))
-    setDraft('')
-  }
-
-  function closeTicket(sendFirst: boolean) {
-    const text = draft.trim()
-    updateSelected((ticket) => ({
-      ...ticket,
-      status: 'answered',
-      messages: [
-        ...ticket.messages,
-        ...(sendFirst && text ? [{ id: `local-${ticket.messages.length}`, sender: '직원' as const, text, time: '방금', unreadByPatient: true }] : []),
-        { id: `closed-${ticket.messages.length}`, sender: '직원', text: '상담이 종료되었습니다.', time: '방금' },
-      ],
-    }))
-    setDraft('')
-    setConfirmingClose(false)
-    setTab('answered')
-  }
-
+function SummaryItem({ label, value }: { label: string; value: string | null }) {
   return (
-    <StaffPage testid="staff-tickets" max="max-w-[1500px]">
-      <PageHead title="문의 티켓함" sub="직원 확인이 필요한 상담을 접수순으로 처리합니다" />
-      <Segmented options={TABS} value={tab} onChange={(value) => { setTab(value); setSelectedId(null); setDraft('') }} count={(status) => tickets.filter((ticket) => ticket.status === status).length} />
+    <div>
+      <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
+      <dd className={`text-sm ${value ? '' : 'text-muted-foreground'}`}>{value ?? '없음'}</dd>
+    </div>
+  )
+}
 
-      <div className="mt-3 grid min-h-[680px] grid-cols-[minmax(280px,0.72fr)_minmax(520px,1.6fr)] gap-3">
-        <Panel className="overflow-hidden" pad="p-0" title={undefined}>
-          <div className="border-b border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground">접수순 · 오래된 문의 먼저</div>
-          {visible.length === 0 ? (
-            <EmptyState icon={<CheckCircle2 className="h-6 w-6" />} title="그 상태의 문의가 없습니다" hint="다른 상태 탭을 확인해 보세요" />
-          ) : (
-            <div className="divide-y divide-border/60">{visible.map((ticket) => <TicketRow key={ticket.id} ticket={ticket} selected={ticket.id === selectedId} onSelect={() => selectTicket(ticket)} />)}</div>
-          )}
-        </Panel>
+function Bubble({ m }: { m: TicketMessage }) {
+  const isStaff = m.sender === '직원'
+  const tone =
+    m.sender === 'AI'
+      ? 'bg-violet-50 text-violet-900'
+      : m.sender === '직원'
+      ? 'bg-primary text-primary-foreground'
+      : 'bg-muted text-foreground'
+  const Icon = m.sender === 'AI' ? Sparkles : UserRound
+  return (
+    <div className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[78%] rounded-2xl px-3 py-2 ${tone}`}>
+        <div className={`mb-0.5 flex items-center gap-1 text-[11px] ${isStaff ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+          {!isStaff && <Icon className="h-3 w-3" />}
+          {m.sender} · {m.time}
+        </div>
+        <p className="text-sm leading-snug">{m.text}</p>
+      </div>
+    </div>
+  )
+}
 
-        <div>
-          {selected ? (
-            <TicketDetail
-              ticket={selected}
-              draft={draft}
-              onDraftChange={setDraft}
-              onSend={sendReply}
-              onTransfer={(name) => updateSelected((ticket) => ({ ...ticket, assignee: name }))}
-              onAskClose={() => setConfirmingClose(true)}
-            />
-          ) : (
-            <Panel className="h-full"><EmptyState icon={<MessageCircle className="h-6 w-6" />} title="문의 내용을 선택해 주세요" hint="새 문의를 열면 자동으로 내게 배정됩니다" /></Panel>
-          )}
+function CloseConfirm({
+  hasDraft,
+  onSendFirst,
+  onClose,
+  onDone,
+}: {
+  hasDraft: boolean
+  onSendFirst: () => void
+  onClose: () => void
+  onDone: () => void
+}) {
+  return (
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <h3 className="text-base font-bold">상담을 종료할까요?</h3>
+        <p className="mt-2 text-sm text-muted-foreground">종료하면 이 문의는 다시 열 수 없습니다. 더 물어볼 것이 있으면 새 문의로 이어집니다.</p>
+        {hasDraft && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <span>작성 중인 답변이 있습니다. 먼저 보낼까요?</span>
+          </div>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={btnGhost} onClick={onClose}>돌아가기</button>
+          {hasDraft && <button className={btnGhost} onClick={onSendFirst}><Check className="h-4 w-4" /> 먼저 보내기</button>}
+          <button className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700" onClick={onDone}>
+            상담 종료
+          </button>
         </div>
       </div>
-
-      {confirmingClose && selected && (
-        <div role="dialog" aria-modal="true" aria-labelledby="close-title" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
-          <Panel className="w-full max-w-md" title={<span id="close-title">상담을 종료할까요?</span>}>
-            <p className="text-sm text-muted-foreground">종료한 상담은 다시 열거나 답변할 수 없습니다.</p>
-            {draft.trim() && <div className="mt-3 rounded-lg bg-muted px-3 py-2 text-sm"><strong>작성 중인 답변이 있습니다.</strong><div className="mt-0.5 text-muted-foreground">먼저 보낼까요?</div></div>}
-            <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => setConfirmingClose(false)} className={btnGhost}>계속 상담</button>
-              {draft.trim() && <button onClick={() => closeTicket(true)} className={btnGhost}>답변 보내고 종료</button>}
-              <button onClick={() => closeTicket(false)} className={btnPrimary}>상담 종료</button>
-            </div>
-          </Panel>
-        </div>
-      )}
-    </StaffPage>
+    </div>
   )
 }

@@ -1,123 +1,311 @@
 import { useState } from 'react'
-import { AlertTriangle, CalendarCheck2, CalendarPlus, CheckCircle2, Clock3, X } from '@/components/icons'
-import { PageHead, Panel, StaffPage, StatusBadge, Tag, btnGhost, btnPrimary } from '../../_ui'
-import { scheduleDoctors, weekDays, weeklySchedule } from './mockData'
+import { AlertTriangle } from '@/components/icons'
+import { StaffPage, PageHead, EmptyState, btnPrimary, btnGhost } from '../../_ui'
+import {
+  scheduleDoctors,
+  departments as initialDepts,
+  scheduleExceptions,
+  weekDays,
+  type DoctorSchedule,
+  type DaySchedule,
+  type WeekDay,
+  type Department,
+} from './mockData'
 
-// 진료 일정 관리 (/admin/schedule) — SCHED-* · data-testid="staff-schedule".
-type ScheduleSection = 'overview' | 'departments' | 'doctor' | 'date'
+// 진료 일정 관리 (/staff/admin/schedule) — SCHED-*.
+// 왼쪽 세로줄 4: 전체 현황(읽는 곳)·진료과 관리·의사별 스케줄(고치는 곳)·특정 날짜 변경.
+// 전체 현황 격자는 원본(규칙), 캘린더는 결과. data-testid="staff-schedule".
 
-const sections: { key: ScheduleSection; label: string; sub: string }[] = [
+type Tab = 'overview' | 'departments' | 'weekly' | 'exceptions'
+const NAV: { key: Tab; label: string; sub: string }[] = [
   { key: 'overview', label: '전체 현황', sub: '읽는 곳' },
-  { key: 'departments', label: '진료과 관리', sub: '4과' },
-  { key: 'doctor', label: '의사별 스케줄', sub: '의사 4명' },
-  { key: 'date', label: '특정 날짜 변경', sub: '다음 휴무 8/28' },
+  { key: 'departments', label: '진료과 관리', sub: '' },
+  { key: 'weekly', label: '의사별 스케줄', sub: '고치는 곳' },
+  { key: 'exceptions', label: '특정 날짜 변경', sub: '' },
 ]
 
 export function Schedule() {
-  const [section, setSection] = useState<ScheduleSection>('overview')
-  const [closedModal, setClosedModal] = useState(false)
-  const [saved, setSaved] = useState('')
-  const [closeScope, setCloseScope] = useState<'hospital' | 'doctors'>('hospital')
+  const [tab, setTab] = useState<Tab>('overview')
+  const [focusDoctor, setFocusDoctor] = useState<string>(scheduleDoctors[0].id)
 
-  const registerClosure = () => {
-    setClosedModal(false)
-    setSaved('8월 28일 휴진을 등록했습니다. 영향받는 예약 7건은 오늘 현황의 「확인 필요」로 이동합니다.')
-  }
+  const subFor = (k: Tab) =>
+    k === 'departments'
+      ? `${initialDepts.filter((d) => d.active).length}과`
+      : k === 'weekly'
+      ? `의사 ${scheduleDoctors.length}명`
+      : k === 'exceptions'
+      ? `다음 휴무 9/5`
+      : NAV.find((n) => n.key === k)!.sub
 
   return (
-    <StaffPage testid="staff-schedule" max="max-w-7xl">
-      <PageHead
-        title="진료 일정 관리"
-        sub="평상시 근무 규칙과 특정 날짜의 변경을 관리합니다"
-        action={<div className="flex gap-2"><button onClick={() => setSaved('9월 1일 화요일 18:00–20:00 근무를 추가했습니다.')} className={btnGhost}><CalendarPlus className="h-4 w-4 text-primary" />근무 추가</button><button onClick={() => setClosedModal(true)} className={btnPrimary}><CalendarCheck2 className="h-4 w-4" />휴진 등록</button></div>}
-      />
+    <StaffPage max="max-w-6xl" testid="staff-schedule">
+      <PageHead title="진료 일정 관리" sub="평상시 규칙을 정하는 곳입니다 · 실제 예약은 캘린더에서 봅니다" />
 
-      {saved && <div className="mb-3 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary"><CheckCircle2 className="h-4 w-4" />{saved}</div>}
+      <div className="flex gap-4">
+        {/* 왼쪽 세로줄 */}
+        <nav className="w-44 shrink-0 space-y-1">
+          {NAV.map((n) => (
+            <button
+              key={n.key}
+              onClick={() => setTab(n.key)}
+              className={`w-full rounded-lg px-3 py-2 text-left ${tab === n.key ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+            >
+              <div className="text-sm font-medium">{n.label}</div>
+              <div className="text-[11px] text-muted-foreground">{subFor(n.key)}</div>
+            </button>
+          ))}
+        </nav>
 
-      <div className="grid gap-4 lg:grid-cols-[190px_minmax(0,1fr)]">
-        <Panel pad="p-2">
-          <nav className="space-y-1" aria-label="일정 관리 메뉴">
-            {sections.map((item) => (
-              <button key={item.key} onClick={() => setSection(item.key)} className={`w-full rounded-lg px-3 py-2.5 text-left ${section === item.key ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}>
-                <span className="block text-sm font-semibold">{item.label}</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">{item.sub}</span>
-              </button>
-            ))}
-          </nav>
-        </Panel>
-
-        {section === 'overview' && <OverviewGrid onEditDoctor={() => setSection('doctor')} />}
-        {section === 'departments' && <DepartmentPanel />}
-        {section === 'doctor' && <DoctorSchedule />}
-        {section === 'date' && <DateChanges onRegister={() => setClosedModal(true)} />}
-      </div>
-
-      {closedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4" role="dialog" aria-modal="true" aria-labelledby="closure-title">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div><h3 id="closure-title" className="font-bold">8월 28일 휴진 등록</h3><p className="mt-1 text-sm text-muted-foreground">이번 한 번만 적용됩니다. 평상시 규칙은 바뀌지 않습니다.</p></div>
-              <button onClick={() => setClosedModal(false)} aria-label="닫기" className="text-muted-foreground"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button onClick={() => setCloseScope('hospital')} className={`rounded-lg border px-3 py-2 text-sm font-medium ${closeScope === 'hospital' ? 'border-primary bg-primary/10 text-primary' : 'border-border'}`}>병원 전체</button>
-              <button onClick={() => setCloseScope('doctors')} className={`rounded-lg border px-3 py-2 text-sm font-medium ${closeScope === 'doctors' ? 'border-primary bg-primary/10 text-primary' : 'border-border'}`}>의사 고르기</button>
-            </div>
-            {closeScope === 'doctors' && <div className="mt-3 grid grid-cols-2 gap-2">{scheduleDoctors.map((doctor) => <label key={doctor.id} className="flex items-center gap-2 rounded-lg border border-border p-2 text-sm"><input type="checkbox" defaultChecked />{doctor.name}<span className="text-xs text-muted-foreground">예약 {doctor.id === 'd1' ? 3 : doctor.id === 'd2' ? 2 : 1}건</span></label>)}</div>}
-            <label className="mt-4 block text-sm"><span className="mb-1 block font-medium">메모</span><input defaultValue="병원 지정 휴무일" className={inputClass} /></label>
-            <div className="mt-4 rounded-lg border border-border bg-muted/60 p-3">
-              <div className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4 text-primary" />영향받는 예약 7건</div>
-              <p className="mt-1 text-xs text-muted-foreground">8월 28일 09:00–16:30 예약입니다. 자동 취소하거나 환자에게 자동 알림을 보내지 않고 「확인 필요」 큐로 보냅니다.</p>
-            </div>
-            <div className="mt-5 flex justify-end gap-2"><button onClick={() => setClosedModal(false)} className={btnGhost}>취소</button><button onClick={registerClosure} className={btnPrimary}>휴진 등록 확정</button></div>
-          </div>
+        <div className="min-w-0 flex-1">
+          {tab === 'overview' && (
+            <Overview onEdit={(id) => { setFocusDoctor(id); setTab('weekly') }} />
+          )}
+          {tab === 'departments' && <Departments />}
+          {tab === 'weekly' && <Weekly focusDoctor={focusDoctor} setFocusDoctor={setFocusDoctor} />}
+          {tab === 'exceptions' && <Exceptions />}
         </div>
-      )}
+      </div>
     </StaffPage>
   )
 }
 
-function OverviewGrid({ onEditDoctor }: { onEditDoctor: () => void }) {
+// ── 전체 현황 (읽기 전용 격자) ──
+function Overview({ onEdit }: { onEdit: (doctorId: string) => void }) {
   return (
-    <Panel title={<span className="flex items-center gap-2"><CalendarCheck2 className="h-4 w-4 text-primary" />주간 전체 현황</span>} action={<span className="text-xs text-muted-foreground">평상시 규칙 · 읽기 전용</span>} pad="p-0">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
-          <thead><tr className="border-b border-border/70 bg-muted/50"><th className="px-3 py-2 text-left">의사 · 진료과</th>{weekDays.map((day) => <th key={day} className="px-2 py-2 text-center">{day}</th>)}</tr></thead>
-          <tbody className="divide-y divide-border/60">
-            {weeklySchedule.map((row) => (
-              <tr key={row.doctor.id}>
-                <th className="px-3 py-3 text-left"><span className="font-semibold">{row.doctor.name}</span><Tag className="ml-2">{row.doctor.department}</Tag></th>
-                {row.days.map((day) => (
-                  <td key={day.day} className="border-l border-border/50 p-1.5 text-center">
-                    <button onClick={onEditDoctor} className={`w-full rounded-md px-1 py-2 ${day.closed ? 'bg-muted text-muted-foreground' : 'hover:bg-primary/10'}`}>
-                      {day.closed ? <span className="font-semibold">휴진</span> : <><span className="block font-medium tabular-nums">{day.hours.replace(':00', '')}</span><span className="block text-xs text-muted-foreground">{day.slot}분 · {day.capacity}명</span></>}
+    <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+      <table className="w-full min-w-max text-sm">
+        <thead>
+          <tr className="border-b border-border/70 bg-muted/40 text-[11px] font-medium text-muted-foreground">
+            <th className="px-3 py-2 text-left">의사</th>
+            {weekDays.map((d) => (
+              <th key={d} className="px-3 py-2 text-center">{d}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {scheduleDoctors.map((doc) => (
+            <tr key={doc.id} className="border-b border-border/60 last:border-b-0">
+              <td className="px-3 py-2">
+                <div className="font-medium">{doc.name}</div>
+                <div className="text-[11px] text-muted-foreground">{doc.department}</div>
+              </td>
+              {weekDays.map((d) => {
+                const day = doc.week[d]
+                return (
+                  <td key={d} className="px-1.5 py-1.5 text-center">
+                    <button
+                      onClick={() => onEdit(doc.id)}
+                      className="w-full rounded-md px-1.5 py-1 hover:bg-muted"
+                      title="눌러서 고치기"
+                    >
+                      {day.dayOff ? (
+                        <span
+                          className="block rounded py-1 text-[11px] text-muted-foreground"
+                          style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(100,116,139,0.12) 0 5px, transparent 5px 10px)' }}
+                        >
+                          휴진
+                        </span>
+                      ) : (
+                        <>
+                          <div className="tabular-nums">{day.open.slice(0, 5)}–{day.close.slice(0, 5)}</div>
+                          <div className="text-[10px] text-muted-foreground tabular-nums">{day.slotMin}분 · {day.maxPatients}명</div>
+                        </>
+                      )}
                     </button>
                   </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
-function DoctorSchedule() {
-  const [doctor, setDoctor] = useState(scheduleDoctors[0].id)
-  return <Panel title="의사별 스케줄" action={<button className={btnPrimary}>저장</button>}>
-    <div className="mb-3 flex flex-wrap gap-2">{scheduleDoctors.map((item) => <button key={item.id} onClick={() => setDoctor(item.id)} className={`rounded-lg px-3 py-2 text-sm ${doctor === item.id ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>{item.name}<span className="ml-1 text-xs opacity-70">{item.department}</span></button>)}</div>
-    <div className="divide-y divide-border/60 rounded-lg border border-border">{weekDays.map((day, index) => <div key={day} className="grid grid-cols-[45px_70px_1fr_100px_100px] items-center gap-2 px-3 py-2 text-sm"><strong>{day}요일</strong><label className="flex items-center gap-1"><input type="checkbox" defaultChecked={index !== 6} />진료</label>{index === 6 ? <span className="text-muted-foreground">— 휴진일 —</span> : <span className="tabular-nums">09:00–18:00 · 점심 12:30–13:30</span>}<span>{index === 6 ? '—' : '15분/칸'}</span><span>{index === 6 ? '—' : '최대 40명'}</span></div>)}</div>
-    <button className={`${btnGhost} mt-3`}><Clock3 className="h-4 w-4 text-primary" />월요일 값을 나머지에</button>
-  </Panel>
+// ── 의사별 스케줄 (고치는 곳) ──
+function Weekly({ focusDoctor, setFocusDoctor }: { focusDoctor: string; setFocusDoctor: (id: string) => void }) {
+  const initial = scheduleDoctors.find((d) => d.id === focusDoctor) ?? scheduleDoctors[0]
+  const [week, setWeek] = useState<Record<WeekDay, DaySchedule>>(() => ({ ...initial.week }))
+  const [dirty, setDirty] = useState(false)
+  const doc = scheduleDoctors.find((d) => d.id === focusDoctor) ?? scheduleDoctors[0]
+
+  const switchDoctor = (d: DoctorSchedule) => {
+    setFocusDoctor(d.id)
+    setWeek({ ...d.week })
+    setDirty(false)
+  }
+  const setDay = (day: WeekDay, up: Partial<DaySchedule>) => {
+    setWeek((prev) => ({ ...prev, [day]: { ...prev[day], ...up } }))
+    setDirty(true)
+  }
+  const copyMonday = () => {
+    const mon = week['월']
+    setWeek((prev) => {
+      const next = { ...prev }
+      for (const d of weekDays) if (!next[d].dayOff) next[d] = { ...mon, dayOff: next[d].dayOff }
+      return next
+    })
+    setDirty(true)
+  }
+
+  return (
+    <div>
+      {/* 의사 가로줄 */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {scheduleDoctors.map((d) => (
+          <button
+            key={d.id}
+            onClick={() => switchDoctor(d)}
+            className={`rounded-full border px-3 py-1 text-sm font-medium ${d.id === focusDoctor ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+          >
+            {d.name} <span className="text-xs text-muted-foreground">{d.department}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+        <table className="w-full min-w-max text-sm">
+          <thead>
+            <tr className="border-b border-border/70 bg-muted/40 text-[11px] font-medium text-muted-foreground">
+              <th className="px-3 py-2 text-left">요일</th>
+              <th className="px-3 py-2 text-center">진료</th>
+              <th className="px-3 py-2 text-left">진료 시간</th>
+              <th className="px-3 py-2 text-center">한 칸</th>
+              <th className="px-3 py-2 text-left">점심시간</th>
+              <th className="px-3 py-2 text-center">최대 인원</th>
+              <th className="px-3 py-2 text-center">예약 마감</th>
+            </tr>
+          </thead>
+          <tbody>
+            {weekDays.map((d) => {
+              const day = week[d]
+              const locked = day.dayOff
+              return (
+                <tr key={d} className="border-b border-border/60 last:border-b-0">
+                  <td className="px-3 py-2 font-medium">{d}</td>
+                  <td className="px-3 py-2 text-center">
+                    <button
+                      onClick={() => setDay(d, { dayOff: !day.dayOff })}
+                      className={`relative h-5 w-9 rounded-full transition-colors ${day.dayOff ? 'bg-muted' : 'bg-primary'}`}
+                      aria-label="진료 여부"
+                    >
+                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${day.dayOff ? 'left-0.5' : 'left-4'}`} />
+                    </button>
+                  </td>
+                  {locked ? (
+                    <td colSpan={5} className="px-3 py-2 text-muted-foreground">휴진 — 나머지 칸이 잠깁니다</td>
+                  ) : (
+                    <>
+                      <td className="px-3 py-2 tabular-nums">
+                        <input value={day.open.slice(0, 5)} onChange={(e) => setDay(d, { open: e.target.value })} className={cellCls} />
+                        <span className="mx-1 text-muted-foreground">–</span>
+                        <input value={day.close.slice(0, 5)} onChange={(e) => setDay(d, { close: e.target.value })} className={cellCls} />
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums">{day.slotMin}분</td>
+                      <td className="px-3 py-2 tabular-nums text-muted-foreground">{day.lunch ?? '—'}</td>
+                      <td className="px-3 py-2 text-center tabular-nums">{day.maxPatients}명</td>
+                      <td className="px-3 py-2 text-center tabular-nums">{day.bookingDeadline}</td>
+                    </>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <button className={btnGhost} onClick={copyMonday}>월요일 값을 나머지에</button>
+        <div className="flex items-center gap-2">
+          {dirty && <span className="text-xs text-amber-700">저장되지 않은 변경</span>}
+          <button className={`${btnPrimary} disabled:opacity-50`} disabled={!dirty} onClick={() => setDirty(false)}>
+            {doc.name} 스케줄 저장
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function DepartmentPanel() {
-  return <Panel title="진료과 관리" action={<button className={btnPrimary}>진료과 추가</button>}><div className="divide-y divide-border/60">{[['내과', 2, '활성'], ['피부과', 1, '활성'], ['정형외과', 1, '활성'], ['가정의학과', 0, '정지']].map(([name, doctors, status]) => <div key={name} className="flex items-center gap-3 py-3 text-sm"><span className="font-semibold">{name}</span><span className="text-muted-foreground">소속 의사 {doctors}명</span><StatusBadge status={String(status)} /><div className="ml-auto flex gap-2"><button className={btnGhost}>이름 수정</button><button className={btnGhost}>{status === '정지' ? '다시 사용' : '사용 중지'}</button></div></div>)}</div></Panel>
+// ── 진료과 관리 ──
+function Departments() {
+  const [depts, setDepts] = useState<Department[]>(initialDepts)
+  const [blocked, setBlocked] = useState<Department | null>(null)
+  return (
+    <div>
+      <div className="mb-3 flex justify-end">
+        <button className={btnPrimary}>진료과 추가</button>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+        {depts.map((d) => (
+          <div key={d.id} className={`flex items-center justify-between border-b border-border/60 px-4 py-3 last:border-b-0 ${!d.active ? 'bg-muted/30' : ''}`}>
+            <div className="flex items-center gap-2">
+              <span className={`font-medium ${!d.active ? 'text-muted-foreground' : ''}`}>{d.name}</span>
+              <span className="text-xs text-muted-foreground">의사 {d.doctorCount}명</span>
+              {!d.active && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">중지됨</span>}
+            </div>
+            <div className="flex items-center gap-1.5">
+              {d.active ? (
+                <>
+                  <button className={`${btnGhost} px-2.5 py-1`}>이름 수정</button>
+                  <button
+                    className="rounded-lg border border-border bg-card px-2.5 py-1 text-sm font-medium text-muted-foreground hover:bg-muted"
+                    onClick={() => (d.doctorCount > 0 ? setBlocked(d) : setDepts((prev) => prev.map((x) => (x.id === d.id ? { ...x, active: false } : x))))}
+                  >
+                    사용 중지
+                  </button>
+                </>
+              ) : (
+                <button className={btnGhost} onClick={() => setDepts((prev) => prev.map((x) => (x.id === d.id ? { ...x, active: true } : x)))}>다시 사용</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {blocked && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl">
+            <h3 className="flex items-center gap-1.5 text-base font-bold"><AlertTriangle className="h-5 w-5 text-amber-600" /> 사용 중지할 수 없습니다</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              이 진료과에 진료 중인 의사 {blocked.doctorCount}명이 있습니다. 진료과를 꺼도 그 의사에게는 예약이 계속 만들어집니다. 먼저 직원 관리에서 의사를 사용 중지하세요.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className={btnGhost} onClick={() => setBlocked(null)}>닫기</button>
+              <button className={btnPrimary} onClick={() => setBlocked(null)}>직원 관리로 가기</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
-function DateChanges({ onRegister }: { onRegister: () => void }) {
-  return <Panel title="특정 날짜 변경" action={<button onClick={onRegister} className={btnPrimary}>휴진 등록</button>}><div className="grid gap-4 md:grid-cols-[1fr_1.2fr]"><div className="rounded-lg border border-border p-3"><div className="grid grid-cols-7 gap-1 text-center text-xs">{weekDays.map((day) => <strong key={day}>{day}</strong>)}{Array.from({ length: 31 }, (_, index) => <button key={index} className={`rounded-md p-2 ${index + 1 === 28 ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>{index + 1}{index + 1 === 28 && <span className="block">●</span>}</button>)}</div></div><div className="rounded-lg border border-border p-4"><h4 className="font-semibold">8월 28일 금요일</h4><p className="mt-2 text-sm text-muted-foreground">병원 전체 휴진 · 병원 지정 휴무일</p><div className="mt-3 flex items-center gap-2"><StatusBadge status="확인 필요" tone="amber" /><span className="text-sm">영향받는 예약 7건</span></div></div></div></Panel>
+// ── 특정 날짜 변경 ──
+function Exceptions() {
+  return (
+    <div>
+      <div className="mb-3 flex justify-end">
+        <button className={btnPrimary}>특정 날짜 변경 추가</button>
+      </div>
+      {scheduleExceptions.length === 0 ? (
+        <EmptyState title="등록된 특정 날짜 변경이 없습니다" hint="공휴일·학회 등 이번 한 번뿐인 변경을 여기서 등록합니다." />
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+          {scheduleExceptions.map((e) => (
+            <div key={e.id} className="flex items-center justify-between border-b border-border/60 px-4 py-3 last:border-b-0">
+              <div>
+                <div className="font-medium tabular-nums">{e.date}</div>
+                <div className="text-xs text-muted-foreground">{e.doctor} · {e.change}</div>
+              </div>
+              <button className={`${btnGhost} px-2.5 py-1`}>수정</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
-const inputClass = 'h-9 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40'
+const cellCls = 'w-14 rounded border border-input bg-card px-1.5 py-1 text-center text-sm outline-none focus:border-ring'

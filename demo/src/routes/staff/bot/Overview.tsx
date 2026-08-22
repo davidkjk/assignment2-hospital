@@ -1,99 +1,97 @@
-import { useState } from 'react'
-import { AlertCircle, ArrowLeft, BarChart3, FileText, MessageCircle, Sparkles } from '@/components/icons'
-import { PageHead, Panel, Segmented, StaffPage, StatTile, Tag, Toolbar, btnGhost, btnPrimary } from '../_ui'
-import { channelSources, overviewMetrics, topQuestions } from './mockData'
+import { AlertTriangle, ChevronRight } from '@/components/icons'
+import { StaffPage, PageHead, StatTile } from '../_ui'
+import { overviewMetrics, topQuestions, channelSources } from './mockData'
 
-// 상담봇 처리 현황 — BOTSTAT-DASH/QTOP-RANK. 최상위 testid: bot-overview.
-type Period = '7일' | '30일' | '90일'
-type TopQuestion = (typeof topQuestions)[number]
+// 상담봇 처리 현황 (/staff/bot/overview) — BOTSTAT-DASH-* · QTOP-RANK-*.
+// 운영 지표 타일 + 예약 유입원 3분류 + 많이 들어온 질문 순위(자동 묶음 한계 안내).
+// 계약 부재 지표는 '현재 집계할 수 없음'(placeholder 0 금지, BOTSTAT-DASH-05).
+// data-testid="bot-overview".
 
-const periods: { key: Period; label: string }[] = [
-  { key: '7일', label: '최근 7일' },
-  { key: '30일', label: '최근 30일' },
-  { key: '90일', label: '최근 90일' },
-]
-
-const detailExamples: Record<string, string[]> = {
-  t1: ['주차 등록은 어느 창구에서 하나요?', '무료 주차 등록 장소를 알려 주세요.', '차량 번호는 어디에서 말하면 되나요?'],
-  t2: ['예약 날짜를 내일로 바꿀 수 있나요?', '다음 주로 예약을 변경하고 싶어요.', '잡아 둔 진료 일정을 옮기려면 어떻게 하나요?'],
-  t3: ['건강검진 전에 언제부터 금식해야 하나요?', '검진 날 물도 마시면 안 되나요?', '금식 시간을 알려 주세요.'],
-}
-
-function SimilarityNotice() {
-  return <div className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2.5 text-xs leading-5 text-muted-foreground"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />자동 유사도 묶음에는 실제로 다른 질문이 섞일 수 있으며, 확정 분류가 아닙니다.</div>
-}
+const TONE = ['teal', 'green', 'sky', 'amber'] as const
 
 export function Overview() {
-  const [period, setPeriod] = useState<Period>('30일')
-  const [csvOpen, setCsvOpen] = useState(false)
-  const [selectedTop, setSelectedTop] = useState<TopQuestion | null>(null)
-  const [faqMessage, setFaqMessage] = useState('')
-
-  if (selectedTop) {
-    const examples = detailExamples[selectedTop.id] ?? [selectedTop.question]
-    return (
-      <StaffPage testid="bot-overview" max="max-w-5xl">
-        <PageHead title="많이 들어온 질문 상세" sub={`${period} · ${selectedTop.count}건 묶음`} action={<button className={btnGhost} onClick={() => { setSelectedTop(null); setFaqMessage('') }}><ArrowLeft className="h-4 w-4" />현황으로</button>} />
-        <SimilarityNotice />
-        <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_19rem]">
-          <Panel title={selectedTop.question}>
-            <div className="divide-y divide-border/60">{examples.map((question, index) => <div key={question} className="flex gap-3 py-3 text-sm"><span className="text-xs font-semibold tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>{question}</div>)}</div>
-          </Panel>
-          <Panel title="반복 질문 보강">
-            <p className="text-xs leading-5 text-muted-foreground">이 묶음을 FAQ 안내자료 작성 화면으로 전달합니다. 관리자 승인 전에는 상담봇 답변에 반영되지 않습니다.</p>
-            <button className={`${btnPrimary} mt-3 w-full justify-center`} onClick={() => setFaqMessage('새 안내자료에 대표 질문을 전달했습니다. 작성·확인 후 별도 승인이 필요합니다.')}><Sparkles className="h-4 w-4" />FAQ 보강</button>
-            {faqMessage && <p className="mt-3 rounded-lg bg-primary/10 p-3 text-xs leading-5">{faqMessage}</p>}
-          </Panel>
-        </div>
-      </StaffPage>
-    )
-  }
+  const maxTop = Math.max(...topQuestions.map((q) => q.count))
 
   return (
-    <StaffPage testid="bot-overview">
-      <PageHead title="상담봇 처리 현황" sub={`${period} 운영 지표와 전체 질문 순위를 함께 봅니다.`} />
-      <Toolbar left={<Segmented options={periods} value={period} onChange={setPeriod} />} right={<button className={btnGhost} onClick={() => setCsvOpen((open) => !open)}><FileText className="h-4 w-4" />CSV 내보내기</button>} />
+    <StaffPage max="max-w-5xl" testid="bot-overview">
+      <PageHead
+        title="상담봇 처리 현황"
+        sub="선택 기간 · 최근 7일"
+        action={
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm tabular-nums text-muted-foreground">8/16 – 8/22</span>
+          </div>
+        }
+      />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {overviewMetrics.map((metric, index) => <StatTile key={metric.label} label={metric.label} value={metric.value} hint={metric.hint} tone={index === 1 ? 'teal' : 'neutral'} />)}
+      {/* 운영 지표 */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {overviewMetrics.map((m, i) => (
+          <StatTile key={m.label} label={m.label} value={m.value} hint={m.hint} tone={TONE[i]} />
+        ))}
       </div>
 
-      {csvOpen && (
-        <Panel className="mt-3" title={`CSV 미리보기 · ${period}`} action={<Tag>k=5 보호 적용</Tag>}>
-          <div className="overflow-hidden rounded-lg border border-border text-xs">
-            <div className="grid grid-cols-3 bg-muted px-3 py-2 font-semibold text-muted-foreground"><span>항목</span><span>건수</span><span>비고</span></div>
-            <div className="grid grid-cols-3 border-t border-border px-3 py-2"><span>앱 · AI 해결</span><span>1,102</span><span>-</span></div>
-            <div className="grid grid-cols-3 border-t border-border px-3 py-2"><span>직원 · 미해결</span><span>억제</span><span>5건 미만 및 보완 추론 셀</span></div>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">화면의 집계 수치는 유지하고, CSV의 환자 기준 소수 셀과 추론 가능한 보완 셀만 가립니다. 환자 상세 명단은 포함하지 않습니다.</p>
-        </Panel>
-      )}
-
-      <div className="mt-3 grid gap-3 lg:grid-cols-[1.4fr_0.8fr]">
-        <Panel title="많이 들어온 질문 TOP 5" action={<span className="text-xs text-muted-foreground">전체 질문 · 건수순</span>} pad="p-0">
-          <div className="px-4 pt-4"><SimilarityNotice /></div>
-          <div className="divide-y divide-border/60 px-4 py-2">
-            {topQuestions.map((question, index) => (
-              <button key={question.id} onClick={() => setSelectedTop(question)} className="grid w-full grid-cols-[2rem_1fr_5rem] items-center gap-3 py-3 text-left text-sm hover:bg-muted">
-                <span className="text-lg font-bold tabular-nums text-primary">{index + 1}</span>
-                <span className="truncate font-medium">{question.question}</span>
-                <span className="text-right font-semibold tabular-nums">{question.count}건</span>
-              </button>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* 많이 들어온 질문 순위 */}
+        <section className="rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+          <h3 className="text-sm font-semibold">많이 들어온 질문</h3>
+          <p className="mb-3 mt-0.5 flex items-start gap-1 text-[11px] text-muted-foreground">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+            비슷한 질문끼리 자동으로 묶은 결과라 다른 질문이 섞여 있을 수 있습니다.
+          </p>
+          <ol className="space-y-2">
+            {topQuestions.map((q, i) => (
+              <li key={q.id} className="flex items-center gap-3">
+                <span className="w-5 shrink-0 text-center text-sm font-bold tabular-nums text-primary">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm">{q.question}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{q.count}건</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary/70" style={{ width: `${(q.count / maxTop) * 100}%` }} />
+                  </div>
+                </div>
+              </li>
             ))}
-          </div>
-        </Panel>
+          </ol>
+          <button className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            반복 질문을 안내자료로 만들기 <ChevronRight className="h-3 w-3" />
+          </button>
+        </section>
 
-        <Panel title="상담 유입원" action={<BarChart3 className="h-4 w-4 text-muted-foreground" />}>
-          <div className="space-y-4">
-            {channelSources.map((source) => (
-              <div key={source.label}>
-                <div className="mb-1.5 flex items-center justify-between text-sm"><span className="flex items-center gap-1.5"><MessageCircle className="h-4 w-4 text-primary" />{source.label}</span><span className="font-semibold tabular-nums">{source.count.toLocaleString()}건 · {source.share}%</span></div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${source.share}%` }} /></div>
-              </div>
-            ))}
+        <div className="space-y-4">
+          {/* 상담 유입원 3분류 */}
+          <section className="rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <h3 className="mb-3 text-sm font-semibold">상담 유입원</h3>
+            <div className="space-y-2.5">
+              {channelSources.map((c) => (
+                <div key={c.label}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span>{c.label}</span>
+                    <span className="tabular-nums text-muted-foreground">{c.count.toLocaleString()}건 · {c.share}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-sky-500/70" style={{ width: `${c.share}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 계약 부재 지표 — 0 대신 '현재 집계할 수 없음' */}
+          <section className="rounded-xl border border-dashed border-border bg-muted/20 p-4">
+            <h3 className="text-sm font-semibold text-muted-foreground">상담봇 세부 지표</h3>
+            <p className="mt-1 text-sm text-muted-foreground">현재 집계할 수 없음</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">이 지표의 집계 연결이 아직 없어 0으로 채우지 않습니다.</p>
+          </section>
+
+          {/* CSV */}
+          <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-3">
+            <span className="text-xs text-muted-foreground">CSV에는 환자 기준 5건 미만 셀을 가립니다.</span>
+            <button className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted">CSV 내려받기</button>
           </div>
-          <p className="mt-5 text-xs leading-5 text-muted-foreground">앱·웹·직원 경로를 서로 섞지 않고 분리해 집계합니다.</p>
-        </Panel>
+        </div>
       </div>
     </StaffPage>
   )

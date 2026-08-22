@@ -1,83 +1,179 @@
-export type StaffRole = '접수직원' | '의사' | '관리자'
-export type StaffStatus = '활성' | '휴직' | '정지'
+// 관리자 설정 4화면 공용 가짜 데이터 (STAFF-* · SCHED-* · QADM-* · HSET-*).
 
+// ── 직원 관리 (STAFF-*) ──
+export type StaffRole = '접수직원' | '의사' | '관리자'
 export interface StaffMember {
   id: string
   name: string
-  email: string
   role: StaffRole
-  department: string
-  status: StaffStatus
-  lastLogin: string
-  invitePending?: boolean
-  affectedAppointments?: { date: string; time: string }[]
+  department?: string // 의사만
+  active: boolean
+  lastLogin?: string // 활성·로그인 기록 있음 (STAFF-LIST-07)
+  invitePending?: boolean // 초대했지만 아직 안 들어옴 (STAFF-LIST-08)
+  inviteSent?: string
+  specialty?: string // 의사 프로필 (STAFF-PROFILE-*)
+  bio?: string
+  color?: number // 캘린더 팔레트 인덱스
 }
 
+export const ME = '김서연'
+
 export const staffMembers: StaffMember[] = [
-  { id: 's1', name: '김민지', email: 'minji@saebom.test', role: '관리자', department: '운영팀', status: '활성', lastLogin: '오늘 08:42' },
-  { id: 's2', name: '이정훈', email: 'jhlee@saebom.test', role: '의사', department: '내과', status: '활성', lastLogin: '오늘 08:57', affectedAppointments: [{ date: '8월 25일(화)', time: '10:00' }, { date: '8월 25일(화)', time: '10:30' }, { date: '8월 27일(목)', time: '14:00' }] },
-  { id: 's3', name: '한서연', email: 'syhan@saebom.test', role: '의사', department: '내과', status: '활성', lastLogin: '어제 17:26', affectedAppointments: [{ date: '8월 26일(수)', time: '09:30' }] },
-  { id: 's4', name: '박강우', email: 'kwpark@saebom.test', role: '의사', department: '정형외과', status: '휴직', lastLogin: '8월 6일 16:10' },
-  { id: 's5', name: '최유진', email: 'yjchoi@saebom.test', role: '접수직원', department: '접수', status: '활성', lastLogin: '초대 보냄 · 8월 20일', invitePending: true },
-  { id: 's6', name: '오지현', email: 'jhoh@saebom.test', role: '접수직원', department: '접수', status: '정지', lastLogin: '7월 28일 18:04' },
+  { id: 's1', name: '김서연', role: '관리자', active: true, lastLogin: '오늘 08:57' },
+  { id: 's2', name: '박지민', role: '접수직원', active: true, lastLogin: '오늘 09:02' },
+  { id: 's3', name: '이정훈', role: '의사', department: '내과', active: true, lastLogin: '오늘 08:40', specialty: '고혈압·당뇨 등 만성질환', bio: '내과 전문의. 만성질환 관리 20년.', color: 0 },
+  { id: 's4', name: '한서연', role: '의사', department: '내과', active: true, lastLogin: '어제 17:26', specialty: '소화기 내시경', color: 3 },
+  { id: 's5', name: '박강우', role: '의사', department: '정형외과', active: true, lastLogin: '오늘 08:33', specialty: '무릎·어깨 관절', color: 8 },
+  { id: 's6', name: '정하윤', role: '의사', department: '정형외과', active: true, invitePending: true, inviteSent: '8월 14일 초대 보냄' },
+  { id: 's7', name: '최민석', role: '접수직원', active: false, lastLogin: '8월 6일 17:26' },
 ]
 
-export const scheduleDoctors = [
-  { id: 'd1', name: '이정훈', department: '내과' },
-  { id: 'd2', name: '한서연', department: '내과' },
-  { id: 'd3', name: '윤지호', department: '피부과' },
-  { id: 'd4', name: '박강우', department: '정형외과' },
+// 캘린더 색 팔레트 (CAL-COLOR-12에서 발췌)
+export const PALETTE = [
+  { fill: '#CBDDFF', ink: '#1360A6' },
+  { fill: '#EEDBB3', ink: '#735C02' },
+  { fill: '#FFCEE0', ink: '#A03865' },
+  { fill: '#B4E8D1', ink: '#0B6C4E' },
+  { fill: '#FFD2BE', ink: '#974726' },
+  { fill: '#FFCED0', ink: '#874E51' },
+  { fill: '#B1E4FF', ink: '#196584' },
+  { fill: '#CDE4BD', ink: '#386A20' },
+  { fill: '#E8D5FE', ink: '#6D4F9B' },
+  { fill: '#DFDFB5', ink: '#5F6135' },
 ]
 
+// ── 진료 일정 (SCHED-*) ──
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'] as const
+export type WeekDay = (typeof weekDays)[number]
 
-export const weeklySchedule = scheduleDoctors.map((doctor, doctorIndex) => ({
-  doctor,
-  days: weekDays.map((day, dayIndex) => ({
-    day,
-    closed: dayIndex === 6 || (doctorIndex === 2 && dayIndex === 3),
-    hours: dayIndex === 5 ? '09:00–13:00' : '09:00–18:00',
-    slot: doctorIndex === 3 ? 30 : 15,
-    capacity: dayIndex === 5 ? 20 : 40,
-  })),
-}))
+export interface DaySchedule {
+  dayOff: boolean
+  open: string
+  close: string
+  slotMin: number
+  lunch?: string // "12:30–13:30" 또는 없음
+  maxPatients: number
+  bookingDeadline: string // 예약 마감 시각
+}
 
+export interface DoctorSchedule {
+  id: string
+  name: string
+  department: string
+  week: Record<WeekDay, DaySchedule>
+}
+
+function weekTemplate(base: Omit<DaySchedule, 'dayOff'>, offDays: WeekDay[] = ['일']): Record<WeekDay, DaySchedule> {
+  const out = {} as Record<WeekDay, DaySchedule>
+  for (const d of weekDays) out[d] = { ...base, dayOff: offDays.includes(d) }
+  return out
+}
+
+export const scheduleDoctors: DoctorSchedule[] = [
+  { id: 's3', name: '이정훈', department: '내과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 15, lunch: '12:30–13:30', maxPatients: 40, bookingDeadline: '17:30' }, ['일']) },
+  { id: 's4', name: '한서연', department: '내과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 20, lunch: '12:00–13:00', maxPatients: 30, bookingDeadline: '16:30' }, ['수', '일']) },
+  { id: 's5', name: '박강우', department: '정형외과', week: weekTemplate({ open: '10:00', close: '18:00', slotMin: 30, lunch: '12:00–13:00', maxPatients: 24, bookingDeadline: '17:00' }, ['일']) },
+]
+
+export interface Department {
+  id: string
+  name: string
+  doctorCount: number
+  active: boolean
+}
+export const departments: Department[] = [
+  { id: 'dep1', name: '내과', doctorCount: 2, active: true },
+  { id: 'dep2', name: '정형외과', doctorCount: 2, active: true },
+  { id: 'dep3', name: '소아청소년과', doctorCount: 0, active: false },
+]
+
+export const scheduleExceptions = [
+  { id: 'e1', date: '2026-09-05 (금)', doctor: '박강우', change: '오후 휴진 (학회 참석)' },
+  { id: 'e2', date: '2026-09-28 (월)', doctor: '전체', change: '추석 연휴 휴진' },
+]
+
+// ── 문진표 관리 (QADM-*) ──
 export type QuestionType = '단답형' | '장문형' | '예/아니오'
 export type QuestionAudience = '모든 환자' | '여성 환자만' | '남성 환자만'
-
-export interface QuestionnaireQuestion {
+export interface QnaQuestion {
   id: string
   text: string
   type: QuestionType
-  requiredReview: boolean
+  required: boolean // 병원이 꼭 확인
   audience: QuestionAudience
 }
-
-export const questionnaireDepartments = [
-  { id: 'internal', name: '내과', version: 3, questions: 5 },
-  { id: 'derma', name: '피부과', version: 2, questions: 4 },
-  { id: 'ortho', name: '정형외과', version: 4, questions: 6 },
-  { id: 'family', name: '가정의학과', version: 0, questions: 0 },
+export interface QnaDept {
+  id: string
+  name: string
+  currentVersion: number | null // 없으면 문진표 없음
+}
+export const qnaDepartments: QnaDept[] = [
+  { id: 'dep1', name: '내과', currentVersion: 3 },
+  { id: 'dep2', name: '정형외과', currentVersion: 1 },
+  { id: 'dep3', name: '소아청소년과', currentVersion: null },
 ]
+export const qnaQuestions: Record<string, QnaQuestion[]> = {
+  dep1: [
+    { id: 'q1', text: '오늘 방문하신 이유는 무엇인가요?', type: '장문형', required: true, audience: '모든 환자' },
+    { id: 'q2', text: '현재 복용 중인 약이 있나요?', type: '장문형', required: true, audience: '모든 환자' },
+    { id: 'q3', text: '알레르기가 있나요?', type: '단답형', required: false, audience: '모든 환자' },
+    { id: 'q4', text: '임신 중이거나 가능성이 있나요?', type: '예/아니오', required: true, audience: '여성 환자만' },
+  ],
+  dep2: [
+    { id: 'q5', text: '어느 부위가 아프신가요?', type: '단답형', required: true, audience: '모든 환자' },
+    { id: 'q6', text: '다치신 적이 있나요?', type: '예/아니오', required: false, audience: '모든 환자' },
+  ],
+  dep3: [],
+}
+export interface QnaVersion {
+  versionNo: number
+  savedAt: string
+  savedBy: string
+  questionCount: number
+  current: boolean
+}
+export const qnaVersions: Record<string, QnaVersion[]> = {
+  dep1: [
+    { versionNo: 3, savedAt: '2026.08.10 14:20', savedBy: '김서연', questionCount: 4, current: true },
+    { versionNo: 2, savedAt: '2026.05.02 11:05', savedBy: '김서연', questionCount: 3, current: false },
+    { versionNo: 1, savedAt: '2026.01.15 09:40', savedBy: '이관리', questionCount: 3, current: false },
+  ],
+  dep2: [{ versionNo: 1, savedAt: '2026.03.20 10:00', savedBy: '김서연', questionCount: 2, current: true }],
+  dep3: [],
+}
 
-export const initialQuestions: QuestionnaireQuestion[] = [
-  { id: 'q-b78a', text: '오늘 가장 불편한 증상을 적어 주세요.', type: '장문형', requiredReview: true, audience: '모든 환자' },
-  { id: 'q-21cf', text: '현재 복용 중인 약이 있나요?', type: '예/아니오', requiredReview: true, audience: '모든 환자' },
-  { id: 'q-904d', text: '증상은 언제부터 시작됐나요?', type: '단답형', requiredReview: false, audience: '모든 환자' },
-  { id: 'q-72ea', text: '임신 가능성이 있나요?', type: '예/아니오', requiredReview: true, audience: '여성 환자만' },
-  { id: 'q-15cb', text: '최근 다른 병원에서 진료받았나요?', type: '예/아니오', requiredReview: false, audience: '모든 환자' },
-]
+// ── 병원 설정 (HSET-*) ──
+export interface HospitalSettings {
+  cancellationDeadlineHours: number
+  autoConfirm: boolean
+  longWaitEnabled: boolean
+  longWaitMin: number
+  smsEnabled: boolean
+  smsWho: '앱을 안 쓰는 환자만' | '모든 환자'
+  hospitalAddress: string
+  hospitalPhone: string
+}
+export const initialSettings: HospitalSettings = {
+  cancellationDeadlineHours: 24,
+  autoConfirm: true,
+  longWaitEnabled: true,
+  longWaitMin: 30,
+  smsEnabled: true,
+  smsWho: '앱을 안 쓰는 환자만',
+  hospitalAddress: '서울시 강남구 가온로 12, 3층',
+  hospitalPhone: '02-1234-5678',
+}
 
-export const questionnaireVersions = [
-  { version: 3, savedAt: '2026-08-18 16:42', staff: '김민지', questions: 5, current: true },
-  { version: 2, savedAt: '2026-07-02 11:08', staff: '김민지', questions: 4, current: false },
-  { version: 1, savedAt: '2026-05-14 09:25', staff: '직원 정보 없음', questions: 3, current: false },
-]
-
-export const notificationRows = [
-  { id: 'confirmed', label: '예약 확정', body: '{환자 이름}님, {날짜} {시각} 예약이 확정됐습니다.', sms: true },
-  { id: 'reminder', label: '하루 전 알림', body: '{환자 이름}님, 내일 {시각} 예약이 있습니다.', sms: true },
-  { id: 'changed', label: '예약 변경', body: '예약 시간이 {날짜} {시각}으로 변경됐습니다.', sms: true },
-  { id: 'questionnaire', label: '문진 미작성', body: '방문 전 문진을 작성해 주세요.', sms: false },
-  { id: 'completed', label: '진료 완료', body: '오늘 진료가 완료됐습니다.', sms: false },
+export interface NotificationRow {
+  kind: string
+  text: string
+  alsoSms: boolean
+}
+export const notificationRows: NotificationRow[] = [
+  { kind: '예약 확정', text: '예약이 확정되었습니다.', alsoSms: false },
+  { kind: '전날 알림', text: '내일 예약이 있습니다.', alsoSms: false },
+  { kind: '당일 알림', text: '오늘 예약이 있습니다.', alsoSms: true },
+  { kind: '예약 변경', text: '예약이 변경되었습니다.', alsoSms: true },
+  { kind: '병원 취소', text: '병원 사정으로 예약이 취소되었습니다.', alsoSms: true },
+  { kind: '휴진 안내', text: '진료일이 변경되었습니다.', alsoSms: true },
 ]

@@ -1,87 +1,78 @@
-export type MessageKind = '안내' | '광고'
-export type DeliveryResult = '도달' | '실패' | '발송 중' | '재시도 중'
+// 안내 보내기 가짜 데이터 (SEND-*) — 제1문 화면(/messages): 「예약해 둔 것 · 보낸 것」.
+// 발송 결과를 진짜로 담는다(SEND-RESULT-*): 접수까지가 아니라 도달/실패까지.
 
-export interface MessageRecipient {
-  id: string
+export type Kind = '안내' | '광고'
+export type Channel = '앱 알림 + 문자' | '앱 알림만' | '문자'
+export type SendState = '도달' | '실패' | '발송 중' | '재시도 중'
+export type FailReason = '없는 번호' | '문자 수신 차단' | '앱을 지웠고 문자도 실패'
+
+export interface Recipient {
   name: string
   phone: string
-  result: DeliveryResult
+  state: SendState
+  failReason?: FailReason
 }
 
-export interface MessageLog {
+export interface Message {
   id: string
-  kind: MessageKind
+  kind: Kind
   content: string
-  staff: string
-  channel: string
-  at: string
+  staff: string // 보낸/예약한 직원 (SEND-ALL-05)
+  channel: Channel
+  at: string // 보낸 시각 또는 예약 발송 시각
   targetCount: number
-  result: string
-  recipients: MessageRecipient[]
+  reached?: number
+  failed?: number
+  sending?: boolean // 아직 진행 중
+  recipients?: Recipient[] // 「대상 N명」을 누르면 열리는 명단
 }
 
-const recipients: MessageRecipient[] = [
-  { id: 'p1', name: '김태호', phone: '010-4821-9930', result: '도달' },
-  { id: 'p2', name: '이말녀', phone: '010-2841-1043', result: '도달' },
-  { id: 'p3', name: '한지아', phone: '010-3092-7788', result: '재시도 중' },
-  { id: 'p4', name: '정순남', phone: '010-5521-8834', result: '실패' },
-]
+// 이름·번호 가짜 명단 만들기
+function makeRecipients(reached: number, fails: { reason: FailReason; n: number }[]): Recipient[] {
+  const surnames = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임']
+  const given = ['서연', '민준', '지우', '하은', '도윤', '수아', '예준', '지호', '유진', '건우']
+  const out: Recipient[] = []
+  let seed = 7
+  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280
+  const name = () => surnames[Math.floor(rnd() * 10)] + given[Math.floor(rnd() * 10)]
+  const phone = () => `010-${String(1000 + Math.floor(rnd() * 8999))}-${String(1000 + Math.floor(rnd() * 8999))}`
+  for (let i = 0; i < reached; i++) out.push({ name: name(), phone: phone(), state: '도달' })
+  for (const f of fails) for (let i = 0; i < f.n; i++) out.push({ name: name(), phone: phone(), state: '실패', failReason: f.reason })
+  return out
+}
 
-export const scheduledMessages: MessageLog[] = [
+export const sentMessages: Message[] = [
   {
-    id: 's1',
-    kind: '안내',
-    content: '8월 24일 오전 진료는 병원 사정으로 10시에 시작합니다.',
-    staff: '박지민',
-    channel: '앱 알림 + 문자 보완',
-    at: '8/23 18:00',
-    targetCount: 12,
-    result: '예약됨',
-    recipients,
+    id: 's1', kind: '안내', content: '8/25(월) 오전 진료 일정 변경 안내', staff: '김접수', channel: '앱 알림 + 문자',
+    at: '8/22 09:14', targetCount: 86, reached: 84, failed: 2,
+    recipients: makeRecipients(84, [{ reason: '문자 수신 차단', n: 1 }, { reason: '없는 번호', n: 1 }]),
+  },
+  {
+    id: 's2', kind: '안내', content: '독감 예방접종 시작 안내', staff: '이관리', channel: '앱 알림 + 문자',
+    at: '8/21 15:30', targetCount: 312, reached: 305, failed: 7,
+    recipients: makeRecipients(305, [{ reason: '문자 수신 차단', n: 2 }, { reason: '앱을 지웠고 문자도 실패', n: 1 }, { reason: '없는 번호', n: 4 }]),
+  },
+  {
+    id: 's3', kind: '광고', content: '(광고) 가을 건강검진 특별 할인', staff: '이관리', channel: '문자',
+    at: '8/20 10:05', targetCount: 1240, reached: 1240, failed: 0,
+  },
+  {
+    id: 's4', kind: '안내', content: '9/5(금) 오후 임시 휴진 안내', staff: '김접수', channel: '앱 알림 + 문자',
+    at: '8/22 11:02', targetCount: 34, reached: 20, failed: 0, sending: true,
   },
 ]
 
-export const sentMessages: MessageLog[] = [
-  {
-    id: 'm1',
-    kind: '안내',
-    content: '오늘 주차장 입구 공사로 정문 옆 지하 주차장을 이용해 주세요.',
-    staff: '박지민',
-    channel: '앱 알림 + 문자 보완',
-    at: '오늘 08:12',
-    targetCount: 34,
-    result: '도달 32건 · 실패 2건',
-    recipients,
-  },
-  {
-    id: 'm2',
-    kind: '안내',
-    content: '정형외과 진료시간 변경으로 예약 시간을 확인해 주세요.',
-    staff: '김서연',
-    channel: '모두에게 문자도',
-    at: '8/21 16:40',
-    targetCount: 8,
-    result: '도달 8건',
-    recipients: recipients.slice(0, 3).map((recipient) => ({ ...recipient, result: '도달' })),
-  },
+export const scheduledMessages: Message[] = [
+  { id: 'q1', kind: '안내', content: '추석 연휴 진료 안내', staff: '이관리', channel: '앱 알림 + 문자', at: '8/28 09:00 예약', targetCount: 3120 },
+  { id: 'q2', kind: '광고', content: '(광고) 도수치료 가을 이벤트', staff: '이관리', channel: '문자', at: '8/25 10:00 예약', targetCount: 980 },
 ]
 
-export const automaticMessages: MessageLog[] = [
-  {
-    id: 'auto1',
-    kind: '안내',
-    content: '내일 예약 알림',
-    staff: '자동 발송',
-    channel: '앱 알림 + 문자 보완',
-    at: '오늘 08:00',
-    targetCount: 41,
-    result: '도달 41건',
-    recipients,
-  },
-]
+/** 자동 발송(전날/당일 알림·문진 안내 등)은 접어 둔다 (SEND-LIST-08) */
+export const autoSendCount = 41
 
-export const messagePatients = [
-  { id: 'p1', name: '김태호', birth: '1972-11-03', phone: '010-4821-9930' },
-  { id: 'p2', name: '이말녀', birth: '1955-08-17', phone: '010-2841-1043' },
-  { id: 'p3', name: '한지아', birth: '1995-01-19', phone: '010-3092-7788' },
+/** 새로 보내기 — 받는 사람 검색 가짜 결과 */
+export const patientSearchResults = [
+  { id: 'p1', name: '강동훈', phone: '010-2211-4590' },
+  { id: 'p2', name: '문소희', phone: '010-8842-3301' },
+  { id: 'p3', name: '조은비', phone: '010-5567-9910' },
 ]

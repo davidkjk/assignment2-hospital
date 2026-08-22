@@ -1,304 +1,432 @@
-import { useMemo, useState } from 'react'
-import { Check, ChevronDown, ChevronRight, Search, Send, Users, X } from '@/components/icons'
-import { maskBirth, maskPhone } from '../mockData'
+import { useState } from 'react'
+import { Send, ChevronRight, ChevronDown, X, Search, Eye, AlertTriangle, Clock3 } from '@/components/icons'
+import { StaffPage, PageHead, Tag, btnPrimary, btnGhost, btnLink } from '../_ui'
+import { maskPhone } from '../mockData'
 import {
-  PageHead,
-  Panel,
-  SearchInput,
-  Segmented,
-  StaffPage,
-  StatusBadge,
-  Tag,
-  btnGhost,
-  btnPrimary,
-} from '../_ui'
-import {
-  automaticMessages,
-  messagePatients,
-  scheduledMessages,
   sentMessages,
-  type MessageKind,
-  type MessageLog,
+  scheduledMessages,
+  autoSendCount,
+  patientSearchResults,
+  type Message,
+  type Kind,
+  type Channel,
+  type Recipient,
 } from './mockData'
 
-// 안내 보내기 (/messages) — PICK-* · SEND-*.
-// 최상위: data-testid="staff-messages". 예약/발송 이력, 대상 명단, 새 발송 사이드패널.
+// 안내 보내기 (/staff/messages) — SEND-*.
+// 제1문 화면: 위 「예약해 둔 것」 + 아래 「보낸 것」 (예약해 둔 것 0건이면 그 구역 사라짐, SEND-LIST-02).
+// ⭐ 발송 결과를 진짜로 보여준다(SEND-RESULT-*) — "보냈다"가 아니라 "도달/실패" — "조용히 줄어드는 것"을 막는다.
+// 「대상 N명」→ 명단(번호 마스킹, [전화번호 모두 보기]=열람 기록, SEND-OPEN-*).
+// data-testid="staff-messages".
 
-type SidePanel = { kind: 'compose' } | { kind: 'recipients'; log: MessageLog }
-type ConfirmState = { title: string; body: string; confirmLabel: string; action: 'all' | 'send' | 'schedule' | 'cancel' }
+export function Messages() {
+  const [showAuto, setShowAuto] = useState(false)
+  const [composing, setComposing] = useState(false)
+  const [listOf, setListOf] = useState<Message | null>(null)
+  const [failsOf, setFailsOf] = useState<Message | null>(null)
 
-const cellClass = 'px-3 py-2.5 align-top text-sm'
-
-function MessageTable({ rows, onOpenRecipients, scheduled = false, onCancel }: {
-  rows: MessageLog[]
-  onOpenRecipients: (log: MessageLog) => void
-  scheduled?: boolean
-  onCancel?: (log: MessageLog) => void
-}) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1000px] text-left">
-        <thead className="border-b border-border bg-muted text-xs text-muted-foreground">
-          <tr>
-            <th className={cellClass}>종류</th>
-            <th className={`${cellClass} w-[34%]`}>내용</th>
-            <th className={cellClass}>보낸 직원</th>
-            <th className={cellClass}>채널</th>
-            <th className={cellClass}>시각</th>
-            <th className={cellClass}>대상 수</th>
-            <th className={cellClass}>발송 결과</th>
-            {scheduled && <th className={cellClass} />}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/60">
-          {rows.map((row) => (
-            <tr key={row.id} className="hover:bg-muted/60">
-              <td className={cellClass}><Tag>{row.kind}</Tag></td>
-              <td className={`${cellClass} leading-5`}>{row.content}</td>
-              <td className={`${cellClass} whitespace-nowrap`}>{row.staff}</td>
-              <td className={`${cellClass} text-muted-foreground`}>{row.channel}</td>
-              <td className={`${cellClass} whitespace-nowrap tabular-nums`}>{row.at}</td>
-              <td className={cellClass}>
-                <button onClick={() => onOpenRecipients(row)} className="font-medium text-primary hover:underline">
-                  대상 {row.targetCount}명
-                </button>
-              </td>
-              <td className={`${cellClass} whitespace-nowrap`}>
-                {scheduled ? <StatusBadge status="예약됨" tone="sky" /> : row.result}
-              </td>
-              {scheduled && (
-                <td className={cellClass}>
-                  <button className="text-xs font-medium text-primary hover:underline" onClick={() => onCancel?.(row)}>예약 취소</button>
-                </td>
-              )}
-            </tr>
+    <StaffPage max="max-w-5xl" testid="staff-messages">
+      <PageHead
+        title="안내 보내기"
+        sub="환자에게 보낸 안내와 예약해 둔 발송을 여기서 봅니다"
+        action={
+          <button className={btnPrimary} onClick={() => setComposing(true)}>
+            <Send className="h-4 w-4" /> 새로 보내기
+          </button>
+        }
+      />
+
+      {/* 예약해 둔 것 — 0건이면 통째로 사라진다 (SEND-LIST-02) */}
+      {scheduledMessages.length > 0 && (
+        <section className="mb-5">
+          <SectionTitle>예약해 둔 것</SectionTitle>
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <RowHead scheduled />
+            {scheduledMessages.map((m) => (
+              <MessageRow key={m.id} m={m} scheduled onTargets={() => setListOf(m)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 보낸 것 */}
+      <section>
+        <SectionTitle>보낸 것</SectionTitle>
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+          <RowHead />
+          {sentMessages.map((m) => (
+            <MessageRow key={m.id} m={m} onTargets={() => setListOf(m)} onFails={() => setFailsOf(m)} />
           ))}
-        </tbody>
-      </table>
+        </div>
+
+        {/* 자동 발송은 접어 둔다 (SEND-LIST-08) */}
+        <button
+          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-2 text-sm text-muted-foreground hover:bg-muted"
+          onClick={() => setShowAuto((v) => !v)}
+        >
+          {showAuto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          자동 발송 {autoSendCount}건 {showAuto ? '접기' : '보기'}
+        </button>
+        {showAuto && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            전날·당일 예약 알림, 사전문진 안내처럼 시스템이 자동으로 보내는 것입니다. 사람이 보낸 것과 섞이지 않도록 접어 둡니다.
+          </p>
+        )}
+      </section>
+
+      {composing && <ComposePanel onClose={() => setComposing(false)} />}
+      {listOf && <RecipientList m={listOf} onClose={() => setListOf(null)} />}
+      {failsOf && <FailList m={failsOf} onClose={() => setFailsOf(null)} />}
+    </StaffPage>
+  )
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{children}</h3>
+}
+
+// 7칸: 종류 · 내용 · 보낸 직원 · 채널 · 시각 · 대상 수 · 발송 결과 (SEND-LIST-06)
+const GRID = 'grid grid-cols-[64px_1fr_84px_128px_96px_92px_180px] items-center gap-3'
+
+function RowHead({ scheduled }: { scheduled?: boolean }) {
+  return (
+    <div className={`${GRID} border-b border-border/70 bg-muted/40 px-4 py-2 text-[11px] font-medium text-muted-foreground`}>
+      <span>종류</span>
+      <span>내용</span>
+      <span>{scheduled ? '예약한 직원' : '보낸 직원'}</span>
+      <span>채널</span>
+      <span>{scheduled ? '보낼 시각' : '보낸 시각'}</span>
+      <span className="text-right">대상</span>
+      <span>{scheduled ? '' : '발송 결과'}</span>
     </div>
   )
 }
 
-export function Messages() {
-  const [sidePanel, setSidePanel] = useState<SidePanel | null>(null)
-  const [automaticOpen, setAutomaticOpen] = useState(false)
-  const [kind, setKind] = useState<MessageKind>('안내')
-  const [query, setQuery] = useState('')
-  const [selectedPatientIds, setSelectedPatientIds] = useState<string[]>([])
-  const [allPatients, setAllPatients] = useState(false)
-  const [channel, setChannel] = useState('앱 알림 + 못 받는 사람은 문자')
-  const [content, setContent] = useState('')
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
+function MessageRow({
+  m,
+  scheduled,
+  onTargets,
+  onFails,
+}: {
+  m: Message
+  scheduled?: boolean
+  onTargets: () => void
+  onFails?: () => void
+}) {
+  return (
+    <div className={`${GRID} border-b border-border/60 px-4 py-2.5 text-sm last:border-b-0`}>
+      <span>
+        <Tag className={m.kind === '광고' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-700'}>{m.kind}</Tag>
+      </span>
+      <span className="truncate font-medium" title={m.content}>{m.content}</span>
+      <span className="text-muted-foreground">{m.staff}</span>
+      <span className="text-xs text-muted-foreground">{m.channel}</span>
+      <span className="text-xs tabular-nums text-muted-foreground">{m.at}</span>
+      <span className="text-right">
+        <button className={`${btnLink} tabular-nums`} onClick={onTargets}>
+          {m.targetCount.toLocaleString()}명
+        </button>
+      </span>
+      <span>
+        {scheduled ? (
+          <button className={btnLink}>발송 취소</button>
+        ) : (
+          <ResultCell m={m} onFails={onFails} />
+        )}
+      </span>
+    </div>
+  )
+}
 
-  const normalizedQuery = query.replace(/[-.\s]/g, '')
-  const results = useMemo(() => {
-    if (!query.trim()) return []
-    return messagePatients.filter((patient) =>
-      `${patient.name}${patient.birth}${patient.phone}`.replace(/[-.\s]/g, '').includes(normalizedQuery),
+function ResultCell({ m, onFails }: { m: Message; onFails?: () => void }) {
+  if (m.sending) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-sky-700">
+        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-sky-600" />
+        도달 {m.reached}건 · 발송 중
+      </span>
     )
-  }, [normalizedQuery, query])
-  const selectedCount = allPatients ? 3240 : selectedPatientIds.length
-
-  const resetCompose = () => {
-    setKind('안내')
-    setQuery('')
-    setSelectedPatientIds([])
-    setAllPatients(false)
-    setChannel('앱 알림 + 못 받는 사람은 문자')
-    setContent('')
-    setSidePanel({ kind: 'compose' })
   }
-
-  const togglePatient = (patientId: string) => {
-    setAllPatients(false)
-    setSelectedPatientIds((current) =>
-      current.includes(patientId) ? current.filter((id) => id !== patientId) : [...current, patientId],
-    )
+  const failed = m.failed ?? 0
+  if (failed === 0) {
+    // 실패 0건은 "실패 0"을 적지 않는다 (SEND-RESULT-14)
+    return <span className="text-xs tabular-nums text-emerald-700">도달 {m.reached?.toLocaleString()}건</span>
   }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs tabular-nums">
+      <span className="text-emerald-700">도달 {m.reached?.toLocaleString()}</span>
+      <span className="text-rose-600">실패 {failed}</span>
+      <button className={`${btnLink} whitespace-nowrap`} onClick={onFails}>안 닿은 {failed}명 보기</button>
+    </span>
+  )
+}
+
+// ── 대상 명단 (번호 마스킹 + 2단계 열람) — SEND-OPEN-* ──
+function RecipientList({ m, onClose }: { m: Message; onClose: () => void }) {
+  const [revealed, setRevealed] = useState(false)
+  const [confirmReveal, setConfirmReveal] = useState(false)
+  const recipients = m.recipients ?? []
 
   return (
-    <StaffPage testid="staff-messages" max="max-w-[1500px]">
-      <PageHead
-        title="안내 보내기"
-        sub="직원이 보낸 안내와 예약한 발송을 확인합니다"
-        action={<button className={btnPrimary} onClick={resetCompose}><Send className="h-4 w-4" />새로 보내기</button>}
-      />
+    <Modal title={`대상 명단 · ${m.targetCount.toLocaleString()}명`} onClose={onClose}>
+      <p className="mb-3 text-xs text-muted-foreground">「{m.content}」 · {m.at}</p>
 
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1 space-y-4">
-          {scheduledMessages.length > 0 && (
-            <Panel title={`예약해 둔 것 ${scheduledMessages.length}건`} pad="p-0">
-              <MessageTable
-                rows={scheduledMessages}
-                scheduled
-                onOpenRecipients={(log) => setSidePanel({ kind: 'recipients', log })}
-                onCancel={(log) => setConfirm({ title: '예약 발송을 취소할까요?', body: `\u300C${log.content}\u300D 발송 예약을 취소합니다.`, confirmLabel: '예약 취소', action: 'cancel' })}
-              />
-            </Panel>
-          )}
-
-          <Panel title="보낸 것" pad="p-0">
-            <MessageTable rows={sentMessages} onOpenRecipients={(log) => setSidePanel({ kind: 'recipients', log })} />
-            <button
-              onClick={() => setAutomaticOpen((open) => !open)}
-              className="flex w-full items-center gap-2 border-t border-border px-4 py-3 text-left text-sm font-medium hover:bg-muted"
-            >
-              {automaticOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              자동 발송 41건 보기
-            </button>
-            {automaticOpen && (
-              <div className="border-t border-border">
-                <MessageTable rows={automaticMessages} onOpenRecipients={(log) => setSidePanel({ kind: 'recipients', log })} />
-              </div>
-            )}
-          </Panel>
-        </div>
-
-        {sidePanel && (
-          <aside className="w-[360px] shrink-0">
-            <Panel
-              title={sidePanel.kind === 'compose' ? '새 안내 보내기' : `대상 ${sidePanel.log.targetCount}명`}
-              action={<button aria-label="패널 닫기" className="rounded-md p-1 hover:bg-muted" onClick={() => setSidePanel(null)}><X className="h-4 w-4" /></button>}
-            >
-              {sidePanel.kind === 'recipients' ? (
-                <div>
-                  <p className="mb-3 text-xs text-muted-foreground">이름·마스킹된 번호·개별 발송 결과입니다.</p>
-                  <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-                    {sidePanel.log.recipients.map((recipient) => (
-                      <div key={recipient.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                        <div>
-                          <div className="font-medium">{recipient.name}</div>
-                          <div className="text-xs text-muted-foreground tabular-nums">{maskPhone(recipient.phone)}</div>
-                        </div>
-                        <StatusBadge
-                          status={recipient.result}
-                          tone={recipient.result === '도달' ? 'green' : recipient.result === '실패' ? 'red' : 'sky'}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4 text-sm">
-                  <div>
-                    <div className="mb-1.5 font-medium">종류</div>
-                    <Segmented
-                      value={kind}
-                      onChange={setKind}
-                      options={[{ key: '안내', label: '안내' }, { key: '광고', label: '광고' }]}
-                    />
-                    {kind === '광고' && <p className="mt-2 rounded-lg bg-muted p-2.5 text-xs text-muted-foreground">광고 수신 동의자만 대상에 남고 (AD)·수신거부 안내가 자동으로 붙습니다.</p>}
-                  </div>
-
-                  <div>
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <span className="font-medium">받는 사람</span>
-                      {selectedCount > 0 && <Tag>{selectedCount.toLocaleString()}명</Tag>}
-                    </div>
-                    {allPatients && (
-                      <div className="mb-2 flex items-center justify-between rounded-lg bg-primary/10 px-3 py-2">
-                        <span className="inline-flex items-center gap-1.5 font-medium"><Users className="h-4 w-4 text-primary" />전 환자 3,240명</span>
-                        <button onClick={() => setAllPatients(false)} className="text-xs text-primary hover:underline">풀기</button>
-                      </div>
-                    )}
-                    {!allPatients && selectedPatientIds.length > 0 && (
-                      <div className="mb-2 flex flex-wrap gap-1.5">
-                        {messagePatients.filter((patient) => selectedPatientIds.includes(patient.id)).map((patient) => (
-                          <button key={patient.id} onClick={() => togglePatient(patient.id)} className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                            {patient.name}<X className="h-3 w-3" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {!allPatients && (
-                      <>
-                        <SearchInput value={query} onChange={setQuery} placeholder="이름 · 전화 · 생년월일" icon={<Search className="h-4 w-4" />} />
-                        {results.length > 0 && (
-                          <div className="mt-2 divide-y divide-border overflow-hidden rounded-lg border border-border">
-                            {results.map((patient) => {
-                              const selected = selectedPatientIds.includes(patient.id)
-                              return (
-                                <button key={patient.id} onClick={() => togglePatient(patient.id)} className={`flex w-full items-center gap-2 px-3 py-2 text-left ${selected ? 'bg-primary/10' : 'hover:bg-muted'}`}>
-                                  <span className={`flex h-5 w-5 items-center justify-center rounded border ${selected ? 'border-primary bg-primary text-primary-foreground' : 'border-input'}`}>
-                                    {selected && <Check className="h-3 w-3" />}
-                                  </span>
-                                  <span>
-                                    <span className="block font-medium">{patient.name}</span>
-                                    <span className="text-xs text-muted-foreground">{maskBirth(patient.birth)} · {maskPhone(patient.phone)}</span>
-                                  </span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                        <button
-                          className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-                          onClick={() => setConfirm({ title: '전 환자에게 보낼까요?', body: '현재 전체 환자 3,240명이 대상입니다. 문자 발송에는 비용이 듭니다.', confirmLabel: '전 환자 선택', action: 'all' })}
-                        >
-                          <Users className="h-4 w-4" />전 환자에게 보내기
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                  <fieldset>
-                    <legend className="mb-1.5 font-medium">보내는 방법</legend>
-                    <div className="space-y-1.5">
-                      {['앱 알림 + 못 받는 사람은 문자', '앱 알림만', '모두에게 문자도'].map((item) => (
-                        <label key={item} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2">
-                          <input type="radio" name="channel" checked={channel === item} onChange={() => setChannel(item)} />
-                          <span>{item}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {selectedCount > 0 && <p className="mt-2 text-xs text-muted-foreground">앱 알림 {Math.max(0, selectedCount - 34).toLocaleString()}건 · 문자 {Math.min(34, selectedCount)}건 — 문자에 비용이 듭니다</p>}
-                  </fieldset>
-
-                  <label className="block">
-                    <span className="mb-1.5 block font-medium">내용</span>
-                    <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={6} placeholder="환자에게 전할 안내를 작성하세요" className="w-full rounded-lg border border-input bg-card p-3 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
-                    <span className="mt-1 block text-right text-xs text-muted-foreground tabular-nums">{content.length} / 1,000</span>
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      disabled={selectedCount === 0 || !content.trim()}
-                      className={btnGhost}
-                      onClick={() => setConfirm({ title: '예약 발송으로 등록할까요?', body: `8월 23일 18:00에 ${selectedCount.toLocaleString()}명에게 보냅니다.`, confirmLabel: '예약 발송', action: 'schedule' })}
-                    >예약 발송</button>
-                    <button
-                      disabled={selectedCount === 0 || !content.trim()}
-                      className={btnPrimary}
-                      onClick={() => setConfirm({ title: '지금 보낼까요?', body: `${selectedCount.toLocaleString()}명에게 발송하며 보낸 후에는 되돌릴 수 없습니다.`, confirmLabel: '지금 보내기', action: 'send' })}
-                    >지금 보내기</button>
-                  </div>
-                </div>
-              )}
-            </Panel>
-          </aside>
-        )}
-      </div>
-
-      {confirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4" role="dialog" aria-modal="true">
-          <Panel className="w-full max-w-md" title={confirm.title}>
-            <p className="text-sm leading-6 text-muted-foreground">{confirm.body}</p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button className={btnGhost} onClick={() => setConfirm(null)}>돌로</button>
-              <button
-                className={btnPrimary}
-                onClick={() => {
-                  if (confirm.action === 'all') setAllPatients(true)
-                  if (confirm.action === 'send' || confirm.action === 'schedule') setSidePanel(null)
-                  setConfirm(null)
-                }}
-              >
-                {confirm.confirmLabel}
+      {recipients.length === 0 ? (
+        <p className="rounded-lg bg-muted/50 px-3 py-6 text-center text-sm text-muted-foreground">
+          {m.targetCount.toLocaleString()}명에게 보냈습니다. 전 환자 발송은 개별 명단을 펼치지 않습니다.
+        </p>
+      ) : (
+        <>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">이름 · 번호 · 발송 결과</span>
+            {!revealed ? (
+              <button className={btnGhost} onClick={() => setConfirmReveal(true)}>
+                <Eye className="h-4 w-4" /> 전화번호 모두 보기
               </button>
-            </div>
-          </Panel>
+            ) : (
+              <span className="text-xs text-amber-700">번호를 열람했습니다 · 기록에 남습니다</span>
+            )}
+          </div>
+          <ul className="max-h-72 divide-y divide-border/60 overflow-y-auto rounded-lg border border-border/70">
+            {recipients.map((r, i) => (
+              <li key={i} className="grid grid-cols-[1fr_130px_92px] items-center gap-2 px-3 py-1.5 text-sm">
+                <span className="font-medium">{r.name}</span>
+                <span className="tabular-nums text-muted-foreground">{revealed ? r.phone : maskPhone(r.phone)}</span>
+                <RecipientResult r={r} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {confirmReveal && (
+        <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <p className="flex items-start gap-1.5 text-sm text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            전화번호를 모두 표시합니다. <b className="font-semibold">열람 기록이 남습니다.</b>
+          </p>
+          <div className="mt-2 flex justify-end gap-2">
+            <button className={btnGhost} onClick={() => setConfirmReveal(false)}>그만두기</button>
+            <button className={btnPrimary} onClick={() => { setRevealed(true); setConfirmReveal(false) }}>
+              번호 표시
+            </button>
+          </div>
         </div>
       )}
-    </StaffPage>
+    </Modal>
+  )
+}
+
+function RecipientResult({ r }: { r: Recipient }) {
+  if (r.state === '도달') return <span className="text-right text-xs text-emerald-700">도달</span>
+  if (r.state === '실패') return <span className="text-right text-xs text-rose-600">실패</span>
+  return <span className="text-right text-xs text-sky-700">{r.state}</span>
+}
+
+// ── 안 닿은 명단 — 탭으로 가른다: 지금 전화 / 번호 고쳐야 함 (SEND-FAIL-02·06) ──
+function FailList({ m, onClose }: { m: Message; onClose: () => void }) {
+  const fails = (m.recipients ?? []).filter((r) => r.state === '실패')
+  // "지금 전화" = 번호는 살아 있음(문자 차단·앱 지움), "번호 고쳐야 함" = 없는 번호
+  const callNow = fails.filter((r) => r.failReason !== '없는 번호')
+  const fixNumber = fails.filter((r) => r.failReason === '없는 번호')
+  const tabs = [
+    { key: 'call', label: '지금 전화', list: callNow },
+    { key: 'fix', label: '번호 고쳐야 함', list: fixNumber },
+  ].filter((t) => t.list.length > 0)
+  const [tab, setTab] = useState(tabs[0]?.key ?? 'call')
+  const active = tabs.find((t) => t.key === tab) ?? tabs[0]
+
+  return (
+    <Modal title={`안 닿은 ${fails.length}명`} onClose={onClose}>
+      <p className="mb-3 text-xs text-muted-foreground">「{m.content}」 · {m.at}</p>
+      {tabs.length > 1 && (
+        <div className="mb-3 inline-flex rounded-lg bg-muted p-0.5 text-sm">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`rounded-md px-3 py-1.5 font-medium ${tab === t.key ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
+            >
+              {t.label} <span className="tabular-nums">{t.list.length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Clock3 className="h-3.5 w-3.5" />
+        {active?.key === 'fix'
+          ? '번호가 죽어 전화도 안 걸립니다. 다음에 병원에 올 때 번호를 고칩니다.'
+          : '번호는 살아 있고 문자만 안 갔습니다. 전화로 안내하세요.'}
+      </p>
+      <ul className="divide-y divide-border/60 rounded-lg border border-border/70">
+        {(active?.list ?? []).map((r, i) => (
+          <li key={i} className="grid grid-cols-[1fr_130px_140px] items-center gap-2 px-3 py-2 text-sm">
+            <span className="font-medium">{r.name}</span>
+            <span className="tabular-nums text-muted-foreground">{maskPhone(r.phone)}</span>
+            <span className="text-xs text-rose-600">{r.failReason}</span>
+          </li>
+        ))}
+      </ul>
+    </Modal>
+  )
+}
+
+// ── 새로 보내기 패널 (SEND-BOX-*) ──
+function ComposePanel({ onClose }: { onClose: () => void }) {
+  const [kind, setKind] = useState<Kind>('안내')
+  const [channel, setChannel] = useState<Channel>('앱 알림 + 문자')
+  const [query, setQuery] = useState('')
+  const [picked, setPicked] = useState<{ id: string; name: string }[]>([])
+  const [everyone, setEveryone] = useState(false)
+  const results = query.trim()
+    ? patientSearchResults.filter((p) => p.name.includes(query.trim()) || p.phone.includes(query.trim()))
+    : []
+  const rawCount = everyone ? 3120 : picked.length
+  // 광고는 수신 동의자만 대상에 남는다 (SEND-ADS-01) — 데모: 약 28%
+  const targetCount = kind === '광고' ? Math.round(rawCount * 0.28) : rawCount
+  // 채널별 건수 — 돈 드는 문자 수를 그 자리에 보여준다 (SEND-CH-04). 데모: 앱 미설치 약 40%
+  const smsCount = channel === '앱 알림만' ? 0 : channel === '문자' ? targetCount : Math.round(targetCount * 0.4)
+  const appCount = channel === '문자' ? 0 : targetCount - (channel === '앱 알림만' ? 0 : smsCount)
+
+  return (
+    <div className="fixed inset-y-0 right-0 z-40 w-[380px] overflow-y-auto border-l border-border bg-card shadow-2xl">
+      <div className="sticky top-0 flex items-center justify-between border-b border-border bg-card px-4 py-3">
+        <h3 className="text-sm font-semibold">새로 보내기</h3>
+        <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="space-y-4 p-4">
+        {/* ① 종류 — 맨 위, 아래 전부를 바꾼다 (SEND-KIND-01) */}
+        <div>
+          <FieldLabel>종류</FieldLabel>
+          <div className="inline-flex rounded-lg bg-muted p-0.5 text-sm">
+            {(['안내', '광고'] as Kind[]).map((k) => (
+              <button
+                key={k}
+                onClick={() => setKind(k)}
+                className={`rounded-md px-3 py-1.5 font-medium ${kind === k ? 'bg-card shadow-sm' : 'text-muted-foreground'}`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+          {kind === '광고' && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              광고는 수신 동의한 환자에게만 갑니다{rawCount > 0 && <> — <b className="font-semibold text-foreground tabular-nums">{rawCount.toLocaleString()}명 → {targetCount.toLocaleString()}명</b></>}. 제목에 (광고), 본문 끝에 무료 수신거부 방법이 자동으로 붙습니다.
+            </p>
+          )}
+        </div>
+
+        {/* ② 받는 사람 */}
+        <div>
+          <FieldLabel>받는 사람</FieldLabel>
+          {everyone ? (
+            <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm">
+              <span className="font-medium text-amber-900">전 환자 3,120명</span>
+              <button className={btnLink} onClick={() => setEveryone(false)}>바꾸기</button>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="이름 · 전화번호로 찾기"
+                  className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+                />
+              </div>
+              {results.length > 0 && (
+                <ul className="mt-1.5 overflow-hidden rounded-lg border border-border">
+                  {results.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-40"
+                        disabled={picked.some((x) => x.id === p.id)}
+                        onClick={() => { setPicked((v) => [...v, { id: p.id, name: p.name }]); setQuery('') }}
+                      >
+                        <span className="font-medium">{p.name}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">{maskPhone(p.phone)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {picked.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {picked.map((p) => (
+                    <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                      {p.name}
+                      <button onClick={() => setPicked((v) => v.filter((x) => x.id !== p.id))} aria-label="빼기">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <button className={`${btnLink} mt-2`} onClick={() => setEveryone(true)}>전 환자에게 보내기</button>
+            </>
+          )}
+        </div>
+
+        {/* ③ 보내는 방법 + 건수 (SEND-CH-*) */}
+        <div>
+          <FieldLabel>보내는 방법</FieldLabel>
+          <div className="space-y-1.5">
+            {(['앱 알림 + 문자', '앱 알림만', '문자'] as Channel[]).map((c) => (
+              <label key={c} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input type="radio" name="ch" checked={channel === c} onChange={() => setChannel(c)} />
+                <span>{c}{c === '앱 알림 + 문자' && <span className="ml-1 text-[11px] text-muted-foreground">기본 · 못 받는 사람은 문자</span>}</span>
+              </label>
+            ))}
+          </div>
+          {targetCount > 0 && (
+            <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
+              앱 알림 {appCount.toLocaleString()}건
+              {smsCount > 0 && <> · 문자 {smsCount.toLocaleString()}건 — <b className="font-semibold text-amber-700">문자 {smsCount.toLocaleString()}건에 비용이 듭니다</b></>}
+            </p>
+          )}
+        </div>
+
+        {/* ④ 내용 */}
+        <div>
+          <FieldLabel>내용</FieldLabel>
+          <textarea
+            rows={4}
+            placeholder="환자에게 보낼 안내 내용을 적습니다"
+            className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+          />
+        </div>
+      </div>
+
+      <div className="sticky bottom-0 flex gap-2 border-t border-border bg-card px-4 py-3">
+        <button className={`${btnGhost} flex-1 justify-center`} disabled={targetCount === 0}>나중에 보내기</button>
+        <button className={`${btnPrimary} flex-1 justify-center disabled:opacity-50`} disabled={targetCount === 0}>
+          {targetCount > 0 ? `${targetCount.toLocaleString()}명에게 보내기` : '받는 사람을 고르세요'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <div className="mb-1.5 text-xs font-medium text-muted-foreground">{children}</div>
+}
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-base font-bold">{title}</h3>
+          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
   )
 }
