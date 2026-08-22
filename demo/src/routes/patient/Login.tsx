@@ -13,10 +13,10 @@ export function Login() {
         className="flex h-full flex-col items-center justify-between px-8 py-16"
       >
         <div className="mt-16 flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
-            H
+          <div className="brand-wordmark flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-3xl text-primary-foreground shadow-md">
+            가
           </div>
-          <h1 className="text-2xl font-bold">가온병원</h1>
+          <h1 className="brand-wordmark text-3xl text-primary">가온병원</h1>
           <p className="text-sm text-muted-foreground">예약하고 대기 없이 진료받으세요</p>
         </div>
 

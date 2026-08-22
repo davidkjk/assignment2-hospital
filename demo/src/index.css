@@ -5,6 +5,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 병원 로고 워드마크 전용 서체 — 본문(Pretendard)과 뚜렷이 구별되는 브랜드 글자체. */
+.brand-wordmark {
+  font-family: 'Do Hyeon', 'Pretendard Variable', sans-serif;
+  letter-spacing: 0.01em;
+  font-weight: 400;
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;

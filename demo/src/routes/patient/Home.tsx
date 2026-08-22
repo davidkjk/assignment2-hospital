@@ -47,7 +47,7 @@ export function Home() {
         <header className="flex h-12 items-center justify-between bg-primary px-5 text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,0.08)]">
           <div className="flex items-center gap-2">
             <Hospital className="h-5 w-5" aria-hidden="true" />
-            <span className="text-base font-medium tracking-normal">가온병원</span>
+            <span className="brand-wordmark text-lg">가온병원</span>
           </div>
           <div className="flex items-center gap-1">
             <button
