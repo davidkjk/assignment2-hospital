@@ -41,12 +41,11 @@ function MemberCard({ member, onEdit, onAppointment }: {
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{member.relation}</span>
-              <h2 className="truncate text-base font-bold">{member.name}</h2>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {formatBirthDate(member.birthDate)} · {genderLabel(member.gender)}
+            {/* 관계(어머니/아들/본인)를 제일 큰 제목으로 — 가족을 관계로 찾기 때문(A안). */}
+            <h2 className="truncate text-lg font-bold">{member.relation}</h2>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{member.name}</span> · {formatBirthDate(member.birthDate)} ·{' '}
+              {genderLabel(member.gender)}
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={onEdit}>

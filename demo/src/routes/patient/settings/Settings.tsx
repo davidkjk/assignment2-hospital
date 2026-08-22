@@ -36,10 +36,8 @@ export function Settings() {
         <ScreenHeader title="설정" onBack={() => navigate('/home')} />
 
         <main className="flex-1 overflow-y-auto px-5 py-5">
-          <section aria-labelledby="account-heading" className="mb-5 space-y-2">
-            <h2 id="account-heading" className="text-sm font-semibold text-muted-foreground">
-              내 정보
-            </h2>
+          {/* 분류마다 항목이 하나뿐이라 분류 제목을 두지 않는다 — 링크 이름이 스스로 설명한다. */}
+          <section className="mb-5 space-y-3">
             <Card>
               <CardContent className="flex items-center gap-3 py-4">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
@@ -51,12 +49,7 @@ export function Settings() {
                 </div>
               </CardContent>
             </Card>
-          </section>
 
-          <section aria-labelledby="notification-heading" className="mb-5 space-y-2">
-            <h2 id="notification-heading" className="text-sm font-semibold text-muted-foreground">
-              알림
-            </h2>
             {notificationItem && (
               <SettingsLink
                 icon={<Bell className="h-5 w-5" />}
@@ -65,12 +58,6 @@ export function Settings() {
                 onClick={() => navigate(notificationItem.path)}
               />
             )}
-          </section>
-
-          <section aria-labelledby="account-settings-heading" className="mb-5 space-y-2">
-            <h2 id="account-settings-heading" className="text-sm font-semibold text-muted-foreground">
-              계정
-            </h2>
             {passwordItem && (
               <SettingsLink
                 icon={<Settings2 className="h-5 w-5" />}
@@ -80,12 +67,6 @@ export function Settings() {
               />
             )}
             {/* '가족 관리'는 하단 '가족' 탭이 담당(SET-HOME-07: 설정에 수정 문을 따로 만들지 않는다) → 중복 제거 */}
-          </section>
-
-          <section aria-labelledby="hospital-heading" className="mb-5 space-y-2">
-            <h2 id="hospital-heading" className="text-sm font-semibold text-muted-foreground">
-              병원
-            </h2>
             {hospitalItem && (
               <SettingsLink
                 icon={<Hospital className="h-5 w-5" />}
