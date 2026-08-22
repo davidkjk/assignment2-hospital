@@ -77,3 +77,29 @@ export function getAppointment(id?: string): Appointment {
 export function getAppointmentDetailData(id: string) {
   return appointmentDetails[id] ?? FALLBACK_DETAIL
 }
+
+/**
+ * 취소 등급 — 정본은 세 갈래다(CANCEL-PRE / CANCEL-NEW / CANCEL-LATE).
+ * - `pre`  : 마감 전 → 확인창으로 바로 취소.
+ * - `new`  : 만든 지 30분 이내 → 마감과 무관하게 바로 취소(CANCEL-NEW-01). 확인창은 pre와 같다.
+ * - `late` : 마감 후(진료 24h 이내) → 확인창이 아니라 안내 팝업 → 상담 연결(CANCEL-LATE-01).
+ *
+ * 실제 앱은 `created_at + 30분`과 병원 설정 마감시간으로 계산한다. 데모는 그 데이터가 없어
+ * 예약 날짜(오늘/내일=마감 후)로 흉내 내고, '방금 만든 예약'만 아래 id로 시연한다.
+ */
+export const DEMO_CANCEL_DEADLINE_HOURS = 24 // 취소 마감 기본값 = 진료 24시간 전(00004_audit_settings)
+const JUST_CREATED_APPOINTMENT_IDS = new Set(['appt-3']) // 방금 만든 예약(30분 유예 시연)
+
+export type CancelTier = 'pre' | 'new' | 'late'
+
+export function getCancelTier(id: string): CancelTier {
+  if (JUST_CREATED_APPOINTMENT_IDS.has(id)) return 'new'
+  const appointment = getAppointment(id)
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round(
+    (startOfDay(new Date(appointment.date + 'T00:00:00')).getTime() - startOfDay(new Date()).getTime()) /
+      86_400_000,
+  )
+  // 오늘(0)·내일(1)은 24시간 마감 안이라 이미 마감 후.
+  return diffDays <= 1 ? 'late' : 'pre'
+}
