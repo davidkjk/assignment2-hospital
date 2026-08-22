@@ -285,7 +285,8 @@ function QuestionInput({
         </Label>
         <textarea
           aria-label={question.text}
-          className="min-h-36 w-full resize-none rounded-xl border bg-background px-3 py-3 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          // 쓰는 칸은 흰 상자로 또렷하게(배경색과 구분) — 사전문진 입력.
+          className="min-h-36 w-full resize-none rounded-xl border bg-card px-3 py-3 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           id={inputId}
           onChange={(event) => answer(question.id, event.target.value)}
           placeholder={question.placeholder}
@@ -303,6 +304,8 @@ function QuestionInput({
       <Input
         aria-label={question.text}
         id={inputId}
+        // 쓰는 칸은 흰 상자로 또렷하게(textarea와 같은 규칙).
+        className="bg-card"
         onChange={(event) => answer(question.id, event.target.value)}
         placeholder={question.placeholder}
         value={stringAnswer}
