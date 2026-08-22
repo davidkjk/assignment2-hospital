@@ -352,7 +352,7 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
 
         <CardContent className="space-y-3 pt-4">
           {/* 카드 안의 카드 — 테두리 대신 또렷한 그림자로 떠 보이게(사용자: 구분되게 더). */}
-          <div className="h-[132px] rounded-lg bg-primary/5 px-3 shadow-[0_2px_10px_rgba(16,45,50,0.14)]">
+          <div className="h-[132px] rounded-lg bg-primary/10 px-3 shadow-[0_2px_10px_rgba(16,45,50,0.14)]">
             <StatusBody appointment={appointment} />
           </div>
 
