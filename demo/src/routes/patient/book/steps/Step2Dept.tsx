@@ -1,4 +1,4 @@
-import { ChevronRight, HelpCircle } from 'lucide-react'
+import { ChevronRight, HelpCircle } from '@/components/icons'
 import { departments } from '@/mock/data'
 import type { StepProps } from '../BookingWizard'
 

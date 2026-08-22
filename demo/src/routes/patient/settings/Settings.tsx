@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, ChevronRight, Hospital, LogOut, Settings2, UserRound } from 'lucide-react'
+import { Bell, ChevronRight, Hospital, LogOut, Settings2, UserRound } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { ScreenHeader } from '@/components/ScreenHeader'

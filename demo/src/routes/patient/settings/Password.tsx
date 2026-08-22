@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Check, Eye, EyeOff } from 'lucide-react'
+import { Check, Eye, EyeOff } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { ScreenHeader } from '@/components/ScreenHeader'

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarDays, ChevronRight, Pencil, Users, UserRoundPlus } from 'lucide-react'
+import { CalendarDays, ChevronRight, Pencil, Users, UserRoundPlus } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { initialAppointments } from '@/mock/data'
 import type { Appointment } from '@/mock/types'

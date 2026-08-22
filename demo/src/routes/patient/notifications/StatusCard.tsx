@@ -13,7 +13,7 @@ import {
   QrCode,
   Stethoscope,
   XCircle,
-} from 'lucide-react'
+} from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Card,

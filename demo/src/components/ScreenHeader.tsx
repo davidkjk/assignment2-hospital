@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from '@/components/icons'
 
 /**
  * 화면 상단의 채운 딥틸 헤더 밴드(정본 목업 `.ap-bar`·`.ph-bar` = teal 배경·흰 글자).

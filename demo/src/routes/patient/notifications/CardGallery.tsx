@@ -1,4 +1,4 @@
-import { CalendarPlus, Layers3 } from 'lucide-react'
+import { CalendarPlus, Layers3 } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { ScreenHeader } from '@/components/ScreenHeader'

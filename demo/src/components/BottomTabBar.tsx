@@ -1,4 +1,4 @@
-import { CalendarDays, History, Home, MessageCircle, Users } from 'lucide-react'
+import { CalendarDays, History, Home, MessageCircle, Users } from '@/components/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 // 환자 앱 전역 셸의 하단 탭 5개(결정 문서: 홈·예약·가족·이력·AI 상담).
@@ -53,7 +53,8 @@ export function BottomTabBar() {
               isActive ? 'text-primary' : 'text-muted-foreground'
             }`}
           >
-            <Icon className={`h-5 w-5 ${isActive ? 'fill-primary/15' : ''}`} aria-hidden="true" />
+            {/* phosphor 채움 아이콘은 currentColor로 칠해진다 — 활성=text-primary면 아이콘도 딥틸로 찬다. */}
+            <Icon className="h-5 w-5" aria-hidden="true" />
             {tab.label}
           </button>
         )

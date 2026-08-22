@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from '@/components/icons'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { useAppointments } from '@/state/appointments'
 

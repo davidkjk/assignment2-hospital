@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import type { Gender } from '../signupState'
 import type { SignupWizardContext } from '../SignupWizard'

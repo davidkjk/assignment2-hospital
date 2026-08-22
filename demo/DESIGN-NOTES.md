@@ -62,5 +62,9 @@
 - 흰 **병원 아이콘**(lucide `Hospital`) + "가온병원"(밴드 위 흰색).
 - **기각**: ① `H` 모노그램 — 자리표시자처럼 보였다. ② 흰 사각+의료십자(`+`) — 추가 버튼처럼 보였다.
 
-## 아이콘 (미결 — TODO)
-- 현재 전 화면 **lucide(아웃라인)**. 정본 `DISP-ICON-03`은 **Solid(채움)** 지정 → 아직 미교체. heroicons solid 등으로 전 화면 교체 예정(`DEMO-REVIEW-NOTES.md`).
+## 아이콘 — Solid(채움) 전면 적용 (2026-08-22 완료)
+- 정본 `DISP-ICON-03`(채움 벡터)대로 **Phosphor `weight="fill"`**로 전 화면 교체. lucide는 아웃라인 전용이라 제거함.
+- **중앙 배럴 `components/icons.tsx`**: 앱 코드는 lucide와 **같은 이름**을 그대로 쓰고(각 화면은 import 경로만 `@/components/icons`), 배럴이 phosphor로 매핑. 라이브러리 교체·아이콘 변경이 이 한 파일에서 끝난다.
+- **예외**: 방향 캐럿(`ChevronDown/Left/Right`)만 `weight="bold"` — fill이면 두꺼운 삼각형이 돼 `›` 어포던스가 어색해짐.
+- 채움 아이콘은 **currentColor로 칠해진다** → 탭바 활성(`text-primary`)이면 아이콘도 딥틸로 참(예전 `fill-primary/15` 꼼수 제거).
+- **기각**: heroicons solid — Hospital·이력(rewind clock)·환자검색 등 **필요 아이콘이 없어** 매핑에 구멍. phosphor는 단일 라이브러리로 전부 커버.

@@ -1,4 +1,4 @@
-import { MessageCircle, UserRound } from 'lucide-react'
+import { MessageCircle, UserRound } from '@/components/icons'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Bell, CalendarPlus, Hospital, Settings } from 'lucide-react'
+import { Bell, CalendarPlus, Hospital, Settings } from '@/components/icons'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { Button } from '@/components/ui/button'
 import { AppointmentCard } from '@/components/AppointmentCard'

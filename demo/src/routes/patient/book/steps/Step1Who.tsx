@@ -1,4 +1,4 @@
-import { ChevronRight, UserPlus } from 'lucide-react'
+import { ChevronRight, UserPlus } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { patients } from '@/mock/data'
 import type { StepProps } from '../BookingWizard'

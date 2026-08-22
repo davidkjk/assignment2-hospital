@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarPlus, ChevronRight } from 'lucide-react'
+import { CalendarDays, CalendarPlus, ChevronRight } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { PhoneFrame } from '@/components/PhoneFrame'

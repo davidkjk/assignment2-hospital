@@ -9,7 +9,7 @@ import {
   FileText,
   MessageCircle,
   X,
-} from 'lucide-react'
+} from '@/components/icons'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { Button } from '@/components/ui/button'

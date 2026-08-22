@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Clock3 } from 'lucide-react'
+import { CalendarDays, Check, Clock3 } from '@/components/icons'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'

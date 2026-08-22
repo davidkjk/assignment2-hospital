@@ -1,4 +1,4 @@
-import { ChevronRight, UserRoundPlus, UserRoundSearch } from 'lucide-react'
+import { ChevronRight, UserRoundPlus, UserRoundSearch } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { FamilyDialog, FamilyPage } from './FamilyPage'
@@ -55,7 +55,7 @@ export function FamilyAdd() {
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold">전에 진료받은 적이 있어요</span>
                 <span className="mt-1 block text-sm text-muted-foreground">
-                  그분 휴대폰으로 인증번호를 보냅니다
+                  휴대폰으로 인증번호를 보냅니다
                 </span>
                 <span className="mt-2 block text-xs text-destructive">
                   휴대폰이 없으면 병원에 문의해 주세요

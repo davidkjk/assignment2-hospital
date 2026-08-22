@@ -1,4 +1,4 @@
-import { ExternalLink, MapPin, Phone } from 'lucide-react'
+import { ExternalLink, MapPin, Phone } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { ScreenHeader } from '@/components/ScreenHeader'

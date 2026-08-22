@@ -1,4 +1,4 @@
-import { MessageCircle, Send, Sparkles } from 'lucide-react'
+import { MessageCircle, Send, Sparkles } from '@/components/icons'
 import { useLocation } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { ScreenHeader } from '@/components/ScreenHeader'

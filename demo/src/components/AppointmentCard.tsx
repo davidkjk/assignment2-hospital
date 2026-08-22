@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@/components/icons'
 import type { Appointment } from '@/mock/types'
 import { bookingCodeLabel } from '@/mock/types'
 import { patients, today } from '@/mock/data'

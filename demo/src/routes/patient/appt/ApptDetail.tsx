@@ -1,4 +1,4 @@
-import { ExternalLink, MapPin, Phone, QrCode, UserRound } from 'lucide-react'
+import { ExternalLink, MapPin, Phone, QrCode, UserRound } from '@/components/icons'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'

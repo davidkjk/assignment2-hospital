@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { hospitalInfo } from '@/routes/patient/settings/mockData'
 import type { ConsentKey } from '../signupState'

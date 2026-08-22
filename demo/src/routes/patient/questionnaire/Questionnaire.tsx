@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { CheckCircle2, Pencil, Send } from 'lucide-react'
+import { CheckCircle2, Pencil, Send } from '@/components/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
