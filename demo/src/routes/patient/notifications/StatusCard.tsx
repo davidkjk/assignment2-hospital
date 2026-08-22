@@ -358,10 +358,8 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
 
           <QuestionnaireLine appointment={appointment} onOpen={() => navigate('/questionnaire')} />
 
-          <div className="flex items-center justify-between gap-3 border-t pt-3">
-            <div className="text-sm text-muted-foreground">
-              {appointment.department} · {appointment.doctor} 선생님
-            </div>
+          {/* 진료과·의사는 위 설명 줄에 이미 있어 반복하지 않고, 버튼만 오른쪽에 — 구분선도 없앤다(사용자 지적). */}
+          <div className="flex items-center justify-end gap-3 pt-1">
             <StatusActions appointment={appointment} />
           </div>
         </CardContent>
