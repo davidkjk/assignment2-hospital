@@ -324,19 +324,25 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
 
       {/* 홈 카드도 앱 전체 글자 크기(17px)에 맞춘다 — 카드 기본 text-sm이라 작아 보였다(사용자 지적). */}
       <Card className="text-base">
-        <CardHeader className="gap-2 border-b">
+        <CardHeader className="gap-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <CardTitle className="truncate text-lg">
+              <CardTitle className="truncate text-lg font-bold">
                 {appointment.patientName} · {appointment.relation}
               </CardTitle>
+              {/* 위계: 시간은 진하게(dark+semibold), 진료과·의사는 차분히(muted) — 밋밋함 해소. */}
               <CardDescription className="mt-1 text-base">
-                {appointment.time} · {appointment.department} · {appointment.doctor} 선생님
+                <span className="font-semibold text-foreground">{appointment.time}</span>
+                <span className="text-muted-foreground">
+                  {' '}
+                  · {appointment.department} · {appointment.doctor} 선생님
+                </span>
               </CardDescription>
             </div>
             <StatusBadge label={BADGE_LABEL[appointment.status]} tone={STATUS_TONE[appointment.status]} />
           </div>
-          <p className="text-sm text-muted-foreground">
+          {/* 구분선은 카드 끝까지 닿지 않게 — 안쪽 여백 안에서만(다른 구분선과 통일). */}
+          <p className="border-b pb-3 text-sm text-muted-foreground">
             {appointment.status === '예약신청' || appointment.status === '미확정'
               ? '신청번호'
               : '예약번호'}{' '}
@@ -345,7 +351,8 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
         </CardHeader>
 
         <CardContent className="space-y-3 pt-4">
-          <div className="h-[132px] rounded-lg border bg-primary/5 px-3">
+          {/* 카드 안의 카드 — 테두리 대신 또렷한 그림자로 떠 보이게(사용자: 구분되게 더). */}
+          <div className="h-[132px] rounded-lg bg-primary/5 px-3 shadow-[0_2px_10px_rgba(16,45,50,0.14)]">
             <StatusBody appointment={appointment} />
           </div>
 
