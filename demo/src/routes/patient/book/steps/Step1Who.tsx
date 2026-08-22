@@ -1,10 +1,12 @@
 import { ChevronRight, UserPlus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { patients } from '@/mock/data'
 import type { StepProps } from '../BookingWizard'
 
 // 1단계 — 누구의 예약인가(BOOK-WHO-*). 본인 + 가족 목록, 본인 맨 위.
 export function Step1Who({ wizard }: { wizard: StepProps }) {
   const { setField, next } = wizard
+  const navigate = useNavigate()
 
   const choose = (p: (typeof patients)[number]) => {
     setField('who', p)
@@ -29,12 +31,13 @@ export function Step1Who({ wizard }: { wizard: StepProps }) {
           </button>
         ))}
 
-        {/* 가족 추가 — 항상 노출(BOOK-WHO-07). 데모라 안내만. */}
+        {/* 가족 추가 — 항상 노출(BOOK-WHO-07). 여기서도 실제 가족 추가 화면으로 연결한다. */}
         <button
-          disabled
-          className="mt-1 flex items-center justify-center gap-2 rounded-2xl border border-dashed p-4 text-muted-foreground"
+          type="button"
+          onClick={() => navigate('/family/add')}
+          className="mt-1 flex items-center justify-center gap-2 rounded-2xl border border-dashed p-4 text-primary hover:border-primary hover:bg-primary/5"
         >
-          <UserPlus className="h-4 w-4" /> 가족 추가하기 (데모에서는 생략)
+          <UserPlus className="h-4 w-4" /> 가족 추가하기
         </button>
       </div>
     </div>

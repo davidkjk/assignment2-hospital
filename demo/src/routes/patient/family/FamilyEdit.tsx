@@ -71,10 +71,16 @@ export function FamilyEdit() {
               이름·생년월일·성별과 관계를 바꿀 수 있어요.
             </p>
           ) : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              진료 기록이 있어 <b className="font-semibold text-foreground">이름·생년월일·성별은 병원에서만</b> 바꿀 수
-              있어요. 관계는 여기서 언제든 바꿀 수 있어요.
-            </p>
+            // 잠긴 이유는 두 가지(FAM-EDIT-05·08) — 멤버의 실제 사유를 그대로 보여준다.
+            <div className="mt-2 space-y-1">
+              <p className="text-sm text-muted-foreground">
+                <b className="font-semibold text-foreground">이름·생년월일·성별</b>은 여기서 바꿀 수 없어요. 관계는
+                언제든 바꿀 수 있어요.
+              </p>
+              <p className="text-sm font-medium text-foreground">
+                {editableMember.identityLockReason ?? '진료 기록이 있어 병원에서만 수정할 수 있습니다'}
+              </p>
+            </div>
           )}
         </div>
 
@@ -124,11 +130,6 @@ export function FamilyEdit() {
               </label>
             ))}
           </div>
-          {!identityEditable ? (
-            <p className="text-xs text-muted-foreground">
-              {editableMember.identityLockReason ?? '진료 기록이 있어 병원에서만 수정할 수 있습니다'}
-            </p>
-          ) : null}
         </fieldset>
 
         <div className="flex flex-col gap-2">
@@ -153,12 +154,6 @@ export function FamilyEdit() {
             placeholder="관계를 직접 입력할 수 있어요"
           />
         </div>
-
-        {!identityEditable ? (
-          <p className="text-sm text-muted-foreground">
-            이름·생년월일·성별은 병원 기록이라 병원에 문의하시면 수정해 드립니다.
-          </p>
-        ) : null}
 
         <Button type="submit" size="lg" className="w-full" disabled={!name.trim() || !birthDate || !gender}>
           저장하기

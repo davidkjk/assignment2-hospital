@@ -11,13 +11,17 @@ import { getAppointment } from './mockData'
 
 type ChangeStep = 'date' | 'time'
 
-function uniqueDates(appointment: Appointment) {
-  return Array.from(new Set([appointment.date, ...getAvailableDates(appointment.doctorName).slice(0, 4)]))
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+function iso(y: number, m: number, d: number) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
 function uniqueTimes(appointment: Appointment, date: string) {
   const slots = getSlots(appointment.doctorName, date)
-  const times = [appointment.time, ...slots.map((slot) => slot.time)]
+  const times = [...slots.map((slot) => slot.time)]
+  // 원래 날짜로 되돌아온 경우엔 현재 시각도 후보에 넣는다
+  if (date === appointment.date) times.unshift(appointment.time)
   return Array.from(new Set(times))
 }
 
@@ -33,7 +37,19 @@ export function ApptChange() {
   const [selectedDate, setSelectedDate] = useState<string>()
   const [pendingTime, setPendingTime] = useState<string>()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const dates = uniqueDates(appointment)
+
+  // 예약 마법사 4단계와 같은 월 달력(APPT-CHG-05·BOOK-DATE-01). 같은 진료과·의사 기준.
+  const available = new Set([appointment.date, ...getAvailableDates(appointment.doctorName)])
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = today.getMonth()
+  const firstWeekday = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: (number | null)[] = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+
   const times = selectedDate ? uniqueTimes(appointment, selectedDate) : []
 
   const chooseDate = (date: string) => {
@@ -90,21 +106,55 @@ export function ApptChange() {
                 <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
                 <h1 id="change-date-title" className="text-lg font-bold">변경할 날짜를 골라주세요</h1>
               </div>
-              <div className="flex flex-col gap-2">
-                {dates.map((date) => (
-                  <button
-                    key={date}
-                    type="button"
-                    data-testid="change-date"
-                    onClick={() => chooseDate(date)}
-                    className="flex items-center justify-between rounded-xl border bg-card p-4 text-left hover:border-primary hover:bg-primary/5"
-                  >
-                    <span className="font-semibold">{formatDateHeader(date)}</span>
-                    {date === appointment.date && (
-                      <span className="text-xs text-muted-foreground">현재 예약</span>
-                    )}
-                  </button>
+              <p className="mb-4 text-center text-base font-semibold">
+                {year}년 {month + 1}월
+              </p>
+
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {WEEKDAYS.map((w) => (
+                  <div key={w} className="py-1 text-xs font-semibold text-muted-foreground">
+                    {w}
+                  </div>
                 ))}
+                {cells.map((day, i) => {
+                  if (day === null) return <div key={`e${i}`} />
+                  const date = iso(year, month, day)
+                  const ok = available.has(date)
+                  const isCurrent = date === appointment.date
+                  return (
+                    <button
+                      key={date}
+                      type="button"
+                      disabled={!ok}
+                      data-testid={ok ? 'change-date' : undefined}
+                      onClick={() => chooseDate(date)}
+                      className={
+                        'relative aspect-square rounded-full text-sm ' +
+                        (ok
+                          ? 'border-2 border-primary font-bold hover:bg-primary hover:text-primary-foreground'
+                          : 'text-muted-foreground/40')
+                      }
+                    >
+                      {day}
+                      {isCurrent && (
+                        <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* 범례(BOOK-DATE-04) + 현재 예약 표시 */}
+              <div className="mt-5 flex flex-wrap justify-center gap-5 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded-full border-2 border-primary" /> 예약 가능
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-muted" /> 진료 없음
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" /> 현재 예약
+                </span>
               </div>
             </section>
           ) : (

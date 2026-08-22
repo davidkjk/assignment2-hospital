@@ -79,7 +79,7 @@ export function MyAppointments() {
                     </span>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-3">
                     {group.appointments.map((appointment) => (
                       <AppointmentCard key={appointment.id} appt={appointment} />
                     ))}
