@@ -22,19 +22,21 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { StatusBadge, type BadgeTone } from '@/components/StatusBadge'
 import type { CardStatus, DemoAppointment } from './mockData'
 
-const BADGE_STYLE: Record<CardStatus, string> = {
-  예약신청: 'bg-secondary text-secondary-foreground',
-  예약확정: 'bg-primary text-primary-foreground',
-  도착: 'bg-primary text-primary-foreground',
-  진료대기: 'bg-secondary text-secondary-foreground',
-  진료중: 'bg-primary text-primary-foreground',
-  진료완료: 'bg-muted text-muted-foreground',
-  환자취소: 'bg-muted text-muted-foreground',
-  병원취소: 'bg-muted text-muted-foreground',
-  예약부도: 'bg-muted text-muted-foreground',
-  미확정: 'bg-muted text-muted-foreground',
+// 정본에서 정한 색 코딩(공용 StatusBadge 톤): 예약확정=딥틸·예약신청=주황·진료대기=파랑·접수(도착)=보라 …
+const STATUS_TONE: Record<CardStatus, BadgeTone> = {
+  예약신청: 'amber',
+  예약확정: 'teal',
+  도착: 'violet',
+  진료대기: 'sky',
+  진료중: 'teal',
+  진료완료: 'teal',
+  환자취소: 'muted',
+  병원취소: 'muted',
+  예약부도: 'gray',
+  미확정: 'amber',
 }
 
 const BADGE_LABEL: Record<CardStatus, string> = {
@@ -60,6 +62,7 @@ function AttentionNotice({ children }: { children: React.ReactNode }) {
 }
 
 function QrPreview({ bookingCode }: { bookingCode?: string }) {
+  const navigate = useNavigate()
   if (!bookingCode) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
@@ -71,19 +74,26 @@ function QrPreview({ bookingCode }: { bookingCode?: string }) {
     )
   }
 
+  // QR을 누르면 전체화면으로 크게 본다(NAV-HOME-02, 접수 데스크에 보여주기 쉽게).
   return (
-    <div className="flex h-full items-center justify-center gap-4">
-      <div
-        className="flex h-20 w-20 items-center justify-center rounded-lg border bg-background"
-        aria-label="접수용 QR"
-      >
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation()
+        navigate('/qr')
+      }}
+      aria-label="접수용 QR 크게 보기"
+      className="flex h-full w-full items-center justify-center gap-4 rounded-lg transition-colors hover:bg-primary/5"
+    >
+      <div className="flex h-20 w-20 items-center justify-center rounded-lg border bg-card">
         <QrCode className="h-16 w-16 text-primary" aria-hidden="true" />
       </div>
-      <div>
+      <div className="text-left">
         <p className="text-sm font-semibold">접수용 QR</p>
         <p className="mt-1 text-sm text-muted-foreground">예약번호 {bookingCode}</p>
+        <p className="mt-1 text-xs font-medium text-primary">눌러서 크게 보기 ›</p>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -323,11 +333,7 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
                 {appointment.time} · {appointment.department} · {appointment.doctor} 선생님
               </CardDescription>
             </div>
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${BADGE_STYLE[appointment.status]}`}
-            >
-              {BADGE_LABEL[appointment.status]}
-            </span>
+            <StatusBadge label={BADGE_LABEL[appointment.status]} tone={STATUS_TONE[appointment.status]} />
           </div>
           <p className="text-xs text-muted-foreground">
             {appointment.status === '예약신청' || appointment.status === '미확정'
