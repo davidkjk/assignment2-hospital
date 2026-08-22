@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, X } from '@/components/icons'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { QrGraphic } from '@/components/QrGraphic'
 import { useAppointments } from '@/state/appointments'
+import { formatAppointmentDateTime } from '@/routes/patient/appt/format'
 
 // QR 전체화면(QR-TITLE-01: 이름 n/m · QR-SWIPE-01: 좌우로 다른 예약 QR).
-// 데모라 실제 QR 대신 자리표시 격자. QR 있는 예약만 넘긴다(QR-SWIPE-02).
+// 하나의 흰 QR 카드에 코드+예약번호를 담고, 이름·안내·예약정보를 위아래로 정리한다.
 export function QrFullscreen() {
   const navigate = useNavigate()
   const { appointments } = useAppointments()
@@ -18,13 +20,10 @@ export function QrFullscreen() {
 
   return (
     <PhoneFrame>
-      <div
-        data-testid="qr-screen"
-        className="relative flex h-full flex-col items-center justify-center gap-6 bg-white p-8"
-      >
+      <div data-testid="qr-screen" className="relative flex h-full flex-col bg-background">
         <button
           aria-label="닫기"
-          className="absolute right-4 top-4 rounded-full bg-neutral-100 p-2"
+          className="absolute right-4 top-4 z-10 rounded-full bg-card p-2 shadow-sm"
           onClick={() => navigate(-1)}
         >
           <X className="h-5 w-5" />
@@ -32,61 +31,54 @@ export function QrFullscreen() {
 
         {appt ? (
           <>
-            {/* QR-TITLE-01: 지금 누구 것인지 + 몇 번째 */}
-            <div className="text-center">
-              <p className="text-lg font-bold">{appt.patientName}님</p>
-              {qrList.length > 1 && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {index + 1} / {qrList.length}
-                </p>
-              )}
-            </div>
-
-            <p className="text-sm text-muted-foreground">접수 데스크에 보여주세요</p>
-
-            <div className="grid h-56 w-56 grid-cols-8 grid-rows-8 gap-0.5 rounded-lg border-4 border-neutral-900 p-2">
-              {Array.from({ length: 64 }).map((_, i) => (
-                <div
-                  key={i}
-                  className={(i * 7 + index * 5 + 3) % 3 === 0 ? 'bg-neutral-900' : 'bg-transparent'}
-                />
-              ))}
-            </div>
-
-            {/* 예약번호(CARD-OK-01·02): QR이 안 읽힐 때 접수 데스크에 불러 주는 6자리 번호. */}
-            {appt.bookingCode && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8">
               <div className="text-center">
-                <p className="text-xs text-muted-foreground">예약번호</p>
-                <p className="text-2xl font-bold tabular-nums tracking-[0.2em] text-foreground">
-                  {appt.bookingCode}
+                <p className="text-xl font-bold">{appt.patientName}님</p>
+                <p className="mt-1 text-sm text-muted-foreground">병원 접수 데스크에 보여주세요</p>
+              </div>
+
+              {/* 흰 QR 카드 — QR + 예약번호 */}
+              <div className="w-full max-w-[280px] rounded-3xl bg-card p-6 shadow-(--elevation-card)">
+                <div className="mx-auto w-full max-w-[216px]">
+                  <QrGraphic value={appt.bookingCode ?? appt.id} className="aspect-square w-full" />
+                </div>
+                {appt.bookingCode && (
+                  <div className="mt-5 border-t pt-4 text-center">
+                    <p className="text-xs text-muted-foreground">예약번호 (QR이 안 될 때)</p>
+                    <p className="mt-0.5 text-2xl font-bold tabular-nums tracking-[0.2em]">{appt.bookingCode}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-center">
+                <p className="font-semibold">
+                  {appt.deptName} · {appt.doctorName} 선생님
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {formatAppointmentDateTime(appt.date, appt.time)}
                 </p>
               </div>
-            )}
+            </div>
 
-            <p className="text-base font-semibold">
-              {appt.deptName} · {appt.doctorName} 선생님
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {appt.date} {appt.time}
-            </p>
-
-            {/* QR-SWIPE-01: 데모에서는 좌우 버튼으로 다른 예약 QR 전환 */}
+            {/* QR-SWIPE-01: 좌우로 다른 예약 QR 전환 + 몇 번째인지 */}
             {qrList.length > 1 && (
-              <div className="mt-2 flex items-center gap-6">
+              <div className="flex items-center justify-center gap-6 pb-8">
                 <button
                   aria-label="이전 예약"
                   onClick={prev}
                   disabled={index === 0}
-                  className="rounded-full border p-2 disabled:opacity-30"
+                  className="rounded-full bg-card p-2 shadow-sm disabled:opacity-30"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                <span className="text-xs text-muted-foreground">좌우로 다른 예약 QR</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {index + 1} / {qrList.length}
+                </span>
                 <button
                   aria-label="다음 예약"
                   onClick={next}
                   disabled={index === qrList.length - 1}
-                  className="rounded-full border p-2 disabled:opacity-30"
+                  className="rounded-full bg-card p-2 shadow-sm disabled:opacity-30"
                 >
                   <ChevronRight className="h-5 w-5" />
                 </button>
@@ -94,7 +86,9 @@ export function QrFullscreen() {
             )}
           </>
         ) : (
-          <p className="text-muted-foreground">표시할 접수 QR이 없습니다</p>
+          <div className="flex flex-1 items-center justify-center">
+            <p className="text-muted-foreground">표시할 접수 QR이 없습니다</p>
+          </div>
         )}
       </div>
     </PhoneFrame>
