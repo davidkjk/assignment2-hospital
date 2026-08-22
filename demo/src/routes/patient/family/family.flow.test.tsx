@@ -43,7 +43,8 @@ test('기존 환자 연결은 일치 여부를 드러내지 않고 같은 인증
   await user.click(screen.getByRole('button', { name: '인증번호 받기' }))
 
   expect(screen.getByText('인증번호를 보냈습니다.')).toBeInTheDocument()
-  expect(screen.getByText(/병원 기록 여부는 알려드리지 않으며/)).toBeInTheDocument()
+  // 일치 여부를 드러내지 않고 인증으로만 진행한다는 안내(문구는 쉬운 버전으로 교체됨).
+  expect(screen.getByText(/문자로 받은 번호를 입력하면 연결됩니다/)).toBeInTheDocument()
 
   await user.type(screen.getByLabelText('인증번호'), '123456')
   await user.click(screen.getByRole('button', { name: '연결하기' }))

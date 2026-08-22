@@ -115,11 +115,10 @@ export function ExistingFamily() {
               />
             </div>
 
-            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm">
-              <p>입력하신 정보가 맞든 아니든 같은 화면으로 진행합니다.</p>
-              <p className="mt-1 text-muted-foreground">
-                병원 기록 여부는 알려드리지 않으며, 휴대폰으로 인증번호를 확인해 주세요.
-              </p>
+            {/* 개인정보 열거 방지 동작(맞든 아니든 같은 화면)은 위 handleSubmit 그대로 유지하고,
+                환자에게는 그 메타설명 대신 쉬운 안내만 보여준다(어르신 대상). 상자도 경고색→차분한 회색. */}
+            <div className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">
+              본인 확인을 위해 입력하신 휴대폰으로 인증번호를 보내드려요. 문자로 받은 번호를 입력하면 연결됩니다.
             </div>
 
             <Button type="submit" size="lg" className="w-full" disabled={!phone.trim()}>
