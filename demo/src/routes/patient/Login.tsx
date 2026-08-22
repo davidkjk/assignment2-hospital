@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { Hospital } from '@/components/icons'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { Button } from '@/components/ui/button'
 
@@ -13,8 +14,9 @@ export function Login() {
         className="flex h-full flex-col items-center justify-between px-8 py-16"
       >
         <div className="mt-16 flex flex-col items-center gap-3">
-          <div className="brand-wordmark flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-3xl text-primary-foreground shadow-md">
-            가
+          {/* 로고 = 직원웹 사이드바·앱 홈과 같은 Hospital 십자 심볼(딥틸 타일 위 흰 아이콘) */}
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-md">
+            <Hospital className="h-9 w-9 text-primary-foreground" aria-hidden="true" />
           </div>
           <h1 className="brand-wordmark text-3xl text-primary">가온병원</h1>
           <p className="text-sm text-muted-foreground">예약하고 대기 없이 진료받으세요</p>
