@@ -6,13 +6,33 @@ import { Queue } from './queue/Queue'
 import { Checkin } from './checkin/Checkin'
 import { PatientDetail } from './patient/PatientDetail'
 import { PatientSearch } from './patients/PatientSearch'
-import { StaffPlaceholder } from './Placeholder'
+// slice2 — 업무
+import { Calendar } from './calendar/Calendar'
+import { Tickets } from './tickets/Tickets'
+import { Chatlog } from './chatlog/Chatlog'
+import { Messages } from './messages/Messages'
+// slice2 — 의사
+import { DoctorConsole } from './doctor/DoctorConsole'
+// slice2 — 관리자 기록
+import { Stats } from './admin/record/Stats'
+import { AccessLogs } from './admin/record/AccessLogs'
+import { MergeCandidates } from './admin/record/MergeCandidates'
+import { MergeHistory } from './admin/record/MergeHistory'
+import { Errors } from './admin/record/Errors'
+// slice2 — 관리자 설정
+import { StaffAdmin } from './admin/config/StaffAdmin'
+import { Schedule } from './admin/config/Schedule'
+import { Questionnaires } from './admin/config/Questionnaires'
+import { HospitalSettings } from './admin/config/HospitalSettings'
+// slice2 — 상담봇 관리자
+import { Knowledge } from './bot/Knowledge'
+import { Unresolved } from './bot/Unresolved'
+import { Reports } from './bot/Reports'
+import { Quality } from './bot/Quality'
+import { Overview } from './bot/Overview'
 
 // 직원 웹 데모 라우트 — /staff/*. 폰 프레임 없이 StaffShell(데스크톱) 레이아웃.
-// 척추(이번 슬라이스): /staff/login → /staff/today. 나머지 화면은 셸 안에서 '곧' 자리표시.
-// 실제 앱 route 정본 18개(plan 88~111): today·queue·checkin·patients·calendar·doctor/console·admin/* 등.
-const p = (title: string) => <StaffPlaceholder title={title} />
-
+// 척추 + slice2 병렬 워커(A~E) 산출을 코디네이터가 배선. 화면 컴포넌트는 각 폴더 소유.
 export const staffRoutes: RouteObject[] = [
   { path: '/staff/login', element: <StaffLogin /> },
   {
@@ -24,31 +44,31 @@ export const staffRoutes: RouteObject[] = [
       // 업무
       { path: 'queue', element: <Queue /> },
       { path: 'checkin', element: <Checkin /> },
-      { path: 'calendar', element: p('예약 캘린더') },
+      { path: 'calendar', element: <Calendar /> },
       { path: 'patients', element: <PatientSearch /> },
       { path: 'patients/:id', element: <PatientDetail /> },
-      { path: 'tickets', element: p('문의 티켓함') },
-      { path: 'chatlog', element: p('전체 상담 기록') },
-      { path: 'messages', element: p('안내 보내기') },
+      { path: 'tickets', element: <Tickets /> },
+      { path: 'chatlog', element: <Chatlog /> },
+      { path: 'messages', element: <Messages /> },
       // 의사
-      { path: 'doctor/console', element: p('진료 화면') },
+      { path: 'doctor/console', element: <DoctorConsole /> },
       // 기록
-      { path: 'admin/stats', element: p('운영 통계') },
-      { path: 'admin/access-logs', element: p('접근 기록') },
-      { path: 'admin/patient-merge-candidates', element: p('중복 환자') },
-      { path: 'admin/merge-history', element: p('병합 이력') },
-      { path: 'admin/errors', element: p('시스템 오류') },
+      { path: 'admin/stats', element: <Stats /> },
+      { path: 'admin/access-logs', element: <AccessLogs /> },
+      { path: 'admin/patient-merge-candidates', element: <MergeCandidates /> },
+      { path: 'admin/merge-history', element: <MergeHistory /> },
+      { path: 'admin/errors', element: <Errors /> },
       // 설정
-      { path: 'admin/staff', element: p('직원 관리') },
-      { path: 'admin/schedule', element: p('진료 일정') },
-      { path: 'admin/questionnaires', element: p('문진표 관리') },
-      { path: 'admin/settings', element: p('병원 설정') },
+      { path: 'admin/staff', element: <StaffAdmin /> },
+      { path: 'admin/schedule', element: <Schedule /> },
+      { path: 'admin/questionnaires', element: <Questionnaires /> },
+      { path: 'admin/settings', element: <HospitalSettings /> },
       // 상담봇
-      { path: 'bot/knowledge', element: p('안내자료') },
-      { path: 'bot/unresolved', element: p('미해결 질문') },
-      { path: 'bot/reports', element: p('오답 처리함') },
-      { path: 'bot/quality', element: p('품질 리포트') },
-      { path: 'bot/overview', element: p('상담봇 현황') },
+      { path: 'bot/knowledge', element: <Knowledge /> },
+      { path: 'bot/unresolved', element: <Unresolved /> },
+      { path: 'bot/reports', element: <Reports /> },
+      { path: 'bot/quality', element: <Quality /> },
+      { path: 'bot/overview', element: <Overview /> },
     ],
   },
 ]
