@@ -91,6 +91,9 @@ export function FamilyEdit() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             disabled={!identityEditable}
+            // 잠긴 칸도 배경과 같은 색으로(회색 채움 대신) — 사전문진 칸과 통일.
+            // 테두리·흐림은 남아 '잠김'은 그대로 읽힌다.
+            className="disabled:bg-transparent"
           />
         </div>
 
@@ -102,6 +105,7 @@ export function FamilyEdit() {
             value={birthDate}
             onChange={(event) => setBirthDate(event.target.value)}
             disabled={!identityEditable}
+            className="disabled:bg-transparent"
           />
         </div>
 
