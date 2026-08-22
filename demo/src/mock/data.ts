@@ -45,15 +45,24 @@ function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** 의사별 예약 가능일: 오늘 이후 평일 중 앞 8일 (BOOK-DATE-02) */
+/** 예약 가능 범위 = 8주(56일). 정본 REGENERATION_WEEKS=8·BOOK-DATE-06(예약은 8주 뒤까지). */
+export const BOOKING_WINDOW_DAYS = 56
+
+/**
+ * 의사별 예약 가능일: 내일부터 8주(56일) 이내 평일 전부 (BOOK-DATE-02·06).
+ * 실제 앱은 서버(list_available_dates)가 8주 내 빈 날짜만 내려준다. 데모는 주말만 진료 없음으로 흉내.
+ */
 export function getAvailableDates(_doctorId: string, from: Date = new Date()): string[] {
   const dates: string[] = []
   const cursor = new Date(from)
   cursor.setHours(0, 0, 0, 0)
-  while (dates.length < 8) {
-    cursor.setDate(cursor.getDate() + 1)
+  const horizon = new Date(cursor)
+  horizon.setDate(horizon.getDate() + BOOKING_WINDOW_DAYS)
+  cursor.setDate(cursor.getDate() + 1)
+  while (cursor <= horizon) {
     const day = cursor.getDay() // 0=일, 6=토
     if (day !== 0 && day !== 6) dates.push(toISO(cursor))
+    cursor.setDate(cursor.getDate() + 1)
   }
   return dates
 }

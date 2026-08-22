@@ -4,18 +4,13 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { PhoneFrame } from '@/components/PhoneFrame'
+import { MonthCalendar } from '@/components/MonthCalendar'
 import { getAvailableDates, getSlots } from '@/mock/data'
 import type { Appointment, Slot } from '@/mock/types'
 import { formatDateHeader, formatTime } from './format'
 import { getAppointment } from './mockData'
 
 type ChangeStep = 'date' | 'time'
-
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
-
-function iso(y: number, m: number, d: number) {
-  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
 
 function uniqueTimes(appointment: Appointment, date: string) {
   const slots = getSlots(appointment.doctorName, date)
@@ -40,15 +35,6 @@ export function ApptChange() {
 
   // 예약 마법사 4단계와 같은 월 달력(APPT-CHG-05·BOOK-DATE-01). 같은 진료과·의사 기준.
   const available = new Set([appointment.date, ...getAvailableDates(appointment.doctorName)])
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = today.getMonth()
-  const firstWeekday = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const cells: (number | null)[] = [
-    ...Array.from({ length: firstWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ]
 
   const times = selectedDate ? uniqueTimes(appointment, selectedDate) : []
 
@@ -106,43 +92,12 @@ export function ApptChange() {
                 <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
                 <h1 id="change-date-title" className="text-lg font-bold">변경할 날짜를 골라주세요</h1>
               </div>
-              <p className="mb-4 text-center text-base font-semibold">
-                {year}년 {month + 1}월
-              </p>
-
-              <div className="grid grid-cols-7 gap-1 text-center">
-                {WEEKDAYS.map((w) => (
-                  <div key={w} className="py-1 text-xs font-semibold text-muted-foreground">
-                    {w}
-                  </div>
-                ))}
-                {cells.map((day, i) => {
-                  if (day === null) return <div key={`e${i}`} />
-                  const date = iso(year, month, day)
-                  const ok = available.has(date)
-                  const isCurrent = date === appointment.date
-                  return (
-                    <button
-                      key={date}
-                      type="button"
-                      disabled={!ok}
-                      data-testid={ok ? 'change-date' : undefined}
-                      onClick={() => chooseDate(date)}
-                      className={
-                        'relative aspect-square rounded-full text-sm ' +
-                        (ok
-                          ? 'border-2 border-primary font-bold hover:bg-primary hover:text-primary-foreground'
-                          : 'text-muted-foreground/40')
-                      }
-                    >
-                      {day}
-                      {isCurrent && (
-                        <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+              <MonthCalendar
+                available={available}
+                testIdAvailable="change-date"
+                markedDate={appointment.date}
+                onSelect={chooseDate}
+              />
 
               {/* 범례(BOOK-DATE-04) + 현재 예약 표시 */}
               <div className="mt-5 flex flex-wrap justify-center gap-5 text-xs text-muted-foreground">

@@ -20,13 +20,19 @@ test('초기 예약이 날짜·시각 오름차순', () => {
   expect([...keys].sort()).toEqual(keys)
 })
 
-test('예약 가능일은 주말을 제외한 8일', () => {
-  const dates = getAvailableDates('doc-im-1', new Date('2026-08-21T00:00:00'))
-  expect(dates).toHaveLength(8)
+test('예약 가능일은 8주(56일) 이내 평일 전부, 주말 제외 (BOOK-DATE-06)', () => {
+  const from = new Date('2026-08-21T00:00:00')
+  const dates = getAvailableDates('doc-im-1', from)
+  // 8주 안에는 평일이 40일(8주 × 5). 첫날은 내일부터.
+  expect(dates).toHaveLength(40)
+  const horizon = new Date(from)
+  horizon.setDate(horizon.getDate() + 56)
   for (const d of dates) {
-    const day = new Date(d + 'T00:00:00').getDay()
-    expect(day).not.toBe(0)
-    expect(day).not.toBe(6)
+    const dt = new Date(d + 'T00:00:00')
+    expect(dt.getDay()).not.toBe(0)
+    expect(dt.getDay()).not.toBe(6)
+    expect(dt.getTime()).toBeGreaterThan(from.getTime())
+    expect(dt.getTime()).toBeLessThanOrEqual(horizon.getTime())
   }
 })
 
