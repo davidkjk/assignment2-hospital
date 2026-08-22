@@ -170,7 +170,10 @@ function StatusBody({ appointment }: { appointment: DemoAppointment }) {
   }
 }
 
-function QuestionnaireLine({ status, onOpen }: { status: CardStatus; onOpen: () => void }) {
+function QuestionnaireLine({ appointment, onOpen }: { appointment: DemoAppointment; onOpen: () => void }) {
+  const { status, questionnaireStatus, questionnaireProgress } = appointment
+
+  // 진료가 시작되면 잠긴다(CARD-QNR: 진료중 이후 수정 불가).
   if (status === '진료중') {
     return (
       <div className="flex items-start gap-2 border-t pt-3 text-sm text-muted-foreground">
@@ -180,6 +183,7 @@ function QuestionnaireLine({ status, onOpen }: { status: CardStatus; onOpen: () 
     )
   }
 
+  // 과거 진료(진료완료)는 '작성본 보기'.
   if (status === '진료완료') {
     return (
       <button
@@ -193,20 +197,30 @@ function QuestionnaireLine({ status, onOpen }: { status: CardStatus; onOpen: () 
     )
   }
 
-  if (status === '예약확정' || status === '도착' || status === '진료대기') {
-    return (
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 border-t pt-3 text-left text-sm text-primary hover:underline"
-        onClick={onOpen}
-      >
-        <Stethoscope className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span>사전문진 미작성 · 작성하기 ›</span>
-      </button>
-    )
-  }
+  // 예정 예약의 실제 문진 상태가 있으면 그대로 그린다(CARD-QNR/LIST-QNR). 완료는 줄을 그리지 않는다.
+  const line =
+    questionnaireStatus === '작성완료'
+      ? null
+      : questionnaireStatus === '작성중'
+        ? `사전문진 작성 중${questionnaireProgress ? ` (${questionnaireProgress.answered}/${questionnaireProgress.total})` : ''} · 이어서 쓰기 ›`
+        : questionnaireStatus === '미작성'
+          ? '사전문진 미작성 · 작성하기 ›'
+          : // 상태 기반 기본값(문진 상태 미지정 — 갤러리 등)
+            status === '예약확정' || status === '도착' || status === '진료대기'
+            ? '사전문진 미작성 · 작성하기 ›'
+            : null
 
-  return null
+  if (!line) return null
+  return (
+    <button
+      type="button"
+      className="flex w-full items-center gap-2 border-t pt-3 text-left text-sm text-primary hover:underline"
+      onClick={onOpen}
+    >
+      <Stethoscope className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>{line}</span>
+    </button>
+  )
 }
 
 function StatusActions({ appointment }: { appointment: DemoAppointment }) {
@@ -328,10 +342,7 @@ export function StatusCard({ appointment }: { appointment: DemoAppointment }) {
             <StatusBody appointment={appointment} />
           </div>
 
-          <QuestionnaireLine
-            status={appointment.status}
-            onOpen={() => navigate('/questionnaire')}
-          />
+          <QuestionnaireLine appointment={appointment} onOpen={() => navigate('/questionnaire')} />
 
           <div className="flex items-center justify-between gap-3 border-t pt-3">
             <div className="text-xs text-muted-foreground">

@@ -25,6 +25,9 @@ export type DemoAppointment = {
   waitMinutes?: number
   changeFrom?: string
   changeTo?: string
+  /** 사전문진 상태·진행률(있으면 문진 줄을 실제 상태로 그린다. 없으면 상태 기본값). */
+  questionnaireStatus?: '미작성' | '작성중' | '작성완료'
+  questionnaireProgress?: { answered: number; total: number }
 }
 
 /** 시연·QA에서 한 화면에 확인할 수 있는 예약 카드 10종이다. */

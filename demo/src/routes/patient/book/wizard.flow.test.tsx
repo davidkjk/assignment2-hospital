@@ -10,7 +10,7 @@ test('로그인→홈→예약 8단계→완료 후 나의 예약 목록에 1건
   // 로그인 → (전화번호·비밀번호 화면) → 홈 (홈은 오늘치 3건, HOME-SCOPE)
   await user.click(screen.getByRole('button', { name: '로그인' })) // 랜딩
   await user.click(screen.getByRole('button', { name: '로그인' })) // 로그인 화면 제출
-  expect(screen.getAllByTestId('appt-card')).toHaveLength(3)
+  expect(screen.getAllByTestId(/status-card-/)).toHaveLength(3)
 
   // 홈 → 예약 탭 → 새 예약하기 (HOME-SCOPE-02: 홈엔 예약 버튼 없음, 진입은 '예약' 탭)
   await user.click(screen.getByRole('button', { name: '예약' }))
@@ -34,5 +34,5 @@ test('로그인→홈→예약 8단계→완료 후 나의 예약 목록에 1건
   await user.click(screen.getByRole('button', { name: '나중에 할게요' }))
 
   // 홈 예약이 2 → 3건
-  expect(screen.getAllByTestId('appt-card')).toHaveLength(3)
+  expect(screen.getAllByTestId(/status-card-/)).toHaveLength(3)
 })

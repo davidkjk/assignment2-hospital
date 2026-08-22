@@ -2,9 +2,35 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, CalendarPlus, Hospital, Settings } from '@/components/icons'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { Button } from '@/components/ui/button'
-import { AppointmentCard } from '@/components/AppointmentCard'
+// 홈 오늘 카드 = 정본 '풍부한' 카드(StatusCard) — 상태에 따라 가운데가 QR→접수됨→내 앞에 N명→진료중으로 바뀐다.
+import { StatusCard } from '@/routes/patient/notifications/StatusCard'
+import type { DemoAppointment } from '@/routes/patient/notifications/mockData'
 import { useAppointments } from '@/state/appointments'
-import { today } from '@/mock/data'
+import { patients, today } from '@/mock/data'
+import type { Appointment } from '@/mock/types'
+
+const relationByName = new Map(patients.map((p) => [p.name, p.relation]))
+
+// 홈 Appointment(4개 상태)를 정본 카드 입력(DemoAppointment)으로 맞춘다.
+function toStatusCard(appt: Appointment): DemoAppointment {
+  return {
+    id: appt.id,
+    patientName: appt.patientName,
+    relation: relationByName.get(appt.patientName) ?? '가족',
+    date: appt.date,
+    time: appt.time,
+    department: appt.deptName,
+    doctor: appt.doctorName,
+    reference: appt.bookingCode ?? '발급 예정',
+    // 접수완료=도착(체크인). 나머지(예약확정·예약신청·진료대기)는 그대로.
+    status: appt.status === '접수완료' ? '도착' : appt.status,
+    bookingCode: appt.bookingCode,
+    // 진료대기면 대기 순번을 보여 준다(데모값).
+    ...(appt.status === '진료대기' ? { queueAhead: 2, waitMinutes: 20 } : {}),
+    questionnaireStatus: appt.questionnaireStatus,
+    questionnaireProgress: appt.questionnaireProgress,
+  }
+}
 
 // 정본 묶음 2(screen-behaviors.md:3027~3336), NAV-HOME-*.
 // 가장 가까운 하루치 예약을 카드로, [+ 진료 예약하기]로 마법사 진입.
@@ -67,9 +93,9 @@ export function Home() {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {todayAppointments.map((a) => (
-                <AppointmentCard key={a.id} appt={a} />
+                <StatusCard key={a.id} appointment={toStatusCard(a)} />
               ))}
             </div>
           )}
