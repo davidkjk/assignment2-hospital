@@ -82,4 +82,13 @@ export const queue: QueuePatient[] = [
       { date: '2026.06.20', department: '정형외과', doctor: '박강우', summary: '좌측 무릎 퇴행성 관절염, 주사 치료 및 약 처방' },
     ],
   },
+  {
+    id: 'q4', position: 4, name: '임철수', birth: '1970-07-02', gender: '남', status: '도착', waitMin: 2,
+    appt: { time: '11:40', department: '정형외과', reason: '허리 통증, 앉았다 일어날 때 심함' },
+    questionnaire: [
+      { q: '오늘 방문하신 이유는 무엇인가요?', a: '3일 전부터 허리가 아픔' },
+      { q: '다리로 저림이 내려가나요?', a: '오른쪽 다리가 약간 저림' },
+    ],
+    history: [],
+  },
 ]

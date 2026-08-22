@@ -18,13 +18,17 @@ export interface StaffMember {
 
 export const ME = '김서연'
 
+// 의사 6명 근무(요구사항 5~8명) + 초대 중 1명 + 중지 1명
 export const staffMembers: StaffMember[] = [
   { id: 's1', name: '김서연', role: '관리자', active: true, lastLogin: '오늘 08:57' },
   { id: 's2', name: '박지민', role: '접수직원', active: true, lastLogin: '오늘 09:02' },
   { id: 's3', name: '이정훈', role: '의사', department: '내과', active: true, lastLogin: '오늘 08:40', specialty: '고혈압·당뇨 등 만성질환', bio: '내과 전문의. 만성질환 관리 20년.', color: 0 },
   { id: 's4', name: '한서연', role: '의사', department: '내과', active: true, lastLogin: '어제 17:26', specialty: '소화기 내시경', color: 3 },
   { id: 's5', name: '박강우', role: '의사', department: '정형외과', active: true, lastLogin: '오늘 08:33', specialty: '무릎·어깨 관절', color: 8 },
-  { id: 's6', name: '정하윤', role: '의사', department: '정형외과', active: true, invitePending: true, inviteSent: '8월 14일 초대 보냄' },
+  { id: 's6', name: '정하윤', role: '의사', department: '정형외과', active: true, lastLogin: '오늘 08:21', specialty: '척추·재활', color: 6 },
+  { id: 's8', name: '김도현', role: '의사', department: '이비인후과', active: true, lastLogin: '오늘 08:48', specialty: '비염·중이염', color: 1 },
+  { id: 's9', name: '최유진', role: '의사', department: '가정의학과', active: true, lastLogin: '오늘 08:39', specialty: '건강검진·예방접종', color: 7 },
+  { id: 's10', name: '윤재호', role: '의사', department: '이비인후과', active: true, invitePending: true, inviteSent: '8월 14일 초대 보냄' },
   { id: 's7', name: '최민석', role: '접수직원', active: false, lastLogin: '8월 6일 17:26' },
 ]
 
@@ -69,10 +73,14 @@ function weekTemplate(base: Omit<DaySchedule, 'dayOff'>, offDays: WeekDay[] = ['
   return out
 }
 
+// 의사 6명 · 하루 최대 인원 합 ≈ 100명(요구사항: 하루 외래 100명 안팎)
 export const scheduleDoctors: DoctorSchedule[] = [
-  { id: 's3', name: '이정훈', department: '내과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 15, lunch: '12:30–13:30', maxPatients: 40, bookingDeadline: '17:30' }, ['일']) },
-  { id: 's4', name: '한서연', department: '내과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 20, lunch: '12:00–13:00', maxPatients: 30, bookingDeadline: '16:30' }, ['수', '일']) },
-  { id: 's5', name: '박강우', department: '정형외과', week: weekTemplate({ open: '10:00', close: '18:00', slotMin: 30, lunch: '12:00–13:00', maxPatients: 24, bookingDeadline: '17:00' }, ['일']) },
+  { id: 's3', name: '이정훈', department: '내과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 15, lunch: '12:00–13:00', maxPatients: 18, bookingDeadline: '17:30' }, ['일']) },
+  { id: 's4', name: '한서연', department: '내과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 20, lunch: '12:30–13:30', maxPatients: 16, bookingDeadline: '16:30' }, ['수', '일']) },
+  { id: 's5', name: '박강우', department: '정형외과', week: weekTemplate({ open: '10:00', close: '18:00', slotMin: 20, lunch: '12:00–13:00', maxPatients: 16, bookingDeadline: '17:00' }, ['일']) },
+  { id: 's6', name: '정하윤', department: '정형외과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 20, lunch: '12:30–13:30', maxPatients: 16, bookingDeadline: '17:00' }, ['토', '일']) },
+  { id: 's8', name: '김도현', department: '이비인후과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 10, lunch: '12:00–13:00', maxPatients: 20, bookingDeadline: '17:30' }, ['일']) },
+  { id: 's9', name: '최유진', department: '가정의학과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 15, lunch: '12:00–13:00', maxPatients: 16, bookingDeadline: '16:30' }, ['일']) },
 ]
 
 export interface Department {
@@ -84,12 +92,15 @@ export interface Department {
 export const departments: Department[] = [
   { id: 'dep1', name: '내과', doctorCount: 2, active: true },
   { id: 'dep2', name: '정형외과', doctorCount: 2, active: true },
+  { id: 'dep4', name: '이비인후과', doctorCount: 1, active: true },
+  { id: 'dep5', name: '가정의학과', doctorCount: 1, active: true },
   { id: 'dep3', name: '소아청소년과', doctorCount: 0, active: false },
 ]
 
 export const scheduleExceptions = [
   { id: 'e1', date: '2026-09-05 (금)', doctor: '박강우', change: '오후 휴진 (학회 참석)' },
-  { id: 'e2', date: '2026-09-28 (월)', doctor: '전체', change: '추석 연휴 휴진' },
+  { id: 'e2', date: '2026-09-19 (금)', doctor: '김도현', change: '오전 휴진 (개인 사정)' },
+  { id: 'e3', date: '2026-09-28 (월)', doctor: '전체', change: '추석 연휴 휴진' },
 ]
 
 // ── 문진표 관리 (QADM-*) ──
@@ -110,7 +121,8 @@ export interface QnaDept {
 export const qnaDepartments: QnaDept[] = [
   { id: 'dep1', name: '내과', currentVersion: 3 },
   { id: 'dep2', name: '정형외과', currentVersion: 1 },
-  { id: 'dep3', name: '소아청소년과', currentVersion: null },
+  { id: 'dep4', name: '이비인후과', currentVersion: 2 },
+  { id: 'dep5', name: '가정의학과', currentVersion: null },
 ]
 export const qnaQuestions: Record<string, QnaQuestion[]> = {
   dep1: [
@@ -123,7 +135,11 @@ export const qnaQuestions: Record<string, QnaQuestion[]> = {
     { id: 'q5', text: '어느 부위가 아프신가요?', type: '단답형', required: true, audience: '모든 환자' },
     { id: 'q6', text: '다치신 적이 있나요?', type: '예/아니오', required: false, audience: '모든 환자' },
   ],
-  dep3: [],
+  dep4: [
+    { id: 'q7', text: '어떤 증상으로 오셨나요?', type: '장문형', required: true, audience: '모든 환자' },
+    { id: 'q8', text: '증상이 시작된 지 얼마나 되었나요?', type: '단답형', required: false, audience: '모든 환자' },
+    { id: 'q9', text: '열이 있나요?', type: '예/아니오', required: true, audience: '모든 환자' },
+  ],
 }
 export interface QnaVersion {
   versionNo: number
@@ -139,7 +155,10 @@ export const qnaVersions: Record<string, QnaVersion[]> = {
     { versionNo: 1, savedAt: '2026.01.15 09:40', savedBy: '이관리', questionCount: 3, current: false },
   ],
   dep2: [{ versionNo: 1, savedAt: '2026.03.20 10:00', savedBy: '김서연', questionCount: 2, current: true }],
-  dep3: [],
+  dep4: [
+    { versionNo: 2, savedAt: '2026.07.11 09:30', savedBy: '김서연', questionCount: 3, current: true },
+    { versionNo: 1, savedAt: '2026.02.08 14:15', savedBy: '이관리', questionCount: 2, current: false },
+  ],
 }
 
 // ── 병원 설정 (HSET-*) ──
