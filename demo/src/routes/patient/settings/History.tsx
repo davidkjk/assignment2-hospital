@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CalendarPlus, ChevronDown, Eye, History as HistoryIcon } from '@/components/icons'
 import { useNavigate } from 'react-router-dom'
 import { PhoneFrame } from '@/components/PhoneFrame'
@@ -164,9 +164,36 @@ export function History() {
   const visibleHistory = selectedHistory.slice(0, visibleCount)
   const hasMore = visibleCount < selectedHistory.length
 
+  // 옛 기록으로 빨리 가기 — 이미 있는 연/월 그룹을 살려 '연도 바로가기'를 준다(A-2).
+  const years = useMemo(() => {
+    const seen: string[] = []
+    for (const record of selectedHistory) {
+      const year = String(new Date(`${record.date}T12:00:00`).getFullYear())
+      if (!seen.includes(year)) seen.push(year)
+    }
+    return seen
+  }, [selectedHistory])
+  const [pendingScrollYear, setPendingScrollYear] = useState<string | null>(null)
+
+  // 연도를 누르면 그 해가 렌더될 만큼 먼저 펼친 뒤(visibleCount) 해당 연도 헤더로 스크롤한다.
+  useEffect(() => {
+    if (!pendingScrollYear) return
+    const target = document.getElementById(`history-year-${pendingScrollYear}`)
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setPendingScrollYear(null)
+    }
+  }, [pendingScrollYear, visibleCount])
+
+  const jumpToYear = (year: string) => {
+    setVisibleCount(selectedHistory.length)
+    setPendingScrollYear(year)
+  }
+
   const selectPatient = (patient: Patient) => {
     setSelectedPatientId(patient.id)
     setVisibleCount(PAGE_SIZE)
+    setPendingScrollYear(null)
   }
 
   let lastYear = ''
@@ -194,6 +221,23 @@ export function History() {
             </div>
           )}
 
+          {years.length > 1 && (
+            <div className="mb-4 flex items-center gap-2 overflow-x-auto pb-1" aria-label="연도 바로가기">
+              <span className="shrink-0 text-xs text-muted-foreground">바로가기</span>
+              {years.map((year) => (
+                <button
+                  key={year}
+                  type="button"
+                  data-testid={`year-jump-${year}`}
+                  onClick={() => jumpToYear(year)}
+                  className="shrink-0 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5"
+                >
+                  {year}년
+                </button>
+              ))}
+            </div>
+          )}
+
           {visibleHistory.length === 0 ? (
             <div className="flex flex-col items-center gap-4 py-20 text-center">
               <p className="text-muted-foreground">아직 방문하신 기록이 없습니다</p>
@@ -214,7 +258,7 @@ export function History() {
                   <div key={record.id} className="space-y-2">
                     {/* 연/월 구분 — 사람들이 이력에서 연·월 구분을 중요시함. 월은 그룹 헤더로(레일 중복 제거) */}
                     {showYear && (
-                      <div className="flex items-center gap-3 pt-3">
+                      <div id={`history-year-${rail.year}`} className="flex items-center gap-3 pt-3">
                         <h2 className="text-base font-bold text-foreground">{rail.year}년</h2>
                         <span className="h-px flex-1 bg-border" />
                       </div>
