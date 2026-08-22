@@ -75,8 +75,8 @@ function buildHistoryAppointment(index: number, patient: Patient, seed: number):
 }
 
 // 사람마다 건수를 달리해(본인 많이·가족 적게) 칩을 바꾸면 목록이 확연히 달라지게 한다.
-// 본인은 20건 이어받기 데모를 위해 25건 유지.
-const HISTORY_COUNT: Record<string, number> = { 'p-self': 25, 'p-mom': 9, 'p-son': 4 }
+// 본인은 20건 이어받기 데모를 위해 25건 유지. 아들은 '수정 가능(진료 이력 0)' 예시라 이력 0으로 맞춘다(FAM-EDIT-03/08 정합).
+const HISTORY_COUNT: Record<string, number> = { 'p-self': 25, 'p-mom': 9, 'p-son': 0 }
 
 /** 최근 20건 뒤에 이어 받을 수 있도록 사람별로 준비한 데모 이력 데이터. */
 export const historyAppointments: HistoryAppointment[] = patients

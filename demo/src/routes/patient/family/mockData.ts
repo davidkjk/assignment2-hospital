@@ -43,7 +43,10 @@ export const currentPatient: FamilyMember = {
   phone: selfDetails.phone,
   source: 'self',
   isActive: true,
-  canEditIdentity: true,
+  // 본인도 진료 기록이 있으면 이름·생년월일·성별은 병원에서만 수정(FAM-EDIT-08).
+  // 김순자는 이력 25회 → 잠김. 가입 직후 오타 수정(이력 0)의 '수정 가능' 예시는 아들이 맡는다.
+  canEditIdentity: false,
+  identityLockReason: '진료 기록이 있어 병원에서만 수정할 수 있습니다',
 }
 
 /** 가족 목록에는 본인을 중복해서 넣지 않는다. 본인 카드는 목록 화면에서 맨 위에 별도로 보인다. */
