@@ -206,9 +206,12 @@ function QuestionStep({
       </div>
 
       <div className="mt-8 flex gap-2 border-t pt-4">
-        <Button className="flex-1 hover:border-primary" disabled={isFirstQuestion} onClick={onBack} variant="outline">
-          이전
-        </Button>
+        {/* 확인 화면에서 한 문항만 고치러 들어온 경우(returnToReview)엔 '이전'이 필요 없다 — 되돌아갈 곳은 확인 화면 하나뿐. */}
+        {!returnToReview && (
+          <Button className="flex-1 hover:border-primary" disabled={isFirstQuestion} onClick={onBack} variant="outline">
+            이전
+          </Button>
+        )}
         <Button className="flex-1" onClick={onNext}>
           {returnToReview ? '확인으로 돌아가기' : isLastQuestion ? '최종 확인' : '다음'}
         </Button>
