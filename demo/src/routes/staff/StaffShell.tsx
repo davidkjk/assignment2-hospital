@@ -174,16 +174,19 @@ function Sidebar() {
   )
 }
 
-// 화면 제목 (헤더 좌측) — route → 제목
-const TITLES: Record<string, string> = {
-  '/staff/today': '오늘의 현황',
-  '/staff/queue': '대기 목록',
+// 화면 제목 (헤더 좌측) — 사이드바 라벨을 단일 출처로 삼아 모든 화면이 같은 헤더 양식을 쓴다.
+const NAV_TITLE: Record<string, string> = (() => {
+  const m: Record<string, string> = { [DOCTOR_CONSOLE.to]: DOCTOR_CONSOLE.label }
+  for (const g of GROUPS) for (const it of g.items) m[it.to] = it.label
+  return m
+})()
+const EXTRA_TITLE: Record<string, string> = {
+  '/staff': '오늘의 현황', // 인덱스
   '/staff/checkin': 'QR·예약번호 접수',
-  '/staff/patients': '환자 검색',
 }
 function titleFor(path: string): string {
   if (path.startsWith('/staff/patients/')) return '환자 상세'
-  return TITLES[path] ?? '가온병원 직원 웹'
+  return NAV_TITLE[path] ?? EXTRA_TITLE[path] ?? '가온병원 직원 웹'
 }
 
 function RoleMenu() {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, MessageCircle, Sparkles, UserRound, Check, AlertTriangle } from '@/components/icons'
+import { CalendarDays, MessageCircle, Sparkles, UserRound, Stethoscope, Check, AlertTriangle } from '@/components/icons'
 import { StaffPage, PageHead, Segmented, EmptyState, btnPrimary, btnGhost } from '../_ui'
 import {
   INITIAL_TICKETS,
@@ -247,28 +247,31 @@ function TicketDetail({
 }
 
 function SummaryItem({ label, value }: { label: string; value: string | null }) {
+  // 라벨(작고 옅게)↔값(진하고 굵게) 대비를 확실히 (사용자 지적: 글자 구분이 안 됨)
   return (
     <div>
-      <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
-      <dd className={`text-sm ${value ? '' : 'text-muted-foreground'}`}>{value ?? '없음'}</dd>
+      <dt className="text-[11px] font-medium tracking-wide text-muted-foreground/80">{label}</dt>
+      <dd className={`mt-0.5 text-sm font-semibold ${value ? 'text-foreground' : 'font-normal text-muted-foreground'}`}>{value ?? '없음'}</dd>
     </div>
   )
 }
 
 function Bubble({ m }: { m: TicketMessage }) {
-  const isStaff = m.sender === '직원'
+  // 환자 = 왼쪽 / 답하는 쪽(AI·직원) = 오른쪽 — 좌우로 갈라 한눈에 구분 (사용자 지적)
+  const right = m.sender !== '환자'
   const tone =
-    m.sender === 'AI'
-      ? 'bg-violet-50 text-violet-900'
-      : m.sender === '직원'
-      ? 'bg-primary text-primary-foreground'
-      : 'bg-muted text-foreground'
-  const Icon = m.sender === 'AI' ? Sparkles : UserRound
+    m.sender === '환자'
+      ? 'bg-muted text-foreground'
+      : m.sender === 'AI'
+      ? 'bg-violet-100 text-violet-900'
+      : 'bg-primary text-primary-foreground'
+  const metaTone = m.sender === '직원' ? 'text-primary-foreground/80' : 'text-muted-foreground'
+  const Icon = m.sender === 'AI' ? Sparkles : m.sender === '직원' ? Stethoscope : UserRound
   return (
-    <div className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${right ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[78%] rounded-2xl px-3 py-2 ${tone}`}>
-        <div className={`mb-0.5 flex items-center gap-1 text-[11px] ${isStaff ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-          {!isStaff && <Icon className="h-3 w-3" />}
+        <div className={`mb-0.5 flex items-center gap-1 text-[11px] font-medium ${metaTone}`}>
+          <Icon className="h-3 w-3" />
           {m.sender} · {m.time}
         </div>
         <p className="text-sm leading-snug">{m.text}</p>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarPlus,
   ChevronLeft,
@@ -13,7 +13,9 @@ import { maskBirth } from '../mockData'
 import {
   WIN_START,
   WIN_END,
-  PX_PER_MIN,
+  PX_PER_MIN_DEFAULT,
+  PX_PER_MIN_MIN,
+  PX_PER_MIN_MAX,
   calendarDoctors,
   calendarOffHours,
   calendarAppointments,
@@ -23,25 +25,19 @@ import {
 } from './mockData'
 
 // 예약 캘린더 (/staff/calendar) — CAL-*, SUPPORT-CAL-*.
-// 하루 보기: 세로축=시각, 가로=의사 열 (CAL-VIEW-01·03). 격자가 아니라 시간표 —
-// 블록 위·아래 끝이 시작·종료 시각, 길이에 비례 (CAL-TIME-02).
-// ⭐ 이 화면의 주인공 = "빈 자리의 모양": 칠해지지 않은 곳이 곧 빈 시간(CAL-WEEK-03),
-//    이어진 빈 구간을 점선 블록 한 덩어리로 "빈 시간 09:40–10:00"처럼 적는다(CAL-SLOT-01).
+// 하루 종일(09–18) 시간표: 세로축=시각, 가로=의사 열. 칠해지지 않은 곳이 빈 시간(CAL-WEEK-03).
+// 지금 선 + 현재 시각으로 자동 스크롤(CAL-PAST-05) · 시간축 드래그로 늘리기(CAL-ZOOM-*).
 // data-testid="staff-calendar".
 
 const toMin = (t: string) => {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
 }
-const fmt = (min: number) => {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
+const fmt = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+
 const BASE = toMin(WIN_START)
 const END = toMin(WIN_END)
-const HEIGHT = (END - BASE) * PX_PER_MIN
-const top = (t: number) => (t - BASE) * PX_PER_MIN
+const GUTTER = 56 // 시간축 너비(px)
 
 interface Segment {
   kind: 'appt' | 'off' | 'gap'
@@ -62,7 +58,6 @@ function buildColumn(doc: CalendarDoctor): Segment[] {
     .forEach((o) => busy.push({ kind: 'off', start: toMin(o.start), end: toMin(o.end), offKind: o.kind }))
   busy.sort((x, y) => x.start - y.start)
 
-  // 빈 구간 채우기 (CAL-SLOT-01: 이어진 빈 곳은 한 덩어리)
   const out: Segment[] = []
   let cursor = BASE
   for (const seg of busy) {
@@ -85,6 +80,28 @@ export function Calendar() {
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set(calendarDoctors.map((d) => d.id)))
   const [panel, setPanel] = useState<Panel>(null)
   const [confirmCancel, setConfirmCancel] = useState<CalendarAppointment | null>(null)
+  const [pxPerMin, setPxPerMin] = useState(PX_PER_MIN_DEFAULT)
+
+  // 현재 시각(오늘 기준) — 지금 선 · 자동 스크롤용. 창 밖이면 선을 숨긴다.
+  const nowMin = useMemo(() => {
+    const d = new Date()
+    return d.getHours() * 60 + d.getMinutes()
+  }, [])
+  const nowInWindow = nowMin >= BASE && nowMin <= END
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const height = (END - BASE) * pxPerMin
+  const yOf = (t: number) => (t - BASE) * pxPerMin
+
+  // 열 때 현재 시각이 보이게 아래로 내려간다 (사용자 요청) — 지금 선을 위에서 1/3 지점에.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const target = nowInWindow ? yOf(nowMin) - el.clientHeight / 3 : 0
+    el.scrollTop = Math.max(0, target)
+    // 최초 1회만 (배율 바꿀 때 튀지 않게)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const visibleDocs = calendarDoctors.filter(
     (d) => (!dept || d.department === dept) && selectedDocs.has(d.id),
@@ -103,8 +120,27 @@ export function Calendar() {
     setSelectedDocs(new Set(calendarDoctors.map((d) => d.id)))
   }
 
+  // 시간축 드래그로 1시간 높이 조절 (CAL-ZOOM-01) — 아래로 끌면 넓어진다.
+  const startZoomDrag = (e: React.PointerEvent) => {
+    e.preventDefault()
+    const startY = e.clientY
+    const startPpm = pxPerMin
+    const onMove = (ev: PointerEvent) => {
+      const next = startPpm + (ev.clientY - startY) * 0.02
+      setPxPerMin(Math.min(PX_PER_MIN_MAX, Math.max(PX_PER_MIN_MIN, next)))
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+  const bump = (dir: 1 | -1) =>
+    setPxPerMin((p) => Math.min(PX_PER_MIN_MAX, Math.max(PX_PER_MIN_MIN, p + dir * 0.4)))
+
   return (
-    <StaffPage max="max-w-full" testid="staff-calendar">
+    <StaffPage max="max-w-full" testid="staff-calendar" footer={false}>
       <PageHead
         title="예약 캘린더"
         sub="시간표에서 빈 자리를 보고 전화로 예약을 잡습니다 · 칠해지지 않은 곳이 빈 시간입니다"
@@ -129,14 +165,10 @@ export function Calendar() {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <Chip active={!dept && selectedDocs.size === calendarDoctors.length} onClick={showAll}>
-            전체
-          </Chip>
+          <Chip active={!dept && selectedDocs.size === calendarDoctors.length} onClick={showAll}>전체</Chip>
           <span className="mx-0.5 h-4 w-px bg-border" />
           {departments.map((d) => (
-            <Chip key={d} active={dept === d} onClick={() => setDept(dept === d ? null : d)}>
-              {d}
-            </Chip>
+            <Chip key={d} active={dept === d} onClick={() => setDept(dept === d ? null : d)}>{d}</Chip>
           ))}
           <span className="mx-0.5 h-4 w-px bg-border" />
           {calendarDoctors
@@ -150,30 +182,69 @@ export function Calendar() {
         </div>
       </div>
 
-      {/* 격자 + 사이드패널 — 패널이 열리면 격자를 밀어서 좁힌다 (CAL-PANEL-02, ⛔덮지 않음) */}
       <div className="flex gap-3">
-        <div className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-          <div className="flex min-w-max">
-            {/* 시간축 눈금 */}
-            <TimeGutter />
-            {visibleDocs.map((doc) => (
-              <DoctorColumn
-                key={doc.id}
-                doc={doc}
-                onAppt={(a) => setPanel({ mode: 'appt', appt: a })}
-                onGap={(t) => setPanel({ mode: 'book', doctorId: doc.id, time: t })}
-                activeId={panel?.mode === 'appt' ? panel.appt.id : undefined}
-              />
-            ))}
+        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+          {/* 배율 조절 줄 (CAL-ZOOM-06 [기본 배율]) */}
+          <div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5 text-xs text-muted-foreground">
+            <span>
+              {nowInWindow ? <>지금 <b className="font-semibold text-rose-600 tabular-nums">{fmt(nowMin)}</b> 기준으로 열렸습니다</> : '오늘 진료 시간 밖입니다'}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="mr-1 hidden sm:inline">시간축을 위아래로 끌면 넓어집니다</span>
+              <button onClick={() => bump(-1)} className="rounded-md border border-border px-2 py-0.5 hover:bg-muted" aria-label="축소">−</button>
+              <button onClick={() => setPxPerMin(PX_PER_MIN_DEFAULT)} className="rounded-md border border-border px-2 py-0.5 hover:bg-muted">기본 배율</button>
+              <button onClick={() => bump(1)} className="rounded-md border border-border px-2 py-0.5 hover:bg-muted" aria-label="확대">+</button>
+            </span>
+          </div>
+
+          {/* 스크롤 영역 (세로=시간, 가로=의사 많으면 스크롤) */}
+          <div ref={scrollRef} className="overflow-auto" style={{ maxHeight: 'calc(100vh - 15rem)' }}>
+            <div className="min-w-max">
+              {/* 열 머리 — 위에 고정 */}
+              <div className="sticky top-0 z-20 flex bg-card">
+                <div className="sticky left-0 z-30 border-b border-r border-border/70 bg-card" style={{ width: GUTTER }} />
+                {visibleDocs.map((doc) => (
+                  <div key={doc.id} className="w-48 shrink-0 border-b border-r border-border/70 px-3 py-1.5 last:border-r-0">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-sm font-semibold">{doc.name}</span>
+                      <span className="text-[11px] text-muted-foreground">{doc.department} · {doc.slotMinutes}분</span>
+                    </div>
+                    <div className="mt-1 h-0.5 rounded-full" style={{ background: doc.ink }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* 본문 — 시간축 + 의사 열 + 지금 선 */}
+              <div className="relative flex">
+                <TimeGutter pxPerMin={pxPerMin} height={height} onZoomDrag={startZoomDrag} />
+                {visibleDocs.map((doc) => (
+                  <DoctorColumn
+                    key={doc.id}
+                    doc={doc}
+                    pxPerMin={pxPerMin}
+                    height={height}
+                    onAppt={(a) => setPanel({ mode: 'appt', appt: a })}
+                    onGap={(t) => setPanel({ mode: 'book', doctorId: doc.id, time: t })}
+                    activeId={panel?.mode === 'appt' ? panel.appt.id : undefined}
+                  />
+                ))}
+
+                {/* 지금 선 (CAL-PAST-05) — 열 위에 가로선 */}
+                {nowInWindow && (
+                  <div className="pointer-events-none absolute z-10" style={{ top: yOf(nowMin), left: GUTTER, right: 0 }}>
+                    <div className="relative h-px bg-rose-500">
+                      <span className="absolute -top-2 -left-[52px] rounded bg-rose-500 px-1 py-0.5 text-[10px] font-medium tabular-nums text-white">{fmt(nowMin)}</span>
+                      <span className="absolute -top-1 left-0 h-2 w-2 -translate-x-1/2 rounded-full bg-rose-500" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
         {panel?.mode === 'appt' && (
-          <ApptPanel
-            appt={panel.appt}
-            onClose={() => setPanel(null)}
-            onCancel={() => setConfirmCancel(panel.appt)}
-          />
+          <ApptPanel appt={panel.appt} onClose={() => setPanel(null)} onCancel={() => setConfirmCancel(panel.appt)} />
         )}
         {panel?.mode === 'book' && (
           <BookPanel doctorId={panel.doctorId} time={panel.time} onClose={() => setPanel(null)} />
@@ -181,10 +252,7 @@ export function Calendar() {
       </div>
 
       {confirmCancel && (
-        <CancelConfirm appt={confirmCancel} onClose={() => setConfirmCancel(null)} onDone={() => {
-          setConfirmCancel(null)
-          setPanel(null)
-        }} />
+        <CancelConfirm appt={confirmCancel} onClose={() => setConfirmCancel(null)} onDone={() => { setConfirmCancel(null); setPanel(null) }} />
       )}
     </StaffPage>
   )
@@ -203,15 +271,19 @@ function Chip({ active, onClick, children }: { active?: boolean; onClick: () => 
   )
 }
 
-function TimeGutter() {
+function TimeGutter({ pxPerMin, height, onZoomDrag }: { pxPerMin: number; height: number; onZoomDrag: (e: React.PointerEvent) => void }) {
   const labels: number[] = []
   for (let t = BASE; t <= END; t += 30) labels.push(t)
   return (
-    <div className="relative w-14 shrink-0 border-r border-border/70" style={{ height: HEIGHT + 34 }}>
-      <div className="h-[34px] border-b border-border/70" />
-      <div className="relative" style={{ height: HEIGHT }}>
+    <div
+      className="sticky left-0 z-[5] shrink-0 cursor-ns-resize border-r border-border/70 bg-card"
+      style={{ width: GUTTER, height }}
+      onPointerDown={onZoomDrag}
+      title="위아래로 끌어 시간축을 넓히거나 좁힙니다"
+    >
+      <div className="relative" style={{ height }}>
         {labels.map((t) => (
-          <div key={t} className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground" style={{ top: top(t) }}>
+          <div key={t} className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground" style={{ top: (t - BASE) * pxPerMin }}>
             {fmt(t)}
           </div>
         ))}
@@ -222,40 +294,34 @@ function TimeGutter() {
 
 function DoctorColumn({
   doc,
+  pxPerMin,
+  height,
   onAppt,
   onGap,
   activeId,
 }: {
   doc: CalendarDoctor
+  pxPerMin: number
+  height: number
   onAppt: (a: CalendarAppointment) => void
   onGap: (t: number) => void
   activeId?: string
 }) {
   const segments = useMemo(() => buildColumn(doc), [doc])
-  // 30분 눈금 가로선
   const gridLines: number[] = []
   for (let t = BASE; t <= END; t += 30) gridLines.push(t)
+  const y = (t: number) => (t - BASE) * pxPerMin
 
   return (
     <div className="w-48 shrink-0 border-r border-border/70 last:border-r-0">
-      {/* 열 머리 — 이름 + 진료과·진료시간 + 색 밑줄 (CAL-NAME-02) */}
-      <div className="h-[34px] border-b border-border/70 px-3 py-1.5">
-        <div className="flex items-baseline justify-between">
-          <span className="text-sm font-semibold">{doc.name}</span>
-          <span className="text-[11px] text-muted-foreground">{doc.department} · {doc.slotMinutes}분</span>
-        </div>
-        <div className="mt-1 h-0.5 rounded-full" style={{ background: doc.ink }} />
-      </div>
-
-      <div className="relative bg-muted/20" style={{ height: HEIGHT }}>
-        {/* 눈금 가로선 (읽기 보조) */}
+      <div className="relative bg-muted/20" style={{ height }}>
         {gridLines.map((t) => (
-          <div key={t} className="pointer-events-none absolute left-0 right-0 border-t border-border/40" style={{ top: top(t) }} />
+          <div key={t} className="pointer-events-none absolute left-0 right-0 border-t border-border/40" style={{ top: y(t) }} />
         ))}
 
         {segments.map((seg, i) => {
-          const h = (seg.end - seg.start) * PX_PER_MIN
-          const style = { top: top(seg.start), height: h - 1 }
+          const h = (seg.end - seg.start) * pxPerMin
+          const style = { top: y(seg.start), height: h - 1 }
 
           if (seg.kind === 'gap') {
             return (
@@ -276,18 +342,13 @@ function DoctorColumn({
               <div
                 key={i}
                 className="absolute left-1 right-1 flex items-start rounded-md border border-border/60 px-2 py-1 text-[11px] text-muted-foreground"
-                style={{
-                  ...style,
-                  backgroundImage:
-                    'repeating-linear-gradient(45deg, rgba(100,116,139,0.10) 0 6px, transparent 6px 12px)',
-                }}
+                style={{ ...style, backgroundImage: 'repeating-linear-gradient(45deg, rgba(100,116,139,0.10) 0 6px, transparent 6px 12px)' }}
               >
-                <span className="tabular-nums">{seg.offKind} {fmt(seg.start)}–{fmt(seg.end)}</span>
+                {h >= 20 && <span className="tabular-nums">{seg.offKind} {fmt(seg.start)}–{fmt(seg.end)}</span>}
               </div>
             )
           }
 
-          // 예약 블록 (CAL-COLOR-14: 중간 톤 면 + 진한 글자)
           const a = seg.appt!
           const active = a.id === activeId
           return (
@@ -295,21 +356,20 @@ function DoctorColumn({
               key={i}
               onClick={() => onAppt(a)}
               title={`${a.patientName} · ${a.start}–${a.end} · ${a.status}`}
-              className={`absolute left-1 right-1 overflow-hidden rounded-md px-2 py-1 text-left transition-shadow ${
+              className={`absolute left-1 right-1 flex items-center gap-1 overflow-hidden rounded-md px-1.5 py-0.5 text-left transition-shadow ${
                 active ? 'ring-2 ring-primary ring-offset-1' : 'hover:brightness-[0.97]'
               }`}
               style={{ ...style, background: doc.fill, color: doc.ink, boxShadow: '0 1px 0 #fff' }}
             >
+              {/* 한 줄로 — 좁은 높이에서도 글자가 안 잘리게 (사용자 지적) */}
+              <span className="truncate text-[11px] font-semibold leading-none">{a.patientName}</span>
+              <span className="shrink-0 truncate text-[10px] leading-none opacity-70">
+                {a.status === '예약신청' ? '신청' : a.status}
+              </span>
               {a.support && (
-                <span className="absolute right-1 top-1 text-amber-600" title={`${a.support.type} · 확인 필요`}>
-                  <AlertTriangle className="h-3.5 w-3.5" />
+                <span className="ml-auto shrink-0 text-amber-600" title={`${a.support.type} · 확인 필요`}>
+                  <AlertTriangle className="h-3 w-3" />
                 </span>
-              )}
-              <div className="truncate text-xs font-semibold leading-tight">{a.patientName}</div>
-              {h >= 30 && (
-                <div className="mt-0.5 truncate text-[10px] leading-tight opacity-80">
-                  {a.status === '예약신청' ? '신청 · 미확정' : a.status}
-                </div>
               )}
             </button>
           )
@@ -321,7 +381,7 @@ function DoctorColumn({
 
 function PanelShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <aside className="w-80 shrink-0 rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+    <aside className="w-80 shrink-0 self-start rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold">{title}</h3>
         <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기">
@@ -350,15 +410,9 @@ function ApptPanel({ appt, onClose, onCancel }: { appt: CalendarAppointment; onC
         <span className="font-medium">{appt.patientName}</span>{' '}
         <span className="text-muted-foreground tabular-nums">{maskBirth(appt.patientBirth)}</span>
       </Field>
-      <Field label="진료">
-        {doc.department} / {doc.name}
-      </Field>
-      <Field label="시각">
-        <span className="tabular-nums">{appt.start}–{appt.end}</span>
-      </Field>
-      <Field label="상태">
-        <StatusBadge status={appt.status} />
-      </Field>
+      <Field label="진료">{doc.department} / {doc.name}</Field>
+      <Field label="시각"><span className="tabular-nums">{appt.start}–{appt.end}</span></Field>
+      <Field label="상태"><StatusBadge status={appt.status} /></Field>
       <Field label="예약 이유">{appt.reason}</Field>
 
       {appt.support && (
@@ -375,13 +429,9 @@ function ApptPanel({ appt, onClose, onCancel }: { appt: CalendarAppointment; onC
 
       <div className="mt-4 flex gap-2">
         <button className={`${btnGhost} flex-1 justify-center`}>예약 변경</button>
-        <button className={`${btnGhost} flex-1 justify-center`} onClick={onCancel}>
-          예약 취소
-        </button>
+        <button className={`${btnGhost} flex-1 justify-center`} onClick={onCancel}>예약 취소</button>
       </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        예약 변경은 격자에서 새 빈 시간을 눌러 고릅니다. 취소는 확인창에서 한 번 더 묻습니다.
-      </p>
+      <p className="mt-2 text-[11px] text-muted-foreground">예약 변경은 격자에서 새 빈 시간을 눌러 고릅니다. 취소는 확인창에서 한 번 더 묻습니다.</p>
     </PanelShell>
   )
 }
@@ -418,10 +468,7 @@ function BookPanel({ doctorId, time, onClose }: { doctorId?: string; time?: numb
               <ul className="mt-1.5 overflow-hidden rounded-lg border border-border">
                 {results.map((p) => (
                   <li key={p.id}>
-                    <button
-                      className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-sm hover:bg-muted"
-                      onClick={() => setPicked(p)}
-                    >
+                    <button className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-sm hover:bg-muted" onClick={() => setPicked(p)}>
                       <span className="font-medium">{p.name}</span>
                       <span className="text-xs text-muted-foreground tabular-nums">{maskBirth(p.birth)}</span>
                     </button>
@@ -436,25 +483,14 @@ function BookPanel({ doctorId, time, onClose }: { doctorId?: string; time?: numb
       <Field label="담당 의사">{doc ? `${doc.department} / ${doc.name}` : '격자에서 의사 열을 고르세요'}</Field>
       <Field label="날짜">2026년 8월 22일 (금)</Field>
       <Field label="시간">
-        {time != null ? (
-          <span className="tabular-nums">{fmt(time)}부터</span>
-        ) : (
-          <span className="text-muted-foreground">격자의 빈 곳을 눌러 시간을 고르세요</span>
-        )}
+        {time != null ? <span className="tabular-nums">{fmt(time)}부터</span> : <span className="text-muted-foreground">격자의 빈 곳을 눌러 시간을 고르세요</span>}
       </Field>
       <Field label="예약 이유">
-        <input
-          placeholder="전화로 들은 증상을 적습니다"
-          className="h-9 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
-        />
+        <input placeholder="전화로 들은 증상을 적습니다" className="h-9 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
       </Field>
 
-      <button className={`${btnPrimary} mt-2 w-full justify-center disabled:opacity-50`} disabled={!picked || time == null}>
-        예약 저장
-      </button>
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        저장 전에 환자·의사·시각을 한 번 더 확인합니다.
-      </p>
+      <button className={`${btnPrimary} mt-2 w-full justify-center disabled:opacity-50`} disabled={!picked || time == null}>예약 저장</button>
+      <p className="mt-2 text-[11px] text-muted-foreground">저장 전에 환자·의사·시각을 한 번 더 확인합니다.</p>
     </PanelShell>
   )
 }

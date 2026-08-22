@@ -28,7 +28,9 @@ export const staffMembers: StaffMember[] = [
   { id: 's6', name: '정하윤', role: '의사', department: '정형외과', active: true, lastLogin: '오늘 08:21', specialty: '척추·재활', color: 6 },
   { id: 's8', name: '김도현', role: '의사', department: '이비인후과', active: true, lastLogin: '오늘 08:48', specialty: '비염·중이염', color: 1 },
   { id: 's9', name: '최유진', role: '의사', department: '가정의학과', active: true, lastLogin: '오늘 08:39', specialty: '건강검진·예방접종', color: 7 },
-  { id: 's10', name: '윤재호', role: '의사', department: '이비인후과', active: true, invitePending: true, inviteSent: '8월 14일 초대 보냄' },
+  { id: 's11', name: '서지훈', role: '의사', department: '내과', active: true, lastLogin: '오늘 08:52', specialty: '위·대장 소화기', color: 2 },
+  { id: 's12', name: '오세영', role: '의사', department: '이비인후과', active: true, lastLogin: '어제 18:03', specialty: '이명·난청', color: 9 },
+  { id: 's10', name: '윤재호', role: '의사', department: '가정의학과', active: true, invitePending: true, inviteSent: '8월 14일 초대 보냄' },
   { id: 's7', name: '최민석', role: '접수직원', active: false, lastLogin: '8월 6일 17:26' },
 ]
 
@@ -73,14 +75,16 @@ function weekTemplate(base: Omit<DaySchedule, 'dayOff'>, offDays: WeekDay[] = ['
   return out
 }
 
-// 의사 6명 · 하루 최대 인원 합 ≈ 100명(요구사항: 하루 외래 100명 안팎)
+// 의사 8명(상한) · 하루 최대 인원 합 ≈ 106명(요구사항: 하루 외래 100명 안팎)
 export const scheduleDoctors: DoctorSchedule[] = [
-  { id: 's3', name: '이정훈', department: '내과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 15, lunch: '12:00–13:00', maxPatients: 18, bookingDeadline: '17:30' }, ['일']) },
-  { id: 's4', name: '한서연', department: '내과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 20, lunch: '12:30–13:30', maxPatients: 16, bookingDeadline: '16:30' }, ['수', '일']) },
-  { id: 's5', name: '박강우', department: '정형외과', week: weekTemplate({ open: '10:00', close: '18:00', slotMin: 20, lunch: '12:00–13:00', maxPatients: 16, bookingDeadline: '17:00' }, ['일']) },
-  { id: 's6', name: '정하윤', department: '정형외과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 20, lunch: '12:30–13:30', maxPatients: 16, bookingDeadline: '17:00' }, ['토', '일']) },
-  { id: 's8', name: '김도현', department: '이비인후과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 10, lunch: '12:00–13:00', maxPatients: 20, bookingDeadline: '17:30' }, ['일']) },
-  { id: 's9', name: '최유진', department: '가정의학과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 15, lunch: '12:00–13:00', maxPatients: 16, bookingDeadline: '16:30' }, ['일']) },
+  { id: 's3', name: '이정훈', department: '내과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 15, lunch: '12:00–13:00', maxPatients: 14, bookingDeadline: '17:30' }, ['일']) },
+  { id: 's4', name: '한서연', department: '내과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 20, lunch: '12:30–13:30', maxPatients: 13, bookingDeadline: '16:30' }, ['수', '일']) },
+  { id: 's5', name: '박강우', department: '정형외과', week: weekTemplate({ open: '10:00', close: '18:00', slotMin: 20, lunch: '12:00–13:00', maxPatients: 13, bookingDeadline: '17:00' }, ['일']) },
+  { id: 's6', name: '정하윤', department: '정형외과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 20, lunch: '12:30–13:30', maxPatients: 13, bookingDeadline: '17:00' }, ['토', '일']) },
+  { id: 's8', name: '김도현', department: '이비인후과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 10, lunch: '12:00–13:00', maxPatients: 18, bookingDeadline: '17:30' }, ['일']) },
+  { id: 's9', name: '최유진', department: '가정의학과', week: weekTemplate({ open: '09:00', close: '17:00', slotMin: 15, lunch: '13:00–14:00', maxPatients: 13, bookingDeadline: '16:30' }, ['일']) },
+  { id: 's11', name: '서지훈', department: '내과', week: weekTemplate({ open: '09:00', close: '18:00', slotMin: 15, lunch: '12:00–13:00', maxPatients: 13, bookingDeadline: '17:30' }, ['일']) },
+  { id: 's12', name: '오세영', department: '이비인후과', week: weekTemplate({ open: '09:00', close: '15:00', slotMin: 15, lunch: '12:00–13:00', maxPatients: 9, bookingDeadline: '14:30' }, ['일']) },
 ]
 
 export interface Department {
@@ -90,9 +94,9 @@ export interface Department {
   active: boolean
 }
 export const departments: Department[] = [
-  { id: 'dep1', name: '내과', doctorCount: 2, active: true },
+  { id: 'dep1', name: '내과', doctorCount: 3, active: true },
   { id: 'dep2', name: '정형외과', doctorCount: 2, active: true },
-  { id: 'dep4', name: '이비인후과', doctorCount: 1, active: true },
+  { id: 'dep4', name: '이비인후과', doctorCount: 2, active: true },
   { id: 'dep5', name: '가정의학과', doctorCount: 1, active: true },
   { id: 'dep3', name: '소아청소년과', doctorCount: 0, active: false },
 ]
