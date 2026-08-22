@@ -21,7 +21,7 @@ export function Login() {
         </div>
 
         <div className="flex w-full flex-col gap-3">
-          <Button size="lg" className="h-12 w-full text-base" onClick={() => navigate('/home')}>
+          <Button size="lg" className="h-12 w-full text-base" onClick={() => navigate('/login')}>
             로그인
           </Button>
           <Button
@@ -42,6 +42,14 @@ export function Login() {
           <p className="mt-2 text-center text-xs text-muted-foreground">
             데모 화면입니다 · 실제 로그인 없이 진행됩니다
           </p>
+          <button
+            type="button"
+            data-testid="qa-gallery-entry"
+            onClick={() => navigate('/cards')}
+            className="mt-1 w-full rounded-xl border border-dashed py-2.5 text-center text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+          >
+            QA · 예약 카드 상태 모음 보기 ›
+          </button>
         </div>
       </div>
     </PhoneFrame>

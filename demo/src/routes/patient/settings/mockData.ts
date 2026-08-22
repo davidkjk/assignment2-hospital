@@ -44,10 +44,12 @@ function toISO(date: Date) {
 
 function buildHistoryAppointment(index: number, patient: Patient, seed: number): HistoryAppointment {
   // seed(사람 순번)로 과·상태·날짜를 어긋나게 해 사람마다 이력 내용이 다르게 보이도록 한다.
+  // 최근 몇 건만 2026년, 나머지는 2025년으로 — 이력이 짧은 사람(어머니 등)도 두 해에 걸쳐
+  // '연도 바로가기'가 보이게 한다(A-2).
   const date =
-    index < 20
+    index < 5
       ? new Date(2026, 7, 19 - index - seed * 3)
-      : new Date(2025, 11, 18 - (index - 20) * 7 - seed * 5)
+      : new Date(2025, 11, 18 - (index - 5) * 7 - seed * 5)
   const [deptName, doctorName] = departmentPattern[(index + seed) % departmentPattern.length]
   const status = statusPattern[(index + seed * 2) % statusPattern.length]
   const dateValue = toISO(date)

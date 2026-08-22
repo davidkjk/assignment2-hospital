@@ -9,8 +9,12 @@ test('홈 경로가 폰 프레임 안에 렌더된다', () => {
   expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 })
 
-test('로그인 버튼이 홈으로 보낸다', async () => {
+test('로그인 버튼이 로그인 화면을 거쳐 홈으로 보낸다', async () => {
   renderApp(routes, ['/'])
+  // 랜딩 [로그인] → 전화번호·비밀번호 입력 화면(AUTH-LOGIN)
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }))
+  expect(screen.getByTestId('login-form')).toBeInTheDocument()
+  // 로그인 화면 제출 → 홈(AUTH-LOGIN-09, 데모라 실제 인증 없음)
   await userEvent.click(screen.getByRole('button', { name: '로그인' }))
   expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 })
