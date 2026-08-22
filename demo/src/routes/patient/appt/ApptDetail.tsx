@@ -66,6 +66,9 @@ export function ApptDetail() {
   const detail = getAppointmentDetailData(appointment.id)
   const relation = appointment.patientName === '김순자' ? '본인' : '가족'
   const canManage = MANAGEABLE_STATUSES.has(appointment.status)
+  // 확정 전(예약신청)은 용어가 상태를 따라간다 — '예약 취소'가 아니라 '신청 취소'(APPT-HEAD-04·CARD-COMMON-02).
+  const isPending = appointment.status === '예약신청'
+  const cancelLabel = isPending ? '신청 취소' : '예약 취소'
 
   // 취소 확인창(pre·new)과 마감 후 안내 팝업(late)을 상세 위에 띄운다(CANCEL-PRE-01·LATEFLOW-POP-OPEN-01).
   const [cancelDialog, setCancelDialog] = useState<'confirm' | 'late' | null>(null)
@@ -215,7 +218,7 @@ export function ApptDetail() {
               </Button>
               {/* 상세의 [예약 취소]는 회색 테두리 — 빨간 버튼은 확인창 안에서만(CANCEL-PRE-04). */}
               <Button type="button" variant="outline" onClick={openCancel}>
-                예약 취소
+                {cancelLabel}
               </Button>
             </div>
           ) : (
@@ -237,7 +240,7 @@ export function ApptDetail() {
         >
           <div className="w-full max-w-sm rounded-2xl border bg-card p-5 shadow-xl">
             <h2 id="appt-cancel-confirm-title" className="text-base font-bold">
-              예약을 취소할까요?
+              {isPending ? '신청을 취소할까요?' : '예약을 취소할까요?'}
             </h2>
             {/* 취소 대상 예약을 다시 적는다 — 다른 예약을 잘못 취소하는 사고를 막는다(CANCEL-PRE-02). */}
             <div className="mt-3 rounded-xl border bg-muted/50 p-3 text-sm">

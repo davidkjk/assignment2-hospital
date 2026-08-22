@@ -43,6 +43,15 @@ test('마감 후 예약 취소는 안내 팝업을 거쳐 상담 채팅으로 �
   expect(screen.getByTestId('chat-cancel-intro')).toHaveTextContent('예약은 그대로 유지')
 })
 
+test('확정 전(예약신청)은 용어가 신청 취소로 바뀐다', async () => {
+  const user = userEvent.setup()
+  // appt-3은 예약신청(확정 전) → 버튼과 확인창 제목이 '신청 취소'/'신청을 취소할까요?'.
+  renderApp(routes, ['/appt/appt-3'])
+
+  await user.click(screen.getByRole('button', { name: '신청 취소' }))
+  expect(screen.getByTestId('appt-cancel-confirm-dialog')).toHaveTextContent('신청을 취소할까요?')
+})
+
 test('마감 전 예약 취소는 확인창에서 취소합니다를 누르면 취소됨으로 바뀐다', async () => {
   const user = userEvent.setup()
   // appt-4는 이틀 뒤 예약 → 마감 전(pre). 확인창 → [취소합니다] → 같은 상세가 취소됨으로 다시 그려진다.
