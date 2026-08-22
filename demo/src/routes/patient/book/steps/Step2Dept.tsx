@@ -16,7 +16,7 @@ export function Step2Dept({ wizard }: { wizard: StepProps }) {
               setField('dept', d)
               next()
             }}
-            className="flex items-center justify-between rounded-2xl border bg-card p-4 text-left hover:border-primary"
+            className="flex items-center justify-between rounded-2xl bg-card p-4 text-left shadow-(--elevation-card) transition-colors hover:bg-primary/5"
           >
             <span className="text-lg font-bold">{d.name}</span>
             <ChevronRight className="h-5 w-5 text-primary" />

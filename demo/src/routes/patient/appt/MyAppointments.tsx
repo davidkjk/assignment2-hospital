@@ -104,7 +104,7 @@ function AppointmentRow({ appt }: { appt: Appointment }) {
           type="button"
           data-testid="questionnaire-line"
           onClick={() => navigate('/questionnaire')}
-          className="flex w-full items-center justify-between border-t border-primary/20 bg-primary/10 px-3 py-2 text-left text-sm font-medium text-primary"
+          className="flex w-full items-center justify-between border-t border-primary/20 bg-primary/10 px-3 py-2 text-left text-sm font-medium text-primary transition-colors hover:bg-primary/20"
         >
           <span>
             {qnr === '미작성' && '사전문진 미작성 · 작성하기'}

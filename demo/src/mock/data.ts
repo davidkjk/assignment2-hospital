@@ -70,12 +70,33 @@ export function getAvailableDates(_doctorId: string, from: Date = new Date()): s
 const MORNING = ['09:00', '09:30', '10:00', '10:30', '11:00']
 const AFTERNOON = ['14:00', '14:30', '15:00', '15:30', '16:00', '16:30']
 
+// 진료시간이 짧아 10분 간격으로 예약받는 의사(예: 이비인후과 정우재) — 하루 슬롯이 촘촘한 경우 시연.
+// 정본 BOOK-TIME-01(오전/오후 3열 격자)이 이런 촘촘함을 압축해 담는다.
+const TEN_MIN_DOCTORS = new Set(['doc-ent-1'])
+
+/** 지정 간격으로 시각 문자열을 만든다(예: 09:00~11:50, 10분 간격). */
+function timesEvery(startHour: number, endHour: number, stepMin: number): string[] {
+  const out: string[] = []
+  for (let m = startHour * 60; m < endHour * 60; m += stepMin) {
+    out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)
+  }
+  return out
+}
+
 /** 의사·날짜별 예약 가능 슬롯. 데모는 요일에 따라 오전/오후 유무만 다르게 한다(BOOK-TIME-01·06). */
 export function getSlots(doctorId: string, date: string): Slot[] {
   const weekday = new Date(date + 'T00:00:00').getDay()
+  const slots: Slot[] = []
+
+  // 10분 간격 의사: 오전 09~12시·오후 14~17시를 10분마다(하루 칸이 많아지는 경우).
+  if (TEN_MIN_DOCTORS.has(doctorId)) {
+    timesEvery(9, 12, 10).forEach((t) => slots.push({ time: t, period: '오전' }))
+    timesEvery(14, 17, 10).forEach((t) => slots.push({ time: t, period: '오후' }))
+    return slots
+  }
+
   // 의사 id 해시로 살짝 다르게: 짝수 의사는 오전만, 홀수는 종일 등 데모용 변주
   const seed = doctorId.length + weekday
-  const slots: Slot[] = []
   if (seed % 3 !== 0) MORNING.forEach((t) => slots.push({ time: t, period: '오전' }))
   if (seed % 2 === 0) AFTERNOON.forEach((t) => slots.push({ time: t, period: '오후' }))
   // 최소 한 덩어리는 보장

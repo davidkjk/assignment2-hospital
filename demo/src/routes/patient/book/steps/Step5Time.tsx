@@ -27,7 +27,7 @@ export function Step5Time({ wizard }: { wizard: StepProps }) {
               key={s.time}
               data-testid="time-slot"
               onClick={() => choose(s.time)}
-              className="rounded-xl border py-3 text-sm font-semibold tabular-nums hover:border-primary hover:bg-primary hover:text-primary-foreground"
+              className="rounded-xl bg-card py-3 text-sm font-semibold tabular-nums shadow-sm transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               {s.time}
             </button>

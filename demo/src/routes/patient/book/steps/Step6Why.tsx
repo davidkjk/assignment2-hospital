@@ -16,7 +16,7 @@ export function Step6Why({ wizard }: { wizard: StepProps }) {
         maxLength={100}
         onChange={(e) => setField('reason', e.target.value)}
         placeholder="예: 3일 전부터 기침과 콧물이 있어요"
-        className="min-h-28 w-full rounded-xl border p-3 text-sm outline-none focus:border-primary"
+        className="min-h-28 w-full rounded-xl border bg-card p-3 text-sm outline-none focus:border-primary"
       />
       <div className="mt-1 text-right text-xs text-muted-foreground">{value.length}/100</div>
 

@@ -21,7 +21,7 @@ export function Step1Who({ wizard }: { wizard: StepProps }) {
           <button
             key={p.id}
             onClick={() => choose(p)}
-            className="flex items-center justify-between rounded-2xl border bg-card p-4 text-left hover:border-primary"
+            className="flex items-center justify-between rounded-2xl bg-card p-4 text-left shadow-(--elevation-card) transition-colors hover:bg-primary/5"
           >
             <span className="text-base font-semibold">
               {p.name}
