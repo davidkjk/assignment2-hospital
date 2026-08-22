@@ -1,7 +1,8 @@
 import { doctorsByDept } from '@/mock/data'
+import { DoctorAvatar } from '@/components/DoctorAvatar'
 import type { StepProps } from '../BookingWizard'
 
-// 3단계 — 의사(BOOK-DOC-*). 가로 줄: 원형(이니셜) + 이름→진료시간→분야.
+// 3단계 — 의사(BOOK-DOC-*). 가로 줄: 의사 사진(일러스트) + 이름→진료시간→분야.
 // 상단에 선택된 대상을 차분한 보조 라벨로만 표시(BOOK-DOC-08).
 export function Step3Doctor({ wizard }: { wizard: StepProps }) {
   const { state, setField, next } = wizard
@@ -26,9 +27,7 @@ export function Step3Doctor({ wizard }: { wizard: StepProps }) {
             }}
             className="flex items-center gap-3 rounded-2xl border bg-card p-3 text-left hover:border-primary"
           >
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-              {doc.name.charAt(0)}
-            </span>
+            <DoctorAvatar seed={doc.id} name={doc.name} className="h-14 w-14" />
             <span className="flex flex-col">
               <span className="text-base font-bold">{doc.name}</span>
               <span className="text-sm font-semibold text-primary">{doc.scheduleSummary}</span>
