@@ -77,7 +77,7 @@ function AppointmentRow({ appt }: { appt: Appointment }) {
   const qnr = appt.questionnaireStatus
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="overflow-hidden rounded-lg bg-card shadow-(--elevation-card)">
       <button
         type="button"
         data-testid="appt-row"

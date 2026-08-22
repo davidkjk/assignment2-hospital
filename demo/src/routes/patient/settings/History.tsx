@@ -213,7 +213,7 @@ export function History() {
                   type="button"
                   aria-pressed={person.id === selectedPatientId}
                   onClick={() => selectPatient(person)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-sm transition-colors ${person.id === selectedPatientId ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background hover:border-primary hover:bg-primary/5'}`}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-sm transition-colors ${person.id === selectedPatientId ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card hover:border-primary hover:bg-primary/5'}`}
                 >
                   {person.name}
                 </button>
@@ -230,7 +230,7 @@ export function History() {
                   type="button"
                   data-testid={`year-jump-${year}`}
                   onClick={() => jumpToYear(year)}
-                  className="shrink-0 rounded-full border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5"
+                  className="shrink-0 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:border-primary hover:bg-primary/5"
                 >
                   {year}년
                 </button>
