@@ -37,7 +37,7 @@ export function Quality() {
       <div className="mb-6 flex gap-3">
         {/* 상담 목록 */}
         <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-          <div className="grid grid-cols-[84px_1fr_56px_84px] items-center gap-3 border-b border-border/70 bg-muted/40 px-4 py-2 text-[11px] font-medium text-muted-foreground">
+          <div className="grid grid-cols-[84px_1fr_56px_84px] items-center gap-3 border-b border-border/70 bg-muted/40 px-4 py-2 text-sm font-medium text-muted-foreground">
             <span>일시</span><span>질문 요약</span><span>경로</span><span>상태</span>
           </div>
           {rows.map((c) => (

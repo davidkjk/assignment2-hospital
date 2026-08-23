@@ -154,7 +154,7 @@ export function HospitalSettings() {
                 </div>
               )}
               <div className="overflow-hidden rounded-xl border border-border/70">
-                <div className="grid grid-cols-[120px_1fr_88px] items-center gap-3 border-b border-border/70 bg-muted/40 px-3 py-2 text-[11px] font-medium text-muted-foreground">
+                <div className="grid grid-cols-[120px_1fr_88px] items-center gap-3 border-b border-border/70 bg-muted/40 px-3 py-2 text-sm font-medium text-muted-foreground">
                   <span>종류</span><span>문구</span><span className="text-center">문자도 발송</span>
                 </div>
                 {notify.map((n, i) => (

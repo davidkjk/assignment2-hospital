@@ -98,15 +98,17 @@ function monthNumOf(offset: number) {
   return new Date(Date.UTC(2026, 7, 22) + offset * 86400000).getUTCMonth() + 1
 }
 
-/** 날짜 선택 달력 — 오늘부터 8주 앞까지 (요구사항: 최대 8주 예약) */
-function DatePicker({ selected, onPick, onClose }: { selected: number; onPick: (o: number) => void; onClose: () => void }) {
+/** 날짜 선택 달력 — 오늘부터 8주 앞까지 (요구사항: 최대 8주 예약)
+    팝오버는 fixed로 띄운다 — StaffShell 본문이 overflow-y-auto라 absolute면 아래쪽 주가 잘린다(anchor 기준 배치). */
+function DatePicker({ selected, onPick, onClose, anchor }: { selected: number; onPick: (o: number) => void; onClose: () => void; anchor: DOMRect | null }) {
   const start = -dowOf(0) // 오늘이 든 주의 일요일
   const cells: number[] = []
   for (let k = 0; k < 63; k++) cells.push(start + k) // 9주 격자
+  const pos = anchor ? { top: anchor.bottom + 4, left: anchor.left } : { top: 0, left: 0 }
   return (
     <>
-      <div className="fixed inset-0 z-30" onClick={onClose} />
-      <div className="absolute left-0 top-full z-40 mt-1 w-64 rounded-xl border border-border bg-card p-3 shadow-xl">
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="fixed z-50 w-64 rounded-xl border border-border bg-card p-3 shadow-xl" style={pos}>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-semibold">날짜 선택</span>
           <span className="text-[11px] text-muted-foreground tabular-nums">{monthNumOf(0)}월 – {monthNumOf(BOOK_AHEAD_DAYS)}월 · 8주</span>
@@ -169,6 +171,12 @@ export function Calendar() {
   const [pxPerMin, setPxPerMin] = useState(PX_PER_MIN_DEFAULT)
   const [dayOffset, setDayOffset] = useState(0)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerRect, setPickerRect] = useState<DOMRect | null>(null)
+  const dateBtnRef = useRef<HTMLButtonElement>(null)
+  const togglePicker = () => {
+    if (!pickerOpen) setPickerRect(dateBtnRef.current?.getBoundingClientRect() ?? null)
+    setPickerOpen((v) => !v)
+  }
   const navigate = useNavigate()
   const location = useLocation()
   const [ctx, setCtx] = useState<CtxPanel | null>(() => (location.state as { panel?: CtxPanel } | null)?.panel ?? null)
@@ -263,8 +271,9 @@ export function Calendar() {
           </button>
           {/* 날짜를 누르면 달력이 열려 8주 앞까지 고른다 · 폭 고정으로 뒤 칩이 안 밀림 */}
           <button
+            ref={dateBtnRef}
             className="inline-flex w-[196px] items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-sm font-semibold tabular-nums hover:bg-muted"
-            onClick={() => setPickerOpen((v) => !v)}
+            onClick={togglePicker}
           >
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             {dateLabel(dayOffset)}
@@ -276,6 +285,7 @@ export function Calendar() {
           {pickerOpen && (
             <DatePicker
               selected={dayOffset}
+              anchor={pickerRect}
               onPick={(o) => { setDayOffset(o); setPanel(null); setPickerOpen(false) }}
               onClose={() => setPickerOpen(false)}
             />
