@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle } from '@/components/icons'
+import { AlertTriangle, Pencil, X, Check, CalendarPlus } from '@/components/icons'
 import { StaffPage, PageHead, EmptyState, btnPrimary, btnGhost } from '../../_ui'
 import {
   scheduleDoctors,
@@ -10,6 +10,7 @@ import {
   type DaySchedule,
   type WeekDay,
   type Department,
+  type ScheduleException,
 } from './mockData'
 
 // 진료 일정 관리 (/staff/admin/schedule) — SCHED-*.
@@ -39,7 +40,7 @@ export function Schedule() {
 
   return (
     <StaffPage max="max-w-6xl" testid="staff-schedule">
-      <PageHead title="진료 일정 관리" sub="평상시 규칙을 정하는 곳입니다 · 실제 예약은 캘린더에서 봅니다" />
+      <PageHead title="진료 일정 관리" />
 
       <div className="flex gap-4">
         {/* 왼쪽 세로줄 */}
@@ -70,55 +71,78 @@ export function Schedule() {
 }
 
 // ── 전체 현황 (읽기 전용 격자) ──
+// 진료과별 색점 + 요일별 총 정원 합계로 "한눈에 보는 현황"을 만든다.
+const DEPT_DOT: Record<string, string> = {
+  '내과': '#1360A6', '정형외과': '#0B6C4E', '이비인후과': '#196584', '가정의학과': '#6D4F9B',
+}
 function Overview({ onEdit }: { onEdit: (doctorId: string) => void }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-      <table className="w-full min-w-max text-sm">
-        <thead>
-          <tr className="border-b border-border/70 bg-muted/40 text-[11px] font-medium text-muted-foreground">
-            <th className="px-3 py-2 text-left">의사</th>
-            {weekDays.map((d) => (
-              <th key={d} className="px-3 py-2 text-center">{d}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {scheduleDoctors.map((doc) => (
-            <tr key={doc.id} className="border-b border-border/60 last:border-b-0">
-              <td className="px-3 py-2">
-                <div className="font-medium">{doc.name}</div>
-                <div className="text-[11px] text-muted-foreground">{doc.department}</div>
-              </td>
-              {weekDays.map((d) => {
-                const day = doc.week[d]
-                return (
-                  <td key={d} className="px-1.5 py-1.5 text-center">
-                    <button
-                      onClick={() => onEdit(doc.id)}
-                      className="w-full rounded-md px-1.5 py-1 hover:bg-muted"
-                      title="눌러서 고치기"
-                    >
-                      {day.dayOff ? (
-                        <span
-                          className="block rounded py-1 text-[11px] text-muted-foreground"
-                          style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(100,116,139,0.12) 0 5px, transparent 5px 10px)' }}
-                        >
-                          휴진
-                        </span>
-                      ) : (
-                        <>
-                          <div className="tabular-nums">{day.open.slice(0, 5)}–{day.close.slice(0, 5)}</div>
-                          <div className="text-[10px] text-muted-foreground tabular-nums">{day.slotMin}분 · {day.maxPatients}명</div>
-                        </>
-                      )}
-                    </button>
-                  </td>
-                )
-              })}
+    <div>
+      {/* 범례 */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <span className="tabular-nums">09:00–18:00</span> 진료 시간
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="tabular-nums">15분 · 14명</span> 한 칸 길이 · 하루 정원
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="block h-3 w-6 rounded" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(100,116,139,0.16) 0 4px, transparent 4px 8px)' }} /> 휴진
+        </span>
+        <span className="text-muted-foreground/70">칸을 누르면 그 의사 스케줄로 이동합니다</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+        <table className="w-full min-w-max text-sm">
+          <thead>
+            <tr className="border-b border-border/70 bg-muted/40 text-sm font-medium text-muted-foreground">
+              <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 text-left">의사</th>
+              {weekDays.map((d) => (
+                <th key={d} className={`px-3 py-2 text-center ${d === '일' ? 'text-rose-500' : d === '토' ? 'text-sky-600' : ''}`}>{d}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {scheduleDoctors.map((doc) => (
+              <tr key={doc.id} className="border-b border-border/60 last:border-b-0 hover:bg-muted/20">
+                <td className="sticky left-0 z-10 bg-card px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: DEPT_DOT[doc.department] ?? '#94a3b8' }} />
+                    <span className="font-medium">{doc.name}</span>
+                  </div>
+                  <div className="pl-3.5 text-[11px] text-muted-foreground">{doc.department}</div>
+                </td>
+                {weekDays.map((d) => {
+                  const day = doc.week[d]
+                  return (
+                    <td key={d} className="px-1.5 py-1.5 text-center">
+                      <button
+                        onClick={() => onEdit(doc.id)}
+                        className="w-full rounded-md px-1.5 py-1 hover:bg-primary/10"
+                        title="눌러서 고치기"
+                      >
+                        {day.dayOff ? (
+                          <span
+                            className="block rounded py-1 text-[11px] text-muted-foreground"
+                            style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(100,116,139,0.12) 0 5px, transparent 5px 10px)' }}
+                          >
+                            휴진
+                          </span>
+                        ) : (
+                          <>
+                            <div className="tabular-nums">{day.open.slice(0, 5)}–{day.close.slice(0, 5)}</div>
+                            <div className="text-[11px] text-muted-foreground tabular-nums">{day.slotMin}분 · {day.maxPatients}명</div>
+                          </>
+                        )}
+                      </button>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -167,7 +191,7 @@ function Weekly({ focusDoctor, setFocusDoctor }: { focusDoctor: string; setFocus
       <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
         <table className="w-full min-w-max text-sm">
           <thead>
-            <tr className="border-b border-border/70 bg-muted/40 text-[11px] font-medium text-muted-foreground">
+            <tr className="border-b border-border/70 bg-muted/40 text-sm font-medium text-muted-foreground">
               <th className="px-3 py-2 text-left">요일</th>
               <th className="px-3 py-2 text-center">진료</th>
               <th className="px-3 py-2 text-left">진료 시간</th>
@@ -232,10 +256,23 @@ function Weekly({ focusDoctor, setFocusDoctor }: { focusDoctor: string; setFocus
 function Departments() {
   const [depts, setDepts] = useState<Department[]>(initialDepts)
   const [blocked, setBlocked] = useState<Department | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [renaming, setRenaming] = useState<Department | null>(null)
+
+  const addDept = (name: string) => {
+    setDepts((prev) => [...prev, { id: `dep-${Date.now()}`, name, doctorCount: 0, active: true }])
+    setAdding(false)
+  }
+  const renameDept = (id: string, name: string) => {
+    setDepts((prev) => prev.map((x) => (x.id === id ? { ...x, name } : x)))
+    setRenaming(null)
+  }
+
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <button className={btnPrimary}>진료과 추가</button>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">진료과를 지우는 대신 <b className="font-medium text-foreground">사용 중지</b>합니다. 지난 예약·문진이 진료과 이름을 그대로 씁니다.</p>
+        <button className={btnPrimary} onClick={() => setAdding(true)}>진료과 추가</button>
       </div>
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
         {depts.map((d) => (
@@ -248,7 +285,9 @@ function Departments() {
             <div className="flex items-center gap-1.5">
               {d.active ? (
                 <>
-                  <button className={`${btnGhost} px-2.5 py-1`}>이름 수정</button>
+                  <button className={`${btnGhost} inline-flex items-center gap-1 px-2.5 py-1`} onClick={() => setRenaming(d)}>
+                    <Pencil className="h-3.5 w-3.5" /> 이름 수정
+                  </button>
                   <button
                     className="rounded-lg border border-border bg-card px-2.5 py-1 text-sm font-medium text-muted-foreground hover:bg-muted"
                     onClick={() => (d.doctorCount > 0 ? setBlocked(d) : setDepts((prev) => prev.map((x) => (x.id === d.id ? { ...x, active: false } : x))))}
@@ -263,6 +302,28 @@ function Departments() {
           </div>
         ))}
       </div>
+
+      {adding && (
+        <NameDialog
+          title="진료과 추가"
+          label="진료과 이름"
+          placeholder="예: 소아청소년과"
+          confirmText="추가"
+          onConfirm={addDept}
+          onClose={() => setAdding(false)}
+        />
+      )}
+      {renaming && (
+        <NameDialog
+          title="진료과 이름 수정"
+          label="진료과 이름"
+          initial={renaming.name}
+          confirmText="저장"
+          note="지난 예약에도 바뀐 이름으로 보입니다."
+          onConfirm={(name) => renameDept(renaming.id, name)}
+          onClose={() => setRenaming(null)}
+        />
+      )}
 
       {blocked && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
@@ -282,30 +343,202 @@ function Departments() {
   )
 }
 
+// 이름 한 칸만 받는 공용 다이얼로그 (진료과 추가·이름 수정)
+function NameDialog({
+  title, label, placeholder, initial = '', confirmText, note, onConfirm, onClose,
+}: {
+  title: string; label: string; placeholder?: string; initial?: string; confirmText: string; note?: string
+  onConfirm: (value: string) => void; onClose: () => void
+}) {
+  const [value, setValue] = useState(initial)
+  return (
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base font-bold">{title}</h3>
+          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기"><X className="h-4 w-4" /></button>
+        </div>
+        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</label>
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder}
+          className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+        />
+        {note && <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={btnGhost} onClick={onClose}>취소</button>
+          <button className={btnPrimary} disabled={!value.trim()} onClick={() => onConfirm(value.trim())}>{confirmText}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── 특정 날짜 변경 ──
+type ExcDraft = { date: string; who: string; scope: 'day' | 'time'; from: string; to: string; note: string }
+
 function Exceptions() {
+  const [rows, setRows] = useState<ScheduleException[]>(scheduleExceptions)
+  const [editing, setEditing] = useState<ScheduleException | 'new' | null>(null)
+
+  const upsert = (draft: ExcDraft, id?: string) => {
+    const change =
+      (draft.scope === 'day' ? '종일 휴진' : `진료 시간 ${draft.from}–${draft.to}`) +
+      (draft.note ? ` (${draft.note})` : '')
+    if (id) {
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, date: draft.date, doctor: draft.who, change } : r)))
+    } else {
+      setRows((prev) => [
+        { id: `e-${Date.now()}`, date: draft.date, doctor: draft.who, change, affected: 0 },
+        ...prev,
+      ])
+    }
+    setEditing(null)
+  }
+  const remove = (id: string) => {
+    setRows((prev) => prev.filter((r) => r.id !== id))
+    setEditing(null)
+  }
+
   return (
     <div>
-      <div className="mb-3 flex justify-end">
-        <button className={btnPrimary}>특정 날짜 변경 추가</button>
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">공휴일·학회 등 <b className="font-medium text-foreground">이번 한 번뿐</b>인 변경을 등록합니다. 매주 반복되는 휴진은 의사별 스케줄에서 정합니다.</p>
+        <button className={`${btnPrimary} inline-flex items-center gap-1.5`} onClick={() => setEditing('new')}>
+          <CalendarPlus className="h-4 w-4" /> 특정 날짜 변경 추가
+        </button>
       </div>
-      {scheduleExceptions.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState title="등록된 특정 날짜 변경이 없습니다" hint="공휴일·학회 등 이번 한 번뿐인 변경을 여기서 등록합니다." />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-          {scheduleExceptions.map((e) => (
+          {rows.map((e) => (
             <div key={e.id} className="flex items-center justify-between border-b border-border/60 px-4 py-3 last:border-b-0">
-              <div>
-                <div className="font-medium tabular-nums">{e.date}</div>
-                <div className="text-xs text-muted-foreground">{e.doctor} · {e.change}</div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium tabular-nums">{e.date}</span>
+                  {e.doctor === '전체'
+                    ? <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">병원 전체</span>
+                    : <span className="text-xs text-muted-foreground">{e.doctor}</span>}
+                </div>
+                <div className="text-xs text-muted-foreground">{e.change}{e.affected > 0 && <span className="ml-1 text-amber-700">· 예약 {e.affected}건 영향</span>}</div>
               </div>
-              <button className={`${btnGhost} px-2.5 py-1`}>수정</button>
+              <button className={`${btnGhost} inline-flex items-center gap-1 px-2.5 py-1`} onClick={() => setEditing(e)}>
+                <Pencil className="h-3.5 w-3.5" /> 수정
+              </button>
             </div>
           ))}
         </div>
       )}
+
+      {editing && (
+        <ExceptionDialog
+          row={editing === 'new' ? null : editing}
+          onSave={(draft) => upsert(draft, editing === 'new' ? undefined : editing.id)}
+          onRemove={editing === 'new' ? undefined : () => remove(editing.id)}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
+}
+
+function ExceptionDialog({
+  row, onSave, onRemove, onClose,
+}: {
+  row: ScheduleException | null
+  onSave: (draft: ExcDraft) => void
+  onRemove?: () => void
+  onClose: () => void
+}) {
+  const editingTime = row?.change.startsWith('진료 시간')
+  const [date, setDate] = useState(row?.date.replace(/\s*\([^)]*\)/, '') ?? '')
+  const [who, setWho] = useState(row?.doctor ?? '전체')
+  const [scope, setScope] = useState<'day' | 'time'>(editingTime ? 'time' : 'day')
+  const [from, setFrom] = useState('09:00')
+  const [to, setTo] = useState('13:00')
+  const [note, setNote] = useState('')
+
+  const canSave = date.trim().length > 0
+
+  return (
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base font-bold">{row ? '특정 날짜 변경 수정' : '특정 날짜 변경 추가'}</h3>
+          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">날짜</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">누가 쉬나</label>
+            <select value={who} onChange={(e) => setWho(e.target.value)}
+              className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40">
+              <option value="전체">병원 전체</option>
+              {scheduleDoctors.map((d) => <option key={d.id} value={d.name}>{d.name} · {d.department}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">무엇을 바꾸나</label>
+            <div className="flex gap-2">
+              {(['day', 'time'] as const).map((s) => (
+                <button key={s} onClick={() => setScope(s)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${scope === s ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+                  {s === 'day' ? '종일 휴진' : '진료 시간 변경'}
+                </button>
+              ))}
+            </div>
+            {scope === 'time' && (
+              <div className="mt-2 flex items-center gap-2 tabular-nums">
+                <input type="time" value={from} onChange={(e) => setFrom(e.target.value)}
+                  className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring" />
+                <span className="text-muted-foreground">–</span>
+                <input type="time" value={to} onChange={(e) => setTo(e.target.value)}
+                  className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring" />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">메모 (선택)</label>
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="예: 추석 연휴 · 학회 참석"
+              className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between">
+          {onRemove
+            ? <button className="text-sm font-medium text-muted-foreground hover:text-foreground hover:underline" onClick={onRemove}>되돌리기 (이 줄 삭제)</button>
+            : <span />}
+          <div className="flex gap-2">
+            <button className={btnGhost} onClick={onClose}>취소</button>
+            <button className={`${btnPrimary} inline-flex items-center gap-1.5`} disabled={!canSave}
+              onClick={() => onSave({ date: withDow(date), who, scope, from, to, note })}>
+              <Check className="h-4 w-4" /> 저장
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const DOW = ['일', '월', '화', '수', '목', '금', '토']
+function withDow(isoOrLabel: string): string {
+  // "2026-09-05" → "2026-09-05 (금)"; 이미 라벨이면 그대로
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoOrLabel.trim())
+  if (!m) return isoOrLabel
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return `${isoOrLabel.trim()} (${DOW[d.getDay()]})`
 }
 
 const cellCls = 'w-14 rounded border border-input bg-card px-1.5 py-1 text-center text-sm outline-none focus:border-ring'

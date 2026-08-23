@@ -18,7 +18,7 @@ export function Settings() {
           <main className="flex flex-1 flex-col items-center justify-center gap-4 px-5 text-center">
             <LogOut className="h-8 w-8 text-primary" />
             <h1 className="text-lg font-bold">로그아웃했어요</h1>
-            <Button onClick={() => navigate('/')}>로그인 화면으로</Button>
+            <Button onClick={() => navigate('/app')}>로그인 화면으로</Button>
           </main>
         </div>
       </PhoneFrame>
@@ -70,7 +70,7 @@ export function Settings() {
             {hospitalItem && (
               <SettingsLink
                 icon={<Hospital className="h-5 w-5" />}
-                label="한빛병원"
+                label="가온병원"
                 description="02-1234-5678 · 강남구"
                 onClick={() => navigate(hospitalItem.path)}
               />

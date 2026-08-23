@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Sparkles, UserRound, FileText, FlagIcon, X, Check, MessageCircle } from '@/components/icons'
-import { StaffPage, PageHead, Segmented, EmptyState, Tag, btnPrimary, btnGhost, btnLink } from '../_ui'
+import { StaffPage, PeriodSelect, EmptyState, Tag, btnPrimary, btnGhost, btnLink } from '../_ui'
 import {
   CHAT_RECORDS,
   filterChatRecords,
@@ -12,7 +12,7 @@ import {
   type RouteFilter,
 } from './mockData'
 
-// 전체 상담 기록 (/staff/chatlog) — CHATLOG-LIST-*.
+// 상담봇 기록 (/staff/chatlog) — CHATLOG-LIST-*.
 // 앱+웹 상담을 한 목록에(SCOPE-01). 채널·갈래 필터. 행 클릭 → 원문·AI 답변·답변 근거.
 // 봇 답변엔 근거 자료(없으면 "근거 자료 없음", SOURCE-02) + [잘못된 답변 신고](BADRPT-*).
 // data-testid="staff-chatlog".
@@ -28,6 +28,12 @@ const ROUTE_TABS: { key: RouteFilter; label: string }[] = [
   { key: 'staff_handoff', label: '직원 연결' },
   { key: 'booking_support', label: '예약 상담' },
 ]
+// 갈래별 색점 — 목록·필터가 같은 뜻으로 읽히게 (구조가 정보다)
+const ROUTE_DOT: Record<string, string> = {
+  ai_resolved: '#0B6E70', // 딥틸(AI가 스스로 해결)
+  staff_handoff: '#B45309', // 앰버(사람에게 넘어감)
+  booking_support: '#6D4F9B', // 보라(예약 처리)
+}
 
 export function Chatlog() {
   const [channel, setChannel] = useState<ChannelFilter>('all')
@@ -37,36 +43,59 @@ export function Chatlog() {
   const rows = filterChatRecords(CHAT_RECORDS, channel, route)
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
+  // 갈래별 건수 — 지금 채널 안에서 센다(칩이 정보가 되도록)
+  const inChannel = CHAT_RECORDS.filter((r) => channel === 'all' || r.channel === channel)
+  const routeCount = (k: RouteFilter) => (k === 'all' ? inChannel.length : inChannel.filter((r) => r.routeTaken === k).length)
+
   return (
     <StaffPage max="max-w-full" testid="staff-chatlog">
-      <PageHead title="전체 상담 기록" sub="앱과 웹에서 오간 상담을 한곳에서 봅니다" />
-
-      {/* 필터: 채널 + 갈래 */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">채널</span>
-          <Segmented options={CHANNEL_TABS} value={channel} onChange={setChannel} />
+      {/* 필터 한 줄: 갈래(색점+건수) · 채널 · 기간 — 칩·탭 나열 대신 한 벌의 도구로 */}
+      <div className="mb-3 flex flex-wrap items-center gap-2.5">
+        <div className="inline-flex items-center gap-0.5 rounded-xl border border-border/70 bg-card p-1 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+          {ROUTE_TABS.map((r) => {
+            const active = route === r.key
+            const n = routeCount(r.key)
+            return (
+              <button
+                key={r.key}
+                onClick={() => setRoute(r.key)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                  active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                {r.key !== 'all' && (
+                  <span className="h-2 w-2 rounded-full" style={{ background: active ? 'currentColor' : ROUTE_DOT[r.key] }} />
+                )}
+                {r.label}
+                <span className={`tabular-nums text-xs ${active ? 'opacity-80' : 'opacity-60'}`}>{n}</span>
+              </button>
+            )
+          })}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">갈래</span>
-          {ROUTE_TABS.map((r) => (
+
+        <div className="inline-flex items-center rounded-lg border border-border/70 bg-card p-0.5">
+          {CHANNEL_TABS.map((c) => (
             <button
-              key={r.key}
-              onClick={() => setRoute(r.key)}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                route === r.key ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'
+              key={c.key}
+              onClick={() => setChannel(c.key)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                channel === c.key ? 'bg-muted text-foreground shadow-[0_1px_1px_rgba(16,45,50,0.06)]' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {r.label}
+              {c.label}
             </button>
           ))}
         </div>
+
+        <div className="ml-auto">
+          <PeriodSelect />
+        </div>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex items-start gap-3">
         {/* 목록 */}
-        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-          <div className="grid grid-cols-[56px_88px_1fr_84px] items-center gap-3 border-b border-border/70 bg-muted/40 px-4 py-2 text-[11px] font-medium text-muted-foreground">
+        <div className="min-w-0 flex-1 self-start overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+          <div className="grid grid-cols-[56px_96px_1fr_92px] items-center gap-3 border-b border-border/70 bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground">
             <span>채널</span>
             <span>갈래</span>
             <span>질문 요약</span>
@@ -79,12 +108,12 @@ export function Chatlog() {
               <button
                 key={r.id}
                 onClick={() => setSelectedId(r.id)}
-                className={`grid w-full grid-cols-[56px_88px_1fr_84px] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-left text-sm last:border-b-0 ${
+                className={`grid w-full grid-cols-[56px_96px_1fr_92px] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-left text-sm last:border-b-0 ${
                   r.id === selectedId ? 'bg-primary/5' : 'hover:bg-muted'
                 }`}
               >
                 <span><Tag>{CHANNEL_LABEL[r.channel]}</Tag></span>
-                <span className="text-xs text-muted-foreground">{ROUTE_LABEL[r.routeTaken]}</span>
+                <span className="text-sm text-muted-foreground">{ROUTE_LABEL[r.routeTaken]}</span>
                 <span className="truncate font-medium">{r.summary}</span>
                 <span className="text-right text-xs tabular-nums text-muted-foreground">{r.occurredLabel}</span>
               </button>
@@ -102,7 +131,7 @@ export function Chatlog() {
 function RecordDetail({ r, onClose }: { r: ChatRecord; onClose: () => void }) {
   const [reportOf, setReportOf] = useState<ChatTurn | null>(null)
   return (
-    <aside className="w-96 shrink-0 self-start rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+    <aside className="sticky top-4 w-96 shrink-0 self-start rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
       <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
         <div className="flex items-center gap-2">
           <Tag>{CHANNEL_LABEL[r.channel]}</Tag>

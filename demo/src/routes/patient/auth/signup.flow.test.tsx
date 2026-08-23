@@ -93,7 +93,7 @@ test('[CONSENT-BTN-04] 동의 없이 이용할 때 병원 전화 경로를 보�
 
 test('[AUTH-SIGNUP-01] 로그인 화면의 회원가입 버튼이 4단계 가입으로 이동한다', async () => {
   const user = userEvent.setup()
-  renderApp(routes, ['/'])
+  renderApp(routes, ['/app'])
 
   await user.click(screen.getByRole('button', { name: '회원가입' }))
 

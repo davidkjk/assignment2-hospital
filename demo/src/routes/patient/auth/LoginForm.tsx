@@ -31,7 +31,7 @@ export function LoginForm() {
   return (
     <PhoneFrame>
       <div data-testid="login-form" className="flex h-full flex-col">
-        <ScreenHeader title="로그인" onBack={() => navigate('/')} />
+        <ScreenHeader title="로그인" onBack={() => navigate('/app')} />
 
         <main className="flex-1 overflow-y-auto px-6 py-6">
           <form className="flex flex-col gap-5" onSubmit={submit}>

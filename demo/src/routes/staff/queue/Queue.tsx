@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, X } from '@/components/icons'
 import {
+  NOW,
   QUEUE_TABS,
   maskBirth,
   queuePatients,
@@ -23,7 +24,7 @@ const REDUCED_MOTION =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 const STATUS_LABEL: Record<QueueStatus, string> = {
-  not_arrived: '아직 안 옴',
+  not_arrived: '미도착',
   arrived: '도착',
   waiting: '진료 대기',
   in_progress: '진료 중',
@@ -40,7 +41,7 @@ const STATUS_TONE: Record<QueueStatus, string> = {
 }
 
 // 탭별 정렬 — 목록 성격에 따라 방향이 뒤집힌다.
-//  · 처리 대기 줄(아직 안 옴·도착·진료 대기)  = 오래된/이른 것이 위(시급성·공정성).
+//  · 처리 대기 줄(미도착·도착·진료 대기)  = 오래된/이른 것이 위(시급성·공정성).
 //  · 끝난 기록(진료 완료·취소·부도)            = 최신이 위(방금 끝난 것을 참조·후속조치).
 // 근거: 진료 대기=QUEUE-ORDER-01(순번), 전체=QUEUE-TAB-09(시각순). 완료/취소 최신순은
 //       정본이 다른 목록(PTDET-VISIT-03·SEND-LIST-07 등)에서 세운 최신순 패턴을 그대로 적용.
@@ -54,7 +55,7 @@ function sortForTab(list: QueuePatient[], tab: QueueStatus | 'all'): QueuePatien
     case 'in_progress':
       return rows.sort((a, b) => a.apptTime.localeCompare(b.apptTime))
     case 'arrived':
-      return rows.sort((a, b) => (b.waitMin ?? 0) - (a.waitMin ?? 0)) // 오래 기다린 순
+      return rows.sort((a, b) => a.apptTime.localeCompare(b.apptTime)) // 예약 시각 이른 순 — 자동 전환이 임박한 사람이 위
     case 'waiting':
       return rows.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) // 순번
     case 'done':
@@ -197,14 +198,22 @@ export function Queue() {
   function statusButtons(p: QueuePatient) {
     const detail = <Btn key="d" onClick={() => navigate(`/staff/patients/${p.id}`)}>환자 상세</Btn>
     switch (p.status) {
-      case 'not_arrived':
+      case 'not_arrived': {
+        // 버튼 순서는 항상 [진료 대기][도착]으로 고정한다 — 줄마다 위치가 바뀌면 직원이 혼란(폰 검수 피드백).
+        // 추천 동작만 색(딥틸)으로 표시하고 위치는 그대로: 예약 시각이 됐/지났으면 [진료 대기]가 딥틸,
+        // 아직 일찍 오셨으면 [도착]이 딥틸. 시각 처리는 시스템이 맡는다 — 도착(보류)한 분은 예약 시각이
+        // 되면 자동으로 진료 대기로 넘어간다(직원 재클릭 없음).
+        const early = p.apptTime > NOW
         return [
-          <Btn key="a" variant="primary" onClick={() => arrive(p.id)}>도착 처리</Btn>,
+          <Btn key="w" variant={early ? 'outline' : 'primary'} onClick={() => toWaiting(p.id)}>진료 대기</Btn>,
+          <Btn key="a" variant={early ? 'primary' : 'outline'} onClick={() => arrive(p.id)}>도착</Btn>,
           <Btn key="t" onClick={() => setRevealed((s) => new Set(s).add(p.id))}>번호 보기</Btn>,
         ]
+      }
       case 'arrived':
+        // 일찍 오신 분(보류). 예약 시각이 되면 자동 전환 → [진료 대기]는 '지금 바로 넣기' 재량(딥틸 아님).
         return [
-          <Btn key="w" variant="primary" onClick={() => toWaiting(p.id)}>진료 대기로</Btn>,
+          <Btn key="w" variant="outline" onClick={() => toWaiting(p.id)}>진료 대기</Btn>,
           <Btn key="u" variant="outline" onClick={() => revertToNotArrived(p.id)}>되돌리기</Btn>,
           detail,
         ]
@@ -247,7 +256,7 @@ export function Queue() {
           isDragging ? 'rounded-lg border border-dashed border-primary/50 bg-primary/[0.04] opacity-50' : ''
         } ${isWaitingTab && !isDragging ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
-        {/* 순번(진료대기) / 예약시각(아직 안 옴) / 빈칸 (QUEUE-ORDER-02·ROW-10) */}
+        {/* 순번(진료대기) / 예약시각(미도착) / 빈칸 (QUEUE-ORDER-02·ROW-10) */}
         <div className="w-12 shrink-0 text-right">
           {isWaitingTab ? (
             <span className="font-bold text-primary tabular-nums">
@@ -256,6 +265,9 @@ export function Queue() {
             </span>
           ) : p.status === 'not_arrived' ? (
             <span className="text-sm tabular-nums text-foreground/70">{p.apptTime}</span>
+          ) : p.status === 'arrived' ? (
+            // 예약 시각 = 자동으로 진료 대기로 넘어가는 시각
+            <span className="text-sm tabular-nums text-violet-600">{p.apptTime}</span>
           ) : null}
         </div>
 
@@ -347,6 +359,17 @@ export function Queue() {
           </div>
         )}
       </div>
+
+      {/* 도착 탭 안내 — '도착'의 새 뜻(일찍 오신 분·자동 전환)을 한 번에 설명 */}
+      {activeTab === 'arrived' && (
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3.5 py-2.5 text-sm text-violet-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
+          <p>
+            예약 시각보다 <b>일찍 오신 분</b>들입니다. 왼쪽 <span className="tabular-nums font-medium text-violet-700">예약 시각</span>이 되면
+            <b> 자동으로 「진료 대기」</b>로 넘어갑니다(직원이 다시 누를 필요 없음). 지금 바로 넣으려면 <b>[진료 대기]</b>를 누르세요.
+          </p>
+        </div>
+      )}
 
       {/* ── 목록 ── */}
       {activeTab === 'all' && allGroup === 'status' ? (

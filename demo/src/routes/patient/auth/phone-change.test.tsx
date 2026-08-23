@@ -35,7 +35,7 @@ test('[AUTH-TEL-01] 앱에서 번호를 직접 바꾸지 않고 병원 경로만
 
 test('[AUTH-LOGIN-08] 로그인 화면의 번호 변경 링크가 안내 화면으로 이동한다', async () => {
   const user = userEvent.setup()
-  renderApp(routes, ['/'])
+  renderApp(routes, ['/app'])
 
   await user.click(screen.getByRole('button', { name: '전화번호가 바뀌어 로그인할 수 없나요? ›' }))
 

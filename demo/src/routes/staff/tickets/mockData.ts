@@ -33,11 +33,12 @@ export interface Ticket {
   messages: TicketMessage[]
 }
 
+// 담당(배정) 후보 = 문의함을 여는 역할만 = 접수직원·관리자.
+// ⛔ 의사는 넣지 않는다 — 의사 사이드바엔 문의함이 없어(SHELL-NAV-03) 채팅을 하지 않는다(사용자 지시 2026-08-23).
 export const ACTIVE_STAFF = [
   { id: 's1', name: '김서연', role: '관리자' },
   { id: 's2', name: '박지민', role: '접수직원' },
-  { id: 's3', name: '이정훈', role: '의사' },
-  { id: 's4', name: '한서연', role: '의사' },
+  { id: 's3', name: '최수빈', role: '접수직원' },
 ]
 
 export const INITIAL_TICKETS: Ticket[] = [
@@ -61,7 +62,7 @@ export const INITIAL_TICKETS: Ticket[] = [
     assignee: null, reason: 'medical_judgment', unread: true,
     summary: {
       question: '혈압약 중복 복용 가능 여부', confirmed: '오늘 아침 복용 여부가 확실하지 않음', guided: '추가 복용 전 의료진 확인을 안내',
-      unresolved: '현재 처방과 복용 여부 확인 필요', staffCheck: '담당 의사에게 전달해 복약 안내 확인',
+      unresolved: '현재 처방과 복용 여부 확인 필요', staffCheck: '담당 의사에게 확인한 뒤 복약 안내를 답변',
     },
     messages: [
       { id: 'm4', sender: '환자', text: '아침에 약을 먹었는지 기억이 안 나요. 한 번 더 먹어도 될까요?', time: '09:16' },

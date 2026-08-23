@@ -149,9 +149,18 @@ export const calendarAppointments: CalendarAppointment[] = [
   { id: 'i4', doctorId: 'd8', patientName: '한도경', patientBirth: '2006-12-19', phone: '010-7712-5567', start: '11:15', end: '11:30', status: '예약신청', reason: '코피 반복' },
 ]
 
-/** 전화 예약 — 환자 찾기(한 칸 통합검색) 재현용 가짜 결과 */
+/** 전화 예약 — 환자 찾기(한 칸 통합검색) 재현용 가짜 결과 (이름·생년·전화 어디로도 검색) */
 export const patientSearchResults = [
   { id: 'p1', name: '강동훈', birth: '1983-05-11', phone: '010-2211-4590' },
   { id: 'p2', name: '문소희', birth: '1990-08-22', phone: '010-8842-3301' },
   { id: 'p3', name: '조은비', birth: '2001-12-03', phone: '010-5567-9910' },
+  { id: 'p4', name: '김태호', birth: '1972-11-03', phone: '010-4821-9930' },
+  { id: 'p5', name: '김서준', birth: '1965-07-30', phone: '010-3311-8842' },
+  { id: 'p6', name: '이수진', birth: '1975-09-08', phone: '010-2841-5678' },
+  { id: 'p7', name: '이말녀', birth: '1955-08-17', phone: '010-2841-1043' },
+  { id: 'p8', name: '박지훈', birth: '1988-03-27', phone: '010-3312-4456' },
+  { id: 'p9', name: '정순남', birth: '1948-05-21', phone: '010-5521-8834' },
+  { id: 'p10', name: '한지아', birth: '1995-01-19', phone: '010-3092-7788' },
+  { id: 'p11', name: '윤도현', birth: '1990-02-28', phone: '010-3092-1043' },
+  { id: 'p12', name: '최민재', birth: '1991-02-09', phone: '010-3372-6610' },
 ]

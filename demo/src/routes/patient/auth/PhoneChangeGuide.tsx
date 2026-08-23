@@ -13,7 +13,7 @@ export function PhoneChangeGuide() {
   return (
     <PhoneFrame>
       <div data-testid="phone-change-guide" className="flex h-full flex-col">
-        <ScreenHeader title="전화번호 변경 안내" onBack={() => navigate('/')} />
+        <ScreenHeader title="전화번호 변경 안내" onBack={() => navigate('/app')} />
 
         <main className="flex-1 overflow-y-auto px-5 py-6">
           <div className="flex items-center gap-2 text-primary">

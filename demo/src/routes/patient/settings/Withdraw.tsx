@@ -31,7 +31,7 @@ export function Withdraw() {
               <ShieldCheck className="h-8 w-8 text-primary" />
               <h2 className="text-lg font-bold">탈퇴가 완료됐어요</h2>
               <p className="text-sm text-muted-foreground">{withdrawalPolicy.archiveNotice}</p>
-              <Button onClick={() => navigate('/')}>로그인 화면으로</Button>
+              <Button onClick={() => navigate('/app')}>로그인 화면으로</Button>
             </div>
           ) : (
             <div className="space-y-5">

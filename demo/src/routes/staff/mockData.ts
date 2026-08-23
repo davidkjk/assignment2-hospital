@@ -149,13 +149,17 @@ export type CancelKind = '환자 취소' | '병원 취소' | '예약 부도'
 // 7개 상태 탭 (QUEUE-TAB-01) — 한 번에 하나, 0명도 숨기지 않음(QUEUE-TAB-06)
 export const QUEUE_TABS: { key: QueueStatus | 'all'; label: string }[] = [
   { key: 'all', label: '전체' },
-  { key: 'not_arrived', label: '아직 안 옴' },
+  { key: 'not_arrived', label: '미도착' },
   { key: 'arrived', label: '도착' },
   { key: 'waiting', label: '진료 대기' },
   { key: 'in_progress', label: '진료 중' },
   { key: 'done', label: '진료 완료' },
   { key: 'cancelled', label: '취소·부도' },
 ]
+
+// 데모 기준 '지금' 시각 — 예약 시각과 견줘 '일찍 왔나(도착 보류)' vs '시각 됐나(바로 진료 대기)'를 가른다.
+// 실제 앱은 서버 시계를 쓴다. 데모라 하나의 고정값으로 흐름만 보여 준다.
+export const NOW = '10:00'
 
 export interface QueuePatient {
   id: string
@@ -165,7 +169,7 @@ export interface QueuePatient {
   dept: string
   doctor: string
   status: QueueStatus
-  apptTime: string // 예약 시각 (아직 안 옴 탭의 순번 자리)
+  apptTime: string // 예약 시각 (미도착 탭의 순번 자리)
   waitMin?: number // 도착=경과 / 진료 대기=대기 / 진료 중=진행 분
   order?: number // 진료 대기 순번 (병원 전체 기준, QUEUE-ORDER-03)
   emergency?: boolean
@@ -175,13 +179,13 @@ export interface QueuePatient {
 }
 
 export const queuePatients: QueuePatient[] = [
-  // 아직 안 옴 (예약확정, 미접수)
+  // 미도착 (예약확정, 미접수)
   { id: 'q1', name: '이말녀', birth: '1955-08-17', tel: '010-2841-5678', dept: '내과', doctor: '한서연', status: 'not_arrived', apptTime: '09:00' },
   { id: 'q2', name: '윤도현', birth: '1990-02-28', tel: '010-3092-1043', dept: '피부과', doctor: '윤지호', status: 'not_arrived', apptTime: '09:30' },
   { id: 'q3', name: '조현우', birth: '1982-06-04', tel: '010-7734-2201', dept: '안과', doctor: '오세림', status: 'not_arrived', apptTime: '10:20' },
-  // 도착 (체크인, 진료 대기 전)
-  { id: 'q4', name: '배수정', birth: '1975-03-22', dept: '정형외과', doctor: '박강우', status: 'arrived', apptTime: '09:15', waitMin: 8 },
-  { id: 'q5', name: '문상호', birth: '1968-10-11', dept: '내과', doctor: '이정훈', status: 'arrived', apptTime: '09:40', waitMin: 3 },
+  // 도착 = 예약 시각보다 일찍 온 분(보류). 예약 시각이 되면 자동으로 진료 대기로 넘어간다.
+  { id: 'q4', name: '배수정', birth: '1975-03-22', dept: '정형외과', doctor: '박강우', status: 'arrived', apptTime: '10:30', waitMin: 12 },
+  { id: 'q5', name: '문상호', birth: '1968-10-11', dept: '내과', doctor: '이정훈', status: 'arrived', apptTime: '11:00', waitMin: 5 },
   // 진료 대기 (순번 부여)
   { id: 'q6', name: '정순남', birth: '1948-05-21', dept: '정형외과', doctor: '박강우', status: 'waiting', apptTime: '08:50', waitMin: 52, order: 1, emergency: true, emergencyBy: '오늘 09:32 · 박지민' },
   { id: 'q7', name: '김태호', birth: '1972-11-03', dept: '내과', doctor: '이정훈', status: 'waiting', apptTime: '09:05', waitMin: 38, order: 2 },

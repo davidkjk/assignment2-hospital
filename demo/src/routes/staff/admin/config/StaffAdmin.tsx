@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { UserPlus, AlertTriangle, X } from '@/components/icons'
 import { StaffPage, PageHead, EmptyState, btnPrimary, btnGhost, btnLink } from '../../_ui'
 import { staffMembers, PALETTE, ME, type StaffMember, type StaffRole } from './mockData'
@@ -34,7 +34,7 @@ export function StaffAdmin() {
 
   return (
     <StaffPage max="max-w-6xl" testid="staff-admin-staff">
-      <PageHead title="직원 관리" sub="직원을 초대하고 역할·진료과·상태를 관리합니다" />
+      <PageHead title="직원 관리" />
 
       <div className="flex gap-4">
         {/* 왼쪽: 목록 */}
@@ -94,6 +94,8 @@ export function StaffAdmin() {
 
         {/* 오른쪽: 초대 폼 또는 프로필 편집 */}
         <div className="w-80 shrink-0">
+          {/* 왼쪽 필터 칩 줄만큼 띄워 두 카드의 윗선을 맞춘다 */}
+          <div aria-hidden className="mb-2 h-[26px]" />
           {right.mode === 'invite' ? (
             <InvitePanel />
           ) : (
@@ -153,18 +155,37 @@ function InvitePanel() {
 function ProfilePanel({ member, onClose }: { member: StaffMember; onClose: () => void }) {
   const pal = member.color != null ? member.color : 0
   const [color, setColor] = useState(pal)
+  const [photo, setPhoto] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    const r = new FileReader()
+    r.onload = () => setPhoto(String(r.result))
+    r.readAsDataURL(f) // 데모: 로컬 미리보기만, 어디에도 올리지 않는다
+  }
   return (
     <div className="rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold">{member.name} 선생님 프로필</h3>
-        <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기"><X className="h-4 w-4" /></button>
+        <button onClick={onClose} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+          <X className="h-3.5 w-3.5" /> 닫기
+        </button>
       </div>
       <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold" style={{ background: PALETTE[color].fill, color: PALETTE[color].ink }}>
-          {member.name[0]}
-        </div>
+        {photo ? (
+          <img src={photo} alt="" className="h-16 w-16 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold" style={{ background: PALETTE[color].fill, color: PALETTE[color].ink }}>
+            {member.name[0]}
+          </div>
+        )}
         <div>
-          <button className={`${btnGhost} py-1.5`}>사진 바꾸기</button>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhoto} />
+          <div className="flex items-center gap-1.5">
+            <button className={`${btnGhost} py-1.5`} onClick={() => fileRef.current?.click()}>사진 바꾸기</button>
+            {photo && <button className={btnLink} onClick={() => setPhoto(null)}>되돌리기</button>}
+          </div>
           <p className="mt-1 text-[11px] text-muted-foreground">JPG·PNG · 최대 2MB</p>
         </div>
       </div>

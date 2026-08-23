@@ -67,8 +67,16 @@ export const scheduledMessages: Message[] = [
   { id: 'q2', kind: '광고', content: '(광고) 도수치료 가을 이벤트', staff: '이관리', channel: '문자', at: '8/25 10:00 예약', targetCount: 980 },
 ]
 
-/** 자동 발송(전날/당일 알림·문진 안내 등)은 접어 둔다 (SEND-LIST-08) */
+/** 자동 발송(전날/당일 알림·문진 안내 등) — 접어 두지만 펼치면 실제 목록을 보여준다 (SEND-LIST-08).
+ *  오늘 누적은 autoSendCount(수십~수백 건), 아래는 최근분 표본. */
 export const autoSendCount = 41
+export const autoSendMessages: Message[] = [
+  { id: 'auto1', kind: '안내', content: '내일 예약 안내 · 8/23(토) 내과 진료', staff: '시스템', channel: '앱 알림 + 문자', at: '8/22 18:00', targetCount: 47, reached: 46, failed: 1, recipients: makeRecipients(46, [{ reason: '없는 번호', n: 1 }]) },
+  { id: 'auto2', kind: '안내', content: '오늘 예약 안내 · 8/22 14:30 정형외과', staff: '시스템', channel: '앱 알림만', at: '8/22 08:00', targetCount: 39, reached: 39, failed: 0 },
+  { id: 'auto3', kind: '안내', content: '사전문진 작성 안내 · 방문 전 입력해 주세요', staff: '시스템', channel: '앱 알림 + 문자', at: '8/22 12:10', targetCount: 22, reached: 21, failed: 1, recipients: makeRecipients(21, [{ reason: '문자 수신 차단', n: 1 }]) },
+  { id: 'auto4', kind: '안내', content: '예약이 확정되었습니다 · 8/26(화) 11:00 이비인후과', staff: '시스템', channel: '앱 알림 + 문자', at: '8/22 10:42', targetCount: 8, reached: 8, failed: 0 },
+  { id: 'auto5', kind: '안내', content: '예약 취소 처리 안내', staff: '시스템', channel: '앱 알림만', at: '8/21 16:20', targetCount: 3, reached: 3, failed: 0 },
+]
 
 /** 새로 보내기 — 받는 사람 검색 가짜 결과 */
 export const patientSearchResults = [

@@ -40,7 +40,8 @@ test('마감 후 예약 취소는 안내 팝업을 거쳐 상담 채팅으로 �
   expect(dialog).toHaveTextContent('취소 마감 시간이 지났습니다')
 
   await user.click(screen.getByRole('button', { name: '상담 채팅 연결' }))
-  expect(screen.getByTestId('chat-cancel-intro')).toHaveTextContent('예약은 그대로 유지')
+  // 상담봇 방으로 이동하며 취소 연결 인사가 바로 뜬다(예약 유지 안내 포함).
+  expect(await screen.findByText(/예약은 그대로 유지/)).toBeInTheDocument()
 })
 
 test('확정 전(예약신청)은 용어가 신청 취소로 바뀐다', async () => {

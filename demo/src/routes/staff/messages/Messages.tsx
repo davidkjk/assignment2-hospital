@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Send, ChevronRight, ChevronDown, X, Search, Eye, AlertTriangle, Clock3 } from '@/components/icons'
-import { StaffPage, PageHead, Tag, btnPrimary, btnGhost, btnLink } from '../_ui'
+import { Send, ChevronRight, ChevronDown, X, Search, Eye, AlertTriangle, Clock3, Users } from '@/components/icons'
+import { StaffPage, PageHead, PeriodSelect, Tag, btnPrimary, btnGhost, btnLink } from '../_ui'
 import { maskPhone } from '../mockData'
 import {
   sentMessages,
   scheduledMessages,
   autoSendCount,
+  autoSendMessages,
   patientSearchResults,
   type Message,
   type Kind,
@@ -24,16 +25,19 @@ export function Messages() {
   const [composing, setComposing] = useState(false)
   const [listOf, setListOf] = useState<Message | null>(null)
   const [failsOf, setFailsOf] = useState<Message | null>(null)
+  const [detailOf, setDetailOf] = useState<{ m: Message; scheduled: boolean } | null>(null)
 
   return (
     <StaffPage max="max-w-5xl" testid="staff-messages">
       <PageHead
         title="안내 보내기"
-        sub="환자에게 보낸 안내와 예약해 둔 발송을 여기서 봅니다"
         action={
-          <button className={btnPrimary} onClick={() => setComposing(true)}>
-            <Send className="h-4 w-4" /> 새로 보내기
-          </button>
+          <div className="flex items-center gap-2">
+            <PeriodSelect />
+            <button className={btnPrimary} onClick={() => setComposing(true)}>
+              <Send className="h-4 w-4" /> 새로 보내기
+            </button>
+          </div>
         }
       />
 
@@ -44,7 +48,7 @@ export function Messages() {
           <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
             <RowHead scheduled />
             {scheduledMessages.map((m) => (
-              <MessageRow key={m.id} m={m} scheduled onTargets={() => setListOf(m)} />
+              <MessageRow key={m.id} m={m} scheduled onTargets={() => setListOf(m)} onDetail={() => setDetailOf({ m, scheduled: true })} />
             ))}
           </div>
         </section>
@@ -56,7 +60,7 @@ export function Messages() {
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
           <RowHead />
           {sentMessages.map((m) => (
-            <MessageRow key={m.id} m={m} onTargets={() => setListOf(m)} onFails={() => setFailsOf(m)} />
+            <MessageRow key={m.id} m={m} onTargets={() => setListOf(m)} onFails={() => setFailsOf(m)} onDetail={() => setDetailOf({ m, scheduled: false })} />
           ))}
         </div>
 
@@ -69,13 +73,30 @@ export function Messages() {
           자동 발송 {autoSendCount}건 {showAuto ? '접기' : '보기'}
         </button>
         {showAuto && (
-          <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            전날·당일 예약 알림, 사전문진 안내처럼 시스템이 자동으로 보내는 것입니다. 사람이 보낸 것과 섞이지 않도록 접어 둡니다.
-          </p>
+          <div className="mt-2">
+            <p className="mb-2 px-1 text-xs text-muted-foreground">
+              전날·당일 예약 알림, 사전문진 안내처럼 시스템이 자동으로 보내는 것입니다 · 최근 발송분
+            </p>
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+              <RowHead />
+              {autoSendMessages.map((m) => (
+                <MessageRow key={m.id} m={m} onTargets={() => setListOf(m)} onFails={() => setFailsOf(m)} onDetail={() => setDetailOf({ m, scheduled: false })} />
+              ))}
+            </div>
+          </div>
         )}
       </section>
 
       {composing && <ComposePanel onClose={() => setComposing(false)} />}
+      {detailOf && (
+        <MessageDetail
+          m={detailOf.m}
+          scheduled={detailOf.scheduled}
+          onClose={() => setDetailOf(null)}
+          onTargets={() => { setListOf(detailOf.m); setDetailOf(null) }}
+          onFails={() => { setFailsOf(detailOf.m); setDetailOf(null) }}
+        />
+      )}
       {listOf && <RecipientList m={listOf} onClose={() => setListOf(null)} />}
       {failsOf && <FailList m={failsOf} onClose={() => setFailsOf(null)} />}
     </StaffPage>
@@ -91,7 +112,7 @@ const GRID = 'grid grid-cols-[64px_1fr_84px_128px_96px_92px_180px] items-center 
 
 function RowHead({ scheduled }: { scheduled?: boolean }) {
   return (
-    <div className={`${GRID} border-b border-border/70 bg-muted/40 px-4 py-2 text-[11px] font-medium text-muted-foreground`}>
+    <div className={`${GRID} border-b border-border/70 bg-muted/40 px-4 py-2 text-sm font-medium text-muted-foreground`}>
       <span>종류</span>
       <span>내용</span>
       <span>{scheduled ? '예약한 직원' : '보낸 직원'}</span>
@@ -108,18 +129,21 @@ function MessageRow({
   scheduled,
   onTargets,
   onFails,
+  onDetail,
 }: {
   m: Message
   scheduled?: boolean
   onTargets: () => void
   onFails?: () => void
+  onDetail?: () => void
 }) {
   return (
     <div className={`${GRID} border-b border-border/60 px-4 py-2.5 text-sm last:border-b-0`}>
       <span>
         <Tag className={m.kind === '광고' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-700'}>{m.kind}</Tag>
       </span>
-      <span className="truncate font-medium" title={m.content}>{m.content}</span>
+      {/* 내용을 누르면 발송 상세가 열린다 (열람 + 예약건은 발송 취소) */}
+      <button className="truncate text-left font-medium hover:text-primary hover:underline" title={m.content} onClick={onDetail}>{m.content}</button>
       <span className="text-muted-foreground">{m.staff}</span>
       <span className="text-xs text-muted-foreground">{m.channel}</span>
       <span className="text-xs tabular-nums text-muted-foreground">{m.at}</span>
@@ -366,7 +390,18 @@ function ComposePanel({ onClose }: { onClose: () => void }) {
                   ))}
                 </div>
               )}
-              <button className={`${btnLink} mt-2`} onClick={() => setEveryone(true)}>전 환자에게 보내기</button>
+              {/* 전 환자 발송 = 되돌릴 수 없고 비용 큼 → 주 버튼(딥틸) 아님. 단 안 보이면 못 찾으니 테두리 보조 버튼으로. */}
+              <div className="mt-3 flex items-center gap-2">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-[11px] text-muted-foreground">또는</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <button
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted"
+                onClick={() => setEveryone(true)}
+              >
+                <Users className="h-4 w-4 text-muted-foreground" /> 전 환자에게 보내기
+              </button>
             </>
           )}
         </div>
@@ -413,6 +448,56 @@ function ComposePanel({ onClose }: { onClose: () => void }) {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <div className="mb-1.5 text-xs font-medium text-muted-foreground">{children}</div>
+}
+
+// 발송 상세 — 행을 누르면 열린다. 열람이 기본, 예약해 둔 것만 [발송 취소](SEND-LIST-03). 보낸 것은 되돌릴 수 없다.
+function MessageDetail({
+  m,
+  scheduled,
+  onClose,
+  onTargets,
+  onFails,
+}: {
+  m: Message
+  scheduled: boolean
+  onClose: () => void
+  onTargets: () => void
+  onFails: () => void
+}) {
+  const failed = m.failed ?? 0
+  return (
+    <Modal title="발송 상세" onClose={onClose}>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Tag className={m.kind === '광고' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-700'}>{m.kind}</Tag>
+          <span className="text-xs text-muted-foreground">{scheduled ? '보낼 시각' : '보낸 시각'} · {m.at}</span>
+        </div>
+        <p className="rounded-lg bg-muted/40 px-3 py-2 text-sm">{m.content}</p>
+        <dl className="space-y-1.5 text-sm">
+          <div className="flex justify-between gap-3"><dt className="text-muted-foreground">{scheduled ? '예약한 직원' : '보낸 직원'}</dt><dd>{m.staff}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted-foreground">보내는 방법</dt><dd>{m.channel}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted-foreground">대상</dt><dd className="tabular-nums">{m.targetCount.toLocaleString()}명</dd></div>
+          {!scheduled && (
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">발송 결과</dt>
+              <dd className="tabular-nums">
+                {m.sending ? `도달 ${m.reached}건 · 발송 중` : `도달 ${m.reached?.toLocaleString()}건${failed ? ` · 실패 ${failed}건` : ''}`}
+              </dd>
+            </div>
+          )}
+        </dl>
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+          <button className={btnGhost} onClick={onTargets}>대상 명단 보기</button>
+          {!scheduled && failed > 0 && <button className={btnGhost} onClick={onFails}>안 닿은 {failed}명 보기</button>}
+          {scheduled ? (
+            <button className={btnGhost} onClick={onClose}>발송 취소</button>
+          ) : (
+            <span className="text-xs text-muted-foreground">보낸 것은 되돌릴 수 없습니다 · 바꾸려면 새로 보내기</span>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

@@ -39,9 +39,12 @@ export function Tickets() {
 
   const openTicket = (t: Ticket) => {
     if (t.status === 'pending') {
-      // 선택과 동시에 배정 + pending→in_progress (TICKET-DETAIL-OPEN-01)
-      setTickets((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: 'in_progress', assignee: ME } : x)))
+      // 선택과 동시에 배정 + pending→in_progress (TICKET-DETAIL-OPEN-01). 열람하므로 '새 메시지'도 지운다.
+      setTickets((prev) => prev.map((x) => (x.id === t.id ? { ...x, status: 'in_progress', assignee: ME, unread: false } : x)))
       setTab('in_progress')
+    } else if (t.unread) {
+      // 열어서 읽으면 '새 메시지' 배지를 지운다
+      setTickets((prev) => prev.map((x) => (x.id === t.id ? { ...x, unread: false } : x)))
     }
     setSelectedId(t.id)
   }
@@ -51,7 +54,7 @@ export function Tickets() {
 
   return (
     <StaffPage max="max-w-full" testid="staff-tickets" footer={false}>
-      <PageHead title="문의 티켓함" sub="상담봇이 직원에게 넘긴 문의를 맡아 답합니다" />
+      <PageHead title="상담봇 문의함" />
 
       <div className="flex gap-4" style={{ height: 'calc(100vh - 11rem)' }}>
         {/* 왼쪽: 상태 탭 + 목록 */}
@@ -108,7 +111,7 @@ function TicketRow({ t, active, onClick }: { t: Ticket; active: boolean; onClick
     >
       <div className="flex items-start justify-between gap-2">
         <span className="line-clamp-2 text-sm font-medium">{t.question}</span>
-        {t.unread && <span className="mt-1 shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-medium text-white">새 메시지</span>}
+        {t.unread && <span className="mt-1 shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-medium text-white">새 메시지</span>}
       </div>
       <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{t.handoffReason}</p>
       {t.bookingType && (
@@ -172,7 +175,7 @@ function TicketDetail({
             <button className={`${btnGhost} py-1.5`}>이관</button>
             {isMedical && (
               <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700">
-                <AlertTriangle className="h-3.5 w-3.5" /> 의료 판단 — 담당 의사에게 전달하세요
+                <AlertTriangle className="h-3.5 w-3.5" /> 의료 판단 필요 — 직접 답하지 말고 담당 의사에게 확인한 뒤 답변하세요
               </span>
             )}
           </>

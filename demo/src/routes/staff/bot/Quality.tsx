@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FlagIcon, Check, X, ChevronRight } from '@/components/icons'
-import { StaffPage, PageHead, StatTile, Tag, btnPrimary, btnGhost } from '../_ui'
+import { StaffPage, PageHead, StatTile, Tag, btnPrimary, btnGhost, PeriodSelect } from '../_ui'
 import { qualityMetrics, qualityConversations, referenceExamples, type QualityConversation, type ReferenceExample } from './mockData'
 
 // 상담 품질 리포트 (/staff/bot/quality) — QUALITY-REPORT-* · QAEX-LIST-*.
@@ -14,6 +14,8 @@ const TONE = ['teal', 'sky', 'green', 'amber'] as const
 export function Quality() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [examples, setExamples] = useState<ReferenceExample[]>(referenceExamples)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
 
   // 미검토 먼저, 같은 상태에서 최신순
   const rows = [...qualityConversations].sort((a, b) => {
@@ -24,11 +26,7 @@ export function Quality() {
 
   return (
     <StaffPage max="max-w-full" testid="bot-quality">
-      <PageHead
-        title="상담 품질 리포트"
-        sub="상담봇 답변을 검토하고 교정을 남깁니다 · 최근 7일"
-        action={<span className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm tabular-nums text-muted-foreground">8/16 – 8/22</span>}
-      />
+      <PageHead title="상담 품질 리포트" action={<PeriodSelect />} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {qualityMetrics.map((m, i) => (
@@ -74,16 +72,39 @@ export function Quality() {
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">등록된 참고 예시가 없습니다.</p>
           ) : (
             examples.map((e) => (
-              <div key={e.id} className="flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3 last:border-b-0">
-                <div className={`min-w-0 ${e.active ? '' : 'opacity-50'}`}>
-                  <div className="text-sm font-medium">Q. {e.question}</div>
-                  <div className="mt-0.5 text-sm text-muted-foreground">A. {e.correction}</div>
+              <div key={e.id} className="border-b border-border/60 px-4 py-3 last:border-b-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className={`min-w-0 flex-1 ${e.active || editId === e.id ? '' : 'opacity-50'}`}>
+                    <div className="text-sm font-medium">Q. {e.question}</div>
+                    {editId === e.id ? (
+                      <textarea
+                        value={draft}
+                        onChange={(ev) => setDraft(ev.target.value)}
+                        rows={2}
+                        className="mt-1 w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+                      />
+                    ) : (
+                      <div className="mt-0.5 text-sm text-muted-foreground">A. {e.correction}</div>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-1.5">
+                    {editId === e.id ? (
+                      <>
+                        <button className={`${btnGhost} px-2.5 py-1`} onClick={() => setEditId(null)}>취소</button>
+                        <button className={`${btnPrimary} px-2.5 py-1`} onClick={() => { setExamples((prev) => prev.map((x) => (x.id === e.id ? { ...x, correction: draft } : x))); setEditId(null) }}>저장</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className={`${btnGhost} px-2.5 py-1`} onClick={() => { setEditId(e.id); setDraft(e.correction) }}>편집</button>
+                        {e.active ? (
+                          <button className={`${btnGhost} px-2.5 py-1`} onClick={() => setExamples((prev) => prev.map((x) => (x.id === e.id ? { ...x, active: false } : x)))}>비활성화</button>
+                        ) : (
+                          <button className={`${btnGhost} px-2.5 py-1`} onClick={() => setExamples((prev) => prev.map((x) => (x.id === e.id ? { ...x, active: true } : x)))}>다시 활성화</button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-                {e.active ? (
-                  <button className={`${btnGhost} shrink-0 px-2.5 py-1`} onClick={() => setExamples((prev) => prev.map((x) => (x.id === e.id ? { ...x, active: false } : x)))}>비활성화</button>
-                ) : (
-                  <span className="shrink-0 rounded bg-slate-100 px-2 py-1 text-xs text-slate-500">비활성</span>
-                )}
               </div>
             ))
           )}

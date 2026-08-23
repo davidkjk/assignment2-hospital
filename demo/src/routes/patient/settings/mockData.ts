@@ -130,7 +130,7 @@ export const accountSnapshot = {
 }
 
 export const hospitalInfo = {
-  name: '한빛병원',
+  name: '가온병원',
   phone: '02-1234-5678',
   address: '서울특별시 강남구 테헤란로 123',
   mapUrl: 'https://maps.google.com/?q=%ED%95%9C%EB%B9%9B%EB%B3%91%EC%9B%90',

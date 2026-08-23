@@ -101,10 +101,17 @@ export const departments: Department[] = [
   { id: 'dep3', name: '소아청소년과', doctorCount: 0, active: false },
 ]
 
-export const scheduleExceptions = [
-  { id: 'e1', date: '2026-09-05 (금)', doctor: '박강우', change: '오후 휴진 (학회 참석)' },
-  { id: 'e2', date: '2026-09-19 (금)', doctor: '김도현', change: '오전 휴진 (개인 사정)' },
-  { id: 'e3', date: '2026-09-28 (월)', doctor: '전체', change: '추석 연휴 휴진' },
+export interface ScheduleException {
+  id: string
+  date: string // "2026-09-05 (금)"
+  doctor: string // '전체'(병원 전체) 또는 의사 이름
+  change: string
+  affected: number // 그 날 걸리는 예약 건수 (SCHED-EXC-07/13)
+}
+export const scheduleExceptions: ScheduleException[] = [
+  { id: 'e1', date: '2026-09-05 (금)', doctor: '박강우', change: '오후 휴진 (학회 참석)', affected: 6 },
+  { id: 'e2', date: '2026-09-19 (금)', doctor: '김도현', change: '오전 휴진 (개인 사정)', affected: 4 },
+  { id: 'e3', date: '2026-09-28 (월)', doctor: '전체', change: '추석 연휴 휴진', affected: 0 },
 ]
 
 // ── 문진표 관리 (QADM-*) ──
@@ -192,11 +199,12 @@ export interface NotificationRow {
   text: string
   alsoSms: boolean
 }
+// 문구엔 [환자 이름]·[날짜]·[시각] 값을 꽂아 둔다(HSET-MSG-16). 진료과·의사명·증상은 넣지 않는다(HSET-MSG-11).
 export const notificationRows: NotificationRow[] = [
-  { kind: '예약 확정', text: '예약이 확정되었습니다.', alsoSms: false },
-  { kind: '전날 알림', text: '내일 예약이 있습니다.', alsoSms: false },
-  { kind: '당일 알림', text: '오늘 예약이 있습니다.', alsoSms: true },
-  { kind: '예약 변경', text: '예약이 변경되었습니다.', alsoSms: true },
-  { kind: '병원 취소', text: '병원 사정으로 예약이 취소되었습니다.', alsoSms: true },
-  { kind: '휴진 안내', text: '진료일이 변경되었습니다.', alsoSms: true },
+  { kind: '예약 확정', text: '[환자 이름]님, 예약이 확정되었습니다. [날짜] [시각]에 뵙겠습니다.', alsoSms: false },
+  { kind: '전날 알림', text: '[환자 이름]님, 내일 [날짜] [시각] 예약이 있습니다.', alsoSms: false },
+  { kind: '당일 알림', text: '[환자 이름]님, 오늘 [시각] 예약이 있습니다.', alsoSms: true },
+  { kind: '예약 변경', text: '[환자 이름]님, 예약이 [날짜] [시각]으로 변경되었습니다.', alsoSms: true },
+  { kind: '병원 취소', text: '[환자 이름]님, 병원 사정으로 [날짜] 예약이 취소되었습니다.', alsoSms: true },
+  { kind: '휴진 안내', text: '[환자 이름]님, 예약하신 날 진료일이 변경되었습니다. 앱에서 확인해 주세요.', alsoSms: true },
 ]

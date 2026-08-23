@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  CalendarPlus,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  CalendarDays,
   AlertTriangle,
   X,
   Search,
   MessageCircle,
 } from '@/components/icons'
-import { StaffPage, PageHead, StatusBadge, btnPrimary, btnGhost, btnLink } from '../_ui'
+import { StatusBadge, btnPrimary, btnGhost, btnLink } from '../_ui'
 import { maskBirth } from '../mockData'
 import {
   WIN_START,
@@ -48,9 +50,9 @@ interface Segment {
 }
 
 /** 한 의사의 하루를 위→아래 순서 조각으로: 예약·휴진/점심·빈 시간 */
-function buildColumn(doc: CalendarDoctor): Segment[] {
+function buildColumn(doc: CalendarDoctor, appts: CalendarAppointment[]): Segment[] {
   const busy: Segment[] = []
-  calendarAppointments
+  appts
     .filter((a) => a.doctorId === doc.id)
     .forEach((a) => busy.push({ kind: 'appt', start: toMin(a.start), end: toMin(a.end), appt: a }))
   calendarOffHours
@@ -74,6 +76,90 @@ type Panel =
   | { mode: 'book'; doctorId?: string; time?: number }
   | null
 
+// 오늘의 현황에서 [예약·상담 보기]/[예약 옮기기]로 넘어올 때 오른쪽에 여는 읽기용 컨텍스트 패널.
+type CtxPanel = { kind: 'support' | 'reschedule'; name: string; dept: string; doctor: string; time: string; reason: string }
+
+// 날짜 이동 — 오늘 기준. 데이터엔 날짜가 없으므로 오늘만 정본, 다른 날은 재현용 부분집합.
+// 앱 전역 기준: 2026-08-22 = 금(요일 인덱스 5). 타임존에 흔들리지 않게 UTC로 날짜를 세고 요일은 산술로.
+const DOW = ['일', '월', '화', '수', '목', '금', '토']
+const TODAY_DOW = 5 // 금
+function dowOf(offset: number) {
+  return ((TODAY_DOW + (offset % 7)) + 7) % 7
+}
+function dateLabel(offset: number) {
+  const d = new Date(Date.UTC(2026, 7, 22) + offset * 86400000)
+  return `${d.getUTCFullYear()}년 ${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${DOW[dowOf(offset)]})`
+}
+const BOOK_AHEAD_DAYS = 56 // 8주
+function dayNumOf(offset: number) {
+  return new Date(Date.UTC(2026, 7, 22) + offset * 86400000).getUTCDate()
+}
+function monthNumOf(offset: number) {
+  return new Date(Date.UTC(2026, 7, 22) + offset * 86400000).getUTCMonth() + 1
+}
+
+/** 날짜 선택 달력 — 오늘부터 8주 앞까지 (요구사항: 최대 8주 예약) */
+function DatePicker({ selected, onPick, onClose }: { selected: number; onPick: (o: number) => void; onClose: () => void }) {
+  const start = -dowOf(0) // 오늘이 든 주의 일요일
+  const cells: number[] = []
+  for (let k = 0; k < 63; k++) cells.push(start + k) // 9주 격자
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={onClose} />
+      <div className="absolute left-0 top-full z-40 mt-1 w-64 rounded-xl border border-border bg-card p-3 shadow-xl">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-sm font-semibold">날짜 선택</span>
+          <span className="text-[11px] text-muted-foreground tabular-nums">{monthNumOf(0)}월 – {monthNumOf(BOOK_AHEAD_DAYS)}월 · 8주</span>
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 text-center text-[11px] font-medium text-muted-foreground">
+          {DOW.map((d, i) => (
+            <div key={d} className={i === 0 ? 'text-rose-500' : i === 6 ? 'text-sky-600' : ''}>{d}</div>
+          ))}
+        </div>
+        <div className="mt-1 grid grid-cols-7 gap-0.5">
+          {cells.map((o) => {
+            const inRange = o >= 0 && o <= BOOK_AHEAD_DAYS
+            const today = o === 0
+            const sel = o === selected
+            return (
+              <button
+                key={o}
+                disabled={!inRange}
+                onClick={() => onPick(o)}
+                className={`h-8 rounded-md text-xs tabular-nums transition-colors ${
+                  !inRange ? 'text-muted-foreground/25' : sel ? 'bg-primary font-semibold text-primary-foreground' : today ? 'bg-primary/10 font-semibold text-primary' : 'hover:bg-muted'
+                }`}
+              >
+                {dayNumOf(o)}
+              </button>
+            )
+          })}
+        </div>
+        <button className="mt-2 w-full rounded-md border border-border py-1 text-xs font-medium text-muted-foreground hover:bg-muted" onClick={() => onPick(0)}>오늘로</button>
+      </div>
+    </>
+  )
+}
+function hashStr(s: string) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff
+  return h
+}
+/** 그 날의 예약 — 오늘은 정본 전체, 다른 날은 요일 기반 부분집합(도착·상담 표시는 오늘만) */
+function apptsForOffset(offset: number): CalendarAppointment[] {
+  if (offset === 0) return calendarAppointments
+  const dow = dowOf(offset)
+  if (dow === 0) return [] // 일요일 병원 휴무
+  const density = dow === 6 ? 35 : 60 // 토요일은 한산
+  return calendarAppointments
+    .filter((a) => hashStr(a.id + ':' + offset) % 100 < density)
+    .map((a) => ({
+      ...a,
+      status: a.status === '도착' ? '예약확정' : a.status,
+      support: undefined,
+    }))
+}
+
 export function Calendar() {
   const departments = useMemo(() => Array.from(new Set(calendarDoctors.map((d) => d.department))), [])
   const [dept, setDept] = useState<string | null>(null)
@@ -81,13 +167,30 @@ export function Calendar() {
   const [panel, setPanel] = useState<Panel>(null)
   const [confirmCancel, setConfirmCancel] = useState<CalendarAppointment | null>(null)
   const [pxPerMin, setPxPerMin] = useState(PX_PER_MIN_DEFAULT)
+  const [dayOffset, setDayOffset] = useState(0)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [ctx, setCtx] = useState<CtxPanel | null>(() => (location.state as { panel?: CtxPanel } | null)?.panel ?? null)
+  // 컨텍스트로 넘어오면 그 의사 열만 보이게 한다(캘린더 맥락). 명단에 없으면 전체 그대로.
+  useEffect(() => {
+    if (!ctx) return
+    const d = calendarDoctors.find((x) => x.name === ctx.doctor)
+    if (d) {
+      setDept(d.department)
+      setSelectedDocs(new Set([d.id]))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const isToday = dayOffset === 0
+  const dayAppts = useMemo(() => apptsForOffset(dayOffset), [dayOffset])
 
-  // 현재 시각(오늘 기준) — 지금 선 · 자동 스크롤용. 창 밖이면 선을 숨긴다.
+  // 현재 시각(오늘 기준) — 지금 선 · 자동 스크롤용. 오늘이고 창 안일 때만.
   const nowMin = useMemo(() => {
     const d = new Date()
     return d.getHours() * 60 + d.getMinutes()
   }, [])
-  const nowInWindow = nowMin >= BASE && nowMin <= END
+  const nowInWindow = isToday && nowMin >= BASE && nowMin <= END
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const height = (END - BASE) * pxPerMin
@@ -140,28 +243,43 @@ export function Calendar() {
     setPxPerMin((p) => Math.min(PX_PER_MIN_MAX, Math.max(PX_PER_MIN_MIN, p + dir * 0.4)))
 
   return (
-    <StaffPage max="max-w-full" testid="staff-calendar" footer={false}>
-      <PageHead
-        title="예약 캘린더"
-        sub="시간표에서 빈 자리를 보고 전화로 예약을 잡습니다 · 칠해지지 않은 곳이 빈 시간입니다"
-        action={
-          <button className={btnPrimary} onClick={() => setPanel({ mode: 'book' })}>
-            <CalendarPlus className="h-4 w-4" /> 전화 예약
+    // main(스크롤 컨테이너)을 flex로 꽉 채워 카드가 창 높이에 맞게 늘고, 잘리지 않게 한다
+    // (예약 진입은 빈칸 클릭 CAL-SLOT-06 · 헤더 [＋ 예약] 문 F-4 — 화면 자체 [전화 예약] 버튼은 두지 않는다 F-2)
+    <div data-testid="staff-calendar" className="flex h-full min-h-0 flex-col px-6 py-5">
+      {/* 날짜 이동 + 진료과/의사 필터 (CAL-DOC-01·04·CAL-NAV) */}
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+        {/* 꺽쇠는 날짜 양쪽, 오늘 버튼은 왼쪽. 배지는 두지 않아(폭이 변하면 뒤 칩들이 밀린다) */}
+        <div className="relative flex items-center gap-1">
+          <button
+            className={`${btnGhost} px-2.5 py-1 disabled:opacity-40`}
+            disabled={isToday}
+            onClick={() => { setDayOffset(0); setPanel(null) }}
+          >
+            오늘
           </button>
-        }
-      />
-
-      {/* 날짜 이동 + 진료과/의사 필터 (CAL-DOC-01·04) */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-1">
-          <button className="rounded-md p-1.5 hover:bg-muted" aria-label="이전 날">
+          <span className="mx-1 h-5 w-px bg-border" />
+          <button className="rounded-md p-1.5 hover:bg-muted" aria-label="이전 날" onClick={() => { setDayOffset((o) => o - 1); setPanel(null) }}>
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button className={`${btnGhost} px-2.5 py-1`}>오늘</button>
-          <button className="rounded-md p-1.5 hover:bg-muted" aria-label="다음 날">
+          {/* 날짜를 누르면 달력이 열려 8주 앞까지 고른다 · 폭 고정으로 뒤 칩이 안 밀림 */}
+          <button
+            className="inline-flex w-[196px] items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-sm font-semibold tabular-nums hover:bg-muted"
+            onClick={() => setPickerOpen((v) => !v)}
+          >
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            {dateLabel(dayOffset)}
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          <button className="rounded-md p-1.5 hover:bg-muted" aria-label="다음 날" onClick={() => { setDayOffset((o) => o + 1); setPanel(null) }}>
             <ChevronRight className="h-4 w-4" />
           </button>
-          <span className="ml-1 text-sm font-semibold tabular-nums">2026년 8월 22일 (금)</span>
+          {pickerOpen && (
+            <DatePicker
+              selected={dayOffset}
+              onPick={(o) => { setDayOffset(o); setPanel(null); setPickerOpen(false) }}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -182,12 +300,14 @@ export function Calendar() {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+      <div className="flex min-h-0 flex-1 gap-3">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
           {/* 배율 조절 줄 (CAL-ZOOM-06 [기본 배율]) */}
           <div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5 text-xs text-muted-foreground">
             <span>
-              {nowInWindow ? <>지금 <b className="font-semibold text-rose-600 tabular-nums">{fmt(nowMin)}</b> 기준으로 열렸습니다</> : '오늘 진료 시간 밖입니다'}
+              {isToday
+                ? (nowInWindow ? <>지금 <b className="font-semibold text-rose-600 tabular-nums">{fmt(nowMin)}</b> 기준으로 열렸습니다</> : '오늘 진료 시간 밖입니다')
+                : <>예약 {dayAppts.length}건</>}
             </span>
             <span className="flex items-center gap-1">
               <span className="mr-1 hidden sm:inline">시간축을 위아래로 끌면 넓어집니다</span>
@@ -197,8 +317,8 @@ export function Calendar() {
             </span>
           </div>
 
-          {/* 스크롤 영역 (세로=시간, 가로=의사 많으면 스크롤) */}
-          <div ref={scrollRef} className="overflow-auto" style={{ maxHeight: 'calc(100vh - 15rem)' }}>
+          {/* 스크롤 영역 (세로=시간, 가로=의사 많으면 스크롤) — 카드가 창 높이를 채우게 flex-1 */}
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
             <div className="min-w-max">
               {/* 열 머리 — 위에 고정 */}
               <div className="sticky top-0 z-20 flex bg-card">
@@ -221,10 +341,11 @@ export function Calendar() {
                   <DoctorColumn
                     key={doc.id}
                     doc={doc}
+                    appts={dayAppts}
                     pxPerMin={pxPerMin}
                     height={height}
-                    onAppt={(a) => setPanel({ mode: 'appt', appt: a })}
-                    onGap={(t) => setPanel({ mode: 'book', doctorId: doc.id, time: t })}
+                    onAppt={(a) => { setPanel({ mode: 'appt', appt: a }); setCtx(null) }}
+                    onGap={(t) => { setPanel({ mode: 'book', doctorId: doc.id, time: t }); setCtx(null) }}
                     activeId={panel?.mode === 'appt' ? panel.appt.id : undefined}
                   />
                 ))}
@@ -233,7 +354,7 @@ export function Calendar() {
                 {nowInWindow && (
                   <div className="pointer-events-none absolute z-10" style={{ top: yOf(nowMin), left: GUTTER, right: 0 }}>
                     <div className="relative h-px bg-rose-500">
-                      <span className="absolute -top-2 -left-[52px] rounded bg-rose-500 px-1 py-0.5 text-[10px] font-medium tabular-nums text-white">{fmt(nowMin)}</span>
+                      <span className="absolute -top-2 -left-[52px] rounded bg-rose-500 px-1 py-0.5 text-[11px] font-medium tabular-nums text-white">{fmt(nowMin)}</span>
                       <span className="absolute -top-1 left-0 h-2 w-2 -translate-x-1/2 rounded-full bg-rose-500" />
                     </div>
                   </div>
@@ -243,6 +364,9 @@ export function Calendar() {
           </div>
         </div>
 
+        {ctx && !panel && (
+          <TodayContextPanel ctx={ctx} onClose={() => setCtx(null)} onOpenTicket={() => navigate('/staff/tickets')} />
+        )}
         {panel?.mode === 'appt' && (
           <ApptPanel appt={panel.appt} onClose={() => setPanel(null)} onCancel={() => setConfirmCancel(panel.appt)} />
         )}
@@ -254,7 +378,7 @@ export function Calendar() {
       {confirmCancel && (
         <CancelConfirm appt={confirmCancel} onClose={() => setConfirmCancel(null)} onDone={() => { setConfirmCancel(null); setPanel(null) }} />
       )}
-    </StaffPage>
+    </div>
   )
 }
 
@@ -282,11 +406,19 @@ function TimeGutter({ pxPerMin, height, onZoomDrag }: { pxPerMin: number; height
       title="위아래로 끌어 시간축을 넓히거나 좁힙니다"
     >
       <div className="relative" style={{ height }}>
-        {labels.map((t) => (
-          <div key={t} className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground" style={{ top: (t - BASE) * pxPerMin }}>
-            {fmt(t)}
-          </div>
-        ))}
+        {labels.map((t, i) => {
+          // 첫 라벨(09:00)은 위로 당기면 열 머리글에 가려진다 → 상단 정렬. 나머지는 눈금 중앙.
+          const first = i === 0
+          return (
+            <div
+              key={t}
+              className={`absolute right-2 text-[11px] tabular-nums text-muted-foreground ${first ? '' : '-translate-y-1/2'}`}
+              style={{ top: (t - BASE) * pxPerMin + (first ? 1 : 0) }}
+            >
+              {fmt(t)}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -294,6 +426,7 @@ function TimeGutter({ pxPerMin, height, onZoomDrag }: { pxPerMin: number; height
 
 function DoctorColumn({
   doc,
+  appts,
   pxPerMin,
   height,
   onAppt,
@@ -301,16 +434,26 @@ function DoctorColumn({
   activeId,
 }: {
   doc: CalendarDoctor
+  appts: CalendarAppointment[]
   pxPerMin: number
   height: number
   onAppt: (a: CalendarAppointment) => void
   onGap: (t: number) => void
   activeId?: string
 }) {
-  const segments = useMemo(() => buildColumn(doc), [doc])
+  const segments = useMemo(() => buildColumn(doc, appts), [doc, appts])
   const gridLines: number[] = []
   for (let t = BASE; t <= END; t += 30) gridLines.push(t)
   const y = (t: number) => (t - BASE) * pxPerMin
+
+  // 빈 시간 안에서 누른 지점을 5분 격자에 붙인다 (CAL-TIME-03)
+  const [hover, setHover] = useState<{ gap: number; min: number } | null>(null)
+  const snapInGap = (e: React.PointerEvent | React.MouseEvent, seg: Segment) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const raw = seg.start + (e.clientY - rect.top) / pxPerMin
+    const snapped = Math.round(raw / 5) * 5
+    return Math.max(seg.start, Math.min(Math.max(seg.start, seg.end - 5), snapped))
+  }
 
   return (
     <div className="w-48 shrink-0 border-r border-border/70 last:border-r-0">
@@ -324,15 +467,26 @@ function DoctorColumn({
           const style = { top: y(seg.start), height: h - 1 }
 
           if (seg.kind === 'gap') {
+            const showHover = hover?.gap === i
             return (
               <button
                 key={i}
-                onClick={() => onGap(seg.start)}
-                title={`빈 시간 ${fmt(seg.start)}–${fmt(seg.end)} · 눌러서 예약`}
-                className="group absolute left-1 right-1 flex items-center justify-center rounded-md border border-dashed border-border text-[11px] text-muted-foreground/70 hover:border-primary/60 hover:bg-primary/5 hover:text-primary"
+                onPointerMove={(e) => setHover({ gap: i, min: snapInGap(e, seg) })}
+                onPointerLeave={() => setHover((prev) => (prev?.gap === i ? null : prev))}
+                onClick={(e) => onGap(snapInGap(e, seg))}
+                title={`빈 시간 ${fmt(seg.start)}–${fmt(seg.end)} · 눌러서 5분 단위로 예약`}
+                className="absolute left-1 right-1 overflow-hidden rounded-md border border-dashed border-border text-[11px] text-muted-foreground/70 hover:border-primary/60 hover:bg-primary/5"
                 style={style}
               >
-                {h >= 22 && <span className="tabular-nums">빈 시간 {fmt(seg.start)}–{fmt(seg.end)}</span>}
+                {h >= 22 && !showHover && (
+                  <span className="flex h-full items-center justify-center tabular-nums">빈 시간 {fmt(seg.start)}–{fmt(seg.end)}</span>
+                )}
+                {showHover && (
+                  <span className="pointer-events-none absolute inset-x-0 flex -translate-y-1/2 items-center gap-1 px-1" style={{ top: (hover.min - seg.start) * pxPerMin }}>
+                    <span className="rounded bg-primary px-1 py-0.5 text-[11px] font-medium text-primary-foreground tabular-nums">{fmt(hover.min)}</span>
+                    <span className="h-px flex-1 bg-primary/70" />
+                  </span>
+                )}
               </button>
             )
           }
@@ -384,8 +538,8 @@ function PanelShell({ title, onClose, children }: { title: string; onClose: () =
     <aside className="w-80 shrink-0 self-start rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold">{title}</h3>
-        <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="닫기">
-          <X className="h-4 w-4" />
+        <button onClick={onClose} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted">
+          <X className="h-4 w-4" /> 닫기
         </button>
       </div>
       {children}
@@ -436,16 +590,78 @@ function ApptPanel({ appt, onClose, onCancel }: { appt: CalendarAppointment; onC
   )
 }
 
+// 오늘의 현황 → [예약·상담 보기] / [예약 옮기기]로 넘어왔을 때의 읽기용 패널.
+// 상담: 캘린더 맥락 옆에 상담 요약만(대화 전체는 문의함). 옮기기: 옮길 예약 + 빈칸 클릭 안내.
+function TodayContextPanel({
+  ctx,
+  onClose,
+  onOpenTicket,
+}: {
+  ctx: CtxPanel
+  onClose: () => void
+  onOpenTicket: () => void
+}) {
+  const supportType = ctx.reason.split('·')[0].trim() // '취소 상담' / '변경 상담'
+  const isCancel = supportType.includes('취소')
+
+  if (ctx.kind === 'support') {
+    return (
+      <PanelShell title="예약 · 상담" onClose={onClose}>
+        <Field label="환자"><span className="font-medium">{ctx.name}</span></Field>
+        <Field label="예약"><span className="tabular-nums">{ctx.time}</span> · {ctx.dept} · {ctx.doctor}</Field>
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+            <AlertTriangle className="h-3.5 w-3.5" /> {supportType}
+          </div>
+          <dl className="mt-2 space-y-1.5 text-xs">
+            <div><dt className="text-amber-900/60">연결</dt><dd className="mt-0.5 text-amber-900">오늘 09:12</dd></div>
+            <div><dt className="text-amber-900/60">담당</dt><dd className="mt-0.5 text-amber-900">직원 확인 중</dd></div>
+            <div>
+              <dt className="text-amber-900/60">요약 (읽기 전용)</dt>
+              <dd className="mt-0.5 text-amber-900">
+                {isCancel ? '마감 후 취소 문의가 들어와 직원 확인이 필요합니다.' : '예약 시간 변경을 요청해 직원 확인이 필요합니다.'}
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <p className="text-[11px] text-muted-foreground">대화 전체와 답장은 문의함에서 봅니다. 이 패널은 읽기 전용입니다.</p>
+        <button className={`${btnPrimary} mt-3 w-full justify-center`} onClick={onOpenTicket}>
+          <MessageCircle className="h-4 w-4" /> 상담 전체 보기
+        </button>
+      </PanelShell>
+    )
+  }
+
+  return (
+    <PanelShell title="예약 옮기기" onClose={onClose}>
+      <Field label="옮길 예약"><span className="font-medium">{ctx.name}</span></Field>
+      <Field label="현재"><span className="tabular-nums">{ctx.time}</span> · {ctx.dept} · {ctx.doctor}</Field>
+      <Field label="사유">{ctx.reason}</Field>
+      <div className="rounded-lg border border-dashed border-primary/50 bg-primary/5 p-2.5 text-xs leading-relaxed text-foreground/80">
+        격자에서 <b>{ctx.doctor}</b> 열의 <b>빈 시간</b>을 눌러 새 시각으로 옮기세요. 옮기면 환자에게 변경 안내가 나갑니다.
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">옮기지 않고 취소하거나 그대로 둘 수도 있습니다(오늘의 현황에서).</p>
+    </PanelShell>
+  )
+}
+
 function BookPanel({ doctorId, time, onClose }: { doctorId?: string; time?: number; onClose: () => void }) {
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<{ name: string; birth: string; phone: string } | null>(null)
   const doc = calendarDoctors.find((d) => d.id === doctorId)
-  const results = query.trim()
-    ? patientSearchResults.filter((p) => p.name.includes(query.trim()) || p.phone.includes(query.trim()))
+  const q = query.trim()
+  const qDigits = q.replace(/\D/g, '')
+  const results = q
+    ? patientSearchResults.filter(
+        (p) =>
+          p.name.includes(q) ||
+          p.birth.includes(q) ||
+          (qDigits.length > 0 && p.phone.replace(/\D/g, '').includes(qDigits)),
+      )
     : []
 
   return (
-    <PanelShell title="전화 예약" onClose={onClose}>
+    <PanelShell title="새 예약" onClose={onClose}>
       <Field label="환자 찾기">
         {picked ? (
           <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-2.5 py-1.5">
@@ -456,14 +672,17 @@ function BookPanel({ doctorId, time, onClose }: { doctorId?: string; time?: numb
             <button className={btnLink} onClick={() => setPicked(null)}>바꾸기</button>
           </div>
         ) : (
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="이름 · 생년월일 · 전화번호"
-              className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
-            />
+          <div>
+            {/* 아이콘은 입력칸만 감싸는 relative 안에 둔다(결과 목록까지 감싸면 아이콘이 아래로 밀린다) */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="이름 · 생년월일 · 전화번호"
+                className="h-9 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+              />
+            </div>
             {results.length > 0 && (
               <ul className="mt-1.5 overflow-hidden rounded-lg border border-border">
                 {results.map((p) => (

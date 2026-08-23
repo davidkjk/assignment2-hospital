@@ -5,7 +5,7 @@ import { renderApp } from '@/test-utils'
 
 test('로그인→홈→예약 8단계→완료 후 나의 예약 목록에 1건 늘어난다', async () => {
   const user = userEvent.setup()
-  renderApp(routes, ['/'])
+  renderApp(routes, ['/app'])
 
   // 로그인 → (전화번호·비밀번호 화면) → 홈 (홈은 오늘치 3건, HOME-SCOPE)
   await user.click(screen.getByRole('button', { name: '로그인' })) // 랜딩

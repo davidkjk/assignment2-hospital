@@ -60,7 +60,11 @@ const rank = (p: P) => (p.today && p.today.status !== 'none' ? 0 : 1) // ① 오
 
 function ActionButton({ p }: { p: P }) {
   const navigate = useNavigate()
+  const { staff } = useStaff()
   const st = p.today?.status ?? 'none'
+  // 의사는 접수·예약·대기 관리 업무가 없다(SHELL-NAV-03·SHELL-ACT-03) → 환자 상세 열기만
+  if (staff.role === 'doctor')
+    return <button onClick={() => navigate(`/staff/patients/${p.id}`)} className={btnGhost}>환자 상세</button>
   if (st === 'not_arrived')
     return <button className={btnPrimary}>도착 처리</button>
   if (st === 'waiting' || st === 'in_progress')
@@ -92,7 +96,7 @@ export function PatientSearch() {
 
   return (
     <StaffPage testid="patient-search" max="max-w-4xl">
-      <PageHead title="환자 검색" sub="이름 · 전화번호 · 생년월일 중 아는 것을 넣으면 찾습니다" />
+      <PageHead title="환자 검색" />
 
       {/* 한 칸 통합 검색 */}
       <div className="relative">

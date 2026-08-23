@@ -28,7 +28,7 @@ export function Reports() {
 
   return (
     <StaffPage max="max-w-full" testid="bot-reports">
-      <PageHead title="오답 신고 처리함" sub="직원이 신고한 오답과 품질 리뷰 교정을 검토합니다" />
+      <PageHead title="오답 신고 처리함" />
 
       <div className="mb-3">
         <Segmented

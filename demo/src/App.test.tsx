@@ -9,8 +9,18 @@ test('홈 경로가 폰 프레임 안에 렌더된다', () => {
   expect(screen.getByTestId('home-screen')).toBeInTheDocument()
 })
 
-test('로그인 버튼이 로그인 화면을 거쳐 홈으로 보낸다', async () => {
+test('루트는 데모 랜딩 허브로, 세 진입과 앱 경로를 보여준다', async () => {
   renderApp(routes, ['/'])
+  expect(screen.getByRole('heading', { name: '가온병원' })).toBeInTheDocument()
+  // 세 진입 카드가 모두 있고, 앱 둘러보기로 환자 앱 랜딩(/app)에 들어간다.
+  expect(screen.getByRole('button', { name: /직원 웹 열기/ })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /홈페이지 보기/ })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: /앱 둘러보기/ }))
+  expect(screen.getByTestId('login-screen')).toBeInTheDocument()
+})
+
+test('로그인 버튼이 로그인 화면을 거쳐 홈으로 보낸다', async () => {
+  renderApp(routes, ['/app'])
   // 랜딩 [로그인] → 전화번호·비밀번호 입력 화면(AUTH-LOGIN)
   await userEvent.click(screen.getByRole('button', { name: '로그인' }))
   expect(screen.getByTestId('login-form')).toBeInTheDocument()

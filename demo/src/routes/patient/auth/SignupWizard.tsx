@@ -16,7 +16,7 @@ export function SignupWizard() {
   const { state, back } = wizard
 
   const onBack = () => {
-    if (state.step === 0) navigate('/')
+    if (state.step === 0) navigate('/app')
     else back()
   }
 

@@ -56,14 +56,28 @@ const BY_HOUR = [
   { h: '14시', n: 48 }, { h: '15시', n: 39 }, { h: '16시', n: 24 },
   { h: '시간 미기록', n: 3, unrecorded: true },
 ]
-// 드릴다운 명단 = 마스킹 값 (STAT-DRILL-02)
-const DRILL_ROWS = [
-  { id: 'p1', name: '홍*동', phone: '010-****-5678', birth: '1990-**-**', when: '08.14 10:30' },
-  { id: 'p2', name: '김*서', phone: '010-****-1130', birth: '1978-**-**', when: '08.14 11:00' },
-  { id: 'p3', name: '박*준', phone: '010-****-7742', birth: '1965-**-**', when: '08.15 09:20' },
-  { id: 'p4', name: '최*나', phone: '010-****-2098', birth: '2001-**-**', when: '08.15 14:10' },
-  { id: 'p5', name: '정*현', phone: '010-****-4420', birth: '1959-**-**', when: '08.16 15:40' },
-]
+// 드릴다운 명단 = 마스킹 값 (STAT-DRILL-02). '상세 명단'이라 표본 5줄이 아니라 실제 분량(스크롤)으로 생성한다.
+const DRILL_ROWS = (() => {
+  const sur = ['홍', '김', '박', '최', '정', '강', '조', '윤', '장', '임', '한', '오', '서', '신', '권']
+  const gv = ['동', '서', '준', '나', '현', '우', '연', '민', '호', '지', '아', '윤', '수', '빈', '결']
+  let seed = 20260822
+  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280
+  const rows: { id: string; name: string; phone: string; birth: string; when: string }[] = []
+  for (let i = 0; i < 36; i++) {
+    const yy = 1948 + Math.floor(rnd() * 62)
+    const day = 14 + Math.floor(rnd() * 3)
+    const hh = 9 + Math.floor(rnd() * 9)
+    const mm = Math.floor(rnd() * 6) * 10
+    rows.push({
+      id: `p${i + 1}`,
+      name: `${sur[Math.floor(rnd() * sur.length)]}*${gv[Math.floor(rnd() * gv.length)]}`,
+      phone: `010-****-${String(1000 + Math.floor(rnd() * 8999))}`,
+      birth: `${yy}-**-**`,
+      when: `08.${day} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`,
+    })
+  }
+  return rows
+})()
 
 function Bar({ pct }: { pct: number }) {
   return (
@@ -97,7 +111,6 @@ export function Stats() {
     <StaffPage testid="staff-stats" max="max-w-[1360px]">
       <PageHead
         title="운영 통계"
-        sub="선택한 기간의 병원 운영 흐름을 집계합니다"
         action={<button onClick={() => setCsvOpen(true)} className={btnGhost}><FileText className="h-4 w-4" /> CSV 내려받기</button>}
       />
 
@@ -244,7 +257,10 @@ export function Stats() {
             <div className="flex items-start justify-between border-b border-border/60 px-5 py-3">
               <div>
                 <h2 id="drill-title" className="text-base font-bold">{drill.label} 상세 명단</h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">{rangeLabel} · {drill.basis} · 최근 {DRILL_ROWS.length}건</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {rangeLabel} · {drill.basis} · 총 {drill.value.toLocaleString()}건
+                  {drill.value > DRILL_ROWS.length && ` 중 ${DRILL_ROWS.length}건 표시`}
+                </p>
               </div>
               <button onClick={() => setDrill(null)} className="rounded-full p-1 hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></button>
             </div>
@@ -263,7 +279,7 @@ export function Stats() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {DRILL_ROWS.map((r) => (
+                  {DRILL_ROWS.slice(0, drill.value).map((r) => (
                     <tr key={r.id} className="cursor-pointer hover:bg-muted/40" onClick={() => navigate(`/staff/patients/${r.id}`)}>
                       <td className="px-5 py-2.5 font-medium">{r.name}</td>
                       <td className="px-5 py-2.5 tabular-nums text-muted-foreground">{r.phone} · {r.birth}</td>

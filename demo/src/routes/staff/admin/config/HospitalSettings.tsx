@@ -1,7 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { AlertTriangle } from '@/components/icons'
 import { StaffPage, PageHead, btnPrimary } from '../../_ui'
 import { initialSettings, notificationRows, type HospitalSettings as Settings, type NotificationRow } from './mockData'
+
+// 알림 문구에 꽂을 수 있는 값 셋 (HSET-MSG-16: 환자 이름·날짜·시각, 눌러서 꽂는다·직접 타이핑 금지)
+const TOKENS = ['[환자 이름]', '[날짜]', '[시각]'] as const
+/** 저장 전 미리보기용 — 넣은 값이 실제 글자로 바뀐 모양을 보여준다 (HSET-MSG-13) */
+function fillTokens(t: string): string {
+  return t.replaceAll('[환자 이름]', '김가온').replaceAll('[날짜]', '8월 12일').replaceAll('[시각]', '오후 2:00')
+}
 
 // 병원 설정 (/staff/admin/settings) — HSET-*.
 // 왼쪽 세로줄 5: 예약 규칙·대기실 운영·문자 발송·알림·병원 정보. 줄마다 지금 값 부제(HSET-NAV-03).
@@ -16,14 +23,38 @@ export function HospitalSettings() {
   const [saved, setSaved] = useState<Settings>(initialSettings)
   const [savedNotify, setSavedNotify] = useState<NotificationRow[]>(notificationRows)
 
-  const dirty = JSON.stringify(s) !== JSON.stringify(saved) || JSON.stringify(notify) !== JSON.stringify(savedNotify)
+  const notifyDirty = JSON.stringify(notify) !== JSON.stringify(savedNotify)
+  const dirty = JSON.stringify(s) !== JSON.stringify(saved) || notifyDirty
   const set = (up: Partial<Settings>) => setS((prev) => ({ ...prev, ...up }))
+
+  // 문구 칸에 값을 꽂기 위해 마지막으로 만진 칸을 기억한다
+  const [notifyFocus, setNotifyFocus] = useState<number | null>(null)
+  const activeInput = useRef<HTMLInputElement | null>(null)
+  const [confirmSave, setConfirmSave] = useState(false)
+
+  const doSave = () => {
+    setSaved(s)
+    setSavedNotify(notify)
+    setConfirmSave(false)
+  }
+  // 문구를 고쳤으면 저장 전에 한 번 되묻는다 (HSET-MSG-12), 아니면 바로 저장
+  const onSave = () => (notifyDirty ? setConfirmSave(true) : doSave())
+
+  const insertToken = (token: string) => {
+    if (notifyFocus == null) return
+    const el = activeInput.current
+    const cur = notify[notifyFocus].text
+    const at = el?.selectionStart ?? cur.length
+    const end = el?.selectionEnd ?? at
+    const next = cur.slice(0, at) + token + cur.slice(end)
+    setNotify((prev) => prev.map((x, j) => (j === notifyFocus ? { ...x, text: next } : x)))
+  }
 
   const NAV: { key: Tab; label: string; sub: string }[] = [
     { key: 'booking', label: '예약 규칙', sub: `취소 마감 ${s.cancellationDeadlineHours}시간 · 자동확정 ${s.autoConfirm ? '켜짐' : '꺼짐'}` },
     { key: 'waiting', label: '대기실 운영', sub: s.longWaitEnabled ? `${s.longWaitMin}분 이상 표시` : '오래 대기 표시 꺼짐' },
     { key: 'sms', label: '문자 발송', sub: s.smsEnabled ? `켜짐 · ${s.smsWho}` : '꺼짐' },
-    { key: 'notify', label: '알림', sub: `${notify.length}종` },
+    { key: 'notify', label: '자동 알림', sub: `${notify.length}종` },
     { key: 'info', label: '병원 정보', sub: '환자 앱에 노출' },
   ]
 
@@ -31,9 +62,8 @@ export function HospitalSettings() {
     <StaffPage max="max-w-5xl" testid="staff-hospital-settings">
       <PageHead
         title="병원 설정"
-        sub="예약·대기실·문자·알림·병원 정보를 관리합니다"
         action={
-          <button className={`${btnPrimary} disabled:opacity-50`} disabled={!dirty} onClick={() => { setSaved(s); setSavedNotify(notify) }}>
+          <button className={`${btnPrimary} disabled:opacity-50`} disabled={!dirty} onClick={onSave}>
             저장
           </button>
         }
@@ -88,7 +118,7 @@ export function HospitalSettings() {
 
           {tab === 'sms' && (
             <div className="space-y-5">
-              <Row label="문자 발송" hint="문자를 끄면 아래 「누구에게」와 알림 표의 「문자로도」가 잠깁니다. 값은 보존됩니다.">
+              <Row label="문자 발송" hint="문자를 끄면 아래 「누구에게」와 자동 알림의 「문자도 발송」이 잠깁니다. 값은 보존됩니다.">
                 <Toggle on={s.smsEnabled} onChange={(v) => set({ smsEnabled: v })} />
               </Row>
               <Row label="누구에게 문자를 보내나">
@@ -113,26 +143,47 @@ export function HospitalSettings() {
 
           {tab === 'notify' && (
             <div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                환자에게 자동으로 나가는 알림 문구입니다. 칸을 누르고 아래 <b className="text-foreground">이름·날짜·시각</b> 버튼으로 값을 꽂으세요.
+              </p>
               {!s.smsEnabled && (
                 <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  문자가 꺼져 있어 「문자로도」 열이 잠겼습니다.
+                  문자가 꺼져 있어 「문자도 발송」 열이 잠겼습니다.
                   <button className="ml-auto font-medium text-primary hover:underline" onClick={() => setTab('sms')}>문자 발송 설정으로 ›</button>
                 </div>
               )}
               <div className="overflow-hidden rounded-xl border border-border/70">
                 <div className="grid grid-cols-[120px_1fr_88px] items-center gap-3 border-b border-border/70 bg-muted/40 px-3 py-2 text-[11px] font-medium text-muted-foreground">
-                  <span>종류</span><span>문구</span><span className="text-center">문자로도</span>
+                  <span>종류</span><span>문구</span><span className="text-center">문자도 발송</span>
                 </div>
                 {notify.map((n, i) => (
-                  <div key={n.kind} className="grid grid-cols-[120px_1fr_88px] items-center gap-3 border-b border-border/60 px-3 py-2 last:border-b-0">
-                    <span className="text-sm font-medium">{n.kind}</span>
-                    <input
-                      value={n.text}
-                      onChange={(e) => setNotify((prev) => prev.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
-                      className="rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm outline-none focus:border-ring"
-                    />
-                    <div className="flex justify-center">
+                  <div key={n.kind} className="grid grid-cols-[120px_1fr_88px] items-start gap-3 border-b border-border/60 px-3 py-2 last:border-b-0">
+                    <span className="pt-1.5 text-sm font-medium">{n.kind}</span>
+                    <div>
+                      <input
+                        value={n.text}
+                        ref={(el) => { if (notifyFocus === i) activeInput.current = el }}
+                        onFocus={(e) => { setNotifyFocus(i); activeInput.current = e.currentTarget }}
+                        onChange={(e) => setNotify((prev) => prev.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
+                        className="w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-sm outline-none focus:border-ring"
+                      />
+                      {/* 눌러서 꽂는 값 칩 — 지금 만지는 칸 아래에만 (HSET-MSG-16) */}
+                      {notifyFocus === i && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {TOKENS.map((t) => (
+                            <button
+                              key={t}
+                              onMouseDown={(e) => { e.preventDefault(); insertToken(t) }}
+                              className="rounded-md border border-primary/40 bg-primary/5 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+                            >
+                              ＋ {t.replace(/[[\]]/g, '')}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-center pt-1.5">
                       <input
                         type="checkbox"
                         checked={n.alsoSms}
@@ -162,6 +213,33 @@ export function HospitalSettings() {
           )}
         </div>
       </div>
+
+      {/* 저장 전 되묻기 + 미리보기 (HSET-MSG-12·13) */}
+      {confirmSave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-6 shadow-[var(--elevation-card)]">
+            <h2 className="text-lg font-bold">이대로 저장할까요?</h2>
+            <p className="mt-1 text-sm text-muted-foreground">이 문장은 잠금화면에 그대로 뜨고, 문자로 보낸 경우 환자 폰에 남습니다.</p>
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              진료과 · 의사 이름 · 증상은 넣지 마세요.
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">보내질 모양 (값을 채운 미리보기)</div>
+              {notify.map((n) => (
+                <div key={n.kind} className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">{n.kind}{n.alsoSms ? ' · 문자도 발송' : ''}</div>
+                  <div className="mt-0.5 text-sm">{fillTokens(n.text)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setConfirmSave(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted">더 고치기</button>
+              <button onClick={doSave} className={btnPrimary}>이대로 저장</button>
+            </div>
+          </div>
+        </div>
+      )}
     </StaffPage>
   )
 }

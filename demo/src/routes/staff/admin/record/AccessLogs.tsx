@@ -143,7 +143,7 @@ export function AccessLogs() {
 
   return (
     <StaffPage testid="staff-access-logs" max="max-w-[1360px]">
-      <PageHead title="환자정보 열람 기록" sub="누가 어떤 환자 정보를 언제 열었는지 확인합니다" />
+      <PageHead title="환자정보 열람 기록" />
 
       {/* 읽기 전용 고지 — ALOG-HEAD-02 */}
       <div className="mb-4 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">

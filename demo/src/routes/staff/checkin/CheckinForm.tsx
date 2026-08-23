@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { QrCode, CheckCircle2, Users } from '@/components/icons'
+import { NOW } from '../mockData'
 
-// 접수 폼 (CHKIN-*) — 라우트(/checkin 전체화면)와 헤더 패널(CheckinPanel)이 공유.
-// QR 스캔이 주 경로, 6자리 예약번호 직접 입력이 보조. 유효 예약은 결과 카드에서 [도착 처리].
+// 접수 폼 (CHKIN-*) — 라우트(/checkin 전체화면)와 헤더 '접수' 문의 예약 확인 갈래(doors/panels)가 공유.
+// QR 스캔이 주 경로, 6자리 예약번호 직접 입력이 보조.
+// 유효 예약은 대기 목록과 같은 모델로 처리한다 — 예약 시각이 됐/지났으면 [진료 대기](바로 순번),
+// 아직 일찍 오셨으면 [도착](보류, 예약 시각에 자동으로 진료 대기로). 순서 고정, 추천 동작만 색(딥틸).
 // 데모라 실제 카메라 대신 '샘플 QR 인식' 버튼으로 시연한다.
 
 interface Appt {
@@ -33,11 +36,11 @@ export function CheckinForm({ onClose }: { onClose?: () => void }) {
   const [code, setCode] = useState('')
   const [formErr, setFormErr] = useState('')
   const [result, setResult] = useState<Result>(null)
-  const [arrived, setArrived] = useState(false)
+  const [outcome, setOutcome] = useState<null | 'arrived' | 'waiting'>(null)
 
   function lookup(raw: string) {
     const norm = raw.trim().toUpperCase()
-    setArrived(false)
+    setOutcome(null)
     const appt = DEMO_APPTS[norm]
     setResult(appt ? { kind: 'ok', appt } : { kind: 'invalid' })
   }
@@ -54,7 +57,7 @@ export function CheckinForm({ onClose }: { onClose?: () => void }) {
 
   function reset() {
     setResult(null)
-    setArrived(false)
+    setOutcome(null)
     setCode('')
     setFormErr('')
   }
@@ -143,51 +146,59 @@ export function CheckinForm({ onClose }: { onClose?: () => void }) {
           만료되었거나 존재하지 않는 예약번호입니다
         </div>
       )}
-      {result?.kind === 'ok' && (
-        <div className="rounded-xl border border-border/70 bg-card p-5 shadow-[var(--elevation-card)]">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold">{result.appt.name}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ${
-                    arrived ? 'bg-violet-600' : 'bg-primary'
-                  }`}
-                >
-                  {arrived ? '도착' : '예약확정'}
-                </span>
+      {result?.kind === 'ok' && (() => {
+        const early = result.appt.time > NOW // 예약 시각보다 일찍 오심 → 도착(보류) 추천
+        const statusLabel = outcome === 'arrived' ? '도착' : outcome === 'waiting' ? '진료 대기' : '예약확정'
+        const badgeColor = outcome === 'arrived' ? 'bg-violet-600' : outcome === 'waiting' ? 'bg-sky-600' : 'bg-primary'
+        const primaryBtn = 'rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90'
+        const outlineBtn = 'rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted'
+        const ghostBtn = 'rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted'
+        return (
+          <div className="rounded-xl border border-border/70 bg-card p-5 shadow-[var(--elevation-card)]">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold">{result.appt.name}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ${badgeColor}`}>{statusLabel}</span>
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {result.appt.time} · {result.appt.dept} {result.appt.doctor}
+                </div>
+                <div className="mt-0.5 text-xs text-muted-foreground">예약번호 {result.appt.code}</div>
               </div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {result.appt.time} · {result.appt.dept} {result.appt.doctor}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">예약번호 {result.appt.code}</div>
+              {outcome && <CheckCircle2 className={`h-7 w-7 ${outcome === 'arrived' ? 'text-violet-600' : 'text-sky-600'}`} />}
             </div>
-            {arrived && <CheckCircle2 className="h-7 w-7 text-violet-600" />}
-          </div>
 
-          <div className="mt-4 flex gap-2">
-            {!arrived ? (
-              <button
-                onClick={() => setArrived(true)}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                도착 처리
-              </button>
+            {outcome === null ? (
+              <>
+                {/* 순서 고정 [진료 대기][도착], 추천 동작만 딥틸(색만 이동) — 대기 목록과 같은 모델 */}
+                <div className="mt-4 flex gap-2">
+                  <button onClick={() => setOutcome('waiting')} className={early ? outlineBtn : primaryBtn}>진료 대기</button>
+                  <button onClick={() => setOutcome('arrived')} className={early ? primaryBtn : outlineBtn}>도착</button>
+                  <button onClick={reset} className={ghostBtn}>다음 접수</button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {early
+                    ? `예약 시각(${result.appt.time})보다 일찍 오셨습니다. [도착]으로 두면 예약 시각에 자동으로 진료 대기로 넘어갑니다.`
+                    : '예약 시각이 되었습니다. [진료 대기]를 누르면 바로 순번을 받습니다.'}
+                </p>
+              </>
             ) : (
-              <button
-                onClick={() => goQueue('/staff/queue')}
-                className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted"
-              >
-                대기 목록에서 보기
-              </button>
+              <>
+                <div className="mt-4 flex gap-2">
+                  <button onClick={() => goQueue('/staff/queue')} className={outlineBtn}>대기 목록에서 보기</button>
+                  <button onClick={reset} className={ghostBtn}>다음 접수</button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {outcome === 'arrived'
+                    ? '도착 처리했습니다 · 예약 시각에 자동으로 진료 대기로 넘어갑니다. 다음 환자를 QR/예약번호로 접수하세요'
+                    : '진료 대기로 접수했습니다 · 순번이 부여됐습니다. 다음 환자를 QR/예약번호로 접수하세요'}
+                </p>
+              </>
             )}
-            <button onClick={reset} className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted">
-              다음 접수
-            </button>
           </div>
-          {arrived && <p className="mt-2 text-xs text-muted-foreground">도착 처리했습니다 · 다음 환자를 QR/예약번호로 접수하세요</p>}
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

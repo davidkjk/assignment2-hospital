@@ -59,7 +59,7 @@ export function Errors() {
 
   return (
     <StaffPage testid="staff-errors" max="max-w-[1200px]">
-      <PageHead title="시스템 오류 기록" sub="오류가 발생한 시간과 기능을 확인합니다" />
+      <PageHead title="시스템 오류 기록" />
 
       {/* 읽기 전용 고지 — ERRADM-HEAD-02 */}
       <div className="mb-4 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">

@@ -19,7 +19,7 @@ export function Login() {
             <Hospital className="h-9 w-9 text-primary-foreground" aria-hidden="true" />
           </div>
           <h1 className="brand-wordmark text-3xl text-primary">가온병원</h1>
-          <p className="text-sm text-muted-foreground">예약하고 대기 없이 진료받으세요</p>
+          <p className="text-sm text-muted-foreground">가까운 곳에서, 믿을 수 있는 진료</p>
         </div>
 
         <div className="flex w-full flex-col gap-3">

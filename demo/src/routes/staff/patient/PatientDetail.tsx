@@ -63,10 +63,27 @@ function Badge({ status }: { status: string }) {
 export function PatientDetail() {
   useParams() // :id (데모는 고정 환자)
   const { staff } = useStaff()
-  const canReadQnr = staff.role === 'doctor' // 담당 의사만(PTDET-QNR-03, 관리자·접수 비열람)
+  const isDoctor = staff.role === 'doctor'
+  const canReadQnr = isDoctor // 담당 의사만(PTDET-QNR-03, 관리자·접수 비열람)
+  // 접수 동작(전화번호 변경·가족 연결)은 접수직원·관리자만. 의사에겐 이 화면이 「과거 진료기록 열람」용이라
+  // 접수 버튼을 숨긴다(SHELL-NAV-03·ROLE-DOC-02·DOCTOR-CONTEXT-01). 읽기는 허용(ROLE-READ-01).
+  const canEditContact = !isDoctor
   const [notes, setNotes] = useState([{ text: '지난 방문 때 대기 오래 하심 — 다음엔 앞 순번 배정', by: '박지민', at: '08-20 10:12' }])
   const [draft, setDraft] = useState('')
   const [adding, setAdding] = useState(false)
+
+  // 전화번호 변경 (PTDET-ACTION-02·NAV-SHELL-11): 환자 상세 안 인라인 패널.
+  // 새 번호 입력 → 새 번호로 인증 → 변경. ⛔ 직접 저장 한 번으로 계정 번호 안 바꿈 —
+  // 전화번호가 로그인 수단이라 오타 난 번호가 저장되면 환자가 로그인에서 잠긴다. 그래서 새 번호 인증 후에만 바뀐다.
+  const [tel, setTel] = useState(DEMO.tel)
+  const [telStep, setTelStep] = useState<null | 'input' | 'sent'>(null)
+  const [newTel, setNewTel] = useState('')
+  const [code, setCode] = useState('')
+  const [telDone, setTelDone] = useState(false)
+  const telValid = newTel.replace(/\D/g, '').length >= 10
+  const openTel = () => { setTelStep('input'); setNewTel(''); setCode(''); setTelDone(false) }
+  const closeTel = () => setTelStep(null)
+  const applyTel = () => { setTel(newTel); setTelStep(null); setTelDone(true) }
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-5">
@@ -83,15 +100,81 @@ export function PatientDetail() {
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{DEMO.relation}</span>
               </div>
               <div className="mt-0.5 text-sm text-muted-foreground">
-                {DEMO.birth} · {DEMO.sex} · {DEMO.tel}
+                {DEMO.birth} · {DEMO.sex} · {tel}
+                {telDone && <span className="ml-2 text-xs font-medium text-primary">· 방금 변경됨</span>}
               </div>
             </div>
           </div>
-          <button className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted">
-            <Phone className="h-4 w-4 text-primary" />
-            전화번호 변경
-          </button>
+          {/* 전화번호 변경 = 접수직원·관리자만. 의사에겐 숨김(ROLE-DOC-02·DOCTOR-CONTEXT-01) */}
+          {canEditContact && telStep === null && (
+            <button
+              onClick={openTel}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted"
+            >
+              <Phone className="h-4 w-4 text-primary" />
+              전화번호 변경
+            </button>
+          )}
         </div>
+
+        {/* 전화번호 변경 패널 (PTDET-ACTION-02) — 새 번호 → 새 번호 인증 → 변경. 직접 저장 한 번으로 계정 번호 안 바꿈. */}
+        {canEditContact && telStep !== null && (
+          <div className="mt-4 rounded-lg border border-border bg-muted/30 p-4">
+            <div className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+              <Phone className="h-4 w-4 text-primary" /> 전화번호 변경
+            </div>
+            <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+              전화번호는 환자가 로그인에 쓰는 번호라, <b className="text-foreground">새 번호로 인증을 마친 뒤에</b> 바뀝니다. 환자에게 직접 여쭤 입력해 주세요.
+            </p>
+            {telStep === 'input' ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1 text-xs">
+                  <span className="text-muted-foreground">새 전화번호</span>
+                  <input
+                    value={newTel}
+                    onChange={(e) => setNewTel(e.target.value)}
+                    placeholder="010-0000-0000"
+                    className="h-9 w-48 rounded-md border border-border bg-card px-3 text-sm tabular-nums"
+                  />
+                </label>
+                <button
+                  onClick={() => setTelStep('sent')}
+                  disabled={!telValid}
+                  className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+                >
+                  인증번호 발송
+                </button>
+                <button onClick={closeTel} className="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted">
+                  취소
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  <b className="text-foreground tabular-nums">{newTel}</b> 로 인증번호를 보냈습니다. 환자 휴대폰에 온 6자리를 입력하세요.
+                </p>
+                <div className="flex flex-wrap items-end gap-2">
+                  <input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="인증번호 6자리"
+                    className="h-9 w-40 rounded-md border border-border bg-card px-3 text-sm tabular-nums"
+                  />
+                  <button
+                    onClick={applyTel}
+                    disabled={code.length < 6}
+                    className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+                  >
+                    확인하고 변경
+                  </button>
+                  <button onClick={() => setTelStep('input')} className="h-9 rounded-md px-3 text-sm text-muted-foreground hover:bg-muted">
+                    번호 다시 입력
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── 현재 예약·상태 ── */}
@@ -116,7 +199,7 @@ export function PatientDetail() {
         {/* 가족 관계 */}
         <Section
           title="가족"
-          action={<button className="text-xs font-medium text-primary hover:underline">가족 연결 추가</button>}
+          action={canEditContact ? <button className="text-xs font-medium text-primary hover:underline">가족 연결 추가</button> : undefined}
         >
           <ul className="divide-y divide-border/60">
             {DEMO.family.map((f) => (

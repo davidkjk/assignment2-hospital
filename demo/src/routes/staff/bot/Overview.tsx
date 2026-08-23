@@ -1,5 +1,5 @@
 import { AlertTriangle, ChevronRight } from '@/components/icons'
-import { StaffPage, PageHead, StatTile } from '../_ui'
+import { StaffPage, PageHead, StatTile, PeriodSelect } from '../_ui'
 import { overviewMetrics, topQuestions, channelSources } from './mockData'
 
 // 상담봇 처리 현황 (/staff/bot/overview) — BOTSTAT-DASH-* · QTOP-RANK-*.
@@ -14,15 +14,7 @@ export function Overview() {
 
   return (
     <StaffPage max="max-w-5xl" testid="bot-overview">
-      <PageHead
-        title="상담봇 처리 현황"
-        sub="선택 기간 · 최근 7일"
-        action={
-          <div className="flex items-center gap-2">
-            <span className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm tabular-nums text-muted-foreground">8/16 – 8/22</span>
-          </div>
-        }
-      />
+      <PageHead title="상담봇 처리 현황" action={<PeriodSelect />} />
 
       {/* 운영 지표 */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">

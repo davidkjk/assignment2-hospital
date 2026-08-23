@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 // 직원 콘솔 공용 프리미티브 — 각진 촘촘한 패널·업무 밀도(딥틸 잉크 사이드바와 짝).
 // 색은 shadcn 의미 토큰만. 패널 = 얇은 경계선 + 미세 그림자(폭신한 환자앱 카드와 다른 '체급').
@@ -35,6 +35,53 @@ export function PageHead({ sub, action }: { title?: string; sub?: string; action
     <div className="mb-4 flex items-center justify-between gap-4">
       {sub ? <p className="text-sm text-muted-foreground">{sub}</p> : <span />}
       {action}
+    </div>
+  )
+}
+
+/** 기간 선택기 — 날짜 칸이 늘 보이고, 프리셋을 고르면 그 날짜로 맞춰진다.
+ *  날짜를 직접 고치면 프리셋은 「직접 지정」으로 바뀐다(데모: 표시만 갱신). */
+const PERIOD_TODAY = '2026-08-22'
+const PRESET_FROM: Record<string, string> = {
+  '최근 7일': '2026-08-16',
+  '최근 30일': '2026-07-24',
+  '최근 90일': '2026-05-25',
+  '최근 1년': '2025-08-22',
+  전체: '2023-01-01',
+}
+const PERIOD_KEYS = Object.keys(PRESET_FROM)
+const CUSTOM = '직접 입력'
+const dateCls = 'h-9 rounded-lg border border-input bg-card px-2 text-sm tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/40'
+export function PeriodSelect({ initial = '최근 7일' }: { initial?: string }) {
+  const [p, setP] = useState(initial)
+  const [from, setFrom] = useState(PRESET_FROM[initial] ?? PRESET_FROM['최근 7일'])
+  const [to, setTo] = useState(PERIOD_TODAY)
+  const custom = p === CUSTOM
+  const pickPreset = (k: string) => {
+    if (k === CUSTOM) return // 직접 입력은 날짜 칸을 고쳐서만 들어간다(고를 수 없음)
+    setP(k)
+    setFrom(PRESET_FROM[k])
+    setTo(PERIOD_TODAY)
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        value={p}
+        onChange={(e) => pickPreset(e.target.value)}
+        className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+        aria-label="조회 기간"
+      >
+        {PERIOD_KEYS.map((k) => (
+          <option key={k}>{k}</option>
+        ))}
+        {/* 날짜를 직접 고치면 이 항목이 선택된 상태로만 나타난다(목록에서 고를 수는 없음) */}
+        {custom && <option value={CUSTOM}>{CUSTOM}</option>}
+      </select>
+      <span className="flex items-center gap-1.5">
+        <input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setP(CUSTOM) }} className={dateCls} aria-label="시작일" />
+        <span className="text-sm text-muted-foreground">–</span>
+        <input type="date" value={to} min={from} onChange={(e) => { setTo(e.target.value); setP(CUSTOM) }} className={dateCls} aria-label="종료일" />
+      </span>
     </div>
   )
 }
@@ -86,6 +133,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   // 예약
   예약신청: 'amber',
   예약확정: 'teal',
+  미도착: 'slate',
   도착: 'violet',
   '진료 대기': 'sky',
   '진료 중': 'teal',

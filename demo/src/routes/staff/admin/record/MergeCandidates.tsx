@@ -6,9 +6,11 @@ import {
   Check,
   CheckCircle2,
   ClipboardList,
+  ExternalLink,
   Eye,
   FileText,
   History,
+  ChevronLeft,
   Layers3,
   LockKeyhole,
   ShieldCheck,
@@ -53,12 +55,12 @@ const CANDIDATES: Candidate[] = [
   {
     id: 'c2',
     left: { id: 'b1', name: '박서준', birth: '1965-07-21', phone: '010-3390-7742', linked: false, appts: 6, qnr: 5, records: 6, audits: 10, lastVisit: '2026-08-10' },
-    right: { id: 'b2', name: '박서준', birth: '1965-07-21', phone: '010-3390-7742', linked: false, appts: 2, qnr: 0, records: 1, audits: 3, lastVisit: '' },
+    right: { id: 'b2', name: '박서준', birth: '1965-07-21', phone: '010-3390-7742', linked: false, appts: 2, qnr: 0, records: 0, audits: 3, lastVisit: '' },
   },
   {
     id: 'c3',
     left: { id: 'd1', name: '최유나', birth: '2001-09-30', phone: '010-5567-2098', linked: true, appts: 4, qnr: 3, records: 3, audits: 7, lastVisit: '2026-08-18' },
-    right: { id: 'd2', name: '최유나', birth: '2001-09-30', phone: '010-5567-2098', linked: true, appts: 1, qnr: 1, records: 0, audits: 2, lastVisit: '2026-07-22' },
+    right: { id: 'd2', name: '최유나', birth: '2001-09-30', phone: '010-8842-1130', linked: true, appts: 1, qnr: 1, records: 0, audits: 2, lastVisit: '2026-07-22' },
   },
 ]
 
@@ -95,7 +97,6 @@ export function MergeCandidates() {
     <StaffPage testid="staff-merge-candidates" max="max-w-[1200px]">
       <PageHead
         title="중복 환자 후보"
-        sub="같은 사람의 환자 기록이 나뉘었는지 확인하고 병합을 검토합니다"
       />
 
       {/* 자동 병합 고지 — MERGE-HEAD-02 */}
@@ -151,6 +152,7 @@ export function MergeCandidates() {
 
 // ── 후보 카드 (목록) — MERGE-LIST-01·03·04·05 ──
 function CandidateCard({ candidate, onReview }: { candidate: Candidate; onReview: () => void }) {
+  const navigate = useNavigate()
   const locked = bothLinked(candidate)
   const { left, right } = candidate
   return (
@@ -160,7 +162,6 @@ function CandidateCard({ candidate, onReview }: { candidate: Candidate; onReview
           <Layers3 className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold">{left.name}</h3>
           <Tag>{maskBirth(left.birth)}</Tag>
-          <Tag>{maskPhone(left.phone)}</Tag>
         </div>
         {locked ? (
           <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
@@ -168,7 +169,7 @@ function CandidateCard({ candidate, onReview }: { candidate: Candidate; onReview
           </span>
         ) : (
           <button onClick={onReview} className={btnGhost}>
-            <Eye className="h-4 w-4" /> 대표로 검토
+            <Eye className="h-4 w-4" /> 대표 검토
           </button>
         )}
       </div>
@@ -185,15 +186,24 @@ function CandidateCard({ candidate, onReview }: { candidate: Candidate; onReview
               <span className="tabular-nums text-muted-foreground">진료기록 {p.records}건 · 예약 {p.appts}건</span>
               <span className="tabular-nums text-xs text-muted-foreground">{p.lastVisit ? `${p.lastVisit} 방문` : '방문 없음'}</span>
             </div>
+            {/* 전화번호는 기록마다 다를 수 있다(특히 둘 다 계정 연결=서로 다른 번호). 관리자 판단 근거라 카드마다 보인다. */}
+            <div className="mt-1 tabular-nums text-xs text-muted-foreground">{maskPhone(p.phone)}</div>
           </div>
         ))}
       </div>
 
       {/* 근거 문구 (MERGE-LIST-04) / 이중 계정 잠금 (MERGE-STATE-04) */}
       {locked ? (
-        <div className="mt-3 flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>두 기록 모두 계정이 연결되어 있어 자동 병합할 수 없습니다. 가족 연결과 혼동하지 말고 환자 상세에서 별도 확인하세요.</span>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-start gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>두 기록 모두 계정이 연결되어 있어 자동 병합할 수 없습니다. 가족 연결과 혼동하지 말고 환자 상세에서 별도 확인하세요.</span>
+          </div>
+          {/* 막다른 길 금지 — 각 기록을 환자 상세에서 직접 확인할 수 있게 문을 준다 */}
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate(`/staff/patients/${left.id}`)} className={`${btnGhost} px-2.5 py-1 text-xs`}><ExternalLink className="h-3.5 w-3.5" /> 기록 A 환자 상세</button>
+            <button onClick={() => navigate(`/staff/patients/${right.id}`)} className={`${btnGhost} px-2.5 py-1 text-xs`}><ExternalLink className="h-3.5 w-3.5" /> 기록 B 환자 상세</button>
+          </div>
         </div>
       ) : (
         <p className="mt-3 text-xs text-muted-foreground">
@@ -228,7 +238,7 @@ function Compare({
   const recommend = candidate.left.records >= candidate.right.records ? 'left' : 'right'
   return (
     <div>
-      <button onClick={onBack} className="mb-3 text-sm font-medium text-primary hover:underline">‹ 후보 목록으로</button>
+      <button onClick={onBack} className={`${btnGhost} mb-3`}><ChevronLeft className="h-4 w-4" /> 후보 목록으로</button>
 
       <div className="grid grid-cols-2 gap-3">
         {(['left', 'right'] as const).map((side) => {
@@ -297,6 +307,16 @@ function Compare({
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
           <span>기록이 더 많은 쪽을 대표로 권합니다. 적은 쪽을 대표로 고르면 앱·이력에서 보이는 범위가 달라질 수 있습니다.</span>
         </div>
+        {/* 계정 연결 이동 안내 — MERGE-COMPARE-04. 한쪽만 연결됐고 미연결 쪽을 대표로 고르면 연결이 대표로 옮겨간다. */}
+        {candidate.left.linked !== candidate.right.linked && rep && !candidate[rep].linked && (
+          <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+            <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
+            <span>
+              {candidate.left.linked ? '기록 A' : '기록 B'}의 <b>계정 연결</b>이 대표({rep === 'left' ? '기록 A' : '기록 B'})로 이동합니다.
+              병합 뒤에도 이 환자는 앱에 <b>연결된 채로</b> 남습니다.
+            </span>
+          </div>
+        )}
         <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <History className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>원본 예약·문진·진료기록·열람 기록은 원래 자리에 남고, 대표 조회가 계보를 따라 함께 읽습니다.</span>

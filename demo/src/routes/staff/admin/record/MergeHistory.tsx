@@ -11,11 +11,10 @@ import {
   FileText,
   History,
   LockKeyhole,
-  Pencil,
   ShieldCheck,
   X,
 } from '@/components/icons'
-import { EmptyState, PageHead, StaffPage, StatusBadge, btnGhost, btnPrimary } from '../../_ui'
+import { EmptyState, PageHead, PeriodSelect, StaffPage, StatusBadge, btnGhost, btnPrimary } from '../../_ui'
 
 // 병합 되돌림 이력 (/staff/admin/merge-history) — MHIST-*.
 // 병합을 만드는 화면이 아니라 이미 발생한 병합을 조회·되돌림하는 별도 화면(결정16).
@@ -66,7 +65,7 @@ export function MergeHistory() {
 
   return (
     <StaffPage testid="staff-merge-history" max="max-w-[1100px]">
-      <PageHead title="병합 이력" sub="이미 처리한 병합을 확인하고 필요하면 관리자가 직접 되돌립니다" />
+      <PageHead title="병합 이력" action={<PeriodSelect />} />
 
       {view === 'list' && (
         events.length === 0 ? (
@@ -80,7 +79,7 @@ export function MergeHistory() {
           <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border/70 bg-muted/40 text-left text-xs font-semibold text-muted-foreground">
+                <tr className="border-b border-border/70 bg-muted/40 text-left text-sm font-semibold text-muted-foreground">
                   <th className="w-[170px] px-4 py-2.5 font-semibold">병합 시각</th>
                   <th className="w-[96px] px-4 py-2.5 font-semibold">실행자</th>
                   <th className="px-4 py-2.5 font-semibold">대표 · 병합된 대상</th>
@@ -189,7 +188,6 @@ function Detail({ event, onBack, onReview, onOpenPatient }: { event: Event; onBa
           {event.status === '되돌림불가' && (
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => onOpenPatient(event.absorbed.id)} className={btnGhost}><ExternalLink className="h-4 w-4" /> 대상 환자 열기</button>
-              <button className={btnGhost}><Pencil className="h-4 w-4" /> 감사메모 저장</button>
             </div>
           )}
         </section>
