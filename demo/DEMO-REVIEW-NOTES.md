@@ -356,3 +356,9 @@
 9. **작은 글자 스윕** (사용자: 밀도 타당한 것과 구분해 선별) — **11px 하한 확립**: 독립 배지·마커 `text-[10px]`→`text-[11px]` 5곳(Tickets 새 메시지·Questionnaires 현재 사용·Schedule 슬롯 요약·Calendar 지금선/호버 시각). **캘린더·도어 블록 내부 3곳**(Calendar 블록 라벨·surfaces 블록 sub/시각)은 좁은 칸 넘침 위험으로 **유지**. `text-[0.7rem]`(≥11px)·`text-[11px]`(밀도 표준 74곳)은 하한 이상이라 그대로.
 
 > **C. 안내자료(Knowledge.tsx) 재작업 = 이미 완료 확인** — 핸드오프 「🔜 남은 것」의 7개 항목(①빈 편집기 ②진입 시 고르세요·프리필 제거 ③칩 위·상단줄 정렬 ④수정이력 보이는 버튼 ⑤아래 꺽쇠 ⑥"이 버전 불러오기"+되돌리기 아님 명시 ⑦승인 대기 상태 제거→승인됨/임시저장 2상태)이 전부 반영돼 있음(mockData `KnowledgeStatus='승인됨'|'임시저장'`). 핸드오프 상단이 낡았던 것. **추가 작업 없음.**
+
+### ✅ 배포 후 추가 검수 (커밋 `31ae819`, 재배포 완료)
+10. **grid-div 표 헤더 글자** — 상담봇 기록(Chatlog)·자동알림(HospitalSettings)·품질 상담목록(Quality)의 열 헤더가 `text-xs`/`text-[11px]`로 남아 있던 것 → **`text-sm`**. ⚠️ 앞선 ③ 표 정렬 점검이 `<th>`만 봐서 grid-div 헤더 3곳을 놓쳤음(사용자 지적).
+11. **예약 캘린더 날짜 팝오버 8주 잘림** — 날짜 선택 팝오버에서 8주 뒤가 안 보이던 문제. 원인=StaffShell 본문 `<main overflow-y-auto>`(한 축만 auto여도 다른 축도 auto로 계산돼 박스 밖을 자름)가 `absolute` 팝오버 아래쪽을 클립. → 팝오버를 **버튼 rect 기준 `fixed`**(z-40/50)로 전환해 해소. (격자 로직 자체는 0~56일 정상이었음.)
+
+> **배포**: Vercel `iansoft/demo`, 공유 URL(고정) https://demo-pi-inky-72.vercel.app · `demo/vercel.json`=SPA 리라이트 · 재배포 `cd demo && npx vercel --prod --yes`. 상세=메모리 `reference-demo-vercel-deploy`.
