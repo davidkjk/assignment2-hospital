@@ -1,4 +1,6 @@
 import time
+from datetime import datetime
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -137,6 +139,57 @@ async def test_me_returns_only_sidebar_identity_fields(api_client, committed_con
     assert payload["id"] == str(staff["staff_id"])
     assert payload["name"] == "Test Staff"
     assert payload["role"] == "doctor"
+
+
+@pytest.mark.asyncio
+async def test_reschedule_router_exposes_task2_service_verbatim(api_client, committed_conn):
+    """[SCHED-CALC-02] 라우터가 자기 계산을 따로 하면 「함수는 하나」가 깨진다.
+
+    라우터는 Task 2의 reschedule_appointment를 그대로 부르기만 한다.
+    """
+    staff = await seed_staff(committed_conn, role="receptionist")
+    token = make_token(str(staff["auth_user_id"]))
+    appointment_id = "11111111-1111-1111-1111-111111111111"
+
+    with patch(
+        "app.services.schedule_change.reschedule_appointment", new_callable=AsyncMock
+    ) as moved:
+        response = await api_client.post(
+            f"/appointments/{appointment_id}/reschedule",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"new_start_at": "2026-08-17T10:05:00", "reason": "의사 휴진"},
+        )
+
+    assert response.status_code == 200
+    moved.assert_awaited_once()  # 라우터는 Task 2의 함수를 그대로 부른다
+    # 5분 단위 시각이 재계산 없이 그대로 서비스로 넘어간다
+    assert moved.await_args.kwargs["new_start_at"] == datetime(2026, 8, 17, 10, 5)
+    assert moved.await_args.kwargs["reason"] == "의사 휴진"
+
+
+@pytest.mark.asyncio
+async def test_affected_router_delegates_to_task2_service(api_client, committed_conn):
+    """[SCHED-CALC-02] /schedule/affected는 Task 2 판정을 그대로 노출한다.
+
+    라우터가 결과를 다시 거르면 "경고엔 3건, 목록엔 4건"이 재발한다.
+    """
+    staff = await seed_staff(committed_conn, role="admin")
+    token = make_token(str(staff["auth_user_id"]))
+    sentinel = [{"id": "22222222-2222-2222-2222-222222222222", "causes": ["exc"]}]
+
+    with patch(
+        "app.services.schedule_change.list_affected_appointments",
+        new_callable=AsyncMock,
+        return_value=sentinel,
+    ) as listed:
+        response = await api_client.get(
+            "/schedule/affected",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    listed.assert_awaited_once()
+    assert response.json() == sentinel  # 재필터 없이 판정 결과를 그대로 반환
 
 
 @pytest.mark.asyncio
