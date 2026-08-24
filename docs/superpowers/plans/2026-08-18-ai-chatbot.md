@@ -95,6 +95,38 @@
 
 ---
 
+## 시각 레퍼런스 — 데모 화면 → 구현 (범주6 배선, 2026-08-24)
+
+> ⭐ **왜 이 절이 있나**: `demo/`의 시연용 화면과 `demo/DESIGN-NOTES.md`는 **규칙이 아니라 「시각 레퍼런스」**라 TDD 테스트가 안 지킨다. **플랜/브리프에 화면마다 명시적으로 링크를 박아야 워커가 본다**(사용자 지적 2026-08-24).
+>
+> ⭐ **surface 규약(상담봇은 두 갈래)**:
+> - **앱 상담 탭 = Flutter** → 데모 화면을 **「시각 기준으로 Flutter 재현」**(코드 못 옮김, 보이는 것만 일치).
+> - **웹 위젯 + 직원/관리자 화면 = React+TS** → 데모 컴포넌트를 **「기본 틀로 포팅」**(구조·레이아웃 그대로, 가짜 데이터→서버, 하드코딩 값→토큰).
+>
+> ⭐ **frontend-design 스킬**: 시각 핵심 화면 태스크의 워커 브리프에 **`invoke frontend-design`을 명시**한다(별도 플러그인이라 자동 호출 안 됨, 사용자 확인 2026-08-24). Codex 워커면 스킬 지침을 텍스트로 넣거나 Opus 워커로.
+>
+> **디자인 노트**: 직원/관리자 화면 = `demo/DESIGN-NOTES.md` 「직원 웹 — 직원 콘솔 정체성」. 앱 상담 탭 = 환자 앱 디자인 노트(타이포·색·카드·시각 정련 2차). ⚠️ 데모가 정본 규칙과 어긋나면 **규칙이 이긴다**.
+>
+> **코디네이터 규율**: 각 화면 태스크 브리프에 **아래 표의 해당 행(데모 경로 + surface 규약)을 붙인다.** (선택) 검사기 = 화면 태스크마다 브리프에 `시각 레퍼런스:` 줄이 있는지 grep.
+
+| Task | 화면 | surface | 데모 (`demo/src/`) |
+|---|---|---|---|
+| 10·11 | 앱 상담방 셸·피드·라이브·인계·종료 | Flutter 재현 | `routes/patient/chat/Chat.tsx` · 공유 엔진 `components/chatbot/ChatEngine.tsx` |
+| 12·13 | 앱 예약·문진 카드·빠른답변·취소 카드 3종 | Flutter 재현 | `routes/patient/chat/Chat.tsx`(카드) · `components/chatbot/{scripts,types}.ts` |
+| 14 | 웹 위젯 상담방 — 런처·방·긴급·장애·인계 | React 포팅 | `routes/site/WebChatWidget.tsx` · `routes/site/SiteHome.tsx`(붙는 곳) · `components/chatbot/ChatEngine.tsx` |
+| 15 | 웹 카드 8종 + 인증 후 재확인 + 익명 인계 폼 | React 포팅 | `routes/site/WebChatWidget.tsx` · `components/chatbot/scripts.ts` |
+| 16 | 상담봇 문의함 — 분할 작업공간·탭·배정 | React 포팅 | `routes/staff/tickets/Tickets.tsx` |
+| 17 | 티켓 상세 — 인계 요약·전체 대화·답변/보내기·종료 | React 포팅 | `routes/staff/tickets/Tickets.tsx`(상세 분할) |
+| 19 | 환자상세 상담 섹션 + 상담봇 기록 | React 포팅 | `routes/staff/chatlog/Chatlog.tsx` |
+| 20 | 관리자 안내자료(KB) — 목록·편집/승인·수정이력 | React 포팅 | `routes/staff/bot/Knowledge.tsx` |
+| 21 | 미해결·오답 처리함·품질 리포트·참고 예시 | React 포팅 | `routes/staff/bot/Unresolved.tsx` · `bot/Reports.tsx` · `bot/Quality.tsx` |
+| 22 | 질문 순위 · 상담봇 처리 현황(통계) | React 포팅 | `routes/staff/bot/Overview.tsx` |
+
+> **📌 Task 18**(`/today` 상담 행·예약 사이드패널)은 직원 웹 셸 위에 얹히므로 데모 `routes/staff/today/Today.tsx`·`calendar/Calendar.tsx`(staff-web 플랜 소유)의 시각을 따른다.
+> **⚠️ 라벨 정합**: 데모/정본에서 「문의 티켓함」→**「상담봇 문의함」**, 「전체 상담 기록」→**「상담봇 기록」**으로 개명됨(2026-08-24, `screen-behaviors` 참조) — 규칙 ID(`TICKET-INBOX-*`·`CHATLOG-*`)는 불변.
+
+---
+
 ## File Structure
 
 **번호 정책**: 옛 플랜을 그대로 잇지 않는다. 재작성은 **백엔드 계약(0~9) → 환자 채널 화면(10~15) → 직원 화면(16~19) → 관리자 화면(20~22)** 순. 규칙을 담는 것은 **화면 태스크**이고, 백엔드 태스크는 그 화면이 소비할 스키마·서비스·오케스트레이션을 만든다(규칙 0개, 계약만).

@@ -110,6 +110,44 @@
 
 ---
 
+## 시각 레퍼런스 — 데모 화면 → 구현 (범주6 배선, 2026-08-24)
+
+> ⭐ **왜 이 절이 있나**: `demo/`의 시연용 화면과 `demo/DESIGN-NOTES.md`는 **규칙이 아니라 「시각 레퍼런스」**라 TDD 테스트가 안 지킨다. **플랜/브리프에 화면마다 명시적으로 링크를 박아야 워커가 본다.** 안 박으면 겉모습이 정본 규칙만 만족하고 데모의 시각 완성도는 누락된다(사용자 지적 2026-08-24).
+>
+> ⭐ **surface 규약(환자 앱 = Flutter)**: 데모는 React/웹이라 **코드를 옮길 수 없다.** 이 데모 화면을 **「시각 기준으로 Flutter 재현」**한다 — **보이는 것(레이아웃·간격·위계·색·상태 표현)만 일치**시키고 구현은 Flutter 위젯으로 새로 짠다. (웹/RN 전환은 비추천 — 데모=시각 명세로만 쓴다.)
+>
+> ⭐ **frontend-design 스킬**: 시각 핵심 화면 태스크의 워커 브리프에 **`invoke frontend-design`을 명시**한다(별도 플러그인이라 자동 호출 안 됨, 사용자 확인 2026-08-24).
+>
+> **디자인 노트(전 화면 공통)**: `demo/DESIGN-NOTES.md` 「타이포그래피」·「헤더(ScreenHeader)」·「색·배경」·「상태 배지」·「예약 표현 — 홈=큰 카드/예약 탭=얇은 줄」·「하단 탭바」·「이력」·「카드 상호작용」·「가족/본인 정보 수정 세 상태」·「브랜드 로고」·「아이콘 Solid」 + 「2026-08-22 시각 정련 2차(그림자·흰색·위계)」. ⚠️ 데모 자체 디자인 시스템이라 **정본 규칙과 어긋나면 규칙이 이긴다**.
+>
+> **코디네이터 규율**: 각 화면 태스크의 워커 브리프를 만들 때 **아래 표의 해당 행(데모 경로 + DESIGN-NOTES 절)을 브리프에 붙인다.** (선택) 검사기 = 화면 태스크마다 브리프에 `시각 레퍼런스:` 줄이 있는지 grep.
+
+| Task | 화면 | 데모 화면 (`demo/src/routes/patient/`) |
+|---|---|---|
+| 0 | 테마·공통 표시 위젯 | `index.css` 토큰 · `components/*`(StatusBadge·AppointmentCard·ScreenHeader) |
+| 12 | 전역 오류·버튼·빈 상태·팝업 | `components/*` 공용(BusyButton·빈 상태·확인 팝업) |
+| 13 | 가입 마법사 | `auth/SignupWizard.tsx` · `auth/steps/{Consent,Phone,Otp,Profile}Step.tsx` · `auth/PhoneChangeGuide.tsx` |
+| 14 | 로그인·비번찾기·재인증 | `auth/LoginForm.tsx` · `Login.tsx` |
+| 15 | 예약 카드 상태 A | `appt/MyAppointments.tsx`(카드) · `notifications/StatusCard.tsx` |
+| 16 | 홈 프레임 + 하단 탭 셸 | `Home.tsx` · `components/BottomTabBar.tsx` |
+| 17 | 예약 카드 상태 B + 문진 줄 + QR | `Home.tsx`(StatusCard 변신) · `QrFullscreen.tsx` |
+| 18 | 알림함 | `notifications/Notifications.tsx` |
+| 19 | 예약 마법사 1~4단계 | `book/BookingWizard.tsx` · `book/steps/Step1Who~Step4Date.tsx` |
+| 20 | 예약 마법사 5~8단계 + 상담봇 시트 | `book/steps/Step5Time~Step8Done.tsx` · `book/steps/DeptBotSheet.tsx` |
+| 21 | 예약 상세 화면 | `appt/ApptDetail.tsx` |
+| 22 | 예약 변경·취소·마감 후 상담 | `appt/ApptChange.tsx` |
+| 23·24 | 사전문진 작성·진행률·성별 | `questionnaire/Questionnaire.tsx` |
+| 25 | 가족 목록·수정·해제 | `family/FamilyList.tsx` · `family/FamilyEdit.tsx` · `family/FamilyPage.tsx` |
+| 26 | 가족 추가(갈래·새 등록·OTP 연결) | `family/FamilyAdd.tsx` · `family/NewFamily.tsx` · `family/ExistingFamily.tsx` |
+| 27a·27b | 방문 이력 | `settings/History.tsx`(연/월 그룹·연도 바로가기) |
+| 28 | 설정 홈·알림 설정·병원 정보 | `settings/Settings.tsx` · `settings/Notifications.tsx` · `settings/Hospital.tsx` |
+| 29 | 비밀번호 변경·탈퇴·로그아웃 | `settings/Password.tsx` · `settings/Withdraw.tsx` |
+| 30·31 | 나의 예약 목록 | `appt/MyAppointments.tsx` |
+
+> **📌 앱 상담 탭**(4단계 상담봇, `patient/chat/Chat.tsx`)은 **`ai-chatbot` 플랜이 소유**한다 — 그 플랜의 같은 절 표 참조.
+
+---
+
 ## File Structure
 
 **번호 정책**: 옛 플랜 Task 1~26을 그대로 잇지 않는다(옛 구조는 백엔드 13 + Flutter 13). 재작성은 **백엔드 계약(0~10) → 프론트 전역(11~12) → 화면(13~31)** 순으로 재편한다. 규칙을 담는 것은 **프론트 화면 태스크**이고, 백엔드 태스크는 그 화면이 소비할 서비스·마이그레이션을 만든다(규칙 0개, 계약만).
