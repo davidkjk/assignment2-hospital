@@ -33,10 +33,11 @@
 1. ⭐ **이 프로젝트의 React 직원웹은 「자유 디자인」이 아니라 「포팅」**이라 사실 frontend-design이 없어도 된다.
    `demo/`가 **이미 그 스킬을 적용하고 사용자 검수까지 끝낸 시각 결과물**이다. 플랜 §「시각 레퍼런스」(line 117~) 규약: 데모 컴포넌트의 **구조·레이아웃·간격·컴포넌트 분해를 그대로 가져오고, 가짜 데이터→React Query, 하드코딩 값→`tokens.css`로만 바꾼다.** 워커는 **해당 데모 `.tsx`를 읽어 옮긴다**(§5 표에 화면별 데모 경로 박음).
    ⚠️ **단 데모는 규칙을 다 반영하지 않는다** — 이 대비가 포팅의 최대 함정이라 **§5 「포팅의 핵심 함정」**에 규칙 워크·신규 요소 판별법을 따로 뒀다. 반드시 읽는다.
-2. **보조가 필요하면**(데모에 없는 빈 상태·신규 요소) 그 스킬도 마크다운이라 경로로 읽힌다:
+2. **시각 워커는 작업 전 그 SKILL.md를 항상 읽는다**(마크다운이라 경로로 읽힘):
    `/Users/kimjunkee/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown/skills/frontend-design/SKILL.md`
+   ⚠️ **가드레일**: 이 렌즈는 **① 데모에 없는 신규 요소 ② 데모가 애매한 미세 판단**(간격·위계)에만 적용한다. **데모가 이미 정한 것은 재설계 금지 = 충실 포팅.** (스킬은 "과감한 미적 결정"을 권하지만, 여기선 데모가 상위 = 재설계 면허 아님.) 「항상 읽기 + 적용은 신규요소·미세판단 한정」이라, 신규요소 감지가 틀려도 렌즈를 놓치지 않는다.
 
-**요약**: 프로세스·TDD·리뷰·병렬 = Codex 네이티브 superpowers 그대로. 백엔드 = `supabase-postgres-best-practices`. 시각만 「데모 포팅」(+필요 시 frontend-design SKILL.md 경로).
+**요약**: 프로세스·TDD·리뷰·병렬 = Codex 네이티브 superpowers 그대로. 백엔드 = `supabase-postgres-best-practices`. 시각 = **frontend-design SKILL.md 항상 읽고** 「데모 포팅」(적용은 신규요소·미세판단만).
 
 ---
 
@@ -181,7 +182,7 @@ DB: supabase migration up 만(db reset 금지). focused 테스트만.
 ### 시각 화면 워커 (포팅)
 ```
 저장소=병원 직원 웹(React+TS+Vite). 브랜치 merge/design-integration.
-작업 전 읽어라: /Users/kimjunkee/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown/skills/frontend-design/SKILL.md (시각 설계 지침).
+작업 전 항상 읽어라: /Users/kimjunkee/.claude/plugins/cache/claude-plugins-official/frontend-design/unknown/skills/frontend-design/SKILL.md (시각 설계 렌즈). 단 적용은 데모에 없는 신규요소·데모가 애매한 미세판단(간격/위계)에만 — 데모가 이미 정한 것은 재설계 금지, 충실 포팅.
 범위: Task {N} = {화면}. 읽을 것: plans/2026-08-15-staff-web.md 의 ## Task {N} 절 + screen-behaviors.md 규칙 줄범위.
 ⭐ 시각 레퍼런스(포팅 원본): demo/src/routes/{경로}.tsx — 구조·레이아웃·간격·컴포넌트 분해를 그대로 옮기고, 가짜 데이터→React Query(Task5 API클라 사용), 하드코딩 값→src/styles/tokens.css(Task0). 자유 리디자인 아님.
 ⚠️ 데모는 규칙의 부분집합이다(다 반영 안 함). 정본=screen-behaviors 규칙. 규칙을 한 줄씩 훑어(규칙 워크) 데모에 없거나 틀린 규칙을 찾아라 — 모든 상태(빈/로딩/오류/각 상태), 옛 라벨(예 기간 30일→1개월), 누락 동작, 좁혀진 요구사항. 그런 것=신규 요소 → 데모 스타일(tokens·간격) 위에서 새로 그린다(필요시 frontend-design SKILL.md 경로 참조). "다 됐나"의 판정=데모와 닮았나가 아니라 규칙 ID를 다 덮었나.
