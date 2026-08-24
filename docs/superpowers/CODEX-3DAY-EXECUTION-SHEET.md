@@ -49,9 +49,11 @@
 
 ---
 
-## 3. ⭐ 첫 작업 = seam 배선 (Task 3 마무리, 백엔드·작다·직렬)
+## 3. ~~첫 작업 = seam 배선~~ ✅ **완료 (2026-08-24, `fcb5808`)** — Codex는 Task 4부터 시작
 
-**이걸 먼저 끝내야 화면들이 깨끗한 지점에서 시작한다.** 교차 의존(Task 2 서비스 ↔ 라우터)이라 코디네이터가 직접(또는 Luna-max 워커 1개로) 신중히.
+> ✅ Claude가 자리 비우기 전에 배선 완료(`backend/app/routers/schedule_change.py` + main.py 등록 + 위임 테스트 2건, 전체 172 passed). **Codex의 첫 작업 = §4 Wave A ② Task 4 스캐폴딩.** 아래는 배선 내용 기록(참고용).
+
+**(완료 내용) 이걸 먼저 끝내야 화면들이 깨끗한 지점에서 시작한다.** 교차 의존(Task 2 서비스 ↔ 라우터)이라 코디네이터가 직접(또는 Luna-max 워커 1개로) 신중히.
 
 - **파일**: `backend/app/routers/schedule_change.py`(신설) + `backend/app/main.py`에 라우터 등록 + `backend/tests/test_staff_web_routers.py`에 테스트 추가.
 - **엔드포인트 2개** — **Task 2 서비스를 그대로 노출**(재계산 금지, 규칙 `SCHED-CALC-02`):
@@ -238,5 +240,6 @@ TDD: 규칙 ID 기반 테스트(비가시 엣지 *-STATE/ERR/LOAD/RACE/LIVE·세
 
 ## 11. 진행 로그 (세션 간 이어쓰기 — 여기에 어디까지 했나 1줄씩)
 
-- **2026-08-24**: Task 0·1·2 + Task 3(진료문구 부분) 커밋 완료(`8c1a59c`까지). 전체 169 passed. 이 실행 시트 작성. **다음 = §3 seam 배선 → Task 4.**
+- **2026-08-24**: Task 0·1·2 + Task 3(진료문구 부분) 커밋(`8c1a59c`). 이 실행 시트·AGENTS.md·플레이북 커밋(`89e6a8c`). **seam 배선 완료(`fcb5808`) — schedule_change 라우터 2종, 전체 172 passed.** 미결로 판단한 것: reschedule 권한을 `receptionist·admin`으로 둠(서비스가 역할 제약을 따로 안 걸어 라우터에서 최소 권한 부여 — Task 18 화면 붙일 때 재확인).
+- **다음(Codex) = §4 Wave A ② Task 4 스캐폴딩 → Wave B 병렬 백엔드/기반.**
 - (Codex가 이어서 여기에 추가 — 각 Task: `Task N — 커밋해시 — 미결로 스스로 판단한 것(있으면)`)
