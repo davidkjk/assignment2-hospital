@@ -137,6 +137,10 @@ export function MergeHistory() {
 // ── 2단계 상세 (MHIST-DETAIL-*) + 6단계 잠김 (MHIST-LOCK-*) ──
 function Detail({ event, onBack, onReview, onOpenPatient }: { event: Event; onBack: () => void; onReview: () => void; onOpenPatient: (id: string) => void }) {
   const locked = event.status !== '되돌림 가능'
+  // 감사메모(MHIST-LOCK-02·MHIST-NAV-08): 되돌림불가(잠김) 케이스에만. 데모=저장 표시만.
+  const [memoOpen, setMemoOpen] = useState(false)
+  const [memo, setMemo] = useState('')
+  const [memoSaved, setMemoSaved] = useState(false)
   const P = event.preserve
   const preserveRows = [
     { Icon: CalendarDays, label: '예약', n: P.appts },
@@ -186,9 +190,28 @@ function Detail({ event, onBack, onReview, onOpenPatient }: { event: Event; onBa
             </div>
           </div>
           {event.status === '되돌림불가' && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={() => onOpenPatient(event.absorbed.id)} className={btnGhost}><ExternalLink className="h-4 w-4" /> 대상 환자 열기</button>
-            </div>
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button onClick={() => onOpenPatient(event.absorbed.id)} className={btnGhost}><ExternalLink className="h-4 w-4" /> 대상 환자 열기</button>
+                <button onClick={() => setMemoOpen((v) => !v)} className={btnGhost}><FileText className="h-4 w-4" /> 감사메모</button>
+              </div>
+              {memoOpen && (
+                <div className="mt-3 rounded-lg border border-border/60 bg-card p-3">
+                  <label className="text-xs font-medium text-muted-foreground">감사메모 — 병합 이벤트·대상 ID·잠김 사유·검토 사유를 남깁니다(되돌림으로 표현되지 않음)</label>
+                  <textarea
+                    value={memo}
+                    onChange={(e) => { setMemo(e.target.value.slice(0, 500)); setMemoSaved(false) }}
+                    rows={3}
+                    className="mt-1.5 w-full rounded-lg border border-input bg-card p-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+                    placeholder={`병합 ${event.id} · 대상 ${event.absorbed.id} · 잠김 사유 확인함`}
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{memoSaved ? <span className="inline-flex items-center gap-1 text-emerald-600"><Check className="h-3.5 w-3.5" />감사 기록에 저장됨</span> : `${memo.length}/500`}</span>
+                    <button onClick={() => setMemoSaved(true)} disabled={memo.trim().length === 0} className={btnPrimary}>감사메모 저장</button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </section>
       ) : (
