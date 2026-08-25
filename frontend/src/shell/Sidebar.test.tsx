@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { expect, test } from 'vitest'
 import { Sidebar } from './Sidebar'
@@ -23,4 +24,39 @@ test('[SHELL-NAV-05] 건수가 0이면 숫자를 그리지 않는다', () => {
 test('[SHELL-NAV-11] 모든 메뉴는 symbol/use 아이콘을 가진다', () => {
   render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Sidebar role="admin" /></MemoryRouter>)
   for (const link of screen.getAllByRole('link')) expect(link.querySelector('svg use')).not.toBeNull()
+})
+
+test('[SHELL-NAV-01][SHELL-NAV-04] 관리자는 네 그룹을 정해진 순서로 본다', () => {
+  render(<MemoryRouter><Sidebar role="admin" /></MemoryRouter>)
+  expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['업무', '기록', '상담봇 관리', '설정'])
+  expect(screen.queryByRole('link', { name: '진료 화면' })).toBeNull()
+})
+
+test('[SHELL-NAV-06] 현재 화면은 active 상태와 3px 비색상 표식을 가진다', () => {
+  render(<MemoryRouter initialEntries={['/patients/p-77']}><Sidebar role="receptionist" /></MemoryRouter>)
+  const active = screen.getByRole('link', { name: '환자 검색' })
+  expect(active).toHaveClass('active')
+  expect(active).toHaveAttribute('aria-current', 'page')
+})
+
+test('[SHELL-NAV-08] 아이콘 링크는 마우스와 키보드 포커스에서 이름 툴팁을 제공한다', async () => {
+  const user = userEvent.setup()
+  render(<MemoryRouter><Sidebar role="receptionist" /></MemoryRouter>)
+  const link = screen.getByRole('link', { name: '오늘의 현황' })
+  await user.hover(link)
+  expect(screen.getByRole('tooltip')).toHaveTextContent('오늘의 현황')
+  await user.unhover(link)
+  await user.tab()
+  expect(await screen.findByRole('tooltip')).toHaveTextContent('오늘의 현황')
+})
+
+test('[SHELL-NAV-01] 그룹 접기·펼치기 스위치를 제공하지 않는다', () => {
+  render(<MemoryRouter><Sidebar role="admin" /></MemoryRouter>)
+  expect(screen.queryAllByRole('button', { name: /접기|펼치기/ })).toHaveLength(0)
+})
+
+test('[SHELL-NAV-11] 아이콘 경로는 Vite의 production asset URL을 사용한다', () => {
+  render(<MemoryRouter><Sidebar role="receptionist" /></MemoryRouter>)
+  const href = screen.getByTestId('icon-today').querySelector('use')?.getAttribute('href')
+  expect(href).toContain('icons.svg')
 })

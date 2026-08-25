@@ -1,22 +1,26 @@
 import { useState, type CSSProperties } from 'react'
+import { useInRouterContext, useLocation } from 'react-router-dom'
 import type { StaffProfile } from '../auth/roles'
 import { AccountMenu } from './AccountMenu'
+import { navItemForPath, START_DOORS, type StartDoor } from './navItems'
 
-export type StartDoor = 'register' | 'checkin' | 'appointment'
+export type { StartDoor } from './navItems'
 
-export function Header({ staff, title = '직원 업무', onSignOut, onStart = () => undefined }: { staff: StaffProfile; title?: string; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
+export function Header({ staff, title, onSignOut, onStart = () => undefined }: { staff: StaffProfile; title?: string; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
   const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState('')
-  const doors: readonly [StartDoor, string][] = [['register', '＋ 등록'], ['checkin', '＋ 접수'], ['appointment', '＋ 예약']]
+  const pathname = useOptionalPathname()
+  const currentTitle = title ?? (pathname ? navItemForPath(pathname)?.label : undefined) ?? '직원 업무'
+  const doors = START_DOORS.filter((door) => door.roles.includes(staff.role))
   return (
     <>
       <header style={headerStyle}>
-        <div style={{ fontWeight: 800 }}>{title}</div>
+        <div data-testid="header-page-title" aria-label="현재 화면" style={pageTitleStyle}>{currentTitle}</div>
         <div style={{ flex: 1 }} />
         <AccountMenu staff={staff} onPasswordChanged={() => setMessage('비밀번호를 바꿨습니다')} />
-        <button onClick={() => setConfirming(true)} style={logoutStyle}>로그아웃</button>
-        {staff.role !== 'doctor' && <div style={doorGroupStyle}>
-          {doors.map(([door, label]) => <button key={door} data-testid="start-door" onClick={() => onStart(door)} style={{ ...doorStyle, ...(door === 'checkin' ? primaryDoorStyle : {}) }}>{label}</button>)}
+        <button type="button" onClick={() => setConfirming(true)} style={logoutStyle}>로그아웃</button>
+        {doors.length > 0 && <div data-testid="start-door-group" aria-label="시작 업무" style={doorGroupStyle}>
+          {doors.map((door) => <button type="button" key={door.key} data-testid="start-door" onClick={() => onStart(door.key)} style={{ ...doorStyle, ...(door.primary ? primaryDoorStyle : {}) }}>{door.label}</button>)}
         </div>}
       </header>
       {message && <div role="status" style={{ position: 'fixed', right: 24, bottom: 24, background: 'var(--color-ink)', color: 'white', padding: 12, borderRadius: 8, zIndex: 40 }}>{message}</div>}
@@ -24,8 +28,8 @@ export function Header({ staff, title = '직원 업무', onSignOut, onStart = ()
         <div role="dialog" aria-labelledby="logout-title" aria-modal="true" style={dialogStyle}>
           <h2 id="logout-title">로그아웃할까요?</h2>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button autoFocus onClick={() => setConfirming(false)}>취소</button>
-            <button onClick={() => void onSignOut()}>로그아웃</button>
+            <button type="button" autoFocus onClick={() => setConfirming(false)}>취소</button>
+            <button type="button" onClick={() => { setConfirming(false); void onSignOut() }}>로그아웃</button>
           </div>
         </div>
       </div>}
@@ -33,9 +37,16 @@ export function Header({ staff, title = '직원 업무', onSignOut, onStart = ()
   )
 }
 
+function useOptionalPathname(): string | undefined {
+  const inRouter = useInRouterContext()
+  const location = inRouter ? useLocation() : undefined
+  return location?.pathname
+}
+
 const headerStyle: CSSProperties = { minHeight: 64, display: 'flex', alignItems: 'center', gap: 12, padding: '0 18px', background: 'white', borderBottom: '1px solid var(--color-divider)' }
+const pageTitleStyle: CSSProperties = { fontWeight: 800, flexShrink: 0, whiteSpace: 'nowrap' }
 const logoutStyle: CSSProperties = { border: 0, background: 'transparent', color: 'var(--color-ink-muted)', padding: '8px 12px', cursor: 'pointer' }
-const doorGroupStyle: CSSProperties = { display: 'flex', gap: 6, marginLeft: 10, paddingLeft: 20, borderLeft: '1px solid var(--color-divider)' }
+const doorGroupStyle: CSSProperties = { display: 'flex', gap: 6, marginLeft: 16, paddingLeft: 24, borderLeft: '1px solid var(--color-divider)' }
 const doorStyle: CSSProperties = { minHeight: 36, border: '1px solid var(--color-divider)', borderRadius: 8, background: 'var(--color-bg)', color: 'var(--color-primary)', fontWeight: 800, padding: '0 13px', cursor: 'pointer' }
 const primaryDoorStyle: CSSProperties = { background: 'var(--color-primary)', color: 'white', borderColor: 'var(--color-primary)' }
 const dialogBackdrop: CSSProperties = { position: 'fixed', inset: 0, background: 'var(--color-done-bg)', zIndex: 50, display: 'grid', placeItems: 'center' }

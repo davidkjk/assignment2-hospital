@@ -1,5 +1,9 @@
 export type Role = 'receptionist' | 'doctor' | 'admin'
 
+export const RECEPTION_AND_ADMIN = ['receptionist', 'admin'] as const satisfies readonly Role[]
+export const ALL_STAFF = ['receptionist', 'doctor', 'admin'] as const satisfies readonly Role[]
+export const ADMIN_ONLY = ['admin'] as const satisfies readonly Role[]
+
 export interface StaffProfile {
   staffId: string
   name: string
