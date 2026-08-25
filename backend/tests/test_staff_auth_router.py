@@ -9,6 +9,7 @@ from starlette.requests import Request
 from app.core.config import settings
 from app.core.security import StaffContext, get_current_staff
 from app.db.admin_client import get_admin_client
+from app.main import app as main_app
 from app.routers.auth_staff import ResetRateLimiter, get_auth_client, get_reset_limiter, router
 from tests.conftest import seed_staff
 from fastapi import FastAPI
@@ -31,6 +32,22 @@ def _request_with_token(token: str) -> Request:
         "headers": [(b"authorization", f"Bearer {token}".encode())],
     }
     return Request(scope)
+
+
+def test_직원_인증_라우터가_실제_앱에_배선된다():
+    """Task 4 seam: 단위 라우터가 통과해도 main.py에 빠지면 실제 API는 404다."""
+    paths = {route.path for route in main_app.routes}
+    assert {"/auth/staff/password-reset", "/me/password"} <= paths
+
+
+@pytest.mark.asyncio
+async def test_손상된_토큰도_같은_인증_실패_문장이다():
+    """[STAFF-LOGIN-11] 토큰 오류도 계정 상태 대조 단서를 주지 않는다."""
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_staff(_request_with_token("not-a-jwt"))
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "로그인 정보를 확인해 주세요."
 
 
 @pytest.mark.asyncio
