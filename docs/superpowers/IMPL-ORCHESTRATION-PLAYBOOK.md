@@ -118,6 +118,7 @@ orca terminal read --terminal <handle> --json
 ```
 
 - `orca status`가 `runtime.state=ready`·`reachable=true`가 아니면 뒤 명령을 실행하지 않는다.
+- **Codex 샌드박스 주의**: 이 macOS 환경에서는 제한된 shell의 `orca status`가 실제 앱이 살아 있어도 `task_name_for_pid` 권한 오류와 함께 거짓 `stale_bootstrap`을 반환했다. `status`·`terminal list/read/wait/send`·orchestration RPC는 승인된 **샌드박스 밖 실행**으로 통일한다. 샌드박스 안 결과만 보고 앱을 재시작하거나 세션을 닫지 않는다.
 - `terminal read`로 활성 다이얼로그·진행 중 작업이 없음을 먼저 확인한다. 작업 중인 창에 `/status`를 주입하지 않는다.
 - 확인한 값은 필요할 때 `orca orchestration send --type status`로 ACTIVE/STANDBY 사이에 짧게 공유한다. 수치만 보내고 긴 terminal tail은 복사하지 않는다.
 
@@ -169,9 +170,9 @@ terminal handle은 Orca 재시작 때 바뀔 수 있으므로 문서에 영구 �
 
 ### E. 실검증 기록
 
-- **확인됨(2026-08-24)**: OpenAI 공식 문서에서 `/status`·`/compact` 의미 확인. 현재 Orca 가이드에서 `terminal list/read/wait/send`와 orchestration `send/ask/task-list` 명령 존재 확인.
-- **이번 환경에서 미완료**: `orca open --json`이 두 번 `runtime.state=ready`를 반환했지만 직후 앱이 종료되어 다음 `orca status`는 `stale_bootstrap`, `terminal list`는 `runtime_unavailable`이었다. 따라서 **상대 창에 `/status` 주입→결과 읽기 실동작은 Orca runtime이 지속 실행되는 다음 세션에서 재검증**한다. 성공 전까지 “실검증 완료”라고 쓰지 않는다.
-- 재검증 성공 기준: `orca status` ready 유지 → 테스트용 새 Codex terminal idle 확인 → `/status` 주입 → `terminal read`에서 context usage 확인 → 테스트용 창에 `/compact` → 다시 `/status`가 감소했는지 확인. 실제 작업 중인 coordinator에는 시험하지 않는다.
+- **실검증 완료(2026-08-24)**: 샌드박스 밖 `orca status`에서 `ready`·`reachable=true` 확인. 빈 Luna 테스트 터미널을 `terminal read`·`wait --for tui-idle`로 확인한 뒤 원격 `/status`를 주입해 `Context window: 99% left (14.6K used / 258K)`를 읽었다. 이어 원격 `/compact`의 `Context compacted` 완료를 확인하고 `/status`를 다시 주입해 `100% left (4.73K used / 258K)`로 감소한 것을 읽었다. 따라서 **다른 Codex 창의 컨텍스트 확인·압축 제어 경로는 실제 작동한다.**
+- 앞서 세 번 관측한 `stale_bootstrap`은 Orca 종료가 아니라 **샌드박스 안 검사의 거짓 음성**이었다. 같은 시각 Orca 로그에는 데몬과 세션 attach가 유지됐고, 같은 명령을 샌드박스 밖에서 실행하자 PID 4417·동일 runtime ID로 즉시 정상 응답했다.
+- 회귀 검증 기준: 샌드박스 밖 `orca status` ready 유지 → 테스트/대상 terminal idle 확인 → `/status` 주입 → `terminal read`에서 context usage 확인. `/compact` 시험은 실제 작업 창이 아니라 버려도 되는 테스트 창에서만 한다.
 
 ## 5. 워커 브리프 규율 (TDD)
 
