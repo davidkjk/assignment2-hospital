@@ -7,8 +7,12 @@ from jose import jwt
 from starlette.requests import Request
 
 from app.core.config import settings
-from app.core.security import get_current_staff
+from app.core.security import StaffContext, get_current_staff
+from app.db.admin_client import get_admin_client
+from app.routers.auth_staff import ResetRateLimiter, get_auth_client, get_reset_limiter, router
 from tests.conftest import seed_staff
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 def make_token(auth_user_id: str) -> str:
@@ -66,3 +70,101 @@ async def test_인증_실패는_원인을_알려주지_않는다(db_pool, case):
                 "delete from auth.users where id = $1", seeded["auth_user_id"]
             )
         await db_pool.release(conn)
+
+
+class FakeAuthAdmin:
+    def __init__(self):
+        self.updated = []
+        self.signed_out = []
+
+    def get_user_by_id(self, _user_id):
+        return type("Result", (), {"user": type("User", (), {"email": "me@hospital.kr"})()})()
+
+    def update_user_by_id(self, user_id, attributes):
+        self.updated.append((user_id, attributes))
+
+    def sign_out(self, user_id, scope="global"):
+        self.signed_out.append((user_id, scope))
+
+
+class FakeAuth:
+    def __init__(self):
+        self.admin = FakeAuthAdmin()
+        self.reset_requests = []
+
+    def reset_password_for_email(self, email, options=None):
+        self.reset_requests.append((email, options))
+        if email.startswith("nobody"):
+            raise RuntimeError("user not found")
+
+    def sign_in_with_password(self, credentials):
+        if credentials["password"] != "old-password":
+            raise RuntimeError("invalid credentials")
+        return object()
+
+
+class FakeAdminClient:
+    def __init__(self):
+        self.auth = FakeAuth()
+
+
+def make_auth_client():
+    app = FastAPI()
+    app.include_router(router)
+    admin = FakeAdminClient()
+    limiter = ResetRateLimiter(limit=5, window_seconds=900)
+    staff = StaffContext(
+        id=uuid.uuid4(),
+        auth_user_id=uuid.uuid4(),
+        role="receptionist",
+        department_id=None,
+    )
+    app.dependency_overrides[get_admin_client] = lambda: admin
+    app.dependency_overrides[get_auth_client] = lambda: admin
+    app.dependency_overrides[get_current_staff] = lambda: staff
+    app.dependency_overrides[get_reset_limiter] = lambda: limiter
+    return TestClient(app), admin, staff
+
+
+def test_재설정_요청은_가입_여부와_무관하게_같은_응답이다():
+    """[STAFF-LOGIN-10] 등록 여부와 무관하게 같은 응답을 돌려 계정 열거를 막는다."""
+    client, _, _ = make_auth_client()
+    unknown = client.post("/auth/staff/password-reset", json={"email": "nobody@x.kr"})
+    known = client.post("/auth/staff/password-reset", json={"email": "real@hospital.kr"})
+    assert unknown.status_code == known.status_code == 202
+    assert unknown.json() == known.json()
+
+
+def test_재설정_요청은_다섯_번_뒤_시도_제한을_건다():
+    """[STAFF-LOGIN-10] 반복 복구 요청은 메일 폭탄이 되지 않도록 제한한다."""
+    client, _, _ = make_auth_client()
+    for _ in range(5):
+        assert client.post("/auth/staff/password-reset", json={"email": "real@hospital.kr"}).status_code == 202
+    limited = client.post("/auth/staff/password-reset", json={"email": "real@hospital.kr"})
+    assert limited.status_code == 429
+    assert "병원" in limited.json()["detail"]
+
+
+def test_현재_비밀번호가_틀리면_비밀번호를_바꾸지_않는다():
+    """[SHELL-PW-01] 현재 비밀번호 검증에 실패하면 계정 변경을 하지 않는다."""
+    client, admin, _ = make_auth_client()
+    response = client.post(
+        "/me/password",
+        headers={"Authorization": "Bearer current-token"},
+        json={"current_password": "wrong", "new_password": "brand-new-one1"},
+    )
+    assert response.status_code == 400
+    assert admin.auth.admin.updated == []
+
+
+def test_비밀번호를_바꾸면_현재_세션을_남기고_다른_세션만_끊는다():
+    """[SHELL-PW-04] 비밀번호 변경 뒤 scope=others로 다른 기기의 세션만 종료한다."""
+    client, admin, staff = make_auth_client()
+    response = client.post(
+        "/me/password",
+        headers={"Authorization": "Bearer current-token"},
+        json={"current_password": "old-password", "new_password": "brand-new-one1"},
+    )
+    assert response.status_code == 204
+    assert admin.auth.admin.updated == [(str(staff.auth_user_id), {"password": "brand-new-one1"})]
+    assert admin.auth.admin.signed_out == [("current-token", "others")]
