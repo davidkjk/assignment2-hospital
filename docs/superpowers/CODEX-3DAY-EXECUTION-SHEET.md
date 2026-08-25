@@ -16,6 +16,8 @@
 5. 각 태스크 착수 직전에만: `docs/superpowers/plans/2026-08-15-staff-web.md`의 해당 `## Task N` 절 + 거기서 가리키는 `docs/design/screen-behaviors.md` 규칙 줄범위.
 
 > ⚠️ **추측 금지.** "이 규칙/값이 있나?"는 기억으로 답하지 말고 grep/read로 원문 확인. 특히 **"없다"는 단정이 위험**(있는 걸 없다고 하면 다시 만든다). `⏳`·「미결」을 읽으면 그 주제어로 한 번 더 grep(낡은 미결이 많다).
+>
+> 🧠 **컨텍스트 하드 게이트**: 모든 Task 시작·종료에 `/status`. **40%부터 새 Task/큰 문서/새 dispatch 금지, 50% 절대 상한.** ACTIVE 1명+STANDBY 1명 바통 절차와 명령의 정본은 `IMPL-ORCHESTRATION-PLAYBOOK.md` §4-A. §11에 `ctx 시작 N% → 종료 N%`를 반드시 기록한다.
 
 ---
 
@@ -175,6 +177,7 @@ Wave C  (Task 4·5·7 완료 후 — 화면 15개, 폴더 격리 병렬)
 마이그 번호는 {00037 등}(원장 정본, 플랜 산문 옛번호 무시). 
 TDD: RED(실패 테스트 먼저)→GREEN→REFACTOR. 테스트 한 줄에 규칙 ID 하나, assert에 값 하나.
 DB: supabase migration up 만(db reset 금지). focused 테스트만.
+컨텍스트: Task 시작·종료 /status. 40%부터 새 읽기·탐색·하위 dispatch 금지→가장 가까운 GREEN/커밋 후 context_handoff 보고. 50% 이상은 상태 저장·보고만. 수치 확인 불가면 다음 Task 연속 수행 금지.
 커밋: 매 GREEN마다, 자기 파일만 git add({파일 목록}). 공용 파일(main.py 등 공유) 손대면 코디에 보고.
 경계: {건드리지 말 것}. 끝에 DONE + 커밋한 것 1줄.
 ```
@@ -189,6 +192,7 @@ DB: supabase migration up 만(db reset 금지). focused 테스트만.
 격리: 자기 route 폴더만 생성/수정. 공용 파일(routes.tsx·StaffShell·_ui·공용 mockData) 절대 금지 — 코디가 배선.
 새 워크트리면: cd frontend && npm install 먼저.
 TDD: 규칙 ID 기반 테스트(비가시 엣지 *-STATE/ERR/LOAD/RACE/LIVE·세션 제외). tsc --noEmit 0 + vitest 통과.
+컨텍스트: Task 시작·종료 /status. 40%부터 새 읽기·탐색·하위 dispatch 금지→가장 가까운 GREEN/커밋 후 context_handoff 보고. 50% 이상은 상태 저장·보고만. 수치 확인 불가면 다음 Task 연속 수행 금지.
 커밋: 자기 파일만 git add. 끝에 DONE + 커밋한 것 1줄.
 ```
 
@@ -263,5 +267,6 @@ TDD: 규칙 ID 기반 테스트(비가시 엣지 *-STATE/ERR/LOAD/RACE/LIVE·세
 ## 11. 진행 로그 (세션 간 이어쓰기 — 여기에 어디까지 했나 1줄씩)
 
 - **2026-08-24**: Task 0·1·2 + Task 3(진료문구 부분) 커밋(`8c1a59c`). 이 실행 시트·AGENTS.md·플레이북 커밋(`89e6a8c`). **seam 배선 완료(`fcb5808`) — schedule_change 라우터 2종, 전체 172 passed.** 미결로 판단한 것: reschedule 권한을 `receptionist·admin`으로 둠(서비스가 역할 제약을 따로 안 걸어 라우터에서 최소 권한 부여 — Task 18 화면 붙일 때 재확인).
+- **2026-08-24 컨텍스트 규율 확정**: 매 Task `/status`; 40% 인계 준비·50% 절대 상한; ACTIVE/STANDBY 단일 지휘권 바통. 상세 정본=플레이북 §4-A. 이후 로그 형식=`Task N — 커밋 — ctx 시작 N% → 종료 N% — 미결 판단`.
 - **다음(Codex) = §4 Wave A ② Task 4 스캐폴딩 → Wave B 병렬 백엔드/기반.**
 - (Codex가 이어서 여기에 추가 — 각 Task: `Task N — 커밋해시 — 미결로 스스로 판단한 것(있으면)`)

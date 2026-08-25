@@ -9,6 +9,14 @@
 3. `HANDOFF.md` 최상단 — 지금 커밋 상태. / `docs/design/spec-index/MIGRATION-LEDGER.md` — 마이그 번호 정본.
 4. 착수 직전에만: `docs/superpowers/plans/2026-08-15-staff-web.md`의 해당 `## Task N` + `docs/design/screen-behaviors.md` 규칙 줄범위.
 
+## 🧠 컨텍스트 40/50 상한·지휘권 바통 (사용자 하드 규칙)
+- **모든 Task 시작 직전과 종료 직후 `/status`를 실행**해 컨텍스트 사용률을 확인하고, 실행 시트 §11 로그에 `ctx 시작 N% → 종료 N%`를 남긴다. 다른 Task를 읽거나 배정하기 전에도 다시 확인한다.
+- **0~39%만 새 Task 착수 가능. 40%가 되면 인계 준비선**: 새 Task·큰 문서 읽기·새 워커 dispatch를 금지하고, 현재 Task를 안전한 GREEN/커밋 지점까지 마감한 뒤 체크포인트와 바통 인계를 수행한다.
+- **50%는 절대 상한**: 50% 이상에서는 구현·리뷰·새 탐색을 계속하지 않는다. 허용되는 일은 현재 상태 저장, 실행 중 워커 회수, 인계뿐이다. `/compact` 후 반드시 `/status`를 다시 확인하고, 여전히 40% 이상이거나 반복 압축한 창이면 새 Codex 창으로 교체한다.
+- **플랜 전체 읽기 금지**: 실행 시트는 진입 때 읽되, 95만 바이트 직원웹 플랜과 105만 바이트 behaviors는 해당 `## Task N` 절·가리킨 규칙 ID만 읽는다.
+- 지휘자는 **ACTIVE 1명 + STANDBY 1명**뿐이다. STANDBY는 읽기·검증만 하고 dispatch/커밋하지 않는다. 활성 dispatch가 남은 중간에는 지휘권을 넘기지 않으며, 수신자의 ACK 뒤에만 새 지휘자가 ACTIVE가 된다.
+- 상세 명령·인계 캡슐·Orca 장애 시 절차의 **단일 정본** = `docs/superpowers/IMPL-ORCHESTRATION-PLAYBOOK.md` §4-A. 새 코디네이터는 Task 전에 반드시 그 절을 읽는다.
+
 ## 🧩 네이티브 스킬을 쓴다 (이미 설치됨)
 - superpowers가 활성이다(`config.toml`). **실제로 호출해서** 쓴다: 구현 = `test-driven-development`, 버그 = `systematic-debugging`, 리뷰 = `.system/review-agent`·`requesting-code-review`, 완료 주장 전 = `verification-before-completion`, 병렬 = `dispatching-parallel-agents`(multi_agent_v2 켜짐), DB = `supabase-postgres-best-practices`.
 - **없는 건 `frontend-design` 하나** → 시각 화면은 데모 포팅으로 메운다(실행 시트 §1·§5).
