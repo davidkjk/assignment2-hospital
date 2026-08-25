@@ -17,6 +17,13 @@
 - 지휘자는 **ACTIVE 1명 + STANDBY 1명**뿐이다. STANDBY는 읽기·검증만 하고 dispatch/커밋하지 않는다. 활성 dispatch가 남은 중간에는 지휘권을 넘기지 않으며, 수신자의 ACK 뒤에만 새 지휘자가 ACTIVE가 된다.
 - 상세 명령·인계 캡슐·Orca 장애 시 절차의 **단일 정본** = `docs/superpowers/IMPL-ORCHESTRATION-PLAYBOOK.md` §4-A. 새 코디네이터는 Task 전에 반드시 그 절을 읽는다.
 
+## 🎛 모델 라우팅·5시간 창 (사용자 하드 규칙)
+- **Task 배정 전 모델 게이트**: 실행 시트 §5의 해당 행을 읽고 `route: Task N | model | effort | 이유`를 먼저 쓴다. 모델·노력을 생략한 새 Codex 창, “기본값일 것”이라는 추정, 실행 중 임의 상향은 금지한다.
+- 새 워커는 `codex --model <정확한 모델> -c model_reasoning_effort="<정확한 노력>"`으로 띄운다. 브리프 전 `/status`를 원격 주입·읽기하여 **모델·노력·컨텍스트 <40%**를 확인한다. 하나라도 다르면 dispatch하지 않는다.
+- **역할과 작업 모델을 분리한다**: 평시 ACTIVE 코디네이터=Terra-high, STANDBY/심박 감시=Luna-medium 또는 모델 호출 없는 Orca wait. 코디가 어려운 설계·충돌을 직접 판단할 때만 Sol-high/xhigh 새 창으로 판정 작업을 분리한다. 구현 워커는 좁고 테스트가 명확한 로직=Luna-max, 일반 구조·시각=Sol-high, 고밀도=Sol-xhigh, 보안·동시성·비가역·고위험=Sol-max 주 실행 + 별도 Terra-high 적대리뷰. Task별 정본은 실행 시트 §5, 명령·예외 정본은 플레이북 §2-A다.
+- **5시간은 세션 수명이 아니라 ChatGPT 플랜의 공유 사용량 창**이다. 모델에게 주기적으로 말을 거는 keepalive 금지. 생존 확인은 모델 토큰을 쓰지 않는 Orca `terminal show/wait`·`orchestration check --wait`로 한다.
+- 사용량 제한에 닿으면 새 세션으로 우회하지 않는다. GREEN/커밋·HANDOFF·task state를 저장하고 reset까지 대기한다. API key 후불 전환은 **사용자가 비용 상한을 명시 승인한 경우만** 가능하며 자동 전환 금지. 상세=플레이북 §4-B.
+
 ## 🧩 네이티브 스킬을 쓴다 (이미 설치됨)
 - superpowers가 활성이다(`config.toml`). **실제로 호출해서** 쓴다: 구현 = `test-driven-development`, 버그 = `systematic-debugging`, 리뷰 = `.system/review-agent`·`requesting-code-review`, 완료 주장 전 = `verification-before-completion`, 병렬 = `dispatching-parallel-agents`(multi_agent_v2 켜짐), DB = `supabase-postgres-best-practices`.
 - **없는 건 `frontend-design` 하나** → 시각 화면은 데모 포팅으로 메운다(실행 시트 §1·§5).
@@ -45,7 +52,7 @@
 - 배포가 "정상"이어도 테이블이 실제로 존재하는지는 **별도로 확인**(프로세스 기동·커넥션 풀 ≠ 스키마 존재).
 
 ## 👷 워커 규율 (병렬 실행)
-- **모델 라우팅은 난이도에 맞게** — "알아서 상향" 금지, **과투입 낭비 금지**. 보통 로직 = Luna-max 상한이면 충분, 정말 어려운/보안/동시성/비가역만 Sol·Terra. (표 = 실행 시트 §5.)
+- **모델 라우팅은 위 하드 게이트대로** — 실행 시트 §5 행 → 명시적 모델/노력으로 창 생성 → `/status` 검증 → dispatch 순서를 생략하지 않는다.
 - **병렬 DB 규율**: 워커는 `supabase migration up`만(**`db reset` 절대 금지** — 공유 DB), **focused 테스트만**. 전체 회귀는 코디가 **클린 DB(`db reset`)에서 1회**. 리셋하면 사라지는 실패 = 오염이지 버그 아님.
 - **워커는 자기 파일만 `git add`**(`git add -A` 금지). **공용 파일**(`routes.tsx`·`StaffShell`·`_ui`·공용 mockData·`main.py`)은 **코디만** 배선.
 - **커밋은 코디**가 worker_done마다. 워커는 끝에 `DONE` + 커밋한 것 1줄.
@@ -54,7 +61,7 @@
 ## 🛠 orca 워커 명령 (스킬 가이드 재독 금지)
 - 실검증된 명령은 **`HANDOFF.md` 「세션 재개 일반 레시피」**에 있다. 스킬 전체 가이드는 명령이 실제로 실패할 때만 다시 읽는다.
 - 이 repo의 orca id = **`6802ec0a-50bc-46df-ab5d-dc6769a11289`**. 워크트리 생성 시 **`--base-branch merge/design-integration` 명시**(생략하면 로컬 미push 커밋이 빠짐).
-- Codex는 codex 창을 **새로 못 띄운다**(auto 분류기 차단). 첫 창은 사람이 ORCA 앱에서 열고, 이후 codex↔codex 팬아웃. 조종(list/read/wait/send)은 통과.
+- Codex 코디네이터는 같은 워크트리에 Codex 창을 새로 띄울 수 있다. 단 `orca worktree create --agent codex`는 Codex 전용 model/effort 인자를 받지 않으므로 **라우팅된 작업에는 사용하지 않는다**. 플레이북 §2-A의 `orca terminal create --command 'codex --model … -c model_reasoning_effort=…'` 경로를 쓰고 `/status`로 검증한다.
 
 ## 📝 기록 규칙
 - 결정을 확정하면 **두 곳에**: ① `screen-behaviors.md` 규칙 표(무엇) ② 결정로그(왜 + 기각 사유). **뒤집은 것이 있으면 「뒤집힌 쪽」에도 역참조**(`~~옛 서술~~ ✅ 해소(날짜, 결정 #N)`).

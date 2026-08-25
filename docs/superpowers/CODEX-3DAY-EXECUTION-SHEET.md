@@ -101,6 +101,7 @@ Wave C  (Task 4·5·7 완료 후 — 화면 15개, 폴더 격리 병렬)
 
 > **마이그 번호는 이 표 + `MIGRATION-LEDGER.md`가 정본.** 플랜 산문의 옛 번호(00017 등)는 **+16 시프트**로 무시하고, 플랜의 `Create: supabase/migrations/…` 줄만 믿는다.
 > **모델·노력**은 기준선이다 — 실제 난이도를 보고 코디가 라우팅(과투입 금지: 쉬운 로직은 Luna, 정말 어려운 것만 Sol/Terra). 시각 화면 기준선 = **Sol-high**(Sol-medium은 시각에 얕음), 밀도 높은 화면만 **Sol-xhigh/Terra**.
+> **배정 하드 게이트**: 해당 행 선택 → §11에 `route` 기록 → 명시적 model/effort로 fresh terminal 생성 → 원격 `/status`에서 model·effort·context <40% 확인 → dispatch. 상세 명령·override·리뷰 규칙은 플레이북 §2-A. 기본 모델 추정 금지.
 
 ### ⚠️⚠️ 포팅의 핵심 함정 — **데모는 규칙을 다 반영하지 않는다**
 
@@ -134,15 +135,15 @@ Wave C  (Task 4·5·7 완료 후 — 화면 15개, 폴더 격리 병렬)
 | **13** | 조회 전용 백엔드(today 요약·대기·이력·콘솔·통계) | 로직 | — | **Luna-max** | — | 화면 8·10·11·12 선행 |
 | **14** | `/calendar` 예약 캘린더 + Realtime(`CAL-*`·`SUPPORT-CAL-*`) | 시각(최고밀도) | 00039 `appointment_time_range_realtime` | **Sol-xhigh** | `staff/calendar/Calendar.tsx`(종일·지금 선·시간축 확대) | Realtime 주의 |
 | **15** | `/admin/access-logs` 열람 기록(`ALOG-*`·`SEARCH-LOG-*`) | 시각 | 00040 `access_audit_log_index` | **Sol-high** | `staff/admin/record/AccessLogs.tsx` | Task 6 |
-| **17** | 진료과·일정 관리 백엔드 + **운영시간 단일 판정기**(`SCHED-DEPT/SLOT-*`) | 로직(어려움) | 00041 `hospital_hours_closures` | **Sol-high**(막히면 Terra) | — | Task 18 선행. **하드 판단** |
+| **17** | 진료과·일정 관리 백엔드 + **운영시간 단일 판정기**(`SCHED-DEPT/SLOT-*`) | 로직(어려움) | 00041 `hospital_hours_closures` | **Sol-xhigh** | — | Task 18 선행. **하드 판단** |
 | **18** | `/admin/schedule` 화면 + 라우트 조립(`SCHED-TAB/GRID/WEEK/SAVE/EXC/HOURS-*`) | 시각 | — | **Sol-high** | `staff/admin/config/Schedule.tsx` | **Task 17 후** |
 | **19** | `/admin/staff` 직원 관리 + 의사 프로필·캘린더 색(`STAFF-*`·`CAL-COLOR-*`) | 시각 | 00042 `staff_profile_palette` | **Sol-high** | `staff/admin/config/StaffAdmin.tsx` | |
 | **20** | `/checkin` QR·예약번호 접수(`CHKIN-*`) | 시각 | 00043 `fix_booking_code_length`(6자리 버그수정) | **Sol-high** | `staff/checkin/Checkin.tsx`·`CheckinForm.tsx`(두 버튼) | |
-| **21** | `/admin/patient-merge-candidates` 중복 병합(`MERGE-*`) | 시각(밀도)+**비가역** | 00044 `patient_merges` | **Terra-high** | `staff/admin/record/MergeCandidates.tsx` | **파괴적 동작 — 신중** |
+| **21** | `/admin/patient-merge-candidates` 중복 병합(`MERGE-*`) | 시각(밀도)+**비가역** | 00044 `patient_merges` | **Sol-max + Terra-high 독립리뷰** | `staff/admin/record/MergeCandidates.tsx` | **파괴적 동작 — 신중** |
 | **22** | `/admin/questionnaires` 문진표 관리(`QADM-*`) | 시각 | 00046 `questionnaire_versions` | **Sol-high** | `staff/admin/config/Questionnaires.tsx` | 불변 버전 |
 | **24** | `/patients` 전역 환자 검색(`SEARCH-*`) | 시각 | — | **Sol-high** | `staff/patients/PatientSearch.tsx` | Task 6 |
 | **25** | 운영 통계 — 오래 대기 건수·명단(`STAT-METRIC-04`) | 로직 | 00047 `search_audit_counts` | **Luna-max** | — | Task 12 소비 |
-| **26** | `/admin/merge-history` 병합 이력·되돌림(`MHIST-*`) | 시각+**비가역** | — | **Terra-high** | `staff/admin/record/MergeHistory.tsx` | **Task 21 후. 파괴적** |
+| **26** | `/admin/merge-history` 병합 이력·되돌림(`MHIST-*`) | 시각+**비가역** | — | **Sol-max + Terra-high 독립리뷰** | `staff/admin/record/MergeHistory.tsx` | **Task 21 후. 파괴적** |
 | **27** | `/admin/errors` 시스템 오류(`ERRADM-*`) | 시각 | 00048 `system_error_safe_summary` | **Sol-high** | `staff/admin/record/Errors.tsx` | 안전 요약(redaction) |
 | **28** | `/messages` 발송 만들기 — 제1문·패널·enqueue(`SEND-*`·`MSGX-*`) | 시각+로직 | 00049 `scheduled_notifications_cancel` | **Sol-high** | `staff/messages/Messages.tsx` | Task 30 선행 |
 | **29** | `/admin/settings` 병원 설정(`HSET-*` 71 + `HSETX-*` 19) | 시각(최고밀도) | 00051 `hospital_settings_full`(공유칸 `if not exists`) | **Sol-xhigh** | `staff/admin/config/HospitalSettings.tsx` | **⚠️ 없는 칸 저장값처럼 노출 금지**(`HSETX-DATA-01`) |
@@ -267,6 +268,6 @@ TDD: 규칙 ID 기반 테스트(비가시 엣지 *-STATE/ERR/LOAD/RACE/LIVE·세
 ## 11. 진행 로그 (세션 간 이어쓰기 — 여기에 어디까지 했나 1줄씩)
 
 - **2026-08-24**: Task 0·1·2 + Task 3(진료문구 부분) 커밋(`8c1a59c`). 이 실행 시트·AGENTS.md·플레이북 커밋(`89e6a8c`). **seam 배선 완료(`fcb5808`) — schedule_change 라우터 2종, 전체 172 passed.** 미결로 판단한 것: reschedule 권한을 `receptionist·admin`으로 둠(서비스가 역할 제약을 따로 안 걸어 라우터에서 최소 권한 부여 — Task 18 화면 붙일 때 재확인).
-- **2026-08-24 컨텍스트 규율 확정**: 매 Task `/status`; 40% 인계 준비·50% 절대 상한; ACTIVE/STANDBY 단일 지휘권 바통. 상세 정본=플레이북 §4-A. 이후 로그 형식=`Task N — 커밋 — ctx 시작 N% → 종료 N% — 미결 판단`.
+- **2026-08-24 컨텍스트·모델 규율 확정**: 매 Task `/status`; 40% 인계 준비·50% 절대 상한; ACTIVE/STANDBY 단일 지휘권 바통. 모델은 §5 행 → 명시적 실행 → `/status` 검증. 상세 정본=플레이북 §2-A·§4-A·§4-B. 이후 로그 형식=`Task N — route model/effort/이유 — 커밋 — ctx 시작 N% → 종료 N% — 미결 판단`.
 - **다음(Codex) = §4 Wave A ② Task 4 스캐폴딩 → Wave B 병렬 백엔드/기반.**
 - (Codex가 이어서 여기에 추가 — 각 Task: `Task N — 커밋해시 — 미결로 스스로 판단한 것(있으면)`)

@@ -2,7 +2,7 @@
 
 > **무엇**: ⑦ 구현/배포 단계를, **비용을 아끼면서 세션이 자주 끊겨도(Claude Pro) 작업을 잃지 않게** 여러 모델·창을 조합해 돌리는 방법.
 > **언제 여나**: ⑦ 구현 세션을 시작할 때마다 먼저. 다음 세션도 **이 문서 하나로 동일하게** 재개할 수 있게 쓴다.
-> **한 줄 요약**: 나(코디네이터=Opus 4.8[1M]·high)는 **쪼개고·리뷰하고·커밋 지시만** 하고, **벌크 구현은 Codex Luna-max 워커**(별도 프로세스, 자체 토큰 예산)가 TDD로 하고 **매 GREEN마다 커밋**한다. 그러면 내 세션이 죽어도 잃을 게 없다.
+> **한 줄 요약**: 평시 ACTIVE 코디네이터는 **Codex Terra-high**로 쪼개기·라우팅·회수·커밋을 맡고, 실행 시트 §5에 지정된 모델의 별도 Codex 워커가 TDD로 구현한다. STANDBY 감시는 Luna-medium/무모델 Orca wait, 어려운 판정만 별도 Sol 창으로 올린다. 모든 창은 시작 전 모델·노력·컨텍스트를 `/status`로 검증하고 매 GREEN마다 체크포인트를 남긴다.
 
 ---
 
@@ -10,7 +10,7 @@
 
 - **1단계 기반은 초록불**: `backend` 테스트 **125 passed**(28s). 마이그 `00001~00016` + B/C 동시성 수정 포함. → ⑦의 안전한 토대.
 - **환경**: 이 저장소는 ORCA 메인 워크트리(repo `6802ec0a…`, branch `merge/design-integration`). ORCA 앱 실행 중. Codex CLI `0.148.0`(예전의 "Update 다이얼로그가 엔터 먹음" 함정은 이 버전에서 해소됨).
-- **Codex 기본 = `gpt-5.6-luna` + `model_reasoning_effort=max`**(사용자 `~/.codex/config.toml`). 즉 별도 오버라이드 없이도 Luna-max로 뜬다.
+- **설정층이 다르다**: 사용자 `~/.codex/config.toml`은 Sol-high지만 Orca 격리 runtime config는 Luna-max다(2026-08-24 원문 확인). 따라서 어느 기본값도 믿지 않고 **모든 새 창에 model·effort를 명시**한다.
 
 ## 1. 왜 Codex 워커인가 (서브에이전트를 안 쓰는 이유)
 
@@ -29,12 +29,39 @@
 
 | 작업 성격 | 누가 | 왜 |
 |---|---|---|
-| **범위 좁음 + 테스트로 성공기준 명확** (대다수 ⑦ 태스크: 화면·서비스·CRUD·마이그+스키마테스트) | **Codex Luna-max 워커** | DeepSWE 벤치 Luna-max 67%·시도당 $0.61(Sol-max $8.39의 ~1/13.75), GPT-5.5 xhigh급. "경계 명확한 구현"에 최적 = TDD |
-| **애매한 아키텍처 / 보안 / 동시성** (RLS 정책, 디스패처 공유 다리, 슬롯 이중예약, 세션/인증) | **나 직접**(Opus 4.8[1M]·high) 또는 **Codex Sol/Terra-high** | 테스트로도 다 못 막는 판단. 미묘한 버그가 비쌈 |
-| **한 도구(Claude) 안에서 구현을 끝내고 싶을 때** | **opusplan**: Opus가 계획/리뷰, **Sonnet이 실행** | Advisor 전략, 즉시 ~11%↓·품질 유지. Codex 창 조종 오버헤드 없이 갈 때 |
-| **잡일**(파일검색·보일러플레이트·테스트 실행·죽은참조 스캔) | **Haiku 4.5** or **Codex Luna-low** | 최저가로 충분 |
+| **평시 지휘**(큐·dispatch·상태 회수·검증 실행·커밋) | **Codex Terra-high ACTIVE** | 일상 production 작업의 품질/사용량 균형. 지휘 절차가 문서화돼 있어 Sol 상시 사용이 필요 없다. |
+| **STANDBY·심박 감시** | **Luna-medium 또는 모델 호출 없는 Orca wait** | 상태 읽기·이벤트 대기는 깊은 추론이 아니다. 판단이 생기면 ACTIVE/판정 창으로 올린다. |
+| **범위 좁음 + 테스트로 성공기준 명확** (서비스·CRUD·마이그+스키마테스트) | **Codex Luna-max 워커** | 이 프로젝트의 기존 TDD 기준선. 좁은 focused coding에만 사용하고 Terra ACTIVE가 검증하며, 어려운 판정만 Sol에 올린다. |
+| **일반 구조·시각·여러 규칙 조립** | **Codex Sol-high 워커** | 공식 현재 분류상 Sol은 복잡한 추론·고급 코딩·고위험 판단용이며, 이 프로젝트의 시각 규칙 누락 비용이 크다. |
+| **고밀도 화면·복잡한 Realtime/상태 조합** | **Codex Sol-xhigh 워커** | 일반 화면보다 탐색·검증을 한 단계 늘린다. 실행 시트 §5에 명시된 경우만 쓴다. |
+| **보안·동시성·비가역·고위험** | **Codex Sol-max 주 실행 + Terra-high 독립 적대리뷰** | Sol을 최고 품질 주 실행자로 두고, 별도 컨텍스트의 Terra가 반례를 찾는다. 같은 창의 자기검토로 대체하지 않는다. |
+| **잡일**(파일검색·보일러플레이트·테스트 실행·죽은참조 스캔) | **Codex Luna-low/medium** | 판단이 거의 없는 짧은 보조 작업에 한정한다. |
 
-> 플랜이 이미 매우 상세(behaviors 규칙·테스트 골격 존재)해 **대부분 Luna-max로 커버**된다. 위 2행(보안/동시성)만 골라서 나/상위 티어로.
+> 공식 현재 분류: Sol=가장 어려운 작업, Terra=일상 production workhorse, Luna=빠른 대량·focused coding. 프로젝트별 최종값은 실행 시트 §5가 이긴다.
+
+**지휘 모델과 구현 모델은 별개다.** Terra ACTIVE가 Sol 워커를 지휘해도 품질이 낮아지지 않는다. ACTIVE가 직접 어려운 아키텍처·규칙 충돌·보안 판정을 내려야 하는 순간에는 그 판정만 `Sol-high/xhigh` fresh terminal에 읽기 전용 task로 보내고, 결과를 Terra ACTIVE가 회수한다. Sol을 단순 대기·상태 조회·커밋에 쓰지 않는다.
+
+## 2-A. ⭐ 모델 라우팅 하드 게이트 (사용자 확정, 2026-08-24)
+
+**모델은 브리프를 보낸 뒤 바꾸지 않는다.** Task를 읽기 전에 실행 시트 §5 행에서 모델·노력을 고르고 아래 순서를 통과한다.
+
+1. 실행 로그에 `route: Task N | gpt-5.6-<tier> | <effort> | <표의 이유>`를 먼저 기록한다.
+2. 기존 창 재사용은 `/status`의 모델·노력 일치 + context 사용률 40% 미만일 때만 허용한다. 그 외에는 fresh terminal을 만든다.
+3. 같은 워크트리의 routed worker는 모델을 명시해 생성한다:
+
+```text
+orca terminal create --worktree active --title "T<N>-<slug>" --command 'codex --model gpt-5.6-<tier> -c model_reasoning_effort="<effort>"' --json
+orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
+orca terminal send --terminal <handle> --text "/status" --enter --json
+orca terminal read --terminal <handle> --json
+```
+
+4. `/status`에서 정확한 model·effort·context <40%를 읽은 뒤에만 `task-create`·`dispatch --inject` 또는 브리프 전송을 한다. **완전히 새 빈 terminal은 현재 Codex가 context 줄을 생략할 수 있다**(§4-A 실검증). 이 경우 새 Session ID + 프롬프트 이력 없음 + model/effort 일치를 확인해 첫 Task만 허용하고, 첫 응답 직후 다시 `/status`로 수치를 기록한다. 재사용 창에서 context 줄이 없으면 낮다고 추정하지 않는다.
+5. 브리프 첫 줄에도 `ROUTE: Task N | model=<정확한 slug> | effort=<값> | reason=<한 줄>`을 넣는다. 워커는 시작·종료 `/status`에 실제 model/effort를 함께 보고한다.
+6. Task 중 난도가 예상보다 높아져도 같은 창에서 임의 상향하지 않는다. 가장 가까운 GREEN에서 멈추고 코디가 `route override` 이유를 로그에 남긴 뒤, 새 상위 모델 창으로 남은 범위를 다시 배정한다.
+7. 리뷰는 구현과 독립된 컨텍스트에서 한다. Sol-max 고위험 Task는 Terra-high 적대리뷰의 `PASS/FINDINGS`가 오기 전 완료·병합 금지.
+
+`orca worktree create --agent codex`는 Codex 전용 model/effort 인자를 받지 않으므로 routed worker에는 단독 사용하지 않는다. 격리 worktree가 꼭 필요하면 worktree를 먼저 만든 뒤 그 worktree를 대상으로 위 `terminal create --command 'codex --model …'`를 실행한다.
 
 ## 3. 세션 죽음 대비 프로토콜 (Pro 필수)
 
@@ -45,15 +72,11 @@
 3. **재개**: 세션이 죽으면 다음 세션은 `git log`·`orca worktree ps --json`·`orca terminal list`로 **어디까지 커밋됐나**만 보고 이어간다. 이 플레이북 + HANDOFF가 진입점.
 4. **코디네이터(나)는 벌크 코드를 쓰지 않는다** — 쓰면 내 세션과 함께 위험해진다. 나는 브리프·리뷰·커밋 지시·병합만.
 
-## 4. ORCA 스폰 메커니즘 (정확한 명령 — 2026-08-20 실검증)
+## 4. ORCA 스폰 메커니즘 (정확한 명령 — 2026-08-24 재검증)
 
 > `ORCA` = 이 맥에선 `orca`. **모든 호출 `--json`.**
 >
-> ⭐ **핵심 제약(실검증)**: **Claude(나)는 codex 창을 「새로 띄우지」 못한다.** `orca terminal create --command 'codex …'` 는 플래그를 어떻게 바꿔도(`--sandbox`·`-a` 빼도, `--model`만 넣어도) **auto 모드 분류기**가 "Claude가 자율 AI 에이전트를 생성"으로 판단해 막는다(허용목록에 `Bash(orca terminal *)`가 있어도 별개 게이트라 막힘). **하지만 이미 열려 있는 codex 창을 「조종」하는 것(list/read/wait/send)은 통과한다.**
-
-**그래서 실제 작동하는 스폰 흐름** = ①사람 or ②codex가 창을 열고 → ③내가 조종:
-- **① 사람이 연다**: ORCA 앱에서 이 저장소 워크트리에 새 터미널 탭 → `codex` 실행(기본 `gpt-5.6-luna max`). (외부 iTerm 말고 **ORCA 앱 안** 터미널이라야 `orca terminal list`에 잡힘.)
-- **② codex가 codex를 연다(팬아웃)**: 이미 도는 codex 워커는 분류기 대상이 아니므로, 그 창에서 codex가 `orca worktree create --agent codex` 로 추가 워커를 띄울 수 있다. → 첫 창만 사람이 열면, 이후 확장은 코디네이터(codex)에 위임 가능.
+> ⭐ **현재 제약**: Codex 코디네이터는 `orca terminal create`로 다른 Codex terminal을 만들고 `list/read/wait/send`로 조종할 수 있다. 그러나 `orca worktree create --agent codex` 경로는 Codex 전용 model/effort를 받지 않으므로 **모델 라우팅 작업에는 쓰지 않는다.** §2-A처럼 명시적 `codex --model … -c model_reasoning_effort=…` 명령으로 만들고 `/status`를 검증한다.
 
 **내가 조종하는 시퀀스(실검증 통과)**:
 ```
@@ -66,11 +89,13 @@ orca terminal send --terminal <handle> --text "<브리프>" --enter --json   # �
 - **브리프는 개행 없이 한 줄로** 보낸다(TUI에서 중간 개행이 조기 제출될 수 있음). bash는 **작은따옴표**로 감싸고 브리프에 `!`·작은따옴표를 넣지 않는다(히스토리 확장·따옴표 깨짐 방지).
 - 진행 확인: `orca terminal read`(긴 출력은 커서 페이지네이션). 상태 표식은 워커에게 `orca worktree set --worktree active --comment "…"`.
 
-**격리 워커(코드 변경·병렬, codex가 스폰)** — 첫 codex에게 시키는 형태:
+**격리 워커(코드 변경·병렬)** — 워크트리만 먼저 만든 뒤, 반환된 worktree에 routed terminal을 만든다:
 ```
 orca worktree create --repo id:6802ec0a-50bc-46df-ab5d-dc6769a11289 \
   --name <task> --parent-worktree active --base-branch merge/design-integration \
-  --agent codex --prompt "<브리프>" --json
+  --json
+orca terminal create --worktree <반환된-worktree-handle> --title "T<N>-<slug>" \
+  --command 'codex --model gpt-5.6-<tier> -c model_reasoning_effort="<effort>"' --json
 # venv는 워커가 새로 만들어야(격리 체크아웃엔 .venv 없음).
 ```
 
@@ -171,8 +196,56 @@ terminal handle은 Orca 재시작 때 바뀔 수 있으므로 문서에 영구 �
 ### E. 실검증 기록
 
 - **실검증 완료(2026-08-24)**: 샌드박스 밖 `orca status`에서 `ready`·`reachable=true` 확인. 빈 Luna 테스트 터미널을 `terminal read`·`wait --for tui-idle`로 확인한 뒤 원격 `/status`를 주입해 `Context window: 99% left (14.6K used / 258K)`를 읽었다. 이어 원격 `/compact`의 `Context compacted` 완료를 확인하고 `/status`를 다시 주입해 `100% left (4.73K used / 258K)`로 감소한 것을 읽었다. 따라서 **다른 Codex 창의 컨텍스트 확인·압축 제어 경로는 실제 작동한다.**
+- **모델 라우팅 재검증(2026-08-24, Codex 0.149.1)**: 빈 terminal을 `codex --model gpt-5.6-terra -c model_reasoning_effort="high"`로 만들고 원격 `/status`에서 `gpt-5.6-terra (reasoning high)`를 확인했다. 새 빈 세션이라 context 줄은 생략됐고 `Weekly limit 87% left`만 표시됐다. 구현 프롬프트 없이 확인 후 terminal을 닫았다.
 - 앞서 세 번 관측한 `stale_bootstrap`은 Orca 종료가 아니라 **샌드박스 안 검사의 거짓 음성**이었다. 같은 시각 Orca 로그에는 데몬과 세션 attach가 유지됐고, 같은 명령을 샌드박스 밖에서 실행하자 PID 4417·동일 runtime ID로 즉시 정상 응답했다.
 - 회귀 검증 기준: 샌드박스 밖 `orca status` ready 유지 → 테스트/대상 terminal idle 확인 → `/status` 주입 → `terminal read`에서 context usage 확인. `/compact` 시험은 실제 작업 창이 아니라 버려도 되는 테스트 창에서만 한다.
+
+## 4-B. ⭐ 5시간 사용량 창 + 무토큰 심박 감시 (사용자 하드 규칙, 2026-08-24)
+
+> **정정**: 5시간은 terminal/session의 수명이 아니라 ChatGPT 플랜의 **공유 사용량 창**이다. 같은 로그인으로 새 창·새 coordinator를 열어도 우회되지 않는다. 모델 선택·추론 노력·작업 크기·도구 사용에 따라 소모량이 달라진다. 공식 기준: <https://learn.chatgpt.com/docs/pricing#what-are-the-usage-limits-for-my-plan>
+
+예전 `~/.claude/skills/autonomous-loop/`의 검증된 원리인 **“파일이 기억, 창은 소모품”**, **ACTIVE 1명**, **HANDOFF 심박**, **40% 전 교대**를 유지한다. 옛 방식의 “대기 모델을 60분마다 깨우기”는 버린다. 생존 확인 때문에 모델에게 말을 걸면 사용량을 더 태우므로, 현재 Orca의 로컬 상태·이벤트 대기를 쓴다.
+
+### A. Task/Wave마다 남기는 심박
+
+ACTIVE는 Task 시작·GREEN 커밋·종료 때 `HANDOFF.md` 최상단의 한 줄만 갱신한다.
+
+```text
+운영 심박: 2026-08-24 17:20 PDT · epoch 3 · ACTIVE T4-coordinator · Task 4 GREEN · ctx 31% · head abc1234
+```
+
+- 심박은 “작업 결과”가 아니라 **지금 누가 지휘하고 마지막 안전 체크포인트가 어디인지**다. 결정 상세를 HANDOFF에 복사하지 않는다.
+- 워커의 완료는 신호 하나만 믿지 않는다. `worker_done` + 지정 산출물/테스트 + terminal idle + git diff를 함께 확인한다.
+- terminal handle은 재시작 때 바뀌므로 심박에 영구 정본으로 저장하지 않는다. title·taskId·dispatchId로 다시 찾는다.
+
+### B. 모델을 깨우지 않는 생존 감시
+
+워커 실행 중 코디네이터는 아래 이벤트 대기를 15분 단위로 건다. 이 명령의 대기 자체는 모델 프롬프트가 아니다.
+
+```text
+orca orchestration check --wait --types worker_done,escalation,decision_gate --timeout-ms 900000 --json
+```
+
+- 이벤트 도착 → 즉시 처리한다.
+- timeout → 실패가 아니다. `orca status --json` → `terminal list/show/read`로 프로세스·terminal 상태를 읽고 HANDOFF 심박 시각만 확인한 뒤 다시 대기한다.
+- ACTIVE가 60분 넘게 심박을 못 남겼고 terminal도 죽었거나 응답 불가일 때만 STANDBY가 §4-A 복구·ACK 절차로 이어받는다. 조용히 작업 중인 terminal은 빼앗지 않는다.
+- keepalive용 `/status`, “살아 있니?” 프롬프트, 의미 없는 주기 메시지는 금지한다. `/status`는 Task 시작·종료·바통 직전에만 실행한다.
+
+### C. 5시간 창 소진 대응
+
+`/status`에서 context와 **표시되는 rate limit 잔여량·reset 시각**을 함께 읽는다. Codex 버전·계정에 따라 5시간 줄 없이 weekly만 나올 수 있으므로, 보이지 않는 값을 추정해 적지 않는다. 5시간 줄이 실제로 표시될 때 아래 표를 적용하고, 없으면 새 Wave를 한꺼번에 열지 않고 Task 하나씩 진행한다.
+
+| 5시간 잔여량 | 동작 |
+|---|---|
+| `30% 초과` | 계획된 Task 진행 가능 |
+| `15~30%` | 새 Wave·고위험 Task 시작 금지. 현재 Task를 가장 가까운 GREEN/커밋까지 닫고 HANDOFF 준비 |
+| `15% 미만` 또는 limit 오류 | 새 모델 작업 중단. 실행 중 결과 회수 → focused 검증 가능한 범위만 정리 → 커밋·실행 시트·HANDOFF·Orca task state 저장 → reset까지 대기 |
+
+- 새 ChatGPT 로그인 창은 같은 사용량 창을 공유하므로 대안이 아니다. **두 coordinator는 컨텍스트·창 죽음 대비책이지 쿼터 증폭 장치가 아니다.**
+- reset 후 fresh Terra-high coordinator가 §복구 순서로 시작하고, 이전 ACTIVE는 STANDBY로 물러난다.
+- CLI가 `/usage`로 일회성 usage reset을 제안하더라도 자동 사용 금지다. 남은 Task·주간 잔여량·다음 reset 시각을 보고 사용자에게 먼저 추천안을 설명해 승인받는다.
+- 유료 API key는 사용량 기반 후불 대안이지만 자동 fallback하지 않는다. 사용자가 **①API 사용 승인 ②달러 상한 ③중단 기준**을 명시한 경우에만 별도 인증/profile로 전환한다. 비용 상한이 없으면 기다리는 것이 기본이다.
+- 무한 실행이 아니라 **중단 가능한 장기 루프**다. rate limit reset, Orca 장애, 사용자 결정, 외부 승인, 같은 실패 3회는 반드시 멈추거나 대기하는 조건이다.
 
 ## 5. 워커 브리프 규율 (TDD)
 
@@ -193,14 +266,13 @@ terminal handle은 Orca 재시작 때 바뀔 수 있으므로 문서에 영구 �
 
 ## 7. 설정 (모델·노력도)
 
-- **메인(나)**: `/model claude-opus-4-8[1m]` → `/effort high` (Opus 4.8 기본 노력도가 이미 high). 영구고정은 `settings.json`의 `"model"`·`"effortLevel"`.
-  - `max`/`ultracode`는 Pro 쿼터를 크게 태우고 ultracode는 수백 서브에이전트를 띄워 역효과 → **high 유지**.
-- **서브에이전트 요금 방지**: `CLAUDE_CODE_SUBAGENT_MODEL=sonnet`(또는 `haiku`) — 안 하면 잡일도 Opus 요금.
-- **Codex 워커**: 기본이 이미 `gpt-5.6-luna`+`max`. 애매/보안 태스크만 창에서 `codex --model gpt-5.6-sol -c model_reasoning_effort="high"` 로.
+- 전역 기본값은 안전망일 뿐 Task 라우팅의 근거가 아니다. 실제 실행은 §2-A 명시 명령 + `/status` 검증이 정본이다.
+- Codex 설정 키는 `model`, `model_reasoning_effort`, `model_context_window`, `model_auto_compact_token_limit`이다. context window를 임의로 “백만”으로 적는 것은 모델이 지원하지 않으면 늘려 주지 않는다. 공식 설정 정본: <https://learn.chatgpt.com/docs/config-file/config-reference#configtoml>
+- 모델 역할의 공식 정본: <https://developers.openai.com/api/docs/guides/latest-model>. 이 프로젝트의 Task별 선택은 실행 시트 §5가 이긴다.
 
 ## 8. 함정 (계속 적용)
 
-- **Claude는 codex 창을 새로 못 띄운다**(§4 핵심 제약, 실검증). 첫 창은 사람이 ORCA 앱에서 열고, 이후는 codex↔codex 팬아웃. 내가 하는 건 **조종(list/read/wait/send)** 뿐 — 이건 통과.
+- routed terminal은 반드시 명시적 model/effort로 만든다. Orca 격리 runtime 기본 Luna-max와 사용자 기본 Sol-high가 다르므로 배너나 기억을 믿지 않는다.
 - **spend limit 주의**: 열린 codex 창이 여러 개면 계정/티어별 한도가 다르다 — 2026-08-20 검증 때 한 창은 "monthly spend limit" 걸려 있었다. 워커로 쓸 창의 배너에서 모델·가용성 확인.
 - **send 전 반드시 `terminal wait --for tui-idle` + `read` tail 확인**(다이얼로그가 엔터 먹는 것 방지).
 - 워커가 `git add -A` 하면 내 미커밋까지 삼킴 → **자기 파일만 add** 하도록 브리프에 못 박기.
