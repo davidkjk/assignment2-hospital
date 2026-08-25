@@ -2,6 +2,7 @@ import re
 import time
 from collections import defaultdict, deque
 from threading import Lock
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
@@ -62,6 +63,25 @@ def get_auth_client() -> Client:
     return create_client(settings.supabase_url, settings.supabase_anon_key)
 
 
+def _password_recovery_redirect(request: Request) -> str:
+    """브라우저가 연 직원 웹 origin으로만 복구 화면을 돌려보낸다."""
+    origin = request.headers.get("origin", "").strip().rstrip("/")
+    try:
+        parsed = urlsplit(origin)
+        is_serialized_origin = origin == f"{parsed.scheme}://{parsed.netloc}"
+        if (
+            parsed.scheme in {"http", "https"}
+            and parsed.hostname is not None
+            and parsed.username is None
+            and parsed.password is None
+            and is_serialized_origin
+        ):
+            return f"{origin}/reset-password/new"
+    except ValueError:
+        pass
+    return f"{str(request.base_url).rstrip('/')}/reset-password/new"
+
+
 @router.post(
     "/auth/staff/password-reset",
     status_code=status.HTTP_202_ACCEPTED,
@@ -79,7 +99,7 @@ def request_password_reset(
         try:
             admin.auth.reset_password_for_email(
                 email,
-                {"redirect_to": f"{request.base_url}reset-password/new"},
+                {"redirect_to": _password_recovery_redirect(request)},
             )
         except Exception:
             # STAFF-LOGIN-10: 없는 이메일과 제공자 오류의 세부를 브라우저에 드러내지 않는다.

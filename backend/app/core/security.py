@@ -29,16 +29,19 @@ async def get_current_staff(request: Request) -> StaffContext:
             algorithms=["HS256"],
             audience="authenticated",
         )
-    except JWTError:
+        subject = payload.get("sub")
+        if not isinstance(subject, str):
+            raise ValueError("missing JWT subject")
+        auth_user_id = UUID(subject)
+    except (JWTError, ValueError):
         # STAFF-LOGIN-11: 손상된 토큰도 직원 행 없음·비활성 계정과 같은
         # 사용자 문장으로 정규화해 계정 상태를 대조할 단서를 남기지 않는다.
         raise HTTPException(status_code=401, detail="로그인 정보를 확인해 주세요.")
 
-    auth_user_id = payload["sub"]
-    async with acquire_as(auth_user_id) as conn:
+    async with acquire_as(str(auth_user_id)) as conn:
         row = await conn.fetchrow(
             "select id, auth_user_id, role, department_id, is_active from staff where auth_user_id = $1",
-            UUID(auth_user_id),
+            auth_user_id,
         )
 
     if row is None or not row["is_active"]:

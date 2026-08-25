@@ -152,6 +152,25 @@ def test_재설정_요청은_가입_여부와_무관하게_같은_응답이다()
     assert unknown.json() == known.json()
 
 
+def test_재설정_링크는_브라우저의_프런트엔드_origin으로_돌아온다():
+    """[STAFF-LOGIN-10] API 서버가 아니라 요청 화면으로 복구 링크를 돌려보낸다."""
+    client, admin, _ = make_auth_client()
+
+    response = client.post(
+        "/auth/staff/password-reset",
+        headers={"Origin": "https://staff.hospital.test"},
+        json={"email": "real@hospital.kr"},
+    )
+
+    assert response.status_code == 202
+    assert admin.auth.reset_requests == [
+        (
+            "real@hospital.kr",
+            {"redirect_to": "https://staff.hospital.test/reset-password/new"},
+        )
+    ]
+
+
 def test_재설정_요청은_다섯_번_뒤_시도_제한을_건다():
     """[STAFF-LOGIN-10] 반복 복구 요청은 메일 폭탄이 되지 않도록 제한한다."""
     client, _, _ = make_auth_client()
