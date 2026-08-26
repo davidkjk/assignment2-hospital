@@ -134,7 +134,10 @@ Wave C  (Task 4·5·7 후 — 화면 15개, route 폴더 격리 병렬)
 - **Task 6b `151546c`**: 가족연결 저장(00045, link/unlink + POST/DELETE /patients/{id}/family, 의사 403, 재연결 허용). Task 6 완결. focused 6/0.
 - **Task 13 `f666fba`**: 조회 백엔드(`core/pagination.py` 공용커서·`core/dto.py` 마스킹경계·dashboard/history/stats 서비스·라우터 2). focused 54/0. **BLOCKED 이월**: ①`/calendar`는 Task 17 `resolve_day`(빗금 유일판정기) 없어 인터페이스+`NotImplementedError`만, 라우트 미등록 → **Task 17 후 배선** ②`ALOG-LIST-13` 상세 payload는 `access_audit_log`에 payload 칸 없어 미룸(마이그 필요) → **Task 15에서 처리** ③리스케줄 영향분은 calendar와 묶여 미룸. **코디 배선**: main.py에 dashboard.router·stats.router 등록.
 - **모델정책 개정(2026-08-26)**: 노력 전부 high. **병렬 축소 → 앞으로 한 번에 하나씩**(중간 한도컷 시 콜드 재읽기 낭비 회피, 사용자 논의). 200k/1M은 비용차 미미(태스크가 200k 미만)라 유지.
-- **다음 = Task 25(00047) → 코디 통합 배선(main.py 라우터 3종·셸 마운트·401·undo 엔드포인트) → Wave B 독립검증+클린DB회귀 → Wave C(하나씩).**
+- **Task 25 `d53cfdc`**: long_wait 지표(백엔드 절반, 프론트=Task12와). **Task 17 `3c988b4`**: `resolve_day` 단일 판정기(의사예외>병원휴무>요일규칙, source)·`00041 hospital_hours_closures`·schedule_admin_service(save_week_rules 원자·overview_grid·진료과 CRUD, 진료과중지는 활성의사 있으면 막고 /admin/staff)·slot_generator·department is_active. `core/errors.py` 공유변경(AppError detail, 하위호환). **전체 회귀 349/0.**
+- **✅ Wave B 백엔드 완료**(4·5·6·6b·7·13·25·17). **다음 = 코디 통합 배선** → Wave B 독립검증 → 클린DB 회귀 → Wave C(화면, 하나씩).
+- **코디 통합 배선 목록**(main.py·셸 공유파일, 코디가): ①main.py 라우터 4 등록: `patients`(T6)·`dashboard`·`stats`(T13)·`schedule_admin`(T17) ②`resolve_day` 소비처 연결: T13 `/calendar`(NotImplementedError 해제)·`appointment_service` 예약생성 ③셸: `ConnectivityProvider`+`OfflineBanner` 마운트·`PanelProvider`/`PanelHost` 마운트·401 세션만료(`isSessionExpiry`→`rememberReturn`→logout)·`markServerOk` ④undo HTTP 엔드포인트(`undo_status` 호출, 응답에 `reason_required`).
+- **미결(사용자 결정 대기, 진행 막지 않음)**: **갭 #94** — 특정 날짜에 그날만 점심시간 이동, 실제 필요한가? (요구사항에 없음)
 - **살아있는 갭·미결**(HANDOFF에서 이관, 잃으면 안 됨):
   - **갭 #128**: 의료판단 이관 티켓의 **의사 도착 화면이 없다**(`SHELL-NAV`=의사는 진료·환자검색만). Task 17은 이관 드롭다운에 활성 직원 전부 넣되 도착 화면은 안 만듦. 해소는 이후 `SHELL-NAV`·의료 escalation 모델과 함께.
   - **백엔드 계약 갭 2건**: ① `GET /staff/chat/tickets/{id}`(요약5+대화, Task 9 Produces 미명시) ② `reassign_ticket(ticket_id,to_staff_id)`+`POST .../reassign`(Task 2 목록에 없음). 부수: `.../read`(UNREAD-02)·`GET /staff/active`.
