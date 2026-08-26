@@ -90,8 +90,11 @@ async def test_원문은_버리지_않고_기록한다(db_pool):
 def test_서비스_여섯_곳_어디서도_예외_원문을_그대로_던지지_않는다():
     """[ERR-MSG-02] 갭 #14 회귀 가드 — `AppError(str(exc))`가 다시 생기면 여기서 걸린다.
 
-    두 서비스 파일 어디에도 파이썬 예외 원문을 그대로 AppError에 담는 코드가 없어야 하고,
-    DB 예외를 사용자 안내로 갈아입히는 창구(`pg_error_to_app_error(exc`)가 정확히 6곳이어야 한다.
+    핵심 불변식: 두 서비스 파일 어디에도 파이썬 예외 원문을 그대로 AppError에 담는 코드가 없어야 한다.
+    그리고 DB 예외를 사용자 안내로 갈아입히는 창구(`pg_error_to_app_error(exc`)가 최소 6곳(갭 #14
+    당시의 6곳)은 남아 있어야 한다. ⚠️ 이 수는 **새 DB 연산이 추가될수록 는다**(예: Task 7 `undo_status`가
+    같은 패턴으로 마스킹해 7곳) — 정확한 개수가 아니라 「원문 노출이 다시 생기지 않았나 + 마스킹이 사라지지
+    않았나」가 가드의 목적이다.
     """
     sites = 0
     for path in SERVICE_FILES:
@@ -99,4 +102,4 @@ def test_서비스_여섯_곳_어디서도_예외_원문을_그대로_던지지_
         assert "AppError(str(exc)" not in source
         assert "AppError(str(" not in source
         sites += len(re.findall(r"pg_error_to_app_error\(exc", source))
-    assert sites == 6
+    assert sites >= 6

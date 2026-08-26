@@ -16,6 +16,53 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     "진료중": {"진료완료"},
 }
 
+# ── 되돌리기(갭 #82, UNDO-*) ────────────────────────────────────────────────
+# 되돌리기는 「고치는 동작」이지 위험한 동작이 아니라 확인창을 두지 않는다(결정 2026-08-06).
+# 오늘 병원 안의 진행 4상태에서 **각각 한 칸 뒤로만** 허용한다. 앞으로 미는 정상 경로
+# (VALID_TRANSITIONS)와 역방향 경로를 분리해 두어, 되돌리기가 아닌 경로로는 뒤로 갈 수 없게 한다.
+# DB 쪽 방어선은 00037이 private.appointment_status_transitions에 심은 역전이 4행이다(UNDO-IMPL-02).
+UNDO_TRANSITIONS: dict[str, str] = {
+    "도착": "예약확정",
+    "진료대기": "도착",
+    "진료중": "진료대기",
+    "진료완료": "진료중",
+}
+# 취소하는 순간 그 시간 자리가 풀려 다른 환자가 이미 예약했을 수 있다(UNDO-SCOPE-02·03).
+CANCEL_STATES: set[str] = {"환자취소", "병원취소", "예약부도"}
+# 의사가 앞으로 민 구간 — 접수직원·관리자가 「대신」 되돌릴 때만 사유를 받는다(UNDO-ROLE-02).
+_DOCTOR_SEGMENT: set[str] = {"진료중", "진료완료"}
+
+
+def undoable_targets() -> list[str]:
+    """[UNDO-SCOPE-01] 되돌릴 수 있는 출발 상태 = 오늘 병원 안의 진행 4상태."""
+    return ["도착", "진료대기", "진료중", "진료완료"]
+
+
+def undo_blocked_hint(status: str) -> str:
+    """[UNDO-SCOPE-02][UNDO-SCOPE-03] 막을 때 갈 길을 함께 준다 — 취소된 예약은 「새로 예약」."""
+    return "새로 예약"
+
+
+def can_undo(status: str, role: str) -> bool:
+    """[UNDO-ROLE-01][UNDO-ROLE-02] 진행 4상태는 어느 직원이든 되돌릴 수 있다(사유 조건은 별개).
+
+    ⭐ 문이지 내용이 아니다(UNDO-ROLE-03): 상태를 되돌리는 것과 진료기록을 고치는 것은 다른 일이다.
+    """
+    return status in UNDO_TRANSITIONS
+
+
+def reason_required(from_status: str, role: str) -> bool:
+    """[UNDO-WHY-01][UNDO-WHY-02][UNDO-WHY-03] 사유는 두 경우에만 — 그 밖에는 받지 않는다.
+
+    ① 진료완료 되돌리기: 진료기록이 이미 있으니 왜 되돌리는지 남긴다.
+    ② 남의 구간 대신 되돌리기: 접수직원·관리자가 의사 구간(진료중·진료완료)을 되돌릴 때.
+    """
+    if from_status == "진료완료":
+        return True
+    if from_status in _DOCTOR_SEGMENT and role in ("receptionist", "admin"):
+        return True
+    return False
+
 # [정합성 검토 R1-우선3 재검증] 예약 생성 시 초기 상태를 예약 채널(source)별로 서버가 고정한다.
 # 1차 정합성 검토 지적: `CreateAppointmentRequest.initial_status`를 클라이언트가 보낸 값 그대로 저장하고
 # 있었다(구 라인 4390/4411) — 예를 들어 앱에서 "진료완료"를 초기상태로 보내도 그대로 통과했다.
@@ -139,6 +186,62 @@ async def transition_status(
             # enforce_appointment_status_transition 트리거의 한글 안내(P0…)는 그대로,
             # 그 밖의 드라이버 오류는 로그+고정 문구로.
             raise (await pg_error_to_app_error(exc, "appointment.transition")) from exc
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
+async def undo_status(
+    appointment_id: UUID,
+    staff: StaffContext,
+    reason: str | None = None,
+    to_status: str | None = None,
+    conn=None,
+) -> str:
+    """[UNDO-*] 진행 4상태에서 한 칸 뒤로 되돌린다. 되돌린 뒤의 상태를 돌려준다.
+
+    - 취소 계열은 되돌릴 수 없다(자리가 이미 풀렸다) — 갈 길은 「새로 예약」.
+    - to_status를 함께 주면 한 칸 뒤 상태와 같아야 한다(두 칸 되돌리기 차단, UNDO-SCOPE-04).
+    - 사유는 reason_required가 참인 경우에만 필수(UNDO-WHY-*).
+    - 순번(queue_position)은 덮지 않는다 — 되돌리기가 순서 변경의 뒷문이 되지 않게(UNDO-ORDER-01).
+    - 상태 이력은 기존 트리거(log_appointment_status_change)가 남긴다 — 우회하지 않는다(UNDO-LOG-01).
+    """
+
+    async def _run(c) -> str:
+        row = await c.fetchrow(
+            "select status from appointments where id = $1", appointment_id,
+        )
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        current = row["status"]
+
+        if current in CANCEL_STATES:
+            raise AppError(
+                f"이미 취소된 예약은 되돌릴 수 없습니다. {undo_blocked_hint(current)}로 진행하세요.",
+                status_code=409,
+            )
+        target = UNDO_TRANSITIONS.get(current)
+        if target is None:
+            raise AppError(f"'{current}' 상태는 되돌릴 수 없습니다.", status_code=400)
+        if to_status is not None and to_status != target:
+            raise AppError("한 칸씩만 되돌릴 수 있습니다.", status_code=403)
+        if reason_required(current, staff.role) and not reason:
+            raise AppError("되돌리기 사유를 한 줄 입력해주세요.", status_code=400)
+
+        try:
+            if reason:
+                await c.execute("select set_config('app.status_change_reason', $1, true)", reason)
+            # queue_position은 건드리지 않는다 — 트리거가 이력을, DB 전이표(00037)가 역전이를 허용한다.
+            await c.execute(
+                "update appointments set status = $1, updated_at = now() where id = $2",
+                target, appointment_id,
+            )
+        except asyncpg.PostgresError as exc:
+            raise (await pg_error_to_app_error(exc, "appointment.undo")) from exc
+        return target
 
     if conn is not None:
         return await _run(conn)
