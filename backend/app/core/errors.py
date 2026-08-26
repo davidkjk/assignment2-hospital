@@ -6,9 +6,12 @@ from app.db.pool import get_pool
 
 
 class AppError(Exception):
-    def __init__(self, message: str, status_code: int = 400):
+    def __init__(self, message: str, status_code: int = 400, detail: dict | None = None):
+        # detail: 화면이 「갈 길」을 그리는 데 필요한 구조화 정보(예: 진료과 중지를 막을 때
+        # 옮겨야 할 활성 의사 이름 목록). message는 사람이 읽는 한 줄, detail은 화면용 데이터다.
         self.message = message
         self.status_code = status_code
+        self.detail = detail
 
 
 async def log_error(feature: str, message: str) -> None:
@@ -38,7 +41,11 @@ async def pg_error_to_app_error(exc: asyncpg.PostgresError, feature: str) -> App
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+    content: dict = {"detail": exc.message}
+    if exc.detail is not None:
+        # 화면이 「갈 길」을 그리는 데 쓰는 구조화 데이터(예: 옮겨야 할 활성 의사 이름).
+        content["context"] = exc.detail
+    return JSONResponse(status_code=exc.status_code, content=content)
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
