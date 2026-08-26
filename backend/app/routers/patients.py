@@ -10,11 +10,22 @@ receptionist_admin_can_read_patients와 일치). 의사의 조회 범위는 자�
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from app.core.security import StaffContext, require_role
 from app.services import patient_service
 
 router = APIRouter(prefix="/patients", tags=["patients"])
+
+
+class FamilyLinkRequest(BaseModel):
+    family_patient_id: UUID
+    relation: str
+    method: str
+
+
+class FamilyUnlinkRequest(BaseModel):
+    reason: str
 
 
 @router.get("")
@@ -42,3 +53,31 @@ async def reveal_contact(
 ) -> dict:
     """[MASK-VIEW-01·02·03] 번호 펼치기 창구(갭 #35) + 열람 기록."""
     return await patient_service.reveal_contact(patient_id, staff)
+
+
+@router.post("/{patient_id}/family")
+async def link_family(
+    patient_id: UUID,
+    body: FamilyLinkRequest,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> dict:
+    """[R5-01][PTDET-FAMILY-04·05][ROLE-DOC-02] 가족 연결 저장 창구 — 접수·관리자만.
+
+    의사는 이 창구를 열 수 없다(가족 연결은 접수·관리자의 일, 요구사항 3.5·4.2).
+    """
+    link_id = await patient_service.link_family_member(
+        patient_id, body.family_patient_id, body.relation, body.method, staff
+    )
+    return {"id": link_id}
+
+
+@router.delete("/{patient_id}/family/{member_id}")
+async def unlink_family(
+    patient_id: UUID,
+    member_id: UUID,
+    body: FamilyUnlinkRequest,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> dict:
+    """[R5-02][ROLE-DOC-02] 가족 연결 해제 — 접수·관리자만. 사유·실행자를 남긴다."""
+    await patient_service.unlink_family_member(patient_id, member_id, body.reason, staff)
+    return {"ok": True}

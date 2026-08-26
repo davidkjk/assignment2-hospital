@@ -1,6 +1,8 @@
 from datetime import date
 from uuid import UUID
 
+import asyncpg
+
 from app.core.errors import AppError
 from app.core.masking import mask_birth_date, mask_phone
 from app.core.security import StaffContext
@@ -92,6 +94,88 @@ async def reveal_contact(patient_id: UUID, staff: StaffContext) -> dict:
             raise AppError("환자를 찾을 수 없습니다.", status_code=404)
         await audit_service.log_access(patient_id, "phone_reveal", staff, conn=c)
         return {"phone": phone}
+
+
+async def link_family_member(
+    account_patient_id: UUID,
+    family_patient_id: UUID,
+    relation: str,
+    method: str,
+    staff: StaffContext,
+    conn=None,
+) -> UUID:
+    """[R5-01][PTDET-FAMILY-03·04·05] 직원이 가족을 연결한다.
+
+    ⭐ 판정 조건은 오직 **B의 등록 전화번호 유무**다. 클라이언트가 예외를 골랐다는
+       사실만으로 열지 않는다 — Task 13의 verify-eligibility를 먼저 불렀더라도
+       그 사이에 번호가 등록됐을 수 있고, 애초에 그 호출을 건너뛸 수도 있다.
+    """
+    async def _run(c):
+        phone = await c.fetchval(
+            "select phone from patients where id = $1 for update", family_patient_id
+        )
+        if phone and method != "otp":
+            # [PTDET-FAMILY-04] 번호가 있는데 예외 경로를 고르면 우회다 — 저장 시점에 막는다.
+            raise AppError(
+                "등록된 번호가 있어 다른 확인 방법으로 전환할 수 없습니다.", status_code=409
+            )
+        if method == "otp":
+            # ⚠️ 갭 — OTP 발송·검증 창구가 없다(결정 #3 ㉠). ⛔ 그냥 통과시키지 않는다:
+            #    통과시키면 본인확인 없이 남의 가족이 된다. 막다른 길이 아니다 —
+            #    번호가 없는 환자는 예외 경로(in_person·document)로 갈 수 있다.
+            raise AppError("본인확인(OTP) 창구가 아직 열리지 않았습니다.", status_code=501)
+        try:
+            # 중복 삽입 실패가 바깥 트랜잭션을 오염시키지 않도록 savepoint로 격리한다 —
+            # 격리하지 않으면 해제 후 재연결이 「실패한 트랜잭션」 위에서 막힌다.
+            async with c.transaction():
+                return await c.fetchval(
+                    """insert into patient_family_links
+                         (account_patient_id, family_patient_id, relation,
+                          verification_method, linked_by)
+                       values ($1, $2, $3, $4, $5) returning id""",
+                    account_patient_id, family_patient_id, relation, method, staff.id,
+                )
+        except asyncpg.UniqueViolationError:
+            # [PTDET-FAMILY-01] 살아 있는 연결이 이미 있다(family_links_live_pair). 목록에
+            # 같은 사람이 두 줄로 나오지 않도록 막는다. 해제한 뒤에는 다시 연결할 수 있다.
+            raise AppError("이미 연결된 가족입니다.", status_code=409)
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c, c.transaction():
+        return await _run(c)
+
+
+async def unlink_family_member(
+    account_patient_id: UUID,
+    family_patient_id: UUID,
+    reason: str,
+    staff: StaffContext,
+    conn=None,
+) -> None:
+    """[R5-02][결정 #3 기록부] 해제는 행을 지우지 않는다 — is_active만 내리고 사유·실행자를 남긴다.
+
+    지우면 「누가 왜 끊었나」가 사라진다(FAM-UNLINK-11: 환자 행도 명부에 남긴다).
+    해제 후 같은 쌍을 다시 연결할 수 있다(#59 재연결 전제).
+    """
+    async def _run(c):
+        updated = await c.fetchval(
+            """update patient_family_links
+                 set is_active = false, unlinked_at = now(),
+                     unlink_reason = $3, unlinked_by = $4
+               where account_patient_id = $1 and family_patient_id = $2 and is_active
+               returning id""",
+            account_patient_id, family_patient_id, reason, staff.id,
+        )
+        if updated is None:
+            raise AppError("연결된 가족을 찾을 수 없습니다.", status_code=404)
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c, c.transaction():
+        return await _run(c)
 
 
 async def register_patient(name: str, birth_date: date, gender: str, phone: str, staff: StaffContext, conn=None) -> UUID:
