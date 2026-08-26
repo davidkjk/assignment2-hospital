@@ -44,6 +44,32 @@ async def log_access(
         return await _run(c)
 
 
+async def log_stats_drilldown(staff: StaffContext, *, conn=None) -> None:
+    """[STAT-AUDIT-02][결정22] 통계 드릴다운은 환자 없는 관리자 활동 행으로 남긴다.
+
+    특정 환자를 겨냥한 열람이 아니라 「관리자가 상세 목록을 열었다」는 사실이므로
+    patient_id는 null이다(00034가 nullable + stats_drilldown 종류를 열어 뒀다).
+
+    ⚠️ ALOG-LIST-13이 요구하는 지표·기간·대상 건수·억제 여부의 상세 payload 저장은
+       access_audit_log에 전용 컬럼이 없어 BLOCKED다 — payload 컬럼 추가 마이그레이션이
+       필요하고 이 태스크는 새 마이그레이션을 만들지 않는다. 지금은 실행자·시각·종류만 남긴다.
+    """
+    await log_access(None, "stats_drilldown", staff, conn=conn)
+
+
+async def log_stats_export(
+    staff: StaffContext, *, metric: str | None = None, rows: int | None = None,
+    suppressed: bool | None = None, conn=None,
+) -> None:
+    """[STAT-AUDIT-02][ALOG-LIST-13][결정22] 통계 CSV 내보내기 감사 — 환자 없는 행.
+
+    metric·rows·suppressed는 ALOG-LIST-13이 남기라 한 값이지만, 저장할 payload 컬럼이
+    아직 없어(BLOCKED, 마이그 필요) 지금은 종류·실행자·시각만 남긴다 — 원문·검색어는
+    어차피 복사하지 않는다.
+    """
+    await log_access(None, "stats_export", staff, conn=conn)
+
+
 async def _log_search(staff: StaffContext, search_term: str | None) -> None:
     pool = await get_pool()
     async with pool.acquire() as c, c.transaction():
