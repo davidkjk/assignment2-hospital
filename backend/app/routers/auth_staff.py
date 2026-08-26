@@ -63,11 +63,39 @@ def get_auth_client() -> Client:
     return create_client(settings.supabase_url, settings.supabase_anon_key)
 
 
-def _password_recovery_redirect(request: Request) -> str:
-    """브라우저가 연 직원 웹 origin으로만 복구 화면을 돌려보낸다."""
-    origin = request.headers.get("origin", "").strip().rstrip("/")
+def _find_auth_user_by_email(admin: Client, email: str):
+    """Admin API를 페이지 끝까지 확인해 정규화된 이메일의 Auth 사용자를 찾는다."""
+    page = 1
+    per_page = 100
+    while True:
+        users = admin.auth.admin.list_users(page=page, per_page=per_page)
+        for user in users:
+            candidate = getattr(user, "email", None)
+            if candidate and candidate.strip().casefold() == email.casefold():
+                return user
+        if len(users) < per_page:
+            return None
+        page += 1
+
+
+def _has_active_staff_membership(admin: Client, auth_user_id: object) -> bool:
+    result = (
+        admin.table("staff")
+        .select("id")
+        .eq("auth_user_id", str(auth_user_id))
+        .eq("is_active", True)
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)
+
+
+def _password_recovery_redirect() -> str:
+    """서버 설정의 직원 웹 origin만 복구 목적지로 사용한다."""
+    origin = (settings.staff_web_origin or "").strip().rstrip("/")
     try:
         parsed = urlsplit(origin)
+        _ = parsed.port  # 잘못된 포트 표기를 ValueError로 거른다.
         is_serialized_origin = origin == f"{parsed.scheme}://{parsed.netloc}"
         if (
             parsed.scheme in {"http", "https"}
@@ -79,7 +107,7 @@ def _password_recovery_redirect(request: Request) -> str:
             return f"{origin}/reset-password/new"
     except ValueError:
         pass
-    return f"{str(request.base_url).rstrip('/')}/reset-password/new"
+    raise ValueError("STAFF_WEB_ORIGIN must be an http(s) origin without a path")
 
 
 @router.post(
@@ -97,10 +125,14 @@ def request_password_reset(
     email = payload.email.strip().lower()
     if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
         try:
-            admin.auth.reset_password_for_email(
-                email,
-                {"redirect_to": _password_recovery_redirect(request)},
-            )
+            redirect_to = _password_recovery_redirect()
+            auth_user = _find_auth_user_by_email(admin, email)
+            auth_user_id = getattr(auth_user, "id", None)
+            if auth_user_id and _has_active_staff_membership(admin, auth_user_id):
+                admin.auth.reset_password_for_email(
+                    email,
+                    {"redirect_to": redirect_to},
+                )
         except Exception:
             # STAFF-LOGIN-10: 없는 이메일과 제공자 오류의 세부를 브라우저에 드러내지 않는다.
             pass
@@ -122,6 +154,11 @@ def change_my_password(
     ):
         raise HTTPException(status_code=400, detail="새 비밀번호 조건을 확인해 주세요.")
 
+    authorization = request.headers.get("authorization", "")
+    current_token = authorization.removeprefix("Bearer ")
+    if not current_token:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
     user = admin.auth.admin.get_user_by_id(str(staff.auth_user_id)).user
     email = getattr(user, "email", None)
     if not email:
@@ -133,13 +170,16 @@ def change_my_password(
     except Exception:
         raise HTTPException(status_code=400, detail="현재 비밀번호를 확인해 주세요.")
 
-    admin.auth.admin.update_user_by_id(
-        str(staff.auth_user_id), {"password": payload.new_password}
-    )
-    # SHELL-PW-04: 현재 브라우저 세션은 유지하고 다른 기기만 종료한다.
-    authorization = request.headers.get("authorization", "")
-    current_token = authorization.removeprefix("Bearer ")
-    if not current_token:
-        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
-    admin.auth.admin.sign_out(current_token, scope="others")
+    try:
+        # SHELL-PW-04: 현재 브라우저 세션은 유지하고 다른 기기만 종료한다.
+        # 먼저 종료해야 이 단계 실패 뒤 이미 비밀번호만 바뀐 부분성공이 생기지 않는다.
+        admin.auth.admin.sign_out(current_token, scope="others")
+        admin.auth.admin.update_user_by_id(
+            str(staff.auth_user_id), {"password": payload.new_password}
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="비밀번호를 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        ) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -10,7 +10,13 @@ from app.core.config import settings
 from app.core.security import StaffContext, get_current_staff
 from app.db.admin_client import get_admin_client
 from app.main import app as main_app
-from app.routers.auth_staff import ResetRateLimiter, get_auth_client, get_reset_limiter, router
+from app.routers.auth_staff import (
+    RESET_MESSAGE,
+    ResetRateLimiter,
+    get_auth_client,
+    get_reset_limiter,
+    router,
+)
 from tests.conftest import seed_staff
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -93,6 +99,14 @@ class FakeAuthAdmin:
     def __init__(self):
         self.updated = []
         self.signed_out = []
+        self.sign_out_error = False
+        self.list_users_error = False
+        self.users = [
+            type("User", (), {"id": "active-user", "email": "real@hospital.kr"})(),
+            type("User", (), {"id": "inactive-user", "email": "inactive@hospital.kr"})(),
+            type("User", (), {"id": "no-staff-user", "email": "nostaff@hospital.kr"})(),
+            type("User", (), {"id": "broken-mail-user", "email": "broken@hospital.kr"})(),
+        ]
 
     def get_user_by_id(self, _user_id):
         return type("Result", (), {"user": type("User", (), {"email": "me@hospital.kr"})()})()
@@ -101,17 +115,28 @@ class FakeAuthAdmin:
         self.updated.append((user_id, attributes))
 
     def sign_out(self, user_id, scope="global"):
+        if self.sign_out_error:
+            raise RuntimeError("sign out failed")
         self.signed_out.append((user_id, scope))
+
+    def list_users(self, page=None, per_page=None):
+        if self.list_users_error:
+            raise RuntimeError("user lookup failed")
+        page = page or 1
+        per_page = per_page or len(self.users)
+        start = (page - 1) * per_page
+        return self.users[start : start + per_page]
 
 
 class FakeAuth:
     def __init__(self):
         self.admin = FakeAuthAdmin()
         self.reset_requests = []
+        self.reset_errors = {"nobody@x.kr", "broken@hospital.kr"}
 
     def reset_password_for_email(self, email, options=None):
         self.reset_requests.append((email, options))
-        if email.startswith("nobody"):
+        if email in self.reset_errors:
             raise RuntimeError("user not found")
 
     def sign_in_with_password(self, credentials):
@@ -123,9 +148,43 @@ class FakeAuth:
 class FakeAdminClient:
     def __init__(self):
         self.auth = FakeAuth()
+        self.active_staff = {
+            "active-user": True,
+            "inactive-user": False,
+            "broken-mail-user": True,
+        }
+        self.staff_lookup_error = False
+
+    def table(self, table_name):
+        assert table_name == "staff"
+        return FakeStaffQuery(self)
 
 
-def make_auth_client():
+class FakeStaffQuery:
+    def __init__(self, client):
+        self.client = client
+        self.filters = {}
+
+    def select(self, _columns):
+        return self
+
+    def eq(self, column, value):
+        self.filters[column] = value
+        return self
+
+    def limit(self, _count):
+        return self
+
+    def execute(self):
+        if self.client.staff_lookup_error:
+            raise RuntimeError("staff lookup failed")
+        auth_user_id = self.filters.get("auth_user_id")
+        is_active = self.client.active_staff.get(auth_user_id)
+        data = [{"id": "staff-id"}] if is_active is True else []
+        return type("Result", (), {"data": data})()
+
+
+def make_auth_client(*, raise_server_exceptions=True):
     app = FastAPI()
     app.include_router(router)
     admin = FakeAdminClient()
@@ -140,7 +199,7 @@ def make_auth_client():
     app.dependency_overrides[get_auth_client] = lambda: admin
     app.dependency_overrides[get_current_staff] = lambda: staff
     app.dependency_overrides[get_reset_limiter] = lambda: limiter
-    return TestClient(app), admin, staff
+    return TestClient(app, raise_server_exceptions=raise_server_exceptions), admin, staff
 
 
 def test_재설정_요청은_가입_여부와_무관하게_같은_응답이다():
@@ -152,23 +211,98 @@ def test_재설정_요청은_가입_여부와_무관하게_같은_응답이다()
     assert unknown.json() == known.json()
 
 
-def test_재설정_링크는_브라우저의_프런트엔드_origin으로_돌아온다():
-    """[STAFF-LOGIN-10] API 서버가 아니라 요청 화면으로 복구 링크를 돌려보낸다."""
+@pytest.mark.parametrize(
+    "request_headers",
+    [
+        {"Origin": "https://attacker.test", "Host": "attacker.test"},
+        {"Host": "attacker.test"},
+    ],
+)
+def test_재설정_링크는_요청_origin이나_host가_아닌_서버_설정으로_돌아온다(
+    monkeypatch, request_headers
+):
+    """[STAFF-LOGIN-10] 공격자가 고른 요청 헤더를 복구 링크에 반사하지 않는다."""
+    monkeypatch.setitem(
+        settings.__dict__, "staff_web_origin", "https://staff.hospital.test"
+    )
     client, admin, _ = make_auth_client()
 
     response = client.post(
         "/auth/staff/password-reset",
-        headers={"Origin": "https://staff.hospital.test"},
+        headers=request_headers,
         json={"email": "real@hospital.kr"},
     )
 
     assert response.status_code == 202
+    assert response.json() == {"message": RESET_MESSAGE}
     assert admin.auth.reset_requests == [
         (
             "real@hospital.kr",
             {"redirect_to": "https://staff.hospital.test/reset-password/new"},
         )
     ]
+
+
+@pytest.mark.parametrize(
+    "configured_origin",
+    [None, "", "https://staff.hospital.test/untrusted-path", "javascript:alert(1)"],
+)
+def test_신뢰_origin_설정이_없거나_잘못되면_요청값으로_fallback하지_않는다(
+    monkeypatch, configured_origin
+):
+    monkeypatch.setitem(settings.__dict__, "staff_web_origin", configured_origin)
+    client, admin, _ = make_auth_client()
+
+    response = client.post(
+        "/auth/staff/password-reset",
+        headers={"Origin": "https://attacker.test", "Host": "attacker.test"},
+        json={"email": "real@hospital.kr"},
+    )
+
+    assert response.status_code == 202
+    assert response.json() == {"message": RESET_MESSAGE}
+    assert admin.auth.reset_requests == []
+
+
+@pytest.mark.parametrize(
+    "email",
+    ["nobody@x.kr", "inactive@hospital.kr", "nostaff@hospital.kr", "not-an-email"],
+)
+def test_활성_staff가_아니면_복구메일을_보내지_않고_같은_응답을_돌려준다(
+    monkeypatch, email
+):
+    monkeypatch.setitem(
+        settings.__dict__, "staff_web_origin", "https://staff.hospital.test"
+    )
+    client, admin, _ = make_auth_client()
+
+    response = client.post("/auth/staff/password-reset", json={"email": email})
+
+    assert response.status_code == 202
+    assert response.json() == {"message": RESET_MESSAGE}
+    assert admin.auth.reset_requests == []
+
+
+@pytest.mark.parametrize("failure", ["auth_lookup", "staff_lookup", "mail_send"])
+def test_재설정_조회나_발송_실패도_같은_응답을_돌려준다(monkeypatch, failure):
+    monkeypatch.setitem(
+        settings.__dict__, "staff_web_origin", "https://staff.hospital.test"
+    )
+    client, admin, _ = make_auth_client()
+    email = "real@hospital.kr"
+    if failure == "auth_lookup":
+        admin.auth.admin.list_users_error = True
+    elif failure == "staff_lookup":
+        admin.staff_lookup_error = True
+    else:
+        email = "broken@hospital.kr"
+
+    response = client.post("/auth/staff/password-reset", json={"email": email})
+
+    assert response.status_code == 202
+    assert response.json() == {"message": RESET_MESSAGE}
+    if failure != "mail_send":
+        assert admin.auth.reset_requests == []
 
 
 def test_재설정_요청은_다섯_번_뒤_시도_제한을_건다():
@@ -191,6 +325,37 @@ def test_현재_비밀번호가_틀리면_비밀번호를_바꾸지_않는다():
     )
     assert response.status_code == 400
     assert admin.auth.admin.updated == []
+
+
+def test_현재_세션_token이_없으면_비밀번호를_바꾸지_않는다():
+    client, admin, _ = make_auth_client()
+
+    response = client.post(
+        "/me/password",
+        json={"current_password": "old-password", "new_password": "brand-new-one1"},
+    )
+
+    assert response.status_code == 401
+    assert admin.auth.admin.updated == []
+    assert admin.auth.admin.signed_out == []
+
+
+def test_다른_세션_종료가_실패하면_비밀번호를_바꾸지_않는다():
+    client, admin, _ = make_auth_client(raise_server_exceptions=False)
+    admin.auth.admin.sign_out_error = True
+
+    response = client.post(
+        "/me/password",
+        headers={"Authorization": "Bearer current-token"},
+        json={"current_password": "old-password", "new_password": "brand-new-one1"},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "비밀번호를 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요."
+    }
+    assert admin.auth.admin.updated == []
+    assert admin.auth.admin.signed_out == []
 
 
 def test_비밀번호를_바꾸면_현재_세션을_남기고_다른_세션만_끊는다():

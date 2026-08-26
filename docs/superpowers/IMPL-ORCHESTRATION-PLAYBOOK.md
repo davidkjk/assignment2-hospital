@@ -2,7 +2,7 @@
 
 > **무엇**: ⑦ 구현/배포 단계를, **비용을 아끼면서 세션이 자주 끊겨도(Claude Pro) 작업을 잃지 않게** 여러 모델·창을 조합해 돌리는 방법.
 > **언제 여나**: ⑦ 구현 세션을 시작할 때마다 먼저. 다음 세션도 **이 문서 하나로 동일하게** 재개할 수 있게 쓴다.
-> **한 줄 요약**: 평시 ACTIVE 코디네이터는 **Codex Terra-high**로 쪼개기·라우팅·회수·커밋을 맡고, 실행 시트 §5에 지정된 모델의 별도 Codex 워커가 TDD로 구현한다. STANDBY 감시는 Luna-medium/무모델 Orca wait, 어려운 판정만 별도 Sol 창으로 올린다. 모든 창은 시작 전 모델·노력·컨텍스트를 `/status`로 검증하고 매 GREEN마다 체크포인트를 남긴다.
+> **한 줄 요약**: 평시 ACTIVE 코디네이터는 **Codex Sol-medium**으로 쪼개기·라우팅·회수·커밋을 맡는다. 일반 구현은 fresh **Luna-max가 TDD(테스트 포함)**로 수행하고, fresh **Sol-high가 독립 전수검증**한다. 고위험은 **Sol-max 주 실행 + Terra-high 적대리뷰**다. 모든 창은 시작 전 모델·노력·컨텍스트를 `/status`로 검증하고 매 GREEN마다 체크포인트를 남긴다.
 
 ---
 
@@ -29,24 +29,24 @@
 
 | 작업 성격 | 누가 | 왜 |
 |---|---|---|
-| **평시 지휘**(큐·dispatch·상태 회수·검증 실행·커밋) | **Codex Terra-high ACTIVE** | 일상 production 작업의 품질/사용량 균형. 지휘 절차가 문서화돼 있어 Sol 상시 사용이 필요 없다. |
+| **평시 지휘**(큐·dispatch·상태 회수·검증 실행·커밋) | **Codex Sol-medium ACTIVE** | 사용자 확정 기본값. 직접 구현하지 않고 범위 분리·회수·충돌 판단·커밋을 맡는다. |
 | **STANDBY·심박 감시** | **Luna-medium 또는 모델 호출 없는 Orca wait** | 상태 읽기·이벤트 대기는 깊은 추론이 아니다. 판단이 생기면 ACTIVE/판정 창으로 올린다. |
-| **범위 좁음 + 테스트로 성공기준 명확** (서비스·CRUD·마이그+스키마테스트) | **Codex Luna-max 워커** | 이 프로젝트의 기존 TDD 기준선. 좁은 focused coding에만 사용하고 Terra ACTIVE가 검증하며, 어려운 판정만 Sol에 올린다. |
-| **일반 구조·시각·여러 규칙 조립** | **Codex Sol-high 워커** | 공식 현재 분류상 Sol은 복잡한 추론·고급 코딩·고위험 판단용이며, 이 프로젝트의 시각 규칙 누락 비용이 크다. |
+| **일반 구현**(로직·일반 구조·시각, 성공기준을 테스트로 쪼갤 수 있음) | **Codex Luna-max 구현 워커** | RED→GREEN 테스트까지 구현 범위에 포함한다. 범위가 커지면 파일·규칙 seam으로 더 쪼갠다. |
+| **모든 일반 구현의 독립 검증** | **Codex Sol-high review-only 워커** | 구현과 다른 fresh context에서 정본 규칙·코드·테스트 누락·실화면을 대조한다. PASS 전 완료 주장 금지. |
 | **고밀도 화면·복잡한 Realtime/상태 조합** | **Codex Sol-xhigh 워커** | 일반 화면보다 탐색·검증을 한 단계 늘린다. 실행 시트 §5에 명시된 경우만 쓴다. |
 | **보안·동시성·비가역·고위험** | **Codex Sol-max 주 실행 + Terra-high 독립 적대리뷰** | Sol을 최고 품질 주 실행자로 두고, 별도 컨텍스트의 Terra가 반례를 찾는다. 같은 창의 자기검토로 대체하지 않는다. |
 | **잡일**(파일검색·보일러플레이트·테스트 실행·죽은참조 스캔) | **Codex Luna-low/medium** | 판단이 거의 없는 짧은 보조 작업에 한정한다. |
 
-> 공식 현재 분류: Sol=가장 어려운 작업, Terra=일상 production workhorse, Luna=빠른 대량·focused coding. 프로젝트별 최종값은 실행 시트 §5가 이긴다.
+> 공식 현재 분류를 바탕으로 한 프로젝트 정책: Luna=일반 구현+테스트, Sol=독립 검증·복잡 구현, Terra=고위험 적대리뷰. 실행 시트 §5의 고밀도·고위험 상향 행이 일반 기본값보다 우선한다.
 
-**지휘 모델과 구현 모델은 별개다.** Terra ACTIVE가 Sol 워커를 지휘해도 품질이 낮아지지 않는다. ACTIVE가 직접 어려운 아키텍처·규칙 충돌·보안 판정을 내려야 하는 순간에는 그 판정만 `Sol-high/xhigh` fresh terminal에 읽기 전용 task로 보내고, 결과를 Terra ACTIVE가 회수한다. Sol을 단순 대기·상태 조회·커밋에 쓰지 않는다.
+**지휘 모델과 구현 모델은 별개다.** Sol-medium ACTIVE는 벌크 구현을 하지 않고 Luna 구현과 Sol 검증을 분리해 지휘한다. ACTIVE가 직접 어려운 아키텍처·규칙 충돌·보안 판정을 내려야 하면 그 판정만 `Sol-high/xhigh` fresh terminal에 read-only task로 보낸다.
 
 ## 2-A. ⭐ 모델 라우팅 하드 게이트 (사용자 확정, 2026-08-24)
 
 **모델은 브리프를 보낸 뒤 바꾸지 않는다.** Task를 읽기 전에 실행 시트 §5 행에서 모델·노력을 고르고 아래 순서를 통과한다.
 
 1. 실행 로그에 `route: Task N | gpt-5.6-<tier> | <effort> | <표의 이유>`를 먼저 기록한다.
-2. 기존 창 재사용은 `/status`의 모델·노력 일치 + context 사용률 40% 미만일 때만 허용한다. 그 외에는 fresh terminal을 만든다.
+2. **워커 배정마다 클리어가 선행한다**: 기존 워커 창은 재사용하지 않고, 프롬프트 이력 없는 새 Codex terminal/session을 만든다. 현재 `/clear`는 공식 지원이 확인되지 않았으므로 보내거나 존재를 가정하지 않는다. `/compact`는 요약일 뿐 클리어 대체가 아니며, 기존 창의 낮은 context도 재사용 근거가 아니다.
 3. 같은 워크트리의 routed worker는 모델을 명시해 생성한다:
 
 ```text
@@ -56,10 +56,11 @@ orca terminal send --terminal <handle> --text "/status" --enter --json
 orca terminal read --terminal <handle> --json
 ```
 
-4. `/status`에서 정확한 model·effort·context <40%를 읽은 뒤에만 `task-create`·`dispatch --inject` 또는 브리프 전송을 한다. **완전히 새 빈 terminal은 현재 Codex가 context 줄을 생략할 수 있다**(§4-A 실검증). 이 경우 새 Session ID + 프롬프트 이력 없음 + model/effort 일치를 확인해 첫 Task만 허용하고, 첫 응답 직후 다시 `/status`로 수치를 기록한다. 재사용 창에서 context 줄이 없으면 낮다고 추정하지 않는다.
+4. 첫 `/status`에서 model·effort와 새 Session ID·프롬프트 이력 없음을 확인한다. **완전히 새 빈 terminal은 현재 Codex가 context 줄을 생략할 수 있다**(§4-A 실검증). 이 경우 새 Session ID + 프롬프트 이력 없음 + model/effort 일치가 확인된 **첫 제한 범위**를 허용한다. Task 절·필수 규칙·브리프를 읽거나 받은 뒤, `task-create`·`dispatch --inject` 또는 첫 코드 편집의 **직전에 두 번째 `/status`**를 실행해 정확한 model·effort·실제 context **<40%**를 읽은 뒤에만 진행한다. 두 번째 측정도 줄이 없으면 그 사실을 기록하고 새 세션의 첫 제한 범위만 계속한 뒤 첫 응답/결과 직후 다시 확인한다. 프롬프트 이력 또는 새 Session ID를 확인하지 못하면 dispatch하지 않는다.
 5. 브리프 첫 줄에도 `ROUTE: Task N | model=<정확한 slug> | effort=<값> | reason=<한 줄>`을 넣는다. 워커는 시작·종료 `/status`에 실제 model/effort를 함께 보고한다.
 6. Task 중 난도가 예상보다 높아져도 같은 창에서 임의 상향하지 않는다. 가장 가까운 GREEN에서 멈추고 코디가 `route override` 이유를 로그에 남긴 뒤, 새 상위 모델 창으로 남은 범위를 다시 배정한다.
-7. 리뷰는 구현과 독립된 컨텍스트에서 한다. Sol-max 고위험 Task는 Terra-high 적대리뷰의 `PASS/FINDINGS`가 오기 전 완료·병합 금지.
+7. 리뷰는 구현과 독립된 fresh 컨텍스트에서 한다. **일반 구현은 Sol-high 전수검증의 `PASS`가 오기 전 완료 주장 금지**다. findings가 오면 구현 워커가 고치고 새 Sol 리뷰를 다시 받는다. Sol-max 고위험 Task는 Terra-high 적대리뷰의 `PASS/FINDINGS`가 오기 전 완료·병합 금지.
+8. **컨텍스트 심박은 작업 경계에서만**: coordinator는 큰 문서·긴 tool 출력 후 다음 판단 전, worker_done/리뷰 결과 수신 직후, 그리고 새 Orca 작업 전 `/status`를 확인한다. worker는 첫 코드 편집 전·각 GREEN 커밋·완료 보고 직전에 확인한다. 시간만 보고 keepalive로 호출하지 않는다. 35%는 출력 축소·인계 준비 알림일 뿐 작업 중단선이 아니다; 40%부터 사용자 상한 규칙, 50%부터 즉시 STOP이다.
 
 `orca worktree create --agent codex`는 Codex 전용 model/effort 인자를 받지 않으므로 routed worker에는 단독 사용하지 않는다. 격리 worktree가 꼭 필요하면 worktree를 먼저 만든 뒤 그 worktree를 대상으로 위 `terminal create --command 'codex --model …'`를 실행한다.
 
@@ -160,7 +161,7 @@ orca terminal read --terminal <handle> --json
 5. STANDBY에게 아래 인계 캡슐을 `handoff` 메시지로 보낸다. `ownerEpoch`는 매 교대마다 1 증가한다.
 6. STANDBY는 `git`·실행 시트·HANDOFF·Orca task state를 독립 확인하고 ACK/REJECT를 답한다.
 7. **ACK 뒤에만** STANDBY가 새 ACTIVE가 된다. 옛 ACTIVE는 dispatch·커밋을 즉시 중단한다.
-8. 옛 ACTIVE는 `/compact` 후 `/status`를 다시 보거나 새 터미널로 교체한다. 40% 이상이면 ACTIVE 복귀 금지. 반복 압축한 창보다 새 창을 우선한다.
+8. 옛 ACTIVE는 새 터미널로 교체한다. **사용자 확정(2026-08-25): 실제 작업 창에 `/compact`를 쓰지 않는다.** 40% 이상인 창은 ACTIVE 복귀 금지다.
 
 인계 캡슐 최소 필드:
 
@@ -186,10 +187,11 @@ orca orchestration ask --to <standby-handle> --question "epoch <N> 상태를 독
 
 terminal handle은 Orca 재시작 때 바뀔 수 있으므로 문서에 영구 저장하지 않는다. task lifecycle의 `taskId`·`dispatchId`가 정본이며, 인계 중 활성 dispatch를 0으로 만드는 이유도 worker 질문·완료 보고가 옛 coordinator로 갈라지는 것을 막기 위해서다.
 
-### D. `/compact`와 진짜 새 창
+### D. `/compact` 금지 + 진짜 새 창
 
-- `/compact`는 삭제가 아니라 요약 압축이다. 실행 후 반드시 `/status`를 다시 실행한다.
-- 압축 후에도 40% 이상, 중요한 세부가 요약에서 빠짐, 같은 창에서 여러 번 압축 중 하나면 **새 Codex terminal**을 STANDBY/다음 ACTIVE로 쓴다.
+- **사용자 확정(2026-08-25): 실제 coordinator·worker·review 작업 창에 `/compact`를 쓰지 않는다.** 컨텍스트가 경계에 닿으면 상태를 저장하고 fresh Codex terminal/session으로 교체한다.
+- `/clear`도 공식 지원이 확인되지 않았으므로 사용·추정하지 않는다. 매 배정은 프롬프트 이력 없는 새 Codex terminal/session으로 시작한다.
+- 이전 `/compact` 실검증 기록은 기능 확인의 과거 증거일 뿐 현재 운영 허용이 아니다.
 - 새 창은 이 플레이북 §4-A → 실행 시트 → HANDOFF 최상단 → 해당 Task 절 순으로 읽는다. 이전 대화 전체를 다시 주입하지 않는다.
 - 무한 루프를 만들지 않는다. **바통을 이어 사실상 장기 실행**하되, rate limit·Orca runtime·사용자 결정·외부 승인·3회 반복 실패는 명시적 정지 조건이다.
 
