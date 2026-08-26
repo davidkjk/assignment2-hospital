@@ -15,6 +15,28 @@ from app.services import audit_service
 _KST_DATE = "at time zone 'Asia/Seoul'"
 _CANCEL_STATUSES = ("환자취소", "병원취소")
 
+# [STAT-METRIC-04][결정5] 오래 대기 사례 — 「끝난 대기」의 기간 집계.
+# 대기 시작(진료대기 전이) w → 그 뒤 첫 진료중 전이 prog 까지의 간격이 임계값을 넘긴 건.
+# ⚠️ /today의 실시간 long_wait(「지금 대기 중」)와는 다른 지표다 — 여긴 지나간 사례의 집계다.
+# 진료중 전이가 없으면(아직 대기 중) lateral join이 비어 집계에서 빠진다.
+# 기준일은 대기 시작일(w.changed_at)이다 — 생성일·완료일이 아니다(결정5).
+_LONG_WAIT_SQL = f"""
+    from appointment_status_history w
+    join lateral (
+        select p.changed_at
+          from appointment_status_history p
+         where p.appointment_id = w.appointment_id
+           and p.to_status = '진료중' and p.from_status is distinct from p.to_status
+           and p.changed_at > w.changed_at
+         order by p.changed_at limit 1
+    ) prog on true
+    join appointments a on a.id = w.appointment_id
+    join patients pt on pt.id = a.for_patient_id
+   where w.to_status = '진료대기' and w.from_status is distinct from w.to_status
+     and (w.changed_at {_KST_DATE})::date between $1 and $2
+     and prog.changed_at - w.changed_at >= make_interval(mins => $3)
+"""
+
 
 async def _dispatch(staff: StaffContext, conn, fn):
     if conn is not None:
@@ -73,9 +95,12 @@ async def get_stats(from_date: date, to_date: date, staff: StaffContext, by: str
             """,
             from_date, to_date,
         )
-        return source_rows, cancelled, no_show, visits, hour_rows
+        threshold = await c.fetchval("select long_wait_threshold_minutes from hospital_settings")
+        long_wait = await c.fetchval(
+            f"select count(*) {_LONG_WAIT_SQL}", from_date, to_date, threshold)
+        return source_rows, cancelled, no_show, visits, hour_rows, threshold, long_wait
 
-    source_rows, cancelled, no_show, visits, hour_rows = await _dispatch(staff, conn, _run)
+    source_rows, cancelled, no_show, visits, hour_rows, threshold, long_wait = await _dispatch(staff, conn, _run)
 
     source_mix = {"app": 0, "staff": 0, "chatbot": 0}
     for r in source_rows:
@@ -97,6 +122,8 @@ async def get_stats(from_date: date, to_date: date, staff: StaffContext, by: str
         "no_show": {"basis": "status_changed_at", "value": no_show},
         "visits": {"basis": "status_changed_at", "value": visits},
         "visits_by_hour": {"basis": "slot_start_time", "by_hour": by_hour, "unknown_time": unknown_time},
+        # STAT-METRIC-04: 오래 대기 사례(끝난 대기)의 기간 집계. 기준일은 대기 시작일(결정5).
+        "long_wait": {"value": long_wait, "threshold_minutes": threshold, "basis": "대기 시작일"},
         # STAT-METRIC-06: 4단계 계약이 없다 — 0으로 위장하지 않는다(None).
         "bot": None,
     }
@@ -130,6 +157,9 @@ async def get_stats_detail(metric: str, from_date: date, to_date: date, staff: S
 
     ⚠️ 통계 감사는 조회 성공 뒤에 남긴다 — 권한 거절·기간 오류로 아무것도 못 본 요청까지
        stats_drilldown으로 남기면 기록장이 "열어봤다"고 거짓 증언한다."""
+    if metric == "long_wait":
+        return await _long_wait_detail(from_date, to_date, staff, cursor=cursor, conn=conn)
+
     if metric == "cancelled":
         statuses = list(_CANCEL_STATUSES)
     elif metric == "no_show":
@@ -162,6 +192,42 @@ async def get_stats_detail(metric: str, from_date: date, to_date: date, staff: S
         for r in fetched
     ]
     page = paginate(rows, cursor=cursor, order="occurred_at desc")
+
+    # 조회 성공 뒤에 감사(환자 없는 관리자 활동 행).
+    await _dispatch(staff, conn, lambda c: audit_service.log_stats_drilldown(staff, conn=c))
+    return page
+
+
+async def _long_wait_detail(from_date: date, to_date: date, staff: StaffContext, *, cursor, conn) -> Page:
+    """[STAT-METRIC-04][STAT-DRILL-01·02][MASK-SRV-01] 오래 대기 사례 명단 — 마스킹된 값만.
+
+    ⭐ 결정21: 서버는 소수 억제를 하지 않는다 — 1건짜리도 그대로 준다(k=5는 CSV 전용).
+    정렬은 대기 시작 desc + id desc라 커서로 이어받아도 겹치거나 빠지지 않는다(STAT-DRILL-03).
+    ⚠️ 명단 행은 마스킹 필드·대기 길이만 담고 원본 phone·birth_date는 넣지 않는다 — 행 클릭은
+       내부 id(appointment→patient)로 환자 상세에 간다(STAT-DRILL-04)."""
+    async def _run(c):
+        threshold = await c.fetchval("select long_wait_threshold_minutes from hospital_settings")
+        return await c.fetch(
+            f"""
+            select w.appointment_id as id, a.for_patient_id, pt.name, pt.phone, pt.birth_date,
+                   w.changed_at as wait_started_at,
+                   (extract(epoch from (prog.changed_at - w.changed_at)) / 60)::int as wait_minutes,
+                   (w.changed_at {_KST_DATE})::date as waited_on
+            {_LONG_WAIT_SQL}
+            """,
+            from_date, to_date, threshold,
+        )
+
+    fetched = await _dispatch(staff, conn, _run)
+    rows = [
+        patient_row_dto(
+            patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+            id=r["id"], wait_started_at=r["wait_started_at"],
+            wait_minutes=r["wait_minutes"], waited_on=r["waited_on"],
+        )
+        for r in fetched
+    ]
+    page = paginate(rows, cursor=cursor, order=("wait_started_at desc", "id desc"))
 
     # 조회 성공 뒤에 감사(환자 없는 관리자 활동 행).
     await _dispatch(staff, conn, lambda c: audit_service.log_stats_drilldown(staff, conn=c))
