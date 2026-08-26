@@ -126,7 +126,10 @@ Wave C  (Task 4·5·7 후 — 화면 15개, route 폴더 격리 병렬)
 
 ## 9. 진행 로그 (세션 간 이어쓰기 — 각 Task: `Task N — 커밋 — 미결로 판단한 것`)
 
-- **2026-08-26**: Codex/Orca 체제 폐기 → paseo/Opus 4.8로 이 플랜·플레이북 재작성. 텔레그램 알림봇 연결(`.claude/orchestration/notify.sh`). **다음 = Task 4 재구현(§3).**
+- **2026-08-26**: Codex/Orca 체제 폐기 → paseo/Opus 4.8로 이 플랜·플레이북 재작성. 텔레그램 알림봇 연결(`.claude/orchestration/notify.sh`).
+- **Task 4 — `c08bea9` — PATCH-FORWARD로 완주**: 독립 재검증(`.claude/orchestration/task4-verification.md`) 결과 옛 코드 8/9 해소·핵심 로직 정상이라 revert 아닌 patch-forward 판정. 남은 갭 2건만 수정 — G1(헤더 왼쪽 화면명→**병원명** 비링크, 화면제목은 본문 `<main><h1>`, `HOSPITAL_NAME` 상수 신설 `shell/brand.ts`) + G2(Sidebar active 배경 하드코딩 hex→`--color-primary-wash` 토큰). 약화됐던 `Header.test.tsx` 2건(SHELL-HDR-01·NAV-SHELL-12) 정본대로 복원. 프론트 57/0·백엔드 24/0 GREEN. **판단: 병원명은 Task 29(병원설정) 붙기 전까지 상수(`가온병원`)로 둠 — 되돌리기 쉬운 임시.** ⚠️ 플랜 Task 4 절의 테스트 스펙 중 그룹순서 `['업무','기록','설정','상담봇']`·접수직원 8항목은 **낡음**(정본 behaviors 2026-08-24 개정 = `업무→기록→상담봇 관리→설정`·6항목). 코드가 정본을 따름 — 후속 워커는 플랜 낡은 값에 맞추지 말 것.
+- **Task 5 — 커밋대기 → 커밋 — 갭 #14는 이미 닫혀 있었다**: `apiFetch`/`ApiError`(서버 문장 그대로·`BTN-TIME-01` 시간제한 없음)·`useConnectivity`(연결판정 단일지점)·시각3(`OfflineBanner`/`EmptyState`/`InlineError`, frontend-design 렌즈+토큰만) + api 래퍼 5(`appointments/patients/medicalRecords/quickPhrases/schedule`). **판단/발견**: 플랜이 "백엔드 6곳 `AppError(str(exc))` 고쳐라"였으나 커밋 `e40a67f`에서 이미 `pg_error_to_app_error()` 경유로 마스킹 완료 → 백엔드 프로덕션 무변경, `test_error_messages.py`는 회귀 가드로만 신설. 프론트 95/0·백엔드 9/0 GREEN. ⚠️ **코디 배선 TODO**(공용 파일이라 워커가 안 함, 셸/App 붙일 때 필요): ①온라인 401→세션만료(`isSessionExpiry`→`rememberReturn(path, staffId)`→logout→/login, 키 `staff-session-return`) ②`apiFetch` 성공 시 `markServerOk()` ③`ConnectivityProvider`+`OfflineBanner` 셸 마운트. `patients.ts`는 Task 6 라우터 계약 경로로 미리 얇게 감쌈.
+- **다음 = Wave B 나머지: new-file 백엔드(6·13·25) 병렬 + 7(공통 컴포넌트, appointment_service는 Task 5 반영본 위).**
 - **살아있는 갭·미결**(HANDOFF에서 이관, 잃으면 안 됨):
   - **갭 #128**: 의료판단 이관 티켓의 **의사 도착 화면이 없다**(`SHELL-NAV`=의사는 진료·환자검색만). Task 17은 이관 드롭다운에 활성 직원 전부 넣되 도착 화면은 안 만듦. 해소는 이후 `SHELL-NAV`·의료 escalation 모델과 함께.
   - **백엔드 계약 갭 2건**: ① `GET /staff/chat/tickets/{id}`(요약5+대화, Task 9 Produces 미명시) ② `reassign_ticket(ticket_id,to_staff_id)`+`POST .../reassign`(Task 2 목록에 없음). 부수: `.../read`(UNREAD-02)·`GET /staff/active`.
