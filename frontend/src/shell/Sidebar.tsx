@@ -4,6 +4,7 @@ import iconSpriteUrl from './icons.svg?url'
 import type { Role } from '../auth/roles'
 import { navItemForPath, NAV_GROUPS, NAV_ITEMS } from './navItems'
 import { NavBadge } from './NavBadge'
+import { HOSPITAL_NAME } from './brand'
 
 export function Sidebar({ role, counts = {}, connected = true }: { role: Role; counts?: Record<string, number>; connected?: boolean }) {
   const visible = NAV_ITEMS.filter((item) => item.roles.includes(role))
@@ -13,7 +14,7 @@ export function Sidebar({ role, counts = {}, connected = true }: { role: Role; c
   return (
     <aside className="staff-sidebar">
       <style>{sidebarCss}</style>
-      <div className="staff-brand"><svg aria-hidden="true"><use href={`${iconSpriteUrl}#hospital`} /></svg><span>가온병원</span></div>
+      <div className="staff-brand"><svg aria-hidden="true"><use href={`${iconSpriteUrl}#hospital`} /></svg><span>{HOSPITAL_NAME}</span></div>
       <nav aria-label="직원 업무 메뉴">
         {doctorItem && <div className="doctor-link"><NavItemLink item={doctorItem} counts={counts} connected={connected} activePath={activePath} /></div>}
         {NAV_GROUPS.map((group) => {
@@ -53,7 +54,7 @@ function NavItemLink({ item, counts, connected, activePath }: { item: (typeof NA
 }
 
 const sidebarCss = `
-.staff-sidebar{position:sticky;top:0;width:240px;height:100vh;flex:0 0 auto;background:var(--color-sidebar-ink);color:white;overflow:auto}.staff-brand{height:64px;display:flex;align-items:center;gap:10px;padding:0 18px;font-family:var(--font-logo);font-size:21px}.staff-brand svg,.nav-item svg{width:20px;height:20px;flex:none}.staff-sidebar nav{padding:5px 10px 24px}.nav-group{padding-top:12px;margin-top:12px}.nav-group+.nav-group{border-top:1px solid rgba(255,255,255,.28)}.nav-group h2{font-size:11px;margin:0 10px 6px;color:white}.nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:36px;padding:4px 10px 4px 13px;border-left:3px solid transparent;border-radius:7px;color:white;text-decoration:none;font-size:13px}.nav-item:hover{background:rgba(255,255,255,.12)}.nav-item.active{border-left-color:var(--color-primary);background:#dff3f2;color:var(--color-primary);font-weight:700}.doctor-link{margin-bottom:8px}.nav-tooltip{position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);z-index:30;padding:6px 9px;border-radius:6px;background:var(--color-ink);color:white;white-space:nowrap;font-size:12px;pointer-events:none;box-shadow:var(--shadow-card)}
+.staff-sidebar{position:sticky;top:0;width:240px;height:100vh;flex:0 0 auto;background:var(--color-sidebar-ink);color:white;overflow:auto}.staff-brand{height:64px;display:flex;align-items:center;gap:10px;padding:0 18px;font-family:var(--font-logo);font-size:21px}.staff-brand svg,.nav-item svg{width:20px;height:20px;flex:none}.staff-sidebar nav{padding:5px 10px 24px}.nav-group{padding-top:12px;margin-top:12px}.nav-group+.nav-group{border-top:1px solid rgba(255,255,255,.28)}.nav-group h2{font-size:11px;margin:0 10px 6px;color:white}.nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:36px;padding:4px 10px 4px 13px;border-left:3px solid transparent;border-radius:7px;color:white;text-decoration:none;font-size:13px}.nav-item:hover{background:rgba(255,255,255,.12)}.nav-item.active{border-left-color:var(--color-primary);background:var(--color-primary-wash);color:var(--color-primary);font-weight:700}.doctor-link{margin-bottom:8px}.nav-tooltip{position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);z-index:30;padding:6px 9px;border-radius:6px;background:var(--color-ink);color:white;white-space:nowrap;font-size:12px;pointer-events:none;box-shadow:var(--shadow-card)}
 @media(min-width:1280px){.nav-tooltip{display:none}}
 @media(max-width:1279px){.staff-sidebar{width:56px}.staff-brand{padding:0 16px}.staff-brand span,.nav-label,.nav-group h2{display:none}.staff-sidebar nav{padding-left:5px;padding-right:5px}.nav-group{padding-top:8px;margin-top:8px}.nav-item{padding:5px 10px;justify-content:center}.nav-tooltip{display:block}}
 `

@@ -1,21 +1,19 @@
 import { useState, type CSSProperties } from 'react'
-import { useInRouterContext, useLocation } from 'react-router-dom'
 import type { StaffProfile } from '../auth/roles'
 import { AccountMenu } from './AccountMenu'
-import { navItemForPath, START_DOORS, type StartDoor } from './navItems'
+import { HOSPITAL_NAME } from './brand'
+import { START_DOORS, type StartDoor } from './navItems'
 
 export type { StartDoor } from './navItems'
 
-export function Header({ staff, title, onSignOut, onStart = () => undefined }: { staff: StaffProfile; title?: string; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
+export function Header({ staff, onSignOut, onStart = () => undefined }: { staff: StaffProfile; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
   const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState('')
-  const pathname = useOptionalPathname()
-  const currentTitle = title ?? (pathname ? navItemForPath(pathname)?.label : undefined) ?? '직원 업무'
   const doors = START_DOORS.filter((door) => door.roles.includes(staff.role))
   return (
     <>
       <header style={headerStyle}>
-        <div data-testid="header-page-title" aria-label="현재 화면" style={pageTitleStyle}>{currentTitle}</div>
+        <span aria-label="병원 이름" style={hospitalNameStyle}>{HOSPITAL_NAME}</span>
         <div style={{ flex: 1 }} />
         <AccountMenu staff={staff} onPasswordChanged={() => setMessage('비밀번호를 바꿨습니다')} />
         <button type="button" onClick={() => setConfirming(true)} style={logoutStyle}>로그아웃</button>
@@ -37,14 +35,8 @@ export function Header({ staff, title, onSignOut, onStart = () => undefined }: {
   )
 }
 
-function useOptionalPathname(): string | undefined {
-  const inRouter = useInRouterContext()
-  const location = inRouter ? useLocation() : undefined
-  return location?.pathname
-}
-
 const headerStyle: CSSProperties = { minHeight: 64, display: 'flex', alignItems: 'center', gap: 12, padding: '0 18px', background: 'white', borderBottom: '1px solid var(--color-divider)' }
-const pageTitleStyle: CSSProperties = { fontWeight: 800, flexShrink: 0, whiteSpace: 'nowrap' }
+const hospitalNameStyle: CSSProperties = { fontWeight: 800, flexShrink: 0, whiteSpace: 'nowrap' }
 const logoutStyle: CSSProperties = { border: 0, background: 'transparent', color: 'var(--color-ink-muted)', padding: '8px 12px', cursor: 'pointer' }
 const doorGroupStyle: CSSProperties = { display: 'flex', gap: 6, marginLeft: 16, paddingLeft: 24, borderLeft: '1px solid var(--color-divider)' }
 const doorStyle: CSSProperties = { minHeight: 36, border: '1px solid var(--color-divider)', borderRadius: 8, background: 'var(--color-bg)', color: 'var(--color-primary)', fontWeight: 800, padding: '0 13px', cursor: 'pointer' }

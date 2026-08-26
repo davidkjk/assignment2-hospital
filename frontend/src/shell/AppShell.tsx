@@ -28,8 +28,8 @@ export function AppShell() {
       <Sidebar role={staff.role} />
       <div style={{ minWidth: 0, flex: 1 }}>
         {idle.isWarning && <IdleBanner onContinue={idle.keepAlive} />}
-        <Header staff={staff} title={title} onSignOut={async () => { await logout(); navigate('/login', { replace: true }) }} onStart={setDoor} />
-        <main style={{ padding: 24 }}><Outlet /></main>
+        <Header staff={staff} onSignOut={async () => { await logout(); navigate('/login', { replace: true }) }} onStart={setDoor} />
+        <main style={{ padding: 24 }}><h1 style={{ margin: '0 0 16px', fontSize: 'var(--fs-xl)' }}>{title}</h1><Outlet /></main>
       </div>
       {door && <aside aria-label={`${door} 패널`} style={{ position: 'fixed', right: 0, top: 64, bottom: 0, width: 380, background: 'var(--color-surface)', boxShadow: 'var(--shadow-card)', padding: 20, zIndex: 15 }}><button onClick={() => setDoor(null)}>닫기</button><h2>{door === 'register' ? '환자 등록' : door === 'checkin' ? '접수' : '예약'}</h2><p>업무 패널 내용은 다음 공통 패널 태스크에서 연결됩니다.</p></aside>}
     </div>
