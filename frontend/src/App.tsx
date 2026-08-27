@@ -7,6 +7,7 @@ import { PasswordResetNewPage } from './pages/PasswordResetNewPage'
 import { PasswordResetRequestPage } from './pages/PasswordResetRequestPage'
 import { QueuePage } from './pages/QueuePage'
 import { PatientDetailPage } from './pages/patient/PatientDetailPage'
+import { DoctorConsolePage } from './pages/doctor/DoctorConsolePage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
@@ -25,6 +26,7 @@ function Placeholder({ title }: { title: string }) {
 function pageFor(path: string, label: string) {
   if (path === '/today') return <TodayPage />
   if (path === '/queue') return <QueuePage />
+  if (path === '/doctor/console') return <DoctorConsolePage />
   return <Placeholder title={label} />
 }
 
@@ -39,6 +41,7 @@ export function App() {
         <Route path="/" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><AppShell /></RequireRole>}>
           {NAV_ITEMS.map((item) => <Route key={item.path} path={item.path.slice(1)} element={<RequireRole roles={item.roles}>{pageFor(item.path, item.label)}</RequireRole>} />)}
           <Route path="patients/:id" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><PatientDetailPage /></RequireRole>} />
+          <Route path="doctor/console/:appointmentId" element={<RequireRole roles={['doctor']}><DoctorConsolePage /></RequireRole>} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

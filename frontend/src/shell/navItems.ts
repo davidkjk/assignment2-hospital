@@ -64,7 +64,9 @@ export function canStartDoor(role: Role, door: StartDoor): boolean {
 export function normalizeNavPath(pathname: string): string {
   const path = pathname.split(/[?#]/, 1)[0] || '/'
   const withoutTrailingSlash = path.length > 1 ? path.replace(/\/$/, '') : path
-  return withoutTrailingSlash.startsWith('/patients/') ? '/patients' : withoutTrailingSlash
+  if (withoutTrailingSlash.startsWith('/patients/')) return '/patients'
+  if (withoutTrailingSlash.startsWith('/doctor/console/')) return '/doctor/console'
+  return withoutTrailingSlash
 }
 
 export function navItemForPath(pathname: string): NavItem | undefined {
