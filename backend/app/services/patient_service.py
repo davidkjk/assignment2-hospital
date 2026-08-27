@@ -4,10 +4,38 @@ from uuid import UUID
 import asyncpg
 
 from app.core.errors import AppError
-from app.core.masking import mask_birth_date, mask_phone
+from app.core.pagination import Page, paginate
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
 from app.services import audit_service
+
+# [SEARCH-MATCH-03] 조각 안의 하이픈·점·공백을 지우고 숫자를 비교한다(형태 자유).
+_FRAGMENT_SEPARATORS = str.maketrans("", "", "-. ")
+
+# [SEARCH-ORDER-01·06][SEARCH-ACT-*] 오늘 예약의 원본 상태 → 검색 줄이 아는 오늘 상태.
+#   booked=예약 있음·미도착(ACT-02) / arrived=대기·진료 중(ACT-03) / done=진료완료(ACT-04).
+#   취소·부도는 「오늘 아무것도 없음」(ACT-05)으로 보므로 애초에 조회에서 뺀다.
+_TODAY_STATUS = {
+    "예약신청": "booked",
+    "예약확정": "booked",
+    "도착": "arrived",
+    "진료대기": "arrived",
+    "진료중": "arrived",
+    "진료완료": "done",
+}
+
+
+def _classify_fragment(fragment: str) -> tuple[str, str]:
+    """[SEARCH-MATCH-01·02·03] 검색어 조각 하나를 이름/숫자로 가른다.
+
+    구분자(하이픈·점·공백)를 지운 뒤 숫자만 남으면 「숫자」(전화·생일 양쪽 대상), 한글 등이
+    섞이면 「이름」이다. 예시 하나로는 「11자리에서만 맞는」 구현이 통과하므로 갭 #127처럼
+    형태가 흔들리는 자리다 — 정규화를 여기 한곳에 못박는다.
+    """
+    stripped = fragment.translate(_FRAGMENT_SEPARATORS)
+    if stripped.isdigit():
+        return "number", stripped
+    return "name", fragment
 
 
 async def find_by_phone_and_birthdate(phone: str, birth_date: date, staff: StaffContext, conn=None) -> UUID | None:
@@ -25,41 +53,128 @@ async def find_by_phone_and_birthdate(phone: str, birth_date: date, staff: Staff
         return await _run(c)
 
 
-async def search_patients(q: str | None, staff: StaffContext) -> list[dict]:
-    """[MASK-SRV-01][SEARCH-LOG-01·03] 마스킹된 목록만 돌려주고, 검색을 기록한다.
+def _build_search_query(q: str | None) -> tuple[str, list[str], bool]:
+    """[SEARCH-IMPL-01] 검색어를 부분일치·다중필드·AND 조회 SQL로 옮긴다.
 
-    ⭐ 서비스가 masked_* 만 담는다 — 원본(phone·birth_date)은 응답에 아예 넣지 않는다.
-       원본이 필요하면 상세(get_patient_detail)나 번호 펼치기(reveal_contact)로 따로
-       요청해야 하고, 그때 「누가 봤는지」가 남는다.
-
-    ⚠️ 부분 일치·정렬·페이징(SEARCH-IMPL-01·02·03)은 이 태스크가 아니라 검색 화면
-       (Task 24)이 소유한다. 여기서는 마스킹·기록 계약만 세운다.
+    반환: (sql, params, name_present). name_present는 이름 조각이 하나라도 있었는지 —
+    돌아온 줄은 모든 이름 조각을 이름에서 이미 맞혔으므로, 이 값만으로 'name' 배지가 선다.
     """
-    async with acquire_as(str(staff.auth_user_id)) as c:
-        if q:
-            rows = await c.fetch(
-                "select id, name, birth_date, phone, gender from patients "
-                "where is_active and name ilike '%' || $1 || '%' order by name",
-                q,
-            )
+    fragments = [_classify_fragment(f) for f in q.split()] if q else []
+    where = ["p.is_active"]
+    phone_hits: list[str] = []
+    birth_hits: list[str] = []
+    params: list[str] = []
+    name_present = False
+
+    for kind, value in fragments:
+        params.append(value)
+        i = len(params)
+        if kind == "name":
+            name_present = True
+            where.append(f"p.name ilike '%'||${i}||'%'")
         else:
-            rows = await c.fetch(
-                "select id, name, birth_date, phone, gender from patients "
-                "where is_active order by name",
-            )
+            # [SEARCH-MATCH-02·04] 숫자는 전화·생일 양쪽에 맞힌다. 가려진 자리도 서버 원본으로
+            #   비교한다 — 막지 않는 대신 SEARCH-LOG-01(Task 15)이 기록으로 대가를 받는다.
+            phone_expr = f"regexp_replace(p.phone,'[^0-9]','','g') like '%'||${i}||'%'"
+            birth_expr = f"to_char(p.birth_date,'YYYYMMDD') like '%'||${i}||'%'"
+            where.append(f"({phone_expr} or {birth_expr})")
+            phone_hits.append(phone_expr)
+            birth_hits.append(birth_expr)
+
+    phone_hit_sql = " or ".join(phone_hits) if phone_hits else "false"
+    birth_hit_sql = " or ".join(birth_hits) if birth_hits else "false"
+
+    sql = f"""
+        select p.id, p.name, p.birth_date, p.phone, p.gender,
+               ({phone_hit_sql}) as phone_hit,
+               ({birth_hit_sql}) as birth_hit,
+               today.raw_status as today_status_raw,
+               to_char(today.appt_at, 'HH24:MI') as today_time,
+               recent.last_at as last_at
+        from patients p
+        left join lateral (
+            -- [SEARCH-ORDER-06] 오늘의 (가장 이른) 살아있는 예약 한 건 — 상태와 시각.
+            select a.status as raw_status,
+                   coalesce((s.slot_date + s.start_time)::timestamptz, a.walkin_visit_time) as appt_at
+            from appointments a
+            left join appointment_slots s on s.id = a.slot_id
+            where a.for_patient_id = p.id
+              and a.status not in ('환자취소', '병원취소', '예약부도')
+              and coalesce(s.slot_date, a.walkin_visit_time::date) = current_date
+            order by appt_at asc nulls last
+            limit 1
+        ) today on true
+        left join lateral (
+            -- [SEARCH-ORDER-02] 최근에 병원에 온 순서 — 살아있는 예약의 가장 늦은 시각.
+            select max(coalesce((s.slot_date + s.start_time)::timestamptz,
+                                a.walkin_visit_time, a.created_at)) as last_at
+            from appointments a
+            left join appointment_slots s on s.id = a.slot_id
+            where a.for_patient_id = p.id
+              and a.status not in ('환자취소', '병원취소', '예약부도')
+        ) recent on true
+        where {' and '.join(where)}
+    """
+    return sql, params, name_present
+
+
+async def search_patients(
+    q: str | None, staff: StaffContext, *, cursor: str | None = None, conn=None
+) -> Page:
+    """[SEARCH-IMPL-01·02·03] 전역 환자 검색 — 부분일치·다중필드·정렬·페이징의 조회 본체.
+
+    돌려주는 줄(Page.rows)은 아직 마스킹 전 원본이다 — 정렬 키(이름 등)를 담아야 이어받기가
+    안정되기 때문이다. 마스킹 경계는 라우터(patient_row_dto)가 지킨다. 원본이 응답으로 새지
+    않도록, HTTP로 나가는 지점에서만 masked_* 로 옮긴다.
+
+    정렬(SEARCH-ORDER-01~04): ①오늘 볼 사람 → ②최근 방문순 → ③이름 가나다 → ④고유번호(id).
+    페이징(SEARCH-RESULT-02·03): 공용 paginate가 20건·안정 동점키로 커서를 잇는다.
+    감사(SEARCH-LOG-01, Task 15): 카운트 없이 현재 시그니처 그대로 검색을 남긴다.
+    """
+    sql, params, name_present = _build_search_query(q)
+
+    async def _run(c) -> list:
+        return await c.fetch(sql, *params)
+
+    if conn is not None:
+        rows = await _run(conn)
+    else:
+        async with acquire_as(str(staff.auth_user_id)) as c:
+            rows = await _run(c)
 
     await audit_service.log_access(None, "search", staff, search_term=q)
 
-    return [
-        {
-            "id": row["id"],
-            "name": row["name"],
-            "gender": row["gender"],
-            "masked_phone": mask_phone(row["phone"]),
-            "masked_birth_date": mask_birth_date(row["birth_date"]),
-        }
-        for row in rows
-    ]
+    enriched: list[dict] = []
+    for row in rows:
+        matched: list[str] = []
+        if name_present:
+            matched.append("name")
+        if row["phone_hit"]:
+            matched.append("phone")
+        if row["birth_hit"]:
+            matched.append("birth")
+        today_status = _TODAY_STATUS.get(row["today_status_raw"])
+        last_at = row["last_at"]
+        enriched.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "birth_date": row["birth_date"],
+                "phone": row["phone"],
+                "gender": row["gender"],
+                "matched": matched,
+                "today_status": today_status,
+                "today_appointment_time": row["today_time"] if today_status else None,
+                # 정렬 대리키 — 라우터 DTO에는 싣지 않는다.
+                "_ord_today": 0 if today_status else 1,
+                "_ord_recent": last_at.timestamp() if last_at else 0.0,
+                "_ord_name": row["name"],
+            }
+        )
+
+    return paginate(
+        enriched, cursor, order=("_ord_today asc", "_ord_recent desc", "_ord_name asc")
+    )
 
 
 async def get_patient_detail(patient_id: UUID, staff: StaffContext) -> dict:

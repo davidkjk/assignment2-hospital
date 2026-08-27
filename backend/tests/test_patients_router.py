@@ -64,11 +64,45 @@ async def test_목록_응답에_원본_번호가_아예_없다(client, committed
     await _seed_patient(committed_conn)
 
     body = client.get("/patients", params={"q": "김"}, headers=_auth(receptionist)).json()
+    row = body["rows"][0]
 
-    assert "phone" not in body[0] and "birth_date" not in body[0]
-    assert body[0]["masked_phone"] == "010-****-5678"
-    assert body[0]["masked_phone"].count("*") == 4
-    assert body[0]["masked_birth_date"] == "1958-**-12"
+    assert "phone" not in row and "birth_date" not in row and "name" not in row
+    assert row["masked_phone"] == "010-****-5678"
+    assert row["masked_phone"].count("*") == 4
+    assert row["masked_birth_date"] == "1958-**-12"
+
+
+async def test_검색_결과_줄에_왜걸렸는지와_오늘상태가_실린다(client, committed_conn):
+    """[SEARCH-WHY-01][SEARCH-ORDER-06] 24b가 소비할 계약 — matched·today_status·오늘 예약 시각."""
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    await _seed_patient(committed_conn)  # 김환자, 01012345678, 1958-03-12
+
+    row = client.get("/patients", params={"q": "김"}, headers=_auth(receptionist)).json()["rows"][0]
+
+    assert row["matched"] == ["name"]
+    assert row["today_status"] is None
+    assert "today_appointment_time" in row
+
+
+async def test_첫_페이지는_20건과_다음커서를_HTTP로_전달한다(client, committed_conn):
+    """[SEARCH-RESULT-02·03] HTTP 봉투가 20건·has_more·next_cursor를 실어 나른다.
+
+    ⚠️ 이어받기의 「겹침 없음」 의미는 서비스층(test_patient_search)이 증명한다. 이 파일의
+       TestClient는 요청마다 이벤트 루프를 새로 돌려(앱 풀이 루프 바인딩) 한 테스트에서 두 번째
+       HTTP 요청이 풀과 충돌하므로, 여기서는 첫 페이지 봉투만 확인한다.
+    """
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    for i in range(25):
+        await committed_conn.execute(
+            "insert into patients (name, birth_date, gender, phone) "
+            "values ($1, $2, 'F', '01000000000')",
+            f"환자{i:02d}", date(1958, 3, 12),
+        )
+
+    page1 = client.get("/patients", params={"q": "환자"}, headers=_auth(receptionist)).json()
+    assert len(page1["rows"]) == 20
+    assert page1["has_more"] is True
+    assert isinstance(page1["next_cursor"], str) and page1["next_cursor"]
 
 
 async def test_상세는_전체를_보여주고_진입_자체가_기록된다(client, committed_conn):

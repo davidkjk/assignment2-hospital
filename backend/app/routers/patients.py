@@ -12,6 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.core.dto import patient_row_dto
 from app.core.security import StaffContext, require_role
 from app.services import patient_service
 
@@ -31,10 +32,33 @@ class FamilyUnlinkRequest(BaseModel):
 @router.get("")
 async def list_patients(
     q: str | None = None,
+    cursor: str | None = None,
     staff: StaffContext = Depends(require_role("receptionist", "admin")),
-) -> list[dict]:
-    """[MASK-SRV-01][SEARCH-LOG-01·03] 마스킹된 목록 + 검색 기록."""
-    return await patient_service.search_patients(q, staff)
+) -> dict:
+    """[MASK-SRV-01][SEARCH-*] 검색 결과(마스킹) + 다음 페이지 커서 + 검색 기록.
+
+    ⭐ 마스킹 경계는 여기다 — 서비스는 정렬을 위해 원본을 담은 줄을 주고, HTTP로 나가는
+       이 지점에서 patient_row_dto가 masked_* 로만 옮긴다(원본 키는 응답에 없다). 줄마다
+       matched(왜 걸렸는지)·오늘 상태·오늘 예약 시각을 함께 실어 24b가 그대로 소비한다.
+    """
+    page = await patient_service.search_patients(q, staff, cursor=cursor)
+    return {
+        "rows": [
+            patient_row_dto(
+                patient_id=row["id"],
+                name=row["name"],
+                phone=row["phone"],
+                birth_date=row["birth_date"],
+                gender=row["gender"],
+                matched=row["matched"],
+                today_status=row["today_status"],
+                today_appointment_time=row["today_appointment_time"],
+            )
+            for row in page.rows
+        ],
+        "next_cursor": page.next_cursor,
+        "has_more": page.has_more,
+    }
 
 
 @router.get("/{patient_id}")
