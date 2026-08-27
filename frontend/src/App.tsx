@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage'
 import { PasswordResetNewPage } from './pages/PasswordResetNewPage'
 import { PasswordResetRequestPage } from './pages/PasswordResetRequestPage'
 import { QueuePage } from './pages/QueuePage'
+import { PatientDetailPage } from './pages/patient/PatientDetailPage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
@@ -37,7 +38,7 @@ export function App() {
         <Route path="/reset-password/new" element={<PasswordResetNewPage />} />
         <Route path="/" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><AppShell /></RequireRole>}>
           {NAV_ITEMS.map((item) => <Route key={item.path} path={item.path.slice(1)} element={<RequireRole roles={item.roles}>{pageFor(item.path, item.label)}</RequireRole>} />)}
-          <Route path="patients/:id" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><Placeholder title="환자 상세" /></RequireRole>} />
+          <Route path="patients/:id" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><PatientDetailPage /></RequireRole>} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
