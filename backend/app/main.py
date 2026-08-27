@@ -7,6 +7,7 @@ from app.routers import (
     auth_staff,
     dashboard,
     doctor_phrases,
+    error_logs,
     me,
     medical_records,
     patient_merge,
@@ -36,6 +37,7 @@ app.include_router(dashboard.router)
 app.include_router(stats.router)
 app.include_router(schedule_admin.router)
 app.include_router(audit_logs.router)
+app.include_router(error_logs.router)
 
 
 @app.get("/health")

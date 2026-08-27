@@ -1,8 +1,14 @@
+import logging
+import re
+
 import asyncpg
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.db.pool import get_pool
+
+# 진짜 원문(개발자용 기술 상세)은 서버 로그에만 남긴다(결정 #20). DB message는 redaction본이다.
+logger = logging.getLogger("system_error")
 
 
 class AppError(Exception):
@@ -14,12 +20,41 @@ class AppError(Exception):
         self.detail = detail
 
 
-async def log_error(feature: str, message: str) -> None:
-    pool = await get_pool()
+# 결정 #20 — 저장 시점 redaction. 대상은 비밀키(6.5)·환자 개인정보뿐, 기술적 원인(오류 종류)은 남긴다.
+# ⚠️ 「실제 키=값」·「Bearer 값」·전화·주민·JWT·결제키만 지운다. 단어 경계+구분자를 요구해
+#    「idx_internal_secret」 같은 식별자·제약명을 안 건드린다(test_error_masking의 원문 보존 계약).
+_REDACTIONS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"), "[토큰]"),   # JWT
+    (re.compile(r"(?i)\b(password|passwd|pwd|pw|secret|token|api[_-]?key)\b\s*[=:]\s*\S+"),
+     r"\1=[비밀]"),                                                                            # 키=값
+    (re.compile(r"(?i)\bbearer\s+\S+"), "Bearer [비밀]"),                                      # Bearer 토큰
+    (re.compile(r"\b\d{6}-?[1-4]\d{6}\b"), "[주민번호]"),                                      # 주민등록번호
+    (re.compile(r"\b01[016789]-?\d{3,4}-?\d{4}\b"), "[전화]"),                                # 휴대폰
+    (re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]{6,}\b"), "[비밀]"),                          # 결제·업체 키
+]
+_DEFAULT_SUMMARY = "요청을 처리하는 중 시스템 오류가 발생했습니다."
+
+
+def redact(text: str) -> str:
+    for pattern, repl in _REDACTIONS:
+        text = pattern.sub(repl, text)
+    return text
+
+
+async def log_error(feature: str, message: str | None = None, *,
+                    safe_summary: str | None = None, exc: Exception | None = None) -> None:
+    """시스템 오류를 남긴다. 하위호환: Task 5·6의 `log_error(feature, str(exc))`가 그대로 동작한다.
+
+    결정 #20 — ①진짜 원문은 `logger.error`로 서버 로그에만(뒷단) ②DB `message`엔 redaction한
+    기술 상세 ③DB `safe_summary`엔 화면에 보이는 안전 요약(없으면 일반 안내).
+    """
+    raw = message if message is not None else (str(exc) if exc is not None else "")
+    logger.error("[%s] %s", feature, raw)                    # 진짜 원문은 서버 로그에만(뒷단)
+    pool = await get_pool()                                   # 서비스 롤 — RLS 우회 적재
     async with pool.acquire() as conn:
         await conn.execute(
-            "insert into system_error_log (feature, message) values ($1, $2)",
-            feature, message,
+            "insert into system_error_log (feature, message, safe_summary) values ($1, $2, $3)",
+            feature, redact(raw), safe_summary or _DEFAULT_SUMMARY,
         )
 
 
@@ -41,6 +76,7 @@ async def pg_error_to_app_error(exc: asyncpg.PostgresError, feature: str) -> App
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    # ERRADM-SCOPE-02 — 사용자 입력·검증 오류(AppError)는 시스템 오류로 적재하지 않는다.
     content: dict = {"detail": exc.message}
     if exc.detail is not None:
         # 화면이 「갈 길」을 그리는 데 쓰는 구조화 데이터(예: 옮겨야 할 활성 의사 이름).
@@ -49,7 +85,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    await log_error(feature=request.url.path, message=str(exc))
+    await log_error(feature=request.url.path, message=str(exc))       # 미처리 예외만 쌓인다
     return JSONResponse(
         status_code=500,
         content={"detail": "잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의하세요."},
