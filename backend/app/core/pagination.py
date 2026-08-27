@@ -76,7 +76,10 @@ def decode_cursor(cursor: str) -> dict:
     return json.loads(raw)
 
 
-def paginate(rows: list[dict], cursor: str | None = None, order=None) -> Page:
+def paginate(rows: list[dict], cursor: str | None = None, order=None, page_size: int = PAGE_SIZE) -> Page:
+    # page_size는 부품 소유자(Task 13) 계약을 넓히기만 한다 — 기본 20은 그대로 두고
+    # 열람 감사(ALOG-FILTER-01·LIST-09)처럼 첫 페이지 200건이 필요한 화면만 인자로 연다.
+    # 정렬 키·동점 키·has_more·cursor 계약은 그대로 공유한다.
     normalized = _normalize_order(order)
 
     start = 0
@@ -99,8 +102,8 @@ def paginate(rows: list[dict], cursor: str | None = None, order=None) -> Page:
     else:
         ordered = _sorted(rows, normalized)
 
-    window = ordered[start : start + PAGE_SIZE]
-    has_more = len(ordered) > start + PAGE_SIZE
+    window = ordered[start : start + page_size]
+    has_more = len(ordered) > start + page_size
     next_cursor = (
         encode_cursor(order=normalized, last_id=window[-1]["id"])
         if has_more and window

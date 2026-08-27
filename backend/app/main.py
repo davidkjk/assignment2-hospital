@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.core.errors import AppError, app_error_handler, unhandled_exception_handler
 from app.routers import (
     appointments,
+    audit_logs,
     auth_staff,
     dashboard,
     doctor_phrases,
@@ -30,6 +31,7 @@ app.include_router(patients.router)
 app.include_router(dashboard.router)
 app.include_router(stats.router)
 app.include_router(schedule_admin.router)
+app.include_router(audit_logs.router)
 
 
 @app.get("/health")
