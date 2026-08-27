@@ -1,9 +1,25 @@
+import hashlib
 from uuid import UUID
 
 from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.admin_client import get_admin_client
 from app.db.pool import acquire_as
+from app.services.schedule_change import list_affected_appointments
+
+# CAL-COLOR-03·07·13 — 의사를 초대하면 남은 색을 0번부터 준다. 다 찼으면 가장 적게 쓰인 번호 중
+# 가장 작은 것(막다른 길 금지). 팔레트는 「서로 가장 먼 것부터」 배열돼 앞 번호끼리 가장 잘 구별된다.
+_NEXT_COLOR_SQL = """
+select coalesce(
+  (select i from generate_series(0, 9) i
+   where i not in (select calendar_color_index from staff
+                   where calendar_color_index is not null and is_active)
+   order by i limit 1),
+  (select calendar_color_index from staff
+   where calendar_color_index is not null
+   group by calendar_color_index order by count(*), calendar_color_index limit 1),
+  0)
+"""
 
 
 async def invite_staff(
@@ -26,13 +42,15 @@ async def invite_staff(
     auth_user_id = UUID(result.user.id)
 
     async def _run(c):
+        # 의사에게만 색을 자동 배정한다(CAL-COLOR-08). 비의사는 캘린더에 열이 없어 색이 없다.
+        color = await c.fetchval(_NEXT_COLOR_SQL) if role == "doctor" else None
         return await c.fetchval(
             """
-            insert into staff (auth_user_id, name, role, department_id)
-            values ($1, $2, $3, $4)
+            insert into staff (auth_user_id, name, role, department_id, calendar_color_index)
+            values ($1, $2, $3, $4, $5)
             returning id
             """,
-            auth_user_id, name, role, department_id,
+            auth_user_id, name, role, department_id, color,
         )
 
     if conn is not None:
@@ -42,7 +60,46 @@ async def invite_staff(
         return await _run(c)
 
 
-async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext, conn=None) -> None:
+def _impact_version(rows: list[dict]) -> str:
+    """영향 예약 집합에서 안정적인 버전 문자열을 만든다 — 예약이 하나라도 늘거나 줄면 바뀐다."""
+    ids = sorted(str(row["id"]) for row in rows)
+    return hashlib.sha256("|".join(ids).encode()).hexdigest()[:16]
+
+
+async def _affected_for_doctor(conn, doctor_id: UUID) -> list[dict]:
+    """이 의사를 끄면 확인이 필요해지는 미래·미취소 예약만. 판정 함수는 Task 2의 것 하나뿐이다."""
+    rows = await list_affected_appointments(
+        conn, deactivating_doctor_id=doctor_id, for_role="staff"
+    )
+    return [row for row in rows if row.get("doctor_id") == doctor_id]
+
+
+async def get_deactivation_impact(conn, doctor_id: UUID, *, for_role: str = "admin") -> dict:
+    """[STAFF-DEACT-04] 중지 확정 전 미리보기 — 건수·날짜·시각만. 이름·전화번호는 없다.
+
+    ⭐ 읽기만 한다. 예약 상태·is_active를 건드리지 않는다(SCHED-WARN-07).
+    """
+    rows = await _affected_for_doctor(conn, doctor_id)
+    times = sorted(
+        (
+            {
+                "date": row["start_at"].date().isoformat(),
+                "time": row["start_at"].strftime("%H:%M"),
+            }
+            for row in rows
+            if row.get("start_at") is not None
+        ),
+        key=lambda value: (value["date"], value["time"]),
+    )
+    return {"count": len(rows), "times": times, "version": _impact_version(rows)}
+
+
+async def deactivate_staff(
+    staff_id: UUID,
+    deactivated_by: StaffContext,
+    conn=None,
+    impact_version: str | None = None,
+) -> None:
     """[정합성 검토 R3-04] 본인 중지와 마지막 남은 활성 관리자 중지를 막는다 —
     둘 다 병원 운영이 관리자 없이 멈추는 상황을 만들 수 있다.
 
@@ -58,6 +115,12 @@ async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext, conn=No
         target = await c.fetchrow("select role, auth_user_id from staff where id = $1", staff_id)
         if target is None:
             raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
+        # [STAFF-DEACT-09] 미리보기 뒤 다른 직원이 그 시간에 예약을 하나 더 잡았을 수 있다.
+        # 오래된 미리보기로는 확정하지 않는다 — 3건인 줄 안 관리자가 4건을 큐로 보내면 안 된다.
+        if impact_version is not None:
+            current = await get_deactivation_impact(c, staff_id)
+            if current["version"] != impact_version:
+                raise AppError("최신 상태가 바뀌었습니다. 다시 확인해 주세요.", status_code=409)
         if target["role"] == "admin":
             # 동시에 서로 다른 관리자를 중지하는 두 트랜잭션이 같은 개수를 읽고 둘 다
             # 통과해버리는 경쟁 상태를 막는다(둘 다 통과하면 활성 관리자가 0명이 될 수
@@ -98,18 +161,44 @@ async def deactivate_staff(staff_id: UUID, deactivated_by: StaffContext, conn=No
     admin.auth.admin.sign_out(str(target["auth_user_id"]), scope="global")
 
 
+def _auth_users_by_id() -> dict[str, object]:
+    """[STAFF-LIST-09] 로그인·초대 시각은 auth.users가 원본이다. 목록 한 번 조회로 한꺼번에 받는다.
+
+    ⛔ 직원마다 get_user_by_id를 부르지 않는다 — 20명 병원에서 목록 한 번에 21번 호출이 된다.
+    """
+    admin = get_admin_client()
+    result = admin.auth.admin.list_users()
+    users = getattr(result, "users", result)
+    return {str(user.id): user for user in users}
+
+
 async def list_staff(staff: StaffContext, conn=None) -> list[dict]:
     async def _run(c):
+        # [STAFF-LIST-02] 이름이 같아도 재조회 사이 순서가 안 흔들리게 고유 ID를 마지막 키로.
         rows = await c.fetch(
-            "select id, name, role, department_id, is_active from staff order by is_active desc, name"
+            """
+            select id, auth_user_id, name, role, department_id, is_active,
+                   specialty, bio, photo_url, calendar_color_index
+            from staff
+            order by is_active desc, name, id
+            """
         )
         return [dict(row) for row in rows]
 
     if conn is not None:
-        return await _run(conn)
+        rows = await _run(conn)
+    else:
+        async with acquire_as(str(staff.auth_user_id)) as c:
+            rows = await _run(c)
 
-    async with acquire_as(str(staff.auth_user_id)) as c:
-        return await _run(c)
+    # [STAFF-LIST-07·08·09] 로그인 이력·초대 시각을 auth.users에서 한 번에 합쳐 내려준다.
+    users = _auth_users_by_id()
+    for row in rows:
+        user = users.get(str(row["auth_user_id"]))
+        row["last_sign_in_at"] = getattr(user, "last_sign_in_at", None) if user is not None else None
+        row["invited_at"] = getattr(user, "invited_at", None) if user is not None else None
+        row.pop("auth_user_id", None)
+    return rows
 
 
 async def resend_invite(staff_id: UUID, requested_by: StaffContext, conn=None) -> None:
