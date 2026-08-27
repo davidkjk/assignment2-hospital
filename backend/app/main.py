@@ -16,6 +16,7 @@ from app.routers import (
     questionnaire_admin,
     schedule_admin,
     schedule_change,
+    settings,
     staff,
     stats,
 )
@@ -40,6 +41,7 @@ app.include_router(schedule_admin.router)
 app.include_router(audit_logs.router)
 app.include_router(error_logs.router)
 app.include_router(messages.router)
+app.include_router(settings.router)
 
 
 @app.get("/health")
