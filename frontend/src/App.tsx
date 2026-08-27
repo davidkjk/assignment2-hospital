@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireRole } from './auth/RequireRole'
-import { homeFor } from './auth/roles'
+import { ADMIN_ONLY, homeFor } from './auth/roles'
 import { useAuth } from './auth/useAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PasswordResetNewPage } from './pages/PasswordResetNewPage'
@@ -14,6 +14,8 @@ import { SchedulePage } from './pages/admin/schedule/SchedulePage'
 import { StaffAdminPage } from './pages/admin/staff/StaffAdminPage'
 import { CheckInPage } from './pages/checkin/CheckInPage'
 import { MergeCandidatesPage } from './pages/admin/merge/MergeCandidatesPage'
+import { MergeHistoryPage } from './pages/admin/merge-history/MergeHistoryPage'
+import { MergeEventDetail } from './pages/admin/merge-history/MergeEventDetail'
 import { QuestionnaireAdminPage } from './pages/admin/questionnaires/QuestionnaireAdminPage'
 import { PatientSearchPage } from './pages/patients/PatientSearchPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
@@ -50,6 +52,7 @@ function pageFor(path: string, label: string) {
   if (path === '/admin/staff') return <StaffAdminPage />
   if (path === '/checkin') return <CheckInPage />
   if (path === '/admin/patient-merge-candidates') return <MergeCandidatesPage />
+  if (path === '/admin/merge-history') return <MergeHistoryPage />
   if (path === '/admin/questionnaires') return <QuestionnaireAdminPage />
   if (path === '/calendar') return <CalendarRoute />
   return <Placeholder title={label} />
@@ -66,6 +69,7 @@ export function App() {
         <Route path="/" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><AppShell /></RequireRole>}>
           {NAV_ITEMS.map((item) => <Route key={item.path} path={item.path.slice(1)} element={<RequireRole roles={item.roles}>{pageFor(item.path, item.label)}</RequireRole>} />)}
           <Route path="patients/:id" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><PatientDetailPage /></RequireRole>} />
+          <Route path="admin/merge-history/:mergeEventId" element={<RequireRole roles={ADMIN_ONLY}><MergeEventDetail /></RequireRole>} />
           <Route path="doctor/console/:appointmentId" element={<RequireRole roles={['doctor']}><DoctorConsolePage /></RequireRole>} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
