@@ -52,6 +52,33 @@ async def create_appointment(
     return CreateAppointmentResponse(appointment_id=appointment_id)
 
 
+class CreatePhoneAppointmentRequest(BaseModel):
+    # [Task 14 / CAL-BOOK-*] 캘린더 전화 예약 — 5분 자유 시각. department_id는 담당의
+    # 소속에서 서버가 도출하고, end_at은 진료시간으로 계산한다(CAL-TIME-09).
+    patient_id: UUID
+    doctor_id: UUID
+    start_at: datetime
+    reason: str
+    # [CAL-GAP-06] 직원이 겹침 경고를 읽고 [그대로 잡기]를 눌렀다는 사실. 기본은 막는다.
+    allow_overlap: bool = False
+
+
+@router.post("/phone", response_model=CreateAppointmentResponse)
+async def create_phone_appointment(
+    body: CreatePhoneAppointmentRequest,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> CreateAppointmentResponse:
+    appointment_id = await appointment_service.create_phone_appointment(
+        staff=staff,
+        patient_id=body.patient_id,
+        doctor_id=body.doctor_id,
+        start_at=body.start_at,
+        reason=body.reason,
+        allow_overlap=body.allow_overlap,
+    )
+    return CreateAppointmentResponse(appointment_id=appointment_id)
+
+
 class UndoRequest(BaseModel):
     reason: str | None = None
     to_status: str | None = None

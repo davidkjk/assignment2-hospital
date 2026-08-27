@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 import asyncpg
@@ -6,7 +6,12 @@ import asyncpg
 from app.core.errors import AppError, pg_error_to_app_error
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
+from app.services.opening_hours import resolve_day
 from app.services.slot_service import book_slot
+
+# 전화예약 길이의 안전망 — resolve_day가 요일 규칙이 아닌 경로(의사별 예외 override)로
+# 그 날을 열어 주면 slot_duration_minutes가 없을 수 있다. 그때만 쓰는 기본 진료 길이(분).
+_DEFAULT_SLOT_MINUTES = 15
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
     "예약신청": {"예약확정", "환자취소", "병원취소"},
@@ -88,6 +93,9 @@ async def create_appointment(
     initial_status: str,
     slot_id: UUID | None = None,
     walkin_visit_time: datetime | None = None,
+    start_at: datetime | None = None,
+    end_at: datetime | None = None,
+    allow_overlap: bool = False,
     conn=None,
 ) -> UUID:
     # [정합성 검토 R1-우선3 재검증] 클라이언트가 보낸 source/initial_status 조합을 그대로 믿지 않고
@@ -129,15 +137,26 @@ async def create_appointment(
                     appointment_id = await c.fetchval(
                         """
                         insert into appointments
-                            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by, walkin_visit_time)
-                        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by, walkin_visit_time, start_at, end_at, allow_overlap)
+                        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                         returning id
                         """,
                         slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason,
-                        initial_status, source, staff.id, walkin_visit_time,
+                        initial_status, source, staff.id, walkin_visit_time, start_at, end_at, allow_overlap,
                     )
                 break
+            except asyncpg.ExclusionViolationError as exc:
+                # [CAL-GAP-09] 시간 범위가 겹쳤다 — 원문을 숨기고 409로. 겹침을 알고 넣으려면
+                # allow_overlap=True(직원이 경고를 읽고 진행)를 거쳐야 한다.
+                raise AppError(
+                    "그 시간에 이미 다른 예약이 있습니다.", status_code=409,
+                ) from exc
             except asyncpg.UniqueViolationError as exc:
+                if "appointments_doctor_start_unique" in str(exc):
+                    # [CAL-GAP-08] 같은 의사·같은 시각 시작 — :112. allow_overlap으로도 못 뚫는다.
+                    raise AppError(
+                        "같은 시각에 이미 예약이 있습니다.", status_code=409,
+                    ) from exc
                 if "booking_code" not in str(exc):
                     # booking_code 외의 유니크 위반(슬롯 이중예약 백스톱 등)은
                     # 원문을 숨기고 로그+고정 문구로.
@@ -151,6 +170,84 @@ async def create_appointment(
         else:
             raise AppError("예약번호 발급에 실패했습니다. 다시 시도해주세요.", status_code=409) from last_exc
         return appointment_id
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
+async def create_phone_appointment(
+    staff: StaffContext,
+    patient_id: UUID,
+    doctor_id: UUID,
+    start_at: datetime,
+    reason: str,
+    allow_overlap: bool = False,
+    conn=None,
+) -> UUID:
+    """[CAL-*] 전화예약 — 직원이 창구에서 5분 단위 자유 시각에 예약을 만든다.
+
+    화면(snapTo5min·GapWarningDialog)과 서버가 같은 규칙을 쓴다 — 화면만 막으면 API를
+    직접 부르는 경로로 10:07·지난 시각·겹침이 들어온다. 서버가 최종 심판한다:
+
+    - 5분 스냅(CAL-TIME-03): 시작 시각이 5분 격자를 벗어나면 거절한다.
+    - 지난 시각(CAL-PAST-07·#84): DB now()로 재 클럭 스큐를 피한다. 30분 유예는 없다(CAL-PAST-06).
+    - 닫힌 시간(SCHED-SLOT-11): 휴진·병원휴무·점심에는 잡히지 않는다. 판정은 resolve_day 하나뿐.
+    - 겹침(CAL-GAP-06·08·09): 같은 시각 시작은 막고(unique), 부분 겹침은 allow_overlap일 때만.
+
+    길이는 의사별 slot_duration_minutes가 정한다(CAL-TIME-09) — 10:05에 찍으면 10:05–10:20.
+    """
+
+    async def _run(c) -> UUID:
+        # ── 5분 스냅(CAL-TIME-03) ──
+        if start_at.second or start_at.microsecond or start_at.minute % 5 != 0:
+            raise AppError("예약 시작은 5분 단위로만 잡을 수 있습니다.", status_code=400)
+
+        # ── 지난 시각(CAL-PAST-07·#84) — DB now()로 재 클럭 스큐를 피한다 ──
+        if await c.fetchval("select $1::timestamptz < now()", start_at):
+            raise AppError("이미 지난 시간에는 예약을 만들 수 없습니다.", status_code=400)
+
+        # ── 닫힌 시간(SCHED-SLOT-11) — resolve_day가 유일 판정기, 화면·상담봇과 같은 답 ──
+        sched = await resolve_day(c, doctor_id, start_at.date())
+        if not sched.is_open:
+            raise AppError("그 날은 진료하지 않습니다.", status_code=400)
+        t = start_at.time()
+        if sched.start is not None and sched.end is not None and not (sched.start <= t < sched.end):
+            raise AppError("진료 시간 밖에는 예약을 잡을 수 없습니다.", status_code=400)
+        if sched.lunch is not None and sched.lunch[0] <= t < sched.lunch[1]:
+            raise AppError("점심시간에는 예약을 잡을 수 없습니다.", status_code=400)
+
+        # ── 길이 = 의사별 slot_duration_minutes(CAL-TIME-09) ──
+        duration = await c.fetchval(
+            "select slot_duration_minutes from doctor_schedule_rules where doctor_id = $1 and weekday = $2",
+            doctor_id, start_at.date().weekday(),
+        )
+        end_at = start_at + timedelta(minutes=duration or _DEFAULT_SLOT_MINUTES)
+
+        # 담당의 소속 진료과를 서버가 정한다(enforce_appointment_consistency가 일치를 요구한다).
+        department_id = await c.fetchval(
+            "select department_id from staff where id = $1", doctor_id,
+        )
+        if department_id is None:
+            raise AppError("담당의의 진료과를 확인할 수 없습니다.", status_code=400)
+
+        # 전화예약은 예약확정으로 들어간다(ALLOWED_INITIAL_STATUS_BY_SOURCE['staff']).
+        return await create_appointment(
+            staff=staff,
+            account_patient_id=patient_id,
+            for_patient_id=patient_id,
+            department_id=department_id,
+            doctor_id=doctor_id,
+            reason=reason,
+            source="staff",
+            initial_status="예약확정",
+            start_at=start_at,
+            end_at=end_at,
+            allow_overlap=allow_overlap,
+            conn=c,
+        )
 
     if conn is not None:
         return await _run(conn)
