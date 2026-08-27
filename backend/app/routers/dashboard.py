@@ -31,6 +31,20 @@ async def today_summary(staff: StaffContext = Depends(require_role(*_STAFF))) ->
     return await dashboard_service.get_today_summary(staff)
 
 
+@router.get("/calendar")
+async def calendar(
+    from_: date = Query(alias="from"),
+    to: date = Query(alias="to"),
+    doctor_ids: list[UUID] | None = Query(default=None),
+    staff: StaffContext = Depends(require_role(*_STAFF)),
+) -> dict:
+    """[CAL-SLOT-*][SCHED-EXC-12] 캘린더가 그릴 것(막대·빗금·⚠)을 한 번에.
+
+    빗금(점심·휴진)은 resolve_day 하나로만 판정한다 — 화면이 자기 계산을 갖지 않는다.
+    """
+    return await dashboard_service.get_calendar(staff, from_=from_, to=to, doctor_ids=doctor_ids)
+
+
 @router.get("/queue")
 async def queue(
     tab: str = "진료대기",

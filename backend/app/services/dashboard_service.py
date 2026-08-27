@@ -6,12 +6,13 @@
    넓은 쪽(대개 파이썬)이 이긴다.
 """
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import date, datetime, time, timedelta
 
 from app.core.dto import mask_name, patient_row_dto
 from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
+from app.services import opening_hours, schedule_change
 
 # 오늘에 속하는 예약 판정: 슬롯이 있으면 슬롯 날짜, 없으면(현장 접수) 생성일(KST) 기준(R2-07).
 _TODAY_SCOPE = "coalesce(s.slot_date, (a.created_at at time zone 'Asia/Seoul')::date) = current_date"
@@ -179,16 +180,93 @@ async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=
        `SCHED-EXC-12`가 *"resolve_day가 유일 판정기"*라 임의 재구현이 금지된다 — 화면이든
        이 창구든 자기 계산을 가지면 같은 날이 캘린더에서는 진료중, 예약에서는 휴무가 된다.
 
-    resolve_day가 생기면 이 함수가:
-      ① 예약 막대: appointments(환자 표시명 마스킹·상태·start/end·의사)
-      ② 빗금 구간: resolve_day(doctor, day)가 판정한 점심·휴진(CAL-SLOT-03·08·09·11)
-      ③ ⚠ 확인 필요: schedule_change.list_affected_appointments(CAL-SLOT-05)
-    를 한 번에 조립해 돌려준다. ①③의 부품은 이미 있으나(list_affected_appointments 존재),
-    ②의 판정기가 없어 셋을 한 응답으로 못 맞추므로 전체를 미룬다.
+    셋을 한 응답으로 조립한다:
+      ① 예약 막대: 슬롯을 가진 활성 예약(환자 표시명 마스킹·상태·start/end·의사).
+         워크인(슬롯 없음)은 캘린더에 그릴 시각이 없어 여기 안 든다(CAL-PAST-08 / 갭 #85).
+      ② 빗금 구간: resolve_day(doctor, day)가 판정한 점심·휴진(CAL-SLOT-03·08·09·11).
+         ⭐ 화면이 자기 계산을 갖지 않는다 — 이 함수가 판정기다(SCHED-EXC-12).
+      ③ ⚠ 확인 필요: list_affected_appointments가 판정한 예약의 id(CAL-SLOT-05).
     """
-    raise NotImplementedError(
-        "/calendar는 Task 17의 opening_hours.resolve_day(빗금 판정기)에 막혀 있다 — "
-        "SCHED-EXC-12가 유일 판정기를 요구하므로 임의 재구현 금지."
+    async def _run(c):
+        doctors = await _calendar_doctors(c, doctor_ids)
+
+        # ① 예약 막대 — 슬롯을 가진 활성 예약만(워크인은 시각이 없어 제외).
+        appt_rows = await c.fetch(
+            """
+            select a.id, a.doctor_id, a.status, a.for_patient_id,
+                   p.name as patient_name, s.slot_date, s.start_time,
+                   r.slot_duration_minutes
+            from appointments a
+            join appointment_slots s on s.id = a.slot_id
+            left join patients p on p.id = a.for_patient_id
+            left join doctor_schedule_rules r
+              on r.doctor_id = a.doctor_id
+             and r.weekday = (extract(isodow from s.slot_date)::int - 1)
+            where s.slot_date between $1 and $2
+              and a.status = any($3::text[])
+              and ($4::uuid[] is null or a.doctor_id = any($4))
+            order by s.slot_date, s.start_time, a.id
+            """,
+            from_, to, list(schedule_change.ACTIVE_STATUSES),
+            list(doctor_ids) if doctor_ids else None,
+        )
+        appointments = [_calendar_bar(row) for row in appt_rows]
+
+        # ② 빗금 구간 — resolve_day 하나로만 판정한다(의사×날짜).
+        blocks = []
+        for doctor_id in doctors:
+            day = from_
+            while day <= to:
+                sched = await opening_hours.resolve_day(c, doctor_id, day)
+                if not sched.is_open:
+                    blocks.append({
+                        "doctor_id": doctor_id, "date": day, "kind": "closed",
+                        "start": None, "end": None, "source": sched.source,
+                    })
+                elif sched.lunch is not None:
+                    blocks.append({
+                        "doctor_id": doctor_id, "date": day, "kind": "lunch",
+                        "start": sched.lunch[0], "end": sched.lunch[1], "source": sched.source,
+                    })
+                day += timedelta(days=1)
+
+        # ③ ⚠ 확인 필요 — 판정 결과의 예약 id만 싣는다(원본 이름은 싣지 않는다).
+        affected = await schedule_change.list_affected_appointments(c)
+        affected_ids = [
+            row.appointment_id if hasattr(row, "appointment_id") else row["appointment_id"]
+            for row in affected
+        ]
+
+        return {
+            "appointments": appointments,
+            "blocks": blocks,
+            "affected_appointment_ids": affected_ids,
+        }
+
+    return await _dispatch(staff, conn, _run)
+
+
+async def _calendar_doctors(conn, doctor_ids) -> list:
+    """빗금을 그릴 의사 목록 — 지정이 없으면 활성 의사 전부."""
+    if doctor_ids:
+        return list(doctor_ids)
+    rows = await conn.fetch("select id from staff where role = 'doctor' and is_active order by id")
+    return [row["id"] for row in rows]
+
+
+def _calendar_bar(row) -> dict:
+    """[MASK-SRV-01] 예약 막대 한 줄 — 이름은 마스킹으로만 실린다."""
+    start = datetime.combine(row["slot_date"], row["start_time"])
+    minutes = row["slot_duration_minutes"] or 0
+    end = start + timedelta(minutes=minutes) if minutes else None
+    return patient_row_dto(
+        patient_id=row["for_patient_id"],
+        name=row["patient_name"],
+        appointment_id=row["id"],
+        doctor_id=row["doctor_id"],
+        status=row["status"],
+        start=start,
+        end=end,
     )
 
 

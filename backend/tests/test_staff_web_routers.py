@@ -38,6 +38,20 @@ async def api_client():
         yield client
 
 
+def test_wave_b_routers_are_registered_on_the_app():
+    """[MASK-SRV-01][TODAY-*][STAT-*] Wave B 라우터가 main.py에 배선돼 노출된다.
+
+    파일로만 존재하고 include_router가 없으면 라우트가 404가 아니라 아예 없다.
+    """
+    paths = {route.path for route in app.routes}
+    # patients(prefix /patients) · dashboard(prefix 없음) · stats(prefix 없음) · schedule_admin(prefix /admin)
+    assert "/patients" in paths  # patients.list_patients
+    assert "/today/summary" in paths  # dashboard.today_summary
+    assert "/stats" in paths  # stats.stats
+    assert "/admin/departments" in paths  # schedule_admin.list_departments
+    assert "/calendar" in paths  # dashboard.calendar (resolve_day 소비처)
+
+
 @pytest.mark.asyncio
 async def test_doctor_phrase_routes_are_crud_and_scoped(api_client, committed_conn, phrase_cleanup):
     doctor_one = await seed_staff(committed_conn, role="doctor")

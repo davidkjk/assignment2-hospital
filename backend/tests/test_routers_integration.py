@@ -128,3 +128,107 @@ async def test_doctor_can_read_own_medical_record_via_api(client, committed_conn
 
     assert response.status_code == 200
     assert response.json()["symptoms"] == "기침"
+
+
+async def _seed_appt_with_status(committed_conn, *, status, doctor_role="doctor"):
+    """UNDO HTTP 테스트용: 지정 상태의 예약 한 건 + 그 의사·접수 계정을 만든다."""
+    doctor = await seed_staff(committed_conn, role="doctor")
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    dept_id = await committed_conn.fetchval("insert into departments (name) values ('내과') returning id")
+    await committed_conn.execute(
+        "update staff set department_id = $1 where id = $2", dept_id, doctor["staff_id"]
+    )
+    patient_id = await committed_conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone) "
+        "values ('홍길동', '1985-03-01', 'M', '01012345678') returning id"
+    )
+    appointment_id = await committed_conn.fetchval(
+        """
+        insert into appointments
+            (account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $1, $2, $3, $4, 'staff', $5)
+        returning id
+        """,
+        patient_id, dept_id, doctor["staff_id"], status, receptionist["staff_id"],
+    )
+    return appointment_id, doctor, receptionist
+
+
+@pytest.mark.asyncio
+async def test_undo_why_03_own_segment_needs_no_reason_and_executes(client, committed_conn):
+    """[UNDO-WHY-03][UNDO-SCOPE-01] 접수 구간(진료대기→도착)은 사유 없이 바로 되돌린다."""
+    appointment_id, _doctor, receptionist = await _seed_appt_with_status(
+        committed_conn, status="진료대기"
+    )
+    token = make_token(str(receptionist["auth_user_id"]))
+
+    response = client.post(
+        f"/appointments/{appointment_id}/undo",
+        headers={"Authorization": f"Bearer {token}"},
+        json={},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["executed"] is True
+    assert body["reason_required"] is False
+    assert body["status"] == "도착"
+
+
+@pytest.mark.asyncio
+async def test_undo_why_01_completed_without_reason_asks_for_reason(client, committed_conn):
+    """[UNDO-WHY-01] 진료완료 되돌리기는 서버가 사유 필요로 판정한다 — 사유 없으면 실행하지 않고
+    입력칸을 띄우라고 알린다(막다른 길 금지). (동기 TestClient는 한 테스트 한 요청만 — 실행은 다음 테스트)"""
+    appointment_id, doctor, _receptionist = await _seed_appt_with_status(
+        committed_conn, status="진료완료"
+    )
+    token = make_token(str(doctor["auth_user_id"]))
+
+    response = client.post(
+        f"/appointments/{appointment_id}/undo",
+        headers={"Authorization": f"Bearer {token}"},
+        json={},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reason_required"] is True
+    assert body["executed"] is False  # 사유가 필요해 아직 실행하지 않았다
+
+
+@pytest.mark.asyncio
+async def test_undo_why_01_completed_with_reason_executes_one_step_back(client, committed_conn):
+    """[UNDO-WHY-01][UNDO-SCOPE-04] 사유를 실으면 진료완료→진료중 한 칸만 되돌린다."""
+    appointment_id, doctor, _receptionist = await _seed_appt_with_status(
+        committed_conn, status="진료완료"
+    )
+    token = make_token(str(doctor["auth_user_id"]))
+
+    response = client.post(
+        f"/appointments/{appointment_id}/undo",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"reason": "기록을 다시 열어야 함"},
+    )
+
+    assert response.status_code == 200
+    done = response.json()
+    assert done["executed"] is True
+    assert done["reason_required"] is True
+    assert done["status"] == "진료중"
+
+
+@pytest.mark.asyncio
+async def test_undo_scope_02_cancelled_cannot_be_undone(client, committed_conn):
+    """[UNDO-SCOPE-02] 취소 계열은 되돌릴 수 없다(자리가 이미 풀렸다)."""
+    appointment_id, _doctor, receptionist = await _seed_appt_with_status(
+        committed_conn, status="환자취소"
+    )
+    token = make_token(str(receptionist["auth_user_id"]))
+
+    response = client.post(
+        f"/appointments/{appointment_id}/undo",
+        headers={"Authorization": f"Bearer {token}"},
+        json={},
+    )
+
+    assert response.status_code == 409

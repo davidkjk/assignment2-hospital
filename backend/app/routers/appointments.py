@@ -4,7 +4,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.core.errors import AppError
 from app.core.security import StaffContext, require_role
+from app.db.pool import acquire_as
 from app.services import appointment_service
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
@@ -45,6 +47,43 @@ async def create_appointment(
         slot_id=body.slot_id,
     )
     return CreateAppointmentResponse(appointment_id=appointment_id)
+
+
+class UndoRequest(BaseModel):
+    reason: str | None = None
+    to_status: str | None = None
+
+
+@router.post("/{appointment_id}/undo")
+async def undo_status(
+    appointment_id: UUID,
+    body: UndoRequest,
+    staff: StaffContext = Depends(require_role("receptionist", "doctor", "admin")),
+) -> dict:
+    """[UNDO-*] 한 칸 뒤로 되돌린다. 사유가 필요한지는 서버가 판정한다(UNDO-WHY-01·02·03).
+
+    ⭐ 사유가 필요한데 안 왔으면 **막지 않고**(막다른 길 금지) `reason_required=true`로 알려
+       클라가 사유 입력칸을 띄우고 다시 보내게 한다 — 사유 필요 판정을 클라가 스스로 하지 않는다.
+    """
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select status from appointments where id = $1", appointment_id
+        )
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        from_status = row["status"]
+        needs_reason = appointment_service.reason_required(from_status, staff.role)
+        if needs_reason and not body.reason:
+            # 아직 실행하지 않는다 — 사유를 받아 다시 부르게 한다.
+            return {
+                "executed": False,
+                "reason_required": True,
+                "from_status": from_status,
+            }
+        new_status = await appointment_service.undo_status(
+            appointment_id, staff, reason=body.reason, to_status=body.to_status, conn=conn
+        )
+    return {"executed": True, "reason_required": needs_reason, "status": new_status}
 
 
 class TransitionStatusRequest(BaseModel):

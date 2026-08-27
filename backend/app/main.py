@@ -4,11 +4,15 @@ from app.core.errors import AppError, app_error_handler, unhandled_exception_han
 from app.routers import (
     appointments,
     auth_staff,
+    dashboard,
     doctor_phrases,
     me,
     medical_records,
+    patients,
+    schedule_admin,
     schedule_change,
     staff,
+    stats,
 )
 
 app = FastAPI(title="Hospital Backend")
@@ -22,6 +26,10 @@ app.include_router(medical_records.router)
 app.include_router(doctor_phrases.router)
 app.include_router(schedule_change.router)
 app.include_router(me.router)
+app.include_router(patients.router)
+app.include_router(dashboard.router)
+app.include_router(stats.router)
+app.include_router(schedule_admin.router)
 
 
 @app.get("/health")
