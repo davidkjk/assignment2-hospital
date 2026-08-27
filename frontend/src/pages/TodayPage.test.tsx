@@ -19,6 +19,9 @@ const FULL: TodaySummary = {
   needs_attention: [
     { patient_id: 'p3', masked_name: '박*수', masked_birth_date: '1978-**-**', appointment_id: 'a3', reason: '취소 상담 · 직원 확인 중' },
   ],
+  not_arrived: [],
+  yesterday_unfinished: [],
+  doctor_waiting: [],
   badge_excluded_patient_ids: ['p3'],
   bot_pending: null,
 }
@@ -27,8 +30,25 @@ const EMPTY: TodaySummary = {
   tiles: { total_reserved: 0, arrived: 0, waiting: 0, in_progress: 0, completed: 0, cancelled_or_noshow: 0 },
   long_wait: [],
   needs_attention: [],
+  not_arrived: [],
+  yesterday_unfinished: [],
+  doctor_waiting: [],
   badge_excluded_patient_ids: [],
   bot_pending: 4,
+}
+
+// 네 카드가 모두 있는 화면(TODAY-NOSHOW/YDAY/ORDER 검증용).
+const ALL: TodaySummary = {
+  ...FULL,
+  not_arrived: [
+    { patient_id: 'p9', masked_name: '최*연', masked_birth_date: '1970-**-**', appointment_id: 'a9', slot_time: '09:30:00' },
+  ],
+  yesterday_unfinished: [
+    { patient_id: 'p8', masked_name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감' },
+  ],
+  doctor_waiting: [
+    { doctor_id: 'd1', doctor_name: '박지훈', department_name: '내과', waiting_count: 3 },
+  ],
 }
 
 function summaryOk(body: TodaySummary) {
@@ -117,6 +137,54 @@ describe('오늘의 현황 /today', () => {
     const row = await screen.findByTestId('needs-row-a3')
     await user.click(within(row).getByRole('button', { name: '예약·상담 보기' }))
     expect(screen.getByTestId('location')).toHaveTextContent('/calendar?appointment=a3')
+  })
+
+  test('[TODAY-NOSHOW-01] 미접수·시각 경과 카드에 예약 시각 레일과 함께 행을 보인다', async () => {
+    summaryOk(ALL)
+    renderToday()
+    expect(await screen.findByText('미접수 · 시각 경과')).toBeVisible()
+    const row = screen.getByTestId('noshow-row-a9')
+    expect(within(row).getByText('09:30')).toBeVisible() // 예약 시각 레일
+    // TODAY-NOSHOW-03: 「안 오셨습니다」 계열 책망 문구를 쓰지 않는다.
+    expect(screen.queryByText(/안 오셨/)).toBeNull()
+  })
+
+  test('[TODAY-BTN-02] 미접수 행은 [진료 대기]·[도착] 두 갈래 버튼을 둔다', async () => {
+    summaryOk(ALL)
+    renderToday()
+    const row = await screen.findByTestId('noshow-row-a9')
+    expect(within(row).getByRole('button', { name: '진료 대기' })).toBeVisible()
+    expect(within(row).getByRole('button', { name: '도착' })).toBeVisible()
+  })
+
+  test('[TODAY-YDAY-01/03] 전일 미완료 카드는 날짜를 함께 보이고 「진료 중인 채로 마감」 사유를 준다', async () => {
+    summaryOk(ALL)
+    renderToday()
+    expect(await screen.findByText('전일 미완료')).toBeVisible()
+    const row = screen.getByTestId('yday-row-a8')
+    expect(within(row).getByText('진료 중인 채로 마감')).toBeVisible()
+    // TODAY-YDAY-03: 지난 날짜이므로 날짜를 함께 표시(8/2 16:30).
+    expect(within(row).getByText(/8\/2/)).toBeVisible()
+  })
+
+  test('[TODAY-ORDER-01] 카드 순서는 장기대기 → 미접수 → 전일미완료 → 확인필요', async () => {
+    summaryOk(ALL)
+    renderToday()
+    await screen.findByTestId('card-header-longwait')
+    const order = ['card-header-longwait', 'card-header-noshow', 'card-header-yday', 'card-header-needs']
+      .map((id) => screen.getByTestId(id))
+    for (let i = 0; i < order.length - 1; i++) {
+      expect(order[i].compareDocumentPosition(order[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+  })
+
+  test('[TODAY-DOC-01] 오늘 요약에 진료과+의사 이름과 대기 수를 보인다(진료과 생략 안 함)', async () => {
+    summaryOk(ALL)
+    renderToday()
+    const row = await screen.findByTestId('doc-waiting-d1')
+    expect(within(row).getByText(/내과/)).toBeVisible()
+    expect(within(row).getByText(/박지훈/)).toBeVisible()
+    expect(within(row).getByText(/3/)).toBeVisible()
   })
 
   test('[TODAY-SUM-01] 오늘 요약 타일 6개를 보인다', async () => {

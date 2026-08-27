@@ -325,9 +325,55 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             order by a.support_requested_at desc
             """
         )
-        return tiles, long_wait, needs
+        # TODAY-NOSHOW-01: 오늘 예약 중 예약 시각이 이미 지났는데 아직 '예약확정'(미도착)인 건.
+        # ⚠️ 여기서 예약부도로 찍지 않는다(TODAY-NOSHOW-02, 자정 배치 몫). 슬롯 시각(KST 벽시계)
+        #    이 현재보다 이르러야만 '지났다'로 본다 — 미래·정각은 제외(10분 일찍 온 환자는 없다).
+        not_arrived = await c.fetch(
+            f"""
+            select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   s.start_time as slot_time
+            from appointments a
+            join patients p on p.id = a.for_patient_id
+            join appointment_slots s on s.id = a.slot_id
+            where a.status = '예약확정' and {_TODAY_SCOPE}
+              and (s.slot_date + s.start_time) < (now() at time zone 'Asia/Seoul')
+            order by s.start_time, a.id
+            """
+        )
+        # TODAY-YDAY-01/#37: 어제까지의 '도착'·'진료대기'·'진료중' 잔여(사람이 마무리할 것).
+        # ⛔ 지난 '예약확정'은 mark_overdue_no_shows() 배치가 이미 예약부도로 찍으니 넣지 않는다.
+        #    서버 기준일(current_date, _TODAY_SCOPE와 같은 경계) 이전 슬롯만.
+        yesterday_unfinished = await c.fetch(
+            """
+            select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   s.slot_date, s.start_time as slot_time
+            from appointments a
+            join patients p on p.id = a.for_patient_id
+            join appointment_slots s on s.id = a.slot_id
+            where a.status in ('도착', '진료대기', '진료중') and s.slot_date < current_date
+            order by s.slot_date, s.start_time, a.id
+            """
+        )
+        # TODAY-DOC-01: 의사별 '진료대기' 인원. 진료과+의사 이름과 함께(진료과 생략 안 함, 동명 방지).
+        # 코디 결정: 요약 API에 단일 소스로(프론트 이중계산 방지, SHELL-LIVE '한 응답' 원칙).
+        doctor_waiting = await c.fetch(
+            f"""
+            select a.doctor_id, d.name as doctor_name, dept.name as department_name,
+                   count(*) as waiting_count
+            from appointments a
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
+            left join appointment_slots s on s.id = a.slot_id
+            where a.status = '진료대기' and {_TODAY_SCOPE}
+            group by a.doctor_id, d.name, dept.name
+            order by dept.name, d.name, a.doctor_id
+            """
+        )
+        return tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting
 
-    tiles, long_wait, needs = await _dispatch(staff, conn, _run)
+    tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting = await _dispatch(
+        staff, conn, _run
+    )
 
     return {
         "tiles": {
@@ -351,6 +397,33 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
                 appointment_id=r["appointment_id"], reason=f"{r['request_type']} 상담 · 직원 확인 중",
             )
             for r in needs
+        ],
+        # TODAY-NOSHOW-01: 시각 경과 미접수(시각 레일용 slot_time 동반).
+        "not_arrived": [
+            patient_row_dto(
+                patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+                appointment_id=r["appointment_id"], slot_time=r["slot_time"],
+            )
+            for r in not_arrived
+        ],
+        # TODAY-YDAY-01/03: 전일 미완료(지난 날짜라 날짜를 함께).
+        "yesterday_unfinished": [
+            patient_row_dto(
+                patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+                appointment_id=r["appointment_id"], slot_date=r["slot_date"], slot_time=r["slot_time"],
+                reason="진료 중인 채로 마감",
+            )
+            for r in yesterday_unfinished
+        ],
+        # TODAY-DOC-01: 의사별 대기(환자 원문 없음 — 집계이므로 마스킹 대상 아님).
+        "doctor_waiting": [
+            {
+                "doctor_id": r["doctor_id"],
+                "doctor_name": r["doctor_name"],
+                "department_name": r["department_name"],
+                "waiting_count": r["waiting_count"],
+            }
+            for r in doctor_waiting
         ],
         # TODAY-RESCHED-21: 이 카드에 줄이 있는 사람은 사이드바 배지가 두 번 세지 않는다.
         "badge_excluded_patient_ids": [r["for_patient_id"] for r in needs],

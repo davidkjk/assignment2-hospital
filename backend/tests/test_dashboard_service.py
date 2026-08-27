@@ -236,6 +236,82 @@ async def test_스탯_메트릭_06_상담봇_지표는_0으로_위장하지_않�
     assert s["bot_pending"] is None
 
 
+@pytest.mark.asyncio
+async def test_투데이_노쇼_01_시각_지난_예약확정만_미접수로_준다(db_conn):
+    """[TODAY-NOSHOW-01] 예약 시각이 지났고 아직 예약확정인 건만 미접수.
+    미래 예약(아직 안 지남)·이미 도착한 건은 제외한다(10분 일찍 온 환자는 여기 없다)."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p_past = await seed_patient(db_conn)
+    p_future = await seed_patient(db_conn)
+    p_arrived = await seed_patient(db_conn)
+    slot_past = await seed_slot(db_conn, doc["staff_id"], today, start_time=time(0, 0))
+    slot_future = await seed_slot(db_conn, doc["staff_id"], today, start_time=time(23, 59))
+    slot_arr = await seed_slot(db_conn, doc["staff_id"], today, start_time=time(0, 1))
+    past_appt = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                       patient_id=p_past, slot_id=slot_past, status="예약확정")
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p_future, slot_id=slot_future, status="예약확정")
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p_arrived, slot_id=slot_arr, status="도착")
+    await set_session_auth(db_conn, admin.auth_user_id)
+    s = await dashboard_service.get_today_summary(admin, conn=db_conn)
+    assert [r["appointment_id"] for r in s["not_arrived"]] == [past_appt]
+    assert "masked_name" in s["not_arrived"][0]  # 마스킹 경계 통과
+
+
+@pytest.mark.asyncio
+async def test_투데이_이데이_01_전일_미완료_잔여만_올린다(db_conn):
+    """[TODAY-YDAY-01] 지난 날짜의 도착·진료대기·진료중만 올린다. 지난 예약확정(→자정 부도
+    배치)·오늘 진행 중인 건은 제외. 지난 날짜이므로 날짜를 함께 준다(TODAY-YDAY-03)."""
+    today = await db_today(db_conn)
+    yday = today - timedelta(days=1)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p_left, p_confirmed, p_today = (await seed_patient(db_conn), await seed_patient(db_conn),
+                                    await seed_patient(db_conn))
+    slot_y = await seed_slot(db_conn, doc["staff_id"], yday, start_time=time(16, 30))
+    slot_y2 = await seed_slot(db_conn, doc["staff_id"], yday, start_time=time(17, 0))
+    slot_t = await seed_slot(db_conn, doc["staff_id"], today, start_time=time(9, 0))
+    left = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p_left, slot_id=slot_y, status="진료중")
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p_confirmed, slot_id=slot_y2, status="예약확정")
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p_today, slot_id=slot_t, status="진료중")
+    await set_session_auth(db_conn, admin.auth_user_id)
+    s = await dashboard_service.get_today_summary(admin, conn=db_conn)
+    rows = s["yesterday_unfinished"]
+    assert [r["appointment_id"] for r in rows] == [left]
+    assert rows[0]["reason"] == "진료 중인 채로 마감"
+    assert rows[0]["slot_date"] == yday
+
+
+@pytest.mark.asyncio
+async def test_투데이_닥_01_의사별_진료대기_인원을_진료과와_함께_센다(db_conn):
+    """[TODAY-DOC-01] 의사별 진료대기 수를 진료과+의사 이름과 함께. 진료완료는 세지 않는다."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn, name="내과")
+    doc_a = await seed_doctor(db_conn, dept)
+    doc_b = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    for doctor, statuses in [(doc_a, ["진료대기", "진료대기", "진료완료"]), (doc_b, ["진료대기"])]:
+        for i, st in enumerate(statuses):
+            p = await seed_patient(db_conn)
+            slot = await seed_slot(db_conn, doctor["staff_id"], today, start_time=time(9, i))
+            await seed_appointment(db_conn, doctor_id=doctor["staff_id"], department_id=dept,
+                                   patient_id=p, slot_id=slot, status=st)
+    await set_session_auth(db_conn, admin.auth_user_id)
+    s = await dashboard_service.get_today_summary(admin, conn=db_conn)
+    by_doc = {r["doctor_id"]: r for r in s["doctor_waiting"]}
+    assert by_doc[doc_a["staff_id"]]["waiting_count"] == 2
+    assert by_doc[doc_a["staff_id"]]["department_name"] == "내과"
+    assert by_doc[doc_b["staff_id"]]["waiting_count"] == 1
+
+
 # ── 로컬 헬퍼 ─────────────────────────────────────────────────────────────
 
 async def _seed_admin(conn, role="admin"):

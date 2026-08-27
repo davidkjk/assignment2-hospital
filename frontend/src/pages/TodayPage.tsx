@@ -5,9 +5,13 @@ import { EmptyState } from '../components/EmptyState'
 import { StatTile } from '../components/StatTile'
 import {
   getTodaySummary,
+  type DoctorWaitingRow,
   type LongWaitRow,
   type NeedsAttentionRow,
+  type NotArrivedRow,
+  type PatientRow,
   type TodaySummary,
+  type YesterdayUnfinishedRow,
 } from '../api/dashboard'
 
 /**
@@ -17,9 +21,9 @@ import {
  *    *"숫자만 보여주는 화면보다 지금 처리해야 할 환자와 문제가 먼저"*.
  *
  * 이 화면은 `/today/summary` 한 응답만 소비한다(SHELL-LIVE-01·03 — 나눠 부르면 사이드바 숫자와
- * 카드가 다른 시점을 말한다). 백엔드가 이 응답으로 주는 것은 「장기 대기」와 「확인 필요한 예약(취소·
- * 변경 상담)」 두 갈래 + 타일 6개다. 「미접수·시각 경과」/「전일 미완료」/일정변경 영향 예약 행은 이
- * 엔드포인트에 데이터가 없어 여기서 그리지 않는다(TODAY-NOSHOW/YDAY/RESCHED-01~22은 별도 데이터 필요).
+ * 카드가 다른 시점을 말한다). 「지금 처리할 것」은 고정 순서(TODAY-ORDER-01): 장기 대기 → 미접수·시각
+ * 경과 → 전일 미완료 → 확인 필요한 예약. 「오늘 요약」에는 타일 6개 + 의사별 대기(TODAY-DOC-01)를 둔다.
+ * ⛔ 일정변경 영향 예약(TODAY-RESCHED-01~22)·실시간(TODAY-LIVE)은 별도 데이터가 필요해 여기서 그리지 않는다.
  */
 export function TodayPage() {
   const navigate = useNavigate()
@@ -42,7 +46,10 @@ export function TodayPage() {
 }
 
 function TodayBody({ data, navigate }: { data: TodaySummary; navigate: (to: string) => void }) {
-  const processingCount = data.long_wait.length + data.needs_attention.length
+  // TODAY-LAY-03: 총계는 「지금 처리할 것」에 보이는 네 카드의 합이다.
+  const processingCount =
+    data.long_wait.length + data.not_arrived.length +
+    data.yesterday_unfinished.length + data.needs_attention.length
 
   return (
     <>
@@ -63,11 +70,27 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: (to: stri
             <p style={styles.emptyHint}>새 문제가 생기면 여기에 바로 나타납니다</p>
           </div>
         ) : (
+          // TODAY-ORDER-01: 장기 대기 → 미접수 → 전일 미완료 → 확인 필요(지금 병원에 있는 사람이 먼저).
           <div style={styles.cards}>
             {data.long_wait.length > 0 && (
               <Card id="longwait" title="장기 대기" count={data.long_wait.length}>
                 {data.long_wait.map((row) => (
                   <LongWaitRowView key={row.appointment_id} row={row} navigate={navigate} />
+                ))}
+              </Card>
+            )}
+            {data.not_arrived.length > 0 && (
+              // TODAY-NOSHOW-01: 제목은 「미접수 · 시각 경과」(무책망 — '안 옴'이 아니라 '체크인 안 됨').
+              <Card id="noshow" title="미접수 · 시각 경과" count={data.not_arrived.length}>
+                {data.not_arrived.map((row) => (
+                  <NotArrivedRowView key={row.appointment_id} row={row} navigate={navigate} />
+                ))}
+              </Card>
+            )}
+            {data.yesterday_unfinished.length > 0 && (
+              <Card id="yday" title="전일 미완료" count={data.yesterday_unfinished.length}>
+                {data.yesterday_unfinished.map((row) => (
+                  <YesterdayRowView key={row.appointment_id} row={row} navigate={navigate} />
                 ))}
               </Card>
             )}
@@ -97,6 +120,18 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: (to: stri
             />
           ))}
         </div>
+
+        {/* TODAY-DOC-01: 의사별 대기 인원 — 진료과+의사 이름과 대기 수(진료과 생략 안 함, 동명 방지). */}
+        {data.doctor_waiting.length > 0 && (
+          <div style={styles.docWaitWrap}>
+            <span style={styles.docWaitHead}>의사별 대기</span>
+            <div style={styles.docWaitList}>
+              {data.doctor_waiting.map((doc) => (
+                <DoctorWaitingView key={doc.doctor_id} doc={doc} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 확인 필요 상담 문의 — 4단계 집계 계약이 없으면 null(STAT-METRIC-06): 0이 아니라 「집계 불가」. */}
         <div style={styles.pendingLine}>
@@ -149,6 +184,58 @@ function LongWaitRowView({ row, navigate }: { row: LongWaitRow; navigate: (to: s
   )
 }
 
+function NotArrivedRowView({ row, navigate }: { row: NotArrivedRow; navigate: (to: string) => void }) {
+  // TODAY-ROW-02: 아직 오지 않은 예약이라 시각 레일을 옅은 회색으로(진행 중과 구분).
+  return (
+    <div data-testid={`noshow-row-${row.appointment_id}`} style={styles.row}>
+      <div style={styles.railPast} aria-hidden="true">{hhmm(row.slot_time)}</div>
+      <Identity row={row} />
+      <span style={styles.reason} />
+      {/* TODAY-BTN-02: [진료 대기]·[도착] 두 갈래(/queue 미도착 줄과 같은 두 갈래). TODAY-BTN-05: [번호 보기]. */}
+      <div style={styles.rowActions}>
+        <button type="button" style={styles.btnPrimary}
+          onClick={() => navigate(`/queue?tab=not_arrived&appointment=${row.appointment_id}&action=waiting`)}>
+          진료 대기
+        </button>
+        <button type="button" style={styles.btnQuiet}
+          onClick={() => navigate(`/queue?tab=not_arrived&appointment=${row.appointment_id}&action=arrive`)}>
+          도착
+        </button>
+        {/* TODAY-BTN-05: 이름이 「전화 걸기」가 아니다 — 원문 공개(MASK-VIEW)는 환자 상세에서 이뤄진다. */}
+        <button type="button" style={styles.btnQuiet} onClick={() => navigate(`/patients/${row.patient_id}`)}>
+          번호 보기
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function YesterdayRowView({ row, navigate }: { row: YesterdayUnfinishedRow; navigate: (to: string) => void }) {
+  return (
+    <div data-testid={`yday-row-${row.appointment_id}`} style={styles.row}>
+      {/* TODAY-YDAY-03: 지난 날짜이므로 날짜를 함께 표시한다(8/2 16:30) — 오늘로 오해하지 않게. */}
+      <div style={styles.railPast} aria-hidden="true">{mdHm(row.slot_date, row.slot_time)}</div>
+      <Identity row={row} />
+      <span style={styles.reason}>{row.reason}</span>
+      <div style={styles.rowActions}>
+        <button type="button" style={styles.btnQuiet} onClick={() => navigate(`/patients/${row.patient_id}`)}>
+          환자 상세
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DoctorWaitingView({ doc }: { doc: DoctorWaitingRow }) {
+  return (
+    <div data-testid={`doc-waiting-${doc.doctor_id}`} style={styles.docWaitRow}>
+      {/* 진료과를 생략하지 않는다(동명 방지) — 「내과 · 박지훈」. */}
+      <span style={styles.docWaitName}>{doc.department_name} · {doc.doctor_name}</span>
+      <span style={styles.docWaitCount}>{doc.waiting_count}명</span>
+    </div>
+  )
+}
+
 function NeedsRowView({ row, navigate }: { row: NeedsAttentionRow; navigate: (to: string) => void }) {
   return (
     <div data-testid={`needs-row-${row.appointment_id}`} style={styles.row}>
@@ -166,7 +253,7 @@ function NeedsRowView({ row, navigate }: { row: NeedsAttentionRow; navigate: (to
   )
 }
 
-function Identity({ row }: { row: LongWaitRow | NeedsAttentionRow }) {
+function Identity({ row }: { row: PatientRow }) {
   return (
     <div style={styles.identity}>
       <span style={styles.name}>{row.masked_name}</span>
@@ -195,6 +282,19 @@ function TileButton({ label, value, tone, onClick }: { label: string; value: num
       <StatTile value={value} label={label} tone={tone} />
     </button>
   )
+}
+
+// ── 시각·날짜 포맷 ───────────────────────────────────────────────────────────
+
+/** 백엔드 time("09:30:00") → 시각 레일용 "09:30". */
+function hhmm(t: string): string {
+  return t.slice(0, 5)
+}
+
+/** 지난 날짜 행의 레일(TODAY-YDAY-03) — date("2026-08-02")+time → "8/2 16:30"(앞의 0을 뗀다). */
+function mdHm(d: string, t: string): string {
+  const [, m, day] = d.split('-')
+  return `${Number(m)}/${Number(day)} ${hhmm(t)}`
 }
 
 // ── 날짜 (TODAY-DATE-01) ────────────────────────────────────────────────────
@@ -246,6 +346,13 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--fs-sm)', fontWeight: 700, borderRadius: 6,
     fontVariantNumeric: 'tabular-nums',
   },
+  // TODAY-ROW-02: 아직 오지 않은/지난 예약의 시각 레일은 옅은 회색(진행 중과 구분).
+  railPast: {
+    minWidth: 44, textAlign: 'center', padding: '4px 6px',
+    background: 'var(--color-done-bg)', color: 'var(--color-gray-past)',
+    fontSize: 'var(--fs-sm)', fontWeight: 700, borderRadius: 6,
+    fontVariantNumeric: 'tabular-nums',
+  },
   identity: { display: 'flex', flexDirection: 'column', minWidth: 96 },
   name: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
   birth: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
@@ -268,6 +375,23 @@ const styles: Record<string, CSSProperties> = {
   tileButton: {
     display: 'block', padding: 0, border: 'none', background: 'none',
     textAlign: 'left', cursor: 'pointer', width: '100%',
+  },
+
+  // TODAY-DOC-01: 의사별 대기 — 요약 타일 아래 촘촘한 목록(콘솔 결).
+  docWaitWrap: { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 },
+  docWaitHead: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)' },
+  docWaitList: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 6,
+  },
+  docWaitRow: {
+    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
+    padding: '6px 10px', border: '1px solid var(--color-divider)',
+    borderRadius: 8, background: 'var(--color-surface)',
+  },
+  docWaitName: { fontSize: 'var(--fs-base)', fontWeight: 600, color: 'var(--color-ink)' },
+  docWaitCount: {
+    fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-primary)',
+    fontVariantNumeric: 'tabular-nums',
   },
 
   pendingLine: {

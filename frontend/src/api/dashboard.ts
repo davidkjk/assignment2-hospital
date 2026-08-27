@@ -33,10 +33,36 @@ export interface NeedsAttentionRow extends PatientRow {
   reason: string
 }
 
+/** 미접수·시각 경과 행(TODAY-NOSHOW-01) — 예약 시각(slot_time)이 시각 레일로 온다. */
+export interface NotArrivedRow extends PatientRow {
+  slot_time: string
+}
+
+/** 전일 미완료 행(TODAY-YDAY-01/03) — 지난 날짜라 날짜(slot_date)를 함께 준다. */
+export interface YesterdayUnfinishedRow extends PatientRow {
+  slot_date: string
+  slot_time: string
+  reason: string
+}
+
+/** 의사별 대기(TODAY-DOC-01) — 진료과+의사 이름과 대기 수. 집계라 환자 원문이 없다. */
+export interface DoctorWaitingRow {
+  doctor_id: string
+  doctor_name: string
+  department_name: string
+  waiting_count: number
+}
+
 export interface TodaySummary {
   tiles: TodayTiles
   long_wait: LongWaitRow[]
   needs_attention: NeedsAttentionRow[]
+  /** 미접수·시각 경과(TODAY-NOSHOW-01). */
+  not_arrived: NotArrivedRow[]
+  /** 전일 미완료(TODAY-YDAY-01). */
+  yesterday_unfinished: YesterdayUnfinishedRow[]
+  /** 의사별 대기(TODAY-DOC-01) — 요약 API 단일 소스(프론트 이중계산 방지). */
+  doctor_waiting: DoctorWaitingRow[]
   /** 이 카드에 줄이 있는 사람은 사이드바 배지가 두 번 세지 않는다(TODAY-RESCHED-21). */
   badge_excluded_patient_ids: string[]
   /** 확인 필요 상담 문의 건수. 4단계 계약이 없으면 null(STAT-METRIC-06) — 0이 아니다. */
