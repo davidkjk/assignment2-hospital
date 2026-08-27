@@ -9,6 +9,7 @@ import { QueuePage } from './pages/QueuePage'
 import { PatientDetailPage } from './pages/patient/PatientDetailPage'
 import { DoctorConsolePage } from './pages/doctor/DoctorConsolePage'
 import { StatsPage } from './pages/admin/StatsPage'
+import { CalendarPage } from './pages/calendar/CalendarPage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
@@ -24,11 +25,19 @@ function Placeholder({ title }: { title: string }) {
   return <section><h1>{title}</h1><p>이 화면의 본문은 후속 화면 태스크에서 연결됩니다.</p></section>
 }
 
+// 캘린더는 역할(⚙ 팔레트 관리는 관리자만·CAL-COLOR-04)과 staffId(줌 사람별 기억)를
+// 실제 세션에서 받아야 해 useAuth를 읽는 얇은 래퍼로 배선한다.
+function CalendarRoute() {
+  const { staff } = useAuth()
+  return <CalendarPage staffKey={staff?.staffId ?? 'staff'} isAdmin={staff?.role === 'admin'} />
+}
+
 function pageFor(path: string, label: string) {
   if (path === '/today') return <TodayPage />
   if (path === '/queue') return <QueuePage />
   if (path === '/doctor/console') return <DoctorConsolePage />
   if (path === '/admin/stats') return <StatsPage />
+  if (path === '/calendar') return <CalendarRoute />
   return <Placeholder title={label} />
 }
 

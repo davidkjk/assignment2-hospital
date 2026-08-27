@@ -27,12 +27,23 @@ export interface CalendarBlock {
   source: string
 }
 
-/** 캘린더가 그릴 셋을 한 응답으로(CAL-SLOT-*). 워크인(슬롯 없음)은 시각이 없어 여기 안 든다. */
+/** 격자 열 카탈로그(CAL-VIEW/NAME/COLOR) — Task 14c가 GET /calendar 응답에 더했다.
+ *  ⚠️ palette_index는 지금 항상 null(색 저장 칸=Task 19 00042 미완, 갭 #83) — 화면이 정렬 순서로 잠정 배정한다. */
+export interface CalendarDoctorCatalog {
+  id: string
+  name: string
+  department_name: string | null
+  palette_index: number | null
+}
+
+/** 캘린더가 그릴 넷을 한 응답으로(CAL-SLOT-*·CAL-VIEW-*). 워크인(슬롯 없음)은 시각이 없어 여기 안 든다. */
 export interface CalendarData {
   appointments: CalendarBar[]
   blocks: CalendarBlock[]
   /** ⚠ 확인 필요 — 일정 변경 영향 예약의 id만(CAL-SLOT-05). 원본 이름은 싣지 않는다. */
   affected_appointment_ids: string[]
+  /** 격자 열 카탈로그 — 예약이 없는 의사도 열이 생긴다(CAL-COLOR-10). */
+  doctors: CalendarDoctorCatalog[]
 }
 
 export function getCalendar(params: {
