@@ -18,6 +18,7 @@ import { MergeHistoryPage } from './pages/admin/merge-history/MergeHistoryPage'
 import { MergeEventDetail } from './pages/admin/merge-history/MergeEventDetail'
 import { QuestionnaireAdminPage } from './pages/admin/questionnaires/QuestionnaireAdminPage'
 import { ErrorLogPage } from './pages/admin/errors/ErrorLogPage'
+import { MessagesPage } from './pages/messages/MessagesPage'
 import { PatientSearchPage } from './pages/patients/PatientSearchPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
 import { TodayPage } from './pages/TodayPage'
@@ -56,6 +57,7 @@ function pageFor(path: string, label: string) {
   if (path === '/admin/merge-history') return <MergeHistoryPage />
   if (path === '/admin/questionnaires') return <QuestionnaireAdminPage />
   if (path === '/admin/errors') return <ErrorLogPage />
+  if (path === '/messages') return <MessagesPage />
   if (path === '/calendar') return <CalendarRoute />
   return <Placeholder title={label} />
 }

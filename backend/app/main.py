@@ -10,6 +10,7 @@ from app.routers import (
     error_logs,
     me,
     medical_records,
+    messages,
     patient_merge,
     patients,
     questionnaire_admin,
@@ -38,6 +39,7 @@ app.include_router(stats.router)
 app.include_router(schedule_admin.router)
 app.include_router(audit_logs.router)
 app.include_router(error_logs.router)
+app.include_router(messages.router)
 
 
 @app.get("/health")

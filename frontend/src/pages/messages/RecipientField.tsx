@@ -1,0 +1,104 @@
+import { useState, type CSSProperties } from 'react'
+import { PatientSearch } from '../patients/PatientSearch'
+
+// [Task 28][SEND-WHO-03·04][SEND-BOX-03] 받는 사람 칸.
+//   • 칸을 누르면 왼쪽이 「고르는 도구」(검색 표)가 된다(PANEL-WORK-02 — 여기서는 패널 안에 인라인).
+//   • [전 환자에게 보내기]는 검색으로 넣을 수 없는 전체(SEND-WHO-04) — 별도 버튼.
+// ⚠️ PatientSearch(mode="pick")의 onPick은 id만 준다 → 이름 없이 「N명 선택됨」으로 센다.
+//   (개인정보 열거 없이 인원만 보이는 것은 SEND-ADS-02의 태도와도 맞다.)
+
+export type Recipients = { mode: 'pick'; ids: string[] } | { mode: 'all' }
+
+interface Props {
+  value: Recipients
+  onChange: (r: Recipients) => void
+}
+
+export function RecipientField({ value, onChange }: Props) {
+  const [picking, setPicking] = useState(false)
+
+  const addId = (id: string) => {
+    const ids = value.mode === 'pick' ? value.ids : []
+    if (!ids.includes(id)) onChange({ mode: 'pick', ids: [...ids, id] })
+  }
+
+  return (
+    <div style={styles.wrap}>
+      <span style={styles.label}>받는 사람</span>
+
+      {value.mode === 'all' ? (
+        <div style={styles.summary}>
+          <span style={styles.allTag}>전 환자</span>
+          <button type="button" style={styles.linkBtn} onClick={() => onChange({ mode: 'pick', ids: [] })}>
+            다시 고르기
+          </button>
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            aria-label="받는 사람 고르기"
+            style={styles.pickField}
+            onClick={() => setPicking((v) => !v)}
+          >
+            {value.ids.length > 0 ? `${value.ids.length}명 선택됨` : '환자를 고르세요'}
+          </button>
+          <button type="button" style={styles.allBtn} onClick={() => onChange({ mode: 'all' })}>
+            전 환자에게 보내기
+          </button>
+          {picking && (
+            <div data-testid="left-tool" style={styles.tool}>
+              <p style={styles.toolHead}>환자를 고르는 중</p>
+              <PatientSearch mode="pick" onPick={addId} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+const styles: Record<string, CSSProperties> = {
+  wrap: { display: 'flex', flexDirection: 'column', gap: 6 },
+  label: { fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  pickField: {
+    height: 36,
+    padding: '0 10px',
+    borderRadius: 8,
+    border: '1px solid var(--color-divider)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-ink)',
+    fontSize: 'var(--fs-base)',
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+  allBtn: {
+    alignSelf: 'flex-start',
+    background: 'none',
+    border: 'none',
+    color: 'var(--color-primary)',
+    fontSize: 'var(--fs-sm)',
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: 0,
+  },
+  summary: { display: 'flex', alignItems: 'center', gap: 10 },
+  allTag: {
+    padding: '4px 10px',
+    borderRadius: 6,
+    background: 'var(--color-surface-muted, #eef2f6)',
+    fontWeight: 600,
+    color: 'var(--color-ink)',
+  },
+  linkBtn: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--color-primary)',
+    fontSize: 'var(--fs-sm)',
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: 0,
+  },
+  tool: { marginTop: 8, border: '1px solid var(--color-divider)', borderRadius: 8, padding: 8 },
+  toolHead: { margin: '0 0 8px', fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+}
