@@ -33,6 +33,27 @@ export function createAppointment(body: CreateAppointmentBody) {
   return apiFetch<{ appointment_id: string }>('/appointments', jsonBody(body))
 }
 
+// [CHKIN-RESULT-01] 접수 조회가 결과 카드에 그릴 요약. 전화·생년월일은 서버가 아예 담지 않는다
+// (요구사항 :81은 목록 마스킹, 접수엔 「이 사람이 이 예약이 맞나」만 필요 — MASK-SRV-01).
+// updated_at은 도착 처리의 낙관적 잠금 열쇠다(CHKIN-RESULT-03).
+export interface BookingLookupResult {
+  appointment_id: string
+  patient_name: string
+  slot_at: string
+  department_name: string
+  doctor_name: string
+  status: string
+  updated_at: string
+}
+
+// [CHKIN-CODE-03] QR 디코드와 직접 입력이 함께 부른다. 만료·미존재·종료는 서버가 구분 없이 null.
+// ⛔ 예약번호를 URL 쿼리·로그에 남기지 않는다(P-01) — 요청 경로 하나에만 싣는다.
+export function findByCode(code: string) {
+  return apiFetch<{ appointment: BookingLookupResult | null }>(
+    `/appointments/find-by-code?code=${encodeURIComponent(code)}`,
+  ).then((r) => r.appointment)
+}
+
 export function transitionStatus(
   appointmentId: string,
   body: { new_status: string; reason?: string | null; expected_updated_at: string },

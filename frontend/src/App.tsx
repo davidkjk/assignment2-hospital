@@ -12,6 +12,7 @@ import { StatsPage } from './pages/admin/StatsPage'
 import { AccessLogPage } from './pages/admin/AccessLogPage'
 import { SchedulePage } from './pages/admin/schedule/SchedulePage'
 import { StaffAdminPage } from './pages/admin/staff/StaffAdminPage'
+import { CheckInPage } from './pages/checkin/CheckInPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
@@ -43,6 +44,7 @@ function pageFor(path: string, label: string) {
   if (path === '/admin/access-logs') return <AccessLogPage />
   if (path === '/admin/schedule') return <SchedulePage />
   if (path === '/admin/staff') return <StaffAdminPage />
+  if (path === '/checkin') return <CheckInPage />
   if (path === '/calendar') return <CalendarRoute />
   return <Placeholder title={label} />
 }
