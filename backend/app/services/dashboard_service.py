@@ -239,6 +239,7 @@ async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=
     """
     async def _run(c):
         doctors = await _calendar_doctors(c, doctor_ids)
+        doctor_catalog = await _calendar_doctor_catalog(c, doctor_ids)
 
         # ① 예약 막대 — 슬롯을 가진 활성 예약만(워크인은 시각이 없어 제외).
         appt_rows = await c.fetch(
@@ -288,6 +289,7 @@ async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=
         ]
 
         return {
+            "doctors": doctor_catalog,
             "appointments": appointments,
             "blocks": blocks,
             "affected_appointment_ids": affected_ids,
@@ -302,6 +304,34 @@ async def _calendar_doctors(conn, doctor_ids) -> list:
         return list(doctor_ids)
     rows = await conn.fetch("select id from staff where role = 'doctor' and is_active order by id")
     return [row["id"] for row in rows]
+
+
+async def _calendar_doctor_catalog(conn, doctor_ids) -> list:
+    """[CAL-NAME][CAL-COLOR-10] 격자에 열이 생기는 활성 의사 목록 — 이름·진료과를 함께 싣는다.
+
+    지정이 없으면 활성 의사 전부(_calendar_doctors와 같은 태도). palette_index는 아직 null —
+    색 저장 칸(staff 팔레트 인덱스)이 없어(갭 #83) Task 19 00042가 나중에 채운다.
+    """
+    rows = await conn.fetch(
+        """
+        select s.id, s.name, d.name as department_name
+        from staff s
+        left join departments d on d.id = s.department_id
+        where s.role = 'doctor' and s.is_active
+          and ($1::uuid[] is null or s.id = any($1))
+        order by s.id
+        """,
+        list(doctor_ids) if doctor_ids else None,
+    )
+    return [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "department_name": row["department_name"],
+            "palette_index": None,
+        }
+        for row in rows
+    ]
 
 
 def _calendar_bar(row) -> dict:

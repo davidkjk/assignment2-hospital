@@ -112,6 +112,57 @@ async def test_캘_슬롯_05_확인필요_예약은_affected로_표시된다(db_
 
 
 @pytest.mark.asyncio
+async def test_캘_카탈로그_활성의사를_이름과_진료과와_함께_싣는다(db_conn):
+    """[CAL-NAME][CAL-COLOR] 격자가 열을 그리려면 doctors 카탈로그(id·name·진료과)가 응답에 있어야 한다."""
+    dept = await seed_department(db_conn, name="정형외과")
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["name"] == "Test Staff"
+    assert entry["department_name"] == "정형외과"
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_palette_index는_아직_null이다(db_conn):
+    """[CAL-COLOR-10 / 갭 #83] 색 저장 칸이 아직 없다(Task 19) — 계약만 열어 두고 항상 null."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["palette_index"] is None
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_doctor_ids로_필터된다(db_conn):
+    """[CAL-VIEW] doctor_ids가 오면 그 의사만 카탈로그에 든다 — 지정 밖 의사는 빠진다."""
+    dept = await seed_department(db_conn)
+    doc1 = await seed_doctor(db_conn, dept)
+    doc2 = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc1["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc1["staff_id"]], conn=db_conn
+    )
+
+    ids = {d["id"] for d in result["doctors"]}
+    assert doc1["staff_id"] in ids
+    assert doc2["staff_id"] not in ids  # 지정 밖 의사는 카탈로그에서 빠진다
+
+
+@pytest.mark.asyncio
 async def test_마스크_예약_막대는_이름을_가려_싣는다(db_conn):
     """[MASK-SRV-01] 예약 막대의 환자 이름은 마스킹돼야 한다 — 원본 name 키는 없다."""
     dept = await seed_department(db_conn)
