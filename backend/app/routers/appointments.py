@@ -21,6 +21,8 @@ class CreateAppointmentRequest(BaseModel):
     source: str
     initial_status: str
     slot_id: UUID | None = None
+    # [QUEUE-WALK-18] 워크인 실제 방문 시각(갭 #85). 슬롯 없는 당일 방문에만 온다.
+    walkin_visit_time: datetime | None = None
 
 
 class CreateAppointmentResponse(BaseModel):
@@ -45,6 +47,7 @@ async def create_appointment(
         source="staff",
         initial_status=body.initial_status,
         slot_id=body.slot_id,
+        walkin_visit_time=body.walkin_visit_time,
     )
     return CreateAppointmentResponse(appointment_id=appointment_id)
 

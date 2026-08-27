@@ -87,6 +87,7 @@ async def create_appointment(
     source: str,
     initial_status: str,
     slot_id: UUID | None = None,
+    walkin_visit_time: datetime | None = None,
     conn=None,
 ) -> UUID:
     # [정합성 검토 R1-우선3 재검증] 클라이언트가 보낸 source/initial_status 조합을 그대로 믿지 않고
@@ -103,6 +104,12 @@ async def create_appointment(
         )
 
     async def _run(c) -> UUID:
+        # [QUEUE-WALK-16][QUEUE-WALK-18] 워크인 방문 시각(갭 #85)은 「지금보다 뒤」를 못 적는다.
+        # now()는 IMMUTABLE이 아니라 CHECK로 못 걸어 서버가 판정한다 — DB now()로 재 클럭 스큐를 피한다.
+        if walkin_visit_time is not None:
+            if await c.fetchval("select $1::timestamptz > now()", walkin_visit_time):
+                raise AppError("아직 오지 않은 시각입니다.", status_code=400)
+
         if slot_id is not None:
             booked = await book_slot(slot_id, staff, conn=c)
             if not booked:
@@ -122,12 +129,12 @@ async def create_appointment(
                     appointment_id = await c.fetchval(
                         """
                         insert into appointments
-                            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by)
-                        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, created_by, walkin_visit_time)
+                        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                         returning id
                         """,
                         slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason,
-                        initial_status, source, staff.id,
+                        initial_status, source, staff.id, walkin_visit_time,
                     )
                 break
             except asyncpg.UniqueViolationError as exc:

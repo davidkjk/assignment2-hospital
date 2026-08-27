@@ -72,3 +72,44 @@ export interface TodaySummary {
 export function getTodaySummary() {
   return apiFetch<TodaySummary>('/today/summary')
 }
+
+// ── 대기 목록 (/queue) ──────────────────────────────────────────────────────
+// 백엔드 계약: backend/app/services/dashboard_service.py::get_queue
+
+/** 탭 슬러그 7종(QUEUE-TAB-01) — URL·탭 숫자 키와 같은 영문 슬러그. */
+export type QueueTab =
+  | 'total' | 'not_arrived' | 'arrived' | 'waiting'
+  | 'in_progress' | 'completed' | 'cancelled_or_noshow'
+
+/** 탭마다의 인원(QUEUE-FILT-03) — 전체 기준(의사 필터를 따라가지 않는다). */
+export type QueueTabCounts = Record<QueueTab, number>
+
+/** 대기 목록 한 행 — 마스킹된 신원 + 도착처리·순서변경·원문공개에 필요한 안전 필드만. */
+export interface QueueRow extends PatientRow {
+  /** 대기 목록 행은 항상 예약 식별자를 갖는다(mutation·강조의 키). */
+  appointment_id: string
+  status: string
+  /** 낙관적 동시성용(도착처리·긴급표시가 이 값을 expected_updated_at으로 되보낸다). */
+  updated_at: string
+  is_urgent_flag: boolean
+  /** 당일 방문 배지(QUEUE-WALK-12) — 순번 자리 시각이 없는 이유를 설명한다. */
+  is_walkin: boolean
+  doctor_id: string
+  doctor_name: string
+  department_name: string
+  /** 예약 시각("09:30:00") — 미도착 줄의 시각 레일(QUEUE-ORDER-02). 워크인은 null. */
+  slot_time: string | null
+  /** 진료 대기 탭에서만 온다(QUEUE-ORDER-01·02). 그 밖의 탭에는 없다. */
+  queue_no?: number
+}
+
+export interface QueueResponse {
+  rows: QueueRow[]
+  tab_counts: QueueTabCounts
+}
+
+export function getQueue(params: { tab: QueueTab; doctorId?: string | null }) {
+  const query = new URLSearchParams({ tab: params.tab })
+  if (params.doctorId) query.set('doctor_id', params.doctorId)
+  return apiFetch<QueueResponse>(`/queue?${query.toString()}`)
+}

@@ -5,6 +5,7 @@ import { useAuth } from './auth/useAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PasswordResetNewPage } from './pages/PasswordResetNewPage'
 import { PasswordResetRequestPage } from './pages/PasswordResetRequestPage'
+import { QueuePage } from './pages/QueuePage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
@@ -20,6 +21,12 @@ function Placeholder({ title }: { title: string }) {
   return <section><h1>{title}</h1><p>이 화면의 본문은 후속 화면 태스크에서 연결됩니다.</p></section>
 }
 
+function pageFor(path: string, label: string) {
+  if (path === '/today') return <TodayPage />
+  if (path === '/queue') return <QueuePage />
+  return <Placeholder title={label} />
+}
+
 export function App() {
   return (
     <>
@@ -29,7 +36,7 @@ export function App() {
         <Route path="/reset-password" element={<PasswordResetRequestPage />} />
         <Route path="/reset-password/new" element={<PasswordResetNewPage />} />
         <Route path="/" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><AppShell /></RequireRole>}>
-          {NAV_ITEMS.map((item) => <Route key={item.path} path={item.path.slice(1)} element={<RequireRole roles={item.roles}>{item.path === '/today' ? <TodayPage /> : <Placeholder title={item.label} />}</RequireRole>} />)}
+          {NAV_ITEMS.map((item) => <Route key={item.path} path={item.path.slice(1)} element={<RequireRole roles={item.roles}>{pageFor(item.path, item.label)}</RequireRole>} />)}
           <Route path="patients/:id" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><Placeholder title="환자 상세" /></RequireRole>} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />

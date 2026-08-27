@@ -51,6 +51,53 @@ async def test_create_appointment_without_slot(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_queue_walk_18_워크인_방문시각을_저장한다(db_conn):
+    """[QUEUE-WALK-18] 갭 #85 — 슬롯 없는 워크인의 실제 방문 시각을 walkin_visit_time에 남긴다."""
+    from datetime import datetime, timedelta, timezone
+    ctx = await _seed_base(db_conn)
+    visit = datetime.now(timezone.utc) - timedelta(minutes=40)  # "아까 왔다"
+    appointment_id = await appointment_service.create_appointment(
+        staff=ctx["receptionist"],
+        account_patient_id=ctx["patient_id"],
+        for_patient_id=ctx["patient_id"],
+        department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor"].id,
+        reason="복통",
+        source="staff",
+        initial_status="진료대기",
+        walkin_visit_time=visit,
+        conn=db_conn,
+    )
+    saved = await db_conn.fetchval(
+        "select walkin_visit_time from appointments where id = $1", appointment_id)
+    assert saved is not None
+    # 5분 격자에 스냅하지 않고 그대로 저장(QUEUE-WALK-14d).
+    assert abs((saved - visit).total_seconds()) < 1
+
+
+@pytest.mark.asyncio
+async def test_queue_walk_16_미래_방문시각은_거부한다(db_conn):
+    """[QUEUE-WALK-16] 「지금보다 뒤는 못 고른다」 — 서버가 미래 방문 시각을 400으로 막는다."""
+    from datetime import datetime, timedelta, timezone
+    ctx = await _seed_base(db_conn)
+    future = datetime.now(timezone.utc) + timedelta(hours=1)
+    with pytest.raises(AppError) as exc_info:
+        await appointment_service.create_appointment(
+            staff=ctx["receptionist"],
+            account_patient_id=ctx["patient_id"],
+            for_patient_id=ctx["patient_id"],
+            department_id=ctx["dept_id"],
+            doctor_id=ctx["doctor"].id,
+            reason="복통",
+            source="staff",
+            initial_status="진료대기",
+            walkin_visit_time=future,
+            conn=db_conn,
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_create_appointment_with_already_booked_slot_raises(db_conn):
     ctx = await _seed_base(db_conn)
     slot_id = await db_conn.fetchval(

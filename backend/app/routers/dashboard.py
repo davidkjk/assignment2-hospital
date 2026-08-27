@@ -47,7 +47,7 @@ async def calendar(
 
 @router.get("/queue")
 async def queue(
-    tab: str = "진료대기",
+    tab: str = "waiting",
     doctor_id: UUID | None = None,
     staff: StaffContext = Depends(require_role(*_STAFF)),
 ) -> dict:

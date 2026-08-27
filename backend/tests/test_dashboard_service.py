@@ -54,6 +54,53 @@ async def test_큐_필트_03_탭_숫자는_필터를_따라가지_않는다(db_c
     assert filtered.tab_counts == all_rows.tab_counts
 
 
+@pytest.mark.asyncio
+async def test_큐_탭_01_탭마다_그_상태의_행을_준다(db_conn):
+    """[QUEUE-TAB-01] 7개 탭은 각자의 상태 행을 그린다 — 미도착/도착/진료대기가 다른 목록이다.
+    ⭐ 예전 get_queue는 tab을 무시하고 진료대기만 줬다(미도착 도착처리를 시작할 목록이 비었다)."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    made = {}
+    for st, tm in [("예약확정", time(9, 0)), ("도착", time(9, 5)), ("진료대기", time(9, 10)),
+                   ("진료중", time(9, 15))]:
+        p = await seed_patient(db_conn)
+        slot = await seed_slot(db_conn, doc["staff_id"], today, start_time=tm)
+        made[st] = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                          patient_id=p, slot_id=slot, status=st,
+                                          queue_position=1 if st == "진료대기" else None)
+    await set_session_auth(db_conn, admin.auth_user_id)
+
+    not_arrived = await dashboard_service.get_queue(admin, tab="not_arrived", conn=db_conn)
+    arrived = await dashboard_service.get_queue(admin, tab="arrived", conn=db_conn)
+    waiting = await dashboard_service.get_queue(admin, tab="waiting", conn=db_conn)
+    assert [r["appointment_id"] for r in not_arrived.rows] == [made["예약확정"]]
+    assert [r["appointment_id"] for r in arrived.rows] == [made["도착"]]
+    assert [r["appointment_id"] for r in waiting.rows] == [made["진료대기"]]
+    # 미도착 행은 예약 시각을 함께 준다(QUEUE-ORDER-02: 순번 자리에 예약 시각). 도착엔 순번이 없다.
+    assert not_arrived.rows[0]["slot_time"] is not None
+    assert "queue_no" not in arrived.rows[0]
+    # 도착/미도착 행도 낙관적 동시성·마스킹 경계를 통과한다(도착처리·원문공개 배선용).
+    assert "updated_at" in arrived.rows[0] and "masked_name" in arrived.rows[0]
+
+
+@pytest.mark.asyncio
+async def test_큐_워크_12_워크인_행에는_당일_방문_표시가_붙는다(db_conn):
+    """[QUEUE-WALK-12] 슬롯 없이 들어온 워크인 행은 당일 방문 배지를 달 수 있게 표시를 준다.
+    「지금」 워크인은 방문 시각을 안 남겨도(slot_id가 없으므로) 배지가 붙는다."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p, slot_id=None, status="진료대기", queue_position=1)
+    await set_session_auth(db_conn, admin.auth_user_id)
+    rows = (await dashboard_service.get_queue(admin, tab="waiting", conn=db_conn)).rows
+    assert rows[0]["is_walkin"] is True
+
+
 # ── 의사 콘솔 ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

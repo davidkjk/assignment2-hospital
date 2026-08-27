@@ -39,47 +39,96 @@ async def _dispatch(staff: StaffContext, conn, fn):
 
 # ── 대기 목록 (/queue) ────────────────────────────────────────────────────
 
-async def get_queue(staff: StaffContext, *, doctor_id=None, tab: str = "진료대기", conn=None) -> QueueResult:
-    """⭐ 순번은 필터 이전에 매긴다(QUEUE-ORDER-03) — 병원 전체 대기 줄에 row_number()를
-    먼저 매기고 그 다음에 의사로 거른다. 탭 숫자는 전체 기준을 유지한다(QUEUE-FILT-03)."""
+# [QUEUE-TAB-01] 7개 탭 ↔ 상태 집합. 화면 URL은 영문 슬러그(?tab=waiting)를 쓰고 탭 숫자 키와 같다.
+# total은 전체(상태 무관). 미도착은 아직 접수 전(예약신청·예약확정) — 도착처리를 시작할 목록이다.
+_TAB_STATUSES: dict[str, tuple[str, ...] | None] = {
+    "total": None,
+    "not_arrived": ("예약신청", "예약확정"),
+    "arrived": ("도착",),
+    "waiting": ("진료대기",),
+    "in_progress": ("진료중",),
+    "completed": ("진료완료",),
+    "cancelled_or_noshow": ("환자취소", "병원취소", "예약부도"),
+}
+
+
+async def get_queue(staff: StaffContext, *, doctor_id=None, tab: str = "waiting", conn=None) -> QueueResult:
+    """[QUEUE-TAB-01][QUEUE-ORDER-03][QUEUE-FILT-03] 고른 탭의 행 + 전체 기준 탭 숫자를 준다.
+
+    ⭐ 순번은 필터 이전에 매긴다(QUEUE-ORDER-03) — 병원 전체 진료대기 줄에 row_number()를 먼저
+       매기고(의사 필터와 무관) 그 다음에 의사로 거른다. 다시 매기면 직원이 부르는 「3번」과 의사가
+       부르는 「3번」이 달라진다.
+    ⭐ 탭 숫자는 전체 기준을 유지한다(QUEUE-FILT-03) — 의사 필터를 걸어도 탭의 수는 안 줄어든다.
+    ⭐ tab이 낯선 값이면 기본 「진료대기」로 본다(막다른 길 금지). 옛 한글 기본값도 그대로 받는다.
+    """
+    statuses = _TAB_STATUSES.get(tab, _TAB_STATUSES["waiting"]) if tab != "진료대기" else _TAB_STATUSES["waiting"]
+
     async def _run(c):
-        waiting = await c.fetch(
+        # 오늘의 모든 예약을 한 번에 — 진료대기에만 병원 전체 순번을 window로 매긴다(필터 이전).
+        rows = await c.fetch(
             f"""
-            with line as (
-              select a.id, a.doctor_id, a.for_patient_id, a.status, a.queue_position,
-                     p.name, p.phone, p.birth_date,
-                     row_number() over (order by a.queue_position asc nulls last, a.id) as queue_no
-              from appointments a
-              join patients p on p.id = a.for_patient_id
-              left join appointment_slots s on s.id = a.slot_id
-              where a.status = '진료대기' and {_TODAY_SCOPE}
-            )
-            select * from line
-            where ($1::uuid is null or doctor_id = $1)
-            order by queue_no
-            """,
-            doctor_id,
-        )
-        tab_rows = await c.fetch(
-            f"""
-            select a.status, count(*) as n
+            select a.id, a.doctor_id, a.for_patient_id, a.status, a.queue_position,
+                   a.updated_at, a.is_urgent_flag, a.slot_id,
+                   p.name, p.phone, p.birth_date,
+                   s.start_time as slot_time, d.name as doctor_name, dept.name as department_name,
+                   case when a.status = '진료대기'
+                     then row_number() over (
+                       partition by (a.status = '진료대기')
+                       order by a.queue_position asc nulls last, a.id)
+                   end as queue_no
             from appointments a
+            join patients p on p.id = a.for_patient_id
             left join appointment_slots s on s.id = a.slot_id
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
             where {_TODAY_SCOPE}
-            group by a.status
             """
         )
-        return waiting, tab_rows
+        return rows
 
-    waiting, tab_rows = await _dispatch(staff, conn, _run)
-    rows = [
-        patient_row_dto(
-            patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
-            appointment_id=r["id"], queue_no=r["queue_no"], status=r["status"],
-        )
-        for r in waiting
+    all_rows = await _dispatch(staff, conn, _run)
+
+    tab_counts = _tab_counts([{"status": r["status"], "n": 1} for r in all_rows])
+
+    # 고른 탭 + 의사 필터. 진료대기는 순번순, 그 밖은 예약 시각순(순번이 없다, QUEUE-ORDER-02).
+    picked = [
+        r for r in all_rows
+        if (statuses is None or r["status"] in statuses)
+        and (doctor_id is None or r["doctor_id"] == doctor_id)
     ]
-    return QueueResult(rows=rows, tab_counts=_tab_counts(tab_rows))
+    if tab == "waiting" or tab == "진료대기":
+        picked.sort(key=lambda r: (r["queue_no"] is None, r["queue_no"]))
+    else:
+        picked.sort(key=lambda r: (r["slot_time"] is None, r["slot_time"], r["id"]))
+
+    rows = [_queue_row_dto(r, with_queue_no=(tab in ("waiting", "진료대기"))) for r in picked]
+    return QueueResult(rows=rows, tab_counts=tab_counts)
+
+
+def _queue_row_dto(r, *, with_queue_no: bool) -> dict:
+    """대기 목록 한 행 — 마스킹된 신원 + 도착처리·순서변경·원문공개 배선에 필요한 안전 필드.
+
+    updated_at은 낙관적 동시성(도착처리·긴급표시), is_walkin은 당일 방문 배지(QUEUE-WALK-12),
+    slot_time은 미도착 줄의 예약 시각(QUEUE-ORDER-02). 순번은 진료대기 탭에서만 싣는다.
+    """
+    extra: dict = {
+        "appointment_id": r["id"],
+        "status": r["status"],
+        "updated_at": r["updated_at"].isoformat(),
+        "is_urgent_flag": r["is_urgent_flag"],
+        # 워크인 = 슬롯 없는 예약(QUEUE-WALK-10). 「지금」 워크인(방문시각 미기록)도 배지가 붙는다.
+        "is_walkin": r["slot_id"] is None,
+        "doctor_id": r["doctor_id"],
+        "doctor_name": r["doctor_name"],
+        "department_name": r["department_name"],
+        "slot_time": r["slot_time"].isoformat() if r["slot_time"] is not None else None,
+    }
+    if with_queue_no:
+        extra["queue_no"] = r["queue_no"]
+    return patient_row_dto(
+        patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+        **extra,
+    )
 
 
 def _tab_counts(tab_rows) -> dict:

@@ -13,6 +13,8 @@ export interface CreateAppointmentBody {
   source: string
   initial_status: string
   slot_id?: string | null
+  // 워크인 실제 방문 시각(QUEUE-WALK-18, 갭 #85). 슬롯 없는 당일 방문에만 보낸다. ISO 문자열.
+  walkin_visit_time?: string | null
 }
 
 const jsonBody = (body: unknown): RequestInit => ({
