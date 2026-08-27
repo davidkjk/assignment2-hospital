@@ -14,6 +14,7 @@ import { SchedulePage } from './pages/admin/schedule/SchedulePage'
 import { StaffAdminPage } from './pages/admin/staff/StaffAdminPage'
 import { CheckInPage } from './pages/checkin/CheckInPage'
 import { MergeCandidatesPage } from './pages/admin/merge/MergeCandidatesPage'
+import { QuestionnaireAdminPage } from './pages/admin/questionnaires/QuestionnaireAdminPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
@@ -47,6 +48,7 @@ function pageFor(path: string, label: string) {
   if (path === '/admin/staff') return <StaffAdminPage />
   if (path === '/checkin') return <CheckInPage />
   if (path === '/admin/patient-merge-candidates') return <MergeCandidatesPage />
+  if (path === '/admin/questionnaires') return <QuestionnaireAdminPage />
   if (path === '/calendar') return <CalendarRoute />
   return <Placeholder title={label} />
 }
