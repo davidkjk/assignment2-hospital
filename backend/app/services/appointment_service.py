@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -80,6 +81,59 @@ ALLOWED_INITIAL_STATUS_BY_SOURCE: dict[str, set[str]] = {
     "app": {"예약신청", "예약확정"},
     "chatbot": {"예약신청", "예약확정"},
 }
+
+
+@dataclass(frozen=True)
+class BookingLookupResult:
+    """[CHKIN-RESULT-01] /checkin 결과 카드가 그릴 요약. ⛔ 전화·생년월일은 담지 않는다
+    (접수엔 「이 사람이 이 예약이 맞나」뿐 필요 — MASK-SRV-01의 정신)."""
+    appointment_id: UUID
+    patient_name: str
+    slot_at: datetime
+    department_name: str
+    doctor_name: str
+    status: str
+    updated_at: datetime   # 도착 처리의 낙관적 잠금 열쇠 — CHKIN-RESULT-03
+
+
+async def find_by_booking_code(
+    code: str, staff: StaffContext, conn=None,
+) -> BookingLookupResult | None:
+    """[R4-04][CHKIN-RESULT-01·02] 유효한 코드 하나를 결과 카드가 그릴 모양으로 돌려준다.
+
+    ⛔ 만료·취소·부도·없는 번호를 구분하지 않는다 — 전부 None이다. 구분하는 순간
+       "취소된 예약입니다"를 말하게 되고, 그것이 곧 환자 존재 여부를 알려주는 일이다(P-01).
+    ⛔ 전화·생년월일을 담지 않는다 — 접수에 필요 없고, 안 보내면 샐 일도 없다(MASK-SRV-01).
+    ⛔ access_audit_log에 남기지 않는다 — ROLE-READ-02가 연 열람 길목 셋 어디에도 접수 조회는
+       없다. 여기 넣으면 관리자의 「누가 이 환자를 봤나」에 접수 건이 묻힌다.
+
+    만료는 booking_code_expires_at > now()로 조회 시점에 다시 거른다(00005:145~148) —
+    "슬롯 날짜 경과" 만료는 INSERT/UPDATE 트리거로 잡을 수 없기 때문이다.
+    """
+
+    async def _run(c) -> BookingLookupResult | None:
+        row = await c.fetchrow(
+            """
+            select a.id as appointment_id, a.status, a.updated_at,
+                   coalesce(a.start_at, s.slot_date + s.start_time) as slot_at,
+                   p.name as patient_name, d.name as department_name, st.name as doctor_name
+              from appointments a
+              join patients p on p.id = a.for_patient_id
+              join departments d on d.id = a.department_id
+              join staff st on st.id = a.doctor_id
+              left join appointment_slots s on s.id = a.slot_id
+             where a.booking_code = $1
+               and a.booking_code_expires_at > now()
+            """,
+            code.strip().upper(),
+        )
+        return BookingLookupResult(**row) if row else None
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
 
 
 async def create_appointment(

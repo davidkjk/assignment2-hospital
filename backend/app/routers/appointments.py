@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime
 from uuid import UUID
 
@@ -50,6 +51,32 @@ async def create_appointment(
         walkin_visit_time=body.walkin_visit_time,
     )
     return CreateAppointmentResponse(appointment_id=appointment_id)
+
+
+class BookingLookupOut(BaseModel):
+    appointment_id: UUID
+    patient_name: str
+    slot_at: datetime
+    department_name: str
+    doctor_name: str
+    status: str
+    updated_at: datetime   # [CHKIN-RESULT-03] 도착 처리의 낙관적 잠금 열쇠
+
+
+class FindByCodeResponse(BaseModel):
+    appointment: BookingLookupOut | None = None   # [CHKIN-RESULT-02] 사유를 나누는 칸이 없다
+
+
+@router.get("/find-by-code", response_model=FindByCodeResponse)
+async def find_by_code(
+    code: str,
+    # [CHKIN-HEAD-03] 의사·비활성 직원은 서버에서 막는다. 사이드바에 안 보이는 것만으로는 안 된다.
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> FindByCodeResponse:
+    found = await appointment_service.find_by_booking_code(code, staff)
+    return FindByCodeResponse(
+        appointment=BookingLookupOut(**asdict(found)) if found else None
+    )
 
 
 class CreatePhoneAppointmentRequest(BaseModel):
