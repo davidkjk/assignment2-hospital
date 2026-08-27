@@ -171,14 +171,15 @@ async def get_next_available(doctor: StaffContext, *, conn=None) -> dict | None:
     return {"slot_date": row["slot_date"], "start_time": row["start_time"]}
 
 
-# ── 캘린더 (/calendar) — BLOCKED on Task 17 resolve_day ───────────────────
+# ── 캘린더 (/calendar) — resolve_day(Task 17)로 조립 ──────────────────────
 
 async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=None):
     """[CAL-SLOT-*][SCHED-EXC-12] 캘린더가 그릴 것(막대·빗금·⚠)을 한 번에.
 
-    ⛔ BLOCKED: 빗금(점심·휴진) 판정기 `opening_hours.resolve_day`가 아직 없다(Task 17 소유).
-       `SCHED-EXC-12`가 *"resolve_day가 유일 판정기"*라 임의 재구현이 금지된다 — 화면이든
-       이 창구든 자기 계산을 가지면 같은 날이 캘린더에서는 진료중, 예약에서는 휴무가 된다.
+    ~~⛔ BLOCKED: 빗금 판정기 resolve_day가 아직 없다(Task 17 소유)~~ ✅ **해소(2026-08-26,
+       통합 배선 `7300805`)** — Task 17이 `opening_hours.resolve_day`를 만들어 아래 ②가 그걸 부른다.
+       `SCHED-EXC-12`가 *"resolve_day가 유일 판정기"*라 임의 재구현은 여전히 금지 — 화면이든 이 창구든
+       자기 계산을 가지면 같은 날이 캘린더에서는 진료중, 예약에서는 휴무가 된다.
 
     셋을 한 응답으로 조립한다:
       ① 예약 막대: 슬롯을 가진 활성 예약(환자 표시명 마스킹·상태·start/end·의사).
