@@ -11,6 +11,7 @@ from app.routers import (
     medical_records,
     patient_merge,
     patients,
+    questionnaire_admin,
     schedule_admin,
     schedule_change,
     staff,
@@ -30,6 +31,7 @@ app.include_router(schedule_change.router)
 app.include_router(me.router)
 app.include_router(patients.router)
 app.include_router(patient_merge.router)
+app.include_router(questionnaire_admin.router)
 app.include_router(dashboard.router)
 app.include_router(stats.router)
 app.include_router(schedule_admin.router)
