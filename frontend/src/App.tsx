@@ -15,6 +15,7 @@ import { StaffAdminPage } from './pages/admin/staff/StaffAdminPage'
 import { CheckInPage } from './pages/checkin/CheckInPage'
 import { MergeCandidatesPage } from './pages/admin/merge/MergeCandidatesPage'
 import { QuestionnaireAdminPage } from './pages/admin/questionnaires/QuestionnaireAdminPage'
+import { PatientSearchPage } from './pages/patients/PatientSearchPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
@@ -40,6 +41,7 @@ function CalendarRoute() {
 
 function pageFor(path: string, label: string) {
   if (path === '/today') return <TodayPage />
+  if (path === '/patients') return <PatientSearchPage />
   if (path === '/queue') return <QueuePage />
   if (path === '/doctor/console') return <DoctorConsolePage />
   if (path === '/admin/stats') return <StatsPage />

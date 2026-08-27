@@ -20,7 +20,8 @@ let lastUrl = ''
 function wireServer() {
   lastUrl = ''
   server.use(
-    http.get('*/patients', () => HttpResponse.json([P1])),
+    // 24a 계약 — searchPatients는 커서 페이지({rows,…})를 준다(옛 Array 아님).
+    http.get('*/patients', () => HttpResponse.json({ rows: [P1], next_cursor: null, has_more: false })),
     http.get('*/admin/access-logs', ({ request }) => {
       lastUrl = request.url
       const q = new URL(request.url).searchParams

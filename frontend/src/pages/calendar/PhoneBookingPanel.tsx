@@ -236,11 +236,13 @@ export function PhoneBookingPanel({
 }
 
 async function defaultSearch(q: string): Promise<Array<{ id: string; name: string; birth?: string }>> {
-  const rows = await searchPatientsApi(q)
-  return rows.map((r) => ({
-    id: String(r.patient_id ?? r.id ?? ''),
-    name: String(r.masked_name ?? r.name ?? '환자'),
-    birth: r.masked_birth_date != null ? String(r.masked_birth_date) : undefined,
+  // searchPatients는 이제 커서 페이지({rows,…})를 준다(24a 계약). 이 임시 검색은 첫 페이지만 쓴다.
+  // ⚠️ 후속(Task 14): 이 defaultSearch를 <PatientSearch mode="pick">로 대체한다(SEARCH-BOX-03).
+  const page = await searchPatientsApi(q)
+  return page.rows.map((r) => ({
+    id: r.patient_id,
+    name: r.masked_name,
+    birth: r.masked_birth_date,
   }))
 }
 

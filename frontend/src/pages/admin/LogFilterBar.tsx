@@ -60,8 +60,9 @@ export function LogFilterBar({
     clearTimeout(timer.current)
     timer.current = setTimeout(async () => {
       try {
-        const rows = (await searchPatients(term)) as unknown as PatientHit[]
-        setHits(rows)
+        // searchPatients는 이제 커서 페이지({rows,…})를 준다(24a 계약) — 필터 칩은 첫 페이지만 쓴다.
+        const page = await searchPatients(term)
+        setHits(page.rows as unknown as PatientHit[])
       } catch {
         setHits([])
       }

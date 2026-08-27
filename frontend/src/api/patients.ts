@@ -5,8 +5,42 @@ import { apiFetch } from './httpClient'
 //    경로는 Task 6 플랜의 계약(`GET /patients?q=` · `GET /patients/{id}` · `GET /patients/{id}/contact`)에 맞춘다.
 //    전화번호 펼치기는 열람 기록이 남는 별도 창구(`/contact`)라, 목록·상세와 나눠 부른다(MASK-*·SEARCH-LOG-*).
 
-export function searchPatients(query: string) {
-  return apiFetch<Array<Record<string, unknown>>>(`/patients?q=${encodeURIComponent(query)}`)
+// ⭐ 전역 환자 검색의 단일 창구(SEARCH-BOX-03) — /patients 화면과 워크인·전화예약 패널이 같은 걸 부른다.
+//    24a(백엔드)가 못박은 계약을 그대로 소비한다: 한 칸(q) + 커서(cursor), 응답은 마스킹된 줄 + 커서.
+//    ⛔ 원본(전화·생일 전체)은 응답에 오지 않는다 — 서버가 masked_* 로만 내려준다(MASK-SRV-01).
+
+/** 왜 걸렸는지(SEARCH-WHY-01·03) — 조각별로 이름·전화·생일 중 무엇이 맞았나. */
+export type SearchMatch = 'name' | 'phone' | 'birth'
+
+/** 오늘 상태(SEARCH-ACT-*) — /queue와 같은 순간의 값을 서버가 준다. 화면이 다시 계산하지 않는다. */
+export type SearchTodayStatus = 'booked' | 'arrived' | 'done' | null
+
+/** 검색 결과 한 줄 — 마스킹된 표시값만. 24a 계약(patient_row_dto + matched·오늘상태). */
+export interface SearchPatientRow {
+  patient_id: string
+  masked_name: string
+  masked_phone: string
+  masked_birth_date: string
+  gender: string | null
+  matched: SearchMatch[]
+  today_status: SearchTodayStatus
+  /** "HH:MM" — 오늘 예약이 있을 때만. 맨 위에 있는 이유를 그 줄에 싣는다(SEARCH-ORDER-06). */
+  today_appointment_time: string | null
+}
+
+/** 커서로 이어받는 한 페이지(SEARCH-RESULT-02·03) — 20건·안정 동점키는 서버(paginate)가 소유. */
+export interface SearchPatientsPage {
+  rows: SearchPatientRow[]
+  next_cursor: string | null
+  has_more: boolean
+}
+
+export function searchPatients(query: string, cursor?: string | null) {
+  const params = new URLSearchParams()
+  if (query) params.set('q', query)
+  if (cursor) params.set('cursor', cursor)
+  const qs = params.toString()
+  return apiFetch<SearchPatientsPage>(`/patients${qs ? `?${qs}` : ''}`)
 }
 
 export function getPatient(patientId: string) {
