@@ -9,6 +9,7 @@ from app.routers import (
     doctor_phrases,
     me,
     medical_records,
+    patient_merge,
     patients,
     schedule_admin,
     schedule_change,
@@ -28,6 +29,7 @@ app.include_router(doctor_phrases.router)
 app.include_router(schedule_change.router)
 app.include_router(me.router)
 app.include_router(patients.router)
+app.include_router(patient_merge.router)
 app.include_router(dashboard.router)
 app.include_router(stats.router)
 app.include_router(schedule_admin.router)
