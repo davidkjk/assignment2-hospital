@@ -8,6 +8,7 @@ import { PasswordResetRequestPage } from './pages/PasswordResetRequestPage'
 import { QueuePage } from './pages/QueuePage'
 import { PatientDetailPage } from './pages/patient/PatientDetailPage'
 import { DoctorConsolePage } from './pages/doctor/DoctorConsolePage'
+import { StatsPage } from './pages/admin/StatsPage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
@@ -27,6 +28,7 @@ function pageFor(path: string, label: string) {
   if (path === '/today') return <TodayPage />
   if (path === '/queue') return <QueuePage />
   if (path === '/doctor/console') return <DoctorConsolePage />
+  if (path === '/admin/stats') return <StatsPage />
   return <Placeholder title={label} />
 }
 
