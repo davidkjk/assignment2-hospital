@@ -9,6 +9,7 @@ import { QueuePage } from './pages/QueuePage'
 import { PatientDetailPage } from './pages/patient/PatientDetailPage'
 import { DoctorConsolePage } from './pages/doctor/DoctorConsolePage'
 import { StatsPage } from './pages/admin/StatsPage'
+import { AccessLogPage } from './pages/admin/AccessLogPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
 import { TodayPage } from './pages/TodayPage'
 import { AppShell } from './shell/AppShell'
@@ -37,6 +38,7 @@ function pageFor(path: string, label: string) {
   if (path === '/queue') return <QueuePage />
   if (path === '/doctor/console') return <DoctorConsolePage />
   if (path === '/admin/stats') return <StatsPage />
+  if (path === '/admin/access-logs') return <AccessLogPage />
   if (path === '/calendar') return <CalendarRoute />
   return <Placeholder title={label} />
 }

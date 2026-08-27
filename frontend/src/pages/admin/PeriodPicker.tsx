@@ -40,9 +40,11 @@ interface PeriodPickerProps {
   /** 시작일>종료일 등 범위 오류 문구(PERIOD-BOX-04). 입력은 지우지 않는다. */
   error?: string
   disabled?: boolean
+  /** 조회 버튼 문구. 화면마다 다르다(통계=「통계 보기」, 열람 기록=「기간 조회」). 기본은 통계. */
+  applyLabel?: string
 }
 
-export function PeriodPicker({ from, to, onChange, onApply, error, disabled }: PeriodPickerProps) {
+export function PeriodPicker({ from, to, onChange, onApply, error, disabled, applyLabel = '통계 보기' }: PeriodPickerProps) {
   // 프리셋을 고르면 그 키를, 날짜를 손보면 'custom'을 기억한다(상태 표시용).
   const [presetKey, setPresetKey] = useState<PresetKey | 'custom' | ''>('')
 
@@ -111,7 +113,7 @@ export function PeriodPicker({ from, to, onChange, onApply, error, disabled }: P
       )}
 
       <button type="button" onClick={onApply} disabled={disabled} style={styles.apply}>
-        통계 보기
+        {applyLabel}
       </button>
 
       {error && (
