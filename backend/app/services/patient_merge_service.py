@@ -15,8 +15,10 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.core.dto import patient_row_dto
 from app.core.errors import AppError
 from app.core.masking import mask_birth_date, mask_phone
+from app.core.pagination import Page, paginate
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
 
@@ -231,3 +233,183 @@ async def _log_merge(conn, staff: StaffContext, patient_id: UUID, merge_id: UUID
         return
     async with acquire_as(str(staff.auth_user_id)) as c:
         await c.execute(sql, staff.id, patient_id, merge_id)
+
+
+# ── 병합 이력·되돌림 (Task 26 · MHIST-*) ─────────────────────────────────────────
+# ⭐ 되돌리기 API는 이 자리가 소유한다(결정 #16). Task 21은 스키마(undone_at)까지만 뒀다.
+#    되돌림은 「지우기」가 아니다(결정 #15) — undone_at 하나를 채우면 patient_lineage가
+#    where undone_at is null이라 계보에서 저절로 빠진다. 원본 행은 하나도 안 지운다.
+#
+# ⚠️ 계약 정정(플랜↔코드 드리프트): 타임스탬프 칸은 performed_at이다(플랜 스니펫의 merged_at은
+#    틀림) — 락 판정·정렬 SQL은 performed_at을 쓰되, 출력 DTO 필드명과 paginate order 라벨은
+#    merged_at으로 맞춘다(Task 15·화면 계약). medical_records엔 patient_id 칸이 없어(00006)
+#    락 판정은 appointments.for_patient_id 조인으로 센다(플랜 스니펫의 where patient_id=$1은 틀림).
+
+
+class MergeUndoLocked(AppError):
+    """[MHIST-LOCK-01] 병합 뒤 대표에 새 진료기록이 생겨 되돌릴 수 없는 상태(409)."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason, status_code=409)
+        self.lock_reason = reason
+
+
+def _undo_status(row, has_new_primary_records: bool) -> str:
+    if row["undone_at"] is not None:
+        return "undone"
+    if has_new_primary_records:
+        return "locked"
+    return "undoable"
+
+
+async def _new_primary_records_since(conn, primary_id: UUID, performed_at) -> str | None:
+    """[MHIST-LOCK-01] 병합 뒤 대표 환자에 생긴 새 진료기록이 있으면 잠금 사유 문구를 돌려준다.
+
+    ⚠️ medical_records엔 patient_id 칸이 없다(00006) — appointment의 for_patient_id로 그 환자
+       것을 세고, created_at > performed_at(병합 시각)으로 「병합 뒤」를 가른다.
+    """
+    n = await conn.fetchval(
+        """
+        select count(*) from medical_records m
+          join appointments a on a.id = m.appointment_id
+         where a.for_patient_id = $1 and m.created_at > $2
+        """,
+        primary_id, performed_at,
+    )
+    return f"병합 뒤 대표 환자에 새 진료기록 {n}건이 생겨 되돌릴 수 없습니다" if n else None
+
+
+async def _history_row(conn, r) -> dict:
+    """[MHIST-LIST-01] 한 이력 행 — 대표/대상은 마스킹 DTO로, 상태만 준다(즉시 되돌림 버튼 없음).
+
+    id는 paginate 앵커·정렬 키로, merge_event_id는 화면 이동용으로 같은 값을 둘 다 담는다.
+    merged_at은 실제 performed_at 값을 담아 정렬 라벨(merged_at desc)과 이름을 맞춘다.
+    """
+    lock = await _new_primary_records_since(conn, r["primary_patient_id"], r["performed_at"])
+    return {
+        "id": r["id"],
+        "merge_event_id": r["id"],
+        "merged_at": r["performed_at"],
+        "executed_by": r["executed_by"],
+        "status": _undo_status(r, lock is not None),
+        "primary": patient_row_dto(patient_id=r["primary_patient_id"], name=r["primary_name"],
+                                   phone=r["primary_phone"], birth_date=r["primary_birth"]),
+        "merged": patient_row_dto(patient_id=r["merged_patient_id"], name=r["merged_name"],
+                                  phone=r["merged_phone"], birth_date=r["merged_birth"]),
+    }
+
+
+_HISTORY_SQL = """
+    select m.id, m.performed_at, m.undone_at,
+           m.primary_patient_id, m.merged_patient_id,
+           s.name as executed_by,
+           pp.name as primary_name, pp.phone as primary_phone, pp.birth_date as primary_birth,
+           mp.name as merged_name, mp.phone as merged_phone, mp.birth_date as merged_birth
+      from patient_merges m
+      left join staff s on s.id = m.performed_by
+      left join patients pp on pp.id = m.primary_patient_id
+      left join patients mp on mp.id = m.merged_patient_id
+     order by m.performed_at desc, m.id desc
+"""
+# MHIST-LIST-02·03: 정렬 라벨은 merged_at desc, id desc 하나로 못 박는다(paginate가 이 라벨로
+# 커서를 만들고 재검증한다). 실제 SQL은 performed_at으로 정렬하되 라벨은 merged_at으로 맞춘다.
+_HISTORY_ORDER = ("merged_at desc", "id desc")
+
+
+async def get_merge_history(staff: StaffContext, cursor: str | None = None, conn=None) -> Page:
+    """[MHIST-LIST-01·02][MHIST-EXC-01] 관리자만 — 병합 이력을 최신순으로, 상태만 붙여 돌려준다."""
+    if staff.role != "admin":
+        # MHIST-EXC-01: 메뉴 노출이 아니라 서버가 거절한다(형제 audit_query_service와 같은 관례).
+        raise AppError("이 기능에 대한 권한이 없습니다.", status_code=403)
+
+    async def _run(c):
+        fetched = await c.fetch(_HISTORY_SQL)
+        return [await _history_row(c, r) for r in fetched]
+
+    if conn is not None:
+        rows = await _run(conn)
+    else:
+        async with acquire_as(str(staff.auth_user_id)) as c:
+            rows = await _run(c)
+    return paginate(rows, cursor=cursor, order=_HISTORY_ORDER)
+
+
+async def get_merge_event(merge_event_id: UUID, staff: StaffContext, conn=None) -> dict:
+    """[MHIST-DETAIL-02][MHIST-LOCK-01] 한 병합 + 보존 스냅샷(원본 건수·계보) + 되돌림 가능 판정."""
+    if staff.role != "admin":
+        raise AppError("이 기능에 대한 권한이 없습니다.", status_code=403)
+
+    async def _run(c):
+        row = await c.fetchrow("select * from patient_merges where id = $1", merge_event_id)
+        if row is None:
+            raise AppError("병합 이력을 찾을 수 없습니다.", status_code=404)
+        lineage = await c.fetchval("select patient_lineage($1)", row["primary_patient_id"]) or []
+        lock = await _new_primary_records_since(c, row["primary_patient_id"], row["performed_at"])
+        return {
+            "merge_event_id": row["id"],
+            "merged_at": row["performed_at"],
+            "executed_by": await c.fetchval(
+                "select name from staff where id = $1", row["performed_by"]),
+            "undo_status": _undo_status(row, lock is not None),
+            "lock_reason": lock,
+            "preservation": {
+                # 결정 #15: 원본은 삭제되지 않는다 — 각 행 자기 데이터 건수를 읽기 전용으로 보여준다.
+                "primary": await _counts_for(c, row["primary_patient_id"]),
+                "merged": await _counts_for(c, row["merged_patient_id"]),
+                "lineage_active": row["merged_patient_id"] in lineage,
+            },
+        }
+
+    if conn is not None:
+        return await _run(conn)
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
+async def undo_merge(merge_event_id: UUID, reason: str, staff: StaffContext,
+                     expected_status: str, conn=None) -> dict:
+    """[MHIST-DONE-01][MERGE-RACE-01][결정 #15~17] undone_at 하나로 계보를 정정하고 되돌림 감사를
+    같은 트랜잭션에 남긴다. 원본은 하나도 안 지운다.
+
+    expected_status는 화면이 본 상태지만 신뢰하지 않는다 — 확정 때 행을 for update로 잠그고
+    최신 상태를 다시 검사한다(MERGE-RACE-01). conn 주입 시엔 호출자 트랜잭션이 원자성을 보장한다
+    (merge_patients와 같은 패턴).
+    """
+    if staff.role != "admin":
+        raise AppError("관리자만 병합을 되돌릴 수 있습니다.", status_code=403)
+    if not (1 <= len(reason.strip()) <= 200):
+        # 코드베이스에 ValidationError가 없어 AppError(400)로 검증 실패를 표현한다.
+        raise AppError("되돌림 사유는 1~200자로 입력해 주세요.", status_code=400)
+
+    if conn is not None:
+        return await _undo_core(conn, merge_event_id, reason, staff)
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        async with c.transaction():
+            return await _undo_core(c, merge_event_id, reason, staff)
+
+
+async def _undo_core(conn, merge_event_id: UUID, reason: str, staff: StaffContext) -> dict:
+    # MERGE-RACE-01: 확인창을 연 사이 다른 관리자가 먼저 처리했을 수 있어 행을 잠그고 다시 읽는다.
+    row = await conn.fetchrow(
+        "select * from patient_merges where id = $1 for update", merge_event_id)
+    if row is None:
+        raise AppError("병합 이력을 찾을 수 없습니다.", status_code=404)
+    if row["undone_at"] is not None:
+        # MHIST-EXC-05: 이미 되돌린 것은 409. 사유를 중복 감사로 남기지 않는다(여기서 바로 끝낸다).
+        raise AppError("이미 되돌림 처리된 병합입니다.", status_code=409)
+    lock = await _new_primary_records_since(conn, row["primary_patient_id"], row["performed_at"])
+    if lock:
+        raise MergeUndoLocked(lock)                                              # MHIST-LOCK-01
+
+    reason = reason.strip()
+    await conn.execute(
+        """update patient_merges set undone_at = now(), undone_by = $2, undo_reason = $3
+           where id = $1""", merge_event_id, staff.id, reason)
+    # 결정 #17: 별도 되돌림 감사. 긴 형 patient_merge_undo(짧은 형은 Task 15 화면이 못 찾는다).
+    # ⚠️ log_access는 resource_id 인자가 없어 못 쓴다 — _log_merge 방식으로 직접 insert하고,
+    #    되돌림과 같은 트랜잭션에 넣어 「되돌림은 됐는데 감사만 실패」하는 창을 없앤다(요구사항 :437).
+    await conn.execute(
+        """insert into access_audit_log (staff_id, patient_id, resource_type, resource_id, search_term)
+           values ($1, $2, 'patient_merge_undo', $3, $4)""",
+        staff.id, row["primary_patient_id"], merge_event_id, reason)
+    return {"status": "undone", "merge_event_id": merge_event_id}

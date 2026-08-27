@@ -38,3 +38,40 @@ async def merge(
     「체크를 보냈으니 통과」가 되어 동시성 재검사(MERGE-RACE-01)를 대신하게 된다."""
     return await patient_merge_service.merge_patients(
         body.primary_id, body.duplicate_id, staff, body.expected_counts)
+
+
+# ── 병합 이력·되돌림 (Task 26 · MHIST-*) — 셋 다 관리자 전용 ──────────────────────
+class UndoIn(BaseModel):
+    reason: str
+    expected_status: str
+
+
+@router.get("/admin/merge-history")
+async def merge_history(
+    cursor: str | None = None,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[MHIST-LIST-01·02] 관리자만 — 병합 이력을 최신순으로, 상태만 붙여(즉시 되돌림 버튼 없음)."""
+    page = await patient_merge_service.get_merge_history(staff, cursor=cursor)
+    return {"rows": page.rows, "has_more": page.has_more,
+            "next_cursor": page.next_cursor, "order": list(page.order)}
+
+
+@router.get("/admin/merge-history/{merge_event_id}")
+async def merge_event_detail(
+    merge_event_id: UUID,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[MHIST-DETAIL-02][MHIST-LOCK-01] 한 병합 + 보존 스냅샷 + 되돌림 가능 판정."""
+    return await patient_merge_service.get_merge_event(merge_event_id, staff)
+
+
+@router.post("/admin/merge-history/{merge_event_id}/undo")
+async def merge_undo(
+    merge_event_id: UUID,
+    body: UndoIn,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[MHIST-DONE-01][MERGE-RACE-01] undone_at 하나로 계보 정정 + patient_merge_undo 감사."""
+    return await patient_merge_service.undo_merge(
+        merge_event_id, body.reason, staff, body.expected_status)
