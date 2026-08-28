@@ -9,7 +9,9 @@
 --   * 의사 8명 로그인: doctor1@gaon.local ~ doctor8@gaon.local / demo1234.
 --   * 관리자 admin@gaon.local, 접수 reception@gaon.local / demo1234 (유지).
 --   * 환자 150명.
---   * 슬롯·예약이 덮는 범위 = **지난 2주 ~ 앞으로 8주**(예약 가능 범위 REGENERATION_WEEKS=8과 같다).
+--   * 슬롯·예약이 덮는 범위 = **지난 1년 ~ 앞으로 8주**(미래 8주 = REGENERATION_WEEKS=8과 같다).
+--     과거 1년치는 통계 프리셋(7·30·90일·1년·전체)을 채우기 위한 것 — 과거 슬롯은 성기게 깐다(§6).
+--     완료된 과거 진료엔 진료기록·문진표 응답과 「종료 상태 이력」을 함께 심어 통계·환자 이력을 채운다.
 --     밀도는 날짜 거리로 달라진다 — 어제·오늘은 빽빽하고, 멀수록 듬성해진다.
 --     ⭐ 미래를 전부 채우면 캘린더에 **빈 시간이 없어져** CAL-SLOT-01(빈 시간 블록)·
 --        CAL-GAP(틈에 끼워넣기)을 검수할 수 없다. 실제 병원도 먼 날짜는 듬성하다.
@@ -167,19 +169,25 @@ select
 from generate_series(1, 150) as i;
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 6) 예약 슬롯 — 의사 8명 × 71일(지난 2주 ~ 앞으로 8주) × 16타임(30분, 점심 12~13 제외)
+-- 6) 예약 슬롯 — 의사 8명 × (지난 1년 ~ 앞으로 8주) × 타임(30분, 점심 12~13 제외)
 -- ════════════════════════════════════════════════════════════════════════════
 -- 타임: 09:00~11:30(6) + 13:00~17:30(10) = 16. 모두 '빈시간'으로 넣고,
 -- 예약이 물린 슬롯만 뒤에서 '예약됨'으로 바꾼다.
 -- ⭐ 앞으로 8주 = `slot_generator.REGENERATION_WEEKS`와 같은 범위다(SCHED-SLOT-09).
 --    달력이 `booking_horizon_date`까지 열리므로(CAL-BOOK-13) 그 날까지 자리가 있어야
 --    「열리는데 자리가 없다」는 빈 하루가 안 나온다.
+-- ⭐ 과거는 통계 프리셋(최근 7일·30일·90일·1년·전체)을 채우려 1년치까지 넓힌다.
+--    다만 **과거 슬롯을 매일 16타임씩 다 만들면 5만 행이 넘어** 재적재가 느려진다.
+--    통계는 예약 건수 집계이므로 과거는 슬롯을 성기게 깐다:
+--      · 최근 90일 + 미래 8주 → 매일 16타임(촘촘)
+--      · 그 이전 1년치        → 월·수·금 + 오전 6타임만(성김)
+--    이러면 슬롯이 ~2.4만으로 줄고도 1년 프리셋이 빈틈 없이 찬다.
 -- ⚠️ 이 시드는 `current_date`를 쓴다 — psql 세션 시간대에 걸린다. 서버 커넥션이 KST로
 --    못박혀 있으므로(app/db/pool.py) **`PGTZ=Asia/Seoul`로 넣어야** 서버가 보는 오늘과 맞는다.
 insert into appointment_slots (doctor_id, slot_date, start_time, status)
 select s.id, dy.dd::date, t.st, '빈시간'
 from staff s
-cross join generate_series(current_date - 14, current_date + 56, interval '1 day') as dy(dd)
+cross join generate_series(current_date - 365, current_date + 56, interval '1 day') as dy(dd)
 cross join (
   select (timestamp '2000-01-01 09:00' + (n * interval '30 min'))::time as st
   from generate_series(0, 5) as n           -- 09:00 ~ 11:30
@@ -188,6 +196,11 @@ cross join (
   from generate_series(0, 9) as n           -- 13:00 ~ 17:30
 ) as t
 where s.role = 'doctor'
+  -- 최근 90일·미래는 매일 전부, 그 이전 1년치는 월·수·금만(성김).
+  and (dy.dd >= current_date - 90 or extract(dow from dy.dd) in (1, 3, 5))
+  -- 최근 90일·미래는 16타임 전부, 그 이전 1년치는 오전 3 + 오후 3(시간대별 통계가 한쪽으로 쏠리지 않게).
+  and (dy.dd >= current_date - 90
+       or t.st in (time '09:00', time '10:00', time '11:00', time '13:00', time '14:00', time '15:00'))
 on conflict (doctor_id, slot_date, start_time) do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -226,7 +239,7 @@ chosen as (
   -- 밀도: 날짜가 멀수록 듬성해진다. 창구에서 보는 실제 모습이고, 그래야 「빈 시간」이 보인다.
   where case
     when r.d_off between -1 and 0 then r.rn     <= d.k                        -- 어제·오늘: 빽빽
-    when r.d_off < -1             then r.rn     <= greatest(1, d.k / 2)       -- 지난 2주: 절반
+    when r.d_off < -1             then r.rn     <= greatest(1, d.k / 2)       -- 과거(어제 제외): 절반 — 성긴 1년치 슬롯(오전 6타임)은 이 한도로 사실상 다 찬다
     when r.d_off <= 7             then r.rn_mix <= greatest(1, d.k * 2 / 3)   -- 다음 1주: 꽤 참
     when r.d_off <= 28            then r.rn_mix <= greatest(1, d.k / 4)       -- 2~4주: 성김
     else                               r.rn_mix <= greatest(1, d.k / 8)       -- 5~8주: 듬성
@@ -247,8 +260,10 @@ select
     -- 지난 2주(어제 제외): 이미 다 끝난 날이다. ⛔ 여기에 진료대기·도착을 남기면
     -- 「전일 미완료」가 2주치로 불어난다 — 그 카드는 **어제 것만** 본다(TODAY-YDAY).
     when 'p' then case
-        when c.rn % 11 = 0 then '환자취소'
-        when c.rn % 13 = 0 then '예약부도'
+        -- ⚠️ rn은 성긴 과거(오전3+오후3)에선 1~6뿐이라 %11·%13이 안 걸려 취소·부도가 통째로
+        --    빠진다 → 어제치만 남아 통계가 「과거엔 취소 0」으로 뜬다. 해시로 흩어 고르게 뿌린다.
+        when (abs(hashtext(c.slot_id::text)) % 20) = 0 then '환자취소'   -- ~5%
+        when (abs(hashtext(c.slot_id::text)) % 20) = 1 then '예약부도'   -- ~5%
         else '진료완료' end
     when 'y' then case
         when c.rn = 1 then '환자취소'
@@ -381,6 +396,36 @@ from appointments a
 join appointment_slots s on s.id = a.slot_id
 where s.slot_date = current_date and a.status in ('진료중', '진료완료');
 
+-- ── 과거(오늘 이전) 예약의 「종료 상태 이력」 ──────────────────────────────────
+-- ⭐ 통계는 방문·취소·부도를 appointment_status_history의 changed_at::date로 센다
+--    (stats_service: to_status='진료완료'/'예약부도'/취소 행). 이 이력이 없으면 과거 슬롯·
+--    예약을 아무리 채워도 통계 프리셋(30·90일·1년)이 0으로 뜬다 — 예약 건수만으론 안 찬다.
+--    ⚠️ 오늘(current_date)은 위에서 이미 도착→대기→진료 흐름을 심었으므로 제외한다.
+insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_at)
+select
+  a.id,
+  case a.status when '진료완료' then '진료중' else '예약확정' end,   -- from_status(≠ to_status)
+  a.status,
+  'bbbbbbbb-0000-0000-0000-000000000002',
+  case a.status
+    when '환자취소' then (s.slot_date::timestamp - interval '1 day' + interval '10 hour')  -- 전날 취소
+    when '병원취소' then (s.slot_date::timestamp - interval '1 day' + interval '15 hour')
+    else (s.slot_date + s.start_time + interval '25 min')  -- 완료·부도: 진료 시각 무렵
+  end
+from appointments a
+join appointment_slots s on s.id = a.slot_id
+where s.slot_date < current_date
+  and a.status in ('진료완료', '환자취소', '병원취소', '예약부도');
+
+-- ── 과거 예약의 created_at을 진료 1~14일 전으로 ───────────────────────────────
+-- 유입경로(source_mix)는 created_at::date로 집계한다. 시드 insert의 created_at은 전부
+-- 재적재 순간(now())이라, 그대로 두면 과거 기간 필터에 안 잡혀 유입경로가 0이 된다.
+-- 실제로도 예약은 진료일 며칠 전에 생성되므로 slot_date보다 앞선 값이 자연스럽다.
+update appointments a
+set created_at = (s.slot_date::timestamp - ((abs(hashtext(a.id::text)) % 14 + 1) * interval '1 day'))
+from appointment_slots s
+where s.id = a.slot_id and s.slot_date < current_date;
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- 11) 취소·변경 상담 — 「확인 필요 예약」 카드 (SUPPORT-*)
 -- ════════════════════════════════════════════════════════════════════════════
@@ -493,5 +538,48 @@ from (
 insert into patients (name, birth_date, gender, phone, is_active)
 select p.name, p.birth_date, p.gender, p.phone, true
 from (select * from patients order by id limit 4) p;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 16) 진료기록 · 문진표 응답 — 환자 상세의 「지난 방문 이력」·의사 콘솔의 「과거 기록」
+-- ════════════════════════════════════════════════════════════════════════════
+-- 과거 1년치까지 넓혔으니 **완료된 진료**마다 기록이 있어야 상세가 채워진다.
+-- 둘 다 appointment_id가 unique(1:1)이므로 '진료완료' 예약 하나당 한 행씩.
+-- ⚠️ medical_records.doctor_id는 트리거(00006)가 **그 예약의 실제 담당의와 일치**를
+--    강제한다 → 반드시 a.doctor_id를 그대로 쓴다. is_completed=true(끝난 진료).
+-- 내용은 hashtext(a.id)로 흩어 진료마다 다르게 하되 창구에서 읽을 수 있는 범위로.
+insert into medical_records
+  (appointment_id, doctor_id, symptoms, diagnosis, treatment, patient_visible_notes, is_completed)
+select
+  a.id, a.doctor_id,
+  a.reason || ' — 문진 및 진찰 시행.',
+  (array['경증, 경과 관찰','급성 상기도 감염','근골격계 통증','위염 의증','알레르기성 비염',
+         '장염 의증','긴장성 두통','혈압 경계 소견','특이 소견 없음','바이러스성 감염'])
+    [(abs(hashtext(a.id::text)) % 10) + 1],
+  (array['약물 처방(3일분)','경과 관찰 후 재내원 안내','물리치료 병행','수분 섭취·휴식 권고',
+         '생활습관 교정 안내','대증 치료','국소 도포제 처방','추가 검사 예정'])
+    [(abs(hashtext(a.id::text || 'tx')) % 8) + 1],
+  (array['증상 지속 시 재방문해 주세요.','처방약을 시간 맞춰 복용하세요.','충분히 쉬시고 수분을 드세요.',
+         '다음 예약일에 경과를 보겠습니다.','','매운 음식·음주는 당분간 피하세요.'])
+    [(abs(hashtext(a.id::text || 'note')) % 6) + 1],
+  true
+from appointments a
+where a.status = '진료완료';
+
+-- 문진표 응답 — 답은 **템플릿(§8)의 실제 옵션**에서 고른다(하드코딩하지 않아 항상 일치).
+-- 템플릿 구조: [q1=text, q2=single(options), q3=single(options)] → index 0/1/2.
+insert into questionnaire_responses (appointment_id, template_id, answers)
+select
+  a.id, qt.id,
+  jsonb_build_object(
+    'q1', a.reason,
+    'q2', (qt.questions->1->'options')->>(
+            abs(hashtext(a.id::text || 'q2')) % jsonb_array_length(qt.questions->1->'options')),
+    'q3', (qt.questions->2->'options')->>(
+            abs(hashtext(a.id::text || 'q3')) % jsonb_array_length(qt.questions->2->'options'))
+  )
+from appointments a
+join questionnaire_templates qt
+  on qt.department_id = a.department_id and qt.is_active
+where a.status = '진료완료';
 
 commit;
