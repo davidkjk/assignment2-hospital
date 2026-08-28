@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, QrCode, Users } from '@/components/icons'
+import { hospitalParts, hospitalToday } from '../../lib/clock'
 import { ApiError } from '../../api/httpClient'
 import { findByCode, transitionStatus, type BookingLookupResult } from '../../api/appointments'
 import { useConnectivity } from '../../lib/connectivity'
@@ -33,25 +34,14 @@ function badgeClass(status: string): string {
 
 // ⚠️ slot_at의 **글자를 그대로 읽으면 안 된다** — asyncpg가 timestamptz를 UTC로 돌려주므로
 //    서버는 `2026-08-28T01:30:00+00:00`(=KST 10:30)을 보낸다. 문자로 읽으면 10:30 예약이
-//    「01:30」으로 뜬다(2026-08-28 브라우저 대조에서 발견). 이 병원은 전부 KST로 도니까
-//    (`app/db/pool.py` C6-#10) **시간대를 KST로 못박아** 옮긴다 — 러너·기기 TZ에 흔들리지 않는다.
-const KST = 'Asia/Seoul'
-
-function kstParts(at: Date): { y: string; mo: string; d: string; hh: string; mm: string } {
-  const f = new Intl.DateTimeFormat('en-CA', {
-    timeZone: KST, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-  const got = Object.fromEntries(f.formatToParts(at).map((p) => [p.type, p.value]))
-  return { y: got.year, mo: got.month, d: got.day, hh: got.hour === '24' ? '00' : got.hour, mm: got.minute }
-}
-
+//    「01:30」으로 뜬다(2026-08-28 브라우저 대조에서 발견).
+// ✅ 이 화면이 혼자 갖고 있던 `kstParts`는 `lib/clock.ts`로 올라갔다 — 같은 병을 앓던
+//    화면이 열둘이었다. 시간대 상수는 이제 그 파일 하나에만 산다.
 function whenLabel(slotAt: string): string {
   const at = new Date(slotAt)
   if (Number.isNaN(at.getTime())) return slotAt
-  const s = kstParts(at)
-  const t = kstParts(new Date())
-  const day = `${s.y}-${s.mo}-${s.d}` === `${t.y}-${t.mo}-${t.d}` ? '오늘' : `${Number(s.mo)}월 ${Number(s.d)}일`
+  const s = hospitalParts(at)
+  const day = `${s.y}-${s.mo}-${s.d}` === hospitalToday() ? '오늘' : `${Number(s.mo)}월 ${Number(s.d)}일`
   return `${day} ${s.hh}:${s.mm}`
 }
 
