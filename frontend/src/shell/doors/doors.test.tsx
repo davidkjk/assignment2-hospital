@@ -49,7 +49,7 @@ function openPanels(): HTMLElement[] {
 
 /** 예약 문을 열고 환자 검색표에서 한 명을 고른다(왼쪽 도구를 실제로 쓰는 경로). */
 async function openReserveAndPickPatient(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: '＋ 예약' }))
+  await user.click(screen.getByRole('button', { name: '예약' }))
   await user.type(screen.getByPlaceholderText('이름 또는 전화번호로 찾기'), '김태호')
   await user.click(screen.getByText('김태호'))
 }
@@ -59,7 +59,7 @@ test('[SHELL-DOOR-06][PANEL-WORK-01] 예약 문을 열면 오른쪽 패널이 �
   renderShell()
   expect(screen.getByText('대기 목록 본문')).toBeVisible()
 
-  await user.click(screen.getByRole('button', { name: '＋ 예약' }))
+  await user.click(screen.getByRole('button', { name: '예약' }))
 
   expect(screen.getByRole('complementary', { name: '새 예약' })).toBeVisible()
   expect(screen.getByText('환자를 고르는 중')).toBeVisible()
@@ -69,7 +69,7 @@ test('[SHELL-DOOR-06][PANEL-WORK-01] 예약 문을 열면 오른쪽 패널이 �
 test('[SHELL-ACT-04] 등록 문은 왼쪽을 바꾸지 않는다 — 보던 화면 그대로다', async () => {
   const user = userEvent.setup()
   renderShell()
-  await user.click(screen.getByRole('button', { name: '＋ 등록' }))
+  await user.click(screen.getByRole('button', { name: '등록' }))
 
   expect(screen.getByRole('complementary', { name: '환자 등록' })).toBeVisible()
   expect(screen.getByText('대기 목록 본문')).toBeVisible()
@@ -78,8 +78,8 @@ test('[SHELL-ACT-04] 등록 문은 왼쪽을 바꾸지 않는다 — 보던 화�
 test('[PANEL-ONE-01] 문을 바꿔 열어도 패널은 언제나 하나다', async () => {
   const user = userEvent.setup()
   renderShell()
-  await user.click(screen.getByRole('button', { name: '＋ 등록' }))
-  await user.click(screen.getByRole('button', { name: '＋ 예약' }))
+  await user.click(screen.getByRole('button', { name: '등록' }))
+  await user.click(screen.getByRole('button', { name: '예약' }))
 
   expect(openPanels()).toHaveLength(1)
   expect(screen.getByRole('complementary', { name: '새 예약' })).toBeVisible()
@@ -89,7 +89,7 @@ test('[PANEL-ONE-01] 문을 바꿔 열어도 패널은 언제나 하나다', asy
 test('[PANEL-LIVE-06] ✕ 닫기는 확인창 없이 패널을 없앤다', async () => {
   const user = userEvent.setup()
   renderShell()
-  await user.click(screen.getByRole('button', { name: '＋ 등록' }))
+  await user.click(screen.getByRole('button', { name: '등록' }))
   await user.click(screen.getByRole('button', { name: '닫기' }))
 
   expect(openPanels()).toHaveLength(0)
@@ -99,7 +99,7 @@ test('[PANEL-LIVE-06] ✕ 닫기는 확인창 없이 패널을 없앤다', async
 test('[PANEL-LIVE-03][PANEL-LIVE-05] 접기는 닫지 않는다 — 얇은 띠로 남고 왼쪽이 넓어진다', async () => {
   const user = userEvent.setup()
   renderShell()
-  await user.click(screen.getByRole('button', { name: '＋ 예약' }))
+  await user.click(screen.getByRole('button', { name: '예약' }))
   await user.click(screen.getByRole('button', { name: '접기' }))
 
   expect(screen.getByRole('button', { name: '패널 펼치기' })).toBeVisible()
@@ -127,7 +127,7 @@ test('[PANEL-WORK-02] 의사를 고른 뒤 왼쪽이 그 의사의 하루 캘린
 test('[PANEL-WORK-01][PANEL-WORK-03] 날짜 칸을 누르면 왼쪽이 달력이 되고 무엇을 고르는 중인지 적힌다', async () => {
   const user = userEvent.setup()
   renderShell()
-  await user.click(screen.getByRole('button', { name: '＋ 예약' }))
+  await user.click(screen.getByRole('button', { name: '예약' }))
   await user.click(screen.getByRole('button', { name: '날짜' }))
 
   expect(screen.getByText('날짜를 고르는 중')).toBeVisible()
@@ -136,7 +136,7 @@ test('[PANEL-WORK-01][PANEL-WORK-03] 날짜 칸을 누르면 왼쪽이 달력이
 test('[PANEL-ONE-01] 소비 화면이 패널을 열면 열려 있던 문이 자리를 비운다', async () => {
   const user = userEvent.setup()
   renderShell()
-  await user.click(screen.getByRole('button', { name: '＋ 예약' }))
+  await user.click(screen.getByRole('button', { name: '예약' }))
   await user.click(screen.getByRole('button', { name: '접기' })) // 왼쪽 도구를 걷어 소비 화면으로 돌아간다
   await user.click(screen.getByRole('button', { name: '예약 블록' }))
 

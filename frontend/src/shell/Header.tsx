@@ -1,25 +1,34 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type ComponentType, type CSSProperties } from 'react'
+import { CalendarPlus, LogOut, QrCode, UserPlus } from '@/components/icons'
 import type { StaffProfile } from '../auth/roles'
 import { AccountMenu } from './AccountMenu'
-import { HOSPITAL_NAME } from './brand'
 import { START_DOORS, type StartDoor } from './navItems'
 
 export type { StartDoor } from './navItems'
+
+// 세 문 아이콘 — 「새로 만드는 문」이라는 뜻을 기호(`＋`) 대신 아이콘이 진다(데모 정렬 2026-08-28).
+const DOOR_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  register: UserPlus,
+  checkin: QrCode,
+  appointment: CalendarPlus,
+}
 
 const doorBase = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-sm'
 // 가운데 = 접수(창구에서 가장 자주 하는 일)만 딥틸로 도드라지게, 양쪽(등록·예약)은 옅은 흰 버튼.
 const doorGhost = `${doorBase} bg-card text-primary hover:bg-muted`
 const doorPrimary = `${doorBase} bg-primary text-primary-foreground hover:bg-primary/90`
 
-export function Header({ staff, onSignOut, onStart = () => undefined }: { staff: StaffProfile; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
+export function Header({ title, staff, onSignOut, onStart = () => undefined }: { title: string; staff: StaffProfile; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
   const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState('')
   const doors = START_DOORS.filter((door) => door.roles.includes(staff.role))
   return (
     <>
-      {/* 헤더 하단은 실선(border-b), 그림자 아님 — 업무 도구 밀도(SHELL-HDR). 병원명은 왼쪽 상시. */}
-      <header className="relative z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-6">
-        <span aria-label="병원 이름" className="shrink-0 whitespace-nowrap font-semibold">{HOSPITAL_NAME}</span>
+      {/* 헤더 하단은 실선(border-b), 그림자 아님 — 업무 도구 밀도(SHELL-HDR).
+          ⭐ 헤더 왼쪽 = **지금 화면 제목**(데모 정렬 2026-08-28, `SHELL-HDR-01` 개정).
+             병원명은 딥틸 사이드바 워드마크가 상시 보여 준다 — 같은 것을 두 번 적지 않는다. */}
+      <header className="relative z-30 flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card px-6">
+        <h1 className="text-base font-semibold">{title}</h1>
 
         <div className="ml-auto flex items-center gap-3">
           {/* 역할칩은 항상 표시(SHELL-HDR-02) */}
@@ -29,6 +38,7 @@ export function Header({ staff, onSignOut, onStart = () => undefined }: { staff:
             onClick={() => setConfirming(true)}
             className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
+            <LogOut className="h-4 w-4" />
             로그아웃
           </button>
 
@@ -36,17 +46,21 @@ export function Header({ staff, onSignOut, onStart = () => undefined }: { staff:
               의사는 예약을 잡지 않으므로 아예 안 그린다(SHELL-ACT-03). */}
           {doors.length > 0 && (
             <div data-testid="start-door-group" aria-label="시작 업무" style={doorGroupStyle}>
-              {doors.map((door) => (
-                <button
-                  type="button"
-                  key={door.key}
-                  data-testid="start-door"
-                  onClick={() => onStart(door.key)}
-                  className={door.primary ? doorPrimary : doorGhost}
-                >
-                  {door.label}
-                </button>
-              ))}
+              {doors.map((door) => {
+                const Icon = DOOR_ICONS[door.icon]
+                return (
+                  <button
+                    type="button"
+                    key={door.key}
+                    data-testid="start-door"
+                    onClick={() => onStart(door.key)}
+                    className={door.primary ? doorPrimary : doorGhost}
+                  >
+                    <Icon className={door.primary ? 'h-4 w-4' : 'h-4 w-4 text-primary'} />
+                    {door.label}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

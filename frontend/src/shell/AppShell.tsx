@@ -52,6 +52,7 @@ function ShellBody() {
           <OfflineBanner />
           {idle.isWarning && <IdleBanner onContinue={idle.keepAlive} />}
           <Header
+            title={title}
             staff={staff}
             onSignOut={async () => {
               await logout()
@@ -60,7 +61,7 @@ function ShellBody() {
             onStart={open}
           />
           <div className="flex min-h-0 flex-1">
-            <MainRegion title={title} />
+            <MainRegion />
             {/* 세 문의 오른쪽 패널 — 열려 있으면 왼쪽이 그 칸의 도구로 바뀐다(SHELL-DOOR-06). */}
             <DoorRegion />
           </div>
@@ -74,7 +75,7 @@ function ShellBody() {
 
 // 문이 열려 어떤 칸을 채우는 중이면 왼쪽이 그 도구로 바뀌고(PANEL-WORK-01),
 // 아니면 보던 화면이 그대로 있다 — 문이 열려 있어도 자유롭게 보고 이동할 수 있다(PANEL-BACK-02).
-function MainRegion({ title }: { title: string }) {
+function MainRegion() {
   const { openDoor, activeField, draft, collapsed, setField } = useDoors()
   const { pathname } = useLocation()
   const prev = useRef(pathname)
@@ -94,9 +95,8 @@ function MainRegion({ title }: { title: string }) {
   }
   return (
     <main className="relative min-h-0 flex-1 overflow-y-auto">
-      {/* 화면 제목은 본문에 둔다 — 헤더 왼쪽은 병원명이다(SHELL-HDR-01·STAFF-SHELL-02). */}
+      {/* 화면 제목은 헤더 왼쪽이 그린다(`SHELL-HDR-01` 개정 2026-08-28) — 본문에 또 적지 않는다. */}
       <div className="mx-auto max-w-6xl px-6 py-5">
-        <h1 className="mb-4 text-xl font-semibold">{title}</h1>
         <Outlet />
       </div>
     </main>

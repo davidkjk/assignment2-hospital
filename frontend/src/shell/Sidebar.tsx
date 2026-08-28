@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import {
+  Activity, AlertCircle, BarChart3, CalendarCheck2, CalendarDays, ClipboardList, ConfettiIcon,
+  FileText, FlagIcon, History, Layers3, MessageCircle, SealQuestionIcon, Search, Send, Settings,
+  ShieldCheck, Sparkles, Stethoscope, UserRoundPlus, Users, Hospital,
+} from '@/components/icons'
+import { useState, type ComponentType } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import iconSpriteUrl from './icons.svg?url'
 import type { Role } from '../auth/roles'
 import { navItemForPath, NAV_GROUPS, NAV_ITEMS } from './navItems'
 import { NavBadge } from './NavBadge'
@@ -17,7 +21,7 @@ export function Sidebar({ role, counts = {}, connected = true }: { role: Role; c
     <aside className="staff-sidebar flex w-14 shrink-0 flex-col bg-sidebar-ink text-white xl:w-60">
       {/* 브랜드 (사이드바 top) — 병원명은 사이드바가 상시 표시한다(헤더는 화면 제목만) */}
       <div className="flex h-14 items-center gap-2 px-4 xl:px-5">
-        <svg aria-hidden="true" className="h-6 w-6 shrink-0"><use href={`${iconSpriteUrl}#hospital`} /></svg>
+        <Hospital aria-hidden className="h-6 w-6 shrink-0 text-white" />
         <span className="hidden font-logo text-xl xl:inline">{HOSPITAL_NAME}</span>
       </div>
       <div className="mx-5 mb-2 hidden border-b border-white/10 pb-3 text-[0.7rem] font-medium text-white/55 xl:block">
@@ -70,7 +74,7 @@ function NavItemLink({ item, counts, connected, activePath }: { item: (typeof NA
         <>
           {/* 좌측 3px 흰 바 — 색만으로 구분하지 않는다 (SHELL-NAV-06) */}
           <span className={`absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-white transition-opacity ${isActive || isDeepLinkActive ? 'opacity-100' : 'opacity-0'}`} />
-          <svg data-testid={`icon-${item.icon}`} aria-hidden="true" className="h-[1.1rem] w-[1.1rem] shrink-0"><use href={`${iconSpriteUrl}#${item.icon}`} /></svg>
+          <NavIcon name={item.icon} />
           <span className="nav-label hidden truncate xl:inline">{item.label}</span>
           <NavBadge count={counts[item.path]} connected={connected} />
           {tooltipVisible && (
@@ -86,4 +90,37 @@ function NavItemLink({ item, counts, connected, activePath }: { item: (typeof NA
       )}
     </NavLink>
   )
+}
+
+// 사이드바 아이콘 — 데모와 같은 Phosphor 채움(Solid) 벡터(`DISP-ICON-03`).
+// ⚠️ `navItems.ts`는 순수 데이터(문자열 키)로 남긴다 — 역할표 단일 원본에 JSX를 섞지 않는다.
+const NAV_ICONS: Record<string, ComponentType<{ className?: string; 'data-testid'?: string; 'aria-hidden'?: boolean }>> = {
+  stethoscope: Stethoscope,
+  today: Activity,
+  queue: Users,
+  calendar: CalendarDays,
+  search: Search,
+  message: MessageCircle,
+  send: Send,
+  chart: BarChart3,
+  shield: ShieldCheck,
+  log: ClipboardList,
+  merge: Layers3,
+  history: History,
+  warning: AlertCircle,
+  book: Sparkles,
+  question: SealQuestionIcon,
+  flag: FlagIcon,
+  quality: ConfettiIcon,
+  bot: MessageCircle,
+  staff: UserRoundPlus,
+  schedule: CalendarCheck2,
+  form: FileText,
+  settings: Settings,
+}
+
+// 아이콘 없는 메뉴 항목을 만들지 않는다 — 하나라도 비면 아이콘 모드에서 그 항목만 사라진다(SHELL-NAV-11).
+function NavIcon({ name }: { name: string }) {
+  const Icon = NAV_ICONS[name] ?? Activity
+  return <Icon aria-hidden data-testid={`icon-${name}`} className="h-[1.1rem] w-[1.1rem] shrink-0" />
 }

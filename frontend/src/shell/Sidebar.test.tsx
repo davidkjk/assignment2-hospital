@@ -21,11 +21,6 @@ test('[SHELL-NAV-05] 건수가 0이면 숫자를 그리지 않는다', () => {
   expect(screen.queryByText('0')).toBeNull()
 })
 
-test('[SHELL-NAV-11] 모든 메뉴는 symbol/use 아이콘을 가진다', () => {
-  render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Sidebar role="admin" /></MemoryRouter>)
-  for (const link of screen.getAllByRole('link')) expect(link.querySelector('svg use')).not.toBeNull()
-})
-
 test('[SHELL-NAV-01][SHELL-NAV-04] 관리자는 네 그룹을 정해진 순서로 본다', () => {
   render(<MemoryRouter><Sidebar role="admin" /></MemoryRouter>)
   expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(['업무', '기록', '상담봇 관리', '설정'])
@@ -55,8 +50,13 @@ test('[SHELL-NAV-01] 그룹 접기·펼치기 스위치를 제공하지 않는�
   expect(screen.queryAllByRole('button', { name: /접기|펼치기/ })).toHaveLength(0)
 })
 
-test('[SHELL-NAV-11] 아이콘 경로는 Vite의 production asset URL을 사용한다', () => {
-  render(<MemoryRouter><Sidebar role="receptionist" /></MemoryRouter>)
-  const href = screen.getByTestId('icon-today').querySelector('use')?.getAttribute('href')
-  expect(href).toContain('icons.svg')
+// 2026-08-28 개정: 스프라이트(`<symbol>`+`<use>`) → 데모와 같은 Phosphor 채움 컴포넌트.
+//   취지(벡터 재사용·이모지 금지·항목마다 아이콘)는 그대로라 그 셋을 검사한다.
+test('[SHELL-NAV-11] 모든 메뉴 항목이 벡터 아이콘을 갖고, 이모지를 쓰지 않는다', () => {
+  render(<MemoryRouter><Sidebar role="admin" /></MemoryRouter>)
+  const links = screen.getAllByRole('link')
+  links.forEach((link) => expect(link.querySelector('svg')).not.toBeNull())
+  expect(screen.getByTestId('icon-today').tagName.toLowerCase()).toBe('svg')
+  const nav = screen.getByRole('navigation')
+  expect(nav.textContent ?? '').not.toMatch(/\p{Extended_Pictographic}/u)
 })

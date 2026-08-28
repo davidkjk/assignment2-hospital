@@ -15,14 +15,18 @@ export type StartDoor = 'register' | 'checkin' | 'appointment'
 export interface StartDoorItem {
   key: StartDoor
   label: string
+  /** 라벨 왼쪽 아이콘 — `＋` 기호를 대신한다(데모 정렬 2026-08-28). */
+  icon: string
   roles: readonly Role[]
   primary?: boolean
 }
 
+// 세 문의 이름은 「아이콘 + 글자」다 — `＋ 등록` 같은 기호 표기를 쓰지 않는다(사용자 확정 2026-08-28,
+// `SHELL-HDR-01`·`SHELL-ACT-01`·`SHELL-DOOR-01` 개정). 「새로 만드는 문」이라는 뜻은 아이콘이 진다.
 export const START_DOORS: readonly StartDoorItem[] = [
-  { key: 'register', label: '＋ 등록', roles: RECEPTION_AND_ADMIN },
-  { key: 'checkin', label: '＋ 접수', roles: RECEPTION_AND_ADMIN, primary: true },
-  { key: 'appointment', label: '＋ 예약', roles: RECEPTION_AND_ADMIN },
+  { key: 'register', label: '등록', icon: 'register', roles: RECEPTION_AND_ADMIN },
+  { key: 'checkin', label: '접수', icon: 'checkin', roles: RECEPTION_AND_ADMIN, primary: true },
+  { key: 'appointment', label: '예약', icon: 'appointment', roles: RECEPTION_AND_ADMIN },
 ] as const
 
 // 역할표 단일 원본: 사이드바와 route guard가 모두 이 표를 소비한다(ROLE-ADM-01).
