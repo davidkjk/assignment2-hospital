@@ -1,12 +1,12 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, test } from 'vitest'
-import { server } from '../test/msw/server'
-import { QueuePage, nowHHMM } from './QueuePage'
-import type { QueueResponse, QueueRow } from '../api/dashboard'
+import { server } from '../../test/msw/server'
+import { Queue, nowHHMM } from './Queue'
+import type { QueueResponse, QueueRow } from '../../api/dashboard'
 
 // 백엔드 계약: backend/app/services/dashboard_service.py::get_queue (masked_* 화이트리스트).
 
@@ -47,7 +47,7 @@ function renderQueue(initial = '/queue') {
     <QueryClientProvider client={qc}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initial]}>
         <Routes>
-          <Route path="/queue" element={<QueuePage />} />
+          <Route path="/queue" element={<Queue />} />
           <Route path="*" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -55,7 +55,7 @@ function renderQueue(initial = '/queue') {
   )
 }
 
-describe('QueuePage', () => {
+describe('Queue', () => {
   beforeEach(() => {
     queueOk({
       waiting: [
@@ -117,6 +117,27 @@ describe('QueuePage', () => {
     const r = await screen.findByTestId('queue-row-w1')
     expect(within(r).queryByRole('button', { name: '진료 시작' })).toBeNull()
     expect(within(r).getByRole('button', { name: '응급/주의 표시' })).toBeInTheDocument()
+    // UNDO-BTN-01: 진료대기도 한 칸 되돌릴 수 있다(→도착).
+    expect(within(r).getByRole('button', { name: '되돌리기' })).toBeInTheDocument()
+  })
+
+  test('QUEUE-BTN-02: 도착 줄은 [진료 대기]·[되돌리기]·[환자 상세]', async () => {
+    renderQueue('/queue?tab=arrived')
+    const r = await screen.findByTestId('queue-row-ar1')
+    expect(within(r).getByRole('button', { name: '진료 대기' })).toBeInTheDocument()
+    expect(within(r).getByRole('button', { name: '되돌리기' })).toBeInTheDocument()
+    expect(within(r).getByRole('button', { name: '환자 상세' })).toBeInTheDocument()
+  })
+
+  test('UNDO-BTN-01: [되돌리기]는 한 칸 되돌리기 엔드포인트를 부른다', async () => {
+    let called = false
+    server.use(http.post('*/appointments/ar1/undo', async () => {
+      called = true
+      return HttpResponse.json({ status: '예약확정' })
+    }))
+    renderQueue('/queue?tab=arrived')
+    await userEvent.click(within(await screen.findByTestId('queue-row-ar1')).getByRole('button', { name: '되돌리기' }))
+    await waitFor(() => expect(called).toBe(true))
   })
 
   test('QUEUE-URG-03: 응급 표시 확인창에 「의학적 판정이 아니다」를 띄운다', async () => {
@@ -126,11 +147,16 @@ describe('QueuePage', () => {
     expect(screen.getByText(/대기 순서는 바뀌지 않습니다/)).toBeInTheDocument()
   })
 
-  test('QUEUE-ORDER-06: 순서 변경 사유가 비면 확인이 눌리지 않는다', async () => {
+  test('QUEUE-ORDER-06: 순서를 끌어 놓으면 사유가 비었을 때 확인이 눌리지 않는다', async () => {
     renderQueue('/queue?tab=waiting')
-    await userEvent.click(within(await screen.findByTestId('queue-row-w1')).getByRole('button', { name: '대기 순서 변경' }))
+    // 드래그 순서변경 — jsdom은 삽입선을 못 보지만 onDrop 로직은 탄다(브라우저에서 시각 판정).
+    const w2 = await screen.findByTestId('queue-row-w2')
+    const w1 = await screen.findByTestId('queue-row-w1')
+    fireEvent.dragStart(w2)
+    fireEvent.dragOver(w1)
+    fireEvent.drop(w1)
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('button', { name: '확인' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: '변경 확인' })).toBeDisabled()
   })
 
   test('QUEUE-FILT-03: 의사 필터는 화면에서 걸러도 탭 숫자는 전체 기준을 유지한다', async () => {

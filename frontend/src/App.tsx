@@ -5,7 +5,7 @@ import { useAuth } from './auth/useAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PasswordResetNewPage } from './pages/PasswordResetNewPage'
 import { PasswordResetRequestPage } from './pages/PasswordResetRequestPage'
-import { QueuePage } from './pages/QueuePage'
+import { Queue } from './pages/queue/Queue'
 import { PatientDetailPage } from './pages/patient/PatientDetailPage'
 import { DoctorConsolePage } from './pages/doctor/DoctorConsolePage'
 import { StatsPage } from './pages/admin/StatsPage'
@@ -59,7 +59,7 @@ function CalendarRoute() {
 function pageFor(path: string, label: string) {
   if (path === '/today') return <Today />
   if (path === '/patients') return <PatientSearchPage />
-  if (path === '/queue') return <QueuePage />
+  if (path === '/queue') return <Queue />
   if (path === '/doctor/console') return <DoctorConsolePage />
   if (path === '/admin/stats') return <StatsPage />
   if (path === '/admin/access-logs') return <AccessLogPage />
