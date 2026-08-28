@@ -3,10 +3,11 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { chip, filterChips, leftColumn, rightColumn, rowNames, rowOf, setupStaff } from './testUtils'
 
 // [STAFF-LIST-*·STAFF-ROW-*·STAFF-STATE-01] 직원 목록.
-// 날짜 어휘가 절대 시각이라(STAFF-LIST-07) 기준 시각을 2026-08-27 12:00으로 고정한다.
+// 날짜 어휘가 절대 시각이라(STAFF-LIST-07) 기준 시각을 **병원 시각** 2026-08-27 12:00으로
+// 고정한다(TIME-TZ-01) — 타임존 없는 리터럴은 그 기계의 시간대로 잡혀 판정이 어긋난다.
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
-  vi.setSystemTime(new Date(2026, 7, 27, 12, 0, 0))
+  vi.setSystemTime(new Date('2026-08-27T12:00:00+09:00'))
 })
 afterEach(() => vi.useRealTimers())
 

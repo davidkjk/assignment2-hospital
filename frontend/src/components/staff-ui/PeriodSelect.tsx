@@ -1,3 +1,4 @@
+import { hospitalToday } from '../../lib/clock'
 /** 기간 선택기 — 날짜 칸이 늘 보이고, 프리셋을 고르면 그 날짜로 맞춰진다(PERIOD-BOX-01~04).
  *  날짜를 직접 고치면 프리셋 표시가 「직접 입력」으로 바뀐다.
  *
@@ -28,10 +29,10 @@ const PRESET_DAYS: Record<PeriodPreset, number | null> = {
   전체: null,
 }
 
+/** 오늘 — **병원 시계**다(`TIME-TZ-01`). 기간 기본값이 그 PC 시계로 정해지면
+ *  서버가 세는 기간과 하루 어긋난 통계를 본다. */
 function isoToday(): string {
-  const now = new Date()
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 10)
+  return hospitalToday()
 }
 
 function shiftDays(iso: string, days: number): string {

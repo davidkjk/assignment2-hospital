@@ -50,32 +50,32 @@ export const DEP_OS = 'dep-os'
 
 export function defaultStaff(): StaffMember[] {
   return [
-    s('s-001', '김관리', 'admin', { last_sign_in_at: '2026-08-27T08:50:00' }),
+    s('s-001', '김관리', 'admin', { last_sign_in_at: '2026-08-27T08:50:00+09:00' }),
     s('s-002', '이민호', 'doctor', {
       department_id: DEP_IM,
       specialty: '내과',
       photo_url: 'https://x/p.jpg',
       calendar_color_index: 0,
-      last_sign_in_at: '2026-08-27T08:57:00',
+      last_sign_in_at: '2026-08-27T08:57:00+09:00',
     }),
-    s('s-003', '박접수', 'receptionist', { last_sign_in_at: '2026-08-27T09:00:00' }),
-    s('s-004', '최운영', 'admin', { last_sign_in_at: '2026-08-26T17:26:00' }),
+    s('s-003', '박접수', 'receptionist', { last_sign_in_at: '2026-08-27T09:00:00+09:00' }),
+    s('s-004', '최운영', 'admin', { last_sign_in_at: '2026-08-26T17:26:00+09:00' }),
     s('s-005', '서하늘', 'doctor', {
       is_active: false,
       department_id: DEP_OS,
       calendar_color_index: 2,
-      last_sign_in_at: '2026-08-20T10:00:00',
+      last_sign_in_at: '2026-08-20T10:00:00+09:00',
     }),
     s('s-006', '김의사', 'doctor', {
       department_id: DEP_IM,
       calendar_color_index: 1,
       last_sign_in_at: null,
-      invited_at: '2026-08-14T02:00:00',
+      invited_at: '2026-08-14T02:00:00+09:00',
     }),
     s('s-007', '한서윤', 'doctor', {
       department_id: DEP_OS,
       calendar_color_index: 3,
-      last_sign_in_at: '2026-08-27T08:10:00',
+      last_sign_in_at: '2026-08-27T08:10:00+09:00',
     }),
   ]
 }
@@ -179,7 +179,7 @@ export function setupStaff(config: SetupConfig = {}) {
             department_id: body.department_id,
             calendar_color_index: body.role === 'doctor' ? 4 : null,
             last_sign_in_at: null,
-            invited_at: '2026-08-27T00:00:00',
+            invited_at: '2026-08-27T00:00:00+09:00',
           }),
         )
       }

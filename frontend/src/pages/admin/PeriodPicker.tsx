@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react'
+import { hospitalToday } from '../../lib/clock'
 
 // [PERIOD-*] 기간 선택기 — 전역 규칙(직원 웹). 기간으로 조회하는 화면 전부가 같은 부품을 쓴다.
 // ⭐ 날짜 두 칸이 늘 보인다(PERIOD-BOX-01) — 프리셋을 고르든 안 고르든 지금 조회 범위가 날짜로 드러난다.
@@ -20,16 +21,21 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** 프리셋 → 시작일·종료일. 종료일은 늘 오늘, 시작일만 과거로 채운다(PERIOD-BOX-02). */
-export function presetRange(key: PresetKey, today = new Date()): { from: string; to: string } {
-  const to = ymd(today)
-  const start = new Date(today)
-  if (key === '7d') start.setDate(start.getDate() - 6)
-  else if (key === '1m') start.setMonth(start.getMonth() - 1)
-  else if (key === '3m') start.setMonth(start.getMonth() - 3)
-  else if (key === '1y') start.setFullYear(start.getFullYear() - 1)
-  else start.setFullYear(2000, 0, 1) // 전체
-  return { from: ymd(start), to }
+/** 프리셋 → 시작일·종료일. 종료일은 늘 오늘, 시작일만 과거로 채운다(PERIOD-BOX-02).
+ *  ⭐ 「오늘」은 **병원 시계**다(`TIME-TZ-01`) — 그 PC 시계로 정하면 서버가 세는 기간과
+ *     하루 어긋난 통계를 보게 된다.
+ *  ⚠️ 달·해 셈은 UTC 자리에서 한다 — 로컬 Date로 옮기면 서머타임이 있는 지역에서 하루가 샌다. */
+export function presetRange(key: PresetKey, at: Date = new Date()): { from: string; to: string } {
+  const to = hospitalToday(at)
+  const [y, m, d] = to.split('-').map(Number)
+  const start = new Date(Date.UTC(y, m - 1, d))
+  if (key === '7d') start.setUTCDate(start.getUTCDate() - 6)
+  else if (key === '1m') start.setUTCMonth(start.getUTCMonth() - 1)
+  else if (key === '3m') start.setUTCMonth(start.getUTCMonth() - 3)
+  else if (key === '1y') start.setUTCFullYear(start.getUTCFullYear() - 1)
+  else start.setUTCFullYear(2000, 0, 1) // 전체
+  const from = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, '0')}-${String(start.getUTCDate()).padStart(2, '0')}`
+  return { from, to }
 }
 
 interface PeriodPickerProps {

@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
+import { hospitalToday } from '../../../lib/clock'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { RequireRole } from '../../../auth/RequireRole'
@@ -213,12 +214,14 @@ function hoursSummary(hours: HospitalHoursRow[]): string {
   return `${weekdayPart} / ${sundayPart}`
 }
 
+/** [TIME-TZ-01] 오늘·이번 달은 **병원 시계**다 — `toISOString()`은 UTC라 한국 오전에
+ *  전날로 적히고, `getMonth()`는 그 PC의 달이다. */
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
+  return hospitalToday()
 }
 function monthLabelNow(): string {
-  const now = new Date()
-  return `${now.getFullYear()}년 ${now.getMonth() + 1}월`
+  const [y, m] = hospitalToday().split('-').map(Number)
+  return `${y}년 ${m}월`
 }
 
 const styles: Record<string, CSSProperties> = {
