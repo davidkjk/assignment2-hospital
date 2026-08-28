@@ -16,12 +16,15 @@
 """
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from app.core.errors import AppError
+from app.core.masking import mask_phone
 from app.core.pagination import Page, paginate
 from app.core.security import StaffContext
-from app.db.pool import acquire_as
+from app.db.pool import acquire_as, get_pool
+from app.services import dispatch_service
 from app.services.slot_generator import REGENERATION_WEEKS  # =8 (SCHED-SLOT-09)
 
 KST = ZoneInfo("Asia/Seoul")
@@ -157,15 +160,18 @@ async def _enqueue_on_conn(staff: StaffContext, conn, *, kind: str, recipients_s
         return EnqueueResult(target_count=len(ids), scheduled_id=str(row["id"]),
                              marketing_excluded=excluded)
 
-    # 즉시 발송 — '발송중' 행을 먼저 쓴다(SEND-RESULT-06). 실제 배달은 Task 30 디스패처.
+    # 즉시 발송 — '발송중' 행을 먼저 쓴다(SEND-RESULT-06). 실제 배달은 Task 30 디스패처(send_now).
+    # SEND-RESULT-09 — channel(실채널 전제 push)과 별개로 사용자가 고른 원래 3값을 requested_channel에 보존.
+    # SEND-RESULT-11 — 한 번의 발송(대상 N명)을 batch_id 하나로 묶어 목록이 배치별로 결과를 집계한다.
+    batch_id = uuid4()
     nids = []
     for pid in ids:
         r = await conn.fetchrow(
             "insert into notification_log "
-            "(patient_id, notification_type, kind, body, channel, sender_staff_id, "
-            "target_count, delivery_status) "
-            "values ($1, 'staff_direct', $2, $3, $4, $5, $6, '발송중') returning id",
-            pid, kind, stored_body, _norm_channel(channel), staff.id, len(ids))
+            "(patient_id, notification_type, kind, body, channel, requested_channel, "
+            " sender_staff_id, target_count, delivery_status, batch_id) "
+            "values ($1, 'staff_direct', $2, $3, $4, $5, $6, $7, '발송중', $8) returning id",
+            pid, kind, stored_body, _norm_channel(channel), channel, staff.id, len(ids), batch_id)
         nids.append(r["id"])
     return EnqueueResult(target_count=len(ids), sms_count=_estimate_sms(channel, len(ids)),
                          marketing_excluded=excluded, notification_ids=nids)
@@ -209,8 +215,124 @@ async def _list_on_conn(conn, cursor: str | None) -> dict:
     # SEND-LIST-08·09 — 사람이 보낸 것만 목록에, 자동 발송(sender null)은 건수로만 접는다.
     auto_count = await conn.fetchval(
         "select count(*) from notification_log where sender_staff_id is null")
-    sent_rows = await conn.fetch(
-        "select * from notification_log where sender_staff_id is not null")
+    # SEND-RESULT-11~14 — 한 배치 = 한 줄. 배치별로 상태 넷을 집계해 실어 준다(도달/재시도중/실패).
+    #   batch_id가 없는 옛 행·단건은 coalesce(batch_id, id)로 홀로 선다(하위호환).
+    rows = await conn.fetch(
+        "select coalesce(batch_id, id) as id, max(kind) as kind, max(body) as body, "
+        "       max(channel) as channel, max(requested_channel) as requested_channel, "
+        "       max(sender_staff_id::text) as sender_staff_id, max(sent_at) as sent_at, "
+        "       max(target_count) as target_count, "
+        "       count(*) filter (where delivery_status='발송중') as c_sending, "
+        "       count(*) filter (where delivery_status='도달')   as c_delivered, "
+        "       count(*) filter (where delivery_status='재시도중') as c_retry, "
+        "       count(*) filter (where delivery_status='실패')   as c_failed "
+        "from notification_log where sender_staff_id is not null "
+        "group by coalesce(batch_id, id)")
+    lines = [
+        {"id": r["id"], "kind": r["kind"], "body": r["body"], "channel": r["channel"],
+         "requested_channel": r["requested_channel"], "sender_staff_id": r["sender_staff_id"],
+         "sent_at": r["sent_at"], "target_count": r["target_count"],
+         "result": {"발송중": r["c_sending"], "도달": r["c_delivered"],
+                    "재시도중": r["c_retry"], "실패": r["c_failed"]}}
+        for r in rows]
     # SEND-LIST-07 — 정렬 sent_at desc + 페이지(Task 13 paginate는 행 리스트를 받는다).
-    sent = paginate([dict(r) for r in sent_rows], cursor=cursor, order="sent_at desc")
+    sent = paginate(lines, cursor=cursor, order="sent_at desc")
     return {"scheduled": [dict(r) for r in scheduled], "sent": sent, "auto_count": auto_count}
+
+
+# ── Task 30: 발송 결과·배지·실패 명단·상태 콜백 ────────────────────────────────
+
+# SEND-BADGE-02·03 — 전화해야 할 것: 예약 변경·병원 취소·전날/당일·직원이 보낸 안내.
+#   ⛔ 광고(kind=marketing)·죽은 번호(patients.sms_dead)는 제외한다.
+_CALL_NEEDED_TYPES = (
+    "rescheduled", "hospital_cancelled", "reminder_day_before", "reminder_today", "staff_direct")
+
+
+async def badge_count(staff: StaffContext, conn=None) -> int:
+    """[SEND-BADGE-01] 사이드바 숫자 — 전화해야 할 미처리 실패 건수."""
+    _require_roles(staff, "receptionist", "admin")
+    if conn is not None:
+        return await _badge_on_conn(conn)
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _badge_on_conn(c)
+
+
+async def _badge_on_conn(conn) -> int:
+    return await conn.fetchval(
+        "select count(*) from notification_log n join patients p on p.id = n.patient_id "
+        "where n.delivery_status = '실패' and n.handled_at is null "
+        "and n.kind <> 'marketing' and n.notification_type = any($1::text[]) "
+        "and p.sms_dead = false",
+        list(_CALL_NEEDED_TYPES))
+
+
+async def mark_handled(staff: StaffContext, notification_id, conn=None) -> dict:
+    """[SEND-BADGE-06] 처리 표시 — 배지에서 뺀다(열기만으로는 안 빠진다)."""
+    _require_roles(staff, "receptionist", "admin")
+    if conn is not None:
+        return await _handled_on_conn(conn, notification_id)
+    async with acquire_as(str(staff.auth_user_id)) as c, c.transaction():
+        return await _handled_on_conn(c, notification_id)
+
+
+async def _handled_on_conn(conn, notification_id) -> dict:
+    await conn.execute(
+        "update notification_log set handled_at = now() "
+        "where id = $1 and handled_at is null", notification_id)
+    return {"status": "handled"}
+
+
+async def failed_list(staff: StaffContext, batch_id, conn=None) -> dict:
+    """[SEND-FAIL-02·06·07] 안 닿은 명단을 두 무리로 — '지금 전화'(번호 살아있음)·'번호 고쳐야 함'(죽음)."""
+    _require_roles(staff, "receptionist", "admin")
+    if conn is not None:
+        return await _failed_on_conn(conn, batch_id)
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _failed_on_conn(c, batch_id)
+
+
+async def _failed_on_conn(conn, batch_id) -> dict:
+    rows = await conn.fetch(
+        "select n.id, n.patient_id, n.failure_code, n.notification_type, p.name, p.phone, p.sms_dead, "
+        "  (select count(*) from notification_log x where x.patient_id = n.patient_id "
+        "     and x.delivery_status = '실패' and x.id <> n.id) as prior_fail "
+        "from notification_log n join patients p on p.id = n.patient_id "
+        "where coalesce(n.batch_id, n.id) = $1 and n.delivery_status = '실패' "
+        "order by p.name asc", batch_id)
+    call_now: list[dict] = []
+    fix_number: list[dict] = []
+    for r in rows:
+        # SEND-FAIL-11 — 마스킹은 탭마다 따로 푼다. 기본은 마스킹본을 준다(풀기·열람기록은 SEND-OPEN 재사용).
+        item = {"id": str(r["id"]), "patient_id": str(r["patient_id"]) if r["patient_id"] else None,
+                "name": r["name"], "phone": mask_phone(r["phone"] or ""),
+                "failure_code": r["failure_code"], "notification_type": r["notification_type"],
+                # SEND-FAIL-09 — 지난 발송에서 이미 실패한 번호는 접어둔다.
+                "already_known": r["prior_fail"] > 0}
+        (fix_number if r["sms_dead"] else call_now).append(item)
+    return {"call_now": call_now, "fix_number": fix_number}
+
+
+async def handle_status_callback(*, provider_message_id: str, status: str,
+                                 failure_code: str | None = None, conn=None) -> dict:
+    """[SEND-RESULT-02] 업체 status callback 수신 — provider_message_id로 줄을 찾아 상태를 굴린다.
+
+    ⚠️ 인증은 서명검증 자리만(실제 값·검증 = 배포 env). 제공자(Twilio 등)가 부르므로 staff 권한 없음.
+    모르는 콜백은 조용히 무시한다(막다른 길 없음).
+    """
+    if conn is not None:
+        return await _callback_on_conn(conn, provider_message_id, status, failure_code)
+    pool = await get_pool()  # 서비스 역할 — 콜백엔 사용자 세션이 없다.
+    async with pool.acquire() as c, c.transaction():
+        return await _callback_on_conn(c, provider_message_id, status, failure_code)
+
+
+async def _callback_on_conn(conn, provider_message_id, status, failure_code) -> dict:
+    row = await conn.fetchrow(
+        "select id from notification_log where provider_message_id = $1", provider_message_id)
+    if row is None:
+        return {"status": "ignored"}
+    if status == "delivered":
+        await dispatch_service.mark_delivered(conn, row["id"])
+    else:
+        await dispatch_service.mark_failed(conn, row["id"], failure_code)
+    return {"status": "ok"}

@@ -38,11 +38,14 @@ export function Header({ patient, role, loading, onChangePhone }: HeaderProps) {
 
           <div style={styles.contact}>
             <PhoneBlock phone={patient.phone} onChangePhone={onChangePhone} />
-            {/* [PTDET-HEAD-05][SEND-DEAD-01] 죽은 번호 표식 — 서비스 장애가 아니라 「이 번호로는 안 간다」. */}
-            {patient.sms_failed_at && (
+            {/* [PTDET-HEAD-05][SEND-DEAD-01] 죽은 번호 표식 — 서비스 장애가 아니라 「이 번호로는 안 간다」.
+                고치는 자리(SEND-DEAD-02)에 표식이 붙는다 — 번호 고치기가 원래 여기서 일어난다. */}
+            {patient.sms_dead && (
               <div data-testid="contact-status" style={styles.deadRow}>
                 <span style={styles.deadText}>이 번호로 문자가 가지 않습니다</span>
-                <span style={styles.deadTime}>{mdHm(patient.sms_failed_at)}</span>
+                {patient.sms_dead_checked_at && (
+                  <span style={styles.deadTime}>{mdHm(patient.sms_dead_checked_at)} 확인</span>
+                )}
                 <button type="button" onClick={onChangePhone} style={styles.fixBtn}>
                   번호 고치기
                 </button>

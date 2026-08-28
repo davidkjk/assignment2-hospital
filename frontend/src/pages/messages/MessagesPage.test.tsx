@@ -27,10 +27,11 @@ function sent(over: Partial<SentRow> = {}): SentRow {
     kind: over.kind ?? 'transactional',
     body: over.body ?? '손으로 보냄',
     channel: over.channel ?? 'push',
+    requested_channel: over.requested_channel ?? 'push',
     sender_staff_id: over.sender_staff_id ?? 'staff-1',
     target_count: over.target_count ?? 3,
-    delivery_status: over.delivery_status ?? '발송중',
     sent_at: over.sent_at ?? '2026-09-01T10:00:00+09:00',
+    result: over.result ?? { 발송중: 0, 도달: 3, 재시도중: 0, 실패: 0 },
   }
 }
 
@@ -126,4 +127,70 @@ test('[SEND-DOOR-03][SEND-BOX-01] [＋ 새로 보내기]는 오른쪽 패널을 
   await screen.findByText('보낸 것')
   await user.click(screen.getByRole('button', { name: /새로 보내기/ }))
   expect(await screen.findByRole('complementary')).toBeVisible()
+})
+
+test('[SEND-RESULT-14] 전부 도달이면 「도달 N건」만, 「실패 0건」은 안 적는다', async () => {
+  okWith(
+    view({
+      sent: {
+        rows: [sent({ result: { 발송중: 0, 도달: 34, 재시도중: 0, 실패: 0 } })],
+        has_more: false,
+        next_cursor: null,
+        order: [],
+      },
+    }),
+  )
+  renderPage()
+  expect(await screen.findByText('도달 34건')).toBeVisible()
+  expect(screen.queryByText(/실패 0건/)).toBeNull()
+})
+
+test('[SEND-RESULT-13] 실패가 있으면 「안 닿은 N명 보기」가 뜨고 실패 명단 패널을 연다', async () => {
+  const user = userEvent.setup()
+  server.use(
+    http.get('*/messages/:id/failed', () =>
+      HttpResponse.json({
+        call_now: [
+          {
+            id: 'n1',
+            patient_id: 'p1',
+            name: '김환자',
+            phone: '010-****-1234',
+            failure_code: 'blocked',
+            notification_type: 'staff_direct',
+            already_known: false,
+          },
+        ],
+        fix_number: [],
+      }),
+    ),
+  )
+  okWith(
+    view({
+      sent: {
+        rows: [sent({ result: { 발송중: 0, 도달: 32, 재시도중: 0, 실패: 2 } })],
+        has_more: false,
+        next_cursor: null,
+        order: [],
+      },
+    }),
+  )
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: '안 닿은 2명 보기' }))
+  expect(await screen.findByText('김환자')).toBeVisible()
+})
+
+test('[SEND-RESULT-11] 발송 직후엔 「발송 중」으로 보인다', async () => {
+  okWith(
+    view({
+      sent: {
+        rows: [sent({ channel: 'sms', result: { 발송중: 34, 도달: 0, 재시도중: 0, 실패: 0 } })],
+        has_more: false,
+        next_cursor: null,
+        order: [],
+      },
+    }),
+  )
+  renderPage()
+  expect(await screen.findByText(/문자 34건 발송 중/)).toBeVisible()
 })

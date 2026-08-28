@@ -64,8 +64,10 @@ export interface PatientDetail {
   birth_date: string
   gender: string | null
   phone: string | null
-  /** 문자 실패/확인 시각(SEND-DEAD-01) — BLOCKED(갭 #123), 서버가 아직 주지 않는다. */
-  sms_failed_at?: string | null
+  /** [SEND-DEAD-01] 이 번호로 문자가 가지 않음(00014 patients.sms_dead). */
+  sms_dead?: boolean | null
+  /** [SEND-DEAD-01] 문자 죽음 확인 시각(00014 patients.sms_dead_checked_at). */
+  sms_dead_checked_at?: string | null
 }
 
 /** 마스킹된 이력 한 행 — 방문·진료기록 공통(patient_row_dto). */

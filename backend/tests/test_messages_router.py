@@ -67,3 +67,27 @@ async def test_관리자도_목록을_연다(client, committed_conn):
     admin = await seed_staff(committed_conn, role="admin")
     res = client.get("/messages", headers=_auth(admin))
     assert res.status_code == 200
+
+
+# ── Task 30 배선 가드 ────────────────────────────────────────────────────────
+async def test_BADGE_의사는_배지수를_못_본다(client, committed_conn):
+    """[SEND-DOOR-07][SEND-BADGE-01] 배지 조회도 접수직원·관리자만."""
+    doctor = await seed_staff(committed_conn, role="doctor")
+    res = client.get("/messages/badge-count", headers=_auth(doctor))
+    assert res.status_code == 403
+
+
+async def test_BADGE_접수직원은_배지수를_받는다(client, committed_conn):
+    """[SEND-BADGE-01] 접수직원은 {count:int}를 200으로 받는다(실패 0이면 0)."""
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    res = client.get("/messages/badge-count", headers=_auth(receptionist))
+    assert res.status_code == 200
+    assert res.json()["count"] == 0
+
+
+async def test_CALLBACK_모르는_콜백은_인증없이_조용히_무시한다(client):
+    """[SEND-RESULT-02] 상태 콜백은 제공자 호출이라 인증 없음. 모르는 id는 막다른 길 없이 무시."""
+    res = client.post("/messages/status-callback",
+                      json={"provider_message_id": "no-such-id", "status": "delivered"})
+    assert res.status_code == 200
+    assert res.json()["status"] == "ignored"

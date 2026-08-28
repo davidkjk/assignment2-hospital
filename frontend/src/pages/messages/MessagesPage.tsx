@@ -4,8 +4,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { InlineError } from '../../components/InlineError'
 import { usePanel } from '../../components/PanelHost'
-import { cancelScheduled, getMessages, type ScheduledRow } from '../../api/messages'
+import { cancelScheduled, getMessages, type ScheduledRow, type SentRow } from '../../api/messages'
 import { SendPanel } from './SendPanel'
+import { FailedListPanel } from './FailedListPanel'
 
 // [Task 28][SEND-DOOR-*][SEND-LIST-*] 제1문 화면 — 「예약해 둔 것 · 보낸 것」 두 구역.
 // ⛔ 발송 결과·명단 열람·재시도·배지는 Task 30. 여기서는 결과 칸의 「자리」만 둔다.
@@ -37,6 +38,14 @@ export function MessagesPage() {
 
   const openNew = () =>
     openPanel({ title: '새 안내 보내기', origin: '/messages', content: <SendPanel /> })
+
+  // [SEND-RESULT-13][SEND-FAIL-01] 「안 닿은 N명 보기」 → 실패 명단 패널(같은 그릇).
+  const openFailed = (row: SentRow) =>
+    openPanel({
+      title: '안 닿은 명단',
+      origin: '/messages',
+      content: <FailedListPanel batchId={row.id} />,
+    })
 
   return (
     <div style={styles.page}>
@@ -92,8 +101,10 @@ export function MessagesPage() {
                   <td style={styles.td}>{CHANNEL_LABEL[row.channel] ?? row.channel}</td>
                   <td style={styles.td}>{fmtTime(row.sent_at)}</td>
                   <td style={styles.td}>{row.target_count ?? 1}명</td>
-                  {/* 발송 결과 칸 — 데이터는 Task 30이 채운다(지금은 자리만). */}
-                  <td style={styles.tdMuted}>—</td>
+                  {/* [SEND-RESULT-11~14] 발송 결과 — 배치별 상태 집계. */}
+                  <td style={styles.td}>
+                    <ResultCell row={row} channelLabel={CHANNEL_LABEL} onViewFailed={openFailed} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -124,6 +135,58 @@ export function MessagesPage() {
         />
       )}
     </div>
+  )
+}
+
+// [SEND-RESULT-11~14] 발송 결과 한 칸. 진행/재시도/끝남/실패0을 규칙대로 그린다.
+function ResultCell({
+  row,
+  channelLabel,
+  onViewFailed,
+}: {
+  row: SentRow
+  channelLabel: Record<string, string>
+  onViewFailed: (row: SentRow) => void
+}) {
+  const sending = row.result.발송중
+  const delivered = row.result.도달
+  const retrying = row.result.재시도중
+  const failed = row.result.실패
+  const total = sending + delivered + retrying + failed
+  const chan = channelLabel[row.channel] ?? row.channel
+
+  // SEND-RESULT-11 — 발송 직후(아직 아무 결과도 안 돌아옴): 「문자 34건 발송 중」.
+  if (sending === total && total > 0) {
+    return (
+      <span style={styles.resultMuted}>
+        {chan} {total}건 발송 중
+      </span>
+    )
+  }
+
+  // SEND-RESULT-12 — 진행 중(발송중/재시도중 남음): 무슨 일이 일어나는지 적는다.
+  if (sending > 0 || retrying > 0) {
+    const parts: string[] = []
+    if (delivered) parts.push(`도달 ${delivered}건`)
+    if (retrying) parts.push(`재시도 중 ${retrying}건`)
+    if (sending) parts.push(`발송 중 ${sending}건`)
+    if (failed) parts.push(`실패 ${failed}건`)
+    return <span style={styles.resultMuted}>{parts.join(' · ')}</span>
+  }
+
+  // SEND-RESULT-14 — 끝났고 실패 0건: 「도달 34건」만(⛔ 실패 0건을 적지 않는다).
+  if (failed === 0) {
+    return <span style={styles.resultOk}>도달 {delivered}건</span>
+  }
+
+  // SEND-RESULT-13 — 끝났고 실패 있음: 「도달 32건 · 실패 2건」 + [안 닿은 2명 보기].
+  return (
+    <span style={styles.resultRow}>
+      도달 {delivered}건 · <span style={styles.resultFail}>실패 {failed}건</span>
+      <button type="button" style={styles.viewFailed} onClick={() => onViewFailed(row)}>
+        안 닿은 {failed}명 보기
+      </button>
+    </span>
   )
 }
 
@@ -191,6 +254,20 @@ const styles: Record<string, CSSProperties> = {
   },
   td: { padding: '8px 10px', borderBottom: '1px solid var(--color-divider)', color: 'var(--color-ink)' },
   tdMuted: { padding: '8px 10px', borderBottom: '1px solid var(--color-divider)', color: 'var(--color-ink-muted)' },
+  resultMuted: { color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)' },
+  resultOk: { color: 'var(--color-ink)', fontSize: 'var(--fs-sm)' },
+  resultRow: { display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-sm)' },
+  resultFail: { color: 'var(--color-danger, #b42318)', fontWeight: 600 },
+  viewFailed: {
+    background: 'none',
+    border: 'none',
+    color: 'var(--color-primary)',
+    fontSize: 'var(--fs-sm)',
+    fontWeight: 600,
+    cursor: 'pointer',
+    padding: 0,
+    textDecoration: 'underline',
+  },
   autoFold: {
     marginTop: 12,
     background: 'none',

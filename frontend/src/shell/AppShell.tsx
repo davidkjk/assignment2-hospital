@@ -9,6 +9,7 @@ import { NAV_ITEMS } from './navItems'
 import { OfflineBanner } from '../components/OfflineBanner'
 import { PanelHost, PanelProvider } from '../components/PanelHost'
 import { ServerEffects } from '../api/serverEffects'
+import { useMessagesBadge } from '../pages/messages/useMessagesBadge'
 
 const RETURN_KEY = 'staff-session-return'
 
@@ -22,6 +23,8 @@ export function AppShell() {
     await logout()
     navigate('/login', { replace: true })
   } })
+  // SEND-BADGE-01 — 「안내 보내기」 사이드바 배지(전화해야 할 미처리 실패). 접수·관리자만 조회.
+  const badgeCounts = useMessagesBadge(staff?.role === 'receptionist' || staff?.role === 'admin')
   if (!staff) return null
   const title = location.pathname.startsWith('/patients/')
     ? '환자 상세'
@@ -31,7 +34,7 @@ export function AppShell() {
       {/* 매 서버 호출의 결말을 연결·세션 배선으로 보낸다(성공→markServerOk / 온라인 401→세션 만료). */}
       <ServerEffects />
       <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--color-bg)', color: 'var(--color-ink)' }}>
-        <Sidebar role={staff.role} />
+        <Sidebar role={staff.role} counts={badgeCounts} />
         <div style={{ minWidth: 0, flex: 1 }}>
           {/* 연결이 끊기면 화면 맨 위 고정 띠로 알린다(OFFX-STAFF-01·02). */}
           <OfflineBanner />

@@ -25,6 +25,13 @@ class SendIn(BaseModel):
     scheduled_at: datetime | None = None
 
 
+class StatusCallbackIn(BaseModel):
+    """[SEND-RESULT-02] 업체(Twilio 등) 상태 되알림. 서명검증(실제 값)은 배포 env."""
+    provider_message_id: str
+    status: str                       # 'delivered' | 'failed'
+    failure_code: str | None = None
+
+
 def _page_dto(page) -> dict:
     return {"rows": page.rows, "has_more": page.has_more,
             "next_cursor": page.next_cursor, "order": list(page.order)}
@@ -35,6 +42,43 @@ def _result_dto(res) -> dict:
             "marketing_excluded": res.marketing_excluded,
             "notification_ids": res.notification_ids, "scheduled_id": res.scheduled_id,
             "night_blocked": res.night_blocked, "suggested_at": res.suggested_at}
+
+
+@router.post("/messages/status-callback")
+async def status_callback(body: StatusCallbackIn) -> dict:
+    """[SEND-RESULT-02] 업체 status callback 수신 — 인증 없음(제공자 호출). 서명검증 자리=배포.
+
+    provider_message_id로 줄을 찾아 도달/실패·재시도·죽은번호 처리를 굴린다. 모르는 값은 무시.
+    """
+    return await message_service.handle_status_callback(
+        provider_message_id=body.provider_message_id, status=body.status,
+        failure_code=body.failure_code)
+
+
+@router.get("/messages/badge-count")
+async def badge_count(
+    staff: StaffContext = Depends(require_role(*_ROLES)),
+) -> dict:
+    """[SEND-BADGE-01] 사이드바 숫자 — 전화해야 할 미처리 실패 건수."""
+    return {"count": await message_service.badge_count(staff)}
+
+
+@router.get("/messages/{batch_id}/failed")
+async def failed_list(
+    batch_id: UUID,
+    staff: StaffContext = Depends(require_role(*_ROLES)),
+) -> dict:
+    """[SEND-FAIL-02·06·07] 안 닿은 명단 — '지금 전화'·'번호 고쳐야 함' 두 무리."""
+    return await message_service.failed_list(staff, batch_id)
+
+
+@router.post("/messages/{notification_id}/mark-handled")
+async def mark_handled(
+    notification_id: UUID,
+    staff: StaffContext = Depends(require_role(*_ROLES)),
+) -> dict:
+    """[SEND-BADGE-06] 처리 표시로 배지를 줄인다."""
+    return await message_service.mark_handled(staff, notification_id)
 
 
 @router.get("/messages")
