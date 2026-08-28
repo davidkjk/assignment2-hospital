@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { hospitalMinutesOfDay, hospitalToday } from '../../lib/clock'
 import iconSpriteUrl from '../../shell/icons.svg?url'
 import { SlotBlock, type SlotWarning } from './SlotBlock'
@@ -80,6 +80,22 @@ export function DayGrid({
   // [CAL-PAST-01·03] 지난 빈 곳을 눌렀을 때의 안내(막다른 길 금지 — 해결 경로를 함께 준다).
   const [pastHint, setPastHint] = useState(false)
 
+  // [CAL-PAST-05] 열 때 지금 선이 보이게 아래로 내려간다 — 지금을 위에서 1/3 지점에.
+  //   ⭐ 일간 단독일 때만(주간은 바깥 cal-week-grid가 스크롤 컨테이너라 각 날은 스크롤하지 않는다).
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (compact || hideAxis) return
+    const el = scrollRef.current
+    if (!el || nowMin == null) return
+    // 레이아웃이 끝난 다음 프레임에 스크롤한다 — 마운트 직후엔 clientHeight가 아직 0이라 안 내려간다.
+    const id = requestAnimationFrame(() => {
+      el.scrollTop = Math.max(0, (nowMin - windowStartMin) * pxPerMinute - el.clientHeight / 3)
+    })
+    return () => cancelAnimationFrame(id)
+    // 최초 1회만 — 배율을 바꿀 때 스크롤이 튀지 않게 의존성을 비운다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function warningsFor(appointmentId: string): SlotWarning[] | undefined {
     const w: SlotWarning[] = []
     if (affectedIds?.has(appointmentId)) w.push('affected')
@@ -89,7 +105,7 @@ export function DayGrid({
   }
 
   return (
-    <div className="cal-day-grid" data-testid="day-grid" data-scroll="horizontal">
+    <div className="cal-day-grid" data-testid="day-grid" data-scroll="horizontal" ref={scrollRef}>
       {!hideAxis && (
         <TimeAxis
           startHour={startHour}

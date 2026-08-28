@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { DayGrid } from './DayGrid'
@@ -48,6 +48,27 @@ test('[CAL-TIME-01][CAL-TIME-08] 눈금 글자는 30분마다이고 5분 격자�
   const labels = within(screen.getByTestId('time-axis')).getAllByTestId('axis-label').map((n) => n.textContent)
   expect(labels).toEqual(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00'])
   expect(container.querySelectorAll('.grid-line-5min')).toHaveLength(0)
+})
+
+test('[CAL-PAST-05] 낮(진료시간 안)에 열면 지금 선이 보이게 아래로 스크롤한다', async () => {
+  const { container } = renderGrid({ now: new Date('2026-08-17T13:00:00+09:00') })
+  const grid = container.querySelector('.cal-day-grid') as HTMLElement
+  // rAF 뒤 scrollTop이 (13:00−09:00)만큼 아래로 내려간다 — 지금을 1/3 지점에.
+  await waitFor(() => expect(grid.scrollTop).toBeGreaterThan(0))
+})
+
+test('[CAL-PAST-05] 진료시간 밖(새벽)에는 스크롤하지 않는다 — 09:00부터 보인다', async () => {
+  const { container } = renderGrid({ now: new Date('2026-08-17T05:49:00+09:00') })
+  const grid = container.querySelector('.cal-day-grid') as HTMLElement
+  await new Promise((r) => requestAnimationFrame(() => r(null)))
+  expect(grid.scrollTop).toBe(0)
+})
+
+test('[CAL-VIEW-05] 주간(compact·hideAxis)에서는 각 날이 스스로 스크롤하지 않는다', async () => {
+  const { container } = renderGrid({ now: new Date('2026-08-17T13:00:00+09:00'), compact: true, hideAxis: true })
+  const grid = container.querySelector('.cal-day-grid') as HTMLElement
+  await new Promise((r) => requestAnimationFrame(() => r(null)))
+  expect(grid.scrollTop).toBe(0)
 })
 
 test('[CAL-SLOT-06] 빈 구간을 누르면 시작 시각과 함께 콜백이 온다(전화예약으로 이어진다)', async () => {

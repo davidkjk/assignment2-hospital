@@ -93,6 +93,15 @@ function MainRegion() {
   if (surface) {
     return <main className="min-h-0 flex-1 overflow-y-auto px-6 py-6">{surface}</main>
   }
+  // 캘린더는 전체 높이·폭 격자다 — 문서형 max-w 래퍼(아래)를 쓰면 cal-page가 높이를 못 받아
+  // 격자 자체 스크롤이 안 생기고(자동 스크롤 무효), 폭이 잘려 의사 열이 안 보인다.
+  if (pathname === '/calendar') {
+    return (
+      <main className="relative min-h-0 flex-1 overflow-hidden">
+        <Outlet />
+      </main>
+    )
+  }
   return (
     <main className="relative min-h-0 flex-1 overflow-y-auto">
       {/* 화면 제목은 헤더 왼쪽이 그린다(`SHELL-HDR-01` 개정 2026-08-28) — 본문에 또 적지 않는다. */}
