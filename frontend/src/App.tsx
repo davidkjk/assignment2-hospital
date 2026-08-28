@@ -33,8 +33,20 @@ function LoginRoute() {
   return <LoginPage />
 }
 
-function Placeholder({ title }: { title: string }) {
-  return <section><h1>{title}</h1><p>이 화면의 본문은 후속 화면 태스크에서 연결됩니다.</p></section>
+// 상담봇 관련 화면은 4단계(상담봇) 산출물이라 이 단계(직원웹)에선 아직 비어 있다.
+// 시연에서 "안 됨"이 아니라 "다음 단계 제공"으로 읽히도록 로드맵 문구를 보여준다.
+const CHATBOT_PATHS = new Set<string>([
+  '/tickets',
+  '/chatlog',
+  '/bot/knowledge',
+  '/bot/unresolved',
+  '/bot/reports',
+  '/bot/quality',
+  '/bot/overview',
+])
+
+function Placeholder({ title, note }: { title: string; note?: string }) {
+  return <section><h1>{title}</h1><p>{note ?? '이 화면의 본문은 후속 화면 태스크에서 연결됩니다.'}</p></section>
 }
 
 // 캘린더는 역할(⚙ 팔레트 관리는 관리자만·CAL-COLOR-04)과 staffId(줌 사람별 기억)를
@@ -61,6 +73,7 @@ function pageFor(path: string, label: string) {
   if (path === '/messages') return <MessagesPage />
   if (path === '/admin/settings') return <SettingsPage />
   if (path === '/calendar') return <CalendarRoute />
+  if (CHATBOT_PATHS.has(path)) return <Placeholder title={label} note="상담봇 기능은 다음 개발 단계(상담봇)에서 제공될 예정입니다." />
   return <Placeholder title={label} />
 }
 
