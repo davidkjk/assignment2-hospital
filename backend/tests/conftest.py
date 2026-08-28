@@ -34,7 +34,11 @@ def client():
 
 @pytest_asyncio.fixture
 async def db_pool():
-    pool = await asyncpg.create_pool(settings.database_url)
+    # ⚠️ 크기를 반드시 지정한다 — asyncpg 기본값은 min=max=**10**이라, 테스트마다 새로 여는
+    #    이 풀과 앱 전역 풀이 각각 10개씩 잡는다. 600여 개를 연달아 돌리면 닫히는 속도가
+    #    여는 속도를 못 따라가 `TooManyConnectionsError`(max_connections=100)가 나고,
+    #    **매 실행마다 다른 테스트가 무작위로 깨진다**(2026-08-28에 이걸 데이터 오염으로 오인했다).
+    pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=5)
     yield pool
     await pool.close()
 
@@ -80,20 +84,57 @@ async def set_session_auth(conn, auth_user_id) -> None:
     await conn.execute("set local role authenticated")
 
 
+# 뒷정리 순서 — **자식 → 부모**. 외래키가 NO ACTION이라 순서가 틀리면 그 자리에서 멈추고,
+# 멈춘 뒤에 남은 행이 **다음 테스트로 새어 들어간다**(먼저 만든 환자가 다음 테스트의 조회에
+# 먼저 잡히는 식). 2026-08-28에 실제로 이 사고가 났다 — `notification_log`가 빠져 있어
+# `appointments` 삭제가 막혔고, 그 잔여물로 관계없는 테스트 3건이 깨졌다.
+#
+# ⚠️ **새 테이블이 patients·appointments·staff·departments를 참조하면 여기에 추가한다.**
+#    빠뜨리면 조용히 넘어가지 않고 ForeignKeyViolationError로 시끄럽게 멈춘다(그게 의도다).
+_CLEANUP_TABLES = (
+    "access_audit_log",
+    "settings_audit_log",
+    "schedule_change_acks",
+    "scheduled_notification_recipients",
+    "scheduled_notifications",
+    "notification_log",
+    "notification_preferences",
+    "device_tokens",
+    "medical_record_revisions",
+    "medical_records",
+    "questionnaire_responses",
+    "questionnaire_templates",  # ⚠️ 삭제금지 트리거가 걸려 있다 — 아래에서 잠시 끈다
+    "appointment_status_history",
+    "appointments",
+    "appointment_slots",
+    "patient_internal_notes",
+    "patient_family_links",
+    "patient_merges",
+    "patients",
+    "doctor_quick_phrases",
+    "doctor_schedule_exceptions",
+    "doctor_schedule_rules",
+    "hospital_closures",
+    "hospital_hours",
+    "staff",
+    "departments",
+)
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _cleanup_committed_data(db_pool):
     yield
     async with db_pool.acquire() as conn:
-        await conn.execute("delete from access_audit_log")
-        await conn.execute("delete from medical_record_revisions")
-        await conn.execute("delete from medical_records")
-        await conn.execute("delete from appointment_status_history")
-        await conn.execute("delete from appointments")
-        await conn.execute("delete from patients")
-        await conn.execute("delete from appointment_slots")
-        await conn.execute("delete from staff")
-        await conn.execute("delete from departments")
-        await conn.execute("delete from auth.users where email like '%@test.local'")
+        # 문진표는 「불변 버전」이라 운영에서 지울 수 없다(결정 12, trg_forbid_..._delete).
+        # 테스트 뒷정리는 그 규칙의 예외라 이 연결에서만 트리거를 끈다 — 외래키 검사는
+        # 켜 둔 채다(테이블이 빠지면 조용히 넘어가지 않고 멈추게).
+        await conn.execute("alter table questionnaire_templates disable trigger user")
+        try:
+            for table in _CLEANUP_TABLES:
+                await conn.execute(f"delete from {table}")
+            await conn.execute("delete from auth.users where email like '%@test.local'")
+        finally:
+            await conn.execute("alter table questionnaire_templates enable trigger user")
 
 
 @pytest_asyncio.fixture
