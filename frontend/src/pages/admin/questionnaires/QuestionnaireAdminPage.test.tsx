@@ -278,6 +278,31 @@ test('[QADM-VERSION-04] 과거 버전은 같은 화면에서 읽기 전용으로
   expect(screen.getByText('내과 문진표')).toBeInTheDocument()
 })
 
+test('[QADM-VERSION-04][F-9] 과거 버전 미리보기는 막다른 길이 아니다 — 편집기로 복사할 수 있다', async () => {
+  const versions: Record<string, SavedVersion> = {
+    'v2-id': {
+      id: 'v2-id',
+      department_id: 'dept-1',
+      version_no: 2,
+      is_active: false,
+      created_at: '2026-07-12T16:20:00+09:00',
+      created_by_name: '박관리자',
+      questions: naegwaQuestions().slice(0, 2),
+    },
+  }
+  const { user } = renderQnaAdmin({ versions })
+  await openNaegwa(user)
+  await user.click(screen.getByRole('button', { name: 'v2 문항 보기' }))
+  const preview = await screen.findByRole('region', { name: /v2/ })
+  // 되돌리기 버튼은 없지만(불변 버전) 「편집기로 복사」 경로는 있어야 한다.
+  await user.click(within(preview).getByRole('button', { name: '이 버전을 편집기로 복사' }))
+  // 미리보기는 닫히고, 편집기로 가져왔다는 안내가 뜬다.
+  expect(screen.queryByRole('region', { name: /v2/ })).not.toBeInTheDocument()
+  expect(screen.getByText(/편집기로 가져왔습니다/)).toBeInTheDocument()
+  // 편집기가 그 버전의 2문항으로 채워진다.
+  expect(screen.getAllByRole('group', { name: /^문항 / })).toHaveLength(2)
+})
+
 // ── 로딩·예외 ───────────────────────────────────────────
 
 test('[QADM-STATE-01] 불러오는 동안 이전 진료과의 문항이 섞여 보이지 않는다', async () => {

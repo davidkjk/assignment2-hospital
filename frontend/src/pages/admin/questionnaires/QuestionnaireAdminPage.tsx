@@ -136,6 +136,14 @@ function QuestionnaireAdminInner() {
     setFlash(null)
   }
 
+  // [F-9][QADM-VERSION-04] 과거 버전을 편집기로 복사 — 되돌리기가 아니라, 그 문항을 편집기에 실어
+  //   [새 버전으로 저장]으로 확정하는 경로. 미리보기에서 옛 버전을 볼 수만 있고 쓸 수 없으면 막다른 길이다.
+  function copyVersionToEditor(qs: Question[]) {
+    mutateQuestions(qs.map((q) => ({ ...q, required: q.required ?? false })))
+    setPreviewId(null)
+    setFlash('이 버전 문항을 편집기로 가져왔습니다. 고친 뒤 [새 버전으로 저장]으로 확정하세요.')
+  }
+
   function editQuestion(index: number, patch: Partial<Question>) {
     mutateQuestions(questions.map((q, i) => (i === index ? { ...q, ...patch } : q)))
   }
@@ -304,6 +312,7 @@ function QuestionnaireAdminInner() {
             onPreview={(id) => setPreviewId(id)}
             previewId={previewId}
             onClosePreview={() => setPreviewId(null)}
+            onCopyToEditor={copyVersionToEditor}
           />
         )}
       </div>
@@ -546,9 +555,10 @@ interface VersionHistoryProps {
   previewId: string | null
   onPreview(id: string): void
   onClosePreview(): void
+  onCopyToEditor(questions: Question[]): void
 }
 
-function VersionHistory({ versions, previewId, onPreview, onClosePreview }: VersionHistoryProps) {
+function VersionHistory({ versions, previewId, onPreview, onClosePreview, onCopyToEditor }: VersionHistoryProps) {
   const previewQ = useQuery({
     queryKey: ['qna-version', previewId],
     queryFn: () => questionnaireAdmin.getVersion(previewId as string),
@@ -603,6 +613,15 @@ function VersionHistory({ versions, previewId, onPreview, onClosePreview }: Vers
               ))}
             </ol>
           )}
+          {/* [F-9][QADM-VERSION-04] 되돌리기 버튼은 일부러 없다(불변 버전) — 대신 이 복사 경로로 되돌린다.
+              막다른 길 금지: 옛 버전을 보기만 하고 못 쓰면 안 된다. */}
+          <button
+            type="button"
+            onClick={() => onCopyToEditor(previewQ.data!.questions)}
+            style={styles.previewCopy}
+          >
+            이 버전을 편집기로 복사
+          </button>
         </section>
       )}
     </aside>
@@ -832,6 +851,11 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
   },
   previewEmpty: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  previewCopy: {
+    marginTop: 12, width: '100%', height: 34, borderRadius: 8, border: 'none',
+    background: 'var(--color-primary)', color: 'var(--color-primary-foreground)',
+    fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+  },
   previewList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   previewItem: { display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 8, borderBottom: '1px solid var(--color-divider)' },
   previewQid: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'ui-monospace, Menlo, monospace' },
