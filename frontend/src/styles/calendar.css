@@ -6,6 +6,7 @@
 .cal-page {
   --cal-head-h: 44px;
   --cal-gutter: 56px;
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -371,4 +372,224 @@
 .cal-past-hint button {
   color: var(--color-primary);
   text-decoration: underline;
+}
+
+/* ── 주간뷰 ───────────────────────────── */
+.cal-week-day {
+  flex: 1;
+  min-width: 0;
+  border-right: 1px solid var(--color-divider);
+}
+.cal-week-day:last-child {
+  border-right: 0;
+}
+.cal-week-day-head {
+  height: var(--cal-head-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-divider);
+  font-variant-numeric: tabular-nums;
+}
+.cal-week-day-head:hover {
+  background: var(--color-done-bg);
+}
+/* 주간 안쪽 DayGrid는 그릇(테두리·그림자·스크롤)을 죽인다 — 바깥 cal-week-grid가 그릇이다. */
+.cal-week-grid .cal-day-grid {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  flex: 1;
+}
+/* 주간 열 머리는 이미 요일 머리가 있으므로 안쪽 열 머리를 접는다. */
+.cal-week-grid .cal-column-head {
+  display: none;
+}
+
+/* ── 미니 달력(날짜 이동) ───────────────────────────── */
+.cal-mini {
+  position: absolute;
+  top: 56px;
+  left: 200px;
+  z-index: 40;
+  width: 256px;
+  padding: 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+.cal-mini-note {
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--color-ink-muted);
+}
+.cal-mini-heads,
+.cal-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-mini-head {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+.cal-mini-grid {
+  margin-top: 4px;
+}
+.cal-mini-day {
+  height: 32px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.cal-mini-day:hover {
+  background: var(--color-done-bg);
+}
+.cal-mini-day.is-other-month {
+  color: color-mix(in srgb, var(--color-ink-muted) 45%, transparent);
+}
+
+/* ── 패널(예약 상세·전화 예약) ───────────────────────────── */
+.cal-appointment-panel,
+.cal-booking-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cal-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cal-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.cal-panel-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--color-ink-muted);
+}
+.cal-panel-close:hover {
+  background: var(--color-done-bg);
+}
+.cal-panel-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cal-panel-fields div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cal-panel-fields dt {
+  font-size: 11px;
+  color: var(--color-ink-muted);
+}
+.cal-panel-fields dd {
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+/* 폼 필드 */
+.cal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cal-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+.cal-field input,
+.cal-field select {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--color-input);
+  border-radius: 8px;
+  background: var(--color-surface);
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.cal-field input:focus,
+.cal-field select:focus {
+  outline: none;
+  border-color: var(--color-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-ring) 30%, transparent);
+}
+.cal-patient-results {
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cal-patient-results li + li {
+  border-top: 1px solid var(--color-divider);
+}
+.cal-patient-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.cal-patient-results button:hover {
+  background: var(--color-done-bg);
+}
+.cal-field-error {
+  font-size: 12px;
+  color: var(--color-danger);
+}
+.cal-race-msg {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-warn) 12%, var(--color-surface));
+  color: var(--color-warn);
+  font-size: 12px;
+}
+.cal-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cal-cancel-link {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+.cal-cancel-link:hover {
+  color: var(--color-danger);
+}
+
+/* 상담 요약(예약 패널에 흡수) */
+.cal-support-summary {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-warn) 30%, var(--color-divider));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-warn) 8%, var(--color-surface));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cal-support-line {
+  font-size: 12px;
+  color: var(--color-warn);
+}
+.cal-support-line.is-error {
+  color: var(--color-danger);
 }
