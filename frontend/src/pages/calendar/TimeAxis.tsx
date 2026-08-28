@@ -16,9 +16,11 @@ export interface TimeAxisProps {
   hourHeight: number
   /** 끈 픽셀만큼 배율 변경을 알린다(부모의 useZoom.dragBy로 이어진다). */
   onDragBy: (deltaPx: number) => void
+  /** 오늘·창 안이면 지금의 분 — gutter에 rose 시각 라벨을 그린다(CAL-PAST-05). 아니면 null. */
+  nowMin?: number | null
 }
 
-export function TimeAxis({ startHour, endHour, hourHeight, onDragBy }: TimeAxisProps) {
+export function TimeAxis({ startHour, endHour, hourHeight, onDragBy, nowMin = null }: TimeAxisProps) {
   const startMin = startHour * 60
   const endMin = endHour * 60
   const pxPerMinute = hourHeight / 60
@@ -78,6 +80,15 @@ export function TimeAxis({ startHour, endHour, hourHeight, onDragBy }: TimeAxisP
           style={{ position: 'absolute', top: `${(t - startMin) * pxPerMinute}px` }}
         />
       ))}
+      {nowMin != null && nowMin >= startMin && nowMin <= endMin && (
+        <div
+          className="cal-axis-now"
+          data-testid="axis-now"
+          style={{ top: `${(nowMin - startMin) * pxPerMinute}px` }}
+        >
+          {hhmm(nowMin)}
+        </div>
+      )}
     </div>
   )
 }

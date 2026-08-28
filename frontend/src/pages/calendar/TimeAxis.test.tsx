@@ -37,3 +37,21 @@ test('[CAL-TIME-02] 한 시간 높이가 커지면 눈금 사이 간격도 그�
   const half = screen.getAllByTestId('axis-label')[1]
   expect(half.style.top).toBe('100px')
 })
+
+test('[CAL-PAST-05] 오늘·창 안이면 gutter에 지금 시각 라벨을 그 높이에 그린다', () => {
+  render(<TimeAxis startHour={9} endHour={18} hourHeight={120} onDragBy={() => {}} nowMin={630} />)
+  const now = screen.getByTestId('axis-now')
+  expect(now.textContent).toBe('10:30') // 630분 = 10:30
+  // 09:00에서 90분 뒤 · 분당 2px → 180px
+  expect(now.style.top).toBe('180px')
+})
+
+test('[CAL-PAST-05] 지금이 없거나(다른 날) 창 밖이면 시각 라벨을 그리지 않는다', () => {
+  const { rerender } = render(
+    <TimeAxis startHour={9} endHour={18} hourHeight={120} onDragBy={() => {}} nowMin={null} />,
+  )
+  expect(screen.queryByTestId('axis-now')).toBeNull()
+  // 창(09~18) 밖 — 19:00
+  rerender(<TimeAxis startHour={9} endHour={18} hourHeight={120} onDragBy={() => {}} nowMin={1140} />)
+  expect(screen.queryByTestId('axis-now')).toBeNull()
+})

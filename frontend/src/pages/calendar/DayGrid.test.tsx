@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { DayGrid } from './DayGrid'
@@ -78,6 +78,24 @@ test('[CAL-SLOT-06] 빈 구간을 누르면 시작 시각과 함께 콜백이 �
   const col = screen.getByTestId('column-d1')
   await user.click(within(col).getByText('빈 시간 09:00–18:00'))
   expect(onEmptyClick).toHaveBeenCalledWith('d1', 9 * 60)
+})
+
+test('[CAL-TIME-03] 빈 시간에 호버하면 커서 높이를 5분 격자에 붙여 시각을 미리 보여준다', () => {
+  renderGrid({ onEmptyClick: vi.fn(), now: new Date('2026-08-17T08:00:00+09:00') })
+  const col = screen.getByTestId('column-d1')
+  const empty = within(col).getByText('빈 시간 09:00–18:00').closest('.cal-slot-pos') as HTMLElement
+  // 분당 2px · 09:00부터 32px ≈ 09:16 → 5분 스냅 09:15. jsdom은 rect.top=0이라 clientY가 곧 offset.
+  fireEvent.mouseMove(empty, { clientY: 32 })
+  expect(within(col).getByTestId('empty-hover')).toHaveTextContent('09:15')
+})
+
+test('[CAL-TIME-03] 빈 시간을 누르면 구간 시작이 아니라 스냅된 시각으로 콜백이 온다', () => {
+  const onEmptyClick = vi.fn()
+  renderGrid({ onEmptyClick, now: new Date('2026-08-17T08:00:00+09:00') })
+  const col = screen.getByTestId('column-d1')
+  const empty = within(col).getByText('빈 시간 09:00–18:00').closest('.cal-slot-pos') as HTMLElement
+  fireEvent.click(empty, { clientY: 32 })
+  expect(onEmptyClick).toHaveBeenCalledWith('d1', 9 * 60 + 15)
 })
 
 test('[CAL-SLOT-07] 예약 블록을 누르면 그 예약 id로 상세 콜백이 온다', async () => {

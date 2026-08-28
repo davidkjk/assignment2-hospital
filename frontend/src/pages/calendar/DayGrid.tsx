@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { hospitalMinutesOfDay, hospitalToday } from '../../lib/clock'
 import iconSpriteUrl from '../../shell/icons.svg?url'
-import { SlotBlock, type SlotWarning } from './SlotBlock'
+import { SlotBlock, type SlotDescriptor, type SlotWarning } from './SlotBlock'
 import { TimeAxis } from './TimeAxis'
 import { buildDayColumn, type PositionedSlot } from './layout'
+
+// [CAL-TIME-01] 「HH:MM」 — TimeAxis와 같은 규칙(공용 헬퍼가 없어 각자 둔다).
+function hhmm(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
 import type { GridAppointment, GridBlock, GridDoctor } from './gridModel'
 
 // [CAL-VIEW-05] 일간·주간이 같은 부품이다 — 주간은 이 열을 폭만 좁혀 하루 칸 안에 여럿 놓는다(WeekGrid).
@@ -112,6 +119,7 @@ export function DayGrid({
           endHour={endHour}
           hourHeight={hourHeight}
           onDragBy={onAxisDragBy ?? (() => {})}
+          nowMin={nowMin}
         />
       )}
       <div className="cal-columns" style={{ display: 'flex' }}>
@@ -245,6 +253,19 @@ function DoctorColumn({
         {slots.map((slot) => {
           const desc = slot.descriptor
           const filled = desc.kind === 'booked' ? { ...desc, paletteIndex: doctor.paletteIndex } : desc
+          // [CAL-TIME-03] 빈 시간(넓은 뷰)은 호버로 5분 스냅 미리보기를 보여주고, 그 스냅 시각으로 연다.
+          //   주간(compact)은 시각을 찍지 않으므로(CAL-WEEK-10) 아래 일반 경로를 탄다.
+          if (desc.kind === 'empty' && !compact && onEmptyClick) {
+            return (
+              <EmptySlot
+                key={slot.key}
+                slot={slot}
+                block={filled}
+                pxPerMinute={pxPerMinute}
+                onPick={(startMin) => onEmptyClick(doctor.id, startMin)}
+              />
+            )
+          }
           const clickable = compact
             ? // 주간: 시각을 찍지 않는다 — 예약 블록만 상세로, 빈 곳은 레인 클릭이 받는다.
               desc.kind === 'booked' && slot.appointmentId
@@ -292,6 +313,55 @@ function DoctorColumn({
           />
         )}
       </div>
+    </div>
+  )
+}
+
+/** [CAL-TIME-03] 빈 시간 블록 — 호버하면 커서 높이를 5분 격자에 붙여 파란 시각을 미리 보여주고,
+ *  누르면 그 스냅 시각으로 전화예약을 연다(구간 시작 고정이 아니라 5분 단위 어디든). */
+function EmptySlot({
+  slot,
+  block,
+  pxPerMinute,
+  onPick,
+}: {
+  slot: PositionedSlot
+  block: SlotDescriptor
+  pxPerMinute: number
+  onPick: (startMin: number) => void
+}) {
+  const [hoverMin, setHoverMin] = useState<number | null>(null)
+  const spanMin = Math.round(slot.height / pxPerMinute)
+  const maxStart = slot.startMin + Math.max(0, spanMin - 5)
+  // 데모와 같은 셈(CAL-TIME-03): 구간 시작 + 커서의 구간 내 offset → 5분 반올림 → [시작, 끝−5]로 clamp.
+  const snap = (clientY: number, rectTop: number) => {
+    const raw = slot.startMin + (clientY - rectTop) / pxPerMinute
+    const snapped = Math.round(raw / 5) * 5
+    return Math.max(slot.startMin, Math.min(maxStart, snapped))
+  }
+  return (
+    <div
+      className="cal-slot-pos"
+      data-hovering={hoverMin != null ? '1' : undefined}
+      data-start={slot.startMin}
+      role="button"
+      tabIndex={0}
+      style={{ position: 'absolute', top: slot.top, height: slot.height, left: 0, right: 0 }}
+      onMouseMove={(e) => setHoverMin(snap(e.clientY, e.currentTarget.getBoundingClientRect().top))}
+      onMouseLeave={() => setHoverMin(null)}
+      onClick={(e) => onPick(snap(e.clientY, e.currentTarget.getBoundingClientRect().top))}
+    >
+      <SlotBlock block={block} />
+      {hoverMin != null && (
+        <span
+          className="cal-empty-hover"
+          data-testid="empty-hover"
+          style={{ top: (hoverMin - slot.startMin) * pxPerMinute }}
+        >
+          <span className="cal-empty-hover-time">{hhmm(hoverMin)}</span>
+          <span className="cal-empty-hover-line" />
+        </span>
+      )}
     </div>
   )
 }

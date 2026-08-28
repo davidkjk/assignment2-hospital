@@ -285,6 +285,35 @@
   border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
   background: var(--color-primary-wash);
 }
+/* 빈 시간 호버 미리보기(CAL-TIME-03) — 커서 높이에 파란 시각 캡슐. 호버 중엔 「빈 시간 …」 글자를 비워 겹침을 피한다. */
+.cal-slot-pos[data-hovering='1'] .cal-slot.is-dotted {
+  color: transparent;
+}
+.cal-empty-hover {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.cal-empty-hover-time {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.cal-empty-hover-line {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
 .cal-slot.is-past {
   color: var(--color-gray-past);
   opacity: 0.7;
@@ -358,6 +387,8 @@
   z-index: 3;
   pointer-events: none;
 }
+/* 점은 격자 맨 왼쪽(gutter 경계 = 첫 열 왼쪽)에 하나만 — 데모의 gutter 경계 점.
+   선은 열마다 그려지므로(실 구조) ::before를 그대로 두면 열마다 점이 반복돼 지저분하다. */
 .cal-now-line::before {
   content: '';
   position: absolute;
@@ -368,6 +399,27 @@
   border-radius: 999px;
   background: var(--color-danger);
   transform: translateX(-50%);
+  display: none;
+}
+.cal-column:first-child .cal-now-line::before {
+  display: block;
+}
+
+/* 지금 시각 라벨 — TimeAxis(gutter)에 rose 캡슐로 하나. 데모는 선 왼쪽 끝의 흰 글씨 라벨. */
+.cal-axis-now {
+  position: absolute;
+  right: 4px;
+  transform: translateY(-50%);
+  z-index: 6;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 /* ── 상태 배너·안내 ───────────────────────────── */
