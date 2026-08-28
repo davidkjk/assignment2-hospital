@@ -163,8 +163,11 @@ async def test_캘_카탈로그_doctor_ids로_필터된다(db_conn):
 
 
 @pytest.mark.asyncio
-async def test_마스크_예약_막대는_이름을_가려_싣는다(db_conn):
-    """[MASK-SRV-01] 예약 막대의 환자 이름은 마스킹돼야 한다 — 원본 name 키는 없다."""
+async def test_예약_막대는_이름은_실명_전화_생년월일은_아예_없다(db_conn):
+    """[MASK-SRV-01][요구사항 :81] 캘린더 막대도 목록이다 — 가리는 것은 **전화·생년월일**이고,
+
+    이름은 실명이다(`SEARCH-RESULT-09` 계열). 원본 전화·생년월일 키는 응답에 아예 없다.
+    """
     dept = await seed_department(db_conn)
     doc = await seed_doctor(db_conn, dept)
     await _rule(db_conn, doc["staff_id"], MON.weekday())
@@ -181,5 +184,5 @@ async def test_마스크_예약_막대는_이름을_가려_싣는다(db_conn):
     )
 
     bar = next(b for b in result["appointments"] if b["appointment_id"] == appt)
-    assert bar["masked_name"] == "홍*동"
-    assert "name" not in bar and "patient_name" not in bar
+    assert bar["name"] == "홍길동" and "masked_name" not in bar
+    assert "patient_name" not in bar and "phone" not in bar and "birth_date" not in bar

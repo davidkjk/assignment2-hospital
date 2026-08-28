@@ -63,7 +63,7 @@ export function BulkRevealRow({ node, hasMore = false }: BulkRevealRowProps) {
 function patientText(row: AccessLogRow): string {
   const p = row.patient
   if (!p) return '—'
-  return [p.masked_name, p.masked_birth_date].filter(Boolean).join(' · ') || '—'
+  return [p.name, p.masked_birth_date].filter(Boolean).join(' · ') || '—'
 }
 
 const styles: Record<string, CSSProperties> = {

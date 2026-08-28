@@ -13,11 +13,11 @@ import type { TodaySummary } from '../api/dashboard'
 const FULL: TodaySummary = {
   tiles: { total_reserved: 24, arrived: 3, waiting: 5, in_progress: 2, completed: 12, cancelled_or_noshow: 2 },
   long_wait: [
-    { patient_id: 'p1', masked_name: '김*동', masked_birth_date: '1990-**-**', appointment_id: 'a1', wait_minutes: 42 },
-    { patient_id: 'p2', masked_name: '이*', masked_birth_date: '1985-**-**', appointment_id: 'a2', wait_minutes: 31 },
+    { patient_id: 'p1', name: '김*동', masked_birth_date: '1990-**-**', appointment_id: 'a1', wait_minutes: 42 },
+    { patient_id: 'p2', name: '이*', masked_birth_date: '1985-**-**', appointment_id: 'a2', wait_minutes: 31 },
   ],
   needs_attention: [
-    { patient_id: 'p3', masked_name: '박*수', masked_birth_date: '1978-**-**', appointment_id: 'a3', reason: '취소 상담 · 직원 확인 중' },
+    { patient_id: 'p3', name: '박*수', masked_birth_date: '1978-**-**', appointment_id: 'a3', reason: '취소 상담 · 직원 확인 중' },
   ],
   not_arrived: [],
   yesterday_unfinished: [],
@@ -41,10 +41,10 @@ const EMPTY: TodaySummary = {
 const ALL: TodaySummary = {
   ...FULL,
   not_arrived: [
-    { patient_id: 'p9', masked_name: '최*연', masked_birth_date: '1970-**-**', appointment_id: 'a9', slot_time: '09:30:00' },
+    { patient_id: 'p9', name: '최*연', masked_birth_date: '1970-**-**', appointment_id: 'a9', slot_time: '09:30:00' },
   ],
   yesterday_unfinished: [
-    { patient_id: 'p8', masked_name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감' },
+    { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감' },
   ],
   doctor_waiting: [
     { doctor_id: 'd1', doctor_name: '박지훈', department_name: '내과', waiting_count: 3 },

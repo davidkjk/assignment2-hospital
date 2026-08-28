@@ -8,6 +8,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, QrCode, UserPlus, X } from '@/components/icons'
 import { ApiError } from '../../api/httpClient'
 import { checkDuplicate, registerPatient } from '../../api/registration'
+import { CheckinForm } from '../../pages/checkin/CheckinForm'
 import { useDoors } from './DoorContext'
 import { doctorWaitMap, doorDoctors, fmtDate, maskBirth, maskPhone, type FieldId } from './doorData'
 
@@ -192,10 +193,10 @@ function ReserveBody() {
 
       <div className="grid grid-cols-2 gap-3">
         <FieldRow label="날짜" field="date" active={activeField === 'date'} filled={!!draft.date} onActivate={() => setField('date')}>
-          {draft.date ? <span className="font-medium text-foreground">{fmtDate(draft.date)}</span> : '날짜'}
+          {draft.date ? <span className="font-medium text-foreground">{fmtDate(draft.date)}</span> : '날짜를 고르세요'}
         </FieldRow>
         <FieldRow label="시각" field="time" active={activeField === 'time'} filled={!!draft.time} onActivate={() => (draft.doctor ? setField('time') : setField('doctor'))}>
-          {draft.time ? <span className="font-medium tabular-nums text-foreground">{draft.time}</span> : '시각'}
+          {draft.time ? <span className="font-medium tabular-nums text-foreground">{draft.time}</span> : '시각을 고르세요'}
         </FieldRow>
       </div>
 
@@ -343,13 +344,13 @@ function RegisterBody() {
       {dup && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <span>
-            혹시 <b>{dup.masked_name}</b>({dup.masked_birth_date}) 님 아니세요? 전화번호가 같습니다.
+            혹시 <b>{dup.name}</b>({dup.masked_birth_date}) 님 아니세요? 전화번호가 같습니다.
             {/* 막다른 길 금지 — 그 환자를 안고 예약·접수로 이어간다. 전화는 방금 직원이 친 값이다. */}
             <button
               onClick={() =>
                 pickPatient({
                   id: dup.patient_id as string,
-                  name: dup.masked_name as string,
+                  name: dup.name as string,
                   birth: dup.masked_birth_date as string,
                   tel: form.tel,
                 })
@@ -392,19 +393,9 @@ function RegisterBody() {
   )
 }
 
-/** TODO(D3 배선) 접수 문 「예약 확인」 갈래 — QR·6자리 예약번호 조회는 실 `pages/checkin`이 이미 갖고 있다.
- *  Task D3에서 `findByCode`·`transitionStatus`를 이 자리에 붙인다(계획 §4 Task D3). */
-function CheckinLookupPlaceholder() {
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-      QR·예약번호 접수는 다음 단계(D3)에서 연결됩니다
-    </div>
-  )
-}
-
 /** 접수 문 — 예약 확인(QR·번호) / 예약 없이 오신 분(당일 방문) (F-4) */
 function CheckinBody() {
-  const { draft, activeField, setField, patch, pickDoctor, finish } = useDoors()
+  const { draft, activeField, setField, patch, pickDoctor, finish, close } = useDoors()
   const mode = draft.checkinMode ?? 'reserved'
   const [confirm, setConfirm] = useState(false)
   const walkReady = draft.patient && draft.doctor
@@ -427,7 +418,7 @@ function CheckinBody() {
       </div>
 
       {mode === 'reserved' ? (
-        <CheckinLookupPlaceholder />
+        <CheckinForm onClose={close} />
       ) : (
         <div className="space-y-4">
           <FieldRow label="환자" field="patient" active={activeField === 'patient'} filled={!!draft.patient} onActivate={() => setField('patient')}>

@@ -186,7 +186,9 @@ async def get_stats_detail(metric: str, from_date: date, to_date: date, staff: S
     fetched = await _dispatch(staff, conn, _run)
     rows = [
         patient_row_dto(
+            # [STAT-DRILL-02] 관리자 훑어보기 명단은 이름까지 가린다 — 목록 화면과 다른 유일한 곳.
             patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+            mask_name_too=True,
             id=r["id"], occurred_at=r["occurred_at"],
         )
         for r in fetched
@@ -221,7 +223,9 @@ async def _long_wait_detail(from_date: date, to_date: date, staff: StaffContext,
     fetched = await _dispatch(staff, conn, _run)
     rows = [
         patient_row_dto(
+            # [STAT-DRILL-02] 여기도 관리자 명단이라 이름까지 가린다(결정 #24).
             patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+            mask_name_too=True,
             id=r["id"], wait_started_at=r["wait_started_at"],
             wait_minutes=r["wait_minutes"], waited_on=r["waited_on"],
         )

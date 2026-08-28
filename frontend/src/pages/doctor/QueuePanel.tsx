@@ -9,7 +9,7 @@ export interface DoctorQueueRow {
   /** 예약 식별자(선택·전이·강조의 키). */
   id: string
   patient_id: string
-  masked_name: string
+  name: string
   queue_position: number | null
   waiting_started_at: string | null
   status: string
@@ -97,7 +97,7 @@ export function QueuePanel({
                   <span style={styles.rowTop}>
                     <span style={styles.name}>
                       <span style={styles.pos}>{r.queue_position ?? '–'}</span>
-                      {r.masked_name}
+                      {r.name}
                     </span>
                     <span style={styles.status}>{r.status}</span>
                   </span>

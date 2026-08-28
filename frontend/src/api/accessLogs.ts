@@ -11,7 +11,7 @@ import { apiFetch } from './httpClient'
 /** 한 열람 행의 환자 식별 — 서버가 마스킹한 값만(patient_row_dto 화이트리스트). */
 export interface AccessLogPatientRef {
   patient_id: string
-  masked_name?: string
+  name?: string
   masked_birth_date?: string
   masked_phone?: string
 }

@@ -13,7 +13,7 @@ import type { QueueResponse, QueueRow } from '../api/dashboard'
 function row(over: Partial<QueueRow> & Pick<QueueRow, 'appointment_id' | 'status'>): QueueRow {
   return {
     patient_id: `pat-${over.appointment_id}`,
-    masked_name: '홍*동',
+    name: '홍*동',
     masked_birth_date: '1985-**-**',
     updated_at: '2026-08-26T01:00:00+00:00',
     is_urgent_flag: false,

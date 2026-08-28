@@ -128,7 +128,7 @@ test('[PANEL-WORK-01][PANEL-WORK-03] 날짜 칸을 누르면 왼쪽이 달력이
   const user = userEvent.setup()
   renderShell()
   await user.click(screen.getByRole('button', { name: '예약' }))
-  await user.click(screen.getByRole('button', { name: '날짜' }))
+  await user.click(screen.getByRole('button', { name: /날짜를 고르세요/ }))
 
   expect(screen.getByText('날짜를 고르는 중')).toBeVisible()
 })

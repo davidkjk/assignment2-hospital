@@ -67,7 +67,7 @@ export function DoctorConsolePage() {
   const queueRows: DoctorQueueRow[] = (queueQ.data?.rows ?? []).map((r) => ({
     id: r.id,
     patient_id: r.patient_id,
-    masked_name: r.masked_name,
+    name: r.name,
     queue_position: r.queue_position,
     waiting_started_at: r.waiting_started_at,
     status: r.status,
@@ -292,7 +292,7 @@ export function DoctorConsolePage() {
 
         <div style={{ ...styles.col, flex: `0 0 ${widths.context}px` }} data-col="context" data-width={widths.context}>
           <ContextPanel
-            patient={selectedRow ? { name: selectedRow.masked_name, birth_date: '', gender: null } : null}
+            patient={selectedRow ? { name: selectedRow.name, birth_date: '', gender: null } : null}
             meta={selectedRow ? { status: selectedRow.status } : null}
             reason={record?.reason ? String(record.reason) : null}
             loading={Boolean(selectedId) && recordQ.isLoading}

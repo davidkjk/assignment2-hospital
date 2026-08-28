@@ -35,7 +35,7 @@ function WhyBadges({ matched }: { matched: SearchMatch[] }) {
 export function SearchResultRow({ row }: { row: SearchPatientRow }) {
   return (
     <div style={styles.identity}>
-      <span style={styles.name}>{row.masked_name}</span>
+      <span style={styles.name}>{row.name}</span>
       <span style={styles.meta}>{row.masked_birth_date}</span>
       <span style={styles.meta}>{row.masked_phone}</span>
       <WhyBadges matched={row.matched} />
@@ -124,7 +124,7 @@ export function SearchRowActions({ row }: { row: SearchPatientRow }) {
           // [당일 방문 등록]은 그 자리에서 패널(QUEUE-WALK-02). origin으로 돌아올 자리를 기억(PANEL-HOME-01).
           // TODO(Task 9): WalkInPanel 콘텐츠 — 아직 없어 자리표시자를 담는다. 조립은 이 태스크 이후.
           openPanel({
-            title: `${row.masked_name} 님 당일 방문`,
+            title: `${row.name} 님 당일 방문`,
             origin: location.pathname + location.search,
             content: <WalkInPlaceholder patientId={row.patient_id} />,
           })

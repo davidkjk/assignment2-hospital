@@ -21,3 +21,6 @@ supabase/.branches/
 # 파이썬 캐시 — 검사기(spec-index/*.py)를 돌릴 때마다 생긴다
 __pycache__/
 *.pyc
+
+# 로컬 개발용 환경변수 — 기기마다 다르고 키가 들어간다
+.env.local

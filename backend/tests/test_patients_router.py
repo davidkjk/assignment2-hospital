@@ -66,7 +66,9 @@ async def test_목록_응답에_원본_번호가_아예_없다(client, committed
     body = client.get("/patients", params={"q": "김"}, headers=_auth(receptionist)).json()
     row = body["rows"][0]
 
-    assert "phone" not in row and "birth_date" not in row and "name" not in row
+    # [요구사항 :81][SEARCH-RESULT-09] 가리는 것은 전화·생년월일 둘이고, 이름은 실명이다.
+    assert "phone" not in row and "birth_date" not in row
+    assert row["name"] == "김환자" and "masked_name" not in row
     assert row["masked_phone"] == "010-****-5678"
     assert row["masked_phone"].count("*") == 4
     assert row["masked_birth_date"] == "1958-**-12"

@@ -36,8 +36,8 @@ export function FamilySection({ state, onAddLink, eligibilityMessage }: FamilySe
       ) : (
         <ul style={styles.list}>
           {rows.map((r) => (
-            <li key={r.id} data-id={r.id} data-name={r.masked_name} style={styles.row}>
-              <span style={styles.name}>{r.masked_name}</span>
+            <li key={r.id} data-id={r.id} data-name={r.name} style={styles.row}>
+              <span style={styles.name}>{r.name}</span>
               {r.relation && <span style={styles.relation}>{r.relation}</span>}
             </li>
           ))}

@@ -33,10 +33,10 @@ class RegisterPatientResponse(BaseModel):
 
 
 class DuplicateCheckResponse(BaseModel):
-    # [SHELL-DOOR-03] "혹시 이분?" — 후보 id + 가려진 표시값, 없으면 전부 null.
-    # ⛔ 막지 않는다(등록 게이트가 아니다). ⭐ 원본 name·birth_date·phone 키는 담지 않는다(MASK-SRV-01).
+    # [SHELL-DOOR-03] "혹시 이분?" — 후보 id + 표시값, 없으면 전부 null. ⛔ 막지 않는다(등록 게이트가 아니다).
+    # ⭐ 이름은 실명이다(요구사항 :81은 전화·생년월일만 가리라고 한다). 원본 birth_date·phone은 안 담는다.
     patient_id: UUID | None = None
-    masked_name: str | None = None
+    name: str | None = None
     masked_birth_date: str | None = None
 
 

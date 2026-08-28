@@ -18,7 +18,7 @@ export type SearchTodayStatus = 'booked' | 'arrived' | 'done' | null
 /** 검색 결과 한 줄 — 마스킹된 표시값만. 24a 계약(patient_row_dto + matched·오늘상태). */
 export interface SearchPatientRow {
   patient_id: string
-  masked_name: string
+  name: string
   masked_phone: string
   masked_birth_date: string
   gender: string | null
@@ -73,7 +73,7 @@ export interface PatientDetail {
 /** 마스킹된 이력 한 행 — 방문·진료기록 공통(patient_row_dto). */
 export interface PatientHistoryRow {
   patient_id: string
-  masked_name?: string
+  name?: string
   masked_birth_date?: string
   masked_phone?: string
   id: string

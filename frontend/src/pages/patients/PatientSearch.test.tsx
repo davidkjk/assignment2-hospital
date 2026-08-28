@@ -22,8 +22,8 @@ afterEach(() => vi.useRealTimers())
 
 function mkRow(over: Partial<SearchPatientRow> = {}): SearchPatientRow {
   return {
-    patient_id: over.patient_id ?? `p-${over.masked_name ?? '김'}`,
-    masked_name: '김*수',
+    patient_id: over.patient_id ?? `p-${over.name ?? '김'}`,
+    name: '김*수',
     masked_phone: '010-****-5678',
     masked_birth_date: '1958-**-12',
     gender: 'M',
@@ -182,7 +182,7 @@ describe('검색 상자·안내', () => {
 describe('자동검색·경합', () => {
   test('[SEARCH-RUN-01] 손이 멈추면 0.4초 뒤 자동으로 찾는다 — Enter를 요구하지 않는다', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    renderSearch({ first: { rows: [mkRow({ masked_name: '자동김' })], next_cursor: null, has_more: false } })
+    renderSearch({ first: { rows: [mkRow({ name: '자동김' })], next_cursor: null, has_more: false } })
     await user.click(searchBox())
     await user.paste('김')
     expect(screen.queryByText('자동김')).toBeNull() // 치는 중에는 안 나간다
@@ -192,7 +192,7 @@ describe('자동검색·경합', () => {
 
   test('[SEARCH-RUN-02] Enter는 기다리지 않고 지금 당장 찾는다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '즉시김' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '즉시김' })], next_cursor: null, has_more: false },
     })
     await user.click(searchBox())
     await user.paste('김')
@@ -230,7 +230,7 @@ describe('자동검색·경합', () => {
 
   test('[SEARCH-RUN-04] 새로 찾는 동안 이미 뜬 목록을 지우지 않고, 진행 표시는 건수 옆에만', async () => {
     const { user, release } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '먼저김' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '먼저김' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     await waitFor(() => expect(screen.getByText('먼저김')).toBeVisible())
@@ -249,7 +249,7 @@ describe('자동검색·경합', () => {
         http.get('*/patients', async ({ request }) => {
           const q = new URL(request.url).searchParams.get('q') ?? ''
           if (q.includes('1234')) await delay('infinite')
-          return HttpResponse.json({ rows: [mkRow({ masked_name: '먼저김' })], next_cursor: null, has_more: false })
+          return HttpResponse.json({ rows: [mkRow({ name: '먼저김' })], next_cursor: null, has_more: false })
         }),
       )
     }
@@ -261,9 +261,9 @@ describe('자동검색·경합', () => {
         const q = new URL(request.url).searchParams.get('q') ?? ''
         if (q === '김') {
           await delay(80) // 넓은 검색이 느리다
-          return HttpResponse.json({ rows: [mkRow({ masked_name: '브로드결과' })], next_cursor: null, has_more: false })
+          return HttpResponse.json({ rows: [mkRow({ name: '브로드결과' })], next_cursor: null, has_more: false })
         }
-        return HttpResponse.json({ rows: [mkRow({ masked_name: '좁힘결과' })], next_cursor: null, has_more: false })
+        return HttpResponse.json({ rows: [mkRow({ name: '좁힘결과' })], next_cursor: null, has_more: false })
       }),
     )
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
@@ -297,7 +297,7 @@ describe('자동검색·경합', () => {
 describe('결과·이유·이어받기', () => {
   test('[SEARCH-RESULT-01] 칸 바로 아래에 찾은 수를 적는다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: 'A' }), mkRow({ masked_name: 'B' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: 'A' }), mkRow({ name: 'B' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     await waitFor(() => expect(within(countBadge()).getByText(/2명/)).toBeVisible())
@@ -310,7 +310,7 @@ describe('결과·이유·이어받기', () => {
     server.use(
       http.get('*/patients', ({ request }) => {
         lastQ = new URL(request.url).searchParams.get('q') ?? ''
-        return HttpResponse.json({ rows: [mkRow({ masked_name: '좁힘' })], next_cursor: null, has_more: false })
+        return HttpResponse.json({ rows: [mkRow({ name: '좁힘' })], next_cursor: null, has_more: false })
       }),
     )
     await search(user, '김')
@@ -323,8 +323,8 @@ describe('결과·이유·이어받기', () => {
 
   test('[SEARCH-RESULT-03][SEARCH-RESULT-04] 아래로 내리면 다음 20건이 자동으로 이어 붙는다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ patient_id: 'p1', masked_name: '첫장' })], next_cursor: 'c1', has_more: true },
-      more: { c1: { rows: [mkRow({ patient_id: 'p2', masked_name: '둘째장' })], next_cursor: null, has_more: false } },
+      first: { rows: [mkRow({ patient_id: 'p1', name: '첫장' })], next_cursor: 'c1', has_more: true },
+      more: { c1: { rows: [mkRow({ patient_id: 'p2', name: '둘째장' })], next_cursor: null, has_more: false } },
     })
     await search(user, '김')
     await waitFor(() => expect(screen.getByText('첫장')).toBeVisible())
@@ -335,7 +335,7 @@ describe('결과·이유·이어받기', () => {
 
   test('[SEARCH-RESULT-05] 마지막까지 받으면 끝을 알린다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '유일' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '유일' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     await waitFor(() => expect(screen.getByText('유일')).toBeVisible())
@@ -344,7 +344,7 @@ describe('결과·이유·이어받기', () => {
 
   test('[SEARCH-RESULT-06] 이어받기가 실패하면 [다시 시도] 한 줄, 받은 줄은 유지', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '받은줄' })], next_cursor: 'bad', has_more: true },
+      first: { rows: [mkRow({ name: '받은줄' })], next_cursor: 'bad', has_more: true },
       errorOnCursor: 'bad',
     })
     await search(user, '김')
@@ -356,7 +356,7 @@ describe('결과·이유·이어받기', () => {
 
   test('[SEARCH-RESULT-07][SEARCH-RESULT-08] 목록을 막지도, 「전부 보이기」로 자르지도 않는다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '많음' })], next_cursor: 'c1', has_more: true },
+      first: { rows: [mkRow({ name: '많음' })], next_cursor: 'c1', has_more: true },
     })
     await search(user, '김')
     await waitFor(() => expect(screen.getByText('많음')).toBeVisible())
@@ -367,7 +367,7 @@ describe('결과·이유·이어받기', () => {
   test('[SEARCH-RESULT-09] 줄에 마스킹된 이름·생년월일·전화가 오고 원본은 오지 않는다', async () => {
     const { user } = renderSearch({
       first: {
-        rows: [mkRow({ masked_name: '김순자', masked_birth_date: '1958-**-12', masked_phone: '010-****-5678' })],
+        rows: [mkRow({ name: '김순자', masked_birth_date: '1958-**-12', masked_phone: '010-****-5678' })],
         next_cursor: null,
         has_more: false,
       },
@@ -381,7 +381,7 @@ describe('결과·이유·이어받기', () => {
 
   test('[SEARCH-WHY-01][SEARCH-WHY-03] 왜 걸렸는지 배지로 — 여러 조각이면 배지도 여럿', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '김철수', matched: ['name', 'phone'] })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '김철수', matched: ['name', 'phone'] })], next_cursor: null, has_more: false },
     })
     await search(user, '김 1234')
     const row = await waitFor(() => rowByName('김철수'))
@@ -391,7 +391,7 @@ describe('결과·이유·이어받기', () => {
 
   test('[SEARCH-WHY-02] 맞은 글자를 굵게 칠하지 않는다 — 가려진 자리가 드러나지 않게', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '김철수', masked_phone: '010-****-5678', matched: ['phone'] })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '김철수', masked_phone: '010-****-5678', matched: ['phone'] })], next_cursor: null, has_more: false },
     })
     await search(user, '1234')
     const row = await waitFor(() => rowByName('김철수'))
@@ -414,7 +414,7 @@ describe('결과·이유·이어받기', () => {
 describe('상태별 동작', () => {
   test('[SEARCH-ACT-01] 줄의 동작은 오늘 상태의 것만 뜬다 — 네 상태를 한 줄에 늘어놓지 않는다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '미도착', today_status: 'booked' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '미도착', today_status: 'booked' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('미도착'))
@@ -426,7 +426,7 @@ describe('상태별 동작', () => {
 
   test('[SEARCH-ACT-02] 오늘 예약·미도착 → [진료 대기]·[도착] 두 갈래(하이브리드)', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '미도착', today_status: 'booked', today_appointment_time: '14:30' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '미도착', today_status: 'booked', today_appointment_time: '14:30' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('미도착'))
@@ -437,7 +437,7 @@ describe('상태별 동작', () => {
 
   test('[SEARCH-ACT-03] 오늘 이미 대기·진료 중 → [대기 목록에서 보기]로 이동', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '대기중', today_status: 'arrived' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '대기중', today_status: 'arrived' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('대기중'))
@@ -447,7 +447,7 @@ describe('상태별 동작', () => {
 
   test('[SEARCH-ACT-04] 오늘 진료 완료 → 동작 없음, [환자 상세]만', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '완료', today_status: 'done' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '완료', today_status: 'done' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('완료'))
@@ -457,7 +457,7 @@ describe('상태별 동작', () => {
 
   test('[SEARCH-ACT-05] 오늘 아무것도 없음 → [예약 잡기]·[당일 방문 등록] 둘', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '없음', today_status: null })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '없음', today_status: null })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('없음'))
@@ -467,7 +467,7 @@ describe('상태별 동작', () => {
 
   test('[SEARCH-ACT-06] [당일 방문 등록]은 그 자리에서 패널, [예약 잡기]는 캘린더로', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ patient_id: 'p1', masked_name: '김민정', today_status: null })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ patient_id: 'p1', name: '김민정', today_status: null })], next_cursor: null, has_more: false },
     })
     await search(user, '김민정')
     const row = await waitFor(() => rowByName('김민정'))
@@ -481,7 +481,7 @@ describe('상태별 동작', () => {
 
   test('[SEARCH-ACT-09] [도착]에 확인창을 두지 않고, 되돌릴 수 있게 한다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '미도착', today_status: 'booked' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '미도착', today_status: 'booked' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('미도착'))
@@ -497,7 +497,7 @@ describe('상태별 동작', () => {
 describe('공유 부품 mode', () => {
   test('[PICK-BTN-04] page 모드 목록에 [선택](여러 명 고르기)이 붙는다', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ masked_name: '홍길동' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '홍길동' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     await waitFor(() => expect(screen.getByText('홍길동')).toBeVisible())
@@ -509,7 +509,7 @@ describe('공유 부품 mode', () => {
     const { user } = renderSearch({
       mode: 'pick',
       onPick,
-      first: { rows: [mkRow({ patient_id: 'p9', masked_name: '고를사람', today_status: 'booked' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ patient_id: 'p9', name: '고를사람', today_status: 'booked' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('고를사람'))
@@ -524,7 +524,7 @@ describe('공유 부품 mode', () => {
     const { user } = renderSearch({
       mode: 'pick',
       onPick,
-      first: { rows: [mkRow({ patient_id: 'p1', masked_name: '김순자' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ patient_id: 'p1', name: '김순자' })], next_cursor: null, has_more: false },
     })
     await search(user, '김순자')
     await waitFor(() => expect(screen.getByText('김순자')).toBeVisible())

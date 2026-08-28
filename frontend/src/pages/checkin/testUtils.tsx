@@ -42,10 +42,14 @@ export function makeFakeCamera(): FakeCamera {
   return cam
 }
 
+/** 오늘(KST) 그 시각 — 서버가 주는 모양대로 **오프셋을 붙여** 만든다.
+ *  ⚠️ 오프셋 없는 문자열은 러너 TZ에서 해석돼, 화면이 KST로 그리는 값과 어긋난다. */
 export function todayAt(hhmm: string): string {
-  const n = new Date()
-  const date = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
-  return `${date}T${hhmm}:00`
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const got = Object.fromEntries(parts.map((p) => [p.type, p.value]))
+  return `${got.year}-${got.month}-${got.day}T${hhmm}:00+09:00`
 }
 
 export function foundCard(over: Partial<BookingLookupResult> = {}): BookingLookupResult {

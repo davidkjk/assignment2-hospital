@@ -19,16 +19,30 @@ def test_마스크_네임_두_글자는_뒤만_가린다():
     assert mask_name("김철") == "김*"
 
 
-def test_피티_로우_원본_필드는_응답에_없다():
+def test_피티_로우_원본_전화_생년월일은_응답에_없다():
+    """[요구사항 :81] 가리라고 한 것은 **전화번호와 생년월일** 둘이다 — 원본 키가 아예 없어야 한다."""
     row = patient_row_dto(patient_id="p1", name="홍길동", phone="01012345678",
                           birth_date=datetime.date(1985, 3, 1))
-    assert not ({"name", "patient_name", "phone", "birth_date"} & set(row))
+    assert not ({"patient_name", "phone", "birth_date"} & set(row))
 
 
-def test_피티_로우_마스킹된_값만_담는다():
+def test_피티_로우_이름은_실명으로_담는다():
+    """[SEARCH-RESULT-09][DOCTOR-QUEUE-02] 「이름 · 생년월일(마스킹) · 전화번호(마스킹)」 —
+
+    이름엔 마스킹이 붙지 않는다. 창구 직원이 「황*은 님」을 부를 수는 없다.
+    """
     row = patient_row_dto(patient_id="p1", name="홍길동", phone="01012345678",
                           birth_date=datetime.date(1985, 3, 1))
+    assert row["name"] == "홍길동"
+    assert "masked_name" not in row
+
+
+def test_피티_로우_통계_드릴다운만_이름을_가린다():
+    """[STAT-DRILL-02] 결정 #24 — 관리자 훑어보기 명단 하나만 예외다."""
+    row = patient_row_dto(patient_id="p1", name="홍길동", phone="01012345678",
+                          birth_date=datetime.date(1985, 3, 1), mask_name_too=True)
     assert row["masked_name"] == "홍*동"
+    assert "name" not in row
 
 
 def test_피티_로우_전화는_뒤_4자리만_남긴다():

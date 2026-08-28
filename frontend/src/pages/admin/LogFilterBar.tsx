@@ -11,7 +11,7 @@ import { PeriodPicker } from './PeriodPicker'
 
 interface PatientHit {
   patient_id: string
-  masked_name?: string
+  name?: string
   masked_birth_date?: string
   masked_phone?: string
 }
@@ -32,7 +32,7 @@ interface LogFilterBarProps {
 }
 
 function identity(p: AccessLogPatientRef): string {
-  return [p.masked_name, p.masked_birth_date, p.masked_phone].filter(Boolean).join(' · ')
+  return [p.name, p.masked_birth_date, p.masked_phone].filter(Boolean).join(' · ')
 }
 
 export function LogFilterBar({
@@ -97,7 +97,7 @@ export function LogFilterBar({
                 {hits.map((h) => (
                   <li key={h.patient_id}>
                     <button type="button" onClick={() => pick(h)} style={styles.resultItem}>
-                      <span style={styles.resultName}>{h.masked_name ?? '이름 미상'}</span>
+                      <span style={styles.resultName}>{h.name ?? '이름 미상'}</span>
                       <span style={styles.resultSub}>
                         {[h.masked_birth_date, h.masked_phone].filter(Boolean).join(' · ')}
                       </span>

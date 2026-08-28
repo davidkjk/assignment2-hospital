@@ -20,6 +20,12 @@ _FORBIDDEN_EXTRA = {"patient_name", "name", "phone", "birth_date"}
 def mask_name(name: str) -> str:
     """가운데를 가린다 — 홍길동 → 홍*동, 김철 → 김*.
 
+    ⚠️ **목록 화면은 이것을 쓰지 않는다.** 요구사항(`고객요구사항.txt:81`)이 가리라고 한 것은
+       **전화번호와 생년월일 둘뿐**이고, `SEARCH-RESULT-09`·`DOCTOR-QUEUE-02`·`MERGE-LIST-03`은
+       모두 「이름 · 생년월일(마스킹) · 전화번호(마스킹)」로 **이름을 실명**으로 못박았다.
+       쓰는 곳은 **관리자 통계 드릴다운 명단 하나뿐**이다(`STAT-DRILL-02`, 결정 #24).
+       ⭐ 2026-08-28 이전에는 모든 목록에 걸려 있어 창구 직원이 「황*은 님」을 부를 수 없었다.
+
     한 글자 이하는 그대로 둔다(가릴 자리가 없다). 두 글자는 뒤만, 세 글자 이상은
     첫·끝만 남기고 가운데를 별표로 채운다.
     """
@@ -36,12 +42,16 @@ def patient_row_dto(
     name: str | None = None,
     phone: str | None = None,
     birth_date: date | None = None,
+    mask_name_too: bool = False,
     **safe_extra,
 ) -> dict:
-    """환자 식별자 + 마스킹된 표시값 + 안전한 부가 필드만 담은 한 행을 만든다.
+    """환자 식별자 + 표시값 + 안전한 부가 필드만 담은 한 행을 만든다.
 
     - `patient_id`는 행→환자상세 이동용으로 항상 남긴다(결정24).
-    - name·phone·birth_date가 주어지면 masked_* 로만 실린다(원본 키는 없다).
+    - phone·birth_date는 **항상** masked_* 로만 실린다(원본 키는 없다) — 요구사항 :81.
+    - ⭐ **이름은 기본이 실명(`name`)이다.** 요구사항이 가리라고 한 것에 이름은 없고, 창구
+      직원이 이름을 부르지 못하면 접수가 안 된다. `mask_name_too=True`를 준 곳만 `masked_name`
+      (`홍*동`)으로 나간다 — 지금은 **관리자 통계 드릴다운 하나뿐**(`STAT-DRILL-02`, 결정 #24).
     - `safe_extra`는 환자 원본이 아닌 값(queue_no·status·occurred_at 등)만 허용한다.
     """
     forbidden = _FORBIDDEN_EXTRA & set(safe_extra)
@@ -52,7 +62,10 @@ def patient_row_dto(
 
     row: dict = {"patient_id": patient_id}
     if name is not None:
-        row["masked_name"] = mask_name(name)
+        if mask_name_too:
+            row["masked_name"] = mask_name(name)
+        else:
+            row["name"] = name
     if phone is not None:
         row["masked_phone"] = mask_phone(phone)
     if birth_date is not None:

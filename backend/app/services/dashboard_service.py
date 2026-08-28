@@ -8,7 +8,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from app.core.dto import mask_name, patient_row_dto
+from app.core.dto import patient_row_dto
 from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
@@ -190,7 +190,8 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
         {
             "id": r["id"],
             "patient_id": r["for_patient_id"],
-            "masked_name": mask_name(r["name"]),
+            # [DOCTOR-QUEUE-02] 「이름 · 생년월일(목록 마스킹)」 — 가리는 것은 생년월일이지 이름이 아니다.
+            "name": r["name"],
             "queue_position": r["queue_position"],
             "waiting_started_at": r["waiting_started_at"],
             "status": r["status"],

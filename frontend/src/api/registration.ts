@@ -26,7 +26,7 @@ export function registerPatient(body: RegisterPatientBody) {
 export interface DuplicateCandidate {
   patient_id: string | null
   /** 김*정 (`MASK-SRV-01`) */
-  masked_name: string | null
+  name: string | null
   /** 1975-**-20 (`MASK-DOB-01`) */
   masked_birth_date: string | null
 }

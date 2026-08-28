@@ -9,7 +9,7 @@ import { apiFetch } from './httpClient'
  *  start/end는 서버가 slot_date+start_time과 slot_duration으로 계산해 ISO로 준다(CAL-TIME-09). */
 export interface CalendarBar {
   patient_id: string
-  masked_name?: string
+  name?: string
   appointment_id: string
   doctor_id: string
   status: string

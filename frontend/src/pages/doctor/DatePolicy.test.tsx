@@ -26,7 +26,7 @@ const TOMORROW = ymd(1)
 const YESTERDAY = ymd(-1)
 
 const PAST_ROW = {
-  id: 'a9', patient_id: 'p9', masked_name: '이*희', queue_position: null,
+  id: 'a9', patient_id: 'p9', name: '이*희', queue_position: null,
   waiting_started_at: null, status: '진료중', updated_at: '2026-08-10T09:00:00',
 }
 

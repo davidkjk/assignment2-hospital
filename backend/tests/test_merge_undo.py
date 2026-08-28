@@ -140,7 +140,8 @@ async def test_LIST_01_이력_행은_대표_대상_실행자_시각_상태를_�
     page = await patient_merge_service.get_merge_history(admin, conn=db_conn)
     row = page.rows[0]
     assert row["merge_event_id"] == ev and row["status"] == "undoable"
-    assert row["primary"]["masked_name"] == "홍*동" and row["merged"]["masked_name"] == "홍*똥"
+    # [MERGE-LIST-03] 「이름 · 서버 마스킹 생년월일/전화」 — 이름은 실명이다.
+    assert row["primary"]["name"] == "홍길동" and row["merged"]["name"] == "홍길똥"
     assert row["executed_by"] == admin["name"] and row["merged_at"] is not None
 
 

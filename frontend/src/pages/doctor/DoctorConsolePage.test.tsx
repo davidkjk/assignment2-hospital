@@ -61,7 +61,7 @@ function renderConsole() {
 }
 
 const WAITING_ROW = {
-  id: 'a1', patient_id: 'p1', masked_name: '김*자', queue_position: 1,
+  id: 'a1', patient_id: 'p1', name: '김*자', queue_position: 1,
   waiting_started_at: null, status: '진료대기', updated_at: '2026-08-15T09:00:00',
 }
 

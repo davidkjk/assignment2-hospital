@@ -38,7 +38,7 @@ function renderShell() {
 function seedNoDuplicate(onRegister?: (body: unknown) => void) {
   server.use(
     http.get('/patients/duplicate-check', () =>
-      HttpResponse.json({ patient_id: null, masked_name: null, masked_birth_date: null }),
+      HttpResponse.json({ patient_id: null, name: null, masked_birth_date: null }),
     ),
     http.post('/patients', async ({ request }) => {
       onRegister?.(await request.json())
@@ -97,7 +97,7 @@ test('[BTN-BUSY-01][BTN-BUSY-02] 등록 중에는 라벨이 남은 채 바뀌고
   const held = new Promise<void>((resolve) => { release = resolve })
   server.use(
     http.get('/patients/duplicate-check', () =>
-      HttpResponse.json({ patient_id: null, masked_name: null, masked_birth_date: null }),
+      HttpResponse.json({ patient_id: null, name: null, masked_birth_date: null }),
     ),
     http.post('/patients', async () => {
       calls += 1
@@ -123,7 +123,7 @@ test('[ERR-POS-01][ERR-MSG-01] 등록이 실패하면 서버 문장을 버튼 �
   const user = userEvent.setup()
   server.use(
     http.get('/patients/duplicate-check', () =>
-      HttpResponse.json({ patient_id: null, masked_name: null, masked_birth_date: null }),
+      HttpResponse.json({ patient_id: null, name: null, masked_birth_date: null }),
     ),
     http.post('/patients', () =>
       HttpResponse.json({ detail: '지금은 저장할 수 없습니다. 잠시 후 다시 시도해주세요.' }, { status: 500 }),
@@ -145,7 +145,7 @@ test('[SHELL-DOOR-03][MASK-SRV-01] 겹치는 기록이 있으면 서버가 가�
   const sent: unknown[] = []
   server.use(
     http.get('/patients/duplicate-check', () =>
-      HttpResponse.json({ patient_id: 'p-old-9', masked_name: '김*정', masked_birth_date: '1975-**-20' }),
+      HttpResponse.json({ patient_id: 'p-old-9', name: '김*정', masked_birth_date: '1975-**-20' }),
     ),
     http.post('/patients', async ({ request }) => {
       sent.push(await request.json())
@@ -169,7 +169,7 @@ test('[SHELL-DOOR-03] [기존 기록 보기]를 누르면 그 환자를 안고 �
   const user = userEvent.setup()
   server.use(
     http.get('/patients/duplicate-check', () =>
-      HttpResponse.json({ patient_id: 'p-old-9', masked_name: '김*정', masked_birth_date: '1975-**-20' }),
+      HttpResponse.json({ patient_id: 'p-old-9', name: '김*정', masked_birth_date: '1975-**-20' }),
     ),
   )
   renderShell()
@@ -189,7 +189,7 @@ test('[SHELL-DOOR-03] 전화·생년이 다 차기 전에는 중복을 묻지 �
   server.use(
     http.get('/patients/duplicate-check', () => {
       asked += 1
-      return HttpResponse.json({ patient_id: null, masked_name: null, masked_birth_date: null })
+      return HttpResponse.json({ patient_id: null, name: null, masked_birth_date: null })
     }),
   )
   renderShell()

@@ -26,7 +26,7 @@ const DATA: CalendarData = {
     { id: 'd3', name: '한소연', department_name: '피부과', palette_index: null },
   ],
   appointments: [
-    { patient_id: 'p1', masked_name: '김*지', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: '2026-08-06T10:00:00', end: '2026-08-06T10:15:00' },
+    { patient_id: 'p1', name: '김*지', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: '2026-08-06T10:00:00', end: '2026-08-06T10:15:00' },
   ],
   blocks: [],
   affected_appointment_ids: [],

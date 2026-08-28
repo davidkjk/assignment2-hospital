@@ -73,7 +73,7 @@ export function PatientSearch({ mode = 'page', onPick }: PatientSearchProps) {
             <SelectableList<SearchPatientRow>
               rows={s.rows}
               getId={(r) => r.patient_id}
-              getRowLabel={(r) => r.masked_name}
+              getRowLabel={(r) => r.name}
               getStatus={(r) => r.today_status ?? 'none'}
               filterKey={s.query}
               renderRow={(r) => <SearchResultRow row={r} />}
@@ -112,7 +112,7 @@ function PickList({ rows, onPick }: { rows: SearchPatientRow[]; onPick?: (id: st
         <li key={r.patient_id}>
           <button
             type="button"
-            aria-label={`${r.masked_name} 선택`}
+            aria-label={`${r.name} 선택`}
             style={styles.pickRow}
             onClick={() => onPick?.(r.patient_id)}
           >

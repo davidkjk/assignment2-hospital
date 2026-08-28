@@ -38,8 +38,9 @@ await sleep(700)
 await shot('01-empty')
 
 // 실 = 시드에 있는 강지민(1949-08-09 / 010-5662-7678) / 데모 = 데모 가짜값
+// real은 시드가 다시 깔릴 때마다 값이 바뀐다 — 인자로 받는다: node shot-register.mjs real 19780115 010-2924-3756
 const who = OUT === 'real'
-  ? { birth: '19490809', tel: '010-5662-7678' }
+  ? { birth: process.argv[3], tel: process.argv[4] }
   : { birth: '19580312', tel: '010-1234-5678' }
 
 const fields = await page.$$('aside input')

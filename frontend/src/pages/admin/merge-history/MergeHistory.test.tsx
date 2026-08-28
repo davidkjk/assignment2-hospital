@@ -50,8 +50,8 @@ test('[MHIST-SHELL-03] 새로고침은 같은 목록·필터 문맥을 다시 �
 })
 
 test('[MHIST-LIST-01] 행에 시각·실행자·대표/대상·상태가 있고, 즉시 되돌림 버튼은 없다', () => {
-  renderMergeHistory({ rows: [{ status: 'undoable', primary: { masked_name: '홍*동' },
-                                merged: { masked_name: '홍*똥' }, executed_by: '김관리' }] })
+  renderMergeHistory({ rows: [{ status: 'undoable', primary: { name: '홍*동' },
+                                merged: { name: '홍*똥' }, executed_by: '김관리' }] })
   const r = row(0)
   expect(within(r).getByText('홍*동')).toBeVisible()
   expect(within(r).getByText('되돌림 가능')).toBeVisible()

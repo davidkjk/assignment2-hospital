@@ -111,7 +111,7 @@ export function normalizeBar(
   return {
     appointmentId: bar.appointment_id,
     doctorId: bar.doctor_id,
-    patientLabel: bar.masked_name ?? '환자',
+    patientLabel: bar.name ?? '환자',
     statusLabel: statusLabel(bar.status),
     startMin,
     endMin: endMin ?? startMin + fallbackSlotMinutes,

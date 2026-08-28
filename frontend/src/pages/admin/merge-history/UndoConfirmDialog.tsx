@@ -81,7 +81,7 @@ export function UndoConfirmDialog({ event, reason, onConfirmed, onCancel }: Undo
           <>
             <h2 style={styles.title}>병합을 되돌리기 전에 확인하세요</h2>
             <dl style={styles.items}>
-              <Item label="대표 → 대상" value={`${event.primary.masked_name} → ${event.merged.masked_name}`} />
+              <Item label="대표 → 대상" value={`${event.primary.name} → ${event.merged.name}`} />
               <Item label="병합 시각" value={event.merged_at} />
               <Item label="사유" value={reason} />
             </dl>

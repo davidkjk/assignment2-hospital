@@ -78,9 +78,9 @@ function MergeHistoryInner() {
               <span style={styles.when}>{r.merged_at}</span>
               <span style={styles.who}>{r.executed_by}</span>
               <span style={styles.parties}>
-                <span>{r.primary.masked_name}</span>
+                <span>{r.primary.name}</span>
                 <span aria-hidden="true" style={styles.arrow}>→</span>
-                <span>{r.merged.masked_name}</span>
+                <span>{r.merged.name}</span>
               </span>
               <span data-badge style={badgeStyle(r.status)}>{statusBadge(r.status)}</span>
               <button type="button" style={styles.detailBtn} onClick={() => navigate(`/admin/merge-history/${r.merge_event_id}`)}>

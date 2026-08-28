@@ -40,7 +40,7 @@ export let notesApi: Mock
 
 // ── 픽스처 빌더 ────────────────────────────────────────────────────────
 function party(over: Partial<MergeParty> = {}, name = '홍*동', id = 'p-x'): MergeParty {
-  return { patient_id: id, masked_name: name, ...over }
+  return { patient_id: id, name: name, ...over }
 }
 
 interface RowConfig {
@@ -112,8 +112,8 @@ function rowFromEvent(ev: MergeEventData): MergeHistoryRow {
     merged_at: ev.merged_at,
     executed_by: ev.executed_by,
     status: ev.undo_status,
-    primary: { masked_name: ev.primary.masked_name, patient_id: ev.primary.patient_id },
-    merged: { masked_name: ev.merged.masked_name, patient_id: ev.merged.patient_id },
+    primary: { name: ev.primary.name, patient_id: ev.primary.patient_id },
+    merged: { name: ev.merged.name, patient_id: ev.merged.patient_id },
   }
 }
 

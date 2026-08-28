@@ -79,7 +79,8 @@ describe('CheckInPage — 예약번호 직접 입력(CHKIN-CODE-*)', () => {
   })
 
   test('[CHKIN-CODE-05] 조회 중에는 라벨이 바뀌고 버튼이 잠겨 두 번 가지 않는다', async () => {
-    onLookup(async () => { await delay(50); return HttpResponse.json({ appointment: null }) })
+    // ⚠️ 50ms면 전체 실행 부하에서 「확인 중」 창이 스쳐 지나가 간헐 실패한다(2026-08-28). 계약은 그대로.
+    onLookup(async () => { await delay(300); return HttpResponse.json({ appointment: null }) })
     renderCheckIn()
     await userEvent.type(field(), 'AB34CD{Enter}')
     const busy = await screen.findByRole('button', { name: '예약번호 확인 중…' })
@@ -150,7 +151,7 @@ describe('CheckInPage — 결과 카드·접수(CHKIN-RESULT-*)', () => {
     await userEvent.type(field(), 'AB34CD{Enter}')
     const card = await screen.findByTestId('lookup-result')
     expect(screen.queryByTestId('location')).toBeNull() // 결정 #5 — 화면을 떠나지 않는다
-    expect(within(card).getByText('오늘 10:30 · 내과 · 김의사')).toBeVisible()
+    expect(within(card).getByText('오늘 10:30 · 내과 김의사')).toBeVisible()
     expect(within(card).getByRole('button', { name: '진료 대기' })).toBeVisible()
     expect(within(card).getByRole('button', { name: '도착' })).toBeVisible()
   })
@@ -255,5 +256,47 @@ describe('CheckInPage — 연결(CHKIN-LOAD-*)', () => {
     expect(await screen.findByText('인터넷이 연결되어 있지 않습니다')).toBeVisible()
     expect(screen.getByRole('button', { name: '예약번호로 찾기' })).toBeDisabled()
     expect(field()).toHaveValue('AB34CD')
+    // ⚠️ offline은 **전역 이벤트**라 되돌리지 않으면 이 파일의 뒤 테스트가 오프라인으로 시작하고,
+    //    그 테스트의 조회가 영영 끝나지 않는다(버튼이 「예약번호 확인 중…」에서 멈춘다).
+    //    2026-08-28에 이 누수로 새로 옮긴 테스트 4건이 깨졌다 — 원인은 옮긴 테스트가 아니었다.
+    act(() => { window.dispatchEvent(new Event('online')) })
+  })
+})
+
+describe('CheckInPage — 결과 카드의 노출 경계·상태별 행동(옛 LookupResultCard.test에서 이관)', () => {
+  test('[CHKIN-RESULT-01][MASK-SRV-01] 카드에 전화·생년월일이 없다 — 서버가 아예 안 보낸다', async () => {
+    onLookup(found(foundCard({ status: '예약확정' })))
+    renderCheckIn()
+    await userEvent.type(field(), 'AB34CD{Enter}')
+    const card = await screen.findByTestId('lookup-result')
+    expect(card.textContent).not.toMatch(/010-|\d{4}-\d{2}-\d{2}/)
+  })
+
+  test('[CHKIN-RESULT-01] 처리 전에는 [대기 목록에서 보기]를 그리지 않는다', async () => {
+    onLookup(found(foundCard({ status: '예약확정' })))
+    renderCheckIn()
+    await userEvent.type(field(), 'AB34CD{Enter}')
+    const card = await screen.findByTestId('lookup-result')
+    expect(within(card).queryByRole('button', { name: '대기 목록에서 보기' })).toBeNull()
+  })
+
+  test('[CHKIN-RESULT-04] 이미 도착한 예약을 조회하면 두 버튼 대신 [대기 목록에서 보기] 하나다', async () => {
+    onLookup(found(foundCard({ status: '도착' })))
+    renderCheckIn()
+    await userEvent.type(field(), 'AB34CD{Enter}')
+    const card = await screen.findByTestId('lookup-result')
+    expect(within(card).getByText('도착')).toBeVisible()
+    expect(within(card).queryByRole('button', { name: '도착' })).toBeNull()
+    expect(within(card).getByRole('button', { name: '대기 목록에서 보기' })).toBeVisible()
+  })
+
+  test('[CHKIN-RESULT-04] [다음 접수]는 카드와 입력값을 비워 빈손으로 되돌린다', async () => {
+    onLookup(found(foundCard({ status: '예약확정' })))
+    renderCheckIn()
+    await userEvent.type(field(), 'AB34CD{Enter}')
+    const card = await screen.findByTestId('lookup-result')
+    await userEvent.click(within(card).getByRole('button', { name: '다음 접수' }))
+    expect(screen.queryByTestId('lookup-result')).toBeNull()
+    expect(field()).toHaveValue('')
   })
 })

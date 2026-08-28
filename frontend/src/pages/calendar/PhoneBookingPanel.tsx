@@ -241,7 +241,7 @@ async function defaultSearch(q: string): Promise<Array<{ id: string; name: strin
   const page = await searchPatientsApi(q)
   return page.rows.map((r) => ({
     id: r.patient_id,
-    name: r.masked_name,
+    name: r.name,
     birth: r.masked_birth_date,
   }))
 }

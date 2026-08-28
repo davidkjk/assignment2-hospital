@@ -8,7 +8,7 @@ import { server } from '../../test/msw/server'
 import { AccessLogPage } from './AccessLogPage'
 import type { AccessLogRow } from '../../api/accessLogs'
 
-const P1 = { patient_id: 'p1', masked_name: '홍*동', masked_birth_date: '1985-**-01', masked_phone: '010-****-5678' }
+const P1 = { patient_id: 'p1', name: '홍*동', masked_birth_date: '1985-**-01', masked_phone: '010-****-5678' }
 
 function detail(id: string, patient = P1): AccessLogRow {
   return { id, accessed_at: '2026-08-15T09:41:07+09:00', resource_type: 'patient_detail', search_term: null, staff_name: '김영희', patient }

@@ -12,7 +12,7 @@ function reveal(i: number, over: Partial<AccessLogRow> = {}): AccessLogRow {
     resource_type: 'phone_reveal',
     search_term: null,
     staff_name: '김접수',
-    patient: { patient_id: `p${i}`, masked_name: '홍*동', masked_birth_date: '1985-**-01', masked_phone: '010-****-5678' },
+    patient: { patient_id: `p${i}`, name: '홍*동', masked_birth_date: '1985-**-01', masked_phone: '010-****-5678' },
     ...over,
   }
 }

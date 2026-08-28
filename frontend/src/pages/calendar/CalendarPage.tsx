@@ -127,7 +127,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
         <AppointmentPanel
           appointment={{
             appointmentId,
-            patientLabel: bar?.masked_name ?? '환자',
+            patientLabel: bar?.name ?? '환자',
             statusLabel: bar?.status ?? '',
             doctorLabel: doc ? `${doc.departmentName ?? ''} / ${doc.name}`.replace(/^ \/ /, '') : '',
             timeLabel: bar ? `${bar.start.slice(0, 10)} ${bar.start.slice(11, 16)}` : '',

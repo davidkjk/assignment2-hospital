@@ -51,7 +51,7 @@ test('[CAL-TIME-09] end가 없는 막대는 slotMinutes로 종료를 채운다',
     appointments: [
       {
         patient_id: 'p1',
-        masked_name: '김*지',
+        name: '김*지',
         appointment_id: 'a1',
         doctor_id: 'd1',
         status: 'confirmed',

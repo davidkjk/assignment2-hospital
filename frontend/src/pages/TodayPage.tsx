@@ -256,7 +256,7 @@ function NeedsRowView({ row, navigate }: { row: NeedsAttentionRow; navigate: (to
 function Identity({ row }: { row: PatientRow }) {
   return (
     <div style={styles.identity}>
-      <span style={styles.name}>{row.masked_name}</span>
+      <span style={styles.name}>{row.name}</span>
       {row.masked_birth_date && <span style={styles.birth}>{row.masked_birth_date}</span>}
     </div>
   )

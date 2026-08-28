@@ -9,7 +9,7 @@ import { QueuePanel, transitionTargetOnOpen, type DoctorQueueRow } from './Queue
 const row = (over: Partial<DoctorQueueRow>): DoctorQueueRow => ({
   id: 'a1',
   patient_id: 'p1',
-  masked_name: '김*자',
+  name: '김*자',
   queue_position: 1,
   waiting_started_at: null,
   status: '진료대기',
@@ -36,9 +36,9 @@ describe('QueuePanel', () => {
   test('[DOCTOR-QUEUE-01] 서버가 준 행만, 그대로 그린다(클라이언트가 임의로 빼지 않는다)', () => {
     renderPanel({
       rows: [
-        row({ id: 'a1', status: '도착', masked_name: '김*자' }),
-        row({ id: 'a2', status: '진료대기', masked_name: '박*수' }),
-        row({ id: 'a3', status: '진료중', masked_name: '이*희' }),
+        row({ id: 'a1', status: '도착', name: '김*자' }),
+        row({ id: 'a2', status: '진료대기', name: '박*수' }),
+        row({ id: 'a3', status: '진료중', name: '이*희' }),
       ],
     })
     expect(screen.getAllByRole('button', { name: /진료대기|도착|진료중/ })).toHaveLength(3)

@@ -81,7 +81,7 @@ function PatientCell({ row, onSelectPatient }: { row: AccessLogRow; onSelectPati
   }
   const p = row.patient
   if (!p) return <span style={styles.muted}>—</span>
-  const label = [p.masked_name, p.masked_birth_date].filter(Boolean).join(' · ') || '—'
+  const label = [p.name, p.masked_birth_date].filter(Boolean).join(' · ') || '—'
   if (!onSelectPatient) return <span>{label}</span>
   // 링크형 버튼 — 편집·삭제가 아니라 같은 화면 필터로 좁힌다(ALOG-LIST-10).
   return (

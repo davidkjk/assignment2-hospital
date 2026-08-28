@@ -8,7 +8,7 @@ import { apiFetch } from './httpClient'
 export interface DoctorQueueApiRow {
   id: string
   patient_id: string
-  masked_name: string
+  name: string
   queue_position: number | null
   waiting_started_at: string | null
   status: string

@@ -115,7 +115,7 @@ describe('PatientDetailPage', () => {
   })
 
   test('[PTDET-FAMILY-01][PTDET-FAMILY-02] 활성 연결만 이름·관계로, 생년월일·전화는 없다', async () => {
-    mockAll({ family: [{ id: 'l1', patient_id: 'fp1', masked_name: '김*수', relation: '자녀' }] })
+    mockAll({ family: [{ id: 'l1', patient_id: 'fp1', name: '김*수', relation: '자녀' }] })
     renderDetail()
     await screen.findByText('홍길동')
     const fam = within(section('가족 관계'))

@@ -17,7 +17,7 @@ export interface TodayTiles {
 /** patient_row_dto 화이트리스트 — 원문 이름·번호는 없고 masked_* 로만 온다(MASK-SRV-01). */
 export interface PatientRow {
   patient_id: string
-  masked_name?: string
+  name?: string
   masked_phone?: string
   masked_birth_date?: string
   appointment_id?: string

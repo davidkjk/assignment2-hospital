@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useEffect, useRef } from 'react'
 
 // [CHKIN-SCAN-01~05] 카메라는 부모가 이 컴포넌트를 마운트한 뒤에만 켜지고(버튼을 눌러야 마운트된다),
 // 첫 인식 뒤 부모가 걷어 내며 멈춘다. html5-qrcode는 초당 여러 프레임을 콜백하므로 scannedRef가
@@ -74,16 +74,15 @@ export function QrScanner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return <div id={containerId.current} aria-label="QR 스캐너" style={styles.frame} />
-}
-
-const styles: Record<string, CSSProperties> = {
-  frame: {
-    width: '100%',
-    minHeight: 220,
-    borderRadius: 'var(--radius-card)',
-    border: '1px solid var(--color-divider)',
-    background: 'var(--color-bg)',
-    overflow: 'hidden',
-  },
+  // 틀은 데모 뼈대 그대로 — 4:3 점선 상자에 안내 문구. 카메라가 켜지면 html5-qrcode가
+  // 이 안에 <video>를 끼워 넣어 안내를 덮는다.
+  return (
+    <div
+      id={containerId.current}
+      aria-label="QR 스캐너"
+      className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-border bg-muted/40 text-center text-sm text-muted-foreground"
+    >
+      환자 QR을 카메라에 비춰 주세요
+    </div>
+  )
 }

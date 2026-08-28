@@ -184,7 +184,7 @@ function QueueRowView({ row, tab, highlighted, onChanged, navigate }: {
       <div style={styles.lead}>{leadContent(row, tab)}</div>
       <div style={styles.identity}>
         <span style={styles.name}>
-          {row.masked_name}
+          {row.name}
           {/* QUEUE-WALK-12: 슬롯 없이 방문 시각으로 들어온 줄엔 당일 방문 배지. */}
           {row.is_walkin && <span style={styles.walkinBadge}>당일 방문</span>}
           {row.is_urgent_flag && <span style={styles.urgentTag}>▲ 응급/주의</span>}
@@ -379,7 +379,7 @@ function ReorderButton({ row, onChanged }: { row: QueueRow; onChanged: () => voi
       </button>
       {target !== null && (
         <ReasonPromptDialog
-          title={`${row.masked_name} 님을 ${row.queue_no}번 → ${target}번으로 변경합니다`}
+          title={`${row.name} 님을 ${row.queue_no}번 → ${target}번으로 변경합니다`}
           hint="바꾼 사람과 이유가 기록에 남습니다"
           onSubmit={(reason) => mutation.mutate(reason)}
           onCancel={() => setTarget(null)}

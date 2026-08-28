@@ -5,7 +5,7 @@ import { apiFetch } from './httpClient'
 //   GET  /admin/merge-history?cursor=      → 커서 페이지(rows·has_more·next_cursor·order)
 //   GET  /admin/merge-history/{id}         → 이벤트 상세(보존 스냅샷·되돌림 상태·잠김 사유)
 //   POST /admin/merge-history/{id}/undo    → 되돌림 실행({reason, expected_status})
-// ⛔ 원본 이름은 마스킹된 표시값(masked_name)으로만 온다 — 화면이 다시 계산하지 않는다(MASK-SRV-01).
+// ⛔ 원본 이름은 마스킹된 표시값(name)으로만 온다 — 화면이 다시 계산하지 않는다(MASK-SRV-01).
 
 /** 서버가 판정한 되돌림 상태. 화면은 이 값을 배지·분기의 단일 근거로 쓴다(`MHIST-LIST-02`·`DETAIL-03`). */
 export type MergeUndoStatus = 'undoable' | 'undone' | 'locked'
@@ -20,7 +20,7 @@ export function statusBadge(status: MergeUndoStatus): string {
 /** 목록·상세가 함께 쓰는 마스킹된 환자 표시값. */
 export interface MergeParty {
   patient_id?: string
-  masked_name: string
+  name: string
 }
 
 /** 목록 한 행(`MHIST-LIST-01`) — 즉시 되돌림 버튼은 두지 않는다. */

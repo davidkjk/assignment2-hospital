@@ -113,7 +113,7 @@ function MergeEventDetailInner() {
       <dl style={styles.summary}>
         <Item label="병합 시각" value={ev.merged_at} />
         <Item label="실행자" value={ev.executed_by} />
-        <Item label="대표 → 대상" value={`${ev.primary.masked_name} → ${ev.merged.masked_name}`} />
+        <Item label="대표 → 대상" value={`${ev.primary.name} → ${ev.merged.name}`} />
       </dl>
 
       <section aria-label="보존 상태" style={styles.preserve}>

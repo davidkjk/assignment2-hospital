@@ -82,7 +82,7 @@ async def test_큐_탭_01_탭마다_그_상태의_행을_준다(db_conn):
     assert not_arrived.rows[0]["slot_time"] is not None
     assert "queue_no" not in arrived.rows[0]
     # 도착/미도착 행도 낙관적 동시성·마스킹 경계를 통과한다(도착처리·원문공개 배선용).
-    assert "updated_at" in arrived.rows[0] and "masked_name" in arrived.rows[0]
+    assert "updated_at" in arrived.rows[0] and "name" in arrived.rows[0]
 
 
 @pytest.mark.asyncio
@@ -306,7 +306,8 @@ async def test_투데이_노쇼_01_시각_지난_예약확정만_미접수로_�
     await set_session_auth(db_conn, admin.auth_user_id)
     s = await dashboard_service.get_today_summary(admin, conn=db_conn)
     assert [r["appointment_id"] for r in s["not_arrived"]] == [past_appt]
-    assert "masked_name" in s["not_arrived"][0]  # 마스킹 경계 통과
+    # 마스킹 경계 통과 — 이름은 실명, 전화·생년월일 원본은 없다(요구사항 :81).
+    assert "name" in s["not_arrived"][0] and "phone" not in s["not_arrived"][0]
 
 
 @pytest.mark.asyncio
