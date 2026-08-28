@@ -1,0 +1,13 @@
+// 직원 콘솔 공용 프리미티브(데모 `routes/staff/_ui.tsx` 포팅) — 각진 촘촘한 패널·업무 밀도.
+// ⚠️ EmptyState·StatTile은 이 경로의 데모판이다(기존 `components/`의 동명 부품과 경로로 분리).
+export { StaffPage } from './StaffPage'
+export { PageHead } from './PageHead'
+export { Panel } from './Panel'
+export { StatusBadge, type BadgeTone } from './StatusBadge'
+export { Tag } from './Tag'
+export { Toolbar } from './Toolbar'
+export { Segmented } from './Segmented'
+export { SearchInput } from './SearchInput'
+export { EmptyState } from './EmptyState'
+export { StatTile } from './StatTile'
+export { btnPrimary, btnGhost, btnLink } from './buttons'
