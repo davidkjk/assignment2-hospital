@@ -1,0 +1,374 @@
+/* 예약 캘린더(/calendar) 시각 레이어 — 실 격자(cal-* 시맨틱 클래스)에 데모 세공을 입힌다.
+ *   - 색은 tokens.css 토큰만 쓴다(lint:tokens 대비). JSX·로직·data-testid는 건드리지 않는다(테스트 셀렉터 보존).
+ *   - 구조 주의: 실 DayGrid는 TimeAxis가 열(cal-columns)의 왼쪽 형제이고 열 머리(cal-column-head)가 각 열 안에 있다
+ *     → 축을 열 머리 높이(--cal-head-h)만큼 내려 본문과 정렬한다. 데모는 sticky 별도 행이었다(구조가 다르므로 CSS로 화해). */
+
+.cal-page {
+  --cal-head-h: 44px;
+  --cal-gutter: 56px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 20px 24px;
+  gap: 12px;
+}
+
+/* ── 툴바(무엇을·언제를 보나) ───────────────────────────── */
+.cal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  flex-shrink: 0;
+}
+.cal-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cal-view-toggle button {
+  padding: 5px 14px;
+  font-size: 13px;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+}
+.cal-view-toggle button + button {
+  border-left: 1px solid var(--color-divider);
+}
+.cal-view-toggle button[aria-pressed='true'] {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-weight: 600;
+}
+
+.cal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cal-nav-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  color: var(--color-ink-muted);
+}
+.cal-nav-arrow:hover,
+.cal-nav-today:hover {
+  background: var(--color-done-bg);
+}
+.cal-nav-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 196px;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cal-nav-range:hover {
+  background: var(--color-done-bg);
+}
+.cal-nav-today {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+.cal-zoom-reset {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+.cal-zoom-reset:hover {
+  background: var(--color-done-bg);
+}
+
+/* ── 의사·진료과 칩 ───────────────────────────── */
+.cal-doctor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cal-dept-chips,
+.cal-name-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cal-dept-chips::after {
+  content: '';
+  width: 1px;
+  height: 16px;
+  background: var(--color-divider);
+  margin: 0 2px;
+}
+.cal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cal-chip:hover {
+  background: var(--color-done-bg);
+}
+.cal-chip[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-wash);
+  color: var(--color-primary);
+}
+.cal-filter-note {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+/* ── 격자 그릇 ───────────────────────────── */
+.cal-day-grid,
+.cal-week-grid {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+/* 시간축(왼쪽 한 번) — 열 머리 높이만큼 내려 본문과 정렬. */
+.cal-time-axis {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  width: var(--cal-gutter);
+  margin-top: var(--cal-head-h);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-divider);
+}
+.cal-axis-label {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cal-axis-label:first-child {
+  transform: none;
+}
+.cal-grid-line-15min {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--color-divider) 70%, transparent);
+}
+
+/* 열들 */
+.cal-columns {
+  display: flex;
+  min-width: max-content;
+}
+.cal-column {
+  display: flex;
+  flex-direction: column;
+  width: 176px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-divider);
+}
+.cal-column:last-child {
+  border-right: 0;
+}
+.cal-column-head {
+  height: var(--cal-head-h);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-divider);
+}
+.cal-column-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.cal-column-gear {
+  color: var(--color-ink-muted);
+  padding: 2px;
+  border-radius: 4px;
+}
+.cal-column-gear:hover {
+  background: var(--color-done-bg);
+}
+.cal-lane-head {
+  font-size: 12px;
+  font-weight: 600;
+}
+.cal-column-body {
+  position: relative;
+  background: color-mix(in srgb, var(--color-done-bg) 40%, var(--color-surface));
+}
+
+/* ── 슬롯(빈/예약/빗금/과거) ───────────────────────────── */
+.cal-slot-pos {
+  padding: 0 4px;
+}
+.cal-slot {
+  height: 100%;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.cal-slot.is-dotted {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-divider);
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cal-slot-pos:hover .cal-slot.is-dotted {
+  border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+  background: var(--color-primary-wash);
+}
+.cal-slot.is-past {
+  color: var(--color-gray-past);
+  opacity: 0.7;
+}
+.cal-slot.is-hatched {
+  display: flex;
+  align-items: flex-start;
+  border: 1px solid var(--color-divider);
+  color: var(--color-ink-muted);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--color-ink-muted) 12%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+.cal-slot.is-filled {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-ink);
+  box-shadow: 0 1px 0 var(--color-surface);
+}
+.cal-slot-patient {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-slot-status {
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cal-slot-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--color-warn);
+}
+.slot-badge-icon {
+  color: var(--color-warn);
+}
+
+/* 저장 전 자리표(hold) */
+.cal-hold {
+  border: 1px dashed var(--color-primary);
+  border-radius: 6px;
+  background: var(--color-primary-wash);
+  color: var(--color-primary);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-hold.is-taken {
+  border-color: var(--color-warn);
+  background: var(--color-danger-bg);
+  color: var(--color-warn);
+}
+
+/* 지금 선(rose) */
+.cal-now-line {
+  height: 1px;
+  background: var(--color-danger);
+  z-index: 3;
+  pointer-events: none;
+}
+.cal-now-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  transform: translateX(-50%);
+}
+
+/* ── 상태 배너·안내 ───────────────────────────── */
+.cal-stale-banner {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-warn) 12%, var(--color-surface));
+  color: var(--color-warn);
+  font-size: 12px;
+}
+.cal-loading {
+  padding: 24px;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+}
+.cal-past-hint {
+  position: sticky;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+.cal-past-hint button {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
