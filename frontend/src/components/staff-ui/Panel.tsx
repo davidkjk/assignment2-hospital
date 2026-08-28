@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 /** 얇은 경계 + 미세 그림자 패널(= 환자상세 Section과 동일 체급).
- *  데모의 arbitrary shadow(0 1px 2px)는 실 토큰 `shadow-xs`(0 1px 2px/0.05)로 대체 — 시각 동일. */
+ *  그림자는 데모 원본값을 토큰으로 옮긴 `shadow-panel`(0 1px 2px rgba(16,45,50,.04)). */
 export function Panel({
   title,
   action,
@@ -16,7 +16,7 @@ export function Panel({
   pad?: string
 }) {
   return (
-    <section className={`rounded-xl border border-border/70 bg-card ${pad} shadow-xs ${className}`}>
+    <section className={`rounded-xl border border-border/70 bg-card ${pad} shadow-panel ${className}`}>
       {title && (
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold">{title}</h3>

@@ -3,7 +3,7 @@ import { btnPrimary, btnGhost, btnLink } from './buttons'
 
 test('주 버튼 = 딥틸 채움 + 흰 글자', () => {
   expect(btnPrimary).toContain('bg-primary')
-  expect(btnPrimary).toContain('text-white')
+  expect(btnPrimary).toContain('text-primary-foreground')
 })
 
 test('보조 버튼 = 경계 + 카드 배경(고스트)', () => {

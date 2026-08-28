@@ -15,6 +15,7 @@
 @theme inline {
   --color-primary: var(--color-primary);
   --color-primary-wash: var(--color-primary-wash);
+  --color-primary-foreground: var(--color-primary-foreground);
   --color-foreground: var(--color-ink);
   --color-muted-foreground: var(--color-ink-muted);
   --color-background: var(--color-bg);
@@ -28,4 +29,6 @@
   --color-input: var(--color-input);
   --color-ring: var(--color-ring);
   --font-logo: var(--font-logo);
+  /* 각진 촘촘 패널의 미세 그림자 — 데모 `shadow-[0_1px_2px_rgba(16,45,50,0.04)]`의 토큰판. */
+  --shadow-panel: var(--shadow-panel);
 }

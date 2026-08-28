@@ -1,7 +1,6 @@
 // ── 상태 배지 — 예약·티켓·직원·문서 상태를 색으로(색만으로 구분하지 않게 글자도 함께) ──
-// 데모 `text-primary-foreground`는 실 토큰에 미별칭 → `text-white`로 대체(딥틸 위 흰 글자).
 const TONE: Record<string, string> = {
-  teal: 'bg-primary text-white',
+  teal: 'bg-primary text-primary-foreground',
   sky: 'bg-sky-600 text-white',
   violet: 'bg-violet-600 text-white',
   amber: 'bg-amber-500 text-white',

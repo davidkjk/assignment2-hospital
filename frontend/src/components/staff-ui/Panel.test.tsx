@@ -18,5 +18,5 @@ test('각지고 촘촘한 데이터 패널 — 얇은 경계·미세 그림자·
   const section = screen.getByRole('heading', { name: 't' }).closest('section')!
   expect(section.className).toContain('rounded-xl')
   expect(section.className).toContain('border-border')
-  expect(section.className).toContain('shadow-xs')
+  expect(section.className).toContain('shadow-panel')
 })

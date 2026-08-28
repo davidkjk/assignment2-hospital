@@ -16,6 +16,7 @@
   --color-primary-wash: #dff3f2;
   --color-input: #C7C7C7;
   --color-ring: #0B6E70;
+  --color-primary-foreground: #FCFCFC;
   --fs-sm: 12px;
   --fs-base: 13px;
   --fs-lg: 15px;
@@ -23,6 +24,7 @@
   --fs-num: 20px;
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgba(16,36,58,.10);
+  --shadow-panel: 0 1px 2px rgba(16,45,50,0.04);
   --font-logo: Do Hyeon, Pretendard, -apple-system, sans-serif;
   --doctor-palette-0: #1360A6;
   --doctor-palette-0-fill: #CBDDFF;
