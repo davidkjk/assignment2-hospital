@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { hospitalToday } from '../../lib/clock'
+import { hospitalHHMM, hospitalToday } from '../../lib/clock'
 import { getCalendar, type CalendarData } from '../../api/calendar'
 import { usePanel } from '../../components/PanelHost'
 import { EmptyState } from '../../components/EmptyState'
@@ -23,7 +23,7 @@ import { useZoom } from './useZoom'
 const MS_PER_DAY = 86_400_000
 
 function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`  // clock-ok — anchorDate(병원 오늘로 만든 로컬 Date)를 ISO로 되돌린다. 만든 쪽과 읽는 쪽이 같은 시간대다.
 }
 
 function hhmm(min: number): string {
@@ -222,7 +222,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
       {/* [CAL-LIVE-03] 연결이 끊기면 격자 위에 주의색 배너와 기준 시각. */}
       {realtime.staleSince && (
         <div role="status" className="cal-stale-banner">
-          이 화면은 {hhmm(realtime.staleSince.getHours() * 60 + realtime.staleSince.getMinutes())} 기준입니다
+          이 화면은 {hospitalHHMM(realtime.staleSince)} 기준입니다
         </div>
       )}
 
@@ -254,7 +254,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
           onAxisDragBy={zoom.dragBy}
           onEmptyClick={(doctorId, startMin) => {
             const snapped = snapTo5min(new Date(`${dayDate}T${hhmm(startMin)}:00`))
-            openBooking(doctorId, dayDate, hhmm(snapped.getHours() * 60 + snapped.getMinutes()))
+            openBooking(doctorId, dayDate, hospitalHHMM(snapped))
           }}
           onBlockClick={openAppointment}
           onDoctorSettings={(name) => setSearchParams({ doctor: name })}

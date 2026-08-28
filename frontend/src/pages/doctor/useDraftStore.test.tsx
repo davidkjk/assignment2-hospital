@@ -52,8 +52,8 @@ describe('useDraftStore', () => {
 
   test('[DOCTOR-DRAFT-04] 저장 시각을 함께 남겨 복구 때 최신 비교에 쓴다', () => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-15T14:31:00'))
+    vi.setSystemTime(new Date('2026-08-15T14:31:00+09:00'))
     writeDraft('staff-77', 'appt-1', { ...emptyFields(), symptoms: 'a' })
-    expect(readDraft('staff-77', 'appt-1')?.savedAt).toBe(new Date('2026-08-15T14:31:00').toISOString())
+    expect(readDraft('staff-77', 'appt-1')?.savedAt).toBe(new Date('2026-08-15T14:31:00+09:00').toISOString())
   })
 })

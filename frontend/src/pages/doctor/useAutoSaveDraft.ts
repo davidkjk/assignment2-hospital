@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { hospitalHHMM } from '../../lib/clock'
 import type { DraftFields } from './useDraftStore'
 
 // [DOCTOR-RECORD-04·05] 서버 자동 임시저장 — ⭐ 간격 확정(2026-08-15): 타이핑이 멈춘 지 **3초**에
@@ -20,7 +21,7 @@ export function draftStatusText(status: AutoSaveStatus, savedAt: Date | null): s
 }
 
 function hhmm(d: Date): string {
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return hospitalHHMM(d) // [TIME-TZ-01] 저장 시각도 병원 시계로 보여준다
 }
 
 interface UseAutoSaveDraftArgs {

@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
+import { hospitalHHMM } from '../../lib/clock'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
@@ -202,7 +203,7 @@ function isZero(s: StatsResponse): boolean {
 function syncedLabel(ts: number): string {
   if (!ts) return '방금 전'
   const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return hospitalHHMM(d) // [TIME-TZ-01] 병원 시계로 적는다
 }
 
 function triggerDownload(content: string, filename: string) {

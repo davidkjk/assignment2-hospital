@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
+import { addDaysIso, hospitalParts, hospitalToday } from '../../lib/clock'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -159,7 +160,7 @@ async function pickPatientAndDoctor(user: ReturnType<typeof userEvent.setup>) {
 /** 「지난 날」 칸을 어제로 채운다 — 언제 돌려도 지난 시각이 되게. */
 async function setYesterday(user: ReturnType<typeof userEvent.setup>) {
   const y = new Date(Date.now() - 86400000)
-  const iso = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`
+  const iso = addDaysIso(hospitalToday(), -1) // 병원 기준 어제
   const box = within(panel()).getByLabelText('방문한 날짜')
   await user.clear(box)
   await user.type(box, iso)
@@ -272,5 +273,5 @@ test('[QUEUE-WALK-14d] 직원이 적은 지난 시각은 5분 격자에 붙이�
 
   await waitFor(() => expect(sent).toHaveLength(1))
   // 10:07이 10:05로 붙지 않았다 — 방문 기록은 붙이는 순간 거짓이 된다.
-  expect(new Date(sent[0].visit_time as string).getMinutes()).toBe(7)
+  expect(Number(hospitalParts(new Date(sent[0].visit_time as string)).mm)).toBe(7)
 })

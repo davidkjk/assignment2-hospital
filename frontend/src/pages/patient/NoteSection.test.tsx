@@ -9,7 +9,7 @@ function state(over: Partial<SectionState<PatientNote[]>> = {}): SectionState<Pa
   return { loading: false, error: false, data: [], retry: () => {}, ...over }
 }
 
-const NOTE: PatientNote = { id: 'n1', content: '보호자와 통화함', staff_name: '김수진', created_at: '2026-08-16T14:32:00' }
+const NOTE: PatientNote = { id: 'n1', content: '보호자와 통화함', staff_name: '김수진', created_at: '2026-08-16T14:32:00+09:00' }
 
 describe('NoteSection', () => {
   test('[PTDET-NOTE-01] 내용·작성 직원·시각을 남기고 공개 영역과 분리한다', () => {
@@ -59,7 +59,7 @@ describe('NoteSection', () => {
     // onAdd 성공 후 부모가 목록을 갱신하는 것을 흉내낸다.
     let notes: PatientNote[] = []
     const onAdd = vi.fn(async (content: string) => {
-      notes = [{ id: 'n2', content, staff_name: '김수진', created_at: '2026-08-16T15:00:00' }]
+      notes = [{ id: 'n2', content, staff_name: '김수진', created_at: '2026-08-16T15:00:00+09:00' }]
     })
     const { rerender } = render(<NoteSection state={state({ data: notes })} onAdd={onAdd} />)
     await user.click(screen.getByRole('button', { name: '내부 메모 추가' }))

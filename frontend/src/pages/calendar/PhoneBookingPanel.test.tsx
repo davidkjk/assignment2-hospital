@@ -10,8 +10,9 @@ const DOCTORS: GridDoctor[] = [
   { id: 'd1', name: '박지훈', departmentName: '내과', paletteIndex: 3, slotMinutes: 15 },
 ]
 
+/** 그 날의 **병원 시각**(TIME-TZ-01) — 패널이 병원 시각으로 계산하므로 기준을 맞춘다. */
 function at(hhmm: string): Date {
-  return new Date(`2026-08-17T${hhmm}:00`)
+  return new Date(`2026-08-17T${hhmm}:00+09:00`)
 }
 
 function renderPanel(props: Partial<React.ComponentProps<typeof PhoneBookingPanel>> = {}) {
@@ -51,7 +52,10 @@ test('[CAL-BOOK-08] 재확인에서 [예약]을 누르면 서버에 저장하고
   renderPanel({ createFn, onSaved })
   await user.click(screen.getByRole('button', { name: '예약 저장' }))
   await user.click(await screen.findByRole('button', { name: '예약' }))
-  expect(createFn).toHaveBeenCalledWith(expect.objectContaining({ patient_id: 'p1', doctor_id: 'd1', start_at: '2026-08-17T10:00:00', allow_overlap: false }))
+  // start_at은 **병원 10:00**을 못박아 보낸다(TIME-TZ-01) — 오프셋 없는 문자열은 서버 설정에 기댄다.
+  expect(createFn).toHaveBeenCalledWith(expect.objectContaining({
+    patient_id: 'p1', doctor_id: 'd1', start_at: at('10:00').toISOString(), allow_overlap: false,
+  }))
   expect(onSaved).toHaveBeenCalledWith('new')
 })
 

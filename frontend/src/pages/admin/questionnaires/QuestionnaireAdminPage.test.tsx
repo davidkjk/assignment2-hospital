@@ -264,7 +264,7 @@ test('[QADM-VERSION-04] 과거 버전은 같은 화면에서 읽기 전용으로
       department_id: 'dept-1',
       version_no: 2,
       is_active: false,
-      created_at: '2026-07-12T16:20:00',
+      created_at: '2026-07-12T16:20:00+09:00',
       created_by_name: '박관리자',
       questions: naegwaQuestions().slice(0, 4),
     },

@@ -9,8 +9,8 @@ const MS_PER_DAY = 86_400_000
 
 /** 그 날이 속한 주의 월요일(병원은 일요일 휴무라 주는 월~토 6일). */
 function mondayOf(date: Date): Date {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const back = (d.getDay() + 6) % 7 // 월=0 … 일=6
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())  // clock-ok — anchorDate는 CalendarPage가 병원 오늘로 만든 로컬 Date다. 그 Date를 로컬로 읽는 것은 일관되며, 여기서 하는 일은 주·달 이동 좌표 계산뿐이다.
+  const back = (d.getDay() + 6) % 7 // 월=0 … 일=6  // clock-ok — anchorDate는 CalendarPage가 병원 오늘로 만든 로컬 Date다. 그 Date를 로컬로 읽는 것은 일관되며, 여기서 하는 일은 주·달 이동 좌표 계산뿐이다.
   return new Date(d.getTime() - back * MS_PER_DAY)
 }
 
@@ -23,15 +23,15 @@ export function shiftAnchor(mode: CalendarMode, anchor: Date, dir: 1 | -1): Date
 /** 기간 라벨 — 일간은 그 하루, 주간은 월~토(같은 달이면 끝은 일자만). */
 export function formatRange(mode: CalendarMode, anchor: Date): string {
   if (mode === 'day') {
-    return `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월 ${anchor.getDate()}일`
+    return `${anchor.getFullYear()}년 ${anchor.getMonth() + 1}월 ${anchor.getDate()}일`  // clock-ok — anchorDate는 CalendarPage가 병원 오늘로 만든 로컬 Date다. 그 Date를 로컬로 읽는 것은 일관되며, 여기서 하는 일은 주·달 이동 좌표 계산뿐이다.
   }
   const start = mondayOf(anchor)
   const end = new Date(start.getTime() + 5 * MS_PER_DAY) // 토요일
-  const head = `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${start.getDate()}일`
-  if (start.getMonth() === end.getMonth()) {
-    return `${head} – ${end.getDate()}일`
+  const head = `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${start.getDate()}일`  // clock-ok — anchorDate는 CalendarPage가 병원 오늘로 만든 로컬 Date다. 그 Date를 로컬로 읽는 것은 일관되며, 여기서 하는 일은 주·달 이동 좌표 계산뿐이다.
+  if (start.getMonth() === end.getMonth()) {  // clock-ok — anchorDate는 CalendarPage가 병원 오늘로 만든 로컬 Date다. 그 Date를 로컬로 읽는 것은 일관되며, 여기서 하는 일은 주·달 이동 좌표 계산뿐이다.
+    return `${head} – ${end.getDate()}일`  // clock-ok — anchorDate는 CalendarPage가 병원 오늘로 만든 로컬 Date다. 그 Date를 로컬로 읽는 것은 일관되며, 여기서 하는 일은 주·달 이동 좌표 계산뿐이다.
   }
-  return `${head} – ${end.getMonth() + 1}월 ${end.getDate()}일`
+  return `${head} – ${end.getMonth() + 1}월 ${end.getDate()}일`  // clock-ok — anchorDate는 CalendarPage가 병원 오늘로 만든 로컬 Date다. 그 Date를 로컬로 읽는 것은 일관되며, 여기서 하는 일은 주·달 이동 좌표 계산뿐이다.
 }
 
 export interface CalendarNavProps {

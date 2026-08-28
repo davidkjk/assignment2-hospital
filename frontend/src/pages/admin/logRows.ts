@@ -1,3 +1,4 @@
+import { HOSPITAL_TZ } from '../../lib/clock'
 import type { AccessLogRow } from '../../api/accessLogs'
 
 // [ALOG-LIST-02][ALOG-GROUP-01] 열람 행의 순수 변환 — 시각 포맷과 대량 묶음 접기.
@@ -5,10 +6,10 @@ import type { AccessLogRow } from '../../api/accessLogs'
 // 직원·시각·행동의 연속 행을 한 줄로 접는다. 묶음 한 줄만 저장하는 모델은 채택하지 않는다.
 
 /** [ALOG-LIST-02] 병원 시간대 절대 시각 `YYYY.MM.DD HH:mm:ss`. 「3분 전」 같은 상대값으로 안 바꾼다. */
-export function formatAccessedAt(iso: string, timeZone = 'Asia/Seoul'): string {
+export function formatAccessedAt(iso: string, timeZone: string = HOSPITAL_TZ): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  const parts = new Intl.DateTimeFormat('en-CA', {
+  const parts = new Intl.DateTimeFormat('en-CA', { // clock-ok — timeZone을 인자로 받는다
     timeZone,
     year: 'numeric',
     month: '2-digit',

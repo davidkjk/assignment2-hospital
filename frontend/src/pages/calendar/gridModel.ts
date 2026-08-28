@@ -8,6 +8,7 @@ import type {
   CalendarData,
   CalendarDoctorCatalog,
 } from '../../api/calendar'
+import { hospitalMinutesOfDay, hospitalParts } from '../../lib/clock'
 
 // [CAL-COLOR-08][CAL-COLOR-11] 팔레트는 10색이다(tokens.css --doctor-palette-0..9).
 export const PALETTE_SIZE = 10
@@ -60,17 +61,18 @@ export function statusLabel(status: string): string {
 
 /** ISO 시각을 그 날 자정 기준 분으로. 날짜가 다르면(막대가 다른 날) null. */
 export function isoToMinutes(iso: string, onDate: string): number | null {
-  const d = new Date(iso)
-  const [y, m, day] = onDate.split('-').map(Number)
-  if (d.getFullYear() !== y || d.getMonth() + 1 !== m || d.getDate() !== day) return null
-  return d.getHours() * 60 + d.getMinutes()
+  // ⭐ 서버가 준 순간을 **병원 달력·시계**로 읽는다(`TIME-TZ-01`) — 그 PC 시계로 읽으면
+  //    막대가 엉뚱한 높이에 그려지고, 시간대에 따라 「그 날이 아니다」며 통째로 사라진다.
+  const p = hospitalParts(new Date(iso))
+  if (`${p.y}-${p.mo}-${p.d}` !== onDate) return null
+  return Number(p.hh) * 60 + Number(p.mm)
 }
 
 /** HH:MM 문자열이나 ISO에서 자정 기준 분. blocks의 start/end는 'HH:MM:SS' 시각 문자열로 온다. */
 function timeToMinutes(value: string): number {
   // 'HH:MM[:SS]' 또는 ISO — 앞의 시:분만 읽는다.
   const iso = value.includes('T') ? new Date(value) : null
-  if (iso && !Number.isNaN(iso.getTime())) return iso.getHours() * 60 + iso.getMinutes()
+  if (iso && !Number.isNaN(iso.getTime())) return hospitalMinutesOfDay(iso)
   const [h, mm] = value.split(':').map(Number)
   return h * 60 + (mm || 0)
 }

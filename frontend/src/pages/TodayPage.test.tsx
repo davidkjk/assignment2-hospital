@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import { hospitalToday } from '../lib/clock'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
@@ -243,7 +244,7 @@ describe('오늘의 현황 /today', () => {
     summaryOk(FULL)
     renderToday()
     const date = await screen.findByTestId('today-date')
-    expect(date).toHaveTextContent(String(new Date().getFullYear()))
+    expect(date).toHaveTextContent(hospitalToday().slice(0, 4)) // 병원 기준 연도
   })
 
   test('[STAT-METRIC-06] 상담 문의 집계가 없으면(null) 「현재 집계할 수 없음」을 보인다', async () => {

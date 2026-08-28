@@ -7,7 +7,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, QrCode, UserPlus, X } from '@/components/icons'
-import { hospitalToday } from '../../lib/clock'
+import { hospitalInstant, hospitalToday } from '../../lib/clock'
 import { ApiError } from '../../api/httpClient'
 import { createWalkinAppointment } from '../../api/appointments'
 import { createPhoneAppointment, getCalendar } from '../../api/calendar'
@@ -335,8 +335,9 @@ function ReserveBody() {
       createPhoneAppointment({
         patient_id: draft.patient!.id,
         doctor_id: doctorId!,
-        // 창구 컴퓨터의 시계가 벽시계다 — 서버가 UTC로 옮겨 저장한다(`visitInstant` 주석과 같은 태도).
-        start_at: `${dateIso}T${draft.time}:00`,
+        // ⭐ **병원 시각**을 못박아 보낸다(`TIME-TZ-01`) — 오프셋 없는 문자열을 보내면
+        //    「서버가 KST로 읽어주겠지」에 기대게 되고, 그 설정이 바뀌면 조용히 어긋난다.
+        start_at: hospitalInstant(dateIso, Number(draft.time!.slice(0, 2)), Number(draft.time!.slice(3, 5))).toISOString(),
         reason: draft.reason ?? '',
         allow_overlap: allowOverlap,
       }),

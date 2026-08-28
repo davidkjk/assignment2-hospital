@@ -11,13 +11,13 @@ const MS_PER_DAY = 86_400_000
 const DAY_LABELS = ['월', '화', '수', '목', '금', '토']
 
 function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`  // clock-ok — anchor는 병원 오늘로 만든 로컬 Date다. 주의 시작(월요일)을 세는 좌표 계산이다.
 }
 
 /** 그 날이 든 주의 월~토 6일. 병원은 일요일 휴무. */
 export function weekDays(anchor: Date): string[] {
-  const d = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())
-  const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * MS_PER_DAY)
+  const d = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate())  // clock-ok — anchor는 병원 오늘로 만든 로컬 Date다. 주의 시작(월요일)을 세는 좌표 계산이다.
+  const monday = new Date(d.getTime() - ((d.getDay() + 6) % 7) * MS_PER_DAY)  // clock-ok — anchor는 병원 오늘로 만든 로컬 Date다. 주의 시작(월요일)을 세는 좌표 계산이다.
   return Array.from({ length: 6 }, (_, i) => ymd(new Date(monday.getTime() + i * MS_PER_DAY)))
 }
 

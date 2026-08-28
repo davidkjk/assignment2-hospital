@@ -57,7 +57,7 @@ test('[CAL-TIME-09] end가 없는 막대는 slotMinutes로 종료를 채운다',
         appointment_id: 'a1',
         doctor_id: 'd1',
         status: 'confirmed',
-        start: `${DATE}T10:05:00`,
+        start: `${DATE}T10:05:00+09:00`,
         end: null,
       },
     ],
@@ -77,7 +77,7 @@ test('[CAL-TIME-09] 서버가 준 진료 길이가 예약 막대에서 도출한
   const data: CalendarData = {
     appointments: [
       { patient_id: 'p1', appointment_id: 'a1', doctor_id: 'a', status: 'confirmed',
-        start: `${DATE}T09:00:00`, end: `${DATE}T09:15:00` },
+        start: `${DATE}T09:00:00+09:00`, end: `${DATE}T09:15:00+09:00` },
     ],
     blocks: [],
     affected_appointment_ids: [],
@@ -91,7 +91,7 @@ test('[QUEUE-WALK-08c] 서버가 진료 길이를 안 주면 막대에서 도출
   const data: CalendarData = {
     appointments: [
       { patient_id: 'p1', appointment_id: 'a1', doctor_id: 'a', status: 'confirmed',
-        start: `${DATE}T09:00:00`, end: `${DATE}T09:30:00` },
+        start: `${DATE}T09:00:00+09:00`, end: `${DATE}T09:30:00+09:00` },
     ],
     blocks: [],
     affected_appointment_ids: [],

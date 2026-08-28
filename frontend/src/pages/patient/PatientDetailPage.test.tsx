@@ -91,7 +91,7 @@ describe('PatientDetailPage', () => {
   })
 
   test('[PTDET-STATUS-01][DISP-COLOR-01] 진행 중 예약을 상태 카드에 문장으로 보인다', async () => {
-    mockAll({ visits: [{ id: 'v1', patient_id: 'p1', occurred_at: '2026-08-17T14:30:00', status: '진료중', department_name: '내과', doctor_name: '박지훈' }] })
+    mockAll({ visits: [{ id: 'v1', patient_id: 'p1', occurred_at: '2026-08-17T14:30:00+09:00', status: '진료중', department_name: '내과', doctor_name: '박지훈' }] })
     renderDetail()
     const card = await screen.findByTestId('status-card')
     expect(await within(card).findByText('8/17 14:30')).toBeVisible()
@@ -100,7 +100,7 @@ describe('PatientDetailPage', () => {
   })
 
   test('[PTDET-VISIT-05] 취소·부도도 숨기지 않고 중립 문구로 적는다', async () => {
-    mockAll({ visits: [{ id: 'v1', patient_id: 'p1', occurred_at: '2026-08-05T14:30:00', status: '예약부도' }] })
+    mockAll({ visits: [{ id: 'v1', patient_id: 'p1', occurred_at: '2026-08-05T14:30:00+09:00', status: '예약부도' }] })
     renderDetail()
     const visit = await screen.findByText('예약 부도')
     expect(visit).toBeVisible()
@@ -133,7 +133,7 @@ describe('PatientDetailPage', () => {
   })
 
   test('[PTDET-LOAD-02] 한 섹션이 실패해도 나머지를 지우지 않는다', async () => {
-    mockAll({ failSection: 'records', visits: [{ id: 'v1', patient_id: 'p1', occurred_at: '2026-08-05T14:30:00', status: '진료완료' }] })
+    mockAll({ failSection: 'records', visits: [{ id: 'v1', patient_id: 'p1', occurred_at: '2026-08-05T14:30:00+09:00', status: '진료완료' }] })
     renderDetail()
     // 성공 섹션은 남는다
     expect(await within(section('예약·방문 이력')).findByText('8/5 14:30')).toBeVisible()

@@ -28,7 +28,7 @@ describe('blocksFor — 서버 응답을 그 의사 그 날의 블록으로', ()
     const blocks = blocksFor(
       data({
         appointments: [
-          { patient_id: 'p1', name: '김민정', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: `${DATE}T09:00:00`, end: `${DATE}T09:20:00` },
+          { patient_id: 'p1', name: '김민정', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: `${DATE}T09:00:00+09:00`, end: `${DATE}T09:20:00+09:00` },
         ],
       }),
       'd1',
@@ -60,7 +60,7 @@ describe('blocksFor — 서버 응답을 그 의사 그 날의 블록으로', ()
     const blocks = blocksFor(
       data({
         appointments: [
-          { patient_id: 'p1', name: '남의환자', appointment_id: 'a1', doctor_id: 'd2', status: 'confirmed', start: `${DATE}T09:00:00`, end: `${DATE}T09:20:00` },
+          { patient_id: 'p1', name: '남의환자', appointment_id: 'a1', doctor_id: 'd2', status: 'confirmed', start: `${DATE}T09:00:00+09:00`, end: `${DATE}T09:20:00+09:00` },
         ],
         blocks: [{ doctor_id: 'd2', date: DATE, kind: 'lunch', start: '12:00:00', end: '13:00:00', source: 'rule' }],
       }),
@@ -92,7 +92,7 @@ describe('apptOverlapAt — 예약끼리의 겹침은 경고 뒤 진행할 수 �
   const blocks = blocksFor(
     data({
       appointments: [
-        { patient_id: 'p1', name: '정우성', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: `${DATE}T10:20:00`, end: `${DATE}T10:40:00` },
+        { patient_id: 'p1', name: '정우성', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: `${DATE}T10:20:00+09:00`, end: `${DATE}T10:40:00+09:00` },
       ],
     }),
     'd1',

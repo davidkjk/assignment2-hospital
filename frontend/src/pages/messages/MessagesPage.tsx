@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react'
+import { hospitalParts } from '../../lib/clock'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
@@ -16,9 +17,9 @@ const SENT_COLUMNS = ['종류', '내용', '보낸 직원', '채널', '시각', '
 
 function fmtTime(iso: string): string {
   const d = new Date(iso)
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes(),
-  ).padStart(2, '0')}`
+  // [TIME-TZ-01] 서버가 준 순간을 병원 달력·시계로 읽는다.
+  const hp = hospitalParts(d)
+  return `${Number(hp.mo)}/${Number(hp.d)} ${hp.hh}:${hp.mm}`
 }
 
 export function MessagesPage() {

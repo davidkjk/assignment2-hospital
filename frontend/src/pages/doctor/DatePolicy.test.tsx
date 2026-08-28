@@ -27,7 +27,7 @@ const YESTERDAY = ymd(-1)
 
 const PAST_ROW = {
   id: 'a9', patient_id: 'p9', name: '이*희', queue_position: null,
-  waiting_started_at: null, status: '진료중', updated_at: '2026-08-10T09:00:00',
+  waiting_started_at: null, status: '진료중', updated_at: '2026-08-10T09:00:00+09:00',
 }
 
 function mockConsole(record: Record<string, unknown> | null, onQueueUrl?: (url: string) => void) {
@@ -106,7 +106,7 @@ describe('DatePolicy', () => {
 
   test('[DOCTOR-DATE-04][DOCTOR-RECORD-08] 과거 완료 기록은 사유를 넣어 고칠 수 있다', async () => {
     const user = userEvent.setup()
-    mockConsole({ is_completed: true, id: 'rec-1', symptoms: '급성 위염', updated_at: '2026-08-10T10:00:00' })
+    mockConsole({ is_completed: true, id: 'rec-1', symptoms: '급성 위염', updated_at: '2026-08-10T10:00:00+09:00' })
     renderConsole()
     fireEvent.change(dateInput(), { target: { value: YESTERDAY } })
     await user.click(await screen.findByRole('button', { name: /진료중/ }))

@@ -10,7 +10,7 @@ function ready(items: QnrItem[]): SectionState<QnrItem[]> {
 const ITEM: QnrItem = {
   appointment_id: 'a1',
   visit_date: '2026-08-05',
-  submitted_at: '2026-08-04T21:10:00',
+  submitted_at: '2026-08-04T21:10:00+09:00',
   answers: { '복용 중인 약': '혈압약' },
 }
 

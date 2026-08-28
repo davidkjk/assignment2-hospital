@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { HOSPITAL_TZ } from '../lib/clock'
 import { useConnectivity } from '../lib/connectivity'
 
 // 연결이 끊기면 화면 맨 위에 고정된 띠로 알린다(`OFFX-STAFF-01·02`).
@@ -7,7 +8,7 @@ import { useConnectivity } from '../lib/connectivity'
 // - 서버 응답이 한 번도 없으면 낡은 시각을 지어내지 않고 시각 표시를 아예 걸지 않는다.
 //   (그 화면의 EMPTY-OFF-01 안내는 EmptyState가 그린다 — 배너는 낡음 표시만 얹는다.)
 
-const timeFormat = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit', hour12: true })
+const timeFormat = new Intl.DateTimeFormat('ko-KR', { timeZone: HOSPITAL_TZ, hour: 'numeric', minute: '2-digit', hour12: true })
 
 export function OfflineBanner() {
   const { online, lastServerOkAt } = useConnectivity()

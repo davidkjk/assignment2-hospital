@@ -95,7 +95,7 @@ describe('RecordPanel', () => {
   })
 
   test('[DOCTOR-RECORD-04] 저장 상태를 「임시저장됨」으로만 알린다', () => {
-    renderRecord({ draftStatus: 'saved', draftSavedAt: new Date('2026-08-15T14:32:00') })
+    renderRecord({ draftStatus: 'saved', draftSavedAt: new Date('2026-08-15T14:32:00+09:00') })
     expect(screen.getByText('임시저장됨 · 14:32')).toBeVisible()
   })
 

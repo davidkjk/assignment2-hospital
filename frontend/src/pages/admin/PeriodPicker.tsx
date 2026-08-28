@@ -17,9 +17,6 @@ const PRESETS: { key: PresetKey; label: string }[] = [
   { key: 'all', label: '전체' },
 ]
 
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 /** 프리셋 → 시작일·종료일. 종료일은 늘 오늘, 시작일만 과거로 채운다(PERIOD-BOX-02).
  *  ⭐ 「오늘」은 **병원 시계**다(`TIME-TZ-01`) — 그 PC 시계로 정하면 서버가 세는 기간과

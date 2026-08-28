@@ -71,7 +71,7 @@ test('[OFFX-STAFF-04] 오프라인이 됐다고 이미 확인한 시각을 지�
 // ── OfflineBanner: 연결이 끊기면 맨 위 띠 + 마지막 서버 확인 시각 ──────────
 
 // 서버 확인 시각을 로컬 오후 2:14로 못박아 브라우저 시간대와 무관하게 검증한다.
-const LOCAL_OK_AT = '2026-08-26T14:14:00'
+const LOCAL_OK_AT = '2026-08-26T14:14:00+09:00'
 
 function BannerHarness() {
   const { markServerOk } = useConnectivity()

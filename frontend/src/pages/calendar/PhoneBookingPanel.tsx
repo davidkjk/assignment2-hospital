@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react'
+import { hospitalHHMM, hospitalInstant } from '../../lib/clock'
 import { ApiError } from '../../api/httpClient'
 import { createPhoneAppointment } from '../../api/calendar'
 import { searchPatients as searchPatientsApi } from '../../api/patients'
@@ -31,8 +32,9 @@ export interface PhoneBookingPanelProps {
   onPickTimeOnCalendar?: () => void
 }
 
+/** 병원 시각을 못박아 보낸다(`TIME-TZ-01`) — 오프셋 없는 문자열은 서버 설정에 기댄다. */
 function toStartAt(date: string, time: string): string {
-  return `${date}T${time}:00`
+  return hospitalInstant(date, Number(time.slice(0, 2)), Number(time.slice(3, 5))).toISOString()
 }
 
 function hhmm(min: number): string {
@@ -95,7 +97,7 @@ export function PhoneBookingPanel({
         gapMinutes,
         overlap: {
           patientLabel: ov.patientLabel,
-          startLabel: other ? hhmm(other.startAt.getHours() * 60 + other.startAt.getMinutes()) : '',
+          startLabel: other ? hospitalHHMM(other.startAt) : '',
           minutes: ov.minutes,
         },
       })
@@ -187,7 +189,7 @@ export function PhoneBookingPanel({
             // 직접 입력해도 5분 격자에 붙인다(CAL-TIME-03) — 화면과 서버가 같은 규칙.
             if (e.target.value && date) {
               const snapped = snapTo5min(new Date(toStartAt(date, e.target.value)))
-              setTime(hhmm(snapped.getHours() * 60 + snapped.getMinutes()))
+              setTime(hospitalHHMM(snapped))
             }
           }}
         />

@@ -317,10 +317,10 @@ function MonthPicker() {
   })
   const horizonIso = cal.data?.booking_horizon_date ?? null
 
-  const year = view.getFullYear()
-  const month = view.getMonth() // 0-based
-  const first = new Date(year, month, 1).getDay()
-  const days = new Date(year, month + 1, 0).getDate()
+  const year = view.getFullYear()  // clock-ok — view는 병원 오늘로 만든 달력 격자용 로컬 Date다. 칸 배치 계산이라 시간대 질문이 아니다.
+  const month = view.getMonth() // 0-based  // clock-ok — view는 병원 오늘로 만든 달력 격자용 로컬 Date다. 칸 배치 계산이라 시간대 질문이 아니다.
+  const first = new Date(year, month, 1).getDay()  // clock-ok — view는 병원 오늘로 만든 달력 격자용 로컬 Date다. 칸 배치 계산이라 시간대 질문이 아니다.
+  const days = new Date(year, month + 1, 0).getDate()  // clock-ok — view는 병원 오늘로 만든 달력 격자용 로컬 Date다. 칸 배치 계산이라 시간대 질문이 아니다.
   const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)]
   // 지난 달로는 갈 수 있으나 지난 날은 못 고른다 — 이번 달보다 앞이면 이동 자체를 막는다.
   const atFirstMonth = `${year}-${String(month + 1).padStart(2, '0')}` === todayIso.slice(0, 7)

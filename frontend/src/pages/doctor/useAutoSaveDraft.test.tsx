@@ -38,9 +38,9 @@ describe('useAutoSaveDraft', () => {
 
   test('[DOCTOR-RECORD-04] 저장 상태 문구는 「임시저장」이라고만 말한다', () => {
     expect(draftStatusText('saving', null)).toBe('임시저장 중…')
-    expect(draftStatusText('saved', new Date('2026-08-15T14:32:00'))).toBe('임시저장됨 · 14:32')
+    expect(draftStatusText('saved', new Date('2026-08-15T14:32:00+09:00'))).toBe('임시저장됨 · 14:32')
     // 완료로 오해하게 두지 않는다
-    expect(draftStatusText('saved', new Date('2026-08-15T14:32:00'))).not.toMatch(/진료 완료|저장 완료/)
+    expect(draftStatusText('saved', new Date('2026-08-15T14:32:00+09:00'))).not.toMatch(/진료 완료|저장 완료/)
     expect(draftStatusText('idle', null)).toBe('')
   })
 

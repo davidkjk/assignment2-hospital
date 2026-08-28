@@ -7,9 +7,6 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
-function sameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
 
 /** `오늘 08:57` · `어제 17:26` · `8월 6일 17:26`. */
 export function formatLastSignIn(iso: string, now: Date = new Date()): string {

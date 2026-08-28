@@ -8,7 +8,7 @@ import { AppShell } from '../AppShell'
 import { ConnectivityProvider } from '../../lib/connectivity'
 import { queryClient } from '../../lib/queryClient'
 import { server } from '../../test/msw/server'
-import { addDaysIso, hospitalMinutesOfDay, hospitalToday } from '../../lib/clock'
+import { addDaysIso, hospitalInstant, hospitalMinutesOfDay, hospitalToday } from '../../lib/clock'
 import { fmtDate } from './doorData'
 
 // 예약 문(`SHELL-DOOR-02`) 배선 — 미래 방문(전화예약)을 실 서버에 잡는다.
@@ -195,7 +195,7 @@ test('[CAL-SLOT-02] 왼쪽 캘린더에는 그 의사의 실제 예약이 이름
   const iso = tomorrowIso()
   serveCalendar({
     appointments: [
-      { patient_id: 'p9', name: '정우성', appointment_id: 'a1', doctor_id: 'doc-1', status: 'confirmed', start: `${iso}T10:20:00`, end: `${iso}T10:40:00` },
+      { patient_id: 'p9', name: '정우성', appointment_id: 'a1', doctor_id: 'doc-1', status: 'confirmed', start: `${iso}T10:20:00+09:00`, end: `${iso}T10:40:00+09:00` },
     ],
   })
   renderShell()
@@ -229,7 +229,8 @@ test('[CAL-BOOK-08] 저장 직전 한 번 더 묻고, 확정하면 전화예약 
   expect(body).toMatchObject({
     patient_id: 'p1',
     doctor_id: 'doc-1',
-    start_at: `${iso}T09:00:00`,
+    // 병원 09:00을 못박아 보낸다(TIME-TZ-01) — 오프셋 없는 문자열은 서버 설정에 기댄다.
+    start_at: hospitalInstant(iso, 9, 0).toISOString(),
     allow_overlap: false,
   })
 })
@@ -240,7 +241,7 @@ test('[CAL-GAP-05][CAL-GAP-06] 겹치면 누구와 몇 분인지 적고, 「그�
   serveCalendar({
     appointments: [
       // 09:10~09:30 — 09:00에 20분을 잡으면 10분 겹친다.
-      { patient_id: 'p9', name: '정우성', appointment_id: 'a1', doctor_id: 'doc-1', status: 'confirmed', start: `${iso}T09:10:00`, end: `${iso}T09:30:00` },
+      { patient_id: 'p9', name: '정우성', appointment_id: 'a1', doctor_id: 'doc-1', status: 'confirmed', start: `${iso}T09:10:00+09:00`, end: `${iso}T09:30:00+09:00` },
     ],
   })
   let body: Record<string, unknown> | null = null

@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import { hospitalParts } from '../../../lib/clock'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { RequireRole } from '../../../auth/RequireRole'
@@ -43,7 +44,9 @@ function formatStamp(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  // [TIME-TZ-01] 서버가 준 순간을 병원 달력·시계로 읽는다.
+  const hp = hospitalParts(d)
+  return `${hp.y}.${hp.mo}.${hp.d} ${hp.hh}:${hp.mm}`
 }
 
 type SaveError =

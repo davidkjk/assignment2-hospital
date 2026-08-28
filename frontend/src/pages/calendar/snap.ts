@@ -11,9 +11,9 @@ const MS_PER_MINUTE = 60_000
 export function snapTo5min(clickedAt: Date): Date {
   const snapped = new Date(clickedAt)
   snapped.setSeconds(0, 0)
-  const remainder = snapped.getMinutes() % 5
+  const remainder = snapped.getMinutes() % 5  // clock-ok — 분만 다룬다. 병원 시간대(KST)는 정각 오프셋이라 어느 시간대에서 읽어도 분이 같다.
   const delta = remainder < 3 ? -remainder : 5 - remainder
-  snapped.setMinutes(snapped.getMinutes() + delta)
+  snapped.setMinutes(snapped.getMinutes() + delta)  // clock-ok — 분만 다룬다. 병원 시간대(KST)는 정각 오프셋이라 어느 시간대에서 읽어도 분이 같다.
   return snapped
 }
 
