@@ -1,3 +1,5 @@
+// 본문 서체 — 데모와 같은 Pretendard 웹폰트(설치 안 하면 시스템 글꼴로 대체돼 글자 인상이 달라진다).
+import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css'
 import './styles/tokens.css'
 import './styles/theme.css'
 import React from 'react'

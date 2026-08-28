@@ -80,7 +80,7 @@ function pageFor(path: string, label: string) {
 export function App() {
   return (
     <>
-      <style>{`*{box-sizing:border-box}html,body,#root{margin:0;min-height:100%;font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input{font:inherit}a{color:var(--color-primary)}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--color-primary);outline-offset:2px}`}</style>
+      <style>{`*{box-sizing:border-box}html,body,#root{margin:0;min-height:100%;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif}button,input{font:inherit}a{color:var(--color-primary)}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--color-primary);outline-offset:2px}`}</style>
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/reset-password" element={<PasswordResetRequestPage />} />

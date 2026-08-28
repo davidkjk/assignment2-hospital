@@ -1,15 +1,18 @@
 /* Tailwind v4 — tokens.css(생성물, 원본=design-tokens/tokens.json)를 소비하는 유틸리티 레이어.
  *
- * ⛔ preflight(전역 태그 리셋)를 일부러 제외한다 — 기존 인라인 style 화면(pages/*)을
- *    건드리지 않기 위해서. Tailwind 유틸리티만 들여오고, 새로 포팅하는 컴포넌트(_ui·셸·doors)만
- *    이 클래스를 쓴다. App.tsx가 이미 box-sizing 전역 리셋을 갖고 있다.
+ * ✅ preflight(전역 태그 리셋)를 들여온다 — 2026-08-28 정정. 원래는 기존 인라인 style 화면(pages/*)을
+ *    지키려고 뺐는데, **인라인 style은 어떤 스타일시트보다 우선하므로 애초에 영향을 받지 않는다.**
+ *    빼 둔 대가로 데모 마크업이 브라우저 기본 스타일을 그대로 뒤집어썼다(버튼=회색 3D 크롬,
+ *    표=벌어진 칸, dd=40px 들여쓰기, ul=글머리표) → M3 포팅 UI가 「데모와 전혀 다르다」는 지적으로 드러남.
+ *    ⚠️ 레거시에서 실제로 달라지는 것은 **스타일을 안 준 태그의 기본 여백**뿐이다(전수: `<p>` 5 · `<h1~3>` 3 · `<table>` 9).
  *
  * 색·크기 "원본"은 tokens.css 하나다. 여기선 Tailwind 색 네임스페이스(bg-primary·
  * text-foreground·border-border·bg-sidebar-ink …)를 그 토큰에 별칭만 한다 → 데모의
  * shadcn 계열 클래스를 거의 그대로 포팅할 수 있다. radius(rounded-xl=12px)·기본 text 크기는
  * Tailwind 기본값이 이미 실 토큰과 근사하므로 매핑하지 않는다. amber·white 등은 Tailwind 기본 팔레트. */
-@layer theme, utilities;
+@layer theme, base, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 @theme inline {
@@ -31,4 +34,20 @@
   --font-logo: var(--font-logo);
   /* 각진 촘촘 패널의 미세 그림자 — 데모 `shadow-[0_1px_2px_rgba(16,45,50,0.04)]`의 토큰판. */
   --shadow-panel: var(--shadow-panel);
+}
+
+/* 데모 `index.css`의 `@layer base`와 같은 기반 설정 — 이 셋이 없으면 같은 마크업도 다르게 보인다. */
+@layer base {
+  /* 데모: `* { @apply border-border }`. 없으면 색을 안 준 `border`가 **글자색**으로 그려져 시커멓다. */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-divider);
+  }
+  /* ⭐ 데모: `html { font-size: 17px }` — 어르신 가독성. rem 기반이라 전 화면 글자·여백이 비례로 커진다.
+     브라우저 기본 16px로 두면 포팅한 화면이 통째로 6% 작아져 촘촘하고 옹색해 보인다.
+     ⚠️ 레거시 인라인 화면은 px·`--fs-*`(px)를 써서 이 값에 영향받지 않는다. */
+  html {
+    font-size: 17px;
+  }
 }
