@@ -22,7 +22,7 @@ import { MessagesPage } from './pages/messages/MessagesPage'
 import { SettingsPage } from './pages/admin/settings/SettingsPage'
 import { PatientSearchPage } from './pages/patients/PatientSearchPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
-import { TodayPage } from './pages/TodayPage'
+import { Today } from './pages/today/Today'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
 
@@ -57,7 +57,7 @@ function CalendarRoute() {
 }
 
 function pageFor(path: string, label: string) {
-  if (path === '/today') return <TodayPage />
+  if (path === '/today') return <Today />
   if (path === '/patients') return <PatientSearchPage />
   if (path === '/queue') return <QueuePage />
   if (path === '/doctor/console') return <DoctorConsolePage />

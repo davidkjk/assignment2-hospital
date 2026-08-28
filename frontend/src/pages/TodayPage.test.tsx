@@ -6,7 +6,7 @@ import { http, HttpResponse } from 'msw'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { server } from '../test/msw/server'
-import { TodayPage, todayLabel } from './TodayPage'
+import { Today, todayLabel } from './today/Today'
 import type { TodaySummary } from '../api/dashboard'
 
 // 백엔드 계약: backend/app/services/dashboard_service.py::get_today_summary
@@ -67,7 +67,7 @@ function renderToday() {
     <QueryClientProvider client={qc}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/today']}>
         <Routes>
-          <Route path="/today" element={<TodayPage />} />
+          <Route path="/today" element={<Today />} />
           <Route path="*" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -81,7 +81,7 @@ describe('오늘의 현황 /today', () => {
   test('[TODAY-LAY-01] 「지금 처리할 것」이 「오늘 요약」 타일보다 먼저 나온다', async () => {
     summaryOk(FULL)
     renderToday()
-    const processing = await screen.findByRole('heading', { name: '지금 처리할 것' })
+    const processing = await screen.findByRole('heading', { name: /지금 처리할 것/ })
     const summary = screen.getByRole('heading', { name: '오늘 요약' })
     // DOCUMENT_POSITION_FOLLOWING(4) = summary가 processing 뒤에 온다.
     expect(processing.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -92,13 +92,14 @@ describe('오늘의 현황 /today', () => {
     renderToday()
     const total = await screen.findByTestId('processing-total')
     expect(total).toHaveTextContent('3')
-    expect(total).toHaveStyle({ color: 'var(--color-warn)' })
+    // 데모 마크업은 주의색을 Tailwind 별칭(amber)으로 낸다 — jsdom은 className→computed color를 못 하므로 클래스로 확인.
+    expect(total.className).toMatch(/amber/)
   })
 
   test('[TODAY-WAIT-01] 장기 대기 행에 「N분 대기」 사유를 보인다', async () => {
     summaryOk(FULL)
     renderToday()
-    expect(await screen.findByText('장기 대기')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '장기 대기' })).toBeVisible()
     expect(screen.getByText('42분 대기')).toBeVisible()
   })
 
@@ -114,7 +115,7 @@ describe('오늘의 현황 /today', () => {
   test('[TODAY-RESCHED-23] 취소·변경 상담을 「확인 필요한 예약」 카드의 행으로 합치고 별도 수치 카드를 안 만든다', async () => {
     summaryOk(FULL)
     renderToday()
-    expect(await screen.findByText('확인 필요한 예약')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '확인 필요한 예약' })).toBeVisible()
     expect(screen.getByText('취소 상담 · 직원 확인 중')).toBeVisible()
     // ⛔ 독립 「취소 요청 N」·「변경 요청 N」 수치 카드를 만들지 않는다.
     expect(screen.queryByText(/취소 요청\s*\d/)).toBeNull()
@@ -143,7 +144,7 @@ describe('오늘의 현황 /today', () => {
   test('[TODAY-NOSHOW-01] 미접수·시각 경과 카드에 예약 시각 레일과 함께 행을 보인다', async () => {
     summaryOk(ALL)
     renderToday()
-    expect(await screen.findByText('미접수 · 시각 경과')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '미접수 · 시각 경과' })).toBeVisible()
     const row = screen.getByTestId('noshow-row-a9')
     expect(within(row).getByText('09:30')).toBeVisible() // 예약 시각 레일
     // TODAY-NOSHOW-03: 「안 오셨습니다」 계열 책망 문구를 쓰지 않는다.
@@ -161,7 +162,7 @@ describe('오늘의 현황 /today', () => {
   test('[TODAY-YDAY-01/03] 전일 미완료 카드는 날짜를 함께 보이고 「진료 중인 채로 마감」 사유를 준다', async () => {
     summaryOk(ALL)
     renderToday()
-    expect(await screen.findByText('전일 미완료')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '전일 미완료' })).toBeVisible()
     const row = screen.getByTestId('yday-row-a8')
     expect(within(row).getByText('진료 중인 채로 마감')).toBeVisible()
     // TODAY-YDAY-03: 지난 날짜이므로 날짜를 함께 표시(8/2 16:30).
@@ -235,8 +236,8 @@ describe('오늘의 현황 /today', () => {
     summaryOk(FULL)
     renderToday()
     const header = await screen.findByTestId('card-header-longwait')
-    // jsdom은 var()가 든 border 단축속성을 개별 속성으로 분해하지 않아 단축속성 문자열로 확인한다.
-    expect(header.style.borderLeft).toContain('var(--color-warn)')
+    // 좌측 주의색 바(데모는 별도 span.bg-amber-500) + 배경 안 칠함.
+    expect(header.querySelector('.bg-amber-500')).toBeTruthy()
     expect(header.style.background).toBe('') // 전면 배경을 칠하지 않는다
   })
 
