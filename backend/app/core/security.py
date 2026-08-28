@@ -1,11 +1,36 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+import httpx
 from fastapi import Depends, HTTPException, Request
 from jose import JWTError, jwt
 
 from app.core.config import settings
 from app.db.pool import acquire_as
+
+# Supabase 서명 방식은 두 가지다: ①HS256(레거시 공유 시크릿 — 테스트 토큰·구 프로젝트)
+# ②ES256(현행 Supabase가 발급하는 비대칭 세션 토큰, 헤더에 kid). 검증 키를 alg로 가른다.
+# ES256 공개키는 Supabase JWKS에서 받아 kid로 캐시한다(무회전 만료 시 재조회).
+_jwks_cache: dict[str, dict] = {}
+
+
+async def _resolve_verification_key(token: str) -> tuple[object, str]:
+    header = jwt.get_unverified_header(token)
+    alg = header.get("alg", "HS256")
+    if alg == "HS256":
+        return settings.supabase_jwt_secret, "HS256"
+    kid = header.get("kid")
+    if kid not in _jwks_cache:
+        url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url)
+        for key in resp.json().get("keys", []):
+            if key.get("kid"):
+                _jwks_cache[key["kid"]] = key
+    key = _jwks_cache.get(kid)
+    if key is None:
+        raise JWTError("unknown signing key id")
+    return key, alg
 
 
 @dataclass
@@ -23,10 +48,11 @@ async def get_current_staff(request: Request) -> StaffContext:
 
     token = auth_header.removeprefix("Bearer ")
     try:
+        key, alg = await _resolve_verification_key(token)
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
+            key,
+            algorithms=[alg],
             audience="authenticated",
         )
         subject = payload.get("sub")
