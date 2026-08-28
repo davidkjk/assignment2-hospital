@@ -310,6 +310,60 @@ async def create_phone_appointment(
         return await _run(c)
 
 
+async def create_walkin_appointment(
+    staff: StaffContext,
+    patient_id: UUID,
+    doctor_id: UUID,
+    reason: str,
+    visit_time: datetime | None = None,
+    conn=None,
+) -> UUID:
+    """[QUEUE-WALK-08e·10·14·16] 예약 없이 온 환자를 그 자리에서 「진료대기」 줄에 세운다.
+
+    ⭐ 진료과를 받지 않는다 — 「예약의 진료과 = 담당의의 진료과」를 DB 트리거가 강제하므로
+       (00005:299~320 enforce_appointment_consistency) 진료과는 고르는 값이 아니라 **파생값**이다
+       (`QUEUE-WALK-08e`). 화면에 진료과 id를 들려 보내면 어긋난 값이 들어올 길만 생긴다 —
+       전화예약(create_phone_appointment)이 이미 같은 방식으로 서버에서 도출한다.
+
+    슬롯도 start_at/end_at도 없다 — 워크인은 「예약 격자 위의 자리」가 아니라 **실제로 온 시각**만
+    남긴다(갭 #85 · `QUEUE-WALK-15·18`). 그래서 목록이 slot_id is null로 「당일 방문」을 가려낸다
+    (`QUEUE-WALK-12`, dashboard_service의 is_walkin).
+    """
+
+    async def _run(c) -> UUID:
+        department_id = await c.fetchval(
+            "select department_id from staff where id = $1", doctor_id,
+        )
+        if department_id is None:
+            raise AppError("담당의의 진료과를 확인할 수 없습니다.", status_code=400)
+
+        # [QUEUE-WALK-14] 기본은 「지금」이고 그 시각은 **서버가 찍는다** — 화면 시계를 그대로 믿으면
+        # 클럭 스큐로 「아직 오지 않은 시각」이 되어 자기 자신이 막는다. 직원이 지난 시각을 직접
+        # 적었을 때만(`QUEUE-WALK-14b`) 그 값이 올라오고, 미래 여부는 create_appointment가 판정한다.
+        visited_at = visit_time if visit_time is not None else await c.fetchval("select now()")
+
+        # [QUEUE-WALK-10] 「도착」을 거치지 않는다 — 이미 병원에 있는 사람이다.
+        # [QUEUE-WALK-11] 줄의 자리는 맨 뒤 — 여기서 순서를 앞당기는 길을 만들지 않는다.
+        return await create_appointment(
+            staff=staff,
+            account_patient_id=patient_id,
+            for_patient_id=patient_id,
+            department_id=department_id,
+            doctor_id=doctor_id,
+            reason=reason,
+            source="staff",
+            initial_status="진료대기",
+            walkin_visit_time=visited_at,
+            conn=c,
+        )
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
 async def transition_status(
     appointment_id: UUID,
     new_status: str,

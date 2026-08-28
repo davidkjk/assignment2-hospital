@@ -106,6 +106,33 @@ async def create_phone_appointment(
     return CreateAppointmentResponse(appointment_id=appointment_id)
 
 
+class CreateWalkinAppointmentRequest(BaseModel):
+    """[QUEUE-WALK-08e] ⛔ department_id가 없다 — 서버가 담당의에서 도출한다.
+
+    visit_time은 「지난 시각」을 직접 적었을 때만 온다(`QUEUE-WALK-14b`).
+    비어 있으면 「지금」이고, 그 시각은 서버가 찍는다(화면 시계를 믿지 않는다).
+    """
+    patient_id: UUID
+    doctor_id: UUID
+    reason: str
+    visit_time: datetime | None = None
+
+
+@router.post("/walkin", response_model=CreateAppointmentResponse)
+async def create_walkin_appointment(
+    body: CreateWalkinAppointmentRequest,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> CreateAppointmentResponse:
+    appointment_id = await appointment_service.create_walkin_appointment(
+        staff=staff,
+        patient_id=body.patient_id,
+        doctor_id=body.doctor_id,
+        reason=body.reason,
+        visit_time=body.visit_time,
+    )
+    return CreateAppointmentResponse(appointment_id=appointment_id)
+
+
 class UndoRequest(BaseModel):
     reason: str | None = None
     to_status: str | None = None
