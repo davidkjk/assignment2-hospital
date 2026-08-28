@@ -140,15 +140,28 @@ insert into staff (id, auth_user_id, name, role, department_id, is_active, speci
 on conflict (id) do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 4) 주간 운영시간 (doctor_schedule_rules) — 의사 8명 월~금 09:00~18:00
+-- 4) 주간 운영시간 (doctor_schedule_rules) — 의사 8명 월~토(토요일 오전), 일요일 휴무
 -- ════════════════════════════════════════════════════════════════════════════
+-- ⭐ weekday는 **Python date.weekday() 규약(월=0 … 일=6)**이다 — 백엔드가 그렇게 읽는다
+--    (appointment_service.py `start_at.date().weekday()` · dashboard_service.py `isodow-1`).
+--    ⚠️ 옛 시드는 `generate_series(1,5)`로 넣어 실제로는 **화~토**였다(월0 규칙 누락) —
+--       슬롯을 요일 무관하게 깔아 안 드러났을 뿐. 여기서 월~토(0~5)로 바로잡는다.
+-- ⭐ slot_duration은 진료과마다 다르다(현실 반영): 내과 15 · 정형외과 20 · 이비인후과 10 · 소아과 15.
+--    → 격자에 10·15·20분 열이 섞이고, 정각이 아닌 애매한 시각(09:10·09:15…)이 자연히 생긴다.
 insert into doctor_schedule_rules
   (doctor_id, weekday, start_time, end_time, slot_duration_minutes,
    lunch_start, lunch_end, max_daily_appointments, booking_deadline)
-select s.id, wd, time '09:00', time '18:00', 30,
+select s.id, wd,
+       time '09:00',
+       case when wd = 5 then time '13:00' else time '18:00' end,   -- 토요일(5)은 오전 진료만
+       case s.department_id
+         when '11111111-1111-1111-1111-111111111111' then 15   -- 내과
+         when '22222222-2222-2222-2222-222222222222' then 20   -- 정형외과
+         when '33333333-3333-3333-3333-333333333333' then 10   -- 이비인후과
+         else 15 end,                                          -- 소아과(44444444)
        time '12:00', time '13:00', 20, time '17:00'
 from staff s
-cross join generate_series(1, 5) as wd
+cross join generate_series(0, 5) as wd   -- 월(0)~토(5). 일요일(6)은 규칙 없음 = 휴무.
 where s.role = 'doctor'
 on conflict (doctor_id, weekday) do nothing;
 
@@ -184,23 +197,31 @@ from generate_series(1, 150) as i;
 --    이러면 슬롯이 ~2.4만으로 줄고도 1년 프리셋이 빈틈 없이 찬다.
 -- ⚠️ 이 시드는 `current_date`를 쓴다 — psql 세션 시간대에 걸린다. 서버 커넥션이 KST로
 --    못박혀 있으므로(app/db/pool.py) **`PGTZ=Asia/Seoul`로 넣어야** 서버가 보는 오늘과 맞는다.
+-- ⭐ 슬롯 시각은 **의사의 운영규칙(§4)에서 편다** — 요일·진료시간·의사별 간격·점심을 규칙 하나가 정한다.
+--    · 최근 90일 + 미래 8주 → 의사별 간격(10·15·20분)으로 촘촘 → 격자에 애매한 시각·다른 폭이 보인다.
+--    · 그 이전 1년치       → 30분 격자 + 월·수·금 + 오전 3·오후 3만(성김) — 통계 프리셋용이라 정밀도 불필요.
+--    규칙 없는 요일(일요일=weekday 6)은 join이 비어 슬롯이 안 생긴다 = 휴무.
 insert into appointment_slots (doctor_id, slot_date, start_time, status)
 select s.id, dy.dd::date, t.st, '빈시간'
 from staff s
 cross join generate_series(current_date - 365, current_date + 56, interval '1 day') as dy(dd)
-cross join (
-  select (timestamp '2000-01-01 09:00' + (n * interval '30 min'))::time as st
-  from generate_series(0, 5) as n           -- 09:00 ~ 11:30
-  union all
-  select (timestamp '2000-01-01 13:00' + (n * interval '30 min'))::time as st
-  from generate_series(0, 9) as n           -- 13:00 ~ 17:30
+join doctor_schedule_rules r
+  on r.doctor_id = s.id
+ and r.weekday = extract(isodow from dy.dd)::int - 1   -- isodow(월1..일7) − 1 = Python weekday(월0..일6)
+cross join lateral (
+  select gs::time as st
+  from generate_series(
+    date '2000-01-01' + r.start_time,
+    date '2000-01-01' + r.end_time - make_interval(mins => r.slot_duration_minutes),
+    make_interval(mins => case when dy.dd >= current_date - 90 then r.slot_duration_minutes else 30 end)
+  ) as gs
+  where gs::time < r.lunch_start or gs::time >= r.lunch_end   -- 점심시간 제외
 ) as t
 where s.role = 'doctor'
-  -- 최근 90일·미래는 매일 전부, 그 이전 1년치는 월·수·금만(성김).
-  and (dy.dd >= current_date - 90 or extract(dow from dy.dd) in (1, 3, 5))
-  -- 최근 90일·미래는 16타임 전부, 그 이전 1년치는 오전 3 + 오후 3(시간대별 통계가 한쪽으로 쏠리지 않게).
+  -- 그 이전 1년치(90일보다 과거)는 성기게: 월·수·금 + 오전 3·오후 3 정각만(시간대 통계가 쏠리지 않게).
   and (dy.dd >= current_date - 90
-       or t.st in (time '09:00', time '10:00', time '11:00', time '13:00', time '14:00', time '15:00'))
+       or (extract(isodow from dy.dd) in (1, 3, 5)   -- 월·수·금 (isodow)
+           and t.st in (time '09:00', time '10:00', time '11:00', time '13:00', time '14:00', time '15:00')))
 on conflict (doctor_id, slot_date, start_time) do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════
