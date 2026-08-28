@@ -396,7 +396,7 @@ git commit -m "feat(staff-web): D1 — 환자 등록 라우터 + 소프트 중�
 |---|---|---|---|---:|---:|
 | S1 | `/today` | `today/Today.tsx` (363줄) | `pages/TodayPage.tsx` | 90 | 23 |
 | S2 | `/queue` | `queue/Queue.tsx` (535줄) | `pages/QueuePage.tsx` | 134 | 28 |
-| S3 | `/calendar` | `calendar/Calendar.tsx` (754줄) | `pages/calendar/*` (18파일) | 146 | **76** |
+| S3 | `/calendar` | `calendar/Calendar.tsx` (754줄) ⚠️참고 | `pages/calendar/*` (16소스+14테스트) **뼈대** | 146 | **76** |
 | S4 | `/patients/:id` | `patient/PatientDetail.tsx` (328줄) | `pages/patient/*` (14파일) | 64 | 27 |
 | S5 | `/patients` | `patients/PatientSearch.tsx` (188줄) | `pages/patients/*` (6파일) | 56 | 31 |
 
@@ -407,7 +407,8 @@ git commit -m "feat(staff-web): D1 — 환자 등록 라우터 + 소프트 중�
 조심할 것: ①탭 이름은 **「미도착」**(G-3 사용자 확정, 「아직 안 옴」 아님). ②미도착 행의 두 버튼은 **위치 고정·색만 이동**(G-2). ③DnD 삽입선은 jsdom이 못 본다 → **브라우저에서만 판정**. ④`QUEUE-WALK-*` 43건 중 실 표기 11건뿐 — 이식 후보 목록을 특히 꼼꼼히 소진한다.
 
 **S3 `/calendar`** — Consumes `getCalendar()`(`CalendarBar`·`CalendarBlock`·`CalendarDoctorCatalog`) · `createPhoneAppointment` · `rescheduleAppointment` · `useCalendarRealtime`.
-조심할 것: **이 화면이 최대 난이도다**(이식 후보 76건, 실 18파일). ①같은 `appointment id` 유지·서버 검증 후 충돌 복구 UI(`CAL-RACE-*`)는 실 로직을 반드시 가져온다. ②데모의 세공(날짜 팝오버 `fixed`·5분 스냅 호버·지금 선·**열 때 현재 시각으로 자동 스크롤**(E-8)·`whitespace-nowrap w-[196px]` 날짜 버튼·header `z-30`)은 전부 사용자 검수 결과다 — 하나도 잃지 않는다. ③실 구현은 FullCalendar를 쓰는데 **데모는 자체 격자**다. 데모 격자를 뼈대로 삼고 FullCalendar 의존을 제거하되, `gridModel.ts`·`layout.ts`·`snap.ts`의 **순수 로직과 그 테스트는 살려서 재사용**한다.
+조심할 것: **이 화면이 최대 난이도다**(이식 후보 76건, 실 16소스+14테스트). ①같은 `appointment id` 유지·서버 검증 후 충돌 복구 UI(`CAL-RACE-*`)는 실 로직을 반드시 가져온다. ②데모의 세공(날짜 팝오버 `fixed`·5분 스냅 호버·지금 선·**열 때 현재 시각으로 자동 스크롤**(E-8)·`whitespace-nowrap w-[196px]` 날짜 버튼·header `z-30`)은 전부 사용자 검수 결과다 — 하나도 잃지 않는다.
+> ⚠️ **~~③실 구현은 FullCalendar를 쓰는데 데모는 자체 격자다. 데모 격자를 뼈대로 삼고 FullCalendar 의존을 제거~~** ✅ **정정(2026-08-29, S3 판정, 사용자 확정)** — 전제가 틀렸다. **실 `frontend/src`에는 FullCalendar import가 0건**이고(`package.json`엔 죽은 의존만 남음) 이미 **자체 격자**다(`DayGrid`·`gridModel`·`layout`·`snap`·`useZoom`·`useCalendarRealtime`·주간 `WeekGrid`). 실 격자에만 있는 규칙(주간뷰·`hold`/`CAL-RACE`·`CAL-PAST`·실시간 stale 배너·경고표시·병원시계·deep-link)이 데모엔 아예 없어 **뼈대를 뒤집으면 재구현 회귀 위험이 크다.** → **판정: 실 격자가 뼈대, 데모의 시각 세공을 실 `cal-*` CSS·컴포넌트에 이식.** S1·S2의 「데모가 뼈대」와 반대이며 이 화면 한정. 데모 `calendar/Calendar.tsx`는 **세공 참고용**으로만 읽는다. 이식 세공 목록·진행은 `HANDOFF.md` S3절.
 
 **S4 `/patients/:id`** — Consumes `getPatientDetail`·`getPatientVisits`·`getPatientMedicalRecords`·`getPatientFamily`·`getPatientNotes`/`addPatientNote`·`getQuestionnaire`·`revealContact`·`verifyFamilyEligibility`.
 조심할 것: ①**역할 분리**(G-6) — 의사에게는 `[전화번호 변경]`·`[가족 연결 추가]`를 숨긴다(`canEditContact = !isDoctor`, `SHELL-NAV-03`·`ROLE-DOC-02`). 내부 메모는 의사도 추가 가능(`PTDET-NOTE-02`). ②접수직원은 문진 **내용**을 볼 수 없다(결정 #2·#14). ③전체화면 route다 — 사이드패널 아님(`MASK-DETAIL-01`·`NAV-SHELL-10`).
@@ -492,7 +493,7 @@ git commit -m "feat(staff-web): D1 — 환자 등록 라우터 + 소프트 중�
 **3. 타입 정합** — Wave 2의 Consumes에 적은 함수·타입 이름은 `frontend/src/api/*.ts`의 실제 export를 그대로 옮긴 것이다(2026-08-27 실측).
 
 **4. 남은 위험**
-- **S3 `/calendar`**: FullCalendar(실) ↔ 자체 격자(데모)의 교체가 이 계획 최대 위험. 순수 로직 3파일과 그 테스트를 살리는 것으로 완충했으나, 태스크를 쪼개야 할 수도 있다 — 워커가 착수 후 판단해 코디에게 보고한다.
+- **S3 `/calendar`**: ~~FullCalendar(실) ↔ 자체 격자(데모)의 교체가 최대 위험~~ ✅ **정정(2026-08-29)** — 실은 이미 자체 격자이고 FullCalendar를 안 쓴다(위 S3절 참조). 최대 위험은 교체가 아니라 **데모 시각 세공을 실 격자에 얹으며 시각 충실도를 잃지 않는 것** — 브라우저 대조(`tools/shot`)로만 판정한다. 세공이 많아 태스크를 쪼갠다.
 - **데모 목데이터 ↔ 실 응답 모양 차이**: 데모 컴포넌트가 기대하는 필드가 실 DTO에 없을 수 있다. 그때 **데모 컴포넌트의 화면을 줄이지 말고** api 어댑터를 한 겹 두거나 백엔드 확장을 이월로 보고한다.
 - **회귀 규모**: 화면 19개를 갈아끼우면 기존 UI 테스트가 대량으로 깨진다. **계약 테스트는 절대 약화하지 않고**, 시각 테스트만 정본 기준으로 고친다 — 이 경계를 코디가 커밋 전마다 확인한다.
 
