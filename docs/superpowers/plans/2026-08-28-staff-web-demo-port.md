@@ -1,3 +1,13 @@
+# ⛔ 폐기됨 (2026-08-27) — `2026-08-27-staff-web-demo-first-merge.md`로 대체
+
+> 이 계획은 **「실 frontend가 뼈대, 데모는 시각 참고」** 전제로 쓰였다. 2026-08-27 방향 재전환으로 전제가 뒤집혔다 —
+> 실 frontend의 프론트 규칙 충실도가 데모보다 낮다는 것이 브라우저 대조로 드러났기 때문이다(원인: 워커 합격기준이 jsdom 테스트라 시각·인터랙션을 못 잡음).
+> **새 정본 = `docs/superpowers/plans/2026-08-27-staff-web-demo-first-merge.md`**(데모가 뼈대, 실 로직을 배선).
+> 이 파일에서 살아남은 것: Task V0(Tailwind 도입, 커밋 `af95176`) 유지 · Task D1~D5의 세 문 설계는 새 계획 Wave 1로 이관.
+> 파일명의 날짜 `2026-08-28`은 오기다(실제 작성일 2026-08-27). 아래는 역사 기록으로만 남긴다.
+
+---
+
 # 직원웹 데모 포팅 마스터 계획 (Demo Port)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
