@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
 // 데모/개발용 프록시. 백엔드 API 경로 상당수가 SPA 라우트와 겹친다(/queue·/calendar·/messages·
@@ -9,7 +10,7 @@ const API_SEGMENTS =
   'admin|appointments|audit|auth|calendar|doctor|doctors|error-logs|health|me|medical-records|messages|patients|queue|schedule|staff|stats|today'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     proxy: {
       [`^/(${API_SEGMENTS})([/?]|$)`]: {

@@ -1,0 +1,28 @@
+/* Tailwind v4 — tokens.css(생성물, 원본=design-tokens/tokens.json)를 소비하는 유틸리티 레이어.
+ *
+ * ⛔ preflight(전역 태그 리셋)를 일부러 제외한다 — 기존 인라인 style 화면(pages/*)을
+ *    건드리지 않기 위해서. Tailwind 유틸리티만 들여오고, 새로 포팅하는 컴포넌트(_ui·셸·doors)만
+ *    이 클래스를 쓴다. App.tsx가 이미 box-sizing 전역 리셋을 갖고 있다.
+ *
+ * 색·크기 "원본"은 tokens.css 하나다. 여기선 Tailwind 색 네임스페이스(bg-primary·
+ * text-foreground·border-border·bg-sidebar-ink …)를 그 토큰에 별칭만 한다 → 데모의
+ * shadcn 계열 클래스를 거의 그대로 포팅할 수 있다. radius(rounded-xl=12px)·기본 text 크기는
+ * Tailwind 기본값이 이미 실 토큰과 근사하므로 매핑하지 않는다. amber·white 등은 Tailwind 기본 팔레트. */
+@layer theme, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-primary-wash: var(--color-primary-wash);
+  --color-foreground: var(--color-ink);
+  --color-muted-foreground: var(--color-ink-muted);
+  --color-background: var(--color-bg);
+  --color-card: var(--color-surface);
+  --color-border: var(--color-divider);
+  --color-destructive: var(--color-danger);
+  --color-warn: var(--color-warn);
+  --color-muted: var(--color-done-bg);
+  --color-sidebar-ink: var(--color-sidebar-ink);
+  --font-logo: var(--font-logo);
+}
