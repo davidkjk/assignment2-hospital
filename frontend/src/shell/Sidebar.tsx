@@ -14,9 +14,9 @@ export function Sidebar({ role, counts = {}, connected = true }: { role: Role; c
   const location = useLocation()
   const activePath = navItemForPath(location.pathname)?.path
   return (
-    <aside className="staff-sidebar sticky top-0 flex h-screen w-14 shrink-0 flex-col overflow-y-auto bg-sidebar-ink text-white xl:w-60">
+    <aside className="staff-sidebar flex w-14 shrink-0 flex-col bg-sidebar-ink text-white xl:w-60">
       {/* 브랜드 (사이드바 top) — 병원명은 사이드바가 상시 표시한다(헤더는 화면 제목만) */}
-      <div className="flex h-16 items-center gap-2.5 px-4 xl:px-5">
+      <div className="flex h-14 items-center gap-2 px-4 xl:px-5">
         <svg aria-hidden="true" className="h-6 w-6 shrink-0"><use href={`${iconSpriteUrl}#hospital`} /></svg>
         <span className="hidden font-logo text-xl xl:inline">{HOSPITAL_NAME}</span>
       </div>
@@ -24,7 +24,7 @@ export function Sidebar({ role, counts = {}, connected = true }: { role: Role; c
         직원 업무 시스템
       </div>
 
-      <nav aria-label="직원 업무 메뉴" className="flex-1 px-2 pb-6 pt-1 xl:px-3">
+      <nav aria-label="직원 업무 메뉴" className="flex-1 overflow-y-auto px-2 pb-6 pt-1 xl:px-3">
         {doctorItem && <div className="mb-3"><NavItemLink item={doctorItem} counts={counts} connected={connected} activePath={activePath} /></div>}
         {NAV_GROUPS.map((group) => {
           const items = visible.filter((item) => item.group === group)
@@ -62,7 +62,7 @@ function NavItemLink({ item, counts, connected, activePath }: { item: (typeof NA
       className={({ isActive }) =>
         [
           'nav-item group relative flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors justify-center xl:justify-start',
-          isActive || isDeepLinkActive ? 'active bg-white/12 font-semibold text-white' : 'text-white/85 hover:bg-white/10 hover:text-white',
+          isActive || isDeepLinkActive ? 'active bg-white/15 font-semibold text-white' : 'text-white/85 hover:bg-white/8 hover:text-white',
         ].join(' ')
       }
     >

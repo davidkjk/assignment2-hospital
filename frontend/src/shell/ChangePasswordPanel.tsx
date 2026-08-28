@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { CheckCircle2, Eye, EyeOff, LockKeyhole, X } from '@/components/icons'
+import { btnPrimary } from '../components/staff-ui'
 import { useAuth } from '../auth/useAuth'
+
+// 비밀번호 변경 = 오른쪽 패널(SHELL-ME-03·SHELL-PW-02) — 화면을 옮기지 않는다.
+// 시각은 데모 `StaffShell.tsx`의 PasswordPanel, 로직(현재 비밀번호 확인·/me/password·오류 문구)은 실 것 그대로.
+// ⚠️ 데모에는 「현재 비밀번호」 칸이 없다 — 실은 `SET-PW-04~12,16`대로 요구한다(데모가 덜 갖춘 쪽).
+const inputCls =
+  'h-10 w-full rounded-lg border border-input bg-card px-3 pr-10 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40'
 
 export function ChangePasswordPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { session } = useAuth()
@@ -45,67 +53,103 @@ export function ChangePasswordPanel({ onClose, onDone }: { onClose: () => void; 
   }
 
   return (
-    <div role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()} style={panelStyles.backdrop}>
-      <aside aria-label="비밀번호 변경" style={panelStyles.panel}>
-        <header style={panelStyles.header}><h2>비밀번호 변경</h2><button type="button" onClick={onClose}>닫기</button></header>
-        <form onSubmit={submit} data-testid="password-fields" data-source="SET-PW-04~12,16" style={panelStyles.form}>
-          <label htmlFor="current-password">현재 비밀번호</label>
-          <input id="current-password" type={show ? 'text' : 'password'} value={current} onChange={(event) => setCurrent(event.target.value)} />
-          <label htmlFor="change-password">새 비밀번호</label>
-          <input id="change-password" type={show ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} />
-          <label htmlFor="change-confirm">새 비밀번호 확인</label>
-          <input id="change-confirm" type={show ? 'text' : 'password'} value={confirm} onChange={(event) => setConfirm(event.target.value)} />
+    <div
+      role="presentation"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      className="fixed inset-0 z-40 flex justify-end bg-foreground/20"
+    >
+      <aside aria-label="비밀번호 변경" className="relative z-10 flex h-full w-[390px] max-w-full flex-col bg-card shadow-2xl">
+        <header className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <h2 className="flex items-center gap-1.5 text-sm font-bold">
+            <LockKeyhole className="h-4 w-4 text-primary" /> 비밀번호 변경
+          </h2>
+          {/* 작은 ✕ 아이콘만 두지 않는다 — 글자를 함께 보인다(DEMO-REVIEW-NOTES F-5·F-8) */}
           <button
             type="button"
-            aria-pressed={show}
-            onClick={() => setShow((value) => !value)}
-            style={{ ...panelStyles.visibilityToggle, color: show ? 'var(--color-accent)' : 'var(--color-text)' }}
+            onClick={onClose}
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
           >
-            <PasswordVisibilityIcon visible={show} />
-            <span>{show ? '비밀번호 가리기' : '비밀번호 보기'}</span>
+            <X className="h-4 w-4" /> 닫기
           </button>
-          <ul aria-label="비밀번호 조건" style={panelStyles.rules}>
+        </header>
+        <form
+          onSubmit={submit}
+          data-testid="password-fields"
+          data-source="SET-PW-04~12,16"
+          className="flex-1 space-y-4 overflow-y-auto p-5"
+        >
+          <div>
+            <label htmlFor="current-password" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              현재 비밀번호
+            </label>
+            <input
+              id="current-password"
+              type={show ? 'text' : 'password'}
+              value={current}
+              onChange={(event) => setCurrent(event.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label htmlFor="change-password" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              새 비밀번호
+            </label>
+            <div className="relative">
+              <input
+                id="change-password"
+                type={show ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className={inputCls}
+              />
+              <button
+                type="button"
+                aria-pressed={show}
+                onClick={() => setShow((value) => !value)}
+                className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center"
+                style={{ minWidth: 44, minHeight: 44, color: show ? 'var(--color-primary)' : 'var(--color-ink-muted)' }}
+              >
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <span className="sr-only">{show ? '비밀번호 가리기' : '비밀번호 보기'}</span>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="change-confirm" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              새 비밀번호 확인
+            </label>
+            <input
+              id="change-confirm"
+              type={show ? 'text' : 'password'}
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <ul aria-label="비밀번호 조건" className="space-y-1 text-xs">
             {passwordRules.map((rule) => (
               <li
                 key={rule.id}
                 data-testid="password-rule"
                 data-rule={rule.id}
                 data-valid={rule.valid}
-                style={{ color: rule.valid ? 'var(--color-success)' : 'var(--color-text)' }}
+                className={`flex items-center gap-1.5 ${rule.valid ? 'text-emerald-700' : 'text-muted-foreground'}`}
               >
-                <span aria-hidden="true">{rule.valid ? '✓' : '·'}</span> {rule.label}
+                <CheckCircle2 className={`h-3.5 w-3.5 ${rule.valid ? 'text-emerald-600' : 'text-muted-foreground/40'}`} />
+                {rule.label}
               </li>
             ))}
           </ul>
-          {error && <p ref={errorRef} role="alert" tabIndex={-1}>{error}</p>}
-          <button type="submit" disabled={!ready || busy}>{busy ? '◌ 바꾸는 중…' : '비밀번호 변경'}</button>
+          {error && (
+            <p ref={errorRef} role="alert" tabIndex={-1} className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={!ready || busy} className={`${btnPrimary} w-full justify-center`}>
+            {busy ? '◌ 바꾸는 중…' : '비밀번호 변경'}
+          </button>
         </form>
       </aside>
     </div>
   )
-}
-
-function PasswordVisibilityIcon({ visible }: { visible: boolean }) {
-  const symbol = visible ? 'password-eye-off' : 'password-eye-on'
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <symbol id="password-eye-on" viewBox="0 0 24 24">
-        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" strokeWidth="1.8" />
-        <circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      </symbol>
-      <symbol id="password-eye-off" viewBox="0 0 24 24">
-        <path d="m3 3 18 18M10.6 6.3A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a18.7 18.7 0 0 1-3.1 3.7M6.2 6.8C3.9 8.3 2.5 12 2.5 12s3.5 6 9.5 6a10.4 10.4 0 0 0 3-.4M9.9 9.9a3 3 0 0 0 4.2 4.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </symbol>
-      <use href={`#${symbol}`} />
-    </svg>
-  )
-}
-
-const panelStyles: Record<string, CSSProperties> = {
-  backdrop: { position: 'fixed', inset: 0, zIndex: 30, background: 'var(--color-done-bg)', display: 'flex', justifyContent: 'flex-end' },
-  panel: { width: 390, maxWidth: '100%', height: '100%', background: 'var(--color-surface)', boxShadow: 'var(--shadow-card)' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-divider)', padding: '12px 18px' },
-  form: { display: 'grid', gap: 9, padding: 20 },
-  visibilityToggle: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  rules: { display: 'grid', gap: 4, margin: 0, paddingLeft: 20 },
 }

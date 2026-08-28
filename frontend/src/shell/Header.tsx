@@ -9,7 +9,7 @@ export type { StartDoor } from './navItems'
 const doorBase = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-sm'
 // 가운데 = 접수(창구에서 가장 자주 하는 일)만 딥틸로 도드라지게, 양쪽(등록·예약)은 옅은 흰 버튼.
 const doorGhost = `${doorBase} bg-card text-primary hover:bg-muted`
-const doorPrimary = `${doorBase} bg-primary text-white hover:bg-primary/90`
+const doorPrimary = `${doorBase} bg-primary text-primary-foreground hover:bg-primary/90`
 
 export function Header({ staff, onSignOut, onStart = () => undefined }: { staff: StaffProfile; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
   const [confirming, setConfirming] = useState(false)
@@ -18,7 +18,7 @@ export function Header({ staff, onSignOut, onStart = () => undefined }: { staff:
   return (
     <>
       {/* 헤더 하단은 실선(border-b), 그림자 아님 — 업무 도구 밀도(SHELL-HDR). 병원명은 왼쪽 상시. */}
-      <header className="relative z-30 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-card px-6">
+      <header className="relative z-30 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-6">
         <span aria-label="병원 이름" className="shrink-0 whitespace-nowrap font-semibold">{HOSPITAL_NAME}</span>
 
         <div className="ml-auto flex items-center gap-3">

@@ -77,7 +77,7 @@ describe('ChangePasswordPanel', () => {
     await fillValidPassword(user)
 
     const rules = screen.getAllByTestId('password-rule')
-    expect(rules.every((rule) => rule.getAttribute('data-valid') === 'true' && rule.textContent?.includes('✓'))).toBe(true)
+    expect(rules.every((rule) => rule.getAttribute('data-valid') === 'true' && rule.querySelector('svg') !== null)).toBe(true)
   })
 
   it('[SET-PW-08] 모든 비밀번호 값은 기본으로 가려진다', () => {
@@ -98,7 +98,7 @@ describe('ChangePasswordPanel', () => {
     await user.click(toggle)
 
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    expect(toggle).toHaveStyle({ color: 'var(--color-accent)' })
+    expect(toggle).toHaveStyle({ color: 'var(--color-primary)' })
   })
 
   it('[SET-PW-10] 눈 토글은 44×44 터치 영역을 갖는다', () => {
