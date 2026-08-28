@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePanel } from '../../components/PanelHost'
-import { TODAY_ISO, type DoctorLite, type DoorId, type FieldId, type PatientLite } from './doorData'
+import { todayIsoLocal, type DoctorLite, type DoorId, type FieldId, type PatientLite } from './doorData'
 
 // 세 문의 상태 한 곳. 헤더 버튼이 문을 열고(`SHELL-ACT-04`), 패널의 칸이 왼쪽을 정한다(`PANEL-WORK-01`).
 // 패널은 언제나 하나(`PANEL-ONE-01`) · ✕ 닫기는 묻지 않고 다 날린다(`PANEL-LIVE-06`).
@@ -72,7 +72,15 @@ export function DoorProvider({ children }: { children: ReactNode }) {
         closePanel() // PANEL-ONE-01 — 소비 화면 패널이 열려 있었다면 자리를 다투지 않고 넘겨받는다
         setOpenDoor(door)
         setCollapsed(false)
-        setDraft(door === 'checkin' ? { checkinMode: 'reserved' } : {})
+        // [CAL-BOOK-03] 예약 문의 **날짜 기본값은 오늘**이다 — 비워 두면 의사를 고른 순간
+        // 왼쪽 일간 캘린더가 그릴 날이 없다.
+        setDraft(
+          door === 'checkin'
+            ? { checkinMode: 'reserved' }
+            : door === 'appointment'
+              ? { date: todayIsoLocal() }
+              : {},
+        )
         // 예약은 반드시 환자를 골라야 하므로 열자마자 환자 검색(`SHELL-ACT-04`).
         // 등록·접수는 검색을 강요하지 않는다 — 왼쪽은 보던 화면 그대로, 필요할 때만 칸을 눌러 검색.
         setActiveField(door === 'appointment' ? 'patient' : null)
@@ -105,7 +113,7 @@ export function DoorProvider({ children }: { children: ReactNode }) {
         setOpenDoor(door)
         setCollapsed(false)
         if (door === 'appointment') {
-          setDraft({ patient: p, date: TODAY_ISO })
+          setDraft({ patient: p, date: todayIsoLocal() })
           setActiveField('doctor') // 환자는 있으니 다음은 의사
         } else if (door === 'checkin') {
           setDraft({ patient: p, checkinMode: 'walkin' })
@@ -133,5 +141,3 @@ export function useDoors(): DoorApi {
   if (!v) throw new Error('useDoors는 <DoorProvider> 안에서만 쓸 수 있습니다.')
   return v
 }
-
-export { TODAY_ISO }

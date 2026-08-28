@@ -10,6 +10,7 @@ function catalog(overrides: Partial<CalendarDoctorCatalog>[]): CalendarDoctorCat
     name: o.name ?? `의사${i}`,
     department_name: o.department_name ?? '내과',
     palette_index: o.palette_index ?? null,
+    slot_minutes: o.slot_minutes ?? null,
   }))
 }
 
@@ -67,4 +68,33 @@ test('[CAL-TIME-09] end가 없는 막대는 slotMinutes로 종료를 채운다',
   const a1 = model.appointmentsByDoctor.get('d1')![0]
   expect(a1.startMin).toBe(10 * 60 + 5)
   expect(a1.endMin).toBe(10 * 60 + 20) // 기본 15분
+})
+
+test('[CAL-TIME-09] 서버가 준 진료 길이가 예약 막대에서 도출한 추측을 이긴다', () => {
+  // 서버 카탈로그가 20분이라고 말하는데 막대는 15분짜리 하나뿐 — 근거 있는 쪽을 쓴다.
+  const data: CalendarData = {
+    appointments: [
+      { patient_id: 'p1', appointment_id: 'a1', doctor_id: 'a', status: 'confirmed',
+        start: `${DATE}T09:00:00`, end: `${DATE}T09:15:00` },
+    ],
+    blocks: [],
+    affected_appointment_ids: [],
+    doctors: catalog([{ id: 'a', slot_minutes: 20 }]),
+  }
+  expect(buildGridModel(data, DATE).doctors[0].slotMinutes).toBe(20)
+})
+
+test('[QUEUE-WALK-08c] 서버가 진료 길이를 안 주면 막대에서 도출한다 — 그것도 없으면 15분', () => {
+  const data: CalendarData = {
+    appointments: [
+      { patient_id: 'p1', appointment_id: 'a1', doctor_id: 'a', status: 'confirmed',
+        start: `${DATE}T09:00:00`, end: `${DATE}T09:30:00` },
+    ],
+    blocks: [],
+    affected_appointment_ids: [],
+    doctors: catalog([{ id: 'a', slot_minutes: null }, { id: 'b', slot_minutes: null }]),
+  }
+  const model = buildGridModel(data, DATE)
+  expect(model.doctors.find((d) => d.id === 'a')!.slotMinutes).toBe(30)
+  expect(model.doctors.find((d) => d.id === 'b')!.slotMinutes).toBe(15)
 })

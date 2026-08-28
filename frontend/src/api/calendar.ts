@@ -34,6 +34,9 @@ export interface CalendarDoctorCatalog {
   name: string
   department_name: string | null
   palette_index: number | null
+  /** [CAL-TIME-09] 그 날 요일의 진료 길이(분). 그 요일에 규칙이 없으면 null —
+   *  근거가 없으면 서버가 지어내지 않는다(QUEUE-WALK-08c). */
+  slot_minutes: number | null
 }
 
 /** 캘린더가 그릴 넷을 한 응답으로(CAL-SLOT-*·CAL-VIEW-*). 워크인(슬롯 없음)은 시각이 없어 여기 안 든다. */

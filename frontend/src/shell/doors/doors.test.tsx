@@ -9,6 +9,7 @@ import { AppShell } from '../AppShell'
 import { ConnectivityProvider } from '../../lib/connectivity'
 import { queryClient } from '../../lib/queryClient'
 import { usePanel } from '../../components/PanelHost'
+import { fmtDate, todayIsoLocal } from './doorData'
 
 // 세 문(등록·접수·예약)은 화면 어디에도 속하지 않는 가로 장치다 — 셸 안에서만 확인할 수 있다.
 // 여기서 보는 계약: 패널은 하나 · ✕는 묻지 않음 · 접기≠닫기 · ⭐**패널의 칸이 왼쪽을 정한다**.
@@ -69,6 +70,15 @@ function servePatient(name: string) {
         next_cursor: null,
         has_more: false,
       }),
+    ),
+  )
+}
+
+/** 예약 문의 의사 로스터 — `GET /calendar`의 카탈로그가 정본이다(D4). */
+function serveCalendar(doctors: Array<{ id: string; name: string; department_name: string | null; palette_index: number | null; slot_minutes: number | null }>) {
+  server.use(
+    http.get('*/calendar', () =>
+      HttpResponse.json({ appointments: [], blocks: [], affected_appointment_ids: [], doctors }),
     ),
   )
 }
@@ -145,9 +155,11 @@ test('[PANEL-WORK-02] 환자를 고르면 왼쪽이 그 환자 카드가 된다(
 
 test('[PANEL-WORK-02] 의사를 고른 뒤 왼쪽이 그 의사의 하루 캘린더가 된다', async () => {
   const user = userEvent.setup()
+  // D4 배선 뒤 의사 로스터는 **그 날 격자에 열이 생기는 의사**(GET /calendar 카탈로그)다.
+  serveCalendar([{ id: 'doc-1', name: '이정훈', department_name: '내과', palette_index: null, slot_minutes: 15 }])
   renderShell()
   await openReserveAndPickPatient(user)
-  await user.click(screen.getByRole('button', { name: /이정훈/ }))
+  await user.click(await waitFor(() => screen.getByRole('button', { name: /이정훈/ })))
 
   expect(screen.getByText('시간을 고르는 중')).toBeVisible()
 })
@@ -156,7 +168,8 @@ test('[PANEL-WORK-01][PANEL-WORK-03] 날짜 칸을 누르면 왼쪽이 달력이
   const user = userEvent.setup()
   renderShell()
   await user.click(screen.getByRole('button', { name: '예약' }))
-  await user.click(screen.getByRole('button', { name: /날짜를 고르세요/ }))
+  // [CAL-BOOK-03] 날짜 칸은 열자마자 **오늘**로 채워져 있다 — 비어 있지 않다.
+  await user.click(screen.getByRole('button', { name: fmtDate(todayIsoLocal()) }))
 
   expect(screen.getByText('날짜를 고르는 중')).toBeVisible()
 })

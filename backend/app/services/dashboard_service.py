@@ -240,7 +240,7 @@ async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=
     """
     async def _run(c):
         doctors = await _calendar_doctors(c, doctor_ids)
-        doctor_catalog = await _calendar_doctor_catalog(c, doctor_ids)
+        doctor_catalog = await _calendar_doctor_catalog(c, doctor_ids, from_)
 
         # ① 예약 막대 — 슬롯을 가진 활성 예약만(워크인은 시각이 없어 제외).
         appt_rows = await c.fetch(
@@ -307,22 +307,34 @@ async def _calendar_doctors(conn, doctor_ids) -> list:
     return [row["id"] for row in rows]
 
 
-async def _calendar_doctor_catalog(conn, doctor_ids) -> list:
-    """[CAL-NAME][CAL-COLOR-10] 격자에 열이 생기는 활성 의사 목록 — 이름·진료과를 함께 싣는다.
+async def _calendar_doctor_catalog(conn, doctor_ids, on_date) -> list:
+    """[CAL-NAME][CAL-COLOR-10][CAL-TIME-09] 격자에 열이 생기는 활성 의사 목록 —
+    이름·진료과와 **그 날 요일의 진료 길이**를 함께 싣는다.
 
     지정이 없으면 활성 의사 전부(_calendar_doctors와 같은 태도). palette_index는 아직 null —
     색 저장 칸(staff 팔레트 인덱스)이 없어(갭 #83) Task 19 00042가 나중에 채운다.
+
+    ⭐ slot_minutes를 여기 싣는 이유(2026-08-28, D4): 화면이 예약 막대 길이에서 진료 길이를
+       거꾸로 추측하면 **예약이 하나도 없는 날**에 추측이 실패해 20분 의사에게도 「15분」이
+       적힌다. 세 문의 예약 창구는 빈 날에 첫 예약을 잡는 일이 흔해 그 오차가 그대로
+       겹침 계산(CAL-GAP-09)에까지 번진다. 그래서 근거를 서버가 준다.
+    ⚠️ 요일마다 다를 수 있으므로 **범위의 첫 날(on_date) 요일**로 읽는다. 그 요일에 규칙이
+       없으면 null이다 — 근거가 없으면 지어내지 않는다(QUEUE-WALK-08c).
     """
     rows = await conn.fetch(
         """
-        select s.id, s.name, d.name as department_name
+        select s.id, s.name, d.name as department_name,
+               r.slot_duration_minutes
         from staff s
         left join departments d on d.id = s.department_id
+        left join doctor_schedule_rules r
+          on r.doctor_id = s.id and r.weekday = $2
         where s.role = 'doctor' and s.is_active
           and ($1::uuid[] is null or s.id = any($1))
         order by s.id
         """,
         list(doctor_ids) if doctor_ids else None,
+        on_date.weekday(),
     )
     return [
         {
@@ -330,6 +342,7 @@ async def _calendar_doctor_catalog(conn, doctor_ids) -> list:
             "name": row["name"],
             "department_name": row["department_name"],
             "palette_index": None,
+            "slot_minutes": row["slot_duration_minutes"],
         }
         for row in rows
     ]

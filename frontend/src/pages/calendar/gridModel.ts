@@ -20,7 +20,8 @@ export interface GridDoctor {
   departmentName: string | null
   /** [CAL-COLOR-09] 색값이 아니라 팔레트의 몇 번째. */
   paletteIndex: number
-  /** [CAL-NAME-02] 「N분」 표기·스냅 미리보기에 쓰는 진료 길이. 카탈로그에 없어 예약 길이에서 도출(기본 15). */
+  /** [CAL-NAME-02][CAL-TIME-09] 「N분」 표기·스냅 미리보기에 쓰는 진료 길이.
+   *  서버 카탈로그의 slot_minutes가 먼저고, 없으면 예약 길이에서 도출, 그것도 없으면 15분. */
   slotMinutes: number
 }
 
@@ -146,7 +147,8 @@ export function buildGridModel(data: CalendarData, onDate: string): GridModel {
     name: doc.name,
     departmentName: doc.department_name,
     paletteIndex: palette.get(doc.id) ?? 0,
-    slotMinutes: slotByDoctor.get(doc.id) ?? 15,
+    // [CAL-TIME-09] 서버가 준 근거가 먼저다 — 도출은 그 요일 규칙이 없을 때의 차선책.
+    slotMinutes: doc.slot_minutes ?? slotByDoctor.get(doc.id) ?? 15,
   }))
 
   const appointmentsByDoctor = new Map<string, GridAppointment[]>()

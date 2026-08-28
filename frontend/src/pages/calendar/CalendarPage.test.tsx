@@ -21,9 +21,9 @@ const NOW = new Date('2026-08-06T09:00:00') // 목요일
 
 const DATA: CalendarData = {
   doctors: [
-    { id: 'd1', name: '박지훈', department_name: '내과', palette_index: null },
-    { id: 'd2', name: '최민석', department_name: '내과', palette_index: null },
-    { id: 'd3', name: '한소연', department_name: '피부과', palette_index: null },
+    { id: 'd1', name: '박지훈', department_name: '내과', palette_index: null, slot_minutes: null },
+    { id: 'd2', name: '최민석', department_name: '내과', palette_index: null, slot_minutes: null },
+    { id: 'd3', name: '한소연', department_name: '피부과', palette_index: null, slot_minutes: null },
   ],
   appointments: [
     { patient_id: 'p1', name: '김*지', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: '2026-08-06T10:00:00', end: '2026-08-06T10:15:00' },

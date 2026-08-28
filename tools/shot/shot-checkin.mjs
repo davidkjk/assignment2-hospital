@@ -5,6 +5,9 @@ const OUT = process.argv[2]
 const CODE = process.argv[3] // real일 때 쓸 유효 예약번호
 const browser = await puppeteer.launch({
   executablePath: CHROME, headless: 'new',
+  // ⭐ 창구 PC의 시계 = 병원 시계다. 서버는 `Asia/Seoul`로 못박혀 있는데(backend/app/db/pool.py)
+  //    이 맥은 미 서부라, 그대로 띄우면 **화면은 어제·타일은 오늘**이 되어 대조가 거짓이 된다.
+  env: { ...process.env, TZ: 'Asia/Seoul' },
   args: ['--window-size=1600,1000', '--no-sandbox'],
   defaultViewport: { width: 1600, height: 1000 },
 })

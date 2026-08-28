@@ -186,3 +186,42 @@ async def test_예약_막대는_이름은_실명_전화_생년월일은_아예_�
     bar = next(b for b in result["appointments"] if b["appointment_id"] == appt)
     assert bar["name"] == "홍길동" and "masked_name" not in bar
     assert "patient_name" not in bar and "phone" not in bar and "birth_date" not in bar
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_그_날_요일의_진료길이를_싣는다(db_conn):
+    """[CAL-TIME-09][CAL-NAME-02] 「N분 진료」는 서버가 준 근거로만 적는다.
+
+    ⭐ 예약 문(세 문의 '예약')은 **아직 아무 예약도 없는 날**에 첫 예약을 잡는 일이 흔하다.
+       화면이 예약 막대 길이에서 진료 길이를 거꾸로 추측하면(gridModel.deriveSlotMinutes)
+       그런 날엔 추측이 실패해 20분 의사에게도 「15분 진료」라고 **틀린 값**을 적고,
+       그 틀린 길이로 겹침(CAL-GAP-09)까지 계산한다. 그래서 카탈로그가 직접 싣는다.
+    """
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday(), slot=20)
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["slot_minutes"] == 20
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_그_요일_규칙이_없으면_진료길이는_null이다(db_conn):
+    """[QUEUE-WALK-08c] 근거가 없으면 말하지 않는다 — 그 요일에 규칙이 없으면 길이를 지어내지 않는다."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday(), slot=20)
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    # 토요일 — 그 요일 규칙을 넣지 않았다.
+    result = await dashboard_service.get_calendar(
+        staff, from_=SAT, to=SAT, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["slot_minutes"] is None

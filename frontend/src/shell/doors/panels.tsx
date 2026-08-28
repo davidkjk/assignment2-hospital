@@ -1,7 +1,7 @@
 // 세 문의 오른쪽 패널 — 데모 `routes/staff/doors/panels.tsx` 포팅.
 // 패널 = 무엇을 채우나 / 왼쪽 = 채우는 도구(`PANEL-WORK-01`). 접기 ≠ 닫기(`PANEL-LIVE-05`),
 // ✕는 묻지 않고 채운 것을 날린다(`PANEL-LIVE-06`).
-// ⚠️ 예약 패널의 저장·조회는 아직 가짜다 — TODO(D4 예약 배선).
+// ✅ 예약 패널은 D4에서 실 서버로 배선됐다(로스터·하루 일정=GET /calendar · 저장=POST /appointments/phone).
 // ✅ 접수 패널은 D3에서 실 서버로 배선됐다(예약 확인=CheckinForm · 당일 방문=/appointments/walkin).
 // ✅ 등록 패널은 D2에서 실 서버(`api/registration.ts`)로 배선됐다.
 import { useEffect, useState, type ReactNode } from 'react'
@@ -9,11 +9,29 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, QrCode, UserPlus, X } from '@/components/icons'
 import { ApiError } from '../../api/httpClient'
 import { createWalkinAppointment } from '../../api/appointments'
+import { createPhoneAppointment, getCalendar } from '../../api/calendar'
 import { getTodaySummary } from '../../api/dashboard'
 import { checkDuplicate, registerPatient } from '../../api/registration'
 import { CheckinForm } from '../../pages/checkin/CheckinForm'
+import { GapWarningDialog } from '../../pages/calendar/GapWarningDialog'
 import { useDoors } from './DoorContext'
-import { doctorWaitMap, doorDoctors, fmtDate, maskTypedBirth, maskTypedPhone, parseVisitTime, todayIsoLocal, visitInstant, type DoctorLite, type FieldId } from './doorData'
+import {
+  apptOverlapAt,
+  blocksFor,
+  closedAt,
+  doctorFill,
+  doctorInk,
+  fmtDate,
+  maskTypedBirth,
+  maskTypedPhone,
+  minToHHMM,
+  parseVisitTime,
+  slotMinutesOf,
+  todayIsoLocal,
+  visitInstant,
+  type DoctorLite,
+  type FieldId,
+} from './doorData'
 
 // ── 공용 드로어 조각 ──────────────────────────────────────────────
 
@@ -78,25 +96,79 @@ function PickedValue({ title, sub, onChange }: { title: string; sub: string; onC
   )
 }
 
-/** 패널 안에서 펼쳐지는 의사 목록 — 별도 화면을 만들지 않는다(PANEL-WORK-02).
- *  대기 인원을 함께 적어 "덜 기다리는 의사"로 고른다(QUEUE-WALK-08b). */
-function DoctorInlineList({ onPick }: { onPick: (id: string) => void }) {
+/** 예약 문의 의사 목록 — 별도 화면을 만들지 않는다(`PANEL-WORK-02`).
+ *  로스터는 **그 날 격자에 열이 생기는 의사**(`GET /calendar`의 카탈로그)다 — 오늘 진료하지 않는
+ *  의사도 미래에는 예약을 받을 수 있으므로 「오늘 대기 인원」 목록을 로스터로 쓰지 않는다.
+ *  대기 인원을 함께 적어 "덜 기다리는 의사"로 고른다(`QUEUE-WALK-08b`).
+ *  ⛔ 대기 인원은 **오늘을 고른 경우에만** 적는다 — 「지금 몇 명이 기다리나」는 다음 주 예약에
+ *     대해 말해 주는 것이 없다. 근거가 없으면 말하지 않는다(`QUEUE-WALK-08c`). */
+function DoctorInlineList({ dateIso, onPick }: { dateIso: string; onPick: (d: DoctorLite) => void }) {
+  const isToday = dateIso === todayIsoLocal()
+  const roster = useQuery({
+    queryKey: ['calendar', 'roster', dateIso],
+    queryFn: () => getCalendar({ from: dateIso, to: dateIso }),
+  })
+  const waiting = useQuery({ queryKey: ['today', 'summary'], queryFn: getTodaySummary, enabled: isToday })
+
+  if (roster.isPending) return <p className="mt-1.5 px-1 text-xs text-muted-foreground">의사 목록을 불러오는 중…</p>
+  if (roster.isError) {
+    // [ERR-POS-01] 실패한 자리 바로 그 자리에서 — 막다른 길을 만들지 않는다(다시 시도를 준다).
+    return (
+      <div className="mt-1.5 rounded-lg border border-border/70 bg-muted/30 p-3 text-xs">
+        <p role="alert" className="border-l-4 border-rose-500 pl-2 text-rose-700">
+          의사 목록을 불러오지 못했습니다.
+        </p>
+        <button onClick={() => roster.refetch()} className="mt-2 rounded-md border border-border bg-card px-2.5 py-1 font-medium hover:bg-muted">
+          다시 시도
+        </button>
+      </div>
+    )
+  }
+
+  const rows = roster.data.doctors
+  if (rows.length === 0) {
+    return <p className="mt-1.5 px-1 text-xs text-muted-foreground">예약을 받을 수 있는 의사가 없습니다.</p>
+  }
+  // 오늘이고 대기 조회가 도착했으면 **모든 의사에게** 적는다 — 목록에 없는 의사는 대기 0명이라
+  // 없는 것이지 「모르는 것」이 아니다. 접수 문(D3)이 0을 「대기 없음」으로 적는 것과 같은 태도.
+  const waitOf = (id: string) =>
+    isToday && waiting.data
+      ? (waiting.data.doctor_waiting.find((w) => w.doctor_id === id)?.waiting_count ?? 0)
+      : undefined
+
   return (
     <div className="mt-1.5 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border/70 bg-muted/30 p-1.5">
-      {doorDoctors.map((d) => {
-        const wait = doctorWaitMap[d.id] ?? 0
+      {rows.map((d, i) => {
+        // [CAL-COLOR-09] 색값이 아니라 팔레트의 몇 번째 — palette_index가 아직 null이라
+        // 정렬 순서로 잠정 배정한다(갭 #83, gridModel.assignPalette과 같은 규칙).
+        const paletteIndex = d.palette_index ?? i
+        const wait = waitOf(d.id)
         return (
           <button
             key={d.id}
-            onClick={() => onPick(d.id)}
+            onClick={() =>
+              onPick({
+                id: d.id,
+                name: d.name,
+                department: d.department_name ?? '진료과 미지정',
+                waiting: wait,
+                slotMinutes: d.slot_minutes ?? undefined,
+                paletteIndex,
+              })
+            }
             className="flex w-full items-center gap-2 rounded-md bg-card px-2.5 py-2 text-left text-sm hover:bg-primary/5"
           >
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: d.fill, border: `1px solid ${d.ink}` }} />
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ background: doctorFill(paletteIndex), border: `1px solid ${doctorInk(paletteIndex)}` }}
+            />
             <span className="font-medium">{d.name}</span>
-            <span className="text-xs text-muted-foreground">{d.department}</span>
-            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-              {wait > 0 ? `대기 ${wait}명` : '대기 없음'}
-            </span>
+            <span className="text-xs text-muted-foreground">{d.department_name ?? '진료과 미지정'}</span>
+            {wait != null && (
+              <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                {wait > 0 ? `대기 ${wait}명` : '대기 없음'}
+              </span>
+            )}
           </button>
         )
       })}
@@ -234,11 +306,92 @@ function ConfirmPopup({
 
 // ── 세 문의 패널 본문 ─────────────────────────────────────────────
 
-/** 예약 문 — 환자·의사·날짜·시각·사유 (CAL-BOOK-01) */
+/** 예약 문 — 환자·의사·날짜·시각·사유 (`CAL-BOOK-01`).
+ *  ⭐ 세 판정이 서로 다르다:
+ *    · 빗금(휴진·점심)은 **못 잡는 구간**이라 막고 이유를 말한다(`CAL-SLOT-04·11`, 서버도 400).
+ *    · 다른 예약과 겹치면 **누구와 몇 분**을 적고 `[알겠습니다, 그대로 잡기]`로 넘어간다(`CAL-GAP-05·06`).
+ *    · 그 밖에는 저장 직전 재확인 한 번(`CAL-BOOK-08`·`QUEUE-SAME-01`). */
 function ReserveBody() {
   const { draft, activeField, setField, patch, pickDoctor, finish } = useDoors()
+  const qc = useQueryClient()
   const [confirm, setConfirm] = useState(false)
+  const [gap, setGap] = useState<{ slotMinutes: number; gapMinutes: number; overlap: { patientLabel: string; startLabel: string; minutes: number } } | null>(null)
+  const [raceMsg, setRaceMsg] = useState<string | null>(null)
+  const [blockedMsg, setBlockedMsg] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const dateIso = draft.date ?? todayIsoLocal()
+  const doctorId = draft.doctor?.id
+
+  // 저장 직전 판정에 쓰는 그 의사·그 날 — 왼쪽 캘린더와 **같은 조회**라 캐시를 나눠 쓴다.
+  const day = useQuery({
+    queryKey: ['calendar', 'day', dateIso, doctorId],
+    queryFn: () => getCalendar({ from: dateIso, to: dateIso, doctorIds: [doctorId!] }),
+    enabled: !!doctorId,
+  })
+
+  const save = useMutation({
+    mutationFn: (allowOverlap: boolean) =>
+      createPhoneAppointment({
+        patient_id: draft.patient!.id,
+        doctor_id: doctorId!,
+        // 창구 컴퓨터의 시계가 벽시계다 — 서버가 UTC로 옮겨 저장한다(`visitInstant` 주석과 같은 태도).
+        start_at: `${dateIso}T${draft.time}:00`,
+        reason: draft.reason ?? '',
+        allow_overlap: allowOverlap,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['calendar'] })
+      void qc.invalidateQueries({ queryKey: ['today'] })
+      finish(`${draft.patient!.name} 님 예약을 ${fmtDate(dateIso)} ${draft.time}에 잡았습니다`)
+    },
+    onError: (e) => {
+      // [CAL-RACE-03·04·07] 방금 다른 직원이 그 자리를 잡았다 — 패널은 그대로 두고 **시각 칸만** 비운다.
+      // ⛔ 「새로고침」이나 서버 원문을 그대로 보여 주지 않는다. 다시 고를 자리로 돌려보낸다.
+      if (e instanceof ApiError && e.status === 409) {
+        patch({ time: undefined })
+        setRaceMsg('방금 다른 직원이 이 자리를 잡았습니다. 다른 시각을 골라 주세요.')
+        setField('time')
+        return
+      }
+      setError(e instanceof Error ? e.message : '예약을 저장하지 못했습니다')
+    },
+  })
+
   const ready = draft.patient && draft.doctor && draft.date && draft.time
+
+  /** [CAL-GAP-05] 저장 직전 — 못 잡는 구간이면 막고, 겹치면 누구와 몇 분인지 적는다. */
+  function attemptSave() {
+    setRaceMsg(null)
+    setBlockedMsg(null)
+    setError(null)
+    if (!ready || !day.data || !draft.doctor) return
+
+    const [hh, mm] = draft.time!.split(':').map(Number)
+    const startMin = hh * 60 + mm
+    const slotMinutes = slotMinutesOf(draft.doctor)
+    const blocks = blocksFor(day.data, draft.doctor.id, dateIso)
+
+    // [CAL-SLOT-04·11] 빗금은 경고가 아니라 막는 것이다 — 서버도 닫힌 시간을 거절한다.
+    const closed = closedAt(blocks, startMin, slotMinutes)
+    if (closed) {
+      setBlockedMsg(`${closed.offKind} 시간이라 예약을 잡을 수 없습니다. 다른 시각을 골라 주세요.`)
+      setField('time')
+      return
+    }
+
+    const ov = apptOverlapAt(blocks, startMin, slotMinutes)
+    if (ov) {
+      setGap({
+        slotMinutes,
+        gapMinutes: Math.max(0, ov.startMin - startMin),
+        overlap: { patientLabel: `${ov.label} 님`, startLabel: minToHHMM(ov.startMin), minutes: Math.min(startMin + slotMinutes, ov.endMin) - Math.max(startMin, ov.startMin) },
+      })
+      return
+    }
+    setConfirm(true)
+  }
+
   return (
     <div className="space-y-4">
       <FieldRow label="환자" field="patient" active={activeField === 'patient'} filled={!!draft.patient} onActivate={() => setField('patient')}>
@@ -257,7 +410,7 @@ function ReserveBody() {
             '의사를 고르세요'
           )}
         </FieldRow>
-        {activeField === 'doctor' && <DoctorInlineList onPick={(id) => pickDoctor(doorDoctors.find((d) => d.id === id)!)} />}
+        {activeField === 'doctor' && <DoctorInlineList dateIso={dateIso} onPick={(d) => pickDoctor(d)} />}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -268,6 +421,10 @@ function ReserveBody() {
           {draft.time ? <span className="font-medium tabular-nums text-foreground">{draft.time}</span> : '시각을 고르세요'}
         </FieldRow>
       </div>
+
+      {/* [CAL-RACE-04] 무엇이 비었는지 그 자리에서 말한다 — 화면을 옮기지 않는다. */}
+      {raceMsg && <p role="status" className="-mt-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">{raceMsg}</p>}
+      {blockedMsg && <p role="status" className="-mt-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">{blockedMsg}</p>}
 
       <div>
         <div className="mb-1 text-xs font-medium text-muted-foreground">방문 사유</div>
@@ -280,14 +437,34 @@ function ReserveBody() {
         />
       </div>
 
+      {error && (
+        <p role="alert" className="rounded-lg border-l-4 border-rose-500 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {error}
+        </p>
+      )}
+
       <button
-        disabled={!ready}
-        onClick={() => setConfirm(true)}
+        disabled={!ready || save.isPending}
+        onClick={attemptSave}
         className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
       >
-        예약하기
+        {save.isPending ? '예약하는 중…' : '예약하기'}
       </button>
       {!ready && <p className="-mt-1 text-center text-xs text-muted-foreground">환자·의사·날짜·시각을 모두 고르면 예약할 수 있습니다</p>}
+
+      {/* [CAL-GAP-05·06] 막연한 경고가 아니라 「누구와 몇 분」. 진행 버튼에 「알겠습니다」가 든다. */}
+      {gap && (
+        <GapWarningDialog
+          slotMinutes={gap.slotMinutes}
+          gapMinutes={gap.gapMinutes}
+          overlap={gap.overlap}
+          onCancel={() => setGap(null)}
+          onProceed={() => {
+            setGap(null)
+            save.mutate(true)
+          }}
+        />
+      )}
 
       {confirm && draft.patient && draft.doctor && (
         <ConfirmPopup
@@ -295,12 +472,15 @@ function ReserveBody() {
           lines={[
             { k: '환자', v: draft.patient.name },
             { k: '의사', v: `${draft.doctor.name} · ${draft.doctor.department}` },
-            { k: '일시', v: `${fmtDate(draft.date!)} ${draft.time}` },
+            { k: '일시', v: `${fmtDate(dateIso)} ${draft.time}` },
             { k: '사유', v: draft.reason || '—' },
           ]}
           confirmLabel="예약 확정"
           onCancel={() => setConfirm(false)}
-          onConfirm={() => finish(`${draft.patient!.name} 님 예약을 ${draft.time}에 잡았습니다`)}
+          onConfirm={() => {
+            setConfirm(false)
+            save.mutate(false)
+          }}
         />
       )}
     </div>

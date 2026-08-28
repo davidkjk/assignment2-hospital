@@ -1,22 +1,31 @@
 // 왼쪽 변신 도구 — 데모 `routes/staff/doors/surfaces.tsx` 포팅.
 // `PANEL-WORK-01/02`: 패널의 어느 칸을 채우느냐에 따라 왼쪽 큰 자리가 「그 칸을 채우는 도구」로 바뀐다.
 // ✅ D3: 환자 검색은 정본 부품 `PatientSearch`(mode="pick")가 한다 — 데모의 가짜 표를 걷어냈다.
-// ⚠️ 일간 캘린더·작은 달력 데이터는 아직 `doorData`의 데모 가짜값이다 — TODO(D4 배선).
-import { useRef, useState } from 'react'
-import { CalendarDays, Clock3, UserRound, AlertTriangle } from '@/components/icons'
+// ✅ D4: 일간 캘린더·작은 달력이 실 서버(`GET /calendar`)에 붙었다. 빗금(휴진·점심) 판정은
+//        서버 `resolve_day` 하나뿐이라(`SCHED-EXC-12`) 화면이 자기 계산을 갖지 않는다.
+import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, UserRound, AlertTriangle } from '@/components/icons'
+import { getCalendar } from '../../api/calendar'
 import { StatusBadge } from '../../components/staff-ui'
 import { PatientSearch } from '../../pages/patients/PatientSearch'
 import { useDoors } from './DoorContext'
 import {
-  buildBlocks,
+  apptOverlapAt,
+  blocksFor,
+  closedAt,
+  doctorFill,
+  doctorInk,
   DAY_START_MIN,
   DAY_END_MIN,
   snapMin,
-  overlapAt,
   minToHHMM,
   slotMinutesOf,
   fmtDate,
-  TODAY_ISO,
+  localDate,
+  pastMinOn,
+  todayIsoLocal,
+  type DayBlock,
   type FieldId,
 } from './doorData'
 
@@ -71,17 +80,47 @@ function PatientSearchSurface() {
 const PPM = 1.6
 const GUTTER = 48
 
+/** 고른(혹은 호버한) 자리가 무엇인가 — 셋은 **동작이 다르다**(`CAL-PAST` / `CAL-SLOT` / `CAL-GAP`). */
+type SpotKind =
+  | { kind: 'past' }
+  | { kind: 'closed'; block: DayBlock }
+  | { kind: 'overlap'; block: DayBlock }
+  | { kind: 'free' }
+
 /** 의사를 고른 뒤 → 그 의사의 하루 비례 캘린더 (PANEL-WORK-02·CAL-TIME-02/03) —
- *  빈 곳을 누르면 5분 격자에 붙여 그 의사 진료시간만큼 잡는다. 겹치면 경고(막지 않음). */
+ *  빈 곳을 누르면 5분 격자에 붙여 그 의사 진료시간만큼 잡는다.
+ *  ⭐ 못 잡는 자리는 **누르기 전에** 갈린다: 지난 시각(`CAL-PAST-01`)과 빗금(`CAL-SLOT-04`)은
+ *     막고 이유를 말하고, 예약끼리의 겹침만 경고 뒤 진행할 수 있다(`CAL-GAP-06`). */
 function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
-  const { draft, pickSlot } = useDoors()
+  const { draft, pickSlot, patch, switchDoor } = useDoors()
   const d = draft.doctor!
-  const blocks = buildBlocks(d)
+  const dateIso = draft.date ?? todayIsoLocal()
+
+  // 패널의 저장 직전 판정과 **같은 조회**다 — 캐시를 나눠 써 두 곳이 다른 하루를 보지 않는다.
+  const day = useQuery({
+    queryKey: ['calendar', 'day', dateIso, d.id],
+    queryFn: () => getCalendar({ from: dateIso, to: dateIso, doctorIds: [d.id] }),
+  })
+
+  // [CAL-TIME-09] 진료 길이는 **그 날 요일**의 규칙이다 — 날짜를 옮기면 달라질 수 있어
+  // 그 날 카탈로그가 오면 문이 들고 다니는 값을 맞춘다(패널의 겹침 계산도 이 값을 쓴다).
+  const servedSlot = day.data?.doctors.find((x) => x.id === d.id)?.slot_minutes ?? null
+  useEffect(() => {
+    if (servedSlot != null && servedSlot !== d.slotMinutes) {
+      patch({ doctor: { ...d, slotMinutes: servedSlot } })
+    }
+  }, [servedSlot]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const blocks = day.data ? blocksFor(day.data, d.id, dateIso) : []
+  const slotMinutes = slotMinutesOf(d)
+  const pastMin = pastMinOn(dateIso)
   const height = (DAY_END_MIN - DAY_START_MIN) * PPM
   const yOf = (min: number) => (min - DAY_START_MIN) * PPM
 
   const laneRef = useRef<HTMLDivElement>(null)
   const [hoverMin, setHoverMin] = useState<number | null>(null)
+  /** 못 잡는 자리를 눌렀을 때의 안내 — 막고 끝내지 않고 갈 길을 준다(`CAL-PAST-02`). */
+  const [notice, setNotice] = useState<{ text: string; toWalkin: boolean } | null>(null)
 
   const minFromEvent = (e: React.PointerEvent | React.MouseEvent): number => {
     const el = laneRef.current
@@ -91,9 +130,36 @@ function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
     return snapMin(rawMin)
   }
 
+  /** 그 자리가 무엇인지 — 판정 순서가 곧 우선순위다(지난 시각 > 빗금 > 겹침). */
+  const spotAt = (startMin: number): SpotKind => {
+    if (startMin < pastMin) return { kind: 'past' }
+    const closed = closedAt(blocks, startMin, slotMinutes)
+    if (closed) return { kind: 'closed', block: closed }
+    const ov = apptOverlapAt(blocks, startMin, slotMinutes)
+    if (ov) return { kind: 'overlap', block: ov }
+    return { kind: 'free' }
+  }
+
   const picked = draft.time ? toMinLocal(draft.time) : null
   const previewMin = pickable ? (hoverMin ?? picked) : null
-  const previewOverlap = previewMin != null ? overlapAt(d, previewMin) : null
+  const preview = previewMin != null ? spotAt(previewMin) : null
+
+  function handleClick(e: React.MouseEvent) {
+    const startMin = minFromEvent(e)
+    const spot = spotAt(startMin)
+    if (spot.kind === 'past') {
+      // [CAL-PAST-02] 막고 끝내지 않는다 — 이미 온 환자라면 당일 방문 등록이 갈 길이다.
+      setNotice({ text: '이미 지난 시간입니다.', toWalkin: true })
+      return
+    }
+    if (spot.kind === 'closed') {
+      // [CAL-SLOT-04·11] 빗금은 예약을 못 잡는 구간이다 — 서버도 400으로 거절한다.
+      setNotice({ text: `${spot.block.offKind} 시간이라 예약을 잡을 수 없습니다.`, toWalkin: false })
+      return
+    }
+    setNotice(null)
+    pickSlot(dateIso, minToHHMM(startMin))
+  }
 
   const gridLines: number[] = []
   for (let t = DAY_START_MIN; t <= DAY_END_MIN; t += 30) gridLines.push(t)
@@ -101,32 +167,57 @@ function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
   return (
     <div className="mx-auto max-w-2xl">
       <SurfaceHead
-        label={pickable ? '시간을 고르는 중' : `${d.name} 선생님 오늘 일정`}
+        label={pickable ? '시간을 고르는 중' : `${d.name} 선생님 일정`}
         hint={
           pickable
-            ? `빈 곳을 누르면 5분 단위로 붙어 ${d.slotMinutes}분 예약이 잡힙니다`
-            : '오늘이 얼마나 차 있는지 보고 배정하세요 · 빗금은 휴진·점심'
+            ? `빈 곳을 누르면 5분 단위로 붙어 ${slotMinutes}분 예약이 잡힙니다`
+            : '얼마나 차 있는지 보고 배정하세요 · 빗금은 휴진·점심'
         }
         icon={pickable ? <Clock3 className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}
       />
       <div className="mb-3 flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-2.5 shadow-[var(--shadow-panel)]">
         <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full" style={{ background: d.fill, border: `1px solid ${d.ink}` }} />
+          <span className="h-3 w-3 rounded-full" style={{ background: doctorFill(d.paletteIndex), border: `1px solid ${doctorInk(d.paletteIndex)}` }} />
           <span className="font-semibold">{d.name}</span>
-          <span className="text-sm text-muted-foreground">· {d.department} · {d.slotMinutes}분 진료</span>
+          <span className="text-sm text-muted-foreground">· {d.department} · {slotMinutes}분 진료</span>
         </div>
-        <span className="text-sm tabular-nums text-muted-foreground">{fmtDate(TODAY_ISO)}</span>
+        <span className="text-sm tabular-nums text-muted-foreground">{fmtDate(dateIso)}</span>
       </div>
 
-      {/* 고른 시각 · 겹침 경고 (CAL-BOOK-04b·CAL-GAP) */}
-      {pickable && previewMin != null && (
-        <div className={`mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${previewOverlap ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-primary/30 bg-primary/5 text-foreground'}`}>
-          {previewOverlap ? <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" /> : <Clock3 className="h-4 w-4 shrink-0 text-primary" />}
-          <span className="tabular-nums font-medium">{minToHHMM(previewMin)}–{minToHHMM(previewMin + slotMinutesOf(d))}</span>
-          {previewOverlap
-            ? <span className="text-xs">{previewOverlap.offKind ?? '다른 예약'}과 겹칩니다 — 그래도 잡을 수 있습니다</span>
-            : <span className="text-xs text-muted-foreground">{hoverMin != null ? '누르면 이 시각으로 예약됩니다' : '고른 시각'}</span>}
+      {/* 못 잡는 자리를 눌렀을 때 — 막다른 길을 만들지 않는다(`CAL-PAST-02`) */}
+      {notice && (
+        <div role="status" className="mb-2 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+          <span>{notice.text}</span>
+          {notice.toWalkin && (
+            <button
+              onClick={() => switchDoor('checkin')}
+              className="ml-auto shrink-0 rounded-md border border-amber-400 bg-card px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+            >
+              당일 방문 등록
+            </button>
+          )}
         </div>
+      )}
+
+      {/* 고른 시각 · 겹침 경고 (CAL-BOOK-04b·CAL-GAP-05) */}
+      {pickable && previewMin != null && preview && preview.kind !== 'past' && (
+        <div className={`mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${preview.kind === 'free' ? 'border-primary/30 bg-primary/5 text-foreground' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+          {preview.kind === 'free' ? <Clock3 className="h-4 w-4 shrink-0 text-primary" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />}
+          <span className="tabular-nums font-medium">{minToHHMM(previewMin)}–{minToHHMM(previewMin + slotMinutes)}</span>
+          {preview.kind === 'closed' && <span className="text-xs">{preview.block.offKind} 시간이라 잡을 수 없습니다</span>}
+          {preview.kind === 'overlap' && <span className="text-xs">{preview.block.label} 님과 겹칩니다 — 그래도 잡을 수 있습니다</span>}
+          {preview.kind === 'free' && (
+            <span className="text-xs text-muted-foreground">{hoverMin != null ? '누르면 이 시각으로 예약됩니다' : '고른 시각'}</span>
+          )}
+        </div>
+      )}
+
+      {day.isError && (
+        <p role="alert" className="mb-2 rounded-lg border-l-4 border-rose-500 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          일정을 불러오지 못했습니다.{' '}
+          <button onClick={() => day.refetch()} className="font-medium underline">다시 시도</button>
+        </p>
       )}
 
       <div className="overflow-y-auto rounded-xl border border-border/70 bg-card p-3 shadow-[var(--shadow-panel)]" style={{ maxHeight: 'calc(100vh - 20rem)' }}>
@@ -143,14 +234,26 @@ function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
           {/* 레인 */}
           <div
             ref={laneRef}
+            data-testid="day-lane"
             className={`relative flex-1 rounded-md bg-muted/20 ${pickable ? 'cursor-pointer' : ''}`}
             onPointerMove={pickable ? (e) => setHoverMin(minFromEvent(e)) : undefined}
             onPointerLeave={pickable ? () => setHoverMin(null) : undefined}
-            onClick={pickable ? (e) => pickSlot(TODAY_ISO, minToHHMM(minFromEvent(e))) : undefined}
+            onClick={pickable ? handleClick : undefined}
           >
             {gridLines.map((t) => (
               <div key={t} className="pointer-events-none absolute inset-x-0 border-t border-border/40" style={{ top: yOf(t) }} />
             ))}
+
+            {/* [CAL-PAST-01] 지난 시각 — 흐리게 두고 「지난 시간」이라 **글자로** 적는다.
+                색만으로 구분하지 않는다(요구사항 7절). */}
+            {pastMin > DAY_START_MIN && (
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-end bg-muted/60 px-2 py-0.5"
+                style={{ height: Math.min(pastMin, DAY_END_MIN) - DAY_START_MIN > 0 ? (Math.min(pastMin, DAY_END_MIN) - DAY_START_MIN) * PPM : 0 }}
+              >
+                <span className="text-[11px] font-medium text-muted-foreground">지난 시간</span>
+              </div>
+            )}
 
             {/* 예약·휴진 블록 (색 사용중 = 그 자리가 찬 것을 색으로) */}
             {blocks.map((b, i) => {
@@ -166,17 +269,17 @@ function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
               }
               return (
                 <div key={i} className="pointer-events-none absolute inset-x-1 overflow-hidden rounded-md px-2 py-0.5"
-                  style={{ top, height: h, background: d.fill, color: d.ink, boxShadow: '0 1px 0 var(--color-surface)' }}>
+                  style={{ top, height: h, background: doctorFill(d.paletteIndex), color: doctorInk(d.paletteIndex), boxShadow: '0 1px 0 var(--color-surface)' }}>
                   <span className="text-[11px] font-semibold leading-tight">{b.label}</span>
                   {h >= 26 && <div className="truncate text-[10px] leading-tight opacity-70">{b.sub}</div>}
                 </div>
               )
             })}
 
-            {/* 호버·고른 자리 미리보기 (CAL-TIME-05·BOOK-04b) */}
-            {pickable && previewMin != null && (
-              <div className={`pointer-events-none absolute inset-x-1 rounded-md border-2 ${previewOverlap ? 'border-amber-500 bg-amber-400/15' : 'border-primary bg-primary/10'}`}
-                style={{ top: yOf(previewMin), height: slotMinutesOf(d) * PPM - 1 }}>
+            {/* 호버·고른 자리 미리보기 (CAL-TIME-05·BOOK-04b) — 지난 시각에는 그리지 않는다. */}
+            {pickable && previewMin != null && preview && preview.kind !== 'past' && (
+              <div className={`pointer-events-none absolute inset-x-1 rounded-md border-2 ${preview.kind === 'free' ? 'border-primary bg-primary/10' : 'border-amber-500 bg-amber-400/15'}`}
+                style={{ top: yOf(previewMin), height: slotMinutes * PPM - 1 }}>
                 <span className="absolute left-1 top-0.5 rounded bg-card/90 px-1 text-[10px] font-medium tabular-nums text-foreground">
                   {minToHHMM(previewMin)}
                 </span>
@@ -194,23 +297,52 @@ function toMinLocal(hhmm: string): number {
   return h * 60 + m
 }
 
-/** 날짜 칸 → 작은 달력 (PANEL-WORK-02) — 데모는 이번 달만, 지난 날은 흐리게(CAL-PAST) */
+/** 날짜 칸 → 작은 달력 (PANEL-WORK-02) — 지난 날은 흐리게 고를 수 없다(`CAL-PAST-01`).
+ *  ⭐ 데모에는 달 이동이 없었으나(이번 달 고정) 예약은 **미래를 잡는 일**이라 다음 달로 못 가면
+ *     막다른 길이 된다 — 그래서 `[‹][›]`를 둔다(`CAL-NAV-01`과 같은 장치). */
 function MonthPicker() {
-  const { patch, setField } = useDoors()
-  const [, m, dToday] = TODAY_ISO.split('-').map(Number)
-  const year = 2026
-  const first = new Date(year, m - 1, 1).getDay()
-  const days = new Date(year, m, 0).getDate()
+  const { draft, patch, setField } = useDoors()
+  const todayIso = todayIsoLocal()
+  const today = localDate(todayIso)
+  const selected = draft.date ? localDate(draft.date) : today
+  const [view, setView] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1))
+
+  const year = view.getFullYear()
+  const month = view.getMonth() // 0-based
+  const first = new Date(year, month, 1).getDay()
+  const days = new Date(year, month + 1, 0).getDate()
   const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)]
+  // 지난 달로는 갈 수 있으나 지난 날은 못 고른다 — 이번 달보다 앞이면 이동 자체를 막는다.
+  const atFirstMonth = year === today.getFullYear() && month === today.getMonth()
+
   const pick = (day: number) => {
-    patch({ date: `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}` })
+    // 날짜가 바뀌면 그 날의 빈자리가 다르므로 골라 둔 시각을 버린다(다른 날의 09:30을 들고 가지 않는다).
+    patch({ date: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`, time: undefined })
     setField('time')
   }
+
   return (
     <div className="mx-auto max-w-md">
       <SurfaceHead label="날짜를 고르는 중" hint="예약할 날짜를 누르세요 · 지난 날짜는 고를 수 없습니다" icon={<CalendarDays className="h-5 w-5" />} />
       <div className="rounded-xl border border-border/70 bg-card p-5 shadow-[var(--shadow-panel)]">
-        <div className="mb-3 text-center text-base font-semibold">{m}월 {year}</div>
+        <div className="mb-3 flex items-center justify-between">
+          <button
+            onClick={() => setView(new Date(year, month - 1, 1))}
+            disabled={atFirstMonth}
+            aria-label="이전 달"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="text-base font-semibold">{year}년 {month + 1}월</div>
+          <button
+            onClick={() => setView(new Date(year, month + 1, 1))}
+            aria-label="다음 달"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
         <div className="mb-1 grid grid-cols-7 text-center text-xs text-muted-foreground">
           {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
             <div key={w} className="py-1">{w}</div>
@@ -219,8 +351,9 @@ function MonthPicker() {
         <div className="grid grid-cols-7 gap-1">
           {cells.map((day, i) => {
             if (day == null) return <div key={i} />
-            const past = day < dToday
-            const today = day === dToday
+            const cell = new Date(year, month, day)
+            const past = cell.getTime() < today.getTime()
+            const isToday = cell.getTime() === today.getTime()
             return (
               <button
                 key={i}
@@ -229,7 +362,7 @@ function MonthPicker() {
                 className={[
                   'aspect-square rounded-lg text-sm tabular-nums transition-colors',
                   past ? 'text-muted-foreground/40' : 'hover:bg-primary/10',
-                  today ? 'bg-primary/10 font-bold text-primary ring-1 ring-primary/30' : '',
+                  isToday ? 'bg-primary/10 font-bold text-primary ring-1 ring-primary/30' : '',
                 ].join(' ')}
               >
                 {day}
