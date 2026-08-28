@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { formatHospitalDate, hospitalToday } from '../lib/clock'
 import { EmptyState } from '../components/EmptyState'
 import { StatTile } from '../components/StatTile'
 import {
@@ -299,12 +300,13 @@ function mdHm(d: string, t: string): string {
 
 // ── 날짜 (TODAY-DATE-01) ────────────────────────────────────────────────────
 
-function todayLabel(): string {
+export function todayLabel(at: Date = new Date()): string {
   // ⚠️ 자정 자동 전환(TODAY-DATE-01)의 「스스로 갱신」은 실시간 구독(TODAY-LIVE-01)이 붙을 때 완성된다.
-  //    여기서는 마운트 시점 날짜를 그린다.
-  return new Intl.DateTimeFormat('ko-KR', {
+  //    여기서는 마운트 시점 날짜를 그린다 — 단 **병원 자정** 기준이다(TIME-TZ-01).
+  //    ⛔ timeZone 없는 Intl은 그 PC의 시간대로 그린다 — 서버가 준 숫자와 다른 날이 적힌다.
+  return formatHospitalDate(hospitalToday(at), {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
-  }).format(new Date())
+  })
 }
 
 const styles: Record<string, CSSProperties> = {

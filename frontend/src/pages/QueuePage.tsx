@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { hospitalHHMM } from '../lib/clock'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
 import { ReasonPromptDialog } from '../components/ReasonPromptDialog'
@@ -391,9 +392,10 @@ function ReorderButton({ row, onChanged }: { row: QueueRow; onChanged: () => voi
 
 // ── 유틸 ────────────────────────────────────────────────────────────────────
 
-function nowHHMM(): string {
-  const d = new Date()
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+/** 지금 몇 시인가 — **병원 시계**다(`TIME-TZ-01`). 예약 시각이 됐는지 재는 데 쓰이므로
+ *  창구 PC 시계가 틀어지면 「아직 안 온 시각」이 통째로 어긋난다. */
+export function nowHHMM(at: Date = new Date()): string {
+  return hospitalHHMM(at)
 }
 
 function labelFor(tab: QueueTab): string {

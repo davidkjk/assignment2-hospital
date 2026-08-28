@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { server } from '../test/msw/server'
-import { QueuePage } from './QueuePage'
+import { QueuePage, nowHHMM } from './QueuePage'
 import type { QueueResponse, QueueRow } from '../api/dashboard'
 
 // 백엔드 계약: backend/app/services/dashboard_service.py::get_queue (masked_* 화이트리스트).
@@ -151,4 +151,10 @@ describe('QueuePage', () => {
     const r = await screen.findByTestId('queue-row-w1')
     expect(within(r).getByText('당일 방문')).toBeInTheDocument()
   })
+})
+
+// [TIME-TZ-01] 「지금」은 병원 시계다 — 창구 PC 시계가 아니다.
+test('[QUEUE-ARRIVE-02] 지금 시각을 병원 시계로 읽는다', () => {
+  // KST 2026-08-29 01:20 = UTC 2026-08-28 16:20. 기계가 미 서부여도 01:20이다.
+  expect(nowHHMM(new Date('2026-08-28T16:20:00Z'))).toBe('01:20')
 })
