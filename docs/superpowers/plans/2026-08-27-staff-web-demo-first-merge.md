@@ -39,16 +39,17 @@
 
 1. **브라우저 대조** — 코디네이터가 `demo/`(로컬 `npm run dev` 또는 https://demo-pi-inky-72.vercel.app)와 실 화면을 **같은 폭으로 나란히 열어** 스크린샷으로 대조한다. 「비슷하다」가 아니라 **다른 곳을 하나씩 적어** 의도한 차이(실 데이터·실 상태)인지 판정한다.
 2. **규칙ID 체크** — `DEMO-PORT-RULE-MAP.md`의 해당 화면 절에서 ①이식 후보 ②데모만 표기 ③양쪽 무표기 세 목록을 **한 줄씩 소진**하고, 각 항목을 `완료 / 이미 됨 / 해당 없음(사유) / 이월(갭번호)` 중 하나로 판정해 태스크 로그에 남긴다.
-3. **테스트 GREEN** — `npm run test`(vitest)·`tsc --noEmit`·백엔드 `pytest`. 단 **테스트는 회귀 가드일 뿐 합격 판정자가 아니다.** 시각이 바뀌어 깨진 UI 테스트는 정본 규칙에 맞춰 고치되, **계약 테스트(api 호출 형태·권한·마스킹)는 절대 약화시키지 않는다.**
+3. **테스트 GREEN** — `npm run test`(vitest)·`tsc --noEmit`·백엔드 `pytest`. ⚠️ `npm run lint:tokens`는 **2026-08-27 현재 이미 빨간불**(HEAD에서도 exit=1, 236건 — 대부분 주석의 `⭐⛔⚠️`를 「이모지 금지」로 잡는 오탐 + `theme.css` 별칭을 모르는 `NEW_TOKEN` 허용목록)이다. 따라서 **「통과」가 아니라 「내 변경으로 새로 빨개진 줄이 없는지」**만 본다(`git stash` 전후 건수 비교). 검사기 자체 수정은 아래 §8 별도 할 일. 단 **테스트는 회귀 가드일 뿐 합격 판정자가 아니다.** 시각이 바뀌어 깨진 UI 테스트는 정본 규칙에 맞춰 고치되, **계약 테스트(api 호출 형태·권한·마스킹)는 절대 약화시키지 않는다.**
 
 ## Global Constraints
 
-- **색·크기 원본은 `design-tokens/tokens.json` 하나다.** Tailwind는 `frontend/src/styles/theme.css`의 `@theme inline`으로 이를 별칭할 뿐이다. 임의 hex/px(`bg-[#0a4a4c]`·`text-[13px]`) 금지 — **리포 루트**에서 `npm run lint:tokens`(=`node design-tokens/lint-tokens.mjs frontend/src`)가 막는다. 매 태스크 검증에 이 명령을 포함한다. 데모에만 있는 값이 필요하면 `tokens.json`에 추가하고 `tokens.css`를 재생성한다.
+- **색·크기 원본은 `design-tokens/tokens.json` 하나다.** Tailwind는 `frontend/src/styles/theme.css`의 `@theme inline`으로 이를 별칭할 뿐이다. 임의 hex/px(`bg-[#0a4a4c]`·`text-[13px]`) 금지. 검사기는 **리포 루트** `npm run lint:tokens`(=`node design-tokens/lint-tokens.mjs frontend/src`)이나 지금은 오탐으로 빨간불이라 **증감만** 본다(§1-3). 데모에만 있는 값이 필요하면 `tokens.json`에 추가하고 `tokens.css`를 재생성한다.
 - **`demo/`는 읽기 전용.** 어떤 태스크도 `demo/` 아래 파일을 수정하지 않는다. 데모에서 버그를 발견하면 고치지 말고 `demo/DEMO-REVIEW-NOTES.md`에 적을 것을 코디에게 보고한다.
 - **계약 불변.** api 경로·요청 본문·권한 가드(`require_role`)·마스킹 경계·낙관적 잠금·세션 만료 처리는 실 구현 것을 그대로 쓴다. 데모의 목데이터 흐름을 실 계약보다 우선하지 않는다.
 - **아이콘 = `@phosphor-icons/react` 채움(Solid), `frontend/src/components/icons.tsx` 경유(`DISP-ICON-03`). 이모지 금지.**
 - **사용자 대면 문구는 한국어 존댓말.** 되돌릴 수 없는 동작의 빨간 버튼은 확인창 안에서만. 막다른 길 금지. 환자 노출 문구에 "취소 요청이 접수/등록됐다" 금지 → "상담(직원 확인)으로 연결됐다".
-- **공용 파일은 워커가 건드리지 않는다**(`App.tsx`·`main.tsx`·`navItems.ts`·`shell/*`·`package.json`). 필요하면 태스크 로그에 「코디 배선 TODO」로 남기고 코디가 붙인다.
+- **당분간 이 작업은 맥락을 가진 창이 직접 한다**(사용자 결정 2026-08-27: paseo 워커 위임 중단). 바닥(Wave 0)과 패턴을 세우는 첫 화면 2~3개를 끝낸 뒤에 위임을 다시 검토한다. 아래 「워커」 표현은 **위임을 재개했을 때의 규율**로 남겨 둔 것이다.
+- 위임을 재개하면: **공용 파일은 워커가 건드리지 않는다**(`App.tsx`·`main.tsx`·`navItems.ts`·`shell/*`·`package.json`). 필요하면 태스크 로그에 「코디 배선 TODO」로 남기고 코디가 붙인다.
 - **한 태스크 = 한 커밋.** 커밋 전 코디가 세 겹 판정(브라우저 대조·규칙ID 체크·테스트)을 한다.
 
 ---
@@ -97,7 +98,7 @@
 - Modify: `frontend/src/styles/theme.css` (아래 실측에서 빠진 매핑만)
 
 **Interfaces:**
-- Produces: `@/…` 절대 import가 동작. `import { Stethoscope, CalendarDays, … } from '@/components/icons'` — 데모 staff 코드가 쓰는 아이콘 이름 51개가 실에서 같은 이름으로 해석된다. 이후 모든 포팅 태스크가 이것을 전제한다.
+- Produces: `@/…` 절대 import가 동작. `import { Stethoscope, CalendarDays, … } from '@/components/icons'` — 데모 staff 코드가 쓰는 아이콘 이름 49개가 실에서 같은 이름으로 해석된다. 이후 모든 포팅 태스크가 이것을 전제한다.
 
 **왜 이 태스크가 먼저인가(실측):** `demo/src/routes/staff/**`의 외부 import는 `react`(30) · `@/components/icons`(29) · `react-router-dom`(16) · `vitest`(3) **뿐**이다. `@base-ui/react`·`shadcn`·`cva`는 staff 화면에서 쓰지 않고, React 19 전용 API(`use()`·form action·ref-as-prop)도 쓰지 않는다(hooks는 `createContext/useContext/useEffect/useMemo/useRef/useState`만). react-router 사용 API는 `NavLink·Outlet·useLocation·useNavigate·useParams·useSearchParams`로 전부 v6 호환이다. **즉 아이콘 한 줄과 `@` alias만 해결하면 데모 staff 코드는 React 18에서 그대로 돈다.**
 
@@ -474,3 +475,14 @@ git commit -m "feat(staff-web): D1 — 환자 등록 라우터 + 소프트 중�
 - **S3 `/calendar`**: FullCalendar(실) ↔ 자체 격자(데모)의 교체가 이 계획 최대 위험. 순수 로직 3파일과 그 테스트를 살리는 것으로 완충했으나, 태스크를 쪼개야 할 수도 있다 — 워커가 착수 후 판단해 코디에게 보고한다.
 - **데모 목데이터 ↔ 실 응답 모양 차이**: 데모 컴포넌트가 기대하는 필드가 실 DTO에 없을 수 있다. 그때 **데모 컴포넌트의 화면을 줄이지 말고** api 어댑터를 한 겹 두거나 백엔드 확장을 이월로 보고한다.
 - **회귀 규모**: 화면 19개를 갈아끼우면 기존 UI 테스트가 대량으로 깨진다. **계약 테스트는 절대 약화하지 않고**, 시각 테스트만 정본 기준으로 고친다 — 이 경계를 코디가 커밋 전마다 확인한다.
+
+---
+
+## 8. 알려진 문제 (이 계획과 나란히 처리)
+
+| 문제 | 상태 | 처리 |
+|---|---|---|
+| `npm run lint:tokens`가 HEAD에서도 실패(236건) | **원래 빨간불** — M0에서 확인 | 오탐 두 종: ①`EMOJI` 규칙이 **주석의 `⭐⛔⚠️`**까지 잡는다(CLAUDE.md의 「이모지 금지」는 화면 아이콘 이야기) ②`NEW_TOKEN` 허용목록이 하드코딩이라 `theme.css`의 shadcn 별칭(`foreground`·`card`·`input`·`ring`…)과 `primary-wash`를 모른다. → **검사기를 고칠 것**: 허용목록을 `tokens.json`에서 파생시키고, EMOJI는 주석 줄 제외 또는 규칙 삭제. 그때까지 게이트는 「증감만」. |
+| `--color-primary-wash`가 생성물에만 손으로 존재했음 | ✅ **M0에서 해소** | 커밋 `c08bea9`이 `tokens.css`(생성물)를 직접 편집해 넣었던 값. 토큰을 재생성하면 사이드바 활성 배경이 조용히 사라질 상태였다. `tokens.json`으로 승격했다. |
+| `CheckInPage.test.tsx` "예약번호 조회 중 버튼 비활성" 플레이크 | 관찰됨(재현 1/3) | 96파일 병렬 전체 실행에서만 간헐 실패, 단독 실행은 항상 통과. **전체 회귀가 1건 실패하면 그 파일을 단독으로 재실행**해 판별할 것. 고치려면 `findByRole` 뒤 `toBeDisabled` 대신 `waitFor`로 감쌀 것. |
+

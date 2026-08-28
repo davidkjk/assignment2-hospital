@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import path from 'node:path'
 import { defineConfig } from 'vite'
 
 // 데모/개발용 프록시. 백엔드 API 경로 상당수가 SPA 라우트와 겹친다(/queue·/calendar·/messages·
@@ -11,6 +12,9 @@ const API_SEGMENTS =
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // 데모(`demo/`)에서 화면을 통째로 들여올 때 import 경로를 손대지 않기 위한 별칭.
+  // 데모 staff 코드의 외부 의존은 react·react-router-dom·`@/components/icons` 셋뿐이다.
+  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   server: {
     proxy: {
       [`^/(${API_SEGMENTS})([/?]|$)`]: {
