@@ -32,10 +32,10 @@ if (OUT === 'real') {
   if (box) { await box.type(QUERY); await page.keyboard.press('Enter') }
   await sleep(2000)
   await shot('s5-patients')
-  // 첫 결과 행 클릭 → 상세
+  // 첫 결과의 「환자 상세」 링크로 상세 이동(액션 버튼을 누르지 않게 텍스트로 특정)
   const clicked = await page.evaluate(() => {
-    const row = document.querySelector('[data-search-row], [role="listitem"], a[href*="/patients/"], li')
-    if (row) { (row.querySelector('a,button') || row).click(); return true }
+    const el = [...document.querySelectorAll('a, button')].find((e) => e.textContent.trim() === '환자 상세')
+    if (el) { el.click(); return true }
     return false
   })
   await sleep(2500)

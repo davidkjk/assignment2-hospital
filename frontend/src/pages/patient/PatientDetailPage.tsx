@@ -210,8 +210,15 @@ export function PatientDetailPage() {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { display: 'flex', flexDirection: 'column', gap: 12 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12, alignItems: 'start' },
+  // [DEMO-REVIEW F-8/line103] 2열 섹션 그리드 — 넓은 화면에서도 최대 2열(데모 max-w-5xl · grid-cols-2).
+  //   실은 auto-fit minmax(320)라 넓은 화면에서 3열로 벌어졌다 → 폭을 캡하고 최소칸을 키워 2열로.
+  page: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 1040 },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 440px), 1fr))',
+    gap: 12,
+    alignItems: 'start',
+  },
   blocked: {
     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, padding: 24,
     background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
