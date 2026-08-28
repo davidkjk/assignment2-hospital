@@ -6,21 +6,37 @@ import { navItemForPath, NAV_GROUPS, NAV_ITEMS } from './navItems'
 import { NavBadge } from './NavBadge'
 import { HOSPITAL_NAME } from './brand'
 
+// 직원 콘솔 = 딥틸 잉크 사이드바(bg-sidebar-ink). 환자앱은 전 화면 흰색이라 이 하나로 두 surface가 갈린다.
+// 좁은 폭(<xl)에선 아이콘만 남기고 라벨을 접는다(툴팁으로 이름 제공, SHELL-NAV-08).
 export function Sidebar({ role, counts = {}, connected = true }: { role: Role; counts?: Record<string, number>; connected?: boolean }) {
   const visible = NAV_ITEMS.filter((item) => item.roles.includes(role))
   const doctorItem = visible.find((item) => item.group === null)
   const location = useLocation()
   const activePath = navItemForPath(location.pathname)?.path
   return (
-    <aside className="staff-sidebar">
-      <style>{sidebarCss}</style>
-      <div className="staff-brand"><svg aria-hidden="true"><use href={`${iconSpriteUrl}#hospital`} /></svg><span>{HOSPITAL_NAME}</span></div>
-      <nav aria-label="직원 업무 메뉴">
-        {doctorItem && <div className="doctor-link"><NavItemLink item={doctorItem} counts={counts} connected={connected} activePath={activePath} /></div>}
+    <aside className="staff-sidebar sticky top-0 flex h-screen w-14 shrink-0 flex-col overflow-y-auto bg-sidebar-ink text-white xl:w-60">
+      {/* 브랜드 (사이드바 top) — 병원명은 사이드바가 상시 표시한다(헤더는 화면 제목만) */}
+      <div className="flex h-16 items-center gap-2.5 px-4 xl:px-5">
+        <svg aria-hidden="true" className="h-6 w-6 shrink-0"><use href={`${iconSpriteUrl}#hospital`} /></svg>
+        <span className="hidden font-logo text-xl xl:inline">{HOSPITAL_NAME}</span>
+      </div>
+      <div className="mx-5 mb-2 hidden border-b border-white/10 pb-3 text-[0.7rem] font-medium text-white/55 xl:block">
+        직원 업무 시스템
+      </div>
+
+      <nav aria-label="직원 업무 메뉴" className="flex-1 px-2 pb-6 pt-1 xl:px-3">
+        {doctorItem && <div className="mb-3"><NavItemLink item={doctorItem} counts={counts} connected={connected} activePath={activePath} /></div>}
         {NAV_GROUPS.map((group) => {
           const items = visible.filter((item) => item.group === group)
           if (!items.length) return null
-          return <section className="nav-group" key={group}><h2>{group}</h2>{items.map((item) => <NavItemLink key={item.path} item={item} counts={counts} connected={connected} activePath={activePath} />)}</section>
+          return (
+            <section className="mt-4 first:mt-1" key={group}>
+              <h2 className="mb-1 hidden px-3 text-[0.68rem] font-semibold uppercase tracking-wider text-white/55 xl:block">{group}</h2>
+              <div className="flex flex-col gap-0.5">
+                {items.map((item) => <NavItemLink key={item.path} item={item} counts={counts} connected={connected} activePath={activePath} />)}
+              </div>
+            </section>
+          )
         })}
       </nav>
     </aside>
@@ -43,18 +59,31 @@ function NavItemLink({ item, counts, connected, activePath }: { item: (typeof NA
       onMouseLeave={() => setTooltipVisible(false)}
       onFocus={() => setTooltipVisible(true)}
       onBlur={() => setTooltipVisible(false)}
-      className={({ isActive }) => isActive || isDeepLinkActive ? 'nav-item active' : 'nav-item'}
+      className={({ isActive }) =>
+        [
+          'nav-item group relative flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors justify-center xl:justify-start',
+          isActive || isDeepLinkActive ? 'active bg-white/12 font-semibold text-white' : 'text-white/85 hover:bg-white/10 hover:text-white',
+        ].join(' ')
+      }
     >
-      <svg data-testid={`icon-${item.icon}`} aria-hidden="true"><use href={`${iconSpriteUrl}#${item.icon}`} /></svg>
-      <span className="nav-label">{item.label}</span>
-      <NavBadge count={counts[item.path]} connected={connected} />
-      {tooltipVisible && <span id={tooltipId} className="nav-tooltip" role="tooltip">{item.label}</span>}
+      {({ isActive }) => (
+        <>
+          {/* 좌측 3px 흰 바 — 색만으로 구분하지 않는다 (SHELL-NAV-06) */}
+          <span className={`absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-white transition-opacity ${isActive || isDeepLinkActive ? 'opacity-100' : 'opacity-0'}`} />
+          <svg data-testid={`icon-${item.icon}`} aria-hidden="true" className="h-[1.1rem] w-[1.1rem] shrink-0"><use href={`${iconSpriteUrl}#${item.icon}`} /></svg>
+          <span className="nav-label hidden truncate xl:inline">{item.label}</span>
+          <NavBadge count={counts[item.path]} connected={connected} />
+          {tooltipVisible && (
+            <span
+              id={tooltipId}
+              role="tooltip"
+              className="nav-tooltip absolute left-full top-1/2 z-30 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2.5 py-1.5 text-xs text-white shadow-[var(--shadow-card)] xl:hidden"
+            >
+              {item.label}
+            </span>
+          )}
+        </>
+      )}
     </NavLink>
   )
 }
-
-const sidebarCss = `
-.staff-sidebar{position:sticky;top:0;width:240px;height:100vh;flex:0 0 auto;background:var(--color-sidebar-ink);color:white;overflow:auto}.staff-brand{height:64px;display:flex;align-items:center;gap:10px;padding:0 18px;font-family:var(--font-logo);font-size:21px}.staff-brand svg,.nav-item svg{width:20px;height:20px;flex:none}.staff-sidebar nav{padding:5px 10px 24px}.nav-group{padding-top:12px;margin-top:12px}.nav-group+.nav-group{border-top:1px solid rgba(255,255,255,.28)}.nav-group h2{font-size:11px;margin:0 10px 6px;color:white}.nav-item{position:relative;display:flex;align-items:center;gap:9px;min-height:36px;padding:4px 10px 4px 13px;border-left:3px solid transparent;border-radius:7px;color:white;text-decoration:none;font-size:13px}.nav-item:hover{background:rgba(255,255,255,.12)}.nav-item.active{border-left-color:var(--color-primary);background:var(--color-primary-wash);color:var(--color-primary);font-weight:700}.doctor-link{margin-bottom:8px}.nav-tooltip{position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);z-index:30;padding:6px 9px;border-radius:6px;background:var(--color-ink);color:white;white-space:nowrap;font-size:12px;pointer-events:none;box-shadow:var(--shadow-card)}
-@media(min-width:1280px){.nav-tooltip{display:none}}
-@media(max-width:1279px){.staff-sidebar{width:56px}.staff-brand{padding:0 16px}.staff-brand span,.nav-label,.nav-group h2{display:none}.staff-sidebar nav{padding-left:5px;padding-right:5px}.nav-group{padding-top:8px;margin-top:8px}.nav-item{padding:5px 10px;justify-content:center}.nav-tooltip{display:block}}
-`

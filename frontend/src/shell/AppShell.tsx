@@ -33,14 +33,14 @@ export function AppShell() {
     <PanelProvider>
       {/* 매 서버 호출의 결말을 연결·세션 배선으로 보낸다(성공→markServerOk / 온라인 401→세션 만료). */}
       <ServerEffects />
-      <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--color-bg)', color: 'var(--color-ink)' }}>
+      <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar role={staff.role} counts={badgeCounts} />
-        <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="min-w-0 flex-1">
           {/* 연결이 끊기면 화면 맨 위 고정 띠로 알린다(OFFX-STAFF-01·02). */}
           <OfflineBanner />
           {idle.isWarning && <IdleBanner onContinue={idle.keepAlive} />}
           <Header staff={staff} onSignOut={async () => { await logout(); navigate('/login', { replace: true }) }} onStart={setDoor} />
-          <main style={{ padding: 24 }}><h1 style={{ margin: '0 0 16px', fontSize: 'var(--fs-xl)' }}>{title}</h1><Outlet /></main>
+          <main className="p-6"><h1 className="mb-4 text-xl font-semibold">{title}</h1><Outlet /></main>
         </div>
         {/* 앱 전체에 하나뿐인 「만드는 중」 패널(PANEL-ONE-01) — 소비 화면이 openPanel로 채운다. */}
         <PanelHost />
