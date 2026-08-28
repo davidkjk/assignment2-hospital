@@ -23,14 +23,20 @@ vi.mock('../../auth/useIdleLogout', () => ({ useIdleLogout: () => ({ isWarning: 
 
 const DOC = { id: 'doc-1', name: '이정훈', department_name: '내과', palette_index: null, slot_minutes: 20 }
 
-/** 내일 — 「지난 시각」이 없는 날이라 09:00 판정이 시계에 흔들리지 않는다(`CAL-PAST-01`). */
-function tomorrowIso(): string {
-  const t = localDate(todayIsoLocal())
-  t.setDate(t.getDate() + 1)
+/** 'YYYY-MM-DD'에서 며칠 뒤. (공용 `addDaysIso`는 병원 시계 계획에서 생긴다 — 그때 이 헬퍼를 지운다.) */
+function addDays(iso: string, days: number): string {
+  const t = localDate(iso)
+  t.setDate(t.getDate() + days)
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
 }
 
+/** 내일 — 「지난 시각」이 없는 날이라 09:00 판정이 시계에 흔들리지 않는다(`CAL-PAST-01`). */
+function tomorrowIso(): string {
+  return addDays(todayIsoLocal(), 1)
+}
+
 interface CalendarStub {
+  horizon?: string
   doctors?: typeof DOC[]
   appointments?: Array<{ patient_id: string; name?: string; appointment_id: string; doctor_id: string; status: string; start: string; end: string | null }>
   blocks?: Array<{ doctor_id: string; date: string; kind: 'closed' | 'lunch'; start: string | null; end: string | null; source: string }>
@@ -44,6 +50,8 @@ function serveCalendar(stub: CalendarStub = {}) {
         appointments: stub.appointments ?? [],
         blocks: stub.blocks ?? [],
         affected_appointment_ids: [],
+        // [CAL-BOOK-13] 예약 가능한 마지막 날 — 화면이 「8주」를 박지 않게 서버가 준다.
+        booking_horizon_date: stub.horizon ?? addDays(todayIsoLocal(), 56),
       }),
     ),
   )
@@ -313,4 +321,34 @@ test('[CAL-RACE-03][CAL-RACE-04] 방금 다른 직원이 잡았으면 시각 칸
   // 패널은 살아 있고 환자·의사는 그대로 — 시각만 비었다.
   expect(within(panel()).getByText('김태호')).toBeVisible()
   expect(within(panel()).getByRole('button', { name: '시각을 고르세요' })).toBeVisible()
+})
+
+test('[CAL-BOOK-13] 예약 가능한 마지막 날 뒤로는 달을 넘길 수 없고, 언제까지인지 적는다', async () => {
+  const user = userEvent.setup()
+  // 경계를 이번 달 안에 둔다 — 그러면 [다음 달]이 곧바로 막힌다.
+  const horizon = addDays(todayIsoLocal(), 3)
+  serveCalendar({ horizon })
+  renderShell()
+  await pickPatient(user)
+  await user.click(within(panel()).getByRole('button', { name: fmtDate(todayIsoLocal()) }))
+
+  expect(await screen.findByRole('button', { name: '다음 달' })).toBeDisabled()
+  // 막을 때는 이유를 함께 준다 — 「8주」가 아니라 **그 날짜**로 적는다(직원이 계산하지 않게).
+  expect(screen.getByText(`예약은 ${fmtDate(horizon)}까지 가능합니다`)).toBeVisible()
+})
+
+test('[CAL-BOOK-13] 경계 너머 날짜는 고를 수 없다', async () => {
+  const user = userEvent.setup()
+  const horizon = addDays(todayIsoLocal(), 3)
+  serveCalendar({ horizon })
+  renderShell()
+  await pickPatient(user)
+  await user.click(within(panel()).getByRole('button', { name: fmtDate(todayIsoLocal()) }))
+
+  const beyond = addDays(horizon, 1)
+  const [, , d] = beyond.split('-').map(Number)
+  // 같은 달 안에 있을 때만 볼 수 있다(달을 넘어가면 그 달 자체를 못 연다).
+  if (beyond.slice(0, 7) === todayIsoLocal().slice(0, 7)) {
+    expect(await screen.findByRole('button', { name: String(d) })).toBeDisabled()
+  }
 })

@@ -39,7 +39,13 @@ function splitByDate(data: CalendarData): Map<string, CalendarData> {
   const ensure = (date: string): CalendarData => {
     let d = map.get(date)
     if (!d) {
-      d = { appointments: [], blocks: [], affected_appointment_ids: data.affected_appointment_ids, doctors: data.doctors }
+      d = {
+        appointments: [], blocks: [],
+        affected_appointment_ids: data.affected_appointment_ids,
+        doctors: data.doctors,
+        // 날짜별로 쪼개도 예약 가능 경계는 하루치가 아니라 응답 전체의 것이다(CAL-BOOK-13).
+        booking_horizon_date: data.booking_horizon_date,
+      }
       map.set(date, d)
     }
     return d

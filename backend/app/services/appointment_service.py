@@ -8,6 +8,7 @@ from app.core.errors import AppError, pg_error_to_app_error
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
 from app.services.opening_hours import resolve_day
+from app.services.slot_generator import REGENERATION_WEEKS  # =8 (SCHED-SLOT-09)
 from app.services.slot_service import book_slot
 
 # 전화예약 길이의 안전망 — resolve_day가 요일 규칙이 아닌 경로(의사별 예외 override)로
@@ -262,6 +263,24 @@ async def create_phone_appointment(
         # ── 지난 시각(CAL-PAST-07·#84) — DB now()로 재 클럭 스큐를 피한다 ──
         if await c.fetchval("select $1::timestamptz < now()", start_at):
             raise AppError("이미 지난 시간에는 예약을 만들 수 없습니다.", status_code=400)
+
+        # ── 예약 가능 범위(SCHED-SLOT-09 · CAL-BOOK-14) ──
+        # 그 너머는 **추천 자리가 아예 만들어지지 않은 구간**이다(regenerate_slots가 8주치만 만든다).
+        # ⭐ 화면만 막으면 반쪽이다(지난 시각 갭 #84와 같은 이유) — 다른 경로로 들어온 8주 너머
+        #    예약은 캘린더에 그려지는데 직원은 그 날로 갈 수 없어 **손댈 수 없는 예약**이 된다.
+        # ⛔ 숫자를 여기 박지 않는다 — REGENERATION_WEEKS 하나가 슬롯 생성·문자 예약·이 검증을
+        #    함께 지배한다(MSGX-SCHED-01 「고정 숫자 하드코딩 금지」 · 갭 #47 재발 방지).
+        # ⚠️ **날짜 단위로 잰다** — 슬롯 생성이 `current_date ~ current_date + N주`를 날짜로 덮기
+        #    때문이다(slot_generator.py:43~44). 시각으로 재면 마지막 날 오후가 거절되어,
+        #    화면이 허용한 날을 서버가 막는 **막다른 길**이 생긴다.
+        #    커넥션 시간대가 Asia/Seoul이라(app/db/pool.py) 이 캐스팅은 병원 날짜다.
+        if await c.fetchval(
+            "select $1::timestamptz::date > (current_date + make_interval(weeks => $2))::date",
+            start_at, REGENERATION_WEEKS,
+        ):
+            raise AppError(
+                f"예약은 지금부터 {REGENERATION_WEEKS}주 뒤까지만 잡을 수 있습니다.", status_code=400
+            )
 
         # ── 닫힌 시간(SCHED-SLOT-11) — resolve_day가 유일 판정기, 화면·상담봇과 같은 답 ──
         sched = await resolve_day(c, doctor_id, start_at.date())

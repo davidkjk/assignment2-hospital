@@ -184,3 +184,40 @@ async def test_길이는_의사별_slot_duration으로_정해진다(db_conn):
     appt_id = await _book(db_conn, ctx, at, minutes=15)
     row = await db_conn.fetchrow("select start_at, end_at from appointments where id = $1", appt_id)
     assert (row["end_at"] - row["start_at"]) == timedelta(minutes=15)
+
+
+@pytest.mark.asyncio
+async def test_예약_가능_범위_8주를_넘으면_거절한다(db_conn):
+    """[SCHED-SLOT-09][CAL-BOOK-14] 그 너머는 **추천 자리가 아예 만들어지지 않은 구간**이다.
+
+    ⭐ 화면만 막으면 반쪽이다(지난 시각 갭 #84와 같은 이유) — 다른 경로로 8주 너머 예약이
+       들어오면 캘린더에는 그려지는데 직원은 그 날로 갈 수 없어 **손댈 수 없는 예약**이 된다.
+    📌 안내 문자 예약은 이미 같은 상수로 막고 있었다(`message_service.py`, MSGX-SCHED-01) —
+       정작 진료 예약이 안 막혀 계약이 갈려 있었다.
+    """
+    ctx = await _seed(db_conn)
+    too_far = _future5(weeks=8, days=1)
+    with pytest.raises(AppError) as exc:
+        await _book(db_conn, ctx, too_far)
+    assert exc.value.status_code == 400
+    assert "8주" in exc.value.message
+
+
+@pytest.mark.asyncio
+async def test_예약_가능_범위_안이면_통과한다(db_conn):
+    """[SCHED-SLOT-09] 경계 안쪽은 그대로 잡힌다 — 막는 것은 범위 밖뿐이다."""
+    ctx = await _seed(db_conn)
+    appt_id = await _book(db_conn, ctx, _future5(weeks=7))
+    assert appt_id is not None
+
+
+@pytest.mark.asyncio
+async def test_예약_가능_범위는_날짜_단위다_마지막_날_늦은_시각도_통과한다(db_conn):
+    """[SCHED-SLOT-09] 슬롯 생성이 `오늘 ~ 오늘+8주`를 **날짜로** 덮으므로(slot_generator) 경계도 날짜다.
+
+    ⛔ 시각으로 재면 마지막 날 오후가 거절되어, 달력이 허용한 날을 서버가 막는 **막다른 길**이 된다.
+    """
+    ctx = await _seed(db_conn)
+    last_day = await db_conn.fetchval("select (current_date + interval '8 weeks')::date")
+    late = datetime.combine(last_day, time(17, 0), tzinfo=timezone.utc)
+    assert await _book(db_conn, ctx, late) is not None

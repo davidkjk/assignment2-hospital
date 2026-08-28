@@ -17,6 +17,7 @@ function data(over: Partial<CalendarData> = {}): CalendarData {
     appointments: [],
     blocks: [],
     affected_appointment_ids: [],
+    booking_horizon_date: '2026-10-12',
     doctors: [{ id: 'd1', name: '이정훈', department_name: '내과', palette_index: null, slot_minutes: 20 }],
     ...over,
   }

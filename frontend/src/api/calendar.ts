@@ -47,6 +47,10 @@ export interface CalendarData {
   affected_appointment_ids: string[]
   /** 격자 열 카탈로그 — 예약이 없는 의사도 열이 생긴다(CAL-COLOR-10). */
   doctors: CalendarDoctorCatalog[]
+  /** [CAL-BOOK-13][SCHED-SLOT-09] 예약 가능한 **마지막 날**('YYYY-MM-DD').
+   *  ⭐ 화면이 「8주」를 박지 않게 서버가 준다 — 갭 #47 재발 방지(`BOOK-DATE-08`).
+   *  경계는 슬롯 생성과 같은 날이다(`slot_generator`가 오늘~오늘+N주를 덮는다). */
+  booking_horizon_date: string
 }
 
 export function getCalendar(params: {

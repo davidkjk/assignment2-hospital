@@ -26,11 +26,12 @@ const clickText = async (sel, ...texts) => {
 
 await page.goto('http://localhost:5173/login', { waitUntil: 'networkidle2' })
 await sleep(1200)
-const inputs = await page.$$('input')
-await inputs[0].type('reception@gaon.local')
-await inputs[1].type('demo1234')
+// ⚠️ 인덱스로 칸을 집지 않는다 — 순서가 바뀌거나 숨은 칸이 끼면 비밀번호가 빈 채로 제출된다.
+await page.type('input[type="email"]', 'reception@gaon.local')
+await page.type('input[type="password"]', 'demo1234')
 await page.keyboard.press('Enter')
-await sleep(3500)
+await page.waitForFunction(() => !location.pathname.includes('/login'), { timeout: 15000 })
+await sleep(2500)
 
 // ① 문을 열면 왼쪽이 환자 검색으로 (SHELL-DOOR-02 · PANEL-WORK-01)
 await clickText('header button', '예약')

@@ -299,13 +299,23 @@ function toMinLocal(hhmm: string): number {
 
 /** 날짜 칸 → 작은 달력 (PANEL-WORK-02) — 지난 날은 흐리게 고를 수 없다(`CAL-PAST-01`).
  *  ⭐ 데모에는 달 이동이 없었으나(이번 달 고정) 예약은 **미래를 잡는 일**이라 다음 달로 못 가면
- *     막다른 길이 된다 — 그래서 `[‹][›]`를 둔다(`CAL-NAV-01`과 같은 장치). */
+ *     막다른 길이 된다 — 그래서 `[‹][›]`를 둔다(`CAL-NAV-01`과 같은 장치).
+ *  ⭐ 미래 끝은 **서버가 정한다**(`CAL-BOOK-13`) — 그 너머는 추천 자리가 아예 없고 서버도
+ *     400으로 거절한다. ⛔ 화면이 「8주」를 박지 않는다: 병원이 범위를 바꾸면 서버는 따라가는데
+ *     화면만 옛 값에서 멈춘다(갭 #47 재발). 막을 때는 **언제까지인지**를 함께 적는다. */
 function MonthPicker() {
   const { draft, patch, setField } = useDoors()
   const todayIso = todayIsoLocal()
   const today = localDate(todayIso)
   const selected = draft.date ? localDate(draft.date) : today
   const [view, setView] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1))
+
+  // 로스터와 **같은 조회**라 캐시를 나눠 쓴다 — 경계를 따로 물으러 가지 않는다.
+  const cal = useQuery({
+    queryKey: ['calendar', 'roster', todayIso],
+    queryFn: () => getCalendar({ from: todayIso, to: todayIso }),
+  })
+  const horizonIso = cal.data?.booking_horizon_date ?? null
 
   const year = view.getFullYear()
   const month = view.getMonth() // 0-based
@@ -314,6 +324,9 @@ function MonthPicker() {
   const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)]
   // 지난 달로는 갈 수 있으나 지난 날은 못 고른다 — 이번 달보다 앞이면 이동 자체를 막는다.
   const atFirstMonth = year === today.getFullYear() && month === today.getMonth()
+  // 다음 달의 1일이 경계를 넘으면 더 갈 곳이 없다(`CAL-BOOK-13` · `BOOK-DATE-06`과 같은 취지).
+  const nextMonthFirstIso = `${month === 11 ? year + 1 : year}-${String(month === 11 ? 1 : month + 2).padStart(2, '0')}-01`
+  const atLastMonth = horizonIso != null && nextMonthFirstIso > horizonIso
 
   const pick = (day: number) => {
     // 날짜가 바뀌면 그 날의 빈자리가 다르므로 골라 둔 시각을 버린다(다른 날의 09:30을 들고 가지 않는다).
@@ -337,12 +350,19 @@ function MonthPicker() {
           <div className="text-base font-semibold">{year}년 {month + 1}월</div>
           <button
             onClick={() => setView(new Date(year, month + 1, 1))}
+            disabled={atLastMonth}
             aria-label="다음 달"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
+        {/* 막을 때는 이유를 함께 준다 — 「8주」가 아니라 **그 날짜**로 적는다(직원이 세어보지 않게). */}
+        {atLastMonth && horizonIso && (
+          <p className="mb-3 text-center text-xs text-muted-foreground">
+            예약은 {fmtDate(horizonIso)}까지 가능합니다
+          </p>
+        )}
         <div className="mb-1 grid grid-cols-7 text-center text-xs text-muted-foreground">
           {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
             <div key={w} className="py-1">{w}</div>
@@ -351,17 +371,18 @@ function MonthPicker() {
         <div className="grid grid-cols-7 gap-1">
           {cells.map((day, i) => {
             if (day == null) return <div key={i} />
-            const cell = new Date(year, month, day)
-            const past = cell.getTime() < today.getTime()
-            const isToday = cell.getTime() === today.getTime()
+            const cellIso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            const past = cellIso < todayIso
+            const isToday = cellIso === todayIso
+            const beyond = horizonIso != null && cellIso > horizonIso
             return (
               <button
                 key={i}
-                disabled={past}
+                disabled={past || beyond}
                 onClick={() => pick(day)}
                 className={[
                   'aspect-square rounded-lg text-sm tabular-nums transition-colors',
-                  past ? 'text-muted-foreground/40' : 'hover:bg-primary/10',
+                  past || beyond ? 'text-muted-foreground/40' : 'hover:bg-primary/10',
                   isToday ? 'bg-primary/10 font-bold text-primary ring-1 ring-primary/30' : '',
                 ].join(' ')}
               >

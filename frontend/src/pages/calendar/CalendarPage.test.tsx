@@ -20,6 +20,7 @@ vi.mock('../../lib/supabaseClient', () => ({
 const NOW = new Date('2026-08-06T09:00:00') // 목요일
 
 const DATA: CalendarData = {
+  booking_horizon_date: '2026-10-01',
   doctors: [
     { id: 'd1', name: '박지훈', department_name: '내과', palette_index: null, slot_minutes: null },
     { id: 'd2', name: '최민석', department_name: '내과', palette_index: null, slot_minutes: null },

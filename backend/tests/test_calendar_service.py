@@ -225,3 +225,24 @@ async def test_캘_카탈로그_그_요일_규칙이_없으면_진료길이는_n
 
     entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
     assert entry["slot_minutes"] is None
+
+
+@pytest.mark.asyncio
+async def test_캘_예약_가능한_마지막_날을_함께_준다(db_conn):
+    """[CAL-BOOK-13][SCHED-SLOT-09] 화면이 「8주」를 박지 않게 서버가 경계를 알려준다.
+
+    ⭐ 갭 #47의 재발 방지다(`BOOK-DATE-08`: *"앱이 8을 박지 않음"*). 숫자를 화면에 박으면
+       병원이 예약 범위를 12주로 바꿨을 때 **서버는 12주치 자리를 만드는데 화면만 8주에서 멈춘다.**
+    📌 경계는 슬롯 생성과 같은 날이다 — `regenerate_slots`가 `오늘 ~ 오늘+N주`를 덮는다.
+    """
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    expected = await db_conn.fetchval("select (current_date + interval '8 weeks')::date")
+    assert result["booking_horizon_date"] == expected

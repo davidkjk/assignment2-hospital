@@ -41,6 +41,7 @@ test('[CAL-COLOR-10] 예약이 없는 의사도 카탈로그에 있으면 격자
     appointments: [],
     blocks: [],
     affected_appointment_ids: [],
+    booking_horizon_date: '2026-10-12',
     doctors: catalog([{ id: 'd1', name: '박지훈' }]),
   }
   const model = buildGridModel(data, DATE)
@@ -62,6 +63,7 @@ test('[CAL-TIME-09] end가 없는 막대는 slotMinutes로 종료를 채운다',
     ],
     blocks: [],
     affected_appointment_ids: [],
+    booking_horizon_date: '2026-10-12',
     doctors: catalog([{ id: 'd1', name: '박지훈' }]),
   }
   const model = buildGridModel(data, DATE)
@@ -79,6 +81,7 @@ test('[CAL-TIME-09] 서버가 준 진료 길이가 예약 막대에서 도출한
     ],
     blocks: [],
     affected_appointment_ids: [],
+    booking_horizon_date: '2026-10-12',
     doctors: catalog([{ id: 'a', slot_minutes: 20 }]),
   }
   expect(buildGridModel(data, DATE).doctors[0].slotMinutes).toBe(20)
@@ -92,6 +95,7 @@ test('[QUEUE-WALK-08c] 서버가 진료 길이를 안 주면 막대에서 도출
     ],
     blocks: [],
     affected_appointment_ids: [],
+    booking_horizon_date: '2026-10-12',
     doctors: catalog([{ id: 'a', slot_minutes: null }, { id: 'b', slot_minutes: null }]),
   }
   const model = buildGridModel(data, DATE)
