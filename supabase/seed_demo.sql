@@ -9,7 +9,10 @@
 --   * 의사 8명 로그인: doctor1@gaon.local ~ doctor8@gaon.local / demo1234.
 --   * 관리자 admin@gaon.local, 접수 reception@gaon.local / demo1234 (유지).
 --   * 환자 150명.
---   * 예약 ~100건/일 × 3일(어제·오늘·내일) = ~300건. 각 예약은 고유 슬롯 참조.
+--   * 슬롯·예약이 덮는 범위 = **지난 2주 ~ 앞으로 8주**(예약 가능 범위 REGENERATION_WEEKS=8과 같다).
+--     밀도는 날짜 거리로 달라진다 — 어제·오늘은 빽빽하고, 멀수록 듬성해진다.
+--     ⭐ 미래를 전부 채우면 캘린더에 **빈 시간이 없어져** CAL-SLOT-01(빈 시간 블록)·
+--        CAL-GAP(틈에 끼워넣기)을 검수할 수 없다. 실제 병원도 먼 날짜는 듬성하다.
 --
 -- 성질:
 --   * postgres(superuser)로 실행 → RLS 우회. auth.uid()가 없으므로 status-history
@@ -164,14 +167,19 @@ select
 from generate_series(1, 150) as i;
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 6) 예약 슬롯 — 의사 8명 × 3일(어제·오늘·내일) × 16타임(30분, 점심 12~13 제외)
+-- 6) 예약 슬롯 — 의사 8명 × 71일(지난 2주 ~ 앞으로 8주) × 16타임(30분, 점심 12~13 제외)
 -- ════════════════════════════════════════════════════════════════════════════
 -- 타임: 09:00~11:30(6) + 13:00~17:30(10) = 16. 모두 '빈시간'으로 넣고,
 -- 예약이 물린 슬롯만 뒤에서 '예약됨'으로 바꾼다.
+-- ⭐ 앞으로 8주 = `slot_generator.REGENERATION_WEEKS`와 같은 범위다(SCHED-SLOT-09).
+--    달력이 `booking_horizon_date`까지 열리므로(CAL-BOOK-13) 그 날까지 자리가 있어야
+--    「열리는데 자리가 없다」는 빈 하루가 안 나온다.
+-- ⚠️ 이 시드는 `current_date`를 쓴다 — psql 세션 시간대에 걸린다. 서버 커넥션이 KST로
+--    못박혀 있으므로(app/db/pool.py) **`PGTZ=Asia/Seoul`로 넣어야** 서버가 보는 오늘과 맞는다.
 insert into appointment_slots (doctor_id, slot_date, start_time, status)
-select s.id, dy.dd, t.st, '빈시간'
+select s.id, dy.dd::date, t.st, '빈시간'
 from staff s
-cross join (values (current_date - 1), (current_date), (current_date + 1)) as dy(dd)
+cross join generate_series(current_date - 14, current_date + 56, interval '1 day') as dy(dd)
 cross join (
   select (timestamp '2000-01-01 09:00' + (n * interval '30 min'))::time as st
   from generate_series(0, 5) as n           -- 09:00 ~ 11:30
@@ -197,19 +205,32 @@ with docs as (
 ),
 ranked as (
   select sl.id as slot_id, sl.doctor_id, sl.slot_date, sl.start_time,
-         row_number() over (partition by sl.doctor_id, sl.slot_date order by sl.start_time) as rn
+         (sl.slot_date - current_date) as d_off,
+         row_number() over (partition by sl.doctor_id, sl.slot_date order by sl.start_time) as rn,
+         -- ⭐ 미래는 **앞 시각부터** 채우면 안 된다 — 그러면 어느 날을 열어도 오전만 차고
+         --    오후가 통째로 비어 「빈 시간」이 늘 같은 자리에 생긴다. 해시로 흩는다.
+         row_number() over (partition by sl.doctor_id, sl.slot_date order by md5(sl.id::text)) as rn_mix
   from appointment_slots sl
 ),
 chosen as (
-  select r.slot_id, r.doctor_id, r.slot_date, r.start_time, r.rn, d.department_id, d.k, d.cidx,
+  select r.slot_id, r.doctor_id, r.slot_date, r.start_time, r.rn, r.rn_mix, r.d_off,
+         d.department_id, d.k, d.cidx,
          case
-           when r.slot_date > current_date then 'm'
-           when r.slot_date < current_date then 'y'
-           else 't'
+           when r.d_off > 0 then 'm'   -- 앞으로 올 날
+           when r.d_off = 0 then 't'   -- 오늘
+           when r.d_off = -1 then 'y'  -- 어제 — 「전일 미완료」가 여기서 나온다(TODAY-YDAY)
+           else 'p'                    -- 그 이전 과거 — 이미 다 끝난 날
          end as tag
   from ranked r
   join docs d on d.doctor_id = r.doctor_id
-  where r.rn <= d.k
+  -- 밀도: 날짜가 멀수록 듬성해진다. 창구에서 보는 실제 모습이고, 그래야 「빈 시간」이 보인다.
+  where case
+    when r.d_off between -1 and 0 then r.rn     <= d.k                        -- 어제·오늘: 빽빽
+    when r.d_off < -1             then r.rn     <= greatest(1, d.k / 2)       -- 지난 2주: 절반
+    when r.d_off <= 7             then r.rn_mix <= greatest(1, d.k * 2 / 3)   -- 다음 1주: 꽤 참
+    when r.d_off <= 28            then r.rn_mix <= greatest(1, d.k / 4)       -- 2~4주: 성김
+    else                               r.rn_mix <= greatest(1, d.k / 8)       -- 5~8주: 듬성
+  end
 )
 insert into appointments
   (slot_id, account_patient_id, for_patient_id, department_id, doctor_id,
@@ -220,7 +241,15 @@ select
          '어지럼증','발열','피로감','알레르기 증상','목 통증','무릎 통증',
          '허리 통증','건강검진 상담'])[(c.rn % 15) + 1],
   case c.tag
-    when 'm' then '예약확정'
+    -- 앞으로 올 날: 대부분 확정이되 **일부는 「예약신청」(미확정)**이다 — 캘린더의
+    -- 「신청 · 미확정」 표기(CAL-SLOT-02)와 확정 대기 흐름을 검수할 자리가 있어야 한다.
+    when 'm' then case when (c.rn_mix + c.cidx) % 7 = 0 then '예약신청' else '예약확정' end
+    -- 지난 2주(어제 제외): 이미 다 끝난 날이다. ⛔ 여기에 진료대기·도착을 남기면
+    -- 「전일 미완료」가 2주치로 불어난다 — 그 카드는 **어제 것만** 본다(TODAY-YDAY).
+    when 'p' then case
+        when c.rn % 11 = 0 then '환자취소'
+        when c.rn % 13 = 0 then '예약부도'
+        else '진료완료' end
     when 'y' then case
         when c.rn = 1 then '환자취소'
         when c.rn in (2, 3) then '예약부도'
