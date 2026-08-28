@@ -141,10 +141,13 @@ export function StaffList({
                       {m.name}
                       {self ? '(나)' : ''}
                     </span>
-                    <span style={styles.meta}>
+                    {/* [F-8] 역할은 색 배지로 한눈에(데모 뼈대) — 색만 아니라 글자 병기(DISP-COLOR-01). */}
+                    <span style={m.role === 'admin' ? styles.roleBadgeOn : styles.roleBadge}>
                       {ROLE_LABEL[m.role]}
-                      {deptName(m.department_id) ? ` · ${deptName(m.department_id)}` : ''}
                     </span>
+                    {deptName(m.department_id) && (
+                      <span style={styles.meta}>{deptName(m.department_id)}</span>
+                    )}
                   </div>
 
                   <div style={styles.rowSub}>
@@ -265,6 +268,14 @@ const styles: Record<string, CSSProperties> = {
   rowTop: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
   name: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
   meta: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  roleBadge: {
+    padding: '1px 7px', borderRadius: 6, background: 'var(--color-bg)',
+    color: 'var(--color-ink-muted)', fontSize: '11px', fontWeight: 700,
+  },
+  roleBadgeOn: {
+    padding: '1px 7px', borderRadius: 6, background: 'var(--color-primary-wash)',
+    color: 'var(--color-primary)', fontSize: '11px', fontWeight: 700,
+  },
   rowSub: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   subMuted: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   invited: { display: 'inline-flex', alignItems: 'center', gap: 8 },

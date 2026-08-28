@@ -68,6 +68,7 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          placeholder="staff@gaon.kr"
           required
           style={styles.input}
         />
@@ -75,19 +76,33 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
 
       <label style={styles.label}>
         이름
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} required style={styles.input} />
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="이름"
+          required
+          style={styles.input}
+        />
       </label>
 
-      <label style={styles.label}>
-        역할
-        <select value={role} onChange={(e) => setRole(e.target.value as Role)} style={styles.input}>
+      {/* [F-8] 역할은 셋뿐이라 드롭다운보다 세 등분 세그먼트로 한눈에(데모 뼈대). */}
+      <div style={styles.label}>
+        <span>역할</span>
+        <div role="group" aria-label="역할" style={styles.roleGroup}>
           {ROLE_ORDER.map((r) => (
-            <option key={r} value={r}>
+            <button
+              key={r}
+              type="button"
+              aria-pressed={role === r}
+              onClick={() => setRole(r)}
+              style={role === r ? styles.roleBtnOn : styles.roleBtn}
+            >
               {ROLE_LABEL[r]}
-            </option>
+            </button>
           ))}
-        </select>
-      </label>
+        </div>
+      </div>
 
       {role === 'doctor' && (
         <label style={styles.label}>
@@ -120,6 +135,9 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
           </span>
         )}
       </div>
+
+      {/* [F-8][STAFF-INVITE-01] 비밀번호 칸이 없는 이유를 관리자에게 알린다. */}
+      <p style={styles.hint}>비밀번호는 직원이 초대 메일에서 직접 설정합니다.</p>
     </form>
   )
 }
@@ -128,6 +146,18 @@ const styles: Record<string, CSSProperties> = {
   form: { display: 'flex', flexDirection: 'column', gap: 12 },
   title: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
   label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontWeight: 600 },
+  roleGroup: { display: 'flex', gap: 6 },
+  roleBtn: {
+    flex: 1, height: 34, borderRadius: 8, border: '1px solid var(--color-divider)',
+    background: 'var(--color-surface)', color: 'var(--color-ink-muted)',
+    fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+  },
+  roleBtnOn: {
+    flex: 1, height: 34, borderRadius: 8, border: '1px solid var(--color-primary)',
+    background: 'var(--color-primary-wash)', color: 'var(--color-primary)',
+    fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+  },
+  hint: { margin: '2px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   input: {
     height: 34,
     padding: '0 10px',

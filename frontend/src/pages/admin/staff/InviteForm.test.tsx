@@ -6,16 +6,17 @@ import { rightColumn, rowOf, setupStaff } from './testUtils'
 // [STAFF-INVITE-*] 초대 폼. 오른쪽 칸에 붙박이로 있다.
 
 function roleOptions(): string[] {
-  const select = within(rightColumn()).getByLabelText('역할') as HTMLSelectElement
-  return Array.from(select.options)
-    .map((o) => o.textContent ?? '')
-    .filter((t) => t && !/선택/.test(t))
+  const group = within(rightColumn()).getByRole('group', { name: '역할' })
+  return within(group)
+    .getAllByRole('button')
+    .map((b) => b.textContent ?? '')
+    .filter(Boolean)
 }
 
 async function inviteDoctor(user: UserEvent, name = '정다은'): Promise<void> {
   await user.type(within(rightColumn()).getByLabelText('이메일'), 'new-doctor@lunahospital.test')
   await user.type(within(rightColumn()).getByLabelText('이름'), name)
-  await user.selectOptions(within(rightColumn()).getByLabelText('역할'), '의사')
+  await user.click(within(rightColumn()).getByRole('button', { name: '의사' }))
   await user.selectOptions(within(rightColumn()).getByLabelText('소속 진료과'), '내과')
   await user.click(within(rightColumn()).getByRole('button', { name: '초대' }))
 }
@@ -37,7 +38,7 @@ test('[STAFF-INVITE-03] 의사를 고르면 진료과 미선택은 서버에 보
   await screen.findByText('이민호')
   await user.type(within(rightColumn()).getByLabelText('이메일'), 'd@lunahospital.test')
   await user.type(within(rightColumn()).getByLabelText('이름'), '무소속')
-  await user.selectOptions(within(rightColumn()).getByLabelText('역할'), '의사')
+  await user.click(within(rightColumn()).getByRole('button', { name: '의사' }))
   await user.click(within(rightColumn()).getByRole('button', { name: '초대' }))
   expect(within(rightColumn()).getByText('의사는 소속 진료과를 선택해야 합니다.')).toBeVisible()
   expect(api.calls('POST /staff')).toHaveLength(0)
@@ -46,7 +47,7 @@ test('[STAFF-INVITE-03] 의사를 고르면 진료과 미선택은 서버에 보
 test('[STAFF-INVITE-03] 진료과 선택지는 사용 중인 진료과만이다', async () => {
   const { user } = setupStaff()
   await screen.findByText('이민호')
-  await user.selectOptions(within(rightColumn()).getByLabelText('역할'), '의사')
+  await user.click(within(rightColumn()).getByRole('button', { name: '의사' }))
   const select = within(rightColumn()).getByLabelText('소속 진료과') as HTMLSelectElement
   const names = Array.from(select.options).map((o) => o.textContent)
   expect(names).toContain('내과')
