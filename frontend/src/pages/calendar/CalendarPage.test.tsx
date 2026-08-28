@@ -17,7 +17,7 @@ vi.mock('../../lib/supabaseClient', () => ({
   },
 }))
 
-const NOW = new Date('2026-08-06T09:00:00') // 목요일
+const NOW = new Date('2026-08-06T09:00:00+09:00') // 목요일
 
 const DATA: CalendarData = {
   booking_horizon_date: '2026-10-01',

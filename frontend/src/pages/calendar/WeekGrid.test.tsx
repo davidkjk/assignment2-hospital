@@ -6,8 +6,8 @@ import { DayGrid } from './DayGrid'
 import type { GridDoctor } from './gridModel'
 import type { CalendarData } from '../../api/calendar'
 
-const ANCHOR = new Date('2026-08-17T09:00:00')
-const NOW = new Date('2026-08-17T08:00:00')
+const ANCHOR = new Date('2026-08-17T09:00:00+09:00')
+const NOW = new Date('2026-08-17T08:00:00+09:00')
 
 const DOCTORS: GridDoctor[] = [
   { id: 'd1', name: '박지훈', departmentName: '내과', paletteIndex: 3, slotMinutes: 15 },

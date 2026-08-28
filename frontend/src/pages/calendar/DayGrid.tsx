@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { hospitalMinutesOfDay, hospitalToday } from '../../lib/clock'
 import iconSpriteUrl from '../../shell/icons.svg?url'
 import { SlotBlock, type SlotWarning } from './SlotBlock'
 import { TimeAxis } from './TimeAxis'
@@ -8,24 +9,15 @@ import type { GridAppointment, GridBlock, GridDoctor } from './gridModel'
 // [CAL-VIEW-05] 일간·주간이 같은 부품이다 — 주간은 이 열을 폭만 좁혀 하루 칸 안에 여럿 놓는다(WeekGrid).
 //   세로축은 오직 시각(CAL-VIEW-01) · 블록 위·아래 끝이 시작·종료 시각이다.
 
-const MS_PER_DAY = 86_400_000
-
-function todayStr(now: Date): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
-
-function nowMinutes(now: Date): number {
-  return now.getHours() * 60 + now.getMinutes()
-}
-
-/** 그 날의 상태 — 오늘이면 현재 분, 어제 이전이면 지난 날짜. */
+/** 그 날의 상태 — 오늘이면 현재 분, 어제 이전이면 지난 날짜.
+ *  ⭐ 「오늘」도 「지금」도 **병원 시계**다(`TIME-TZ-01`) — 창구 PC 시계로 재면 지금 선이
+ *     엉뚱한 높이에 그려지고, 어느 날이 「지난 날짜」인지도 하루 어긋난다.
+ *  ⚠️ 날짜 비교는 문자열로 한다(ISO는 사전순 = 시간순) — Date 자정을 만들면 로컬 자정과
+ *     병원 자정이 갈려 같은 병이 되돌아온다. */
 function dayTense(date: string, now: Date): { nowMin: number | null; isPastDate: boolean } {
-  const t = todayStr(now)
-  if (date === t) return { nowMin: nowMinutes(now), isPastDate: false }
-  const [y, m, d] = date.split('-').map(Number)
-  const dayStart = new Date(y, m - 1, d).getTime()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  return { nowMin: null, isPastDate: dayStart < todayStart }
+  const today = hospitalToday(now)
+  if (date === today) return { nowMin: hospitalMinutesOfDay(now), isPastDate: false }
+  return { nowMin: null, isPastDate: date < today }
 }
 
 export interface DayGridProps {

@@ -5,7 +5,7 @@ import { DayGrid } from './DayGrid'
 import type { GridAppointment, GridBlock, GridDoctor } from './gridModel'
 
 const DATE = '2026-08-17'
-const NOW = new Date('2026-08-17T09:00:00')
+const NOW = new Date('2026-08-17T09:00:00+09:00')
 
 const DOCTORS: GridDoctor[] = [
   { id: 'd1', name: '박지훈', departmentName: '내과', paletteIndex: 3, slotMinutes: 15 },
@@ -53,7 +53,7 @@ test('[CAL-TIME-01][CAL-TIME-08] 눈금 글자는 30분마다이고 5분 격자�
 test('[CAL-SLOT-06] 빈 구간을 누르면 시작 시각과 함께 콜백이 온다(전화예약으로 이어진다)', async () => {
   const onEmptyClick = vi.fn()
   const user = userEvent.setup()
-  renderGrid({ onEmptyClick, now: new Date('2026-08-17T08:00:00') })
+  renderGrid({ onEmptyClick, now: new Date('2026-08-17T08:00:00+09:00') })
   const col = screen.getByTestId('column-d1')
   await user.click(within(col).getByText('빈 시간 09:00–18:00'))
   expect(onEmptyClick).toHaveBeenCalledWith('d1', 9 * 60)
@@ -63,21 +63,21 @@ test('[CAL-SLOT-07] 예약 블록을 누르면 그 예약 id로 상세 콜백이
   const onBlockClick = vi.fn()
   const user = userEvent.setup()
   const map = new Map([['d1', [appt('d1', 10 * 60, 10 * 60 + 15, 'a1')]]])
-  renderGrid({ appointmentsByDoctor: map, onBlockClick, now: new Date('2026-08-17T08:00:00') })
+  renderGrid({ appointmentsByDoctor: map, onBlockClick, now: new Date('2026-08-17T08:00:00+09:00') })
   await user.click(screen.getByText('김민지'))
   expect(onBlockClick).toHaveBeenCalledWith('a1')
 })
 
 test('[CAL-COLOR-14] 예약 블록은 그 의사 팔레트 인덱스 면으로 칠해진다', () => {
   const map = new Map([['d1', [appt('d1', 10 * 60, 10 * 60 + 15, 'a1')]]])
-  renderGrid({ appointmentsByDoctor: map, now: new Date('2026-08-17T08:00:00') })
+  renderGrid({ appointmentsByDoctor: map, now: new Date('2026-08-17T08:00:00+09:00') })
   const slot = screen.getByText('김민지').closest('.cal-slot') as HTMLElement
   expect(slot.style.background).toBe('var(--doctor-palette-3-fill)') // d1 = 인덱스 3
 })
 
 test('[CAL-SLOT-05] 영향 예약에 「확인 필요」 배지가 붙는다', () => {
   const map = new Map([['d1', [appt('d1', 10 * 60, 10 * 60 + 15, 'a1')]]])
-  renderGrid({ appointmentsByDoctor: map, affectedIds: new Set(['a1']), now: new Date('2026-08-17T08:00:00') })
+  renderGrid({ appointmentsByDoctor: map, affectedIds: new Set(['a1']), now: new Date('2026-08-17T08:00:00+09:00') })
   expect(screen.getByText('확인 필요')).toBeVisible()
 })
 
@@ -86,14 +86,14 @@ test('[CAL-SLOT-03][CAL-SLOT-08] 점심과 휴진은 같은 빗금이고 글자�
     ['d1', [{ doctorId: 'd1', kind: 'lunch', startMin: 12 * 60 + 30, endMin: 13 * 60 + 30 }]],
     ['d2', [{ doctorId: 'd2', kind: 'closed', startMin: null, endMin: null }]],
   ])
-  renderGrid({ blocksByDoctor: blocks, now: new Date('2026-08-17T08:00:00') })
+  renderGrid({ blocksByDoctor: blocks, now: new Date('2026-08-17T08:00:00+09:00') })
   expect(screen.getByText('점심시간 12:30–13:30')).toHaveClass('is-hatched')
   expect(screen.getByText('휴진 09:00–18:00')).toHaveClass('is-hatched')
 })
 
 test('[CAL-PAST-01][CAL-PAST-02] 지난 빈 곳을 누르면 안내와 [당일 방문 등록]이 뜨고 막지 않는다', async () => {
   const user = userEvent.setup()
-  renderGrid({ now: new Date('2026-08-17T14:00:00') })
+  renderGrid({ now: new Date('2026-08-17T14:00:00+09:00') })
   const col = screen.getByTestId('column-d1')
   await user.click(within(col).getByText('지난 시간'))
   expect(screen.getByText('이미 지난 시간입니다')).toBeVisible()
@@ -102,7 +102,7 @@ test('[CAL-PAST-01][CAL-PAST-02] 지난 빈 곳을 누르면 안내와 [당일 �
 
 test('[CAL-PAST-03] 어제 이전 날짜의 지난 빈 곳은 [지난 날 방문 기록]을 준다', async () => {
   const user = userEvent.setup()
-  renderGrid({ date: '2026-08-13', now: new Date('2026-08-17T14:00:00') })
+  renderGrid({ date: '2026-08-13', now: new Date('2026-08-17T14:00:00+09:00') })
   const col = screen.getByTestId('column-d1')
   await user.click(within(col).getAllByText('지난 시간')[0])
   expect(screen.getByText('지난 날짜입니다')).toBeVisible()
@@ -139,4 +139,11 @@ test('[CAL-BOOK-04][CAL-RACE-02] 자리표는 taken이면 「방금 찼습니다
   )
   expect(screen.getByText('⚠ 방금 찼습니다')).toBeVisible()
   expect(screen.getByTestId('hold-slot')).toHaveClass('is-taken')
+})
+
+// [TIME-TZ-01] 「오늘」과 「지금」은 병원 시계다 — 창구 PC 시계가 아니다.
+test('[CAL-PAST-05] 한국이 자정을 넘긴 순간, 지금 선은 병원 시각 자리에 그려진다', () => {
+  // KST 2026-08-17 10:30 = UTC 01:30. 기계가 미 서부(8/16 18:30)여도 8/17의 10:30이다.
+  renderGrid({ date: '2026-08-17', now: new Date('2026-08-17T01:30:00Z') })
+  expect(document.querySelector('[data-testid="now-line"]')).not.toBeNull()
 })

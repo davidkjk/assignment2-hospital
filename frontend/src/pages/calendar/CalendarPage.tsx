@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
+import { hospitalToday } from '../../lib/clock'
 import { getCalendar, type CalendarData } from '../../api/calendar'
 import { usePanel } from '../../components/PanelHost'
 import { EmptyState } from '../../components/EmptyState'
@@ -61,10 +62,18 @@ export interface CalendarPageProps {
   now?: Date
 }
 
+/** 병원의 오늘을 그 날 자정의 Date로 — 격자 좌표 계산이 Date를 쓰기 때문이다.
+ *  ⚠️ 「며칠인가」는 병원 시계로 정하고, 만들어진 Date는 좌표용일 뿐이다. */
+function hospitalTodayAsDate(at: Date): Date {
+  const [y, m, d] = hospitalToday(at).split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Date() }: CalendarPageProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [mode, setMode] = useState<CalendarMode>('day')
-  const [anchorDate, setAnchorDate] = useState<Date>(() => new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+  // [TIME-TZ-01] 캘린더가 처음 여는 날은 **병원의 오늘**이다 — 창구 PC 시계가 아니다.
+  const [anchorDate, setAnchorDate] = useState<Date>(() => hospitalTodayAsDate(now))
   const [selectedDoctorIds, setSelectedDoctorIds] = useState<string[]>([])
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null)
   const [miniOpen, setMiniOpen] = useState(false)
@@ -153,7 +162,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
 
   // ── 네비게이션 ────────────────────────────────────────────────────────────
   function goToday() {
-    setAnchorDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+    setAnchorDate(hospitalTodayAsDate(now))
   }
   function openDay(date: string) {
     setMode('day')
