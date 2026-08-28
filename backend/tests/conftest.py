@@ -38,7 +38,15 @@ async def db_pool():
     #    이 풀과 앱 전역 풀이 각각 10개씩 잡는다. 600여 개를 연달아 돌리면 닫히는 속도가
     #    여는 속도를 못 따라가 `TooManyConnectionsError`(max_connections=100)가 나고,
     #    **매 실행마다 다른 테스트가 무작위로 깨진다**(2026-08-28에 이걸 데이터 오염으로 오인했다).
-    pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=5)
+    #
+    # ⭐ **timezone=Asia/Seoul을 반드시 준다** — 프로덕션 풀(app/db/pool.py:29)이 이 설정을 걸어
+    #    `current_date`/`select current_date`가 병원 날짜가 되게 한다. 여기서 빠뜨리면 이 풀만
+    #    서버 OS(UTC)로 돌아, KST 00~09시(UTC로 아직 어제)엔 `current_date`(UTC)와
+    #    `now() at time zone 'Asia/Seoul'`가 하루 어긋나 `_TODAY_SCOPE`·미접수 판정이 깨진다
+    #    (2026-08-29 새벽에 워크인·노쇼 테스트가 이걸로 빨간불이 났다). 프로덕션엔 없는 결함이다.
+    pool = await asyncpg.create_pool(
+        settings.database_url, min_size=1, max_size=5,
+        server_settings={"timezone": "Asia/Seoul"})
     yield pool
     await pool.close()
 

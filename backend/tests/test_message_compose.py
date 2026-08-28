@@ -80,8 +80,11 @@ async def test_CH_04_앱알림만이면_문자건수는_0이다(db_conn):
 
 
 @pytest.mark.asyncio
-async def test_ADS_04_광고는_광고접두를_저장body에_박는다(db_conn):
+async def test_ADS_04_광고는_광고접두를_저장body에_박는다(db_conn, monkeypatch):
     """[SEND-ADS-04] (광고) 접두가 저장 body에 박힌다(정보통신망법 50조)."""
+    # 야간(21~08시) 즉시 광고발송은 night_blocked라 notification_log가 안 생긴다(SEND-NIGHT-02).
+    # 이 테스트는 접두 저장만 보므로 낮 시각으로 시계를 고정해 벽시계 의존을 없앤다(NIGHT_02와 같은 패턴).
+    monkeypatch.setattr(message_service, "_now_kst", lambda: datetime(2026, 8, 17, 14, 0, tzinfo=KST))
     staff = await _ctx(db_conn, "admin")
     pid = await _patient(db_conn)
     res = await message_service.enqueue_send(
@@ -93,8 +96,10 @@ async def test_ADS_04_광고는_광고접두를_저장body에_박는다(db_conn)
 
 
 @pytest.mark.asyncio
-async def test_ADS_04_광고는_무료수신거부를_저장body에_박는다(db_conn):
+async def test_ADS_04_광고는_무료수신거부를_저장body에_박는다(db_conn, monkeypatch):
     """[SEND-ADS-04] 무료 수신거부 문구가 저장 body에 박힌다(지울 수 없다)."""
+    # 야간 즉시 광고발송은 night_blocked라 저장 행이 없다 → 낮 시각으로 고정(위 테스트와 같은 이유).
+    monkeypatch.setattr(message_service, "_now_kst", lambda: datetime(2026, 8, 17, 14, 0, tzinfo=KST))
     staff = await _ctx(db_conn, "admin")
     pid = await _patient(db_conn)
     res = await message_service.enqueue_send(

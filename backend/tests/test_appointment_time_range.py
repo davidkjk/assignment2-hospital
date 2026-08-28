@@ -9,6 +9,7 @@
 DB now()로 지난 시각을 재므로(클럭 스큐 회피) 테스트도 「지금」 기준 상대 시각을 쓴다.
 """
 from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -219,5 +220,7 @@ async def test_예약_가능_범위는_날짜_단위다_마지막_날_늦은_시
     """
     ctx = await _seed(db_conn)
     last_day = await db_conn.fetchval("select (current_date + interval '8 weeks')::date")
-    late = datetime.combine(last_day, time(17, 0), tzinfo=timezone.utc)
+    # 「마지막 날 오후」는 병원 시간(Asia/Seoul) 기준이어야 한다 — UTC 17:00으로 만들면 KST로는
+    # 다음 날 새벽 02:00이라 last_day+1이 되어(프로덕션 풀도 Asia/Seoul) 거절된다. 병원 시각으로 잡는다.
+    late = datetime.combine(last_day, time(17, 0), tzinfo=ZoneInfo("Asia/Seoul"))
     assert await _book(db_conn, ctx, late) is not None
