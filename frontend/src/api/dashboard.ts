@@ -21,6 +21,9 @@ export interface PatientRow {
   masked_phone?: string
   masked_birth_date?: string
   appointment_id?: string
+  /** 데모 행이 「과 · 의사」를 함께 보여준다(S1·TODAY-DOC 동명 방지). today summary가 실어 보낸다. */
+  department_name?: string
+  doctor_name?: string
 }
 
 /** 장기 대기 행(TODAY-WAIT-01) — 대기 분이 함께 온다. */

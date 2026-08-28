@@ -400,9 +400,12 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
         long_wait = await c.fetch(
             f"""
             select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   d.name as doctor_name, dept.name as department_name,
                    floor(extract(epoch from (now() - h.waited_since)) / 60)::int as wait_minutes
             from appointments a
             join patients p on p.id = a.for_patient_id
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
             join lateral (
               select min(changed_at) as waited_since
               from appointment_status_history
@@ -420,9 +423,12 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
         needs = await c.fetch(
             """
             select a.id as appointment_id, a.for_patient_id, a.request_type,
-                   p.name, p.phone, p.birth_date
+                   p.name, p.phone, p.birth_date,
+                   d.name as doctor_name, dept.name as department_name
             from appointments a
             join patients p on p.id = a.for_patient_id
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
             where a.support_requested_at is not null
             order by a.support_requested_at desc
             """
@@ -433,9 +439,12 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
         not_arrived = await c.fetch(
             f"""
             select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   d.name as doctor_name, dept.name as department_name,
                    s.start_time as slot_time
             from appointments a
             join patients p on p.id = a.for_patient_id
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
             join appointment_slots s on s.id = a.slot_id
             where a.status = '예약확정' and {_TODAY_SCOPE}
               and (s.slot_date + s.start_time) < (now() at time zone 'Asia/Seoul')
@@ -448,9 +457,12 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
         yesterday_unfinished = await c.fetch(
             """
             select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   d.name as doctor_name, dept.name as department_name,
                    s.slot_date, s.start_time as slot_time
             from appointments a
             join patients p on p.id = a.for_patient_id
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
             join appointment_slots s on s.id = a.slot_id
             where a.status in ('도착', '진료대기', '진료중') and s.slot_date < current_date
             order by s.slot_date, s.start_time, a.id
@@ -490,6 +502,7 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             patient_row_dto(
                 patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
                 appointment_id=r["appointment_id"], wait_minutes=r["wait_minutes"],
+                doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in long_wait
         ],
@@ -497,6 +510,7 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             patient_row_dto(
                 patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
                 appointment_id=r["appointment_id"], reason=f"{r['request_type']} 상담 · 직원 확인 중",
+                doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in needs
         ],
@@ -505,6 +519,7 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             patient_row_dto(
                 patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
                 appointment_id=r["appointment_id"], slot_time=r["slot_time"],
+                doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in not_arrived
         ],
@@ -513,7 +528,7 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             patient_row_dto(
                 patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
                 appointment_id=r["appointment_id"], slot_date=r["slot_date"], slot_time=r["slot_time"],
-                reason="진료 중인 채로 마감",
+                reason="진료 중인 채로 마감", doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in yesterday_unfinished
         ],
