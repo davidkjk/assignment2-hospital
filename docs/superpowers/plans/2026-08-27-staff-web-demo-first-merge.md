@@ -247,6 +247,11 @@ git commit -m "port(staff-web): M1 — 공용 부품을 데모 _ui.tsx 원본으
 - Consumes: M0 아이콘 · M1 부품 · 기존 `NAV_ITEMS`/`NAV_GROUPS`/`navItemForPath` · `useAuth` · `useIdleLogout` · `useMessagesBadge` · `ConnectivityProvider`/`OfflineBanner` · `PanelProvider`/`PanelHost` · `ServerEffects`.
 - Produces: 딥틸 잉크 사이드바(`--color-sidebar-ink`)·활성 좌측 3px 흰 바·amber 배지 / 헤더 하단 실선 / 헤더 오른쪽 역할칩→계정 메뉴 / **세 문 버튼 3개 자리**(`[＋ 등록]`·`[＋ 접수]`·`[＋ 예약]`, 본체는 M3). Wave 2 화면들이 이 셸 안에서 렌더된다.
 
+> ✅ **M2 완료(`4dc4568`) — 이 절의 전제가 일부 뒤집혔다.** 규칙 원문을 대조하니 **셸에 한해서는 실 구현이 데모보다 정본에 가까웠다.**
+> `SHELL-HDR-01`(헤더=병원명) · `SHELL-NAV-08`(아이콘 모드+툴팁) · `SHELL-HDR-01/05`(세 문 `＋` 라벨·구분선) 셋 모두 **실이 맞고 데모가 이탈**이며,
+> `navItems.ts`는 데모 `GROUPS`와 항목·그룹·순서·권한이 완전 일치했다. 그래서 「구조째 덮어쓰기」가 아니라 **어긋난 곳만** 가져왔다(AccountMenu·ChangePasswordPanel의 인라인 style → 데모 마크업, AppShell 레이아웃, 사이드바 활성/호버 값·높이).
+> ⭐ **교훈**: 「데모가 뼈대」는 화면(Wave 2)에서 참이고, **셸·공용 규칙에서는 실이 앞설 수 있다.** Wave 2의 각 화면 태스크도 규칙 원문을 먼저 대조한 뒤에 어느 쪽이 정본인지 판정할 것.
+
 **주의 — 데모와 실이 어긋나는 지점 3곳(반드시 실 쪽을 유지):**
 1. **역할표**: 데모 `StaffShell.tsx`의 `GROUPS` 상수가 아니라 실 `navItems.ts`를 쓴다(`SHELL-NAV-01/02/03`의 단일 원본). 데모의 그룹 순서·라벨(`업무 → 기록 → 상담봇 관리 → 설정`)이 정본이므로 **`navItems.ts`가 이와 다르면 `navItems.ts`를 정본에 맞춰 고친다.**
 2. **헤더 왼쪽**: 정본 `SHELL-HDR-01`은 병원명, 데모는 화면 제목이다. `DEMO-REVIEW-NOTES` E-9/E-4가 **「정본 반영 검토 대기」**로 남긴 미결이다 → **이번 태스크에서는 현행 실 구현(사이드바=병원명 / 본문 `<h1>`=화면 제목)을 유지**하고, 데모처럼 헤더로 올리는 것은 코디가 사용자에게 확인한 뒤 별도로 한다. 태스크 로그에 미결로 남긴다.
@@ -280,8 +285,22 @@ git commit -m "port(staff-web): M2 — 셸을 데모 StaffShell 구조로 교체
 
 **왜 별도 태스크인가:** 세 문과 「왼쪽 변신」은 **화면 어디에도 속하지 않는 가로 장치**다. 지난 라운드에서 "공통 패널 태스크에서 연결"로 이월됐는데 그런 태스크가 목록에 없어 끝내 미배선으로 남았다.
 
-- [ ] **Step 1: 데모에서 세 문을 실제로 눌러 본다.** 세 버튼 각각에서 오른쪽 패널과 **왼쪽 본문이 무엇으로 바뀌는지** 적는다.
-- [ ] **Step 2: 실패 테스트를 쓴다**
+> ✅ **M3 구현 완료** — `frontend/src/shell/doors/` 4파일(`doorData.ts` 279 · `DoorContext.tsx` 130 · `surfaces.tsx` 350 · `panels.tsx` 500) + `AppShell.tsx` 마운트 + `doors.test.tsx` 9건. `vitest run` 775건·`tsc --noEmit` GREEN.
+>
+> **⚠️ 계획과 달랐던 점 4가지(전부 실 쪽 사정):**
+> 1. **파일이 3개가 아니라 4개다.** 데모 `doors/`는 `doorData.ts`(133줄)를 함께 쓰고, 그것이 다시 데모 `calendar/mockData`를 참조한다. 데모 캘린더 목데이터 전체를 끌어오지 않으려고 **필요한 부분(의사 8명·휴진/점심·하루 예약)만 `doorData.ts` 안으로 옮겨 자립**시켰다.
+> 2. **문 이름을 실에 맞췄다** — 데모 `'reserve'` → 실 `'appointment'`. 헤더 세 버튼의 단일 원본(`navItems.ts`의 `START_DOORS`)이 이미 이 이름을 쓰고 있어, **M2의 교훈(셸에선 실이 정본에 가깝다)**대로 실을 따랐다.
+> 3. **⭐ 그릇이 둘이 됐다 — 이월 결정 1건.** 실에는 이미 앱 전체에 하나뿐인 패널 그릇 `components/PanelHost.tsx`가 있고 **6개 화면이 그것을 쓴다**(캘린더·환자검색·안내보내기·진료화면·환자상세). 데모 `DoorRegion`은 자기 `<aside>`를 따로 그린다 → 그대로 두면 **패널이 둘 동시에 뜰 수 있어 `PANEL-ONE-01` 위반.** 이번엔 **데모 마크업을 살리되 상태를 서로 닫도록 배선**했다(문을 열면 `closePanel()`, 소비 화면이 패널을 열면 문이 닫힌다 — `doors.test.tsx`가 양방향 다 가드). **두 그릇을 하나로 합칠지는 S1에서 한 번 정해 19화면에 일괄 적용**한다(M2가 남긴 `StaffPage` 래퍼 이월과 같은 자리에서 결정).
+> 4. **없는 토큰 2건을 교정**(M2의 `--color-accent` 건과 같은 유형): 데모 `shadow-[var(--elevation-card)]` → 실에 없음, 실이 모달에 쓰는 `--shadow-card`로. 데모 하드코딩 `shadow-[0_1px_2px_rgba(16,45,50,0.04)]` → **실에 정확히 같은 값의 `--shadow-panel`이 있어** 토큰으로. 의사 색 8쌍의 하드코딩 hex도 정본 팔레트 토큰(`--doctor-palette-*`, `CAL-COLOR-12`)으로 바꿨다.
+>
+> **접수 문 「예약 확인」 갈래는 자리표시자다** — 데모는 `checkin/CheckinForm`을 공유하지만 실의 `pages/checkin/CheckInPage.tsx`는 이미 `findByCode`·`transitionStatus`로 배선된 **라우트 전체화면**이라, 380px 패널에 넣는 일은 계획대로 **Task D3**가 한다.
+>
+> **`lint:tokens` 증감**: 293 → 304(+11). 전부 **오탐 또는 데모 원본**이다 — 주석의 `⚠️⛔⭐`를 잡는 `EMOJI` 규칙 10건(§8의 알려진 오탐) + 휴진·점심 **빗금 패턴**의 `repeating-linear-gradient(rgba(...))` 1건(대응 토큰 없음, 데모 원본 그대로).
+>
+> ⏳ **남은 것: Step 7 브라우저 대조** — 코디 창에서 브라우저 확장이 연결되지 않아 못 했다. **세 문 각각에서 왼쪽 변신이 데모와 같은지**를 사람 눈으로 확인해야 이 태스크가 끝난다.
+
+- [x] **Step 1: 데모에서 세 문을 실제로 눌러 본다.**(소스로 확정: 등록·접수는 열어도 왼쪽 그대로 / 예약만 열자마자 환자 검색표 → 환자 고르면 환자 카드 → 의사 고르면 그 의사 일간 캘린더 → 날짜 칸은 월 달력) 세 버튼 각각에서 오른쪽 패널과 **왼쪽 본문이 무엇으로 바뀌는지** 적는다.
+- [x] **Step 2: 실패 테스트를 쓴다**
 
 ```tsx
 // frontend/src/shell/doors/doors.test.tsx
@@ -306,11 +325,11 @@ it('✕는 확인창 없이 닫는다', async () => {
 })
 ```
 
-- [ ] **Step 3: 실패 확인** — Run `npx vitest run src/shell/doors` → FAIL(모듈 없음)
-- [ ] **Step 4: 데모 `doors/` 3파일을 복사하고 import만 고친다.** 목데이터를 쓰는 자리에 `// TODO(D2·D3·D4 배선)` 주석을 남긴다.
-- [ ] **Step 5: `AppShell.tsx`에 `DoorProvider`·`DoorRegion`·`workSurfaceFor`를 붙인다.** M2에서 남긴 `door` state를 `useDoors()`로 교체한다.
-- [ ] **Step 6: 검증** — `npx vitest run src/shell && npx tsc --noEmit` GREEN.
-- [ ] **Step 7: 코디 브라우저 대조** — 세 문 각각에서 **왼쪽 변신이 데모와 같은지**가 이 태스크의 핵심 판정 포인트다.
+- [x] **Step 3: 실패 확인**(8/8 FAIL) — Run `npx vitest run src/shell/doors` → FAIL(모듈 없음)
+- [x] **Step 4: 데모 `doors/` 파일을 복사하고 import만 고친다.** 목데이터를 쓰는 자리에 `// TODO(D2·D3·D4 배선)` 주석을 남긴다.
+- [x] **Step 5: `AppShell.tsx`에 `DoorProvider`·`DoorRegion`·`workSurfaceFor`를 붙인다.** M2에서 남긴 `door` state를 `useDoors()`로 교체한다.
+- [x] **Step 6: 검증** — `npx vitest run` 775건 GREEN · `npx tsc --noEmit` 통과.
+- [ ] ⏳ **Step 7: 코디 브라우저 대조**(미완 — 확장 미연결) — 세 문 각각에서 **왼쪽 변신이 데모와 같은지**가 이 태스크의 핵심 판정 포인트다.
 - [ ] **Step 8: 커밋**
 
 ```bash
