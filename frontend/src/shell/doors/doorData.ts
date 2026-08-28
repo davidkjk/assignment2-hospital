@@ -4,14 +4,14 @@
 //
 // ⚠️ TODO(D1·D2·D3·D4 배선) — 이 파일의 **데이터는 전부 데모 가짜값**이다(계산 함수는 실물).
 //    Wave 1에서 각 문을 배선하며 서버로 갈아끼운다:
-//      · 환자 검색  → `api/patients.ts` `searchPatients`   (D3)
+//    ✅ D3 완료: 환자 검색은 정본 부품 `pages/patients/PatientSearch`(mode="pick")가 한다 —
+//       가짜 `doorPatients`·`searchPatients`·`maskBirth`·`maskPhone`은 지웠다(`MASK-SRV-01`).
+//    ✅ D3 완료: 의사 로스터·대기 인원은 `getTodaySummary().doctor_waiting`이 준다(패널 안 목록).
 //    ✅ D2 완료: 소프트 중복은 서버(`GET /patients/duplicate-check`)가 가린 값으로 답한다 —
 //       가짜 `findDuplicate`는 지웠다.
 //      · 의사 로스터·하루 일정 → `api/calendar.ts` `getCalendar` (D4)
-//      · 의사별 대기 인원 → `api/dashboard.ts` 대기열        (D3)
-//    ⛔ 갈아끼울 때 `maskBirth`·`maskPhone`은 함께 지운다 — 서버가 `masked_*`로만 내려주고
-//       화면이 다시 계산하지 않는다(`MASK-SRV-01`). 지금은 가짜 원본값을 가리려고만 둔 것이다.
 
+import type { SearchTodayStatus } from '../../api/patients'
 import type { StartDoor } from '../navItems'
 
 /** 문 = 헤더 세 버튼과 같은 이름을 쓴다(`START_DOORS`). 데모의 'reserve'가 실에선 'appointment'. */
@@ -19,22 +19,29 @@ export type DoorId = StartDoor
 /** 지금 채우는 중인 패널의 칸 — 이것이 왼쪽 도구를 정한다(`PANEL-WORK-01`). */
 export type FieldId = 'patient' | 'doctor' | 'date' | 'time' | 'find' | null
 
+/** 문이 안고 다니는 환자 — **표시용 값만** 든다.
+ *  ⭐ 생년월일·전화는 서버가 이미 가려서 준 문자열 그대로다(`MASK-SRV-01`) — 화면이 다시 가리지 않는다.
+ *  방금 등록한 환자만 예외로 직원이 방금 친 값이 들어온다(자기가 친 값을 가릴 이유가 없다). */
 export interface PatientLite {
   id: string
   name: string
-  birth: string
-  tel: string
-  lastVisit?: string
-  today?: { status: string; time: string; dept: string; doctor: string }
+  birthText: string
+  phoneText: string
+  /** 오늘 상태 — 검색 서버가 `/queue`와 같은 순간의 값으로 준다(`SEARCH-ACT-*`). */
+  today?: { status: SearchTodayStatus; time: string | null }
 }
 
 export interface DoctorLite {
   id: string
   name: string
   department: string
-  slotMinutes: number
-  fill: string // 블록 면 색 (CAL-COLOR-14: 중간 톤 면)
-  ink: string // 글자·점 색
+  /** 오늘 대기 인원(`QUEUE-WALK-08b`) — 창구에서 「어느 선생님이 덜 기다리나」로 고른다.
+   *  ⛔ 「다음 자리」는 아직 근거가 없어 적지 않는다(`QUEUE-WALK-08c` · 갭 #87). */
+  waiting?: number
+  // ── 아래 셋은 일간 캘린더(D4)만 쓴다. 접수 문의 의사 목록에는 없다. ──
+  slotMinutes?: number
+  fill?: string // 블록 면 색 (CAL-COLOR-14: 중간 톤 면)
+  ink?: string // 글자·점 색
 }
 
 interface OffHours {
@@ -163,48 +170,52 @@ const doorAppointments: DoorAppointment[] = [
   { id: 'i4', doctorId: 'd8', patientName: '한도경', patientBirth: '2006-12-19', phone: '010-7712-5567', start: '11:15', end: '11:30', status: '예약신청', reason: '코피 반복' },
 ]
 
-/** TODO(D3 배선) 의사별 오늘 대기 인원 (`QUEUE-WALK-08b` — 창구에서 "덜 기다리는 의사"로 고른다) */
+/** TODO(D4 배선) 예약 문이 아직 쓰는 가짜 대기 인원 (`QUEUE-WALK-08b` — 창구에서 "덜 기다리는 의사"로 고른다) */
 export const doctorWaitMap: Record<string, number> = {
   d1: 3, d2: 1, d3: 2, d4: 0, d5: 4, d6: 1, d7: 2, d8: 0,
 }
 
-// ── TODO(D2 배선) 환자 검색 결과(통합 검색, `SEARCH-BOX-01`) — /patients와 같은 표를 왼쪽에 편다 ──
-const doorPatients: PatientLite[] = [
-  { id: 'p1', name: '김태호', birth: '1972-11-03', tel: '010-4821-9930', lastVisit: '2026-06-10', today: { status: '진료 대기', time: '09:05', dept: '내과', doctor: '이정훈' } },
-  { id: 'p2', name: '김하늘', birth: '1995-12-01', tel: '010-2201-7788', lastVisit: '2026-05-02', today: { status: '도착', time: '09:20', dept: '내과', doctor: '한서연' } },
-  { id: 'p3', name: '김서준', birth: '1965-07-30', tel: '010-3311-8842', lastVisit: '2026-07-21' },
-  { id: 'p4', name: '이수진', birth: '1975-09-08', tel: '010-2841-5678', lastVisit: '2026-08-01' },
-  { id: 'p5', name: '이말녀', birth: '1955-08-17', tel: '010-2841-1043', lastVisit: '2026-03-15', today: { status: '진료 중', time: '09:00', dept: '내과', doctor: '한서연' } },
-  { id: 'p6', name: '박강우', birth: '1980-01-22', tel: '010-7734-2201', lastVisit: '2026-04-11' },
-  { id: 'p7', name: '정순남', birth: '1948-05-21', tel: '010-5521-8834', lastVisit: '2026-08-20', today: { status: '미도착', time: '11:00', dept: '정형외과', doctor: '박강우' } },
-  { id: 'p8', name: '조현우', birth: '1982-06-04', tel: '010-9092-1043', lastVisit: '2025-12-30' },
-  { id: 'p9', name: '한지아', birth: '1995-01-19', tel: '010-3092-7788', lastVisit: '2026-02-18' },
-  { id: 'p10', name: '윤도현', birth: '1990-02-28', tel: '010-3092-1043', lastVisit: '2026-06-30' },
-  { id: 'p11', name: '문소희', birth: '1990-08-22', tel: '010-8842-3301', lastVisit: '2026-07-04' },
-  { id: 'p12', name: '조은비', birth: '2001-12-03', tel: '010-5567-9910', lastVisit: '2026-05-28' },
-  { id: 'p13', name: '강동훈', birth: '1983-05-11', tel: '010-2211-4590', lastVisit: '2026-08-12' },
-]
+// ── 등록 문이 **직원이 방금 친 값**을 이어갈 때만 쓰는 가림 ────────────────────────
+// ⚠️ `MASK-SRV-01`(서버가 가린 값으로만 준다)을 어기는 것이 아니다 — 여기 들어오는 전화·생년월일은
+//    **서버에서 온 값이 아니라 직원이 방금 자기 손으로 친 값**이다(등록 폼). 그 값을 이음 카드에
+//    원본 그대로 크게 띄우면 창구 화면이 어깨너머로 읽히므로, 화면 표시만 같은 모양으로 맞춘다.
+// ⛔ 서버가 준 `masked_*`에는 절대 다시 쓰지 않는다.
 
-// ── 임시 마스킹 — ⚠️ 배선하며 지운다(`MASK-SRV-01`: 서버가 `masked_*`로만 내려준다) ──
 /** 010-1234-5678 → 010-****-5678 (뒷자리 남김, `MASK-TEL-01`) */
-export function maskPhone(tel: string): string {
+export function maskTypedPhone(tel: string): string {
   return tel.replace(/^(\d{3})-?\d{3,4}-?(\d{4})$/, '$1-****-$2')
 }
 /** 1958-03-12 → 1958-**-12 (월만 가림, `MASK-DOB-01`) */
-export function maskBirth(d: string): string {
+export function maskTypedBirth(d: string): string {
   return d.replace(/^(\d{4})-\d{2}-(\d{2})$/, '$1-**-$2')
 }
 
-/** 통합 검색 — 이름·전화·생년 어디에 걸려도 찾는다(번호가 바뀌어도 이름으로, `SEARCH-BOX-01`) */
-export function searchPatients(q: string): PatientLite[] {
-  const s = q.trim().toLowerCase()
-  if (!s) return doorPatients
-  return doorPatients.filter(
-    (p) =>
-      p.name.toLowerCase().includes(s) ||
-      p.tel.replace(/-/g, '').includes(s.replace(/-/g, '')) ||
-      p.birth.includes(s),
-  )
+// ── 오신 시각(`QUEUE-WALK-14~16`) ────────────────────────────────────────────
+
+/** [QUEUE-WALK-14b·14c] 콜론을 안 쳐도 된다 — `1015`→10:15, 3자리 `905`→09:05.
+ *  앞의 `0`을 치게 하면 한 손으로 치는 속도가 깨진다.
+ *  ⛔ [QUEUE-WALK-14d] **5분 격자에 붙이지 않는다** — 예약은 「앞으로 만들 자리」라 붙여도 되지만
+ *     방문 시각은 「실제로 일어난 일의 기록」이라 붙이는 순간 거짓이 된다(`CAL-TIME-03`과 정반대). */
+export function parseVisitTime(raw: string): { hh: number; mm: number } | null {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length !== 3 && digits.length !== 4) return null
+  const hh = Number(digits.slice(0, digits.length - 2))
+  const mm = Number(digits.slice(-2))
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh > 23 || mm > 59) return null
+  return { hh, mm }
+}
+
+/** 직원이 적은 「날짜 + 시각」을 실제 순간으로 옮긴다.
+ *  ⚠️ 브라우저 시간대로 읽는다 — 창구 컴퓨터의 시계가 곧 벽시계다. 서버는 UTC로 받아 저장한다. */
+export function visitInstant(dateIso: string, hh: number, mm: number): Date {
+  const [y, m, d] = dateIso.split('-').map(Number)
+  return new Date(y, m - 1, d, hh, mm, 0, 0)
+}
+
+/** 오늘(브라우저 시간대) — `TODAY_ISO`는 D4 캘린더용 **데모 고정값**이라 여기 쓰면 안 된다. */
+export function todayIsoLocal(): string {
+  const n = new Date()
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 }
 
 // ── 의사 하루 일정(일간 캘린더 도구) ──
@@ -253,9 +264,16 @@ export function snapMin(min: number): number {
   return Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - SNAP_MIN, snapped))
 }
 
+/** 의사별 진료 길이(`CAL-TIME-09`). ⚠️ 접수 문이 실 로스터(`doctor_waiting`)로 고른 의사에는
+ *  이 칸이 없다 — 대기 인원 조회는 진료 길이를 주지 않는다. D4가 `getCalendar().doctors`로
+ *  갈아끼우면 실제 값이 들어온다. 그때까지는 기본 15분으로 그린다(계산은 예약 문에서만 쓴다). */
+export function slotMinutesOf(d: DoctorLite): number {
+  return d.slotMinutes ?? 15
+}
+
 /** 그 시각에 진료시간만큼 잡으면 무엇과 겹치나 — 겹침 경고용(막지는 않음, `CAL-GAP`) */
 export function overlapAt(doctor: DoctorLite, startMin: number): DayBlock | null {
-  const endMin = startMin + doctor.slotMinutes
+  const endMin = startMin + slotMinutesOf(doctor)
   for (const b of buildBlocks(doctor)) {
     if (startMin < b.endMin && endMin > b.startMin) return b
   }

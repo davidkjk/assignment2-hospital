@@ -1,5 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { server } from '../../test/msw/server'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { expect, test, vi } from 'vitest'
@@ -48,10 +50,36 @@ function openPanels(): HTMLElement[] {
 }
 
 /** 예약 문을 열고 환자 검색표에서 한 명을 고른다(왼쪽 도구를 실제로 쓰는 경로). */
+// 왼쪽 환자 검색은 **정본 부품**(`PatientSearch`)이라 실 서버 창구(`GET /patients`)를 부른다
+// — `SEARCH-BOX-03`(전역 검색은 창구 하나). 데모의 가짜 목록은 D3에서 걷어냈다.
+function servePatient(name: string) {
+  server.use(
+    http.get('*/patients', () =>
+      HttpResponse.json({
+        rows: [{
+          patient_id: 'p1',
+          name,
+          masked_phone: '010-****-9930',
+          masked_birth_date: '1972-**-03',
+          gender: 'M',
+          matched: ['name'],
+          today_status: null,
+          today_appointment_time: null,
+        }],
+        next_cursor: null,
+        has_more: false,
+      }),
+    ),
+  )
+}
+
 async function openReserveAndPickPatient(user: ReturnType<typeof userEvent.setup>) {
+  servePatient('김태호')
   await user.click(screen.getByRole('button', { name: '예약' }))
-  await user.type(screen.getByPlaceholderText('이름 또는 전화번호로 찾기'), '김태호')
-  await user.click(screen.getByText('김태호'))
+  await user.click(screen.getByRole('textbox', { name: '환자 검색' }))
+  await user.paste('김태호')
+  await user.keyboard('{Enter}')
+  await user.click(await waitFor(() => screen.getByRole('button', { name: /김태호/ })))
 }
 
 test('[SHELL-DOOR-06][PANEL-WORK-01] 예약 문을 열면 오른쪽 패널이 열리고 왼쪽이 환자 검색 도구로 바뀐다', async () => {

@@ -14,8 +14,10 @@ const NEAR_BOTTOM_PX = 120
 
 interface PatientSearchProps {
   mode?: 'page' | 'pick'
-  /** pick 모드에서 줄을 고르면 부른다(Task 9·14가 넘긴다). */
-  onPick?: (patientId: string) => void
+  /** pick 모드에서 줄을 고르면 부른다(Task 9·14가 넘긴다).
+   *  ⭐ 줄 전체를 함께 준다 — 부르는 쪽이 이름·가린 값을 다시 조회하지 않게(`MASK-SRV-01`).
+   *  D3 워크인 패널이 고른 환자 카드를 그리려면 id만으로는 부족하다. */
+  onPick?: (patientId: string, row: SearchPatientRow) => void
 }
 
 export function PatientSearch({ mode = 'page', onPick }: PatientSearchProps) {
@@ -105,7 +107,7 @@ export function PatientSearch({ mode = 'page', onPick }: PatientSearchProps) {
 }
 
 // pick 모드 목록 — 줄 전체가 고르기 버튼 하나(ACT-08). 1명이어도 자동으로 골라두지 않는다(ONE-01).
-function PickList({ rows, onPick }: { rows: SearchPatientRow[]; onPick?: (id: string) => void }) {
+function PickList({ rows, onPick }: { rows: SearchPatientRow[]; onPick?: (id: string, row: SearchPatientRow) => void }) {
   return (
     <ul style={styles.pickList}>
       {rows.map((r) => (
@@ -114,7 +116,7 @@ function PickList({ rows, onPick }: { rows: SearchPatientRow[]; onPick?: (id: st
             type="button"
             aria-label={`${r.name} 선택`}
             style={styles.pickRow}
-            onClick={() => onPick?.(r.patient_id)}
+            onClick={() => onPick?.(r.patient_id, r)}
           >
             <SearchResultRow row={r} />
           </button>

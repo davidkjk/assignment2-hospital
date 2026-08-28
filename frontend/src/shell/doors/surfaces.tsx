@@ -1,9 +1,11 @@
 // 왼쪽 변신 도구 — 데모 `routes/staff/doors/surfaces.tsx` 포팅.
 // `PANEL-WORK-01/02`: 패널의 어느 칸을 채우느냐에 따라 왼쪽 큰 자리가 「그 칸을 채우는 도구」로 바뀐다.
-// ⚠️ 데이터는 아직 `doorData`의 데모 가짜값이다 — TODO(D2·D3·D4 배선).
+// ✅ D3: 환자 검색은 정본 부품 `PatientSearch`(mode="pick")가 한다 — 데모의 가짜 표를 걷어냈다.
+// ⚠️ 일간 캘린더·작은 달력 데이터는 아직 `doorData`의 데모 가짜값이다 — TODO(D4 배선).
 import { useRef, useState } from 'react'
-import { CalendarDays, Clock3, Search, UserRound, AlertTriangle } from '@/components/icons'
+import { CalendarDays, Clock3, UserRound, AlertTriangle } from '@/components/icons'
 import { StatusBadge } from '../../components/staff-ui'
+import { PatientSearch } from '../../pages/patients/PatientSearch'
 import { useDoors } from './DoorContext'
 import {
   buildBlocks,
@@ -12,10 +14,8 @@ import {
   snapMin,
   overlapAt,
   minToHHMM,
+  slotMinutesOf,
   fmtDate,
-  searchPatients,
-  maskBirth,
-  maskPhone,
   TODAY_ISO,
   type FieldId,
 } from './doorData'
@@ -36,12 +36,11 @@ function SurfaceHead({ label, hint, icon }: { label: string; hint: string; icon:
   )
 }
 
-/** 환자 칸 → /patients와 같은 검색 결과 표 (PANEL-FIND-01) */
+/** 환자 칸 → **`/patients`와 같은 검색 부품 그대로** (`PANEL-FIND-01` · `QUEUE-WALK-02c`).
+ *  ⭐ 데모의 가짜 표를 베끼지 않는다 — `SEARCH-BOX-03`이 「전역 환자 검색은 창구 하나」를 못박았고
+ *  `PatientSearch`(mode="pick")가 그 정본이다. 직원이 두 가지 검색을 따로 배우지 않는다. */
 function PatientSearchSurface() {
   const { pickPatient } = useDoors()
-  const [q, setQ] = useState('')
-  const typed = q.trim().length > 0
-  const rows = typed ? searchPatients(q) : [] // 검색 전에는 전체를 늘어놓지 않는다
   return (
     <div className="mx-auto max-w-4xl">
       <SurfaceHead
@@ -49,59 +48,21 @@ function PatientSearchSurface() {
         hint="이름·전화·생년월일 어느 것으로도 찾을 수 있습니다 · 줄을 누르면 선택됩니다"
         icon={<UserRound className="h-5 w-5" />}
       />
-      <div className="relative mb-3">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          autoFocus
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="이름 또는 전화번호로 찾기"
-          className="h-11 w-full rounded-xl border border-input bg-card pl-10 pr-3 text-base outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
-        />
-      </div>
-      {!typed ? (
-        <div className="rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
-          이름이나 전화번호를 입력하면 여기에 환자 목록이 나옵니다
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[var(--shadow-panel)]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
-                <th className="px-4 py-2.5 font-medium">이름</th>
-                <th className="px-4 py-2.5 font-medium">생년월일</th>
-                <th className="px-4 py-2.5 font-medium">전화번호</th>
-                <th className="px-4 py-2.5 font-medium">최근 방문</th>
-                <th className="px-4 py-2.5 font-medium">오늘</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => (
-                <tr
-                  key={p.id}
-                  onClick={() => pickPatient(p)}
-                  className="cursor-pointer border-b border-border/50 last:border-0 hover:bg-muted/60"
-                >
-                  <td className="px-4 py-3 font-medium">{p.name}</td>
-                  <td className="px-4 py-3 tabular-nums text-muted-foreground">{maskBirth(p.birth)}</td>
-                  <td className="px-4 py-3 tabular-nums text-muted-foreground">{maskPhone(p.tel)}</td>
-                  <td className="px-4 py-3 tabular-nums text-muted-foreground">{p.lastVisit ?? '방문 없음'}</td>
-                  <td className="px-4 py-3">
-                    {p.today ? <StatusBadge status={p.today.status} /> : <span className="text-muted-foreground">—</span>}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    찾는 환자가 없으면 오른쪽 패널의 <b className="text-foreground">새 환자 등록</b>으로 만들 수 있습니다
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* [MASK-SRV-01] 가린 값은 서버가 준 문자열 그대로 안고 간다 — 화면이 다시 가리지 않는다. */}
+      <PatientSearch
+        mode="pick"
+        onPick={(_id, row) =>
+          pickPatient({
+            id: row.patient_id,
+            name: row.name,
+            birthText: row.masked_birth_date,
+            phoneText: row.masked_phone,
+            today: row.today_status
+              ? { status: row.today_status, time: row.today_appointment_time }
+              : undefined,
+          })
+        }
+      />
     </div>
   )
 }
@@ -161,7 +122,7 @@ function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
       {pickable && previewMin != null && (
         <div className={`mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${previewOverlap ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-primary/30 bg-primary/5 text-foreground'}`}>
           {previewOverlap ? <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" /> : <Clock3 className="h-4 w-4 shrink-0 text-primary" />}
-          <span className="tabular-nums font-medium">{minToHHMM(previewMin)}–{minToHHMM(previewMin + d.slotMinutes)}</span>
+          <span className="tabular-nums font-medium">{minToHHMM(previewMin)}–{minToHHMM(previewMin + slotMinutesOf(d))}</span>
           {previewOverlap
             ? <span className="text-xs">{previewOverlap.offKind ?? '다른 예약'}과 겹칩니다 — 그래도 잡을 수 있습니다</span>
             : <span className="text-xs text-muted-foreground">{hoverMin != null ? '누르면 이 시각으로 예약됩니다' : '고른 시각'}</span>}
@@ -215,7 +176,7 @@ function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
             {/* 호버·고른 자리 미리보기 (CAL-TIME-05·BOOK-04b) */}
             {pickable && previewMin != null && (
               <div className={`pointer-events-none absolute inset-x-1 rounded-md border-2 ${previewOverlap ? 'border-amber-500 bg-amber-400/15' : 'border-primary bg-primary/10'}`}
-                style={{ top: yOf(previewMin), height: d.slotMinutes * PPM - 1 }}>
+                style={{ top: yOf(previewMin), height: slotMinutesOf(d) * PPM - 1 }}>
                 <span className="absolute left-1 top-0.5 rounded bg-card/90 px-1 text-[10px] font-medium tabular-nums text-foreground">
                   {minToHHMM(previewMin)}
                 </span>
@@ -296,40 +257,28 @@ function PatientDetailSurface() {
       <div className="rounded-xl border border-border/70 bg-card p-5 shadow-[var(--shadow-panel)]">
         <div className="flex items-center gap-3">
           <span className="text-2xl font-bold">{p.name}</span>
-          {p.today && <StatusBadge status={p.today.status} />}
+          {p.today && <StatusBadge status={p.today.status ?? 'none'} />}
         </div>
+        {/* [MASK-SRV-01] 서버가 가려서 준 문자열 그대로 — 펼치려면 열람 기록이 남는 별도 창구다(갭 #35). */}
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
           <div>
             <dt className="text-xs text-muted-foreground">생년월일</dt>
-            <dd className="tabular-nums">{p.birth}</dd>
+            <dd className="tabular-nums">{p.birthText}</dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">전화번호</dt>
-            <dd className="tabular-nums">{p.tel}</dd>
+            <dd className="tabular-nums">{p.phoneText}</dd>
           </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">최근 방문</dt>
-            <dd className="tabular-nums">{p.lastVisit ?? '방문 없음'}</dd>
-          </div>
-          {p.today && (
+          {p.today?.time && (
             <div>
               <dt className="text-xs text-muted-foreground">오늘 예약</dt>
-              <dd>{p.today.time} · {p.today.dept} {p.today.doctor}</dd>
+              <dd className="tabular-nums">{p.today.time}</dd>
             </div>
           )}
         </dl>
       </div>
-      <div className="mt-3 rounded-xl border border-border/70 bg-card p-4 text-sm shadow-[var(--shadow-panel)]">
-        <div className="mb-2 text-xs font-medium text-muted-foreground">지난 방문 이력</div>
-        {p.lastVisit ? (
-          <ul className="space-y-1.5">
-            <li className="flex justify-between border-b border-border/40 pb-1.5"><span className="tabular-nums text-muted-foreground">{p.lastVisit}</span><span>내과 · 정기 진료</span></li>
-            <li className="flex justify-between"><span className="tabular-nums text-muted-foreground">지난 방문</span><span className="text-muted-foreground">데모에서는 최근 1건만 표시</span></li>
-          </ul>
-        ) : (
-          <p className="text-muted-foreground">처음 방문하는 환자입니다</p>
-        )}
-      </div>
+      {/* TODO(후속): 지난 방문 이력은 환자 상세 계약(`PTDET-*`, api/patients.ts)이 이미 있다 —
+          D3 범위 밖이라 아직 안 이었다. 데모의 가짜 이력 카드는 걷어냈다(없는 것을 있는 척하지 않는다). */}
     </div>
   )
 }

@@ -1,16 +1,19 @@
 // 세 문의 오른쪽 패널 — 데모 `routes/staff/doors/panels.tsx` 포팅.
 // 패널 = 무엇을 채우나 / 왼쪽 = 채우는 도구(`PANEL-WORK-01`). 접기 ≠ 닫기(`PANEL-LIVE-05`),
 // ✕는 묻지 않고 채운 것을 날린다(`PANEL-LIVE-06`).
-// ⚠️ 접수·예약 패널의 저장·조회는 아직 가짜다 — TODO(D3 접수·D4 예약 배선).
+// ⚠️ 예약 패널의 저장·조회는 아직 가짜다 — TODO(D4 예약 배선).
+// ✅ 접수 패널은 D3에서 실 서버로 배선됐다(예약 확인=CheckinForm · 당일 방문=/appointments/walkin).
 // ✅ 등록 패널은 D2에서 실 서버(`api/registration.ts`)로 배선됐다.
 import { useEffect, useState, type ReactNode } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, QrCode, UserPlus, X } from '@/components/icons'
 import { ApiError } from '../../api/httpClient'
+import { createWalkinAppointment } from '../../api/appointments'
+import { getTodaySummary } from '../../api/dashboard'
 import { checkDuplicate, registerPatient } from '../../api/registration'
 import { CheckinForm } from '../../pages/checkin/CheckinForm'
 import { useDoors } from './DoorContext'
-import { doctorWaitMap, doorDoctors, fmtDate, maskBirth, maskPhone, type FieldId } from './doorData'
+import { doctorWaitMap, doorDoctors, fmtDate, maskTypedBirth, maskTypedPhone, parseVisitTime, todayIsoLocal, visitInstant, type DoctorLite, type FieldId } from './doorData'
 
 // ── 공용 드로어 조각 ──────────────────────────────────────────────
 
@@ -101,10 +104,73 @@ function DoctorInlineList({ onPick }: { onPick: (id: string) => void }) {
   )
 }
 
+/** 접수 문의 의사 목록 — **실 대기 인원**으로 고른다(`QUEUE-WALK-08·08b·08e`).
+ *  ⭐ 진료과는 「묶음 머리」로만 나온다(`QUEUE-WALK-08e`) — 누르는 필터가 아니라 읽는 순서를
+ *  만드는 장치다. 의사가 5~8명이라 거를 것이 없는데 필터를 다는 것이 된다.
+ *  ⛔ 「다음 자리 15:20」은 아직 안 적는다 — 의사별 다음 빈 시각을 주는 조회가 없다
+ *     (갭 #87). 근거가 없으면 말하지 않는다(`QUEUE-WALK-08c`). */
+function WalkinDoctorList({ onPick }: { onPick: (d: DoctorLite) => void }) {
+  const q = useQuery({ queryKey: ['today', 'summary'], queryFn: getTodaySummary })
+
+  if (q.isPending) return <p className="mt-1.5 px-1 text-xs text-muted-foreground">의사 목록을 불러오는 중…</p>
+  if (q.isError) {
+    // [ERR-POS-01] 실패한 자리 바로 그 자리에서 — 막다른 길을 만들지 않는다(다시 시도를 준다).
+    return (
+      <div className="mt-1.5 rounded-lg border border-border/70 bg-muted/30 p-3 text-xs">
+        <p role="alert" className="border-l-4 border-rose-500 pl-2 text-rose-700">
+          의사 목록을 불러오지 못했습니다.
+        </p>
+        <button onClick={() => q.refetch()} className="mt-2 rounded-md border border-border bg-card px-2.5 py-1 font-medium hover:bg-muted">
+          다시 시도
+        </button>
+      </div>
+    )
+  }
+
+  const rows = q.data.doctor_waiting
+  if (rows.length === 0) {
+    return <p className="mt-1.5 px-1 text-xs text-muted-foreground">오늘 진료하는 의사가 없습니다.</p>
+  }
+
+  // 진료과별 묶음 — 서버가 준 순서를 그대로 두고 처음 나온 과 순서로만 묶는다.
+  const groups: { dept: string; rows: typeof rows }[] = []
+  for (const r of rows) {
+    const dept = r.department_name || '진료과 미지정'
+    const g = groups.find((x) => x.dept === dept)
+    if (g) g.rows.push(r)
+    else groups.push({ dept, rows: [r] })
+  }
+
+  return (
+    <div className="mt-1.5 max-h-64 space-y-2 overflow-y-auto rounded-lg border border-border/70 bg-muted/30 p-1.5">
+      {groups.map((g) => (
+        <div key={g.dept}>
+          <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">{g.dept}</div>
+          <div className="space-y-1">
+            {g.rows.map((r) => (
+              <button
+                key={r.doctor_id}
+                onClick={() => onPick({ id: r.doctor_id, name: r.doctor_name, department: g.dept, waiting: r.waiting_count })}
+                className="flex w-full items-center gap-2 rounded-md bg-card px-2.5 py-2 text-left text-sm hover:bg-primary/5"
+              >
+                <span className="font-medium">{r.doctor_name}</span>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {r.waiting_count > 0 ? `대기 ${r.waiting_count}명` : '대기 없음'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** 저장 직전 가운데 팝업으로 한 번 더 확인 (QUEUE-SAME-01 · PANEL-USE-02) */
 function ConfirmPopup({
   title,
   lines,
+  note,
   confirmLabel,
   busyLabel,
   busy = false,
@@ -114,6 +180,8 @@ function ConfirmPopup({
 }: {
   title: string
   lines: { k: string; v: string }[]
+  /** 확인 목록 아래 한 줄 안내 — 「무슨 일이 일어나나」(`QUEUE-WALK-09`). */
+  note?: string
   confirmLabel: string
   /** 처리 중 라벨 — 글자를 지우지 않고 바꾼다(`BTN-BUSY-01`). */
   busyLabel?: string
@@ -135,6 +203,7 @@ function ConfirmPopup({
             </div>
           ))}
         </dl>
+        {note && <p className="mt-3 text-xs text-muted-foreground">{note}</p>}
         {/* [ERR-POS-01] 실패한 버튼 바로 위 붙박이 — 주의색 글자 + 좌측 바, 배경 없음. */}
         {error && (
           <p role="alert" className="mt-4 border-l-4 border-rose-500 pl-3 text-sm text-rose-700">
@@ -174,7 +243,7 @@ function ReserveBody() {
     <div className="space-y-4">
       <FieldRow label="환자" field="patient" active={activeField === 'patient'} filled={!!draft.patient} onActivate={() => setField('patient')}>
         {draft.patient ? (
-          <PickedValue title={draft.patient.name} sub={`${maskBirth(draft.patient.birth)} · ${maskPhone(draft.patient.tel)}`} onChange={() => setField('patient')} />
+          <PickedValue title={draft.patient.name} sub={`${draft.patient.birthText} · ${draft.patient.phoneText}`} onChange={() => setField('patient')} />
         ) : (
           '환자를 찾아 고르세요'
         )}
@@ -272,7 +341,7 @@ function RegisterBody() {
       registerPatient({ name: form.name, gender: form.sex, birth_date: form.birth, phone: form.tel }),
     onSuccess: ({ patient_id }) => {
       setConfirm(false)
-      patch({ patient: { id: patient_id, name: form.name, birth: form.birth, tel: form.tel }, isNew: true })
+      patch({ patient: { id: patient_id, name: form.name, birthText: maskTypedBirth(form.birth), phoneText: maskTypedPhone(form.tel) }, isNew: true })
     },
   })
   const registerError = registerMut.error instanceof ApiError ? registerMut.error.message : null
@@ -287,7 +356,7 @@ function RegisterBody() {
             <span className="text-sm font-medium">{draft.isNew ? '새 환자로 등록했습니다' : '기존 환자를 찾았습니다'}</span>
           </div>
           <div className="mt-2 text-base font-semibold">{draft.patient.name}</div>
-          <div className="text-sm text-muted-foreground">{maskBirth(draft.patient.birth)} · {maskPhone(draft.patient.tel)}</div>
+          <div className="text-sm text-muted-foreground">{draft.patient.birthText} · {draft.patient.phoneText}</div>
         </div>
         <p className="text-sm text-muted-foreground">이 환자로 이어서 무엇을 할까요?</p>
         <div className="grid grid-cols-2 gap-3">
@@ -351,8 +420,10 @@ function RegisterBody() {
                 pickPatient({
                   id: dup.patient_id as string,
                   name: dup.name as string,
-                  birth: dup.masked_birth_date as string,
-                  tel: form.tel,
+                  // 생년월일은 서버가 가려서 준 값 그대로(MASK-SRV-01),
+                  // 전화는 직원이 방금 친 값이라 화면 표시만 같은 모양으로 맞춘다.
+                  birthText: dup.masked_birth_date as string,
+                  phoneText: maskTypedPhone(form.tel),
                 })
               }
               className="ml-1 font-semibold text-amber-900 underline"
@@ -397,8 +468,6 @@ function RegisterBody() {
 function CheckinBody() {
   const { draft, activeField, setField, patch, pickDoctor, finish, close } = useDoors()
   const mode = draft.checkinMode ?? 'reserved'
-  const [confirm, setConfirm] = useState(false)
-  const walkReady = draft.patient && draft.doctor
   return (
     <div className="space-y-4">
       {/* 두 갈래 — 예약이 있으면 QR·번호, 없으면 당일 방문 */}
@@ -420,55 +489,196 @@ function CheckinBody() {
       {mode === 'reserved' ? (
         <CheckinForm onClose={close} />
       ) : (
-        <div className="space-y-4">
-          <FieldRow label="환자" field="patient" active={activeField === 'patient'} filled={!!draft.patient} onActivate={() => setField('patient')}>
-            {draft.patient ? (
-              <PickedValue title={draft.patient.name} sub={`${maskBirth(draft.patient.birth)} · ${maskPhone(draft.patient.tel)}`} onChange={() => setField('patient')} />
-            ) : (
-              '환자를 찾아 고르세요'
-            )}
-          </FieldRow>
-
-          <div>
-            <FieldRow label="담당 의사 배정" field="doctor" active={activeField === 'doctor'} filled={!!draft.doctor} onActivate={() => setField('doctor')}>
-              {draft.doctor ? (
-                <PickedValue title={`${draft.doctor.name} 선생님`} sub={`${draft.doctor.department} · 대기 ${doctorWaitMap[draft.doctor.id] ?? 0}명`} onChange={() => setField('doctor')} />
-              ) : (
-                '덜 기다리는 의사로 배정하세요'
-              )}
-            </FieldRow>
-            {activeField === 'doctor' && <DoctorInlineList onPick={(id) => pickDoctor(doorDoctors.find((d) => d.id === id)!)} />}
-          </div>
-
-          <button
-            disabled={!walkReady}
-            onClick={() => setConfirm(true)}
-            className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
-          >
-            진료 대기로 접수
-          </button>
-          {!walkReady && <p className="-mt-1 text-center text-xs text-muted-foreground">환자와 담당 의사를 고르면 접수됩니다</p>}
-
-          {confirm && draft.patient && draft.doctor && (
-            <ConfirmPopup
-              title="이 환자를 접수할까요?"
-              lines={[
-                { k: '환자', v: draft.patient.name },
-                { k: '생년월일', v: draft.patient.birth },
-                { k: '의사', v: `${draft.doctor.name} · ${draft.doctor.department}` },
-              ]}
-              confirmLabel="접수"
-              onCancel={() => setConfirm(false)}
-              onConfirm={() => finish(`${draft.patient!.name} 님을 진료 대기로 접수했습니다`)}
-            />
-          )}
-        </div>
+        <WalkinBody
+          activeField={activeField}
+          setField={setField}
+          pickDoctor={pickDoctor}
+          finish={finish}
+          draft={draft}
+        />
       )}
     </div>
   )
 }
 
-// ── 문 = 패널 + 접힘 띠 + 완료 알림 ──────────────────────────────
+/** 예약 없이 오신 분 — **한 화면**이다(`QUEUE-WALK-02`): ①환자 ②담당 의사 ③오신 시각이
+ *  위에서 아래로 한 방향으로 있고 아래에 버튼 하나다(`QUEUE-WALK-19`).
+ *  ⛔ `1/4` `2/4` 마법사를 쓰지 않는다 — 접수 창구는 단계 하나가 그대로 시간이다. */
+function WalkinBody({
+  activeField,
+  setField,
+  pickDoctor,
+  finish,
+  draft,
+}: {
+  activeField: FieldId
+  setField: (f: FieldId) => void
+  pickDoctor: (d: DoctorLite) => void
+  finish: (text: string) => void
+  draft: { patient?: { id: string; name: string; birthText: string; phoneText: string }; doctor?: DoctorLite }
+}) {
+  const qc = useQueryClient()
+  const [confirm, setConfirm] = useState(false)
+  // [QUEUE-WALK-14] 기본이 「지금」이라 평소에는 손댈 것이 없다.
+  const [when, setWhen] = useState<'now' | 'today' | 'day'>('now')
+  const [timeText, setTimeText] = useState('')
+  const [dayIso, setDayIso] = useState(todayIsoLocal())
+
+  const parsed = when === 'now' ? null : parseVisitTime(timeText)
+  const parsedText = parsed ? `${String(parsed.hh).padStart(2, '0')}:${String(parsed.mm).padStart(2, '0')}` : ''
+  const instant = parsed ? visitInstant(when === 'today' ? todayIsoLocal() : dayIso, parsed.hh, parsed.mm) : null
+  // [QUEUE-WALK-14e] 지금보다 뒤는 **그 자리에서 바로** 알린다 — 저장할 때까지 미루지 않고,
+  // 입력을 지우지도 않는다(직원이 고칠 수 있어야 한다).
+  const isFuture = instant !== null && instant.getTime() > Date.now()
+  const timeOk = when === 'now' || (instant !== null && !isFuture)
+  const timeTyped = when !== 'now' && timeText.trim().length > 0
+  const ready = !!draft.patient && !!draft.doctor && timeOk
+
+  const walkinMut = useMutation({
+    mutationFn: () =>
+      createWalkinAppointment({
+        patient_id: draft.patient!.id,
+        doctor_id: draft.doctor!.id,
+        // 사유 칸은 두지 않는다 — 한 화면은 ①환자 ②의사 ③시각뿐이다(`QUEUE-WALK-19`).
+        reason: '당일 방문',
+        // [QUEUE-WALK-14] 「지금」은 보내지 않는다 — 서버가 찍는다(화면 시계를 믿지 않는다).
+        visit_time: when === 'now' ? null : instant!.toISOString(),
+      }),
+    onSuccess: () => {
+      // 대기 인원·오늘 목록이 방금 바뀌었다 — 다시 읽는다.
+      qc.invalidateQueries({ queryKey: ['today'] })
+      qc.invalidateQueries({ queryKey: ['queue'] })
+      finish(`${draft.patient!.name} 님을 진료 대기로 접수했습니다`)
+    },
+  })
+  const saveError = walkinMut.error instanceof ApiError ? walkinMut.error.message : walkinMut.error ? '접수하지 못했습니다. 잠시 뒤 다시 시도해 주세요.' : null
+
+  // [QUEUE-WALK-19] 환자를 고르기 전에는 아래 두 줄이 **흐리게** 있다 — 감춰서 놀라게 하지 않고,
+  // 무엇이 남았는지 보이게 한다.
+  const dim = draft.patient ? '' : 'opacity-50'
+
+  return (
+    <div className="space-y-4">
+      <FieldRow label="환자" field="patient" active={activeField === 'patient'} filled={!!draft.patient} onActivate={() => setField('patient')}>
+        {draft.patient ? (
+          <PickedValue title={draft.patient.name} sub={`${draft.patient.birthText} · ${draft.patient.phoneText}`} onChange={() => setField('patient')} />
+        ) : (
+          '환자를 찾아 고르세요'
+        )}
+      </FieldRow>
+
+      <div className={dim}>
+        <FieldRow label="담당 의사 배정" field="doctor" active={activeField === 'doctor'} filled={!!draft.doctor} onActivate={() => setField('doctor')}>
+          {draft.doctor ? (
+            <PickedValue
+              title={`${draft.doctor.name} 선생님`}
+              sub={`${draft.doctor.department} · ${(draft.doctor.waiting ?? 0) > 0 ? `대기 ${draft.doctor.waiting}명` : '대기 없음'}`}
+              onChange={() => setField('doctor')}
+            />
+          ) : (
+            '덜 기다리는 의사로 배정하세요'
+          )}
+        </FieldRow>
+        {activeField === 'doctor' && <WalkinDoctorList onPick={pickDoctor} />}
+      </div>
+
+      {/* [QUEUE-WALK-14·15] 세 번째 줄 — 이것이 없으면 지나간 시각에 온 환자의 시각이
+          진료 기록에도 통계에도 남지 않는다. */}
+      <div className={dim}>
+        <div className="mb-1 text-xs font-medium text-muted-foreground">오신 시각</div>
+        <div className="space-y-1.5 rounded-lg border border-border bg-card p-2.5 text-sm">
+          {([
+            ['now', '지금'],
+            ['today', '지난 시각 — 오늘'],
+            ['day', '지난 날'],
+          ] as const).map(([k, label]) => (
+            <label key={k} className="flex cursor-pointer items-center gap-2">
+              <input
+                type="radio"
+                name="walkin-when"
+                checked={when === k}
+                onChange={() => setWhen(k)}
+                className="h-4 w-4 accent-[var(--primary)]"
+              />
+              <span>{label}</span>
+              {k === 'day' && when === 'day' && (
+                <input
+                  type="date"
+                  aria-label="방문한 날짜"
+                  value={dayIso}
+                  max={todayIsoLocal()}
+                  onChange={(e) => setDayIso(e.target.value)}
+                  className="ml-1 h-8 rounded-md border border-input bg-card px-2 text-xs tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+                />
+              )}
+              {k === when && k !== 'now' && (
+                <input
+                  aria-label="방문한 시각"
+                  value={timeText}
+                  onChange={(e) => setTimeText(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="1015"
+                  className="ml-auto h-8 w-20 rounded-md border border-input bg-card px-2 text-sm tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
+                />
+              )}
+            </label>
+          ))}
+          {/* [QUEUE-WALK-14b] 콜론을 안 쳐도 되고, 친 값이 무엇으로 읽혔는지 그 자리에서 보여준다. */}
+          {when !== 'now' && parsed && !isFuture && (
+            <p className="pl-6 text-xs tabular-nums text-muted-foreground">{`${parsedText}에 오신 것으로 적습니다`}</p>
+          )}
+          {when !== 'now' && isFuture && (
+            <p role="alert" className="border-l-4 border-rose-500 pl-2 text-xs text-rose-700">
+              아직 오지 않은 시각입니다
+            </p>
+          )}
+          {when !== 'now' && timeTyped && !parsed && (
+            <p role="alert" className="border-l-4 border-rose-500 pl-2 text-xs text-rose-700">
+              시각은 <b>1015</b>처럼 3~4자리 숫자로 적어 주세요
+            </p>
+          )}
+        </div>
+      </div>
+
+      <button
+        disabled={!ready}
+        onClick={() => setConfirm(true)}
+        className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+      >
+        진료 대기로 접수
+      </button>
+      {!ready && (
+        <p className="-mt-1 text-center text-xs text-muted-foreground">
+          {draft.patient && draft.doctor ? '오신 시각을 확인해 주세요' : '환자와 담당 의사를 고르면 접수됩니다'}
+        </p>
+      )}
+
+      {/* [QUEUE-WALK-09] 저장 직전 확인 — 이름 + 생년월일을 마지막으로 보여준다(요구사항 3.5). */}
+      {confirm && draft.patient && draft.doctor && (
+        <ConfirmPopup
+          title="이 환자를 접수할까요?"
+          lines={[
+            { k: '환자', v: draft.patient.name },
+            { k: '생년월일', v: draft.patient.birthText },
+            { k: '의사', v: `${draft.doctor.name} · ${draft.doctor.department}` },
+            {
+              k: '오신 시각',
+              v: when === 'now' || !parsed ? '지금' : `${when === 'day' ? `${dayIso} ` : ''}${parsedText}`,
+            },
+          ]}
+          // [QUEUE-WALK-11] 맨 뒤에 붙는다 — 먼저 봐야 하면 넣은 뒤 순서를 끌어 옮겨 사유를 남긴다.
+          note="추가하면 「진료 대기」 맨 뒤에 들어갑니다."
+          confirmLabel="접수"
+          busyLabel="접수하는 중…"
+          busy={walkinMut.isPending}
+          error={saveError}
+          onCancel={() => setConfirm(false)}
+          onConfirm={() => walkinMut.mutate()}
+        />
+      )}
+    </div>
+  )
+}
 
 const DOOR_META: Record<string, { title: string; icon: ReactNode }> = {
   appointment: { title: '새 예약', icon: <CalendarPlus className="h-5 w-5 text-primary" /> },

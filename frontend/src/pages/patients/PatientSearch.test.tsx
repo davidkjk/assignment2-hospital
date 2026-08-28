@@ -516,7 +516,8 @@ describe('공유 부품 mode', () => {
     expect(within(row).queryByRole('button', { name: '도착' })).toBeNull() // 동작 버튼 없음
     expect(screen.queryByRole('button', { name: '선택' })).toBeNull() // 여러 명 [선택]도 없음
     await user.click(within(row).getByRole('button', { name: /고를사람/ }))
-    expect(onPick).toHaveBeenCalledWith('p9')
+    // ⭐ 줄 전체를 함께 준다 — 고른 쪽이 이름·가린 값을 다시 조회하지 않게(D3 워크인 패널).
+    expect(onPick).toHaveBeenCalledWith('p9', expect.objectContaining({ patient_id: 'p9', name: '고를사람' }))
   })
 
   test('[SEARCH-ONE-01] pick 모드에서 1명만 나와도 자동으로 골라두지 않는다', async () => {
