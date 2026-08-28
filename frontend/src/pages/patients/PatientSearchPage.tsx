@@ -8,9 +8,10 @@ import { PatientSearch } from './PatientSearch'
 export function PatientSearchPage() {
   return (
     <section style={styles.page}>
+      {/* [F-7] 제목 아래 회색 설명 한 줄은 제거(사용자 지시 2026-08-22) — 셸 헤더가 화면명을 진다.
+          검색이 무엇으로 되는지는 입력창 placeholder가 이미 말한다. */}
       <header style={styles.head}>
         <h1 style={styles.title}>환자 검색</h1>
-        <p style={styles.sub}>이름 조각·전화·생년월일 중 아는 것을 넣으면, 찾은 줄에서 바로 접수·예약·방문 등록으로 이어집니다.</p>
       </header>
       <PatientSearch mode="page" />
     </section>
@@ -21,5 +22,4 @@ const styles: Record<string, CSSProperties> = {
   page: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 880 },
   head: { display: 'flex', flexDirection: 'column', gap: 2 },
   title: { margin: 0, fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--color-ink)' },
-  sub: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
 }

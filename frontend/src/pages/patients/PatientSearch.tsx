@@ -1,4 +1,5 @@
 import { useCallback, type CSSProperties, type UIEvent } from 'react'
+import iconSpriteUrl from '../../shell/icons.svg?url'
 import { SelectableList } from '../../components/SelectableList'
 import { useSearchPatients } from './useSearchPatients'
 import { SearchResultRow, SearchRowActions } from './SearchResultRow'
@@ -39,17 +40,23 @@ export function PatientSearch({ mode = 'page', onPick }: PatientSearchProps) {
 
   return (
     <section data-testid="patient-search" data-component="PatientSearch" style={styles.root}>
-      <input
-        type="text"
-        aria-label="환자 검색"
-        value={s.query}
-        placeholder="이름 · 전화번호 · 생년월일 중 아는 것을 넣어 주세요"
-        onChange={(e) => s.onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') s.onEnter()
-        }}
-        style={styles.box}
-      />
+      {/* [데모 뼈대] 검색창 앞에 돋보기 아이콘 — 이 상자가 검색임을 한눈에. */}
+      <div style={styles.boxWrap}>
+        <svg style={styles.boxIcon} width="18" height="18" aria-hidden="true">
+          <use href={`${iconSpriteUrl}#search`} />
+        </svg>
+        <input
+          type="text"
+          aria-label="환자 검색"
+          value={s.query}
+          placeholder="이름 · 전화번호 · 생년월일 중 아는 것을 넣어 주세요"
+          onChange={(e) => s.onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') s.onEnter()
+          }}
+          style={styles.box}
+        />
+      </div>
 
       {showCount && (
         <div data-testid="search-count" style={styles.count}>
@@ -128,10 +135,14 @@ function PickList({ rows, onPick }: { rows: SearchPatientRow[]; onPick?: (id: st
 
 const styles: Record<string, CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', gap: 6 },
+  boxWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
+  boxIcon: {
+    position: 'absolute', left: 14, color: 'var(--color-ink-muted)', pointerEvents: 'none',
+  },
   box: {
     width: '100%',
     height: 40,
-    padding: '0 14px',
+    padding: '0 14px 0 40px',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
