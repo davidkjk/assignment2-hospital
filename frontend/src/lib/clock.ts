@@ -85,6 +85,21 @@ export function hospitalInstant(dateIso: string, hh: number, mm: number): Date {
   return new Date(Date.UTC(y, m - 1, d, hh, mm) - HOSPITAL_UTC_OFFSET_MIN * 60_000)
 }
 
+/** 서버가 준 시각 문자열을 **병원 시각**으로 읽는다.
+ *  ⚠️ 서버는 곳에 따라 두 꼴로 준다:
+ *    · `2026-08-29T09:00:00` — 오프셋 **없음**. `datetime.combine(slot_date, start_time)`이
+ *      만든 **병원 벽시계 시각**이다(`dashboard_service._calendar_bar`). 이걸 `new Date()`로
+ *      읽으면 **그 PC 시간대로 해석**되어, 미 서부에서는 예약 막대가 통째로 사라진다
+ *      (2026-08-28 Task 8 검증에서 실제로 그랬다).
+ *    · `2026-08-29T00:00:00+00:00` — asyncpg가 timestamptz를 UTC로 돌려준 것. 이미 절대 순간이다.
+ *  ⭐ 오프셋이 붙어 있으면 그대로 쓰고, 없으면 병원 시각으로 읽는다. */
+export function parseHospitalIso(value: string): Date {
+  if (/[Zz]$|[+-]\d{2}:?\d{2}$/.test(value)) return new Date(value)
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
+  if (!m) return new Date(value)
+  return hospitalInstant(`${m[1]}-${m[2]}-${m[3]}`, Number(m[4]), Number(m[5]))
+}
+
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
 /** 'YYYY-MM-DD' → '2026년 8월 29일 (토)'. opts를 주면 Intl로 넘긴다(시간대는 늘 병원). */

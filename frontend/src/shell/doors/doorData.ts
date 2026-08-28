@@ -11,7 +11,7 @@
 //        자기 계산을 가지면 같은 날이 캘린더에서는 진료중, 예약에서는 휴무가 된다.
 
 import type { CalendarData } from '../../api/calendar'
-import { hospitalInstant, hospitalMinutesOfDay, hospitalToday, hospitalWeekday } from '../../lib/clock'
+import { hospitalInstant, hospitalMinutesOfDay, hospitalToday, hospitalWeekday, parseHospitalIso } from '../../lib/clock'
 import { isoToMinutes, PALETTE_SIZE, statusLabel } from '../../pages/calendar/gridModel'
 import type { SearchTodayStatus } from '../../api/patients'
 import type { StartDoor } from '../navItems'

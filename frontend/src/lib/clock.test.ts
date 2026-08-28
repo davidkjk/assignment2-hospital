@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   addDaysIso, formatHospitalDate, hospitalHHMM, hospitalMinutesOfDay,
-  hospitalInstant, hospitalParts, hospitalToday, hospitalWeekday, isHospitalToday,
+  hospitalInstant, hospitalParts, parseHospitalIso, hospitalToday, hospitalWeekday, isHospitalToday,
 } from './clock'
 
 // ⭐ 이 파일의 핵심 계약: **이 코드가 도는 기계의 시간대가 무엇이든 답이 같다.**
@@ -84,5 +84,20 @@ describe('hospitalInstant — 직원이 친 시각을 실제 순간으로', () =
 
   test('자정 넘김도 어긋나지 않는다', () => {
     expect(hospitalInstant('2026-08-29', 0, 30).toISOString()).toBe('2026-08-28T15:30:00.000Z')
+  })
+})
+
+describe('parseHospitalIso — 서버가 주는 두 꼴을 모두 병원 시각으로 읽는다', () => {
+  test('오프셋 없는 시각은 **병원 벽시계**다 — 그 PC 시간대로 읽지 않는다', () => {
+    expect(parseHospitalIso('2026-08-29T09:00:00').toISOString()).toBe('2026-08-29T00:00:00.000Z')
+  })
+
+  test('오프셋이 붙어 있으면 이미 절대 순간이라 그대로 쓴다', () => {
+    expect(parseHospitalIso('2026-08-29T00:00:00+00:00').toISOString()).toBe('2026-08-29T00:00:00.000Z')
+    expect(parseHospitalIso('2026-08-29T00:00:00Z').toISOString()).toBe('2026-08-29T00:00:00.000Z')
+  })
+
+  test('읽은 뒤 병원 조각으로 되돌리면 서버가 적어 보낸 그대로다', () => {
+    expect(hospitalParts(parseHospitalIso('2026-08-29T14:30:00'))).toMatchObject({ d: '29', hh: '14', mm: '30' })
   })
 })

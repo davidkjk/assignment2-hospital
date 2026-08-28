@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, QrCode, Users } from '@/components/icons'
-import { hospitalParts, hospitalToday } from '../../lib/clock'
+import { hospitalParts, hospitalToday, parseHospitalIso } from '../../lib/clock'
 import { ApiError } from '../../api/httpClient'
 import { findByCode, transitionStatus, type BookingLookupResult } from '../../api/appointments'
 import { useConnectivity } from '../../lib/connectivity'
@@ -38,7 +38,7 @@ function badgeClass(status: string): string {
 // ✅ 이 화면이 혼자 갖고 있던 `kstParts`는 `lib/clock.ts`로 올라갔다 — 같은 병을 앓던
 //    화면이 열둘이었다. 시간대 상수는 이제 그 파일 하나에만 산다.
 function whenLabel(slotAt: string): string {
-  const at = new Date(slotAt)
+  const at = parseHospitalIso(slotAt)
   if (Number.isNaN(at.getTime())) return slotAt
   const s = hospitalParts(at)
   const day = `${s.y}-${s.mo}-${s.d}` === hospitalToday() ? '오늘' : `${Number(s.mo)}월 ${Number(s.d)}일`
