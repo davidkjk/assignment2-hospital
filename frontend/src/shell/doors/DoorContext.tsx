@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { hospitalToday } from '../../lib/clock'
 import { usePanel } from '../../components/PanelHost'
-import { todayIsoLocal, type DoctorLite, type DoorId, type FieldId, type PatientLite } from './doorData'
+import { type DoctorLite, type DoorId, type FieldId, type PatientLite } from './doorData'
 
 // 세 문의 상태 한 곳. 헤더 버튼이 문을 열고(`SHELL-ACT-04`), 패널의 칸이 왼쪽을 정한다(`PANEL-WORK-01`).
 // 패널은 언제나 하나(`PANEL-ONE-01`) · ✕ 닫기는 묻지 않고 다 날린다(`PANEL-LIVE-06`).
@@ -78,7 +79,7 @@ export function DoorProvider({ children }: { children: ReactNode }) {
           door === 'checkin'
             ? { checkinMode: 'reserved' }
             : door === 'appointment'
-              ? { date: todayIsoLocal() }
+              ? { date: hospitalToday() }
               : {},
         )
         // 예약은 반드시 환자를 골라야 하므로 열자마자 환자 검색(`SHELL-ACT-04`).
@@ -113,7 +114,7 @@ export function DoorProvider({ children }: { children: ReactNode }) {
         setOpenDoor(door)
         setCollapsed(false)
         if (door === 'appointment') {
-          setDraft({ patient: p, date: todayIsoLocal() })
+          setDraft({ patient: p, date: hospitalToday() })
           setActiveField('doctor') // 환자는 있으니 다음은 의사
         } else if (door === 'checkin') {
           setDraft({ patient: p, checkinMode: 'walkin' })

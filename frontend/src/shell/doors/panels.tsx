@@ -7,6 +7,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, QrCode, UserPlus, X } from '@/components/icons'
+import { hospitalToday } from '../../lib/clock'
 import { ApiError } from '../../api/httpClient'
 import { createWalkinAppointment } from '../../api/appointments'
 import { createPhoneAppointment, getCalendar } from '../../api/calendar'
@@ -27,7 +28,6 @@ import {
   minToHHMM,
   parseVisitTime,
   slotMinutesOf,
-  todayIsoLocal,
   visitInstant,
   type DoctorLite,
   type FieldId,
@@ -103,7 +103,7 @@ function PickedValue({ title, sub, onChange }: { title: string; sub: string; onC
  *  ⛔ 대기 인원은 **오늘을 고른 경우에만** 적는다 — 「지금 몇 명이 기다리나」는 다음 주 예약에
  *     대해 말해 주는 것이 없다. 근거가 없으면 말하지 않는다(`QUEUE-WALK-08c`). */
 function DoctorInlineList({ dateIso, onPick }: { dateIso: string; onPick: (d: DoctorLite) => void }) {
-  const isToday = dateIso === todayIsoLocal()
+  const isToday = dateIso === hospitalToday()
   const roster = useQuery({
     queryKey: ['calendar', 'roster', dateIso],
     queryFn: () => getCalendar({ from: dateIso, to: dateIso }),
@@ -320,7 +320,7 @@ function ReserveBody() {
   const [blockedMsg, setBlockedMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const dateIso = draft.date ?? todayIsoLocal()
+  const dateIso = draft.date ?? hospitalToday()
   const doctorId = draft.doctor?.id
 
   // 저장 직전 판정에 쓰는 그 의사·그 날 — 왼쪽 캘린더와 **같은 조회**라 캐시를 나눠 쓴다.
@@ -702,11 +702,11 @@ function WalkinBody({
   // [QUEUE-WALK-14] 기본이 「지금」이라 평소에는 손댈 것이 없다.
   const [when, setWhen] = useState<'now' | 'today' | 'day'>('now')
   const [timeText, setTimeText] = useState('')
-  const [dayIso, setDayIso] = useState(todayIsoLocal())
+  const [dayIso, setDayIso] = useState(hospitalToday())
 
   const parsed = when === 'now' ? null : parseVisitTime(timeText)
   const parsedText = parsed ? `${String(parsed.hh).padStart(2, '0')}:${String(parsed.mm).padStart(2, '0')}` : ''
-  const instant = parsed ? visitInstant(when === 'today' ? todayIsoLocal() : dayIso, parsed.hh, parsed.mm) : null
+  const instant = parsed ? visitInstant(when === 'today' ? hospitalToday() : dayIso, parsed.hh, parsed.mm) : null
   // [QUEUE-WALK-14e] 지금보다 뒤는 **그 자리에서 바로** 알린다 — 저장할 때까지 미루지 않고,
   // 입력을 지우지도 않는다(직원이 고칠 수 있어야 한다).
   const isFuture = instant !== null && instant.getTime() > Date.now()
@@ -786,7 +786,7 @@ function WalkinBody({
                   type="date"
                   aria-label="방문한 날짜"
                   value={dayIso}
-                  max={todayIsoLocal()}
+                  max={hospitalToday()}
                   onChange={(e) => setDayIso(e.target.value)}
                   className="ml-1 h-8 rounded-md border border-input bg-card px-2 text-xs tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
                 />

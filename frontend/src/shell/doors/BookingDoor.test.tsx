@@ -8,7 +8,8 @@ import { AppShell } from '../AppShell'
 import { ConnectivityProvider } from '../../lib/connectivity'
 import { queryClient } from '../../lib/queryClient'
 import { server } from '../../test/msw/server'
-import { fmtDate, localDate, todayIsoLocal } from './doorData'
+import { addDaysIso, hospitalMinutesOfDay, hospitalToday } from '../../lib/clock'
+import { fmtDate } from './doorData'
 
 // 예약 문(`SHELL-DOOR-02`) 배선 — 미래 방문(전화예약)을 실 서버에 잡는다.
 //   로스터·하루 일정 = `GET /calendar` · 저장 = `POST /appointments/phone`.
@@ -23,16 +24,9 @@ vi.mock('../../auth/useIdleLogout', () => ({ useIdleLogout: () => ({ isWarning: 
 
 const DOC = { id: 'doc-1', name: '이정훈', department_name: '내과', palette_index: null, slot_minutes: 20 }
 
-/** 'YYYY-MM-DD'에서 며칠 뒤. (공용 `addDaysIso`는 병원 시계 계획에서 생긴다 — 그때 이 헬퍼를 지운다.) */
-function addDays(iso: string, days: number): string {
-  const t = localDate(iso)
-  t.setDate(t.getDate() + days)
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
-}
-
 /** 내일 — 「지난 시각」이 없는 날이라 09:00 판정이 시계에 흔들리지 않는다(`CAL-PAST-01`). */
 function tomorrowIso(): string {
-  return addDays(todayIsoLocal(), 1)
+  return addDaysIso(hospitalToday(), 1)
 }
 
 interface CalendarStub {
@@ -51,7 +45,7 @@ function serveCalendar(stub: CalendarStub = {}) {
         blocks: stub.blocks ?? [],
         affected_appointment_ids: [],
         // [CAL-BOOK-13] 예약 가능한 마지막 날 — 화면이 「8주」를 박지 않게 서버가 준다.
-        booking_horizon_date: stub.horizon ?? addDays(todayIsoLocal(), 56),
+        booking_horizon_date: stub.horizon ?? addDaysIso(hospitalToday(), 56),
       }),
     ),
   )
@@ -122,9 +116,9 @@ async function pickDoctor(user: User) {
 /** 날짜를 내일로 옮긴다 — 달이 넘어가면 달 이동을 한 번 거친다(`CAL-NAV-01`). */
 async function pickTomorrow(user: User) {
   const iso = tomorrowIso()
-  await user.click(within(panel()).getByRole('button', { name: fmtDate(todayIsoLocal()) }))
+  await user.click(within(panel()).getByRole('button', { name: fmtDate(hospitalToday()) }))
   const [, m, d] = iso.split('-').map(Number)
-  if (m !== localDate(todayIsoLocal()).getMonth() + 1) {
+  if (m !== Number(hospitalToday().split('-')[1])) {
     await user.click(screen.getByRole('button', { name: '다음 달' }))
   }
   await user.click(screen.getByRole('button', { name: String(d) }))
@@ -297,8 +291,9 @@ test('[CAL-PAST-01][CAL-PAST-02] 지난 시각은 「지난 시간」이라 글�
   await user.click(within(panel()).getByRole('button', { name: '시각을 고르세요' }))
   clickLane()
 
-  const now = new Date()
-  if (now.getHours() * 60 + now.getMinutes() > 9 * 60) {
+  // ⭐ 화면이 병원 시계를 보므로(TIME-TZ-01) 판정도 병원 시각으로 한다 — 기계 시각으로 재면
+  //    미 서부 오전 10시(=KST 새벽 2시)에 「09:00은 지난 시각」이라 잘못 기대하게 된다.
+  if (hospitalMinutesOfDay() > 9 * 60) {
     expect(await screen.findByText('이미 지난 시간입니다.')).toBeVisible()
     expect(screen.getByRole('button', { name: '당일 방문 등록' })).toBeVisible()
     expect(screen.getByText('지난 시간')).toBeVisible()
@@ -325,12 +320,13 @@ test('[CAL-RACE-03][CAL-RACE-04] 방금 다른 직원이 잡았으면 시각 칸
 
 test('[CAL-BOOK-13] 예약 가능한 마지막 날 뒤로는 달을 넘길 수 없고, 언제까지인지 적는다', async () => {
   const user = userEvent.setup()
-  // 경계를 이번 달 안에 둔다 — 그러면 [다음 달]이 곧바로 막힌다.
-  const horizon = addDays(todayIsoLocal(), 3)
+  // 경계를 **오늘**로 둔다 — 그러면 [다음 달]이 곧바로 막히고, 월말이라 +3일이 다음 달로
+  // 넘어가는 경우에 흔들리지 않는다.
+  const horizon = hospitalToday()
   serveCalendar({ horizon })
   renderShell()
   await pickPatient(user)
-  await user.click(within(panel()).getByRole('button', { name: fmtDate(todayIsoLocal()) }))
+  await user.click(within(panel()).getByRole('button', { name: fmtDate(hospitalToday()) }))
 
   expect(await screen.findByRole('button', { name: '다음 달' })).toBeDisabled()
   // 막을 때는 이유를 함께 준다 — 「8주」가 아니라 **그 날짜**로 적는다(직원이 계산하지 않게).
@@ -339,16 +335,16 @@ test('[CAL-BOOK-13] 예약 가능한 마지막 날 뒤로는 달을 넘길 수 �
 
 test('[CAL-BOOK-13] 경계 너머 날짜는 고를 수 없다', async () => {
   const user = userEvent.setup()
-  const horizon = addDays(todayIsoLocal(), 3)
+  const horizon = hospitalToday()
   serveCalendar({ horizon })
   renderShell()
   await pickPatient(user)
-  await user.click(within(panel()).getByRole('button', { name: fmtDate(todayIsoLocal()) }))
+  await user.click(within(panel()).getByRole('button', { name: fmtDate(hospitalToday()) }))
 
-  const beyond = addDays(horizon, 1)
+  const beyond = addDaysIso(horizon, 1)
   const [, , d] = beyond.split('-').map(Number)
   // 같은 달 안에 있을 때만 볼 수 있다(달을 넘어가면 그 달 자체를 못 연다).
-  if (beyond.slice(0, 7) === todayIsoLocal().slice(0, 7)) {
+  if (beyond.slice(0, 7) === hospitalToday().slice(0, 7)) {
     expect(await screen.findByRole('button', { name: String(d) })).toBeDisabled()
   }
 })

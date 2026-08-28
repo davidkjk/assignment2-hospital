@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { CalendarData } from '../../api/calendar'
-import { blocksFor, closedAt, apptOverlapAt, pastMinOn, doctorFill, doctorInk } from './doorData'
+import { blocksFor, closedAt, apptOverlapAt, fmtDate, pastMinOn, doctorFill, doctorInk } from './doorData'
 
 // 예약 문(D4)의 순수 계산 — 화면이 좌표를 다루는 부분은 브라우저에서만 판정되므로(jsdom은
 // getBoundingClientRect가 0이다) 「어느 시각이 어떤 자리인가」의 판정만 여기서 못박는다.
@@ -116,20 +116,35 @@ describe('apptOverlapAt — 예약끼리의 겹침은 경고 뒤 진행할 수 �
   })
 })
 
-describe('pastMinOn — 지난 시각의 경계', () => {
+describe('pastMinOn — 지난 시각의 경계는 **병원 시계**로 잰다', () => {
+  // ⭐ 기계 시계로 재면 창구 PC 시계가 틀어졌을 때 「지난 시간」이 통째로 어긋난다.
+  //    아래 순간은 KST 2026-08-17 10:30(= UTC 2026-08-17 01:30)이다.
+  const KST_1030 = new Date('2026-08-17T01:30:00Z')
+
   test('[CAL-PAST-01] 오늘이면 지금까지가 지난 시각이다', () => {
-    const now = new Date(2026, 7, 17, 10, 30)
-    expect(pastMinOn(DATE, now)).toBe(630)
+    expect(pastMinOn(DATE, KST_1030)).toBe(630)
   })
 
   test('[CAL-PAST-01] 다가올 날에는 지난 시각이 없다', () => {
-    const now = new Date(2026, 7, 17, 10, 30)
-    expect(pastMinOn('2026-08-18', now)).toBe(0)
+    expect(pastMinOn('2026-08-18', KST_1030)).toBe(0)
   })
 
   test('[CAL-PAST-01] 지나간 날은 하루 전체가 지난 시각이다', () => {
-    const now = new Date(2026, 7, 17, 10, 30)
-    expect(pastMinOn('2026-08-16', now)).toBe(24 * 60)
+    expect(pastMinOn('2026-08-16', KST_1030)).toBe(24 * 60)
+  })
+
+  test('[CAL-PAST-01] 한국이 자정을 넘긴 순간엔 기계의 「오늘」이 병원에겐 어제다', () => {
+    // KST 8/29 01:20 — 기계(미 서부)는 아직 8/28이다.
+    const past = new Date('2026-08-28T16:20:00Z')
+    expect(pastMinOn('2026-08-29', past)).toBe(80)       // 병원의 오늘
+    expect(pastMinOn('2026-08-28', past)).toBe(24 * 60)  // 병원에겐 지나간 날
+  })
+})
+
+describe('fmtDate — 요일은 UTC 자정 파싱에 밀리지 않는다', () => {
+  test('토요일을 금요일로 적지 않는다', () => {
+    expect(fmtDate('2026-08-29')).toBe('8월 29일 (토)')
+    expect(fmtDate('2026-08-31')).toBe('8월 31일 (월)')
   })
 })
 

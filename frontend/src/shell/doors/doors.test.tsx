@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
+import { hospitalToday } from '../../lib/clock'
 import { server } from '../../test/msw/server'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -9,7 +10,7 @@ import { AppShell } from '../AppShell'
 import { ConnectivityProvider } from '../../lib/connectivity'
 import { queryClient } from '../../lib/queryClient'
 import { usePanel } from '../../components/PanelHost'
-import { fmtDate, todayIsoLocal } from './doorData'
+import { fmtDate } from './doorData'
 
 // 세 문(등록·접수·예약)은 화면 어디에도 속하지 않는 가로 장치다 — 셸 안에서만 확인할 수 있다.
 // 여기서 보는 계약: 패널은 하나 · ✕는 묻지 않음 · 접기≠닫기 · ⭐**패널의 칸이 왼쪽을 정한다**.
@@ -169,7 +170,7 @@ test('[PANEL-WORK-01][PANEL-WORK-03] 날짜 칸을 누르면 왼쪽이 달력이
   renderShell()
   await user.click(screen.getByRole('button', { name: '예약' }))
   // [CAL-BOOK-03] 날짜 칸은 열자마자 **오늘**로 채워져 있다 — 비어 있지 않다.
-  await user.click(screen.getByRole('button', { name: fmtDate(todayIsoLocal()) }))
+  await user.click(screen.getByRole('button', { name: fmtDate(hospitalToday()) }))
 
   expect(screen.getByText('날짜를 고르는 중')).toBeVisible()
 })

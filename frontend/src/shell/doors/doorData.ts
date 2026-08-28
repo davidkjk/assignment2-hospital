@@ -11,6 +11,7 @@
 //        자기 계산을 가지면 같은 날이 캘린더에서는 진료중, 예약에서는 휴무가 된다.
 
 import type { CalendarData } from '../../api/calendar'
+import { hospitalMinutesOfDay, hospitalToday, hospitalWeekday } from '../../lib/clock'
 import { isoToMinutes, PALETTE_SIZE, statusLabel } from '../../pages/calendar/gridModel'
 import type { SearchTodayStatus } from '../../api/patients'
 import type { StartDoor } from '../navItems'
@@ -89,19 +90,6 @@ export function parseVisitTime(raw: string): { hh: number; mm: number } | null {
 export function visitInstant(dateIso: string, hh: number, mm: number): Date {
   const [y, m, d] = dateIso.split('-').map(Number)
   return new Date(y, m - 1, d, hh, mm, 0, 0)
-}
-
-/** 오늘(브라우저 시간대). ⚠️ `new Date('YYYY-MM-DD')`를 쓰면 안 된다 — 그건 **UTC 자정**이라
- *  시간대에 따라 하루가 밀린다(이 맥은 KST가 아니다). 날짜 문자열은 늘 조각내어 읽는다. */
-export function todayIsoLocal(): string {
-  const n = new Date()
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
-}
-
-/** 'YYYY-MM-DD' → 그 날의 로컬 Date(자정). 위와 같은 이유로 문자열 파싱을 쓰지 않는다. */
-export function localDate(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d)
 }
 
 // ── 의사 하루 일정(일간 캘린더 도구) ──
@@ -206,23 +194,26 @@ export function apptOverlapAt(blocks: DayBlock[], startMin: number, slotMinutes:
   return null
 }
 
-/** [CAL-PAST-01] 그 날에서 「지난 시각」이 어디까지인가(자정 기준 분).
- *  다가올 날은 0(지난 것이 없다), 지나간 날은 하루 전체. */
-export function pastMinOn(dateIso: string, now = new Date()): number {
-  const day = localDate(dateIso)
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  if (day.getTime() > today.getTime()) return 0
-  if (day.getTime() < today.getTime()) return 24 * 60
-  return now.getHours() * 60 + now.getMinutes()
+/** [CAL-PAST-01] 그 날에서 「지난 시각」이 어디까지인가(자정 기준 분) — **병원 시계** 기준.
+ *  다가올 날은 0(지난 것이 없다), 지나간 날은 하루 전체.
+ *  ⭐ 날짜 비교는 문자열로 한다 — Date 자정을 만들면 로컬 자정과 병원 자정이 달라
+ *     같은 병이 되돌아온다(ISO 날짜는 사전순 = 시간순이라 그냥 비교하면 된다). */
+export function pastMinOn(dateIso: string, at: Date = new Date()): number {
+  const today = hospitalToday(at)
+  if (dateIso > today) return 0
+  if (dateIso < today) return 24 * 60
+  return hospitalMinutesOfDay(at)
 }
 
 export function minToHHMM(min: number): string {
   return toHHMM(min)
 }
 
-/** '2026-08-17' → '8월 17일 (월)'. 요일은 **로컬 날짜**로 읽는다(`localDate` 주석 참고). */
+/** '2026-08-17' → '8월 17일 (월)'.
+ *  ⚠️ 요일을 `new Date(iso).getDay()`로 읽으면 안 된다 — 그건 **UTC 자정**이라 서쪽
+ *     시간대에서 하루 밀려 토요일이 금요일로 적힌다. 날짜 조각으로 센다. */
 export function fmtDate(iso: string): string {
   const [, m, d] = iso.split('-')
-  const wd = ['일', '월', '화', '수', '목', '금', '토'][localDate(iso).getDay()]
+  const wd = ['일', '월', '화', '수', '목', '금', '토'][hospitalWeekday(iso)]
   return `${Number(m)}월 ${Number(d)}일 (${wd})`
 }

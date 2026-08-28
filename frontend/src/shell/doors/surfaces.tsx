@@ -9,6 +9,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock3, UserRound, AlertTriang
 import { getCalendar } from '../../api/calendar'
 import { StatusBadge } from '../../components/staff-ui'
 import { PatientSearch } from '../../pages/patients/PatientSearch'
+import { hospitalToday } from '../../lib/clock'
 import { useDoors } from './DoorContext'
 import {
   apptOverlapAt,
@@ -22,9 +23,7 @@ import {
   minToHHMM,
   slotMinutesOf,
   fmtDate,
-  localDate,
   pastMinOn,
-  todayIsoLocal,
   type DayBlock,
   type FieldId,
 } from './doorData'
@@ -94,7 +93,7 @@ type SpotKind =
 function DoctorDayCalendar({ pickable }: { pickable: boolean }) {
   const { draft, pickSlot, patch, switchDoor } = useDoors()
   const d = draft.doctor!
-  const dateIso = draft.date ?? todayIsoLocal()
+  const dateIso = draft.date ?? hospitalToday()
 
   // 패널의 저장 직전 판정과 **같은 조회**다 — 캐시를 나눠 써 두 곳이 다른 하루를 보지 않는다.
   const day = useQuery({
@@ -305,10 +304,11 @@ function toMinLocal(hhmm: string): number {
  *     화면만 옛 값에서 멈춘다(갭 #47 재발). 막을 때는 **언제까지인지**를 함께 적는다. */
 function MonthPicker() {
   const { draft, patch, setField } = useDoors()
-  const todayIso = todayIsoLocal()
-  const today = localDate(todayIso)
-  const selected = draft.date ? localDate(draft.date) : today
-  const [view, setView] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1))
+  // ⭐ 「오늘」도 달력이 여는 달도 **병원 시계**로 정한다(`TIME-TZ-01`). 날짜 비교는 문자열이다 —
+  //    Date 자정을 만들면 로컬 자정과 병원 자정이 갈려 같은 병이 되돌아온다.
+  const todayIso = hospitalToday()
+  const [selY, selM] = (draft.date ?? todayIso).split('-').map(Number)
+  const [view, setView] = useState(() => new Date(selY, selM - 1, 1))
 
   // 로스터와 **같은 조회**라 캐시를 나눠 쓴다 — 경계를 따로 물으러 가지 않는다.
   const cal = useQuery({
@@ -323,7 +323,7 @@ function MonthPicker() {
   const days = new Date(year, month + 1, 0).getDate()
   const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)]
   // 지난 달로는 갈 수 있으나 지난 날은 못 고른다 — 이번 달보다 앞이면 이동 자체를 막는다.
-  const atFirstMonth = year === today.getFullYear() && month === today.getMonth()
+  const atFirstMonth = `${year}-${String(month + 1).padStart(2, '0')}` === todayIso.slice(0, 7)
   // 다음 달의 1일이 경계를 넘으면 더 갈 곳이 없다(`CAL-BOOK-13` · `BOOK-DATE-06`과 같은 취지).
   const nextMonthFirstIso = `${month === 11 ? year + 1 : year}-${String(month === 11 ? 1 : month + 2).padStart(2, '0')}-01`
   const atLastMonth = horizonIso != null && nextMonthFirstIso > horizonIso
