@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react'
 import { NOTIFICATION_LABELS, NOTIFICATION_ORDER, type NotificationType, type Settings } from '../../../api/settings'
 
-// [HSET-MSG-*] 자동 알림 — 종류·문구·문자로도 세 열(HSET-MSG-02). 문구는 통째 자유편집(HSET-MSG-09·10),
+// [HSET-MSG-*] 자동 알림 — 종류·문구·문자도 발송 세 열(HSET-MSG-02, 「문자로도」 라벨 개정 2026-08-24).
 // 토큰은 버튼으로 꽂는다(HSET-MSG-16, 오타 방지). 고친 줄에만 「기본 문구로」(HSET-MSG-22). 문자가 꺼져 있으면
-// 「문자로도」 열만 잠기고 표 위에 띠+이동 버튼(HSET-MSG-27·30·SMS-02c) — 문구 칸은 안 잠근다(표 통째 잠금=사고).
+// 「문자도 발송」 열만 잠기고 표 위에 띠+이동 버튼(HSET-MSG-27·30·SMS-02c) — 문구 칸은 안 잠근다(표 통째 잠금=사고).
 
 const TOKENS = ['환자 이름', '날짜', '시각']
 
@@ -20,9 +20,12 @@ interface Props {
 export function NotificationSettings({ draft, smsEnabled, onBodyChange, onSmsChange, onRevert, onInsertToken, onGoSms }: Props) {
   return (
     <div style={styles.section}>
+      <p style={styles.intro}>
+        환자에게 자동으로 나가는 알림 문구입니다. 칸을 누르고 <b>이름·날짜·시각</b> 버튼으로 값을 꽂으세요.
+      </p>
       {!smsEnabled && (
         <div style={styles.strip} role="note">
-          <span>문자 발송이 꺼져 있어 「문자로도」를 고를 수 없습니다.</span>
+          <span>문자 발송이 꺼져 있어 「문자도 발송」을 고를 수 없습니다.</span>
           <button type="button" onClick={onGoSms}>문자 발송 설정으로 ›</button>
         </div>
       )}
@@ -31,7 +34,7 @@ export function NotificationSettings({ draft, smsEnabled, onBodyChange, onSmsCha
           <tr>
             <th style={styles.th}>종류</th>
             <th style={styles.th}>문구</th>
-            <th style={styles.th}>문자로도</th>
+            <th style={styles.th}>문자도 발송</th>
           </tr>
         </thead>
         <tbody>
@@ -63,7 +66,7 @@ export function NotificationSettings({ draft, smsEnabled, onBodyChange, onSmsCha
                     checked={row.send_sms}
                     disabled={!smsEnabled}
                     onChange={(e) => onSmsChange(type, e.target.checked)}
-                    aria-label={`${NOTIFICATION_LABELS[type]} 문자로도`}
+                    aria-label={`${NOTIFICATION_LABELS[type]} 문자도 발송`}
                   />
                 </td>
               </tr>
@@ -78,6 +81,7 @@ export function NotificationSettings({ draft, smsEnabled, onBodyChange, onSmsCha
 
 const styles: Record<string, CSSProperties> = {
   section: { display: 'flex', flexDirection: 'column', gap: 12 },
+  intro: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   strip: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: 'var(--color-surface-muted, #eef3f7)', borderRadius: 6, fontSize: 'var(--fs-sm)' },
   table: { borderCollapse: 'collapse', width: '100%' },
   th: { textAlign: 'left', padding: '6px 8px', borderBottom: '2px solid var(--color-divider)', fontSize: 'var(--fs-sm)' },

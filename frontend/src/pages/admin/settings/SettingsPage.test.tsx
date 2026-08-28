@@ -153,7 +153,7 @@ test('[HSET-MSG-02][HSET-MSG-06][HSET-MSG-07] 자동 알림은 정확히 10줄, 
   expect(screen.getAllByTestId(/^msg-row-/)).toHaveLength(10)
   const row = screen.getByTestId('msg-row-confirmed')
   expect(within(row).getByRole('textbox')).toBeVisible()
-  expect(within(row).getByRole('checkbox', { name: /문자로도/ })).toBeVisible()
+  expect(within(row).getByRole('checkbox', { name: /문자도 발송/ })).toBeVisible()
 })
 
 test('[HSET-MSG-16] 토큰 버튼을 누르면 문구 칸에 그대로 꽂힌다', async () => {
@@ -173,11 +173,11 @@ test('[HSET-MSG-22] 고친 줄에만 기본 문구로 되돌리기 버튼이 있
   expect(within(screen.getByTestId('msg-row-requested')).queryByRole('button', { name: /기본 문구로/ })).toBeNull()
 })
 
-test('[HSET-MSG-27][HSET-MSG-30][HSET-SMS-02c] 문자가 꺼져 있으면 문자로도 열이 잠기고 띠+이동 버튼이 뜬다', async () => {
+test('[HSET-MSG-27][HSET-MSG-30][HSET-SMS-02c] 문자가 꺼져 있으면 문자도 발송 열이 잠기고 띠+이동 버튼이 뜬다', async () => {
   renderSettings({ settings: { sms_enabled: false } })
   await ready()
   await user.click(menu('자동 알림'))
-  expect(within(screen.getByTestId('msg-row-confirmed')).getByRole('checkbox', { name: /문자로도/ })).toBeDisabled()
+  expect(within(screen.getByTestId('msg-row-confirmed')).getByRole('checkbox', { name: /문자도 발송/ })).toBeDisabled()
   expect(screen.getByText(/문자 발송이 꺼져 있어/)).toBeVisible()
   await user.click(screen.getByRole('button', { name: /문자 발송 설정으로/ }))
   expect(activeMenu()).toBe('문자 발송')

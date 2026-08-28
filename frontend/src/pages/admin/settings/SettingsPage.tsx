@@ -176,6 +176,25 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
   const menuDirty = (m: { fields: (keyof Settings)[] }) =>
     m.fields.some((f) => (f === 'notifications' ? !!patch.notifications : f in patch))
 
+  // [HSET-NAV-03] 줄마다 지금 값을 한 줄로 — 안 열어 본 줄도 안이 짐작되고, 문자가 꺼진 채 운영하는 사고를 막는다.
+  // (진료 일정 화면 SideRail과 같은 부제·같은 세로줄, HSET-NAV-06.) 값이 바뀌면 HSET-SAVE-03으로 주황이 된다.
+  function subtitleFor(key: MenuKey): string {
+    const h = draft!.cancellation_deadline_hours
+    const w = draft!.long_wait_threshold_minutes
+    switch (key) {
+      case '예약 규칙':
+        return `취소 마감 ${Number.isNaN(h) ? '—' : `${h}시간`} · 자동확정 ${draft!.auto_confirm_app_bookings ? '켜짐' : '꺼짐'}`
+      case '대기실 운영':
+        return showLongWait ? `${Number.isNaN(w) ? '—' : w}분 이상 표시` : '오래 대기 표시 꺼짐'
+      case '문자 발송':
+        return draft!.sms_enabled ? `켜짐 · ${draft!.sms_recipients === 'app_only' ? '앱 미설치자만' : '모든 환자'}` : '꺼짐'
+      case '자동 알림':
+        return `${NOTIFICATION_ORDER.length}종`
+      case '병원 정보':
+        return '환자 앱에 노출'
+    }
+  }
+
   return (
     <section style={styles.wrap}>
       <div style={styles.topbar}>
@@ -188,19 +207,30 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
 
       <div style={styles.body}>
         <nav aria-label="설정 메뉴" style={styles.menu}>
-          {MENUS.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              data-menu={m.key}
-              aria-current={active === m.key ? 'true' : undefined}
-              onClick={() => setActive(m.key)}
-              style={{ ...styles.menuItem, ...(active === m.key ? styles.menuItemActive : {}) }}
-            >
-              {m.key}
-              {menuDirty(m) && <span aria-hidden="true" style={styles.dot}> ●</span>}
-            </button>
-          ))}
+          {MENUS.map((m) => {
+            const isDirty = menuDirty(m)
+            return (
+              <button
+                key={m.key}
+                type="button"
+                data-menu={m.key}
+                aria-current={active === m.key ? 'true' : undefined}
+                onClick={() => setActive(m.key)}
+                style={{ ...styles.menuItem, ...(active === m.key ? styles.menuItemActive : {}) }}
+              >
+                <span style={styles.menuLabel}>
+                  {m.key}
+                  {isDirty && <span aria-hidden="true" style={styles.dot}> ●</span>}
+                </span>
+                <span
+                  data-menu-sub
+                  style={{ ...styles.menuSub, ...(isDirty ? styles.menuSubDirty : null) }}
+                >
+                  {subtitleFor(m.key)}
+                </span>
+              </button>
+            )
+          })}
         </nav>
 
         <div style={styles.panel}>
@@ -248,9 +278,12 @@ const styles: Record<string, CSSProperties> = {
   unsaved: { fontSize: 'var(--fs-sm)', color: 'var(--color-warn)', fontWeight: 600 },
   saveError: { margin: 0, color: 'var(--color-warn)', fontWeight: 600 },
   body: { display: 'flex', gap: 20, alignItems: 'flex-start' },
-  menu: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160 },
-  menuItem: { textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid transparent', background: 'transparent', cursor: 'pointer', fontWeight: 600, color: 'var(--color-ink)' },
-  menuItemActive: { background: 'var(--color-surface)', border: '1px solid var(--color-divider)' },
+  menu: { display: 'flex', flexDirection: 'column', gap: 2, width: 176, flex: '0 0 176px' },
+  menuItem: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, width: '100%', textAlign: 'left', padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-ink)' },
+  menuItemActive: { background: 'var(--color-primary-wash)', color: 'var(--color-primary)' },
+  menuLabel: { fontSize: 'var(--fs-base)', fontWeight: 600 },
+  menuSub: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  menuSubDirty: { color: 'var(--color-warn)', fontWeight: 600 },
   dot: { color: 'var(--color-warn)' },
   panel: { flex: 1, minWidth: 0, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card, 8px)', padding: 20 },
 }
