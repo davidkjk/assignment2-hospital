@@ -351,7 +351,8 @@ git commit -m "port(staff-web): M3 — 세 문·PANEL-WORK 왼쪽 변신 인프�
 
 **Interfaces:**
 - Consumes: `patient_service.register_patient(name, birth_date, gender, phone, staff, conn) -> UUID` · `find_by_phone_and_birthdate(phone, birth_date, staff, conn) -> UUID | None` (둘 다 기존).
-- Produces: `POST /patients {name, gender, birth_date, phone} -> {patient_id}` · `GET /patients/duplicate-check?phone&birth_date -> {candidates: [...]}` (소프트 중복, `SHELL-DOOR-03`). 프론트: `registerPatient(body): Promise<{patient_id: string}>` · `checkDuplicate(phone, birthDate)`.
+- Produces: `POST /patients {name, gender, birth_date, phone} -> {patient_id}` · `GET /patients/duplicate-check?phone&birth_date -> {patient_id: UUID | null}` (소프트 중복, `SHELL-DOOR-03`). 프론트: `registerPatient(body): Promise<{patient_id: string}>` · `checkDuplicate(phone, birthDate)`.
+  - ⚠️ **계약 정정(2026-08-28)**: 원래 계획은 `{candidates: [...]}`(목록)였으나 **작업본·데모 둘 다 「후보 하나」**다 — 데모 `findDuplicate()`도 한 명만 돌려주고, 화면 문구도 *"혹시 **{이름}** 님 아니세요?"*로 **한 사람을 지목**한다(`SHELL-DOOR-03`). 목록을 주면 화면이 「누구를 지목할지」를 또 정해야 해 규칙에 없는 판단이 생긴다. → **단수 유지**.
 
 - [ ] **Step 1: 작업본을 읽고 규칙과 대조한다** — `SHELL-DOOR-03`(소프트 중복은 **막지 않는다**)·`require_role`(접수직원·관리자만, 의사 403)·계정 열거 방지.
 - [ ] **Step 2: 격리 테스트** — Run: `cd backend && pytest tests/test_register_patient.py -v` → PASS

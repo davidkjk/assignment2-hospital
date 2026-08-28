@@ -7,6 +7,7 @@
 receptionist_admin_can_read_patients와 일치). 의사의 조회 범위는 자기 예약이라
 환자 목록 전체 창구는 열지 않는다(ROLE-DOC-02).
 """
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -17,6 +18,23 @@ from app.core.security import StaffContext, require_role
 from app.services import patient_service
 
 router = APIRouter(prefix="/patients", tags=["patients"])
+
+
+class RegisterPatientRequest(BaseModel):
+    # [SHELL-DOOR-03] 등록 문의 신원 폼 — 이름·성별·생년월일·전화. 검색칸·담당의사는 폼에서 뺀다.
+    name: str
+    gender: str
+    birth_date: date
+    phone: str
+
+
+class RegisterPatientResponse(BaseModel):
+    patient_id: UUID
+
+
+class DuplicateCheckResponse(BaseModel):
+    # [SHELL-DOOR-03] "혹시 이분?" — 후보 id 또는 null. ⛔ 막지 않는다(등록 게이트가 아니다).
+    patient_id: UUID | None = None
 
 
 class FamilyLinkRequest(BaseModel):
@@ -59,6 +77,42 @@ async def list_patients(
         "next_cursor": page.next_cursor,
         "has_more": page.has_more,
     }
+
+
+@router.post("", status_code=201, response_model=RegisterPatientResponse)
+async def register_patient(
+    body: RegisterPatientRequest,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> RegisterPatientResponse:
+    """[SHELL-DOOR-03][ROLE-READ] 신원 폼으로 환자를 등록한다 — 접수직원·관리자만.
+
+    소프트 중복은 등록을 막지 않는다(개인정보 열거 방지, 「막다른 길 금지」). "혹시 이분?"은
+    duplicate-check가 화면에 힌트를 줄 뿐, 이 창구는 겹침 여부와 무관하게 등록을 진행시킨다.
+    """
+    patient_id = await patient_service.register_patient(
+        name=body.name,
+        birth_date=body.birth_date,
+        gender=body.gender,
+        phone=body.phone,
+        staff=staff,
+    )
+    return RegisterPatientResponse(patient_id=patient_id)
+
+
+@router.get("/duplicate-check", response_model=DuplicateCheckResponse)
+async def duplicate_check(
+    phone: str,
+    birth_date: date,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> DuplicateCheckResponse:
+    """[SHELL-DOOR-03] 소프트 중복 — 전화·생일이 강하게 겹치는 기존 기록의 id(또는 null).
+
+    ⚠️ 라우트 순서: 이 경로는 반드시 `/{patient_id}`(UUID)보다 **먼저** 선언해야 한다.
+       뒤에 두면 FastAPI가 "duplicate-check"를 patient_id로 파싱하려다 422를 낸다.
+    ⛔ 막지 않는다 — 후보를 알려줄 뿐 등록을 거부하지 않는다(개인정보 열거 방지·막다른 길 금지).
+    """
+    patient_id = await patient_service.find_by_phone_and_birthdate(phone, birth_date, staff)
+    return DuplicateCheckResponse(patient_id=patient_id)
 
 
 @router.get("/{patient_id}")
