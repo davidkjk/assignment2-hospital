@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { addDaysIso, hospitalToday } from '../../lib/clock'
 import { server } from '../../test/msw/server'
 import { PanelHost, PanelProvider } from '../../components/PanelHost'
 import { installMemoryStorage } from './testStorage'
@@ -16,10 +17,9 @@ vi.mock('../../auth/useAuth', () => ({
 }))
 
 // 오늘/어제/내일을 실제 시계로 계산한다(fake timer와 userEvent 충돌을 피한다).
+// ⭐ **병원 시계** 기준이다(`TIME-TZ-01`) — 화면이 그 시계를 보므로 기대값도 같아야 한다.
 function ymd(offsetDays: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return addDaysIso(hospitalToday(), offsetDays)
 }
 const TODAY = ymd(0)
 const TOMORROW = ymd(1)

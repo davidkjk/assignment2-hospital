@@ -11,7 +11,7 @@
 //        자기 계산을 가지면 같은 날이 캘린더에서는 진료중, 예약에서는 휴무가 된다.
 
 import type { CalendarData } from '../../api/calendar'
-import { hospitalMinutesOfDay, hospitalToday, hospitalWeekday } from '../../lib/clock'
+import { hospitalInstant, hospitalMinutesOfDay, hospitalToday, hospitalWeekday } from '../../lib/clock'
 import { isoToMinutes, PALETTE_SIZE, statusLabel } from '../../pages/calendar/gridModel'
 import type { SearchTodayStatus } from '../../api/patients'
 import type { StartDoor } from '../navItems'
@@ -85,11 +85,10 @@ export function parseVisitTime(raw: string): { hh: number; mm: number } | null {
   return { hh, mm }
 }
 
-/** 직원이 적은 「날짜 + 시각」을 실제 순간으로 옮긴다.
- *  ⚠️ 브라우저 시간대로 읽는다 — 창구 컴퓨터의 시계가 곧 벽시계다. 서버는 UTC로 받아 저장한다. */
+/** 직원이 적은 「날짜 + 시각」을 실제 순간으로 옮긴다 — **병원 시각**으로 읽는다(`TIME-TZ-01`).
+ *  ⛔ 브라우저 시간대로 읽으면 창구 PC가 한국이 아닐 때 **저장되는 순간 자체가 틀린다**. */
 export function visitInstant(dateIso: string, hh: number, mm: number): Date {
-  const [y, m, d] = dateIso.split('-').map(Number)
-  return new Date(y, m - 1, d, hh, mm, 0, 0)
+  return hospitalInstant(dateIso, hh, mm)
 }
 
 // ── 의사 하루 일정(일간 캘린더 도구) ──

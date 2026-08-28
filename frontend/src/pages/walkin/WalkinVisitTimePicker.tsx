@@ -1,3 +1,4 @@
+import { hospitalHHMM, hospitalInstant, hospitalToday } from '../../lib/clock'
 import { useState, type CSSProperties } from 'react'
 
 /**
@@ -101,8 +102,10 @@ export function resolveEarlier(text: string, base: Date): WalkinVisitTimeResult 
   const mm = digits.length === 3 ? Number(digits.slice(1)) : Number(digits.slice(2))
   if (hh > 23 || mm > 59) return { iso: null, error: '올바른 시각이 아닙니다.' }
 
-  const visit = new Date(base)
-  visit.setHours(hh, mm, 0, 0) // 스냅하지 않는다 — 친 분을 그대로 둔다(QUEUE-WALK-14d).
+  // ⭐ 직원이 친 시각은 **병원 시각**이다(`TIME-TZ-01`) — `setHours`는 그 PC의 시간대로
+  //    해석해, 창구 PC가 한국이 아니면 **저장되는 순간 자체가 틀린다**(표시만 틀리는 것과 다르다).
+  //    스냅하지 않는다 — 친 분을 그대로 둔다(QUEUE-WALK-14d).
+  const visit = hospitalInstant(hospitalToday(base), hh, mm)
   if (visit.getTime() > base.getTime()) {
     // QUEUE-WALK-14e·16: 그 자리에서 바로 알리고 입력을 지우지 않는다.
     return { iso: null, error: '아직 오지 않은 시각입니다.' }
@@ -111,8 +114,7 @@ export function resolveEarlier(text: string, base: Date): WalkinVisitTimeResult 
 }
 
 function hhmmOf(iso: string): string {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return hospitalHHMM(new Date(iso))
 }
 
 const styles: Record<string, CSSProperties> = {

@@ -1,27 +1,30 @@
 import { render, screen } from '@testing-library/react'
+import { hospitalParts } from '../../lib/clock'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, test, vi } from 'vitest'
 import { resolveEarlier, WalkinVisitTimePicker } from './WalkinVisitTimePicker'
 
-const BASE = new Date('2026-08-26T13:00:00') // 오늘 13:00 기준(로컬)
+// ⭐ **병원 시각** 13:00으로 못박는다(`TIME-TZ-01`) — 타임존 없는 리터럴은 그 기계의
+//    시간대로 파싱되어, 미 서부에서는 KST 익일 05:00이 되어 판정이 통째로 어긋난다.
+const BASE = new Date('2026-08-26T13:00:00+09:00')
 
 describe('resolveEarlier (QUEUE-WALK-14b·14c·14d·14e·16)', () => {
   test('QUEUE-WALK-14b: 4자리 1015 → 10:15', () => {
     const r = resolveEarlier('1015', BASE)
     expect(r.error).toBeNull()
-    expect(new Date(r.iso!).getHours()).toBe(10)
-    expect(new Date(r.iso!).getMinutes()).toBe(15)
+    expect(Number(hospitalParts(new Date(r.iso!)).hh)).toBe(10)
+    expect(Number(hospitalParts(new Date(r.iso!)).mm)).toBe(15)
   })
 
   test('QUEUE-WALK-14c: 3자리 905 → 09:05', () => {
     const r = resolveEarlier('905', BASE)
-    expect(new Date(r.iso!).getHours()).toBe(9)
-    expect(new Date(r.iso!).getMinutes()).toBe(5)
+    expect(Number(hospitalParts(new Date(r.iso!)).hh)).toBe(9)
+    expect(Number(hospitalParts(new Date(r.iso!)).mm)).toBe(5)
   })
 
   test('QUEUE-WALK-14d: 10:07은 5분 격자로 스냅하지 않는다', () => {
     const r = resolveEarlier('1007', BASE)
-    expect(new Date(r.iso!).getMinutes()).toBe(7)
+    expect(Number(hospitalParts(new Date(r.iso!)).mm)).toBe(7)
   })
 
   test('QUEUE-WALK-16: 미래 시각은 iso 없이 「아직 오지 않은 시각입니다」', () => {

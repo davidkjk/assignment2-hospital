@@ -73,6 +73,18 @@ export function addDaysIso(dateIso: string, days: number): string {
   return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`
 }
 
+/** 병원 시간대의 UTC 오프셋(분). 대한민국은 1988년 이후 **서머타임이 없어** 늘 +09:00이다.
+ *  ⚠️ 이 상수는 이 파일 밖으로 나가지 않는다 — 나가는 순간 시간대 사본이 하나 더 생긴다. */
+const HOSPITAL_UTC_OFFSET_MIN = 9 * 60
+
+/** 병원 달력의 「그 날 그 시각」을 실제 순간으로 — 직원이 친 시각을 서버에 보낼 때 쓴다.
+ *  ⭐ `new Date(y, m-1, d, hh, mm)`을 쓰면 **그 PC의 시간대**로 해석되어, 창구 PC가 한국이
+ *     아니면 저장되는 순간 자체가 틀린다(표시만 틀리는 것과 차원이 다르다). */
+export function hospitalInstant(dateIso: string, hh: number, mm: number): Date {
+  const [y, m, d] = dateIso.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d, hh, mm) - HOSPITAL_UTC_OFFSET_MIN * 60_000)
+}
+
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
 /** 'YYYY-MM-DD' → '2026년 8월 29일 (토)'. opts를 주면 Intl로 넘긴다(시간대는 늘 병원). */

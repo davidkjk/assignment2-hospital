@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   addDaysIso, formatHospitalDate, hospitalHHMM, hospitalMinutesOfDay,
-  hospitalParts, hospitalToday, hospitalWeekday, isHospitalToday,
+  hospitalInstant, hospitalParts, hospitalToday, hospitalWeekday, isHospitalToday,
 } from './clock'
 
 // ⭐ 이 파일의 핵심 계약: **이 코드가 도는 기계의 시간대가 무엇이든 답이 같다.**
@@ -68,5 +68,21 @@ describe('인자를 안 주면 진짜 지금을 쓴다', () => {
     vi.setSystemTime(KST_PAST_MIDNIGHT)
     expect(hospitalToday()).toBe('2026-08-29')
     expect(hospitalHHMM()).toBe('01:20')
+  })
+})
+
+describe('hospitalInstant — 직원이 친 시각을 실제 순간으로', () => {
+  test('그 PC의 시간대가 아니라 병원 시각으로 해석한다', () => {
+    // 병원 8/29 09:05 = UTC 8/29 00:05. 기계가 어디에 있든 같은 순간이어야 한다.
+    expect(hospitalInstant('2026-08-29', 9, 5).toISOString()).toBe('2026-08-29T00:05:00.000Z')
+  })
+
+  test('되돌려 읽으면 친 그대로다', () => {
+    const at = hospitalInstant('2026-08-29', 9, 5)
+    expect(hospitalParts(at)).toMatchObject({ y: '2026', mo: '08', d: '29', hh: '09', mm: '05' })
+  })
+
+  test('자정 넘김도 어긋나지 않는다', () => {
+    expect(hospitalInstant('2026-08-29', 0, 30).toISOString()).toBe('2026-08-28T15:30:00.000Z')
   })
 })

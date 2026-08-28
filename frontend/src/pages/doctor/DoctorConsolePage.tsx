@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
+import { hospitalToday } from '../../lib/clock'
 import { useAuth } from '../../auth/useAuth'
 import { homeFor, type Role } from '../../auth/roles'
 import { usePanel } from '../../components/PanelHost'
@@ -26,11 +27,10 @@ import { useAutoSaveDraft } from './useAutoSaveDraft'
 //   소유한다 — 패널들이 각자 예약 ID를 들면 CONTEXT-02가 조용히 깨져 남의 진단을 쓰게 된다. 조회는
 //   패널별 쿼리로 나눠, 한 패널이 죽어도 작성 입력이 살아 있게 한다(LOAD-02).
 
+/** 의사 콘솔이 부르는 「오늘」 — **병원 시계**다(`TIME-TZ-01`).
+ *  ⛔ 그 PC의 시계로 재면 서버가 준 오늘 대기열과 다른 날을 물어보게 된다. */
 function todayStr(d = new Date()): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return hospitalToday(d)
 }
 
 function pickFields(record: Record<string, unknown> | null | undefined): DraftFields {
