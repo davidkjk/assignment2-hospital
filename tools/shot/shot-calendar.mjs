@@ -28,4 +28,11 @@ await page.goto(`${base}/calendar`, { waitUntil: 'networkidle2' })
 await sleep(2500)
 console.log('URL:', page.url())
 await shot('calendar-day')
+
+// 미니달력(날짜 버튼 클릭으로 열림) — 8주 범위·오늘 강조·범위 밖 disabled 검수용
+if (OUT === 'real') {
+  await page.click('.cal-nav-range')
+  await sleep(600)
+  await shot('calendar-mini')
+}
 await browser.close()

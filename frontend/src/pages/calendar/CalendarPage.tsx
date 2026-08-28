@@ -191,15 +191,27 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
           onOpenCalendar={() => setMiniOpen((o) => !o)}
         />
 
-        <button type="button" className="cal-zoom-reset" onClick={zoom.reset}>
-          기본 배율
-        </button>
+        {/* [CAL-ZOOM-01·02·06] 시간축을 끌어 넓히는 것과 같은 일을 버튼으로도 — 끌기가 익숙지 않은 손을 위해. */}
+        <div className="cal-zoom">
+          <span className="cal-zoom-hint">시간축을 위아래로 끌면 넓어집니다</span>
+          <button type="button" className="cal-zoom-step" aria-label="축소" onClick={() => zoom.dragBy(-24)}>
+            −
+          </button>
+          <button type="button" className="cal-zoom-reset" onClick={zoom.reset}>
+            기본 배율
+          </button>
+          <button type="button" className="cal-zoom-step" aria-label="확대" onClick={() => zoom.dragBy(24)}>
+            +
+          </button>
+        </div>
       </div>
 
       {miniOpen && (
         <MiniCalendar
           mode={mode}
           anchorDate={anchorDate}
+          today={hospitalToday(now)}
+          horizonDate={data?.booking_horizon_date}
           onPick={(date) => {
             setAnchorDate(new Date(date))
             setMiniOpen(false)
