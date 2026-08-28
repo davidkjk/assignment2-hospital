@@ -33,8 +33,11 @@ class RegisterPatientResponse(BaseModel):
 
 
 class DuplicateCheckResponse(BaseModel):
-    # [SHELL-DOOR-03] "혹시 이분?" — 후보 id 또는 null. ⛔ 막지 않는다(등록 게이트가 아니다).
+    # [SHELL-DOOR-03] "혹시 이분?" — 후보 id + 가려진 표시값, 없으면 전부 null.
+    # ⛔ 막지 않는다(등록 게이트가 아니다). ⭐ 원본 name·birth_date·phone 키는 담지 않는다(MASK-SRV-01).
     patient_id: UUID | None = None
+    masked_name: str | None = None
+    masked_birth_date: str | None = None
 
 
 class FamilyLinkRequest(BaseModel):
@@ -111,8 +114,14 @@ async def duplicate_check(
        뒤에 두면 FastAPI가 "duplicate-check"를 patient_id로 파싱하려다 422를 낸다.
     ⛔ 막지 않는다 — 후보를 알려줄 뿐 등록을 거부하지 않는다(개인정보 열거 방지·막다른 길 금지).
     """
-    patient_id = await patient_service.find_by_phone_and_birthdate(phone, birth_date, staff)
-    return DuplicateCheckResponse(patient_id=patient_id)
+    row = await patient_service.find_by_phone_and_birthdate(phone, birth_date, staff)
+    if row is None:
+        return DuplicateCheckResponse()
+    # 마스킹 경계는 여기다 — 서비스가 준 원본 줄을 화이트리스트 DTO로 옮겨 가린 값만 남긴다.
+    dto = patient_row_dto(
+        patient_id=row["id"], name=row["name"], birth_date=row["birth_date"]
+    )
+    return DuplicateCheckResponse(**dto)
 
 
 @router.get("/{patient_id}")

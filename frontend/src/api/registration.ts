@@ -21,9 +21,19 @@ export function registerPatient(body: RegisterPatientBody) {
   })
 }
 
-// 소프트 중복 "혹시 이분?"(SHELL-DOOR-03) — 전화·생일이 강하게 겹치는 기존 기록의 id(또는 null).
+/** 소프트 중복 후보 — 겹치는 기록이 없으면 세 칸 모두 null.
+ *  ⭐ 표시값은 **서버가 가려서** 준다(`MASK-SRV-01`) — 화면이 다시 가리지 않는다. */
+export interface DuplicateCandidate {
+  patient_id: string | null
+  /** 김*정 (`MASK-SRV-01`) */
+  masked_name: string | null
+  /** 1975-**-20 (`MASK-DOB-01`) */
+  masked_birth_date: string | null
+}
+
+// 소프트 중복 "혹시 이분?"(SHELL-DOOR-03) — 전화·생일이 강하게 겹치는 기존 기록.
 // ⛔ 막지 않는다 — 후보를 알려줄 뿐 등록을 거부하지 않는다(개인정보 열거 방지·막다른 길 금지).
 export function checkDuplicate(phone: string, birthDate: string) {
   const params = new URLSearchParams({ phone, birth_date: birthDate })
-  return apiFetch<{ patient_id: string | null }>(`/patients/duplicate-check?${params.toString()}`)
+  return apiFetch<DuplicateCandidate>(`/patients/duplicate-check?${params.toString()}`)
 }

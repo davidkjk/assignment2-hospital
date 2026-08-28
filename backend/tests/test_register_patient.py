@@ -96,6 +96,42 @@ async def test_중복조회는_전화와_생일이_맞으면_후보를_알려준
     assert body["patient_id"] == str(pid)
 
 
+async def test_중복조회는_가려진_이름과_생년만_준다(client, committed_conn):
+    """[MASK-SRV-01][MASK-DOB-01] "혹시 이분?"이 사람을 가리키려면 이름이 필요하다 —
+
+    다만 이 응답은 환자가 섞인 목록류라, 서버가 **가린 값만** 담는다(화면이 다시 가리지 않는다).
+    원본 name·birth_date·phone 키는 응답에 아예 없어야 한다(patient_row_dto 화이트리스트).
+    """
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    await _seed_patient(
+        committed_conn, name="김민정", phone="01055556666", birth=date(1975, 8, 20)
+    )
+
+    body = client.get(
+        "/patients/duplicate-check",
+        params={"phone": "01055556666", "birth_date": "1975-08-20"},
+        headers=_auth(receptionist),
+    ).json()
+    assert body["masked_name"] == "김*정"
+    assert body["masked_birth_date"] == "1975-**-20"
+    assert "name" not in body and "birth_date" not in body and "phone" not in body
+
+
+async def test_중복조회는_하이픈_유무가_달라도_같은_사람으로_본다(client, committed_conn):
+    """[SHELL-DOOR-03] 저장된 번호가 `010-…`인데 직원이 하이픈 없이 쳐도 후보가 잡혀야 한다."""
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    pid = await _seed_patient(
+        committed_conn, phone="010-5555-6666", birth=date(1975, 8, 20)
+    )
+
+    body = client.get(
+        "/patients/duplicate-check",
+        params={"phone": "01055556666", "birth_date": "1975-08-20"},
+        headers=_auth(receptionist),
+    ).json()
+    assert body["patient_id"] == str(pid)
+
+
 async def test_중복조회는_겹치는_기록이_없으면_null이며_막지_않는다(client, committed_conn):
     """[SHELL-DOOR-03] 개인정보 열거 방지 — 없으면 null만 준다(등록을 거부하지 않는다)."""
     receptionist = await seed_staff(committed_conn, role="receptionist")
@@ -107,6 +143,7 @@ async def test_중복조회는_겹치는_기록이_없으면_null이며_막지_�
         headers=_auth(receptionist),
     ).json()
     assert body["patient_id"] is None
+    assert body["masked_name"] is None and body["masked_birth_date"] is None
 
 
 async def test_중복조회는_접수직원과_관리자만_연다(client, committed_conn):

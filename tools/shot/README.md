@@ -8,12 +8,15 @@
 ## 쓰는 법
 
 ```bash
-npm i puppeteer-core@23          # 최초 1회 (이 디렉터리에서)
+npm i                            # 최초 1회 (이 디렉터리에서 — 여기 package.json이 있다)
 S=$(pwd) node shot.mjs real      # 실 프론트(localhost:5173) — 로그인까지 자동
 S=$(pwd) node shot.mjs demo      # 데모 배포본(demo-pi-inky-72.vercel.app)
 ```
 
 `$S/{real|demo}-01-today.png` 외 세 문(등록·접수·예약)을 연 화면까지 4장이 나온다.
+
+**폼을 채운 뒤의 화면**은 `shot-register.mjs`처럼 문을 열고 입력까지 하는 변형을 쓴다(D2에서 만든 것).
+`node shot-register.mjs real|demo` → 빈 폼 · 소프트 중복 · 확인창 3장. D3·D4도 이 꼴을 복사해 쓴다.
 
 ## 전제
 
@@ -21,3 +24,5 @@ S=$(pwd) node shot.mjs demo      # 데모 배포본(demo-pi-inky-72.vercel.app)
 - 로그인 계정은 스크립트 안에 있다(`admin@gaon.local` / `demo1234`).
 - 크롬 실행 파일 경로는 macOS 기본값으로 박혀 있다.
 - 화면이 비어 보이면 시드가 낡은 것이다 — `supabase/seed_demo.sql`은 **적용한 날짜에 고정**된다.
+- ⚠️ **백엔드는 `--reload` 없이 떠 있을 수 있다** — 서버 코드를 고쳤으면 uvicorn을 **재시작한 뒤** 찍을 것.
+  D2에서 이걸 잊어 「응답 칸이 빈 화면」을 코드 버그로 오인할 뻔했다(옛 프로세스가 옛 계약을 서비스 중이었다).

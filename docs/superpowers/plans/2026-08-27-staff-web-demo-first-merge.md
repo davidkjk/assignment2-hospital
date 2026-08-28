@@ -369,7 +369,7 @@ git commit -m "feat(staff-web): D1 — 환자 등록 라우터 + 소프트 중�
 
 **Files:** Modify `frontend/src/shell/doors/panels.tsx`(등록 패널) · Create `frontend/src/shell/doors/RegisterDoor.test.tsx`
 **Interfaces:** Consumes D1 `registerPatient`·`checkDuplicate`, M3 `useDoors`. Produces 등록 완료 후 `[예약 잡기]`·`[바로 접수]` 이음(다음 문으로 넘김, 막다른 길 금지).
-- [ ] 데모 등록 패널의 신원 폼(이름·성별·생년월일 8자리 자동서식·전화)을 그대로 두고 제출만 `registerPatient`로 배선. 소프트 중복은 "혹시 이분인가요?" 목록으로 보여주되 **진행을 막지 않는다**(`SHELL-DOOR-03`). 실패 테스트 → 배선 → GREEN → 커밋.
+- [x] 데모 등록 패널의 신원 폼(이름·성별·생년월일 8자리 자동서식·전화)을 그대로 두고 제출만 `registerPatient`로 배선. 소프트 중복은 "혹시 이분인가요?" 목록으로 보여주되 **진행을 막지 않는다**(`SHELL-DOOR-03`). 실패 테스트 → 배선 → GREEN → 커밋.
 
 ### Task D3: 접수 문 배선 (`SHELL-DOOR-04`·`CHKIN-*`·`QUEUE-WALK-*`)
 

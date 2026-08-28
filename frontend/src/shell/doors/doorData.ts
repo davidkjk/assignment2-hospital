@@ -4,7 +4,9 @@
 //
 // ⚠️ TODO(D1·D2·D3·D4 배선) — 이 파일의 **데이터는 전부 데모 가짜값**이다(계산 함수는 실물).
 //    Wave 1에서 각 문을 배선하며 서버로 갈아끼운다:
-//      · 환자 검색  → `api/patients.ts` `searchPatients`   (D2·D3)
+//      · 환자 검색  → `api/patients.ts` `searchPatients`   (D3)
+//    ✅ D2 완료: 소프트 중복은 서버(`GET /patients/duplicate-check`)가 가린 값으로 답한다 —
+//       가짜 `findDuplicate`는 지웠다.
 //      · 의사 로스터·하루 일정 → `api/calendar.ts` `getCalendar` (D4)
 //      · 의사별 대기 인원 → `api/dashboard.ts` 대기열        (D3)
 //    ⛔ 갈아끼울 때 `maskBirth`·`maskPhone`은 함께 지운다 — 서버가 `masked_*`로만 내려주고
@@ -203,13 +205,6 @@ export function searchPatients(q: string): PatientLite[] {
       p.tel.replace(/-/g, '').includes(s.replace(/-/g, '')) ||
       p.birth.includes(s),
   )
-}
-
-/** 새 환자 폼과 강하게 겹치는 기존 환자(전화 끝자리+생년) — 소프트 확인용(막지 않음) */
-export function findDuplicate(tel: string, birth: string): PatientLite | undefined {
-  const t = tel.replace(/-/g, '')
-  if (t.length < 8) return undefined
-  return doorPatients.find((p) => p.tel.replace(/-/g, '') === t || (birth.length >= 8 && p.birth === birth))
 }
 
 // ── 의사 하루 일정(일간 캘린더 도구) ──

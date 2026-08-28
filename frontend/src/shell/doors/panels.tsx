@@ -1,11 +1,15 @@
 // 세 문의 오른쪽 패널 — 데모 `routes/staff/doors/panels.tsx` 포팅.
 // 패널 = 무엇을 채우나 / 왼쪽 = 채우는 도구(`PANEL-WORK-01`). 접기 ≠ 닫기(`PANEL-LIVE-05`),
 // ✕는 묻지 않고 채운 것을 날린다(`PANEL-LIVE-06`).
-// ⚠️ 패널 안의 저장·조회는 아직 가짜다 — TODO(D2 등록·D3 접수·D4 예약 배선).
+// ⚠️ 접수·예약 패널의 저장·조회는 아직 가짜다 — TODO(D3 접수·D4 예약 배선).
+// ✅ 등록 패널은 D2에서 실 서버(`api/registration.ts`)로 배선됐다.
 import { useEffect, useState, type ReactNode } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, QrCode, UserPlus, X } from '@/components/icons'
+import { ApiError } from '../../api/httpClient'
+import { checkDuplicate, registerPatient } from '../../api/registration'
 import { useDoors } from './DoorContext'
-import { doctorWaitMap, doorDoctors, fmtDate, findDuplicate, maskBirth, maskPhone, type FieldId } from './doorData'
+import { doctorWaitMap, doorDoctors, fmtDate, maskBirth, maskPhone, type FieldId } from './doorData'
 
 // ── 공용 드로어 조각 ──────────────────────────────────────────────
 
@@ -101,18 +105,26 @@ function ConfirmPopup({
   title,
   lines,
   confirmLabel,
+  busyLabel,
+  busy = false,
+  error = null,
   onConfirm,
   onCancel,
 }: {
   title: string
   lines: { k: string; v: string }[]
   confirmLabel: string
+  /** 처리 중 라벨 — 글자를 지우지 않고 바꾼다(`BTN-BUSY-01`). */
+  busyLabel?: string
+  busy?: boolean
+  /** 서버가 준 문장 그대로(`ERR-MSG-01`) — 실패한 버튼 **바로 위**에 붙는다(`ERR-POS-01`). */
+  error?: string | null
   onConfirm: () => void
   onCancel: () => void
 }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
+      <div role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
         <h2 className="text-lg font-bold">{title}</h2>
         <dl className="mt-4 space-y-2 rounded-xl bg-muted/50 p-4 text-sm">
           {lines.map((l) => (
@@ -122,15 +134,27 @@ function ConfirmPopup({
             </div>
           ))}
         </dl>
+        {/* [ERR-POS-01] 실패한 버튼 바로 위 붙박이 — 주의색 글자 + 좌측 바, 배경 없음. */}
+        {error && (
+          <p role="alert" className="mt-4 border-l-4 border-rose-500 pl-3 text-sm text-rose-700">
+            {error}
+          </p>
+        )}
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted">
+          <button onClick={onCancel} disabled={busy} className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-40">
             다시 보기
           </button>
+          {/* [BTN-BUSY-02] 처리 중 다시 누름은 무시한다. [BTN-STATE-02] 처리 중은 흐린 딥틸 — ⛔회색 금지. */}
           <button
             onClick={onConfirm}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            disabled={busy}
+            aria-busy={busy}
+            className={[
+              'rounded-lg px-4 py-2 text-sm font-medium text-primary-foreground',
+              busy ? 'bg-primary/70' : 'bg-primary hover:bg-primary/90',
+            ].join(' ')}
           >
-            {confirmLabel}
+            {busy ? (busyLabel ?? confirmLabel) : confirmLabel}
           </button>
         </div>
       </div>
@@ -225,9 +249,32 @@ function RegisterBody() {
   const { draft, patch, pickPatient, switchDoor, close } = useDoors()
   const [form, setForm] = useState({ name: '', sex: '', birth: '', tel: '' })
   const [confirm, setConfirm] = useState(false)
-  const dup = findDuplicate(form.tel, form.birth)
   const birthOk = form.birth.replace(/\D/g, '').length === 8
-  const newReady = !!form.name && !!form.sex && birthOk && form.tel.replace(/\D/g, '').length >= 9
+  const telOk = form.tel.replace(/\D/g, '').length >= 9
+  const newReady = !!form.name && !!form.sex && birthOk && telOk
+
+  // [SHELL-DOOR-03] 소프트 중복 — 전화·생년이 **둘 다** 찬 뒤에만 묻는다(치는 도중 캐묻지 않는다).
+  //  ⛔ 관문이 아니다 — 결과가 무엇이든 등록 버튼은 그대로 눌린다.
+  const dupQuery = useQuery({
+    queryKey: ['patients', 'duplicate-check', form.tel, form.birth],
+    queryFn: () => checkDuplicate(form.tel, form.birth),
+    enabled: birthOk && telOk,
+    staleTime: 30_000,
+    retry: false, // 힌트일 뿐이라 실패해도 조용히 없는 셈 친다(등록을 방해하지 않는다)
+  })
+  const dupData = dupQuery.data
+  // 표시값은 서버가 가려서 준다 — 화면이 다시 가리지 않는다(`MASK-SRV-01`).
+  const dup = dupData?.patient_id ? dupData : null
+
+  const registerMut = useMutation({
+    mutationFn: () =>
+      registerPatient({ name: form.name, gender: form.sex, birth_date: form.birth, phone: form.tel }),
+    onSuccess: ({ patient_id }) => {
+      setConfirm(false)
+      patch({ patient: { id: patient_id, name: form.name, birth: form.birth, tel: form.tel }, isNew: true })
+    },
+  })
+  const registerError = registerMut.error instanceof ApiError ? registerMut.error.message : null
 
   // 등록/확인한 환자 → 예약·접수로 이어간다
   if (draft.patient) {
@@ -260,8 +307,8 @@ function RegisterBody() {
   return (
     <div className="space-y-4">
       <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">이름</label>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
+        <label htmlFor="reg-name" className="mb-1 block text-xs font-medium text-muted-foreground">이름</label>
+        <input id="reg-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -275,8 +322,9 @@ function RegisterBody() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">생년월일</label>
+          <label htmlFor="reg-birth" className="mb-1 block text-xs font-medium text-muted-foreground">생년월일</label>
           <input
+            id="reg-birth"
             value={form.birth}
             onChange={(e) => setForm({ ...form, birth: fmtBirthInput(e.target.value) })}
             inputMode="numeric"
@@ -287,16 +335,29 @@ function RegisterBody() {
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">전화번호</label>
-        <input value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} inputMode="numeric" placeholder="010-0000-0000" className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
+        <label htmlFor="reg-tel" className="mb-1 block text-xs font-medium text-muted-foreground">전화번호</label>
+        <input id="reg-tel" value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} inputMode="numeric" placeholder="010-0000-0000" className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/40" />
       </div>
 
       {/* 소프트 중복 확인 — 막지 않는다(F-4) */}
       {dup && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <span>
-            혹시 <b>{dup.name}</b>({maskBirth(dup.birth)}) 님 아니세요? 전화번호가 같습니다.
-            <button onClick={() => pickPatient(dup)} className="ml-1 font-semibold text-amber-900 underline">기존 기록 보기</button>
+            혹시 <b>{dup.masked_name}</b>({dup.masked_birth_date}) 님 아니세요? 전화번호가 같습니다.
+            {/* 막다른 길 금지 — 그 환자를 안고 예약·접수로 이어간다. 전화는 방금 직원이 친 값이다. */}
+            <button
+              onClick={() =>
+                pickPatient({
+                  id: dup.patient_id as string,
+                  name: dup.masked_name as string,
+                  birth: dup.masked_birth_date as string,
+                  tel: form.tel,
+                })
+              }
+              className="ml-1 font-semibold text-amber-900 underline"
+            >
+              기존 기록 보기
+            </button>
           </span>
         </div>
       )}
@@ -320,13 +381,11 @@ function RegisterBody() {
             { k: '전화', v: form.tel },
           ]}
           confirmLabel="등록"
+          busyLabel="등록하는 중…"
+          busy={registerMut.isPending}
+          error={registerError}
           onCancel={() => setConfirm(false)}
-          onConfirm={() =>
-            patch({
-              patient: { id: `new-${Date.now()}`, name: form.name, birth: form.birth, tel: form.tel },
-              isNew: true,
-            })
-          }
+          onConfirm={() => registerMut.mutate()}
         />
       )}
     </div>

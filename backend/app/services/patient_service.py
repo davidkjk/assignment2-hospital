@@ -38,13 +38,25 @@ def _classify_fragment(fragment: str) -> tuple[str, str]:
     return "name", fragment
 
 
-async def find_by_phone_and_birthdate(phone: str, birth_date: date, staff: StaffContext, conn=None) -> UUID | None:
+async def find_by_phone_and_birthdate(phone: str, birth_date: date, staff: StaffContext, conn=None) -> dict | None:
+    """[SHELL-DOOR-03] 소프트 중복 후보 한 줄(id·name·birth_date) 또는 None.
+
+    ⭐ 이름까지 함께 읽는 이유: 화면의 "혹시 이분?"이 사람을 가리키려면 이름이 필요하다.
+       ⛔ 원본을 그대로 내보내지는 않는다 — 라우터가 `patient_row_dto`로 가려서 내보낸다
+       (`MASK-SRV-01`). 여기서 가리지 않는 것은, 서비스는 정렬·비교에 원본이 필요한
+       search_patients와 같은 결을 지키기 위해서다(마스킹 지점은 HTTP 경계 하나다).
+    """
     async def _run(c):
-        row = await c.fetchrow(
-            "select id from patients where phone = $1 and birth_date = $2 and is_active",
+        # ⚠️ 전화는 **숫자만 남겨** 비교한다 — 저장된 값이 `010-1234-5678`인데 직원이 하이픈 없이
+        #    치면(또는 그 반대) 문자열 그대로 비교할 경우 같은 사람을 못 알아본다.
+        return await c.fetchrow(
+            r"""
+            select id, name, birth_date from patients
+            where regexp_replace(phone, '\D', '', 'g') = regexp_replace($1, '\D', '', 'g')
+              and birth_date = $2 and is_active
+            """,
             phone, birth_date,
         )
-        return row["id"] if row else None
 
     if conn is not None:
         return await _run(conn)
