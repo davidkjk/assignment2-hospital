@@ -5,6 +5,7 @@ import { InlineError } from '../../../components/InlineError'
 import { ApiError, isSessionExpiry, rememberReturn } from '../../../api/httpClient'
 import { useAuth } from '../../../auth/useAuth'
 import { useConnectivity } from '../../../lib/connectivity'
+import { formatHospitalDateTime } from '../../../lib/clock'
 import { undoMerge, type MergeEventData, type UndoResult } from '../../../api/mergeHistory'
 
 // [MHIST-CONFIRM-01·02·03 · NAV-04·05·06 · EXC-03·05 · MERGE-RACE-01] 되돌림 확인창.
@@ -82,7 +83,7 @@ export function UndoConfirmDialog({ event, reason, onConfirmed, onCancel }: Undo
             <h2 style={styles.title}>병합을 되돌리기 전에 확인하세요</h2>
             <dl style={styles.items}>
               <Item label="대표 → 대상" value={`${event.primary.name} → ${event.merged.name}`} />
-              <Item label="병합 시각" value={event.merged_at} />
+              <Item label="병합 시각" value={formatHospitalDateTime(event.merged_at)} />
               <Item label="사유" value={reason} />
             </dl>
             {/* MHIST-CONFIRM-01 — 무엇이 남고 무엇이 안 되는지 정확히. */}

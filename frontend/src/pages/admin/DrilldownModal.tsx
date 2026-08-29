@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
+import { formatHospitalDateTime } from '../../lib/clock'
 import { getStatsDetail, type DrilldownRow } from '../../api/stats'
 
 // [STAT-DRILL-01~04][결정21·24] 셀·지표를 눌러 여는 마스킹 명단.
@@ -85,7 +86,10 @@ export function DrilldownModal({ target, period, onClose }: DrilldownModalProps)
 }
 
 function Row({ row, onOpen }: { row: DrilldownRow; onOpen: () => void }) {
-  const when = row.occurred_at ?? (row.wait_minutes != null ? `대기 ${row.wait_minutes}분` : '')
+  // [G4/L16] occurred_at은 절대 순간 ISO(…Z) — 원본을 그대로 보이면 UTC·마이크로초가 노출된다. 병원 시각으로 포맷.
+  const when = row.occurred_at
+    ? formatHospitalDateTime(row.occurred_at)
+    : row.wait_minutes != null ? `대기 ${row.wait_minutes}분` : ''
   return (
     <tr style={styles.tr}>
       <td style={styles.td}>

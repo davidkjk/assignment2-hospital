@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { BusyButton } from '../../components/BusyButton'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { InlineError } from '../../components/InlineError'
+import { formatHospitalDateTime } from '../../lib/clock'
 import { draftStatusText, type AutoSaveStatus } from './useAutoSaveDraft'
 import type { DraftFields } from './useDraftStore'
 import { PhraseChips, type Phrase } from './PhraseChips'
@@ -209,7 +210,7 @@ export function RecordPanel(props: RecordPanelProps) {
         <div style={styles.prevBox}>
           {revisions.map((r, i) => (
             <div key={i} style={styles.prevItem}>
-              <p style={styles.prevMeta}>{r.revised_at} · {r.revised_by} · 사유: {r.reason}</p>
+              <p style={styles.prevMeta}>{formatHospitalDateTime(r.revised_at)} · {r.revised_by} · 사유: {r.reason}</p>
               {r.symptoms && <p style={styles.prevLine}>증상: {r.symptoms}</p>}
               {r.diagnosis && <p style={styles.prevLine}>진단: {r.diagnosis}</p>}
               {r.treatment && <p style={styles.prevLine}>처치: {r.treatment}</p>}
