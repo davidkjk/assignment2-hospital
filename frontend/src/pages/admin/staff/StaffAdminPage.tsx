@@ -204,6 +204,8 @@ const styles: Record<string, CSSProperties> = {
   right: {
     flex: 1,
     minWidth: 0,
+    // 왼쪽 목록의 상태 필터줄(칩 30 + col gap 12)만큼 내려 첫 직원 카드와 윗선을 맞춘다(L25).
+    marginTop: 42,
     padding: 18,
     borderRadius: 12,
     border: '1px solid var(--color-divider)',

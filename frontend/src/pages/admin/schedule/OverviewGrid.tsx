@@ -35,8 +35,8 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
   }
 
   return (
-    <div>
-      {/* [SCHED-GRID-01·04] 범례 — 격자 셀의 「시각 / 한 칸·정원 / 휴진 빗금」이 무슨 뜻인지 + 눌러서 이동한다는 안내. */}
+    <div data-testid="overview-grid" style={styles.wrap}>
+      {/* [SCHED-GRID-01·04] 범례 — 카드 안 상단(카드 윗선을 왼쪽 세로줄과 맞춘다). */}
       <div style={styles.legend}>
         <span style={styles.legendItem}>
           <span style={styles.legendNum}>09–18</span> 진료 시간
@@ -50,7 +50,7 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
         <span style={styles.legendHint}>칸을 누르면 그 의사 스케줄로 이동합니다</span>
       </div>
 
-      <div data-testid="overview-grid" style={styles.wrap}>
+      <div style={styles.tableScroll}>
         <table style={styles.table}>
         <thead>
           <tr>
@@ -119,7 +119,8 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     columnGap: 16,
     rowGap: 4,
-    marginBottom: 8,
+    padding: '10px 12px',
+    borderBottom: '1px solid var(--color-divider)',
     fontSize: 'var(--fs-caption)',
     color: 'var(--color-ink-muted)',
   },
@@ -134,11 +135,12 @@ const styles: Record<string, CSSProperties> = {
   },
   legendHint: { color: 'var(--color-ink-muted)', opacity: 0.75 },
   wrap: {
-    overflowX: 'auto',
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
     background: 'var(--color-surface)',
+    overflow: 'hidden',
   },
+  tableScroll: { overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: {
     padding: '6px 8px',
