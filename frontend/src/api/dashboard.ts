@@ -104,6 +104,10 @@ export interface QueueRow extends PatientRow {
   slot_time: string | null
   /** 진료 대기 탭에서만 온다(QUEUE-ORDER-01·02). 그 밖의 탭에는 없다. */
   queue_no?: number
+  /** 대기시간(분) — 도착·진료대기·진료중일 때만. 그 밖(미도착·완료·취소)은 null(QUEUE-ROW-05·06). */
+  wait_minutes?: number | null
+  /** 기준(long_wait_threshold_minutes) 초과 여부 — 화면이 주의색으로 낸다(QUEUE-ROW-05). */
+  wait_is_long?: boolean | null
 }
 
 export interface QueueResponse {

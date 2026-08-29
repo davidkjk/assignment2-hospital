@@ -22,6 +22,8 @@ function row(over: Partial<QueueRow> & Pick<QueueRow, 'appointment_id' | 'status
     doctor_name: '박지훈',
     department_name: '내과',
     slot_time: null,
+    wait_minutes: null,
+    wait_is_long: null,
     ...over,
   }
 }
@@ -176,6 +178,28 @@ describe('Queue', () => {
     renderQueue('/queue?tab=waiting')
     const r = await screen.findByTestId('queue-row-w1')
     expect(within(r).getByText('당일 방문')).toBeInTheDocument()
+  })
+
+  test('QUEUE-ROW-06: 진료대기 줄은 「N분 대기」로 대기시간을 보인다', async () => {
+    queueOk({ waiting: [row({ appointment_id: 'w1', status: '진료대기', queue_no: 1, wait_minutes: 12, wait_is_long: false })] })
+    renderQueue('/queue?tab=waiting')
+    const r = await screen.findByTestId('queue-row-w1')
+    expect(within(r).getByText('12분 대기')).toBeInTheDocument()
+  })
+
+  test('QUEUE-ROW-06: 도착 줄은 「N분 경과」로 보인다(대기 아님)', async () => {
+    queueOk({ arrived: [row({ appointment_id: 'ar1', status: '도착', wait_minutes: 8, wait_is_long: false })] })
+    renderQueue('/queue?tab=arrived')
+    const r = await screen.findByTestId('queue-row-ar1')
+    expect(within(r).getByText('8분 경과')).toBeInTheDocument()
+  })
+
+  test('QUEUE-ROW-05: 기준 초과 대기는 주의색 글자다', async () => {
+    queueOk({ waiting: [row({ appointment_id: 'w1', status: '진료대기', queue_no: 1, wait_minutes: 42, wait_is_long: true })] })
+    renderQueue('/queue?tab=waiting')
+    const r = await screen.findByTestId('queue-row-w1')
+    const label = within(r).getByText('42분 대기')
+    expect(label.className).toMatch(/amber/)
   })
 })
 

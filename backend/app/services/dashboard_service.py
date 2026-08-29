@@ -78,12 +78,28 @@ async def get_queue(staff: StaffContext, *, doctor_id=None, tab: str = "waiting"
                      then row_number() over (
                        partition by (a.status = '진료대기')
                        order by a.queue_position asc nulls last, a.id)
-                   end as queue_no
+                   end as queue_no,
+                   -- [QUEUE-ROW-05·06] 대기시간 = 현재 상태(도착·진료대기·진료중)로 진입한 뒤 경과 분.
+                   --   진입 시각은 그 상태로의 실제 전이(from≠to)의 첫 이력이라, 순서 재배치 메모(from=to)로
+                   --   초기화되지 않는다. TZ 무관(now()-now() 차이). 미도착·완료·취소는 대기 개념이 없어 null.
+                   case when a.status in ('도착','진료대기','진료중')
+                     then floor(extract(epoch from (now() - h.entered_at)) / 60)::int
+                   end as wait_minutes,
+                   case when a.status in ('도착','진료대기','진료중')
+                     then floor(extract(epoch from (now() - h.entered_at)) / 60)::int
+                          >= (select long_wait_threshold_minutes from hospital_settings limit 1)
+                   end as wait_is_long
             from appointments a
             join patients p on p.id = a.for_patient_id
             left join appointment_slots s on s.id = a.slot_id
             join staff d on d.id = a.doctor_id
             join departments dept on dept.id = a.department_id
+            left join lateral (
+              select min(changed_at) as entered_at
+              from appointment_status_history
+              where appointment_id = a.id and to_status = a.status
+                and from_status is distinct from to_status
+            ) h on true
             where {_TODAY_SCOPE}
             """
         )
@@ -125,6 +141,9 @@ def _queue_row_dto(r, *, with_queue_no: bool) -> dict:
         "doctor_name": r["doctor_name"],
         "department_name": r["department_name"],
         "slot_time": r["slot_time"].isoformat() if r["slot_time"] is not None else None,
+        # [QUEUE-ROW-05·06] 대기시간(분)과 기준 초과 여부. 화면이 상태별 문구(경과/대기/N분째)와 주의색을 낸다.
+        "wait_minutes": r["wait_minutes"],
+        "wait_is_long": r["wait_is_long"],
     }
     if with_queue_no:
         extra["queue_no"] = r["queue_no"]

@@ -448,6 +448,15 @@ function RowNode({
         )}
       </div>
 
+      {/* 대기시간 (QUEUE-ROW-05·06) — 도착/진료대기/진료중일 때만. 기준 초과면 주의색(배경은 안 칠한다). */}
+      <div className="w-20 shrink-0 text-sm tabular-nums">
+        {row.wait_minutes != null && (
+          <span className={row.wait_is_long ? 'font-medium text-amber-600' : 'text-muted-foreground'}>
+            {waitLabel(row.status, row.wait_minutes)}
+          </span>
+        )}
+      </div>
+
       {/* 진료과/의사 */}
       <div className="hidden w-28 shrink-0 text-sm text-muted-foreground md:block">
         {row.department_name} {row.doctor_name}
@@ -735,4 +744,12 @@ function Modal({ title, children, onClose, hideClose }: {
 
 function labelFor(tab: QueueTab): string {
   return TABS.find((t) => t.key === tab)?.label ?? '대기'
+}
+
+/** 대기시간 문구는 상태마다 다르다(QUEUE-ROW-06): 도착은 「N분 경과」(줄서기 전이라 「대기」라 부르면
+ *  순번이 있는 것처럼 읽힌다), 진료대기는 「N분 대기」, 진료중은 「N분째」. */
+function waitLabel(status: string, minutes: number): string {
+  if (status === '도착') return `${minutes}분 경과`
+  if (status === '진료중') return `${minutes}분째`
+  return `${minutes}분 대기`
 }

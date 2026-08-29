@@ -69,6 +69,15 @@ async def transition_to_waiting(conn, appointment_id, changed_by, minutes_ago=0)
     )
 
 
+async def transition_to(conn, appointment_id, changed_by, *, from_status, to_status, minutes_ago=0) -> None:
+    """임의 상태 전이 이력을 과거 시각으로 남긴다(대기시간 계산의 근거)."""
+    await conn.execute(
+        "insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_at) "
+        "values ($1,$2,$3,$4, now() - make_interval(mins => $5))",
+        appointment_id, from_status, to_status, changed_by, minutes_ago,
+    )
+
+
 async def add_reorder_memo(conn, appointment_id, changed_by) -> None:
     """순서 재배치 메모(from_status = to_status) — 대기 시작 시각을 초기화하면 안 된다."""
     await conn.execute(

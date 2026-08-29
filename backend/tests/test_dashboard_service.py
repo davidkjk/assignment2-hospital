@@ -10,11 +10,77 @@ from app.services import dashboard_service
 from tests.conftest import set_session_auth
 from tests.task13_fixtures import (
     add_reorder_memo, db_today, seed_appointment, seed_department, seed_doctor,
-    seed_patient, seed_slot, to_context, transition_to_waiting,
+    seed_patient, seed_slot, to_context, transition_to, transition_to_waiting,
 )
 
 
 # ── 대기 목록 (/queue) ────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_큐_로우_06_진료대기_행은_대기_시작_후_경과분을_준다(db_conn):
+    """[QUEUE-ROW-05·06] 대기시간 = 현재 상태 진입 후 경과. 진료대기는 진료대기 전이 시각 기준이고,
+    기본 threshold(30분)를 넘으면 wait_is_long=True로 화면이 주의색을 낸다."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    appt = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p, slot_id=slot, status="진료대기", queue_position=1)
+    await transition_to_waiting(db_conn, appt, doc["staff_id"], minutes_ago=45)
+    rows = (await dashboard_service.get_queue(admin, tab="waiting", conn=db_conn)).rows
+    assert rows[0]["wait_minutes"] >= 44
+    assert rows[0]["wait_is_long"] is True
+
+
+@pytest.mark.asyncio
+async def test_큐_로우_05_기준_미만_대기는_주의색_아니다(db_conn):
+    """[QUEUE-ROW-05] threshold 미만 대기는 wait_is_long=False (주의색 없음)."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    appt = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p, slot_id=slot, status="진료대기", queue_position=1)
+    await transition_to_waiting(db_conn, appt, doc["staff_id"], minutes_ago=10)
+    rows = (await dashboard_service.get_queue(admin, tab="waiting", conn=db_conn)).rows
+    assert rows[0]["wait_minutes"] == 10
+    assert rows[0]["wait_is_long"] is False
+
+
+@pytest.mark.asyncio
+async def test_큐_로우_06_도착_행은_도착_전이_시각_기준_경과분을_준다(db_conn):
+    """[QUEUE-ROW-06] 도착 탭 대기시간은 「도착」 전이 시각 기준(N분 경과) — 진료대기 전이가 아니다."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    appt = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p, slot_id=slot, status="도착")
+    await transition_to(db_conn, appt, doc["staff_id"], from_status="예약확정", to_status="도착", minutes_ago=8)
+    rows = (await dashboard_service.get_queue(admin, tab="arrived", conn=db_conn)).rows
+    assert rows[0]["wait_minutes"] == 8
+
+
+@pytest.mark.asyncio
+async def test_큐_로우_05_미도착_행은_대기시간이_없다(db_conn):
+    """[QUEUE-ROW-05] 아직 도착 전(미도착)엔 대기시간이 없다 — wait_minutes=None."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p, slot_id=slot, status="예약확정")
+    rows = (await dashboard_service.get_queue(admin, tab="not_arrived", conn=db_conn)).rows
+    assert rows[0]["wait_minutes"] is None
+
 
 @pytest.mark.asyncio
 async def test_큐_오더_03_순번은_병원_전체_줄_기준이고_필터로_다시_안_매긴다(db_conn):
