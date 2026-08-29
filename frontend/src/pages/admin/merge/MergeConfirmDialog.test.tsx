@@ -128,5 +128,5 @@ test('[MERGE-STATE-02] 조회 실패는 비교 상태를 지우지 않는다', a
 test('[MERGE-STATE-03] 오프라인에서는 캐시로 병합을 시작하게 두지 않는다', async () => {
   renderMerge({ online: false, groups: [twoRowGroup()] })
   expect(await screen.findByRole('status')).toHaveTextContent(/인터넷이 연결되어 있지 않습니다/)
-  expect((await screen.findAllByRole('button', { name: '대표로 검토' }))[0]).toBeDisabled()
+  expect((await screen.findAllByRole('button', { name: '대표 검토' }))[0]).toBeDisabled()
 })

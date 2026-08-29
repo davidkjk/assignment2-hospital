@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import type { CandidateGroup as Group, CandidateRow } from '../../../api/patientMerge'
 
 // [MERGE-LIST-01~05] 한 후보 그룹 카드. 그룹 안 행을 모두 보이고, 미리 대표를 확정하지 않는다.
-// ⭐ 본문에는 빨간 파괴 버튼도 [삭제]도 두지 않는다(결정 #18) — 회색 테두리 [대표로 검토]뿐이고,
+// ⭐ 본문에는 빨간 파괴 버튼도 [삭제]도 두지 않는다(결정 #18) — 회색 테두리 [대표 검토]뿐이고,
 //    이 버튼은 데이터를 바꾸지 않고 비교 상태만 연다(MERGE-LIST-05).
 
 interface CandidateGroupProps {
@@ -43,7 +43,7 @@ export function CandidateGroup({ index, group, onReview, disabled = false }: Can
                 disabled={disabled}
                 style={disabled ? { ...styles.reviewBtn, ...styles.reviewBtnOff } : styles.reviewBtn}
               >
-                대표로 검토
+                대표 검토
               </button>
             </div>
           </li>

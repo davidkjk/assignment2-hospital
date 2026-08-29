@@ -229,14 +229,14 @@ export function badges(card: HTMLElement): string[] {
 
 type User = ReturnType<typeof userEvent.setup>
 
-/** 목록에서 첫 그룹의 첫 [대표로 검토]를 눌러 비교 상태로 들어간다(대표는 아직 안 고른다). */
+/** 목록에서 첫 그룹의 첫 [대표 검토]를 눌러 비교 상태로 들어간다(대표는 아직 안 고른다). */
 export async function enterCompare(user: User): Promise<void> {
-  const btns = within(groupCard(0)).getAllByRole('button', { name: '대표로 검토' })
+  const btns = within(groupCard(0)).getAllByRole('button', { name: '대표 검토' })
   await user.click(btns[0])
 }
 /** 비교 상태에서 한 쪽을 대표로 고른다. */
 export async function pickPrimary(user: User, side: string): Promise<void> {
-  await user.click(within(compareCard(side)).getByRole('button', { name: '대표로 검토' }))
+  await user.click(within(compareCard(side)).getByRole('button', { name: '대표 검토' }))
 }
 /** 목록 → 비교 → 대표(좌) → [병합 내용 검토]로 확인창을 연다. */
 export async function openConfirm(user: User): Promise<void> {

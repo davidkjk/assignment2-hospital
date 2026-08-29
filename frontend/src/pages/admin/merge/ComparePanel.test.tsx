@@ -42,6 +42,12 @@ test('[MERGE-COMPARE-04][MERGE-STATE-04] 양쪽 다 계정이면 검토 버튼�
   expect(screen.getByText(/두 기록 모두 계정이 연결되어 있어 자동 병합할 수 없습니다/)).toBeVisible()
   expect(screen.getByText(/가족 연결과 혼동하지 말고/)).toBeVisible()
   expect(screen.getByRole('button', { name: '병합 내용 검토' })).toBeDisabled()
+  // 플랜 S17 ④ 막다른 길 방지 — 각 기록을 새 탭 환자 상세로 열어 병합 화면을 떠나지 않고 확인.
+  const lockLinks = screen.getAllByRole('link', { name: /환자 상세$/ })
+  expect(lockLinks).toHaveLength(2)
+  expect(lockLinks[0]).toHaveAttribute('href', '/patients/p-a')
+  expect(lockLinks[1]).toHaveAttribute('href', '/patients/p-b')
+  lockLinks.forEach((a) => expect(a).toHaveAttribute('target', '_blank'))
 })
 
 test('[MERGE-COMPARE-05] 원문을 여기서 안 펼치고 환자 상세로 보낸다', async () => {

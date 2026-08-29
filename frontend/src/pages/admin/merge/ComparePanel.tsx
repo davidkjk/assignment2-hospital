@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
+import { ExternalLink } from '../../../components/icons'
 import type { CandidateRow } from '../../../api/patientMerge'
 
 // [MERGE-COMPARE-01~06 · MERGE-REVIEW-01·02 · MERGE-STATE-04] 두 후보를 좌·우로 비교한다.
@@ -46,9 +47,18 @@ export function ComparePanel({ left, right, primaryId, onPickPrimary, onReview, 
 
       {bothLinked && (
         // MERGE-STATE-04 / MERGE-COMPARE-04 — 자동 병합 잠금. 가족 연결과 혼동 금지.
-        <p role="note" style={styles.lock}>
-          두 기록 모두 계정이 연결되어 있어 자동 병합할 수 없습니다. 가족 연결과 혼동하지 말고 환자 상세에서 별도 확인하세요.
-        </p>
+        // 막다른 길 방지 — 각 기록을 새 탭 환자 상세로 열어 병합 화면을 떠나지 않고 확인한다(플랜 S17 ④).
+        <div role="note" style={styles.lock}>
+          <span>두 기록 모두 계정이 연결되어 있어 자동 병합할 수 없습니다. 가족 연결과 혼동하지 말고 환자 상세에서 별도 확인하세요.</span>
+          <div style={styles.lockLinks}>
+            <a href={`/patients/${left.patient_id}`} target="_blank" rel="noopener noreferrer" style={styles.lockLink}>
+              <ExternalLink width={14} height={14} aria-hidden="true" /> {left.name} 환자 상세
+            </a>
+            <a href={`/patients/${right.patient_id}`} target="_blank" rel="noopener noreferrer" style={styles.lockLink}>
+              <ExternalLink width={14} height={14} aria-hidden="true" /> {right.name} 환자 상세
+            </a>
+          </div>
+        </div>
       )}
 
       {/* MERGE-REVIEW-02 — 회색 테두리 버튼 하나. 확인창을 여는 단계일 뿐 확정하지 않는다. */}
@@ -94,7 +104,7 @@ function CompareCard({ side, row, primaryId, otherIsPrimary, onPick }: CompareCa
         <Item label="마지막 방문" value={row.last_visit_at ? formatVisit(row.last_visit_at) : '방문 없음'} />
       </dl>
 
-      <button type="button" onClick={() => onPick(row.patient_id)} style={styles.pick}>대표로 검토</button>
+      <button type="button" onClick={() => onPick(row.patient_id)} style={styles.pick}>대표 검토</button>
     </div>
   )
 }
@@ -167,9 +177,18 @@ const styles: Record<string, CSSProperties> = {
   detailNote: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   link: { color: 'var(--color-primary)', fontWeight: 600 },
   lock: {
+    display: 'flex', flexDirection: 'column', gap: 8,
     margin: 0, padding: '10px 14px', borderRadius: 10,
     borderLeft: '4px solid var(--color-danger)', background: 'var(--color-danger-bg)',
     color: 'var(--color-danger)', fontSize: 'var(--fs-base)', fontWeight: 600, lineHeight: 1.5,
+  },
+  lockLinks: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  lockLink: {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '4px 10px', borderRadius: 8,
+    border: '1px solid var(--color-danger)', background: 'var(--color-surface)',
+    color: 'var(--color-danger)', fontSize: 'var(--fs-sm)', fontWeight: 600,
+    textDecoration: 'none',
   },
   actions: { display: 'flex', justifyContent: 'flex-end' },
   review: {
