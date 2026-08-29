@@ -253,6 +253,8 @@
 
 ## Task 0: Flutter 스캐폴딩 + 시각 토큰(테마) + 공통 표시 위젯 + ApiClient·인증상태
 
+> ✅ **구현 완료 (2026-08-29, 커밋 `696fc9c`, 브랜치 `feat/patient-app`).** `flutter test` 18/0 · `flutter analyze` 0 · design-tokens 29/0 · 직원웹 `tokens.css` 0바이트 변경(증명됨). **결정 1대로 Step B2를 자동생성으로 대체**: `build.mjs buildDart`가 `tokens.json`→`tokens.dart` 생성(신규는 `patientApp.*`에만). **견본과 다른 점 2가지**(의도): ①`warn`은 `#B54708` 대신 통합 `color.warn`(#B44E00) — 테스트가 warn 색값 안 박음 ②`ApiClient._handle`은 `response.bodyBytes`를 utf-8로 디코딩(FastAPI charset 미부착 시 한글 깨짐 방지). 아래 견본 코드·`- [ ]` 스텝은 그 이력이다.
+
 > ⭐ **가장 먼저다.** 토큰이 없으면 각 화면이 자기 색·크기·카드 규격을 만들고, 회수 비용이 화면 수만큼 곱해진다(직원웹 Task 0에서 확인된 교훈). 이 태스크가 `DISP-*` 12규칙 전부를 **토큰·공통 위젯**으로 못박고, 이후 모든 화면은 그것만 소비한다.
 
 **담당 규칙(12)**: `DISP-GRAY-01·02·03` · `DISP-CARD-01·02·03` · `DISP-ATT-01` · `DISP-ICON-01·02·03` · `DISP-COLOR-01` · `DISP-WARN-01`
