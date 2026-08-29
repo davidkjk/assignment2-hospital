@@ -212,6 +212,31 @@ test('[SCHED-SAVE-08][SCHED-WARN-09][SCHED-WARN-10] 저장 성공하면 ●가 �
   expect(screen.getByRole('status')).toHaveTextContent('3건은 접수 직원의 「확인 필요한 예약」으로 넘어갔습니다.')
 })
 
+test('[G1] 저장이 실패하면 ●를 남기고 이유를 알린다 — 경고 없는 바로 저장', async () => {
+  const user = userEvent.setup()
+  const onCommit = vi.fn(async () => { throw new Error('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.') })
+  renderTable({ onCommit }) // onPreview 기본 = NO_PREVIEW → 확인창 없이 바로 commit
+  await editCell(user, '월요일', '하루 최대 인원', '50')
+  await user.click(screen.getByRole('button', { name: '저장' }))
+  await screen.findByRole('alert')
+  expect(screen.getByRole('alert')).toHaveTextContent('저장하지 못했습니다')
+  // 실패면 고친 표시(●)와 값이 그대로 남아야 한다 — 조용히 날리지 않는다.
+  expect(screen.getByText(/고친 곳 1군데 · 아직 저장 안 됨/)).toBeVisible()
+})
+
+test('[G1] 저장이 실패하면 ●를 남기고 이유를 알린다 — 확인창 경유', async () => {
+  const user = userEvent.setup()
+  const onPreview = vi.fn(async () => ({ affected: [{ weekday: 0, count: 3 }], slotRemoved: 0, slotAdded: 0 }))
+  const onCommit = vi.fn(async () => { throw new Error('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.') })
+  renderTable({ onPreview, onCommit })
+  await editCell(user, '월요일', '하루 최대 인원', '50')
+  await user.click(screen.getByRole('button', { name: '저장' }))
+  await user.click(screen.getByRole('button', { name: '그래도 저장' }))
+  await screen.findByRole('alert')
+  expect(screen.getByRole('alert')).toHaveTextContent('저장하지 못했습니다')
+  expect(screen.getByText(/고친 곳 1군데 · 아직 저장 안 됨/)).toBeVisible()
+})
+
 test('[SCHED-SLOT-07] 저장 전에 「자리 12개가 없어지고 20개가 생깁니다」를 보여준다', async () => {
   const user = userEvent.setup()
   const onPreview = vi.fn(async () => ({ affected: [], slotRemoved: 12, slotAdded: 20 }))

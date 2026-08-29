@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react'
+import { ApiError } from '../../../api/httpClient'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { btnPrimary, btnGhost } from '../../../components/staff-ui'
 import { DirtyDot } from './DirtyDot'
@@ -44,6 +45,8 @@ export function DoctorWeekTable({
   const [preview, setPreview] = useState<WeekPreview | null>(null)
   const [pendingRows, setPendingRows] = useState<WeekRow[]>([])
   const [status, setStatus] = useState<{ affected: number } | null>(null)
+  // 저장이 실패하면 이유를 보인다 — 안 그러면 ●만 남고 「눌렀는데 아무 일도 없다」가 된다(G1·프로필과 같은 처방).
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const rows = serverWeek[selectedDoctorId] ?? []
   const curRow = (w: number): WeekRow =>
@@ -51,6 +54,7 @@ export function DoctorWeekTable({
 
   function edit(w: number, patch: Partial<WeekRow>) {
     setStatus(null)
+    setActionError(null)
     dirty.setDraft(selectedDoctorId, w, { ...curRow(w), ...patch })
   }
 
@@ -70,22 +74,36 @@ export function DoctorWeekTable({
   async function handleSave() {
     const dirtyRows = collectDirtyRows()
     if (dirtyRows.length === 0) return
-    const result = await onPreview(selectedDoctorId, dirtyRows)
-    const needsWarning = result.affected.length > 0 || result.slotRemoved > 0 || result.slotAdded > 0
-    if (needsWarning) {
-      setPendingRows(dirtyRows)
-      setPreview(result) // 한 번만 뜬다 — 영향·자리 미리보기를 한 팝업에 모은다(SCHED-SAVE-04)
-    } else {
-      await commit(dirtyRows)
+    setActionError(null)
+    try {
+      const result = await onPreview(selectedDoctorId, dirtyRows)
+      const needsWarning = result.affected.length > 0 || result.slotRemoved > 0 || result.slotAdded > 0
+      if (needsWarning) {
+        setPendingRows(dirtyRows)
+        setPreview(result) // 한 번만 뜬다 — 영향·자리 미리보기를 한 팝업에 모은다(SCHED-SAVE-04)
+      } else {
+        await commit(dirtyRows)
+      }
+    } catch (e) {
+      // 저장·미리보기가 실패하면 ●와 값을 그대로 두고 이유만 보인다(막다른 길 대신 이유, 초안 보존).
+      setActionError(e instanceof ApiError ? e.message : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
   }
 
   async function commit(dirtyRows: WeekRow[]) {
-    const result = await onCommit(selectedDoctorId, dirtyRows)
-    dirty.reset(selectedDoctorId) // ●가 사라진다(SCHED-SAVE-08)
-    setPreview(null)
-    setPendingRows([])
-    setStatus(result)
+    // 확인창의 [그래도 저장]에서도 불린다 — 여기서 던지면 handleSave 밖(확인창 경로)에선
+    // 잡을 곳이 없으므로, 실패를 자체 처리해 ●를 남기고 이유를 보인다(G1 — void 삼킴 금지).
+    try {
+      const result = await onCommit(selectedDoctorId, dirtyRows)
+      dirty.reset(selectedDoctorId) // ●가 사라진다(SCHED-SAVE-08)
+      setPreview(null)
+      setPendingRows([])
+      setStatus(result)
+      setActionError(null)
+    } catch (e) {
+      setPreview(null) // 확인창은 닫되, 고친 값·●는 남긴다.
+      setActionError(e instanceof ApiError ? e.message : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    }
   }
 
   const dirtyCount = dirty.dirtyCount(selectedDoctorId)
@@ -129,6 +147,12 @@ export function DoctorWeekTable({
           </button>
         </div>
       </div>
+
+      {actionError && (
+        <p role="alert" style={styles.errorNote}>
+          {actionError}
+        </p>
+      )}
 
       {status && (
         <div role="status" style={styles.statusNote}>
@@ -353,6 +377,16 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-ink)',
     fontSize: 'var(--fs-body)',
     marginBottom: 8,
+  },
+  errorNote: {
+    margin: '0 0 8px',
+    padding: '8px 12px',
+    borderRadius: 8,
+    borderLeft: '4px solid var(--color-danger)',
+    background: 'var(--color-danger-bg)',
+    color: 'var(--color-danger)',
+    fontSize: 'var(--fs-body)',
+    fontWeight: 600,
   },
   wrap: {
     overflowX: 'auto',
