@@ -14,6 +14,10 @@ export interface DoctorQueueApiRow {
   /** [DOCTOR-QUEUE-02] 성별(남/여). */
   gender?: string | null
   queue_position: number | null
+  /** [DOCTOR-QUEUE-03] 서버가 매긴 표시 순번(정렬 순 1-based). queue_position이 비어도 채워진다. */
+  display_position: number
+  /** [DOCTOR-QUEUE-02] 주의 표시 플래그(is_urgent_flag) — 화면이 「⚠️ 주의 표시」 텍스트로 낸다. */
+  is_urgent?: boolean
   waiting_started_at: string | null
   status: string
   /** ⏳ BLOCKED(갭 #36 경계): change_status가 요구하는 낙관적 잠금 값. get_doctor_queue가 아직
@@ -30,6 +34,25 @@ export interface DoctorQueueResponse {
 export function getDoctorQueue(doctorId: string, date?: string) {
   const q = date ? `?date=${encodeURIComponent(date)}` : ''
   return apiFetch<DoctorQueueResponse>(`/doctors/${doctorId}/queue${q}`)
+}
+
+/** [DOCTOR-HISTORY-01] 콘솔 선택 환자의 완료 과거기록 한 행(현재 예약 제외·최신순). 서버 DTO 그대로. */
+export interface ConsoleHistoryRow {
+  id: string
+  date: string | null
+  department_name?: string | null
+  doctor_name?: string | null
+  diagnosis?: string | null
+  status: string
+}
+
+/**
+ * [DOCTOR-HISTORY-01] 선택 환자의 완료 과거 진료기록을 최신순으로. 현재 열어 둔 예약은 제외해
+ * 「지금 쓰는 진료」와 참고용 과거를 섞지 않는다. care-continuity 범위는 서버(RLS)가 지킨다.
+ */
+export function getConsoleHistory(patientId: string, excludeAppointmentId?: string) {
+  const q = excludeAppointmentId ? `?exclude_appointment_id=${encodeURIComponent(excludeAppointmentId)}` : ''
+  return apiFetch<{ rows: ConsoleHistoryRow[] }>(`/doctors/console/patients/${patientId}/history${q}`)
 }
 
 const json = (method: string, body: unknown): RequestInit => ({

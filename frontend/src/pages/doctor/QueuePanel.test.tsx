@@ -60,6 +60,25 @@ describe('QueuePanel', () => {
     expect(ids()).toEqual(['a1', 'a2', 'a3'])
   })
 
+  test('[DOCTOR-QUEUE-03] 순번은 서버가 준 표시 순번을 쓰고, queue_position이 비어도 「–」 대신 서수를 보인다', () => {
+    renderPanel({ rows: [row({ id: 'a1', display_position: 2, queue_position: null, name: '박*수' })] })
+    const btn = screen.getByRole('button')
+    expect(within(btn).getByText('2')).toBeVisible()
+    expect(within(btn).queryByText('–')).toBeNull()
+  })
+
+  test('[DOCTOR-QUEUE-02] 주의 표시가 켜지면 아이콘만 아니라 「주의 표시」 텍스트도 보인다', () => {
+    renderPanel({
+      rows: [
+        row({ id: 'a1', is_urgent: true, name: '박*수' }),
+        row({ id: 'a2', is_urgent: false, name: '이*희' }),
+      ],
+    })
+    const rows = screen.getAllByRole('button')
+    expect(within(rows[0]).getByText('주의 표시')).toBeVisible()
+    expect(within(rows[1]).queryByText('주의 표시')).toBeNull()
+  })
+
   test('[DOCTOR-QUEUE-04][DOCTOR-START-01] 진료대기 행을 열면 버튼 없이 열리고, 전이 목표는 진료중이다', async () => {
     const user = userEvent.setup()
     const { onOpen } = renderPanel({ rows: [row({ id: 'a1', status: '진료대기' })] })

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
@@ -23,11 +23,15 @@ interface QueueOpts {
   rows?: unknown[]
   mode?: 'live' | 'read_only_with_record_edit'
   record?: Record<string, unknown> | null
+  history?: unknown[]
   onPatch?: () => void
 }
 
 function mockConsole(opts: QueueOpts = {}) {
   server.use(
+    http.get('*/doctors/console/patients/:id/history', () =>
+      HttpResponse.json({ rows: opts.history ?? [] }),
+    ),
     http.get('*/doctors/:id/queue', () =>
       HttpResponse.json({ rows: opts.rows ?? [], mode: opts.mode ?? 'live' }),
     ),
@@ -109,6 +113,23 @@ describe('DoctorConsolePage', () => {
     renderConsole()
     await user.click(await screen.findByRole('button', { name: /진료대기/ }))
     await waitFor(() => expect(onPatch).toHaveBeenCalledTimes(1)) // 여는 행위가 곧 전이
+  })
+
+  test('[DOCTOR-HISTORY-01] 환자를 열면 완료된 과거 진료기록을 채워 보인다(하드코딩 빈 상태 아님)', async () => {
+    const user = userEvent.setup()
+    mockConsole({
+      rows: [WAITING_ROW],
+      history: [
+        { id: 'r1', date: '2026-07-30', department_name: '내과', doctor_name: '이정민', diagnosis: '고혈압 경과 관찰', status: '진료완료' },
+      ],
+    })
+    renderConsole()
+    await user.click(await screen.findByRole('button', { name: /진료대기/ }))
+    const history = await screen.findByRole('region', { name: '과거 진료기록' })
+    expect(await within(history).findByText('고혈압 경과 관찰')).toBeVisible()
+    expect(within(history).getByText(/내과 · 이정민/)).toBeVisible()
+    // 하드코딩 빈 상태였다면 이 안내가 떴을 것 — 실제 기록을 받으면 안 뜬다.
+    expect(within(history).queryByText('완료된 과거 진료기록이 없습니다')).toBeNull()
   })
 
   test('[DOCTOR-CONTEXT-01][MASK-DETAIL-01] 선택해도 전화번호를 끌어오지 않는다', async () => {

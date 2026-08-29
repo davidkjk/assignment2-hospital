@@ -7,6 +7,7 @@
 """
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from uuid import UUID
 
 from app.core.dto import patient_row_dto
 from app.core.errors import AppError
@@ -170,8 +171,14 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
         return await c.fetch(
             """
             select a.id, a.queue_position, a.status, a.for_patient_id, a.updated_at,
+                   a.is_urgent_flag,
                    p.name, p.birth_date, p.gender,
-                   h.waited_since as waiting_started_at
+                   h.waited_since as waiting_started_at,
+                   -- [DOCTOR-QUEUE-03] 표시 순번 = 정렬 순의 1-based 서수. queue_position이 비어도
+                   --   화면이 「–」 대신 1·2·3을 보인다(순번 채번은 서버가, 화면은 받은 대로).
+                   row_number() over (
+                     order by (a.queue_position is null), a.queue_position, h.waited_since nulls first, a.id
+                   ) as display_position
             from appointments a
             join patients p on p.id = a.for_patient_id
             left join lateral (
@@ -199,6 +206,10 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
             "masked_birth_date": mask_birth_date(r["birth_date"]),
             "gender": r["gender"],
             "queue_position": r["queue_position"],
+            # [DOCTOR-QUEUE-03] 정렬 순 서수 — 화면 순번 표시용(queue_position 비어도 「–」 안 뜬다).
+            "display_position": r["display_position"],
+            # [DOCTOR-QUEUE-02] 주의 표시 플래그(00005부터 있던 칸) — 화면이 「⚠️ 주의 표시」 텍스트로.
+            "is_urgent": r["is_urgent_flag"],
             "waiting_started_at": r["waiting_started_at"],
             "status": r["status"],
             # [DOCTOR-START-01] 낙관적 잠금 값 — 이게 있어야 행 열기(진료중 전이)가 422로 막히지 않는다(갭 #36 경계).
@@ -207,6 +218,49 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
         for r in fetched
     ]
     return DoctorQueueResult(rows=rows, mode=mode)
+
+
+async def get_console_history(
+    patient_id: UUID, doctor: StaffContext, *, exclude_appointment_id: UUID | None = None, conn=None,
+) -> list[dict]:
+    """[DOCTOR-HISTORY-01] 선택 환자의 **완료된** 과거 진료기록 — 현재 예약 제외·최신순.
+
+    ⭐ care-continuity RLS(`doctor_can_view_appointment`)로, 지금 담당 중(도착/진료대기/진료중)인
+       환자의 **타 진료과 완료기록까지** 본다. 완료(is_completed)만 — 작성 중 초안은 섞지 않는다.
+       과·의사는 예약의 진료과·기록을 쓴 의사에서 온다. status는 진료완료로 못박는다(완료만 조회).
+    """
+    async def _run(c):
+        return await c.fetch(
+            """
+            select mr.id, mr.diagnosis, mr.created_at,
+                   coalesce(s.slot_date, (mr.created_at at time zone 'Asia/Seoul')::date) as visit_date,
+                   d.name as department_name,
+                   doc.name as doctor_name
+            from medical_records mr
+            join appointments a on a.id = mr.appointment_id
+            left join appointment_slots s on s.id = a.slot_id
+            left join departments d on d.id = a.department_id
+            left join staff doc on doc.id = mr.doctor_id
+            where a.for_patient_id = $1
+              and mr.is_completed = true
+              and ($2::uuid is null or a.id <> $2)
+            order by visit_date desc, mr.created_at desc, mr.id
+            """,
+            patient_id, exclude_appointment_id,
+        )
+
+    fetched = await _dispatch(doctor, conn, _run)
+    return [
+        {
+            "id": str(r["id"]),
+            "date": r["visit_date"].isoformat() if r["visit_date"] else None,
+            "department_name": r["department_name"],
+            "doctor_name": r["doctor_name"],
+            "diagnosis": r["diagnosis"],
+            "status": "진료완료",
+        }
+        for r in fetched
+    ]
 
 
 async def get_next_available(doctor: StaffContext, *, conn=None) -> dict | None:

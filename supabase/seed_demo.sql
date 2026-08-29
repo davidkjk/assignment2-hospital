@@ -428,6 +428,22 @@ from appointments a
 join appointment_slots s on s.id = a.slot_id
 where s.slot_date = current_date and a.status in ('진료중', '진료완료');
 
+-- 주의 표시(is_urgent_flag) — 오늘 활성 큐 몇 건에 켜서 의사 콘솔(DOCTOR-QUEUE-02)·대기 목록(QUEUE-URG-06)
+--   배지가 빈 화면이 아니게 한다. 응급/주의는 드문 일이라 3건만. 각 의사 색 번호로 흩어 한 의사에게
+--   몰리지 않게 한다. ⚠️ 「누가 언제 켰는지」 표시자·시각은 아직 칸이 없어(살아있는 갭) 플래그만 켠다.
+update appointments a set is_urgent_flag = true
+from appointment_slots s
+where s.id = a.slot_id
+  and s.slot_date = current_date
+  and a.status in ('도착', '진료대기', '진료중')
+  and a.id in (
+    select a2.id from appointments a2
+    join appointment_slots s2 on s2.id = a2.slot_id
+    where s2.slot_date = current_date and a2.status in ('도착', '진료대기', '진료중')
+    order by a2.id
+    limit 3
+  );
+
 -- ── 과거(오늘 이전) 예약의 「종료 상태 이력」 ──────────────────────────────────
 -- ⭐ 통계는 방문·취소·부도를 appointment_status_history의 changed_at::date로 센다
 --    (stats_service: to_status='진료완료'/'예약부도'/취소 행). 이 이력이 없으면 과거 슬롯·

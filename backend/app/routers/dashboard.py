@@ -75,6 +75,19 @@ async def doctor_next_available(
     return {"next_available": await dashboard_service.get_next_available(staff)}
 
 
+@router.get("/doctors/console/patients/{patient_id}/history")
+async def doctor_console_history(
+    patient_id: UUID,
+    exclude_appointment_id: UUID | None = Query(default=None),
+    staff: StaffContext = Depends(require_role("doctor", "admin")),
+) -> dict:
+    # [DOCTOR-HISTORY-01] 콘솔 선택 환자의 완료 과거기록(현재 예약 제외·최신순). care-continuity RLS가 범위를 지킨다.
+    rows = await dashboard_service.get_console_history(
+        patient_id, staff, exclude_appointment_id=exclude_appointment_id,
+    )
+    return {"rows": rows}
+
+
 # ── 환자 하위 이력 ────────────────────────────────────────────────────────
 
 @router.get("/patients/{patient_id}/visits")

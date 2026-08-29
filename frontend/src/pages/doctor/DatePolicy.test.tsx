@@ -43,6 +43,7 @@ function mockConsole(record: Record<string, unknown> | null, onQueueUrl?: (url: 
     http.get('*/medical-records/:id/revisions', () => HttpResponse.json([])),
     http.get('*/appointments/:id/questionnaire', () => HttpResponse.json({ questionnaire: null })),
     http.get('*/patients/:id/notes', () => HttpResponse.json([])),
+    http.get('*/doctors/console/patients/:id/history', () => HttpResponse.json({ rows: [] })),
     http.get('*/doctor/quick-phrases', () => HttpResponse.json([])),
   )
 }

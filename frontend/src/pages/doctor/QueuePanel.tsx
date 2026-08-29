@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { AlertTriangle } from '../../components/icons'
 import { StatusBadge, type BadgeTone } from '../../components/staff-ui/StatusBadge'
 
 // [DISP-COLOR-01] 의사 큐 상태값은 공백 없는 '도착·진료대기·진료중' — StatusBadge 기본 표(공백 있는 '진료 대기')와
@@ -20,6 +21,10 @@ export interface DoctorQueueRow {
   /** [DOCTOR-QUEUE-02] 성별(남/여). */
   gender?: string | null
   queue_position: number | null
+  /** [DOCTOR-QUEUE-03] 서버가 매긴 표시 순번(정렬 순 1-based). 순번을 화면이 다시 세지 않는다. */
+  display_position?: number | null
+  /** [DOCTOR-QUEUE-02] 주의 표시 여부(is_urgent_flag). */
+  is_urgent?: boolean
   waiting_started_at: string | null
   status: string
 }
@@ -109,7 +114,8 @@ export function QueuePanel({
                 >
                   <span style={styles.rowTop}>
                     <span style={styles.name}>
-                      <span style={styles.pos}>{r.queue_position ?? '–'}</span>
+                      {/* [DOCTOR-QUEUE-03] 순번은 서버가 매긴 표시 순번 — queue_position이 비어도 「–」 대신 서수. */}
+                      <span style={styles.pos}>{r.display_position ?? r.queue_position ?? '–'}</span>
                       {r.name}
                     </span>
                     <StatusBadge status={r.status} tone={CONSOLE_TONE[r.status]} />
@@ -121,6 +127,12 @@ export function QueuePanel({
                     </span>
                     {wait && <span style={styles.wait}>{wait}</span>}
                   </span>
+                  {/* [DOCTOR-QUEUE-02] 주의 표시 — 아이콘만이 아니라 텍스트도(색만으로 구분 안 함). */}
+                  {r.is_urgent && (
+                    <span style={styles.urgent}>
+                      <AlertTriangle width={12} height={12} aria-hidden="true" /> 주의 표시
+                    </span>
+                  )}
                 </button>
               </li>
             )
@@ -165,4 +177,10 @@ const styles: Record<string, CSSProperties> = {
   rowSub: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   ident: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   wait: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
+  urgent: {
+    display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '1px 8px',
+    borderRadius: 6, alignSelf: 'flex-start',
+    background: 'color-mix(in srgb, var(--color-warn) 12%, var(--color-surface))',
+    color: 'var(--color-warn)', fontSize: 'var(--fs-sm)', fontWeight: 700,
+  },
 }

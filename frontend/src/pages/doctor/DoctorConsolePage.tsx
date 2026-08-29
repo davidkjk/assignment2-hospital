@@ -10,7 +10,7 @@ import { addPatientNote, getPatientNotes, getQuestionnaire, type PatientNote } f
 import { getRecordByAppointment, listRevisions, saveDraft } from '../../api/medicalRecords'
 import { completeRecord, reviseRecord } from '../../api/medicalRecords'
 import { listPhrases, createPhrase, updatePhrase, deletePhrase, type Phrase } from '../../api/quickPhrases'
-import { getDoctorQueue, transitionStatus, undoStatus } from '../../api/doctorConsole'
+import { getConsoleHistory, getDoctorQueue, transitionStatus, undoStatus } from '../../api/doctorConsole'
 import type { SectionState } from '../patient/format'
 import { QueuePanel, transitionTargetOnOpen, type DoctorQueueRow } from './QueuePanel'
 import { ContextPanel } from './ContextPanel'
@@ -71,6 +71,8 @@ export function DoctorConsolePage() {
     masked_birth_date: r.masked_birth_date ?? null,
     gender: r.gender ?? null,
     queue_position: r.queue_position,
+    display_position: r.display_position,
+    is_urgent: r.is_urgent,
     waiting_started_at: r.waiting_started_at,
     status: r.status,
   }))
@@ -95,6 +97,12 @@ export function DoctorConsolePage() {
   const notesQ = useQuery({
     queryKey: ['doctor-notes', selectedRow?.patient_id],
     queryFn: () => getPatientNotes(selectedRow!.patient_id),
+    enabled: Boolean(selectedRow?.patient_id),
+  })
+  // [DOCTOR-HISTORY-01] 선택 환자의 완료 과거기록 — 현재 예약(selectedId) 제외·최신순. 패널별 분리(LOAD-02).
+  const historyQ = useQuery({
+    queryKey: ['doctor-history', selectedRow?.patient_id, selectedId],
+    queryFn: () => getConsoleHistory(selectedRow!.patient_id, selectedId ?? undefined),
     enabled: Boolean(selectedRow?.patient_id),
   })
   const revisionsQ = useQuery({
@@ -359,8 +367,17 @@ export function DoctorConsolePage() {
                 onManagePhrases={openPhraseManage}
               />
               <HistoryPanel
-                loading={false}
-                records={[]}
+                loading={historyQ.isLoading && Boolean(selectedRow)}
+                error={historyQ.isError}
+                onRetry={() => void historyQ.refetch()}
+                records={(historyQ.data?.rows ?? []).map((h) => ({
+                  id: h.id,
+                  date: h.date ?? '',
+                  department_name: h.department_name,
+                  doctor_name: h.doctor_name,
+                  diagnosis: h.diagnosis,
+                  status: h.status,
+                }))}
               />
             </>
           ) : (
