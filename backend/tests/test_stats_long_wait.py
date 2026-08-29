@@ -61,17 +61,32 @@ async def test_METRIC_04_기준_초과_대기_사례를_기간별로_센다(db_c
     await _seed_wait_case(db_conn, doc, dept, waited_minutes=12, on=date(2026, 8, 10))   # 미달
     await set_session_auth(db_conn, admin.auth_user_id)
     s = await stats_service.get_stats(date(2026, 8, 1), date(2026, 8, 31), admin, conn=db_conn)
-    assert s["long_wait"]["value"] == 1
+    assert s["wait"]["over_threshold"] == 1
+
+
+@pytest.mark.asyncio
+async def test_METRIC_04_평균_대기시간을_분으로_돌려준다(db_conn):
+    """[STAT-METRIC-04] wait.avg_minutes = 끝난 대기들의 평균(분). 임계 미달도 평균에 든다."""
+    admin = await _admin(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _seed_wait_case(db_conn, doc, dept, waited_minutes=40, on=date(2026, 8, 10))   # 초과
+    await _seed_wait_case(db_conn, doc, dept, waited_minutes=20, on=date(2026, 8, 10))   # 미달
+    await set_session_auth(db_conn, admin.auth_user_id)
+    s = await stats_service.get_stats(date(2026, 8, 1), date(2026, 8, 31), admin, conn=db_conn)
+    assert s["wait"]["avg_minutes"] == 30       # (40+20)/2 — 미달도 평균 모집단에 든다
+    assert s["wait"]["over_threshold"] == 1      # 40분만 30분 임계 초과
 
 
 @pytest.mark.asyncio
 async def test_METRIC_04_임계값과_기준일_이름을_계약대로_돌려준다(db_conn):
-    """[STAT-METRIC-04][결정5] 화면은 이 임계값·basis를 그대로 인용한다."""
+    """[STAT-METRIC-04][결정5] 화면은 이 임계값·basis를 그대로 인용한다. 집계 대상이 없으면 평균 0."""
     admin = await _admin(db_conn)
     await set_session_auth(db_conn, admin.auth_user_id)
     s = await stats_service.get_stats(date(2026, 8, 1), date(2026, 8, 31), admin, conn=db_conn)
-    assert s["long_wait"]["threshold_minutes"] == 30
-    assert s["long_wait"]["basis"] == "대기 시작일"
+    assert s["wait"]["threshold_minutes"] == 30
+    assert s["wait"]["basis"] == "wait_started_at"
+    assert s["wait"]["avg_minutes"] == 0
 
 
 @pytest.mark.asyncio
@@ -83,7 +98,7 @@ async def test_METRIC_04_기간_밖의_대기는_세지_않는다(db_conn):
     await _seed_wait_case(db_conn, doc, dept, waited_minutes=60, on=date(2026, 7, 31))   # 7월
     await set_session_auth(db_conn, admin.auth_user_id)
     s = await stats_service.get_stats(date(2026, 8, 1), date(2026, 8, 31), admin, conn=db_conn)
-    assert s["long_wait"]["value"] == 0
+    assert s["wait"]["over_threshold"] == 0
 
 
 @pytest.mark.asyncio
@@ -95,7 +110,7 @@ async def test_METRIC_04_아직_진료중이_안_된_대기는_기간_집계에_
     await _seed_wait_case(db_conn, doc, dept, waited_minutes=90, on=date(2026, 8, 10), progressed=False)
     await set_session_auth(db_conn, admin.auth_user_id)
     s = await stats_service.get_stats(date(2026, 8, 1), date(2026, 8, 31), admin, conn=db_conn)
-    assert s["long_wait"]["value"] == 0
+    assert s["wait"]["over_threshold"] == 0
 
 
 # ── 명단·마스킹·정렬 (STAT-DRILL-01·02 / MASK-SRV-01) ─────────────────────
