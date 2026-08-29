@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../../api/httpClient'
 import { InlineError } from '../../../components/InlineError'
+import { btnPrimary, btnGhost } from '../../../components/staff-ui'
 import {
   getSettings, previewCancellation, saveSettings,
   NOTIFICATION_ORDER, type NotificationType, type Settings, type SettingsPatch,
@@ -225,33 +226,35 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
           })}
         </nav>
 
-        <div style={styles.panel}>
-          {active === '예약 규칙' && <BookingRules draft={draft} onChange={change} />}
-          {active === '대기실 운영' && (
-            <WaitingRoom draft={draft} onChange={change} showLongWait={showLongWait} setShowLongWait={setShowLongWait} />
-          )}
-          {active === '문자 발송' && <SmsSettings draft={draft} onChange={change} />}
-          {active === '자동 알림' && (
-            <NotificationSettings
-              draft={draft}
-              smsEnabled={draft.sms_enabled}
-              onBodyChange={changeNotifBody}
-              onSmsChange={changeNotifSms}
-              onRevert={revertNotif}
-              onInsertToken={insertToken}
-              onGoSms={() => setActive('문자 발송')}
-            />
-          )}
-          {active === '병원 정보' && <HospitalInfo draft={draft} onChange={change} />}
-        </div>
-      </div>
+        <div style={styles.rightCol}>
+          <div style={styles.panel}>
+            {active === '예약 규칙' && <BookingRules draft={draft} onChange={change} />}
+            {active === '대기실 운영' && (
+              <WaitingRoom draft={draft} onChange={change} showLongWait={showLongWait} setShowLongWait={setShowLongWait} />
+            )}
+            {active === '문자 발송' && <SmsSettings draft={draft} onChange={change} />}
+            {active === '자동 알림' && (
+              <NotificationSettings
+                draft={draft}
+                smsEnabled={draft.sms_enabled}
+                onBodyChange={changeNotifBody}
+                onSmsChange={changeNotifSms}
+                onRevert={revertNotif}
+                onInsertToken={insertToken}
+                onGoSms={() => setActive('문자 발송')}
+              />
+            )}
+            {active === '병원 정보' && <HospitalInfo draft={draft} onChange={change} />}
+          </div>
 
-      <div style={styles.actionBar}>
-        {inlineError && <div style={styles.barMsg}><InlineError message={inlineError} /></div>}
-        {saveError && <p role="alert" style={{ ...styles.barMsg, ...styles.saveError }}>{saveError}</p>}
-        {dirtyCount > 0 && <span style={styles.unsaved}>● 저장하지 않은 변경 {dirtyCount}곳</span>}
-        <button type="button" onClick={undo} style={styles.undoBtn}>되돌리기</button>
-        <button type="button" onClick={onSave} style={styles.saveBtn}>저장</button>
+          <div style={styles.actionBar}>
+            {inlineError && <div style={styles.barMsg}><InlineError message={inlineError} /></div>}
+            {saveError && <p role="alert" style={{ ...styles.barMsg, ...styles.saveError }}>{saveError}</p>}
+            {dirtyCount > 0 && <span style={styles.unsaved}>● 저장하지 않은 변경 {dirtyCount}곳</span>}
+            <button type="button" onClick={undo} className={btnGhost}>되돌리기</button>
+            <button type="button" onClick={onSave} className={btnPrimary}>저장</button>
+          </div>
+        </div>
       </div>
 
       {dialog && (
@@ -273,23 +276,17 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 920 },
   actionBar: {
-    position: 'sticky',
-    bottom: 0,
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     justifyContent: 'flex-end',
-    padding: '12px 0',
-    marginTop: 4,
-    background: 'var(--color-bg)',
-    borderTop: '1px solid var(--color-divider)',
+    marginTop: 12,
   },
   barMsg: { marginRight: 'auto' },
-  saveBtn: { height: 36, padding: '0 18px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: 'var(--color-primary-foreground)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer' },
-  undoBtn: { height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'], cursor: 'pointer' },
-  unsaved: { fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 600 },
+  unsaved: { marginRight: 4, fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 600 },
   saveError: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-warn)', fontWeight: 600 },
   body: { display: 'flex', gap: 24, alignItems: 'flex-start' },
+  rightCol: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' },
   menu: { display: 'flex', flexDirection: 'column', gap: 2, width: 224, flex: '0 0 224px' },
   menuItem: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-ink)' },
   menuItemActive: { background: 'var(--color-primary-wash)', color: 'var(--color-primary)' },
