@@ -182,3 +182,5 @@ Wave C  (Task 4·5·7 후 — 화면 15개, route 폴더 격리 병렬)
   - **갭 #128**: 의료판단 이관 티켓의 **의사 도착 화면이 없다**(`SHELL-NAV`=의사는 진료·환자검색만). Task 17은 이관 드롭다운에 활성 직원 전부 넣되 도착 화면은 안 만듦. 해소는 이후 `SHELL-NAV`·의료 escalation 모델과 함께.
   - **백엔드 계약 갭 2건**: ① `GET /staff/chat/tickets/{id}`(요약5+대화, Task 9 Produces 미명시) ② `reassign_ticket(ticket_id,to_staff_id)`+`POST .../reassign`(Task 2 목록에 없음). 부수: `.../read`(UNREAD-02)·`GET /staff/active`.
   - **`SEARCH-LOG-06` N 판정** — 「조각 하나로 N명 이상」의 N(병원 감사 정책). `spec-index/HANDOVERS.md` 이월 — 데이터(`result_count`·`fragment_count`)는 `00031`이 쌓고 판정만 미룸.
+  - **갭: stats 드릴다운 `booked` 미구현**(2026-08-29 S15 발견): `get_stats_detail` else 분기가 `statuses=['booked']`로 상태이력 `to_status='booked'`(부재)를 찾아 **예약 `[상세 목록]`이 빈 명단**(예약 N건인데 0건=오답·막다른 길). 예약 드릴다운은 `appointments.created_at` 기준 명단이어야 한다. `STAT-DRILL BLOCKED`(서버 마스킹 DTO·안정 정렬·상한 미완)의 일부 → 드릴다운 구현 때 함께. cancelled·no_show·visits·long_wait 분기는 있음.
+  - **갭: `max_daily_appointments` 미강제**(2026-08-29 S10 발견): 하루 최대 인원(요구사항 3.7 관리자 상한)이 슬롯·예약 생성 어디서도 강제되지 않음(표시 전용). 예약 상한 강제 미구현.
