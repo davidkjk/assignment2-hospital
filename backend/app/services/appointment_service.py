@@ -151,6 +151,7 @@ async def create_appointment(
     start_at: datetime | None = None,
     end_at: datetime | None = None,
     allow_overlap: bool = False,
+    allow_over_daily_max: bool = False,
     conn=None,
 ) -> UUID:
     # [정합성 검토 R1-우선3 재검증] 클라이언트가 보낸 source/initial_status 조합을 그대로 믿지 않고
@@ -172,6 +173,46 @@ async def create_appointment(
         if walkin_visit_time is not None:
             if await c.fetchval("select $1::timestamptz > now()", walkin_visit_time):
                 raise AppError("아직 오지 않은 시각입니다.", status_code=400)
+
+        # [SCHED-WEEK-03 「하루 최대 인원」 강제 · A5] 의사별 하루 최대 예약 인원을 실제로 막는다
+        # (요구사항 3.7 :183 — 지금까지 설정·표시로만 있었다). 「경고 후 허용」(사용자 결정 2026-08-29):
+        # 직원이 경고를 읽고 allow_over_daily_max=True로 다시 부르면 넘긴다(막다른 길 금지 — 당일 급한
+        # 환자·전화예약 때문에 창구는 융통성이 필요하다). walk-in은 이미 온 환자라 정원과 무관하게 받는다.
+        if walkin_visit_time is None and not allow_over_daily_max:
+            if start_at is not None:
+                booking_date = await c.fetchval("select $1::timestamptz::date", start_at)
+            elif slot_id is not None:
+                booking_date = await c.fetchval(
+                    "select slot_date from appointment_slots where id = $1", slot_id,
+                )
+            else:
+                booking_date = None
+            if booking_date is not None:
+                # 정원은 요일별로 정해진다(doctor_schedule_rules) — 슬롯 길이를 읽는 곳과 같은 표.
+                max_daily = await c.fetchval(
+                    "select max_daily_appointments from doctor_schedule_rules "
+                    "where doctor_id = $1 and weekday = $2",
+                    doctor_id, booking_date.weekday(),
+                )
+                if max_daily:  # None·0 = 상한 없음
+                    # 살아 있는 예약만 센다 — 취소·부도(환자취소·병원취소·예약부도)는 그 자리를 비운다.
+                    # 날짜는 셋 중 하나로 잡힌다: 전화·직접(start_at) · 슬롯(slot_date) · 워크인(walkin).
+                    taken = await c.fetchval(
+                        """
+                        select count(*) from appointments a
+                        left join appointment_slots s on s.id = a.slot_id
+                        where a.doctor_id = $1
+                          and a.status not in ('환자취소', '병원취소', '예약부도')
+                          and coalesce(a.start_at::date, s.slot_date, a.walkin_visit_time::date) = $2
+                        """,
+                        doctor_id, booking_date,
+                    )
+                    if taken >= max_daily:
+                        raise AppError(
+                            f"이 날은 예약 정원({max_daily}명)을 채웠습니다.",
+                            status_code=409,
+                            detail={"reason": "over_daily_max", "max": max_daily},
+                        )
 
         if slot_id is not None:
             booked = await book_slot(slot_id, staff, conn=c)
@@ -240,6 +281,7 @@ async def create_phone_appointment(
     start_at: datetime,
     reason: str,
     allow_overlap: bool = False,
+    allow_over_daily_max: bool = False,
     conn=None,
 ) -> UUID:
     """[CAL-*] 전화예약 — 직원이 창구에서 5분 단위 자유 시각에 예약을 만든다.
@@ -319,6 +361,7 @@ async def create_phone_appointment(
             start_at=start_at,
             end_at=end_at,
             allow_overlap=allow_overlap,
+            allow_over_daily_max=allow_over_daily_max,
             conn=c,
         )
 
