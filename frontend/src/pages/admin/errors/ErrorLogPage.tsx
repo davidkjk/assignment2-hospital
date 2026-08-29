@@ -1,11 +1,11 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../../components/EmptyState'
 import { InlineError } from '../../../components/InlineError'
 import { Bell, ShieldCheck } from '../../../components/icons'
 import { ApiError } from '../../../api/httpClient'
-import { getErrorLogs } from '../../../api/errorLogs'
+import { getErrorLogs, type ErrorLogRow } from '../../../api/errorLogs'
 import { formatAccessedAt } from '../logRows'
 
 // [ERRADM-*] 시스템 오류 기록 /admin/errors — 관리자 전용 읽기 화면(결정 #19·#20).
@@ -19,7 +19,9 @@ import { formatAccessedAt } from '../logRows'
 // 데모 정렬(S16, 2026-08-29): ①읽기전용 고지에 방패 아이콘 + 안전요약/redaction 설명 부제(ERRADM-LIST-04·결정#20)
 //   ②이중기록 경계 안내(ERRADM-NOTI-01·결정#19) — 수신자별 발송 실패의 갈 길을 「안내 보내기」로 연결(막다른 길 방지).
 //   ③필터·표를 콘솔 카드로. ⛔ 데모의 상태 모음판·「서비스 전체 장애」 배지는 실 계약에 service 플래그가 없어 생략
-//   (정본반영/BLOCKED 후보 = 정본반영-체크리스트 S16). ⛔ 「더 오래된 기록」 버튼은 페이지네이션 미계약(ERRADM-LIST-06)이라 생략.
+//   (정본반영/BLOCKED 후보 = 정본반영-체크리스트 S16).
+// ⭐ 페이지: 첫 200건 + [더 오래된 기록 보기] 커서 이어보기(ERRADM-LIST-06). 접근 기록(ALOG-FILTER-06)과
+//   같은 공용 부품을 서버가 쓰고, 화면은 접근 기록 화면과 같은 누적 방식(첫 페이지 + append + tailCursor)을 쓴다.
 
 const COLUMNS = ['발생 시각', '기능', '오류 내용'] as const
 
@@ -38,10 +40,41 @@ export function ErrorLogPage() {
     setDraft({ from: urlFrom, to: urlTo })
   }, [urlFrom, urlTo])
 
+  // 이어보기 누적 — 접근 기록 화면과 같은 방식(첫 페이지 + append + tailCursor).
+  const [appended, setAppended] = useState<ErrorLogRow[]>([])
+  const [tailCursor, setTailCursor] = useState<string | null | undefined>(undefined)
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  const filter = { from: urlFrom || null, to: urlTo || null }
   const query = useQuery({
     queryKey: ['error-logs', urlFrom, urlTo],
-    queryFn: () => getErrorLogs({ from: urlFrom || null, to: urlTo || null }),
+    queryFn: () => getErrorLogs(filter),
   })
+
+  // 필터(기간)가 바뀌면 누적을 비운다 — 이전 기간의 행을 새 결과와 섞지 않는다(ERRADM-STATE-01).
+  useEffect(() => {
+    setAppended([])
+    setTailCursor(undefined)
+  }, [urlFrom, urlTo])
+
+  const firstPage = query.data
+  const rows = useMemo(
+    () => (firstPage ? [...firstPage.rows, ...appended] : []),
+    [firstPage, appended],
+  )
+  const effectiveNext = tailCursor === undefined ? firstPage?.next_cursor ?? null : tailCursor
+
+  async function loadMore() {
+    if (!effectiveNext || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const page = await getErrorLogs({ ...filter, cursor: effectiveNext })
+      setAppended((prev) => [...prev, ...page.rows])
+      setTailCursor(page.next_cursor)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   function applyRange() {
     // [ERRADM-FILTER-05] 시작일>종료일이면 서버에 안 보내고 종료일 아래 인라인 오류.
@@ -58,7 +91,6 @@ export function ErrorLogPage() {
   }
 
   const isOffline = query.error instanceof ApiError && query.error.status === 0
-  const rows = query.data ?? []
   const isZero = !query.isError && !query.isPending && rows.length === 0
 
   return (
@@ -141,6 +173,7 @@ export function ErrorLogPage() {
           action={<p style={styles.zeroHint}>기간을 넓혀 다시 조회해보세요</p>}
         />
       ) : (
+        <>
         <div style={styles.tableCard}>
         <table style={styles.table}>
           <thead>
@@ -173,6 +206,15 @@ export function ErrorLogPage() {
           </tbody>
         </table>
         </div>
+        {/* [ERRADM-LIST-06] 200건 이후 커서 이어보기. 끝(next_cursor=null)이면 버튼 없음 — 200건 밖 부재를 주장하지 않는다. */}
+        {effectiveNext && (
+          <div style={styles.moreWrap}>
+            <button type="button" onClick={loadMore} disabled={loadingMore} style={styles.moreBtn}>
+              {loadingMore ? '불러오는 중…' : '더 오래된 기록 보기'}
+            </button>
+          </div>
+        )}
+        </>
       )}
     </section>
   )
@@ -280,4 +322,16 @@ const styles: Record<string, CSSProperties> = {
   },
   loadingText: { margin: '8px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   zeroHint: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  moreWrap: { display: 'flex', justifyContent: 'center' },
+  moreBtn: {
+    height: 36,
+    padding: '0 20px',
+    borderRadius: 8,
+    border: '1px solid var(--color-divider)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-ink)',
+    fontSize: 'var(--fs-base)',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
 }

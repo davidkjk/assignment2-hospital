@@ -18,21 +18,31 @@ export interface ErrorLogRow {
   summary: string
 }
 
+/** 공용 커서 페이지 — total_hint는 현재 필터 전체 건수(접근 기록 ALOG-FILTER-06과 같은 형태). */
+export interface ErrorLogPage {
+  rows: ErrorLogRow[]
+  next_cursor: string | null
+  total_hint: number
+}
+
 export interface ErrorLogQuery {
   /** 시작일 'YYYY-MM-DD' 포함(ERRADM-FILTER-02). */
   from?: string | null
   /** 종료일 'YYYY-MM-DD' — 서버가 그날 끝까지로 해석(ERRADM-FILTER-02). */
   to?: string | null
+  /** 200건 이후 이어보기의 불투명 커서(ERRADM-LIST-06). */
+  cursor?: string | null
 }
 
 /**
- * [ERRADM-FILTER-01·02][ERRADM-LIST-06] 최근 200건 + 기간 필터.
- * limit은 서버가 200으로 고정한다 — 클라이언트가 보내지 않는다.
+ * [ERRADM-FILTER-01·02][ERRADM-LIST-06] 첫 페이지 200건 + 기간 필터 + cursor 이어보기.
+ * limit은 서버가 200으로 고정한다 — 클라이언트가 보내지 않는다. 응답 {rows, next_cursor, total_hint}.
  */
-export function getErrorLogs(q: ErrorLogQuery = {}): Promise<ErrorLogRow[]> {
+export function getErrorLogs(q: ErrorLogQuery = {}): Promise<ErrorLogPage> {
   const params = new URLSearchParams()
   if (q.from) params.set('from', q.from)
   if (q.to) params.set('to', q.to)
+  if (q.cursor) params.set('cursor', q.cursor)
   const qs = params.toString()
-  return apiFetch<ErrorLogRow[]>(`/error-logs${qs ? `?${qs}` : ''}`)
+  return apiFetch<ErrorLogPage>(`/error-logs${qs ? `?${qs}` : ''}`)
 }

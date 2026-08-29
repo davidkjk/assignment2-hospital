@@ -2315,7 +2315,7 @@
 
 | ID | 요소 | 조건 | 동작 | 근거·상태 |
 |---|---|---|---|---|
-| `ERRADM-FILTER-01` | 기본 조회 | 최초 진입·필터 없음 | 조회 상한은 `limit 200` 계약, 결과 범위를 `최근 200건`으로 명시. 전체 여부 표시는 공통 목록 범위 원칙 | 배포 Task 8 `limit 200`·P-01; `PROVISIONAL` |
+| `ERRADM-FILTER-01` | 기본 조회 | 최초 진입·필터 없음 | 첫 페이지 `최대 200건`, 결과 범위를 `최근 200건`으로 명시. 200건 이후는 `[더 오래된 기록 보기]` 커서 이어보기(`ERRADM-LIST-06`) | 배포 Task 8·`ERRADM-LIST-06`·P-01; `FINAL` |
 | `ERRADM-FILTER-02` | 기간 입력 | 시작일·종료일 선택 | 시작일 포함(`occurred_at >= from`), 종료일 그날 끝까지(`< to + 1 day`)로 같은 `/error-logs` 계약 재조회 | 배포 Task 8 date filter; `PROVISIONAL` |
 | `ERRADM-FILTER-03` | URL·새로고침 | 기간 조회 적용 | `?from=&to=`만 URL에. 오류 문장·스택·환자정보는 URL에 안 넣고 새로고침·뒤로가기에 기간 복원 | `NAV-SHELL-09`·P-01; `PROVISIONAL` |
 | `ERRADM-FILTER-04` | 조회 버튼 | 시작·종료일 유효 | `[조회]` 누를 때만 재조회, 요청 중 `불러오는 중…`으로 바꾸고 중복 조회 무시(읽기 조회=`BTN-SCOPE-02`) | `BTN-SCOPE-02`·`BTN-BUSY-*`; `PROVISIONAL` |
@@ -2325,7 +2325,7 @@
 | `ERRADM-LIST-03` | 기능 | 각 행 | API `feature`를 기능명 칸에 그대로. 임의 번역·여러 기능 분할 안 함 | `system_error_log.feature`·Task 8; `FINAL` |
 | `ERRADM-LIST-04` | 오류 내용 | 각 행 | 관리자 표엔 사람이 읽는 **안전한 요약**을 표시하고, 기술 상세는 비밀키·환자 원문을 redaction한 뒤 별도 관리자 계약으로(결정20=안 B). 기술적 원인(기능·오류 종류)은 유지, 개발자용 원문은 뒷단에서 봄. 현재 목업은 짧은 서비스 메시지 예시만 | 결정20·요구사항 6.4·6.5·`ERR-MSG-01·02`; `FINAL`(정책), redaction·분리 저장 `BLOCKED-BEFORE-MERGE` |
 | `ERRADM-LIST-05` | 기본 정렬 | 정상 조회 | 정렬·동점·이어받기는 `ALOG-LIST-08` 및 목록 정렬 원칙 인용, `occurred_at`·`id`를 API 필드로 연결 | `ALOG-LIST-08`·목록 정렬 원칙; 플랜 보강 전 `BLOCKED-BEFORE-MERGE` |
-| `ERRADM-LIST-06` | 건수 상한 | 정상 조회 | `limit 200`·`최근 200건` 표시 유지하되 200건 밖 부재 주장 안 함. 다음 페이지는 공통 페이지 계약 뒤 추가 | Task 8 `limit 200`·P-01; `BLOCKED-BEFORE-MERGE` |
+| `ERRADM-LIST-06` | 건수 상한·이어보기 | 정상 조회 | 첫 페이지 `최대 200건`, 200건 밖 부재 주장 안 함. ~~다음 페이지는 공통 페이지 계약 뒤 추가~~ ✅ **해소(2026-08-29)** — 접근 기록(`ALOG-FILTER-06`)과 같은 공용 부품(`app.core.pagination.paginate`, 정렬 `occurred_at desc, id desc`·동점 키 `id`)으로 **커서 이어보기 구현**. `next_cursor`가 있으면 `[더 오래된 기록 보기]`로 다음 200건을 이어 붙이고(겹침·빠짐 없음), 끝(`next_cursor=null`)이면 버튼 없음. 응답 `{rows, next_cursor, total_hint}` | Task 8·`ALOG-FILTER-06`·`app.core.pagination`; `FINAL` |
 | `ERRADM-LIST-07` | 행 조작 | 행을 누름 | 편집·삭제·재실행 안 함. 오류 문장에 환자·전화번호가 있으면 화면에서 임의로 펼치지 말고 안전 메시지 계약(결정20) 먼저 해결 | 결정20·`ERRADM-HEAD-02`·P-04·P-05; `FINAL` 범위, 메시지 갭 |
 
 ### 로딩·오류·빈 상태 (`ERRADM-STATE-*`)

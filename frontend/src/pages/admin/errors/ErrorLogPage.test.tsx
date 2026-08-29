@@ -21,13 +21,28 @@ function row(over: Partial<ErrorLogRow> = {}): ErrorLogRow {
 let lastUrl = ''
 let calls = 0
 
-function okWith(rows: ErrorLogRow[]) {
+function okWith(rows: ErrorLogRow[], next_cursor: string | null = null) {
   server.use(
     http.get('*/error-logs', ({ request }) => {
       const u = new URL(request.url)
       lastUrl = u.pathname + u.search
       calls += 1
-      return HttpResponse.json(rows)
+      // 응답은 페이지 형태 {rows, next_cursor, total_hint}(ERRADM-LIST-06 — ALOG-FILTER-06과 같은 계약).
+      return HttpResponse.json({ rows, next_cursor, total_hint: rows.length })
+    }),
+  )
+}
+
+/** 첫 페이지엔 커서가 있고, cursor를 붙여 다시 부르면 다음 묶음을 준다(이어보기 검증용). */
+function pagedWith(first: ErrorLogRow[], second: ErrorLogRow[]) {
+  server.use(
+    http.get('*/error-logs', ({ request }) => {
+      const u = new URL(request.url)
+      lastUrl = u.pathname + u.search
+      calls += 1
+      const cursor = u.searchParams.get('cursor')
+      if (cursor) return HttpResponse.json({ rows: second, next_cursor: null, total_hint: first.length + second.length })
+      return HttpResponse.json({ rows: first, next_cursor: 'CUR2', total_hint: first.length + second.length })
     }),
   )
 }
@@ -112,6 +127,29 @@ describe('ErrorLogPage /admin/errors', () => {
     expect(within(r).queryByText(/스택|자세히|기술 상세/)).toBeNull()
   })
 
+  test('[ERRADM-LIST-06] next_cursor가 있으면 [더 오래된 기록 보기]로 다음 묶음을 이어 붙인다', async () => {
+    pagedWith([row({ id: 'e1', feature: '문자 발송' })], [row({ id: 'e2', feature: '야간 백업' })])
+    renderPage()
+    // 첫 페이지 1건 + 이어보기 버튼(next_cursor='CUR2')
+    expect(await screen.findByText('문자 발송')).toBeVisible()
+    const more = screen.getByRole('button', { name: '더 오래된 기록 보기' })
+    await userEvent.click(more)
+    // 두 번째 묶음이 아래에 붙는다(첫 행은 그대로) — 섞지 않고 이어 붙임
+    expect(await screen.findByText('야간 백업')).toBeVisible()
+    expect(screen.getByText('문자 발송')).toBeVisible()
+    expect(screen.getAllByTestId('error-row')).toHaveLength(2)
+    // cursor를 붙여 재조회했고, 이제 끝이라 버튼이 사라진다
+    expect(lastUrl).toContain('cursor=CUR2')
+    expect(screen.queryByRole('button', { name: '더 오래된 기록 보기' })).toBeNull()
+  })
+
+  test('[ERRADM-LIST-06] 마지막 페이지(next_cursor=null)면 [더 오래된 기록 보기]가 없다', async () => {
+    okWith([row()]) // next_cursor 기본 null
+    renderPage()
+    await screen.findByTestId('error-row')
+    expect(screen.queryByRole('button', { name: '더 오래된 기록 보기' })).toBeNull()
+  })
+
   test('[ERRADM-LIST-01][ERRADM-LIST-03] 열은 발생 시각·기능·오류 내용 3열이고 기능은 그대로 보인다', async () => {
     okWith([row({ feature: '통계 조회', summary: '집계 실패' })])
     renderPage()
@@ -179,7 +217,7 @@ describe('ErrorLogPage /admin/errors', () => {
   test('[ERRADM-STATE-01] 로딩 중엔 열 머리를 유지하고 skeleton 4줄을 보이며 이전 행을 안 섞는다', async () => {
     server.use(http.get('*/error-logs', async () => {
       await delay(80)
-      return HttpResponse.json([row({ feature: '새 결과' })])
+      return HttpResponse.json({ rows: [row({ feature: '새 결과' })], next_cursor: null, total_hint: 1 })
     }))
     renderPage()
     expect(columnHeaders()).toEqual(['발생 시각', '기능', '오류 내용'])
