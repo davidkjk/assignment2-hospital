@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { DepartmentList } from './DepartmentList'
+import { ApiError } from '../../../api/httpClient'
 import type { Department } from './types'
 
 const DEPTS: Department[] = [
@@ -92,4 +93,43 @@ test('[SCHED-DEPT-11] [이름 수정]은 이름만 바꾸고 목록에 바뀐 �
 test('[SCHED-DEPT-12] 진료과를 끄면서 소속 의사까지 함께 끄는 버튼을 만들지 않는다', () => {
   renderList()
   expect(screen.queryByRole('checkbox', { name: /소속 의사도 함께/ })).toBeNull()
+})
+
+// L33/G1: 클라이언트 사전판정(activeDoctorsByDept)이 서버와 어긋나(0명으로 보여 확인창까지 감) 서버가
+// 400(active_doctors)으로 막을 때, 예전엔 결과를 버려 확인창만 닫히고 무동작이었다. 서버가 권위이므로
+// 실패를 잡아 「갈 길을 주는」 blocking 창으로 돌린다.
+function renderRejecting(err: unknown, activeByDept: Record<string, string[]> = { dep2: [] }) {
+  const onDeactivate = vi.fn(async (_id: string) => { throw err })
+  render(
+    <DepartmentList
+      departments={[{ id: 'dep2', name: '피부과', is_active: true }]}
+      activeDoctorsByDept={activeByDept}
+      onCreate={vi.fn(async () => {})}
+      onRename={vi.fn(async () => {})}
+      onDeactivate={onDeactivate}
+      onReactivate={vi.fn(async () => {})}
+      onGoToStaff={vi.fn()}
+    />,
+  )
+  return { onDeactivate }
+}
+
+test('[L33][SCHED-DEPT-05] 서버가 활성 의사로 막으면(400) 무동작이 아니라 blocking 창으로 갈 길을 준다', async () => {
+  const user = userEvent.setup()
+  renderRejecting(
+    new ApiError('이 진료과에 진료 중인 의사가 있어 사용을 중지할 수 없습니다.', 400,
+      { active_doctors: ['홍길동'], next: '/admin/staff' }),
+  )
+  await user.click(rowButton('피부과', '사용 중지'))
+  await user.click(confirmButton()) // 클라가 0명으로 봐서 확인창이 뜬다
+  expect(await screen.findByText('직원 관리로 가기')).toBeVisible()
+  expect(screen.getByText('홍길동')).toBeVisible() // 서버가 준 활성 의사
+})
+
+test('[L33][G1] 그 밖의 실패는 조용히 사라지지 않고 인라인 문구로 보인다', async () => {
+  const user = userEvent.setup()
+  renderRejecting(new ApiError('잠시 후 다시 시도해주세요.', 500))
+  await user.click(rowButton('피부과', '사용 중지'))
+  await user.click(confirmButton())
+  expect(await screen.findByRole('alert')).toHaveTextContent('잠시 후 다시 시도해주세요.')
 })
