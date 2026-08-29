@@ -203,7 +203,6 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
       </header>
       <div style={styles.body}>
         <nav aria-label="설정 메뉴" style={styles.menu}>
-          <p style={styles.colLabel}>설정 항목</p>
           {MENUS.map((m) => {
             const isDirty = menuDirty(m)
             return (
@@ -296,7 +295,7 @@ const styles: Record<string, CSSProperties> = {
   menu: { display: 'flex', flexDirection: 'column', gap: 6, width: 235, flex: '0 0 235px' },
   colLabel: { margin: '0 0 8px', fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--color-ink-muted)' },
   menuItem: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--radius-card)', border: '1px solid var(--color-divider)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-card)', cursor: 'pointer', color: 'var(--color-ink)' },
-  menuItemActive: { borderColor: 'var(--color-primary)', background: 'var(--color-primary-wash)', boxShadow: 'inset 3px 0 0 var(--color-primary)' },
+  menuItemActive: { borderColor: 'var(--color-primary)', background: 'var(--color-primary-wash)' },
   menuLabel: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)', wordBreak: 'keep-all' },
   menuSub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', wordBreak: 'keep-all', lineHeight: 1.4 },
   menuSubDirty: { color: 'var(--color-warn)', fontWeight: 600 },

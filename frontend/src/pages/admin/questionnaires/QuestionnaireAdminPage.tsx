@@ -236,7 +236,6 @@ function QuestionnaireAdminInner() {
       <div style={styles.grid}>
         {/* ── 왼쪽: 진료과 목록 — 서버가 준 순서 그대로, 화면에서 다시 정렬하지 않는다. ── */}
         <nav style={styles.col} aria-label="진료과 선택">
-          <p style={styles.colLabel}>진료과</p>
           {departmentsQ.isError ? (
             <EmptyState kind="error" onRetry={() => void departmentsQ.refetch()} />
           ) : !departmentsQ.data ? (
@@ -704,7 +703,6 @@ const styles: Record<string, CSSProperties> = {
   },
   deptBtnActive: {
     borderColor: 'var(--color-primary)', background: 'var(--color-primary-wash)',
-    boxShadow: 'inset 3px 0 0 var(--color-primary)',
   },
   deptName: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
   deptMeta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
@@ -783,7 +781,7 @@ const styles: Record<string, CSSProperties> = {
   qid: {
     fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', padding: '2px 8px', borderRadius: 6,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', textTransform: 'uppercase',
   },
   rowMoveGroup: { display: 'flex', gap: 6 },
   moveBtn: {

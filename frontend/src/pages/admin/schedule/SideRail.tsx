@@ -28,7 +28,6 @@ interface SideRailProps {
 export function SideRail({ active, onSelect, subtitles, weeklyDirty }: SideRailProps) {
   return (
     <nav aria-label="일정 관리 화면" style={styles.rail}>
-      <p style={styles.colLabel}>관리 화면</p>
       {RAIL_ITEMS.map((item, i) => {
         const isActive = item === active
         return (
@@ -88,7 +87,6 @@ const styles: Record<string, CSSProperties> = {
   itemActive: {
     borderColor: 'var(--color-primary)',
     background: 'var(--color-primary-wash)',
-    boxShadow: 'inset 3px 0 0 var(--color-primary)',
   },
   itemLabel: {
     fontSize: 'var(--fs-body)',
