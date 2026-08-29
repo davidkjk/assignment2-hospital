@@ -13,7 +13,6 @@ import { MiniCalendar } from './MiniCalendar'
 import { PhoneBookingPanel } from './PhoneBookingPanel'
 import { AppointmentPanel } from './AppointmentPanel'
 import { buildGridModel, type GridDoctor } from './gridModel'
-import { snapTo5min } from './snap'
 import { useCalendarRealtime } from './useCalendarRealtime'
 import { useZoom } from './useZoom'
 
@@ -265,8 +264,10 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
           isAdmin={isAdmin}
           onAxisDragBy={zoom.dragBy}
           onEmptyClick={(doctorId, startMin) => {
-            const snapped = snapTo5min(new Date(`${dayDate}T${hhmm(startMin)}:00`))
-            openBooking(doctorId, dayDate, hospitalHHMM(snapped))
+            // startMin은 이미 병원 시각의 「분」이고 DayGrid가 5분 격자에 붙여 준다(CAL-TIME-03).
+            // ⛔ new Date(`${date}T${hhmm}`)로 감쌌다 hospitalHHMM으로 되돌리면 창구 PC 시간대(KST가
+            //    아닐 수 있다)만큼 시각이 밀린다 — 오후를 눌러도 오전이 들어갔다. 분을 그대로 쓴다.
+            openBooking(doctorId, dayDate, hhmm(startMin))
           }}
           onBlockClick={openAppointment}
           onDoctorSettings={(name) => setSearchParams({ doctor: name })}
