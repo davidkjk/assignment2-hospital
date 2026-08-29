@@ -37,6 +37,19 @@ function calendarOk(body: CalendarData = DATA) {
   server.use(http.get('*/calendar', () => HttpResponse.json(body)))
 }
 
+// 예약 상세 패널은 이제 뷰와 무관하게 GET /appointments/:id로 한 건을 읽는다(딥링크가 미래 날짜
+// 상담 예약을 열어도 채워지도록). 패널을 여는 테스트는 이 응답을 함께 준다.
+function appointmentOk(over: Record<string, unknown> = {}) {
+  server.use(
+    http.get('*/appointments/:id', () =>
+      HttpResponse.json({
+        appointment_id: 'a1', status: 'confirmed', doctor_name: '박지훈', department_name: '내과',
+        start: '2026-08-06T10:00:00', patient: { patient_id: 'p1', name: '김*지' }, support: null, ...over,
+      }),
+    ),
+  )
+}
+
 function renderPage(entry = '/calendar') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -117,19 +130,36 @@ test('[CAL-NAV-06][CAL-NAV-07] 작은 달력이 잡는 단위를 글자로 적�
 
 test('[NAV-QUEUE-07][NAV-TODAY-06][CAL-PANEL-06] 밖에서 들어오면 예약 패널이 이미 열린 채로 뜬다', async () => {
   calendarOk()
+  appointmentOk()
   renderPage('/calendar?appointment=a1&panel=open')
   const panel = await screen.findByRole('complementary', { name: '패널' })
-  expect(within(panel).getByRole('button', { name: '예약 변경' })).toBeVisible()
+  expect(await within(panel).findByRole('button', { name: '예약 변경' })).toBeVisible()
 })
 
 test('[CAL-SLOT-07] 예약 블록을 누르면 오른쪽에 예약 상세 패널이 열린다', async () => {
   calendarOk()
+  appointmentOk()
   const user = userEvent.setup()
   renderPage()
   await screen.findByTestId('head-d1')
   await user.click(screen.getByText('김*지'))
   const panel = await screen.findByRole('complementary', { name: '패널' })
-  expect(within(panel).getByRole('button', { name: '예약 변경' })).toBeVisible()
+  expect(await within(panel).findByRole('button', { name: '예약 변경' })).toBeVisible()
+})
+
+test('[CAL-PANEL-*] 딥링크한 예약이 오늘 격자에 없어도(미래 날짜 상담) 패널이 채워진다', async () => {
+  // 회귀 가드: 예전엔 오늘 격자 막대에서 값을 찾다 못 찾으면 「환자 · 」로 텅 비었다.
+  calendarOk() // 격자엔 a1만. 딥링크는 격자에 없는 future1.
+  appointmentOk({
+    appointment_id: 'future1', status: '예약확정', doctor_name: '이정민', department_name: '내과',
+    start: '2026-09-03T17:00:00', patient: { patient_id: 'p9', name: '오*은' },
+    support: { request_type: '변경', requested_at: '2026-08-29T03:18:00Z' },
+  })
+  renderPage('/calendar?appointment=future1&panel=open')
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  expect(await within(panel).findByText(/오\*은/)).toBeVisible()      // 텅 빈 「환자」가 아니다
+  expect(within(panel).getByText('2026-09-03 17:00')).toBeVisible()   // 미래 날짜 시각
+  expect(within(panel).getByText('변경 상담')).toBeVisible()          // 상담 요약(SUPPORT-CAL-*)
 })
 
 test('[CAL-SLOT-06] 빈 구간을 누르면 오른쪽에 전화 예약 패널이 열린다', async () => {

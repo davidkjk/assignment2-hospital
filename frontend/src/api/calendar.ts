@@ -53,6 +53,22 @@ export interface CalendarData {
   booking_horizon_date: string
 }
 
+/** [CAL-PANEL-*] 한 예약 상세 — 캘린더 격자에 없어도(다른 날짜) 딥링크 패널이 읽는다.
+ *  start는 병원 벽시계 naive ISO('YYYY-MM-DDTHH:MM:SS')다 — 막대와 같이 문자열로 자른다. */
+export interface AppointmentDetailData {
+  appointment_id: string
+  status: string
+  doctor_name: string | null
+  department_name: string | null
+  start: string | null
+  patient: { patient_id: string; name?: string; masked_phone?: string; masked_birth_date?: string }
+  support: { request_type: string; requested_at: string } | null
+}
+
+export function getAppointmentDetail(appointmentId: string): Promise<AppointmentDetailData> {
+  return apiFetch<AppointmentDetailData>(`/appointments/${appointmentId}`)
+}
+
 export function getCalendar(params: {
   from: string
   to: string

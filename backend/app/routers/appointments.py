@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.core.errors import AppError
 from app.core.security import StaffContext, require_role
 from app.db.pool import acquire_as
-from app.services import appointment_service
+from app.services import appointment_service, dashboard_service
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -216,3 +216,13 @@ async def change_urgent_flag(
 ) -> dict:
     await appointment_service.set_urgent_flag(appointment_id, body.is_urgent, staff, body.expected_updated_at)
     return {"status": "updated"}
+
+
+# ⚠️ 정적 경로(/find-by-code)보다 뒤에 둔다 — 동적 {appointment_id}가 그걸 삼키지 않게(등록 순서).
+@router.get("/{appointment_id}")
+async def appointment_detail(
+    appointment_id: UUID,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> dict:
+    # [CAL-PANEL-*] 예약 상세 — 캘린더 격자에 없어도(다른 날짜) 딥링크 패널이 읽는다.
+    return await dashboard_service.get_appointment_detail(appointment_id, staff)

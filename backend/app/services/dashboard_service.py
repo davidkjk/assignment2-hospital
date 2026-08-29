@@ -380,6 +380,55 @@ def _calendar_bar(row) -> dict:
     )
 
 
+async def get_appointment_detail(appointment_id, staff: StaffContext, *, conn=None) -> dict:
+    """[CAL-PANEL-*][SUPPORT-CAL-*] 한 예약의 상세 — 캘린더 격자에 없어도(다른 날짜) 패널이 읽는다.
+
+    ⭐ 왜 필요한가: /today [예약·상담 보기]는 상담 요청 예약(support_requested_at)을 여는데, 그
+       예약은 대개 **미래 날짜**라 오늘 격자(get_calendar)에 막대가 없다. 예전 패널은 오늘 격자에서
+       막대를 찾아 채우다 못 찾으면 「환자 · 」처럼 텅 빈 채 열렸다(막다른 길). 뷰와 무관하게 이
+       한 건을 직접 읽어 채운다. 이름은 마스킹 화이트리스트로만 실린다(MASK-SRV-01).
+    """
+    async def _run(c):
+        row = await c.fetchrow(
+            """
+            select a.id, a.status, a.request_type, a.support_requested_at,
+                   a.for_patient_id, p.name, p.phone, p.birth_date,
+                   d.name as doctor_name, dept.name as department_name,
+                   s.slot_date, s.start_time
+            from appointments a
+            join patients p on p.id = a.for_patient_id
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
+            left join appointment_slots s on s.id = a.slot_id
+            where a.id = $1
+            """,
+            appointment_id,
+        )
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        start = (datetime.combine(row["slot_date"], row["start_time"])
+                 if row["slot_date"] and row["start_time"] else None)
+        support = None
+        if row["support_requested_at"] is not None:
+            # SUPPORT-CAL-*: 요약만 읽기 전용으로 — 대화 복제·별도 대기열은 만들지 않는다.
+            support = {"request_type": row["request_type"], "requested_at": row["support_requested_at"]}
+        return {
+            "appointment_id": row["id"],
+            "status": row["status"],
+            "doctor_name": row["doctor_name"],
+            "department_name": row["department_name"],
+            "start": start,
+            "patient": patient_row_dto(patient_id=row["for_patient_id"], name=row["name"],
+                                       phone=row["phone"], birth_date=row["birth_date"]),
+            "support": support,
+        }
+
+    if conn is not None:
+        return await _run(conn)
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
 # ── 오늘 요약 (/today/summary) ────────────────────────────────────────────
 
 async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:

@@ -11,7 +11,7 @@ import { DayGrid } from './DayGrid'
 import { WeekGrid, weekDays } from './WeekGrid'
 import { MiniCalendar } from './MiniCalendar'
 import { PhoneBookingPanel } from './PhoneBookingPanel'
-import { AppointmentPanel } from './AppointmentPanel'
+import { AppointmentPanelLoader } from './AppointmentPanelLoader'
 import { buildGridModel, type GridDoctor } from './gridModel'
 import { useCalendarRealtime } from './useCalendarRealtime'
 import { useZoom } from './useZoom'
@@ -132,23 +132,12 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
   }
 
   function openAppointment(appointmentId: string) {
-    const bar = data?.appointments.find((a) => a.appointment_id === appointmentId)
-    const doc = gridDoctors.find((d) => d.id === bar?.doctor_id)
+    // ⛔ 오늘 격자의 막대에서 값을 찾지 않는다 — 상담 예약은 대개 미래 날짜라 격자에 없어 패널이
+    //    텅 비었다(막다른 길). 로더가 예약 한 건을 뷰와 무관하게 직접 읽어 채운다.
     panel.openPanel({
       title: '예약 상세',
       origin: '/calendar',
-      content: (
-        <AppointmentPanel
-          appointment={{
-            appointmentId,
-            patientLabel: bar?.name ?? '환자',
-            statusLabel: bar?.status ?? '',
-            doctorLabel: doc ? `${doc.departmentName ?? ''} / ${doc.name}`.replace(/^ \/ /, '') : '',
-            timeLabel: bar ? `${bar.start.slice(0, 10)} ${bar.start.slice(11, 16)}` : '',
-          }}
-          onClose={() => panel.closePanel()}
-        />
-      ),
+      content: <AppointmentPanelLoader appointmentId={appointmentId} onClose={() => panel.closePanel()} />,
     })
   }
 
