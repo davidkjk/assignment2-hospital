@@ -1,5 +1,10 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { StatusBadge, type BadgeTone } from '../../components/staff-ui/StatusBadge'
+
+// [DISP-COLOR-01] 의사 큐 상태값은 공백 없는 '도착·진료대기·진료중' — StatusBadge 기본 표(공백 있는 '진료 대기')와
+//   키가 다르므로 톤을 명시한다. 색만으로 구분 안 하게 글자도 함께(StatusBadge가 지킨다).
+const CONSOLE_TONE: Record<string, BadgeTone> = { 도착: 'violet', 진료대기: 'sky', 진료중: 'teal' }
 
 // [DOCTOR-QUEUE-*][DOCTOR-START-01~03] 왼쪽 「오늘 진료 대기」 열. ⭐ 행을 여는 행위 자체가 상태 전이다 —
 //   [진료 시작] 버튼을 두지 않는다. 진료대기일 때만 진료중으로 전이하고(transitionTargetOnOpen), 그 밖은
@@ -10,6 +15,10 @@ export interface DoctorQueueRow {
   id: string
   patient_id: string
   name: string
+  /** [DOCTOR-QUEUE-02][MASK-SRV-01] 서버가 가려서 준 생년월일(1976-**-14). */
+  masked_birth_date?: string | null
+  /** [DOCTOR-QUEUE-02] 성별(남/여). */
+  gender?: string | null
   queue_position: number | null
   waiting_started_at: string | null
   status: string
@@ -30,6 +39,8 @@ interface QueuePanelProps {
   loading: boolean
   error: boolean
   onRetry: () => void
+  /** [DOCTOR-QUEUE 헤더] 로그인 의사의 진료과·이름(예: 「정형외과 · 박강우 선생님」). */
+  subtitle?: string
   /** 실시간이 끊겨 목록이 낡았다 — 낡음 안내 + [지금 새로고침]. 새 완료 차단은 페이지가 이 신호로 한다. */
   stale?: boolean
   lastSyncedAt?: string | null
@@ -51,6 +62,7 @@ export function QueuePanel({
   loading,
   error,
   onRetry,
+  subtitle,
   stale = false,
   lastSyncedAt,
   onRefresh,
@@ -59,6 +71,7 @@ export function QueuePanel({
     <section aria-label="오늘 진료 대기" style={styles.panel}>
       <header style={styles.head}>
         <h2 style={styles.heading}>오늘 진료 대기</h2>
+        {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
       </header>
 
       {stale && (
@@ -99,9 +112,15 @@ export function QueuePanel({
                       <span style={styles.pos}>{r.queue_position ?? '–'}</span>
                       {r.name}
                     </span>
-                    <span style={styles.status}>{r.status}</span>
+                    <StatusBadge status={r.status} tone={CONSOLE_TONE[r.status]} />
                   </span>
-                  {wait && <span style={styles.wait}>{wait}</span>}
+                  <span style={styles.rowSub}>
+                    {/* [DOCTOR-QUEUE-02] 생년월일(목록 마스킹) · 성별 — 오른쪽에 대기시간. */}
+                    <span style={styles.ident}>
+                      {[r.masked_birth_date, r.gender].filter(Boolean).join(' · ')}
+                    </span>
+                    {wait && <span style={styles.wait}>{wait}</span>}
+                  </span>
                 </button>
               </li>
             )
@@ -119,6 +138,7 @@ const styles: Record<string, CSSProperties> = {
   },
   head: { padding: '12px 14px', borderBottom: '1px solid var(--color-divider)' },
   heading: { margin: 0, fontSize: 'var(--fs-base)', fontWeight: 800, color: 'var(--color-ink)' },
+  subtitle: { margin: '2px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   stale: {
     display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start',
     padding: '8px 12px', margin: 8, borderRadius: 8,
@@ -142,6 +162,7 @@ const styles: Record<string, CSSProperties> = {
   rowTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   name: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-base)', fontWeight: 700 },
   pos: { fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink-muted)', minWidth: 14 },
-  status: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-primary)' },
+  rowSub: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  ident: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   wait: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
 }

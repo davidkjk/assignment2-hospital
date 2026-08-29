@@ -10,6 +10,7 @@ from datetime import date, datetime, time, timedelta
 
 from app.core.dto import patient_row_dto
 from app.core.errors import AppError
+from app.core.masking import mask_birth_date
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
 from app.services import opening_hours, schedule_change
@@ -168,7 +169,8 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
     async def _run(c):
         return await c.fetch(
             """
-            select a.id, a.queue_position, a.status, a.for_patient_id, p.name,
+            select a.id, a.queue_position, a.status, a.for_patient_id, a.updated_at,
+                   p.name, p.birth_date, p.gender,
                    h.waited_since as waiting_started_at
             from appointments a
             join patients p on p.id = a.for_patient_id
@@ -191,11 +193,16 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
         {
             "id": r["id"],
             "patient_id": r["for_patient_id"],
-            # [DOCTOR-QUEUE-02] 「이름 · 생년월일(목록 마스킹)」 — 가리는 것은 생년월일이지 이름이 아니다.
+            # [DOCTOR-QUEUE-02] 「이름 · 생년월일(목록 마스킹) · 성별」 — 가리는 것은 생년월일이지 이름이 아니다.
+            #   서버가 가려서 준다(MASK-SRV-01) — 화면이 다시 가리지 않는다.
             "name": r["name"],
+            "masked_birth_date": mask_birth_date(r["birth_date"]),
+            "gender": r["gender"],
             "queue_position": r["queue_position"],
             "waiting_started_at": r["waiting_started_at"],
             "status": r["status"],
+            # [DOCTOR-START-01] 낙관적 잠금 값 — 이게 있어야 행 열기(진료중 전이)가 422로 막히지 않는다(갭 #36 경계).
+            "updated_at": r["updated_at"],
         }
         for r in fetched
     ]

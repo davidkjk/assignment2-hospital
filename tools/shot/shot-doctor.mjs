@@ -27,4 +27,14 @@ if (OUT === 'real') {
 }
 console.log('URL:', page.url())
 await shot('doctor-console')
+
+// 실: 첫 대기 행을 눌러 채워진 3단(가운데 맥락·오른쪽 작성)을 본다. 행을 여는 것이 곧 진료중 전이.
+if (OUT === 'real') {
+  const row = await page.$('[aria-label="오늘 진료 대기"] li button')
+  if (row) {
+    await row.click()
+    await sleep(2500)
+    await shot('doctor-console-selected')
+  }
+}
 await browser.close()

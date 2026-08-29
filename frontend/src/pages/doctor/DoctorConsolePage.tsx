@@ -68,6 +68,8 @@ export function DoctorConsolePage() {
     id: r.id,
     patient_id: r.patient_id,
     name: r.name,
+    masked_birth_date: r.masked_birth_date ?? null,
+    gender: r.gender ?? null,
     queue_position: r.queue_position,
     waiting_started_at: r.waiting_started_at,
     status: r.status,
@@ -286,13 +288,20 @@ export function DoctorConsolePage() {
             loading={queueQ.isLoading}
             error={queueQ.isError}
             onRetry={() => void queueQ.refetch()}
+            subtitle={
+              staff ? [staff.departmentName, staff.name && `${staff.name} 선생님`].filter(Boolean).join(' · ') : undefined
+            }
           />
         </div>
         <ColumnResizer boundary={0} onDrag={drag} />
 
         <div style={{ ...styles.col, flex: `0 0 ${widths.context}px` }} data-col="context" data-width={widths.context}>
           <ContextPanel
-            patient={selectedRow ? { name: selectedRow.name, birth_date: '', gender: null } : null}
+            patient={
+              selectedRow
+                ? { name: selectedRow.name, birth_date: selectedRow.masked_birth_date ?? '', gender: selectedRow.gender ?? null }
+                : null
+            }
             meta={selectedRow ? { status: selectedRow.status } : null}
             reason={record?.reason ? String(record.reason) : null}
             loading={Boolean(selectedId) && recordQ.isLoading}

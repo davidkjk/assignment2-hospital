@@ -31,7 +31,11 @@ export function ContextPanel({ patient, meta, reason, loading }: ContextPanelPro
       {loading ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : !patient ? (
-        <p style={styles.hint}>왼쪽에서 진료할 환자를 고르세요</p>
+        <div style={styles.hintBox}>
+          <p style={styles.hint}>왼쪽에서 진료할 환자를 고르세요</p>
+          {/* [DOCTOR-START-01] 행을 여는 것이 곧 진료 시작임을 미리 알린다. */}
+          <p style={styles.hintSub}>환자를 누르면 진료가 시작됩니다</p>
+        </div>
       ) : (
         <>
           <div style={styles.head}>
@@ -68,7 +72,9 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-bg)', borderRight: '1px solid var(--color-divider)',
   },
   skeleton: { height: 72, borderRadius: 8, background: 'var(--color-surface)' },
+  hintBox: { display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 2px' },
   hint: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  hintSub: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-subtle, var(--color-ink-muted))' },
   head: {
     display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
     padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',

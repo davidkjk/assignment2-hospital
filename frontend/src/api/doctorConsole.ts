@@ -9,6 +9,10 @@ export interface DoctorQueueApiRow {
   id: string
   patient_id: string
   name: string
+  /** [DOCTOR-QUEUE-02][MASK-SRV-01] 서버가 가려서 준 생년월일(1976-**-14). 화면이 다시 가리지 않는다. */
+  masked_birth_date?: string | null
+  /** [DOCTOR-QUEUE-02] 성별(남/여). */
+  gender?: string | null
   queue_position: number | null
   waiting_started_at: string | null
   status: string
