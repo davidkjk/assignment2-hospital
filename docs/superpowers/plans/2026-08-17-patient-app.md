@@ -1726,6 +1726,14 @@ git commit -m "feat: 예약 카탈로그 + list_bookable_slots 단일 판정 함
 
 ## Task 5: 예약 생성/변경 서비스 — 요청 UUID 멱등성(`00020`) · `updated_at` 낙관적 잠금 · 변경 시 문진 계보 유지
 
+> ✅ **완료(2026-08-29, 커밋 `0c44191`) — pytest 8/8, 환자앱 Task1~5 회귀 28/0.** 실행 중 플랜 대비 보정 4건:
+> 1. **하네스**: Step 1·3·4 테스트가 `db_conn`으로 쓰였으나, 이 서비스는 `acquire_as` **자체 커넥션**이라 미커밋 `db_conn`을 못 본다 → **`committed_conn` 시딩**으로 교체(이 플랜이 Task 4에서 이미 정한 패턴, line 1078). admin 시드·`set_session_auth`는 불필요해 제거.
+> 2. **RLS 갭(생성)**: `00005`가 예고만 하고 **어느 마이그도 안 만든** `patients_can_update_slots_for_booking` 정책을 **`00020`이 생성**. 없으면 환자 세션의 `book_slot`/`release_slot` UPDATE가 RLS에 막혀 0행→예약이 조용히 실패. status만 검사(담당의·날짜·시간은 `trg_block_appointment_slot_identity_change`가 불변). 범위=빈 슬롯 또는 본인 예약 슬롯.
+> 3. **RLS 갭(자동확정)**: 환자 세션은 `hospital_settings` 통째를 못 읽어(민감칸·staff 전용 SELECT) `_initial_status`가 항상 `예약신청`으로 떨어졌다 → `auto_confirm` 한 칸만 여는 definer 창구 **`get_auto_confirm_app_bookings()`** 신설, 서비스가 이걸 호출.
+> 4. **테스트 위생**: `hospital_settings`는 싱글턴이라 autouse cleanup 밖 → 각 테스트가 필요한 값을 스스로 세팅+`finally` 복원(공용 DB 오염 방지).
+>
+> ⚠️ **미검증 동시성 엣지(후속)**: `create_booking`의 `UniqueViolationError` 복구 블록(멱등 2차 race)은 순차 테스트로는 안 밟힌다. asyncpg는 `acquire_as`의 트랜잭션 안에서 문 하나가 에러나면 트랜잭션이 abort 상태가 돼, `except`에서 이어 부르는 `release_slot`·`fetchval`이 "current transaction is aborted"로 막힐 수 있다 → 진짜 동시요청 방어가 필요하면 savepoint로 감싸야 한다(Task 10 라우터/부하 테스트에서 확인 권장).
+>
 > **담당 규칙**: 없음(백엔드 계약). 예약 신청 화면(Task 20)·변경 화면(Task 22)이 이 서비스를 소비한다.
 >
 > ⭐ **세 가지 새 계약을 옛 플랜 Task 8(`plans/2026-07-27-patient-app.md:1994~2301`) 위에 얹는다**:
