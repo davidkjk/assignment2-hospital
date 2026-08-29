@@ -538,7 +538,11 @@ join appointments a on a.id = x.id;
 -- 13) 접근 기록 — /admin/access-logs (누가 언제 무엇을 열었나)
 -- ════════════════════════════════════════════════════════════════════════════
 -- 환자를 여는 일(patient_detail·phone_reveal)과 환자 없이 남는 일(search)을 섞는다.
-insert into access_audit_log (staff_id, patient_id, resource_type, accessed_at, search_term)
+-- [SEARCH-LOG-06] 검색 사건엔 결과 건수·조각 수를 함께 심어 「여러 종류」를 보인다:
+--   `김`(28명·조각1)·`1955`(41명·조각1)은 조각 하나로 기준(기본 20) 이상 → ⚠ 넓은 검색,
+--   `이말 3021`(조각2=이어 좁힌 검색)·`박강`(6명)·`010-2841`(2명)은 정상. 열람/진료기록은 null.
+insert into access_audit_log
+  (staff_id, patient_id, resource_type, accessed_at, search_term, result_count, fragment_count)
 select
   case when x.rn % 3 = 0 then 'bbbbbbbb-0000-0000-0000-000000000001'::uuid
        else 'bbbbbbbb-0000-0000-0000-000000000002'::uuid end,
@@ -546,7 +550,9 @@ select
   case (x.rn % 4) when 0 then 'patient_detail' when 1 then 'phone_reveal'
                   when 2 then 'medical_record' else 'search' end,
   now() - make_interval(mins => 3 + x.rn * 13),
-  case when x.rn % 4 = 3 then (array['김','010-28','이말','1955','박강'])[1 + (x.rn % 5)] end
+  case when x.rn % 4 = 3 then (array['김','1955','이말 3021','박강','010-2841'])[1 + (x.rn % 5)] end,
+  case when x.rn % 4 = 3 then (array[28, 41, 7, 6, 2])[1 + (x.rn % 5)] end,
+  case when x.rn % 4 = 3 then (array[1, 1, 2, 1, 1])[1 + (x.rn % 5)] end
 from (select p.id, (row_number() over (order by p.id))::int as rn from patients p limit 30) as x;
 
 -- ════════════════════════════════════════════════════════════════════════════

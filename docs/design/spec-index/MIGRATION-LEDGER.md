@@ -18,7 +18,7 @@
 
 **다음 빈 번호**: 환자앱 `00033`은 이미 직원웹 것 → 환자앱 밴드는 `00032`까지 **가득**. 직원웹 원래 밴드(`00033`–`00052`)는 S18 `merge_questionnaire_count`(`00052`)로 **가득 찼다**.
 ⭐ **데모병합 후속(A2·A3·A4…)은 새 밴드 `00070`–에 둔다**(2026-08-28 결정). 그래야 챗봇(`00053`–`00059`)·배포(`00060`–`00069`) **번호를 한 칸도 안 밀고** 그 상세 스펙의 산문 인용이 낡지 않는다(과거 재번호가 「낡은 산문 참조」 사고를 낸 선례 — 아래 절). `00053`–`00069`는 아직 파일 없는 **예약 구멍**이지만, 이 프로젝트는 DB 리셋 재적재라 **있는 파일만 순서대로 적용**돼 무해하다. 새 마이그가 필요하면 **자기 밴드의 다음 빈 번호**(데모병합 후속은 `00070`부터)를 쓰고, 밴드가 차면 이 문서를 갱신한다.
-- **배정됨**: `00070` = `system_error_service_outage`(A2, 서비스 전체 장애 배지 `ERRADM-NOTI-02`) · `00071` = `appointment_urgent_flag_attribution`(A4-b, 응급표시 「누가·언제」 `QUEUE-URG-06`). **다음 빈 = `00072`**. ⚠️ **A3(의사콘솔)은 무마이그로 끝났다** — `is_urgent_flag`가 `00005`부터 있어 새 칸 불필요(핸드오프의 "A3 urgent칸 마이그" 오판). ⚠️ **A4-a(대기시간 컬럼)도 무마이그** — `appointment_status_history`에 상태 진입 시각이 이미 있어 `get_queue`가 계산만 추가(`QUEUE-ROW-05·06`).
+- **배정됨**: `00070` = `system_error_service_outage`(A2, 서비스 전체 장애 배지 `ERRADM-NOTI-02`) · `00071` = `appointment_urgent_flag_attribution`(A4-b, 응급표시 「누가·언제」 `QUEUE-URG-06`). **다음 빈 = `00073`**. ⚠️ **A3(의사콘솔)은 무마이그로 끝났다** — `is_urgent_flag`가 `00005`부터 있어 새 칸 불필요(핸드오프의 "A3 urgent칸 마이그" 오판). · `00072` = `search_audit_wide_search`(넓은 검색 감사 `SEARCH-LOG-06`). ⚠️ **A4-a(대기시간 컬럼)도 무마이그** — `appointment_status_history`에 상태 진입 시각이 이미 있어 `get_queue`가 계산만 추가(`QUEUE-ROW-05·06`).
 
 ## 전체 배정 (Create 줄 기준 = 정본)
 
@@ -66,7 +66,7 @@
 | 00051 | `hospital_settings_full` | 병원 설정 전체 + `auto_confirm`·`sms_enabled` `if not exists` (T29) |
 | 00052 | `merge_questionnaire_count` | 병합 보존 문진 '건수' 정의자 함수 — 결정#14 유지(내용 아닌 count만), S18 오표시 해소 |
 
-> ℹ️ `00047`(`search_audit_counts`, T25)은 예약만 되어 있고 **파일 미생성**(T25 미구현). 재사용 말 것.
+> ℹ️ `00047`(`search_audit_counts`, T25)은 예약만 되어 있고 **파일 미생성**(T25 미구현). 재사용 말 것. ✅ 그 의도(검색 감사 건수 적재)는 **2026-08-29 `SEARCH-LOG-06` 구현이 `00072`로 실제 반영**했다(T25와 무관하게 A4 후속 — `result_count`·`fragment_count` + 넓은 검색 판정).
 
 ### 챗봇 `00053`–`00059` (직원웹이 `00052`를 가져간 뒤 확정된 번호 — **이 표가 정본**, 플랜 산문은 +1로 읽는다)
 | # | 파일 | 내용 |
@@ -89,6 +89,7 @@
 |---|---|---|
 | 00070 | `system_error_service_outage` | 서비스 전체 장애 배지 칸(A2, `ERRADM-NOTI-02`·결정19) |
 | 00071 | `appointment_urgent_flag_attribution` | 응급/주의 표시 「누가·언제」 켰나(A4-b, `QUEUE-URG-06`) — `urgent_flagged_by`·`urgent_flagged_at` |
+| 00072 | `search_audit_wide_search` | 넓은 검색 감사(`SEARCH-LOG-06`) — `access_audit_log.result_count·fragment_count` + 설정값 `hospital_settings.wide_search_threshold_count`(기본 20) |
 
 ## 공유 칸 — 순서 무관(`if not exists`)
 

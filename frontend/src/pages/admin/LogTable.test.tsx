@@ -91,4 +91,14 @@ describe('LogTable /admin/access-logs', () => {
     expect(r).toHaveTextContent('검색 범위: 전체')
     expect(within(r).queryByText('환자정보')).toBeNull()
   })
+
+  test('[SEARCH-LOG-06] 넓은 검색(조각 하나로 기준 이상)은 ⚠ 배지로 표시한다', () => {
+    renderRows([row({ id: 'r0', resource_type: 'search', search_term: '1955', is_wide_search: true, patient: null })])
+    expect(within(screen.getByTestId('log-row')).getByText('넓은 검색')).toBeVisible()
+  })
+
+  test('[SEARCH-LOG-06] 일반 검색엔 넓은 검색 배지가 없다', () => {
+    renderRows([row({ id: 'r0', resource_type: 'search', search_term: '김 1234', is_wide_search: false, patient: null })])
+    expect(within(screen.getByTestId('log-row')).queryByText('넓은 검색')).toBeNull()
+  })
 })

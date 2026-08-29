@@ -50,6 +50,12 @@ async def list_access_logs(
         return await c.fetch(
             """
             select l.id, l.accessed_at, l.resource_type, l.search_term,
+                   -- [SEARCH-LOG-06] 넓은 검색 = 조각 하나로 기준(hospital_settings) 이상 조회.
+                   --   검색 아닌 사건(fragment_count null)은 coalesce로 false. N은 관리자 설정값.
+                   coalesce(
+                     l.fragment_count = 1
+                       and l.result_count >= (select wide_search_threshold_count from hospital_settings limit 1),
+                     false) as is_wide_search,
                    l.patient_id, s.name as staff_name,
                    p.name as patient_name, p.phone as patient_phone,
                    p.birth_date as patient_birth_date
@@ -96,6 +102,8 @@ def _to_row(r) -> dict:
         "accessed_at": r["accessed_at"],
         "resource_type": r["resource_type"],
         "search_term": r["search_term"],
+        # [SEARCH-LOG-06] 「넓은 검색」 여부 — 표시층이 ⚠ 배지를 단다. 서버가 기준(설정값)으로 판정한다.
+        "is_wide_search": r["is_wide_search"],
         "staff_name": r["staff_name"],
         "patient": patient,
     }

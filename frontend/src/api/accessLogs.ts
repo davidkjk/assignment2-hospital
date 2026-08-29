@@ -25,6 +25,8 @@ export interface AccessLogRow {
   resource_type: string
   /** 검색 사건의 검색어(SEARCH-LOG). 결과 환자 목록은 남기지 않는다. */
   search_term: string | null
+  /** 「넓은 검색」 여부(SEARCH-LOG-06) — 조각 하나로 기준(관리자 설정) 이상 조회. 표시층이 ⚠ 배지를 단다. */
+  is_wide_search?: boolean
   /** 이름 없는·탈퇴 직원이면 null — 표시층이 「직원 정보 없음」으로 받는다(ALOG-LIST-03). */
   staff_name: string | null
   patient: AccessLogPatientRef | null

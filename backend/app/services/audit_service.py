@@ -13,6 +13,8 @@ async def log_access(
     staff: StaffContext,
     *,
     search_term: str | None = None,
+    result_count: int | None = None,
+    fragment_count: int | None = None,
     conn=None,
 ) -> None:
     """[SEARCH-LOG-*][MASK-VIEW-02] 접근을 남긴다 — 사건마다 남기는 것이 다르다.
@@ -28,7 +30,7 @@ async def log_access(
        세션값(staff.id)만 넣으므로 위조 위험 없이 RLS를 우회한다.
     """
     if resource_type == "search":
-        return await _log_search(staff, search_term)
+        return await _log_search(staff, search_term, result_count, fragment_count)
 
     async def _run(c) -> None:
         await c.execute(
@@ -70,7 +72,12 @@ async def log_stats_export(
     await log_access(None, "stats_export", staff, conn=conn)
 
 
-async def _log_search(staff: StaffContext, search_term: str | None) -> None:
+async def _log_search(
+    staff: StaffContext, search_term: str | None,
+    result_count: int | None = None, fragment_count: int | None = None,
+) -> None:
+    # [SEARCH-LOG-04·06] 30초 안에 이어 친 검색은 마지막 하나로 묶는다 — 건수·조각 수도 그
+    #   마지막(가장 좁혀진) 검색 기준으로 갱신한다. 넓은 검색 판정(SEARCH-LOG-06)의 근거다.
     pool = await get_pool()
     async with pool.acquire() as c, c.transaction():
         last_id = await c.fetchval(
@@ -82,12 +89,14 @@ async def _log_search(staff: StaffContext, search_term: str | None) -> None:
         )
         if last_id is not None:
             await c.execute(
-                "update access_audit_log set search_term = $1, accessed_at = now() where id = $2",
-                search_term, last_id,
+                "update access_audit_log set search_term = $1, result_count = $2, "
+                "fragment_count = $3, accessed_at = now() where id = $4",
+                search_term, result_count, fragment_count, last_id,
             )
         else:
             await c.execute(
-                "insert into access_audit_log (staff_id, patient_id, resource_type, search_term) "
-                "values ($1, null, 'search', $2)",
-                staff.id, search_term,
+                "insert into access_audit_log "
+                "(staff_id, patient_id, resource_type, search_term, result_count, fragment_count) "
+                "values ($1, null, 'search', $2, $3, $4)",
+                staff.id, search_term, result_count, fragment_count,
             )

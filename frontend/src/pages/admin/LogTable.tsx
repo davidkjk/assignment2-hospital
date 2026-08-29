@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { AccessLogRow } from '../../api/accessLogs'
+import { AlertTriangle } from '../../components/icons'
 import { LogKindBadge, staffDisplay } from './LogKindBadge'
 import { BulkRevealRow } from './BulkRevealRow'
 import { formatAccessedAt, groupRows } from './logRows'
@@ -93,8 +94,19 @@ function PatientCell({ row, onSelectPatient }: { row: AccessLogRow; onSelectPati
 
 // [ALOG-AUDIT-01][ALOG-LIST-12] 배지 옆 보조 설명 — 검색어·병합 되돌림 사유 등. 열람과 안 섞는다.
 function ResourceDetail({ row }: { row: AccessLogRow }) {
-  if (row.resource_type === 'search' && row.search_term) {
-    return <span style={styles.detail}>검색어: “{row.search_term}”</span>
+  if (row.resource_type === 'search') {
+    return (
+      <span style={styles.detail}>
+        {row.search_term ? `검색어: “${row.search_term}”` : null}
+        {/* [SEARCH-LOG-06] 조각 하나로 기준 이상 조회 = 넓은 검색. 특정인 조회가 아니라 훑어본 정황을 관리자에게 표시. */}
+        {row.is_wide_search && (
+          <span style={styles.wideSearch}>
+            <AlertTriangle style={styles.wideSearchIcon} aria-hidden />
+            넓은 검색
+          </span>
+        )}
+      </span>
+    )
   }
   // 병합 되돌림 사유는 적재 쪽(Task 21)이 붙으면 그대로 그린다 — 지금 계약엔 아직 없다.
   const reason = (row as { reason?: string }).reason
@@ -142,6 +154,11 @@ const styles: Record<string, CSSProperties> = {
   muted: { color: 'var(--color-ink-muted)' },
   kindWrap: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   detail: { color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)' },
+  wideSearch: {
+    display: 'inline-flex', alignItems: 'center', gap: '3px', marginLeft: '8px',
+    color: 'var(--color-warn)', fontWeight: 600, fontSize: 'var(--fs-sm)',
+  },
+  wideSearchIcon: { width: '0.85em', height: '0.85em' },
   patientLink: {
     padding: 0,
     border: 'none',

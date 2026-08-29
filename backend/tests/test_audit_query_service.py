@@ -27,11 +27,12 @@ async def _seed_patient(conn, name="홍길동", phone="01011115678", birth=date(
 
 
 async def _seed_audit(conn, *, staff_id, resource_type="patient_detail", patient_id=None,
-                      accessed_at=None, search_term=None) -> None:
+                      accessed_at=None, search_term=None, result_count=None, fragment_count=None) -> None:
     await conn.execute(
-        "insert into access_audit_log (staff_id, patient_id, resource_type, accessed_at, search_term) "
-        "values ($1, $2, $3, coalesce($4, now()), $5)",
-        staff_id, patient_id, resource_type, accessed_at, search_term,
+        "insert into access_audit_log "
+        "(staff_id, patient_id, resource_type, accessed_at, search_term, result_count, fragment_count) "
+        "values ($1, $2, $3, coalesce($4, now()), $5, $6, $7)",
+        staff_id, patient_id, resource_type, accessed_at, search_term, result_count, fragment_count,
     )
 
 
@@ -154,3 +155,62 @@ async def test_search_patients가_검색을_감사에_남긴다(committed_conn):
         staff.id,
     )
     assert row["patient_id"] is None and row["search_term"] == "김 1234"
+
+
+async def test_search_log_06_검색은_결과_건수와_조각_수를_남긴다(committed_conn):
+    """[SEARCH-LOG-06] 검색 감사에 결과 건수·조각 수를 남긴다 — 넓은 검색 판정의 데이터."""
+    staff = _ctx(await seed_staff(committed_conn, role="receptionist"), "receptionist")
+
+    await patient_service.search_patients("김 1234", staff)
+
+    row = await committed_conn.fetchrow(
+        "select result_count, fragment_count from access_audit_log "
+        "where resource_type = 'search' and staff_id = $1",
+        staff.id,
+    )
+    assert row["fragment_count"] == 2  # '김' '1234' 두 조각
+    assert row["result_count"] is not None
+
+
+async def test_search_log_06_조각하나로_기준이상은_넓은검색이다(db_conn):
+    """[SEARCH-LOG-06] 조각 하나(fragment_count=1)로 기준(기본 20) 이상 조회하면 is_wide_search=True."""
+    admin = _ctx(await seed_staff(db_conn, role="admin"), "admin")
+    await _seed_audit(db_conn, staff_id=admin.id, resource_type="search", search_term="1955",
+                      result_count=41, fragment_count=1)
+
+    result = await audit_query_service.list_access_logs(admin, conn=db_conn)
+
+    assert result["rows"][0]["is_wide_search"] is True
+
+
+async def test_search_log_06_이어친_검색은_넓은검색이_아니다(db_conn):
+    """[SEARCH-LOG-06] 조각이 둘 이상이면(이어 친 검색=좁히는 중) 넓은 검색이 아니다 — 결과가 많아도."""
+    admin = _ctx(await seed_staff(db_conn, role="admin"), "admin")
+    await _seed_audit(db_conn, staff_id=admin.id, resource_type="search", search_term="김 1234",
+                      result_count=50, fragment_count=2)
+
+    result = await audit_query_service.list_access_logs(admin, conn=db_conn)
+
+    assert result["rows"][0]["is_wide_search"] is False
+
+
+async def test_search_log_06_기준_미만은_넓은검색이_아니다(db_conn):
+    """[SEARCH-LOG-06] 조각 하나여도 결과가 기준 미만이면 넓은 검색이 아니다."""
+    admin = _ctx(await seed_staff(db_conn, role="admin"), "admin")
+    await _seed_audit(db_conn, staff_id=admin.id, resource_type="search", search_term="박강",
+                      result_count=5, fragment_count=1)
+
+    result = await audit_query_service.list_access_logs(admin, conn=db_conn)
+
+    assert result["rows"][0]["is_wide_search"] is False
+
+
+async def test_search_log_06_검색_아닌_사건은_넓은검색_아니다(db_conn):
+    """[SEARCH-LOG-06] 열람·통계처럼 건수·조각이 없는 사건은 is_wide_search=False."""
+    admin = _ctx(await seed_staff(db_conn, role="admin"), "admin")
+    pid = await _seed_patient(db_conn)
+    await _seed_audit(db_conn, staff_id=admin.id, resource_type="patient_detail", patient_id=pid)
+
+    result = await audit_query_service.list_access_logs(admin, conn=db_conn)
+
+    assert result["rows"][0]["is_wide_search"] is False

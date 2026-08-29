@@ -160,7 +160,13 @@ async def search_patients(
         async with acquire_as(str(staff.auth_user_id)) as c:
             rows = await _run(c)
 
-    await audit_service.log_access(None, "search", staff, search_term=q)
+    # [SEARCH-LOG-06] 결과 건수(전체, 페이징 전)와 조각 수를 함께 남긴다 — 「조각 하나로 N명 이상」
+    #   넓은 검색을 관리자 기록장이 ⚠로 가려낼 근거. 조각 수는 공백 분리 개수(빈 검색은 0).
+    fragment_count = len(q.split()) if q else 0
+    await audit_service.log_access(
+        None, "search", staff, search_term=q,
+        result_count=len(rows), fragment_count=fragment_count,
+    )
 
     enriched: list[dict] = []
     for row in rows:
