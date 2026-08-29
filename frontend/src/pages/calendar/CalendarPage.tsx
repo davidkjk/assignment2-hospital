@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { hospitalHHMM, hospitalToday } from '../../lib/clock'
-import { getCalendar, type CalendarData } from '../../api/calendar'
+import { getCalendar, getCalendarDoctors, type CalendarData } from '../../api/calendar'
 import { usePanel } from '../../components/PanelHost'
 import { EmptyState } from '../../components/EmptyState'
 import { CalendarNav, formatRange, shiftAnchor, type CalendarMode } from './CalendarNav'
@@ -12,7 +12,7 @@ import { WeekGrid, weekDays } from './WeekGrid'
 import { MiniCalendar } from './MiniCalendar'
 import { PhoneBookingPanel } from './PhoneBookingPanel'
 import { AppointmentPanelLoader } from './AppointmentPanelLoader'
-import { buildGridModel, type GridDoctor } from './gridModel'
+import { buildGridModel, assignPalette, type GridDoctor } from './gridModel'
 import { useCalendarRealtime } from './useCalendarRealtime'
 import { useZoom } from './useZoom'
 
@@ -91,23 +91,32 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
 
   const realtime = useCalendarRealtime(() => void query.refetch())
 
-  // 카탈로그 → 격자 열 의사 + 진료과.
+  // ⭐ 칩·색 팔레트·진료과 목록의 기준은 **필터와 무관한 전체 의사 카탈로그**다(L11) — 이걸 격자(필터됨)에서
+  //    만들면 한 명 고르는 순간 나머지 칩이 사라져 다른 의사를 더 못 고르는 순환이 된다.
+  const catalogQ = useQuery({ queryKey: ['calendar-doctors'], queryFn: getCalendarDoctors })
+  const fullCatalog = catalogQ.data ?? []
+  // 전체 카탈로그 순서로 고정한 색 지도 — 격자 열도 이 색을 쓰게 넘겨 필터에 따라 색이 흔들리지 않게 한다.
+  const paletteMap = useMemo(() => assignPalette(fullCatalog), [fullCatalog])
+
   const dayDate = ymd(anchorDate)
-  const model = useMemo(() => (data ? buildGridModel(data, dayDate) : null), [data, dayDate])
+  const model = useMemo(
+    () => (data ? buildGridModel(data, dayDate, paletteMap) : null),
+    [data, dayDate, paletteMap],
+  )
   const gridDoctors: GridDoctor[] = model?.doctors ?? []
-  const chipDoctors: CalendarDoctor[] = gridDoctors.map((d) => ({
+  const chipDoctors: CalendarDoctor[] = fullCatalog.map((d) => ({
     id: d.id,
     name: d.name,
-    departmentId: d.departmentName ?? '',
-    departmentName: d.departmentName ?? '',
-    slotMinutes: d.slotMinutes,
-    paletteIndex: d.paletteIndex,
+    departmentId: d.department_name ?? '',
+    departmentName: d.department_name ?? '',
+    slotMinutes: d.slot_minutes ?? 0,
+    paletteIndex: paletteMap.get(d.id) ?? 0,
   }))
   const departments = useMemo(() => {
     const seen = new Map<string, string>()
-    for (const d of gridDoctors) if (d.departmentName) seen.set(d.departmentName, d.departmentName)
+    for (const d of fullCatalog) if (d.department_name) seen.set(d.department_name, d.department_name)
     return Array.from(seen, ([id, name]) => ({ id, name }))
-  }, [gridDoctors])
+  }, [fullCatalog])
 
   // ── 패널 열기 ─────────────────────────────────────────────────────────────
   function openBooking(doctorId: string, date: string, time: string) {
@@ -237,6 +246,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
           dataByDate={splitByDate(data)}
           hourHeight={zoom.hourHeight}
           now={now}
+          palette={paletteMap}
           onOpenDay={openDay}
           onLaneClick={(doctorId, date) => openBooking(doctorId, date, '')}
           onBlockClick={openAppointment}

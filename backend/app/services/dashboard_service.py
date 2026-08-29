@@ -393,6 +393,22 @@ async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=
     return await _dispatch(staff, conn, _run)
 
 
+async def get_calendar_doctor_catalog(staff: StaffContext, *, on_date=None, conn=None):
+    """[CAL-COLOR-10] 필터와 무관한 **전체 활성 의사 카탈로그** — 캘린더의 의사 칩(선택기)이 읽는다.
+
+    ⭐ get_calendar의 doctors는 doctor_ids 필터를 따른다(격자 열은 고른 의사만 보여야 하므로 맞다).
+       그러나 칩을 같은 목록에서 만들면 한 명 고르는 순간 나머지 칩이 사라져 **다른 의사를 더
+       고를 수 없는 순환**이 된다(L11). 그래서 칩·색 팔레트의 기준은 늘 전체인 이 목록이다.
+    on_date는 slot_minutes(그 요일 진료 길이) 계산에만 쓰이고 칩은 그 값을 안 쓰므로 today면 족하다.
+    """
+    day = on_date or date.today()
+
+    async def _run(c):
+        return await _calendar_doctor_catalog(c, None, day)
+
+    return await _dispatch(staff, conn, _run)
+
+
 async def _calendar_doctors(conn, doctor_ids) -> list:
     """빗금을 그릴 의사 목록 — 지정이 없으면 활성 의사 전부."""
     if doctor_ids:

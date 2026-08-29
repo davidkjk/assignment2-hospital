@@ -136,9 +136,16 @@ export interface GridModel {
   blocksByDoctor: Map<string, GridBlock[]>
 }
 
-/** 하루치 응답을 격자 모델로 조립한다(CalendarPage가 부른다). */
-export function buildGridModel(data: CalendarData, onDate: string): GridModel {
-  const palette = assignPalette(data.doctors)
+/** 하루치 응답을 격자 모델로 조립한다(CalendarPage가 부른다).
+ *  paletteOverride: 필터와 무관한 전체 카탈로그 기준 색 지도(L11). 주면 그 색이 이기고,
+ *  거기 없는 의사(로딩 중 등)만 이 응답의 정렬 순서로 잠정 배정한다 — 색이 필터에 따라 흔들리지 않게. */
+export function buildGridModel(
+  data: CalendarData,
+  onDate: string,
+  paletteOverride?: Map<string, number>,
+): GridModel {
+  const base = assignPalette(data.doctors)
+  const colorOf = (id: string): number => paletteOverride?.get(id) ?? base.get(id) ?? 0
   const appointments = data.appointments
     .map((b) => normalizeBar(b, onDate))
     .filter((a): a is GridAppointment => a != null)
@@ -148,7 +155,7 @@ export function buildGridModel(data: CalendarData, onDate: string): GridModel {
     id: doc.id,
     name: doc.name,
     departmentName: doc.department_name,
-    paletteIndex: palette.get(doc.id) ?? 0,
+    paletteIndex: colorOf(doc.id),
     // [CAL-TIME-09] 서버가 준 근거가 먼저다 — 도출은 그 요일 규칙이 없을 때의 차선책.
     slotMinutes: doc.slot_minutes ?? slotByDoctor.get(doc.id) ?? 15,
   }))

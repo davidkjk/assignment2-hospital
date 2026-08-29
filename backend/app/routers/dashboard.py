@@ -45,6 +45,16 @@ async def calendar(
     return await dashboard_service.get_calendar(staff, from_=from_, to=to, doctor_ids=doctor_ids)
 
 
+@router.get("/calendar/doctors")
+async def calendar_doctors(staff: StaffContext = Depends(require_role(*_STAFF))) -> list[dict]:
+    """[CAL-COLOR-10] 필터와 무관한 전체 활성 의사 카탈로그 — 의사 칩(선택기)·색 팔레트의 기준.
+
+    격자 열은 /calendar가 doctor_ids로 걸러 주지만, 칩을 그 목록에서 만들면 한 명 고르는 순간
+    나머지가 사라져 다중선택이 막힌다(L11). 칩은 늘 이 전체 목록에서 온다.
+    """
+    return await dashboard_service.get_calendar_doctor_catalog(staff)
+
+
 @router.get("/queue")
 async def queue(
     tab: str = "waiting",

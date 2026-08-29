@@ -69,6 +69,13 @@ export function getAppointmentDetail(appointmentId: string): Promise<Appointment
   return apiFetch<AppointmentDetailData>(`/appointments/${appointmentId}`)
 }
 
+/** [CAL-COLOR-10] 필터와 무관한 전체 활성 의사 카탈로그 — 의사 칩(선택기)·색 팔레트의 기준(L11).
+ *  /calendar의 doctors는 필터를 따르지만(격자 열), 칩을 그 목록에서 만들면 한 명 고르는 순간
+ *  나머지가 사라져 다중선택이 막힌다. 칩은 늘 이 전체 목록에서 온다. */
+export function getCalendarDoctors(): Promise<CalendarDoctorCatalog[]> {
+  return apiFetch<CalendarDoctorCatalog[]>('/calendar/doctors')
+}
+
 export function getCalendar(params: {
   from: string
   to: string

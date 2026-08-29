@@ -30,6 +30,8 @@ export interface WeekGridProps {
   startHour?: number
   endHour?: number
   now?: Date
+  /** 전체 카탈로그 기준 고정 색 지도(L11) — 모든 날의 buildGridModel에 넘겨 색을 필터와 무관하게. */
+  palette?: Map<string, number>
   onOpenDay?: (date: string) => void
   onLaneClick?: (doctorId: string, date: string) => void
   onBlockClick?: (appointmentId: string) => void
@@ -43,6 +45,7 @@ export function WeekGrid({
   startHour = 9,
   endHour = 18,
   now = new Date(),
+  palette,
   onOpenDay,
   onLaneClick,
   onBlockClick,
@@ -53,7 +56,7 @@ export function WeekGrid({
     <div className="cal-week-grid" data-testid="week-grid" style={{ display: 'flex' }}>
       {days.map((date, i) => {
         const data = dataByDate.get(date)
-        const model = data ? buildGridModel(data, date) : { doctors, appointmentsByDoctor: new Map(), blocksByDoctor: new Map() }
+        const model = data ? buildGridModel(data, date, palette) : { doctors, appointmentsByDoctor: new Map(), blocksByDoctor: new Map() }
         // 카탈로그는 공통(모든 날 같은 의사 열) — 응답의 의사가 비면 상위가 준 doctors를 쓴다.
         const laneDoctors = model.doctors.length ? model.doctors : doctors
         return (

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
@@ -34,7 +34,11 @@ const DATA: CalendarData = {
 }
 
 function calendarOk(body: CalendarData = DATA) {
-  server.use(http.get('*/calendar', () => HttpResponse.json(body)))
+  server.use(
+    // 칩·색 팔레트는 필터와 무관한 전체 카탈로그에서 온다(L11) — 격자 응답의 doctors와 같은 목록으로 준다.
+    http.get('*/calendar/doctors', () => HttpResponse.json(body.doctors)),
+    http.get('*/calendar', () => HttpResponse.json(body)),
+  )
 }
 
 // 예약 상세 패널은 이제 뷰와 무관하게 GET /appointments/:id로 한 건을 읽는다(딥링크가 미래 날짜
@@ -87,6 +91,34 @@ test('[CAL-DOC-04][CAL-DOC-05] 진료과 칩이 의사 칩을 좁히고 걸린 �
   const chips = within(nameGroup).getAllByRole('button').map((b) => b.textContent)
   expect(chips).toEqual(['전체', '박지훈', '최민석']) // 피부과 한소연은 빠진다
   expect(screen.getByText('내과만 보는 중')).toBeVisible()
+})
+
+test('[L11] 의사 한 명을 골라도 나머지 의사 칩이 남아 다른 의사를 더 고를 수 있다', async () => {
+  // 격자(/calendar)는 필터를 존중해 고른 의사만 반환한다(실제 백엔드 동작). 그래도 칩(/calendar/doctors)은
+  // 늘 전체라, 한 명 고른 뒤에도 나머지 칩이 남아야 한다 — 예전엔 칩을 필터된 격자에서 만들어 순환에 빠졌다.
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', ({ request }) => {
+      const ids = new URL(request.url).searchParams.get('doctor_ids')
+      if (!ids) return HttpResponse.json(DATA)
+      const picked = ids.split(',')
+      return HttpResponse.json({
+        ...DATA,
+        doctors: DATA.doctors.filter((d) => picked.includes(d.id)),
+        appointments: DATA.appointments.filter((a) => picked.includes(a.doctor_id)),
+      })
+    }),
+  )
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  const nameGroup = screen.getByRole('group', { name: '의사' })
+  await user.click(within(nameGroup).getByRole('button', { name: '박지훈' }))
+  // 격자는 좁혀져 한소연 열이 사라지지만…
+  await waitFor(() => expect(screen.queryByTestId('head-d3')).toBeNull())
+  // …칩은 전부 남아 다른 의사를 더 고를 수 있다.
+  const chips = within(screen.getByRole('group', { name: '의사' })).getAllByRole('button').map((b) => b.textContent)
+  expect(chips).toEqual(['전체', '박지훈', '최민석', '한소연'])
 })
 
 test('[CAL-VIEW-07][CAL-VIEW-08] 주간으로 바꿔도 의사를 자동으로 좁히지 않고 「외 N」으로 접지 않는다', async () => {

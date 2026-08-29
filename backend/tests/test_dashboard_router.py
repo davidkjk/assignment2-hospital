@@ -65,6 +65,25 @@ async def test_롤_리드_02_의사는_남의_환자_이력을_못_받는다(cli
     assert resp.status_code == 200 and resp.json()["rows"] == []
 
 
+async def test_캘린더_의사_카탈로그는_필터와_무관하게_전체를_준다(client, committed_conn):
+    """[CAL-COLOR-10][L11] 칩·색 팔레트의 기준 — 필터 인자가 없어 늘 전체 활성 의사가 온다.
+    격자(/calendar)는 doctor_ids로 걸러도, 이 창구는 걸러선 안 된다(걸면 다중선택이 막힌다)."""
+    admin = await seed_staff(committed_conn, role="admin")
+    d1 = await seed_staff(committed_conn, role="doctor")
+    d2 = await seed_staff(committed_conn, role="doctor")
+    resp = client.get("/calendar/doctors", headers=_auth(admin))
+    assert resp.status_code == 200
+    ids = {row["id"] for row in resp.json()}
+    assert str(d1["staff_id"]) in ids and str(d2["staff_id"]) in ids
+
+
+async def test_캘린더_의사_카탈로그는_스태프_전용이다(client, committed_conn):
+    """[ROLE] 캘린더는 접수·관리자만 — 의사는 자기 콘솔로 간다(/calendar와 같은 권한)."""
+    doctor = await seed_staff(committed_conn, role="doctor")
+    resp = client.get("/calendar/doctors", headers=_auth(doctor))
+    assert resp.status_code == 403
+
+
 def test_라우트_충돌이_없다():
     app = _build_app()
     paths = [(r.path, tuple(sorted(getattr(r, "methods", []) or []))) for r in app.routes]
