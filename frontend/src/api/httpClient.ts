@@ -7,10 +7,14 @@ import { supabase } from '../lib/supabaseClient'
  */
 export class ApiError extends Error {
   readonly status: number
-  constructor(message: string, status: number) {
+  // 서버가 준 구조화 데이터(errors.py의 `context`) — 화면이 「갈 길」을 그리는 데 쓴다.
+  // 예: 정원 초과 409의 { reason: 'over_daily_max', max } (A5) — 「자리 뺏김」과 구분한다.
+  readonly context?: unknown
+  constructor(message: string, status: number, context?: unknown) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.context = context
   }
 }
 
@@ -32,14 +36,15 @@ async function authHeader(): Promise<Record<string, string>> {
   }
 }
 
-async function readDetail(response: Response): Promise<string> {
+async function readError(response: Response): Promise<{ message: string; context?: unknown }> {
   try {
-    const body = (await response.clone().json()) as { detail?: unknown }
-    if (typeof body?.detail === 'string' && body.detail) return body.detail
+    const body = (await response.clone().json()) as { detail?: unknown; context?: unknown }
+    const message = typeof body?.detail === 'string' && body.detail ? body.detail : FALLBACK_MESSAGE
+    return { message, context: body?.context }
   } catch {
     /* JSON이 아니면 서버 문장이 없는 것으로 본다. */
   }
-  return FALLBACK_MESSAGE
+  return { message: FALLBACK_MESSAGE }
 }
 
 /**
@@ -57,7 +62,8 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     throw new ApiError('인터넷 연결을 확인해주세요.', NETWORK_ERROR_STATUS)
   }
   if (!response.ok) {
-    throw new ApiError(await readDetail(response), response.status)
+    const { message, context } = await readError(response)
+    throw new ApiError(message, response.status, context)
   }
   if (response.status === 204) return undefined as T
   const text = await response.text()

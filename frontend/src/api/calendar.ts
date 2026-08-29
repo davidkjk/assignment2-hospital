@@ -90,6 +90,8 @@ export interface CreatePhoneAppointmentBody {
   start_at: string
   reason: string
   allow_overlap?: boolean
+  // [A5] 직원이 정원 초과 경고를 읽고 [그래도 예약]을 눌렀다는 사실(SCHED-WEEK-03, 기본 false).
+  allow_over_daily_max?: boolean
 }
 
 export function createPhoneAppointment(body: CreatePhoneAppointmentBody) {

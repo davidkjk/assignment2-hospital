@@ -88,6 +88,8 @@ class CreatePhoneAppointmentRequest(BaseModel):
     reason: str
     # [CAL-GAP-06] 직원이 겹침 경고를 읽고 [그대로 잡기]를 눌렀다는 사실. 기본은 막는다.
     allow_overlap: bool = False
+    # [A5 · SCHED-WEEK-03] 직원이 정원 초과 경고를 읽고 [그래도 예약]을 눌렀다는 사실. 기본은 막는다.
+    allow_over_daily_max: bool = False
 
 
 @router.post("/phone", response_model=CreateAppointmentResponse)
@@ -102,6 +104,7 @@ async def create_phone_appointment(
         start_at=body.start_at,
         reason=body.reason,
         allow_overlap=body.allow_overlap,
+        allow_over_daily_max=body.allow_over_daily_max,
     )
     return CreateAppointmentResponse(appointment_id=appointment_id)
 

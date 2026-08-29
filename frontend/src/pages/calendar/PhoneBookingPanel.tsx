@@ -63,6 +63,8 @@ export function PhoneBookingPanel({
   const [gapWarn, setGapWarn] = useState<{ slotMinutes: number; gapMinutes: number; overlap: { patientLabel: string; startLabel: string; minutes: number } } | null>(null)
   const [raceMsg, setRaceMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // [A5] 정원 초과 — 「경고 후 허용」. 겹침 허용 여부는 이번 시도 값을 유지해 재제출한다.
+  const [overCap, setOverCap] = useState<{ max: number; allowOverlap: boolean } | null>(null)
 
   const doctor = doctors.find((d) => d.id === doctorId) ?? null
   const slotMinutes = doctor?.slotMinutes ?? 15
@@ -80,6 +82,7 @@ export function PhoneBookingPanel({
   function attemptSave() {
     setRaceMsg(null)
     setError(null)
+    setOverCap(null)
     if (!time) {
       setTimeError('시간을 고르세요') // CAL-RACE-06
       return
@@ -106,9 +109,10 @@ export function PhoneBookingPanel({
     setConfirming(true)
   }
 
-  async function doSave(allowOverlap: boolean) {
+  async function doSave(allowOverlap: boolean, allowOverDailyMax = false) {
     setConfirming(false)
     setGapWarn(null)
+    setOverCap(null)
     if (!patient) {
       setError('환자를 먼저 고르세요')
       return
@@ -120,10 +124,17 @@ export function PhoneBookingPanel({
         start_at: toStartAt(date, time),
         reason,
         allow_overlap: allowOverlap,
+        allow_over_daily_max: allowOverDailyMax,
       })
       onSaved?.(res.appointment_id)
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
+        // [A5] 정원 초과는 「자리 뺏김」과 다르다 — 창구가 넘길 수 있게 확인창을 띄운다(막다른 길 금지).
+        const ctx = e.context as { reason?: string; max?: number } | undefined
+        if (ctx?.reason === 'over_daily_max') {
+          setOverCap({ max: ctx.max ?? 0, allowOverlap })
+          return
+        }
         // [CAL-RACE-03·04·07] 패널은 그대로, 시간 칸만 비운다. ⛔ 「새로고침」·서버 문구를 쓰지 않는다.
         setTime('')
         setRaceMsg('방금 다른 직원이 이 자리를 잡았습니다')
@@ -231,6 +242,17 @@ export function PhoneBookingPanel({
           overlap={gapWarn.overlap}
           onCancel={() => setGapWarn(null)}
           onProceed={() => void doSave(true)}
+        />
+      )}
+      {/* [A5] 정원 초과 — 「경고 후 허용」. 되돌릴 수 없는 동작이 아니므로 빨간 버튼은 아니다. */}
+      {overCap && (
+        <ConfirmDialog
+          title="이 날은 예약 정원을 채웠습니다"
+          message={`하루 최대 ${overCap.max}명이 찼습니다. 그래도 예약할까요?`}
+          confirmLabel="그래도 예약"
+          cancelLabel="다시 보기"
+          onConfirm={() => void doSave(overCap.allowOverlap, true)}
+          onCancel={() => setOverCap(null)}
         />
       )}
     </div>

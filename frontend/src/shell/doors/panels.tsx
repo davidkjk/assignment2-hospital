@@ -319,6 +319,8 @@ function ReserveBody() {
   const [raceMsg, setRaceMsg] = useState<string | null>(null)
   const [blockedMsg, setBlockedMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // [A5] 정원 초과 — 「경고 후 허용」. 겹침 허용 여부(allowOverlap)는 이번 시도 값을 유지해 재제출한다.
+  const [overCap, setOverCap] = useState<{ max: number; allowOverlap: boolean } | null>(null)
 
   const dateIso = draft.date ?? hospitalToday()
   const doctorId = draft.doctor?.id
@@ -331,7 +333,7 @@ function ReserveBody() {
   })
 
   const save = useMutation({
-    mutationFn: (allowOverlap: boolean) =>
+    mutationFn: (v: { allowOverlap: boolean; allowOverDailyMax?: boolean }) =>
       createPhoneAppointment({
         patient_id: draft.patient!.id,
         doctor_id: doctorId!,
@@ -339,17 +341,24 @@ function ReserveBody() {
         //    「서버가 KST로 읽어주겠지」에 기대게 되고, 그 설정이 바뀌면 조용히 어긋난다.
         start_at: hospitalInstant(dateIso, Number(draft.time!.slice(0, 2)), Number(draft.time!.slice(3, 5))).toISOString(),
         reason: draft.reason ?? '',
-        allow_overlap: allowOverlap,
+        allow_overlap: v.allowOverlap,
+        allow_over_daily_max: v.allowOverDailyMax ?? false,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['calendar'] })
       void qc.invalidateQueries({ queryKey: ['today'] })
       finish(`${draft.patient!.name} 님 예약을 ${fmtDate(dateIso)} ${draft.time}에 잡았습니다`)
     },
-    onError: (e) => {
-      // [CAL-RACE-03·04·07] 방금 다른 직원이 그 자리를 잡았다 — 패널은 그대로 두고 **시각 칸만** 비운다.
-      // ⛔ 「새로고침」이나 서버 원문을 그대로 보여 주지 않는다. 다시 고를 자리로 돌려보낸다.
+    onError: (e, v) => {
       if (e instanceof ApiError && e.status === 409) {
+        // [A5] 정원 초과는 「자리 뺏김」과 다르다 — 창구가 넘길 수 있게 확인창을 띄운다(막다른 길 금지).
+        const ctx = e.context as { reason?: string; max?: number } | undefined
+        if (ctx?.reason === 'over_daily_max') {
+          setOverCap({ max: ctx.max ?? 0, allowOverlap: v.allowOverlap })
+          return
+        }
+        // [CAL-RACE-03·04·07] 방금 다른 직원이 그 자리를 잡았다 — 패널은 그대로 두고 **시각 칸만** 비운다.
+        // ⛔ 「새로고침」이나 서버 원문을 그대로 보여 주지 않는다. 다시 고를 자리로 돌려보낸다.
         patch({ time: undefined })
         setRaceMsg('방금 다른 직원이 이 자리를 잡았습니다. 다른 시각을 골라 주세요.')
         setField('time')
@@ -366,6 +375,7 @@ function ReserveBody() {
     setRaceMsg(null)
     setBlockedMsg(null)
     setError(null)
+    setOverCap(null)
     if (!ready || !day.data || !draft.doctor) return
 
     const [hh, mm] = draft.time!.split(':').map(Number)
@@ -462,7 +472,7 @@ function ReserveBody() {
           onCancel={() => setGap(null)}
           onProceed={() => {
             setGap(null)
-            save.mutate(true)
+            save.mutate({ allowOverlap: true })
           }}
         />
       )}
@@ -480,7 +490,25 @@ function ReserveBody() {
           onCancel={() => setConfirm(false)}
           onConfirm={() => {
             setConfirm(false)
-            save.mutate(false)
+            save.mutate({ allowOverlap: false })
+          }}
+        />
+      )}
+
+      {/* [A5] 정원 초과 — 「경고 후 허용」. 되돌릴 수 없는 동작이 아니므로 빨간 버튼은 아니다. */}
+      {overCap && (
+        <ConfirmPopup
+          title="이 날은 예약 정원을 채웠습니다"
+          lines={[
+            { k: '정원', v: `하루 최대 ${overCap.max}명` },
+            { k: '일시', v: `${fmtDate(dateIso)} ${draft.time}` },
+          ]}
+          confirmLabel="그래도 예약"
+          onCancel={() => setOverCap(null)}
+          onConfirm={() => {
+            const ov = overCap
+            setOverCap(null)
+            save.mutate({ allowOverlap: ov.allowOverlap, allowOverDailyMax: true })
           }}
         />
       )}

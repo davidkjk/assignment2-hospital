@@ -46,6 +46,14 @@ test('[ERR-MSG-01] ApiError는 서버 상태 코드를 보존한다', async () =
   expect(error.status).toBe(409)
 })
 
+test('[A5] 서버가 준 구조화 context(예: 정원 초과)를 ApiError에 보존한다', async () => {
+  // 화면이 「자리 뺏김」과 「정원 초과」를 가르려면 detail 문장만으론 부족하다 — reason이 필요하다.
+  server.use(http.post('*/appointments', () =>
+    HttpResponse.json({ detail: '이 날은 예약 정원(40명)을 채웠습니다.', context: { reason: 'over_daily_max', max: 40 } }, { status: 409 })))
+  const error = await rejection(createAppointment(emptyBody))
+  expect((error.context as { reason?: string })?.reason).toBe('over_daily_max')
+})
+
 test('[BTN-TIME-01] 요청에 시간제한을 두지 않는다', () => {
   // 앱이 임의로 끊으면 「성공했는데 실패로 안내」가 생기고, 멱등성이 없어(갭 #15) 예약이 두 건이 된다.
   const source = readFileSync(resolve(process.cwd(), 'src/api/httpClient.ts'), 'utf8')

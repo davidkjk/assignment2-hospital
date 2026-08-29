@@ -319,6 +319,35 @@ test('[CAL-RACE-03][CAL-RACE-04] 방금 다른 직원이 잡았으면 시각 칸
   expect(within(panel()).getByRole('button', { name: '시각을 고르세요' })).toBeVisible()
 })
 
+test('[A5] 정원을 채운 날은 「자리 뺏김」이 아니라 정원 초과로 경고하고, [그래도 예약]은 넘겨 저장한다', async () => {
+  const user = userEvent.setup()
+  serveCalendar()
+  const bodies: Record<string, unknown>[] = []
+  server.use(
+    http.post('*/appointments/phone', async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>
+      bodies.push(body)
+      if (body.allow_over_daily_max === true) return HttpResponse.json({ appointment_id: 'over-1' })
+      return HttpResponse.json(
+        { detail: '이 날은 예약 정원(2명)을 채웠습니다.', context: { reason: 'over_daily_max', max: 2 } },
+        { status: 409 },
+      )
+    }),
+  )
+  renderShell()
+  await fillToTime(user)
+  await user.click(within(panel()).getByRole('button', { name: '예약하기' }))
+  await user.click(screen.getByRole('button', { name: '예약 확정' }))
+
+  // 자리 뺏김 문구가 아니라 정원 초과 확인창(막다른 길 금지 — 넘길 길을 준다).
+  expect(await screen.findByRole('button', { name: '그래도 예약' })).toBeVisible()
+  expect(screen.queryByText(/다른 직원이 이 자리를 잡았습니다/)).toBeNull()
+  await user.click(screen.getByRole('button', { name: '그래도 예약' }))
+
+  await waitFor(() => expect(bodies.length).toBe(2))
+  expect(bodies[1]).toMatchObject({ allow_over_daily_max: true })
+})
+
 test('[CAL-BOOK-13] 예약 가능한 마지막 날 뒤로는 달을 넘길 수 없고, 언제까지인지 적는다', async () => {
   const user = userEvent.setup()
   // 경계를 **오늘**로 둔다 — 그러면 [다음 달]이 곧바로 막히고, 월말이라 +3일이 다음 달로

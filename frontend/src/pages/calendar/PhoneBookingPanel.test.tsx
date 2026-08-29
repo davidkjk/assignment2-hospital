@@ -94,6 +94,22 @@ test('[CAL-RACE-03][CAL-RACE-07] 409면 패널은 그대로, 시간 칸만 비�
   expect(screen.queryByText(/새로고침|다른 시간을 선택/)).toBeNull()
 })
 
+test('[A5] 정원을 채운 날은 정원 초과로 경고하고, [그래도 예약]은 넘겨 저장한다', async () => {
+  const user = userEvent.setup()
+  const createFn = vi.fn()
+    .mockRejectedValueOnce(new ApiError('이 날은 예약 정원(2명)을 채웠습니다.', 409, { reason: 'over_daily_max', max: 2 }))
+    .mockResolvedValueOnce({ appointment_id: 'over-1' })
+  const onSaved = vi.fn()
+  renderPanel({ createFn, onSaved, initial: { patient: { id: 'p1', name: '김민지' }, doctorId: 'd1', date: '2026-08-17', time: '10:00' } })
+  await user.click(screen.getByRole('button', { name: '예약 저장' }))
+  await user.click(await screen.findByRole('button', { name: '예약' }))
+  // 자리 뺏김 문구가 아니라 정원 초과 확인창 — 넘길 길을 준다(막다른 길 금지).
+  await user.click(await screen.findByRole('button', { name: '그래도 예약' }))
+  expect(createFn).toHaveBeenLastCalledWith(expect.objectContaining({ allow_over_daily_max: true }))
+  expect(onSaved).toHaveBeenCalledWith('over-1')
+  expect(screen.queryByText('방금 다른 직원이 이 자리를 잡았습니다')).toBeNull()
+})
+
 test('[CAL-RACE-06] 시간이 빈 채 저장하면 그 칸에 「시간을 고르세요」가 뜬다', async () => {
   const user = userEvent.setup()
   renderPanel({ initial: { patient: { id: 'p1', name: '김민지' }, doctorId: 'd1', date: '2026-08-17', time: '' } })
