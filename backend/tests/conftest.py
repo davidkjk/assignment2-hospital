@@ -1,3 +1,4 @@
+import datetime
 import json
 import uuid
 import pytest
@@ -82,6 +83,22 @@ async def seed_staff(conn, role: str, department_id=None, is_active=True) -> dic
         auth_user_id, role, department_id, is_active,
     )
     return {"auth_user_id": auth_user_id, "staff_id": staff_id}
+
+
+async def seed_patient(conn, *, name="환자", phone="010-0000-0000", gender="F",
+                       birth_date=datetime.date(1990, 1, 1), with_auth=True, is_active=True):
+    """환자 행(+선택적으로 auth.users)을 만들고 {auth_user_id, patient_id}를 돌려준다.
+    gender·birth_date는 patients에서 not null(00003, default 없음)이라 필수다 — gender 값은 'M'/'F'(Task 1·2가 쓰는 형식)."""
+    auth_user_id = None
+    if with_auth:
+        auth_user_id = await conn.fetchval(
+            "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
+            f"{name}-{id(conn)}@test.local")
+    patient_id = await conn.fetchval(
+        "insert into patients (name, phone, gender, birth_date, auth_user_id, is_active) "
+        "values ($1,$2,$3,$4,$5,$6) returning id",
+        name, phone, gender, birth_date, auth_user_id, is_active)
+    return {"auth_user_id": auth_user_id, "patient_id": patient_id}
 
 
 async def set_session_auth(conn, auth_user_id) -> None:
