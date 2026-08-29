@@ -255,6 +255,19 @@ async def overview_grid(conn) -> list[dict]:
 
 # ══ 병원 휴무 · 의사 예외 ════════════════════════════════════════════
 
+async def list_closures(conn) -> list[dict]:
+    """[SCHED-EXC-16] 등록된 병원 휴무 목록(오늘 이후, 날짜순).
+
+    등록 창구(upsert_closure)와 짝이 되는 읽기 창구다 — 없으면 /admin/schedule의 「다음 휴무」
+    요약과 특정 날짜 변경 화면이 빈 채로 뜬다. 지난 휴무는 「다음 휴무」 판정을 흐리므로 오늘 이후만
+    돌려준다(settings_service._upcoming_closures와 같은 기준).
+    """
+    rows = await conn.fetch(
+        "select closure_date, memo from hospital_closures "
+        "where closure_date >= current_date order by closure_date")
+    return [{"closure_date": r["closure_date"].isoformat(), "memo": r["memo"]} for r in rows]
+
+
 async def upsert_closure(conn, day: date, memo: str | None, staff=None) -> None:
     """[SCHED-EXC-16] 병원 전체 종일 휴무 한 줄(날짜 기본키)."""
     await conn.execute(

@@ -161,6 +161,20 @@ async def upsert_exception(
 
 # ══ 병원 운영시간 · 휴무 ═════════════════════════════════════════════
 
+@router.get("/hours")
+async def list_hours(staff: StaffContext = Depends(AdminOnly)) -> list[dict]:
+    """[SCHED-HOURS-03] 저장된 요일별 운영시간. 저장(PUT /hours/{weekday})과 짝인 읽기 창구."""
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        return await opening_hours.list_hospital_hours(conn)
+
+
+@router.get("/closures")
+async def list_closures(staff: StaffContext = Depends(AdminOnly)) -> list[dict]:
+    """[SCHED-EXC-16] 등록된 병원 휴무 목록. 등록(POST /closures)과 짝인 읽기 창구."""
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        return await schedule_admin_service.list_closures(conn)
+
+
 @router.put("/hours/{weekday}")
 async def put_hours(
     weekday: int, body: HoursBody, staff: StaffContext = Depends(AdminOnly)

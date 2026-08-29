@@ -113,3 +113,36 @@ async def test_관리자가_아니면_막힌다(api_client, committed_conn):
     doctor = await seed_staff(committed_conn, role="doctor")
     resp = await api_client.get("/admin/departments", headers=_headers(doctor))
     assert resp.status_code == 403
+
+
+async def test_운영시간_저장_뒤_읽으면_그_요일이_온다(api_client, committed_conn):
+    """[SCHED-HOURS-03] 저장(PUT)과 읽기(GET /hours)가 짝을 이룬다 — 없으면 화면이 빈 채로 뜬다."""
+    admin = await seed_staff(committed_conn, role="admin")
+    put = await api_client.put(
+        "/admin/hours/0", headers=_headers(admin),
+        json={"open_time": "09:00", "close_time": "18:00",
+              "lunch_start": "12:00", "lunch_end": "13:00"},
+    )
+    assert put.status_code == 200
+    listed = await api_client.get("/admin/hours", headers=_headers(admin))
+    assert listed.status_code == 200
+    monday = next(r for r in listed.json() if r["weekday"] == 0)
+    assert monday["open_time"] == "09:00:00"
+    assert monday["is_closed"] is False
+
+
+async def test_휴무_등록_뒤_읽으면_목록에서_본다(api_client, committed_conn):
+    """[SCHED-EXC-16] 등록(POST)과 읽기(GET /closures)가 짝을 이룬다. 지난 날짜는 빠진다."""
+    admin = await seed_staff(committed_conn, role="admin")
+    future = await api_client.post(
+        "/admin/closures", headers=_headers(admin),
+        json={"closure_date": "2099-01-01", "memo": "신정"})
+    assert future.status_code == 200
+    await api_client.post(
+        "/admin/closures", headers=_headers(admin),
+        json={"closure_date": "2000-01-01", "memo": "지난 휴무"})
+    listed = await api_client.get("/admin/closures", headers=_headers(admin))
+    assert listed.status_code == 200
+    dates = [c["closure_date"] for c in listed.json()]
+    assert "2099-01-01" in dates
+    assert "2000-01-01" not in dates  # 오늘 이전은 「다음 휴무」 판정을 흐리므로 뺀다

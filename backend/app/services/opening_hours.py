@@ -161,6 +161,29 @@ async def save_hospital_hours(
     )
 
 
+async def list_hospital_hours(conn) -> list[dict]:
+    """[SCHED-HOURS-03] 저장된 요일별 접수 창구 운영시간(있는 요일만).
+
+    저장 창구(save_hospital_hours)와 짝이 되는 읽기 창구다 — 이게 없으면 /admin/schedule의
+    「병원 운영시간」 화면이 빈 채로 뜬다. 없는 요일은 화면(normaliseHours)이 기본값으로 채우므로,
+    여기서는 실제로 저장된 행만 돌려준다. 저장된 행 = 그 요일은 진료함이라 is_closed=False.
+    """
+    rows = await conn.fetch(
+        "select weekday, open_time, close_time, lunch_start, lunch_end "
+        "from hospital_hours order by weekday")
+    return [
+        {
+            "weekday": r["weekday"],
+            "is_closed": False,
+            "open_time": r["open_time"].isoformat() if r["open_time"] else None,
+            "close_time": r["close_time"].isoformat() if r["close_time"] else None,
+            "lunch_start": r["lunch_start"].isoformat() if r["lunch_start"] else None,
+            "lunch_end": r["lunch_end"].isoformat() if r["lunch_end"] else None,
+        }
+        for r in rows
+    ]
+
+
 def _staff_id(staff) -> UUID | None:
     if staff is None:
         return None

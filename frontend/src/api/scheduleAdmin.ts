@@ -9,9 +9,9 @@ import type {
 
 // [SCHED-*] /admin/schedule 표시층의 얇은 클라이언트 — 경로·형태만 안다.
 // 백엔드 계약: backend/app/routers/schedule_admin.py (Task 17, prefix=/admin).
-// ⚠️ Task 17에는 아직 GET(hours·closures·exceptions)이 없다 — PUT/POST만 있다.
-//    아래 getHours·listClosures·listDexceptions는 그 GET이 생기면 바로 붙도록 얇게 둔 자리이고,
-//    지금은 백엔드에 라우트가 없어 라이브에서는 비어 온다(이월 항목).
+// ✅ GET /admin/hours·/admin/closures는 붙었다(#6/L34, 2026-08-29) — 라이브에서 200으로 온다.
+// ⚠️ listDateExceptions(GET /admin/schedule/exceptions)는 아직 백엔드에 없다 — DateExceptionPanel
+//    실배선(L34 2단계) 때 함께 추가한다. 지금은 미사용 자리표시자.
 
 export const scheduleAdmin = {
   overview: () => apiFetch<OverviewDoctor[]>('/admin/schedule/overview'),
