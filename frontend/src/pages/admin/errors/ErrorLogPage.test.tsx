@@ -75,7 +75,31 @@ describe('ErrorLogPage /admin/errors', () => {
     renderPage()
     expect(screen.getByRole('heading', { name: '시스템 오류 기록' })).toBeVisible()
     expect(screen.getByText('오류가 발생한 시간과 기능을 확인합니다')).toBeVisible()
-    expect(screen.queryByText(/환자 데이터|발송 이력/)).toBeNull()
+    // HEAD-01은 제목·설명(헤더)에 한정 — 헤더가 목적을 환자 데이터·발송 이력으로 넓히지 않는다.
+    // (발송 이력 언급은 별도 규칙 ERRADM-NOTI-01의 이중기록 경계 노트가 갖는다 — 그건 정당하므로 헤더로 범위를 좁힌다.)
+    const header = screen.getByText('오류가 발생한 시간과 기능을 확인합니다').closest('header')!
+    expect(within(header).queryByText(/환자 데이터|발송 이력/)).toBeNull()
+  })
+
+  test('[ERRADM-NOTI-01] 이중기록 경계 안내가 있고 수신자별 발송 실패의 갈 길을 안내 보내기로 연결한다', async () => {
+    okWith([row()])
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/admin/errors']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Routes>
+            <Route path="/admin/errors" element={<><ErrorLogPage /><LocationProbe /></>} />
+            <Route path="/messages" element={<LocationProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    // 발송 실패가 여기 없고 발송 이력에 있다는 경계 + 서비스 전체 장애만 기록됨을 밝힌다.
+    expect(screen.getByText(/발송 이력에 남습니다/)).toBeVisible()
+    expect(screen.getByText(/서비스 전체 장애/)).toBeVisible()
+    // 막다른 길 방지 — 갈 길을 실제로 연다.
+    await userEvent.click(screen.getByRole('button', { name: '안내 보내기' }))
+    expect(loc()).toBe('/messages')
   })
 
   test('[ERRADM-HEAD-02][ERRADM-LIST-07] 읽기 전용 고지가 있고 행에 조작 버튼이 없으며 눌러도 안 펼쳐진다', async () => {
@@ -116,7 +140,7 @@ describe('ErrorLogPage /admin/errors', () => {
     renderPage()
     await screen.findByTestId('error-row')
     expect(lastUrl).toBe('/error-logs')
-    expect(screen.getByText('최근 200건')).toBeVisible()
+    expect(screen.getByText(/최근 200건/)).toBeVisible()
   })
 
   test('[ERRADM-FILTER-04][ERRADM-FILTER-03] [조회]를 눌러야 재조회하고 URL엔 from/to만 담긴다', async () => {

@@ -1,8 +1,9 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../../components/EmptyState'
 import { InlineError } from '../../../components/InlineError'
+import { Bell, ShieldCheck } from '../../../components/icons'
 import { ApiError } from '../../../api/httpClient'
 import { getErrorLogs } from '../../../api/errorLogs'
 import { formatAccessedAt } from '../logRows'
@@ -14,10 +15,16 @@ import { formatAccessedAt } from '../logRows'
 // ⛔ 읽기 전용이라 행에 편집·삭제·재실행을 두지 않고, 눌러도 원문을 펼치지 않는다(ERRADM-HEAD-02·LIST-07).
 // ⛔ notification_log를 읽지 않는다(ERRADM-NOTI-01) — 수신자별 실패·재시도는 /messages 소관.
 // ⚠️ 오류 내용 칸은 서버가 준 안전 요약(summary)만 그린다 — 기술 상세·비밀키·환자 원문은 계약에 없다(결정 #20).
+//
+// 데모 정렬(S16, 2026-08-29): ①읽기전용 고지에 방패 아이콘 + 안전요약/redaction 설명 부제(ERRADM-LIST-04·결정#20)
+//   ②이중기록 경계 안내(ERRADM-NOTI-01·결정#19) — 수신자별 발송 실패의 갈 길을 「안내 보내기」로 연결(막다른 길 방지).
+//   ③필터·표를 콘솔 카드로. ⛔ 데모의 상태 모음판·「서비스 전체 장애」 배지는 실 계약에 service 플래그가 없어 생략
+//   (정본반영/BLOCKED 후보 = 정본반영-체크리스트 S16). ⛔ 「더 오래된 기록」 버튼은 페이지네이션 미계약(ERRADM-LIST-06)이라 생략.
 
 const COLUMNS = ['발생 시각', '기능', '오류 내용'] as const
 
 export function ErrorLogPage() {
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const urlFrom = params.get('from') ?? ''
   const urlTo = params.get('to') ?? ''
@@ -52,7 +59,6 @@ export function ErrorLogPage() {
 
   const isOffline = query.error instanceof ApiError && query.error.status === 0
   const rows = query.data ?? []
-  const showTable = !query.isError && !query.isPending && rows.length > 0
   const isZero = !query.isError && !query.isPending && rows.length === 0
 
   return (
@@ -62,48 +68,65 @@ export function ErrorLogPage() {
         <p style={styles.lede}>오류가 발생한 시간과 기능을 확인합니다</p>
       </header>
 
-      {/* [ERRADM-HEAD-02] 읽기 전용 고지 — 행마다 재실행·삭제·해결 처리 버튼을 두지 않는다. */}
-      <p style={styles.readonly} role="note">
-        이 기록은 수정하거나 삭제할 수 없습니다
-      </p>
-
-      {/* [ERRADM-FILTER-02·04·05] 기간 필터 — [조회] 눌러야 재조회한다. */}
-      <div style={styles.filterBar}>
-        <label style={styles.field}>
-          <span style={styles.fieldLabel}>시작일</span>
-          <input
-            type="date"
-            aria-label="시작일"
-            value={draft.from}
-            onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
-            style={styles.input}
-          />
-        </label>
-        <label style={styles.field}>
-          <span style={styles.fieldLabel}>종료일</span>
-          <input
-            type="date"
-            aria-label="종료일"
-            value={draft.to}
-            onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
-            style={styles.input}
-          />
-          {rangeError && <InlineError message={rangeError} />}
-        </label>
-        <button
-          type="button"
-          onClick={applyRange}
-          disabled={query.isFetching}
-          style={styles.applyBtn}
-        >
-          {query.isFetching ? '불러오는 중…' : '조회'}
-        </button>
+      {/* [ERRADM-HEAD-02] 읽기 전용 고지 + [결정#20·ERRADM-LIST-04] 안전 요약/redaction 설명. */}
+      <div style={styles.readonly} role="note">
+        <ShieldCheck width={20} height={20} style={styles.readonlyIcon} aria-hidden="true" />
+        <div style={styles.readonlyText}>
+          <div style={styles.readonlyTitle}>이 기록은 수정하거나 삭제할 수 없습니다</div>
+          <div style={styles.readonlyBody}>
+            오류 내용은 사람이 읽는 안전한 요약입니다. 비밀 키·환자 정보를 지운 기술 상세는 개발자가 뒷단에서 확인합니다.
+          </div>
+        </div>
       </div>
 
-      {/* [ERRADM-FILTER-01][ERRADM-LIST-06] 조회 범위 — 최근 200건임을 밝힌다(200건 밖 부재는 주장 안 함). */}
-      {!isOffline && !query.isError && (
-        <p style={styles.scope}>최근 200건</p>
-      )}
+      {/* [ERRADM-NOTI-01·결정#19] 이중기록 경계 — 수신자별 발송 실패는 여기 없고 발송 이력에 있다. 갈 길을 함께 준다(막다른 길 방지). */}
+      <div style={styles.boundary} role="note">
+        <Bell width={16} height={16} style={styles.boundaryIcon} aria-hidden="true" />
+        <span>
+          환자 한 명·한 채널의 <strong style={styles.strong}>발송 실패</strong>는 이 기록이 아니라{' '}
+          <button type="button" style={styles.link} onClick={() => navigate('/messages')}>
+            안내 보내기
+          </button>
+          의 발송 이력에 남습니다. 여기에는 <strong style={styles.strong}>서비스 전체 장애</strong>만 한 줄로 기록됩니다.
+        </span>
+      </div>
+
+      {/* [ERRADM-FILTER-02·04·05] 기간 필터 카드 — [조회] 눌러야 재조회한다. */}
+      <div style={styles.filterCard}>
+        <div style={styles.filterBar}>
+          <label style={styles.field}>
+            <span style={styles.fieldLabel}>시작일</span>
+            <input
+              type="date"
+              aria-label="시작일"
+              value={draft.from}
+              onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+              style={styles.input}
+            />
+          </label>
+          <label style={styles.field}>
+            <span style={styles.fieldLabel}>종료일</span>
+            <input
+              type="date"
+              aria-label="종료일"
+              value={draft.to}
+              onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+              style={styles.input}
+            />
+            {rangeError && <InlineError message={rangeError} />}
+          </label>
+          <button
+            type="button"
+            onClick={applyRange}
+            disabled={query.isFetching}
+            style={styles.applyBtn}
+          >
+            {query.isFetching ? '불러오는 중…' : '조회'}
+          </button>
+          {/* [ERRADM-FILTER-01·LIST-02·LIST-05·LIST-06] 조회 계약 — 최근 200건·병원 시간대·최신순(200건 밖 부재는 주장 안 함). */}
+          <span style={styles.scope}>최근 200건 · 병원 시간대 · 최신순</span>
+        </div>
+      </div>
 
       {isOffline ? (
         <EmptyState kind="offline" screen="오류 기록" onRetry={() => query.refetch()} />
@@ -118,6 +141,7 @@ export function ErrorLogPage() {
           action={<p style={styles.zeroHint}>기간을 넓혀 다시 조회해보세요</p>}
         />
       ) : (
+        <div style={styles.tableCard}>
         <table style={styles.table}>
           <thead>
             <tr>
@@ -148,9 +172,8 @@ export function ErrorLogPage() {
             )}
           </tbody>
         </table>
+        </div>
       )}
-
-      {showTable && null}
     </section>
   )
 }
@@ -161,13 +184,49 @@ const styles: Record<string, CSSProperties> = {
   h1: { margin: 0, fontSize: 'var(--fs-xl)', fontWeight: 700, color: 'var(--color-ink)' },
   lede: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
   readonly: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    margin: 0,
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: '1px solid var(--color-primary)',
+    background: 'var(--color-primary-wash)',
+  },
+  readonlyIcon: { color: 'var(--color-primary)', flexShrink: 0, marginTop: 1 },
+  readonlyText: { display: 'flex', flexDirection: 'column', gap: 2 },
+  readonlyTitle: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink)' },
+  readonlyBody: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  boundary: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
     margin: 0,
     padding: '8px 12px',
     borderRadius: 8,
+    border: '1px solid var(--color-divider)',
     background: 'var(--color-done-bg)',
     color: 'var(--color-ink-muted)',
     fontSize: 'var(--fs-sm)',
+    lineHeight: 1.5,
+  },
+  boundaryIcon: { color: 'var(--color-ink-muted)', flexShrink: 0, marginTop: 2 },
+  strong: { fontWeight: 600, color: 'var(--color-ink)' },
+  link: {
+    padding: 0,
+    border: 'none',
+    background: 'none',
+    color: 'var(--color-primary)',
+    fontSize: 'var(--fs-sm)',
     fontWeight: 600,
+    textDecoration: 'underline',
+    cursor: 'pointer',
+  },
+  filterCard: {
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: '1px solid var(--color-divider)',
+    background: 'var(--color-surface)',
   },
   filterBar: { display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
@@ -192,11 +251,18 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
-  scope: { margin: 0, fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)' },
+  scope: { marginLeft: 'auto', paddingBottom: 4, fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  tableCard: {
+    borderRadius: 10,
+    border: '1px solid var(--color-divider)',
+    background: 'var(--color-surface)',
+    overflow: 'hidden',
+  },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-base)' },
   th: {
     textAlign: 'left',
-    padding: '10px 12px',
+    padding: '10px 14px',
+    background: 'var(--color-done-bg)',
     borderBottom: '1px solid var(--color-divider)',
     color: 'var(--color-ink-muted)',
     fontSize: 'var(--fs-sm)',
@@ -204,7 +270,7 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   tr: { borderBottom: '1px solid var(--color-divider)' },
-  td: { padding: '10px 12px', color: 'var(--color-ink)', verticalAlign: 'top' },
+  td: { padding: '12px 14px', color: 'var(--color-ink)', verticalAlign: 'top' },
   loadingCell: { padding: '12px' },
   skeleton: {
     height: 18,
