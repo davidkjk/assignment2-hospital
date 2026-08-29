@@ -1,6 +1,7 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { InlineError } from '../../../components/InlineError'
-import { ScheduleTimeInput } from './ScheduleTimeInput'
+import { Checkbox, btnPrimary, btnGhost } from '../../../components/staff-ui'
+import { ScheduleTimeInput, TIME_FIELD_CLASS } from './ScheduleTimeInput'
 import { WEEKDAY_FULL, hhmm, type HospitalHoursRow } from './types'
 
 // [SCHED-HOURS-*] 병원 요일별 운영시간 = 접수 창구가 열려 있는 시간(의사 진료시간과 다르다).
@@ -117,11 +118,10 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
               <tr key={r.weekday} data-hours-row={WEEKDAY_FULL[r.weekday].slice(0, 1)}>
                 <td style={styles.tdLabel}>{full}</td>
                 <td style={styles.td}>
-                  <input
-                    type="checkbox"
-                    aria-label={`${full} 휴무`}
+                  <Checkbox
+                    ariaLabel={`${full} 휴무`}
                     checked={r.is_closed}
-                    onChange={(e) => patch(r.weekday, { is_closed: e.target.checked })}
+                    onChange={(v) => patch(r.weekday, { is_closed: v })}
                   />
                 </td>
                 {r.is_closed ? (
@@ -138,7 +138,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
                         aria-label={`${full} 시작`}
                         value={hhmm(r.open_time)}
                         onChange={(e) => patch(r.weekday, { open_time: fmt(e.target.value) })}
-                        style={styles.timeInput}
+                        className={TIME_FIELD_CLASS}
                       />
                     </td>
                     <td style={styles.td}>
@@ -149,7 +149,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
                         aria-label={`${full} 종료`}
                         value={hhmm(r.close_time)}
                         onChange={(e) => patch(r.weekday, { close_time: fmt(e.target.value) })}
-                        style={styles.timeInput}
+                        className={TIME_FIELD_CLASS}
                       />
                       {err?.close && (
                         <div data-testid={`err-${full}-종료`}>
@@ -158,13 +158,12 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
                       )}
                     </td>
                     <td style={styles.td}>
-                      <label style={styles.lunchToggle}>
-                        <input
-                          type="checkbox"
-                          aria-label={`${full} 점심 있음`}
+                      <span style={styles.lunchToggle}>
+                        <Checkbox
+                          ariaLabel={`${full} 점심 있음`}
                           checked={!lunchOff}
-                          onChange={(e) =>
-                            patch(r.weekday, e.target.checked ? { lunch_start: '12:00', lunch_end: '13:00' } : { lunch_start: null, lunch_end: null })
+                          onChange={(checked) =>
+                            patch(r.weekday, checked ? { lunch_start: '12:00', lunch_end: '13:00' } : { lunch_start: null, lunch_end: null })
                           }
                         />
                         {lunchOff ? (
@@ -176,7 +175,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
                             <ScheduleTimeInput label={`${full} 점심 끝`} value={hhmm(r.lunch_end)} onChange={(v) => patch(r.weekday, { lunch_end: v })} />
                           </>
                         )}
-                      </label>
+                      </span>
                       {err?.lunch && (
                         <div data-testid={`err-${full}-점심`}>
                           <InlineError message={err.lunch} />
@@ -196,10 +195,10 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
       </p>
 
       <div style={styles.actions}>
-        <button type="button" onClick={copyMonday} style={styles.ghostBtn}>
+        <button type="button" onClick={copyMonday} className={btnGhost}>
           월요일 값을 나머지에
         </button>
-        <button type="button" onClick={handleSave} disabled={saving} style={styles.primaryBtn}>
+        <button type="button" onClick={handleSave} disabled={saving} className={btnPrimary}>
           저장
         </button>
       </div>
@@ -225,40 +224,27 @@ function fmt(raw: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  title: { margin: '0 0 12px', fontSize: 'var(--fs-lg)', color: 'var(--color-ink)' },
+  title: { margin: '0 0 14px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   banner: {
-    padding: '8px 12px',
+    padding: '10px 14px',
     borderRadius: 8,
     background: 'var(--color-danger-bg)',
     color: 'var(--color-danger)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
     fontWeight: 600,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-base)' },
-  th: { padding: '6px 8px', textAlign: 'center', fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)', borderBottom: '1px solid var(--color-divider)' },
-  td: { padding: '5px 8px', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
-  tdLabel: { padding: '5px 8px', borderBottom: '1px solid var(--color-divider)', fontWeight: 600 },
-  closedCell: { padding: '5px 8px', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', color: 'var(--color-ink-muted)' },
-  timeInput: {
-    height: 30,
-    width: 64,
-    padding: '0 6px',
-    borderRadius: 6,
-    border: '1px solid var(--color-divider)',
-    fontSize: 'var(--fs-base)',
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-ink)',
-    background: 'var(--color-surface)',
-  },
-  lunchToggle: { display: 'inline-flex', alignItems: 'center', gap: 4 },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
+  th: { padding: '8px', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', borderBottom: '1px solid var(--color-divider)' },
+  td: { padding: '8px', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
+  tdLabel: { padding: '8px', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
+  closedCell: { padding: '8px', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', color: 'var(--color-ink-muted)' },
+  lunchToggle: { display: 'inline-flex', alignItems: 'center', gap: 8 },
   tilde: { margin: '0 2px', color: 'var(--color-ink-muted)' },
   dash: { color: 'var(--color-ink-muted)' },
-  infoNote: { margin: '10px 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  ghostBtn: { padding: '6px 12px', borderRadius: 6, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-base)', cursor: 'pointer' },
-  primaryBtn: { padding: '6px 16px', borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer' },
-  mismatch: { marginTop: 12, padding: '8px 12px', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-base)', color: 'var(--color-ink)', lineHeight: 1.5 },
+  infoNote: { margin: '12px 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  mismatch: { marginTop: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
   mismatchNames: { fontWeight: 600 },
-  linkBtn: { border: 'none', background: 'none', color: 'var(--color-primary)', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer', padding: 0 },
+  linkBtn: { border: 'none', background: 'none', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 600, cursor: 'pointer', padding: 0 },
 }

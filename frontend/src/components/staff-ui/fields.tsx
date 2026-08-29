@@ -101,6 +101,42 @@ export function Checkbox({
   )
 }
 
+/** 커스텀 라디오 — 체크박스와 같은 톤의 원형. 진짜 radio를 투명하게 덮어 그룹·키보드를 유지한다. */
+export function Radio({
+  checked, onChange, disabled, name, label, ariaLabel,
+}: {
+  checked: boolean
+  onChange: () => void
+  disabled?: boolean
+  name: string
+  label?: ReactNode
+  ariaLabel?: string
+}) {
+  return (
+    <label className={`inline-flex items-center gap-2 text-sm ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+      <span
+        className="relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors"
+        style={{
+          borderColor: checked ? 'var(--color-primary)' : 'var(--color-input)',
+          background: 'var(--color-surface)',
+        }}
+      >
+        <input
+          type="radio"
+          name={name}
+          checked={checked}
+          disabled={disabled}
+          aria-label={ariaLabel}
+          onChange={onChange}
+          className="absolute inset-0 m-0 opacity-0"
+        />
+        {checked && <span className="h-2.5 w-2.5 rounded-full" style={{ background: 'var(--color-primary)' }} />}
+      </span>
+      {label != null && <span>{label}</span>}
+    </label>
+  )
+}
+
 /** 셀렉트 — 네이티브 화살표를 지우고 딥틸 쉐브론을 얹는다(진짜 select 유지). */
 export function Select({
   value, onChange, disabled, ariaLabel, children, className = '',

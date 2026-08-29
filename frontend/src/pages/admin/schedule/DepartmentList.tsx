@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ApiError } from '../../../api/httpClient'
+import { TextField, btnPrimary, btnGhost } from '../../../components/staff-ui'
 import type { Department } from './types'
 
 // [SCHED-DEPT-*] 진료과 관리. 목록 + [진료과 추가] + 줄마다 [이름 수정][사용 중지].
@@ -82,7 +83,7 @@ export function DepartmentList({
       <div style={styles.head}>
         <h2 style={styles.title}>진료과 관리</h2>
         {!adding && (
-          <button type="button" onClick={() => setAdding(true)} style={styles.primaryBtn}>
+          <button type="button" onClick={() => setAdding(true)} className={btnPrimary}>
             진료과 추가
           </button>
         )}
@@ -90,15 +91,15 @@ export function DepartmentList({
 
       {adding && (
         <div style={styles.addRow}>
-          <input
-            aria-label="새 진료과 이름"
+          <TextField
+            ariaLabel="새 진료과 이름"
             value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            style={styles.input}
+            onChange={setNewName}
+            className="flex-1"
           />
           <button
             type="button"
-            style={styles.primaryBtn}
+            className={btnPrimary}
             onClick={async () => {
               await onCreate(newName)
               setNewName('')
@@ -107,7 +108,7 @@ export function DepartmentList({
           >
             추가
           </button>
-          <button type="button" style={styles.ghostBtn} onClick={() => setAdding(false)}>
+          <button type="button" className={btnGhost} onClick={() => setAdding(false)}>
             취소
           </button>
         </div>
@@ -126,17 +127,17 @@ export function DepartmentList({
             >
               {isEditing ? (
                 <>
-                  <input
-                    aria-label="진료과 이름"
+                  <TextField
+                    ariaLabel="진료과 이름"
                     value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    style={styles.input}
+                    onChange={setDraftName}
+                    className="flex-1"
                   />
                   <div style={styles.rowActions}>
-                    <button type="button" style={styles.primaryBtn} onClick={() => saveEdit(dept.id)}>
+                    <button type="button" className={btnPrimary} onClick={() => saveEdit(dept.id)}>
                       저장
                     </button>
-                    <button type="button" style={styles.ghostBtn} onClick={() => setEditing(null)}>
+                    <button type="button" className={btnGhost} onClick={() => setEditing(null)}>
                       취소
                     </button>
                   </div>
@@ -150,15 +151,15 @@ export function DepartmentList({
                     </span>
                   </div>
                   <div style={styles.rowActions}>
-                    <button type="button" style={styles.ghostBtn} onClick={() => startEdit(dept)}>
+                    <button type="button" className={btnGhost} onClick={() => startEdit(dept)}>
                       이름 수정
                     </button>
                     {dept.is_active ? (
-                      <button type="button" style={styles.ghostBtn} onClick={() => clickDeactivate(dept)}>
+                      <button type="button" className={btnGhost} onClick={() => clickDeactivate(dept)}>
                         사용 중지
                       </button>
                     ) : (
-                      <button type="button" style={styles.ghostBtn} onClick={() => onReactivate(dept.id)}>
+                      <button type="button" className={btnGhost} onClick={() => onReactivate(dept.id)}>
                         다시 사용
                       </button>
                     )}
@@ -213,8 +214,8 @@ export function DepartmentList({
 
 const styles: Record<string, CSSProperties> = {
   head: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title: { margin: 0, fontSize: 'var(--fs-lg)', color: 'var(--color-ink)' },
-  addRow: { display: 'flex', gap: 6, marginBottom: 12 },
+  title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  addRow: { display: 'flex', gap: 8, marginBottom: 12 },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 },
   row: {
     display: 'flex',
@@ -228,38 +229,11 @@ const styles: Record<string, CSSProperties> = {
   },
   rowInactive: { background: 'var(--color-done-bg)', color: 'var(--color-done)' },
   rowMain: { display: 'flex', flexDirection: 'column', gap: 2 },
-  deptName: { fontWeight: 600, fontSize: 'var(--fs-base)' },
-  deptMeta: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  rowActions: { display: 'flex', gap: 6 },
-  input: {
-    height: 30,
-    padding: '0 8px',
-    borderRadius: 6,
-    border: '1px solid var(--color-divider)',
-    fontSize: 'var(--fs-base)',
-    color: 'var(--color-ink)',
-  },
-  primaryBtn: {
-    padding: '5px 12px',
-    borderRadius: 6,
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: '#fff',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  ghostBtn: {
-    padding: '5px 12px',
-    borderRadius: 6,
-    border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)',
-    color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    cursor: 'pointer',
-  },
-  blockMsg: { margin: '0 0 6px', fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  blockList: { margin: '0 0 6px', paddingLeft: 18, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  blockHint: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  actionError: { margin: '10px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-danger)' },
+  deptName: { fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'], fontSize: 'var(--fs-body)' },
+  deptMeta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  rowActions: { display: 'flex', gap: 8 },
+  blockMsg: { margin: '0 0 6px', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  blockList: { margin: '0 0 6px', paddingLeft: 18, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  blockHint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  actionError: { margin: '10px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-danger)' },
 }

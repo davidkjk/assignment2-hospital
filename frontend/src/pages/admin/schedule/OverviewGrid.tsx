@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
+import { btnPrimary } from '../../../components/staff-ui'
 import { WEEKDAY_SHORT, type OverviewDoctor } from './types'
 
 // [SCHED-GRID-01·02] 전체 현황 = 읽는 곳. 행=의사·열=요일 7. 한 칸에 진료 시간·한 칸 길이·하루 최대 인원.
@@ -25,7 +26,7 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
         kind="zero"
         message="아직 등록된 의사가 없습니다"
         action={
-          <button type="button" onClick={onGoToStaff} style={styles.goBtn}>
+          <button type="button" onClick={onGoToStaff} className={btnPrimary}>
             의사 관리로 가기
           </button>
         }
@@ -119,7 +120,7 @@ const styles: Record<string, CSSProperties> = {
     columnGap: 16,
     rowGap: 4,
     marginBottom: 8,
-    fontSize: 'var(--fs-sm)',
+    fontSize: 'var(--fs-caption)',
     color: 'var(--color-ink-muted)',
   },
   legendItem: { display: 'inline-flex', alignItems: 'center', gap: 4 },
@@ -138,11 +139,11 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 'var(--radius-card)',
     background: 'var(--color-surface)',
   },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-base)' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: {
     padding: '6px 8px',
     textAlign: 'center',
-    fontSize: 'var(--fs-sm)',
+    fontSize: 'var(--fs-caption)',
     fontWeight: 600,
     color: 'var(--color-ink-muted)',
     borderBottom: '1px solid var(--color-divider)',
@@ -153,7 +154,7 @@ const styles: Record<string, CSSProperties> = {
   tdDoctor: { padding: '6px 8px', borderBottom: '1px solid var(--color-divider)' },
   td: { padding: 3, borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
   docName: { fontWeight: 600, color: 'var(--color-ink)' },
-  docDept: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  docDept: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   cell: {
     display: 'flex',
     flexDirection: 'column',
@@ -170,15 +171,6 @@ const styles: Record<string, CSSProperties> = {
   },
   cellOff: { backgroundImage: HATCH },
   cellTime: { fontWeight: 600 },
-  cellMeta: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  hatch: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  goBtn: {
-    padding: '8px 14px',
-    borderRadius: 8,
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: '#fff',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
+  cellMeta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  hatch: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

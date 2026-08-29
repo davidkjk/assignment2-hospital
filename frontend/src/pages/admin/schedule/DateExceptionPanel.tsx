@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { Checkbox, Radio, TextField, btnPrimary, btnGhost } from '../../../components/staff-ui'
 import { ScheduleTimeInput } from './ScheduleTimeInput'
 import type { DateException } from './types'
 
@@ -139,7 +140,7 @@ export function DateExceptionPanel({
                           : `${e.doctor_name} 진료 시간 변경`}
                     {e.affected_count > 0 && <span style={styles.entryMeta}> · 예약 {e.affected_count}건</span>}
                   </span>
-                  <button type="button" style={styles.ghostBtn} onClick={() => void onRevert(e.id)}>
+                  <button type="button" className={btnGhost} onClick={() => void onRevert(e.id)}>
                     되돌리기
                   </button>
                 </li>
@@ -151,39 +152,30 @@ export function DateExceptionPanel({
         {/* 새로 넣기 */}
         <fieldset style={styles.field}>
           <legend style={styles.legend}>누가 쉬나</legend>
-          <label style={styles.radio}>
-            <input type="radio" name="exc-scope" checked={scope === 'hospital'} onChange={() => setScope('hospital')} />
-            병원 전체
-          </label>
-          <label style={styles.radio}>
-            <input type="radio" name="exc-scope" checked={scope === 'doctor'} onChange={() => setScope('doctor')} />
-            의사 고르기
-          </label>
+          <Radio name="exc-scope" ariaLabel="병원 전체" label="병원 전체" checked={scope === 'hospital'} onChange={() => setScope('hospital')} />
+          <Radio name="exc-scope" ariaLabel="의사 고르기" label="의사 고르기" checked={scope === 'doctor'} onChange={() => setScope('doctor')} />
         </fieldset>
 
         {scope === 'hospital' ? (
           <label style={styles.memoRow}>
             메모
-            <input aria-label="메모" value={memo} onChange={(e) => setMemo(e.target.value)} style={styles.input} />
+            <TextField ariaLabel="메모" value={memo} onChange={setMemo} className="flex-1" />
           </label>
         ) : (
           <div style={styles.doctorPick}>
-            <button type="button" style={styles.ghostBtn} onClick={() => setChecked(dayDoctors.filter((d) => !d.regularDayOff).map((d) => d.id))}>
+            <button type="button" className={btnGhost} onClick={() => setChecked(dayDoctors.filter((d) => !d.regularDayOff).map((d) => d.id))}>
               전체 선택
             </button>
             <ul style={styles.doctorList}>
               {dayDoctors.map((d) => (
                 <li key={d.id} data-doctor-row={d.name} style={styles.doctorRow}>
-                  <label style={styles.radio}>
-                    <input
-                      type="checkbox"
-                      aria-label={d.name}
-                      disabled={d.regularDayOff}
-                      checked={checked.includes(d.id)}
-                      onChange={() => toggle(d.id)}
-                    />
-                    {d.name}
-                  </label>
+                  <Checkbox
+                    ariaLabel={d.name}
+                    label={d.name}
+                    disabled={d.regularDayOff}
+                    checked={checked.includes(d.id)}
+                    onChange={() => toggle(d.id)}
+                  />
                   <span style={styles.entryMeta}>예약 {d.appointmentCount}건</span>
                 </li>
               ))}
@@ -193,14 +185,8 @@ export function DateExceptionPanel({
 
         <fieldset style={styles.field}>
           <legend style={styles.legend}>무엇을 바꾸나</legend>
-          <label style={styles.radio}>
-            <input type="radio" name="exc-type" checked={type === 'closed'} onChange={() => setType('closed')} />
-            종일 휴진
-          </label>
-          <label style={styles.radio}>
-            <input type="radio" name="exc-type" checked={type === 'time'} onChange={() => setType('time')} />
-            진료 시간 변경
-          </label>
+          <Radio name="exc-type" ariaLabel="종일 휴진" label="종일 휴진" checked={type === 'closed'} onChange={() => setType('closed')} />
+          <Radio name="exc-type" ariaLabel="진료 시간 변경" label="진료 시간 변경" checked={type === 'time'} onChange={() => setType('time')} />
           {type === 'time' && (
             <div style={styles.timeRow}>
               <ScheduleTimeInput label="변경 시작" value={overrideStart} onChange={setOverrideStart} />
@@ -210,7 +196,7 @@ export function DateExceptionPanel({
           )}
         </fieldset>
 
-        <button type="button" onClick={handleSave} style={styles.primaryBtn}>
+        <button type="button" onClick={handleSave} className={btnPrimary}>
           저장
         </button>
       </div>
@@ -232,7 +218,7 @@ export function DateExceptionPanel({
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', gap: 16, alignItems: 'flex-start' },
   calendar: { flex: '0 0 260px', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', padding: 10, background: 'var(--color-surface)' },
-  calHead: { fontWeight: 700, fontSize: 'var(--fs-base)', marginBottom: 8, color: 'var(--color-ink)' },
+  calHead: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], fontSize: 'var(--fs-body)', marginBottom: 8, color: 'var(--color-ink)' },
   calGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 },
   calDay: {
     position: 'relative',
@@ -240,7 +226,7 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     borderRadius: 6,
     background: 'transparent',
-    fontSize: 'var(--fs-sm)',
+    fontSize: 'var(--fs-caption)',
     color: 'var(--color-ink)',
     cursor: 'pointer',
   },
@@ -248,20 +234,16 @@ const styles: Record<string, CSSProperties> = {
   calDaySel: { background: 'var(--color-primary-wash)', color: 'var(--color-primary)', fontWeight: 700 },
   calDot: { position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 5, height: 5, borderRadius: '50%', background: 'var(--color-primary)' },
   right: { flex: 1, minWidth: 0 },
-  rightHead: { margin: '0 0 10px', fontSize: 'var(--fs-lg)', color: 'var(--color-ink)' },
-  entryList: { listStyle: 'none', margin: '0 0 12px', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 },
-  entry: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 10px', border: '1px solid var(--color-divider)', borderRadius: 8, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  entryMeta: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  field: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 10, marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 12 },
-  legend: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)', padding: '0 4px' },
-  radio: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  memoRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 'var(--fs-base)' },
-  input: { flex: 1, height: 30, padding: '0 8px', borderRadius: 6, border: '1px solid var(--color-divider)', fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  doctorPick: { marginBottom: 10 },
-  doctorList: { listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 },
+  rightHead: { margin: '0 0 12px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  entryList: { listStyle: 'none', margin: '0 0 12px', padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
+  entry: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--color-divider)', borderRadius: 8, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  entryMeta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  field: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 14, marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 16 },
+  legend: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', padding: '0 4px' },
+  memoRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, fontSize: 'var(--fs-body)' },
+  doctorPick: { marginBottom: 12 },
+  doctorList: { listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   doctorRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  timeRow: { display: 'flex', alignItems: 'center', gap: 4, width: '100%' },
+  timeRow: { display: 'flex', alignItems: 'center', gap: 6, width: '100%' },
   tilde: { color: 'var(--color-ink-muted)' },
-  ghostBtn: { padding: '5px 12px', borderRadius: 6, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-base)', cursor: 'pointer' },
-  primaryBtn: { padding: '6px 16px', borderRadius: 6, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer' },
 }

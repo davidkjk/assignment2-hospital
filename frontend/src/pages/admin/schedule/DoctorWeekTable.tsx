@@ -1,7 +1,8 @@
 import { useState, type CSSProperties } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { btnPrimary, btnGhost } from '../../../components/staff-ui'
 import { DirtyDot } from './DirtyDot'
-import { ScheduleTimeInput } from './ScheduleTimeInput'
+import { ScheduleTimeInput, TIME_FIELD_CLASS } from './ScheduleTimeInput'
 import type { DirtyMapApi } from './useDirtyMap'
 import { WEEKDAY_FULL, hhmm, type WeekRow } from './types'
 
@@ -116,14 +117,14 @@ export function DoctorWeekTable({
 
       {/* 저장 줄 — 표 맨 위 버튼 하나(SCHED-SAVE-01) */}
       <div style={styles.saveRow}>
-        <button type="button" onClick={copyMonday} style={styles.ghostBtn}>
+        <button type="button" onClick={copyMonday} className={btnGhost}>
           월요일 값을 나머지에
         </button>
         <div style={styles.saveRight}>
           {dirtyCount > 0 && (
             <span style={styles.dirtyNote}>고친 곳 {dirtyCount}군데 · 아직 저장 안 됨</span>
           )}
-          <button type="button" onClick={handleSave} style={styles.primaryBtn}>
+          <button type="button" onClick={handleSave} className={btnPrimary}>
             저장
           </button>
         </div>
@@ -203,7 +204,7 @@ export function DoctorWeekTable({
                           data-cell2={`${label}|한 칸 길이`}
                           value={row.slot_minutes ?? ''}
                           onChange={(e) => edit(w, { slot_minutes: numOrNull(e.target.value) })}
-                          style={styles.numInput}
+                          className={TIME_FIELD_CLASS}
                         />
                         <span style={styles.unit}>분</span>
                       </td>
@@ -236,7 +237,7 @@ export function DoctorWeekTable({
                           data-cell2={`${label}|하루 최대 인원`}
                           value={row.max_daily ?? ''}
                           onChange={(e) => edit(w, { max_daily: numOrNull(e.target.value) })}
-                          style={styles.numInput}
+                          className={TIME_FIELD_CLASS}
                         />
                         <span style={styles.unit}>명</span>
                       </td>
@@ -332,7 +333,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
     fontWeight: 600,
     cursor: 'pointer',
   },
@@ -341,35 +342,16 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-primary-wash)',
     color: 'var(--color-primary)',
   },
-  chipDept: { fontSize: 'var(--fs-sm)', fontWeight: 400, color: 'var(--color-ink-muted)' },
+  chipDept: { fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--color-ink-muted)' },
   saveRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   saveRight: { display: 'flex', alignItems: 'center', gap: 10 },
-  dirtyNote: { fontSize: 'var(--fs-sm)', color: 'var(--color-warn)', fontWeight: 600 },
-  ghostBtn: {
-    padding: '6px 12px',
-    borderRadius: 6,
-    border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)',
-    color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    cursor: 'pointer',
-  },
-  primaryBtn: {
-    padding: '6px 16px',
-    borderRadius: 6,
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: '#fff',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
+  dirtyNote: { fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 600 },
   statusNote: {
     padding: '8px 12px',
     borderRadius: 8,
     background: 'var(--color-primary-wash)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
     marginBottom: 8,
   },
   wrap: {
@@ -378,11 +360,11 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 'var(--radius-card)',
     background: 'var(--color-surface)',
   },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-base)' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: {
     padding: '6px 8px',
     textAlign: 'center',
-    fontSize: 'var(--fs-sm)',
+    fontSize: 'var(--fs-caption)',
     fontWeight: 600,
     color: 'var(--color-ink-muted)',
     borderBottom: '1px solid var(--color-divider)',
@@ -406,22 +388,10 @@ const styles: Record<string, CSSProperties> = {
   knobOn: { left: 16 },
   knobOff: { left: 2 },
   tilde: { margin: '0 4px', color: 'var(--color-ink-muted)' },
-  numInput: {
-    height: 30,
-    width: 44,
-    padding: '0 6px',
-    borderRadius: 6,
-    border: '1px solid var(--color-divider)',
-    fontSize: 'var(--fs-base)',
-    fontVariantNumeric: 'tabular-nums',
-    textAlign: 'right',
-    color: 'var(--color-ink)',
-    background: 'var(--color-surface)',
-  },
   unit: { marginLeft: 3, color: 'var(--color-ink-muted)' },
   dash: { color: 'var(--color-ink-muted)' },
   warnBlock: { marginBottom: 8 },
-  warnHead: { margin: '0 0 4px', fontWeight: 700, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  warnList: { margin: 0, paddingLeft: 18, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  slotNote: { margin: '4px 0 0', fontSize: 'var(--fs-base)', color: 'var(--color-warn)', fontWeight: 600 },
+  warnHead: { margin: '0 0 4px', fontWeight: 700, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  warnList: { margin: 0, paddingLeft: 18, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  slotNote: { margin: '4px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-warn)', fontWeight: 600 },
 }

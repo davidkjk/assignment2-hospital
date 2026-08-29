@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import { TextField, NumberField, Checkbox, Select, TextArea } from './fields'
+import { TextField, NumberField, Checkbox, Radio, Select, TextArea } from './fields'
 
 test('TextField는 진짜 text 인풋을 aria-label로 노출하고 입력을 흘린다', async () => {
   const onChange = vi.fn()
@@ -31,6 +31,15 @@ test('Checkbox disabled는 클릭돼도 값이 바뀌지 않는다', async () =>
   render(<Checkbox checked={false} onChange={onChange} disabled ariaLabel="잠김" />)
   await userEvent.click(screen.getByRole('checkbox', { name: '잠김' }))
   expect(onChange).not.toHaveBeenCalled()
+})
+
+test('Radio는 role=radio·aria-label을 유지하고 고르면 onChange', async () => {
+  const onChange = vi.fn()
+  render(<Radio checked={false} onChange={onChange} name="scope" ariaLabel="병원 전체" label="병원 전체" />)
+  const r = screen.getByRole('radio', { name: '병원 전체' })
+  expect(r).not.toBeChecked()
+  await userEvent.click(r)
+  expect(onChange).toHaveBeenCalled()
 })
 
 test('Select는 combobox로 남고 선택을 흘린다', async () => {

@@ -55,8 +55,8 @@ export function SideRail({ active, onSelect, subtitles, weeklyDirty }: SideRailP
 
 const styles: Record<string, CSSProperties> = {
   rail: {
-    width: 176,
-    flex: '0 0 176px',
+    width: 224,
+    flex: '0 0 224px',
     display: 'flex',
     flexDirection: 'column',
     gap: 2,
@@ -67,7 +67,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'flex-start',
     gap: 2,
     width: '100%',
-    padding: '8px 12px',
+    padding: '9px 12px',
     border: 'none',
     borderRadius: 8,
     background: 'transparent',
@@ -80,11 +80,14 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-primary)',
   },
   itemLabel: {
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
+    wordBreak: 'keep-all',
   },
   itemSub: {
-    fontSize: 'var(--fs-sm)',
+    fontSize: 'var(--fs-caption)',
     color: 'var(--color-ink-muted)',
+    wordBreak: 'keep-all',
+    lineHeight: 1.4,
   },
 }

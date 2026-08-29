@@ -1,8 +1,12 @@
-import type { CSSProperties } from 'react'
-
 // [SCHED-WEEK-05] 시각은 숫자로 친다 — `0900`→09:00. ⛔ 드롭다운(combobox)을 두지 않는다.
 //   요구사항 :465 "키보드 입력이 편해야". QUEUE-WALK-14b~e와 같은 방식(콜론 없이 친다).
 // 값 계약: value는 "HH:MM"(또는 ''), onChange도 "HH:MM"(또는 '')로 돌려준다.
+// 스타일은 공용 폼 프리미티브(fields.tsx)와 같은 어휘 — 딥틸 테두리·포커스 링·tabular-nums.
+
+// 진료 일정 전역 시각 입력 클래스(HospitalHoursTable의 여는/닫는 칸도 같은 클래스를 쓴다).
+export const TIME_FIELD_CLASS =
+  'h-9 w-16 rounded-lg border border-input bg-card px-2 text-center text-sm tabular-nums text-foreground ' +
+  'outline-none focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:bg-muted disabled:text-muted-foreground'
 
 interface Props {
   label: string
@@ -28,21 +32,7 @@ export function ScheduleTimeInput({ label, value, onChange, disabled }: Props) {
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(formatTimeDigits(e.target.value))}
-      style={styles.input}
+      className={TIME_FIELD_CLASS}
     />
   )
-}
-
-const styles: Record<string, CSSProperties> = {
-  input: {
-    height: 30,
-    width: 64,
-    padding: '0 6px',
-    borderRadius: 6,
-    border: '1px solid var(--color-divider)',
-    fontSize: 'var(--fs-base)',
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-ink)',
-    background: 'var(--color-surface)',
-  },
 }
