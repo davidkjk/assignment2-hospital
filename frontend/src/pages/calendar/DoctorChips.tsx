@@ -85,6 +85,12 @@ export function DoctorChips({
             aria-pressed={selectedDoctorIds.includes(doc.id)}
             onClick={() => onToggleDoctor(doc.id)}
           >
+            {/* 격자 열 색과 같은 팔레트 색점 — 칩↔열을 눈으로 잇는다(CAL-DOC, 사용자 결정 2026-08-29). */}
+            <span
+              className="cal-chip-dot"
+              style={{ background: `var(--doctor-palette-${doc.paletteIndex})` }}
+              aria-hidden
+            />
             {doc.name}
           </button>
         ))}

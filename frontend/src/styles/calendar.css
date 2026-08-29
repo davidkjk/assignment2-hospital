@@ -164,6 +164,14 @@
   background: var(--color-primary-wash);
   color: var(--color-primary);
 }
+/* 의사 칩 앞 색점 — 격자 열 색과 같은 팔레트로 칩↔열을 잇는다(사용자 결정 2026-08-29).
+   색값은 인라인(팔레트 인덱스)로 온다(SlotBlock과 같은 방식). */
+.cal-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
 .cal-filter-note {
   font-size: 12px;
   color: var(--color-ink-muted);

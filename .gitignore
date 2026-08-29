@@ -24,3 +24,8 @@ __pycache__/
 
 # 로컬 개발용 환경변수 — 기기마다 다르고 키가 들어간다
 .env.local
+
+# 화면 대조 shot 출력(PNG) · 스크래치
+tools/shot/shot/
+output/
+tmp/
