@@ -198,8 +198,12 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
 
   return (
     <section style={styles.wrap}>
+      <header style={styles.pageHead}>
+        <p style={styles.pageDesc}>예약·대기실·문자 등 병원 운영 기준을 한곳에서 관리합니다. 저장하면 모든 항목이 함께 적용됩니다.</p>
+      </header>
       <div style={styles.body}>
         <nav aria-label="설정 메뉴" style={styles.menu}>
+          <p style={styles.colLabel}>설정 항목</p>
           {MENUS.map((m) => {
             const isDirty = menuDirty(m)
             return (
@@ -285,12 +289,15 @@ const styles: Record<string, CSSProperties> = {
   barMsg: { marginRight: 'auto' },
   unsaved: { marginRight: 4, fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 600 },
   saveError: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-warn)', fontWeight: 600 },
+  pageHead: { marginBottom: 4 },
+  pageDesc: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   body: { display: 'flex', gap: 24, alignItems: 'flex-start' },
   rightCol: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' },
-  menu: { display: 'flex', flexDirection: 'column', gap: 2, width: 224, flex: '0 0 224px' },
-  menuItem: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-ink)' },
-  menuItemActive: { background: 'var(--color-primary-wash)', color: 'var(--color-primary)' },
-  menuLabel: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], wordBreak: 'keep-all' },
+  menu: { display: 'flex', flexDirection: 'column', gap: 6, width: 235, flex: '0 0 235px' },
+  colLabel: { margin: '0 0 8px', fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--color-ink-muted)' },
+  menuItem: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--radius-card)', border: '1px solid var(--color-divider)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-card)', cursor: 'pointer', color: 'var(--color-ink)' },
+  menuItemActive: { borderColor: 'var(--color-primary)', background: 'var(--color-primary-wash)', boxShadow: 'inset 3px 0 0 var(--color-primary)' },
+  menuLabel: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)', wordBreak: 'keep-all' },
   menuSub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', wordBreak: 'keep-all', lineHeight: 1.4 },
   menuSubDirty: { color: 'var(--color-warn)', fontWeight: 600 },
   dot: { color: 'var(--color-warn)' },

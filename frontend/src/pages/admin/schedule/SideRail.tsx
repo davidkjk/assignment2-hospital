@@ -28,6 +28,7 @@ interface SideRailProps {
 export function SideRail({ active, onSelect, subtitles, weeklyDirty }: SideRailProps) {
   return (
     <nav aria-label="일정 관리 화면" style={styles.rail}>
+      <p style={styles.colLabel}>관리 화면</p>
       {RAIL_ITEMS.map((item, i) => {
         const isActive = item === active
         return (
@@ -55,11 +56,19 @@ export function SideRail({ active, onSelect, subtitles, weeklyDirty }: SideRailP
 
 const styles: Record<string, CSSProperties> = {
   rail: {
-    width: 224,
-    flex: '0 0 224px',
+    width: 235,
+    flex: '0 0 235px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 2,
+    gap: 6,
+  },
+  colLabel: {
+    margin: '0 0 8px',
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 700,
+    letterSpacing: '.04em',
+    textTransform: 'uppercase',
+    color: 'var(--color-ink-muted)',
   },
   item: {
     display: 'flex',
@@ -67,21 +76,24 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'flex-start',
     gap: 2,
     width: '100%',
-    padding: '9px 12px',
-    border: 'none',
-    borderRadius: 8,
-    background: 'transparent',
+    padding: '10px 12px',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 'var(--radius-card)',
+    background: 'var(--color-surface)',
+    boxShadow: 'var(--shadow-card)',
     textAlign: 'left',
     cursor: 'pointer',
     color: 'var(--color-ink)',
   },
   itemActive: {
+    borderColor: 'var(--color-primary)',
     background: 'var(--color-primary-wash)',
-    color: 'var(--color-primary)',
+    boxShadow: 'inset 3px 0 0 var(--color-primary)',
   },
   itemLabel: {
     fontSize: 'var(--fs-body)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
+    fontWeight: 700,
+    color: 'var(--color-ink)',
     wordBreak: 'keep-all',
   },
   itemSub: {

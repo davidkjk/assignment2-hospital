@@ -120,7 +120,10 @@ function ScheduleInner() {
 
   return (
     <section style={styles.page} aria-label="진료 일정 관리">
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 두지 않는다. */}
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 설명만. */}
+      <header style={styles.pageHead}>
+        <p style={styles.pageDesc}>진료과·의사별 진료시간과 특정 날짜 변경을 여기서 관리합니다.</p>
+      </header>
       <div style={styles.body}>
         <SideRail
           active={active}
@@ -266,9 +269,11 @@ function todayIso(): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { padding: 20, maxWidth: 1100, margin: '0 auto' },
+  page: { padding: 20, maxWidth: 1180, margin: '0 auto' },
+  pageHead: { marginBottom: 16 },
+  pageDesc: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   title: { margin: '0 0 16px', fontSize: 'var(--fs-xl)', color: 'var(--color-ink)' },
-  body: { display: 'flex', gap: 20, alignItems: 'flex-start' },
+  body: { display: 'flex', gap: 24, alignItems: 'flex-start' },
   content: { flex: 1, minWidth: 0 },
   link: { border: 'none', background: 'var(--color-primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' },
 }
