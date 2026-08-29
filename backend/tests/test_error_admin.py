@@ -133,10 +133,32 @@ async def test_LIST_04_저장시점에_지우고_화면은_safe_summary만_받�
     assert "010-1234-5678" not in db["message"]
     assert "900101-1234567" not in db["message"]
     await app_pool.close_pool()
-    res = client.get("/error-logs", headers=_auth(admin)).json()
+    res = client.get("/error-logs", headers=_auth(admin)).json()["rows"]["rows"]
     assert res[0]["summary"] == "예약을 불러오는 중 시스템 오류가 발생했습니다."
     assert "message" not in res[0]                       # 기술 상세는 화면 계약에 없다(뒷단에서만)
     assert "010-1234-5678" not in str(res[0])
+
+
+@pytest.mark.asyncio
+async def test_RETENTION_1년_지난_기록은_적재할때_함께_청소된다(committed_conn):
+    """[보존 2026-08-29] 시스템 오류 기록은 1년만 보관 — log_error가 적재하며 기간 지난 행을 지운다.
+
+    prune-on-write: 별도 스케줄러 없이 오류가 쌓일 때 함께 청소한다(errors._RETENTION_DAYS=365)."""
+    # 400일 전(만료 대상) + 지금(유지 대상)을 심어 둔다.
+    await committed_conn.execute(
+        "insert into system_error_log (occurred_at, feature, message, safe_summary) "
+        "values (now() - interval '400 days', '__old__', 'x', '만료 대상')")
+    await committed_conn.execute(
+        "insert into system_error_log (occurred_at, feature, message, safe_summary) "
+        "values (now(), '__new__', 'x', '유지 대상')")
+    # 오류를 하나 적재하면 그 김에 만료 행이 청소된다.
+    await log_error(feature="보존검증", message="x", safe_summary="s")
+    await app_pool.close_pool()                          # 교차 루프 방지(위 LIST_04 주석과 같은 이유)
+    old = await committed_conn.fetchval("select count(*) from system_error_log where feature='__old__'")
+    new = await committed_conn.fetchval("select count(*) from system_error_log where feature='__new__'")
+    kept = await committed_conn.fetchval("select count(*) from system_error_log where feature='보존검증'")
+    assert old == 0                                      # 400일 전 기록은 정책대로 청소됨
+    assert new == 1 and kept == 1                        # 1년 안 기록·방금 적재한 기록은 유지
 
 
 @pytest.mark.asyncio
@@ -144,7 +166,7 @@ async def test_SCOPE_01_표는_system_error_log_행만_id_시각_기능_요약�
     """[ERRADM-SCOPE-01] 서버가 반환한 행만. 오류를 추측해 새 행을 만들지 않는다."""
     admin = await seed_staff(committed_conn, role="admin")
     await _seed_error(committed_conn, feature="통계 조회", summary="통계를 불러오지 못했습니다.")
-    res = client.get("/error-logs", headers=_auth(admin)).json()
+    res = client.get("/error-logs", headers=_auth(admin)).json()["rows"]
     assert {"id", "occurred_at", "feature", "summary"} <= set(res[0])
     assert res[0]["feature"] == "통계 조회"
 
@@ -169,7 +191,7 @@ async def test_NOTI_01_수신자별_발송실패는_이_표로_새지_않는다(
         "insert into notification_log (patient_id, notification_type, channel, delivery_status) "
         "values ($1, 'reminder', 'sms', '실패')", p)
     try:
-        res = client.get("/error-logs", headers=_auth(admin)).json()
+        res = client.get("/error-logs", headers=_auth(admin)).json()["rows"]
         assert res == []                                # 발송 실패가 있어도 시스템 오류 표는 비어 있다
     finally:
         # notification_log는 conftest 공용 cleanup이 안 지운다 → patient FK가 걸려 teardown이 깨진다.
@@ -183,7 +205,7 @@ async def test_NOTI_02_서비스_전체장애만_한줄로_들어오고_기술�
     # Task 28의 발송 코드가 redaction 후 남긴 「서비스 전체 장애」한 줄을 재현(message는 이미 redaction본).
     await _seed_error(committed_conn, feature="문자 서비스 장애", message="provider [비밀] gateway down",
                       summary="문자 서비스에 일시적인 장애가 있었습니다. 잠시 후 다시 시도됩니다.")
-    rows = [l for l in client.get("/error-logs", headers=_auth(admin)).json()
+    rows = [l for l in client.get("/error-logs", headers=_auth(admin)).json()["rows"]
             if l["feature"] == "문자 서비스 장애"]
     assert len(rows) == 1
     assert rows[0]["summary"] == "문자 서비스에 일시적인 장애가 있었습니다. 잠시 후 다시 시도됩니다."
@@ -195,8 +217,8 @@ async def test_NOTI_03_읽기전용이라_재시도가_별도_행을_만들지_�
     """[ERRADM-NOTI-03] 조회가 행을 늘리지 않는다(읽기 전용)."""
     admin = await seed_staff(committed_conn, role="admin")
     await _seed_error(committed_conn, feature="문자 서비스 장애", summary="문자 서비스 장애")
-    first = client.get("/error-logs", headers=_auth(admin)).json()
-    second = client.get("/error-logs", headers=_auth(admin)).json()
+    first = client.get("/error-logs", headers=_auth(admin)).json()["rows"]
+    second = client.get("/error-logs", headers=_auth(admin)).json()["rows"]
     assert len(first) == len(second) == 1
 
 
@@ -208,20 +230,30 @@ async def test_LIST_05_정렬은_발생시각_내림차_동점은_id_내림차�
         await committed_conn.execute(
             "insert into system_error_log (occurred_at, feature, message, safe_summary) "
             "values ('2026-08-17T10:00:00+09:00', '예약', 'x', '오류')")
-    res = client.get("/error-logs", headers=_auth(admin)).json()
+    res = client.get("/error-logs", headers=_auth(admin)).json()["rows"]
     same = [l for l in res if l["occurred_at"].startswith("2026-08-17T10:00:00")]
     assert [l["id"] for l in same] == sorted((l["id"] for l in same), reverse=True)
 
 
 @pytest.mark.asyncio
-async def test_FILTER_01_LIST_06_상한은_최근_200건이다(client, committed_conn):
-    """[ERRADM-FILTER-01][ERRADM-LIST-06] limit 200. 200건 밖 부재를 주장하지 않는다."""
+async def test_FILTER_01_LIST_06_상한은_200건이고_커서로_나머지를_이어받는다(client, committed_conn):
+    """[ERRADM-FILTER-01][ERRADM-LIST-06] 첫 페이지 200건 + next_cursor 이어보기(겹침·빠짐 없음)."""
     admin = await seed_staff(committed_conn, role="admin")
     await committed_conn.executemany(
         "insert into system_error_log (feature, message, safe_summary) values ('f', 'm', 's')",
         [()] * 205)
-    res = client.get("/error-logs", headers=_auth(admin)).json()
-    assert len(res) == 200
+    page1 = client.get("/error-logs", headers=_auth(admin)).json()
+    assert len(page1["rows"]) == 200
+    assert page1["total_hint"] == 205                    # 전체 건수 힌트(200건 밖 부재를 주장하지 않는다)
+    assert page1["next_cursor"] is not None
+    # 커서로 나머지 5건을 이어받는다 — 첫 페이지와 겹치지도 빠지지도 않는다.
+    page2 = client.get(f"/error-logs?cursor={page1['next_cursor']}", headers=_auth(admin)).json()
+    assert len(page2["rows"]) == 5
+    assert page2["next_cursor"] is None                  # 마지막 페이지
+    ids1 = {r["id"] for r in page1["rows"]}
+    ids2 = {r["id"] for r in page2["rows"]}
+    assert ids1 & ids2 == set()                          # 겹침 없음
+    assert len(ids1 | ids2) == 205                       # 빠짐 없음
 
 
 @pytest.mark.asyncio
@@ -234,7 +266,7 @@ async def test_FILTER_02_기간은_시작일포함_종료일_그날끝까지다(
     await committed_conn.execute(
         "insert into system_error_log (occurred_at, feature, message, safe_summary) "
         "values ('2026-08-17T23:30:00+09:00', '당일끝', 'x', 's')")
-    res = client.get("/error-logs?from=2026-08-01&to=2026-08-17", headers=_auth(admin)).json()
+    res = client.get("/error-logs?from=2026-08-01&to=2026-08-17", headers=_auth(admin)).json()["rows"]
     features = [l["feature"] for l in res]
     assert "당일끝" in features and "범위밖" not in features
 

@@ -34,6 +34,14 @@ _REDACTIONS: list[tuple[re.Pattern[str], str]] = [
 ]
 _DEFAULT_SUMMARY = "요청을 처리하는 중 시스템 오류가 발생했습니다."
 
+# 보존 기간 (2026-08-29, 사용자 결정) — 시스템 오류 기록은 1년만 보관하고 지난 것은 자동 청소한다.
+# 방식 = prune-on-write: 오류를 적재할 때 같은 커넥션에서 기간 지난 행을 함께 지운다. 별도 스케줄러
+# (pg_cron 등)가 없어도 배포에서 확실히 돌고(마이그레이션≠적용 함정 회피) 검증도 쉽다. 오류가 한동안
+# 없으면 지난 행이 잠깐 더 남지만, 이 표는 환자정보 없는 안전 요약이라 정확한 시각 강제는 불필요하다.
+# (정확한 시각 강제가 필요해지면 pg_cron 일일 작업을 후속으로 얹을 수 있다.) 화면 삭제 문(ERRADM-HEAD-02
+# 읽기 전용)과 무관 — 이건 사람이 지우는 게 아니라 나이 든 기록이 정책대로 물러나는 것이다.
+_RETENTION_DAYS = 365
+
 
 def redact(text: str) -> str:
     for pattern, repl in _REDACTIONS:
@@ -55,6 +63,11 @@ async def log_error(feature: str, message: str | None = None, *,
         await conn.execute(
             "insert into system_error_log (feature, message, safe_summary) values ($1, $2, $3)",
             feature, redact(raw), safe_summary or _DEFAULT_SUMMARY,
+        )
+        # 보존 기간(1년) 지난 기록을 함께 청소한다 — prune-on-write(위 _RETENTION_DAYS 주석).
+        await conn.execute(
+            "delete from system_error_log where occurred_at < now() - make_interval(days => $1)",
+            _RETENTION_DAYS,
         )
 
 
