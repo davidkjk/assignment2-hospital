@@ -101,6 +101,8 @@ function MergeEventDetailInner() {
 
   return (
     <main data-merge-event-detail style={styles.page} aria-labelledby="mev-title">
+      {/* MHIST-NAV-02 — 상세에서 목록으로 돌아가는 출구(막다른 길 방지). 목록은 최신 상태로 다시 읽는다. */}
+      <button type="button" style={styles.back} onClick={() => navigate('/admin/merge-history')}>← 이력으로</button>
       <h1 id="mev-title" style={styles.title}>병합 이벤트</h1>
 
       {!online && (
@@ -194,6 +196,7 @@ export type { MergeEventData }
 
 const styles: Record<string, CSSProperties> = {
   page: { padding: 20, maxWidth: 720, margin: '0 auto' },
+  back: { display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 10, padding: 0, border: 'none', background: 'none', color: 'var(--color-primary)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer' },
   title: { margin: '0 0 12px', fontSize: 'var(--fs-xl)', color: 'var(--color-ink)' },
   loading: { fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
   offline: {
