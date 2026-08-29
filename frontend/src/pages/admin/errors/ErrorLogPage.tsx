@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../../components/EmptyState'
 import { InlineError } from '../../../components/InlineError'
-import { Bell, ShieldCheck } from '../../../components/icons'
+import { AlertCircle, AlertTriangle, Bell, Send, ShieldCheck } from '../../../components/icons'
 import { ApiError } from '../../../api/httpClient'
 import { getErrorLogs, type ErrorLogRow } from '../../../api/errorLogs'
 import { formatAccessedAt } from '../logRows'
@@ -18,8 +18,10 @@ import { formatAccessedAt } from '../logRows'
 //
 // 데모 정렬(S16, 2026-08-29): ①읽기전용 고지에 방패 아이콘 + 안전요약/redaction 설명 부제(ERRADM-LIST-04·결정#20)
 //   ②이중기록 경계 안내(ERRADM-NOTI-01·결정#19) — 수신자별 발송 실패의 갈 길을 「안내 보내기」로 연결(막다른 길 방지).
-//   ③필터·표를 콘솔 카드로. ⛔ 데모의 상태 모음판·「서비스 전체 장애」 배지는 실 계약에 service 플래그가 없어 생략
-//   (정본반영/BLOCKED 후보 = 정본반영-체크리스트 S16).
+//   ③필터·표를 콘솔 카드로.
+// A2 서비스 전체 장애 배지(ERRADM-NOTI-02, 2026-08-28): is_service_outage 계약이 생겨(00070) 「서비스 전체 장애」
+//   행을 amber 삼각형 아이콘 + 배지로 한 줄 구분한다(결정19 = 이 표엔 서비스 전체 장애만 한 줄). 개별 발송 실패는
+//   여기 없다(ERRADM-NOTI-01). ⛔ 데모의 4칸 상태 모음판은 규칙 근거가 없어 계속 생략(S16 판정 유지).
 // ⭐ 페이지: 첫 200건 + [더 오래된 기록 보기] 커서 이어보기(ERRADM-LIST-06). 접근 기록(ALOG-FILTER-06)과
 //   같은 공용 부품을 서버가 쓰고, 화면은 접근 기록 화면과 같은 누적 방식(첫 페이지 + append + tailCursor)을 쓴다.
 
@@ -199,7 +201,24 @@ export function ErrorLogPage() {
                 <tr key={r.id} data-testid="error-row" style={styles.tr}>
                   <td style={styles.td}>{formatAccessedAt(r.occurred_at)}</td>
                   <td style={styles.td}>{r.feature}</td>
-                  <td style={styles.td}>{r.summary}</td>
+                  {/* [ERRADM-NOTI-02] 서비스 전체 장애만 amber 삼각형+배지로 한 줄 구분. 개별 실패는 여기 없다. */}
+                  <td style={styles.td}>
+                    <div style={styles.summaryRow}>
+                      {r.is_service_outage ? (
+                        <AlertTriangle width={16} height={16} style={styles.outageIcon} aria-hidden="true" />
+                      ) : (
+                        <AlertCircle width={16} height={16} style={styles.normalIcon} aria-hidden="true" />
+                      )}
+                      <div style={styles.summaryText}>
+                        <span>{r.summary}</span>
+                        {r.is_service_outage && (
+                          <span style={styles.outageBadge}>
+                            <Send width={12} height={12} aria-hidden="true" /> 서비스 전체 장애
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -313,6 +332,22 @@ const styles: Record<string, CSSProperties> = {
   },
   tr: { borderBottom: '1px solid var(--color-divider)' },
   td: { padding: '12px 14px', color: 'var(--color-ink)', verticalAlign: 'top' },
+  summaryRow: { display: 'flex', alignItems: 'flex-start', gap: 8 },
+  outageIcon: { color: 'var(--color-warn)', flexShrink: 0, marginTop: 2 },
+  normalIcon: { color: 'var(--color-ink-muted)', flexShrink: 0, marginTop: 2 },
+  summaryText: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  outageBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '1px 8px',
+    borderRadius: 6,
+    background: 'color-mix(in srgb, var(--color-warn) 12%, var(--color-surface))',
+    color: 'var(--color-warn)',
+    fontSize: 'var(--fs-sm)',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
   loadingCell: { padding: '12px' },
   skeleton: {
     height: 18,

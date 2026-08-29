@@ -16,6 +16,8 @@ export interface ErrorLogRow {
   feature: string
   /** 사람이 읽는 안전 요약(ERRADM-LIST-04). */
   summary: string
+  /** 서비스 전체 장애 여부(ERRADM-NOTI-02·결정19) — true면 amber 배지로 한 줄 구분. 개별 발송 실패는 여기 없다(ERRADM-NOTI-01). */
+  is_service_outage: boolean
 }
 
 /** 공용 커서 페이지 — total_hint는 현재 필터 전체 건수(접근 기록 ALOG-FILTER-06과 같은 형태). */

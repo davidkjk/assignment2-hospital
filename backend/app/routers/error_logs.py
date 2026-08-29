@@ -32,7 +32,8 @@ async def list_error_logs(
     staff: StaffContext = Depends(require_role("admin")),          # ERRADM-SHELL-01·02
 ) -> dict:
     query = ("select id, occurred_at, feature, "
-             "coalesce(safe_summary, '시스템 오류가 기록되었습니다.') as summary "
+             "coalesce(safe_summary, '시스템 오류가 기록되었습니다.') as summary, "
+             "is_service_outage "                                  # ERRADM-NOTI-02 — 서비스 전체 장애 한 줄 구분
              "from system_error_log")                             # message(기술 상세)는 안 내보낸다
     conditions: list[str] = []
     params: list[object] = []
@@ -48,7 +49,8 @@ async def list_error_logs(
     async with acquire_as(str(staff.auth_user_id)) as conn:
         rows = await conn.fetch(query, *params)
     all_rows = [{"id": str(r["id"]), "occurred_at": r["occurred_at"].isoformat(),
-                 "feature": r["feature"], "summary": r["summary"]} for r in rows]
+                 "feature": r["feature"], "summary": r["summary"],
+                 "is_service_outage": r["is_service_outage"]} for r in rows]
     # ERRADM-LIST-06 — 첫 페이지 200건 + 커서. total_hint는 현재 필터 전체 건수.
     page = paginate(all_rows, cursor=cursor, order=_ORDER, page_size=_PAGE_SIZE)
     return {"rows": page.rows, "next_cursor": page.next_cursor, "total_hint": len(all_rows)}

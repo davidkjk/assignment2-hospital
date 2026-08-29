@@ -50,19 +50,25 @@ def redact(text: str) -> str:
 
 
 async def log_error(feature: str, message: str | None = None, *,
-                    safe_summary: str | None = None, exc: Exception | None = None) -> None:
+                    safe_summary: str | None = None, exc: Exception | None = None,
+                    is_service_outage: bool = False) -> None:
     """시스템 오류를 남긴다. 하위호환: Task 5·6의 `log_error(feature, str(exc))`가 그대로 동작한다.
 
     결정 #20 — ①진짜 원문은 `logger.error`로 서버 로그에만(뒷단) ②DB `message`엔 redaction한
     기술 상세 ③DB `safe_summary`엔 화면에 보이는 안전 요약(없으면 일반 안내).
+
+    is_service_outage(ERRADM-NOTI-02·결정19) — "서비스 전체 장애"(발송 업체 무응답 등 시스템 차원)일
+    때만 True. 관리자 오류 화면이 amber 배지로 한 줄 구분한다. 환자 한 명·한 채널의 개별 실패는
+    여기 아니라 발송 이력 소관이라 기본 False다. 향후 SMS/push 디스패처(배포 T30 공유)가 채운다.
     """
     raw = message if message is not None else (str(exc) if exc is not None else "")
     logger.error("[%s] %s", feature, raw)                    # 진짜 원문은 서버 로그에만(뒷단)
     pool = await get_pool()                                   # 서비스 롤 — RLS 우회 적재
     async with pool.acquire() as conn:
         await conn.execute(
-            "insert into system_error_log (feature, message, safe_summary) values ($1, $2, $3)",
-            feature, redact(raw), safe_summary or _DEFAULT_SUMMARY,
+            "insert into system_error_log (feature, message, safe_summary, is_service_outage) "
+            "values ($1, $2, $3, $4)",
+            feature, redact(raw), safe_summary or _DEFAULT_SUMMARY, is_service_outage,
         )
         # 보존 기간(1년) 지난 기록을 함께 청소한다 — prune-on-write(위 _RETENTION_DAYS 주석).
         await conn.execute(

@@ -14,6 +14,7 @@ function row(over: Partial<ErrorLogRow> = {}): ErrorLogRow {
     occurred_at: over.occurred_at ?? '2026-08-17T09:41:07+09:00',
     feature: over.feature ?? '예약 조회',
     summary: over.summary ?? '예약을 불러오는 중 오류가 발생했습니다.',
+    is_service_outage: over.is_service_outage ?? false,
   }
 }
 
@@ -156,6 +157,19 @@ describe('ErrorLogPage /admin/errors', () => {
     await screen.findByTestId('error-row')
     expect(columnHeaders()).toEqual(['발생 시각', '기능', '오류 내용'])
     expect(within(screen.getByTestId('error-row')).getByText('통계 조회')).toBeVisible()
+  })
+
+  test('[ERRADM-NOTI-02] 서비스 전체 장애 행에만 배지가 붙고 일반 오류엔 없다', async () => {
+    okWith([
+      row({ id: 'e1', feature: '문자 발송', summary: '문자 서비스 전체 장애 — 발송 업체 무응답', is_service_outage: true }),
+      row({ id: 'e2', feature: '문진 저장', summary: '일시적 연결 오류', is_service_outage: false }),
+    ])
+    renderPage()
+    const rows = await screen.findAllByTestId('error-row')
+    // 전체 장애 행: 요약 옆에 「서비스 전체 장애」 배지가 한 줄로 붙는다(결정19).
+    expect(within(rows[0]).getByText('서비스 전체 장애')).toBeVisible()
+    // 개별 실패 행: 배지 없음 — 이 표엔 서비스 전체 장애만 배지로 구분한다(ERRADM-NOTI-01 경계).
+    expect(within(rows[1]).queryByText('서비스 전체 장애')).toBeNull()
   })
 
   test('[ERRADM-LIST-02] 발생 시각은 병원 시간대 절대값 YYYY.MM.DD HH:mm:ss다', async () => {

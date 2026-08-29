@@ -619,24 +619,25 @@ where a.status = '진료완료';
 --   화면이 비어 보이지 않게 실제 운영에서 날 법한 오류를 심는다. 시각은 재적재 순간 기준
 --   최근 며칠에 자연스럽게 흩는다(now() - interval). safe_summary만 화면에 보이고(결정#20),
 --   message(기술 상세)는 화면 계약에 없다. 보존 1년(ERRADM-SCOPE-03)이라 이 15건은 늘 보관 범위 안.
---   ⚠️ service(전체 장애) 구분 필드는 백엔드 계약에 없어(실행플랜 §9 갭) 배지 없이 요약만.
+--   ⚠️ is_service_outage=true(ERRADM-NOTI-02)는 "서비스 전체 장애"(발송 업체 무응답 등)에만. 15건 중
+--     문자 발송·푸시 알림 2건이 전체 장애라 amber 배지로 한 줄 구분된다. 나머지는 개별·부분 지연이라 false.
 -- ════════════════════════════════════════════════════════════════════════════
-insert into system_error_log (occurred_at, feature, message, safe_summary) values
-  (now() - interval '2 hours',   '문자 발송',      'sms provider timeout after 30s (redacted)', '문자 서비스 전체 장애 — 발송 업체가 응답하지 않았습니다.'),
-  (now() - interval '6 hours',   '예약 동기화',    'sync batch exceeded 60s lock wait',          '예약 상태 동기화 작업이 시간 초과로 종료되었습니다.'),
-  (now() - interval '9 hours',   '문진 저장',      'db connection reset during write',           '문진 응답 저장 중 일시적인 데이터베이스 연결 오류가 있었습니다.'),
-  (now() - interval '1 day 3 hours',  'PDF 생성',   'template load failed: form_v3 missing',      '진료 확인서 PDF 생성에 실패했습니다 — 서식 템플릿을 불러오지 못했습니다.'),
-  (now() - interval '1 day 8 hours',  '캘린더 조회', 'slow query 4.2s on calendar range',         '캘린더 대량 조회 응답이 지연되었습니다.'),
-  (now() - interval '1 day 14 hours', '푸시 알림',   'push auth token expired (redacted)',         '푸시 알림 서비스 전체 장애 — 인증 토큰이 만료되었습니다.'),
-  (now() - interval '2 days 2 hours', '진료기록 저장', 'optimistic lock conflict, retried',       '진료기록 저장 중 동시 수정이 감지되어 재시도했습니다.'),
-  (now() - interval '2 days 7 hours', '검색 색인',   'partial index rebuild failure',             '환자 검색 색인 갱신 중 일부가 실패했습니다.'),
-  (now() - interval '2 days 15 hours','상담봇 응답', 'kb lookup timeout 8s',                       '상담봇 응답 생성이 지연되었습니다 — 지식베이스 조회가 시간을 초과했습니다.'),
-  (now() - interval '3 days 4 hours', '야간 백업',   'storage 92% full at backup start',          '자정 백업 작업 중 저장소 용량이 부족했습니다.'),
-  (now() - interval '3 days 11 hours','통계 집계',   'aggregation batch delayed 12m',             '운영 통계 집계 배치가 예상보다 지연되었습니다.'),
-  (now() - interval '4 days 5 hours', '파일 업로드', 'rejected mime type application/x-msdownload','첨부 파일 업로드 처리 오류 — 허용되지 않은 형식입니다.'),
-  (now() - interval '4 days 13 hours','예약 알림',   'reminder queue drain slow',                 '예약 리마인더 발송 큐 처리가 지연되었습니다.'),
-  (now() - interval '5 days 6 hours', '야간 부도 처리','no-show batch paused then resumed',        '자정 예약 부도 처리 배치가 일시 중단 후 재개되었습니다.'),
-  (now() - interval '5 days 16 hours','로그인',      'token verify transient error (redacted)',   '인증 토큰 검증 중 일시적인 오류가 있었습니다.');
+insert into system_error_log (occurred_at, feature, message, safe_summary, is_service_outage) values
+  (now() - interval '2 hours',   '문자 발송',      'sms provider timeout after 30s (redacted)', '문자 서비스 전체 장애 — 발송 업체가 응답하지 않았습니다.', true),
+  (now() - interval '6 hours',   '예약 동기화',    'sync batch exceeded 60s lock wait',          '예약 상태 동기화 작업이 시간 초과로 종료되었습니다.', false),
+  (now() - interval '9 hours',   '문진 저장',      'db connection reset during write',           '문진 응답 저장 중 일시적인 데이터베이스 연결 오류가 있었습니다.', false),
+  (now() - interval '1 day 3 hours',  'PDF 생성',   'template load failed: form_v3 missing',      '진료 확인서 PDF 생성에 실패했습니다 — 서식 템플릿을 불러오지 못했습니다.', false),
+  (now() - interval '1 day 8 hours',  '캘린더 조회', 'slow query 4.2s on calendar range',         '캘린더 대량 조회 응답이 지연되었습니다.', false),
+  (now() - interval '1 day 14 hours', '푸시 알림',   'push auth token expired (redacted)',         '푸시 알림 서비스 전체 장애 — 인증 토큰이 만료되었습니다.', true),
+  (now() - interval '2 days 2 hours', '진료기록 저장', 'optimistic lock conflict, retried',       '진료기록 저장 중 동시 수정이 감지되어 재시도했습니다.', false),
+  (now() - interval '2 days 7 hours', '검색 색인',   'partial index rebuild failure',             '환자 검색 색인 갱신 중 일부가 실패했습니다.', false),
+  (now() - interval '2 days 15 hours','상담봇 응답', 'kb lookup timeout 8s',                       '상담봇 응답 생성이 지연되었습니다 — 지식베이스 조회가 시간을 초과했습니다.', false),
+  (now() - interval '3 days 4 hours', '야간 백업',   'storage 92% full at backup start',          '자정 백업 작업 중 저장소 용량이 부족했습니다.', false),
+  (now() - interval '3 days 11 hours','통계 집계',   'aggregation batch delayed 12m',             '운영 통계 집계 배치가 예상보다 지연되었습니다.', false),
+  (now() - interval '4 days 5 hours', '파일 업로드', 'rejected mime type application/x-msdownload','첨부 파일 업로드 처리 오류 — 허용되지 않은 형식입니다.', false),
+  (now() - interval '4 days 13 hours','예약 알림',   'reminder queue drain slow',                 '예약 리마인더 발송 큐 처리가 지연되었습니다.', false),
+  (now() - interval '5 days 6 hours', '야간 부도 처리','no-show batch paused then resumed',        '자정 예약 부도 처리 배치가 일시 중단 후 재개되었습니다.', false),
+  (now() - interval '5 days 16 hours','로그인',      'token verify transient error (redacted)',   '인증 토큰 검증 중 일시적인 오류가 있었습니다.', false);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- §17.5 병합 되돌림 이력 (/admin/merge-history) — MHIST-* 검증용 3건
