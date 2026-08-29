@@ -1,6 +1,7 @@
-import { useEffect, useState, type CSSProperties, type MutableRefObject } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject } from 'react'
 import { BusyButton } from '../../../components/BusyButton'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { ApiError } from '../../../api/httpClient'
 import { staffApi, type ProfilePatch, type StaffMember } from '../../../api/staff'
 import { PalettePicker } from './PalettePicker'
 
@@ -21,8 +22,9 @@ interface DoctorProfilePanelProps {
   onClose(): void
   onSaved(): void
   onDirtyChange(dirty: boolean): void
-  /** 떠날 때 묻기의 [저장]이 부를 수 있게 최신 저장 함수를 심어 둔다(STAFF-PROFILE-09). */
-  saveRef?: MutableRefObject<(() => Promise<void>) | null>
+  /** 떠날 때 묻기의 [저장]이 부를 수 있게 최신 저장 함수를 심어 둔다(STAFF-PROFILE-09).
+   *  실패를 조용히 삼키지 않으려고 성공 여부를 돌려준다 — 실패면 호출부가 떠나지 않는다. */
+  saveRef?: MutableRefObject<(() => Promise<boolean>) | null>
 }
 
 function baselineOf(doctor: StaffMember): Baseline {
@@ -36,8 +38,14 @@ export function DoctorProfilePanel({ doctor, allStaff, onClose, onSaved, onDirty
   const [color, setColor] = useState<number | null>(baseline.color)
   const [photoUrl, setPhotoUrl] = useState<string | null>(doctor.photo_url)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // 저장했는지 눈에 보이게 한다 — 「눌렀는데 아무 일도 없다」가 이 화면의 원래 증상이었다(L29·L30·G1).
+  const [flash, setFlash] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // 다른 의사로 갈아타면(STAFF-PROFILE-03) 그 사람 값으로 다시 채운다.
+  // ⚠️ 저장 성공이 부르는 refetch로도 doctor 참조가 새로 오지만, 그때 flash를 지우면
+  //    「저장했습니다」가 바로 사라진다 — flash·오류는 **의사가 실제로 바뀔 때만** 지운다.
+  const lastDoctorId = useRef(doctor.id)
   useEffect(() => {
     const b = baselineOf(doctor)
     setBaseline(b)
@@ -45,22 +53,40 @@ export function DoctorProfilePanel({ doctor, allStaff, onClose, onSaved, onDirty
     setBio(b.bio)
     setColor(b.color)
     setPhotoUrl(doctor.photo_url)
+    if (lastDoctorId.current !== doctor.id) {
+      setFlash(null)
+      setActionError(null)
+      lastDoctorId.current = doctor.id
+    }
   }, [doctor])
 
   const dirty = specialty !== baseline.specialty || bio !== baseline.bio || color !== baseline.color
 
   useEffect(() => {
     onDirtyChange(dirty)
+    // 다시 고치기 시작하면 지난 「저장했습니다」를 지운다 — 낡은 성공 표시가 남지 않게.
+    if (dirty) setFlash(null)
   }, [dirty, onDirtyChange])
 
-  async function save() {
+  /** 성공하면 true, 서버가 막으면 false. 실패를 던지지 않고 화면에 이유를 보인다(G1). */
+  async function save(): Promise<boolean> {
     const patch: ProfilePatch = {}
     if (specialty !== baseline.specialty) patch.specialty = specialty
     if (bio !== baseline.bio) patch.bio = bio
     if (color !== baseline.color && color !== null) patch.calendar_color_index = color
-    if (Object.keys(patch).length > 0) await staffApi.updateProfile(doctor.id, patch)
+    setActionError(null)
+    try {
+      if (Object.keys(patch).length > 0) await staffApi.updateProfile(doctor.id, patch)
+    } catch (e) {
+      // 서버 실패를 조용히 삼키지 않는다(G1 (c)) — 무동작 대신 이유를 보인다.
+      const err = e instanceof ApiError ? e : new ApiError('저장하지 못했습니다. 잠시 후 다시 시도해주세요.', 0)
+      setActionError(err.message)
+      return false
+    }
     setBaseline({ specialty, bio, color })
+    setFlash('저장했습니다.')
     onSaved()
+    return true
   }
 
   useEffect(() => {
@@ -165,6 +191,17 @@ export function DoctorProfilePanel({ doctor, allStaff, onClose, onSaved, onDirty
         />
       </div>
 
+      {actionError && (
+        <p role="alert" style={styles.alert}>
+          {actionError}
+        </p>
+      )}
+      {flash && (
+        <p role="status" style={styles.flash}>
+          {flash}
+        </p>
+      )}
+
       <div style={styles.actions}>
         <BusyButton label="저장" busyLabel="저장하는 중…" onClick={save} />
       </div>
@@ -260,4 +297,24 @@ const styles: Record<string, CSSProperties> = {
   },
   help: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   actions: { display: 'flex', gap: 8, marginTop: 2 },
+  flash: {
+    margin: 0,
+    padding: '10px 12px',
+    borderRadius: 8,
+    borderLeft: '4px solid var(--color-primary)',
+    background: 'var(--color-primary-wash)',
+    fontSize: 'var(--fs-base)',
+    color: 'var(--color-ink)',
+    fontWeight: 600,
+  },
+  alert: {
+    margin: 0,
+    padding: '10px 12px',
+    borderRadius: 8,
+    borderLeft: '4px solid var(--color-danger)',
+    background: 'var(--color-danger-bg)',
+    fontSize: 'var(--fs-base)',
+    color: 'var(--color-danger)',
+    fontWeight: 600,
+  },
 }

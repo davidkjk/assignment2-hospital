@@ -9,8 +9,6 @@ from app.services import staff_profile, staff_service
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
-_UNSET = object()
-
 
 class InviteStaffRequest(BaseModel):
     email: str
@@ -72,16 +70,14 @@ async def update_profile(
     body: UpdateProfileRequest,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> dict:
-    """[STAFF-PROFILE-04] 전달된 칸만 갱신한다(부분 저장)."""
+    """[STAFF-PROFILE-04] 전달된 칸만 갱신한다(부분 저장).
+
+    ⚠️ 안 보낸 칸은 **서비스의** `_UNSET`으로 채워져야 한다 — 라우터가 따로 만든 센티널을
+    넘기면 서비스의 `is not _UNSET` 검사가 그걸 못 알아보고 SQL 인자에 그대로 실어 500이 났다.
+    그래서 여기서는 보낸 칸만 `**fields`로 넘겨, 없는 칸은 서비스 기본값(`_UNSET`)이 채우게 둔다.
+    """
     fields = body.model_dump(exclude_unset=True)
-    await staff_profile.update_doctor_profile(
-        staff_id,
-        specialty=fields.get("specialty", _UNSET),
-        bio=fields.get("bio", _UNSET),
-        photo_url=fields.get("photo_url", _UNSET),
-        calendar_color_index=fields.get("calendar_color_index", _UNSET),
-        staff=staff,
-    )
+    await staff_profile.update_doctor_profile(staff_id, staff=staff, **fields)
     return {"status": "updated"}
 
 

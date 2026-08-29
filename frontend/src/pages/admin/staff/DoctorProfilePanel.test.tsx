@@ -146,3 +146,38 @@ test('[STAFF-PROFILE-10] 닫으면 초대 폼으로 돌아오고 쓰던 초대 �
   await user.click(within(rightColumn()).getByRole('button', { name: '닫기' }))
   expect(within(rightColumn()).getByLabelText('이름')).toHaveValue('새직원')
 })
+
+// ── 저장 피드백(G1: 「눌렀는데 아무 일도 없다」를 없앤다) ─────────────
+test('[STAFF-PROFILE-04·G1] 저장이 되면 저장했다고 눈에 보인다', async () => {
+  const { user } = setupStaff()
+  await screen.findByText('이민호')
+  await openProfile(user, '이민호')
+  await user.type(within(rightColumn()).getByLabelText('전문분야'), '소화기내과')
+  await user.click(within(rightColumn()).getByRole('button', { name: '저장' }))
+  expect(await within(rightColumn()).findByRole('status')).toHaveTextContent('저장했습니다')
+})
+
+test('[STAFF-PROFILE-04·G1] 서버가 저장을 막으면 무동작 대신 이유를 인라인으로 보인다', async () => {
+  const { user, api } = setupStaff()
+  api.respond('PATCH /staff/s-002/profile', 500, '지금은 저장할 수 없습니다')
+  await screen.findByText('이민호')
+  await openProfile(user, '이민호')
+  await user.type(within(rightColumn()).getByLabelText('전문분야'), '소화기내과')
+  await user.click(within(rightColumn()).getByRole('button', { name: '저장' }))
+  const alert = await within(rightColumn()).findByRole('alert')
+  expect(alert).toHaveTextContent('지금은 저장할 수 없습니다')
+  // 실패했으면 「저장했습니다」를 보이지 않는다.
+  expect(within(rightColumn()).queryByText('저장했습니다.')).toBeNull()
+})
+
+test('[STAFF-PROFILE-09·G1] 떠날 때 묻기에서 저장이 막히면 그 의사에 남는다(조용한 데이터 손실 금지)', async () => {
+  const { user, api } = setupStaff()
+  api.respond('PATCH /staff/s-002/profile', 500, '지금은 저장할 수 없습니다')
+  await screen.findByText('이민호')
+  await openProfile(user, '이민호')
+  await user.type(within(rightColumn()).getByLabelText('전문분야'), '소화기내과')
+  await openProfile(user, '한서윤')
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '저장' }))
+  // 저장이 서버에서 막혔으니 한서윤으로 넘어가지 않고 이민호 편집에 남는다.
+  expect(within(rightColumn()).getByRole('heading')).toHaveTextContent('이민호')
+})

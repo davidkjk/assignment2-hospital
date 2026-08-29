@@ -31,7 +31,7 @@ function StaffAdminInner() {
   const { staff: me } = useAuth()
   const [searchParams] = useSearchParams()
   const emailRef = useRef<HTMLInputElement | null>(null)
-  const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const saveRef = useRef<(() => Promise<boolean>) | null>(null)
 
   const staffQ = useQuery({ queryKey: ['staff'], queryFn: staffApi.list })
   const deptQ = useQuery({ queryKey: ['departments', 'active'], queryFn: staffApi.departments })
@@ -164,7 +164,10 @@ function StaffAdminInner() {
                 type="button"
                 onClick={async () => {
                   const proceed = leavePrompt.proceed
-                  await saveRef.current?.()
+                  // 저장이 서버에서 막히면 떠나지 않는다 — 조용한 데이터 손실을 막는다(G1).
+                  // 실패 사유는 프로필 패널이 인라인으로 보여 준다.
+                  const ok = await saveRef.current?.()
+                  if (ok === false) return
                   setLeavePrompt(null)
                   setProfileDirty(false)
                   proceed()

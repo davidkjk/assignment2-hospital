@@ -189,6 +189,9 @@ export function setupStaff(config: SetupConfig = {}) {
       const p = pathname(request)
       const body = (await readBody(request)) as Record<string, unknown> | null
       record('PATCH', p, body)
+      const ov = overrideFor('PATCH', p)
+      if (ov) return HttpResponse.json(ov.detail ? { detail: ov.detail } : {}, { status: ov.status })
+      if (shouldFail('PATCH', p)) return HttpResponse.json({ detail: '저장하지 못했습니다' }, { status: 500 })
       const member = state.staff.find((m) => m.id === params.id)
       if (member && body) Object.assign(member, body)
       return HttpResponse.json({ status: 'updated' })

@@ -17,7 +17,8 @@ interface BusyButtonProps {
   label: ReactNode
   /** 처리 중 문구 — 없으면 label을 그대로 쓴다. 글자를 비우지 않는 게 핵심이다. */
   busyLabel?: ReactNode
-  onClick?: () => void | Promise<void>
+  /** 반환값은 무시하고 완료만 기다린다 — 성공 여부를 돌려주는 저장 함수(Promise&lt;boolean&gt;)도 받는다. */
+  onClick?: () => void | Promise<unknown>
   /** 밖에서 처리중을 다스릴 때(컨트롤드). 없으면 onClick 동안 스스로 처리중이 된다. */
   busy?: boolean
   disabled?: boolean
