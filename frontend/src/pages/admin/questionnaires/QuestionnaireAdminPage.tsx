@@ -137,6 +137,15 @@ function QuestionnaireAdminInner() {
     setFlash(null)
   }
 
+  // [지금 편집 취소] 저장 전 변경을 방금 불러온(또는 마지막 저장한) 버전으로 되돌린다.
+  // ⛔ 불변 버전을 건드리지 않는다 — 편집 중인 로컬 초안만 원복(QADM-VERSION-04와 무관).
+  function revertDraft() {
+    setQuestions(head?.questions ?? [])
+    setDirty(false)
+    setSaveError(null)
+    setFlash('편집한 내용을 되돌렸습니다.')
+  }
+
   // [F-9][QADM-VERSION-04] 과거 버전을 편집기로 복사 — 되돌리기가 아니라, 그 문항을 편집기에 실어
   //   [새 버전으로 저장]으로 확정하는 경로. 미리보기에서 옛 버전을 볼 수만 있고 쓸 수 없으면 막다른 길이다.
   function copyVersionToEditor(qs: Question[]) {
@@ -300,6 +309,7 @@ function QuestionnaireAdminInner() {
               onRemove={removeQuestion}
               onAdd={addQuestion}
               onOpenSave={() => { setSaveError(null); setSaveOpen(true) }}
+              onRevert={revertDraft}
               onReload={() => void formQ.refetch()}
             />
           )}
@@ -354,6 +364,7 @@ interface EditorProps {
   onRemove(index: number): void
   onAdd(): void
   onOpenSave(): void
+  onRevert(): void
   onReload(): void
 }
 
@@ -378,6 +389,14 @@ function Editor(props: EditorProps) {
         </p>
         {/* 저장 자체는 언제나 여기서 연다 — 변경이 없어도, 문항이 0개여도. */}
         <div style={styles.editorActions}>
+          <button
+            type="button"
+            onClick={props.onRevert}
+            disabled={!dirty}
+            className={btnGhost}
+          >
+            되돌리기
+          </button>
           <button
             type="button"
             onClick={props.onOpenSave}
@@ -727,7 +746,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-warn)', borderRadius: 6, padding: '1px 8px',
   },
   editorSub: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  editorActions: { marginTop: 12 },
+  editorActions: { marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 10 },
   saveBtn: {
     height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
     background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
