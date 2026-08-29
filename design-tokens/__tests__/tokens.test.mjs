@@ -31,7 +31,7 @@ describe('색 토큰 — 결정로그 「디자인 토큰(확정)」 §색', () 
       primary: '#0B6E70', ink: '#10243A', 'ink-muted': '#5A6C7B',
       warn: '#B44E00', danger: '#A02F3D', 'danger-bg': '#FFF0F1',
       done: '#67788A', 'done-bg': '#F5F7F8', bg: '#F2F5F7',
-      surface: '#FFFFFF', divider: '#E6EBEF',
+      surface: '#FFFFFF', divider: '#D3DBE2',
     });
   });
 
