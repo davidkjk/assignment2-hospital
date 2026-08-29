@@ -54,8 +54,12 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
         <thead>
           <tr>
             <th style={{ ...styles.th, ...styles.thDoctor }}>의사</th>
-            {WEEKDAY_SHORT.map((d) => (
-              <th key={d} style={styles.th}>
+            {WEEKDAY_SHORT.map((d, i) => (
+              <th
+                key={d}
+                data-weekday={i}
+                style={{ ...styles.th, ...(i === 5 ? styles.thSat : i === 6 ? styles.thSun : null) }}
+              >
                 {d}
               </th>
             ))}
@@ -144,6 +148,8 @@ const styles: Record<string, CSSProperties> = {
     borderBottom: '1px solid var(--color-divider)',
   },
   thDoctor: { textAlign: 'left', minWidth: 120 },
+  thSat: { color: 'var(--color-weekend-sat)' },
+  thSun: { color: 'var(--color-weekend-sun)' },
   tdDoctor: { padding: '6px 8px', borderBottom: '1px solid var(--color-divider)' },
   td: { padding: 3, borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
   docName: { fontWeight: 600, color: 'var(--color-ink)' },

@@ -41,6 +41,18 @@ test('[SCHED-GRID-01][SCHED-GRID-04] 범례가 시각·정원·휴진 뜻과 클
   expect(screen.getAllByText('09–18').length).toBeGreaterThan(0)
 })
 
+test('[SCHED-GRID-01] 주말 요일 헤더에 토=파랑·일=빨강 토큰 색이 붙는다', () => {
+  renderGrid()
+  const sat = gridElement().querySelector('[data-weekday="5"]') as HTMLElement
+  const sun = gridElement().querySelector('[data-weekday="6"]') as HTMLElement
+  const mon = gridElement().querySelector('[data-weekday="0"]') as HTMLElement
+  expect(sat).toHaveTextContent('토')
+  expect(sun).toHaveTextContent('일')
+  expect(sat.style.color).toBe('var(--color-weekend-sat)')
+  expect(sun.style.color).toBe('var(--color-weekend-sun)')
+  expect(mon.style.color).not.toContain('weekend') // 평일은 주말색이 아니다
+})
+
 test('[SCHED-GRID-03] 칸을 누르면 그 의사·그 요일로 고치러 간다', async () => {
   const user = userEvent.setup()
   const { onCell } = renderGrid()
