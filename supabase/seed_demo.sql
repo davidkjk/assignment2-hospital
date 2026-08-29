@@ -638,4 +638,45 @@ insert into system_error_log (occurred_at, feature, message, safe_summary) value
   (now() - interval '5 days 6 hours', '야간 부도 처리','no-show batch paused then resumed',        '자정 예약 부도 처리 배치가 일시 중단 후 재개되었습니다.'),
   (now() - interval '5 days 16 hours','로그인',      'token verify transient error (redacted)',   '인증 토큰 검증 중 일시적인 오류가 있었습니다.');
 
+-- ════════════════════════════════════════════════════════════════════════════
+-- §17.5 병합 되돌림 이력 (/admin/merge-history) — MHIST-* 검증용 3건
+-- ════════════════════════════════════════════════════════════════════════════
+-- §15은 「병합 후보」를 보여주려고 patient_merges를 일부러 비워 뒀다. 이 화면(S18)은 반대로
+-- 「이미 발생한 병합」을 조회·되돌림하는 화면이라 원장 행이 있어야 렌더된다 → 여기서만 심는다.
+-- ⭐ §15 후보(=id 오름차순 첫 4명과 그 복제)와 겹치지 않게, 데이터가 있는 다른 환자 6명을 쓴다.
+--   병합된 대상은 is_active를 건드리지 않는다(다른 화면 교란 방지) — 원장 행만 남긴다.
+-- ⭐ 상태 3종을 now() 기준으로 만든다(트랜잭션 시작시각 하나로 고정되므로 아래가 결정적):
+--   · 되돌림가능(undoable): performed_at = now() → §16 진료기록(created_at=now())이 「그 뒤」가 아님(> 아님).
+--   · 되돌림완료(undone)  : undone_at/by/reason 채움(_undo_status가 undone을 먼저 판정).
+--   · 되돌림불가(locked)  : performed_at = 100일 전 → 대표의 진료기록(now())이 「그 뒤」라 잠김.
+with excluded as (select id from patients order by id limit 4),  -- §15 후보 원본 제외
+pool as (
+  select p.id, row_number() over (order by p.id) rn
+  from patients p
+  where p.is_active
+    and p.id not in (select id from excluded)
+    and exists (select 1 from appointments a
+                where a.for_patient_id = p.id and a.status = '진료완료')
+),
+pick as (select id, rn from pool where rn <= 6),
+prim as (select id, row_number() over (order by rn) k from pick where rn <= 3),
+merg as (select id, row_number() over (order by rn) k from pick where rn >= 4),
+adm  as (select id from staff where role = 'admin' order by id limit 1)
+insert into patient_merges
+  (primary_patient_id, merged_patient_id, performed_by, performed_at,
+   counts_snapshot, account_link_moved, undone_at, undone_by, undo_reason)
+select
+  pr.id, me.id, adm.id,
+  case pr.k when 1 then now()
+            when 2 then now() - interval '12 days'
+            else now() - interval '100 days' end,
+  jsonb_build_object('primary', '스냅샷(시드)', 'merged', '스냅샷(시드)'),
+  false,
+  case pr.k when 2 then now() - interval '10 days' else null end,
+  case pr.k when 2 then adm.id else null end,
+  case pr.k when 2 then '동명이인으로 확인되어 병합을 되돌렸습니다.' else null end
+from prim pr
+join merg me on me.k = pr.k
+cross join adm;
+
 commit;

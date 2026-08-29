@@ -6,6 +6,7 @@ import { ADMIN_ONLY } from '../../../auth/roles'
 import { useConnectivity } from '../../../lib/connectivity'
 import { EmptyState } from '../../../components/EmptyState'
 import { getMergeHistory, statusBadge, type MergeUndoStatus } from '../../../api/mergeHistory'
+import { formatHospitalDateTime } from '../../../lib/clock'
 
 // [MHIST-SHELL-* · LIST-* · EXC-01·04] 병합 되돌림 이력 목록 — 관리자 전용.
 // ⭐ 목록 행에는 즉시 되돌림 버튼을 두지 않는다(MHIST-LIST-01·04). 되돌림은 상세의 사유·확인을 거친다.
@@ -71,16 +72,20 @@ function MergeHistoryInner() {
       ) : (
         <div style={styles.list} role="list">
           <div style={styles.headRow} aria-hidden="true">
-            <span>병합 시각</span><span>실행자</span><span>대표 → 대상</span><span>상태</span><span />
+            <span>병합 시각</span><span>실행자</span><span>대표 · 병합된 대상</span><span>상태</span><span />
           </div>
           {rows.map((r) => (
             <div key={r.id} role="listitem" data-row data-merge-event-id={r.merge_event_id} style={styles.row}>
-              <span style={styles.when}>{r.merged_at}</span>
+              <span style={styles.when}>{formatHospitalDateTime(r.merged_at)}</span>
               <span style={styles.who}>{r.executed_by}</span>
+              {/* MHIST-LIST-01 — 대표·대상은 표시명 + patient ID를 함께 보여 동명이인 병합을 구분한다. */}
               <span style={styles.parties}>
                 <span>{r.primary.name}</span>
-                <span aria-hidden="true" style={styles.arrow}>→</span>
+                {r.primary.patient_id && <span style={styles.pid}>{shortId(r.primary.patient_id)}</span>}
+                {/* 대상이 대표로 흡수됨을 화살표로 — 데모와 같은 방향(대표 ← 병합된 대상). */}
+                <span aria-hidden="true" style={styles.arrow}>←</span>
                 <span>{r.merged.name}</span>
+                {r.merged.patient_id && <span style={styles.pid}>{shortId(r.merged.patient_id)}</span>}
               </span>
               <span data-badge style={badgeStyle(r.status)}>{statusBadge(r.status)}</span>
               <button type="button" style={styles.detailBtn} onClick={() => navigate(`/admin/merge-history/${r.merge_event_id}`)}>
@@ -97,6 +102,11 @@ function MergeHistoryInner() {
       )}
     </main>
   )
+}
+
+// patient_id는 UUID다 — 동명이인 구분에 필요한 만큼만(앞 8자) 작은 회색 토큰으로 보인다(MHIST-LIST-01).
+function shortId(id: string): string {
+  return id.length > 10 ? id.slice(0, 8) : id
 }
 
 function badgeStyle(status: MergeUndoStatus): CSSProperties {
@@ -131,6 +141,7 @@ const styles: Record<string, CSSProperties> = {
   who: { fontWeight: 600 },
   parties: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
   arrow: { color: 'var(--color-ink-muted)' },
+  pid: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums', fontFamily: 'monospace' },
   badge: { justifySelf: 'start', padding: '2px 9px', borderRadius: 999, fontSize: 'var(--fs-sm)', fontWeight: 700, whiteSpace: 'nowrap' },
   detailBtn: {
     height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid var(--color-divider)',

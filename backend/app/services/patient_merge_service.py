@@ -279,6 +279,18 @@ async def _new_primary_records_since(conn, primary_id: UUID, performed_at) -> st
     return f"병합 뒤 대표 환자에 새 진료기록 {n}건이 생겨 되돌릴 수 없습니다" if n else None
 
 
+async def _party_dto(conn, patient_id) -> dict:
+    """[MHIST-DETAIL-01] 상세도 목록과 같은 마스킹 DTO로 대표·대상을 싣는다(patient_id + 표시명).
+
+    ⚠️ 목록(_history_row)은 이 DTO를 담는데 상세(get_merge_event)는 빠뜨려 화면이 ev.primary.name을
+       못 읽고 깨졌다(테스트가 목킹해 잠복). 목록과 같은 형태로 맞춘다.
+    """
+    p = await conn.fetchrow(
+        "select id, name, phone, birth_date from patients where id = $1", patient_id)
+    return patient_row_dto(patient_id=p["id"], name=p["name"],
+                           phone=p["phone"], birth_date=p["birth_date"])
+
+
 async def _history_row(conn, r) -> dict:
     """[MHIST-LIST-01] 한 이력 행 — 대표/대상은 마스킹 DTO로, 상태만 준다(즉시 되돌림 버튼 없음).
 
@@ -358,6 +370,9 @@ async def get_merge_event(merge_event_id: UUID, staff: StaffContext, conn=None) 
                 "merged": await _counts_for(c, row["merged_patient_id"]),
                 "lineage_active": row["merged_patient_id"] in lineage,
             },
+            # MHIST-DETAIL-01: 화면이 대표→대상 이름·patient_id를 읽는다(목록과 같은 마스킹 DTO).
+            "primary": await _party_dto(c, row["primary_patient_id"]),
+            "merged": await _party_dto(c, row["merged_patient_id"]),
         }
 
     if conn is not None:

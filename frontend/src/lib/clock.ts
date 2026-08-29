@@ -100,6 +100,20 @@ export function parseHospitalIso(value: string): Date {
   return hospitalInstant(`${m[1]}-${m[2]}-${m[3]}`, Number(m[4]), Number(m[5]))
 }
 
+/** 절대 순간 ISO → 병원 시각 `YYYY.MM.DD HH:mm:ss`. 저장·감사 시각을 표에 그대로 보일 때. */
+export function formatHospitalDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: HOSPITAL_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(d)
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  const hour = g('hour') === '24' ? '00' : g('hour') // Intl는 자정을 24로 줄 수 있다
+  return `${g('year')}.${g('month')}.${g('day')} ${hour}:${g('minute')}:${g('second')}`
+}
+
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
 /** 'YYYY-MM-DD' → '2026년 8월 29일 (토)'. opts를 주면 Intl로 넘긴다(시간대는 늘 병원). */

@@ -6,6 +6,7 @@ import { ADMIN_ONLY } from '../../../auth/roles'
 import { useConnectivity } from '../../../lib/connectivity'
 import { EmptyState } from '../../../components/EmptyState'
 import { getMergeEvent, type MergeEventData, type MergeHistoryPage } from '../../../api/mergeHistory'
+import { formatHospitalDateTime } from '../../../lib/clock'
 import { UndoReasonStep } from './UndoReasonStep'
 import { UndoConfirmDialog } from './UndoConfirmDialog'
 import { LockedEventPanel } from './LockedEventPanel'
@@ -71,7 +72,7 @@ function MergeEventDetailInner() {
         <h1 id="mev-done-title" style={styles.doneTitle}>되돌림 완료</h1>
         <p style={styles.doneNote}>대표·대상의 계보 연결을 끊는 정정입니다. 원본 예약·문진·의료기록·감사기록을 지우지 않았습니다.</p>
         <dl style={styles.summary}>
-          <Item label="처리 시각" value={done.merged_at} />
+          <Item label="처리 시각" value={formatHospitalDateTime(done.merged_at)} />
           <Item label="관리자" value={done.executed_by} />
           <Item label="사유" value={done.reason} />
         </dl>
@@ -110,10 +111,12 @@ function MergeEventDetailInner() {
       )}
 
       {/* MHIST-DETAIL-02 — 보존 스냅샷은 읽기 전용. 원본을 화면에서 덮어쓰지 않는다. */}
+      {/* MHIST-DETAIL-01 — 대표·대상을 표시명 + patient ID로 각각 보인다(동명이인 병합 식별). */}
       <dl style={styles.summary}>
-        <Item label="병합 시각" value={ev.merged_at} />
+        <Item label="병합 시각" value={formatHospitalDateTime(ev.merged_at)} />
         <Item label="실행자" value={ev.executed_by} />
-        <Item label="대표 → 대상" value={`${ev.primary.name} → ${ev.merged.name}`} />
+        <Item label="대표 환자" value={partyLabel(ev.primary)} />
+        <Item label="병합된 대상" value={partyLabel(ev.merged)} />
       </dl>
 
       <section aria-label="보존 상태" style={styles.preserve}>
@@ -159,7 +162,8 @@ function MergeEventDetailInner() {
           reason={reason}
           onConfirmed={() => {
             markListUndone()
-            setDone({ merged_at: ev.merged_at, executed_by: ev.executed_by, reason })
+            // 처리 시각 = 되돌린 순간(원 병합시각이 아니다). 서버가 시각을 안 줘 화면 시계로 찍는다.
+            setDone({ merged_at: new Date().toISOString(), executed_by: ev.executed_by, reason })
             setStage('done')
           }}
           onCancel={() => setStage('view')}
@@ -167,6 +171,13 @@ function MergeEventDetailInner() {
       )}
     </main>
   )
+}
+
+// 표시명 + patient ID(UUID 앞 8자) — 동명이인 병합을 눈으로 가른다(MHIST-DETAIL-01).
+function partyLabel(p: { name: string; patient_id?: string }): string {
+  if (!p.patient_id) return p.name
+  const id = p.patient_id.length > 10 ? p.patient_id.slice(0, 8) : p.patient_id
+  return `${p.name} (${id})`
 }
 
 function Item({ label, value }: { label: string; value: string }) {
