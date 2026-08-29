@@ -40,7 +40,15 @@ export function SearchResultRow({ row }: { row: SearchPatientRow }) {
       <span style={styles.meta}>{row.masked_phone}</span>
       <WhyBadges matched={row.matched} />
       {row.today_status === 'booked' && row.today_appointment_time && (
-        <span style={styles.today}>오늘 예약 {row.today_appointment_time}</span>
+        <span style={styles.today}>
+          오늘 예약 {row.today_appointment_time}
+          {(row.today_department_name || row.today_doctor_name) && (
+            <span style={styles.todayWhere}>
+              {' · '}
+              {[row.today_department_name, row.today_doctor_name].filter(Boolean).join(' ')}
+            </span>
+          )}
+        </span>
       )}
       {row.today_status === 'arrived' && <span style={styles.today}>대기 중</span>}
       {row.today_status === 'done' && <span style={styles.todayDone}>진료 완료</span>}
@@ -174,6 +182,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     fontVariantNumeric: 'tabular-nums',
   },
+  todayWhere: { color: 'var(--color-ink-muted)', fontWeight: 600 },
   todayDone: {
     padding: '1px 6px',
     borderRadius: 4,

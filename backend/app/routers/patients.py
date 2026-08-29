@@ -74,6 +74,8 @@ async def list_patients(
                 matched=row["matched"],
                 today_status=row["today_status"],
                 today_appointment_time=row["today_appointment_time"],
+                today_department_name=row["today_department_name"],
+                today_doctor_name=row["today_doctor_name"],
             )
             for row in page.rows
         ],

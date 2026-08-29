@@ -136,8 +136,9 @@ async def test_ORDER_01_06_오늘_볼_사람이_먼저오고_예약시각을_함
     """[SEARCH-ORDER-01·06][SEARCH-ACT-*] 오늘 예약이 있는 환자가 맨 위 묶음이고, 그 줄에
     오늘 예약 시각과 오늘 상태를 함께 준다."""
     recep, auth = await _receptionist(committed_conn, db_conn)
-    dept = await seed_department(db_conn)
+    dept = await seed_department(db_conn, name="정형외과")
     doctor = await seed_doctor(db_conn, dept)
+    await db_conn.execute("update staff set name='김의사' where id=$1", doctor["staff_id"])
     today = await db_today(db_conn)
     a = await seed_patient(db_conn, name="환자갑")
     b = await seed_patient(db_conn, name="환자을")
@@ -153,8 +154,12 @@ async def test_ORDER_01_06_오늘_볼_사람이_먼저오고_예약시각을_함
     top = page.rows[0]
     assert top["today_status"] == "booked"
     assert top["today_appointment_time"] == "14:30"
+    # [SEARCH-ORDER-06] 그 줄에 과·의사도 함께(데모 PatientSearch:168 정합).
+    assert top["today_department_name"] == "정형외과"
+    assert top["today_doctor_name"] == "김의사"
     assert page.rows[1]["today_status"] is None
     assert page.rows[1]["today_appointment_time"] is None
+    assert page.rows[1]["today_department_name"] is None
 
 
 async def test_ORDER_03_오늘이_없으면_이름_가나다순으로_안정_정렬된다(committed_conn, db_conn):

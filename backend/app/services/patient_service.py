@@ -102,14 +102,20 @@ def _build_search_query(q: str | None) -> tuple[str, list[str], bool]:
                ({birth_hit_sql}) as birth_hit,
                today.raw_status as today_status_raw,
                to_char(today.appt_at, 'HH24:MI') as today_time,
+               today.dept_name as today_dept_name,
+               today.doctor_name as today_doctor_name,
                recent.last_at as last_at
         from patients p
         left join lateral (
-            -- [SEARCH-ORDER-06] 오늘의 (가장 이른) 살아있는 예약 한 건 — 상태와 시각.
+            -- [SEARCH-ORDER-06] 오늘의 (가장 이른) 살아있는 예약 한 건 — 상태·시각·과·의사.
             select a.status as raw_status,
-                   coalesce((s.slot_date + s.start_time)::timestamptz, a.walkin_visit_time) as appt_at
+                   coalesce((s.slot_date + s.start_time)::timestamptz, a.walkin_visit_time) as appt_at,
+                   d.name as dept_name,
+                   st.name as doctor_name
             from appointments a
             left join appointment_slots s on s.id = a.slot_id
+            left join departments d on d.id = a.department_id
+            left join staff st on st.id = a.doctor_id
             where a.for_patient_id = p.id
               and a.status not in ('환자취소', '병원취소', '예약부도')
               and coalesce(s.slot_date, a.walkin_visit_time::date) = current_date
@@ -177,6 +183,9 @@ async def search_patients(
                 "matched": matched,
                 "today_status": today_status,
                 "today_appointment_time": row["today_time"] if today_status else None,
+                # [SEARCH-ORDER-06] 오늘 예약 줄에 과·의사도 함께(데모 PatientSearch:168 정합).
+                "today_department_name": row["today_dept_name"] if today_status else None,
+                "today_doctor_name": row["today_doctor_name"] if today_status else None,
                 # 정렬 대리키 — 라우터 DTO에는 싣지 않는다.
                 "_ord_today": 0 if today_status else 1,
                 "_ord_recent": last_at.timestamp() if last_at else 0.0,

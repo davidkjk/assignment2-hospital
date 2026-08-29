@@ -30,6 +30,8 @@ function mkRow(over: Partial<SearchPatientRow> = {}): SearchPatientRow {
     matched: ['name'],
     today_status: null,
     today_appointment_time: null,
+    today_department_name: null,
+    today_doctor_name: null,
     ...over,
   }
 }
@@ -426,13 +428,16 @@ describe('상태별 동작', () => {
 
   test('[SEARCH-ACT-02] 오늘 예약·미도착 → [진료 대기]·[도착] 두 갈래(하이브리드)', async () => {
     const { user } = renderSearch({
-      first: { rows: [mkRow({ name: '미도착', today_status: 'booked', today_appointment_time: '14:30' })], next_cursor: null, has_more: false },
+      first: { rows: [mkRow({ name: '미도착', today_status: 'booked', today_appointment_time: '14:30',
+        today_department_name: '정형외과', today_doctor_name: '김의사' })], next_cursor: null, has_more: false },
     })
     await search(user, '김')
     const row = await waitFor(() => rowByName('미도착'))
     expect(within(row).getByRole('button', { name: '진료 대기' })).toBeVisible()
     expect(within(row).getByRole('button', { name: '도착' })).toBeVisible()
-    expect(within(row).getByText('오늘 예약 14:30')).toBeVisible() // ORDER-06 — 위에 있는 이유
+    // ORDER-06 — 위에 있는 이유: 시각 + 과·의사(데모 PatientSearch:168 정합)
+    expect(within(row).getByText(/오늘 예약 14:30/)).toBeVisible()
+    expect(within(row).getByText(/정형외과 김의사/)).toBeVisible()
   })
 
   test('[SEARCH-ACT-03] 오늘 이미 대기·진료 중 → [대기 목록에서 보기]로 이동', async () => {

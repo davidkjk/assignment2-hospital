@@ -26,6 +26,9 @@ export interface SearchPatientRow {
   today_status: SearchTodayStatus
   /** "HH:MM" — 오늘 예약이 있을 때만. 맨 위에 있는 이유를 그 줄에 싣는다(SEARCH-ORDER-06). */
   today_appointment_time: string | null
+  /** 오늘 예약의 진료과·의사 표시명 — 예약이 있을 때만(접수에 필요한 정보, SEARCH-ORDER-06). */
+  today_department_name: string | null
+  today_doctor_name: string | null
 }
 
 /** 커서로 이어받는 한 페이지(SEARCH-RESULT-02·03) — 20건·안정 동점키는 서버(paginate)가 소유. */
