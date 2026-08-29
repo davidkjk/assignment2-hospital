@@ -86,6 +86,8 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
   const [showLongWait, setShowLongWait] = useState(true)
   const [inlineError, setInlineError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // 저장했는지 눈에 보이게 한다 — 배지가 조용히 사라지는 것만으론 「눌렀는데 아무 일도 없다」로 읽힌다(G1·프로필과 같은 처방).
+  const [flash, setFlash] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ count: number | null; bodies: string[]; patch: SettingsPatch } | null>(null)
 
   useEffect(() => {
@@ -109,21 +111,27 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
   const patch = computePatch(baseline, draft)
   const dirtyCount = changedCount(patch)
 
+  // 다시 고치기 시작하면 지난 「저장했습니다」를 지운다 — 낡은 성공 표시가 남지 않게(프로필과 같은 처방).
   function change<K extends keyof Settings>(key: K, value: Settings[K]) {
     setDraft((d) => (d ? { ...d, [key]: value } : d))
     setSaveError(null)
+    setFlash(null)
   }
   function changeNotifBody(type: NotificationType, body: string) {
+    setFlash(null)
     setDraft((d) => d ? { ...d, notifications: { ...d.notifications, [type]: { ...d.notifications[type], body, is_default: false } } } : d)
   }
   function changeNotifSms(type: NotificationType, value: boolean) {
+    setFlash(null)
     setDraft((d) => d ? { ...d, notifications: { ...d.notifications, [type]: { ...d.notifications[type], send_sms: value } } } : d)
   }
   function revertNotif(type: NotificationType) {
+    setFlash(null)
     const original = baseline!.notifications[type]
     setDraft((d) => d ? { ...d, notifications: { ...d.notifications, [type]: { ...d.notifications[type], is_default: true, body: original.is_default ? original.body : d.notifications[type].body } } } : d)
   }
   function insertToken(type: NotificationType, token: string) {
+    setFlash(null)
     const piece = TOKEN_MAP[token] ?? token
     setDraft((d) => {
       if (!d) return d
@@ -142,6 +150,7 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
         setDraft(r.data)
       }
       setSaveError(null)
+      setFlash('저장했습니다.')
     } catch (e) {
       // 409는 다른 관리자가 먼저 저장한 것 — 내 초안을 날리지 않고 안내만 한다(HSETX-STATE-03).
       setSaveError(e instanceof ApiError ? e.message : '저장하지 못했습니다. 다시 시도해 주세요.')
@@ -172,6 +181,7 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
     setDraft(baseline)
     setInlineError(null)
     setSaveError(null)
+    setFlash(null)
   }
 
   const menuDirty = (m: { fields: (keyof Settings)[] }) =>
@@ -253,6 +263,7 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
           <div style={styles.actionBar}>
             {inlineError && <div style={styles.barMsg}><InlineError message={inlineError} /></div>}
             {saveError && <p role="alert" style={{ ...styles.barMsg, ...styles.saveError }}>{saveError}</p>}
+            {flash && !saveError && !inlineError && <p role="status" style={{ ...styles.barMsg, ...styles.flash }}>{flash}</p>}
             {dirtyCount > 0 && <span style={styles.unsaved}>● 저장하지 않은 변경 {dirtyCount}곳</span>}
             <button type="button" onClick={undo} className={btnGhost}>되돌리기</button>
             <button type="button" onClick={onSave} className={btnPrimary}>저장</button>
@@ -288,6 +299,7 @@ const styles: Record<string, CSSProperties> = {
   barMsg: { marginRight: 'auto' },
   unsaved: { marginRight: 4, fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 600 },
   saveError: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-warn)', fontWeight: 600 },
+  flash: { margin: 0, padding: '6px 12px', borderRadius: 8, borderLeft: '4px solid var(--color-primary)', background: 'var(--color-primary-wash)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 600 },
   pageHead: { marginBottom: 4 },
   pageDesc: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   body: { display: 'flex', gap: 24, alignItems: 'flex-start' },

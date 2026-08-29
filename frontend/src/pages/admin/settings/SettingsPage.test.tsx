@@ -241,6 +241,20 @@ test('[HSET-SAVE-07] 취소 마감이 안 바뀐 저장은 확인창 없이 바�
   expect(screen.queryByRole('dialog')).toBeNull()
 })
 
+test('[HSET-SAVE-07][G1] 저장이 성공하면 「저장했습니다」가 뜨고, 다시 고치면 사라진다', async () => {
+  renderSettings()
+  await ready()
+  await user.click(menu('병원 정보'))
+  await user.type(field('주소'), '서울시')
+  await user.click(saveButton())
+  // 저장 성공 — 배지만 조용히 사라지는 게 아니라 명시적으로 확인해 준다(프로필과 같은 처방).
+  await screen.findByText('저장했습니다.')
+  expect(screen.getByRole('status')).toHaveTextContent('저장했습니다.')
+  // 다시 고치기 시작하면 낡은 성공 표시를 지운다.
+  await user.type(field('주소'), '강남구')
+  expect(screen.queryByText('저장했습니다.')).toBeNull()
+})
+
 test('[HSETX-STATE-03][HSETX-UNDO-01] 409면 안내를 띄우고 내 초안을 보존, 되돌리기는 서버값으로', async () => {
   renderSettings()
   await ready()
