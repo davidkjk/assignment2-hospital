@@ -232,3 +232,33 @@ async def test_undo_scope_02_cancelled_cannot_be_undone(client, committed_conn):
     )
 
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_MHIST_DONE_01_merge_undo_via_real_grant_path_returns_200(client, committed_conn):
+    """[MHIST-DONE-01][QA L22] 병합 되돌림을 **실 HTTP 경로**(acquire_as='authenticated')로 확정한다.
+
+    ⚠️ test_merge_undo.py의 되돌림 테스트는 전부 conn=db_conn(오너 롤)을 주입해 grant/RLS를
+       우회하므로, 「authenticated에 patient_merges UPDATE grant/policy가 없다」는 실 배포 갭을
+       못 잡았다(라이브 [되돌림 확정]이 500 permission denied — 00074 이전). 이 테스트는
+       committed_conn으로 병합을 커밋한 뒤 라우터를 태워, 되돌림 UPDATE가 실제 권한 경로를
+       통과하는지 회귀로 지킨다.
+    """
+    from tests.test_merge_undo import seed_admin, seed_merge_ids
+
+    admin = await seed_admin(committed_conn)
+    merge_id, primary, merged = await seed_merge_ids(committed_conn, by=admin)
+    # 병합 상태: 대표를 읽으면 병합 대상도 계보에 딸려 온다.
+    assert merged in await committed_conn.fetchval("select patient_lineage($1)", primary)
+    token = make_token(str(admin.auth_user_id))
+
+    response = client.post(
+        f"/admin/merge-history/{merge_id}/undo",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"reason": "오병합 확인", "expected_status": "undoable"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "undone"
+    # undone_at이 실제로 채워져 계보가 끊겼다(무음 no-op이 아니다).
+    assert merged not in await committed_conn.fetchval("select patient_lineage($1)", primary)
