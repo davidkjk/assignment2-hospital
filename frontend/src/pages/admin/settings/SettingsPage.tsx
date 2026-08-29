@@ -197,14 +197,6 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
 
   return (
     <section style={styles.wrap}>
-      <div style={styles.topbar}>
-        <button type="button" onClick={onSave} style={styles.saveBtn}>저장</button>
-        <button type="button" onClick={undo} style={styles.undoBtn}>되돌리기</button>
-        {dirtyCount > 0 && <span style={styles.unsaved}>● 저장하지 않은 변경 {dirtyCount}곳</span>}
-      </div>
-      {inlineError && <InlineError message={inlineError} />}
-      {saveError && <p role="alert" style={styles.saveError}>{saveError}</p>}
-
       <div style={styles.body}>
         <nav aria-label="설정 메뉴" style={styles.menu}>
           {MENUS.map((m) => {
@@ -254,6 +246,14 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
         </div>
       </div>
 
+      <div style={styles.actionBar}>
+        {inlineError && <div style={styles.barMsg}><InlineError message={inlineError} /></div>}
+        {saveError && <p role="alert" style={{ ...styles.barMsg, ...styles.saveError }}>{saveError}</p>}
+        {dirtyCount > 0 && <span style={styles.unsaved}>● 저장하지 않은 변경 {dirtyCount}곳</span>}
+        <button type="button" onClick={undo} style={styles.undoBtn}>되돌리기</button>
+        <button type="button" onClick={onSave} style={styles.saveBtn}>저장</button>
+      </div>
+
       {dialog && (
         <SaveConfirmDialog
           cancellationCount={dialog.count}
@@ -271,18 +271,30 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 880 },
-  topbar: { display: 'flex', alignItems: 'center', gap: 12 },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 920 },
+  actionBar: {
+    position: 'sticky',
+    bottom: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    justifyContent: 'flex-end',
+    padding: '12px 0',
+    marginTop: 4,
+    background: 'var(--color-bg)',
+    borderTop: '1px solid var(--color-divider)',
+  },
+  barMsg: { marginRight: 'auto' },
   saveBtn: { height: 36, padding: '0 18px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: 'var(--color-primary-foreground)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer' },
   undoBtn: { height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'], cursor: 'pointer' },
   unsaved: { fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 600 },
   saveError: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-warn)', fontWeight: 600 },
   body: { display: 'flex', gap: 24, alignItems: 'flex-start' },
-  menu: { display: 'flex', flexDirection: 'column', gap: 2, width: 184, flex: '0 0 184px' },
+  menu: { display: 'flex', flexDirection: 'column', gap: 2, width: 224, flex: '0 0 224px' },
   menuItem: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-ink)' },
   menuItemActive: { background: 'var(--color-primary-wash)', color: 'var(--color-primary)' },
-  menuLabel: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
-  menuSub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  menuLabel: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], wordBreak: 'keep-all' },
+  menuSub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', wordBreak: 'keep-all', lineHeight: 1.4 },
   menuSubDirty: { color: 'var(--color-warn)', fontWeight: 600 },
   dot: { color: 'var(--color-warn)' },
   panel: { flex: 1, minWidth: 0, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card, 8px)', padding: 24 },
