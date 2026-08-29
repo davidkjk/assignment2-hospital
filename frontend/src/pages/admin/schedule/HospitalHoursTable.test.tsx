@@ -84,12 +84,13 @@ test('[SCHED-HOURS-09][SCHED-HOURS-11] 잘못된 시각은 인라인 오류이�
   expect(document.activeElement).toBe(timeInput('월', '종료'))
 })
 
-test('[SCHED-HOURS-12] 월요일 값 복사는 화~금까지 (토·일 제외)', async () => {
+test('[SCHED-HOURS-12] 월요일 값 복사는 화~토까지 (일요일=휴무만 제외)', async () => {
   const user = userEvent.setup()
   renderHours({ hours: week({ 5: { open_time: null, close_time: null, lunch_start: null, lunch_end: null }, 6: { open_time: null, close_time: null, lunch_start: null, lunch_end: null } }) })
   await user.click(screen.getByRole('button', { name: '월요일 값을 나머지에' }))
-  expect(timeInput('토', '시작')).toHaveValue('') // 토·일 제외
   expect(timeInput('화', '시작')).toHaveValue('09:00')
+  expect(timeInput('토', '시작')).toHaveValue('09:00') // 병원 월~토 진료 → 토요일도 복사(L36)
+  expect(timeInput('일', '시작')).toHaveValue('')       // 일요일=휴무만 제외
 })
 
 test('[SCHED-HOURS-13] 저장 중에는 버튼이 비활성이다 (두 번 눌리는 것 막기)', async () => {

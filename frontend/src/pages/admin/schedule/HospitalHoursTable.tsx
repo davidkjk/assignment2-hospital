@@ -55,7 +55,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
     const mon = rows[0]
     setRows((prev) =>
       prev.map((r) =>
-        r.weekday >= 1 && r.weekday <= 4 // 화~금만(토·일 제외, HOURS-12)
+        r.weekday >= 1 && r.weekday <= 5 // 화~토(일요일=휴무만 제외, SCHED-HOURS-12 — 병원 월~토 진료)
           ? { ...r, open_time: mon.open_time, close_time: mon.close_time, lunch_start: mon.lunch_start, lunch_end: mon.lunch_end, is_closed: mon.is_closed }
           : r,
       ),
