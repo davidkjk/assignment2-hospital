@@ -43,6 +43,18 @@ function mockAll() {
     ),
     http.get('*/admin/closures', () => HttpResponse.json([{ closure_date: '2026-02-09', memo: '설날' }])),
     http.post('*/admin/schedule/doctors/*/regenerate', () => HttpResponse.json({ removed: 0, added: 0 })),
+    // 특정 날짜 변경(SCHED-EXC-*)
+    http.get('*/admin/schedule/exception-days', () => HttpResponse.json([])),
+    http.get('*/admin/schedule/exceptions', () =>
+      HttpResponse.json({
+        exceptions: [],
+        doctors: [
+          { id: 'd1', name: '박지훈', regular_day_off: false, appointment_count: 4 },
+          { id: 'd3', name: '한소연', regular_day_off: true, appointment_count: 0 },
+        ],
+      }),
+    ),
+    http.post('*/admin/schedule/exceptions', () => HttpResponse.json({ affected: 0 })),
   )
 }
 
@@ -160,4 +172,34 @@ test('[SCHED-HOURS-01][SCHED-HOURS-02] 병원 운영시간은 설정이 아니�
   renderPage()
   await waitLoaded()
   expect(railItems()[4]).toBe('병원 운영시간')
+})
+
+test('[SCHED-EXC-01][SCHED-EXC-07] 특정 날짜 변경 탭은 달력·그날 의사가 실제로 채워진다(빈 stub 아님)', async () => {
+  const user = userEvent.setup()
+  renderPage()
+  await waitLoaded()
+  await user.click(railItem('특정 날짜 변경'))
+  // 달력이 42칸으로 렌더된다(옛 stub은 calendarDays={[]}라 0칸이었다 — G1 dead-click 회귀 가드).
+  await waitFor(() => expect(document.querySelectorAll('button[aria-pressed]').length).toBe(42))
+  // 그날 의사·예약 건수가 백엔드에서 채워진다.
+  await user.click(screen.getByLabelText('의사 고르기'))
+  expect(document.querySelector('[data-doctor-row="박지훈"]')).toHaveTextContent('예약 4건')
+})
+
+test('[SCHED-EXC-14] 저장은 POST 창구로 실제 배선된다(무동작 아님)', async () => {
+  const user = userEvent.setup()
+  let savedBody: unknown = null
+  server.use(
+    http.post('*/admin/schedule/exceptions', async ({ request }) => {
+      savedBody = await request.json()
+      return HttpResponse.json({ affected: 0 })
+    }),
+  )
+  renderPage()
+  await waitLoaded()
+  await user.click(railItem('특정 날짜 변경'))
+  await waitFor(() => expect(document.querySelectorAll('button[aria-pressed]').length).toBe(42))
+  await user.click(screen.getByRole('button', { name: '저장' }))
+  await waitFor(() => expect(savedBody).not.toBeNull())
+  expect((savedBody as { scope: string }).scope).toBe('hospital')
 })

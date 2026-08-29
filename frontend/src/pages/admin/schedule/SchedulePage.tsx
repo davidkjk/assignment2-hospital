@@ -11,6 +11,7 @@ import { OverviewGrid } from './OverviewGrid'
 import { DoctorWeekTable, type WeekPreview } from './DoctorWeekTable'
 import { DepartmentList } from './DepartmentList'
 import { DateExceptionPanel } from './DateExceptionPanel'
+import { buildMonthGrid } from './calendarGrid'
 import { HospitalHoursTable } from './HospitalHoursTable'
 import { useDirtyMap } from './useDirtyMap'
 import { hhmm, type HospitalHoursRow, type WeekRow } from './types'
@@ -34,10 +35,41 @@ function ScheduleInner() {
   const [focusedWeekday, setFocusedWeekday] = useState<number | null>(null)
   const dirty = useDirtyMap()
 
+  // [SCHED-EXC-01] 특정 날짜 변경: 고른 날은 병원 시계 기준 오늘부터. 달은 이 날짜에서 따라온다.
+  const [excDate, setExcDate] = useState<string>(todayIso())
+  const onExc = active === '특정 날짜 변경'
+
   const overviewQ = useQuery({ queryKey: ['schedule-overview'], queryFn: scheduleAdmin.overview })
   const deptsQ = useQuery({ queryKey: ['departments', 'all'], queryFn: () => scheduleAdmin.departments(true) })
   const hoursQ = useQuery({ queryKey: ['hospital-hours'], queryFn: scheduleAdmin.getHours })
   const closuresQ = useQuery({ queryKey: ['hospital-closures'], queryFn: scheduleAdmin.listClosures })
+
+  const [excYear, excMonth] = excDate.split('-').map(Number)
+  const excDaysQ = useQuery({
+    queryKey: ['exception-days', excYear, excMonth],
+    queryFn: () => scheduleAdmin.getExceptionDays(excYear, excMonth),
+    enabled: onExc,
+  })
+  const dayExcQ = useQuery({
+    queryKey: ['day-exceptions', excDate],
+    queryFn: () => scheduleAdmin.getDayExceptions(excDate),
+    enabled: onExc,
+  })
+  const calendarDays = useMemo(
+    () => buildMonthGrid(excYear, excMonth, new Set(excDaysQ.data ?? [])),
+    [excYear, excMonth, excDaysQ.data],
+  )
+  const dayDoctors = (dayExcQ.data?.doctors ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    regularDayOff: d.regular_day_off,
+    appointmentCount: d.appointment_count,
+  }))
+  const dayExceptions = dayExcQ.data?.exceptions ?? []
+
+  async function refetchExc() {
+    await Promise.all([dayExcQ.refetch(), excDaysQ.refetch()])
+  }
 
   const overview = overviewQ.data ?? []
   const departments = deptsQ.data ?? []
@@ -143,14 +175,29 @@ function ScheduleInner() {
             ))}
           {active === '특정 날짜 변경' && (
             <DateExceptionPanel
-              monthLabel={monthLabelNow()}
-              calendarDays={[]}
-              selectedDate={todayIso()}
-              onSelectDate={() => {}}
-              dayDoctors={[]}
-              dayExceptions={[]}
-              onSave={async () => ({ affected: 0 })}
-              onRevert={async () => {}}
+              monthLabel={`${excYear}년 ${excMonth}월`}
+              calendarDays={calendarDays}
+              selectedDate={excDate}
+              onSelectDate={setExcDate}
+              dayDoctors={dayDoctors}
+              dayExceptions={dayExceptions}
+              onSave={async (input) => {
+                const res = await scheduleAdmin.saveDateException({
+                  exception_date: excDate,
+                  scope: input.scope,
+                  doctor_ids: input.doctorIds,
+                  type: input.type,
+                  memo: input.scope === 'hospital' ? input.memo : null,
+                  override_start: input.type === 'time' ? input.overrideStart : null,
+                  override_end: input.type === 'time' ? input.overrideEnd : null,
+                })
+                await refetchExc()
+                return { affected: res.affected }
+              }}
+              onRevert={async (id) => {
+                await scheduleAdmin.revertDateException(id)
+                await refetchExc()
+              }}
             />
           )}
           {active === '병원 운영시간' && (
@@ -216,10 +263,6 @@ function hoursSummary(hours: HospitalHoursRow[]): string {
  *  전날로 적히고, `getMonth()`는 그 PC의 달이다. */
 function todayIso(): string {
   return hospitalToday()
-}
-function monthLabelNow(): string {
-  const [y, m] = hospitalToday().split('-').map(Number)
-  return `${y}년 ${m}월`
 }
 
 const styles: Record<string, CSSProperties> = {

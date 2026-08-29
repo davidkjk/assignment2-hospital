@@ -90,6 +90,7 @@
 | 00070 | `system_error_service_outage` | 서비스 전체 장애 배지 칸(A2, `ERRADM-NOTI-02`·결정19) |
 | 00071 | `appointment_urgent_flag_attribution` | 응급/주의 표시 「누가·언제」 켰나(A4-b, `QUEUE-URG-06`) — `urgent_flagged_by`·`urgent_flagged_at` |
 | 00072 | `search_audit_wide_search` | 넓은 검색 감사(`SEARCH-LOG-06`) — `access_audit_log.result_count·fragment_count` + 설정값 `hospital_settings.wide_search_threshold_count`(기본 20) |
+| 00073 | `schedule_exception_delete_grant` | 특정 날짜 변경 되돌리기(`SCHED-EXC-14`) — `doctor_schedule_exceptions`에 빠져 있던 authenticated DELETE grant 추가(00002는 select/insert/update만) |
 
 ## 공유 칸 — 순서 무관(`if not exists`)
 

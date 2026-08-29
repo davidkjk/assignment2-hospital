@@ -10,8 +10,28 @@ import type {
 // [SCHED-*] /admin/schedule 표시층의 얇은 클라이언트 — 경로·형태만 안다.
 // 백엔드 계약: backend/app/routers/schedule_admin.py (Task 17, prefix=/admin).
 // ✅ GET /admin/hours·/admin/closures는 붙었다(#6/L34, 2026-08-29) — 라이브에서 200으로 온다.
-// ⚠️ listDateExceptions(GET /admin/schedule/exceptions)는 아직 백엔드에 없다 — DateExceptionPanel
-//    실배선(L34 2단계) 때 함께 추가한다. 지금은 미사용 자리표시자.
+// ✅ 특정 날짜 변경(SCHED-EXC-*) 조회·저장·되돌리기 붙었다(L34 2단계, 2026-08-29).
+
+// 「특정 날짜 변경」 화면이 받는 그날 데이터 한 벌.
+export interface DayException {
+  exceptions: DateException[]
+  doctors: PanelDoctorDto[]
+}
+export interface PanelDoctorDto {
+  id: string
+  name: string
+  regular_day_off: boolean
+  appointment_count: number
+}
+export interface SaveExceptionBody {
+  exception_date: string
+  scope: 'hospital' | 'doctor'
+  doctor_ids: string[]
+  type: 'closed' | 'time'
+  memo: string | null
+  override_start: string | null
+  override_end: string | null
+}
 
 export const scheduleAdmin = {
   overview: () => apiFetch<OverviewDoctor[]>('/admin/schedule/overview'),
@@ -78,8 +98,25 @@ export const scheduleAdmin = {
       body: JSON.stringify(body),
     }),
 
-  // ── 이월: 아래 GET들은 Task 17에 아직 없다(백엔드 라우트 추가 필요) ──
   getHours: () => apiFetch<HospitalHoursRow[]>('/admin/hours'),
   listClosures: () => apiFetch<{ closure_date: string; memo: string | null }[]>('/admin/closures'),
-  listDateExceptions: (date: string) => apiFetch<DateException[]>(`/admin/schedule/exceptions?date=${date}`),
+
+  // ── 특정 날짜 변경(SCHED-EXC-*) ──
+  /** [SCHED-EXC-01·07·11] 그 날 등록된 변경 + 「의사 고르기」 목록. */
+  getDayExceptions: (date: string) => apiFetch<DayException>(`/admin/schedule/exceptions?date=${date}`),
+  /** [SCHED-EXC-02] 그 달 달력에 ●를 찍을 날들. */
+  getExceptionDays: (year: number, month: number) =>
+    apiFetch<string[]>(`/admin/schedule/exception-days?year=${year}&month=${month}`),
+  /** [SCHED-EXC-03·15] 저장 창구 하나 — affected(경고 건수)를 돌려준다. */
+  saveDateException: (body: SaveExceptionBody) =>
+    apiFetch<{ affected: number }>('/admin/schedule/exceptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  /** [SCHED-EXC-14] 그 줄만 지운다(id: uuid=의사예외 / "hospital:날짜"=병원휴무). */
+  revertDateException: (id: string) =>
+    apiFetch<{ status: string }>(`/admin/schedule/exceptions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
 }

@@ -131,6 +131,58 @@ async def test_운영시간_저장_뒤_읽으면_그_요일이_온다(api_client
     assert monday["is_closed"] is False
 
 
+async def test_특정_날짜_변경_조회는_예외와_의사목록을_준다(api_client, committed_conn):
+    """[SCHED-EXC-01·05·07] 그 날 등록된 변경 + 「의사 고르기」 목록을 한 응답에 담는다."""
+    admin = await seed_staff(committed_conn, role="admin")
+    dept = await _dept(committed_conn)
+    doctor = await seed_staff(committed_conn, role="doctor", department_id=dept)
+    await api_client.post("/admin/closures", headers=_headers(admin),
+                          json={"closure_date": "2099-03-03", "memo": "행사"})
+    resp = await api_client.get("/admin/schedule/exceptions?date=2099-03-03", headers=_headers(admin))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert any(e["scope"] == "hospital" and e["memo"] == "행사" for e in body["exceptions"])
+    assert str(doctor["staff_id"]) in [d["id"] for d in body["doctors"]]
+
+
+async def test_특정_날짜_변경_저장은_affected를_주고_되돌리면_사라진다(api_client, committed_conn):
+    """[SCHED-EXC-04·14·15] 병원 전체 휴무 저장→affected 반환, 되돌리기→그 날 목록이 빈다."""
+    admin = await seed_staff(committed_conn, role="admin")
+    save = await api_client.post(
+        "/admin/schedule/exceptions", headers=_headers(admin),
+        json={"exception_date": "2026-08-17", "scope": "hospital",
+              "doctor_ids": [], "type": "closed", "memo": "휴무"})
+    assert save.status_code == 200
+    assert "affected" in save.json()
+    rev = await api_client.delete(
+        "/admin/schedule/exceptions/hospital:2026-08-17", headers=_headers(admin))
+    assert rev.status_code == 200
+    listed = await api_client.get(
+        "/admin/schedule/exceptions?date=2026-08-17", headers=_headers(admin))
+    assert listed.json()["exceptions"] == []
+
+
+async def test_달력_점_조회는_그_달_변경날을_준다(api_client, committed_conn):
+    """[SCHED-EXC-02] 그 달 달력에 ●를 찍을 날 목록."""
+    admin = await seed_staff(committed_conn, role="admin")
+    await api_client.post("/admin/closures", headers=_headers(admin),
+                          json={"closure_date": "2026-08-17", "memo": "x"})
+    resp = await api_client.get(
+        "/admin/schedule/exception-days?year=2026&month=8", headers=_headers(admin))
+    assert resp.status_code == 200
+    assert "2026-08-17" in resp.json()
+
+
+async def test_특정_날짜_변경_저장은_관리자만(api_client, committed_conn):
+    """[SCHED-TAB-05] 일정은 관리자 전용 — 의사가 저장하려 하면 막힌다."""
+    doctor = await seed_staff(committed_conn, role="doctor")
+    resp = await api_client.post(
+        "/admin/schedule/exceptions", headers=_headers(doctor),
+        json={"exception_date": "2026-08-17", "scope": "hospital",
+              "doctor_ids": [], "type": "closed", "memo": "x"})
+    assert resp.status_code == 403
+
+
 async def test_휴무_등록_뒤_읽으면_목록에서_본다(api_client, committed_conn):
     """[SCHED-EXC-16] 등록(POST)과 읽기(GET /closures)가 짝을 이룬다. 지난 날짜는 빠진다."""
     admin = await seed_staff(committed_conn, role="admin")

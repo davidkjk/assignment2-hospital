@@ -8,7 +8,7 @@ authenticated+admin 커넥션에서 돌아 RLS(admin_can_manage_*)를 통과한�
 """
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -61,6 +61,17 @@ class ClosureBody(BaseModel):
 class ExceptionBody(BaseModel):
     exception_date: date
     is_closed: bool
+    override_start: time | None = None
+    override_end: time | None = None
+
+
+class SaveExceptionBody(BaseModel):
+    """[SCHED-EXC-03·08] 「특정 날짜 변경」 저장 한 벌 — 화면의 SaveExceptionInput과 짝."""
+    exception_date: date
+    scope: str = Field(pattern="^(hospital|doctor)$")
+    doctor_ids: list[UUID] = Field(default_factory=list)
+    type: str = Field(pattern="^(closed|time)$")
+    memo: str | None = None
     override_start: time | None = None
     override_end: time | None = None
 
@@ -157,6 +168,65 @@ async def upsert_exception(
             override_start=body.override_start, override_end=body.override_end, staff=staff,
         )
     return {"status": "saved"}
+
+
+# ── 특정 날짜 변경 화면(SCHED-EXC-*) — 조회·저장·되돌리기 ──────────────
+
+@router.get("/schedule/exceptions")
+async def get_date_exceptions(date: date, staff: StaffContext = Depends(AdminOnly)) -> dict:
+    """[SCHED-EXC-01·05·07·11] 그 날 등록된 변경들 + 「의사 고르기」 목록."""
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        return {
+            "exceptions": await schedule_admin_service.list_date_exceptions(conn, date),
+            "doctors": await schedule_admin_service.list_day_doctors(conn, date),
+        }
+
+
+@router.get("/schedule/exception-days")
+async def get_exception_days(
+    year: int, month: int, staff: StaffContext = Depends(AdminOnly)
+) -> list[str]:
+    """[SCHED-EXC-02] 그 달 달력에 ●를 찍을 날들. 달을 넘겨도 이웃 달 이틀치가 격자에
+    끼므로 앞뒤 한 주씩 여유를 둬 그 날들의 ●도 함께 준다."""
+    first = date(year, month, 1) - timedelta(days=7)
+    last_of_month = date(year + (month // 12), (month % 12) + 1, 1) - timedelta(days=1)
+    last = last_of_month + timedelta(days=7)
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        return await schedule_admin_service.list_exception_days(conn, first, last)
+
+
+@router.post("/schedule/exceptions")
+async def save_date_exception(
+    body: SaveExceptionBody, staff: StaffContext = Depends(AdminOnly)
+) -> dict:
+    """[SCHED-EXC-03·04·05·15] 「특정 날짜 변경」 저장 창구 하나. 병원 전체면 hospital_closures에
+    한 줄, 의사 고르기면 고른 의사마다 doctor_schedule_exceptions 한 줄. affected는 저장 전
+    경고(SCHED-WARN)가 세는 「확인 필요한 예약으로 넘어갈 건수」다(0이면 화면이 경고를 안 띄운다)."""
+    is_closed = body.type == "closed"
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        affected = await schedule_admin_service.count_affected_for_save(
+            conn, scope=body.scope, doctor_ids=body.doctor_ids, day=body.exception_date)
+        if body.scope == "hospital":
+            await schedule_admin_service.upsert_closure(
+                conn, body.exception_date, body.memo, staff=staff)
+        else:
+            for doctor_id in body.doctor_ids:
+                await schedule_admin_service.upsert_doctor_exception(
+                    conn, doctor_id, body.exception_date, is_closed=is_closed,
+                    override_start=None if is_closed else body.override_start,
+                    override_end=None if is_closed else body.override_end, staff=staff,
+                )
+    return {"affected": affected}
+
+
+@router.delete("/schedule/exceptions/{exception_id}")
+async def revert_date_exception(
+    exception_id: str, staff: StaffContext = Depends(AdminOnly)
+) -> dict:
+    """[SCHED-EXC-14] 그 줄만 지운다."""
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        await schedule_admin_service.delete_date_exception(conn, exception_id, staff=staff)
+    return {"status": "reverted"}
 
 
 # ══ 병원 운영시간 · 휴무 ═════════════════════════════════════════════

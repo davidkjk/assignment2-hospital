@@ -14,12 +14,18 @@ from app.core.errors import AppError
 from app.services.opening_hours import resolve_day
 from app.services.schedule_admin_service import (
     copy_monday_to_rest,
+    count_affected_for_save,
+    delete_date_exception,
+    list_date_exceptions,
+    list_day_doctors,
+    list_exception_days,
     list_week_rules,
     overview_grid,
     save_week_rules,
     upsert_closure,
     upsert_doctor_exception,
 )
+from tests.task13_fixtures import seed_appointment, seed_patient, seed_slot
 
 MON = date(2026, 8, 17)   # weekday=0
 
@@ -175,3 +181,92 @@ async def test_의사가_없으면_격자는_빈_배열이다(db_conn):
     """[SCHED-GRID-07] 빈 상태 — 의사가 0명이면 빈 배열."""
     await _dept(db_conn)
     assert await overview_grid(db_conn) == []
+
+
+# ── 특정 날짜 변경(SCHED-EXC-*) 조회·저장·되돌리기 ────────────────────
+
+async def _appt(conn, doctor, dept, patient, day, t):
+    slot = await seed_slot(conn, doctor, day, start_time=t)
+    return await seed_appointment(
+        conn, doctor_id=doctor, department_id=dept, patient_id=patient, slot_id=slot)
+
+
+async def test_그날_의사_목록은_정기휴진_회색_예약건수를_준다(db_conn):
+    """[SCHED-EXC-06][SCHED-EXC-07] 정기 휴진 의사는 못 고르게(회색), 이름 옆엔 그 날 예약 건수."""
+    dept = await _dept(db_conn)
+    working = await _doctor(db_conn, "가의사", dept)
+    off = await _doctor(db_conn, "나의사", dept)
+    await save_week_rules(db_conn, working, [_row(0)], staff=None)              # 월요일 진료
+    await save_week_rules(db_conn, off, [_row(0, is_day_off=True)], staff=None)  # 월요일 정기 휴진
+    patient = await seed_patient(db_conn)
+    await _appt(db_conn, working, dept, patient, MON, time(9))
+    await _appt(db_conn, working, dept, patient, MON, time(10))
+    doctors = {d["name"]: d for d in await list_day_doctors(db_conn, MON)}
+    assert doctors["가의사"]["regular_day_off"] is False
+    assert doctors["가의사"]["appointment_count"] == 2
+    assert doctors["나의사"]["regular_day_off"] is True
+    assert doctors["나의사"]["appointment_count"] == 0
+
+
+async def test_그날_예외_목록은_병원휴무와_의사예외를_한_줄씩(db_conn):
+    """[SCHED-EXC-11] 병원 휴무는 「hospital:날짜」 id로, 의사 예외는 uuid로 한 줄씩."""
+    dept = await _dept(db_conn)
+    doc = await _doctor(db_conn, "가의사", dept)
+    await upsert_closure(db_conn, MON, "창립기념일", staff=None)
+    await upsert_doctor_exception(db_conn, doc, MON, is_closed=True)
+    excs = await list_date_exceptions(db_conn, MON)
+    hospital = next(e for e in excs if e["scope"] == "hospital")
+    doctor = next(e for e in excs if e["scope"] == "doctor")
+    assert hospital["id"] == f"hospital:{MON.isoformat()}"
+    assert hospital["memo"] == "창립기념일"
+    assert doctor["doctor_name"] == "가의사"
+    assert doctor["is_closed"] is True
+
+
+async def test_병원휴무_영향_예약은_나오기로_덮은_의사는_뺀다(db_conn):
+    """[SCHED-EXC-09][SCHED-EXC-11] 좁은 쪽이 이긴다 — 「나온다」고 덮은 의사의 예약은 영향에서 뺀다."""
+    dept = await _dept(db_conn)
+    stay = await _doctor(db_conn, "나온다", dept)
+    rest = await _doctor(db_conn, "쉰다", dept)
+    patient = await seed_patient(db_conn)
+    await upsert_closure(db_conn, MON, "병원휴무", staff=None)
+    await upsert_doctor_exception(db_conn, stay, MON, is_closed=False,
+                                  override_start=time(9), override_end=time(13))
+    await _appt(db_conn, stay, dept, patient, MON, time(9))
+    await _appt(db_conn, rest, dept, patient, MON, time(9))
+    excs = await list_date_exceptions(db_conn, MON)
+    hospital = next(e for e in excs if e["scope"] == "hospital")
+    assert hospital["affected_count"] == 1   # '쉰다' 1건만, '나온다'는 빠진다
+
+
+async def test_달력_점은_변경있는_날만_정기휴진은_없다(db_conn):
+    """[SCHED-EXC-02] ●는 등록된 변경이 있는 날만 — 정기 휴진(요일 규칙)은 예외표에 줄이 없어 안 찍힌다."""
+    dept = await _dept(db_conn)
+    doc = await _doctor(db_conn, "가의사", dept)
+    await save_week_rules(db_conn, doc, [_row(6, is_day_off=True)], staff=None)  # 일요일 정기 휴진
+    await upsert_closure(db_conn, MON, "휴무", staff=None)
+    days = await list_exception_days(db_conn, date(2026, 8, 1), date(2026, 8, 31))
+    assert days == [MON.isoformat()]
+
+
+async def test_되돌리기는_그줄만_지운다_병원과_의사를_가른다(db_conn):
+    """[SCHED-EXC-14] id 앞머리로 어느 표를 지울지 가른다 — 그 줄만 지운다."""
+    dept = await _dept(db_conn)
+    doc = await _doctor(db_conn, "가의사", dept)
+    await upsert_closure(db_conn, MON, "휴무", staff=None)
+    await upsert_doctor_exception(db_conn, doc, MON, is_closed=True)
+    doctor_exc = next(e for e in await list_date_exceptions(db_conn, MON) if e["scope"] == "doctor")
+    await delete_date_exception(db_conn, doctor_exc["id"])
+    assert [e["scope"] for e in await list_date_exceptions(db_conn, MON)] == ["hospital"]
+    await delete_date_exception(db_conn, f"hospital:{MON.isoformat()}")
+    assert await list_date_exceptions(db_conn, MON) == []
+
+
+async def test_저장전_경고건수는_고른_의사들의_예약_합(db_conn):
+    """[SCHED-EXC-15] 「의사 고르기」면 고른 의사들의 그 날 예약 합 — 0이면 화면이 경고를 안 띄운다."""
+    dept = await _dept(db_conn)
+    doc = await _doctor(db_conn, "가의사", dept)
+    patient = await seed_patient(db_conn)
+    await _appt(db_conn, doc, dept, patient, MON, time(9))
+    await _appt(db_conn, doc, dept, patient, MON, time(10))
+    assert await count_affected_for_save(db_conn, scope="doctor", doctor_ids=[doc], day=MON) == 2

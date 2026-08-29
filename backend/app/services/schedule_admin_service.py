@@ -19,6 +19,7 @@ from uuid import UUID
 from app.core.errors import AppError
 from app.services.department_service import list_departments  # noqa: F401 (재노출)
 from app.services.opening_hours import _staff_id
+from app.services.schedule_change import ACTIVE_STATUSES
 
 WEEKDAYS = tuple(range(7))   # Python date.weekday(): 월=0 … 일=6
 
@@ -305,3 +306,177 @@ async def upsert_doctor_exception(
         """,
         doctor_id, day, is_closed, override_start, override_end,
     )
+
+
+# ══ 특정 날짜 변경 화면(SCHED-EXC-*) — 조회·저장·되돌리기 ═══════════════
+# [SCHED-EXC-01] 왼쪽 월간 달력 + 오른쪽 그 날 목록. 이 세 함수가 그 화면의 데이터 창구다.
+#   ⛔ 판정은 여기서 새로 하지 않는다 — resolve_day(SCHED-EXC-12)가 유일한 판정기다.
+#   여기 세 함수는 「등록된 예외를 보여주고·저장하고·지운다」뿐이고, 실제 열림/닫힘 판정은
+#   예약·캘린더·상담봇과 같은 resolve_day를 쓴다.
+
+_HOSPITAL_ID_PREFIX = "hospital:"
+
+
+async def _active_appt_count(conn, doctor_id: UUID, day: date) -> int:
+    """[SCHED-EXC-07] 그 의사·그 날의 살아있는 예약 건수(취소·부도·완료는 뺀다).
+
+    SCHED-WARN과 같은 상태 집합(ACTIVE_STATUSES)을 쓴다 — 저장 전 경고가 세는 것과
+    이름 옆 「예약 N건」이 어긋나면 관리자가 혼란스럽다.
+    """
+    placeholders = ", ".join(f"${i}" for i in range(3, 3 + len(ACTIVE_STATUSES)))
+    return await conn.fetchval(
+        f"""
+        select count(*)
+        from appointments a
+        join appointment_slots s on s.id = a.slot_id
+        where a.doctor_id = $1 and s.slot_date = $2
+          and a.status in ({placeholders})
+        """,
+        doctor_id, day, *ACTIVE_STATUSES,
+    )
+
+
+async def list_day_doctors(conn, day: date) -> list[dict]:
+    """[SCHED-EXC-05·06·07] 그 날 「의사 고르기」에 뜨는 목록.
+
+    - regular_day_off: 그 요일이 정기 휴진이면 회색으로 못 고른다(SCHED-EXC-06). 규칙이 없는
+      요일도 진료 없음이라 정기 휴진으로 친다(resolve_day와 같은 기준).
+    - appointment_count: 그 날 살아있는 예약 건수(SCHED-EXC-07).
+    """
+    doctors = await conn.fetch(
+        "select id, name from staff where role = 'doctor' and is_active order by name"
+    )
+    out = []
+    for doc in doctors:
+        rule = await conn.fetchrow(
+            "select is_day_off from doctor_schedule_rules where doctor_id = $1 and weekday = $2",
+            doc["id"], day.weekday(),
+        )
+        regular_day_off = rule is None or rule["is_day_off"]
+        out.append({
+            "id": str(doc["id"]),
+            "name": doc["name"],
+            "regular_day_off": regular_day_off,
+            "appointment_count": await _active_appt_count(conn, doc["id"], day),
+        })
+    return out
+
+
+async def list_date_exceptions(conn, day: date) -> list[dict]:
+    """[SCHED-EXC-11·13] 그 날 등록된 변경들(병원 휴무 + 의사별 예외)을 화면 한 줄씩으로.
+
+    병원 휴무는 id를 「hospital:날짜」로 만든다(hospital_closures는 날짜가 기본키라 uuid가 없다).
+    되돌리기(delete_date_exception)가 이 id를 그대로 받아 어느 표를 지울지 가른다.
+    affected_count는 지금 계산한 값이다(SCHED-EXC-13) — 되돌리면 다음 조회에서 0이 된다.
+    """
+    out: list[dict] = []
+
+    closure = await conn.fetchrow(
+        "select closure_date, memo from hospital_closures where closure_date = $1", day)
+    if closure is not None:
+        out.append({
+            "id": f"{_HOSPITAL_ID_PREFIX}{day.isoformat()}",
+            "exception_date": day.isoformat(),
+            "scope": "hospital",
+            "doctor_id": None,
+            "doctor_name": None,
+            "is_closed": True,
+            "override_start": None,
+            "override_end": None,
+            "memo": closure["memo"],
+            "affected_count": await _hospital_affected_count(conn, day),
+        })
+
+    doctor_rows = await conn.fetch(
+        """
+        select e.id, e.doctor_id, s.name as doctor_name,
+               e.is_closed, e.override_start_time, e.override_end_time
+        from doctor_schedule_exceptions e
+        join staff s on s.id = e.doctor_id
+        where e.exception_date = $1
+        order by s.name
+        """,
+        day,
+    )
+    for row in doctor_rows:
+        out.append({
+            "id": str(row["id"]),
+            "exception_date": day.isoformat(),
+            "scope": "doctor",
+            "doctor_id": str(row["doctor_id"]),
+            "doctor_name": row["doctor_name"],
+            "is_closed": row["is_closed"],
+            "override_start": row["override_start_time"].isoformat() if row["override_start_time"] else None,
+            "override_end": row["override_end_time"].isoformat() if row["override_end_time"] else None,
+            "memo": None,
+            "affected_count": await _active_appt_count(conn, row["doctor_id"], day),
+        })
+    return out
+
+
+async def _hospital_affected_count(conn, day: date) -> int:
+    """병원 휴무로 영향받는 예약 = 그 날 살아있는 예약 중, 「나온다」고 덮은 의사(의사별 예외로
+    is_closed=false)를 뺀 나머지(SCHED-EXC-09·11 — 좁은 쪽이 이긴다)."""
+    placeholders = ", ".join(f"${i}" for i in range(2, 2 + len(ACTIVE_STATUSES)))
+    return await conn.fetchval(
+        f"""
+        select count(*)
+        from appointments a
+        join appointment_slots s on s.id = a.slot_id
+        where s.slot_date = $1
+          and a.status in ({placeholders})
+          and a.doctor_id not in (
+            select doctor_id from doctor_schedule_exceptions
+            where exception_date = $1 and is_closed = false
+          )
+        """,
+        day, *ACTIVE_STATUSES,
+    )
+
+
+async def list_exception_days(conn, first: date, last: date) -> list[str]:
+    """[SCHED-EXC-02] 그 달 달력에 ●를 찍을 날들 — 변경이 등록된 날만.
+
+    ⛔ 정기 휴진(일요일 등)은 넣지 않는다 — 그건 평상시 규칙이지 그 날만의 변경이 아니다.
+    두 표(hospital_closures·doctor_schedule_exceptions)에 실제 줄이 있는 날만 모은다.
+    """
+    rows = await conn.fetch(
+        """
+        select closure_date as d from hospital_closures
+        where closure_date between $1 and $2
+        union
+        select exception_date as d from doctor_schedule_exceptions
+        where exception_date between $1 and $2
+        order by d
+        """,
+        first, last,
+    )
+    return [r["d"].isoformat() for r in rows]
+
+
+async def count_affected_for_save(
+    conn, *, scope: str, doctor_ids: list[UUID], day: date
+) -> int:
+    """[SCHED-EXC-15] 저장 전 경고가 세는 값 — 이 변경으로 「확인 필요한 예약」으로 넘어갈 건수.
+
+    병원 전체면 _hospital_affected_count와 같고, 의사 고르기면 고른 의사들의 그 날 예약 합이다.
+    0건이면 화면은 경고를 띄우지 않는다(SCHED-WARN-03).
+    """
+    if scope == "hospital":
+        return await _hospital_affected_count(conn, day)
+    total = 0
+    for doctor_id in doctor_ids:
+        total += await _active_appt_count(conn, doctor_id, day)
+    return total
+
+
+async def delete_date_exception(conn, exception_id: str, staff=None) -> None:
+    """[SCHED-EXC-14] 그 줄만 지운다 — 병원 휴무면 hospital_closures에서, 의사 예외면
+    doctor_schedule_exceptions에서. ⛔ 이미 취소된 예약을 되살리지는 않는다(계산으로 만든 명단이라
+    되돌리면 저절로 0건이 된다, SCHED-EXC-13)."""
+    if exception_id.startswith(_HOSPITAL_ID_PREFIX):
+        day = date.fromisoformat(exception_id[len(_HOSPITAL_ID_PREFIX):])
+        await conn.execute("delete from hospital_closures where closure_date = $1", day)
+    else:
+        await conn.execute(
+            "delete from doctor_schedule_exceptions where id = $1", UUID(exception_id))
