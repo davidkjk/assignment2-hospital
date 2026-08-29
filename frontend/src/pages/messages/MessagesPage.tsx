@@ -50,8 +50,9 @@ export function MessagesPage() {
 
   return (
     <div style={styles.page}>
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 두지 않고 액션만 오른쪽에. */}
       <header style={styles.header}>
-        <h1 style={styles.title}>안내 보내기</h1>
+        <span />
         <button type="button" style={styles.newBtn} onClick={openNew}>
           ＋ 새로 보내기
         </button>

@@ -16,11 +16,12 @@ test('[STAFF-SHELL-01] 관리자가 아니면 직원 목록을 서버에 조회�
   expect(api.calls('GET /staff')).toHaveLength(0)
 })
 
-test('[STAFF-SHELL-02] 사이드바 현재 위치와 본문 제목이 모두 직원 관리다', async () => {
+test('[STAFF-SHELL-02] 사이드바 현재 위치는 직원 관리, 제목은 셸 헤더가 그리고 본문엔 두지 않는다', async () => {
   setupStaff()
   await screen.findByText('이민호')
   expect(sidebarActive()).toBe('직원 관리')
-  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('직원 관리')
+  // 제목은 셸 헤더가 그린다(STAFF-SHELL-02 개정) — 본문엔 자체 제목을 두지 않는다.
+  expect(screen.queryByRole('heading', { name: '직원 관리' })).toBeNull()
 })
 
 test('[D-STAFF-01] 왼쪽 목록과 오른쪽 초대 폼이 한 화면에 함께 있다', async () => {

@@ -222,13 +222,13 @@ function QuestionnaireAdminInner() {
   const nextVersionNo = (head?.version_no ?? 0) + 1
 
   return (
-    <main
-      aria-labelledby="qna-title"
+    <section
+      aria-label="문진표 관리"
       data-location={`${location.pathname}${location.search}`}
       style={styles.page}
     >
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 설명만. */}
       <header style={styles.pageHead}>
-        <h1 id="qna-title" style={styles.pageTitle}>문진표 관리</h1>
         <p style={styles.pageDesc}>진료과마다 환자가 보는 사전문진을 만들고, 저장할 때마다 새 버전으로 남깁니다.</p>
       </header>
 
@@ -333,7 +333,7 @@ function QuestionnaireAdminInner() {
           onDiscard={() => performSwitch(pendingSwitch)}
         />
       )}
-    </main>
+    </section>
   )
 }
 

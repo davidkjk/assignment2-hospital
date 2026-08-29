@@ -82,11 +82,8 @@ function StaffAdminInner() {
     right.kind === 'profile' ? staff.find((m) => m.id === right.staffId) : undefined
 
   return (
-    <main style={styles.page} aria-labelledby="staff-title">
-      <h1 id="staff-title" style={styles.title}>
-        직원 관리
-      </h1>
-
+    <section style={styles.page} aria-label="직원 관리">
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 두지 않는다. */}
       {banner && (
         <div role="status" style={styles.banner}>
           <span>확인 필요한 예약 {banner.count}건은 오늘의 현황에서 처리합니다.</span>
@@ -180,7 +177,7 @@ function StaffAdminInner() {
           </div>
         </div>
       )}
-    </main>
+    </section>
   )
 }
 

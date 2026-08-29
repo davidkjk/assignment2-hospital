@@ -97,8 +97,8 @@ export function ErrorLogPage() {
 
   return (
     <section aria-label="시스템 오류 기록" style={styles.page}>
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정, `ERRADM-HEAD-01` 서술형 제목은 헤더로 이관) — 본문엔 설명만. */}
       <header style={styles.header}>
-        <h1 style={styles.h1}>시스템 오류 기록</h1>
         <p style={styles.lede}>오류가 발생한 시간과 기능을 확인합니다</p>
       </header>
 

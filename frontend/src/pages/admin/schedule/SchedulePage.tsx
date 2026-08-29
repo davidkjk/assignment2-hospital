@@ -87,10 +87,8 @@ function ScheduleInner() {
   }
 
   return (
-    <main style={styles.page} aria-labelledby="sched-title">
-      <h1 id="sched-title" style={styles.title}>
-        진료 일정 관리
-      </h1>
+    <section style={styles.page} aria-label="진료 일정 관리">
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 두지 않는다. */}
       <div style={styles.body}>
         <SideRail
           active={active}
@@ -180,7 +178,7 @@ function ScheduleInner() {
           )}
         </section>
       </div>
-    </main>
+    </section>
   )
 }
 

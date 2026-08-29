@@ -16,6 +16,21 @@ import { workSurfaceFor } from './doors/surfaces'
 
 const RETURN_KEY = 'staff-session-return'
 
+// 화면 제목(헤더 왼쪽) — `SHELL-HDR-01`/`STAFF-SHELL-02`(2026-08-28 개정): 제목은 헤더가 그리고 본문엔 두지 않는다.
+// 기본은 사이드바 라벨을 쓰되, 사이드바가 축약형인 화면은 규칙이 정한 서술형 제목을 여기서 덮어쓴다
+// (사용자 결정 2026-08-29 「서술형 제목 유지」). 근거 규칙은 각 화면의 HEAD-01(모두 FINAL).
+const SCREEN_TITLE: Record<string, string> = {
+  '/admin/access-logs': '환자정보 열람 기록', // ALOG-HEAD-01
+  '/admin/patient-merge-candidates': '중복 환자 후보', // MERGE-HEAD-01
+  '/admin/errors': '시스템 오류 기록', // ERRADM-HEAD-01
+  '/admin/merge-history': '병합 되돌림 이력', // MHIST 목록 서술형(사이드바 「병합 이력」)
+}
+
+function titleFor(pathname: string): string {
+  if (pathname.startsWith('/patients/')) return '환자 상세'
+  return SCREEN_TITLE[pathname] ?? NAV_ITEMS.find((item) => item.path === pathname)?.label ?? '직원 업무'
+}
+
 // 직원 웹 데스크톱 셸 — 사이드바 + 상단바 + 넓은 본문(데모 `StaffShell.tsx` 구조).
 // 화면 전체가 스크롤하지 않는다: 높이를 h-screen으로 잠그고 본문만 스크롤한다.
 // 그래야 사이드바·헤더가 늘 제자리에 있어 창구에서 눈이 흔들리지 않는다.
@@ -38,9 +53,7 @@ function ShellBody() {
   // SEND-BADGE-01 — 「안내 보내기」 사이드바 배지(전화해야 할 미처리 실패). 접수·관리자만 조회.
   const badgeCounts = useMessagesBadge(staff?.role === 'receptionist' || staff?.role === 'admin')
   if (!staff) return null
-  const title = location.pathname.startsWith('/patients/')
-    ? '환자 상세'
-    : (NAV_ITEMS.find((item) => item.path === location.pathname)?.label ?? '직원 업무')
+  const title = titleFor(location.pathname)
   return (
     <>
       {/* 매 서버 호출의 결말을 연결·세션 배선으로 보낸다(성공→markServerOk / 온라인 401→세션 만료). */}

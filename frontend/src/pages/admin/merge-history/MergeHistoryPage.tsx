@@ -39,8 +39,8 @@ function MergeHistoryInner() {
   const rows = q.data?.pages.flatMap((p) => p.rows) ?? []
 
   return (
-    <main data-merge-history style={styles.page} aria-labelledby="mhist-title">
-      <h1 id="mhist-title" style={styles.title}>병합 되돌림 이력</h1>
+    <section data-merge-history style={styles.page} aria-label="병합 되돌림 이력">
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 설명만. */}
       <p style={styles.desc}>이미 발생한 환자 병합을 조회하고, 관리자가 되돌림을 검토합니다</p>
 
       {!online && (
@@ -100,7 +100,7 @@ function MergeHistoryInner() {
           )}
         </div>
       )}
-    </main>
+    </section>
   )
 }
 

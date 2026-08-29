@@ -8,11 +8,8 @@ import { PatientSearch } from './PatientSearch'
 export function PatientSearchPage() {
   return (
     <section style={styles.page}>
-      {/* [F-7] 제목 아래 회색 설명 한 줄은 제거(사용자 지시 2026-08-22) — 셸 헤더가 화면명을 진다.
-          검색이 무엇으로 되는지는 입력창 placeholder가 이미 말한다. */}
-      <header style={styles.head}>
-        <h1 style={styles.title}>환자 검색</h1>
-      </header>
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 두지 않는다.
+          [F-7] 제목 아래 설명 한 줄도 제거(2026-08-22): 검색 대상은 입력창 placeholder가 말한다. */}
       <PatientSearch mode="page" />
     </section>
   )

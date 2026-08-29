@@ -59,7 +59,8 @@ describe('운영 통계 /admin/stats', () => {
   test('[STAT-SHELL-03] 제목·설명만 두고 목적을 넓히지 않는다', async () => {
     statsOk()
     renderStats()
-    expect(screen.getByRole('heading', { name: '운영 통계' })).toBeVisible()
+    // 제목은 셸 헤더가 그린다(STAFF-SHELL-02 개정) — 본문엔 두지 않고 설명만 남는다.
+    expect(screen.queryByRole('heading', { name: '운영 통계' })).toBeNull()
     expect(screen.getByText('선택한 기간의 병원 운영 흐름을 집계합니다')).toBeVisible()
     expect(screen.queryByText(/시스템 오류|직원 활동/)).toBeNull()
   })

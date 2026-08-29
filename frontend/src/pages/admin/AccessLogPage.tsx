@@ -124,8 +124,8 @@ export function AccessLogPage() {
 
   return (
     <section aria-label="환자정보 열람 기록" style={styles.page}>
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정, `ALOG-HEAD-01` 서술형 제목은 헤더로 이관) — 본문엔 설명만. */}
       <header style={styles.header}>
-        <h1 style={styles.h1}>환자정보 열람 기록</h1>
         <p style={styles.lede}>누가 어떤 환자 정보를 언제 열었는지 확인합니다</p>
       </header>
 

@@ -53,8 +53,8 @@ function MergeCandidatesInner() {
   }
 
   return (
-    <main style={styles.page} aria-labelledby="merge-title">
-      <h1 id="merge-title" style={styles.title}>중복 환자 후보</h1>
+    <section style={styles.page} aria-label="중복 환자 후보">
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정, `MERGE-HEAD-01` 서술형 제목은 헤더로 이관) — 본문엔 설명만. */}
       <p style={styles.desc}>같은 사람의 환자 기록이 나뉘었는지 확인하고 병합을 검토합니다</p>
 
       {/* MERGE-HEAD-02 — 자동으로 합치지 않는다. 가족이 번호를 공유할 수 있음을 같은 자리에서 말한다. */}
@@ -82,7 +82,7 @@ function MergeCandidatesInner() {
       {stage.kind === 'success' && renderSuccess(stage.result, stage.primaryName, stage.duplicateName)}
 
       {stage.kind === 'confirm' && renderConfirm(stage.primaryId, stage.duplicateId)}
-    </main>
+    </section>
   )
 
   function renderList() {

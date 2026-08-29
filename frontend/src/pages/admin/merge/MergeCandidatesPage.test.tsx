@@ -13,7 +13,8 @@ import {
 
 test('[MERGE-SHELL-01][MERGE-SHELL-03] 관리자는 들어오고, 진입 자체는 열람 기록이 아니다', async () => {
   const { api } = renderMerge({ role: 'admin' })
-  expect(await screen.findByRole('heading', { name: '중복 환자 후보' })).toBeVisible()
+  // 제목은 셸 헤더가 그린다(STAFF-SHELL-02 개정) — 로드 확인은 본문 설명으로.
+  expect(await screen.findByText('같은 사람의 환자 기록이 나뉘었는지 확인하고 병합을 검토합니다')).toBeVisible()
   // 후보를 「보는」 화면이지 특정 환자를 연 것이 아니다 — 진입마다 감사를 남기지 않는다.
   expect(api.calls(/POST/)).toHaveLength(0)
 })
@@ -26,10 +27,11 @@ test('[MERGE-SHELL-02] 접수직원은 후보 한 줄도 못 보고 갈 길만 �
   expect(routerPath()).not.toBe('/login') // 로그인은 되어 있다 — 로그인으로 쫓지 않는다
 })
 
-test('[MERGE-HEAD-01] 제목과 설명을 그린다', async () => {
+test('[MERGE-HEAD-01] 설명을 그리고, 제목은 셸 헤더에 둔다', async () => {
   renderMerge()
-  expect(await screen.findByRole('heading', { name: '중복 환자 후보' })).toBeVisible()
-  expect(screen.getByText('같은 사람의 환자 기록이 나뉘었는지 확인하고 병합을 검토합니다')).toBeVisible()
+  // 서술형 제목 「중복 환자 후보」는 셸 헤더가 그린다(STAFF-SHELL-02 개정) — 본문엔 두지 않는다.
+  expect(await screen.findByText('같은 사람의 환자 기록이 나뉘었는지 확인하고 병합을 검토합니다')).toBeVisible()
+  expect(screen.queryByRole('heading', { name: '중복 환자 후보' })).toBeNull()
   expect(screen.queryByText(/가족 연결|환자 삭제/)).toBeNull()
 })
 
