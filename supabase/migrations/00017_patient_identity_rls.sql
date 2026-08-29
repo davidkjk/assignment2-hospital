@@ -36,6 +36,12 @@ create policy "patients_can_insert_family_members" on patients
 create policy "patients_can_read_self_and_family" on patients
   for select using (patient_owns(id));
 
+-- 가족링크 조회: 본인 계정이 소유한 링크만. (변경은 Task 3의 RPC로만 — 여기선 select 기반만 연다.)
+-- ⚠️ 원래 플랜은 이 정책을 Task 3(00018)에 뒀으나, Task 2의 list_accessible_patient_ids가 이미
+--    필요로 하므로 신원 RLS 기반인 여기로 옮긴다(다른 환자 read 정책과 한 묶음).
+create policy "patients_can_read_own_family_links" on patient_family_links
+  for select using (patient_owns(account_patient_id));
+
 create or replace function update_patient_basic_info(
   target_patient_id uuid, p_name text, p_birth_date date, p_gender text)
 returns void language plpgsql security definer set search_path = '' as $$
