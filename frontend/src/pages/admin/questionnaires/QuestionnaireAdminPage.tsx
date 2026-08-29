@@ -8,6 +8,7 @@ import { useAuth } from '../../../auth/useAuth'
 import { useConnectivity } from '../../../lib/connectivity'
 import { ApiError, isSessionExpiry, rememberReturn } from '../../../api/httpClient'
 import { EmptyState } from '../../../components/EmptyState'
+import { Checkbox, Select, TextArea, btnPrimary, btnGhost } from '../../../components/staff-ui'
 import { dialogStyles } from '../../../components/ConfirmDialog'
 import {
   questionnaireAdmin,
@@ -382,7 +383,7 @@ function Editor(props: EditorProps) {
             type="button"
             onClick={props.onOpenSave}
             disabled={!online}
-            style={{ ...styles.saveBtn, ...(online ? null : styles.btnDisabled) }}
+            className={btnPrimary}
           >
             새 버전으로 저장
           </button>
@@ -423,7 +424,7 @@ function Editor(props: EditorProps) {
         <div style={styles.emptyForm}>
           <p style={styles.emptyFormTitle}>아직 문진표가 없습니다</p>
           <p style={styles.emptyFormHint}>0문항으로 저장하면 이 진료과는 문진을 받지 않습니다</p>
-          <button type="button" onClick={props.onAdd} style={styles.addFirstBtn}>첫 문항 추가</button>
+          <button type="button" onClick={props.onAdd} className={btnPrimary}>첫 문항 추가</button>
         </div>
       ) : (
         <>
@@ -449,7 +450,7 @@ function Editor(props: EditorProps) {
               type="button"
               onClick={props.onAdd}
               disabled={atMax}
-              style={{ ...styles.addBtn, ...(atMax ? styles.btnDisabled : null) }}
+              className={btnGhost}
             >
               문항 추가
             </button>
@@ -496,53 +497,49 @@ function QuestionRow({ index, question, isFirst, isLast, onEdit, onUp, onDown, o
 
       <label style={styles.field}>
         <span style={styles.fieldLabel}>질문 문구</span>
-        <textarea
-          aria-label={`질문 문구 ${n}`}
+        <TextArea
+          ariaLabel={`질문 문구 ${n}`}
           value={question.text}
-          onChange={(e) => onEdit({ text: e.target.value })}
+          onChange={(text) => onEdit({ text })}
           rows={2}
-          style={styles.textarea}
         />
       </label>
 
       <div style={styles.fieldRow}>
         <label style={styles.field}>
           <span style={styles.fieldLabel}>질문 종류</span>
-          <select
-            aria-label={`질문 종류 ${n}`}
+          <Select
+            ariaLabel={`질문 종류 ${n}`}
             value={question.type}
-            onChange={(e) => onEdit({ type: e.target.value as QuestionType })}
-            style={styles.select}
+            onChange={(v) => onEdit({ type: v as QuestionType })}
           >
             {QUESTION_TYPES.map((t) => (
               <option key={t} value={t}>{TYPE_LABEL[t]}</option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label style={styles.field}>
           <span style={styles.fieldLabel}>보일 대상</span>
-          <select
-            aria-label={`보일 대상 ${n}`}
+          <Select
+            ariaLabel={`보일 대상 ${n}`}
             value={question.show_to}
-            onChange={(e) => onEdit({ show_to: e.target.value as ShowTo })}
-            style={styles.select}
+            onChange={(v) => onEdit({ show_to: v as ShowTo })}
           >
             {SHOW_TO.map((s) => (
               <option key={s} value={s}>{SHOW_LABEL[s]}</option>
             ))}
-          </select>
+          </Select>
         </label>
 
-        <label style={styles.checkField}>
-          <input
-            type="checkbox"
-            aria-label={`병원이 꼭 확인 ${n}`}
+        <div style={styles.checkField}>
+          <Checkbox
+            ariaLabel={`병원이 꼭 확인 ${n}`}
+            label="병원이 꼭 확인"
             checked={question.required}
-            onChange={(e) => onEdit({ required: e.target.checked })}
+            onChange={(required) => onEdit({ required })}
           />
-          <span style={styles.fieldLabel}>병원이 꼭 확인</span>
-        </label>
+        </div>
       </div>
     </li>
   )
@@ -692,12 +689,12 @@ const panel: CSSProperties = {
 const styles: Record<string, CSSProperties> = {
   page: { padding: 20, maxWidth: 1180, margin: '0 auto' },
   pageHead: { marginBottom: 16 },
-  pageTitle: { margin: '0 0 4px', fontSize: 'var(--fs-xl)', color: 'var(--color-ink)' },
-  pageDesc: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  pageTitle: { margin: '0 0 4px', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
+  pageDesc: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   grid: { display: 'grid', gridTemplateColumns: '235px minmax(500px, 1fr) 286px', gap: 16, alignItems: 'start' },
   col: { minWidth: 0 },
   colLabel: {
-    margin: '0 0 8px', fontSize: 'var(--fs-sm)', fontWeight: 700, letterSpacing: '.04em',
+    margin: '0 0 8px', fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
     textTransform: 'uppercase', color: 'var(--color-ink-muted)',
   },
   deptList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
@@ -709,177 +706,178 @@ const styles: Record<string, CSSProperties> = {
     borderColor: 'var(--color-primary)', background: 'var(--color-primary-wash)',
     boxShadow: 'inset 3px 0 0 var(--color-primary)',
   },
-  deptName: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
-  deptMeta: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  deptName: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
+  deptMeta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 
   placeholder: { ...panel, padding: '48px 24px', textAlign: 'center' },
-  placeholderTitle: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  placeholderTitle: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 
   loadingWrap: { ...panel, padding: 16 },
-  loadingText: { margin: '0 0 10px', fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  loadingText: { margin: '0 0 10px', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   skeleton: { height: 64, borderRadius: 8, marginBottom: 10, background: 'var(--color-divider)', opacity: 0.55 },
 
   editor: { ...panel, padding: 16 },
   editorHead: { paddingBottom: 12, borderBottom: '1px solid var(--color-divider)', marginBottom: 12 },
   editorTitleRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  editorTitle: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  editorTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--color-ink)' },
   currentBadge: {
-    fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-primary)',
+    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', borderRadius: 6, padding: '2px 8px',
   },
   dirtyBadge: {
-    fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-warn)',
+    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-warn)',
     border: '1px solid var(--color-warn)', borderRadius: 6, padding: '1px 8px',
   },
-  editorSub: { margin: '6px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  editorSub: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   editorActions: { marginTop: 12 },
   saveBtn: {
     height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
-    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
   },
   btnDisabled: { background: 'var(--color-gray-past)', borderColor: 'var(--color-gray-past)', color: '#fff', cursor: 'not-allowed' },
   offline: {
     margin: '10px 0 0', padding: '8px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-warn)', background: 'var(--color-bg)',
-    fontSize: 'var(--fs-sm)', color: 'var(--color-ink)',
+    fontSize: 'var(--fs-caption)', color: 'var(--color-ink)',
   },
   offlineLine: { margin: 0 },
 
   flash: {
     margin: '0 0 12px', padding: '10px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-primary)', background: 'var(--color-primary-wash)',
-    fontSize: 'var(--fs-base)', color: 'var(--color-ink)', fontWeight: 600,
+    fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 600,
   },
   alert: {
     margin: '0 0 12px', padding: '10px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-danger)', background: 'var(--color-danger-bg)',
-    fontSize: 'var(--fs-base)', color: 'var(--color-danger)', fontWeight: 600,
+    fontSize: 'var(--fs-body)', color: 'var(--color-danger)', fontWeight: 600,
   },
   conflict: {
     margin: '0 0 12px', padding: '10px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-warn)', background: 'var(--color-bg)',
     display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start',
   },
-  conflictMsg: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink)', fontWeight: 600 },
+  conflictMsg: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 600 },
   conflictBtn: {
     height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-primary)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-base)',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)',
     fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
   },
 
-  hint: { margin: '0 0 8px', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  hint: { margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
 
   emptyForm: {
     marginTop: 8, padding: '32px 20px', textAlign: 'center',
     border: '1px dashed var(--color-divider)', borderRadius: 8,
   },
-  emptyFormTitle: { margin: 0, fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
-  emptyFormHint: { margin: '6px 0 14px', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  emptyFormTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
+  emptyFormHint: { margin: '6px 0 14px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   addFirstBtn: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-primary)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
   },
 
   rows: { listStyle: 'none', margin: '0 0 12px', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 },
   row: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 12, background: 'var(--color-bg)' },
   rowHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   qid: {
-    fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-primary)',
+    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)',
+    background: 'var(--color-primary-wash)', padding: '2px 8px', borderRadius: 6,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
   },
   rowMoveGroup: { display: 'flex', gap: 6 },
   moveBtn: {
     height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
   },
   removeBtn: {
     height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
   },
   field: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1 },
-  fieldLabel: { fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--color-ink-muted)' },
   textarea: {
     width: '100%', resize: 'vertical', padding: '8px 10px', borderRadius: 6,
-    border: '1px solid var(--color-divider)', fontSize: 'var(--fs-base)', color: 'var(--color-ink)',
+    border: '1px solid var(--color-divider)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)',
     fontFamily: 'inherit', boxSizing: 'border-box',
   },
   fieldRow: { display: 'flex', gap: 10, marginTop: 8, alignItems: 'flex-end', flexWrap: 'wrap' },
   select: {
     height: 32, padding: '0 8px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', fontSize: 'var(--fs-base)', color: 'var(--color-ink)',
+    background: 'var(--color-surface)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)',
   },
   checkField: { display: 'flex', alignItems: 'center', gap: 6, height: 32 },
 
   countRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  countText: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
+  countText: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   addBtn: {
     height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-primary)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
   },
   maxNotice: {
     marginTop: 10, padding: '8px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-warn)', background: 'var(--color-bg)',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
   },
-  maxNoticeMsg: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink)', fontWeight: 600 },
+  maxNoticeMsg: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink)', fontWeight: 600 },
   reduceBtn: {
     height: 28, padding: '0 12px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
   },
 
   history: { ...panel, padding: 14 },
-  historyEmpty: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  historyEmpty: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   versionList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   versionItem: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 10 },
   versionTop: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 },
-  versionNo: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
+  versionNo: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
   versionActive: {
-    fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-primary)',
+    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', borderRadius: 5, padding: '1px 6px',
   },
-  versionMeta: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  versionMeta: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   viewBtn: {
     marginTop: 6, height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
   },
 
   preview: { ...panel, padding: 14, marginTop: 12 },
   previewHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  previewTitle: { margin: 0, fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
+  previewTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
   previewClose: {
     height: 26, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
   },
-  previewEmpty: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  previewEmpty: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   previewCopy: {
     marginTop: 12, width: '100%', height: 34, borderRadius: 8, border: 'none',
     background: 'var(--color-primary)', color: 'var(--color-primary-foreground)',
-    fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
   },
   previewList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   previewItem: { display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 8, borderBottom: '1px solid var(--color-divider)' },
-  previewQid: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'ui-monospace, Menlo, monospace' },
-  previewText: { fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  previewTag: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  previewQid: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'ui-monospace, Menlo, monospace' },
+  previewText: { fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  previewTag: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 
   dialog: { ...dialogStyles.dialog },
-  dialogTitle: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  dialogTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--color-ink)' },
   dialogVersion: {
-    margin: '12px 0 0', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--color-primary)',
+    margin: '12px 0 0', fontSize: 'var(--fs-title)', fontWeight: 800, color: 'var(--color-primary)',
     fontVariantNumeric: 'tabular-nums',
   },
-  dialogBody: { margin: '8px 0 0', fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  dialogBody: { margin: '8px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
   dialogActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
   dialogCancel: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 600, cursor: 'pointer',
   },
   dialogConfirm: {
     height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
-    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
   },
   dialogDiscard: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-warn)',
-    background: 'var(--color-surface)', color: 'var(--color-warn)', fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-warn)', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
   },
 }
