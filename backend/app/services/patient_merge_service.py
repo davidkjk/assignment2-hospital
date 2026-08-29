@@ -63,9 +63,9 @@ async def _counts_for(conn, patient_id: UUID) -> dict[str, int]:
         """
         select
           (select count(*) from appointments a where a.for_patient_id = $1) as appointments,
-          (select count(*) from questionnaire_responses q
-             join appointments a on a.id = q.appointment_id
-            where a.for_patient_id = $1) as questionnaires,
+          -- 결정 #14로 관리자는 문진 답변을 못 읽어 RLS가 이 카운트를 0으로 만든다(00035).
+          -- 보존 스냅샷은 '건수'만 필요하므로 count(*)만 돌려주는 정의자 함수로 실제 건수를 센다(00052).
+          count_questionnaire_responses_for($1) as questionnaires,
           (select count(*) from medical_records m
              join appointments a on a.id = m.appointment_id
             where a.for_patient_id = $1) as medical_records,
