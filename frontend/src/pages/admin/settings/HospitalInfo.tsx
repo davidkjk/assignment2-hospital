@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import type { Settings } from '../../../api/settings'
+import { TextField } from '../../../components/staff-ui'
 import { SettingRow } from './SettingRow'
 
 // [HSET-INFO-*] 병원 정보 — 주소·전화(환자 앱 노출, HSET-INFO-01·02). 예정 휴무는 읽기 전용이고
@@ -17,21 +18,21 @@ export function HospitalInfo({ draft, onChange }: Props) {
       <p style={styles.banner}>환자 앱에 그대로 보입니다</p>
 
       <SettingRow label="주소">
-        <input
-          type="text"
+        <TextField
           value={draft.hospital_address ?? ''}
-          onChange={(e) => onChange('hospital_address', e.target.value)}
-          aria-label="주소"
-          style={styles.input}
+          onChange={(v) => onChange('hospital_address', v)}
+          ariaLabel="주소"
+          placeholder="예: 서울시 강남구 …"
+          className="min-w-80"
         />
       </SettingRow>
       <SettingRow label="대표 전화">
-        <input
-          type="text"
+        <TextField
           value={draft.hospital_phone ?? ''}
-          onChange={(e) => onChange('hospital_phone', e.target.value)}
-          aria-label="대표 전화"
-          style={styles.phoneInput}
+          onChange={(v) => onChange('hospital_phone', v)}
+          ariaLabel="대표 전화"
+          placeholder="예: 02-000-0000"
+          className="min-w-56"
         />
       </SettingRow>
 
@@ -57,11 +58,9 @@ export function HospitalInfo({ draft, onChange }: Props) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 20 },
-  banner: { margin: 0, padding: '8px 12px', background: 'var(--color-surface-muted, #eef3f7)', borderRadius: 6, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  input: { minWidth: 320 },
-  phoneInput: { minWidth: 220 },
+  section: { display: 'flex', flexDirection: 'column', gap: 24 },
+  banner: { margin: 0, padding: '10px 14px', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   closures: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, textAlign: 'right' },
-  list: { margin: 0, paddingLeft: 0, listStyle: 'none' },
-  hint: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  list: { margin: 0, paddingLeft: 0, listStyle: 'none', fontSize: 'var(--fs-body)' },
+  hint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { Settings } from '../../../api/settings'
+import { Select, TextField } from '../../../components/staff-ui'
 import { Toggle } from './Toggle'
 import { SettingRow } from './SettingRow'
 
@@ -27,26 +28,24 @@ export function SmsSettings({ draft, onChange }: Props) {
       </SettingRow>
 
       <SettingRow label="누구에게 문자를 보내나">
-        <select
+        <Select
           disabled={!draft.sms_enabled}
           value={draft.sms_recipients}
-          onChange={(e) => onChange('sms_recipients', e.target.value as Settings['sms_recipients'])}
-          aria-label="누구에게"
-          style={styles.select}
+          onChange={(v) => onChange('sms_recipients', v as Settings['sms_recipients'])}
+          ariaLabel="누구에게"
         >
-          <option value="app_only">앱을 안 쓰는 환자에게만(폴백)</option>
+          <option value="app_only">앱을 안 쓰는 환자에게만</option>
           <option value="all">모든 환자에게</option>
-        </select>
+        </Select>
       </SettingRow>
 
       <SettingRow label="수신거부 번호" hint="광고성 문자에 넣을 무료 수신거부 번호입니다. 비어 있으면 광고를 보낼 수 없습니다.">
-        <input
-          type="text"
+        <TextField
           disabled={!draft.sms_enabled}
           value={draft.sms_opt_out_number ?? ''}
-          onChange={(e) => onChange('sms_opt_out_number', e.target.value)}
-          aria-label="수신거부 번호"
-          style={styles.input}
+          onChange={(v) => onChange('sms_opt_out_number', v)}
+          ariaLabel="수신거부 번호"
+          className="min-w-56"
         />
       </SettingRow>
 
@@ -59,9 +58,7 @@ export function SmsSettings({ draft, onChange }: Props) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 20 },
-  select: { minWidth: 220 },
-  input: { minWidth: 220 },
-  note: { margin: 0, padding: '8px 12px', background: 'var(--color-surface-muted, #eef3f7)', borderRadius: 6, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  warn: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-warn)', fontWeight: 600 },
+  section: { display: 'flex', flexDirection: 'column', gap: 24 },
+  note: { margin: 0, padding: '10px 14px', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  warn: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 600 },
 }

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { NOTIFICATION_LABELS, NOTIFICATION_ORDER, type NotificationType, type Settings } from '../../../api/settings'
+import { Checkbox, TextArea } from '../../../components/staff-ui'
 
 // [HSET-MSG-*] 자동 알림 — 종류·문구·문자도 발송 세 열(HSET-MSG-02, 「문자로도」 라벨 개정 2026-08-24).
 // 토큰은 버튼으로 꽂는다(HSET-MSG-16, 오타 방지). 고친 줄에만 「기본 문구로」(HSET-MSG-22). 문자가 꺼져 있으면
@@ -49,24 +50,23 @@ export function NotificationSettings({ draft, smsEnabled, onBodyChange, onSmsCha
                       <button key={t} type="button" onClick={() => onInsertToken(type, t)} style={styles.tokenBtn}>{t}</button>
                     ))}
                   </div>
-                  <textarea
+                  <TextArea
                     value={row.body}
-                    onChange={(e) => onBodyChange(type, e.target.value)}
-                    aria-label={`${NOTIFICATION_LABELS[type]} 문구`}
+                    onChange={(v) => onBodyChange(type, v)}
+                    ariaLabel={`${NOTIFICATION_LABELS[type]} 문구`}
                     rows={2}
-                    style={styles.textarea}
+                    className="min-w-60"
                   />
                   {!row.is_default && (
                     <button type="button" onClick={() => onRevert(type)} style={styles.revert}>기본 문구로 되돌리기</button>
                   )}
                 </td>
                 <td style={styles.td}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={row.send_sms}
                     disabled={!smsEnabled}
-                    onChange={(e) => onSmsChange(type, e.target.checked)}
-                    aria-label={`${NOTIFICATION_LABELS[type]} 문자도 발송`}
+                    onChange={(v) => onSmsChange(type, v)}
+                    ariaLabel={`${NOTIFICATION_LABELS[type]} 문자도 발송`}
                   />
                 </td>
               </tr>
@@ -80,15 +80,14 @@ export function NotificationSettings({ draft, smsEnabled, onBodyChange, onSmsCha
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 12 },
-  intro: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  strip: { display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: 'var(--color-surface-muted, #eef3f7)', borderRadius: 6, fontSize: 'var(--fs-sm)' },
+  section: { display: 'flex', flexDirection: 'column', gap: 14 },
+  intro: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  strip: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)' },
   table: { borderCollapse: 'collapse', width: '100%' },
-  th: { textAlign: 'left', padding: '6px 8px', borderBottom: '2px solid var(--color-divider)', fontSize: 'var(--fs-sm)' },
-  td: { padding: '8px', borderBottom: '1px solid var(--color-divider)', verticalAlign: 'top' },
-  tokens: { display: 'flex', gap: 6, marginBottom: 4 },
-  tokenBtn: { fontSize: 'var(--fs-sm)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', cursor: 'pointer' },
-  textarea: { width: '100%', minWidth: 240, resize: 'vertical' },
-  revert: { marginTop: 4, fontSize: 'var(--fs-sm)', border: '1px solid var(--color-divider)', background: 'var(--color-surface)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: 'var(--color-ink-muted)' },
-  hint: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  th: { textAlign: 'left', padding: '8px', borderBottom: '2px solid var(--color-divider)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  td: { padding: '10px 8px', borderBottom: '1px solid var(--color-divider)', verticalAlign: 'top', fontSize: 'var(--fs-body)' },
+  tokens: { display: 'flex', gap: 6, marginBottom: 6 },
+  tokenBtn: { fontSize: 'var(--fs-caption)', padding: '3px 10px', borderRadius: 999, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', cursor: 'pointer', color: 'var(--color-ink)' },
+  revert: { marginTop: 6, fontSize: 'var(--fs-caption)', border: '1px solid var(--color-divider)', background: 'var(--color-surface)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: 'var(--color-ink-muted)' },
+  hint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

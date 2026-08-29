@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { Settings } from '../../../api/settings'
+import { NumberField } from '../../../components/staff-ui'
 import { Toggle } from './Toggle'
 import { SettingRow } from './SettingRow'
 
@@ -19,18 +20,14 @@ export function BookingRules({ draft, onChange }: Props) {
         label="취소 마감 시간"
         hint="예약 시각 기준 이 시간 전까지만 환자가 스스로 취소할 수 있습니다. 바꾸면 지금 잡힌 예약에도 즉시 적용됩니다."
       >
-        <label style={styles.inlineUnit}>
-          <span style={styles.srOnly}>취소 마감 시간</span>
-          <input
-            type="number"
-            min={0}
-            max={168}
-            value={Number.isNaN(hours as number) ? '' : hours}
-            onChange={(e) => onChange('cancellation_deadline_hours', (e.target.value === '' ? NaN : Number(e.target.value)) as Settings['cancellation_deadline_hours'])}
-            style={styles.numInput}
-          />
-          <span style={styles.unit}>시간 전까지</span>
-        </label>
+        <NumberField
+          ariaLabel="취소 마감 시간"
+          min={0}
+          max={168}
+          value={Number.isNaN(hours as number) ? '' : hours}
+          onChange={(raw) => onChange('cancellation_deadline_hours', (raw === '' ? NaN : Number(raw)) as Settings['cancellation_deadline_hours'])}
+          suffix="시간 전까지"
+        />
       </SettingRow>
 
       <SettingRow
@@ -48,9 +45,5 @@ export function BookingRules({ draft, onChange }: Props) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 20 },
-  inlineUnit: { display: 'inline-flex', alignItems: 'center', gap: 8 },
-  numInput: { width: 72, textAlign: 'center' },
-  unit: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  srOnly: { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 },
+  section: { display: 'flex', flexDirection: 'column', gap: 24 },
 }

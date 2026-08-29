@@ -24,6 +24,14 @@
   --fs-lg: 15px;
   --fs-xl: 19px;
   --fs-num: 20px;
+  --fs-caption: 0.75rem;
+  --fs-body: 0.875rem;
+  --fs-section: 1rem;
+  --fs-title: 1.25rem;
+  --fw-caption: 400;
+  --fw-body: 500;
+  --fw-section: 600;
+  --fw-title: 700;
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgba(16,36,58,.10);
   --shadow-panel: 0 1px 2px rgba(16,45,50,0.04);

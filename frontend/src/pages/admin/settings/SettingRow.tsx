@@ -16,9 +16,9 @@ export function SettingRow({ label, hint, children }: { label: string; hint?: st
 }
 
 const styles: Record<string, CSSProperties> = {
-  row: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
-  labelCol: { display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 360 },
-  label: { fontSize: 'var(--fs-base)', fontWeight: 600 },
-  hint: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  row: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 },
+  labelCol: { display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 420 },
+  label: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  hint: { margin: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-caption)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', lineHeight: 1.5 },
   control: { flexShrink: 0, display: 'flex', alignItems: 'center' },
 }
