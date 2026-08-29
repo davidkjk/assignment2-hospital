@@ -207,6 +207,43 @@ describe('운영 통계 /admin/stats', () => {
     expect(details).toBe(0)
   })
 
+  test('[STAT-DRILL-03] 진료과×예약 셀을 누르면 metric·dept·dim을 서버로 실어 그 그룹으로 좁힌다', async () => {
+    // 셀 드릴다운이 dept/dim을 서버까지 보내지 않아 전체 명단을 보이던 버그의 회귀 가드.
+    statsOk()
+    let detailUrl: URL | undefined
+    server.use(
+      http.get('*/stats/detail', ({ request }) => {
+        detailUrl = new URL(request.url)
+        return HttpResponse.json({ rows: [], next_cursor: null, has_more: false })
+      }),
+    )
+    renderStats()
+    const cell = await screen.findByRole('button', { name: '내과 예약 상세 목록' })
+    await userEvent.click(cell)
+    await waitFor(() => expect(detailUrl).toBeDefined())
+    expect(detailUrl!.searchParams.get('metric')).toBe('booked')
+    expect(detailUrl!.searchParams.get('dept')).toBe('내과')
+    expect(detailUrl!.searchParams.get('dim')).toBe('department')
+  })
+
+  test('[STAT-DRILL-01] 상단 예약 카드 드릴다운은 전체 병원이라 dept·dim을 싣지 않는다', async () => {
+    statsOk()
+    let detailUrl: URL | undefined
+    server.use(
+      http.get('*/stats/detail', ({ request }) => {
+        detailUrl = new URL(request.url)
+        return HttpResponse.json({ rows: [], next_cursor: null, has_more: false })
+      }),
+    )
+    renderStats()
+    await screen.findByRole('group', { name: '예약' })
+    await userEvent.click(within(metricCard('예약')).getByRole('button', { name: '상세 목록' }))
+    await waitFor(() => expect(detailUrl).toBeDefined())
+    expect(detailUrl!.searchParams.get('metric')).toBe('booked')
+    expect(detailUrl!.searchParams.get('dept')).toBeNull()
+    expect(detailUrl!.searchParams.get('dim')).toBeNull()
+  })
+
   test('[STAT-EXPORT-02][STAT-AUDIT-02] CSV 내보내기만 감사하고, payload에 환자 원본을 안 싣는다', async () => {
     statsOk()
     let body: unknown

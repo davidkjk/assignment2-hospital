@@ -203,13 +203,32 @@ async def _get_stats_by(from_date: date, to_date: date, staff: StaffContext, by:
     return {"by": by, "rows": rows_out}
 
 
-async def get_stats_detail(metric: str, from_date: date, to_date: date, staff: StaffContext, *, cursor=None, conn=None) -> Page:
-    """[STAT-DRILL-01·02] 드릴다운 명단 — 마스킹된 값만(원본은 응답에 아예 없다).
+def _scope_sql(dim: str | None, dept: str | None, next_idx: int):
+    """[STAT-DRILL-03] 진료과·의사별 표의 한 셀을 눌렀을 때 그 그룹으로 명단을 좁힌다.
+
+    ⚠️ 라벨은 dim에 따라 진료과명(department)이거나 의사명(doctor)이다 — 프론트가 UUID를 모르므로
+       이름으로 거른다. _get_stats_by가 애초에 이름으로 묶으므로(그 표의 라벨과 정확히 대응) 일관되고,
+       UUID를 클라이언트에 노출하지 않는 계약도 지킨다. dept가 없으면(상단 카드) 필터 없음."""
+    if not dept or dim not in ("department", "doctor"):
+        return "", "", []
+    if dim == "doctor":
+        return "join staff sc on sc.id = a.doctor_id", f" and sc.name = ${next_idx}", [dept]
+    return "join departments dc on dc.id = a.department_id", f" and dc.name = ${next_idx}", [dept]
+
+
+async def get_stats_detail(metric: str, from_date: date, to_date: date, staff: StaffContext,
+                           *, dept: str | None = None, dim: str | None = None, cursor=None, conn=None) -> Page:
+    """[STAT-DRILL-01·02·03] 드릴다운 명단 — 마스킹된 값만(원본은 응답에 아예 없다).
+
+    dept·dim이 오면(진료과·의사별 표의 셀 클릭) 그 그룹으로 좁힌다(STAT-DRILL-03).
 
     ⚠️ 통계 감사는 조회 성공 뒤에 남긴다 — 권한 거절·기간 오류로 아무것도 못 본 요청까지
        stats_drilldown으로 남기면 기록장이 "열어봤다"고 거짓 증언한다."""
     if metric == "long_wait":
         return await _long_wait_detail(from_date, to_date, staff, cursor=cursor, conn=conn)
+
+    if metric == "booked":
+        return await _booked_detail(from_date, to_date, staff, dept=dept, dim=dim, cursor=cursor, conn=conn)
 
     if metric == "cancelled":
         statuses = list(_CANCEL_STATUSES)
@@ -220,6 +239,8 @@ async def get_stats_detail(metric: str, from_date: date, to_date: date, staff: S
     else:
         statuses = [metric]
 
+    scope_join, scope_where, scope_params = _scope_sql(dim, dept, 4)
+
     async def _run(c):
         return await c.fetch(
             f"""
@@ -228,16 +249,59 @@ async def get_stats_detail(metric: str, from_date: date, to_date: date, staff: S
             from appointment_status_history h
             join appointments a on a.id = h.appointment_id
             join patients p on p.id = a.for_patient_id
+            {scope_join}
             where h.to_status = any($3::text[]) and h.from_status is distinct from h.to_status
               and (h.changed_at {_KST_DATE})::date between $1 and $2
+              {scope_where}
             """,
-            from_date, to_date, statuses,
+            from_date, to_date, statuses, *scope_params,
         )
 
     fetched = await _dispatch(staff, conn, _run)
     rows = [
         patient_row_dto(
             # [STAT-DRILL-02] 관리자 훑어보기 명단은 이름까지 가린다 — 목록 화면과 다른 유일한 곳.
+            patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+            mask_name_too=True,
+            id=r["id"], occurred_at=r["occurred_at"],
+        )
+        for r in fetched
+    ]
+    page = paginate(rows, cursor=cursor, order="occurred_at desc")
+
+    # 조회 성공 뒤에 감사(환자 없는 관리자 활동 행).
+    await _dispatch(staff, conn, lambda c: audit_service.log_stats_drilldown(staff, conn=c))
+    return page
+
+
+async def _booked_detail(from_date: date, to_date: date, staff: StaffContext,
+                         *, dept, dim, cursor, conn) -> Page:
+    """[STAT-DRILL-01·02·03] '예약' 지표 명단 — 생성일(created_at) 기준.
+
+    ⭐ 집계와 같은 모집단이라야 한다: 상단 '예약' 카드(source_mix.total)도, 진료과·의사별 '예약'
+       칸도 모두 appointments를 created_at으로 센다. 모든 예약의 source는 {app,chatbot,staff} 중
+       하나(00005 check)라 source_mix.total = 기간 내 생성 예약 전체와 정확히 일치한다. 그래서
+       상태이력이 아니라 appointments를 직접 센다(옛 버그: to_status='booked'는 없는 상태라 항상 빈 명단).
+    """
+    scope_join, scope_where, scope_params = _scope_sql(dim, dept, 3)
+
+    async def _run(c):
+        return await c.fetch(
+            f"""
+            select a.id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   a.created_at as occurred_at
+            from appointments a
+            join patients p on p.id = a.for_patient_id
+            {scope_join}
+            where (a.created_at {_KST_DATE})::date between $1 and $2
+              {scope_where}
+            """,
+            from_date, to_date, *scope_params,
+        )
+
+    fetched = await _dispatch(staff, conn, _run)
+    rows = [
+        patient_row_dto(
             patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
             mask_name_too=True,
             id=r["id"], occurred_at=r["occurred_at"],

@@ -135,6 +135,86 @@ async def test_스탯_드릴_02_드릴다운_명단은_마스킹된_값만_담�
     assert page.rows[0]["patient_id"] == p
 
 
+# ── 드릴다운: 예약(booked)은 생성일 기준·셀은 그 그룹으로 좁힌다 (STAT-DRILL-01·03) ──
+
+@pytest.mark.asyncio
+async def test_스탯_드릴_예약_명단은_생성일_기준_예약이다(db_conn):
+    """⚠️ 옛 코드는 metric='booked'를 상태이력 to_status='booked'로 뒤져 항상 빈 명단이었다(그런
+    상태값 없음). '예약' 지표는 appointments.created_at 기준 — 집계('예약' 카드·진료과별 예약 칸)와
+    같은 모집단이라야 한다. STAT-DRILL-01."""
+    admin = await _admin(db_conn)
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    p = await seed_patient(db_conn)
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p, status="예약확정")
+    await set_session_auth(db_conn, admin.auth_user_id)
+    page = await stats_service.get_stats_detail("booked", today, today, admin, conn=db_conn)
+    assert len(page.rows) == 1 and page.rows[0]["patient_id"] == p
+
+
+@pytest.mark.asyncio
+async def test_스탯_드릴_03_진료과_셀은_그_진료과로_좁힌다(db_conn):
+    """진료과별 표에서 셀(진료과×예약)을 누르면 그 진료과 명단만 나와야 한다 — dept/dim이 서버까지
+    닿지 않아 전체를 보여주던 버그(STAT-DRILL-03: 서버에서 지표를 다시 검증)."""
+    admin = await _admin(db_conn)
+    today = await db_today(db_conn)
+    dept_a = await seed_department(db_conn, name="내과")
+    dept_b = await seed_department(db_conn, name="정형외과")
+    doc_a = await seed_doctor(db_conn, dept_a)
+    doc_b = await seed_doctor(db_conn, dept_b)
+    pa = await seed_patient(db_conn, name="가환자")
+    pb = await seed_patient(db_conn, name="나환자")
+    await seed_appointment(db_conn, doctor_id=doc_a["staff_id"], department_id=dept_a, patient_id=pa)
+    await seed_appointment(db_conn, doctor_id=doc_b["staff_id"], department_id=dept_b, patient_id=pb)
+    await set_session_auth(db_conn, admin.auth_user_id)
+    page = await stats_service.get_stats_detail(
+        "booked", today, today, admin, dept="내과", dim="department", conn=db_conn)
+    assert [r["patient_id"] for r in page.rows] == [pa]
+
+
+@pytest.mark.asyncio
+async def test_스탯_드릴_03_의사_셀은_그_의사로_좁힌다(db_conn):
+    """의사별 표에서 셀을 누르면 라벨이 의사명이다 — dim='doctor'로 staff.name을 걸러야 한다."""
+    admin = await _admin(db_conn)
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc_a = await seed_doctor(db_conn, dept)
+    doc_b = await seed_doctor(db_conn, dept)
+    await db_conn.execute("update staff set name='김의사' where id=$1", doc_a["staff_id"])
+    await db_conn.execute("update staff set name='이의사' where id=$1", doc_b["staff_id"])
+    pa = await seed_patient(db_conn, name="가환자")
+    pb = await seed_patient(db_conn, name="나환자")
+    await seed_appointment(db_conn, doctor_id=doc_a["staff_id"], department_id=dept, patient_id=pa)
+    await seed_appointment(db_conn, doctor_id=doc_b["staff_id"], department_id=dept, patient_id=pb)
+    await set_session_auth(db_conn, admin.auth_user_id)
+    page = await stats_service.get_stats_detail(
+        "booked", today, today, admin, dept="김의사", dim="doctor", conn=db_conn)
+    assert [r["patient_id"] for r in page.rows] == [pa]
+
+
+@pytest.mark.asyncio
+async def test_스탯_드릴_03_상태지표_셀도_진료과로_좁힌다(db_conn):
+    """방문·부도(상태 전이 기준)도 셀 스코프가 걸려야 한다 — 상태이력 경로에도 dept 필터 적용."""
+    admin = await _admin(db_conn)
+    today = await db_today(db_conn)
+    dept_a = await seed_department(db_conn, name="내과")
+    dept_b = await seed_department(db_conn, name="정형외과")
+    doc_a = await seed_doctor(db_conn, dept_a)
+    doc_b = await seed_doctor(db_conn, dept_b)
+    pa = await seed_patient(db_conn, name="가환자")
+    pb = await seed_patient(db_conn, name="나환자")
+    appt_a = await seed_appointment(db_conn, doctor_id=doc_a["staff_id"], department_id=dept_a, patient_id=pa)
+    appt_b = await seed_appointment(db_conn, doctor_id=doc_b["staff_id"], department_id=dept_b, patient_id=pb)
+    await _cancel_now(db_conn, appt_a, doc_a["staff_id"])
+    await _cancel_now(db_conn, appt_b, doc_b["staff_id"])
+    await set_session_auth(db_conn, admin.auth_user_id)
+    page = await stats_service.get_stats_detail(
+        "cancelled", today, today, admin, dept="내과", dim="department", conn=db_conn)
+    assert [r["patient_id"] for r in page.rows] == [pa]
+
+
 # ── 억제·감사 경계 (STAT-MASK-01 / STAT-AUDIT-01·02) ─────────────────────
 
 @pytest.mark.asyncio

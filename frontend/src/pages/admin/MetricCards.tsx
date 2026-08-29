@@ -10,6 +10,10 @@ export interface DrillTarget {
   /** 서버 /stats/detail의 metric 파라미터. */
   metric: string
   label: string
+  /** 진료과·의사별 표의 셀에서 열 때만 채운다 — 그 셀의 그룹 라벨(진료과명 또는 의사명). */
+  dept?: string
+  /** dept 라벨의 해석(진료과/의사). 셀에서 열 때만 채운다. */
+  dim?: 'department' | 'doctor'
 }
 
 interface MetricDef {

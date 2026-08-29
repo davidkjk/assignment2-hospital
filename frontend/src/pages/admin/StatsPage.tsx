@@ -35,7 +35,7 @@ export function StatsPage({ initialPeriod }: StatsPageProps) {
   const [applied, setApplied] = useState(initial)
   const [rangeError, setRangeError] = useState<string>()
   const [by, setBy] = useState<ByDim>('department')
-  const [drill, setDrill] = useState<DrillTarget & { dept?: string }>()
+  const [drill, setDrill] = useState<DrillTarget>()
   const [csvOpen, setCsvOpen] = useState(false)
   const [exportNote, setExportNote] = useState<string>()
 

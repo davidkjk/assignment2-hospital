@@ -36,10 +36,15 @@ async def stats_detail(
     metric: str,
     from_date: date = Query(alias="from"),
     to_date: date = Query(alias="to"),
+    # 진료과·의사별 표의 셀을 눌렀을 때만 온다(상단 카드는 없음). dim=department|doctor에 따라
+    # dept 라벨을 진료과명/의사명으로 해석해 그 그룹으로 좁힌다(STAT-DRILL-03).
+    dept: str | None = None,
+    dim: str | None = None,
     cursor: str | None = None,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> dict:
-    page = await stats_service.get_stats_detail(metric, from_date, to_date, staff, cursor=cursor)
+    page = await stats_service.get_stats_detail(
+        metric, from_date, to_date, staff, dept=dept, dim=dim, cursor=cursor)
     return {"rows": page.rows, "next_cursor": page.next_cursor, "has_more": page.has_more}
 
 

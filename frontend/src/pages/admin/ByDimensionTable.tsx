@@ -15,7 +15,7 @@ const COLUMNS: { key: 'booked' | 'visited' | 'no_show'; label: string; metric: s
 interface ByDimensionTableProps {
   data: StatsByResponse
   onToggle: (by: 'department' | 'doctor') => void
-  onDrillCell: (target: DrillTarget & { dept: string }) => void
+  onDrillCell: (target: DrillTarget & { dept: string; dim: 'department' | 'doctor' }) => void
 }
 
 export function ByDimensionTable({ data, onToggle, onDrillCell }: ByDimensionTableProps) {
@@ -59,7 +59,7 @@ export function ByDimensionTable({ data, onToggle, onDrillCell }: ByDimensionTab
                   <button
                     type="button"
                     aria-label={`${r.label} ${c.label} 상세 목록`}
-                    onClick={() => onDrillCell({ metric: c.metric, label: `${r.label} · ${c.label}`, dept: r.label })}
+                    onClick={() => onDrillCell({ metric: c.metric, label: `${r.label} · ${c.label}`, dept: r.label, dim: data.by })}
                     style={styles.cellBtn}
                   >
                     {r[c.key].toLocaleString()}

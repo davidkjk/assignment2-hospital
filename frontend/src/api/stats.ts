@@ -125,10 +125,13 @@ export function getStatsDetail(
   metric: string,
   from: string,
   to: string,
-  opts?: { dept?: string; cursor?: string },
+  opts?: { dept?: string; dim?: 'department' | 'doctor'; cursor?: string },
 ) {
   const extra: Record<string, string> = { metric }
+  // dept·dim은 진료과·의사별 표의 셀을 눌렀을 때만 실린다 — 서버가 그 그룹으로 명단을 좁힌다
+  // (STAT-DRILL-03). dim이 department/doctor 어느 쪽인지에 따라 dept 라벨의 해석이 갈린다.
   if (opts?.dept) extra.dept = opts.dept
+  if (opts?.dim) extra.dim = opts.dim
   if (opts?.cursor) extra.cursor = opts.cursor
   return apiFetch<DrilldownPage>(`/stats/detail?${periodQuery(from, to, extra)}`)
 }

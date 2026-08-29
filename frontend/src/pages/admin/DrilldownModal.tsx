@@ -13,7 +13,7 @@ import { getStatsDetail, type DrilldownRow } from '../../api/stats'
 //    남기므로 여기서 따로 감사 요청을 보내지 않는다(이중 기록 방지).
 
 interface DrilldownModalProps {
-  target: { metric: string; label: string; dept?: string }
+  target: { metric: string; label: string; dept?: string; dim?: 'department' | 'doctor' }
   period: { from: string; to: string }
   onClose: () => void
 }
@@ -23,8 +23,8 @@ export function DrilldownModal({ target, period, onClose }: DrilldownModalProps)
   const closeRef = useRef<HTMLButtonElement>(null)
 
   const query = useQuery({
-    queryKey: ['stats-detail', target.metric, target.dept ?? null, period.from, period.to],
-    queryFn: () => getStatsDetail(target.metric, period.from, period.to, { dept: target.dept }),
+    queryKey: ['stats-detail', target.metric, target.dim ?? null, target.dept ?? null, period.from, period.to],
+    queryFn: () => getStatsDetail(target.metric, period.from, period.to, { dept: target.dept, dim: target.dim }),
   })
 
   useEffect(() => {
