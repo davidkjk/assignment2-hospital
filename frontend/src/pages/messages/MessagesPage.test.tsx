@@ -77,20 +77,20 @@ test('[SEND-LIST-01] 예약해 둔 것이 있으면 두 구역이 모두 보인�
   okWith(view({ scheduled: [scheduled()] }))
   renderPage()
   expect(await screen.findByText('예약해 둔 것')).toBeVisible()
-  expect(screen.getByText('보낸 것')).toBeVisible()
+  expect(screen.getByText('안내 발송 이력')).toBeVisible()
 })
 
 test('[SEND-LIST-02] 예약이 0건이면 예약 구역이 사라진다', async () => {
   okWith(view({ scheduled: [] }))
   renderPage()
-  expect(await screen.findByText('보낸 것')).toBeVisible()
+  expect(await screen.findByText('안내 발송 이력')).toBeVisible()
   expect(screen.queryByText('예약해 둔 것')).toBeNull()
 })
 
 test('[SEND-LIST-06] 보낸 줄은 일곱 칸이다', async () => {
   okWith(view({ sent: { rows: [sent()], has_more: false, next_cursor: null, order: [] } }))
   renderPage()
-  await screen.findByText('보낸 것')
+  await screen.findByText('안내 발송 이력')
   const headers = screen.getAllByRole('columnheader').map((th) => th.textContent)
   expect(headers).toEqual(['종류', '내용', '보낸 직원', '채널', '시각', '대상 수', '발송 결과'])
 })
@@ -104,7 +104,7 @@ test('[SEND-LIST-08] 자동 발송은 「자동 발송 N건 보기」로 접힌�
 test('[SEND-LIST-08] 자동 발송이 0건이면 접기 버튼이 없다', async () => {
   okWith(view({ auto_count: 0 }))
   renderPage()
-  await screen.findByText('보낸 것')
+  await screen.findByText('안내 발송 이력')
   expect(screen.queryByRole('button', { name: /자동 발송/ })).toBeNull()
 })
 
@@ -124,7 +124,7 @@ test('[SEND-DOOR-03][SEND-BOX-01] [＋ 새로 보내기]는 오른쪽 패널을 
   const user = userEvent.setup()
   okWith(view({ scheduled: [] }))
   renderPage()
-  await screen.findByText('보낸 것')
+  await screen.findByText('안내 발송 이력')
   await user.click(screen.getByRole('button', { name: /새로 보내기/ }))
   expect(await screen.findByRole('complementary')).toBeVisible()
 })

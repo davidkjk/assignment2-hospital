@@ -79,8 +79,8 @@ export function MessagesPage() {
         </section>
       )}
 
-      <section style={styles.section} aria-label="보낸 것">
-        <h2 style={styles.sectionTitle}>보낸 것</h2>
+      <section style={styles.section} aria-label="안내 발송 이력">
+        <h2 style={styles.sectionTitle}>안내 발송 이력</h2>
         {query.data && query.data.sent.rows.length === 0 ? (
           <EmptyState kind="zero" message="아직 보낸 안내가 없습니다" />
         ) : (
