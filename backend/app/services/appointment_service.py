@@ -565,9 +565,13 @@ async def set_urgent_flag(
     conn=None,
 ) -> None:
     async def _run(c) -> str:
+        # [QUEUE-URG-06] 켤 때 「누가·언제」를 남기고, 끌 때 두 칸을 null로 리셋한다.
         return await c.execute(
-            "update appointments set is_urgent_flag = $1, updated_at = now() where id = $2 and updated_at = $3",
-            is_urgent, appointment_id, expected_updated_at,
+            "update appointments set is_urgent_flag = $1, "
+            "urgent_flagged_by = case when $1 then $4::uuid else null end, "
+            "urgent_flagged_at = case when $1 then now() else null end, "
+            "updated_at = now() where id = $2 and updated_at = $3",
+            is_urgent, appointment_id, expected_updated_at, staff.id,
         )
 
     if conn is not None:

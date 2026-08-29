@@ -24,6 +24,8 @@ function row(over: Partial<QueueRow> & Pick<QueueRow, 'appointment_id' | 'status
     slot_time: null,
     wait_minutes: null,
     wait_is_long: null,
+    urgent_flagged_by_name: null,
+    urgent_flagged_at: null,
     ...over,
   }
 }
@@ -200,6 +202,19 @@ describe('Queue', () => {
     const r = await screen.findByTestId('queue-row-w1')
     const label = within(r).getByText('42분 대기')
     expect(label.className).toMatch(/amber/)
+  })
+
+  test('QUEUE-URG-06: 끄기 팝업은 누가 언제 켰는지 보여준다', async () => {
+    queueOk({ waiting: [row({
+      appointment_id: 'w1', status: '진료대기', queue_no: 1, is_urgent_flag: true,
+      urgent_flagged_by_name: '박간호', urgent_flagged_at: '2026-08-29T09:32:00+09:00',
+    })] })
+    renderQueue('/queue?tab=waiting')
+    const r = await screen.findByTestId('queue-row-w1')
+    await userEvent.click(within(r).getByRole('button', { name: '표시 끄기' }))
+    const note = await screen.findByText(/님이 켰습니다/)
+    expect(note).toHaveTextContent('박간호')
+    expect(note).toHaveTextContent('09:32')
   })
 })
 

@@ -246,6 +246,42 @@ async def test_set_urgent_flag(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_urg_06_표시를_켜면_켠_직원과_시각이_남는다(db_conn):
+    """[QUEUE-URG-06] 응급/주의 표시를 켜면 켠 직원(urgent_flagged_by)과 시각(urgent_flagged_at)이 남는다."""
+    ctx = await _seed_base(db_conn)
+    appointment_id = await appointment_service.create_appointment(
+        staff=ctx["receptionist"], account_patient_id=ctx["patient_id"], for_patient_id=ctx["patient_id"],
+        department_id=ctx["dept_id"], doctor_id=ctx["doctor"].id, reason="흉통 호소", source="staff",
+        initial_status="도착", conn=db_conn,
+    )
+    row = await db_conn.fetchrow("select updated_at from appointments where id = $1", appointment_id)
+    await appointment_service.set_urgent_flag(appointment_id, True, ctx["receptionist"], row["updated_at"], conn=db_conn)
+    rec = await db_conn.fetchrow(
+        "select urgent_flagged_by, urgent_flagged_at from appointments where id = $1", appointment_id)
+    assert rec["urgent_flagged_by"] == ctx["receptionist"].id
+    assert rec["urgent_flagged_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_urg_06_표시를_끄면_켠_직원_정보가_지워진다(db_conn):
+    """[QUEUE-URG-06] 표시를 끄면 urgent_flagged_by·urgent_flagged_at을 null로 리셋한다 — 꺼진 줄엔 무의미."""
+    ctx = await _seed_base(db_conn)
+    appointment_id = await appointment_service.create_appointment(
+        staff=ctx["receptionist"], account_patient_id=ctx["patient_id"], for_patient_id=ctx["patient_id"],
+        department_id=ctx["dept_id"], doctor_id=ctx["doctor"].id, reason="흉통 호소", source="staff",
+        initial_status="도착", conn=db_conn,
+    )
+    row = await db_conn.fetchrow("select updated_at from appointments where id = $1", appointment_id)
+    await appointment_service.set_urgent_flag(appointment_id, True, ctx["receptionist"], row["updated_at"], conn=db_conn)
+    row2 = await db_conn.fetchrow("select updated_at from appointments where id = $1", appointment_id)
+    await appointment_service.set_urgent_flag(appointment_id, False, ctx["receptionist"], row2["updated_at"], conn=db_conn)
+    rec = await db_conn.fetchrow(
+        "select urgent_flagged_by, urgent_flagged_at from appointments where id = $1", appointment_id)
+    assert rec["urgent_flagged_by"] is None
+    assert rec["urgent_flagged_at"] is None
+
+
+@pytest.mark.asyncio
 async def test_create_appointment_rejects_initial_status_not_allowed_for_source(db_conn):
     """[정합성 검토 R1-우선3 재검증] `source`가 보낸 `initial_status`가 그 채널에서 허용되지 않으면
     서버가 그대로 저장하지 않고 거부한다 — 예: 'app' 채널이 '진료완료'를 초기상태로 주장하는 경우."""

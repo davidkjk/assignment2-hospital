@@ -72,6 +72,7 @@ async def get_queue(staff: StaffContext, *, doctor_id=None, tab: str = "waiting"
             f"""
             select a.id, a.doctor_id, a.for_patient_id, a.status, a.queue_position,
                    a.updated_at, a.is_urgent_flag, a.slot_id,
+                   a.urgent_flagged_at, uf.name as urgent_flagged_by_name,
                    p.name, p.phone, p.birth_date,
                    s.start_time as slot_time, d.name as doctor_name, dept.name as department_name,
                    case when a.status = '진료대기'
@@ -94,6 +95,7 @@ async def get_queue(staff: StaffContext, *, doctor_id=None, tab: str = "waiting"
             left join appointment_slots s on s.id = a.slot_id
             join staff d on d.id = a.doctor_id
             join departments dept on dept.id = a.department_id
+            left join staff uf on uf.id = a.urgent_flagged_by
             left join lateral (
               select min(changed_at) as entered_at
               from appointment_status_history
@@ -135,6 +137,9 @@ def _queue_row_dto(r, *, with_queue_no: bool) -> dict:
         "status": r["status"],
         "updated_at": r["updated_at"].isoformat(),
         "is_urgent_flag": r["is_urgent_flag"],
+        # [QUEUE-URG-06] 표시를 켠 직원 이름·시각 — 끄기 팝업의 「오늘 09:32 · ○○ 님이 켰습니다」. 표시가 없으면 null.
+        "urgent_flagged_by_name": r["urgent_flagged_by_name"],
+        "urgent_flagged_at": r["urgent_flagged_at"].isoformat() if r["urgent_flagged_at"] is not None else None,
         # 워크인 = 슬롯 없는 예약(QUEUE-WALK-10). 「지금」 워크인(방문시각 미기록)도 배지가 붙는다.
         "is_walkin": r["slot_id"] is None,
         "doctor_id": r["doctor_id"],

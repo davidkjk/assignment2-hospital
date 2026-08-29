@@ -68,6 +68,43 @@ async def test_큐_로우_06_도착_행은_도착_전이_시각_기준_경과분
 
 
 @pytest.mark.asyncio
+async def test_큐_urg_06_응급표시_행에_켠_직원_이름과_시각을_준다(db_conn):
+    """[QUEUE-URG-06] 응급/주의 표시된 행은 켠 직원 이름·시각을 함께 준다 — 끄기 팝업이
+    「오늘 09:32 · ○○ 님이 켰습니다」로, 이유를 모르고 끄는 일을 막는 근거다."""
+    from app.services import appointment_service
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    appt = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p, slot_id=slot, status="진료대기", queue_position=1)
+    updated = await db_conn.fetchval("select updated_at from appointments where id = $1", appt)
+    await appointment_service.set_urgent_flag(appt, True, admin, updated, conn=db_conn)
+    rows = (await dashboard_service.get_queue(admin, tab="waiting", conn=db_conn)).rows
+    assert rows[0]["is_urgent_flag"] is True
+    assert rows[0]["urgent_flagged_by_name"] == "Test Staff"
+    assert rows[0]["urgent_flagged_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_큐_urg_06_표시_없는_행은_켠_직원_정보가_없다(db_conn):
+    """[QUEUE-URG-06] 표시가 없는 행은 urgent_flagged_by_name·urgent_flagged_at이 모두 null."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p, slot_id=slot, status="진료대기", queue_position=1)
+    rows = (await dashboard_service.get_queue(admin, tab="waiting", conn=db_conn)).rows
+    assert rows[0]["urgent_flagged_by_name"] is None
+    assert rows[0]["urgent_flagged_at"] is None
+
+
+@pytest.mark.asyncio
 async def test_큐_로우_05_미도착_행은_대기시간이_없다(db_conn):
     """[QUEUE-ROW-05] 아직 도착 전(미도착)엔 대기시간이 없다 — wait_minutes=None."""
     today = await db_today(db_conn)

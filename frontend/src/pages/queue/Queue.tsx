@@ -20,9 +20,9 @@ import { revealContact } from '../../api/patients'
 //
 // 판정 로그(2026-08-29, 원문 grep):
 //  · 번호 보기 = 그 줄 인라인 펼침(QUEUE-BTN-06·MASK-VIEW-01) — 미도착 탭에만. 실 옛 코드의 navigate는 규칙 위반이라 버림.
-//  · 응급 표시자「○○ 님이 켰습니다」(QUEUE-URG-06) = 이월 — 백엔드 get_queue에 표시자·시각 필드가 없다.
+//  · 응급 표시자「○○ 님이 켰습니다」(QUEUE-URG-06) = ✅ 해소(A4-b, 마이그 00071 urgent_flagged_by/at) — 끄기 팝업에 「오늘 HH:MM · ○○ 님이 켰습니다」.
 //  · 도착·진료대기 줄 [되돌리기] = 정본 QUEUE-BTN-02/03에 없어 버튼 없이 이식(백엔드 UNDO는 별개, 노출 위치 미결).
-//  · 대기시간 컬럼 = 실 QueueRow에 대기분이 없어 생략.
+//  · 대기시간 컬럼 = ✅ 해소(A4-a, wait_minutes·wait_is_long) — 상태별 문구(경과/대기/N분째)와 기준 초과 주의색.
 
 const REDUCED_MOTION =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -669,7 +669,13 @@ function UrgentDialog({ row, turningOn, onClose, onDone }: {
         이 표시는 먼저 봐야 할 환자를 눈에 띄게 하는 것일 뿐, <b>의학적 응급도 판정이 아닙니다.</b>
       </p>
       <p className="mt-2 text-sm text-foreground/80">표시해도 <b>대기 순서는 바뀌지 않습니다.</b></p>
-      {/* QUEUE-URG-06(누가 켰는지)은 백엔드 표시자 필드가 붙을 때 — 이월. */}
+      {/* QUEUE-URG-06: 끌 때 「누가 언제 켰는지」를 보여준다 — 다른 직원이 이유가 있어 켠 것을
+          모르고 끄는 일을 막는다. 대기 목록은 당일만이라 「오늘」로 고정한다. */}
+      {!turningOn && row.urgent_flagged_by_name && row.urgent_flagged_at && (
+        <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-sm text-foreground/75">
+          오늘 <span className="tabular-nums">{hospitalHHMM(new Date(row.urgent_flagged_at))}</span> · <b>{row.urgent_flagged_by_name}</b> 님이 켰습니다
+        </p>
+      )}
       <div className="mt-5 flex justify-end gap-2">
         <Btn variant="outline" onClick={onClose}>취소</Btn>
         <Btn variant="primary" disabled={mutation.isPending} onClick={() => { if (!mutation.isPending) mutation.mutate() }}>

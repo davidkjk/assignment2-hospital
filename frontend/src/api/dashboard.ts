@@ -108,6 +108,10 @@ export interface QueueRow extends PatientRow {
   wait_minutes?: number | null
   /** 기준(long_wait_threshold_minutes) 초과 여부 — 화면이 주의색으로 낸다(QUEUE-ROW-05). */
   wait_is_long?: boolean | null
+  /** 응급/주의 표시를 켠 직원 이름 — 끄기 팝업의 「○○ 님이 켰습니다」(QUEUE-URG-06). 표시 없으면 null. */
+  urgent_flagged_by_name?: string | null
+  /** 응급/주의 표시를 켠 시각(ISO) — 끄기 팝업의 「오늘 09:32」(QUEUE-URG-06). 표시 없으면 null. */
+  urgent_flagged_at?: string | null
 }
 
 export interface QueueResponse {
