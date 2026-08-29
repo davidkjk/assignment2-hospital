@@ -129,10 +129,14 @@ export function AccessLogPage() {
         <p style={styles.lede}>누가 어떤 환자 정보를 언제 열었는지 확인합니다</p>
       </header>
 
-      {/* [ALOG-HEAD-02] 읽기 전용 고지 — 감사 기록이 고쳐질 수 있으면 감사가 아니다. */}
-      <p style={styles.readonly} role="note">
-        이 기록은 삭제하거나 수정할 수 없습니다
-      </p>
+      {/* [ALOG-HEAD-02] 읽기 전용 고지 — 감사 기록이 고쳐질 수 있으면 감사가 아니다.
+          부제는 무엇이 어떻게 적히는지 설명: 검색 1줄(ALOG-AUDIT-01)·번호열람 환자별 별도(ALOG-AUDIT-02)·200건(ALOG-LIST-09). */}
+      <div style={styles.readonly} role="note">
+        <p style={styles.readonlyTitle}>이 기록은 삭제하거나 수정할 수 없습니다</p>
+        <p style={styles.readonlyDesc}>
+          검색은 실행 1회당 한 줄, 번호 보기는 마스킹을 해제한 환자마다 별도로 기록됩니다. 최신 첫 페이지 최대 200건까지 보여 줍니다.
+        </p>
+      </div>
 
       <LogFilterBar
         selectedPatient={chipPatient}
@@ -210,13 +214,25 @@ const styles: Record<string, CSSProperties> = {
   h1: { margin: 0, fontSize: 'var(--fs-xl)', fontWeight: 700, color: 'var(--color-ink)' },
   lede: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
   readonly: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
     margin: 0,
     padding: '8px 12px',
     borderRadius: 8,
     background: 'var(--color-done-bg)',
+  },
+  readonlyTitle: {
+    margin: 0,
     color: 'var(--color-ink-muted)',
     fontSize: 'var(--fs-sm)',
     fontWeight: 600,
+  },
+  readonlyDesc: {
+    margin: 0,
+    color: 'var(--color-ink-muted)',
+    fontSize: 'var(--fs-sm)',
+    lineHeight: 1.5,
   },
   scope: { margin: 0, fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)' },
   tableWrap: { display: 'flex', flexDirection: 'column', gap: 12 },

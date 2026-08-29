@@ -69,6 +69,8 @@ describe('AccessLogPage /admin/access-logs', () => {
     okWith([detail(0)])
     renderPage()
     expect(screen.getByText('이 기록은 삭제하거나 수정할 수 없습니다')).toBeVisible()
+    // 부제 설명 — 무엇이 어떻게 적히는지(검색 1줄·번호열람 별도·200건)
+    expect(screen.getByText(/검색은 실행 1회당 한 줄.*번호 보기는.*별도로 기록.*최대 200건/)).toBeVisible()
     await screen.findByText('2026.08.15 09:41:07')
     expect(screen.queryByRole('button', { name: /삭제|수정|되돌리기/ })).toBeNull()
   })
