@@ -34,8 +34,23 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
   }
 
   return (
-    <div data-testid="overview-grid" style={styles.wrap}>
-      <table style={styles.table}>
+    <div>
+      {/* [SCHED-GRID-01·04] 범례 — 격자 셀의 「시각 / 한 칸·정원 / 휴진 빗금」이 무슨 뜻인지 + 눌러서 이동한다는 안내. */}
+      <div style={styles.legend}>
+        <span style={styles.legendItem}>
+          <span style={styles.legendNum}>09–18</span> 진료 시간
+        </span>
+        <span style={styles.legendItem}>
+          <span style={styles.legendNum}>15분 · 40명</span> 한 칸 길이 · 하루 최대 인원
+        </span>
+        <span style={styles.legendItem}>
+          <span style={styles.legendSwatch} /> 휴진
+        </span>
+        <span style={styles.legendHint}>칸을 누르면 그 의사 스케줄로 이동합니다</span>
+      </div>
+
+      <div data-testid="overview-grid" style={styles.wrap}>
+        <table style={styles.table}>
         <thead>
           <tr>
             <th style={{ ...styles.th, ...styles.thDoctor }}>의사</th>
@@ -84,7 +99,8 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   )
 }
@@ -92,6 +108,26 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
 const HATCH = 'repeating-linear-gradient(45deg, rgba(90,108,123,0.16) 0 4px, transparent 4px 8px)'
 
 const styles: Record<string, CSSProperties> = {
+  legend: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 16,
+    rowGap: 4,
+    marginBottom: 8,
+    fontSize: 'var(--fs-sm)',
+    color: 'var(--color-ink-muted)',
+  },
+  legendItem: { display: 'inline-flex', alignItems: 'center', gap: 4 },
+  legendNum: { fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' },
+  legendSwatch: {
+    display: 'block',
+    width: 24,
+    height: 12,
+    borderRadius: 4,
+    backgroundImage: HATCH,
+  },
+  legendHint: { color: 'var(--color-ink-muted)', opacity: 0.75 },
   wrap: {
     overflowX: 'auto',
     border: '1px solid var(--color-divider)',

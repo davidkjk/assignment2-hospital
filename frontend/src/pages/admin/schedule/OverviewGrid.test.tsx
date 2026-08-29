@@ -32,6 +32,15 @@ test('[SCHED-GRID-01][SCHED-GRID-02] 행=의사·열=요일이고 여기서 고�
   expect(within(gridElement()).queryAllByRole('textbox')).toHaveLength(0)
 })
 
+test('[SCHED-GRID-01][SCHED-GRID-04] 범례가 시각·정원·휴진 뜻과 클릭 안내를 준다', () => {
+  renderGrid()
+  expect(screen.getByText('진료 시간')).toBeVisible()
+  expect(screen.getByText('한 칸 길이 · 하루 최대 인원')).toBeVisible()
+  expect(screen.getByText('칸을 누르면 그 의사 스케줄로 이동합니다')).toBeVisible()
+  // 범례 예시 시각은 격자와 같은 형식(09–18)이어야 한다 — SCHED-GRID-01
+  expect(screen.getAllByText('09–18').length).toBeGreaterThan(0)
+})
+
 test('[SCHED-GRID-03] 칸을 누르면 그 의사·그 요일로 고치러 간다', async () => {
   const user = userEvent.setup()
   const { onCell } = renderGrid()
