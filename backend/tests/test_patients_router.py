@@ -51,11 +51,25 @@ def _auth(seed):
     return {"Authorization": f"Bearer {_make_token(str(seed['auth_user_id']))}"}
 
 
-async def test_목록은_접수직원과_관리자만_연다(client, committed_conn):
-    """[ROLE-READ][ROLE-DOC-02] 의사가 보는 범위는 자기 예약이다 — 환자 목록 전체는 못 연다."""
+async def test_의사도_환자검색을_열되_본인_담당_환자로_스코프된다(client, committed_conn):
+    """[SHELL-NAV-03][ROLE-DOC-02] 의사 사이드바엔 「환자 검색」이 있다 — 403으로 막으면 막다른 길(#10).
+
+    「자기 것만」은 화면 차단이 아니라 RLS(doctor_can_read_scoped_patients)의 스코프다. 담당이
+    아닌 환자는 403이 아니라 결과에서 빠진다(열거 방지). 예전엔 라우터가 doctor를 빼 403이었다.
+    """
     doctor = await seed_staff(committed_conn, role="doctor")
+    await _seed_patient(committed_conn)  # 이 의사와 예약(담당관계)이 없는 환자
     resp = client.get("/patients", params={"q": "김"}, headers=_auth(doctor))
-    assert resp.status_code == 403
+    assert resp.status_code == 200          # 예전엔 403 — SHELL-NAV-03 위반이었다
+    assert resp.json()["rows"] == []        # 담당 아닌 환자는 막지 않고 「안 보인다」
+
+
+async def test_의사_상세는_담당_아니면_403이_아니라_404다(client, committed_conn):
+    """[SHELL-NAV-03] 검색→상세로 이어져도 막다른 길(403)이 아니다 — 담당 아닌 환자는 404(열거 안전). #10."""
+    doctor = await seed_staff(committed_conn, role="doctor")
+    pid = await _seed_patient(committed_conn)
+    resp = client.get(f"/patients/{pid}", headers=_auth(doctor))
+    assert resp.status_code == 404  # 403이 아니다 — 존재 여부를 드러내지 않는다
 
 
 async def test_목록_응답에_원본_번호가_아예_없다(client, committed_conn):

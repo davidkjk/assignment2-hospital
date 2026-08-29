@@ -103,7 +103,7 @@
 
 > 환경 3점 정상화 확인(마이그 00070·71·72 적용 · uvicorn stale 아님 · 시드 정상). `system_error_log`는 시드 픽스처(Aside 오독). 상세 = HANDOFF 「⭐ 갱신(2026-08-29 낮)」.
 
-- 🔴 **#10 의사검색 = 403(실측)**: `doctor GET /patients?q=김 → 403` → 화면"0명". reception·admin=8명. **⚠ 규칙충돌 발견(수정 방향 미정)**: 백엔드 `patients.py:57`은 `require_role("receptionist","admin")`로 doctor 제외 = **설계대로**(주석: "의사 조회범위는 자기 예약, 전체 창구 안 연다 `ROLE-DOC-02`"). 그런데 규칙 `SHELL-NAV-03`·`DOCTOR-SHELL-01`은 **의사 메뉴에 "환자 검색"을 준다**(2개 중 하나). 즉 의사 검색은 "자기 예약 환자 범위"여야 하는데(`ROLE-DOC-02` "자기 것만"), 프론트가 전체검색 API(`GET /patients`)를 불러 403. **→ 결정 필요**: (a) 의사에게서 "환자 검색" 메뉴를 뺀다 / (b) 의사용 "자기 예약 환자" 검색 경로를 새로 판다. 규칙은 (b) 쪽(메뉴 존치)을 가리킴.
+- ✅ **#10 의사검색 403 — 해소(2026-08-29)**: **결정 불필요였다** — 규칙(`SHELL-NAV-03`·`DOCTOR-SHELL-01` 의사 메뉴에 환자 검색) + 요구사항 L153(의사 본인 환자 조회) + **기존 RLS `doctor_can_read_scoped_patients`(00005:244)** + `search_patients`가 RLS 경유 커넥션(`acquire_as`)까지 **만장일치로 (b)를 이미 구현**해 둠. 막던 건 라우터 `require_role`뿐. **수정**: `GET /patients`(검색)·`GET /patients/{id}`(상세)에 `"doctor"` 추가 → RLS가 본인 담당으로 자동 스코프. `ROLE-DOC-02` "자기 것만"은 화면 차단이 아니라 RLS 스코프란 뜻. **라이브 검증**: 오도현 3명 중 doctor1 담당 2명만 검색에 뜨고(403→200), 비담당 1명은 상세 404(admin은 200) = 열거 안전·누수 없음. 낡은 테스트(`test_목록은_접수직원과_관리자만_연다`가 403 못박음)를 규칙대로 정정 + 상세 404 테스트 추가.
 - 🟠 **#6 hours/closures GET 누락(확정)**: admin 전 라우트서 `GET /admin/hours`404·`/admin/closures`405. 백엔드 `schedule_admin.py`에 PUT/POST만, GET 없음. **단 일정 전체현황 화면은 정상 렌더** → 영향은 휴진일·운영시간 **편집**에 국한 추정. 전역 컴포넌트가 prefetch.
 - 🟡 staff 재초대 409 + pageerror — "이미 수락한 계정" 문구로 처리됨, 콘솔만 오염(프론트가 에러 throw).
 - ⚪ **#2·#3·#5·#9(어제 "조용한 실패") = 정상환경 크롤서 500 안 남** → 빈시드 환경 + Aside 오독 유력. (단 #3·#5·#9는 상태의존이라 완전 배제는 못 함.)

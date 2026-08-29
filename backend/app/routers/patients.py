@@ -54,7 +54,7 @@ class FamilyUnlinkRequest(BaseModel):
 async def list_patients(
     q: str | None = None,
     cursor: str | None = None,
-    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+    staff: StaffContext = Depends(require_role("receptionist", "admin", "doctor")),
 ) -> dict:
     """[MASK-SRV-01][SEARCH-*] 검색 결과(마스킹) + 다음 페이지 커서 + 검색 기록.
 
@@ -129,9 +129,13 @@ async def duplicate_check(
 @router.get("/{patient_id}")
 async def get_patient(
     patient_id: UUID,
-    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+    staff: StaffContext = Depends(require_role("receptionist", "admin", "doctor")),
 ) -> dict:
-    """[MASK-DETAIL-01] 상세(전체) + 진입 기록."""
+    """[MASK-DETAIL-01] 상세(전체) + 진입 기록.
+
+    [SHELL-NAV-03][ROLE-DOC-02] 의사도 사이드바 「환자 검색」→ 상세로 온다. RLS
+    `doctor_can_read_scoped_patients`가 본인 담당 환자로 스코프하고, 아니면 404(열거 안전).
+    """
     return await patient_service.get_patient_detail(patient_id, staff)
 
 
