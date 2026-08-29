@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
@@ -127,11 +127,75 @@ function buildCss(platform) {
   return lines.join('\n');
 }
 
-export { tokens, buildCss, deltaE, deltaE2000 };
+/** '#RRGGBB' → Dart 'Color(0xFFRRGGBB)'. 화면 코드가 하드코딩 대신 이 상수를 쓴다. */
+function hexToDartColor(hex) {
+  const match = HEX_COLOR.exec(hex);
+  if (!match) throw new TypeError(`Expected a six-digit hex color, received: ${hex}`);
+  return `Color(0xFF${match[1].toUpperCase()})`;
+}
+
+/** '132px' → '132.0' (Dart double 리터럴). */
+function pxToDartDouble(value) {
+  const match = /^(\d+(?:\.\d+)?)px$/.exec(value);
+  if (!match) throw new TypeError(`Expected a px length, received: ${value}`);
+  const number = Number(match[1]);
+  return Number.isInteger(number) ? `${number}.0` : `${number}`;
+}
+
+/**
+ * 환자 앱(Flutter) 시각 토큰을 tokens.json에서 생성한다(CSS와 대칭).
+ * DISP-GRAY-01/02/03 · DISP-CARD-01 · DISP-WARN-01.
+ * grayDone·warn은 공용 color.*를 재사용하고, 환자 앱 전용 값만 patientApp.*에서 읽는다
+ * → 직원 웹 CSS(buildCss)는 patientApp을 읽지 않으므로 이 파일이 늘어도 무영향.
+ */
+function buildDart() {
+  const grayPending = hexToDartColor(tokens.patientApp.grayPending);
+  const grayDone = hexToDartColor(tokens.color['gray-past']);
+  const warn = hexToDartColor(tokens.color.warn);
+  const warnBarWidth = pxToDartDouble(tokens.patientApp.warnBarWidth);
+  const cardBodyHeight = pxToDartDouble(tokens.patientApp.cardBodyHeight);
+  const bodySize = pxToDartDouble(tokens.patientApp.body).replace(/\.0$/, '');
+
+  return `import 'package:flutter/material.dart';
+
+// 생성된 파일 — 편집하지 않는다. design-tokens/tokens.json에서 생성됨(build.mjs buildDart).
+// 화면 코드는 색·크기·카드 규격을 여기서만 가져온다(하드코딩 금지).
+class AppTokens {
+  AppTokens._();
+
+  // DISP-GRAY-01/02/03 — 회색은 두 진하기뿐. 새 색을 만들지 않는다.
+  static const Color grayPending = ${grayPending}; // patientApp.grayPending (아직 안 된 일)
+  static const Color grayDone = ${grayDone}; // color.gray-past (이미 끝난 일)
+  static const List<Color> grays = [grayPending, grayDone];
+
+  // DISP-WARN-01 — 주의색(color.warn 통일): 배경 없이 글자 + 좌측 바.
+  static const Color warn = ${warn};
+  static const double warnBarWidth = ${warnBarWidth};
+
+  // DISP-CARD-01 — 카드 본문 높이 고정.
+  static const double cardBodyHeight = ${cardBodyHeight};
+
+  static ThemeData get theme => ThemeData(
+        useMaterial3: true,
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(fontSize: ${bodySize}), // patientApp.body
+        ),
+      );
+}
+`;
+}
+
+export { tokens, buildCss, buildDart, deltaE, deltaE2000 };
 
 const invokedDirectly = process.argv[1]
   && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
   const platform = process.argv[2] || 'staff-web';
-  writeFileSync(new URL('../frontend/src/styles/tokens.css', import.meta.url), buildCss(platform));
+  if (platform === 'flutter' || platform === 'dart' || platform === 'patient-app') {
+    const dartPath = new URL('../patient_app/lib/core/tokens.dart', import.meta.url);
+    mkdirSync(new URL('../patient_app/lib/core/', import.meta.url), { recursive: true });
+    writeFileSync(dartPath, buildDart());
+  } else {
+    writeFileSync(new URL('../frontend/src/styles/tokens.css', import.meta.url), buildCss(platform));
+  }
 }

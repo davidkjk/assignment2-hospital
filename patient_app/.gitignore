@@ -1,0 +1,6 @@
+# Flutter/Dart 빌드 산출물 — pubspec.lock은 앱이므로 커밋한다.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+.packages

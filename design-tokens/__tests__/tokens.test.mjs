@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildCss, tokens, deltaE } from '../build.mjs';
+import { buildCss, buildDart, tokens, deltaE } from '../build.mjs';
 import { lintSource } from '../lint-tokens.mjs';
 
 /** WCAG 상대 휘도 → 대비비. 색만으로 상태를 구분하지 않더라도(DISP-COLOR-01)
@@ -161,6 +161,28 @@ describe('생성물 — 단일 원본에서 플랫폼 파일을 만든다', () =
   test('체크인된 tokens.css가 생성기 출력과 일치한다(수동 편집 감지)', () => {
     const onDisk = readFileSync(new URL('../../frontend/src/styles/tokens.css', import.meta.url), 'utf8');
     expect(onDisk).toBe(buildCss('staff-web'));
+  });
+
+  test('환자 앱 Dart 토큰이 같은 원본에서 나온다 — 값·형식 (DISP-* 12)', () => {
+    const dart = buildDart();
+    // 규칙이 못박은 값: 회색 두 진하기 · 카드 높이 · 주의 바 폭.
+    expect(dart).toContain('grayPending = Color(0xFF7E8E99)'); // patientApp.grayPending
+    expect(dart).toContain('grayDone = Color(0xFFA3AFB8)');    // color.gray-past 재사용
+    expect(dart).toContain('warn = Color(0xFFB44E00)');        // color.warn 통일(별도 오렌지 신설 안 함)
+    expect(dart).toContain('cardBodyHeight = 132.0');
+    expect(dart).toContain('warnBarWidth = 4.0');
+    expect(dart).toMatch(/생성된 파일 — 편집하지 않는다/);
+  });
+
+  test('직원 웹 CSS는 환자 앱 토큰을 방출하지 않는다 — 토큰이 늘어도 직원 웹 무영향', () => {
+    // 환자 앱 전용 값(grayPending·cardBodyHeight)이 직원 웹 tokens.css에 새면 색이 바뀐 것.
+    const css = buildCss('staff-web');
+    expect(css).not.toMatch(/patientApp|grayPending|cardBodyHeight|warnBarWidth/);
+  });
+
+  test('체크인된 tokens.dart가 생성기 출력과 일치한다(수동 편집 감지)', () => {
+    const onDisk = readFileSync(new URL('../../patient_app/lib/core/tokens.dart', import.meta.url), 'utf8');
+    expect(onDisk).toBe(buildDart());
   });
 });
 
