@@ -113,7 +113,9 @@
 
 > 사용자가 실 Chrome으로 캘린더를 돌며 실시간 발견. **원인은 확인된 만큼만, 수정은 한 바퀴 후 일괄.** 규칙대조 후 진짜버그만 추림.
 
-- 🔴 **L1 [캘린더] 예약 취소·변경 전면 미배선 (근본원인 확정)**: `AppointmentPanelLoader.tsx`가 `AppointmentPanel`에 **`onCancel`·`onReschedule`를 안 넘김**(`onClose`만). + 프론트에 **예약취소 API 함수 자체가 없음**(`schedule.ts`에 `rescheduleAppointment`만, cancel 없음). `openAppointment`가 캘린더 예약 여는 **유일 경로** → **모든 예약의 취소/변경이 무동작**. 증상(사용자): 취소 확인해도 패널 안 닫히고 결과 불명 / 변경 무동작. → 규칙대조(`CAL-PANEL-*` 이 패널이 취소/변경 실행 화면인지) 후 배선.
+- 🟠 **L1 [캘린더] 예약 취소·변경 미배선 — 취소 해소(2026-08-29 밤), 변경(reschedule)은 잔여**: 근본원인은 `AppointmentPanelLoader.tsx`가 `AppointmentPanel`에 **`onCancel`·`onReschedule`를 안 넘김**(`onClose`만)이었다. `openAppointment`가 캘린더 예약 여는 **유일 경로**라 모든 취소/변경이 무동작. 규칙대조 완료 = `CAL-PANEL-01`이 취소·변경 실행 화면이 맞음(설계결정 아님).
+  - ✅ **취소 배선 완료**: 취소 API는 새로 만들 필요 없었다 — 기존 `transitionStatus`(`api/appointments.ts`)를 `new_status='병원취소'`로 재사용. ① 백엔드 `get_appointment_detail`에 낙관잠금값 `updated_at` 추가(없어서 취소가 `expected_updated_at`을 못 채웠다) ② 로더가 `useMutation`으로 병원취소 전이 → 성공 시 `onDone`(패널 닫고 `query.refetch()`로 취소된 막대 제거) ③ 실패 시 패널 `actionError` 인라인 안내(G1 — 무동작 대신 이유). **검증**: 프론트 vitest(CalendarPage 취소 end-to-end + 캘린더 124/124) + tsc 0 + lint:clock + **라이브 curl**(GET 상세 updated_at 실림·PATCH 병원취소 200·예약확정→병원취소 전이) + 백엔드 pytest(CI, `test_CAL_PANEL_01_..._updated_at`).
+  - ⏳ **변경(reschedule)은 잔여 — 별도 흐름**: 백엔드(`POST /appointments/{id}/reschedule`)·프론트 API(`rescheduleAppointment`)는 이미 있으나, "**캘린더 격자에서 새 시간 고르기**"(`SUPPORT-PANEL-CHANGE-01`·`CAL-PANEL-02/03`) 상호작용 모드가 미구현이라 로더가 `onReschedule`을 아직 안 넘긴다(=[예약 변경] 버튼은 여전히 무동작, 단 **이전에도 무동작이라 회귀 아님**). `DayGrid.onEmptyClick(doctorId, startMin)` 인프라는 이미 있음 — reschedule 모드 상태 + 확인 팝업(`NAV-APPT-09`) + 사유 수집만 얹으면 됨. 다음 태스크.
 - ℹ️ **L2 [캘린더] "변경상담/취소상담" 배지 = 설계**(버그 아님): 환자앱/상담봇의 변경·취소 요청이 상담연결된 것(`SUPPORT-CAL-*`, "담당 미배정"=미인수). 단 **L1 때문에 처리 자체가 안 됨**.
 - 🟠 **L3 [캘린더] 미니캘린더 월 이동 불가**: 8월만 보이고 예약범위 8월–10월인데 9·10월로 못 넘어감. `CalendarNav`의 `‹›`는 `shiftAnchor`로 하루/한주 단위(월 점프 아님). `MiniCalendar` 월 네비 부재 추정(코드 미확인). = L8과 연결.
 - 🟡 **L4 [캘린더] 미니캘린더 팝업 outside-click 미닫힘**: 바깥 클릭해도 안 닫히고 토글 재클릭 필요. `miniOpen` 바깥클릭 핸들러 부재 추정.

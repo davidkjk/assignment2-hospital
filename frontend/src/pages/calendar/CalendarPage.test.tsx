@@ -48,7 +48,8 @@ function appointmentOk(over: Record<string, unknown> = {}) {
     http.get('*/appointments/:id', () =>
       HttpResponse.json({
         appointment_id: 'a1', status: 'confirmed', doctor_name: '박지훈', department_name: '내과',
-        start: '2026-08-06T10:00:00', patient: { patient_id: 'p1', name: '김*지' }, support: null, ...over,
+        start: '2026-08-06T10:00:00', updated_at: '2026-08-06T00:30:00Z',
+        patient: { patient_id: 'p1', name: '김*지' }, support: null, ...over,
       }),
     ),
   )
@@ -177,6 +178,44 @@ test('[CAL-SLOT-07] 예약 블록을 누르면 오른쪽에 예약 상세 패널
   await user.click(screen.getByText('김*지'))
   const panel = await screen.findByRole('complementary', { name: '패널' })
   expect(await within(panel).findByRole('button', { name: '예약 변경' })).toBeVisible()
+})
+
+test('[CAL-PANEL-01][L1] 예약 취소는 사유를 받아 병원취소로 전이하고 캘린더를 새로고침한다', async () => {
+  // 회귀 가드: 예전엔 로더가 onCancel을 안 넘겨 [예약 취소]가 무동작이었다(G1). 이제 병원취소
+  // 전이(낙관잠금 expected_updated_at)를 부르고, 성공하면 격자를 새로 읽어 막대가 사라진다.
+  let patched: Record<string, unknown> | null = null
+  let calendarCalls = 0
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', () => {
+      calendarCalls += 1
+      return HttpResponse.json(calendarCalls === 1 ? DATA : { ...DATA, appointments: [] })
+    }),
+    http.patch('*/appointments/a1/status', async ({ request }) => {
+      patched = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ status: 'updated' })
+    }),
+  )
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 취소' }))
+  const dialog = await screen.findByRole('dialog', { name: '예약을 취소할까요?' })
+  await user.type(within(dialog).getByRole('textbox'), '환자 요청')
+  await user.click(within(dialog).getByRole('button', { name: '확인' }))
+
+  await waitFor(() =>
+    expect(patched).toEqual({
+      new_status: '병원취소',
+      reason: '환자 요청',
+      expected_updated_at: '2026-08-06T00:30:00Z',
+    }),
+  )
+  // onDone → 패널 닫힘 + 캘린더 새로고침 → 취소된 막대가 사라진다.
+  await waitFor(() => expect(screen.queryByText('김*지')).not.toBeInTheDocument())
 })
 
 test('[CAL-PANEL-*] 딥링크한 예약이 오늘 격자에 없어도(미래 날짜 상담) 패널이 채워진다', async () => {

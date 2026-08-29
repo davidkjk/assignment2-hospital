@@ -465,6 +465,24 @@ async def test_투데이_닥_01_의사별_진료대기_인원을_진료과와_�
 
 # ── 로컬 헬퍼 ─────────────────────────────────────────────────────────────
 
+@pytest.mark.asyncio
+async def test_CAL_PANEL_01_예약_상세는_취소_낙관잠금용_updated_at을_준다(db_conn):
+    """[CAL-PANEL-01][L1] 패널의 [예약 취소]는 병원취소 전이(transition_status)를 부르는데, 그
+    전이는 expected_updated_at을 요구한다(409 동시수정 방지). 상세 응답이 updated_at을 주지
+    않으면 패널이 취소를 실행할 수 없어 [예약 취소]가 무동작이었다(G1). 응답에 실려야 한다."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    appt = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p, slot_id=slot, status="예약확정")
+    await set_session_auth(db_conn, admin.auth_user_id)
+    d = await dashboard_service.get_appointment_detail(appt, admin, conn=db_conn)
+    assert "updated_at" in d and isinstance(d["updated_at"], str) and d["updated_at"]
+
+
 async def _seed_admin(conn, role="admin"):
     from tests.conftest import seed_staff
     return await seed_staff(conn, role=role)

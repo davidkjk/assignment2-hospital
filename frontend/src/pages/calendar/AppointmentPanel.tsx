@@ -32,6 +32,8 @@ export interface AppointmentPanelProps {
   onReschedule?: () => void
   onCancel?: (reason: string) => void | Promise<void>
   onClose?: () => void
+  /** 취소/변경 실패 시 인라인으로 보이는 문구(G1 — 무동작 대신 이유를 보인다). */
+  actionError?: string | null
 }
 
 const SUPPORT_TITLE: Record<SupportType, string> = {
@@ -39,7 +41,7 @@ const SUPPORT_TITLE: Record<SupportType, string> = {
   reschedule: '변경 상담',
 }
 
-export function AppointmentPanel({ appointment, support, onReschedule, onCancel, onClose }: AppointmentPanelProps) {
+export function AppointmentPanel({ appointment, support, onReschedule, onCancel, onClose, actionError }: AppointmentPanelProps) {
   const [asking, setAsking] = useState(false)
 
   return (
@@ -89,6 +91,10 @@ export function AppointmentPanel({ appointment, support, onReschedule, onCancel,
           예약 취소
         </button>
       </div>
+
+      {actionError && (
+        <p className="cal-support-line is-error" role="alert">{actionError}</p>
+      )}
 
       {asking && (
         <ReasonPromptDialog

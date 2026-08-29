@@ -146,7 +146,16 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
     panel.openPanel({
       title: '예약 상세',
       origin: '/calendar',
-      content: <AppointmentPanelLoader appointmentId={appointmentId} onClose={() => panel.closePanel()} />,
+      content: (
+        <AppointmentPanelLoader
+          appointmentId={appointmentId}
+          onClose={() => panel.closePanel()}
+          onDone={() => {
+            panel.closePanel()
+            void query.refetch()
+          }}
+        />
+      ),
     })
   }
 

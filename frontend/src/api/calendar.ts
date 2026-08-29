@@ -61,6 +61,8 @@ export interface AppointmentDetailData {
   doctor_name: string | null
   department_name: string | null
   start: string | null
+  /** [CAL-PANEL-01][L1] 취소(병원취소 전이)의 낙관적 잠금 값 — transition_status가 요구한다. */
+  updated_at: string
   patient: { patient_id: string; name?: string; masked_phone?: string; masked_birth_date?: string }
   support: { request_type: string; requested_at: string } | null
 }

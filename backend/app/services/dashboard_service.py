@@ -485,7 +485,7 @@ async def get_appointment_detail(appointment_id, staff: StaffContext, *, conn=No
     async def _run(c):
         row = await c.fetchrow(
             """
-            select a.id, a.status, a.request_type, a.support_requested_at,
+            select a.id, a.status, a.request_type, a.support_requested_at, a.updated_at,
                    a.for_patient_id, p.name, p.phone, p.birth_date,
                    d.name as doctor_name, dept.name as department_name,
                    s.slot_date, s.start_time
@@ -512,6 +512,10 @@ async def get_appointment_detail(appointment_id, staff: StaffContext, *, conn=No
             "doctor_name": row["doctor_name"],
             "department_name": row["department_name"],
             "start": start,
+            # [CAL-PANEL-01][L1] 패널의 취소(병원취소 전이)가 요구하는 낙관적 잠금 값 —
+            # transition_status가 expected_updated_at으로 동시수정을 막는다(409). 이게 없으면
+            # 패널이 취소를 실행할 수 없어 [예약 취소]가 무동작이었다(G1).
+            "updated_at": row["updated_at"].isoformat(),
             "patient": patient_row_dto(patient_id=row["for_patient_id"], name=row["name"],
                                        phone=row["phone"], birth_date=row["birth_date"]),
             "support": support,
