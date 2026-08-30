@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -10,6 +11,8 @@ from app.services.slot_service import book_slot, release_slot
 
 CHANGEABLE_STATUSES = ("예약신청", "예약확정")
 PATIENT_SOURCES = ("app", "chatbot")  # 'staff'는 직원 경로 전용 — 환자 서비스는 거부(4단계 챗봇 공유 계약)
+KST = ZoneInfo("Asia/Seoul")
+SUPPORT_TYPES = ("취소", "변경")  # 마감 후 상담 연결 종류(#26 — 변경도 취소와 같은 상담)
 
 
 async def _initial_status(conn) -> str:
@@ -124,3 +127,69 @@ async def change_booking(patient: PatientContext, appointment_id: UUID, new_slot
         except asyncpg.PostgresError as exc:
             raise AppError("예약을 변경할 수 없습니다. 잠시 후 다시 시도해주세요.", status_code=400) from exc
     return new_id
+
+
+async def cancel_appointment(patient: PatientContext, appointment_id: UUID,
+                             expected_updated_at: datetime) -> dict:
+    """마감 전/30분 유예(C-5)면 즉시 취소, 마감 후면 after_deadline만 알린다(취소 안 함).
+    CANCEL-PRE-05: 사유를 받지 않는다. 상태 이력은 트리거가 자동으로 남긴다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select a.status, a.slot_id, a.created_at, a.updated_at, s.slot_date, s.start_time "
+            "from appointments a left join appointment_slots s on s.id = a.slot_id where a.id=$1",
+            appointment_id)
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        if row["updated_at"] != expected_updated_at:  # APPT-RACE-01
+            raise AppError("예약이 이미 변경되었습니다.", status_code=409)
+        if row["status"] not in CHANGEABLE_STATUSES:
+            raise AppError("이미 취소되었거나 완료된 예약입니다.", status_code=400)
+
+        now_kst = datetime.now(KST)
+        # CANCEL-NEW-04(C-5): 만든 지 30분 이내면 마감과 무관하게 즉시 취소.
+        within_grace = row["created_at"].astimezone(KST) + timedelta(minutes=30) > now_kst
+        before_deadline = True
+        if row["slot_date"] is not None:
+            # 환자 세션은 hospital_settings를 통째로 못 읽는다(staff 전용 SELECT 정책) →
+            # cancellation_deadline_hours 한 칸만 여는 definer 창구로 읽는다(00025, 없으면 기본 24).
+            hours = await conn.fetchval("select get_cancellation_deadline_hours()")
+            appt_dt = datetime.combine(row["slot_date"], row["start_time"], tzinfo=KST)
+            before_deadline = now_kst <= appt_dt - timedelta(hours=hours)
+
+        if within_grace or before_deadline:
+            try:
+                await conn.execute(                                # C2-#6: 취소 주체=환자쪽. 병원취소는 직원웹이 'hospital'을 쓴다.
+                    "update appointments set status='환자취소', cancelled_by='patient', cancelled_at=now(), "
+                    "updated_at=now() where id=$1", appointment_id)  # 가족 대행분의 relation/name 채우기는 CARD-CXL-03 write 로직(⑦)
+            except asyncpg.PostgresError as exc:  # 원문 노출 금지
+                raise AppError("예약을 취소할 수 없습니다. 잠시 후 다시 시도해주세요.", status_code=400) from exc
+            if row["slot_id"] is not None:
+                await release_slot(row["slot_id"], patient, conn=conn)
+            return {"cancelled": True, "after_deadline": False}
+        # 마감 후: 취소하지 않는다. 화면이 CANCEL-LATE 팝업 → [상담 채팅 연결] → request_support().
+        return {"cancelled": False, "after_deadline": True}
+
+
+async def request_support(patient: PatientContext, appointment_id: UUID, request_type: str) -> dict:
+    """CANCEL-LATE-11: [상담 채팅 연결]을 눌렀을 때만 support_requested_at+request_type를 기록한다.
+    이미 요청했으면 멱등(CANCEL-LATE-14). 상태는 바꾸지 않고, 감사 note만 from=to로 남긴다."""
+    if request_type not in SUPPORT_TYPES:
+        raise AppError("허용되지 않은 요청 종류입니다.", status_code=400)
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select status, support_requested_at from appointments where id=$1", appointment_id)
+        if row is None:
+            raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+        if row["status"] not in CHANGEABLE_STATUSES:
+            raise AppError("이미 취소되었거나 완료된 예약입니다.", status_code=400)
+        if row["support_requested_at"] is not None:  # CANCEL-LATE-14 멱등
+            return {"support_requested": True, "already_requested": True}
+        await conn.execute(
+            "update appointments set support_requested_at=now(), request_type=$2, updated_at=now() where id=$1",
+            appointment_id, request_type)
+        # 상태변화 없는 감사 note(patients_can_insert_note_history) — from=to. 내부 기록이라 환자 노출 문구 아님.
+        await conn.execute(
+            "insert into appointment_status_history "
+            "(appointment_id, from_status, to_status, changed_by_patient_id, reason) values ($1,$2,$2,$3,$4)",
+            appointment_id, row["status"], patient.id, f"마감 후 {request_type} 상담 연결")
+        return {"support_requested": True, "already_requested": False}

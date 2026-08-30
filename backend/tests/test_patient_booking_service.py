@@ -1,5 +1,6 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from uuid import uuid4, UUID
 
 from app.core.errors import AppError
@@ -151,3 +152,106 @@ async def test_change_booking_rejects_stale_updated_at(committed_conn):
             ctx["patient"], old_id, new_slot, reason="시간 변경", expected_updated_at=stale)
     assert e.value.status_code == 409
     assert await committed_conn.fetchval("select status from appointment_slots where id=$1", new_slot) == "빈시간"  # 점유 안 함
+
+
+# ── Task 6: 취소(30분 유예 C-5·낙관적 잠금) + 마감 후 지원요청 ──────────────
+
+async def _make_future_appt(committed_conn, ctx, *, days=10):
+    """마감(기본 24h 전)에 여유 있는 미래 슬롯 예약 하나."""
+    d = (datetime.now(ZoneInfo("Asia/Seoul")) + timedelta(days=days)).date()
+    slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,$2,'09:00') returning id",
+        ctx["doctor_id"], d)
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=slot, reason="감기", request_id=uuid4())
+    return aid, slot
+
+
+@pytest.mark.asyncio
+async def test_cancel_before_deadline_cancels_immediately(committed_conn):
+    # CANCEL-PRE: 마감 전이면 즉시 환자취소 + 슬롯 반납.
+    ctx = await _seed_base(committed_conn)
+    aid, slot = await _make_future_appt(committed_conn, ctx)
+    uat = await committed_conn.fetchval("select updated_at from appointments where id=$1", aid)
+    result = await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=uat)
+    assert result == {"cancelled": True, "after_deadline": False}
+    assert await committed_conn.fetchval("select status from appointments where id=$1", aid) == "환자취소"
+    assert await committed_conn.fetchval("select cancelled_by from appointments where id=$1", aid) == "patient"
+    assert await committed_conn.fetchval("select status from appointment_slots where id=$1", slot) == "빈시간"
+
+
+@pytest.mark.asyncio
+async def test_cancel_within_30min_grace_ignores_deadline(committed_conn):
+    # CANCEL-NEW(C-5): 마감이 지난 오늘 슬롯이라도 만든 지 30분 이내면 즉시 취소된다.
+    ctx = await _seed_base(committed_conn)
+    soon = (datetime.now(ZoneInfo("Asia/Seoul")) + timedelta(hours=1))
+    slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,$2,$3) returning id",
+        ctx["doctor_id"], soon.date(), soon.time().replace(microsecond=0))
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=slot, reason="감기", request_id=uuid4())  # 방금 생성 → 30분 이내
+    uat = await committed_conn.fetchval("select updated_at from appointments where id=$1", aid)
+    result = await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=uat)
+    assert result == {"cancelled": True, "after_deadline": False}
+    assert await committed_conn.fetchval("select status from appointments where id=$1", aid) == "환자취소"
+
+
+@pytest.mark.asyncio
+async def test_cancel_after_deadline_does_not_cancel(committed_conn):
+    # CANCEL-LATE: 마감 후 + 30분 유예도 지났으면 취소하지 않고 after_deadline만 알린다(예약·슬롯 유지).
+    ctx = await _seed_base(committed_conn)
+    soon = (datetime.now(ZoneInfo("Asia/Seoul")) + timedelta(hours=1))
+    slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,$2,$3) returning id",
+        ctx["doctor_id"], soon.date(), soon.time().replace(microsecond=0))
+    aid = await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=slot, reason="감기", request_id=uuid4())
+    await committed_conn.execute("update appointments set created_at = now() - interval '1 hour' where id=$1", aid)  # 30분 유예 소진
+    uat = await committed_conn.fetchval("select updated_at from appointments where id=$1", aid)
+    result = await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=uat)
+    assert result == {"cancelled": False, "after_deadline": True}
+    assert await committed_conn.fetchval("select status from appointments where id=$1", aid) in ("예약신청", "예약확정")
+    assert await committed_conn.fetchval("select status from appointment_slots where id=$1", slot) == "예약됨"
+
+
+@pytest.mark.asyncio
+async def test_cancel_rejects_stale_updated_at(committed_conn):
+    # APPT-RACE-01: 취소도 낙관적 잠금. 화면이 본 버전과 다르면 409, 예약 그대로.
+    ctx = await _seed_base(committed_conn)
+    aid, slot = await _make_future_appt(committed_conn, ctx)
+    stale = datetime.fromisoformat("2000-01-01T00:00:00+00:00")
+    with pytest.raises(AppError) as e:
+        await patient_booking_service.cancel_appointment(ctx["patient"], aid, expected_updated_at=stale)
+    assert e.value.status_code == 409
+    assert await committed_conn.fetchval("select status from appointments where id=$1", aid) in ("예약신청", "예약확정")
+
+
+@pytest.mark.asyncio
+async def test_request_support_records_and_is_idempotent(committed_conn):
+    # CANCEL-LATE-11: [상담 채팅 연결]을 눌러야 support_requested_at+request_type 기록. 감사 note 1행(from=to).
+    ctx = await _seed_base(committed_conn)
+    aid, _ = await _make_future_appt(committed_conn, ctx)
+    first = await patient_booking_service.request_support(ctx["patient"], aid, request_type="취소")
+    assert first == {"support_requested": True, "already_requested": False}
+    row = await committed_conn.fetchrow("select support_requested_at, request_type from appointments where id=$1", aid)
+    assert row["support_requested_at"] is not None and row["request_type"] == "취소"
+    # 상태는 안 바뀐다(예약 유지). 지원요청 감사 note는 from=to로 1행(생성 트리거 note는 from=null이라 제외).
+    notes = await committed_conn.fetch(
+        "select from_status, to_status from appointment_status_history "
+        "where appointment_id=$1 and changed_by_patient_id is not null and from_status = to_status", aid)
+    assert len(notes) == 1 and notes[0]["from_status"] == notes[0]["to_status"]
+    # CANCEL-LATE-14: 이미 요청했으면 멱등(두 번째는 already_requested).
+    second = await patient_booking_service.request_support(ctx["patient"], aid, request_type="취소")
+    assert second == {"support_requested": True, "already_requested": True}
+
+
+@pytest.mark.asyncio
+async def test_request_support_rejects_bad_type(committed_conn):
+    ctx = await _seed_base(committed_conn)
+    aid, _ = await _make_future_appt(committed_conn, ctx)
+    with pytest.raises(AppError) as e:
+        await patient_booking_service.request_support(ctx["patient"], aid, request_type="기타")
+    assert e.value.status_code == 400
