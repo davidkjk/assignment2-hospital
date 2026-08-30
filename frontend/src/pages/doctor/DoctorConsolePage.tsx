@@ -399,34 +399,34 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
     borderBottom: '1px solid var(--color-divider)', background: 'var(--color-surface)',
   },
-  dateLabel: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)' },
+  dateLabel: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   dateInput: {
     height: 30, padding: '0 8px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-base)',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)',
   },
   resetBtn: {
     height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   columns: { display: 'flex', flex: 1, minHeight: 0 },
   col: { display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' },
   recordCol: { display: 'flex', flexDirection: 'column', gap: 10, padding: 0 },
   recovered: {
     display: 'flex', alignItems: 'center', gap: 10, margin: 14, marginBottom: 0, padding: '8px 12px',
-    borderRadius: 8, background: 'var(--color-primary-wash)', color: 'var(--color-primary)', fontSize: 'var(--fs-sm)', fontWeight: 600,
+    borderRadius: 8, background: 'var(--color-primary-wash)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   recoveredBtn: {
     height: 26, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-primary)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-sm)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  pickHint: { margin: 0, padding: 24, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  pickHint: { margin: 0, padding: 24, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   blocked: {
     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, padding: 24,
     background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  blockedText: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  blockedText: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   escape: {
     height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
-    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
 }
