@@ -34,8 +34,8 @@ const styles: Record<string, CSSProperties> = {
     background: 'none',
     color: 'var(--color-warn)',
     padding: '6px 0 6px 12px',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     lineHeight: 1.4,
   },
 }

@@ -109,8 +109,8 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-ink-muted)',
     border: '1px solid var(--color-divider)',
   },
-  title: { margin: '4px 0 0', fontSize: 'var(--fs-lg)', fontWeight: 600 },
-  hint: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  title: { margin: '4px 0 0', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  hint: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   actions: { display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' },
   retry: {
     height: 32,
@@ -119,8 +119,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)',
     color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
 }

@@ -119,13 +119,13 @@ function hhmmOf(iso: string): string {
 
 const styles: Record<string, CSSProperties> = {
   fieldset: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, margin: 0 },
-  legend: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)', padding: '0 4px' },
-  option: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  optionText: { fontWeight: 600 },
+  legend: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', padding: '0 4px' },
+  option: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  optionText: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   timeInput: {
     height: 32, width: 96, padding: '0 8px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    fontSize: 'var(--fs-base)', fontVariantNumeric: 'tabular-nums', marginLeft: 4,
+    fontSize: 'var(--fs-body)', fontVariantNumeric: 'tabular-nums', marginLeft: 4,
   },
-  preview: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-primary)', fontVariantNumeric: 'tabular-nums' },
-  error: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-warn)', fontWeight: 600 },
+  preview: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)', fontVariantNumeric: 'tabular-nums' },
+  error: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

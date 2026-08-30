@@ -20,8 +20,8 @@ const BASE: CSSProperties = {
   padding: 0,
   border: 'none',
   background: 'none',
-  fontSize: 'var(--fs-sm)',
-  fontWeight: 600,
+  fontSize: 'var(--fs-caption)',
+  fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   lineHeight: 1.4,
   cursor: 'pointer',
 }

@@ -19,10 +19,8 @@
   --color-primary-foreground: #FCFCFC;
   --color-weekend-sat: #0284C7;
   --color-weekend-sun: #F43F5E;
-  --fs-sm: 12px;
-  --fs-base: 13px;
-  --fs-lg: 15px;
-  --fs-xl: 19px;
+  /* 레거시 px 토큰(--fs-sm/base/lg/xl)은 G3 타이포 위계 롤아웃(2026-08-30)으로 전 화면 제거됨.
+     통계 숫자 표시용 --fs-num만 유지. 크기·굵기는 아래 위계 토큰(rem, root 17px 기준) 사용. */
   --fs-num: 20px;
   --fs-caption: 0.75rem;
   --fs-body: 0.875rem;

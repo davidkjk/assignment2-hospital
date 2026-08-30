@@ -75,14 +75,14 @@ export function QuestionnairePanel({ canRead, loading, error, onRetry, questionn
 
 const styles: Record<string, CSSProperties> = {
   panel: { padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
-  heading: { margin: '0 0 8px', fontSize: 'var(--fs-base)', fontWeight: 800, color: 'var(--color-ink)' },
-  denied: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  heading: { margin: '0 0 8px', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  denied: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   skeleton: { height: 60, borderRadius: 6, background: 'var(--color-bg)' },
-  submitted: { margin: '0 0 8px', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
+  submitted: { margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   qa: { margin: 0, display: 'flex', flexDirection: 'column', gap: 6 },
   qaRow: { display: 'grid', gridTemplateColumns: '130px 1fr', gap: 10 },
-  dt: { margin: 0, fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)' },
-  dd: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  ddEmpty: { color: 'var(--color-warn)', fontWeight: 700 },
+  dt: { margin: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  dd: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  ddEmpty: { color: 'var(--color-warn)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'] },
   warnWrap: { display: 'inline-flex', alignItems: 'center', gap: 4 },
 }

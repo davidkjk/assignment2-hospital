@@ -34,7 +34,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'grid',
     gap: 6,
   },
-  row: { display: 'flex', gap: 12, fontSize: 'var(--fs-base)' },
+  row: { display: 'flex', gap: 12, fontSize: 'var(--fs-body)' },
   dt: { margin: 0, width: 64, color: 'var(--color-ink-muted)' },
-  dd: { margin: 0, fontWeight: 600, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
+  dd: { margin: 0, fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
 }

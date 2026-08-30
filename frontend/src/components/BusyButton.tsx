@@ -60,8 +60,8 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     background: 'var(--color-primary)',
     color: '#fff',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   // 흐린 딥틸 — 회색(꺼짐)이 아니라 "일하는 중"임을 색으로 지킨다.

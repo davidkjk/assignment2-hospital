@@ -55,13 +55,13 @@ export function HistoryPanel({ loading, error, onRetry, records }: HistoryPanelP
 
 const styles: Record<string, CSSProperties> = {
   panel: { padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
-  heading: { margin: '0 0 8px', fontSize: 'var(--fs-base)', fontWeight: 800, color: 'var(--color-ink)' },
+  heading: { margin: '0 0 8px', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 60, borderRadius: 6, background: 'var(--color-bg)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   row: { padding: '8px 0', borderTop: '1px solid var(--color-divider)' },
   rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  date: { fontSize: 'var(--fs-base)', fontWeight: 800, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
-  status: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-done)' },
-  meta: { margin: '2px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  dx: { margin: '2px 0 0', fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
+  date: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
+  status: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-done)' },
+  meta: { margin: '2px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  dx: { margin: '2px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
 }

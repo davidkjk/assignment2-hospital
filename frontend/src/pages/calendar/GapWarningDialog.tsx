@@ -50,7 +50,7 @@ const styles: Record<string, CSSProperties> = {
     padding: 18,
     boxShadow: '0 8px 28px rgba(16,36,58,.2)',
   },
-  message: { margin: 0, fontSize: 'var(--fs-base)', lineHeight: 1.5, color: 'var(--color-ink)' },
+  message: { margin: 0, fontSize: 'var(--fs-body)', lineHeight: 1.5, color: 'var(--color-ink)' },
   buttons: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 },
   ghost: {
     height: 32,
@@ -59,7 +59,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'transparent',
     color: 'var(--color-ink-muted)',
-    fontWeight: 600,
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   primary: {
@@ -69,7 +69,7 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     background: 'var(--color-primary)',
     color: '#fff',
-    fontWeight: 700,
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
 }

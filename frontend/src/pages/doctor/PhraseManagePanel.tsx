@@ -90,18 +90,18 @@ export function PhraseManagePanel({ phrases, onCreate, onUpdate, onDelete }: Phr
 
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 12 },
-  error: { margin: 0, color: 'var(--color-warn)', fontSize: 'var(--fs-sm)', fontWeight: 600 },
+  error: { margin: 0, color: 'var(--color-warn)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 },
   row: { display: 'flex', flexDirection: 'column', gap: 6 },
   rowActions: { display: 'flex', justifyContent: 'flex-end', gap: 8 },
   textarea: {
     width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 8,
     border: '1px solid var(--color-divider)', background: 'var(--color-surface)',
-    color: 'var(--color-ink)', fontSize: 'var(--fs-base)', fontFamily: 'inherit', resize: 'vertical',
+    color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontFamily: 'inherit', resize: 'vertical',
   },
   delete: {
     height: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   addBox: { display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--color-divider)', paddingTop: 12 },
 }
