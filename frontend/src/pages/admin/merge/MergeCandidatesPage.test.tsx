@@ -71,10 +71,11 @@ test('[MERGE-LIST-04] 카드마다 「다른 사람일 수 있다」를 적고 �
   expect(within(card).queryByText(/확실히|동일인/)).toBeNull()
 })
 
-test('[MERGE-LIST-05] 목록엔 회색 [대표 검토]뿐 — 빨간 버튼도 [삭제]도 없다', async () => {
+test('[MERGE-LIST-05][L20] 후보 카드엔 회색 [대표 검토] 하나뿐 — 행마다 중복 안 함, 빨간 버튼·[삭제]도 없다', async () => {
   renderMerge({ groups: [twoRowGroup()] })
   const card = await screen.findByLabelText('후보 그룹 01')
-  expect(within(card).getAllByRole('button', { name: '대표 검토' })).toHaveLength(2)
+  // L20(2026-08-29): 행마다 붙던 [대표 검토] 2개를 카드당 1개로 — 비교 화면을 여는 단일 진입.
+  expect(within(card).getAllByRole('button', { name: '대표 검토' })).toHaveLength(1)
   expect(within(card).queryByRole('button', { name: /삭제/ })).toBeNull()
   expect(dangerButtons()).toHaveLength(0) // 빨강은 확인창 안에서만
 })

@@ -37,24 +37,27 @@ export function CandidateGroup({ index, group, onReview, disabled = false }: Can
             </div>
             <div style={styles.rowFoot}>
               <span style={styles.counts}>{recordSummary(row)}</span>
-              <button
-                type="button"
-                onClick={() => onReview(row.patient_id, otherId(group.rows, row.patient_id))}
-                disabled={disabled}
-                style={disabled ? { ...styles.reviewBtn, ...styles.reviewBtnOff } : styles.reviewBtn}
-              >
-                대표 검토
-              </button>
             </div>
           </li>
         ))}
       </ul>
+
+      {/* [MERGE-LIST-05][L20] 카드마다 [대표 검토] 하나 — 이 버튼은 비교 화면을 열 뿐 대표를 정하지 않는다.
+          대표 지정은 비교 화면 안에서(MERGE-REVIEW-01). 행마다 붙이면 같은 동작이 중복돼 혼란스럽다(2026-08-29). */}
+      {group.rows.length >= 2 && (
+        <div style={styles.cardFoot}>
+          <button
+            type="button"
+            onClick={() => onReview(group.rows[0].patient_id, group.rows[1].patient_id)}
+            disabled={disabled}
+            style={disabled ? { ...styles.reviewBtn, ...styles.reviewBtnOff } : styles.reviewBtn}
+          >
+            대표 검토
+          </button>
+        </div>
+      )}
     </section>
   )
-}
-
-function otherId(rows: CandidateRow[], self: string): string {
-  return (rows.find((r) => r.patient_id !== self) ?? rows[0]).patient_id
 }
 
 function recordSummary(row: CandidateRow): string {
@@ -92,8 +95,9 @@ const styles: Record<string, CSSProperties> = {
   rowMain: { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   name: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
   meta: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
-  rowFoot: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8 },
+  rowFoot: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 },
   counts: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
+  cardFoot: { display: 'flex', justifyContent: 'flex-end', marginTop: 12 },
   reviewBtn: {
     height: 32,
     padding: '0 14px',

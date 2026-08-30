@@ -70,9 +70,11 @@ function MergeCandidatesInner() {
         <div role="status" style={styles.offline}>인터넷이 연결되어 있지 않습니다. 연결되면 최신 후보로 병합을 검토할 수 있습니다.</div>
       )}
 
+      {/* 비교 중에도 [다시 확인]을 유지한다 — MERGE-STATE-02가 「비교 중 재조회로 최신 후보를
+          다시 읽되 비교 상태는 지우지 않는다」를 의도적으로 설계했다(동시성 안전장치). 확인창·성공 화면에서만 감춘다.
+          (L20 finding ②의 「비교 중 숨김」은 이 규칙과 충돌해 채택하지 않음 — 2026-08-29 원문 대조.) */}
       {stage.kind !== 'confirm' && stage.kind !== 'success' && (
         <div style={styles.toolbar}>
-          {/* 재조회만 한다 — 지금 단계(목록·비교)는 그대로 둔다. 확인창의 [다시 확인]만 목록으로 되돌린다. */}
           <button type="button" onClick={() => void candidatesQ.refetch()} style={styles.recheck}>다시 확인</button>
         </div>
       )}
