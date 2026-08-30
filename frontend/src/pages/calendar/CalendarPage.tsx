@@ -79,6 +79,18 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
   const zoom = useZoom(staffKey)
   const panel = usePanel()
 
+  // [L4] 작은 달력은 바깥을 누르면 닫힌다 — 토글(.cal-nav-range)은 제외해 재클릭이 닫자마자 다시 여는 이중토글을 막는다.
+  useEffect(() => {
+    if (!miniOpen) return
+    function onDown(e: MouseEvent) {
+      const t = e.target as HTMLElement
+      if (t.closest('.cal-mini') || t.closest('.cal-nav-range')) return
+      setMiniOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [miniOpen])
+
   const from = mode === 'week' ? startOfWeek(anchorDate) : ymd(anchorDate)
   const to = mode === 'week' ? weekDays(anchorDate)[5] : ymd(anchorDate)
   const doctorIdsKey = selectedDoctorIds.join(',')

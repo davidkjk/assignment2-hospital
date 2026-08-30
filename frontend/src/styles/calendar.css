@@ -57,10 +57,14 @@
   height: 30px;
   border-radius: 6px;
   color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
+/* [L5] hover 피드백 — done-bg(#F5F7F8)는 흰 배경과 구분이 안 돼 안 보였다. 인터랙티브 wash로 또렷하게. */
 .cal-nav-arrow:hover,
 .cal-nav-today:hover {
-  background: var(--color-done-bg);
+  background: var(--color-primary-wash);
+  color: var(--color-ink);
 }
 .cal-nav-range {
   display: inline-flex;
@@ -74,15 +78,19 @@
   font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s;
 }
 .cal-nav-range:hover {
-  background: var(--color-done-bg);
+  background: var(--color-primary-wash);
 }
 .cal-nav-today {
   padding: 5px 10px;
   border-radius: 6px;
   font-size: 13px;
   color: var(--color-ink-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
 .cal-zoom {
   margin-left: auto;

@@ -1,5 +1,3 @@
-import iconSpriteUrl from '../../shell/icons.svg?url'
-
 // [CAL-NAV-*] 언제를 보나 — [‹][›]는 보는 단위만큼 움직이고(CAL-NAV-03), 기간 글자 자체가 버튼이라
 //   누르면 작은 달력이 열린다(CAL-NAV-04, ⛔ 별도 [달력] 아이콘을 두지 않는다). [오늘]로 돌아온다(CAL-NAV-08).
 
@@ -47,9 +45,6 @@ export function CalendarNav({ mode, anchorDate, onPrev, onNext, onToday, onOpenC
   return (
     <div className="cal-nav">
       <button type="button" className="cal-nav-arrow" aria-label="이전" onClick={onPrev}>
-        <svg aria-hidden="true" width="16" height="16">
-          <use href={`${iconSpriteUrl}#calendar`} />
-        </svg>
         ‹
       </button>
       {/* 기간 글자 자체가 버튼 — 누르면 작은 달력이 열린다(CAL-NAV-04). */}
