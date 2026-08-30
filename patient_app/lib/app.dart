@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/router.dart';
-import 'core/tokens.dart';
+import 'core/theme.dart';
 
 class PatientApp extends StatelessWidget {
   const PatientApp({super.key});
@@ -8,7 +8,7 @@ class PatientApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: '병원 앱',
-      theme: AppTokens.theme,
+      theme: AppTheme.theme,
       routerConfig: appRouter,
     );
   }

@@ -23,19 +23,20 @@ class _FakeRepo implements SignupProfileRepo {
 SignupProfileScreen _screen(_FakeRepo repo) =>
     SignupProfileScreen(controller: SignupProfileController(repo), onDone: () {});
 
-/// 선택된 ChoiceChip 개수(성별). 초기에는 0개여야 한다(기본값 없음).
+/// 선택된 성별 칸 개수. 초기에는 0개여야 한다(기본값 없음).
 int selectedChipCount(WidgetTester t) =>
-    t.widgetList<ChoiceChip>(find.byType(ChoiceChip)).where((c) => c.selected).length;
+    t.widgetList<GenderOption>(find.byType(GenderOption)).where((c) => c.selected).length;
 
 /// 유효한 값으로 ③를 다 채운다(이름·생년월일·비번 두 칸·성별).
 Future<void> _fillValid(WidgetTester t) async {
-  await t.enterText(find.byType(TextField).first, '홍길동'); // 첫 TextField = 이름
+  await t.enterText(find.byKey(const Key('name')), '홍길동'); // 이름 칸(데모 순서: 비밀번호 먼저라 .first는 비번)
   await t.enterText(find.byKey(const Key('pw')), 'abc12345');
   await t.enterText(find.byKey(const Key('pw-confirm')), 'abc12345');
   await t.tap(find.byKey(const Key('birth')));
   await t.pumpAndSettle();
   await t.tap(find.text('OK')); // 기본 날짜(1970) 확정
   await t.pumpAndSettle();
+  await t.ensureVisible(find.text('여')); // 폼이 길어 성별 칸이 스크롤 밖일 수 있다
   await t.tap(find.text('여'));
   await t.pump();
 }
@@ -58,7 +59,7 @@ void main() {
   testWidgets('[AUTH-SIGNUP-06b] 성별을 미리 골라두지 않는다 — 하나 눌러야 [가입 완료]가 산다', (t) async {
     await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
     // 성별만 빼고 모두 채운다 → 성별 선택 여부만으로 버튼이 갈린다(플랜 결함 교정).
-    await t.enterText(find.byType(TextField).first, '홍길동');
+    await t.enterText(find.byKey(const Key('name')), '홍길동');
     await t.enterText(find.byKey(const Key('pw')), 'abc12345');
     await t.enterText(find.byKey(const Key('pw-confirm')), 'abc12345');
     await t.tap(find.byKey(const Key('birth')));
@@ -67,6 +68,7 @@ void main() {
     await t.pumpAndSettle();
     final before = t.widget<FilledButton>(find.widgetWithText(FilledButton, '가입 완료'));
     expect(before.onPressed, isNull); // 성별 미선택이면 꺼짐
+    await t.ensureVisible(find.text('여'));
     await t.tap(find.text('여'));
     await t.pump();
     final after = t.widget<FilledButton>(find.widgetWithText(FilledButton, '가입 완료'));

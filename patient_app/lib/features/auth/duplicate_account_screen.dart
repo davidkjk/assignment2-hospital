@@ -23,10 +23,13 @@ class DuplicateAccountScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('회원가입')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: ListView(padding: const EdgeInsets.fromLTRB(20, 24, 20, 16), children: [
         const Text('이미 가입하신 번호입니다',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 24),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        const Text('로그인하시거나, 비밀번호를 새로 정하실 수 있어요.',
+            style: TextStyle(color: AppTokens.grayPending, fontSize: 14)),
+        const SizedBox(height: 28),
         // AUTH-DUP-03·04: 주 버튼. 문자 인증으로 생긴 세션을 버리고(signOut) 로그인으로 — 비밀번호를 치게 한다.
         ActionButton(
             label: '로그인하러 가기',

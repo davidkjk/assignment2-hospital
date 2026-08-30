@@ -159,18 +159,27 @@ function pxToDartDouble(value) {
 function buildDart() {
   const grayPending = hexToDartColor(tokens.patientApp.grayPending);
   const grayDone = hexToDartColor(tokens.color['gray-past']);
+  const badgeAmber = hexToDartColor(tokens.patientApp.badgeAmber);
+  const badgeSky = hexToDartColor(tokens.patientApp.badgeSky);
+  const badgeViolet = hexToDartColor(tokens.patientApp.badgeViolet);
+  const badgeSlate = hexToDartColor(tokens.patientApp.badgeSlate);
   const warn = hexToDartColor(tokens.color.warn);
   const warnBarWidth = pxToDartDouble(tokens.patientApp.warnBarWidth);
   const offlineBannerBg = hexToDartColor(tokens.patientApp.offlineBannerBg);
   const primary = hexToDartColor(tokens.color.primary); // color.primary 재사용(공용)
   const primaryBusy = hexArgbToDartColor(tokens.patientApp.primaryBusy); // 알파 포함 전용값
   const cardBodyHeight = pxToDartDouble(tokens.patientApp.cardBodyHeight);
-  const bodySize = pxToDartDouble(tokens.patientApp.body).replace(/\.0$/, '');
+  const background = hexToDartColor(tokens.patientApp.background);
+  const surface = hexToDartColor(tokens.patientApp.cardSurface);
+  const border = hexToDartColor(tokens.patientApp.border);
+  const muted = hexToDartColor(tokens.patientApp.muted);
+  const onSurface = hexToDartColor(tokens.patientApp.onSurface);
+  const bodyFontSize = pxToDartDouble(tokens.patientApp.body);
 
   return `import 'package:flutter/material.dart';
 
 // 생성된 파일 — 편집하지 않는다. design-tokens/tokens.json에서 생성됨(build.mjs buildDart).
-// 화면 코드는 색·크기·카드 규격을 여기서만 가져온다(하드코딩 금지).
+// 화면 코드는 색·크기·카드 규격을 여기서만 가져온다(하드코딩 금지). 테마 조립은 core/theme.dart.
 class AppTokens {
   AppTokens._();
 
@@ -178,6 +187,13 @@ class AppTokens {
   static const Color grayPending = ${grayPending}; // patientApp.grayPending (아직 안 된 일)
   static const Color grayDone = ${grayDone}; // color.gray-past (이미 끝난 일)
   static const List<Color> grays = [grayPending, grayDone];
+
+  // 상태 배지 색(데모 StatusBadge 톤 정본): 확정=teal(primary)·미확정=amber·대기=sky·접수=violet·부도=slate.
+  static const Color badgeAmber = ${badgeAmber}; // 확인 중·확정되지 않음
+  static const Color badgeSky = ${badgeSky}; // 진료 대기
+  static const Color badgeViolet = ${badgeViolet}; // 접수됐어요
+  static const Color badgeSlate = ${badgeSlate}; // 시간 지남
+  static const Color badgeOnColor = Colors.white; // 색 배지 위 글자
 
   // DISP-WARN-01 — 주의색(color.warn 통일): 배경 없이 글자 + 좌측 바.
   static const Color warn = ${warn};
@@ -194,12 +210,16 @@ class AppTokens {
   // DISP-CARD-01 — 카드 본문 높이 고정.
   static const double cardBodyHeight = ${cardBodyHeight};
 
-  static ThemeData get theme => ThemeData(
-        useMaterial3: true,
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(fontSize: ${bodySize}), // patientApp.body
-        ),
-      );
+  // 화면 바탕·면 색(데모 index.css 정본): 페이지 배경(살짝 쿨한 블루그레이)·카드 면(순백)·
+  // 경계선(옅은 쿨 그레이)·muted 띠 바탕·본문 글자(진회색).
+  static const Color background = ${background};
+  static const Color surface = ${surface};
+  static const Color border = ${border};
+  static const Color muted = ${muted};
+  static const Color onSurface = ${onSurface};
+
+  // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다).
+  static const double bodyFontSize = ${bodyFontSize};
 }
 `;
 }

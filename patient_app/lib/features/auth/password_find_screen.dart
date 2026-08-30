@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/field_error.dart';
 import 'auth_repo.dart';
@@ -54,12 +55,16 @@ class _PasswordFindScreenState extends State<PasswordFindScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('비밀번호 찾기')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('가입하신 전화번호로 인증번호를 보내드립니다'),
-        const SizedBox(height: 16),
+      body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
+        const Text('비밀번호를 찾을 전화번호를 입력해 주세요',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        const Text('가입하신 전화번호로 인증번호를 보내드립니다',
+            style: TextStyle(color: AppTokens.grayPending, fontSize: 14)),
+        const SizedBox(height: 28),
         FieldTextInput(
             label: '전화번호', controller: _phone, form: _form, validate: validatePhone),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
         ActionButton(
             label: '인증번호 받기', busyLabel: '인증번호 보내는 중…', busy: _busy, onPressed: _submit),
       ]),

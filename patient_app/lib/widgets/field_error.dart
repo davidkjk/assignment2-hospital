@@ -86,10 +86,17 @@ class _FieldTextInputState extends State<FieldTextInput> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 데모 정본: 라벨은 칸 위(굵게), 칸 안엔 안내글만.
+        Text(widget.label,
+            style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600, color: AppTokens.onSurface)),
+        const SizedBox(height: 8),
         TextField(
           controller: widget.controller,
           focusNode: _node,
-          decoration: InputDecoration(labelText: widget.label),
+          keyboardType: TextInputType.phone,
+          style: const TextStyle(fontSize: 16, color: AppTokens.onSurface),
+          decoration: const InputDecoration(hintText: '010-1234-5678'),
           // ERR-FLD-02: 타이핑 도중에는 (처음) 검사하지 않는다. 단 이미 떠 있는 오류는 입력을
           // 건드리는 즉시 지운다(ERR-GONE-01) — 맞게 고치고 있는 사람을 계속 나무라지 않는다.
           onChanged: (_) {

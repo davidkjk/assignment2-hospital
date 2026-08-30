@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../core/tokens.dart';
+import '../../widgets/labeled_field.dart';
 
 /// 서버 경유 재설정(Step 3 `POST /patients/me/password-reset`)의 얇은 인터페이스.
 abstract class PasswordResetRepo {
@@ -65,54 +66,78 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
     if (err == null) widget.onDone(); // AUTH-PWNEW-04: 로그인 화면으로
   }
 
-  Widget _cond(bool ok, String text) => Text('${ok ? '✓' : '·'} $text');
+  Widget _cond(bool ok, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: Row(children: [
+          Text(ok ? '✓' : '·',
+              style: TextStyle(
+                  color: ok ? AppTokens.primary : AppTokens.grayPending,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Text(text, style: const TextStyle(color: AppTokens.grayPending, fontSize: 13)),
+        ]),
+      );
 
   @override
   Widget build(BuildContext context) {
     final canSubmit = _name.text.trim().isNotEmpty && _pwOk(_pw.text) && _match;
     return Scaffold(
       appBar: AppBar(title: const Text('새 비밀번호')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('새 비밀번호를 정해 주세요',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 20),
         // AUTH-PWNEW-08: 이름 칸을 새 비밀번호 '위에' 둔다.
-        const Text('등록하신 이름'),
-        TextField(key: const Key('name'), controller: _name, onChanged: (_) => setState(() {})),
+        LabeledField(
+          label: '등록하신 이름',
+          fieldKey: const Key('name'),
+          controller: _name,
+          onChanged: (_) => setState(() {}),
+        ),
         const SizedBox(height: 16),
+        LabeledField(
+          label: '새 비밀번호',
+          fieldKey: const Key('newpw'),
+          controller: _pw,
+          obscureText: _o1,
+          onChanged: (_) => setState(() {}), // 화면 조건 표시용 — 서버는 부르지 않는다(AUTH-PWNEW-17)
+          suffixIcon: IconButton(
+              icon: Icon(_o1 ? Icons.visibility_off : Icons.visibility,
+                  color: AppTokens.grayPending),
+              onPressed: () => setState(() => _o1 = !_o1)),
+        ),
+        const SizedBox(height: 16),
+        LabeledField(
+          label: '한 번 더 입력',
+          fieldKey: const Key('newpw-confirm'),
+          controller: _pw2,
+          obscureText: _o2,
+          onChanged: (_) => setState(() {}),
+          suffixIcon: IconButton(
+              icon: Icon(_o2 ? Icons.visibility_off : Icons.visibility,
+                  color: AppTokens.grayPending),
+              onPressed: () => setState(() => _o2 = !_o2)),
+        ),
+        const SizedBox(height: 14),
         // AUTH-PWNEW-02·03: 조건 — 앞 셋은 ✓(차단), 마지막은 ·(권고).
         _cond(_pwOk(_pw.text), '8자 이상'),
         _cond(RegExp(r'[A-Za-z]').hasMatch(_pw.text) && RegExp(r'\d').hasMatch(_pw.text),
             '영문과 숫자를 함께'),
         _cond(_match, '두 칸이 서로 같음'),
-        const Text('· 전화번호·생년월일은 피해주세요'), // 권고(차단 아님)
-        const SizedBox(height: 8),
-        TextField(
-          key: const Key('newpw'),
-          controller: _pw,
-          obscureText: _o1,
-          decoration: InputDecoration(
-              labelText: '새 비밀번호',
-              suffixIcon: IconButton(
-                  icon: Icon(_o1 ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _o1 = !_o1))),
-          onChanged: (_) => setState(() {}), // 화면 조건 표시용 — 서버는 부르지 않는다(AUTH-PWNEW-17)
+        // 권고(차단 아님) — '· '를 같은 위젯에 붙여 둔다(테스트가 「· 전화번호…」를 한 위젯으로 찾는다).
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Text('· 전화번호·생년월일은 피해주세요',
+              style: TextStyle(color: AppTokens.grayPending, fontSize: 13)),
         ),
-        TextField(
-          key: const Key('newpw-confirm'),
-          controller: _pw2,
-          obscureText: _o2,
-          decoration: InputDecoration(
-              labelText: '한 번 더 입력',
-              suffixIcon: IconButton(
-                  icon: Icon(_o2 ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _o2 = !_o2))),
-          onChanged: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         if (_error != null) ...[
           Text(_error!, style: const TextStyle(color: AppTokens.warn)),
           const SizedBox(height: 8)
         ],
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
           onPressed: (canSubmit && !_busy) ? _submit : null,
           child: Text(_busy ? '바꾸는 중…' : '비밀번호 바꾸기'),
         ),
@@ -126,6 +151,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
             onPressed: () => context.go('/login'),
             child: const Text('비밀번호가 기억나셨나요? › 로그인하기')),
       ]),
+      ),
     );
   }
 }

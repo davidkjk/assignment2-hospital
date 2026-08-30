@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/phone_cooldown.dart';
+import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/field_error.dart';
+import 'signup_flow.dart';
 
 /// Supabase Auth phone OTP 발송의 얇은 인터페이스(테스트에서 Fake로 대체).
 abstract class AuthOtpSender {
@@ -65,20 +67,35 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('전화번호 입력')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        // AUTH-PHONE-01: 번호를 정확히 넣을 이유를 준다.
-        const Text('문자로 인증번호를 보내드립니다'),
-        const Text('병원에서 연락드릴 때도 이 번호를 씁니다', style: TextStyle(fontSize: 13)),
-        const SizedBox(height: 16),
-        FieldTextInput(
-            label: '전화번호', controller: _phone, form: _form, validate: validatePhone),
-        const SizedBox(height: 24),
-        ActionButton(
-          label: '인증번호 받기',
-          busyLabel: '인증번호 보내는 중…', // AUTH-PHONE-03 = BTN-BUSY-01
-          busy: _busy,
-          onPressed: _submit,
+      appBar: AppBar(title: const Text('회원가입')),
+      body: Column(children: [
+        const SignupProgress(step: 2),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('전화번호를 입력해 주세요',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              // AUTH-PHONE-01: 번호를 정확히 넣을 이유를 준다.
+              const Text('문자로 인증번호를 보내드립니다',
+                  style: TextStyle(color: AppTokens.grayPending, fontSize: 14, height: 1.5)),
+              const Text('병원에서 연락드릴 때도 이 번호를 씁니다',
+                  style: TextStyle(color: AppTokens.grayPending, fontSize: 14, height: 1.5)),
+              const SizedBox(height: 28),
+              FieldTextInput(
+                  label: '전화번호', controller: _phone, form: _form, validate: validatePhone),
+            ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: ActionButton(
+            label: '인증번호 받기',
+            busyLabel: '인증번호 보내는 중…', // AUTH-PHONE-03 = BTN-BUSY-01
+            busy: _busy,
+            onPressed: _submit,
+          ),
         ),
       ]),
     );

@@ -14,22 +14,39 @@ class LandingScreen extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const Spacer(flex: 3),
+              // 로고 = 직원웹 사이드바·앱 홈과 같은 병원 심볼(딥틸 타일 위 흰 아이콘, 데모 정본).
+              Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: AppTokens.primary,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
+                    ],
+                  ),
+                  child: const Icon(Icons.local_hospital_outlined,
+                      color: Colors.white, size: 34),
+                ),
+              ),
+              const SizedBox(height: 14),
               // AUTH-LAND-02: 병원 이름 + 한 줄 소개(탭 전환형·가입 우선형 아님).
               const Text(hospitalName,
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  style: TextStyle(
+                      fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary)),
               const SizedBox(height: 8),
               const Text('진료 예약과 방문 이력을 한 곳에서',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppTokens.grayPending)),
-              const SizedBox(height: 48),
+                  style: TextStyle(color: AppTokens.grayPending, fontSize: 14)),
+              const Spacer(flex: 4),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
                 onPressed: () => context.go('/login'), // 주 버튼
                 child: const Text('로그인'),
               ),
@@ -38,12 +55,13 @@ class LandingScreen extends StatelessWidget {
                 onPressed: () => context.go('/signup'), // 보조 버튼
                 child: const Text('회원가입'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               // AUTH-LAND-03: 비밀번호를 모르는 사람이 로그인 화면까지 들어가야 보이면 한 번 더 막힌다.
               TextButton(
                 onPressed: () => context.go('/password-find'),
                 child: const Text('비밀번호를 잊으셨나요?'),
               ),
+              const Spacer(flex: 1),
             ],
           ),
         ),

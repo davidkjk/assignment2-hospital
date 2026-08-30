@@ -5,6 +5,7 @@ import '../../core/phone_cooldown.dart';
 import '../../core/tokens.dart';
 import '../../widgets/cooldown_button.dart';
 import '../../widgets/inline_error.dart';
+import 'signup_flow.dart';
 
 enum OtpPurpose { signup, passwordFind, familyLink }
 
@@ -102,66 +103,89 @@ class _OtpScreenState extends State<OtpScreen> {
     final shown =
         widget.purpose == OtpPurpose.signup ? _fmtPhone(widget.phone) : _maskPhone(widget.phone);
     final mm = _left ~/ 60, ss = _left % 60;
+    final isSignup = widget.purpose == OtpPurpose.signup;
     return Scaffold(
-      appBar: AppBar(title: const Text('인증번호 입력')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        Text('$shown 로 보냈습니다'), // AUTH-OTP-05·06
-        const Text('연달아 누르면 마지막 문자만 유효합니다',
-            style: TextStyle(fontSize: 13)), // AUTH-OTP-08
-        Text(_afterHint[widget.purpose]!, style: const TextStyle(fontSize: 13)), // AUTH-OTP-10
-        const SizedBox(height: 16),
-        if (_left > 0) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(
-                6,
-                (i) => SizedBox(
-                      width: 44,
-                      child: TextField(
-                        controller: _boxes[i],
-                        focusNode: _nodes[i],
-                        keyboardType: TextInputType.number, // AUTH-OTP-01
-                        maxLength: 1,
-                        textAlign: TextAlign.center,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: const InputDecoration(counterText: ''),
-                        onChanged: (v) {
-                          if (v.isNotEmpty && i < 5) _nodes[i + 1].requestFocus();
-                        },
-                      ),
-                    )),
-          ),
-          const SizedBox(height: 8),
-          // AUTH-OTP-02: 남은 시간(주의색). 0이 되면 이 블록 자체가 사라진다.
-          Text('남은 시간 $mm:${ss.toString().padLeft(2, '0')}',
-              style: const TextStyle(color: AppTokens.warn)),
-          const SizedBox(height: 16),
-          if (_error != null) InlineError(_error), // AUTH-OTP-09(버튼 위 붙박이)
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppTokens.primary),
-            onPressed: _busy ? null : _verify,
-            child: Text(_busy ? '확인 중…' : '확인'),
-          ),
-        ],
-        const SizedBox(height: 12),
-        // AUTH-OTP-07: 재발송은 번호 기준 쿨다운(Task 12 CooldownButton).
-        CooldownButton(
-          phone: widget.phone,
-          label: '인증번호 다시 받기',
-          store: widget.cooldown,
-          onSend: () async {
-            await widget.onResend();
-            return null;
-          },
+      appBar: AppBar(title: Text(isSignup ? '회원가입' : '인증번호 입력')),
+      body: Column(children: [
+        if (isSignup) const SignupProgress(step: 3),
+        Expanded(
+          child: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
+            const Text('인증번호를 입력해 주세요',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Text('$shown 로 보냈습니다', // AUTH-OTP-05·06
+                style: const TextStyle(color: AppTokens.grayPending, fontSize: 14)),
+            Text(_afterHint[widget.purpose]!, // AUTH-OTP-10
+                style: const TextStyle(color: AppTokens.grayPending, fontSize: 14)),
+            const SizedBox(height: 24),
+            if (_left > 0) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(
+                    6,
+                    (i) => SizedBox(
+                          width: 46,
+                          height: 52,
+                          child: TextField(
+                            controller: _boxes[i],
+                            focusNode: _nodes[i],
+                            keyboardType: TextInputType.number, // AUTH-OTP-01
+                            maxLength: 1,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.bold),
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(
+                                counterText: '',
+                                contentPadding: EdgeInsets.zero),
+                            onChanged: (v) {
+                              if (v.isNotEmpty && i < 5) _nodes[i + 1].requestFocus();
+                            },
+                          ),
+                        )),
+              ),
+              const SizedBox(height: 16),
+              // AUTH-OTP-02: 남은 시간(주의색). 0이 되면 이 블록 자체가 사라진다.
+              Text('남은 시간 $mm:${ss.toString().padLeft(2, '0')}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: AppTokens.warn, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text('인증번호는 5분 동안 유효합니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTokens.grayPending, fontSize: 12)),
+              const SizedBox(height: 8),
+              const Text('연달아 누르면 마지막 문자만 유효합니다', // AUTH-OTP-08
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTokens.grayPending, fontSize: 12)),
+              const SizedBox(height: 20),
+              if (_error != null) InlineError(_error), // AUTH-OTP-09(버튼 위 붙박이)
+              FilledButton(
+                onPressed: _busy ? null : _verify,
+                child: Text(_busy ? '확인 중…' : '확인'),
+              ),
+            ],
+            const SizedBox(height: 12),
+            // AUTH-OTP-07: 재발송은 번호 기준 쿨다운(Task 12 CooldownButton).
+            CooldownButton(
+              phone: widget.phone,
+              label: '인증번호 다시 받기',
+              store: widget.cooldown,
+              onSend: () async {
+                await widget.onResend();
+                return null;
+              },
+            ),
+            // AUTH-OTP-11: 가족 연결만 막다른 길 링크.
+            if (widget.purpose == OtpPurpose.familyLink)
+              TextButton(onPressed: () {}, child: const Text('휴대폰이 없는 가족인가요?')),
+            // AUTH-PWFIND-06 / NAV-AUTH-16: 비밀번호 찾기는 「문자가 오지 않나요?」 → 번호 변경 안내로 push(겹침).
+            if (widget.purpose == OtpPurpose.passwordFind)
+              TextButton(
+                  onPressed: () => Navigator.of(context).pushNamed('/phone-change'),
+                  child: const Text('문자가 오지 않나요?')),
+          ]),
         ),
-        // AUTH-OTP-11: 가족 연결만 막다른 길 링크.
-        if (widget.purpose == OtpPurpose.familyLink)
-          TextButton(onPressed: () {}, child: const Text('휴대폰이 없는 가족인가요?')),
-        // AUTH-PWFIND-06 / NAV-AUTH-16: 비밀번호 찾기는 「문자가 오지 않나요?」 → 번호 변경 안내로 push(겹침).
-        if (widget.purpose == OtpPurpose.passwordFind)
-          TextButton(
-              onPressed: () => Navigator.of(context).pushNamed('/phone-change'),
-              child: const Text('문자가 오지 않나요?')),
       ]),
     );
   }

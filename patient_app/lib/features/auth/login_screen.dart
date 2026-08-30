@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
+import '../../widgets/labeled_field.dart';
 import 'auth_repo.dart';
 
 /// AUTH-LOGIN-02 — 사용자는 숫자만 치고 앱이 010-XXXX-XXXX로 하이픈을 넣는다.
@@ -83,27 +84,29 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('로그인')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        TextField(
-          key: const Key('login-phone'),
+      body: ListView(padding: const EdgeInsets.fromLTRB(20, 24, 20, 20), children: [
+        LabeledField(
+          label: '전화번호',
+          fieldKey: const Key('login-phone'),
           controller: _phone,
           keyboardType: TextInputType.phone, // AUTH-LOGIN-02
           inputFormatters: [PhoneHyphenFormatter()],
-          style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]), // 고정폭 숫자
-          decoration: const InputDecoration(labelText: '전화번호'),
+          hint: '010-1234-5678',
+          textStyle: const TextStyle(
+              fontSize: 16, fontFeatures: [FontFeature.tabularFigures()]), // 고정폭 숫자
         ),
-        TextField(
-          key: const Key('login-password'),
+        const SizedBox(height: 20),
+        LabeledField(
+          label: '비밀번호',
+          fieldKey: const Key('login-password'),
           controller: _pw,
           obscureText: _obscure, // AUTH-LOGIN-03
-          decoration: InputDecoration(
-            labelText: '비밀번호',
-            suffixIcon: IconButton(
-                icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                onPressed: () => setState(() => _obscure = !_obscure)),
-          ),
+          suffixIcon: IconButton(
+              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
+                  color: AppTokens.grayPending),
+              onPressed: () => setState(() => _obscure = !_obscure)),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 28),
         // AUTH-LOGIN-05: 실패 문구는 버튼 위 붙박이(ERR-POS-01).
         if (_error != null) ...[
           Text(_error!, style: const TextStyle(color: AppTokens.warn)),

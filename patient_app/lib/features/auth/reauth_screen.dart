@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/sensitive_reauth.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
+import '../../widgets/labeled_field.dart';
 import 'auth_repo.dart';
 
 class ReauthController {
@@ -59,21 +60,21 @@ class _ReauthScreenState extends State<ReauthScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('본인 확인')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('민감한 정보를 열기 전에 비밀번호를 한 번 더 확인합니다'),
-        const SizedBox(height: 16),
-        TextField(
-          key: const Key('reauth-password'),
+      body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
+        const Text('민감한 정보를 열기 전에\n비밀번호를 한 번 더 확인합니다',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.4)),
+        const SizedBox(height: 24),
+        LabeledField(
+          label: '비밀번호',
+          fieldKey: const Key('reauth-password'),
           controller: _pw,
           obscureText: _obscure, // AUTH-REAUTH-01·03
-          decoration: InputDecoration(
-            labelText: '비밀번호',
-            suffixIcon: IconButton(
-                icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                onPressed: () => setState(() => _obscure = !_obscure)),
-          ),
+          suffixIcon: IconButton(
+              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
+                  color: AppTokens.grayPending),
+              onPressed: () => setState(() => _obscure = !_obscure)),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         if (_error != null) ...[
           Text(_error!, style: const TextStyle(color: AppTokens.warn)),
           const SizedBox(height: 8)
