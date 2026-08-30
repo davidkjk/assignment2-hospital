@@ -167,8 +167,10 @@ export function StaffList({
                       <span style={styles.subMuted}>마지막 로그인 {formatLastSignIn(m.last_sign_in_at)}</span>
                     ) : null}
 
-                    <span style={styles.colorCell}>
-                      {isDoctor && m.calendar_color_index != null ? (
+                    {/* [CAL-COLOR-08] 비의사(관리자·접수)는 캘린더에 열이 없어 색이 무의미 —
+                        「해당 없음」 문구가 오히려 혼란스러워, 색 칸 자체를 생략한다(L50, 2026-08-29). */}
+                    {isDoctor && m.calendar_color_index != null && (
+                      <span style={styles.colorCell}>
                         <span
                           aria-hidden="true"
                           style={{
@@ -177,10 +179,8 @@ export function StaffList({
                             color: `var(--doctor-palette-${m.calendar_color_index})`,
                           }}
                         />
-                      ) : (
-                        <span style={styles.subMuted}>해당 없음</span>
-                      )}
-                    </span>
+                      </span>
+                    )}
                   </div>
 
                   {resentIds.has(m.id) && (

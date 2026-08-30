@@ -84,10 +84,11 @@ test('[CAL-COLOR-07] 같은 진료과에서 겹치는 색을 고르면 그 자�
   expect(paletteWarning()).toHaveTextContent('같은 진료과에서 겹치면 읽기 어려워집니다')
 })
 
-test('[CAL-COLOR-08] 색이 없는 직원 줄에는 「해당 없음」이라고 적는다', async () => {
+test('[CAL-COLOR-08] 비의사 줄에는 색 칸(및 「해당 없음」)을 아예 그리지 않는다', async () => {
   setupStaff()
   await screen.findByText('박접수')
-  expect(rowOf('박접수')).toHaveTextContent('해당 없음')
+  // L50(2026-08-29): 맥락 없는 「해당 없음」이 혼란스러워 색 칸 자체를 생략한다.
+  expect(rowOf('박접수')).not.toHaveTextContent('해당 없음')
 })
 
 test('[CAL-COLOR-09] 저장하는 것은 색값이 아니라 팔레트 번호다', async () => {
