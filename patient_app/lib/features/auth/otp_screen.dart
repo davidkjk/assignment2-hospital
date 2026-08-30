@@ -157,6 +157,11 @@ class _OtpScreenState extends State<OtpScreen> {
         // AUTH-OTP-11: 가족 연결만 막다른 길 링크.
         if (widget.purpose == OtpPurpose.familyLink)
           TextButton(onPressed: () {}, child: const Text('휴대폰이 없는 가족인가요?')),
+        // AUTH-PWFIND-06 / NAV-AUTH-16: 비밀번호 찾기는 「문자가 오지 않나요?」 → 번호 변경 안내로 push(겹침).
+        if (widget.purpose == OtpPurpose.passwordFind)
+          TextButton(
+              onPressed: () => Navigator.of(context).pushNamed('/phone-change'),
+              child: const Text('문자가 오지 않나요?')),
       ]),
     );
   }

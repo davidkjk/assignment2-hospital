@@ -27,16 +27,6 @@ Future<void> handleUnauthorized(Ref ref) async {
   }
 }
 
-// ── Task 13(가입·재인증)과의 양방향 악수 — 여기선 스텁(no-op), Task 13이 실제 판정으로 override ──
-// NAV-GLOBAL-04(갭 #43): 인증됐지만 프로필 미완료면 가입 ③으로. Task 13이 GET /patient/me 403 판정으로 교체한다.
-//   기본은 '완료됨'(false) — 스텁 상태에선 아무도 /signup/step3로 튕기지 않는다.
-final profileMissingProvider = Provider<bool>((_) => false);
-
-// NAV-GLOBAL-05: 민감 경로(설정·가족·탈퇴)에 5분 이상 떠났다 오면 재인증(AUTH-REAUTH-*). Task 13이 실제 판정 채움.
-class SensitiveReauthGuard {
-  const SensitiveReauthGuard({this.needsReauth = false});
-  final bool needsReauth;
-}
-
-final sensitiveReauthGuardProvider =
-    Provider<SensitiveReauthGuard>((_) => const SensitiveReauthGuard());
+// ── Task 13·14가 양방향 악수를 갚았다(스텁 제거) ──
+//   profileMissingProvider(NAV-GLOBAL-04, 갭 #43)는 profile_status.dart(GET /patient/me 403 판정)가,
+//   SensitiveReauthGuard·sensitiveReauthGuardProvider(NAV-GLOBAL-05, 5분 재인증)는 sensitive_reauth.dart가 소유한다.

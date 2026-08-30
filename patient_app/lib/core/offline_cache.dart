@@ -44,4 +44,8 @@ class UpcomingCache {
   Future<void> clear() => _storage.delete(key: _key);       // OFF-CACHE-02: 로그아웃·탈퇴 시 호출
 }
 
-final upcomingCacheProvider = FutureProvider<CachedUpcoming?>((ref) => UpcomingCache().read());
+// 저장소 객체(save/clear를 부르는 곳 — AuthRepo 로그아웃 등). 데이터 provider와 구분한다.
+final upcomingCacheStoreProvider = Provider<UpcomingCache>((ref) => UpcomingCache());
+
+final upcomingCacheProvider =
+    FutureProvider<CachedUpcoming?>((ref) => ref.watch(upcomingCacheStoreProvider).read());
