@@ -72,7 +72,9 @@ export function MetricCards({ stats, period, busy, onDrill }: MetricCardsProps) 
 }
 
 const styles: Record<string, CSSProperties> = {
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 },
+  // 같은 줄 카드는 윗선·아랫선이 함께 가지런하도록 높이를 맞춘다(④ 카드 정렬) — 버튼 유무로 키가
+  // 달라지지 않게 stretch + 버튼 marginTop:auto(카드 바닥에 붙임).
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, alignItems: 'stretch' },
   card: {
     padding: '12px 14px',
     background: 'var(--color-surface)',
@@ -88,7 +90,8 @@ const styles: Record<string, CSSProperties> = {
   unit: { marginLeft: 2, fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-caption)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   basis: { marginTop: 2, fontSize: 'var(--fs-caption)', color: 'var(--color-gray-past)' },
   drillBtn: {
-    marginTop: 8,
+    marginTop: 'auto',
+    paddingTop: 0,
     alignSelf: 'flex-start',
     height: 28,
     padding: '0 10px',
