@@ -216,8 +216,8 @@ export function AccessLogPage() {
 const styles: Record<string, CSSProperties> = {
   page: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 1360, margin: '0 auto' },
   header: { display: 'flex', flexDirection: 'column', gap: 2 },
-  h1: { margin: 0, fontSize: 'var(--fs-xl)', fontWeight: 700, color: 'var(--color-ink)' },
-  lede: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  h1: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  lede: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   readonly: {
     display: 'flex',
     alignItems: 'flex-start',
@@ -233,16 +233,16 @@ const styles: Record<string, CSSProperties> = {
   readonlyTitle: {
     margin: 0,
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 700,
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
   },
   readonlyDesc: {
     margin: 0,
     color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-sm)',
+    fontSize: 'var(--fs-caption)',
     lineHeight: 1.5,
   },
-  scope: { margin: 0, fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)' },
+  scope: { margin: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   tableWrap: { display: 'flex', flexDirection: 'column', gap: 12 },
   moreWrap: { display: 'flex', justifyContent: 'center' },
   moreBtn: {
@@ -252,9 +252,9 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
-  todayLink: { color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' },
+  todayLink: { color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], textDecoration: 'none' },
 }

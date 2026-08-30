@@ -157,7 +157,7 @@ const styles: Record<string, CSSProperties> = {
   },
   searchBox: { position: 'relative', minWidth: 240 },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  fieldLabel: { fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   input: {
     height: 34,
     padding: '0 10px',
@@ -165,7 +165,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
     minWidth: 240,
   },
   results: {
@@ -194,8 +194,8 @@ const styles: Record<string, CSSProperties> = {
     textAlign: 'left',
     cursor: 'pointer',
   },
-  resultName: { fontSize: 'var(--fs-base)', fontWeight: 600, color: 'var(--color-ink)' },
-  resultSub: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  resultName: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  resultSub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   chipRow: { display: 'flex', alignItems: 'center', gap: 8 },
   chip: {
     display: 'inline-flex',
@@ -205,8 +205,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'var(--color-primary-wash)',
     color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   clearBtn: {
     height: 30,
@@ -215,9 +215,9 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
-  count: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  count: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 }

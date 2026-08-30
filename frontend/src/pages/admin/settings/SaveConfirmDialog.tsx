@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { MessagePreview } from './MessagePreview'
 
@@ -20,7 +21,7 @@ export function SaveConfirmDialog({ cancellationCount, changedMessageBodies, onC
       {cancellationCount !== null && (
         <div style={{ marginBottom: hasMessages ? 12 : 0 }}>
           <p style={{ margin: 0 }}>지금 잡혀 있는 예약 {cancellationCount}건이 새로 마감 후가 됩니다.</p>
-          <p style={{ margin: '4px 0 0', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)' }}>
+          <p style={{ margin: '4px 0 0', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)' }}>
             이 변경으로 자동으로 알림이 나가지는 않습니다.
           </p>
         </div>
@@ -28,7 +29,7 @@ export function SaveConfirmDialog({ cancellationCount, changedMessageBodies, onC
       {hasMessages && (
         <div>
           <p style={{ margin: 0 }}>이 문구는 환자 잠금화면에 그대로 뜨고 되돌릴 수 없습니다.</p>
-          <p style={{ margin: '4px 0 8px', color: 'var(--color-warn)', fontSize: 'var(--fs-sm)', fontWeight: 600 }}>
+          <p style={{ margin: '4px 0 8px', color: 'var(--color-warn)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] }}>
             진료과 · 의사 이름 · 증상은 넣지 마세요.
           </p>
           {changedMessageBodies.map((body, i) => (

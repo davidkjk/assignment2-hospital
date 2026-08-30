@@ -272,8 +272,8 @@ const styles: Record<string, CSSProperties> = {
   page: { padding: 20, maxWidth: 1180, margin: '0 auto' },
   pageHead: { marginBottom: 16 },
   pageDesc: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
-  title: { margin: '0 0 16px', fontSize: 'var(--fs-xl)', color: 'var(--color-ink)' },
+  title: { margin: '0 0 16px', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
   body: { display: 'flex', gap: 24, alignItems: 'flex-start' },
   content: { flex: 1, minWidth: 0 },
-  link: { border: 'none', background: 'var(--color-primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' },
+  link: { border: 'none', background: 'var(--color-primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer' },
 }

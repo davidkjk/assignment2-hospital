@@ -69,11 +69,11 @@ function patientText(row: AccessLogRow): string {
 const styles: Record<string, CSSProperties> = {
   headRow: { borderTop: '1px solid var(--color-divider)', background: 'var(--color-done-bg)' },
   childRow: { borderTop: '1px solid var(--color-divider)', background: 'var(--color-bg)' },
-  cell: { padding: '8px 12px', fontSize: 'var(--fs-base)', color: 'var(--color-ink)', verticalAlign: 'top', fontVariantNumeric: 'tabular-nums' },
+  cell: { padding: '8px 12px', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', verticalAlign: 'top', fontVariantNumeric: 'tabular-nums' },
   childCell: { paddingLeft: 28 },
   muted: { color: 'var(--color-ink-muted)' },
   kindWrap: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  summary: { color: 'var(--color-ink)', fontWeight: 600 },
+  summary: { color: 'var(--color-ink)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   expandBtn: {
     height: 26,
     padding: '0 10px',
@@ -81,9 +81,9 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 7,
     background: 'var(--color-surface)',
     color: 'var(--color-primary)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
-  more: { margin: '6px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  more: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

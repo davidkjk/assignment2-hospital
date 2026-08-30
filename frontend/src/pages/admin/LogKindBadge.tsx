@@ -71,8 +71,8 @@ const styles: Record<string, CSSProperties> = {
     padding: '0 8px',
     borderRadius: 6,
     border: '1px solid transparent',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 700,
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     whiteSpace: 'nowrap',
   },
 }

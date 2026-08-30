@@ -150,7 +150,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
   },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  fieldLabel: { fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   tilde: { paddingBottom: 8, color: 'var(--color-ink-muted)' },
   date: {
     height: 34,
@@ -159,7 +159,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
     fontVariantNumeric: 'tabular-nums',
   },
   select: {
@@ -169,7 +169,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
   },
   customTag: {
     alignSelf: 'center',
@@ -177,8 +177,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 6,
     background: 'var(--color-primary-wash)',
     color: 'var(--color-primary)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   apply: {
     height: 34,
@@ -187,14 +187,14 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     background: 'var(--color-primary)',
     color: 'var(--color-surface)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 700,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   error: {
     alignSelf: 'center',
     color: 'var(--color-danger)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
 }
