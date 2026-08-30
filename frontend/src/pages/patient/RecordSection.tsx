@@ -48,14 +48,14 @@ const styles: Record<string, CSSProperties> = {
     padding: 16, background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 12px', fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  heading: { margin: '0 0 12px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
   row: {
     display: 'flex', alignItems: 'center', gap: 12, minHeight: 40,
     padding: '8px 0', borderTop: '1px solid var(--color-divider)',
   },
-  when: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums', minWidth: 48 },
-  where: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontWeight: 600 },
-  summary: { marginLeft: 'auto', fontSize: 'var(--fs-base)', color: 'var(--color-ink)', fontWeight: 600 },
+  when: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums', minWidth: 48 },
+  where: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  summary: { marginLeft: 'auto', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

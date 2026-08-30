@@ -67,14 +67,14 @@ const styles: Record<string, CSSProperties> = {
     padding: 16, background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 12px', fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  heading: { margin: '0 0 12px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
     display: 'flex', flexDirection: 'column', gap: 4, padding: 12,
     background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 8,
   },
-  line: { margin: 0, display: 'flex', gap: 8, fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
-  tag: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)', minWidth: 120 },
-  status: { fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-primary)' },
+  line: { margin: 0, display: 'flex', gap: 8, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  tag: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', minWidth: 120 },
+  status: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)' },
 }

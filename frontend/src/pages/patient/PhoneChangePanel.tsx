@@ -97,16 +97,16 @@ export function PhoneChangePanel({ currentPhone, onRequestCode, onConfirm, onDon
 
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 12 },
-  current: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  currentNum: { fontWeight: 700, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
-  field: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  current: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  currentNum: { fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
+  field: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   input: {
     height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-base)',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8 },
   resend: {
     height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
 }

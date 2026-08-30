@@ -50,7 +50,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
     color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
   },
   zero: {
     margin: '10px 0 0',
@@ -60,8 +60,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 'var(--radius-card)',
     textAlign: 'center',
   },
-  zeroTitle: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
-  zeroHint: { margin: '4px 0 12px', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  zeroTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  zeroHint: { margin: '4px 0 12px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   zeroActions: { display: 'flex', gap: 8, justifyContent: 'center' },
   zeroBtn: {
     height: 30,
@@ -70,8 +70,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
 }

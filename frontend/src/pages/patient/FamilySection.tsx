@@ -53,10 +53,10 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
   head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 },
-  heading: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   addBtn: {
     height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid var(--color-primary)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-sm)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   skeleton: { height: 48, borderRadius: 6, background: 'var(--color-bg)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
@@ -64,9 +64,9 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', alignItems: 'center', gap: 10, minHeight: 40,
     padding: '8px 0', borderTop: '1px solid var(--color-divider)',
   },
-  name: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
+  name: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   relation: {
-    fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)',
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)',
     background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 6, padding: '1px 8px',
   },
 }

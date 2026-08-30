@@ -18,5 +18,5 @@ export function PatientSearchPage() {
 const styles: Record<string, CSSProperties> = {
   page: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 880 },
   head: { display: 'flex', flexDirection: 'column', gap: 2 },
-  title: { margin: 0, fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--color-ink)' },
+  title: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
 }

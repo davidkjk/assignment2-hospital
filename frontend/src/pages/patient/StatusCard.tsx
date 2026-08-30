@@ -63,12 +63,12 @@ const styles: Record<string, CSSProperties> = {
   },
   skeleton: { height: 24, borderRadius: 6, background: 'var(--color-bg)' },
   eyebrow: {
-    margin: '0 0 6px', fontSize: 'var(--fs-sm)', fontWeight: 700, letterSpacing: '.04em',
+    margin: '0 0 6px', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], letterSpacing: '.04em',
     color: 'var(--color-ink-muted)', textTransform: 'uppercase',
   },
   line: { display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' },
-  when: { fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
-  where: { fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)', fontWeight: 600 },
-  status: { fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-primary)' },
-  empty: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  when: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
+  where: { fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  status: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)' },
+  empty: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 }

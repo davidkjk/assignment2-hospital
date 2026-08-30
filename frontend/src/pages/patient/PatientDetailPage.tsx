@@ -223,10 +223,10 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, padding: 24,
     background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  blockedText: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  blockedText: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   escapeBtn: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-primary)',
-    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  panelStub: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  panelStub: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 }
