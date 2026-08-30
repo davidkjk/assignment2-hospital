@@ -40,7 +40,7 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: 'var(--shadow-card)',
     minWidth: 96,
   },
-  value: { fontSize: 'var(--fs-num)', fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' },
-  label: { marginTop: 4, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontWeight: 600 },
-  hint: { marginTop: 2, fontSize: 'var(--fs-sm)', color: 'var(--color-gray-past)' },
+  value: { fontSize: 'var(--fs-num)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' },
+  label: { marginTop: 4, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  hint: { marginTop: 2, fontSize: 'var(--fs-caption)', color: 'var(--color-gray-past)' },
 }

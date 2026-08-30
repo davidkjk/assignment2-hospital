@@ -127,13 +127,13 @@ const styles: Record<string, CSSProperties> = {
   pickBtn: {
     height: 30, padding: '0 14px', borderRadius: 6,
     border: '1px solid var(--color-divider)', background: 'var(--color-surface)',
-    color: 'var(--color-ink)', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  headerCheck: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  headerCheck: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   list: { listStyle: 'none', margin: 0, padding: 0 },
   row: {
     display: 'flex', alignItems: 'center', gap: 10,
-    padding: '8px 4px', borderBottom: '1px solid var(--color-divider)', fontSize: 'var(--fs-base)',
+    padding: '8px 4px', borderBottom: '1px solid var(--color-divider)', fontSize: 'var(--fs-body)',
   },
   rowBody: { flex: 1 },
   rowActions: { display: 'flex', gap: 6 },

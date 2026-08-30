@@ -36,8 +36,8 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-danger-bg)',
     color: 'var(--color-danger)',
     borderBottom: '1px solid var(--color-divider)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   dot: {
     width: 7,
@@ -49,7 +49,7 @@ const styles: Record<string, CSSProperties> = {
   at: {
     marginLeft: 'auto',
     color: 'var(--color-ink-muted)',
-    fontWeight: 500,
+    fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'],
     fontVariantNumeric: 'tabular-nums',
   },
 }

@@ -56,8 +56,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
 }
