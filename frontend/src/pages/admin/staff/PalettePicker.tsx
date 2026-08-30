@@ -49,7 +49,9 @@ export function PalettePicker({ value, onChange, usedIndices = [], conflictIndic
                 aria-label={`색 ${i + 1}${inUse ? ' 사용중' : ''}`}
                 style={styles.radio}
               />
-              <span aria-hidden="true" style={styles.dot} />
+              {/* [CAL-COLOR-12] 칩은 캘린더에서 보일 그 모습 — 면 색(배경) + 띠 색(strong 막대).
+                  [L27] 애매한 작은 점 대신 「띠」로 색을 분명히 보이고, 「사용중」은 칩 폭을 바꾸지 않게 넣는다. */}
+              <span aria-hidden="true" style={styles.band} />
               {inUse && <span style={styles.usedTag}>사용중</span>}
             </label>
           )
@@ -74,8 +76,10 @@ const styles: Record<string, CSSProperties> = {
     position: 'relative',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
-    minWidth: 34,
+    justifyContent: 'center',
+    gap: 5,
+    // [L27] 모든 칩을 같은 폭으로 — 「사용중」이 붙어도 안 붙어도 width 고정(라벨은 칩 안에서만 채운다).
+    width: 62,
     height: 30,
     padding: '0 8px',
     borderRadius: 7,
@@ -85,7 +89,8 @@ const styles: Record<string, CSSProperties> = {
   },
   // 라디오 자체는 시각적으로 감추고 칩 전체를 누르게 한다(칩이 곧 캘린더 모습이다).
   radio: { position: 'absolute', opacity: 0, width: 1, height: 1, margin: 0 },
-  dot: { width: 12, height: 12, borderRadius: '50%', background: 'currentColor' },
+  // [CAL-COLOR-12] 「띠 색」 샘플 — 작은 점이 아니라 또렷한 막대라 무슨 색인지 바로 보인다(L27②).
+  band: { width: 20, height: 10, borderRadius: 3, background: 'currentColor' },
   usedTag: { fontSize: 10, fontWeight: 700 },
   note: { margin: '10px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   warning: { margin: '6px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-warn)', fontWeight: 600 },
