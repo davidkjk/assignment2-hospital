@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/tokens.dart';
 import 'package:hospital_patient_app/features/home/appointment_card.dart';
-import 'package:hospital_patient_app/widgets/status_label.dart';
+import 'package:hospital_patient_app/features/home/status_badge.dart';
 
 import 'card_test_helpers.dart';
 
@@ -29,7 +29,7 @@ void main() {
 
   testWidgets('[CARD-COMMON-05] 상태는 색만이 아니라 배지 글자로도 구분된다', (t) async {
     await t.pumpWidget(wrap(AppointmentCard(view: reqView())));
-    expect(find.widgetWithText(StatusLabel, '확인 중'), findsOneWidget); // 글자 배지 존재
+    expect(find.widgetWithText(StatusBadge, '확인 중'), findsOneWidget); // 글자 배지 존재
   });
 
   testWidgets('[CARD-COMMON-06] 가운데 본문은 132px로 고정된다(상태가 바뀌어도 불변)', (t) async {

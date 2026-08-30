@@ -3,21 +3,30 @@ import '../../core/tokens.dart';
 import '../../core/wait_format.dart';
 import 'appointment_view.dart';
 
-/// 점선 느낌의 빈 QR 자리 — 상태 A의 가운데에 QR 대신 놓인다(REQ-03·UNCONF-05). QR 위젯은 그리지 않는다.
+/// 점선 QR 자리 — 상태 A의 가운데에 QR 대신 놓인다(REQ-03·UNCONF-05). 실제 QR 위젯은 그리지 않는다.
+/// 데모 정본: 점선 사각 안에 QR 아이콘 + 아래 안내 문구.
 class _QrPlaceholder extends StatelessWidget {
   const _QrPlaceholder(this.text);
   final String text;
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppTokens.grayPending),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(text,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: AppTokens.grayPending, fontSize: 13)),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            border: Border.all(color: AppTokens.grayPending, style: BorderStyle.solid),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.qr_code_2, size: 40, color: AppTokens.primary),
+        ),
+        const SizedBox(height: 8),
+        Text(text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppTokens.grayPending, fontSize: 13)),
+      ],
     );
   }
 }
@@ -46,11 +55,17 @@ class WaitBody extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (q != null) Text('내 앞에 ${q.patientsAhead}명'), // WAIT-01·09
-        if (waitLine.isNotEmpty) Text(waitLine), // WAIT-04: 근거 없으면 그 줄을 접는다
+        const Icon(Icons.monitor_heart_outlined, size: 32, color: AppTokens.primary), // 데모 정본 아이콘
         const SizedBox(height: 4),
+        if (q != null)
+          Text('내 앞에 ${q.patientsAhead}명',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)), // WAIT-01·09
+        if (waitLine.isNotEmpty)
+          Text(waitLine,
+              style: const TextStyle(color: AppTokens.grayPending)), // WAIT-04: 근거 없으면 접는다
+        const SizedBox(height: 2),
         const Text('예상 대기시간은 변동될 수 있습니다',
-            style: TextStyle(color: AppTokens.grayPending, fontSize: 13)), // WAIT-02(글자 그대로)
+            style: TextStyle(color: AppTokens.grayPending, fontSize: 12)), // WAIT-02(글자 그대로)
       ],
     );
   }

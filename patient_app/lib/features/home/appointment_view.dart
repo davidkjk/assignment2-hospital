@@ -82,10 +82,10 @@ AppointmentCardState resolveCardState(AppointmentView v, DateTime now) {
   }
 }
 
-/// CARD-COMMON-04: 내부 상태 이름을 환자 말로. (상태 A 배지 문구)
+/// CARD-COMMON-04: 내부 상태 이름을 환자 말로. (상태 A 배지 문구 — 데모 BADGE_LABEL 정본)
 String patientStatusLabel(AppointmentCardState s) => switch (s) {
       AppointmentCardState.req => '확인 중', // CARD-REQ-02
-      AppointmentCardState.wait => '진료를 기다리는 중', // '진료대기'를 쓰지 않는다
+      AppointmentCardState.wait => '진료 대기', // 내부명 '진료대기'(붙임)를 환자 말로(데모 정본)
       AppointmentCardState.unconf => '확정되지 않음', // CARD-UNCONF-03·03b
       _ => '',
     };

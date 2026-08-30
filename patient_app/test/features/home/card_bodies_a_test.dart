@@ -3,7 +3,7 @@ import 'package:hospital_patient_app/features/home/appointment_card.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/home/card_bodies_a.dart';
 import 'package:hospital_patient_app/widgets/action_button.dart';
-import 'package:hospital_patient_app/widgets/status_label.dart';
+import 'package:hospital_patient_app/features/home/status_badge.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import 'card_test_helpers.dart';
@@ -55,7 +55,7 @@ void main() {
   // ── UnconfBody(확정되지 않음) — CARD-UNCONF ─────────────────────
   testWidgets('[CARD-UNCONF-03] 확정되지 않음 배지를 단다', (t) async {
     await t.pumpWidget(wrap(AppointmentCard(view: unconfView())));
-    expect(find.widgetWithText(StatusLabel, '확정되지 않음'), findsOneWidget);
+    expect(find.widgetWithText(StatusBadge, '확정되지 않음'), findsOneWidget);
   });
 
   testWidgets('[CARD-UNCONF-03b] 시간 지남이 아니라 확정되지 않음으로 부른다', (t) async {

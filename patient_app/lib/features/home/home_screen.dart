@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/pending_request_card.dart';
 import 'appointment_card.dart';
 import 'appointment_view.dart';
 import 'home_data.dart';
-import 'home_multi_card.dart';
 import 'home_realtime.dart';
 import 'home_scope.dart';
 import 'hospital_info_row.dart';
 import 'notification_bell.dart';
 
-/// 로그인 후 첫 화면(HOME-ROLE-01). 「가장 가까운 하루치」만 보여주고(HOME-SCOPE-*), 종·톱니 앱바 +
-/// 하단 탭(AppShell)로 앱 전체를 잇는다. 예약 카드 한 장은 T15, 셸·오프라인·빈 상태·유언은 T11·12 소비.
+/// 로그인 후 첫 화면(HOME-ROLE-01). 데모 정본: 딥틸 브랜드 앱바 + 「오늘의 예약」 + 가장 가까운 하루치를
+/// 풀 카드로 세로 스택(HOME-SCOPE-*·HOME-CARD). 셸·오프라인·빈 상태·유언은 T11·12 소비.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -26,39 +26,41 @@ class HomeScreen extends ConsumerWidget {
     final hospital = ref.watch(hospitalInfoProvider).valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('홈'),
-        actions: [
-          // HOME-BAR-01·02 · NAV-HOME-12: 종 → 들어가는 순간 전부 읽음 + 알림함으로.
-          NotificationBell(
-            unreadCount: unread,
-            onTap: () async {
-              await ref.read(notificationReadMarkerProvider).markAllRead();
-              if (context.mounted) context.go('/notifications');
-            },
-          ),
-          // HOME-BAR-01 · NAV-HOME-13: 톱니 → 설정. (햄버거 없음)
-          IconButton(
-              icon: const Icon(Icons.settings), onPressed: () => context.go('/settings')),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(homeAppointmentsProvider), // HOME-REFRESH-01
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+      backgroundColor: const Color(0xFFEFF3F4),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // HOME-KILL-01·02: 결과 못 받은 신청이 있으면 최상단(없으면 빈 위젯). 확인 → 나의 예약(T30).
-            PendingRequestCard(onConfirm: () => context.go('/my')),
-            ...asyncAppts.when(
-              loading: () => const [
-                Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator())),
-              ],
-              error: (_, __) => [
-                EmptyState.error(onRetry: () => ref.invalidate(homeAppointmentsProvider)),
-              ],
-              data: (list) => _content(context, ref, list, hospital),
+            _BrandBar(
+              unread: unread,
+              onBell: () async {
+                await ref.read(notificationReadMarkerProvider).markAllRead(); // NAV-HOME-12
+                if (context.mounted) context.go('/notifications');
+              },
+              onSettings: () => context.go('/settings'), // NAV-HOME-13
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async => ref.invalidate(homeAppointmentsProvider), // HOME-REFRESH-01
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    PendingRequestCard(onConfirm: () => context.go('/my')), // HOME-KILL-01·02
+                    ...asyncAppts.when(
+                      loading: () => const [
+                        Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: CircularProgressIndicator())),
+                      ],
+                      error: (_, __) => [
+                        EmptyState.error(onRetry: () => ref.invalidate(homeAppointmentsProvider)),
+                      ],
+                      data: (list) => _content(context, ref, list, hospital),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -68,8 +70,8 @@ class HomeScreen extends ConsumerWidget {
 
   List<Widget> _content(
       BuildContext context, WidgetRef ref, List<AppointmentView>? list, HospitalInfo? hospital) {
-    // 오프라인 + 보관본 없음(OFF-DO-01/HOME-EMPTY-03) — "예약 없음" 거짓말 대신 오프라인 빈 상태.
     if (list == null) {
+      // 오프라인 + 보관본 없음(OFF-DO-01/HOME-EMPTY-03).
       return [
         EmptyState.offline(
             screenName: '홈', onRetry: () => ref.invalidate(homeAppointmentsProvider)),
@@ -90,8 +92,9 @@ class HomeScreen extends ConsumerWidget {
     if (day.isEmpty) {
       // HOME-EMPTY-01·02: 0건 안내 + [진료 예약하기] + 지난 방문 이력 보기(최근 방문 목록은 넣지 않는다).
       return [
+        const SizedBox(height: 48),
         EmptyState.zero(
-          message: '예약된 진료가 없습니다',
+          message: '예정된 예약이 없습니다',
           nextAction: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -109,30 +112,37 @@ class HomeScreen extends ConsumerWidget {
       ];
     }
 
-    final Widget card = day.length == 1
-        ? InkWell(
-            onTap: () => context.go('/appointments/${day.first.id}'), // NAV-HOME-01
-            child: AppointmentCard(
-              view: day.first,
-              onAcknowledge: () => _acknowledge(ref, day.first.id), // NAV-HOME-15
-            ),
-          )
-        : HomeMultiCard(
-            views: day,
-            onRow: (v) => context.go('/appointments/${v.id}'), // NAV-HOME-01
-            onQr: (v) => context.go('/qr/${v.id}'), // NAV-HOME-02
-          );
-
     return [
-      card,
-      // HOME-INFO-01·02: 조회 성공 시만 카드 아래 주소·전화 두 줄(실패면 이 줄이 통째로 사라진다).
-      if (hospital != null && !hospital.isEmpty) ...[
-        const SizedBox(height: 16),
-        HospitalInfoRow(
-          address: hospital.address ?? '',
-          phone: hospital.phone ?? '',
+      // 데모 정본: 「오늘의 예약」 + 「전체 예약 보기 ›」.
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('오늘의 예약',
+                style: TextStyle(fontWeight: FontWeight.w600, color: AppTokens.grayPending)),
+            TextButton(
+                onPressed: () => context.go('/my'),
+                child: const Text('전체 예약 보기 ›',
+                    style: TextStyle(color: AppTokens.grayPending))),
+          ],
         ),
-      ],
+      ),
+      // 하루치를 풀 카드로 세로 스택(HOME-CARD — 데모 정본, 사람별 압축 줄 아님).
+      for (final v in day)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: InkWell(
+            onTap: () => context.go('/appointments/${v.id}'), // NAV-HOME-01
+            child: AppointmentCard(
+              view: v,
+              onAcknowledge: () => _acknowledge(ref, v.id), // NAV-HOME-15
+            ),
+          ),
+        ),
+      // HOME-INFO-01·02: 조회 성공 시만 병원 주소·전화(실패면 이 줄만 사라진다).
+      if (hospital != null && !hospital.isEmpty)
+        HospitalInfoRow(address: hospital.address ?? '', phone: hospital.phone ?? ''),
     ];
   }
 
@@ -144,5 +154,36 @@ class HomeScreen extends ConsumerWidget {
       // 실패해도 화면은 그대로 — 다음 새로고침에서 다시 보인다.
     }
     ref.invalidate(homeAppointmentsProvider);
+  }
+}
+
+/// 딥틸 브랜드 앱바(데모 정본): 가온병원 워드마크 + 종(알림함) + 톱니(설정). 흰 아이콘·글자.
+class _BrandBar extends StatelessWidget {
+  const _BrandBar({required this.unread, required this.onBell, required this.onSettings});
+  final int unread;
+  final VoidCallback onBell;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppTokens.primary,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: IconTheme(
+        data: const IconThemeData(color: Colors.white),
+        child: Row(
+          children: [
+            const Icon(Icons.local_hospital_outlined, size: 20),
+            const SizedBox(width: 8),
+            const Text('가온병원',
+                style: TextStyle(
+                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Spacer(),
+            NotificationBell(unreadCount: unread, onTap: onBell),
+            IconButton(icon: const Icon(Icons.settings), onPressed: onSettings), // NAV-HOME-13
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -68,17 +68,17 @@ void main() {
     expect(find.byType(AppointmentCard), findsOneWidget);
   });
 
-  testWidgets('[HOME-CARD-02] 그날 예약이 2건 이상이면 사람별 줄로 묶은 카드', (t) async {
+  testWidgets('[HOME-CARD-02] 그날 예약이 2건 이상이면 풀 카드를 세로로 쌓는다(데모 정본)', (t) async {
     await t.pumpWidget(_home([_view('1', '예약확정', name: '본인'), _view('2', '예약확정', name: '김순자')]));
     await t.pumpAndSettle();
-    expect(find.byType(AppointmentCard), findsNothing); // 히어로 아님
-    expect(find.textContaining('김순자'), findsOneWidget); // 각 줄에 이름
+    expect(find.byType(AppointmentCard), findsNWidgets(2)); // 압축 줄이 아니라 풀 카드 2장
+    expect(find.textContaining('김순자'), findsOneWidget); // 각 카드에 이름
   });
 
   testWidgets('[HOME-EMPTY-01] 0건이면 안내 + [진료 예약하기] + 지난 방문 이력 보기', (t) async {
     await t.pumpWidget(_home([]));
     await t.pumpAndSettle();
-    expect(find.textContaining('예약된 진료가 없습니다'), findsOneWidget);
+    expect(find.textContaining('예정된 예약이 없습니다'), findsOneWidget);
     expect(find.widgetWithText(ActionButton, '진료 예약하기'), findsOneWidget);
     expect(find.textContaining('지난 방문 이력 보기'), findsOneWidget);
   });

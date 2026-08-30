@@ -16,10 +16,15 @@ class AppCard extends StatelessWidget {
       children: [
         Container(
           key: const Key('app_card_main'),
+          // 데모 정본: 테두리 대신 딥틸 tint 배경 + 옅은 그림자로 "떠 보이는" 안쪽 박스(DISP-CARD-01).
           decoration: BoxDecoration(
-            border: Border.all(color: AppTokens.grayPending),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            color: AppTokens.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(color: Color(0x24102D32), blurRadius: 10, offset: Offset(0, 2)),
+            ],
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: SizedBox(
             key: const Key('app_card_body'),
             height: AppTokens.cardBodyHeight, // 고정 132
