@@ -45,17 +45,17 @@ export function UndoReasonStep({ reason, onReason, onContinue, onCancel }: UndoR
 }
 
 const styles: Record<string, CSSProperties> = {
-  title: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
-  hint: { margin: '6px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', lineHeight: 1.4 },
-  count: { marginTop: 6, textAlign: 'right', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
+  title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  hint: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', lineHeight: 1.4 },
+  count: { marginTop: 6, textAlign: 'right', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
   cancel: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   continue: {
     height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
-    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   continueOff: { background: 'var(--color-sidebar-ink)', opacity: 0.5, cursor: 'not-allowed' },
 }
