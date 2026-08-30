@@ -1,12 +1,11 @@
 import { render, screen, within } from '@testing-library/react'
-import { hospitalToday } from '../lib/clock'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { server } from '../test/msw/server'
-import { Today, todayLabel } from './today/Today'
+import { Today } from './today/Today'
 import type { TodaySummary } from '../api/dashboard'
 
 // 백엔드 계약: backend/app/services/dashboard_service.py::get_today_summary
@@ -241,13 +240,6 @@ describe('오늘의 현황 /today', () => {
     expect(header.style.background).toBe('') // 전면 배경을 칠하지 않는다
   })
 
-  test('[TODAY-DATE-01] 화면에 오늘 날짜를 보인다', async () => {
-    summaryOk(FULL)
-    renderToday()
-    const date = await screen.findByTestId('today-date')
-    expect(date).toHaveTextContent(hospitalToday().slice(0, 4)) // 병원 기준 연도
-  })
-
   test('[STAT-METRIC-06] 상담 문의 집계가 없으면(null) 「현재 집계할 수 없음」을 보인다', async () => {
     summaryOk(FULL) // bot_pending: null
     renderToday()
@@ -267,9 +259,4 @@ describe('오늘의 현황 /today', () => {
     expect(await screen.findByText('정보를 불러오지 못했습니다')).toBeVisible()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeVisible()
   })
-})
-
-// [TODAY-DATE-01][TIME-TZ-01] 머리글 날짜는 병원 자정 기준이다 — 창구 PC 시계가 아니다.
-test('[TODAY-DATE-01] 한국이 자정을 넘긴 순간, 기계가 아직 어제여도 오늘 날짜를 적는다', () => {
-  expect(todayLabel(new Date('2026-08-28T16:20:00Z'))).toContain('8월 29일')
 })

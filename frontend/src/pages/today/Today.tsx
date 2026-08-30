@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { StaffPage } from '../../components/staff-ui'
 import { EmptyState } from '../../components/EmptyState'
-import { formatHospitalDate, hospitalToday } from '../../lib/clock'
 import {
   getTodaySummary,
   type TodaySummary,
@@ -171,21 +170,21 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
         </span>
       </div>
 
-      {/* 이름 + 생년월일·과/의사 (번호 보기 인라인) */}
+      {/* 이름 · 생년월일 · 과/의사를 한 줄로(SEARCH-RESULT-09 패턴 · 번호 보기 인라인) */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="font-bold">{row.name}</span>
-        </div>
-        <div className="mt-0.5 text-sm text-muted-foreground">
-          {phone ? <span className="font-medium text-foreground">{phone}</span> : row.maskedBirth}
-          {(row.dept || row.doctor) && (
-            <>
-              {' · '}
-              {row.dept} {row.doctor}
-            </>
-          )}
+          <span className="text-sm text-muted-foreground">
+            {phone ? <span className="font-medium text-foreground">{phone}</span> : row.maskedBirth}
+            {(row.dept || row.doctor) && (
+              <>
+                {' · '}
+                {row.dept} {row.doctor}
+              </>
+            )}
+          </span>
           {phone && (
-            <button onClick={() => navigator.clipboard?.writeText(phone)} className="ml-2 text-xs font-medium text-primary hover:underline">
+            <button onClick={() => navigator.clipboard?.writeText(phone)} className="text-xs font-medium text-primary hover:underline">
               복사
             </button>
           )}
@@ -340,18 +339,12 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateF
   )
 }
 
-/** TODAY-DATE-01 — 병원 자정 기준(TIME-TZ-01). 실시간 자동 전환은 TODAY-LIVE-01이 붙을 때 완성. */
-export function todayLabel(at: Date = new Date()): string {
-  return formatHospitalDate(hospitalToday(at), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
-}
-
 export function Today() {
   const navigate = useNavigate()
   const query = useQuery({ queryKey: ['today-summary'], queryFn: getTodaySummary })
 
   return (
     <StaffPage testid="today">
-      <div data-testid="today-date" className="mb-4 text-sm font-semibold text-muted-foreground">{todayLabel()}</div>
 
       {query.isPending && <p role="status" className="text-muted-foreground">오늘의 현황을 불러오는 중입니다</p>}
 
