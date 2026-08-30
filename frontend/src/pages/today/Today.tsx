@@ -162,13 +162,13 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
   return (
     <div data-testid={`${kind}-row-${row.appointmentId}`} className="flex items-center gap-4 px-4 py-2.5">
       {/* 시각 레일(TODAY-ROW-01 시그니처) — 미접수·전일은 옅은 회색(TODAY-ROW-02). */}
-      <div className="flex w-14 shrink-0 flex-col items-end border-r border-border pr-3">
-        {/* [L23][TODAY-YDAY-03] 지난 날짜는 좁은 레일에서 한 줄에 안 들어가 못나게 접힌다 —
-            날짜를 시각 위에 작게 얹어 의도된 두 줄로 정돈한다(정보는 그대로 함께 표시). */}
-        {row.railDate && (
-          <span className="text-xs tabular-nums text-muted-foreground/60">{row.railDate}</span>
-        )}
-        <span className={`text-sm font-semibold tabular-nums ${row.railPast ? 'text-muted-foreground/60' : 'text-foreground'}`}>{row.rail}</span>
+      {/* [L23][TODAY-YDAY-03] 지난 날짜 행은 날짜+시각을 함께 보인다 — 좁은 레일에서 못나게 접히지 않도록
+          그 행만 레일 폭을 넓혀 「8/29 09:30」을 한 줄로(날짜 작게·시각 굵게). 시각만인 행은 종전 폭 그대로. */}
+      <div className={`flex ${row.railDate ? 'w-[88px]' : 'w-14'} shrink-0 flex-col items-end border-r border-border pr-3`}>
+        <span className="whitespace-nowrap tabular-nums">
+          {row.railDate && <span className="mr-1 text-xs text-muted-foreground/60">{row.railDate}</span>}
+          <span className={`text-sm font-semibold ${row.railPast ? 'text-muted-foreground/60' : 'text-foreground'}`}>{row.rail}</span>
+        </span>
       </div>
 
       {/* 이름 + 생년월일·과/의사 (번호 보기 인라인) */}
