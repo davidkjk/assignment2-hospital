@@ -231,5 +231,10 @@ const styles: Record<string, CSSProperties> = {
   itemValue: { margin: 0, color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
   successNote: { margin: '14px 0 0', fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
   successActions: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 },
-  historyLink: { color: 'var(--color-primary)', fontWeight: 700, textDecoration: 'none' },
+  // [L21] 옆의 [후보 목록으로]와 같은 테두리 버튼으로 — raw 링크로 크게·청록으로 튀지 않게(사용자 지적).
+  historyLink: {
+    display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 14px', borderRadius: 8,
+    border: '1px solid var(--color-divider)', background: 'var(--color-surface)',
+    color: 'var(--color-ink)', fontSize: 'var(--fs-base)', fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
+  },
 }
