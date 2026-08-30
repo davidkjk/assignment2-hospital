@@ -85,7 +85,9 @@ export function getCalendar(params: {
 }): Promise<CalendarData> {
   const query = new URLSearchParams({ from: params.from, to: params.to })
   if (params.doctorIds && params.doctorIds.length > 0) {
-    query.set('doctor_ids', params.doctorIds.join(','))
+    // FastAPI `doctor_ids: list[UUID] = Query()`는 반복 파라미터를 기대한다
+    // (doctor_ids=a&doctor_ids=b). 콤마 조인은 2명 이상일 때 UUID 파싱 실패로 422가 난다.
+    for (const id of params.doctorIds) query.append('doctor_ids', id)
   }
   return apiFetch<CalendarData>(`/calendar?${query.toString()}`)
 }

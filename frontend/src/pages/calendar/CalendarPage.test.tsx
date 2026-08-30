@@ -100,9 +100,9 @@ test('[L11] 의사 한 명을 골라도 나머지 의사 칩이 남아 다른 �
   server.use(
     http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
     http.get('*/calendar', ({ request }) => {
-      const ids = new URL(request.url).searchParams.get('doctor_ids')
-      if (!ids) return HttpResponse.json(DATA)
-      const picked = ids.split(',')
+      // 실제 백엔드(FastAPI list[UUID]=Query)처럼 반복 파라미터로 읽는다 — 콤마 조인이면 잡힌다.
+      const picked = new URL(request.url).searchParams.getAll('doctor_ids')
+      if (picked.length === 0) return HttpResponse.json(DATA)
       return HttpResponse.json({
         ...DATA,
         doctors: DATA.doctors.filter((d) => picked.includes(d.id)),
@@ -120,6 +120,33 @@ test('[L11] 의사 한 명을 골라도 나머지 의사 칩이 남아 다른 �
   // …칩은 전부 남아 다른 의사를 더 고를 수 있다.
   const chips = within(screen.getByRole('group', { name: '의사' })).getAllByRole('button').map((b) => b.textContent)
   expect(chips).toEqual(['전체', '박지훈', '최민석', '한소연'])
+})
+
+test('[CAL-DOC-02b] 의사 2명을 함께 고르면 두 열이 다 보인다 (doctor_ids 반복 파라미터)', async () => {
+  // 회귀: doctor_ids를 콤마로 조인하면 백엔드(list[UUID]=Query)가 UUID 파싱 실패로 422를 낸다.
+  // 반복 파라미터(doctor_ids=a&doctor_ids=b)로 보내야 2명 이상이 걸러진다.
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', ({ request }) => {
+      const picked = new URL(request.url).searchParams.getAll('doctor_ids')
+      if (picked.length === 0) return HttpResponse.json(DATA)
+      return HttpResponse.json({
+        ...DATA,
+        doctors: DATA.doctors.filter((d) => picked.includes(d.id)),
+        appointments: DATA.appointments.filter((a) => picked.includes(a.doctor_id)),
+      })
+    }),
+  )
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  const nameGroup = screen.getByRole('group', { name: '의사' })
+  await user.click(within(nameGroup).getByRole('button', { name: '박지훈' }))
+  await user.click(within(nameGroup).getByRole('button', { name: '최민석' }))
+  // 두 열이 다 남고(콤마였다면 'a,b' 한 덩어리라 아무 열도 안 남는다), 안 고른 한소연만 사라진다.
+  expect(await screen.findByTestId('head-d1')).toBeVisible()
+  expect(await screen.findByTestId('head-d2')).toBeVisible()
+  await waitFor(() => expect(screen.queryByTestId('head-d3')).toBeNull())
 })
 
 test('[CAL-VIEW-07][CAL-VIEW-08] 주간으로 바꿔도 의사를 자동으로 좁히지 않고 「외 N」으로 접지 않는다', async () => {
