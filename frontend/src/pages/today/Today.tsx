@@ -35,6 +35,7 @@ interface UiRow {
   dept?: string
   doctor?: string
   rail: string // 시각 레일 텍스트
+  railDate?: string // 지난 날짜 예약이면 시각 위에 작게(TODAY-YDAY-03) — 좁은 레일에서 줄바꿈 대신 두 줄(L23)
   railPast: boolean // 지난/미래 예약이면 옅은 회색(TODAY-ROW-02)
   reason?: string
 }
@@ -45,10 +46,10 @@ interface UiCard {
 }
 
 const hhmm = (t: string) => t.slice(0, 5)
-/** 지난 날짜 행의 레일(TODAY-YDAY-03) — "2026-08-02"+time → "8/2 16:30"(앞의 0을 뗀다). */
-const mdHm = (d: string, t: string) => {
+/** 지난 날짜 행의 날짜(TODAY-YDAY-03) — "2026-08-02" → "8/2"(앞의 0을 뗀다). 시각은 hhmm으로 따로 준다. */
+const md = (d: string) => {
   const [, m, day] = d.split('-')
-  return `${Number(m)}/${Number(day)} ${hhmm(t)}`
+  return `${Number(m)}/${Number(day)}`
 }
 
 /** 실 행(PatientRow 파생)의 공통 필드를 UiRow로. */
@@ -83,7 +84,7 @@ function buildCards(data: TodaySummary): UiCard[] {
     cards.push({
       kind: 'yday',
       title: '전일 미완료',
-      rows: data.yesterday_unfinished.map((r) => ({ ...baseRow(r), rail: mdHm(r.slot_date, r.slot_time), railPast: true, reason: r.reason })),
+      rows: data.yesterday_unfinished.map((r) => ({ ...baseRow(r), rail: hhmm(r.slot_time), railDate: md(r.slot_date), railPast: true, reason: r.reason })),
     })
   if (data.needs_attention.length)
     cards.push({
@@ -162,6 +163,11 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
     <div data-testid={`${kind}-row-${row.appointmentId}`} className="flex items-center gap-4 px-4 py-2.5">
       {/* 시각 레일(TODAY-ROW-01 시그니처) — 미접수·전일은 옅은 회색(TODAY-ROW-02). */}
       <div className="flex w-14 shrink-0 flex-col items-end border-r border-border pr-3">
+        {/* [L23][TODAY-YDAY-03] 지난 날짜는 좁은 레일에서 한 줄에 안 들어가 못나게 접힌다 —
+            날짜를 시각 위에 작게 얹어 의도된 두 줄로 정돈한다(정보는 그대로 함께 표시). */}
+        {row.railDate && (
+          <span className="text-xs tabular-nums text-muted-foreground/60">{row.railDate}</span>
+        )}
         <span className={`text-sm font-semibold tabular-nums ${row.railPast ? 'text-muted-foreground/60' : 'text-foreground'}`}>{row.rail}</span>
       </div>
 
