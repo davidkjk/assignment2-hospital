@@ -1,6 +1,8 @@
 import { useState, type CSSProperties } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { ApiError } from '../../../api/httpClient'
 import { Checkbox, Radio, TextField, btnPrimary, btnGhost } from '../../../components/staff-ui'
+import { PanelCard } from './PanelCard'
 import { ScheduleTimeInput } from './ScheduleTimeInput'
 import type { DateException } from './types'
 
@@ -64,6 +66,9 @@ export function DateExceptionPanel({
   const [overrideStart, setOverrideStart] = useState('09:00')
   const [overrideEnd, setOverrideEnd] = useState('13:00')
   const [warnAffected, setWarnAffected] = useState<number | null>(null)
+  // 저장이 실패하거나(막다른 길 대신 이유) 아무 영향 없이 성공해도(무반응 방지) 피드백을 남긴다.
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
 
   const affectedTotal = dayExceptions.reduce((sum, e) => sum + e.affected_count, 0)
   const hospitalClosedThatDay = dayExceptions.some((e) => e.scope === 'hospital' && e.is_closed)
@@ -74,6 +79,13 @@ export function DateExceptionPanel({
   }
 
   async function handleSave() {
+    setActionError(null)
+    setFlash(null)
+    // 의사 고르기인데 아무도 안 골랐으면 저장이 조용히 아무 일도 안 하게 두지 않는다(막다른 길 금지).
+    if (scope === 'doctor' && checked.length === 0) {
+      setActionError('휴진·변경할 의사를 한 명 이상 고르세요.')
+      return
+    }
     const input: SaveExceptionInput = {
       scope,
       doctorIds: scope === 'doctor' ? checked : [],
@@ -82,12 +94,20 @@ export function DateExceptionPanel({
       overrideStart,
       overrideEnd,
     }
-    const res = await onSave(input)
-    if (res.affected > 0) setWarnAffected(res.affected) // 0건이면 안 뜬다(EXC-15)
+    try {
+      const res = await onSave(input)
+      // 영향받는 예약이 있으면 경고창(EXC-15), 없으면 「저장됨」 한 줄 — 어느 쪽이든 무반응이 아니게.
+      if (res.affected > 0) setWarnAffected(res.affected)
+      else setFlash('저장했습니다.')
+    } catch (e) {
+      // 실패를 삼키지 않는다(G1) — 이유를 보이고 고른 값은 그대로 둔다.
+      setActionError(e instanceof ApiError ? e.message : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    }
   }
 
   return (
-    <div style={styles.wrap}>
+    <PanelCard title="특정 날짜 변경" pad>
+      <div style={styles.wrap}>
       {/* 왼쪽 월간 달력 */}
       <div style={styles.calendar}>
         <div style={styles.calHead}>{monthLabel}</div>
@@ -199,6 +219,14 @@ export function DateExceptionPanel({
         <button type="button" onClick={handleSave} className={btnPrimary}>
           저장
         </button>
+
+        {actionError && (
+          <p role="alert" style={styles.actionError}>{actionError}</p>
+        )}
+        {flash && (
+          <p role="status" style={styles.flash}>{flash}</p>
+        )}
+      </div>
       </div>
 
       {warnAffected !== null && (
@@ -211,7 +239,7 @@ export function DateExceptionPanel({
           onConfirm={() => setWarnAffected(null)}
         />
       )}
-    </div>
+    </PanelCard>
   )
 }
 
@@ -246,4 +274,6 @@ const styles: Record<string, CSSProperties> = {
   doctorRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-2)' },
   timeRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', width: '100%' },
   tilde: { color: 'var(--color-ink-muted)' },
+  actionError: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-danger)' },
+  flash: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-primary)' },
 }

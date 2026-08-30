@@ -32,13 +32,13 @@ test('[SCHED-GRID-01][SCHED-GRID-02] 행=의사·열=요일이고 여기서 고�
   expect(within(gridElement()).queryAllByRole('textbox')).toHaveLength(0)
 })
 
-test('[SCHED-GRID-01][SCHED-GRID-04] 범례가 시각·정원·휴진 뜻과 클릭 안내를 준다', () => {
+test('[SCHED-GRID-04] 범례가 휴진 뜻과 클릭 안내를 준다 (하드코딩 예시값 없이)', () => {
   renderGrid()
-  expect(screen.getByText('진료 시간')).toBeVisible()
-  expect(screen.getByText('한 칸 길이 · 하루 최대 인원')).toBeVisible()
+  // 색만으로 구분하지 않는다 — 휴진 뜻과 이동 안내만. 진료시간·정원 예시는 실제 자료가 아니라 두지 않는다.
+  expect(screen.getAllByText('휴진').length).toBeGreaterThan(0)
   expect(screen.getByText('칸을 누르면 그 의사 스케줄로 이동합니다')).toBeVisible()
-  // 범례 예시 시각은 격자와 같은 형식(09–18)이어야 한다 — SCHED-GRID-01
-  expect(screen.getAllByText('09–18').length).toBeGreaterThan(0)
+  expect(screen.queryByText('진료 시간')).toBeNull()
+  expect(screen.queryByText('한 칸 길이 · 하루 최대 인원')).toBeNull()
 })
 
 test('[SCHED-GRID-01] 주말 요일 헤더에 토=파랑·일=빨강 토큰 색이 붙는다', () => {

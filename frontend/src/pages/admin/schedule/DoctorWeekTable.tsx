@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { ApiError } from '../../../api/httpClient'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { btnPrimary, btnGhost } from '../../../components/staff-ui'
+import { PanelCard } from './PanelCard'
 import { DirtyDot } from './DirtyDot'
 import { ScheduleTimeInput, TIME_FIELD_CLASS } from './ScheduleTimeInput'
 import type { DirtyMapApi } from './useDirtyMap'
@@ -110,66 +111,71 @@ export function DoctorWeekTable({
   const turnsOffDay = pendingRows.some((r) => r.is_day_off)
 
   return (
-    <div>
-      {/* 위쪽 의사 가로줄 (SCHED-WEEK-08·09) */}
-      <div role="tablist" aria-label="의사" style={styles.chipRow}>
-        {doctors.map((doc) => {
-          const active = doc.id === selectedDoctorId
-          return (
-            <button
-              key={doc.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              data-chip={doc.name}
-              onClick={() => onSelectDoctor(doc.id)}
-              style={{ ...styles.chip, ...(active ? styles.chipActive : null) }}
-            >
-              {doc.name}
-              {doc.department && <span style={styles.chipDept}>{doc.department}</span>}
-              {dirty.dirtyDoctors.includes(doc.id) && <DirtyDot />}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* 저장 줄 — 표 맨 위 버튼 하나(SCHED-SAVE-01) */}
-      <div style={styles.saveRow}>
-        <button type="button" onClick={copyMonday} className={btnGhost}>
-          월요일 값을 나머지에
-        </button>
-        <div style={styles.saveRight}>
-          {dirtyCount > 0 && (
-            <span style={styles.dirtyNote}>고친 곳 {dirtyCount}군데 · 아직 저장 안 됨</span>
-          )}
-          <button type="button" onClick={handleSave} className={btnPrimary}>
-            저장
+    <PanelCard
+      title="의사별 스케줄"
+      toolbar={
+        /* 위쪽 의사 가로줄 = 내용 위에 붙는 필터(SCHED-WEEK-08·09). */
+        <div role="tablist" aria-label="의사" style={styles.chipRow}>
+          {doctors.map((doc) => {
+            const active = doc.id === selectedDoctorId
+            return (
+              <button
+                key={doc.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                data-chip={doc.name}
+                onClick={() => onSelectDoctor(doc.id)}
+                style={{ ...styles.chip, ...(active ? styles.chipActive : null) }}
+              >
+                {doc.name}
+                {doc.department && <span style={styles.chipDept}>{doc.department}</span>}
+                {dirty.dirtyDoctors.includes(doc.id) && <DirtyDot />}
+              </button>
+            )
+          })}
+        </div>
+      }
+    >
+      <div style={styles.controls}>
+        {/* 저장 줄 — 표 맨 위 버튼 하나(SCHED-SAVE-01) */}
+        <div style={styles.saveRow}>
+          <button type="button" onClick={copyMonday} className={btnGhost}>
+            월요일 값을 나머지에
           </button>
+          <div style={styles.saveRight}>
+            {dirtyCount > 0 && (
+              <span style={styles.dirtyNote}>고친 곳 {dirtyCount}군데 · 아직 저장 안 됨</span>
+            )}
+            <button type="button" onClick={handleSave} className={btnPrimary}>
+              저장
+            </button>
+          </div>
         </div>
+
+        {actionError && (
+          <p role="alert" style={styles.errorNote}>
+            {actionError}
+          </p>
+        )}
+
+        {status && (
+          <div role="status" style={styles.statusNote}>
+            {status.affected}건은 접수 직원의 「확인 필요한 예약」으로 넘어갔습니다.
+            <span data-testid="handoff-target" hidden>
+              /today 확인 필요한 예약
+            </span>
+          </div>
+        )}
       </div>
 
-      {actionError && (
-        <p role="alert" style={styles.errorNote}>
-          {actionError}
-        </p>
-      )}
-
-      {status && (
-        <div role="status" style={styles.statusNote}>
-          {status.affected}건은 접수 직원의 「확인 필요한 예약」으로 넘어갔습니다.
-          <span data-testid="handoff-target" hidden>
-            /today 확인 필요한 예약
-          </span>
-        </div>
-      )}
-
-      <div style={styles.wrap}>
+      <div style={styles.tableScroll}>
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={{ ...styles.th, textAlign: 'left' }}>요일</th>
-              {COLS.map((c) => (
-                <th key={c} style={styles.th}>
+              <th style={{ ...styles.th, textAlign: 'left', paddingLeft: 'var(--sp-4)' }}>요일</th>
+              {COLS.map((c, i) => (
+                <th key={c} style={{ ...styles.th, ...(i === COLS.length - 1 ? styles.lastColPad : null) }}>
                   {c}
                 </th>
               ))}
@@ -187,7 +193,7 @@ export function DoctorWeekTable({
                   data-focused={focusedWeekday === w ? 'true' : undefined}
                   style={isDirty ? styles.rowDirty : undefined}
                 >
-                  <td style={styles.tdLabel}>
+                  <td style={styles.tdLabelPad}>
                     {label}
                     {isDirty && <DirtyDot />}
                   </td>
@@ -265,7 +271,7 @@ export function DoctorWeekTable({
                         />
                         <span style={styles.unit}>명</span>
                       </td>
-                      <td style={styles.td}>
+                      <td style={{ ...styles.td, ...styles.lastColPad }}>
                         <ScheduleTimeInput
                           label={`${label} 예약 마감`}
                           value={hhmm(row.booking_deadline)}
@@ -308,7 +314,7 @@ export function DoctorWeekTable({
           )}
         </ConfirmDialog>
       )}
-    </div>
+    </PanelCard>
   )
 }
 
@@ -316,8 +322,8 @@ export function DoctorWeekTable({
 function DashCells({ day }: { day: string }) {
   return (
     <>
-      {['진료 시간', '한 칸 길이', '점심시간', '하루 최대 인원', '예약 마감'].map((c) => (
-        <td key={c} style={styles.td}>
+      {['진료 시간', '한 칸 길이', '점심시간', '하루 최대 인원', '예약 마감'].map((c, i, arr) => (
+        <td key={c} style={{ ...styles.td, ...(i === arr.length - 1 ? styles.lastColPad : null) }}>
           <span data-cell2={`${day}|${c}`} style={styles.dash}>
             —
           </span>
@@ -347,7 +353,9 @@ function emptyRow(weekday: number): WeekRow {
 }
 
 const styles: Record<string, CSSProperties> = {
-  chipRow: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)', marginBottom: 'var(--sp-3)' },
+  chipRow: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)', flex: 1, minWidth: 0 },
+  controls: { padding: 'var(--sp-4)', borderBottom: '1px solid var(--color-divider)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  tableScroll: { overflowX: 'auto' },
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -367,7 +375,7 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-primary)',
   },
   chipDept: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-caption)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  saveRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-2)' },
+  saveRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-3)', flexWrap: 'wrap' },
   saveRight: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' },
   dirtyNote: { fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   statusNote: {
@@ -376,10 +384,9 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-primary-wash)',
     color: 'var(--color-ink)',
     fontSize: 'var(--fs-body)',
-    marginBottom: 'var(--sp-2)',
   },
   errorNote: {
-    margin: '0 0 var(--sp-2)',
+    margin: 0,
     padding: 'var(--sp-2) var(--sp-3)',
     borderRadius: 8,
     borderLeft: '4px solid var(--color-danger)',
@@ -387,12 +394,6 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-danger)',
     fontSize: 'var(--fs-body)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-  },
-  wrap: {
-    overflowX: 'auto',
-    border: '1px solid var(--color-divider)',
-    borderRadius: 'var(--radius-card)',
-    background: 'var(--color-surface)',
   },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: {
@@ -406,6 +407,8 @@ const styles: Record<string, CSSProperties> = {
   },
   td: { padding: 'var(--sp-1) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', whiteSpace: 'nowrap' },
   tdLabel: { padding: 'var(--sp-1) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], whiteSpace: 'nowrap' },
+  tdLabelPad: { padding: 'var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-4)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], whiteSpace: 'nowrap' },
+  lastColPad: { paddingRight: 'var(--sp-4)' },
   rowDirty: { background: 'rgba(180,78,0,0.06)' },
   toggle: {
     position: 'relative',

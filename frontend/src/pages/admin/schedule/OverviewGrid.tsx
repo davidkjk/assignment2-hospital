@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
 import { btnPrimary } from '../../../components/staff-ui'
+import { PanelCard } from './PanelCard'
 import { WEEKDAY_SHORT, type OverviewDoctor } from './types'
 
 // [SCHED-GRID-01·02] 전체 현황 = 읽는 곳. 행=의사·열=요일 7. 한 칸에 진료 시간·한 칸 길이·하루 최대 인원.
@@ -22,35 +23,35 @@ function hourOf(value: string | null): string {
 export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGridProps) {
   if (doctors.length === 0) {
     return (
-      <EmptyState
-        kind="zero"
-        message="아직 등록된 의사가 없습니다"
-        action={
-          <button type="button" onClick={onGoToStaff} className={btnPrimary}>
-            의사 관리로 가기
-          </button>
-        }
-      />
+      <PanelCard title="전체 진료 일정" pad>
+        <EmptyState
+          kind="zero"
+          message="아직 등록된 의사가 없습니다"
+          action={
+            <button type="button" onClick={onGoToStaff} className={btnPrimary}>
+              의사 관리로 가기
+            </button>
+          }
+        />
+      </PanelCard>
     )
   }
 
   return (
-    <div data-testid="overview-grid" style={styles.wrap}>
-      {/* [SCHED-GRID-01·04] 범례 — 카드 안 상단(카드 윗선을 왼쪽 세로줄과 맞춘다). */}
-      <div style={styles.legend}>
-        <span style={styles.legendItem}>
-          <span style={styles.legendNum}>09–18</span> 진료 시간
-        </span>
-        <span style={styles.legendItem}>
-          <span style={styles.legendNum}>15분 · 40명</span> 한 칸 길이 · 하루 최대 인원
-        </span>
-        <span style={styles.legendItem}>
-          <span style={styles.legendSwatch} /> 휴진
-        </span>
-        <span style={styles.legendHint}>칸을 누르면 그 의사 스케줄로 이동합니다</span>
-      </div>
-
-      <div style={styles.tableScroll}>
+    <PanelCard
+      title="전체 진료 일정"
+      toolbar={
+        <>
+          {/* [SCHED-GRID-04] 색만으로 구분하지 않는다 — 빗금 견본으로 「휴진」 뜻만 준다.
+              ⛔ 진료시간·정원 예시(09–18·15분·40명)는 두지 않는다 — 실제 자료가 아니라 안 바뀌는 하드코딩이었다. */}
+          <span style={styles.legendItem}>
+            <span style={styles.legendSwatch} /> 휴진
+          </span>
+          <span style={styles.legendHint}>칸을 누르면 그 의사 스케줄로 이동합니다</span>
+        </>
+      }
+    >
+      <div data-testid="overview-grid" style={styles.tableScroll}>
         <table style={styles.table}>
         <thead>
           <tr>
@@ -106,26 +107,14 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
         </tbody>
         </table>
       </div>
-    </div>
+    </PanelCard>
   )
 }
 
 const HATCH = 'repeating-linear-gradient(45deg, rgba(90,108,123,0.16) 0 4px, transparent 4px 8px)'
 
 const styles: Record<string, CSSProperties> = {
-  legend: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 'var(--sp-4)',
-    rowGap: 'var(--sp-1)',
-    padding: 'var(--sp-3) var(--sp-3)',
-    borderBottom: '1px solid var(--color-divider)',
-    fontSize: 'var(--fs-caption)',
-    color: 'var(--color-ink-muted)',
-  },
-  legendItem: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1)' },
-  legendNum: { fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' },
+  legendItem: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   legendSwatch: {
     display: 'block',
     width: 24,
@@ -133,13 +122,7 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 4,
     backgroundImage: HATCH,
   },
-  legendHint: { color: 'var(--color-ink-muted)', opacity: 0.75 },
-  wrap: {
-    border: '1px solid var(--color-divider)',
-    borderRadius: 'var(--radius-card)',
-    background: 'var(--color-surface)',
-    overflow: 'hidden',
-  },
+  legendHint: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', opacity: 0.75 },
   tableScroll: { overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: {
@@ -150,10 +133,10 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-ink-muted)',
     borderBottom: '1px solid var(--color-divider)',
   },
-  thDoctor: { textAlign: 'left', minWidth: 120 },
+  thDoctor: { textAlign: 'left', minWidth: 120, paddingLeft: 'var(--sp-4)' },
   thSat: { color: 'var(--color-weekend-sat)' },
   thSun: { color: 'var(--color-weekend-sun)' },
-  tdDoctor: { padding: 'var(--sp-2) var(--sp-2)', borderBottom: '1px solid var(--color-divider)' },
+  tdDoctor: { padding: 'var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4)', borderBottom: '1px solid var(--color-divider)' },
   td: { padding: 'var(--sp-1)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
   docName: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   docDept: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },

@@ -1,6 +1,7 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { InlineError } from '../../../components/InlineError'
 import { Checkbox, btnPrimary, btnGhost, TextButton } from '../../../components/staff-ui'
+import { PanelCard } from './PanelCard'
 import { ScheduleTimeInput, TIME_FIELD_CLASS } from './ScheduleTimeInput'
 import { WEEKDAY_FULL, hhmm, type HospitalHoursRow } from './types'
 
@@ -90,25 +91,24 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
   }
 
   return (
-    <div>
-      <h2 style={styles.title}>병원 운영시간</h2>
-
+    <PanelCard title="병원 운영시간">
       {conflict && (
-        <div role="status" style={styles.banner}>
-          다른 관리자가 먼저 저장해 최신 값을 다시 불러왔습니다. 확인 후 다시 저장해 주세요.
+        <div style={styles.bannerWrap}>
+          <div role="status" style={styles.banner}>
+            다른 관리자가 먼저 저장해 최신 값을 다시 불러왔습니다. 확인 후 다시 저장해 주세요.
+          </div>
         </div>
       )}
 
-      {/* [일관성] 같은 화면의 다른 탭(전체현황·의사별 스케줄 등)처럼 표를 흰 카드로 감싼다(사용자 지시). */}
-      <div style={styles.tableCard}>
+      <div style={styles.tableScroll}>
       <table style={styles.table}>
         <thead>
           <tr>
-            <th style={{ ...styles.th, textAlign: 'left' }}>요일</th>
+            <th style={{ ...styles.th, textAlign: 'left', paddingLeft: 'var(--sp-4)' }}>요일</th>
             <th style={styles.th}>휴무</th>
             <th style={styles.th}>여는 시간</th>
             <th style={styles.th}>닫는 시간</th>
-            <th style={styles.th}>점심시간</th>
+            <th style={{ ...styles.th, ...styles.lastColPad }}>점심시간</th>
           </tr>
         </thead>
         <tbody>
@@ -118,7 +118,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
             const lunchOff = !r.lunch_start && !r.lunch_end
             return (
               <tr key={r.weekday} data-hours-row={WEEKDAY_FULL[r.weekday].slice(0, 1)}>
-                <td style={styles.tdLabel}>{full}</td>
+                <td style={styles.tdLabelPad}>{full}</td>
                 <td style={styles.td}>
                   <Checkbox
                     ariaLabel={`${full} 휴무`}
@@ -127,7 +127,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
                   />
                 </td>
                 {r.is_closed ? (
-                  <td colSpan={3} style={styles.closedCell}>
+                  <td colSpan={3} style={{ ...styles.closedCell, ...styles.lastColPad }}>
                     ── 휴무일 ──
                   </td>
                 ) : (
@@ -159,7 +159,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
                         </div>
                       )}
                     </td>
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, ...styles.lastColPad }}>
                       <span style={styles.lunchToggle}>
                         <Checkbox
                           ariaLabel={`${full} 점심 있음`}
@@ -193,30 +193,32 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
       </table>
       </div>
 
-      <p style={styles.infoNote}>
-        ⓘ 의사별 진료시간은 「의사별 스케줄」에서 따로 정합니다. 이 값은 접수 창구가 열려 있는 시간입니다.
-      </p>
-
-      <div style={styles.actions}>
-        <button type="button" onClick={copyMonday} className={btnGhost}>
-          월요일 값을 나머지에
-        </button>
-        <button type="button" onClick={handleSave} disabled={saving} className={btnPrimary}>
-          저장
-        </button>
-      </div>
-
-      {mismatch && (
-        <p data-testid="mismatch-note" style={styles.mismatch}>
-          {WEEKDAY_FULL[mismatch.weekday]} {mismatch.doctorEndLabel}까지 진료하는 의사가 {mismatch.doctorNames.length}명 있습니다 —
-          상담봇은 {mismatch.hoursEndLabel} 이후 「진료시간이 아닙니다」라고 답합니다.{' '}
-          <span style={styles.mismatchNames}>{mismatch.doctorNames.join(' · ')}</span>{' '}
-          <TextButton onClick={() => onGoToWeekly(mismatch.firstDoctorId)}>
-            의사별 스케줄에서 보기 ›
-          </TextButton>
+      <div style={styles.footer}>
+        <p style={styles.infoNote}>
+          ⓘ 의사별 진료시간은 「의사별 스케줄」에서 따로 정합니다. 이 값은 접수 창구가 열려 있는 시간입니다.
         </p>
-      )}
-    </div>
+
+        <div style={styles.actions}>
+          <button type="button" onClick={copyMonday} className={btnGhost}>
+            월요일 값을 나머지에
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving} className={btnPrimary}>
+            저장
+          </button>
+        </div>
+
+        {mismatch && (
+          <p data-testid="mismatch-note" style={styles.mismatch}>
+            {WEEKDAY_FULL[mismatch.weekday]} {mismatch.doctorEndLabel}까지 진료하는 의사가 {mismatch.doctorNames.length}명 있습니다 —
+            상담봇은 {mismatch.hoursEndLabel} 이후 「진료시간이 아닙니다」라고 답합니다.{' '}
+            <span style={styles.mismatchNames}>{mismatch.doctorNames.join(' · ')}</span>{' '}
+            <TextButton onClick={() => onGoToWeekly(mismatch.firstDoctorId)}>
+              의사별 스케줄에서 보기 ›
+            </TextButton>
+          </p>
+        )}
+      </div>
+    </PanelCard>
   )
 }
 
@@ -227,7 +229,7 @@ function fmt(raw: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  title: { margin: '0 0 var(--sp-4)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  bannerWrap: { padding: 'var(--sp-4) var(--sp-4) 0' },
   banner: {
     padding: 'var(--sp-3) var(--sp-4)',
     borderRadius: 8,
@@ -235,25 +237,21 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-danger)',
     fontSize: 'var(--fs-body)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-    marginBottom: 'var(--sp-3)',
   },
-  tableCard: {
-    border: '1px solid var(--color-divider)',
-    borderRadius: 'var(--radius-card)',
-    background: 'var(--color-surface)',
-    boxShadow: 'var(--shadow-card)',
-    overflow: 'hidden',
-  },
+  tableScroll: { overflowX: 'auto' },
+  footer: { padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: { padding: 'var(--sp-2)', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', borderBottom: '1px solid var(--color-divider)' },
   td: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
   tdLabel: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
+  tdLabelPad: { padding: 'var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
+  lastColPad: { paddingRight: 'var(--sp-4)' },
   closedCell: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', color: 'var(--color-ink-muted)' },
   lunchToggle: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)' },
   tilde: { margin: '0 var(--sp-0-5)', color: 'var(--color-ink-muted)' },
   dash: { color: 'var(--color-ink-muted)' },
-  infoNote: { margin: 'var(--sp-3) 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--sp-1)' },
-  mismatch: { marginTop: 'var(--sp-3)', padding: 'var(--sp-3) var(--sp-4)', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
+  infoNote: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  mismatch: { margin: 0, padding: 'var(--sp-3) var(--sp-4)', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
   mismatchNames: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

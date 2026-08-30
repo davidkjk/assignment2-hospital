@@ -14,7 +14,7 @@ import { DateExceptionPanel } from './DateExceptionPanel'
 import { buildMonthGrid } from './calendarGrid'
 import { HospitalHoursTable } from './HospitalHoursTable'
 import { useDirtyMap } from './useDirtyMap'
-import { hhmm, type HospitalHoursRow, type WeekRow } from './types'
+import { WEEKDAY_SHORT, type HospitalHoursRow, type WeekRow } from './types'
 
 // [SCHED-TAB-01] 왼쪽 세로줄 다섯 줄 + 오른쪽 내용. 첫 줄은 늘 「전체 현황」(SCHED-TAB-02, 마지막 줄 기억 안 함).
 //   격자 칸을 누르면 「의사별 스케줄」로 옮겨가며 그 의사·그 요일이 골라진 채 열린다(SCHED-GRID-03).
@@ -30,7 +30,7 @@ export function SchedulePage() {
 
 function ScheduleInner() {
   const navigate = useNavigate()
-  const [active, setActive] = useState<RailItem>('전체 현황') // 늘 전체 현황부터(SCHED-TAB-02)
+  const [active, setActive] = useState<RailItem>('전체 진료 일정') // 늘 전체 진료 일정부터(SCHED-TAB-02)
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null)
   const [focusedWeekday, setFocusedWeekday] = useState<number | null>(null)
   const dirty = useDirtyMap()
@@ -91,12 +91,15 @@ function ScheduleInner() {
 
   const selected = selectedDoctorId ?? doctors[0]?.id ?? ''
 
+  // [SCHED-TAB-01c] 줄마다 지금 상태 한 줄 — 들어가 보지 않아도 안이 짐작된다.
+  //   전체 진료 일정엔 부제목을 두지 않는다(「읽는 곳」은 불필요, 사용자 지시).
+  //   병원 운영시간은 요일마다 시간이 달라 한 줄 요약이 안 되므로, 휴무일만 보여 준다(사용자 지시).
   const subtitles = [
-    '읽는 곳',
+    '',
     `${departments.filter((d) => d.is_active).length}과`,
     `의사 ${doctors.length}명`,
     nextClosureLabel(closures),
-    hoursSummary(hours),
+    closedDaysSummary(hours),
   ]
 
   function goEdit(doctorId: string, weekday: number) {
@@ -128,7 +131,7 @@ function ScheduleInner() {
           weeklyDirty={dirty.dirtyDoctors.length > 0}
         />
         <section style={styles.content} aria-label={active}>
-          {active === '전체 현황' && (
+          {active === '전체 진료 일정' && (
             <OverviewGrid doctors={overview} onCellClick={goEdit} onGoToStaff={() => navigate('/admin/staff')} />
           )}
           {active === '진료과 관리' && (
@@ -250,12 +253,13 @@ function nextClosureLabel(closures: { closure_date: string }[]): string {
   return `다음 휴무 ${Number(m)}/${Number(d)}`
 }
 
-function hoursSummary(hours: HospitalHoursRow[]): string {
-  const weekday = hours.find((h) => h.weekday === 0)
-  const sunday = hours.find((h) => h.weekday === 6)
-  const weekdayPart = weekday && !weekday.is_closed ? `평일 ${hhmm(weekday.open_time)}~${hhmm(weekday.close_time)}` : '평일 미설정'
-  const sundayPart = sunday?.is_closed ? '일요일 휴무' : '일요일 진료'
-  return `${weekdayPart} / ${sundayPart}`
+/** 병원 운영시간 부제목 — 요일마다 시간이 달라 한 줄 요약이 안 되므로 휴무일만 보여 준다(사용자 지시). */
+function closedDaysSummary(hours: HospitalHoursRow[]): string {
+  const closed = hours
+    .filter((h) => h.is_closed)
+    .sort((a, b) => a.weekday - b.weekday)
+    .map((h) => WEEKDAY_SHORT[h.weekday])
+  return closed.length > 0 ? `${closed.join('·')} 휴무` : '휴무일 없음'
 }
 
 /** [TIME-TZ-01] 오늘·이번 달은 **병원 시계**다 — `toISOString()`은 UTC라 한국 오전에

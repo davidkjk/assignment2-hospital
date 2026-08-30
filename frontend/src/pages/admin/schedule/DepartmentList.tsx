@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ApiError } from '../../../api/httpClient'
 import { TextField, btnPrimary, btnGhost } from '../../../components/staff-ui'
+import { PanelCard } from './PanelCard'
 import type { Department } from './types'
 
 // [SCHED-DEPT-*] 진료과 관리. 목록 + [진료과 추가] + 줄마다 [이름 수정][사용 중지].
@@ -79,16 +80,18 @@ export function DepartmentList({
   }
 
   return (
-    <div>
-      <div style={styles.head}>
-        <h2 style={styles.title}>진료과 관리</h2>
-        {!adding && (
-          <button type="button" onClick={() => setAdding(true)} className={btnPrimary}>
-            진료과 추가
-          </button>
-        )}
-      </div>
-
+    <>
+      <PanelCard
+        title="진료과 관리"
+        pad
+        action={
+          !adding ? (
+            <button type="button" onClick={() => setAdding(true)} className={btnPrimary}>
+              진료과 추가
+            </button>
+          ) : undefined
+        }
+      >
       {adding && (
         <div style={styles.addRow}>
           <TextField
@@ -171,6 +174,11 @@ export function DepartmentList({
         })}
       </ul>
 
+      {actionError && (
+        <p role="alert" style={styles.actionError}>{actionError}</p>
+      )}
+      </PanelCard>
+
       {blocking && (
         <ConfirmDialog
           title="이 진료과는 아직 사용 중지할 수 없습니다"
@@ -204,17 +212,11 @@ export function DepartmentList({
           onConfirm={() => void confirmDeactivate(confirming)}
         />
       )}
-
-      {actionError && (
-        <p role="alert" style={styles.actionError}>{actionError}</p>
-      )}
-    </div>
+    </>
   )
 }
 
 const styles: Record<string, CSSProperties> = {
-  head: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-3)' },
-  title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   addRow: { display: 'flex', gap: 'var(--sp-2)', marginBottom: 'var(--sp-3)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
   row: {

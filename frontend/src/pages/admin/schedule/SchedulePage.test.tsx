@@ -87,13 +87,14 @@ const focusedRow = () => document.querySelector('[data-focused="true"]')?.getAtt
 beforeEach(() => mockAll())
 
 async function waitLoaded() {
-  await waitFor(() => expect(railSubtitles()[1]).toBe('4과'))
+  // 기본 탭(전체 진료 일정)의 격자가 뜨면 데이터가 실린 것.
+  await waitFor(() => expect(gridCell('박지훈', '월')).toBeTruthy())
 }
 
 test('[SCHED-TAB-01][SCHED-TAB-03] 왼쪽 세로줄 다섯 줄이고 화면 수를 아끼려 묶지 않는다', async () => {
   renderPage()
   await waitLoaded()
-  expect(railItems()).toEqual(['전체 현황', '진료과 관리', '의사별 스케줄', '특정 날짜 변경', '병원 운영시간'])
+  expect(railItems()).toEqual(['전체 진료 일정', '진료과 관리', '의사별 스케줄', '특정 날짜 변경', '병원 운영시간'])
 })
 
 test('[SCHED-TAB-01b] 세로줄에 놓인 것은 무슨 일을 하는 곳이지 누구의 것이 아니다', async () => {
@@ -105,13 +106,14 @@ test('[SCHED-TAB-01b] 세로줄에 놓인 것은 무슨 일을 하는 곳이지 
   expect(within(contentArea()).getByRole('tablist', { name: '의사' })).toBeVisible()
 })
 
-test('[SCHED-TAB-01c] 줄마다 부제목에 지금 상태가 한 줄로 들어간다', async () => {
+test('[SCHED-TAB-01c] 줄마다 부제목에 지금 상태가 한 줄 (전체 진료 일정은 없음 · 운영시간은 휴무일만)', async () => {
   renderPage()
   await waitLoaded()
-  expect(railSubtitles()).toEqual(['읽는 곳', '4과', '의사 4명', '다음 휴무 2/9', '평일 09:00~18:00 / 일요일 휴무'])
+  // 전체 진료 일정엔 부제목이 없고, 병원 운영시간은 시간 요약이 아니라 휴무일(일요일)만 보여 준다.
+  expect(railSubtitles()).toEqual(['4과', '의사 4명', '다음 휴무 2/9', '일 휴무'])
 })
 
-test('[SCHED-TAB-02] 첫 줄은 늘 「전체 현황」 — 마지막에 보던 줄을 기억하지 않는다', async () => {
+test('[SCHED-TAB-02] 첫 줄은 늘 「전체 진료 일정」 — 마지막에 보던 줄을 기억하지 않는다', async () => {
   const user = userEvent.setup()
   const { unmount } = renderPage()
   await waitLoaded()
@@ -120,7 +122,7 @@ test('[SCHED-TAB-02] 첫 줄은 늘 「전체 현황」 — 마지막에 보던 
   unmount()
   renderPage()
   await waitLoaded()
-  expect(activeRail()).toBe('전체 현황')
+  expect(activeRail()).toBe('전체 진료 일정')
 })
 
 test('[SCHED-TAB-04b] 줄 이름은 「특정 날짜 변경」이고 「특정일 예외」를 쓰지 않는다', async () => {
@@ -164,7 +166,7 @@ test('[SCHED-SAVE-07][PANEL-ONE-01] 저장 전에 화면을 떠나도 묻지 않
   const maxInput = document.querySelector('[data-cell2="월요일|하루 최대 인원"]') as HTMLInputElement
   await user.clear(maxInput)
   await user.type(maxInput, '50')
-  await user.click(railItem('전체 현황'))
+  await user.click(railItem('전체 진료 일정'))
   expect(screen.queryByRole('dialog')).toBeNull() // 묻지 않고, 확인창을 대신 넣지도 않는다
 })
 
