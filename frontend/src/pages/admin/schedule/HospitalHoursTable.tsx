@@ -1,6 +1,6 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { InlineError } from '../../../components/InlineError'
-import { Checkbox, btnPrimary, btnGhost } from '../../../components/staff-ui'
+import { Checkbox, btnPrimary, btnGhost, TextButton } from '../../../components/staff-ui'
 import { ScheduleTimeInput, TIME_FIELD_CLASS } from './ScheduleTimeInput'
 import { WEEKDAY_FULL, hhmm, type HospitalHoursRow } from './types'
 
@@ -211,9 +211,9 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
           {WEEKDAY_FULL[mismatch.weekday]} {mismatch.doctorEndLabel}까지 진료하는 의사가 {mismatch.doctorNames.length}명 있습니다 —
           상담봇은 {mismatch.hoursEndLabel} 이후 「진료시간이 아닙니다」라고 답합니다.{' '}
           <span style={styles.mismatchNames}>{mismatch.doctorNames.join(' · ')}</span>{' '}
-          <button type="button" style={styles.linkBtn} onClick={() => onGoToWeekly(mismatch.firstDoctorId)}>
+          <TextButton onClick={() => onGoToWeekly(mismatch.firstDoctorId)}>
             의사별 스케줄에서 보기 ›
-          </button>
+          </TextButton>
         </p>
       )}
     </div>
@@ -256,5 +256,4 @@ const styles: Record<string, CSSProperties> = {
   actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   mismatch: { marginTop: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
   mismatchNames: { fontWeight: 600 },
-  linkBtn: { border: 'none', background: 'none', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 600, cursor: 'pointer', padding: 0 },
 }

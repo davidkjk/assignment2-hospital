@@ -12,4 +12,5 @@ export { PeriodSelect, periodRange, PERIOD_PRESETS, PERIOD_CUSTOM, type PeriodVa
 export { EmptyState } from './EmptyState'
 export { StatTile } from './StatTile'
 export { btnPrimary, btnGhost, btnLink } from './buttons'
+export { TextButton, type TextButtonTone } from './TextButton'
 export { TextField, NumberField, Checkbox, Radio, Select, TextArea } from './fields'

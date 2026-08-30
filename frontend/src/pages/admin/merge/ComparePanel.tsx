@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
+import { TextButton } from '@/components/staff-ui'
 import { ExternalLink } from '../../../components/icons'
 import type { CandidateRow } from '../../../api/patientMerge'
 
@@ -23,7 +24,7 @@ export function ComparePanel({ left, right, primaryId, onPickPrimary, onReview, 
 
   return (
     <section data-compare aria-label="후보 비교" style={styles.wrap}>
-      <button type="button" onClick={onBack} style={styles.back}>‹ 후보 목록으로</button>
+      <TextButton onClick={onBack} style={{ alignSelf: 'flex-start', padding: '4px 0' }}>‹ 후보 목록으로</TextButton>
 
       {/* MERGE-COMPARE-03 — 많은 쪽을 권하되 자동으로 고르지 않는다. */}
       <p style={styles.recommend}>
@@ -124,16 +125,6 @@ function formatVisit(iso: string): string {
 
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 12 },
-  back: {
-    alignSelf: 'flex-start',
-    padding: '4px 0',
-    border: 'none',
-    background: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
   recommend: {
     margin: 0,
     padding: '10px 14px',

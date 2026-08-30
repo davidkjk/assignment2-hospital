@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { PatientSearch } from '../patients/PatientSearch'
+import { TextButton } from '@/components/staff-ui'
 
 // [Task 28][SEND-WHO-03·04][SEND-BOX-03] 받는 사람 칸.
 //   • 칸을 누르면 왼쪽이 「고르는 도구」(검색 표)가 된다(PANEL-WORK-02 — 여기서는 패널 안에 인라인).
@@ -29,9 +30,9 @@ export function RecipientField({ value, onChange }: Props) {
       {value.mode === 'all' ? (
         <div style={styles.summary}>
           <span style={styles.allTag}>전 환자</span>
-          <button type="button" style={styles.linkBtn} onClick={() => onChange({ mode: 'pick', ids: [] })}>
+          <TextButton onClick={() => onChange({ mode: 'pick', ids: [] })}>
             다시 고르기
-          </button>
+          </TextButton>
         </div>
       ) : (
         <>
@@ -43,9 +44,9 @@ export function RecipientField({ value, onChange }: Props) {
           >
             {value.ids.length > 0 ? `${value.ids.length}명 선택됨` : '환자를 고르세요'}
           </button>
-          <button type="button" style={styles.allBtn} onClick={() => onChange({ mode: 'all' })}>
+          <TextButton style={{ alignSelf: 'flex-start' }} onClick={() => onChange({ mode: 'all' })}>
             전 환자에게 보내기
-          </button>
+          </TextButton>
           {picking && (
             <div data-testid="left-tool" style={styles.tool}>
               <p style={styles.toolHead}>환자를 고르는 중</p>
@@ -72,16 +73,6 @@ const styles: Record<string, CSSProperties> = {
     textAlign: 'left',
     cursor: 'pointer',
   },
-  allBtn: {
-    alignSelf: 'flex-start',
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
-    cursor: 'pointer',
-    padding: 0,
-  },
   summary: { display: 'flex', alignItems: 'center', gap: 10 },
   allTag: {
     padding: '4px 10px',
@@ -89,15 +80,6 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface-muted, #eef2f6)',
     fontWeight: 600,
     color: 'var(--color-ink)',
-  },
-  linkBtn: {
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
-    cursor: 'pointer',
-    padding: 0,
   },
   tool: { marginTop: 8, border: '1px solid var(--color-divider)', borderRadius: 8, padding: 8 },
   toolHead: { margin: '0 0 8px', fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },

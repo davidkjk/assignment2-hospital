@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { InlineError } from '../../components/InlineError'
 import { usePanel } from '../../components/PanelHost'
 import { cancelScheduled, getMessages, type ScheduledRow, type SentRow } from '../../api/messages'
+import { TextButton } from '@/components/staff-ui'
 import { SendPanel } from './SendPanel'
 import { FailedListPanel } from './FailedListPanel'
 
@@ -113,9 +114,9 @@ export function MessagesPage() {
         )}
 
         {query.data && query.data.auto_count > 0 && (
-          <button type="button" style={styles.autoFold} onClick={() => setShowAuto((v) => !v)}>
+          <TextButton style={{ marginTop: 12 }} onClick={() => setShowAuto((v) => !v)}>
             자동 발송 {query.data.auto_count}건 보기 ›
-          </button>
+          </TextButton>
         )}
         {showAuto && (
           <p style={styles.autoNote}>
@@ -184,9 +185,9 @@ function ResultCell({
   return (
     <span style={styles.resultRow}>
       도달 {delivered}건 · <span style={styles.resultFail}>실패 {failed}건</span>
-      <button type="button" style={styles.viewFailed} onClick={() => onViewFailed(row)}>
+      <TextButton onClick={() => onViewFailed(row)}>
         안 닿은 {failed}명 보기
-      </button>
+      </TextButton>
     </span>
   )
 }
@@ -259,25 +260,5 @@ const styles: Record<string, CSSProperties> = {
   resultOk: { color: 'var(--color-ink)', fontSize: 'var(--fs-sm)' },
   resultRow: { display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-sm)' },
   resultFail: { color: 'var(--color-danger, #b42318)', fontWeight: 600 },
-  viewFailed: {
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
-    cursor: 'pointer',
-    padding: 0,
-    textDecoration: 'underline',
-  },
-  autoFold: {
-    marginTop: 12,
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
-    cursor: 'pointer',
-    padding: 0,
-  },
   autoNote: { marginTop: 8, color: 'var(--color-ink-muted)', fontSize: 'var(--fs-sm)' },
 }

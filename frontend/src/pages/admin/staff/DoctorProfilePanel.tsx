@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { ApiError } from '../../../api/httpClient'
 import { staffApi, type ProfilePatch, type StaffMember } from '../../../api/staff'
 import { PalettePicker } from './PalettePicker'
+import { TextButton } from '@/components/staff-ui'
 
 // [STAFF-PROFILE-01~11·CAL-COLOR-*] 의사 프로필 편집 — 오른쪽 칸을 잠시 빌려 쓴다.
 // ⭐ 넷만 고친다: 사진·전문분야·소개글·캘린더 색(이름·역할·소속은 계정 정보라 여기서 안 고침).
@@ -145,9 +146,9 @@ export function DoctorProfilePanel({ doctor, allStaff, onClose, onSaved, onDirty
             </label>
             <span style={styles.hint}>JPG·PNG · 5MB까지</span>
             {photoUrl && (
-              <button type="button" onClick={() => setConfirmingDelete(true)} style={styles.deletePhoto}>
+              <TextButton tone="quiet" onClick={() => setConfirmingDelete(true)}>
                 사진 지우기
-              </button>
+              </TextButton>
             )}
           </div>
         </div>
@@ -268,15 +269,6 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   hint: { fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  deletePhoto: {
-    border: 'none',
-    background: 'none',
-    color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-sm)',
-    textDecoration: 'underline',
-    cursor: 'pointer',
-    padding: 0,
-  },
   input: {
     height: 34,
     padding: '0 10px',

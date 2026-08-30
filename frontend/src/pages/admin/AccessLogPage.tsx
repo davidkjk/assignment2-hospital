@@ -6,6 +6,7 @@ import { ApiError } from '../../api/httpClient'
 import { getAccessLogs, type AccessLogPatientRef, type AccessLogRow } from '../../api/accessLogs'
 import { LogFilterBar } from './LogFilterBar'
 import { LogTable } from './LogTable'
+import { TextButton } from '@/components/staff-ui'
 
 // [ALOG-*] 환자정보 열람 기록 /admin/access-logs — 관리자 전용 읽기 화면.
 //
@@ -178,9 +179,9 @@ export function AccessLogPage() {
           }
           action={
             chipPatient ? (
-              <button type="button" onClick={clearFilter} style={styles.backBtn}>
+              <TextButton onClick={clearFilter}>
                 다른 환자를 선택하거나 전체 기록으로 돌아가세요
-              </button>
+              </TextButton>
             ) : undefined
           }
         />
@@ -249,12 +250,4 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   todayLink: { color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' },
-  backBtn: {
-    border: 'none',
-    background: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
 }

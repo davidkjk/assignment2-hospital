@@ -7,6 +7,7 @@ import { AlertCircle, AlertTriangle, Bell, Send, ShieldCheck } from '../../../co
 import { ApiError } from '../../../api/httpClient'
 import { getErrorLogs, type ErrorLogRow } from '../../../api/errorLogs'
 import { formatAccessedAt } from '../logRows'
+import { TextButton } from '@/components/staff-ui'
 
 // [ERRADM-*] 시스템 오류 기록 /admin/errors — 관리자 전용 읽기 화면(결정 #19·#20).
 //
@@ -118,9 +119,9 @@ export function ErrorLogPage() {
         <Bell width={16} height={16} style={styles.boundaryIcon} aria-hidden="true" />
         <span>
           환자 한 명·한 채널의 <strong style={styles.strong}>발송 실패</strong>는 이 기록이 아니라{' '}
-          <button type="button" style={styles.link} onClick={() => navigate('/messages')}>
+          <TextButton onClick={() => navigate('/messages')}>
             안내 보내기
-          </button>
+          </TextButton>
           의 발송 이력에 남습니다. 여기에는 <strong style={styles.strong}>서비스 전체 장애</strong>만 한 줄로 기록됩니다.
         </span>
       </div>
@@ -273,16 +274,6 @@ const styles: Record<string, CSSProperties> = {
   },
   boundaryIcon: { color: 'var(--color-ink-muted)', flexShrink: 0, marginTop: 2 },
   strong: { fontWeight: 600, color: 'var(--color-ink)' },
-  link: {
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
-    textDecoration: 'underline',
-    cursor: 'pointer',
-  },
   filterCard: {
     padding: '12px 14px',
     borderRadius: 10,

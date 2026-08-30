@@ -50,4 +50,13 @@
   html {
     font-size: 17px;
   }
+  /* [L28] 공용 텍스트 버튼(staff-ui `TextButton`) — 밑줄은 hover에서만, 비활성은 옅게. */
+  .staff-text-btn:hover {
+    text-decoration: underline;
+  }
+  .staff-text-btn:disabled {
+    cursor: default;
+    opacity: 0.5;
+    text-decoration: none;
+  }
 }

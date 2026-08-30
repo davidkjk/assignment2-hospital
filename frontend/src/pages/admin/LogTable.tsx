@@ -4,6 +4,7 @@ import { AlertTriangle } from '../../components/icons'
 import { LogKindBadge, staffDisplay } from './LogKindBadge'
 import { BulkRevealRow } from './BulkRevealRow'
 import { formatAccessedAt, groupRows } from './logRows'
+import { TextButton } from '@/components/staff-ui'
 
 // [ALOG-LIST-*] 감사 표 — 네 열 「누가·언제·누구의·무엇을」. 읽기 전용(행에 편집·삭제·되돌리기 없음).
 //
@@ -86,9 +87,9 @@ function PatientCell({ row, onSelectPatient }: { row: AccessLogRow; onSelectPati
   if (!onSelectPatient) return <span>{label}</span>
   // 링크형 버튼 — 편집·삭제가 아니라 같은 화면 필터로 좁힌다(ALOG-LIST-10).
   return (
-    <button type="button" onClick={() => onSelectPatient(p.patient_id)} style={styles.patientLink}>
+    <TextButton onClick={() => onSelectPatient(p.patient_id)} style={{ textAlign: 'left' }}>
       {label}
-    </button>
+    </TextButton>
   )
 }
 
@@ -159,16 +160,6 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-warn)', fontWeight: 600, fontSize: 'var(--fs-sm)',
   },
   wideSearchIcon: { width: '0.85em', height: '0.85em' },
-  patientLink: {
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
-    textAlign: 'left',
-    cursor: 'pointer',
-  },
   skeleton: { display: 'block', height: 12, width: '70%', borderRadius: 6, background: 'var(--color-divider)' },
   loadingCell: { padding: '10px 12px', textAlign: 'center', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-base)' },
 }

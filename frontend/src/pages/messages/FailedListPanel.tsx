@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { InlineError } from '../../components/InlineError'
 import { getFailedList, type FailedItem } from '../../api/messages'
+import { TextButton } from '@/components/staff-ui'
 
 // [Task 30][SEND-FAIL-*] 안 닿은 명단 — 두 무리로 가른다.
 //   지금 전화(번호 살아있고 문자만 실패) ↔ 번호 고쳐야 함(번호 자체가 죽음).
@@ -87,9 +88,9 @@ function FailedGroup({ tabKey, items }: { tabKey: TabKey; items: FailedItem[] })
       </ul>
       {known.length > 0 && (
         <>
-          <button type="button" style={styles.knownFold} onClick={() => setShowKnown((v) => !v)}>
+          <TextButton tone="quiet" style={{ marginTop: 8, textAlign: 'left' }} onClick={() => setShowKnown((v) => !v)}>
             그중 {known.length}명은 지난 발송에서 이미 확인된 번호 ›
-          </button>
+          </TextButton>
           {showKnown && (
             <ul style={styles.list}>
               {known.map((i) => (
@@ -154,15 +155,5 @@ const styles: Record<string, CSSProperties> = {
     textDecoration: 'none',
     fontSize: 'var(--fs-sm)',
     fontWeight: 600,
-  },
-  knownFold: {
-    marginTop: 8,
-    background: 'none',
-    border: 'none',
-    color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-sm)',
-    cursor: 'pointer',
-    padding: 0,
-    textAlign: 'left',
   },
 }
