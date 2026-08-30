@@ -6,6 +6,7 @@ import { ApiError, isSessionExpiry, rememberReturn } from '../../../api/httpClie
 import { useAuth } from '../../../auth/useAuth'
 import { useConnectivity } from '../../../lib/connectivity'
 import { formatHospitalDateTime } from '../../../lib/clock'
+import { Checkbox } from '@/components/staff-ui'
 import { undoMerge, type MergeEventData, type UndoResult } from '../../../api/mergeHistory'
 
 // [MHIST-CONFIRM-01·02·03 · NAV-04·05·06 · EXC-03·05 · MERGE-RACE-01] 되돌림 확인창.
@@ -94,10 +95,14 @@ export function UndoConfirmDialog({ event, reason, onConfirmed, onCancel }: Undo
             {errorMsg && <InlineError message={errorMsg} />}
 
             {/* MHIST-CONFIRM-02 — 읽음 체크 필수. 서버 권한·최신 상태·동시성 검사를 대체하지 않는다. */}
-            <label style={styles.ackRow}>
-              <input type="checkbox" checked={acked} onChange={(e) => setAcked(e.target.checked)} />
-              <span style={styles.ackText}>위 보존·열람 제한·감사 잔존 안내를 읽었습니다</span>
-            </label>
+            <div style={{ marginTop: 16 }}>
+              <Checkbox
+                checked={acked}
+                onChange={setAcked}
+                ariaLabel="위 보존·열람 제한·감사 잔존 안내를 읽었습니다"
+                label="위 보존·열람 제한·감사 잔존 안내를 읽었습니다"
+              />
+            </div>
 
             <div style={styles.actions}>
               {/* MHIST-NAV-05 — [취소]는 상세로 돌아가고 아무것도 바꾸지 않는다. */}
@@ -149,8 +154,6 @@ const styles: Record<string, CSSProperties> = {
   keep: { margin: '16px 0 0', fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-ink)' },
   warn: { margin: '4px 0 0', fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-danger)' },
   audit: { margin: '4px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  ackRow: { display: 'flex', alignItems: 'flex-start', gap: 8, margin: '16px 0 0', cursor: 'pointer' },
-  ackText: { fontSize: 'var(--fs-base)', color: 'var(--color-ink)', lineHeight: 1.4 },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
   cancel: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-divider)',

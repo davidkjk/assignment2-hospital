@@ -4,6 +4,7 @@ import { InlineError } from '../../../components/InlineError'
 import { ApiError } from '../../../api/httpClient'
 import { useConnectivity } from '../../../lib/connectivity'
 import { saveMergeAuditNote, type MergeEventData } from '../../../api/mergeHistory'
+import { TextArea } from '@/components/staff-ui'
 
 // [MHIST-LOCK-01·02·03 · NAV-08 · EXC-05] 되돌림불가 잠김.
 // ⛔ 되돌림 성공으로 표현하지 않는다. 막다른 길을 만들지 않고 대상 환자·감사메모 경로를 준다.
@@ -70,14 +71,7 @@ export function LockedEventPanel({ event }: LockedEventPanelProps) {
       {memoOpen && (
         <div style={styles.memoWrap}>
           <label htmlFor="mhist-audit-memo" style={styles.memoLabel}>검토 메모</label>
-          <textarea
-            id="mhist-audit-memo"
-            aria-label="감사메모"
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            rows={3}
-            style={styles.textarea}
-          />
+          <TextArea id="mhist-audit-memo" ariaLabel="감사메모" value={memo} onChange={setMemo} rows={3} />
           {errorMsg && <InlineError message={errorMsg} />}
           <div style={styles.memoActions}>
             <button
@@ -111,7 +105,6 @@ const styles: Record<string, CSSProperties> = {
   memoBtn: { height: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer' },
   memoWrap: { marginTop: 14, padding: 12, borderRadius: 10, background: 'var(--color-bg)', border: '1px solid var(--color-divider)' },
   memoLabel: { display: 'block', fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)', marginBottom: 6 },
-  textarea: { width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--color-divider)', borderRadius: 8, fontSize: 'var(--fs-base)', resize: 'vertical', fontFamily: 'inherit' },
   memoActions: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 },
   saveBtn: { height: 34, padding: '0 16px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer' },
   saveOff: { background: 'var(--color-sidebar-ink)', opacity: 0.5, cursor: 'not-allowed' },

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { dialogStyles } from '../../../components/ConfirmDialog'
 import { ApiError } from '../../../api/httpClient'
 import { patientMergeApi, type CandidateRow, type MergeResult } from '../../../api/patientMerge'
+import { Checkbox } from '@/components/staff-ui'
 
 // [MERGE-CONFIRM-01~05 · MERGE-UNDO-02 · MERGE-DATA-04 · MERGE-AUDIT-01 · MERGE-RACE-01]
 // 3단계의 마지막. ⭐ 가운데서 막아서고 뒤 배경은 읽기 전용이다(BLOCK-CONF-01) — 바깥을 눌러도 안 닫힌다.
@@ -74,10 +75,14 @@ export function MergeConfirmDialog({ primary, duplicate, onCancel, onConfirmed, 
           </div>
         ) : (
           <>
-            <label style={styles.ackRow}>
-              <input type="checkbox" checked={acked} onChange={(e) => setAcked(e.target.checked)} />
-              <span style={styles.ackText}>대표·병합될 후보와 데이터 소유권, 정정 절차를 읽었습니다</span>
-            </label>
+            <div style={{ marginTop: 16 }}>
+              <Checkbox
+                checked={acked}
+                onChange={setAcked}
+                ariaLabel="대표·병합될 후보와 데이터 소유권, 정정 절차를 읽었습니다"
+                label="대표·병합될 후보와 데이터 소유권, 정정 절차를 읽었습니다"
+              />
+            </div>
 
             <div style={styles.actions}>
               <button type="button" onClick={onCancel} style={styles.cancel}>취소</button>
@@ -132,8 +137,6 @@ const styles: Record<string, CSSProperties> = {
   warnStrong: { margin: '16px 0 0', fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-danger)' },
   warn: { margin: '4px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   audit: { margin: '4px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  ackRow: { display: 'flex', alignItems: 'flex-start', gap: 8, margin: '16px 0 0', cursor: 'pointer' },
-  ackText: { fontSize: 'var(--fs-base)', color: 'var(--color-ink)', lineHeight: 1.4 },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
   cancel: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-divider)',

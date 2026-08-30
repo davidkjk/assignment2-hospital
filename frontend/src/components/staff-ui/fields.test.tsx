@@ -60,3 +60,10 @@ test('TextArea는 textbox로 남고 입력을 흘린다', async () => {
   await userEvent.type(screen.getByRole('textbox', { name: '문구' }), '안내')
   expect(onChange).toHaveBeenCalled()
 })
+
+test('TextArea는 maxLength·id를 진짜 textarea에 넘긴다', () => {
+  render(<TextArea value="" onChange={() => {}} ariaLabel="사유" id="reason" maxLength={200} />)
+  const ta = screen.getByRole('textbox', { name: '사유' }) as HTMLTextAreaElement
+  expect(ta.maxLength).toBe(200)
+  expect(ta.id).toBe('reason')
+})

@@ -168,23 +168,27 @@ export function Select({
 
 /** 텍스트영역 — 세로 리사이즈만, 딥틸 테두리. */
 export function TextArea({
-  value, onChange, disabled, ariaLabel, rows = 2, className = '',
+  value, onChange, disabled, ariaLabel, id, maxLength, rows = 2, className = '',
 }: {
   value: string
   onChange: (v: string) => void
   disabled?: boolean
   ariaLabel?: string
+  id?: string
+  maxLength?: number
   rows?: number
   className?: string
 }) {
   return (
     <textarea
+      id={id}
       value={value}
       disabled={disabled}
       aria-label={ariaLabel}
+      maxLength={maxLength}
       rows={rows}
       onChange={(e) => onChange(e.target.value)}
-      className={`w-full resize-y rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/40 ${className}`}
+      className={`w-full resize-y rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground ${className}`}
     />
   )
 }
