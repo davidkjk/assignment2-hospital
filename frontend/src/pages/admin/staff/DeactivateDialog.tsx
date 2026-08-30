@@ -121,7 +121,8 @@ const styles: Record<string, CSSProperties> = {
   impact: { marginTop: 14, padding: 12, borderRadius: 8, background: 'var(--color-bg)', border: '1px solid var(--color-divider)' },
   muted: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
   impactHead: { margin: 0, fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-warn)' },
-  times: { margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 },
+  // [L31·G2] 영향 예약이 많아도(예: 126건) 목록이 화면을 넘겨 [사용 중지] 버튼을 밀어내지 않게 — 목록만 내부 스크롤.
+  times: { margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: '38vh', overflowY: 'auto' },
   time: { fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
   error: {
     marginTop: 12,
