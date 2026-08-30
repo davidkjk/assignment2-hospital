@@ -13,9 +13,10 @@ const DOOR_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   appointment: CalendarPlus,
 }
 
-const doorBase = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-sm'
-// 가운데 = 접수(창구에서 가장 자주 하는 일)만 딥틸로 도드라지게, 양쪽(등록·예약)은 옅은 흰 버튼.
-const doorGhost = `${doorBase} bg-card text-primary hover:bg-muted`
+// 세 문은 헤더에서 「눌러 시작하는」 주 동작이라 그림자를 진하게 줘 평평한 계정칩·로그아웃과 또렷이 갈린다(사용자 지시 2026-08-30).
+const doorBase = 'inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-md'
+// 가운데 = 접수(창구에서 가장 자주 하는 일)만 딥틸로 도드라지게, 양쪽(등록·예약)은 옅은 흰 버튼(테두리로 흰 헤더 위에서 가장자리를 세운다).
+const doorGhost = `${doorBase} border border-border bg-card text-primary hover:bg-muted`
 const doorPrimary = `${doorBase} bg-primary text-primary-foreground hover:bg-primary/90`
 
 export function Header({ title, staff, onSignOut, onStart = () => undefined }: { title: string; staff: StaffProfile; onSignOut: () => void | Promise<void>; onStart?: (door: StartDoor) => void }) {
@@ -33,10 +34,11 @@ export function Header({ title, staff, onSignOut, onStart = () => undefined }: {
         <div className="ml-auto flex items-center gap-3">
           {/* 역할칩은 항상 표시(SHELL-HDR-02) */}
           <AccountMenu staff={staff} onPasswordChanged={() => setMessage('비밀번호를 바꿨습니다')} />
+          {/* 로그아웃은 자주 안 쓰는 「나가기」라 테두리만 준 조용한 버튼 — 버튼임은 또렷하되 시작 문(그림자)보다 눈에 덜 띄게(사용자 지시 2026-08-30). */}
           <button
             type="button"
             onClick={() => setConfirming(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <LogOut className="h-4 w-4" />
             로그아웃
