@@ -19,10 +19,11 @@ class AddFamilyRequest(BaseModel):
 
 
 class UpdateFamilyRequest(BaseModel):
-    name: str
-    birth_date: date
-    gender: str
-    relation: str
+    # FAM-EDIT-01 — 「그 사람의 정보」(신원)와 「나와의 관계」는 다른 창구다. 본문에 온 것만 고친다.
+    name: str | None = None
+    birth_date: date | None = None
+    gender: str | None = None
+    relation: str | None = None
 
 
 @router.get("")
@@ -41,8 +42,13 @@ async def add_family(body: AddFamilyRequest,
 @router.patch("/{family_patient_id}")
 async def update_family(family_patient_id: UUID, body: UpdateFamilyRequest,
                         patient: PatientContext = Depends(get_current_patient)) -> dict:
-    await patient_family_service.update_family_member(
-        patient, family_patient_id, body.name, body.birth_date, body.gender, body.relation)
+    # FAM-EDIT-01 — 신원(name·birth_date·gender)이 오면 신원 창구(판정 통과해야 열림),
+    #               relation이 오면 관계 창구(항상 열림). 한 함수가 둘을 하지 않는다.
+    if body.name is not None or body.birth_date is not None or body.gender is not None:
+        await patient_family_service.update_family_identity(
+            patient, family_patient_id, body.name, body.birth_date, body.gender)
+    if body.relation is not None:
+        await patient_family_service.update_family_relation(patient, family_patient_id, body.relation)
     return {"status": "updated"}
 
 
