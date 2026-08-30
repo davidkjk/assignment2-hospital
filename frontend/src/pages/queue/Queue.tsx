@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, X } from '../../components/icons'
+import { AlertTriangle, UserRound, X } from '../../components/icons'
 import { StaffPage } from '../../components/staff-ui'
 import { EmptyState } from '../../components/EmptyState'
 import { hospitalHHMM } from '../../lib/clock'
@@ -70,11 +70,13 @@ const STATUS_TONE: Record<QueueTab, string> = {
 }
 
 /** 데모 공통 버튼 — 딥틸 꽉 참=그 자리 완결 / 흰 테두리=다른 화면. */
+// variant='detail' = [환자 상세] 전용(사용자 지시 2026-08-30) — 상태 처리 버튼(진료 대기·되돌리기·응급/주의·재예약…)과
+// 한 줄에 섞이므로, 외곽선 + 사람 아이콘으로 늘 같은 모습을 유지해 '이 환자 기록 열기'임을 한눈에 구분한다.
 function Btn({
   children, variant = 'ghost', onClick, disabled, ariaLabel,
 }: {
   children: React.ReactNode
-  variant?: 'primary' | 'outline' | 'ghost'
+  variant?: 'primary' | 'outline' | 'ghost' | 'detail'
   onClick?: () => void
   disabled?: boolean
   ariaLabel?: string
@@ -83,6 +85,7 @@ function Btn({
     primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
     outline: 'border border-border bg-card hover:bg-muted',
     ghost: 'text-primary hover:bg-primary/8',
+    detail: 'border border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted',
   }[variant]
   return (
     <button
@@ -90,8 +93,9 @@ function Btn({
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
-      className={`h-9 rounded-md px-2.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${styles}`}
+      className={`inline-flex items-center gap-1.5 h-9 rounded-md px-2.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${styles}`}
     >
+      {variant === 'detail' && <UserRound width={15} height={15} aria-hidden="true" className="-ml-0.5 text-muted-foreground" />}
       {children}
     </button>
   )
@@ -490,7 +494,7 @@ function RowActions({
   onChanged: () => void
   setUrgFor: (v: { row: QueueRow; turningOn: boolean }) => void
 }) {
-  const detail = <Btn key="d" onClick={() => navigate(`/patients/${row.patient_id}`)}>환자 상세</Btn>
+  const detail = <Btn key="d" variant="detail" onClick={() => navigate(`/patients/${row.patient_id}`)}>환자 상세</Btn>
   // 전체 탭은 줄마다 그 줄의 상태를 따른다(QUEUE-BTN-08).
   const effective = tab === 'total' ? tabForStatus(row.status) : tab
 

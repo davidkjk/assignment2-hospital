@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { usePanel } from '../../components/PanelHost'
 import { UndoControl } from '../../components/UndoControl'
+import { UserRound } from '../../components/icons'
 import type { SearchMatch, SearchPatientRow, SearchTodayStatus } from '../../api/patients'
 
 // 검색 결과 한 줄 — 접수 업무 셋의 갈림길(SEARCH-ACT-*). 왼쪽에 마스킹된 신원 + 왜 걸렸는지 배지,
@@ -63,8 +64,11 @@ export function SearchRowActions({ row }: { row: SearchPatientRow }) {
   const { openPanel } = usePanel()
   const [processed, setProcessed] = useState<string | null>(null) // ACT-09 낙관적 처리 표시
 
+  // [환자 상세] = '이 환자 기록 열기' 공통 동작. 옆 상태 처리 버튼과 섞이므로 외곽선 + 사람 아이콘으로
+  // 늘 같은 모습을 유지해 한눈에 구분한다(사용자 지시 2026-08-30 · Today·Queue와 동일 처리).
   const detailLink = (
     <Link to={`/patients/${row.patient_id}`} style={styles.detailLink} className="btn q">
+      <UserRound width={14} height={14} aria-hidden="true" style={styles.detailIcon} />
       환자 상세
     </Link>
   )
@@ -220,14 +224,18 @@ const styles: Record<string, CSSProperties> = {
     height: 28,
     display: 'inline-flex',
     alignItems: 'center',
-    padding: '0 8px',
+    gap: 5,
+    padding: '0 10px',
     borderRadius: 6,
-    color: 'var(--color-ink-muted)',
+    border: '1px solid var(--color-divider)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-ink)',
     fontSize: 'var(--fs-caption)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     textDecoration: 'none',
     whiteSpace: 'nowrap',
   },
+  detailIcon: { color: 'var(--color-ink-muted)', flexShrink: 0 },
   processed: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)' },
   placeholder: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 }

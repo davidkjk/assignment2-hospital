@@ -10,6 +10,7 @@ import {
   type PatientRow,
 } from '../../api/dashboard'
 import { revealContact } from '../../api/patients'
+import { UserRound } from '../../components/icons'
 
 // 오늘의 현황 (/today) — TODAY-*.
 // 데모 뼈대(2열 레이아웃·카드·시각 레일, E-6 사용자 검수 2026-08-22)에 실 데이터(getTodaySummary)를
@@ -94,24 +95,28 @@ function buildCards(data: TodaySummary): UiCard[] {
   return cards
 }
 
-/** 작은 버튼 — 데모 공통 스타일(딥틸 꽉 참=그 자리 완결 / 흰 테두리=다른 화면). */
+/** 작은 버튼 — 데모 공통 스타일(딥틸 꽉 참=그 자리 완결 / 흰 테두리=다른 화면).
+ *  variant='detail' = [환자 상세] 전용(사용자 지시 2026-08-30) — 상태 처리 버튼(진료 대기·도착·되돌리기…)과
+ *  한 줄에 섞이므로, 외곽선 + 사람 아이콘으로 늘 같은 모습을 유지해 '이 환자 기록 열기'임을 한눈에 구분한다. */
 function Btn({
   children,
   variant = 'ghost',
   onClick,
 }: {
   children: React.ReactNode
-  variant?: 'primary' | 'outline' | 'ghost'
+  variant?: 'primary' | 'outline' | 'ghost' | 'detail'
   onClick?: () => void
 }) {
-  const base = 'rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors'
+  const base = 'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors'
   const styles = {
     primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
     outline: 'border border-border bg-card hover:bg-muted',
     ghost: 'text-primary hover:bg-primary/8',
+    detail: 'border border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted',
   }[variant]
   return (
     <button onClick={onClick} className={`${base} ${styles}`}>
+      {variant === 'detail' && <UserRound width={15} height={15} aria-hidden="true" className="-ml-0.5 text-muted-foreground" />}
       {children}
     </button>
   )
@@ -124,7 +129,7 @@ function RowButtons({ kind, row, navigate, onReveal }: { kind: CardKind; row: Ui
       return (
         <>
           <Btn variant="outline" onClick={() => navigate('/queue?tab=waiting')}>대기 목록에서 보기</Btn>
-          <Btn onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
+          <Btn variant="detail" onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
         </>
       )
     case 'noshow':
@@ -137,7 +142,7 @@ function RowButtons({ kind, row, navigate, onReveal }: { kind: CardKind; row: Ui
         </>
       )
     case 'yday':
-      return <Btn onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
+      return <Btn variant="detail" onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
     case 'needs':
       // TODAY-RESCHED-24/25: 버튼 하나 — 해당 예약이 선택된 캘린더로(옮기기·취소 도장은 여기서 안 찍는다).
       return (
