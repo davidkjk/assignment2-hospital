@@ -50,14 +50,8 @@ export function MessagesPage() {
 
   return (
     <div style={styles.page}>
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 두지 않고 액션만 오른쪽에. */}
-      <header style={styles.header}>
-        <span />
-        <button type="button" style={styles.newBtn} onClick={openNew}>
-          ＋ 새로 보내기
-        </button>
-      </header>
-
+      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정). [새로 보내기]는 빈 줄에 띄우지 않고
+          항상 보이는 「안내 발송 이력」 카드 헤더 안에 둔다 — 이력을 보다 바로 새로 보내는 동선(사용자 지시). */}
       {query.isError && <InlineError message="목록을 불러오지 못했습니다." />}
 
       {query.data && query.data.scheduled.length > 0 && (
@@ -80,7 +74,12 @@ export function MessagesPage() {
       )}
 
       <section style={styles.section} aria-label="안내 발송 이력">
-        <h2 style={styles.sectionTitle}>안내 발송 이력</h2>
+        <div style={styles.sectionHead}>
+          <h2 style={{ ...styles.sectionTitle, margin: 0 }}>안내 발송 이력</h2>
+          <button type="button" style={styles.newBtn} onClick={openNew}>
+            ＋ 새로 보내기
+          </button>
+        </div>
         {query.data && query.data.sent.rows.length === 0 ? (
           <EmptyState kind="zero" message="아직 보낸 안내가 없습니다" />
         ) : (
@@ -194,7 +193,7 @@ function ResultCell({
 
 const styles: Record<string, CSSProperties> = {
   page: { padding: 20, display: 'flex', flexDirection: 'column', gap: 20 },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
   title: { margin: 0, fontSize: 'var(--fs-xl)', fontWeight: 700, color: 'var(--color-ink)' },
   newBtn: {
     height: 36,
