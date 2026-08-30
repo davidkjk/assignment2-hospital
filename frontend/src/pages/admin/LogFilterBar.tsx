@@ -53,7 +53,9 @@ export function LogFilterBar({
 
   useEffect(() => {
     const term = q.trim()
-    if (term.length < 2) {
+    // 빈 값만 막는다 — 한국 성씨는 한 글자(김·이·박)라, 두 글자를 요구하면 흔한 이름 검색이 통째로 막힌다.
+    // 메인 환자 검색(useSearchPatients)과 같은 기준: 비어 있지 않으면 찾고, 매 타건이 아니라 손이 멈추면 찾는다(SEARCH-RUN-01·03).
+    if (term === '') {
       setHits([])
       return
     }
@@ -66,7 +68,7 @@ export function LogFilterBar({
       } catch {
         setHits([])
       }
-    }, 180)
+    }, 400) // SEARCH-RUN-01 — 메인 검색과 같은 0.4초 디바운스(매 타건 검색 금지, 감사 로그 폭주 방지)
     return () => clearTimeout(timer.current)
   }, [q])
 

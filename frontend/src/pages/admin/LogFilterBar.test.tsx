@@ -62,6 +62,14 @@ describe('LogFilterBar — 환자·URL·기간 (ALOG-FILTER-*)', () => {
     await waitFor(() => expect(new URL(lastUrl).searchParams.get('patient_id')).toBe('p1'))
   })
 
+  test('[ALOG-FILTER-02] 한 글자(성씨)로도 이름 검색이 된다 — 메인 검색과 같은 최소 길이', async () => {
+    // 한국 성씨는 한 글자(김·이·박)라 흔한 검색인데, 두 글자 이상만 허용하면 「검색이 안 된다」가 된다.
+    renderPage()
+    await screen.findByText('최근 200건')
+    await userEvent.type(screen.getByLabelText('환자 찾기'), '김')
+    expect(await screen.findByText('홍*동')).toBeVisible()
+  })
+
   test('[ALOG-FILTER-03] 필터 칩에 마스킹 식별자가 남고 전체·필터 결과 수를 구분해 보인다', async () => {
     renderPage()
     await screen.findByText('최근 200건')
