@@ -13,7 +13,7 @@ import { ByDimensionTable } from './ByDimensionTable'
 import { HourlyVisitTable } from './HourlyVisitTable'
 import { BotMetricCard } from './BotMetricCard'
 import { DrilldownModal } from './DrilldownModal'
-import { buildStatsCsv } from './exportCsv'
+import { buildFullStatsCsv } from './exportCsv'
 
 // [STAT-*] 운영 통계 /admin/stats — 관리자 전용 읽기 집계(셸·권한은 RequireRole/AppShell이 지킨다).
 //
@@ -70,16 +70,19 @@ export function StatsPage({ initialPeriod }: StatsPageProps) {
   const isEmpty = useMemo(() => stats != null && isZero(stats), [stats])
 
   function downloadCsv() {
-    const rows = (byQuery.data?.rows ?? []).map((r) => ({
+    if (!stats) return
+    const byRows = (byQuery.data?.rows ?? []).map((r) => ({
       label: r.label,
       booked: r.booked,
       visited: r.visited,
       no_show: r.no_show,
     }))
-    const result = buildStatsCsv({
+    // 화면에 보이는 집계 전부를 담는다 — 지표 요약·유입원·상담봇·진료과(의사)별·시간대별(사용자 지시 2026-08-30).
+    const result = buildFullStatsCsv({
       period: applied,
+      stats,
       byLabel: by === 'doctor' ? '의사' : '진료과',
-      rows,
+      byRows,
     })
     // [STAT-AUDIT-02] 파일은 여기서 만들되 감사는 서버에 남긴다. 실패해도 다운로드는 진행하되
     // 조용히 삼키지 않는다 — 기록이 빠졌다는 사실을 화면에 남긴다.

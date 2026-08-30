@@ -1,3 +1,5 @@
+import { BASIS_LABEL, type StatsResponse } from '../../api/stats'
+
 // [STAT-MASK-*][STAT-EXPORT-*] CSV 전용 소수 집계 억제(결정21).
 //
 // ⭐ 화면과 파일이 「일부러 다르다」 — 관리자 화면은 1건짜리 칸까지 전부 공개하고,
@@ -124,4 +126,95 @@ export function buildStatsCsv(input: StatsCsvInput): StatsCsvResult {
   lines.push(...dataLines)
 
   return { content: lines.join('\n'), rowCount: input.rows.length, suppressed }
+}
+
+// ── 전체 집계 CSV(STAT-EXPORT-01) ────────────────────────────────────────────
+// 화면에 보이는 모든 집계 구획을 한 파일에 담는다 — 지표 요약·유입원·상담봇·진료과(의사)별·
+// 시간대별. ⭐ 종전엔 진료과별 표 하나만 내려가 「예약현황만 나온다」는 지적을 받았다(사용자 2026-08-30).
+// k=5 억제는 개인이 좁혀질 수 있는 **차원별 표**(진료과/의사·시간대)에만 걸고, 코스한 총계(요약·유입원
+// 합계)는 화면과 같이 원값으로 둔다 — 총계는 가려도 의미가 없고 이미 화면에 다 보인다.
+
+export interface FullStatsCsvInput {
+  period: { from: string; to: string }
+  stats: StatsResponse
+  /** 현재 선택된 분류축 표시명 — '진료과' 또는 '의사'. */
+  byLabel: string
+  byRows: { label: string; booked: number; visited: number; no_show: number }[]
+}
+
+/** 한 차원(라벨→건수)을 셀별 k=5 억제해 CSV 줄로. suppressed 여부를 함께 돌려준다.
+ *  ⚠️ 시간대별 방문량은 환자와 연결된 교차표가 아니라 히스토그램이라, 진료과 표의 보완 억제
+ *     (총계 역산 차단으로 큰 셀까지 가림)는 쓰지 않는다 — 진짜 작은 셀(<5)만 가린다. */
+function dimensionSection(head: [string, string], pairs: [string, number][]): { lines: string[]; suppressed: boolean } {
+  let suppressed = false
+  const lines = [
+    [csvField(head[0]), csvField(head[1])].join(','),
+    ...pairs.map(([label, n]) => {
+      const masked = n < K_ANONYMITY_THRESHOLD
+      if (masked) suppressed = true
+      return [csvField(label), masked ? SUPPRESS_LABEL : String(n)].join(',')
+    }),
+  ]
+  return { lines, suppressed }
+}
+
+export function buildFullStatsCsv(input: FullStatsCsvInput): StatsCsvResult {
+  const { stats: s, period } = input
+  const out: string[] = []
+  let suppressed = false
+  const pct = (n: number) => (s.source_mix.total ? `${Math.round((n / s.source_mix.total) * 100)}%` : '0%')
+
+  // 1) 지표 요약 — 총계라 억제하지 않는다.
+  const summary: [string, number, string][] = [
+    ['예약', s.source_mix.total, s.source_mix.basis],
+    ['취소', s.cancelled.value, s.cancelled.basis],
+    ['예약 부도', s.no_show.value, s.no_show.basis],
+    ['실제 방문', s.visits.value, s.visits.basis],
+    ['평균 대기시간(분)', s.wait.avg_minutes, s.wait.basis],
+    [`오래 기다린 사례(${s.wait.threshold_minutes}분 이상)`, s.wait.over_threshold, s.wait.basis],
+  ]
+  const summaryLines = ['지표,값,기준일', ...summary.map(([label, v, basis]) =>
+    [csvField(label), String(v), csvField(BASIS_LABEL[basis] ?? basis)].join(','))]
+
+  // 2) 유입원 — 앱·직원·챗봇 별도(총계라 억제하지 않는다).
+  const m = s.source_mix.rows
+  const sourceLines = ['유입원,건수,비율',
+    ['앱', String(m.app), pct(m.app)].join(','),
+    ['직원', String(m.staff), pct(m.staff)].join(','),
+    ['챗봇', String(m.chatbot), pct(m.chatbot)].join(','),
+    ['합계', String(s.source_mix.total), ''].join(','),
+  ]
+
+  // 3) 상담봇 지표 — 계약이 없으면 「집계할 수 없음」(0으로 위장하지 않는다, STAT-METRIC-06).
+  const botLines = s.bot == null
+    ? ['현재 집계할 수 없음']
+    : ['지표,값',
+        ['총 문의', String(s.bot.total_inquiries)].join(','),
+        ['상담봇 자체 안내', String(s.bot.self_served)].join(','),
+        ['직원 연결', String(s.bot.handoff)].join(',')]
+
+  // 4) 진료과/의사별 — k=5 억제(차원별 표). buildStatsCsv를 재사용하되 자체 '# 기간'·안내줄은 빼고
+  //    표 본문(헤더+데이터)만 취한다.
+  const byTable = buildStatsCsv({ period, byLabel: input.byLabel, rows: input.byRows })
+  if (byTable.suppressed) suppressed = true
+  const byLines = byTable.content.split('\n').filter((l) => !l.startsWith('#'))
+
+  // 5) 시간대별 방문 — k=5 억제(차원별). 시각 오름차순 + 시간 미기록.
+  const hourEntries = Object.entries(s.visits_by_hour.by_hour)
+    .map(([h, n]) => [`${String(Number(h)).padStart(2, '0')}시`, n] as [string, number])
+    .sort((a, b) => a[0].localeCompare(b[0]))
+  const hourPairs: [string, number][] = [...hourEntries]
+  if (s.visits_by_hour.unknown_time > 0) hourPairs.push(['시간 미기록', s.visits_by_hour.unknown_time])
+  const hourly = dimensionSection(['시각', '방문'], hourPairs)
+  if (hourly.suppressed) suppressed = true
+
+  out.push(`# 기간: ${period.from} ~ ${period.to}`)
+  out.push('', '# 지표 요약', ...summaryLines)
+  out.push('', '# 유입원 (앱·직원·챗봇 별도 집계)', ...sourceLines)
+  out.push('', '# 상담봇 지표', ...botLines)
+  out.push('', `# ${input.byLabel}별 예약 현황`, ...byLines)
+  out.push('', '# 시간대별 방문 (슬롯 시작 시각 기준)', ...hourly.lines)
+
+  const lines = suppressed ? [SUPPRESS_FILE_NOTE, ...out] : out
+  return { content: lines.join('\n'), rowCount: input.byRows.length, suppressed }
 }
