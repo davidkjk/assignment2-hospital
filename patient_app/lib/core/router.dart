@@ -18,6 +18,8 @@ import '../features/auth/reauth_screen.dart';
 import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
+import '../features/family/family_list_screen.dart';
+import '../features/family/family_edit_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/main_tabs.dart';
 import '../widgets/app_shell.dart';
@@ -194,7 +196,10 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
         // 나머지 보호 화면은 이후 태스크가 각자 AppShell로 감싼다(지금은 자리표시자).
         GoRoute(path: '/booking', builder: (c, s) => const _Placeholder('예약')),
         GoRoute(path: '/my', builder: (c, s) => const _Placeholder('나의 예약')), // T30 소유(HOME-KILL 확인 목적지)
-        GoRoute(path: '/family', builder: (c, s) => const _Placeholder('가족관리')),
+        GoRoute(path: '/family', builder: (c, s) => const FamilyListScreen()),   // 환자앱 T25
+        GoRoute(
+            path: '/family/:id/edit',
+            builder: (c, s) => FamilyEditScreen(familyPatientId: s.pathParameters['id']!)),
         GoRoute(
             path: '/appointments/:id',
             builder: (c, s) => _Placeholder('예약 상세 ${s.pathParameters['id']}')),
