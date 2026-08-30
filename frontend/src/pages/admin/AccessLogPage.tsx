@@ -7,6 +7,7 @@ import { getAccessLogs, type AccessLogPatientRef, type AccessLogRow } from '../.
 import { LogFilterBar } from './LogFilterBar'
 import { LogTable } from './LogTable'
 import { TextButton } from '@/components/staff-ui'
+import { ShieldCheck } from '../../components/icons'
 
 // [ALOG-*] 환자정보 열람 기록 /admin/access-logs — 관리자 전용 읽기 화면.
 //
@@ -133,10 +134,13 @@ export function AccessLogPage() {
       {/* [ALOG-HEAD-02] 읽기 전용 고지 — 감사 기록이 고쳐질 수 있으면 감사가 아니다.
           부제는 무엇이 어떻게 적히는지 설명: 검색 1줄(ALOG-AUDIT-01)·번호열람 환자별 별도(ALOG-AUDIT-02)·200건(ALOG-LIST-09). */}
       <div style={styles.readonly} role="note">
-        <p style={styles.readonlyTitle}>이 기록은 삭제하거나 수정할 수 없습니다</p>
-        <p style={styles.readonlyDesc}>
-          검색은 실행 1회당 한 줄, 번호 보기는 마스킹을 해제한 환자마다 별도로 기록됩니다. 최신 첫 페이지 최대 200건까지 보여 줍니다.
-        </p>
+        <ShieldCheck width={20} height={20} style={styles.readonlyIcon} aria-hidden="true" />
+        <div style={styles.readonlyText}>
+          <div style={styles.readonlyTitle}>이 기록은 삭제하거나 수정할 수 없습니다</div>
+          <div style={styles.readonlyDesc}>
+            검색은 실행 1회당 한 줄, 번호 보기는 마스킹을 해제한 환자마다 별도로 기록됩니다. 최신 첫 페이지 최대 200건까지 보여 줍니다.
+          </div>
+        </div>
       </div>
 
       <LogFilterBar
@@ -216,18 +220,21 @@ const styles: Record<string, CSSProperties> = {
   lede: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
   readonly: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
+    alignItems: 'flex-start',
+    gap: 10,
     margin: 0,
-    padding: '8px 12px',
-    borderRadius: 8,
-    background: 'var(--color-done-bg)',
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: '1px solid var(--color-primary)',
+    background: 'var(--color-primary-wash)',
   },
+  readonlyIcon: { color: 'var(--color-primary)', flexShrink: 0, marginTop: 1 },
+  readonlyText: { display: 'flex', flexDirection: 'column', gap: 2 },
   readonlyTitle: {
     margin: 0,
-    color: 'var(--color-ink-muted)',
+    color: 'var(--color-ink)',
     fontSize: 'var(--fs-sm)',
-    fontWeight: 600,
+    fontWeight: 700,
   },
   readonlyDesc: {
     margin: 0,
