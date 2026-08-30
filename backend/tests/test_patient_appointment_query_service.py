@@ -87,3 +87,41 @@ async def test_get_appointment_detail_has_names(committed_conn):
     aid = await _future_appt(committed_conn, me, dept, doctor_id)
     d = await q.get_appointment_detail(me, aid)
     assert d["department_name"] == "내과" and d["status"] in ("예약신청", "예약확정")
+
+
+@pytest.mark.asyncio
+async def test_list_my_appointments_carries_canceller(committed_conn):
+    # CARD-CXL-09(갭 #11): 오늘 병원취소는 홈에 자정까지 뜨고 주체·시각을 함께 내려줘야 3갈래가 성립한다.
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn))
+    slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, current_date, '09:00') returning id",
+        doctor_id)
+    aid = await committed_conn.fetchval(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source, "
+        "  cancelled_by, cancelled_at) values ($1,$2,$2,$3,$4,'병원취소','staff','hospital', now()) returning id",
+        slot, me.id, dept, doctor_id)
+    rows = await q.list_my_appointments(me)
+    row = next(r for r in rows if r["id"] == aid)  # CARD-CXL-05·06: 오늘 취소는 목록에 남는다
+    assert row["cancelled_by"] == "hospital" and row["cancelled_at"] is not None
+    assert row["is_self"] is True and row["relation"] == "본인"
+
+
+@pytest.mark.asyncio
+async def test_list_my_appointments_family_relation(committed_conn):
+    # CARD-COMMON-01: 가족 예약은 관계 문자열(예: '어머니')을 제목에 쓰도록 내려준다.
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn))
+    mom = await seed_patient(committed_conn, phone="010-mom")
+    await committed_conn.execute(
+        "insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) "
+        "values ($1,$2,'어머니',true)", me.id, mom["patient_id"])
+    slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, current_date, '10:00') returning id",
+        doctor_id)
+    aid = await committed_conn.fetchval(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source) "
+        "values ($1,$2,$3,$4,$5,'예약확정','app') returning id", slot, me.id, mom["patient_id"], dept, doctor_id)
+    rows = await q.list_my_appointments(me)
+    row = next(r for r in rows if r["id"] == aid)
+    assert row["is_self"] is False and row["relation"] == "어머니"

@@ -13,12 +13,13 @@ import 'package:hospital_patient_app/features/home/home_screen.dart';
 // 한글 글자가 tofu로 나오지 않게 시스템 한글 폰트를 기본 패밀리로 로드한다.
 
 AppointmentView _v(String id, String status, String name, String time, String dept, String doctor,
-        {String? code}) =>
+        {String? code, String relation = '본인', bool isSelf = true}) =>
     AppointmentView.fromJson({
       'id': id,
       'status': status,
       'for_patient_name': name,
-      'is_self': name == '본인' || id == '1',
+      'relation': relation,
+      'is_self': isSelf,
       'booking_code': code,
       'department_name': dept,
       'doctor_name': doctor,
@@ -34,6 +35,9 @@ Widget _home(List<AppointmentView> appts) => ProviderScope(
         homeAppointmentsProvider.overrideWith((ref) async => appts),
         hospitalInfoProvider.overrideWith((ref) async => null),
         pendingRequestProvider.overrideWith((ref) async => null),
+        // 대기 카드의 「내 앞 N명」을 골든에 담는다(실 배선 대신 고정값).
+        queueStatusProvider.overrideWith(
+            (ref, id) async => const QueueStatus(patientsAhead: 3, estimatedWaitMinutes: 25)),
       ],
       child: const MaterialApp(home: HomeScreen()),
     );
@@ -57,7 +61,8 @@ void main() {
     addTearDown(() => t.binding.setSurfaceSize(null));
     await t.pumpWidget(_home([
       _v('1', '진료대기', '김순자', '09:30', '내과', '이정훈', code: 'K7P2Q9'),
-      _v('2', '예약확정', '박말순', '14:00', '안과', '오세림', code: 'M4T8XR'),
+      _v('2', '예약확정', '박말순', '14:00', '안과', '오세림',
+          code: 'M4T8XR', relation: '어머니', isSelf: false),
     ]));
     await t.pumpAndSettle();
     await expectLater(find.byType(HomeScreen), matchesGoldenFile('goldens/home.png'));

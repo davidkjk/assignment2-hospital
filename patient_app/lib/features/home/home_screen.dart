@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/connectivity.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
@@ -134,10 +135,7 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 16),
           child: InkWell(
             onTap: () => context.go('/appointments/${v.id}'), // NAV-HOME-01
-            child: AppointmentCard(
-              view: v,
-              onAcknowledge: () => _acknowledge(ref, v.id), // NAV-HOME-15
-            ),
+            child: _HomeCard(view: v, onAcknowledge: () => _acknowledge(ref, v.id)), // NAV-HOME-15
           ),
         ),
       // HOME-INFO-01·02: 조회 성공 시만 병원 주소·전화(실패면 이 줄만 사라진다).
@@ -154,6 +152,25 @@ class HomeScreen extends ConsumerWidget {
       // 실패해도 화면은 그대로 — 다음 새로고침에서 다시 보인다.
     }
     ref.invalidate(homeAppointmentsProvider);
+  }
+}
+
+/// 홈 카드 한 장 — 대기 상태면 예약별 큐를 읽어 「내 앞 N명」을 채우고, 오프라인 여부를 카드에 전한다.
+class _HomeCard extends ConsumerWidget {
+  const _HomeCard({required this.view, required this.onAcknowledge});
+  final AppointmentView view;
+  final VoidCallback onAcknowledge;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final online = ref.watch(connectivityProvider).valueOrNull ?? true;
+    final state = resolveCardState(view, DateTime.now());
+    // 대기 카드만 큐를 부른다(다른 상태는 불필요한 요청을 만들지 않는다).
+    final queue = (online && state == AppointmentCardState.wait)
+        ? ref.watch(queueStatusProvider(view.id)).valueOrNull
+        : null;
+    return AppointmentCard(
+        view: view, queue: queue, online: online, onAcknowledge: onAcknowledge);
   }
 }
 

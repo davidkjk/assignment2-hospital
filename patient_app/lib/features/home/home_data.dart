@@ -66,6 +66,22 @@ final homeAppointmentsProvider = FutureProvider<List<AppointmentView>?>((ref) as
   );
 });
 
+/// CARD-WAIT — 진료대기 카드의 「내 앞 N명·예상 대기」. 예약별로 get_queue_status(T8)를 부른다.
+/// 실패·오프라인이면 null → WaitBody가 숫자 없이 문장만(CARD-WAIT-04·CARD-OFF-03).
+final queueStatusProvider = FutureProvider.family<QueueStatus?, String>((ref, id) async {
+  try {
+    return await ref.watch(apiClientProvider).get<QueueStatus>(
+          '/my/appointments/$id/queue',
+          (j) => QueueStatus(
+            patientsAhead: (j['patients_ahead'] as num?)?.toInt() ?? 0,
+            estimatedWaitMinutes: (j['estimated_wait_minutes'] as num?)?.toInt(),
+          ),
+        );
+  } catch (_) {
+    return null;
+  }
+});
+
 /// HOME-INFO — 병원 주소·전화(T4 get_hospital_info). 조회 실패면 조용히 null(정보 줄만 사라지고 카드는 그대로).
 class HospitalInfo {
   const HospitalInfo({this.address, this.phone});

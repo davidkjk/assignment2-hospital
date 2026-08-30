@@ -4,3 +4,6 @@
 .flutter-plugins-dependencies
 build/
 .packages
+
+# 골든 테스트 실패 diff 산출물
+test/**/failures/

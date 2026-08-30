@@ -5,7 +5,6 @@ import 'package:hospital_patient_app/core/profile_status.dart';
 import 'package:hospital_patient_app/core/router.dart';
 import 'package:hospital_patient_app/core/session_guard.dart';
 import 'package:hospital_patient_app/features/auth/auth_state.dart';
-import 'package:hospital_patient_app/features/home/appointment_card.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/home/home_data.dart';
 import 'package:hospital_patient_app/features/home/home_screen.dart';
@@ -81,7 +80,8 @@ void main() {
   testWidgets('[NAV-HOME-01] 홈에서 예약 카드를 누르면 예약 상세로 간다', (t) async {
     await t.pumpWidget(_app(initial: '/home', appts: [_view('a1', '예약확정')]));
     await t.pumpAndSettle();
-    await t.tap(find.byType(AppointmentCard));
+    // 카드 가운데(확정)는 이제 QR 미리보기라 눌러도 QR로 간다(NAV-HOME-02). 카드의 나머지 영역(헤더)을 눌러 상세로.
+    await t.tap(find.textContaining('선생님'));
     await t.pumpAndSettle();
     expect(find.textContaining('예약 상세'), findsOneWidget); // /appointments/a1
     expect(find.byType(HomeScreen), findsNothing);

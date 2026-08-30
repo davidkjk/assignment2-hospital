@@ -1,8 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/home/appointment_card.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/home/card_bodies_a.dart';
-import 'package:hospital_patient_app/widgets/action_button.dart';
 import 'package:hospital_patient_app/features/home/status_badge.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -77,9 +77,10 @@ void main() {
   });
 
   testWidgets('[CARD-UNCONF-06] 버튼은 상담 채팅 연결 · 병원 전화', (t) async {
+    // 데모 정본: 상태 버튼은 아웃라인(OutlinedButton) — 이동·연결은 서버 변경 버튼(ActionButton)이 아니다(BTN-SCOPE-02).
     await t.pumpWidget(wrap(AppointmentCard(view: unconfView())));
-    expect(find.widgetWithText(ActionButton, '상담 채팅 연결'), findsOneWidget);
-    expect(find.widgetWithText(ActionButton, '병원 전화'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '상담 채팅 연결'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '병원 전화'), findsOneWidget);
   });
 
   testWidgets('[CARD-UNCONF-06b] 다시 예약하기 버튼을 두지 않는다', (t) async {

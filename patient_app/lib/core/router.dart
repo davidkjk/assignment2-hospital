@@ -15,6 +15,7 @@ import '../features/auth/otp_screen.dart';
 import '../features/auth/password_find_screen.dart';
 import '../features/auth/phone_change_screen.dart';
 import '../features/auth/reauth_screen.dart';
+import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
 import '../features/home/home_screen.dart';
@@ -203,7 +204,7 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
         GoRoute(path: '/notifications', builder: (c, s) => const _Placeholder('알림함')), // NAV-HOME-12
         GoRoute(
             path: '/qr/:id',
-            builder: (c, s) => _Placeholder('접수용 QR ${s.pathParameters['id']}')), // NAV-HOME-02(화면=T17)
+            builder: (c, s) => QrRoute(appointmentId: s.pathParameters['id']!)), // NAV-HOME-02(화면=T17)
         GoRoute(path: '/questionnaire', builder: (c, s) => const _Placeholder('사전문진')), // 문진 탭
         GoRoute(
             path: '/questionnaire/:id',

@@ -80,6 +80,63 @@ AppointmentView cancelledView() => AppointmentView.fromJson({
       'hospital_change_kind': 'cancelled',
     });
 
+/// 상태 B 공용 뷰 — 오늘 슬롯(유예 전)이라 예약확정이 late로 넘어가지 않는다.
+AppointmentView bView(
+  String status, {
+  String name = '김순자',
+  String relation = '본인',
+  bool isSelf = true,
+  String? code = '241401',
+  bool hasQuestionnaire = false,
+  String? cancelledBy,
+  String? cancelledByRelation,
+  String? cancelledByName,
+  String? changeKind,
+}) {
+  final now = DateTime.now();
+  final slot = now.add(const Duration(minutes: 10)); // 유예 전
+  return AppointmentView.fromJson({
+    'id': 'a1',
+    'status': status,
+    'for_patient_name': name,
+    'relation': relation,
+    'is_self': isSelf,
+    'booking_code': code,
+    'department_name': '내과',
+    'doctor_name': '이의사',
+    'has_questionnaire': hasQuestionnaire,
+    'slot_date': slot.toIso8601String().substring(0, 10),
+    'start_time': '${slot.hour.toString().padLeft(2, '0')}:${slot.minute.toString().padLeft(2, '0')}',
+    'hospital_change_prev_time':
+        changeKind != null ? DateTime(2026, 8, 18, 14, 0).toIso8601String() : null,
+    'hospital_change_kind': changeKind,
+    'cancelled_by': cancelledBy,
+    'cancelled_by_relation': cancelledByRelation,
+    'cancelled_by_name': cancelledByName,
+    'cancelled_at': cancelledBy != null ? DateTime(2026, 8, 18, 9, 0).toIso8601String() : null,
+  });
+}
+
+/// 예약확정인 채 예약시각 +N분 지난 뷰(late 판정용).
+AppointmentView lateView({int minutesPast = 31, String? code = '241401'}) {
+  final slot = DateTime.now().subtract(Duration(minutes: minutesPast));
+  return AppointmentView.fromJson({
+    'id': 'a1',
+    'status': '예약확정',
+    'for_patient_name': '김순자',
+    'relation': '본인',
+    'is_self': true,
+    'booking_code': code,
+    'department_name': '내과',
+    'doctor_name': '이의사',
+    'has_questionnaire': false,
+    'slot_date': slot.toIso8601String().substring(0, 10),
+    'start_time': '${slot.hour.toString().padLeft(2, '0')}:${slot.minute.toString().padLeft(2, '0')}',
+    'hospital_change_prev_time': null,
+    'hospital_change_kind': null,
+  });
+}
+
 /// AppCard 고정 본문(132px)의 실제 높이. 상태가 바뀌어도 불변임을 확인한다(COMMON-06).
 double bodyHeight(WidgetTester t) =>
     t.getSize(find.byKey(const Key('app_card_body'))).height;
