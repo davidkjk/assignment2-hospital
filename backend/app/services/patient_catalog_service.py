@@ -1,7 +1,9 @@
+from collections import defaultdict
 from datetime import date
 from uuid import UUID
 from app.core.patient_security import PatientContext
-from app.db.pool import acquire_as
+from app.db.pool import acquire_as, get_pool
+from app.services.doctor_schedule_summary import summarize_schedule
 from app.services.settings_service import get_public_hospital_info  # 직원웹 T29 소유
 
 
@@ -12,14 +14,29 @@ async def list_departments(patient: PatientContext) -> list[dict]:
 
 
 async def list_doctors(department_id: UUID, patient: PatientContext) -> list[dict]:
-    # ⚠️ 핀(갭 #7, 경계 갭 대조표): 지금은 id·name만. 「예약 3단계 의사 소개」 화면(환자앱 T19)을 쓸 때
-    #    전공·소개·사진을 함께 반환하도록 확장한다 — 칸은 직원웹 T19 STAFF-PROFILE 마이그레이션이 staff에 얹는다
-    #    (그 스키마 확정 뒤 select에 추가). 사진은 버킷 경로/서명 URL.
+    # 갭 #7: staff의 전공·사진을 함께 반환(직원웹 00042가 얹은 칸). bio는 화면 비노출(BOOK-DOC-06)이라 뺀다.
     async with acquire_as(str(patient.auth_user_id)) as conn:
         rows = await conn.fetch(
-            "select id, name from staff where role='doctor' and department_id=$1 and is_active order by name",
+            "select id, name, specialty, photo_url from staff "
+            "where role='doctor' and department_id=$1 and is_active order by name",
             department_id)
-    return [dict(r) for r in rows]
+    doctors = [dict(r) for r in rows]
+    if not doctors:
+        return []
+    # 갭 #9: 진료요일 요약. doctor_schedule_rules는 staff 전용 RLS라 서비스역할 경로(raw 풀)로 읽는다
+    #        (진료요일은 민감정보 아님 — get_pool()=RLS 우회). asyncpg가 weekday:int·start/end:time을 그대로 준다.
+    ids = [d["id"] for d in doctors]
+    async with (await get_pool()).acquire() as admin:
+        srows = await admin.fetch(
+            "select doctor_id, weekday, start_time, end_time from doctor_schedule_rules "
+            "where doctor_id = any($1::uuid[])", ids)
+    by_doctor: dict[UUID, list[dict]] = defaultdict(list)
+    for r in srows:
+        by_doctor[r["doctor_id"]].append(
+            {"weekday": r["weekday"], "start_time": r["start_time"], "end_time": r["end_time"]})
+    for d in doctors:
+        d["schedule_summary"] = summarize_schedule(by_doctor.get(d["id"], []))
+    return doctors  # {id, name, specialty, photo_url, schedule_summary}
 
 
 async def list_available_dates(doctor_id: UUID, patient: PatientContext) -> list[str]:

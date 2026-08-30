@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'connectivity.dart';
 import 'phone_cooldown.dart';
 import 'profile_status.dart';
 import 'sensitive_reauth.dart';
@@ -18,6 +19,7 @@ import '../features/auth/reauth_screen.dart';
 import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
+import '../features/booking/booking_wizard.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/main_tabs.dart';
 import '../features/notifications/notification_inbox.dart';
@@ -193,7 +195,18 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             path: '/home',
             builder: (c, s) => const AppShell(body: HomeScreen(), bottomTabs: MainTabs())),
         // 나머지 보호 화면은 이후 태스크가 각자 AppShell로 감싼다(지금은 자리표시자).
-        GoRoute(path: '/booking', builder: (c, s) => const _Placeholder('예약')),
+        // 예약 마법사 — 하단 탭 셸 안(NAV-BOOK-21: 탭 다녀와도 상태 유지 = BOOK-KEEP-01).
+        GoRoute(
+          path: '/booking',
+          builder: (c, s) =>
+              const AppShell(body: BookingWizard(), bottomTabs: MainTabs()),
+          redirect: (c, s) {
+            // BOOK-NAV-09 — 예약은 오프라인에서 못 한다. 진입점 버튼이 이미 회색이지만 딥링크 방어로 한 번 더.
+            final online =
+                ProviderScope.containerOf(c).read(connectivityProvider).valueOrNull ?? true;
+            return online ? null : '/home';
+          },
+        ),
         GoRoute(path: '/my', builder: (c, s) => const _Placeholder('나의 예약')), // T30 소유(HOME-KILL 확인 목적지)
         GoRoute(path: '/family', builder: (c, s) => const _Placeholder('가족관리')),
         GoRoute(

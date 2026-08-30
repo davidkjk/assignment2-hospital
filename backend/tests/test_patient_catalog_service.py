@@ -55,3 +55,36 @@ async def test_hospital_info_uses_public_rpc(db_conn):
                return_value={"hospital_address": "서울 강남", "hospital_phone": "02-1234-5678"}):
         info = await patient_catalog_service.get_hospital_info(ctx)
     assert info["hospital_address"] == "서울 강남"
+
+
+@pytest.mark.asyncio
+async def test_list_doctors_returns_profile_and_schedule(committed_conn):
+    # [BOOK-DOC-02][BOOK-DOC-07] 갭 #7 — 사진·전공을 함께 반환한다(직원웹 00042가 얹은 staff 칸).
+    dept = await committed_conn.fetchval(
+        "insert into departments (name, is_active) values ('테스트프로필내과', true) returning id")
+    doc = await seed_staff(committed_conn, role="doctor", department_id=dept)
+    # 직원웹 00042 칸을 채운다(구현 시점엔 이미 존재하는 칸).
+    await committed_conn.execute("update staff set specialty=$2, photo_url=$3 where id=$1",
+                                 doc["staff_id"], "소화기내과", "https://cdn/doc.jpg")
+    # 갭 #9 — 진료요일: 월·수·금 오전.
+    for w in (0, 2, 4):
+        await committed_conn.execute(
+            "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments) "
+            "values ($1,$2,'09:00','12:00',20,10)", doc["staff_id"], w)
+    docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(committed_conn)))
+    mine = next(d for d in docs if d["id"] == doc["staff_id"])
+    assert mine["specialty"] == "소화기내과"
+    assert mine["photo_url"] == "https://cdn/doc.jpg"
+    assert mine["schedule_summary"] == "월·수·금 오전"   # 갭 #9 서버 요약
+    assert "bio" not in mine                             # [BOOK-DOC-06] bio는 화면 비노출 — 반환하지 않는다
+
+
+@pytest.mark.asyncio
+async def test_list_doctors_photo_url_null_when_absent(committed_conn):
+    # [BOOK-DOC-05] 사진 없는 의사는 photo_url=None → 화면이 회색 원+첫 글자로 그린다.
+    dept = await committed_conn.fetchval(
+        "insert into departments (name, is_active) values ('테스트무사진과', true) returning id")
+    doc = await seed_staff(committed_conn, role="doctor", department_id=dept)
+    docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(committed_conn)))
+    mine = next(d for d in docs if d["id"] == doc["staff_id"])
+    assert mine["photo_url"] is None and mine["schedule_summary"] == "진료시간 문의"
