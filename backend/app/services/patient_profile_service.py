@@ -4,9 +4,12 @@ from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.db.admin_client import get_admin_client
 from app.db.pool import acquire_as, get_pool
+from app.services import consent_service
 
 
-async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str) -> UUID:
+async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str,
+                           *, ads_agreed: bool = False,
+                           terms_version: str = consent_service.TERMS_VERSION) -> UUID:
     # [R5-05] phone은 요청 본문을 신뢰하지 않고 Supabase Auth(admin API)의 검증번호를 직접 조회한다.
     # 검증 phone+birth_date+name 일치 미연결 1건이면 연결(과거 예약·이력 승계), 0·2+건이면 신규 가입.
     # get_pool() 서비스 역할 커넥션 — 아직 auth 연결 전이라 patient_owns RLS로는 조회 불가.
@@ -27,6 +30,9 @@ async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gend
                 patient_id = await conn.fetchval(
                     "insert into patients (auth_user_id, name, birth_date, gender, phone) "
                     "values ($1,$2,$3,$4,$5) returning id", auth_user_id, name, birth_date, gender, phone)
+            # CONSENT-LOG-01 — 같은 트랜잭션 안에서 동의 4줄을 남긴다(프로필과 함께 커밋/롤백).
+            await consent_service.record_consents(
+                conn, patient_id, ads_agreed=ads_agreed, terms_version=terms_version)
     return patient_id
 
 

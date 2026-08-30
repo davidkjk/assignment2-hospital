@@ -17,6 +17,7 @@ class RegisterProfileRequest(BaseModel):
     name: str
     birth_date: date
     gender: str
+    ads_agreed: bool = False  # CONSENT-LOG-01 — 필수 3동의는 여기 도달=동의, 광고만 선택값으로 받는다
 
 
 @router.post("")
@@ -24,7 +25,7 @@ async def register_profile(body: RegisterProfileRequest,
                            auth_user_id: UUID = Depends(get_current_auth_user_id)) -> dict:
     # 가입 직후 — patients 행이 아직 없으므로 get_current_patient가 아니라 auth_user_id 의존성.
     patient_id = await patient_profile_service.register_profile(
-        auth_user_id, body.name, body.birth_date, body.gender)
+        auth_user_id, body.name, body.birth_date, body.gender, ads_agreed=body.ads_agreed)
     return {"patient_id": patient_id}
 
 

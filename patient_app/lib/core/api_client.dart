@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
-  ApiException(this.message);
+  ApiException(this.message, {this.statusCode}); // statusCode 추가(T0 누락 보강)
   final String message;
+  final int? statusCode; // 403(프로필 미완료) 등 상태 구분용
   @override
   String toString() => message;
 }
@@ -51,6 +52,6 @@ class ApiClient {
       final body = jsonDecode(text);
       if (body is Map && body['detail'] is String) message = body['detail'] as String;
     } catch (_) {}
-    throw ApiException(message);
+    throw ApiException(message, statusCode: response.statusCode);
   }
 }

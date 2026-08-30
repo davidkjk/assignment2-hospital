@@ -14,9 +14,11 @@ from app.routers import (
     patient_appointments,
     patient_bookings,
     patient_catalog,
+    patient_consent,
     patient_device_tokens,
     patient_family,
     patient_merge,
+    patient_password_reset,
     patient_profile,
     patients,
     questionnaire_admin,
@@ -42,6 +44,8 @@ app.include_router(patients.router)
 app.include_router(patient_merge.router)
 # 환자앱(3단계) 라우터 — /patients·/family·/catalog·/bookings·/my·/device-tokens (직원 경로와 겹치지 않음)
 app.include_router(patient_profile.router)
+app.include_router(patient_consent.router)
+app.include_router(patient_password_reset.router)
 app.include_router(patient_family.router)
 app.include_router(patient_catalog.router)
 app.include_router(patient_bookings.router)
