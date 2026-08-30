@@ -1,4 +1,5 @@
-import { screen, within } from '@testing-library/react'
+import { screen, within, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { test, expect } from 'vitest'
 import {
   renderMerge,
@@ -85,4 +86,15 @@ test('[MERGE-LIST-06] 후보 0건은 조회 실패가 아니라 사실이라 [�
   expect(await screen.findByText('현재 병합을 검토할 중복 환자가 없습니다')).toBeVisible()
   expect(screen.getByText('새 후보가 생기면 이곳에 표시됩니다')).toBeVisible()
   expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull()
+})
+
+test('[MERGE-STATE-02] 상단 [다시 확인]은 목록을 다시 읽고, 후보가 그대로여도 「마지막 확인」 시각을 남긴다', async () => {
+  // 사용자 발견(2026-08-30): 후보가 안 바뀌면 화면이 그대로라 「눌러도 반응이 없다」로 보였다.
+  // 재조회는 실제로 서버를 다시 치고, 확인 시각 라벨로 「방금 확인했다」를 눈에 보이게 한다.
+  const { api } = renderMerge({ groups: [twoRowGroup()] })
+  await screen.findByLabelText('후보 그룹 01')
+  const before = api.calls(/merge-candidates/).length
+  await userEvent.click(screen.getByRole('button', { name: '다시 확인' }))
+  await waitFor(() => expect(api.calls(/merge-candidates/).length).toBe(before + 1))
+  expect(await screen.findByText(/마지막 확인 \d{2}:\d{2}/)).toBeVisible()
 })

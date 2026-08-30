@@ -1,5 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { hospitalHHMM } from '../../../lib/clock'
 import { Link } from 'react-router-dom'
 import { RequireRole } from '../../../auth/RequireRole'
 import { ADMIN_ONLY } from '../../../auth/roles'
@@ -34,6 +35,9 @@ export function MergeCandidatesPage() {
 function MergeCandidatesInner() {
   const { online } = useConnectivity()
   const [stage, setStage] = useState<Stage>({ kind: 'list' })
+  // 손으로 [다시 확인]을 눌러 재조회를 마친 시각(병원 시계). 후보가 안 바뀌면 화면이 그대로라
+  // 「눌러도 반응이 없다」로 보이던 것을, 이 라벨로 「방금 확인했다」를 눈에 보이게 한다(사용자 지시 2026-08-30).
+  const [checkedAt, setCheckedAt] = useState<string>()
 
   const candidatesQ = useQuery({
     queryKey: ['merge-candidates'],
@@ -54,6 +58,13 @@ function MergeCandidatesInner() {
     void candidatesQ.refetch()
   }
 
+  // [MERGE-STATE-02] 상단 [다시 확인] — 비교 상태는 지운 채 목록만 최신으로 다시 읽는다.
+  // 성공하면 확인 시각을 남겨 「작동했다」를 보인다. 실패는 비교 화면 오류줄(compareErr)이 맡는다.
+  async function handleRecheck() {
+    const result = await candidatesQ.refetch()
+    if (!result.isError) setCheckedAt(hospitalHHMM(new Date()))
+  }
+
   return (
     <section style={styles.page} aria-label="중복 환자 후보">
       {/* MERGE-HEAD-02 — 자동으로 합치지 않는다. 가족이 번호를 공유할 수 있음을 같은 자리에서 말한다. 공용 PageNotice로 통일(2026-08-30). */}
@@ -71,7 +82,17 @@ function MergeCandidatesInner() {
           (L20 finding ②의 「비교 중 숨김」은 이 규칙과 충돌해 채택하지 않음 — 2026-08-29 원문 대조.) */}
       {stage.kind !== 'confirm' && stage.kind !== 'success' && (
         <div style={styles.toolbar}>
-          <button type="button" onClick={() => void candidatesQ.refetch()} style={styles.recheck}>다시 확인</button>
+          {checkedAt && !candidatesQ.isFetching && (
+            <span role="status" style={styles.checkedNote}>마지막 확인 {checkedAt}</span>
+          )}
+          <button
+            type="button"
+            onClick={handleRecheck}
+            disabled={candidatesQ.isFetching}
+            style={{ ...styles.recheck, ...(candidatesQ.isFetching ? styles.recheckBusy : {}) }}
+          >
+            {candidatesQ.isFetching ? '확인 중…' : '다시 확인'}
+          </button>
         </div>
       )}
 
@@ -201,11 +222,13 @@ const styles: Record<string, CSSProperties> = {
     borderLeft: '4px solid var(--color-done)', background: 'var(--color-done-bg)',
     fontSize: 'var(--fs-body)', color: 'var(--color-ink)',
   },
-  toolbar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12 },
+  toolbar: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginBottom: 12 },
+  checkedNote: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   recheck: {
     height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
+  recheckBusy: { opacity: 0.6, cursor: 'default' },
   groups: { display: 'flex', flexDirection: 'column', gap: 14 },
   loading: { margin: '0 0 10px', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   skeleton: {
