@@ -134,6 +134,14 @@ function hexToDartColor(hex) {
   return `Color(0xFF${match[1].toUpperCase()})`;
 }
 
+const HEX_ARGB = /^#([0-9a-f]{8})$/i;
+/** '#AARRGGBB' → Dart 'Color(0xAARRGGBB)'. 알파를 품은 색(처리 중 흐린 딥틸 등) 전용. */
+function hexArgbToDartColor(hex) {
+  const match = HEX_ARGB.exec(hex);
+  if (!match) throw new TypeError(`Expected an eight-digit ARGB hex color, received: ${hex}`);
+  return `Color(0x${match[1].toUpperCase()})`;
+}
+
 /** '132px' → '132.0' (Dart double 리터럴). */
 function pxToDartDouble(value) {
   const match = /^(\d+(?:\.\d+)?)px$/.exec(value);
@@ -153,6 +161,9 @@ function buildDart() {
   const grayDone = hexToDartColor(tokens.color['gray-past']);
   const warn = hexToDartColor(tokens.color.warn);
   const warnBarWidth = pxToDartDouble(tokens.patientApp.warnBarWidth);
+  const offlineBannerBg = hexToDartColor(tokens.patientApp.offlineBannerBg);
+  const primary = hexToDartColor(tokens.color.primary); // color.primary 재사용(공용)
+  const primaryBusy = hexArgbToDartColor(tokens.patientApp.primaryBusy); // 알파 포함 전용값
   const cardBodyHeight = pxToDartDouble(tokens.patientApp.cardBodyHeight);
   const bodySize = pxToDartDouble(tokens.patientApp.body).replace(/\.0$/, '');
 
@@ -171,6 +182,14 @@ class AppTokens {
   // DISP-WARN-01 — 주의색(color.warn 통일): 배경 없이 글자 + 좌측 바.
   static const Color warn = ${warn};
   static const double warnBarWidth = ${warnBarWidth};
+
+  // OFF-BAN-02 — 오프라인 상태 띠 배경(옅은 주황). '주의색 배경 금지'의 예외 1건(전면 상태 배너 한정).
+  static const Color offlineBannerBg = ${offlineBannerBg};
+
+  // BTN-STATE-01/02 — 딥틸(primary). 평소=진한 딥틸, 처리 중=흐린 딥틸(회색 아님).
+  // 값 근거: 목업 --primary:#0B6E70(66회). 처리 중 흐림은 primary를 알파로 낮춘 계열(≈.75).
+  static const Color primary = ${primary}; // color.primary 재사용
+  static const Color primaryBusy = ${primaryBusy}; // patientApp.primaryBusy(알파 0xBF≈.75 — 회색으로 칠하지 않는다)
 
   // DISP-CARD-01 — 카드 본문 높이 고정.
   static const double cardBodyHeight = ${cardBodyHeight};
