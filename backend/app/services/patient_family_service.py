@@ -163,5 +163,8 @@ async def unlink_family_member(patient, family_patient_id: UUID) -> None:
 
 
 async def link_existing_patient_by_otp(patient, phone: str, otp: str):
-    # [R5-01] 본인확인 창구(4단계) 전까지 막는다 — 통과시키면 본인확인 없이 연결된다.
-    raise AppError("기존 환자 연결은 준비 중입니다. 병원 접수처에서 도와드립니다.", status_code=501)
+    # [R5-01] ✅ 해소(환자앱 T26) — 본인확인 창구를 family_link_otp_service로 분리했다.
+    #         옛 501 주석의 「4단계에서 푼다」는 낡았다(4단계=AI 상담봇, 본인확인과 무관).
+    raise AppError(
+        "가족 연결은 인증번호 요청(/family/link/request) 후 확인(/family/link/confirm)으로 진행합니다.",
+        status_code=400)

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.core.patient_security import PatientContext, get_current_patient
-from app.services import patient_family_service
+from app.services import family_link_otp_service, patient_family_service
 
 router = APIRouter(prefix="/family", tags=["patient-family"])
 
@@ -57,3 +57,34 @@ async def unlink_family(family_patient_id: UUID,
                         patient: PatientContext = Depends(get_current_patient)) -> dict:
     await patient_family_service.unlink_family_member(patient, family_patient_id)
     return {"status": "unlinked"}
+
+
+# ── ㉯ 기존 환자 가족 연결(본인확인 OTP) — family_link_otp_service ────────────────
+class FamilyLinkRequestIn(BaseModel):
+    name: str
+    birth_date: date
+    phone: str
+    relation: str                       # FAM-LINK-02 — '가족(연결)' 하드코딩을 버린다
+
+
+class FamilyLinkConfirmIn(BaseModel):
+    request_id: UUID
+    code: str
+
+
+@router.post("/link/request")
+async def request_family_link(body: FamilyLinkRequestIn,
+                              patient: PatientContext = Depends(get_current_patient)) -> dict:
+    # ⭐ 이 엔드포인트는 「보냈다」만 답한다 — 찾았는지 여부를 응답으로 만들지 않는다(갭 #58).
+    request_id = await family_link_otp_service.request_family_link_otp(
+        patient, name=body.name, birth_date=body.birth_date,
+        phone=body.phone, relation=body.relation)
+    return {"request_id": str(request_id)}
+
+
+@router.post("/link/confirm")
+async def confirm_family_link(body: FamilyLinkConfirmIn,
+                              patient: PatientContext = Depends(get_current_patient)) -> dict:
+    family_patient_id = await family_link_otp_service.confirm_family_link_otp(
+        patient, body.request_id, body.code)
+    return {"family_patient_id": str(family_patient_id)}

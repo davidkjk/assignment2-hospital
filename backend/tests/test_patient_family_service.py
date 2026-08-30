@@ -303,9 +303,11 @@ async def test_ten_active_links_max(committed_conn):
 
 
 @pytest.mark.asyncio
-async def test_link_existing_patient_is_blocked_501(committed_conn):
-    # [R5-01] 본인확인 창구(4단계) 전까지 기존 환자 OTP 연결은 501로 막는다.
+async def test_link_existing_patient_delegates_to_otp_service(committed_conn):
+    # [R5-01] ✅ 해소(환자앱 T26) — 옛 501 창구는 family_link_otp_service로 분리했다.
+    #         옛 경로는 이제 「인증번호 요청·확인으로 진행하라」는 400 안내를 준다(막다른 길 아님).
     me = await _seed_account(committed_conn)
     with pytest.raises(AppError) as e:
         await patient_family_service.link_existing_patient_by_otp(me, phone="010-1111-2222", otp="000000")
-    assert e.value.status_code == 501
+    assert e.value.status_code == 400
+    assert "인증번호" in str(e.value)
