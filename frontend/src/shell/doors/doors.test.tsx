@@ -154,7 +154,7 @@ test('[PANEL-WORK-02] 환자를 고르면 왼쪽이 그 환자 카드가 된다(
   expect(screen.getByText('이 환자와 이야기하며 오른쪽에서 담당 의사를 고르세요')).toBeVisible()
 })
 
-test('[PANEL-WORK-02] 의사를 고른 뒤 왼쪽이 그 의사의 하루 캘린더가 된다', async () => {
+test('[PANEL-WORK-02] 의사를 고른 뒤 왼쪽이 「날짜」 달력이 된다 (2026-08-30 개정 — 의사→날짜→시각)', async () => {
   const user = userEvent.setup()
   // D4 배선 뒤 의사 로스터는 **그 날 격자에 열이 생기는 의사**(GET /calendar 카탈로그)다.
   serveCalendar([{ id: 'doc-1', name: '이정훈', department_name: '내과', palette_index: null, slot_minutes: 15 }])
@@ -162,7 +162,8 @@ test('[PANEL-WORK-02] 의사를 고른 뒤 왼쪽이 그 의사의 하루 캘린
   await openReserveAndPickPatient(user)
   await user.click(await waitFor(() => screen.getByRole('button', { name: /이정훈/ })))
 
-  expect(screen.getByText('시간을 고르는 중')).toBeVisible()
+  // 의사를 고르면 시각으로 바로 가지 않고 먼저 날짜를 고른다(사용자 지시). 시각 캘린더는 날짜를 고른 뒤.
+  expect(screen.getByText('날짜를 고르는 중')).toBeVisible()
 })
 
 test('[PANEL-WORK-01][PANEL-WORK-03] 날짜 칸을 누르면 왼쪽이 달력이 되고 무엇을 고르는 중인지 적힌다', async () => {
