@@ -99,6 +99,8 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
         </div>
       )}
 
+      {/* [일관성] 같은 화면의 다른 탭(전체현황·의사별 스케줄 등)처럼 표를 흰 카드로 감싼다(사용자 지시). */}
+      <div style={styles.tableCard}>
       <table style={styles.table}>
         <thead>
           <tr>
@@ -189,6 +191,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
           })}
         </tbody>
       </table>
+      </div>
 
       <p style={styles.infoNote}>
         ⓘ 의사별 진료시간은 「의사별 스케줄」에서 따로 정합니다. 이 값은 접수 창구가 열려 있는 시간입니다.
@@ -233,6 +236,13 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--fs-body)',
     fontWeight: 600,
     marginBottom: 10,
+  },
+  tableCard: {
+    border: '1px solid var(--color-divider)',
+    borderRadius: 'var(--radius-card)',
+    background: 'var(--color-surface)',
+    boxShadow: 'var(--shadow-card)',
+    overflow: 'hidden',
   },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: { padding: '8px', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', borderBottom: '1px solid var(--color-divider)' },
