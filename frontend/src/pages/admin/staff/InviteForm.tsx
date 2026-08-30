@@ -144,20 +144,20 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
 
 const styles: Record<string, CSSProperties> = {
   form: { display: 'flex', flexDirection: 'column', gap: 12 },
-  title: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
-  label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)', fontWeight: 600 },
+  title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   roleGroup: { display: 'flex', gap: 6 },
   roleBtn: {
     flex: 1, height: 34, borderRadius: 8, border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)', color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-base)', fontWeight: 600, cursor: 'pointer',
+    fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   roleBtnOn: {
     flex: 1, height: 34, borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-primary-wash)', color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)', fontWeight: 700, cursor: 'pointer',
+    fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  hint: { margin: '2px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
+  hint: { margin: '2px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   input: {
     height: 34,
     padding: '0 10px',
@@ -165,7 +165,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
   },
   actions: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 },
   retry: {
@@ -175,9 +175,9 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)',
     color: 'var(--color-primary)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
-  done: { fontSize: 'var(--fs-base)', color: 'var(--color-primary)', fontWeight: 600 },
+  done: { fontSize: 'var(--fs-body)', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

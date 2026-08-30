@@ -115,15 +115,15 @@ export function DeactivateDialog({ target, departmentName, onCancel, onDone }: D
 }
 
 const styles: Record<string, CSSProperties> = {
-  title: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
-  subtitle: { margin: '8px 0 0', fontSize: 'var(--fs-base)', fontWeight: 600, color: 'var(--color-ink)' },
-  session: { margin: '4px 0 0', fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  subtitle: { margin: '8px 0 0', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  session: { margin: '4px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
   impact: { marginTop: 14, padding: 12, borderRadius: 8, background: 'var(--color-bg)', border: '1px solid var(--color-divider)' },
-  muted: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
-  impactHead: { margin: 0, fontSize: 'var(--fs-base)', fontWeight: 700, color: 'var(--color-warn)' },
+  muted: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
+  impactHead: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-warn)' },
   // [L31·G2] 영향 예약이 많아도(예: 126건) 목록이 화면을 넘겨 [사용 중지] 버튼을 밀어내지 않게 — 목록만 내부 스크롤.
   times: { margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4, maxHeight: '38vh', overflowY: 'auto' },
-  time: { fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
+  time: { fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
   error: {
     marginTop: 12,
     display: 'flex',
@@ -132,8 +132,8 @@ const styles: Record<string, CSSProperties> = {
     borderLeft: '4px solid var(--color-danger)',
     padding: '6px 0 6px 12px',
     color: 'var(--color-danger)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   recheck: {
     height: 28,
@@ -142,8 +142,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-danger)',
     background: 'var(--color-surface)',
     color: 'var(--color-danger)',
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 700,
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
@@ -154,8 +154,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   confirm: {
@@ -165,8 +165,8 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     background: 'var(--color-danger)',
     color: '#fff',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 700,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
 }

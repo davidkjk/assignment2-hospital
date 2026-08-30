@@ -83,15 +83,15 @@ const styles: Record<string, CSSProperties> = {
     height: 30,
     padding: '0 8px',
     borderRadius: 7,
-    fontSize: 'var(--fs-sm)',
-    fontWeight: 700,
+    fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   // 라디오 자체는 시각적으로 감추고 칩 전체를 누르게 한다(칩이 곧 캘린더 모습이다).
   radio: { position: 'absolute', opacity: 0, width: 1, height: 1, margin: 0 },
   // [CAL-COLOR-12] 「띠 색」 샘플 — 작은 점이 아니라 또렷한 막대라 무슨 색인지 바로 보인다(L27②).
   band: { width: 20, height: 10, borderRadius: 3, background: 'currentColor' },
-  usedTag: { fontSize: 10, fontWeight: 700 },
-  note: { margin: '10px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
-  warning: { margin: '6px 0 0', fontSize: 'var(--fs-sm)', color: 'var(--color-warn)', fontWeight: 600 },
+  usedTag: { fontSize: 10, fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'] },
+  note: { margin: '10px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  warning: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

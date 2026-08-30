@@ -186,7 +186,7 @@ function StaffAdminInner() {
 
 const styles: Record<string, CSSProperties> = {
   page: { padding: 20, maxWidth: 1100, margin: '0 auto' },
-  title: { margin: '0 0 16px', fontSize: 'var(--fs-xl)', color: 'var(--color-ink)' },
+  title: { margin: '0 0 16px', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
   banner: {
     display: 'flex',
     alignItems: 'center',
@@ -196,10 +196,10 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 10,
     borderLeft: '4px solid var(--color-warn)',
     background: 'var(--color-bg)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
     color: 'var(--color-ink)',
   },
-  bannerLink: { fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' },
+  bannerLink: { fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)', textDecoration: 'none' },
   body: { display: 'flex', gap: 20, alignItems: 'flex-start' },
   right: {
     flex: 1,
@@ -211,8 +211,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
   },
-  leaveTitle: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
-  leaveMsg: { margin: '8px 0 0', fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
+  leaveTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  leaveMsg: { margin: '8px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   leaveActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
   leaveDiscard: {
     height: 34,
@@ -221,8 +221,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   leaveCancel: {
@@ -232,8 +232,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   leaveSave: {
@@ -243,8 +243,8 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     background: 'var(--color-primary)',
     color: '#fff',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 700,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
 }
