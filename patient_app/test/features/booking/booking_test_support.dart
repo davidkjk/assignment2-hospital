@@ -33,6 +33,8 @@ Future<ProviderContainer> pumpBooking(
   BookingTarget? target,
   Department? department,
   Doctor? doctor,
+  DateTime? date,
+  void Function(BookingController)? advance,
 }) async {
   final container = ProviderContainer(overrides: overrides);
   addTearDown(container.dispose);
@@ -40,11 +42,16 @@ Future<ProviderContainer> pumpBooking(
   if (target != null) ctl.selectTarget(target);
   if (department != null) ctl.selectDepartment(department);
   if (doctor != null) ctl.selectDoctor(doctor);
+  if (date != null) ctl.selectDate(date);
+  advance?.call(ctl); // 슬롯·이유 등 추가 진행
   // 스텝은 실제 앱에서 마법사 Scaffold 안에 산다 — 격리 테스트에서도 Material 조상을 준다.
   final router = GoRouter(routes: [
     GoRoute(path: '/', builder: (c, s) => Scaffold(body: SafeArea(child: screen))),
     GoRoute(path: '/family', builder: (c, s) => const RouteMarker('family')),
     GoRoute(path: '/home', builder: (c, s) => const RouteMarker('home')),
+    GoRoute(
+        path: '/my/appointments/:id/questionnaire',
+        builder: (c, s) => RouteMarker('qnr:${s.pathParameters['id']}')),
   ]);
   await t.pumpWidget(UncontrolledProviderScope(
     container: container,

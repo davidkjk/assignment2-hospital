@@ -61,6 +61,26 @@ void main() {
     expect(st().step, 0);
   });
 
+  test('[BOOK-CONF-08] request_id는 마법사 한 판 동안 고정, reset하면 새로 발급된다', () {
+    final first = c.read(bookingProvider).requestId;
+    expect(first, isNotEmpty);
+    ctl().selectTarget(t1);
+    ctl().selectDepartment(dInternal);
+    expect(c.read(bookingProvider).requestId, first); // 진행 중 불변(재신청도 같은 값)
+    ctl().reset();
+    expect(c.read(bookingProvider).requestId, isNot(first)); // 새 예약은 새 키
+  });
+
+  test('[BOOK-HOLD-01][BOOK-HOLD-03] 시간을 골라도 서버를 호출하지 않는다(임시 홀드 없음)', () {
+    ctl().selectTarget(t1);
+    ctl().selectDepartment(dInternal);
+    ctl().selectDoctor(doc1);
+    ctl().selectDate(DateTime(2026, 8, 20));
+    ctl().selectSlot('slot-1', DateTime(2026, 8, 20, 9));
+    expect(st().slotId, 'slot-1');
+    expect(st().step, 5); // 6단계로 갈 뿐, book_slot은 8단계 신청에서만
+  });
+
   test('[BOOK-KEEP-07] 신청 전까지 서버 호출이 없다 — controller는 메모리 상태만 둔다', () {
     // BTN-KILL과 다름: 서버에 아무것도 안 남는다. selectX는 상태만 바꾸고 네트워크를 부르지 않는다.
     ctl().selectTarget(t1);

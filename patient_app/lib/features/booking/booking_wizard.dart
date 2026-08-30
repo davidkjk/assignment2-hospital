@@ -7,6 +7,10 @@ import 'steps/who_step.dart';
 import 'steps/dept_step.dart';
 import 'steps/doctor_step.dart';
 import 'steps/date_step.dart';
+import 'steps/time_step.dart';
+import 'steps/why_step.dart';
+import 'steps/conf_step.dart';
+import 'steps/done_step.dart';
 
 const _stepNames = ['대상 선택', '진료과', '의사 선택', '날짜 선택', '시간 선택', '방문 이유', '최종 확인', '완료'];
 
@@ -18,8 +22,9 @@ class BookingWizard extends ConsumerWidget {
     final sel = ref.watch(bookingProvider);
     final step = sel.step;
     void onBack() {
-      if (step == 0) {
-        context.go('/home'); // BOOK-KEEP-05 — 1단계 뒤로 = 마법사 나감(팝업 없음). 예약은 탭이라 홈으로.
+      if (step == 0 || step >= 7) {
+        // BOOK-KEEP-05 1단계 뒤로 = 마법사 나감 / BOOK-DONE-07·NAV-BOOK-14 완료 뒤로 = 홈(예약 이미 생성).
+        context.go('/home');
       } else {
         ref.read(bookingProvider.notifier).back(); // BOOK-NAV-04 — 한 단계씩
       }
@@ -44,7 +49,7 @@ class BookingWizard extends ConsumerWidget {
           ),
         ),
         body: Column(children: [
-          if (step >= 1) _SummaryChips(sel), // BOOK-NAV-06 — 2단계부터 읽기 전용 회색 요약 딱지
+          if (step >= 1 && step < 7) _SummaryChips(sel), // BOOK-NAV-06 — 2단계부터(완료는 본문이 요약)
           Expanded(
             child: switch (step) {
               // BOOK-NAV-01 — 한 화면에 한 질문
@@ -52,7 +57,10 @@ class BookingWizard extends ConsumerWidget {
               1 => const DeptStep(),
               2 => const DoctorStep(),
               3 => const DateStep(),
-              _ => const _LaterStepPlaceholder(), // 4~7단계(시간·이유·확인·완료)는 Task 20이 끼운다
+              4 => const TimeStep(),
+              5 => const WhyStep(),
+              6 => const ConfStep(),
+              _ => const DoneStep(), // 7단계 완료
             },
           ),
         ]),
@@ -84,11 +92,4 @@ class _SummaryChips extends StatelessWidget {
       ]),
     );
   }
-}
-
-class _LaterStepPlaceholder extends StatelessWidget {
-  // Task 20 자리표시(테스트에서 4단계 이후로 안 감)
-  const _LaterStepPlaceholder();
-  @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
 }

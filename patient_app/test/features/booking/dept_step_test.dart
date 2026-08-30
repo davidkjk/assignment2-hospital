@@ -54,7 +54,7 @@ void main() {
     final c = await pumpDept(t, depts: const [kInternal], target: kSelf);
     await t.tap(find.text('어느 과인지 모르겠어요'));
     await t.pumpAndSettle();
-    await t.tap(find.text('닫기')); // ✕·쓸어내림 대역
+    await t.tap(find.widgetWithIcon(IconButton, Icons.cancel)); // 원형 X로 닫기
     await t.pumpAndSettle();
     expect(c.read(bookingProvider).department, isNull); // 선택 없음
     expect(c.read(bookingProvider).step, 1); // target만 고른 채 2단계 진입 전

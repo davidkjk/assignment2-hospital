@@ -23,6 +23,20 @@ class Doctor {
       );
 }
 
+class Slot {
+  final String id;
+  final DateTime startTime; // 그날의 시각(HH:mm)만 의미 — 날짜는 4단계 date로 안다
+  const Slot(this.id, this.startTime);
+  // 서버 list_bookable_slots: {id, start_time: "HH:MM:SS"}. 날짜와 합쳐 DateTime으로.
+  factory Slot.fromJson(Map<String, dynamic> j, DateTime date) {
+    final parts = (j['start_time'] as String).split(':');
+    return Slot(
+      j['id'] as String,
+      DateTime(date.year, date.month, date.day, int.parse(parts[0]), int.parse(parts[1])),
+    );
+  }
+}
+
 class CatalogRepository {
   CatalogRepository(this._api);
   final ApiClient _api;
@@ -39,6 +53,16 @@ class CatalogRepository {
         '/catalog/doctors/$doctorId/dates',
         (j) => (j as List).map((d) => DateTime.parse(d as String)).toList(),
       );
+  // T4 list_bookable_slots — 당일 30분·마감·8주를 서버가 이미 거른다. 앱은 목록만 그린다.
+  Future<List<Slot>> slots(String doctorId, DateTime date) {
+    final ymd =
+        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return _api.get(
+      '/catalog/doctors/$doctorId/slots',
+      (j) => (j as List).map((e) => Slot.fromJson(e as Map<String, dynamic>, date)).toList(),
+      query: {'target_date': ymd},
+    );
+  }
 }
 
 final catalogRepositoryProvider = Provider((ref) => CatalogRepository(ref.read(apiClientProvider)));
