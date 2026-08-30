@@ -45,9 +45,11 @@ interface PeriodPickerProps {
   disabled?: boolean
   /** 조회 버튼 문구. 화면마다 다르다(통계=「통계 보기」, 열람 기록=「기간 조회」). 기본은 통계. */
   applyLabel?: string
+  /** 카드 껍데기(테두리·그림자·배경·여백)를 벗고 flex 배치만 남긴다 — 다른 필터와 한 카드로 묶을 때(열람 기록). */
+  bare?: boolean
 }
 
-export function PeriodPicker({ from, to, onChange, onApply, error, disabled, applyLabel = '통계 보기' }: PeriodPickerProps) {
+export function PeriodPicker({ from, to, onChange, onApply, error, disabled, applyLabel = '통계 보기', bare = false }: PeriodPickerProps) {
   // 프리셋을 고르면 그 키를, 날짜를 손보면 'custom'을 기억한다(상태 표시용).
   const [presetKey, setPresetKey] = useState<PresetKey | 'custom' | ''>('')
 
@@ -61,7 +63,7 @@ export function PeriodPicker({ from, to, onChange, onApply, error, disabled, app
   }
 
   return (
-    <div style={styles.wrap}>
+    <div style={bare ? styles.wrapBare : styles.wrap}>
       <label style={styles.field}>
         <span style={styles.fieldLabel}>시작일</span>
         <input
@@ -139,6 +141,13 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
     boxShadow: 'var(--shadow-card)',
+  },
+  // 카드 껍데기 없이 배치만 — 부모 카드 안에 다른 필터와 나란히 놓일 때(LogFilterBar).
+  wrapBare: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    gap: 12,
   },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
   fieldLabel: { fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },

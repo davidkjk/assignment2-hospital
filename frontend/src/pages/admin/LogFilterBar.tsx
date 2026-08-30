@@ -127,6 +127,7 @@ export function LogFilterBar({
           onApply={onApplyRange}
           error={rangeError}
           applyLabel="기간 조회"
+          bare
         />
       </div>
 
@@ -142,7 +143,18 @@ export function LogFilterBar({
 
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 8 },
-  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 },
+  // [ALOG-FILTER-02·03] 환자 찾기와 기간을 한 카드로 묶는다 — 검색이 두 군데로 흩어져 보이지 않게(사용자 지시 2026-08-29).
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    gap: 12,
+    padding: '12px 14px',
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 'var(--radius-card)',
+    boxShadow: 'var(--shadow-card)',
+  },
   searchBox: { position: 'relative', minWidth: 240 },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
   fieldLabel: { fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
