@@ -18,7 +18,7 @@ export function Sidebar({ role, counts = {}, connected = true }: { role: Role; c
   const location = useLocation()
   const activePath = navItemForPath(location.pathname)?.path
   return (
-    <aside className="staff-sidebar flex w-14 shrink-0 flex-col bg-sidebar-ink text-white xl:w-60">
+    <aside className="staff-sidebar flex w-14 shrink-0 flex-col bg-sidebar-ink text-white xl:w-48">
       {/* 브랜드 (사이드바 top) — 병원명은 사이드바가 상시 표시한다(헤더는 화면 제목만) */}
       <div className="flex h-14 items-center gap-2 px-4 xl:px-5">
         <Hospital aria-hidden className="h-6 w-6 shrink-0 text-white" />
