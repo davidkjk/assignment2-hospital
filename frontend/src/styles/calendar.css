@@ -510,7 +510,7 @@
   top: 56px;
   left: 200px;
   z-index: 40;
-  width: 256px;
+  width: 280px;
   padding: 12px;
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-card);
@@ -523,9 +523,9 @@
   color: var(--color-ink-muted);
 }
 .cal-mini-heads,
-.cal-mini-grid {
+.cal-mini-week {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: 24px repeat(7, 1fr);
   gap: 2px;
 }
 .cal-mini-head {
@@ -534,11 +534,28 @@
   font-weight: 500;
   color: var(--color-ink-muted);
 }
-.cal-mini-grid {
+/* [L8] 여러 달을 죽 펼칠 때 왼쪽 여백에 달 이름을 적는 길잡이 열. */
+.cal-mini-monthcol {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+/* [L8] 예약 범위 전체를 한눈에 — 8~9주가 세로로 넘칠 수 있어 스크롤을 둔다. */
+.cal-mini-weeks {
   margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 340px;
+  overflow-y: auto;
 }
 .cal-mini-day {
-  height: 32px;
+  height: 30px;
   border-radius: 6px;
   font-size: 12px;
   color: var(--color-ink);
