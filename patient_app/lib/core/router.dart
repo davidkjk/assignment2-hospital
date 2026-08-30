@@ -17,6 +17,9 @@ import '../features/auth/phone_change_screen.dart';
 import '../features/auth/reauth_screen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
+import '../features/home/home_screen.dart';
+import '../features/home/main_tabs.dart';
+import '../widgets/app_shell.dart';
 
 // AUTH-REAUTH-05: 민감 경로(설정·가족·탈퇴). 탈퇴는 /settings 하위. Task 11 redirect가 이 판정을 부른다.
 bool _isSensitive(String loc) => loc.startsWith('/settings') || loc.startsWith('/family');
@@ -183,15 +186,29 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
                     ));
           },
         ),
-        // 보호 화면(홈·예약·가족·이력·설정)은 이후 태스크가 AppShell로 감싼다(NAV-AUTH-19: 인증 전엔 탭 없음).
-        GoRoute(path: '/home', builder: (c, s) => const _Placeholder('홈')),
+        // 홈은 AppShell(하단 탭 셸)로 감싼다(NAV-HOME-19: 로그인 후 홈에는 탭 바가 있다).
+        GoRoute(
+            path: '/home',
+            builder: (c, s) => const AppShell(body: HomeScreen(), bottomTabs: MainTabs())),
+        // 나머지 보호 화면은 이후 태스크가 각자 AppShell로 감싼다(지금은 자리표시자).
         GoRoute(path: '/booking', builder: (c, s) => const _Placeholder('예약')),
+        GoRoute(path: '/my', builder: (c, s) => const _Placeholder('나의 예약')), // T30 소유(HOME-KILL 확인 목적지)
         GoRoute(path: '/family', builder: (c, s) => const _Placeholder('가족관리')),
         GoRoute(
             path: '/appointments/:id',
             builder: (c, s) => _Placeholder('예약 상세 ${s.pathParameters['id']}')),
         GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
         GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
+        // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
+        GoRoute(path: '/notifications', builder: (c, s) => const _Placeholder('알림함')), // NAV-HOME-12
+        GoRoute(
+            path: '/qr/:id',
+            builder: (c, s) => _Placeholder('접수용 QR ${s.pathParameters['id']}')), // NAV-HOME-02(화면=T17)
+        GoRoute(path: '/questionnaire', builder: (c, s) => const _Placeholder('사전문진')), // 문진 탭
+        GoRoute(
+            path: '/questionnaire/:id',
+            builder: (c, s) => _Placeholder('사전문진 ${s.pathParameters['id']}')), // NAV-HOME-05(화면=T23)
+        GoRoute(path: '/chat', builder: (c, s) => const _Placeholder('상담 채팅')), // NAV-HOME-11(화면=4단계)
       ],
     );
 

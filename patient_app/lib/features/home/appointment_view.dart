@@ -6,6 +6,7 @@ class AppointmentView {
   final DateTime? hospitalChangePrevTime; // CARD-CHG: null이면 미확인 변경 없음
   final String? hospitalChangeKind; // 'changed' | 'cancelled'
   final bool hasQuestionnaire;
+  final bool isSelf; // account_patient_id == for_patient_id (T16 소급) — 홈 정렬에서 본인 먼저(HOME-CARD-03).
   AppointmentView({
     required this.id,
     required this.status,
@@ -17,6 +18,7 @@ class AppointmentView {
     this.hospitalChangePrevTime,
     this.hospitalChangeKind,
     required this.hasQuestionnaire,
+    this.isSelf = false,
   });
 
   factory AppointmentView.fromJson(Map<String, dynamic> j) {
@@ -33,6 +35,7 @@ class AppointmentView {
       bookingCode: j['booking_code'] as String?,
       slotStart: slot,
       hasQuestionnaire: j['has_questionnaire'] == true,
+      isSelf: j['is_self'] == true,
       hospitalChangePrevTime: j['hospital_change_prev_time'] == null
           ? null
           : DateTime.parse(j['hospital_change_prev_time'] as String),
