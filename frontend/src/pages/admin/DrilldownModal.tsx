@@ -1,5 +1,5 @@
 import { useEffect, useRef, type CSSProperties } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { formatHospitalDateTime } from '../../lib/clock'
@@ -23,9 +23,17 @@ export function DrilldownModal({ target, period, onClose }: DrilldownModalProps)
   const navigate = useNavigate()
   const closeRef = useRef<HTMLButtonElement>(null)
 
-  const query = useQuery({
+  // [L15] 서버는 커서 페이징(20건/쪽·next_cursor)을 이미 준다 — 「더보기」로 다음 쪽을 이어 붙인다.
+  const query = useInfiniteQuery({
     queryKey: ['stats-detail', target.metric, target.dim ?? null, target.dept ?? null, period.from, period.to],
-    queryFn: () => getStatsDetail(target.metric, period.from, period.to, { dept: target.dept, dim: target.dim }),
+    queryFn: ({ pageParam }) =>
+      getStatsDetail(target.metric, period.from, period.to, {
+        dept: target.dept,
+        dim: target.dim,
+        cursor: pageParam ?? undefined,
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
   })
 
   useEffect(() => {
@@ -33,8 +41,10 @@ export function DrilldownModal({ target, period, onClose }: DrilldownModalProps)
   }, [])
 
   const page = query.data
-  const rows = page?.rows ?? []
-  const partial = page && page.total != null && page.total > rows.length
+  const rows = page?.pages.flatMap((p) => p.rows) ?? []
+  const total = page?.pages[0]?.total
+  // 전체 건수를 알고 아직 다 못 불러왔으면 「N건 중 M건」으로, 다 봤으면 「M건」으로 밝힌다.
+  const partial = total != null && total > rows.length
 
   return (
     <div style={styles.scrim} data-testid="drilldown-scrim">
@@ -44,7 +54,7 @@ export function DrilldownModal({ target, period, onClose }: DrilldownModalProps)
             <h2 style={styles.title}>{target.label} 상세 명단</h2>
             <p style={styles.sub} data-testid="drilldown-scope">
               {period.from} ~ {period.to}
-              {partial ? ` · 최근 ${rows.length}건` : rows.length > 0 ? ` · ${rows.length}건` : ''}
+              {partial ? ` · ${total}건 중 ${rows.length}건` : rows.length > 0 ? ` · ${rows.length}건` : ''}
             </p>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="닫기" style={styles.close}>
@@ -78,6 +88,18 @@ export function DrilldownModal({ target, period, onClose }: DrilldownModalProps)
                 ))}
               </tbody>
             </table>
+          )}
+          {query.hasNextPage && (
+            <div style={styles.moreWrap}>
+              <button
+                type="button"
+                onClick={() => query.fetchNextPage()}
+                disabled={query.isFetchingNextPage}
+                style={styles.moreBtn}
+              >
+                {query.isFetchingNextPage ? '불러오는 중…' : '더보기'}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -174,6 +196,17 @@ const styles: Record<string, CSSProperties> = {
     padding: 0,
     color: 'var(--color-primary)',
     fontSize: 'var(--fs-base)',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  moreWrap: { padding: '12px 16px', textAlign: 'center', borderTop: '1px solid var(--color-divider)' },
+  moreBtn: {
+    padding: '8px 20px',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 7,
+    background: 'var(--color-surface)',
+    color: 'var(--color-ink)',
+    fontSize: 'var(--fs-sm)',
     fontWeight: 600,
     cursor: 'pointer',
   },

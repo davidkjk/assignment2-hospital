@@ -59,10 +59,41 @@ describe('DrilldownModal', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/patients/p-1234')
   })
 
-  test('[STAT-DRILL-03] 일부만 반환하면 「최근 N건」이라고 범위를 밝힌다', async () => {
+  test('[STAT-DRILL-03] 일부만 반환하면 「N건 중 M건」이라고 범위를 밝힌다', async () => {
     server.use(http.get('*/stats/detail', () => HttpResponse.json({ ...MASKED, total: 5 })))
     renderModal()
-    await waitFor(() => expect(screen.getByTestId('drilldown-scope')).toHaveTextContent('최근 2건'))
+    await waitFor(() => expect(screen.getByTestId('drilldown-scope')).toHaveTextContent('5건 중 2건'))
+  })
+
+  test('[STAT-DRILL-03][L15] 더 있으면 「더보기」로 다음 쪽(20건)을 이어 붙인다', async () => {
+    const page1: DrilldownPage = {
+      rows: [{ patient_id: 'p-1', masked_name: '이*름', id: 'a1', occurred_at: '2026-08-10 09:30' }],
+      next_cursor: 'CUR2',
+      has_more: true,
+      total: 3,
+    }
+    const page2: DrilldownPage = {
+      rows: [{ patient_id: 'p-2', masked_name: '박*름', id: 'a2', occurred_at: '2026-08-11 10:00' }],
+      next_cursor: null,
+      has_more: false,
+      total: 3,
+    }
+    server.use(
+      http.get('*/stats/detail', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor')
+        return HttpResponse.json(cursor === 'CUR2' ? page2 : page1)
+      }),
+    )
+    renderModal()
+    await screen.findByText('이*름')
+    // 첫 쪽엔 다음 쪽 사람이 아직 안 보인다.
+    expect(screen.queryByText('박*름')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: '더보기' }))
+    // 이어 붙이므로 두 사람이 함께 보인다.
+    expect(await screen.findByText('박*름')).toBeVisible()
+    expect(screen.getByText('이*름')).toBeVisible()
+    // 마지막 쪽이면 더보기 버튼이 사라진다(막다른 길 아님).
+    await waitFor(() => expect(screen.queryByRole('button', { name: '더보기' })).toBeNull())
   })
 
   test('[STAT-AUDIT-02][결정22] 명단 조회는 서버가 감사한다 — 프론트는 /audit/stats를 부르지 않고 쿼리에 PII를 안 싣는다', async () => {
