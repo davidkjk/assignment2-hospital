@@ -2320,7 +2320,7 @@
 | ID | 요소 | 조건 | 동작 | 근거·상태 |
 |---|---|---|---|---|
 | `ERRADM-FILTER-01` | 기본 조회 | 최초 진입·필터 없음 | 첫 페이지 `최대 200건`, 결과 범위를 `최근 200건`으로 명시. 200건 이후는 `[더 오래된 기록 보기]` 커서 이어보기(`ERRADM-LIST-06`) | 배포 Task 8·`ERRADM-LIST-06`·P-01; `FINAL` |
-| `ERRADM-FILTER-02` | 기간 입력 | 시작일·종료일 선택 | 시작일 포함(`occurred_at >= from`), 종료일 그날 끝까지(`< to + 1 day`)로 같은 `/error-logs` 계약 재조회 | 배포 Task 8 date filter; `PROVISIONAL` |
+| `ERRADM-FILTER-02` | 기간 입력 | 빠른 기간·직접 입력 | 공용 `PERIOD-*` 부품(빠른 기간 5종 `PERIOD-BOX-02` + 직접 입력, 접근 기록·통계와 통일 — 2026-08-30 사용자 지시로 빠른 기간 추가). 시작일 포함(`occurred_at >= from`), 종료일 그날 끝까지(`< to + 1 day`)로 같은 `/error-logs` 계약 재조회 | 배포 Task 8 date filter; `PERIOD-BOX-*` |
 | `ERRADM-FILTER-03` | URL·새로고침 | 기간 조회 적용 | `?from=&to=`만 URL에. 오류 문장·스택·환자정보는 URL에 안 넣고 새로고침·뒤로가기에 기간 복원 | `NAV-SHELL-09`·P-01; `PROVISIONAL` |
 | `ERRADM-FILTER-04` | 조회 버튼 | 시작·종료일 유효 | `[조회]` 누를 때만 재조회, 요청 중 `불러오는 중…`으로 바꾸고 중복 조회 무시(읽기 조회=`BTN-SCOPE-02`) | `BTN-SCOPE-02`·`BTN-BUSY-*`; `PROVISIONAL` |
 | `ERRADM-FILTER-05` | 날짜 범위 오류 | 시작일>종료일 | 서버에 안 보내고 종료일 아래 `종료일은 시작일 이후로 선택해주세요`. 여러 오류는 `ERR-FLD-01·03~05` | `ERR-KIND-01`·`ERR-FLD-01·03~05`·P-05; `PROVISIONAL` |

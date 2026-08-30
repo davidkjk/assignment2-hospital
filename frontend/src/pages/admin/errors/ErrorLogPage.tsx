@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../../components/EmptyState'
-import { InlineError } from '../../../components/InlineError'
 import { AlertCircle, AlertTriangle, Bell, Send, ShieldCheck } from '../../../components/icons'
 import { ApiError } from '../../../api/httpClient'
 import { getErrorLogs, type ErrorLogRow } from '../../../api/errorLogs'
+import { PeriodPicker } from '../PeriodPicker'
 import { formatAccessedAt } from '../logRows'
 import { TextButton, PageNotice } from '@/components/staff-ui'
 
@@ -110,40 +110,22 @@ export function ErrorLogPage() {
         의 발송 이력에 남습니다. 여기에는 <strong style={styles.strong}>서비스 전체 장애</strong>만 한 줄로 기록됩니다.
       </PageNotice>
 
-      {/* [ERRADM-FILTER-02·04·05] 기간 필터 카드 — [조회] 눌러야 재조회한다. */}
+      {/* [ERRADM-FILTER-02·04·05] 기간 필터 카드 — 빠른 기간(PERIOD-BOX-02)·직접 입력, [조회] 눌러야 재조회한다.
+          접근 기록·통계와 같은 공용 PeriodPicker로 통일(2026-08-30 사용자 지시로 빠른 기간 추가). */}
       <div style={styles.filterCard}>
         <div style={styles.filterBar}>
-          <label style={styles.field}>
-            <span style={styles.fieldLabel}>시작일</span>
-            <input
-              type="date"
-              aria-label="시작일"
-              value={draft.from}
-              onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
-              style={styles.input}
-            />
-          </label>
-          <label style={styles.field}>
-            <span style={styles.fieldLabel}>종료일</span>
-            <input
-              type="date"
-              aria-label="종료일"
-              value={draft.to}
-              onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
-              style={styles.input}
-            />
-            {rangeError && <InlineError message={rangeError} />}
-          </label>
-          <button
-            type="button"
-            onClick={applyRange}
+          <PeriodPicker
+            from={draft.from}
+            to={draft.to}
+            onChange={setDraft}
+            onApply={applyRange}
+            error={rangeError}
             disabled={query.isFetching}
-            style={styles.applyBtn}
-          >
-            {query.isFetching ? '불러오는 중…' : '조회'}
-          </button>
-          {/* [ERRADM-FILTER-01·LIST-02·LIST-05·LIST-06] 조회 계약 — 최근 200건·병원 시간대·최신순(200건 밖 부재는 주장 안 함). */}
-          <span style={styles.scope}>최근 200건 · 병원 시간대 · 최신순</span>
+            applyLabel={query.isFetching ? '불러오는 중…' : '조회'}
+            bare
+          />
+          {/* [ERRADM-FILTER-01·LIST-02·LIST-05·LIST-06] 조회 계약 — 최대 200건까지·병원 시간대·최신순(200건 밖 부재는 주장 안 함). */}
+          <span style={styles.scope}>최근 200건까지 · 병원 시간대 · 최신순</span>
         </div>
       </div>
 
@@ -265,28 +247,6 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface)',
   },
   filterBar: { display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' },
-  field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  input: {
-    height: 34,
-    padding: '0 10px',
-    border: '1px solid var(--color-divider)',
-    borderRadius: 8,
-    background: 'var(--color-surface)',
-    color: 'var(--color-ink)',
-    fontSize: 'var(--fs-body)',
-  },
-  applyBtn: {
-    height: 34,
-    padding: '0 20px',
-    border: '1px solid var(--color-primary)',
-    borderRadius: 8,
-    background: 'var(--color-primary)',
-    color: 'var(--color-on-primary, #fff)',
-    fontSize: 'var(--fs-body)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-    cursor: 'pointer',
-  },
   scope: { marginLeft: 'auto', paddingBottom: 4, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   tableCard: {
     borderRadius: 10,
