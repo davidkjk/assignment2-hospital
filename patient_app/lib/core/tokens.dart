@@ -14,6 +14,9 @@ class AppTokens {
   static const Color warn = Color(0xFFB44E00);
   static const double warnBarWidth = 4.0;
 
+  // OFF-BAN-02 — 오프라인 상태 띠 배경(옅은 주황). '주의색 배경 금지'의 예외 1건(전면 상태 배너 한정).
+  static const Color offlineBannerBg = Color(0xFFFFF0DC);
+
   // DISP-CARD-01 — 카드 본문 높이 고정.
   static const double cardBodyHeight = 132.0;
 

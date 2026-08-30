@@ -9,10 +9,13 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  ApiClient({required this.baseUrl, required this.tokenProvider, http.Client? httpClient})
+  ApiClient({required this.baseUrl, required this.tokenProvider, this.onUnauthorized,
+      http.Client? httpClient})
       : _client = httpClient ?? http.Client();
   final String baseUrl;
   final Future<String?> Function() tokenProvider;
+  // 401을 받으면 부른다 — 오프라인/온라인 판정은 session_guard.handleUnauthorized가 한다(갭 #38).
+  final void Function()? onUnauthorized;
   final http.Client _client;
 
   Future<Map<String, String>> _headers() async {
@@ -31,8 +34,9 @@ class ApiClient {
   Future<T> patch<T>(String path, Map<String, dynamic> body, T Function(dynamic) parse) async => _handle(
       await _client.patch(Uri.parse('$baseUrl$path'), headers: await _headers(), body: jsonEncode(body)), parse);
 
-  Future<T> delete<T>(String path, T Function(dynamic) parse) async =>
-      _handle(await _client.delete(Uri.parse('$baseUrl$path'), headers: await _headers()), parse);
+  Future<T> delete<T>(String path, T Function(dynamic) parse, {Map<String, dynamic>? body}) async =>
+      _handle(await _client.delete(Uri.parse('$baseUrl$path'), headers: await _headers(),
+          body: body == null ? null : jsonEncode(body)), parse);
 
   T _handle<T>(http.Response response, T Function(dynamic) parse) {
     // 본문을 bodyBytes로 받아 utf-8로 직접 디코딩한다. FastAPI는 JSON에 charset을
@@ -41,6 +45,7 @@ class ApiClient {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return parse(text.isEmpty ? null : jsonDecode(text));
     }
+    if (response.statusCode == 401) onUnauthorized?.call(); // 오프라인/온라인 판정은 session_guard가 한다
     var message = '요청 처리 중 오류가 발생했습니다.'; // 파이썬 예외 원문 대신 정형 한글(갭 #14)
     try {
       final body = jsonDecode(text);
