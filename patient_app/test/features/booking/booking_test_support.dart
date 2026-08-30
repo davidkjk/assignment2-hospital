@@ -48,6 +48,7 @@ Future<ProviderContainer> pumpBooking(
   final router = GoRouter(routes: [
     GoRoute(path: '/', builder: (c, s) => Scaffold(body: SafeArea(child: screen))),
     GoRoute(path: '/family', builder: (c, s) => const RouteMarker('family')),
+    GoRoute(path: '/family/add', builder: (c, s) => const RouteMarker('family/add')),
     GoRoute(path: '/home', builder: (c, s) => const RouteMarker('home')),
     GoRoute(
         path: '/my/appointments/:id/questionnaire',

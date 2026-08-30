@@ -47,6 +47,10 @@ String? resolveNotificationRoute(NotificationView n) {
       return n.appointmentId == null ? null : '/questionnaire/${n.appointmentId}'; // GO-04
     case 'support_answered':
       return '/chat'; // GO-05(4단계) · C3-2 정본(2026-08-20, chat_reply → 통일)
+    case 'family_unlinked':
+      // NAV-FAM-20(환자앱 T26) — 「가족 연결 해제」 알림은 갈 곳이 없다(해제된 연결로는 열 화면이 없다).
+      // null → openNotification이 showNotificationGoneDialog를 띄우고, 알림은 목록에 그대로 남는다.
+      return null;
     default:
       return null;
   }

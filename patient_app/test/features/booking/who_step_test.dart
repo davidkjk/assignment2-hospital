@@ -45,11 +45,11 @@ void main() {
     expect(find.text('가족 추가하기'), findsOneWidget); // 0명 한정 아님 — 막다른 길 방지
   });
 
-  testWidgets('[BOOK-WHO-09] 가족 추가하기는 가족 탭으로 이동한다(마법사 상태는 유지)', (t) async {
+  testWidgets('[BOOK-WHO-09][NAV-FAM-17] 가족 추가하기는 갈래 선택으로 이동한다(마법사 상태는 유지)', (t) async {
     final c = await pumpWho(t, targets: const [kSelf]);
     await t.tap(find.text('가족 추가하기'));
     await t.pumpAndSettle();
-    expect(wentTo('family'), isTrue);
+    expect(wentTo('family/add'), isTrue); // NAV-FAM-17 확정(2026-08-18) — 갈래 선택으로 바로
     expect(c.read(bookingProvider).step, 0); // 마법사는 뒤에 살아 있다(BOOK-KEEP-01)
   });
 }

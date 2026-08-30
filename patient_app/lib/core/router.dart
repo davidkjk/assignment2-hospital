@@ -20,6 +20,12 @@ import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
 import '../features/booking/booking_wizard.dart';
+import '../features/family/family_list_screen.dart';
+import '../features/family/family_edit_screen.dart';
+import '../features/family/family_add_choice_screen.dart';
+import '../features/family/family_new_screen.dart';
+import '../features/family/family_link_form_screen.dart';
+import '../features/family/family_link_otp_page.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/main_tabs.dart';
 import '../features/notifications/notification_inbox.dart';
@@ -208,12 +214,22 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
           },
         ),
         GoRoute(path: '/my', builder: (c, s) => const _Placeholder('나의 예약')), // T30 소유(HOME-KILL 확인 목적지)
-        GoRoute(path: '/family', builder: (c, s) => const _Placeholder('가족관리')),
+        GoRoute(path: '/family', builder: (c, s) => const FamilyListScreen()),   // 환자앱 T25
+        // 환자앱 T26 — 가족 추가 갈래·㉮ 등록·㉯ OTP 연결. _isSensitive가 이미 /family를 덮는다.
+        GoRoute(path: '/family/add', builder: (c, s) => const FamilyAddChoiceScreen()),
+        GoRoute(path: '/family/add/new', builder: (c, s) => const FamilyNewScreen()),
+        GoRoute(path: '/family/add/link', builder: (c, s) => const FamilyLinkFormScreen()),
+        GoRoute(path: '/family/add/link/otp', builder: (c, s) => const FamilyLinkOtpPage()),
+        GoRoute(
+            path: '/family/:id/edit',
+            builder: (c, s) => FamilyEditScreen(familyPatientId: s.pathParameters['id']!)),
         GoRoute(
             path: '/appointments/:id',
             builder: (c, s) => _Placeholder('예약 상세 ${s.pathParameters['id']}')),
         GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
         GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
+        // ⚠️ 자리표시자 — SET-HOSP 화면 본체는 Task 28 소유다. NAV-FAM-12·AUTH-OTP-11의 도착지만 먼저 연다.
+        GoRoute(path: '/settings/hospital', builder: (c, s) => const _Placeholder('병원 안내')),
         // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
         // 알림함은 데모 정본대로 하단 탭 셸 안에서 렌더(데모 스샷에 탭바 있음) — AppShell(bottomTabs).
         GoRoute(

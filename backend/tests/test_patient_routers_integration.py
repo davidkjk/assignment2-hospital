@@ -187,6 +187,38 @@ async def test_family_add_via_api(client, committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_family_link_request_miss_is_200_not_404(client, committed_conn):
+    """[FAM-LINK-08] HTTP 층에서도 갈리지 않는다 — 없는 환자를 서버로 직접 찔러도 404가 새지 않는다(갭 #58).
+
+    ⚠️ 하네스: client는 1회만 부른다(전역 풀↔포털 루프 충돌 회피). 「hit도 같은 200+request_id」는
+       서비스층 test(test_sends_code / test_no_match)가 이미 증명 — 여기선 열거 공격의 핵심인
+       「존재하지 않는 후보를 찔렀을 때 404가 아니라 성공 응답」만 HTTP로 못박는다.
+    """
+    me = await seed_patient(committed_conn)
+    miss = client.post("/family/link/request", headers=_hdr(make_token(str(me["auth_user_id"]))),
+                       json={"name": "없는사람", "birth_date": "1900-01-01", "phone": "01000000000", "relation": "부모"})
+    assert miss.status_code == 200
+    assert set(miss.json()) == {"request_id"}   # 「그런 환자 없습니다」가 아니다
+
+
+@pytest.mark.asyncio
+async def test_family_limit_returns_409_with_message(client, committed_conn):
+    """[FAM-NEW-10][FAM-NEW-11] 상한은 서버가 거절하고, 화면은 그 문장을 그대로 띄운다."""
+    me = await seed_patient(committed_conn)
+    for i in range(10):
+        fid = await committed_conn.fetchval(
+            "insert into patients (name, birth_date, gender, phone, app_created_by) "
+            "values ($1,'2010-01-01','M',null,$2) returning id", f"가족{i}", me["patient_id"])
+        await committed_conn.execute(
+            "insert into patient_family_links (account_patient_id, family_patient_id, relation) values ($1,$2,'자녀')",
+            me["patient_id"], fid)
+    r = client.post("/family", headers=_hdr(make_token(str(me["auth_user_id"]))),
+                    json={"name": "열한번째", "birth_date": "2010-01-01", "gender": "M", "relation": "자녀"})
+    assert r.status_code == 409
+    assert "최대 10명" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_catalog_departments(client, committed_conn):
     me = await seed_patient(committed_conn)
     await committed_conn.execute("insert into departments (name) values ('정형외과')")

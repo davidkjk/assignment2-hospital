@@ -53,7 +53,10 @@ class WhoStep extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: _AddFamilyButton(
-              onTap: () => context.go('/family'), // BOOK-WHO-09 가족 탭으로(마법사는 살아 있다)
+              // NAV-FAM-17(사용자 결정 2026-08-18): 가족 목록이 아니라 **갈래 선택**으로 바로 보낸다.
+              // 누른 사람은 이미 「가족을 추가하겠다」고 정했고, 목록은 방금 이 1단계에서 본 명단과 같다.
+              // BOOK-KEEP-01: push라 마법사는 뒤에 살아 있다 — 돌아오면 1단계에 그 가족이 늘어나 있다.
+              onTap: () => context.push('/family/add'), // 옛: context.go('/family')
             ),
           ),
         ],

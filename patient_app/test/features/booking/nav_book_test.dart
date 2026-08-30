@@ -97,12 +97,12 @@ void main() {
     expect(step(), 2);
   });
 
-  testWidgets('[NAV-BOOK-04] 1단계 + 가족 추가하기 → 가족 탭(마법사 유지)', (t) async {
+  testWidgets('[NAV-BOOK-04][NAV-FAM-17] 1단계 + 가족 추가하기 → 갈래 선택(마법사 유지)', (t) async {
     final cc = await pumpBooking(t, const WhoStep(), overrides: [targetsOverride(const [kSelf])]);
     await t.pumpAndSettle();
     await t.tap(find.text('가족 추가하기'));
     await t.pumpAndSettle();
-    expect(wentTo('family'), isTrue);
+    expect(wentTo('family/add'), isTrue); // NAV-FAM-17 확정 — 갈래 선택으로 바로
     expect(cc.read(bookingProvider).step, 0); // 마법사는 뒤에 살아 있다
   });
 
