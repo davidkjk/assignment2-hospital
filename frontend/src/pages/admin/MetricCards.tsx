@@ -74,7 +74,7 @@ export function MetricCards({ stats, period, busy, onDrill }: MetricCardsProps) 
 const styles: Record<string, CSSProperties> = {
   // 같은 줄 카드는 윗선·아랫선이 함께 가지런하도록 높이를 맞춘다(④ 카드 정렬) — 버튼 유무로 키가
   // 달라지지 않게 stretch + 버튼 marginTop:auto(카드 바닥에 붙임).
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, alignItems: 'stretch' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 'var(--sp-3)', alignItems: 'stretch' },
   card: {
     padding: '12px 14px',
     background: 'var(--color-surface)',

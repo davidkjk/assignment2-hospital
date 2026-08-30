@@ -223,13 +223,13 @@ function triggerDownload(content: string, filename: string) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 1360, margin: '0 auto' },
+  page: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', maxWidth: 1360, margin: '0 auto' },
   // 기간 필터 + CSV를 한 카드로 묶는다 — CSV는 marginLeft:auto로 오른쪽 끝에(LogFilterBar.row와 같은 결).
   filterCard: {
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'flex-end',
-    gap: 12,
+    gap: 'var(--sp-3)',
     padding: '12px 14px',
     background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)',
@@ -272,8 +272,8 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
-  body: { display: 'flex', flexDirection: 'column', gap: 12 },
-  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 },
+  body: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--sp-3)' },
   todayLink: { color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], textDecoration: 'none' },
   csvNote: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
   csvAudit: { margin: '8px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },

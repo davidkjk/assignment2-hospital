@@ -117,6 +117,7 @@ function buildCss(platform) {
   appendVariables(lines, 'color', tokens.color);
   appendVariables(lines, 'fs', tokens.fontSize);
   appendVariables(lines, 'fw', tokens.fontWeight);
+  appendVariables(lines, 'sp', tokens.spacing);
   appendVariables(lines, 'radius', tokens.radius);
   appendVariables(lines, 'shadow', tokens.shadow);
   lines.push(`  --font-logo: ${tokens.logoFont};`);

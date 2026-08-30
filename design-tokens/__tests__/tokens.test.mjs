@@ -56,9 +56,18 @@ describe('색 토큰 — 결정로그 「디자인 토큰(확정)」 §색', () 
 });
 
 describe('타이포 토큰 — AD-070 가독성 정본 / 47-staff-density', () => {
-  test('[AD-070] 폰트 크기 토큰 5종', () => {
+  test('[AD-070] 폰트 크기 위계 토큰 5종 (레거시 sm/base/lg/xl은 G3 타이포 롤아웃 2026-08-30으로 제거)', () => {
     expect(tokens.fontSize).toMatchObject({
-      sm: '12px', base: '13px', lg: '15px', xl: '19px', num: '20px',
+      num: '20px', caption: '0.75rem', body: '0.875rem', section: '1rem', title: '1.25rem',
+    });
+    // 레거시 px 토큰은 tokens.json에서도 제거됐다 — 남아 있으면 생성기가 되살려 「전 화면 0건」 이관이 무너진다.
+    expect(tokens.fontSize.sm).toBeUndefined();
+    expect(tokens.fontSize.base).toBeUndefined();
+  });
+
+  test('스페이싱 4px 스케일 토큰 (2026-08-30 신설 — 공용 여백 어휘)', () => {
+    expect(tokens.spacing).toMatchObject({
+      '0-5': '2px', '1': '4px', '2': '8px', '3': '12px', '4': '16px', '5': '20px', '6': '24px', '8': '32px',
     });
   });
 
