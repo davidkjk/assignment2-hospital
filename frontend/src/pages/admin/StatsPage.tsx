@@ -93,10 +93,7 @@ export function StatsPage({ initialPeriod }: StatsPageProps) {
   return (
     <section aria-label="운영 통계" style={styles.page}>
       <header style={styles.header}>
-        {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 설명만(`STAT-SHELL-03`). */}
-        <div>
-          <p style={styles.lede}>선택한 기간의 병원 운영 흐름을 집계합니다</p>
-        </div>
+        <div />
         <button type="button" onClick={() => setCsvOpen(true)} disabled={!stats || isEmpty} style={styles.csvBtn}>
           CSV 다운로드
         </button>

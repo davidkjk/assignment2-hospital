@@ -60,9 +60,10 @@ describe('AccessLogPage /admin/access-logs', () => {
   test('[ALOG-HEAD-01] 제목과 설명이 화면의 목적을 넓히지 않는다', async () => {
     okWith([detail(0)])
     renderPage()
-    // 제목은 셸 헤더가 그린다(STAFF-SHELL-02 개정, ALOG-HEAD-01 서술형 제목은 헤더로 이관) — 본문엔 설명만.
+    // 제목은 셸 헤더가 그린다(STAFF-SHELL-02) · 설명글은 제거됨(2026-08-30) — 로드 확인은 읽기전용 고지로.
     expect(screen.queryByRole('heading', { name: '환자정보 열람 기록' })).toBeNull()
-    expect(screen.getByText('누가 어떤 환자 정보를 언제 열었는지 확인합니다')).toBeVisible()
+    expect(screen.queryByText('누가 어떤 환자 정보를 언제 열었는지 확인합니다')).toBeNull()
+    expect(screen.getByText('이 기록은 삭제하거나 수정할 수 없습니다')).toBeVisible()
     expect(screen.queryByText(/직원 활동 통계|환자 상세/)).toBeNull()
   })
 

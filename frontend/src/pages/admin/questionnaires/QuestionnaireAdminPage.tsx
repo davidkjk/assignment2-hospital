@@ -237,11 +237,6 @@ function QuestionnaireAdminInner() {
       data-location={`${location.pathname}${location.search}`}
       style={styles.page}
     >
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 설명만. */}
-      <header style={styles.pageHead}>
-        <p style={styles.pageDesc}>진료과마다 환자가 보는 사전문진을 만들고, 저장할 때마다 새 버전으로 남깁니다.</p>
-      </header>
-
       <div style={styles.grid}>
         {/* ── 왼쪽: 진료과 목록 — 서버가 준 순서 그대로, 화면에서 다시 정렬하지 않는다. ── */}
         <nav style={styles.col} aria-label="진료과 선택">

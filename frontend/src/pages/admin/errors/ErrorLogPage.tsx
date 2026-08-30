@@ -7,7 +7,7 @@ import { AlertCircle, AlertTriangle, Bell, Send, ShieldCheck } from '../../../co
 import { ApiError } from '../../../api/httpClient'
 import { getErrorLogs, type ErrorLogRow } from '../../../api/errorLogs'
 import { formatAccessedAt } from '../logRows'
-import { TextButton } from '@/components/staff-ui'
+import { TextButton, PageNotice } from '@/components/staff-ui'
 
 // [ERRADM-*] 시스템 오류 기록 /admin/errors — 관리자 전용 읽기 화면(결정 #19·#20).
 //
@@ -98,33 +98,17 @@ export function ErrorLogPage() {
 
   return (
     <section aria-label="시스템 오류 기록" style={styles.page}>
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정, `ERRADM-HEAD-01` 서술형 제목은 헤더로 이관) — 본문엔 설명만. */}
-      <header style={styles.header}>
-        <p style={styles.lede}>오류가 발생한 시간과 기능을 확인합니다</p>
-      </header>
-
-      {/* [ERRADM-HEAD-02] 읽기 전용 고지 + [결정#20·ERRADM-LIST-04] 안전 요약/redaction 설명. */}
-      <div style={styles.readonly} role="note">
-        <ShieldCheck width={20} height={20} style={styles.readonlyIcon} aria-hidden="true" />
-        <div style={styles.readonlyText}>
-          <div style={styles.readonlyTitle}>이 기록은 수정하거나 삭제할 수 없습니다</div>
-          <div style={styles.readonlyBody}>
-            오류 내용은 사람이 읽는 안전한 요약입니다. 비밀 키·환자 정보를 지운 기술 상세는 개발자가 뒷단에서 확인합니다.
-          </div>
-        </div>
-      </div>
+      {/* [ERRADM-HEAD-02] 읽기 전용 고지 + [결정#20·ERRADM-LIST-04] 안전 요약/redaction 설명. 공용 PageNotice로 통일(2026-08-30). */}
+      <PageNotice icon={<ShieldCheck width={20} height={20} />} title="이 기록은 수정하거나 삭제할 수 없습니다">
+        오류 내용은 사람이 읽는 안전한 요약입니다. 비밀 키·환자 정보를 지운 기술 상세는 개발자가 뒷단에서 확인합니다.
+      </PageNotice>
 
       {/* [ERRADM-NOTI-01·결정#19] 이중기록 경계 — 수신자별 발송 실패는 여기 없고 발송 이력에 있다. 갈 길을 함께 준다(막다른 길 방지). */}
-      <div style={styles.boundary} role="note">
-        <Bell width={16} height={16} style={styles.boundaryIcon} aria-hidden="true" />
-        <span>
-          환자 한 명·한 채널의 <strong style={styles.strong}>발송 실패</strong>는 이 기록이 아니라{' '}
-          <TextButton onClick={() => navigate('/messages')}>
-            안내 보내기
-          </TextButton>
-          의 발송 이력에 남습니다. 여기에는 <strong style={styles.strong}>서비스 전체 장애</strong>만 한 줄로 기록됩니다.
-        </span>
-      </div>
+      <PageNotice icon={<Bell width={16} height={16} />}>
+        환자 한 명·한 채널의 <strong style={styles.strong}>발송 실패</strong>는 이 기록이 아니라{' '}
+        <TextButton onClick={() => navigate('/messages')}>안내 보내기</TextButton>
+        의 발송 이력에 남습니다. 여기에는 <strong style={styles.strong}>서비스 전체 장애</strong>만 한 줄로 기록됩니다.
+      </PageNotice>
 
       {/* [ERRADM-FILTER-02·04·05] 기간 필터 카드 — [조회] 눌러야 재조회한다. */}
       <div style={styles.filterCard}>

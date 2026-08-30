@@ -120,10 +120,6 @@ function ScheduleInner() {
 
   return (
     <section style={styles.page} aria-label="진료 일정 관리">
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 설명만. */}
-      <header style={styles.pageHead}>
-        <p style={styles.pageDesc}>진료과·의사별 진료시간과 특정 날짜 변경을 여기서 관리합니다.</p>
-      </header>
       <div style={styles.body}>
         <SideRail
           active={active}

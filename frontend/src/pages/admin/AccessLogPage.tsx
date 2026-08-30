@@ -6,7 +6,7 @@ import { ApiError } from '../../api/httpClient'
 import { getAccessLogs, type AccessLogPatientRef, type AccessLogRow } from '../../api/accessLogs'
 import { LogFilterBar } from './LogFilterBar'
 import { LogTable } from './LogTable'
-import { TextButton } from '@/components/staff-ui'
+import { TextButton, PageNotice } from '@/components/staff-ui'
 import { ShieldCheck } from '../../components/icons'
 
 // [ALOG-*] 환자정보 열람 기록 /admin/access-logs — 관리자 전용 읽기 화면.
@@ -126,22 +126,11 @@ export function AccessLogPage() {
 
   return (
     <section aria-label="환자정보 열람 기록" style={styles.page}>
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정, `ALOG-HEAD-01` 서술형 제목은 헤더로 이관) — 본문엔 설명만. */}
-      <header style={styles.header}>
-        <p style={styles.lede}>누가 어떤 환자 정보를 언제 열었는지 확인합니다</p>
-      </header>
-
-      {/* [ALOG-HEAD-02] 읽기 전용 고지 — 감사 기록이 고쳐질 수 있으면 감사가 아니다.
-          부제는 무엇이 어떻게 적히는지 설명: 검색 1줄(ALOG-AUDIT-01)·번호열람 환자별 별도(ALOG-AUDIT-02)·200건(ALOG-LIST-09). */}
-      <div style={styles.readonly} role="note">
-        <ShieldCheck width={20} height={20} style={styles.readonlyIcon} aria-hidden="true" />
-        <div style={styles.readonlyText}>
-          <div style={styles.readonlyTitle}>이 기록은 삭제하거나 수정할 수 없습니다</div>
-          <div style={styles.readonlyDesc}>
-            검색은 실행 1회당 한 줄, 번호 보기는 마스킹을 해제한 환자마다 별도로 기록됩니다. 최신 첫 페이지 최대 200건까지 보여 줍니다.
-          </div>
-        </div>
-      </div>
+      {/* [ALOG-HEAD-02] 읽기 전용 고지 — 감사 기록이 고쳐질 수 있으면 감사가 아니다. 공용 PageNotice로 통일(2026-08-30).
+          설명은 무엇이 어떻게 적히는지: 검색 1줄(ALOG-AUDIT-01)·번호열람 환자별 별도(ALOG-AUDIT-02)·200건(ALOG-LIST-09). */}
+      <PageNotice icon={<ShieldCheck width={20} height={20} />} title="이 기록은 삭제하거나 수정할 수 없습니다">
+        검색은 실행 1회당 한 줄, 번호 보기는 마스킹을 해제한 환자마다 별도로 기록됩니다. 최신 첫 페이지 최대 200건까지 보여 줍니다.
+      </PageNotice>
 
       <LogFilterBar
         selectedPatient={chipPatient}

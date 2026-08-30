@@ -89,13 +89,14 @@ describe('ErrorLogPage /admin/errors', () => {
   test('[ERRADM-HEAD-01] 제목과 설명이 화면의 목적을 넓히지 않는다', async () => {
     okWith([row()])
     renderPage()
-    // 제목은 셸 헤더가 그린다(STAFF-SHELL-02 개정, ERRADM-HEAD-01 서술형 제목은 헤더로 이관) — 본문엔 설명만.
+    // 제목은 셸 헤더가 그린다(STAFF-SHELL-02) · 설명글은 제거됨(2026-08-30) — 로드 확인은 읽기전용 고지로.
     expect(screen.queryByRole('heading', { name: '시스템 오류 기록' })).toBeNull()
-    expect(screen.getByText('오류가 발생한 시간과 기능을 확인합니다')).toBeVisible()
-    // HEAD-01은 제목·설명(헤더)에 한정 — 헤더가 목적을 환자 데이터·발송 이력으로 넓히지 않는다.
-    // (발송 이력 언급은 별도 규칙 ERRADM-NOTI-01의 이중기록 경계 노트가 갖는다 — 그건 정당하므로 헤더로 범위를 좁힌다.)
-    const header = screen.getByText('오류가 발생한 시간과 기능을 확인합니다').closest('header')!
-    expect(within(header).queryByText(/환자 데이터|발송 이력/)).toBeNull()
+    expect(screen.queryByText('오류가 발생한 시간과 기능을 확인합니다')).toBeNull()
+    expect(screen.getByText('이 기록은 수정하거나 삭제할 수 없습니다')).toBeVisible()
+    // 읽기전용 고지는 목적을 환자 데이터·발송 이력으로 넓히지 않는다.
+    // (발송 이력 언급은 별도 규칙 ERRADM-NOTI-01의 이중기록 경계 노트가 갖는다 — 그건 정당하므로 이 노트로 범위를 좁힌다.)
+    const readonlyNote = screen.getByText('이 기록은 수정하거나 삭제할 수 없습니다').closest<HTMLElement>('[role="note"]')!
+    expect(within(readonlyNote).queryByText(/환자 데이터|발송 이력/)).toBeNull()
   })
 
   test('[ERRADM-NOTI-01] 이중기록 경계 안내가 있고 수신자별 발송 실패의 갈 길을 안내 보내기로 연결한다', async () => {

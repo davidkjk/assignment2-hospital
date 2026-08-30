@@ -9,6 +9,8 @@ import { patientMergeApi, type CandidateRow, type MergeResult } from '../../../a
 import { CandidateGroup } from './CandidateGroup'
 import { ComparePanel } from './ComparePanel'
 import { MergeConfirmDialog } from './MergeConfirmDialog'
+import { PageNotice } from '@/components/staff-ui'
+import { AlertTriangle } from '../../../components/icons'
 
 // [MERGE-SHELL-01~03 · HEAD-01·02 · LIST-06 · STATE-01~03] 중복 환자 병합 — 관리자 전용.
 // ⭐⭐ 비가역·파괴적 기능. 안전 UX가 최우선이다. 화면은 상태 하나로 3단계를 정한다(결정 #18):
@@ -54,16 +56,10 @@ function MergeCandidatesInner() {
 
   return (
     <section style={styles.page} aria-label="중복 환자 후보">
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정, `MERGE-HEAD-01` 서술형 제목은 헤더로 이관) — 본문엔 설명만. */}
-      <p style={styles.desc}>같은 사람의 환자 기록이 나뉘었는지 확인하고 병합을 검토합니다</p>
-
-      {/* MERGE-HEAD-02 — 자동으로 합치지 않는다. 가족이 번호를 공유할 수 있음을 같은 자리에서 말한다. */}
-      <div role="note" style={styles.notice}>
-        <p style={styles.noticeStrong}>자동으로 합치지 않습니다</p>
-        <p style={styles.noticeBody}>
-          두 기록을 직접 비교하고 대표를 정한 뒤에만 검토를 시작합니다. 가족이 번호를 공유하면 실제로 다른 사람일 수 있습니다.
-        </p>
-      </div>
+      {/* MERGE-HEAD-02 — 자동으로 합치지 않는다. 가족이 번호를 공유할 수 있음을 같은 자리에서 말한다. 공용 PageNotice로 통일(2026-08-30). */}
+      <PageNotice icon={<AlertTriangle width={20} height={20} />} title="자동으로 합치지 않습니다">
+        두 기록을 직접 비교하고 대표를 정한 뒤에만 검토를 시작합니다. 가족이 번호를 공유하면 실제로 다른 사람일 수 있습니다.
+      </PageNotice>
 
       {!online && (
         // MERGE-STATE-03 — 오프라인 고지. 검토 진입은 아래에서 잠근다(캐시로 확정 금지).

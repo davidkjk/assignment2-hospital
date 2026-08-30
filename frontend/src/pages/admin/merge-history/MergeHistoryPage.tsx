@@ -40,8 +40,6 @@ function MergeHistoryInner() {
 
   return (
     <section data-merge-history style={styles.page} aria-label="병합 되돌림 이력">
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정) — 본문엔 설명만. */}
-      <p style={styles.desc}>이미 발생한 환자 병합을 조회하고, 관리자가 되돌림을 검토합니다</p>
 
       {!online && (
         // MHIST-EXC-02 — route를 유지하고 낡음을 알린다. 되돌림 판단은 상세에서 최신 상태로만.

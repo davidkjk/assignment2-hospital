@@ -208,9 +208,6 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
 
   return (
     <section style={styles.wrap}>
-      <header style={styles.pageHead}>
-        <p style={styles.pageDesc}>예약·대기실·문자 등 병원 운영 기준을 한곳에서 관리합니다. 저장하면 모든 항목이 함께 적용됩니다.</p>
-      </header>
       <div style={styles.body}>
         <nav aria-label="설정 메뉴" style={styles.menu}>
           {MENUS.map((m) => {
