@@ -64,7 +64,7 @@ const styles: Record<string, CSSProperties> = {
   colLabel: {
     margin: '0 0 8px',
     fontSize: 'var(--fs-caption)',
-    fontWeight: 700,
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     letterSpacing: '.04em',
     textTransform: 'uppercase',
     color: 'var(--color-ink-muted)',
@@ -90,7 +90,7 @@ const styles: Record<string, CSSProperties> = {
   },
   itemLabel: {
     fontSize: 'var(--fs-body)',
-    fontWeight: 700,
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     color: 'var(--color-ink)',
     wordBreak: 'keep-all',
   },

@@ -707,7 +707,7 @@ const styles: Record<string, CSSProperties> = {
   grid: { display: 'grid', gridTemplateColumns: '235px minmax(500px, 1fr) 286px', gap: 16, alignItems: 'start' },
   col: { minWidth: 0 },
   colLabel: {
-    margin: '0 0 8px', fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
+    margin: '0 0 8px', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], letterSpacing: '.04em',
     textTransform: 'uppercase', color: 'var(--color-ink-muted)',
   },
   deptList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
@@ -718,7 +718,7 @@ const styles: Record<string, CSSProperties> = {
   deptBtnActive: {
     borderColor: 'var(--color-primary)', background: 'var(--color-primary-wash)',
   },
-  deptName: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
+  deptName: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   deptMeta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 
   placeholder: { ...panel, padding: '48px 24px', textAlign: 'center' },
@@ -731,20 +731,20 @@ const styles: Record<string, CSSProperties> = {
   editor: { ...panel, padding: 16 },
   editorHead: { paddingBottom: 12, borderBottom: '1px solid var(--color-divider)', marginBottom: 12 },
   editorTitleRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  editorTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--color-ink)' },
+  editorTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   currentBadge: {
-    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)',
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', borderRadius: 6, padding: '2px 8px',
   },
   dirtyBadge: {
-    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-warn)',
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-warn)',
     border: '1px solid var(--color-warn)', borderRadius: 6, padding: '1px 8px',
   },
   editorSub: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   editorActions: { marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 10 },
   saveBtn: {
     height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
-    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   btnDisabled: { background: 'var(--color-gray-past)', borderColor: 'var(--color-gray-past)', color: '#fff', cursor: 'not-allowed' },
   offline: {
@@ -757,23 +757,23 @@ const styles: Record<string, CSSProperties> = {
   flash: {
     margin: '0 0 12px', padding: '10px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-primary)', background: 'var(--color-primary-wash)',
-    fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 600,
+    fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   alert: {
     margin: '0 0 12px', padding: '10px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-danger)', background: 'var(--color-danger-bg)',
-    fontSize: 'var(--fs-body)', color: 'var(--color-danger)', fontWeight: 600,
+    fontSize: 'var(--fs-body)', color: 'var(--color-danger)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   conflict: {
     margin: '0 0 12px', padding: '10px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-warn)', background: 'var(--color-bg)',
     display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start',
   },
-  conflictMsg: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 600 },
+  conflictMsg: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   conflictBtn: {
     height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)',
-    fontWeight: 700, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
+    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
   },
 
   hint: { margin: '0 0 8px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
@@ -782,32 +782,32 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 8, padding: '32px 20px', textAlign: 'center',
     border: '1px dashed var(--color-divider)', borderRadius: 8,
   },
-  emptyFormTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
+  emptyFormTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   emptyFormHint: { margin: '6px 0 14px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   addFirstBtn: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-primary)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
 
   rows: { listStyle: 'none', margin: '0 0 12px', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 },
   row: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 12, background: 'var(--color-bg)' },
   rowHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   qid: {
-    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)',
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', padding: '2px 8px', borderRadius: 6,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', textTransform: 'uppercase',
   },
   rowMoveGroup: { display: 'flex', gap: 6 },
   moveBtn: {
     height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   removeBtn: {
     height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   field: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1 },
-  fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   textarea: {
     width: '100%', resize: 'vertical', padding: '8px 10px', borderRadius: 6,
     border: '1px solid var(--color-divider)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)',
@@ -824,17 +824,17 @@ const styles: Record<string, CSSProperties> = {
   countText: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   addBtn: {
     height: 32, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-primary)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   maxNotice: {
     marginTop: 10, padding: '8px 12px', borderRadius: 8,
     borderLeft: '4px solid var(--color-warn)', background: 'var(--color-bg)',
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
   },
-  maxNoticeMsg: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink)', fontWeight: 600 },
+  maxNoticeMsg: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   reduceBtn: {
     height: 28, padding: '0 12px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
 
   history: { ...panel, padding: 14 },
@@ -842,54 +842,54 @@ const styles: Record<string, CSSProperties> = {
   versionList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   versionItem: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 10 },
   versionTop: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 },
-  versionNo: { fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
+  versionNo: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   versionActive: {
-    fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)',
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', borderRadius: 5, padding: '1px 6px',
   },
   versionMeta: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   viewBtn: {
     marginTop: 6, height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
 
   preview: { ...panel, padding: 14, marginTop: 12 },
   previewHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  previewTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)' },
+  previewTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   previewClose: {
     height: 26, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   previewEmpty: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   previewCopy: {
     marginTop: 12, width: '100%', height: 34, borderRadius: 8, border: 'none',
     background: 'var(--color-primary)', color: 'var(--color-primary-foreground)',
-    fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
+    fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   previewList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   previewItem: { display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 8, borderBottom: '1px solid var(--color-divider)' },
-  previewQid: { fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'ui-monospace, Menlo, monospace' },
+  previewQid: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)', fontFamily: 'ui-monospace, Menlo, monospace' },
   previewText: { fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
   previewTag: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 
   dialog: { ...dialogStyles.dialog },
-  dialogTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--color-ink)' },
+  dialogTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   dialogVersion: {
-    margin: '12px 0 0', fontSize: 'var(--fs-title)', fontWeight: 800, color: 'var(--color-primary)',
+    margin: '12px 0 0', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)',
     fontVariantNumeric: 'tabular-nums',
   },
   dialogBody: { margin: '8px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
   dialogActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
   dialogCancel: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 600, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   dialogConfirm: {
     height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
-    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   dialogDiscard: {
     height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-warn)',
-    background: 'var(--color-surface)', color: 'var(--color-warn)', fontSize: 'var(--fs-body)', fontWeight: 700, cursor: 'pointer',
+    background: 'var(--color-surface)', color: 'var(--color-warn)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
 }

@@ -148,6 +148,25 @@
 
 ---
 
+## 화면 QA 방식 — golden test(데모 대조) + `integration_test`(전수 크롤) (2026-08-29 확정)
+
+> ⭐ **왜 이 절이 있나**: 직원웹 QA는 헤드리스 **웹 크롤러**(`scratchpad/crawl2·3.mjs` — Puppeteer로 `localhost:5173`에 `page.goto` → `document.querySelectorAll('*')`로 전수클릭 → `innerHTML` 해시로 dead-click 감지)를 썼다. **이 크롤러는 환자앱(Flutter)에 못 쓴다** — Flutter 웹은 화면 전체가 하나의 `<canvas>`로 렌더돼 DOM에 `<button>`·`<input>`이 없다. `querySelectorAll`이 아무것도 못 찾고 `innerHTML` 해시도 안 바뀐다. **웹 크롤러를 Flutter에 돌리려 시도하지 말 것.** 전역 플레이북 `~/.claude/qa-crawl-testing-playbook.md`의 Flutter판 매핑이 아래다.
+>
+> ⭐ **매번 일치의 근거**: 화면 태스크(13~31)는 「정본 규칙(TDD)」+「데모 시각 재현」 둘을 만족해야 하는데, **재현이 맞는지 검증하는 도구가 이 절이다.** 아래 둘을 각 화면 태스크의 `flutter test` 게이트에 편성한다.
+
+| 크롤 플레이북 기법 | 직원웹(웹) | **환자앱(Flutter) 등가물** |
+|---|---|---|
+| 스크린샷 대조(**데모↔앱**) | Playwright visual(플레이북 §「발전 기법」) | **golden test `matchesGoldenFile`** — 프레임워크 내장 픽셀 diff. **"데모랑 사진 찍어 비교"의 정식 답.** 위 표의 데모 화면을 기준 이미지로 삼는다. |
+| 전수클릭·역할순회 | Puppeteer 크롤러 | **`integration_test`** — 실앱 구동 후 `find.byType/byKey`로 위젯 탭. 역할순회 = **본인↔가족 전환**(직원웹의 admin/reception/doctor에 해당). |
+| dead-click(눌러도 무동작) | `innerHTML` 해시 비교 | 위젯/통합 테스트에서 **탭 후 상태(provider)·이동·요청 중 하나가 바뀌었나** 단언. |
+
+**규율**:
+- 화면 태스크(13~) 워커 브리프에 **golden test 대상 화면 + `integration_test` 시나리오**를 명시한다(시각 레퍼런스 줄과 같은 자리). 백엔드 태스크(0~10)엔 해당 없음.
+- golden 기준 이미지는 **CI/로컬 동일 렌더**를 위해 `flutter test --update-goldens`로 한 기계에서 생성하고 커밋. 폰트·플랫폼 차 주의(golden은 기본적으로 CI 전용 태그 권장).
+- (선택) **데모(웹)는 기존 크롤러 그대로** 돌려 "기준 동작"을 뽑는 용도로 재사용 가능 — 데모는 React라 DOM 크롤이 된다.
+
+---
+
 ## File Structure
 
 **번호 정책**: 옛 플랜 Task 1~26을 그대로 잇지 않는다(옛 구조는 백엔드 13 + Flutter 13). 재작성은 **백엔드 계약(0~10) → 프론트 전역(11~12) → 화면(13~31)** 순으로 재편한다. 규칙을 담는 것은 **프론트 화면 태스크**이고, 백엔드 태스크는 그 화면이 소비할 서비스·마이그레이션을 만든다(규칙 0개, 계약만).
@@ -831,6 +850,12 @@ git commit -m "feat: 📝 환자앱 Task 0 — 스캐폴딩 + 시각 토큰(DISP
 
 ## Task 1: 마이그레이션 — 환자 신원 + `patient_owns()` + 환자용 RLS + 가족 phone nullable
 
+> ✅ **완료(2026-08-29, 워크트리 `feat/patient-app` @ `e010a79`) — pytest 3/0.** 실행 중 아래 Step 코드가 실제 스키마와 어긋나 **3건 보정**했다(정본 = 커밋된 워크트리 파일). Step 본문은 이 보정을 반영해 읽을 것:
+> 1. ⚠️ **`auth_user_id` 칸은 `00044`(병합)가 이미 추가**(순수 `uuid unique`, FK 없음). 그 파일이 *"이월: 3단계에서 auth.users FK를 맞출 것"*이라 명시적으로 넘겼다. 아래 경계 노트의 *"중복 없음(grep 2026-08-17)"*은 **낡았다**(00044가 그 뒤 추가) → Step 2의 `add column auth_user_id …`는 **`add constraint … foreign key(auth_user_id) references auth.users(id)`로 교체**(컬럼 재추가 금지).
+> 2. **Step 3 `seed_patient`**: `birth_date`(00003 NOT NULL·기본값 없음) 누락 → `datetime.date` 기본값 필수.
+> 3. **Step 2 트리거 `log_appointment_status_change`**: 재정의가 `reason`을 null로 떨궈 **직원웹 회귀**(옛 00005는 `app.status_change_reason`+INSERT시 `'예약 생성'` 기록) → `coalesce(current_setting('app.status_change_reason',true), case when INSERT then '예약 생성' end)` **보존**. (환자 행위자 인식만 더한 것이 원래 의도.)
+> 4. **`patients_can_read_own_family_links` 정책 추가**(2026-08-29, Task 2 착수 중): Task 2 `list_accessible_patient_ids`가 필요로 해 Task 3(00018)에서 **00017로 이관**(신원 RLS 기반 묶음).
+>
 > **담당 규칙**: 없음(마이그레이션·계약). 이후 백엔드·화면 태스크가 이 RLS/함수 위에 선다.
 >
 > ⚠️ **경계(중복 금지 — grep으로 대조 완료 2026-08-17)**:
@@ -1049,6 +1074,12 @@ git commit -m "feat: 환자 신원 + patient_owns + 환자용 RLS + 가족 phone
 
 ## Task 2: 환자 인증 의존성(`PatientContext`) + 프로필 등록/조회/탈퇴 서비스
 
+> ✅ **완료(2026-08-29, 워크트리 `feat/patient-app`) — pytest 7/0.** 구현(A `patient_security.py`·B `patient_profile_service.py`)은 아래 코드 그대로. 단 **테스트 하네스를 아래로 보정**했다(⭐ 이후 자기커넥션 백엔드 태스크 공통 패턴):
+> 1. ⭐ **자기 커넥션 서비스는 `committed_conn`으로 시딩**: `acquire_as`/`get_pool`은 별도 풀 커넥션이라 `db_conn`(롤백 트랜잭션)의 미커밋 데이터를 못 본다 → 시딩·검증을 `committed_conn`(autocommit)으로. autouse `_cleanup_committed_data`가 뒷정리(이메일은 `%@test.local`이어야 청소됨 — 견본의 `@t.local`은 누수).
+> 2. **`auth.users` insert는 postgres 역할로**: `set_session_auth` 뒤 authenticated 역할은 `auth.users` insert 거부 → set 전 committed_conn에서.
+> 3. **RLS UPDATE 무음 거부**: 정책 없는 UPDATE는 예외가 아니라 **0행**(`res == "UPDATE 0"`으로 단언, `pytest.raises` 아님).
+> 4. ⚠️ **`patients_can_read_own_family_links` 정책이 없어 `list_accessible`가 0행**이었다 → 그 정책을 **00017로 이관**(원래 Task 3/00018 소유). Task 3에서 제거함.
+>
 > **담당 규칙**: 없음(백엔드 계약). 화면(Task 13·28·29)이 이 서비스를 소비한다.
 
 **Files:**
@@ -1280,6 +1311,11 @@ git commit -m "feat: 환자 인증 의존성(PatientContext) + 프로필 등록/
 
 ## Task 3: 가족 CRUD 서비스 + 가족 링크 RPC 마이그레이션(`00018`)
 
+> ✅ **완료(2026-08-29, 워크트리 `feat/patient-app`) — pytest 6/0.** 구현은 아래 코드대로. 단 **00045 CHECK 제약으로 2보정**(견본은 00003 기준이라 몰랐음):
+> 1. ⚠️ **00045 CHECK**: `(unlinked_at·unlinked_by·unlink_reason)`은 셋 다 null 또는 셋 다 not null. 환자 자가해제엔 staff `unlinked_by`가 없으므로 `unlink_family_link_self`는 **`unlinked_at=now()`를 빼고 `is_active=false`만** 내린다(트리오는 직원 해제 감사용).
+> 2. `relink_family_link_self`·`add_family_member` 재활성화는 **트리오를 통째로 null**로 비운다(직원 해제였던 링크도 CHECK 충족).
+> 3. 테스트는 Task 2 하네스 패턴대로 **`committed_conn` 시딩**(서비스가 자기 커넥션).
+>
 > **담당 규칙**: 없음(백엔드 계약). 가족 화면(Task 25·26)이 소비한다.
 >
 > ⚠️ **기존 환자 OTP 연결은 이 단계에서 `501`로 막는다**([R5-01]) — 통과시키면 본인확인 없이 남의 계정에 연결된다. 번호 없는 환자는 대면·서류 예외 경로가 있어 막다른 길이 아니다. **4단계에서 본인확인 창구가 생기면 푼다.**
@@ -1315,9 +1351,8 @@ Run → Expected: FAIL(함수 없음).
 
 ```sql
 -- [SDB-19] patient_family_links는 select만 authenticated에 열고, 변경은 RPC로만.
-create policy "patients_can_read_own_family_links" on patient_family_links
-  for select using (patient_owns(account_patient_id));
-
+-- ⚠️ select 정책 `patients_can_read_own_family_links`는 **00017로 이관됨**(2026-08-29): Task 2의
+--    list_accessible_patient_ids가 이미 필요로 해 신원 RLS 기반(00017)에 뒀다. 여기선 만들지 않는다.
 create or replace function update_family_link_relation_self(p_link_id uuid, p_relation text)
 returns void language plpgsql security definer set search_path = '' as $$
 declare v_acct uuid;
@@ -1511,6 +1546,11 @@ git commit -m "feat: 가족 CRUD 서비스 + 링크 RPC(00018) — 10명 상한�
 
 ## Task 4: 예약 카탈로그 + 예약 시간 단일 판정 서버 함수(`00019`) + `release_slot`
 
+> ✅ **완료(2026-08-29, 워크트리 `feat/patient-app`) — pytest 10/0.** 구현·함수는 아래대로. 보정:
+> 1. 🔴 **RLS 갭**: `departments`·`staff`·`appointment_slots`는 직원 SELECT 정책만 있어 환자가 읽으면 0행 → **환자 열람 정책 3개를 00019에 추가**(등록 환자만; `list_bookable_slots`는 definer라 예외, `doctor_schedule_rules`는 정책 불필요).
+> 2. **견본 테스트 버그**: ① 같은 doctor+date에 같은 `start_time` 2슬롯 = `unique(doctor,date,time)` 위반(시각 다르게) · ② `2999-01-01`은 **8주(current_date+56) 초과라 []**(→ today+7) · ③ `seed_staff(admin)→set_session_auth→seed_staff(doctor)`는 authenticated로 `auth.users` insert 거부(bookable 테스트는 definer라 set_session_auth 자체 제거).
+> 3. ⚠️ **TZ 지뢰**(메모리 mac-timezone-not-kst): `date.today()`(이 맥=밴쿠버) ≠ DB `current_date`(세션 Asia/Seoul)라 UTC가 KST 자정 넘긴 시각엔 하루 어긋난다 → 기준 날짜는 **DB `current_date`를 쿼리**해 쓴다.
+>
 > **담당 규칙**: 없음(백엔드 계약). 예약 화면(Task 19·20)·홈(Task 16)이 소비한다.
 >
 > ⭐ **핵심**: `booking_deadline`·당일 30분 최소 여유·8주 한도를 **앱이 하드코딩하지 않는다** — DB 함수 `list_bookable_slots`가 한 곳에서 판정하고 앱·직원·챗봇이 같은 결과를 쓴다(#21·#45~#47, 색인 「예약 시간 판정 단일 서버 함수」).

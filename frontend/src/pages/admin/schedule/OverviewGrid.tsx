@@ -146,7 +146,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '6px 8px',
     textAlign: 'center',
     fontSize: 'var(--fs-caption)',
-    fontWeight: 600,
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     color: 'var(--color-ink-muted)',
     borderBottom: '1px solid var(--color-divider)',
   },
@@ -155,7 +155,7 @@ const styles: Record<string, CSSProperties> = {
   thSun: { color: 'var(--color-weekend-sun)' },
   tdDoctor: { padding: '6px 8px', borderBottom: '1px solid var(--color-divider)' },
   td: { padding: 3, borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
-  docName: { fontWeight: 600, color: 'var(--color-ink)' },
+  docName: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   docDept: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   cell: {
     display: 'flex',
@@ -172,7 +172,7 @@ const styles: Record<string, CSSProperties> = {
     fontVariantNumeric: 'tabular-nums',
   },
   cellOff: { backgroundImage: HATCH },
-  cellTime: { fontWeight: 600 },
+  cellTime: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   cellMeta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   hatch: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

@@ -234,7 +234,7 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-danger-bg)',
     color: 'var(--color-danger)',
     fontSize: 'var(--fs-body)',
-    fontWeight: 600,
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     marginBottom: 10,
   },
   tableCard: {
@@ -255,5 +255,5 @@ const styles: Record<string, CSSProperties> = {
   infoNote: { margin: '12px 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   mismatch: { marginTop: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
-  mismatchNames: { fontWeight: 600 },
+  mismatchNames: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

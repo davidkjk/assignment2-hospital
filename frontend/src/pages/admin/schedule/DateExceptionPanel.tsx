@@ -231,7 +231,7 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   calDayMuted: { color: 'var(--color-gray-past)' },
-  calDaySel: { background: 'var(--color-primary-wash)', color: 'var(--color-primary)', fontWeight: 700 },
+  calDaySel: { background: 'var(--color-primary-wash)', color: 'var(--color-primary)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'] },
   calDot: { position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 5, height: 5, borderRadius: '50%', background: 'var(--color-primary)' },
   right: { flex: 1, minWidth: 0 },
   rightHead: { margin: '0 0 12px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
