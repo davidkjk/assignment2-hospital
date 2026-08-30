@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
@@ -44,7 +44,7 @@ const ALL: TodaySummary = {
     { patient_id: 'p9', name: '최*연', masked_birth_date: '1970-**-**', appointment_id: 'a9', slot_time: '09:30:00' },
   ],
   yesterday_unfinished: [
-    { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감' },
+    { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감', updated_at: '2026-08-02T16:30:00+09:00' },
   ],
   doctor_waiting: [
     { doctor_id: 'd1', doctor_name: '박지훈', department_name: '내과', waiting_count: 3 },
@@ -174,8 +174,8 @@ describe('오늘의 현황 /today', () => {
     summaryOk({
       ...ALL,
       yesterday_unfinished: [
-        { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감' },
-        { patient_id: 'p7', name: '김*수', masked_birth_date: '1990-**-**', appointment_id: 'a7', slot_date: '2026-07-30', slot_time: '10:00:00', reason: '진료 중인 채로 마감' },
+        { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감', updated_at: '2026-08-02T16:30:00+09:00' },
+        { patient_id: 'p7', name: '김*수', masked_birth_date: '1990-**-**', appointment_id: 'a7', slot_date: '2026-07-30', slot_time: '10:00:00', reason: '진료 중인 채로 마감', updated_at: '2026-07-30T10:00:00+09:00' },
       ],
     })
     renderToday()
@@ -183,6 +183,40 @@ describe('오늘의 현황 /today', () => {
     // 여러 날이므로 머리엔 단일 날짜를 두지 않고, 행마다 날짜로 구분한다.
     expect(within(screen.getByTestId('yday-row-a8')).getByText(/8\/2/)).toBeVisible()
     expect(within(screen.getByTestId('yday-row-a7')).getByText(/7\/30/)).toBeVisible()
+  })
+
+  test('[TODAY-YDAY-04] [마감 처리] → 확인창에서 「진료 완료」를 고르면 완료로, 낙관적 잠금값을 함께 보낸다', async () => {
+    const user = userEvent.setup()
+    let sent: { id: string; body: Record<string, unknown> } | null = null
+    summaryOk(ALL)
+    server.use(http.post('*/appointments/:id/close-stale', async ({ params, request }) => {
+      sent = { id: params.id as string, body: (await request.json()) as Record<string, unknown> }
+      return HttpResponse.json({ status: '진료완료' })
+    }))
+    renderToday()
+    const row = await screen.findByTestId('yday-row-a8')
+    await user.click(within(row).getByRole('button', { name: '마감 처리' }))
+    await user.click(await screen.findByRole('button', { name: '진료 완료로 마감' }))
+    await waitFor(() => expect(sent).not.toBeNull())
+    expect(sent!.id).toBe('a8')
+    expect(sent!.body.outcome).toBe('completed')
+    expect(sent!.body.expected_updated_at).toBe('2026-08-02T16:30:00+09:00') // 낙관적 잠금 열쇠
+  })
+
+  test('[TODAY-YDAY-04] 확인창의 「진료 없이 취소」는 outcome=cancelled로 보낸다', async () => {
+    const user = userEvent.setup()
+    let sent: Record<string, unknown> | null = null
+    summaryOk(ALL)
+    server.use(http.post('*/appointments/:id/close-stale', async ({ request }) => {
+      sent = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ status: '병원취소' })
+    }))
+    renderToday()
+    const row = await screen.findByTestId('yday-row-a8')
+    await user.click(within(row).getByRole('button', { name: '마감 처리' }))
+    await user.click(await screen.findByRole('button', { name: '진료 없이 취소로 마감' }))
+    await waitFor(() => expect(sent).not.toBeNull())
+    expect(sent!.outcome).toBe('cancelled')
   })
 
   test('[TODAY-ORDER-01] 카드 순서는 장기대기 → 미접수 → 전일미완료 → 확인필요', async () => {

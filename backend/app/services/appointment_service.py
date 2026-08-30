@@ -468,6 +468,48 @@ async def transition_status(
         return await _run(c)
 
 
+# 마감 결과 → 저장 상태. 사람이 「진료가 있었나」를 판단한 결과다(TODAY-YDAY-02·04).
+_STALE_CLOSE_STATUS: dict[str, str] = {"completed": "진료완료", "cancelled": "병원취소"}
+
+
+async def close_stale_appointment(
+    appointment_id: UUID,
+    outcome: str,
+    staff: StaffContext,
+    expected_updated_at: datetime,
+    conn=None,
+) -> str:
+    """[TODAY-YDAY-04] 전일 미완료 마감 — 지난 날짜에 밀린 예약을 닫는 전용 창구.
+
+    상태기계의 정상 전이(도착 뒤엔 앞으로만·취소는 도착 전에만)는 그대로 두고, DB의
+    close_stale_appointment definer가 「지난 날짜 + 도착/진료대기/진료중」만 예외로 닫는다
+    (오늘 큐에서 도착 환자를 실수로 취소하는 길은 열지 않는다). 낙관적 잠금·상태이력 감사는
+    기존 트리거가 담당한다. `outcome`은 완료(진료 있었음)/취소(진료 없음) 둘뿐이다.
+    """
+    to_status = _STALE_CLOSE_STATUS.get(outcome)
+    if to_status is None:
+        raise AppError("마감 방식이 올바르지 않습니다.", status_code=400)
+    reason = (
+        "전일 미완료 마감 · 진료 완료" if to_status == "진료완료"
+        else "전일 미완료 마감 · 진료 없이 취소"
+    )
+
+    async def _run(c) -> str:
+        try:
+            return await c.fetchval(
+                "select close_stale_appointment($1, $2, $3, $4)",
+                appointment_id, to_status, expected_updated_at, reason,
+            )
+        except asyncpg.PostgresError as exc:
+            raise (await pg_error_to_app_error(exc, "appointment.close_stale")) from exc
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
 async def undo_status(
     appointment_id: UUID,
     staff: StaffContext,

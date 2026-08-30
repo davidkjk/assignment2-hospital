@@ -46,6 +46,8 @@ export interface YesterdayUnfinishedRow extends PatientRow {
   slot_date: string
   slot_time: string
   reason: string
+  /** [TODAY-YDAY-04] 마감 처리의 낙관적 잠금 열쇠. */
+  updated_at: string
 }
 
 /** 의사별 대기(TODAY-DOC-01) — 진료과+의사 이름과 대기 수. 집계라 환자 원문이 없다. */

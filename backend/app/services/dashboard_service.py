@@ -612,7 +612,7 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             """
             select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
                    d.name as doctor_name, dept.name as department_name,
-                   s.slot_date, s.start_time as slot_time
+                   s.slot_date, s.start_time as slot_time, a.updated_at
             from appointments a
             join patients p on p.id = a.for_patient_id
             join staff d on d.id = a.doctor_id
@@ -682,6 +682,8 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             patient_row_dto(
                 patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
                 appointment_id=r["appointment_id"], slot_date=r["slot_date"], slot_time=r["slot_time"],
+                # [TODAY-YDAY-04] 마감 처리의 낙관적 잠금 열쇠(도착 처리·긴급 표시와 같은 방식).
+                updated_at=r["updated_at"].isoformat(),
                 reason="진료 중인 채로 마감", doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in yesterday_unfinished

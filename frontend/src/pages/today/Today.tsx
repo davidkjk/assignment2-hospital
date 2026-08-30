@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { StaffPage } from '../../components/staff-ui'
 import { EmptyState } from '../../components/EmptyState'
@@ -10,6 +10,7 @@ import {
   type PatientRow,
 } from '../../api/dashboard'
 import { revealContact } from '../../api/patients'
+import { closeStaleAppointment } from '../../api/appointments'
 import { UserRound } from '../../components/icons'
 
 // 오늘의 현황 (/today) — TODAY-*.
@@ -38,6 +39,8 @@ interface UiRow {
   railDate?: string // 지난 날짜 예약이면 시각 위에 작게(TODAY-YDAY-03) — 좁은 레일에서 줄바꿈 대신 두 줄(L23)
   railPast: boolean // 지난/미래 예약이면 옅은 회색(TODAY-ROW-02)
   reason?: string
+  slotLabel?: string // 마감 확인창에 보이는 「날짜·시각」(전일 미완료만)
+  updatedAt?: string // [TODAY-YDAY-04] 마감 처리 낙관적 잠금 열쇠(전일 미완료만)
 }
 interface UiCard {
   kind: CardKind
@@ -91,7 +94,7 @@ function buildCards(data: TodaySummary): UiCard[] {
       kind: 'yday',
       title: '전일 미완료',
       headerNote: singleDay ? md(distinctDates[0]) : undefined,
-      rows: data.yesterday_unfinished.map((r) => ({ ...baseRow(r), rail: hhmm(r.slot_time), railDate: singleDay ? undefined : md(r.slot_date), railPast: true, reason: r.reason })),
+      rows: data.yesterday_unfinished.map((r) => ({ ...baseRow(r), rail: hhmm(r.slot_time), railDate: singleDay ? undefined : md(r.slot_date), railPast: true, reason: r.reason, slotLabel: `${md(r.slot_date)} ${hhmm(r.slot_time)}`, updatedAt: r.updated_at })),
     })
   }
   if (data.needs_attention.length)
@@ -130,7 +133,7 @@ function Btn({
   )
 }
 
-function RowButtons({ kind, row, navigate, onReveal }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onReveal: () => void }) {
+function RowButtons({ kind, row, navigate, onReveal, onCloseStale }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onReveal: () => void; onCloseStale: () => void }) {
   switch (kind) {
     case 'longwait':
       // TODAY-BTN-01: [진료 시작]을 두지 않는다 — 순서 조정과 상세 보기만.
@@ -150,7 +153,13 @@ function RowButtons({ kind, row, navigate, onReveal }: { kind: CardKind; row: Ui
         </>
       )
     case 'yday':
-      return <Btn variant="detail" onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
+      // TODAY-YDAY-04: 사람이 닫는 창구 — [마감 처리] → 확인창에서 완료/취소를 고른다.
+      return (
+        <>
+          <Btn variant="primary" onClick={onCloseStale}>마감 처리</Btn>
+          <Btn variant="detail" onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
+        </>
+      )
     case 'needs':
       // TODAY-RESCHED-24/25: 버튼 하나 — 해당 예약이 선택된 캘린더로(옮기기·취소 도장은 여기서 안 찍는다).
       return (
@@ -162,6 +171,7 @@ function RowButtons({ kind, row, navigate, onReveal }: { kind: CardKind; row: Ui
 function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: NavigateFunction }) {
   // 번호 보기 = 그 줄에서 원문이 펼쳐지고 [복사]가 함께 뜬다(MASK-VIEW-01). revealContact가 열람 기록을 남긴다(MASK-VIEW-02).
   const [phone, setPhone] = useState<string | null>(null)
+  const [closing, setClosing] = useState(false) // [TODAY-YDAY-04] 마감 확인창
   const reveal = async () => {
     try {
       const c = await revealContact(row.patientId)
@@ -209,7 +219,69 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
 
       {/* 버튼 */}
       <div className="flex shrink-0 items-center gap-2">
-        <RowButtons kind={kind} row={row} navigate={navigate} onReveal={reveal} />
+        <RowButtons kind={kind} row={row} navigate={navigate} onReveal={reveal} onCloseStale={() => setClosing(true)} />
+      </div>
+
+      {closing && <CloseStaleDialog row={row} onClose={() => setClosing(false)} />}
+    </div>
+  )
+}
+
+/** [TODAY-YDAY-04] 전일 미완료 마감 — 진료가 있었는지는 사람이 판단하므로 완료/취소를 고르게 한다.
+ *  되돌릴 수 없는 마감이라 확인창 안에서만 고른다(취소=빨간 동작). */
+function CloseStaleDialog({ row, onClose }: { row: UiRow; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
+  const mutation = useMutation({
+    mutationFn: (outcome: 'completed' | 'cancelled') =>
+      closeStaleAppointment(row.appointmentId, { outcome, expected_updated_at: row.updatedAt ?? '' }),
+    onSuccess: () => {
+      // 마감되면 이 행이 목록에서 사라지도록 오늘 요약을 다시 읽는다.
+      void qc.invalidateQueries({ queryKey: ['today-summary'] })
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : '마감하지 못했습니다. 잠시 후 다시 시도하세요.'),
+  })
+  const busy = mutation.isPending
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/20 px-4" role="dialog" aria-modal="true" aria-label="전일 미완료 마감">
+      <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
+        <h2 className="text-lg font-bold">이 예약을 어떻게 마감할까요?</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{row.name}</span>
+          {row.slotLabel && <> · {row.slotLabel}</>}
+        </p>
+        <p className="mt-3 text-sm">
+          진료가 실제로 있었나요? <span className="text-muted-foreground">마감하면 되돌릴 수 없습니다.</span>
+        </p>
+        {error && <p role="alert" className="mt-2 text-sm font-medium text-destructive">{error}</p>}
+        <div className="mt-5 flex flex-col gap-2">
+          <button
+            type="button"
+            autoFocus
+            disabled={busy}
+            onClick={() => mutation.mutate('completed')}
+            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            진료 완료로 마감
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => mutation.mutate('cancelled')}
+            className="rounded-lg border border-destructive/40 bg-card px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:opacity-50"
+          >
+            진료 없이 취소로 마감
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onClose}
+            className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50"
+          >
+            닫기
+          </button>
+        </div>
       </div>
     </div>
   )

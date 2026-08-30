@@ -191,6 +191,25 @@ async def change_status(
     return {"status": "updated"}
 
 
+class CloseStaleRequest(BaseModel):
+    # [TODAY-YDAY-04] 사람이 「진료가 있었나」를 판단한 결과 — 완료(있었음)/취소(없었음) 둘뿐이다.
+    outcome: str  # 'completed' | 'cancelled'
+    expected_updated_at: datetime
+
+
+@router.post("/{appointment_id}/close-stale")
+async def close_stale(
+    appointment_id: UUID,
+    body: CloseStaleRequest,
+    staff: StaffContext = Depends(require_role("receptionist", "doctor", "admin")),
+) -> dict:
+    """[TODAY-YDAY-04] 전일 미완료 마감 — 지난 날짜에 밀린 예약을 진료완료/병원취소로 닫는다(전일 전용)."""
+    new_status = await appointment_service.close_stale_appointment(
+        appointment_id, body.outcome, staff, body.expected_updated_at,
+    )
+    return {"status": new_status}
+
+
 class ReorderQueueRequest(BaseModel):
     new_position: int
     reason: str

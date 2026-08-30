@@ -77,6 +77,14 @@ export function transitionStatus(
   return apiFetch<{ status: string }>(`/appointments/${appointmentId}/status`, patchBody(body))
 }
 
+/** [TODAY-YDAY-04] 전일 미완료 마감 — 사람이 판단한 결과(완료/취소)로 지난 날짜 예약을 닫는다. */
+export function closeStaleAppointment(
+  appointmentId: string,
+  body: { outcome: 'completed' | 'cancelled'; expected_updated_at: string },
+) {
+  return apiFetch<{ status: string }>(`/appointments/${appointmentId}/close-stale`, jsonBody(body))
+}
+
 export function reorderQueue(
   appointmentId: string,
   body: { new_position: number; reason: string },
