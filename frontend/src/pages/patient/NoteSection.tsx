@@ -121,7 +121,7 @@ const styles: Record<string, CSSProperties> = {
   empty: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
   row: { padding: '8px 0', borderTop: '1px solid var(--color-divider)' },
-  content: { margin: '0 0 2px', fontSize: 'var(--fs-base)', color: 'var(--color-ink)' },
+  content: { margin: '0 0 2px', fontSize: 'var(--fs-base)', color: 'var(--color-ink)', overflowWrap: 'anywhere' },
   byline: { margin: 0, display: 'flex', gap: 8, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   time: { fontVariantNumeric: 'tabular-nums' },
 }

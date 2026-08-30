@@ -84,6 +84,6 @@ const styles: Record<string, CSSProperties> = {
   meta: { margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--color-ink-muted)' },
   block: { padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
   blockHead: { margin: '0 0 6px', fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--color-ink-muted)' },
-  reason: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink)', whiteSpace: 'pre-wrap' },
+  reason: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
   empty: { margin: 0, fontSize: 'var(--fs-base)', color: 'var(--color-ink-muted)' },
 }
