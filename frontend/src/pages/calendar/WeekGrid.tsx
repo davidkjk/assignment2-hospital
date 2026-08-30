@@ -53,14 +53,14 @@ export function WeekGrid({
   const days = weekDays(anchorDate)
 
   return (
-    <div className="cal-week-grid" data-testid="week-grid" style={{ display: 'flex' }}>
+    <div className="cal-week-grid" data-testid="week-grid" style={{ display: 'flex', overflowX: 'auto' }}>
       {days.map((date, i) => {
         const data = dataByDate.get(date)
         const model = data ? buildGridModel(data, date, palette) : { doctors, appointmentsByDoctor: new Map(), blocksByDoctor: new Map() }
         // 카탈로그는 공통(모든 날 같은 의사 열) — 응답의 의사가 비면 상위가 준 doctors를 쓴다.
         const laneDoctors = model.doctors.length ? model.doctors : doctors
         return (
-          <div key={date} className="cal-week-day" data-testid={`day-cell-${date}`} style={{ display: 'flex', flexDirection: 'column' }}>
+          <div key={date} className="cal-week-day" data-testid={`day-cell-${date}`} style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, flexShrink: 0 }}>
             {/* [CAL-NAV-01] 날짜 머리를 누르면 그 날의 일간으로 간다(토글도 함께 넘어간다). */}
             <button type="button" className="cal-week-day-head" onClick={() => onOpenDay?.(date)}>
               {DAY_LABELS[i]} {date.slice(5).replace('-', '/')}

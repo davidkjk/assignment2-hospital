@@ -559,7 +559,9 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 340px;
+  /* [#2] 340px는 현재 달만 보여 다음 달을 못 본다는 오해를 낳았다(macOS는 스크롤바를 숨긴다).
+     화면 높이에 맞춰 길게 — 대부분 화면에서 예약 범위(≈8주)가 한눈에, 넘치면 스크롤. */
+  max-height: min(560px, 62vh);
   overflow-y: auto;
 }
 .cal-mini-day {
