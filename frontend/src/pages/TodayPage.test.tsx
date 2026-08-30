@@ -158,14 +158,31 @@ describe('오늘의 현황 /today', () => {
     expect(within(row).getByRole('button', { name: '도착' })).toBeVisible()
   })
 
-  test('[TODAY-YDAY-01/03] 전일 미완료 카드는 날짜를 함께 보이고 「진료 중인 채로 마감」 사유를 준다', async () => {
+  test('[TODAY-YDAY-01/03] 전일 미완료가 전부 같은 날이면 날짜를 카드 머리에 한 번만 보이고, 행엔 반복하지 않는다', async () => {
     summaryOk(ALL)
     renderToday()
     expect(await screen.findByRole('heading', { name: '전일 미완료' })).toBeVisible()
+    // TODAY-YDAY-03(개정 2026-08-30): 같은 날이면 날짜(8/2)는 카드 머리에 한 번만.
+    const header = screen.getByTestId('card-header-yday')
+    expect(within(header).getByText(/8\/2/)).toBeVisible()
     const row = screen.getByTestId('yday-row-a8')
     expect(within(row).getByText('진료 중인 채로 마감')).toBeVisible()
-    // TODAY-YDAY-03: 지난 날짜이므로 날짜를 함께 표시(8/2 16:30).
-    expect(within(row).getByText(/8\/2/)).toBeVisible()
+    expect(within(row).queryByText(/8\/2/)).toBeNull() // 행엔 날짜를 달지 않는다
+  })
+
+  test('[TODAY-YDAY-03] 여러 지난 날이 섞이면 그때만 행에 날짜를 달아 구분한다', async () => {
+    summaryOk({
+      ...ALL,
+      yesterday_unfinished: [
+        { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감' },
+        { patient_id: 'p7', name: '김*수', masked_birth_date: '1990-**-**', appointment_id: 'a7', slot_date: '2026-07-30', slot_time: '10:00:00', reason: '진료 중인 채로 마감' },
+      ],
+    })
+    renderToday()
+    expect(await screen.findByRole('heading', { name: '전일 미완료' })).toBeVisible()
+    // 여러 날이므로 머리엔 단일 날짜를 두지 않고, 행마다 날짜로 구분한다.
+    expect(within(screen.getByTestId('yday-row-a8')).getByText(/8\/2/)).toBeVisible()
+    expect(within(screen.getByTestId('yday-row-a7')).getByText(/7\/30/)).toBeVisible()
   })
 
   test('[TODAY-ORDER-01] 카드 순서는 장기대기 → 미접수 → 전일미완료 → 확인필요', async () => {

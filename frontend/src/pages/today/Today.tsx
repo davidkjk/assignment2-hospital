@@ -42,6 +42,8 @@ interface UiRow {
 interface UiCard {
   kind: CardKind
   title: string
+  /** 카드 머리에 붙는 날짜 — 전일 미완료가 전부 같은 날일 때 그 날짜를 한 번만 보인다(TODAY-YDAY-03). */
+  headerNote?: string
   rows: UiRow[]
 }
 
@@ -80,12 +82,18 @@ function buildCards(data: TodaySummary): UiCard[] {
       title: '미접수 · 시각 경과',
       rows: data.not_arrived.map((r) => ({ ...baseRow(r), rail: hhmm(r.slot_time), railPast: true })),
     })
-  if (data.yesterday_unfinished.length)
+  if (data.yesterday_unfinished.length) {
+    // [TODAY-YDAY-03 개정 2026-08-30] 날짜를 행마다 반복하지 않는다 — 전부 같은 날이면 카드 머리에 한 번만 보이고,
+    //   여러 지난 날(밀린 건)이 섞였을 때만 그 구분을 위해 행에 날짜를 단다. (서버는 slot_date < 오늘 = 여러 날 가능)
+    const distinctDates = [...new Set(data.yesterday_unfinished.map((r) => r.slot_date))]
+    const singleDay = distinctDates.length === 1
     cards.push({
       kind: 'yday',
       title: '전일 미완료',
-      rows: data.yesterday_unfinished.map((r) => ({ ...baseRow(r), rail: hhmm(r.slot_time), railDate: md(r.slot_date), railPast: true, reason: r.reason })),
+      headerNote: singleDay ? md(distinctDates[0]) : undefined,
+      rows: data.yesterday_unfinished.map((r) => ({ ...baseRow(r), rail: hhmm(r.slot_time), railDate: singleDay ? undefined : md(r.slot_date), railPast: true, reason: r.reason })),
     })
+  }
   if (data.needs_attention.length)
     cards.push({
       kind: 'needs',
@@ -214,6 +222,8 @@ function ProblemCardView({ card, navigate }: { card: UiCard; navigate: NavigateF
       <div data-testid={`card-header-${card.kind}`} className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
         <span className="h-4 w-1 rounded-full bg-amber-500" />
         <h3 className="text-sm font-semibold">{card.title}</h3>
+        {/* 전일 미완료가 전부 같은 날이면 그 날짜를 머리에 한 번만(TODAY-YDAY-03). 행마다 반복하지 않는다. */}
+        {card.headerNote && <span className="text-xs font-medium tabular-nums text-muted-foreground/70">{card.headerNote}</span>}
         <span className="text-sm font-bold tabular-nums text-amber-600">{card.rows.length}</span>
       </div>
       <div className="divide-y divide-border/60">
