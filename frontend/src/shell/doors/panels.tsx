@@ -409,7 +409,7 @@ function ReserveBody() {
         {draft.patient ? (
           <PickedValue title={draft.patient.name} sub={`${draft.patient.birthText} · ${draft.patient.phoneText}`} onChange={() => setField('patient')} />
         ) : (
-          '환자를 찾아 고르세요'
+          '왼쪽에서 환자를 찾아 고르세요'
         )}
       </FieldRow>
 
@@ -772,7 +772,7 @@ function WalkinBody({
         {draft.patient ? (
           <PickedValue title={draft.patient.name} sub={`${draft.patient.birthText} · ${draft.patient.phoneText}`} onChange={() => setField('patient')} />
         ) : (
-          '환자를 찾아 고르세요'
+          '왼쪽에서 환자를 찾아 고르세요'
         )}
       </FieldRow>
 

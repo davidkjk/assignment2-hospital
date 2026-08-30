@@ -102,8 +102,10 @@ export function DoorProvider({ children }: { children: ReactNode }) {
       },
       pickDoctor: (d) => {
         setDraft((prev) => ({ ...prev, doctor: d }))
-        // 예약은 다음이 시간(왼쪽=일간 캘린더). 접수 당일방문은 시각=지금이라 도구가 필요 없다.
-        setActiveField(openDoor === 'appointment' ? 'time' : null)
+        // 예약은 다음이 날짜(왼쪽=작은 달력) — 의사를 고르면 먼저 날짜를 고르고, 날짜를 고른 뒤
+        //   그 날 일간 캘린더에서 시각을 찍는다(사용자 지시 2026-08-30, PANEL-WORK-02·SHELL-DOOR-02 개정).
+        //   접수 당일방문은 시각=지금이라 도구가 필요 없다.
+        setActiveField(openDoor === 'appointment' ? 'date' : null)
       },
       pickSlot: (date, time) => {
         setDraft((prev) => ({ ...prev, date, time }))

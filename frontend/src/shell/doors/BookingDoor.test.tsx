@@ -186,6 +186,8 @@ test('[CAL-TIME-09] 진료 길이는 서버 카탈로그가 준 그 날 요일�
   renderShell()
   await pickPatient(user)
   await pickDoctor(user)
+  // 의사를 고르면 먼저 날짜 단계다(2026-08-30) — 시각 칸을 눌러 그 날(기본=오늘) 일간 캘린더로 간다.
+  await user.click(within(panel()).getByRole('button', { name: '시각을 고르세요' }))
 
   expect(await screen.findByText(/20분 진료/)).toBeVisible()
 })
