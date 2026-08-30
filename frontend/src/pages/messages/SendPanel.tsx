@@ -149,16 +149,16 @@ export function SendPanel({ initialRecipients }: Props) {
 
 const styles: Record<string, CSSProperties> = {
   panel: { display: 'flex', flexDirection: 'column', gap: 14, padding: 4 },
-  heading: { margin: 0, fontSize: 'var(--fs-lg)', fontWeight: 700, color: 'var(--color-ink)' },
+  heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   field: { display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { fontSize: 'var(--fs-sm)', fontWeight: 600, color: 'var(--color-ink-muted)' },
+  label: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   textarea: {
     padding: 10,
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
     resize: 'vertical',
   },
   input: {
@@ -168,7 +168,7 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
+    fontSize: 'var(--fs-body)',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 },
   laterBtn: {
@@ -178,8 +178,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
   sendBtn: {
@@ -189,8 +189,8 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     background: 'var(--color-primary)',
     color: '#fff',
-    fontSize: 'var(--fs-base)',
-    fontWeight: 600,
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
 }
