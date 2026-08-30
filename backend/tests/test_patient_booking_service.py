@@ -255,3 +255,44 @@ async def test_request_support_rejects_bad_type(committed_conn):
     with pytest.raises(AppError) as e:
         await patient_booking_service.request_support(ctx["patient"], aid, request_type="기타")
     assert e.value.status_code == 400
+
+
+# ── Task 9: 알림 배관(dispatcher는 스텁; 판정은 test_notification_service가 따로 검증) ──────────────
+@pytest.mark.asyncio
+async def test_create_booking_notifies_confirmed(committed_conn, monkeypatch):
+    # 갭 #1 계보: 예약이 확정되면 알림을 부른다(auto_confirm 기본 true → confirmed).
+    from app.services import notification_service
+    calls = []
+
+    async def fake(pid, ntype, **kw):
+        calls.append(ntype)
+
+    monkeypatch.setattr(notification_service, "notify_patient", fake)
+    await committed_conn.execute("update hospital_settings set auto_confirm_app_bookings=true")
+    ctx = await _seed_base(committed_conn)
+    await patient_booking_service.create_booking(
+        ctx["patient"], for_patient_id=ctx["patient"].id, department_id=ctx["dept_id"],
+        doctor_id=ctx["doctor_id"], slot_id=ctx["slot_id"], reason="감기", request_id=uuid4())
+    assert calls == ["confirmed"]
+
+
+@pytest.mark.asyncio
+async def test_change_booking_notifies_changed(committed_conn, monkeypatch):
+    # 변경이 성사되면 changed 알림을 부른다. (create가 부른 confirmed는 제외하고 change만 본다.)
+    from app.services import notification_service
+    calls = []
+
+    async def fake(pid, ntype, **kw):
+        calls.append(ntype)
+
+    monkeypatch.setattr(notification_service, "notify_patient", fake)
+    ctx = await _seed_base(committed_conn)
+    new_slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,'2999-08-05','11:00') returning id",
+        ctx["doctor_id"])
+    old_id = await _make_appointment(committed_conn, ctx, ctx["slot_id"])
+    calls.clear()   # create_booking이 부른 confirmed를 지우고 change만 관찰한다
+    updated_at = await committed_conn.fetchval("select updated_at from appointments where id=$1", old_id)
+    await patient_booking_service.change_booking(
+        ctx["patient"], old_id, new_slot, reason="시간 변경", expected_updated_at=updated_at)
+    assert calls == ["changed"]

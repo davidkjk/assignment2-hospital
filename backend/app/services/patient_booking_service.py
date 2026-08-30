@@ -7,6 +7,7 @@ import asyncpg
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.db.pool import acquire_as
+from app.services import notification_service
 from app.services.slot_service import book_slot, release_slot
 
 CHANGEABLE_STATUSES = ("예약신청", "예약확정")
@@ -61,7 +62,7 @@ async def create_booking(patient: PatientContext, for_patient_id: UUID, departme
 
         status = await _initial_status(conn)
         try:
-            return await conn.fetchval(
+            appointment_id = await conn.fetchval(
                 "insert into appointments "
                 "(slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source, request_id) "
                 "values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id",
@@ -74,10 +75,27 @@ async def create_booking(patient: PatientContext, for_patient_id: UUID, departme
                 "select id from appointments where account_patient_id=$1 and request_id=$2",
                 patient.id, request_id)
             if winner is not None:
-                return winner
+                return winner   # 경쟁 패자 — 승자 트랜잭션에서 알림이 나간다(중복 발송 안 함)
             raise AppError("예약 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.", status_code=409)
         except asyncpg.PostgresError as exc:  # 원문 노출 금지 — 서버 로그로만
             raise AppError("예약을 만들 수 없습니다. 입력을 확인해주세요.", status_code=400) from exc
+
+        # 가족 예약이면 대상자 이름을 알림 본문 앞에 붙인다(트랜잭션 안에서 조회 — RLS).
+        target_name = None
+        if for_patient_id != patient.id:
+            target_name = await conn.fetchval("select name from patients where id=$1", for_patient_id)
+
+    # 트랜잭션 밖 — best-effort 알림. 알림 실패가 예약을 되돌리지 않는다(1단계 best-effort 원칙).
+    try:
+        await notification_service.notify_patient(
+            patient.id,
+            "confirmed" if status == "예약확정" else "requested",
+            target_name=target_name,
+            appointment_id=appointment_id,
+        )
+    except Exception:
+        pass
+    return appointment_id
 
 
 async def change_booking(patient: PatientContext, appointment_id: UUID, new_slot_id: UUID,
@@ -124,8 +142,19 @@ async def change_booking(patient: PatientContext, appointment_id: UUID, new_slot
                 new_slot["doctor_id"], reason, new_status)
             # APPT-CHG-10·11 / C-6: 문진을 새 예약으로 옮긴다(작성 시각 유지). 새 예약([새로 예약하기])엔 적용 안 함.
             await conn.execute("select move_questionnaire_response($1, $2)", appointment_id, new_id)
+            # 가족 예약이면 대상자 이름을 알림 본문 앞에 붙인다(트랜잭션 안에서 조회 — RLS).
+            target_name = None
+            if row["for_patient_id"] != patient.id:
+                target_name = await conn.fetchval("select name from patients where id=$1", row["for_patient_id"])
         except asyncpg.PostgresError as exc:
             raise AppError("예약을 변경할 수 없습니다. 잠시 후 다시 시도해주세요.", status_code=400) from exc
+
+    # 트랜잭션 밖 — best-effort 알림. 알림 실패가 변경을 되돌리지 않는다.
+    try:
+        await notification_service.notify_patient(
+            patient.id, "changed", target_name=target_name, appointment_id=new_id)
+    except Exception:
+        pass
     return new_id
 
 
