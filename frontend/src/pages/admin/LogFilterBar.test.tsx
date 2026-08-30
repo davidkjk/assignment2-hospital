@@ -104,18 +104,20 @@ describe('LogFilterBar — 환자·URL·기간 (ALOG-FILTER-*)', () => {
     expect(await screen.findByText('최근 200건')).toBeVisible()
   })
 
-  test('[ALOG-FILTER-07][결정 4회차] 기간 조회는 from 포함·to 제외이고 결과에 조회 기간을 적는다', async () => {
+  test('[ALOG-FILTER-07][결정 4회차] 기간 조회는 시작일 포함·종료일 그날 끝까지(다음날 00:00 제외 경계)이고 결과에 조회 기간을 적는다', async () => {
+    // ⭐ 종료일은 사람 직관대로 「그날까지 포함」 — 07-31을 고르면 서버엔 다음날 00:00(제외 경계)을 보낸다.
+    //    프리셋(종료일=오늘, PERIOD-BOX-02)·오류로그(ERRADM-FILTER-02)·통계(between)와 같은 규약(2026-08-30 개정).
     renderPage()
     await screen.findByText('최근 200건')
     const start = screen.getByLabelText('시작일')
     const end = screen.getByLabelText('종료일')
     await userEvent.clear(start); await userEvent.type(start, '2026-07-01')
-    await userEvent.clear(end); await userEvent.type(end, '2026-08-01')
+    await userEvent.clear(end); await userEvent.type(end, '2026-07-31')
     await userEvent.click(screen.getByRole('button', { name: '기간 조회' }))
     await waitFor(() => {
       const q = new URL(lastUrl).searchParams
       expect(q.get('from')).toBe('2026-07-01T00:00:00+09:00')
-      expect(q.get('to')).toBe('2026-08-01T00:00:00+09:00')
+      expect(q.get('to')).toBe('2026-08-01T00:00:00+09:00') // 07-31 다음날 = 제외 경계
     })
     expect(screen.getByText('2026년 7월 기록을 보고 있습니다')).toBeVisible()
   })

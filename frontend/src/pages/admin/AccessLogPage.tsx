@@ -16,16 +16,29 @@ import { ShieldCheck } from '../../components/icons'
 // ⭐ 이 화면을 여는 것 자체는 감사 행을 만들지 않는다(결정3) — 읽기 전용이라 흔적을 남기지 않는다.
 // ⛔ 되돌릴 수 없는 감사 기록이라 행에 편집·삭제·되돌리기를 두지 않고, 그 사실을 표 위에 적는다.
 
-/** 'YYYY-MM-DD' → 병원 시간대 ISO8601. from 포함·to 제외의 경계로 서버에 넘긴다(ALOG-FILTER-07). */
+/** 'YYYY-MM-DD' → 병원 시간대 ISO8601 그날 00:00. 시작일(포함 경계)에 쓴다. */
 function toIso(date: string): string {
   return `${date}T00:00:00+09:00`
 }
 
-/** [ALOG-FILTER-07] 조회 기간을 사람 말로. 딱 한 달이면 「N년 M월」, 아니면 시작~끝. */
+/** 종료일 → 서버에 넘길 제외 경계(`< to`).
+ *  사람은 종료일을 「그날까지 포함」으로 읽고 프리셋도 종료일=오늘로 채우므로(PERIOD-BOX-02),
+ *  고른 날의 **다음날 00:00**을 보내 그날 23:59까지 포함시킨다 — 오류로그(ERRADM-FILTER-02)·
+ *  통계(between)와 같은 「그날 끝까지」 규약으로 통일(ALOG-FILTER-07 개정, 2026-08-30).
+ *  ⚠️ 날짜 더하기는 UTC 자리에서 — 로컬 Date로 옮기면 서머타임 지역에서 하루가 샌다. */
+function toIsoEnd(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  const next = new Date(Date.UTC(y, m - 1, d + 1))
+  const s = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`
+  return `${s}T00:00:00+09:00`
+}
+
+/** [ALOG-FILTER-07] 조회 기간을 사람 말로. 딱 한 달(1일~말일)이면 「N년 M월」, 아니면 시작~끝(둘 다 포함). */
 function rangeLabel(from: string, to: string): string {
   const [fy, fm, fd] = from.split('-').map(Number)
-  const nextMonth = `${fm === 12 ? fy + 1 : fy}-${String(fm === 12 ? 1 : fm + 1).padStart(2, '0')}-01`
-  if (fd === 1 && to === nextMonth) return `${fy}년 ${fm}월 기록을 보고 있습니다`
+  const [ty, tm, td] = to.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(fy, fm, 0)).getUTCDate() // fm월의 말일(Date.UTC 다음달 0일)
+  if (fd === 1 && fy === ty && fm === tm && td === lastDay) return `${fy}년 ${fm}월 기록을 보고 있습니다`
   return `${from} ~ ${to} 기록을 보고 있습니다`
 }
 
@@ -50,7 +63,7 @@ export function AccessLogPage() {
   const filter = {
     patientId,
     from: applied.from ? toIso(applied.from) : null,
-    to: applied.to ? toIso(applied.to) : null,
+    to: applied.to ? toIsoEnd(applied.to) : null,
   }
 
   const query = useQuery({
