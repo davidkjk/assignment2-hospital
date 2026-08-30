@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/connectivity.dart';
 import '../../core/tokens.dart';
+import '../notifications/notification_data.dart'; // unreadNotificationCountProvider 본체(T18)
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/pending_request_card.dart';

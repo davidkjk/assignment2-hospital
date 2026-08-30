@@ -9,6 +9,7 @@ import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/home/home_data.dart';
 import 'package:hospital_patient_app/features/home/home_screen.dart';
 import 'package:hospital_patient_app/features/home/notification_bell.dart';
+import 'package:hospital_patient_app/features/notifications/notification_data.dart';
 import 'package:hospital_patient_app/widgets/action_button.dart';
 
 // NAV-HOME-07(잠긴 문진 줄은 안 눌린다)은 문진 줄 렌더링(CARD-QNR)이 T17·T23 소유라 여기서 검증하지 않는다
@@ -64,6 +65,8 @@ Widget _app({
       effectiveAuthProvider.overrideWith((ref) => AuthStatus.signedIn),
       profileMissingProvider.overrideWith((ref) => false),
       homeAcknowledgeProvider.overrideWithValue((String id) async {}),
+      // T18이 본체를 채운 종 배지 개수는 실제 API를 타므로 위젯 테스트에선 0으로 고정(홈 라우팅만 검증).
+      unreadNotificationCountProvider.overrideWithValue(0),
       if (readMarker != null) notificationReadMarkerProvider.overrideWithValue(readMarker),
     ],
     child: MaterialApp.router(routerConfig: buildAppRouter(initialLocation: initial)),

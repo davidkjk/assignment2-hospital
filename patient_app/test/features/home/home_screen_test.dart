@@ -9,6 +9,7 @@ import 'package:hospital_patient_app/features/home/home_realtime.dart';
 import 'package:hospital_patient_app/features/home/home_screen.dart';
 import 'package:hospital_patient_app/features/home/hospital_info_row.dart';
 import 'package:hospital_patient_app/features/home/notification_bell.dart';
+import 'package:hospital_patient_app/features/notifications/notification_data.dart';
 import 'package:hospital_patient_app/widgets/action_button.dart';
 import 'package:hospital_patient_app/widgets/pending_request_card.dart';
 
@@ -56,6 +57,8 @@ Widget _home(
       pendingRequestProvider.overrideWith(
           (ref) async => pending ? PendingRequest(PendingKind.book, DateTime(2026, 8, 18, 9)) : null),
       if (realtime != null) homeRealtimeProvider.overrideWithValue(realtime),
+      // T18 종 배지 개수 본체(실제 API)를 위젯 테스트에서 타지 않게 0 고정.
+      unreadNotificationCountProvider.overrideWithValue(0),
     ],
     child: const MaterialApp(home: HomeScreen()),
   );

@@ -20,6 +20,7 @@ import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/main_tabs.dart';
+import '../features/notifications/notification_inbox.dart';
 import '../widgets/app_shell.dart';
 
 // AUTH-REAUTH-05: 민감 경로(설정·가족·탈퇴). 탈퇴는 /settings 하위. Task 11 redirect가 이 판정을 부른다.
@@ -201,7 +202,11 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
         GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
         GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
         // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
-        GoRoute(path: '/notifications', builder: (c, s) => const _Placeholder('알림함')), // NAV-HOME-12
+        // 알림함은 데모 정본대로 하단 탭 셸 안에서 렌더(데모 스샷에 탭바 있음) — AppShell(bottomTabs).
+        GoRoute(
+            path: '/notifications',
+            builder: (c, s) =>
+                const AppShell(body: NotificationInbox(), bottomTabs: MainTabs())), // NAV-HOME-12(T18)
         GoRoute(
             path: '/qr/:id',
             builder: (c, s) => QrRoute(appointmentId: s.pathParameters['id']!)), // NAV-HOME-02(화면=T17)

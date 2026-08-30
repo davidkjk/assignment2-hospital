@@ -36,9 +36,10 @@ class EmptyState extends StatelessWidget {
 
   /// EMPTY-ZERO-01 — 목록이 실제로 비어 있음. 같은 문법 + 그 화면의 다음 행동(`nextAction`).
   /// EMPTY-ZERO-02 — 할 일이 없는 화면(알림함 등)은 `nextAction`을 주지 않는다 → 버튼도 [다시 시도]도 없다.
-  factory EmptyState.zero({required String message, Widget? nextAction}) => EmptyState(
+  factory EmptyState.zero({required String message, String? hint, Widget? nextAction}) => EmptyState(
         icon: Icons.inbox_outlined,
         message: message,
+        hint: hint,
         action: nextAction,
       );
 

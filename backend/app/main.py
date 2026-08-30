@@ -18,6 +18,7 @@ from app.routers import (
     patient_device_tokens,
     patient_family,
     patient_merge,
+    patient_notifications,
     patient_password_reset,
     patient_profile,
     patients,
@@ -51,6 +52,7 @@ app.include_router(patient_catalog.router)
 app.include_router(patient_bookings.router)
 app.include_router(patient_appointments.router)
 app.include_router(patient_device_tokens.router)
+app.include_router(patient_notifications.router)
 app.include_router(questionnaire_admin.router)
 app.include_router(dashboard.router)
 app.include_router(stats.router)

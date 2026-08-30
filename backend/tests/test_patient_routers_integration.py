@@ -222,3 +222,48 @@ async def test_device_token_unregister_via_api(client, committed_conn):
     assert r.status_code == 200
     assert await committed_conn.fetchval(
         "select count(*) from device_tokens where patient_id=$1 and token='fcm-y'", me["patient_id"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_notifications_require_auth(client):
+    # 인증 없이는 목록·읽음 어느 것도 열리지 않는다(막다른 길이 아니라 로그인 필요).
+    assert client.get("/my/notifications").status_code == 401
+    assert client.post("/my/notifications/read", json={}).status_code == 401
+
+
+# ⚠️ 아래 셋은 read flow를 한 함수에 넣지 않는다 — 이 파일은 「검증 엔드포인트를 client로 1회만」이
+#    규칙이다(상단 주석·T10 선례). client를 여러 번 부르면 전역 풀이 서로 다른 루프에 묶여 충돌한다.
+#    그래서 준비=committed_conn 직접 INSERT, client 1회 검증, 읽음 뒤 상태도 committed_conn으로 확인한다.
+async def _seed_confirmed(conn, patient_id):
+    await conn.execute(
+        "insert into notification_log (patient_id, notification_type, kind, channel, delivery_status, body) "
+        "values ($1,'confirmed','transactional','push','도달','예약이 확정되었습니다.')", patient_id)
+
+
+@pytest.mark.asyncio
+async def test_notifications_unread_count_via_api(client, committed_conn):
+    me = await seed_patient(committed_conn)
+    await _seed_confirmed(committed_conn, me["patient_id"])
+    r = client.get("/my/notifications/unread-count", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and r.json()["unread"] == 1          # seen_at null → 안 읽음
+
+
+@pytest.mark.asyncio
+async def test_notifications_list_via_api(client, committed_conn):
+    me = await seed_patient(committed_conn)
+    await _seed_confirmed(committed_conn, me["patient_id"])
+    r = client.get("/my/notifications", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200
+    assert r.json()[0]["is_read"] is False and r.json()[0]["body"] == "예약이 확정되었습니다."
+
+
+@pytest.mark.asyncio
+async def test_notifications_read_marks_seen_via_api(client, committed_conn):
+    # 읽음 처리(POST /read) 1회 → 상태는 committed_conn으로 확인(seen_at이 채워졌다).
+    me = await seed_patient(committed_conn)
+    await _seed_confirmed(committed_conn, me["patient_id"])
+    r = client.post("/my/notifications/read", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and r.json()["ok"] is True
+    seen = await committed_conn.fetchval(
+        "select notifications_seen_at from patients where id=$1", me["patient_id"])
+    assert seen is not None                                          # NOTI-READ-04: 진입 순간 갱신
