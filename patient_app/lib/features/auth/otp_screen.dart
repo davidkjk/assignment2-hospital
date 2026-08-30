@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/phone_cooldown.dart';
 import '../../core/tokens.dart';
 import '../../widgets/cooldown_button.dart';
@@ -176,9 +177,12 @@ class _OtpScreenState extends State<OtpScreen> {
                 return null;
               },
             ),
-            // AUTH-OTP-11: 가족 연결만 막다른 길 링크.
+            // AUTH-OTP-11: 가족 연결만 막다른 길 링크. (환자앱 T26: 죽어 있던 목적지를 이었다 —
+            // NAV-FAM-12와 같은 곳. 병원 안내(전화·길찾기)로 보내 문자가 안 오는 사람의 유일한 출구가 된다.)
             if (widget.purpose == OtpPurpose.familyLink)
-              TextButton(onPressed: () {}, child: const Text('휴대폰이 없는 가족인가요?')),
+              TextButton(
+                  onPressed: () => context.push('/settings/hospital'),
+                  child: const Text('휴대폰이 없는 가족인가요?')),
             // AUTH-PWFIND-06 / NAV-AUTH-16: 비밀번호 찾기는 「문자가 오지 않나요?」 → 번호 변경 안내로 push(겹침).
             if (widget.purpose == OtpPurpose.passwordFind)
               TextButton(

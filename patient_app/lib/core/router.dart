@@ -20,6 +20,10 @@ import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
 import '../features/family/family_list_screen.dart';
 import '../features/family/family_edit_screen.dart';
+import '../features/family/family_add_choice_screen.dart';
+import '../features/family/family_new_screen.dart';
+import '../features/family/family_link_form_screen.dart';
+import '../features/family/family_link_otp_page.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/main_tabs.dart';
 import '../widgets/app_shell.dart';
@@ -197,6 +201,11 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
         GoRoute(path: '/booking', builder: (c, s) => const _Placeholder('예약')),
         GoRoute(path: '/my', builder: (c, s) => const _Placeholder('나의 예약')), // T30 소유(HOME-KILL 확인 목적지)
         GoRoute(path: '/family', builder: (c, s) => const FamilyListScreen()),   // 환자앱 T25
+        // 환자앱 T26 — 가족 추가 갈래·㉮ 등록·㉯ OTP 연결. _isSensitive가 이미 /family를 덮는다.
+        GoRoute(path: '/family/add', builder: (c, s) => const FamilyAddChoiceScreen()),
+        GoRoute(path: '/family/add/new', builder: (c, s) => const FamilyNewScreen()),
+        GoRoute(path: '/family/add/link', builder: (c, s) => const FamilyLinkFormScreen()),
+        GoRoute(path: '/family/add/link/otp', builder: (c, s) => const FamilyLinkOtpPage()),
         GoRoute(
             path: '/family/:id/edit',
             builder: (c, s) => FamilyEditScreen(familyPatientId: s.pathParameters['id']!)),
@@ -205,6 +214,8 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             builder: (c, s) => _Placeholder('예약 상세 ${s.pathParameters['id']}')),
         GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
         GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
+        // ⚠️ 자리표시자 — SET-HOSP 화면 본체는 Task 28 소유다. NAV-FAM-12·AUTH-OTP-11의 도착지만 먼저 연다.
+        GoRoute(path: '/settings/hospital', builder: (c, s) => const _Placeholder('병원 안내')),
         // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
         GoRoute(path: '/notifications', builder: (c, s) => const _Placeholder('알림함')), // NAV-HOME-12
         GoRoute(
