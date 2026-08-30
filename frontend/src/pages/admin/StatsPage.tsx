@@ -92,20 +92,25 @@ export function StatsPage({ initialPeriod }: StatsPageProps) {
 
   return (
     <section aria-label="운영 통계" style={styles.page}>
-      <header style={styles.header}>
-        <div />
-        <button type="button" onClick={() => setCsvOpen(true)} disabled={!stats || isEmpty} style={styles.csvBtn}>
+      {/* 기간 조회와 CSV 다운로드를 한 카드로 — 조회 도구가 두 군데로 흩어지지 않게(사용자 지시 2026-08-30). */}
+      <div style={styles.filterCard}>
+        <PeriodPicker
+          from={draft.from}
+          to={draft.to}
+          onChange={setDraft}
+          onApply={onApply}
+          error={rangeError}
+          bare
+        />
+        <button
+          type="button"
+          onClick={() => setCsvOpen(true)}
+          disabled={!stats || isEmpty}
+          style={{ ...styles.csvBtn, marginLeft: 'auto' }}
+        >
           CSV 다운로드
         </button>
-      </header>
-
-      <PeriodPicker
-        from={draft.from}
-        to={draft.to}
-        onChange={setDraft}
-        onApply={onApply}
-        error={rangeError}
-      />
+      </div>
 
       {exportNote && (
         <p role="alert" style={styles.exportNote}>
@@ -216,7 +221,18 @@ function triggerDownload(content: string, filename: string) {
 
 const styles: Record<string, CSSProperties> = {
   page: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 1360, margin: '0 auto' },
-  header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  // 기간 필터 + CSV를 한 카드로 묶는다 — CSV는 marginLeft:auto로 오른쪽 끝에(LogFilterBar.row와 같은 결).
+  filterCard: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    gap: 12,
+    padding: '12px 14px',
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 'var(--radius-card)',
+    boxShadow: 'var(--shadow-card)',
+  },
   h1: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   lede: { margin: '2px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   csvBtn: {
