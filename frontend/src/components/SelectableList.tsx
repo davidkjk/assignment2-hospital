@@ -123,18 +123,18 @@ export function SelectableList<T>(props: SelectableListProps<T>) {
 
 const styles: Record<string, CSSProperties> = {
   srOnly: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' },
-  toolbar: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' },
+  toolbar: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', padding: 'var(--sp-2) 0' },
   pickBtn: {
-    height: 30, padding: '0 14px', borderRadius: 6,
+    height: 30, padding: '0 var(--sp-4)', borderRadius: 6,
     border: '1px solid var(--color-divider)', background: 'var(--color-surface)',
     color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  headerCheck: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  headerCheck: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   list: { listStyle: 'none', margin: 0, padding: 0 },
   row: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '8px 4px', borderBottom: '1px solid var(--color-divider)', fontSize: 'var(--fs-body)',
+    display: 'flex', alignItems: 'center', gap: 'var(--sp-3)',
+    padding: 'var(--sp-2) var(--sp-1)', borderBottom: '1px solid var(--color-divider)', fontSize: 'var(--fs-body)',
   },
   rowBody: { flex: 1 },
-  rowActions: { display: 'flex', gap: 6 },
+  rowActions: { display: 'flex', gap: 'var(--sp-2)' },
 }

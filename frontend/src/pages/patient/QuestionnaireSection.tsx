@@ -67,24 +67,24 @@ export function QuestionnaireSection({ role, state }: QuestionnaireSectionProps)
 
 const styles: Record<string, CSSProperties> = {
   section: {
-    padding: 16, background: 'var(--color-surface)',
+    padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 12px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  denied: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 },
+  heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  denied: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--sp-2)' },
   deniedText: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   askBtn: {
-    height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid var(--color-primary)',
+    height: 30, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 },
-  card: { padding: 12, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 8 },
-  cardHead: { display: 'flex', gap: 10, alignItems: 'baseline', marginBottom: 8 },
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  card: { padding: 'var(--sp-3)', background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 8 },
+  cardHead: { display: 'flex', gap: 'var(--sp-3)', alignItems: 'baseline', marginBottom: 'var(--sp-2)' },
   visit: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
   submitted: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
-  qa: { margin: 0, display: 'flex', flexDirection: 'column', gap: 4 },
-  qaRow: { display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 },
+  qa: { margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
+  qaRow: { display: 'grid', gridTemplateColumns: '120px 1fr', gap: 'var(--sp-3)' },
   dt: { margin: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   dd: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
 }

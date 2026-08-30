@@ -103,7 +103,7 @@ function MergeEventDetailInner() {
   return (
     <main data-merge-event-detail style={styles.page} aria-labelledby="mev-title">
       {/* MHIST-NAV-02 — 상세에서 목록으로 돌아가는 출구(막다른 길 방지). 목록은 최신 상태로 다시 읽는다. */}
-      <TextButton style={{ marginBottom: 10 }} onClick={() => navigate('/admin/merge-history')}>← 이력으로</TextButton>
+      <TextButton style={{ marginBottom: 'var(--sp-3)' }} onClick={() => navigate('/admin/merge-history')}>← 이력으로</TextButton>
       <h1 id="mev-title" style={styles.title}>병합 이벤트</h1>
 
       {!online && (
@@ -196,27 +196,27 @@ function Item({ label, value }: { label: string; value: string }) {
 export type { MergeEventData }
 
 const styles: Record<string, CSSProperties> = {
-  page: { padding: 20, maxWidth: 720, margin: '0 auto' },
-  title: { margin: '0 0 12px', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
+  page: { padding: 'var(--sp-5)', maxWidth: 720, margin: '0 auto' },
+  title: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
   loading: { fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   offline: {
-    margin: '0 0 12px', padding: '10px 14px', borderRadius: 10,
+    margin: '0 0 var(--sp-3)', padding: 'var(--sp-3) var(--sp-4)', borderRadius: 10,
     borderLeft: '4px solid var(--color-danger)', background: 'var(--color-danger-bg)',
     fontSize: 'var(--fs-body)', color: 'var(--color-ink)',
   },
-  summary: { margin: '0 0 14px', display: 'flex', flexDirection: 'column', gap: 8, padding: 14, border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', background: 'var(--color-surface)' },
-  item: { display: 'grid', gridTemplateColumns: '96px 1fr', gap: 10, fontSize: 'var(--fs-body)' },
+  summary: { margin: '0 0 var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', padding: 'var(--sp-4)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', background: 'var(--color-surface)' },
+  item: { display: 'grid', gridTemplateColumns: '96px 1fr', gap: 'var(--sp-3)', fontSize: 'var(--fs-body)' },
   itemLabel: { margin: 0, color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   itemValue: { margin: 0, color: 'var(--color-ink)' },
-  preserve: { margin: '0 0 16px', padding: 14, border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', background: 'var(--color-bg)' },
-  preserveTitle: { margin: '0 0 8px', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  preserveList: { margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
-  lineage: { margin: '10px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  actionRow: { display: 'flex', alignItems: 'center', gap: 12 },
+  preserve: { margin: '0 0 var(--sp-4)', padding: 'var(--sp-4)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', background: 'var(--color-bg)' },
+  preserveTitle: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  preserveList: { margin: 0, paddingLeft: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  lineage: { margin: 'var(--sp-3) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  actionRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' },
   reasonHint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  primaryBtn: { height: 36, padding: '0 18px', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer' },
-  primaryBtnOff: { height: 36, padding: '0 18px', borderRadius: 8, border: 'none', background: 'var(--color-sidebar-ink)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], opacity: 0.5, cursor: 'not-allowed' },
-  doneTitle: { margin: '0 0 8px', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  doneNote: { margin: '0 0 14px', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
-  doneAudit: { margin: '12px 0 16px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  primaryBtn: { height: 36, padding: '0 var(--sp-5)', borderRadius: 8, border: 'none', background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer' },
+  primaryBtnOff: { height: 36, padding: '0 var(--sp-5)', borderRadius: 8, border: 'none', background: 'var(--color-sidebar-ink)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], opacity: 0.5, cursor: 'not-allowed' },
+  doneTitle: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  doneNote: { margin: '0 0 var(--sp-4)', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  doneAudit: { margin: 'var(--sp-3) 0 var(--sp-4)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

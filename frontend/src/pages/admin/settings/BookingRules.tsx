@@ -45,5 +45,5 @@ export function BookingRules({ draft, onChange }: Props) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 24 },
+  section: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' },
 }

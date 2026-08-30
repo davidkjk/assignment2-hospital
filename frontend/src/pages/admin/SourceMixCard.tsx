@@ -62,7 +62,7 @@ export function SourceMixCard({ mix }: { mix: SourceMix }) {
 
 const styles: Record<string, CSSProperties> = {
   card: {
-    padding: 16,
+    padding: 'var(--sp-4)',
     background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
@@ -71,11 +71,11 @@ const styles: Record<string, CSSProperties> = {
   head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   basis: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  list: { listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 10 },
-  row: { display: 'flex', flexDirection: 'column', gap: 4 },
+  list: { listStyle: 'none', margin: 'var(--sp-3) 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  row: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
   rowTop: { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
   num: { fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink-muted)' },
   track: { height: 6, borderRadius: 3, background: 'var(--color-bg)', overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3, background: 'var(--color-primary)' },
-  note: { margin: '10px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  note: { margin: 'var(--sp-3) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

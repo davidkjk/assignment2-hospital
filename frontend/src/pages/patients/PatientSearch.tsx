@@ -134,7 +134,7 @@ function PickList({ rows, onPick }: { rows: SearchPatientRow[]; onPick?: (id: st
 }
 
 const styles: Record<string, CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', gap: 6 },
+  root: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   boxWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
   boxIcon: {
     position: 'absolute', left: 14, color: 'var(--color-ink-muted)', pointerEvents: 'none',
@@ -142,7 +142,7 @@ const styles: Record<string, CSSProperties> = {
   box: {
     width: '100%',
     height: 40,
-    padding: '0 14px 0 40px',
+    padding: '0 var(--sp-4) 0 var(--sp-10)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -150,7 +150,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--fs-section)',
     boxSizing: 'border-box',
   },
-  count: { display: 'flex', alignItems: 'center', gap: 6, padding: '2px 2px' },
+  count: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', padding: 'var(--sp-0-5) var(--sp-0-5)' },
   countNum: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
   spinner: { fontSize: 'var(--fs-caption)', color: 'var(--color-primary)' },
   results: { maxHeight: '60vh', overflow: 'auto' },
@@ -158,18 +158,18 @@ const styles: Record<string, CSSProperties> = {
   pickRow: {
     width: '100%',
     display: 'flex',
-    padding: '8px 6px',
+    padding: 'var(--sp-2) var(--sp-2)',
     border: 'none',
     borderBottom: '1px solid var(--color-divider)',
     background: 'transparent',
     textAlign: 'left',
     cursor: 'pointer',
   },
-  footNote: { padding: '8px 4px', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', textAlign: 'center' },
-  footRetry: { padding: '8px 4px', textAlign: 'center' },
+  footNote: { padding: 'var(--sp-2) var(--sp-1)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', textAlign: 'center' },
+  footRetry: { padding: 'var(--sp-2) var(--sp-1)', textAlign: 'center' },
   retryBtn: {
     height: 28,
-    padding: '0 12px',
+    padding: '0 var(--sp-3)',
     borderRadius: 6,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',

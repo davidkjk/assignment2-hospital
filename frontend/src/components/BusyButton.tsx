@@ -55,7 +55,7 @@ export function BusyButton({ label, busyLabel, onClick, busy, disabled, type = '
 const styles: Record<string, CSSProperties> = {
   base: {
     height: 34,
-    padding: '0 16px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: 'none',
     background: 'var(--color-primary)',

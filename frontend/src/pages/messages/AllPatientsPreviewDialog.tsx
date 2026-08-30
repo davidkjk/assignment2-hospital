@@ -31,7 +31,7 @@ export function AllPatientsPreviewDialog({ kind, body, targetCount, isAll, onCon
       onConfirm={onConfirm}
       onCancel={onCancel}
     >
-      <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '12px 0 0', padding: 12,
+      <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: 'var(--sp-3) 0 0', padding: 'var(--sp-3)',
         border: '1px solid var(--color-divider)', borderRadius: 8, background: 'var(--color-surface-muted, #f6f8fa)',
         fontFamily: 'inherit', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' }}>{preview}</pre>
     </ConfirmDialog>

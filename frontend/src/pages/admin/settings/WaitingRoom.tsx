@@ -43,6 +43,6 @@ export function WaitingRoom({ draft, onChange, showLongWait, setShowLongWait }: 
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 24 },
-  control: { display: 'inline-flex', alignItems: 'center', gap: 12 },
+  section: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' },
+  control: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-3)' },
 }

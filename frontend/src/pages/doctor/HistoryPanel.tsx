@@ -54,14 +54,14 @@ export function HistoryPanel({ loading, error, onRetry, records }: HistoryPanelP
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: { padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
-  heading: { margin: '0 0 8px', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  panel: { padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
+  heading: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 60, borderRadius: 6, background: 'var(--color-bg)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
-  row: { padding: '8px 0', borderTop: '1px solid var(--color-divider)' },
-  rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  row: { padding: 'var(--sp-2) 0', borderTop: '1px solid var(--color-divider)' },
+  rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)' },
   date: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
   status: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-done)' },
-  meta: { margin: '2px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  dx: { margin: '2px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  meta: { margin: 'var(--sp-0-5) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  dx: { margin: 'var(--sp-0-5) 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
 }

@@ -142,7 +142,7 @@ const styles: Record<string, CSSProperties> = {
   table: { width: '100%', borderCollapse: 'collapse', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
   th: {
     textAlign: 'left',
-    padding: '10px 12px',
+    padding: 'var(--sp-3) var(--sp-3)',
     fontSize: 'var(--fs-caption)',
     fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
     color: 'var(--color-ink-muted)',
@@ -151,15 +151,15 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   row: { borderTop: '1px solid var(--color-divider)' },
-  cell: { padding: '8px 12px', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', verticalAlign: 'top', fontVariantNumeric: 'tabular-nums' },
+  cell: { padding: 'var(--sp-2) var(--sp-3)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', verticalAlign: 'top', fontVariantNumeric: 'tabular-nums' },
   muted: { color: 'var(--color-ink-muted)' },
-  kindWrap: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  kindWrap: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap' },
   detail: { color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)' },
   wideSearch: {
-    display: 'inline-flex', alignItems: 'center', gap: '3px', marginLeft: '8px',
+    display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1)', marginLeft: 'var(--sp-2)',
     color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], fontSize: 'var(--fs-caption)',
   },
   wideSearchIcon: { width: '0.85em', height: '0.85em' },
   skeleton: { display: 'block', height: 12, width: '70%', borderRadius: 6, background: 'var(--color-divider)' },
-  loadingCell: { padding: '10px 12px', textAlign: 'center', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-body)' },
+  loadingCell: { padding: 'var(--sp-3) var(--sp-3)', textAlign: 'center', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-body)' },
 }

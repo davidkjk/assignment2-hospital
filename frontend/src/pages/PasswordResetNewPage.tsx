@@ -24,7 +24,7 @@ export function PasswordResetNewPage({ verifyRecovery }: { verifyRecovery?: () =
 
   if (valid === null) return <p role="status">재설정 링크를 확인하는 중입니다</p>
   if (!valid) return (
-    <main style={{ maxWidth: 440, margin: '10vh auto', padding: 32 }}>
+    <main style={{ maxWidth: 440, margin: '10vh auto', padding: 'var(--sp-8)' }}>
       <h1>이 재설정 링크를 사용할 수 없습니다</h1>
       <p>링크가 만료되었거나 이미 사용되었습니다.</p>
       <Link to="/reset-password">비밀번호 재설정 다시 요청</Link>
@@ -45,7 +45,7 @@ export function PasswordResetNewPage({ verifyRecovery }: { verifyRecovery?: () =
     navigate('/login', { replace: true })
   }
   return (
-    <main style={{ maxWidth: 440, margin: '10vh auto', padding: 32 }}>
+    <main style={{ maxWidth: 440, margin: '10vh auto', padding: 'var(--sp-8)' }}>
       <h1>새 비밀번호 만들기</h1>
       <form onSubmit={submit}>
         <label htmlFor="new-password">새 비밀번호</label>

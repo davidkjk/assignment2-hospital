@@ -68,7 +68,7 @@ const styles: Record<string, CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     height: 22,
-    padding: '0 8px',
+    padding: '0 var(--sp-2)',
     borderRadius: 6,
     border: '1px solid transparent',
     fontSize: 'var(--fs-caption)',

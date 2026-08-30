@@ -223,12 +223,12 @@ export function DoctorProfilePanel({ doctor, allStaff, onClose, onSaved, onDirty
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: { display: 'flex', flexDirection: 'column', gap: 16 },
-  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  panel: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' },
+  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-3)' },
   title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   close: {
     height: 30,
-    padding: '0 12px',
+    padding: '0 var(--sp-3)',
     borderRadius: 7,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -237,9 +237,9 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     cursor: 'pointer',
   },
-  field: { display: 'flex', flexDirection: 'column', gap: 6 },
+  field: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  photoRow: { display: 'flex', alignItems: 'center', gap: 14 },
+  photoRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-4)' },
   avatar: {
     width: 60,
     height: 60,
@@ -254,12 +254,12 @@ const styles: Record<string, CSSProperties> = {
     overflow: 'hidden',
   },
   avatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  photoActions: { display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' },
+  photoActions: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', alignItems: 'flex-start' },
   uploadBtn: {
     height: 30,
     display: 'inline-flex',
     alignItems: 'center',
-    padding: '0 12px',
+    padding: '0 var(--sp-3)',
     borderRadius: 7,
     border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)',
@@ -271,7 +271,7 @@ const styles: Record<string, CSSProperties> = {
   hint: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   input: {
     height: 34,
-    padding: '0 10px',
+    padding: '0 var(--sp-3)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -279,7 +279,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--fs-body)',
   },
   textarea: {
-    padding: '8px 10px',
+    padding: 'var(--sp-2) var(--sp-3)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -288,10 +288,10 @@ const styles: Record<string, CSSProperties> = {
     resize: 'vertical',
   },
   help: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  actions: { display: 'flex', gap: 8, marginTop: 2 },
+  actions: { display: 'flex', gap: 'var(--sp-2)', marginTop: 'var(--sp-0-5)' },
   flash: {
     margin: 0,
-    padding: '10px 12px',
+    padding: 'var(--sp-3) var(--sp-3)',
     borderRadius: 8,
     borderLeft: '4px solid var(--color-primary)',
     background: 'var(--color-primary-wash)',
@@ -301,7 +301,7 @@ const styles: Record<string, CSSProperties> = {
   },
   alert: {
     margin: 0,
-    padding: '10px 12px',
+    padding: 'var(--sp-3) var(--sp-3)',
     borderRadius: 8,
     borderLeft: '4px solid var(--color-danger)',
     background: 'var(--color-danger-bg)',

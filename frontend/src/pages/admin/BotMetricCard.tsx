@@ -40,18 +40,18 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const styles: Record<string, CSSProperties> = {
   card: {
-    padding: 16,
+    padding: 'var(--sp-4)',
     background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
     boxShadow: 'var(--shadow-card)',
   },
   title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  note: { margin: '2px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  list: { margin: '12px 0 0', display: 'flex', flexDirection: 'column', gap: 8 },
+  note: { margin: 'var(--sp-0-5) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  list: { margin: 'var(--sp-3) 0 0', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   row: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--fs-body)' },
   dt: { margin: 0, color: 'var(--color-ink-muted)' },
   dd: { margin: 0, fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
   ddMuted: { fontWeight: 'var(--fw-caption)' as CSSProperties['fontWeight'], fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  foot: { margin: '10px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  foot: { margin: 'var(--sp-3) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

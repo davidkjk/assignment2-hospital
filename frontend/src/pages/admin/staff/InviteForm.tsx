@@ -143,10 +143,10 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
 }
 
 const styles: Record<string, CSSProperties> = {
-  form: { display: 'flex', flexDirection: 'column', gap: 12 },
+  form: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
-  roleGroup: { display: 'flex', gap: 6 },
+  label: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  roleGroup: { display: 'flex', gap: 'var(--sp-2)' },
   roleBtn: {
     flex: 1, height: 34, borderRadius: 8, border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)', color: 'var(--color-ink-muted)',
@@ -157,20 +157,20 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-primary-wash)', color: 'var(--color-primary)',
     fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  hint: { margin: '2px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  hint: { margin: 'var(--sp-0-5) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   input: {
     height: 34,
-    padding: '0 10px',
+    padding: '0 var(--sp-3)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
     fontSize: 'var(--fs-body)',
   },
-  actions: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 },
+  actions: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', marginTop: 'var(--sp-0-5)' },
   retry: {
     height: 34,
-    padding: '0 16px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)',

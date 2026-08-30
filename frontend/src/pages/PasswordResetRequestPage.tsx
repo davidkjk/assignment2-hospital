@@ -21,7 +21,7 @@ export function PasswordResetRequestPage() {
     }
   }
   return (
-    <main style={{ maxWidth: 440, margin: '10vh auto', padding: 32 }}>
+    <main style={{ maxWidth: 440, margin: '10vh auto', padding: 'var(--sp-8)' }}>
       <h1>비밀번호 재설정</h1>
       <p>업무용 이메일로 새 비밀번호를 만들 수 있는 링크를 보내드립니다.</p>
       {sent ? <p role="status">{limited ? '요청이 너무 많습니다. 잠시 뒤 다시 시도하거나 병원에 알려 주세요.' : SAME_RESPONSE}</p> : (

@@ -26,15 +26,15 @@ export function IdentityConfirmDialog({ patient, confirmLabel = '등록', onConf
 
 const styles: Record<string, CSSProperties> = {
   list: {
-    margin: '14px 0 0',
-    padding: 12,
+    margin: 'var(--sp-4) 0 0',
+    padding: 'var(--sp-3)',
     background: 'var(--color-bg)',
     border: '1px solid var(--color-divider)',
     borderRadius: 8,
     display: 'grid',
-    gap: 6,
+    gap: 'var(--sp-2)',
   },
-  row: { display: 'flex', gap: 12, fontSize: 'var(--fs-body)' },
+  row: { display: 'flex', gap: 'var(--sp-3)', fontSize: 'var(--fs-body)' },
   dt: { margin: 0, width: 64, color: 'var(--color-ink-muted)' },
   dd: { margin: 0, fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
 }

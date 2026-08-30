@@ -101,4 +101,4 @@ export function Header({ title, staff, onSignOut, onStart = () => undefined }: {
 }
 
 // 로그아웃과 세 문 사이 넓은 구분 여백+실선(SHELL-HDR-05). 테스트가 margin/padding 값을 확인하므로 인라인 유지.
-const doorGroupStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, marginLeft: 16, paddingLeft: 24, borderLeft: '1px solid var(--color-divider)' }
+const doorGroupStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', marginLeft: 'var(--sp-4)', paddingLeft: 'var(--sp-6)', borderLeft: '1px solid var(--color-divider)' }

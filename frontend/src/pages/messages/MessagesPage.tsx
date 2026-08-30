@@ -114,7 +114,7 @@ export function MessagesPage() {
         )}
 
         {query.data && query.data.auto_count > 0 && (
-          <TextButton style={{ marginTop: 12 }} onClick={() => setShowAuto((v) => !v)}>
+          <TextButton style={{ marginTop: 'var(--sp-3)' }} onClick={() => setShowAuto((v) => !v)}>
             자동 발송 {query.data.auto_count}건 보기 ›
           </TextButton>
         )}
@@ -193,12 +193,12 @@ function ResultCell({
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { padding: 20, display: 'flex', flexDirection: 'column', gap: 20 },
-  sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  page: { padding: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-5)' },
+  sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-3)', marginBottom: 'var(--sp-3)' },
   title: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   newBtn: {
     height: 36,
-    padding: '0 16px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: 'none',
     background: 'var(--color-primary)',
@@ -211,21 +211,21 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
     background: 'var(--color-surface)',
-    padding: 16,
+    padding: 'var(--sp-4)',
   },
-  sectionTitle: { margin: '0 0 12px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  schedList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
+  sectionTitle: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  schedList: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   schedRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    padding: '8px 12px',
+    gap: 'var(--sp-3)',
+    padding: 'var(--sp-2) var(--sp-3)',
     border: '1px solid var(--color-divider)',
     borderRadius: 8,
   },
   schedWhen: { fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   badge: {
-    padding: '2px 8px',
+    padding: 'var(--sp-0-5) var(--sp-2)',
     borderRadius: 6,
     background: 'var(--color-surface-muted, #eef2f6)',
     fontSize: 'var(--fs-caption)',
@@ -235,7 +235,7 @@ const styles: Record<string, CSSProperties> = {
   schedCount: { color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)' },
   cancelBtn: {
     height: 30,
-    padding: '0 12px',
+    padding: '0 var(--sp-3)',
     borderRadius: 6,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -247,18 +247,18 @@ const styles: Record<string, CSSProperties> = {
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: {
     textAlign: 'left',
-    padding: '8px 10px',
+    padding: 'var(--sp-2) var(--sp-3)',
     borderBottom: '2px solid var(--color-divider)',
     color: 'var(--color-ink-muted)',
     fontSize: 'var(--fs-caption)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     whiteSpace: 'nowrap',
   },
-  td: { padding: '8px 10px', borderBottom: '1px solid var(--color-divider)', color: 'var(--color-ink)' },
-  tdMuted: { padding: '8px 10px', borderBottom: '1px solid var(--color-divider)', color: 'var(--color-ink-muted)' },
+  td: { padding: 'var(--sp-2) var(--sp-3)', borderBottom: '1px solid var(--color-divider)', color: 'var(--color-ink)' },
+  tdMuted: { padding: 'var(--sp-2) var(--sp-3)', borderBottom: '1px solid var(--color-divider)', color: 'var(--color-ink-muted)' },
   resultMuted: { color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)' },
   resultOk: { color: 'var(--color-ink)', fontSize: 'var(--fs-caption)' },
-  resultRow: { display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-caption)' },
+  resultRow: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)' },
   resultFail: { color: 'var(--color-danger, #b42318)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
-  autoNote: { marginTop: 8, color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)' },
+  autoNote: { marginTop: 'var(--sp-2)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)' },
 }

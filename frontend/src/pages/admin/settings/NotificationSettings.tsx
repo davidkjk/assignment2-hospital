@@ -80,14 +80,14 @@ export function NotificationSettings({ draft, smsEnabled, onBodyChange, onSmsCha
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 14 },
+  section: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' },
   intro: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
-  strip: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)' },
+  strip: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', padding: 'var(--sp-3) var(--sp-4)', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)' },
   table: { borderCollapse: 'collapse', width: '100%' },
-  th: { textAlign: 'left', padding: '8px', borderBottom: '2px solid var(--color-divider)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  td: { padding: '10px 8px', borderBottom: '1px solid var(--color-divider)', verticalAlign: 'top', fontSize: 'var(--fs-body)' },
-  tokens: { display: 'flex', gap: 6, marginBottom: 6 },
-  tokenBtn: { fontSize: 'var(--fs-caption)', padding: '3px 10px', borderRadius: 999, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', cursor: 'pointer', color: 'var(--color-ink)' },
-  revert: { marginTop: 6, fontSize: 'var(--fs-caption)', border: '1px solid var(--color-divider)', background: 'var(--color-surface)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: 'var(--color-ink-muted)' },
+  th: { textAlign: 'left', padding: 'var(--sp-2)', borderBottom: '2px solid var(--color-divider)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  td: { padding: 'var(--sp-3) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', verticalAlign: 'top', fontSize: 'var(--fs-body)' },
+  tokens: { display: 'flex', gap: 'var(--sp-2)', marginBottom: 'var(--sp-2)' },
+  tokenBtn: { fontSize: 'var(--fs-caption)', padding: 'var(--sp-1) var(--sp-3)', borderRadius: 999, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', cursor: 'pointer', color: 'var(--color-ink)' },
+  revert: { marginTop: 'var(--sp-2)', fontSize: 'var(--fs-caption)', border: '1px solid var(--color-divider)', background: 'var(--color-surface)', borderRadius: 6, padding: 'var(--sp-1) var(--sp-3)', cursor: 'pointer', color: 'var(--color-ink-muted)' },
   hint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

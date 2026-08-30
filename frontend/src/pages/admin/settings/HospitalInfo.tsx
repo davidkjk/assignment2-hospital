@@ -58,9 +58,9 @@ export function HospitalInfo({ draft, onChange }: Props) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 24 },
-  banner: { margin: 0, padding: '10px 14px', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  closures: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, textAlign: 'right' },
+  section: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-6)' },
+  banner: { margin: 0, padding: 'var(--sp-3) var(--sp-4)', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  closures: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 'var(--sp-2)', textAlign: 'right' },
   list: { margin: 0, paddingLeft: 0, listStyle: 'none', fontSize: 'var(--fs-body)' },
   hint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

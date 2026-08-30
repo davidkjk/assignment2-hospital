@@ -81,7 +81,7 @@ export function LoginPage({ onAuthenticate }: { onAuthenticate?: Authenticate })
               onChange={(event) => setPassword(event.target.value)}
               onBlur={() => setPasswordTouched(true)}
               aria-invalid={passwordInvalid}
-              style={{ ...styles.input, margin: 0, paddingRight: 48 }}
+              style={{ ...styles.input, margin: 0, paddingRight: 'var(--sp-12)' }}
             />
             <button type="button" aria-label={showPassword ? '비밀번호 가리기' : '비밀번호 보기'} onClick={() => setShowPassword((value) => !value)} style={styles.eyeButton}>
               <svg width="20" height="20"><use href={`/src/shell/icons.svg#${showPassword ? 'eye-off' : 'eye'}`} /></svg>
@@ -112,20 +112,20 @@ function readRememberedPath(): { path: string; staffId: string } | null {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--color-bg)', color: 'var(--color-ink)', padding: 24 },
+  page: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--color-bg)', color: 'var(--color-ink)', padding: 'var(--sp-6)' },
   stack: { width: 'min(100%, 390px)' },
-  brandBlock: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 28 },
-  card: { width: '100%', boxSizing: 'border-box', borderRadius: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', boxShadow: 'var(--shadow-card)', padding: 24 },
+  brandBlock: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--sp-2)', marginBottom: 'var(--sp-7)' },
+  card: { width: '100%', boxSizing: 'border-box', borderRadius: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', boxShadow: 'var(--shadow-card)', padding: 'var(--sp-6)' },
   brandMark: { width: 56, height: 56, borderRadius: 16, display: 'grid', placeItems: 'center', background: 'var(--color-primary)', color: 'white' },
   brand: { margin: 0, textAlign: 'center', fontFamily: 'var(--font-logo)', fontSize: 24, color: 'var(--color-primary)' },
   kicker: { margin: 0, textAlign: 'center', color: 'var(--color-ink-muted)', fontSize: 13 },
-  heading: { fontSize: 18, fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], margin: '0 0 20px' },
-  label: { display: 'block', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], fontSize: 13, margin: '14px 0 7px' },
-  input: { boxSizing: 'border-box', width: '100%', minHeight: 42, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-divider)', fontSize: 15, background: 'var(--color-surface)' },
+  heading: { fontSize: 18, fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], margin: '0 0 var(--sp-5)' },
+  label: { display: 'block', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], fontSize: 13, margin: 'var(--sp-4) 0 var(--sp-2)' },
+  input: { boxSizing: 'border-box', width: '100%', minHeight: 42, padding: 'var(--sp-3) var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-divider)', fontSize: 15, background: 'var(--color-surface)' },
   passwordRow: { position: 'relative' },
   eyeButton: { position: 'absolute', right: 6, top: 5, width: 34, height: 34, display: 'grid', placeItems: 'center', background: 'transparent', border: 0, color: 'var(--color-ink-muted)', cursor: 'pointer' },
-  fieldError: { margin: '5px 0 0', color: 'var(--color-danger)', fontSize: 12 },
-  authError: { margin: '16px 0 6px', color: 'var(--color-danger)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], fontSize: 13 },
-  primaryButton: { width: '100%', minHeight: 44, marginTop: 18, border: 0, borderRadius: 8, background: 'var(--color-primary)', color: 'white', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer' },
-  resetLink: { display: 'block', marginTop: 14, textAlign: 'center', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], fontSize: 13 },
+  fieldError: { margin: 'var(--sp-1) 0 0', color: 'var(--color-danger)', fontSize: 12 },
+  authError: { margin: 'var(--sp-4) 0 var(--sp-2)', color: 'var(--color-danger)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], fontSize: 13 },
+  primaryButton: { width: '100%', minHeight: 44, marginTop: 'var(--sp-5)', border: 0, borderRadius: 8, background: 'var(--color-primary)', color: 'white', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer' },
+  resetLink: { display: 'block', marginTop: 'var(--sp-4)', textAlign: 'center', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], fontSize: 13 },
 }

@@ -68,22 +68,22 @@ export function ContextPanel({ patient, meta, reason, loading }: ContextPanelPro
 
 const styles: Record<string, CSSProperties> = {
   panel: {
-    display: 'flex', flexDirection: 'column', gap: 12, padding: 14, minHeight: 0, overflowY: 'auto',
+    display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', padding: 'var(--sp-4)', minHeight: 0, overflowY: 'auto',
     background: 'var(--color-bg)', borderRight: '1px solid var(--color-divider)',
   },
   skeleton: { height: 72, borderRadius: 8, background: 'var(--color-surface)' },
-  hintBox: { display: 'flex', flexDirection: 'column', gap: 4, padding: '12px 2px' },
+  hintBox: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', padding: 'var(--sp-3) var(--sp-0-5)' },
   hint: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   hintSub: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-subtle, var(--color-ink-muted))' },
   head: {
-    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
-    padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
+    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)',
+    padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
   name: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   sub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   meta: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  block: { padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
-  blockHead: { margin: '0 0 6px', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  block: { padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
+  blockHead: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   reason: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
   empty: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 }

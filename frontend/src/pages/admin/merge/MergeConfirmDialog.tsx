@@ -75,7 +75,7 @@ export function MergeConfirmDialog({ primary, duplicate, onCancel, onConfirmed, 
           </div>
         ) : (
           <>
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginTop: 'var(--sp-4)' }}>
               <Checkbox
                 checked={acked}
                 onChange={setAcked}
@@ -127,34 +127,34 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
     boxShadow: '0 8px 32px rgba(16,36,58,.20)',
-    padding: 20,
+    padding: 'var(--sp-5)',
   },
   title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  items: { margin: '14px 0 0', display: 'flex', flexDirection: 'column', gap: 8 },
-  item: { display: 'grid', gridTemplateColumns: '96px 1fr', gap: 10, fontSize: 'var(--fs-body)' },
+  items: { margin: 'var(--sp-4) 0 0', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  item: { display: 'grid', gridTemplateColumns: '96px 1fr', gap: 'var(--sp-3)', fontSize: 'var(--fs-body)' },
   itemLabel: { margin: 0, color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   itemValue: { margin: 0, color: 'var(--color-ink)', lineHeight: 1.5 },
-  warnStrong: { margin: '16px 0 0', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-danger)' },
-  warn: { margin: '4px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  audit: { margin: '4px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
+  warnStrong: { margin: 'var(--sp-4) 0 0', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-danger)' },
+  warn: { margin: 'var(--sp-1) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  audit: { margin: 'var(--sp-1) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  actions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)', marginTop: 'var(--sp-5)' },
   cancel: {
-    height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-divider)',
+    height: 34, padding: '0 var(--sp-4)', borderRadius: 8, border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   confirm: {
-    height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
+    height: 34, padding: '0 var(--sp-4)', borderRadius: 8, border: 'none',
     color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   danger: { background: 'var(--color-danger)' },
   confirmOff: { background: 'var(--color-gray-past)', cursor: 'not-allowed' },
-  raceBox: { marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 },
+  raceBox: { marginTop: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   raceMsg: {
-    margin: 0, borderLeft: '4px solid var(--color-warn)', paddingLeft: 12,
+    margin: 0, borderLeft: '4px solid var(--color-warn)', paddingLeft: 'var(--sp-3)',
     color: 'var(--color-warn)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], lineHeight: 1.4,
   },
   recheck: {
-    alignSelf: 'flex-end', height: 34, padding: '0 16px', borderRadius: 8,
+    alignSelf: 'flex-end', height: 34, padding: '0 var(--sp-4)', borderRadius: 8,
     border: '1px solid var(--color-primary)', background: 'var(--color-surface)',
     color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },

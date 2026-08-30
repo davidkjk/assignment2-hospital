@@ -64,17 +64,17 @@ export function SupportSection({ state }: SupportSectionProps) {
 
 const styles: Record<string, CSSProperties> = {
   section: {
-    padding: 16, background: 'var(--color-surface)',
+    padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 12px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 },
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   card: {
-    display: 'flex', flexDirection: 'column', gap: 4, padding: 12,
+    display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', padding: 'var(--sp-3)',
     background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 8,
   },
-  line: { margin: 0, display: 'flex', gap: 8, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  line: { margin: 0, display: 'flex', gap: 'var(--sp-2)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
   tag: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', minWidth: 120 },
   status: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)' },
 }

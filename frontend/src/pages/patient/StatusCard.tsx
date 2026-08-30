@@ -56,17 +56,17 @@ function Line({ item }: { item: StatusItem }) {
 
 const styles: Record<string, CSSProperties> = {
   card: {
-    padding: 16,
+    padding: 'var(--sp-4)',
     background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
   },
   skeleton: { height: 24, borderRadius: 6, background: 'var(--color-bg)' },
   eyebrow: {
-    margin: '0 0 6px', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], letterSpacing: '.04em',
+    margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], letterSpacing: '.04em',
     color: 'var(--color-ink-muted)', textTransform: 'uppercase',
   },
-  line: { display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' },
+  line: { display: 'flex', alignItems: 'baseline', gap: 'var(--sp-3)', flexWrap: 'wrap' },
   when: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
   where: { fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   status: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)' },

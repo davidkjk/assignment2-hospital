@@ -60,11 +60,11 @@ export function RecipientField({ value, onChange }: Props) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 6 },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   label: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   pickField: {
     height: 36,
-    padding: '0 10px',
+    padding: '0 var(--sp-3)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -73,14 +73,14 @@ const styles: Record<string, CSSProperties> = {
     textAlign: 'left',
     cursor: 'pointer',
   },
-  summary: { display: 'flex', alignItems: 'center', gap: 10 },
+  summary: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' },
   allTag: {
-    padding: '4px 10px',
+    padding: 'var(--sp-1) var(--sp-3)',
     borderRadius: 6,
     background: 'var(--color-surface-muted, #eef2f6)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     color: 'var(--color-ink)',
   },
-  tool: { marginTop: 8, border: '1px solid var(--color-divider)', borderRadius: 8, padding: 8 },
-  toolHead: { margin: '0 0 8px', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  tool: { marginTop: 'var(--sp-2)', border: '1px solid var(--color-divider)', borderRadius: 8, padding: 'var(--sp-2)' },
+  toolHead: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
 }

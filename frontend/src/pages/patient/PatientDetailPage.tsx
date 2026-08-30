@@ -212,20 +212,20 @@ export function PatientDetailPage() {
 const styles: Record<string, CSSProperties> = {
   // [DEMO-REVIEW F-8/line103] 2열 섹션 그리드 — 넓은 화면에서도 최대 2열(데모 max-w-5xl · grid-cols-2).
   //   실은 auto-fit minmax(320)라 넓은 화면에서 3열로 벌어졌다 → 폭을 캡하고 최소칸을 키워 2열로.
-  page: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 1040 },
+  page: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', maxWidth: 1040 },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 440px), 1fr))',
-    gap: 12,
+    gap: 'var(--sp-3)',
     alignItems: 'start',
   },
   blocked: {
-    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12, padding: 24,
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--sp-3)', padding: 'var(--sp-6)',
     background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
   blockedText: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   escapeBtn: {
-    height: 34, padding: '0 16px', borderRadius: 8, border: '1px solid var(--color-primary)',
+    height: 34, padding: '0 var(--sp-4)', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   panelStub: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },

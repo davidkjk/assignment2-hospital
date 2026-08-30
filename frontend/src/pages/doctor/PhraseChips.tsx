@@ -74,29 +74,29 @@ export function PhraseChips({ phrases, loading, error, onRetry, activeField, onI
 }
 
 const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 6 },
-  chips: { display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  chips: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)', alignItems: 'center' },
   chipWrap: { position: 'relative', display: 'inline-flex' },
   lockNote: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', width: '100%' },
   chip: {
-    height: 26, padding: '0 10px', borderRadius: 999, border: '1px solid var(--color-primary)',
+    height: 26, padding: '0 var(--sp-3)', borderRadius: 999, border: '1px solid var(--color-primary)',
     background: 'var(--color-primary-wash)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   chipOff: { borderColor: 'var(--color-divider)', background: 'var(--color-bg)', color: 'var(--color-ink-muted)', cursor: 'not-allowed' },
   tooltip: {
-    position: 'absolute', bottom: '100%', left: 0, zIndex: 20, marginBottom: 4, maxWidth: 280,
-    padding: '6px 8px', borderRadius: 6, background: 'var(--color-ink)', color: '#fff', fontSize: 'var(--fs-caption)', lineHeight: 1.4,
+    position: 'absolute', bottom: '100%', left: 0, zIndex: 20, marginBottom: 'var(--sp-1)', maxWidth: 280,
+    padding: 'var(--sp-2) var(--sp-2)', borderRadius: 6, background: 'var(--color-ink)', color: '#fff', fontSize: 'var(--fs-caption)', lineHeight: 1.4,
   },
-  stateRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  stateRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
   stateText: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   retry: {
-    height: 26, padding: '0 10px', borderRadius: 6, border: '1px solid var(--color-primary)',
+    height: 26, padding: '0 var(--sp-3)', borderRadius: 6, border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   skeleton: { height: 26, borderRadius: 999, background: 'var(--color-bg)' },
   manageRow: { display: 'flex' },
   manageBtn: {
-    height: 24, padding: '0 8px', borderRadius: 6, border: 'none', background: 'transparent',
+    height: 24, padding: '0 var(--sp-2)', borderRadius: 6, border: 'none', background: 'transparent',
     color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
 }

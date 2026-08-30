@@ -31,15 +31,15 @@ const styles: Record<string, CSSProperties> = {
   notice: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 'var(--sp-3)',
     margin: 0,
-    padding: '12px 14px',
+    padding: 'var(--sp-3) var(--sp-4)',
     borderRadius: 10,
     border: '1px solid var(--color-primary)',
     background: 'var(--color-primary-wash)',
   },
   icon: { color: 'var(--color-primary)', flexShrink: 0, marginTop: 1, display: 'inline-flex' },
-  text: { display: 'flex', flexDirection: 'column', gap: 2 },
+  text: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-0-5)' },
   title: {
     margin: 0,
     color: 'var(--color-ink)',

@@ -31,6 +31,6 @@ export function MessagePreview({ body }: { body: string }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  card: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 10, background: 'var(--color-surface)' },
+  card: { border: '1px solid var(--color-divider)', borderRadius: 8, padding: 'var(--sp-3)', background: 'var(--color-surface)' },
   text: { margin: 0, fontSize: 'var(--fs-caption)' },
 }

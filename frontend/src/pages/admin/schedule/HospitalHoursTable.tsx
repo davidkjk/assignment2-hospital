@@ -227,15 +227,15 @@ function fmt(raw: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  title: { margin: '0 0 14px', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  title: { margin: '0 0 var(--sp-4)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   banner: {
-    padding: '10px 14px',
+    padding: 'var(--sp-3) var(--sp-4)',
     borderRadius: 8,
     background: 'var(--color-danger-bg)',
     color: 'var(--color-danger)',
     fontSize: 'var(--fs-body)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-    marginBottom: 10,
+    marginBottom: 'var(--sp-3)',
   },
   tableCard: {
     border: '1px solid var(--color-divider)',
@@ -245,15 +245,15 @@ const styles: Record<string, CSSProperties> = {
     overflow: 'hidden',
   },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
-  th: { padding: '8px', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', borderBottom: '1px solid var(--color-divider)' },
-  td: { padding: '8px', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
-  tdLabel: { padding: '8px', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
-  closedCell: { padding: '8px', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', color: 'var(--color-ink-muted)' },
-  lunchToggle: { display: 'inline-flex', alignItems: 'center', gap: 8 },
-  tilde: { margin: '0 2px', color: 'var(--color-ink-muted)' },
+  th: { padding: 'var(--sp-2)', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', borderBottom: '1px solid var(--color-divider)' },
+  td: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
+  tdLabel: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
+  closedCell: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', color: 'var(--color-ink-muted)' },
+  lunchToggle: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)' },
+  tilde: { margin: '0 var(--sp-0-5)', color: 'var(--color-ink-muted)' },
   dash: { color: 'var(--color-ink-muted)' },
-  infoNote: { margin: '12px 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  mismatch: { marginTop: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
+  infoNote: { margin: 'var(--sp-3) 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--sp-1)' },
+  mismatch: { marginTop: 'var(--sp-3)', padding: 'var(--sp-3) var(--sp-4)', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
   mismatchNames: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

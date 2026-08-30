@@ -24,7 +24,7 @@ export function ComparePanel({ left, right, primaryId, onPickPrimary, onReview, 
 
   return (
     <section data-compare aria-label="후보 비교" style={styles.wrap}>
-      <TextButton onClick={onBack} style={{ alignSelf: 'flex-start', padding: '4px 0' }}>‹ 후보 목록으로</TextButton>
+      <TextButton onClick={onBack} style={{ alignSelf: 'flex-start', padding: 'var(--sp-1) 0' }}>‹ 후보 목록으로</TextButton>
 
       {/* MERGE-COMPARE-03 — 많은 쪽을 권하되 자동으로 고르지 않는다. */}
       <p style={styles.recommend}>
@@ -124,10 +124,10 @@ function formatVisit(iso: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 12 },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   recommend: {
     margin: 0,
-    padding: '10px 14px',
+    padding: 'var(--sp-3) var(--sp-4)',
     borderRadius: 10,
     borderLeft: '4px solid var(--color-warn)',
     background: 'var(--color-bg)',
@@ -135,9 +135,9 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-ink)',
     lineHeight: 1.5,
   },
-  cards: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  cards: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-3)' },
   card: {
-    padding: 14,
+    padding: 'var(--sp-4)',
     borderRadius: 'var(--radius-card)',
     borderWidth: 1,
     borderStyle: 'solid',
@@ -145,22 +145,22 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface)',
   },
   cardPrimary: { borderColor: 'var(--color-primary)', boxShadow: '0 0 0 1px var(--color-primary)' },
-  cardHead: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 24 },
+  cardHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexWrap: 'wrap', minHeight: 24 },
   name: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   badgePrimary: {
-    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], padding: '2px 8px', borderRadius: 6,
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], padding: 'var(--sp-0-5) var(--sp-2)', borderRadius: 6,
     background: 'var(--color-primary)', color: '#fff',
   },
   badgeMerged: {
-    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], padding: '2px 8px', borderRadius: 6,
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], padding: 'var(--sp-0-5) var(--sp-2)', borderRadius: 6,
     background: 'var(--color-done-bg)', color: 'var(--color-done)',
   },
-  items: { margin: '12px 0 0', display: 'flex', flexDirection: 'column', gap: 6 },
-  item: { display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 'var(--fs-body)' },
+  items: { margin: 'var(--sp-3) 0 0', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  item: { display: 'flex', justifyContent: 'space-between', gap: 'var(--sp-3)', fontSize: 'var(--fs-body)' },
   itemLabel: { margin: 0, color: 'var(--color-ink-muted)' },
   itemValue: { margin: 0, color: 'var(--color-ink)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], fontVariantNumeric: 'tabular-nums' },
   pick: {
-    marginTop: 12, width: '100%', height: 32, borderRadius: 8,
+    marginTop: 'var(--sp-3)', width: '100%', height: 32, borderRadius: 8,
     border: '1px solid var(--color-divider)', background: 'var(--color-bg)',
     color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
@@ -168,22 +168,22 @@ const styles: Record<string, CSSProperties> = {
   detailNote: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   link: { color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   lock: {
-    display: 'flex', flexDirection: 'column', gap: 8,
-    margin: 0, padding: '10px 14px', borderRadius: 10,
+    display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
+    margin: 0, padding: 'var(--sp-3) var(--sp-4)', borderRadius: 10,
     borderLeft: '4px solid var(--color-danger)', background: 'var(--color-danger-bg)',
     color: 'var(--color-danger)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], lineHeight: 1.5,
   },
-  lockLinks: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  lockLinks: { display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' },
   lockLink: {
-    display: 'inline-flex', alignItems: 'center', gap: 4,
-    padding: '4px 10px', borderRadius: 8,
+    display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1)',
+    padding: 'var(--sp-1) var(--sp-3)', borderRadius: 8,
     border: '1px solid var(--color-danger)', background: 'var(--color-surface)',
     color: 'var(--color-danger)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     textDecoration: 'none',
   },
   actions: { display: 'flex', justifyContent: 'flex-end' },
   review: {
-    height: 36, padding: '0 18px', borderRadius: 8,
+    height: 36, padding: '0 var(--sp-5)', borderRadius: 8,
     borderWidth: 1, borderStyle: 'solid', borderColor: 'var(--color-primary)', background: 'var(--color-surface)',
     color: 'var(--color-primary)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },

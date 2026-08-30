@@ -265,11 +265,11 @@ function todayIso(): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { padding: 20, maxWidth: 1180, margin: '0 auto' },
-  pageHead: { marginBottom: 16 },
+  page: { padding: 'var(--sp-5)', maxWidth: 1180, margin: '0 auto' },
+  pageHead: { marginBottom: 'var(--sp-4)' },
   pageDesc: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
-  title: { margin: '0 0 16px', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
-  body: { display: 'flex', gap: 24, alignItems: 'flex-start' },
+  title: { margin: '0 0 var(--sp-4)', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
+  body: { display: 'flex', gap: 'var(--sp-6)', alignItems: 'flex-start' },
   content: { flex: 1, minWidth: 0 },
-  link: { border: 'none', background: 'var(--color-primary)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer' },
+  link: { border: 'none', background: 'var(--color-primary)', color: '#fff', padding: 'var(--sp-2) var(--sp-4)', borderRadius: 8, fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer' },
 }

@@ -148,12 +148,12 @@ export function SendPanel({ initialRecipients }: Props) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: { display: 'flex', flexDirection: 'column', gap: 14, padding: 4 },
+  panel: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)', padding: 'var(--sp-1)' },
   heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  field: { display: 'flex', flexDirection: 'column', gap: 6 },
+  field: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   label: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   textarea: {
-    padding: 10,
+    padding: 'var(--sp-3)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -163,17 +163,17 @@ const styles: Record<string, CSSProperties> = {
   },
   input: {
     height: 36,
-    padding: '0 10px',
+    padding: '0 var(--sp-3)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
     fontSize: 'var(--fs-body)',
   },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 },
+  actions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)', marginTop: 'var(--sp-2)' },
   laterBtn: {
     height: 36,
-    padding: '0 14px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -184,7 +184,7 @@ const styles: Record<string, CSSProperties> = {
   },
   sendBtn: {
     height: 36,
-    padding: '0 18px',
+    padding: '0 var(--sp-5)',
     borderRadius: 8,
     border: 'none',
     background: 'var(--color-primary)',

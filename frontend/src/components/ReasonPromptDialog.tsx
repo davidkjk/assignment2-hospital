@@ -47,26 +47,26 @@ export function ReasonPromptDialog({ title, hint, onSubmit, onCancel }: ReasonPr
 
 const styles: Record<string, CSSProperties> = {
   title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  hint: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  hint: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   textarea: {
-    marginTop: 12,
+    marginTop: 'var(--sp-3)',
     width: '100%',
     boxSizing: 'border-box',
-    padding: '8px 10px',
+    padding: 'var(--sp-2) var(--sp-3)',
     border: '1px solid var(--color-divider)',
     borderRadius: 8,
     fontSize: 'var(--fs-body)',
     resize: 'vertical',
     fontFamily: 'inherit',
   },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
+  actions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)', marginTop: 'var(--sp-4)' },
   cancel: {
-    height: 34, padding: '0 16px', borderRadius: 8,
+    height: 34, padding: '0 var(--sp-4)', borderRadius: 8,
     border: '1px solid var(--color-divider)', background: 'var(--color-surface)',
     color: 'var(--color-ink)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   confirm: {
-    height: 34, padding: '0 16px', borderRadius: 8, border: 'none',
+    height: 34, padding: '0 var(--sp-4)', borderRadius: 8, border: 'none',
     background: 'var(--color-primary)', color: '#fff',
     fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },

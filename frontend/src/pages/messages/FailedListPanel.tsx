@@ -88,7 +88,7 @@ function FailedGroup({ tabKey, items }: { tabKey: TabKey; items: FailedItem[] })
       </ul>
       {known.length > 0 && (
         <>
-          <TextButton tone="quiet" style={{ marginTop: 8, textAlign: 'left' }} onClick={() => setShowKnown((v) => !v)}>
+          <TextButton tone="quiet" style={{ marginTop: 'var(--sp-2)', textAlign: 'left' }} onClick={() => setShowKnown((v) => !v)}>
             그중 {known.length}명은 지난 발송에서 이미 확인된 번호 ›
           </TextButton>
           {showKnown && (
@@ -121,11 +121,11 @@ function FailedRow({ item, isFix }: { item: FailedItem; isFix: boolean }) {
 }
 
 const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 12 },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   loading: { color: 'var(--color-ink-muted)' },
-  tabs: { display: 'flex', gap: 4, borderBottom: '1px solid var(--color-divider)' },
+  tabs: { display: 'flex', gap: 'var(--sp-1)', borderBottom: '1px solid var(--color-divider)' },
   tab: {
-    padding: '8px 12px',
+    padding: 'var(--sp-2) var(--sp-3)',
     background: 'none',
     border: 'none',
     borderBottom: '2px solid transparent',
@@ -135,12 +135,12 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   tabOn: { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 },
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   row: {
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
-    padding: '8px 10px',
+    gap: 'var(--sp-3)',
+    padding: 'var(--sp-2) var(--sp-3)',
     border: '1px solid var(--color-divider)',
     borderRadius: 8,
   },
@@ -148,7 +148,7 @@ const styles: Record<string, CSSProperties> = {
   phone: { fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink)' },
   reason: { flex: 1, color: 'var(--color-danger, #b42318)', fontSize: 'var(--fs-caption)' },
   openBtn: {
-    padding: '4px 10px',
+    padding: 'var(--sp-1) var(--sp-3)',
     borderRadius: 6,
     border: '1px solid var(--color-divider)',
     color: 'var(--color-primary)',

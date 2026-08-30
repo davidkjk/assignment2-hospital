@@ -71,17 +71,17 @@ export function PalettePicker({ value, onChange, usedIndices = [], conflictIndic
 
 const styles: Record<string, CSSProperties> = {
   group: { border: 'none', margin: 0, padding: 0 },
-  swatches: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  swatches: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)' },
   swatch: {
     position: 'relative',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 'var(--sp-1)',
     // [L27] 모든 칩을 같은 폭으로 — 「사용중」이 붙어도 안 붙어도 width 고정(라벨은 칩 안에서만 채운다).
     width: 62,
     height: 30,
-    padding: '0 8px',
+    padding: '0 var(--sp-2)',
     borderRadius: 7,
     fontSize: 'var(--fs-caption)',
     fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
@@ -92,6 +92,6 @@ const styles: Record<string, CSSProperties> = {
   // [CAL-COLOR-12] 「띠 색」 샘플 — 작은 점이 아니라 또렷한 막대라 무슨 색인지 바로 보인다(L27②).
   band: { width: 20, height: 10, borderRadius: 3, background: 'currentColor' },
   usedTag: { fontSize: 10, fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'] },
-  note: { margin: '10px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  warning: { margin: '6px 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  note: { margin: 'var(--sp-3) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  warning: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

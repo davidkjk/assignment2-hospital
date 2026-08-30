@@ -164,13 +164,13 @@ export const TODAY_LABEL: Record<Exclude<SearchTodayStatus, null>, string> = {
 }
 
 const styles: Record<string, CSSProperties> = {
-  identity: { display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', minWidth: 0 },
+  identity: { display: 'flex', alignItems: 'baseline', gap: 'var(--sp-3)', flexWrap: 'wrap', minWidth: 0 },
   name: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   meta: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
-  badges: { display: 'inline-flex', gap: 4 },
+  badges: { display: 'inline-flex', gap: 'var(--sp-1)' },
   badge: {
     display: 'inline-block',
-    padding: '1px 6px',
+    padding: '1px var(--sp-2)',
     borderRadius: 4,
     background: 'var(--color-primary-wash)',
     color: 'var(--color-primary)',
@@ -178,7 +178,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   today: {
-    padding: '1px 6px',
+    padding: '1px var(--sp-2)',
     borderRadius: 4,
     background: 'var(--color-bg)',
     color: 'var(--color-warn)',
@@ -188,17 +188,17 @@ const styles: Record<string, CSSProperties> = {
   },
   todayWhere: { color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   todayDone: {
-    padding: '1px 6px',
+    padding: '1px var(--sp-2)',
     borderRadius: 4,
     background: 'var(--color-done-bg)',
     color: 'var(--color-done)',
     fontSize: 'var(--fs-caption)',
     fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
   },
-  actions: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
+  actions: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', flexShrink: 0 },
   action: {
     height: 28,
-    padding: '0 10px',
+    padding: '0 var(--sp-3)',
     borderRadius: 6,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -210,7 +210,7 @@ const styles: Record<string, CSSProperties> = {
   },
   actionPrimary: {
     height: 28,
-    padding: '0 12px',
+    padding: '0 var(--sp-3)',
     borderRadius: 6,
     border: '1px solid var(--color-primary)',
     background: 'var(--color-primary)',
@@ -224,8 +224,8 @@ const styles: Record<string, CSSProperties> = {
     height: 28,
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
-    padding: '0 10px',
+    gap: 'var(--sp-1)',
+    padding: '0 var(--sp-3)',
     borderRadius: 6,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',

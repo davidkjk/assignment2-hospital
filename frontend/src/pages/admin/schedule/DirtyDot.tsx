@@ -19,7 +19,7 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-warn)',
     fontSize: 10,
     lineHeight: 1,
-    marginLeft: 4,
+    marginLeft: 'var(--sp-1)',
     verticalAlign: 'middle',
   },
 }

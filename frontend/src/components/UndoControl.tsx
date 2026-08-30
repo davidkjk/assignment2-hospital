@@ -51,7 +51,7 @@ const styles: Record<string, CSSProperties> = {
   // 조용한 버튼 — 텍스트 색만 딥틸, 배경 없음. 빨강·강조 아님.
   btn: {
     height: 28,
-    padding: '0 10px',
+    padding: '0 var(--sp-3)',
     borderRadius: 6,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',

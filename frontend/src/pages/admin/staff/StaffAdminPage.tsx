@@ -185,14 +185,14 @@ function StaffAdminInner() {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { padding: 20, maxWidth: 1100, margin: '0 auto' },
-  title: { margin: '0 0 16px', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
+  page: { padding: 'var(--sp-5)', maxWidth: 1100, margin: '0 auto' },
+  title: { margin: '0 0 var(--sp-4)', fontSize: 'var(--fs-title)', color: 'var(--color-ink)' },
   banner: {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 14,
-    padding: '10px 14px',
+    gap: 'var(--sp-3)',
+    marginBottom: 'var(--sp-4)',
+    padding: 'var(--sp-3) var(--sp-4)',
     borderRadius: 10,
     borderLeft: '4px solid var(--color-warn)',
     background: 'var(--color-bg)',
@@ -200,23 +200,23 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-ink)',
   },
   bannerLink: { fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)', textDecoration: 'none' },
-  body: { display: 'flex', gap: 20, alignItems: 'flex-start' },
+  body: { display: 'flex', gap: 'var(--sp-5)', alignItems: 'flex-start' },
   right: {
     flex: 1,
     minWidth: 0,
     // 왼쪽 목록의 상태 필터줄(칩 30 + col gap 12)만큼 내려 첫 직원 카드와 윗선을 맞춘다(L25).
-    marginTop: 42,
-    padding: 18,
+    marginTop: 'var(--sp-11)',
+    padding: 'var(--sp-5)',
     borderRadius: 12,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
   },
   leaveTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  leaveMsg: { margin: '8px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
-  leaveActions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
+  leaveMsg: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
+  leaveActions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)', marginTop: 'var(--sp-5)' },
   leaveDiscard: {
     height: 34,
-    padding: '0 14px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -227,7 +227,7 @@ const styles: Record<string, CSSProperties> = {
   },
   leaveCancel: {
     height: 34,
-    padding: '0 14px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -238,7 +238,7 @@ const styles: Record<string, CSSProperties> = {
   },
   leaveSave: {
     height: 34,
-    padding: '0 16px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: 'none',
     background: 'var(--color-primary)',

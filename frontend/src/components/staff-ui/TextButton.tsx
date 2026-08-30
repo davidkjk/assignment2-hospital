@@ -16,7 +16,7 @@ const TONE_COLOR: Record<TextButtonTone, string> = {
 const BASE: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 4,
+  gap: 'var(--sp-1)',
   padding: 0,
   border: 'none',
   background: 'none',

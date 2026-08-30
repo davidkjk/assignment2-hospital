@@ -70,18 +70,18 @@ export const dialogStyles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
     boxShadow: '0 8px 32px rgba(16,36,58,.20)',
-    padding: 20,
+    padding: 'var(--sp-5)',
   },
 }
 
 const styles: Record<string, CSSProperties> = {
   ...dialogStyles,
   title: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  message: { margin: '8px 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
-  actions: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 },
+  message: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  actions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)', marginTop: 'var(--sp-5)' },
   cancel: {
     height: 34,
-    padding: '0 16px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
@@ -92,7 +92,7 @@ const styles: Record<string, CSSProperties> = {
   },
   confirm: {
     height: 34,
-    padding: '0 16px',
+    padding: '0 var(--sp-4)',
     borderRadius: 8,
     border: 'none',
     background: 'var(--color-primary)',

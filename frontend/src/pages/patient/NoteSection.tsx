@@ -98,30 +98,30 @@ export function NoteSection({ state, onAdd }: NoteSectionProps) {
 
 const styles: Record<string, CSSProperties> = {
   section: {
-    padding: 16, background: 'var(--color-surface)',
+    padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '2px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 },
+  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-3)', gap: 'var(--sp-2)' },
   heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   addBtn: {
-    height: 30, padding: '0 12px', borderRadius: 8, border: '1px solid var(--color-primary)',
+    height: 30, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  compose: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 },
+  compose: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', marginBottom: 'var(--sp-3)' },
   textarea: {
-    width: '100%', padding: 8, borderRadius: 8, border: '1px solid var(--color-divider)',
+    width: '100%', padding: 'var(--sp-2)', borderRadius: 8, border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-body)', resize: 'vertical',
   },
-  composeActions: { display: 'flex', justifyContent: 'flex-end', gap: 8 },
+  composeActions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)' },
   cancel: {
-    height: 34, padding: '0 14px', borderRadius: 8, border: '1px solid var(--color-divider)',
+    height: 34, padding: '0 var(--sp-4)', borderRadius: 8, border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   skeleton: { height: 48, borderRadius: 6, background: 'var(--color-bg)' },
   empty: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
-  row: { padding: '8px 0', borderTop: '1px solid var(--color-divider)' },
-  content: { margin: '0 0 2px', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', overflowWrap: 'anywhere' },
-  byline: { margin: 0, display: 'flex', gap: 8, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  row: { padding: 'var(--sp-2) 0', borderTop: '1px solid var(--color-divider)' },
+  content: { margin: '0 0 var(--sp-0-5)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', overflowWrap: 'anywhere' },
+  byline: { margin: 0, display: 'flex', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   time: { fontVariantNumeric: 'tabular-nums' },
 }

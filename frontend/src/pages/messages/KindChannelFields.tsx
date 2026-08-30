@@ -62,12 +62,12 @@ export function KindChannelFields({ kind, channel, recipientCount, onKindChange,
 }
 
 const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 14 },
-  field: { display: 'flex', flexDirection: 'column', gap: 6 },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' },
+  field: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   label: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   select: {
     height: 36,
-    padding: '0 10px',
+    padding: '0 var(--sp-3)',
     borderRadius: 8,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',

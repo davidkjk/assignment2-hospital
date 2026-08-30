@@ -216,22 +216,22 @@ export function AccessLogPage() {
 }
 
 const styles: Record<string, CSSProperties> = {
-  page: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 1360, margin: '0 auto' },
-  header: { display: 'flex', flexDirection: 'column', gap: 2 },
+  page: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', maxWidth: 1360, margin: '0 auto' },
+  header: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-0-5)' },
   h1: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   lede: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   readonly: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 'var(--sp-3)',
     margin: 0,
-    padding: '12px 14px',
+    padding: 'var(--sp-3) var(--sp-4)',
     borderRadius: 10,
     border: '1px solid var(--color-primary)',
     background: 'var(--color-primary-wash)',
   },
   readonlyIcon: { color: 'var(--color-primary)', flexShrink: 0, marginTop: 1 },
-  readonlyText: { display: 'flex', flexDirection: 'column', gap: 2 },
+  readonlyText: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-0-5)' },
   readonlyTitle: {
     margin: 0,
     color: 'var(--color-ink)',
@@ -245,11 +245,11 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.5,
   },
   scope: { margin: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  tableWrap: { display: 'flex', flexDirection: 'column', gap: 12 },
+  tableWrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   moreWrap: { display: 'flex', justifyContent: 'center' },
   moreBtn: {
     height: 34,
-    padding: '0 20px',
+    padding: '0 var(--sp-5)',
     border: '1px solid var(--color-divider)',
     borderRadius: 8,
     background: 'var(--color-surface)',

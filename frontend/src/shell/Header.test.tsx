@@ -47,7 +47,8 @@ test('[SHELL-HDR-04] 로그아웃 확인창은 저장하지 않은 내용이 사
 
 test('[SHELL-HDR-05] 로그아웃과 시작 문 사이에 넓은 구분 여백이 있다', () => {
   render(<MemoryRouter><Header title="대기 목록" staff={staff} onSignOut={vi.fn()} /></MemoryRouter>)
-  expect(screen.getByTestId('start-door-group')).toHaveStyle({ marginLeft: '16px', paddingLeft: '24px' })
+  // 여백은 스페이싱 스케일 토큰으로(--sp-4=16px·--sp-6=24px). jsdom은 var()를 계산값으로 풀지 않으므로 토큰 문자열로 단언한다.
+  expect(screen.getByTestId('start-door-group')).toHaveStyle({ marginLeft: 'var(--sp-4)', paddingLeft: 'var(--sp-6)' })
 })
 
 // [NAV-SHELL-12] 클릭 대상이 헤더 병원명 → 사이드바 워드마크로 옮겨졌다(2026-08-28 개정, Sidebar.test).

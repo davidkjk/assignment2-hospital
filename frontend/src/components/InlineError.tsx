@@ -33,7 +33,7 @@ const styles: Record<string, CSSProperties> = {
     borderLeftColor: 'var(--color-warn)',
     background: 'none',
     color: 'var(--color-warn)',
-    padding: '6px 0 6px 12px',
+    padding: 'var(--sp-2) 0 var(--sp-2) var(--sp-3)',
     fontSize: 'var(--fs-body)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
     lineHeight: 1.4,
