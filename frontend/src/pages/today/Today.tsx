@@ -222,8 +222,9 @@ function ProblemCardView({ card, navigate }: { card: UiCard; navigate: NavigateF
       <div data-testid={`card-header-${card.kind}`} className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
         <span className="h-4 w-1 rounded-full bg-amber-500" />
         <h3 className="text-sm font-semibold">{card.title}</h3>
-        {/* 전일 미완료가 전부 같은 날이면 그 날짜를 머리에 한 번만(TODAY-YDAY-03). 행마다 반복하지 않는다. */}
-        {card.headerNote && <span className="text-xs font-medium tabular-nums text-muted-foreground/70">{card.headerNote}</span>}
+        {/* 전일 미완료가 전부 같은 날이면 그 날짜를 머리에 한 번만(TODAY-YDAY-03). 행마다 반복하지 않는다.
+            ⭐ 어느 날 건지 한눈에 들어오도록 배지로(사용자 지시 2026-08-30 — 더 잘 보이게). */}
+        {card.headerNote && <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold tabular-nums text-foreground">{card.headerNote}</span>}
         <span className="text-sm font-bold tabular-nums text-amber-600">{card.rows.length}</span>
       </div>
       <div className="divide-y divide-border/60">
