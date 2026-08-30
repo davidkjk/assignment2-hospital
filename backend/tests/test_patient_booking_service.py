@@ -296,3 +296,22 @@ async def test_change_booking_notifies_changed(committed_conn, monkeypatch):
     await patient_booking_service.change_booking(
         ctx["patient"], old_id, new_slot, reason="시간 변경", expected_updated_at=updated_at)
     assert calls == ["changed"]
+
+
+# ── Task 15: 병원발 변경 안내문 [확인] (CARD-CHG-04) ──────────────────────
+
+@pytest.mark.asyncio
+async def test_acknowledge_hospital_change_clears_both_columns(committed_conn):
+    # CARD-CHG-04: 환자가 [확인]하면 두 칸이 비고, 그래야 앱을 껐다 켜도 안내문이 다시 뜨지 않는다.
+    ctx = await _seed_base(committed_conn)
+    aid = await _make_appointment(committed_conn, ctx, ctx["slot_id"])
+    # 병원발 변경을 시뮬레이션: 직원웹 reschedule/병원발취소가 채우는 두 칸(경계 #17).
+    await committed_conn.execute(
+        "update appointments set hospital_change_prev_time=now(), hospital_change_kind='changed' where id=$1",
+        aid)
+
+    await patient_booking_service.acknowledge_hospital_change(ctx["patient"], aid)
+
+    row = await committed_conn.fetchrow(
+        "select hospital_change_prev_time, hospital_change_kind from appointments where id=$1", aid)
+    assert row["hospital_change_prev_time"] is None and row["hospital_change_kind"] is None

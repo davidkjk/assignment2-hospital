@@ -222,3 +222,15 @@ async def request_support(patient: PatientContext, appointment_id: UUID, request
             "(appointment_id, from_status, to_status, changed_by_patient_id, reason) values ($1,$2,$2,$3,$4)",
             appointment_id, row["status"], patient.id, f"마감 후 {request_type} 상담 연결")
         return {"support_requested": True, "already_requested": False}
+
+
+async def acknowledge_hospital_change(patient: PatientContext, appointment_id: UUID) -> None:
+    """CARD-CHG-04: 병원발 변경/취소 안내문의 [확인]. 두 칸을 비운다(RLS가 본인+가족만 통과).
+    스키마 칸은 직원웹 T2가 만들고 reschedule/병원발 취소가 채운다(경계 #17) — 여기선 비우기만.
+    이 앱에서 "봤다는 사실"이 서버에 남는 유일한 곳: 두 칸이 비어야 앱을 껐다 켜도 안내문이 다시 뜨지 않는다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        # RLS: patients_can_update_own_appointments 범위 밖이면 0행(조용히 통과 — 개인정보 열거 방지)
+        await conn.execute(
+            "update appointments set hospital_change_prev_time=null, hospital_change_kind=null "
+            "where id=$1",
+            appointment_id)

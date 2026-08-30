@@ -62,3 +62,10 @@ async def cancel_booking(appointment_id: UUID, body: CancelRequest,
 async def request_support(appointment_id: UUID, body: SupportRequest,
                           patient: PatientContext = Depends(get_current_patient)) -> dict:
     return await patient_booking_service.request_support(patient, appointment_id, body.request_type)
+
+
+@router.post("/{appointment_id}/acknowledge-change", status_code=204)
+async def acknowledge_change(appointment_id: UUID,
+                            patient: PatientContext = Depends(get_current_patient)) -> None:
+    # CARD-CHG-04: 병원발 변경/취소 안내문 [확인] — 두 칸을 비운다(껐다 켜도 다시 안 뜸).
+    await patient_booking_service.acknowledge_hospital_change(patient, appointment_id)
