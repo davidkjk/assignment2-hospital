@@ -41,9 +41,15 @@ import '../features/settings/notification_settings_screen.dart';
 import '../features/settings/hospital_info_screen.dart';
 import '../features/settings/settings_password_screen.dart';
 import '../features/settings/withdraw_screen.dart';
+import '../features/appointments/my_appointments_screen.dart';
 import '../widgets/app_shell.dart';
 
+// NAV-LIST-01: 하단 '예약' 탭의 목적지는 목록(/my)이다 — 예약 마법사(/booking)가 아니다(LIST-ROLE-01).
+// /booking은 [+ 새 예약하기]·홈 [진료 예약하기]만 그리로 가고, 탭은 목록이다.
+const appointmentsTabRoute = '/my';
+
 // AUTH-REAUTH-05: 민감 경로(설정·가족·탈퇴). 탈퇴는 /settings 하위. Task 11 redirect가 이 판정을 부른다.
+// NAV-LIST-13: 목록(/my)은 여기 없다 — 재인증 없이 본다(가족·설정과 다르고 이력과 같다).
 bool _isSensitive(String loc) => loc.startsWith('/settings') || loc.startsWith('/family');
 bool isSensitiveLocation(String loc) => _isSensitive(loc); // 테스트용 공개 래퍼
 
@@ -225,7 +231,11 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             return online ? null : '/home';
           },
         ),
-        GoRoute(path: '/my', builder: (c, s) => const _Placeholder('나의 예약')), // T30 소유(HOME-KILL 확인 목적지)
+        // 나의 예약 목록(T30) — 하단 탭 셸 안(NAV-LIST-01: 예약 탭 목적지). HOME-KILL·상세·탈퇴도 여기로 온다.
+        GoRoute(
+            path: '/my',
+            builder: (c, s) =>
+                const AppShell(body: MyAppointmentsScreen(), bottomTabs: MainTabs())),
         GoRoute(path: '/family', builder: (c, s) => const FamilyListScreen()),   // 환자앱 T25
         // 환자앱 T26 — 가족 추가 갈래·㉮ 등록·㉯ OTP 연결. _isSensitive가 이미 /family를 덮는다.
         GoRoute(path: '/family/add', builder: (c, s) => const FamilyAddChoiceScreen()),

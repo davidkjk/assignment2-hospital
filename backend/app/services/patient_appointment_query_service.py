@@ -63,7 +63,10 @@ async def list_my_appointments(patient: PatientContext) -> list[dict]:
             # CARD-CXL-05·06: 홈은 「오늘」 취소·부도 카드를 자정까지 붙잡는다(예약 목록 탭 LIST-ST-21과 별개 — 홈 전용 창구).
             f"where (a.status not in {_LIVE} or s.slot_date = current_date) "
             "  and (s.slot_date is null or s.slot_date >= current_date) "
-            "order by s.slot_date nulls last, s.start_time nulls last", patient.id)
+            # LIST-LIST-02·03(갭 #76): 같은 날 같은 시각이면 본인 → 가족 → 이름 순으로 고정한다
+            # (없으면 새로고침마다 두 줄이 뒤바뀐다). 홈은 selectHomeDay가 재정렬하므로 무해.
+            "order by s.slot_date nulls last, s.start_time nulls last, "
+            "  (a.for_patient_id = $1) desc, p.name", patient.id)
     # 갭 #50: has_questionnaire(행 존재)는 남기되, 화면은 questionnaire_state(completed_at 판정)를 쓴다.
     return [{**_strip_private(dict(r)), **_qnr_fields(dict(r))} for r in rows]
 

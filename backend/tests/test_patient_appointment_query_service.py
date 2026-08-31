@@ -83,6 +83,43 @@ async def test_list_my_appointments_excludes_cancelled_and_past(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_list_my_appointments_is_self_and_tiebreak(committed_conn):
+    # LIST-LIST-02·03(갭 #76): 같은 날 같은 시각이면 본인 → 가족 → 이름 순으로 '고정'된다.
+    # LIST-LIST-15: 본인 줄은 is_self=True로 와야 '본인' 표기가 가능하다.
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn, name="김본인"))
+    # 같은 계정에 두 가족 + 본인, 셋 다 같은 슬롯 시각. 이름 오름차순은 '가족가나' < '가족다라'(ㄱ<ㄷ).
+    daughter = await seed_patient(committed_conn, name="가족다라", phone="010-d")
+    son = await seed_patient(committed_conn, name="가족가나", phone="010-s")
+    for fam in (daughter, son):
+        await committed_conn.execute(
+            "insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) "
+            "values ($1,$2,'가족',true)", me.id, fam["patient_id"])
+
+    # 슬롯은 (의사,날짜,시각)이 유일하므로 같은 10:00을 세 번 쓰려면 의사가 달라야 한다(모두 같은 과).
+    async def _appt(for_patient_id):
+        d = await seed_staff(committed_conn, role="doctor")
+        await committed_conn.execute("update staff set department_id=$1 where id=$2", dept, d["staff_id"])
+        slot = await committed_conn.fetchval(
+            "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1,'2999-09-01','10:00') returning id",
+            d["staff_id"])
+        return await committed_conn.fetchval(
+            "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source) "
+            "values ($1,$2,$3,$4,$5,'예약확정','app') returning id",
+            slot, me.id, for_patient_id, dept, d["staff_id"])
+
+    await _appt(me.id)
+    await _appt(daughter["patient_id"])
+    await _appt(son["patient_id"])
+    rows = await q.list_my_appointments(me)
+    same = [r for r in rows if r["slot_date"].isoformat() == "2999-09-01" and str(r["start_time"]).startswith("10")]
+    # 본인 먼저, 그다음 가족은 이름 오름차순('가족가나' < '가족다라')
+    assert [r["for_patient_name"] for r in same] == ["김본인", "가족가나", "가족다라"]
+    assert next(r for r in same if r["for_patient_name"] == "김본인")["is_self"] is True
+    assert next(r for r in same if r["for_patient_name"] == "가족가나")["is_self"] is False
+
+
+@pytest.mark.asyncio
 async def test_get_appointment_detail_has_names(committed_conn):
     _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
     me = _ctx(await seed_patient(committed_conn))

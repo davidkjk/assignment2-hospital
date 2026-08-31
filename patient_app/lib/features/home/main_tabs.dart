@@ -8,7 +8,8 @@ class MainTabs extends StatelessWidget {
 
   static const _dests = [
     ('/home', Icons.home_outlined, '홈'),
-    ('/booking', Icons.event_available_outlined, '예약'),
+    ('/my', Icons.event_available_outlined, '예약'), // NAV-LIST-01: 탭은 목록(/my)이다 — 마법사(/booking) 아님
+
     ('/family', Icons.groups_outlined, '가족'),
     ('/history', Icons.history, '이력'),
     ('/chat', Icons.chat_bubble_outline, 'AI 상담'),

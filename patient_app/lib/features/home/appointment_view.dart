@@ -14,6 +14,8 @@ class AppointmentView {
   final String? cancelledByRelation; // 가족 대행 취소면 관계
   final String? cancelledByName; // 가족 대행 취소면 이름
   final DateTime? cancelledAt;
+  final DateTime? supportRequestedAt; // 마감 후 취소/변경 요청 대기 중(LIST-ST-03 「상담 연결됨」)
+  final String? requestType; // 상담 요청 종류(취소/변경) — 서버 a.request_type
   AppointmentView({
     required this.id,
     required this.status,
@@ -34,6 +36,8 @@ class AppointmentView {
     this.cancelledByRelation,
     this.cancelledByName,
     this.cancelledAt,
+    this.supportRequestedAt,
+    this.requestType,
   });
 
   factory AppointmentView.fromJson(Map<String, dynamic> j) {
@@ -64,6 +68,10 @@ class AppointmentView {
       cancelledByName: j['cancelled_by_name'] as String?,
       cancelledAt:
           j['cancelled_at'] == null ? null : DateTime.parse(j['cancelled_at'] as String),
+      supportRequestedAt: j['support_requested_at'] == null
+          ? null
+          : DateTime.parse(j['support_requested_at'] as String),
+      requestType: j['request_type'] as String?,
     );
   }
 
