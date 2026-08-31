@@ -25,7 +25,10 @@ MESSAGES = {
     "hospital_cancelled": "병원 사정으로 예약이 취소되었습니다.",
     "cancellation_approved": "취소 요청이 처리되어 예약이 취소되었습니다.",
     "cancellation_rejected": "취소가 어렵다는 답변을 받았습니다. 병원에 문의해 주세요.",
-    "questionnaire_missing": "사전문진 작성을 부탁드립니다.",
+    # 갭 #53: 한 벌이던 문진 문구를 상태별 두 벌로 나눈다(QNR-NOTI-05). 「아직 작성하지 않으셨습니다」류는
+    # 작성 중인 사람에게 사실이 아니라 쓰지 않는다 — 남은 수({remaining})는 {when}과 같은 슬롯 규칙(#125).
+    "questionnaire_missing": "내일 진료 전 사전문진을 작성해 주세요.",
+    "questionnaire_partial": "작성하시던 사전문진이 {remaining}문항 남았습니다. 내일 진료 전에 마쳐 주세요.",
     "visit_completed": "진료가 완료되었습니다. 안내를 확인해 주세요.",
 }
 
@@ -46,6 +49,7 @@ async def notify_patient(
     kind: str = "transactional",
     target_name: str | None = None,
     appointment_id: UUID | None = None,
+    remaining: int | None = None,        # ⭐ 문진 알림의 「남은 수」(QNR-NOTI-04·QNR-PROG-10)
 ) -> None:
     """선호도 off·보낼 수단 없음·중복이면 조용히 무발송한다.
     ⚠️ 항상 계정 소유자(account_patient_id)에게 보낸다. 가족 예약이면 target_name으로 대상자 이름을 본문에 명시한다.
@@ -61,11 +65,16 @@ async def notify_patient(
             return
 
         # 2) 문구 — DB(설정)가 있으면 그것, 없으면 코드 기본(#126). 날짜·시각·이름 치환(#125).
+        #    문진 알림만 상태에 따라 문구 키가 갈린다(갭 #53). 나머지는 종류 = 키.
+        #    선호도(1)와 notification_log의 notification_type은 여전히 하나라 스위치·dedup·목적지가 안 갈린다.
+        message_key = "questionnaire_partial" \
+            if (notification_type == "questionnaire_missing" and remaining is not None) \
+            else notification_type
         setting = await conn.fetchrow(
-            "select body from notification_type_settings where notification_type=$1", notification_type,
+            "select body from notification_type_settings where notification_type=$1", message_key,
         )
         base = (setting["body"] if setting and setting["body"] else None) \
-            or MESSAGES.get(notification_type, "새 소식이 있습니다.")
+            or MESSAGES.get(message_key, "새 소식이 있습니다.")
         when = ""
         if appointment_id is not None:
             slot = await conn.fetchrow(
@@ -75,7 +84,7 @@ async def notify_patient(
             )
             if slot and slot["slot_date"] is not None:
                 when = " " + _format_when(slot["slot_date"], slot["start_time"])
-        body = base.replace("{when}", when)
+        body = base.replace("{when}", when).replace("{remaining}", str(remaining or ""))
         if target_name:
             body = f"{target_name}님 {body}"
 

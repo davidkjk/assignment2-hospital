@@ -10,7 +10,8 @@ class QuestionField extends StatefulWidget {
   const QuestionField({super.key, required this.question, required this.value, required this.onChanged});
   final Question question;
   final String? value;
-  final ValueChanged<String> onChanged;
+  // QNR-LIVE-05: onChanged가 null이면 읽기 전용(취소·진료중 이후) — 값은 그대로 보이고 입력만 잠긴다.
+  final ValueChanged<String>? onChanged;
 
   @override
   State<QuestionField> createState() => _QuestionFieldState();
@@ -49,6 +50,7 @@ class _QuestionFieldState extends State<QuestionField> {
           controller: _controller,
           maxLines: 5,
           minLines: 3,
+          readOnly: widget.onChanged == null, // QNR-LIVE-05: 잠기면 값은 남고 입력만 막힌다
           onChanged: widget.onChanged,
           decoration: const InputDecoration(
               filled: true, fillColor: Colors.white, border: OutlineInputBorder()),
@@ -58,6 +60,7 @@ class _QuestionFieldState extends State<QuestionField> {
         return TextField(
           controller: _controller,
           maxLines: 1,
+          readOnly: widget.onChanged == null,
           onChanged: widget.onChanged,
           decoration: const InputDecoration(
               filled: true, fillColor: Colors.white, border: OutlineInputBorder()),
@@ -67,6 +70,8 @@ class _QuestionFieldState extends State<QuestionField> {
 
   Widget _yesNo(BuildContext context, String label) {
     final selected = widget.value == label;
+    // QNR-LIVE-05: 잠기면 선택은 그대로 보이되 다시 고를 수 없다(onPressed null).
+    final onPressed = widget.onChanged == null ? null : () => widget.onChanged!(label);
     const shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16)));
     return Expanded(
       child: SizedBox(
@@ -75,11 +80,11 @@ class _QuestionFieldState extends State<QuestionField> {
             ? FilledButton(
                 key: Key('yesno-selected-$label'),
                 style: FilledButton.styleFrom(shape: shape),
-                onPressed: () => widget.onChanged(label),
+                onPressed: onPressed,
                 child: Text(label, style: const TextStyle(fontSize: 20)))
             : OutlinedButton(
                 style: OutlinedButton.styleFrom(shape: shape),
-                onPressed: () => widget.onChanged(label),
+                onPressed: onPressed,
                 child: Text(label, style: const TextStyle(fontSize: 20))),
       ),
     );

@@ -108,3 +108,32 @@ async def test_save_rejected_from_treatment_start(committed_conn):
 async def test_get_response_none_when_unwritten(committed_conn):
     ctx = await _seed_appt(committed_conn, gender="F")
     assert await patient_questionnaire_service.get_response(ctx["me"], ctx["appointment_id"]) is None
+
+
+# ─── Step 7(갭 #57·QNR-SHOW-10): 성별 값 표준화 — 00028 백필 + check 제약 ───
+
+@pytest.mark.asyncio
+async def test_gender_check_rejects_free_text(db_conn):
+    """[QNR-SHOW-10] '여'는 이제 저장되지 않는다 — 문진 「보일 대상」이 어긋날 길을 막는다."""
+    with pytest.raises(Exception):     # asyncpg.CheckViolationError
+        await db_conn.execute(
+            "insert into patients (name, birth_date, gender, phone) "
+            "values ('홍길동','1985-03-01','여','01012345678')")
+
+
+@pytest.mark.asyncio
+async def test_gender_backfill_maps_korean_values(db_conn):
+    """[QNR-SHOW-10] 이미 들어와 있던 '여'·'남'은 F·M으로 정리된다(마이그레이션 백필 + check)."""
+    rows = await db_conn.fetch("select distinct gender from patients")
+    assert {r["gender"] for r in rows} <= {"F", "M"}
+
+
+@pytest.mark.asyncio
+async def test_visible_to_works_after_standardization(committed_conn):
+    """[QNR-SHOW-10] 값이 표준화돼야 「여성 환자만」 문항이 실제로 뜬다 — 갭 #57이 닫힌 증거.
+
+    ⚠️ _seed_appt는 create_booking(acquire_as 자기커넥션)을 쓰므로 committed_conn 시딩이라야 서비스가 본다.
+    """
+    ctx = await _seed_appt(committed_conn, gender="F")   # _Q에 '여성 환자만' q2가 있다
+    tpl = await patient_questionnaire_service.get_template(ctx["me"], ctx["appointment_id"])
+    assert "q2" in [q["id"] for q in tpl["questions"]]   # 옛 '여' 값이었다면 조용히 빠졌을 문항

@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/action_button.dart';
+import '../appointment/appointment_detail.dart'; // appointmentDetailProvider — 작성 중 라이브 취소 감지(QNR-LIVE-01)
+import '../home/home_data.dart'; // homeAcknowledgeProvider — 병원발 [확인] 창구 재사용(새 API 안 만듦)
 import 'questionnaire_controller.dart';
 import 'question_field.dart';
+import 'qnr_live_banner.dart';
 import 'qnr_progress_text.dart';
+
+// #21: 진료 시작 전까지만 수정 가능. 이 밖(취소·진료중 이후)은 읽기 전용(QNR-LIVE-01·NAV-QNR-18).
+// entry의 editableStatuses와 같은 값 — import 순환(entry→wizard)을 피하려 파일 지역 상수로 둔다.
+const _editableStatuses = {'예약신청', '예약확정', '도착', '진료대기'};
 
 class QuestionnaireWizard extends ConsumerStatefulWidget {
   const QuestionnaireWizard({super.key, required this.appointmentId, this.startIndex = 0});
@@ -16,6 +23,7 @@ class QuestionnaireWizard extends ConsumerStatefulWidget {
 
 class _WizardState extends ConsumerState<QuestionnaireWizard> {
   bool _saving = false;
+  bool _cxlAcked = false; // 병원발 취소 안내에서 [확인]을 눌렀는지(QNR-LIVE-04) — 눌러도 화면은 그대로.
   // 실행 보정: startIndex를 initState postFrame에서 goTo하면 async load가 뒤에 완료되며 index를
   // 0으로 되돌려(경합) 이어쓰기/고치기 진입 문항이 유실된다. load가 끝난 뒤(build) 한 번만 적용한다.
   bool _appliedStart = false;
@@ -68,6 +76,13 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
     final q = st.current;
     if (q == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final cs = Theme.of(context).colorScheme;
+
+    // QNR-LIVE-01: 작성 중 예약이 취소되면(서버 상태가 편집 구간을 벗어나면) 화면을 옮기지 않고
+    // 그 자리에서 읽기 전용으로 바꾼다(NAV-GLOBAL-07). 쓴 답은 그대로 두고 입력칸만 잠근다(QNR-LIVE-05).
+    final view = ref.watch(appointmentDetailProvider(widget.appointmentId)).valueOrNull?.view;
+    final status = view?.status;
+    final locked = status != null && !_editableStatuses.contains(status);
+    final cancelled = status == '환자취소' || status == '병원취소';
     return PopScope(
       canPop: !_saving, // 저장 중이면 시스템 pop을 막고 확인 팝업(NAV-QNR-17)
       onPopInvokedWithResult: (didPop, _) async {
@@ -87,6 +102,20 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
         body: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            // QNR-LIVE-02·03·04: 취소되면 그 자리에 안내를 얹는다(병원발만 [확인]). 화면은 그대로 남는다.
+            if (cancelled && view != null && !_cxlAcked) ...[
+              QnrCancelledBanner(
+                cancelledBy: view.cancelledBy ?? 'hospital',
+                isSelf: view.isSelf,
+                relation: view.cancelledByRelation,
+                name: view.cancelledByName,
+                onAcknowledge: () {
+                  ref.read(homeAcknowledgeProvider)(widget.appointmentId); // 병원발 「봤다」 창구 재사용
+                  setState(() => _cxlAcked = true);
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -112,29 +141,36 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
             QuestionField(
                 question: q,
                 value: st.answers[q.id],
-                onChanged: (v) =>
-                    ref.read(questionnaireProvider(widget.appointmentId).notifier).answer(q.id, v)),
+                // QNR-LIVE-05: 잠기면 onChanged=null → 값은 보이고 입력만 막힌다.
+                onChanged: locked
+                    ? null
+                    : (v) =>
+                        ref.read(questionnaireProvider(widget.appointmentId).notifier).answer(q.id, v)),
             const SizedBox(height: 20),
-            Text('입력하신 답변은 자동으로 저장됩니다.',
-                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+            // 잠기면 자동 저장 안내는 거짓말이 되므로 감춘다.
+            if (!locked)
+              Text('입력하신 답변은 자동으로 저장됩니다.',
+                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
             const Spacer(),
-            Row(children: [
-              if (st.index > 0)
+            // QNR-LIVE-05: 잠기면 [이전]·[다음]·[최종 확인]이 사라진다(진행할 것이 없다).
+            if (!locked)
+              Row(children: [
+                if (st.index > 0)
+                  Expanded(
+                    child: OutlinedButton(
+                        onPressed: () =>
+                            ref.read(questionnaireProvider(widget.appointmentId).notifier).prev(),
+                        child: const Text('이전')),
+                  ),
+                if (st.index > 0) const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton(
-                      onPressed: () =>
-                          ref.read(questionnaireProvider(widget.appointmentId).notifier).prev(),
-                      child: const Text('이전')),
+                  child: ActionButton(
+                      label: st.index >= st.questions.length - 1 ? '최종 확인' : '다음',
+                      busyLabel: '저장 중…',
+                      busy: _saving,
+                      onPressed: _next),
                 ),
-              if (st.index > 0) const SizedBox(width: 12),
-              Expanded(
-                child: ActionButton(
-                    label: st.index >= st.questions.length - 1 ? '최종 확인' : '다음',
-                    busyLabel: '저장 중…',
-                    busy: _saving,
-                    onPressed: _next),
-              ),
-            ]),
+              ]),
           ]),
         ),
       ),

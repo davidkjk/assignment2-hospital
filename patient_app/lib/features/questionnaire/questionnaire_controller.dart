@@ -81,13 +81,18 @@ class QnrController extends StateNotifier<QnrState> {
             Answer(questionId: q.id, questionText: q.text, value: state.answers[q.id]!),
       ];
 
+  /// QNR-LIVE-01: 예약이 취소됐다는 사실만 켠다. 화면 이동·답 삭제는 하지 않는다(QNR-LIVE-05).
+  void markCancelled() => state = state.copyWith(liveCancelled: true);
+
   /// 문항을 넘길 때마다 자동 저장(complete=false) — QNR-STATE-04는 여기서 완료를 안 찍는다.
   Future<void> next() async {
     final prog = await _repo.save(_appointmentId, _answerList(), complete: false); // QNR-ID-10 글자 동봉
     state = state.copyWith(
         status: prog.state,
         answered: prog.answered, // 저장 응답의 서버 진행률을 그대로 싣는다(QNR-PROG-04·09)
-        total: prog.total,
+        // ⭐ QNR-LIVE-12: 분모는 이 회차 진입 양식으로 고정한다 — 관리자가 문항을 늘려도(서버 total이 커져도)
+        //    진행률이 (3/6)→(3/9)로 도중에 흔들리지 않는다. 새 양식은 다음 이어쓰기 진입에서 반영된다(QNR-LIVE-13).
+        total: state.questions.length,
         index: (state.index + 1).clamp(0, state.questions.length));
   }
 

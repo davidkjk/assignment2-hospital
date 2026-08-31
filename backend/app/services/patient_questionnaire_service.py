@@ -79,3 +79,60 @@ async def get_response(patient: PatientContext, appointment_id: UUID) -> dict | 
     state = "작성완료" if row["completed_at"] is not None else "작성 중"
     return {"id": row["id"], "answers": answers, "state": state,
             "completed_at": row["completed_at"], **prog}
+
+
+def build_reminder_body(state: str, answered: int, total: int) -> tuple[str, int | None] | None:
+    """QNR-NOTI-03·04: 상태에 따라 문구 키를 고르고, 작성 중이면 「남은 수」를 함께 준다.
+
+    ⭐ 남은 수 = total − answered (QNR-PROG-10). 화면 셋이 쓰는 「한 것」의 수와 **같은 값에서 나오지만
+    글자가 다르다** — 알림은 「무엇을 해야 하나」를 말하는 자리라 남은 양이 재촉으로 기능한다(QNR-PROG-11).
+    ⚠️ 예전 문구의 3은 「한 것」의 수였다(QNR-PROG-12) — 같은 값을 반대 뜻으로 쓰고 있었다.
+    """
+    if state == "작성완료":
+        return None                                   # QNR-NOTI-02: 대상이 아니다
+    if state == "미작성":
+        return ("questionnaire_missing", None)        # QNR-NOTI-03
+    remaining = max(total - answered, 0)              # 양식이 줄어도 음수를 말하지 않는다
+    return ("questionnaire_partial", remaining)       # QNR-NOTI-04
+
+
+async def list_reminder_targets(conn, target_date) -> list[dict]:
+    """QNR-NOTI-01·02·09: 그날 진료가 있고 **완료 표시가 없는** 사람 전부.
+
+    ⭐ 갭 #53 — 옛 배치는 「문진 행이 있느냐」로 갈라 1문항만 쓴 사람을 빠뜨렸다.
+      완료 판정은 오직 completed_at이다(QNR-STATE-04와 같은 기준 = 홈 줄과 같은 판정).
+    ⭐ 대상 상태는 EDITABLE_STATUSES 전체 — 문진을 쓸 수 있는 구간과 알림이 가는 구간을 맞춘다(QNR-NOTI-09).
+    ⚠️ 배치(전날 몇 시·하루 1회)는 배포 플랜 몫. 여기는 「그날 대상이 누구인가」만 답한다.
+    """
+    rows = await conn.fetch(
+        "select a.id as appointment_id, a.for_patient_id, "
+        "       fl.account_patient_id as account_patient_id, "
+        "       p.name as target_name, p.gender as gender, "
+        "       qr.answers as answers, qr.completed_at as completed_at, "
+        "       qt.questions as questions "
+        "from appointments a "
+        "join patients p on p.id = a.for_patient_id "
+        "join appointment_slots s on s.id = a.slot_id "
+        "left join questionnaire_responses qr on qr.appointment_id = a.id "
+        "left join questionnaire_templates qt on qt.department_id = a.department_id "
+        "left join lateral ("
+        "   select coalesce(l.account_patient_id, a.for_patient_id) as account_patient_id "
+        "   from patient_family_links l where l.family_patient_id = a.for_patient_id limit 1"
+        ") fl on true "
+        "where s.slot_date = $1 "
+        "  and a.status = any($2::text[]) "
+        "  and qr.completed_at is null",           # ⭐ 미작성 + 작성 중 둘 다(QNR-NOTI-02)
+        target_date, list(EDITABLE_STATUSES))
+
+    out = []
+    for r in rows:
+        answers = _load(r["answers"] or [])
+        prog = compute_progress(_load(r["questions"] or []), r["gender"] or "", answers)
+        state = "미작성" if r["answers"] is None else "작성 중"   # completed_at이 null인 것만 왔다
+        out.append({
+            "appointment_id": r["appointment_id"],
+            "account_patient_id": r["account_patient_id"] or r["for_patient_id"],
+            "target_name": r["target_name"] if r["account_patient_id"] != r["for_patient_id"] else None,
+            "state": state, **prog,
+        })
+    return out
