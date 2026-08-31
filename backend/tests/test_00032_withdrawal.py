@@ -21,7 +21,7 @@ async def _dept_doctor(conn):
 async def _book(conn, *, account, for_p, dept, doctor, days_ahead, status="예약확정"):
     slot = await conn.fetchval(
         "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
-        "values ($1, current_date + $2, '10:00', '예약됨') returning id", doctor, days_ahead)
+        "values ($1, current_date + $2::int, '10:00', '예약됨') returning id", doctor, days_ahead)
     return await conn.fetchval(
         "insert into appointments "
         "(slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source) "
@@ -46,7 +46,7 @@ async def test_차단_판정은_내예약과_무계정가족예약만_센다(com
     dept, doctor = await _dept_doctor(committed_conn)
     await _book(committed_conn, account=me["patient_id"], for_p=me["patient_id"], dept=dept, doctor=doctor, days_ahead=3)
     await _book(committed_conn, account=me["patient_id"], for_p=mom["patient_id"], dept=dept, doctor=doctor, days_ahead=5)
-    await _book(committed_conn, account=me["patient_id"], for_p=dad["patient_id"], dept=dept, doctor=doctor, days_ahead=5)
+    await _book(committed_conn, account=me["patient_id"], for_p=dad["patient_id"], dept=dept, doctor=doctor, days_ahead=6)
     async with acquire_as(str(me["auth_user_id"])) as conn:
         blocks = await conn.fetch("select * from list_withdrawal_blocks()")
     ids = {(b["patient_name"], b["is_family"]) for b in blocks}

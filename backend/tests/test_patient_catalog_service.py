@@ -110,7 +110,9 @@ async def test_hospital_hours_진료시간과_예정_휴진을_함께_준다(com
     assert mon["open"] == "09:00" and mon["lunch_start"] == "12:30" and mon["is_closed"] is False
     sun = next(d for d in got["weekdays"] if d["weekday"] == 0)
     assert sun["is_closed"] is True and sun["open"] is None      # 행 없음 = 휴진
-    assert got["closures"] == [{"date": str(date.today() + timedelta(days=3)), "memo": "창립기념일"}]
+    # 시드가 SQL `current_date + 3`을 쓰므로 기준은 DB의 current_date다(파이썬 date.today()=밴쿠버라 하루 어긋난다).
+    db_today = await committed_conn.fetchval("select current_date")
+    assert got["closures"] == [{"date": str(db_today + timedelta(days=3)), "memo": "창립기념일"}]
 
 
 @pytest.mark.asyncio

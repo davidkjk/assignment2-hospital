@@ -36,7 +36,7 @@ begin
   if v_patient_id is null then
     raise exception '활성 상태의 환자만 탈퇴할 수 있습니다.' using errcode = 'P0001';
   end if;
-  if exists (select 1 from list_withdrawal_blocks()) then           -- [SET-QUIT-11] 서버 재검사
+  if exists (select 1 from public.list_withdrawal_blocks()) then    -- [SET-QUIT-11] 서버 재검사 (search_path='' 이라 스키마 한정 필수)
     raise exception '다가오는 예약이 있어 탈퇴할 수 없습니다.' using errcode = 'P0001';
   end if;
   update public.patients

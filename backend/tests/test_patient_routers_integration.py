@@ -302,16 +302,24 @@ async def test_notifications_read_marks_seen_via_api(client, committed_conn):
 
 
 # ── 설정: 알림 선호 + 진료시간 (Task 28) ─────────────────────
+# ⚠️ 하네스: DB에 닿는 통합테스트는 client를 1회만 부른다(전역 풀↔포털 루프 충돌 회피, 파일 머리 §참조).
+#   「조회」와 「토글」을 한 테스트에서 이어 부르면 "another operation is in progress"로 깨진다 → 둘로 나눈다.
 @pytest.mark.asyncio
-async def test_알림선호_조회와_토글(client, committed_conn):
-    """[SET-NOTI-12] GET로 6토글, PATCH로 하나를 끄면 갱신된 6토글이 온다."""
+async def test_알림선호_조회는_기본_6토글이_켜져온다(client, committed_conn):
+    """[SET-NOTI-12] GET로 6토글 — 기본 appt_change=on."""
     me = await seed_patient(committed_conn)
-    tok = make_token(str(me["auth_user_id"]))
-    r = client.get("/me/notification-preferences", headers=_hdr(tok))
+    r = client.get("/me/notification-preferences", headers=_hdr(make_token(str(me["auth_user_id"]))))
     assert r.status_code == 200 and r.json()["appt_change"] is True
-    r2 = client.patch("/me/notification-preferences",
-                      json={"group": "appt_change", "enabled": False}, headers=_hdr(tok))
-    assert r2.status_code == 200 and r2.json()["appt_change"] is False
+
+
+@pytest.mark.asyncio
+async def test_알림선호_하나를_끄면_갱신된_6토글이_온다(client, committed_conn):
+    """[SET-NOTI-12] PATCH로 하나를 끄면 응답 자체에 갱신된 6토글이 담겨 온다(upsert)."""
+    me = await seed_patient(committed_conn)
+    r = client.patch("/me/notification-preferences",
+                     json={"group": "appt_change", "enabled": False},
+                     headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and r.json()["appt_change"] is False
 
 
 @pytest.mark.asyncio
