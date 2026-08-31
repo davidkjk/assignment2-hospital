@@ -178,6 +178,18 @@ test('[SCHED-SAVE-03][갭 #95] 저장은 고친 줄 전부가 한 덩어리 — 
   expect(onCommit.mock.calls[0][1]).toHaveLength(2) // 줄마다 부르지 않는다
 })
 
+test('[SCHED-HOURS-11] 범위 밖 시각(2599)은 저장 전에 걸러 서버로 보내지 않고 이유를 보인다', async () => {
+  const user = userEvent.setup()
+  const onPreview = vi.fn(async () => NO_PREVIEW)
+  renderTable({ onPreview })
+  const end = screen.getByLabelText('월요일 진료 종료') as HTMLInputElement
+  await user.clear(end)
+  await user.type(end, '2599') // 마스킹은 25:99까지 통과 — 서버 422 나기 전에 막는다
+  await user.click(screen.getByRole('button', { name: '저장' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('시각을 0900처럼 4자리로 입력하세요')
+  expect(onPreview).not.toHaveBeenCalled()
+})
+
 test('[SCHED-SAVE-04][SCHED-SAVE-05] 경고 팝업은 한 번만 뜨고, 어느 요일 때문인지가 들어 있다', async () => {
   const user = userEvent.setup()
   const onPreview = vi.fn(async () => ({ affected: [{ weekday: 2, count: 2 }, { weekday: 5, count: 1 }], slotRemoved: 0, slotAdded: 0 }))

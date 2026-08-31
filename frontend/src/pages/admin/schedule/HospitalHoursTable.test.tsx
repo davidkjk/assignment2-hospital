@@ -46,7 +46,7 @@ type Props = Parameters<typeof HospitalHoursTable>[0]
 const rowOf = (short: string) => document.querySelector(`[data-hours-row="${short}"]`) as HTMLElement
 const closedCheckbox = (short: string) => within(rowOf(short)).getByRole('checkbox', { name: new RegExp(`${FULL[short]} 휴무`) })
 const timeInput = (short: string, which: '시작' | '종료') => screen.getByLabelText(`${FULL[short]} ${which}`) as HTMLInputElement
-const fieldError = (short: string, which: '종료' | '점심') => screen.getByTestId(`err-${FULL[short]}-${which}`).textContent
+const fieldError = (short: string, which: '시작' | '종료' | '점심') => screen.getByTestId(`err-${FULL[short]}-${which}`).textContent
 
 test('[SCHED-HOURS-03][SCHED-HOURS-04] 이 값은 접수 창구 시간이고 의사 진료시간과 다르다고 표 아래에 적는다', () => {
   renderHours()
@@ -82,6 +82,37 @@ test('[SCHED-HOURS-09][SCHED-HOURS-11] 잘못된 시각은 인라인 오류이�
   expect(fieldError('월', '종료')).toBe('닫는 시간이 여는 시간보다 이릅니다')
   expect(screen.getByRole('button', { name: '저장' })).toBeEnabled()
   expect(document.activeElement).toBe(timeInput('월', '종료'))
+})
+
+test('[SCHED-HOURS-11] 범위 밖 시각(2599)은 인라인 오류로 걸러 서버에 보내지 않는다', async () => {
+  const user = userEvent.setup()
+  const { onSave } = renderHours()
+  await user.clear(timeInput('월', '종료'))
+  await user.type(timeInput('월', '종료'), '2599') // 마스킹은 25:99까지 통과시킨다 — 서버 422가 나기 전에 막는다
+  await user.click(screen.getByRole('button', { name: '저장' }))
+  expect(fieldError('월', '종료')).toBe('시각을 0900처럼 4자리로 입력하세요')
+  expect(onSave).not.toHaveBeenCalled()
+  expect(screen.getByRole('button', { name: '저장' })).toBeEnabled()
+})
+
+test('[SCHED-HOURS-11] 덜 친 시작 시각(9)도 여는칸 인라인 오류다 (문자열 비교가 뒤집히기 전에 막는다)', async () => {
+  const user = userEvent.setup()
+  renderHours()
+  await user.clear(timeInput('월', '시작'))
+  await user.type(timeInput('월', '시작'), '9')
+  await user.click(screen.getByRole('button', { name: '저장' }))
+  expect(fieldError('월', '시작')).toBe('시각을 0900처럼 4자리로 입력하세요')
+  expect(document.activeElement).toBe(timeInput('월', '시작'))
+})
+
+test('[SCHED-HOURS-11] 서버가 저장을 거절하면 이유를 배너로 보인다 (조용한 먹통 금지, G1)', async () => {
+  const user = userEvent.setup()
+  const onSave = vi.fn(async () => {
+    throw new Error('저장 권한이 없습니다')
+  })
+  renderHours({ onSave })
+  await user.click(screen.getByRole('button', { name: '저장' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('저장 권한이 없습니다')
 })
 
 test('[SCHED-HOURS-12] 월요일 값 복사는 화~토까지 (일요일=휴무만 제외)', async () => {

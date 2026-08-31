@@ -22,6 +22,17 @@ export function formatTimeDigits(raw: string): string {
   return `${digits.slice(0, 2)}:${digits.slice(2)}`
 }
 
+/** 완성된 HH:MM(00:00~23:59)인가. ⭐ 마스킹은 자리만 맞출 뿐 범위·완성도를 보장하지 않는다
+ *  — `2599`→`25:99`, `095`→`09:5`, `9`→`9`가 그대로 만들어져 저장으로 넘어가면 서버가 422로 조용히 거절한다.
+ *  저장 직전 이 자로 걸러 인라인 오류를 보인다(`SCHED-HOURS-11`). 빈 문자열은 여기선 false —
+ *  「안 채움」을 허용할지는 호출부가 정한다(운영시간은 요일별로 빈 줄을 저장에서 건너뛴다). */
+export function isValidHHMM(v: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(v)
+}
+
+/** 시각 칸 형식 오류 문구 — 입력칸 placeholder(`예: 0900`)와 같은 어휘. */
+export const TIME_FORMAT_ERROR = '시각을 0900처럼 4자리로 입력하세요'
+
 export function ScheduleTimeInput({ label, value, onChange, disabled }: Props) {
   return (
     <input

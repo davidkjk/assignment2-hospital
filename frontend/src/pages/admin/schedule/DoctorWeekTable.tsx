@@ -4,9 +4,17 @@ import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { btnPrimary, btnGhost } from '../../../components/staff-ui'
 import { PanelCard } from './PanelCard'
 import { DirtyDot } from './DirtyDot'
-import { ScheduleTimeInput, TIME_FIELD_CLASS } from './ScheduleTimeInput'
+import { ScheduleTimeInput, TIME_FIELD_CLASS, isValidHHMM, TIME_FORMAT_ERROR } from './ScheduleTimeInput'
 import type { DirtyMapApi } from './useDirtyMap'
 import { WEEKDAY_FULL, hhmm, type WeekRow } from './types'
+
+/** 이 요일 줄에 형식이 어긋난 시각 칸이 있나(빈 칸은 「안 채움」이라 통과). 진료 안 하는 요일은 검사 안 한다. */
+function hasInvalidTime(r: WeekRow): boolean {
+  if (r.is_day_off) return false
+  return [r.start, r.end, r.lunch_start, r.lunch_end, r.booking_deadline]
+    .map((v) => hhmm(v))
+    .some((v) => v !== '' && !isValidHHMM(v))
+}
 
 // [SCHED-WEEK-*] 의사별 스케줄 = 고치는 곳. 위쪽 의사 가로줄 + 아래 요일 7행(늘 다 보인다, 접지 않는다).
 //   한 행 여섯 칸 — 진료 스위치·진료 시간·한 칸 길이·점심시간·하루 최대 인원·예약 마감.
@@ -76,6 +84,12 @@ export function DoctorWeekTable({
     const dirtyRows = collectDirtyRows()
     if (dirtyRows.length === 0) return
     setActionError(null)
+    // 시각 형식을 먼저 거른다 — 마스킹은 자리만 맞출 뿐이라 `25:99`·`09:5`가 서버로 넘어가면 422로
+    // 조용히 거절된다(SCHED-HOURS-11과 같은 태도, 서버 원문 대신 알아볼 수 있는 한 줄).
+    if (dirtyRows.some(hasInvalidTime)) {
+      setActionError(TIME_FORMAT_ERROR)
+      return
+    }
     try {
       const result = await onPreview(selectedDoctorId, dirtyRows)
       const needsWarning = result.affected.length > 0 || result.slotRemoved > 0 || result.slotAdded > 0

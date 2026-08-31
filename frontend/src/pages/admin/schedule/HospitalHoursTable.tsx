@@ -2,7 +2,7 @@ import { useRef, useState, type CSSProperties } from 'react'
 import { InlineError } from '../../../components/InlineError'
 import { Checkbox, btnPrimary, btnGhost, TextButton } from '../../../components/staff-ui'
 import { PanelCard } from './PanelCard'
-import { ScheduleTimeInput, TIME_FIELD_CLASS } from './ScheduleTimeInput'
+import { ScheduleTimeInput, TIME_FIELD_CLASS, isValidHHMM, TIME_FORMAT_ERROR } from './ScheduleTimeInput'
 import { WEEKDAY_FULL, hhmm, type HospitalHoursRow } from './types'
 
 // [SCHED-HOURS-*] 병원 요일별 운영시간 = 접수 창구가 열려 있는 시간(의사 진료시간과 다르다).
@@ -28,14 +28,28 @@ interface Props {
   onGoToWeekly: (doctorId: string) => void
 }
 
-type FieldErrors = Record<number, { close?: string; lunch?: string }>
+type RowError = { open?: string; close?: string; lunch?: string }
+type FieldErrors = Record<number, RowError>
 
-function validateRow(r: HospitalHoursRow): { close?: string; lunch?: string } {
-  if (r.is_closed || !r.open_time || !r.close_time) return {}
-  const errs: { close?: string; lunch?: string } = {}
-  if (r.close_time <= r.open_time) errs.close = '닫는 시간이 여는 시간보다 이릅니다'
-  if (r.lunch_start && r.lunch_end) {
-    if (r.lunch_start < r.open_time || r.lunch_end > r.close_time) {
+function validateRow(r: HospitalHoursRow): RowError {
+  if (r.is_closed) return {}
+  const errs: RowError = {}
+  const open = hhmm(r.open_time)
+  const close = hhmm(r.close_time)
+  const ls = hhmm(r.lunch_start)
+  const le = hhmm(r.lunch_end)
+  // 빈 값은 「안 채움」(저장 때 그 요일을 건너뛴다) — 형식 오류가 아니다.
+  const openOk = open === '' || isValidHHMM(open)
+  const closeOk = close === '' || isValidHHMM(close)
+  if (!openOk) errs.open = TIME_FORMAT_ERROR
+  if (!closeOk) errs.close = TIME_FORMAT_ERROR
+  // ⭐ 대소 비교는 둘 다 완성된 시각일 때만 — 형식이 어긋나면 문자열 비교가 뒤집힌다("9" > "09:00").
+  if (openOk && closeOk && open !== '' && close !== '' && close <= open) {
+    errs.close = '닫는 시간이 여는 시간보다 이릅니다'
+  }
+  if (ls !== '' || le !== '') {
+    if (!isValidHHMM(ls) || !isValidHHMM(le)) errs.lunch = TIME_FORMAT_ERROR
+    else if (openOk && closeOk && open !== '' && close !== '' && (ls < open || le > close)) {
       errs.lunch = '점심시간이 문 여는 시간 밖에 있습니다'
     }
   }
@@ -47,6 +61,8 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
   const [conflict, setConflict] = useState(false)
+  // 저장이 서버에서 거절되면(형식 통과 뒤의 뜻밖의 오류) 이유를 보인다 — 안 그러면 「눌렀는데 아무 일도 없다」(G1).
+  const [saveError, setSaveError] = useState<string | null>(null)
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   function patch(w: number, up: Partial<HospitalHoursRow>) {
@@ -68,12 +84,14 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
     const nextErrors: FieldErrors = {}
     for (const r of rows) {
       const e = validateRow(r)
-      if (e.close || e.lunch) nextErrors[r.weekday] = e
+      if (e.open || e.close || e.lunch) nextErrors[r.weekday] = e
     }
     setErrors(nextErrors)
+    setSaveError(null)
     const firstBad = rows.find((r) => nextErrors[r.weekday])
     if (firstBad) {
-      const field = nextErrors[firstBad.weekday].close ? 'close' : 'lunch'
+      const e = nextErrors[firstBad.weekday]
+      const field = e.open ? 'open' : e.close ? 'close' : 'lunch'
       inputRefs.current[`${firstBad.weekday}-${field}`]?.focus() // 오류 난 칸으로 이동(HOURS-11)
       return
     }
@@ -85,6 +103,9 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
         setConflict(true)
         onRefetch() // 409 → 자동 재조회(HOURS-14)
       }
+    } catch (e) {
+      // 형식은 위에서 걸렀지만 그래도 서버가 거절할 수 있다(권한·동시성 등) — 삼키지 않고 이유를 보인다.
+      setSaveError(e instanceof Error ? e.message : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
     } finally {
       setSaving(false)
     }
@@ -96,6 +117,13 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
         <div style={styles.bannerWrap}>
           <div role="status" style={styles.banner}>
             다른 관리자가 먼저 저장해 최신 값을 다시 불러왔습니다. 확인 후 다시 저장해 주세요.
+          </div>
+        </div>
+      )}
+      {saveError && (
+        <div style={styles.bannerWrap}>
+          <div role="alert" style={styles.banner}>
+            {saveError}
           </div>
         </div>
       )}
@@ -142,6 +170,11 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
                         onChange={(e) => patch(r.weekday, { open_time: fmt(e.target.value) })}
                         className={TIME_FIELD_CLASS}
                       />
+                      {err?.open && (
+                        <div data-testid={`err-${full}-시작`}>
+                          <InlineError message={err.open} />
+                        </div>
+                      )}
                     </td>
                     <td style={styles.td}>
                       <input
