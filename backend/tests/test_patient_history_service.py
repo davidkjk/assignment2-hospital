@@ -50,6 +50,22 @@ async def test_history_covers_four_statuses_newest_first(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_history_includes_cancel_actor_fields(committed_conn):
+    # HIST-ROW-02·03: 이력 조회가 '취소됨 · 누가' + 취소 시각을 그리려면 4필드가 와야 한다.
+    # 칸은 00025(취소 주체)에 이미 있다 — 이력 SELECT만 넓힌다(마이그레이션 없음).
+    did, dept = await _seed_dd(committed_conn)
+    me = _ctx(await seed_patient(committed_conn))
+    aid = await _past(committed_conn, me, dept, did, "병원취소", "2026-02-10")
+    await committed_conn.execute(  # 직원웹 취소가 채우는 칸(여기선 seed로 흉내)
+        "update appointments set cancelled_by='hospital', cancelled_at='2026-02-05T15:12:00' where id=$1", aid)
+    res = await h.list_visit_history(me, me.id)
+    row = next(i for i in res["items"] if i["visit_status"] == "취소됨")
+    assert row["cancelled_by"] == "hospital"
+    assert row["cancelled_at"] is not None
+    assert row["is_self"] is True  # 본인 예약(account_patient_id = for_patient_id)
+
+
+@pytest.mark.asyncio
 async def test_history_paginates_20_with_cursor(committed_conn):
     did, dept = await _seed_dd(committed_conn)
     me = _ctx(await seed_patient(committed_conn))

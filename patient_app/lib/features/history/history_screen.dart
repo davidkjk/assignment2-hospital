@@ -1,0 +1,255 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/pending_request.dart' show koreanTime;
+import '../../core/tokens.dart';
+import '../../widgets/empty_state.dart';
+import '../family/family_repository.dart';
+import 'history_repository.dart';
+
+/// 취소 날짜·시각 한 줄(HIST-ROW-03) — '7월 18일 오후 3:12'. 카드(T17)와 같은 어휘.
+String _cancelDateTime(DateTime t) => '${t.month}월 ${t.day}일 ${koreanTime(t)}';
+
+/// 취소 주체 한 줄(HIST-ROW-02·05) — CxlBody(T17)와 같은 의미라 카드·이력 문구가 어긋나지 않는다.
+String _cancelActorText(VisitHistoryEntry e) {
+  if (e.cancelledBy == 'hospital') return '병원에서 취소'; // HIST-ROW-05: 직원 이름 없음
+  if (e.isSelf) return '본인 취소'; // HIST-ROW-02
+  return '${e.cancelledByRelation ?? ''} ${e.cancelledByName ?? ''} 님 취소'.trim();
+}
+
+/// 가로 이름 칩 — 본인 먼저·가족 이름순. 가족 0명이면 줄 자체를 감춘다(HIST-WHO-04).
+class NameChips extends StatelessWidget {
+  const NameChips({super.key, required this.members, required this.selectedId, required this.onSelect});
+  final List<FamilyMember> members;
+  final String? selectedId;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (members.length <= 1) return const SizedBox.shrink(); // HIST-WHO-04: 가족 0명이면 칩 줄 없음
+    final sorted = [...members]..sort((x, y) {
+        // HIST-WHO-02: 본인 먼저, 가족 이름순
+        if (x.isSelf != y.isSelf) return x.isSelf ? -1 : 1;
+        return x.name.compareTo(y.name);
+      });
+    return SingleChildScrollView(
+      key: const Key('history-chip-row'),
+      scrollDirection: Axis.horizontal, // HIST-WHO-05: 가로 스크롤(줄바꿈 아님)
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(children: [
+        for (final m in sorted)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(m.name),
+              selected: m.id == selectedId,
+              onSelected: (_) => onSelect(m.id), // HIST-WHO-10: 콜백만(화면 안 옮김)
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
+const _weekdayNames = ['월', '화', '수', '목', '금', '토', '일']; // DateTime.weekday: 월=1
+String _weekdayKo(DateTime d) => _weekdayNames[d.weekday - 1];
+
+/// 날짜 레일 — 월 작게 / 일 크게(고정폭) / 요일 작게(HIST-LIST-04).
+class DateRail extends StatelessWidget {
+  const DateRail({super.key, required this.date, required this.color});
+  final DateTime? date;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 44, // HIST-LIST-04: 고정폭
+        child: date == null
+            ? const SizedBox()
+            : Column(children: [
+                Text('${date!.month}월', style: TextStyle(fontSize: 12, color: color)),
+                Text('${date!.day}',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    )),
+                Text('(${_weekdayKo(date!)})', style: TextStyle(fontSize: 11, color: color)),
+              ]),
+      );
+}
+
+/// 상태 배지 — 글자만(배경 없음). 완료=딥틸, 나머지=회색(HIST-ROW-13).
+class VisitBadge extends StatelessWidget {
+  const VisitBadge({super.key, required this.status});
+  final VisitStatus status;
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      VisitStatus.done => ('진료 완료', AppTokens.primary),
+      VisitStatus.cancelled => ('취소됨', AppTokens.grayDone),
+      VisitStatus.noShow => ('방문하지 않음', AppTokens.grayDone),
+      VisitStatus.unconfirmed => ('확정되지 않음', AppTokens.grayDone),
+    };
+    return Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700));
+  }
+}
+
+/// 지나간 예약 한 줄 — 접힌 모습 + 펼침 슬롯. detail은 T27b가 실제 위젯을 주입한다(양방향 악수).
+class HistoryRow extends StatelessWidget {
+  const HistoryRow({super.key, required this.entry, required this.expanded, required this.onToggle, required this.detail});
+  final VisitHistoryEntry entry;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget detail; // ⭐ 펼침 슬롯 — T27a는 빈 상자, T27b가 알맹이
+  @override
+  Widget build(BuildContext context) {
+    final struck = entry.status == VisitStatus.cancelled; // HIST-ROW-04: 취소만 취소선
+    final railColor = (entry.status == VisitStatus.done && (entry.patientVisibleNotes ?? '').isNotEmpty)
+        ? AppTokens.primary
+        : AppTokens.grayPending; // HIST-LIST-05·06
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      InkWell(
+        onTap: onToggle, // HIST-LIST-08: 누르면 펼침(이동 없음)
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            DateRail(date: entry.slotDate, color: railColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${entry.departmentName} · ${entry.doctorName}',
+                    key: const Key('history-row-title'),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        decoration: struck ? TextDecoration.lineThrough : null)), // HIST-ROW-04
+                if (entry.status == VisitStatus.cancelled) ...[
+                  Text('취소됨 · ${_cancelActorText(entry)}',
+                      style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-02
+                  if (entry.cancelledAt != null)
+                    Text(_cancelDateTime(entry.cancelledAt!),
+                        style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-03
+                ],
+                if (entry.status == VisitStatus.unconfirmed)
+                  const Text('병원에서 확정하지 않아 진료가 진행되지 않았습니다',
+                      style: TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-11
+              ]),
+            ),
+            const SizedBox(width: 8),
+            VisitBadge(status: entry.status), // HIST-LIST-07 오른쪽 배지
+          ]),
+        ),
+      ),
+      if (expanded) detail, // T27b가 채운다(HIST-NOTE·HIST-QNR)
+    ]);
+  }
+}
+
+/// ⭐ 양방향 악수: T27a는 빈 상자를 돌려준다. T27b가 이 함수를 병원 안내문+문진 위젯으로 바꾼다.
+Widget historyDetailBuilder(VisitHistoryEntry e) => const SizedBox.shrink();
+
+/// 이력 탭. 칩으로 사람 하나 골라 그 사람의 지나간 예약 전체를 본다(HIST-ROLE-01).
+class HistoryScreen extends ConsumerStatefulWidget {
+  const HistoryScreen({super.key});
+  @override
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  final _scroll = ScrollController();
+  final Set<String> _expanded = {}; // 펼친 줄 id(여러 개 가능 — HIST-LIST-10)
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_maybeLoadMore);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _maybeLoadMore() {
+    // 끝 가까우면 다음 20건(HIST-LIST-16)
+    if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 400) {
+      ref.read(historyProvider.notifier).loadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = ref.watch(historyChipsProvider);
+    final selfId = chips.valueOrNull?.where((m) => m.isSelf).map((m) => m.id).firstOrNull;
+    final selected = ref.watch(selectedHistoryPatientProvider) ?? selfId; // HIST-WHO-03: 기본 본인
+    ref.listen(selectedHistoryPatientProvider, (_, __) => setState(_expanded.clear)); // HIST-LIST-11 재진입 접힘
+    final page = ref.watch(historyProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('이력')), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
+      body: Column(children: [
+        chips.when(
+          data: (ms) => NameChips(
+              members: ms,
+              selectedId: selected,
+              onSelect: (id) => ref.read(selectedHistoryPatientProvider.notifier).state = id), // HIST-WHO-10
+          loading: () => const SizedBox(),
+          error: (_, __) => const SizedBox(),
+        ),
+        Expanded(
+          child: page.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => EmptyState.offline(
+                screenName: '이력', // HIST-LIST-13·14 한 벌(오프라인·조회 실패 같은 벌)
+                onRetry: () => ref.read(historyProvider.notifier).reload()),
+            data: (st) => st.items.isEmpty
+                ? EmptyState.zero(
+                    message: '아직 방문하신 기록이 없습니다', // HIST-LIST-12
+                    nextAction: TextButton(
+                        onPressed: () => context.go('/booking'), child: const Text('+ 진료 예약하기')))
+                : ListView(controller: _scroll, children: [
+                    ..._withYearHeaders(st.items), // HIST-LIST-01·02·03
+                    if (st.loadingMore)
+                      const Padding(padding: EdgeInsets.all(12), child: Text('◌ 불러오는 중…')), // HIST-LIST-17
+                    if (st.appendError)
+                      TextButton(
+                          onPressed: () => ref.read(historyProvider.notifier).loadMore(),
+                          child: const Text('다시 시도')), // HIST-LIST-19(기존 줄 유지)
+                    if (st.next == null && !st.loadingMore && st.items.isNotEmpty)
+                      const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text('처음부터 모두 보여드렸습니다',
+                              style: TextStyle(color: AppTokens.grayDone))), // HIST-LIST-18
+                  ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  List<Widget> _withYearHeaders(List<VisitHistoryEntry> items) {
+    final out = <Widget>[];
+    int? lastYear;
+    for (final e in items) {
+      // 최신 위(서버가 이미 정렬 — HIST-LIST-01)
+      final y = e.slotDate?.year;
+      if (y != null && y != lastYear) {
+        out.add(Padding(
+          key: Key('year-$y'),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Text('$y', style: const TextStyle(fontWeight: FontWeight.w800, color: AppTokens.grayDone)),
+        ));
+        lastYear = y;
+      }
+      out.add(HistoryRow(
+        entry: e,
+        expanded: _expanded.contains(e.id),
+        onToggle: () =>
+            setState(() => _expanded.contains(e.id) ? _expanded.remove(e.id) : _expanded.add(e.id)),
+        detail: KeyedSubtree(
+            key: Key('history-expanded-${e.id}'), child: historyDetailBuilder(e)), // ⭐ T27a: SizedBox
+      ));
+    }
+    return out;
+  }
+}
