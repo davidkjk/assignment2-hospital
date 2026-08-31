@@ -21,6 +21,7 @@ from app.routers import (
     patient_notifications,
     patient_password_reset,
     patient_profile,
+    patient_settings,
     patients,
     questionnaire_admin,
     schedule_admin,
@@ -49,6 +50,7 @@ app.include_router(patient_consent.router)
 app.include_router(patient_password_reset.router)
 app.include_router(patient_family.router)
 app.include_router(patient_catalog.router)
+app.include_router(patient_settings.router)
 app.include_router(patient_bookings.router)
 app.include_router(patient_appointments.router)
 app.include_router(patient_device_tokens.router)

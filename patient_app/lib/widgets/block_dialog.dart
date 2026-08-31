@@ -5,6 +5,7 @@ import '../core/tokens.dart';
 ///
 /// - `confirmLabel`을 주면 확인 버튼이 하나 더 생긴다. `destructive: true`면 그 버튼이 주의색이다
 ///   (BLOCK-CONF-01: 되돌릴 수 없는 동작의 빨간 버튼은 확인창 안에서만).
+/// - `cancelLabel`을 주면 빠져나갈 문의 글자를 바꾼다(기본 `닫기`) — 예: 알림 끄기 안내의 `그대로 둘게요`.
 /// - `before`/`after`를 주면 변경 전 → 후를 함께 보여준다(BLOCK-CHG-01).
 /// - BLOCK-TIME-01: **소요 시간을 추정하는 문구(곧·보통)를 막는다** — 지킬 수 없는 약속이다.
 Future<void> showBlockDialog(
@@ -14,6 +15,7 @@ Future<void> showBlockDialog(
   String? before,
   String? after,
   String? confirmLabel,
+  String cancelLabel = '닫기',
   VoidCallback? onConfirm,
   bool destructive = false,
 }) {
@@ -36,7 +38,7 @@ Future<void> showBlockDialog(
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('닫기')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(cancelLabel)),
         if (confirmLabel != null)
           TextButton(
             style: destructive

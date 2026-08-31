@@ -88,3 +88,37 @@ async def test_list_doctors_photo_url_null_when_absent(committed_conn):
     docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(committed_conn)))
     mine = next(d for d in docs if d["id"] == doc["staff_id"])
     assert mine["photo_url"] is None and mine["schedule_summary"] == "진료시간 문의"
+
+
+@pytest.mark.asyncio
+async def test_hospital_hours_진료시간과_예정_휴진을_함께_준다(committed_conn):
+    """[SET-HOSP-05][갭 #SET-HOSP-HOURS] ㉯ 전용 창구 — 요일 7줄 + 오늘 이후 휴진.
+    ⛔ get_hospital_info(주소·전화)와 별개다 — 그 보안 창구는 안 건드린다.
+    ⚠️ hospital_hours엔 is_closed 칸이 없다 → 일요일(0)은 행을 안 넣어 휴진으로 나온다."""
+    from datetime import timedelta
+    me = await seed_patient(committed_conn)
+    await committed_conn.execute("delete from hospital_closures")
+    await committed_conn.execute("delete from hospital_hours")   # 데모 선점 행 정리
+    await committed_conn.execute(
+        "insert into hospital_hours (weekday, open_time, close_time, lunch_start, lunch_end) "
+        "values (1, '09:00', '18:00', '12:30', '14:00')")       # 월요일
+    await committed_conn.execute(
+        "insert into hospital_closures (closure_date, memo) values (current_date + 3, '창립기념일')")
+    got = await patient_catalog_service.get_hospital_hours(_ctx(me))
+    assert len(got["weekdays"]) == 7                             # 0~6 늘 일곱 줄
+    mon = next(d for d in got["weekdays"] if d["weekday"] == 1)
+    assert mon["open"] == "09:00" and mon["lunch_start"] == "12:30" and mon["is_closed"] is False
+    sun = next(d for d in got["weekdays"] if d["weekday"] == 0)
+    assert sun["is_closed"] is True and sun["open"] is None      # 행 없음 = 휴진
+    assert got["closures"] == [{"date": str(date.today() + timedelta(days=3)), "memo": "창립기념일"}]
+
+
+@pytest.mark.asyncio
+async def test_hospital_hours_지난_휴진은_안_준다(committed_conn):
+    """[SET-HOSP-05] 휴진일 줄은 「앞으로」만 — 지나간 휴무를 보여주면 안내가 아니라 소음이다."""
+    me = await seed_patient(committed_conn)
+    await committed_conn.execute("delete from hospital_closures")
+    await committed_conn.execute(
+        "insert into hospital_closures (closure_date, memo) values (current_date - 1, '지난 휴무')")
+    got = await patient_catalog_service.get_hospital_hours(_ctx(me))
+    assert got["closures"] == []

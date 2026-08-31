@@ -29,6 +29,9 @@ import '../features/family/family_link_otp_page.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/main_tabs.dart';
 import '../features/notifications/notification_inbox.dart';
+import '../features/settings/settings_home_screen.dart';
+import '../features/settings/notification_settings_screen.dart';
+import '../features/settings/hospital_info_screen.dart';
 import '../widgets/app_shell.dart';
 
 // AUTH-REAUTH-05: 민감 경로(설정·가족·탈퇴). 탈퇴는 /settings 하위. Task 11 redirect가 이 판정을 부른다.
@@ -227,9 +230,17 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             path: '/appointments/:id',
             builder: (c, s) => _Placeholder('예약 상세 ${s.pathParameters['id']}')),
         GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
-        GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
-        // ⚠️ 자리표시자 — SET-HOSP 화면 본체는 Task 28 소유다. NAV-FAM-12·AUTH-OTP-11의 도착지만 먼저 연다.
-        GoRoute(path: '/settings/hospital', builder: (c, s) => const _Placeholder('병원 안내')),
+        // ── 설정(Task 28) — T14 redirect가 /settings 하위를 이미 지킨다(NAV-SET-01·02) ──
+        GoRoute(path: '/settings', builder: (c, s) => const SettingsHomeScreen()), // SET-HOME
+        GoRoute(
+            path: '/settings/notifications',
+            builder: (c, s) => const NotificationSettingsScreen()), // NAV-SET-04
+        // T26 자리표시자(_Placeholder('병원 안내'))를 실화면으로 교체 — NAV-FAM-12·AUTH-OTP-11의 도착지가 실화면이 됐다.
+        GoRoute(path: '/settings/hospital', builder: (c, s) => const HospitalInfoScreen()), // NAV-SET-07
+        // ── 아래 셋은 T29가 실화면·실동작으로 갈아끼운다(자리표시자) ──
+        GoRoute(path: '/settings/password', builder: (c, s) => const _Placeholder('비밀번호 변경')), // NAV-SET-05
+        GoRoute(path: '/settings/withdraw', builder: (c, s) => const _Placeholder('회원 탈퇴')),      // NAV-SET-09
+        GoRoute(path: '/settings/logout', builder: (c, s) => const _Placeholder('로그아웃')),        // NAV-SET-08
         // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
         // 알림함은 데모 정본대로 하단 탭 셸 안에서 렌더(데모 스샷에 탭바 있음) — AppShell(bottomTabs).
         GoRoute(

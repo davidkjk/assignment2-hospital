@@ -33,3 +33,8 @@ async def slots(doctor_id: UUID, target_date: date,   # 쿼리 ?target_date=YYYY
 @router.get("/hospital")
 async def hospital(patient: PatientContext = Depends(get_current_patient)) -> dict:
     return await patient_catalog_service.get_hospital_info(patient)
+
+
+@router.get("/hospital/hours")
+async def hospital_hours(patient: PatientContext = Depends(get_current_patient)) -> dict:
+    return await patient_catalog_service.get_hospital_hours(patient)   # [SET-HOSP-05] 진료시간·휴진
