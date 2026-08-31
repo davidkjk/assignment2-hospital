@@ -43,8 +43,19 @@ async def get_my_profile(patient: PatientContext) -> dict:
             "gender": row["gender"], "phone": row["phone"]}
 
 
+async def get_withdrawal_blocks(patient: PatientContext) -> list[dict]:
+    # [SET-QUIT-15] 탈퇴를 막는 다가오는 예약(내 것 + ㉮ 가족). 화면이 받아 나열한다.
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        rows = await conn.fetch("select * from list_withdrawal_blocks()")
+    return [dict(r) for r in rows]
+
+
 async def deactivate_self(patient: PatientContext) -> None:
-    # [SDB-18] 직접 UPDATE 정책이 없으므로 RPC로만 비활성화 + Supabase Auth 계정 ban.
+    # [SET-QUIT-09][갭 #64] 순서: ① 차단 확인 + auth_user_id 비우기(SQL, 원자·차단이면 예외로 여기서 멈춤)
+    #   → ② Auth 계정 삭제. 차단 예외가 Auth 조작 앞에서 멈추므로 부분 실행이 없다.
     async with acquire_as(str(patient.auth_user_id)) as conn:
         await conn.execute("select deactivate_patient_self()")
-    get_admin_client().auth.admin.update_user_by_id(str(patient.auth_user_id), {"ban_duration": "87600h"})
+    # #64: 같은 번호로 재가입하려면 Auth에서 번호가 풀려야 한다. update_user_by_id(phone=null)은 Supabase가
+    #   거부할 수 있어(플랜의 구현 위험), 계정 삭제로 확실히 푼다 — 「누가 탈퇴했나」 흔적은
+    #   patients.former_auth_user_id·deactivated_at에 이미 남겼다(B-37: 번호는 풀리고 흔적은 남는다).
+    get_admin_client().auth.admin.delete_user(str(patient.auth_user_id))

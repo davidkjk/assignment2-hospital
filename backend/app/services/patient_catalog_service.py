@@ -56,3 +56,33 @@ async def list_available_slots(doctor_id: UUID, target_date: date, patient: Pati
 
 async def get_hospital_info(patient: PatientContext) -> dict:
     return await get_public_hospital_info()  # HSETX-SEC-01 — 주소·전화만
+
+
+async def get_hospital_hours(patient: PatientContext) -> dict:
+    """[SET-HOSP-05] 진료시간·휴진일(㉯ 전용 창구). hospital_hours·hospital_closures를 읽기만 한다
+    (표는 직원웹 T29 소유 — 00031이 환자 읽기 정책을 얹었다). 표시 문구는 화면(formatHospitalHours)이 만든다.
+    ⚠️ hospital_hours엔 is_closed 칸이 없다(00041) — 휴진 요일 = 그 요일 행이 아예 없음."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        hrows = await conn.fetch(
+            "select weekday, open_time, close_time, lunch_start, lunch_end "
+            "from hospital_hours order by weekday")
+        crows = await conn.fetch(
+            "select closure_date, memo from hospital_closures "
+            "where closure_date >= current_date order by closure_date")
+    by_wd = {r["weekday"]: r for r in hrows}
+
+    def _t(v):  # time|None → 'HH:MM'|None (화면이 문자열만 받게)
+        return v.strftime("%H:%M") if v is not None else None
+
+    weekdays = []
+    for wd in range(7):                                    # 0~6 늘 일곱 줄(행 없는 요일은 휴진)
+        r = by_wd.get(wd)
+        if r is None:
+            weekdays.append({"weekday": wd, "is_closed": True,
+                             "open": None, "close": None, "lunch_start": None, "lunch_end": None})
+        else:
+            weekdays.append({"weekday": wd, "is_closed": False,
+                             "open": _t(r["open_time"]), "close": _t(r["close_time"]),
+                             "lunch_start": _t(r["lunch_start"]), "lunch_end": _t(r["lunch_end"])})
+    return {"weekdays": weekdays,
+            "closures": [{"date": str(r["closure_date"]), "memo": r["memo"]} for r in crows]}

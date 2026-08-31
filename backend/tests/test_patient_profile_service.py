@@ -38,13 +38,44 @@ async def test_register_new_row_when_ambiguous(committed_conn):
 
 
 @pytest.mark.asyncio
-async def test_deactivate_self_bans_and_inactivates(committed_conn):
+async def test_deactivate는_Auth삭제와_SQL을_함께_한다(committed_conn):
+    """[SET-QUIT-09][갭 #64] 탈퇴 = ① Auth 계정 삭제(admin) ② SQL로 auth_user_id 비우기·흔적.
+    둘 다 해야 「번호는 풀리고 흔적은 남는」 B-37 상태가 된다(옛 ban 방식에서 뒤집음)."""
     p = await seed_patient(committed_conn)
     fake = MagicMock()
     with patch("app.services.patient_profile_service.get_admin_client", return_value=fake):
-        await patient_profile_service.deactivate_self(PatientContext(id=p["patient_id"], auth_user_id=p["auth_user_id"]))
-    fake.auth.admin.update_user_by_id.assert_called_once()
-    assert await committed_conn.fetchval("select is_active from patients where id=$1", p["patient_id"]) is False
+        await patient_profile_service.deactivate_self(
+            PatientContext(id=p["patient_id"], auth_user_id=p["auth_user_id"]))
+    fake.auth.admin.delete_user.assert_called_once_with(str(p["auth_user_id"]))  # ① Auth 삭제
+    row = await committed_conn.fetchrow(
+        "select is_active, auth_user_id, former_auth_user_id from patients where id=$1", p["patient_id"])
+    assert row["is_active"] is False
+    assert row["auth_user_id"] is None                          # ② SQL 반영
+    assert row["former_auth_user_id"] == p["auth_user_id"]      # 흔적
+
+
+@pytest.mark.asyncio
+async def test_차단이_있으면_Auth를_건드리기_전에_멈춘다(committed_conn):
+    """[SET-QUIT-11] 차단이면 SQL이 예외 → Auth를 삭제하지 않는다(부분 실행 방지)."""
+    p = await seed_patient(committed_conn)
+    dept = await committed_conn.fetchval("insert into departments (name) values ('차단과') returning id")
+    doc_uid = await committed_conn.fetchval(
+        "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id", f"d-{dept}@test.local")
+    doctor = await committed_conn.fetchval(
+        "insert into staff (auth_user_id, name, role, department_id, is_active) "
+        "values ($1,'의사','doctor',$2,true) returning id", doc_uid, dept)
+    slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date + 3, '10:00', '예약됨') returning id", doctor)
+    await committed_conn.execute(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, reason, status, source) "
+        "values ($1,$2,$2,$3,$4,'감기','예약확정','app')", slot, p["patient_id"], dept, doctor)
+    fake = MagicMock()
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=fake):
+        with pytest.raises(Exception):
+            await patient_profile_service.deactivate_self(
+                PatientContext(id=p["patient_id"], auth_user_id=p["auth_user_id"]))
+    fake.auth.admin.delete_user.assert_not_called()               # Auth 안 건드림
 
 
 @pytest.mark.asyncio

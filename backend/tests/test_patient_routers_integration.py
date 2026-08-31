@@ -299,3 +299,57 @@ async def test_notifications_read_marks_seen_via_api(client, committed_conn):
     seen = await committed_conn.fetchval(
         "select notifications_seen_at from patients where id=$1", me["patient_id"])
     assert seen is not None                                          # NOTI-READ-04: 진입 순간 갱신
+
+
+# ── 설정: 알림 선호 + 진료시간 (Task 28) ─────────────────────
+@pytest.mark.asyncio
+async def test_알림선호_조회와_토글(client, committed_conn):
+    """[SET-NOTI-12] GET로 6토글, PATCH로 하나를 끄면 갱신된 6토글이 온다."""
+    me = await seed_patient(committed_conn)
+    tok = make_token(str(me["auth_user_id"]))
+    r = client.get("/me/notification-preferences", headers=_hdr(tok))
+    assert r.status_code == 200 and r.json()["appt_change"] is True
+    r2 = client.patch("/me/notification-preferences",
+                      json={"group": "appt_change", "enabled": False}, headers=_hdr(tok))
+    assert r2.status_code == 200 and r2.json()["appt_change"] is False
+
+
+@pytest.mark.asyncio
+async def test_모르는_그룹은_400(client, committed_conn):
+    """[SET-NOTI-12] 화면에 없는 키는 400."""
+    me = await seed_patient(committed_conn)
+    r = client.patch("/me/notification-preferences",
+                     json={"group": "everything", "enabled": False},
+                     headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_진료시간_조회(client, committed_conn):
+    """[SET-HOSP-05] GET /catalog/hospital/hours → 요일 7줄."""
+    me = await seed_patient(committed_conn)
+    await committed_conn.execute("delete from hospital_hours")
+    await committed_conn.execute(
+        "insert into hospital_hours (weekday, open_time, close_time) values (1, '09:00', '18:00')")
+    r = client.get("/catalog/hospital/hours", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and len(r.json()["weekdays"]) == 7
+
+
+# ── 설정: 회원 탈퇴 (Task 29) ────────────────────────────────
+@pytest.mark.asyncio
+async def test_탈퇴_차단_조회(client, committed_conn):
+    """[SET-QUIT-15] 막는 예약 목록을 화면이 받아 나열한다."""
+    me = await seed_patient(committed_conn)
+    dept, doctor, slot = await _seed_bookable(committed_conn)
+    await _seed_appointment(committed_conn, me["patient_id"], dept, doctor, slot)  # days_ahead=7 확정
+    r = client.get("/me/withdrawal-blocks", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and len(r.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_탈퇴_실행(client, committed_conn):
+    """[SET-QUIT-19] 막는 예약이 없으면 탈퇴가 처리된다(Auth 삭제는 스텁)."""
+    me = await seed_patient(committed_conn)
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=MagicMock()):
+        r = client.post("/me/deactivate", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and r.json()["ok"] is True
