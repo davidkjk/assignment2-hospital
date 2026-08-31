@@ -234,3 +234,15 @@ async def acknowledge_hospital_change(patient: PatientContext, appointment_id: U
             "update appointments set hospital_change_prev_time=null, hospital_change_kind=null "
             "where id=$1",
             appointment_id)
+
+
+async def acknowledge_cancel_rejection(patient: PatientContext, appointment_id: UUID) -> None:
+    """CANCEL-REJ-04: 취소 반려 배너의 [확인]. 두 칸을 비운다(hospital_change 패턴 대칭, 00027).
+    직원웹 반려가 cancel_rejected_at/_reason를 채우고 cancellation_rejected 알림을 보낸다 —
+    여기선 비우기만. 두 칸이 비어야 앱을 껐다 켜도 배너가 다시 뜨지 않고 QR이 정상 복귀한다(CANCEL-REJ-05).
+    RLS(patients_can_update_own_appointments)가 본인·가족 예약만 통과시킨다."""
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        await conn.execute(
+            "update appointments set cancel_rejected_at=null, cancel_rejected_reason=null "
+            "where id=$1",
+            appointment_id)

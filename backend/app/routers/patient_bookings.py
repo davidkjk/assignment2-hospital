@@ -69,3 +69,10 @@ async def acknowledge_change(appointment_id: UUID,
                             patient: PatientContext = Depends(get_current_patient)) -> None:
     # CARD-CHG-04: 병원발 변경/취소 안내문 [확인] — 두 칸을 비운다(껐다 켜도 다시 안 뜸).
     await patient_booking_service.acknowledge_hospital_change(patient, appointment_id)
+
+
+@router.post("/{appointment_id}/acknowledge-rejection", status_code=204)
+async def acknowledge_rejection(appointment_id: UUID,
+                               patient: PatientContext = Depends(get_current_patient)) -> None:
+    # CANCEL-REJ-04: 취소 반려 배너 [확인] — cancel_rejected_at/_reason를 비운다(껐다 켜도 다시 안 뜸).
+    await patient_booking_service.acknowledge_cancel_rejection(patient, appointment_id)

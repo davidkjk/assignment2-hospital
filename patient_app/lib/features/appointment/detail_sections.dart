@@ -11,6 +11,7 @@ import '../../widgets/inline_error.dart';
 import '../home/appointment_view.dart';
 import '../home/status_badge.dart';
 import 'appointment_detail.dart';
+import 'cancelled_view.dart';
 
 // ── 지도·전화 seam ───────────────────────────────────────────────────────────
 // 테스트가 실제 앱을 띄우지 않고 「무엇을 열려 했는지」만 관찰할 수 있게 갈아끼울 수 있는 함수로 둔다.
@@ -75,6 +76,11 @@ class DetailHeader extends StatelessWidget {
             textColor: patientBadgeTextColor(state),
           ),
         ]),
+        // CANCEL-DONE-02 / APPT-RACE-04 — 취소된 예약은 누가·언제 취소했는지 머리에 밝힌다.
+        if (cancelled) ...[
+          const SizedBox(height: 12),
+          CancelledNotice(v),
+        ],
         // APPT-HEAD-05 — 확정 전이면 '확인 중' 안내 한 줄(APPT-HEAD-04 용어는 아래 표·버튼이 상태로 분기).
         if (v.status == '예약신청') ...[
           const SizedBox(height: 12),

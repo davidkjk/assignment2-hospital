@@ -17,6 +17,8 @@ import '../features/auth/password_find_screen.dart';
 import '../features/auth/phone_change_screen.dart';
 import '../features/auth/reauth_screen.dart';
 import '../features/appointment/appointment_detail.dart';
+import '../features/appointment/change_flow.dart';
+import '../features/appointment/cancel_flow.dart';
 import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
@@ -226,7 +228,17 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             builder: (c, s) => FamilyEditScreen(familyPatientId: s.pathParameters['id']!)),
         GoRoute(
             path: '/appointments/:id',
-            builder: (c, s) => AppointmentDetailScreen(s.pathParameters['id']!)), // 환자앱 T21
+            builder: (c, s) => AppointmentDetailScreen(
+                  s.pathParameters['id']!,
+                  changed: s.uri.queryParameters['changed'] == '1', // APPT-CHG-12 변경 완료 안내
+                )), // 환자앱 T21
+        // 환자앱 T22 — 변경 마법사·취소 흐름(상세 [예약 변경]·[예약 취소]가 push, NAV-APPT-07·12).
+        GoRoute(
+            path: '/appointments/:id/change',
+            builder: (c, s) => ChangeScreen(s.pathParameters['id']!)),
+        GoRoute(
+            path: '/appointments/:id/cancel',
+            builder: (c, s) => CancelLauncherScreen(s.pathParameters['id']!)),
 
         GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
         GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),

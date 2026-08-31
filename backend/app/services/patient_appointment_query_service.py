@@ -36,9 +36,11 @@ async def list_my_appointments(patient: PatientContext) -> list[dict]:
 async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) -> dict:
     async with acquire_as(str(patient.auth_user_id)) as conn:
         row = await conn.fetchrow(
-            "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, a.queue_position, "
-            "  a.doctor_id, a.booking_code, a.booking_code_expires_at, a.reason, "  # 갭 #49 — APPT-INFO-03(방문이유)
+            "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, a.created_at, a.queue_position, "
+            "  a.doctor_id, a.department_id, a.booking_code, a.booking_code_expires_at, a.reason, "  # 갭 #49 — APPT-INFO-03(방문이유) · doctor_id·department_id·created_at는 변경 마법사(T22)가 소비(마감·30분 유예 판정)
             "  a.hospital_change_prev_time, a.hospital_change_kind, "  # CARD-CHG(직원웹 T2가 채움·환자 [확인]이 비움)
+            "  a.cancel_rejected_at, a.cancel_rejected_reason, "  # CANCEL-REJ(직원웹 반려가 채움·환자 [확인]이 비움, 00027)
+            "  get_cancellation_deadline_hours() as cancellation_deadline_hours, "  # CANCEL-LATE-02 — 마감 N시간 문구(환자 세션은 hospital_settings 못 읽어 definer 창구)
             "  a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at, "  # CARD-CXL-09(갭 #11)
             # APPT-QNR — 완료 문진 유무 + 진료 진입 여부로 문진 줄 상태를 서버가 정한다(none/writable/readonly).
             "  case "

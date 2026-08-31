@@ -8,9 +8,11 @@ import '../../core/providers.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/offline_banner.dart';
+import '../../core/tokens.dart';
 import '../home/appointment_view.dart';
 import '../home/home_data.dart' show hospitalInfoProvider, HospitalInfo;
 import 'detail_sections.dart';
+import 'reject_banner.dart';
 
 /// 예약 상세의 한 화면 분량. 카드(T15/17)가 못 담는 것(정보 표·문진 내용·변경/취소 버튼)을 더한다.
 /// - [view]: 상태·일시·대상·의사·과 등(T15/17 AppointmentView 재사용)
@@ -18,6 +20,10 @@ import 'detail_sections.dart';
 /// - [hospitalAddress]/[hospitalPhone]: 장소·전화(T4 get_hospital_info)
 /// - [questionnaireStatus]: 'none'|'writable'|'readonly'(서버가 완료 문진 유무+진료 진입으로 정함)
 /// - [supportRequestedAt]: 마감 후 취소를 이미 상담으로 넘긴 시각(있으면 다시 못 누름 — APPT-BTN-09)
+/// - [updatedAt]: 낙관적 잠금(APPT-RACE-01) — 변경/취소가 이 값을 함께 보내 그 사이 병원·가족이 먼저 바꿨는지 판정
+/// - [cancelRejectedAt]/[cancelRejectedReason]: 취소 반려 배너(CANCEL-REJ, 00027) — 직원웹 반려가 채우고 [확인]이 비운다
+/// - [doctorId]/[departmentId]: 변경 마법사(T22)가 같은 의사/과의 빈 날짜·시간을 조회할 때 쓰는 UUID
+/// - [cancellationDeadlineHours]: 마감 후 안내 팝업(CANCEL-LATE-02)의 「진료 시작 N시간 전까지만」 N
 class AppointmentDetail {
   const AppointmentDetail({
     required this.view,
@@ -26,6 +32,13 @@ class AppointmentDetail {
     this.hospitalPhone,
     this.questionnaireStatus = 'none',
     this.supportRequestedAt,
+    this.updatedAt,
+    this.createdAt,
+    this.cancelRejectedAt,
+    this.cancelRejectedReason,
+    this.doctorId,
+    this.departmentId,
+    this.cancellationDeadlineHours = 24,
   });
 
   final AppointmentView view;
@@ -34,6 +47,13 @@ class AppointmentDetail {
   final String? hospitalPhone;
   final String questionnaireStatus;
   final DateTime? supportRequestedAt;
+  final DateTime? updatedAt;
+  final DateTime? createdAt;
+  final DateTime? cancelRejectedAt;
+  final String? cancelRejectedReason;
+  final String? doctorId;
+  final String? departmentId;
+  final int cancellationDeadlineHours;
 
   factory AppointmentDetail.fromJson(Map<String, dynamic> j, HospitalInfo? hospital) =>
       AppointmentDetail(
@@ -45,6 +65,15 @@ class AppointmentDetail {
         supportRequestedAt: j['support_requested_at'] == null
             ? null
             : DateTime.parse(j['support_requested_at'] as String),
+        updatedAt: j['updated_at'] == null ? null : DateTime.parse(j['updated_at'] as String),
+        createdAt: j['created_at'] == null ? null : DateTime.parse(j['created_at'] as String),
+        cancelRejectedAt: j['cancel_rejected_at'] == null
+            ? null
+            : DateTime.parse(j['cancel_rejected_at'] as String),
+        cancelRejectedReason: j['cancel_rejected_reason'] as String?,
+        doctorId: j['doctor_id'] as String?,
+        departmentId: j['department_id'] as String?,
+        cancellationDeadlineHours: (j['cancellation_deadline_hours'] as int?) ?? 24,
       );
 }
 
@@ -73,9 +102,11 @@ final detailActionProvider =
     StateProvider.autoDispose.family<AsyncValue<void>, String>((ref, id) => const AsyncData(null));
 
 /// 예약 상세 종점 화면. 홈 카드·나의 예약 줄·알림함이 전부 `/appointments/:id`로 여기로 온다.
+/// [changed]가 true면 방금 변경을 마친 것 — 예약번호 새 발급 안내를 한 줄 얹는다(APPT-CHG-12·13).
 class AppointmentDetailScreen extends ConsumerWidget {
-  const AppointmentDetailScreen(this.id, {super.key});
+  const AppointmentDetailScreen(this.id, {super.key, this.changed = false});
   final String id;
+  final bool changed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -91,6 +122,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
         data: (d) {
           if (d == null) return const _NotFound(); // NAV-APPT-23
           final state = resolveCardState(d.view, DateTime.now());
+          final cancelled = state == AppointmentCardState.cancelled;
           return Column(children: [
             if (!online) const OfflineBanner(), // NAV-APPT-22 — 화면 안 옮기고 보관본 유지
             Expanded(
@@ -99,6 +131,16 @@ class AppointmentDetailScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                   child: Column(children: [
+                    // 「놓치면 손해」 배너 — 병원발 변경(APPT-RACE-03)·취소 반려(CANCEL-REJ). 취소된 예약엔 얹지 않는다.
+                    if (!cancelled) ...[
+                      ChangeNoticeBanner(d),
+                      CancelRejectBanner(d),
+                    ],
+                    // APPT-CHG-12·13 — 변경 완료 후 상세에 예약번호 새 발급 안내(팝업 아님).
+                    if (changed && !cancelled) ...[
+                      _ChangedNotice(),
+                      const SizedBox(height: 16),
+                    ],
                     InfoTable(d),
                     const SizedBox(height: 16),
                     DetailQr(d, state),
@@ -112,6 +154,24 @@ class AppointmentDetailScreen extends ConsumerWidget {
           ]);
         },
       ),
+    );
+  }
+}
+
+/// APPT-CHG-12 — 변경 성공 뒤 상세 위 한 줄(결정 뒤에 말하면 걱정이 아니라 안내가 된다, APPT-CHG-13).
+class _ChangedNotice extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTokens.primary.withValues(alpha: 0.10),
+        border: Border.all(color: AppTokens.primary),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Text('예약번호가 새로 발급되었습니다',
+          style: TextStyle(fontWeight: FontWeight.w600, color: AppTokens.primary)),
     );
   }
 }

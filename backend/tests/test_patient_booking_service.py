@@ -315,3 +315,22 @@ async def test_acknowledge_hospital_change_clears_both_columns(committed_conn):
     row = await committed_conn.fetchrow(
         "select hospital_change_prev_time, hospital_change_kind from appointments where id=$1", aid)
     assert row["hospital_change_prev_time"] is None and row["hospital_change_kind"] is None
+
+
+# ── Task 22: 취소 반려 배너 [확인] (CANCEL-REJ-04, 00027) ──────────────────
+
+@pytest.mark.asyncio
+async def test_acknowledge_cancel_rejection_clears_banner(committed_conn):
+    # CANCEL-REJ-04: 환자가 [확인]하면 두 칸이 비고, 그래야 앱을 껐다 켜도 반려 배너가 다시 뜨지 않는다(QR 정상 복귀).
+    ctx = await _seed_base(committed_conn)
+    aid = await _make_appointment(committed_conn, ctx, ctx["slot_id"])
+    # 직원웹 취소요청 반려가 채우는 두 칸(hospital_change 대칭).
+    await committed_conn.execute(
+        "update appointments set cancel_rejected_at=now(), cancel_rejected_reason='진료 준비가 이미 진행되었습니다' where id=$1",
+        aid)
+
+    await patient_booking_service.acknowledge_cancel_rejection(ctx["patient"], aid)
+
+    row = await committed_conn.fetchrow(
+        "select cancel_rejected_at, cancel_rejected_reason from appointments where id=$1", aid)
+    assert row["cancel_rejected_at"] is None and row["cancel_rejected_reason"] is None

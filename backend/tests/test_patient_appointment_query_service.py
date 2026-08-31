@@ -150,3 +150,17 @@ async def test_list_my_appointments_family_relation(committed_conn):
     rows = await q.list_my_appointments(me)
     row = next(r for r in rows if r["id"] == aid)
     assert row["is_self"] is False and row["relation"] == "어머니"
+
+
+@pytest.mark.asyncio
+async def test_appointment_detail_carries_change_and_reject_fields(committed_conn):
+    # [CANCEL-REJ-01·02] 반려 배너 데이터 + [CANCEL-LATE-02] 마감 N시간 + 변경 마법사(T22)용 doctor_id·department_id.
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn))
+    aid = await _future_appt(committed_conn, me, dept, doctor_id)
+    await committed_conn.execute(
+        "update appointments set cancel_rejected_at=now(), cancel_rejected_reason='진료 준비됨' where id=$1", aid)
+    d = await q.get_appointment_detail(me, aid)
+    assert d["cancel_rejected_reason"] == "진료 준비됨" and d["cancel_rejected_at"] is not None
+    assert d["doctor_id"] == doctor_id and d["department_id"] == dept  # 변경 마법사가 소비
+    assert d["cancellation_deadline_hours"] is not None  # definer 창구가 값(기본 24)을 준다

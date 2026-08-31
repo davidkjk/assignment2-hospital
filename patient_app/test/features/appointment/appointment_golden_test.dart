@@ -65,7 +65,21 @@ void main() {
   });
 
   testWidgets('appt detail cancelled golden', (t) async {
-    await _shoot(t, 'cancelled',
-        detail(status: '환자취소', slot: fixed, relation: '어머니', forName: '박영자', isSelf: false, qnr: 'readonly'));
+    // T22: 취소된 상세는 머리에 취소 주체(CANCEL-DONE-02 · APPT-RACE-04)를 밝힌다.
+    await _shoot(
+        t,
+        'cancelled',
+        detail(
+          status: '환자취소',
+          slot: fixed,
+          relation: '어머니',
+          forName: '박영자',
+          isSelf: false,
+          qnr: 'readonly',
+          cancelledBy: 'patient',
+          cancelledByRelation: '어머니',
+          cancelledByName: '박영자',
+          cancelledAt: DateTime(2030, 5, 18, 10, 0),
+        ));
   });
 }

@@ -23,6 +23,19 @@ AppointmentDetail detail({
   String qnr = 'none',
   String? code = 'A-1234',
   DateTime? supportRequestedAt,
+  DateTime? updatedAt,
+  DateTime? createdAt,
+  DateTime? cancelRejectedAt,
+  String? cancelRejectedReason,
+  String? doctorId = 'doc-1',
+  String? departmentId = 'dept-1',
+  int deadlineHours = 24,
+  String? cancelledBy,
+  String? cancelledByRelation,
+  String? cancelledByName,
+  DateTime? cancelledAt,
+  DateTime? hospitalChangePrevTime,
+  String? hospitalChangeKind,
 }) =>
     AppointmentDetail(
       view: AppointmentView(
@@ -37,21 +50,35 @@ AppointmentDetail detail({
         slotStart: slot ?? DateTime.now().add(const Duration(days: 7)),
         hasQuestionnaire: qnr != 'none',
         isSelf: isSelf,
+        cancelledBy: cancelledBy,
+        cancelledByRelation: cancelledByRelation,
+        cancelledByName: cancelledByName,
+        cancelledAt: cancelledAt,
+        hospitalChangePrevTime: hospitalChangePrevTime,
+        hospitalChangeKind: hospitalChangeKind,
       ),
       reason: reason,
       hospitalAddress: address,
       hospitalPhone: phone,
       questionnaireStatus: qnr,
       supportRequestedAt: supportRequestedAt,
+      updatedAt: updatedAt ?? DateTime(2026, 1, 1, 9),
+      createdAt: createdAt ?? DateTime(2026, 1, 1, 9),
+      cancelRejectedAt: cancelRejectedAt,
+      cancelRejectedReason: cancelRejectedReason,
+      doctorId: doctorId,
+      departmentId: departmentId,
+      cancellationDeadlineHours: deadlineHours,
     );
 
 /// 상세 화면 + 도착지 스텁 라우트를 묶은 하네스. 명령형 push 뒤 화면 위치를 lastRoute로 관찰한다.
 class DetailHarness {
-  DetailHarness({this.fixture, this.online = true, this.action = const AsyncData(null)}) {
+  DetailHarness(
+      {this.fixture, this.online = true, this.action = const AsyncData(null), this.changed = false}) {
     router = GoRouter(initialLocation: '/appointments/a1', routes: [
       GoRoute(
           path: '/appointments/:id',
-          builder: (c, s) => AppointmentDetailScreen(s.pathParameters['id']!)),
+          builder: (c, s) => AppointmentDetailScreen(s.pathParameters['id']!, changed: changed)),
       GoRoute(path: '/appointments/:id/change', builder: (c, s) => _stub('change')),
       GoRoute(path: '/appointments/:id/cancel', builder: (c, s) => _stub('cancel')),
       GoRoute(path: '/qr/:id', builder: (c, s) => _stub('qr')),
@@ -68,6 +95,7 @@ class DetailHarness {
   final AppointmentDetail? fixture;
   final bool online;
   final AsyncValue<void> action;
+  final bool changed;
   late final GoRouter router;
   String lastRoute = '/appointments/a1';
 
@@ -89,10 +117,11 @@ Future<DetailHarness> pumpDetail(
   AppointmentDetail? detail,
   bool online = true,
   AsyncValue<void> action = const AsyncData(null),
+  bool changed = false,
 }) async {
   await t.binding.setSurfaceSize(const Size(390, 1600));
   addTearDown(() => t.binding.setSurfaceSize(null));
-  final h = DetailHarness(fixture: detail, online: online, action: action);
+  final h = DetailHarness(fixture: detail, online: online, action: action, changed: changed);
   await t.pumpWidget(h.widget());
   // ⚠️ pumpAndSettle 금지 — 로딩 프레임의 CircularProgressIndicator는 무한 애니메이션이라 settle되지
   //    않는다(각 테스트가 10분 타임아웃). FutureProvider 오버라이드는 microtask로 완료되므로 pump 두 번:
