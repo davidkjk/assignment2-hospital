@@ -7,6 +7,8 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import { server } from '../../test/msw/server'
 import { CalendarPage } from './CalendarPage'
 import { PanelHost, PanelProvider } from '../../components/PanelHost'
+import { DoorProvider } from '../../shell/doors/DoorContext'
+import { DoorRegion } from '../../shell/doors/panels'
 import type { CalendarData } from '../../api/calendar'
 
 // 셸 채널 구독만 하는 useCalendarRealtime가 실제 supabase를 부르지 않게 막는다(SHELL-LIVE-02).
@@ -61,8 +63,12 @@ function renderPage(entry = '/calendar') {
     <QueryClientProvider client={qc}>
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[entry]}>
         <PanelProvider>
-          <CalendarPage now={NOW} />
-          <PanelHost />
+          <DoorProvider>
+            <CalendarPage now={NOW} />
+            <PanelHost />
+            {/* 빈칸 클릭은 헤더와 같은 예약 문을 연다 — 문 패널을 함께 걸어 둔다(2026-08-31 통합). */}
+            <DoorRegion />
+          </DoorProvider>
         </PanelProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -260,13 +266,18 @@ test('[CAL-PANEL-*] 딥링크한 예약이 오늘 격자에 없어도(미래 날
   expect(within(panel).getByText('변경 상담')).toBeVisible()          // 상담 요약(SUPPORT-CAL-*)
 })
 
-test('[CAL-SLOT-06] 빈 구간을 누르면 오른쪽에 전화 예약 패널이 열린다', async () => {
+test('[CAL-SLOT-06][CAL-BOOK-01] 빈 구간을 누르면 헤더와 같은 예약 문이 의사·날짜 프리필로 열린다 (캘린더 전용 「전화 예약」 패널을 따로 두지 않는다)', async () => {
   calendarOk()
   const user = userEvent.setup()
   renderPage()
   const grid = await screen.findByTestId('day-grid')
   const col = within(grid).getByTestId('column-d2') // 예약 없는 의사 열은 통째로 빈 시간
   await user.click(within(col).getByText(/빈 시간/))
-  const panel = await screen.findByRole('complementary', { name: '패널' })
-  expect(within(panel).getByRole('heading', { name: '전화 예약' })).toBeVisible()
+  // 캘린더 전용 패널이 아니라 헤더 세 버튼과 같은 「새 예약」 문이 열린다(2026-08-31 통합).
+  const door = await screen.findByRole('complementary', { name: '새 예약' })
+  // 의사·날짜가 채워진 채로(CAL-BOOK-02) — 남은 칸은 환자뿐.
+  expect(within(door).getByText('최민석 선생님')).toBeVisible()
+  expect(within(door).getByText(/8월 6일/)).toBeVisible()
+  expect(within(door).getByText('왼쪽에서 환자를 찾아 고르세요')).toBeVisible()
+  expect(screen.queryByText('전화 예약')).toBeNull()
 })

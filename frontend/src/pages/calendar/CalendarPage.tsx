@@ -10,8 +10,8 @@ import { DoctorChips, type CalendarDoctor } from './DoctorChips'
 import { DayGrid } from './DayGrid'
 import { WeekGrid, weekDays } from './WeekGrid'
 import { MiniCalendar } from './MiniCalendar'
-import { PhoneBookingPanel } from './PhoneBookingPanel'
 import { AppointmentPanelLoader } from './AppointmentPanelLoader'
+import { useDoors } from '../../shell/doors/DoorContext'
 import { buildGridModel, assignPalette, type GridDoctor } from './gridModel'
 import { useCalendarRealtime } from './useCalendarRealtime'
 import { useZoom } from './useZoom'
@@ -78,6 +78,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
   const [miniOpen, setMiniOpen] = useState(false)
   const zoom = useZoom(staffKey)
   const panel = usePanel()
+  const doors = useDoors()
 
   // [L4] 작은 달력은 바깥을 누르면 닫힌다 — 토글(.cal-nav-range)은 제외해 재클릭이 닫자마자 다시 여는 이중토글을 막는다.
   useEffect(() => {
@@ -131,25 +132,22 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
   }, [fullCatalog])
 
   // ── 패널 열기 ─────────────────────────────────────────────────────────────
+  // [CAL-BOOK-01] 캘린더 빈칸에서 여는 예약 — 헤더 「예약」 문과 **같은 하나**를 쓴다(2026-08-31 통합,
+  //   사용자 지시). 캘린더 전용 패널을 따로 두지 않는다: 의사·날짜(·시각)를 프리필하고 시각 칸을 켠
+  //   채로 열어, 남은 건 환자뿐이고 시각은 왼쪽 일간 캘린더에서 다시 눌러 바꿀 수 있다(지적 1·2).
   function openBooking(doctorId: string, date: string, time: string) {
-    panel.openPanel({
-      title: '전화 예약',
-      origin: '/calendar',
-      content: (
-        <PhoneBookingPanel
-          doctors={gridDoctors}
-          initial={{ doctorId, date, time }}
-          onSaved={() => {
-            panel.closePanel()
-            void query.refetch()
-          }}
-          onPickTimeOnCalendar={() => {
-            setMode('day')
-            setAnchorDate(new Date(date))
-          }}
-        />
-      ),
-    })
+    const gd = gridDoctors.find((d) => d.id === doctorId)
+    doors.openBookingAt(
+      {
+        id: doctorId,
+        name: gd?.name ?? '',
+        department: gd?.departmentName ?? '',
+        slotMinutes: gd?.slotMinutes,
+        paletteIndex: gd?.paletteIndex,
+      },
+      date,
+      time || undefined,
+    )
   }
 
   function openAppointment(appointmentId: string) {

@@ -38,6 +38,10 @@ interface DoorApi {
   pickPatient: (p: PatientLite) => void
   pickDoctor: (d: DoctorLite) => void
   pickSlot: (date: string, time: string) => void
+  /** 캘린더 빈칸에서 바로 예약 문을 연다 — 의사·날짜(·시각)를 프리필하고 **시각 칸을 켠 채로** 연다.
+   *  ⭐ 시각 칸이 켜져 있으면 왼쪽이 그 의사의 일간 캘린더라, 다른 시각을 눌러 바로 바꿀 수 있다(지적 2).
+   *  이미 예약 문이 열려 있으면 draft를 지우지 않고 자리(의사·날짜·시각)만 바꾼다(환자·사유 보존). */
+  openBookingAt: (doctor: DoctorLite, date: string, time?: string) => void
   /** 문 사이 이어가기 — 지금 환자를 안고 다른 문으로 (F-4: 문 둘·손 하나) */
   switchDoor: (door: DoorId) => void
 }
@@ -51,9 +55,12 @@ export function DoorProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<Draft>({})
   const [flash, setFlash] = useState<Flash>(null)
 
-  // ⚠️ 그릇이 둘이다 — 세 문은 `DoorRegion`, 소비 화면(캘린더·검색·안내 보내기)은 `PanelHost`.
+  // ⚠️ 그릇이 둘이다 — 세 문은 `DoorRegion`, 소비 화면(검색·안내 보내기)은 `PanelHost`.
   //    `PANEL-ONE-01`(패널은 언제나 하나)을 지키려고 서로 열릴 때 상대를 닫는다.
-  //    TODO(S1): 두 그릇을 하나로 합칠지 화면 포팅 때 한 번 정한다(계획 §5 이월 항목).
+  //    TODO(S1) 일부 해소(2026-08-31): 캘린더 「새 예약」은 전용 PhoneBookingPanel(PanelHost)을
+  //    폐기하고 헤더 예약 문(`openBookingAt`)으로 통합했다(그릇 통합, CAL-SLOT-06·CAL-BOOK-01).
+  //    캘린더의 「예약 블록 클릭 → 상세 사이드패널」(CAL-SLOT-07/AppointmentPanel)은 아직 PanelHost.
+  //    남은 통합(검색·안내 보내기 패널)은 화면 포팅 때 한 번 정한다(계획 §5 이월 항목).
   const { panel, closePanel } = usePanel()
 
   const api = useMemo<DoorApi>(() => {
@@ -97,8 +104,11 @@ export function DoorProvider({ children }: { children: ReactNode }) {
       patch: (d) => setDraft((prev) => ({ ...prev, ...d })),
       pickPatient: (p) => {
         setDraft((prev) => ({ ...prev, patient: p, isNew: false }))
-        // 예약·접수는 다음이 의사, 등록은 기존 환자를 골랐으니 폼을 접고 이음 화면으로
-        setActiveField(openDoor === 'register' ? null : 'doctor')
+        // 예약·접수는 다음이 의사, 등록은 기존 환자를 골랐으니 폼을 접고 이음 화면으로.
+        // ⭐ 단 캘린더 빈칸에서 자리(의사·날짜·시각)까지 잡고 들어온 예약이면 의사를 다시 묻지 않고
+        //    바로 요약(저장)으로 간다 — 남은 칸은 환자뿐이었으므로(2026-08-31 헤더 예약 통합).
+        const bookingPrefilled = openDoor === 'appointment' && !!draft.doctor && !!draft.date && !!draft.time
+        setActiveField(openDoor === 'register' || bookingPrefilled ? null : 'doctor')
       },
       pickDoctor: (d) => {
         setDraft((prev) => ({ ...prev, doctor: d }))
@@ -110,6 +120,19 @@ export function DoorProvider({ children }: { children: ReactNode }) {
       pickSlot: (date, time) => {
         setDraft((prev) => ({ ...prev, date, time }))
         setActiveField(null)
+      },
+      openBookingAt: (doctor, date, time) => {
+        if (openDoor === 'appointment') {
+          // 이미 예약 문이 열려 있다 — 다른 자리를 눌렀으니 채운 환자·사유는 지키고 자리만 바꾼다.
+          setDraft((prev) => ({ ...prev, doctor, date, time }))
+        } else {
+          closePanel() // 소비 화면 패널이 열려 있었으면 자리를 다투지 않고 넘겨받는다(PANEL-ONE-01)
+          setOpenDoor('appointment')
+          setCollapsed(false)
+          setDraft({ doctor, date, time })
+        }
+        // 시각 칸을 켠 채로 — 왼쪽이 그 의사의 일간 캘린더가 되어 다른 시각을 눌러 바로 바꿀 수 있다.
+        setActiveField('time')
       },
       switchDoor: (door) => {
         const p = draft.patient
