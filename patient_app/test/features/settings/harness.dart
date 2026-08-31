@@ -4,6 +4,10 @@ import 'package:hospital_patient_app/core/api_client.dart';
 import 'package:hospital_patient_app/features/settings/hospital_hours_format.dart';
 import 'package:hospital_patient_app/features/settings/hospital_info_repository.dart';
 import 'package:hospital_patient_app/features/settings/notification_prefs_repository.dart';
+import 'package:hospital_patient_app/features/settings/settings_password_screen.dart';
+import 'package:hospital_patient_app/features/settings/withdraw_repository.dart';
+import 'package:hospital_patient_app/features/auth/auth_repo.dart';
+import 'package:hospital_patient_app/core/push.dart';
 
 /// 6토글 키(화면 _groups와 일치 — 서버 TOGGLE_GROUPS의 그룹 키).
 const kToggleKeys = [
@@ -63,3 +67,67 @@ HospitalHours sampleHours() => HospitalHours(weekdays: [
     ], closures: [
       const Closure('2026-08-21', '창립기념일'),
     ]);
+
+// ── Task 29 fakes ──
+class FakeSettingsAuthGateway implements SettingsAuthGateway {
+  String? updatedPassword;
+  bool otherSessionsRevoked = false;
+  bool failUpdate = false;
+
+  @override
+  Future<void> updatePassword(String pw) async {
+    if (failUpdate) throw Exception('거절');
+    updatedPassword = pw;
+  }
+
+  @override
+  Future<void> signOutOtherSessions() async => otherSessionsRevoked = true;
+}
+
+class FakePushService implements PushService {
+  int unregisterCalls = 0;
+  bool failUnregister = false;
+
+  @override
+  Future<void> unregisterToken() async {
+    unregisterCalls++;
+    if (failUnregister) throw Exception('토큰 해제 실패');
+  }
+
+  @override
+  Future<void> registerToken() async {}
+
+  @override
+  Future<void> init() async {}
+}
+
+class FakeWithdrawRepo implements WithdrawRepository {
+  FakeWithdrawRepo(this.blocksList);
+  List<WithdrawBlock> blocksList;
+  int deactivateCalls = 0;
+  bool failBlocks = false;
+
+  @override
+  Future<List<WithdrawBlock>> blocks() async {
+    if (failBlocks) throw Exception('조회 실패');
+    return blocksList;
+  }
+
+  @override
+  Future<void> deactivate() async => deactivateCalls++;
+}
+
+/// 로그아웃만 검증하면 되는 최소 AuthRepo — signOut 호출을 센다.
+class FakeAuthRepoForLogout implements AuthRepo {
+  int signOutCalls = 0;
+
+  @override
+  Future<void> signOut() async => signOutCalls++;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+WithdrawBlock block({String name = '김순자', String dept = '내과', bool isFamily = true}) =>
+    WithdrawBlock(
+        patientName: name, department: dept, slotDate: '2026-09-01', startTime: '14:00', isFamily: isFamily);

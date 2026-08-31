@@ -32,6 +32,8 @@ import '../features/notifications/notification_inbox.dart';
 import '../features/settings/settings_home_screen.dart';
 import '../features/settings/notification_settings_screen.dart';
 import '../features/settings/hospital_info_screen.dart';
+import '../features/settings/settings_password_screen.dart';
+import '../features/settings/withdraw_screen.dart';
 import '../widgets/app_shell.dart';
 
 // AUTH-REAUTH-05: 민감 경로(설정·가족·탈퇴). 탈퇴는 /settings 하위. Task 11 redirect가 이 판정을 부른다.
@@ -237,10 +239,16 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             builder: (c, s) => const NotificationSettingsScreen()), // NAV-SET-04
         // T26 자리표시자(_Placeholder('병원 안내'))를 실화면으로 교체 — NAV-FAM-12·AUTH-OTP-11의 도착지가 실화면이 됐다.
         GoRoute(path: '/settings/hospital', builder: (c, s) => const HospitalInfoScreen()), // NAV-SET-07
-        // ── 아래 셋은 T29가 실화면·실동작으로 갈아끼운다(자리표시자) ──
-        GoRoute(path: '/settings/password', builder: (c, s) => const _Placeholder('비밀번호 변경')), // NAV-SET-05
-        GoRoute(path: '/settings/withdraw', builder: (c, s) => const _Placeholder('회원 탈퇴')),      // NAV-SET-09
-        GoRoute(path: '/settings/logout', builder: (c, s) => const _Placeholder('로그아웃')),        // NAV-SET-08
+        // ── T29 실화면 (로그아웃은 팝업이라 라우트 없음, NAV-SET-08) ──
+        GoRoute(
+          path: '/settings/password', // NAV-SET-05·14
+          builder: (c, s) => SettingsPasswordScreen(onDone: () {
+            c.go('/settings');
+            ScaffoldMessenger.of(c).showSnackBar(
+                const SnackBar(content: Text('비밀번호를 바꿨습니다'))); // NAV-SET-14·SET-PW-13
+          }),
+        ),
+        GoRoute(path: '/settings/withdraw', builder: (c, s) => const WithdrawScreen()), // NAV-SET-09·10~13
         // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
         // 알림함은 데모 정본대로 하단 탭 셸 안에서 렌더(데모 스샷에 탭바 있음) — AppShell(bottomTabs).
         GoRoute(

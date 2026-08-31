@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../core/tokens.dart';
 import '../home/home_data.dart' show hospitalInfoProvider, HospitalInfo;
 import 'hospital_info_repository.dart' show kHospitalName;
+import 'logout_confirm.dart';
 
 class MyProfile {
   const MyProfile({required this.name, this.phone});
@@ -119,10 +120,10 @@ class SettingsHomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
 
-          // ⑤ 로그아웃 — 평범한 버튼(붉은색 아님, SET-HOME-12). 실동작은 T29가 갈아끼운다.
+          // ⑤ 로그아웃 — 평범한 버튼(붉은색 아님, SET-HOME-12). 누르면 확인 팝업(SET-OUT-03).
           OutlinedButton.icon(
             key: const Key('logout-button'),
-            onPressed: () => context.push('/settings/logout'),
+            onPressed: () => showLogoutConfirm(context, ref),
             icon: const Icon(Icons.logout, size: 18, color: AppTokens.primary),
             label: const Text('로그아웃'),
           ),

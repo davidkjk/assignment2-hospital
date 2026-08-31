@@ -12,6 +12,9 @@ import 'package:hospital_patient_app/features/settings/hospital_info_screen.dart
 import 'package:hospital_patient_app/features/settings/notification_prefs_repository.dart';
 import 'package:hospital_patient_app/features/settings/notification_settings_screen.dart';
 import 'package:hospital_patient_app/features/settings/settings_home_screen.dart';
+import 'package:hospital_patient_app/features/settings/settings_password_screen.dart';
+import 'package:hospital_patient_app/features/settings/withdraw_repository.dart';
+import 'package:hospital_patient_app/features/settings/withdraw_screen.dart';
 
 import 'harness.dart';
 
@@ -63,6 +66,18 @@ void main() {
       hospitalInfoProvider.overrideWith((ref) async => _hospital),
       hospitalHoursProvider.overrideWith((ref) async => sampleHours()),
       linkLauncherProvider.overrideWithValue(FakeLinkLauncher()),
+    ]);
+  });
+
+  testWidgets('settings password golden', (t) async {
+    await _shoot(t, 'password', SettingsPasswordScreen(onDone: () {}), [
+      settingsAuthGatewayProvider.overrideWithValue(FakeSettingsAuthGateway()),
+    ]);
+  });
+
+  testWidgets('settings withdraw golden', (t) async {
+    await _shoot(t, 'withdraw', const WithdrawScreen(), [
+      withdrawRepositoryProvider.overrideWithValue(FakeWithdrawRepo(const [])),
     ]);
   });
 }

@@ -333,3 +333,23 @@ async def test_진료시간_조회(client, committed_conn):
         "insert into hospital_hours (weekday, open_time, close_time) values (1, '09:00', '18:00')")
     r = client.get("/catalog/hospital/hours", headers=_hdr(make_token(str(me["auth_user_id"]))))
     assert r.status_code == 200 and len(r.json()["weekdays"]) == 7
+
+
+# ── 설정: 회원 탈퇴 (Task 29) ────────────────────────────────
+@pytest.mark.asyncio
+async def test_탈퇴_차단_조회(client, committed_conn):
+    """[SET-QUIT-15] 막는 예약 목록을 화면이 받아 나열한다."""
+    me = await seed_patient(committed_conn)
+    dept, doctor, slot = await _seed_bookable(committed_conn)
+    await _seed_appointment(committed_conn, me["patient_id"], dept, doctor, slot)  # days_ahead=7 확정
+    r = client.get("/me/withdrawal-blocks", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and len(r.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_탈퇴_실행(client, committed_conn):
+    """[SET-QUIT-19] 막는 예약이 없으면 탈퇴가 처리된다(Auth 삭제는 스텁)."""
+    me = await seed_patient(committed_conn)
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=MagicMock()):
+        r = client.post("/me/deactivate", headers=_hdr(make_token(str(me["auth_user_id"]))))
+    assert r.status_code == 200 and r.json()["ok"] is True
