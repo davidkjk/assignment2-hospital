@@ -37,6 +37,7 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
     async with acquire_as(str(patient.auth_user_id)) as conn:
         row = await conn.fetchrow(
             "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, a.created_at, a.queue_position, "
+            "  a.for_patient_id, "  # NAV-HIST-05(환자앱 T27b): 알림 딥링크가 소유자 칩을 찾는다
             "  a.doctor_id, a.department_id, a.booking_code, a.booking_code_expires_at, a.reason, "  # 갭 #49 — APPT-INFO-03(방문이유) · doctor_id·department_id·created_at는 변경 마법사(T22)가 소비(마감·30분 유예 판정)
             "  a.hospital_change_prev_time, a.hospital_change_kind, "  # CARD-CHG(직원웹 T2가 채움·환자 [확인]이 비움)
             "  a.cancel_rejected_at, a.cancel_rejected_reason, "  # CANCEL-REJ(직원웹 반려가 채움·환자 [확인]이 비움, 00027)

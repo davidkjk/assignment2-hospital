@@ -19,6 +19,7 @@ import '../features/auth/reauth_screen.dart';
 import '../features/appointment/appointment_detail.dart';
 import '../features/appointment/change_flow.dart';
 import '../features/appointment/cancel_flow.dart';
+import '../features/history/history_screen.dart';
 import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
@@ -248,7 +249,9 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             path: '/appointments/:id/cancel',
             builder: (c, s) => CancelLauncherScreen(s.pathParameters['id']!)),
 
-        GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
+        GoRoute(
+            path: '/history',
+            builder: (c, s) => HistoryScreen(deepLinkAppointment: s.uri.queryParameters['appointment'])),
         // ── 설정(Task 28) — T14 redirect가 /settings 하위를 이미 지킨다(NAV-SET-01·02) ──
         GoRoute(path: '/settings', builder: (c, s) => const SettingsHomeScreen()), // SET-HOME
         GoRoute(

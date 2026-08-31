@@ -34,6 +34,8 @@ async def list_visit_history(patient: PatientContext, for_patient_id: UUID,
         rows = await conn.fetch(
             "select a.id, a.status, s.slot_date, d.name as department_name, st.name as doctor_name, "
             "  n.patient_visible_notes, "
+            "  a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at, "  # 갭 #11 이력분(HIST-ROW-02·03)
+            "  (a.account_patient_id = a.for_patient_id) as is_self, "                           # HIST-ROW-02 본인/가족 갈래
             "  case a.status when '진료완료' then '진료완료' "
             "       when '환자취소' then '취소됨' when '병원취소' then '취소됨' "
             "       when '예약부도' then '방문하지않음' else '확정되지않음' end as visit_status, "
