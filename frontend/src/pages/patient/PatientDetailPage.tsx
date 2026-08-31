@@ -17,7 +17,6 @@ import {
   type PatientNote,
 } from '../../api/patients'
 import { Header } from './Header'
-import { StatusCard, type StatusItem } from './StatusCard'
 import { FamilySection } from './FamilySection'
 import { VisitSection } from './VisitSection'
 import { QuestionnaireSection, type QnrItem, type QnrStatus } from './QuestionnaireSection'
@@ -32,17 +31,11 @@ import type { SectionState } from './format'
 // ⭐ 섹션마다 독립적으로 실패한다(PTDET-LOAD-02) — 하나의 Promise.all로 묶지 않는다. 각 섹션이 자기
 //    쿼리를 걸어, 문진 하나가 403이어도 예약 이력은 남는다.
 // ⭐ 문진은 role이 doctor일 때만 요청한다(PTDET-QNR-03) — 접수직원·관리자에겐 answers가 실리지 않는다.
+//
+// [PTDET-STATUS 은퇴] 예전의 「지금 상태」 한 줄 카드(StatusCard)는 뺐다(2026-08-31 손검수 ⑥) — 바로 아래
+//   예약·방문 이력 첫 줄(「현재」 배지 포함)과 중복이었다. 결정로그·동작명세에 역참조를 남겼다.
 
 const ACTIVE_STATUSES = new Set(['도착', '진료대기', '진료중', '예약확정', '예약신청'])
-
-function toStatusItem(r: PatientHistoryRow): StatusItem {
-  return {
-    occurred_at: r.occurred_at,
-    department_name: r.department_name ?? null,
-    doctor_name: r.doctor_name ?? null,
-    status: r.status ?? '',
-  }
-}
 
 export function PatientDetailPage() {
   const { id = '' } = useParams()
@@ -110,10 +103,6 @@ export function PatientDetailPage() {
     mutationFn: (content: string) => addPatientNote(id, content),
     onSuccess: () => client.invalidateQueries({ queryKey: ['patient', id, 'notes'] }),
   })
-
-  // ── 상태 카드: 방문 이력에서 「지금」과 「최근」을 뽑는다(따로 계산하지 않는다, VISIT-04). ──
-  const current = visitRows.find((r) => ACTIVE_STATUSES.has(r.status ?? ''))
-  const recent = visitRows.find((r) => r.status === '진료완료')
 
   // ── 상세 자체가 막힌 경우: 권한 안내 + 역할 기본 화면(막다른 길을 만들지 않는다, ACTION-06). ──
   if (detailQ.isError) {
@@ -210,11 +199,8 @@ export function PatientDetailPage() {
         role={role}
         loading={detailQ.isLoading}
         onChangePhone={openPhoneChange}
-      />
-      <StatusCard
-        current={current ? toStatusItem(current) : null}
-        recent={recent ? toStatusItem(recent) : null}
-        loading={visitsQ.isLoading}
+        // [PTDET-HEAD-07] 가족 관계를 맨 윗 카드 오른쪽 단으로 합친다(손검수 ⑥). 의사는 가족 창구가 없다.
+        rightSlot={role !== 'doctor' ? <FamilySection bare state={familyState} onAddLink={openFamilyLink} /> : undefined}
       />
 
       <div style={styles.grid}>
@@ -226,7 +212,6 @@ export function PatientDetailPage() {
           onRequest={role !== 'doctor' ? () => navigate('/messages') : undefined}
         />
         <RecordSection state={recordState} />
-        <FamilySection state={familyState} onAddLink={openFamilyLink} />
         <SupportSection state={supportState} />
         <NoteSection state={noteState} onAdd={(content) => addNote.mutateAsync(content).then(() => undefined)} />
       </div>

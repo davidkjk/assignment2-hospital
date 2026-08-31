@@ -28,6 +28,8 @@ export function MessagesPage() {
   const { openPanel } = usePanel()
   const [pendingCancel, setPendingCancel] = useState<ScheduledRow | null>(null)
   const [showAuto, setShowAuto] = useState(false)
+  // [SEND-BOX-03][손검수 ⑤] 「새로 보내기」는 좁은 패널이 아니라 본화면 2단 작성으로 넘어간다.
+  const [composing, setComposing] = useState(false)
 
   const query = useQuery({ queryKey: ['messages'], queryFn: () => getMessages() })
   const cancelMut = useMutation({
@@ -38,8 +40,7 @@ export function MessagesPage() {
     },
   })
 
-  const openNew = () =>
-    openPanel({ title: '새 안내 보내기', origin: '/messages', content: <SendPanel /> })
+  const openNew = () => setComposing(true)
 
   // [SEND-RESULT-13][SEND-FAIL-01] 「안 닿은 N명 보기」 → 실패 명단 패널(같은 그릇).
   const openFailed = (row: SentRow) =>
@@ -48,6 +49,21 @@ export function MessagesPage() {
       origin: '/messages',
       content: <FailedListPanel batchId={row.id} />,
     })
+
+  // [손검수 ⑤] 작성 중에는 본화면이 2단 작성으로 바뀐다(헤더 예약 문과 같은 결) — 이력은 잠시 물러난다.
+  if (composing) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.composeHead}>
+          <button type="button" style={styles.backBtn} onClick={() => setComposing(false)}>
+            ← 목록으로
+          </button>
+          <h2 style={{ ...styles.sectionTitle, margin: 0 }}>새 안내 보내기</h2>
+        </div>
+        <SendPanel onClose={() => setComposing(false)} />
+      </div>
+    )
+  }
 
   return (
     <div style={styles.page}>
@@ -194,6 +210,12 @@ function ResultCell({
 
 const styles: Record<string, CSSProperties> = {
   page: { padding: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-5)' },
+  composeHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' },
+  backBtn: {
+    height: 32, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-divider)',
+    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
+  },
   sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-3)', marginBottom: 'var(--sp-3)' },
   title: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   newBtn: {

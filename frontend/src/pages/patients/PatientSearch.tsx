@@ -19,9 +19,12 @@ interface PatientSearchProps {
    *  ⭐ 줄 전체를 함께 준다 — 부르는 쪽이 이름·가린 값을 다시 조회하지 않게(`MASK-SRV-01`).
    *  D3 워크인 패널이 고른 환자 카드를 그리려면 id만으로는 부족하다. */
   onPick?: (patientId: string, row: SearchPatientRow) => void
+  /** [SEND-WHO-02] 여러 명 고르기(안내 보내기)에서 이미 고른 id들. 주면 pick 행이 「✓ 선택됨」으로
+   *  표시되고, 다시 누르면 뺀다(토글). 워크인·예약의 단일 선택은 이 값을 주지 않아 지금대로다. */
+  selectedIds?: Set<string>
 }
 
-export function PatientSearch({ mode = 'page', onPick }: PatientSearchProps) {
+export function PatientSearch({ mode = 'page', onPick, selectedIds }: PatientSearchProps) {
   const s = useSearchPatients()
 
   const showHints = s.query.trim() === ''
@@ -77,7 +80,7 @@ export function PatientSearch({ mode = 'page', onPick }: PatientSearchProps) {
       {showList && (
         <div data-testid="search-results" style={styles.results} onScroll={onScroll}>
           {mode === 'pick' ? (
-            <PickList rows={s.rows} onPick={onPick} />
+            <PickList rows={s.rows} onPick={onPick} selectedIds={selectedIds} />
           ) : (
             <SelectableList<SearchPatientRow>
               rows={s.rows}
@@ -114,21 +117,40 @@ export function PatientSearch({ mode = 'page', onPick }: PatientSearchProps) {
 }
 
 // pick 모드 목록 — 줄 전체가 고르기 버튼 하나(ACT-08). 1명이어도 자동으로 골라두지 않는다(ONE-01).
-function PickList({ rows, onPick }: { rows: SearchPatientRow[]; onPick?: (id: string, row: SearchPatientRow) => void }) {
+//   selectedIds를 주면 고른 줄에 「✓ 선택됨」이 붙고 aria-pressed로도 알린다(SEND-WHO-02, 클릭이 먹혔음을
+//   그 자리에서 보여준다). 이름을 따로 나열하지 않으므로 열거 방지(SEND-ADS-02)와 어긋나지 않는다.
+function PickList({
+  rows,
+  onPick,
+  selectedIds,
+}: {
+  rows: SearchPatientRow[]
+  onPick?: (id: string, row: SearchPatientRow) => void
+  selectedIds?: Set<string>
+}) {
   return (
     <ul style={styles.pickList}>
-      {rows.map((r) => (
-        <li key={r.patient_id}>
-          <button
-            type="button"
-            aria-label={`${r.name} 선택`}
-            style={styles.pickRow}
-            onClick={() => onPick?.(r.patient_id, r)}
-          >
-            <SearchResultRow row={r} />
-          </button>
-        </li>
-      ))}
+      {rows.map((r) => {
+        const selected = selectedIds?.has(r.patient_id) ?? false
+        return (
+          <li key={r.patient_id}>
+            <button
+              type="button"
+              aria-pressed={selectedIds ? selected : undefined}
+              aria-label={`${r.name} ${selected ? '선택 해제' : '선택'}`}
+              style={selected ? { ...styles.pickRow, ...styles.pickRowOn } : styles.pickRow}
+              onClick={() => onPick?.(r.patient_id, r)}
+            >
+              <SearchResultRow row={r} />
+              {selectedIds && (
+                <span aria-hidden="true" style={selected ? styles.pickMarkOn : styles.pickMark}>
+                  {selected ? '✓ 선택됨' : '고르기'}
+                </span>
+              )}
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -158,12 +180,25 @@ const styles: Record<string, CSSProperties> = {
   pickRow: {
     width: '100%',
     display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 'var(--sp-2)',
     padding: 'var(--sp-2) var(--sp-2)',
     border: 'none',
     borderBottom: '1px solid var(--color-divider)',
     background: 'transparent',
     textAlign: 'left',
     cursor: 'pointer',
+  },
+  // 고른 줄 — 옅은 강조 배경으로 「먹혔다」를 그 자리에서 보인다.
+  pickRowOn: { background: 'var(--color-primary-wash)' },
+  pickMark: {
+    flexShrink: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
+    color: 'var(--color-ink-muted)', border: '1px solid var(--color-divider)', borderRadius: 6, padding: '2px var(--sp-2)',
+  },
+  pickMarkOn: {
+    flexShrink: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
+    color: 'var(--color-primary)', border: '1px solid var(--color-primary)', borderRadius: 6, padding: '2px var(--sp-2)',
   },
   footNote: { padding: 'var(--sp-2) var(--sp-1)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', textAlign: 'center' },
   footRetry: { padding: 'var(--sp-2) var(--sp-1)', textAlign: 'center' },

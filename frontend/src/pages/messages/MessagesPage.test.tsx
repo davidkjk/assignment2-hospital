@@ -120,13 +120,16 @@ test('[MSGX-SCHED-02][SEND-LATER-05] 예약 줄 [취소]는 확인창을 거쳐 
   await waitFor(() => expect(deletedId).toBe('s7'))
 })
 
-test('[SEND-DOOR-03][SEND-BOX-01] [＋ 새로 보내기]는 오른쪽 패널을 연다', async () => {
+test('[SEND-DOOR-03][SEND-BOX-03][손검수 ⑤] [＋ 새로 보내기]는 본화면 2단 작성으로 넘어간다', async () => {
   const user = userEvent.setup()
   okWith(view({ scheduled: [] }))
   renderPage()
   await screen.findByText('안내 발송 이력')
   await user.click(screen.getByRole('button', { name: /새로 보내기/ }))
-  expect(await screen.findByRole('complementary')).toBeVisible()
+  // 옛 오른쪽 320px 패널(complementary)이 아니라, 왼쪽 「받는 사람」 / 오른쪽 「보내는 내용」 2단.
+  expect(await screen.findByRole('region', { name: '받는 사람 고르기' })).toBeVisible()
+  expect(screen.getByRole('region', { name: '보내는 내용' })).toBeVisible()
+  expect(screen.getByRole('button', { name: '← 목록으로' })).toBeVisible()
 })
 
 test('[SEND-RESULT-14] 전부 도달이면 「도달 N건」만, 「실패 0건」은 안 적는다', async () => {

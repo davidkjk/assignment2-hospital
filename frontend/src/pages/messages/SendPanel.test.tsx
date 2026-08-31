@@ -72,7 +72,7 @@ test('[SEND-ALL-04] 전 환자 발송은 안내여도 보내기 전 미리보기
   const user = userEvent.setup()
   postReturns(result())
   renderPanel()
-  await user.click(screen.getByRole('button', { name: '전 환자에게 보내기' }))
+  await user.click(screen.getByRole('button', { name: '전 환자에게' }))
   await user.type(screen.getByLabelText('내용'), '전체 공지')
   await user.click(screen.getByRole('button', { name: '보내기' }))
   expect(screen.getByRole('dialog')).toHaveTextContent('전 환자')

@@ -112,10 +112,21 @@ function Row({ row, onOpen }: { row: DrilldownRow; onOpen: () => void }) {
   const when = row.occurred_at
     ? formatHospitalDateTime(row.occurred_at)
     : row.wait_minutes != null ? `대기 ${row.wait_minutes}분` : ''
+  // [STAT-DRILL-04] 안내문("행을 눌러")과 맞게 **행 어디를 눌러도** 환자 상세로 간다(2026-08-31 손검수 ②).
+  //   이름 버튼은 키보드 초점을 위해 남기되(그리고 마스킹 이름의 링크색으로 눌러도 됨을 알리고), 클릭이
+  //   행과 겹쳐 두 번 이동하지 않게 버블링을 멈춘다.
   return (
-    <tr style={styles.tr}>
+    <tr style={styles.trClickable} onClick={onOpen}>
       <td style={styles.td}>
-        <button type="button" aria-label={`${row.masked_name ?? '환자'} 환자 상세 보기`} onClick={onOpen} style={styles.rowBtn}>
+        <button
+          type="button"
+          aria-label={`${row.masked_name ?? '환자'} 환자 상세 보기`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpen()
+          }}
+          style={styles.rowBtn}
+        >
           {row.masked_name ?? '—'}
         </button>
       </td>
@@ -187,7 +198,7 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-bg)',
     borderBottom: '1px solid var(--color-divider)',
   },
-  tr: { borderBottom: '1px solid var(--color-divider)' },
+  trClickable: { borderBottom: '1px solid var(--color-divider)', cursor: 'pointer' },
   td: { padding: 'var(--sp-2) var(--sp-4)' },
   tdMuted: { padding: 'var(--sp-2) var(--sp-4)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   rowBtn: {

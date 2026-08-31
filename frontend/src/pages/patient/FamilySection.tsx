@@ -14,12 +14,14 @@ interface FamilySectionProps {
   onAddLink: () => void
   /** verify-eligibility가 「전환할 수 없다」를 돌려줬을 때의 서버 문장(FAMILY-04). */
   eligibilityMessage?: string | null
+  /** [PTDET-HEAD-07] 헤더 카드 오른쪽 단에 얹을 때는 자체 카드 테두리를 벗는다(2026-08-31 손검수 ⑥). */
+  bare?: boolean
 }
 
-export function FamilySection({ state, onAddLink, eligibilityMessage }: FamilySectionProps) {
+export function FamilySection({ state, onAddLink, eligibilityMessage, bare }: FamilySectionProps) {
   const rows = state.data ?? []
   return (
-    <section aria-label="가족 관계" style={styles.section}>
+    <section aria-label="가족 관계" style={bare ? styles.sectionBare : styles.section}>
       <div style={styles.head}>
         <h2 style={styles.heading}>가족 관계</h2>
         <button type="button" onClick={onAddLink} style={styles.addBtn}>
@@ -52,6 +54,8 @@ const styles: Record<string, CSSProperties> = {
     padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
+  // 헤더 카드 오른쪽 단에 얹는 모드 — 카드 테두리·배경 없이 높이만 채운다.
+  sectionBare: { display: 'flex', flexDirection: 'column', height: '100%' },
   head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-3)', gap: 'var(--sp-2)' },
   heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   addBtn: {

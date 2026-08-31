@@ -90,13 +90,16 @@ describe('PatientDetailPage', () => {
     expect(screen.getByRole('button', { name: '복사' })).toBeVisible()
   })
 
-  test('[PTDET-STATUS-01][DISP-COLOR-01] 진행 중 예약을 상태 카드에 문장으로 보인다', async () => {
+  test('[PTDET-VISIT-04][DISP-COLOR-01] 진행 중 예약을 방문 이력에 「현재」 배지와 문장으로 보인다', async () => {
+    // [PTDET-STATUS 은퇴] 예전의 상태 카드(status-card)는 이력 첫 줄과 중복이라 뺐다(손검수 ⑥) —
+    //   「진행 중을 보인다」는 이제 방문 이력의 「현재」 배지가 맡는다.
     mockAll({ visits: [{ id: 'v1', patient_id: 'p1', occurred_at: '2026-08-17T14:30:00+09:00', status: '진료중', department_name: '내과', doctor_name: '박지훈' }] })
     renderDetail()
-    const card = await screen.findByTestId('status-card')
-    expect(await within(card).findByText('8/17 14:30')).toBeVisible()
-    expect(within(card).getByText('진료중')).toBeVisible()
-    expect(within(card).getByText(/내과/)).toBeVisible()
+    const visit = within(section('예약·방문 이력'))
+    expect(await visit.findByText('8/17 14:30')).toBeVisible()
+    expect(visit.getByText('진료중')).toBeVisible()
+    expect(visit.getByText('현재')).toBeVisible()
+    expect(visit.getByText(/내과/)).toBeVisible()
   })
 
   test('[PTDET-VISIT-05] 취소·부도도 숨기지 않고 중립 문구로 적는다', async () => {

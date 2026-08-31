@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { Role } from '../../auth/roles'
 import { ROLE_LABEL } from '../../auth/roles'
 import type { PatientDetail } from '../../api/patients'
@@ -7,6 +7,9 @@ import { mdHm } from './format'
 // [PTDET-HEAD-01~06] 상세 머리 — 목록이 아니므로 전화번호·생년월일을 전체 노출한다(MASK-DETAIL-01).
 // 열람은 화면 진입 자체가 서버 기록이라(HEAD-04) 여기서 토스트를 띄우지 않는다.
 // 딥틸 콘솔의 결: 각진 촘촘한 한 덩어리에 신원을 모으고, 관계·역할은 이름 곁 칩으로 붙인다.
+//
+// [PTDET-HEAD-07] 맨 윗 카드는 2단이다(2026-08-31 손검수 ⑥) — 왼쪽은 신원(이름·전화·생년월일·역할),
+//   오른쪽 rightSlot에 가족 관계를 얹어 한 카드로 합친다. 좁아지면 오른쪽 단이 아래로 접힌다.
 
 // 상세는 relation을 항상 주지는 않는다(BLOCKED — 상세 응답에 관계 없음). 있으면 본인/가족을 가른다.
 type HeaderPatient = PatientDetail & { relation?: string | null }
@@ -16,11 +19,14 @@ interface HeaderProps {
   role: Role
   loading?: boolean
   onChangePhone: () => void
+  /** [PTDET-HEAD-07] 카드 오른쪽 단(가족 관계). 없으면 한 단으로 그린다. */
+  rightSlot?: ReactNode
 }
 
-export function Header({ patient, role, loading, onChangePhone }: HeaderProps) {
+export function Header({ patient, role, loading, onChangePhone, rightSlot }: HeaderProps) {
   return (
     <header aria-label="환자 머리" style={styles.wrap}>
+      <div style={styles.main}>
       {loading || !patient ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : (
@@ -57,6 +63,8 @@ export function Header({ patient, role, loading, onChangePhone }: HeaderProps) {
           <span style={styles.roleChip}>{ROLE_LABEL[role]}</span>
         </>
       )}
+      </div>
+      {rightSlot && <div style={styles.side}>{rightSlot}</div>}
     </header>
   )
 }
@@ -99,13 +107,20 @@ function PhoneBlock({ phone, onChangePhone }: { phone: string | null; onChangePh
 const styles: Record<string, CSSProperties> = {
   wrap: {
     display: 'flex',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     gap: 'var(--sp-4)',
     flexWrap: 'wrap',
     padding: 'var(--sp-4)',
     background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
+  },
+  // 왼쪽 신원 단 — 예전 카드 한 덩어리의 가로 배치를 그대로 옮겼다(이름·전화·역할).
+  main: { flex: '1 1 380px', minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 'var(--sp-4)', flexWrap: 'wrap' },
+  // 오른쪽 가족 단 — 세로 실선으로 신원과 가른다. 좁아지면 아래로 접힌다(flexWrap).
+  side: {
+    flex: '1 1 240px', minWidth: 220,
+    borderLeft: '1px solid var(--color-divider)', paddingLeft: 'var(--sp-4)',
   },
   skeleton: { height: 44, flex: 1, borderRadius: 6, background: 'var(--color-bg)' },
   identity: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', minWidth: 0 },
