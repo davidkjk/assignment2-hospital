@@ -1384,6 +1384,41 @@ git commit -m "feat: 발송·만료 배치 크론(예약발송·재시도·상�
 
 ---
 
+### Task 7D: 직원 전화번호 변경 창구 — OTP 본인확인 + Auth 동기화 + 변경 이력 (갭 #19 · 결정 #4)
+
+> **[2026-08-31 신설]** 직원 상세 화면의 「전화번호 변경」(`PhoneChangePanel`)은 화면·흐름만 완성돼 있고 **서버 창구가 없어 BLOCKED**였다(결정 #4 = ㉯ 새 번호 OTP 포함 인라인 변경, 직접 저장 ㉮는 계정 탈취·기록 오염으로 기각). 손검수(2026-08-31)에서 [다음]이 조용한 먹통이던 것은 프론트에서 막았다(예외를 화면에 보이게 — `PhoneChangePanel.requestCode` try/catch). **이 태스크는 그 뒤에 붙는 실제 창구다.** 배포 단계에 두는 이유: 끝단(실제 문자 발송 ⓓ)이 Task 7C의 실 제공자 자격증명에서야 실체화되고 그때라야 end-to-end 검증된다. ⓐⓑⓒ 로직 자체는 더 일찍 만들 수도 있으나(환자앱 패턴 재사용), 검증이 7C에 묶이므로 여기에 함께 둔다.
+
+**담을 것 / 재사용·신설 구분:**
+- ⓐ **OTP 발송·검증** — ✅ **재사용**: 환자앱 `family_link_otp_service`(request/confirm) 패턴 그대로. `SmsClient`/`get_sms_client`(로그 폴백, 실 제공자=7C) 소비. 새 번호로 6자리 코드 발송 → 확인. 재발송 30초 서버 쿨다운(`Retry-After`)·상한(요청·확인 두 시점)도 같은 패턴.
+- ⓑ **Auth 전화번호 동기화** — 🔨 **신설**: 코드 확인 성공 시에만 `patients.phone` + Supabase Auth(gotrue admin `update_user_by_id`) 전화번호를 **한 트랜잭션 결에서** 바꾼다. 성공 전까지 기존 번호가 산다(부분 성공으로 계정 잠기지 않게 순서·복구 주의).
+- ⓒ **변경 이력** — 🔨 **신설**: 누가·언제·어느 번호→어느 번호(마스킹)로 바꿨는지 감사 한 줄. 마이그레이션 새 칸/표 필요.
+- ⓓ **실제 문자 제공자** — ⛔ **7C 의존**: 지금은 로그 폴백. 자격증명 꽂히면 실 발송.
+- **프론트 배선**: `PatientDetailPage.openPhoneChange`의 `onRequestCode`/`onConfirm`을 지금의 `throw 501`에서 **실 API 호출**로 교체(흐름·화면은 이미 완성).
+
+**보안 근거(왜 신중히)**: 전화번호 변경은 예약과 달리 **계정을 통째로 넘기는 일**이라(결정 #4·`ui-design-decisions.md:755~763`), 이름·생년월일만으로는 부족하고 **새 번호 OTP 소유 증명**이 있어야 한다. 갭 #19의 본질(번호 바뀐 환자가 계정에 못 들어가는 문제)을 여는 문이 바로 이 창구다.
+
+**Interfaces(예정):** Produces `app.services.staff_phone_change_service`(request/confirm) + 라우터(예: `POST /patients/{id}/phone-change/request`·`/confirm`) + 마이그레이션(변경 이력 칸). Consumes 7C의 실 `SmsClient`.
+
+---
+
+### Task 7E: 직원 가족 연결 창구 — 대상 확인 + 본인확인(OTP·예외) 3층 + 통보 (갭 #19 계열 · 결정 #3 · `PTDET-FAMILY-03·04·05`)
+
+> **[2026-08-31 신설]** 직원 상세 화면의 「가족 연결 추가」(`PatientDetailPage.openFamilyLink`)는 지금 **빈 패널에 안내 문구만 있는 껍데기**다(*"대상 환자를 검색해 관계를 확인합니다. (본인확인 창구는 준비 중입니다)"*). 규칙(`PTDET-FAMILY-03·04·05`)과 결정 #3(본인확인부 3층 구조)은 확정돼 있으나 **서버 창구가 없어 BLOCKED**였다. 손검수(2026-08-31)에서 사용자가 이 껍데기를 확인 — *"이것도 본인확인이 필요해서 안 만들어진 것 같은데, 배포 단계 태스크로 다시 잡아야 하지 않나?"* → 그 태스크가 이것이다. 전화번호 변경(Task 7D)과 **본질이 같다**(OTP 본인확인이 있어야 완성) — 실 문자 끝단이 7C 자격증명에 묶이므로 배포 단계에 함께 둔다. ⓐⓑ 로직은 환자앱 패턴 재사용이라 더 일찍 만들 수도 있다.
+
+**담을 것 / 재사용·신설 구분:**
+- ⓐ **대상 적격 판정(verify-eligibility)** — 🔨 **신설**: 검색으로 고른 대상 B에 대해 서버가 **B의 등록 전화번호 유무를 판정**해 분기를 돌려준다(`PTDET-FAMILY-03`, `AD-059` 자동분기) — 번호 있으면 OTP 경로(04), 없으면 예외 경로(05). **이 시점엔 연결을 저장하지 않는다.** ⚠️ 클라이언트가 예외를 골랐다는 사실만으로 열지 않고 **서버가 매번 재판정**(우회 차단, `PTDET-FAMILY-04·05`).
+- ⓑ **OTP 발송·검증(㉠ 기본층)** — ✅ **재사용**: 환자앱 `family_link_otp_service`(request/confirm) 패턴 그대로. **B의 등록 번호로** 6자리 코드 발송 → 확인. 재발송 30초 쿨다운·상한 동일. `SmsClient`/`get_sms_client`(로그 폴백, 실 제공자=7C) 소비.
+- ⓒ **번호 없음 예외(㉡ 예외층)** — 🔨 **신설**: B에 등록 번호가 **없을 때만** 대면·가족관계증명서 확인 방법을 **선택·기록**하고 연결. 예외 경로 플래그·기록 칸 마이그레이션 필요. ⚠️ **`patients.phone NOT NULL` 충돌** 해소 필요(번호 없는 환자가 존재할 수 있어야 예외층이 성립 — `PTDET-FAMILY-03·05` 명시).
+- ⓓ **연결 저장 + 통보(㉢ 항상층)** — 🔨 **신설**: 본인확인 통과 시에만 `patient_family_links`(is_active) 생성 + **B에게 통보 문자 + 이의제기 경로**(결정 #3 본인확인부 ㉢). 통보 문자는 ⓔ에 의존.
+- ⓔ **실제 문자 제공자** — ⛔ **7C 의존**: 지금은 로그 폴백. 자격증명 꽂히면 실 발송.
+- **프론트 배선**: `PatientDetailPage.openFamilyLink`의 껍데기를 **실 흐름**으로 교체 — 대상 검색(`PatientSearch` 재사용) → 동명이인 재확인(`SEARCH-SAME-01`) → 관계 입력 → verify-eligibility 분기 → OTP/예외 UI → 연결. 전환 불가 메시지는 `FamilySection.eligibilityMessage`에 서버 문장 그대로(`PTDET-FAMILY-04`).
+
+**보안 근거(왜 신중히)**: 가족 연결은 **남의 번호로 문자를 보내는 유일한 흐름**이고(ui-design-decisions.md:381), 남의 가족 관계를 여는 일이라 **B의 소유 증명(OTP)** 또는 **대면·서류 예외**가 있어야 한다. 판정조건은 오직 **B 등록 전화번호 유무**이며 클라이언트 선택으로 우회되지 않는다(결정 #3, `PTDET-FAMILY-05`).
+
+**Interfaces(예정):** Produces `app.services.staff_family_link_service`(verify-eligibility/otp-request/otp-confirm/connect-exception) + 라우터(예: `POST /patients/{id}/family/verify`·`/otp/request`·`/otp/confirm`·`/connect`) + 마이그레이션(예외 경로 플래그·기록, `patients.phone` NULL 허용 검토). Consumes 7C의 실 `SmsClient` · 환자앱 `family_link_otp_service` 패턴.
+
+---
+
 ### Task 8: 관리자용 오류 로그 화면 (백엔드 API + React 페이지)
 
 **Files:**
