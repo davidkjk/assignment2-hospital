@@ -41,21 +41,18 @@ const SUPPORT_TITLE: Record<SupportType, string> = {
   reschedule: '변경 상담',
 }
 
-export function AppointmentPanel({ appointment, support, onReschedule, onCancel, onClose, actionError }: AppointmentPanelProps) {
+// onClose는 PanelHost 머리의 ✕ 닫기가 대신하므로 본문에선 쓰지 않는다(중복 제거) — 계약은 유지.
+export function AppointmentPanel({ appointment, support, onReschedule, onCancel, actionError }: AppointmentPanelProps) {
   const [asking, setAsking] = useState(false)
 
   return (
     <div className="cal-appointment-panel">
-      <header className="cal-panel-head">
-        <h2 className="cal-panel-title">
-          {appointment.patientLabel} · {appointment.statusLabel}
-        </h2>
-        {onClose && (
-          <button type="button" aria-label="닫기" className="cal-panel-close" onClick={onClose}>
-            ✕
-          </button>
-        )}
-      </header>
+      {/* ⛔ 제목·닫기를 다시 두지 않는다 — 패널 머리(PanelHost)가 「예약 상세」와 ✕를 이미 보인다.
+          대신 이 예약의 주인공(환자·상태)을 본문 머리로 크게 보인다. */}
+      <div className="cal-panel-subject">
+        <h2 className="cal-panel-subject-name">{appointment.patientLabel}</h2>
+        <span className="cal-status-badge">{appointment.statusLabel}</span>
+      </div>
 
       <dl className="cal-panel-fields">
         <div>

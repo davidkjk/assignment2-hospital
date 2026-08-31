@@ -285,7 +285,7 @@ function DoctorColumn({
               tabIndex={clickable ? 0 : undefined}
               data-start={slot.startMin}
             >
-              <SlotBlock block={filled} />
+              <SlotBlock block={filled} compact={compact} />
             </div>
           )
         })}

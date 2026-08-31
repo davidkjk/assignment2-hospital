@@ -85,7 +85,7 @@ export function PanelHost() {
         <header style={styles.header}>
           <span style={styles.title}>{panel.title}</span>
           <span style={styles.headerBtns}>
-            <button type="button" onClick={collapsePanel} style={styles.ghost}>«접기</button>
+            <button type="button" onClick={collapsePanel} style={styles.ghost}>»접기</button>
             <button type="button" onClick={closePanel} style={styles.ghost}>✕ 닫기</button>
           </span>
         </header>

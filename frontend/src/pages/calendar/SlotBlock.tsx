@@ -37,11 +37,13 @@ function WarnIcon() {
   )
 }
 
-export function SlotBlock({ block }: { block: SlotDescriptor }) {
+/** [CAL-SLOT-11][CAL-WEEK-07] 주간 좁은 레인(≈44px)에서는 글자가 세로로 깨져 노이즈가 된다 —
+ *  `compact`면 라벨을 접고 색·모양만 남긴다(빈=점선·휴진=빗금·지난=흐림·예약=색면+이름). 자세한 것은 일간·호버로. */
+export function SlotBlock({ block, compact = false }: { block: SlotDescriptor; compact?: boolean }) {
   if (block.kind === 'empty') {
     return (
       <div className="cal-slot is-dotted" data-testid="slot">
-        {block.label}
+        {compact ? '' : block.label}
       </div>
     )
   }
@@ -49,7 +51,7 @@ export function SlotBlock({ block }: { block: SlotDescriptor }) {
     // [CAL-PAST-01] 흐리게 두고 「지난 시간」이라 적는다 — 눌러도 전화예약이 열리지 않는다.
     return (
       <div className="cal-slot is-dotted is-past" data-testid="slot">
-        {block.label}
+        {compact ? '' : block.label}
       </div>
     )
   }
@@ -57,7 +59,7 @@ export function SlotBlock({ block }: { block: SlotDescriptor }) {
     // [CAL-SLOT-03·08] 휴진·점심은 같은 빗금, 글자만 다르다.
     return (
       <div className="cal-slot is-hatched" data-testid="slot">
-        {block.label}
+        {compact ? '' : block.label}
       </div>
     )
   }
@@ -73,7 +75,8 @@ export function SlotBlock({ block }: { block: SlotDescriptor }) {
   return (
     <div className="cal-slot is-filled" data-testid="slot" style={style}>
       <span className="cal-slot-patient">{block.patientLabel}</span>
-      <span className="cal-slot-status">{block.statusLabel}</span>
+      {/* 좁은 주간 레인엔 상태 글자를 접는다 — 이름만으로도 색이 누구인지 말한다(호버로 자세히). */}
+      {!compact && <span className="cal-slot-status">{block.statusLabel}</span>}
       {block.warnings?.map((w) => (
         // [CAL-COLOR-15] 배지는 흰 바탕 pill이라 어느 면 위에서도 뜬다.
         <span

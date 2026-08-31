@@ -11,11 +11,10 @@ const APPT: AppointmentDetail = {
   timeLabel: '2026-08-17 10:00',
 }
 
-test('[CAL-PANEL-04][BLOCK-EXIT-01] 패널 제목에 환자와 상태가 있고 ✕(닫기)가 있다', () => {
-  const onClose = vi.fn()
-  render(<AppointmentPanel appointment={APPT} onClose={onClose} />)
-  expect(screen.getByRole('heading')).toHaveTextContent('김*지 님 · 확정')
-  expect(screen.getByLabelText('닫기')).toBeVisible()
+test('[CAL-PANEL-04] 본문 머리에 환자 이름과 상태가 보인다 (✕ 닫기는 패널 머리 PanelHost가 준다)', () => {
+  render(<AppointmentPanel appointment={APPT} />)
+  expect(screen.getByRole('heading')).toHaveTextContent('김*지 님')
+  expect(screen.getByText('확정')).toBeVisible()
 })
 
 test('[CAL-PANEL-01] 패널에 [예약 변경]이 있다(딥링크로 들어오면 이 글자가 보인다)', () => {

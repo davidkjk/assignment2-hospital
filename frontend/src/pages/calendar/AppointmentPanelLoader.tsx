@@ -59,15 +59,17 @@ export function AppointmentPanelLoader({ appointmentId, onClose, onDone }: Appoi
   })
 
   if (q.isLoading) {
-    return <p className="cal-support-line" role="status">예약을 불러오는 중입니다</p>
+    return <p className="cal-panel-status" role="status">예약을 불러오는 중입니다…</p>
   }
   if (q.isError || !q.data) {
+    // ⚠️ 예전엔 [다시 시도]에 28×28 정사각 `cal-panel-close`를 써서 글자가 세로로 깨졌다(사용자 지적).
+    //    막다른 길 대신 이유 + 제대로 된 버튼(cal-btn-secondary)으로 다시 시도할 길을 준다.
     return (
       <div className="cal-appointment-panel">
-        <p className="cal-support-line is-error">예약을 불러오지 못했습니다</p>
-        <div className="cal-panel-actions">
-          <button type="button" className="cal-panel-close" onClick={() => void q.refetch()}>다시 시도</button>
-        </div>
+        <p className="cal-panel-error" role="alert">예약을 불러오지 못했습니다</p>
+        <button type="button" className="cal-btn-secondary" onClick={() => void q.refetch()}>
+          다시 시도
+        </button>
       </div>
     )
   }

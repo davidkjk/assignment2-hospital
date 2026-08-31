@@ -42,7 +42,7 @@ test('[PANEL-LIVE-05][PANEL-LIVE-06] 접기와 닫기를 글자로 구분하고,
   const user = userEvent.setup()
   renderHost()
   await user.click(screen.getByRole('button', { name: '열기A' }))
-  expect(screen.getByRole('button', { name: '«접기' })).toBeVisible()
+  expect(screen.getByRole('button', { name: '»접기' })).toBeVisible()
   expect(screen.getByRole('button', { name: '✕ 닫기' })).toBeVisible()
   await user.click(screen.getByRole('button', { name: '✕ 닫기' }))
   expect(screen.queryByRole('complementary')).toBeNull()
@@ -54,7 +54,7 @@ test('[PANEL-LIVE-03][PANEL-LIVE-04] 접으면 얇은 띠로 줄고, 펼치면 �
   renderHost()
   await user.click(screen.getByRole('button', { name: '열기A' }))
   await user.type(screen.getByLabelText('이름'), '김민정')
-  await user.click(screen.getByRole('button', { name: '«접기' }))
+  await user.click(screen.getByRole('button', { name: '»접기' }))
 
   const strip = screen.getByRole('complementary', { name: '작성 중인 패널' })
   expect(strip).toHaveTextContent('김민정 님 예약 작성 중')
@@ -66,7 +66,7 @@ test('[PANEL-LIVE-07][PANEL-LIVE-08][PANEL-ONE-01] 접힌 채로 다른 패널�
   const user = userEvent.setup()
   renderHost()
   await user.click(screen.getByRole('button', { name: '열기A' }))
-  await user.click(screen.getByRole('button', { name: '«접기' }))
+  await user.click(screen.getByRole('button', { name: '»접기' }))
   await user.click(screen.getByRole('button', { name: '열기B' })) // 접힌 채로 다른 것을 열었다
   expect(screen.getAllByRole('complementary')).toHaveLength(1) // 여전히 하나
   expect(screen.getByRole('complementary')).toHaveTextContent('이철수 님 예약 작성 중')

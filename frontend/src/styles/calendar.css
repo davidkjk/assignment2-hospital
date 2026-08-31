@@ -206,12 +206,15 @@
   background: var(--color-primary-wash);
   color: var(--color-primary);
 }
-/* 의사 칩 앞 색점 — 격자 열 색과 같은 팔레트로 칩↔열을 잇는다(사용자 결정 2026-08-29).
-   색값은 인라인(팔레트 인덱스)로 온다(SlotBlock과 같은 방식). */
+/* 의사 칩 앞 색점 — 격자 예약 블록과 같은 색으로 칩↔열을 잇는다(사용자 결정 2026-08-29).
+   ⭐ 블록은 「연한 fill」인데 예전엔 점만 「진한 solid」라 칩이 더 진해 보였다(사용자 지적 2026-08-31).
+   → 점도 블록처럼 연한 fill 바탕 + 얇은 solid 테두리로 = 격자의 미니 블록. 색값은 인라인(팔레트 인덱스)로 온다. */
 .cal-chip-dot {
-  width: 8px;
-  height: 8px;
+  width: 11px;
+  height: 11px;
   border-radius: 999px;
+  border: 1.5px solid;
+  box-sizing: border-box;
   flex: 0 0 auto;
 }
 .cal-filter-note {
@@ -331,9 +334,10 @@
   color: var(--color-ink-muted);
   font-variant-numeric: tabular-nums;
 }
+/* [CAL-TIME-03] 호버 — ⛔ 빈 구간 「전체」를 채우지 않는다(사용자 지적 2026-08-31: 통째로 잡히는 것처럼 보였다).
+   테두리만 옅게 또렷해져 「여기 누를 수 있다」만 알리고, 실제로 잡히는 5분 지점은 파란 캡슐(cal-empty-hover)이 짚는다. */
 .cal-slot-pos:hover .cal-slot.is-dotted {
-  border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
-  background: var(--color-primary-wash);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-divider));
 }
 /* 빈 시간 호버 미리보기(CAL-TIME-03) — 커서 높이에 파란 시각 캡슐. 호버 중엔 「빈 시간 …」 글자를 비워 겹침을 피한다. */
 .cal-slot-pos[data-hovering='1'] .cal-slot.is-dotted {
@@ -501,10 +505,14 @@
   text-decoration: underline;
 }
 
-/* ── 주간뷰 ───────────────────────────── */
+/* ── 주간뷰 ─────────────────────────────
+   ⭐ 시간축은 6일 바깥의 공용 거터(위 .cal-time-axis)다 — 월요일 칸 안에 넣지 않는다(2026-08-31 사용자 지적:
+      축이 월요일에만 있어 그 칸만 좁고 화~토와 어긋났다). 6일은 flex로 균등하되, 각 칸 min-width = 의사 수 ×
+      레인폭(WeekGrid 인라인)이라 8명이면 6일이 화면을 넘겨 .cal-week-grid가 가로로 스크롤된다(CAL-WEEK-07). */
 .cal-week-day {
-  flex: 1;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
   border-right: 1px solid var(--color-divider);
 }
 .cal-week-day:last-child {
@@ -533,7 +541,13 @@
   overflow: visible;
   flex: 1;
 }
-/* 주간 열 머리는 이미 요일 머리가 있으므로 안쪽 열 머리를 접는다. */
+/* 레인 묶음이 고정폭 칸을 꽉 채우게 — 일간용 `min-width: max-content`(예약 글자가 칸을 부풀림)를 풀고
+   flex로 의사 수만큼 균등 분배한다. 좁은 레인의 글자는 슬롯 overflow:hidden으로 깔끔히 잘린다. */
+.cal-week-grid .cal-columns {
+  flex: 1;
+  min-width: 0;
+}
+/* 주간 열 머리는 날짜 머리가 대신하므로 접는다(성 한 자 머리는 DOM엔 남아 CAL-WEEK-04 검사가 찾는다). */
 .cal-week-grid .cal-column-head {
   display: none;
 }
@@ -662,6 +676,74 @@
 .cal-panel-fields dd {
   font-size: 13px;
   color: var(--color-ink);
+}
+
+/* 예약 상세 본문 머리 — 환자(제목)·상태(배지). PanelHost가 「예약 상세」 제목·✕를 이미 보이므로 여기선 주인공만. */
+.cal-panel-subject {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-divider);
+}
+.cal-panel-subject-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.cal-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-wash);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+/* 정보 행(의사·시간) — 라벨 왼쪽 고정폭, 값 오른쪽. dl을 표처럼 정렬해 훑기 쉽게. */
+.cal-panel-fields div {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+}
+.cal-panel-fields dt {
+  flex: 0 0 44px;
+}
+
+/* 보조 버튼 — 외곽선(주 버튼 teal과 구분). 오류 「다시 시도」·「캘린더에서 시간 고르기」에 쓴다.
+   ⚠️ 예전 오류 버튼은 28×28 정사각(cal-panel-close)이라 「다시 시도」가 세로로 깨졌다. */
+.cal-btn-secondary {
+  align-self: flex-start;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-divider);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.cal-btn-secondary:hover {
+  background: var(--color-primary-wash);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.cal-panel-status {
+  padding: 4px 2px;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+}
+.cal-panel-error {
+  margin: 0 0 8px;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* 폼 필드 */
