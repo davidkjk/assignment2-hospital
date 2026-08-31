@@ -9,6 +9,10 @@ from app.main import app
 from app.core.config import settings
 from app.db import pool as app_pool
 
+# 상담봇(4단계) 테스트가 재사용하는 모킹 임베더. 여기서 재노출해 fixture를 전역 공개한다.
+# (pytest_plugins는 비최상위 conftest에서 에러라 import 재노출로 대체 — Task 0 보정)
+from tests.conftest_chat import FakeEmbedder, fake_embedder  # noqa: F401
+
 
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_app_db_pool():
