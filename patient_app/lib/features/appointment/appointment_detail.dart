@@ -26,6 +26,7 @@ class AppointmentDetail {
     this.hospitalPhone,
     this.questionnaireStatus = 'none',
     this.supportRequestedAt,
+    this.forPatientId,
   });
 
   final AppointmentView view;
@@ -34,10 +35,12 @@ class AppointmentDetail {
   final String? hospitalPhone;
   final String questionnaireStatus;
   final DateTime? supportRequestedAt;
+  final String? forPatientId; // 소유자 patient id — 이력 딥링크(T27b)가 소유자 칩을 고르는 데 쓴다(NAV-HIST-05)
 
   factory AppointmentDetail.fromJson(Map<String, dynamic> j, HospitalInfo? hospital) =>
       AppointmentDetail(
         view: AppointmentView.fromJson(j),
+        forPatientId: j['for_patient_id'] as String?,
         reason: j['reason'] as String?,
         hospitalAddress: hospital?.address,
         hospitalPhone: hospital?.phone,

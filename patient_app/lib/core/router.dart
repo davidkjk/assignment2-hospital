@@ -229,7 +229,9 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             path: '/appointments/:id',
             builder: (c, s) => AppointmentDetailScreen(s.pathParameters['id']!)), // 환자앱 T21
 
-        GoRoute(path: '/history', builder: (c, s) => const HistoryScreen()),
+        GoRoute(
+            path: '/history',
+            builder: (c, s) => HistoryScreen(deepLinkAppointment: s.uri.queryParameters['appointment'])),
         GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
         // ⚠️ 자리표시자 — SET-HOSP 화면 본체는 Task 28 소유다. NAV-FAM-12·AUTH-OTP-11의 도착지만 먼저 연다.
         GoRoute(path: '/settings/hospital', builder: (c, s) => const _Placeholder('병원 안내')),

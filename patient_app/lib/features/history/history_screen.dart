@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../core/pending_request.dart' show koreanTime;
 import '../../core/tokens.dart';
 import '../../widgets/empty_state.dart';
+import '../appointment/appointment_detail.dart' show appointmentDetailProvider;
 import '../family/family_repository.dart';
+import '../notifications/notification_gone_dialog.dart' show showNotificationGoneDialog;
 import 'history_repository.dart';
+import 'history_row_detail.dart';
 
 /// 취소 날짜·시각 한 줄(HIST-ROW-03) — '7월 18일 오후 3:12'. 카드(T17)와 같은 어휘.
 String _cancelDateTime(DateTime t) => '${t.month}월 ${t.day}일 ${koreanTime(t)}';
@@ -145,12 +148,13 @@ class HistoryRow extends StatelessWidget {
   }
 }
 
-/// ⭐ 양방향 악수: T27a는 빈 상자를 돌려준다. T27b가 이 함수를 병원 안내문+문진 위젯으로 바꾼다.
-Widget historyDetailBuilder(VisitHistoryEntry e) => const SizedBox.shrink();
+/// ⭐ 양방향 악수 갚음(T27b): T27a는 빈 상자였다 — 이제 안내문+문진 알맹이를 돌려준다.
+Widget historyDetailBuilder(VisitHistoryEntry e) => HistoryRowDetail(entry: e);
 
 /// 이력 탭. 칩으로 사람 하나 골라 그 사람의 지나간 예약 전체를 본다(HIST-ROLE-01).
 class HistoryScreen extends ConsumerStatefulWidget {
-  const HistoryScreen({super.key});
+  const HistoryScreen({super.key, this.deepLinkAppointment});
+  final String? deepLinkAppointment; // NAV-HIST-05·06: 알림이 넘긴 예약 id(?appointment=)
   @override
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
@@ -163,6 +167,35 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void initState() {
     super.initState();
     _scroll.addListener(_maybeLoadMore);
+    if (widget.deepLinkAppointment != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleDeepLink());
+    }
+  }
+
+  /// 알림 딥링크(?appointment=)엔 patient가 없다 → 상세로 소유자를 찾아 그 칩을 고르고 그 줄을 편다.
+  /// 못 찾으면(가족 연결 해제·지워짐) 안내 팝업 + 알림은 목록에 남긴다(NAV-HIST-05·06·07).
+  Future<void> _handleDeepLink() async {
+    final apptId = widget.deepLinkAppointment;
+    if (apptId == null) return;
+    final detail = await ref.read(appointmentDetailProvider(apptId).future).catchError((_) => null);
+    final owner = detail?.forPatientId;
+    final chips = ref.read(historyChipsProvider).valueOrNull ?? [];
+    if (owner == null || !chips.any((m) => m.id == owner)) {
+      if (mounted) showNotificationGoneDialog(context); // NAV-HIST-07(B-12) — 이동 안 함
+      return;
+    }
+    ref.read(selectedHistoryPatientProvider.notifier).state = owner; // 그 사람 칩 선택(HIST-WHO-08)
+    HistoryState? page;
+    try {
+      page = await ref.read(historyProvider.future); // 그 사람 이력 로드
+    } catch (_) {
+      page = null;
+    }
+    if (page == null || page.items.every((e) => e.id != apptId)) {
+      if (mounted) showNotificationGoneDialog(context); // 로드했는데 그 줄이 없다 → NAV-HIST-07
+      return;
+    }
+    if (mounted) setState(() => _expanded.add(apptId)); // 그 줄 펼침(완료면 안내문이 그 안 — NAV-HIST-06)
   }
 
   @override

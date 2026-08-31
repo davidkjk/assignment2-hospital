@@ -360,7 +360,7 @@ class _QnrAccordionState extends State<QnrAccordion> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _QnrTable(id), // APPT-QNR-04 문항-답변 표(내용·수정 화면은 T23·24 소유)
+              QnrTable(id), // APPT-QNR-04 문항-답변 표(내용·수정 화면은 T23·24 소유)
               const SizedBox(height: 12),
               if (readonly)
                 const Text('진료가 시작되어 수정할 수 없습니다', // APPT-QNR-05
@@ -381,8 +381,10 @@ class _QnrAccordionState extends State<QnrAccordion> {
 }
 
 /// 문항-답변 표. 내용 데이터·수정 화면은 T23·24(QNR-*)가 채운다. 여기선 펼침 자리만.
-class _QnrTable extends StatelessWidget {
-  const _QnrTable(this.appointmentId);
+/// 문항–답변 표(읽기 전용). 예약 상세(APPT-QNR-04)와 방문 이력 펼침(HIST-QNR, T27b)이 공유한다.
+/// 내용·수정 화면은 T23·24 소유(지금은 자리표시자).
+class QnrTable extends StatelessWidget {
+  const QnrTable(this.appointmentId, {super.key});
   // ignore: unused_field
   final String appointmentId;
   @override
