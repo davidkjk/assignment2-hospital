@@ -33,6 +33,9 @@ def _visit_row(r) -> dict:
     return patient_row_dto(
         patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
         id=r["id"], occurred_at=r["occurred_at"], status=r["status"],
+        # [PTDET-QNR-03 A안] 예약별 사전문진 '작성 여부'. 제출 시각만 실린다(답변 내용은 아님) —
+        #   정의자 권한 함수 questionnaire_submitted_at_for(00076). None이면 미작성.
+        questionnaire_submitted_at=r["questionnaire_submitted_at"],
     )
 
 
@@ -42,7 +45,8 @@ async def get_visits(patient_id: UUID, staff: StaffContext, *, cursor=None, conn
         return await c.fetch(
             f"""
             select a.id, a.for_patient_id, a.status, p.name, p.phone, p.birth_date,
-                   {_OCCURRED.format(fallback='a.created_at')} as occurred_at
+                   {_OCCURRED.format(fallback='a.created_at')} as occurred_at,
+                   public.questionnaire_submitted_at_for(a.id) as questionnaire_submitted_at
             from appointments a
             join patients p on p.id = a.for_patient_id
             left join appointment_slots s on s.id = a.slot_id

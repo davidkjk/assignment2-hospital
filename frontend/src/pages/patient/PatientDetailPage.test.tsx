@@ -152,16 +152,29 @@ describe('PatientDetailPage', () => {
     expect(screen.getByRole('button', { name: '가족 연결 추가' })).toBeVisible()
   })
 
-  test('[PTDET-QNR-03] 관리자에겐 문진 응답을 보여주지 않고 요청하지도 않는다', async () => {
+  test('[PTDET-QNR-03][A안] 관리자는 답변 내용은 못 보고 작성 여부만 본다 — 내용 요청은 하지 않는다', async () => {
     currentRole = 'admin'
     let questionnaireHit = false
-    mockAll()
+    mockAll({
+      visits: [
+        { id: 'a1', status: '진료완료', occurred_at: '2026-08-05T09:00:00+09:00', questionnaire_submitted_at: '2026-08-04T21:10:00+09:00' },
+        { id: 'a2', status: '예약확정', occurred_at: '2026-09-01T09:00:00+09:00', questionnaire_submitted_at: null },
+      ],
+    })
+    // 답변 '내용' 엔드포인트는 직원에겐 아예 호출되지 않아야 한다(화면 분기가 아니라 요청 자체가 없음).
     server.use(http.get('*/appointments/:id/questionnaire', () => {
       questionnaireHit = true
       return HttpResponse.json({ questionnaire: null })
     }))
     renderDetail()
-    expect(await screen.findByText('담당 의사만 열람할 수 있습니다')).toBeVisible()
+    const qnr = await screen.findByRole('region', { name: '사전문진' })
+    expect(within(qnr).getByText('답변 내용은 담당 의사만 열람합니다')).toBeVisible()
+    // 배지는 방문 이력이 로드된 뒤 나타난다.
+    expect(await within(qnr).findByText('작성완료')).toBeVisible()
+    expect(within(qnr).getByText('미작성')).toBeVisible()
+    // 미작성 환자에게 문진표 요청을 보낼 경로가 있고, 죽은 「담당 의사에게 문의」 버튼은 없다.
+    expect(within(qnr).getByRole('button', { name: '문진표 요청' })).toBeVisible()
+    expect(within(qnr).queryByRole('button', { name: /담당 의사에게/ })).toBeNull()
     expect(questionnaireHit).toBe(false)
   })
 

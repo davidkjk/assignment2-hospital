@@ -161,6 +161,35 @@ async def test_문진은_담당의가_예약별로_읽는다(db_conn):
     assert result["answers"] is not None and result["appointment_id"] == appt
 
 
+@pytest.mark.asyncio
+async def test_피티뎃_큐엔알_03_직원_방문이력엔_작성여부만_실리고_답변은_없다(db_conn):
+    """[PTDET-QNR-03 A안] 접수직원의 방문 이력엔 문진 '제출 시각'만 온다 — answers는 절대 없다.
+    정의자 권한 함수(00076)가 제출 시각만 돌려주므로 RLS(담당의 전용 내용)는 그대로 지켜진다."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    patient = await seed_patient(db_conn)
+    with_q = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                    patient_id=patient, status="진료완료")
+    without_q = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                       patient_id=patient, status="예약확정")
+    template = await db_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb) returning id",
+        dept,
+    )
+    await db_conn.execute(
+        "insert into questionnaire_responses (appointment_id, template_id, answers) "
+        "values ($1,$2,'{\"q1\":\"예\"}'::jsonb)",
+        with_q, template,
+    )
+    staff = await _recept(db_conn)
+    await set_session_auth(db_conn, staff.auth_user_id)
+    page = await patient_history_service.get_visits(patient, staff, cursor=None, conn=db_conn)
+    by_id = {r["id"]: r for r in page.rows}
+    assert by_id[with_q]["questionnaire_submitted_at"] is not None      # 작성완료
+    assert by_id[without_q]["questionnaire_submitted_at"] is None       # 미작성
+    assert "answers" not in by_id[with_q]                               # 답변 내용은 안 실린다
+
+
 def test_피티뎃_노트_04_수정_삭제_창구는_없다():
     """[PTDET-NOTE-04 BLOCKED] 변경이력·삭제 복구 계약이 없어 수정·삭제 함수를 열지 않는다."""
     assert not hasattr(patient_history_service, "update_note")

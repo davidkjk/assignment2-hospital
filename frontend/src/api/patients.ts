@@ -88,6 +88,9 @@ export interface PatientHistoryRow {
   // 진료과·담당 의사 — 서버 방문 응답이 아직 담지 않는다(BLOCKED). 오면 그대로 그린다.
   department_name?: string | null
   doctor_name?: string | null
+  // [PTDET-QNR-03 A안] 이 예약의 사전문진 제출 시각 — 있으면 작성완료, null/없으면 미작성.
+  //   '작성 여부'만 온다(답변 내용은 담당 의사 전용, :420·#14). 서버: questionnaire_submitted_at_for(00076).
+  questionnaire_submitted_at?: string | null
 }
 
 /** 공용 커서 페이지(core.pagination) — 방문·진료기록이 같은 형태로 온다. */

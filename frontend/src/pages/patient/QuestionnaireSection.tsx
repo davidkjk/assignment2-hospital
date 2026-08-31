@@ -4,9 +4,11 @@ import type { Role } from '../../auth/roles'
 import type { SectionState } from './format'
 import { md, mdHm } from './format'
 
-// [PTDET-QNR-01~04] 사전문진 — **담당 의사만** 응답을 본다(QNR-03·결정 #14·AD-050).
-//   접수직원·관리자에겐 응답을 그리지 않고, 화면 분기만이 아니라 페이지가 아예 요청하지 않는다
-//   (answers가 응답에 실리지 않는다). 0건과 권한 제한을 같은 문구로 뭉치지 않는다(QNR-04).
+// [PTDET-QNR-01~04] 사전문진.
+//   · 답변 '내용'은 담당 의사만 본다(QNR-03·요구사항 :420·결정 #14·AD-050) — 접수직원·관리자에겐
+//     answers가 응답에 실리지 않는다(화면 분기가 아니라 서버가 안 준다).
+//   · 답변 '작성 여부'는 직원도 본다(사용자 결정 2026-08-31 A안) — 존재/볼륨은 비밀이 아니다
+//     (마이그 00052·00076이 세운 선). 미작성이면 「문진표 요청」으로 안내를 보낸다.
 
 export interface QnrItem {
   appointment_id: string
@@ -16,26 +18,67 @@ export interface QnrItem {
   answers: Record<string, unknown>
 }
 
-interface QuestionnaireSectionProps {
-  role: Role
-  state: SectionState<QnrItem[]>
+/** [QNR-03 A안] 직원이 보는 '작성 여부' 한 줄 — 답변 내용은 없다. submitted_at null = 미작성. */
+export interface QnrStatus {
+  appointment_id: string
+  visit_date?: string | null
+  submitted_at?: string | null
 }
 
-export function QuestionnaireSection({ role, state }: QuestionnaireSectionProps) {
-  const canRead = role === 'doctor'
-  const items = state.data ?? []
+interface QuestionnaireSectionProps {
+  role: Role
+  /** 담당 의사용 — 질문/답변 전체. */
+  state: SectionState<QnrItem[]>
+  /** 직원용 — 예약별 작성 여부(내용 없음). role !== 'doctor'일 때만 쓴다. */
+  statuses?: QnrStatus[]
+  /** [문진표 요청] — 미작성 환자에게 안내를 보내는 기존 「안내 보내기」로 보낸다. */
+  onRequest?: () => void
+}
 
+export function QuestionnaireSection({ role, state, statuses = [], onRequest }: QuestionnaireSectionProps) {
+  const isDoctor = role === 'doctor'
+
+  // ── 직원(접수·관리자): 답변 내용은 감추고, 작성 여부만 보인다(QNR-03 A안). ──
+  if (!isDoctor) {
+    return (
+      <section aria-label="사전문진" style={styles.section}>
+        <h2 style={styles.heading}>사전문진</h2>
+        <p style={styles.note}>답변 내용은 담당 의사만 열람합니다</p>
+
+        {state.loading ? (
+          <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
+        ) : state.error ? (
+          <EmptyState kind="error" onRetry={state.retry} />
+        ) : statuses.length === 0 ? (
+          <p style={styles.empty}>예약이 없어 표시할 사전문진이 없습니다</p>
+        ) : (
+          <ul style={styles.list}>
+            {statuses.map((s) => {
+              const done = Boolean(s.submitted_at)
+              return (
+                <li key={s.appointment_id} data-appointment-id={s.appointment_id} style={styles.statusRow}>
+                  {s.visit_date && <span style={styles.visit}>{md(s.visit_date)} 진료</span>}
+                  <span style={done ? styles.pillDone : styles.pillMissing}>{done ? '작성완료' : '미작성'}</span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        {onRequest && (
+          <button type="button" onClick={onRequest} style={styles.askBtn}>문진표 요청</button>
+        )}
+      </section>
+    )
+  }
+
+  // ── 담당 의사: 질문/답변 전체(QNR-01). ──
+  const items = state.data ?? []
   return (
     <section aria-label="사전문진" style={styles.section}>
       <h2 style={styles.heading}>사전문진</h2>
 
-      {/* [QNR-03·04] 권한 제한은 해결 경로가 있는 안내다 — 0건과 다르게 그린다. 내부 원인(RLS·정책)은 감춘다. */}
-      {!canRead ? (
-        <div style={styles.denied}>
-          <p style={styles.deniedText}>담당 의사만 열람할 수 있습니다</p>
-          <button type="button" style={styles.askBtn}>담당 의사에게 문의</button>
-        </div>
-      ) : state.loading ? (
+      {state.loading ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : state.error ? (
         <EmptyState kind="error" onRetry={state.retry} />
@@ -71,14 +114,17 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
   heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  denied: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--sp-2)' },
-  deniedText: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
+  note: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  empty: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   askBtn: {
     height: 30, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  list: { listStyle: 'none', margin: '0 0 var(--sp-3)', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  statusRow: { display: 'flex', gap: 'var(--sp-3)', alignItems: 'baseline', padding: 'var(--sp-2) var(--sp-3)', background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 8 },
+  pillDone: { marginLeft: 'auto', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)' },
+  pillMissing: { marginLeft: 'auto', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   card: { padding: 'var(--sp-3)', background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 8 },
   cardHead: { display: 'flex', gap: 'var(--sp-3)', alignItems: 'baseline', marginBottom: 'var(--sp-2)' },
   visit: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },

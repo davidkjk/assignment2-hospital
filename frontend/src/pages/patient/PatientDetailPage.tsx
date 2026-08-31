@@ -20,7 +20,7 @@ import { Header } from './Header'
 import { StatusCard, type StatusItem } from './StatusCard'
 import { FamilySection } from './FamilySection'
 import { VisitSection } from './VisitSection'
-import { QuestionnaireSection, type QnrItem } from './QuestionnaireSection'
+import { QuestionnaireSection, type QnrItem, type QnrStatus } from './QuestionnaireSection'
 import { RecordSection } from './RecordSection'
 import { SupportSection } from './SupportSection'
 import { NoteSection } from './NoteSection'
@@ -76,13 +76,26 @@ export function PatientDetailPage() {
 
   const notesQ = useQuery({ queryKey: ['patient', id, 'notes'], queryFn: () => getPatientNotes(id) })
 
-  // [QNR-03] 담당 의사일 때만 문진을 요청한다 — 그 밖의 역할에선 쿼리 자체가 없다(빈 배열).
+  // [QNR-03] 담당 의사일 때만 답변 '내용'을 요청한다 — 그 밖의 역할에선 쿼리 자체가 없다(빈 배열).
   const qnrQueries = useQueries({
     queries: (role === 'doctor' ? visitRows : []).map((v) => ({
       queryKey: ['questionnaire', v.id],
       queryFn: () => getQuestionnaire(v.id),
     })),
   })
+
+  // [QNR-03 A안] 직원용 '작성 여부' — 내용 없이 방문 이력에 실려온 제출 시각으로 판정한다(서버 00076).
+  //   작성완료(제출 시각 있음)는 전부, 미작성은 지금/다가오는 예약만(지난 완료·취소분은 요청할 게 없다).
+  const qnrStatuses: QnrStatus[] =
+    role === 'doctor'
+      ? []
+      : visitRows
+          .filter((v) => v.questionnaire_submitted_at || ACTIVE_STATUSES.has(v.status ?? ''))
+          .map((v) => ({
+            appointment_id: v.id,
+            visit_date: v.occurred_at,
+            submitted_at: v.questionnaire_submitted_at ?? null,
+          }))
   const qnrItems: QnrItem[] = qnrQueries
     .map((q, i) => ({ data: q.data?.questionnaire, visit: visitRows[i] }))
     .filter((x) => x.data && x.data.submitted_at)
@@ -172,14 +185,21 @@ export function PatientDetailPage() {
     data: notesQ.data,
     retry: () => void notesQ.refetch(),
   }
-  const qnrLoading = qnrQueries.some((q) => q.isLoading)
-  const qnrError = qnrQueries.some((q) => q.isError)
-  const qnrState: SectionState<QnrItem[]> = {
-    loading: qnrLoading,
-    error: qnrError,
-    data: qnrItems,
-    retry: () => qnrQueries.forEach((q) => void q.refetch()),
-  }
+  // 의사는 답변 쿼리들의 상태를, 직원은 '작성 여부'가 실려오는 방문 이력의 상태를 그대로 쓴다.
+  const qnrState: SectionState<QnrItem[]> =
+    role === 'doctor'
+      ? {
+          loading: qnrQueries.some((q) => q.isLoading),
+          error: qnrQueries.some((q) => q.isError),
+          data: qnrItems,
+          retry: () => qnrQueries.forEach((q) => void q.refetch()),
+        }
+      : {
+          loading: visitsQ.isLoading,
+          error: visitsQ.isError,
+          data: [],
+          retry: () => void visitsQ.refetch(),
+        }
   // 상담 문의는 서버(4단계)가 없다 — 소비만 하는 자리라 0건으로 둔다(SUPPORT BLOCKED).
   const supportState: SectionState<never[]> = { loading: false, error: false, data: [], retry: () => {} }
 
@@ -199,7 +219,12 @@ export function PatientDetailPage() {
 
       <div style={styles.grid}>
         <VisitSection state={visitState} onMore={() => void visitsQ.fetchNextPage()} moreLoading={visitsQ.isFetchingNextPage} />
-        <QuestionnaireSection role={role} state={qnrState} />
+        <QuestionnaireSection
+          role={role}
+          state={qnrState}
+          statuses={qnrStatuses}
+          onRequest={role !== 'doctor' ? () => navigate('/messages') : undefined}
+        />
         <RecordSection state={recordState} />
         <FamilySection state={familyState} onAddLink={openFamilyLink} />
         <SupportSection state={supportState} />
