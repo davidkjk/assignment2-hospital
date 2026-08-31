@@ -42,7 +42,7 @@ class DoneStep extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: () => context.go('/my/appointments/$id/questionnaire'), // NAV-BOOK-17
+                onPressed: () => context.go('/questionnaire/$id?from=booking'), // NAV-BOOK-17(정본 라우트)
                 child: const Text('사전문진 작성하기'), // BOOK-DONE-04
               ),
             ),

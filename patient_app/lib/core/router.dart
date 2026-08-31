@@ -23,6 +23,9 @@ import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
 import '../features/booking/booking_wizard.dart';
+import '../features/questionnaire/questionnaire_wizard.dart';
+import '../features/questionnaire/confirm_screen.dart';
+import '../features/questionnaire/questionnaire_entry.dart';
 import '../features/family/family_list_screen.dart';
 import '../features/family/family_edit_screen.dart';
 import '../features/family/family_add_choice_screen.dart';
@@ -256,7 +259,22 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
         GoRoute(path: '/questionnaire', builder: (c, s) => const _Placeholder('사전문진')), // 문진 탭
         GoRoute(
             path: '/questionnaire/:id',
-            builder: (c, s) => _Placeholder('사전문진 ${s.pathParameters['id']}')), // NAV-HOME-05(화면=T23)
+            builder: (c, s) {
+              final id = s.pathParameters['id']!;
+              final start = s.uri.queryParameters['start'];
+              // ?start=N → 마법사가 그 문항으로(이어쓰기 [이어서]/[처음부터], 확인 [고치기]). 없으면 상태 분기.
+              if (start != null) {
+                return QuestionnaireWizard(appointmentId: id, startIndex: int.tryParse(start) ?? 0);
+              }
+              return QuestionnaireEntry(appointmentId: id);
+            }), // NAV-HOME-05·NAV-QNR (화면=T23)
+        GoRoute(
+            path: '/questionnaire/:id/confirm',
+            builder: (c, s) {
+              final id = s.pathParameters['id']!;
+              final from = s.uri.queryParameters['from'];
+              return ConfirmScreen(appointmentId: id, readOnly: false, returnTo: returnRouteFor(from, id));
+            }),
         GoRoute(path: '/chat', builder: (c, s) => const _Placeholder('상담 채팅')), // NAV-HOME-11(화면=4단계)
       ],
     );

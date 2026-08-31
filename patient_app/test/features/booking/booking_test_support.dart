@@ -51,7 +51,8 @@ Future<ProviderContainer> pumpBooking(
     GoRoute(path: '/family/add', builder: (c, s) => const RouteMarker('family/add')),
     GoRoute(path: '/home', builder: (c, s) => const RouteMarker('home')),
     GoRoute(
-        path: '/my/appointments/:id/questionnaire',
+        // T23 정본 라우트로 통일: 예약 완료 화면의 사전문진 링크는 /questionnaire/:id로 간다(NAV-BOOK-17).
+        path: '/questionnaire/:id',
         builder: (c, s) => RouteMarker('qnr:${s.pathParameters['id']}')),
   ]);
   await t.pumpWidget(UncontrolledProviderScope(

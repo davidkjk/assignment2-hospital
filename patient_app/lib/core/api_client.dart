@@ -38,6 +38,9 @@ class ApiClient {
   Future<T> post<T>(String path, Map<String, dynamic> body, T Function(dynamic) parse) async => _handle(
       await _client.post(Uri.parse('$baseUrl$path'), headers: await _headers(), body: jsonEncode(body)), parse);
 
+  Future<T> put<T>(String path, Map<String, dynamic> body, T Function(dynamic) parse) async => _handle(
+      await _client.put(Uri.parse('$baseUrl$path'), headers: await _headers(), body: jsonEncode(body)), parse);
+
   Future<T> patch<T>(String path, Map<String, dynamic> body, T Function(dynamic) parse) async => _handle(
       await _client.patch(Uri.parse('$baseUrl$path'), headers: await _headers(), body: jsonEncode(body)), parse);
 
