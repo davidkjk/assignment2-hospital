@@ -16,6 +16,7 @@ import '../features/auth/otp_screen.dart';
 import '../features/auth/password_find_screen.dart';
 import '../features/auth/phone_change_screen.dart';
 import '../features/auth/reauth_screen.dart';
+import '../features/appointment/appointment_detail.dart';
 import '../features/qr/qr_fullscreen.dart';
 import '../features/auth/signup_phone_screen.dart';
 import '../features/auth/signup_profile_screen.dart';
@@ -225,7 +226,8 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
             builder: (c, s) => FamilyEditScreen(familyPatientId: s.pathParameters['id']!)),
         GoRoute(
             path: '/appointments/:id',
-            builder: (c, s) => _Placeholder('예약 상세 ${s.pathParameters['id']}')),
+            builder: (c, s) => AppointmentDetailScreen(s.pathParameters['id']!)), // 환자앱 T21
+
         GoRoute(path: '/history', builder: (c, s) => const _Placeholder('방문이력')),
         GoRoute(path: '/settings', builder: (c, s) => const _Placeholder('설정')),
         // ⚠️ 자리표시자 — SET-HOSP 화면 본체는 Task 28 소유다. NAV-FAM-12·AUTH-OTP-11의 도착지만 먼저 연다.

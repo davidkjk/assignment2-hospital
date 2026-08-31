@@ -90,6 +90,31 @@ async def test_get_appointment_detail_has_names(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_appointment_detail_includes_reason(committed_conn):
+    # [APPT-INFO-03] 갭 #49 — 방문이유가 상세 응답에 있어야 한다(예약할 때 쓴 문장 그대로).
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn))
+    aid = await _future_appt(committed_conn, me, dept, doctor_id)  # _future_appt은 reason='감기'로 예약한다
+    d = await q.get_appointment_detail(me, aid)
+    assert d["reason"] == "감기"
+
+
+@pytest.mark.asyncio
+async def test_appointment_detail_questionnaire_status(committed_conn):
+    # [APPT-QNR-02] 완료 문진이 없으면 'none'(미작성 줄) / [APPT-QNR-03] 진료 전 완료면 'writable'(수정 가능).
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn))
+    aid = await _future_appt(committed_conn, me, dept, doctor_id)
+    assert (await q.get_appointment_detail(me, aid))["questionnaire_status"] == "none"
+    tmpl = await committed_conn.fetchval(
+        "insert into questionnaire_templates (department_id, questions) values ($1, '[]'::jsonb) returning id", dept)
+    await committed_conn.execute(
+        "insert into questionnaire_responses (appointment_id, template_id, answers, completed_at) "
+        "values ($1,$2,'{}'::jsonb, now())", aid, tmpl)
+    assert (await q.get_appointment_detail(me, aid))["questionnaire_status"] == "writable"
+
+
+@pytest.mark.asyncio
 async def test_list_my_appointments_carries_canceller(committed_conn):
     # CARD-CXL-09(갭 #11): 오늘 병원취소는 홈에 자정까지 뜨고 주체·시각을 함께 내려줘야 3갈래가 성립한다.
     _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)

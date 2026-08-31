@@ -26,7 +26,9 @@ class BookingRepository {
 final bookingRepositoryProvider = Provider((ref) => BookingRepository(ref.read(apiClientProvider)));
 
 // 완료 화면(8단계)이 방금 만든 예약의 상태·번호를 조회한다(T8 GET /my/appointments/{id}).
-final appointmentDetailProvider =
+// ⚠️ 예약 상세 화면(T21)의 풍부한 `appointmentDetailProvider`(AppointmentDetail?)와 이름이 겹치지 않게
+//    여기 완료 화면 전용 조회는 `bookedAppointmentProvider`로 둔다(반환은 AppointmentView 그대로).
+final bookedAppointmentProvider =
     FutureProvider.autoDispose.family<AppointmentView, String>((ref, id) async {
   final api = ref.read(apiClientProvider);
   return api.get('/my/appointments/$id', (j) => AppointmentView.fromJson(j as Map<String, dynamic>));

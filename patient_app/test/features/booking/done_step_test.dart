@@ -25,7 +25,7 @@ Future<void> pumpDone(WidgetTester t, {required Map<String, dynamic> appt}) asyn
     t,
     const DoneStep(),
     overrides: [
-      appointmentDetailProvider(id)
+      bookedAppointmentProvider(id)
           .overrideWith((ref) async => AppointmentView.fromJson(appt)),
     ],
     advance: (ctl) => ctl.finishTo(id), // 완료 상태 + 예약 id
@@ -82,7 +82,7 @@ void main() {
       t,
       const BookingWizard(),
       overrides: [
-        appointmentDetailProvider('a1')
+        bookedAppointmentProvider('a1')
             .overrideWith((ref) async => AppointmentView.fromJson(appt)),
       ],
       advance: (ctl) => ctl.finishTo('a1'), // step 7 완료

@@ -14,11 +14,11 @@ class DoneStep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final id = ref.watch(bookingProvider).createdAppointmentId!;
-    final appt = ref.watch(appointmentDetailProvider(id));
+    final appt = ref.watch(bookedAppointmentProvider(id));
     return appt.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, __) =>
-          EmptyState.error(onRetry: () => ref.invalidate(appointmentDetailProvider(id))),
+          EmptyState.error(onRetry: () => ref.invalidate(bookedAppointmentProvider(id))),
       data: (a) {
         final requested = a.status == '예약신청'; // 확정 전
         return SingleChildScrollView(

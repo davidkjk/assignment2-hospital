@@ -152,7 +152,7 @@ void main() {
       'is_self': true,
     });
     await pumpBooking(t, const DoneStep(),
-        overrides: [appointmentDetailProvider('a1').overrideWith((ref) async => appt)],
+        overrides: [bookedAppointmentProvider('a1').overrideWith((ref) async => appt)],
         advance: (ctl) => ctl.finishTo('a1'));
     await t.pumpAndSettle();
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/booking-done.png'));

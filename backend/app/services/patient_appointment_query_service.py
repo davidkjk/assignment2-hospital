@@ -37,9 +37,15 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
     async with acquire_as(str(patient.auth_user_id)) as conn:
         row = await conn.fetchrow(
             "select a.id, a.status, a.support_requested_at, a.request_type, a.updated_at, a.queue_position, "
-            "  a.doctor_id, a.booking_code, a.booking_code_expires_at, "
+            "  a.doctor_id, a.booking_code, a.booking_code_expires_at, a.reason, "  # 갭 #49 — APPT-INFO-03(방문이유)
             "  a.hospital_change_prev_time, a.hospital_change_kind, "  # CARD-CHG(직원웹 T2가 채움·환자 [확인]이 비움)
             "  a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at, "  # CARD-CXL-09(갭 #11)
+            # APPT-QNR — 완료 문진 유무 + 진료 진입 여부로 문진 줄 상태를 서버가 정한다(none/writable/readonly).
+            "  case "
+            "    when not exists (select 1 from questionnaire_responses q "
+            "                     where q.appointment_id=a.id and q.completed_at is not null) then 'none' "
+            "    when a.status in ('진료중','진료완료','환자취소','병원취소') then 'readonly' "
+            "    else 'writable' end as questionnaire_status, "
             "  (a.for_patient_id = $2) as is_self, "
             "  case when a.for_patient_id = $2 then '본인' else coalesce(fl.relation, '가족') end as relation, "
             "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "

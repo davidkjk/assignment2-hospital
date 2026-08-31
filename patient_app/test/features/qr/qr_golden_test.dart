@@ -15,7 +15,8 @@ class _NoopBrightness implements BrightnessController {
 }
 
 AppointmentView _v(String name, {String id = 'a', String code = '241401'}) {
-  final slot = DateTime.now().add(const Duration(minutes: 10));
+  // 골든은 결정적이어야 한다 — now-상대값은 다른 날 재실행 때 날짜가 바뀌어 픽셀이 어긋난다. 고정 미래 날짜로.
+  final slot = DateTime(2030, 5, 20, 14, 0);
   return AppointmentView.fromJson({
     'id': id,
     'status': '예약확정',
