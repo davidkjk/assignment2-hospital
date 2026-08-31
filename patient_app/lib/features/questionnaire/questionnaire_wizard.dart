@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../widgets/action_button.dart';
 import 'questionnaire_controller.dart';
 import 'question_field.dart';
+import 'qnr_progress_text.dart';
 
 class QuestionnaireWizard extends ConsumerStatefulWidget {
   const QuestionnaireWizard({super.key, required this.appointmentId, this.startIndex = 0});
@@ -153,7 +154,8 @@ class QnrProgressHeader extends StatelessWidget {
       color: cs.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       alignment: Alignment.centerRight,
-      child: Text('${index + 1} / $total', // 문구 다듬기는 T24
+      // QNR-PROG-06: 문구는 qnr_progress_text 한 곳에서 만든다(QNR-PROG-09) — 「3번 / 8문항」.
+      child: Text(qnrHeaderText(index: index, total: total),
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
     );
   }

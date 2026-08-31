@@ -32,4 +32,23 @@ void main() {
     expect(find.byIcon(Icons.visibility), findsOneWidget);
     expect(find.textContaining('내가 작성한 사전문진 보기'), findsOneWidget);
   });
+
+  // ── 갭 #50: 홈 줄 상태는 questionnaire_state(제출 여부)를 쓴다 — 행 존재로 판정하지 않는다 ──
+  group('[QNR-PROG-07][갭 #50] resolveQnrRow는 서버 questionnaire_state를 쓴다', () {
+    test('작성 중이면 inProgress — 1문항만 써도 「작성완료」로 보이지 않는다', () {
+      expect(resolveQnrRow('작성 중', inTreatment: false, finished: false), QnrRowState.inProgress);
+    });
+    test('작성완료(제출)면 done', () {
+      expect(resolveQnrRow('작성완료', inTreatment: false, finished: false), QnrRowState.done);
+    });
+    test('미작성이면 todo', () {
+      expect(resolveQnrRow('미작성', inTreatment: false, finished: false), QnrRowState.todo);
+    });
+    test('진료중이면 상태와 무관하게 locked(CARD-QNR-03)', () {
+      expect(resolveQnrRow('작성 중', inTreatment: true, finished: false), QnrRowState.locked);
+    });
+    test('끝난 카드면 readonly(CARD-QNR-04)', () {
+      expect(resolveQnrRow('작성완료', inTreatment: false, finished: true), QnrRowState.readonly);
+    });
+  });
 }

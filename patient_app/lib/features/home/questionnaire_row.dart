@@ -12,6 +12,21 @@ enum QnrRowState {
   readonly, // CARD-QNR-04 진료완료·이력 — 눈·내가 작성한 사전문진 보기
 }
 
+/// 갭 #50: 홈 줄 상태는 서버 questionnaire_state(제출 여부)로 갈린다 — 행 존재(has_questionnaire)로 판정하지 않는다.
+/// 진료 진입·종료가 먼저다(자물쇠·눈), 그 전엔 미작성/작성 중/작성완료 세 갈래.
+QnrRowState resolveQnrRow(String state, {required bool inTreatment, required bool finished}) {
+  if (finished) return QnrRowState.readonly; // CARD-QNR-04(눈)
+  if (inTreatment) return QnrRowState.locked; // CARD-QNR-03(자물쇠)
+  switch (state) {
+    case '작성완료':
+      return QnrRowState.done; // CARD-QNR-02(회색·수정하기)
+    case '작성 중':
+      return QnrRowState.inProgress; // ⭐ QNR-PROG-07 — 진행률 꼬리표
+    default:
+      return QnrRowState.todo; // CARD-QNR-01(주의색·작성하기)
+  }
+}
+
 class QuestionnaireRow extends StatelessWidget {
   const QuestionnaireRow({super.key, required this.state, this.answered, this.total, this.onTap});
   final QnrRowState state;

@@ -13,28 +13,39 @@ class QnrState {
       required this.answers,
       required this.index,
       required this.status,
+      this.answered = 0,
+      this.total = 0,
       this.submitting = false,
-      this.loading = true});
+      this.loading = true,
+      this.liveCancelled = false});
   final List<Question> questions;
   final Map<String, String> answers; // question_id -> value (QNR-ID-01·03 열쇠 = 번호)
   final int index;
   final String status; // 서버 state: 미작성/작성 중/작성완료
+  final int answered, total; // ⭐ 서버 compute_progress 값 그대로(QNR-PROG-04·09). 화면이 세지 않는다.
   final bool submitting, loading;
+  final bool liveCancelled; // 작성 중 예약이 취소됨(QNR-LIVE-01) — Step 10에서 채운다.
 
   QnrState copyWith(
           {List<Question>? questions,
           Map<String, String>? answers,
           int? index,
           String? status,
+          int? answered,
+          int? total,
           bool? submitting,
-          bool? loading}) =>
+          bool? loading,
+          bool? liveCancelled}) =>
       QnrState(
           questions: questions ?? this.questions,
           answers: answers ?? this.answers,
           index: index ?? this.index,
           status: status ?? this.status,
+          answered: answered ?? this.answered,
+          total: total ?? this.total,
           submitting: submitting ?? this.submitting,
-          loading: loading ?? this.loading);
+          loading: loading ?? this.loading,
+          liveCancelled: liveCancelled ?? this.liveCancelled);
 
   Question? get current => index >= 0 && index < questions.length ? questions[index] : null;
 }
@@ -56,6 +67,8 @@ class QnrController extends StateNotifier<QnrState> {
         answers: Map.of(data.answers),
         index: 0,
         status: data.state,
+        answered: data.answered, // ⭐ 서버가 센 값(QNR-PROG-04) — 화면이 answers.length로 세지 않는다.
+        total: data.total,
         loading: false);
   }
 
@@ -72,7 +85,10 @@ class QnrController extends StateNotifier<QnrState> {
   Future<void> next() async {
     final prog = await _repo.save(_appointmentId, _answerList(), complete: false); // QNR-ID-10 글자 동봉
     state = state.copyWith(
-        status: prog.state, index: (state.index + 1).clamp(0, state.questions.length));
+        status: prog.state,
+        answered: prog.answered, // 저장 응답의 서버 진행률을 그대로 싣는다(QNR-PROG-04·09)
+        total: prog.total,
+        index: (state.index + 1).clamp(0, state.questions.length));
   }
 
   void prev() => state = state.copyWith(index: (state.index - 1).clamp(0, state.questions.length));
@@ -81,7 +97,8 @@ class QnrController extends StateNotifier<QnrState> {
   Future<QnrProgress> submit() async {
     state = state.copyWith(submitting: true);
     final prog = await _repo.save(_appointmentId, _answerList(), complete: true); // 이때만 완료 표시
-    state = state.copyWith(submitting: false, status: prog.state);
+    state = state.copyWith(
+        submitting: false, status: prog.state, answered: prog.answered, total: prog.total);
     return prog;
   }
 }

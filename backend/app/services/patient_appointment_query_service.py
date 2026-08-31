@@ -2,9 +2,41 @@ from uuid import UUID
 
 from app.core.patient_security import PatientContext
 from app.db.pool import acquire_as
+from app.services.patient_questionnaire_service import compute_progress, _load  # ⭐ 같은 함수 = 같은 숫자(QNR-PROG-04)
 
 # support_requested_at·request_type(④ 00010)로 폐기된 cancellation_requested_at을 대체한다.
 _LIVE = "('환자취소','병원취소','예약부도')"
+
+# QNR-PROG-07·09: 홈 줄·상세가 쓸 문진 상태·진행률. 조인 원재료는 밑줄(_qnr_*)로 받아 응답에서 뺀다.
+_QNR_JOIN = (
+    "  qr.answers as _qnr_answers, qr.completed_at as _qnr_completed_at, "
+    "  qt.questions as _qnr_questions, p.gender as _qnr_gender "
+)
+_QNR_FROM = (
+    "left join questionnaire_responses qr on qr.appointment_id = a.id "
+    # 양식은 진료과당 1개(00008 유니크) → 행이 불어나지 않는다.
+    "left join questionnaire_templates qt on qt.department_id = a.department_id "
+)
+
+
+def _qnr_fields(row: dict) -> dict:
+    """QNR-PROG-07·09: 홈 줄이 쓸 상태·진행률. 갭 #50 — 행 존재가 아니라 completed_at으로 갈린다."""
+    questions = _load(row.get("_qnr_questions") or [])
+    answers = _load(row.get("_qnr_answers") or [])
+    prog = compute_progress(questions, row.get("_qnr_gender") or "", answers)
+    if row.get("_qnr_answers") is None:
+        state = "미작성"  # 행 없음
+    elif row.get("_qnr_completed_at") is not None:
+        state = "작성완료"  # [제출하기]를 누른 것만(QNR-STATE-04)
+    else:
+        state = "작성 중"  # ⭐ 1문항만 쓴 사람이 여기 — 갭 #50이 닫힌다
+    return {"questionnaire_state": state,
+            "questionnaire_answered": prog["answered"], "questionnaire_total": prog["total"]}
+
+
+def _strip_private(d: dict) -> dict:
+    """밑줄로 시작하는 조인 원재료(_qnr_*)는 응답에서 뺀다 — 화면은 3필드만 본다."""
+    return {k: v for k, v in d.items() if not k.startswith("_")}
 
 
 async def list_my_appointments(patient: PatientContext) -> list[dict]:
@@ -18,19 +50,22 @@ async def list_my_appointments(patient: PatientContext) -> list[dict]:
             "  case when a.for_patient_id = $1 then '본인' else coalesce(fl.relation, '가족') end as relation, "  # CARD-COMMON-01: 이름 · 관계(예: '어머니')
             "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
             "  s.slot_date, s.start_time, "
-            "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire "
+            "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire, "
+            + _QNR_JOIN +  # QNR-PROG-07·09: 상태·진행률 3필드의 원재료
             "from appointments a "
             "join patients p on p.id=a.for_patient_id "
             "join departments d on d.id=a.department_id "
             "join staff st on st.id=a.doctor_id "
             "left join appointment_slots s on s.id=a.slot_id "
+            + _QNR_FROM +
             "left join patient_family_links fl "
             "  on fl.family_patient_id=a.for_patient_id and fl.account_patient_id=$1 and fl.is_active "
             # CARD-CXL-05·06: 홈은 「오늘」 취소·부도 카드를 자정까지 붙잡는다(예약 목록 탭 LIST-ST-21과 별개 — 홈 전용 창구).
             f"where (a.status not in {_LIVE} or s.slot_date = current_date) "
             "  and (s.slot_date is null or s.slot_date >= current_date) "
             "order by s.slot_date nulls last, s.start_time nulls last", patient.id)
-    return [dict(r) for r in rows]
+    # 갭 #50: has_questionnaire(행 존재)는 남기되, 화면은 questionnaire_state(completed_at 판정)를 쓴다.
+    return [{**_strip_private(dict(r)), **_qnr_fields(dict(r))} for r in rows]
 
 
 async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) -> dict:
@@ -52,16 +87,20 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
             "  (a.for_patient_id = $2) as is_self, "
             "  case when a.for_patient_id = $2 then '본인' else coalesce(fl.relation, '가족') end as relation, "
             "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
-            "  s.slot_date, s.start_time "
+            "  s.slot_date, s.start_time, "
+            + _QNR_JOIN +  # QNR-PROG-07·09: 상세도 진행률 3필드를 소급으로 싣는다
             "from appointments a "
             "join patients p on p.id=a.for_patient_id "
             "join departments d on d.id=a.department_id "
             "join staff st on st.id=a.doctor_id "
             "left join appointment_slots s on s.id=a.slot_id "
+            + _QNR_FROM +
             "left join patient_family_links fl "
             "  on fl.family_patient_id=a.for_patient_id and fl.account_patient_id=$2 and fl.is_active "
             "where a.id=$1", appointment_id, patient.id)
-    return dict(row) if row else {}
+    if not row:
+        return {}
+    return {**_strip_private(dict(row)), **_qnr_fields(dict(row))}
 
 
 async def get_queue_status(patient: PatientContext, appointment_id: UUID) -> dict:

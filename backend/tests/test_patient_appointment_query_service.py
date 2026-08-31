@@ -1,8 +1,10 @@
+import json
 import pytest
 from uuid import uuid4
 
 from app.core.patient_security import PatientContext
 from app.services import patient_appointment_query_service as q
+from app.services import patient_questionnaire_service as qsvc
 from tests.conftest import seed_patient, seed_staff
 
 # 조회 서비스도 acquire_as(patient) 자기커넥션 → 시드·검증은 committed_conn(postgres 역할, RLS 우회).
@@ -164,3 +166,60 @@ async def test_appointment_detail_carries_change_and_reject_fields(committed_con
     assert d["cancel_rejected_reason"] == "진료 준비됨" and d["cancel_rejected_at"] is not None
     assert d["doctor_id"] == doctor_id and d["department_id"] == dept  # 변경 마법사가 소비
     assert d["cancellation_deadline_hours"] is not None  # definer 창구가 값(기본 24)을 준다
+
+
+# ── 문진 진행률 소급(Task 24 Step 3) ─────────────────────────────
+async def _seed_template(committed_conn, dept, questions):
+    await committed_conn.execute(
+        "insert into questionnaire_templates (department_id, questions) values ($1, $2::jsonb)",
+        dept, json.dumps(questions, ensure_ascii=False))
+
+
+@pytest.mark.asyncio
+async def test_qnr_progress_fields_on_list(committed_conn):
+    """[QNR-PROG-07][QNR-PROG-09] 홈 줄이 쓸 진행률을 서버가 내려준다 — 화면이 세지 않는다."""
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn, gender="F"))
+    aid = await _future_appt(committed_conn, me, dept, doctor_id)
+    await _seed_template(committed_conn, dept, [
+        {"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"},
+        {"id": "q2", "text": "임신 가능성", "type": "예/아니오", "required": True, "visible_to": "여성 환자만"},
+        {"id": "q3", "text": "증상", "type": "장문형", "required": False, "visible_to": "모든 환자"},
+    ])
+    await qsvc.save_response(
+        me, aid, [{"question_id": "q1", "question_text": "키", "value": "170"}], complete=False)
+    rows = await q.list_my_appointments(me)
+    row = next(r for r in rows if r["id"] == aid)
+    assert row["questionnaire_state"] == "작성 중"  # 완료 표시 없음(갭 #50 — 행 존재로 판정하지 않는다)
+    assert row["questionnaire_answered"] == 1
+    assert row["questionnaire_total"] == 3  # 여성이라 임신 문항이 분모에 든다
+
+
+@pytest.mark.asyncio
+async def test_qnr_progress_total_differs_by_gender(committed_conn):
+    """[QNR-PROG-03] 같은 진료과라도 남성은 분모가 하나 준다 — 홈 줄 숫자도 따라 갈린다."""
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn, gender="M"))
+    aid = await _future_appt(committed_conn, me, dept, doctor_id)
+    await _seed_template(committed_conn, dept, [
+        {"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"},
+        {"id": "q2", "text": "임신 가능성", "type": "예/아니오", "required": True, "visible_to": "여성 환자만"},
+    ])
+    rows = await q.list_my_appointments(me)
+    row = next(r for r in rows if r["id"] == aid)
+    assert row["questionnaire_total"] == 1  # 임신 문항이 빠졌다
+    assert row["questionnaire_state"] == "미작성"  # 행이 없으면 미작성
+
+
+@pytest.mark.asyncio
+async def test_qnr_state_done_only_after_submit(committed_conn):
+    """[QNR-PROG-07] 「작성완료」는 [제출하기]를 누른 뒤에만 — 자동 저장으로는 안 찍힌다."""
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn, gender="F"))
+    aid = await _future_appt(committed_conn, me, dept, doctor_id)
+    await _seed_template(committed_conn, dept,
+                         [{"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"}])
+    await qsvc.save_response(
+        me, aid, [{"question_id": "q1", "question_text": "키", "value": "170"}], complete=True)
+    rows = await q.list_my_appointments(me)
+    assert next(r for r in rows if r["id"] == aid)["questionnaire_state"] == "작성완료"

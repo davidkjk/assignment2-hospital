@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'questionnaire_controller.dart';
 import 'questionnaire_repository.dart';
+import 'qnr_progress_text.dart';
 
 /// 작성 중인 문진에 들어오면 마법사 1번이 아니라 이어쓰기 화면이 먼저 뜬다(NAV-QNR-02).
 /// [처음부터 보기]는 1번으로(NAV-QNR-11), [N번부터 이어서]는 안 쓴 첫 문항으로(NAV-QNR-12).
@@ -31,8 +32,8 @@ class ResumeScreen extends ConsumerWidget {
           Text('작성하던 문진이 있어요',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: cs.primary)),
           const SizedBox(height: 8),
-          // 안내 문구(N문항 중 X개…)는 QNR-PROG-08 = T24가 채운다.
-          const ResumeSummary(),
+          // QNR-PROG-08: 「M문항 중 N개…」 — 숫자는 서버 값(st.answered/st.total), 화면이 세지 않는다(QNR-PROG-09).
+          ResumeSummary(answered: st.answered, total: st.total),
           const Spacer(),
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
@@ -51,9 +52,15 @@ class ResumeScreen extends ConsumerWidget {
   }
 }
 
-/// 진행률 요약 문구 자리 — QNR-PROG-08(T24)이 채운다.
+/// QNR-PROG-08: 이어쓰기 진행률 요약 「8문항 중 3개를 작성하셨습니다.」.
+/// 숫자는 서버 compute_progress 값을 받아 그대로 쓴다(QNR-PROG-09) — answers.length로 세지 않는다.
 class ResumeSummary extends StatelessWidget {
-  const ResumeSummary({super.key});
+  const ResumeSummary({super.key, required this.answered, required this.total});
+  final int answered, total;
   @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Text(qnrResumeText(answered: answered, total: total),
+        style: TextStyle(fontSize: 15, color: cs.onSurfaceVariant));
+  }
 }

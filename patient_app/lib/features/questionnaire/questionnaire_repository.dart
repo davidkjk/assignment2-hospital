@@ -24,11 +24,17 @@ class Answer {
 
 class QnrData {
   const QnrData(
-      {required this.id, required this.questions, required this.answers, required this.state});
+      {required this.id,
+      required this.questions,
+      required this.answers,
+      required this.state,
+      this.answered = 0,
+      this.total = 0});
   final String id;
   final List<Question> questions; // 진입 시 고정 = 그 회차 끝까지(QNR-LIVE 계열, 실현은 controller)
   final Map<String, String> answers; // question_id -> value
   final String state; // '미작성' | '작성 중' | '작성완료'
+  final int answered, total; // ⭐ 서버 compute_progress 값(QNR-PROG-04·09). 화면이 세지 않는다.
 
   // 실행 보정: template은 null 가능(백엔드 get_template이 「양식 없음」이면 null) = 0문항과 같이 취급.
   factory QnrData.fromServer(
@@ -44,7 +50,10 @@ class QnrData {
         id: (template?['id'] as String?) ?? '',
         questions: qs,
         answers: ans,
-        state: (response?['state'] as String?) ?? '미작성'); // 행 없음=미작성(QNR-STATE-07 짝)
+        state: (response?['state'] as String?) ?? '미작성', // 행 없음=미작성(QNR-STATE-07 짝)
+        // 응답 없음(미작성)이면 answered=0, 분모는 양식의 (성별 필터된) 문항 수 = compute_progress total과 같다.
+        answered: (response?['answered'] as int?) ?? 0,
+        total: (response?['total'] as int?) ?? qs.length);
   }
 }
 

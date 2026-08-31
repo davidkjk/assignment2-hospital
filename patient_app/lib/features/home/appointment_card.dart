@@ -138,21 +138,22 @@ class AppointmentCard extends StatelessWidget {
   }
 
   List<Widget> _questionnaire(BuildContext context, AppointmentCardState s) {
-    final QnrRowState? row = switch (s) {
-      AppointmentCardState.inTreatment => QnrRowState.locked, // CARD-QNR-03
-      AppointmentCardState.done => QnrRowState.readonly, // CARD-QNR-04
-      // 진료 시작 전: 작성 여부로 갈린다(작성 중 (a/t)는 T24 소급 필드가 오면 채운다).
-      AppointmentCardState.confirmed ||
-      AppointmentCardState.arrived ||
-      AppointmentCardState.wait =>
-        view.hasQuestionnaire ? QnrRowState.done : QnrRowState.todo, // CARD-QNR-01·02
-      _ => null, // req·unconf·late·cancelled → 문진 줄 없음(CARD-CXL-07 등)
-    };
-    if (row == null) return const [];
+    // 진료 진입 전(confirmed·arrived·wait)만 미작성/작성 중/작성완료로 갈리고, 그 외는 자물쇠·눈·없음.
+    final bool showsQnr = s == AppointmentCardState.confirmed ||
+        s == AppointmentCardState.arrived ||
+        s == AppointmentCardState.wait ||
+        s == AppointmentCardState.inTreatment ||
+        s == AppointmentCardState.done;
+    if (!showsQnr) return const []; // req·unconf·late·cancelled → 문진 줄 없음(CARD-CXL-07 등)
+    // 갭 #50: 서버 questionnaire_state로 갈린다(has_questionnaire 아님) — 1문항만 써도 작성완료로 안 보인다.
+    final row = resolveQnrRow(view.questionnaireState,
+        inTreatment: s == AppointmentCardState.inTreatment, finished: s == AppointmentCardState.done);
     return [
       const SizedBox(height: 12),
       QuestionnaireRow(
         state: row,
+        answered: view.questionnaireAnswered, // 작성 중일 때만 (a/t)로 쓰인다(QNR-PROG-09)
+        total: view.questionnaireTotal,
         onTap: () => context.go('/questionnaire/${view.id}'), // NAV-HOME-05
       ),
     ];

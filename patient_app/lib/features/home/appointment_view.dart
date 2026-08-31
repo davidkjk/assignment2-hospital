@@ -5,7 +5,9 @@ class AppointmentView {
   final DateTime? slotStart; // slot_date + start_time
   final DateTime? hospitalChangePrevTime; // CARD-CHG: null이면 미확인 변경 없음
   final String? hospitalChangeKind; // 'changed' | 'cancelled'
-  final bool hasQuestionnaire;
+  final bool hasQuestionnaire; // 갭 #50: 행 존재 여부(옛 판정) — 상태는 questionnaireState를 쓴다.
+  final String questionnaireState; // 서버 questionnaire_state: 미작성/작성 중/작성완료(QNR-PROG-07)
+  final int questionnaireAnswered, questionnaireTotal; // 서버 진행률(QNR-PROG-09) — 화면이 세지 않는다.
   final bool isSelf; // account_patient_id == for_patient_id (T16 소급) — 홈 정렬에서 본인 먼저(HOME-CARD-03).
   // CARD-CXL-09(갭 #11) — 취소 주체·시각. CxlBody가 병원/가족/본인 3갈래로 갈린다.
   final String? cancelledBy; // 'hospital' | 'patient'
@@ -24,6 +26,9 @@ class AppointmentView {
     this.hospitalChangePrevTime,
     this.hospitalChangeKind,
     required this.hasQuestionnaire,
+    this.questionnaireState = '미작성',
+    this.questionnaireAnswered = 0,
+    this.questionnaireTotal = 0,
     this.isSelf = false,
     this.cancelledBy,
     this.cancelledByRelation,
@@ -46,6 +51,9 @@ class AppointmentView {
       bookingCode: j['booking_code'] as String?,
       slotStart: slot,
       hasQuestionnaire: j['has_questionnaire'] == true,
+      questionnaireState: (j['questionnaire_state'] as String?) ?? '미작성',
+      questionnaireAnswered: (j['questionnaire_answered'] as int?) ?? 0,
+      questionnaireTotal: (j['questionnaire_total'] as int?) ?? 0,
       isSelf: j['is_self'] == true,
       hospitalChangePrevTime: j['hospital_change_prev_time'] == null
           ? null
