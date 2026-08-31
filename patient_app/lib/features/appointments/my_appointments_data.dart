@@ -15,6 +15,31 @@ List<AppointmentView> filterUpcoming(List<AppointmentView> all) =>
 final upcomingListProvider = Provider<AsyncValue<List<AppointmentView>>>((ref) =>
     ref.watch(homeAppointmentsProvider).whenData((v) => filterUpcoming(v ?? const [])));
 
+/// LIST-REFRESH-02 seam: 보는 동안 활성 예약이 있으면 실시간 갱신을 구독한다(대기실에서 아무것도
+/// 안 눌러도 「확인 중」→확정이 저절로 바뀜). 실제 배선(Supabase realtime)은 배포 몫이라 기본은 no-op —
+/// 화면이 활성 유무를 [setActive]로 알리고, 이벤트가 오면 [events]가 틱을 흘려 화면이 재조회한다.
+/// 홈이 이 seam을 아직 안 만들어 여기서 신설한다(T30 is_self·T24 문진필드 소급과 같은 성격).
+abstract class UpcomingRealtime {
+  Stream<void> get events;
+  void setActive(bool active); // true=구독, false=해제(바뀔 것이 없으면 연결을 붙잡지 않는다)
+}
+
+class _NoopRealtime implements UpcomingRealtime {
+  @override
+  Stream<void> get events => const Stream<void>.empty();
+  @override
+  void setActive(bool active) {}
+}
+
+final upcomingRealtimeProvider = Provider<UpcomingRealtime>((ref) => _NoopRealtime());
+
+/// LIST-REFRESH-04: 갱신 결과가 내가 보던 것과 다른가(보던 예약이 취소·완료로 목록에서 빠졌나) →
+/// 그러면 T11 OFF-BACK-02(내가 보던 것이 바뀜) 공용 규칙을 탄다. 목록은 다시 그리기만, 상세 진입 시 안내.
+bool offBackApplies({required List<String> before, required List<String> after}) {
+  final now = after.toSet();
+  return before.any((id) => !now.contains(id));
+}
+
 class DateSection {
   final DateTime date;
   final List<AppointmentView> items;

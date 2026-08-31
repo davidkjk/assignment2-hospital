@@ -4,6 +4,9 @@ import 'package:hospital_patient_app/features/appointments/appointment_list_stat
 import 'package:hospital_patient_app/widgets/status_label.dart'; // T0
 import 'package:hospital_patient_app/core/tokens.dart'; // T0 AppTokens
 
+/// 시각 레일 폭 — 문진 경고 줄(T31 LIST-QNR-07)이 같은 상자임을 보이려 이만큼 들여쓴다.
+const double kListRailWidth = 64;
+
 /// LIST-LIST-06~15 + LIST-ST-14·15·17: 얇은 줄. 버튼은 하나도 두지 않는다(확인은 상세 한 곳에서만).
 class AppointmentListRow extends StatelessWidget {
   final AppointmentView view;
@@ -29,7 +32,7 @@ class AppointmentListRow extends StatelessWidget {
       Container(
         // 시각 레일(LIST-LIST-07)
         key: const Key('list-rail'),
-        width: 64,
+        width: kListRailWidth,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(color: _railColor(), borderRadius: BorderRadius.circular(8)),
         child: Column(children: [
