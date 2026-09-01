@@ -196,7 +196,7 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
       {/* 이름 · 생년월일 · 과/의사를 한 줄로(SEARCH-RESULT-09 패턴 · 번호 보기 인라인) */}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="font-bold">{row.name}</span>
+          <span className="whitespace-nowrap font-bold">{row.name}</span>
           <span className="text-sm text-muted-foreground">
             {phone ? <span className="font-medium text-foreground">{phone}</span> : row.maskedBirth}
             {(row.dept || row.doctor) && (
