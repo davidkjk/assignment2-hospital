@@ -46,6 +46,23 @@ describe('PhoneChangePanel', () => {
     expect(screen.getByRole('button', { name: '다시 받기' })).toBeVisible()
   })
 
+  test('[PTDET-ACTION-03] 인증번호 발송이 막히면(창구 준비 중) 조용히 멈추지 않고 원인을 보인다', async () => {
+    const user = userEvent.setup()
+    // OTP 발송 창구가 아직 없어 거절되는 상황(갭 #19). [다음]이 예외를 삼켜 조용한 먹통이 되면 안 된다.
+    const onRequestCode = vi.fn(async () => {
+      throw new Error('본인확인(OTP) 창구가 아직 열리지 않았습니다.')
+    })
+    const onConfirm = vi.fn(async () => {})
+    render(<PhoneChangePanel currentPhone="010-1234-5678" onRequestCode={onRequestCode} onConfirm={onConfirm} onDone={vi.fn()} />)
+
+    await user.type(screen.getByLabelText('새 전화번호'), '010-9999-8888')
+    await user.click(screen.getByRole('button', { name: '다음' }))
+
+    // 원인은 패널 안에, 인증번호 단계로는 넘어가지 않는다(발송이 안 됐으니).
+    expect(await screen.findByRole('alert')).toHaveTextContent('본인확인(OTP) 창구가 아직 열리지 않았습니다.')
+    expect(screen.queryByLabelText('인증번호')).toBeNull()
+  })
+
   test('[PTDET-ACTION-02] 새 번호가 비면 다음으로 넘어가지 않는다', async () => {
     const user = userEvent.setup()
     const onRequestCode = vi.fn(async () => {})

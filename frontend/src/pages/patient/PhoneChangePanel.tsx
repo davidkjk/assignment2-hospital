@@ -29,8 +29,14 @@ export function PhoneChangePanel({ currentPhone, onRequestCode, onConfirm, onDon
       return
     }
     setError(null)
-    await onRequestCode(newPhone.trim())
-    setStep('verify')
+    try {
+      await onRequestCode(newPhone.trim())
+      setStep('verify')
+    } catch (e) {
+      // 발송이 막히면(창구 준비 중·서버 오류) 조용히 멈추지 않는다 — 원인을 패널 안에 남기고
+      // 인증 단계로 넘어가지 않는다(문자를 못 보냈으니). confirm()과 같은 결의 방어(ACTION-03).
+      setError(e instanceof Error ? e.message : '인증번호를 보내지 못했습니다.')
+    }
   }
 
   async function confirm() {
