@@ -123,7 +123,7 @@ test('[MSGX-SCHED-02][SEND-LATER-05] 예약 줄 [취소]는 확인창을 거쳐 
 test('[SEND-DOOR-03 개정·손검수 L56①②] 작성은 토글 없이 늘 위에 열려 있고 이력은 아래에 함께 보인다', async () => {
   okWith(view({ scheduled: [] }))
   renderPage()
-  // 옛 「＋ 새로 보내기」 토글·「← 목록으로」 없이, 왼쪽 「받는 사람」 / 오른쪽 「보내는 내용」 2단이 바로 뜬다.
+  // 옛 「＋ 새로 보내기」 토글·「← 목록으로」 없이 2단이 바로 뜬다(왼쪽 「보내는 내용」 / 오른쪽 「받는 사람」, 2026-09-01 스왑).
   expect(await screen.findByRole('region', { name: '받는 사람 고르기' })).toBeVisible()
   expect(screen.getByRole('region', { name: '보내는 내용' })).toBeVisible()
   // 그리고 같은 화면에 이력도 함께.

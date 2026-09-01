@@ -93,12 +93,7 @@ export function SendPanel({ initialRecipients, onClose }: Props) {
   return (
     <div style={styles.compose} data-component="SendPanel">
       <div style={styles.cols}>
-        {/* 왼쪽 — 받는 사람을 고르는 도구(SEND-BOX-03). 검색 결과는 이 칸 안에서 스크롤한다. */}
-        <section style={styles.left} aria-label="받는 사람 고르기">
-          <RecipientField value={recipients} onChange={setRecipients} />
-        </section>
-
-        {/* 오른쪽 — 보내는 내용. 종류·방법·내용과 보내기 버튼. */}
+        {/* 왼쪽 — 보내는 내용. 종류·방법·내용과 보내기 버튼(사용자 결정 2026-09-01: 검색과 좌우 스왑). */}
         <section style={styles.right} aria-label="보내는 내용">
           <KindChannelFields
             kind={kind}
@@ -167,6 +162,11 @@ export function SendPanel({ initialRecipients, onClose }: Props) {
             </button>
           </div>
         </section>
+
+        {/* 오른쪽 — 받는 사람을 고르는 도구(SEND-BOX-03). 검색 결과는 이 칸 안에서 스크롤한다. */}
+        <section style={styles.left} aria-label="받는 사람 고르기">
+          <RecipientField value={recipients} onChange={setRecipients} />
+        </section>
       </div>
 
       {preview && (
@@ -196,8 +196,8 @@ export function SendPanel({ initialRecipients, onClose }: Props) {
 
 const styles: Record<string, CSSProperties> = {
   compose: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-4)' },
-  // 왼쪽 검색은 넉넉히, 오른쪽 내용 폼은 좁게 — 헤더 예약 문(왼쪽 본화면 / 오른쪽 폼)과 같은 결.
-  cols: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 360px)', gap: 'var(--sp-5)', alignItems: 'start' },
+  // 왼쪽 내용 폼은 좁게, 오른쪽 검색은 넉넉히(사용자 결정 2026-09-01: 검색을 오른쪽으로).
+  cols: { display: 'grid', gridTemplateColumns: 'minmax(300px, 360px) minmax(0, 1fr)', gap: 'var(--sp-5)', alignItems: 'start' },
   left: {
     minWidth: 0, padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',

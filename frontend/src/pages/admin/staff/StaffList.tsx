@@ -166,21 +166,8 @@ export function StaffList({
                     ) : m.last_sign_in_at ? (
                       <span style={styles.subMuted}>마지막 로그인 {formatLastSignIn(m.last_sign_in_at)}</span>
                     ) : null}
-
-                    {/* [CAL-COLOR-08] 비의사(관리자·접수)는 캘린더에 열이 없어 색이 무의미 —
-                        「해당 없음」 문구가 오히려 혼란스러워, 색 칸 자체를 생략한다(L50, 2026-08-29). */}
-                    {isDoctor && m.calendar_color_index != null && (
-                      <span style={styles.colorCell}>
-                        <span
-                          aria-hidden="true"
-                          style={{
-                            ...styles.colorDot,
-                            background: `var(--doctor-palette-${m.calendar_color_index}-fill)`,
-                            color: `var(--doctor-palette-${m.calendar_color_index})`,
-                          }}
-                        />
-                      </span>
-                    )}
+                    {/* [CAL-COLOR-08] 목록엔 캘린더 색 표시를 두지 않는다 — 로그인 상태처럼 오인되고(사용자 지적
+                        2026-09-01) 편집도 여기서 못 한다. 색은 프로필 패널(PalettePicker)에서만 보이고 고친다. */}
                   </div>
 
                   {resentIds.has(m.id) && (
@@ -291,8 +278,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
   },
   off: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  colorCell: { display: 'inline-flex', alignItems: 'center' },
-  colorDot: { width: 12, height: 12, borderRadius: '50%', display: 'inline-block', border: '1px solid currentColor' },
   resent: { fontSize: 'var(--fs-caption)', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   rowActions: { display: 'flex', gap: 'var(--sp-2)', flex: 'none' },
   action: {
