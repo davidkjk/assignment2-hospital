@@ -14,7 +14,9 @@ AppointmentView _qv(String status, {String qnr = '미작성', int answered = 0, 
       'department_name': '내과',
       'doctor_name': '이의사',
       'booking_code': 'A',
-      'has_questionnaire': true, // 문진 보유 진료과
+      // ⭐ 실계약: has_questionnaire = 응답 행 존재 = 「작성 시작함」. 미작성이면 행이 없어 false다
+      //    (list API `exists(questionnaire_responses)`). 문진 보유 여부는 questionnaire_total>0로 가른다.
+      'has_questionnaire': qnr != '미작성',
       'questionnaire_state': qnr,
       'questionnaire_answered': answered,
       'questionnaire_total': total,
