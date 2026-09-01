@@ -2,9 +2,11 @@ from fastapi import FastAPI
 
 from app.core.errors import AppError, app_error_handler, unhandled_exception_handler
 from app.routers import (
+    admin_chat,
     appointments,
     audit_logs,
     auth_staff,
+    chat,
     dashboard,
     doctor_phrases,
     error_logs,
@@ -28,6 +30,7 @@ from app.routers import (
     schedule_change,
     settings,
     staff,
+    staff_chat,
     stats,
 )
 
@@ -62,6 +65,9 @@ app.include_router(schedule_admin.router)
 app.include_router(audit_logs.router)
 app.include_router(error_logs.router)
 app.include_router(messages.router)
+app.include_router(chat.router)
+app.include_router(staff_chat.router)
+app.include_router(admin_chat.router)
 app.include_router(settings.router)
 
 
