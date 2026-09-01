@@ -106,20 +106,15 @@ class SettingsHomeScreen extends ConsumerWidget {
             disabledReason: offline ? '인터넷에 연결되면 바꿀 수 있습니다' : null,
             onTap: () => context.push('/settings/notifications'),
           ),
-          // ③ 계정 — 비밀번호 변경 · 가족 관리 두 줄(SET-HOME-10).
+          // ③ 계정 — 비밀번호 변경. 가족 관리는 설정에 두지 않는다(데모 DESIGN-NOTES:55 — 하단 가족 탭이
+          // 담당, 본인 카드가 프로필 수정 자리). 정본 SET-HOME-10은 계정 블록에 가족 관리를 넣으라 하나
+          // 데모/사용자 결정이 중복 제거로 뒤집음 → SET-HOME-10 재확인 필요(핸드오프에 남김).
           _SettingsLink(
             key: const Key('go-password'),
-            icon: Icons.lock_outline,
+            icon: Icons.tune, // 데모 비밀번호 아이콘 = Settings2(가로 슬라이더) — 시각은 데모에 맞춘다
             label: '비밀번호 변경',
             description: '새 비밀번호를 설정합니다',
             onTap: () => context.push('/settings/password'),
-          ),
-          _SettingsLink(
-            key: const Key('go-family'),
-            icon: Icons.people_outline,
-            label: '가족 관리',
-            description: '연결된 가족의 정보를 관리합니다',
-            onTap: () => context.push('/family'), // NAV-SET-06 (재인증 다시 안 물음 — 방금 통과)
           ),
           // ④ 병원
           _SettingsLink(

@@ -37,11 +37,13 @@ Future<void> _pump(WidgetTester t, {bool offline = false}) async {
 }
 
 void main() {
-  testWidgets('[SET-HOME-04] 여섯 블록이 있다(알림·비번·가족·병원·로그아웃·탈퇴)', (t) async {
+  testWidgets('[SET-HOME-04] 다섯 줄(알림·비번·병원·로그아웃·탈퇴) — 가족 관리는 하단 탭이 담당', (t) async {
     await _pump(t);
     expect(find.text('알림 설정'), findsOneWidget);
     expect(find.text('비밀번호 변경'), findsOneWidget);
-    expect(find.text('가족 관리'), findsOneWidget); // SET-HOME-10 (데모 누락분, 규칙 승)
+    // 데모 DESIGN-NOTES:55 — 가족 관리는 설정에 두지 않는다(하단 가족 탭·본인 카드가 담당, 중복 제거).
+    // ⚠️ 정본 SET-HOME-10은 계정 블록에 가족 관리를 넣으라 하나 데모/사용자 결정이 뒤집음 → SET-HOME-10 재확인 필요.
+    expect(find.text('가족 관리'), findsNothing);
     expect(find.text('가온병원'), findsOneWidget);
     expect(find.text('로그아웃'), findsOneWidget);
     expect(find.text('회원 탈퇴'), findsOneWidget);
@@ -65,13 +67,6 @@ void main() {
     await t.tap(find.byKey(const Key('change-phone')));
     await t.pumpAndSettle();
     expect(find.text('전화변경'), findsOneWidget);
-  });
-
-  testWidgets('[NAV-SET-06] 설정 → 가족 관리', (t) async {
-    await _pump(t);
-    await t.tap(find.byKey(const Key('go-family')));
-    await t.pumpAndSettle();
-    expect(find.text('가족목록'), findsOneWidget);
   });
 
   testWidgets('[SET-HOME-12·13·14] 로그아웃은 붉은색 아닌 버튼, 탈퇴는 작은 회색 밑줄', (t) async {
