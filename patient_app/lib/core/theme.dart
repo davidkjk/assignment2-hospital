@@ -30,15 +30,17 @@ class AppTheme {
         bodyLarge: TextStyle(
             fontFamily: fontFamily, fontSize: AppTokens.bodyFontSize, color: AppTokens.onSurface),
       ),
-      // 2차 화면 헤더 = 데모 ScreenHeader(딥틸 밴드·흰 글자·base medium).
+      // 2차 화면 헤더 = 데모 ScreenHeader(딥틸 밴드·흰 글자·base medium·아래 그림자).
+      // 데모 정본: text-base(17)·font-medium(볼드 아님)·탭바처럼 아래 그림자로 깊이감.
       appBarTheme: const AppBarTheme(
         backgroundColor: AppTokens.primary,
         foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
+        elevation: 3,
+        scrolledUnderElevation: 3,
+        shadowColor: Color(0x40102D32), // 딥틸 톤 드롭(데모 헤더 그림자)
         centerTitle: false,
         titleTextStyle: TextStyle(
-            fontFamily: fontFamily, color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+            fontFamily: fontFamily, color: Colors.white, fontSize: 17, fontWeight: FontWeight.w500),
         iconTheme: IconThemeData(color: Colors.white),
       ),
       // 입력칸 = 흰 면 + 둥근 사각 테두리(데모: 라벨은 칸 위에 별도, 칸 안엔 안내글만).
@@ -77,7 +79,7 @@ class AppTheme {
           disabledBackgroundColor: AppTokens.primaryBusy,
           disabledForegroundColor: Colors.white,
           minimumSize: const Size.fromHeight(48),
-          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 16, fontWeight: FontWeight.bold),
+          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 17, fontWeight: FontWeight.bold),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
@@ -88,7 +90,7 @@ class AppTheme {
           backgroundColor: AppTokens.surface,
           side: const BorderSide(color: AppTokens.border),
           minimumSize: const Size.fromHeight(48),
-          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 16, fontWeight: FontWeight.bold),
+          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 17, fontWeight: FontWeight.bold),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
@@ -96,7 +98,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppTokens.primary,
-          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       // 체크박스 = 네모(데모: 각진 사각). 켜지면 딥틸.

@@ -46,8 +46,8 @@ class _HospitalInfoScreenState extends ConsumerState<HospitalInfoScreen> {
           Container(
             decoration: BoxDecoration(
               color: AppTokens.surface,
-              border: Border.all(color: AppTokens.border),
-              borderRadius: BorderRadius.circular(12),
+              boxShadow: AppTokens.cardElevation,
+              borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
             ),
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -133,8 +133,8 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(
           color: AppTokens.surface,
-          border: Border.all(color: AppTokens.border),
-          borderRadius: BorderRadius.circular(12),
+          boxShadow: AppTokens.cardElevation,
+          borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
         ),
         padding: const EdgeInsets.all(20),
         child: Column(

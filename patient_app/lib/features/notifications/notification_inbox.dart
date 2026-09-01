@@ -140,7 +140,7 @@ class _Section extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppTokens.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTokens.border),
+            boxShadow: AppTokens.cardElevation,
           ),
           child: Column(
             children: [

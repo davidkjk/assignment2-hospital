@@ -135,8 +135,7 @@ class _SettingsPasswordScreenState extends ConsumerState<SettingsPasswordScreen>
           // 비밀번호 조건 3줄 — 데모대로 옅은 딥틸 박스로 묶는다(맨바닥 나열 → 한 덩어리, Task10).
           Container(
             decoration: BoxDecoration(
-              color: const Color(0x0D0B6E70), // primary 5% (bg-primary/5)
-              border: Border.all(color: AppTokens.border),
+              color: const Color(0x0D0B6E70), // primary 5% (bg-primary/5) — 틴트 박스라 테두리·그림자 없이 평평하게
               borderRadius: BorderRadius.circular(12),
             ),
             padding: const EdgeInsets.all(16),

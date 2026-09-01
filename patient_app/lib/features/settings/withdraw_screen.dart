@@ -85,7 +85,7 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
         Container(
           decoration: BoxDecoration(
             color: AppTokens.surface,
-            border: Border.all(color: AppTokens.border),
+            boxShadow: AppTokens.cardElevation,
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.all(16),

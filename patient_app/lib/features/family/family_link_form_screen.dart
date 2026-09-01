@@ -187,12 +187,9 @@ class _HospitalGuideBox extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTokens.border),
-          ),
-          padding: const EdgeInsets.all(14),
+        // 부모 Material(흰 면·radius)이 표면을 준다 — 테두리 없이 평평하게(데모 「테두리→그림자」).
+        child: const Padding(
+          padding: EdgeInsets.all(14),
           child: const Row(
             children: [
               Expanded(

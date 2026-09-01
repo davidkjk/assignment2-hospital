@@ -40,14 +40,21 @@ class AppTokens {
   static const Color muted = Color(0xFFEDF0F2);
   static const Color onSurface = Color(0xFF1F2937);
 
-  // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다).
-  static const double bodyFontSize = 15.0;
+  // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다). 데모 루트 17px(어르신 가독성).
+  static const double bodyFontSize = 17.0;
 
   // patientApp.density — 데모(조밀 shadcn) 밀도 토큰. 리스트·카드 성김을 데모에 맞춘다.
-  // 값 근거: 데모 카드 rounded-lg=12·리스트 행 px-3/py-3=12·아이콘↔글자 gap-3=12·행간 gap-2=8·날짜섹션 gap-6=24.
-  static const double densityCardRadius = 12.0; // patientApp.density.cardRadius
-  static const double densityRowPad = 12.0; // patientApp.density.rowPad (컴팩트 행 안쪽 여백)
-  static const double densityRowGap = 12.0; // patientApp.density.rowGap (아이콘↔글자)
-  static const double densityListGap = 8.0; // patientApp.density.listGap (행 사이)
-  static const double densitySectionGap = 24.0; // patientApp.density.sectionGap (날짜 섹션 사이)
+  static const double densityCardRadius = 14.0; // patientApp.density.cardRadius
+  static const double densityRowPad = 12.0; // 컴팩트 행 안쪽 여백
+  static const double densityRowGap = 12.0; // 아이콘↔글자
+  static const double densityListGap = 8.0; // 행 사이
+  static const double densitySectionGap = 24.0; // 날짜 섹션 사이
+
+  // 데모 --elevation-card: 테두리 없이 카드를 띄우는 딥틸 톤(patientApp.cardShadow) 3겹 그림자.
+  // 한 곳에서 조절하면 전 카드에 반영된다(테두리 선 대신 그림자 — DESIGN-NOTES 「그림자·경계 시스템」).
+  static const List<BoxShadow> cardElevation = [
+    BoxShadow(color: Color(0x0F102D32), blurRadius: 10), // 사방 앰비언트
+    BoxShadow(color: Color(0x1A102D32), blurRadius: 3, offset: Offset(0, 1)), // 타이트
+    BoxShadow(color: Color(0x21102D32), blurRadius: 26, offset: Offset(0, 10)), // 아래로 또렷
+  ];
 }

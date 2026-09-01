@@ -47,8 +47,8 @@ class SettingsHomeScreen extends ConsumerWidget {
             key: const Key('block-myinfo'),
             decoration: BoxDecoration(
               color: AppTokens.surface,
-              border: Border.all(color: AppTokens.border),
-              borderRadius: BorderRadius.circular(12),
+              boxShadow: AppTokens.cardElevation,
+              borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
             ),
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -199,8 +199,8 @@ class _SettingsLink extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 color: AppTokens.surface,
-                border: Border.all(color: AppTokens.border),
-                borderRadius: BorderRadius.circular(12),
+                boxShadow: AppTokens.cardElevation,
+                borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
               ),
               padding: const EdgeInsets.all(16),
               child: Row(

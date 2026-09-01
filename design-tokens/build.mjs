@@ -175,6 +175,15 @@ function buildDart() {
   const muted = hexToDartColor(tokens.patientApp.muted);
   const onSurface = hexToDartColor(tokens.patientApp.onSurface);
   const bodyFontSize = pxToDartDouble(tokens.patientApp.body);
+  const d = tokens.patientApp.density;
+  const densityCardRadius = pxToDartDouble(d.cardRadius);
+  const densityRowPad = pxToDartDouble(d.rowPad);
+  const densityRowGap = pxToDartDouble(d.rowGap);
+  const densityListGap = pxToDartDouble(d.listGap);
+  const densitySectionGap = pxToDartDouble(d.sectionGap);
+  // 데모 --elevation-card: 딥틸 톤(patientApp.cardShadow) 3겹 그림자. 알파(0.06/0.10/0.13)는 데모 정본값.
+  const sc = tokens.patientApp.cardShadow.replace('#', ''); // "102D32"
+  const argb = (a) => '0x' + Math.round(a * 255).toString(16).toUpperCase().padStart(2, '0') + sc;
 
   return `import 'package:flutter/material.dart';
 
@@ -218,8 +227,23 @@ class AppTokens {
   static const Color muted = ${muted};
   static const Color onSurface = ${onSurface};
 
-  // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다).
+  // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다). 데모 루트 17px(어르신 가독성).
   static const double bodyFontSize = ${bodyFontSize};
+
+  // patientApp.density — 데모(조밀 shadcn) 밀도 토큰. 리스트·카드 성김을 데모에 맞춘다.
+  static const double densityCardRadius = ${densityCardRadius}; // patientApp.density.cardRadius
+  static const double densityRowPad = ${densityRowPad}; // 컴팩트 행 안쪽 여백
+  static const double densityRowGap = ${densityRowGap}; // 아이콘↔글자
+  static const double densityListGap = ${densityListGap}; // 행 사이
+  static const double densitySectionGap = ${densitySectionGap}; // 날짜 섹션 사이
+
+  // 데모 --elevation-card: 테두리 없이 카드를 띄우는 딥틸 톤(patientApp.cardShadow) 3겹 그림자.
+  // 한 곳에서 조절하면 전 카드에 반영된다(테두리 선 대신 그림자 — DESIGN-NOTES 「그림자·경계 시스템」).
+  static const List<BoxShadow> cardElevation = [
+    BoxShadow(color: Color(${argb(0.06)}), blurRadius: 10), // 사방 앰비언트
+    BoxShadow(color: Color(${argb(0.10)}), blurRadius: 3, offset: Offset(0, 1)), // 타이트
+    BoxShadow(color: Color(${argb(0.13)}), blurRadius: 26, offset: Offset(0, 10)), // 아래로 또렷
+  ];
 }
 `;
 }

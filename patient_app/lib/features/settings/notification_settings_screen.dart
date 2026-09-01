@@ -89,8 +89,9 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
                   const SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(
-                      border: Border.all(color: AppTokens.border),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppTokens.surface,
+                      boxShadow: AppTokens.cardElevation,
+                      borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Material(

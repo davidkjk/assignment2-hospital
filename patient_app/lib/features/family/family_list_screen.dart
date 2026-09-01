@@ -104,7 +104,7 @@ class FamilyCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTokens.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTokens.border),
+        boxShadow: AppTokens.cardElevation,
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
