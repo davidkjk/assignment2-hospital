@@ -379,7 +379,9 @@ on conflict (department_id, version_no) do nothing;
 -- ════════════════════════════════════════════════════════════════════════════
 insert into hospital_settings (id, hospital_address, hospital_phone)
 values (true, '서울특별시 강남구 테헤란로 123, 가온빌딩 3층', '02-1234-5678')
-on conflict (id) do nothing;
+on conflict (id) do update
+  set hospital_address = excluded.hospital_address,
+      hospital_phone = excluded.hospital_phone;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- 10) 상태 이력 — 「장기 대기」 카드가 여기서 나온다 (TODAY-WAIT)
