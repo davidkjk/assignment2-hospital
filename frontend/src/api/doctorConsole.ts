@@ -14,11 +14,13 @@ export interface DoctorQueueApiRow {
   /** [DOCTOR-QUEUE-02] 성별(남/여). */
   gender?: string | null
   queue_position: number | null
-  /** [DOCTOR-QUEUE-03] 서버가 매긴 표시 순번(정렬 순 1-based). queue_position이 비어도 채워진다. */
-  display_position: number
+  /** [DOCTOR-QUEUE-03] 상태별 표시 순번 — 진료중=0·진료대기=1·2·3…·도착=null(순번 없음). */
+  display_position: number | null
   /** [DOCTOR-QUEUE-02] 주의 표시 플래그(is_urgent_flag) — 화면이 「⚠️ 주의 표시」 텍스트로 낸다. */
   is_urgent?: boolean
   waiting_started_at: string | null
+  /** [QUEUE-ROW-06] 현재 상태로 진입한 시각 — 상태별 라벨(경과/대기/분째)의 기준. */
+  status_since: string | null
   status: string
   /** ⏳ BLOCKED(갭 #36 경계): change_status가 요구하는 낙관적 잠금 값. get_doctor_queue가 아직
    *  주지 않아, 이 값 없이는 실제 진료중 전이 요청이 422로 거절된다. 서버가 담아 주면 그대로 흘려보낸다. */

@@ -26,6 +26,8 @@ export interface DoctorQueueRow {
   /** [DOCTOR-QUEUE-02] 주의 표시 여부(is_urgent_flag). */
   is_urgent?: boolean
   waiting_started_at: string | null
+  /** [QUEUE-ROW-06] 현재 상태로 진입한 시각 — 상태별 라벨(경과/대기/분째)의 기준. */
+  status_since?: string | null
   status: string
 }
 
@@ -52,12 +54,16 @@ interface QueuePanelProps {
   onRefresh?: () => void
 }
 
-function waitLabel(startedAt: string | null): string | null {
-  if (!startedAt) return null
-  const started = new Date(startedAt).getTime()
-  if (Number.isNaN(started)) return null
-  const minutes = Math.max(0, Math.floor((Date.now() - started) / 60_000))
-  return `대기 ${minutes}분`
+// [QUEUE-ROW-06][DOCTOR-QUEUE-02] 대기시간 글자는 상태마다 다르다 — 도착 = 「N분 경과」(아직 줄 서기 전),
+//   진료대기 = 「N분 대기」(줄에서 기다림), 진료중 = 「N분째」(진료가 진행된 시간). 기준 시각은 그 상태로 진입한 때.
+function waitLabel(since: string | null | undefined, status: string): string | null {
+  if (!since) return null
+  const t = new Date(since).getTime()
+  if (Number.isNaN(t)) return null
+  const m = Math.max(0, Math.floor((Date.now() - t) / 60_000))
+  if (status === '진료중') return `${m}분째`
+  if (status === '도착') return `${m}분 경과`
+  return `${m}분 대기`
 }
 
 export function QueuePanel({
@@ -100,7 +106,7 @@ export function QueuePanel({
       ) : (
         <ul style={styles.list}>
           {rows.map((r) => {
-            const wait = waitLabel(r.waiting_started_at)
+            const wait = waitLabel(r.status_since ?? r.waiting_started_at, r.status)
             const selected = r.id === selectedId
             return (
               <li key={r.id}>
@@ -114,8 +120,8 @@ export function QueuePanel({
                 >
                   <span style={styles.rowTop}>
                     <span style={styles.name}>
-                      {/* [DOCTOR-QUEUE-03] 순번은 서버가 매긴 표시 순번 — queue_position이 비어도 「–」 대신 서수. */}
-                      <span style={styles.pos}>{r.display_position ?? r.queue_position ?? '–'}</span>
+                      {/* [DOCTOR-QUEUE-03] 상태별 순번 — 진료중=0(지금 보는 환자)·진료대기=1·2·3…·도착=빈칸(줄 서기 전이라 순번 없음). */}
+                      <span style={styles.pos}>{r.display_position != null ? r.display_position : ''}</span>
                       {r.name}
                     </span>
                     <StatusBadge status={r.status} tone={CONSOLE_TONE[r.status]} />

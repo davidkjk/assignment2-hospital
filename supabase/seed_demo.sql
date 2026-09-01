@@ -314,6 +314,21 @@ chosen as (
     when r.d_off <= 28            then r.rn_mix <= greatest(1, d.k / 4)       -- 2~4주: 성김
     else                               r.rn_mix <= greatest(1, d.k / 8)       -- 5~8주: 듬성
   end
+),
+-- ⭐ 「진료중」은 의사당 정확히 1명이어야 한다(현실: 의사 한 명은 한 번에 한 환자만 본다).
+--   %8 분포는 한 의사에게 진료중을 여러 번 매겨 「4명 동시 진료중」을 만들었다(L61). 여기서
+--   오늘 지난 시각 슬롯 중 **가장 늦은 것**을 그 의사의 진료중 픽으로 고르고(ip_rank=1),
+--   나머지 진료중 후보(%8=5)는 진료완료로 돌린다.
+tagged as (
+  select c.*,
+         row_number() over (
+           partition by c.doctor_id
+           order by case when c.tag = 't'
+                          and (c.slot_date + c.start_time) <= (now() at time zone 'Asia/Seoul')
+                         then 0 else 1 end,
+                    c.start_time desc
+         ) as ip_rank
+  from chosen c
 )
 insert into appointments
   (slot_id, account_patient_id, for_patient_id, department_id, doctor_id,
@@ -353,22 +368,24 @@ select
           --      전부 남기면 카드가 오늘 예약 전체가 되고, 하나도 없으면 카드가 빈다.
           -- ⭐ 의사 색 번호를 더해 **의사마다 순번을 어긋나게** 한다. 안 그러면 여덟 의사가
           --    똑같은 순번에서 같은 상태가 되어 「미접수」 8건이 전부 같은 시각(13:30)에 몰린다.
-          else case (c.rn + c.cidx) % 8
-            when 0 then '예약확정'
-            when 1 then '진료완료'
-            when 2 then '진료완료'
-            when 3 then '진료대기'
-            when 4 then '도착'
-            when 5 then '진료중'
-            when 6 then '진료완료'
-            else '예약부도' end
+          -- ⭐ 진료중은 이 의사의 진료중 픽(ip_rank=1, 가장 늦은 지난 슬롯)일 때만 — 의사당 1명(L61).
+          --   나머지는 %8로 뿌리되 옛 「5→진료중」은 완료로 흡수한다.
+          else case
+            when c.ip_rank = 1 then '진료중'
+            else case (c.rn + c.cidx) % 8
+              when 0 then '예약확정'   -- 미접수·시각 경과(TODAY-NOSHOW-01)
+              when 3 then '진료대기'
+              when 4 then '도착'
+              when 7 then '예약부도'
+              else '진료완료' end     -- 1·2·5·6 → 완료(5는 옛 진료중)
+          end
       end
   end,
   case when c.rn % 3 = 0 then 'staff'
        when c.rn % 5 = 0 then 'chatbot'
        else 'app' end,
   'bbbbbbbb-0000-0000-0000-000000000002'
-from chosen c
+from tagged c
 join lateral (
   select p.id as pid from patients p
   order by md5(c.slot_id::text || p.id::text)

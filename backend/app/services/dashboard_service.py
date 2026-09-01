@@ -198,11 +198,17 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
                    a.is_urgent_flag,
                    p.name, p.birth_date, p.gender,
                    h.waited_since as waiting_started_at,
-                   -- [DOCTOR-QUEUE-03] 표시 순번 = 정렬 순의 1-based 서수. queue_position이 비어도
-                   --   화면이 「–」 대신 1·2·3을 보인다(순번 채번은 서버가, 화면은 받은 대로).
-                   row_number() over (
-                     order by (a.queue_position is null), a.queue_position, h.waited_since nulls first, a.id
-                   ) as display_position
+                   cur.status_since as status_since,
+                   -- [DOCTOR-QUEUE-03] 표시 순번 = 상태별. 진료중=0(지금 보는 환자), 진료대기=1·2·3…(줄 순서),
+                   --   도착=null(아직 줄에 서기 전이라 순번 없음, QUEUE-ARRIVE-03). 목록 자체도 이 순으로 정렬.
+                   case a.status
+                     when '진료중' then 0
+                     when '진료대기' then row_number() over (
+                       partition by (a.status = '진료대기')
+                       order by a.queue_position nulls last, h.waited_since nulls first, a.id
+                     )
+                     else null
+                   end as display_position
             from appointments a
             join patients p on p.id = a.for_patient_id
             left join lateral (
@@ -211,10 +217,20 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
               where appointment_id = a.id and to_status = '진료대기'
                 and from_status is distinct from to_status
             ) h on true
+            -- [QUEUE-ROW-06] 현재 상태로 진입한 시각 — 라벨(도착=경과·진료대기=대기·진료중=분째)의 기준.
+            left join lateral (
+              select max(changed_at) as status_since
+              from appointment_status_history
+              where appointment_id = a.id and to_status = a.status
+                and from_status is distinct from to_status
+            ) cur on true
             left join appointment_slots s on s.id = a.slot_id
             where a.status in ('도착', '진료대기', '진료중')
               and coalesce(s.slot_date, (a.created_at at time zone 'Asia/Seoul')::date) = $1
-            order by (a.queue_position is null), a.queue_position, h.waited_since nulls first, a.id
+            -- [DOCTOR-QUEUE-03] 진료중 → 진료대기 → 도착 순(사용자 결정 2026-08-31, L61).
+            order by
+              case a.status when '진료중' then 0 when '진료대기' then 1 else 2 end,
+              a.queue_position nulls last, h.waited_since nulls first, a.id
             """,
             target_date,
         )
@@ -235,6 +251,8 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
             # [DOCTOR-QUEUE-02] 주의 표시 플래그(00005부터 있던 칸) — 화면이 「⚠️ 주의 표시」 텍스트로.
             "is_urgent": r["is_urgent_flag"],
             "waiting_started_at": r["waiting_started_at"],
+            # [QUEUE-ROW-06] 현재 상태 진입 시각 — 화면이 상태별 라벨(경과/대기/분째)을 계산한다.
+            "status_since": r["status_since"],
             "status": r["status"],
             # [DOCTOR-START-01] 낙관적 잠금 값 — 이게 있어야 행 열기(진료중 전이)가 422로 막히지 않는다(갭 #36 경계).
             "updated_at": r["updated_at"],

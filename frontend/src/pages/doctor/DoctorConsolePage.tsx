@@ -74,6 +74,7 @@ export function DoctorConsolePage() {
     display_position: r.display_position,
     is_urgent: r.is_urgent,
     waiting_started_at: r.waiting_started_at,
+    status_since: r.status_since,
     status: r.status,
   }))
   const selectedRow = queueRows.find((r) => r.id === selectedId) ?? null
