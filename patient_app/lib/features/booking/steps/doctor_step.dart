@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/tokens.dart';
+import '../../../widgets/doctor_avatar.dart';
 import '../../../widgets/empty_state.dart';
 import '../booking_controller.dart';
 import '../booking_widgets.dart';
@@ -37,7 +38,7 @@ class DoctorStep extends ConsumerWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center, // BOOK-DOC-04 세로 가운데
                       children: [
-                        _DoctorAvatar(d),
+                        DoctorAvatar(name: d.name, photoUrl: d.photoUrl),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -70,24 +71,3 @@ class DoctorStep extends ConsumerWidget {
   }
 }
 
-class _DoctorAvatar extends StatelessWidget {
-  const _DoctorAvatar(this.d);
-  final Doctor d;
-  @override
-  Widget build(BuildContext context) {
-    if (d.photoUrl != null) {
-      return CircleAvatar(
-        radius: 28,
-        backgroundColor: AppTokens.border, // 로드 전/실패 시 회색 원(BOOK-DOC-05 재사용)
-        backgroundImage: NetworkImage(d.photoUrl!), // BOOK-DOC-02
-        onBackgroundImageError: (_, __) {},
-      );
-    }
-    return CircleAvatar(
-      radius: 28,
-      backgroundColor: AppTokens.border, // BOOK-DOC-05 — 사진 없으면 회색 원 + 첫 글자
-      child: Text(d.name.characters.first,
-          style: const TextStyle(fontSize: 20, color: Colors.white)),
-    );
-  }
-}

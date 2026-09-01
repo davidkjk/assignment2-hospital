@@ -7,6 +7,7 @@ import '../../core/api_client.dart';
 import '../../core/pending_request.dart' show koreanTime;
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
+import '../../widgets/doctor_avatar.dart';
 import '../../widgets/inline_error.dart';
 import '../home/appointment_view.dart';
 import '../home/status_badge.dart';
@@ -108,7 +109,14 @@ class InfoTable extends StatelessWidget {
     final v = d.view;
     final rows = <Widget>[
       _infoRow('진료과', Text(v.departmentName)),
-      _infoRow('담당의사', Text('${v.doctorName} 선생님')),
+      _infoRow(
+        '담당의사',
+        Row(children: [
+          DoctorAvatar(name: v.doctorName, radius: 16), // BOOK-DOC-05 회색 원+첫 글자
+          const SizedBox(width: 8),
+          Expanded(child: Text('${v.doctorName} 선생님')),
+        ]),
+      ),
     ];
     // APPT-INFO-04 · NAV-APPT-19 — 장소는 병원 주소(진료실 칸은 DB에 없어 조건부). 누르면 지도 앱.
     if (d.hospitalAddress != null && d.hospitalAddress!.isNotEmpty) {

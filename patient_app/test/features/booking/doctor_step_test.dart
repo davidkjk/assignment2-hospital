@@ -29,7 +29,7 @@ void main() {
   testWidgets('[BOOK-DOC-05] 사진 없는 의사는 회색 원 + 이름 첫 글자', (t) async {
     await pumpDoctor(t, docs: const [kDocNoPhoto]);
     final av = t.widget<CircleAvatar>(find.byType(CircleAvatar));
-    expect(av.backgroundColor, AppTokens.border);
+    expect(av.backgroundColor, AppTokens.grayPending); // 회색 원(흰 글자 대비 위해 진한 쪽)
     expect(find.text('이'), findsOneWidget); // 첫 글자('사진 없음' 문구 아님)
   });
 
