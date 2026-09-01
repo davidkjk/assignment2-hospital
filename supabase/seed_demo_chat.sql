@@ -44,8 +44,8 @@ begin
   -- 환자 질문 → 봇 안내(상담 연결) → 세션 종료(핸드오프)
   insert into chat_messages (thread_id, ai_chat_session_id, sender_type, sender_patient_id, message_type, content, created_at)
     values (v_thread, v_session, 'patient', p_patient, 'text', p_question, p_created);
-  insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, created_at)
-    values (v_thread, v_session, 'bot', 'text', p_bot, p_created + interval '30 seconds');
+  insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken, created_at)
+    values (v_thread, v_session, 'bot', 'text', p_bot, 'handoff', p_created + interval '30 seconds');
   update ai_chat_sessions
      set status='ended', ended_at = p_created + interval '1 minute', end_reason='staff_handoff'
    where id = v_session;
@@ -76,12 +76,46 @@ begin
   end if;
 end $$;
 
+-- AI가 스스로 해결한 상담(티켓 없음) — 상담봇 기록(/chatlog) 전수 열람 대상.
+-- 채널(app=로그인/web=익명)·갈래(route_taken)·답변 근거(chat_message_sources)를 담는다. 인계 없음.
+create or replace function pg_temp.make_ai_resolved(
+  p_patient uuid, p_channel text, p_route text,
+  p_question text, p_bot text, p_src_title text, p_src_body text, p_created timestamptz
+) returns void language plpgsql as $$
+declare v_thread uuid; v_session uuid; v_anon uuid; v_bot uuid;
+begin
+  if p_channel = 'web' then
+    insert into anonymous_chat_sessions (token_hash) values ('demo-' || gen_random_uuid()) returning id into v_anon;
+    insert into chat_threads (owner_type, anonymous_session_id, last_activity_at)
+      values ('anonymous_web', v_anon, p_created) returning id into v_thread;
+  else
+    insert into chat_threads (owner_type, patient_id, last_activity_at)
+      values ('patient', p_patient, p_created) returning id into v_thread;
+  end if;
+  insert into ai_chat_sessions (thread_id, expires_at, status)
+    values (v_thread, p_created + interval '30 minutes', 'active') returning id into v_session;
+
+  if p_channel = 'web' then
+    insert into chat_messages (thread_id, ai_chat_session_id, sender_type, sender_anonymous_session_id, message_type, content, created_at)
+      values (v_thread, v_session, 'patient', v_anon, 'text', p_question, p_created);
+  else
+    insert into chat_messages (thread_id, ai_chat_session_id, sender_type, sender_patient_id, message_type, content, created_at)
+      values (v_thread, v_session, 'patient', p_patient, 'text', p_question, p_created);
+  end if;
+  insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken, created_at)
+    values (v_thread, v_session, 'bot', 'text', p_bot, p_route, p_created + interval '20 seconds') returning id into v_bot;
+  if p_src_title is not null then
+    insert into chat_message_sources (message_id, rank, similarity, title_snapshot, body_snapshot)
+      values (v_bot, 1, 0.86, p_src_title, p_src_body);
+  end if;
+end $$;
+
 do $$
 declare
   v_pids uuid[]; v_reception uuid; v_admin uuid; v_now timestamptz := now();
   v_appt_cancel uuid; v_appt_change uuid;
 begin
-  select array(select id from patients where is_active order by created_at limit 4) into v_pids;
+  select array(select id from patients where is_active order by created_at limit 6) into v_pids;
   select id into v_reception from staff where role='receptionist' and is_active order by created_at limit 1;
   select id into v_admin     from staff where role='admin'        and is_active order by created_at limit 1;
   -- ⭐ SUPPORT-CAL-DUP-01 데모: 티켓을 「마감 후 상담 예약」(support_requested_at)에 연결해야 예약 캘린더
@@ -105,6 +139,20 @@ begin
   perform pg_temp.make_ticket(v_pids[4], 'no_answer', 'answered', v_admin, null,
     '주차 등록은 어디에서 하나요?', '안내 자료에서 찾지 못해 직원 상담으로 연결해 드릴게요.',
     v_now - interval '1 day', '1층 원무 창구에서 진료 후 등록해 드립니다.');
+
+  -- AI 해결(무티켓) — 채널·갈래·근거 섞어 상담봇 기록을 실데이터로 채운다.
+  perform pg_temp.make_ai_resolved(v_pids[5], 'app', 'rag',
+    '주차는 어디에 하나요?', '지하 2층 주차장을 이용하시면 됩니다. 진료 후 1층 창구에서 등록해 드려요.',
+    '주차 안내', '지하 2층 · 진료 후 1층 원무과 등록', v_now - interval '2 hours');
+  perform pg_temp.make_ai_resolved(v_pids[6], 'app', 'department_guide',
+    '무릎이 아픈데 어디로 가야 하나요?', '무릎 통증은 정형외과 진료를 안내해 드릴게요.',
+    null, null, v_now - interval '3 hours');
+  perform pg_temp.make_ai_resolved(null, 'web', 'rag',
+    '진료 시간이 어떻게 되나요?', '평일 09:00–18:00, 점심시간 13:00–14:00입니다.',
+    '진료 시간 안내', '평일 09–18 · 점심 13–14', v_now - interval '90 minutes');
+  perform pg_temp.make_ai_resolved(null, 'web', 'emergency',
+    '가슴이 너무 아파요', '응급 증상일 수 있어요. 즉시 119에 전화하거나 가까운 응급실로 가세요.',
+    null, null, v_now - interval '40 minutes');
 end $$;
 
 commit;

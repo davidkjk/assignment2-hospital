@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.core.security import StaffContext, get_current_staff
 from app.services.chat import ticket_service
+from app.services.chat import chat_log_service
 from app.services.chat.enqueue import enqueue_after_reply   # staff_send 후 배칭 호출 래퍼
 
 router = APIRouter(prefix="/staff/chat", tags=["staff-chat"])
@@ -70,10 +71,39 @@ async def close(ticket_id: UUID, staff: StaffContext = Depends(get_current_staff
     return await ticket_service.close_ticket(str(staff.auth_user_id), ticket_id)   # answered=이때만
 
 
-# 이관 드롭다운의 대상 목록 — /staff/chat 밖의 얇은 직원 디렉터리(REASSIGN-05: 모든 활성 직원).
+# ── 상담봇 기록 (/chatlog, 관리자 전용) — CHATLOG-LIST. RLS(00079)가 관리자 전수 열람을 연다. ──
+# 앱·웹 대화를 한 목록에(SCOPE-01). channel(app/web)·route_taken(5값)로 필터. 계약 밖 값은 화면이 EXC로 표시.
+@router.get("/logs")
+async def list_logs(
+    channel: str | None = None,
+    route_taken: str | None = None,
+    staff: StaffContext = Depends(get_current_staff),
+):
+    return await chat_log_service.list_logs(str(staff.auth_user_id), channel, route_taken)
+
+
+@router.get("/logs/{thread_id}")
+async def log_conversation(thread_id: UUID, staff: StaffContext = Depends(get_current_staff)):
+    # 상세 대화 원문(DETAIL-01) — 직원 콘솔 말풍선이 그대로 소비. sender bot→ai.
+    return await chat_log_service.thread_conversation(str(staff.auth_user_id), thread_id)
+
+
+@router.get("/messages/{message_id}/sources")
+async def message_sources(message_id: UUID, staff: StaffContext = Depends(get_current_staff)):
+    # 봇 답변 근거 스냅샷(SOURCE-*). 없으면 빈 배열('근거 자료 없음'은 화면이 표시).
+    return await chat_log_service.list_message_sources(str(staff.auth_user_id), message_id)
+
+
+# 이관 드롭다운의 대상 목록 · 환자 범위 상담 티켓 — /staff/chat 밖의 얇은 직원 디렉터리.
 directory_router = APIRouter(prefix="/staff", tags=["staff-chat"])
 
 
 @directory_router.get("/active")
 async def active_staff(staff: StaffContext = Depends(get_current_staff)):
     return await ticket_service.list_active_staff(str(staff.auth_user_id))
+
+
+@directory_router.get("/patients/{patient_id}/support-tickets")
+async def patient_support_tickets(patient_id: UUID, staff: StaffContext = Depends(get_current_staff)):
+    # 환자상세 상담 섹션(PTSUP-SECT) — 그 환자에게 넘어온 상담만, 최신순+id 동점키(PTDET-SUPPORT-03).
+    return await ticket_service.list_patient_support_tickets(str(staff.auth_user_id), patient_id)

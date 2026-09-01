@@ -13,8 +13,9 @@ export function TicketConversation(props: {
   convError: boolean
   onRetryConv: () => void
   renderBadges?: (m: ConvMessage) => ReactNode // Step 6이 주입(미확인/읽음/문자)
+  renderFooter?: (m: ConvMessage) => ReactNode // 말풍선 아래 블록(상담봇 기록의 답변 근거·오답 신고). 기본 없음.
 }) {
-  const { messages, convError, onRetryConv, renderBadges } = props
+  const { messages, convError, onRetryConv, renderBadges, renderFooter } = props
   if (convError) {
     // ERR-01: 대화 영역에만 오류 — 요약은 그대로 두고 여기만 재시도.
     return (
@@ -33,13 +34,13 @@ export function TicketConversation(props: {
   return (
     <ol aria-label="대화" className="space-y-2">
       {messages.map((m) => (
-        <Bubble key={m.id} m={m} badges={renderBadges?.(m)} />
+        <Bubble key={m.id} m={m} badges={renderBadges?.(m)} footer={renderFooter?.(m)} />
       ))}
     </ol>
   )
 }
 
-function Bubble({ m, badges }: { m: ConvMessage; badges?: ReactNode }) {
+function Bubble({ m, badges, footer }: { m: ConvMessage; badges?: ReactNode; footer?: ReactNode }) {
   // 환자 = 왼쪽 / 답하는 쪽(AI·직원) = 오른쪽 (CONV-01 좌우분리). 시스템은 가운데 옅은 안내.
   if (m.sender === 'system') {
     return (
@@ -59,13 +60,16 @@ function Bubble({ m, badges }: { m: ConvMessage; badges?: ReactNode }) {
   const Icon = m.sender === 'ai' ? Sparkles : m.sender === 'staff' ? Stethoscope : UserRound
   return (
     <li data-sender={m.sender} className={`flex ${right ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[78%] rounded-2xl px-3 py-2 ${tone}`}>
-        <div className={`mb-0.5 flex items-center gap-1 text-[11px] font-medium ${metaTone}`}>
-          <Icon className="h-3 w-3" />
-          <span>{SENDER_LABEL[m.sender]}</span> · <time>{m.at}</time>
+      <div className={`flex max-w-[78%] flex-col gap-1 ${right ? 'items-end' : 'items-start'}`}>
+        <div className={`rounded-2xl px-3 py-2 ${tone}`}>
+          <div className={`mb-0.5 flex items-center gap-1 text-[11px] font-medium ${metaTone}`}>
+            <Icon className="h-3 w-3" />
+            <span>{SENDER_LABEL[m.sender]}</span> · <time>{m.at}</time>
+          </div>
+          {m.body && <p className="text-sm leading-snug">{m.body}</p>}
+          {badges}
         </div>
-        {m.body && <p className="text-sm leading-snug">{m.body}</p>}
-        {badges}
+        {footer && <div className="w-full">{footer}</div>}
       </div>
     </li>
   )

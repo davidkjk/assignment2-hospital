@@ -282,3 +282,49 @@ async def list_active_staff(auth_user_id: str) -> list[dict]:
         rows = await conn.fetch(
             "select id::text as id, name, role::text as role from public.staff where is_active order by name, id")
     return [_row_to_active_staff(r) for r in rows]
+
+
+# ── 환자 범위 상담 티켓 (PTSUP-SECT) — 그 환자에게 넘어온 상담만, 최신순 + id 동점키 ──────────────
+# PTDET-SUPPORT-03(최신순+ID 동점키 서버 정렬)을 patient 범위로 확장한다. 화면(Task 19)이 계산하지 않는다.
+# question = 첫 환자 메시지, bot_answer = 마지막 봇 메시지, handoff_reason = 인계 사유의 사람 문장(_REASON_TEXT).
+_PATIENT_TICKETS_SQL = """
+select
+  t.id::text as id,
+  th.patient_id::text as patient_id,
+  t.status,
+  t.created_at,
+  coalesce(
+    (select cm.content from public.chat_messages cm
+       where cm.thread_id = t.thread_id and cm.sender_type = 'patient'
+       order by cm.created_at asc, cm.id asc limit 1), '') as question,
+  (select cm.content from public.chat_messages cm
+     where cm.thread_id = t.thread_id and cm.sender_type = 'bot'
+     order by cm.created_at desc, cm.id desc limit 1) as bot_answer,
+  (select cm.payload->>'reason' from public.chat_messages cm
+     where cm.thread_id = t.thread_id and cm.sender_type = 'system'
+       and cm.payload->>'event' = 'staff_handoff'
+     order by cm.created_at desc limit 1) as reason_code
+from public.support_tickets t
+join public.chat_threads th on th.id = t.thread_id
+where th.owner_type = 'patient' and th.patient_id = $1
+order by t.created_at desc, t.id desc
+"""
+
+
+def _row_to_patient_ticket(r) -> dict:
+    code = r["reason_code"]
+    return {
+        "id": r["id"],
+        "patient_id": r["patient_id"],
+        "question": r["question"],
+        "status": r["status"],
+        "created_at": r["created_at"],
+        "bot_answer": r["bot_answer"],
+        "handoff_reason": _REASON_TEXT.get(code) if code else None,
+    }
+
+
+async def list_patient_support_tickets(auth_user_id: str, patient_id: UUID) -> list[dict]:
+    async with acquire_as(auth_user_id) as conn:
+        rows = await conn.fetch(_PATIENT_TICKETS_SQL, patient_id)
+    return [_row_to_patient_ticket(r) for r in rows]
