@@ -60,6 +60,32 @@ test('[CAL-SLOT-03] 하루 전체 휴진은 창 전체가 한 덩어리 빗금�
   expect(slots[0].descriptor.kind === 'hatched' && slots[0].descriptor.label).toBe('휴진 09:00–12:00')
 })
 
+test('[CAL-SLOT-04·11][CAL-BOOK-04d] 진료시간 밖 봉투(한쪽만 열린 closed)는 창 끝까지 빗금이고, 진료 구간은 열려 있다', () => {
+  // 09~13시만 보는 의사: 종료 뒤(13:00~창끝)는 못 잡는 빗금, 오전은 빈 시간(예약 가능).
+  const WIN = { windowStartMin: 9 * 60, windowEndMin: 18 * 60, pxPerMinute: 2 }
+  const blocks: GridBlock[] = [
+    { doctorId: 'd1', kind: 'closed', startMin: null, endMin: 9 * 60 }, // 시작 전(창끝=시작이라 0폭)
+    { doctorId: 'd1', kind: 'closed', startMin: 13 * 60, endMin: null }, // 종료 후 → 13:00~18:00
+  ]
+  const slots = buildDayColumn({ doctorId: 'd1', appointments: [], blocks, ...WIN })
+  // 하루 전체 휴진 한 덩어리가 아니다 — 오전은 빈 시간으로 열려 있다.
+  const empty = slots.find((s) => s.descriptor.kind === 'empty')
+  expect(empty?.descriptor.kind === 'empty' && empty.descriptor.label).toBe('빈 시간 09:00–13:00')
+  // 종료 후 봉투는 창 끝(18:00)까지 빗금이다.
+  const hatched = slots.find((s) => s.descriptor.kind === 'hatched')!
+  expect(hatched.descriptor.kind === 'hatched' && hatched.descriptor.label).toBe('휴진 13:00–18:00')
+  expect(hatched.top).toBe((13 * 60 - 9 * 60) * 2) // 13:00에서 시작
+})
+
+test('[CAL-SLOT-04·11] 시작 전 봉투(창끝=종료가 진료 시작)도 그 구간만 빗금이다', () => {
+  const WIN = { windowStartMin: 9 * 60, windowEndMin: 18 * 60, pxPerMinute: 2 }
+  // 10시부터 보는 의사: 09:00~10:00이 못 잡는 빗금.
+  const blocks: GridBlock[] = [{ doctorId: 'd1', kind: 'closed', startMin: null, endMin: 10 * 60 }]
+  const slots = buildDayColumn({ doctorId: 'd1', appointments: [], blocks, ...WIN })
+  const hatched = slots.find((s) => s.descriptor.kind === 'hatched')!
+  expect(hatched.descriptor.kind === 'hatched' && hatched.descriptor.label).toBe('휴진 09:00–10:00')
+})
+
 test('[CAL-PAST-01][CAL-PAST-02] 오늘의 지난 빈 곳은 「지난 시간」으로 갈리고 이후는 「빈 시간」이다', () => {
   const slots = buildDayColumn({
     doctorId: 'd1',

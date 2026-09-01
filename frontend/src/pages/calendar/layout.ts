@@ -109,8 +109,11 @@ function splitEmpty(
 export function buildDayColumn(params: DayColumnParams): PositionedSlot[] {
   const { doctorId, windowStartMin, windowEndMin, pxPerMinute } = params
 
-  // ① 하루 전체 휴진.
-  const wholeClosed = params.blocks.find((b) => b.kind === 'closed' && b.startMin == null)
+  // ① 하루 전체 휴진 — start·end **둘 다** 없을 때만이다. 한쪽만 없는 것은 진료시간 밖
+  //    봉투(CAL-SLOT-04·11)이지 하루 전체가 아니다 — 아래 ②에서 창 끝까지로 그린다.
+  const wholeClosed = params.blocks.find(
+    (b) => b.kind === 'closed' && b.startMin == null && b.endMin == null,
+  )
   if (wholeClosed) {
     return [
       place(
@@ -144,12 +147,18 @@ export function buildDayColumn(params: DayColumnParams): PositionedSlot[] {
     })
   }
   for (const b of params.blocks) {
-    if (b.startMin == null || b.endMin == null) continue // 하루 전체 휴진은 위에서 처리됨
+    if (b.startMin == null && b.endMin == null) continue // 하루 전체 휴진은 위에서 처리됨
+    // 진료시간 밖 봉투(CAL-SLOT-04·11): 서버가 start·end **한쪽만** None으로 준다 — 그 방향
+    //   창 끝까지 막는다(시작 전=창시작~진료시작 / 종료 후=진료종료~창끝). 창 밖은 잘라내고,
+    //   창 시작이 곧 진료 시작이라 폭이 0이면(예: 09:00부터 진료) 조각을 만들지 않는다.
+    const bStart = Math.max(b.startMin ?? windowStartMin, windowStartMin)
+    const bEnd = Math.min(b.endMin ?? windowEndMin, windowEndMin)
+    if (bEnd <= bStart) continue
     const label = b.kind === 'lunch' ? '점심시간' : '휴진'
     occupied.push({
-      startMin: b.startMin,
-      endMin: b.endMin,
-      descriptor: { kind: 'hatched', label: `${label} ${hhmm(b.startMin)}–${hhmm(b.endMin)}` },
+      startMin: bStart,
+      endMin: bEnd,
+      descriptor: { kind: 'hatched', label: `${label} ${hhmm(bStart)}–${hhmm(bEnd)}` },
     })
   }
   occupied.sort((x, y) => x.startMin - y.startMin || x.endMin - y.endMin)
