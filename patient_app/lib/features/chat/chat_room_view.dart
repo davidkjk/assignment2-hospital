@@ -5,6 +5,7 @@ import 'chat_models.dart';
 import 'chat_room_controller.dart';
 import 'widgets/chat_feed.dart';
 import 'widgets/chat_input_bar.dart';
+import 'widgets/chat_live_row.dart';
 import 'widgets/chat_safety_banner.dart';
 
 /// 상담방 셸. 로딩(CHAT-ROOM-LOAD-01)·오류(ERR-01)·빈(EMPTY-01)·피드(FEED-01)를 가르고
@@ -55,6 +56,8 @@ class ChatRoomView extends ConsumerWidget {
                 )
               : ChatFeed(
                   items: st.items,
+                  // T11 슬롯 채움: 직원 말풍선·시스템 이벤트도 같은 피드에(CHAT-ROOM-LIVE-01).
+                  liveSlotBuilder: (ctx, it) => ChatLiveRow(item: it),
                   onRetry: (id) => ctl.retry(id),
                   onFeedback: (_) => onFeedback?.call(),
                 ),

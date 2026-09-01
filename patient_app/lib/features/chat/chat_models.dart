@@ -59,6 +59,46 @@ class ChatFeedItem {
       );
 }
 
+/// 직원 인계(라이브 상담)의 진행 단계. 티켓 pending/in_progress/answered에 대응한다
+/// (CHAT-HANDOFF-STATE-01·02·03). null = 아직 조회 전(CHAT-HANDOFF-LOAD-01).
+enum HandoffPhase { connecting, inProgress, ended }
+
+/// 인계 상태 스냅샷(CHAT-HANDOFF-*). 담당자는 서버가 확정한 현재 한 명만 담는다
+/// (CHAT-ROOM-LIVE-STAFF-01 A안) — 배정 경쟁·이관 이력은 표현하지 않는다.
+/// hoursNote는 서버 is_open(at) 판정으로만 채워지고 앱이 예상시간을 짓지 않는다(CHAT-HANDOFF-HOURS-*).
+class HandoffStatus {
+  final HandoffPhase? phase; // null = 조회 전(CHAT-HANDOFF-LOAD-01)
+  final String? assigneeName;
+  final String? assigneeRole;
+  final String? hoursNote;
+  final bool isOpen;
+  final bool loadError; // 조회 실패(CHAT-HANDOFF-ERR-01) — 완료로 바꾸지 않는다
+  const HandoffStatus({
+    this.phase,
+    this.assigneeName,
+    this.assigneeRole,
+    this.hoursNote,
+    this.isOpen = false,
+    this.loadError = false,
+  });
+
+  factory HandoffStatus.fromJson(Map<String, dynamic> j) => HandoffStatus(
+        phase: switch (j['ticket_status']) {
+          'pending' => HandoffPhase.connecting,
+          'in_progress' => HandoffPhase.inProgress,
+          'answered' => HandoffPhase.ended,
+          _ => null,
+        },
+        assigneeName: j['assignee_name'] as String?,
+        assigneeRole: j['assignee_role'] as String?,
+        hoursNote: j['hours_note'] as String?, // 서버 is_open(at) 판정 문구(앱 미재계산)
+        isOpen: (j['is_open'] as bool?) ?? false,
+      );
+}
+
+/// AI 상담 세션 단계(CHAT-ROOM-AI-EXPIRE-01·REOPEN-01). 30분 무활동이면 그 상담만 만료.
+enum AiSessionPhase { active, expired }
+
 /// 상담방 로드 상태(CHAT-ROOM-LOAD-01·ERR-01·EMPTY-01). loaded일 때만 items를 그린다.
 enum ChatRoomPhase { loading, error, loaded }
 

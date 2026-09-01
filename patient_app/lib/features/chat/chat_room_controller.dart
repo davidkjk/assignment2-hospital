@@ -89,6 +89,20 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   }
 }
 
+/// AI 상담 30분 무활동 만료(CHAT-ROOM-AI-EXPIRE-01). 창을 닫아도 같은 30분 기준이며
+/// 직원 연결/상담 중이면 만료하지 않는다(CHAT-ROOM-AI-EXPIRE-02).
+/// C6-#8 F06(2026-08-20): 서버 primitive가 `now() >= expires_at`(정확히 30분=만료)라 client도 `>=`로 맞춘다.
+bool isAiSessionExpired(DateTime lastActivity,
+    {required DateTime now, bool handoffActive = false}) {
+  if (handoffActive) return false;
+  return now.difference(lastActivity) >= const Duration(minutes: 30);
+}
+
+/// 재문의(CHAT-ROOM-RETICKET-01): 완료 티켓을 재개하지 않고 previous_ticket_id로 새 티켓을 만든다
+/// (이전 기록은 계속 보여준다). reopen 플래그를 두지 않는다.
+Map<String, dynamic> reticketRequest({required String previousTicketId}) =>
+    {'previous_ticket_id': previousTicketId};
+
 final chatRoomProvider =
     StateNotifierProvider.family<ChatRoomController, ChatRoomState, String>(
         (ref, threadId) {
