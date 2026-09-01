@@ -164,26 +164,58 @@ async def get_questionnaire(appointment_id: UUID, staff: StaffContext, *, conn=N
     """[R2-02] 예약별 사전 문진. RLS(assigned_doctor_can_read_responses)가 담당의·관리자만
     열도록 판정한다 — 서버가 또 거르지 않는다. 없으면 None(화면이 '문진 없음')."""
     async def _run(c):
-        return await c.fetchrow(
+        row = await c.fetchrow(
             "select appointment_id, template_id, answers, submitted_at "
             "from questionnaire_responses where appointment_id = $1",
             appointment_id,
         )
+        if row is None:
+            return None
+        # [L62b] 답변 키(q1·q2·q3)를 실제 질문 문구로 바꾸려면 답변 시점 템플릿을 함께 읽는다.
+        #   template_id가 그 버전을 정확히 가리키므로(버전마다 한 행) 문구가 답변 당시와 일치한다.
+        #   staff_can_read_templates 정책으로 담당 의사도 읽을 수 있다(같은 RLS 커넥션).
+        tmpl = await c.fetchrow(
+            "select questions from questionnaire_templates where id = $1",
+            row["template_id"],
+        )
+        return row, tmpl
 
-    row = await _dispatch(staff, conn, _run)
-    if row is None:
+    result = await _dispatch(staff, conn, _run)
+    if result is None:
         return None
+    row, tmpl = result
     # ⚠️ answers는 jsonb지만 asyncpg는 전역 코덱이 없어 **문자열**로 돌려준다(questions도 같은 이유로
     #   json.loads 한다). 파싱하지 않으면 화면이 Object.entries(문자열)로 글자 하나씩 펼친다(L62).
     answers = row["answers"]
     if isinstance(answers, str):
         answers = json.loads(answers)
+    questions = tmpl["questions"] if tmpl else None
+    if isinstance(questions, str):
+        questions = json.loads(questions)
     return {
         "appointment_id": row["appointment_id"],
         "template_id": row["template_id"],
-        "answers": answers,
+        "answers": _relabel_answers(answers, questions),
         "submitted_at": row["submitted_at"],
     }
+
+
+def _relabel_answers(answers, questions) -> dict:
+    """[L62b] 답변 키(질문ID)를 실제 질문 문구로 바꾼다. 템플릿 질문 순서를 따라 답변이 있는 것만
+    싣고, 템플릿에 없는 키(질문이 나중에 삭제된 옛 답변 등)는 원래 키 그대로 뒤에 남긴다.
+    문구를 못 찾으면 화면이 최소한 ID라도 보이도록 원래 키를 쓴다(빈 표가 되지 않게)."""
+    if not isinstance(answers, dict) or not questions:
+        return answers if isinstance(answers, dict) else {}
+    known_ids = {q.get("id") for q in questions if q.get("id")}
+    out: dict = {}
+    for q in questions:
+        qid = q.get("id")
+        if qid in answers:
+            out[q.get("text") or qid] = answers[qid]
+    for key, value in answers.items():
+        if key not in known_ids:
+            out.setdefault(key, value)
+    return out
 
 
 async def add_note(patient_id: UUID, content: str, staff: StaffContext, *, conn=None) -> UUID:

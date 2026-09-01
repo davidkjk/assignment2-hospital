@@ -1,4 +1,8 @@
 import type { CSSProperties } from 'react'
+import { StatusBadge } from '../../components/staff-ui/StatusBadge'
+import { ClipboardList } from '../../components/icons'
+import { ConsoleCard } from './ConsoleCard'
+import { CONSOLE_TONE } from './QueuePanel'
 
 // [DOCTOR-CONTEXT-01~04] 가운데 「현재 환자·방문」 열. 이름·생년월일·성별만 상단 고정 —
 //   진료에 필요 없는 전화번호는 끌어오지 않는다(CONTEXT-01·MASK-DETAIL-01). 예약 이유는 원문 그대로,
@@ -38,28 +42,30 @@ export function ContextPanel({ patient, meta, reason, loading }: ContextPanelPro
         </div>
       ) : (
         <>
+          {/* 기본정보 고정 카드 — 이름·생년월일은 한 줄에, 상태는 배지로 카드 안에 둔다
+              (예전엔 상태만 카드 밖에 「도착」 한 단어로 떠 있어 조회 오류처럼 보였다). */}
           <div style={styles.head}>
-            <h2 style={styles.name}>{patient.name}</h2>
-            <span style={styles.sub}>
-              {patient.birth_date}{patient.gender ? ` · ${patient.gender}` : ''}
-            </span>
+            <div style={styles.headTop}>
+              <h2 style={styles.name}>{patient.name}</h2>
+              <span style={styles.sub}>
+                {patient.birth_date}{patient.gender ? ` · ${patient.gender}` : ''}
+              </span>
+            </div>
+            {meta && (meta.time || meta.department_name || meta.doctor_name || meta.status) && (
+              <div style={styles.metaRow}>
+                {[meta.date, meta.time, meta.department_name, meta.doctor_name].filter(Boolean).join(' · ')}
+                {meta.status && <StatusBadge status={meta.status} tone={CONSOLE_TONE[meta.status]} />}
+              </div>
+            )}
           </div>
-          {meta && (
-            <p style={styles.meta}>
-              {[meta.date, meta.time, meta.department_name, meta.doctor_name, meta.status]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          )}
 
-          <div style={styles.block}>
-            <h3 style={styles.blockHead}>오늘 예약 이유</h3>
+          <ConsoleCard icon={<ClipboardList width={16} height={16} />} title="오늘 예약 이유">
             {reason ? (
               <p style={styles.reason}>{reason}</p>
             ) : (
               <p style={styles.empty}>예약 이유를 작성하지 않았습니다</p>
             )}
-          </div>
+          </ConsoleCard>
         </>
       )}
     </section>
@@ -76,14 +82,14 @@ const styles: Record<string, CSSProperties> = {
   hint: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   hintSub: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-subtle, var(--color-ink-muted))' },
   head: {
-    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)',
-    padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
+    display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
+    padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
+    borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-panel)',
   },
+  headTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)' },
   name: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   sub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
-  meta: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  block: { padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
-  blockHead: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  metaRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   reason: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
   empty: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 }

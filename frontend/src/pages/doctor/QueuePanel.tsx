@@ -5,7 +5,7 @@ import { StatusBadge, type BadgeTone } from '../../components/staff-ui/StatusBad
 
 // [DISP-COLOR-01] 의사 큐 상태값은 공백 없는 '도착·진료대기·진료중·진료완료' — StatusBadge 기본 표(공백 있는 '진료 대기')와
 //   키가 다르므로 톤을 명시한다. 색만으로 구분 안 하게 글자도 함께(StatusBadge가 지킨다).
-const CONSOLE_TONE: Record<string, BadgeTone> = { 도착: 'violet', 진료대기: 'sky', 진료중: 'teal', 진료완료: 'gray' }
+export const CONSOLE_TONE: Record<string, BadgeTone> = { 도착: 'violet', 진료대기: 'sky', 진료중: 'teal', 진료완료: 'gray' }
 
 // [DOCTOR-QUEUE-*][DOCTOR-START-01~03] 왼쪽 「오늘 진료 대기」 열. ⭐ 행을 여는 행위 자체가 상태 전이다 —
 //   [진료 시작] 버튼을 두지 않는다. 진료대기일 때만 진료중으로 전이하고(transitionTargetOnOpen), 그 밖은

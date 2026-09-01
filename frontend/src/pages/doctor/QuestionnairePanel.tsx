@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { FileText } from '../../components/icons'
+import { ConsoleCard } from './ConsoleCard'
 import { mdHm } from '../patient/format'
 
 // [DOCTOR-QNR-01~05] 사전문진 — 담당 의사만(ROLE-DOC-01). 읽기 전용, 작성란과 다른 영역. 제출 시각을
@@ -28,8 +30,7 @@ interface QuestionnairePanelProps {
 
 export function QuestionnairePanel({ canRead, loading, error, onRetry, questionnaire }: QuestionnairePanelProps) {
   return (
-    <section aria-label="사전문진" style={styles.panel}>
-      <h3 style={styles.heading}>사전문진</h3>
+    <ConsoleCard icon={<FileText width={16} height={16} />} title="사전문진" ariaLabel="사전문진">
       {!canRead ? (
         <p style={styles.denied}>이 예약을 볼 권한이 없습니다</p>
       ) : loading ? (
@@ -37,7 +38,7 @@ export function QuestionnairePanel({ canRead, loading, error, onRetry, questionn
       ) : error ? (
         <EmptyState kind="error" onRetry={onRetry} />
       ) : !questionnaire || questionnaire.answers.length === 0 ? (
-        <EmptyState kind="zero" message="제출된 사전문진이 없습니다" />
+        <p style={styles.empty}>제출된 사전문진이 없습니다</p>
       ) : (
         <>
           {questionnaire.submitted_at && (
@@ -69,20 +70,19 @@ export function QuestionnairePanel({ canRead, loading, error, onRetry, questionn
           </dl>
         </>
       )}
-    </section>
+    </ConsoleCard>
   )
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: { padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
-  heading: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   denied: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
+  empty: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   skeleton: { height: 60, borderRadius: 6, background: 'var(--color-bg)' },
   submitted: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
-  qa: { margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
-  qaRow: { display: 'grid', gridTemplateColumns: '130px 1fr', gap: 'var(--sp-3)' },
-  dt: { margin: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  dd: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
+  qa: { margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  qaRow: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-0-5)' },
+  dt: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  dd: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink)', overflowWrap: 'anywhere' },
   ddEmpty: { color: 'var(--color-warn)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'] },
   warnWrap: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1)' },
 }
