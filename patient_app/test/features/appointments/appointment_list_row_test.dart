@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/appointments/appointment_list_row.dart';
-import 'package:hospital_patient_app/core/tokens.dart';
 
 AppointmentView _v(String status, {DateTime? change, String name = '본인', bool self = true}) =>
     AppointmentView.fromJson({
@@ -26,20 +25,21 @@ Widget _wrap(Widget w) => MaterialApp(home: Scaffold(body: w));
 final now = DateTime(2026, 9, 1, 9, 0);
 
 void main() {
-  testWidgets('[LIST-LIST-07] 왼쪽 시각 레일에 시각이 크게, 아래에 관계(본인/딸)가 온다', (t) async {
+  testWidgets('[LIST-LIST-07][Task10] 데모 컴팩트 행 — 시각 + 이름 옆 관계(본인/딸), 컬러 레일 없음', (t) async {
     await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정'), now: now)));
     expect(find.text('14:00'), findsOneWidget);
     expect(find.text('본인'), findsWidgets); // LIST-LIST-15: 본인도 '본인'으로 표기
+    expect(find.byKey(const Key('list-rail')), findsNothing); // 큰 컬러 레일 블록 폐기
   });
-  testWidgets('[LIST-LIST-08] 예약신청 줄의 레일은 회색이다(아직 확정된 시각이 아니다)', (t) async {
+  testWidgets('[LIST-LIST-08][Task10] 예약신청은 딥틸 레일 대신 오른쪽 「확인 중」 회색 글자로 알린다', (t) async {
     await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약신청'), now: now)));
-    final rail = t.widget<Container>(find.byKey(const Key('list-rail')));
-    expect((rail.decoration as BoxDecoration).color, isNot(AppTokens.primary)); // 딥틸 아님 = 회색
+    expect(find.text('확인 중'), findsOneWidget);
+    expect(find.byKey(const Key('list-rail')), findsNothing);
   });
-  testWidgets('[LIST-LIST-09][LIST-LIST-10] 이름이 굵게 먼저, 그 아래 진료과·의사', (t) async {
+  testWidgets('[LIST-LIST-09][LIST-LIST-10] 이름이 굵게 먼저, 그 아래 진료과·의사 선생님', (t) async {
     await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정', name: '딸', self: false), now: now)));
     expect(find.text('딸'), findsWidgets);
-    expect(find.text('정형외과 · 박서준'), findsOneWidget);
+    expect(find.text('정형외과 · 박서준 선생님'), findsOneWidget);
   });
   testWidgets('[LIST-LIST-11] 줄 오른쪽에 상태 글자, 상태가 없으면 › 하나', (t) async {
     await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약신청'), now: now)));
@@ -70,6 +70,6 @@ void main() {
         view: _v('예약확정'), now: now, questionnaireSlot: const Text('문진 슬롯'))));
     expect(find.byKey(const Key('appointment-box')), findsOneWidget);
     expect(find.text('문진 슬롯'), findsOneWidget); // T31이 채울 자리를 상자가 함께 감싼다
-    expect(find.text('정형외과 · 박서준'), findsOneWidget); // 줄도 같은 상자 안
+    expect(find.text('정형외과 · 박서준 선생님'), findsOneWidget); // 줄도 같은 상자 안
   });
 }

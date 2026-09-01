@@ -74,16 +74,27 @@ class SettingsHomeScreen extends ConsumerWidget {
               ],
             ),
           ),
-          // SET-HOME-08 — 전화번호는 앱에서 못 바꾼다. AUTH-TEL 안내로.
+          // SET-HOME-08 — 전화번호는 앱에서 못 바꾼다(AUTH-TEL 안내로). 내 정보 카드는 못 누르는
+          // 블록이라(SET-HOME-06), 변경 링크는 카드 바로 아래 오른쪽에 은은하게 붙인다 —
+          // 왼쪽에 홀로 떠 있던 파란 버튼의 이질감을 없앤다(Task10).
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: Alignment.centerRight,
             child: TextButton(
               key: const Key('change-phone'),
               onPressed: () => context.push('/phone-change'),
-              child: const Text('전화번호 변경'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: AppTokens.primary,
+              ),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('전화번호 변경', style: TextStyle(fontSize: 13)),
+                Icon(Icons.chevron_right, size: 16),
+              ]),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // ② 알림
           _SettingsLink(

@@ -247,13 +247,13 @@ class DetailQr extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         // ⚠️ Row에 Expanded 형제가 있으면 비-flex 버튼이 무한 폭으로 측정돼 터진다(RenderPhysicalShape).
-        //    폭을 묶어 안정화한다.
-        SizedBox(
-          width: 116,
+        //    IntrinsicWidth로 「내용에 딱 맞는 폭」을 주면 안정적이면서 "QR 보기"가 줄바꿈되지 않는다
+        //    (고정 116px은 좁아 "QR 보/기"로 쪼개졌다 — Task10 데모 대조).
+        IntrinsicWidth(
           child: OutlinedButton.icon(
             onPressed: () => context.push('/qr/${d.view.id}'),
             icon: const Icon(Icons.qr_code, size: 18, color: AppTokens.primary),
-            label: const Text('QR 보기'),
+            label: const Text('QR 보기', maxLines: 1, softWrap: false),
           ),
         ),
       ]),

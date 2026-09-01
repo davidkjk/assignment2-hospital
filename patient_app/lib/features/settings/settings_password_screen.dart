@@ -132,10 +132,21 @@ class _SettingsPasswordScreenState extends ConsumerState<SettingsPasswordScreen>
                 onPressed: () => setState(() => _o2 = !_o2)),
           ),
           const SizedBox(height: 16),
-          _cond(_pwOk(_pw.text), '8자 이상'),
-          _cond(RegExp(r'[A-Za-z]').hasMatch(_pw.text) && RegExp(r'\d').hasMatch(_pw.text),
-              '영문과 숫자를 함께'),
-          _cond(_match, '두 칸이 서로 같음'),
+          // 비밀번호 조건 3줄 — 데모대로 옅은 딥틸 박스로 묶는다(맨바닥 나열 → 한 덩어리, Task10).
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0x0D0B6E70), // primary 5% (bg-primary/5)
+              border: Border.all(color: AppTokens.border),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _cond(_pwOk(_pw.text), '8자 이상'),
+              _cond(RegExp(r'[A-Za-z]').hasMatch(_pw.text) && RegExp(r'\d').hasMatch(_pw.text),
+                  '영문과 숫자를 함께'),
+              _cond(_match, '두 칸이 서로 같음'),
+            ]),
+          ),
           const SizedBox(height: 20),
           if (state.error != null) ...[
             Text(state.error!, style: const TextStyle(color: AppTokens.warn)),

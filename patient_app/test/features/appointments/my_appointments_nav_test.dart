@@ -57,7 +57,7 @@ void main() {
   testWidgets('[NAV-LIST-02][LIST-LIST-14] 줄 본문을 누르면 예약 상세로 간다', (t) async {
     await t.pumpWidget(_app([_v('예약확정', '10:00', id: 'appt-9')]));
     await t.pumpAndSettle();
-    await t.tap(find.text('내과 · 이의사'));
+    await t.tap(find.text('내과 · 이의사 선생님'));
     await t.pumpAndSettle();
     expect(_lastRoute, '/appointments/appt-9');
   });
@@ -93,7 +93,7 @@ void main() {
   testWidgets('[NAV-LIST-08] 예약 상세에서 뒤로 오면 목록으로 돌아온다(같은 자리)', (t) async {
     await t.pumpWidget(_app([_v('예약확정', '10:00', id: 'appt-3')]));
     await t.pumpAndSettle();
-    await t.tap(find.text('내과 · 이의사'));
+    await t.tap(find.text('내과 · 이의사 선생님'));
     await t.pumpAndSettle();
     expect(find.text('상세'), findsOneWidget);
     (t.state(find.byType(Navigator)) as NavigatorState).pop(); // 뒤로

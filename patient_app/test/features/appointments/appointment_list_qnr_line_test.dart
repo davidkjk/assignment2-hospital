@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
-import 'package:hospital_patient_app/features/appointments/appointment_list_row.dart'; // kListRailWidth
 import 'package:hospital_patient_app/features/appointments/appointment_list_qnr_line.dart';
-import 'package:hospital_patient_app/widgets/warn_text.dart';
 
 AppointmentView _qv(String status, {String qnr = '미작성', int answered = 0, int total = 8}) =>
     AppointmentView.fromJson({
@@ -27,12 +25,13 @@ AppointmentView _qv(String status, {String qnr = '미작성', int answered = 0, 
 Widget _wrap(Widget w) => MaterialApp(home: Scaffold(body: w));
 
 void main() {
-  testWidgets('[LIST-QNR-01][LIST-QNR-08] 미작성 → 배경 없이 주의색 한 줄 「사전문진 미작성 · 작성하기」', (t) async {
+  testWidgets('[LIST-QNR-01][Task10] 미작성 → 딥틸 틴트 밴드 「사전문진 미작성 · 작성하기」 + ›', (t) async {
     final w = appointmentListQnrLine(_qv('예약확정', qnr: '미작성'), onOpen: () {});
     await t.pumpWidget(_wrap(w!));
     expect(find.textContaining('사전문진 미작성'), findsOneWidget);
     expect(find.textContaining('작성하기'), findsOneWidget);
-    expect(find.byType(WarnText), findsOneWidget); // DISP-WARN-01: 배경 없이 글자 + 좌측 4px 바
+    expect(find.byKey(const Key('qnr-band')), findsOneWidget); // 데모 카드 아래 밴드
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
   });
   testWidgets('[LIST-QNR-03] 작성 중 → 「사전문진 작성 중 (3/8) · 이어서 쓰기」', (t) async {
     final w = appointmentListQnrLine(_qv('예약확정', qnr: '작성 중', answered: 3, total: 8), onOpen: () {});
@@ -59,14 +58,14 @@ void main() {
     var opened = false;
     final w = appointmentListQnrLine(_qv('예약확정', qnr: '미작성'), onOpen: () => opened = true);
     await t.pumpWidget(_wrap(w!));
-    await t.tap(find.byType(WarnText));
+    await t.tap(find.byKey(const Key('qnr-band')));
     expect(opened, isTrue); // onOpen = MyAppointmentsScreen.openQuestionnaire (NAV-LIST-04)
   });
-  testWidgets('[LIST-QNR-07] 왼쪽을 레일 폭만큼 띄워 같은 상자임을 보인다', (t) async {
+  testWidgets('[LIST-QNR-07][Task10] 상단 경계 있는 밴드로 줄과 한 상자임을 보인다(데모 border-t)', (t) async {
     final w = appointmentListQnrLine(_qv('예약확정', qnr: '미작성'), onOpen: () {});
     await t.pumpWidget(_wrap(w!));
-    final pad = t.widget<Padding>(
-        find.ancestor(of: find.byType(WarnText), matching: find.byType(Padding)).first);
-    expect((pad.padding as EdgeInsets).left, kListRailWidth); // 레일 폭(T30 상수)만큼 들여쓴다
+    final band = t.widget<Container>(find.byKey(const Key('qnr-band')));
+    final deco = band.decoration as BoxDecoration;
+    expect(deco.border?.top.color, isNot(Colors.transparent)); // 위 경계로 줄에 이어 붙는다
   });
 }
