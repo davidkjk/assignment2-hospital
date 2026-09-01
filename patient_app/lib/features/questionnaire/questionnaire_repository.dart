@@ -6,7 +6,7 @@ class Question {
   const Question({required this.id, required this.text, required this.type, required this.required});
   final String id; // 고유 번호 = 열쇠(안 바뀜, QNR-ID-01·03)
   final String text; // 그때 본 글자 = 기록(QNR-ID-02·03)
-  final String type; // '단답형' | '장문형' | '예/아니오'
+  final String type; // 정본 = 백엔드 QUESTION_TYPES: 'short_text' | 'long_text' | 'yes_no' (한글은 관리자 표시 라벨)
   final bool required;
   factory Question.fromJson(Map<String, dynamic> j) => Question(
       id: j['id'] as String,

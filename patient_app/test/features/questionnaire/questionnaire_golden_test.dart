@@ -44,9 +44,9 @@ QnrData _mixed({String state = '미작성', Map<String, String>? ans}) => QnrDat
       state: state,
       answers: ans ?? {},
       questions: const [
-        Question(id: 'q1', text: '현재 복용 중인 약이 있으신가요?', type: '예/아니오', required: true),
-        Question(id: 'q2', text: '오늘 병원을 찾으신 증상을 자유롭게 적어 주세요.', type: '장문형', required: true),
-        Question(id: 'q3', text: '키(cm)를 알려 주세요.', type: '단답형', required: false),
+        Question(id: 'q1', text: '현재 복용 중인 약이 있으신가요?', type: 'yes_no', required: true),
+        Question(id: 'q2', text: '오늘 병원을 찾으신 증상을 자유롭게 적어 주세요.', type: 'long_text', required: true),
+        Question(id: 'q3', text: '키(cm)를 알려 주세요.', type: 'short_text', required: false),
       ]);
 
 void main() {

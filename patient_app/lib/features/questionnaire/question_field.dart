@@ -38,14 +38,17 @@ class _QuestionFieldState extends State<QuestionField> {
 
   @override
   Widget build(BuildContext context) {
+    // ⭐ 정본 type = 백엔드 QUESTION_TYPES=("short_text","long_text","yes_no") 영문 값이다
+    //    (get_template이 DB값을 그대로 내린다). 한글(단답형/장문형/예·아니오)은 관리자 표시 라벨일
+    //    뿐 여기 오지 않는다. 종전에 한글로 분기해 실 API 문항이 전부 한 줄 텍스트칸으로 깨졌다(갭⑥).
     switch (widget.question.type) {
-      case '예/아니오':
+      case 'yes_no':
         return Row(children: [
           _yesNo(context, '예'),
           const SizedBox(width: 12),
           _yesNo(context, '아니오'),
         ]);
-      case '장문형':
+      case 'long_text':
         return TextField(
           controller: _controller,
           maxLines: 5,
@@ -55,7 +58,7 @@ class _QuestionFieldState extends State<QuestionField> {
           decoration: const InputDecoration(
               filled: true, fillColor: Colors.white, border: OutlineInputBorder()),
         );
-      case '단답형':
+      case 'short_text':
       default:
         return TextField(
           controller: _controller,

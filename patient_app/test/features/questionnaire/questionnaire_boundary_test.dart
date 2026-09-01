@@ -11,7 +11,7 @@ void main() {
       template: {
         'id': 't1',
         'total': 30,
-        'questions': [for (var i = 1; i <= 30; i++) {'id': 'q$i', 'text': '문항$i', 'type': '단답형', 'required': false}]
+        'questions': [for (var i = 1; i <= 30; i++) {'id': 'q$i', 'text': '문항$i', 'type': 'short_text', 'required': false}]
       },
       response: null,
     );
@@ -23,7 +23,7 @@ void main() {
     await t.pumpWidget(MaterialApp(
         home: Scaffold(
             body: QuestionField(
-                question: const Question(id: 'q1', text: '병원이 넣은 질문', type: '단답형', required: false),
+                question: const Question(id: 'q1', text: '병원이 넣은 질문', type: 'short_text', required: false),
                 value: null,
                 onChanged: (_) {}))));
     expect(find.text('병원이 넣은 질문'), findsNothing); // 질문 글자는 마법사가 위에 그림(필드는 입력칸만)
@@ -42,7 +42,7 @@ void main() {
 
   test('[QNR-REQ-03][QNR-REQ-04][QNR-REQ-05] required = 「환자가 반드시」가 아니라 「병원이 확인할 항목」 — 앱은 required로 입력을 강제하지 않는다', () {
     // required=true여도 앱은 빈 답을 그대로 저장한다(강제 아님). 이 뜻이 QNR-REQ-01·02로 실현된다.
-    const q = Question(id: 'q1', text: '임신 가능성', type: '예/아니오', required: true);
+    const q = Question(id: 'q1', text: '임신 가능성', type: 'yes_no', required: true);
     expect(q.required, isTrue); // 표시는 있으나 앱은 이걸로 막지 않는다(검증은 의사 화면)
   });
 
@@ -55,7 +55,7 @@ void main() {
 
   test('[QNR-REQ-11] 관리자 필수 체크박스는 남기되 설명 문구를 새 뜻으로 — 직원웹 관리자 화면 몫', () {
     // 앱은 관리자 화면이 없다. required 플래그를 받아 쓰기만 하고, 체크박스·설명은 staff-web QADM.
-    const q = Question(id: 'q1', text: 'x', type: '단답형', required: true);
+    const q = Question(id: 'q1', text: 'x', type: 'short_text', required: true);
     expect(q.required, isA<bool>()); // 앱은 플래그를 소비만 한다
   });
 }

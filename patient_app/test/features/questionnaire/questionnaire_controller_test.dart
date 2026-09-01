@@ -24,8 +24,8 @@ QnrData _data({List<Question>? qs, Map<String, String>? ans, String state = '미
       answers: ans ?? {},
       questions: qs ??
           const [
-            Question(id: 'q1', text: '키', type: '단답형', required: false),
-            Question(id: 'q2', text: '복용 중인 약이 있으신가요?', type: '예/아니오', required: true),
+            Question(id: 'q1', text: '키', type: 'short_text', required: false),
+            Question(id: 'q2', text: '복용 중인 약이 있으신가요?', type: 'yes_no', required: true),
           ]);
 
 QnrController _ctl(_FakeRepo repo) {
@@ -53,7 +53,7 @@ void main() {
   });
 
   test('[QNR-ID-05] 다음 이어쓰기 진입은 새로 load하여 바뀐 글자를 받는다', () async {
-    final repo = _FakeRepo(_data(qs: [const Question(id: 'q1', text: '키(cm)', type: '단답형', required: false)]));
+    final repo = _FakeRepo(_data(qs: [const Question(id: 'q1', text: '키(cm)', type: 'short_text', required: false)]));
     final ctl = _ctl(repo);
     await ctl.ready;
     expect(ctl.state.questions.first.text, '키(cm)'); // 새 진입 = 새 양식
@@ -61,7 +61,7 @@ void main() {
 
   test('[QNR-ID-07] 문항을 지우고 새로 만들면 번호가 달라 답이 안 붙는다(의도된 동작)', () async {
     final repo = _FakeRepo(_data(
-        qs: [const Question(id: 'q9', text: '키', type: '단답형', required: false)], ans: {'q1': '170'}));
+        qs: [const Question(id: 'q9', text: '키', type: 'short_text', required: false)], ans: {'q1': '170'}));
     final ctl = _ctl(repo);
     await ctl.ready;
     expect(ctl.state.answers.containsKey('q9'), isFalse); // 다른 질문이므로 안 붙는다
@@ -83,8 +83,8 @@ void main() {
   test('[QNR-ID-08][QNR-ID-09] 양식이 바뀌어도 막지 않고 처음부터 다시 쓰게 하지 않는다(답 유지)', () async {
     final repo = _FakeRepo(_data(
         qs: [
-          const Question(id: 'q1', text: '키', type: '단답형', required: false),
-          const Question(id: 'q3', text: '몸무게', type: '단답형', required: false)
+          const Question(id: 'q1', text: '키', type: 'short_text', required: false),
+          const Question(id: 'q3', text: '몸무게', type: 'short_text', required: false)
         ],
         ans: {'q1': '170'},
         state: '작성 중'));

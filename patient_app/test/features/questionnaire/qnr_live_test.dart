@@ -12,7 +12,7 @@ import 'package:hospital_patient_app/features/questionnaire/questionnaire_wizard
 // 작성 중 예약이 취소됨(Step 10, QNR-LIVE-01~05) + 변경·양식 변화에 흔들리지 않음(Step 11, QNR-LIVE-06~15).
 
 List<Question> _qs(int n) =>
-    [for (var i = 1; i <= n; i++) Question(id: 'q$i', text: '문항 $i', type: '단답형', required: false)];
+    [for (var i = 1; i <= n; i++) Question(id: 'q$i', text: '문항 $i', type: 'short_text', required: false)];
 final _sixQuestions = _qs(6);
 final _nineQuestions = _qs(9);
 

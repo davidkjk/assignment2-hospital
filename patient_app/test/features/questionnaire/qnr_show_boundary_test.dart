@@ -14,7 +14,7 @@ void main() {
           'id': 't1',
           'total': 1,
           'questions': [
-            {'id': 'q1', 'text': '전립선 관련 증상', 'type': '예/아니오', 'required': false}
+            {'id': 'q1', 'text': '전립선 관련 증상', 'type': 'yes_no', 'required': false}
           ]
         },
         response: null);
@@ -35,8 +35,8 @@ void main() {
           'id': 't1',
           'total': 2,
           'questions': [
-            {'id': 'q1', 'text': '키', 'type': '단답형', 'required': false},
-            {'id': 'q3', 'text': '증상', 'type': '장문형', 'required': false}
+            {'id': 'q1', 'text': '키', 'type': 'short_text', 'required': false},
+            {'id': 'q3', 'text': '증상', 'type': 'long_text', 'required': false}
           ]
         },
         response: null);

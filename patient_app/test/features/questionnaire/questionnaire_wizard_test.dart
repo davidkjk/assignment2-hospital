@@ -25,7 +25,7 @@ QnrData _form(int n, {Map<String, String>? ans}) => QnrData(
     id: 't1',
     state: '미작성',
     answers: ans ?? {},
-    questions: [for (var i = 1; i <= n; i++) Question(id: 'q$i', text: '문항 $i', type: '단답형', required: i == 1)]);
+    questions: [for (var i = 1; i <= n; i++) Question(id: 'q$i', text: '문항 $i', type: 'short_text', required: i == 1)]);
 
 // 시스템 뒤로가기(안드로이드 하드웨어 back)를 시뮬레이트해 PopScope를 탄다. 마법사가 최초 라우트라
 // AppBar 뒤로가기 버튼이 없어 t.pageBack()을 못 쓴다(실 진입은 push라 back 스택이 있다).

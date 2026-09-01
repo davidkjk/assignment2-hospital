@@ -22,7 +22,7 @@ QnrData _data({String state = '미작성', int n = 3, Map<String, String>? ans})
     id: 't1',
     state: state,
     answers: ans ?? {},
-    questions: [for (var i = 1; i <= n; i++) Question(id: 'q$i', text: '문항 $i', type: '단답형', required: false)]);
+    questions: [for (var i = 1; i <= n; i++) Question(id: 'q$i', text: '문항 $i', type: 'short_text', required: false)]);
 
 String? _route;
 Future<void> _pump(WidgetTester t,

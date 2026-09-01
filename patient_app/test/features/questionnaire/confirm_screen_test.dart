@@ -22,8 +22,8 @@ String? _route;
 Future<void> _pump(WidgetTester t,
     {bool readOnly = false, Map<String, String>? ans, String returnTo = '/home'}) async {
   final data = QnrData(id: 't1', state: '작성 중', answers: ans ?? {'q1': '170'}, questions: const [
-    Question(id: 'q1', text: '키', type: '단답형', required: false),
-    Question(id: 'q2', text: '증상', type: '장문형', required: true), // q2 필수·비어 있음
+    Question(id: 'q1', text: '키', type: 'short_text', required: false),
+    Question(id: 'q2', text: '증상', type: 'long_text', required: true), // q2 필수·비어 있음
   ]);
   final repo = _FakeRepo(data);
   final router = GoRouter(initialLocation: '/c', routes: [

@@ -10,8 +10,8 @@ void main() {
   test('QnrData.fromServer는 template.questions와 response.answers를 합쳐 question_id로 value를 매긴다', () {
     final data = QnrData.fromServer(
       template: {'id': 't1', 'questions': [
-        {'id': 'q1', 'text': '키', 'type': '단답형', 'required': false},
-        {'id': 'q2', 'text': '증상', 'type': '장문형', 'required': true},
+        {'id': 'q1', 'text': '키', 'type': 'short_text', 'required': false},
+        {'id': 'q2', 'text': '증상', 'type': 'long_text', 'required': true},
       ], 'total': 2},
       response: {'answers': [{'question_id': 'q1', 'question_text': '키', 'value': '170'}], 'state': '작성 중'},
     );
@@ -23,7 +23,7 @@ void main() {
 
   test('QnrData.fromServer는 response가 null이면 답 없음·미작성', () {
     final data = QnrData.fromServer(
-      template: {'id': 't1', 'questions': [{'id': 'q1', 'text': '키', 'type': '단답형', 'required': false}], 'total': 1},
+      template: {'id': 't1', 'questions': [{'id': 'q1', 'text': '키', 'type': 'short_text', 'required': false}], 'total': 1},
       response: null);
     expect(data.answers, isEmpty);
     expect(data.state, '미작성');
