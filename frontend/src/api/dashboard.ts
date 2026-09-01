@@ -26,9 +26,10 @@ export interface PatientRow {
   doctor_name?: string
 }
 
-/** 장기 대기 행(TODAY-WAIT-01) — 대기 분이 함께 온다. */
+/** 장기 대기 행(TODAY-WAIT-01) — 대기 분 + 시각 레일용 예약 시각(TODAY-ROW-01). 당일 방문은 슬롯이 없어 null. */
 export interface LongWaitRow extends PatientRow {
   wait_minutes: number
+  slot_time: string | null
 }
 
 /** 확인 필요한 예약 행(TODAY-RESCHED-23) — 취소·변경 상담이 사유로 온다. */

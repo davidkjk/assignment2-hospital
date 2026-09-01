@@ -434,8 +434,8 @@ function RowNode({
         )}
       </div>
 
-      {/* 생년월일(마스킹) / 번호 펼침(MASK-VIEW-01) */}
-      <div className="w-40 shrink-0 text-sm text-muted-foreground">
+      {/* 생년월일(마스킹) / 번호 펼침(MASK-VIEW-01) — 데모 폭(w-32). w-40이면 배지+버튼과 겹쳐 행이 넘쳤다(L70). */}
+      <div className="w-32 shrink-0 text-sm text-muted-foreground">
         {phone ? (
           <span className="font-medium text-foreground">
             {phone}
@@ -461,8 +461,9 @@ function RowNode({
         )}
       </div>
 
-      {/* 진료과/의사 */}
-      <div className="hidden w-28 shrink-0 text-sm text-muted-foreground md:block">
+      {/* 진료과/의사 — 이 행에서 유일하게 양보하는 열: 배지+버튼이 많은 행에선 이 칸이 먼저 줄며 말줄임되고
+          (min-w-0 truncate·shrink 허용), 버튼(특히 오른쪽 [환자 상세])은 절대 잘리지 않는다(L70). */}
+      <div className="hidden w-28 min-w-0 truncate text-sm text-muted-foreground md:block">
         {row.department_name} {row.doctor_name}
       </div>
 

@@ -425,8 +425,9 @@ const styles: Record<string, CSSProperties> = {
   columns: { display: 'flex', flex: 1, minHeight: 0 },
   col: { display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' },
   // 가운데 「환자 맥락」 열 프레임 — 데모 `w-80 bg-muted/20 p-4` 한 열. 카드 간격(gap)·인셋(padding)을
-  // 여기서 한 번만 준다(카드들은 자기 프레임 없음). borderRight로 오른쪽 기록 열과 가른다.
-  contextCol: { gap: 'var(--sp-3)', padding: 'var(--sp-4)', background: 'var(--color-bg)', borderRight: '1px solid var(--color-divider)' },
+  // 여기서 한 번만 준다(카드들은 자기 프레임 없음). ⛔ borderRight를 두지 않는다 — 오른쪽 경계는 열
+  // 리사이저의 가운데 선이 이미 긋는다. 여기에 또 border를 주면 선이 겹쳐 「회색 두 줄」이 됐다(2026-09-01).
+  contextCol: { gap: 'var(--sp-3)', padding: 'var(--sp-4)', background: 'var(--color-bg)' },
   recordCol: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', padding: 0 },
   recovered: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', margin: 'var(--sp-4)', marginBottom: 0, padding: 'var(--sp-2) var(--sp-3)',

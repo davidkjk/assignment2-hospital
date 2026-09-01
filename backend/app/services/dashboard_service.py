@@ -602,6 +602,7 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             f"""
             select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
                    d.name as doctor_name, dept.name as department_name,
+                   s.start_time as slot_time,
                    floor(extract(epoch from (now() - h.waited_since)) / 60)::int as wait_minutes
             from appointments a
             join patients p on p.id = a.for_patient_id
@@ -703,6 +704,8 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             patient_row_dto(
                 patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
                 appointment_id=r["appointment_id"], wait_minutes=r["wait_minutes"],
+                # TODAY-ROW-01: 시각 레일용 예약 시각(당일 방문은 슬롯이 없어 None).
+                slot_time=r["slot_time"],
                 doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in long_wait

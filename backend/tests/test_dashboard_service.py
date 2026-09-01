@@ -340,6 +340,8 @@ async def test_R2_03_대기시간은_진료대기_전이_시각_기준이다(db_
     s = await dashboard_service.get_today_summary(admin, conn=db_conn)
     assert s["long_wait"][0]["appointment_id"] == appt
     assert s["long_wait"][0]["wait_minutes"] >= 44
+    # [TODAY-ROW-01·L69] 시각 레일용 예약 시각을 함께 실어 보낸다(슬롯 있는 예약은 not None).
+    assert s["long_wait"][0]["slot_time"] is not None
 
 
 @pytest.mark.asyncio

@@ -76,7 +76,10 @@ function buildCards(data: TodaySummary): UiCard[] {
     cards.push({
       kind: 'longwait',
       title: '장기 대기',
-      rows: data.long_wait.map((r) => ({ ...baseRow(r), rail: `${r.wait_minutes}′`, railPast: false, reason: `${r.wait_minutes}분 대기` })),
+      // [TODAY-ROW-01] 시각 레일 = 예약 시각(다른 카드와 같은 축). 대기 분은 우측 사유 「N분 대기」로만
+      //   둔다(TODAY-WAIT-01) — 레일에도 분을 넣으면 같은 값이 두 번 나온다(L69). 당일 방문은 예약 시각이
+      //   없어(슬롯 없음) 레일에 「당일」을 둔다.
+      rows: data.long_wait.map((r) => ({ ...baseRow(r), rail: r.slot_time ? hhmm(r.slot_time) : '당일', railPast: false, reason: `${r.wait_minutes}분 대기` })),
     })
   if (data.not_arrived.length)
     cards.push({

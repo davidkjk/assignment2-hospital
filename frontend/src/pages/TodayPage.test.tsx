@@ -13,8 +13,9 @@ import type { TodaySummary } from '../api/dashboard'
 const FULL: TodaySummary = {
   tiles: { total_reserved: 24, arrived: 3, waiting: 5, in_progress: 2, completed: 12, cancelled_or_noshow: 2 },
   long_wait: [
-    { patient_id: 'p1', name: '김*동', masked_birth_date: '1990-**-**', appointment_id: 'a1', wait_minutes: 42 },
-    { patient_id: 'p2', name: '이*', masked_birth_date: '1985-**-**', appointment_id: 'a2', wait_minutes: 31 },
+    // a1 = 예약 환자(시각 레일 = 예약 시각), a2 = 당일 방문(슬롯 없음 → 레일 「당일」).
+    { patient_id: 'p1', name: '김*동', masked_birth_date: '1990-**-**', appointment_id: 'a1', wait_minutes: 42, slot_time: '09:10:00' },
+    { patient_id: 'p2', name: '이*', masked_birth_date: '1985-**-**', appointment_id: 'a2', wait_minutes: 31, slot_time: null },
   ],
   needs_attention: [
     { patient_id: 'p3', name: '박*수', masked_birth_date: '1978-**-**', appointment_id: 'a3', reason: '취소 상담 · 직원 확인 중' },
@@ -100,6 +101,18 @@ describe('오늘의 현황 /today', () => {
     renderToday()
     expect(await screen.findByRole('heading', { name: '장기 대기' })).toBeVisible()
     expect(screen.getByText('42분 대기')).toBeVisible()
+  })
+
+  test('[TODAY-ROW-01·L69] 장기 대기 레일은 예약 시각(예약 환자)·「당일」(당일 방문)이고, 대기 분을 두 번 보이지 않는다', async () => {
+    summaryOk(FULL)
+    renderToday()
+    const a1 = await screen.findByTestId('longwait-row-a1')
+    // 예약 환자: 레일 = 예약 시각. 대기 분(42′)은 레일에 없다 — 우측 「42분 대기」 사유로만 나온다.
+    expect(within(a1).getByText('09:10')).toBeVisible()
+    expect(within(a1).queryByText(/42′/)).toBeNull()
+    // 당일 방문(슬롯 없음): 레일 = 「당일」.
+    const a2 = await screen.findByTestId('longwait-row-a2')
+    expect(within(a2).getByText('당일')).toBeVisible()
   })
 
   test('[TODAY-BTN-01] 장기 대기 행은 [진료 시작] 없이 [대기 목록에서 보기]·[환자 상세]만 둔다', async () => {
