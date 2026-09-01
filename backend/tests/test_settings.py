@@ -15,6 +15,7 @@ from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.services import settings_service
 from app.services.settings_service import ValidationError
+from tests.conftest import seed_patient as seed_patient_auth
 from tests.conftest import seed_staff, set_session_auth
 from tests.task13_fixtures import seed_department, seed_doctor, seed_patient, to_context
 
@@ -218,3 +219,19 @@ def test_MSG_17_시각토큰은_슬롯없는_예약에서_그자리만_조용히
     assert body == "8월 12일 예약"
     assert "None" not in body
     assert "{시각}" not in body
+
+
+@pytest.mark.asyncio
+async def test_SEC_01_공개병원정보는_환자_컨텍스트로_읽힌다(db_conn):
+    """[HSETX-SEC-01] hospital_settings SELECT 정책은 staff(is_active_staff)만이라 환자/익명
+    컨텍스트로는 표를 직접 못 읽어 get_public_hospital_info 가 dict(None) 500 이었다.
+    00077 이 공개 2필드(주소·전화)만 반환하는 SECURITY DEFINER 함수를 얹어 환자도 200 으로 읽는다.
+    (예약상세 장소·전화 APPT-INFO-04·05 / 홈 병원정보줄 HOME-INFO / 설정 병원안내 3화면 복구.)"""
+    patient = await seed_patient_auth(db_conn, name="병원정보조회자")
+    await set_session_auth(db_conn, patient["auth_user_id"])
+
+    info = await settings_service.get_public_hospital_info(conn=db_conn)
+
+    assert set(info.keys()) == {"hospital_address", "hospital_phone"}  # 좁은 창구(설정 유출 없음)
+    assert info["hospital_address"] is not None                        # None(=500) 아님
+    assert info["hospital_phone"] is not None

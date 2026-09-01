@@ -164,15 +164,21 @@ async def get_settings(staff, *, conn=None) -> dict:
 
 
 async def get_public_hospital_info(*, conn=None) -> dict:
-    """HSETX-SEC-01 — 환자 앱용 좁은 창구(주소·전화만). 취소마감·자동확정은 새지 않는다."""
+    """HSETX-SEC-01 — 환자 앱용 좁은 창구(주소·전화만). 취소마감·자동확정은 새지 않는다.
+
+    hospital_settings SELECT 정책은 staff(is_active_staff)만이라 환자/익명 컨텍스트로는
+    표를 직접 못 읽는다. 00077 이 공개 2필드만 반환하는 SECURITY DEFINER 함수를 얹었다 —
+    RLS 를 우회하되 주소·전화만 나온다. 표가 비어도 None 이 아니라 빈 문자열로 방어한다."""
     async def query(c):
-        row = await c.fetchrow("select hospital_address, hospital_phone from hospital_settings where id")
-        return dict(row)
+        row = await c.fetchrow("select hospital_address, hospital_phone from public.get_public_hospital_info()")
+        return {
+            "hospital_address": (row["hospital_address"] if row else None) or "",
+            "hospital_phone": (row["hospital_phone"] if row else None) or "",
+        }
 
     if conn is not None:
         return await query(conn)
-    # 공개 정보는 서비스 롤 없이 읽어야 하나, 현재는 관리자 세션에서만 호출된다.
-    async with acquire_as(None) as c:  # pragma: no cover - 배선은 환자앱 경로
+    async with acquire_as(None) as c:
         return await query(c)
 
 
