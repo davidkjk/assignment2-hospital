@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { ApiError } from '../../../api/httpClient'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
-import { btnPrimary, btnGhost } from '../../../components/staff-ui'
+import { btnPrimary, btnGhost, tableHeadCell } from '../../../components/staff-ui'
 import { PanelCard } from './PanelCard'
 import { DirtyDot } from './DirtyDot'
 import { ScheduleTimeInput, TIME_FIELD_CLASS, isValidHHMM, TIME_FORMAT_ERROR } from './ScheduleTimeInput'
@@ -410,15 +410,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
-  th: {
-    padding: 'var(--sp-2) var(--sp-2)',
-    textAlign: 'center',
-    fontSize: 'var(--fs-caption)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-    color: 'var(--color-ink-muted)',
-    borderBottom: '1px solid var(--color-divider)',
-    whiteSpace: 'nowrap',
-  },
+  th: { ...tableHeadCell, textAlign: 'center', whiteSpace: 'nowrap' },
   td: { padding: 'var(--sp-1) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', whiteSpace: 'nowrap' },
   tdLabel: { padding: 'var(--sp-1) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], whiteSpace: 'nowrap' },
   tdLabelPad: { padding: 'var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-4)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], whiteSpace: 'nowrap' },

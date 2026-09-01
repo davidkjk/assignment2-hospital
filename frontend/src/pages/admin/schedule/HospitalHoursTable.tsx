@@ -1,6 +1,6 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { InlineError } from '../../../components/InlineError'
-import { Checkbox, btnPrimary, btnGhost, TextButton } from '../../../components/staff-ui'
+import { Checkbox, btnPrimary, btnGhost, TextButton, tableHeadCell } from '../../../components/staff-ui'
 import { PanelCard } from './PanelCard'
 import { ScheduleTimeInput, TIME_FIELD_CLASS, isValidHHMM, TIME_FORMAT_ERROR } from './ScheduleTimeInput'
 import { WEEKDAY_FULL, hhmm, type HospitalHoursRow } from './types'
@@ -274,7 +274,7 @@ const styles: Record<string, CSSProperties> = {
   tableScroll: { overflowX: 'auto' },
   footer: { padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
-  th: { padding: 'var(--sp-2)', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)', borderBottom: '1px solid var(--color-divider)' },
+  th: { ...tableHeadCell, textAlign: 'center' },
   td: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
   tdLabel: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
   tdLabelPad: { padding: 'var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },

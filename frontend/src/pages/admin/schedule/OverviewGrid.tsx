@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../../components/EmptyState'
-import { btnPrimary } from '../../../components/staff-ui'
+import { btnPrimary, tableHeadCell } from '../../../components/staff-ui'
 import { PanelCard } from './PanelCard'
 import { WEEKDAY_SHORT, type OverviewDoctor } from './types'
 
@@ -125,14 +125,7 @@ const styles: Record<string, CSSProperties> = {
   legendHint: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', opacity: 0.75 },
   tableScroll: { overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
-  th: {
-    padding: 'var(--sp-2) var(--sp-2)',
-    textAlign: 'center',
-    fontSize: 'var(--fs-caption)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-    color: 'var(--color-ink-muted)',
-    borderBottom: '1px solid var(--color-divider)',
-  },
+  th: { ...tableHeadCell, textAlign: 'center' },
   thDoctor: { textAlign: 'left', minWidth: 120, paddingLeft: 'var(--sp-4)' },
   thSat: { color: 'var(--color-weekend-sat)' },
   thSun: { color: 'var(--color-weekend-sun)' },

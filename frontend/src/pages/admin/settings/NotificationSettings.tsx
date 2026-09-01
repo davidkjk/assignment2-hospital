@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { NOTIFICATION_LABELS, NOTIFICATION_ORDER, type NotificationType, type Settings } from '../../../api/settings'
-import { Checkbox, TextArea } from '../../../components/staff-ui'
+import { Checkbox, TextArea, tableHeadCell, tableCell } from '../../../components/staff-ui'
 
 // [HSET-MSG-*] 자동 알림 — 종류·문구·문자도 발송 세 열(HSET-MSG-02, 「문자로도」 라벨 개정 2026-08-24).
 // 토큰은 버튼으로 꽂는다(HSET-MSG-16, 오타 방지). 고친 줄에만 「기본 문구로」(HSET-MSG-22). 문자가 꺼져 있으면
@@ -84,8 +84,8 @@ const styles: Record<string, CSSProperties> = {
   intro: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
   strip: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', padding: 'var(--sp-3) var(--sp-4)', background: 'var(--color-done-bg)', borderRadius: 8, fontSize: 'var(--fs-caption)' },
   table: { borderCollapse: 'collapse', width: '100%' },
-  th: { textAlign: 'left', padding: 'var(--sp-2)', borderBottom: '2px solid var(--color-divider)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  td: { padding: 'var(--sp-3) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', verticalAlign: 'top', fontSize: 'var(--fs-body)' },
+  th: { ...tableHeadCell, textAlign: 'left' },
+  td: { ...tableCell, padding: 'var(--sp-3) var(--sp-2)', verticalAlign: 'top', fontSize: 'var(--fs-body)' },
   tokens: { display: 'flex', gap: 'var(--sp-2)', marginBottom: 'var(--sp-2)' },
   tokenBtn: { fontSize: 'var(--fs-caption)', padding: 'var(--sp-1) var(--sp-3)', borderRadius: 999, border: '1px solid var(--color-divider)', background: 'var(--color-surface)', cursor: 'pointer', color: 'var(--color-ink)' },
   revert: { marginTop: 'var(--sp-2)', fontSize: 'var(--fs-caption)', border: '1px solid var(--color-divider)', background: 'var(--color-surface)', borderRadius: 6, padding: 'var(--sp-1) var(--sp-3)', cursor: 'pointer', color: 'var(--color-ink-muted)' },
