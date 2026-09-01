@@ -44,6 +44,23 @@ void main() {
     expect(notificationTitle('questionnaire_missing'), '사전문진 안내');
     expect(notificationTitle('hospital_cancelled'), '예약 취소');
   });
+  // ⭐ 실계약 회귀: 직원 메시지(message_service)가 쓰는 rescheduled·staff_direct도 notification_log에
+  //    실려 환자 알림함에 뜬다. 종전엔 위젯 switch에 없어 제네릭 '알림'으로 뭉갰다(세션3·4 갭②).
+  test('[NOTI-LIST-01] 직원발 일정변경(rescheduled)=예약 변경, 직원 직접안내(staff_direct)=병원 안내', () {
+    expect(notificationTitle('rescheduled'), '예약 변경'); // SEND-BADGE-02 「직원이 보낸 일정 변경 안내」
+    expect(notificationTitle('staff_direct'), '병원 안내'); // PUSH-BODY-05
+    expect(notificationTitle('rescheduled'), isNot('알림')); // 제네릭 아님
+    expect(notificationTitle('staff_direct'), isNot('알림'));
+  });
+  test('[NOTI-READ-01] rescheduled(예약 변경)은 중요, staff_direct(일반 안내)는 일반', () {
+    expect(notificationImportant('rescheduled'), isTrue);
+    expect(notificationImportant('staff_direct'), isFalse);
+  });
+  test('[NOTI-GO-02] rescheduled는 예약 상세로(appointment_id 있으면), staff_direct는 예약 없으면 목적지 없음', () {
+    expect(resolveNotificationRoute(_n('rescheduled')), '/appointments/ap1');
+    expect(resolveNotificationRoute(_n('rescheduled', appt: null)), isNull);
+    expect(resolveNotificationRoute(_n('staff_direct', appt: null)), isNull);
+  });
   test('[NOTI-LIST-01] 날짜 묶음은 오늘/어제/그 밖 날짜로 가른다', () {
     final now = DateTime(2026, 8, 18, 15);
     expect(notificationDateGroup(DateTime(2026, 8, 18, 9), now), '오늘');

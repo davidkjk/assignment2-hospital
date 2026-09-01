@@ -11,6 +11,9 @@ import 'notification_view.dart';
 Future<void> openNotification(BuildContext context, WidgetRef ref, NotificationView view) async {
   final route = resolveNotificationRoute(view);
   if (route == null) {
+    // 직원 직접 안내(staff_direct)가 특정 예약을 가리키지 않으면 = 순수 공지다. 열 곳이 없을 뿐
+    // 「사라진 예약」이 아니므로 오도 팝업(이 예약은 볼 수 없습니다)을 띄우지 않고 조용히 넘긴다.
+    if (view.notificationType == 'staff_direct' && view.appointmentId == null) return;
     // 목적지 자체가 정의되지 않음(예: appointment_id 없는 변경 알림) → 갈 곳 없음.
     showNotificationGoneDialog(context);
     return;

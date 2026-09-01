@@ -52,12 +52,15 @@ void main() {
     final items = [
       n('confirmed', '2026-08-18', read: false, body: '김순자님 예약이 확정되었습니다'),
       n('changed', '2026-08-18', read: false, body: '병원 사정으로 예약 시간이 변경되었습니다'),
+      // 직원 메시지(message_service)가 쓰는 실 타입 — 종전 제네릭 '알림'으로 깨지던 것(세션3·4 갭②).
+      n('rescheduled', '2026-08-18', read: false, body: '예약 시각이 변경되었습니다. 확인 부탁드립니다'),
+      n('staff_direct', '2026-08-18', read: false, body: '병원에서 보내드리는 안내입니다'),
       n('questionnaire_missing', '2026-08-18', read: true, body: '진료 전 사전문진을 작성할 수 있습니다'),
       n('reminder_day_before', '2026-08-17', read: true, body: '내일 예약 하루 전 안내입니다'),
       n('support_answered', '2026-08-17', read: false, body: '상담방에 새로운 답변이 있습니다'),
       n('hospital_cancelled', '2026-08-16', read: true, body: '병원 사정으로 예약이 취소되었습니다'),
     ];
-    await t.binding.setSurfaceSize(const Size(390, 1000));
+    await t.binding.setSurfaceSize(const Size(390, 1200));
     addTearDown(() => t.binding.setSurfaceSize(null));
     await t.pumpWidget(ProviderScope(
       overrides: [

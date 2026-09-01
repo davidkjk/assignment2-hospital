@@ -35,6 +35,8 @@ String? resolveNotificationRoute(NotificationView n) {
     case 'requested':
     case 'confirmed':
     case 'changed':
+    case 'rescheduled': // 직원발 일정 변경 안내(message_service) — 예약 변경과 같은 목적지
+    case 'staff_direct': // 직원 직접 안내 — 예약을 가리키면 상세로, 아니면(브로드캐스트) 아래 no-op(openNotification)
     case 'reminder_day_before':
     case 'reminder_today':
     case 'cancellation_rejected':
@@ -59,6 +61,7 @@ String? resolveNotificationRoute(NotificationView n) {
 /// NOTI-READ-01: 중요(변경·취소)=주의색 / 일반=딥틸.
 bool notificationImportant(String type) => const {
       'changed',
+      'rescheduled', // 직원발 일정 변경도 예약 변경 = 놓치면 손해(SEND-BADGE-02)
       'hospital_cancelled',
       'cancellation_approved',
       'cancellation_rejected',
@@ -68,7 +71,8 @@ bool notificationImportant(String type) => const {
 String notificationTitle(String type) => switch (type) {
       'requested' => '예약 신청',
       'confirmed' => '예약 확정',
-      'changed' => '예약 변경',
+      'changed' || 'rescheduled' => '예약 변경', // rescheduled=직원발 일정 변경(message_service)
+      'staff_direct' => '병원 안내', // 직원 직접 안내·공지(PUSH-BODY-05)
       'reminder_day_before' => '내일 예약 안내',
       'reminder_today' => '오늘 예약 안내',
       'hospital_cancelled' => '예약 취소',
@@ -85,11 +89,12 @@ String notificationTitle(String type) => switch (type) {
 IconData notificationIcon(String type) => switch (type) {
       'requested' || 'confirmed' => Icons.event_available, // 예약(CalendarCheck2)
       'reminder_day_before' || 'reminder_today' => Icons.schedule, // 리마인더(CalendarClock)
-      'changed' || 'hospital_cancelled' || 'cancellation_approved' || 'cancellation_rejected' =>
+      'changed' || 'rescheduled' || 'hospital_cancelled' || 'cancellation_approved' || 'cancellation_rejected' =>
         Icons.error_outline, // 변경·취소(AlertCircle)
       'questionnaire_missing' => Icons.assignment_outlined, // 문진(ClipboardList)
       'support_answered' => Icons.chat_bubble_outline, // 상담(MessageCircle)
       'visit_completed' => Icons.description_outlined, // 진료 후 안내(FileText)
+      'staff_direct' => Icons.campaign_outlined, // 병원 직접 안내·공지
       _ => Icons.notifications_none,
     };
 
