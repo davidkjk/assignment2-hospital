@@ -45,6 +45,9 @@ const styles: Record<string, CSSProperties> = {
   },
   dialog: {
     width: 360,
+    // [G2 전역] 뷰포트를 넘지 않게 상한 + 내부 스크롤 — 하단 버튼이 화면 밖으로 밀리지 않게.
+    maxHeight: 'calc(100vh - 32px)',
+    overflowY: 'auto',
     background: 'var(--color-surface)',
     borderRadius: 10,
     padding: 'var(--sp-5)',

@@ -66,6 +66,11 @@ export const dialogStyles: Record<string, CSSProperties> = {
   },
   dialog: {
     width: 'min(420px, calc(100vw - 32px))',
+    // [G2 전역] 내용이 길어도 모달이 뷰포트를 넘지 않게 상한을 두고 안쪽에서 스크롤한다 —
+    //   상한이 없으면 하단 [취소]·[확인] 버튼이 화면 밖으로 밀려 누를 수 없다(L31 원인).
+    //   긴 목록을 가진 모달은 여기 더해 그 목록만 따로 내부 스크롤을 준다(예: DeactivateDialog).
+    maxHeight: 'calc(100vh - 32px)',
+    overflowY: 'auto',
     background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
