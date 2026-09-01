@@ -16,6 +16,8 @@ interface AppointmentPanelLoaderProps {
   onClose: () => void
   /** 취소가 성공한 뒤 — 패널을 닫고 캘린더 격자를 새로 읽어 취소된 막대를 지운다(openBooking과 같은 패턴). */
   onDone?: () => void
+  /** [L1][CAL-PANEL-02] 변경 시작 — 이 예약을 읽은 값(의사·환자·날짜)을 캘린더로 넘겨 변경 모드로 들어간다. */
+  onReschedule?: (detail: AppointmentDetailData) => void
 }
 
 /** '취소'/'변경'(서버 request_type)을 패널의 상담 종류로 옮긴다. */
@@ -39,7 +41,7 @@ function doctorLabel(d: AppointmentDetailData): string {
   return `${d.department_name ?? ''} / ${d.doctor_name ?? ''}`.replace(/^ \/ /, '').replace(/ \/ $/, '')
 }
 
-export function AppointmentPanelLoader({ appointmentId, onClose, onDone }: AppointmentPanelLoaderProps) {
+export function AppointmentPanelLoader({ appointmentId, onClose, onDone, onReschedule }: AppointmentPanelLoaderProps) {
   const q = useQuery({
     queryKey: ['appointment', appointmentId],
     queryFn: () => getAppointmentDetail(appointmentId),
@@ -85,6 +87,7 @@ export function AppointmentPanelLoader({ appointmentId, onClose, onDone }: Appoi
         timeLabel: timeLabel(d.start),
       }}
       support={toSupport(d.support)}
+      onReschedule={onReschedule ? () => onReschedule(d) : undefined}
       onCancel={(reason) => {
         // mutateAsync는 실패 시 reject한다 — 오류는 cancelMut.isError로 이미 화면에 보이므로
         // 여기선 삼켜 unhandled rejection만 막는다(막다른 길 대신 actionError로 안내).

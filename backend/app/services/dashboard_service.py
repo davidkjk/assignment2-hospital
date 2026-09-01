@@ -502,7 +502,7 @@ async def get_appointment_detail(appointment_id, staff: StaffContext, *, conn=No
         row = await c.fetchrow(
             """
             select a.id, a.status, a.request_type, a.support_requested_at, a.updated_at,
-                   a.for_patient_id, p.name, p.phone, p.birth_date,
+                   a.for_patient_id, a.doctor_id, p.name, p.phone, p.birth_date,
                    d.name as doctor_name, dept.name as department_name,
                    s.slot_date, s.start_time
             from appointments a
@@ -525,6 +525,9 @@ async def get_appointment_detail(appointment_id, staff: StaffContext, *, conn=No
         return {
             "appointment_id": row["id"],
             "status": row["status"],
+            # [L1][schedule-change] 재예약은 같은 의사의 다른 빈 시각으로 옮긴다 — 화면이 그 의사 열로
+            # 격자를 좁히고(CAL-PANEL-02·TODAY-RESCHED-05) 고른 빈칸의 레인을 확인하려면 doctor_id가 필요하다.
+            "doctor_id": str(row["doctor_id"]),
             "doctor_name": row["doctor_name"],
             "department_name": row["department_name"],
             "start": start,

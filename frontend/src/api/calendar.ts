@@ -58,6 +58,8 @@ export interface CalendarData {
 export interface AppointmentDetailData {
   appointment_id: string
   status: string
+  /** [L1][schedule-change] 재예약(같은 의사·다른 시각)에서 그 의사 열로 격자를 좁히는 데 쓴다. */
+  doctor_id: string
   doctor_name: string | null
   department_name: string | null
   start: string | null

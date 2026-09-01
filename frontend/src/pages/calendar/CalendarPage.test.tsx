@@ -49,7 +49,7 @@ function appointmentOk(over: Record<string, unknown> = {}) {
   server.use(
     http.get('*/appointments/:id', () =>
       HttpResponse.json({
-        appointment_id: 'a1', status: 'confirmed', doctor_name: '박지훈', department_name: '내과',
+        appointment_id: 'a1', status: 'confirmed', doctor_id: 'd1', doctor_name: '박지훈', department_name: '내과',
         start: '2026-08-06T10:00:00', updated_at: '2026-08-06T00:30:00Z',
         patient: { patient_id: 'p1', name: '김*지' }, support: null, ...over,
       }),
@@ -264,6 +264,85 @@ test('[CAL-PANEL-*] 딥링크한 예약이 오늘 격자에 없어도(미래 날
   expect(await within(panel).findByText(/오\*은/)).toBeVisible()      // 텅 빈 「환자」가 아니다
   expect(within(panel).getByText('2026-09-03 17:00')).toBeVisible()   // 미래 날짜 시각
   expect(within(panel).getByText('변경 상담')).toBeVisible()          // 상담 요약(SUPPORT-CAL-*)
+})
+
+test('[CAL-PANEL-01][schedule-change] [예약 변경]을 누르면 변경 모드로 들어가 환자·의사가 채워진 패널이 열린다', async () => {
+  calendarOk()
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 변경' }))
+  // 변경 모드 — 환자·의사는 그대로 두고 새 시각을 왼쪽에서 고르라고 안내한다(CAL-RACE-03·CAL-PANEL-02).
+  expect(await within(panel).findByText('변경 중')).toBeVisible()
+  expect(within(panel).getByRole('heading', { name: /김\*지/ })).toBeVisible()
+  expect(within(panel).getByText(/왼쪽 캘린더에서 새 시각을 고르세요/)).toBeVisible()
+  expect(within(panel).getByRole('button', { name: '예약 변경 저장' })).toBeDisabled()
+})
+
+test('[CAL-PANEL-02][schedule-change] 왼쪽에서 새 빈 시각을 고르고 사유를 적어 저장하면 새 시각·사유로 재예약하고 캘린더를 새로고침한다', async () => {
+  let posted: Record<string, unknown> | null = null
+  let calendarCalls = 0
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', () => {
+      calendarCalls += 1
+      // 저장 뒤 새로고침에서는 막대가 새 시각으로 옮겨졌다고 본다(옮긴 자리 확인은 백엔드 몫).
+      return HttpResponse.json(calendarCalls <= 1 ? DATA : { ...DATA, appointments: [] })
+    }),
+    http.post('*/appointments/a1/reschedule', async ({ request }) => {
+      posted = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ status: 'rescheduled' })
+    }),
+  )
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 변경' }))
+  await within(panel).findByText('변경 중')
+  // 같은 의사(d1) 열의 빈 시각을 고른다 — 변경 모드라 새 예약 문이 아니라 이 패널의 새 시각으로 들어간다.
+  const col = within(screen.getByTestId('day-grid')).getByTestId('column-d1')
+  await user.click(within(col).getAllByText(/빈 시간/)[0])
+  await user.type(within(panel).getByLabelText('변경 사유'), '환자 요청으로 시간 이동')
+  await user.click(within(panel).getByRole('button', { name: '예약 변경 저장' }))
+
+  await waitFor(() => expect(posted).not.toBeNull())
+  expect(posted).toMatchObject({ reason: '환자 요청으로 시간 이동' })
+  expect(String(posted!.new_start_at)).toMatch(/^2026-08-06T\d{2}:\d{2}/)
+  // 성공하면 패널이 닫히고 격자를 새로 읽는다.
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: '패널' })).toBeNull())
+})
+
+test('[CAL-RACE-04][G1] 재예약 저장이 충돌(409)하면 시각을 비우고 이유를 알리되 패널·사유는 남는다', async () => {
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', () => HttpResponse.json(DATA)),
+    http.post('*/appointments/a1/reschedule', () =>
+      HttpResponse.json({ detail: '다른 시간을 선택하세요' }, { status: 409 }),
+    ),
+  )
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 변경' }))
+  await within(panel).findByText('변경 중')
+  const col = within(screen.getByTestId('day-grid')).getByTestId('column-d1')
+  await user.click(within(col).getAllByText(/빈 시간/)[0])
+  await user.type(within(panel).getByLabelText('변경 사유'), '환자 요청')
+  await user.click(within(panel).getByRole('button', { name: '예약 변경 저장' }))
+
+  // 막다른 길 대신 이유(CAL-RACE-04) — 패널은 그대로, 사유는 남고, 시각만 비운다.
+  expect(await within(panel).findByRole('alert')).toHaveTextContent(/다른 직원이 이 자리를 잡았습니다/)
+  expect(within(panel).getByLabelText('변경 사유')).toHaveValue('환자 요청')
+  expect(within(panel).getByText(/왼쪽 캘린더에서 새 시각을 고르세요/)).toBeVisible()
 })
 
 test('[CAL-SLOT-06][CAL-BOOK-01] 빈 구간을 누르면 헤더와 같은 예약 문이 의사·날짜 프리필로 열린다 (캘린더 전용 「전화 예약」 패널을 따로 두지 않는다)', async () => {
