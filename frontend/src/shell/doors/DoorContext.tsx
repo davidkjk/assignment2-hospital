@@ -55,12 +55,13 @@ export function DoorProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<Draft>({})
   const [flash, setFlash] = useState<Flash>(null)
 
-  // ⚠️ 그릇이 둘이다 — 세 문은 `DoorRegion`, 소비 화면(검색·안내 보내기)은 `PanelHost`.
-  //    `PANEL-ONE-01`(패널은 언제나 하나)을 지키려고 서로 열릴 때 상대를 닫는다.
-  //    TODO(S1) 일부 해소(2026-08-31): 캘린더 「새 예약」은 전용 PhoneBookingPanel(PanelHost)을
-  //    폐기하고 헤더 예약 문(`openBookingAt`)으로 통합했다(그릇 통합, CAL-SLOT-06·CAL-BOOK-01).
-  //    캘린더의 「예약 블록 클릭 → 상세 사이드패널」(CAL-SLOT-07/AppointmentPanel)은 아직 PanelHost.
-  //    남은 통합(검색·안내 보내기 패널)은 화면 포팅 때 한 번 정한다(계획 §5 이월 항목).
+  // 그릇은 둘이되(세 문=`DoorRegion`, 소비 화면=`PanelHost`) **한 몸처럼 보인다**(2026-08-31 손검수 ③ A안).
+  //    `PANEL-ONE-01`(패널은 언제나 하나)을 지키려고 서로 열릴 때 상대를 닫고, 이제 **둘 다 헤더 아래 같은 행에
+  //    인라인**으로 앉아 폭(380)·왼쪽 실선·그림자 없음까지 같다(PanelHost가 옛 오버레이·320px를 버리고 도어에 맞춤).
+  //    S1 해소 경과: 캘린더 「새 예약」은 헤더 예약 문(`openBookingAt`)으로 통합(CAL-SLOT-06·CAL-BOOK-01);
+  //    안내 보내기는 본화면 2단으로 이동(SEND-BOX-01·03); 나머지 패널(예약 상세·안 닿은 명단·전화번호 변경·
+  //    당일 방문·진료문구·가족 연결)은 그릇은 PanelHost로 두되 **UI를 도어와 통일**(A안). 가족 연결의 진짜 2단은
+  //    서버(배포 Task 7E) 이후 안내 보내기처럼 만든다.
   const { panel, closePanel } = usePanel()
 
   const api = useMemo<DoorApi>(() => {

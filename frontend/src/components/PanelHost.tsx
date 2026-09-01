@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { ChevronLeft, Pencil } from './icons'
 
 // ⭐ 패널은 자리가 아니라 상태다 — **앱 전체에 하나**(`PANEL-ONE-01`). 오른쪽에서 열리면 「만드는 중」.
 // 직원이 배우는 규칙 한 줄: *오른쪽에서 열리면 「만드는 중」, 가운데서 막아서면 「확인해야 넘어감」.*
@@ -61,6 +62,9 @@ export function usePanel(): PanelContextValue {
   return ctx
 }
 
+// ⭐ 도어(등록·접수·예약) 패널과 같은 껍데기로 통일한다(2026-08-31 손검수 ③ A안) — 헤더 아래 같은 행에
+//   인라인으로 앉아 헤더 폭을 줄이지 않고(옛 오버레이·그림자·320px 폐기), 폭 380·왼쪽 실선·그림자 없음으로
+//   도어와 결을 맞춘다. 접기/닫기 글자(»접기·✕ 닫기)와 접힘 띠의 「작성 중」 계약은 그대로 지킨다(PANEL-LIVE-*).
 export function PanelHost() {
   const { panel, collapsed, expandPanel, collapsePanel, closePanel } = usePanel()
   if (!panel) return null
@@ -68,79 +72,58 @@ export function PanelHost() {
   return (
     <>
       {collapsed && (
-        // 얇은 띠 — 작성 중이라는 사실이 화면에 남는다. 눌러서 다시 펼친다.
-        <aside role="complementary" aria-label="작성 중인 패널" style={styles.strip}>
-          <button type="button" onClick={expandPanel} style={styles.stripBtn}>
-            {panel.title} 작성 중
+        // 세로 띠 — 작성 중이라는 사실이 화면에 남는다(도어 접힘 띠와 같은 결). 눌러서 다시 펼친다.
+        <aside
+          role="complementary"
+          aria-label="작성 중인 패널"
+          className="flex w-11 shrink-0 flex-col border-l border-border bg-card"
+        >
+          <button
+            type="button"
+            onClick={expandPanel}
+            className="flex flex-1 flex-col items-center gap-2 py-4 text-primary hover:bg-muted"
+          >
+            <Pencil className="h-4 w-4" />
+            <span className="text-xs font-medium text-muted-foreground" style={{ writingMode: 'vertical-rl' }}>
+              {panel.title} 작성 중
+            </span>
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
           </button>
         </aside>
       )}
-      {/* 본 패널은 접혔을 때도 떼지 않고 감추기만 한다 — 채운 것(입력값)이 살아 있어야 하기 때문. */}
+      {/* 본 패널은 접혔을 때도 떼지 않고 감추기만 한다 — 채운 것(입력값)이 살아 있어야 하기 때문.
+          hidden 속성(트리 제외) + Tailwind hidden 클래스(실 브라우저 display:none) 둘 다 건다. */}
       <aside
         role="complementary"
         aria-label="패널"
         hidden={collapsed}
-        style={collapsed ? { display: 'none' } : styles.panel}
+        className={collapsed ? 'hidden' : 'flex w-[380px] max-w-[42vw] shrink-0 flex-col border-l border-border bg-card'}
       >
-        <header style={styles.header}>
-          <span style={styles.title}>{panel.title}</span>
-          <span style={styles.headerBtns}>
-            <button type="button" onClick={collapsePanel} style={styles.ghost}>»접기</button>
-            <button type="button" onClick={closePanel} style={styles.ghost}>✕ 닫기</button>
-          </span>
-        </header>
-        <div style={styles.body}>{panel.content}</div>
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+          <div className="flex items-center gap-2">
+            <Pencil className="h-5 w-5 text-primary" />
+            <h2 className="text-base font-semibold">{panel.title}</h2>
+          </div>
+          {/* 접기 ≠ 닫기 — 글자로 구분(PANEL-LIVE-05). ✕는 채운 것이 사라지고 묻지 않는다(PANEL-LIVE-06). */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={collapsePanel}
+              className="rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              »접기
+            </button>
+            <button
+              type="button"
+              onClick={closePanel}
+              className="rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-600"
+            >
+              ✕ 닫기
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">{panel.content}</div>
       </aside>
     </>
   )
-}
-
-const styles: Record<string, CSSProperties> = {
-  panel: {
-    width: 320,
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    background: 'var(--color-surface)',
-    borderLeft: '1px solid var(--color-divider)',
-    boxShadow: '-2px 0 8px rgba(16,36,58,.06)',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 'var(--sp-2)',
-    padding: 'var(--sp-3) var(--sp-3)',
-    borderBottom: '1px solid var(--color-divider)',
-  },
-  title: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  headerBtns: { display: 'flex', gap: 'var(--sp-1)' },
-  ghost: {
-    height: 26,
-    padding: '0 var(--sp-2)',
-    borderRadius: 6,
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--color-ink-muted)',
-    fontSize: 'var(--fs-caption)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-    cursor: 'pointer',
-  },
-  body: { padding: 'var(--sp-3)', overflow: 'auto', flex: 1 },
-  strip: {
-    display: 'flex',
-    background: 'var(--color-primary-wash)',
-    borderLeft: '3px solid var(--color-primary)',
-  },
-  stripBtn: {
-    flex: 1,
-    padding: 'var(--sp-2) var(--sp-3)',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--color-primary)',
-    fontSize: 'var(--fs-caption)',
-    fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
-    textAlign: 'left',
-    cursor: 'pointer',
-  },
 }

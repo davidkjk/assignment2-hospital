@@ -77,10 +77,11 @@ function ShellBody() {
             <MainRegion />
             {/* 세 문의 오른쪽 패널 — 열려 있으면 왼쪽이 그 칸의 도구로 바뀐다(SHELL-DOOR-06). */}
             <DoorRegion />
+            {/* 앱 전체에 하나뿐인 「만드는 중」 패널(PANEL-ONE-01) — 소비 화면이 openPanel로 채운다.
+                도어와 같은 행(헤더 아래)에 인라인으로 둔다 — 헤더 폭을 줄이지 않고 도어와 폭·결을 맞춘다(손검수 ③ A안). */}
+            <PanelHost />
           </div>
         </div>
-        {/* 앱 전체에 하나뿐인 「만드는 중」 패널(PANEL-ONE-01) — 소비 화면이 openPanel로 채운다. */}
-        <PanelHost />
       </div>
     </>
   )
