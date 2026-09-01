@@ -78,15 +78,19 @@ end $$;
 
 do $$
 declare
-  v_pids uuid[]; v_reception uuid; v_admin uuid; v_appts uuid[]; v_now timestamptz := now();
+  v_pids uuid[]; v_reception uuid; v_admin uuid; v_now timestamptz := now();
+  v_appt_cancel uuid; v_appt_change uuid;
 begin
   select array(select id from patients where is_active order by created_at limit 4) into v_pids;
   select id into v_reception from staff where role='receptionist' and is_active order by created_at limit 1;
   select id into v_admin     from staff where role='admin'        and is_active order by created_at limit 1;
-  select array(select id from appointments where slot_id is not null order by created_at desc limit 2) into v_appts;
+  -- ⭐ SUPPORT-CAL-DUP-01 데모: 티켓을 「마감 후 상담 예약」(support_requested_at)에 연결해야 예약 캘린더
+  --    패널이 상담 요약 + [상담 전체 보기]를 보인다. 취소 티켓→취소 예약, 변경 티켓→변경 예약으로 맞춘다.
+  select id into v_appt_cancel from appointments where request_type='취소' and support_requested_at is not null order by created_at desc limit 1;
+  select id into v_appt_change from appointments where request_type='변경' and support_requested_at is not null order by created_at desc limit 1;
 
   -- 새 문의(pending) — 취소 상담(예약 연결)
-  perform pg_temp.make_ticket(v_pids[1], 'cancel_booking', 'pending', null, v_appts[1],
+  perform pg_temp.make_ticket(v_pids[1], 'cancel_booking', 'pending', null, v_appt_cancel,
     '내일 예약을 취소하고 싶어요', '예약 취소는 직원 확인이 필요해 상담으로 연결해 드릴게요.',
     v_now - interval '22 minutes', null);
   -- 새 문의(pending) — 의료 판단
@@ -94,7 +98,7 @@ begin
     '혈압약을 오늘 한 번 더 먹어도 되나요?', '추가 복용 전에 의료진 확인이 필요해 상담으로 연결할게요.',
     v_now - interval '8 minutes', null);
   -- 처리 중(in_progress) — 변경 상담(예약 연결·접수직원 담당)
-  perform pg_temp.make_ticket(v_pids[3], 'change_booking', 'in_progress', v_reception, v_appts[2],
+  perform pg_temp.make_ticket(v_pids[3], 'change_booking', 'in_progress', v_reception, v_appt_change,
     '예약 시간을 오후로 바꿀 수 있나요?', '가능한 시간 확인을 위해 직원 상담으로 연결해 드릴게요.',
     v_now - interval '50 minutes', '가능한 오후 시간을 확인하고 있습니다. 잠시만 기다려 주세요.');
   -- 답변 완료(answered) — 일반 문의(관리자 담당·종료)
