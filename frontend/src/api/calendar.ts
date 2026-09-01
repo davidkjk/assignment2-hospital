@@ -62,7 +62,14 @@ export interface AppointmentDetailData {
   department_name: string | null
   start: string | null
   patient: { patient_id: string; name?: string; masked_phone?: string; masked_birth_date?: string }
-  support: { request_type: string; requested_at: string } | null
+  // ticket_id·ticket_count·ticket_status는 대표 상담 티켓(SUPPORT-CAL-DUP-01) — 상담 기록이 있을 때만.
+  support: {
+    request_type: string
+    requested_at: string
+    ticket_id?: string | null
+    ticket_status?: string | null
+    ticket_count?: number | null
+  } | null
 }
 
 export function getAppointmentDetail(appointmentId: string): Promise<AppointmentDetailData> {

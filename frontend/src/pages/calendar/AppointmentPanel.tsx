@@ -15,6 +15,10 @@ export interface SupportSummary {
   connectedAtLabel?: string
   /** 담당 직원 — 없으면 미배정. */
   ownerLabel?: string
+  /** 대표 티켓 id — [상담 전체 보기]가 이 티켓으로 간다(SUPPORT-CAL-DUP-01). 없으면 버튼 없음. */
+  ticketId?: string
+  /** 이 예약에 붙은 상담 기록 수 — 「상담 N건」 병기(SUPPORT-CAL-DUP-01). */
+  count?: number
   load: SupportLoad
 }
 
@@ -32,6 +36,8 @@ export interface AppointmentPanelProps {
   onReschedule?: () => void
   onCancel?: (reason: string) => void | Promise<void>
   onClose?: () => void
+  /** 대표 티켓의 문의함 상세로 이동(SUPPORT-PANEL-CONTEXT-01). 배선은 CalendarPage. */
+  onOpenTicket?: (ticketId: string) => void
 }
 
 const SUPPORT_TITLE: Record<SupportType, string> = {
@@ -39,7 +45,7 @@ const SUPPORT_TITLE: Record<SupportType, string> = {
   reschedule: '변경 상담',
 }
 
-export function AppointmentPanel({ appointment, support, onReschedule, onCancel, onClose }: AppointmentPanelProps) {
+export function AppointmentPanel({ appointment, support, onReschedule, onCancel, onClose, onOpenTicket }: AppointmentPanelProps) {
   const [asking, setAsking] = useState(false)
 
   return (
@@ -74,9 +80,29 @@ export function AppointmentPanel({ appointment, support, onReschedule, onCancel,
             <p className="cal-support-line is-error">상담 상태를 확인할 수 없습니다</p>
           ) : (
             <>
-              <p className="cal-support-line">{SUPPORT_TITLE[support.type]}</p>
+              <p className="cal-support-line">
+                {SUPPORT_TITLE[support.type]}
+                {/* SUPPORT-CAL-DUP-01: 대표 하나 + 상담 기록 수 병기(⚠는 겹쳐 안 그린다). */}
+                {support.count && support.count > 1 && (
+                  <>
+                    {' · '}
+                    <span className="cal-support-count">상담 {support.count}건</span>
+                  </>
+                )}
+              </p>
               {support.connectedAtLabel && <p className="cal-support-line">연결 {support.connectedAtLabel}</p>}
-              <p className="cal-support-line">담당: {support.ownerLabel ?? '미배정'}</p>
+              <p className="cal-support-line">담당: {support.ownerLabel ?? '직원 확인 중'}</p>
+              {/* CONTEXT-01: 답장·상담 내용은 문의함에서. 이 패널은 읽기 전용(대화 복제 금지). */}
+              <p className="cal-support-note">답장·상담 내용은 문의함에서 봅니다. 이 패널은 읽기 전용입니다.</p>
+              {support.ticketId && onOpenTicket && (
+                <button
+                  type="button"
+                  className="cal-support-open"
+                  onClick={() => onOpenTicket(support.ticketId!)}
+                >
+                  상담 전체 보기
+                </button>
+              )}
             </>
           )}
         </section>

@@ -258,6 +258,53 @@ async def test_D4_지원_요청을_숫자가_아니라_행으로_준다(db_conn)
 
 
 @pytest.mark.asyncio
+async def test_서포트_캘_덥_01_예약_상세는_대표_상담_티켓_하나와_개수를_준다(db_conn):
+    """SUPPORT-CAL-DUP-01: 한 예약에 상담 티켓이 여럿이어도 대표(열린 티켓→최근 answered) 하나 + 개수."""
+    from tests.conftest_chat import seed_chat_thread
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    recept = to_context(await _seed_admin(db_conn, role="receptionist"), "receptionist")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    aid = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept, patient_id=p,
+                                 slot_id=slot, status="예약확정",
+                                 support_requested_at=_now_expr(), request_type="취소")
+    thread = await seed_chat_thread(db_conn, patient_id=p)
+    # answered(오래됨) + in_progress(열림) 두 티켓이 같은 예약에 붙는다.
+    await db_conn.execute(
+        "insert into support_tickets (thread_id, appointment_id, status, closed_by_staff_id, closed_at) "
+        "values ($1,$2,'answered',$3, now() - interval '2 hours')",
+        thread, aid, recept.id)
+    open_id = await db_conn.fetchval(
+        "insert into support_tickets (thread_id, appointment_id, status) values ($1,$2,'in_progress') returning id",
+        thread, aid)
+    await set_session_auth(db_conn, recept.auth_user_id)
+    d = await dashboard_service.get_appointment_detail(aid, recept, conn=db_conn)
+    assert d["support"]["ticket_id"] == str(open_id)   # 대표 = 열린 티켓
+    assert d["support"]["ticket_status"] == "in_progress"
+    assert d["support"]["ticket_count"] == 2            # ⚠는 하나여도 「상담 2건」
+
+
+@pytest.mark.asyncio
+async def test_서포트_캘_덥_01_상담_티켓이_없으면_대표가_없다(db_conn):
+    """support_requested_at은 있어도 아직 티켓이 안 생겼으면 대표 없음(count 0) — [상담 전체 보기]도 없음."""
+    today = await db_today(db_conn)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    recept = to_context(await _seed_admin(db_conn, role="receptionist"), "receptionist")
+    p = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], today)
+    aid = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept, patient_id=p,
+                                 slot_id=slot, status="예약확정",
+                                 support_requested_at=_now_expr(), request_type="변경")
+    await set_session_auth(db_conn, recept.auth_user_id)
+    d = await dashboard_service.get_appointment_detail(aid, recept, conn=db_conn)
+    assert d["support"]["ticket_id"] is None
+    assert d["support"]["ticket_count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_투데이_리스케드_21_사이드바_제외_목록을_준다(db_conn):
     """서버가 제외 대상을 알려주지 않으면 셸과 카드가 각자 세고 두 숫자가 어긋난다."""
     today = await db_today(db_conn)
