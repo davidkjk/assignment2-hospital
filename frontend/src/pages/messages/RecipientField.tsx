@@ -11,7 +11,9 @@ import { Search } from '@/components/icons'
 //     「N명 선택됨」이 된다(SEND-WHO-02, 여러 명). 이름은 안 보이고 인원만 센다(열거 방지, SEND-ADS-02).
 // ⚠️ PatientSearch(mode="pick")의 onPick은 id만 준다.
 
-export type Recipients = { mode: 'pick'; ids: string[] } | { mode: 'all' }
+/** 고른 한 명 — id와 이름을 함께 든다. 이름은 「받는 사람」 칩(SEND-WHO-05)에만 쓰고, 서버엔 id만 보낸다. */
+export type Recipient = { id: string; name: string }
+export type Recipients = { mode: 'pick'; patients: Recipient[] } | { mode: 'all' }
 
 interface Props {
   value: Recipients
@@ -25,27 +27,31 @@ const MODES: { key: Recipients['mode']; label: string }[] = [
 
 export function RecipientField({ value, onChange }: Props) {
   // 「전 환자에게」로 잠깐 옮겼다 돌아와도 고르던 사람을 잃지 않게 마지막 선택을 기억한다.
-  const lastPicked = useRef<string[]>(value.mode === 'pick' ? value.ids : [])
-  if (value.mode === 'pick') lastPicked.current = value.ids
+  const lastPicked = useRef<Recipient[]>(value.mode === 'pick' ? value.patients : [])
+  if (value.mode === 'pick') lastPicked.current = value.patients
 
   const setMode = (m: Recipients['mode']) => {
-    onChange(m === 'all' ? { mode: 'all' } : { mode: 'pick', ids: lastPicked.current })
+    onChange(m === 'all' ? { mode: 'all' } : { mode: 'pick', patients: lastPicked.current })
   }
 
   // [SEND-WHO-02] 같은 줄을 다시 누르면 뺀다(토글) — 고르기·빼기가 한 자리에서 일어난다.
-  const toggleId = (id: string) => {
-    const ids = value.mode === 'pick' ? value.ids : []
-    onChange({ mode: 'pick', ids: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id] })
+  const toggle = (id: string, name: string) => {
+    const list = value.mode === 'pick' ? value.patients : []
+    const exists = list.some((p) => p.id === id)
+    onChange({ mode: 'pick', patients: exists ? list.filter((p) => p.id !== id) : [...list, { id, name }] })
   }
 
-  const count = value.mode === 'pick' ? value.ids.length : 0
-  const selectedIds = new Set(value.mode === 'pick' ? value.ids : [])
+  const count = value.mode === 'pick' ? value.patients.length : 0
+  const selectedIds = new Set(value.mode === 'pick' ? value.patients.map((p) => p.id) : [])
 
   return (
     <div style={styles.wrap}>
       <span style={styles.label}>받는 사람</span>
 
-      <Segmented options={MODES} value={value.mode} onChange={setMode} />
+      {/* [SEND-WHO-03·손검수 L56③] 세그먼트는 내용 폭만 — 열 전체로 늘어나면 회색 배경이 버튼처럼 안 보인다. */}
+      <div style={styles.segRow}>
+        <Segmented options={MODES} value={value.mode} onChange={setMode} />
+      </div>
 
       {value.mode === 'pick' ? (
         <div data-testid="left-tool" style={styles.pick}>
@@ -55,7 +61,7 @@ export function RecipientField({ value, onChange }: Props) {
             {count > 0 && <span style={styles.count}>{count}명 선택됨</span>}
           </p>
           {/* 왼쪽 본화면이 「고르는 도구」가 된다(SEND-BOX-03) — 예약·워크인과 같은 검색 부품 재사용. */}
-          <PatientSearch mode="pick" onPick={toggleId} selectedIds={selectedIds} />
+          <PatientSearch mode="pick" onPick={(id, row) => toggle(id, row.name)} selectedIds={selectedIds} />
         </div>
       ) : (
         <p style={styles.allNote}>
@@ -69,6 +75,7 @@ export function RecipientField({ value, onChange }: Props) {
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minHeight: 0 },
   label: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  segRow: { display: 'flex' },
   pick: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', marginTop: 'var(--sp-1)', minHeight: 0 },
   pickHead: {
     margin: 0, display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',

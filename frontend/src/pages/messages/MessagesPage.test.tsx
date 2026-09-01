@@ -120,16 +120,16 @@ test('[MSGX-SCHED-02][SEND-LATER-05] 예약 줄 [취소]는 확인창을 거쳐 
   await waitFor(() => expect(deletedId).toBe('s7'))
 })
 
-test('[SEND-DOOR-03][SEND-BOX-03][손검수 ⑤] [＋ 새로 보내기]는 본화면 2단 작성으로 넘어간다', async () => {
-  const user = userEvent.setup()
+test('[SEND-DOOR-03 개정·손검수 L56①②] 작성은 토글 없이 늘 위에 열려 있고 이력은 아래에 함께 보인다', async () => {
   okWith(view({ scheduled: [] }))
   renderPage()
-  await screen.findByText('안내 발송 이력')
-  await user.click(screen.getByRole('button', { name: /새로 보내기/ }))
-  // 옛 오른쪽 320px 패널(complementary)이 아니라, 왼쪽 「받는 사람」 / 오른쪽 「보내는 내용」 2단.
+  // 옛 「＋ 새로 보내기」 토글·「← 목록으로」 없이, 왼쪽 「받는 사람」 / 오른쪽 「보내는 내용」 2단이 바로 뜬다.
   expect(await screen.findByRole('region', { name: '받는 사람 고르기' })).toBeVisible()
   expect(screen.getByRole('region', { name: '보내는 내용' })).toBeVisible()
-  expect(screen.getByRole('button', { name: '← 목록으로' })).toBeVisible()
+  // 그리고 같은 화면에 이력도 함께.
+  expect(screen.getByText('안내 발송 이력')).toBeVisible()
+  expect(screen.queryByRole('button', { name: /새로 보내기/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: '← 목록으로' })).toBeNull()
 })
 
 test('[SEND-RESULT-14] 전부 도달이면 「도달 N건」만, 「실패 0건」은 안 적는다', async () => {

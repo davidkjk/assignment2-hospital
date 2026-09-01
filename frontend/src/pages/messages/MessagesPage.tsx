@@ -28,8 +28,6 @@ export function MessagesPage() {
   const { openPanel } = usePanel()
   const [pendingCancel, setPendingCancel] = useState<ScheduledRow | null>(null)
   const [showAuto, setShowAuto] = useState(false)
-  // [SEND-BOX-03][손검수 ⑤] 「새로 보내기」는 좁은 패널이 아니라 본화면 2단 작성으로 넘어간다.
-  const [composing, setComposing] = useState(false)
 
   const query = useQuery({ queryKey: ['messages'], queryFn: () => getMessages() })
   const cancelMut = useMutation({
@@ -40,8 +38,6 @@ export function MessagesPage() {
     },
   })
 
-  const openNew = () => setComposing(true)
-
   // [SEND-RESULT-13][SEND-FAIL-01] 「안 닿은 N명 보기」 → 실패 명단 패널(같은 그릇).
   const openFailed = (row: SentRow) =>
     openPanel({
@@ -50,26 +46,15 @@ export function MessagesPage() {
       content: <FailedListPanel batchId={row.id} />,
     })
 
-  // [손검수 ⑤] 작성 중에는 본화면이 2단 작성으로 바뀐다(헤더 예약 문과 같은 결) — 이력은 잠시 물러난다.
-  if (composing) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.composeHead}>
-          <button type="button" style={styles.backBtn} onClick={() => setComposing(false)}>
-            ← 목록으로
-          </button>
-          <h2 style={{ ...styles.sectionTitle, margin: 0 }}>새 안내 보내기</h2>
-        </div>
-        <SendPanel onClose={() => setComposing(false)} />
-      </div>
-    )
-  }
-
   return (
     <div style={styles.page}>
-      {/* 화면 제목은 셸 헤더가 그린다(`STAFF-SHELL-02` 개정). [새로 보내기]는 빈 줄에 띄우지 않고
-          항상 보이는 「안내 발송 이력」 카드 헤더 안에 둔다 — 이력을 보다 바로 새로 보내는 동선(사용자 지시). */}
+      {/* [SEND-DOOR-03 개정·손검수 L56①②] 한 화면 — 작성이 늘 위에, 이력은 아래. 옛 「새로 보내기」 토글·
+          「새 안내 보내기」 제목·「← 목록으로」는 없앤다(작성 칸이 곧 그 뜻이라 제목이 군더더기). */}
       {query.isError && <InlineError message="목록을 불러오지 못했습니다." />}
+
+      <section aria-label="새 안내 보내기">
+        <SendPanel />
+      </section>
 
       {query.data && query.data.scheduled.length > 0 && (
         <section style={styles.section} aria-label="예약해 둔 것">
@@ -91,12 +76,7 @@ export function MessagesPage() {
       )}
 
       <section style={styles.section} aria-label="안내 발송 이력">
-        <div style={styles.sectionHead}>
-          <h2 style={{ ...styles.sectionTitle, margin: 0 }}>안내 발송 이력</h2>
-          <button type="button" style={styles.newBtn} onClick={openNew}>
-            ＋ 새로 보내기
-          </button>
-        </div>
+        <h2 style={styles.sectionTitle}>안내 발송 이력</h2>
         {query.data && query.data.sent.rows.length === 0 ? (
           <EmptyState kind="zero" message="아직 보낸 안내가 없습니다" />
         ) : (
@@ -210,25 +190,6 @@ function ResultCell({
 
 const styles: Record<string, CSSProperties> = {
   page: { padding: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-5)' },
-  composeHead: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' },
-  backBtn: {
-    height: 32, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-divider)',
-    background: 'var(--color-surface)', color: 'var(--color-ink)', fontSize: 'var(--fs-caption)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
-  },
-  sectionHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-3)', marginBottom: 'var(--sp-3)' },
-  title: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
-  newBtn: {
-    height: 36,
-    padding: '0 var(--sp-4)',
-    borderRadius: 8,
-    border: 'none',
-    background: 'var(--color-primary)',
-    color: '#fff',
-    fontSize: 'var(--fs-body)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
-    cursor: 'pointer',
-  },
   section: {
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',

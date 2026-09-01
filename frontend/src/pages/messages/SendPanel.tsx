@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { InlineError } from '../../components/InlineError'
 import { sendMessage, type MessageChannel, type MessageKind, type SendInput } from '../../api/messages'
+import { X } from '../../components/icons'
 import { KindChannelFields } from './KindChannelFields'
 import { RecipientField, type Recipients } from './RecipientField'
 import { NightRescheduleDialog } from './NightRescheduleDialog'
@@ -27,7 +28,7 @@ export function SendPanel({ initialRecipients, onClose }: Props) {
   const [kind, setKind] = useState<MessageKind>('transactional') // SEND-KIND-02 기본 안내
   const [channel, setChannel] = useState<MessageChannel>('push_sms') // SEND-CH-02 기본 폴백
   const [body, setBody] = useState('')
-  const [recipients, setRecipients] = useState<Recipients>(initialRecipients ?? { mode: 'pick', ids: [] })
+  const [recipients, setRecipients] = useState<Recipients>(initialRecipients ?? { mode: 'pick', patients: [] })
   const [scheduleAt, setScheduleAt] = useState('') // datetime-local 값(빈 문자열=즉시)
   const [showSchedule, setShowSchedule] = useState(false)
 
@@ -35,12 +36,19 @@ export function SendPanel({ initialRecipients, onClose }: Props) {
   const [night, setNight] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const recipientCount = recipients.mode === 'pick' ? recipients.ids.length : 0
+  const pickedPatients = recipients.mode === 'pick' ? recipients.patients : []
+  const recipientCount = pickedPatients.length
   const isAll = recipients.mode === 'all'
   const hasRecipients = isAll || recipientCount > 0
 
   const recipientsSpec = (): SendInput['recipients_spec'] =>
-    recipients.mode === 'all' ? { all: true } : { patient_ids: recipients.ids }
+    recipients.mode === 'all' ? { all: true } : { patient_ids: pickedPatients.map((p) => p.id) }
+
+  // [SEND-WHO-05·손검수 L56④] 고른 사람에서 한 명 빼기 — 칩의 ✕. 전 환자 모드엔 칩이 없다(열거 방지 SEND-ADS-02).
+  const removeOne = (id: string) => {
+    if (recipients.mode !== 'pick') return
+    setRecipients({ mode: 'pick', patients: recipients.patients.filter((p) => p.id !== id) })
+  }
 
   const toIso = (local: string): string | null => (local ? new Date(local).toISOString() : null)
 
@@ -52,7 +60,14 @@ export function SendPanel({ initialRecipients, onClose }: Props) {
         return
       }
       qc.invalidateQueries({ queryKey: ['messages'] })
-      onClose?.()
+      // 항상 열린 작성 화면(L56 ①)에선 보낸 뒤 폼을 비워 다음 발송을 준비한다. 닫는 사용처가 있으면 닫는다.
+      if (onClose) onClose()
+      else {
+        setBody('')
+        setRecipients({ mode: 'pick', patients: [] })
+        setScheduleAt('')
+        setShowSchedule(false)
+      }
     },
     onError: (e) => setError(e instanceof Error ? e.message : '보내지 못했습니다.'),
   })
@@ -115,6 +130,30 @@ export function SendPanel({ initialRecipients, onClose }: Props) {
                 style={styles.input}
               />
             </label>
+          )}
+
+          {/* [SEND-WHO-05·손검수 L56④] 보내기 직전에 「누구에게 가는지」 — 고른 사람을 이름 칩으로 되보이고
+              ✕로 뺀다. 직원이 검색해 한 명씩 고른 사람들이라 되보여도 열거 방지에 어긋나지 않는다
+              (전 환자 모드는 서버가 고르므로 칩 없이 숫자만, SEND-ADS-02). */}
+          {recipients.mode === 'pick' && pickedPatients.length > 0 && (
+            <div style={styles.recipients} aria-label="고른 받는 사람">
+              <span style={styles.recipientsHead}>받는 사람 {pickedPatients.length}명</span>
+              <div style={styles.chips}>
+                {pickedPatients.map((p) => (
+                  <span key={p.id} style={styles.chip}>
+                    {p.name}
+                    <button
+                      type="button"
+                      aria-label={`${p.name} 빼기`}
+                      onClick={() => removeOne(p.id)}
+                      style={styles.chipX}
+                    >
+                      <X width={12} height={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
 
           {error && <InlineError message={error} />}
@@ -186,6 +225,20 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface)',
     color: 'var(--color-ink)',
     fontSize: 'var(--fs-body)',
+  },
+  recipients: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  recipientsHead: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  chips: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)' },
+  chip: {
+    display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1)',
+    height: 26, padding: '0 var(--sp-1) 0 var(--sp-2)', borderRadius: 999,
+    background: 'var(--color-primary-wash)', color: 'var(--color-primary)',
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
+  },
+  chipX: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 18, height: 18, padding: 0, borderRadius: 999, border: 'none',
+    background: 'transparent', color: 'var(--color-primary)', cursor: 'pointer',
   },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)', marginTop: 'var(--sp-2)' },
   laterBtn: {

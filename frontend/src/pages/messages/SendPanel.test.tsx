@@ -56,14 +56,14 @@ test('[SEND-CH-01] 보내는 방법은 세 가지다', () => {
 
 test('[SEND-CH-04] 「모두에게 문자도」를 고르면 문자 건수·비용이 그 자리에 보인다', async () => {
   const user = userEvent.setup()
-  renderPanel({ mode: 'pick', ids: ['p1', 'p2'] })
+  renderPanel({ mode: 'pick', patients: [{ id: 'p1', name: '김하나' }, { id: 'p2', name: '이두리' }] })
   await user.selectOptions(screen.getByLabelText('보내는 방법'), 'sms')
   expect(screen.getByText('문자 2건에 비용이 듭니다')).toBeVisible()
 })
 
 test('[SEND-CH-04] 「앱 알림만」이면 문자 비용 안내가 없다', async () => {
   const user = userEvent.setup()
-  renderPanel({ mode: 'pick', ids: ['p1', 'p2'] })
+  renderPanel({ mode: 'pick', patients: [{ id: 'p1', name: '김하나' }, { id: 'p2', name: '이두리' }] })
   await user.selectOptions(screen.getByLabelText('보내는 방법'), 'push')
   expect(screen.queryByText(/문자 .*건에 비용이 듭니다/)).toBeNull()
 })
@@ -80,7 +80,7 @@ test('[SEND-ALL-04] 전 환자 발송은 안내여도 보내기 전 미리보기
 
 test('[SEND-ADS-04] 광고 미리보기엔 (광고)·무료 수신거부가 붙어 보인다', async () => {
   const user = userEvent.setup()
-  renderPanel({ mode: 'pick', ids: ['p1'] })
+  renderPanel({ mode: 'pick', patients: [{ id: 'p1', name: '김하나' }] })
   await user.selectOptions(screen.getByLabelText('종류'), 'marketing')
   await user.type(screen.getByLabelText('내용'), '여름 이벤트')
   await user.click(screen.getByRole('button', { name: '보내기' }))
@@ -92,7 +92,7 @@ test('[SEND-ADS-04] 광고 미리보기엔 (광고)·무료 수신거부가 붙�
 test('[SEND-NIGHT-02] 야간 광고 즉시발송은 예약 제안(내일 08:00)을 띄운다', async () => {
   const user = userEvent.setup()
   postReturns(result({ night_blocked: true, suggested_at: '2026-09-11T08:00:00+09:00' }))
-  renderPanel({ mode: 'pick', ids: ['p1'] })
+  renderPanel({ mode: 'pick', patients: [{ id: 'p1', name: '김하나' }] })
   await user.selectOptions(screen.getByLabelText('종류'), 'marketing')
   await user.type(screen.getByLabelText('내용'), '야간 이벤트')
   await user.click(screen.getByRole('button', { name: '보내기' }))
