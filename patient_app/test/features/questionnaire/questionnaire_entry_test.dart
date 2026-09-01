@@ -18,6 +18,24 @@ class _FakeRepo implements QuestionnaireRepository {
       QnrProgress(state: '작성 중', answered: a.length, total: _data.questions.length);
 }
 
+/// load가 처음 [failTimes]번은 던지고 그 뒤엔 [_data]를 준다. 던지는 이유 없이 스피너에 갇히던
+/// 회귀(옛 형식 데이터→Question.fromJson 캐스트 실패)를 재현하고, [다시 시도] 복구를 검증한다.
+class _FlakyRepo implements QuestionnaireRepository {
+  _FlakyRepo(this._data, {this.failTimes = 1});
+  final QnrData _data;
+  final int failTimes;
+  int calls = 0;
+  @override
+  Future<QnrData> load(String id) async {
+    calls++;
+    if (calls <= failTimes) throw Exception('load failed');
+    return _data;
+  }
+  @override
+  Future<QnrProgress> save(String id, List<Answer> a, {bool complete = false}) async =>
+      QnrProgress(state: '작성 중', answered: a.length, total: _data.questions.length);
+}
+
 QnrData _data({String state = '미작성', int n = 3, Map<String, String>? ans}) => QnrData(
     id: 't1',
     state: state,
@@ -48,7 +66,40 @@ Future<void> _pump(WidgetTester t,
   addTearDown(() => _route = null);
 }
 
+/// 임의의 repo를 꽂아 진입 화면만 띄운다(에러/복구 검증용).
+Future<void> _pumpRepo(WidgetTester t, QuestionnaireRepository repo,
+    {String status = '예약확정'}) async {
+  final router = GoRouter(initialLocation: '/questionnaire/appt-1', routes: [
+    GoRoute(
+        path: '/questionnaire/:id',
+        builder: (c, s) => QuestionnaireEntry(appointmentId: s.pathParameters['id']!)),
+  ]);
+  await t.pumpWidget(ProviderScope(overrides: [
+    questionnaireRepositoryProvider.overrideWithValue(repo),
+    appointmentDetailProvider('appt-1').overrideWith((ref) async => detail(status: status)),
+  ], child: MaterialApp.router(theme: AppTheme.theme, routerConfig: router)));
+  await t.pump();
+  await t.pump();
+}
+
 void main() {
+  testWidgets('[QNR-LOAD-ERR][ERR-RETRY-02] 문진 로드 실패 → 스피너가 아니라 [다시 시도]', (t) async {
+    await _pumpRepo(t, _FlakyRepo(_data(), failTimes: 99));
+    expect(find.byType(CircularProgressIndicator), findsNothing); // 막다른 스피너 금지
+    expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  testWidgets('[QNR-LOAD-ERR][ERR-RETRY-02] [다시 시도]를 누르면 다시 불러와 1번 문항이 뜬다', (t) async {
+    final repo = _FlakyRepo(_data(), failTimes: 1); // 처음엔 실패, 재시도엔 성공
+    await _pumpRepo(t, repo);
+    expect(find.text('다시 시도'), findsOneWidget);
+    await t.tap(find.text('다시 시도'));
+    await t.pump(); // invalidate → 새 컨트롤러 로딩
+    await t.pump(); // load 완료
+    expect(find.text('문항 1'), findsOneWidget);
+    expect(find.text('다시 시도'), findsNothing);
+  });
+
   testWidgets('[NAV-QNR-01] 미작성 진입 → 마법사 1번 문항', (t) async {
     await _pump(t, data: _data(state: '미작성'));
     expect(find.text('문항 1'), findsOneWidget);

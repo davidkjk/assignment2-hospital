@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../widgets/action_button.dart';
 import 'questionnaire_controller.dart';
+import 'qnr_load_gate.dart';
 import 'questionnaire_repository.dart';
 
 /// 마지막 문항 다음의 확인 화면(NAV-QNR-03·13). 항목별 [고치기]는 그 문항으로(NAV-QNR-14,
@@ -18,7 +19,8 @@ class ConfirmScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final st = ref.watch(questionnaireProvider(appointmentId));
-    if (st.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final gate = qnrLoadGate(ref, st, appointmentId); // 로드 실패=[다시 시도], 로딩=스피너
+    if (gate != null) return gate;
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: Text(readOnly ? '사전문진' : '사전문진 확인')),

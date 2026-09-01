@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'questionnaire_controller.dart';
+import 'qnr_load_gate.dart';
 import 'questionnaire_repository.dart';
 import 'qnr_progress_text.dart';
 
@@ -21,7 +22,8 @@ class ResumeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final st = ref.watch(questionnaireProvider(appointmentId));
-    if (st.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final gate = qnrLoadGate(ref, st, appointmentId); // 로드 실패=[다시 시도], 로딩=스피너
+    if (gate != null) return gate;
     final resumeAt = _firstUnanswered(st.questions, st.answers);
     final cs = Theme.of(context).colorScheme;
     return Scaffold(

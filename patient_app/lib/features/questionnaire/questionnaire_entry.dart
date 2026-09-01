@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../appointment/appointment_detail.dart'; // appointmentDetailProvider·AppointmentDetail (T8/T20/T21)
 import 'questionnaire_controller.dart';
+import 'qnr_load_gate.dart';
 import 'questionnaire_wizard.dart';
 import 'resume_screen.dart';
 import 'confirm_screen.dart';
@@ -38,8 +39,10 @@ class QuestionnaireEntry extends ConsumerWidget {
     final from = GoRouterState.of(context).uri.queryParameters['from'];
     final returnTo = returnRouteFor(from, appointmentId);
 
-    if (st.loading || detail.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    // 로드 실패면 [다시 시도], 로딩 중이면 스피너(막다른 스피너 방지 — qnr_load_gate).
+    final gate = qnrLoadGate(ref, st, appointmentId);
+    if (gate != null || detail.isLoading) {
+      return gate ?? const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     // 0문항 처리(QNR-FORM-06·07·NAV-QNR-19): 문항도 답도 없으면 들어올 길이 없다 → 홈으로 방어.

@@ -17,7 +17,8 @@ class QnrState {
       this.total = 0,
       this.submitting = false,
       this.loading = true,
-      this.liveCancelled = false});
+      this.liveCancelled = false,
+      this.error});
   final List<Question> questions;
   final Map<String, String> answers; // question_id -> value (QNR-ID-01·03 열쇠 = 번호)
   final int index;
@@ -25,6 +26,7 @@ class QnrState {
   final int answered, total; // ⭐ 서버 compute_progress 값 그대로(QNR-PROG-04·09). 화면이 세지 않는다.
   final bool submitting, loading;
   final bool liveCancelled; // 작성 중 예약이 취소됨(QNR-LIVE-01) — Step 10에서 채운다.
+  final Object? error; // 첫 로드 실패(문항을 못 불러옴). null이면 정상 — 화면은 [다시 시도]를 그린다.
 
   QnrState copyWith(
           {List<Question>? questions,
@@ -35,7 +37,8 @@ class QnrState {
           int? total,
           bool? submitting,
           bool? loading,
-          bool? liveCancelled}) =>
+          bool? liveCancelled,
+          Object? error}) =>
       QnrState(
           questions: questions ?? this.questions,
           answers: answers ?? this.answers,
@@ -45,7 +48,8 @@ class QnrState {
           total: total ?? this.total,
           submitting: submitting ?? this.submitting,
           loading: loading ?? this.loading,
-          liveCancelled: liveCancelled ?? this.liveCancelled);
+          liveCancelled: liveCancelled ?? this.liveCancelled,
+          error: error ?? this.error);
 
   Question? get current => index >= 0 && index < questions.length ? questions[index] : null;
 }
@@ -61,15 +65,22 @@ class QnrController extends StateNotifier<QnrState> {
 
   Future<void> _load() async {
     // QNR-ID-04·QNR-LIVE 계열: 진입 시 받은 문항을 그 회차 내내 고정한다(뒤에서 안 흔들림).
-    final data = await _repo.load(_appointmentId);
-    state = QnrState(
-        questions: data.questions,
-        answers: Map.of(data.answers),
-        index: 0,
-        status: data.state,
-        answered: data.answered, // ⭐ 서버가 센 값(QNR-PROG-04) — 화면이 answers.length로 세지 않는다.
-        total: data.total,
-        loading: false);
+    try {
+      final data = await _repo.load(_appointmentId);
+      state = QnrState(
+          questions: data.questions,
+          answers: Map.of(data.answers),
+          index: 0,
+          status: data.state,
+          answered: data.answered, // ⭐ 서버가 센 값(QNR-PROG-04) — 화면이 answers.length로 세지 않는다.
+          total: data.total,
+          loading: false);
+    } catch (e) {
+      // 실패를 삼켜 loading:true로 두면 화면이 영원히 스피너에 갇힌다(막다른 길). 에러를 상태로
+      // 표면화해 화면이 [다시 시도](ERR-RETRY-02)를 그리게 한다. 재시도는 provider invalidate로
+      // 이 컨트롤러를 새로 만들어 _load를 다시 돌린다.
+      state = state.copyWith(loading: false, error: e);
+    }
   }
 
   void answer(String questionId, String value) =>

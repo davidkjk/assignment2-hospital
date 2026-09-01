@@ -5,6 +5,7 @@ import '../../widgets/action_button.dart';
 import '../appointment/appointment_detail.dart'; // appointmentDetailProvider — 작성 중 라이브 취소 감지(QNR-LIVE-01)
 import '../home/home_data.dart'; // homeAcknowledgeProvider — 병원발 [확인] 창구 재사용(새 API 안 만듦)
 import 'questionnaire_controller.dart';
+import 'qnr_load_gate.dart';
 import 'question_field.dart';
 import 'qnr_live_banner.dart';
 import 'qnr_progress_text.dart';
@@ -61,7 +62,8 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
   @override
   Widget build(BuildContext context) {
     final st = ref.watch(questionnaireProvider(widget.appointmentId));
-    if (st.loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final gate = qnrLoadGate(ref, st, widget.appointmentId); // 로드 실패=[다시 시도], 로딩=스피너
+    if (gate != null) return gate;
 
     // 이어쓰기/특정 문항 진입(NAV-QNR-11·12·14)의 startIndex를 load 완료 후 한 번만 적용.
     if (!_appliedStart) {
