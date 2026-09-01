@@ -10,6 +10,7 @@ import 'new_password_screen.dart'; // PasswordResetRepo(추상)
 /// 010… → +8210…(Supabase는 E.164를 받는다). 숫자만 남겨 변환한다.
 String toE164(String phone) {
   final d = phone.replaceAll(RegExp(r'\D'), '');
+  if (d.startsWith('82')) return '+$d'; // 이미 국가코드 포함(세션 currentUser.phone) — +82 이중부착 방지(재인증 AUTH-REAUTH)
   return d.startsWith('0') ? '+82${d.substring(1)}' : '+82$d';
 }
 

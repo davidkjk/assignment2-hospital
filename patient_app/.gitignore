@@ -7,3 +7,17 @@ build/
 
 # 골든 테스트 실패 diff 산출물
 test/**/failures/
+
+# 로컬 검수용 플랫폼 뼈대 — flutter create로 생성(커밋 안 함). 정본은 lib/test뿐.
+ios/
+android/
+web/
+macos/
+linux/
+windows/
+
+# flutter create 잔여물 — 플랫폼 뼈대를 커밋 안 하므로 함께 무시(IntelliJ·기본 README·플랫폼 마이그 추적).
+.idea/
+*.iml
+.metadata
+README.md

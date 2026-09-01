@@ -2,24 +2,26 @@ from dataclasses import dataclass
 from uuid import UUID
 from fastapi import HTTPException, Request
 from jose import JWTError, jwt
-from app.core.config import settings
+from app.core.security import _resolve_verification_key  # HS256(레거시)·ES256(현행 JWKS) 공통 키 해석
 from app.db.pool import acquire_as
 
 
-def _decode_sub(request: Request) -> str:
+async def _decode_sub(request: Request) -> str:
     header = request.headers.get("authorization", "")
     if not header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    token = header.removeprefix("Bearer ")
     try:
-        payload = jwt.decode(header.removeprefix("Bearer "), settings.supabase_jwt_secret,
-                             algorithms=["HS256"], audience="authenticated")
-    except JWTError:
+        # 직원웹과 동일하게 alg로 키를 가른다 — 현행 Supabase는 ES256(비대칭)으로 서명한다.
+        key, alg = await _resolve_verification_key(token)
+        payload = jwt.decode(token, key, algorithms=[alg], audience="authenticated")
+    except (JWTError, ValueError):
         raise HTTPException(status_code=401, detail="로그인 정보가 올바르지 않습니다.")
     return payload["sub"]
 
 
 async def get_current_auth_user_id(request: Request) -> UUID:
-    return UUID(_decode_sub(request))
+    return UUID(await _decode_sub(request))
 
 
 @dataclass
@@ -29,7 +31,7 @@ class PatientContext:
 
 
 async def get_current_patient(request: Request) -> PatientContext:
-    auth_user_id = _decode_sub(request)
+    auth_user_id = await _decode_sub(request)
     async with acquire_as(auth_user_id) as conn:
         row = await conn.fetchrow("select id, is_active from patients where auth_user_id = $1", UUID(auth_user_id))
     if row is None or not row["is_active"]:
