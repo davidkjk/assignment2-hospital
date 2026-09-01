@@ -1,6 +1,6 @@
 node_modules/
 dist/
-HANDOFF.md
+HANDOFF*.md
 
 # 작업용 문서 — 설계 논의·검토 기록, 배포 산출물이 아니라 git 추적 제외
 CLAUDE.md
