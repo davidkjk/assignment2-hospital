@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/connectivity.dart';
 import '../../core/tokens.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'family_repository.dart';
 
 /// FAM-LIST — 본인 + 연결된 가족을 한 목록으로. 정렬·본인 판정은 서버가 끝냈다(order by).
@@ -16,7 +17,7 @@ class FamilyListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(familyListProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('가족 관리')),
+      appBar: PatientAppBar(title: '가족 관리', icon: Icons.groups),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) {

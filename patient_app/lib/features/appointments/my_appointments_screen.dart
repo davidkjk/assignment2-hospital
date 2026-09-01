@@ -12,6 +12,7 @@ import 'package:hospital_patient_app/features/appointments/appointment_list_row.
 import 'package:hospital_patient_app/features/appointments/appointment_list_cta.dart';
 import 'package:hospital_patient_app/features/appointments/appointment_list_qnr_line.dart';
 import 'package:hospital_patient_app/widgets/empty_state.dart';
+import 'package:hospital_patient_app/widgets/patient_app_bar.dart';
 
 /// 나의 예약 목록(하단 '예약' 탭, 경로 `/my`). LIST-ROLE-01: 목록이다 — 예약을 '시작'하는 곳이 아니다.
 /// T30이 셸·줄·상태 글자를 세웠고, T31이 빈/오프라인/실패·갱신·문진 줄·하단 버튼을 채운다.
@@ -139,7 +140,8 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('예약')),
+      // LIST-ROLE: 탭 화면 타이틀은 「나의 예약」(데모 정본) + 📅 아이콘(하단 탭 '예약'과 짝).
+      appBar: PatientAppBar(title: '나의 예약', icon: Icons.event_available),
       body: content,
       // LIST-CTA-01·02·03: 어느 분기든 하단에 「+ 새 예약하기」 하나(0건에도 있어야 막다른 길이 아니다).
       bottomNavigationBar: widget.bottomSlot ??

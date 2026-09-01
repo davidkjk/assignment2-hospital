@@ -42,4 +42,12 @@ class AppTokens {
 
   // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다).
   static const double bodyFontSize = 15.0;
+
+  // patientApp.density — 데모(조밀 shadcn) 밀도 토큰. 리스트·카드 성김을 데모에 맞춘다.
+  // 값 근거: 데모 카드 rounded-lg=12·리스트 행 px-3/py-3=12·아이콘↔글자 gap-3=12·행간 gap-2=8·날짜섹션 gap-6=24.
+  static const double densityCardRadius = 12.0; // patientApp.density.cardRadius
+  static const double densityRowPad = 12.0; // patientApp.density.rowPad (컴팩트 행 안쪽 여백)
+  static const double densityRowGap = 12.0; // patientApp.density.rowGap (아이콘↔글자)
+  static const double densityListGap = 8.0; // patientApp.density.listGap (행 사이)
+  static const double densitySectionGap = 24.0; // patientApp.density.sectionGap (날짜 섹션 사이)
 }

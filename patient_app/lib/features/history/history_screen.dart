@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/pending_request.dart' show koreanTime;
 import '../../core/tokens.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/patient_app_bar.dart';
 import '../appointment/appointment_detail.dart' show appointmentDetailProvider;
 import '../family/family_repository.dart';
 import '../notifications/notification_gone_dialog.dart' show showNotificationGoneDialog;
@@ -219,7 +220,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     ref.listen(selectedHistoryPatientProvider, (_, __) => setState(_expanded.clear)); // HIST-LIST-11 재진입 접힘
     final page = ref.watch(historyProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('이력')), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
+      appBar: PatientAppBar(title: '이력', icon: Icons.history), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
       body: Column(children: [
         chips.when(
           data: (ms) => NameChips(
