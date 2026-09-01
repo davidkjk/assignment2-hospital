@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     chat_model: str = "claude-sonnet-5"
     embedding_model: str = "text-embedding-3-small"
     anon_rate_limit_per_hour: int = 30
+    # 익명 웹 상담 연락처(전화)의 대칭 암복호 키(Fernet base64). 비면 codec은 import는 되되
+    # 실제 암복호 호출 시에만 실패한다(배포에서 설정 — anonymous_contact_codec 지연 초기화).
+    anon_contact_encryption_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env")
 
