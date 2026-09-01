@@ -29,6 +29,9 @@ export interface DoctorQueueRow {
   /** [QUEUE-ROW-06] 현재 상태로 진입한 시각 — 상태별 라벨(경과/대기/분째)의 기준. */
   status_since?: string | null
   status: string
+  /** [DOCTOR-CONTEXT-01] 예약 슬롯 시각(HH:MM:SS). 가운데 기본정보 카드의 맥락 줄(「10:30 · 정형외과」)에 쓴다.
+   *  워크인(슬롯 없음)은 null — 맥락 줄에서 시각을 빼고 진료과만 보인다. */
+  start_time?: string | null
 }
 
 /**

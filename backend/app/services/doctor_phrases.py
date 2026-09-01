@@ -336,9 +336,11 @@ async def get_me(
     async def query(c: Any) -> dict:
         row = await c.fetchrow(
             """
-            select id, name, role, department_id
-            from staff
-            where auth_user_id = $1 and is_active
+            select s.id, s.name, s.role, s.department_id,
+                   d.name as department_name
+            from staff s
+            left join departments d on d.id = s.department_id
+            where s.auth_user_id = $1 and s.is_active
             """,
             user_id,
         )

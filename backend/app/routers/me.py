@@ -14,6 +14,9 @@ class MeResponse(BaseModel):
     name: str
     role: str
     department_id: UUID | None
+    # [DOCTOR-CONTEXT-01] 진료과 이름 — 사이드바 부제와 의사 콘솔 기본정보 맥락 줄(「10:30 · 정형외과」)이 쓴다.
+    #   프론트 mapStaff가 department_name을 읽는데 그동안 백엔드가 안 내려 늘 null이었다(잠복 갭).
+    department_name: str | None = None
 
 
 @router.get("/me", response_model=MeResponse)

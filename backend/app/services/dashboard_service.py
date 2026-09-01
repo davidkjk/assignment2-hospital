@@ -196,6 +196,7 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
             """
             select a.id, a.queue_position, a.status, a.for_patient_id, a.updated_at,
                    a.is_urgent_flag,
+                   s.start_time,
                    p.name, p.birth_date, p.gender,
                    h.waited_since as waiting_started_at,
                    cur.status_since as status_since,
@@ -260,6 +261,9 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
             # [QUEUE-ROW-06] 현재 상태 진입 시각 — 화면이 상태별 라벨(경과/대기/분째)을 계산한다.
             "status_since": r["status_since"],
             "status": r["status"],
+            # [DOCTOR-CONTEXT-01] 예약 슬롯 시각(HH:MM:SS) — 가운데 기본정보 카드 「10:30 · 진료과」 맥락 줄.
+            #   워크인(슬롯 없음)은 null — 화면이 시각을 빼고 진료과만 보인다.
+            "start_time": r["start_time"].isoformat() if r["start_time"] is not None else None,
             # [DOCTOR-START-01] 낙관적 잠금 값 — 이게 있어야 행 열기(진료중 전이)가 422로 막히지 않는다(갭 #36 경계).
             "updated_at": r["updated_at"],
         }

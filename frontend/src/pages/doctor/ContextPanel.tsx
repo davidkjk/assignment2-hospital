@@ -1,12 +1,12 @@
 import type { CSSProperties } from 'react'
-import { StatusBadge } from '../../components/staff-ui/StatusBadge'
 import { ClipboardList } from '../../components/icons'
 import { ConsoleCard } from './ConsoleCard'
-import { CONSOLE_TONE } from './QueuePanel'
 
 // [DOCTOR-CONTEXT-01~04] 가운데 「현재 환자·방문」 열. 이름·생년월일·성별만 상단 고정 —
 //   진료에 필요 없는 전화번호는 끌어오지 않는다(CONTEXT-01·MASK-DETAIL-01). 예약 이유는 원문 그대로,
 //   없으면 조회 오류처럼 보이지 않게 문장으로 말한다(CONTEXT-03·04). 사전문진 첫 답변과 병합하지 않는다.
+//   ⭐ 이 컴포넌트는 자기 프레임(패딩·배경·경계)을 갖지 않는다 — 열(DoctorConsolePage `contextCol`)이
+//   프레임을 소유해 네 카드가 한 열 안에서 같은 인셋·간격이 되게 한다(L65 데모정렬).
 
 export interface ConsolePatient {
   name: string
@@ -42,8 +42,9 @@ export function ContextPanel({ patient, meta, reason, loading }: ContextPanelPro
         </div>
       ) : (
         <>
-          {/* 기본정보 고정 카드 — 이름·생년월일은 한 줄에, 상태는 배지로 카드 안에 둔다
-              (예전엔 상태만 카드 밖에 「도착」 한 단어로 떠 있어 조회 오류처럼 보였다). */}
+          {/* 기본정보 고정 카드 — 이름·생년월일은 첫 줄, 둘째 줄은 「시각 · 진료과」 맥락 줄(데모 정렬).
+              ⛔ 상태 배지는 여기 두지 않는다(사용자 결정 L65) — 대기열에 이미 있고, 홀로 놓이면 조회
+              오류처럼 보인다. 시각은 예약 슬롯 start, 진료과는 로그인 의사 본인 과. */}
           <div style={styles.head}>
             <div style={styles.headTop}>
               <h2 style={styles.name}>{patient.name}</h2>
@@ -51,10 +52,9 @@ export function ContextPanel({ patient, meta, reason, loading }: ContextPanelPro
                 {patient.birth_date}{patient.gender ? ` · ${patient.gender}` : ''}
               </span>
             </div>
-            {meta && (meta.time || meta.department_name || meta.doctor_name || meta.status) && (
+            {meta && (meta.date || meta.time || meta.department_name || meta.doctor_name) && (
               <div style={styles.metaRow}>
                 {[meta.date, meta.time, meta.department_name, meta.doctor_name].filter(Boolean).join(' · ')}
-                {meta.status && <StatusBadge status={meta.status} tone={CONSOLE_TONE[meta.status]} />}
               </div>
             )}
           </div>
@@ -73,10 +73,9 @@ export function ContextPanel({ patient, meta, reason, loading }: ContextPanelPro
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: {
-    display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', padding: 'var(--sp-4)', minHeight: 0, overflowY: 'auto',
-    background: 'var(--color-bg)', borderRight: '1px solid var(--color-divider)',
-  },
+  // ⭐ 프레임(패딩·배경·오른쪽 경계·스크롤)은 열이 소유한다 — 여기선 두 카드(기본정보·예약이유)를
+  //   열의 다른 카드와 같은 sp-3 간격으로 쌓기만 한다.
+  panel: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   skeleton: { height: 72, borderRadius: 8, background: 'var(--color-surface)' },
   hintBox: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', padding: 'var(--sp-3) var(--sp-0-5)' },
   hint: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },

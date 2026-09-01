@@ -149,10 +149,13 @@ async def test_me_returns_only_sidebar_identity_fields(api_client, committed_con
 
     assert response.status_code == 200
     payload = response.json()
-    assert set(payload) == {"id", "name", "role", "department_id"}
+    # [DOCTOR-CONTEXT-01] department_name 추가 — 사이드바 부제·의사 콘솔 맥락 줄이 쓴다(그전엔 프론트가
+    #   읽는데 백엔드가 안 내려 늘 null이던 잠복 갭). 진료과 미배정 직원은 null.
+    assert set(payload) == {"id", "name", "role", "department_id", "department_name"}
     assert payload["id"] == str(staff["staff_id"])
     assert payload["name"] == "Test Staff"
     assert payload["role"] == "doctor"
+    assert payload["department_name"] is None
 
 
 @pytest.mark.asyncio

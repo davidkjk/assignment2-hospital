@@ -104,8 +104,10 @@ export function NoteSection({ state, onAdd }: NoteSectionProps) {
 
 const styles: Record<string, CSSProperties> = {
   section: {
+    // 테두리 1px — 환자상세의 다른 섹션(Family·Record·Visit·Support·Questionnaire)·의사 콘솔 카드와 통일
+    //   (이 컴포넌트만 2px라 두 화면에서 홀로 두꺼워 보였다, L65).
     padding: 'var(--sp-4)', background: 'var(--color-surface)',
-    border: '2px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
+    border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
   addBtn: {
     height: 30, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-primary)',

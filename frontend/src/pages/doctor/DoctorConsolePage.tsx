@@ -76,6 +76,7 @@ export function DoctorConsolePage() {
     waiting_started_at: r.waiting_started_at,
     status_since: r.status_since,
     status: r.status,
+    start_time: r.start_time ?? null,
   }))
   const selectedRow = queueRows.find((r) => r.id === selectedId) ?? null
   const selectedApiRow = (queueQ.data?.rows ?? []).find((r) => r.id === selectedId)
@@ -309,14 +310,21 @@ export function DoctorConsolePage() {
         </div>
         <ColumnResizer boundary={0} onDrag={drag} />
 
-        <div style={{ ...styles.col, flex: `0 0 ${widths.context}px` }} data-col="context" data-width={widths.context}>
+        {/* [DOCTOR-CONTEXT-*] 가운데 「환자 맥락」 열의 프레임(패딩·gap·배경·오른쪽 경계)은 이 열이 소유한다
+            — 네 카드(기본정보·예약이유·사전문진·메모)가 한 열 안에서 같은 좌우 인셋·간격이 되게. 카드들은
+            자기 프레임을 갖지 않는다(L65 데모정렬: 데모의 w-80 bg-muted/20 p-4 한 열 구조). */}
+        <div style={{ ...styles.col, ...styles.contextCol, flex: `0 0 ${widths.context}px` }} data-col="context" data-width={widths.context}>
           <ContextPanel
             patient={
               selectedRow
                 ? { name: selectedRow.name, birth_date: selectedRow.masked_birth_date ?? '', gender: selectedRow.gender ?? null }
                 : null
             }
-            meta={selectedRow ? { status: selectedRow.status } : null}
+            meta={
+              selectedRow
+                ? { time: selectedRow.start_time ? selectedRow.start_time.slice(0, 5) : null, department_name: staff?.departmentName ?? null }
+                : null
+            }
             reason={record?.reason ? String(record.reason) : null}
             loading={Boolean(selectedId) && recordQ.isLoading}
           />
@@ -416,6 +424,9 @@ const styles: Record<string, CSSProperties> = {
   },
   columns: { display: 'flex', flex: 1, minHeight: 0 },
   col: { display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' },
+  // 가운데 「환자 맥락」 열 프레임 — 데모 `w-80 bg-muted/20 p-4` 한 열. 카드 간격(gap)·인셋(padding)을
+  // 여기서 한 번만 준다(카드들은 자기 프레임 없음). borderRight로 오른쪽 기록 열과 가른다.
+  contextCol: { gap: 'var(--sp-3)', padding: 'var(--sp-4)', background: 'var(--color-bg)', borderRight: '1px solid var(--color-divider)' },
   recordCol: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', padding: 0 },
   recovered: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', margin: 'var(--sp-4)', marginBottom: 0, padding: 'var(--sp-2) var(--sp-3)',

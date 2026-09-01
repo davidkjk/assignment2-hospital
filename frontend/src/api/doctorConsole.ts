@@ -22,6 +22,8 @@ export interface DoctorQueueApiRow {
   /** [QUEUE-ROW-06] 현재 상태로 진입한 시각 — 상태별 라벨(경과/대기/분째)의 기준. */
   status_since: string | null
   status: string
+  /** [DOCTOR-CONTEXT-01] 예약 슬롯 시각(HH:MM:SS). 가운데 기본정보 카드 맥락 줄용. 워크인은 null. */
+  start_time?: string | null
   /** ⏳ BLOCKED(갭 #36 경계): change_status가 요구하는 낙관적 잠금 값. get_doctor_queue가 아직
    *  주지 않아, 이 값 없이는 실제 진료중 전이 요청이 422로 거절된다. 서버가 담아 주면 그대로 흘려보낸다. */
   updated_at?: string
