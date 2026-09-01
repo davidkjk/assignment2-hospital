@@ -7,7 +7,6 @@ import '../../core/connectivity.dart';
 import '../../core/providers.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
-import '../../widgets/offline_banner.dart';
 import '../../core/tokens.dart';
 import '../home/appointment_view.dart';
 import '../home/home_data.dart' show hospitalInfoProvider, HospitalInfo;
@@ -55,9 +54,11 @@ class AppointmentDetail {
   final String? doctorId;
   final String? departmentId;
   final int cancellationDeadlineHours;
-  final String? forPatientId; // 소유자 patient id — 이력 딥링크(T27b)가 소유자 칩을 고르는 데 쓴다(NAV-HIST-05)
+  final String?
+      forPatientId; // 소유자 patient id — 이력 딥링크(T27b)가 소유자 칩을 고르는 데 쓴다(NAV-HIST-05)
 
-  factory AppointmentDetail.fromJson(Map<String, dynamic> j, HospitalInfo? hospital) =>
+  factory AppointmentDetail.fromJson(
+          Map<String, dynamic> j, HospitalInfo? hospital) =>
       AppointmentDetail(
         view: AppointmentView.fromJson(j),
         forPatientId: j['for_patient_id'] as String?,
@@ -68,23 +69,28 @@ class AppointmentDetail {
         supportRequestedAt: j['support_requested_at'] == null
             ? null
             : DateTime.parse(j['support_requested_at'] as String),
-        updatedAt: j['updated_at'] == null ? null : DateTime.parse(j['updated_at'] as String),
-        createdAt: j['created_at'] == null ? null : DateTime.parse(j['created_at'] as String),
+        updatedAt: j['updated_at'] == null
+            ? null
+            : DateTime.parse(j['updated_at'] as String),
+        createdAt: j['created_at'] == null
+            ? null
+            : DateTime.parse(j['created_at'] as String),
         cancelRejectedAt: j['cancel_rejected_at'] == null
             ? null
             : DateTime.parse(j['cancel_rejected_at'] as String),
         cancelRejectedReason: j['cancel_rejected_reason'] as String?,
         doctorId: j['doctor_id'] as String?,
         departmentId: j['department_id'] as String?,
-        cancellationDeadlineHours: (j['cancellation_deadline_hours'] as int?) ?? 24,
+        cancellationDeadlineHours:
+            (j['cancellation_deadline_hours'] as int?) ?? 24,
       );
 }
 
 /// GET /my/appointments/{id} + 병원 정보를 엮어 상세 한 화면을 만든다.
 /// 없는 예약(다른 사람 것·지워짐)은 404 또는 빈 응답 → null(NAV-APPT-23).
 /// **Task 20 완료 화면이 아니라 Task 22 변경/취소가 성공 후 이 provider를 invalidate해 다시 그린다.**
-final appointmentDetailProvider =
-    FutureProvider.autoDispose.family<AppointmentDetail?, String>((ref, id) async {
+final appointmentDetailProvider = FutureProvider.autoDispose
+    .family<AppointmentDetail?, String>((ref, id) async {
   final api = ref.read(apiClientProvider);
   Map<String, dynamic> j;
   try {
@@ -101,8 +107,8 @@ final appointmentDetailProvider =
 /// 변경/취소 버튼의 처리 중·실패 상태(APPT-BTN-11·12). 평소엔 AsyncData(null).
 /// **Task 22가 변경/취소를 실행할 때 여기 상태를 밀어 넣는다**(AsyncLoading → AsyncData/AsyncError).
 /// T21은 정의·소비만; 실제 실행은 T22.
-final detailActionProvider =
-    StateProvider.autoDispose.family<AsyncValue<void>, String>((ref, id) => const AsyncData(null));
+final detailActionProvider = StateProvider.autoDispose
+    .family<AsyncValue<void>, String>((ref, id) => const AsyncData(null));
 
 /// 예약 상세 종점 화면. 홈 카드·나의 예약 줄·알림함이 전부 `/appointments/:id`로 여기로 온다.
 /// [changed]가 true면 방금 변경을 마친 것 — 예약번호 새 발급 안내를 한 줄 얹는다(APPT-CHG-12·13).
@@ -127,7 +133,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
           final state = resolveCardState(d.view, DateTime.now());
           final cancelled = state == AppointmentCardState.cancelled;
           return Column(children: [
-            if (!online) const OfflineBanner(), // NAV-APPT-22 — 화면 안 옮기고 보관본 유지
+            // NAV-APPT-22 오프라인 띠는 전역 셸(AppShell)이 맨 위에 얹는다(NAV-GLOBAL-01) — 여기선 중복 금지.
             Expanded(
               child: ListView(padding: EdgeInsets.zero, children: [
                 DetailHeader(d, state),
@@ -174,7 +180,8 @@ class _ChangedNotice extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: const Text('예약번호가 새로 발급되었습니다',
-          style: TextStyle(fontWeight: FontWeight.w600, color: AppTokens.primary)),
+          style:
+              TextStyle(fontWeight: FontWeight.w600, color: AppTokens.primary)),
     );
   }
 }

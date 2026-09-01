@@ -50,7 +50,8 @@ const appointmentsTabRoute = '/my';
 
 // AUTH-REAUTH-05: 민감 경로(설정·가족·탈퇴). 탈퇴는 /settings 하위. Task 11 redirect가 이 판정을 부른다.
 // NAV-LIST-13: 목록(/my)은 여기 없다 — 재인증 없이 본다(가족·설정과 다르고 이력과 같다).
-bool _isSensitive(String loc) => loc.startsWith('/settings') || loc.startsWith('/family');
+bool _isSensitive(String loc) =>
+    loc.startsWith('/settings') || loc.startsWith('/family');
 bool isSensitiveLocation(String loc) => _isSensitive(loc); // 테스트용 공개 래퍼
 
 // 전역 redirect 정책(순수 함수 — router_guard_test가 직접 부른다). NAV-GLOBAL-03·04·05.
@@ -66,7 +67,9 @@ String? computeRedirect({
   // OFF-AUTH-01: expiredOffline이면 캐시 읽기전용 화면 유지 — 로그인으로 보내지 않는다.
   if (auth == AuthStatus.expiredOffline) return null;
   // NAV-GLOBAL-04(갭 #43): 인증됐지만 프로필 미완료면 가입 ③으로(profileMissingProvider는 Task 13이 채운다).
-  if (auth == AuthStatus.signedIn && profileMissing && !loc.startsWith('/signup')) {
+  if (auth == AuthStatus.signedIn &&
+      profileMissing &&
+      !loc.startsWith('/signup')) {
     return '/signup/step3';
   }
   // NAV-GLOBAL-05: 민감 경로이고 떠난 지 5분 지났으면 재인증 먼저(Task 14 AUTH-REAUTH-*).
@@ -86,7 +89,8 @@ String? _authRedirect(BuildContext context, GoRouterState state) {
 }
 
 /// 가입 ② 인증 성공 후: 프로필 없음 → ③으로(NAV-AUTH-04), 이미 있으면 갈림길로(AUTH-DUP-02·NAV-AUTH-05).
-Future<void> _afterSignupOtp(BuildContext context, WidgetRef ref, String phone) async {
+Future<void> _afterSignupOtp(
+    BuildContext context, WidgetRef ref, String phone) async {
   final exists = await ref.read(authRepoProvider).hasProfile();
   if (!context.mounted) return;
   if (exists) {
@@ -110,20 +114,24 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
                 builder: (c, ref, _) => LoginScreen(
                       controller: LoginController(ref.read(authRepoProvider)),
                       prefillPhone: extra?['phone'] as String?,
-                      onSuccess: () => c.go(next ?? '/home'), // AUTH-LOGIN-09·NAV-AUTH-10·18
+                      onSuccess: () =>
+                          c.go(next ?? '/home'), // AUTH-LOGIN-09·NAV-AUTH-10·18
                       onForgot: () => c.push('/password-find'), // NAV-AUTH-11
-                      onPhoneChanged: () => c.push('/phone-change'), // NAV-AUTH-12
+                      onPhoneChanged: () =>
+                          c.push('/phone-change'), // NAV-AUTH-12
                     ));
           },
         ),
         // ⓪동의 → ①전화 → ②인증(분기) → ③기본정보 (화면은 T13, 여기선 콜백만 잇는다)
-        GoRoute(path: '/signup', builder: (c, s) => const ConsentScreen()), // NAV-AUTH-02
+        GoRoute(
+            path: '/signup',
+            builder: (c, s) => const ConsentScreen()), // NAV-AUTH-02
         GoRoute(
           path: '/signup/phone',
           builder: (c, s) => Consumer(
               builder: (c, ref, _) => SignupPhoneScreen(
-                  controller: SignupPhoneController(
-                      ref.read(authRepoProvider), ref.read(phoneCooldownStoreProvider)))), // NAV-AUTH-03
+                  controller: SignupPhoneController(ref.read(authRepoProvider),
+                      ref.read(phoneCooldownStoreProvider)))), // NAV-AUTH-03
         ),
         GoRoute(
           path: '/signup/otp',
@@ -138,7 +146,8 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
                 cooldown: ref.read(phoneCooldownStoreProvider),
                 onResend: () => repo.sendOtp(phone, createUser: true),
                 onVerify: (code) => repo.verifyOtp(phone, code),
-                onSuccess: () => _afterSignupOtp(c, ref, phone), // NAV-AUTH-04·05
+                onSuccess: () =>
+                    _afterSignupOtp(c, ref, phone), // NAV-AUTH-04·05
               );
             });
           },
@@ -147,9 +156,11 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
           path: '/signup/step3',
           builder: (c, s) => Consumer(
               builder: (c, ref, _) => SignupProfileScreen(
-                    controller: SignupProfileController(ref.read(signupProfileRepoProvider)),
+                    controller: SignupProfileController(
+                        ref.read(signupProfileRepoProvider)),
                     adsAgreed: ref.watch(consentProvider).ads,
-                    onDone: () => c.go('/home'), // AUTH-SIGNUP-07: 홈으로(축하 화면 없음)
+                    onDone: () =>
+                        c.go('/home'), // AUTH-SIGNUP-07: 홈으로(축하 화면 없음)
                   )), // NAV-AUTH-08·09
         ),
         GoRoute(
@@ -160,9 +171,12 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
                 builder: (c, ref, _) => DuplicateAccountScreen(
                       phone: phone,
                       repo: ref.read(authRepoProvider),
-                      onLogin: () => c.go('/login', extra: {'phone': phone}), // NAV-AUTH-06(번호 채워)
-                      onChangePassword: () => c.go('/new-password'), // NAV-AUTH-07
-                      onRecentlyReceived: () => c.push('/phone-change'), // AUTH-DUP-14
+                      onLogin: () => c.go('/login',
+                          extra: {'phone': phone}), // NAV-AUTH-06(번호 채워)
+                      onChangePassword: () =>
+                          c.go('/new-password'), // NAV-AUTH-07
+                      onRecentlyReceived: () =>
+                          c.push('/phone-change'), // AUTH-DUP-14
                     ));
           },
         ),
@@ -170,9 +184,10 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
           path: '/password-find',
           builder: (c, s) => Consumer(
               builder: (c, ref, _) => PasswordFindScreen(
-                    controller: PasswordFindController(ref.read(authRepoProvider)),
-                    onSent: (phone) =>
-                        c.push('/password-find/otp', extra: {'phone': phone}), // NAV-AUTH-13
+                    controller:
+                        PasswordFindController(ref.read(authRepoProvider)),
+                    onSent: (phone) => c.push('/password-find/otp',
+                        extra: {'phone': phone}), // NAV-AUTH-13
                   )),
         ),
         GoRoute(
@@ -196,11 +211,15 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
           path: '/new-password',
           builder: (c, s) => Consumer(
               builder: (c, ref, _) => NewPasswordScreen(
-                    controller: NewPasswordController(ref.read(authRepoProvider)),
-                    onDone: () => c.go('/login'), // AUTH-PWNEW-04(로그인 화면으로) — NAV-AUTH-15 갱신
+                    controller:
+                        NewPasswordController(ref.read(authRepoProvider)),
+                    onDone: () => c.go(
+                        '/login'), // AUTH-PWNEW-04(로그인 화면으로) — NAV-AUTH-15 갱신
                   )),
         ),
-        GoRoute(path: '/phone-change', builder: (c, s) => const PhoneChangeScreen()),
+        GoRoute(
+            path: '/phone-change',
+            builder: (c, s) => const PhoneChangeScreen()),
         GoRoute(
           path: '/reauth',
           builder: (c, s) {
@@ -209,105 +228,143 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
                 builder: (c, ref, _) => ReauthScreen(
                       controller: ReauthController(ref.read(authRepoProvider)),
                       guard: ref.read(sensitiveReauthGuardProvider),
-                      onPassed: () => c.go(next), // NAV-GLOBAL-05: 원래 가려던 민감 화면으로
+                      onPassed: () =>
+                          c.go(next), // NAV-GLOBAL-05: 원래 가려던 민감 화면으로
                       onForgot: () => c.push('/password-find'), // NAV-AUTH-17
                     ));
           },
         ),
-        // 홈은 AppShell(하단 탭 셸)로 감싼다(NAV-HOME-19: 로그인 후 홈에는 탭 바가 있다).
-        GoRoute(
-            path: '/home',
-            builder: (c, s) => const AppShell(body: HomeScreen(), bottomTabs: MainTabs())),
-        // 나머지 보호 화면은 이후 태스크가 각자 AppShell로 감싼다(지금은 자리표시자).
-        // 예약 마법사 — 하단 탭 셸 안(NAV-BOOK-21: 탭 다녀와도 상태 유지 = BOOK-KEEP-01).
-        GoRoute(
-          path: '/booking',
-          builder: (c, s) =>
-              const AppShell(body: BookingWizard(), bottomTabs: MainTabs()),
-          redirect: (c, s) {
-            // BOOK-NAV-09 — 예약은 오프라인에서 못 한다. 진입점 버튼이 이미 회색이지만 딥링크 방어로 한 번 더.
-            final online =
-                ProviderScope.containerOf(c).read(connectivityProvider).valueOrNull ?? true;
-            return online ? null : '/home';
-          },
-        ),
-        // 나의 예약 목록(T30) — 하단 탭 셸 안(NAV-LIST-01: 예약 탭 목적지). HOME-KILL·상세·탈퇴도 여기로 온다.
-        GoRoute(
-            path: '/my',
-            builder: (c, s) =>
-                const AppShell(body: MyAppointmentsScreen(), bottomTabs: MainTabs())),
-        GoRoute(path: '/family', builder: (c, s) => const FamilyListScreen()),   // 환자앱 T25
-        // 환자앱 T26 — 가족 추가 갈래·㉮ 등록·㉯ OTP 연결. _isSensitive가 이미 /family를 덮는다.
-        GoRoute(path: '/family/add', builder: (c, s) => const FamilyAddChoiceScreen()),
-        GoRoute(path: '/family/add/new', builder: (c, s) => const FamilyNewScreen()),
-        GoRoute(path: '/family/add/link', builder: (c, s) => const FamilyLinkFormScreen()),
-        GoRoute(path: '/family/add/link/otp', builder: (c, s) => const FamilyLinkOtpPage()),
-        GoRoute(
-            path: '/family/:id/edit',
-            builder: (c, s) => FamilyEditScreen(familyPatientId: s.pathParameters['id']!)),
-        GoRoute(
-            path: '/appointments/:id',
-            builder: (c, s) => AppointmentDetailScreen(
-                  s.pathParameters['id']!,
-                  changed: s.uri.queryParameters['changed'] == '1', // APPT-CHG-12 변경 완료 안내
-                )), // 환자앱 T21
-        // 환자앱 T22 — 변경 마법사·취소 흐름(상세 [예약 변경]·[예약 취소]가 push, NAV-APPT-07·12).
-        GoRoute(
-            path: '/appointments/:id/change',
-            builder: (c, s) => ChangeScreen(s.pathParameters['id']!)),
-        GoRoute(
-            path: '/appointments/:id/cancel',
-            builder: (c, s) => CancelLauncherScreen(s.pathParameters['id']!)),
-
-        GoRoute(
-            path: '/history',
-            builder: (c, s) => HistoryScreen(deepLinkAppointment: s.uri.queryParameters['appointment'])),
-        // ── 설정(Task 28) — T14 redirect가 /settings 하위를 이미 지킨다(NAV-SET-01·02) ──
-        GoRoute(path: '/settings', builder: (c, s) => const SettingsHomeScreen()), // SET-HOME
-        GoRoute(
-            path: '/settings/notifications',
-            builder: (c, s) => const NotificationSettingsScreen()), // NAV-SET-04
-        // T26 자리표시자(_Placeholder('병원 안내'))를 실화면으로 교체 — NAV-FAM-12·AUTH-OTP-11의 도착지가 실화면이 됐다.
-        GoRoute(path: '/settings/hospital', builder: (c, s) => const HospitalInfoScreen()), // NAV-SET-07
-        // ── T29 실화면 (로그아웃은 팝업이라 라우트 없음, NAV-SET-08) ──
-        GoRoute(
-          path: '/settings/password', // NAV-SET-05·14
-          builder: (c, s) => SettingsPasswordScreen(onDone: () {
-            c.go('/settings');
-            ScaffoldMessenger.of(c).showSnackBar(
-                const SnackBar(content: Text('비밀번호를 바꿨습니다'))); // NAV-SET-14·SET-PW-13
-          }),
-        ),
-        GoRoute(path: '/settings/withdraw', builder: (c, s) => const WithdrawScreen()), // NAV-SET-09·10~13
-        // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
-        // 알림함은 데모 정본대로 하단 탭 셸 안에서 렌더(데모 스샷에 탭바 있음) — AppShell(bottomTabs).
-        GoRoute(
-            path: '/notifications',
-            builder: (c, s) =>
-                const AppShell(body: NotificationInbox(), bottomTabs: MainTabs())), // NAV-HOME-12(T18)
+        // QR 전체화면은 몰입(탭바·오프라인 띠 없음) — 셸 밖. 그 화면이 자체 줄을 넣는다(OFF-BAN-05).
         GoRoute(
             path: '/qr/:id',
-            builder: (c, s) => QrRoute(appointmentId: s.pathParameters['id']!)), // NAV-HOME-02(화면=T17)
-        GoRoute(path: '/questionnaire', builder: (c, s) => const _Placeholder('사전문진')), // 문진 탭
-        GoRoute(
-            path: '/questionnaire/:id',
-            builder: (c, s) {
-              final id = s.pathParameters['id']!;
-              final start = s.uri.queryParameters['start'];
-              // ?start=N → 마법사가 그 문항으로(이어쓰기 [이어서]/[처음부터], 확인 [고치기]). 없으면 상태 분기.
-              if (start != null) {
-                return QuestionnaireWizard(appointmentId: id, startIndex: int.tryParse(start) ?? 0);
-              }
-              return QuestionnaireEntry(appointmentId: id);
-            }), // NAV-HOME-05·NAV-QNR (화면=T23)
-        GoRoute(
-            path: '/questionnaire/:id/confirm',
-            builder: (c, s) {
-              final id = s.pathParameters['id']!;
-              final from = s.uri.queryParameters['from'];
-              return ConfirmScreen(appointmentId: id, readOnly: false, returnTo: returnRouteFor(from, id));
-            }),
-        GoRoute(path: '/chat', builder: (c, s) => const _Placeholder('상담 채팅')), // NAV-HOME-11(화면=4단계)
+            builder: (c, s) => QrRoute(
+                appointmentId: s.pathParameters['id']!)), // NAV-HOME-02(화면=T17)
+        // ── 로그인 후 전역 셸: 하단 탭 5개 + 오프라인 띠(NAV-GLOBAL-01). 데모 BottomTabBar 모델 ──
+        // 탭 소속 아닌 화면(설정·상세·문진…)에도 탭바를 얹어 막다른 길을 없앤다(활성 강조만 없음).
+        ShellRoute(
+          builder: (c, s, child) =>
+              AppShell(body: child, bottomTabs: const MainTabs()),
+          routes: [
+            // 홈(NAV-HOME-19: 로그인 후 홈에는 탭 바가 있다).
+            GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
+            // 예약 마법사 — 탭 다녀와도 상태 유지(NAV-BOOK-21 = BOOK-KEEP-01).
+            GoRoute(
+              path: '/booking',
+              builder: (c, s) => const BookingWizard(),
+              redirect: (c, s) {
+                // BOOK-NAV-09 — 예약은 오프라인에서 못 한다. 진입점 버튼이 이미 회색이지만 딥링크 방어로 한 번 더.
+                final online = ProviderScope.containerOf(c)
+                        .read(connectivityProvider)
+                        .valueOrNull ??
+                    true;
+                return online ? null : '/home';
+              },
+            ),
+            // 나의 예약 목록(T30, NAV-LIST-01: 예약 탭 목적지). HOME-KILL·상세·탈퇴도 여기로 온다.
+            GoRoute(
+                path: '/my', builder: (c, s) => const MyAppointmentsScreen()),
+            GoRoute(
+                path: '/family',
+                builder: (c, s) => const FamilyListScreen()), // 환자앱 T25
+            // 환자앱 T26 — 가족 추가 갈래·㉮ 등록·㉯ OTP 연결. _isSensitive가 이미 /family를 덮는다.
+            GoRoute(
+                path: '/family/add',
+                builder: (c, s) => const FamilyAddChoiceScreen()),
+            GoRoute(
+                path: '/family/add/new',
+                builder: (c, s) => const FamilyNewScreen()),
+            GoRoute(
+                path: '/family/add/link',
+                builder: (c, s) => const FamilyLinkFormScreen()),
+            GoRoute(
+                path: '/family/add/link/otp',
+                builder: (c, s) => const FamilyLinkOtpPage()),
+            GoRoute(
+                path: '/family/:id/edit',
+                builder: (c, s) =>
+                    FamilyEditScreen(familyPatientId: s.pathParameters['id']!)),
+            GoRoute(
+                path: '/appointments/:id',
+                builder: (c, s) => AppointmentDetailScreen(
+                      s.pathParameters['id']!,
+                      changed: s.uri.queryParameters['changed'] ==
+                          '1', // APPT-CHG-12 변경 완료 안내
+                    )), // 환자앱 T21
+            // 환자앱 T22 — 변경 마법사·취소 흐름(상세 [예약 변경]·[예약 취소]가 push, NAV-APPT-07·12).
+            GoRoute(
+                path: '/appointments/:id/change',
+                builder: (c, s) => ChangeScreen(s.pathParameters['id']!)),
+            GoRoute(
+                path: '/appointments/:id/cancel',
+                builder: (c, s) =>
+                    CancelLauncherScreen(s.pathParameters['id']!)),
+
+            GoRoute(
+                path: '/history',
+                builder: (c, s) => HistoryScreen(
+                    deepLinkAppointment: s.uri.queryParameters['appointment'])),
+            // ── 설정(Task 28) — T14 redirect가 /settings 하위를 이미 지킨다(NAV-SET-01·02) ──
+            GoRoute(
+                path: '/settings',
+                builder: (c, s) => const SettingsHomeScreen()), // SET-HOME
+            GoRoute(
+                path: '/settings/notifications',
+                builder: (c, s) =>
+                    const NotificationSettingsScreen()), // NAV-SET-04
+            // T26 자리표시자(_Placeholder('병원 안내'))를 실화면으로 교체 — NAV-FAM-12·AUTH-OTP-11의 도착지가 실화면이 됐다.
+            GoRoute(
+                path: '/settings/hospital',
+                builder: (c, s) => const HospitalInfoScreen()), // NAV-SET-07
+            // ── T29 실화면 (로그아웃은 팝업이라 라우트 없음, NAV-SET-08) ──
+            GoRoute(
+              path: '/settings/password', // NAV-SET-05·14
+              builder: (c, s) => SettingsPasswordScreen(onDone: () {
+                c.go('/settings');
+                ScaffoldMessenger.of(c).showSnackBar(const SnackBar(
+                    content: Text('비밀번호를 바꿨습니다'))); // NAV-SET-14·SET-PW-13
+              }),
+            ),
+            GoRoute(
+                path: '/settings/withdraw',
+                builder: (c, s) => const WithdrawScreen()), // NAV-SET-09·10~13
+            // NAV-HOME 목적지(화면은 T17·18·23 소유 — 여기선 라우트 표만 잇는다).
+            // 알림함(데모 정본대로 탭바 있음 — 전역 셸이 담당).
+            GoRoute(
+                path: '/notifications',
+                builder: (c, s) =>
+                    const NotificationInbox()), // NAV-HOME-12(T18)
+            GoRoute(
+                path: '/questionnaire',
+                builder: (c, s) => const _Placeholder('사전문진')), // 문진 탭
+            GoRoute(
+                path: '/questionnaire/:id',
+                builder: (c, s) {
+                  final id = s.pathParameters['id']!;
+                  final start = s.uri.queryParameters['start'];
+                  // ?start=N → 마법사가 그 문항으로(이어쓰기 [이어서]/[처음부터], 확인 [고치기]). 없으면 상태 분기.
+                  if (start != null) {
+                    return QuestionnaireWizard(
+                        appointmentId: id,
+                        startIndex: int.tryParse(start) ?? 0);
+                  }
+                  return QuestionnaireEntry(appointmentId: id);
+                }), // NAV-HOME-05·NAV-QNR (화면=T23)
+            GoRoute(
+                path: '/questionnaire/:id/confirm',
+                builder: (c, s) {
+                  final id = s.pathParameters['id']!;
+                  final from = s.uri.queryParameters['from'];
+                  return ConfirmScreen(
+                      appointmentId: id,
+                      readOnly: false,
+                      returnTo: returnRouteFor(from, id));
+                }),
+            GoRoute(
+                path: '/chat',
+                builder: (c, s) =>
+                    const _Placeholder('상담 채팅')), // NAV-HOME-11(화면=4단계)
+          ],
+        ),
       ],
     );
 
@@ -317,5 +374,6 @@ class _Placeholder extends StatelessWidget {
   const _Placeholder(this.label);
   final String label;
   @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: Text(label)));
+  Widget build(BuildContext context) =>
+      Scaffold(body: Center(child: Text(label)));
 }

@@ -12,6 +12,7 @@ import 'package:hospital_patient_app/features/appointments/appointment_list_row.
 import 'package:hospital_patient_app/features/appointments/my_appointments_screen.dart';
 import 'package:hospital_patient_app/widgets/empty_state.dart';
 import 'package:hospital_patient_app/widgets/offline_banner.dart';
+import 'package:hospital_patient_app/widgets/app_shell.dart';
 
 AppointmentView _view(String status, {String id = 'a'}) => AppointmentView.fromJson({
       'id': id,
@@ -57,8 +58,11 @@ Widget _screen({
       upcomingCacheProvider.overrideWith((ref) async =>
           CachedUpcoming(items: const [], savedAt: DateTime.now().subtract(const Duration(hours: 25)))),
   ];
+  // 오프라인 띠는 전역 셸(AppShell)이 얹으므로 화면을 셸로 감싸 실제 배치대로 검증한다(NAV-GLOBAL-01).
   return ProviderScope(
-      overrides: overrides, child: const MaterialApp(home: MyAppointmentsScreen()));
+      overrides: overrides,
+      child: const MaterialApp(
+          home: AppShell(body: MyAppointmentsScreen(), bottomTabs: SizedBox.shrink())));
 }
 
 void main() {

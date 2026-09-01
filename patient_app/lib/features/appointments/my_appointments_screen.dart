@@ -12,27 +12,31 @@ import 'package:hospital_patient_app/features/appointments/appointment_list_row.
 import 'package:hospital_patient_app/features/appointments/appointment_list_cta.dart';
 import 'package:hospital_patient_app/features/appointments/appointment_list_qnr_line.dart';
 import 'package:hospital_patient_app/widgets/empty_state.dart';
-import 'package:hospital_patient_app/widgets/offline_banner.dart';
 
 /// 나의 예약 목록(하단 '예약' 탭, 경로 `/my`). LIST-ROLE-01: 목록이다 — 예약을 '시작'하는 곳이 아니다.
 /// T30이 셸·줄·상태 글자를 세웠고, T31이 빈/오프라인/실패·갱신·문진 줄·하단 버튼을 채운다.
 class MyAppointmentsScreen extends ConsumerStatefulWidget {
   final Widget? bottomSlot; // 주어지면 이것, 없으면 기본 AppointmentListCta(T31 LIST-CTA)
-  final Widget Function(AppointmentView)? questionnaireBuilder; // 주어지면 이것, 없으면 기본 LIST-QNR 줄
-  const MyAppointmentsScreen({super.key, this.bottomSlot, this.questionnaireBuilder});
+  final Widget Function(AppointmentView)?
+      questionnaireBuilder; // 주어지면 이것, 없으면 기본 LIST-QNR 줄
+  const MyAppointmentsScreen(
+      {super.key, this.bottomSlot, this.questionnaireBuilder});
 
   // NAV-LIST-02: 줄 본문 → 상세 / NAV-LIST-04: 문진 줄 → 문진 / NAV-LIST-05·06: CTA → 예약 1단계.
   // push로 연다 — 뒤로 오면 들어온 자리(목록)로 돌아온다(NAV-LIST-08·09).
-  static void openDetail(BuildContext c, String id) => c.push('/appointments/$id');
+  static void openDetail(BuildContext c, String id) =>
+      c.push('/appointments/$id');
   static void openQuestionnaire(AppointmentView v) =>
       _rootCtx!.push('/questionnaire/${v.id}'); // 상세를 거치지 않는다(NAV-LIST-04)
-  static void startBooking(BuildContext c) => c.go('/booking'); // NAV-BOOK-01: 언제나 처음부터
+  static void startBooking(BuildContext c) =>
+      c.go('/booking'); // NAV-BOOK-01: 언제나 처음부터
   // NAV-LIST-07: [다시 시도]는 화면을 옮기지 않고 그 자리에서 다시 조회한다(재조회=조회 원본 무효화).
   static void retry(WidgetRef ref) => ref.invalidate(homeAppointmentsProvider);
   static BuildContext? _rootCtx;
 
   @override
-  ConsumerState<MyAppointmentsScreen> createState() => _MyAppointmentsScreenState();
+  ConsumerState<MyAppointmentsScreen> createState() =>
+      _MyAppointmentsScreenState();
 }
 
 class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
@@ -52,7 +56,8 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
     if (!identical(_rt, rt)) {
       _rtSub?.cancel();
       _rt = rt;
-      _rtSub = rt.events.listen((_) => ref.invalidate(homeAppointmentsProvider));
+      _rtSub =
+          rt.events.listen((_) => ref.invalidate(homeAppointmentsProvider));
     }
     rt.setActive(hasActive);
   }
@@ -64,7 +69,8 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
     MyAppointmentsScreen._rootCtx = context;
     final raw = ref.watch(homeAppointmentsProvider);
     final online = ref.watch(connectivityProvider).valueOrNull ?? true;
-    final stale = ref.watch(upcomingCacheProvider).valueOrNull?.isStale ?? false;
+    final stale =
+        ref.watch(upcomingCacheProvider).valueOrNull?.isStale ?? false;
 
     final content = raw.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -78,14 +84,19 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
         if (nullable == null) {
           // 오프라인 + 보관본 없음 → 「모르는 것」(0건이 아니다, LIST-EMPTY-07·09).
           _wireRealtime(false);
-          return Center(child: EmptyState.offline(screenName: '예약', onRetry: _invalidate));
+          return Center(
+              child:
+                  EmptyState.offline(screenName: '예약', onRetry: _invalidate));
         }
         final list = filterUpcoming(nullable);
-        _wireRealtime(list.isNotEmpty); // 활성(앞으로 갈 예약)이 있을 때만 구독(LIST-REFRESH-02)
+        _wireRealtime(
+            list.isNotEmpty); // 활성(앞으로 갈 예약)이 있을 때만 구독(LIST-REFRESH-02)
         if (list.isEmpty) {
           if (!online) {
             // 오프라인인데 보관본에 살아 있는 예약이 없음 → offline 화면(0건 아님, LIST-EMPTY-09).
-            return Center(child: EmptyState.offline(screenName: '예약', onRetry: _invalidate));
+            return Center(
+                child:
+                    EmptyState.offline(screenName: '예약', onRetry: _invalidate));
           }
           // 온라인 0건 → 사실 안내(실패 아님) + [다시 시도] 없음 + 최근 방문 없음(LIST-EMPTY-01·02·03).
           return EmptyState.zero(
@@ -98,21 +109,27 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
         return RefreshIndicator(
           onRefresh: () async => _invalidate(), // LIST-REFRESH-01: 당겨서 새로고침
           child: ListView(
-            key: const PageStorageKey('my-appointments'), // LIST-REFRESH-05: 상세에서 돌아오면 같은 스크롤 위치
+            key: const PageStorageKey(
+                'my-appointments'), // LIST-REFRESH-05: 상세에서 돌아오면 같은 스크롤 위치
             children: [
-              if (!online) const OfflineBanner(), // LIST-EMPTY-04·05: 오프라인 띠(모습은 온라인과 같다)
-              if (!online && stale) const _StaleWarning(), // LIST-EMPTY-06: 24시간 초과 경고 한 번(줄마다 아님)
+              // LIST-EMPTY-04·05 오프라인 띠는 전역 셸(AppShell)이 맨 위에 얹는다(NAV-GLOBAL-01) — 여기선 중복 금지.
+              if (!online && stale)
+                const _StaleWarning(), // LIST-EMPTY-06: 24시간 초과 경고 한 번(줄마다 아님)
               for (final sec in sections) ...[
-                _DateHeader(date: sec.date, count: sec.items.length), // LIST-LIST-04·05
+                _DateHeader(
+                    date: sec.date, count: sec.items.length), // LIST-LIST-04·05
                 for (final v in sec.items)
                   AppointmentBox(
                     view: v,
                     now: now,
-                    onTap: () => MyAppointmentsScreen.openDetail(context, v.id), // NAV-LIST-02
+                    onTap: () => MyAppointmentsScreen.openDetail(
+                        context, v.id), // NAV-LIST-02
                     questionnaireSlot: widget.questionnaireBuilder != null
                         ? widget.questionnaireBuilder!(v)
                         : appointmentListQnrLine(v,
-                            onOpen: () => MyAppointmentsScreen.openQuestionnaire(v)), // 기본 LIST-QNR 줄
+                            onOpen: () =>
+                                MyAppointmentsScreen.openQuestionnaire(
+                                    v)), // 기본 LIST-QNR 줄
                   ),
               ],
             ],
@@ -126,7 +143,8 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
       body: content,
       // LIST-CTA-01·02·03: 어느 분기든 하단에 「+ 새 예약하기」 하나(0건에도 있어야 막다른 길이 아니다).
       bottomNavigationBar: widget.bottomSlot ??
-          AppointmentListCta(offline: !online, onNewBooking: () => context.go('/booking')),
+          AppointmentListCta(
+              offline: !online, onNewBooking: () => context.go('/booking')),
     );
   }
 }
@@ -156,9 +174,11 @@ class _DateHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Row(children: [
           Text('${date.month}월 ${date.day}일 (${_dow[date.weekday - 1]})',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(width: 8),
-          Text('$count건', style: const TextStyle(color: Color(0xFF7E8E99), fontSize: 13)),
+          Text('$count건',
+              style: const TextStyle(color: Color(0xFF7E8E99), fontSize: 13)),
           const SizedBox(width: 12),
           const Expanded(child: Divider()),
         ]),

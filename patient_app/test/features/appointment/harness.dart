@@ -6,6 +6,7 @@ import 'package:hospital_patient_app/core/connectivity.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/appointment/appointment_detail.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/widgets/app_shell.dart'; // 오프라인 띠는 전역 셸이 얹는다(NAV-GLOBAL-01)
 
 /// 상세 화면 한 벌을 만든다. 서버 판정(상태·문진상태·방문이유 등)은 fixture가 정해 주입한다 —
 /// 앱은 판정하지 않고 받은 값을 그린다.
@@ -78,7 +79,10 @@ class DetailHarness {
     router = GoRouter(initialLocation: '/appointments/a1', routes: [
       GoRoute(
           path: '/appointments/:id',
-          builder: (c, s) => AppointmentDetailScreen(s.pathParameters['id']!, changed: changed)),
+          // 실제 배치대로 전역 셸에 얹는다(오프라인 띠는 셸이 담당). 탭바는 이 하네스에서 SizedBox로 생략.
+          builder: (c, s) => AppShell(
+              body: AppointmentDetailScreen(s.pathParameters['id']!, changed: changed),
+              bottomTabs: const SizedBox.shrink())),
       GoRoute(path: '/appointments/:id/change', builder: (c, s) => _stub('change')),
       GoRoute(path: '/appointments/:id/cancel', builder: (c, s) => _stub('cancel')),
       GoRoute(path: '/qr/:id', builder: (c, s) => _stub('qr')),
