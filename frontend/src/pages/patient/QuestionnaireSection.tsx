@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { ClipboardList } from '../../components/icons'
 import type { Role } from '../../auth/roles'
 import type { SectionState } from './format'
 import { md, mdHm } from './format'
+import { SectionHead } from './SectionHead'
 
 // [PTDET-QNR-01~04] 사전문진.
 //   · 답변 '내용'은 담당 의사만 본다(QNR-03·요구사항 :420·결정 #14·AD-050) — 접수직원·관리자에겐
@@ -42,7 +44,7 @@ export function QuestionnaireSection({ role, state, statuses = [], onRequest }: 
   if (!isDoctor) {
     return (
       <section aria-label="사전문진" style={styles.section}>
-        <h2 style={styles.heading}>사전문진</h2>
+        <SectionHead icon={<ClipboardList className="h-4 w-4" />} title="사전문진" count={statuses.length} />
         <p style={styles.note}>답변 내용은 담당 의사만 열람합니다</p>
 
         {state.loading ? (
@@ -76,7 +78,7 @@ export function QuestionnaireSection({ role, state, statuses = [], onRequest }: 
   const items = state.data ?? []
   return (
     <section aria-label="사전문진" style={styles.section}>
-      <h2 style={styles.heading}>사전문진</h2>
+      <SectionHead icon={<ClipboardList className="h-4 w-4" />} title="사전문진" count={items.length} />
 
       {state.loading ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
@@ -113,7 +115,6 @@ const styles: Record<string, CSSProperties> = {
     padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   note: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
   empty: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   askBtn: {

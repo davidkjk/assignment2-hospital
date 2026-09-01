@@ -21,6 +21,17 @@ function genderLabel(g: string): string {
   return GENDER_LABEL[g] ?? g
 }
 
+// 생년월일에서 만 나이 — 접수·진료에서 자주 눈으로 확인하는 값이라 머리에 함께 둔다(정보=구조).
+function ageFrom(birth?: string | null): number | null {
+  const m = birth ? /(\d{4})-(\d{2})-(\d{2})/.exec(birth) : null
+  if (!m) return null
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const now = new Date()
+  let age = now.getFullYear() - y
+  if (now.getMonth() + 1 < mo || (now.getMonth() + 1 === mo && now.getDate() < d)) age -= 1
+  return age >= 0 && age < 200 ? age : null
+}
+
 interface HeaderProps {
   patient?: HeaderPatient
   role: Role
@@ -38,6 +49,7 @@ export function Header({ patient, role, loading, onChangePhone, rightSlot }: Hea
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : (
         <>
+          <div style={styles.topLine}>
           <div style={styles.identity}>
             <div style={styles.nameRow}>
               <span style={styles.name}>{patient.name}</span>
@@ -45,8 +57,22 @@ export function Header({ patient, role, loading, onChangePhone, rightSlot }: Hea
             </div>
             <div style={styles.meta}>
               <span style={styles.metaItem}>{patient.birth_date}</span>
-              {patient.gender && <span style={styles.metaItem}>{genderLabel(patient.gender)}</span>}
+              {ageFrom(patient.birth_date) != null && (
+                <>
+                  <span style={styles.metaDot} aria-hidden="true">·</span>
+                  <span style={styles.metaItem}>만 {ageFrom(patient.birth_date)}세</span>
+                </>
+              )}
+              {patient.gender && (
+                <>
+                  <span style={styles.metaDot} aria-hidden="true">·</span>
+                  <span style={styles.metaItem}>{genderLabel(patient.gender)}</span>
+                </>
+              )}
             </div>
+          </div>
+            {/* [PTDET-HEAD-03] 역할별로 덜 보인다는 사실 자체를 숨기지 않는다 — 셸의 역할 칩을 여기 오른쪽 위에. */}
+            <span style={styles.roleChip}>{ROLE_LABEL[role]}</span>
           </div>
 
           <div style={styles.contact}>
@@ -66,8 +92,6 @@ export function Header({ patient, role, loading, onChangePhone, rightSlot }: Hea
             )}
           </div>
 
-          {/* [PTDET-HEAD-03] 역할별로 덜 보인다는 사실 자체를 숨기지 않는다 — 셸의 역할 칩을 이 화면에도 둔다. */}
-          <span style={styles.roleChip}>{ROLE_LABEL[role]}</span>
         </>
       )}
       </div>
@@ -122,8 +146,9 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     borderRadius: 'var(--radius-card)',
   },
-  // 왼쪽 신원 단 — 예전 카드 한 덩어리의 가로 배치를 그대로 옮겼다(이름·전화·역할).
-  main: { flex: '1 1 380px', minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 'var(--sp-4)', flexWrap: 'wrap' },
+  // 왼쪽 신원 단 — 위→아래로 [이름+역할] · [생년·나이·성별] · [전화]. 역할 칩은 맨 윗줄 오른쪽에 고정한다.
+  main: { flex: '1 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  topLine: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--sp-3)' },
   // 오른쪽 가족 단 — 세로 실선으로 신원과 가른다. 좁아지면 아래로 접힌다(flexWrap).
   side: {
     flex: '1 1 240px', minWidth: 220,
@@ -137,8 +162,9 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', borderRadius: 6, padding: 'var(--sp-0-5) var(--sp-2)',
   },
-  meta: { display: 'flex', gap: 'var(--sp-3)', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
+  meta: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   metaItem: {},
+  metaDot: { color: 'var(--color-divider)' },
   contact: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', minWidth: 0 },
   phoneRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
   phone: { fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)', fontVariantNumeric: 'tabular-nums' },
@@ -154,7 +180,7 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface)', color: 'var(--color-warn)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   roleChip: {
-    marginLeft: 'auto', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)',
+    flexShrink: 0, alignSelf: 'flex-start', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)',
     background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 6, padding: 'var(--sp-0-5) var(--sp-2)',
   },
 }

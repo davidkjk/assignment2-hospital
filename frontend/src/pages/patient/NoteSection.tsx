@@ -2,9 +2,11 @@ import { useState, type CSSProperties } from 'react'
 import { BusyButton } from '../../components/BusyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { InlineError } from '../../components/InlineError'
+import { Pencil } from '../../components/icons'
 import type { PatientNote } from '../../api/patients'
 import type { SectionState } from './format'
 import { mdHm } from './format'
+import { SectionHead } from './SectionHead'
 
 // [PTDET-NOTE-01~05] 내부 메모 — 내용·작성 직원·시각을 최신순. 환자 공개 영역과 분리(staff-only, NOTE-01).
 //   저장 중엔 라벨이 바뀌고 두 번 눌러도 한 번만 간다(NOTE-03·BTN-BUSY-01). 수정·삭제 버튼은
@@ -37,14 +39,18 @@ export function NoteSection({ state, onAdd }: NoteSectionProps) {
 
   return (
     <section aria-label="내부 메모" data-visibility="staff-only" style={styles.section}>
-      <div style={styles.head}>
-        <h2 style={styles.heading}>내부 메모</h2>
-        {!composing && (
-          <button type="button" onClick={() => setComposing(true)} style={styles.addBtn}>
-            내부 메모 추가
-          </button>
-        )}
-      </div>
+      <SectionHead
+        icon={<Pencil className="h-4 w-4" />}
+        title="내부 메모"
+        count={notes.length}
+        action={
+          !composing && (
+            <button type="button" onClick={() => setComposing(true)} style={styles.addBtn}>
+              내부 메모 추가
+            </button>
+          )
+        }
+      />
 
       {composing && (
         <div style={styles.compose}>
@@ -101,8 +107,6 @@ const styles: Record<string, CSSProperties> = {
     padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '2px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-3)', gap: 'var(--sp-2)' },
-  heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   addBtn: {
     height: 30, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',

@@ -1,8 +1,10 @@
 import { useCallback, type CSSProperties, type UIEvent } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { History } from '../../components/icons'
 import type { PatientHistoryRow } from '../../api/patients'
 import type { SectionState } from './format'
 import { mdHm } from './format'
+import { SectionHead } from './SectionHead'
 
 // 카드 안 목록을 끝까지 내리면 다음 쪽이 자동으로 이어 붙는다(2026-08-31 손검수 ⑥) — [더 보기] 버튼을 두지 않는다.
 const NEAR_BOTTOM_PX = 96
@@ -49,7 +51,7 @@ export function VisitSection({ state, onMore, moreLoading }: VisitSectionProps) 
   )
   return (
     <section aria-label="예약·방문 이력" style={styles.section}>
-      <h2 style={styles.heading}>예약·방문 이력</h2>
+      <SectionHead icon={<History className="h-4 w-4" />} title="예약·방문 이력" count={rows.length} />
       {state.loading ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : state.error ? (
@@ -86,7 +88,6 @@ const styles: Record<string, CSSProperties> = {
     padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 96, borderRadius: 6, background: 'var(--color-bg)' },
   // [PTDET-VISIT-07] 이력이 길어도 카드가 한없이 늘어나지 않게 — 상한을 넘으면 카드 안에서 스크롤한다.
   //   9행쯤 보이고 그 아래는 스크롤. 짧으면 자동으로 그 높이라 빈 칸이 생기지 않는다(오른쪽 사전문진과 균형).
@@ -101,6 +102,11 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)',
     background: 'var(--color-primary-wash)', borderRadius: 6, padding: '1px var(--sp-2)',
   },
-  status: { marginLeft: 'auto', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  // 상태는 색이 아니라 글자로(DISP-COLOR-01) — 담백한 회색 pill로 정돈한다. 색은 「현재」 배지에만 아껴 쓴다.
+  status: {
+    marginLeft: 'auto', flexShrink: 0, fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
+    color: 'var(--color-ink-muted)', background: 'var(--color-bg)', border: '1px solid var(--color-divider)',
+    borderRadius: 6, padding: '1px var(--sp-2)',
+  },
   moreNote: { padding: 'var(--sp-2) 0', textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
 }

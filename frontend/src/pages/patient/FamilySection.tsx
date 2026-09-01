@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { InlineError } from '../../components/InlineError'
+import { Users } from '../../components/icons'
 import type { PatientHistoryRow } from '../../api/patients'
 import type { SectionState } from './format'
+import { SectionHead } from './SectionHead'
 
 // [PTDET-FAMILY-01~05] 활성 연결만 이름·관계로. 해제한 연결을 회색 행으로 남기지 않고(FAMILY-01),
 //   가족의 생년월일·전화·진료내용을 자동으로 펼치지 않는다(FAMILY-02).
@@ -22,12 +24,16 @@ export function FamilySection({ state, onAddLink, eligibilityMessage, bare }: Fa
   const rows = state.data ?? []
   return (
     <section aria-label="가족 관계" style={bare ? styles.sectionBare : styles.section}>
-      <div style={styles.head}>
-        <h2 style={styles.heading}>가족 관계</h2>
-        <button type="button" onClick={onAddLink} style={styles.addBtn}>
-          가족 연결 추가
-        </button>
-      </div>
+      <SectionHead
+        icon={<Users className="h-4 w-4" />}
+        title="가족 관계"
+        count={rows.length}
+        action={
+          <button type="button" onClick={onAddLink} style={styles.addBtn}>
+            가족 연결 추가
+          </button>
+        }
+      />
       {eligibilityMessage && <InlineError message={eligibilityMessage} />}
       {state.loading ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
@@ -62,8 +68,6 @@ const styles: Record<string, CSSProperties> = {
   // 헤더 카드 오른쪽 단에 얹는 모드 — 카드 테두리·배경 없이 높이만 채운다.
   sectionBare: { display: 'flex', flexDirection: 'column' },
   emptyBare: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
-  head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-3)', gap: 'var(--sp-2)' },
-  heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   addBtn: {
     height: 30, padding: '0 var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',

@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { Stethoscope } from '../../components/icons'
 import type { PatientHistoryRow } from '../../api/patients'
 import type { SectionState } from './format'
 import { md } from './format'
+import { SectionHead } from './SectionHead'
 
 // [PTDET-RECORD-01~05] 완료된 진료기록만 날짜 역순으로 읽는다. 읽되 고치지 않는다 —
 //   수정·삭제 버튼을 만들지 않는다(RECORD-03·04). API가 진단 요약만 주므로 「전체 기록」이라
@@ -17,7 +19,7 @@ export function RecordSection({ state }: RecordSectionProps) {
   const rows = (state.data?.rows ?? []).filter((r) => r.is_completed !== false)
   return (
     <section aria-label="진료기록" style={styles.section}>
-      <h2 style={styles.heading}>진료기록</h2>
+      <SectionHead icon={<Stethoscope className="h-4 w-4" />} title="진료기록" count={rows.length} />
       {state.loading ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : state.error ? (
@@ -48,7 +50,6 @@ const styles: Record<string, CSSProperties> = {
     padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
   // 예약·방문 이력·사전문진과 같은 상한 — 기록이 길어도 카드 높이가 균형을 잃지 않게(손검수 2026-08-31).
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', maxHeight: 396, overflowY: 'auto' },

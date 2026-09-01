@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { MessageCircle } from '../../components/icons'
 import type { SectionState } from './format'
+import { SectionHead } from './SectionHead'
 
 // [PTDET-SUPPORT-01~05] 상담봇에서 직원에게 넘어온 문의 — 질문·안내·인계 이유·상태를 한 카드에서(SUPPORT-01).
 //   ⏳ BLOCKED — support_tickets 표·조회는 4단계 상담봇 플랜이 만든다. 이 화면은 **소비만** 한다:
@@ -30,7 +32,7 @@ export function SupportSection({ state }: SupportSectionProps) {
   const tickets = state.data ?? []
   return (
     <section aria-label="상담 문의" style={styles.section}>
-      <h2 style={styles.heading}>상담 문의</h2>
+      <SectionHead icon={<MessageCircle className="h-4 w-4" />} title="상담 문의" count={tickets.length} />
       {state.loading ? (
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : state.error ? (
@@ -67,7 +69,6 @@ const styles: Record<string, CSSProperties> = {
     padding: 'var(--sp-4)', background: 'var(--color-surface)',
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
-  heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   card: {
