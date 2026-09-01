@@ -97,6 +97,16 @@ from (values
 ) as u(id, email)
 on conflict (id) do nothing;
 
+-- 로그인 이력 백필 — 직원 대부분은 이미 로그인해 '들어온' 상태로 보이게 한다. StaffList는 last_sign_in_at=null이면
+-- 「초대함 · 아직 안 들어옴」으로 표시하므로(STAFF-LIST-08), 안 채우면 전원이 초대 대기로 보인다.
+-- doctor8 한 명만 일부러 null로 남겨 '초대 대기' 상태도 데모 화면에 함께 보이게 둔다.
+update auth.users set last_sign_in_at = now() - (interval '1 hour' * (abs(hashtext(email)) % 72 + 1))
+ where email in (
+   'admin@gaon.local','reception@gaon.local',
+   'doctor1@gaon.local','doctor2@gaon.local','doctor3@gaon.local','doctor4@gaon.local',
+   'doctor5@gaon.local','doctor6@gaon.local','doctor7@gaon.local'
+ );
+
 -- auth.identities (이메일 provider)
 insert into auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
 select
@@ -367,29 +377,33 @@ where exists (
 -- ════════════════════════════════════════════════════════════════════════════
 -- 8) 문진표 버전 (진료과별 v1) — 삭제금지 트리거 → ON CONFLICT 스킵
 -- ════════════════════════════════════════════════════════════════════════════
+-- ⭐ 문항 형식 정본 = 단답형(short_text)·장문형(long_text)·예/아니오(yes_no) 3종(screen-behaviors.md:4104,
+--   QNR-TYPE-01~03·QADM-FORM-05). 객관식(options)은 정본에 없다 — 옛 text/single/options 형식은 문진표
+--   관리(questionnaire_admin_service._validate)가 못 읽어 화면이 비었었다. 각 문항엔 text·show_to·required가 있다.
+-- ⚠️ on conflict는 do update — 이미 심긴 옛 형식 행을 재시드가 정본으로 덮는다(삭제금지 트리거라 delete 불가).
 insert into questionnaire_templates (department_id, questions, version_no, is_active, created_by)
 values
   ('11111111-1111-1111-1111-111111111111',
-   '[{"id":"q1","type":"text","label":"현재 가장 불편한 증상을 알려주세요"},
-     {"id":"q2","type":"single","label":"증상이 시작된 시점","options":["오늘","3일 이내","1주일 이상"]},
-     {"id":"q3","type":"single","label":"복용 중인 약이 있나요?","options":["없음","있음"]}]'::jsonb,
+   '[{"id":"q1","type":"short_text","text":"현재 가장 불편한 증상을 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 언제부터 어떻게 시작됐는지 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"복용 중인 약이 있나요?","show_to":"all","required":true}]'::jsonb,
    1, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
   ('22222222-2222-2222-2222-222222222222',
-   '[{"id":"q1","type":"text","label":"통증 부위를 알려주세요"},
-     {"id":"q2","type":"single","label":"통증 정도","options":["약함","보통","심함"]},
-     {"id":"q3","type":"single","label":"다친 경위가 있나요?","options":["없음","운동","낙상","기타"]}]'::jsonb,
+   '[{"id":"q1","type":"short_text","text":"통증 부위를 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"다친 경위나 통증 양상을 자세히 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"이전에 같은 부위를 다친 적이 있나요?","show_to":"all","required":false}]'::jsonb,
    1, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
   ('33333333-3333-3333-3333-333333333333',
-   '[{"id":"q1","type":"text","label":"증상 부위를 알려주세요(코·귀·목)"},
-     {"id":"q2","type":"single","label":"증상 기간","options":["3일 이내","1주일","2주 이상"]},
-     {"id":"q3","type":"single","label":"발열이 있나요?","options":["없음","있음"]}]'::jsonb,
+   '[{"id":"q1","type":"short_text","text":"증상 부위를 알려주세요(코·귀·목)","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 얼마나 지속됐는지, 어떤 상황에서 심한지 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"발열이 있나요?","show_to":"all","required":true}]'::jsonb,
    1, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
   ('44444444-4444-4444-4444-444444444444',
-   '[{"id":"q1","type":"text","label":"아이의 증상을 알려주세요"},
-     {"id":"q2","type":"single","label":"체온","options":["정상","미열(37~38도)","고열(38도 이상)"]},
-     {"id":"q3","type":"single","label":"예방접종은 최신인가요?","options":["예","아니오","모름"]}]'::jsonb,
+   '[{"id":"q1","type":"short_text","text":"아이의 증상을 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 시작된 시점과 지금까지의 변화를 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"예방접종은 최신인가요?","show_to":"all","required":false}]'::jsonb,
    1, true, 'bbbbbbbb-0000-0000-0000-000000000001')
-on conflict (department_id, version_no) do nothing;
+on conflict (department_id, version_no) do update set questions = excluded.questions, is_active = excluded.is_active;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- 9) 병원 설정 (싱글턴)
@@ -636,17 +650,17 @@ select
 from appointments a
 where a.status = '진료완료';
 
--- 문진표 응답 — 답은 **템플릿(§8)의 실제 옵션**에서 고른다(하드코딩하지 않아 항상 일치).
--- 템플릿 구조: [q1=text, q2=single(options), q3=single(options)] → index 0/1/2.
+-- 문진표 응답 — 정본 문항 형식(q1 단답·q2 장문·q3 예/아니오)에 맞춘 답을 심는다.
+-- 옛 시드는 템플릿 options에서 골랐으나, 정본엔 options가 없어 답을 형식별로 직접 만든다(항상 일치).
 insert into questionnaire_responses (appointment_id, template_id, answers)
 select
   a.id, qt.id,
   jsonb_build_object(
     'q1', a.reason,
-    'q2', (qt.questions->1->'options')->>(
-            abs(hashtext(a.id::text || 'q2')) % jsonb_array_length(qt.questions->1->'options')),
-    'q3', (qt.questions->2->'options')->>(
-            abs(hashtext(a.id::text || 'q3')) % jsonb_array_length(qt.questions->2->'options'))
+    'q2', (array['어제 저녁부터 증상이 조금씩 있었습니다.','며칠 전부터 서서히 심해졌어요.',
+                 '오늘 아침에 갑자기 나타났습니다.','일주일 넘게 계속 이어지고 있어요.'])
+          [(abs(hashtext(a.id::text || 'q2')) % 4) + 1],
+    'q3', (array['예','아니오'])[(abs(hashtext(a.id::text || 'q3')) % 2) + 1]
   )
 from appointments a
 join questionnaire_templates qt
