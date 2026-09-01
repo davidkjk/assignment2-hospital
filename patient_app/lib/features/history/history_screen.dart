@@ -163,6 +163,15 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   final _scroll = ScrollController();
   final Set<String> _expanded = {}; // 펼친 줄 id(여러 개 가능 — HIST-LIST-10)
+  final Map<int, GlobalKey> _yearKeys = {}; // 연도 헤더 위치(연도 바로가기 스크롤 대상)
+
+  // UI-HISTORY(데모 A-2 대비): 연도 칩을 누르면 그 해 헤더로 부드럽게 스크롤한다.
+  void _jumpToYear(int year) {
+    final ctx = _yearKeys[year]?.currentContext;
+    if (ctx == null) return; // 아직 안 불러온 해면 칩 자체가 없다
+    Scrollable.ensureVisible(ctx,
+        duration: const Duration(milliseconds: 300), alignment: 0.0);
+  }
 
   @override
   void initState() {
@@ -242,6 +251,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     nextAction: TextButton(
                         onPressed: () => context.go('/booking'), child: const Text('+ 진료 예약하기')))
                 : ListView(controller: _scroll, children: [
+                    _YearJumpBar(
+                        years: _distinctYears(st.items), onJump: _jumpToYear),
                     ..._withYearHeaders(st.items), // HIST-LIST-01·02·03
                     if (st.loadingMore)
                       const Padding(padding: EdgeInsets.all(12), child: Text('◌ 불러오는 중…')), // HIST-LIST-17
@@ -269,7 +280,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       final y = e.slotDate?.year;
       if (y != null && y != lastYear) {
         out.add(Padding(
-          key: Key('year-$y'),
+          key: _yearKeys.putIfAbsent(y, () => GlobalKey()), // 연도 바로가기 스크롤 대상
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Text('$y', style: const TextStyle(fontWeight: FontWeight.w800, color: AppTokens.grayDone)),
         ));
@@ -285,5 +296,52 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ));
     }
     return out;
+  }
+
+  // 불러온 항목에서 나타나는 해를 최신순으로(중복 제거). 연도 바로가기 칩 재료.
+  List<int> _distinctYears(List<VisitHistoryEntry> items) {
+    final out = <int>[];
+    for (final e in items) {
+      final y = e.slotDate?.year;
+      if (y != null && !out.contains(y)) out.add(y);
+    }
+    return out;
+  }
+}
+
+/// UI-HISTORY(데모 A-2 대비) — 연도 바로가기 칩 줄. 해가 둘 이상일 때만 보인다.
+/// 규칙서엔 헤더(HIST-LIST-02)만 있고 이 편의는 데모 방향 리스킨으로 더한 것.
+class _YearJumpBar extends StatelessWidget {
+  const _YearJumpBar({required this.years, required this.onJump});
+  final List<int> years;
+  final void Function(int) onJump;
+
+  @override
+  Widget build(BuildContext context) {
+    if (years.length < 2) return const SizedBox.shrink(); // 한 해뿐이면 군더더기
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final y in years)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ActionChip(
+                  key: Key('year-jump-$y'),
+                  label: Text('$y년'),
+                  onPressed: () => onJump(y),
+                  backgroundColor: AppTokens.surface,
+                  side: const BorderSide(color: AppTokens.border),
+                  labelStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: AppTokens.primary),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
