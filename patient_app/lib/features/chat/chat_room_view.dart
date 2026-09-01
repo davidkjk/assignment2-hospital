@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
+import 'cards/chat_card_dispatcher.dart';
 import 'chat_models.dart';
 import 'chat_room_controller.dart';
 import 'widgets/chat_feed.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_live_row.dart';
+import 'widgets/chat_quick_replies.dart';
 import 'widgets/chat_safety_banner.dart';
 
 /// 상담방 셸. 로딩(CHAT-ROOM-LOAD-01)·오류(ERR-01)·빈(EMPTY-01)·피드(FEED-01)를 가르고
@@ -56,13 +58,27 @@ class ChatRoomView extends ConsumerWidget {
                 )
               : ChatFeed(
                   items: st.items,
+                  // T12 슬롯 채움: 카드 아이템은 dispatcher가 card_type으로 그린다(CCARD-*).
+                  cardBuilder: (ctx, it) => buildChatCard(ctx, it),
                   // T11 슬롯 채움: 직원 말풍선·시스템 이벤트도 같은 피드에(CHAT-ROOM-LIVE-01).
                   liveSlotBuilder: (ctx, it) => ChatLiveRow(item: it),
                   onRetry: (id) => ctl.retry(id),
                   onFeedback: (_) => onFeedback?.call(),
                 ),
         }),
-        ChatInputBar(onSend: (c) => ctl.send(c)), // CHAT-ROOM-INPUT-01 (항상 열림)
+        ChatInputBar(
+          onSend: (c) => ctl.send(c), // CHAT-ROOM-INPUT-01 (항상 열림)
+          // T12 슬롯 채움: 시작 화면(첫 상담)에 고정 빠른답변 4개(CCARD-QUICK-START).
+          // 대화 중 추천(MID)은 서버 생성이라 여기선 비운다 — 자유 입력만 유지(LOAD/ERR).
+          quickRepliesSlot: st.phase == ChatRoomPhase.loaded
+              ? ChatQuickReplies(
+                  replies: st.isEmpty
+                      ? startQuickReplies(hasUpcoming: false)
+                      : const [],
+                  onSend: (c) => ctl.send(c),
+                )
+              : null,
+        ),
       ]),
     );
   }
