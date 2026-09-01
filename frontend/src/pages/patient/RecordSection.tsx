@@ -50,7 +50,8 @@ const styles: Record<string, CSSProperties> = {
   },
   heading: { margin: '0 0 var(--sp-3)', fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
+  // 예약·방문 이력·사전문진과 같은 상한 — 기록이 길어도 카드 높이가 균형을 잃지 않게(손검수 2026-08-31).
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', maxHeight: 396, overflowY: 'auto' },
   row: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', minHeight: 40,
     padding: 'var(--sp-2) 0', borderTop: '1px solid var(--color-divider)',

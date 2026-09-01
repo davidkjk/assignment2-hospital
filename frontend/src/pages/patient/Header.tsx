@@ -14,6 +14,13 @@ import { mdHm } from './format'
 // 상세는 relation을 항상 주지는 않는다(BLOCKED — 상세 응답에 관계 없음). 있으면 본인/가족을 가른다.
 type HeaderPatient = PatientDetail & { relation?: string | null }
 
+// [PTDET-HEAD-01] 성별은 DB 원본이 'F'/'M'으로 올 수 있다 — 화면엔 우리말로(손검수 2026-08-31, "F로 나옴").
+//   이미 '남'/'여'로 온 값은 그대로 통과시킨다.
+const GENDER_LABEL: Record<string, string> = { F: '여', M: '남', female: '여', male: '남' }
+function genderLabel(g: string): string {
+  return GENDER_LABEL[g] ?? g
+}
+
 interface HeaderProps {
   patient?: HeaderPatient
   role: Role
@@ -38,7 +45,7 @@ export function Header({ patient, role, loading, onChangePhone, rightSlot }: Hea
             </div>
             <div style={styles.meta}>
               <span style={styles.metaItem}>{patient.birth_date}</span>
-              {patient.gender && <span style={styles.metaItem}>{patient.gender}</span>}
+              {patient.gender && <span style={styles.metaItem}>{genderLabel(patient.gender)}</span>}
             </div>
           </div>
 

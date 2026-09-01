@@ -34,7 +34,12 @@ export function FamilySection({ state, onAddLink, eligibilityMessage, bare }: Fa
       ) : state.error ? (
         <EmptyState kind="error" screen="가족 목록" onRetry={state.retry} />
       ) : rows.length === 0 ? (
-        <EmptyState kind="zero" message="연결된 가족이 없습니다" />
+        // 헤더 카드 안(bare)에서는 큰 빈 상태 그림이 카드를 늘려 — 한 줄로 담백하게.
+        bare ? (
+          <p style={styles.emptyBare}>연결된 가족이 없습니다</p>
+        ) : (
+          <EmptyState kind="zero" message="연결된 가족이 없습니다" />
+        )
       ) : (
         <ul style={styles.list}>
           {rows.map((r) => (
@@ -55,7 +60,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
   },
   // 헤더 카드 오른쪽 단에 얹는 모드 — 카드 테두리·배경 없이 높이만 채운다.
-  sectionBare: { display: 'flex', flexDirection: 'column', height: '100%' },
+  sectionBare: { display: 'flex', flexDirection: 'column' },
+  emptyBare: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   head: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-3)', gap: 'var(--sp-2)' },
   heading: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   addBtn: {

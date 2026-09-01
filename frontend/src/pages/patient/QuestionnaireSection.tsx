@@ -121,7 +121,8 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   skeleton: { height: 72, borderRadius: 6, background: 'var(--color-bg)' },
-  list: { listStyle: 'none', margin: '0 0 var(--sp-3)', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  // [PTDET] 예약·방문 이력(maxHeight 396)과 같은 상한 — 문진이 길어도 카드가 한없이 늘어나지 않게(손검수 2026-08-31, 카드 높이 균형).
+  list: { listStyle: 'none', margin: '0 0 var(--sp-3)', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', maxHeight: 396, overflowY: 'auto' },
   statusRow: { display: 'flex', gap: 'var(--sp-3)', alignItems: 'baseline', padding: 'var(--sp-2) var(--sp-3)', background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 8 },
   pillDone: { marginLeft: 'auto', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-primary)' },
   pillMissing: { marginLeft: 'auto', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
