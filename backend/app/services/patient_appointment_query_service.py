@@ -14,8 +14,9 @@ _QNR_JOIN = (
 )
 _QNR_FROM = (
     "left join questionnaire_responses qr on qr.appointment_id = a.id "
-    # 양식은 진료과당 1개(00008 유니크) → 행이 불어나지 않는다.
-    "left join questionnaire_templates qt on qt.department_id = a.department_id "
+    # ⚠️ 옛 주석("진료과당 1개, 00008 유니크")은 00046이 뒤집었다 — 이제 진료과에 불변 버전이 여럿이고
+    #    활성은 하나뿐이다(one_active_per_dept). is_active를 안 걸면 버전 수만큼 예약 줄이 배수가 된다(C1).
+    "left join questionnaire_templates qt on qt.department_id = a.department_id and qt.is_active "
 )
 
 

@@ -12,10 +12,12 @@ from tests.conftest import seed_patient, seed_staff
 
 TOMORROW = date(2999, 8, 1)
 
+# 정본 계약: show_to {all,female,male}(admin _validate). 옛 visible_to+한글은 서비스가 실제로 내리는
+# 값과 어긋나 있었다(C2) — 여기를 정본으로 맞춘다.
 _THREE_QUESTIONS = [
-    {"id": "q1", "text": "키", "type": "text", "visible_to": "모든 환자"},
-    {"id": "q2", "text": "몸무게", "type": "text", "visible_to": "모든 환자"},
-    {"id": "q3", "text": "임신 가능성", "type": "yesno", "visible_to": "여성 환자만"},
+    {"id": "q1", "text": "키", "type": "short_text", "show_to": "all"},
+    {"id": "q2", "text": "몸무게", "type": "short_text", "show_to": "all"},
+    {"id": "q3", "text": "임신 가능성", "type": "yes_no", "show_to": "female"},
 ]
 _ALL_ANSWERS = [
     {"question_id": "q1", "question_text": "키", "value": "170"},
@@ -70,7 +72,7 @@ def test_message_wording_matches_mockup():
 
 def test_progress_source_is_shared_function():
     """[QNR-NOTI-06][QNR-PROG-04] 알림은 화면과 같은 compute_progress를 쓴다 — 따로 세지 않는다."""
-    questions = [{"id": "q1", "visible_to": "모든 환자"}, {"id": "q2", "visible_to": "여성 환자만"}]
+    questions = [{"id": "q1", "show_to": "all"}, {"id": "q2", "show_to": "female"}]
     prog = qsvc.compute_progress(questions, "M", [{"question_id": "q1"}])
     _key, remaining = qsvc.build_reminder_body(state="작성 중", **prog)
     assert prog["total"] == 1 and remaining == 0   # 남성은 분모 1 — 다 쓴 셈이라 남은 것이 없다
@@ -268,3 +270,20 @@ async def test_target_total_uses_patient_gender(committed_conn):
     row = next(t for t in await qsvc.list_reminder_targets(committed_conn, TOMORROW)
                if t["appointment_id"] == ctx["appointment_id"])
     assert row["total"] == 2                                    # 여성 전용 문항이 빠졌다
+
+
+@pytest.mark.asyncio
+async def test_target_not_duplicated_by_multiple_versions(committed_conn):
+    """[QADM-VERSION-01] 진료과에 버전이 여럿이어도 대상은 예약당 한 줄, 분모는 활성 버전 — 조인이 행을 배수로 부풀리지 않는다."""
+    ctx = await _seed_appt(committed_conn, gender="F", status="예약확정")
+    await _seed_template(committed_conn, ctx["department_id"], _THREE_QUESTIONS)  # v1 = 3문항
+    await committed_conn.execute(
+        "update questionnaire_templates set is_active=false where department_id=$1", ctx["department_id"])
+    await committed_conn.execute(
+        "insert into questionnaire_templates (department_id, questions, version_no, is_active) "
+        "values ($1, $2::jsonb, 2, true)", ctx["department_id"],
+        json.dumps([{"id": "q9", "text": "새 문항", "type": "short_text", "show_to": "all"}], ensure_ascii=False))
+    matching = [t for t in await qsvc.list_reminder_targets(committed_conn, TOMORROW)
+                if t["appointment_id"] == ctx["appointment_id"]]
+    assert len(matching) == 1                                  # 버전이 둘이어도 대상 줄이 불어나지 않는다
+    assert matching[0]["total"] == 1                           # 활성 v2의 문항 수

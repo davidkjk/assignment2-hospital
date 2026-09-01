@@ -6,11 +6,15 @@ from app.core.patient_security import PatientContext
 from app.db.pool import acquire_as
 
 EDITABLE_STATUSES = ("예약신청", "예약확정", "도착", "진료대기")  # #21: 진료중부터 읽기 전용
-_GENDER_ONLY = {"여성 환자만": "F", "남성 환자만": "M"}  # 나머지('모든 환자')는 항상 보인다
+# 정본 계약: 문항 JSON은 show_to ∈ {all,female,male}(admin questionnaire_admin_service.SHOW_TO),
+# 환자 성별은 F/M(00028 check). 'all'(또는 키 없음)은 항상 보인다.
+# ⚠️ 옛 코드는 visible_to+한글('여성 환자만')을 읽어 admin이 내리는 실제 값과 어긋나 있었다 —
+#    admin으로 만든 「여성만」 문항이 앱에선 전원에게 보였다(C2). 두 계층을 같은 계약으로 맞춘다.
+_GENDER_ONLY = {"female": "F", "male": "M"}
 
 
 def _visible(question: dict, gender: str) -> bool:
-    required = _GENDER_ONLY.get(question.get("visible_to", "모든 환자"))
+    required = _GENDER_ONLY.get(question.get("show_to", "all"))
     return required is None or required == gender  # QNR-SHOW-01
 
 
@@ -29,8 +33,12 @@ async def _appt_and_template(conn, appointment_id: UUID):
         "select status, department_id, for_patient_id from appointments where id=$1", appointment_id)
     if appt is None:
         raise AppError("예약을 찾을 수 없습니다.", status_code=404)
+    # QADM-VERSION-01: 진료과당 활성 버전은 하나(one_active_per_dept 유니크). 작성·표시는 현재 활성
+    # 버전으로 한다 — 옛 무필터 `limit 1`은 버전이 여럿이면 비활성 옛 버전을 줄 수 있었다(C1).
+    # (과거 응답 조회는 응답의 template_id 스냅샷을 쓴다 — get_response, QADM-VERSION-06.)
     tpl = await conn.fetchrow(
-        "select id, questions from questionnaire_templates where department_id=$1 limit 1", appt["department_id"])
+        "select id, questions from questionnaire_templates where department_id=$1 and is_active",
+        appt["department_id"])
     gender = await conn.fetchval("select gender from patients where id=$1", appt["for_patient_id"])
     return appt, tpl, gender
 
@@ -69,11 +77,19 @@ async def save_response(patient: PatientContext, appointment_id: UUID,
 async def get_response(patient: PatientContext, appointment_id: UUID) -> dict | None:
     async with acquire_as(str(patient.auth_user_id)) as conn:
         row = await conn.fetchrow(
-            "select id, answers, submitted_at, completed_at from questionnaire_responses where appointment_id=$1",
+            "select id, answers, submitted_at, completed_at, template_id "
+            "from questionnaire_responses where appointment_id=$1",
             appointment_id)
         if row is None:
             return None  # QNR-STATE-01: 행 없음 = 미작성(호출자가 판정)
-        _appt, tpl, gender = await _appt_and_template(conn, appointment_id)
+        # QADM-VERSION-06: 저장된 응답은 제출 당시 버전(template_id 스냅샷)으로 센다. 버전 행은 불변이라
+        # template_id 참조가 곧 스냅샷(00046) — 뒤에 새 버전이 활성화돼도 이 응답의 문항·분모는 안 바뀐다.
+        # ⚠️ 진료과로 다시 고르면(_appt_and_template) 활성 버전으로 갈아끼워져 과거 답의 분모가 어긋난다.
+        tpl = await conn.fetchrow(
+            "select questions from questionnaire_templates where id=$1", row["template_id"])
+        appt = await conn.fetchrow(
+            "select for_patient_id from appointments where id=$1", appointment_id)
+        gender = await conn.fetchval("select gender from patients where id=$1", appt["for_patient_id"])
     answers = _load(row["answers"])
     prog = compute_progress(_load(tpl["questions"]) if tpl else [], gender, answers)
     state = "작성완료" if row["completed_at"] is not None else "작성 중"
@@ -114,7 +130,9 @@ async def list_reminder_targets(conn, target_date) -> list[dict]:
         "join patients p on p.id = a.for_patient_id "
         "join appointment_slots s on s.id = a.slot_id "
         "left join questionnaire_responses qr on qr.appointment_id = a.id "
-        "left join questionnaire_templates qt on qt.department_id = a.department_id "
+        # QADM-VERSION-01: 활성 버전만 붙인다 — 버전이 여럿인 진료과에서 무필터 조인은 대상 행을
+        # 버전 수만큼 배수로 부풀린다(C1). 활성은 진료과당 하나라 예약당 한 줄이 보장된다.
+        "left join questionnaire_templates qt on qt.department_id = a.department_id and qt.is_active "
         "left join lateral ("
         "   select coalesce(l.account_patient_id, a.for_patient_id) as account_patient_id "
         "   from patient_family_links l where l.family_patient_id = a.for_patient_id limit 1"

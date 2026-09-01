@@ -219,9 +219,9 @@ async def test_qnr_progress_fields_on_list(committed_conn):
     me = _ctx(await seed_patient(committed_conn, gender="F"))
     aid = await _future_appt(committed_conn, me, dept, doctor_id)
     await _seed_template(committed_conn, dept, [
-        {"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"},
-        {"id": "q2", "text": "임신 가능성", "type": "예/아니오", "required": True, "visible_to": "여성 환자만"},
-        {"id": "q3", "text": "증상", "type": "장문형", "required": False, "visible_to": "모든 환자"},
+        {"id": "q1", "text": "키", "type": "short_text", "required": False, "show_to": "all"},
+        {"id": "q2", "text": "임신 가능성", "type": "yes_no", "required": True, "show_to": "female"},
+        {"id": "q3", "text": "증상", "type": "long_text", "required": False, "show_to": "all"},
     ])
     await qsvc.save_response(
         me, aid, [{"question_id": "q1", "question_text": "키", "value": "170"}], complete=False)
@@ -239,8 +239,8 @@ async def test_qnr_progress_total_differs_by_gender(committed_conn):
     me = _ctx(await seed_patient(committed_conn, gender="M"))
     aid = await _future_appt(committed_conn, me, dept, doctor_id)
     await _seed_template(committed_conn, dept, [
-        {"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"},
-        {"id": "q2", "text": "임신 가능성", "type": "예/아니오", "required": True, "visible_to": "여성 환자만"},
+        {"id": "q1", "text": "키", "type": "short_text", "required": False, "show_to": "all"},
+        {"id": "q2", "text": "임신 가능성", "type": "yes_no", "required": True, "show_to": "female"},
     ])
     rows = await q.list_my_appointments(me)
     row = next(r for r in rows if r["id"] == aid)
@@ -255,8 +255,30 @@ async def test_qnr_state_done_only_after_submit(committed_conn):
     me = _ctx(await seed_patient(committed_conn, gender="F"))
     aid = await _future_appt(committed_conn, me, dept, doctor_id)
     await _seed_template(committed_conn, dept,
-                         [{"id": "q1", "text": "키", "type": "단답형", "required": False, "visible_to": "모든 환자"}])
+                         [{"id": "q1", "text": "키", "type": "short_text", "required": False, "show_to": "all"}])
     await qsvc.save_response(
         me, aid, [{"question_id": "q1", "question_text": "키", "value": "170"}], complete=True)
     rows = await q.list_my_appointments(me)
     assert next(r for r in rows if r["id"] == aid)["questionnaire_state"] == "작성완료"
+
+
+@pytest.mark.asyncio
+async def test_qnr_total_uses_active_version_not_duplicated(committed_conn):
+    """[QADM-VERSION-01] 진료과에 버전이 여럿이어도 예약 한 건은 한 줄이고, 분모는 현재 활성 버전이다."""
+    _admin, doctor_id, dept = await _seed_doctor_dept(committed_conn)
+    me = _ctx(await seed_patient(committed_conn, gender="F"))
+    aid = await _future_appt(committed_conn, me, dept, doctor_id)
+    await _seed_template(committed_conn, dept, [
+        {"id": "q1", "text": "키", "type": "short_text", "required": False, "show_to": "all"},
+        {"id": "q2", "text": "증상", "type": "long_text", "required": False, "show_to": "all"},
+    ])  # v1(2문항)을 내리고 1문항짜리 v2를 활성으로
+    await committed_conn.execute(
+        "update questionnaire_templates set is_active=false where department_id=$1", dept)
+    await committed_conn.execute(
+        "insert into questionnaire_templates (department_id, questions, version_no, is_active) "
+        "values ($1, $2::jsonb, 2, true)", dept,
+        json.dumps([{"id": "q9", "text": "새 문항", "type": "short_text", "required": False, "show_to": "all"}],
+                   ensure_ascii=False))
+    rows = [r for r in await q.list_my_appointments(me) if r["id"] == aid]
+    assert len(rows) == 1                        # 버전이 둘이어도 예약 줄이 불어나지 않는다(조인 중복 방지)
+    assert rows[0]["questionnaire_total"] == 1   # 활성 v2의 문항 수
