@@ -227,7 +227,8 @@ const styles: Record<string, CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 440px), 1fr))',
     gap: 'var(--sp-3)',
-    alignItems: 'start',
+    // 나란한 카드는 같은 높이로(2026-08-31 손검수) — 각 카드가 그 줄에서 가장 높은 것에 맞춰 늘어난다.
+    alignItems: 'stretch',
   },
   blocked: {
     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--sp-3)', padding: 'var(--sp-6)',
