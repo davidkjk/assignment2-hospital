@@ -1,0 +1,6 @@
+# tsc -b(composite) 빌드 부산물 — 소스가 아니라 산출물이라 커밋하지 않는다.
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+vitest.config.js
+vitest.config.d.ts
