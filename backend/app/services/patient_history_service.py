@@ -4,6 +4,7 @@
 ⭐ 이력 목록은 전부 공용 커서(core.pagination)와 마스킹 경계(core.dto)를 쓴다 — 계약을
    두 벌 만들면 한쪽만 고쳐지고 아무도 모른다(SEARCH-ORDER-05).
 """
+import json
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -172,10 +173,15 @@ async def get_questionnaire(appointment_id: UUID, staff: StaffContext, *, conn=N
     row = await _dispatch(staff, conn, _run)
     if row is None:
         return None
+    # ⚠️ answers는 jsonb지만 asyncpg는 전역 코덱이 없어 **문자열**로 돌려준다(questions도 같은 이유로
+    #   json.loads 한다). 파싱하지 않으면 화면이 Object.entries(문자열)로 글자 하나씩 펼친다(L62).
+    answers = row["answers"]
+    if isinstance(answers, str):
+        answers = json.loads(answers)
     return {
         "appointment_id": row["appointment_id"],
         "template_id": row["template_id"],
-        "answers": row["answers"],
+        "answers": answers,
         "submitted_at": row["submitted_at"],
     }
 
