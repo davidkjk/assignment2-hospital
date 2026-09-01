@@ -1,3 +1,6 @@
+import { loadAnonToken } from '../state/anonSession';
+import type { PendingAction } from '../widget/WebchatWidget';
+
 export type SenderType = 'patient' | 'bot' | 'staff' | 'system';
 export type MessageType = 'text' | 'card' | 'system';
 export type SendState = 'sending' | 'sent' | 'failed';
@@ -31,6 +34,8 @@ export type SessionState = {
 
 export type GuideState = { active: boolean; text: string };
 
+export type CardMessage = ThreadMessage & { messageType: 'card'; payload: Record<string, unknown> };
+
 export interface WebchatApi {
   // 익명 토큰이 있으면 복원, 없으면 첫 상담 세션 시작. 서버가 토큰을 확정해 돌려준다.
   startOrRestoreSession(anonToken: string | null): Promise<SessionState>;
@@ -41,6 +46,14 @@ export interface WebchatApi {
   }): Promise<{ routeTaken: string; botMessage?: ThreadMessage; handoffTicketId?: string }>;
   fetchHandoff(threadId: string): Promise<HandoffStatus>;
   acknowledgeBatches(threadId: string): Promise<void>; // POST /chat/read
+  // 인증 완료 후: 최신 대상·슬롯을 서버에서 재검증한 "재확인 카드"(실행 아님). 서버는 X-Anon-Token으로 세션을 찾는다.
+  revalidateAction(args: { action: PendingAction }): Promise<{ card: CardMessage }>;      // WEBMOD-AUTH-07·08, WEBCARD-BOOKCONF-03
+  // 재확인 카드의 [신청]/[취소]: 서버가 payload를 재검증하고 실행 → 결과 카드(booking_done/cancel_done). 위변조 payload는 거절.
+  executeCard(args: { cardType: string; payload: Record<string, unknown>; clientMessageId: string }): Promise<{ result: CardMessage }>; // WEBCARD-BOOKCONF-01·CANCELCONF-01
+  // 익명 인계 티켓 + 연락처 연결(SMS 답변 수신용만). 대화 요약 5항목을 익명 세션 문맥에 연결(서버).
+  createHandoffTicket(args: { threadId: string; name: string; phone: string | null; summary: string[] }): Promise<{ ticketId: string }>; // WEBANON-HANDOFF-05·08
+  // 명시적 인증 성공 시에만 앞선 익명 상담 이력을 계정에 귀속(유사성 추측 금지). 서버는 X-Anon-Token으로 세션을 찾는다.
+  attributeSessionToAccount(args: { patientId: string }): Promise<void>;                  // WEBMOD-AUTH-09
 }
 
 const ANON_HEADER = 'X-Anon-Token'; // Task 9 익명 의존성 헤더
@@ -70,6 +83,18 @@ export function createWebchatApi(baseUrl: string): WebchatApi {
     },
     async acknowledgeBatches(threadId) {
       await call('/chat/read', { method: 'POST', body: JSON.stringify({ threadId }) }, null);
+    },
+    async revalidateAction(args) {
+      return call('/chat/cards/revalidate', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+    },
+    async executeCard(args) {
+      return call('/chat/cards/execute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+    },
+    async createHandoffTicket(args) {
+      return call('/chat/handoff', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+    },
+    async attributeSessionToAccount(args) {
+      await call('/chat/attribute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
     },
   };
 }

@@ -12,6 +12,7 @@ function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
       id: 'b1', senderType: 'bot', messageType: 'text', content: '네, 가능합니다' } as ThreadMessage })),
     fetchHandoff: vi.fn(async () => ({ phase: null, isOpen: true })),
     acknowledgeBatches: vi.fn(async () => {}),
+    revalidateAction: vi.fn(), executeCard: vi.fn(), createHandoffTicket: vi.fn(), attributeSessionToAccount: vi.fn(),
     ...over,
   };
 }
