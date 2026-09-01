@@ -59,6 +59,17 @@ delete from auth.identities
   where user_id in (select id from auth.users where email like 'doctor%@gaon.local');
 delete from auth.users where email like 'doctor%@gaon.local';
 
+-- [L32] 검수·테스트 잔여 직원 계정 청소 — 정본 직원(admin·reception·doctor1~8)이 아닌 @gaon.local
+--   auth 사용자를 재시드마다 쓸어낸다(예: Aside 초대 테스트가 남긴 qatest-staff@gaon.local).
+--   ⚠️ 실환자(전화 로그인)·개발자 개인계정(@gaon.local 아님)은 대상이 아니다.
+delete from auth.identities where user_id in (
+  select id from auth.users where email like '%@gaon.local'
+    and email not in ('admin@gaon.local', 'reception@gaon.local')
+    and email not like 'doctor%@gaon.local');
+delete from auth.users where email like '%@gaon.local'
+  and email not in ('admin@gaon.local', 'reception@gaon.local')
+  and email not like 'doctor%@gaon.local';
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- 1) 진료과 4개
 -- ════════════════════════════════════════════════════════════════════════════
@@ -383,11 +394,21 @@ where exists (
 -- ⚠️ on conflict는 do update — 이미 심긴 옛 형식 행을 재시드가 정본으로 덮는다(삭제금지 트리거라 delete 불가).
 insert into questionnaire_templates (department_id, questions, version_no, is_active, created_by)
 values
+  -- [L40] 내과는 버전 기록을 시연할 수 있게 v1(옛·비활성)→v2(현재·활성) 2개를 심는다.
+  --   ⚠️ v1 문항은 이미 심긴 것과 정확히 같아야 한다(결정 12 불변 트리거는 questions 변경을 막고
+  --   is_active 토글만 허용) — v2가 「알레르기」 문항을 더한 개정본이다. 나머지 진료과는 v1 하나.
+  --   활성은 진료과당 하나만(one_active_per_dept).
   ('11111111-1111-1111-1111-111111111111',
    '[{"id":"q1","type":"short_text","text":"현재 가장 불편한 증상을 알려주세요","show_to":"all","required":true},
      {"id":"q2","type":"long_text","text":"증상이 언제부터 어떻게 시작됐는지 적어주세요","show_to":"all","required":false},
      {"id":"q3","type":"yes_no","text":"복용 중인 약이 있나요?","show_to":"all","required":true}]'::jsonb,
-   1, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
+   1, false, 'bbbbbbbb-0000-0000-0000-000000000001'),
+  ('11111111-1111-1111-1111-111111111111',
+   '[{"id":"q1","type":"short_text","text":"현재 가장 불편한 증상을 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 언제부터 어떻게 시작됐는지 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"복용 중인 약이 있나요?","show_to":"all","required":true},
+     {"id":"q4","type":"yes_no","text":"알레르기가 있나요?","show_to":"all","required":false}]'::jsonb,
+   2, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
   ('22222222-2222-2222-2222-222222222222',
    '[{"id":"q1","type":"short_text","text":"통증 부위를 알려주세요","show_to":"all","required":true},
      {"id":"q2","type":"long_text","text":"다친 경위나 통증 양상을 자세히 적어주세요","show_to":"all","required":false},
