@@ -177,6 +177,7 @@ export function RecordPanel(props: RecordPanelProps) {
               이전 내용 보기
             </button>
           )}
+          {/* [RECORD-08] 완료된 기록은 수정 가능(오늘 완료도 recordMode=read_only_editable이라 바로 뜬다, L59). */}
           {mode === 'read_only_editable' && (
             <button type="button" onClick={() => setRevising(true)} style={styles.ghostBtn}>수정</button>
           )}

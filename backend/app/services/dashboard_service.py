@@ -225,14 +225,20 @@ async def get_doctor_queue(doctor: StaffContext, *, target_date: date | None = N
                 and from_status is distinct from to_status
             ) cur on true
             left join appointment_slots s on s.id = a.slot_id
-            where a.status in ('도착', '진료대기', '진료중')
+            -- [DOCTOR-QUEUE-09] 진료완료도 함께 싣는다 — 화면이 「오늘 완료」 접이식 구역으로 모아, 방금 완료한
+            --   환자를 다시 눌러 수정할 수 있게(L60). 순번·대기라벨은 상태별로 화면이 가른다.
+            -- ⭐ 로그인 의사 본인 예약만(DOCTOR-QUEUE-01). RLS에만 맡기면 진료완료를 포함한 순간
+            --   병원 전체 완료건마다 care-continuity 서브쿼리가 돌아 8초로 느려진다 — 여기서 먼저 좁힌다.
+            where a.doctor_id = $2
+              and a.status in ('도착', '진료대기', '진료중', '진료완료')
               and coalesce(s.slot_date, (a.created_at at time zone 'Asia/Seoul')::date) = $1
-            -- [DOCTOR-QUEUE-03] 진료중 → 진료대기 → 도착 순(사용자 결정 2026-08-31, L61).
+            -- [DOCTOR-QUEUE-03] 진료중 → 진료대기 → 도착 → 진료완료 순(사용자 결정 2026-08-31, L61·L60).
             order by
-              case a.status when '진료중' then 0 when '진료대기' then 1 else 2 end,
+              case a.status when '진료중' then 0 when '진료대기' then 1 when '도착' then 2 else 3 end,
               a.queue_position nulls last, h.waited_since nulls first, a.id
             """,
             target_date,
+            doctor.id,
         )
 
     fetched = await _dispatch(doctor, conn, _run)

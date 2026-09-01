@@ -65,6 +65,28 @@ describe('QueuePanel', () => {
     expect(btns[2]).toHaveTextContent(/분 경과/) // 도착
   })
 
+  test('[DOCTOR-QUEUE-09] 완료는 「오늘 완료」 접이식에 모으고, 펼치면 눌러 수정할 수 있다(L60)', async () => {
+    const onOpen = vi.fn()
+    render(
+      <QueuePanel
+        rows={[
+          row({ id: 'a1', name: '대기자', status: '진료대기', display_position: 1 }),
+          row({ id: 'a2', name: '완료자', status: '진료완료', display_position: null, queue_position: null }),
+        ]}
+        selectedId={null} onOpen={onOpen} loading={false} error={false} onRetry={() => {}}
+      />,
+    )
+    // 기본은 접혀 있어 완료자는 안 보이고, 토글만 개수와 함께 보인다.
+    expect(screen.getByRole('button', { name: /오늘 완료 1명/ })).toBeVisible()
+    expect(screen.queryByText('완료자')).toBeNull()
+    // 펼치면 완료자가 나오고, 눌러서 그 환자를 연다(수정 진입).
+    await userEvent.click(screen.getByRole('button', { name: /오늘 완료 1명/ }))
+    const done = screen.getByRole('button', { name: /완료자/ })
+    expect(done).toBeVisible()
+    await userEvent.click(done)
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'a2', status: '진료완료' }))
+  })
+
   test('[DOCTOR-QUEUE-03] 상태별 순번 — 진료중=0·진료대기=서수·도착=빈칸(순번 없음)', () => {
     renderPanel({
       rows: [

@@ -1,11 +1,11 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { AlertTriangle } from '../../components/icons'
 import { StatusBadge, type BadgeTone } from '../../components/staff-ui/StatusBadge'
 
-// [DISP-COLOR-01] 의사 큐 상태값은 공백 없는 '도착·진료대기·진료중' — StatusBadge 기본 표(공백 있는 '진료 대기')와
+// [DISP-COLOR-01] 의사 큐 상태값은 공백 없는 '도착·진료대기·진료중·진료완료' — StatusBadge 기본 표(공백 있는 '진료 대기')와
 //   키가 다르므로 톤을 명시한다. 색만으로 구분 안 하게 글자도 함께(StatusBadge가 지킨다).
-const CONSOLE_TONE: Record<string, BadgeTone> = { 도착: 'violet', 진료대기: 'sky', 진료중: 'teal' }
+const CONSOLE_TONE: Record<string, BadgeTone> = { 도착: 'violet', 진료대기: 'sky', 진료중: 'teal', 진료완료: 'gray' }
 
 // [DOCTOR-QUEUE-*][DOCTOR-START-01~03] 왼쪽 「오늘 진료 대기」 열. ⭐ 행을 여는 행위 자체가 상태 전이다 —
 //   [진료 시작] 버튼을 두지 않는다. 진료대기일 때만 진료중으로 전이하고(transitionTargetOnOpen), 그 밖은
@@ -63,6 +63,7 @@ function waitLabel(since: string | null | undefined, status: string): string | n
   const m = Math.max(0, Math.floor((Date.now() - t) / 60_000))
   if (status === '진료중') return `${m}분째`
   if (status === '도착') return `${m}분 경과`
+  if (status === '진료완료') return `${m}분 전 완료`
   return `${m}분 대기`
 }
 
@@ -78,6 +79,50 @@ export function QueuePanel({
   lastSyncedAt,
   onRefresh,
 }: QueuePanelProps) {
+  const [showDone, setShowDone] = useState(false)
+  // [DOCTOR-QUEUE-09] 완료는 따로 모은다 — 대기 목록은 지금 볼 사람에 집중하고, 완료는 접이식으로 뒤에(L60).
+  const active = rows.filter((r) => r.status !== '진료완료')
+  const completed = rows.filter((r) => r.status === '진료완료')
+
+  const renderRow = (r: DoctorQueueRow) => {
+    const wait = waitLabel(r.status_since ?? r.waiting_started_at, r.status)
+    const selected = r.id === selectedId
+    return (
+      <li key={r.id}>
+        <button
+          type="button"
+          data-id={r.id}
+          data-status={r.status}
+          aria-pressed={selected}
+          onClick={() => onOpen(r)}
+          style={selected ? { ...styles.row, ...styles.rowOn } : styles.row}
+        >
+          <span style={styles.rowTop}>
+            <span style={styles.name}>
+              {/* [DOCTOR-QUEUE-03] 상태별 순번 — 진료중=0(지금 보는 환자)·진료대기=1·2·3…·도착/완료=빈칸. */}
+              <span style={styles.pos}>{r.display_position != null ? r.display_position : ''}</span>
+              {r.name}
+            </span>
+            <StatusBadge status={r.status} tone={CONSOLE_TONE[r.status]} />
+          </span>
+          <span style={styles.rowSub}>
+            {/* [DOCTOR-QUEUE-02] 생년월일(목록 마스킹) · 성별 — 오른쪽에 대기시간. */}
+            <span style={styles.ident}>
+              {[r.masked_birth_date, r.gender].filter(Boolean).join(' · ')}
+            </span>
+            {wait && <span style={styles.wait}>{wait}</span>}
+          </span>
+          {/* [DOCTOR-QUEUE-02] 주의 표시 — 아이콘만이 아니라 텍스트도(색만으로 구분 안 함). */}
+          {r.is_urgent && (
+            <span style={styles.urgent}>
+              <AlertTriangle width={12} height={12} aria-hidden="true" /> 주의 표시
+            </span>
+          )}
+        </button>
+      </li>
+    )
+  }
+
   return (
     <section aria-label="오늘 진료 대기" style={styles.panel}>
       <header style={styles.head}>
@@ -97,53 +142,36 @@ export function QueuePanel({
         <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
       ) : error ? (
         <EmptyState kind="error" onRetry={onRetry} />
-      ) : rows.length === 0 ? (
+      ) : active.length === 0 && completed.length === 0 ? (
         // [QUEUE-08] 0건엔 사실 문장 + 갈 길만. 예약·당일 방문 버튼을 만들지 않는다(SHELL-ACT-03).
         <div style={styles.empty}>
           <p style={styles.emptyTitle}>오늘 진료 대기 환자가 없습니다</p>
           <p style={styles.emptyHint}>날짜를 바꿔 과거 환자를 찾을 수 있습니다</p>
         </div>
       ) : (
-        <ul style={styles.list}>
-          {rows.map((r) => {
-            const wait = waitLabel(r.status_since ?? r.waiting_started_at, r.status)
-            const selected = r.id === selectedId
-            return (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  data-id={r.id}
-                  data-status={r.status}
-                  aria-pressed={selected}
-                  onClick={() => onOpen(r)}
-                  style={selected ? { ...styles.row, ...styles.rowOn } : styles.row}
-                >
-                  <span style={styles.rowTop}>
-                    <span style={styles.name}>
-                      {/* [DOCTOR-QUEUE-03] 상태별 순번 — 진료중=0(지금 보는 환자)·진료대기=1·2·3…·도착=빈칸(줄 서기 전이라 순번 없음). */}
-                      <span style={styles.pos}>{r.display_position != null ? r.display_position : ''}</span>
-                      {r.name}
-                    </span>
-                    <StatusBadge status={r.status} tone={CONSOLE_TONE[r.status]} />
-                  </span>
-                  <span style={styles.rowSub}>
-                    {/* [DOCTOR-QUEUE-02] 생년월일(목록 마스킹) · 성별 — 오른쪽에 대기시간. */}
-                    <span style={styles.ident}>
-                      {[r.masked_birth_date, r.gender].filter(Boolean).join(' · ')}
-                    </span>
-                    {wait && <span style={styles.wait}>{wait}</span>}
-                  </span>
-                  {/* [DOCTOR-QUEUE-02] 주의 표시 — 아이콘만이 아니라 텍스트도(색만으로 구분 안 함). */}
-                  {r.is_urgent && (
-                    <span style={styles.urgent}>
-                      <AlertTriangle width={12} height={12} aria-hidden="true" /> 주의 표시
-                    </span>
-                  )}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        <div style={styles.body}>
+          {active.length === 0 ? (
+            <p style={styles.activeEmpty}>대기 중인 환자가 없습니다</p>
+          ) : (
+            <ul style={styles.list}>{active.map(renderRow)}</ul>
+          )}
+
+          {completed.length > 0 && (
+            // [DOCTOR-QUEUE-09] 오늘 완료 — 기본은 접혀 있고, 펼치면 방금 완료한 환자를 눌러 수정할 수 있다(L60).
+            <div style={styles.doneWrap}>
+              <button
+                type="button"
+                onClick={() => setShowDone((v) => !v)}
+                aria-expanded={showDone}
+                style={styles.doneToggle}
+              >
+                <span>오늘 완료 {completed.length}명</span>
+                <span aria-hidden="true">{showDone ? '▾' : '▸'}</span>
+              </button>
+              {showDone && <ul style={styles.list}>{completed.map(renderRow)}</ul>}
+            </div>
+          )}
+        </div>
       )}
     </section>
   )
@@ -170,7 +198,15 @@ const styles: Record<string, CSSProperties> = {
   empty: { padding: 'var(--sp-6) var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
   emptyTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   emptyHint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  list: { listStyle: 'none', margin: 0, padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', overflowY: 'auto' },
+  body: { flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' },
+  list: { listStyle: 'none', margin: 0, padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
+  activeEmpty: { margin: 0, padding: 'var(--sp-4)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  doneWrap: { borderTop: '1px solid var(--color-divider)', marginTop: 'var(--sp-1)' },
+  doneToggle: {
+    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: 'var(--sp-2) var(--sp-3)', border: 'none', background: 'transparent', cursor: 'pointer',
+    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)',
+  },
   row: {
     width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--sp-0-5)', textAlign: 'left',
     padding: 'var(--sp-2) var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-divider)',
