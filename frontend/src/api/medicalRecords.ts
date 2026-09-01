@@ -26,7 +26,8 @@ const json = (method: string, body: unknown): RequestInit => ({
 })
 
 export function saveDraft(body: DraftBody) {
-  return apiFetch<{ record_id: string }>('/medical-records/draft', json('POST', body))
+  // updated_at = 방금 만든 초안의 잠금 기준 시각 — 완료가 그대로 써야 409를 안 낸다(L59).
+  return apiFetch<{ record_id: string; updated_at: string }>('/medical-records/draft', json('POST', body))
 }
 
 export function completeRecord(recordId: string, body: { expected_updated_at: string }) {

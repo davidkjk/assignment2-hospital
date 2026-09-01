@@ -172,21 +172,26 @@ export function DoctorConsolePage() {
   }
 
   // ── 완료·수정·되돌리기 ─────────────────────────────────────────────────────
+  const [conflict, setConflict] = useState<string | null>(null)
   const complete = useMutation({
     mutationFn: async () => {
       if (!recordId) {
+        // 기록이 없던 환자 — 초안을 먼저 만들고, 그 초안이 돌려준 updated_at으로 완료한다(L59).
+        // 예전엔 현재시각을 보내 방금 만든 초안에 409가 났다("완료 눌러도 아무 일 안 일어남").
         const saved = await saveDraft({ appointment_id: selectedId as string, ...fields })
-        return completeRecord(saved.record_id, { expected_updated_at: String(record?.updated_at ?? new Date().toISOString()) })
+        return completeRecord(saved.record_id, { expected_updated_at: saved.updated_at })
       }
       return completeRecord(recordId, { expected_updated_at: String(record?.updated_at ?? '') })
     },
     onSuccess: () => {
+      setConflict(null)
       if (selectedId) clearDraft(staffId, selectedId) // 완료 즉시 브라우저 초안을 지운다(DRAFT-03 ①)
       client.invalidateQueries({ queryKey: ['doctor-record', selectedId] })
       client.invalidateQueries({ queryKey: ['doctor-queue', staffId, date] })
     },
+    // 완료 실패를 삼키지 않는다(G1) — 이유를 패널에 보인다. 안 그러면 "완료 눌러도 아무 일 안 일어남"이 된다.
+    onError: (e) => setConflict(e instanceof Error ? e.message : '진료를 완료하지 못했습니다.'),
   })
-  const [conflict, setConflict] = useState<string | null>(null)
   const revise = useMutation({
     mutationFn: (reason: string) =>
       reviseRecord(recordId as string, { ...fields, reason, expected_updated_at: String(record?.updated_at ?? '') }),
