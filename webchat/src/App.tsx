@@ -1,8 +1,22 @@
-// 위젯 셸의 자리표시자. 런처·상담방·카드는 Task 14·15가 이 파일을 확장한다.
+import { WebchatWidget } from './widget/WebchatWidget';
+import { createWebchatApi } from './api/webchatApi';
+import { env } from './lib/env';
+
+const api = createWebchatApi(env.supabaseUrl ? `${env.supabaseUrl}/functions/v1` : '');
+
 export default function App() {
+  // 콜백 슬롯(onAuthGate·onHandoffNeeded·renderCard)은 Task 15가
+  // 실제 화면(WEBMOD-AUTH·WEBANON-HANDOFF·WEBCARD)으로 채운다.
+  // hospitalPhone은 배포 시 get_public_hospital_info로 주입.
   return (
     <div id="webchat-app" role="region" aria-label="AI 상담봇">
-      <p>AI 상담봇</p>
+      <WebchatWidget
+        api={api}
+        hospitalPhone=""
+        onAuthGate={() => {}}
+        onHandoffNeeded={() => {}}
+        renderCard={() => null}
+      />
     </div>
   );
 }
