@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hospital_patient_app/core/theme.dart';
@@ -49,6 +50,10 @@ QnrData _mixed({String state = '미작성', Map<String, String>? ans}) => QnrDat
       ]);
 
 void main() {
+  setUpAll(() async {
+    await loadGoldenFonts();
+  });
+
   testWidgets('golden: 마법사 — 장문형 문항 + 필수 배지', (t) async {
     await _pump(
         t, const QuestionnaireWizard(appointmentId: 'a1', startIndex: 1), _mixed(state: '작성 중', ans: {'q1': '예'}));

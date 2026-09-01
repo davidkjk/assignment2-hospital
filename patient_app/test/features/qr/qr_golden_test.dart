@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/qr/brightness.dart';
 import 'package:hospital_patient_app/features/qr/qr_fullscreen.dart';
@@ -36,6 +37,7 @@ AppointmentView _v(String name, {String id = 'a', String code = '241401'}) {
 
 void main() {
   setUpAll(() async {
+    await loadGoldenFonts();
     final gothic = File('/System/Library/Fonts/Supplemental/AppleGothic.ttf');
     if (gothic.existsSync()) {
       await (FontLoader('Roboto')

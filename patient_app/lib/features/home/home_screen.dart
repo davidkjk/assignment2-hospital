@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/connectivity.dart';
+import '../../core/theme.dart'; // AppTheme.brandFontFamily(워드마크 서체)
 import '../../core/tokens.dart';
 import '../notifications/notification_data.dart'; // unreadNotificationCountProvider 본체(T18)
 import '../../widgets/action_button.dart';
@@ -195,7 +196,11 @@ class _BrandBar extends StatelessWidget {
             const SizedBox(width: 8),
             const Text('가온병원',
                 style: TextStyle(
-                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontFamily: AppTheme.brandFontFamily, // 데모 .brand-wordmark(Do Hyeon)
+                    fontWeight: FontWeight.w400, // 단일 가중치 디스플레이 서체
+                    letterSpacing: 0.2)),
             const Spacer(),
             NotificationBell(unreadCount: unread, onTap: onBell),
             IconButton(icon: const Icon(Icons.settings), onPressed: onSettings), // NAV-HOME-13

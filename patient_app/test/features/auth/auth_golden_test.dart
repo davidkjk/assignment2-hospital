@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:hospital_patient_app/core/phone_cooldown.dart';
 import 'package:hospital_patient_app/core/theme.dart';
@@ -93,6 +94,7 @@ Future<void> _shoot(WidgetTester t, Widget screen, String name, {bool settle = t
 
 void main() {
   setUpAll(() async {
+    await loadGoldenFonts();
     final f = File('/System/Library/Fonts/Supplemental/AppleGothic.ttf');
     if (f.existsSync()) {
       final loader = FontLoader('Roboto')

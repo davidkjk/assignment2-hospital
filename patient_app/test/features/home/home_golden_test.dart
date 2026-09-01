@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:hospital_patient_app/core/pending_request.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/home/home_data.dart';
@@ -44,6 +45,7 @@ Widget _home(List<AppointmentView> appts) => ProviderScope(
 
 void main() {
   setUpAll(() async {
+    await loadGoldenFonts();
     for (final path in [
       '/System/Library/Fonts/Supplemental/AppleGothic.ttf',
     ]) {

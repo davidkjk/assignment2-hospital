@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/booking/booking_controller.dart';
 import 'package:hospital_patient_app/features/booking/booking_submit.dart';
@@ -35,6 +36,7 @@ const _docB = Doctor('doc2', '이순환', '순환기내과', null, '화·목 오
 
 void main() {
   setUpAll(() async {
+    await loadGoldenFonts();
     final f = File('/System/Library/Fonts/Supplemental/AppleGothic.ttf');
     if (f.existsSync()) {
       final loader = FontLoader('Roboto')

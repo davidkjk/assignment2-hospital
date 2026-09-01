@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/family/family_repository.dart';
 import 'package:hospital_patient_app/features/history/history_repository.dart';
@@ -18,6 +19,7 @@ import 'package:hospital_patient_app/features/history/history_screen.dart';
 
 void main() {
   setUpAll(() async {
+    await loadGoldenFonts();
     final gothic = File('/System/Library/Fonts/Supplemental/AppleGothic.ttf');
     if (gothic.existsSync()) {
       await (FontLoader('Roboto')..addFont(Future.value(gothic.readAsBytesSync().buffer.asByteData()))).load();

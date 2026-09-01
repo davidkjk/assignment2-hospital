@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/theme.dart'; // AppTheme.brandFontFamily(워드마크 서체)
 import '../../core/tokens.dart';
 
 /// 로그인 전 첫 화면. 큰 버튼 2개만 두고 입력칸을 두지 않는다(AUTH-LAND-01) — 화면당 핵심 행동 1개.
@@ -40,7 +41,11 @@ class LandingScreen extends StatelessWidget {
               const Text(hospitalName,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+                      fontSize: 28,
+                      fontFamily: AppTheme.brandFontFamily, // 데모 .brand-wordmark(Do Hyeon)
+                      fontWeight: FontWeight.w400, // 단일 가중치 디스플레이 서체
+                      letterSpacing: 0.3,
+                      color: AppTokens.primary)),
               const SizedBox(height: 8),
               const Text('진료 예약과 방문 이력을 한 곳에서',
                   textAlign: TextAlign.center,

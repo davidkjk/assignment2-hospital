@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hospital_patient_app/core/connectivity.dart';
 import 'package:hospital_patient_app/core/theme.dart';
@@ -42,6 +43,7 @@ Future<void> _shoot(WidgetTester t, String name, AppointmentDetail d) async {
 
 void main() {
   setUpAll(() async {
+    await loadGoldenFonts();
     // 데모 눈대조를 위해 한글 글리프를 로드한다(auth·family 골든과 동일 — macOS AppleGothic).
     final f = File('/System/Library/Fonts/Supplemental/AppleGothic.ttf');
     if (f.existsSync()) {

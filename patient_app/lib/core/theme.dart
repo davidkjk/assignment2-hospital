@@ -6,6 +6,12 @@ import 'tokens.dart';
 class AppTheme {
   AppTheme._();
 
+  /// 본문·UI 전역 서체(데모 --font-sans). pubspec fonts 등록명과 일치.
+  static const String fontFamily = 'Pretendard';
+
+  /// 브랜드 워드마크 전용 서체(데모 .brand-wordmark). 로고·병원명에만 쓴다 — 본문엔 쓰지 않는다.
+  static const String brandFontFamily = 'DoHyeon';
+
   static ThemeData get theme {
     const scheme = ColorScheme.light(
       primary: AppTokens.primary,
@@ -18,9 +24,11 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      fontFamily: fontFamily, // 전역 Pretendard — 지정 안 하면 iOS 기본(SF Pro)이라 데모와 인상이 갈렸다.
       scaffoldBackgroundColor: AppTokens.background,
       textTheme: const TextTheme(
-        bodyLarge: TextStyle(fontSize: AppTokens.bodyFontSize, color: AppTokens.onSurface),
+        bodyLarge: TextStyle(
+            fontFamily: fontFamily, fontSize: AppTokens.bodyFontSize, color: AppTokens.onSurface),
       ),
       // 2차 화면 헤더 = 데모 ScreenHeader(딥틸 밴드·흰 글자·base medium).
       appBarTheme: const AppBarTheme(
@@ -30,7 +38,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-            color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+            fontFamily: fontFamily, color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
         iconTheme: IconThemeData(color: Colors.white),
       ),
       // 입력칸 = 흰 면 + 둥근 사각 테두리(데모: 라벨은 칸 위에 별도, 칸 안엔 안내글만).
@@ -69,7 +77,7 @@ class AppTheme {
           disabledBackgroundColor: AppTokens.primaryBusy,
           disabledForegroundColor: Colors.white,
           minimumSize: const Size.fromHeight(48),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 16, fontWeight: FontWeight.bold),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
@@ -80,7 +88,7 @@ class AppTheme {
           backgroundColor: AppTokens.surface,
           side: const BorderSide(color: AppTokens.border),
           minimumSize: const Size.fromHeight(48),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 16, fontWeight: FontWeight.bold),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
@@ -88,7 +96,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppTokens.primary,
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       // 체크박스 = 네모(데모: 각진 사각). 켜지면 딥틸.

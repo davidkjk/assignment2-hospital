@@ -31,3 +31,20 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    # 본문·UI 전역 서체 = Pretendard(데모 --font-sans 정본). 정적 가중치 4종을 번들해 렌더 일치 보장.
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/Pretendard-Regular.otf
+          weight: 400
+        - asset: assets/fonts/Pretendard-Medium.otf
+          weight: 500
+        - asset: assets/fonts/Pretendard-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/Pretendard-Bold.otf
+          weight: 700
+    # 브랜드 워드마크 전용 서체 = Do Hyeon(데모 .brand-wordmark). 로고·병원명에만 쓴다.
+    - family: DoHyeon
+      fonts:
+        - asset: assets/fonts/DoHyeon-Regular.ttf
+          weight: 400

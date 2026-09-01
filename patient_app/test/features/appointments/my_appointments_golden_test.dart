@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/golden_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hospital_patient_app/core/theme.dart';
@@ -30,6 +31,10 @@ AppointmentView _v(String status, String date, String time,
     });
 
 void main() {
+  setUpAll(() async {
+    await loadGoldenFonts();
+  });
+
   testWidgets('golden: 나의 예약 목록 — 날짜 헤더·얇은 줄·상태 글자', (t) async {
     await t.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => t.binding.setSurfaceSize(null));
