@@ -18,7 +18,7 @@
 
 **다음 빈 번호**: 환자앱 `00033`은 이미 직원웹 것 → 환자앱 밴드는 `00032`까지 **가득**. 직원웹 원래 밴드(`00033`–`00052`)는 S18 `merge_questionnaire_count`(`00052`)로 **가득 찼다**.
 ⭐ **데모병합 후속(A2·A3·A4…)은 새 밴드 `00070`–에 둔다**(2026-08-28 결정). 그래야 챗봇(`00053`–`00059`)·배포(`00060`–`00069`) **번호를 한 칸도 안 밀고** 그 상세 스펙의 산문 인용이 낡지 않는다(과거 재번호가 「낡은 산문 참조」 사고를 낸 선례 — 아래 절). `00053`–`00069`는 아직 파일 없는 **예약 구멍**이지만, 이 프로젝트는 DB 리셋 재적재라 **있는 파일만 순서대로 적용**돼 무해하다. 새 마이그가 필요하면 **자기 밴드의 다음 빈 번호**(데모병합 후속은 `00070`부터)를 쓰고, 밴드가 차면 이 문서를 갱신한다.
-- **배정됨**: `00070` = `system_error_service_outage`(A2, 서비스 전체 장애 배지 `ERRADM-NOTI-02`) · `00071` = `appointment_urgent_flag_attribution`(A4-b, 응급표시 「누가·언제」 `QUEUE-URG-06`). **다음 빈 = `00076`**(00073 schedule 예외 DELETE grant·00074 병합 undo UPDATE grant·00075 전일 미완료 마감 `close_stale_appointment` 사용). ⚠️ **A3(의사콘솔)은 무마이그로 끝났다** — `is_urgent_flag`가 `00005`부터 있어 새 칸 불필요(핸드오프의 "A3 urgent칸 마이그" 오판). · `00072` = `search_audit_wide_search`(넓은 검색 감사 `SEARCH-LOG-06`). ⚠️ **A4-a(대기시간 컬럼)도 무마이그** — `appointment_status_history`에 상태 진입 시각이 이미 있어 `get_queue`가 계산만 추가(`QUEUE-ROW-05·06`).
+- **배정됨**: `00070` = `system_error_service_outage`(A2, 서비스 전체 장애 배지 `ERRADM-NOTI-02`) · `00071` = `appointment_urgent_flag_attribution`(A4-b, 응급표시 「누가·언제」 `QUEUE-URG-06`). **다음 빈 = `00078`**(00073 schedule 예외 DELETE grant·00074 병합 undo UPDATE grant·00075 전일 미완료 마감 `close_stale_appointment`·00077 환자앱 병원 공개정보 `public_hospital_info` 사용. 00076은 직원웹 밴드). ⚠️ **A3(의사콘솔)은 무마이그로 끝났다** — `is_urgent_flag`가 `00005`부터 있어 새 칸 불필요(핸드오프의 "A3 urgent칸 마이그" 오판). · `00072` = `search_audit_wide_search`(넓은 검색 감사 `SEARCH-LOG-06`). ⚠️ **A4-a(대기시간 컬럼)도 무마이그** — `appointment_status_history`에 상태 진입 시각이 이미 있어 `get_queue`가 계산만 추가(`QUEUE-ROW-05·06`).
 
 ## 전체 배정 (Create 줄 기준 = 정본)
 
@@ -93,6 +93,7 @@
 | 00073 | `schedule_exception_delete_grant` | 특정 날짜 변경 되돌리기(`SCHED-EXC-14`) — `doctor_schedule_exceptions`에 빠져 있던 authenticated DELETE grant 추가(00002는 select/insert/update만) |
 | 00074 | `patient_merge_undo_update_grant` | 병합 되돌리기(`MHIST-DONE-01`, QA L22) — `patient_merges`에 빠져 있던 authenticated UPDATE grant + `admin_can_undo_patient_merges` RLS 정책(`private.is_admin()`) 추가(00044는 select/insert만). 없어서 라이브 [되돌림 확정]이 500 permission denied였다 |
 | 00075 | `close_stale_appointment` | 전일 미완료 「마감 처리」(`TODAY-YDAY-04`, 손검수 2026-08-30) — 상태기계상 도착 뒤엔 취소 길이 없어 지난 날짜에 밀린 도착·진료대기·진료중 예약을 닫지 못하던 막다른 길을 연다. 전이 트리거에 세션 플래그(`app.allow_stale_close`) 우회 + `close_stale_appointment(uuid,text,timestamptz,text)` definer(지난 날짜+진행상태+낙관적잠금 검증 후 진료완료/병원취소로 닫음). **범위 = 전일 미완료 전용**(오늘 큐 정상 전이 불변) |
+| 00077 | `public_hospital_info` | 환자앱 병원 공개정보 500 해소(`HSETX-SEC-01`, 환자앱 검수 2026-09-01) — `hospital_settings` SELECT 정책이 staff(`is_active_staff`)만이라 환자/익명은 0행→`get_public_hospital_info` `dict(None)` 500. 공개 2필드(주소·전화)만 반환하는 `public.get_public_hospital_info()` SECURITY DEFINER 함수(anon·authenticated EXECUTE)로 RLS 우회하되 좁은 창구 유지. **예약상세 장소·전화(APPT-INFO-04·05)·홈 병원정보줄(HOME-INFO)·설정 병원안내 3화면 동시 복구.** ⚠️ 파일은 `feat/patient-app` 브랜치에 있음(00076은 직원웹 밴드) |
 
 ## 공유 칸 — 순서 무관(`if not exists`)
 
