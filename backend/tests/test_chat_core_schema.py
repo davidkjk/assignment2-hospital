@@ -1,5 +1,7 @@
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
+
 import pytest
 import asyncpg
 
@@ -8,6 +10,21 @@ from tests.conftest_chat import seed_chat_thread
 
 # patient 시드는 환자앱이 conftest.py에 넣은 seed_patient을 쓴다(챗봇은 3단계 뒤에 구현).
 from tests.conftest import seed_patient
+
+
+# ⚠️ Task 2 보정: Task 2가 chat_messages의 세션·티켓 FK + 상담방 일치 트리거(00054)를 landing하면서
+# 이 파일이 XOR 충족용으로 쓰던 `uuid.uuid4()` 자리표시자가 FK/트리거에 막힌다(플랜: 「Task 1의 앞선 FK를
+# Task 2가 채운다」). 그래서 검사 대상 제약이 아니라 세션/티켓 FK·트리거가 먼저 터졌다 → 검사하려던 제약을
+# 실제로 통과시키려면 상담방에 **실재하는** 세션/티켓을 달아야 한다. 아래 두 헬퍼가 그 자리를 채운다.
+async def _real_session(conn, thread_id):
+    return await conn.fetchval(
+        "insert into ai_chat_sessions (thread_id, status, expires_at) values ($1, 'active', $2) returning id",
+        thread_id, datetime.now(timezone.utc) + timedelta(minutes=30))
+
+
+async def _real_ticket(conn, thread_id):
+    return await conn.fetchval(
+        "insert into support_tickets (thread_id) values ($1) returning id", thread_id)
 
 
 async def _insert_message(conn, thread_id, **cols):
@@ -47,11 +64,13 @@ async def test_message_requires_exactly_one_of_session_or_ticket(db_conn):
         async with db_conn.transaction():
             await _insert_message(db_conn, t, sender_type="bot", content=None,
                                   message_type="text", payload=None)
-    # 둘 다 채움 → XOR 위반.
+    # 둘 다 채움 → XOR 위반. (세션·티켓은 상담방에 실재해야 트리거·FK를 지나 XOR 검사에 닿는다.)
+    s = await _real_session(db_conn, t)
+    tk = await _real_ticket(db_conn, t)
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
         async with db_conn.transaction():
-            await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
-                                  support_ticket_id=uuid.uuid4(), sender_type="bot",
+            await _insert_message(db_conn, t, ai_chat_session_id=s,
+                                  support_ticket_id=tk, sender_type="bot",
                                   message_type="text", content="x")
 
 
@@ -59,15 +78,16 @@ async def test_message_requires_exactly_one_of_session_or_ticket(db_conn):
 async def test_text_message_requires_nonempty_content_and_null_payload(db_conn):
     p = await seed_patient(db_conn)
     t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s = await _real_session(db_conn, t)
     # text인데 content 공백 → 위반.
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
         async with db_conn.transaction():
-            await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+            await _insert_message(db_conn, t, ai_chat_session_id=s,
                                   sender_type="bot", message_type="text", content="   ")
     # text인데 payload 채움 → 위반.
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
         async with db_conn.transaction():
-            await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+            await _insert_message(db_conn, t, ai_chat_session_id=s,
                                   sender_type="bot", message_type="text",
                                   content="안녕하세요", payload={"x": 1})
 
@@ -76,12 +96,13 @@ async def test_text_message_requires_nonempty_content_and_null_payload(db_conn):
 async def test_card_message_requires_payload(db_conn):
     p = await seed_patient(db_conn)
     t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s = await _real_session(db_conn, t)
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
         async with db_conn.transaction():
-            await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+            await _insert_message(db_conn, t, ai_chat_session_id=s,
                                   sender_type="bot", message_type="card", payload=None)
     # payload 있으면 성공(카드는 봇 발신).
-    mid = await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+    mid = await _insert_message(db_conn, t, ai_chat_session_id=s,
                                 sender_type="bot", message_type="card",
                                 payload={"card_type": "예약제안_카드"})
     assert mid is not None
@@ -91,14 +112,15 @@ async def test_card_message_requires_payload(db_conn):
 async def test_system_message_type_pairs_with_system_sender(db_conn):
     p = await seed_patient(db_conn)
     t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s = await _real_session(db_conn, t)
     # message_type=system인데 sender_type=bot → system_pairing 위반.
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
         async with db_conn.transaction():
-            await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+            await _insert_message(db_conn, t, ai_chat_session_id=s,
                                   sender_type="bot", message_type="system",
                                   payload={"event": "ai_expired"})
     # 짝이 맞으면 성공(시스템 이벤트는 단일 원장에 남는다 = 공백 6).
-    mid = await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+    mid = await _insert_message(db_conn, t, ai_chat_session_id=s,
                                 sender_type="system", message_type="system",
                                 payload={"event": "staff_handoff"})
     assert mid is not None
@@ -108,8 +130,9 @@ async def test_system_message_type_pairs_with_system_sender(db_conn):
 async def test_bot_sender_forbids_person_fks(db_conn):
     p = await seed_patient(db_conn)
     t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s = await _real_session(db_conn, t)
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
-        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+        await _insert_message(db_conn, t, ai_chat_session_id=s,
                               sender_type="bot", sender_patient_id=p["patient_id"],
                               message_type="text", content="봇인데 환자 FK")
 
@@ -120,13 +143,15 @@ async def test_staff_sender_requires_ticket_and_staff(db_conn):
     st = await seed_staff(db_conn, role="doctor")
     t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
     # 직원 발신인데 티켓이 아니라 세션에 넣음 → 형태 위반.
+    s = await _real_session(db_conn, t)
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
         async with db_conn.transaction():
-            await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+            await _insert_message(db_conn, t, ai_chat_session_id=s,
                                   sender_type="staff", sender_staff_id=st["staff_id"],
                                   message_type="text", content="직원 답변")
     # 티켓 문맥이면 성공.
-    mid = await _insert_message(db_conn, t, support_ticket_id=uuid.uuid4(),
+    tk = await _real_ticket(db_conn, t)
+    mid = await _insert_message(db_conn, t, support_ticket_id=tk,
                                 sender_type="staff", sender_staff_id=st["staff_id"],
                                 message_type="text", content="직원 답변")
     assert mid is not None
@@ -137,9 +162,10 @@ async def test_sender_thread_ownership_trigger(db_conn):
     p1 = await seed_patient(db_conn, phone="010-1111-1111")
     p2 = await seed_patient(db_conn, phone="010-2222-2222")
     t = await seed_chat_thread(db_conn, patient_id=p1["patient_id"])
+    s = await _real_session(db_conn, t)   # 세션이 실재해야 검사 대상(발신자 소유) 트리거에 닿는다.
     # 상담방 소유자는 p1인데 발신 환자가 p2 → 트리거가 막는다(§4.3).
     with pytest.raises(asyncpg.exceptions.RaiseError):
-        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+        await _insert_message(db_conn, t, ai_chat_session_id=s,
                               sender_type="patient", sender_patient_id=p2["patient_id"],
                               message_type="text", content="남의 방에 쓰기")
 
@@ -148,13 +174,14 @@ async def test_sender_thread_ownership_trigger(db_conn):
 async def test_client_message_id_is_globally_unique_when_present(db_conn):
     p = await seed_patient(db_conn)
     t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s = await _real_session(db_conn, t)
     cid = uuid.uuid4()
-    await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+    await _insert_message(db_conn, t, ai_chat_session_id=s,
                           sender_type="patient", sender_patient_id=p["patient_id"],
                           message_type="text", content="첫 전송", client_message_id=cid)
     # 같은 client_message_id 재전송 → 멱등(한 행만) = unique 위반으로 차단(§4.3, §6).
     with pytest.raises(asyncpg.exceptions.UniqueViolationError):
-        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+        await _insert_message(db_conn, t, ai_chat_session_id=s,
                               sender_type="patient", sender_patient_id=p["patient_id"],
                               message_type="text", content="재전송", client_message_id=cid)
 
@@ -163,9 +190,10 @@ async def test_client_message_id_is_globally_unique_when_present(db_conn):
 async def test_client_message_id_null_is_allowed_multiple_times(db_conn):
     p = await seed_patient(db_conn)
     t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s = await _real_session(db_conn, t)
     # 봇·시스템 메시지는 client_message_id가 없다(null 여러 개 허용 = partial unique).
     for _ in range(3):
-        await _insert_message(db_conn, t, ai_chat_session_id=uuid.uuid4(),
+        await _insert_message(db_conn, t, ai_chat_session_id=s,
                               sender_type="bot", message_type="text", content="봇")
 
 
