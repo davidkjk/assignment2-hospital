@@ -357,15 +357,31 @@ async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=
             while day <= to:
                 sched = await opening_hours.resolve_day(c, doctor_id, day)
                 if not sched.is_open:
+                    # 하루 전체 휴진 — 한 덩어리 빗금(start·end 둘 다 None).
                     blocks.append({
                         "doctor_id": doctor_id, "date": day, "kind": "closed",
                         "start": None, "end": None, "source": sched.source,
                     })
-                elif sched.lunch is not None:
-                    blocks.append({
-                        "doctor_id": doctor_id, "date": day, "kind": "lunch",
-                        "start": sched.lunch[0], "end": sched.lunch[1], "source": sched.source,
-                    })
+                else:
+                    # 진료하는 날이라도 **시작 전·종료 후는 못 잡는 구간**이다 — 예약 검증
+                    # (appointment_service의 `진료 시간 밖` 400)과 화면이 어긋나면 캘린더가
+                    # 고르게 해놓고 서버가 막는 막다른 길이 된다(CAL-SLOT-04·11 · CAL-BOOK-04d · G1). start·end
+                    # 한쪽만 None인 빗금 = 그 방향 창 끝까지(화면 blocksFor가 창 끝으로 읽는다).
+                    if sched.start is not None:
+                        blocks.append({
+                            "doctor_id": doctor_id, "date": day, "kind": "closed",
+                            "start": None, "end": sched.start, "source": sched.source,
+                        })
+                    if sched.end is not None:
+                        blocks.append({
+                            "doctor_id": doctor_id, "date": day, "kind": "closed",
+                            "start": sched.end, "end": None, "source": sched.source,
+                        })
+                    if sched.lunch is not None:
+                        blocks.append({
+                            "doctor_id": doctor_id, "date": day, "kind": "lunch",
+                            "start": sched.lunch[0], "end": sched.lunch[1], "source": sched.source,
+                        })
                 day += timedelta(days=1)
 
         # ③ ⚠ 확인 필요 — 판정 결과의 예약 id만 싣는다(원본 이름은 싣지 않는다).

@@ -75,9 +75,33 @@ async def test_캘_슬롯_03_휴진일은_한_덩어리_휴진_빗금이_된다(
         staff, from_=MON, to=SAT, doctor_ids=[doc["staff_id"]], conn=db_conn
     )
 
-    closed = {b["date"] for b in result["blocks"] if b["kind"] == "closed"}
-    assert SAT in closed  # 휴진일은 빗금
-    assert MON not in closed  # 진료일은 빗금 없음
+    # 하루 전체 휴진 = start·end 둘 다 None인 한 덩어리 빗금. 진료시간 밖 봉투(아래 테스트)와 구분한다.
+    full_off = {b["date"] for b in result["blocks"] if b["kind"] == "closed" and b["start"] is None and b["end"] is None}
+    assert SAT in full_off  # 휴진일은 하루 전체 빗금
+    assert MON not in full_off  # 진료일은 하루 전체 휴진 빗금이 아니다
+
+
+@pytest.mark.asyncio
+async def test_캘_슬롯_11_진료하는_날도_시작전_종료후는_못잡는_빗금이_된다(db_conn):
+    """[CAL-SLOT-04·11][CAL-BOOK-04d] 09~13시만 보는 의사의 13시 뒤가 빈칸으로 클릭 가능하면,
+    예약 검증(`진료 시간 밖` 400)과 어긋나 막다른 길이 된다. 시작 전·종료 후도 closed 빗금으로 막는다."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    # 월요일은 09:00~13:00만 진료(오전만).
+    await _rule(db_conn, doc["staff_id"], MON.weekday(), start=time(9), end=time(13))
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    closed = [b for b in result["blocks"] if b["kind"] == "closed"]
+    # 종료(13:00) 뒤를 창 끝까지 막는 빗금이 있다(start=13:00, end=None).
+    assert any(b["start"] == time(13) and b["end"] is None for b in closed), closed
+    # 시작(09:00) 전을 막는 빗금도 있다(start=None, end=09:00).
+    assert any(b["start"] is None and b["end"] == time(9) for b in closed), closed
+    # 하루 전체 휴진 빗금은 아니다(진료는 한다).
+    assert not any(b["start"] is None and b["end"] is None for b in closed), closed
 
 
 @pytest.mark.asyncio
