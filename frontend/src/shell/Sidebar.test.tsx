@@ -14,6 +14,8 @@ test('[SHELL-NAV-02] 접수직원은 업무 그룹 6개만 본다', () => {
 test('[SHELL-NAV-03] 의사는 진료 화면과 환자 검색만 본다', () => {
   render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><Sidebar role="doctor" /></MemoryRouter>)
   expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['진료 화면', '환자 검색'])
+  // 항목이 하나뿐인 「업무」 그룹엔 카테고리 헤더를 붙이지 않는다(L58) — 의사에겐 그룹 제목이 하나도 없다.
+  expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(0)
 })
 
 test('[SHELL-NAV-05] 건수가 0이면 숫자를 그리지 않는다', () => {

@@ -222,7 +222,7 @@ const styles: Record<string, CSSProperties> = {
     borderLeft: '4px solid var(--color-done)', background: 'var(--color-done-bg)',
     fontSize: 'var(--fs-body)', color: 'var(--color-ink)',
   },
-  toolbar: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--sp-3)', marginBottom: 'var(--sp-3)' },
+  toolbar: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'var(--sp-3)', marginTop: 'var(--sp-4)', marginBottom: 'var(--sp-3)' },
   checkedNote: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', fontVariantNumeric: 'tabular-nums' },
   recheck: {
     height: 32, padding: '0 var(--sp-4)', borderRadius: 8, border: '1px solid var(--color-divider)',

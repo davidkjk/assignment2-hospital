@@ -208,7 +208,7 @@ const styles: Record<string, CSSProperties> = {
   item: { display: 'grid', gridTemplateColumns: '96px 1fr', gap: 'var(--sp-3)', fontSize: 'var(--fs-body)' },
   itemLabel: { margin: 0, color: 'var(--color-ink-muted)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   itemValue: { margin: 0, color: 'var(--color-ink)' },
-  preserve: { margin: '0 0 var(--sp-4)', padding: 'var(--sp-4)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', background: 'var(--color-bg)' },
+  preserve: { margin: '0 0 var(--sp-4)', padding: 'var(--sp-4)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', background: 'var(--color-surface)' },
   preserveTitle: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   preserveList: { margin: 0, paddingLeft: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)' },
   lineage: { margin: 'var(--sp-3) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },

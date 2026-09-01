@@ -35,7 +35,8 @@ export function Sidebar({ role, counts = {}, connected = true }: { role: Role; c
           if (!items.length) return null
           return (
             <section className="mt-4 first:mt-1" key={group}>
-              <h2 className="mb-1 hidden px-3 text-[0.68rem] font-semibold uppercase tracking-wider text-white/55 xl:block">{group}</h2>
+              {/* 항목이 하나뿐인 그룹엔 헤더를 붙이지 않는다 — 카테고리 한 줄 위 라벨은 소음이다(의사: 「환자 검색」 위 「업무」 제거). 오늘은 의사 콘솔만 해당. */}
+              {items.length > 1 && <h2 className="mb-1 hidden px-3 text-[0.68rem] font-semibold uppercase tracking-wider text-white/55 xl:block">{group}</h2>}
               <div className="flex flex-col gap-0.5">
                 {items.map((item) => <NavItemLink key={item.path} item={item} counts={counts} connected={connected} activePath={activePath} />)}
               </div>

@@ -255,8 +255,8 @@ export function Queue() {
 
       {/* 의사 필터 — 탭 숫자는 필터를 따라가지 않는다(QUEUE-FILT-03). */}
       <div className="mb-3 flex items-center gap-2 text-sm">
+        {/* 라벨 글자는 없앤다 — 셀렉트가 「전체 의사」로 이미 무엇을 고르는지 말한다(중복 제거). aria-label로 접근성 유지. */}
         <label className="flex items-center gap-2 font-medium text-muted-foreground">
-          의사
           <select
             value={doctorId ?? ''}
             onChange={(e) => setDoctorId(e.target.value || null)}
