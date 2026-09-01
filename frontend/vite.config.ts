@@ -18,7 +18,7 @@ export default defineConfig({
   server: {
     proxy: {
       [`^/(${API_SEGMENTS})([/?]|$)`]: {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
         bypass(req) {
           // 브라우저 페이지 이동(HTML 문서 요청)은 백엔드로 보내지 않고 SPA가 받게 한다.

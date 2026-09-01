@@ -8824,6 +8824,9 @@ git commit -m "feat: 📝 상담봇 Task 15 본문 — 웹 카드 8종 + 인증 
 >
 > **근거 원본**: behaviors **문의 티켓함 §1**(`TICKET-INBOX-*` 17) + `TICKET-INBOX-SCOPE-01`(경계 절) · 정본 §0(모르는 상태 금지)·§1(13 취소요청 대기열 폐지)·§3·§4 · 요구사항 **L206~210**(직원 상담·인계·의료판단 전달) · **역대조 결정 2**(접수순 `created_at ASC, id ASC`)·**결정 3**(C안: 별도 담당 지정 없음·열람 시 자동 배정)·**R2-3A**(상태 탭·자동 전환) · 백엔드 **Task 2**(`claim_ticket` 원자 승패·`support_tickets`·`idx_tickets_queue` 접수순 인덱스)·**Task 9**(`GET /staff/chat/tickets`·`POST .../claim`) · 2단계 직원웹 `useRealtimeSubscription`·`SHELL-LIVE`·`EMPTY`·`ERR-RETRY` 패턴.
 
+> ✅ **완료(2026-09-01) — 실제 staff-web 관례로 적응**: 이 플랜의 scaffolding 전제(`features/support/`·`createStaffChatApi(baseUrl)` fetch 클래스·`useRealtimeSubscription(table,onChange)`)는 실제 직원웹(`frontend/`, base=feat/patient-app)과 어긋났다. 실제 관례로 지었다: 화면=**`frontend/src/pages/tickets/`**(nav `/tickets`·데모 route와 일치, `App.tsx` placeholder 교체) · API=**`frontend/src/api/staffChat.ts`**(`apiFetch`/`ApiError` 경유, 409→`TicketClaimConflict`, snake→camel) · Realtime=**`useTicketsRealtime`**(`useCalendarRealtime` 방식, `staff-realtime` 채널·`support_tickets` 감시) · UI=**`components/staff-ui`**(데모 `_ui` 미러 — `StaffPage`·`Segmented`) + `components/EmptyState`(`kind`). 규칙 ID·동작은 그대로. **17규칙 Vitest 초록(22 케이스)·빌드 초록.**
+> ✅ **백엔드 갭 메움**: 이 태스크가 Consumes로 전제한 `GET /staff/chat/tickets?status=`가 Task 9에 없었다(claim·reply·close만). `ticket_service.list_inbox_tickets`(상태별 접수순·질문/인계사유/담당/예약요약 파생) + `staff_chat.py` GET 라우트 신설 + 매핑 순수함수 `_row_to_inbox`(백엔드 5테스트). 데모 티켓 시드 `supabase/seed_demo_chat.sql`(격리 트랜잭션·메인 시드 뒤 실행) 추가 → 브라우저 데모대조 완료.
+
 **Files:**
 - Create: `frontend/src/features/support/staffChatApi.ts` (`StaffChatApi` 인터페이스 + `createStaffChatApi()` — `GET /staff/chat/tickets?status=`·`POST /staff/chat/tickets/{id}/claim`)
 - Create: `frontend/src/features/support/useTicketInbox.ts` (탭·목록·접수순·빈/로딩/오류·EXC·BLOCK·Realtime 상태 훅)
@@ -8845,7 +8848,7 @@ git commit -m "feat: 📝 상담봇 Task 15 본문 — 웹 카드 8종 + 인증 
 
 ---
 
-- [ ] **Step 1: API 클라이언트 `staffChatApi` — 목록·claim 계약(승/패)**
+- [x] **Step 1: API 클라이언트 `staffChatApi` — 목록·claim 계약(승/패)** ✅ `api/staffChat.ts`(apiFetch·409→TicketClaimConflict)
 
 > 티켓함이 소비하는 직원 라우터 2개를 타입으로 못박는다. `claimTicket`은 **경쟁 패자면 409로 reject**하며, 화면은 이 reject를 잡아 `이미 다른 직원이 맡았어요`로 바꾸고 최신 담당자를 재조회한다. 테스트는 이 인터페이스의 가짜 구현을 주입한다(네트워크 없음).
 
@@ -8910,7 +8913,7 @@ describe("staffChatApi", () => {
 ```
 Run: `npm --prefix frontend run test -- staffChatApi` → FAIL → 구현 → PASS.
 
-- [ ] **Step 2: `useTicketInbox` 훅 — 탭·접수순·빈/로딩/오류·EXC·BLOCK(10규칙)**
+- [x] **Step 2: `useTicketInbox` 훅 — 탭·접수순·빈/로딩/오류·EXC·BLOCK(10규칙)** ✅ `pages/tickets/useTicketInbox.ts`
 
 > 상태 탭 전환·목록 조회·접수순 유지·탭별 빈/로딩/오류(전체·부분)·모르는 상태 방어·계약 없음 BLOCKED를 상태 기계로 담는다. Realtime은 Step 3에서 얹는다. `phase`로 로딩/오류/정상을 구분하고, `counts`로 각 탭 건수를 유지한다.
 
@@ -9048,7 +9051,7 @@ export function useTicketInbox(api: StaffChatApi, opts: { contractReady?: boolea
 ```
 Run: `npm --prefix frontend run test -- useTicketInbox` → FAIL → 구현 → PASS.
 
-- [ ] **Step 3: Realtime — `TICKET-INBOX-LIVE-01~05`(5규칙)**
+- [x] **Step 3: Realtime — `TICKET-INBOX-LIVE-01~05`(5규칙)** ✅ `pages/tickets/useTicketsRealtime.ts`(useCalendarRealtime 방식)
 
 > `support_tickets` 생성·상태 변경을 구독해 현재 탭·건수를 맞추되 **상세를 자동으로 열거나 이동하지 않는다**(화면 유지 원칙). 끊김이면 목록을 유지한 채 중단 표시, 복구면 서버 재조회로 정합화. 2단계 `useRealtimeSubscription(table, onChange)`을 재사용한다.
 
@@ -9118,7 +9121,7 @@ it("[TICKET-INBOX-LIVE-05] Realtime 복구면 서버 목록을 다시 조회해 
 ```
 > ⚠️ 테스트는 `useRealtimeSubscription`을 `vi.mock`으로 모킹해 `onChange`·연결 콜백을 수동 호출한다(webchat/staff-web과 같은 하네스 관례). Run: `npm --prefix frontend run test -- useTicketInbox` → FAIL → 구현 → PASS.
 
-- [ ] **Step 4: `TicketInbox` + `TicketRow` — 분할 셸·행 표시·선택→claim→승/패(`ROW-01`·`SCOPE-01`, 2규칙)**
+- [x] **Step 4: `TicketInbox` + `TicketRow` — 분할 셸·행 표시·선택→claim→승/패(`ROW-01`·`SCOPE-01`, 2규칙)** ✅ `pages/tickets/Tickets.tsx`+`TicketRow.tsx`(데모 1:1)
 
 > 왼쪽 탭+목록, 오른쪽 넓은 상세(내용은 Task 17 `detailSlot`)의 분할 화면. `새 문의` 행 선택 → `claimTicket` → **승자**는 `detailSlot`을 여는 선택 티켓 설정, **패자**(409)는 목록 유지 + `이미 다른 직원이 맡았어요` + 재조회로 최신 담당자. `/cancellation-requests`는 만들지 않는다.
 
@@ -9250,7 +9253,7 @@ it("[TICKET-INBOX-SCOPE-01] /cancellation-requests 경로·화면·빈 상태를
 ```
 Run: `npm --prefix frontend run test -- TicketInbox` → FAIL → 구현 → PASS.
 
-- [ ] **Step 5: 전수 초록불 + 검사기 + 커밋**
+- [x] **Step 5: 전수 초록불 + 검사기 + 커밋** ✅ 프론트 22케이스(17규칙)·빌드 초록 · 백엔드 10테스트 · coverage 518/518·prefix exit0 · 데모대조 완료
 
 Run: `npm --prefix frontend run test && npm --prefix frontend run build` → 17규칙 전 테스트 PASS + 빌드 성공.
 Run: `python3 docs/design/spec-index/plan-coverage-check.py --area ai-chatbot` · `python3 docs/design/spec-index/plan-prefix-check.py docs/superpowers/plans/2026-08-18-ai-chatbot.md`

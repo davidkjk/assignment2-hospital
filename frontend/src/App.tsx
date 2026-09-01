@@ -23,6 +23,7 @@ import { SettingsPage } from './pages/admin/settings/SettingsPage'
 import { PatientSearchPage } from './pages/patients/PatientSearchPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
 import { Today } from './pages/today/Today'
+import { Tickets } from './pages/tickets/Tickets'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
 
@@ -35,8 +36,8 @@ function LoginRoute() {
 
 // 상담봇 관련 화면은 4단계(상담봇) 산출물이라 이 단계(직원웹)에선 아직 비어 있다.
 // 시연에서 "안 됨"이 아니라 "다음 단계 제공"으로 읽히도록 로드맵 문구를 보여준다.
+// (/tickets 문의 티켓함은 상담봇 Task 16에서 실제 화면으로 채워졌다 — placeholder에서 제외.)
 const CHATBOT_PATHS = new Set<string>([
-  '/tickets',
   '/chatlog',
   '/bot/knowledge',
   '/bot/unresolved',
@@ -73,6 +74,7 @@ function pageFor(path: string, label: string) {
   if (path === '/messages') return <MessagesPage />
   if (path === '/admin/settings') return <SettingsPage />
   if (path === '/calendar') return <CalendarRoute />
+  if (path === '/tickets') return <Tickets />
   if (CHATBOT_PATHS.has(path)) return <Placeholder title={label} note="상담봇 기능은 다음 개발 단계(상담봇)에서 제공될 예정입니다." />
   return <Placeholder title={label} />
 }
