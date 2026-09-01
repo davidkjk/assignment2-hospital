@@ -17,12 +17,20 @@ export function Tickets({
   detailSlot,
 }: {
   api?: StaffChatApi
-  detailSlot?: (t: InboxTicket | null) => ReactNode
+  // 상세 슬롯(Task 17). 두 번째 인자로 목록 복귀 헬퍼를 준다 — OPEN-02/03 패자·404가 상세를 닫고 목록으로 돌아갈 때.
+  detailSlot?: (t: InboxTicket | null, helpers: { backToList: (msg: string) => void }) => ReactNode
 }) {
   const inbox = useTicketInbox(api)
   const [selected, setSelected] = useState<InboxTicket | null>(null)
   const [loserNotice, setLoserNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // 상세가 「목록으로 돌아가라」고 할 때(경쟁 패자·남의 in_progress·없는 티켓). 안내를 띄우고 목록을 최신화한다.
+  const backToList = (msg: string) => {
+    setSelected(null)
+    setLoserNotice(msg || null)
+    void inbox.retry()
+  }
 
   const select = async (t: InboxTicket) => {
     setLoserNotice(null)
@@ -102,7 +110,7 @@ export function Tickets({
           className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]"
         >
           {detailSlot ? (
-            detailSlot(selected)
+            detailSlot(selected, { backToList })
           ) : (
             <DefaultRightPane selected={selected} />
           )}

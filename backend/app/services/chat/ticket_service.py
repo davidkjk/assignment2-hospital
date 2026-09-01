@@ -135,3 +135,150 @@ async def list_inbox_tickets(auth_user_id: str, status: str) -> list[dict]:
     async with acquire_as(auth_user_id) as conn:
         rows = await conn.fetch(_INBOX_SQL, status)
     return [_row_to_inbox(r) for r in rows]
+
+
+# ── 티켓 상세 (TICKET-DETAIL-*) — 요약 5항목 + 전체 대화 + 담당자 + 연락처 마스킹 ──────
+# ⚠️ 인계 요약 5항목의 구조화 출처는 백엔드에 없다(staff_handoff 시스템 메시지 payload는 {event,reason}뿐).
+#    §0(모르는 상태·사유를 지어내지 않는다)대로 파생 가능한 둘만 채우고 나머지는 null로 둔다(SUM-02):
+#      · patient_asked   = 상담방 첫 환자 메시지(inbox와 같은 파생)
+#      · unresolved_reason = 인계 사유 코드의 사람 문장(_REASON_TEXT)
+#      · bot_confirmed / already_guided / staff_should_check = null → 화면이 "내용 없음"
+# DB enum staff_role은 receptionist인데 화면 계약은 reception이다 — DTO에서 한 번만 옮긴다.
+_ROLE_MAP = {"receptionist": "reception", "doctor": "doctor", "admin": "admin"}
+
+_DETAIL_HEADER_SQL = """
+select
+  t.id::text as id,
+  t.status,
+  t.thread_id,
+  th.owner_type,
+  th.anonymous_session_id,
+  coalesce(hs.reason_code, 'general') as reason,
+  s.name as assignee_name,
+  s.role::text as assignee_role,
+  (t.assigned_staff_id is not null and t.assigned_staff_id = private.current_staff_id()) as is_mine,
+  (select cm.content from public.chat_messages cm
+     where cm.thread_id = t.thread_id and cm.sender_type = 'patient'
+     order by cm.created_at asc, cm.id asc limit 1) as patient_asked
+from public.support_tickets t
+join public.chat_threads th on th.id = t.thread_id
+left join public.staff s on s.id = t.assigned_staff_id
+left join lateral (
+  select cm.payload->>'reason' as reason_code
+    from public.chat_messages cm
+   where cm.thread_id = t.thread_id and cm.sender_type = 'system'
+     and cm.payload->>'event' = 'staff_handoff'
+   order by cm.created_at desc limit 1
+) hs on true
+where t.id = $1
+"""
+
+# 대화 + 메시지별 읽음 파생. sender_type 'bot'은 화면 계약상 'ai'로 옮긴다.
+#  · patient_read (직원 메시지를 환자가 읽음, READ) = staff 메시지가 환자/익명 커서 이하
+#  · staff_unread (환자 메시지를 직원이 미확인, UNREAD) = patient 메시지가 직원 커서보다 뒤(커서 없으면 전부)
+#  · sms_sent = false 고정 — 실제 발송은 dispatcher(배포). 아직 발송된 것이 없다(NOTIFY-03은 표시 계약).
+_DETAIL_MESSAGES_SQL = """
+with staff_cursor as (
+  select (select created_at from public.chat_messages where id = rs.last_read_message_id) as at
+    from public.chat_read_states rs
+   where rs.thread_id = $1 and rs.reader_type = 'staff'
+     and rs.reader_staff_id = private.current_staff_id()
+),
+patient_cursor as (
+  select max((select created_at from public.chat_messages where id = rs.last_read_message_id)) as at
+    from public.chat_read_states rs
+   where rs.thread_id = $1 and rs.reader_type in ('patient', 'anonymous_web')
+)
+select
+  cm.id::text as id,
+  case cm.sender_type when 'bot' then 'ai' else cm.sender_type end as sender,
+  cm.content as body,
+  to_char(cm.created_at at time zone 'Asia/Seoul', 'HH24:MI') as at,
+  (cm.sender_type = 'staff'
+     and (select at from patient_cursor) is not null
+     and cm.created_at <= (select at from patient_cursor)) as patient_read,
+  (cm.sender_type = 'patient'
+     and ((select at from staff_cursor) is null or cm.created_at > (select at from staff_cursor))) as staff_unread,
+  false as sms_sent
+from public.chat_messages cm
+where cm.thread_id = $1
+order by cm.created_at asc, cm.id asc
+"""
+
+
+class TicketNotFound(AppError):
+    """없는·볼 수 없는 티켓(RLS로 행이 없음). 딥링크 방어 — 내용 없이 404."""
+    def __init__(self, message: str = "문의를 찾을 수 없습니다."):
+        super().__init__(message, 404)
+
+
+def _detail_summary(header) -> dict:
+    return {
+        "patient_asked": header["patient_asked"],
+        "bot_confirmed": None,
+        "already_guided": None,
+        "unresolved_reason": _REASON_TEXT.get(header["reason"]),
+        "staff_should_check": None,
+    }
+
+
+async def get_ticket_detail(auth_user_id: str, ticket_id: UUID) -> dict:
+    async with acquire_as(auth_user_id) as conn:
+        header = await conn.fetchrow(_DETAIL_HEADER_SQL, ticket_id)
+        if header is None:
+            raise TicketNotFound()
+        msg_rows = await conn.fetch(_DETAIL_MESSAGES_SQL, header["thread_id"])
+        has_phone = False
+        if header["owner_type"] == "anonymous_web" and header["anonymous_session_id"] is not None:
+            has_phone = await conn.fetchval(
+                "select exists (select 1 from public.anonymous_chat_contacts c "
+                "where c.anonymous_session_id = $1 and c.contact_kind = 'phone')",
+                header["anonymous_session_id"],
+            )
+    assignee = None
+    if header["assignee_name"] is not None:
+        assignee = {"name": header["assignee_name"],
+                    "role": _ROLE_MAP.get(header["assignee_role"], header["assignee_role"])}
+    return {
+        "id": header["id"],
+        "status": header["status"],
+        "reason": header["reason"],
+        "assignee": assignee,
+        "is_mine": header["is_mine"],
+        "summary": _detail_summary(header),
+        "messages": [dict(m) for m in msg_rows],
+        "contact": {"anonymous": header["owner_type"] == "anonymous_web", "has_phone": bool(has_phone)},
+    }
+
+
+async def reassign_ticket(auth_user_id: str, ticket_id: UUID, to_staff_id: UUID) -> dict:
+    # assigned_staff_id만 바꾸고 in_progress 유지(REASSIGN-02). 바뀐 담당자를 화면이 바로 반영하도록
+    # 갱신 후 상세를 다시 만들어 돌려준다.
+    async with acquire_as(auth_user_id) as conn:
+        try:
+            await conn.fetchrow("select * from reassign_ticket($1, $2)", ticket_id, to_staff_id)
+        except asyncpg.exceptions.RaiseError as e:
+            raise AppError(str(e), 409)
+    return await get_ticket_detail(auth_user_id, ticket_id)
+
+
+async def mark_ticket_read(auth_user_id: str, ticket_id: UUID, message_id: UUID) -> None:
+    # 직원 읽음 커서를 그 메시지까지 전진(UNREAD-02). 커서는 뒤로 가지 않는다(함수가 보장).
+    async with acquire_as(auth_user_id) as conn:
+        try:
+            await conn.execute("select staff_mark_ticket_read($1, $2)", ticket_id, message_id)
+        except asyncpg.exceptions.RaiseError as e:
+            raise AppError(str(e), 409)
+
+
+def _row_to_active_staff(r) -> dict:
+    """활성 직원 한 행 → 이관 드롭다운 DTO. 역할 이름을 화면 계약으로 옮긴다(순수 함수)."""
+    return {"id": r["id"], "name": r["name"], "role": _ROLE_MAP.get(r["role"], r["role"])}
+
+
+async def list_active_staff(auth_user_id: str) -> list[dict]:
+    # 이관 대상 = 모든 활성 직원(REASSIGN-05, 막다른 길 방지). 이름순.
+    async with acquire_as(auth_user_id) as conn:
+        rows = await conn.fetch(
+            "select id::text as id, name, role::text as role from public.staff where is_active order by name, id")
+    return [_row_to_active_staff(r) for r in rows]

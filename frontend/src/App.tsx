@@ -24,6 +24,8 @@ import { PatientSearchPage } from './pages/patients/PatientSearchPage'
 import { CalendarPage } from './pages/calendar/CalendarPage'
 import { Today } from './pages/today/Today'
 import { Tickets } from './pages/tickets/Tickets'
+import { TicketDetail } from './pages/tickets/TicketDetail'
+import { staffChatDetailApi } from './api/staffChatDetail'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
 
@@ -74,7 +76,20 @@ function pageFor(path: string, label: string) {
   if (path === '/messages') return <MessagesPage />
   if (path === '/admin/settings') return <SettingsPage />
   if (path === '/calendar') return <CalendarRoute />
-  if (path === '/tickets') return <Tickets />
+  if (path === '/tickets')
+    return (
+      <Tickets
+        detailSlot={(t, { backToList }) =>
+          t ? (
+            <TicketDetail key={t.id} api={staffChatDetailApi} ticket={t} onLoserBackToList={backToList} />
+          ) : (
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+              왼쪽에서 문의를 고르면 대화와 인계 요약이 여기에 열립니다
+            </div>
+          )
+        }
+      />
+    )
   if (CHATBOT_PATHS.has(path)) return <Placeholder title={label} note="상담봇 기능은 다음 개발 단계(상담봇)에서 제공될 예정입니다." />
   return <Placeholder title={label} />
 }

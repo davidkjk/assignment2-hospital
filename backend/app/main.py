@@ -67,6 +67,7 @@ app.include_router(error_logs.router)
 app.include_router(messages.router)
 app.include_router(chat.router)
 app.include_router(staff_chat.router)
+app.include_router(staff_chat.directory_router)   # GET /staff/active (이관 대상)
 app.include_router(admin_chat.router)
 app.include_router(settings.router)
 
