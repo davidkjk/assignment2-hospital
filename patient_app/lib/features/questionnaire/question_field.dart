@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/tokens.dart';
 import 'questionnaire_repository.dart';
 
 /// 문항 하나를 그 type에 맞게 그린다(QNR-TYPE). 값은 부모(마법사)가 들고 onChanged로 올려받는다.
@@ -55,18 +56,29 @@ class _QuestionFieldState extends State<QuestionField> {
           minLines: 3,
           readOnly: widget.onChanged == null, // QNR-LIVE-05: 잠기면 값은 남고 입력만 막힌다
           onChanged: widget.onChanged,
+          // 데모 textarea: rounded-xl(14) border bg-card. 흰 면 + radius 14(각지지 않게).
           decoration: const InputDecoration(
-              filled: true, fillColor: Colors.white, border: OutlineInputBorder()),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                borderSide: BorderSide(color: AppTokens.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                borderSide: BorderSide(color: AppTokens.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                borderSide: BorderSide(color: AppTokens.primary, width: 1.6)),
+          ),
         );
       case 'short_text':
       default:
+        // 데모 단답 Input = 테마 입력칸(radius 10·흰 면·border 토큰·포커스 딥틸)과 같다 → 테마 그대로 사용.
         return TextField(
           controller: _controller,
           maxLines: 1,
           readOnly: widget.onChanged == null,
           onChanged: widget.onChanged,
-          decoration: const InputDecoration(
-              filled: true, fillColor: Colors.white, border: OutlineInputBorder()),
         );
     }
   }
@@ -75,7 +87,7 @@ class _QuestionFieldState extends State<QuestionField> {
     final selected = widget.value == label;
     // QNR-LIVE-05: 잠기면 선택은 그대로 보이되 다시 고를 수 없다(onPressed null).
     final onPressed = widget.onChanged == null ? null : () => widget.onChanged!(label);
-    const shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16)));
+    const shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))); // 데모 rounded-2xl
     return Expanded(
       child: SizedBox(
         height: 88, // 큰 버튼 2개(QNR-TYPE-03) — 한 화면에 한 문항이라 크게

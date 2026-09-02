@@ -204,7 +204,10 @@ class NotificationRow extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w600, color: titleColor)),
                             const SizedBox(height: 4),
                             // NOTI-BODY-01: 저장된 body 그대로(진료과·의사·증상 다시 안 붙임).
-                            Text(view.body, style: TextStyle(fontSize: 13, color: bodyColor)),
+                            Text(view.body,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis, // 데모 truncate — 한 줄로 자른다
+                                style: TextStyle(fontSize: 13, color: bodyColor)),
                             const SizedBox(height: 4),
                             Text(formatKoreanTime(view.sentAt),
                                 style:

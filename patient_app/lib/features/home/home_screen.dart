@@ -30,7 +30,8 @@ class HomeScreen extends ConsumerWidget {
     final hospital = ref.watch(hospitalInfoProvider).valueOrNull;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEFF3F4),
+      // 데모 --background(oklch 0.966 …) = AppTokens.background. 하드코딩 대신 토큰(알림함 등과 일관).
+      backgroundColor: AppTokens.background,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

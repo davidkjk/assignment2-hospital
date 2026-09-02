@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/tokens.dart';
 
@@ -15,10 +16,14 @@ class PhoneChangeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('전화번호 변경 안내')),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
-        const Row(children: [
-          Icon(Icons.verified_user, size: 20, color: AppTokens.primary),
-          SizedBox(width: 8),
-          Expanded(
+        Row(children: [
+          // 데모 ShieldCheck(방패+체크) — Material verified_user(방패+사람)와 글리프가 달라 SVG로 맞춘다.
+          SvgPicture.asset('assets/icons/shield_check_fill.svg',
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+          const SizedBox(width: 8),
+          const Expanded(
             child: Text('안전한 계정 보호를 위해 병원에서 확인합니다',
                 style: TextStyle(
                     color: AppTokens.primary, fontSize: 14, fontWeight: FontWeight.w600)),

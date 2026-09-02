@@ -72,6 +72,8 @@ class AppointmentCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('${view.forPatientName} · ${view.relation}', // CARD-COMMON-01: 관계 문자열
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis, // 데모 truncate — 긴 이름은 한 줄로 자른다
                                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                               if (view.slotStart != null)
                                 Padding(
@@ -180,7 +182,9 @@ class AppointmentCard extends StatelessWidget {
 
   List<Widget> _topNotices(AppointmentCardState s) => switch (s) {
         AppointmentCardState.req => const [
-            WarnText('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.'),
+            // 결정 317: 주의색 + 좌측 4px 바 + 시계(상세 배너와 통일). 데모 AttentionNotice=바+Clock3.
+            WarnText('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.',
+                icon: Icons.access_time_filled),
             SizedBox(height: 8),
           ],
         AppointmentCardState.unconf => const [

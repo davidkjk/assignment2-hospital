@@ -67,7 +67,7 @@ class QuestionnaireRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFFE5EAED))),
+          border: Border(top: BorderSide(color: AppTokens.border)), // 데모 border-t = --border 한 색
         ),
         padding: const EdgeInsets.only(top: 12),
         child: Row(

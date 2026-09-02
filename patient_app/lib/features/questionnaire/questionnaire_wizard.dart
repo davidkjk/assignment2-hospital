@@ -175,7 +175,7 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
                             : null, // 첫 문항이면 비활성
                         child: const Text('이전')),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8), // 데모 푸터 gap-2
                   Expanded(
                     child: ActionButton(
                         label: st.index >= st.questions.length - 1 ? '최종 확인' : '다음',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/tokens.dart';
 import '../../core/wait_format.dart';
+import '../../widgets/dashed_border.dart';
 import 'appointment_view.dart';
 
 /// 점선 QR 자리 — 상태 A의 가운데에 QR 대신 놓인다(REQ-03·UNCONF-05). 실제 QR 위젯은 그리지 않는다.
@@ -14,18 +15,19 @@ class _QrPlaceholder extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            border: Border.all(color: AppTokens.grayPending, style: BorderStyle.solid),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
-            child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill)
-                width: 40,
-                height: 40,
-                colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+        // 데모: h-20 w-20 rounded-lg border border-dashed(준비 어포던스). 확정 QR만 실선.
+        SizedBox(
+          width: 80,
+          height: 80,
+          child: DottedBorder(
+            color: AppTokens.border, // 데모 border-dashed = --border 색
+            radius: 10, // 데모 rounded-lg
+            child: Center(
+              child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill) h-10
+                  width: 40,
+                  height: 40,
+                  colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+            ),
           ),
         ),
         const SizedBox(height: 8),

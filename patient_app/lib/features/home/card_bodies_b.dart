@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/tokens.dart';
+import '../../widgets/dashed_border.dart';
 import 'appointment_view.dart';
 
 // 상태 B(확정·도착·진료중·완료·취소·지연·오프라인)의 카드 가운데 132 박스 본문.
@@ -58,18 +59,19 @@ class QrPreviewBody extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              border: Border.all(color: AppTokens.grayPending),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill)
-                  width: 40,
-                  height: 40,
-                  colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+          // 데모 CARD-OK-03: h-20 w-20 rounded-lg border border-dashed(준비 어포던스).
+          SizedBox(
+            width: 80,
+            height: 80,
+            child: DottedBorder(
+              color: AppTokens.border, // 데모 border-dashed = --border 색
+              radius: 10, // 데모 rounded-lg
+              child: Center(
+                child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill) h-10
+                    width: 40,
+                    height: 40,
+                    colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+              ),
             ),
           ),
           const SizedBox(height: 8),
