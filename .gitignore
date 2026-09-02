@@ -29,3 +29,13 @@ __pycache__/
 tools/shot/shot/
 output/
 tmp/
+
+# 비밀 자격증명(Firebase 서비스 계정 키, 각종 서비스 키 파일) — 절대 커밋 금지.
+# ⚠️ git 히스토리에 한 번이라도 올라가면 영구히 남으므로, 실수로 커밋했으면 파일 삭제로 끝내지 말고
+#    해당 서비스에서 키를 재발급(rotate)한다.
+secrets/*
+!secrets/README.md
+*serviceAccount*.json
+*service-account*.json
+*-adminsdk-*.json
+.env
