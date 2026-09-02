@@ -5,7 +5,7 @@ import { useIdleLogout } from '../auth/useIdleLogout'
 import { Header } from './Header'
 import { IdleBanner } from './IdleBanner'
 import { Sidebar } from './Sidebar'
-import { NAV_ITEMS } from './navItems'
+import { resolveShellTitle } from './shellTitle'
 import { OfflineBanner } from '../components/OfflineBanner'
 import { PanelHost, PanelProvider } from '../components/PanelHost'
 import { ServerEffects } from '../api/serverEffects'
@@ -38,9 +38,7 @@ function ShellBody() {
   // SEND-BADGE-01 — 「안내 보내기」 사이드바 배지(전화해야 할 미처리 실패). 접수·관리자만 조회.
   const badgeCounts = useMessagesBadge(staff?.role === 'receptionist' || staff?.role === 'admin')
   if (!staff) return null
-  const title = location.pathname.startsWith('/patients/')
-    ? '환자 상세'
-    : (NAV_ITEMS.find((item) => item.path === location.pathname)?.label ?? '직원 업무')
+  const title = resolveShellTitle(location.pathname)
   return (
     <>
       {/* 매 서버 호출의 결말을 연결·세션 배선으로 보낸다(성공→markServerOk / 온라인 401→세션 만료). */}

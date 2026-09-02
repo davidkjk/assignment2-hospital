@@ -104,6 +104,12 @@ async def feedback_list(status: str = Query(default="pending"), staff: StaffCont
     return await answer_feedback_service.list_feedback(status)
 
 
+@router.get("/feedback/counts")
+async def feedback_counts(staff: StaffContext = Depends(require_role("admin"))):
+    # 처리함 탭 배지 — pending/applied/rejected 건수를 한 번에(목록 3회 호출 대신). {feedback_id}보다 먼저 등록.
+    return await answer_feedback_service.count_feedback_by_status()
+
+
 @router.get("/feedback/{feedback_id}")
 async def feedback_get(feedback_id: UUID, staff: StaffContext = Depends(require_role("admin"))):
     return await answer_feedback_service.get_feedback(feedback_id)

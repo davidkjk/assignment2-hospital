@@ -32,6 +32,8 @@ export interface ClusterDetail {
 
 export type FeedbackSource = 'realtime_report' | 'quality_review'
 export type FeedbackStatus = 'pending' | 'applied' | 'rejected'
+/** 처리함 탭 배지 — status별 건수(빈 탭도 0). */
+export type FeedbackCounts = Record<FeedbackStatus, number>
 export interface Feedback {
   id: string
   source: FeedbackSource
@@ -71,6 +73,7 @@ export interface QualityApi {
   listUnresolved(range: DateRange): Promise<UnresolvedResult>
   getUnresolvedCluster(id: string, range?: DateRange): Promise<ClusterDetail>
   listBadInbox(status?: FeedbackStatus): Promise<Feedback[]>
+  getFeedbackCounts(): Promise<FeedbackCounts>
   getFeedback(id: string): Promise<Feedback>
   applyFeedback(id: string): Promise<void>
   rejectFeedback(id: string): Promise<void>
@@ -173,6 +176,10 @@ export const qualityAdminApi: QualityApi = {
   async listBadInbox(status = 'pending') {
     const rows = await apiFetch<FeedbackDto[]>(`/admin/chat/feedback?status=${status}`)
     return rows.map(toFeedback)
+  },
+  async getFeedbackCounts() {
+    // 탭 배지 — status별 건수 한 번에(목록 3회 호출 대신).
+    return apiFetch<FeedbackCounts>('/admin/chat/feedback/counts')
   },
   async getFeedback(id) {
     return toFeedback(await apiFetch<FeedbackDto>(`/admin/chat/feedback/${id}`))

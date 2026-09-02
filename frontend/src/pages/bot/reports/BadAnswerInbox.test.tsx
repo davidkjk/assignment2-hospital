@@ -44,6 +44,16 @@ describe('BadAnswerInbox (BADINBOX-REVIEW-*)', () => {
     await waitFor(() => expect(api.applyFeedback).toHaveBeenCalledWith('f1'))
   })
 
+  it('[다듬기] 처리함 탭에 status별 처리 건수 배지를 counts 한 번 조회로 표시한다(목록 3회 호출 대신)', async () => {
+    // 목록 행의 상태 배지와 겹치지 않게 빈 목록으로 탭만 남긴다(배지는 목록과 무관하게 counts로 뜬다).
+    const getFeedbackCounts = vi.fn().mockResolvedValue({ pending: 5, applied: 3, rejected: 1 })
+    render(<BadAnswerInbox api={mkApi({ getFeedbackCounts, listBadInbox: vi.fn().mockResolvedValue([]) })} />)
+    await waitFor(() => expect(getFeedbackCounts).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: /처리 전/ })).toHaveTextContent('5')
+    expect(screen.getByRole('button', { name: /적용 완료/ })).toHaveTextContent('3')
+    expect(screen.getByRole('button', { name: /기각 완료/ })).toHaveTextContent('1')
+  })
+
   it('[BADINBOX-REVIEW-05] [반려]는 승인 자료·참고 예시를 바꾸지 않는다', async () => {
     const api = mkApi()
     render(<BadAnswerInbox api={api} selectedId="f1" />)

@@ -64,6 +64,19 @@ async def list_feedback(status: str = "pending", limit: int = 100) -> list[dict]
     return [_row_to_feedback(r) for r in rows]
 
 
+async def count_feedback_by_status() -> dict[str, int]:
+    # 오답 처리함 탭 배지 — status(pending/applied/rejected)별 건수를 한 번에(목록 3회 호출 대신).
+    # 계약에 없는 status 값은 버리고, 없는 탭은 0으로 채운다(빈 탭도 0건임을 명시).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("select status, count(*)::int as n from answer_feedback group by status")
+    counts = {"pending": 0, "applied": 0, "rejected": 0}
+    for r in rows:
+        if r["status"] in counts:
+            counts[r["status"]] = r["n"]
+    return counts
+
+
 async def get_feedback(feedback_id: UUID) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:

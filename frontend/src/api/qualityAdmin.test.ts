@@ -41,4 +41,11 @@ describe('qualityAdminApi', () => {
     expect(m.mock.calls[0][0]).toBe('/admin/chat/examples?active=true')
     expect(rows[0]).toEqual({ id: 'e1', question: 'q', answer: 'a', active: true })
   })
+
+  it('[다듬기] getFeedbackCounts는 GET /admin/chat/feedback/counts로 status별 건수를 한 번에 가져온다', async () => {
+    const m = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ pending: 5, applied: 3, rejected: 1 }))
+    const r = await qualityAdminApi.getFeedbackCounts()
+    expect(m.mock.calls[0][0]).toBe('/admin/chat/feedback/counts')
+    expect(r).toEqual({ pending: 5, applied: 3, rejected: 1 })
+  })
 })

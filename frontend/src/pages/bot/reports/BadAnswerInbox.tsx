@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, BarChart3, FlagIcon, Sparkles, X } from '../../../components/icons'
 import { EmptyState, Segmented, btnGhost, btnPrimary } from '../../../components/staff-ui'
-import type { Feedback, FeedbackSource, FeedbackStatus, QualityApi } from '../../../api/qualityAdmin'
+import type { Feedback, FeedbackCounts, FeedbackSource, FeedbackStatus, QualityApi } from '../../../api/qualityAdmin'
 import { formatKst } from '../knowledge/format'
 
 // 오답 신고 처리함(BADINBOX-REVIEW-*) — 실시간 신고(realtime_report)와 품질 리뷰 교정(quality_review)을 한 처리함에 나란히(01).
@@ -44,9 +44,12 @@ export function BadAnswerInbox({ api, selectedId = null, onApplyToKb, onGoToKb }
   const [phase, setPhase] = useState<ListPhase>('loading')
   const [rows, setRows] = useState<Feedback[]>([])
   const [selId, setSelId] = useState<string | null>(selectedId)
+  const [counts, setCounts] = useState<FeedbackCounts | null>(null) // 탭 배지 — status별 건수(목록 3회 대신 counts 한 번)
 
   const load = () => {
     setPhase('loading')
+    // 탭 배지: 건수는 어느 탭에서 보든 같으므로 목록과 함께 한 번씩 갱신한다. 실패해도 목록엔 영향 없다.
+    api.getFeedbackCounts?.().then(setCounts).catch(() => {})
     api
       .listBadInbox(status)
       .then((r) => {
@@ -67,6 +70,7 @@ export function BadAnswerInbox({ api, selectedId = null, onApplyToKb, onGoToKb }
           setStatus(k)
           setSelId(null)
         }}
+        count={counts ? (k) => counts[k] : undefined}
       />
 
       <div className="flex items-start gap-3">
