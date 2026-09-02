@@ -16,10 +16,11 @@ Widget _row(VisitHistoryEntry e) =>
     _host(HistoryRow(entry: e, expanded: false, onToggle: () {}, detail: const SizedBox.shrink()));
 
 void main() {
-  testWidgets('[HIST-LIST-04] 날짜 레일 — 월 작게 / 일 크게(고정폭) / 요일 작게', (t) async {
+  testWidgets('[HIST-LIST-04] 날짜 레일 — 일 크게(고정폭) / 요일 작게 (월은 그룹 헤더로 뺌 — 데모)', (t) async {
     await t.pumpWidget(_host(const DateRail(date: null, color: Colors.grey))); // null이어도 깨지지 않음
     await t.pumpWidget(_host(DateRail(date: DateTime(2026, 8, 3), color: AppTokens.primary))); // 2026-08-03 = 월요일
-    expect(find.text('8월'), findsOneWidget);
+    // ⭐ 데모대로 월은 레일에서 빼 그룹 헤더(_MonthHeader)로 올렸다 — 레일엔 일 + 요일만.
+    expect(find.text('8월'), findsNothing);
     expect(find.text('3'), findsOneWidget);
     expect(find.text('(월)'), findsOneWidget); // 요일(기억의 실마리 — 목업 50·26·38)
   });

@@ -88,9 +88,10 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
                           fontSize: 14, fontWeight: FontWeight.w600, color: AppTokens.grayPending)),
                   const SizedBox(height: 8),
                   Container(
+                    // 데모 알림 토글 리스트 = rounded-xl border bg-card(테두리, 그림자 없음).
                     decoration: BoxDecoration(
                       color: AppTokens.surface,
-                      boxShadow: AppTokens.cardElevation,
+                      border: Border.all(color: AppTokens.border),
                       borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
                     ),
                     clipBehavior: Clip.antiAlias,

@@ -19,7 +19,7 @@ class AppCard extends StatelessWidget {
           // 데모 정본: 테두리 대신 딥틸 tint 배경 + 옅은 그림자로 "떠 보이는" 안쪽 박스(DISP-CARD-01).
           decoration: BoxDecoration(
             color: AppTokens.primary.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10), // 데모 rounded-lg = --radius(10)
             boxShadow: const [
               BoxShadow(color: Color(0x24102D32), blurRadius: 10, offset: Offset(0, 2)),
             ],

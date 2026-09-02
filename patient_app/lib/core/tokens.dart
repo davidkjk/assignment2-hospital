@@ -40,8 +40,8 @@ class AppTokens {
   static const Color muted = Color(0xFFEDF0F2);
   static const Color onSurface = Color(0xFF1F2937);
 
-  // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다). 데모 루트 17px(어르신 가독성).
-  static const double bodyFontSize = 17.0;
+  // patientApp.body — 본문 기본 크기(테마 bodyLarge). 16px naive → 전역 배율(app.dart ×17/16)로 17px 렌더.
+  static const double bodyFontSize = 16.0;
 
   // patientApp.density — 데모(조밀 shadcn) 밀도 토큰. 리스트·카드 성김을 데모에 맞춘다.
   static const double densityCardRadius = 14.0; // patientApp.density.cardRadius
@@ -51,7 +51,7 @@ class AppTokens {
   static const double densitySectionGap = 24.0; // 날짜 섹션 사이
 
   // patientApp.button — 데모 Button 크기 체계(사용자 확정 2026-09-01: 데모 3단계 그대로).
-  // 루트 17px이라 rem 값이 비례로 커진 실제 픽셀. 굵기는 font-medium(500) — bold 아님.
+  // 폰트는 16px 기준 naive(전역 배율 ×17/16로 렌더). 굵기는 font-medium(500) — bold 아님.
   //   cta  = h-12 text-base (로그인·가입·최종확인·[예약하기] 등 전체폭 주요 행동, 화면당 1개)
   //   tall = h-11 text-sm   (비밀번호 변경 제출·인증번호 재전송)
   //   lg   = h-9  text-sm   (가족 추가·수정 제출)
@@ -61,15 +61,15 @@ class AppTokens {
   static const double buttonPadX = 10.625; // px-2.5
   static const FontWeight buttonWeight = FontWeight.w500;
   static const double buttonCtaHeight = 51.0;
-  static const double buttonCtaFont = 17.0;
+  static const double buttonCtaFont = 16.0;
   static const double buttonTallHeight = 46.75;
-  static const double buttonTallFont = 14.875;
+  static const double buttonTallFont = 14.0;
   static const double buttonLgHeight = 38.25;
-  static const double buttonLgFont = 14.875;
+  static const double buttonLgFont = 14.0;
   static const double buttonBaseHeight = 34.0;
-  static const double buttonBaseFont = 14.875;
+  static const double buttonBaseFont = 14.0;
   static const double buttonSmHeight = 29.75;
-  static const double buttonSmFont = 13.6;
+  static const double buttonSmFont = 12.8;
 
   // 데모 --elevation-card: 테두리 없이 카드를 띄우는 딥틸 톤(patientApp.cardShadow) 3겹 그림자.
   // 한 곳에서 조절하면 전 카드에 반영된다(테두리 선 대신 그림자 — DESIGN-NOTES 「그림자·경계 시스템」).

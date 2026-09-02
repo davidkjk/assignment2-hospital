@@ -77,10 +77,11 @@ class _StepRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      // 데모 확인 절차 = rounded-xl border(테두리, 그림자 없음) — 보조 안내 리스트.
       decoration: BoxDecoration(
         color: AppTokens.surface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: AppTokens.cardElevation,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTokens.border),
       ),
       child: Row(children: [
         Container(

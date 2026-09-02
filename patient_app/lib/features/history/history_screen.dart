@@ -40,18 +40,71 @@ class NameChips extends StatelessWidget {
     return SingleChildScrollView(
       key: const Key('history-chip-row'),
       scrollDirection: Axis.horizontal, // HIST-WHO-05: 가로 스크롤(줄바꿈 아님)
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // 데모 mb-5 pb-1 — 칩 줄 아래 여백. 좌우 16(데모 px-5 대응은 리스트 패딩과 통일해 16).
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       child: Row(children: [
         for (final m in sorted)
           Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(m.name),
-              selected: m.id == selectedId,
-              onSelected: (_) => onSelect(m.id), // HIST-WHO-10: 콜백만(화면 안 옮김)
-            ),
+            padding: const EdgeInsets.only(right: 8), // 데모 gap-2
+            child: Builder(builder: (context) {
+              final sel = m.id == selectedId;
+              // 데모 사람 칩: rounded-full px-4 py-2 text-sm. 선택=bg-primary+흰 글자, 미선택=흰 배경+테두리.
+              // Material ChoiceChip을 데모 룩으로 스타일(체크표시 제거·스타디움·틸 채움) — a11y 유지.
+              return ChoiceChip(
+                label: Text(m.name),
+                selected: sel,
+                showCheckmark: false,
+                onSelected: (_) => onSelect(m.id), // HIST-WHO-10: 콜백만(화면 안 옮김)
+                backgroundColor: AppTokens.surface,
+                selectedColor: AppTokens.primary,
+                side: BorderSide(color: sel ? AppTokens.primary : AppTokens.border),
+                shape: const StadiumBorder(),
+                labelStyle: TextStyle(
+                    fontSize: 14, color: sel ? Colors.white : AppTokens.onSurface),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 6), // 데모 px-4 근사
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }),
           ),
       ]),
+    );
+  }
+}
+
+/// 데모 History.tsx의 둥근 알약 버튼을 그대로 옮긴 것 — 연도 바로가기 칩.
+/// 흰 배경+테두리, 틸 글자(textColor). 이름 칩은 a11y 위해 ChoiceChip으로 별도 구현.
+class _HistoryPill extends StatelessWidget {
+  const _HistoryPill({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // 데모 px-4 py-2
+    this.textColor,
+    this.fontWeight = FontWeight.w400,
+  });
+  final String label;
+  final VoidCallback onTap;
+  final EdgeInsets padding;
+  final Color? textColor;
+  final FontWeight fontWeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = textColor ?? AppTokens.onSurface;
+    return Material(
+      color: AppTokens.surface, // 데모 bg-card
+      shape: const StadiumBorder(side: BorderSide(color: AppTokens.border)), // 데모 rounded-full + border
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: padding,
+          child: Text(label,
+              style: TextStyle(fontSize: 14, fontWeight: fontWeight, color: fg)), // 데모 text-sm
+        ),
+      ),
     );
   }
 }
@@ -59,35 +112,44 @@ class NameChips extends StatelessWidget {
 const _weekdayNames = ['월', '화', '수', '목', '금', '토', '일']; // DateTime.weekday: 월=1
 String _weekdayKo(DateTime d) => _weekdayNames[d.weekday - 1];
 
-/// 날짜 레일 — 월 작게 / 일 크게(고정폭) / 요일 작게(HIST-LIST-04).
-/// 데모(History.tsx `border-l-4`)처럼 왼쪽에 4px 강조 바 — 색은 HIST-LIST-05·06(레일 색) 그대로.
+/// 날짜 레일 — 일 크게(고정폭) / 요일 작게. 데모(History.tsx)처럼 왼쪽에 4px 강조 바.
+/// ⭐ 월은 그룹 헤더로 올렸다(레일엔 일+요일만) — 데모와 동일. HIST-LIST-04 갱신(월을 레일에서 헤더로).
+/// 바 색은 HIST-LIST-05·06(레일 색) 그대로. 일 글자는 데모처럼 완료(딥틸)면 딥틸, 아니면 본문색.
 class DateRail extends StatelessWidget {
   const DateRail({super.key, required this.date, required this.color});
   final DateTime? date;
   final Color color;
   @override
-  Widget build(BuildContext context) => Container(
-        width: 44, // HIST-LIST-04: 고정폭(바 4 + 여백 8 + 내용 32)
-        decoration: date == null
-            ? null
-            : BoxDecoration(
-                border: Border(left: BorderSide(color: color, width: 4)), // 데모 border-l-4
-              ),
-        padding: date == null ? null : const EdgeInsets.only(left: 8), // 데모 pl-2
-        child: date == null
-            ? const SizedBox()
-            : Column(children: [
-                Text('${date!.month}월', style: TextStyle(fontSize: 12, color: color)),
-                Text('${date!.day}',
+  Widget build(BuildContext context) {
+    final dayColor = color == AppTokens.primary ? AppTokens.primary : AppTokens.onSurface;
+    return Container(
+      width: 44, // 고정폭(바 4 + 여백 8 + 내용 32)
+      decoration: date == null
+          ? null
+          : BoxDecoration(
+              border: Border(left: BorderSide(color: color, width: 4)), // 데모 border-l-4
+            ),
+      padding: date == null ? null : const EdgeInsets.only(left: 8), // 데모 pl-2
+      child: date == null
+          ? const SizedBox()
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center, // 레일 세로 가운데(데모 justify-center)
+              children: [
+                Text('${date!.day}', // 데모 text-2xl font-semibold
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: color,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: dayColor,
+                      height: 1.0,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     )),
-                Text('(${_weekdayKo(date!)})', style: TextStyle(fontSize: 11, color: color)),
-              ]),
-      );
+                const SizedBox(height: 2), // 데모 mt-0.5
+                Text('(${_weekdayKo(date!)})',
+                    style: const TextStyle(fontSize: 12, color: AppTokens.grayPending)), // 데모 text-xs muted
+              ],
+            ),
+    );
+  }
 }
 
 /// 상태 배지 — 글자만(배경 없음). 완료=딥틸, 나머지=회색(HIST-ROW-13).
@@ -314,16 +376,22 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   List<Widget> _withYearHeaders(List<VisitHistoryEntry> items) {
     final out = <Widget>[];
     int? lastYear;
+    String? lastMonthKey;
     for (final e in items) {
       // 최신 위(서버가 이미 정렬 — HIST-LIST-01)
-      final y = e.slotDate?.year;
-      if (y != null && y != lastYear) {
-        out.add(Padding(
-          key: _yearKeys.putIfAbsent(y, () => GlobalKey()), // 연도 바로가기 스크롤 대상
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text('$y', style: const TextStyle(fontWeight: FontWeight.w800, color: AppTokens.grayDone)),
+      final d = e.slotDate;
+      // ⭐ 데모처럼 연·월을 그룹 헤더로(레일에서 뺐다). 연 바뀌면 헤더+월 헤더 다시 찍는다.
+      if (d != null && d.year != lastYear) {
+        out.add(_YearHeader(
+          year: d.year,
+          headerKey: _yearKeys.putIfAbsent(d.year, () => GlobalKey()), // 연도 바로가기 스크롤 대상
         ));
-        lastYear = y;
+        lastYear = d.year;
+      }
+      final monthKey = d == null ? null : '${d.year}-${d.month}';
+      if (monthKey != null && monthKey != lastMonthKey) {
+        out.add(_MonthHeader(month: d!.month));
+        lastMonthKey = monthKey;
       }
       out.add(HistoryRow(
         entry: e,
@@ -359,23 +427,26 @@ class _YearJumpBar extends StatelessWidget {
   Widget build(BuildContext context) {
     if (years.length < 2) return const SizedBox.shrink(); // 한 해뿐이면 군더더기
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), // 데모 mb-4
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
+            const Padding(
+              padding: EdgeInsets.only(right: 8), // 데모 gap-2
+              child: Text('바로가기',
+                  style: TextStyle(fontSize: 12, color: AppTokens.grayPending)), // 데모 text-xs muted
+            ),
             for (final y in years)
               Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ActionChip(
+                padding: const EdgeInsets.only(right: 8), // 데모 gap-2
+                child: _HistoryPill(
                   key: Key('year-jump-$y'),
-                  label: Text('$y년'),
-                  onPressed: () => onJump(y),
-                  backgroundColor: AppTokens.surface,
-                  side: const BorderSide(color: AppTokens.border),
-                  labelStyle: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600, color: AppTokens.primary),
-                  visualDensity: VisualDensity.compact,
+                  label: '$y년',
+                  onTap: () => onJump(y),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), // 데모 px-3 py-1.5
+                  textColor: AppTokens.primary,
+                  fontWeight: FontWeight.w500, // 데모 font-medium
                 ),
               ),
           ],
@@ -383,4 +454,42 @@ class _YearJumpBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 연도 그룹 헤더 — 데모: text-base font-bold `2026년` + 오른쪽으로 뻗는 얇은 선(bg-border).
+class _YearHeader extends StatelessWidget {
+  const _YearHeader({required this.year, required this.headerKey});
+  final int year;
+  final Key headerKey;
+  @override
+  Widget build(BuildContext context) => Padding(
+        key: headerKey,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), // 데모 pt-3
+        child: Row(children: [
+          Text('$year년',
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: AppTokens.onSurface)),
+          const SizedBox(width: 12), // 데모 gap-3
+          const Expanded(child: Divider(height: 1, thickness: 1, color: AppTokens.border)),
+        ]),
+      );
+}
+
+/// 월 그룹 헤더 — 데모: text-sm font-semibold text-primary `9월` + 옅은 틸 선(bg-primary/15).
+class _MonthHeader extends StatelessWidget {
+  const _MonthHeader({required this.month});
+  final int month;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4), // 데모 pt-1
+        child: Row(children: [
+          Text('$month월',
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: AppTokens.primary)),
+          const SizedBox(width: 12), // 데모 gap-3
+          Expanded(
+              child: Divider(
+                  height: 1, thickness: 1, color: AppTokens.primary.withValues(alpha: 0.15))), // 데모 bg-primary/15
+        ]),
+      );
 }

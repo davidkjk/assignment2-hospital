@@ -31,20 +31,29 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFEFF3F4),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _BrandBar(
-              unread: unread,
-              onBell: () async {
-                await ref.read(notificationReadMarkerProvider).markAllRead(); // NAV-HOME-12
-                if (context.mounted) context.go('/notifications');
-              },
-              onSettings: () => context.go('/settings'), // NAV-HOME-13
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 브랜드 밴드를 상태바 자리까지 틸로 채운다 — 다른 화면 AppBar와 같은 인상.
+          // (홈만 SafeArea가 전체를 감싸 상태바 자리에 밝은 배경이 비쳤던 것을 해소.)
+          ColoredBox(
+            color: AppTokens.primary,
+            child: SafeArea(
+              bottom: false,
+              child: _BrandBar(
+                unread: unread,
+                onBell: () async {
+                  await ref.read(notificationReadMarkerProvider).markAllRead(); // NAV-HOME-12
+                  if (context.mounted) context.go('/notifications');
+                },
+                onSettings: () => context.go('/settings'), // NAV-HOME-13
+              ),
             ),
-            Expanded(
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              bottom: false,
               child: RefreshIndicator(
                 onRefresh: () async => ref.invalidate(homeAppointmentsProvider), // HOME-REFRESH-01
                 child: ListView(
@@ -66,8 +75,8 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

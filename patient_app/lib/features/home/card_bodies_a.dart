@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/tokens.dart';
 import '../../core/wait_format.dart';
 import 'appointment_view.dart';
@@ -20,7 +21,12 @@ class _QrPlaceholder extends StatelessWidget {
             border: Border.all(color: AppTokens.grayPending, style: BorderStyle.solid),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.qr_code_2, size: 40, color: AppTokens.primary),
+          child: Center(
+            child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill)
+                width: 40,
+                height: 40,
+                colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+          ),
         ),
         const SizedBox(height: 8),
         Text(text,
@@ -55,7 +61,10 @@ class WaitBody extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.monitor_heart, size: 32, color: AppTokens.primary), // 데모 정본 아이콘
+        SvgPicture.asset('assets/icons/pulse_fill.svg', // 데모 Activity=Phosphor Pulse(fill)
+            width: 32,
+            height: 32,
+            colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
         const SizedBox(height: 4),
         if (q != null)
           Text('내 앞에 ${q.patientsAhead}명',

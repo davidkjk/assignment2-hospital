@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/tokens.dart';
 import 'appointment_view.dart';
 
@@ -64,7 +65,12 @@ class QrPreviewBody extends StatelessWidget {
               border: Border.all(color: AppTokens.grayPending),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.qr_code_2, size: 40, color: AppTokens.primary),
+            child: Center(
+              child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill)
+                  width: 40,
+                  height: 40,
+                  colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+            ),
           ),
           const SizedBox(height: 8),
           const Text('접수용 QR을 준비 중입니다',
@@ -79,14 +85,19 @@ class QrPreviewBody extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 72,
-            height: 72,
+            width: 80, // 데모 h-20 w-20
+            height: 80,
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: AppTokens.border),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.qr_code_2, size: 52, color: AppTokens.primary),
+            child: Center(
+              child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill) h-16 w-16
+                  width: 64,
+                  height: 64,
+                  colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+            ),
           ),
           const SizedBox(width: 16),
           Column(

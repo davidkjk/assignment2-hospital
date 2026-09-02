@@ -12,6 +12,11 @@ class AppTheme {
   /// 브랜드 워드마크 전용 서체(데모 .brand-wordmark). 로고·병원명에만 쓴다 — 본문엔 쓰지 않는다.
   static const String brandFontFamily = 'DoHyeon';
 
+  /// 데모 index.css의 `html { font-size: 17px }`(어르신 가독성)를 브라우저 기본 16px에 대해 키운 비율.
+  /// 폰트 값은 전부 16px 기준 naive로 두고, app.dart의 전역 textScaler가 이 비율로 전 화면을 키운다.
+  /// (데모가 뿌리 글자만 키우고 rem으로 비례 확대한 것과 같은 방식 — 크기 지정은 한 곳에서만.)
+  static const double rootFontScale = 17.0 / 16.0;
+
   static ThemeData get theme {
     const scheme = ColorScheme.light(
       primary: AppTokens.primary,
@@ -40,7 +45,7 @@ class AppTheme {
         shadowColor: Color(0x40102D32), // 딥틸 톤 드롭(데모 헤더 그림자)
         centerTitle: false,
         titleTextStyle: TextStyle(
-            fontFamily: fontFamily, color: Colors.white, fontSize: 17, fontWeight: FontWeight.w500),
+            fontFamily: fontFamily, color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
         iconTheme: IconThemeData(color: Colors.white),
       ),
       // 입력칸 = 흰 면 + 둥근 사각 테두리(데모: 라벨은 칸 위에 별도, 칸 안엔 안내글만).

@@ -137,10 +137,11 @@ class _Section extends StatelessWidget {
         ),
         Container(
           clipBehavior: Clip.antiAlias,
+          // 데모 알림 그룹 = overflow-hidden rounded-xl border bg-card(테두리, 그림자 없음).
           decoration: BoxDecoration(
             color: AppTokens.surface,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: AppTokens.cardElevation,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTokens.border),
           ),
           child: Column(
             children: [

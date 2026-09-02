@@ -149,9 +149,10 @@ class InfoTable extends StatelessWidget {
 
     return Column(children: [
       Container(
+        // 데모 예약상세 정보표 = <Card>(그림자, 테두리 없음) — 주요 카드라 그림자로.
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFE3E8EB)),
+          color: AppTokens.surface,
+          boxShadow: AppTokens.cardElevation,
           borderRadius: BorderRadius.circular(14),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -232,9 +233,10 @@ class DetailQr extends StatelessWidget {
     // APPT-QR-01 · NAV-APPT-05 — 확정 예약은 접수 QR 카드, [QR 보기] → 전체화면 QR(T17). (오프라인이면 보관본 — APPT-QR-06)
     return Container(
       key: const Key('detail_qr'),
+      // 데모 접수 QR = <Card>(그림자, 테두리 없음) — 주요 카드라 그림자로.
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE3E8EB)),
+        color: AppTokens.surface,
+        boxShadow: AppTokens.cardElevation,
         borderRadius: BorderRadius.circular(14),
       ),
       padding: const EdgeInsets.all(16),

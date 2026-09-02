@@ -44,67 +44,88 @@ class AppointmentCard extends StatelessWidget {
         ],
         ..._topNotices(state),
         Container(
+          // 데모 <Card>: 테두리 없이 rounded-xl + --elevation-card 그림자만(흰 배경 위에 떠 보이게).
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5EAED)),
-            boxShadow: AppTokens.cardElevation, // 공용 카드 그림자(데모 --elevation-card)
+            borderRadius: BorderRadius.circular(14), // 데모 rounded-xl = --radius(10) * 1.4
+            boxShadow: AppTokens.cardElevation, // 데모 --elevation-card
           ),
-          padding: const EdgeInsets.all(16),
+          // 데모 Card py-4(상하 16) + 헤더·콘텐츠 px-4(좌우 16) = 사방 16.
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 머리: 이름·관계 + 시각·과·의사 / 색 배지(COMMON-01·04·05).
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
+              // ── CardHeader(px-4, gap-2) ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 머리: 이름·관계 + 시각·과·의사 / 색 배지(COMMON-01·04·05).
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${view.forPatientName} · ${view.relation}', // CARD-COMMON-01: 관계 문자열(예: '어머니')
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        if (view.slotStart != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text.rich(TextSpan(children: [
-                              TextSpan(
-                                  text: formatSlotTime24(view.slotStart!), // 데모 홈 카드 = 24h 원값('14:00'). 상세만 12h
-                                  style: const TextStyle(fontWeight: FontWeight.w600)),
-                              TextSpan(
-                                  text: ' · ${view.departmentName} · ${view.doctorName} 선생님',
-                                  style: const TextStyle(color: AppTokens.grayPending)),
-                            ])),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${view.forPatientName} · ${view.relation}', // CARD-COMMON-01: 관계 문자열
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              if (view.slotStart != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4), // 데모 mt-1
+                                  child: Text.rich(TextSpan(children: [
+                                    TextSpan(
+                                        text: formatSlotTime24(view.slotStart!), // 데모 홈=24h('14:00'). 상세만 12h
+                                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    TextSpan(
+                                        text: ' · ${view.departmentName} · ${view.doctorName} 선생님',
+                                        style: const TextStyle(color: AppTokens.grayPending)),
+                                  ])),
+                                ),
+                            ],
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        StatusBadge(
+                            label: patientStatusLabel(state),
+                            color: patientBadgeColor(state),
+                            textColor: patientBadgeTextColor(state)),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  StatusBadge(
-                      label: patientStatusLabel(state),
-                      color: patientBadgeColor(state),
-                      textColor: patientBadgeTextColor(state)),
-                ],
-              ),
-              // 번호 줄 + 아래 구분선(COMMON-02/03).
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 12),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Color(0xFFE5EAED))),
-                  ),
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text('$numberLabel ${view.bookingCode ?? ''}',
-                      style: const TextStyle(color: AppTokens.grayPending, fontSize: 13)),
+                    const SizedBox(height: 8), // 데모 CardHeader gap-2
+                    // 번호 줄 + 아래 구분선(COMMON-02/03) — 데모 border-b pb-3.
+                    Container(
+                      decoration: const BoxDecoration(
+                        border: Border(bottom: BorderSide(color: AppTokens.border)),
+                      ),
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text('$numberLabel ${view.bookingCode ?? ''}',
+                          style: const TextStyle(color: AppTokens.grayPending, fontSize: 14)), // 데모 text-sm
+                    ),
+                  ],
                 ),
               ),
-              // 가운데 132 tint 박스(COMMON-06).
-              AppCard(body: _cardBody(context, state)),
-              // 문진 줄(취소·요청·미확정엔 없음).
-              ..._questionnaire(context, state),
-              // 아래: 상태별 버튼(데모: 아웃라인·오른쪽 정렬).
-              ..._actions(context, state),
+              // 데모: Card gap-4(16) + CardContent pt-4(16) = 헤더 구분선과 본문 박스 사이 넉넉한 32.
+              const SizedBox(height: 32),
+              // ── CardContent(px-4, space-y-3) ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 가운데 132 tint 박스(COMMON-06).
+                    AppCard(body: _cardBody(context, state)),
+                    // 문진 줄(취소·요청·미확정엔 없음).
+                    ..._questionnaire(context, state),
+                    // 아래: 상태별 버튼(데모: 아웃라인·오른쪽 정렬).
+                    ..._actions(context, state),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

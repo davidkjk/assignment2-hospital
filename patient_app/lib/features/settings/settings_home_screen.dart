@@ -196,9 +196,11 @@ class _SettingsLink extends StatelessWidget {
             onTap: _disabled ? null : onTap,
             borderRadius: BorderRadius.circular(12),
             child: Container(
+              // 데모 SettingsLink = rounded-xl border(옅은 테두리, 그림자 없음). 주요 카드(위 내 정보)만
+              // 그림자, 이동 링크 같은 보조 컨테이너는 테두리로 위계를 나눈다(데모 2단 계층).
               decoration: BoxDecoration(
                 color: AppTokens.surface,
-                boxShadow: AppTokens.cardElevation,
+                border: Border.all(color: AppTokens.border),
                 borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
               ),
               padding: const EdgeInsets.all(16),

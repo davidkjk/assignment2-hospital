@@ -181,7 +181,9 @@ function buildDart() {
   const densityRowGap = pxToDartDouble(d.rowGap);
   const densityListGap = pxToDartDouble(d.listGap);
   const densitySectionGap = pxToDartDouble(d.sectionGap);
-  // 데모 Button(shadcn button.tsx) 크기 체계. 루트 17px(rem 비례)이라 h-8=34px, text-sm=14.875px.
+  // 데모 Button(shadcn button.tsx) 크기 체계. 폰트는 16px 기준 naive(text-sm=14)로 두고,
+  // 데모 루트 17px(어르신 가독성)은 app.dart 전역 textScaler(×17/16)가 재현한다 → 렌더 시 14.875px.
+  // 높이(h-8=34px 등)는 레이아웃이라 배율 대상이 아니어서 17px 기준 실측값 그대로 둔다.
   const b = tokens.patientApp.button;
   const buttonRadius = pxToDartDouble(b.radius);
   const buttonPadX = pxToDartDouble(b.padX);
@@ -238,7 +240,7 @@ class AppTokens {
   static const Color muted = ${muted};
   static const Color onSurface = ${onSurface};
 
-  // patientApp.body — 본문 기본 크기(테마 bodyLarge에 쓰인다). 데모 루트 17px(어르신 가독성).
+  // patientApp.body — 본문 기본 크기(테마 bodyLarge). 16px naive → 전역 배율(app.dart ×17/16)로 17px 렌더.
   static const double bodyFontSize = ${bodyFontSize};
 
   // patientApp.density — 데모(조밀 shadcn) 밀도 토큰. 리스트·카드 성김을 데모에 맞춘다.
@@ -249,7 +251,7 @@ class AppTokens {
   static const double densitySectionGap = ${densitySectionGap}; // 날짜 섹션 사이
 
   // patientApp.button — 데모 Button 크기 체계(사용자 확정 2026-09-01: 데모 3단계 그대로).
-  // 루트 17px이라 rem 값이 비례로 커진 실제 픽셀. 굵기는 font-medium(500) — bold 아님.
+  // 폰트는 16px 기준 naive(전역 배율 ×17/16로 렌더). 굵기는 font-medium(500) — bold 아님.
   //   cta  = h-12 text-base (로그인·가입·최종확인·[예약하기] 등 전체폭 주요 행동, 화면당 1개)
   //   tall = h-11 text-sm   (비밀번호 변경 제출·인증번호 재전송)
   //   lg   = h-9  text-sm   (가족 추가·수정 제출)

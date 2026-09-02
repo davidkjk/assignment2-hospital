@@ -83,10 +83,11 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
       children: [
         // 고지 4줄(SET-QUIT-04·06·07·08).
         Container(
+          // 데모 탈퇴 고지 = rounded-xl border bg-card(테두리, 그림자 없음).
           decoration: BoxDecoration(
             color: AppTokens.surface,
-            boxShadow: AppTokens.cardElevation,
-            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTokens.border),
+            borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.all(16),
           child: Column(

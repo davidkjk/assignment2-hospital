@@ -77,10 +77,12 @@ class ConsentScreen extends ConsumerWidget {
                   _RequiredAllCard(on: s.requiredAllOn, onTap: n.toggleRequiredAll),
                   const SizedBox(height: 12),
                   Container(
+                    // 데모 동의 리스트 = divide-y rounded-xl border(테두리, 그림자 없음).
+                    // 보조 그룹 리스트라 「필수 모두 동의」 카드와 같은 테두리 계열로 둔다.
                     decoration: BoxDecoration(
                       color: AppTokens.surface,
                       borderRadius: BorderRadius.circular(14),
-                      boxShadow: AppTokens.cardElevation,
+                      border: Border.all(color: AppTokens.border),
                     ),
                     child: Column(children: [
                       _row(context, '[필수] 서비스 이용약관', '서비스 이용에 필요한 약속', null, s.terms,

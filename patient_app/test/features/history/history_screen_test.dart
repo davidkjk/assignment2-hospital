@@ -121,12 +121,13 @@ void main() {
   });
   testWidgets('[HIST-LIST-01][HIST-LIST-02][HIST-LIST-03] 최신 위 + 해 바뀌는 자리마다(올해도) 연도 헤더', (t) async {
     await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 5, 1)), _e(VisitStatus.done, DateTime(2025, 12, 1))]);
-    expect(find.text('2026'), findsOneWidget); // 올해에도 헤더(HIST-LIST-03)
-    expect(find.text('2025'), findsOneWidget);
+    // 2년치라 연도 바로가기 칩(_YearJumpBar)과 연도 헤더(_YearHeader)가 둘 다 'N년'으로 뜬다 → 각 2개.
+    expect(find.text('2026년'), findsNWidgets(2)); // 올해에도 헤더(HIST-LIST-03) — 데모 '2026년'
+    expect(find.text('2025년'), findsNWidgets(2));
   });
   testWidgets('[HIST-LIST-20] 몇 년 전 줄도 화면이 안 거르고 그린다(기간 제한 없음)', (t) async {
     await _pump(t, items: [_e(VisitStatus.done, DateTime(2018, 4, 1))]);
-    expect(find.text('2018'), findsOneWidget); // 오래돼도 막다른 길을 만들지 않는다
+    expect(find.text('2018년'), findsOneWidget); // 오래돼도 막다른 길을 만들지 않는다
   });
   testWidgets('[HIST-LIST-08][HIST-LIST-10][HIST-LIST-11] 누르면 펼침 · 여러 줄 동시', (t) async {
     await _pump(t, items: [_e(VisitStatus.done, DateTime(2026, 5, 1)), _e(VisitStatus.done, DateTime(2026, 4, 1))]);

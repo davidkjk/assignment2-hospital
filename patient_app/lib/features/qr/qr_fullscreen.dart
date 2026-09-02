@@ -125,7 +125,10 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
                 child: IconButton(
                   icon: const Icon(Icons.close),
                   tooltip: '닫기',
-                  onPressed: () => context.pop(),
+                  // 홈에서 go('/qr/:id')로 들어오면 스택이 대체돼 pop할 곳이 없다 →
+                  // 돌아갈 곳이 있으면 pop, 없으면 홈으로(닫기가 먹통이던 것 해소).
+                  onPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/home'),
                 ),
               ),
             ),
