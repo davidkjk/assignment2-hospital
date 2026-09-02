@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/phone_cooldown.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/field_error.dart';
@@ -93,6 +94,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
           child: ActionButton(
             label: '인증번호 받기',
             busyLabel: '인증번호 보내는 중…', // AUTH-PHONE-03 = BTN-BUSY-01
+            style: AppButtonSize.cta, // 데모 PhoneStep: size=lg h-12 text-base
             busy: _busy,
             onPressed: _submit,
           ),

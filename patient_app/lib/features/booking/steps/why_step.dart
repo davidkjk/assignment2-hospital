@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/button_sizes.dart';
 import '../../../core/tokens.dart';
 import '../booking_controller.dart';
 
@@ -31,7 +32,8 @@ class _WhyStepState extends ConsumerState<WhyStep> {
   Widget build(BuildContext context) {
     final notifier = ref.read(bookingProvider.notifier);
     return Padding(
-      padding: const EdgeInsets.all(16),
+      // 하단 버튼(시각 34)이 padded 탭 영역(48) 때문에 7px를 더 차지하므로 아래 여백에서 뺀다.
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('어떤 일로 오시나요?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), // BOOK-WHY-02
         const SizedBox(height: 4),

@@ -53,7 +53,7 @@ void main() {
 
   testWidgets('[NAV-BOOK-11][BOOK-TIME-04] 시각을 누르면 6단계 방문 이유로 간다', (t) async {
     final c = await pumpTime(t, slots: [_slot('09:00', d)]);
-    await t.tap(find.text('9:00'));
+    await t.tap(find.text('09:00')); // slotLabel은 24시간제 HH:mm(데모 mock '09:00' 정본)
     await t.pump();
     expect(c.read(bookingProvider).step, 5);
     expect(c.read(bookingProvider).slotId, 's-09:00');

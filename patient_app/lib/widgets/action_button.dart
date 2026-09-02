@@ -17,6 +17,8 @@ class ActionButton extends StatelessWidget {
   final bool busy;              // 서버 응답 대기 중
   final String? disabledReason; // null이 아니면 비활성 + 이 이유 문구 노출(BTN-STATE-03)
   final VoidCallback onPressed;
+  /// 크기 등급(AppButtonSize.cta 등). null이면 테마 기본(base). 색은 상태가 정하므로 여기서 덮지 않는다.
+  final ButtonStyle? style;
 
   const ActionButton({
     super.key,
@@ -25,6 +27,7 @@ class ActionButton extends StatelessWidget {
     required this.onPressed,
     this.busy = false,
     this.disabledReason,
+    this.style,
   });
 
   bool get _disabled => disabledReason != null;
@@ -44,7 +47,7 @@ class ActionButton extends StatelessWidget {
           style: FilledButton.styleFrom(
             backgroundColor: bg,
             foregroundColor: fg,
-          ),
+          ).merge(style),
           // 버튼은 enabled로 두어 위 배경색을 유지하고(회색·흐린 딥틸을 Material 기본 disabled 스타일에
           // 뺏기지 않게), busy/비활성일 때 콜백만 내부에서 무시한다(BTN-BUSY-02·BTN-STATE-03·BTN-TIME-01).
           onPressed: () {

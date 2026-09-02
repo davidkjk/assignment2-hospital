@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api_client.dart';
 import '../../core/phone_cooldown.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/inline_error.dart';
@@ -161,6 +162,7 @@ class _FamilyLinkFormScreenState extends ConsumerState<FamilyLinkFormScreen> {
             label: '인증번호 받기',
             busyLabel: '보내는 중…',
             busy: _busy,
+            style: AppButtonSize.lg, // 데모 ExistingFamily: size=lg w-full
             onPressed: _send,
           ),
         ],

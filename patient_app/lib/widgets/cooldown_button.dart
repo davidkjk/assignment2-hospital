@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/button_sizes.dart';
 import '../core/tokens.dart';
 import '../core/phone_cooldown.dart';
 
@@ -71,11 +72,12 @@ class _CooldownButtonState extends State<CooldownButton> {
   @override
   Widget build(BuildContext context) {
     final onCooldown = _remaining > 0;
-    return FilledButton(
-      style: FilledButton.styleFrom(
-        backgroundColor: onCooldown ? AppTokens.grayDone : AppTokens.primary,
-        foregroundColor: onCooldown ? AppTokens.grayPending : Colors.white,
-      ),
+    // 데모 OtpStep [인증번호 다시 받기] = variant=outline h-11(테두리 버튼, 채움 아님).
+    // 쿨다운 중엔 회색 글자(BTN-COOL-02) — 배경은 그대로 흰 면.
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: onCooldown ? AppTokens.grayPending : AppTokens.onSurface,
+      ).merge(AppButtonSize.tall),
       onPressed: () {
         if (!onCooldown) _press();
       },

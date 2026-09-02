@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/connectivity.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/patient_app_bar.dart';
@@ -80,10 +81,7 @@ class _FamilyListBody extends StatelessWidget {
           },
           icon: const Icon(Icons.person_add_alt_1, size: 20),
           label: const Text('가족 추가하기'),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
+          style: AppButtonSize.lg, // 데모 FamilyList: variant=outline size=lg w-full
         ),
       ],
     );
@@ -144,13 +142,8 @@ class FamilyCard extends StatelessWidget {
                 onPressed: onEdit,
                 icon: const Icon(Icons.edit_outlined, size: 15),
                 label: const Text('정보 수정'),
-                style: OutlinedButton.styleFrom(
-                  // 테마 기본 전폭(Size.fromHeight=무한 minWidth)을 끈다 — Row 안에서 폭 자동.
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  visualDensity: VisualDensity.compact,
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
+                // 데모 FamilyList [정보 수정]: variant=outline size=sm. Row 안이라 폭은 내용만큼.
+                style: AppButtonSize.shrink(AppButtonSize.sm),
               ),
             ],
           ),

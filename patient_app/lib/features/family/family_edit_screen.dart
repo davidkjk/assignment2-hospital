@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
@@ -190,6 +191,7 @@ class _EditBody extends StatelessWidget {
           label: '저장하기',
           busyLabel: '저장 중…',
           busy: saving,
+          style: AppButtonSize.lg, // 데모 FamilyEdit: size=lg w-full
           disabledReason: valid ? null : '이름·생년월일·성별을 모두 입력해 주세요',
           onPressed: onSave,
         ),
@@ -259,13 +261,8 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 테마 기본 전폭(Size.fromHeight=무한 minWidth)을 끈다 — Wrap 안에서 폭 자동(칩 크기).
-    final chipStyle = ButtonStyle(
-      minimumSize: WidgetStateProperty.all(const Size(0, 36)),
-      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 16)),
-      visualDensity: VisualDensity.compact,
-      textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-    );
+    // 데모 FamilyEdit 관계 칩: Button size=sm(variant secondary/outline). Wrap 안이라 폭은 내용만큼.
+    final chipStyle = AppButtonSize.shrink(AppButtonSize.sm);
     return selected
         ? FilledButton(
             onPressed: onTap,

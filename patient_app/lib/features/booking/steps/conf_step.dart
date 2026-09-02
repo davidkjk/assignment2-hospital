@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api_client.dart';
 import '../../../core/pending_request.dart' show koreanTime;
+import '../../../core/button_sizes.dart';
 import '../../../core/tokens.dart';
 import '../../../widgets/action_button.dart';
 import '../../../widgets/doctor_avatar.dart';
@@ -68,6 +69,7 @@ class ConfStep extends ConsumerWidget {
           ActionButton(
             label: '예약 신청하기', // BOOK-CONF-04b 하나로 통일
             busyLabel: '예약 신청 중…', // BOOK-CONF-05 진행형 유지
+            style: AppButtonSize.cta, // 데모 Step7Confirm: size=lg h-12 text-base
             busy: submitting.isLoading,
             onPressed: () => ref.read(bookingSubmitProvider.notifier).submit(),
           ),

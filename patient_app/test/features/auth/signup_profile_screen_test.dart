@@ -32,6 +32,7 @@ Future<void> _fillValid(WidgetTester t) async {
   await t.enterText(find.byKey(const Key('name')), '홍길동'); // 이름 칸(데모 순서: 비밀번호 먼저라 .first는 비번)
   await t.enterText(find.byKey(const Key('pw')), 'abc12345');
   await t.enterText(find.byKey(const Key('pw-confirm')), 'abc12345');
+  await t.ensureVisible(find.byKey(const Key('birth'))); // 하단 CTA가 커져 테스트 뷰포트(600)에선 스크롤 밖
   await t.tap(find.byKey(const Key('birth')));
   await t.pumpAndSettle();
   await t.tap(find.text('OK')); // 기본 날짜(1970) 확정
@@ -62,6 +63,7 @@ void main() {
     await t.enterText(find.byKey(const Key('name')), '홍길동');
     await t.enterText(find.byKey(const Key('pw')), 'abc12345');
     await t.enterText(find.byKey(const Key('pw-confirm')), 'abc12345');
+    await t.ensureVisible(find.byKey(const Key('birth')));
     await t.tap(find.byKey(const Key('birth')));
     await t.pumpAndSettle();
     await t.tap(find.text('OK'));
@@ -105,6 +107,7 @@ void main() {
 
   testWidgets('[AUTH-PROFILE-05] 생년월일은 날짜 선택기로 받는다(자유 입력 아님)', (t) async {
     await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
+    await t.ensureVisible(find.byKey(const Key('birth')));
     await t.tap(find.byKey(const Key('birth')));
     await t.pumpAndSettle();
     expect(find.byType(CalendarDatePicker), findsOneWidget); // YYYY-MM-DD 자유 입력이 아니다

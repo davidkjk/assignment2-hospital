@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api_client.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/empty_state.dart';
 import '../booking/catalog_repository.dart'
@@ -321,6 +322,7 @@ class _TimeStep extends ConsumerWidget {
               ]),
             ),
             TextButton(
+              style: AppButtonSize.shrink(AppButtonSize.sm), // 데모 ApptChange: variant=ghost size=sm
               onPressed: () => ref.read(changeControllerProvider(args).notifier).backToDate(),
               child: const Text('날짜 다시 고르기'),
             ),

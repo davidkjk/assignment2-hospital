@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/phone_cooldown.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/cooldown_button.dart';
 import '../../widgets/inline_error.dart';
@@ -162,6 +163,7 @@ class _OtpScreenState extends State<OtpScreen> {
               const SizedBox(height: 20),
               if (_error != null) InlineError(_error), // AUTH-OTP-09(버튼 위 붙박이)
               FilledButton(
+                style: AppButtonSize.cta, // 이 화면의 주 행동(데모엔 자동 진행이라 버튼 없음 → 형제 화면 CTA 등급)
                 onPressed: _busy ? null : _verify,
                 child: Text(_busy ? '확인 중…' : '확인'),
               ),

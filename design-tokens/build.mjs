@@ -181,6 +181,17 @@ function buildDart() {
   const densityRowGap = pxToDartDouble(d.rowGap);
   const densityListGap = pxToDartDouble(d.listGap);
   const densitySectionGap = pxToDartDouble(d.sectionGap);
+  // 데모 Button(shadcn button.tsx) 크기 체계. 루트 17px(rem 비례)이라 h-8=34px, text-sm=14.875px.
+  const b = tokens.patientApp.button;
+  const buttonRadius = pxToDartDouble(b.radius);
+  const buttonPadX = pxToDartDouble(b.padX);
+  const buttonWeight = String(b.weight);
+  const tier = (t) => [pxToDartDouble(t.height), pxToDartDouble(t.font)];
+  const [btnCtaH, btnCtaF] = tier(b.cta);
+  const [btnTallH, btnTallF] = tier(b.tall);
+  const [btnLgH, btnLgF] = tier(b.lg);
+  const [btnBaseH, btnBaseF] = tier(b.base);
+  const [btnSmH, btnSmF] = tier(b.sm);
   // 데모 --elevation-card: 딥틸 톤(patientApp.cardShadow) 3겹 그림자. 알파(0.06/0.10/0.13)는 데모 정본값.
   const sc = tokens.patientApp.cardShadow.replace('#', ''); // "102D32"
   const argb = (a) => '0x' + Math.round(a * 255).toString(16).toUpperCase().padStart(2, '0') + sc;
@@ -236,6 +247,27 @@ class AppTokens {
   static const double densityRowGap = ${densityRowGap}; // 아이콘↔글자
   static const double densityListGap = ${densityListGap}; // 행 사이
   static const double densitySectionGap = ${densitySectionGap}; // 날짜 섹션 사이
+
+  // patientApp.button — 데모 Button 크기 체계(사용자 확정 2026-09-01: 데모 3단계 그대로).
+  // 루트 17px이라 rem 값이 비례로 커진 실제 픽셀. 굵기는 font-medium(500) — bold 아님.
+  //   cta  = h-12 text-base (로그인·가입·최종확인·[예약하기] 등 전체폭 주요 행동, 화면당 1개)
+  //   tall = h-11 text-sm   (비밀번호 변경 제출·인증번호 재전송)
+  //   lg   = h-9  text-sm   (가족 추가·수정 제출)
+  //   base = h-8  text-sm   (마법사 [이전]/[다음]·상세 [변경]/[취소]·[홈으로] 등 기본)
+  //   sm   = h-7  text-xs   (알림 카드 안·가족 목록 [추가]·문진 확인 [수정])
+  static const double buttonRadius = ${buttonRadius}; // rounded-lg = --radius 0.625rem
+  static const double buttonPadX = ${buttonPadX}; // px-2.5
+  static const FontWeight buttonWeight = FontWeight.w${buttonWeight};
+  static const double buttonCtaHeight = ${btnCtaH};
+  static const double buttonCtaFont = ${btnCtaF};
+  static const double buttonTallHeight = ${btnTallH};
+  static const double buttonTallFont = ${btnTallF};
+  static const double buttonLgHeight = ${btnLgH};
+  static const double buttonLgFont = ${btnLgF};
+  static const double buttonBaseHeight = ${btnBaseH};
+  static const double buttonBaseFont = ${btnBaseF};
+  static const double buttonSmHeight = ${btnSmH};
+  static const double buttonSmFont = ${btnSmF};
 
   // 데모 --elevation-card: 테두리 없이 카드를 띄우는 딥틸 톤(patientApp.cardShadow) 3겹 그림자.
   // 한 곳에서 조절하면 전 카드에 반영된다(테두리 선 대신 그림자 — DESIGN-NOTES 「그림자·경계 시스템」).

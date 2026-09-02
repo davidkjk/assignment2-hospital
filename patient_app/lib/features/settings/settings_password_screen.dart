@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/providers.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/labeled_field.dart';
 
@@ -152,6 +153,7 @@ class _SettingsPasswordScreenState extends ConsumerState<SettingsPasswordScreen>
             const SizedBox(height: 8),
           ],
           FilledButton(
+            style: AppButtonSize.tall, // 데모 Password: h-11 w-full
             onPressed: canSubmit
                 ? () => ref.read(settingsPasswordControllerProvider.notifier).submit(_pw.text, _pw2.text)
                 : null,

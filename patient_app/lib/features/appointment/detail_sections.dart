@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_client.dart';
+import '../../core/button_sizes.dart';
 import '../../core/pending_request.dart' show koreanTime;
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
@@ -411,6 +412,7 @@ class DetailButtonBar extends ConsumerWidget {
       return ActionButton(
         label: '새로 예약하기',
         busyLabel: '새로 예약하기',
+        style: AppButtonSize.cta, // 데모 ApptDetail footer: size=lg h-12 text-base
         onPressed: () => context.go('/booking'),
       );
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 
 /// FAM-EDIT-12 관계 4종(데모 relationOptions)과 같은 목록.
@@ -84,14 +85,8 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 테마 기본 전폭(Size.fromHeight)을 끈다 — Wrap 안에서 칩 크기로.
-    final style = ButtonStyle(
-      minimumSize: WidgetStateProperty.all(const Size(0, 36)),
-      padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 16)),
-      visualDensity: VisualDensity.compact,
-      textStyle:
-          WidgetStateProperty.all(const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-    );
+    // 데모 NewFamily 관계 칩: Button size=sm(variant secondary/outline). Wrap 안이라 폭은 내용만큼.
+    final style = AppButtonSize.shrink(AppButtonSize.sm);
     return selected
         ? FilledButton(
             onPressed: onTap,

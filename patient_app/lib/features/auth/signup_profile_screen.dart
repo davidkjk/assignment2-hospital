@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/labeled_field.dart';
 import 'signup_flow.dart';
@@ -233,6 +234,7 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           child: FilledButton(
+            style: AppButtonSize.cta, // 데모 ProfileStep: size=lg h-12 text-base
             onPressed: (_canSubmit && !_busy) ? _submit : null, // AUTH-SIGNUP-06b
             child: Text(_busy ? '가입 중…' : '가입 완료'),
           ),

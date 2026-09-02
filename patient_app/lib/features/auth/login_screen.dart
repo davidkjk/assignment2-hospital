@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/labeled_field.dart';
@@ -112,7 +113,12 @@ class _LoginScreenState extends State<LoginScreen> {
           Text(_error!, style: const TextStyle(color: AppTokens.warn)),
           const SizedBox(height: 8)
         ],
-        ActionButton(label: '로그인', busyLabel: '로그인 중…', busy: _busy, onPressed: _submit),
+        ActionButton(
+            label: '로그인',
+            busyLabel: '로그인 중…',
+            busy: _busy,
+            style: AppButtonSize.cta, // 데모 LoginForm: size=lg h-12 text-base
+            onPressed: _submit),
         const SizedBox(height: 12),
         // AUTH-LOGIN-07: 버튼 아래 가운데.
         Center(

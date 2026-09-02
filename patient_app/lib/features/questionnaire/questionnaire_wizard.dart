@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/button_sizes.dart';
+import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../appointment/appointment_detail.dart'; // appointmentDetailProvider — 작성 중 라이브 취소 감지(QNR-LIVE-01)
 import '../home/home_data.dart'; // homeAcknowledgeProvider — 병원발 [확인] 창구 재사용(새 API 안 만듦)
@@ -102,7 +104,8 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
           ),
         ),
         body: Padding(
-          padding: const EdgeInsets.all(20),
+          // 데모 main px-5 py-5(20). 하단 버튼(시각 34)이 padded 탭 영역(48)으로 7px 더 차지 → 아래서 뺀다.
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             // QNR-LIVE-02·03·04: 취소되면 그 자리에 안내를 얹는다(병원발만 [확인]). 화면은 그대로 남는다.
             if (cancelled && view != null && !_cxlAcked) ...[
@@ -161,7 +164,7 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
               Container(
                 decoration: BoxDecoration(
                     border: Border(top: BorderSide(color: cs.outlineVariant))),
-                padding: const EdgeInsets.only(top: 16),
+                padding: EdgeInsets.only(top: 16 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
                 child: Row(children: [
                   Expanded(
                     child: OutlinedButton(

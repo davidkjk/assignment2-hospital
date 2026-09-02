@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api_client.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/block_dialog.dart';
@@ -149,6 +150,7 @@ class _FamilyNewScreenState extends ConsumerState<FamilyNewScreen> {
             label: '등록하기',
             busyLabel: '등록 중…', // FAM-NEW-15
             busy: _busy,
+            style: AppButtonSize.lg, // 데모 NewFamily: size=lg w-full
             disabledReason: _ready ? null : '성별을 골라주세요',
             onPressed: _submit,
           ),

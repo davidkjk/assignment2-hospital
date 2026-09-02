@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme.dart'; // AppTheme.brandFontFamily(워드마크 서체)
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 
 /// 로그인 전 첫 화면. 큰 버튼 2개만 두고 입력칸을 두지 않는다(AUTH-LAND-01) — 화면당 핵심 행동 1개.
@@ -52,11 +53,13 @@ class LandingScreen extends StatelessWidget {
                   style: TextStyle(color: AppTokens.grayPending, fontSize: 14)),
               const Spacer(flex: 4),
               FilledButton(
+                style: AppButtonSize.cta, // 데모 Login.tsx: size=lg h-12 text-base
                 onPressed: () => context.go('/login'), // 주 버튼
                 child: const Text('로그인'),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
+                style: AppButtonSize.cta,
                 onPressed: () => context.go('/signup'), // 보조 버튼
                 child: const Text('회원가입'),
               ),

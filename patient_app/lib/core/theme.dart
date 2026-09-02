@@ -71,27 +71,37 @@ class AppTheme {
           borderSide: const BorderSide(color: AppTokens.warn, width: 1.6),
         ),
       ),
-      // 주 버튼 = 딥틸 채움·h48·둥근 사각·굵은 흰 글자. 비활성=흐린 딥틸(회색 아님).
+      // 주 버튼 = 데모 Button default(bg-primary·h-8=34·text-sm·font-medium·rounded-lg).
+      // 크기 체계는 AppTokens.button*(데모 3단계 그대로 — 사용자 확정 2026-09-01), 큰 CTA 등은
+      // core/button_sizes.dart의 AppButtonSize를 style로 얹는다. 비활성=흐린 딥틸(회색 아님).
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppTokens.primary,
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppTokens.primaryBusy,
           disabledForegroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(48),
-          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 17, fontWeight: FontWeight.bold),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          minimumSize: const Size.fromHeight(AppTokens.buttonBaseHeight),
+          padding: const EdgeInsets.symmetric(horizontal: AppTokens.buttonPadX),
+          textStyle: const TextStyle(
+              fontFamily: fontFamily,
+              fontSize: AppTokens.buttonBaseFont,
+              fontWeight: AppTokens.buttonWeight),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.buttonRadius)),
         ),
       ),
-      // 보조 버튼 = 흰 면 + 테두리·진회색 글자.
+      // 보조 버튼 = 데모 variant=outline(bg-card·shadow-sm·진회색 글자). 크기는 위와 같은 체계.
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTokens.onSurface,
           backgroundColor: AppTokens.surface,
           side: const BorderSide(color: AppTokens.border),
-          minimumSize: const Size.fromHeight(48),
-          textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 17, fontWeight: FontWeight.bold),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          minimumSize: const Size.fromHeight(AppTokens.buttonBaseHeight),
+          padding: const EdgeInsets.symmetric(horizontal: AppTokens.buttonPadX),
+          textStyle: const TextStyle(
+              fontFamily: fontFamily,
+              fontSize: AppTokens.buttonBaseFont,
+              fontWeight: AppTokens.buttonWeight),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.buttonRadius)),
         ),
       ),
       // 텍스트 링크 버튼 = 딥틸·굵게(데모 하단 링크들).

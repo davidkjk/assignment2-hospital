@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import 'signup_flow.dart';
 
@@ -105,6 +106,7 @@ class ConsentScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             child: Column(children: [
               FilledButton(
+                style: AppButtonSize.cta, // 데모 ConsentStep: size=lg h-12 text-base
                 // CONSENT-BTN-01: 필수 셋이 켜져야 살아난다 → ① 전화번호로.
                 onPressed: s.requiredAllOn ? () => context.go('/signup/phone') : null,
                 child: const Text('다음'),
