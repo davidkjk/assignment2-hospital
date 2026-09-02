@@ -7,6 +7,7 @@ import '../../core/api_client.dart';
 import '../../core/pending_request.dart' show koreanTime;
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
+import '../../widgets/dashed_border.dart';
 import '../../widgets/doctor_avatar.dart';
 import '../../widgets/inline_error.dart';
 import '../home/appointment_view.dart';
@@ -276,42 +277,7 @@ class _DottedPlaceholder extends StatelessWidget {
   }
 }
 
-/// 점선 테두리 상자(패키지 없이 CustomPaint로 — 데모 border-dashed 대응).
-class DottedBorder extends StatelessWidget {
-  const DottedBorder({super.key, required this.child});
-  final Widget child;
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DashedRectPainter(),
-      child: SizedBox(width: double.infinity, child: child),
-    );
-  }
-}
-
-class _DashedRectPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFC4CDD3)
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-    const dash = 5.0, gap = 4.0, r = 14.0;
-    final rrect = RRect.fromRectAndRadius(
-        Offset.zero & size, const Radius.circular(r));
-    final path = Path()..addRRect(rrect);
-    for (final metric in path.computeMetrics()) {
-      var dist = 0.0;
-      while (dist < metric.length) {
-        canvas.drawPath(metric.extractPath(dist, dist + dash), paint);
-        dist += dash + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
+// 점선 테두리 상자(`DottedBorder`)는 widgets/dashed_border.dart로 이전 — 여러 화면 공용.
 
 // ── 사전문진 접기(APPT-QNR) ──────────────────────────────────────────────────
 class QnrAccordion extends StatefulWidget {

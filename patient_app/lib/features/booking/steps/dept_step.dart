@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/tokens.dart';
+import '../../../widgets/dashed_border.dart';
 import '../../../widgets/empty_state.dart';
 import '../booking_controller.dart';
 import '../booking_widgets.dart';
@@ -60,14 +61,13 @@ class _DeptBotEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
+      borderRadius: BorderRadius.circular(18),
+      // BOOK-DEPT-02 — 데모 border-dashed border-primary/40 bg-primary/5 (점선 + 연한 딥틸 틴트).
+      child: DottedBorder(
+        color: AppTokens.primary.withValues(alpha: 0.4),
+        radius: 18,
+        backgroundColor: AppTokens.primary.withValues(alpha: 0.06),
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: AppTokens.primary.withValues(alpha: 0.06),
-          border: Border.all(color: AppTokens.primary.withValues(alpha: 0.4)),
-        ),
         child: const Column(children: [
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.help_outline, size: 18, color: AppTokens.primary),

@@ -38,9 +38,7 @@ class ConfStep extends ConsumerWidget {
             decoration: BoxDecoration(
               color: AppTokens.surface,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(color: Color(0x24102D32), blurRadius: 8, offset: Offset(0, 1)),
-              ],
+              boxShadow: AppTokens.cardElevation, // 공용 카드 그림자(데모 --elevation-card)
             ),
             child: Column(children: [
               _row('대상', sel.target?.name ?? '-'),

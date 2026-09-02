@@ -42,13 +42,11 @@ class BookingWizard extends ConsumerWidget {
             icon: const BackButtonIcon(),
             onPressed: onBack, // BOOK-NAV-03 — 뒤로 버튼 하나만(단계 칩·점프 없음)
           ),
-          title: Text('${step + 1}단계 / 8단계 · ${_stepNames[step]}'), // BOOK-NAV-02 — 숫자+단계 이름
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(4),
-            child: LinearProgressIndicator(value: (step + 1) / 8), // 진행 막대
-          ),
+          // BOOK-NAV-02 — 밴드엔 단계 이름만(숫자·진행 막대는 데모처럼 아래 회색 띠로 분리).
+          title: Text(_stepNames[step]),
         ),
         body: Column(children: [
+          _ProgressStrip(step), // BOOK-NAV-02 — 진행 막대 + 'N단계 / 8단계' (데모 회색 띠)
           if (step >= 1 && step < 7) _SummaryChips(sel), // BOOK-NAV-06 — 2단계부터(완료는 본문이 요약)
           Expanded(
             child: switch (step) {
@@ -65,6 +63,39 @@ class BookingWizard extends ConsumerWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+// BOOK-NAV-02 — 데모 회색 띠: 얇은 진행 막대(둥근 끝) + 오른쪽 작은 'N단계 / 8단계'.
+// 딥틸 밴드(앱바)와 본문 사이에 놓여 어디쯤 왔는지 알린다.
+class _ProgressStrip extends StatelessWidget {
+  const _ProgressStrip(this.step);
+  final int step;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppTokens.muted,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(children: [
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (step + 1) / 8,
+              minHeight: 8,
+              backgroundColor: AppTokens.primary.withValues(alpha: 0.2),
+              valueColor: const AlwaysStoppedAnimation(AppTokens.primary),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text('${step + 1}단계 / 8단계',
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppTokens.grayPending)),
+      ]),
     );
   }
 }

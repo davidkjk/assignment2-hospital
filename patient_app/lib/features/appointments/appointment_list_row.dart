@@ -82,9 +82,7 @@ class AppointmentBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTokens.surface,
         borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
-        boxShadow: const [
-          BoxShadow(color: Color(0x14000000), blurRadius: 6, offset: Offset(0, 1)),
-        ],
+        boxShadow: AppTokens.cardElevation, // 공용 카드 그림자(데모 --elevation-card)
       ),
       child: Column(children: [
         InkWell(

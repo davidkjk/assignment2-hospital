@@ -239,10 +239,13 @@ class AppTokens {
 
   // 데모 --elevation-card: 테두리 없이 카드를 띄우는 딥틸 톤(patientApp.cardShadow) 3겹 그림자.
   // 한 곳에서 조절하면 전 카드에 반영된다(테두리 선 대신 그림자 — DESIGN-NOTES 「그림자·경계 시스템」).
+  // ⚠️ Flutter 그림자는 CSS와 같은 숫자여도 더 세게/아래로 쏠려 "붙은 것처럼" 보인다 →
+  //    데모 웹의 은은한 떠오름과 시각적으로 맞도록 오프셋·블러·농도를 낮춘다(값=데모 눈대조 결과).
+  // 부드러운 후광 — 카드에 가깝게 잡는다. 카드가 촘촘히 쌓여(간격 8) 아래 카드가 위 그림자를
+  // 자르므로, 오프셋·블러를 작게 해 잘림(하드 라인)을 최소화한다. 그림자는 바깥 Container에 그림.
   static const List<BoxShadow> cardElevation = [
-    BoxShadow(color: Color(${argb(0.06)}), blurRadius: 10), // 사방 앰비언트
-    BoxShadow(color: Color(${argb(0.10)}), blurRadius: 3, offset: Offset(0, 1)), // 타이트
-    BoxShadow(color: Color(${argb(0.13)}), blurRadius: 26, offset: Offset(0, 10)), // 아래로 또렷
+    BoxShadow(color: Color(${argb(0.05)}), blurRadius: 14), // 사방 고른 앰비언트
+    BoxShadow(color: Color(${argb(0.10)}), blurRadius: 18, offset: Offset(0, 3)), // 아래로 은은히(가깝게)
   ];
 }
 `;

@@ -29,7 +29,9 @@ Future<ProviderContainer> pumpWizard(WidgetTester t,
 void main() {
   testWidgets('[BOOK-NAV-02] 진행 표시는 숫자와 단계 이름을 함께 쓴다', (t) async {
     await pumpWizard(t, step: 0);
-    expect(find.text('1단계 / 8단계 · 대상 선택'), findsOneWidget);
+    // 데모 구조: 딥틸 밴드엔 단계 이름, 아래 회색 띠엔 'N단계 / 8단계' — 둘 다 화면에 함께 보인다.
+    expect(find.text('대상 선택'), findsOneWidget);
+    expect(find.text('1단계 / 8단계'), findsOneWidget);
   });
 
   testWidgets('[BOOK-NAV-03][BOOK-NAV-04] 뒤로 버튼 하나로 한 단계씩 되돌아간다', (t) async {

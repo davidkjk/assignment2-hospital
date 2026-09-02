@@ -48,9 +48,7 @@ class AppointmentCard extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE5EAED)),
-            boxShadow: const [
-              BoxShadow(color: Color(0x14102D3A), blurRadius: 8, offset: Offset(0, 1)),
-            ],
+            boxShadow: AppTokens.cardElevation, // 공용 카드 그림자(데모 --elevation-card)
           ),
           padding: const EdgeInsets.all(16),
           child: Column(

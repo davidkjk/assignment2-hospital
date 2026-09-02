@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/tokens.dart';
+import '../../../widgets/dashed_border.dart';
 import '../../../widgets/empty_state.dart';
 import '../booking_controller.dart';
 import '../booking_targets_provider.dart';
@@ -72,14 +73,13 @@ class _AddFamilyButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTokens.primary, style: BorderStyle.solid),
-        ),
-        child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      borderRadius: BorderRadius.circular(18),
+      // BOOK-WHO-07 — 데모 border-dashed(옅은 회색 점선). 실선 딥틸이 아니라 "추가" 어포던스.
+      child: const DottedBorder(
+        color: AppTokens.border,
+        radius: 18,
+        padding: EdgeInsets.all(16),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(Icons.person_add_alt, size: 18, color: AppTokens.primary),
           SizedBox(width: 8),
           Text('가족 추가하기',
