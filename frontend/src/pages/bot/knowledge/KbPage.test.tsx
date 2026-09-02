@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { KbPage } from './KbPage'
 import type { KbAdminApi, KbDetail, KbDoc, KbRevision } from '../../../api/kbAdmin'
 
-const doc: KbDoc = { id: 'd1', title: '주차 안내', category: '위치·주차', status: 'approved', isRestricted: false, hasPendingEdit: false }
+const doc: KbDoc = { id: 'd1', title: '주차 안내', category: '위치·주차', status: 'approved', isRestricted: false, hasPendingEdit: false, updatedAt: '2026-08-22T00:40:00Z' }
 const detail: KbDetail = { ...doc, content: '지하 2층', pendingTitle: null, pendingContent: null }
 const rev: KbRevision = { id: 'r1', at: '2026-08-19T00:00:00Z', title: '주차 안내', content: '지하 3층', approvedBy: '김관리' }
 

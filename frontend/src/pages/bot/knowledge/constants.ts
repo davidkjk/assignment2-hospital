@@ -12,7 +12,7 @@ export const RESTRICTED_LABEL = '상담봇이 직접 답변하지 않고 이 문
 
 // 상태 표시명 — ⚠️ 표시명·정렬은 서버 계약이 없어 확인 필요(LIST-03). enum 값(draft/approved/archived)만 백엔드에서 온다.
 export const STATUS_LABELS: Record<KbStatus, string> = {
-  draft: '초안',
+  draft: '임시저장', // 데모 표기 — 저장만으로 공개되지 않음이 이름에서 읽힌다
   approved: '승인됨',
   archived: '보관',
 }

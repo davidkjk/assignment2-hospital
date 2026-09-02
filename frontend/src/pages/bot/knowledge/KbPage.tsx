@@ -9,7 +9,8 @@ import { useKbList } from './useKbList'
 import { KB_CATEGORIES } from './constants'
 
 // 병원 안내자료 관리(/bot/knowledge · 관리자 전용) — 데모 좌목록·우편집 레이아웃에 실 계약을 배선한다.
-// 왼쪽=목록(분류·상태 필터), 오른쪽=편집/승인 또는 수정이력. 저장만으로 공개되지 않고 승인해야 반영된다.
+// 상단 줄=필터 + [새 안내자료](화면 제목은 셸 헤더가 진다, E-9·F-7). 왼쪽=목록, 오른쪽=편집/승인 또는 수정이력.
+// 저장만으로 공개되지 않고 승인해야 반영된다.
 
 type View =
   | { k: 'empty' }
@@ -22,6 +23,7 @@ export function KbPage({ api = kbAdminApi }: { api?: KbAdminApi }) {
   const [creating, setCreating] = useState(false)
 
   const selId = view.k === 'edit' || view.k === 'history' ? view.id : null
+  const selTitle = selId ? list.docs.find((d) => d.id === selId)?.title : undefined
 
   const onNew = () => {
     setCreating(true)
@@ -35,32 +37,27 @@ export function KbPage({ api = kbAdminApi }: { api?: KbAdminApi }) {
   }
 
   return (
-    <StaffPage max="max-w-full" testid="bot-knowledge">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">병원 안내자료</h1>
-          <p className="text-xs text-muted-foreground">상담봇이 답할 때 근거로 삼는 자료입니다. 저장만으로는 공개되지 않고, 승인해야 답변에 반영됩니다.</p>
-        </div>
-        <button className={`${btnPrimary} disabled:opacity-50`} disabled={creating} onClick={onNew}>
-          <FileText className="h-4 w-4" /> {creating ? '만드는 중…' : '새 안내자료'}
-        </button>
-      </div>
+    <StaffPage max="max-w-full" testid="bot-knowledge" footer={false}>
+      {/* 2열 그리드: 1행=필터 줄(두 열 걸침), 2행=목록 카드 | 편집기 — 카드 윗선이 맞는다(F-8) */}
+      <div className="grid grid-cols-[24rem_1fr] grid-rows-[auto_1fr] gap-x-4" style={{ height: 'calc(100vh - 9rem)' }}>
+        <KbList
+          className="row-start-2 col-start-1 h-full"
+          docs={list.docs}
+          phase={list.phase}
+          filters={list.filters}
+          onFilter={list.setFilter}
+          onOpen={({ id }) => setView({ k: 'edit', id })}
+          onRetry={list.retry}
+          statusContract={list.statusContract}
+          selectedId={selId}
+          actions={
+            <button className={`${btnPrimary} disabled:opacity-50`} disabled={creating} onClick={onNew}>
+              <FileText className="h-4 w-4" /> {creating ? '만드는 중…' : '새 안내자료'}
+            </button>
+          }
+        />
 
-      <div className="flex gap-4" style={{ height: 'calc(100vh - 12rem)' }}>
-        <div className="w-96 shrink-0">
-          <KbList
-            docs={list.docs}
-            phase={list.phase}
-            filters={list.filters}
-            onFilter={list.setFilter}
-            onOpen={({ id }) => setView({ k: 'edit', id })}
-            onRetry={list.retry}
-            statusContract={list.statusContract}
-            selectedId={selId}
-          />
-        </div>
-
-        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+        <div className="row-start-2 col-start-2 min-w-0 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
           {view.k === 'empty' && (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
               <FileText className="h-8 w-8 text-muted-foreground/40" />
@@ -80,6 +77,8 @@ export function KbPage({ api = kbAdminApi }: { api?: KbAdminApi }) {
             <KbHistory
               api={api}
               docId={view.id}
+              docTitle={selTitle}
+              onBack={() => setView({ k: 'edit', id: view.id })}
               onEditRevision={(t) => setView({ k: 'edit', id: view.id, prefill: { title: t.title, content: t.content } })}
               onBackToList={() => setView({ k: 'empty' })}
             />

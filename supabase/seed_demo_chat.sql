@@ -156,3 +156,60 @@ begin
 end $$;
 
 commit;
+
+-- ============================================================================
+-- 병원 안내자료(KB) 데모 — /bot/knowledge (상담봇 Task 20). 별도 트랜잭션.
+-- 승인 3(하나는 제한·하나는 수정본 대기+이력) · 초안 1 · 보관 1. 조각(kb_chunks)은 안 심는다(임베딩 필요).
+-- ============================================================================
+begin;
+do $$
+declare
+  v_admin uuid;
+  v_doc uuid;
+  v_titles text[] := array['주차 안내','예약 변경·취소 규칙','위내시경 검사 전 준비','진료비 수납·서류 발급','휴일 진료 문의(옛 안내)','약 처방 관련 문의'];
+begin
+  select id into v_admin from staff where role = 'admin' order by created_at limit 1;
+  delete from kb_document_revisions where document_id in (select id from kb_documents where title = any(v_titles));
+  delete from kb_chunks where document_id in (select id from kb_documents where title = any(v_titles));
+  delete from kb_documents where title = any(v_titles);
+
+  insert into kb_documents (title, category, content, status, is_restricted, created_by, approved_by, approved_at, updated_at)
+  values ('주차 안내', '위치·주차', E'지하 2층 주차장을 이용하세요.\n\n진료 후 1층 원무 창구에서 주차 등록을 해 드립니다(2시간 무료).',
+          'approved', false, v_admin, v_admin, now() - interval '20 days', now() - interval '3 days');
+
+  -- 승인본 + 대기 수정본 + 이전 버전 이력(이전 버전 편집→재승인 경로가 보이게)
+  insert into kb_documents (title, category, content, status, is_restricted, has_pending_edit,
+    pending_title, pending_category, pending_content, pending_is_restricted, pending_updated_by, pending_updated_at,
+    created_by, approved_by, approved_at, updated_at)
+  values ('예약 변경·취소 규칙', '예약·변경·취소 규칙',
+          E'예약 변경·취소는 진료 전날 18시까지 앱에서 직접 할 수 있습니다.\n\n그 이후에는 상담(직원 확인)으로 연결됩니다.',
+          'approved', false, true,
+          '예약 변경·취소 규칙', '예약·변경·취소 규칙',
+          E'예약 변경·취소는 진료 전날 18시까지 앱에서 직접 할 수 있습니다.\n\n당일 취소가 3회 누적되면 이후 예약은 직원 확인 후 확정됩니다.', false,
+          v_admin, now() - interval '1 hour',
+          v_admin, v_admin, now() - interval '10 days', now() - interval '1 hour')
+  returning id into v_doc;
+  insert into kb_document_revisions (document_id, previous_title, previous_category, previous_content, previous_is_restricted, changed_by, changed_at)
+  values (v_doc, '예약 변경·취소 규칙', '예약·변경·취소 규칙', '예약 변경·취소는 진료 당일 오전까지 가능합니다.', false, v_admin, now() - interval '10 days');
+
+  insert into kb_documents (title, category, content, status, is_restricted, created_by, approved_by, approved_at, updated_at)
+  values ('위내시경 검사 전 준비', '검사 전 준비사항',
+          E'검사 전날 밤 9시 이후 금식(물 포함)입니다.\n\n복용 중인 혈압약은 검사 당일 아침 소량의 물과 함께 드셔도 됩니다.',
+          'approved', false, v_admin, v_admin, now() - interval '15 days', now() - interval '15 days');
+
+  -- 제한 자료: 봇이 직접 답하지 않고 이 문구만 그대로 보여준다(A3)
+  insert into kb_documents (title, category, content, status, is_restricted, created_by, approved_by, approved_at, updated_at)
+  values ('약 처방 관련 문의', '자주 묻는 질문',
+          '처방·복용량 변경은 담당 의사 판단이 필요합니다. 직원 상담으로 연결해 드릴게요.',
+          'approved', true, v_admin, v_admin, now() - interval '7 days', now() - interval '7 days');
+
+  insert into kb_documents (title, category, content, status, is_restricted, created_by, updated_at)
+  values ('진료비 수납·서류 발급', '자주 묻는 질문',
+          E'진료비는 1층 원무 창구 또는 앱에서 수납할 수 있습니다.\n\n진단서·소견서는 진료 후 원무과에 신청하세요(발급 1~2일).',
+          'draft', false, v_admin, now() - interval '30 minutes');
+
+  insert into kb_documents (title, category, content, status, is_restricted, created_by, approved_by, approved_at, updated_at)
+  values ('휴일 진료 문의(옛 안내)', '자주 묻는 질문', '토요일 오전 진료는 2025년 12월까지 운영했습니다.',
+          'archived', false, v_admin, v_admin, now() - interval '200 days', now() - interval '40 days');
+end $$;
+commit;

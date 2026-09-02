@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle } from '../../../components/icons'
-import { btnGhost, btnPrimary } from '../../../components/staff-ui'
+import { AlertTriangle, History } from '../../../components/icons'
+import { btnGhost } from '../../../components/staff-ui'
 import type { KbAdminApi, KbDetail } from '../../../api/kbAdmin'
 import { KbApproveFlow } from './KbApproveFlow'
 import { EXCLUDED_CATEGORIES, KB_CATEGORIES, RESTRICTED_LABEL } from './constants'
@@ -8,6 +8,7 @@ import { EXCLUDED_CATEGORIES, KB_CATEGORIES, RESTRICTED_LABEL } from './constant
 // 안내자료 편집(KBADM-EDITOR-01·02·03·05·06·07·08·15·16·17) — 작성·수정하되 저장만으로 공개하지 않는다.
 // 저장(submitEdit)은 pending_*에 담고 라이브를 즉시 안 바꾼다. 승인은 KbApproveFlow가 확인창 안에서만 실행한다.
 // ⭐ 분류에 의사 소개·진료시간을 넣지 않고, 기존 KB에 그런 자료가 남아 있으면 재승인을 막고 원본 관리로 안내한다.
+// 시각: 데모 편집기(헤더바 「안내자료 편집 · 수정이력 보기」 / 푸터 한 줄 [저장][승인]).
 
 type LoadPhase = 'loading' | 'ready' | 'error'
 
@@ -48,22 +49,37 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
 
   useEffect(load, [api, docId])
 
+  const header = (
+    <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
+      <h3 className="text-sm font-semibold">안내자료 편집</h3>
+      {phase === 'ready' && (
+        <button className={`${btnGhost} px-2.5 py-1`} onClick={() => onGotoRevision(docId)}>
+          <History className="h-3.5 w-3.5" /> 수정이력 보기
+        </button>
+      )}
+    </div>
+  )
+
   if (phase === 'loading') {
     return (
-      <div aria-label="자료 로딩" className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        자료를 불러오는 중…
+      <div className="flex h-full flex-col">
+        {header}
+        <div aria-label="자료 로딩" className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
+          자료를 불러오는 중…
+        </div>
       </div>
     )
   }
 
   if (phase === 'error') {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm font-medium">자료를 불러오지 못했습니다</p>
-        <button className={btnGhost} onClick={load}>
-          다시 시도
-        </button>
+      <div className="flex h-full flex-col">
+        {header}
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+          <p className="text-sm font-medium">자료를 불러오지 못했습니다</p>
+          <button className={btnGhost} onClick={load}>다시 시도</button>
+        </div>
       </div>
     )
   }
@@ -80,7 +96,7 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
     setSaveError(false)
     setSavedNote(false)
     api
-      .submitEdit(docId, { title, content, isRestricted: restricted })
+      .submitEdit(docId, { title, category, content, isRestricted: restricted })
       .then(() => {
         setSaving(false)
         setSavedNote(true) // 저장=pending(승인 전 비공개) — 라이브는 안 바뀜(EDITOR-06)
@@ -93,6 +109,7 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
 
   return (
     <div className="flex h-full flex-col">
+      {header}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {excluded && (
           <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -101,8 +118,14 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
           </div>
         )}
         {!isApproved && !excluded && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
             아직 승인 전이라 상담봇 답변에 쓰이지 않습니다. 저장만으로는 공개되지 않고, 승인해야 답변에 반영됩니다.
+          </div>
+        )}
+        {isApproved && detail?.hasPendingEdit && !prefill && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            승인 대기 중인 수정본을 편집하고 있습니다. 승인 전까지 상담봇은 기존 승인본으로 답합니다.
           </div>
         )}
         {savedNote && (
@@ -120,9 +143,7 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
           <span className="mb-1.5 block text-xs font-medium text-muted-foreground">분류</span>
           <select aria-label="분류" value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
             {categoryOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
         </label>
@@ -150,24 +171,25 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
         {saveError && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
             저장하지 못했습니다. 입력한 내용은 그대로 있습니다.
-            <button className={btnGhost} onClick={save}>
-              다시 시도
-            </button>
+            <button className={btnGhost} onClick={save}>다시 시도</button>
           </div>
         )}
       </div>
 
-      <div className="space-y-2 border-t border-border/70 px-4 py-3">
-        <div className="flex items-center justify-end">
-          <button
-            className={`${btnGhost} disabled:opacity-40`}
-            disabled={saving || excluded || !title.trim() || !content.trim()}
-            onClick={save}
-          >
-            {saving ? '저장 중…' : '저장'}
-          </button>
-        </div>
-        <KbApproveFlow api={api} docId={docId} onGotoRevision={onGotoRevision} liveTitle={detail?.title} disabled={excluded} />
+      <div className="border-t border-border/70 px-4 py-3">
+        <KbApproveFlow
+          api={api}
+          docId={docId}
+          onGotoRevision={onGotoRevision}
+          liveTitle={detail?.title}
+          disabled={excluded}
+          showHistoryButton={false}
+          leading={
+            <button className={`${btnGhost} disabled:opacity-40`} disabled={saving || excluded || !title.trim() || !content.trim()} onClick={save}>
+              {saving ? '저장 중…' : '저장'}
+            </button>
+          }
+        />
       </div>
     </div>
   )

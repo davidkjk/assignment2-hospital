@@ -10,6 +10,7 @@ const docDto = {
   status: 'approved',
   is_restricted: false,
   has_pending_edit: false,
+  updated_at: '2026-08-22T00:40:00Z',
 }
 
 describe('kbAdminApi', () => {
@@ -17,7 +18,7 @@ describe('kbAdminApi', () => {
 
   it('[Step1] submitEdit는 PUT으로 보내 pending에 담는다(승인 전 비공개 — 라이브 안 바꿈)', async () => {
     const m = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }))
-    await kbAdminApi.submitEdit('d1', { title: '주차', content: '지하2층', isRestricted: false })
+    await kbAdminApi.submitEdit('d1', { title: '주차', category: '위치·주차', content: '지하2층', isRestricted: false })
     expect(m.mock.calls[0][0]).toBe('/admin/chat/kb/d1')
     expect((m.mock.calls[0][1] as RequestInit).method).toBe('PUT')
   })

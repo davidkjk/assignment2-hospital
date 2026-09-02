@@ -26,6 +26,7 @@ export interface KbDoc {
   status: KbStatus
   isRestricted: boolean
   hasPendingEdit: boolean // pending_* 채워짐 — 라이브와 다른 수정본이 승인 대기 중
+  updatedAt: string // 최근 수정 시각(ISO) — 목록 정렬·표시
 }
 
 /** 편집 prefill 상세 — 라이브 본문 + 대기 수정본(있으면). */
@@ -51,13 +52,12 @@ export interface KbQuery {
 
 export interface KbSubmit {
   title: string
+  category: string
   content: string
   isRestricted: boolean
 }
 
-export interface KbCreate extends KbSubmit {
-  category: string
-}
+export type KbCreate = KbSubmit
 
 export interface KbAdminApi {
   listDocs(q: KbQuery): Promise<KbDoc[]> // GET /admin/chat/kb              ⚠️ 계약 선언
@@ -78,6 +78,7 @@ interface KbDocDto {
   status: KbStatus
   is_restricted: boolean
   has_pending_edit: boolean
+  updated_at: string
 }
 interface KbDetailDto extends KbDocDto {
   content: string
@@ -99,6 +100,7 @@ const toDoc = (d: KbDocDto): KbDoc => ({
   status: d.status,
   isRestricted: d.is_restricted,
   hasPendingEdit: d.has_pending_edit,
+  updatedAt: d.updated_at,
 })
 const toDetail = (d: KbDetailDto): KbDetail => ({
   ...toDoc(d),

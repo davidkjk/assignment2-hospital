@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { btnGhost } from '../../../components/staff-ui'
 import type { KbAdminApi, KbRevision } from '../../../api/kbAdmin'
+import { formatKst } from './format'
 
 // 수정이력(KBADM-HISTORY-01~09) — 선택 자료 한 건의 이전 내용·수정 기록을 최신 시각부터 읽기 전용으로 보인다.
 // ⭐ 정정은 이전 버전 [편집]→편집 폼 prefill→다시 승인(A2) — 되돌리기·승인 취소·자동 복원이 아니다.
 // ⭐ 기록에 없는 사유·승인자를 지어내지 않고, 0건↔조회 실패↔대상 없음(404)을 각각 구분한다.
+// 시각: 데모 이력(헤더 「제목 · 수정이력 · [편집으로]」, v번호 행). 변경 요약은 기록에 없으므로 만들지 않는다.
 
 export interface KbEditRevisionTarget {
   prefillFrom: string
@@ -20,9 +22,13 @@ export interface KbHistoryProps {
   docId: string
   onEditRevision: (target: KbEditRevisionTarget) => void
   onBackToList?: () => void
+  /** 헤더에 보일 자료 제목(페이지가 목록에서 넘긴다). */
+  docTitle?: string
+  /** [편집으로] — 편집기로 복귀. */
+  onBack?: () => void
 }
 
-export function KbHistory({ api, docId, onEditRevision, onBackToList }: KbHistoryProps) {
+export function KbHistory({ api, docId, onEditRevision, onBackToList, docTitle, onBack }: KbHistoryProps) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [revs, setRevs] = useState<KbRevision[]>([])
 
@@ -46,6 +52,13 @@ export function KbHistory({ api, docId, onEditRevision, onBackToList }: KbHistor
 
   return (
     <div data-testid="kb-history" data-doc={docId} className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
+        <h3 className="text-sm font-semibold">{docTitle ? `${docTitle} · 수정이력` : '수정이력'}</h3>
+        {onBack && (
+          <button className={`${btnGhost} px-2.5 py-1`} onClick={onBack}>편집으로</button>
+        )}
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4">
         {phase === 'loading' && (
           <div aria-label="이력 로딩" className="flex flex-col items-center gap-2 px-6 py-16 text-center text-sm text-muted-foreground">
@@ -61,9 +74,7 @@ export function KbHistory({ api, docId, onEditRevision, onBackToList }: KbHistor
         {phase === 'error' && (
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
             <p className="text-sm font-medium">수정이력을 불러오지 못했습니다</p>
-            <button className={btnGhost} onClick={load}>
-              다시 시도
-            </button>
+            <button className={btnGhost} onClick={load}>다시 시도</button>
           </div>
         )}
 
@@ -71,22 +82,23 @@ export function KbHistory({ api, docId, onEditRevision, onBackToList }: KbHistor
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
             <p className="text-sm font-medium">자료를 찾을 수 없습니다</p>
             <p className="text-xs text-muted-foreground">이 자료가 목록에서 사라졌을 수 있습니다.</p>
-            <button className={btnGhost} onClick={() => onBackToList?.()}>
-              목록으로 돌아가기
-            </button>
+            <button className={btnGhost} onClick={() => onBackToList?.()}>목록으로 돌아가기</button>
           </div>
         )}
 
         {phase === 'ready' && (
           <ul className="space-y-2">
-            {revs.map((r) => (
+            {revs.map((r, i) => (
               <li key={r.id} data-testid="kb-rev" className="rounded-xl border border-border/70 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium">{r.title || '(제목 없음)'}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium tabular-nums">v{revs.length - i}</span>
+                      <span className="text-sm text-muted-foreground">{r.title || '(제목 없음)'}</span>
+                    </div>
                     <div className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
-                      {r.at}
-                      {r.approvedBy && <span> · 승인자: {r.approvedBy}</span>}
+                      {r.approvedBy && <span>승인자: {r.approvedBy} · </span>}
+                      {formatKst(r.at)}
                     </div>
                   </div>
                   <button

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { History, ShieldCheck, AlertTriangle } from '../../../components/icons'
 import { btnPrimary, btnGhost } from '../../../components/staff-ui'
 import type { KbAdminApi } from '../../../api/kbAdmin'
@@ -19,9 +19,15 @@ export interface KbApproveFlowProps {
   approved?: boolean
   /** 재승인 불가(의사 소개·진료시간 자료 등, EDITOR-17). */
   disabled?: boolean
+  /** [승인] 왼쪽에 놓을 버튼(편집기의 [저장]) — 푸터 한 줄(데모 배치). */
+  leading?: ReactNode
+  /** 편집기가 헤더에 자기 [수정이력 보기]를 두면 여기선 숨긴다(중복 방지). */
+  showHistoryButton?: boolean
 }
 
-export function KbApproveFlow({ api, docId, onGotoRevision, liveTitle, approved = false, disabled = false }: KbApproveFlowProps) {
+export function KbApproveFlow({
+  api, docId, onGotoRevision, liveTitle, approved = false, disabled = false, leading, showHistoryButton = true,
+}: KbApproveFlowProps) {
   const [stage, setStage] = useState<Stage>(approved ? 'done' : 'idle')
 
   const runApprove = () => {
@@ -34,38 +40,38 @@ export function KbApproveFlow({ api, docId, onGotoRevision, liveTitle, approved 
 
   return (
     <div className="space-y-2">
-      {liveTitle && stage !== 'done' && (
-        <p className="text-xs text-muted-foreground">
-          현재 답변에 쓰이는 자료: <b className="text-foreground">{liveTitle}</b> (승인 전까지 그대로 유지됩니다)
-        </p>
-      )}
-
       {stage === 'done' && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           <ShieldCheck className="h-4 w-4 text-emerald-600" /> 승인되어 AI 상담봇 답변에 반영되었습니다
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2">
-        {/* 수정이력은 승인 후에도 남는다 — 정정=이전 버전 편집→재승인(A2)의 진입점(EDITOR-14) */}
-        <button className={`${btnGhost} px-2.5 py-1.5`} onClick={() => onGotoRevision(docId)}>
-          <History className="h-3.5 w-3.5" /> 수정이력 보기
-        </button>
-        {stage !== 'done' && (
-          <button className={btnPrimary} disabled={disabled} onClick={() => setStage('confirming')}>
-            승인
-          </button>
-        )}
-      </div>
-
       {stage === 'failed' && (
         <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
-          <span>
-            승인에 실패했습니다. 이번 승인이 일부만 반영됐는지는 확인이 필요합니다 — 다시 시도하거나 잠시 후 상태를 확인하세요.
-          </span>
+          <span>승인에 실패했습니다. 이번 승인이 일부만 반영됐는지는 확인이 필요합니다 — 다시 시도하거나 잠시 후 상태를 확인하세요.</span>
         </div>
       )}
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 text-xs text-muted-foreground">
+          {liveTitle && stage !== 'done' && (
+            <>현재 답변에 쓰이는 자료: <b className="text-foreground">{liveTitle}</b> (승인 전까지 그대로 유지됩니다)</>
+          )}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* 수정이력은 승인 후에도 남는다 — 정정=이전 버전 편집→재승인(A2)의 진입점(EDITOR-14) */}
+          {showHistoryButton && (
+            <button className={`${btnGhost} px-2.5 py-1.5`} onClick={() => onGotoRevision(docId)}>
+              <History className="h-3.5 w-3.5" /> 수정이력 보기
+            </button>
+          )}
+          {leading}
+          {stage !== 'done' && (
+            <button className={btnPrimary} disabled={disabled} onClick={() => setStage('confirming')}>승인</button>
+          )}
+        </div>
+      </div>
 
       {(stage === 'confirming' || stage === 'approving') && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
@@ -77,12 +83,8 @@ export function KbApproveFlow({ api, docId, onGotoRevision, liveTitle, approved 
             </p>
             {stage === 'approving' && <p className="mt-3 text-sm font-medium text-primary">승인하여 반영 중</p>}
             <div className="mt-4 flex justify-end gap-2">
-              <button className={btnGhost} disabled={stage === 'approving'} onClick={() => setStage('idle')}>
-                취소
-              </button>
-              <button className={btnPrimary} disabled={stage === 'approving'} onClick={runApprove}>
-                승인하여 반영
-              </button>
+              <button className={btnGhost} disabled={stage === 'approving'} onClick={() => setStage('idle')}>취소</button>
+              <button className={btnPrimary} disabled={stage === 'approving'} onClick={runApprove}>승인하여 반영</button>
             </div>
           </div>
         </div>

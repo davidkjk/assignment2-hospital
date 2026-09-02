@@ -11,6 +11,7 @@ const doc = (over: Partial<KbDoc> = {}): KbDoc => ({
   status: 'approved',
   isRestricted: false,
   hasPendingEdit: false,
+  updatedAt: '2026-08-22T00:40:00Z',
   ...over,
 })
 

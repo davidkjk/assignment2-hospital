@@ -11,6 +11,7 @@ const detail = (over: Partial<KbDetail> = {}): KbDetail => ({
   status: 'approved',
   isRestricted: false,
   hasPendingEdit: false,
+  updatedAt: '2026-08-22T00:40:00Z',
   content: '지하 2층',
   pendingTitle: null,
   pendingContent: null,
