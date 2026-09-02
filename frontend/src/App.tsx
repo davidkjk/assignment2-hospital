@@ -31,6 +31,7 @@ import { KbPage, type KbPrefill } from './pages/bot/knowledge/KbPage'
 import { UnresolvedPage } from './pages/bot/unresolved/UnresolvedPage'
 import { ReportsPage } from './pages/bot/reports/ReportsPage'
 import { QualityPage } from './pages/bot/quality/QualityPage'
+import { OverviewPage } from './pages/bot/overview/OverviewPage'
 import { BadReportPage } from './pages/chatlog/BadReportPage'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
@@ -42,11 +43,8 @@ function LoginRoute() {
   return <LoginPage />
 }
 
-// 상담봇 관련 화면은 4단계(상담봇) 산출물이라 이 단계(직원웹)에선 아직 비어 있다.
-// 시연에서 "안 됨"이 아니라 "다음 단계 제공"으로 읽히도록 로드맵 문구를 보여준다.
-// (/tickets 문의 티켓함은 상담봇 Task 16에서 실제 화면으로 채워졌다 — placeholder에서 제외.)
-const CHATBOT_PATHS = new Set<string>(['/bot/overview'])
-
+// 상담봇 화면(문의함·기록·안내자료·미해결/오답/품질·처리 현황)은 4단계 Task 16~22에서 모두 실제 화면으로 채워졌다.
+// 남은 Placeholder는 아직 본문이 없는 그 밖의 화면에만 쓰인다.
 function Placeholder({ title, note }: { title: string; note?: string }) {
   return <section><h1>{title}</h1><p>{note ?? '이 화면의 본문은 후속 화면 태스크에서 연결됩니다.'}</p></section>
 }
@@ -117,8 +115,8 @@ function pageFor(path: string, label: string) {
   if (path === '/bot/unresolved') return <UnresolvedPage />
   if (path === '/bot/reports') return <ReportsPage />
   if (path === '/bot/quality') return <QualityPage />
+  if (path === '/bot/overview') return <OverviewPage />
   if (path === '/tickets') return <TicketsRoute />
-  if (CHATBOT_PATHS.has(path)) return <Placeholder title={label} note="상담봇 기능은 다음 개발 단계(상담봇)에서 제공될 예정입니다." />
   return <Placeholder title={label} />
 }
 
