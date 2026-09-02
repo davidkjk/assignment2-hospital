@@ -389,14 +389,31 @@ class DetailButtonBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final id = d.view.id;
     final bar = _buildInner(context, ref, id);
+    // 데모 footer는 p-4(상하 16) + base(h-8) 버튼. Flutter는 base 버튼 레이아웃이 탭영역(48)만큼
+    // 부풀어 상하 각 7px 초과 → 데모와 어긋난다. base 변형에선 여백에서 tapPad만큼 뺀다
+    // (cta[새로 예약하기]·텍스트 안내 변형은 tapPad 0이라 그대로 16).
+    final v = 16 - _barTapPad();
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: Color(0xFFE3E8EB))),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, v, 16, v),
       child: SafeArea(top: false, child: bar),
     );
+  }
+
+  // _buildInner이 그리는 변형의 버튼 높이에 맞춘 탭영역 보정량. 상태 분류는 _buildInner과 같은 순서.
+  double _barTapPad() {
+    // 접수 이후(도착·진료대기·진료중)는 텍스트 안내뿐 — 버튼이 없어 보정하지 않는다.
+    if (state == AppointmentCardState.arrived ||
+        state == AppointmentCardState.wait ||
+        state == AppointmentCardState.inTreatment) {
+      return 0;
+    }
+    // 완료·취소 = [새로 예약하기] cta(h-12) → tapPad 0. 그 밖(변경/취소·시간지남·상담연결됨·오프라인)은 base.
+    if (isFinishedCard(state)) return AppButtonSize.tapPad(AppTokens.buttonCtaHeight);
+    return AppButtonSize.tapPad(AppTokens.buttonBaseHeight);
   }
 
   Widget _buildInner(BuildContext context, WidgetRef ref, String id) {
