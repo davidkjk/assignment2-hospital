@@ -33,7 +33,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/icons/hospital_fill.svg
+    - assets/icons/
   fonts:
     # 본문·UI 전역 서체 = Pretendard(데모 --font-sans 정본). 정적 가중치 4종을 번들해 렌더 일치 보장.
     - family: Pretendard

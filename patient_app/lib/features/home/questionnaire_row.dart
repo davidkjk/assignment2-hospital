@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/tokens.dart';
 import '../../widgets/app_icons.dart';
 
@@ -35,22 +36,32 @@ class QuestionnaireRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (IconData icon, String text, bool attention) = switch (state) {
-      QnrRowState.todo => (Icons.assignment, '사전문진 미작성 · 작성하기 ›', true),
+    // 아이콘: 미작성/작성중/작성완료 = 청진기(데모 Stethoscope, fill) — Material엔 없어 SVG.
+    //   잠김=자물쇠(DISP-ICON-01)·읽기전용=눈(DISP-ICON-02)은 Material 그대로.
+    final (String text, bool attention) = switch (state) {
+      QnrRowState.todo => ('사전문진 미작성 · 작성하기 ›', true),
       QnrRowState.inProgress => (
-          Icons.assignment,
           '사전문진 작성 중${answered != null && total != null ? ' ($answered/$total)' : ''} · 이어서 쓰기 ›',
           true,
         ),
-      QnrRowState.done => (Icons.assignment_turned_in, '사전문진 작성완료 · 수정하기 ›', false),
-      QnrRowState.locked => (
-          appIcon(AppIconKind.blocked),
-          '진료가 시작되어 수정할 수 없습니다 · 내용 보기 ›',
-          false,
-        ),
-      QnrRowState.readonly => (appIcon(AppIconKind.readonly), '내가 작성한 사전문진 보기 ›', false),
+      QnrRowState.done => ('사전문진 작성완료 · 수정하기 ›', false),
+      QnrRowState.locked => ('진료가 시작되어 수정할 수 없습니다 · 내용 보기 ›', false),
+      QnrRowState.readonly => ('내가 작성한 사전문진 보기 ›', false),
     };
     final color = attention ? AppTokens.primary : AppTokens.grayPending;
+    // 데모: 문진 아이콘은 항상 딥틸.
+    final Widget iconWidget = switch (state) {
+      QnrRowState.todo || QnrRowState.inProgress || QnrRowState.done => SvgPicture.asset(
+          'assets/icons/stethoscope_fill.svg',
+          width: 18,
+          height: 18,
+          colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn),
+        ),
+      QnrRowState.locked =>
+        Icon(appIcon(AppIconKind.blocked), size: 18, color: AppTokens.primary),
+      QnrRowState.readonly =>
+        Icon(appIcon(AppIconKind.readonly), size: 18, color: AppTokens.primary),
+    };
 
     return InkWell(
       onTap: onTap,
@@ -62,7 +73,7 @@ class QuestionnaireRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 18, color: AppTokens.primary), // 데모: 문진 아이콘은 항상 딥틸
+            SizedBox(width: 18, height: 18, child: Center(child: iconWidget)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(text, style: TextStyle(color: color, fontSize: 15)),
