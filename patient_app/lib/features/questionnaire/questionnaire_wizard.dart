@@ -156,23 +156,32 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
             const Spacer(),
             // QNR-LIVE-05: 잠기면 [이전]·[다음]·[최종 확인]이 사라진다(진행할 것이 없다).
             if (!locked)
-              Row(children: [
-                if (st.index > 0)
+              // 데모: 버튼 줄 위에 얇은 구분선(border-t) + 여백(pt-4). [이전]은 첫 문항에서 숨기지
+              // 않고 비활성(레이아웃 안정 — 데모와 동일).
+              Container(
+                decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: cs.outlineVariant))),
+                padding: const EdgeInsets.only(top: 16),
+                child: Row(children: [
                   Expanded(
                     child: OutlinedButton(
-                        onPressed: () =>
-                            ref.read(questionnaireProvider(widget.appointmentId).notifier).prev(),
+                        onPressed: st.index > 0
+                            ? () => ref
+                                .read(questionnaireProvider(widget.appointmentId).notifier)
+                                .prev()
+                            : null, // 첫 문항이면 비활성
                         child: const Text('이전')),
                   ),
-                if (st.index > 0) const SizedBox(width: 12),
-                Expanded(
-                  child: ActionButton(
-                      label: st.index >= st.questions.length - 1 ? '최종 확인' : '다음',
-                      busyLabel: '저장 중…',
-                      busy: _saving,
-                      onPressed: _next),
-                ),
-              ]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ActionButton(
+                        label: st.index >= st.questions.length - 1 ? '최종 확인' : '다음',
+                        busyLabel: '저장 중…',
+                        busy: _saving,
+                        onPressed: _next),
+                  ),
+                ]),
+              ),
           ]),
         ),
       ),
@@ -187,14 +196,28 @@ class QnrProgressHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // 데모 회색 띠: 진행 막대(둥근 끝) + 오른쪽 문구. 예약 마법사와 같은 패턴.
     return Container(
       width: double.infinity,
       color: cs.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      alignment: Alignment.centerRight,
-      // QNR-PROG-06: 문구는 qnr_progress_text 한 곳에서 만든다(QNR-PROG-09) — 「3번 / 8문항」.
-      child: Text(qnrHeaderText(index: index, total: total),
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+      child: Row(children: [
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: total == 0 ? 0 : (index + 1) / total,
+              minHeight: 8,
+              backgroundColor: cs.primary.withValues(alpha: 0.2),
+              valueColor: AlwaysStoppedAnimation(cs.primary),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // QNR-PROG-06: 문구는 qnr_progress_text 한 곳에서 만든다(QNR-PROG-09) — 「3번 / 8문항」.
+        Text(qnrHeaderText(index: index, total: total),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
+      ]),
     );
   }
 }
