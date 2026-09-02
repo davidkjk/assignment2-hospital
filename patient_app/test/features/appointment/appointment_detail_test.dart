@@ -36,7 +36,7 @@ void main() {
   testWidgets('[APPT-HEAD-02] 취소된 예약은 옅은 회색 머리', (t) async {
     await pumpDetail(t, detail: detail(status: '환자취소'));
     final box = t.widget<Container>(find.byKey(const Key('detail_header')));
-    expect(box.color, AppTokens.grayDone);
+    expect(box.color, AppTokens.muted); // 데모 bg-muted(옅은 회색) — grayDone(중간 회색)에서 변경
   });
 
   testWidgets('[APPT-HEAD-03] 가족 예약이면 대상자를 화면 맨 위에', (t) async {

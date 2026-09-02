@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
+import '../../widgets/app_dialog.dart';
 import '../../widgets/empty_state.dart';
 import '../booking/catalog_repository.dart'
     show Slot, Doctor, availableDatesProvider, doctorsProvider;
@@ -206,7 +207,7 @@ class _FixedHeader extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xFFE3E8EB)),
+        border: Border.all(color: AppTokens.border), // 데모 border 한 색으로 통일
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -244,6 +245,11 @@ class _DateStep extends ConsumerWidget {
           MonthCalendar(
             available: available.map((x) => DateTime(x.year, x.month, x.day)).toSet(),
             now: DateTime.now(),
+            // APPT-CHG — 현재 예약일에 점 + 범례 3번째「현재 예약」(데모 ApptChange markedDate).
+            markedDate: d.view.slotStart == null
+                ? null
+                : DateTime(
+                    d.view.slotStart!.year, d.view.slotStart!.month, d.view.slotStart!.day),
             onPick: (x) => ref.read(changeControllerProvider(args).notifier).selectDate(x),
           ),
           if (d.departmentId != null && d.departmentId!.isNotEmpty) ...[
@@ -370,11 +376,39 @@ class _SlotBlock extends StatelessWidget {
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
         children: [
-          for (final s in slots)
-            OutlinedButton(onPressed: () => onPick(s), child: Text(slotLabel(s.startTime))),
+          for (final s in slots) _SlotChip(slotLabel(s.startTime), () => onPick(s)),
         ],
       ),
     ]);
+  }
+}
+
+/// 변경 흐름 시간 칩 — 데모 ApptChange: `rounded-xl border bg-card px-2 py-3 text-sm font-semibold`.
+/// (예약 마법사 time_step은 bg-card+shadow(테두리 없음)이지만, 변경은 데모가 테두리 칩이다.)
+class _SlotChip extends StatelessWidget {
+  const _SlotChip(this.label, this.onTap);
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTokens.surface, // bg-card
+      borderRadius: BorderRadius.circular(14), // rounded-xl
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            border: Border.all(color: AppTokens.border), // 데모 border 한 색
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Center(
+            child: Text(label,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)), // text-sm semibold
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -421,25 +455,40 @@ Future<void> _confirmAndSubmit(
 Future<bool?> showChangeConfirm(BuildContext context, {required String before, required String after}) {
   return showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Row(children: [
-        Icon(Icons.check_circle, color: AppTokens.primary),
-        SizedBox(width: 8),
-        Expanded(child: Text('이 시간으로 예약을 변경할까요?')),
+    // 데모 커스텀 카드 모달(rounded-2xl border shadow-xl · 아이콘 원). Material 기본 대신 통일.
+    // 변경 확인창만 데모가 하단 정렬(items-end) — 취소·마감안내는 중앙 유지.
+    builder: (ctx) => AppDialogCard(
+      alignment: Alignment.bottomCenter,
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          AppDialogIcon(Icons.check_circle,
+              background: AppTokens.primary.withValues(alpha: 0.10), color: AppTokens.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('이 시간으로 예약을 변경할까요?',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('변경 전 · $before',
+                  style: const TextStyle(fontSize: 14, color: AppTokens.grayPending)),
+              const SizedBox(height: 2),
+              Text('변경 후 · $after',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 20),
+        Row(children: [
+          Expanded(
+              child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('아니요'))), // APPT-CHG-11
+          const SizedBox(width: 8),
+          Expanded(
+              child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true), child: const Text('변경합니다'))),
+        ]),
       ]),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('변경 전 · $before', style: const TextStyle(color: AppTokens.grayPending)),
-        const SizedBox(height: 4),
-        Text('변경 후 · $after', style: const TextStyle(fontWeight: FontWeight.w700)),
-      ]),
-      actions: [
-        OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('아니요')), // APPT-CHG-11
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white),
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('변경합니다'),
-        ),
-      ],
     ),
   );
 }

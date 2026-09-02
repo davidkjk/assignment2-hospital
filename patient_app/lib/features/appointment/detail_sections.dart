@@ -28,9 +28,10 @@ void Function(String phone) openTel = (p) => launchUrl(Uri.parse('tel:$p'));
 String formatKoreanDateTime(DateTime? t) =>
     t == null ? '' : '${t.month}월 ${t.day}일 ${koreanTime(t)}';
 
-/// 머리 색 — 카드(T15/17) 색 규칙을 물려받는다. 끝난 예약(완료·취소)은 옅은 회색, 그 밖엔 딥틸 옅은 배경.
+/// 머리 색 — 카드(T15/17) 색 규칙을 물려받는다. 끝난 예약(완료·취소)은 옅은 회색(데모 bg-muted),
+/// 그 밖엔 딥틸 옅은 배경. (grayDone은 중간 회색이라 배경으로 무거웠다 → muted로, 데모 일치.)
 Color _headerColor(AppointmentCardState state) =>
-    isFinishedCard(state) ? AppTokens.grayDone : AppTokens.primary.withValues(alpha: 0.05);
+    isFinishedCard(state) ? AppTokens.muted : AppTokens.primary.withValues(alpha: 0.05);
 
 // ── 머리(APPT-HEAD) ──────────────────────────────────────────────────────────
 class DetailHeader extends StatelessWidget {
@@ -85,16 +86,24 @@ class DetailHeader extends StatelessWidget {
           CancelledNotice(v),
         ],
         // APPT-HEAD-05 — 확정 전이면 '확인 중' 안내 한 줄(APPT-HEAD-04 용어는 아래 표·버튼이 상태로 분기).
+        // 주의색 관례(DISP-WARN-01·결정 317) = 좌측 4px 바 + 시계 아이콘 + 글자(배경 없음). 데모 border-l-4 pl-3.
         if (v.status == '예약신청') ...[
           const SizedBox(height: 12),
-          const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.access_time_filled, size: 16, color: AppTokens.warn),
-            SizedBox(width: 6),
-            Expanded(
-              child: Text('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.',
-                  style: TextStyle(fontSize: 13, color: AppTokens.warn)),
+          Container(
+            padding: const EdgeInsets.only(left: 12), // 데모 pl-3 — 바 안쪽 여백
+            decoration: const BoxDecoration(
+              border: Border(
+                  left: BorderSide(color: AppTokens.warn, width: AppTokens.warnBarWidth)),
             ),
-          ]),
+            child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.access_time_filled, size: 16, color: AppTokens.warn),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.',
+                    style: TextStyle(fontSize: 13, color: AppTokens.warn)),
+              ),
+            ]),
+          ),
         ],
       ]),
     );
@@ -109,9 +118,10 @@ class InfoTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = d.view;
-    final rows = <Widget>[
-      _infoRow('진료과', Text(v.departmentName)),
-      _infoRow(
+    // 데모 InfoRow는 마지막 행 구분선을 지운다(last:border-b-0) — 행 목록으로 모아 인덱스로 판정한다.
+    final entries = <(String, Widget)>[
+      ('진료과', Text(v.departmentName)),
+      (
         '담당의사',
         Row(children: [
           DoctorAvatar(name: v.doctorName, radius: 16), // BOOK-DOC-05 회색 원+첫 글자
@@ -122,7 +132,7 @@ class InfoTable extends StatelessWidget {
     ];
     // APPT-INFO-04 · NAV-APPT-19 — 장소는 병원 주소(진료실 칸은 DB에 없어 조건부). 누르면 지도 앱.
     if (d.hospitalAddress != null && d.hospitalAddress!.isNotEmpty) {
-      rows.add(_infoRow(
+      entries.add((
         '장소',
         InkWell(
           onTap: () => openMapQuery(d.hospitalAddress!),
@@ -144,7 +154,7 @@ class InfoTable extends StatelessWidget {
     }
     // APPT-INFO-02 — 방문이유가 비면 그 줄을 감춘다(빈 줄·안내문 안 남김) / APPT-INFO-03 — 쓴 문장 그대로.
     if (d.reason != null && d.reason!.isNotEmpty) {
-      rows.add(_infoRow('방문이유', Text(d.reason!)));
+      entries.add(('방문이유', Text(d.reason!)));
     }
 
     return Column(children: [
@@ -156,7 +166,10 @@ class InfoTable extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(children: rows),
+        child: Column(children: [
+          for (var i = 0; i < entries.length; i++)
+            _infoRow(entries[i].$1, entries[i].$2, last: i == entries.length - 1),
+        ]),
       ),
       // APPT-INFO-05 · NAV-APPT-18 — 전화번호는 테두리 상자, 누르면 전화 앱.
       if (d.hospitalPhone != null && d.hospitalPhone!.isNotEmpty) ...[
@@ -168,7 +181,7 @@ class InfoTable extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.all(12),
-              side: const BorderSide(color: Color(0xFFE3E8EB)),
+              side: const BorderSide(color: AppTokens.border), // 데모 border 한 색으로 통일
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
             child: Row(children: [
@@ -187,14 +200,17 @@ class InfoTable extends StatelessWidget {
     ]);
   }
 
-  Widget _infoRow(String label, Widget value) => Container(
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Color(0xFFEFF2F4))),
+  // 데모 InfoRow — grid-cols-[5rem_1fr] gap-3 border-b py-3 last:border-b-0.
+  Widget _infoRow(String label, Widget value, {bool last = false}) => Container(
+        decoration: BoxDecoration(
+          border: last
+              ? null
+              : const Border(bottom: BorderSide(color: AppTokens.border)),
         ),
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
-            width: 72,
+            width: 85, // 데모 grid-cols-[5rem] (17px 루트 = 85)
             child: Text(label,
                 style: const TextStyle(fontSize: 14, color: AppTokens.grayPending)),
           ),
@@ -322,7 +338,7 @@ class _QnrAccordionState extends State<QnrAccordion> {
     // ⚠️ ListTile은 색 있는 Container로 감싸면 ink가 가려진다며 assert가 난다 → 흰 배경은 Material이 갖게 한다.
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE3E8EB)),
+        border: Border.all(color: AppTokens.border), // 데모 border 한 색으로 통일
         borderRadius: BorderRadius.circular(14),
       ),
       child: Material(
@@ -398,7 +414,7 @@ class DetailButtonBar extends ConsumerWidget {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE3E8EB))),
+        border: Border(top: BorderSide(color: AppTokens.border)), // 데모 border 한 색으로 통일
       ),
       padding: EdgeInsets.fromLTRB(16, v, 16, v),
       child: SafeArea(top: false, child: bar),
@@ -431,6 +447,7 @@ class DetailButtonBar extends ConsumerWidget {
       return ActionButton(
         label: '새로 예약하기',
         busyLabel: '새로 예약하기',
+        icon: Icons.calendar_month, // 데모 ApptDetail footer: <CalendarPlus/> (Material 근사)
         style: AppButtonSize.cta, // 데모 ApptDetail footer: size=lg h-12 text-base
         onPressed: () => context.go('/booking'),
       );

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/api_client.dart';
 import 'package:hospital_patient_app/features/appointment/appointment_detail.dart';
 import 'package:hospital_patient_app/features/appointment/cancel_flow.dart';
+import 'package:hospital_patient_app/widgets/app_dialog.dart';
 
 import 'flow_harness.dart';
 import 'harness.dart';
@@ -30,7 +31,7 @@ void main() {
   testWidgets('[CANCEL-PRE-01][CANCEL-PRE-02] 확인창에 취소 대상(누구·언제)을 다시 적는다', (t) async {
     await _openCancel(t,
         d: detail(relation: '어머니', forName: '박영자', isSelf: false, slot: DateTime(2026, 8, 5, 14, 30)));
-    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(AppDialogCard), findsOneWidget); // 데모 커스텀 모달(AlertDialog 아님)
     expect(find.textContaining('박영자'), findsOneWidget); // 대상
     expect(find.textContaining('8월 5일'), findsOneWidget); // 언제
   });
@@ -38,8 +39,8 @@ void main() {
   testWidgets('[CANCEL-PRE-03][CANCEL-PRE-04] 왼쪽 아니요(테두리) / 오른쪽 취소합니다(빨강)', (t) async {
     await _openCancel(t, d: detail());
     expect(find.widgetWithText(OutlinedButton, '아니요'), findsOneWidget);
-    final del = t.widget<TextButton>(find.widgetWithText(TextButton, '취소합니다'));
-    expect(del.style!.foregroundColor!.resolve({}), kDestructiveRed); // 확인창 안에서만 빨강
+    final del = t.widget<FilledButton>(find.widgetWithText(FilledButton, '취소합니다'));
+    expect(del.style!.backgroundColor!.resolve({}), kDestructiveRed); // 확인창 안에서만 빨강(채움)
   });
 
   testWidgets('[CANCEL-PRE-05][CANCEL-PRE-06] 취소 사유 입력·타이핑 확인이 없다', (t) async {

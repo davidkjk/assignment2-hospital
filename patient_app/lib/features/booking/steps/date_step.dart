@@ -36,10 +36,16 @@ class DateStep extends ConsumerWidget {
 // 월 단위 달력(BOOK-DATE-01~07). now·available·onPick을 받아 테스트가 직접 구성할 수 있게 공개한다.
 class MonthCalendar extends StatefulWidget {
   const MonthCalendar(
-      {super.key, required this.available, required this.now, required this.onPick});
+      {super.key,
+      required this.available,
+      required this.now,
+      required this.onPick,
+      this.markedDate});
   final Set<DateTime> available; // 정규화된(자정) DateTime 집합
   final DateTime now;
   final void Function(DateTime) onPick;
+  // APPT-CHG — 현재 예약일에 점을 찍는다(예약 변경 화면). null이면 예약 달력(마커·3번째 범례 없음).
+  final DateTime? markedDate;
   @override
   State<MonthCalendar> createState() => _MonthCalendarState();
 }
@@ -74,6 +80,7 @@ class _MonthCalendarState extends State<MonthCalendar> {
       cells.add(_DayCell(
         day: day,
         available: widget.available.contains(date), // BOOK-DATE-02
+        marked: widget.markedDate == date, // 현재 예약일 점(APPT-CHG)
         onTap: () => widget.onPick(date),
       ));
     }
@@ -139,24 +146,43 @@ class _MonthCalendarState extends State<MonthCalendar> {
               style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
         ),
       const SizedBox(height: 20), // mt-5
-      // 범례 — 두 개만(BOOK-DATE-04/05), gap-5
-      const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        _LegendDot(bordered: true),
-        SizedBox(width: 6),
-        Text('예약 가능', style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
-        SizedBox(width: 20),
-        _LegendDot(bordered: false),
-        SizedBox(width: 6),
-        Text('진료 없음', style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
-      ]),
+      // 범례 — 예약 가능/진료 없음(BOOK-DATE-04/05). 변경 화면(markedDate)이면 「현재 예약」 3번째.
+      Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 20, // gap-5
+        runSpacing: 8,
+        children: [
+          const _LegendItem(_LegendDot(bordered: true), '예약 가능'),
+          const _LegendItem(_LegendDot(bordered: false), '진료 없음'),
+          if (widget.markedDate != null)
+            const _LegendItem(_LegendDot.marked(), '현재 예약'),
+        ],
+      ),
+    ]);
+  }
+}
+
+/// 범례 한 항목(점 + 글자). gap-1.5 ≈ 6.
+class _LegendItem extends StatelessWidget {
+  const _LegendItem(this.dot, this.label);
+  final Widget dot;
+  final String label;
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      dot,
+      const SizedBox(width: 6),
+      Text(label, style: const TextStyle(fontSize: 12, color: AppTokens.grayPending)),
     ]);
   }
 }
 
 class _DayCell extends StatelessWidget {
-  const _DayCell({required this.day, required this.available, required this.onTap});
+  const _DayCell(
+      {required this.day, required this.available, required this.onTap, this.marked = false});
   final int day;
   final bool available;
+  final bool marked; // 현재 예약일 — 숫자 아래 작은 딥틸 점(APPT-CHG)
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
@@ -172,31 +198,58 @@ class _DayCell extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       customBorder: const CircleBorder(),
-      child: Container(
+      child: Stack(
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: AppTokens.primary, width: 2), // BOOK-DATE-02 테두리(border-2)
-        ),
-        child: Text('$day',
-            style: const TextStyle(
-                fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.onSurface)),
+        children: [
+          Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border:
+                  Border.all(color: AppTokens.primary, width: 2), // BOOK-DATE-02 테두리(border-2)
+            ),
+            child: Text('$day',
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.onSurface)),
+          ),
+          // 데모: absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary (숫자 아래 작은 점)
+          if (marked)
+            const Positioned(
+              bottom: 0,
+              child: SizedBox(
+                width: 4,
+                height: 4,
+                child: DecoratedBox(
+                  decoration:
+                      BoxDecoration(shape: BoxShape.circle, color: AppTokens.primary),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 class _LegendDot extends StatelessWidget {
-  const _LegendDot({required this.bordered});
+  const _LegendDot({required this.bordered}) : marked = false;
+  // 현재 예약 점 — 데모 h-1.5 w-1.5 bg-primary(작은 딥틸 채움).
+  const _LegendDot.marked()
+      : bordered = false,
+        marked = true;
   final bool bordered;
+  final bool marked;
   @override
   Widget build(BuildContext context) {
+    final size = marked ? 6.0 : 12.0; // 현재 예약=6(h-1.5), 나머지=12(h-3)
     return Container(
-      width: 12,
-      height: 12,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: bordered ? null : AppTokens.muted,
+        color: marked
+            ? AppTokens.primary
+            : (bordered ? null : AppTokens.muted),
         border: bordered ? Border.all(color: AppTokens.primary, width: 2) : null,
       ),
     );

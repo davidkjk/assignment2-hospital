@@ -8,6 +8,7 @@ import 'package:hospital_patient_app/features/appointment/appointment_actions.da
 import 'package:hospital_patient_app/features/appointment/appointment_detail.dart';
 import 'package:hospital_patient_app/features/appointment/change_flow.dart';
 import 'package:hospital_patient_app/features/booking/catalog_repository.dart';
+import 'package:hospital_patient_app/widgets/app_dialog.dart';
 import 'package:hospital_patient_app/features/booking/steps/date_step.dart' show MonthCalendar;
 import 'package:hospital_patient_app/features/booking/steps/time_step.dart' show availableSlotsProvider;
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
@@ -92,7 +93,7 @@ void main() {
     await _pumpChange(t, d: detail(slot: DateTime(2026, 8, 5, 14, 30)), atStep: 1);
     await t.tap(find.text('16:00')); // 16:00 슬롯(그룹이 오후를 말함)
     await t.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(AppDialogCard), findsOneWidget); // 데모 커스텀 모달(AlertDialog 아님)
     expect(find.text('변경 전 · 8월 5일 오후 2:30'), findsOneWidget); // 전
     expect(find.text('변경 후 · 8월 5일 오후 4:00'), findsOneWidget); // 후
   });
@@ -146,7 +147,7 @@ void main() {
   testWidgets('[APPT-CHG-12][APPT-CHG-13] 변경 성공 후 상세에 예약번호 새 발급 안내(팝업 아님)', (t) async {
     await pumpDetail(t, detail: detail(status: '예약확정'), changed: true);
     expect(find.text('예약번호가 새로 발급되었습니다'), findsOneWidget);
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(AppDialogCard), findsNothing);
   });
 
   testWidgets('[APPT-CHG-16] 직원확인후확정 병원은 변경 후 다시 예약신청(QR 점선)', (t) async {

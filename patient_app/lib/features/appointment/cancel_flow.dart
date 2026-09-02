@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api_client.dart';
 import '../../core/tokens.dart';
+import '../../widgets/app_dialog.dart';
 import '../home/home_data.dart' show homeAppointmentsProvider;
 import 'appointment_actions.dart';
 import 'appointment_detail.dart';
@@ -112,37 +113,48 @@ class CancelConfirmDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = d.view;
     final label = v.status == '예약신청' ? '신청을 취소할까요?' : '예약을 취소할까요?';
-    return AlertDialog(
-      title: Text(label),
-      // CANCEL-PRE-02 — 취소 대상 예약을 다시 적는다(다른 예약을 잘못 취소하는 사고 방지). 데모: 옅은 박스.
-      content: Container(
-        decoration: BoxDecoration(
-          color: AppTokens.muted.withValues(alpha: 0.5),
-          border: Border.all(color: const Color(0xFFE3E8EB)),
-          borderRadius: BorderRadius.circular(12),
+    // 데모 커스텀 카드 모달(rounded-2xl border shadow-xl). Material 기본 대신 통일.
+    return AppDialogCard(
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        // CANCEL-PRE-02 — 취소 대상 예약을 다시 적는다(다른 예약을 잘못 취소하는 사고 방지). 데모: 옅은 박스.
+        Container(
+          decoration: BoxDecoration(
+            color: AppTokens.muted.withValues(alpha: 0.5),
+            border: Border.all(color: AppTokens.border),
+            borderRadius: BorderRadius.circular(14), // 데모 rounded-xl
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${v.forPatientName} · ${v.relation}',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(formatKoreanDateTime(v.slotStart),
+                style: const TextStyle(color: AppTokens.grayPending)),
+            Text('${v.departmentName} · ${v.doctorName} 선생님',
+                style: const TextStyle(color: AppTokens.grayPending)),
+          ]),
         ),
-        padding: const EdgeInsets.all(12),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('${v.forPatientName} · ${v.relation}',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(formatKoreanDateTime(v.slotStart),
-              style: const TextStyle(color: AppTokens.grayPending)),
-          Text('${v.departmentName} · ${v.doctorName} 선생님',
-              style: const TextStyle(color: AppTokens.grayPending)),
+        const SizedBox(height: 20),
+        // CANCEL-PRE-03·04 — 왼쪽 [아니요](테두리) / 오른쪽 [취소합니다](빨강 채움, 확인창 안에서만).
+        Row(children: [
+          Expanded(
+              child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('아니요'))),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: kDestructiveRed, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('취소합니다'),
+            ),
+          ),
         ]),
-      ),
-      actions: [
-        // CANCEL-PRE-03 — 왼쪽 [아니요](테두리) / 오른쪽 [취소합니다](빨강, 확인창 안에서만 CANCEL-PRE-04).
-        OutlinedButton(
-            onPressed: () => Navigator.pop(context, false), child: const Text('아니요')),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          style: TextButton.styleFrom(foregroundColor: kDestructiveRed),
-          child: const Text('취소합니다'),
-        ),
-      ],
-      // ⛔ CANCEL-PRE-05·06 — 취소 사유 입력칸·'취소' 타이핑 확인 없음.
+        // ⛔ CANCEL-PRE-05·06 — 취소 사유 입력칸·'취소' 타이핑 확인 없음.
+      ]),
     );
   }
 }
@@ -158,13 +170,19 @@ class LateSupportDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final id = d.view.id;
     final phone = d.hospitalPhone;
-    return AlertDialog(
-      title: Row(children: [
-        const Icon(Icons.access_time_filled, color: AppTokens.warn),
-        const SizedBox(width: 8),
-        Expanded(child: Text('$requestType 마감 시간이 지났습니다')), // CANCEL-LATE-01 / APPT-CHG-19
-      ]),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    // 데모 커스텀 카드 모달 — 시계 아이콘은 옅은 회색 원 안(데모 Clock3 in bg-muted).
+    return AppDialogCard(
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const AppDialogIcon(Icons.access_time_filled,
+              background: AppTokens.muted, color: AppTokens.grayPending),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text('$requestType 마감 시간이 지났습니다', // CANCEL-LATE-01 / APPT-CHG-19
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ]),
+        const SizedBox(height: 12),
         // CANCEL-LATE-02·03 — 설정값 N시간(의사 이름은 안 붙인다).
         Text('진료 시작 ${d.cancellationDeadlineHours}시간 전까지만 앱에서 $requestType할 수 있습니다.',
             style: const TextStyle(color: AppTokens.grayPending)),
@@ -179,8 +197,8 @@ class LateSupportDialog extends ConsumerWidget {
             style: OutlinedButton.styleFrom(
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.all(12),
-              side: const BorderSide(color: Color(0xFFE3E8EB)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              side: const BorderSide(color: AppTokens.border),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
             child: Row(children: [
               const Icon(Icons.phone, size: 20, color: AppTokens.primary),
@@ -193,24 +211,29 @@ class LateSupportDialog extends ConsumerWidget {
             ]),
           ),
         ],
+        const SizedBox(height: 20),
+        Row(children: [
+          Expanded(
+              child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('닫기'))), // CANCEL-LATE-07 빠져나갈 문
+          const SizedBox(width: 8),
+          Expanded(
+            child: FilledButton(
+              // CANCEL-LATE-05 — 오른쪽 진한 딥틸 버튼.
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                final router = GoRouter.of(context);
+                await ref.read(appointmentActionsProvider).requestSupport(id, requestType); // CANCEL-LATE-11
+                navigator.pop();
+                router.push('/chat?appointment=$id'); // CANCEL-LATE-08·10 — 바로 상담, 재확인 카드 없음
+              },
+              child: const Text('상담 채팅 연결'),
+            ),
+          ),
+        ]),
+        // ⛔ CANCEL-LATE-13 — '취소 요청이 접수되었습니다' 류 금지(환자 노출 문구는 "상담(직원 확인)으로 연결"만).
       ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기')), // CANCEL-LATE-07 빠져나갈 문
-        FilledButton(
-          // CANCEL-LATE-05 — 오른쪽 진한 딥틸 버튼(dialog actions라 ActionButton 전폭 대신 FilledButton).
-          style: FilledButton.styleFrom(
-              backgroundColor: AppTokens.primary, foregroundColor: Colors.white),
-          onPressed: () async {
-            final navigator = Navigator.of(context);
-            final router = GoRouter.of(context);
-            await ref.read(appointmentActionsProvider).requestSupport(id, requestType); // CANCEL-LATE-11
-            navigator.pop();
-            router.push('/chat?appointment=$id'); // CANCEL-LATE-08·10 — 바로 상담, 재확인 카드 없음
-          },
-          child: const Text('상담 채팅 연결'),
-        ),
-      ],
-      // ⛔ CANCEL-LATE-13 — '취소 요청이 접수되었습니다' 류 금지(환자 노출 문구는 "상담(직원 확인)으로 연결"만).
     );
   }
 }
