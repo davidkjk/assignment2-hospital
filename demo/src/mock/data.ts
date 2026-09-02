@@ -19,21 +19,21 @@ export const departments: Department[] = [
 // ── 진료과별 의사 ──
 export const doctorsByDept: Record<string, Doctor[]> = {
   'd-im': [
-    { id: 'doc-im-1', deptId: 'd-im', name: '이정훈', specialty: '소화기내과', scheduleSummary: '월·화·목·금 오전' },
-    { id: 'doc-im-2', deptId: 'd-im', name: '한서연', specialty: '순환기내과', scheduleSummary: '월·수·금 종일' },
+    { id: 'doc-im-1', deptId: 'd-im', name: '이정훈', specialty: '소화기내과', scheduleSummary: '월·화·목·금 오전', photoUrl: '/doctors/im-1.jpg' },
+    { id: 'doc-im-2', deptId: 'd-im', name: '한서연', specialty: '순환기내과', scheduleSummary: '월·수·금 종일', photoUrl: '/doctors/im-2.jpg' },
   ],
   'd-os': [
-    { id: 'doc-os-1', deptId: 'd-os', name: '박강우', specialty: '척추·관절', scheduleSummary: '화·목·금 오후' },
-    { id: 'doc-os-2', deptId: 'd-os', name: '최다인', specialty: '스포츠의학', scheduleSummary: '월·화·수 오전' },
+    { id: 'doc-os-1', deptId: 'd-os', name: '박강우', specialty: '척추·관절', scheduleSummary: '화·목·금 오후', photoUrl: '/doctors/os-1.jpg' },
+    { id: 'doc-os-2', deptId: 'd-os', name: '최다인', specialty: '스포츠의학', scheduleSummary: '월·화·수 오전', photoUrl: '/doctors/os-2.jpg' },
   ],
   'd-ent': [
-    { id: 'doc-ent-1', deptId: 'd-ent', name: '정우재', specialty: '비염·이비인후', scheduleSummary: '월~금 오전' },
+    { id: 'doc-ent-1', deptId: 'd-ent', name: '정우재', specialty: '비염·이비인후', scheduleSummary: '월~금 오전', photoUrl: '/doctors/ent-1.jpg' },
   ],
   'd-derm': [
-    { id: 'doc-derm-1', deptId: 'd-derm', name: '윤지호', specialty: '피부질환', scheduleSummary: '수·목·금 종일' },
+    { id: 'doc-derm-1', deptId: 'd-derm', name: '윤지호', specialty: '피부질환', scheduleSummary: '수·목·금 종일', photoUrl: '/doctors/derm-1.jpg' },
   ],
   'd-oph': [
-    { id: 'doc-oph-1', deptId: 'd-oph', name: '오세림', specialty: '녹내장·백내장', scheduleSummary: '월·화·목 오후' },
+    { id: 'doc-oph-1', deptId: 'd-oph', name: '오세림', specialty: '녹내장·백내장', scheduleSummary: '월·화·목 오후', photoUrl: '/doctors/oph-1.jpg' },
   ],
 }
 

@@ -15,12 +15,29 @@ function hash(seed: string) {
 export function DoctorAvatar({
   seed,
   name,
+  photoUrl,
   className = 'h-14 w-14',
 }: {
   seed: string
   name: string
+  /** 병원이 올린 실제 의사 사진. 있으면 사진, 없으면 SVG 일러스트. */
+  photoUrl?: string
   className?: string
 }) {
+  if (photoUrl) {
+    return (
+      <span className={`shrink-0 overflow-hidden rounded-full bg-[#E7EEF0] ${className}`}>
+        <img
+          src={photoUrl}
+          alt={`${name} 선생님`}
+          loading="lazy"
+          className="h-full w-full object-cover"
+          style={{ objectPosition: '50% 22%' }}
+        />
+      </span>
+    )
+  }
+
   const h = hash(seed)
   const bg = BG[h % BG.length]
   const skin = SKIN[(h >> 3) % SKIN.length]

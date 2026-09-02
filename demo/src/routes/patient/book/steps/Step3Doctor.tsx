@@ -27,7 +27,7 @@ export function Step3Doctor({ wizard }: { wizard: StepProps }) {
             }}
             className="flex items-center gap-3 rounded-2xl bg-card p-3 text-left shadow-(--elevation-card) transition-colors hover:bg-primary/5"
           >
-            <DoctorAvatar seed={doc.name} name={doc.name} className="h-14 w-14" />
+            <DoctorAvatar seed={doc.name} name={doc.name} photoUrl={doc.photoUrl} className="h-14 w-14" />
             <span className="flex flex-col">
               <span className="text-base font-bold">{doc.name}</span>
               <span className="text-sm font-semibold text-primary">{doc.scheduleSummary}</span>

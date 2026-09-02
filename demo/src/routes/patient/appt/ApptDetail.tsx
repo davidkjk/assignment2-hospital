@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import type { Appointment } from '@/mock/types'
+import { allDoctors } from '@/mock/data'
 import { formatAppointmentDateTime } from './format'
 import {
   DEMO_CANCEL_DEADLINE_HOURS,
@@ -153,7 +154,7 @@ export function ApptDetail() {
                   <InfoRow label="진료과">{appointment.deptName}</InfoRow>
                   <InfoRow label="담당의사">
                     <span className="flex items-center gap-2">
-                      <DoctorAvatar seed={appointment.doctorName} name={appointment.doctorName} className="h-7 w-7" />
+                      <DoctorAvatar seed={appointment.doctorName} name={appointment.doctorName} photoUrl={allDoctors.find((d) => d.name === appointment.doctorName)?.photoUrl} className="h-7 w-7" />
                       {appointment.doctorName} 선생님
                     </span>
                   </InfoRow>

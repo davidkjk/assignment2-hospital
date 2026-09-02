@@ -44,7 +44,7 @@ export function Step7Confirm({ wizard }: { wizard: StepProps }) {
             <span className="text-sm text-muted-foreground">{k}</span>
             {k === '의사' && state.doctor ? (
               <span className="flex items-center gap-2 text-right text-sm font-semibold">
-                <DoctorAvatar seed={state.doctor.name} name={state.doctor.name} className="h-7 w-7" />
+                <DoctorAvatar seed={state.doctor.name} name={state.doctor.name} photoUrl={state.doctor.photoUrl} className="h-7 w-7" />
                 {v}
               </span>
             ) : (
