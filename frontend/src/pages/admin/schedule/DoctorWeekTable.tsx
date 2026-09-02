@@ -151,43 +151,12 @@ export function DoctorWeekTable({
         </div>
       }
     >
-      <div style={styles.controls}>
-        {/* 저장 줄 — 표 맨 위 버튼 하나(SCHED-SAVE-01) */}
-        <div style={styles.saveRow}>
-          <button type="button" onClick={copyMonday} className={btnGhost}>
-            월요일 값을 나머지에
-          </button>
-          <div style={styles.saveRight}>
-            {dirtyCount > 0 && (
-              <span style={styles.dirtyNote}>고친 곳 {dirtyCount}군데 · 아직 저장 안 됨</span>
-            )}
-            <button type="button" onClick={handleSave} className={btnPrimary}>
-              저장
-            </button>
-          </div>
-        </div>
-
-        {actionError && (
-          <p role="alert" style={styles.errorNote}>
-            {actionError}
-          </p>
-        )}
-
-        {status && (
-          <div role="status" style={styles.statusNote}>
-            {status.affected}건은 접수 직원의 「확인 필요한 예약」으로 넘어갔습니다.
-            <span data-testid="handoff-target" hidden>
-              /today 확인 필요한 예약
-            </span>
-          </div>
-        )}
-      </div>
-
       <div style={styles.tableScroll}>
+        <div style={styles.tableFrame}>
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={{ ...styles.th, textAlign: 'left', paddingLeft: 'var(--sp-4)' }}>요일</th>
+              <th style={{ ...styles.th, textAlign: 'left' }}>요일</th>
               {COLS.map((c, i) => (
                 <th key={c} style={{ ...styles.th, ...(i === COLS.length - 1 ? styles.lastColPad : null) }}>
                   {c}
@@ -299,6 +268,39 @@ export function DoctorWeekTable({
             })}
           </tbody>
         </table>
+        </div>
+      </div>
+
+      <div style={styles.controls}>
+        {/* 저장 줄 — 표 아래 버튼 하나(병원 운영시간과 같은 배치, 사용자 지시 2026-09-02) */}
+        <div style={styles.saveRow}>
+          <button type="button" onClick={copyMonday} className={btnGhost}>
+            월요일 값을 나머지에
+          </button>
+          <div style={styles.saveRight}>
+            {dirtyCount > 0 && (
+              <span style={styles.dirtyNote}>고친 곳 {dirtyCount}군데 · 아직 저장 안 됨</span>
+            )}
+            <button type="button" onClick={handleSave} className={btnPrimary}>
+              저장
+            </button>
+          </div>
+        </div>
+
+        {actionError && (
+          <p role="alert" style={styles.errorNote}>
+            {actionError}
+          </p>
+        )}
+
+        {status && (
+          <div role="status" style={styles.statusNote}>
+            {status.affected}건은 접수 직원의 「확인 필요한 예약」으로 넘어갔습니다.
+            <span data-testid="handoff-target" hidden>
+              /today 확인 필요한 예약
+            </span>
+          </div>
+        )}
       </div>
 
       {preview && (
@@ -368,8 +370,11 @@ function emptyRow(weekday: number): WeekRow {
 
 const styles: Record<string, CSSProperties> = {
   chipRow: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)', flex: 1, minWidth: 0 },
-  controls: { padding: 'var(--sp-4)', borderBottom: '1px solid var(--color-divider)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
-  tableScroll: { overflowX: 'auto' },
+  controls: { padding: '0 var(--sp-4) var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  // 표 영역에 안쪽 여백을 둔다(사용자 지적 2026-09-02).
+  tableScroll: { padding: 'var(--sp-3) var(--sp-4) var(--sp-4)' },
+  // 카드처럼 사방이 닫히고 모서리가 둥근 표 — 래퍼가 테두리·둥근 모서리·가로 스크롤을 맡는다(사용자 지시 2026-09-02).
+  tableFrame: { border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', overflowX: 'auto' },
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -413,8 +418,8 @@ const styles: Record<string, CSSProperties> = {
   th: { ...tableHeadCell, textAlign: 'center', whiteSpace: 'nowrap' },
   td: { padding: 'var(--sp-1) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', whiteSpace: 'nowrap' },
   tdLabel: { padding: 'var(--sp-1) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], whiteSpace: 'nowrap' },
-  tdLabelPad: { padding: 'var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-4)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], whiteSpace: 'nowrap' },
-  lastColPad: { paddingRight: 'var(--sp-4)' },
+  tdLabelPad: { padding: 'var(--sp-1) var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], whiteSpace: 'nowrap' },
+  lastColPad: {},
   rowDirty: { background: 'rgba(180,78,0,0.06)' },
   toggle: {
     position: 'relative',

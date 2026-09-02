@@ -177,10 +177,11 @@ export function DateExceptionPanel({
         </fieldset>
 
         {scope === 'hospital' ? (
-          <label style={styles.memoRow}>
-            메모
+          // 메모도 「누가 쉬나」·「무엇을 바꾸나」와 같은 박스로 통일 — 입력칸을 박스 안에(사용자 지시 2026-09-02).
+          <fieldset style={styles.field}>
+            <legend style={styles.legend}>메모</legend>
             <TextField ariaLabel="메모" value={memo} onChange={setMemo} className="flex-1" />
-          </label>
+          </fieldset>
         ) : (
           <div style={styles.doctorPick}>
             <button type="button" className={btnGhost} onClick={() => setChecked(dayDoctors.filter((d) => !d.regularDayOff).map((d) => d.id))}>

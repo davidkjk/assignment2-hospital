@@ -44,11 +44,16 @@ export function SideRail({ active, onSelect, subtitles, weeklyDirty }: SideRailP
               {item}
               {item === '의사별 스케줄' && weeklyDirty && <DirtyDot />}
             </span>
+            {/* 부제목이 없는 「전체 진료 일정」도 빈 줄을 자리로 남겨 다른 줄과 높이를 맞춘다
+                (box-sizing:border-box라 minHeight만으론 1줄 카드가 6px 낮았다, 사용자 지적 2026-09-02). */}
             {subtitles[i] ? (
-              <span data-rail-sub style={styles.itemSub}>
-                {subtitles[i]}
-              </span>
-            ) : null}
+              <span data-rail-sub style={styles.itemSub}>{subtitles[i]}</span>
+            ) : (
+              // 자리표시(빈 줄)엔 data-rail-sub를 붙이지 않는다 — 실제 부제목만 집계되도록.
+              <span aria-hidden style={styles.itemSub}>
+              {subtitles[i] || ' '}
+            </span>
+            )}
           </button>
         )
       })}

@@ -129,10 +129,11 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
       )}
 
       <div style={styles.tableScroll}>
+      <div style={styles.tableFrame}>
       <table style={styles.table}>
         <thead>
           <tr>
-            <th style={{ ...styles.th, textAlign: 'left', paddingLeft: 'var(--sp-4)' }}>요일</th>
+            <th style={{ ...styles.th, textAlign: 'left' }}>요일</th>
             <th style={styles.th}>휴무</th>
             <th style={styles.th}>여는 시간</th>
             <th style={styles.th}>닫는 시간</th>
@@ -225,6 +226,7 @@ export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToW
         </tbody>
       </table>
       </div>
+      </div>
 
       <div style={styles.footer}>
         <p style={styles.infoNote}>
@@ -271,14 +273,17 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 'var(--fs-body)',
     fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
   },
-  tableScroll: { overflowX: 'auto' },
-  footer: { padding: 'var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  // 표를 카드 가장자리까지 늘리지 않고 좌우·아래 여백을 둔 채 내용 폭으로 가운데에(사용자 지적 2026-09-02).
+  tableScroll: { padding: 'var(--sp-3) var(--sp-4) var(--sp-4)' },
+  // 카드처럼 사방이 닫히고 모서리가 둥근 표 — 래퍼가 테두리·둥근 모서리·가로 스크롤을 맡는다(사용자 지시 2026-09-02).
+  tableFrame: { border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', overflowX: 'auto' },
+  footer: { padding: '0 var(--sp-4) var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: { ...tableHeadCell, textAlign: 'center' },
   td: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
   tdLabel: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
-  tdLabelPad: { padding: 'var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
-  lastColPad: { paddingRight: 'var(--sp-4)' },
+  tdLabelPad: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
+  lastColPad: {},
   closedCell: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', color: 'var(--color-ink-muted)' },
   lunchToggle: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)' },
   tilde: { margin: '0 var(--sp-0-5)', color: 'var(--color-ink-muted)' },

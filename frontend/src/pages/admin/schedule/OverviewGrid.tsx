@@ -52,6 +52,7 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
       }
     >
       <div data-testid="overview-grid" style={styles.tableScroll}>
+        <div style={styles.tableFrame}>
         <table style={styles.table}>
         <thead>
           <tr>
@@ -106,6 +107,7 @@ export function OverviewGrid({ doctors, onCellClick, onGoToStaff }: OverviewGrid
           ))}
         </tbody>
         </table>
+        </div>
       </div>
     </PanelCard>
   )
@@ -123,13 +125,17 @@ const styles: Record<string, CSSProperties> = {
     backgroundImage: HATCH,
   },
   legendHint: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)', opacity: 0.75 },
-  tableScroll: { overflowX: 'auto' },
+  // 다른 화면의 예쁜 표(ByDimensionTable)와 통일 — 표 영역에 안쪽 여백을 두고 그 안을 100%로 채운다.
+  // 구분선이 카드 테두리에서 여백만큼 떨어져 「쏙」 들어간다(사용자 지적 2026-09-02).
+  tableScroll: { padding: 'var(--sp-3) var(--sp-4) var(--sp-4)' },
+  // 카드처럼 사방이 닫히고 모서리가 둥근 표 — 래퍼가 테두리·둥근 모서리·가로 스크롤을 맡는다(사용자 지시 2026-09-02).
+  tableFrame: { border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
   th: { ...tableHeadCell, textAlign: 'center' },
-  thDoctor: { textAlign: 'left', minWidth: 120, paddingLeft: 'var(--sp-4)' },
+  thDoctor: { textAlign: 'left', minWidth: 96 },
   thSat: { color: 'var(--color-weekend-sat)' },
   thSun: { color: 'var(--color-weekend-sun)' },
-  tdDoctor: { padding: 'var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4)', borderBottom: '1px solid var(--color-divider)' },
+  tdDoctor: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)' },
   td: { padding: 'var(--sp-1)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
   docName: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   docDept: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },

@@ -44,7 +44,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 'var(--sp-3)',
     minHeight: 28,
     padding: 'var(--sp-3) var(--sp-4)',
-    borderBottom: '1px solid var(--color-divider)',
+    // 카드를 가로지르는 구분선은 두지 않는다(사용자 지적 2026-09-02) — 표는 자체 테두리로 닫는다.
   },
   title: {
     margin: 0,
@@ -59,7 +59,6 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: 'var(--sp-2) var(--sp-4)',
     padding: 'var(--sp-3) var(--sp-4)',
-    borderBottom: '1px solid var(--color-divider)',
   },
   body: {},
   bodyPad: { padding: 'var(--sp-4)' },
