@@ -37,6 +37,9 @@ export function ChatlogPage({
             onFilter={logs.setFilter}
             onOpen={open}
             onRetry={logs.retry}
+            counts={logs.counts}
+            period={logs.period}
+            onPeriod={logs.setPeriod}
           />
         </div>
         {selected && (

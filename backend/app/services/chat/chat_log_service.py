@@ -31,14 +31,47 @@ select
 from rep
 where ($1::text is null or channel = $1)
   and ($2::text is null or route_taken = $2)
+  and ($3::text is null or (last_activity_at at time zone 'Asia/Seoul')::date >= $3::date)
+  and ($4::text is null or (last_activity_at at time zone 'Asia/Seoul')::date <= $4::date)
 order by last_activity_at desc, id desc
 """
 
 
-async def list_logs(auth_user_id: str, channel: str | None, route_taken: str | None) -> list[dict]:
+async def list_logs(auth_user_id: str, channel: str | None, route_taken: str | None,
+                    date_from: str | None = None, date_to: str | None = None) -> list[dict]:
     async with acquire_as(auth_user_id) as conn:
-        rows = await conn.fetch(_LOGS_SQL, channel, route_taken)
+        rows = await conn.fetch(_LOGS_SQL, channel, route_taken, date_from, date_to)
     return [dict(r) for r in rows]
+
+
+# 갈래별 개수(필터칩 배지) — 채널·기간에만 걸리고 갈래 필터엔 안 걸린다(칩이 "이 채널·기간에 이 갈래 몇 건"을 보이게).
+_COUNTS_SQL = """
+with rep as (
+  select
+    case th.owner_type when 'patient' then 'app' when 'anonymous_web' then 'web' else th.owner_type end as channel,
+    th.last_activity_at,
+    (select cm.route_taken from public.chat_messages cm
+       where cm.thread_id = th.id and cm.route_taken is not null
+       order by cm.created_at desc, cm.id desc limit 1) as route_taken
+  from public.chat_threads th
+)
+select route_taken, count(*)::int as n
+from rep
+where ($1::text is null or channel = $1)
+  and ($2::text is null or (last_activity_at at time zone 'Asia/Seoul')::date >= $2::date)
+  and ($3::text is null or (last_activity_at at time zone 'Asia/Seoul')::date <= $3::date)
+group by route_taken
+"""
+
+
+async def log_counts(auth_user_id: str, channel: str | None,
+                     date_from: str | None = None, date_to: str | None = None) -> dict:
+    async with acquire_as(auth_user_id) as conn:
+        rows = await conn.fetch(_COUNTS_SQL, channel, date_from, date_to)
+    # 전체 = 갈래 null(봇 갈래 없는 스레드) 포함 합. 칩 개수는 route_taken별(null 제외).
+    counts = {r["route_taken"]: r["n"] for r in rows if r["route_taken"] is not None}
+    total = sum(r["n"] for r in rows)
+    return {"total": total, "counts": counts}
 
 
 # 봇 답변 근거(SOURCE-*) — 승인 당시 스냅샷. similarity는 numeric → float로 옮긴다.

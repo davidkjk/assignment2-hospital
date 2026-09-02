@@ -10,6 +10,7 @@ const api: ChatLogApi = {
     { threadId: 'th1', channel: 'web', routeTaken: 'handoff', summary: '예약 바꾸고 싶어요', at: '2026-08-19T01:00:00Z' },
   ]),
   listSources: vi.fn(async () => [{ rank: 1, similarity: 0.8, titleSnapshot: '예약 변경 안내', bodySnapshot: '...' }]),
+  listCounts: vi.fn(async () => ({ total: 1, counts: { handoff: 1 } })),
 }
 const conv: ConvMessage[] = [
   { id: 'm1', sender: 'patient', body: '예약 바꾸고 싶어요', at: '01:00', patientRead: false, staffUnread: false, smsSent: false },

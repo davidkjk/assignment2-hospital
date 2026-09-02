@@ -1,5 +1,5 @@
-import type { ChatLogRow, ChatLogQuery, Channel, RouteTaken } from '../../api/staffChatLog'
-import { EmptyState, Segmented, Tag } from '../../components/staff-ui'
+import type { ChatLogRow, ChatLogQuery, Channel, RouteTaken, LogCounts } from '../../api/staffChatLog'
+import { EmptyState, Segmented, Tag, PeriodSelect, type PeriodValue } from '../../components/staff-ui'
 import { channelText, routeText, routeDot } from './labels'
 
 // 상담봇 기록 목록(CHATLOG-LIST) — 앱·웹 대화를 한 목록에(SCOPE-01). 채널·갈래 필터(FILTER-01/02).
@@ -29,27 +29,31 @@ export interface ChatLogListProps {
   onFilter: (patch: Partial<ChatLogQuery>) => void
   onOpen: (threadId: string) => void
   onRetry?: () => void
+  counts?: LogCounts // 필터칩 배지(채널·기간별 갈래 개수)
+  period?: PeriodValue
+  onPeriod?: (p: PeriodValue) => void
 }
 
-export function ChatLogList({ rows, phase, filters, onFilter, onOpen, onRetry }: ChatLogListProps) {
+export function ChatLogList({ rows, phase, filters, onFilter, onOpen, onRetry, counts, period, onPeriod }: ChatLogListProps) {
   const activeChannel: 'all' | Channel = filters.channel ?? 'all'
   const activeRoute = filters.routeTaken ?? 'all'
 
   return (
     <div>
-      {/* 필터 한 줄: 갈래(색점) · 채널 · 기간 — 칩 나열 대신 한 벌의 도구로(데모 계승) */}
+      {/* 필터 한 줄: 갈래(색점+건수) · 채널 · 기간 — 칩 나열 대신 한 벌의 도구로(데모 계승) */}
       <div className="mb-3 flex flex-wrap items-center gap-2.5">
         <div
           role="group"
           aria-label="갈래"
           className="inline-flex items-center gap-0.5 rounded-xl border border-border/70 bg-card p-1 shadow-[0_1px_2px_rgba(16,45,50,0.04)]"
         >
-          <RouteChip label="전체" active={activeRoute === 'all'} onClick={() => onFilter({ routeTaken: undefined })} />
+          <RouteChip label="전체" count={counts?.total} active={activeRoute === 'all'} onClick={() => onFilter({ routeTaken: undefined })} />
           {ROUTE_KEYS.map((k) => (
             <RouteChip
               key={k}
               label={routeText(k)}
               dot={routeDot(k)}
+              count={counts ? (counts.counts[k] ?? 0) : undefined}
               active={activeRoute === k}
               onClick={() => onFilter({ routeTaken: k })}
             />
@@ -63,7 +67,12 @@ export function ChatLogList({ rows, phase, filters, onFilter, onOpen, onRetry }:
             onChange={(k) => onFilter({ channel: k === 'all' ? undefined : (k as Channel) })}
           />
         </div>
-        {/* ⏳ 기간 선택기(데모 시각) 이월 — 백엔드 /logs 계약에 date range 없음(플랜 스코프 밖). */}
+
+        {period && onPeriod && (
+          <div className="ml-auto">
+            <PeriodSelect value={period} onChange={onPeriod} />
+          </div>
+        )}
       </div>
 
       {/* 목록 — 4열 그리드(채널 | 갈래 | 질문 요약 | 시각) */}
@@ -121,7 +130,9 @@ export function ChatLogList({ rows, phase, filters, onFilter, onOpen, onRetry }:
   )
 }
 
-function RouteChip({ label, dot, active, onClick }: { label: string; dot?: string; active: boolean; onClick: () => void }) {
+function RouteChip({
+  label, dot, count, active, onClick,
+}: { label: string; dot?: string; count?: number; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -132,6 +143,7 @@ function RouteChip({ label, dot, active, onClick }: { label: string; dot?: strin
     >
       {dot && <span className="h-2 w-2 rounded-full" style={{ background: active ? 'currentColor' : dot }} />}
       {label}
+      {count != null && <span className={`tabular-nums text-xs ${active ? 'opacity-80' : 'opacity-60'}`}>{count}</span>}
     </button>
   )
 }

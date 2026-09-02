@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.core.security import StaffContext, get_current_staff
@@ -77,9 +77,22 @@ async def close(ticket_id: UUID, staff: StaffContext = Depends(get_current_staff
 async def list_logs(
     channel: str | None = None,
     route_taken: str | None = None,
+    date_from: str | None = Query(None, alias="from"),
+    date_to: str | None = Query(None, alias="to"),
     staff: StaffContext = Depends(get_current_staff),
 ):
-    return await chat_log_service.list_logs(str(staff.auth_user_id), channel, route_taken)
+    return await chat_log_service.list_logs(str(staff.auth_user_id), channel, route_taken, date_from, date_to)
+
+
+# 갈래별 개수(필터칩 배지) — 채널·기간에만 걸린다. /logs/{thread_id}보다 먼저 선언해야 'counts'가 thread로 안 잡힌다.
+@router.get("/logs/counts")
+async def log_counts(
+    channel: str | None = None,
+    date_from: str | None = Query(None, alias="from"),
+    date_to: str | None = Query(None, alias="to"),
+    staff: StaffContext = Depends(get_current_staff),
+):
+    return await chat_log_service.log_counts(str(staff.auth_user_id), channel, date_from, date_to)
 
 
 @router.get("/logs/{thread_id}")

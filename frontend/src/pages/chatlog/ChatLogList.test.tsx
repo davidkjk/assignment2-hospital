@@ -42,6 +42,22 @@ describe('ChatLogList', () => {
     expect(onOpen).toHaveBeenCalledWith('web1')
   })
 
+  it('[CHATLOG-LIST-COUNT] 개수가 주어지면 필터칩에 배지로 보인다(전체=total·갈래별=count)', () => {
+    render(
+      <ChatLogList
+        rows={rows}
+        phase="ready"
+        filters={{}}
+        onFilter={vi.fn()}
+        onOpen={vi.fn()}
+        counts={{ total: 8, counts: { handoff: 4 } }}
+      />,
+    )
+    const routeGroup = screen.getByRole('group', { name: '갈래' })
+    expect(within(routeGroup).getByRole('button', { name: /전체 8/ })).toBeInTheDocument()
+    expect(within(routeGroup).getByRole('button', { name: /직원 연결 4/ })).toBeInTheDocument()
+  })
+
   it('[CHATLOG-LIST-EMPTY-01] 0건은 조회 실패와 구분되는 문구를 쓴다', () => {
     render(<ChatLogList rows={[]} phase="empty" filters={{ channel: 'web' }} onFilter={vi.fn()} onOpen={vi.fn()} />)
     expect(screen.getByText('조건에 맞는 상담 기록이 없습니다')).toBeVisible()

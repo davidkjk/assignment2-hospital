@@ -3,7 +3,7 @@ import uuid
 
 import pytest
 
-from app.services.chat.chat_log_service import _LOGS_SQL, _SOURCES_SQL, _CONV_SQL
+from app.services.chat.chat_log_service import _LOGS_SQL, _SOURCES_SQL, _CONV_SQL, _COUNTS_SQL
 from app.services.chat.ticket_service import _row_to_patient_ticket, _PATIENT_TICKETS_SQL
 from tests.conftest import seed_staff, seed_patient, set_session_auth
 from tests.conftest_chat import seed_chat_thread
@@ -62,15 +62,35 @@ async def test_logs_derive_channel_and_route_and_filter(db_conn):
     await _msg(db_conn, web_th, web_s, "bot", "직원에게 연결합니다", at=BASE + datetime.timedelta(minutes=2), route_taken="handoff")
 
     await set_session_auth(db_conn, admin["auth_user_id"])
-    rows = await db_conn.fetch(_LOGS_SQL, None, None)
+    rows = await db_conn.fetch(_LOGS_SQL, None, None, None, None)
     by_ch = {r["channel"]: r for r in rows}
     assert by_ch["app"]["route_taken"] == "rag" and by_ch["app"]["summary"] == "두통이 심해요"  # owner_type→app 파생
     assert by_ch["web"]["route_taken"] == "handoff"  # anonymous_web→web 파생
 
-    only_web = await db_conn.fetch(_LOGS_SQL, "web", None)
+    only_web = await db_conn.fetch(_LOGS_SQL, "web", None, None, None)
     assert [r["channel"] for r in only_web] == ["web"]  # channel 필터
-    only_rag = await db_conn.fetch(_LOGS_SQL, None, "rag")
+    only_rag = await db_conn.fetch(_LOGS_SQL, None, "rag", None, None)
     assert [r["route_taken"] for r in only_rag] == ["rag"]  # route_taken 필터
+
+
+@pytest.mark.asyncio
+async def test_counts_group_by_route_and_respect_channel(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    p = await seed_patient(db_conn)
+    t1 = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    t2 = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    s1 = await _session(db_conn, t1)
+    s2 = await _session(db_conn, t2)
+    await _msg(db_conn, t1, s1, "bot", "a", at=BASE, route_taken="rag")
+    await _msg(db_conn, t2, s2, "bot", "b", at=BASE, route_taken="handoff")
+
+    await set_session_auth(db_conn, admin["auth_user_id"])
+    rows = await db_conn.fetch(_COUNTS_SQL, None, None, None)
+    by = {r["route_taken"]: r["n"] for r in rows}
+    assert by["rag"] == 1 and by["handoff"] == 1  # 갈래별 그룹
+    # 기간을 앞 날짜로 좁히면 아무 것도 안 잡힌다(날짜 필터).
+    empty = await db_conn.fetch(_COUNTS_SQL, None, "2020-01-01", "2020-01-02")
+    assert sum(r["n"] for r in empty) == 0
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { ChatLogSources } from './ChatLogSources'
 import type { ChatLogApi, ChatLogSource } from '../../api/staffChatLog'
 
-const api = (listSources: ChatLogApi['listSources']): ChatLogApi => ({ listSources, listLogs: vi.fn() })
+const api = (listSources: ChatLogApi['listSources']): ChatLogApi => ({
+  listSources, listLogs: vi.fn(), listCounts: vi.fn(async () => ({ total: 0, counts: {} })),
+})
 const src: ChatLogSource[] = [{ rank: 1, similarity: 0.82, titleSnapshot: '주차 안내', bodySnapshot: '지하 2층' }]
 
 describe('ChatLogSources', () => {

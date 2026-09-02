@@ -31,6 +31,14 @@ export interface ChatLogSource {
 export interface ChatLogQuery {
   channel?: Channel
   routeTaken?: RouteTaken
+  from?: string // YYYY-MM-DD (기간 시작, 포함)
+  to?: string // YYYY-MM-DD (기간 끝, 포함)
+}
+
+/** 갈래별 개수(필터칩 배지) — 채널·기간에만 걸린다(갈래 필터 무관). total은 갈래 없는 스레드까지 포함. */
+export interface LogCounts {
+  total: number
+  counts: Record<string, number>
 }
 
 /** 서버 응답(snake_case) — 매핑 전 원형. 프론트 어디에도 새 나가지 않는다. */
@@ -60,14 +68,27 @@ function qs(q: ChatLogQuery): string {
   const p = new URLSearchParams()
   if (q.channel != null) p.set('channel', q.channel)
   if (q.routeTaken != null) p.set('route_taken', q.routeTaken)
+  if (q.from != null) p.set('from', q.from)
+  if (q.to != null) p.set('to', q.to)
+  return p.toString()
+}
+
+// 개수는 갈래 필터를 뺀 채널·기간만 싣는다.
+function countsQs(q: { channel?: string; from?: string; to?: string }): string {
+  const p = new URLSearchParams()
+  if (q.channel != null) p.set('channel', q.channel)
+  if (q.from != null) p.set('from', q.from)
+  if (q.to != null) p.set('to', q.to)
   return p.toString()
 }
 
 export interface ChatLogApi {
-  // 서버가 채널·갈래로 걸러 준다. 프론트는 계약 밖 값을 버리지 않는다(EXC-01).
+  // 서버가 채널·갈래·기간으로 걸러 준다. 프론트는 계약 밖 값을 버리지 않는다(EXC-01).
   listLogs(q: ChatLogQuery): Promise<ChatLogRow[]>
   // 봇 메시지 하나의 승인 근거 스냅샷. 없으면 빈 배열(근거 자료 없음, SOURCE-02).
   listSources(messageId: string): Promise<ChatLogSource[]>
+  // 필터칩 배지용 갈래별 개수(채널·기간만).
+  listCounts(q: { channel?: string; from?: string; to?: string }): Promise<LogCounts>
 }
 
 // 상세 대화 원문(DETAIL-01) — 직원 콘솔 말풍선(TicketConversation)을 그대로 재사용한다.
@@ -95,5 +116,9 @@ export const staffChatLogApi: ChatLogApi = {
   async listSources(messageId) {
     const rows = await apiFetch<ChatLogSourceDto[]>(`/staff/chat/messages/${messageId}/sources`)
     return rows.map(sourceFromDto)
+  },
+  async listCounts(q) {
+    const query = countsQs(q)
+    return apiFetch<LogCounts>(`/staff/chat/logs/counts${query ? `?${query}` : ''}`)
   },
 }

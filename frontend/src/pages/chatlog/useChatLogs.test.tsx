@@ -6,7 +6,11 @@ import type { ChatLogApi, ChatLogRow } from '../../api/staffChatLog'
 const row = (over: Partial<ChatLogRow> = {}): ChatLogRow => ({
   threadId: 'th1', channel: 'app', routeTaken: 'rag', summary: '두통', at: '2026-08-19T00:00:00Z', ...over,
 })
-const api = (listLogs: ChatLogApi['listLogs']): ChatLogApi => ({ listLogs, listSources: vi.fn() })
+const api = (listLogs: ChatLogApi['listLogs'], listCounts?: ChatLogApi['listCounts']): ChatLogApi => ({
+  listLogs,
+  listSources: vi.fn(),
+  listCounts: listCounts ?? vi.fn(async () => ({ total: 0, counts: {} })),
+})
 
 describe('useChatLogs', () => {
   it('[CHATLOG-LIST-FILTER-03] 필터를 바꾸면 새 조건으로 다시 조회한다', async () => {
@@ -49,5 +53,29 @@ describe('useChatLogs', () => {
     await waitFor(() => expect(result.current.phase).toBe('ready'))
     expect(result.current.rows[0].channel).toBe('sms')
     expect(result.current.rows[0].routeTaken).toBe('??')
+  })
+
+  it('[CHATLOG-LIST-COUNT] 갈래 개수는 채널·기간만으로 조회하고(갈래 무관) 배지로 노출한다', async () => {
+    const listCounts = vi.fn(async () => ({ total: 8, counts: { handoff: 4, rag: 2 } }))
+    const { result } = renderHook(() => useChatLogs(api(async () => [row()], listCounts)))
+    await waitFor(() => expect(result.current.counts.total).toBe(8))
+    expect(result.current.counts.counts.handoff).toBe(4)
+    // 갈래를 바꿔도 개수는 다시 세지 않는다(개수는 갈래 필터 무관).
+    listCounts.mockClear()
+    await act(async () => result.current.setFilter({ routeTaken: 'handoff' }))
+    await waitFor(() => expect(result.current.filters.routeTaken).toBe('handoff'))
+    expect(listCounts).not.toHaveBeenCalled()
+  })
+
+  it('[CHATLOG-LIST-PERIOD] 기간을 바꾸면 filters의 from·to가 채워지고 전체면 비운다', async () => {
+    const listLogs = vi.fn(async () => [row()])
+    const { result } = renderHook(() => useChatLogs(api(listLogs)))
+    await waitFor(() => expect(result.current.phase).toBe('ready'))
+    await act(async () => result.current.setPeriod({ preset: '최근 7일', from: '2026-08-16', to: '2026-08-22' }))
+    await waitFor(() => expect(result.current.filters.from).toBe('2026-08-16'))
+    expect(result.current.filters.to).toBe('2026-08-22')
+    await act(async () => result.current.setPeriod({ preset: '전체', from: '', to: '2026-08-22' }))
+    await waitFor(() => expect(result.current.filters.from).toBeUndefined())
+    expect(result.current.filters.to).toBeUndefined()
   })
 })
