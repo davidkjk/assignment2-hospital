@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # None is fail-closed: the API keeps its neutral response but sends no link.
     staff_web_origin: str | None = None
 
+    # 일일 pg_dump 백업이 올라가는 Supabase Storage 버킷(배포 Task 7 · 14일 보관).
+    backup_bucket: str = "backups"
+
     # AI 상담봇(4단계) — LLM/RAG 설정. 키가 비면 자동 테스트는 stub(FakeEmbedder·
     # 주입된 가짜 모델)으로 돌고, 손검수·배포에서 실제 키를 넣으면 진짜 답변이 나온다.
     # 운영시간 판정은 서버 단일 is_open(at)(hospital_hours)이 담당하므로
