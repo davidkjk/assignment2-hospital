@@ -41,11 +41,26 @@ class _WhyStepState extends ConsumerState<WhyStep> {
         TextField(
           controller: _ctl,
           maxLength: 100, // BOOK-WHY-01·05 자유입력 100자, 넘으면 입력 자체 막힘
-          maxLines: 3,
+          minLines: 4, // 데모 min-h-28(112) — 넉넉한 textarea
+          maxLines: 6,
+          style: const TextStyle(fontSize: 14),
           inputFormatters: [LengthLimitingTextInputFormatter(100)],
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: '예: 3일 전부터 기침과 콧물이 있어요',
             counterText: '',
+            // 데모 textarea rounded-xl(14)
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppTokens.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppTokens.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppTokens.primary, width: 1.6),
+            ),
           ),
         ),
         Align(
@@ -58,7 +73,7 @@ class _WhyStepState extends ConsumerState<WhyStep> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppTokens.primary.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14), // 데모 rounded-xl
           ),
           child: const Text(
             '여기 적으신 내용은 나중에 작성하실 사전문진의 첫 문항에 그대로 옮겨져 있습니다. '
