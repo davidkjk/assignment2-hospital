@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import '../../support/golden_fonts.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:hospital_patient_app/core/phone_cooldown.dart';
@@ -12,6 +13,8 @@ import 'package:hospital_patient_app/core/sensitive_reauth.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/auth/auth_repo.dart';
 import 'package:hospital_patient_app/features/auth/reauth_screen.dart';
+import 'package:hospital_patient_app/features/home/main_tabs.dart';
+import 'package:hospital_patient_app/widgets/app_shell.dart';
 import 'package:hospital_patient_app/features/auth/consent_screen.dart';
 import 'package:hospital_patient_app/features/auth/landing_screen.dart';
 import 'package:hospital_patient_app/features/auth/login_screen.dart';
@@ -177,18 +180,37 @@ void main() {
         'new-password');
   });
 
-  // 재인증: 셸 밖·redirect 진입이라 탭바·뒤로가기가 없다 → 막다른 길 방지로 AppBar 닫기(X)→홈.
-  // (헤드리스 골든에선 X 아이콘이 tofu로 나온다 — leading 슬롯 존재만 확인, 실기기는 정상 X.)
-  testWidgets('reauth golden', (t) async {
-    await _shoot(
-        t,
-        ReauthScreen(
-          controller: ReauthController(_FakeAuthRepo()),
-          guard: SensitiveReauthGuard(),
-          onPassed: () {},
-          onForgot: () {},
-          onCancel: () {},
-        ),
-        'reauth');
+  // 재인증: 막다른 길 방지로 **셸 안(탭바 포함)** + AppBar 닫기(X)→홈(AUTH-REAUTH-02b).
+  // 실제 셸(AppShell+MainTabs)로 감싸 탭바가 함께 렌더되는지 데모처럼 확인한다.
+  testWidgets('reauth golden (셸 안 — 탭바 포함)', (t) async {
+    await t.binding.setSurfaceSize(const Size(390, 780));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    Widget stub() => const Scaffold(body: SizedBox());
+    final router = GoRouter(initialLocation: '/reauth', routes: [
+      ShellRoute(
+        builder: (c, s, child) => AppShell(body: child, bottomTabs: const MainTabs()),
+        routes: [
+          GoRoute(
+              path: '/reauth',
+              builder: (c, s) => ReauthScreen(
+                    controller: ReauthController(_FakeAuthRepo()),
+                    guard: SensitiveReauthGuard(),
+                    onPassed: () {},
+                    onForgot: () {},
+                    onCancel: () {},
+                  )),
+          GoRoute(path: '/home', builder: (c, s) => stub()),
+          GoRoute(path: '/my', builder: (c, s) => stub()),
+          GoRoute(path: '/family', builder: (c, s) => stub()),
+          GoRoute(path: '/history', builder: (c, s) => stub()),
+          GoRoute(path: '/chat', builder: (c, s) => stub()),
+        ],
+      ),
+    ]);
+    await t.pumpWidget(ProviderScope(
+        child: MaterialApp.router(theme: AppTheme.theme, routerConfig: router)));
+    await t.pumpAndSettle();
+    await expectLater(
+        find.byType(MaterialApp), matchesGoldenFile('goldens/auth-reauth.png'));
   });
 }

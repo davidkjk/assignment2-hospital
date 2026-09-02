@@ -220,22 +220,9 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
         GoRoute(
             path: '/phone-change',
             builder: (c, s) => const PhoneChangeScreen()),
-        GoRoute(
-          path: '/reauth',
-          builder: (c, s) {
-            final next = s.uri.queryParameters['next'] ?? '/home';
-            return Consumer(
-                builder: (c, ref, _) => ReauthScreen(
-                      controller: ReauthController(ref.read(authRepoProvider)),
-                      guard: ref.read(sensitiveReauthGuardProvider),
-                      onPassed: () =>
-                          c.go(next), // NAV-GLOBAL-05: 원래 가려던 민감 화면으로
-                      onForgot: () => c.push('/password-find'), // NAV-AUTH-17
-                      onCancel: () =>
-                          c.go('/home'), // 막다른 길 방지: 그냥 나가면 홈으로(탭바 있는 안전지대)
-                    ));
-          },
-        ),
+        // ⭐ 재인증(/reauth)은 셸 밖이 아니라 셸 안이다 — 막다른 길 방지로 **탭바가 있어야** 한다
+        //    (AUTH-REAUTH-02b, 사용자 지적 2026-09-01). redirect로 들어와 뒤로가기가 없으니, 홈·예약 등
+        //    아무 탭이나 눌러 빠져나갈 수 있어야 한다. 정의는 아래 ShellRoute 안.
         // QR 전체화면은 몰입(탭바·오프라인 띠 없음) — 셸 밖. 그 화면이 자체 줄을 넣는다(OFF-BAN-05).
         GoRoute(
             path: '/qr/:id',
@@ -249,6 +236,24 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
           routes: [
             // 홈(NAV-HOME-19: 로그인 후 홈에는 탭 바가 있다).
             GoRoute(path: '/home', builder: (c, s) => const HomeScreen()),
+            // 민감화면 재인증(NAV-GLOBAL-05·AUTH-REAUTH-*). 셸 안에 둬 탭바로 빠져나갈 수 있게 한다
+            // (AUTH-REAUTH-02b 막다른 길 방지). _isSensitive는 /reauth를 안 덮어 무한 redirect 없음.
+            GoRoute(
+              path: '/reauth',
+              builder: (c, s) {
+                final next = s.uri.queryParameters['next'] ?? '/home';
+                return Consumer(
+                    builder: (c, ref, _) => ReauthScreen(
+                          controller: ReauthController(ref.read(authRepoProvider)),
+                          guard: ref.read(sensitiveReauthGuardProvider),
+                          onPassed: () =>
+                              c.go(next), // NAV-GLOBAL-05: 원래 가려던 민감 화면으로
+                          onForgot: () => c.push('/password-find'), // NAV-AUTH-17
+                          onCancel: () =>
+                              c.go('/home'), // 닫기(X)도 남긴다 — 탭바와 함께 나가는 문 둘
+                        ));
+              },
+            ),
             // 예약 마법사 — 탭 다녀와도 상태 유지(NAV-BOOK-21 = BOOK-KEEP-01).
             GoRoute(
               path: '/booking',
