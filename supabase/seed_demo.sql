@@ -145,7 +145,9 @@ on conflict (id) do nothing;
 -- photo_url(D-4): 의사 사진은 doctor-photos 버킷 공개 URL. 여기선 **상대경로**로 넣어
 --   환자앱이 실행 환경의 SUPABASE_URL(에뮬 10.0.2.2 / 로컬 127.0.0.1)로 이어붙이게 한다
 --   (실사진 파일은 supabase/upload-doctor-photos.sh가 버킷에 올린다 — seed-demo.sh가 함께 호출).
---   doctor8(한지우)만 null로 남겨 '사진 없음 → 회색 원'(BOOK-DOC-05) 상태도 화면에 함께 보인다.
+--   ⚠️ 데모 사진은 7장인데 의사는 8명 → 중복 1쌍 불가피. doctor8(한지우)은 doctor2(김서준)와
+--   같은 im-2를 쓴다(서로 다른 진료과=소아과/내과라 한 화면에 나란히 안 보임). 같은 소아과의
+--   임채원(oph-1)과는 얼굴이 겹치지 않게 배정. (회색 원 폴백은 photo_url이 비면 자동으로 동작한다.)
 insert into staff (id, auth_user_id, name, role, department_id, is_active, specialty, calendar_color_index, photo_url) values
   ('bbbbbbbb-0000-0000-0000-000000000011', 'aaaaaaaa-0000-0000-0000-000000000011',
    '이정민', 'doctor', '11111111-1111-1111-1111-111111111111', true, '소화기내과', 0, '/storage/v1/object/public/doctor-photos/im-1.jpg'),
@@ -162,7 +164,7 @@ insert into staff (id, auth_user_id, name, role, department_id, is_active, speci
   ('bbbbbbbb-0000-0000-0000-000000000017', 'aaaaaaaa-0000-0000-0000-000000000017',
    '임채원', 'doctor', '44444444-4444-4444-4444-444444444444', true, '영유아 검진', 6, '/storage/v1/object/public/doctor-photos/oph-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000018', 'aaaaaaaa-0000-0000-0000-000000000018',
-   '한지우', 'doctor', '44444444-4444-4444-4444-444444444444', true, '소아 호흡기', 7, null)
+   '한지우', 'doctor', '44444444-4444-4444-4444-444444444444', true, '소아 호흡기', 7, '/storage/v1/object/public/doctor-photos/im-2.jpg')
 on conflict (id) do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════
