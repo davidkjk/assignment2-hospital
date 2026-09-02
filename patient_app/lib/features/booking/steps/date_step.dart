@@ -78,47 +78,68 @@ class _MonthCalendarState extends State<MonthCalendar> {
       ));
     }
     return Column(children: [
-      // 헤더: ‹ 2026년 8월 ›
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        IconButton(
-          key: const Key('cal-prev'),
-          icon: const Icon(Icons.chevron_left),
-          onPressed: _canPrev ? () => _go(-1) : null, // BOOK-DATE-07 이번 달이면 비활성
-        ),
-        Text('${_shown.year}년 ${_shown.month}월',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        IconButton(
-          key: const Key('cal-next'),
-          icon: const Icon(Icons.chevron_right),
-          onPressed: _canNext ? () => _go(1) : null, // BOOK-DATE-06 호라이즌 월 이후 비활성
-        ),
-      ]),
-      // 요일 머리글
+      // 헤더 — 데모: 가운데 모임 ‹ 2026년 8월 › (justify-center gap-2, mb-4)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(
+            key: const Key('cal-prev'),
+            icon: const Icon(Icons.chevron_left, size: 20),
+            color: AppTokens.primary,
+            disabledColor: AppTokens.grayDone, // 데모 muted/30
+            visualDensity: VisualDensity.compact,
+            onPressed: _canPrev ? () => _go(-1) : null, // BOOK-DATE-07 이번 달이면 비활성
+          ),
+          SizedBox(
+            width: 112, // min-w-[7rem]
+            child: Text('${_shown.year}년 ${_shown.month}월',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)), // semibold
+          ),
+          IconButton(
+            key: const Key('cal-next'),
+            icon: const Icon(Icons.chevron_right, size: 20),
+            color: AppTokens.primary,
+            disabledColor: AppTokens.grayDone,
+            visualDensity: VisualDensity.compact,
+            onPressed: _canNext ? () => _go(1) : null, // BOOK-DATE-06 호라이즌 월 이후 비활성
+          ),
+        ]),
+      ),
+      // 요일 머리글 — text-xs semibold muted
       Row(
         children: [
           for (final w in wd)
             Expanded(
-                child: Center(
-                    child: Text(w,
-                        style:
-                            const TextStyle(fontSize: 12, color: AppTokens.grayPending)))),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4), // py-1
+                  child: Text(w,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTokens.grayPending)),
+                ),
+              ),
+            ),
         ],
       ),
-      const SizedBox(height: 4),
       GridView.count(
         crossAxisCount: 7,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 4, // gap-1
+        mainAxisSpacing: 4,
         children: cells,
       ),
       if (!_canNext) // BOOK-DATE-06 — 막을 때는 이유를 함께
         const Padding(
-          padding: EdgeInsets.only(top: 8),
+          padding: EdgeInsets.only(top: 12), // mt-3
           child: Text('예약은 8주 뒤까지 가능합니다',
               style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
         ),
-      const SizedBox(height: 16),
-      // 범례 — 두 개만(BOOK-DATE-04/05)
+      const SizedBox(height: 20), // mt-5
+      // 범례 — 두 개만(BOOK-DATE-04/05), gap-5
       const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         _LegendDot(bordered: true),
         SizedBox(width: 6),
@@ -139,26 +160,27 @@ class _DayCell extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    final label = Text('$day',
-        style: TextStyle(
-          fontSize: 14,
-          color: available ? AppTokens.onSurface : AppTokens.grayDone, // BOOK-DATE-03 흐린 숫자
-          fontWeight: available ? FontWeight.w600 : FontWeight.normal,
-        ));
     if (!available) {
-      return Center(child: label); // 누를 수 없음(숨기지 않고 흐리게)
+      // 데모 text-muted-foreground/40 — 아주 흐리게(숨기지 않고), 보통 굵기
+      return Center(
+        child: Text('$day',
+            style: TextStyle(
+                fontSize: 14, color: AppTokens.grayPending.withValues(alpha: 0.4))),
+      );
     }
+    // 데모 aspect-square rounded-full border-2 font-bold — 원이 칸을 꽉 채운다
     return InkWell(
       onTap: onTap,
       customBorder: const CircleBorder(),
       child: Container(
         alignment: Alignment.center,
-        margin: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: AppTokens.primary, width: 1.6), // BOOK-DATE-02 테두리
+          border: Border.all(color: AppTokens.primary, width: 2), // BOOK-DATE-02 테두리(border-2)
         ),
-        child: label,
+        child: Text('$day',
+            style: const TextStyle(
+                fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.onSurface)),
       ),
     );
   }
