@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.security import StaffContext, require_role
 from app.integrations.embedding_client import get_embedding_client
-from app.services.chat import kb_service, answer_feedback_service, quality_service
+from app.services.chat import kb_service, answer_feedback_service, quality_service, unresolved_service
 
 router = APIRouter(prefix="/admin/chat", tags=["admin-chat"])
 
@@ -93,7 +93,63 @@ async def reject_feedback(feedback_id: UUID, staff: StaffContext = Depends(requi
     return {"ok": True}
 
 
+class CorrectionBody(BaseModel):
+    correction_text: str
+
+
+# ── 오답 처리함(BADINBOX-REVIEW) · 미해결(UNRES-CLUSTER) · 품질(QUALITY-REPORT) · 참고 예시(QAEX-LIST) — Task 21 ──
+
+@router.get("/feedback")
+async def feedback_list(status: str = Query(default="pending"), staff: StaffContext = Depends(require_role("admin"))):
+    return await answer_feedback_service.list_feedback(status)
+
+
+@router.get("/feedback/{feedback_id}")
+async def feedback_get(feedback_id: UUID, staff: StaffContext = Depends(require_role("admin"))):
+    return await answer_feedback_service.get_feedback(feedback_id)
+
+
+@router.get("/unresolved")
+async def unresolved_list(from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
+                          staff: StaffContext = Depends(require_role("admin"))):
+    # 유사도 묶음 — 확정 분류 아님(화면이 한계 안내), 임베딩 누락은 embedding_gap으로(UNRES-CLUSTER-11).
+    return await unresolved_service.list_clusters(from_, to)
+
+
+@router.get("/unresolved/{cluster_id}")
+async def unresolved_get(cluster_id: str, from_: str | None = Query(default=None, alias="from"),
+                         to: str | None = Query(default=None), staff: StaffContext = Depends(require_role("admin"))):
+    return await unresolved_service.get_cluster(cluster_id, from_, to)
+
+
 @router.get("/quality")
-async def quality_list(staff: StaffContext = Depends(require_role("admin"))):
-    # 미검토 우선 정렬(SD-08). "문제없음"과 "아직 안 봄"을 review_status로 구분.
-    return await quality_service.list_sessions_unreviewed_first()
+async def quality_list(from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
+                       page: int = Query(default=1, ge=1), staff: StaffContext = Depends(require_role("admin"))):
+    # 미검토 우선 정렬(SD-08) 20건/쪽. "문제없음"과 "아직 안 봄"을 review_status로 구분.
+    return {"items": await quality_service.list_sessions(from_, to, page)}
+
+
+@router.get("/quality/{session_id}")
+async def quality_get(session_id: UUID, staff: StaffContext = Depends(require_role("admin"))):
+    return await quality_service.get_session(session_id)
+
+
+@router.post("/quality/{session_id}/correct")
+async def quality_correct(session_id: UUID, body: CorrectionBody, staff: StaffContext = Depends(require_role("admin"))):
+    # source=quality_review로 오답 처리함 등록 — 교정만으로 즉시 반영하지 않는다(B3).
+    return await quality_service.correct(session_id, staff.id, body.correction_text)
+
+
+@router.post("/quality/{session_id}/ok", status_code=204)
+async def quality_ok(session_id: UUID, staff: StaffContext = Depends(require_role("admin"))):
+    await quality_service.mark_reviewed(session_id, staff.id, status="ok")
+
+
+@router.get("/examples")
+async def examples_list(active: bool = Query(default=True), staff: StaffContext = Depends(require_role("admin"))):
+    return await answer_feedback_service.list_examples(active)
+
+
+@router.post("/examples/{example_id}/deactivate", status_code=204)
+async def examples_deactivate(example_id: UUID, staff: StaffContext = Depends(require_role("admin"))):
+    await answer_feedback_service.deactivate_example(example_id)

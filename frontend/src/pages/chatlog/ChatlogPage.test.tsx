@@ -19,7 +19,7 @@ const conv: ConvMessage[] = [
 
 describe('ChatlogPage (배선)', () => {
   it('[배선] 목록을 그리고 행을 열면 대화(TicketConversation 재사용)+봇 답변 근거가 보인다', async () => {
-    render(<ChatlogPage api={api} fetchConversation={async () => conv} />)
+    render(<ChatlogPage api={api} fetchConversation={async () => conv} onReportBad={vi.fn()} />)
     // 목록 — 앱·웹 한 목록
     expect(await screen.findByText('예약 바꾸고 싶어요')).toBeVisible()
     // 행 열기 → 상세 대화 + 봇 근거

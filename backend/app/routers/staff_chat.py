@@ -4,8 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from app.core.security import StaffContext, get_current_staff
-from app.services.chat import ticket_service
+from app.core.security import StaffContext, get_current_staff, require_role
+from app.services.chat import answer_feedback_service, ticket_service
 from app.services.chat import chat_log_service
 from app.services.chat.enqueue import enqueue_after_reply   # staff_send 후 배칭 호출 래퍼
 
@@ -120,3 +120,24 @@ async def active_staff(staff: StaffContext = Depends(get_current_staff)):
 async def patient_support_tickets(patient_id: UUID, staff: StaffContext = Depends(get_current_staff)):
     # 환자상세 상담 섹션(PTSUP-SECT) — 그 환자에게 넘어온 상담만, 최신순+id 동점키(PTDET-SUPPORT-03).
     return await ticket_service.list_patient_support_tickets(str(staff.auth_user_id), patient_id)
+
+
+# ── 직원 오답 신고(BADRPT-FORM, Task 21) — 대상 봇 메시지 조회 + 신고 저장(source=realtime_report·즉시 반영 아님) ──
+
+class BadReportBody(BaseModel):
+    message_id: UUID
+    correction_text: str | None = None
+    add_to_example_bank: bool = False
+
+
+@router.get("/messages/{message_id}")
+async def get_message(message_id: UUID, staff: StaffContext = Depends(require_role("receptionist", "admin"))):
+    return await answer_feedback_service.get_target_message(message_id)
+
+
+@router.post("/feedback", status_code=201)
+async def report_bad_answer(body: BadReportBody, staff: StaffContext = Depends(require_role("receptionist", "admin"))):
+    # 직원 경로는 항상 realtime_report(C3-3). 품질 리뷰 교정(quality_review)은 관리자 /admin/chat/quality 경로.
+    row = await answer_feedback_service.report(body.message_id, staff.id, correction_text=body.correction_text,
+                                               source="realtime_report", add_to_example_bank=body.add_to_example_bank)
+    return {"id": str(row["id"])}

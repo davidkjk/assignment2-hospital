@@ -213,3 +213,55 @@ begin
           'archived', false, v_admin, v_admin, now() - interval '200 days', now() - interval '40 days');
 end $$;
 commit;
+
+-- ============================================================================
+-- 품질·미해결·오답 처리함·참고 예시 데모 — /bot/{reports,quality,unresolved} (상담봇 Task 21). 별도 트랜잭션.
+-- 봇 메시지·티켓·세션은 위 블록이 심은 것을 골라 참조한다. 임베딩은 합성(단위벡터=같은 묶음, 영벡터=누락 gap).
+-- ============================================================================
+begin;
+create function pg_temp.unit_vec(i int) returns vector language sql as $$
+  select ('[' || string_agg(case when g = i then '1' else '0' end, ',' order by g) || ']')::vector from generate_series(1, 1536) g $$;
+create function pg_temp.zero_vec() returns vector language sql as $$
+  select ('[' || string_agg('0', ',') || ']')::vector from generate_series(1, 1536) g $$;
+do $$
+declare
+  v_admin uuid; v_bot1 uuid; v_bot2 uuid; v_bot3 uuid; v_fb uuid; v_t1 uuid; v_t2 uuid;
+begin
+  select id into v_admin from staff where role = 'admin' order by created_at limit 1;
+  -- 재실행 안전: 챗봇 품질 데이터만 비운다(KB는 건드리지 않음).
+  delete from qa_example_bank; delete from answer_feedback; delete from unresolved_questions; delete from chat_quality_reviews;
+
+  select id into v_bot1 from chat_messages where sender_type = 'bot' and content like '%주차%' order by created_at desc limit 1;
+  select id into v_bot2 from chat_messages where sender_type = 'bot' and content like '%진료%' order by created_at desc limit 1;
+  select id into v_bot3 from chat_messages where sender_type = 'bot' and id not in (v_bot1, v_bot2) order by created_at desc limit 1;
+
+  -- 오답 처리함: 실시간 신고 2(처리 전) · 품질 리뷰 교정 1(처리 전) · 적용 완료 1(예시 등록됨)
+  insert into answer_feedback (message_id, reported_by, source, correction_text, add_to_example_bank, created_at) values
+    (v_bot1, v_admin, 'realtime_report', '주차는 지하 2층이고, 진료 후 1층 원무 창구에서 2시간 무료 등록이 됩니다.', true, now() - interval '3 hours'),
+    (v_bot2, v_admin, 'quality_review', '평일 09:00–18:00 진료이며 점심시간(13–14시)에는 접수만 받습니다.', false, now() - interval '1 day'),
+    (v_bot3, v_admin, 'realtime_report', null, false, now() - interval '2 days');
+  insert into answer_feedback (message_id, reported_by, source, correction_text, add_to_example_bank, status, resolved_by, resolved_at, created_at)
+    values (v_bot3, v_admin, 'realtime_report', '접수는 1층 원무 창구 또는 앱 QR로 할 수 있습니다.', true, 'applied', v_admin, now() - interval '4 days', now() - interval '5 days')
+    returning id into v_fb;
+
+  -- 참고 예시(승인된 교정)
+  insert into qa_example_bank (question, answer, embedding, source_feedback_id, is_active, created_at) values
+    ('접수는 어디서 하나요?', '1층 원무 창구 또는 앱 QR로 접수할 수 있습니다.', pg_temp.zero_vec(), v_fb, true, now() - interval '4 days'),
+    ('진단서는 어떻게 받나요?', '진료 후 원무과에 신청하면 1~2일 안에 발급됩니다.', pg_temp.zero_vec(), null, true, now() - interval '6 days');
+
+  -- 미해결 질문: 유사 묶음 2개(주차 3건 · 주말 2건) + 임베딩 없는 1건(집계 누락 안내)
+  select id into v_t1 from support_tickets order by created_at asc limit 1;
+  select id into v_t2 from support_tickets order by created_at desc limit 1;
+  insert into unresolved_questions (ticket_id, question_text, question_embedding, created_at) values
+    (v_t1, '주차는 어디에 하나요', pg_temp.unit_vec(1), now() - interval '5 days'),
+    (v_t1, '주차장 위치가 어디예요', pg_temp.unit_vec(1), now() - interval '4 days'),
+    (v_t2, '주차 되나요?', pg_temp.unit_vec(1), now() - interval '2 days'),
+    (v_t2, '주말에도 진료하나요', pg_temp.unit_vec(2), now() - interval '3 days'),
+    (v_t1, '토요일 진료 시간 알려주세요', pg_temp.unit_vec(2), now() - interval '1 day'),
+    (v_t2, '진단서 비용이 얼마예요', pg_temp.zero_vec(), now() - interval '6 hours');
+
+  -- 품질 검토: 가장 오래된 세션 하나는 「문제없음」(미검토와 구분)
+  insert into chat_quality_reviews (ai_chat_session_id, status, reviewed_by)
+    select id, 'ok', v_admin from ai_chat_sessions order by created_at asc limit 1;
+end $$;
+commit;

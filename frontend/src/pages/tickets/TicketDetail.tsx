@@ -16,8 +16,10 @@ export function TicketDetail(props: {
   api: StaffTicketDetailApi
   ticket: InboxTicket
   onLoserBackToList: (msg: string) => void
+  /** 봇 답변 「잘못된 답변 신고」 → 오답 신고 작성(별도 전체 화면, NAV-STFSUP-06·Task 21). 없으면 버튼을 두지 않는다. */
+  onReportBad?: (messageId: string) => void
 }) {
-  const { api, ticket, onLoserBackToList } = props
+  const { api, ticket, onLoserBackToList, onReportBad } = props
   const d = useTicketDetail(api, ticket.id, { onLoserBackToList })
   const [draft, setDraft] = useState('')
 
@@ -93,6 +95,16 @@ export function TicketDetail(props: {
                   {t}
                 </em>
               ))
+            }
+            renderFooter={
+              onReportBad
+                ? (m) =>
+                    m.sender === 'ai' ? (
+                      <button type="button" className="mt-1 text-xs font-medium text-primary hover:underline" onClick={() => onReportBad(m.id)}>
+                        잘못된 답변 신고
+                      </button>
+                    ) : null
+                : undefined
             }
           />
         </section>

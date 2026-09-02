@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FileText } from '../../../components/icons'
 import { StaffPage, btnPrimary } from '../../../components/staff-ui'
 import { kbAdminApi, type KbAdminApi } from '../../../api/kbAdmin'
@@ -17,10 +17,34 @@ type View =
   | { k: 'edit'; id: string; prefill?: { title: string; content: string } }
   | { k: 'history'; id: string }
 
-export function KbPage({ api = kbAdminApi }: { api?: KbAdminApi }) {
+/** 다른 화면(미해결 질문·오답 처리함)에서 들고 온 새 초안 내용 — 승인 전에는 답변에 반영되지 않는다(UNRES-CLUSTER-06·BADINBOX-REVIEW-03). */
+export interface KbPrefill {
+  title: string
+  category: string
+  content: string
+  from?: string
+}
+
+export function KbPage({ api = kbAdminApi, prefill }: { api?: KbAdminApi; prefill?: KbPrefill }) {
   const list = useKbList(api)
   const [view, setView] = useState<View>({ k: 'empty' })
   const [creating, setCreating] = useState(false)
+  const prefilled = useRef(false)
+
+  // 들고 온 내용이 있으면 새 초안을 만들어 바로 편집기에 연다(한 번만).
+  useEffect(() => {
+    if (!prefill || prefilled.current) return
+    prefilled.current = true
+    setCreating(true)
+    api
+      .createDoc({ title: prefill.title, content: prefill.content, category: prefill.category, isRestricted: false })
+      .then((doc) => {
+        list.retry()
+        setView({ k: 'edit', id: doc.id })
+      })
+      .finally(() => setCreating(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill])
 
   const selId = view.k === 'edit' || view.k === 'history' ? view.id : null
   const selTitle = selId ? list.docs.find((d) => d.id === selId)?.title : undefined

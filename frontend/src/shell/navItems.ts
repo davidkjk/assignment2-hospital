@@ -70,6 +70,7 @@ export function normalizeNavPath(pathname: string): string {
   const withoutTrailingSlash = path.length > 1 ? path.replace(/\/$/, '') : path
   if (withoutTrailingSlash.startsWith('/patients/')) return '/patients'
   if (withoutTrailingSlash.startsWith('/doctor/console/')) return '/doctor/console'
+  if (withoutTrailingSlash.startsWith('/chatlog/')) return '/chatlog' // 오답 신고 작성(/chatlog/report/:id)도 기록 그룹 활성
   return withoutTrailingSlash
 }
 

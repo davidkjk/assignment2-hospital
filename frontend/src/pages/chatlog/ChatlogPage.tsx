@@ -17,12 +17,28 @@ import { channelText, routeText } from './labels'
 export function ChatlogPage({
   api = staffChatLogApi,
   fetchConversation = fetchThreadConversation,
+  onReportBad,
+  initialFilters,
+  initialScroll,
 }: {
   api?: ChatLogApi
   fetchConversation?: (threadId: string) => Promise<ConvMessage[]>
+  /** 봇 답변 「잘못된 답변 신고」 → 오답 신고 작성(별도 전체 화면, NAV-STFSUP-06). 없으면 버튼을 두지 않는다. */
+  onReportBad?: (messageId: string, restore: { filters: Record<string, string> }) => void
+  /** 오답 신고에서 돌아올 때 직전 필터·스크롤 복원(B2·NAV-STFSUP-13). */
+  initialFilters?: Record<string, string>
+  initialScroll?: number
 }) {
   const logs = useChatLogs(api)
   const [selected, setSelected] = useState<ChatLogRow | null>(null)
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current) return
+    restoredRef.current = true
+    if (initialFilters) logs.setFilter(initialFilters)
+    if (initialScroll != null) window.scrollTo({ top: initialScroll })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const open = (threadId: string) => setSelected(logs.rows.find((r) => r.threadId === threadId) ?? null)
 
@@ -43,7 +59,14 @@ export function ChatlogPage({
           />
         </div>
         {selected && (
-          <ChatlogDetail key={selected.threadId} row={selected} api={api} fetchConversation={fetchConversation} onClose={() => setSelected(null)} />
+          <ChatlogDetail
+            key={selected.threadId}
+            row={selected}
+            api={api}
+            fetchConversation={fetchConversation}
+            onClose={() => setSelected(null)}
+            onReportBad={onReportBad ? (id) => onReportBad(id, { filters: logs.filters as Record<string, string> }) : undefined}
+          />
         )}
       </div>
     </StaffPage>
@@ -55,15 +78,16 @@ function ChatlogDetail({
   api,
   fetchConversation,
   onClose,
+  onReportBad,
 }: {
   row: ChatLogRow
   api: ChatLogApi
   fetchConversation: (threadId: string) => Promise<ConvMessage[]>
   onClose: () => void
+  onReportBad?: (messageId: string) => void
 }) {
   const [messages, setMessages] = useState<ConvMessage[]>([])
   const [convError, setConvError] = useState(false)
-  const [reportOf, setReportOf] = useState<string | null>(null)
   const fetchRef = useRef(fetchConversation)
   fetchRef.current = fetchConversation
 
@@ -98,28 +122,21 @@ function ChatlogDetail({
           convError={convError}
           onRetryConv={() => void load()}
           // 봇(ai) 답변 아래에 승인 근거 + [잘못된 답변 신고] — 데모 TurnView 계승, DETAIL-01·SOURCE-*.
+          // 신고는 오답 신고 작성(별도 전체 화면, Task 21 BADRPT-FORM)으로 간다(NAV-STFSUP-06).
           renderFooter={(m) =>
             m.sender === 'ai' ? (
               <div>
                 <ChatLogSources api={api} messageId={m.id} />
-                <button type="button" className={`${btnLink} mt-1`} onClick={() => setReportOf(m.id)}>
-                  잘못된 답변 신고
-                </button>
+                {onReportBad && (
+                  <button type="button" className={`${btnLink} mt-1`} onClick={() => onReportBad(m.id)}>
+                    잘못된 답변 신고
+                  </button>
+                )}
               </div>
             ) : null
           }
         />
       </div>
-
-      {/* 오답 신고 폼(BADRPT)은 Task 21 — 지금은 안내만(막다른 길 방지). */}
-      {reportOf && (
-        <div className="border-t border-border/70 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-          오답 신고는 <b>오답 처리함</b>(다음 개발 단계)에서 작성합니다.
-          <button type="button" className={`${btnLink} ml-2`} onClick={() => setReportOf(null)}>
-            닫기
-          </button>
-        </div>
-      )}
     </aside>
   )
 }
