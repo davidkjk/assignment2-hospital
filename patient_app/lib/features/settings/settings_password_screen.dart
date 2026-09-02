@@ -133,11 +133,12 @@ class _SettingsPasswordScreenState extends ConsumerState<SettingsPasswordScreen>
                 onPressed: () => setState(() => _o2 = !_o2)),
           ),
           const SizedBox(height: 16),
-          // 비밀번호 조건 3줄 — 데모대로 옅은 딥틸 박스로 묶는다(맨바닥 나열 → 한 덩어리, Task10).
+          // 비밀번호 조건 3줄 — 데모 `rounded-xl border bg-primary/5`(틴트 + 옅은 테두리, 그림자 없음).
           Container(
             decoration: BoxDecoration(
-              color: const Color(0x0D0B6E70), // primary 5% (bg-primary/5) — 틴트 박스라 테두리·그림자 없이 평평하게
-              borderRadius: BorderRadius.circular(12),
+              color: const Color(0x0D0B6E70), // primary 5% (bg-primary/5) 틴트
+              border: Border.all(color: AppTokens.border),
+              borderRadius: BorderRadius.circular(14), // rounded-xl(=radius 10+4), 다른 보조 테두리 박스와 통일
             ),
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
