@@ -10,11 +10,25 @@
 import time
 from datetime import time as dtime
 
+import pytest
 import pytest_asyncio
+from fastapi.testclient import TestClient
 from jose import jwt
 
 from app.core.config import settings
+from app.main import app
 from tests.conftest import seed_patient, seed_staff
+
+
+@pytest.fixture
+def client():
+    """시나리오 테스트는 한 테스트에서 여러 번 요청한다. 상위 conftest의 기본 client는
+    컨텍스트 매니저 없이 TestClient를 반환해 요청마다 새 포털 이벤트 루프를 만들고,
+    앱 전역 asyncpg 풀이 첫 요청 루프에 묶였다가 둘째 요청에서
+    'another operation is in progress'/'different loop' 오류를 낸다. 컨텍스트 매니저로
+    포털을 하나로 유지해 한 테스트의 모든 요청이 같은 루프를 쓰게 한다."""
+    with TestClient(app) as c:
+        yield c
 
 
 def bearer(auth_user_id) -> dict:
