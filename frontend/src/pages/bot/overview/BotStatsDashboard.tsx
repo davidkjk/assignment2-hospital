@@ -71,16 +71,15 @@ export function BotStatsDashboard({
 
   return (
     <div className="mx-auto max-w-5xl">
-      {/* 운영 지표 섹션 */}
-      <section className="mb-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-semibold">운영 지표</h3>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{activeRange.from} ~ {activeRange.to}</p>
-          </div>
-          <PeriodSelect value={period} onChange={setPeriod} />
-        </div>
+      {/* 기간 선택 — 화면이 소유(controlled). 데모의 7일 고정 대신 기간 선택(범주4 확정). */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] text-muted-foreground">조회 기간 · {activeRange.from} ~ {activeRange.to}</p>
+        <PeriodSelect value={period} onChange={setPeriod} />
+      </div>
 
+      {/* 운영 지표 — 상단 전체폭(데모 배치). 지표 라벨은 규칙(DASH-03): 문의 수·자체 안내·직원 연결. */}
+      <section className="mb-5">
+        <h3 className="mb-3 text-sm font-semibold">운영 지표</h3>
         {errState === 'offline' ? (
           <StateBox text="오프라인이라 최신 집계를 불러올 수 없습니다." onRetry={() => setPeriod({ ...period })} />
         ) : errState === 'error' ? (
@@ -97,8 +96,7 @@ export function BotStatsDashboard({
         ) : (
           loaded && (
             <>
-              <Inflow inflow={loaded.inflow} />
-              <div data-testid="bot-metrics" className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div data-testid="bot-metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {(['inquiries', 'selfServed', 'handedOff'] as const).map((key) => (
                   <MetricCard
                     key={key}
@@ -109,25 +107,30 @@ export function BotStatsDashboard({
                   />
                 ))}
               </div>
-
               {drill && <DrillPanel drill={drill} label={BOT_METRIC_LABELS[drill.metric as 'inquiries']} onClose={() => setDrill(null)} />}
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-card px-4 py-3">
-                <span className="text-xs text-muted-foreground">CSV에는 환자 기준 5건 미만 셀을 가립니다.</span>
-                <button className={btnGhost} onClick={exportCsv}>
-                  CSV 내보내기
-                </button>
-              </div>
-              {csvNotice && (
-                <p className="mt-1 text-[11px] text-amber-600">소수 인원 보호로 일부 셀이 비공개될 수 있습니다.</p>
-              )}
             </>
           )
         )}
       </section>
 
-      {/* 많이 들어온 질문 섹션(116 흡수 — 별도 라우트 없음) */}
-      <QuestionRanking api={api} range={activeRange} onFaqBoost={onFaqBoost} />
+      {/* 2열(데모 배치): 좌 많이 들어온 질문(116 흡수) / 우 유입원 + CSV */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <QuestionRanking api={api} range={activeRange} onFaqBoost={onFaqBoost} />
+        {loaded && (
+          <div className="space-y-4">
+            <Inflow inflow={loaded.inflow} />
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-card px-4 py-3">
+              <span className="text-xs text-muted-foreground">CSV에는 환자 기준 5건 미만 셀을 가립니다.</span>
+              <button className={btnGhost} onClick={exportCsv}>
+                CSV 내보내기
+              </button>
+            </div>
+            {csvNotice && (
+              <p className="text-[11px] text-amber-600">소수 인원 보호로 일부 셀이 비공개될 수 있습니다.</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
