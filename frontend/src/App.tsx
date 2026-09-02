@@ -27,6 +27,7 @@ import { Tickets } from './pages/tickets/Tickets'
 import { TicketDetail } from './pages/tickets/TicketDetail'
 import { staffChatDetailApi } from './api/staffChatDetail'
 import { ChatlogPage } from './pages/chatlog/ChatlogPage'
+import { KbPage } from './pages/bot/knowledge/KbPage'
 import { AppShell } from './shell/AppShell'
 import { NAV_ITEMS } from './shell/navItems'
 
@@ -41,7 +42,6 @@ function LoginRoute() {
 // 시연에서 "안 됨"이 아니라 "다음 단계 제공"으로 읽히도록 로드맵 문구를 보여준다.
 // (/tickets 문의 티켓함은 상담봇 Task 16에서 실제 화면으로 채워졌다 — placeholder에서 제외.)
 const CHATBOT_PATHS = new Set<string>([
-  '/bot/knowledge',
   '/bot/unresolved',
   '/bot/reports',
   '/bot/quality',
@@ -77,6 +77,7 @@ function pageFor(path: string, label: string) {
   if (path === '/admin/settings') return <SettingsPage />
   if (path === '/calendar') return <CalendarRoute />
   if (path === '/chatlog') return <ChatlogPage />
+  if (path === '/bot/knowledge') return <KbPage />
   if (path === '/tickets')
     return (
       <Tickets
