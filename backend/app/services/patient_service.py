@@ -320,7 +320,24 @@ async def unlink_family_member(
         return await _run(c)
 
 
+# 갭 #57(00028): patients.gender는 이제 F/M만 허용한다(check 제약). 직원 등록 문은 「남」/「여」 버튼을
+# 그대로 보내므로 서버 경계에서 표준화한다 — 「저장 값 = F/M」(QUEUE-WALK-07)을 어느 입력 경로에서든 지킨다.
+_GENDER_NORMALIZE = {
+    "여": "F", "여성": "F", "여자": "F", "f": "F", "female": "F", "F": "F",
+    "남": "M", "남성": "M", "남자": "M", "m": "M", "male": "M", "M": "M",
+}
+
+
+def normalize_gender(value: str) -> str:
+    normalized = _GENDER_NORMALIZE.get((value or "").strip())
+    if normalized is None:
+        # 모르는 값을 조용히 뭉개지 않는다(마이그레이션 백필과 같은 태도) — 사람이 봐야 한다.
+        raise AppError("성별은 남 또는 여로 선택해 주세요.", status_code=400)
+    return normalized
+
+
 async def register_patient(name: str, birth_date: date, gender: str, phone: str, staff: StaffContext, conn=None) -> UUID:
+    gender = normalize_gender(gender)  # 「남」/「여」·「F」/「M」 무엇이 와도 F/M으로(갭 #57)
     async def _run(c):
         return await c.fetchval(
             """

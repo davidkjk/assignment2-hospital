@@ -179,10 +179,10 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+minimum_password_length = 8            # AUTH-PROFILE-02: 6 → 8 (화면이 요구하는 8자를 서버도 보장)
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+password_requirements = "letters_digits"  # AUTH-PROFILE-01: 영문·숫자 함께
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -263,6 +263,10 @@ enable_confirmations = false
 template = "Your code is {{ `{{ .Code }}` }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
 max_frequency = "5s"
+# AUTH-OTP-03·04 — 화면이 5분(300초)을 세므로 서버 SMS OTP 만료도 300초로 맞춘다(없으면 기본이
+# 화면과 어긋난다). CLI 버전이 이 키를 무시하면 대시보드(Authentication > Providers > Phone >
+# OTP expiry = 300)에서 설정한다(배포 체크리스트).
+otp_exp = 300
 
 # Use pre-defined map of phone number to OTP for testing.
 # [auth.sms.test_otp]

@@ -1,0 +1,53 @@
+name: hospital_patient_app
+description: 병원 통합 서비스 환자용 모바일 앱
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.0
+  supabase_flutter: ^2.5.6
+  http: ^1.2.1
+  intl: ^0.19.0
+  qr_flutter: ^4.1.0
+  firebase_core: ^3.3.0
+  firebase_messaging: ^15.0.4
+  connectivity_plus: ^6.0.3
+  flutter_secure_storage: ^9.2.2
+  url_launcher: ^6.3.0
+  screen_brightness: ^2.1.2
+  uuid: ^4.4.0
+  flutter_svg: ^2.0.10 # 브랜드 로고(Phosphor Hospital) 벡터 — 데모·직원웹과 정확 일치
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.3
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+  fonts:
+    # 본문·UI 전역 서체 = Pretendard(데모 --font-sans 정본). 정적 가중치 4종을 번들해 렌더 일치 보장.
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/Pretendard-Regular.otf
+          weight: 400
+        - asset: assets/fonts/Pretendard-Medium.otf
+          weight: 500
+        - asset: assets/fonts/Pretendard-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/Pretendard-Bold.otf
+          weight: 700
+    # 브랜드 워드마크 전용 서체 = Do Hyeon(데모 .brand-wordmark). 로고·병원명에만 쓴다.
+    - family: DoHyeon
+      fonts:
+        - asset: assets/fonts/DoHyeon-Regular.ttf
+          weight: 400

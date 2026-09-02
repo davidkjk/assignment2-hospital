@@ -34,14 +34,19 @@ async def _seed_dept_and_doctor(conn):
 
 async def _seed_patient(conn, name="김민서", birth=date(1990, 5, 14),
                         gender="F", phone="01012347251", linked=False):
-    pid = await conn.fetchval(
-        "insert into patients (name, birth_date, gender, phone) "
-        "values ($1, $2, $3, $4) returning id",
-        name, birth, gender, phone,
-    )
+    auth_id = None
     if linked:
+        # 00017(Task 1)이 patients.auth_user_id에 auth.users FK를 걸었다 → 연결 계정은
+        # 실제 users 행이 있어야 한다(전엔 FK가 없어 랜덤 uuid를 그냥 넣었다 — 이제 FK 위반).
+        auth_id = uuid.uuid4()
         await conn.execute(
-            "update patients set auth_user_id = $2 where id = $1", pid, uuid.uuid4())
+            "insert into auth.users (id, email) values ($1, $2)",
+            auth_id, f"merge-{auth_id.hex}@test.local")
+    pid = await conn.fetchval(
+        "insert into patients (name, birth_date, gender, phone, auth_user_id) "
+        "values ($1, $2, $3, $4, $5) returning id",
+        name, birth, gender, phone, auth_id,
+    )
     return pid
 
 

@@ -22,6 +22,37 @@
 
 ---
 
+## 실행 방식 보정 (2026-08-29 확정 — 직원웹 실수 반복 방지)
+
+> 직원웹(2단계) 데모 병합에서 겪은 고통(데모/실/Flutter 토큰이 이름부터 갈림 · jsdom이 시각을 못 봐 「테스트 통과 ≠ 충실도」 · 규칙서에서 재구축하다 시각이 어긋남)을 3단계에서 **원천 차단**하기 위해 사용자와 확정한 4건이다. 아래 태스크 본문의 견본 코드보다 **이 절이 우선**한다(특히 Task 0 Step B2).
+
+**① 토큰 단일화 — `tokens.dart`는 손으로 쓰지 않고 `design-tokens/build.mjs`로 자동생성한다.**
+- `design-tokens/tokens.json`이 유일 원본. build.mjs에 **Dart 출력(`buildDart`)**을 추가해 `flutter`(또는 `dart`) 플랫폼 인자로 실행하면 `patient_app/lib/core/tokens.dart`를 생성한다(CSS 출력과 대칭). 생성물은 「편집 금지」 머리말을 갖고, JS 테스트가 「체크인된 파일 = 생성기 출력」을 강제한다(수동 편집 감지).
+- **덮어쓰기 금지 · 순수 추가만** — 편집 전 겹침 델타를 확인한 결과(2026-08-29):
+
+  | Task 0 견본값 | tokens.json | 처리 |
+  |---|---|---|
+  | `grayDone` #A3AFB8 | `color.gray-past` = #A3AFB8 | **재사용**(공용) |
+  | `grayPending` #7E8E99 | (없음) | **신규 `patientApp.grayPending`**에 추가 — 공용 `color.*`가 아니라 patientApp에 넣어 **직원웹 CSS를 안 건드린다**(buildCss는 patientApp을 방출하지 않음) |
+  | `warn` #B54708 | `color.warn` = #B44E00 | **공용 `color.warn`(#B44E00)으로 통일** — 견본의 #B54708은 고립값이고 실·데모는 #B44E00을 쓴다. Task 0 테스트는 warn **색값을 못박지 않아** 안 깨진다(참조로만 비교). 두 색은 눈에 구분 안 되는 번트오렌지 |
+  | `cardBodyHeight` 132 · `warnBarWidth` 4 | (없음) | **신규 `patientApp.cardBodyHeight`/`warnBarWidth`** 추가(px 문자열) |
+
+  결과: 기존 값 0 변경, `color.*` 무변경 → **직원웹 색·CSS 무영향.** (Task 0 Step B2의 「hand-write tokens.dart」는 이 자동생성으로 대체.)
+
+**② 시각 충실도 합격 기준 = 브라우저 눈 대조**(jsdom/골든 아님).
+- Flutter를 웹으로 띄워(`flutter run -d chrome`) 헤드리스 크롬 스크린샷으로 **데모(`demo/src/routes/patient/**`, React·동결)와 대조**(직원웹 `tools/shot` 확장). Flutter가 픽셀을 직접 그리므로 웹 렌더 ≈ 실제 폰.
+- **기준 폰 390×844 세로 고정**(나중 360·글자확대 1회씩). 배포 전 에뮬레이터/실물 가끔.
+- **jsdom/`flutter_test` 위젯 테스트는 회귀 가드로만** — 합격 판정자가 아니다(직원웹 실패 원인: jsdom은 시각을 못 본다). 커버리지 ≠ 충실도.
+
+**③ 프론트는 맥락 창이 직접 + 데모를 시각 뼈대로 「번역」**(규칙서에서 재구축 금지).
+- React→Flutter라 코드 복사 불가 → 데모를 화면별 시각·인터랙션 기준으로 삼아 Flutter로 옮긴다. 백엔드(환자용 서비스·라우터·마이그레이션 `00017`~)는 1단계 기반/패턴(`acquire_as`/`AppError`/인증) 재사용해 정성껏 새로 짓는다.
+- ⭐ **플랜 순서 그대로**(Task 0→1→…→31). 직원웹 실패는 순서가 아니라 프론트 방식 탓이었다. 화면(13~31)이 백엔드 뒤라 **진짜 데이터**를 쓴다(목 데이터 불필요).
+- ⭐ **(보정, 2026-08-29) 순서는 유지하되 계약 테스트를 「화면 기준」으로 못박는다.** 백엔드를 전부 먼저 지으면 계약 어긋남이 화면 렌더까지 잠복하는 위험(직원웹 S15 `MetricCards`·S18 상세 크래시 = 백엔드가 화면이 쓰는 필드를 안 실었고 **백엔드 테스트가 그 필드를 검증 안 함**)이 있다. 순서를 바꾸는 대신, 각 백엔드 Task의 `Produces` 계약 테스트에 **그 화면이 실제 소비하는 필드**를 명시해 같은 부류를 백엔드 단계에서 잡는다. (옵션: 대표 화면 1개를 일찍 띄우는 「세로 스모크」로 계약 조기 검증.)
+
+**④ 별도 워크트리에서 작업** — 직원웹 검수(다른 세션)와 파일 격리(특히 ①이 공용 `design-tokens/`를 건드림). ⚠️ **DB는 공용**(Postgres는 워크트리 무관) → 마이그레이션 적용·시드 재적재·`supabase db reset`은 **옆 세션이 멈춰도 되는지 확인 후에만**(Global Constraints의 reset 금지와 함께).
+
+---
+
 ## Global Constraints
 
 이 절의 규칙은 **모든 태스크에 암묵적으로 포함**된다.
@@ -240,6 +271,8 @@
         태스크를 시작할 때 ⏰ 줄이 있으면 **missing 목록을 믿지 말고** 그 ID를 담당분에 직접 더한다. -->
 
 ## Task 0: Flutter 스캐폴딩 + 시각 토큰(테마) + 공통 표시 위젯 + ApiClient·인증상태
+
+> ✅ **구현 완료 (2026-08-29, 커밋 `696fc9c`, 브랜치 `feat/patient-app`).** `flutter test` 18/0 · `flutter analyze` 0 · design-tokens 29/0 · 직원웹 `tokens.css` 0바이트 변경(증명됨). **결정 1대로 Step B2를 자동생성으로 대체**: `build.mjs buildDart`가 `tokens.json`→`tokens.dart` 생성(신규는 `patientApp.*`에만). **견본과 다른 점 2가지**(의도): ①`warn`은 `#B54708` 대신 통합 `color.warn`(#B44E00) — 테스트가 warn 색값 안 박음 ②`ApiClient._handle`은 `response.bodyBytes`를 utf-8로 디코딩(FastAPI charset 미부착 시 한글 깨짐 방지). 아래 견본 코드·`- [ ]` 스텝은 그 이력이다.
 
 > ⭐ **가장 먼저다.** 토큰이 없으면 각 화면이 자기 색·크기·카드 규격을 만들고, 회수 비용이 화면 수만큼 곱해진다(직원웹 Task 0에서 확인된 교훈). 이 태스크가 `DISP-*` 12규칙 전부를 **토큰·공통 위젯**으로 못박고, 이후 모든 화면은 그것만 소비한다.
 
@@ -1733,6 +1766,14 @@ git commit -m "feat: 예약 카탈로그 + list_bookable_slots 단일 판정 함
 
 ## Task 5: 예약 생성/변경 서비스 — 요청 UUID 멱등성(`00020`) · `updated_at` 낙관적 잠금 · 변경 시 문진 계보 유지
 
+> ✅ **완료(2026-08-29, 커밋 `0c44191`) — pytest 8/8, 환자앱 Task1~5 회귀 28/0.** 실행 중 플랜 대비 보정 4건:
+> 1. **하네스**: Step 1·3·4 테스트가 `db_conn`으로 쓰였으나, 이 서비스는 `acquire_as` **자체 커넥션**이라 미커밋 `db_conn`을 못 본다 → **`committed_conn` 시딩**으로 교체(이 플랜이 Task 4에서 이미 정한 패턴, line 1078). admin 시드·`set_session_auth`는 불필요해 제거.
+> 2. **RLS 갭(생성)**: `00005`가 예고만 하고 **어느 마이그도 안 만든** `patients_can_update_slots_for_booking` 정책을 **`00020`이 생성**. 없으면 환자 세션의 `book_slot`/`release_slot` UPDATE가 RLS에 막혀 0행→예약이 조용히 실패. status만 검사(담당의·날짜·시간은 `trg_block_appointment_slot_identity_change`가 불변). 범위=빈 슬롯 또는 본인 예약 슬롯.
+> 3. **RLS 갭(자동확정)**: 환자 세션은 `hospital_settings` 통째를 못 읽어(민감칸·staff 전용 SELECT) `_initial_status`가 항상 `예약신청`으로 떨어졌다 → `auto_confirm` 한 칸만 여는 definer 창구 **`get_auto_confirm_app_bookings()`** 신설, 서비스가 이걸 호출.
+> 4. **테스트 위생**: `hospital_settings`는 싱글턴이라 autouse cleanup 밖 → 각 테스트가 필요한 값을 스스로 세팅+`finally` 복원(공용 DB 오염 방지).
+>
+> ⚠️ **미검증 동시성 엣지(후속)**: `create_booking`의 `UniqueViolationError` 복구 블록(멱등 2차 race)은 순차 테스트로는 안 밟힌다. asyncpg는 `acquire_as`의 트랜잭션 안에서 문 하나가 에러나면 트랜잭션이 abort 상태가 돼, `except`에서 이어 부르는 `release_slot`·`fetchval`이 "current transaction is aborted"로 막힐 수 있다 → 진짜 동시요청 방어가 필요하면 savepoint로 감싸야 한다(Task 10 라우터/부하 테스트에서 확인 권장).
+>
 > **담당 규칙**: 없음(백엔드 계약). 예약 신청 화면(Task 20)·변경 화면(Task 22)이 이 서비스를 소비한다.
 >
 > ⭐ **세 가지 새 계약을 옛 플랜 Task 8(`plans/2026-07-27-patient-app.md:1994~2301`) 위에 얹는다**:

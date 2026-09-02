@@ -12,12 +12,17 @@ logger = logging.getLogger("system_error")
 
 
 class AppError(Exception):
-    def __init__(self, message: str, status_code: int = 400, detail: dict | None = None):
+    def __init__(self, message: str, status_code: int = 400, detail: dict | None = None,
+                 retry_after_seconds: int | None = None):
         # detail: 화면이 「갈 길」을 그리는 데 필요한 구조화 정보(예: 진료과 중지를 막을 때
         # 옮겨야 할 활성 의사 이름 목록). message는 사람이 읽는 한 줄, detail은 화면용 데이터다.
+        # retry_after_seconds: 재시도까지 남은 초(예: OTP 재발송 쿨다운 429). 라우터가 Retry-After
+        #   헤더로 옮겨, 앱이 버튼 숫자를 이 서버 값에 맞춘다(환자앱 T26 · 갭 #16). 기본 None이라
+        #   기존 호출부는 영향이 없다.
         self.message = message
         self.status_code = status_code
         self.detail = detail
+        self.retry_after_seconds = retry_after_seconds
 
 
 # 결정 #20 — 저장 시점 redaction. 대상은 비밀키(6.5)·환자 개인정보뿐, 기술적 원인(오류 종류)은 남긴다.
@@ -100,7 +105,12 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     if exc.detail is not None:
         # 화면이 「갈 길」을 그리는 데 쓰는 구조화 데이터(예: 옮겨야 할 활성 의사 이름).
         content["context"] = exc.detail
-    return JSONResponse(status_code=exc.status_code, content=content)
+    headers = None
+    if exc.retry_after_seconds is not None:
+        # 갭 #16 — 재발송 쿨다운을 서버가 정한다. 앱은 이 값으로 「N초 뒤 다시 받기」 카운트를 맞춘다.
+        headers = {"Retry-After": str(exc.retry_after_seconds)}
+        content["retry_after_seconds"] = exc.retry_after_seconds
+    return JSONResponse(status_code=exc.status_code, content=content, headers=headers)
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
