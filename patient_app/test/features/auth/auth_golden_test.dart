@@ -8,8 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/golden_fonts.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:hospital_patient_app/core/phone_cooldown.dart';
+import 'package:hospital_patient_app/core/sensitive_reauth.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/auth/auth_repo.dart';
+import 'package:hospital_patient_app/features/auth/reauth_screen.dart';
 import 'package:hospital_patient_app/features/auth/consent_screen.dart';
 import 'package:hospital_patient_app/features/auth/landing_screen.dart';
 import 'package:hospital_patient_app/features/auth/login_screen.dart';
@@ -173,5 +175,20 @@ void main() {
         NewPasswordScreen(
             controller: NewPasswordController(_FakeAuthRepo()), onDone: () {}),
         'new-password');
+  });
+
+  // 재인증: 셸 밖·redirect 진입이라 탭바·뒤로가기가 없다 → 막다른 길 방지로 AppBar 닫기(X)→홈.
+  // (헤드리스 골든에선 X 아이콘이 tofu로 나온다 — leading 슬롯 존재만 확인, 실기기는 정상 X.)
+  testWidgets('reauth golden', (t) async {
+    await _shoot(
+        t,
+        ReauthScreen(
+          controller: ReauthController(_FakeAuthRepo()),
+          guard: SensitiveReauthGuard(),
+          onPassed: () {},
+          onForgot: () {},
+          onCancel: () {},
+        ),
+        'reauth');
   });
 }

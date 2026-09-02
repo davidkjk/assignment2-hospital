@@ -18,11 +18,14 @@ class ReauthScreen extends StatefulWidget {
     required this.guard,
     required this.onPassed,
     required this.onForgot,
+    required this.onCancel,
   });
   final ReauthController controller;
   final SensitiveReauthGuard guard;
   final VoidCallback onPassed; // 원래 가려던 민감 화면으로
   final VoidCallback onForgot; // 비밀번호 찾기(막다른 길 방지)
+  final VoidCallback onCancel; // ⭐ 그냥 나가기 → 홈. 이 화면은 redirect로 들어와 탭바·뒤로가기가
+  // 없다(셸 밖). [확인]·[비밀번호 찾기]만으론 「설정을 잘못 눌렀다」·「지금은 안 할래」가 갇힌다.
   @override
   State<ReauthScreen> createState() => _ReauthScreenState();
 }
@@ -59,7 +62,14 @@ class _ReauthScreenState extends State<ReauthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('본인 확인')),
+      appBar: AppBar(
+        // 셸 밖·redirect 진입이라 탭바도 뒤로가기도 없다 → 막다른 길 방지로 나가는 문(닫기 → 홈)을 둔다.
+        leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: '닫기',
+            onPressed: widget.onCancel),
+        title: const Text('본인 확인'),
+      ),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
         const Text('민감한 정보를 열기 전에\n비밀번호를 한 번 더 확인합니다',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.4)),

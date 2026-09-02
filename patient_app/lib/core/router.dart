@@ -231,6 +231,8 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
                       onPassed: () =>
                           c.go(next), // NAV-GLOBAL-05: 원래 가려던 민감 화면으로
                       onForgot: () => c.push('/password-find'), // NAV-AUTH-17
+                      onCancel: () =>
+                          c.go('/home'), // 막다른 길 방지: 그냥 나가면 홈으로(탭바 있는 안전지대)
                     ));
           },
         ),

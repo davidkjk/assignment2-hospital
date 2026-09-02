@@ -16,6 +16,7 @@ ReauthScreen _screen(_FakeAuth a, SensitiveReauthGuard g, {void Function(String)
       guard: g,
       onPassed: () => onNavigate?.call('next'),
       onForgot: () => onNavigate?.call('forgot'),
+      onCancel: () => onNavigate?.call('cancel'),
     );
 
 void main() {
@@ -37,6 +38,14 @@ void main() {
         home: _screen(_FakeAuth(), SensitiveReauthGuard(), onNavigate: (d) => nav = d)));
     await t.tap(find.text('비밀번호를 잊으셨나요?'));
     expect(nav, 'forgot');
+  });
+
+  testWidgets('[AUTH-REAUTH-02] 닫기(X) → 홈으로 나간다(막다른 길 방지: 셸 밖·redirect라 탭·뒤로 없음)', (t) async {
+    String? nav;
+    await t.pumpWidget(MaterialApp(
+        home: _screen(_FakeAuth(), SensitiveReauthGuard(), onNavigate: (d) => nav = d)));
+    await t.tap(find.byTooltip('닫기'));
+    expect(nav, 'cancel');
   });
 
   testWidgets('[AUTH-REAUTH-04] 성공하면 가드에 통과를 기록하고 원래 화면으로', (t) async {
