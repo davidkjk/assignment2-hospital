@@ -112,8 +112,10 @@ void main() {
 
   testWidgets('[NAV-QNR-03] 작성완료 진입 → 확인 화면(수정 가능, 1번부터 다시 안 넘김)', (t) async {
     await _pump(t, data: _data(state: '작성완료', ans: {'q1': 'a', 'q2': 'b', 'q3': 'c'}));
-    expect(find.text('제출하기'), findsOneWidget); // 확인 화면(수정 모드)
-    expect(find.byKey(const Key('edit-q1')), findsOneWidget);
+    expect(find.byKey(const Key('edit-q1')), findsOneWidget); // 확인 화면(수정 모드)
+    // 데모 이식: [제출하기]는 카드 리스트 뒤 in-flow(mt-6)라 화면 밖일 수 있다 — 스크롤해 확인.
+    await t.scrollUntilVisible(find.text('제출하기'), 300);
+    expect(find.text('제출하기'), findsOneWidget);
   });
 
   testWidgets('[NAV-QNR-04] 예약이 읽기전용 상태(진료중)면 읽기전용 확인 화면', (t) async {
