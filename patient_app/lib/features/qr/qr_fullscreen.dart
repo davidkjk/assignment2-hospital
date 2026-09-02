@@ -118,18 +118,13 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
             Positioned(
               right: 16,
               top: 16,
-              child: Material(
-                color: AppTokens.surface,
-                shape: const CircleBorder(),
-                elevation: 1,
-                child: IconButton(
-                  icon: const Icon(Icons.close),
-                  tooltip: '닫기',
-                  // 홈에서 go('/qr/:id')로 들어오면 스택이 대체돼 pop할 곳이 없다 →
-                  // 돌아갈 곳이 있으면 pop, 없으면 홈으로(닫기가 먹통이던 것 해소).
-                  onPressed: () =>
-                      context.canPop() ? context.pop() : context.go('/home'),
-                ),
+              // 데모: rounded-full bg-card p-2 shadow-sm + X h-5(20).
+              child: _CircleCardButton(
+                icon: Icons.close,
+                tooltip: '닫기',
+                // 홈에서 go('/qr/:id')로 들어오면 스택이 대체돼 pop할 곳이 없다 →
+                // 돌아갈 곳이 있으면 pop, 없으면 홈으로(닫기가 먹통이던 것 해소).
+                onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
               ),
             ),
             if (_qr.isEmpty)
@@ -193,17 +188,18 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
+          // 데모: rounded-full bg-card p-2 shadow-sm disabled:opacity-30 + Chevron h-5.
+          _CircleCardButton(
+            icon: Icons.chevron_left,
             tooltip: '이전 예약',
             onPressed: _index == 0 ? null : () => _go(-1),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 16),
           Text('${_index + 1} / ${_qr.length}',
               style: const TextStyle(fontWeight: FontWeight.w600, color: AppTokens.grayPending)),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
+          const SizedBox(width: 16),
+          _CircleCardButton(
+            icon: Icons.chevron_right,
             tooltip: '다음 예약',
             onPressed: _index == _qr.length - 1 ? null : () => _go(1),
           ),
@@ -213,6 +209,41 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
   }
 
   static String _dateTime(DateTime t) => '${t.month}월 ${t.day}일 ${formatKoreanTime(t)}';
+}
+
+/// 데모 QR 화면의 원형 카드 버튼(닫기·페이저 공용): `rounded-full bg-card p-2 shadow-sm`.
+/// 아이콘 h-5(20), 옅은 그림자, 비활성이면 opacity-30(데모 disabled:opacity-30). 스와이프로도
+/// 넘길 수 있으므로 버튼은 보조 컨트롤 — 데모 크기(20+p2=36)를 그대로 따른다.
+class _CircleCardButton extends StatelessWidget {
+  const _CircleCardButton({required this.icon, this.tooltip, required this.onPressed});
+  final IconData icon;
+  final String? tooltip;
+  final VoidCallback? onPressed; // null이면 비활성
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn = DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppTokens.surface, // bg-card
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))], // shadow-sm
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.all(8), // p-2
+            child: Icon(icon, size: 20, color: AppTokens.onSurface), // h-5
+          ),
+        ),
+      ),
+    );
+    if (onPressed == null) btn = Opacity(opacity: 0.3, child: btn); // disabled:opacity-30
+    return tooltip != null ? Tooltip(message: tooltip!, child: btn) : btn;
+  }
 }
 
 /// 흰 QR 카드 — 실제 스캔되는 QR(QR-OK-02: data=booking_code) + 안 될 때용 예약번호.

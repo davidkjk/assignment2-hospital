@@ -119,12 +119,18 @@ class _FamilyNewScreenState extends ConsumerState<FamilyNewScreen> {
           const SizedBox(height: 8),
           Row(children: [
             Expanded(
-                child: _GenderBox(
-                    label: '여', selected: _gender == 'F', onTap: () => setState(() => _gender = 'F'))),
+                child: GenderBox(
+                    label: '여',
+                    value: 'F',
+                    selected: _gender == 'F',
+                    onSelect: (g) => setState(() => _gender = g))),
             const SizedBox(width: 8),
             Expanded(
-                child: _GenderBox(
-                    label: '남', selected: _gender == 'M', onTap: () => setState(() => _gender = 'M'))),
+                child: GenderBox(
+                    label: '남',
+                    value: 'M',
+                    selected: _gender == 'M',
+                    onSelect: (g) => setState(() => _gender = g))),
           ]),
           const SizedBox(height: 20),
 
@@ -164,26 +170,4 @@ class _FamilyNewScreenState extends ConsumerState<FamilyNewScreen> {
         child: Text(msg, style: const TextStyle(color: AppTokens.warn, fontSize: 13)),
       );
 }
-
-/// FAM-NEW-02 — 성별 두 칸 중 하나(가입 ③·수정 화면과 같은 토글). 미리 골라두지 않는다.
-class _GenderBox extends StatelessWidget {
-  const _GenderBox({required this.label, required this.selected, required this.onTap});
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(48),
-        backgroundColor: selected ? AppTokens.primary.withValues(alpha: 0.10) : null,
-        foregroundColor: selected ? AppTokens.primary : AppTokens.onSurface,
-        side: BorderSide(color: selected ? AppTokens.primary : AppTokens.border, width: selected ? 2 : 1),
-      ),
-      child: Text(label,
-          style: TextStyle(fontSize: 16, fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
-    );
-  }
-}
+// 성별 칸은 신규·수정 공용 위젯 GenderBox(family_form_bits.dart)로 통일했다(라디오 점 = 데모).

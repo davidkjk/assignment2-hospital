@@ -34,10 +34,10 @@ class LandingScreen extends StatelessWidget {
                       BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
                     ],
                   ),
-                  child: const HospitalLogo(size: 34, color: Colors.white),
+                  child: const HospitalLogo(size: 36, color: Colors.white), // 데모 h-9
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12), // 데모 gap-3(균일 12)
               // AUTH-LAND-02: 병원 이름 + 한 줄 소개(탭 전환형·가입 우선형 아님).
               const Text(hospitalName,
                   textAlign: TextAlign.center,
@@ -47,7 +47,7 @@ class LandingScreen extends StatelessWidget {
                       fontWeight: FontWeight.w400, // 단일 가중치 디스플레이 서체
                       letterSpacing: 0.3,
                       color: AppTokens.primary)),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12), // 데모 gap-3(균일 12)
               const Text('진료 예약과 방문 이력을 한 곳에서',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppTokens.grayPending, fontSize: 14)),

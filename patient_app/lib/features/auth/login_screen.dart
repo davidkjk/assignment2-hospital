@@ -85,7 +85,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('로그인')),
-      body: ListView(padding: const EdgeInsets.fromLTRB(20, 24, 20, 20), children: [
+      // 데모 LoginForm main px-6(=25.5) — 다른 화면 px-5(21.3)보다 데모가 좌우를 더 넓게 준다.
+      body: ListView(padding: const EdgeInsets.fromLTRB(25.5, 24, 25.5, 20), children: [
         LabeledField(
           label: '전화번호',
           fieldKey: const Key('login-phone'),
@@ -119,11 +120,13 @@ class _LoginScreenState extends State<LoginScreen> {
             busy: _busy,
             style: AppButtonSize.cta, // 데모 LoginForm: size=lg h-12 text-base
             onPressed: _submit),
-        const SizedBox(height: 12),
-        // AUTH-LOGIN-07: 버튼 아래 가운데.
+        const SizedBox(height: 20), // 데모 mt-5
+        // AUTH-LOGIN-07: 버튼 아래 가운데. 데모 font-bold(w700) — 크기는 theme(15)에서 물려받음.
         Center(
             child: TextButton(
-                onPressed: widget.onForgot, child: const Text('비밀번호를 잊으셨나요?'))),
+                onPressed: widget.onForgot,
+                child: const Text('비밀번호를 잊으셨나요?',
+                    style: TextStyle(fontWeight: FontWeight.w700)))),
         // AUTH-LOGIN-08: 그 아래 한 줄 더.
         Center(
             child: TextButton(

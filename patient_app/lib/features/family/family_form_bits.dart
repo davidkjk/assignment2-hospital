@@ -99,6 +99,54 @@ class _Chip extends StatelessWidget {
   }
 }
 
+/// 성별 선택 한 칸(FAM-NEW-02·FAM-EDIT-11) — 신규·수정 화면이 **같은 위젯**을 쓴다.
+/// 데모(NewFamily·FamilyEdit 동일): `rounded-lg border px-3 py-3` 박스 + 네이티브 라디오 점 + 라벨.
+/// 선택 시 `border-primary bg-primary/10 text-primary`. 미리 골라두지 않는다(호출부가 selected 판정).
+/// [enabled]이 false면(수정 화면의 잠긴 신원) 누를 수 없고 글자를 회색으로 죽인다.
+class GenderBox extends StatelessWidget {
+  const GenderBox({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onSelect,
+    this.enabled = true,
+  });
+  final String label;
+  final String value;
+  final bool selected;
+  final ValueChanged<String> onSelect;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected
+        ? AppTokens.primary
+        : (enabled ? AppTokens.onSurface : AppTokens.grayPending);
+    return InkWell(
+      onTap: enabled ? () => onSelect(value) : null,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12), // 데모 px-3 py-3
+        decoration: BoxDecoration(
+          color: selected ? AppTokens.primary.withValues(alpha: 0.10) : AppTokens.surface, // bg-primary/10
+          borderRadius: BorderRadius.circular(10), // rounded-lg
+          border: Border.all(color: selected ? AppTokens.primary : AppTokens.border), // border → border-primary
+        ),
+        child: Row(
+          children: [
+            // 데모 네이티브 라디오 점(items-center gap-2, 좌측)
+            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                size: 18, color: selected ? AppTokens.primary : AppTokens.grayPending),
+            const SizedBox(width: 8), // gap-2
+            Text(label, style: TextStyle(fontSize: 15, color: fg)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 굵은 라벨(칸 위) + 라벨 오른쪽 회색 설명 — 데모 정본.
 class FieldLabel extends StatelessWidget {
   const FieldLabel(this.label, {super.key, this.trailing});

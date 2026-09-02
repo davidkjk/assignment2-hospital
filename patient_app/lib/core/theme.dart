@@ -37,17 +37,19 @@ class AppTheme {
             fontFamily: fontFamily, fontSize: AppTokens.bodyFontSize, color: AppTokens.onSurface),
       ),
       // 2차 화면 헤더 = 데모 ScreenHeader(딥틸 밴드·흰 글자·base medium·아래 그림자).
-      // 데모 정본: text-base(17)·font-medium(볼드 아님)·탭바처럼 아래 그림자로 깊이감.
+      // 데모 정본: h-12(=48) 밴드 + 뒤로화살표 h-5(=20). text-base(17)·font-medium(볼드 아님)·
+      // 탭바처럼 아래 그림자로 깊이감. 이 한 곳이 ScreenHeader를 쓰는 전 2차 화면에 반영된다(5-L).
       appBarTheme: const AppBarTheme(
         backgroundColor: AppTokens.primary,
         foregroundColor: Colors.white,
+        toolbarHeight: 48, // 데모 ScreenHeader h-12 (기본 56 → 48)
         elevation: 3,
         scrolledUnderElevation: 3,
         shadowColor: Color(0x40102D32), // 딥틸 톤 드롭(데모 헤더 그림자)
         centerTitle: false,
         titleTextStyle: TextStyle(
             fontFamily: fontFamily, color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: IconThemeData(color: Colors.white, size: 20), // 데모 뒤로화살표 h-5 (기본 24 → 20)
       ),
       // 입력칸 = 흰 면 + 둥근 사각 테두리(데모: 라벨은 칸 위에 별도, 칸 안엔 안내글만).
       inputDecorationTheme: InputDecorationTheme(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/tokens.dart';
+import '../../widgets/app_dialog.dart';
 import 'family_repository.dart';
 
 /// FAM-UNLINK — 되돌릴 수 없는 동작은 눈에 덜 띄게: 수정 화면 안쪽, 구분선 아래, 저장 버튼과 멀리.
@@ -74,20 +75,37 @@ class _UnlinkSectionState extends ConsumerState<UnlinkSection> {
 
 /// FAM-UNLINK-05·06 — 확인창. 지킬 수 있는 문구로(옛 「과거 예약 이력은 그대로 남습니다」 금지).
 /// [연결 해제]면 true, [닫기]·바깥이면 false.
+/// 데모 FamilyEdit confirm 모달과 같은 커스텀 카드(`rounded-2xl border bg-card p-5 shadow-xl`)로
+/// 통일한다(세션17 결정 B 잔여분). ⚠️ 버튼색은 결정4대로 **주의색(warn) 유지** — 재연결 가능해
+/// 덜 파괴적이라 데모의 빨강 채움(destructive)은 이식하지 않는다. [연결 해제]는 TextButton 유지.
 Future<bool> showUnlinkConfirm(BuildContext context) async {
   final r = await showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('가족 연결을 해제할까요?'),
-      content: const Text('병원 기록에는 그대로 남지만, 앱에서는 더 이상 보이지 않습니다.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('닫기')),
-        TextButton(
-          style: TextButton.styleFrom(foregroundColor: AppTokens.warn),   // 되돌릴 수 없는 동작=주의색, 확인창 안에서만
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('연결 해제'),
-        ),
-      ],
+    builder: (ctx) => AppDialogCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('가족 연결을 해제할까요?',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), // 데모 text-base font-bold
+          const SizedBox(height: 12), // mt-3
+          const Text('병원 기록에는 그대로 남지만, 앱에서는 더 이상 보이지 않습니다.',
+              style: TextStyle(fontSize: 14)),
+          const SizedBox(height: 20), // mt-5
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end, // 데모 justify-end
+            children: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('닫기')),
+              const SizedBox(width: 8), // gap-2
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: AppTokens.warn), // 되돌릴 수 없는 동작=주의색(결정4)
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('연결 해제'),
+              ),
+            ],
+          ),
+        ],
+      ),
     ),
   );
   return r ?? false;
@@ -95,25 +113,36 @@ Future<bool> showUnlinkConfirm(BuildContext context) async {
 
 /// FAM-UNLINK-03·04 — 다가오는 예약이 있으면 막고 그 예약을 보여준다.
 /// [예약 보러 가기]면 true(NAV-FAM-15), [닫기]면 false(그 자리에 남음 NAV-FAM-16).
+/// 데모 FamilyDialog(blocked) 커스텀 카드: 본문 + full-width [예약 보러 가기](outline) + 우측 [닫기].
 Future<bool> showUnlinkBlocked(BuildContext context, UpcomingBrief up) async {
   final go = await showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('연결을 해제할 수 없어요'),
-      content: Column(
+    builder: (ctx) => AppDialogCard(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('먼저 예약을 취소해 주세요.'),
-          const SizedBox(height: 8),
+          const Text('연결을 해제할 수 없어요',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12), // mt-3
+          const Text('먼저 예약을 취소해 주세요.', style: TextStyle(fontSize: 14)),
+          const SizedBox(height: 8), // mt-2
           Text('${_dateLabel(up.slotDate)} ${_time(up.startTime)} · ${up.departmentName}',
-              style: const TextStyle(color: AppTokens.grayPending)),
+              style: const TextStyle(fontSize: 14, color: AppTokens.grayPending)),
+          const SizedBox(height: 16), // mt-4
+          // 데모: 예약 보러 가기 = full-width outline(NAV-FAM-15)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, true), child: const Text('예약 보러 가기')),
+          ),
+          const SizedBox(height: 12), // mt-5 (footer 여백)
+          Align(
+            alignment: Alignment.centerRight, // 데모 justify-end
+            child: TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('닫기')),
+          ),
         ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('닫기')),
-        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('예약 보러 가기')),
-      ],
     ),
   );
   return go ?? false;

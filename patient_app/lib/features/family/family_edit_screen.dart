@@ -6,6 +6,7 @@ import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
+import 'family_form_bits.dart'; // GenderBox(신규·수정 공용)
 import 'family_repository.dart';
 import 'unlink_section.dart';
 
@@ -160,9 +161,9 @@ class _EditBody extends StatelessWidget {
         const Text('성별', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTokens.onSurface)),
         const SizedBox(height: 8),
         Row(children: [
-          Expanded(child: _GenderBox(label: '여', value: 'F', selected: gender == 'F', enabled: _editable, onTap: onGender)),
+          Expanded(child: GenderBox(label: '여', value: 'F', selected: gender == 'F', enabled: _editable, onSelect: onGender)),
           const SizedBox(width: 8),
-          Expanded(child: _GenderBox(label: '남', value: 'M', selected: gender == 'M', enabled: _editable, onTap: onGender)),
+          Expanded(child: GenderBox(label: '남', value: 'M', selected: gender == 'M', enabled: _editable, onSelect: onGender)),
         ]),
 
         // FAM-EDIT-01 — 「나와의 관계」는 본인이 아닌 가족에게만(연결선이 없는 본인엔 안 그림).
@@ -311,45 +312,4 @@ class _LabeledInput extends StatelessWidget {
   }
 }
 
-class _GenderBox extends StatelessWidget {
-  const _GenderBox({
-    required this.label,
-    required this.value,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-  final String label, value;
-  final bool selected, enabled;
-  final ValueChanged<String> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: enabled ? () => onTap(value) : null,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: selected ? AppTokens.primary.withValues(alpha: 0.08) : AppTokens.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: selected ? AppTokens.primary : AppTokens.border,
-              width: selected ? 1.5 : 1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                size: 18, color: selected ? AppTokens.primary : AppTokens.grayPending),
-            const SizedBox(width: 8),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 15,
-                    color: enabled ? AppTokens.onSurface : AppTokens.grayPending)),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// 성별 칸은 신규·수정 공용 위젯 GenderBox(family_form_bits.dart)로 통일했다(라디오 점 = 데모).

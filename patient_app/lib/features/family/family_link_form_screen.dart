@@ -162,6 +162,7 @@ class _FamilyLinkFormScreenState extends ConsumerState<FamilyLinkFormScreen> {
             label: '인증번호 받기',
             busyLabel: '보내는 중…',
             busy: _busy,
+            icon: Icons.phone, // 데모 ExistingFamily <Phone> 아이콘 (Phosphor Phone fill 근사)
             style: AppButtonSize.lg, // 데모 ExistingFamily: size=lg w-full
             onPressed: _send,
           ),
@@ -192,7 +193,7 @@ class _HospitalGuideBox extends StatelessWidget {
         // 부모 Material(흰 면·radius)이 표면을 준다 — 테두리 없이 평평하게(데모 「테두리→그림자」).
         child: const Padding(
           padding: EdgeInsets.all(14),
-          child: const Row(
+          child: Row(
             children: [
               Expanded(
                 child: Column(
