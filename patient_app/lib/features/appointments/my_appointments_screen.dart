@@ -172,17 +172,22 @@ class _DateHeader extends StatelessWidget {
   const _DateHeader({required this.date, required this.count});
   static const _dow = ['월', '화', '수', '목', '금', '토', '일'];
   @override
+  // 데모 MyAppointments: 헤더 아래 밑줄(`border-b pb-2 mb-2`) — 텍스트 옆 가로줄이 아니라 헤더 전체를 밑줄로 구분.
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Row(children: [
-          Text('${date.month}월 ${date.day}일 (${_dow[date.weekday - 1]})',
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          const SizedBox(width: 8),
-          Text('$count건',
-              style: const TextStyle(color: Color(0xFF7E8E99), fontSize: 13)),
-          const SizedBox(width: 12),
-          const Expanded(child: Divider()),
-        ]),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), // mb-2
+        child: Container(
+          padding: const EdgeInsets.only(bottom: 8), // pb-2
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0xFFD5DBDF))), // AppTokens.border
+          ),
+          child: Row(children: [
+            Text('${date.month}월 ${date.day}일 (${_dow[date.weekday - 1]})',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(width: 8),
+            Text('$count건',
+                style: const TextStyle(color: Color(0xFF7E8E99), fontSize: 13)),
+          ]),
+        ),
       );
 }

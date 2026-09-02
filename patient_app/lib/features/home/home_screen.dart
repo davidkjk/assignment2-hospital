@@ -104,6 +104,7 @@ class HomeScreen extends ConsumerWidget {
               ActionButton(
                   label: '진료 예약하기',
                   busyLabel: '여는 중…',
+                  icon: Icons.calendar_month, // 데모 홈 빈 상태: <CalendarPlus/> 진료 예약하기
                   onPressed: () => context.go('/booking')), // NAV-HOME-14
               const SizedBox(height: 8),
               TextButton(

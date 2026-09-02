@@ -19,6 +19,8 @@ class ActionButton extends StatelessWidget {
   final VoidCallback onPressed;
   /// 크기 등급(AppButtonSize.cta 등). null이면 테마 기본(base). 색은 상태가 정하므로 여기서 덮지 않는다.
   final ButtonStyle? style;
+  /// 라벨 앞 아이콘(데모 CalendarPlus 등). null이면 글자만. busy 중에도 그대로 둔다.
+  final IconData? icon;
 
   const ActionButton({
     super.key,
@@ -28,6 +30,7 @@ class ActionButton extends StatelessWidget {
     this.busy = false,
     this.disabledReason,
     this.style,
+    this.icon,
   });
 
   bool get _disabled => disabledReason != null;
@@ -54,7 +57,16 @@ class ActionButton extends StatelessWidget {
             if (busy || _disabled) return;
             onPressed();
           },
-          child: Text(busy ? busyLabel : label),
+          child: icon == null
+              ? Text(busy ? busyLabel : label)
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 20), // 데모 CalendarPlus h-5 w-5
+                    const SizedBox(width: 6), // 데모 mr-1
+                    Text(busy ? busyLabel : label),
+                  ],
+                ),
         ),
         if (_disabled)
           Padding(

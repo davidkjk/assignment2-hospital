@@ -60,13 +60,20 @@ const _weekdayNames = ['월', '화', '수', '목', '금', '토', '일']; // Date
 String _weekdayKo(DateTime d) => _weekdayNames[d.weekday - 1];
 
 /// 날짜 레일 — 월 작게 / 일 크게(고정폭) / 요일 작게(HIST-LIST-04).
+/// 데모(History.tsx `border-l-4`)처럼 왼쪽에 4px 강조 바 — 색은 HIST-LIST-05·06(레일 색) 그대로.
 class DateRail extends StatelessWidget {
   const DateRail({super.key, required this.date, required this.color});
   final DateTime? date;
   final Color color;
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 44, // HIST-LIST-04: 고정폭
+  Widget build(BuildContext context) => Container(
+        width: 44, // HIST-LIST-04: 고정폭(바 4 + 여백 8 + 내용 32)
+        decoration: date == null
+            ? null
+            : BoxDecoration(
+                border: Border(left: BorderSide(color: color, width: 4)), // 데모 border-l-4
+              ),
+        padding: date == null ? null : const EdgeInsets.only(left: 8), // 데모 pl-2
         child: date == null
             ? const SizedBox()
             : Column(children: [
@@ -112,40 +119,72 @@ class HistoryRow extends StatelessWidget {
     final railColor = (entry.status == VisitStatus.done && (entry.patientVisibleNotes ?? '').isNotEmpty)
         ? AppTokens.primary
         : AppTokens.grayPending; // HIST-LIST-05·06
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      InkWell(
-        onTap: onToggle, // HIST-LIST-08: 누르면 펼침(이동 없음)
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            DateRail(date: entry.slotDate, color: railColor),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${entry.departmentName} · ${entry.doctorName}',
-                    key: const Key('history-row-title'),
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        decoration: struck ? TextDecoration.lineThrough : null)), // HIST-ROW-04
-                if (entry.status == VisitStatus.cancelled) ...[
-                  Text('취소됨 · ${_cancelActorText(entry)}',
-                      style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-02
-                  if (entry.cancelledAt != null)
-                    Text(_cancelDateTime(entry.cancelledAt!),
-                        style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-03
-                ],
-                if (entry.status == VisitStatus.unconfirmed)
-                  const Text('병원에서 확정하지 않아 진료가 진행되지 않았습니다',
-                      style: TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-11
-              ]),
+    // 데모(History.tsx `<Card>`)처럼 각 줄을 흰 카드로 — 그림자는 바깥 Container(안쪽에 두면
+    // 카드 사각형에 잘려 "각진 네모/단절"로 보인다 — booking_widgets 구조와 동일).
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // 데모 space-y-3
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTokens.surface,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: AppTokens.cardElevation,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            InkWell(
+              onTap: onToggle, // HIST-LIST-08: 누르면 펼침(이동 없음)
+              child: Padding(
+                padding: const EdgeInsets.all(16), // 데모 p-4
+                child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  DateRail(date: entry.slotDate, color: railColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${entry.departmentName} · ${entry.doctorName}',
+                          key: const Key('history-row-title'),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              decoration: struck ? TextDecoration.lineThrough : null)), // HIST-ROW-04
+                      if (entry.status == VisitStatus.cancelled) ...[
+                        Text('취소됨 · ${_cancelActorText(entry)}',
+                            style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-02
+                        if (entry.cancelledAt != null)
+                          Text(_cancelDateTime(entry.cancelledAt!),
+                              style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-03
+                      ],
+                      if (entry.status == VisitStatus.unconfirmed)
+                        const Text('병원에서 확정하지 않아 진료가 진행되지 않았습니다',
+                            style: TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-11
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  VisitBadge(status: entry.status), // HIST-LIST-07 오른쪽 배지
+                  const SizedBox(width: 6),
+                  // 펼침 affordance(데모 ChevronDown) — 배지 위치 규칙(HIST-LIST-07) 유지하며 오른쪽에 덧댐.
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: const Icon(Icons.expand_more, size: 20, color: AppTokens.primary),
+                  ),
+                ]),
+              ),
             ),
-            const SizedBox(width: 8),
-            VisitBadge(status: entry.status), // HIST-LIST-07 오른쪽 배지
+            if (expanded) // T27b가 채운다(HIST-NOTE·HIST-QNR) — 데모처럼 border-t로 구분
+              Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: AppTokens.border)),
+                ),
+                padding: const EdgeInsets.only(top: 8),
+                child: detail,
+              ),
           ]),
         ),
       ),
-      if (expanded) detail, // T27b가 채운다(HIST-NOTE·HIST-QNR)
-    ]);
+    );
   }
 }
 
