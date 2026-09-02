@@ -65,7 +65,7 @@ class DetailHeader extends StatelessWidget {
               const SizedBox(height: 8),
               // APPT-HEAD-03 — 누구의 예약인지(가족이면 관계·이름을 맨 위에).
               Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.person_outline, size: 16, color: AppTokens.primary),
+                const Icon(Icons.person, size: 16, color: AppTokens.primary),
                 const SizedBox(width: 4),
                 Text(who,
                     style: const TextStyle(fontSize: 14, color: AppTokens.grayPending)),

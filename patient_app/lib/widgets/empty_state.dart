@@ -28,7 +28,7 @@ class EmptyState extends StatelessWidget {
 
   /// EMPTY-ERR-01 — 서버 오류(조회 실패).
   factory EmptyState.error({required VoidCallback onRetry}) => EmptyState(
-        icon: Icons.error_outline,
+        icon: Icons.error,
         message: '정보를 불러오지 못했습니다',
         hint: '잠시 후 다시 시도해주세요',
         action: _RetryButton(onRetry),
@@ -37,7 +37,7 @@ class EmptyState extends StatelessWidget {
   /// EMPTY-ZERO-01 — 목록이 실제로 비어 있음. 같은 문법 + 그 화면의 다음 행동(`nextAction`).
   /// EMPTY-ZERO-02 — 할 일이 없는 화면(알림함 등)은 `nextAction`을 주지 않는다 → 버튼도 [다시 시도]도 없다.
   factory EmptyState.zero({required String message, String? hint, Widget? nextAction}) => EmptyState(
-        icon: Icons.inbox_outlined,
+        icon: Icons.inbox,
         message: message,
         hint: hint,
         action: nextAction,

@@ -202,7 +202,7 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
                           fontSize: 16,
                           color: _birth == null ? AppTokens.grayPending : AppTokens.onSurface)),
                   const Spacer(),
-                  const Icon(Icons.calendar_today_outlined,
+                  const Icon(Icons.calendar_today,
                       size: 20, color: AppTokens.grayPending),
                 ]),
               ),

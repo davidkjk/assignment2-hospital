@@ -9,12 +9,12 @@ class MainTabs extends ConsumerWidget {
   const MainTabs({super.key});
 
   static const _dests = [
-    ('/home', Icons.home_outlined, '홈'),
-    ('/my', Icons.event_available_outlined, '예약'), // NAV-LIST-01: 탭은 목록(/my)이다 — 마법사(/booking) 아님
+    ('/home', Icons.home, '홈'),
+    ('/my', Icons.calendar_month, '예약'), // NAV-LIST-01: 탭은 목록(/my)이다 — 마법사(/booking) 아님. 데모 CalendarDots(체크 없는 달력)에 맞춤(DISP-ICON-03)
 
-    ('/family', Icons.groups_outlined, '가족'),
+    ('/family', Icons.groups, '가족'),
     ('/history', Icons.history, '이력'),
-    ('/chat', Icons.chat_bubble_outline, 'AI 상담'),
+    ('/chat', Icons.chat_bubble, 'AI 상담'),
   ];
 
   @override

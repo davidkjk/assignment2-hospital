@@ -36,13 +36,13 @@ class QuestionnaireRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (IconData icon, String text, bool attention) = switch (state) {
-      QnrRowState.todo => (Icons.assignment_outlined, '사전문진 미작성 · 작성하기 ›', true),
+      QnrRowState.todo => (Icons.assignment, '사전문진 미작성 · 작성하기 ›', true),
       QnrRowState.inProgress => (
-          Icons.assignment_outlined,
+          Icons.assignment,
           '사전문진 작성 중${answered != null && total != null ? ' ($answered/$total)' : ''} · 이어서 쓰기 ›',
           true,
         ),
-      QnrRowState.done => (Icons.assignment_turned_in_outlined, '사전문진 작성완료 · 수정하기 ›', false),
+      QnrRowState.done => (Icons.assignment_turned_in, '사전문진 작성완료 · 수정하기 ›', false),
       QnrRowState.locked => (
           appIcon(AppIconKind.blocked),
           '진료가 시작되어 수정할 수 없습니다 · 내용 보기 ›',

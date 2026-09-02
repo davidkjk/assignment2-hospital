@@ -55,7 +55,7 @@ class WaitBody extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.monitor_heart_outlined, size: 32, color: AppTokens.primary), // 데모 정본 아이콘
+        const Icon(Icons.monitor_heart, size: 32, color: AppTokens.primary), // 데모 정본 아이콘
         const SizedBox(height: 4),
         if (q != null)
           Text('내 앞에 ${q.patientsAhead}명',

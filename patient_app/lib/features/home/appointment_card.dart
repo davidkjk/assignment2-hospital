@@ -192,7 +192,7 @@ class AppointmentCard extends StatelessWidget {
         ],
       AppointmentCardState.unconf || AppointmentCardState.late => [
           _outline(context, '상담 채팅 연결', () => context.go('/chat'),
-              icon: Icons.chat_bubble_outline), // UNCONF-06 · CARD-LATE-05
+              icon: Icons.chat_bubble), // UNCONF-06 · CARD-LATE-05
           _outline(context, '병원 전화', _callHospital, icon: Icons.phone),
         ],
       _ => const <Widget>[],

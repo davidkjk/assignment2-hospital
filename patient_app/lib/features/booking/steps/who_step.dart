@@ -80,7 +80,7 @@ class _AddFamilyButton extends StatelessWidget {
         radius: 18,
         padding: EdgeInsets.all(16),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.person_add_alt, size: 18, color: AppTokens.primary),
+          Icon(Icons.person_add_alt_1, size: 18, color: AppTokens.primary), // 채움(DISP-ICON-03)·가족 화면과 통일. 데모 UserPlus(fill)
           SizedBox(width: 8),
           Text('가족 추가하기',
               style: TextStyle(color: AppTokens.primary, fontWeight: FontWeight.w600)),

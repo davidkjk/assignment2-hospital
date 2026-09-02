@@ -16,7 +16,7 @@ class PhoneChangeScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('전화번호 변경 안내')),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
         const Row(children: [
-          Icon(Icons.verified_user_outlined, size: 20, color: AppTokens.primary),
+          Icon(Icons.verified_user, size: 20, color: AppTokens.primary),
           SizedBox(width: 8),
           Expanded(
             child: Text('안전한 계정 보호를 위해 병원에서 확인합니다',

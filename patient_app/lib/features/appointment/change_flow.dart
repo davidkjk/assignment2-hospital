@@ -278,7 +278,7 @@ void _openDoctorPicker(BuildContext context, WidgetRef ref, AppointmentDetail d,
             ),
             for (final Doctor doc in list)
               ListTile(
-                leading: const Icon(Icons.person_outline, color: AppTokens.primary),
+                leading: const Icon(Icons.person, color: AppTokens.primary),
                 title: Text('${doc.name} 선생님'),
                 subtitle: Text(doc.scheduleSummary),
                 onTap: () {
@@ -423,7 +423,7 @@ Future<bool?> showChangeConfirm(BuildContext context, {required String before, r
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Row(children: [
-        Icon(Icons.check_circle_outline, color: AppTokens.primary),
+        Icon(Icons.check_circle, color: AppTokens.primary),
         SizedBox(width: 8),
         Expanded(child: Text('이 시간으로 예약을 변경할까요?')),
       ]),

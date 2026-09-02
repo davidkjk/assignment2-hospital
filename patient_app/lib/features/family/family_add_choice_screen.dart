@@ -69,7 +69,7 @@ class _FamilyAddChoiceScreenState extends ConsumerState<FamilyAddChoiceScreen> {
 
           // FAM-ADD-04·05 — ㉯. 주의색 한 줄을 **여기**(문자 발송 전)에 둔다.
           _BranchCard(
-            icon: Icons.person_search_outlined,
+            icon: Icons.person_search,
             selected: _branch == FamilyAddBranch.existingPatient,
             onTap: () => setState(() => _branch = FamilyAddBranch.existingPatient),
             title: '전에 진료받은 적이 있어요',

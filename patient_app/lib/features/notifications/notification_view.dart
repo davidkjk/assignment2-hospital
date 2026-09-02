@@ -90,11 +90,11 @@ IconData notificationIcon(String type) => switch (type) {
       'requested' || 'confirmed' => Icons.event_available, // 예약(CalendarCheck2)
       'reminder_day_before' || 'reminder_today' => Icons.schedule, // 리마인더(CalendarClock)
       'changed' || 'rescheduled' || 'hospital_cancelled' || 'cancellation_approved' || 'cancellation_rejected' =>
-        Icons.error_outline, // 변경·취소(AlertCircle)
-      'questionnaire_missing' => Icons.assignment_outlined, // 문진(ClipboardList)
-      'support_answered' => Icons.chat_bubble_outline, // 상담(MessageCircle)
-      'visit_completed' => Icons.description_outlined, // 진료 후 안내(FileText)
-      'staff_direct' => Icons.campaign_outlined, // 병원 직접 안내·공지
+        Icons.error, // 변경·취소(AlertCircle)
+      'questionnaire_missing' => Icons.assignment, // 문진(ClipboardList)
+      'support_answered' => Icons.chat_bubble, // 상담(MessageCircle)
+      'visit_completed' => Icons.description, // 진료 후 안내(FileText)
+      'staff_direct' => Icons.campaign, // 병원 직접 안내·공지
       _ => Icons.notifications_none,
     };
 

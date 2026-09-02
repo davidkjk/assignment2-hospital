@@ -55,7 +55,7 @@ class SettingsHomeScreen extends ConsumerWidget {
               children: [
                 const CircleAvatar(
                     backgroundColor: AppTokens.muted,
-                    child: Icon(Icons.person_outline, color: AppTokens.primary)),
+                    child: Icon(Icons.person, color: AppTokens.primary)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -99,7 +99,7 @@ class SettingsHomeScreen extends ConsumerWidget {
           // ② 알림
           _SettingsLink(
             key: const Key('go-notifications'),
-            icon: Icons.notifications_outlined,
+            icon: Icons.notifications,
             label: '알림 설정',
             description: '받을 알림을 고를 수 있습니다',
             // SET-HOME-16 — 오프라인이면 비활성 + 이유.
@@ -119,7 +119,7 @@ class SettingsHomeScreen extends ConsumerWidget {
           // ④ 병원
           _SettingsLink(
             key: const Key('go-hospital'),
-            icon: Icons.local_hospital_outlined,
+            icon: Icons.local_hospital,
             label: kHospitalName,
             description: _hospitalLine(hospital),
             onTap: () => context.push('/settings/hospital'),

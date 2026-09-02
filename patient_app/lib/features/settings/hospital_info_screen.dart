@@ -106,7 +106,7 @@ class _HospitalInfoScreenState extends ConsumerState<HospitalInfoScreen> {
                   child: OutlinedButton.icon(
                     key: const Key('map-button'),
                     onPressed: () => _openMap(info?.address),
-                    icon: const Icon(Icons.map_outlined),
+                    icon: const Icon(Icons.map),
                     label: const Text('지도 앱으로 길 찾기'),
                   ),
                 ),

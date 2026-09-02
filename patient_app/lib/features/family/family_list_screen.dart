@@ -140,7 +140,7 @@ class FamilyCard extends StatelessWidget {
               const SizedBox(width: 12),
               OutlinedButton.icon(
                 onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, size: 15),
+                icon: const Icon(Icons.edit, size: 15),
                 label: const Text('정보 수정'),
                 // 데모 FamilyList [정보 수정]: variant=outline size=sm. Row 안이라 폭은 내용만큼.
                 style: AppButtonSize.shrink(AppButtonSize.sm),
@@ -175,7 +175,7 @@ class UpcomingRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.calendar_today_outlined, size: 16, color: AppTokens.primary),
+          const Icon(Icons.calendar_today, size: 16, color: AppTokens.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text('${_dateLabel(upcoming.slotDate)} ${_time(upcoming.startTime)} · ${upcoming.departmentName}',

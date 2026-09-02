@@ -22,9 +22,9 @@ class HospitalInfoRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _line(Icons.place_outlined, address, onTapAddress), // HOME-INFO-01: 주소
+        _line(Icons.place, address, onTapAddress), // HOME-INFO-01: 주소
         const SizedBox(height: 6),
-        _line(Icons.call_outlined, phone, onTapPhone), // HOME-INFO-01: 전화
+        _line(Icons.call, phone, onTapPhone), // HOME-INFO-01: 전화
       ],
     );
   }

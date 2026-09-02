@@ -193,7 +193,7 @@ class _BrandBar extends StatelessWidget {
         data: const IconThemeData(color: Colors.white),
         child: Row(
           children: [
-            const Icon(Icons.local_hospital_outlined, size: 20),
+            const Icon(Icons.local_hospital, size: 20),
             const SizedBox(width: 8),
             const Text('가온병원',
                 style: TextStyle(

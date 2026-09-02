@@ -33,7 +33,7 @@ class LandingScreen extends StatelessWidget {
                       BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
                     ],
                   ),
-                  child: const Icon(Icons.local_hospital_outlined,
+                  child: const Icon(Icons.local_hospital,
                       color: Colors.white, size: 34),
                 ),
               ),
