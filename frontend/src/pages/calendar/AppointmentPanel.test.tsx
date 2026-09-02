@@ -57,3 +57,38 @@ test('[CAL-PANEL-01] 예약 취소는 사유를 물은 뒤 사유와 함께 콜�
   await user.click(within(dialog).getByRole('button', { name: '확인' }))
   expect(onCancel).toHaveBeenCalledWith('환자 요청')
 })
+
+test('[SUPPORT-CAL-DUP-01] 한 예약에 상담 기록이 여럿이면 대표 하나만 그리고 「상담 N건」을 병기한다', () => {
+  render(
+    <AppointmentPanel
+      appointment={APPT}
+      support={{ type: 'cancel', ticketId: 't1', count: 3, load: 'ready' }}
+    />,
+  )
+  // ⚠ 대표 하나(취소 상담) + 개수 병기 — 겹쳐 그리지 않는다.
+  const summary = screen.getByTestId('support-summary')
+  expect(summary).toHaveTextContent('취소 상담')
+  expect(summary).toHaveTextContent('상담 3건')
+  expect(within(summary).queryByText('변경 상담')).toBeNull() // 대표 하나만
+  expect(screen.getByText('상담 3건')).toBeVisible()
+})
+
+test('[SUPPORT-PANEL-CONTEXT-01] [상담 전체 보기]는 전체 대화를 복제하지 않고 대표 티켓으로 문의함 이동을 요청한다', async () => {
+  const user = userEvent.setup()
+  const onOpenTicket = vi.fn()
+  render(
+    <AppointmentPanel
+      appointment={APPT}
+      support={{ type: 'cancel', ticketId: 't1', count: 1, load: 'ready' }}
+      onOpenTicket={onOpenTicket}
+    />,
+  )
+  expect(screen.getByText(/읽기 전용/)).toBeVisible() // 답장·대화 전체는 문의함에서
+  await user.click(screen.getByRole('button', { name: '상담 전체 보기' }))
+  expect(onOpenTicket).toHaveBeenCalledWith('t1')
+})
+
+test('[SUPPORT-PANEL-CONTEXT-01] 대표 티켓이 없으면 [상담 전체 보기]를 만들지 않는다', () => {
+  render(<AppointmentPanel appointment={APPT} support={{ type: 'cancel', load: 'ready' }} />)
+  expect(screen.queryByRole('button', { name: '상담 전체 보기' })).toBeNull()
+})

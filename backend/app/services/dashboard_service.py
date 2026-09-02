@@ -549,7 +549,25 @@ async def get_appointment_detail(appointment_id, staff: StaffContext, *, conn=No
         support = None
         if row["support_requested_at"] is not None:
             # SUPPORT-CAL-*: 요약만 읽기 전용으로 — 대화 복제·별도 대기열은 만들지 않는다.
-            support = {"request_type": row["request_type"], "requested_at": row["support_requested_at"]}
+            # SUPPORT-CAL-DUP-01: 한 예약에 상담 티켓이 여럿이면 대표 하나 + 개수. 대표 = 열린 티켓
+            #   (pending|in_progress, idx_tickets_one_open으로 하나 보장) → 없으면 가장 최근 answered.
+            #   ⭐ 프론트 pickRepresentativeSupport와 같은 규칙 — 두 곳이 갈리지 않게 규칙이 하나다.
+            tickets = await c.fetch(
+                "select id, status, created_at from support_tickets "
+                "where appointment_id = $1 order by created_at",
+                appointment_id,
+            )
+            rep = None
+            if tickets:
+                open_t = [t for t in tickets if t["status"] in ("pending", "in_progress")]
+                rep = open_t[0] if open_t else max(tickets, key=lambda t: t["created_at"])
+            support = {
+                "request_type": row["request_type"],
+                "requested_at": row["support_requested_at"],
+                "ticket_id": str(rep["id"]) if rep else None,
+                "ticket_status": rep["status"] if rep else None,
+                "ticket_count": len(tickets),
+            }
         return {
             "appointment_id": row["id"],
             "status": row["status"],

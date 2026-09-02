@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/tokens.dart';
 import '../../../widgets/action_button.dart';
+import '../../chat/restricted_chat.dart';
 import '../booking_controller.dart';
 import '../catalog_repository.dart';
 
@@ -17,6 +18,12 @@ class DeptBotSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sel = ref.watch(bookingProvider);
     final suggested = ref.watch(deptBotSuggestionProvider);
+    // 제한모드 엔진(ai-chatbot Task 12)에 예약 대상 맥락(UUID·관계)을 넘겨 다시 묻지 않게 한다
+    // (BOOKBOT-SHEET-CONTEXT-01). 행동형 카드는 전부 금지되고 유일 출구는 ○○과로 계속하기(결정 E4).
+    final chat = RestrictedChatController(
+      forPatientId: sel.target?.patientId ?? '',
+      relation: sel.target?.relation ?? '본인',
+    );
     return Padding(
       padding: MediaQuery.of(context).viewInsets,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -58,12 +65,16 @@ class DeptBotSheet extends ConsumerWidget {
             ),
           ]),
         ),
-        // 대화 영역 — 엔진(4단계)이 주입. 지금은 안내 문구만(행동형 도구 안 띄움, BOOK-BOT-07).
-        const Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('증상을 말씀해 주시면 맞는 진료과를 안내해 드릴게요.',
+        // 대화 영역 — 제한모드 엔진이 예약 대상 맥락을 갖고 진입한다(BOOK-BOT-07 행동형 도구 안 띄움).
+        // 실 대화 스트림은 서버 오케스트레이터(제한모드)가 채우고, 여기선 대상 맥락을 문구에 반영한다.
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+              chat.relation == '본인'
+                  ? '증상을 말씀해 주시면 맞는 진료과를 안내해 드릴게요.'
+                  : '${chat.relation} 증상을 말씀해 주시면 맞는 진료과를 안내해 드릴게요.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppTokens.grayPending)),
+              style: const TextStyle(fontSize: 14, color: AppTokens.grayPending)),
         ),
         if (suggested != null)
           Padding(

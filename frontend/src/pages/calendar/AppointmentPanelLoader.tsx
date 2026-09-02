@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { getAppointmentDetail, type AppointmentDetailData } from '../../api/calendar'
 import { transitionStatus } from '../../api/appointments'
 import { formatHospitalDateTime } from '../../lib/clock'
@@ -27,6 +28,9 @@ function toSupport(support: AppointmentDetailData['support']): SupportSummary | 
     type: support.request_type === '취소' ? 'cancel' : 'reschedule',
     // requested_at은 실제 순간(UTC Z)이라 병원 시각으로 포맷한다 — start(naive 벽시계)와 다르다.
     connectedAtLabel: support.requested_at ? formatHospitalDateTime(support.requested_at) : undefined,
+    // SUPPORT-CAL-DUP-01: 대표 티켓·상담 건수(서버가 열린 티켓→최근 answered로 이미 골라 준다).
+    ticketId: support.ticket_id ?? undefined,
+    count: support.ticket_count ?? undefined,
     load: 'ready',
   }
 }
@@ -42,6 +46,7 @@ function doctorLabel(d: AppointmentDetailData): string {
 }
 
 export function AppointmentPanelLoader({ appointmentId, onClose, onDone, onReschedule }: AppointmentPanelLoaderProps) {
+  const navigate = useNavigate()
   const q = useQuery({
     queryKey: ['appointment', appointmentId],
     queryFn: () => getAppointmentDetail(appointmentId),
@@ -95,6 +100,8 @@ export function AppointmentPanelLoader({ appointmentId, onClose, onDone, onResch
       }}
       actionError={cancelMut.isError ? '예약을 취소하지 못했습니다. 다른 직원이 먼저 처리했을 수 있어요 — 새로고침 후 다시 시도해 주세요.' : null}
       onClose={onClose}
+      // CONTEXT-01: 답장·상담 처리는 문의함에서 — 대표 티켓으로 이동한다(자동선택 딥링크 소비는 NAV-STFSUP=Task 19).
+      onOpenTicket={(ticketId) => navigate(`/tickets?ticket=${ticketId}`)}
     />
   )
 }

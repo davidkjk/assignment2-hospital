@@ -66,7 +66,14 @@ export interface AppointmentDetailData {
   /** [CAL-PANEL-01][L1] 취소(병원취소 전이)의 낙관적 잠금 값 — transition_status가 요구한다. */
   updated_at: string
   patient: { patient_id: string; name?: string; masked_phone?: string; masked_birth_date?: string }
-  support: { request_type: string; requested_at: string } | null
+  // ticket_id·ticket_count·ticket_status는 대표 상담 티켓(SUPPORT-CAL-DUP-01) — 상담 기록이 있을 때만.
+  support: {
+    request_type: string
+    requested_at: string
+    ticket_id?: string | null
+    ticket_status?: string | null
+    ticket_count?: number | null
+  } | null
 }
 
 export function getAppointmentDetail(appointmentId: string): Promise<AppointmentDetailData> {

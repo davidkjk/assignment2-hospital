@@ -21,7 +21,8 @@ import { FamilySection } from './FamilySection'
 import { VisitSection } from './VisitSection'
 import { QuestionnaireSection, type QnrItem, type QnrStatus } from './QuestionnaireSection'
 import { RecordSection } from './RecordSection'
-import { SupportSection } from './SupportSection'
+import { PatientSupportSection } from './PatientSupportSection'
+import { patientSupportApi } from '../../api/patientSupport'
 import { NoteSection } from './NoteSection'
 import { PhoneChangePanel } from './PhoneChangePanel'
 import type { SectionState } from './format'
@@ -189,9 +190,6 @@ export function PatientDetailPage() {
           data: [],
           retry: () => void visitsQ.refetch(),
         }
-  // 상담 문의는 서버(4단계)가 없다 — 소비만 하는 자리라 0건으로 둔다(SUPPORT BLOCKED).
-  const supportState: SectionState<never[]> = { loading: false, error: false, data: [], retry: () => {} }
-
   return (
     <section aria-label="환자 상세" style={styles.page}>
       <Header
@@ -212,7 +210,12 @@ export function PatientDetailPage() {
           onRequest={role !== 'doctor' ? () => navigate('/messages') : undefined}
         />
         <RecordSection state={recordState} />
-        <SupportSection state={supportState} />
+        {/* [PTSUP-SECT] 환자 범위 상담 문의 — 카드 선택은 티켓·대화 상세(문의함)로(NAV-STFSUP-07). */}
+        <PatientSupportSection
+          patientId={id}
+          api={patientSupportApi}
+          onOpenTicket={({ ticketId }) => navigate(`/tickets?ticket=${ticketId}`)}
+        />
         <NoteSection state={noteState} onAdd={(content) => addNote.mutateAsync(content).then(() => undefined)} />
       </div>
     </section>

@@ -53,13 +53,20 @@ async def test_appointment_id_nullable_for_marketing(db_conn):
 @pytest.mark.asyncio
 async def test_anonymous_recipient_columns(db_conn):
     # 3-A: 익명 상담 연락처는 patients 행 없이 같은 원장에 남는다.
+    # ⚠️ 챗봇 Task 3(00055)이 anonymous_session_id/anonymous_contact_id에 FK를 채웠다 → 임의 uuid 대신
+    #    실재하는 익명 세션·연락처를 만들어 넣는다(FK 없던 시절 자리표시자 보정, Task 2 동형).
+    sid = await db_conn.fetchval(
+        "insert into anonymous_chat_sessions (token_hash) values ($1) returning id", "h-" + uuid.uuid4().hex)
+    cid = await db_conn.fetchval(
+        "insert into anonymous_chat_contacts (anonymous_session_id, contact_kind, "
+        "contact_value_ciphertext, contact_value_hash) values ($1,'phone','ENC','PHASH') returning id", sid)
     row_id = await db_conn.fetchval(
         """
         insert into notification_log
           (notification_type, channel, anonymous_session_id, anonymous_contact_id)
         values ('chat_reply', 'sms', $1, $2) returning id
         """,
-        uuid.uuid4(), uuid.uuid4(),
+        sid, cid,
     )
     assert row_id is not None
 

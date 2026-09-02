@@ -9,6 +9,10 @@ from app.main import app
 from app.core.config import settings
 from app.db import pool as app_pool
 
+# 상담봇(4단계) 테스트가 재사용하는 모킹 임베더. 여기서 재노출해 fixture를 전역 공개한다.
+# (pytest_plugins는 비최상위 conftest에서 에러라 import 재노출로 대체 — Task 0 보정)
+from tests.conftest_chat import FakeEmbedder, fake_embedder  # noqa: F401
+
 
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_app_db_pool():
@@ -159,6 +163,17 @@ async def _cleanup_committed_data(db_pool):
         # 켜 둔 채다(테이블이 빠지면 조용히 넘어가지 않고 멈추게).
         await conn.execute("alter table questionnaire_templates disable trigger user")
         try:
+            # 챗봇 클러스터(threads·tickets·sessions·messages…)는 상호 순환 FK라 순서 delete가 안 된다.
+            # 루트 4개만 TRUNCATE CASCADE하면 자식(chat_messages·read_states·assignment_history·batches…)이
+            # 함께 비워진다. ⚠️ 이걸 먼저 비워야 support_tickets.appointment_id FK 때문에 아래 appointments
+            # delete가 막히지 않는다(Task 16이 support_tickets 테스트를 추가하며 목록에 안 넣은 함정).
+            # CASCADE는 「참조하는 쪽(자식)」으로만 번져 appointments·patients·staff·retention_classes(부모)는 무손.
+            # kb_documents도 여기(staff 삭제 전) — created_by·approved_by·pending_updated_by가 staff를 참조한다
+            # (Task 20 KB 시드/테스트가 남긴 행이 staff delete를 막던 함정). CASCADE로 kb_chunks·revisions까지.
+            await conn.execute(
+                "truncate table chat_threads, support_tickets, ai_chat_sessions, anonymous_chat_sessions, "
+                "kb_documents cascade"
+            )
             for table in _CLEANUP_TABLES:
                 await conn.execute(f"delete from {table}")
             await conn.execute("delete from auth.users where email like '%@test.local'")
