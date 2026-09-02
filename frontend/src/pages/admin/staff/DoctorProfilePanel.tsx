@@ -5,6 +5,7 @@ import { ApiError } from '../../../api/httpClient'
 import { staffApi, type ProfilePatch, type StaffMember } from '../../../api/staff'
 import { PalettePicker } from './PalettePicker'
 import { TextButton } from '@/components/staff-ui'
+import { photoSrc } from '../../../lib/supabaseClient'
 
 // [STAFF-PROFILE-01~11·CAL-COLOR-*] 의사 프로필 편집 — 오른쪽 칸을 잠시 빌려 쓴다.
 // ⭐ 넷만 고친다: 사진·전문분야·소개글·캘린더 색(이름·역할·소속은 계정 정보라 여기서 안 고침).
@@ -123,7 +124,7 @@ export function DoctorProfilePanel({ doctor, allStaff, onClose, onSaved, onDirty
         <div style={styles.photoRow}>
           <div data-testid="doctor-avatar" style={styles.avatar}>
             {photoUrl ? (
-              <img src={photoUrl} alt={`${doctor.name} 사진`} style={styles.avatarImg} />
+              <img src={photoSrc(photoUrl)} alt={`${doctor.name} 사진`} style={styles.avatarImg} />
             ) : (
               <span aria-hidden="true">{doctor.name.slice(0, 1)}</span>
             )}
