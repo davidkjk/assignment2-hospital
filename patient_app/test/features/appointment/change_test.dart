@@ -90,7 +90,7 @@ void main() {
 
   testWidgets('[APPT-CHG-08][APPT-CHG-09] 시간을 고르면 전→후 확인 팝업(생략 안 함)', (t) async {
     await _pumpChange(t, d: detail(slot: DateTime(2026, 8, 5, 14, 30)), atStep: 1);
-    await t.tap(find.text('4:00')); // 16:00 슬롯(그룹이 오후를 말함)
+    await t.tap(find.text('16:00')); // 16:00 슬롯(그룹이 오후를 말함)
     await t.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.text('변경 전 · 8월 5일 오후 2:30'), findsOneWidget); // 전
@@ -99,7 +99,7 @@ void main() {
 
   testWidgets('[APPT-CHG-11] [아니요]면 변경하지 않고 시간 선택 그대로', (t) async {
     final h = await _pumpChange(t, atStep: 1);
-    await t.tap(find.text('4:00'));
+    await t.tap(find.text('16:00'));
     await t.pumpAndSettle();
     await t.tap(find.text('아니요'));
     await t.pumpAndSettle();
@@ -109,7 +109,7 @@ void main() {
 
   testWidgets('[APPT-CHG-15] 변경 성공 → 새 예약 상세로', (t) async {
     final h = await _pumpChange(t, atStep: 1, fake: FakeAppointmentActions(changeResult: 'new-appt-id'));
-    await t.tap(find.text('4:00'));
+    await t.tap(find.text('16:00'));
     await t.pumpAndSettle();
     await t.tap(find.text('변경합니다'));
     await t.pumpAndSettle();
@@ -119,7 +119,7 @@ void main() {
 
   testWidgets('[APPT-CHG-17] [변경합니다] 처리 중 잠금(변경하는 중…)', (t) async {
     await _pumpChange(t, atStep: 1, fake: FakeAppointmentActions(slowChange: true));
-    await t.tap(find.text('4:00'));
+    await t.tap(find.text('16:00'));
     await t.pumpAndSettle();
     await t.tap(find.text('변경합니다'));
     await t.pump(); // 다이얼로그 닫힘
@@ -134,7 +134,7 @@ void main() {
     final h = await _pumpChange(t,
         atStep: 1,
         fake: FakeAppointmentActions(changeError: ApiException('16:00은 방금 다른 분이 예약하셨습니다', statusCode: 409)));
-    await t.tap(find.text('4:00'));
+    await t.tap(find.text('16:00'));
     await t.pumpAndSettle();
     await t.tap(find.text('변경합니다'));
     await t.pumpAndSettle();
