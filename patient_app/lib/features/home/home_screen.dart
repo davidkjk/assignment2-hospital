@@ -8,6 +8,7 @@ import '../../core/tokens.dart';
 import '../notifications/notification_data.dart'; // unreadNotificationCountProvider 본체(T18)
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/hospital_logo.dart';
 import '../../widgets/pending_request_card.dart';
 import 'appointment_card.dart';
 import 'appointment_view.dart';
@@ -193,7 +194,7 @@ class _BrandBar extends StatelessWidget {
         data: const IconThemeData(color: Colors.white),
         child: Row(
           children: [
-            const Icon(Icons.local_hospital, size: 20),
+            const HospitalLogo(size: 20, color: Colors.white),
             const SizedBox(width: 8),
             const Text('가온병원',
                 style: TextStyle(

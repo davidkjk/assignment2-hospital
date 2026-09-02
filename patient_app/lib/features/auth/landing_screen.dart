@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme.dart'; // AppTheme.brandFontFamily(워드마크 서체)
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
+import '../../widgets/hospital_logo.dart';
 
 /// 로그인 전 첫 화면. 큰 버튼 2개만 두고 입력칸을 두지 않는다(AUTH-LAND-01) — 화면당 핵심 행동 1개.
 class LandingScreen extends StatelessWidget {
@@ -33,8 +34,7 @@ class LandingScreen extends StatelessWidget {
                       BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
                     ],
                   ),
-                  child: const Icon(Icons.local_hospital,
-                      color: Colors.white, size: 34),
+                  child: const HospitalLogo(size: 34, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 14),

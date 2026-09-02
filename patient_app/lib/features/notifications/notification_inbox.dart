@@ -44,7 +44,7 @@ class _NotificationInboxState extends ConsumerState<NotificationInbox> {
           onPressed: () => context.go('/home'),
         ),
         actions: const [
-          Padding(padding: EdgeInsets.only(right: 16), child: Icon(Icons.notifications_none)),
+          Padding(padding: EdgeInsets.only(right: 16), child: Icon(Icons.notifications)),
         ],
       ),
       body: _body(online),
@@ -67,7 +67,7 @@ class _NotificationInboxState extends ConsumerState<NotificationInbox> {
               // NOTI-EMPTY-01·02: 사실이므로 [다시 시도]를 두지 않는다(nextAction 없음).
               return const Center(
                 child: EmptyState(
-                  icon: Icons.notifications_none,
+                  icon: Icons.notifications,
                   message: '받은 알림이 없습니다',
                   hint: '예약이 확정되거나 변경되면 여기에서 알려드립니다',
                 ),

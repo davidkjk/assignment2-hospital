@@ -70,7 +70,7 @@ class AppointmentCard extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 2),
                             child: Text.rich(TextSpan(children: [
                               TextSpan(
-                                  text: formatKoreanTime(view.slotStart!),
+                                  text: formatSlotTime24(view.slotStart!), // 데모 홈 카드 = 24h 원값('14:00'). 상세만 12h
                                   style: const TextStyle(fontWeight: FontWeight.w600)),
                               TextSpan(
                                   text: ' · ${view.departmentName} · ${view.doctorName} 선생님',

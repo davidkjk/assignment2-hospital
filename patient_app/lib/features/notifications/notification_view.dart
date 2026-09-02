@@ -88,14 +88,14 @@ String notificationTitle(String type) => switch (type) {
 /// change/cancel=경고·questionnaire=문진판·chat=말풍선·aftercare=문서). 채움 벡터, 이모지 금지.
 IconData notificationIcon(String type) => switch (type) {
       'requested' || 'confirmed' => Icons.event_available, // 예약(CalendarCheck2)
-      'reminder_day_before' || 'reminder_today' => Icons.schedule, // 리마인더(CalendarClock)
+      'reminder_day_before' || 'reminder_today' => Icons.access_time_filled, // 리마인더(CalendarClock)
       'changed' || 'rescheduled' || 'hospital_cancelled' || 'cancellation_approved' || 'cancellation_rejected' =>
         Icons.error, // 변경·취소(AlertCircle)
       'questionnaire_missing' => Icons.assignment, // 문진(ClipboardList)
       'support_answered' => Icons.chat_bubble, // 상담(MessageCircle)
       'visit_completed' => Icons.description, // 진료 후 안내(FileText)
       'staff_direct' => Icons.campaign, // 병원 직접 안내·공지
-      _ => Icons.notifications_none,
+      _ => Icons.notifications,
     };
 
 /// NOTI-LIST-01: 날짜 묶음 머리(오늘/어제/M월 D일).

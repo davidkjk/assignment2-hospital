@@ -22,6 +22,7 @@ dependencies:
   url_launcher: ^6.3.0
   screen_brightness: ^2.1.2
   uuid: ^4.4.0
+  flutter_svg: ^2.0.10 # 브랜드 로고(Phosphor Hospital) 벡터 — 데모·직원웹과 정확 일치
 
 dev_dependencies:
   flutter_test:
@@ -31,6 +32,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icons/hospital_fill.svg
   fonts:
     # 본문·UI 전역 서체 = Pretendard(데모 --font-sans 정본). 정적 가중치 4종을 번들해 렌더 일치 보장.
     - family: Pretendard

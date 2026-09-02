@@ -17,3 +17,8 @@ String formatKoreanTime(DateTime t) {
   final m = t.minute.toString().padLeft(2, '0');
   return '$ampm $h:$m';
 }
+
+/// 예약 슬롯 시각을 24시간제 `HH:mm`으로. 데모 홈 카드·목록·가족은 mock 원값('14:00')을
+/// 그대로 24h로 보여준다(상세만 12h 「오후 2:30」로 예외). 홈 카드가 이 포맷을 쓴다.
+String formatSlotTime24(DateTime t) =>
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';

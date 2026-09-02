@@ -33,7 +33,7 @@ class NotificationBell extends StatelessWidget {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          const Icon(Icons.notifications_none),
+          const Icon(Icons.notifications),
           if (unreadCount >= 1) // HOME-BAR-02: 0이면 배지 자체가 없다
             Positioned(
               right: -4,

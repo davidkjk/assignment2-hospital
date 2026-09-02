@@ -9,6 +9,7 @@ import '../../core/tokens.dart';
 import '../home/home_data.dart' show hospitalInfoProvider, HospitalInfo;
 import 'hospital_info_repository.dart' show kHospitalName;
 import 'logout_confirm.dart';
+import '../../widgets/hospital_logo.dart';
 
 class MyProfile {
   const MyProfile({required this.name, this.phone});
@@ -119,7 +120,7 @@ class SettingsHomeScreen extends ConsumerWidget {
           // ④ 병원
           _SettingsLink(
             key: const Key('go-hospital'),
-            icon: Icons.local_hospital,
+            iconBuilder: (c) => HospitalLogo(size: 20, color: c), // 데모 Settings·직원웹과 같은 Hospital 심볼
             label: kHospitalName,
             description: _hospitalLine(hospital),
             onTap: () => context.push('/settings/hospital'),
@@ -168,13 +169,16 @@ class SettingsHomeScreen extends ConsumerWidget {
 class _SettingsLink extends StatelessWidget {
   const _SettingsLink({
     super.key,
-    required this.icon,
+    this.icon,
+    this.iconBuilder,
     required this.label,
     required this.description,
     required this.onTap,
     this.disabledReason,
-  });
-  final IconData icon;
+  }) : assert(icon != null || iconBuilder != null);
+  final IconData? icon;
+  /// 아이콘을 벡터 위젯으로 그릴 때(예: 병원 로고 SVG). 행 상태색(primary/회색)을 인자로 받는다.
+  final Widget Function(Color color)? iconBuilder;
   final String label, description;
   final VoidCallback onTap;
   final String? disabledReason;
@@ -200,7 +204,12 @@ class _SettingsLink extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Icon(icon, size: 20, color: _disabled ? AppTokens.grayPending : AppTokens.primary),
+                  Builder(builder: (_) {
+                    final iconColor = _disabled ? AppTokens.grayPending : AppTokens.primary;
+                    return iconBuilder != null
+                        ? SizedBox(width: 20, height: 20, child: iconBuilder!(iconColor))
+                        : Icon(icon, size: 20, color: iconColor);
+                  }),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

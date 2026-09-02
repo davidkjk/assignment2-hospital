@@ -160,7 +160,7 @@ class LateSupportDialog extends ConsumerWidget {
     final phone = d.hospitalPhone;
     return AlertDialog(
       title: Row(children: [
-        const Icon(Icons.schedule, color: AppTokens.warn),
+        const Icon(Icons.access_time_filled, color: AppTokens.warn),
         const SizedBox(width: 8),
         Expanded(child: Text('$requestType 마감 시간이 지났습니다')), // CANCEL-LATE-01 / APPT-CHG-19
       ]),

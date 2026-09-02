@@ -313,7 +313,7 @@ class _TimeStep extends ConsumerWidget {
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Expanded(
               child: Row(children: [
-                Icon(Icons.schedule, size: 20, color: AppTokens.primary),
+                Icon(Icons.access_time_filled, size: 20, color: AppTokens.primary),
                 SizedBox(width: 8),
                 Flexible(
                   child: Text('변경할 시간을 골라주세요',

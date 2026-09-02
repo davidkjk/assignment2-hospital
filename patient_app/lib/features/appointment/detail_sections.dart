@@ -88,7 +88,7 @@ class DetailHeader extends StatelessWidget {
         if (v.status == '예약신청') ...[
           const SizedBox(height: 12),
           const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.schedule, size: 16, color: AppTokens.warn),
+            Icon(Icons.access_time_filled, size: 16, color: AppTokens.warn),
             SizedBox(width: 6),
             Expanded(
               child: Text('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.',
@@ -304,7 +304,7 @@ class _QnrAccordionState extends State<QnrAccordion> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
           child: const Row(children: [
-            Icon(Icons.warning_amber, size: 18, color: AppTokens.warn),
+            Icon(Icons.warning, size: 18, color: AppTokens.warn),
             SizedBox(width: 8),
             Expanded(
               child: Text('사전문진 미작성 · 작성하기 ›',

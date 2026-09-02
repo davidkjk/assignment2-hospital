@@ -175,7 +175,7 @@ class UpcomingRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.calendar_today, size: 16, color: AppTokens.primary),
+          const Icon(Icons.calendar_month, size: 16, color: AppTokens.primary), // 채움(DISP-ICON-03)·예약 탭과 통일. 데모 CalendarDots
           const SizedBox(width: 8),
           Expanded(
             child: Text('${_dateLabel(upcoming.slotDate)} ${_time(upcoming.startTime)} · ${upcoming.departmentName}',
