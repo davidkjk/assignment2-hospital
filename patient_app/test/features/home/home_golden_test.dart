@@ -69,4 +69,13 @@ void main() {
     await t.pumpAndSettle();
     await expectLater(find.byType(HomeScreen), matchesGoldenFile('goldens/home.png'));
   });
+
+  // HOME-EMPTY-01·02 — 예약 0건 빈 상태(데모 대조용). 통일 빈-화면 문법(EMPTY-LAY-01).
+  testWidgets('home empty golden (0건)', (t) async {
+    await t.binding.setSurfaceSize(const Size(390, 780));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    await t.pumpWidget(_home(const []));
+    await t.pumpAndSettle();
+    await expectLater(find.byType(HomeScreen), matchesGoldenFile('goldens/home-empty.png'));
+  });
 }
