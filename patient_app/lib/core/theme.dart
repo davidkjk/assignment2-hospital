@@ -12,10 +12,11 @@ class AppTheme {
   /// 브랜드 워드마크 전용 서체(데모 .brand-wordmark). 로고·병원명에만 쓴다 — 본문엔 쓰지 않는다.
   static const String brandFontFamily = 'DoHyeon';
 
-  /// 데모 index.css의 `html { font-size: 17px }`(어르신 가독성)를 브라우저 기본 16px에 대해 키운 비율.
-  /// 폰트 값은 전부 16px 기준 naive로 두고, app.dart의 전역 textScaler가 이 비율로 전 화면을 키운다.
-  /// (데모가 뿌리 글자만 키우고 rem으로 비례 확대한 것과 같은 방식 — 크기 지정은 한 곳에서만.)
-  static const double rootFontScale = 17.0 / 16.0;
+  /// 전 화면 글자 크기 배율(전역 스위치 하나). 데모 index.css `html{font-size:17px}`(어르신 가독성)를
+  /// 브라우저 기본 16px에 대해 키운 17/16=1.0625가 출발점이었으나, 실기기서 여전히 작다는 사용자
+  /// 피드백(2026-09-02)으로 1.0625→1.10→**1.14**(≈18.2px 루트)로 단계 상향. 폰트 값은 전부 16px 기준
+  /// naive로 두고 app.dart의 전역 textScaler가 이 비율로 곱한다 — 크기 조절은 오직 이 숫자 하나로 한다.
+  static const double rootFontScale = 1.14;
 
   static ThemeData get theme {
     const scheme = ColorScheme.light(

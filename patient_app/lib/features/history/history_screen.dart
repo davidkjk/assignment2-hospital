@@ -123,7 +123,9 @@ class DateRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final dayColor = color == AppTokens.primary ? AppTokens.primary : AppTokens.onSurface;
     return Container(
-      width: 44, // 고정폭(바 4 + 여백 8 + 내용 32)
+      // 데모 w-12(48)을 글자 배율(textScaler)만큼 키운다 — 고정 44는 폰트가 커지면 두 자리 날짜(27 등)가
+      // 세로로 쪼개진다. 데모는 rem이라 루트 커지면 칸도 함께 커져 한 줄을 유지한다.
+      width: MediaQuery.textScalerOf(context).scale(48),
       decoration: date == null
           ? null
           : BoxDecoration(
@@ -136,6 +138,7 @@ class DateRail extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center, // 레일 세로 가운데(데모 justify-center)
               children: [
                 Text('${date!.day}', // 데모 text-2xl font-semibold
+                    maxLines: 1,
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,

@@ -23,9 +23,12 @@ class AppointmentListRow extends StatelessWidget {
     final rel = view.relation; // 관계(본인·딸) — 데모는 이름 옆에 회색으로 붙인다
     return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
       // 시각 — 데모 w-12(48) 고정폭 굵은 숫자. 배경 없음(컬러 레일 폐기).
+      // 칸 너비도 글자 배율(textScaler=rootFontScale)만큼 키운다 — 안 그러면 폰트가 커질 때
+      // "13:00"이 48px를 넘쳐 두 줄로 쪼개진다(데모 w-12=rem이라 루트 커지면 함께 커짐).
       SizedBox(
-        width: 48,
+        width: MediaQuery.textScalerOf(context).scale(48),
         child: Text(_time(),
+            maxLines: 1,
             style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
