@@ -196,11 +196,13 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
         </span>
       </div>
 
-      {/* 이름 · 생년월일 · 과/의사를 한 줄로(SEARCH-RESULT-09 패턴 · 번호 보기 인라인) */}
+      {/* 이름 · 생년월일 · 과/의사를 한 줄로(SEARCH-RESULT-09 패턴 · 번호 보기 인라인).
+          [TODAY-LAY-02] 카드를 넓혀도 창이 극단적으로 좁으면 자리가 모자랄 수 있어 — 줄바꿈(못난 2줄) 대신
+          이름은 그대로 두고 뒤 정보만 「…」로 자른다(넉넉한 폭에선 …가 나타나지 않음). */}
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="whitespace-nowrap font-bold">{row.name}</span>
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-baseline gap-x-2">
+          <span className="shrink-0 whitespace-nowrap font-bold">{row.name}</span>
+          <span className="min-w-0 truncate text-sm text-muted-foreground">
             {phone ? <span className="font-medium text-foreground">{phone}</span> : row.maskedBirth}
             {(row.dept || row.doctor) && (
               <>
@@ -210,7 +212,7 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
             )}
           </span>
           {phone && (
-            <button onClick={() => navigator.clipboard?.writeText(phone)} className="text-xs font-medium text-primary hover:underline">
+            <button onClick={() => navigator.clipboard?.writeText(phone)} className="shrink-0 text-xs font-medium text-primary hover:underline">
               복사
             </button>
           )}
@@ -346,8 +348,10 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateF
         )}
       </div>
 
-      {/* ── 오른쪽 사이드 레일 (넓은 화면에서 따라 붙음, 좁으면 아래로 스택) ── */}
-      <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-5 lg:w-72">
+      {/* ── 오른쪽 사이드 레일 (넓은 화면에서 따라 붙음, 좁으면 아래로 스택) ──
+          [TODAY-LAY-02] 카드 행은 이름·정보를 「한 줄로」. 레일을 288→224px로 좁혀 주 컬럼에 자리를 넘겨
+          이비인후과·정형외과처럼 긴 진료과도 접히지 않게 한다(사용자 지적 2026-09-02). */}
+      <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-5 lg:w-56">
         {/* 지금 처리할 것 — 숫자 버튼(누르면 해당 카드로 점프). */}
         {total > 0 && (
           <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
