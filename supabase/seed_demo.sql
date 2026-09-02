@@ -142,23 +142,27 @@ insert into staff (id, auth_user_id, name, role, department_id, is_active) value
    '박접수', 'receptionist', null, true)
 on conflict (id) do nothing;
 
-insert into staff (id, auth_user_id, name, role, department_id, is_active, specialty, calendar_color_index) values
+-- photo_url(D-4): 의사 사진은 doctor-photos 버킷 공개 URL. 여기선 **상대경로**로 넣어
+--   환자앱이 실행 환경의 SUPABASE_URL(에뮬 10.0.2.2 / 로컬 127.0.0.1)로 이어붙이게 한다
+--   (실사진 파일은 supabase/upload-doctor-photos.sh가 버킷에 올린다 — seed-demo.sh가 함께 호출).
+--   doctor8(한지우)만 null로 남겨 '사진 없음 → 회색 원'(BOOK-DOC-05) 상태도 화면에 함께 보인다.
+insert into staff (id, auth_user_id, name, role, department_id, is_active, specialty, calendar_color_index, photo_url) values
   ('bbbbbbbb-0000-0000-0000-000000000011', 'aaaaaaaa-0000-0000-0000-000000000011',
-   '이정민', 'doctor', '11111111-1111-1111-1111-111111111111', true, '소화기내과', 0),
+   '이정민', 'doctor', '11111111-1111-1111-1111-111111111111', true, '소화기내과', 0, '/storage/v1/object/public/doctor-photos/im-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000012', 'aaaaaaaa-0000-0000-0000-000000000012',
-   '김서준', 'doctor', '11111111-1111-1111-1111-111111111111', true, '호흡기내과', 1),
+   '김서준', 'doctor', '11111111-1111-1111-1111-111111111111', true, '호흡기내과', 1, '/storage/v1/object/public/doctor-photos/im-2.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000013', 'aaaaaaaa-0000-0000-0000-000000000013',
-   '최도윤', 'doctor', '22222222-2222-2222-2222-222222222222', true, '척추·관절', 2),
+   '최도윤', 'doctor', '22222222-2222-2222-2222-222222222222', true, '척추·관절', 2, '/storage/v1/object/public/doctor-photos/os-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000014', 'aaaaaaaa-0000-0000-0000-000000000014',
-   '정하은', 'doctor', '22222222-2222-2222-2222-222222222222', true, '스포츠의학', 3),
+   '정하은', 'doctor', '22222222-2222-2222-2222-222222222222', true, '스포츠의학', 3, '/storage/v1/object/public/doctor-photos/os-2.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000015', 'aaaaaaaa-0000-0000-0000-000000000015',
-   '강수아', 'doctor', '33333333-3333-3333-3333-333333333333', true, '비염·부비동', 4),
+   '강수아', 'doctor', '33333333-3333-3333-3333-333333333333', true, '비염·부비동', 4, '/storage/v1/object/public/doctor-photos/ent-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000016', 'aaaaaaaa-0000-0000-0000-000000000016',
-   '윤지호', 'doctor', '33333333-3333-3333-3333-333333333333', true, '이명·난청', 5),
+   '윤지호', 'doctor', '33333333-3333-3333-3333-333333333333', true, '이명·난청', 5, '/storage/v1/object/public/doctor-photos/derm-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000017', 'aaaaaaaa-0000-0000-0000-000000000017',
-   '임채원', 'doctor', '44444444-4444-4444-4444-444444444444', true, '영유아 검진', 6),
+   '임채원', 'doctor', '44444444-4444-4444-4444-444444444444', true, '영유아 검진', 6, '/storage/v1/object/public/doctor-photos/oph-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000018', 'aaaaaaaa-0000-0000-0000-000000000018',
-   '한지우', 'doctor', '44444444-4444-4444-4444-444444444444', true, '소아 호흡기', 7)
+   '한지우', 'doctor', '44444444-4444-4444-4444-444444444444', true, '소아 호흡기', 7, null)
 on conflict (id) do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════

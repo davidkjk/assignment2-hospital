@@ -1,6 +1,7 @@
 /// T8 list_my_appointments 한 줄을 담는 뷰 모델. 서버 status를 화면이 직접 읽지 않게 감싼다.
 class AppointmentView {
   final String id, status, forPatientName, departmentName, doctorName, relation;
+  final String? doctorPhotoUrl; // D-4 — 담당의사 사진(없으면 상세 아바타가 회색 원, BOOK-DOC-05)
   final String? bookingCode;
   final DateTime? slotStart; // slot_date + start_time
   final DateTime? hospitalChangePrevTime; // CARD-CHG: null이면 미확인 변경 없음
@@ -23,6 +24,7 @@ class AppointmentView {
     required this.departmentName,
     required this.doctorName,
     this.relation = '본인',
+    this.doctorPhotoUrl,
     this.bookingCode,
     this.slotStart,
     this.hospitalChangePrevTime,
@@ -52,6 +54,7 @@ class AppointmentView {
       departmentName: j['department_name'] as String,
       doctorName: j['doctor_name'] as String,
       relation: (j['relation'] as String?) ?? (j['is_self'] == true ? '본인' : '가족'),
+      doctorPhotoUrl: j['doctor_photo_url'] as String?,
       bookingCode: j['booking_code'] as String?,
       slotStart: slot,
       hasQuestionnaire: j['has_questionnaire'] == true,

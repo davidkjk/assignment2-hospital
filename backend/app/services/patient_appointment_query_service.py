@@ -91,6 +91,7 @@ async def get_appointment_detail(patient: PatientContext, appointment_id: UUID) 
             "  (a.for_patient_id = $2) as is_self, "
             "  case when a.for_patient_id = $2 then '본인' else coalesce(fl.relation, '가족') end as relation, "
             "  p.name as for_patient_name, d.name as department_name, st.name as doctor_name, "
+            "  st.photo_url as doctor_photo_url, "  # D-4 — 상세 아바타(BOOK-DOC-02). 없으면 회색 원(05)
             "  s.slot_date, s.start_time, "
             + _QNR_JOIN +  # QNR-PROG-07·09: 상세도 진행률 3필드를 소급으로 싣는다
             "from appointments a "

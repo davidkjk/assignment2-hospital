@@ -29,4 +29,8 @@ echo "▶ 데모 시드 재적재 중… (컨테이너: $CONTAINER)"
 docker exec -e PGTZ=Asia/Seoul -i "$CONTAINER" \
   psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q < "$DIR/seed_demo.sql"
 
+# 의사 실사진(D-4) — staff.photo_url이 가리키는 파일을 버킷에 올린다(재시드마다 storage.objects가 비므로).
+# 실패해도 시드는 유효하다(사진만 회색 원으로 폴백) → set -e 아래서도 시드 성공을 막지 않게 감싼다.
+bash "$DIR/upload-doctor-photos.sh" || echo "⚠ 의사 사진 업로드를 건너뜀(사진은 회색 원으로 표시)." >&2
+
 echo "✅ 재적재 완료 — 지금 시각($(TZ=Asia/Seoul date '+%H:%M')) 기준으로 데모 데이터가 새로 깔렸습니다."

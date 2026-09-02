@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/env.dart';
 import '../core/tokens.dart';
 
 /// BOOK-DOC-02·05 — 담당의사 아바타. 사진이 있으면 사진, 없으면 **회색 원 + 이름 첫 글자**.
@@ -10,13 +11,19 @@ class DoctorAvatar extends StatelessWidget {
   final String? photoUrl;
   final double radius;
 
+  /// photo_url이 상대경로(`/storage/...`)면 실행 환경의 Supabase 호스트를 이어붙인다.
+  /// 데모 시드는 호스트를 안 박은 상대경로를 넣으므로(에뮬 10.0.2.2 / 로컬 127.0.0.1 대응),
+  /// 여기서 Env.supabaseUrl로 해석한다. 관리자 업로드가 만든 절대 URL(http…)은 그대로 쓴다.
+  String _resolve(String url) =>
+      url.startsWith('/') ? '${Env.supabaseUrl}$url' : url;
+
   @override
   Widget build(BuildContext context) {
     if (photoUrl != null && photoUrl!.isNotEmpty) {
       return CircleAvatar(
         radius: radius,
         backgroundColor: AppTokens.border, // 로드 전/실패 시 회색 원(BOOK-DOC-05 재사용)
-        backgroundImage: NetworkImage(photoUrl!), // BOOK-DOC-02
+        backgroundImage: NetworkImage(_resolve(photoUrl!)), // BOOK-DOC-02
         onBackgroundImageError: (_, __) {},
       );
     }

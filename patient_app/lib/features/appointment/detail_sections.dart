@@ -124,7 +124,7 @@ class InfoTable extends StatelessWidget {
       (
         '담당의사',
         Row(children: [
-          DoctorAvatar(name: v.doctorName, radius: 16), // BOOK-DOC-05 회색 원+첫 글자
+          DoctorAvatar(name: v.doctorName, photoUrl: v.doctorPhotoUrl, radius: 16), // BOOK-DOC-02 사진 / 없으면 05 회색 원
           const SizedBox(width: 8),
           Expanded(child: Text('${v.doctorName} 선생님')),
         ]),
