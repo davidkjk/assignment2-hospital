@@ -6,6 +6,8 @@ name: CI
 on:
   push:
   pull_request:
+  # 수동 배포 버튼(Actions 탭 → Run workflow). 테스트 게이트를 우회한 의도적 배포·토큰 검증용.
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -121,7 +123,18 @@ jobs:
   deploy-frontend:
     name: deploy frontend (Vercel)
     needs: [backend, frontend, webchat, patient_app]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' && vars.ENABLE_VERCEL_DEPLOY == 'true'
+    # always()로 needs 일부가 red여도 이 job 조건을 평가한다. 그 위에서:
+    #  · push: 테스트 4개가 전부 success일 때만 배포(진짜 게이트).
+    #  · workflow_dispatch(수동): 테스트 통과 여부와 무관하게 배포(의도적 수동 배포·토큰 검증).
+    # 둘 다 무장 스위치 ENABLE_VERCEL_DEPLOY=='true'가 있어야 한다.
+    if: >
+      always() && vars.ENABLE_VERCEL_DEPLOY == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' &&
+         needs.backend.result == 'success' && needs.frontend.result == 'success' &&
+         needs.webchat.result == 'success' && needs.patient_app.result == 'success')
+      )
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: team_kX5J1fZg4n17fjOrdA0TpFER
@@ -134,7 +147,18 @@ jobs:
   deploy-webchat:
     name: deploy webchat (Vercel)
     needs: [backend, frontend, webchat, patient_app]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' && vars.ENABLE_VERCEL_DEPLOY == 'true'
+    # always()로 needs 일부가 red여도 이 job 조건을 평가한다. 그 위에서:
+    #  · push: 테스트 4개가 전부 success일 때만 배포(진짜 게이트).
+    #  · workflow_dispatch(수동): 테스트 통과 여부와 무관하게 배포(의도적 수동 배포·토큰 검증).
+    # 둘 다 무장 스위치 ENABLE_VERCEL_DEPLOY=='true'가 있어야 한다.
+    if: >
+      always() && vars.ENABLE_VERCEL_DEPLOY == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' &&
+         needs.backend.result == 'success' && needs.frontend.result == 'success' &&
+         needs.webchat.result == 'success' && needs.patient_app.result == 'success')
+      )
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: team_kX5J1fZg4n17fjOrdA0TpFER
