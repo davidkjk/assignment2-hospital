@@ -390,6 +390,11 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Send SMS Hook(전화 OTP → SOLAPI). Supabase Auth 훅 호출은 사용자 JWT 없이 오므로 JWT 검증을 끈다
+# (안 끄면 훅 호출이 401로 막힌다). 요청 진위는 함수 내부에서 Standard Webhooks 서명으로 검증한다.
+[functions.send-sms-hook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
