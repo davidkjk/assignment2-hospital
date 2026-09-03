@@ -145,26 +145,27 @@ on conflict (id) do nothing;
 -- photo_url(D-4): 의사 사진은 doctor-photos 버킷 공개 URL. 여기선 **상대경로**로 넣어
 --   환자앱이 실행 환경의 SUPABASE_URL(에뮬 10.0.2.2 / 로컬 127.0.0.1)로 이어붙이게 한다
 --   (실사진 파일은 supabase/upload-doctor-photos.sh가 버킷에 올린다 — seed-demo.sh가 함께 호출).
---   ⚠️ 데모 사진은 7장인데 의사는 8명 → 중복 1쌍 불가피. doctor8(한지우)은 doctor2(김서준)와
---   같은 im-2를 쓴다(서로 다른 진료과=소아과/내과라 한 화면에 나란히 안 보임). 같은 소아과의
---   임채원(oph-1)과는 얼굴이 겹치지 않게 배정. (회색 원 폴백은 photo_url이 비면 자동으로 동작한다.)
+--   ⭐ 얼굴↔이름 배정은 **홈페이지(homepage/index.html의 kr-doc-*)와 동일**하게 맞췄다
+--   (같은 의사가 홈페이지·앱에서 같은 얼굴로 보이게). 원본 파일도 md5까지 동일하다.
+--   ped-1.jpg(한지우 전용)를 8번째로 추가해 **8명=8장, 중복 없음**. (회색 원 폴백은 photo_url이 비면 자동 동작.)
+--   대응표: 이정민=im-1 · 김서준=os-1 · 최도윤=ent-1 · 정하은=im-2 · 강수아=os-2 · 윤지호=derm-1 · 임채원=oph-1 · 한지우=ped-1
 insert into staff (id, auth_user_id, name, role, department_id, is_active, specialty, calendar_color_index, photo_url) values
   ('bbbbbbbb-0000-0000-0000-000000000011', 'aaaaaaaa-0000-0000-0000-000000000011',
    '이정민', 'doctor', '11111111-1111-1111-1111-111111111111', true, '소화기내과', 0, '/storage/v1/object/public/doctor-photos/im-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000012', 'aaaaaaaa-0000-0000-0000-000000000012',
-   '김서준', 'doctor', '11111111-1111-1111-1111-111111111111', true, '호흡기내과', 1, '/storage/v1/object/public/doctor-photos/im-2.jpg'),
+   '김서준', 'doctor', '11111111-1111-1111-1111-111111111111', true, '호흡기내과', 1, '/storage/v1/object/public/doctor-photos/os-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000013', 'aaaaaaaa-0000-0000-0000-000000000013',
-   '최도윤', 'doctor', '22222222-2222-2222-2222-222222222222', true, '척추·관절', 2, '/storage/v1/object/public/doctor-photos/os-1.jpg'),
+   '최도윤', 'doctor', '22222222-2222-2222-2222-222222222222', true, '척추·관절', 2, '/storage/v1/object/public/doctor-photos/ent-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000014', 'aaaaaaaa-0000-0000-0000-000000000014',
-   '정하은', 'doctor', '22222222-2222-2222-2222-222222222222', true, '스포츠의학', 3, '/storage/v1/object/public/doctor-photos/os-2.jpg'),
+   '정하은', 'doctor', '22222222-2222-2222-2222-222222222222', true, '스포츠의학', 3, '/storage/v1/object/public/doctor-photos/im-2.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000015', 'aaaaaaaa-0000-0000-0000-000000000015',
-   '강수아', 'doctor', '33333333-3333-3333-3333-333333333333', true, '비염·부비동', 4, '/storage/v1/object/public/doctor-photos/ent-1.jpg'),
+   '강수아', 'doctor', '33333333-3333-3333-3333-333333333333', true, '비염·부비동', 4, '/storage/v1/object/public/doctor-photos/os-2.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000016', 'aaaaaaaa-0000-0000-0000-000000000016',
    '윤지호', 'doctor', '33333333-3333-3333-3333-333333333333', true, '이명·난청', 5, '/storage/v1/object/public/doctor-photos/derm-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000017', 'aaaaaaaa-0000-0000-0000-000000000017',
    '임채원', 'doctor', '44444444-4444-4444-4444-444444444444', true, '영유아 검진', 6, '/storage/v1/object/public/doctor-photos/oph-1.jpg'),
   ('bbbbbbbb-0000-0000-0000-000000000018', 'aaaaaaaa-0000-0000-0000-000000000018',
-   '한지우', 'doctor', '44444444-4444-4444-4444-444444444444', true, '소아 호흡기', 7, '/storage/v1/object/public/doctor-photos/im-2.jpg')
+   '한지우', 'doctor', '44444444-4444-4444-4444-444444444444', true, '소아 호흡기', 7, '/storage/v1/object/public/doctor-photos/ped-1.jpg')
 on conflict (id) do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════

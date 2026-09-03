@@ -254,7 +254,8 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--color-ink-muted)',
     overflow: 'hidden',
   },
-  avatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  // 세로 인물 사진은 얼굴이 위쪽 → 정중앙(기본)이면 잘린다. 위로 당겨 얼굴이 원 안에 오게(데모 22%와 동일).
+  avatarImg: { width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 20%' },
   photoActions: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', alignItems: 'flex-start' },
   uploadBtn: {
     height: 30,

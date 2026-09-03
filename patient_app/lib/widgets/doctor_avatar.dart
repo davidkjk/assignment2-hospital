@@ -20,11 +20,22 @@ class DoctorAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (photoUrl != null && photoUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundColor: AppTokens.border, // 로드 전/실패 시 회색 원(BOOK-DOC-05 재사용)
-        backgroundImage: NetworkImage(_resolve(photoUrl!)), // BOOK-DOC-02
-        onBackgroundImageError: (_, __) {},
+      // CircleAvatar.backgroundImage는 **정중앙 고정**이라 세로 인물 사진이면 얼굴(윗부분)이 잘린다.
+      // 그래서 DecorationImage.alignment로 위를 당긴다 — Alignment(0,-0.55)=object-position 22.5%로
+      // 데모(demo DoctorAvatar의 objectPosition '50% 22%')와 같은 프레이밍(BOOK-DOC-02).
+      return Container(
+        width: radius * 2,
+        height: radius * 2,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppTokens.border, // 로드 전/실패 시 회색 원(BOOK-DOC-05 재사용)
+          image: DecorationImage(
+            image: NetworkImage(_resolve(photoUrl!)),
+            fit: BoxFit.cover,
+            alignment: const Alignment(0, -0.55),
+            onError: (_, __) {},
+          ),
+        ),
       );
     }
     return CircleAvatar(
