@@ -27,6 +27,7 @@ import { PatientSupportSection } from './PatientSupportSection'
 import { patientSupportApi } from '../../api/patientSupport'
 import { NoteSection } from './NoteSection'
 import { PhoneChangePanel } from './PhoneChangePanel'
+import { FamilyLinkPanel } from './FamilyLinkPanel'
 import type { SectionState } from './format'
 
 // [PTDET-*] /patients/:id — 모든 목록 화면이 도착하는 곳(NAV-SHELL-10). 헤더 요약 + 2열 섹션 그리드(#1).
@@ -147,10 +148,19 @@ export function PatientDetailPage() {
 
   function openFamilyLink() {
     // [ACTION-01] 화면을 옮기지 않고 패널로 연다 — 현재 환자 헤더가 계속 보인다.
-    // ⏳ 대상 검색·본인확인 분기는 Task 13이 서버를 채운다(BLOCKED). 여기선 패널 그릇만 연다.
+    // [PTDET-FAMILY-03~06] 대상 검색 → 동명이인 재확인 → 관계 → 서버 판정 → OTP/예외 → 연결·B 통보.
+    //   ✅ 해소(2026-09-02, 배포 Task 7E) — OTP 층(ⓑ)·통보(ⓓ) 서버 창구 완성. 패널이 실 흐름을 담당한다.
     openPanel({
       title: '가족 연결',
-      content: <p style={styles.panelStub}>대상 환자를 검색해 관계를 확인합니다. (본인확인 창구는 준비 중입니다)</p>,
+      content: (
+        <FamilyLinkPanel
+          accountPatientId={id}
+          onDone={() => {
+            client.invalidateQueries({ queryKey: ['patient', id, 'family'] })
+            closePanel()
+          }}
+        />
+      ),
     })
   }
 
@@ -245,5 +255,4 @@ const styles: Record<string, CSSProperties> = {
     height: 34, padding: '0 var(--sp-4)', borderRadius: 8, border: '1px solid var(--color-primary)',
     background: 'var(--color-primary)', color: '#fff', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  panelStub: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
 }

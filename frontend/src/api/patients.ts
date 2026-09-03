@@ -177,3 +177,35 @@ export function verifyFamilyEligibility(patientId: string, memberId: string) {
     { method: 'POST' },
   )
 }
+
+/** [PTDET-FAMILY-04][결정 #3 ㉠] B의 등록번호로 가족 연결 인증번호를 보낸다 — 그 번호에 닿는 사람만 연결. */
+export function requestFamilyLinkOtp(patientId: string, familyPatientId: string, relation: string) {
+  return apiFetch<{ ok: boolean }>(`/patients/${patientId}/family/otp/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ family_patient_id: familyPatientId, relation }),
+  })
+}
+
+/** [PTDET-FAMILY-04·06][결정 #3 ㉠·㉢] 인증번호가 맞으면 가족을 연결하고 B에게 통보한다. */
+export function confirmFamilyLinkOtp(patientId: string, familyPatientId: string, code: string) {
+  return apiFetch<{ id: string }>(`/patients/${patientId}/family/otp/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ family_patient_id: familyPatientId, code }),
+  })
+}
+
+/** [PTDET-FAMILY-05·06] 번호 없음 예외 경로 — 대면·서류 확인 방법을 기록하고 연결(+B 통보). */
+export function linkFamilyMember(
+  patientId: string,
+  familyPatientId: string,
+  relation: string,
+  method: 'in_person' | 'document',
+) {
+  return apiFetch<{ id: string }>(`/patients/${patientId}/family`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ family_patient_id: familyPatientId, relation, method }),
+  })
+}
