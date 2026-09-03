@@ -1,7 +1,8 @@
 name: hospital_patient_app
 description: 병원 통합 서비스 환자용 모바일 앱
 publish_to: 'none'
-version: 0.1.0
+# [배포 Task 10] 릴리즈 빌드용 버전. flutter가 여기서 versionName(1.0.0)·versionCode(1)를 파생한다.
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -29,6 +30,13 @@ dev_dependencies:
     sdk: flutter
   mocktail: ^1.0.3
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1 # [배포 Task 10] 릴리즈 아이콘 생성기
+
+# [배포 Task 10] 앱 런처 아이콘 — build_release.sh가 `dart run flutter_launcher_icons`로 android/ios 리소스를 생성한다.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
 
 flutter:
   uses-material-design: true
