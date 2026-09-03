@@ -13,6 +13,8 @@ import {
   getPatientNotes,
   getPatientVisits,
   getQuestionnaire,
+  requestPhoneChange,
+  confirmPhoneChange,
   type PatientHistoryRow,
   type PatientNote,
 } from '../../api/patients'
@@ -126,12 +128,13 @@ export function PatientDetailPage() {
       content: (
         <PhoneChangePanel
           currentPhone={detailQ.data?.phone ?? ''}
-          // ⏳ BLOCKED — OTP 발송·검증 창구가 아직 없다(갭 #19). 흐름만 완성하고 서버는 거절한다.
-          onRequestCode={async () => {
-            throw new ApiError('본인확인(OTP) 창구가 아직 열리지 않았습니다.', 501)
+          // [PTDET-ACTION-02][갭 #19·결정 #4] 새 번호 OTP 소유 증명 창구(배포 Task 7D). 실패 문구는
+          //   서버 문장을 그대로 패널에 보인다(쿨다운 429·만료·틀린 코드 등) — 조용한 먹통을 막는다.
+          onRequestCode={async (newPhone) => {
+            await requestPhoneChange(id, newPhone)
           }}
-          onConfirm={async () => {
-            throw new ApiError('본인확인(OTP) 창구가 아직 열리지 않았습니다.', 501)
+          onConfirm={async (newPhone, code) => {
+            await confirmPhoneChange(id, newPhone, code)
           }}
           onDone={() => {
             client.invalidateQueries({ queryKey: ['patient', id] })

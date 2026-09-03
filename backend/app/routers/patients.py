@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from app.core.dto import patient_row_dto
 from app.core.security import StaffContext, require_role
-from app.services import patient_service
+from app.services import patient_service, staff_phone_change_service
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -48,6 +48,17 @@ class FamilyLinkRequest(BaseModel):
 
 class FamilyUnlinkRequest(BaseModel):
     reason: str
+
+
+class PhoneChangeRequestBody(BaseModel):
+    # [PTDET-ACTION-02] 새 전화번호. 서버가 이 번호로 인증번호를 보낸다(㉯ 소유 증명).
+    new_phone: str
+
+
+class PhoneChangeConfirmBody(BaseModel):
+    # [PTDET-ACTION-02] 확인은 (patient_id, new_phone)로 요청을 찾는다 — 화면이 request_id를 들지 않는다.
+    new_phone: str
+    code: str
 
 
 @router.get("")
@@ -173,4 +184,34 @@ async def unlink_family(
 ) -> dict:
     """[R5-02][ROLE-DOC-02] 가족 연결 해제 — 접수·관리자만. 사유·실행자를 남긴다."""
     await patient_service.unlink_family_member(patient_id, member_id, body.reason, staff)
+    return {"ok": True}
+
+
+@router.post("/{patient_id}/phone-change/request")
+async def phone_change_request(
+    patient_id: UUID,
+    body: PhoneChangeRequestBody,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> dict:
+    """[PTDET-ACTION-02][갭 #19·결정 #4 ㉯] 새 번호로 인증번호를 보낸다 — 접수·관리자만.
+
+    의사는 이 창구를 열 수 없다(전화번호 변경은 접수·관리자의 일, ROLE-DOC-02).
+    새 번호 OTP 소유 증명이 있어야 바꾼다 — 직접 저장(㉮)은 계정 탈취로 기각(결정 #4).
+    """
+    await staff_phone_change_service.request_phone_change(staff, patient_id, body.new_phone)
+    return {"ok": True}
+
+
+@router.post("/{patient_id}/phone-change/confirm")
+async def phone_change_confirm(
+    patient_id: UUID,
+    body: PhoneChangeConfirmBody,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> dict:
+    """[PTDET-ACTION-02·03][결정 #4 ⓑ] 인증번호가 맞으면 patients.phone + Auth를 함께 바꾼다.
+
+    실패하면 기존 번호가 산다(ACTION-03) — 성공 응답을 흉내 내지 않는다.
+    """
+    await staff_phone_change_service.confirm_phone_change(
+        staff, patient_id, body.new_phone, body.code)
     return {"ok": True}

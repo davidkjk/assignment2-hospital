@@ -152,6 +152,24 @@ export function getQuestionnaire(appointmentId: string) {
   )
 }
 
+/** [PTDET-ACTION-02][갭 #19·결정 #4 ㉯] 새 번호로 인증번호를 보낸다 — 그 번호에 닿는 사람만 바꾼다. */
+export function requestPhoneChange(patientId: string, newPhone: string) {
+  return apiFetch<{ ok: boolean }>(`/patients/${patientId}/phone-change/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_phone: newPhone }),
+  })
+}
+
+/** [PTDET-ACTION-02·03][결정 #4 ⓑ] 인증번호가 맞아야 번호가 바뀐다 — 실패하면 기존 번호가 산다. */
+export function confirmPhoneChange(patientId: string, newPhone: string, code: string) {
+  return apiFetch<{ ok: boolean }>(`/patients/${patientId}/phone-change/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_phone: newPhone, code }),
+  })
+}
+
 /** 예외 진입 자격을 서버가 다시 판정한다(PTDET-FAMILY-04·05) — 화면이 정하지 않는다. */
 export function verifyFamilyEligibility(patientId: string, memberId: string) {
   return apiFetch<{ allowed: boolean; message: string }>(

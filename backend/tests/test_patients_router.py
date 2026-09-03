@@ -190,3 +190,41 @@ async def test_검색은_검색어와_함께_남는다(client, committed_conn):
     )
     assert row["patient_id"] is None
     assert row["search_term"] == "김 1234"
+
+
+# ─── 전화번호 변경 창구(배포 Task 7D · 갭 #19 · 결정 #4) ─────────────────────────
+
+async def test_전화변경_요청_창구가_있고_새번호로_인증요청을_남긴다(client, committed_conn):
+    """[PTDET-ACTION-02] 접수직원이 새 번호로 인증번호를 요청하면 요청 행이 남는다."""
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    pid = await _seed_patient(committed_conn)
+
+    resp = client.post(f"/patients/{pid}/phone-change/request",
+                       json={"new_phone": "01099998888"}, headers=_auth(receptionist))
+    assert resp.status_code == 200
+
+    row = await committed_conn.fetchrow(
+        "select staff_id, new_phone_masked from patient_phone_change_requests where patient_id=$1", pid)
+    assert row["staff_id"] == receptionist["staff_id"]
+    assert row["new_phone_masked"] == "010-****-8888"
+
+
+async def test_전화변경은_접수관리자만이다_의사는_403(client, committed_conn):
+    """[ROLE-DOC-02] 전화번호 변경은 접수·관리자의 일 — 의사에겐 창구를 열지 않는다."""
+    doctor = await seed_staff(committed_conn, role="doctor")
+    pid = await _seed_patient(committed_conn)
+
+    resp = client.post(f"/patients/{pid}/phone-change/request",
+                       json={"new_phone": "01099998888"}, headers=_auth(doctor))
+    assert resp.status_code == 403
+
+
+async def test_전화변경_확인_창구가_배선돼_요청없으면_404(client, committed_conn):
+    """[PTDET-ACTION-03] 확인 창구가 서비스에 배선돼 있다 — 요청 없는 번호는 404로 안내."""
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    pid = await _seed_patient(committed_conn)
+
+    resp = client.post(f"/patients/{pid}/phone-change/confirm",
+                       json={"new_phone": "01099998888", "code": "000000"},
+                       headers=_auth(receptionist))
+    assert resp.status_code == 404

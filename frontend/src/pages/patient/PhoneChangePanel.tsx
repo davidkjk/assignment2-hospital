@@ -5,7 +5,8 @@ import { InlineError } from '../../components/InlineError'
 // [PTDET-ACTION-02·03][#4 ㉯] 전화번호 변경 — 직접 저장 한 번으로 계정 번호를 바꾸지 않는다.
 //   새 번호 입력 → 새 번호 인증(OTP) → 확인. 실패하면 성공한 척하지 않고 원인과 다음 경로(다시 받기)를
 //   패널 안에 보인다. 기존 번호는 성공 전까지 그대로다(헤더는 페이지가 지킨다).
-//   ⏳ BLOCKED — OTP 발송·검증·Auth 동기화·변경 이력 API가 없다(갭 #19). 콜백으로 주입받아 흐름만 완성한다.
+//   ✅ 해소(2026-09-02, 배포 Task 7D) — OTP 발송·검증·Auth 동기화·변경 이력 창구 완성(staff_phone_change_service).
+//   패널은 콜백을 주입받아 흐름만 담당한다(요청/확인 API는 페이지가 배선).
 
 interface PhoneChangePanelProps {
   currentPhone: string

@@ -140,6 +140,7 @@ _CLEANUP_TABLES = (
     "appointments",
     "appointment_slots",
     "patient_internal_notes",
+    "patient_phone_change_requests",
     "family_link_requests",
     "patient_family_links",
     "patient_merges",
