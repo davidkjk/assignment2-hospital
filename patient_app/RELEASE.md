@@ -117,6 +117,15 @@ $ANDROID_HOME/build-tools/*/apksigner verify --print-certs \
 6. **범위 밖**: 실제 App Store 공개 심사 제출은 이 과제 범위 밖이다. TestFlight 내부 테스트
    업로드까지만 진행한다(요구사항 = "심사를 제출할 수 있는 빌드"까지).
 
+> **📌 이 데모에서 실제로 만든 iOS 빌드 (2026-09-03, Task 18)**
+> - 산출물: `build/ios/ipa/hospital_patient_app.ipa` (27.1MB, App Store 방식) → 보관 `~/hospital-demo-release/v1.0.0-demo/hospital_patient_app-v1.0.0-demo.ipa`
+> - 방식: `flutter build ipa --export-method app-store` (자동 서명, GUI Archive 불필요했음 — 프로젝트에 이미 팀 지정돼 있었음)
+> - **서명 신원**: `Apple Distribution: JUN KEE KIM (QSF7US9W24)`, Team `QSF7US9W24`, Bundle `com.vcuhospital.hospitalPatientApp`
+> - 프로비저닝: "iOS Team Store Provisioning Profile"(`get-task-allow=false` = 배포용). 버전 1.0.0(빌드 1).
+> - **프로덕션 URL 내장 검증됨**: Railway API·Supabase 박힘, `localhost` 0건.
+> - ⚠️ **선결 조건**: Xcode 26에서 실기기/배포 아카이브에 **iOS 플랫폼 구성요소**가 별도 필요("iOS 26.5 is not installed" 오류) → `xcodebuild -downloadPlatform iOS`로 설치(약 2GB). `showsdks`에 SDK가 보여도 이 구성요소는 별개.
+> - 미관 경고 1건(빌드 무관): "Launch image is set to the default placeholder" — 런치 화면 이미지 기본값. 데모는 무방, 필요 시 후속 개선.
+
 ---
 
 ## 참고
