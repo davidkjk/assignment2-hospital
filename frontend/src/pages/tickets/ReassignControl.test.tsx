@@ -10,11 +10,16 @@ const staff: ActiveStaff[] = [
   { id: 'a1', name: '관리자', role: 'admin' },
 ]
 
-it('[TICKET-DETAIL-REASSIGN-01] 의료판단 티켓은 담당 의사에게 전달을 강조하고 의사·관리자만 선택지에 둔다', async () => {
+it('[TICKET-DETAIL-REASSIGN-01] 의료판단 티켓은 경고문구만 유지하고 의사에게 전달 없이 일반 이관으로 통일한다', async () => {
   render(<ReassignControl reason="medical_judgment" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={vi.fn()} />)
-  expect(await screen.findByRole('note')).toHaveTextContent('담당 의사에게 전달')
-  await waitFor(() => expect(screen.getByText('이의사 · 의사')).toBeInTheDocument())
-  expect(screen.queryByText('박접수 · 접수')).not.toBeInTheDocument() // 접수 제외
+  // 경고문구는 유지
+  expect(await screen.findByRole('note')).toHaveTextContent('임의로 답하지 말고 담당 의사에게 전달하세요')
+  // '의사에게 전달' 동작(강조 라벨·버튼)은 제거
+  expect(screen.queryByRole('button', { name: '의사에게 전달' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '이관' })).toBeInTheDocument()
+  // 이관 대상은 의사 한정이 아니라 모든 활성 직원(접수 포함)
+  await waitFor(() => expect(screen.getByText('박접수 · 접수')).toBeInTheDocument())
+  expect(screen.getByText('이의사 · 의사')).toBeInTheDocument()
 })
 
 it('[TICKET-DETAIL-REASSIGN-05] 일반 이관은 의료판단 강조 없이 모든 활성 직원을 드롭다운에 둔다', async () => {

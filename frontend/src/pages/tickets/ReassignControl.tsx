@@ -3,8 +3,8 @@ import { AlertTriangle } from '../../components/icons'
 import { btnGhost } from '../../components/staff-ui'
 import type { ActiveStaff, StaffRole } from '../../api/staffChatDetail'
 
-// 담당 이관(REASSIGN-*). 의료판단(reason=medical_judgment)은 '담당 의사에게 전달' 강조 + 의사·관리자만(REASSIGN-01),
-// 일반은 강조 없이 모든 활성 직원 드롭다운(REASSIGN-05 — 의사 전용 답변 화면이 없어 역할 제한은 막다른 길).
+// 담당 이관(REASSIGN-*). 의료판단(reason=medical_judgment)은 ⚠ 경고문구만 강조(REASSIGN-01) —
+// '의사에게 전달' 동작은 성립하지 않아(의사 전용 답변 화면 없음) 제거, 이관은 일반과 동일하게 모든 활성 직원(REASSIGN-05).
 // 성공은 assigned_staff_id만·in_progress 유지(REASSIGN-02, 훅), 처리 중 선택·버튼 잠금(REASSIGN-03),
 // 실패는 기존 담당·상태 유지+재시도(REASSIGN-04). ⛔ 별도 [담당 지정]·[내가 맡기] 없음(ASSIGN-02 — 자동배정과 중복).
 // 시각은 데모 tickets 상단 이관바 그대로.
@@ -29,8 +29,8 @@ export function ReassignControl(props: {
       .catch(() => setStaff([]))
   }, [loadStaff])
 
-  // REASSIGN-01: 의료판단은 의사·관리자만. REASSIGN-05: 일반은 모든 활성 직원.
-  const options = isMedical ? staff.filter((s) => s.role === 'doctor' || s.role === 'admin') : staff
+  // REASSIGN-05: 이관 대상은 언제나 모든 활성 직원. 의료판단도 '의사에게 전달' 없이 일반 이관으로 통일.
+  const options = staff
 
   const submit = async () => {
     if (busy || pick === '') return // REASSIGN-03: 잠금
@@ -42,7 +42,6 @@ export function ReassignControl(props: {
     }
   }
 
-  const label = isMedical ? '담당 의사에게 전달' : '담당 이관'
   return (
     <section aria-label="담당 이관" className="flex flex-wrap items-center gap-2 border-b border-border/70 px-4 py-3">
       {/* ASSIGN-02: [담당 지정]·[내가 맡기] 버튼을 두지 않는다 */}
@@ -56,7 +55,7 @@ export function ReassignControl(props: {
           의료 판단이 필요한 문의입니다. 임의로 답하지 말고 담당 의사에게 전달하세요.
         </p>
       )}
-      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm text-muted-foreground">담당 이관</span>
       <select
         id="reassign-to"
         aria-label="이관할 직원"
@@ -79,7 +78,7 @@ export function ReassignControl(props: {
         aria-busy={busy}
         className={`${btnGhost} py-1.5`}
       >
-        {busy ? '전달 중…' : isMedical ? '의사에게 전달' : '이관'}
+        {busy ? '전달 중…' : '이관'}
       </button>
       {failed && (
         <p role="alert" className="w-full text-sm text-rose-600">
