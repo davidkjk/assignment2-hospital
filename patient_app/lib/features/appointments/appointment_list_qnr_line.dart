@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/questionnaire/qnr_progress_text.dart'; // qnrRowText(T24)
 import 'package:hospital_patient_app/core/tokens.dart'; // AppTokens
@@ -33,8 +34,8 @@ Widget? appointmentListQnrLine(AppointmentView view, {required VoidCallback onOp
       width: double.infinity,
       // LIST-QNR-07: 줄과 한 상자임을 상단 경계+같은 카드 안에 담아 보인다(데모 border-t 방식).
       decoration: const BoxDecoration(
-        color: Color(0x1A0B6E70), // primary 10% (bg-primary/10)
-        border: Border(top: BorderSide(color: Color(0x330B6E70))), // primary 20% (border-primary/20)
+        color: Color(0x0F0B6E70), // primary 6% — 톤다운(사용자 요청). 딥틸 글자가 더 도드라지게
+        border: Border(top: BorderSide(color: Color(0x260B6E70))), // primary ~15%
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(children: [
@@ -43,7 +44,7 @@ Widget? appointmentListQnrLine(AppointmentView view, {required VoidCallback onOp
               style: const TextStyle(
                   color: AppTokens.primary, fontSize: 13, fontWeight: FontWeight.w500)),
         ),
-        const Icon(Icons.chevron_right, size: 18, color: AppTokens.primary),
+        const Icon(AppIcons.chevron_right, size: 18, color: AppTokens.primary),
       ]),
     ),
   );

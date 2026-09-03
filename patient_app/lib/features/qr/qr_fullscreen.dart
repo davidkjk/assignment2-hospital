@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -120,7 +121,7 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
               top: 16,
               // 데모: rounded-full bg-card p-2 shadow-sm + X h-5(20).
               child: _CircleCardButton(
-                icon: Icons.close,
+                icon: AppIcons.close,
                 tooltip: '닫기',
                 // 홈에서 go('/qr/:id')로 들어오면 스택이 대체돼 pop할 곳이 없다 →
                 // 돌아갈 곳이 있으면 pop, 없으면 홈으로(닫기가 먹통이던 것 해소).
@@ -190,7 +191,7 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
         children: [
           // 데모: rounded-full bg-card p-2 shadow-sm disabled:opacity-30 + Chevron h-5.
           _CircleCardButton(
-            icon: Icons.chevron_left,
+            icon: AppIcons.chevron_left,
             tooltip: '이전 예약',
             onPressed: _index == 0 ? null : () => _go(-1),
           ),
@@ -199,7 +200,7 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
               style: const TextStyle(fontWeight: FontWeight.w600, color: AppTokens.grayPending)),
           const SizedBox(width: 16),
           _CircleCardButton(
-            icon: Icons.chevron_right,
+            icon: AppIcons.chevron_right,
             tooltip: '다음 예약',
             onPressed: _index == _qr.length - 1 ? null : () => _go(1),
           ),

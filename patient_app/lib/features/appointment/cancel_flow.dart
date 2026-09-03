@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -174,7 +175,7 @@ class LateSupportDialog extends ConsumerWidget {
     return AppDialogCard(
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const AppDialogIcon(Icons.access_time_filled,
+          const AppDialogIcon(AppIcons.access_time_filled,
               background: AppTokens.muted, color: AppTokens.grayPending),
           const SizedBox(width: 12),
           Expanded(
@@ -201,7 +202,7 @@ class LateSupportDialog extends ConsumerWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
             child: Row(children: [
-              const Icon(Icons.phone, size: 20, color: AppTokens.primary),
+              const Icon(AppIcons.phone, size: 20, color: AppTokens.primary),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('병원 전화',

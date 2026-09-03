@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/tokens.dart';
 import '../../widgets/dashed_border.dart';
@@ -127,7 +128,7 @@ class InBody extends StatelessWidget {
   const InBody({super.key});
   @override
   Widget build(BuildContext context) => const _CenterBody(
-      icon: Icons.check_circle, title: '접수되었습니다', subtitle: '순서를 준비 중입니다');
+      icon: AppIcons.check_circle, title: '접수되었습니다', subtitle: '순서를 준비 중입니다');
 }
 
 /// CARD-DOC — 진료중. 대기 인원 숫자 없음(내 앞에 0명은 이상하다, CARD-DOC-01).
@@ -135,7 +136,7 @@ class DocBody extends StatelessWidget {
   const DocBody({super.key});
   @override
   Widget build(BuildContext context) => const _CenterBody(
-      icon: Icons.medical_services, title: '진료 중입니다', subtitle: '보호자분은 잠시 대기해 주세요');
+      icon: AppIcons.medical_services, title: '진료 중입니다', subtitle: '보호자분은 잠시 대기해 주세요');
 }
 
 /// CARD-DONE — 진료완료. 옅은 회색 + 진료가 끝났습니다(CARD-DONE-01).
@@ -143,7 +144,7 @@ class DoneBody extends StatelessWidget {
   const DoneBody({super.key});
   @override
   Widget build(BuildContext context) =>
-      const _CenterBody(icon: Icons.check, title: '진료가 끝났습니다', dimTitle: true);
+      const _CenterBody(icon: AppIcons.check, title: '진료가 끝났습니다', dimTitle: true);
 }
 
 /// CARD-CXL — 취소됨(옅은 회색). 주체 3갈래: 병원 / 가족(관계·이름) / 본인.
@@ -156,17 +157,17 @@ class CxlBody extends StatelessWidget {
     final IconData icon;
     final String title;
     if (view.cancelledBy == 'hospital') {
-      icon = Icons.local_hospital; // CARD-CXL-02: 병원에서 취소했습니다(직원 이름 없음)
+      icon = AppIcons.local_hospital; // CARD-CXL-02: 병원에서 취소했습니다(직원 이름 없음)
       title = '병원에서 취소했습니다';
     } else if (!view.isSelf &&
         (view.cancelledByRelation != null || view.cancelledByName != null)) {
       // CARD-CXL-03: 가족이 대행 취소 — 관계 + 이름
-      icon = Icons.cancel;
+      icon = AppIcons.cancel;
       final rel = view.cancelledByRelation ?? view.relation;
       final name = view.cancelledByName ?? view.forPatientName;
       title = '$rel $name 님이 취소했습니다';
     } else {
-      icon = Icons.cancel; // CARD-CXL-04: 본인 취소
+      icon = AppIcons.cancel; // CARD-CXL-04: 본인 취소
       title = '취소하셨습니다';
     }
     return _CenterBody(icon: icon, title: title, dimTitle: true);

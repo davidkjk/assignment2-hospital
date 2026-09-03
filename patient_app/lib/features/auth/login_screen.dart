@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter/services.dart';
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
@@ -104,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: _pw,
           obscureText: _obscure, // AUTH-LOGIN-03
           suffixIcon: IconButton(
-              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
+              icon: Icon(_obscure ? AppIcons.visibility_off : AppIcons.visibility,
                   color: AppTokens.grayPending),
               onPressed: () => setState(() => _obscure = !_obscure)),
         ),

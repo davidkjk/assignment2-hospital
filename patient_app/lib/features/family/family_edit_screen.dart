@@ -10,7 +10,7 @@ import 'family_form_bits.dart'; // GenderBox(신규·수정 공용)
 import 'family_repository.dart';
 import 'unlink_section.dart';
 
-const _relationOptions = ['아들', '딸', '배우자', '부모'];   // FAM-EDIT-12 (데모 relationOptions)
+const _relationOptions = ['아들', '딸', '배우자', '아버지', '어머니'];   // FAM-EDIT-12 (데모 relationOptions)
 
 /// FAM-EDIT — 위는 「그 사람의 정보」(잠길 수 있다), 아래는 「나와의 관계」(항상 열림).
 /// 화면은 familyListProvider에서 그 사람 하나를 골라 그린다(별도 상세 API 없음 — FAM-EDIT-10).

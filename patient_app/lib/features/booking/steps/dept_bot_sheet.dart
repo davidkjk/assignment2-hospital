@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/tokens.dart';
 import '../../../widgets/action_button.dart';
@@ -32,7 +33,7 @@ class DeptBotSheet extends ConsumerWidget {
           color: AppTokens.primary,
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
           child: Row(children: [
-            const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+            const Icon(AppIcons.auto_awesome, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             const Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -44,7 +45,7 @@ class DeptBotSheet extends ConsumerWidget {
               ]),
             ),
             IconButton(
-              icon: const Icon(Icons.cancel), // BOOK-BOT-03 원형 X(쓸어내림도 됨)
+              icon: const Icon(AppIcons.cancel), // BOOK-BOT-03 원형 X(쓸어내림도 됨)
               color: Colors.white,
               iconSize: 40,
               onPressed: () => Navigator.of(context).pop(),
@@ -57,7 +58,7 @@ class DeptBotSheet extends ConsumerWidget {
           color: AppTokens.primary.withValues(alpha: 0.05),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: const Row(children: [
-            Icon(Icons.verified_user, size: 16, color: AppTokens.primary),
+            Icon(AppIcons.verified_user, size: 16, color: AppTokens.primary),
             SizedBox(width: 8),
             Expanded(
               child: Text('진단이 아닌 진료과 안내예요. 최종 선택은 직접 확인해 주세요.',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/tokens.dart';
@@ -16,11 +17,11 @@ class MainTabs extends ConsumerWidget {
 
   // 글리프는 Phosphor fill(Home·CalendarDays·Users·History·MessageCircle)의 Material 근사 채움본.
   static const _dests = [
-    ('/home', Icons.home, '홈'),
-    ('/my', Icons.calendar_month, '예약'), // NAV-LIST-01: 탭은 목록(/my)이다 — 마법사(/booking) 아님. 데모 CalendarDays(체크 없는 달력)에 맞춤(DISP-ICON-03)
-    ('/family', Icons.groups, '가족'),
-    ('/history', Icons.history, '이력'),
-    ('/chat', Icons.chat_bubble, 'AI 상담'),
+    ('/home', AppIcons.home, '홈'),
+    ('/my', AppIcons.calendar_month, '예약'), // NAV-LIST-01: 탭은 목록(/my)이다 — 마법사(/booking) 아님. 데모 CalendarDays(체크 없는 달력)에 맞춤(DISP-ICON-03)
+    ('/family', AppIcons.groups, '가족'),
+    ('/history', AppIcons.history, '이력'),
+    ('/chat', AppIcons.chat_bubble, 'AI 상담'),
   ];
 
   @override
@@ -70,7 +71,7 @@ class MainTabs extends ConsumerWidget {
 }
 
 /// border-border/60 = 테두리 색을 60% 불투명으로(데모).
-const Color _topBorder = Color(0x99D5DBDF); // AppTokens.border(D5DBDF) @ 0.6 alpha (0x99)
+const Color _topBorder = Color(0x99C7C7C7); // AppTokens.border(C7C7C7 중립) @ 0.6 alpha (0x99)
 
 class _TabButton extends StatelessWidget {
   const _TabButton({
@@ -95,7 +96,7 @@ class _TabButton extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 20, color: color), // 데모 h-5, 채움 글리프는 currentColor로 칠해짐
+            Icon(icon, size: 23, color: color), // 데모 h-5 기준서 살짝 키움(사용자 요청 — 탭 아이콘 더 크게)
             const SizedBox(height: 2), // 데모 gap-0.5
             Text(
               label, // 라벨 유지(DISP-ICON-03)

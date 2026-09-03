@@ -3,8 +3,8 @@ import 'package:hospital_patient_app/core/tokens.dart';
 
 void main() {
   // 규칙이 못박은 값(색 16진수·높이·바 폭)을 그대로 확인한다.
-  test('[DISP-GRAY-01] 대기(아직 안 된 일) 회색 = #7E8E99', () {
-    expect(AppTokens.grayPending.toARGB32(), 0xFF7E8E99);
+  test('[DISP-GRAY-01] 대기(아직 안 된 일) 회색 = #454545 (중립 + 사용자 요청으로 더 진하게)', () {
+    expect(AppTokens.grayPending.toARGB32(), 0xFF454545);
   });
   test('[DISP-GRAY-02] 완료·취소(이미 끝난 일) 회색 = #A3AFB8', () {
     expect(AppTokens.grayDone.toARGB32(), 0xFFA3AFB8);

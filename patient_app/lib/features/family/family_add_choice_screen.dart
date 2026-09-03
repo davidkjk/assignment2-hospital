@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -59,7 +60,7 @@ class _FamilyAddChoiceScreenState extends ConsumerState<FamilyAddChoiceScreen> {
 
           // FAM-ADD-03 — ㉮.
           _BranchCard(
-            icon: Icons.person_add_alt_1,
+            icon: AppIcons.person_add_alt_1,
             selected: _branch == FamilyAddBranch.newPatient,
             onTap: () => setState(() => _branch = FamilyAddBranch.newPatient),
             title: '우리 병원이 처음이에요',
@@ -69,7 +70,7 @@ class _FamilyAddChoiceScreenState extends ConsumerState<FamilyAddChoiceScreen> {
 
           // FAM-ADD-04·05 — ㉯. 주의색 한 줄을 **여기**(문자 발송 전)에 둔다.
           _BranchCard(
-            icon: Icons.person_search,
+            icon: AppIcons.person_search,
             selected: _branch == FamilyAddBranch.existingPatient,
             onTap: () => setState(() => _branch = FamilyAddBranch.existingPatient),
             title: '전에 진료받은 적이 있어요',

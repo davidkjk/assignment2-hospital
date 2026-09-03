@@ -280,8 +280,8 @@ class AppTokens {
   // 부드러운 후광 — 카드에 가깝게 잡는다. 카드가 촘촘히 쌓여(간격 8) 아래 카드가 위 그림자를
   // 자르므로, 오프셋·블러를 작게 해 잘림(하드 라인)을 최소화한다. 그림자는 바깥 Container에 그림.
   static const List<BoxShadow> cardElevation = [
-    BoxShadow(color: Color(${argb(0.05)}), blurRadius: 14), // 사방 고른 앰비언트
-    BoxShadow(color: Color(${argb(0.10)}), blurRadius: 18, offset: Offset(0, 3)), // 아래로 은은히(가깝게)
+    BoxShadow(color: Color(${argb(0.07)}), blurRadius: 14), // 사방 고른 앰비언트(사용자 요청 미세하게↑)
+    BoxShadow(color: Color(${argb(0.14)}), blurRadius: 18, offset: Offset(0, 3)), // 아래로 은은히(가깝게)
   ];
 }
 `;

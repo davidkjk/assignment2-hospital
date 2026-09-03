@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 
 import '../../core/tokens.dart';
 import '../appointment/detail_sections.dart' show QnrTable;
@@ -43,10 +44,10 @@ class _HistoryQnrLineState extends State<HistoryQnrLine> {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(children: [
-            const Icon(Icons.visibility, size: 18, color: AppTokens.grayPending), // HIST-QNR-01·02: 눈(자물쇠 아님)
+            const Icon(AppIcons.visibility, size: 18, color: AppTokens.grayPending), // HIST-QNR-01·02: 눈(자물쇠 아님)
             const SizedBox(width: 6),
             Text(label),
-            Icon(_open ? Icons.expand_less : Icons.expand_more, size: 18, color: AppTokens.grayPending), // 데모 chevron
+            Icon(_open ? AppIcons.expand_less : AppIcons.expand_more, size: 18, color: AppTokens.grayPending), // 데모 chevron
           ]),
         ),
       ),

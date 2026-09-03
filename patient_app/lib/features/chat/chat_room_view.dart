@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
 import 'cards/chat_card_dispatcher.dart';
@@ -33,7 +34,7 @@ class ChatRoomView extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.cloud_off_outlined,
+                  const Icon(AppIcons.cloud_off_outlined,
                       size: 40, color: AppTokens.grayDone),
                   const SizedBox(height: 8),
                   const Text('대화를 불러오지 못했어요'),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/api_client.dart';
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
@@ -127,7 +128,7 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
               onChanged: (_) => setState(() {}),
               suffixIcon: IconButton(
                   // AUTH-PROFILE-03: 눈 토글(기본 가림)
-                  icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
+                  icon: Icon(_obscure ? AppIcons.visibility_off : AppIcons.visibility,
                       color: AppTokens.grayPending),
                   onPressed: () => setState(() => _obscure = !_obscure)),
             ),
@@ -140,7 +141,7 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
               obscureText: _obscure2,
               onChanged: (_) => setState(() {}),
               suffixIcon: IconButton(
-                  icon: Icon(_obscure2 ? Icons.visibility_off : Icons.visibility,
+                  icon: Icon(_obscure2 ? AppIcons.visibility_off : AppIcons.visibility,
                       color: AppTokens.grayPending),
                   onPressed: () => setState(() => _obscure2 = !_obscure2)),
             ),
@@ -202,7 +203,7 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
                           fontSize: 16,
                           color: _birth == null ? AppTokens.grayPending : AppTokens.onSurface)),
                   const Spacer(),
-                  const Icon(Icons.calendar_today,
+                  const Icon(AppIcons.calendar_today,
                       size: 20, color: AppTokens.grayPending),
                 ]),
               ),

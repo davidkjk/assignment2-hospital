@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../../core/tokens.dart';
 import '../chat_models.dart';
 
@@ -69,7 +70,7 @@ class ChatBubble extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, size: 14, color: AppTokens.warn),
+                const Icon(AppIcons.error_outline, size: 14, color: AppTokens.warn),
                 const SizedBox(width: 4),
                 const Text('보내지 못했어요',
                     style: TextStyle(fontSize: 12, color: AppTokens.warn)),

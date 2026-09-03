@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:hospital_patient_app/core/button_sizes.dart';
 import 'package:hospital_patient_app/widgets/action_button.dart';
 
@@ -16,7 +17,7 @@ class AppointmentListCta extends StatelessWidget {
       child: ActionButton(
         label: '+ 새 예약하기',
         busyLabel: '+ 새 예약하기', // 마법사로의 이동이라 busy 없음(라벨과 동일)
-        icon: Icons.calendar_month, // 데모 MyAppointments footer: <CalendarPlus/> + 새 예약하기
+        icon: AppIcons.calendar_month, // 데모 MyAppointments footer: <CalendarPlus/> + 새 예약하기
         style: AppButtonSize.cta, // 데모 MyAppointments footer: size=lg h-12 text-base
         onPressed: onNewBooking, // LIST-CTA-04: 예약 1단계로
         // LIST-CTA-05(=BTN-STATE-03·OFF-DO-02): 오프라인이면 비활성 + 이유 문구(숨기지 않는다).

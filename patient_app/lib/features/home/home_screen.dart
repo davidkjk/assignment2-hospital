@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -115,7 +116,7 @@ class HomeScreen extends ConsumerWidget {
               ActionButton(
                   label: '진료 예약하기',
                   busyLabel: '여는 중…',
-                  icon: Icons.calendar_month, // 데모 홈 빈 상태: <CalendarPlus/> 진료 예약하기
+                  icon: AppIcons.calendar_month, // 데모 홈 빈 상태: <CalendarPlus/> 진료 예약하기
                   onPressed: () => context.go('/booking')), // NAV-HOME-14
               const SizedBox(height: 8),
               TextButton(
@@ -204,18 +205,18 @@ class _BrandBar extends StatelessWidget {
         data: const IconThemeData(color: Colors.white),
         child: Row(
           children: [
-            const HospitalLogo(size: 20, color: Colors.white),
+            const HospitalLogo(size: 22, color: Colors.white),
             const SizedBox(width: 8),
             const Text('가온병원',
                 style: TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 20, // 병원명 크게(사용자 요청). 21은 과하다 하여 20으로 미세 하향
                     fontFamily: AppTheme.brandFontFamily, // 데모 .brand-wordmark(Do Hyeon)
                     fontWeight: FontWeight.w400, // 단일 가중치 디스플레이 서체
                     letterSpacing: 0.2)),
             const Spacer(),
             NotificationBell(unreadCount: unread, onTap: onBell),
-            IconButton(icon: const Icon(Icons.settings), onPressed: onSettings), // NAV-HOME-13
+            IconButton(icon: const Icon(AppIcons.settings), onPressed: onSettings), // NAV-HOME-13
           ],
         ),
       ),

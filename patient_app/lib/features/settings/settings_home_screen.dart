@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -56,7 +57,7 @@ class SettingsHomeScreen extends ConsumerWidget {
               children: [
                 const CircleAvatar(
                     backgroundColor: AppTokens.muted,
-                    child: Icon(Icons.person, color: AppTokens.primary)),
+                    child: Icon(AppIcons.person, color: AppTokens.primary)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -91,7 +92,7 @@ class SettingsHomeScreen extends ConsumerWidget {
               ),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
                 Text('전화번호 변경', style: TextStyle(fontSize: 13)),
-                Icon(Icons.chevron_right, size: 16),
+                Icon(AppIcons.chevron_right, size: 16),
               ]),
             ),
           ),
@@ -100,7 +101,7 @@ class SettingsHomeScreen extends ConsumerWidget {
           // ② 알림
           _SettingsLink(
             key: const Key('go-notifications'),
-            icon: Icons.notifications,
+            icon: AppIcons.notifications,
             label: '알림 설정',
             description: '받을 알림을 고를 수 있습니다',
             // SET-HOME-16 — 오프라인이면 비활성 + 이유.
@@ -112,7 +113,7 @@ class SettingsHomeScreen extends ConsumerWidget {
           // 데모/사용자 결정이 중복 제거로 뒤집음 → SET-HOME-10 재확인 필요(핸드오프에 남김).
           _SettingsLink(
             key: const Key('go-password'),
-            icon: Icons.tune, // 데모 비밀번호 아이콘 = Settings2(가로 슬라이더) — 시각은 데모에 맞춘다
+            icon: AppIcons.tune, // 데모 비밀번호 아이콘 = Settings2(가로 슬라이더) — 시각은 데모에 맞춘다
             label: '비밀번호 변경',
             description: '새 비밀번호를 설정합니다',
             onTap: () => context.push('/settings/password'),
@@ -131,7 +132,7 @@ class SettingsHomeScreen extends ConsumerWidget {
           OutlinedButton.icon(
             key: const Key('logout-button'),
             onPressed: () => showLogoutConfirm(context, ref),
-            icon: const Icon(Icons.logout, size: 18, color: AppTokens.primary),
+            icon: const Icon(AppIcons.logout, size: 18, color: AppTokens.primary),
             label: const Text('로그아웃'),
           ),
           const SizedBox(height: 8),

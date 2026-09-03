@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
 import '../../core/tokens.dart';
@@ -104,7 +105,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           obscureText: _o1,
           onChanged: (_) => setState(() {}), // 화면 조건 표시용 — 서버는 부르지 않는다(AUTH-PWNEW-17)
           suffixIcon: IconButton(
-              icon: Icon(_o1 ? Icons.visibility_off : Icons.visibility,
+              icon: Icon(_o1 ? AppIcons.visibility_off : AppIcons.visibility,
                   color: AppTokens.grayPending),
               onPressed: () => setState(() => _o1 = !_o1)),
         ),
@@ -116,7 +117,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           obscureText: _o2,
           onChanged: (_) => setState(() {}),
           suffixIcon: IconButton(
-              icon: Icon(_o2 ? Icons.visibility_off : Icons.visibility,
+              icon: Icon(_o2 ? AppIcons.visibility_off : AppIcons.visibility,
                   color: AppTokens.grayPending),
               onPressed: () => setState(() => _o2 = !_o2)),
         ),

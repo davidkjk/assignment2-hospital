@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/tokens.dart';
 
 /// AI 장애 화면(CHAT-OUTAGE-*). 장애 알림(SHOW)·비AI 문의(INQUIRY/BUSY/ERR/DONE)·
@@ -100,7 +101,7 @@ class _ChatOutageViewState extends State<ChatOutageView> {
           if (widget.phase == OutageInquiryPhase.error)
             // ERR: 완료로 바꾸지 않고 오류 + 재시도.
             Row(children: [
-              const Icon(Icons.error_outline, size: 14, color: AppTokens.warn),
+              const Icon(AppIcons.error_outline, size: 14, color: AppTokens.warn),
               const SizedBox(width: 4),
               const Text('문의를 남기지 못했어요',
                   style: TextStyle(fontSize: 12, color: AppTokens.warn)),

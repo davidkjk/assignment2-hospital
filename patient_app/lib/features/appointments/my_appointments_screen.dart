@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hospital_patient_app/core/connectivity.dart';
@@ -141,7 +142,7 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
 
     return Scaffold(
       // LIST-ROLE: 탭 화면 타이틀은 「나의 예약」(데모 정본) + 📅 아이콘(하단 탭 '예약'과 짝).
-      appBar: PatientAppBar(title: '나의 예약', icon: Icons.calendar_month), // 데모 CalendarDots(체크 없는 달력)·예약 탭과 통일(DISP-ICON-03)
+      appBar: PatientAppBar(title: '나의 예약', icon: AppIcons.calendar_month), // 데모 CalendarDots(체크 없는 달력)·예약 탭과 통일(DISP-ICON-03)
       body: content,
       // LIST-CTA-01·02·03: 어느 분기든 하단에 「+ 새 예약하기」 하나(0건에도 있어야 막다른 길이 아니다).
       bottomNavigationBar: widget.bottomSlot ??

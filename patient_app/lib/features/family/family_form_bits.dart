@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 
 /// FAM-EDIT-12 관계 4종(데모 relationOptions)과 같은 목록.
-const familyRelationOptions = ['아들', '딸', '배우자', '부모'];
+const familyRelationOptions = ['아들', '딸', '배우자', '아버지', '어머니'];
 
 /// 휴대폰 번호 형식(하이픈 있어도 됨). 011/016/017/018/019도 허용한다.
 bool familyPhoneValid(String raw) {
@@ -136,7 +137,7 @@ class GenderBox extends StatelessWidget {
         child: Row(
           children: [
             // 데모 네이티브 라디오 점(items-center gap-2, 좌측)
-            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            Icon(selected ? AppIcons.radio_button_checked : AppIcons.radio_button_unchecked,
                 size: 18, color: selected ? AppTokens.primary : AppTokens.grayPending),
             const SizedBox(width: 8), // gap-2
             Text(label, style: TextStyle(fontSize: 15, color: fg)),

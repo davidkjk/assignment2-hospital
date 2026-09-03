@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -118,7 +119,7 @@ class _SettingsPasswordScreenState extends ConsumerState<SettingsPasswordScreen>
             obscureText: _o1,
             onChanged: (_) => setState(() {}),
             suffixIcon: IconButton(
-                icon: Icon(_o1 ? Icons.visibility_off : Icons.visibility, color: AppTokens.grayPending),
+                icon: Icon(_o1 ? AppIcons.visibility_off : AppIcons.visibility, color: AppTokens.grayPending),
                 onPressed: () => setState(() => _o1 = !_o1)),
           ),
           const SizedBox(height: 16),
@@ -129,7 +130,7 @@ class _SettingsPasswordScreenState extends ConsumerState<SettingsPasswordScreen>
             obscureText: _o2,
             onChanged: (_) => setState(() {}),
             suffixIcon: IconButton(
-                icon: Icon(_o2 ? Icons.visibility_off : Icons.visibility, color: AppTokens.grayPending),
+                icon: Icon(_o2 ? AppIcons.visibility_off : AppIcons.visibility, color: AppTokens.grayPending),
                 onPressed: () => setState(() => _o2 = !_o2)),
           ),
           const SizedBox(height: 16),

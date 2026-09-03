@@ -651,12 +651,17 @@ from (select p.id, (row_number() over (order by p.id))::int as rn from patients 
 -- 가족 연결 — 앱 계정 하나가 가족 환자를 함께 보는 관계(직원이 창구에서 확인해 연결).
 insert into patient_family_links
   (account_patient_id, family_patient_id, relation, is_active, linked_by, linked_at, verification_method)
-select x.a, x.b, (array['자녀','배우자','부모'])[1 + (x.rn % 3)], true,
+-- 관계: 부모는 성별로 아버지/어머니로 표기(사용자 요청 2026-09-03 — 아들/딸처럼 성별 구분).
+select x.a, x.b,
+       case (array['자녀','배우자','부모'])[1 + (x.rn % 3)]
+         when '부모' then case when x.bg = 'M' then '아버지' else '어머니' end
+         else (array['자녀','배우자','부모'])[1 + (x.rn % 3)]
+       end, true,
        'bbbbbbbb-0000-0000-0000-000000000002', now() - make_interval(days => 2 + x.rn), 'in_person'
 from (
-  select p1.id as a, p2.id as b, (row_number() over (order by p1.id))::int as rn
+  select p1.id as a, p2.id as b, p2.gender as bg, (row_number() over (order by p1.id))::int as rn
   from (select id, row_number() over (order by id) as r from patients limit 16) p1
-  join (select id, row_number() over (order by id) as r from patients limit 16) p2
+  join (select id, gender, row_number() over (order by id) as r from patients limit 16) p2
     on p2.r = p1.r + 8
   where p1.r <= 8
 ) as x;

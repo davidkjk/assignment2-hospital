@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
 import 'chat_models.dart';
@@ -24,7 +25,7 @@ class ChatHistoryView extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off_outlined, size: 40, color: AppTokens.grayDone),
+              const Icon(AppIcons.cloud_off_outlined, size: 40, color: AppTokens.grayDone),
               const SizedBox(height: 8),
               const Text('상담 목록을 불러오지 못했어요'),
               const SizedBox(height: 4),
@@ -53,11 +54,11 @@ class ChatHistoryView extends ConsumerWidget {
                 itemBuilder: (_, i) {
                   final s = list[i];
                   return ListTile(
-                    leading: const Icon(Icons.chat_bubble_outline,
+                    leading: const Icon(AppIcons.chat_bubble_outline,
                         color: AppTokens.primary),
                     title: Text(s.lastSnippet ?? '상담',
                         maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: const Icon(Icons.chevron_right, color: AppTokens.grayDone),
+                    trailing: const Icon(AppIcons.chevron_right, color: AppTokens.grayDone),
                     onTap: () => onOpen?.call(s.threadId), // RESTORE
                   );
                 },

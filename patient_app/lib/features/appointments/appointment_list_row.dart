@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/appointments/appointment_list_status.dart';
 import 'package:hospital_patient_app/core/tokens.dart'; // T0 AppTokens
@@ -61,7 +62,7 @@ class AppointmentListRow extends StatelessWidget {
         Text(st.label!, style: const TextStyle(fontSize: 13, color: AppTokens.grayPending)),
       ],
       const SizedBox(width: 4),
-      const Icon(Icons.chevron_right,
+      const Icon(AppIcons.chevron_right,
           key: Key('list-chevron'), size: 20, color: AppTokens.grayPending),
     ]);
   }

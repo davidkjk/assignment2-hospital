@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../../core/tokens.dart';
 
 /// 진료과 추천(문진 체인) 진행 배너(CHAT-GUIDE-*). 추천 중임을 고정 표시하고(SHOW),
@@ -29,7 +30,7 @@ class ChatGuideBanner extends StatelessWidget {
         border: Border.all(color: AppTokens.primary.withValues(alpha: 0.4)),
       ),
       child: const Row(children: [
-        Icon(Icons.explore_outlined, size: 18, color: AppTokens.primary),
+        Icon(AppIcons.explore_outlined, size: 18, color: AppTokens.primary),
         SizedBox(width: 8),
         Expanded(
           child: Column(

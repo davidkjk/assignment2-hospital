@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 
 /// 알림 한 건. Task 9(발송)가 notification_log에 쓴 행을 그대로 표시한다(NOTI-BODY-01).
 class NotificationView {
@@ -94,15 +95,15 @@ String notificationTitle(String type) => switch (type) {
 /// NOTI-LIST-01: 종류별 아이콘(데모 NOTIFICATION_ICON 정본 — booking=일정확인·reminder=시계·
 /// change/cancel=경고·questionnaire=문진판·chat=말풍선·aftercare=문서). 채움 벡터, 이모지 금지.
 IconData notificationIcon(String type) => switch (type) {
-      'requested' || 'confirmed' => Icons.event_available, // 예약(CalendarCheck2)
-      'reminder_day_before' || 'reminder_today' => Icons.access_time_filled, // 리마인더(CalendarClock)
+      'requested' || 'confirmed' => AppIcons.event_available, // 예약(CalendarCheck2)
+      'reminder_day_before' || 'reminder_today' => AppIcons.access_time_filled, // 리마인더(CalendarClock)
       'changed' || 'rescheduled' || 'hospital_cancelled' || 'cancellation_approved' || 'cancellation_rejected' =>
-        Icons.error, // 변경·취소(AlertCircle)
-      'questionnaire_missing' => Icons.assignment, // 문진(ClipboardList)
-      'support_answered' => Icons.chat_bubble, // 상담(MessageCircle)
-      'visit_completed' => Icons.description, // 진료 후 안내(FileText)
-      'staff_direct' => Icons.campaign, // 병원 직접 안내·공지
-      _ => Icons.notifications,
+        AppIcons.error, // 변경·취소(AlertCircle)
+      'questionnaire_missing' => AppIcons.assignment, // 문진(ClipboardList)
+      'support_answered' => AppIcons.chat_bubble, // 상담(MessageCircle)
+      'visit_completed' => AppIcons.description, // 진료 후 안내(FileText)
+      'staff_direct' => AppIcons.campaign, // 병원 직접 안내·공지
+      _ => AppIcons.notifications,
     };
 
 /// NOTI-LIST-01: 날짜 묶음 머리(오늘/어제/M월 D일).

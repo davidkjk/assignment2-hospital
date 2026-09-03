@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../core/tokens.dart';
 
 /// 오프라인·서버 오류·0건을 **한 벌의 모양**으로 처리한다(EMPTY-LAY-01):
@@ -20,7 +21,7 @@ class EmptyState extends StatelessWidget {
   /// EMPTY-OFF-01 — 오프라인. 조회 수단이 화면에 없으므로 [다시 시도]를 준다(ERR-RETRY-02).
   factory EmptyState.offline({required String screenName, required VoidCallback onRetry}) =>
       EmptyState(
-        icon: Icons.wifi_off,
+        icon: AppIcons.wifi_off,
         message: '인터넷이 연결되어 있지 않습니다',
         hint: '연결되면 $screenName을 볼 수 있습니다', // EMPTY-LAY-02
         action: _RetryButton(onRetry),
@@ -28,7 +29,7 @@ class EmptyState extends StatelessWidget {
 
   /// EMPTY-ERR-01 — 서버 오류(조회 실패).
   factory EmptyState.error({required VoidCallback onRetry}) => EmptyState(
-        icon: Icons.error,
+        icon: AppIcons.error,
         message: '정보를 불러오지 못했습니다',
         hint: '잠시 후 다시 시도해주세요',
         action: _RetryButton(onRetry),
@@ -37,7 +38,7 @@ class EmptyState extends StatelessWidget {
   /// EMPTY-ZERO-01 — 목록이 실제로 비어 있음. 같은 문법 + 그 화면의 다음 행동(`nextAction`).
   /// EMPTY-ZERO-02 — 할 일이 없는 화면(알림함 등)은 `nextAction`을 주지 않는다 → 버튼도 [다시 시도]도 없다.
   factory EmptyState.zero({required String message, String? hint, Widget? nextAction}) => EmptyState(
-        icon: Icons.inbox,
+        icon: AppIcons.inbox,
         message: message,
         hint: hint,
         action: nextAction,

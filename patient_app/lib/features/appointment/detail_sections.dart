@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -66,7 +67,7 @@ class DetailHeader extends StatelessWidget {
               const SizedBox(height: 8),
               // APPT-HEAD-03 — 누구의 예약인지(가족이면 관계·이름을 맨 위에).
               Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.person, size: 16, color: AppTokens.primary),
+                const Icon(AppIcons.person, size: 16, color: AppTokens.primary),
                 const SizedBox(width: 4),
                 Text(who,
                     style: const TextStyle(fontSize: 14, color: AppTokens.grayPending)),
@@ -96,7 +97,7 @@ class DetailHeader extends StatelessWidget {
                   left: BorderSide(color: AppTokens.warn, width: AppTokens.warnBarWidth)),
             ),
             child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.access_time_filled, size: 16, color: AppTokens.warn),
+              Icon(AppIcons.access_time_filled, size: 16, color: AppTokens.warn),
               SizedBox(width: 6),
               Expanded(
                 child: Text('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.',
@@ -137,7 +138,7 @@ class InfoTable extends StatelessWidget {
         InkWell(
           onTap: () => openMapQuery(d.hospitalAddress!),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.place, size: 16, color: AppTokens.primary),
+            const Icon(AppIcons.place, size: 16, color: AppTokens.primary),
             const SizedBox(width: 4),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -147,7 +148,7 @@ class InfoTable extends StatelessWidget {
                     style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
               ]),
             ),
-            const Icon(Icons.open_in_new, size: 14, color: AppTokens.primary),
+            const Icon(AppIcons.open_in_new, size: 14, color: AppTokens.primary),
           ]),
         ),
       ));
@@ -185,7 +186,7 @@ class InfoTable extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
             child: Row(children: [
-              const Icon(Icons.phone, size: 20, color: AppTokens.primary),
+              const Icon(AppIcons.phone, size: 20, color: AppTokens.primary),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('병원 전화',
@@ -272,7 +273,7 @@ class DetailQr extends StatelessWidget {
         IntrinsicWidth(
           child: OutlinedButton.icon(
             onPressed: () => context.push('/qr/${d.view.id}'),
-            icon: const Icon(Icons.qr_code, size: 18, color: AppTokens.primary),
+            icon: const Icon(AppIcons.qr_code, size: 18, color: AppTokens.primary),
             label: const Text('QR 보기', maxLines: 1, softWrap: false),
           ),
         ),
@@ -322,7 +323,7 @@ class _QnrAccordionState extends State<QnrAccordion> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
           child: const Row(children: [
-            Icon(Icons.warning, size: 18, color: AppTokens.warn),
+            Icon(AppIcons.warning, size: 18, color: AppTokens.warn),
             SizedBox(width: 8),
             Expanded(
               child: Text('사전문진 미작성 · 작성하기 ›',
@@ -347,11 +348,11 @@ class _QnrAccordionState extends State<QnrAccordion> {
         clipBehavior: Clip.antiAlias,
         child: Column(children: [
           ListTile(
-          leading: Icon(readonly ? Icons.lock : Icons.visibility, // APPT-QNR-07
+          leading: Icon(readonly ? AppIcons.lock : AppIcons.visibility, // APPT-QNR-07
               color: AppTokens.grayPending),
           title: Text(readonly ? '사전문진  작성완료 · 조회만' : '사전문진  작성완료 · 수정 가능', // APPT-QNR-03
               style: const TextStyle(fontWeight: FontWeight.w600)),
-          trailing: Icon(_open ? Icons.expand_less : Icons.expand_more),
+          trailing: Icon(_open ? AppIcons.expand_less : AppIcons.expand_more),
           onTap: () => setState(() => _open = !_open),
         ),
         if (_open) ...[
@@ -447,7 +448,7 @@ class DetailButtonBar extends ConsumerWidget {
       return ActionButton(
         label: '새로 예약하기',
         busyLabel: '새로 예약하기',
-        icon: Icons.calendar_month, // 데모 ApptDetail footer: <CalendarPlus/> (Material 근사)
+        icon: AppIcons.calendar_month, // 데모 ApptDetail footer: <CalendarPlus/> (Material 근사)
         style: AppButtonSize.cta, // 데모 ApptDetail footer: size=lg h-12 text-base
         onPressed: () => context.go('/booking'),
       );

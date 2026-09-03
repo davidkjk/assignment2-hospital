@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -232,7 +233,7 @@ class HistoryRow extends StatelessWidget {
                   AnimatedRotation(
                     turns: expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 150),
-                    child: const Icon(Icons.expand_more, size: 20, color: AppTokens.primary),
+                    child: const Icon(AppIcons.expand_more, size: 20, color: AppTokens.primary),
                   ),
                 ]),
               ),
@@ -333,7 +334,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     ref.listen(selectedHistoryPatientProvider, (_, __) => setState(_expanded.clear)); // HIST-LIST-11 재진입 접힘
     final page = ref.watch(historyProvider);
     return Scaffold(
-      appBar: PatientAppBar(title: '이력', icon: Icons.history), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
+      appBar: PatientAppBar(title: '이력', icon: AppIcons.history), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
       body: Column(children: [
         chips.when(
           data: (ms) => NameChips(

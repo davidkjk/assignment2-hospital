@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/tokens.dart';
@@ -33,7 +34,7 @@ class NotificationBell extends StatelessWidget {
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          const Icon(Icons.notifications),
+          const Icon(AppIcons.notifications),
           if (unreadCount >= 1) // HOME-BAR-02: 0이면 배지 자체가 없다
             Positioned(
               right: -4,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/button_sizes.dart';
@@ -171,7 +172,7 @@ class ConsentScreen extends ConsumerWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.chevron_right,
+              icon: const Icon(AppIcons.chevron_right,
                   color: AppTokens.grayPending), // CONSENT-ITEM-05: › → 본문(병원이 채운다)
               onPressed: () => showDialog(
                 context: context,

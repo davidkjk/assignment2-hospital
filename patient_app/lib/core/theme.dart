@@ -16,7 +16,7 @@ class AppTheme {
   /// 브라우저 기본 16px에 대해 키운 17/16=1.0625가 출발점이었으나, 실기기서 여전히 작다는 사용자
   /// 피드백(2026-09-02)으로 1.0625→1.10→**1.14**(≈18.2px 루트)로 단계 상향. 폰트 값은 전부 16px 기준
   /// naive로 두고 app.dart의 전역 textScaler가 이 비율로 곱한다 — 크기 조절은 오직 이 숫자 하나로 한다.
-  static const double rootFontScale = 1.14;
+  static const double rootFontScale = 1.22;
 
   static ThemeData get theme {
     const scheme = ColorScheme.light(
@@ -32,9 +32,16 @@ class AppTheme {
       colorScheme: scheme,
       fontFamily: fontFamily, // 전역 Pretendard — 지정 안 하면 iOS 기본(SF Pro)이라 데모와 인상이 갈렸다.
       scaffoldBackgroundColor: AppTokens.background,
+      // 데모 body 두께 = medium(500)(tokens.json fontWeight.body). 기본 텍스트를 medium으로 둬
+      // 회색 보조글자가 '얇아서 옅어 보이는' 문제를 해소한다(색은 그대로, 두께만 올림).
       textTheme: const TextTheme(
         bodyLarge: TextStyle(
-            fontFamily: fontFamily, fontSize: AppTokens.bodyFontSize, color: AppTokens.onSurface),
+            fontFamily: fontFamily,
+            fontSize: AppTokens.bodyFontSize,
+            fontWeight: FontWeight.w500,
+            color: AppTokens.onSurface),
+        bodyMedium: TextStyle(
+            fontFamily: fontFamily, fontWeight: FontWeight.w500, color: AppTokens.onSurface),
       ),
       // 2차 화면 헤더 = 데모 ScreenHeader(딥틸 밴드·흰 글자·base medium·아래 그림자).
       // 데모 정본: h-12(=48) 밴드 + 뒤로화살표 h-5(=20). text-base(17)·font-medium(볼드 아님)·
@@ -48,7 +55,7 @@ class AppTheme {
         shadowColor: Color(0x40102D32), // 딥틸 톤 드롭(데모 헤더 그림자)
         centerTitle: false,
         titleTextStyle: TextStyle(
-            fontFamily: fontFamily, color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+            fontFamily: fontFamily, color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
         iconTheme: IconThemeData(color: Colors.white, size: 20), // 데모 뒤로화살표 h-5 (기본 24 → 20)
       ),
       // 입력칸 = 흰 면 + 둥근 사각 테두리(데모: 라벨은 칸 위에 별도, 칸 안엔 안내글만).

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -162,7 +163,7 @@ class _FamilyLinkFormScreenState extends ConsumerState<FamilyLinkFormScreen> {
             label: '인증번호 받기',
             busyLabel: '보내는 중…',
             busy: _busy,
-            icon: Icons.phone, // 데모 ExistingFamily <Phone> 아이콘 (Phosphor Phone fill 근사)
+            icon: AppIcons.phone, // 데모 ExistingFamily <Phone> 아이콘 (Phosphor Phone fill 근사)
             style: AppButtonSize.lg, // 데모 ExistingFamily: size=lg w-full
             onPressed: _send,
           ),

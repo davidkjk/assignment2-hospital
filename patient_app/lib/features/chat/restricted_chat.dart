@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/tokens.dart';
 
 /// 예약 중 상담(제한모드, 결정 E4). 정보성 안내·진료과 추천만 하고 모든 행동형 카드를 금지한다(MODE,
@@ -59,7 +60,7 @@ class RestrictedChatPanel extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: IconButton(
               key: const Key('sheet-close'),
-              icon: const Icon(Icons.close),
+              icon: const Icon(AppIcons.close),
               onPressed: onClose,
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/tokens.dart';
@@ -58,7 +59,7 @@ class PhoneChangeScreen extends StatelessWidget {
         ],
         const SizedBox(height: 28),
         FilledButton.icon(
-          icon: const Icon(Icons.call, size: 18),
+          icon: const Icon(AppIcons.call, size: 18),
           // AUTH-TEL-04: 전화 앱으로 연결.
           onPressed: () => launchUrl(Uri.parse('tel:$_hospitalTel')),
           label: const Text('병원 전화번호로 문의'),

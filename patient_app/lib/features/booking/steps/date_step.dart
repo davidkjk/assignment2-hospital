@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/tokens.dart';
 import '../../../widgets/empty_state.dart';
@@ -91,7 +92,7 @@ class _MonthCalendarState extends State<MonthCalendar> {
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           IconButton(
             key: const Key('cal-prev'),
-            icon: const Icon(Icons.chevron_left, size: 20),
+            icon: const Icon(AppIcons.chevron_left, size: 20),
             color: AppTokens.primary,
             disabledColor: AppTokens.grayDone, // 데모 muted/30
             visualDensity: VisualDensity.compact,
@@ -105,7 +106,7 @@ class _MonthCalendarState extends State<MonthCalendar> {
           ),
           IconButton(
             key: const Key('cal-next'),
-            icon: const Icon(Icons.chevron_right, size: 20),
+            icon: const Icon(AppIcons.chevron_right, size: 20),
             color: AppTokens.primary,
             disabledColor: AppTokens.grayDone,
             visualDensity: VisualDensity.compact,

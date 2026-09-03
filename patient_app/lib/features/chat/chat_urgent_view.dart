@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/tokens.dart';
 
 /// 긴급 안내 상태(CHAT-URGENT-*). 일반 추천/예약 중단(STOP)·119/응급실 우선(GUIDE)·
@@ -30,7 +31,7 @@ class ChatUrgentView extends StatelessWidget {
                   left: BorderSide(color: AppTokens.warn, width: AppTokens.warnBarWidth)),
             ),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.emergency_outlined, color: AppTokens.warn, size: 22),
+              const Icon(AppIcons.emergency_outlined, color: AppTokens.warn, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(body,

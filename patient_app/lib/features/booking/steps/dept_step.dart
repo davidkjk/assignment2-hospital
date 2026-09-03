@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/tokens.dart';
 import '../../../widgets/dashed_border.dart';
@@ -39,7 +40,7 @@ class DeptStep extends ConsumerWidget {
                               style:
                                   const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         ),
-                        const Icon(Icons.chevron_right, color: AppTokens.primary),
+                        const Icon(AppIcons.chevron_right, color: AppTokens.primary),
                       ]),
                     ),
                   ),
@@ -70,7 +71,7 @@ class _DeptBotEntry extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: const Column(children: [
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.help, size: 18, color: AppTokens.primary),
+            Icon(AppIcons.help, size: 18, color: AppTokens.primary),
             SizedBox(width: 8),
             Text('어느 과인지 모르겠어요',
                 style: TextStyle(color: AppTokens.primary, fontWeight: FontWeight.w600)),

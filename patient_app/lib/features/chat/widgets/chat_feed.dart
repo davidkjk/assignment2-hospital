@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../../core/tokens.dart';
 import '../chat_models.dart';
 import 'chat_bubble.dart';
@@ -47,7 +48,7 @@ class ChatFeed extends StatelessWidget {
                   child: TextButton.icon(
                     key: const Key('chat-feedback-btn'),
                     onPressed: () => onFeedback?.call(it),
-                    icon: const Icon(Icons.flag_outlined, size: 15),
+                    icon: const Icon(AppIcons.flag_outlined, size: 15),
                     label: const Text('도움이 안 됐어요'),
                     style: TextButton.styleFrom(
                       foregroundColor: AppTokens.grayPending,

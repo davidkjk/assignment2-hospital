@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 
 import '../../core/tokens.dart';
 
@@ -22,9 +23,9 @@ class HospitalInfoRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _line(Icons.place, address, onTapAddress), // HOME-INFO-01: 주소
+        _line(AppIcons.place, address, onTapAddress), // HOME-INFO-01: 주소
         const SizedBox(height: 6),
-        _line(Icons.call, phone, onTapPhone), // HOME-INFO-01: 전화
+        _line(AppIcons.call, phone, onTapPhone), // HOME-INFO-01: 전화
       ],
     );
   }

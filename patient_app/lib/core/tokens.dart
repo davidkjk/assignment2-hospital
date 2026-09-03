@@ -6,7 +6,7 @@ class AppTokens {
   AppTokens._();
 
   // DISP-GRAY-01/02/03 — 회색은 두 진하기뿐. 새 색을 만들지 않는다.
-  static const Color grayPending = Color(0xFF7E8E99); // patientApp.grayPending (아직 안 된 일)
+  static const Color grayPending = Color(0xFF454545); // patientApp.grayPending (아직 안 된 일)
   static const Color grayDone = Color(0xFFA3AFB8); // color.gray-past (이미 끝난 일)
   static const List<Color> grays = [grayPending, grayDone];
 
@@ -36,9 +36,9 @@ class AppTokens {
   // 경계선(옅은 쿨 그레이)·muted 띠 바탕·본문 글자(진회색).
   static const Color background = Color(0xFFF2F5F7);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color border = Color(0xFFD5DBDF);
-  static const Color muted = Color(0xFFEDF0F2);
-  static const Color onSurface = Color(0xFF1F2937);
+  static const Color border = Color(0xFFC7C7C7);
+  static const Color muted = Color(0xFFF2F2F2);
+  static const Color onSurface = Color(0xFF0D0D0D);
 
   // patientApp.body — 본문 기본 크기(테마 bodyLarge). 16px naive → 전역 배율(app.dart ×17/16)로 17px 렌더.
   static const double bodyFontSize = 16.0;
@@ -78,7 +78,7 @@ class AppTokens {
   // 부드러운 후광 — 카드에 가깝게 잡는다. 카드가 촘촘히 쌓여(간격 8) 아래 카드가 위 그림자를
   // 자르므로, 오프셋·블러를 작게 해 잘림(하드 라인)을 최소화한다. 그림자는 바깥 Container에 그림.
   static const List<BoxShadow> cardElevation = [
-    BoxShadow(color: Color(0x0D102D32), blurRadius: 14), // 사방 고른 앰비언트
-    BoxShadow(color: Color(0x1A102D32), blurRadius: 18, offset: Offset(0, 3)), // 아래로 은은히(가깝게)
+    BoxShadow(color: Color(0x12102D32), blurRadius: 14), // 사방 고른 앰비언트(사용자 요청 미세하게↑)
+    BoxShadow(color: Color(0x24102D32), blurRadius: 18, offset: Offset(0, 3)), // 아래로 은은히(가깝게)
   ];
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,7 +19,7 @@ class FamilyListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(familyListProvider);
     return Scaffold(
-      appBar: PatientAppBar(title: '가족 관리', icon: Icons.groups),
+      appBar: PatientAppBar(title: '가족 관리', icon: AppIcons.groups),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) {
@@ -79,9 +80,14 @@ class _FamilyListBody extends StatelessWidget {
               context.push('/family/add');
             }
           },
-          icon: const Icon(Icons.person_add_alt_1, size: 20),
+          icon: const Icon(AppIcons.person_add_alt_1, size: 20),
           label: const Text('가족 추가하기'),
-          style: AppButtonSize.lg, // 데모 FamilyList: variant=outline size=lg w-full
+          // 테두리→그림자(사용자 요청): 흰 면 + 옅은 그림자, 외곽선 제거.
+          style: AppButtonSize.lg.copyWith(
+              side: const WidgetStatePropertyAll(BorderSide.none),
+              backgroundColor: const WidgetStatePropertyAll(AppTokens.surface),
+              elevation: const WidgetStatePropertyAll(1.5),
+              shadowColor: const WidgetStatePropertyAll(Color(0x33102D32))),
         ),
       ],
     );
@@ -140,10 +146,14 @@ class FamilyCard extends StatelessWidget {
               const SizedBox(width: 12),
               OutlinedButton.icon(
                 onPressed: onEdit,
-                icon: const Icon(Icons.edit, size: 15),
+                icon: const Icon(AppIcons.edit, size: 15),
                 label: const Text('정보 수정'),
-                // 데모 FamilyList [정보 수정]: variant=outline size=sm. Row 안이라 폭은 내용만큼.
-                style: AppButtonSize.shrink(AppButtonSize.sm),
+                // 테두리→그림자(사용자 요청): 흰 면 + 옅은 그림자, 외곽선 제거.
+                style: AppButtonSize.shrink(AppButtonSize.sm).copyWith(
+                    side: const WidgetStatePropertyAll(BorderSide.none),
+                    backgroundColor: const WidgetStatePropertyAll(AppTokens.surface),
+                    elevation: const WidgetStatePropertyAll(1.5),
+                    shadowColor: const WidgetStatePropertyAll(Color(0x33102D32))),
               ),
             ],
           ),
@@ -167,22 +177,33 @@ class UpcomingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        foregroundColor: AppTokens.onSurface,
+    // 테두리→그림자(사용자 요청): 흰 면 + 옅은 그림자, 외곽선 제거. 눌림 리플 유지.
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppTokens.surface,
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+        boxShadow: [BoxShadow(color: Color(0x14102D32), blurRadius: 8, offset: Offset(0, 1))],
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.calendar_month, size: 16, color: AppTokens.primary), // 채움(DISP-ICON-03)·예약 탭과 통일. 데모 CalendarDots
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text('${_dateLabel(upcoming.slotDate)} ${_time(upcoming.startTime)} · ${upcoming.departmentName}',
-                style: const TextStyle(fontSize: 14, color: AppTokens.onSurface)),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(AppIcons.calendar_month, size: 16, color: AppTokens.primary), // 채움(DISP-ICON-03)·예약 탭과 통일. 데모 CalendarDots
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('${_dateLabel(upcoming.slotDate)} ${_time(upcoming.startTime)} · ${upcoming.departmentName}',
+                      style: const TextStyle(fontSize: 14, color: AppTokens.onSurface)),
+                ),
+                const Icon(AppIcons.chevron_right, size: 18, color: AppTokens.grayPending),
+              ],
+            ),
           ),
-          const Icon(Icons.chevron_right, size: 18, color: AppTokens.grayPending),
-        ],
+        ),
       ),
     );
   }

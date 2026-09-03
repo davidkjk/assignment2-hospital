@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/sensitive_reauth.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
@@ -69,7 +70,7 @@ class _ReauthScreenState extends State<ReauthScreen> {
         leadingWidth: 44,
         titleSpacing: 0,
         leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(AppIcons.close),
             tooltip: '닫기',
             onPressed: widget.onCancel),
         title: const Text('본인 확인'),
@@ -84,7 +85,7 @@ class _ReauthScreenState extends State<ReauthScreen> {
           controller: _pw,
           obscureText: _obscure, // AUTH-REAUTH-01·03
           suffixIcon: IconButton(
-              icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility,
+              icon: Icon(_obscure ? AppIcons.visibility_off : AppIcons.visibility,
                   color: AppTokens.grayPending),
               onPressed: () => setState(() => _obscure = !_obscure)),
         ),

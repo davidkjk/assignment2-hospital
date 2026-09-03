@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/tokens.dart';
@@ -184,7 +185,7 @@ class AppointmentCard extends StatelessWidget {
         AppointmentCardState.req => const [
             // 결정 317: 주의색 + 좌측 4px 바 + 시계(상세 배너와 통일). 데모 AttentionNotice=바+Clock3.
             WarnText('병원이 확인하는 중입니다. 확정되면 알림을 보내드립니다.',
-                icon: Icons.access_time_filled),
+                icon: AppIcons.access_time_filled),
             SizedBox(height: 8),
           ],
         AppointmentCardState.unconf => const [
@@ -217,8 +218,8 @@ class AppointmentCard extends StatelessWidget {
         ],
       AppointmentCardState.unconf || AppointmentCardState.late => [
           _outline(context, '상담 채팅 연결', () => context.go('/chat'),
-              icon: Icons.chat_bubble), // UNCONF-06 · CARD-LATE-05
-          _outline(context, '병원 전화', _callHospital, icon: Icons.phone),
+              icon: AppIcons.chat_bubble), // UNCONF-06 · CARD-LATE-05
+          _outline(context, '병원 전화', _callHospital, icon: AppIcons.phone),
         ],
       _ => const <Widget>[],
     };

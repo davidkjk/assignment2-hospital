@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 
 /// DISP-ICON-01/02/03 — 상태를 나타내는 공통 아이콘. 채움(Solid) 벡터만, 이모지 금지.
 enum AppIconKind {
@@ -9,8 +10,8 @@ enum AppIconKind {
 IconData appIcon(AppIconKind kind) {
   switch (kind) {
     case AppIconKind.blocked:
-      return Icons.lock;
+      return AppIcons.lock;
     case AppIconKind.readonly:
-      return Icons.visibility;
+      return AppIcons.visibility;
   }
 }

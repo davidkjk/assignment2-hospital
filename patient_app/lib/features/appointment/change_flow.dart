@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -237,7 +238,7 @@ class _DateStep extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Row(children: [
-            Icon(Icons.calendar_month, size: 20, color: AppTokens.primary),
+            Icon(AppIcons.calendar_month, size: 20, color: AppTokens.primary),
             SizedBox(width: 8),
             Text('변경할 날짜를 골라주세요', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ]),
@@ -284,7 +285,7 @@ void _openDoctorPicker(BuildContext context, WidgetRef ref, AppointmentDetail d,
             ),
             for (final Doctor doc in list)
               ListTile(
-                leading: const Icon(Icons.person, color: AppTokens.primary),
+                leading: const Icon(AppIcons.person, color: AppTokens.primary),
                 title: Text('${doc.name} 선생님'),
                 subtitle: Text(doc.scheduleSummary),
                 onTap: () {
@@ -319,7 +320,7 @@ class _TimeStep extends ConsumerWidget {
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Expanded(
               child: Row(children: [
-                Icon(Icons.access_time_filled, size: 20, color: AppTokens.primary),
+                Icon(AppIcons.access_time_filled, size: 20, color: AppTokens.primary),
                 SizedBox(width: 8),
                 Flexible(
                   child: Text('변경할 시간을 골라주세요',
@@ -461,7 +462,7 @@ Future<bool?> showChangeConfirm(BuildContext context, {required String before, r
       alignment: Alignment.bottomCenter,
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          AppDialogIcon(Icons.check_circle,
+          AppDialogIcon(AppIcons.check_circle,
               background: AppTokens.primary.withValues(alpha: 0.10), color: AppTokens.primary),
           const SizedBox(width: 12),
           Expanded(

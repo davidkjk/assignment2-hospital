@@ -24,7 +24,6 @@ dependencies:
   screen_brightness: ^2.1.2
   uuid: ^4.4.0
   flutter_svg: ^2.0.10 # 브랜드 로고(Phosphor Hospital) 벡터 — 데모·직원웹과 정확 일치
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -33,10 +32,14 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.1 # [배포 Task 10] 릴리즈 아이콘 생성기
 
 # [배포 Task 10] 앱 런처 아이콘 — build_release.sh가 `dart run flutter_launcher_icons`로 android/ios 리소스를 생성한다.
+# 디자인: 딥틸(#0B6E70) 배경 + 흰 병원 로고(십자+건물). iOS/레거시는 풀 아이콘(app_icon.png,
+# 딥틸+흰 로고), Android 8.0+ adaptive는 딥틸 단색 배경 + 흰 로고 foreground.
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#0B6E70"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
 flutter:
   uses-material-design: true
@@ -59,3 +62,12 @@ flutter:
       fonts:
         - asset: assets/fonts/DoHyeon-Regular.ttf
           weight: 400
+    # 아이콘 서체 = Phosphor(데모 @phosphor-icons/react 정본). core/app_icons.dart가 IconData로 참조.
+    # 채움(Fill) 기본 + 방향 캐럿·라디오 링만 Bold. phosphor_flutter 패키지는 final IconData 상속으로
+    # 컴파일 불가 → 폰트·코드포인트만 가져와 직접 IconData 생성(app_icons.dart 주석 참고).
+    - family: PhosphorFill
+      fonts:
+        - asset: assets/fonts/Phosphor-Fill.ttf
+    - family: PhosphorBold
+      fonts:
+        - asset: assets/fonts/Phosphor-Bold.ttf

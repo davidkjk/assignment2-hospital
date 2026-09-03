@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/tokens.dart';
@@ -65,7 +66,7 @@ class _HospitalInfoScreenState extends ConsumerState<HospitalInfoScreen> {
                   child: FilledButton.icon(
                     key: const Key('call-button'),
                     onPressed: () => _call(info?.phone),
-                    icon: const Icon(Icons.phone),
+                    icon: const Icon(AppIcons.phone),
                     label: Text('전화 걸기   ${info?.phone ?? ''}',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                     style: FilledButton.styleFrom(
@@ -106,7 +107,7 @@ class _HospitalInfoScreenState extends ConsumerState<HospitalInfoScreen> {
                   child: OutlinedButton.icon(
                     key: const Key('map-button'),
                     onPressed: () => _openMap(info?.address),
-                    icon: const Icon(Icons.map),
+                    icon: const Icon(AppIcons.map),
                     label: const Text('지도 앱으로 길 찾기'),
                   ),
                 ),

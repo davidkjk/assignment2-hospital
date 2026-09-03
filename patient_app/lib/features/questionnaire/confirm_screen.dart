@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/tokens.dart';
@@ -138,7 +139,7 @@ class ConfirmScreen extends ConsumerWidget {
                 // NAV-QNR-14: 확인 화면은 questions 순서를 그대로 쓰므로 위치가 곧 index. 라벨은 규칙 문구 '고치기'.
                 onPressed: () =>
                     context.go('/questionnaire/$appointmentId?start=$index&from=confirm'),
-                icon: const Icon(Icons.edit, size: 14), // 데모 Pencil size-3.5
+                icon: const Icon(AppIcons.edit, size: 14), // 데모 Pencil size-3.5
                 label: const Text('고치기'),
                 style: AppButtonSize.shrink(AppButtonSize.sm).copyWith(
                   foregroundColor: const WidgetStatePropertyAll(AppTokens.primary),

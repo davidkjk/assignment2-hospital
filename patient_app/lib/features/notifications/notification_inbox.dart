@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -40,11 +41,11 @@ class _NotificationInboxState extends ConsumerState<NotificationInbox> {
       appBar: AppBar(
         title: const Text('알림함'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(AppIcons.arrow_back),
           onPressed: () => context.go('/home'),
         ),
         actions: const [
-          Padding(padding: EdgeInsets.only(right: 16), child: Icon(Icons.notifications)),
+          Padding(padding: EdgeInsets.only(right: 16), child: Icon(AppIcons.notifications)),
         ],
       ),
       body: _body(online),
@@ -67,7 +68,7 @@ class _NotificationInboxState extends ConsumerState<NotificationInbox> {
               // NOTI-EMPTY-01·02: 사실이므로 [다시 시도]를 두지 않는다(nextAction 없음).
               return const Center(
                 child: EmptyState(
-                  icon: Icons.notifications,
+                  icon: AppIcons.notifications,
                   message: '받은 알림이 없습니다',
                   hint: '예약이 확정되거나 변경되면 여기에서 알려드립니다',
                 ),

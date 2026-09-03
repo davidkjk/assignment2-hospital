@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../../core/tokens.dart';
 
 /// 자유 입력창은 항상 열려 있다(CHAT-ROOM-INPUT-01). 빠른답변은 위 슬롯으로만 얹고
@@ -56,7 +57,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.send, color: AppTokens.primary),
+              icon: const Icon(AppIcons.send, color: AppTokens.primary),
               onPressed: _submit,
             ),
           ]),

@@ -18,10 +18,13 @@ class AppCard extends StatelessWidget {
           key: const Key('app_card_main'),
           // 데모 정본: 테두리 대신 딥틸 tint 배경 + 옅은 그림자로 "떠 보이는" 안쪽 박스(DISP-CARD-01).
           decoration: BoxDecoration(
-            color: AppTokens.primary.withValues(alpha: 0.10),
+            // 데모 bg-primary/10을 **불투명 색으로 고정**(#E7F0F1 = 딥틸10%를 흰 위에 미리 합성).
+            // Flutter는 반투명 배경 뒤에 그린 그림자가 배경을 **통과해 비쳐** 아래가 어두워지고
+            // 그라데이션처럼 보인다(데모 CSS 그림자는 밖에만 있어 안 비침). 불투명색이면 평평·옅게.
+            color: const Color(0xFFE7F0F1),
             borderRadius: BorderRadius.circular(10), // 데모 rounded-lg = --radius(10)
             boxShadow: const [
-              BoxShadow(color: Color(0x24102D32), blurRadius: 10, offset: Offset(0, 2)),
+              BoxShadow(color: Color(0x14102D32), blurRadius: 8, offset: Offset(0, 1)), // 희미한 그림자만
             ],
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../../core/tokens.dart';
 import '../chat_models.dart';
 
@@ -30,7 +31,7 @@ class ChatHandoffBadge extends StatelessWidget {
           border: Border.all(color: AppTokens.border),
         ),
         child: Row(children: [
-          const Icon(Icons.error_outline, size: 16, color: AppTokens.warn),
+          const Icon(AppIcons.error_outline, size: 16, color: AppTokens.warn),
           const SizedBox(width: 6),
           const Expanded(
               child: Text('상태를 불러오지 못했어요',

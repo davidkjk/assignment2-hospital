@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/pending_request.dart' show koreanTime;
@@ -25,7 +26,7 @@ class DoneStep extends ConsumerWidget {
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const SizedBox(height: 24),
-            const Icon(Icons.check_circle, size: 72, color: AppTokens.primary), // BOOK-DONE-01
+            const Icon(AppIcons.check_circle, size: 72, color: AppTokens.primary), // BOOK-DONE-01
             const SizedBox(height: 16),
             Text(requested ? '예약이 신청되었습니다' : '예약이 확정되었습니다', // BOOK-DONE-02·03
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
