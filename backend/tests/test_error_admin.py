@@ -79,7 +79,7 @@ async def _clean_error_log(db_pool):
 async def _seed_patient(conn) -> str:
     return await conn.fetchval(
         "insert into patients (name, birth_date, gender, phone) "
-        "values ('가', '1990-01-01', 'female', '01011112222') returning id")
+        "values ('가', '1990-01-01', 'F', '01011112222') returning id")  # 00028 patients_gender_check: F/M만 허용
 
 
 async def _seed_error(conn, *, feature: str, summary: str, message: str = "x",
@@ -133,7 +133,7 @@ async def test_LIST_04_저장시점에_지우고_화면은_safe_summary만_받�
     assert "010-1234-5678" not in db["message"]
     assert "900101-1234567" not in db["message"]
     await app_pool.close_pool()
-    res = client.get("/error-logs", headers=_auth(admin)).json()["rows"]["rows"]
+    res = client.get("/error-logs", headers=_auth(admin)).json()["rows"]
     assert res[0]["summary"] == "예약을 불러오는 중 시스템 오류가 발생했습니다."
     assert "message" not in res[0]                       # 기술 상세는 화면 계약에 없다(뒷단에서만)
     assert "010-1234-5678" not in str(res[0])
