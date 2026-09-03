@@ -59,6 +59,19 @@ test('[WEBMOD-AUTH-08] 가입 완료는 재확인 카드를 다시 표시하고 
   expect(api.executeCard).not.toHaveBeenCalled(); // 인증만으로 자동 신청 없음([신청] 눌러야 확정)
 });
 
+test('[SP1] ⑦(귀속·재검증) 라우트가 아직 404여도 로그인 자체는 성공으로 처리해 관문을 닫는다', async () => {
+  // SP1은 ⑦(chat/attribute·cards/revalidate) 없이 선다 — 그 호출이 던져도 로그인 실패로 보이지 않아야.
+  const api = fakeApi({
+    attributeSessionToAccount: vi.fn(async () => { throw new Error('webchat_api_404'); }),
+    revalidateAction: vi.fn(async () => { throw new Error('webchat_api_404'); }),
+  });
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(screen.getByRole('button', { name: '내 예약 조회' }));
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: '로그인 또는 가입' })).not.toBeInTheDocument());
+});
+
 test('[WEBMOD-AUTH-09] 명시적 로그인 성공 시에만 앞선 익명 이력을 계정에 귀속한다', async () => {
   const api = fakeApi();
   render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);

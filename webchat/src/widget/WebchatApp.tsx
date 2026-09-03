@@ -22,11 +22,17 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
 
   const afterAuth = async (pid: string, action: PendingAction) => {
     setPatientId(pid);
-    await api.attributeSessionToAccount({ patientId: pid });  // WEBMOD-AUTH-09: 명시 인증에만 귀속
-    setAuthAction(null);
-    if (action.kind === 'view_my_appointments') { await api.revalidateAction({ action }); return; } // WEBMOD-AUTH-07: 최신 조회
-    const { card } = await api.revalidateAction({ action });  // WEBMOD-AUTH-08 / BOOKCONF-03: 재확인 카드(자동 실행 없음)
-    setReconfirm(card);
+    setAuthAction(null);                                      // 로그인 자체는 성공 — 관문을 먼저 닫는다
+    // 귀속·재검증은 ⑦(chat/attribute·cards/revalidate) 라우트에 의존한다. 아직 미배선(404)이라
+    // 여기서 던져도 로그인은 성공으로 둔다(SP1 범위 = 로그인·patientId 확보까지). ⑦ 오면 실동작.
+    try {
+      await api.attributeSessionToAccount({ patientId: pid });  // WEBMOD-AUTH-09: 명시 인증에만 귀속
+      if (action.kind === 'view_my_appointments') { await api.revalidateAction({ action }); return; } // WEBMOD-AUTH-07: 최신 조회
+      const { card } = await api.revalidateAction({ action });  // WEBMOD-AUTH-08 / BOOKCONF-03: 재확인 카드(자동 실행 없음)
+      setReconfirm(card);
+    } catch {
+      // ⑦ 미배선 — 재확인 카드·귀속은 건너뛴다(로그인은 이미 성공 처리됨).
+    }
   };
 
   return (

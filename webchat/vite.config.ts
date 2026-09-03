@@ -10,6 +10,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/chat': { target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000', changeOrigin: true },
+      // 팝업 로그인 화면이 GET /patient/me로 본인 patientId를 확인한다(same-origin).
+      '/patient': { target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000', changeOrigin: true },
     },
   },
 });
