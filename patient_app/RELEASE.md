@@ -34,6 +34,12 @@ keytool -genkey -v -keystore ~/keys/hospital-demo-release.jks \
 # 암호를 물으면 사용자가 정한 값을 입력하고 안전한 곳에 보관.
 ```
 
+> **📌 이 데모에서 실제로 생성한 keystore (2026-09-03, Task 18)**
+> - 파일: `~/keys/hospital-demo-release.jks` (커밋 안 됨, `.gitignore`)
+> - alias: `hospital-demo` · **store/key 암호: `demo1234`** (프로젝트 다른 데모 계정과 동일한 데모 암호)
+> - 인증서: `CN=Gaon Hospital Demo, O=VCU Hospital, C=KR`, SHA-256 지문 `F7:E2:D5:82:…:65:A7`
+> - ⚠️ **이건 데모 전용이다.** 암호를 문서에 적어 「분실=업데이트 불가」 위험을 없앤 것 — **실서비스로 전환하면 본인만 아는 강한 암호로 keystore를 다시 만들어야 한다**(그 순간부터 암호 분실 시 앱 업데이트가 영구 불가해지니 비밀번호 관리자에 보관).
+
 ### A-2. key.properties 채우기 (커밋 금지)
 
 ```bash
