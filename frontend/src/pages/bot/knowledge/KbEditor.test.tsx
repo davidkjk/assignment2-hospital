@@ -37,11 +37,22 @@ describe('KbEditor', () => {
     expect(screen.getByRole('button', { name: '승인' })).toBeVisible()
   })
 
-  it('[KBADM-EDITOR-02] 분류 선택지에 진료과·의사 소개, 진료시간·휴진일을 제공하지 않는다', async () => {
-    render(<KbEditor api={mkApi()} docId="d1" />)
-    const opts = Array.from((await screen.findByLabelText('분류')).querySelectorAll('option')).map((o) => o.textContent)
+  it('[KBADM-EDITOR-02] 분류 추천 목록에 진료과·의사 소개, 진료시간·휴진일을 제공하지 않는다', async () => {
+    const { container } = render(<KbEditor api={mkApi()} docId="d1" />)
+    await screen.findByLabelText('분류')
+    const opts = Array.from(container.querySelectorAll('#kb-category-list option')).map((o) => (o as HTMLOptionElement).value)
     expect(opts).not.toContain('진료과·의사 소개')
     expect(opts).not.toContain('진료시간·휴진일')
+  })
+
+  it('[KBADM-EDITOR-분류자유입력] 목록에 없는 새 분류명을 직접 입력해 저장할 수 있다', async () => {
+    const api = mkApi()
+    render(<KbEditor api={api} docId="d1" />)
+    const cat = await screen.findByLabelText('분류')
+    await userEvent.clear(cat)
+    await userEvent.type(cat, '주차·교통')
+    await userEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect(api.submitEdit).toHaveBeenCalledWith('d1', expect.objectContaining({ category: '주차·교통' }))
   })
 
   it('[KBADM-EDITOR-03] 제한 체크박스 이름은 정확히 지정 문구이고 저장값은 is_restricted다', async () => {

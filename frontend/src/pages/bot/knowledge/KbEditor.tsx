@@ -141,11 +141,21 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
 
         <label className="block">
           <span className="mb-1.5 block text-xs font-medium text-muted-foreground">분류</span>
-          <select aria-label="분류" value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+          {/* 콤보박스: 기존 분류를 고르거나 목록에 없는 새 분류명을 직접 입력해 만든다(자유 입력, 백엔드는 자유 텍스트). */}
+          <input
+            aria-label="분류"
+            list="kb-category-list"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="분류를 고르거나 새 분류명을 입력합니다"
+            className={inputCls}
+          />
+          <datalist id="kb-category-list">
             {categoryOptions.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c} />
             ))}
-          </select>
+          </datalist>
+          <span className="mt-1 block text-[11px] text-muted-foreground">목록에 없으면 새 분류명을 직접 입력해 만들 수 있습니다.</span>
         </label>
 
         <label className="block">
