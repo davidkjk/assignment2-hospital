@@ -1,7 +1,14 @@
 -- 환자 신원(auth 연결) + 소유 판정 함수 + 환자용 RLS. 옛 00200~00202를 폐기·재번호.
--- ⚠️ auth_user_id 칸 자체는 00044(병합)가 이미 추가했다(`uuid unique`, 순수 uuid 표식). 그 파일이
---    「이월: 3단계에서 auth.users FK를 맞출 것」이라 명시적으로 넘겼으므로, 여기서는 컬럼을 다시
---    만들지 않고 **FK만 더한다**. (unique는 이미 patients_auth_user_id_key로 존재.)
+-- ⚠️ 재번호로 이 파일(017)이 00044(병합)보다 **먼저** 실행된다. auth_user_id 칸·unique는 원래
+--    00044가 만들었으나(순수 uuid 표식), 깨끗한 순서 적용에선 여기가 첫 소비자다. 따라서 이 파일이
+--    컬럼·unique를 idempotent하게 보장한 뒤 FK를 더한다. 00044는 `add column if not exists`로 완화되어
+--    뒤에서 재실행돼도 무해(있으면 skip). unique 제약명은 patients_auth_user_id_key로 통일.
+alter table patients add column if not exists auth_user_id uuid;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'patients_auth_user_id_key') then
+    alter table patients add constraint patients_auth_user_id_key unique (auth_user_id);
+  end if;
+end $$;
 alter table patients add constraint patients_auth_user_id_fkey
   foreign key (auth_user_id) references auth.users(id);
 alter table patients alter column phone drop not null;   -- #3 전화 없는 가족

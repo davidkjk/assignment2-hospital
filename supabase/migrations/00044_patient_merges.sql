@@ -9,7 +9,10 @@
 -- patients↔인증계정 연결은 3단계(환자 앱)가 정식화하지만, 병합이 「두 기록 모두 계정이
 -- 연결되어 있으면 자동 병합 불가」를 판정하려면 지금 이 칸이 필요하다. 병합이 첫 소비자다.
 -- ⚠️ 이월: 3단계에서 auth.users FK·환자 로그인 모델과 맞출 것(지금은 순수 uuid 표식).
-alter table patients add column auth_user_id uuid unique;
+-- ⚠️ 재번호로 00017(신원)이 이 파일보다 **먼저** 실행되어 이미 이 칸·unique를 만든다. 신규/과거 어느
+--    순서로 적용돼도 안전하도록 if not exists로 완화(있으면 skip). unique는 00017가 소유
+--    (patients_auth_user_id_key). 이 파일 단독 실행 경로(옛 순서)에서도 컬럼은 여전히 생긴다.
+alter table patients add column if not exists auth_user_id uuid;
 
 -- ── 병합 원장 = 계보 단일표 ───────────────────────────────────────────────────
 create table patient_merges (

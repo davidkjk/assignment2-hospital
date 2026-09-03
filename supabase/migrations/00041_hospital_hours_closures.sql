@@ -43,3 +43,11 @@ create policy "staff_read_hospital_closures" on hospital_closures
   for select using (private.is_active_staff());
 create policy "admin_manage_hospital_closures" on hospital_closures
   for all using (private.is_admin()) with check (private.is_admin());
+
+-- 진료시간·휴진일은 공개 정보 → 로그인 환자(authenticated)도 읽기만 허용.
+-- ⚠️ 이관됨(2026-09-02, 원래 00031): 00031이 이 표들보다 먼저 실행되어 「표 없음」으로 실패했다.
+--    표를 만드는 이 파일에서 환자 읽기 정책까지 함께 연다(순서·소유 일치). is_closed 칸 없음 — 휴진 요일 = 행 없음.
+create policy authenticated_reads_hospital_hours on hospital_hours
+  for select to authenticated using (true);
+create policy authenticated_reads_hospital_closures on hospital_closures
+  for select to authenticated using (true);

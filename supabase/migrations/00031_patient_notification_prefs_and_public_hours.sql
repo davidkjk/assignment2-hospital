@@ -12,11 +12,7 @@ create policy patient_updates_own_notification_prefs on notification_preferences
   for update using (patient_id in (select id from patients where auth_user_id = auth.uid()))
            with check (patient_id in (select id from patients where auth_user_id = auth.uid()));
 
--- ② 진료시간·휴진일은 공개 정보 → 로그인 환자(authenticated)가 읽기만. 쓰기는 직원 전용(정책 신설 안 함).
---    ⭐ 경계: hospital_hours·hospital_closures 표 자체는 직원웹 T29(00041) 소유다. 여기서는 「읽기 문」만 얹는다
---    (departments를 환자가 acquire_as로 읽는 것과 같은 꼴 — 표는 남의 것, 읽기 정책은 소비자가 연다).
---    ⚠️ hospital_hours엔 is_closed 칸이 없다(00041) — 휴진 요일 = 그 요일 행이 아예 없음. 읽기 정책만 필요.
-create policy authenticated_reads_hospital_hours on hospital_hours
-  for select to authenticated using (true);
-create policy authenticated_reads_hospital_closures on hospital_closures
-  for select to authenticated using (true);
+-- ② 진료시간·휴진일 환자 읽기 정책(authenticated_reads_hospital_hours/closures)은
+--    ⚠️ 00041로 **이관됨**(2026-09-02): hospital_hours·hospital_closures 표를 00041이 만드는데
+--    이 파일(031)이 041보다 먼저 실행되어 「표 없음」으로 실패했다(재번호 순서 뒤집힘). 정책은 표가
+--    생기는 00041 말미에 함께 둔다(소유·순서 일치). 여기서는 알림 설정 정책만 담당.
