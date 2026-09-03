@@ -15,6 +15,7 @@ const pend = (id: string, over: Partial<InboxTicket> = {}): InboxTicket => ({
   handoffReason: '약 정보',
   createdAt: '2026-08-19T08:00',
   assigneeName: null,
+  isMine: false,
   requestType: null,
   appointmentSummary: null,
   ...over,
@@ -39,6 +40,20 @@ it('[TICKET-INBOX-ROW-01] 행은 환자 질문·인계 이유·담당자를 표�
   expect(within(li).getByText('담당: 미배정')).toBeInTheDocument()
   expect(within(li).getByText('취소 상담')).toBeInTheDocument()
   expect(within(li).getByText(/8\/20 내과/)).toBeInTheDocument()
+})
+
+it('[이관알림] 내게 배정된 행은 「내 담당」으로 강조한다', async () => {
+  const api = fakeApi({
+    listTickets: vi.fn(async () => [
+      pend('t1', { status: 'in_progress', assigneeName: '나', isMine: true }),
+      pend('t2', { status: 'in_progress', assigneeName: '김직원', isMine: false, patientQuestion: '접수 문의' }),
+    ]),
+  })
+  render(<Tickets api={api} detailSlot={() => null} />)
+  const mine = (await screen.findByText('두통이 심해요')).closest('li')!
+  const other = (await screen.findByText('접수 문의')).closest('li')!
+  expect(within(mine).getByText('내 담당')).toBeInTheDocument()
+  expect(within(other).queryByText('내 담당')).toBeNull()
 })
 
 it('[TICKET-INBOX-ROW-01] 새 문의 행 선택은 원자 배정(claim) 승자면 오른쪽 상세를 연다', async () => {

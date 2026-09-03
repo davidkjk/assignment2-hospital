@@ -33,7 +33,7 @@ export function TicketRow({
         onClick={() => onSelect(ticket)}
         className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
           active ? 'border-primary bg-primary/5' : 'border-border/70 bg-card hover:bg-muted'
-        }`}
+        } ${ticket.isMine && !active ? 'ring-1 ring-primary/30' : ''}`}
       >
         <span className="line-clamp-2 text-sm font-medium">{ticket.patientQuestion}</span>
         <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">인계 이유: {ticket.handoffReason}</p>
@@ -49,7 +49,11 @@ export function TicketRow({
         )}
         <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
           <time>{fmtCreated(ticket.createdAt)}</time>
-          <span>담당: {ticket.assigneeName ?? '미배정'}</span>
+          <span className="flex items-center gap-1.5">
+            {/* 이관 알림: 내게 배정된 상담을 공용 문의함에서 바로 알아보게 강조 */}
+            {ticket.isMine && <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">내 담당</span>}
+            담당: {ticket.assigneeName ?? '미배정'}
+          </span>
         </div>
       </button>
     </li>

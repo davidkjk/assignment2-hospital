@@ -17,6 +17,7 @@ export interface InboxTicket {
   handoffReason: string // 인계 이유
   createdAt: string // 접수시각(정렬 키)
   assigneeName: string | null // 현재 담당자 이름(미배정이면 null → "미배정")
+  isMine: boolean // 내게 배정된 상담(이관 알림 — 문의함에서 「내 담당」 강조)
   requestType: RequestType // 예약 상담이면 cancel/reschedule
   appointmentSummary: string | null // 예약 상담이면 짧은 예약 요약
 }
@@ -29,6 +30,7 @@ interface InboxTicketDto {
   handoff_reason: string
   created_at: string
   assignee_name: string | null
+  is_mine?: boolean
   request_type: RequestType
   appointment_summary: string | null
 }
@@ -41,6 +43,7 @@ function fromDto(d: InboxTicketDto): InboxTicket {
     handoffReason: d.handoff_reason,
     createdAt: d.created_at,
     assigneeName: d.assignee_name,
+    isMine: d.is_mine ?? false,
     requestType: d.request_type,
     appointmentSummary: d.appointment_summary,
   }
@@ -59,6 +62,8 @@ export interface StaffChatApi {
   listTickets(status: TicketStatus): Promise<InboxTicket[]>
   // 성공 = 내가 맡은 티켓(in_progress). 409 = 경쟁 패자 → TicketClaimConflict.
   claimTicket(ticketId: string): Promise<InboxTicket>
+  // 사이드바 배지 — 내게 배정된 진행 중 상담 개수(이관 알림).
+  myActiveTicketCount(): Promise<number>
 }
 
 /** 실 구현 — httpClient(apiFetch)로 서버 문장·401·오프라인을 그대로 지킨다. */
@@ -76,5 +81,9 @@ export const staffChatApi: StaffChatApi = {
       if (e instanceof ApiError && e.status === 409) throw new TicketClaimConflict(e.message)
       throw e
     }
+  },
+  async myActiveTicketCount() {
+    const d = await apiFetch<{ count: number }>(`/staff/chat/tickets/my-count`)
+    return d.count
   },
 }

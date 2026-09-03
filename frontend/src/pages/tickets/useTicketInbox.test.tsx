@@ -20,6 +20,7 @@ const mk = (id: string, status: TicketStatus, createdAt: string, over: Partial<I
   handoffReason: '약 정보',
   createdAt,
   assigneeName: null,
+  isMine: false,
   requestType: null,
   appointmentSummary: null,
   ...over,

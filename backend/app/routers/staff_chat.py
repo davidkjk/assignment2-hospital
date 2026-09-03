@@ -26,6 +26,14 @@ async def claim(ticket_id: UUID, staff: StaffContext = Depends(get_current_staff
     return await ticket_service.claim_ticket(str(staff.auth_user_id), ticket_id)   # 경쟁 패자=409
 
 
+# ⚠️ /tickets/{ticket_id}보다 먼저 선언해야 'my-count'가 UUID 경로로 안 잡힌다.
+@router.get("/tickets/my-count")
+async def my_active_ticket_count(staff: StaffContext = Depends(get_current_staff)):
+    # 이관 알림(REASSIGN-NOTIFY-*): 나에게 배정된 진행 중 상담 개수 — 사이드바 '상담봇 문의함' 배지.
+    # 이관은 별도 알림을 만들지 않으므로(reassign_ticket) 이 개수로 「내게 온 상담」을 어느 화면에서든 숫자로 인지한다.
+    return {"count": await ticket_service.count_my_active_tickets(str(staff.auth_user_id))}
+
+
 @router.get("/tickets/{ticket_id}")
 async def ticket_detail(ticket_id: UUID, staff: StaffContext = Depends(get_current_staff)):
     # 상세: 요약 5항목 + 전체 대화 + 담당자{name,role} + 연락처 마스킹. 없는·볼 수 없는 티켓=404(딥링크 방어).
@@ -62,7 +70,7 @@ class ReplyRequest(BaseModel):
 async def reply(ticket_id: UUID, body: ReplyRequest, staff: StaffContext = Depends(get_current_staff)):
     msg = await ticket_service.staff_send_message(
         str(staff.auth_user_id), ticket_id, body.content, body.client_message_id)
-    await enqueue_after_reply(msg["id"])   # 보고 있으면 즉시읽음, 아니면 배치(§8-6~8)
+    await enqueue_after_reply(UUID(msg["id"]))   # 보고 있으면 즉시읽음, 아니면 배치(§8-6~8). msg["id"]는 text.
     return msg
 
 

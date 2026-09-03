@@ -11,6 +11,7 @@ const dto = {
   handoff_reason: '약 정보',
   created_at: '2026-08-19T08:00',
   assignee_name: null,
+  is_mine: true,
   request_type: null,
   appointment_summary: null,
 }
@@ -29,7 +30,16 @@ describe('staffChatApi', () => {
       patientQuestion: '두통이 심해요',
       handoffReason: '약 정보',
       assigneeName: null,
+      isMine: true, // 이관 알림: is_mine → isMine
     })
+  })
+
+  it('[이관알림] myActiveTicketCount는 my-count를 GET해 개수를 돌려준다', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ count: 3 }), { status: 200 }))
+    expect(await staffChatApi.myActiveTicketCount()).toBe(3)
+    expect(fetchMock.mock.calls[0][0]).toBe('/staff/chat/tickets/my-count')
   })
 
   it('[Step1] claimTicket은 409면 TicketClaimConflict로 승격한다(경쟁 패자)', async () => {

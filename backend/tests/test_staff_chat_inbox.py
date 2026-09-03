@@ -9,6 +9,7 @@ def _row(**over):
         "created_at": "2026-08-22T08:42:00",
         "reason_code": None,
         "assignee_name": None,
+        "is_mine": False,
         "appointment_summary": None,
     }
     base.update(over)
@@ -41,11 +42,12 @@ def test_unknown_or_missing_reason_falls_back_and_is_never_raw_code():
 
 
 def test_passthrough_fields_are_carried_verbatim():
-    dto = _row_to_inbox(_row(id="abc", status="in_progress", assignee_name="박지민",
+    dto = _row_to_inbox(_row(id="abc", status="in_progress", assignee_name="박지민", is_mine=True,
                              appointment_summary="8/20 10:30 · 내과 · 이정훈"))
     assert dto["id"] == "abc"
     assert dto["status"] == "in_progress"
     assert dto["assignee_name"] == "박지민"
+    assert dto["is_mine"] is True   # 이관 알림: 내 담당 여부 전달
     assert dto["appointment_summary"] == "8/20 10:30 · 내과 · 이정훈"
     assert dto["patient_question"] == "두통이 심해요"
     assert dto["created_at"] == "2026-08-22T08:42:00"

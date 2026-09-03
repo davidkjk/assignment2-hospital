@@ -1,13 +1,32 @@
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
 from app.core.errors import AppError
 from app.db.pool import acquire_as
 
+_SEOUL = ZoneInfo("Asia/Seoul")
+
 
 def _to_dict(row) -> dict:
     return dict(row) if row is not None else None
+
+
+def _sent_msg_to_dto(row) -> dict:
+    """방금 보낸 직원 메시지 원본 행(chat_messages) → 상세(_DETAIL_MESSAGES_SQL)와 같은 메시지 DTO.
+    staff_send_ticket_message는 테이블 원본 행(sender_type·content·created_at)을 돌려주므로 그대로 주면
+    프론트 msgFromDto 계약(sender·body·at·읽음 플래그)과 어긋나 body가 비어 말풍선 글자가 안 뜬다."""
+    sender_type = row["sender_type"]
+    return {
+        "id": str(row["id"]),
+        "sender": "ai" if sender_type == "bot" else sender_type,   # 상세와 동일 매핑(직원은 그대로)
+        "body": row["content"],
+        "at": row["created_at"].astimezone(_SEOUL).strftime("%H:%M"),
+        "patient_read": False,   # 방금 보냄 — 환자 미확인(READ-01)
+        "staff_unread": False,   # 직원 메시지는 UNREAD 대상 아님
+        "sms_sent": False,       # 실제 발송은 dispatcher(배포) — 표시 계약상 고정 false
+    }
 
 
 async def claim_ticket(auth_user_id: str, ticket_id: UUID) -> dict:
@@ -39,7 +58,7 @@ async def staff_send_message(auth_user_id: str, ticket_id: UUID, content: str,
                 "select * from staff_send_ticket_message($1, $2, $3)", ticket_id, content, client_message_id)
         except asyncpg.exceptions.RaiseError as e:
             raise AppError(str(e), 409)
-        return _to_dict(row)
+        return _sent_msg_to_dto(row)
 
 
 async def list_thread_tickets(auth_user_id: str, thread_id: UUID) -> list[dict]:
@@ -88,6 +107,7 @@ select
     '(질문 없음)') as patient_question,
   hs.reason_code,
   s.name as assignee_name,
+  (t.assigned_staff_id is not null and t.assigned_staff_id = private.current_staff_id()) as is_mine,
   a.summary as appointment_summary
 from public.support_tickets t
 left join public.staff s on s.id = t.assigned_staff_id
@@ -126,6 +146,7 @@ def _row_to_inbox(r) -> dict:
         "handoff_reason": _REASON_TEXT.get(code) or "직원 확인이 필요합니다",
         "created_at": r["created_at"],
         "assignee_name": r["assignee_name"],
+        "is_mine": r["is_mine"],   # 이관 알림: 내게 배정된 행을 문의함에서 강조(REASSIGN-NOTIFY-*)
         "request_type": _REQUEST_TYPE.get(code),
         "appointment_summary": r["appointment_summary"],
     }
@@ -135,6 +156,14 @@ async def list_inbox_tickets(auth_user_id: str, status: str) -> list[dict]:
     async with acquire_as(auth_user_id) as conn:
         rows = await conn.fetch(_INBOX_SQL, status)
     return [_row_to_inbox(r) for r in rows]
+
+
+async def count_my_active_tickets(auth_user_id: str) -> int:
+    # 사이드바 배지 — 나에게 배정된 진행 중(in_progress) 상담 개수. 이관돼 오면 늘어 어느 화면에서든 인지된다.
+    async with acquire_as(auth_user_id) as conn:
+        return await conn.fetchval(
+            "select count(*)::int from public.support_tickets "
+            "where status = 'in_progress' and assigned_staff_id = private.current_staff_id()")
 
 
 # ── 티켓 상세 (TICKET-DETAIL-*) — 요약 5항목 + 전체 대화 + 담당자 + 연락처 마스킹 ──────

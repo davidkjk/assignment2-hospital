@@ -1,9 +1,32 @@
 import uuid
+from datetime import datetime, timezone
+
 import pytest
 
 from app.services.chat import ticket_service
 from tests.conftest import seed_staff, seed_patient, set_session_auth
 from tests.conftest_chat import seed_chat_thread
+
+
+def test_sent_msg_to_dto_matches_detail_shape():
+    # 회귀: 방금 보낸 메시지는 상세와 같은 DTO(sender·body·at·읽음 플래그)여야 한다.
+    # 원본 행(sender_type·content·created_at)을 그대로 주면 프론트에서 body가 비어 글자가 안 떴다.
+    row = {
+        "id": uuid.UUID("11111111-1111-1111-1111-111111111111"),
+        "sender_type": "staff",
+        "content": "확인했습니다",
+        "created_at": datetime(2026, 9, 2, 0, 34, tzinfo=timezone.utc),  # KST 09:34
+    }
+    dto = ticket_service._sent_msg_to_dto(row)
+    assert dto == {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "sender": "staff",
+        "body": "확인했습니다",
+        "at": "09:34",  # Asia/Seoul (UTC+9)
+        "patient_read": False,
+        "staff_unread": False,
+        "sms_sent": False,
+    }
 
 
 async def _open_ticket(conn, thread_id):

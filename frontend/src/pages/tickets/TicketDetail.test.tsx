@@ -15,6 +15,7 @@ const ticket: InboxTicket = {
   handoffReason: '약',
   createdAt: '2026-09-01T09:00',
   assigneeName: '나',
+  isMine: true,
   requestType: null,
   appointmentSummary: null,
 }

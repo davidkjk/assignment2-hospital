@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { InboxTicket } from '../../api/staffChat'
 import type { StaffTicketDetailApi } from '../../api/staffChatDetail'
 import { useTicketDetail } from './useTicketDetail'
@@ -22,6 +22,14 @@ export function TicketDetail(props: {
   const { api, ticket, onLoserBackToList, onReportBad } = props
   const d = useTicketDetail(api, ticket.id, { onLoserBackToList })
   const [draft, setDraft] = useState('')
+
+  // SCROLL-01: 새 메시지가 늘면(특히 내가 방금 보낸 답변) 대화 맨 아래로 스크롤한다.
+  // 안 하면 보낸 글이 스크롤 영역 밑에 접혀 "아무 일도 안 일어난 것"처럼 보인다.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [d.detail?.messages.length])
 
   // UNREAD-02: 상세를 열어 미확인 환자 메시지를 보면 서버 확인 상태 갱신.
   useEffect(() => {
@@ -75,7 +83,7 @@ export function TicketDetail(props: {
         <ReassignControl reason={detail.reason} busy={d.reassigning} loadStaff={d.listActiveStaff} onReassign={d.reassign} />
       )}
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {/* ② 인계 요약 + 연락처 */}
         <div className="space-y-2">
           <HandoffSummary summary={detail.summary} assignee={detail.assignee} />
