@@ -69,15 +69,18 @@ if [ -z "$UID_VAL" ]; then
   fi
   echo "  · 생성 완료 UID=$UID_VAL"
 else
-  echo "  · 이미 있음 UID=$UID_VAL → 비밀번호·phone_confirm 재확인"
-  # 이미 있던 계정이면 비밀번호를 모를 수 있으니 demo1234로 맞추고 확인 상태를 보장한다(멱등).
-  curl -fsS -X PUT "$AUTH/$UID_VAL" \
-    -H "apikey: $REMOTE_SERVICE_ROLE_KEY" \
-    -H "Authorization: Bearer $REMOTE_SERVICE_ROLE_KEY" \
-    -H "Content-Type: application/json" \
-    -d "{\"password\":\"$DEMO_PASSWORD\",\"phone_confirm\":true}" \
-    >/dev/null || echo "  ⚠ 비밀번호 갱신 PUT 실패(로그인이 안 되면 대시보드에서 수동 확인)." >&2
+  echo "  · 이미 있음 UID=$UID_VAL"
 fi
+
+# 생성/기존 경로 무관하게 비밀번호(demo1234)·phone_confirm을 항상 보장한다(멱등).
+# 이유: ① 기존 계정은 비밀번호를 모를 수 있고 ② 일부 GoTrue 버전은 create 시 phone_confirm을
+#   무시해 미확인 상태로 남는다(그러면 signInWithPassword가 400 phone_not_confirmed).
+curl -fsS -X PUT "$AUTH/$UID_VAL" \
+  -H "apikey: $REMOTE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $REMOTE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"password\":\"$DEMO_PASSWORD\",\"phone_confirm\":true}" \
+  >/dev/null || echo "  ⚠ 비밀번호·확인 상태 PUT 실패(로그인이 안 되면 대시보드에서 수동 확인)." >&2
 
 echo "▶ ② 환자 데이터 적재 중… (seed_demo_patient.sql, UID 연결)"
 PGTZ=Asia/Seoul psql "$REMOTE_DATABASE_URL" -v ON_ERROR_STOP=1 -q \
