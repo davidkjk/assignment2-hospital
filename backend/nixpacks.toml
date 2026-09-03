@@ -1,0 +1,6 @@
+# Railway(NIXPACKS) 빌드 환경 보강.
+# 백업 크론 잡(app.jobs.backup)이 pg_dump를 호출하는데,
+# 기본 NIXPACKS 파이썬 이미지에는 postgresql 클라이언트가 없어 배포 컨테이너에서
+# pg_dump를 찾지 못한다. 배포 계획 Task 16 Step 2 주석대로 여기서 설치한다.
+[phases.setup]
+nixPkgs = ["...", "postgresql_16"]
