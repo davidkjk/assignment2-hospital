@@ -55,6 +55,14 @@ export function ReplyBox(props: {
             setDraft(e.target.value)
             onDraftChange?.(e.target.value)
           }}
+          onKeyDown={(e) => {
+            // Enter=보내기, Shift+Enter=줄바꿈(REPLY-06). ⚠️ 한글 조합 중 Enter(글자 확정)는
+            // isComposing으로 배제 — 아니면 조합 확정이 곧 오전송이 된다.
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              void submit()
+            }
+          }}
           className="min-w-0 flex-1 resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
         />
         <button

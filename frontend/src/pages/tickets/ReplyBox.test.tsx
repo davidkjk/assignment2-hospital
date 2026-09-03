@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ReplyBox } from './ReplyBox'
 
@@ -45,4 +45,28 @@ it('[TICKET-DETAIL-REPLY-05] answered 티켓은 재답변하지 않고 재문의
   render(<ReplyBox readOnly={true} sending={false} onSend={vi.fn()} />)
   expect(screen.getByText(/재문의는 새 상담으로/)).toBeInTheDocument()
   expect(screen.queryByLabelText('답변')).not.toBeInTheDocument()
+})
+
+it('[TICKET-DETAIL-REPLY-06] Enter로 보내고 Shift+Enter는 줄바꿈이라 보내지 않는다', async () => {
+  const onSend = vi.fn(async () => {})
+  render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />)
+  const ta = screen.getByLabelText('답변')
+  await userEvent.type(ta, '엔터로 전송')
+  // Shift+Enter: 보내지 않고 줄바꿈만
+  await userEvent.type(ta, '{Shift>}{Enter}{/Shift}')
+  expect(onSend).not.toHaveBeenCalled()
+  // Enter: 전송
+  await userEvent.type(ta, '{Enter}')
+  await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+  expect(onSend.mock.calls[0][0]).toContain('엔터로 전송')
+})
+
+it('[TICKET-DETAIL-REPLY-06] 한글 조합 중 Enter(글자 확정)는 전송하지 않는다', () => {
+  const onSend = vi.fn(async () => {})
+  render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />)
+  const ta = screen.getByLabelText('답변')
+  fireEvent.change(ta, { target: { value: '가' } })
+  // IME 조합 확정용 Enter: isComposing=true → 전송 금지
+  fireEvent.keyDown(ta, { key: 'Enter', isComposing: true })
+  expect(onSend).not.toHaveBeenCalled()
 })

@@ -59,8 +59,8 @@ export function Tickets({
   return (
     <StaffPage max="max-w-full" testid="staff-tickets" footer={false}>
       <div className="flex gap-4" style={{ height: 'calc(100vh - 11rem)' }}>
-        {/* 왼쪽: 상태 탭 + 접수순 목록. pt-3 = 오른쪽 카드 안쪽 상단 여백과 윗선을 맞춘다. */}
-        <div className="flex w-96 shrink-0 flex-col pt-3">
+        {/* 왼쪽: 상태 탭 + 접수순 목록. 탭바 윗선을 오른쪽 상세 카드의 테두리 윗선과 같은 높이로 맞춘다(top 패딩 없음). */}
+        <div className="flex w-96 shrink-0 flex-col">
           <Segmented
             options={inbox.tabs}
             value={inbox.tab}
