@@ -2,9 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/:seg(admin|appointments|audit|auth|calendar|doctor|doctors|error-logs|health|me|medical-records|messages|patients|queue|schedule|staff|stats|today)/:path*",
+      "source": "/:seg(admin|appointments|audit|auth|calendar|doctor|doctors|error-logs|health|me|medical-records|messages|patients|queue|schedule|staff|stats|today)/:path+",
       "missing": [{ "type": "header", "key": "accept", "value": ".*text/html.*" }],
-      "destination": "https://gaonhospital-api-production.up.railway.app/:seg/:path*"
+      "destination": "https://gaonhospital-api-production.up.railway.app/:seg/:path+"
     },
     {
       "source": "/:seg(admin|appointments|audit|auth|calendar|doctor|doctors|error-logs|health|me|medical-records|messages|patients|queue|schedule|staff|stats|today)",
