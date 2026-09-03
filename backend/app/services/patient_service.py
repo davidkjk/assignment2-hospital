@@ -245,6 +245,7 @@ async def link_family_member(
     method: str,
     staff: StaffContext,
     conn=None,
+    otp_verified: bool = False,
 ) -> UUID:
     """[R5-01][PTDET-FAMILY-03·04·05] 직원이 가족을 연결한다.
 
@@ -261,11 +262,12 @@ async def link_family_member(
             raise AppError(
                 "등록된 번호가 있어 다른 확인 방법으로 전환할 수 없습니다.", status_code=409
             )
-        if method == "otp":
-            # ⚠️ 갭 — OTP 발송·검증 창구가 없다(결정 #3 ㉠). ⛔ 그냥 통과시키지 않는다:
-            #    통과시키면 본인확인 없이 남의 가족이 된다. 막다른 길이 아니다 —
-            #    번호가 없는 환자는 예외 경로(in_person·document)로 갈 수 있다.
-            raise AppError("본인확인(OTP) 창구가 아직 열리지 않았습니다.", status_code=501)
+        if method == "otp" and not otp_verified:
+            # ⛔ OTP 경로는 반드시 staff_family_link_otp_service를 거쳐야 한다(결정 #3 ㉠).
+            #    그 서비스가 B 번호로 코드를 보내 확인한 뒤에만 otp_verified=True로 여기 온다.
+            #    직접(라우터 POST /family) method="otp"로 부르면 본인확인 없이 남의 가족이 되므로 막는다 —
+            #    막다른 길은 아니다: 번호가 없는 환자는 예외 경로(in_person·document)로 갈 수 있다.
+            raise AppError("본인확인(OTP)은 인증번호 창구를 거쳐야 합니다.", status_code=501)
         try:
             # 중복 삽입 실패가 바깥 트랜잭션을 오염시키지 않도록 savepoint로 격리한다 —
             # 격리하지 않으면 해제 후 재연결이 「실패한 트랜잭션」 위에서 막힌다.

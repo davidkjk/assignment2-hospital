@@ -15,7 +15,11 @@ from pydantic import BaseModel
 
 from app.core.dto import patient_row_dto
 from app.core.security import StaffContext, require_role
-from app.services import patient_service, staff_phone_change_service
+from app.services import (
+    patient_service,
+    staff_family_link_otp_service,
+    staff_phone_change_service,
+)
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -48,6 +52,18 @@ class FamilyLinkRequest(BaseModel):
 
 class FamilyUnlinkRequest(BaseModel):
     reason: str
+
+
+class FamilyLinkOtpRequestBody(BaseModel):
+    # [결정 #3 ㉠] 대상 B는 이미 특정돼 있다. 서버가 B의 등록번호로 인증번호를 보낸다(본인확인).
+    family_patient_id: UUID
+    relation: str
+
+
+class FamilyLinkOtpConfirmBody(BaseModel):
+    # 확인은 (account_patient_id, family_patient_id)로 요청을 찾는다 — 관계는 요청 행에 저장돼 있다.
+    family_patient_id: UUID
+    code: str
 
 
 class PhoneChangeRequestBody(BaseModel):
@@ -172,6 +188,8 @@ async def link_family(
     link_id = await patient_service.link_family_member(
         patient_id, body.family_patient_id, body.relation, body.method, staff
     )
+    # [PTDET-FAMILY-06] 예외 경로(대면·서류)도 연결 직후 B에 통보한다(OTP·예외 무관). best-effort.
+    await staff_family_link_otp_service.notify_family_linked(body.family_patient_id)
     return {"id": link_id}
 
 
@@ -185,6 +203,34 @@ async def unlink_family(
     """[R5-02][ROLE-DOC-02] 가족 연결 해제 — 접수·관리자만. 사유·실행자를 남긴다."""
     await patient_service.unlink_family_member(patient_id, member_id, body.reason, staff)
     return {"ok": True}
+
+
+@router.post("/{patient_id}/family/otp/request")
+async def family_link_otp_request(
+    patient_id: UUID,
+    body: FamilyLinkOtpRequestBody,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> dict:
+    """[결정 #3 ㉠][ROLE-DOC-02] 가족 연결 본인확인 — B 번호로 인증번호를 보낸다(접수·관리자만).
+
+    의사는 이 창구를 열 수 없다(가족 연결은 접수·관리자의 일, 요구사항 3.5·4.2). 대상 B는 이미
+    특정돼 있고, B의 등록번호로 코드를 보내 그 번호에 닿는 사람만 연결되게 한다.
+    """
+    await staff_family_link_otp_service.request_family_link_otp(
+        staff, patient_id, body.family_patient_id, body.relation)
+    return {"ok": True}
+
+
+@router.post("/{patient_id}/family/otp/confirm")
+async def family_link_otp_confirm(
+    patient_id: UUID,
+    body: FamilyLinkOtpConfirmBody,
+    staff: StaffContext = Depends(require_role("receptionist", "admin")),
+) -> dict:
+    """[결정 #3 ㉠·㉢] 인증번호가 맞으면 가족을 연결하고 직후 B에게 통보한다 — 접수·관리자만."""
+    link_id = await staff_family_link_otp_service.confirm_family_link_otp(
+        staff, patient_id, body.family_patient_id, body.code)
+    return {"id": link_id}
 
 
 @router.post("/{patient_id}/phone-change/request")

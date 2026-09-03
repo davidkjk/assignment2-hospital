@@ -228,3 +228,47 @@ async def test_전화변경_확인_창구가_배선돼_요청없으면_404(clien
                        json={"new_phone": "01099998888", "code": "000000"},
                        headers=_auth(receptionist))
     assert resp.status_code == 404
+
+
+# ─── 가족 연결 OTP 창구(배포 Task 7E · 결정 #3 ㉠) ─────────────────────────────
+
+async def test_가족연결_OTP_요청_창구가_있고_요청행을_남긴다(client, committed_conn):
+    """[결정 #3 ㉠] 접수직원이 B 번호로 인증번호를 요청하면 요청 행이 남는다(감사)."""
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    a = await _seed_patient(committed_conn, name="김철수")
+    b = await _seed_patient(committed_conn, name="김영희")
+
+    resp = client.post(f"/patients/{a}/family/otp/request",
+                       json={"family_patient_id": str(b), "relation": "배우자"},
+                       headers=_auth(receptionist))
+    assert resp.status_code == 200
+
+    row = await committed_conn.fetchrow(
+        "select staff_id, relation from staff_family_link_requests "
+        "where account_patient_id=$1 and family_patient_id=$2", a, b)
+    assert row["staff_id"] == receptionist["staff_id"]
+    assert row["relation"] == "배우자"
+
+
+async def test_가족연결_OTP는_접수관리자만이다_의사는_403(client, committed_conn):
+    """[ROLE-DOC-02] 가족 연결은 접수·관리자의 일 — 의사에겐 창구를 열지 않는다."""
+    doctor = await seed_staff(committed_conn, role="doctor")
+    a = await _seed_patient(committed_conn, name="김철수")
+    b = await _seed_patient(committed_conn, name="김영희")
+
+    resp = client.post(f"/patients/{a}/family/otp/request",
+                       json={"family_patient_id": str(b), "relation": "배우자"},
+                       headers=_auth(doctor))
+    assert resp.status_code == 403
+
+
+async def test_가족연결_OTP_확인_창구가_배선돼_요청없으면_404(client, committed_conn):
+    """확인 창구가 서비스에 배선돼 있다 — 요청 없는 쌍은 404로 안내."""
+    receptionist = await seed_staff(committed_conn, role="receptionist")
+    a = await _seed_patient(committed_conn, name="김철수")
+    b = await _seed_patient(committed_conn, name="김영희")
+
+    resp = client.post(f"/patients/{a}/family/otp/confirm",
+                       json={"family_patient_id": str(b), "code": "000000"},
+                       headers=_auth(receptionist))
+    assert resp.status_code == 404
