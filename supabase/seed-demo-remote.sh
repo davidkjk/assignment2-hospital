@@ -52,4 +52,13 @@ else
   echo "⚠ 상담봇 데모 시드를 건너뜀(기본 시드·로그인은 무사)." >&2
 fi
 
+# 환자앱 데모 계정(010-1234-5678) — 전화 인증 프로비저닝 + 풍부한 환자 데이터(SP2).
+# ⚠️ 위 seed_demo.sql 프리앰블이 `delete from patients`로 이 환자를 지우므로 전체 재시드 끝에서 다시 넣는다.
+echo "▶ 환자앱 데모 계정 적재 중… (seed_demo_patient.sh)"
+if bash "$DIR/seed_demo_patient.sh"; then
+  echo "  ✅ 환자앱 데모 계정 적재 완료."
+else
+  echo "⚠ 환자앱 데모 계정 적재를 건너뜀(직원웹·상담봇 데모는 무사)." >&2
+fi
+
 echo "✅ 원격 재적재 완료 — 지금 시각($(TZ=Asia/Seoul date '+%H:%M'), Asia/Seoul) 기준으로 데모 데이터가 깔렸습니다."
