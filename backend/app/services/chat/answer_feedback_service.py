@@ -103,7 +103,13 @@ async def apply(feedback_id: UUID, staff_id: UUID, embedder, *, kb_document_id=N
         if fb is None:
             raise AppError("이미 처리된 신고입니다.", 409)  # 동시 처리 — 성공으로 덮지 않는다(09)
         if fb["add_to_example_bank"] and fb["correction_text"]:
-            q = await conn.fetchval("select content from chat_messages where id=$1", fb["message_id"])
+            # 예시은행의 「질문」은 신고 대상 봇 답변이 아니라 그 답을 부른 환자 질문이어야 한다
+            # (list_feedback와 같은 파생). 그래야 이후 유사 질문 검색(임베딩 매칭)이 맞다.
+            q = await conn.fetchval(
+                "select pm.content from public.chat_messages bm "
+                "join public.chat_messages pm on pm.thread_id = bm.thread_id "
+                "  and pm.sender_type = 'patient' and pm.created_at <= bm.created_at "
+                "where bm.id = $1 order by pm.created_at desc, pm.id desc limit 1", fb["message_id"])
             vec = (await embedder.embed([q or ""]))[0]
             await conn.execute(
                 "insert into qa_example_bank (question, answer, embedding, source_feedback_id) "
@@ -123,6 +129,19 @@ async def reject(feedback_id: UUID, staff_id: UUID) -> None:
         n = await conn.execute(
             "update answer_feedback set status='rejected', resolved_by=$2, resolved_at=now() "
             "where id=$1 and status='pending'", feedback_id, staff_id)
+    if n == "UPDATE 0":
+        raise AppError("이미 처리된 신고입니다.", 409)
+
+
+async def update_correction(feedback_id: UUID, correction_text: str | None) -> None:
+    # 오답 처리함 검토자가 「올바른 안내」를 직접 수정 — pending일 때만. 빈 문자열은 교정 없음(null)으로 저장한다.
+    # 이미 반영/반려됐으면 409(09) — 처리된 신고의 교정문은 바꾸지 않는다. 반영은 별도([반영]가 이 값을 소비).
+    text = correction_text.strip() if correction_text else None
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        n = await conn.execute(
+            "update answer_feedback set correction_text=$2 where id=$1 and status='pending'",
+            feedback_id, text or None)
     if n == "UPDATE 0":
         raise AppError("이미 처리된 신고입니다.", 409)
 

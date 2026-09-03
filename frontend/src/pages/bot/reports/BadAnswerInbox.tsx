@@ -141,6 +141,11 @@ function FeedbackDetail({
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
   const [fb, setFb] = useState<Feedback | null>(null)
   const [act, setAct] = useState<ActPhase>({ k: 'idle' })
+  // 「올바른 안내」 교정문 인라인 편집(BADINBOX-REVIEW) — pending 신고만. 저장은 반영과 별개로도 가능.
+  const [correction, setCorrection] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [saveErr, setSaveErr] = useState(false)
 
   const load = () => {
     setPhase('loading')
@@ -148,38 +153,77 @@ function FeedbackDetail({
       .getFeedback(id)
       .then((f) => {
         setFb(f)
+        setCorrection(f.correction ?? '')
         setPhase('ready')
       })
       .catch(() => setPhase('error'))
   }
   useEffect(load, [api, id])
 
-  const run = (action: Action) => {
-    if (!fb || act.k === 'busy') return
-    if (action === 'apply') {
-      // 반영 = 안내자료 수정·승인 흐름으로 연결(즉시 답변에 쓰지 않는다, 03)
-      onApplyToKb?.({ feedbackId: fb.id, requiresApproval: true, question: fb.question, correction: fb.correction })
+  const dirty = fb ? correction !== (fb.correction ?? '') : false
+
+  // 409(다른 관리자가 먼저 처리) 공통 처리 — 성공으로 덮지 않고 최신 상태로 다시 불러온다(09).
+  const onActError = (err: unknown, action: Action) => {
+    const status = (err as { status?: number } | null)?.status
+    if (status === 409) {
+      setAct({ k: 'conflict' })
+      load()
+      onChanged()
+    } else {
+      setAct({ k: 'failed', action }) // 미처리 유지(07)
     }
-    setAct({ k: 'busy', action })
-    const call = action === 'apply' ? api.applyFeedback(fb.id) : api.rejectFeedback(fb.id)
-    call
+  }
+
+  // 교정문만 저장(반영 아님) — 반영 전에 문구를 다듬어 둔다. pending일 때만 서버가 허용(409는 처리됨).
+  const saveCorrection = () => {
+    if (!fb || saving || !dirty) return
+    const text = correction.trim()
+    setSaving(true)
+    setSaved(false)
+    setSaveErr(false)
+    api
+      .saveFeedbackCorrection(fb.id, text)
       .then(() => {
-        setAct({ k: 'done', action })
-        onChanged() // 목록 상태 갱신(08)
+        setSaving(false)
+        setSaved(true)
+        setCorrection(text)
+        setFb({ ...fb, correction: text || null })
       })
       .catch((err: unknown) => {
+        setSaving(false)
         const status = (err as { status?: number } | null)?.status
         if (status === 409) {
-          setAct({ k: 'conflict' }) // 다른 관리자가 먼저 처리 — 성공으로 덮지 않는다(09)
+          setAct({ k: 'conflict' })
           load()
           onChanged()
         } else {
-          setAct({ k: 'failed', action }) // 미처리 유지(07)
+          setSaveErr(true)
         }
       })
   }
 
+  const run = (action: Action) => {
+    if (!fb || act.k === 'busy') return
+    if (action === 'reject') {
+      setAct({ k: 'busy', action })
+      api.rejectFeedback(fb.id).then(() => { setAct({ k: 'done', action }); onChanged() }).catch((e) => onActError(e, action))
+      return
+    }
+    // 반영 = 안내자료 수정·승인 흐름으로 연결(즉시 답변에 쓰지 않는다, 03). 편집된 교정문을 함께 넘긴다.
+    const text = correction.trim()
+    onApplyToKb?.({ feedbackId: fb.id, requiresApproval: true, question: fb.question, correction: text || null })
+    setAct({ k: 'busy', action })
+    const doApply = () => api.applyFeedback(fb.id).then(() => { setAct({ k: 'done', action }); onChanged() }).catch((e) => onActError(e, action))
+    // 편집된 교정문이 있으면 먼저 저장해 예시은행·KB 편집이 최신 문구를 쓰게 한다. 저장 실패면 반영 중단.
+    if (text !== (fb.correction ?? '')) {
+      api.saveFeedbackCorrection(fb.id, text).then(() => { setFb({ ...fb, correction: text || null }); doApply() }).catch((e) => onActError(e, action))
+    } else {
+      void doApply()
+    }
+  }
+
   const busy = act.k === 'busy'
+  const editable = fb?.status === 'pending' && act.k !== 'done' && act.k !== 'conflict'
 
   return (
     <aside className="w-96 shrink-0 self-start rounded-xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
@@ -201,7 +245,30 @@ function FeedbackDetail({
           <Field label="환자 질문">{fb.question || '(질문 없음)'}</Field>
           <Field label="AI 상담봇 답변"><p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-900">{fb.botAnswer || '(답변 본문 없음)'}</p></Field>
           <Field label="올바른 안내">
-            {fb.correction ? <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{fb.correction}</p> : <span className="text-sm text-muted-foreground">교정 없음</span>}
+            {editable ? (
+              <div className="space-y-1.5">
+                <textarea
+                  aria-label="올바른 안내 교정"
+                  value={correction}
+                  disabled={busy || saving}
+                  rows={3}
+                  placeholder="상담봇이 이렇게 답했어야 한다는 올바른 안내를 적습니다"
+                  onChange={(e) => { setCorrection(e.target.value); setSaved(false); setSaveErr(false) }}
+                  className="w-full resize-none rounded-lg border border-input bg-card px-3 py-2 text-sm text-emerald-900 outline-none focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
+                />
+                <div className="flex items-center gap-2">
+                  <button className={btnGhost} disabled={saving || busy || !dirty} onClick={saveCorrection}>
+                    {saving ? '저장 중…' : '교정문 저장'}
+                  </button>
+                  {saved && !dirty && <span className="text-xs text-emerald-700">저장됨</span>}
+                  {saveErr && <span className="text-xs text-rose-600">저장하지 못했습니다. 다시 시도해 주세요.</span>}
+                </div>
+              </div>
+            ) : fb.correction ? (
+              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{fb.correction}</p>
+            ) : (
+              <span className="text-sm text-muted-foreground">교정 없음</span>
+            )}
           </Field>
           {/* 없는 근거를 만들지 않는다(02) */}
           <Field label="답변 근거 자료"><span className="text-sm text-muted-foreground">{fb.hasSources ? '근거 자료 있음' : '근거 자료 없음'}</span></Field>

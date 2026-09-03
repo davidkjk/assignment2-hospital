@@ -97,6 +97,13 @@ class CorrectionBody(BaseModel):
     correction_text: str
 
 
+@router.post("/feedback/{feedback_id}/correct", status_code=204)
+async def correct_feedback(feedback_id: UUID, body: CorrectionBody, staff: StaffContext = Depends(require_role("admin"))):
+    # 오답 처리함 검토자가 「올바른 안내」 교정문을 직접 수정한다 — pending일 때만(반영/반려 후엔 409, 09).
+    # 반영 전 저장이라 즉시 라이브 아님 — 이후 [반영]이 이 교정문을 예시은행·KB 편집으로 넘긴다(B3).
+    await answer_feedback_service.update_correction(feedback_id, body.correction_text)
+
+
 # ── 오답 처리함(BADINBOX-REVIEW) · 미해결(UNRES-CLUSTER) · 품질(QUALITY-REPORT) · 참고 예시(QAEX-LIST) — Task 21 ──
 
 @router.get("/feedback")

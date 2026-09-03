@@ -13,6 +13,7 @@ const mkApi = (o: Partial<QualityApi> = {}) =>
     getFeedback: vi.fn().mockResolvedValue(items[0]),
     applyFeedback: vi.fn().mockResolvedValue(undefined),
     rejectFeedback: vi.fn().mockResolvedValue(undefined),
+    saveFeedbackCorrection: vi.fn().mockResolvedValue(undefined),
     ...o,
   }) as unknown as QualityApi
 
@@ -27,7 +28,31 @@ describe('BadAnswerInbox (BADINBOX-REVIEW-*)', () => {
   it('[BADINBOX-REVIEW-02] 상세는 출처·대상 질문·봇 답변·올바른 안내·근거를 보이고 없는 근거를 만들지 않는다', async () => {
     render(<BadAnswerInbox api={mkApi({ getFeedback: vi.fn().mockResolvedValue(items[1]) })} selectedId="f2" />)
     expect(await screen.findByText(/근거 자료 없음/)).toBeVisible()
-    expect(screen.getByText(/토요일 오전/)).toBeVisible()
+    // pending 신고의 올바른 안내는 편집 가능한 교정 입력칸으로, 기존 교정문이 값으로 채워져 있다.
+    expect(screen.getByLabelText('올바른 안내 교정')).toHaveValue('토요일 오전')
+  })
+
+  it('[BADINBOX-REVIEW-교정편집] pending 신고의 교정문을 직접 수정해 저장한다', async () => {
+    const api = mkApi()
+    render(<BadAnswerInbox api={api} selectedId="f1" />)
+    const box = await screen.findByLabelText('올바른 안내 교정')
+    expect(screen.getByRole('button', { name: '교정문 저장' })).toBeDisabled() // 안 고치면 저장 비활성
+    fireEvent.change(box, { target: { value: '지하 2·3층 주차 가능' } })
+    fireEvent.click(screen.getByRole('button', { name: '교정문 저장' }))
+    await waitFor(() => expect(api.saveFeedbackCorrection).toHaveBeenCalledWith('f1', '지하 2·3층 주차 가능'))
+    expect(api.applyFeedback).not.toHaveBeenCalled() // 저장은 반영이 아니다
+    expect(await screen.findByText('저장됨')).toBeVisible()
+  })
+
+  it('[BADINBOX-REVIEW-교정편집] 교정문을 고친 채 [반영]하면 먼저 저장한 뒤 반영한다', async () => {
+    const api = mkApi()
+    const onApplyToKb = vi.fn()
+    render(<BadAnswerInbox api={api} selectedId="f1" onApplyToKb={onApplyToKb} />)
+    fireEvent.change(await screen.findByLabelText('올바른 안내 교정'), { target: { value: '지하 2층·정문 옆' } })
+    fireEvent.click(screen.getByRole('button', { name: /반영/ }))
+    await waitFor(() => expect(api.saveFeedbackCorrection).toHaveBeenCalledWith('f1', '지하 2층·정문 옆'))
+    await waitFor(() => expect(api.applyFeedback).toHaveBeenCalledWith('f1'))
+    expect(onApplyToKb).toHaveBeenCalledWith(expect.objectContaining({ correction: '지하 2층·정문 옆' }))
   })
 
   it('[BADINBOX-REVIEW-03] [반영]은 안내자료 수정·승인 흐름으로 연결하고 즉시 답변에 쓰지 않는다', async () => {

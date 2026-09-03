@@ -88,6 +88,42 @@ async def test_report_requires_bot_and_inbox_derives_question_and_sources(commit
 
 
 @pytest.mark.asyncio
+async def test_apply_stores_patient_question_in_example_bank(committed_conn):
+    # 회귀: 예시은행의 「질문」은 신고 대상 봇 답변('안 됩니다')이 아니라 그 답을 부른 환자 질문('주차 되나요')이어야
+    # 이후 유사 질문 검색이 맞다. (버그였음 — 봇 답변 본문을 질문으로 저장·임베딩하던 것.)
+    from tests.conftest_chat import FakeEmbedder
+    p = await seed_patient(committed_conn)
+    st = await seed_staff(committed_conn, role="admin")
+    _, _session, _pm, bm = await _seed_session(committed_conn, p["patient_id"], with_source=False)
+    fb = await answer_feedback_service.report(bm, st["staff_id"], correction_text="지하 2층입니다", add_to_example_bank=True)
+    await answer_feedback_service.apply(fb["id"], st["staff_id"], FakeEmbedder())
+    mine = next(e for e in await answer_feedback_service.list_examples(True) if e["answer"] == "지하 2층입니다")
+    assert mine["question"] == "주차 되나요"
+
+
+@pytest.mark.asyncio
+async def test_update_correction_edits_while_pending_then_409_after_resolved(committed_conn):
+    # 오답 처리함 검토자가 「올바른 안내」를 직접 수정 — pending일 때만. 반려/반영 후엔 409(09).
+    p = await seed_patient(committed_conn)
+    st = await seed_staff(committed_conn, role="admin")
+    _, _session, _pm, bm = await _seed_session(committed_conn, p["patient_id"], with_source=False)
+    fb = await answer_feedback_service.report(bm, st["staff_id"], correction_text="지하 2층")
+
+    await answer_feedback_service.update_correction(fb["id"], "지하 2·3층 주차 가능")
+    assert (await answer_feedback_service.get_feedback(fb["id"]))["correction"] == "지하 2·3층 주차 가능"
+
+    # 빈 값은 교정 없음(null)으로 저장한다
+    await answer_feedback_service.update_correction(fb["id"], "   ")
+    assert (await answer_feedback_service.get_feedback(fb["id"]))["correction"] is None
+
+    # 반려된 뒤엔 더 못 고친다(409)
+    await answer_feedback_service.reject(fb["id"], st["staff_id"])
+    with pytest.raises(AppError) as e:
+        await answer_feedback_service.update_correction(fb["id"], "다시 고치기")
+    assert e.value.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_quality_correct_registers_quality_review_and_marks_corrected(committed_conn):
     p = await seed_patient(committed_conn)
     st = await seed_staff(committed_conn, role="admin")

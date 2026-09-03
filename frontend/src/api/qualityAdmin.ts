@@ -77,6 +77,8 @@ export interface QualityApi {
   getFeedback(id: string): Promise<Feedback>
   applyFeedback(id: string): Promise<void>
   rejectFeedback(id: string): Promise<void>
+  /** 오답 처리함에서 「올바른 안내」 교정문을 직접 수정 저장(pending만, 이미 처리됨=409). */
+  saveFeedbackCorrection(id: string, correction: string): Promise<void>
   listQualitySessions(range: DateRange, page: number): Promise<{ items: QualitySession[] }>
   getQualitySession(id: string): Promise<QualitySessionDetail>
   saveQualityCorrection(id: string, correction: string): Promise<void>
@@ -189,6 +191,9 @@ export const qualityAdminApi: QualityApi = {
   },
   async rejectFeedback(id) {
     await apiFetch<void>(`/admin/chat/feedback/${id}/reject`, post())
+  },
+  async saveFeedbackCorrection(id, correction) {
+    await apiFetch<void>(`/admin/chat/feedback/${id}/correct`, post({ correction_text: correction }))
   },
   async listQualitySessions(range, page) {
     const d = await apiFetch<{ items: QualitySessionDto[] }>(
