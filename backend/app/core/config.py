@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     # 일일 pg_dump 백업이 올라가는 Supabase Storage 버킷(배포 Task 7 · 14일 보관).
     backup_bucket: str = "backups"
 
+    # 브라우저 CORS 허용 오리진(콤마구분). Vercel에 올라간 직원 웹·webchat이
+    # 브라우저에서 이 백엔드를 호출할 수 있게 한다(배포 Task 14 Step 3.5).
+    # 환자 앱은 Flutter 네이티브라 브라우저 CORS 대상이 아니므로 넣지 않는다.
+    # 예: "https://staff.vercel.app,https://webchat.vercel.app"
+    allowed_origins: str = ""
+
     # AI 상담봇(4단계) — LLM/RAG 설정. 키가 비면 자동 테스트는 stub(FakeEmbedder·
     # 주입된 가짜 모델)으로 돌고, 손검수·배포에서 실제 키를 넣으면 진짜 답변이 나온다.
     # 운영시간 판정은 서버 단일 is_open(at)(hospital_hours)이 담당하므로
@@ -29,6 +35,10 @@ class Settings(BaseSettings):
     anon_contact_encryption_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env")
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
 
 settings = Settings()

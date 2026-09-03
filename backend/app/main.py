@@ -1,5 +1,9 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+# 별칭 주의: 아래 `from app.routers import (... settings ...)`가 이름 `settings`를 라우터
+# 모듈로 재바인딩하므로, 설정 객체는 충돌을 피해 별칭으로 가져온다.
+from app.core.config import settings as app_settings
 from app.core.errors import AppError, app_error_handler, unhandled_exception_handler
 from app.routers import (
     admin_chat,
@@ -35,6 +39,18 @@ from app.routers import (
 )
 
 app = FastAPI(title="Hospital Backend")
+
+# 브라우저 CORS — Vercel 직원 웹·webchat이 이 백엔드를 호출할 수 있게 한다(배포 Task 14).
+# 허용 오리진은 ALLOWED_ORIGINS 환경변수(콤마구분)로 주입된다. 비면 아무 브라우저 오리진도
+# 허용하지 않는다(모바일 앱은 네이티브라 CORS 무관).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=app_settings.allowed_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
