@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { ReplyBox } from './ReplyBox'
 
 it('[TICKET-DETAIL-REPLY-01] 직원 답변을 입력해 여러 차례 보낼 수 있다', async () => {
-  const onSend = vi.fn(async () => {})
+  const onSend = vi.fn(async (_body: string) => {})
   render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />)
   await userEvent.type(screen.getByLabelText('답변'), '첫 답변')
   await userEvent.click(screen.getByText('보내기'))
@@ -33,7 +33,7 @@ it('[TICKET-DETAIL-REPLY-03] 전송 실패면 티켓을 answered로 바꾸지 �
 })
 
 it('[TICKET-DETAIL-REPLY-04] 성공하면 입력을 비우고 보내기만으로 상담을 닫지 않는다', async () => {
-  const onSend = vi.fn(async () => {})
+  const onSend = vi.fn(async (_body: string) => {})
   render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />)
   await userEvent.type(screen.getByLabelText('답변'), '정상 답변')
   await userEvent.click(screen.getByText('보내기'))
@@ -48,7 +48,7 @@ it('[TICKET-DETAIL-REPLY-05] answered 티켓은 재답변하지 않고 재문의
 })
 
 it('[TICKET-DETAIL-REPLY-06] Enter로 보내고 Shift+Enter는 줄바꿈이라 보내지 않는다', async () => {
-  const onSend = vi.fn(async () => {})
+  const onSend = vi.fn(async (_body: string) => {})
   render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />)
   const ta = screen.getByLabelText('답변')
   await userEvent.type(ta, '엔터로 전송')
@@ -62,7 +62,7 @@ it('[TICKET-DETAIL-REPLY-06] Enter로 보내고 Shift+Enter는 줄바꿈이라 �
 })
 
 it('[TICKET-DETAIL-REPLY-06] 한글 조합 중 Enter(글자 확정)는 전송하지 않는다', () => {
-  const onSend = vi.fn(async () => {})
+  const onSend = vi.fn(async (_body: string) => {})
   render(<ReplyBox readOnly={false} sending={false} onSend={onSend} />)
   const ta = screen.getByLabelText('답변')
   fireEvent.change(ta, { target: { value: '가' } })
