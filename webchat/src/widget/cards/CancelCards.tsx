@@ -10,11 +10,13 @@ export function CancelConfirmCard({ p, ctx }: CardProps) {
   return (
     <div>
       <p>{String(p.target_summary)} 예약을 취소할까요?</p>
-      <button type="button" onClick={() => { /* [아니요] */ }}>아니요</button>
-      <button type="button" onClick={() =>
-        ctx.isAnonymous ? ctx.onAuthGate({ kind: 'cancel', payload: p }) // CANCELCONF-02: 인증 뒤 최신 대상 재확인, 인증 전 취소 API 호출 없음
-                        : ctx.onExecute('cancel_confirm', p)}
-      >취소합니다</button>
+      <div className="wc-card-actions">
+        <button type="button" className="wc-card-btn--ghost" onClick={() => { /* [아니요] */ }}>아니요</button>
+        <button type="button" className="wc-card-btn--danger" onClick={() =>
+          ctx.isAnonymous ? ctx.onAuthGate({ kind: 'cancel', payload: p }) // CANCELCONF-02: 인증 뒤 최신 대상 재확인, 인증 전 취소 API 호출 없음
+                          : ctx.onExecute('cancel_confirm', p)}
+        >취소합니다</button>
+      </div>
     </div>
   );
 }
@@ -38,9 +40,11 @@ export function CancelRejectCard({ p, ctx }: CardProps) {
     <div>
       <p>취소 요청이 반려되었습니다</p>
       <p>직원 사유: {String(p.reject_reason ?? '사유 없음')}</p>
-      <button type="button" onClick={() => { /* [확인] → 정상 예약/QR 복귀 */ }}>확인</button>
-      {/* CANCELREJ-03: 같은 예약·사유 문맥으로 상담을 이어가며 "취소 요청 접수/등록"이라 표시하지 않음 */}
-      <button type="button" onClick={() => ctx.onReconsult(p)}>다시 문의하기</button>
+      <div className="wc-card-actions">
+        <button type="button" onClick={() => { /* [확인] → 정상 예약/QR 복귀 */ }}>확인</button>
+        {/* CANCELREJ-03: 같은 예약·사유 문맥으로 상담을 이어가며 "취소 요청 접수/등록"이라 표시하지 않음 */}
+        <button type="button" className="wc-card-btn--ghost" onClick={() => ctx.onReconsult(p)}>다시 문의하기</button>
+      </div>
     </div>
   );
 }

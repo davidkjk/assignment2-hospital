@@ -404,6 +404,135 @@
   border-color: var(--wc-primary);
 }
 
+/* ── 앱 카드 재사용(WEBCARD-*) — 목업 102 카드 보드 ─────────────────────── */
+.wc-cardline { align-self: stretch; max-width: 100%; }
+
+.webcard {
+  position: relative;
+  margin: 8px 0 2px;
+  padding: 14px;
+  border: 1.5px solid var(--wc-primary-soft);
+  border-radius: 14px;
+  background: #fff;
+  font-size: 13px;
+  color: var(--wc-ink);
+}
+/* 상단 꼬리표 — 카드 종류 라벨(목업 102 .chat-card:before) */
+.webcard::before {
+  position: absolute;
+  top: -9px;
+  left: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--wc-primary-soft);
+  border-radius: 99px;
+  background: var(--wc-primary-soft);
+  color: var(--wc-primary);
+  font-size: 9px;
+  font-weight: 800;
+}
+.webcard[data-card-type="time_select"]::before { content: "시간 선택"; }
+.webcard[data-card-type="booking_confirm"]::before { content: "예약 확인"; }
+.webcard[data-card-type="booking_done"]::before { content: "예약 결과"; }
+.webcard[data-card-type="cancel_confirm"]::before { content: "취소 확인"; }
+.webcard[data-card-type="cancel_done"]::before { content: "취소 결과"; }
+.webcard[data-card-type="cancel_reject"]::before { content: "직원 답변"; }
+.webcard[data-card-type="questionnaire"]::before { content: "앱 안내"; }
+
+.webcard p { margin: 5px 0; line-height: 1.55; }
+.webcard p[role="status"] { color: var(--wc-ink-3); font-size: 12.5px; }
+.webcard [role="alert"] {
+  margin: 2px 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--wc-danger);
+  border-radius: 6px;
+  background: var(--wc-danger-bg);
+  color: var(--wc-danger);
+  font-size: 12.5px;
+}
+.webcard [role="alert"] p { margin: 0 0 6px; }
+
+/* 여섯 확인 항목(BookConfirm dl) */
+.webcard dl { margin: 8px 0 12px; display: grid; }
+.webcard dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--wc-line);
+  font-size: 12.5px;
+}
+.webcard dl > div:last-child { border-bottom: 0; }
+.webcard dt { color: var(--wc-ink-3); }
+.webcard dd { margin: 0; color: var(--wc-ink); font-weight: 700; text-align: right; }
+
+/* 시간 선택 pill(TimeSelect ul) */
+.webcard ul { list-style: none; margin: 8px 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 7px; }
+.webcard ul button {
+  min-height: 0;
+  border: 1px solid var(--wc-primary-soft);
+  border-radius: 99px;
+  background: var(--wc-primary-soft);
+  color: var(--wc-primary);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background .18s, color .18s;
+}
+.webcard ul button:hover { background: var(--wc-primary); color: #fff; }
+
+/* 카드 버튼 — 기본 = 딥틸 주 버튼 */
+.webcard button {
+  min-height: 40px;
+  border: 1px solid var(--wc-primary);
+  border-radius: 10px;
+  background: var(--wc-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.wc-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+/* 보조 버튼(아니요·다시 문의) */
+.wc-card-btn--ghost {
+  background: #fff !important;
+  color: var(--wc-primary) !important;
+  border-color: var(--wc-primary-soft) !important;
+}
+/* 되돌릴 수 없는 동작(취소합니다) = danger, 확인 카드 안에서만 노출 */
+.wc-card-btn--danger {
+  background: var(--wc-danger) !important;
+  border-color: var(--wc-danger) !important;
+  color: #fff !important;
+}
+
+/* 빠른답변 칩(QuickReplies) — 카드 프레임 없이 딥틸 외곽선 알약 */
+.webcard[data-card-type="quick_replies"] {
+  border: 0;
+  padding: 0;
+  margin: 6px 0;
+  background: none;
+}
+.webcard[data-card-type="quick_replies"]::before { content: none; }
+.webcard[data-card-type="quick_replies"] > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.webcard[data-card-type="quick_replies"] button {
+  min-height: 0;
+  border: 1.5px solid var(--wc-primary-soft);
+  border-radius: 99px;
+  background: #fff;
+  color: var(--wc-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 14px;
+}
+.webcard[data-card-type="quick_replies"] button:hover {
+  background: var(--wc-primary);
+  color: #fff;
+  border-color: var(--wc-primary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wc-close { transition: none; }
+  .webcard ul button { transition: none; }
 }
