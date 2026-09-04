@@ -7,9 +7,9 @@ export function QuickReplies({ p, ctx }: CardProps) {
   const options = (p.options as string[] | undefined) ?? [];
   if (options.length === 0) return null;
   return (
-    <div aria-label="빠른 답변">
+    <div className="wc-quick" aria-label="빠른 답변">
       {options.map((o) => (
-        <button key={o} type="button" onClick={() => ctx.onPick(o)}>{o}</button> // 버튼 문장 그대로 환자 말풍선 전송
+        <button key={o} type="button" className="wc-chip" onClick={() => ctx.onPick(o)}>{o}</button> // 버튼 문장 그대로 환자 말풍선 전송
       ))}
     </div>
   );

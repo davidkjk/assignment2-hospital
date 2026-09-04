@@ -11,6 +11,7 @@ export type ChatRoomProps = {
   onRetryLoad: () => void;
   guideSlot: ReactNode;
   handoffSlot: ReactNode;
+  quickActionsSlot?: ReactNode;   // 입력바 위 상시 빠른행동 칩(내 예약 조회·직원에게 문의). 홈페이지 챗봇의 quick-chips 자리.
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
 };
 
@@ -59,9 +60,17 @@ export function ChatRoom(p: ChatRoomProps) {
           <button type="button" onClick={p.onRetryLoad}>다시 시도</button>
         </div>
       )}
-      <form className="wc-foot" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { p.onSend(draft.trim()); setDraft(''); } }}>
-        <input className="wc-input" placeholder="메시지를 입력하세요" value={draft} onChange={(e) => setDraft(e.target.value)} />
-      </form>
+      <div className="wc-foot">
+        {p.quickActionsSlot && <div className="wc-quick wc-quick--actions">{p.quickActionsSlot}</div>}
+        <form className="wc-inputbar" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { p.onSend(draft.trim()); setDraft(''); } }}>
+          <input className="wc-input" placeholder="메시지를 입력하세요" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <button type="submit" className="wc-send" aria-label="보내기">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7Z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </form>
+      </div>
     </section>
   );
 }

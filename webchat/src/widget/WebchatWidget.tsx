@@ -45,12 +45,17 @@ export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, ex
             onResend={w.resend}
             onRetryLoad={w.retryLoad}
             guideSlot={<GuideBanner active={w.guide.active} text={w.guide.text} />}
-            handoffSlot={<HandoffBadge status={w.handoff} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />}
+            // 인계 배지는 실제 인계가 시작(phase 확정)되거나 조회 실패일 때만 — 그 전엔 "상태 확인 중…"을 상시 노출하지 않는다.
+            handoffSlot={(w.handoff.phase !== null || w.handoff.loadError)
+              ? <HandoffBadge status={w.handoff} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
+              : null}
+            // 로그인 필요 행동·직원 문의는 콜백만 부른다(원래 행동은 인증/인계 전 실행하지 않음). 홈페이지 챗봇 quick-chips 자리에 칩으로.
+            quickActionsSlot={<>
+              <button type="button" className="wc-chip" onClick={() => onAuthGate({ kind: 'view_my_appointments' })}>내 예약 조회</button>
+              <button type="button" className="wc-chip" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
+            </>}
             renderCard={(payload) => renderCard(payload, { send: w.send })}
           />
-          {/* 로그인 필요 행동·직원 문의는 콜백만 부른다 — 화면은 Task 15. 원래 행동은 인증/인계 전 실행하지 않는다. */}
-          <button type="button" onClick={() => onAuthGate({ kind: 'view_my_appointments' })}>내 예약 조회</button>
-          <button type="button" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
         </div>
       )}
     </>
