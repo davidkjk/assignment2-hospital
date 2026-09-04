@@ -1,5 +1,6 @@
 from uuid import UUID
 
+import asyncpg
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.db.pool import get_pool
@@ -25,8 +26,14 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     pool = await get_pool()
     async with pool.acquire() as conn:
         # 하이브리드(벡터+트라이그램 RRF). 순수 벡터 match_kb_chunks는 근거 확인용으로 남겨둔다.
-        chunks = await conn.fetch(
-            "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, message, match_count)
+        # ⚠️ 폴백: 원격 DB에 하이브리드 함수(마이그 00084)가 아직 없으면(db push 전) 순수 벡터로 내려간다.
+        #   코드 배포(Railway)가 마이그 적용보다 앞설 수 있어, 그 창에서도 봇이 안 깨지게 한다.
+        try:
+            chunks = await conn.fetch(
+                "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, message, match_count)
+        except asyncpg.UndefinedFunctionError:
+            rows = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, match_count)
+            chunks = [dict(r) | {"keyword_sim": 0.0} for r in rows]   # 키워드 신호 없음 → floor는 벡터만
         # 품질 개선 사이클: 오답 교정으로 쌓인 활성 참고 예시 중 이 질문과 가장 비슷한 것(임베딩 코사인).
         example_rows = await conn.fetch(
             "select question, answer, 1 - (embedding <=> $1::vector) as similarity "
