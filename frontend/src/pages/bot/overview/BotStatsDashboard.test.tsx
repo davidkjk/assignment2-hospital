@@ -40,6 +40,16 @@ describe('BotStatsDashboard (BOTSTAT-DASH-*)', () => {
     expect(inflow).toHaveTextContent('챗봇 10%')
   })
 
+  it('[BOTSTAT-DASH-02] 서버가 준 건수(합≠100)를 총합으로 나눠 비율로 환산하고 100%를 넘기지 않는다', async () => {
+    // 실 서버는 유입원을 건수(원값)로 준다(예: 1115/691/294) → 그대로 %로 찍으면 1115% 처럼 100%를 넘는 회귀.
+    render(<BotStatsDashboard api={mkApi({ ...full, inflow: { kind: 'value', app: 1115, staff: 691, chatbot: 294 } })} range={range} onAudit={audit} />)
+    const inflow = await screen.findByTestId('inflow')
+    expect(inflow).toHaveTextContent('앱 53%')
+    expect(inflow).toHaveTextContent('직원 33%')
+    expect(inflow).toHaveTextContent('챗봇 14%')
+    expect(inflow).not.toHaveTextContent('1115%')
+  })
+
   it('[BOTSTAT-DASH-03] 상담봇 지표(문의 수·자체 안내·직원 연결)를 예약 지표와 분리된 묶음으로 표시한다', async () => {
     render(<BotStatsDashboard api={mkApi()} range={range} onAudit={audit} />)
     const bot = await screen.findByTestId('bot-metrics')

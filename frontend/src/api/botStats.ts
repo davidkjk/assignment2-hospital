@@ -29,7 +29,7 @@ export type MetricValue =
   | { kind: 'value'; count: number; drillable: boolean } // 실제 값(0건 포함, BOTSTAT-DASH-04)
   | { kind: 'no_contract' } //                             집계 계약 부재(BOTSTAT-DASH-05)
 export type InflowShare =
-  | { kind: 'value'; app: number; staff: number; chatbot: number } // 3분류 비율(BOTSTAT-DASH-02)
+  | { kind: 'value'; app: number; staff: number; chatbot: number } // 3분류 건수(원값) — 표시 시 총합으로 나눠 비율 환산(BOTSTAT-DASH-02·STAT-METRIC-05)
   | { kind: 'no_contract' }
 export type BotMetrics = {
   inflow: InflowShare // 예약 유입원 3분류(app/staff/chatbot)

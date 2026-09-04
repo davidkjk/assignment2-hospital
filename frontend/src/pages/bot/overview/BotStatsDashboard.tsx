@@ -144,10 +144,14 @@ function Inflow({ inflow }: { inflow: InflowShare }) {
       </section>
     )
   }
+  // 서버는 유입원을 건수(app/staff/chatbot 원값)로 준다 → 표시(STAT-METRIC-05: `app%:staff%:chatbot%`)는
+  // 총합으로 나눠 비율로 환산한다(총합 0이면 0%). 원값을 그대로 %로 찍으면 100%를 넘는다.
+  const total = inflow.app + inflow.staff + inflow.chatbot
+  const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0)
   const rows: Array<{ label: string; share: number }> = [
-    { label: '앱', share: inflow.app },
-    { label: '직원', share: inflow.staff },
-    { label: '챗봇', share: inflow.chatbot },
+    { label: '앱', share: pct(inflow.app) },
+    { label: '직원', share: pct(inflow.staff) },
+    { label: '챗봇', share: pct(inflow.chatbot) },
   ]
   return (
     <section data-testid="inflow" className="rounded-xl border border-border/70 bg-card p-4 shadow-panel">
