@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **로직·DOM 역할 불변**: 리스킨은 className과 CSS만 추가한다. 요소 순서·역할·`aria-label`·조건 분기·상태 이름을 바꾸지 않는다. 기존 `webchat` vitest(약 110~111)와 빌드가 **매 태스크 끝에 초록**이어야 한다. Run: `npm --prefix webchat run test -- --run` · `npm --prefix webchat run build`.
-- **디자인 원본 = 목업 98~103** (`docs/design/mockups/`). 색·간격·상태 시각을 여기에 맞춘다. 발명 금지, 눈대조로 확정.
+- ~~**디자인 원본 = 목업 98~103** (`docs/design/mockups/`). 색·간격·상태 시각을 여기에 맞춘다.~~ ✅ **변경(2026-09-05, 사용자 결정)** — **형태(둥근 모서리·아바타·상태점·부드러운 그림자·알약 입력바)의 디자인 원본은 홈페이지 내장 챗봇 위젯(`homepage/index.html` `.chat*`)**으로 확정(더 세련됨). 색은 양쪽 동일(`#0B6E70`)이라 형태만 이식. **단, 상태·문구·규칙 정본은 여전히 목업 98~103 + `screen-behaviors.md`(WEBCHAT/WEBCARD/WEBMOD)**. 근거·역참조=`HANDOFF-chatbot.md` ⭐(2026-09-05) + `widget.css` 파일 헤더 주석. 발명 금지, 눈대조로 확정.
 - **딥틸 토큰(목업 98 :root 그대로)**: `--primary:#0b6e70` · `--primary-dark:#075658` · `--teal-soft:#e8f3f2` · `--teal-line:#b9d5d4` · `--ink:#10243a` · `--ink-muted:#5a6c7b` · `--surface:#ffffff` · `--canvas:#e8eef0` · `--panel:#f4f7f8` · `--line:#d6e0e4` · `--line-strong:#aabac2` · `--danger:#A02F3D` · `--danger-soft:#FFF0F1` · `--warn:#a95313` · `--warn-soft:#fff7ed` · `--info:#2c5f96` · `--info-soft:#eef5fc` · `--shadow-widget:0 24px 58px rgba(16,36,58,.23),0 5px 15px rgba(16,36,58,.12)`.
 - **폰트**: `"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`. (Pretendard는 CDN `@import` 또는 webfont link로 로드.)
 - **환자 노출 이름은 `AI 상담봇`**(정본 §0). 화면 글자에 `챗봇` 금지.
