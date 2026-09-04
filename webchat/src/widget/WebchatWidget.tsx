@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import type { WebchatApi, ThreadMessage } from '../api/webchatApi';
 import { useWebchat } from '../state/useWebchat';
 import { Launcher } from './Launcher';
@@ -16,16 +16,25 @@ export type WidgetProps = {
   onHandoffNeeded: (summary: HandoffSummary) => void; // → WEBANON-HANDOFF(Task 15)
   renderCard: (payload: Record<string, unknown> | null | undefined, slot: CardSlot) => ReactNode; // → WEBCARD(Task 15)
   extraCards?: ThreadMessage[]; // 재확인 카드 [신청]/[취소] 실행 결과(booking_done·cancel_done 등)를 피드 끝에 얹는다(CCARD-BOOKDONE-SHOW-01). 재열기해도 살아남음(WEBCARD-BOOKDONE-03)
+  open?: boolean;                                   // 제어 모드(홈페이지 iframe이 host:setOpen으로 연다). 없으면 자체 상태로 연다(단독 배포).
+  onOpenChange?: (open: boolean) => void;           // 열림 상태 변화를 부모에 통지(WebchatApp이 webchat:setOpen 송신)
+  onUnreadChange?: (hasUnread: boolean) => void;    // 미읽음(직원 답변 도착) 변화를 부모에 통지(webchat:unread 송신)
 };
 
-export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, extraCards = [] }: WidgetProps) {
-  const [open, setOpen] = useState(false);
+export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, extraCards = [], open: openProp, onOpenChange, onUnreadChange }: WidgetProps) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;               // 제어 모드면 부모 값, 아니면 자체 상태
+  const setOpen = (v: boolean) => { setOpenState(v); onOpenChange?.(v); };
   const w = useWebchat(api);
+  const hasUnread = w.handoff.phase === 'answered';
+  const openSession = w.open;                        // 안정 useCallback(=[api])
+  // 열림으로 전이될 때마다 세션 확보(기존 openRoom = setOpen(true)+w.open() 동작을 그대로 보존).
+  useEffect(() => { if (open) openSession(); }, [open, openSession]);
+  useEffect(() => { onUnreadChange?.(hasUnread); }, [hasUnread, onUnreadChange]);
 
-  const openRoom = async () => { setOpen(true); await w.open(); };
   return (
     <>
-      <Launcher open={open} hasUnread={w.handoff.phase === 'answered'} onOpen={openRoom} onClose={() => setOpen(false)} />
+      <Launcher open={open} hasUnread={hasUnread} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} />
       {open && (
         <div className="wc-panel">
           <button type="button" className="wc-close" aria-label="닫기" onClick={() => setOpen(false)}>×</button>

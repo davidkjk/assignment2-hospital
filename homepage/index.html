@@ -317,42 +317,15 @@
   .fab-chat svg{width:29px;height:29px}
   .fab-chat .pulse{position:absolute; inset:0; border-radius:50%; border:2px solid var(--accent); animation:pulse 2.2s ease-out infinite}
   @keyframes pulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.7);opacity:0}}
-  .fab-badge{position:absolute; top:-3px; right:-3px; width:20px;height:20px;border-radius:50%; background:#e5484d; color:#fff;
-    font-size:11px; font-weight:800; display:grid;place-items:center; border:2px solid #fff}
+  /* 미읽음 표식 — 직원 답변 도착 시 점 하나(webchat:unread로 토글, 숫자 배지 아님) */
+  .fab-badge{position:absolute; top:-1px; right:-1px; width:14px;height:14px;border-radius:50%; background:#e5484d; border:2px solid #fff}
 
+  /* 진짜 webchat 위젯을 담는 iframe 컨테이너. 내부 콘텐츠는 webchat(React)이 그린다. */
   .chat{position:fixed; right:26px; bottom:26px; z-index:950; width:380px; max-width:calc(100vw - 32px); height:600px; max-height:calc(100vh - 40px);
-    background:#fff; border-radius:20px; box-shadow:0 30px 70px -20px rgba(12,35,64,.55); display:flex; flex-direction:column; overflow:hidden;
+    background:#fff; border-radius:20px; box-shadow:0 30px 70px -20px rgba(12,35,64,.55); overflow:hidden;
     opacity:0; transform:translateY(24px) scale(.96); pointer-events:none; transition:opacity .3s var(--ease), transform .3s var(--ease)}
   .chat.open{opacity:1; transform:none; pointer-events:auto}
-  .chat-head{background:linear-gradient(120deg,var(--accent-d),var(--accent)); color:#fff; padding:20px 20px 18px; position:relative}
-  .chat-head .who{display:flex; align-items:center; gap:12px}
-  .chat-head .av{width:44px;height:44px;border-radius:50%; background:rgba(255,255,255,.18); display:grid;place-items:center; border:1.5px solid rgba(255,255,255,.4)}
-  .chat-head .av svg{width:24px;height:24px}
-  .chat-head .nm{font-size:17px; font-weight:800}
-  .chat-head .st{font-size:12.5px; opacity:.9; display:flex; align-items:center; gap:6px; margin-top:2px}
-  .chat-head .st .dot{width:7px;height:7px;border-radius:50%; background:#4ade80; box-shadow:0 0 0 3px rgba(74,222,128,.3)}
-  .chat-close{position:absolute; top:16px; right:16px; width:32px;height:32px; border-radius:9px; background:rgba(255,255,255,.16); display:grid;place-items:center; color:#fff; transition:background .2s}
-  .chat-close:hover{background:rgba(255,255,255,.3)}
-  .chat-close svg{width:18px;height:18px}
-  .chat-body{flex:1; overflow-y:auto; padding:20px 18px; background:var(--soft); display:flex; flex-direction:column; gap:12px}
-  .msg{max-width:82%; padding:12px 15px; border-radius:16px; font-size:14.5px; line-height:1.6; white-space:pre-line}
-  .msg.bot{background:#fff; border:1px solid var(--line); border-bottom-left-radius:5px; align-self:flex-start; box-shadow:0 2px 6px -3px rgba(12,35,64,.15)}
-  .msg.me{background:var(--accent); color:#fff; border-bottom-right-radius:5px; align-self:flex-end}
-  .msg .lead{font-weight:700; margin-bottom:2px; display:block}
-  .quick-chips{display:flex; flex-wrap:wrap; gap:8px; padding:2px 2px 6px}
-  .chip{font-size:13px; font-weight:600; color:var(--accent); background:#fff; border:1.5px solid var(--accent-soft); border-radius:20px; padding:8px 14px; transition:all .2s}
-  .chip:hover{background:var(--accent); color:#fff; border-color:var(--accent)}
-  .typing{align-self:flex-start; display:flex; gap:4px; padding:14px 16px; background:#fff; border:1px solid var(--line); border-radius:16px; border-bottom-left-radius:5px}
-  .typing i{width:7px;height:7px;border-radius:50%; background:var(--ink-3); animation:blink 1.2s infinite}
-  .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
-  @keyframes blink{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
-  .chat-foot{border-top:1px solid var(--line); padding:12px; background:#fff}
-  .chat-input{display:flex; gap:9px; align-items:center; background:var(--soft); border:1px solid var(--line); border-radius:26px; padding:5px 5px 5px 16px}
-  .chat-input input{flex:1; border:0; background:none; font-size:14.5px; outline:none; color:var(--ink)}
-  .chat-input .send{width:40px;height:40px;border-radius:50%; background:var(--accent); color:#fff; display:grid;place-items:center; transition:background .2s, transform .2s}
-  .chat-input .send:hover{background:var(--accent-d); transform:scale(1.06)}
-  .chat-input .send svg{width:18px;height:18px}
-  .chat-note{text-align:center; font-size:11px; color:var(--ink-3); margin-top:8px}
+  .chat iframe{width:100%; height:100%; border:0; display:block; background:#fff}
 
   /* ---------- toast ---------- */
   .toast{position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(20px); z-index:1500;
@@ -1007,28 +980,14 @@
   </div>
   <button class="fab-chat" id="fabChat" aria-label="온라인 상담 열기">
     <span class="pulse"></span>
-    <span class="fab-badge">1</span>
+    <span class="fab-badge" id="fabBadge" role="img" aria-label="새 답변 있음" hidden></span>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
 </div>
 
-<section class="chat" id="chat" aria-label="온라인 상담">
-  <div class="chat-head">
-    <div class="who">
-      <div class="av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="40" height="40" x="-8" y="-8" fill="none"/><path d="M4 20v-1a6 6 0 0 1 12 0v1" stroke-linecap="round"/><circle cx="10" cy="7" r="3.4"/><path d="M17 4l1.4 2.8L21 8l-2.6 1.2L17 12l-1.4-2.8L13 8l2.6-1.2Z" fill="currentColor" stroke="none" transform="translate(1,1) scale(.7)"/></svg></div>
-      <div><div class="nm">가온 상담봇</div><div class="st"><span class="dot"></span>지금 응답 가능 · 평균 1분 이내</div></div>
-    </div>
-    <button class="chat-close" id="chatClose" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg></button>
-  </div>
-  <div class="chat-body" id="chatBody"></div>
-  <div class="chat-foot">
-    <div class="quick-chips" id="chips"></div>
-    <form class="chat-input" id="chatForm">
-      <input id="chatText" type="text" placeholder="궁금한 점을 입력하세요…" autocomplete="off" aria-label="메시지 입력">
-      <button class="send" type="submit" aria-label="보내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7Z" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    </form>
-    <div class="chat-note">실제 상담봇(웹 위젯)이 이 자리에 연결됩니다 · 데모 응답</div>
-  </div>
+<!-- 진짜 webchat(React 위젯)을 iframe으로 담는다. 콘텐츠·상태·문구는 webchat이 그리고, 홈페이지는 열기/미읽음만 postMessage로 주고받는다. -->
+<section class="chat" id="chat" aria-label="AI 상담봇">
+  <iframe id="wcFrame" title="AI 상담봇" allow="clipboard-write"></iframe>
 </section>
 
 <div class="toast" id="toast"></div>
@@ -1112,78 +1071,30 @@
   function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); clearTimeout(tt); tt=setTimeout(function(){toast.classList.remove('show');},2600); }
   document.querySelectorAll('[data-soon]').forEach(function(el){ el.addEventListener('click',function(e){ e.preventDefault(); showToast(el.getAttribute('data-soon')); }); });
 
-  /* ---- chat ---- */
-  var chat=document.getElementById('chat'), body=document.getElementById('chatBody'), chips=document.getElementById('chips');
-  var fabChat=document.getElementById('fabChat'), fabStack=document.getElementById('fabStack');
-  var opened=false;
-  function openChat(){ chat.classList.add('open'); fabStack.style.opacity=0; fabStack.style.pointerEvents='none';
-    document.querySelector('.fab-badge').style.display='none';
-    if(!opened){ opened=true; setTimeout(function(){ botSay(WELCOME, true); renderChips(TOPCHIPS); },380); }
-    setTimeout(function(){document.getElementById('chatText').focus();},420); }
-  function closeChat(){ chat.classList.remove('open'); fabStack.style.opacity=1; fabStack.style.pointerEvents='auto'; }
-  fabChat.onclick=openChat;
-  document.getElementById('chatClose').onclick=closeChat;
-  document.querySelectorAll('[data-chat-open]').forEach(function(b){ b.addEventListener('click',function(e){e.preventDefault(); openChat();}); });
-
-  function scrollDown(){ body.scrollTop=body.scrollHeight; }
-  function addMsg(text, who){ var d=document.createElement('div'); d.className='msg '+who; d.innerHTML=text; body.appendChild(d); scrollDown(); return d; }
-  function botSay(text, instant){
-    if(instant){ addMsg(text,'bot'); return; }
-    var t=document.createElement('div'); t.className='typing'; t.innerHTML='<i></i><i></i><i></i>'; body.appendChild(t); scrollDown();
-    setTimeout(function(){ body.removeChild(t); addMsg(text,'bot'); }, 650);
-  }
-  function renderChips(list){ chips.innerHTML=''; list.forEach(function(c){ var b=document.createElement('button'); b.className='chip'; b.textContent=c.label;
-    b.onclick=function(){ addMsg(c.label,'me'); handle(c.key); }; chips.appendChild(b); }); }
-
-  var WELCOME='<span class="lead">안녕하세요, 가온병원입니다 👋</span>무엇을 도와드릴까요? 아래에서 골라주시거나 직접 입력해 주세요.';
-  var TOPCHIPS=[{label:'진료시간',key:'hours'},{label:'예약 방법',key:'book'},{label:'오시는 길',key:'location'},{label:'어떤 과로 가야 하나요?',key:'triage'},{label:'주차',key:'parking'}];
-
-  var ANSWERS={
-    hours:'🕘 <span class="lead">진료 시간 안내</span>평일 09:00–18:00\n토요일 09:00–13:00\n점심 13:00–14:00\n일요일·공휴일 휴진\n\n응급실은 24시간 운영합니다.',
-    book:'📅 <span class="lead">예약 방법</span>① 환자앱에서 원하는 과·시간 선택\n② 대표전화 1588-0000\n③ 이 상담창에서 접수 도움 요청\n\n지금 예약을 도와드릴까요?',
-    location:'📍 <span class="lead">오시는 길</span>서울특별시 가온구 한빛로 24\n지하철 3호선 가온역 2번 출구 도보 5분\n주차 300대 가능(2시간 무료).',
-    parking:'🚗 지하 1~3층 주차장(300대)을 운영합니다. 외래 진료 시 2시간 무료, 이후 30분당 1,000원입니다.',
-    triage:'🩺 증상을 알려주시면 알맞은 진료과를 안내해 드릴게요. 예: “무릎이 아파요”, “아이 열이 나요”, “속이 계속 쓰려요”.',
-    staff:'담당 직원 상담으로 연결해 드릴게요. 성함과 연락처를 남겨주시면 확인 후 안내드립니다. (데모에서는 실제 접수되지 않습니다.)'
-  };
-  var SYMPTOMS=[
-    {k:['무릎','허리','관절','어깨','골절','삐','디스크','척추','저림','마비'],d:'정형외과'},
-    {k:['열','아이','소아','아기','예방접종','발진'],d:'소아과'},
-    {k:['속','소화','위','배','설사','복통','메스','두통','머리','어지'],d:'내과'},
-    {k:['콧물','목','귀','코막힘','이명','편도','청력'],d:'이비인후과'}
-  ];
-  function handle(key){
-    if(ANSWERS[key]){ botSay(ANSWERS[key]);
-      if(key==='book'){ setTimeout(function(){renderChips([{label:'네, 접수 도와주세요',key:'staff'},{label:'진료시간 먼저 볼게요',key:'hours'}]);},700); }
-      else if(key==='triage'){ renderChips([]); }
-      else { setTimeout(function(){renderChips(TOPCHIPS);},700); }
-      return;
-    }
-    botSay('담당 직원이 이어서 도와드리겠습니다. 잠시만요…');
-  }
-  function freeText(text){
-    var t=text.replace(/\s/g,'');
-    // symptom triage
-    for(var i=0;i<SYMPTOMS.length;i++){ for(var j=0;j<SYMPTOMS[i].k.length;j++){ if(t.indexOf(SYMPTOMS[i].k[j])>-1){
-      botSay('🩺 말씀하신 증상은 <b>'+SYMPTOMS[i].d+'</b> 진료가 적합해 보입니다.\n예약을 도와드릴까요?');
-      setTimeout(function(){renderChips([{label:'예약 방법',key:'book'},{label:'진료시간',key:'hours'},{label:'직원 상담 연결',key:'staff'}]);},700); return;
-    }}}
-    if(/시간|몇시|언제|영업/.test(text)){ handle('hours'); return; }
-    if(/예약|접수/.test(text)){ handle('book'); return; }
-    if(/주차/.test(text)){ handle('parking'); return; }
-    if(/어디|위치|주소|찾아|길/.test(text)){ handle('location'); return; }
-    if(/응급|급해|아파 죽|119/.test(text)){ botSay('🚑 응급 상황이라면 지체 없이 <b>119</b> 또는 응급실(02-000-0119, 24시간)로 연락해 주세요.'); return; }
-    botSay('문의 주셔서 감사합니다. 정확한 안내를 위해 담당 직원 상담으로 연결해 드릴까요?');
-    setTimeout(function(){renderChips([{label:'직원 상담 연결',key:'staff'},{label:'자주 묻는 질문',key:'menu'}]);},700);
-  }
-  document.getElementById('chatForm').addEventListener('submit',function(e){
-    e.preventDefault(); var inp=document.getElementById('chatText'); var v=inp.value.trim(); if(!v)return;
-    addMsg(v,'me'); inp.value='';
-    if(/^메뉴|처음|menu$/i.test(v)){ renderChips(TOPCHIPS); botSay(WELCOME,false); return; }
-    setTimeout(function(){freeText(v);},180);
+  /* ---- webchat iframe 통합 ---- */
+  // 진짜 webchat(React 위젯)의 배포 origin. 로컬 통합 확인 시에만 dev 포트로 임시 변경한다(배포 고정은 Task 6).
+  var WC_ORIGIN='https://gaonhospital-webchat.vercel.app';
+  var chat=document.getElementById('chat'), fabChat=document.getElementById('fabChat'),
+      fabStack=document.getElementById('fabStack'), fabBadge=document.getElementById('fabBadge'),
+      wcFrame=document.getElementById('wcFrame');
+  var wcOpen=false;
+  wcFrame.src=WC_ORIGIN;                                  // iframe 로드(닫혀도 마운트 유지 → 폴링·미읽음)
+  function postToWidget(v){ if(wcFrame.contentWindow) wcFrame.contentWindow.postMessage({type:'host:setOpen',value:v}, WC_ORIGIN); }
+  function openWidget(){ wcOpen=true; chat.classList.add('open');
+    fabStack.style.opacity=0; fabStack.style.pointerEvents='none';
+    fabBadge.hidden=true;                                 // 열면 미읽음 표식 해제
+    postToWidget(true); }
+  function closeWidget(){ wcOpen=false; chat.classList.remove('open');
+    fabStack.style.opacity=1; fabStack.style.pointerEvents='auto'; }
+  fabChat.onclick=openWidget;
+  document.querySelectorAll('[data-chat-open]').forEach(function(b){ b.addEventListener('click',function(e){e.preventDefault(); openWidget();}); });
+  // iframe(webchat)에서 오는 알림만 신뢰(origin 검증). 열림 동기화 + 미읽음 점.
+  window.addEventListener('message',function(e){
+    if(e.origin!==WC_ORIGIN) return;
+    var d=e.data||{};
+    if(d.type==='webchat:setOpen'){ if(d.value){ if(!wcOpen) openWidget(); } else closeWidget(); }
+    else if(d.type==='webchat:unread'){ fabBadge.hidden=!(d.value && !wcOpen); }
   });
-  // handle 'menu' chip key
-  var _h=handle; handle=function(k){ if(k==='menu'){ renderChips(TOPCHIPS); botSay('무엇을 도와드릴까요?'); return;} _h(k); };
 })();
 </script>
 

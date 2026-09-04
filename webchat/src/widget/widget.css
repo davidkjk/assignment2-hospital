@@ -44,6 +44,27 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── 런처(Launcher) — 단독 배포 시 우하단 진입 버튼 ──────────────────────────
+ * 홈페이지 임베드에선 홈페이지의 딥틸 런처가 열기를 맡고 이 iframe은 숨겨지므로 보이지 않는다.
+ * 형태는 홈페이지 .fab-chat(딥틸 원형 그림자)과 같은 톤의 알약 버튼. */
+.wc-launcher { position: fixed; right: 20px; bottom: 20px; z-index: 40; }
+.wc-launcher__btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  height: 54px; padding: 0 20px 0 16px;
+  border: 0; border-radius: 27px; cursor: pointer;
+  background: var(--wc-primary); color: #fff;
+  font-family: var(--wc-font); font-size: 15px; font-weight: 700;
+  box-shadow: 0 14px 34px -8px rgba(11, 110, 112, .55);
+  transition: transform .2s var(--wc-ease), background .2s;
+}
+.wc-launcher__btn:hover { transform: translateY(-2px); background: var(--wc-primary-d); }
+.wc-launcher__icon { width: 22px; height: 22px; flex: 0 0 auto; }
+.wc-launcher__label { line-height: 1; }
+.wc-launcher__dot { /* 미읽음 표식 — 숫자 배지 금지, 점 하나(결정 B4) */
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--wc-danger); box-shadow: 0 0 0 3px rgba(160, 47, 61, .25);
+}
+
 /* ── 열린 위젯 패널(WebchatWidget open&&<div>) ───────────────────────────
  * 위치·크기는 홈페이지 iframe이 정한다(Task 2). 위젯 자체는 iframe 안을 채운다.  */
 .wc-panel {
