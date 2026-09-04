@@ -87,7 +87,19 @@ export function createWebchatApi(baseUrl: string, deps: WebchatApiDeps = {}): We
       return j.messages as ThreadMessage[];
     },
     async sendMessage(a) {
-      return call('/chat/messages', { method: 'POST', body: JSON.stringify(a) }, null);
+      // 서버 응답(snake_case): { route_taken, message_id, reply, restricted_block, handoff_ticket_id? }.
+      // useWebchat이 기대하는 계약 { routeTaken, botMessage }로 매핑한다(reply → 봇 텍스트 말풍선).
+      const j = await call('/chat/messages', { method: 'POST', body: JSON.stringify(a) }, null);
+      const reply: unknown = j.reply;
+      const botMessage: ThreadMessage | undefined =
+        typeof reply === 'string' && reply.length > 0
+          ? { id: j.message_id ?? `bot-${a.clientMessageId}`, senderType: 'bot', messageType: 'text', content: reply }
+          : undefined;
+      return {
+        routeTaken: (j.route_taken ?? j.routeTaken ?? '') as string,
+        botMessage,
+        handoffTicketId: j.handoff_ticket_id ?? j.handoffTicketId,
+      };
     },
     async fetchHandoff(threadId) {
       return call(`/chat/threads/${threadId}/handoff`, { method: 'GET' }, null);
