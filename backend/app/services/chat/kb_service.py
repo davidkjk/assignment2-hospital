@@ -22,8 +22,12 @@ def chunk_text(content: str, *, max_len: int = 500) -> list[str]:
 
 async def _reembed(conn, doc_id: UUID, content: str, embedder) -> None:
     # 옛 조각 삭제 + 새 조각 삽입을 같은 트랜잭션에서. 실패하면 옛 조각·옛 답 유지(A2).
+    # ⭐ 임베딩 텍스트에는 제목을 함께 넣는다(저장 content는 본문만) — 짧은 외래어 질의('주차','와이파이')가
+    #   제목과 정렬돼 유사도가 오른다(2026-09-04 실측 +0.02~0.12). 검색·표시는 본문 그대로.
+    title = await conn.fetchval("select title from kb_documents where id=$1", doc_id)
     chunks = chunk_text(content)
-    vectors = await embedder.embed(chunks)
+    embed_texts = [f"{title}\n{c}" if title else c for c in chunks]
+    vectors = await embedder.embed(embed_texts)
     await conn.execute("delete from kb_chunks where document_id=$1", doc_id)
     for i, (c, v) in enumerate(zip(chunks, vectors)):
         await conn.execute(
