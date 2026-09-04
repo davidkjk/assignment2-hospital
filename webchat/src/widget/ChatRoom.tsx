@@ -28,8 +28,11 @@ export function ChatRoom(p: ChatRoomProps) {
     <section className="wc-room" role="region" aria-label="AI 상담봇" data-widget="true">
       <header className="wc-header" role="banner">
         <span className="wc-header__av" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 5h16v12H9l-5 3V5Z" /><path d="M8 10h8M8 13h5" />
+          {/* 홈페이지 챗봇 아바타(.chat-head .av) 그대로 — 사람 + 스파클 */}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 20v-1a6 6 0 0 1 12 0v1" strokeLinecap="round" />
+            <circle cx="10" cy="7" r="3.4" />
+            <path d="M17 4l1.4 2.8L21 8l-2.6 1.2L17 12l-1.4-2.8L13 8l2.6-1.2Z" fill="currentColor" stroke="none" transform="translate(1,1) scale(.7)" />
           </svg>
         </span>
         <span className="wc-header__title">
