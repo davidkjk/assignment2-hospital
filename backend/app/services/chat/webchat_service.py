@@ -10,13 +10,14 @@ import hashlib
 import json
 import secrets
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from app.core.errors import AppError
-from app.db.pool import get_pool
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as, get_pool
 from app.services import opening_hours
-from app.services.chat import anonymous_contact_codec, anonymous_service
+from app.services.chat import anonymous_contact_codec, anonymous_service, card_builder
 
 # 세션 복원 시 실어 보내는 최근 이력의 최대 건수(위젯 초기 렌더용).
 HISTORY_LIMIT = 200
@@ -139,6 +140,207 @@ async def get_handoff_status(thread_id: UUID) -> dict:
         "isOpen": is_open,
         "hoursNote": None if is_open else _HANDOFF_CLOSED_NOTE,
     }
+
+
+async def attribute_session_to_patient(*, session_id: UUID, patient_id: UUID) -> None:
+    """익명 세션이 소유한 상담방들을 인증된 환자 계정으로 귀속한다(WEBMOD-AUTH-09).
+
+    XOR CHECK(00053): owner_type='patient'면 patient_id만 채우고 anonymous_session_id는 null이어야 하므로
+    세 칸을 한 UPDATE로 바꾼다. 메시지의 sender_anonymous_session_id는 그대로 두어 이력이 사라지지 않는다.
+    이미 귀속됐거나 해당 세션 소유 방이 없으면 0행 — 멱등하게 통과한다(추측 귀속 아님, 명시 인증에만).
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "update chat_threads set owner_type='patient', patient_id=$2, "
+            "anonymous_session_id=null, updated_at=now() "
+            "where owner_type='anonymous_web' and anonymous_session_id=$1",
+            session_id, patient_id)
+
+
+# ── 인증 후 카드 재검증·실행 (WEBCARD-BOOKCONF-03 / execute) ──────────────────
+# 재검증·실행은 body의 patientId가 아니라 Bearer(get_current_patient)로 확인한 환자를 진실로 삼는다.
+# 귀속 뒤 chat_threads는 anonymous_session_id가 null이라 X-Anon-Token으로는 못 찾는다 — 소유권은 Bearer가 잇는다.
+
+
+def _envelope(payload: dict) -> dict:
+    """카드 payload를 프론트 CardMessage(ThreadMessage) 형태로 감싼다. 재확인 카드는 이력에 저장하지 않는
+    일회성 표시라 합성 id를 준다(WebCard는 .payload만 읽는다)."""
+    return {
+        "id": str(uuid4()), "senderType": "bot", "messageType": "card",
+        "content": None, "payload": payload,
+        "createdAt": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
+    }
+
+
+async def _resolve_target_name(conn, patient: PatientContext, for_patient_id: UUID):
+    """예약 대상자 이름·관계(본인이면 relation=None, 가족이면 활성 링크의 relation). RLS가 본인+가족만 통과."""
+    name = await conn.fetchval("select name from patients where id=$1", for_patient_id)
+    if for_patient_id == patient.id:
+        return name, None
+    relation = await conn.fetchval(
+        "select relation from patient_family_links "
+        "where account_patient_id=$1 and family_patient_id=$2 and is_active",
+        patient.id, for_patient_id)
+    return name, relation
+
+
+async def _revalidate_book(patient: PatientContext, payload: dict) -> dict:
+    """[WEBCARD-BOOKCONF-03] 슬롯이 여전히 가능하면 최신 예약확인 카드를, 아니면 같은 의사·날짜의
+    최신 시간선택 카드를 돌려준다. 이름·과·의사는 서버에서 다시 읽는다(카드 스냅샷을 믿지 않음)."""
+    department_id = UUID(payload["department_id"])
+    doctor_id = UUID(payload["doctor_id"])
+    slot_id = UUID(payload["slot_id"])
+    for_patient_id = UUID(payload["for_patient_id"])
+    visit_reason = card_builder.collect_visit_reason(payload.get("visit_reason"))
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        slot = await conn.fetchrow(
+            "select slot_date, start_time from appointment_slots where id=$1", slot_id)
+        dept_name = await conn.fetchval("select name from departments where id=$1", department_id)
+        doctor_name = await conn.fetchval("select name from staff where id=$1", doctor_id)
+        patient_name, relation = await _resolve_target_name(conn, patient, for_patient_id)
+        target_date = slot["slot_date"] if slot else None
+        bookable = []
+        if target_date is not None:
+            bookable = await conn.fetch(
+                "select id, start_time from list_bookable_slots($1, $2)", doctor_id, target_date)
+    still_open = slot is not None and any(r["id"] == slot_id for r in bookable)
+    if still_open:
+        slot_at = datetime.combine(slot["slot_date"], slot["start_time"]).isoformat()
+        return _envelope(card_builder.build_booking_confirm_card(
+            for_patient_id=str(for_patient_id), patient_name=patient_name, relation=relation,
+            department_name=dept_name, doctor_name=doctor_name, slot_at=slot_at,
+            visit_reason=visit_reason, department_id=str(department_id),
+            doctor_id=str(doctor_id), slot_id=str(slot_id)))
+    # 슬롯이 사라졌거나 더는 불가 → 같은 의사·날짜의 최신 후보로 다시 고르게(막다른 길 금지).
+    candidates = [{
+        "label": r["start_time"].strftime("%H:%M"),
+        "slot_at": datetime.combine(target_date, r["start_time"]).isoformat(),
+        "slot_id": str(r["id"]), "department_id": str(department_id),
+        "doctor_id": str(doctor_id), "for_patient_id": str(for_patient_id),
+    } for r in bookable] if target_date is not None else []
+    return _envelope(card_builder.build_time_select_card(
+        candidates=candidates, state=("정상" if candidates else "빈")))
+
+
+_CHANGEABLE_STATUSES = ("예약신청", "예약확정")   # patient_booking_service와 같은 취소 가능 상태
+
+
+def _cancel_target_summary(row, name: str) -> str:
+    """취소 재확인용 사람이 읽는 요약: '9월 11일 10:00 내과 김의사'(대상자·과·의사·일시)."""
+    parts = []
+    if row["slot_date"] is not None:
+        parts.append(row["slot_date"].strftime("%-m월 %-d일"))
+    if row["start_time"] is not None:
+        parts.append(row["start_time"].strftime("%H:%M"))
+    if row["dept_name"]:
+        parts.append(row["dept_name"])
+    if row["doctor_name"]:
+        parts.append(row["doctor_name"])
+    summary = " ".join(parts)
+    if name:
+        summary = f"{name} · {summary}" if summary else name
+    return summary
+
+
+async def _revalidate_cancel(patient: PatientContext, payload: dict) -> dict:
+    """[WEBCARD-CANCELCONF-02] 인증 후 취소 대상 예약을 다시 확인한다. 취소 불가(없음·이미 취소·완료)면
+    반려 카드로 막다른 길을 만들지 않는다. updated_at을 실어 execute가 낙관적 잠금에 쓴다."""
+    appointment_id = UUID(payload["appointment_id"])
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select a.status, a.updated_at, a.for_patient_id, s.slot_date, s.start_time, "
+            "d.name as dept_name, doc.name as doctor_name "
+            "from appointments a "
+            "left join appointment_slots s on s.id=a.slot_id "
+            "left join departments d on d.id=a.department_id "
+            "left join staff doc on doc.id=a.doctor_id "
+            "where a.id=$1", appointment_id)
+        if row is None:
+            return _envelope(card_builder.build_cancel_reject_card(reject_reason="예약을 찾을 수 없습니다."))
+        if row["status"] not in _CHANGEABLE_STATUSES:
+            return _envelope(card_builder.build_cancel_reject_card(
+                reject_reason="이미 취소되었거나 완료된 예약입니다."))
+        name, _relation = await _resolve_target_name(conn, patient, row["for_patient_id"])
+    return _envelope(card_builder.build_cancel_confirm_card(
+        appointment_id=str(appointment_id),
+        target_summary=_cancel_target_summary(row, name),
+        updated_at=row["updated_at"].isoformat()))
+
+
+async def revalidate_action(patient: PatientContext, action: dict) -> dict | None:
+    """인증 후 원래 행동을 최신 서버 상태로 재검증한다(자동 실행 없음 — 재확인 카드만 준다)."""
+    kind = action.get("kind")
+    payload = action.get("payload") or {}
+    if kind == "book":
+        return await _revalidate_book(patient, payload)
+    if kind == "cancel":
+        return await _revalidate_cancel(patient, payload)
+    if kind == "view_my_appointments":
+        return None   # [WEBMOD-AUTH-07] 최신 조회만 — 카드 없이 프론트가 목록을 새로 읽는다.
+    raise AppError("알 수 없는 재확인 행동입니다.", status_code=400)
+
+
+async def _execute_booking(patient: PatientContext, payload: dict, request_id: UUID) -> dict:
+    """[WEBCARD-BOOKCONF-01] 재확인 카드 [신청] → create_booking으로 실제 예약. 카드 payload를 믿지 않고
+    create_booking이 슬롯·마감을 서버에서 재검증한다(위변조해도 안전). request_id로 멱등."""
+    from app.services import patient_booking_service
+    for_patient_id = UUID(payload["for_patient_id"])
+    department_id = UUID(payload["department_id"])
+    doctor_id = UUID(payload["doctor_id"])
+    slot_id = UUID(payload["slot_id"])
+    reason = card_builder.collect_visit_reason(payload.get("visit_reason"))
+    try:
+        appointment_id = await patient_booking_service.create_booking(
+            patient, for_patient_id, department_id, doctor_id, slot_id,
+            reason=reason, request_id=request_id, source="chatbot")
+    except AppError as exc:
+        # 슬롯 충돌·마감 등 → 예약확인 카드 실패 상태로 되돌린다(자동 실행 금지 유지, 막다른 길 아님).
+        return _envelope({**payload, "card_type": "booking_confirm",
+                          "state": "실패", "error_message": exc.message})
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        row = await conn.fetchrow(
+            "select status, booking_code from appointments where id=$1", appointment_id)
+    return _envelope(card_builder.build_booking_done_card(
+        status=row["status"], number=row["booking_code"], question_count=None))
+
+
+async def _execute_cancel(patient: PatientContext, payload: dict) -> dict:
+    """[WEBCARD-CANCELCONF-01] 재확인 카드 [취소합니다] → cancel_appointment(APPT-RACE-01 낙관적 잠금).
+    마감 후면 취소하지 않고 상담(직원 확인) 연결 안내로 되돌린다(환자 노출 문구 한정)."""
+    from app.services import patient_booking_service
+    appointment_id = UUID(payload["appointment_id"])
+    expected_updated_at = (datetime.fromisoformat(payload["updated_at"])
+                           if payload.get("updated_at") else None)
+    if expected_updated_at is None:
+        return _envelope(card_builder.build_cancel_reject_card(
+            reject_reason="예약 정보를 다시 확인해주세요."))
+    try:
+        result = await patient_booking_service.cancel_appointment(
+            patient, appointment_id, expected_updated_at)
+    except AppError as exc:
+        return _envelope(card_builder.build_cancel_reject_card(reject_reason=exc.message))
+    if not result["cancelled"]:
+        # 마감 후: 취소 접수 표현 금지 — 상담(직원 확인) 연결로만 안내한다.
+        return _envelope(card_builder.build_cancel_reject_card(
+            reject_reason="마감 후에는 상담(직원 확인)으로 연결됩니다."))
+    async with acquire_as(str(patient.auth_user_id)) as conn:
+        for_patient_id = await conn.fetchval(
+            "select for_patient_id from appointments where id=$1", appointment_id)
+        name, relation = await _resolve_target_name(conn, patient, for_patient_id)
+    at = datetime.now(ZoneInfo("Asia/Seoul")).isoformat()
+    return _envelope(card_builder.build_cancel_done_card(
+        cancelled_by="patient", relation=relation, name=name, at=at))
+
+
+async def execute_card(patient: PatientContext, card_type: str, payload: dict,
+                       client_message_id: UUID) -> dict:
+    """재확인 카드의 주 행동을 실행한다. 카드 payload는 표시 스냅샷일 뿐 — 서버가 재검증·실행한다."""
+    if card_type == "booking_confirm":
+        return await _execute_booking(patient, payload, client_message_id)
+    if card_type == "cancel_confirm":
+        return await _execute_cancel(patient, payload)
+    raise AppError("실행할 수 없는 카드입니다.", status_code=400)
 
 
 async def create_anonymous_handoff(*, session_id: UUID, thread_id: UUID, name: str,

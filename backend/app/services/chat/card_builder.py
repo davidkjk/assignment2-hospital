@@ -17,14 +17,18 @@ def collect_visit_reason(text: str | None) -> str:
 
 
 def build_booking_confirm_card(*, for_patient_id, patient_name, relation,
-                               department_name, doctor_name, slot_at, visit_reason) -> dict:
+                               department_name, doctor_name, slot_at, visit_reason,
+                               department_id=None, doctor_id=None, slot_id=None,
+                               state: str = "정상") -> dict:
     # 여섯 항목 한 묶음 재확인(대상·과·의사·일시·방문이유·장소). 방문이유 비면 그대로 None.
+    # department_id·doctor_id·slot_id는 화면엔 안 보이지만 execute가 재검증·실행에 쓴다(위변조해도 서버가 재검증).
     return {
         "card_type": "booking_confirm",
         "for_patient_id": for_patient_id, "patient_name": patient_name, "relation": relation,
         "department_name": department_name, "doctor_name": doctor_name, "slot_at": slot_at,
         "visit_reason": (visit_reason or None),
-        "button": BOOKING_CONFIRM_BUTTON, "state": "정상",
+        "department_id": department_id, "doctor_id": doctor_id, "slot_id": slot_id,
+        "button": BOOKING_CONFIRM_BUTTON, "state": state,
     }
 
 
@@ -50,10 +54,12 @@ def build_booking_done_card(*, status: str, number: str, question_count: int | N
     return card
 
 
-def build_cancel_confirm_card(*, appointment_id, target_summary) -> dict:
+def build_cancel_confirm_card(*, appointment_id, target_summary, updated_at=None) -> dict:
     # 마감 전/30분 이내만. 사유 입력·"취소" 타이핑 요구 없음. [아니요]/[취소합니다](카탈로그 §4).
+    # updated_at은 화면 비노출 — execute가 APPT-RACE-01 낙관적 잠금(그 사이 병원·가족이 먼저 바꿨나)에 쓴다.
     return {"card_type": "cancel_confirm", "appointment_id": appointment_id,
-            "target_summary": target_summary, "buttons": ["아니요", "취소합니다"], "state": "정상"}
+            "target_summary": target_summary, "updated_at": updated_at,
+            "buttons": ["아니요", "취소합니다"], "state": "정상"}
 
 
 def build_cancel_done_card(*, cancelled_by, relation, name, at) -> dict:

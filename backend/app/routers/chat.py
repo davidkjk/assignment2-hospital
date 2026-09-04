@@ -55,6 +55,23 @@ class HandoffRequest(BaseModel):
     summary: list[str] = Field(default_factory=list)
 
 
+class AttributeRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    # 서버는 인증된 환자를 진실로 삼는다 — patientId가 오면 일치 확인용으로만 쓴다(위조 방지).
+    patient_id: Annotated[UUID | None, Field(alias="patientId")] = None
+
+
+class RevalidateRequest(BaseModel):
+    action: dict   # {kind: 'book'|'cancel'|'view_my_appointments', payload: {...}}
+
+
+class ExecuteRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    card_type: Annotated[str, Field(alias="cardType")]
+    payload: dict
+    client_message_id: Annotated[UUID, Field(alias="clientMessageId")]
+
+
 @router.post("/messages")
 async def send_message(body: SendMessageRequest, request: Request,
                        model=Depends(get_model_dep), embedder=Depends(get_embedder_dep)):
@@ -109,3 +126,33 @@ async def create_handoff(body: HandoffRequest, session: dict = Depends(require_a
         session_id=session["id"], thread_id=body.thread_id,
         name=body.name, phone=body.phone, summary=body.summary)
     return {"ticketId": str(ticket_id)}
+
+
+@router.post("/attribute")
+async def attribute_session(body: AttributeRequest, request: Request,
+                            session: dict = Depends(require_anonymous_session)):
+    # WEBMOD-AUTH-09: 명시 인증(Bearer)에 성공한 환자에게만 앞선 익명 상담 이력을 귀속한다.
+    # X-Anon-Token으로 익명 세션을 찾고, Bearer로 귀속 대상 환자를 확정한다(유사성 추측 귀속 금지).
+    patient = await get_current_patient(request)
+    if body.patient_id is not None and body.patient_id != patient.id:
+        raise HTTPException(status_code=403, detail="다른 계정으로 귀속할 수 없습니다.")
+    await webchat_service.attribute_session_to_patient(
+        session_id=session["id"], patient_id=patient.id)
+    return {"ok": True}
+
+
+@router.post("/cards/revalidate")
+async def revalidate_card(body: RevalidateRequest, request: Request):
+    # WEBCARD-BOOKCONF-03: 인증(Bearer)한 환자로 원래 행동을 최신 상태에 재검증해 재확인 카드를 준다.
+    patient = await get_current_patient(request)
+    card = await webchat_service.revalidate_action(patient, body.action)
+    return {"card": card}
+
+
+@router.post("/cards/execute")
+async def execute_card(body: ExecuteRequest, request: Request):
+    # WEBCARD-BOOKCONF-01·CANCELCONF-01: 인증(Bearer)한 환자로 카드 주 행동을 서버가 재검증·실행한다.
+    patient = await get_current_patient(request)
+    result = await webchat_service.execute_card(
+        patient, body.card_type, body.payload, body.client_message_id)
+    return {"result": result}
