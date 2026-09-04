@@ -1,12 +1,13 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.security import StaffContext, require_role
 from app.integrations.embedding_client import get_embedding_client
-from app.services.chat import kb_service, answer_feedback_service, quality_service, unresolved_service
+from app.services.chat import (answer_feedback_service, bot_stats_service, kb_service,
+                               quality_service, unresolved_service)
 
 router = APIRouter(prefix="/admin/chat", tags=["admin-chat"])
 
@@ -168,21 +169,19 @@ async def examples_deactivate(example_id: UUID, staff: StaffContext = Depends(re
     await answer_feedback_service.deactivate_example(example_id)
 
 
-# ── 상담봇 처리 현황(통계) — Task 22 QTOP-RANK-*·BOTSTAT-DASH-* 소비 계약(501 스텁). ──
-# ⚠️⚠️ 전체 질문 유사도 클러스터 집계·상담봇 운영 지표·유입원 3분류·드릴다운 마스킹 DTO·CSV k=5 억제의
-#   실제 서버 구현은 배포 게이트(⑦ BLOCKED-BEFORE-MERGE)다 — Task 8엔 record_unresolved(적재)만 있고
-#   전체 질문 클러스터 집계 함수 자체가 없다. 지금은 501로 「아직 집계가 없음」을 알리고, 프론트
-#   (QTOP-RANK-10·BOTSTAT-DASH-05)가 이를 placeholder 0이 아니라 '현재 집계할 수 없음'으로 우아하게 표시한다.
-#   ⭐ 라우터가 아예 없으면 404가 되어 프론트가 「오류」로 오인하므로, 계약 부재를 501로 명시한다.
-_STATS_NOT_READY = "상담봇 통계 집계는 아직 준비 중입니다."
+# ── 상담봇 처리 현황(통계) — Task 22 QTOP-RANK-*·BOTSTAT-DASH-* 실집계(⑦). ──
+# 유효한 0건과 계약 부재를 구분해야 하므로 이 라우터가 응답하면 지표는 '계약 있음'이다. 프론트는 라우터가
+# 없거나 꺼져 501을 줄 때만 '현재 집계할 수 없음'을 표시한다(QTOP-RANK-10·BOTSTAT-DASH-05).
+# 집계 규칙·가정(확인 필요 기본값)은 bot_stats_service docstring. 감사 payload 적재는 BLOCKED 유지(-15).
 
 
 @router.get("/stats/ranking")
 async def stats_ranking(
     from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
     staff: StaffContext = Depends(require_role("admin")),
+    embedder=Depends(bot_stats_service.get_embedder_dep),
 ):
-    raise HTTPException(status_code=501, detail=_STATS_NOT_READY)
+    return await bot_stats_service.get_ranking(from_, to, embedder)
 
 
 @router.get("/stats/ranking/{cluster_id}")
@@ -190,8 +189,9 @@ async def stats_ranking_cluster(
     cluster_id: str,
     from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
     staff: StaffContext = Depends(require_role("admin")),
+    embedder=Depends(bot_stats_service.get_embedder_dep),
 ):
-    raise HTTPException(status_code=501, detail=_STATS_NOT_READY)
+    return await bot_stats_service.get_ranking_cluster(cluster_id, from_, to, embedder)
 
 
 @router.get("/stats/export.csv")
@@ -199,7 +199,9 @@ async def stats_export_csv(
     from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
     staff: StaffContext = Depends(require_role("admin")),
 ):
-    raise HTTPException(status_code=501, detail=_STATS_NOT_READY)
+    body = await bot_stats_service.export_csv(from_, to)
+    return Response(content=body, media_type="text/csv; charset=utf-8",
+                   headers={"Content-Disposition": 'attachment; filename="bot-stats.csv"'})
 
 
 @router.get("/stats/{metric}/detail")
@@ -208,7 +210,7 @@ async def stats_drill(
     from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
     staff: StaffContext = Depends(require_role("admin")),
 ):
-    raise HTTPException(status_code=501, detail=_STATS_NOT_READY)
+    return await bot_stats_service.get_drill(metric, from_, to)
 
 
 @router.get("/stats")
@@ -216,4 +218,4 @@ async def stats_metrics(
     from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
     staff: StaffContext = Depends(require_role("admin")),
 ):
-    raise HTTPException(status_code=501, detail=_STATS_NOT_READY)
+    return await bot_stats_service.get_metrics(from_, to)
