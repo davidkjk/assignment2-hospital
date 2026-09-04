@@ -1,0 +1,232 @@
+/* ============================================================================
+ * webchat 위젯 전역 스타일
+ * 디자인 원본 = 홈페이지 내장 챗봇 위젯(homepage/index.html `.chat*`).
+ *   - 형태(둥근 모서리·아바타·상태점·부드러운 그림자·알약 입력바)는 홈페이지에서 가져온다.
+ *   - 주색 #0B6E70 은 홈페이지(--accent)와 목업(98~103 --primary)이 동일하다.
+ *   - 상태색(danger/warn)은 목업 상태모음판 표준을 따른다(#A02F3D/#FFF0F1, #B44E00/#FFF1E4).
+ * 콘텐츠·문구·상태 정본 = 목업 98~103 + docs/design/screen-behaviors.md(WEBCHAT·WEBCARD·WEBMOD 규칙).
+ * 이 파일은 className + CSS만 추가한다(로직·DOM 역할 불변). 회귀 = webchat vitest.
+ * 아이콘은 이모지 금지 — SVG `<symbol>`+`<use>` 재사용.
+ * ========================================================================== */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
+
+:root {
+  /* 주색 — 홈페이지 챗봇 = 목업 = #0B6E70 */
+  --wc-primary: #0B6E70;
+  --wc-primary-d: #0a4a4c;
+  --wc-primary-soft: #e2f0ef;
+  /* 먹/보조 (홈페이지 톤) */
+  --wc-ink: #161a1f;
+  --wc-ink-2: #525a64;
+  --wc-ink-3: #949aa4;
+  --wc-line: #e7e9ee;
+  --wc-soft: #f5f6f8;
+  /* 상태색 — 목업 상태모음판 표준(카드·긴급·장애 공용, Task 3~4에서 사용) */
+  --wc-danger: #A02F3D;
+  --wc-danger-bg: #FFF0F1;
+  --wc-warn: #B44E00;
+  --wc-warn-bg: #FFF1E4;
+  --wc-info: #2c5f96;
+  --wc-info-bg: #eef5fc;
+  /* "지금 응답 가능" 초록 점(홈페이지 .st .dot) */
+  --wc-live: #4ade80;
+  --wc-shadow: 0 30px 70px -20px rgba(12, 35, 64, .55);
+  --wc-font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* 루트(WebchatApp #webchat-app) — 위젯 전역 타이포 */
+.wc-root {
+  font-family: var(--wc-font);
+  color: var(--wc-ink);
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 열린 위젯 패널(WebchatWidget open&&<div>) ───────────────────────────
+ * 위치·크기는 홈페이지 iframe이 정한다(Task 2). 위젯 자체는 iframe 안을 채운다.  */
+.wc-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* 상담방(ChatRoom <section>) — 헤더/바디/입력바를 세로로 채운다 */
+.wc-room {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── 헤더(ChatRoom <header role=banner>) — 딥틸 그라데이션 ─────────────── */
+.wc-header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 56px 18px 20px; /* 오른쪽은 wc-close 자리 확보 */
+  background: linear-gradient(120deg, var(--wc-primary-d), var(--wc-primary));
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+/* 상태 슬롯(진료과 배너·인계 배지)은 Task 3에서 리스킨 — 헤더 밑으로 자연스럽게 흐르도록 폭 100% */
+.wc-header > * {
+  font-weight: 400;
+}
+
+/* 닫기(WebchatWidget의 × 버튼) — 헤더 위 절대배치 */
+.wc-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background .2s;
+}
+.wc-close:hover {
+  background: rgba(255, 255, 255, .3);
+}
+
+/* ── 대화 바디(ChatRoom <ul>) ──────────────────────────────────────────── */
+.wc-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin: 0;
+  padding: 20px 18px;
+  list-style: none;
+  background: var(--wc-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 로딩·오류(ROOM-06/07) — 과거 메시지를 가리지 않는 얇은 안내 */
+.wc-loading {
+  align-self: center;
+  color: var(--wc-ink-3);
+  font-size: 12.5px;
+  padding: 4px 0;
+}
+.wc-error {
+  align-self: stretch;
+  background: #fff;
+  border: 1px solid var(--wc-line);
+  border-left: 4px solid var(--wc-danger);
+  border-radius: 12px;
+  padding: 13px 15px;
+  font-size: 13px;
+  color: var(--wc-ink-2);
+}
+.wc-error button {
+  margin-top: 9px;
+  border: 1px solid var(--wc-primary-soft);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--wc-primary);
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 7px 13px;
+  cursor: pointer;
+}
+
+/* ── 말풍선(ChatRoom <li>) ─────────────────────────────────────────────── */
+.wc-msg {
+  max-width: 82%;
+  padding: 12px 15px;
+  border-radius: 16px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  white-space: pre-line;
+  word-break: break-word;
+}
+/* 봇/직원 = 왼쪽 흰 카드(꼬리 왼쪽) */
+.wc-msg--bot {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid var(--wc-line);
+  border-bottom-left-radius: 5px;
+  box-shadow: 0 2px 6px -3px rgba(12, 35, 64, .15);
+}
+/* 환자(나) = 오른쪽 딥틸(꼬리 오른쪽) */
+.wc-msg--me {
+  align-self: flex-end;
+  background: var(--wc-primary);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+/* 시스템 안내 = 가운데 옅은 칩 */
+.wc-msg--system {
+  align-self: center;
+  max-width: 90%;
+  text-align: center;
+  background: transparent;
+  color: var(--wc-ink-3);
+  font-size: 12.5px;
+  padding: 2px 8px;
+}
+/* 전송 실패 재전송(ROOM-09) — 성공 위장 금지 */
+.wc-msg[data-send-state="failed"] {
+  opacity: .75;
+}
+.wc-msg[data-send-state="failed"] button {
+  display: inline-block;
+  margin-left: 8px;
+  border: 0;
+  background: none;
+  color: var(--wc-danger);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ── 입력바(ChatRoom <form>) — 알약 ───────────────────────────────────── */
+.wc-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-top: 1px solid var(--wc-line);
+  padding: 12px;
+  background: #fff;
+}
+/* 입력칸 = 알약(현재 DOM은 form>input 직접, 래퍼 없음) */
+.wc-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--wc-soft);
+  border: 1px solid var(--wc-line);
+  border-radius: 26px;
+  padding: 12px 18px;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--wc-ink);
+  outline: none;
+  transition: border-color .2s;
+}
+.wc-input::placeholder {
+  color: var(--wc-ink-3);
+}
+.wc-input:focus {
+  border-color: var(--wc-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-close { transition: none; }
+}

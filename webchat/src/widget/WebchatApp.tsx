@@ -43,7 +43,7 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
   };
 
   return (
-    <div id="webchat-app" role="region" aria-label="AI 상담봇">
+    <div id="webchat-app" className="wc-root" role="region" aria-label="AI 상담봇">
       <WebchatWidget
         api={api} hospitalPhone={hospitalPhone}
         onAuthGate={setAuthAction}                            // WEBMOD-AUTH-01: 관문 열기(원래 행동·문맥 보존)

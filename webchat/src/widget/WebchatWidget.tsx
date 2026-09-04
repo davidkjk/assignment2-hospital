@@ -27,8 +27,8 @@ export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, ex
     <>
       <Launcher open={open} hasUnread={w.handoff.phase === 'answered'} onOpen={openRoom} onClose={() => setOpen(false)} />
       {open && (
-        <div>
-          <button type="button" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
+        <div className="wc-panel">
+          <button type="button" className="wc-close" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
           <ChatRoom
             phase={w.phase}
             messages={[...w.messages, ...extraCards]}
