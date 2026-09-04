@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { WebchatApi } from '../api/webchatApi';
+import type { WebchatApi, ThreadMessage } from '../api/webchatApi';
 import { useWebchat } from '../state/useWebchat';
 import { Launcher } from './Launcher';
 import { ChatRoom } from './ChatRoom';
@@ -15,9 +15,10 @@ export type WidgetProps = {
   onAuthGate: (action: PendingAction) => void;      // → WEBMOD-AUTH(Task 15)
   onHandoffNeeded: (summary: HandoffSummary) => void; // → WEBANON-HANDOFF(Task 15)
   renderCard: (payload: Record<string, unknown> | null | undefined, slot: CardSlot) => ReactNode; // → WEBCARD(Task 15)
+  extraCards?: ThreadMessage[]; // 재확인 카드 [신청]/[취소] 실행 결과(booking_done·cancel_done 등)를 피드 끝에 얹는다(CCARD-BOOKDONE-SHOW-01). 재열기해도 살아남음(WEBCARD-BOOKDONE-03)
 };
 
-export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard }: WidgetProps) {
+export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, extraCards = [] }: WidgetProps) {
   const [open, setOpen] = useState(false);
   const w = useWebchat(api);
 
@@ -30,7 +31,7 @@ export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard }: 
           <button type="button" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
           <ChatRoom
             phase={w.phase}
-            messages={w.messages}
+            messages={[...w.messages, ...extraCards]}
             onSend={w.send}
             onResend={w.resend}
             onRetryLoad={w.retryLoad}

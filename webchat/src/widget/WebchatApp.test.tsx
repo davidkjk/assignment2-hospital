@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { WebchatApp } from './WebchatApp';
 import type { WebchatApi, SessionState } from '../api/webchatApi';
@@ -57,6 +57,25 @@ test('[WEBMOD-AUTH-08] 가입 완료는 재확인 카드를 다시 표시하고 
   await userEvent.click(screen.getByRole('button', { name: '가입' }));           // 가입 완료
   expect(await screen.findByRole('dialog', { name: '예약 재확인' })).toBeInTheDocument(); // 재확인 카드 재표시
   expect(api.executeCard).not.toHaveBeenCalled(); // 인증만으로 자동 신청 없음([신청] 눌러야 확정)
+});
+
+test('[CCARD-BOOKDONE-SHOW-01] 재확인 카드에서 [신청]을 확정하면 실행 결과 완료 카드가 피드에 삽입되고 다이얼로그는 닫힌다', async () => {
+  // 익명 카드 → 관문 → 가입 → 재확인 다이얼로그 → [예약 신청하기] 확정 → executeCard 결과(booking_done)가 피드에.
+  const api = fakeApi({ startOrRestoreSession: vi.fn(async (): Promise<SessionState> => ({
+    threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
+    messages: [{ id: 'm1', senderType: 'bot', messageType: 'card', content: null, payload: { ...bookConfirmPayload } }],
+  })) });
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(await screen.findByRole('button', { name: '예약 신청하기' })); // 익명 카드 → 관문
+  await userEvent.click(screen.getByRole('button', { name: '가입' }));                 // 가입 → 재확인 카드
+  const dialog = await screen.findByRole('dialog', { name: '예약 재확인' });
+  await userEvent.click(within(dialog).getByRole('button', { name: '예약 신청하기' })); // [신청] 확정 → 실행
+  await waitFor(() => expect(api.executeCard).toHaveBeenCalledWith(
+    expect.objectContaining({ cardType: 'booking_confirm' })));                       // 서버가 재검증·실행
+  expect(await screen.findByText('예약이 신청되었습니다')).toBeInTheDocument();        // 완료 카드 피드 삽입
+  expect(screen.getByText('신청번호 A-1')).toBeInTheDocument();                        // 실제 번호(성공 위장 금지)
+  expect(screen.queryByRole('dialog', { name: '예약 재확인' })).not.toBeInTheDocument(); // 재확인 다이얼로그 닫힘
 });
 
 test('[SP1] ⑦(귀속·재검증) 라우트가 아직 404여도 로그인 자체는 성공으로 처리해 관문을 닫는다', async () => {
