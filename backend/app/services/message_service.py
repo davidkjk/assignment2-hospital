@@ -177,6 +177,49 @@ async def _enqueue_on_conn(staff: StaffContext, conn, *, kind: str, recipients_s
                          marketing_excluded=excluded, notification_ids=nids)
 
 
+async def run_scheduled_sends(*, conn=None, push_send=None, sms_send=None) -> int:
+    """[SEND-LATER-01] 예약시각이 된 pending 예약발송을 실제로 보낸다. 보낸 예약 건수를 돌려준다.
+
+    cron이 주기 실행한다(배포). due(scheduled_at<=now)인 pending만 `for update skip locked`로
+    잡아, 예약 순간 고정한 수신자 명단(결정#5 ⓐ)으로 notification_log를 만들고 send_now로 보낸다.
+    보낸 예약은 status='sent'로 넘긴다(재발송 방지).
+    """
+    if conn is not None:
+        return await _run_scheduled_on_conn(conn, push_send, sms_send)
+    pool = await get_pool()  # 서버 주체 — 예약발송엔 사용자 세션이 없다.
+    async with pool.acquire() as c, c.transaction():
+        return await _run_scheduled_on_conn(c, push_send, sms_send)
+
+
+async def _run_scheduled_on_conn(conn, push_send, sms_send) -> int:
+    due = await conn.fetch(
+        "select id, kind, body, channel, created_by, target_count from scheduled_notifications "
+        "where status='pending' and scheduled_at <= now() "
+        "order by scheduled_at asc for update skip locked")
+    count = 0
+    for s in due:
+        recips = await conn.fetch(
+            "select patient_id from scheduled_notification_recipients "
+            "where scheduled_notification_id=$1", s["id"])
+        batch_id = uuid4()
+        nids = []
+        for r in recips:
+            nid = await conn.fetchval(
+                "insert into notification_log "
+                "(patient_id, notification_type, kind, body, channel, requested_channel, "
+                " sender_staff_id, target_count, delivery_status, batch_id) "
+                "values ($1,'staff_direct',$2,$3,$4,$5,$6,$7,'발송중',$8) returning id",
+                r["patient_id"], s["kind"], s["body"], s["channel"], s["channel"],
+                s["created_by"], s["target_count"], batch_id)
+            nids.append(nid)
+        if nids:
+            await dispatch_service.send_now(nids, conn, push_send=push_send, sms_send=sms_send)
+        await conn.execute(
+            "update scheduled_notifications set status='sent' where id=$1", s["id"])
+        count += 1
+    return count
+
+
 async def cancel_scheduled(staff: StaffContext, scheduled_id, expected_status: str = "pending",
                            conn=None) -> dict:
     _require_roles(staff, "receptionist", "admin")

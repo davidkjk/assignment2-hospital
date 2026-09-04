@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     # 실제 암복호 호출 시에만 실패한다(배포에서 설정 — anonymous_contact_codec 지연 초기화).
     anon_contact_encryption_key: str = ""
 
+    # 문자 발송(Solapi) — 세 값이 다 차면 실제 발송, 하나라도 비면 개발 폴백(서버 로그만).
+    # LLM 키와 같은 원칙: "키만 꽂으면 진짜"(배포 env). 발신번호는 하이픈 없이(예: 029302266).
+    solapi_api_key: str = ""
+    solapi_api_secret: str = ""
+    sms_sender_number: str = ""
+    # 푸시 발송(FCM HTTP v1) — 서비스 계정 JSON(내용 또는 경로)·프로젝트 ID. 비면 개발 폴백.
+    fcm_credentials_json: str = ""
+    fcm_project_id: str = ""
+    # 이 서버의 공개 베이스 URL(예: https://api.example.com). 발송 상태 콜백(제공자 리포트
+    # 웹훅) 수신 경로를 이 위에 얹는다. 비면 콜백 URL을 만들지 않는다(개발·로컬).
+    public_base_url: str = ""
+
     model_config = SettingsConfigDict(env_file=".env")
 
     @property

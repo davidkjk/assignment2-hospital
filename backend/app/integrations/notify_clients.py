@@ -31,8 +31,35 @@ class _LoggingSmsClient(SmsClient):
         logger.info("[SMS 미연결·개발폴백] to=%s body=%s", phone, body)
 
 
-_default_client: SmsClient = _LoggingSmsClient()
+class _SolapiSmsClient(SmsClient):
+    """단발 문자(OTP 등)를 Solapi 실 클라이언트로 보낸다(SmsOutcome는 로그로만 반영)."""
+
+    def __init__(self, client) -> None:
+        self._client = client
+
+    def send_sms(self, phone: str, body: str) -> None:
+        outcome = self._client.send(phone, body)
+        if outcome.status == "failed":
+            logger.warning("[SMS 실패] to=%s code=%s", phone, outcome.failure_code)
+
+
+_logging_client = _LoggingSmsClient()
+_cache: SmsClient | None = None
+_cache_built = False
+
+
+def reset_sms_client_cache() -> None:
+    """설정을 바꿔 다시 고르게 한다(테스트·재구성용)."""
+    global _cache, _cache_built
+    _cache, _cache_built = None, False
 
 
 def get_sms_client() -> SmsClient:
-    return _default_client
+    """키가 설정돼 있으면 Solapi 실 클라이언트, 아니면 개발 폴백(로그만)."""
+    global _cache, _cache_built
+    if not _cache_built:
+        from app.integrations.solapi_client import get_solapi_client
+        client = get_solapi_client()
+        _cache = _SolapiSmsClient(client) if client is not None else _logging_client
+        _cache_built = True
+    return _cache

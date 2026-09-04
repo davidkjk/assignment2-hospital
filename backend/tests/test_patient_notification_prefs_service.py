@@ -14,13 +14,13 @@ def _ctx(me: dict) -> PatientContext:
 def test_일곱_토글이_모든_종류를_빠짐없이_덮는다():
     """[SET-NOTI-04] 2묶음·7토글. 지금 발송되는 모든 notification_type이 정확히 한 토글씩에 든다 —
     빠지면 그 알림은 끌 방법이 없고(SET-NOTI-01 위반), 겹치면 한 토글이 남의 알림을 끈다.
-    ⚠️ support_answered(4단계 챗봇)는 아직 MESSAGES에 없는 예정 종류라 초과분으로만 허용
-    (questionnaire_partial·family_linked는 이제 MESSAGES에 들어와 실제 발송 종류가 됐다)."""
+    support_answered(4단계 챗봇)도 이제 MESSAGES에 들어와 실제 발송 종류가 됐다(배포 B안 ⑦ 배치
+    발송) — 예정 초과분은 더 없다. 토글과 발송 종류가 정확히 일치한다."""
     from app.services.notification_service import MESSAGES  # T9의 코드 기본 문구 표(=발송되는 종류)
     covered = [t for types in prefs.TOGGLE_GROUPS.values() for t in types]
     assert len(covered) == len(set(covered))                       # 겹침 없음
     assert set(MESSAGES) <= set(covered)                           # 발송되는 종류는 전부 덮인다
-    assert set(covered) - set(MESSAGES) == {"support_answered"}    # 초과=예정 1종뿐(챗봇)
+    assert set(covered) == set(MESSAGES)                           # 초과·부족 없이 정확히 일치
 
 
 def test_토글_묶음이_설계대로다():

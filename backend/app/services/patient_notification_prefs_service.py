@@ -5,10 +5,9 @@ from app.db.pool import acquire_as
 # [SET-NOTI-04] 7토글 = 2묶음. 각 토글이 덮는 notification_type(T9 MESSAGES와 일치, 서버 한 곳).
 #   예약에 관한 알림: 변경·취소 / 신청·확정 / 전날·당일
 #   그 밖의 알림:     사전문진 안내 / 진료 후 안내 / 상담 답변 / 가족 연결
-# ⚠️ support_answered(4단계 챗봇)는 아직 MESSAGES에 없는 「예정 종류」다 — 토글을 미리 두어야
-#    그 기능이 그 이름으로 notify_patient를 부를 때 이 선호가 이미 걸린다(HANDOVERS 등록).
-#    (questionnaire_partial·family_linked는 이제 MESSAGES에 들어와 실제 발송 종류가 됐다.)
-#    지금 발송되는 종류는 전부 정확히 한 토글씩에 든다.
+# ⚠️ questionnaire_partial·family_linked·support_answered 모두 이제 MESSAGES에 들어와 실제
+#    발송 종류가 됐다(support_answered=배포 B안 ⑦ 배치 발송). 지금 발송되는 종류는 전부
+#    정확히 한 토글씩에 든다(SET-NOTI-01: set(MESSAGES) <= 커버).
 TOGGLE_GROUPS: dict[str, list[str]] = {
     # ── 예약에 관한 알림 ──
     "appt_change":   ["changed", "hospital_cancelled", "cancellation_approved", "cancellation_rejected"],

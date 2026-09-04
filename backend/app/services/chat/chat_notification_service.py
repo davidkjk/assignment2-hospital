@@ -17,7 +17,41 @@
 """
 
 
-async def dispatch_pending_batches(conn) -> int:
-    # 본문 배선은 ⑦(라우터+통합). Task 3은 이름·시그니처·소유만 확정한다.
-    raise NotImplementedError(
-        "dispatch_pending_batches 본문은 ⑦ 배선에서 구현한다(공통 dispatcher가 소비하는 계약만 여기서 확정).")
+async def dispatch_pending_batches(conn, *, push_send=None, sms_send=None) -> int:
+    """[§5·§8] 알림 요청된(아직 안 보낸) 상담 배치를 돌며 발송 log를 만들고 send_now로 보낸다.
+
+    등록 환자 = 계정 알림(support_answered) / 익명 = 검증 연락처(dispatcher가 복호화)로 문자.
+    배치당 log 한 줄을 만들어 chat_notification_batch_id로 잇고, 그걸 「이미 보냄」 표식으로 쓴다
+    (재실행 시 중복 발송 방지). 반환 = 처리한 배치 수. cron이 주기 실행한다(배포).
+    """
+    from app.services import dispatch_service
+    from app.services.notification_service import MESSAGES
+
+    body = MESSAGES.get("support_answered", "상담 답변이 도착했습니다.")
+    rows = await conn.fetch(
+        "select id, recipient_type, recipient_patient_id, recipient_anonymous_session_id, "
+        "recipient_anonymous_contact_id from chat_notification_batches b "
+        "where notification_requested_at is not null "
+        "and not exists (select 1 from notification_log n where n.chat_notification_batch_id = b.id) "
+        "order by notification_requested_at asc for update skip locked")
+    count = 0
+    for b in rows:
+        if b["recipient_type"] == "patient":
+            # 계정 있는 환자 — 기존 채널 규칙(푸시 우선·문자 폴백)에 맡긴다.
+            nid = await conn.fetchval(
+                "insert into notification_log "
+                "(patient_id, notification_type, kind, body, channel, requested_channel, "
+                " delivery_status, chat_notification_batch_id) "
+                "values ($1,'support_answered','transactional',$2,'push','push_sms','발송중',$3) returning id",
+                b["recipient_patient_id"], body, b["id"])
+        else:
+            # 익명 웹상담 — 항상 문자·transactional. 전화는 dispatcher가 연락처 암호문을 복호화한다.
+            nid = await conn.fetchval(
+                "insert into notification_log "
+                "(notification_type, kind, body, channel, requested_channel, delivery_status, "
+                " anonymous_session_id, anonymous_contact_id, chat_notification_batch_id) "
+                "values ('support_answered','transactional',$1,'sms','sms','발송중',$2,$3,$4) returning id",
+                body, b["recipient_anonymous_session_id"], b["recipient_anonymous_contact_id"], b["id"])
+        await dispatch_service.send_now([nid], conn, push_send=push_send, sms_send=sms_send)
+        count += 1
+    return count
