@@ -47,7 +47,7 @@ export interface WebchatApi {
   fetchHandoff(threadId: string): Promise<HandoffStatus>;
   acknowledgeBatches(threadId: string): Promise<void>; // POST /chat/read
   // 인증 완료 후: 최신 대상·슬롯을 서버에서 재검증한 "재확인 카드"(실행 아님). 서버는 X-Anon-Token으로 세션을 찾는다.
-  revalidateAction(args: { action: PendingAction }): Promise<{ card: CardMessage }>;      // WEBMOD-AUTH-07·08, WEBCARD-BOOKCONF-03
+  revalidateAction(args: { action: PendingAction }): Promise<{ card: CardMessage | null }>; // WEBMOD-AUTH-07·08, WEBCARD-BOOKCONF-03 (내 예약 조회는 카드 없이 최신 조회 → null)
   // 재확인 카드의 [신청]/[취소]: 서버가 payload를 재검증하고 실행 → 결과 카드(booking_done/cancel_done). 위변조 payload는 거절.
   executeCard(args: { cardType: string; payload: Record<string, unknown>; clientMessageId: string }): Promise<{ result: CardMessage }>; // WEBCARD-BOOKCONF-01·CANCELCONF-01
   // 익명 인계 티켓 + 연락처 연결(SMS 답변 수신용만). 대화 요약 5항목을 익명 세션 문맥에 연결(서버).
@@ -58,10 +58,21 @@ export interface WebchatApi {
 
 const ANON_HEADER = 'X-Anon-Token'; // Task 9 익명 의존성 헤더
 
-export function createWebchatApi(baseUrl: string): WebchatApi {
-  const call = async (path: string, init: RequestInit, anonToken: string | null) => {
+// 로그인 성공 시 위젯이 보유한 Supabase 세션의 access token을 준다(귀속·재검증·실행의 환자 신원 검증용).
+// 없으면 null — Authorization을 붙이지 않는다(서버가 401로 막는다).
+export interface WebchatApiDeps {
+  getAccessToken?: () => Promise<string | null>;
+}
+
+export function createWebchatApi(baseUrl: string, deps: WebchatApiDeps = {}): WebchatApi {
+  // 인증 후 카드 행동(귀속·재검증·실행)은 body의 patientId가 아니라 Bearer로 환자를 확정한다(위조 방지).
+  const call = async (path: string, init: RequestInit, anonToken: string | null, authed = false) => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as object) };
-    if (anonToken) headers[ANON_HEADER] = anonToken; // 로그인이 아니라 익명 토큰으로 소유권을 잇는다
+    if (anonToken) headers[ANON_HEADER] = anonToken; // 익명 토큰으로 익명 세션·방을 찾는다
+    if (authed && deps.getAccessToken) {
+      const token = await deps.getAccessToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`; // 명시 인증에만 귀속(WEBMOD-AUTH-09)
+    }
     const resp = await fetch(baseUrl + path, { ...init, headers });
     if (!resp.ok) throw new Error(`webchat_api_${resp.status}`); // 화면이 한글 오류로 변환(개발자 오류문 노출 금지)
     return resp.json();
@@ -85,16 +96,16 @@ export function createWebchatApi(baseUrl: string): WebchatApi {
       await call('/chat/read', { method: 'POST', body: JSON.stringify({ threadId }) }, null);
     },
     async revalidateAction(args) {
-      return call('/chat/cards/revalidate', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+      return call('/chat/cards/revalidate', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken(), true);
     },
     async executeCard(args) {
-      return call('/chat/cards/execute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+      return call('/chat/cards/execute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken(), true);
     },
     async createHandoffTicket(args) {
       return call('/chat/handoff', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
     },
     async attributeSessionToAccount(args) {
-      await call('/chat/attribute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
+      await call('/chat/attribute', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken(), true);
     },
   };
 }

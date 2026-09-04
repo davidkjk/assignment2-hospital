@@ -6,7 +6,15 @@ import { env } from './lib/env';
 
 // 상담봇 백엔드는 Supabase Edge Function이 아니라 FastAPI(`chat.py`, `/chat/*`)다.
 // 빈 baseUrl = 상대경로 → 배포는 Vercel rewrite, 로컬은 vite proxy가 Railway/:8000로 넘긴다(same-origin).
-const api = createWebchatApi(env.apiBaseUrl);
+// getAccessToken: 로그인 성공 시 위젯에 주입된 Supabase 세션(supabase.auth.setSession)의 access token.
+// 귀속·재검증·실행은 이 Bearer로 환자 신원을 검증한다(body patientId는 위조 가능 — WEBMOD-AUTH-09).
+const api = createWebchatApi(env.apiBaseUrl, {
+  getAccessToken: async () => {
+    const { supabase } = await import('./lib/supabaseClient');   // 지연 로드(빈 env로 모듈 로드가 깨지지 않게)
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  },
+});
 
 // 팝업 로그인 화면의 프로덕션 어댑터(WebAuthPage는 이 함수들을 주입받아 테스트됨).
 async function signIn({ phone, password }: { phone: string; password: string }): Promise<SignInResult> {
