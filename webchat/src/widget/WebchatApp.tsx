@@ -54,8 +54,10 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
       {authAction && <AuthGateModal action={authAction} auth={auth} onClose={() => setAuthAction(null)} onAuthenticated={afterAuth} />}
       {handoff && <HandoffForm api={api} summary={handoff} onDone={() => setHandoff(null)} onCancel={() => setHandoff(null)} />}
       {reconfirm && (
-        <div role="dialog" aria-label="예약 재확인">
-          <WebCard payload={reconfirm.payload} ctx={cardCtx(() => {})} />
+        <div className="wc-scrim">
+          <div role="dialog" aria-label="예약 재확인" className="wc-modal wc-modal--card">
+            <WebCard payload={reconfirm.payload} ctx={cardCtx(() => {})} />
+          </div>
         </div>
       )}
     </div>

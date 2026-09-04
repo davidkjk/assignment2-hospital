@@ -23,13 +23,17 @@ export function AuthGateModal({ action, auth, onClose, onAuthenticated }: Props)
   };
 
   return (
-    <div role="dialog" aria-label="로그인 또는 가입" aria-modal="true">
-      <p>내 예약을 조회하거나 예약을 진행하려면 로그인이 필요합니다.</p>
-      <button type="button" onClick={() => run('login')} disabled={busy}>로그인</button>
-      <button type="button" onClick={() => run('signup')} disabled={busy}>가입</button>
-      <button type="button" aria-label="닫기" onClick={onClose} disabled={busy}>×</button>
-      {busy && <p role="status">인증을 확인하는 중입니다…</p>}
-      {error && <p role="alert">{error}</p>}
+    <div className="wc-scrim">
+      <div role="dialog" aria-label="로그인 또는 가입" aria-modal="true" className="wc-modal wc-modal--auth">
+        <button type="button" aria-label="닫기" className="wc-modal__close" onClick={onClose} disabled={busy}>×</button>
+        <p className="wc-modal__lead">내 예약을 조회하거나 예약을 진행하려면 로그인이 필요합니다.</p>
+        <div className="wc-modal__actions">
+          <button type="button" className="wc-btn wc-btn--primary" onClick={() => run('login')} disabled={busy}>로그인</button>
+          <button type="button" className="wc-btn wc-btn--ghost" onClick={() => run('signup')} disabled={busy}>가입</button>
+        </div>
+        {busy && <p role="status" className="wc-modal__status">인증을 확인하는 중입니다…</p>}
+        {error && <p role="alert" className="wc-modal__alert">{error}</p>}
+      </div>
     </div>
   );
 }

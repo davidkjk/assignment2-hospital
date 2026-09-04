@@ -27,20 +27,24 @@ export function HandoffForm({ api, summary, onDone, onCancel }: Props) {
   };
 
   return (
-    <div role="form" aria-label="직원 상담 연결">
-      {/* 01: 기존 대화 요약과 연결 — 처음부터 다시 설명시키지 않음 */}
-      {summary.summary.length > 0 && <p>지금까지 나눈 상담 내용을 직원에게 함께 전달합니다.</p>}
-      <label>이름<input aria-label="이름" value={name} onChange={(e) => setName(e.target.value)} /></label>
-      {err.name && <p role="alert">{err.name}</p>}
-      {/* 03: 전화번호는 직원 답변 문자 수신용으로만 선택 입력받고 그 목적을 알린다 */}
-      <label>전화번호(선택)<input aria-label="전화번호" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
-      <p>입력한 번호는 <b>직원 답변 문자를 받기 위한 용도로만</b> 사용합니다.</p>
-      {err.phone && <p role="alert">{err.phone}</p>}
-      <button type="button" onClick={submit} disabled={busy}>상담 연결</button>
-      <button type="button" onClick={onCancel} disabled={busy}>그만두기</button>
-      {busy && <p role="status">상담을 연결하는 중입니다…</p>}
-      {err.submit && <p role="alert">{err.submit}</p>}
-      {/* 09: 다른 기기 이어보기 경로를 제공하지 않는다(같은 브라우저 토큰만 복원) */}
+    <div className="wc-scrim">
+      <div role="form" aria-label="직원 상담 연결" className="wc-modal wc-form">
+        {/* 01: 기존 대화 요약과 연결 — 처음부터 다시 설명시키지 않음 */}
+        {summary.summary.length > 0 && <p className="wc-form__intro">지금까지 나눈 상담 내용을 직원에게 함께 전달합니다.</p>}
+        <label className="wc-field">이름<input className="wc-field__input" aria-label="이름" value={name} onChange={(e) => setName(e.target.value)} /></label>
+        {err.name && <p role="alert" className="wc-field__err">{err.name}</p>}
+        {/* 03: 전화번호는 직원 답변 문자 수신용으로만 선택 입력받고 그 목적을 알린다 */}
+        <label className="wc-field">전화번호(선택)<input className="wc-field__input" aria-label="전화번호" value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
+        <p className="wc-form__note">입력한 번호는 <b>직원 답변 문자를 받기 위한 용도로만</b> 사용합니다.</p>
+        {err.phone && <p role="alert" className="wc-field__err">{err.phone}</p>}
+        <div className="wc-form__actions">
+          <button type="button" className="wc-btn wc-btn--primary" onClick={submit} disabled={busy}>상담 연결</button>
+          <button type="button" className="wc-btn wc-btn--ghost" onClick={onCancel} disabled={busy}>그만두기</button>
+        </div>
+        {busy && <p role="status" className="wc-form__status">상담을 연결하는 중입니다…</p>}
+        {err.submit && <p role="alert" className="wc-form__alert">{err.submit}</p>}
+        {/* 09: 다른 기기 이어보기 경로를 제공하지 않는다(같은 브라우저 토큰만 복원) */}
+      </div>
     </div>
   );
 }

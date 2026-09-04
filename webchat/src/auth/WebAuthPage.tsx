@@ -48,20 +48,20 @@ export function WebAuthPage({ signIn, fetchPatientId, poster, closeSelf, targetO
   };
 
   return (
-    <main role="main" aria-label="로그인">
+    <main role="main" aria-label="로그인" className="wa-page wc-root">
       <h1>가온병원 로그인</h1>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} className="wa-form">
         <label htmlFor="wa-phone">전화번호</label>
         <input id="wa-phone" name="phone" type="tel" autoComplete="tel"
                inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={busy} />
         <label htmlFor="wa-password">비밀번호</label>
         <input id="wa-password" name="password" type="password" autoComplete="current-password"
                value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
-        <button type="submit" disabled={busy}>로그인</button>
+        <button type="submit" className="wc-btn wc-btn--primary" disabled={busy}>로그인</button>
       </form>
-      <p>가입은 가온병원 환자 앱에서 진행해 주세요.</p>
-      {busy && <p role="status">로그인 중입니다…</p>}
-      {error && <p role="alert">{error}</p>}
+      <p className="wa-page__hint">가입은 가온병원 환자 앱에서 진행해 주세요.</p>
+      {busy && <p role="status" className="wa-page__status">로그인 중입니다…</p>}
+      {error && <p role="alert" className="wa-page__alert">{error}</p>}
     </main>
   );
 }
