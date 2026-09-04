@@ -41,6 +41,7 @@ export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, ex
           <ChatRoom
             phase={w.phase}
             messages={[...w.messages, ...extraCards]}
+            botTyping={w.botTyping}
             onSend={w.send}
             onResend={w.resend}
             onRetryLoad={w.retryLoad}

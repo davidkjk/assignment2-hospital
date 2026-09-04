@@ -11,6 +11,7 @@ export function useWebchat(api: WebchatApi) {
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [handoff, setHandoff] = useState<HandoffStatus>({ phase: null, isOpen: false });
   const [guide, setGuide] = useState<GuideState>({ active: false, text: '' });
+  const [botTyping, setBotTyping] = useState(false); // 답변 대기 중 타이핑 표시(홈페이지 .typing 재현)
   const inFlight = useRef<Set<string>>(new Set()); // 중복 전송 방지(clientMessageId)
 
   const open = useCallback(async () => {
@@ -29,6 +30,7 @@ export function useWebchat(api: WebchatApi) {
     if (!session || inFlight.current.has(clientMessageId)) return; // 멱등 중복 차단
     inFlight.current.add(clientMessageId);
     setMessages((m) => upsertLocal(m, { content, clientMessageId, sendState: 'sending' }));
+    setBotTyping(true);                                // 봇 답변을 기다리는 동안 타이핑 표시
     try {
       const out = await api.sendMessage({ threadId: session.threadId, aiSessionId: session.aiSessionId, content, clientMessageId });
       setMessages((m) => markSent(m, clientMessageId, out.botMessage));
@@ -38,6 +40,7 @@ export function useWebchat(api: WebchatApi) {
       setMessages((m) => markFailed(m, clientMessageId)); // 성공 위장 금지(WEBCHAT-ROOM-09)
     } finally {
       inFlight.current.delete(clientMessageId);
+      setBotTyping(false);
     }
   }, [api, session]);
 
@@ -48,7 +51,7 @@ export function useWebchat(api: WebchatApi) {
   }, [dispatchSend, messages]);
 
   return {
-    phase, session, messages, handoff, guide,
+    phase, session, messages, handoff, guide, botTyping,
     askedForContact: false, crossDeviceResume: false, // 익명 웹은 이름/연락처를 방 진입에서 묻지 않는다
     open, send, resend,
     retryLoad: open,

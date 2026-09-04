@@ -367,6 +367,22 @@ html, body { height: 100%; }
   color: #fff;
   border-bottom-right-radius: 5px;
 }
+/* 타이핑 중(홈페이지 .typing) — 테두리 없이 그림자, 점 3개 블링크 */
+.wc-typing {
+  align-self: flex-start;
+  display: flex;
+  gap: 4px;
+  padding: 14px 16px;
+  background: #fff;
+  border-radius: 16px;
+  border-bottom-left-radius: 5px;
+  box-shadow: 0 3px 12px -4px rgba(12, 35, 64, .18);
+}
+.wc-typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--wc-ink-3); animation: wc-blink 1.2s infinite; }
+.wc-typing i:nth-child(2) { animation-delay: .2s; }
+.wc-typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes wc-blink { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .wc-typing i { animation: none; } }
 /* 시스템 안내 = 가운데 옅은 칩 */
 .wc-msg--system {
   align-self: center;

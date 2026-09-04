@@ -12,6 +12,7 @@ export type ChatRoomProps = {
   guideSlot: ReactNode;
   handoffSlot: ReactNode;
   quickActionsSlot?: ReactNode;   // 입력바 위 상시 빠른행동 칩(내 예약 조회·직원에게 문의). 홈페이지 챗봇의 quick-chips 자리.
+  botTyping?: boolean;            // 봇 답변 대기 중 타이핑 점 표시(홈페이지 .typing)
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
 };
 
@@ -56,6 +57,11 @@ export function ChatRoom(p: ChatRoomProps) {
             )}
           </li>
         ))}
+        {p.botTyping && (
+          <li className="wc-typing" aria-label="상담봇이 입력 중" aria-live="polite">
+            <i /><i /><i />
+          </li>
+        )}
       </ul>
       {p.phase === 'loadError' && (
         <div className="wc-error">
