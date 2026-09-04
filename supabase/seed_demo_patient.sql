@@ -108,7 +108,7 @@ update patients set auth_user_id = null
 --    notifications_seen_at은 넣지 않는다(NULL) → 알림 전부 "안 읽음" = 종 배지가 숫자를 보인다.
 -- ────────────────────────────────────────────────────────────────────────────
 insert into patients (id, name, birth_date, gender, phone, is_active, auth_user_id) values
-  ('dede0000-0000-0000-0000-0000000000a1', '김가온', '1986-05-12', 'M', '010-1234-5678', true, :'demo_auth_uid'::uuid),
+  ('dede0000-0000-0000-0000-0000000000a1', '김바이', '1986-05-12', 'M', '010-7601-7654', true, :'demo_auth_uid'::uuid),
   ('dede0000-0000-0000-0000-0000000000f1', '이수진', '1988-09-22', 'F', '010-1234-5679', true, null),  -- 배우자
   ('dede0000-0000-0000-0000-0000000000f2', '김도윤', '2016-07-08', 'M', null,            true, null),  -- 자녀(아들)
   ('dede0000-0000-0000-0000-0000000000f3', '김하린', '2019-11-30', 'F', null,            true, null),  -- 자녀(딸)
@@ -297,6 +297,32 @@ values
    'bbbbbbbb-0000-0000-0000-000000000002', 'staff_direct', 'transactional',
    '병원에서 보내드리는 안내입니다. 진료 시간은 평일 09:00~18:00입니다.', 'push', '도달', now() - interval '3 hours');
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- 9) 데모 발송 안전장치 (문자 오발송·코인 봉쇄). 3중 잠금.
+--    ⚠️ 이 블록은 원격의 **모든 환자**(스태프 시드 154명 + 이 데모 가족 포함)에 적용된다.
+--    시연 때 실제 문자를 보고 싶으면: ① 직원웹 설정에서 병원 문자스위치 ON
+--    ② 환자앱에서 본인(김바이) 알림 ON — 둘 다 켜야만, 그것도 김바이(유효·살아있는 번호)에게만 나간다.
+--    납품(실운영) 전환 = 실제 환자 데이터 넣고 이 블록의 반대(sms_enabled=true·해당 update 제거)로.
+-- ────────────────────────────────────────────────────────────────────────────
+-- ① 병원 문자 마스터 스위치 OFF (전원 공통 차단).
+update hospital_settings set sms_enabled = false;
+-- ② 데모 가족(가짜지만 유효형식 번호) 문자 죽음 표식 → 라우팅 불가. 본인(a1=김바이)은 살려둔다.
+update patients set sms_dead = true, sms_dead_checked_at = now()
+ where id in ('dede0000-0000-0000-0000-0000000000f1','dede0000-0000-0000-0000-0000000000f2',
+              'dede0000-0000-0000-0000-0000000000f3','dede0000-0000-0000-0000-0000000000f4',
+              'dede0000-0000-0000-0000-0000000000f5');
+-- ③ 모든 환자 × 모든 알림종류 = 꺼짐(행 없으면 기본 ON이라 명시로 박는다). 본인 포함 — 앱에서 직접 켜서 테스트.
+insert into notification_preferences (patient_id, notification_type, enabled)
+select p.id, t.ntype, false
+  from patients p
+  cross join (values ('changed'),('hospital_cancelled'),('cancellation_approved'),
+                     ('cancellation_rejected'),('requested'),('confirmed'),
+                     ('reminder_day_before'),('reminder_today'),('questionnaire_missing'),
+                     ('questionnaire_partial'),('visit_completed'),('support_answered'),
+                     ('family_linked')) as t(ntype)
+on conflict (patient_id, notification_type) do update set enabled = false;
+
 commit;
 
-\echo '✅ 데모 환자 김가온(010-1234-5678) + 가족 5명 + 예약 14건 + 문진·알림 적재 완료.'
+\echo '✅ 데모 환자 김바이(010-7601-7654) + 가족 5명 + 예약 14건 + 문진·알림 적재 완료.'
+\echo '🔒 안전장치: 병원 문자스위치 OFF · 전원 알림설정 OFF · 가족 sms_dead=true (본인만 살아있음).'

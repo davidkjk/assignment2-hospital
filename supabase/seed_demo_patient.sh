@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# seed_demo_patient.sh — 환자앱 데모 계정(010-1234-5678 / demo1234)을 원격에 프로비저닝한다 (SP2).
+# seed_demo_patient.sh — 환자앱 데모 계정(010-7601-7654 / demo1234)을 원격에 프로비저닝한다 (SP2).
 # ----------------------------------------------------------------------------
 # 두 단계:
 #   ① 전화 인증 auth.users 를 Supabase Admin API로 만든다(phone_confirm=true → 문자 없이 로그인).
@@ -35,7 +35,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${REMOTE_SUPABASE_URL:?REMOTE_SUPABASE_URL이 필요합니다(예: https://<ref>.supabase.co)}"
 : "${REMOTE_SERVICE_ROLE_KEY:?REMOTE_SERVICE_ROLE_KEY가 필요합니다(원격 service_role 키)}"
 
-DEMO_PHONE="${DEMO_PHONE:-+821012345678}"
+DEMO_PHONE="${DEMO_PHONE:-+821076017654}"
 DEMO_PASSWORD="${DEMO_PASSWORD:-demo1234}"
 PHONE_NO_PLUS="${DEMO_PHONE#+}"                 # GoTrue는 phone을 '+' 없이 저장한다(821012345678)
 AUTH="${REMOTE_SUPABASE_URL%/}/auth/v1/admin/users"
