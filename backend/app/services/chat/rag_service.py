@@ -5,7 +5,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.db.pool import get_pool
 from app.integrations.langchain_client import get_chat_model, resp_text
 
-RAG_SIMILARITY_THRESHOLD = 0.70   # 최상위 조각이 이보다 낮으면 근거 부족 → no_answer 인계. 실측 튜닝 대상.
+RAG_SIMILARITY_THRESHOLD = 0.45   # 최상위 조각이 이보다 낮으면 근거 부족 → no_answer 인계.
+# 실측 튜닝(2026-09-04, 사용자 결정): text-embedding-3-small·한국어에선 관련 문서도 0.35~0.67로 나와
+# 0.70이면 아는 것도 전부 인계됐다. 0.45로 낮춰 잘 맞는 질문엔 답하고 애매하면 인계(오답 위험 낮춤).
+# 대표 질문 세트로 정밀 재보정은 배포 준비 시.
 EXAMPLE_SIMILARITY_THRESHOLD = 0.80  # 참고 예시는 근거가 아니라 어투·정확도 힌트라 더 엄격히(엉뚱한 예시 주입 방지).
 EXAMPLE_MATCH_COUNT = 2              # 품질 개선 사이클(오답 교정 → 예시은행) 산물을 few-shot으로 최대 2건.
 
