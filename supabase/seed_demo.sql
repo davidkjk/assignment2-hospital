@@ -453,11 +453,15 @@ on conflict (department_id, version_no) do update set questions = excluded.quest
 -- ════════════════════════════════════════════════════════════════════════════
 -- 9) 병원 설정 (싱글턴)
 -- ════════════════════════════════════════════════════════════════════════════
-insert into hospital_settings (id, hospital_address, hospital_phone)
-values (true, '서울특별시 강남구 테헤란로 123, 가온빌딩 3층', '02-1234-5678')
+-- ⚠️ sms_enabled=false: 데모 안전장치 — 문자 폴백을 꺼 실제 문자 발송/코인 소모를 막는다.
+--    (제품 기본은 결정31 '문자 초기 ON'이라 스키마 default는 true 유지 — 여기 데모 시드에서만 off로 덮는다.
+--     실 발송 데모가 필요하면 이 값을 true로 바꾸고 Solapi 키를 환경에 넣는다.)
+insert into hospital_settings (id, hospital_address, hospital_phone, sms_enabled)
+values (true, '서울특별시 강남구 테헤란로 123, 가온빌딩 3층', '02-1234-5678', false)
 on conflict (id) do update
   set hospital_address = excluded.hospital_address,
-      hospital_phone = excluded.hospital_phone;
+      hospital_phone = excluded.hospital_phone,
+      sms_enabled = excluded.sms_enabled;
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- 10) 상태 이력 — 「장기 대기」 카드가 여기서 나온다 (TODAY-WAIT)
