@@ -12,3 +12,27 @@ def get_chat_model(model: str | None = None) -> ChatAnthropic:
         api_key=settings.anthropic_api_key,
         max_tokens=2048,
     )
+
+
+def resp_text(resp) -> str:
+    """LLM 응답 content를 문자열로 정규화한다.
+
+    실제 ChatAnthropic은 `.content`를 **블록 리스트**(`[{'type':'text','text':...}]`)로
+    줄 수 있다 — 심(stub) 모델은 문자열을 줘서 `.strip()`이 통과했지만, 진짜 모델에선
+    `'list' object has no attribute 'strip'`로 터진다. 호출부는 `resp_text(resp).strip()`처럼
+    이 함수를 거친 뒤 문자열 연산을 한다.
+    """
+    content = getattr(resp, "content", resp)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                parts.append(block.get("text", ""))
+            else:
+                parts.append(getattr(block, "text", ""))
+        return "".join(parts)
+    return str(content)

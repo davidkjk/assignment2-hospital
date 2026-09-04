@@ -12,14 +12,14 @@ def should_nudge_length(message_count: int) -> bool:
 async def make_closing_summary(history_text: str, model=None) -> str:
     # 만료·이어가기 요약: 최근 창(CHAT_CONTEXT_TURN_WINDOW) 밖 맥락을 절단 대신 요약해 보존(MR2-08).
     from langchain_core.prompts import ChatPromptTemplate
-    from app.integrations.langchain_client import get_chat_model
+    from app.integrations.langchain_client import get_chat_model, resp_text
     prompt = ChatPromptTemplate.from_messages([
         ("system", "다음 상담 대화를 이어가기 위한 짧은 요약을 3문장 이내로 작성하세요. "
                    "진단·처방은 하지 말고, 무엇을 물었고 무엇을 안내했는지만 요약하세요."),
         ("human", "{history}"),
     ])
     resp = await (model or get_chat_model()).ainvoke(prompt.format_messages(history=history_text))
-    return getattr(resp, "content", str(resp)).strip()
+    return resp_text(resp).strip()
 
 
 async def orchestrate(session, message, *, history_texts=None, restricted=False,

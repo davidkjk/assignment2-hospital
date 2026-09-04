@@ -1,7 +1,7 @@
 # 빠른답변: 누르면 그 문장이 "환자가 보낸 말풍선"으로 저장된다(제어 신호 아님). 자유 입력은 항상 열림.
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.integrations.langchain_client import get_chat_model
+from app.integrations.langchain_client import get_chat_model, resp_text
 
 # 시작 묶음은 AI를 부르지 않는다 — 앱이 다가오는 예약 유무로 고정 4개를 고른다(결정로그 L820-825).
 START_WITH_UPCOMING = ["내 예약 확인해줘", "예약을 바꾸고 싶어요", "진료 전에 준비할 게 있나요", "주차할 수 있나요"]
@@ -24,5 +24,5 @@ async def generate_conversational(last_question: str, model=None) -> list[str]:
         resp = await (model or get_chat_model()).ainvoke(prompt.format_messages(q=last_question))
     except Exception:
         return []                            # 실패는 상담 전체 오류로 확대하지 않는다(자유 입력 유지)
-    lines = [l.strip() for l in getattr(resp, "content", "").splitlines() if l.strip()]
+    lines = [l.strip() for l in resp_text(resp).splitlines() if l.strip()]
     return lines[:4]

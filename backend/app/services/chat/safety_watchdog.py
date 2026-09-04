@@ -1,7 +1,7 @@
 # ⓪ 응급 검사 + ① 인계 감시. 응급은 규칙 기반(결정적) — AI 확률 판단에 안전을 맡기지 않는다(옛 플랜 :30, 정본 §0).
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.integrations.langchain_client import get_chat_model
+from app.integrations.langchain_client import get_chat_model, resp_text
 
 # 병원과 함께 다듬는 큐레이션 목록(확장 가능). 오탐보다 미탐이 위험하므로 넓게 잡는다.
 EMERGENCY_KEYWORDS = [
@@ -49,5 +49,5 @@ async def check_escalation(text, history_texts, *, unhelpful_flagged=False,
         ("human", "{text}"),
     ])
     resp = await llm.ainvoke(prompt.format_messages(text=text))
-    label = getattr(resp, "content", str(resp)).strip()
+    label = resp_text(resp).strip()
     return label if label in LLM_ESCALATION_LABELS else None

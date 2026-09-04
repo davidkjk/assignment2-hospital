@@ -1,7 +1,7 @@
 # 진료과 추천형(문진 체인) — RAG/에이전트보다 강한 안전 규칙(요구사항 5.3).
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.integrations.langchain_client import get_chat_model
+from app.integrations.langchain_client import get_chat_model, resp_text
 
 SAFETY_RULES = """[절대 규칙 — 위반 금지]
 - 병명을 진단하지 마세요. "OO병으로 보입니다"처럼 확정적으로 말하지 마세요.
@@ -24,7 +24,7 @@ async def ask_next_question(history_text: str, step: int, model=None) -> str:
     # format_messages + ainvoke — 주입 가짜 모델 호환(safety_watchdog와 동일 이유).
     resp = await (model or get_chat_model()).ainvoke(
         prompt.format_messages(history=history_text, step_instruction=instruction))
-    return getattr(resp, "content", str(resp)).strip()
+    return resp_text(resp).strip()
 
 
 def advance_flow(collected: dict, collected_update: dict) -> dict:

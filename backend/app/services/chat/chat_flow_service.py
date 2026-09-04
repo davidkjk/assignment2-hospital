@@ -61,6 +61,12 @@ async def handle_message(session, content: str, *, thread_id: UUID,
 
     out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
                                          rag_fn=rag_fn, model=model)
+    # 봇 메시지 본문 결정: 평소 답(reply). 제한 주제 전용이면 reply가 비고 원문(restricted_block)이 본문이 된다(A3).
+    body = (out.get("reply") or "").strip() or (out.get("restricted_block") or "").strip()
+    # 본문이 비면(예: 예약 등 행동형 요청 — 이 대화 파이프라인엔 에이전트 도구가 주입되지 않는다) 빈 봇 메시지는
+    # chat_messages_type_shape CHECK를 위반해 500난다 → 막다른 길 금지 원칙대로 직원 인계로 되돌린다.
+    if out["route_taken"] != "handoff" and not body:
+        out = {**out, "route_taken": "handoff", "handoff_reason": "action_unavailable"}
     async with pool.acquire() as conn:
         if out["route_taken"] == "handoff":
             # AI 세션 종료 + 티켓 생성 + 시스템 메시지. no_answer면 미해결 기록.
@@ -80,7 +86,7 @@ async def handle_message(session, content: str, *, thread_id: UUID,
         bmsg = await conn.fetchrow(
             "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken) "
             "values ($1,$2,'bot','text',$3,$4) returning id", thread_id, sid,
-            out.get("reply") or "", out["route_taken"])  # bmsg
+            body, out["route_taken"])  # bmsg (제한 주제면 body=restricted_block 원문)
         # C6-#8 F04: 봇 답변도 활동이다(정본 last_activity=환자|봇 메시지 시각) → expires_at 갱신.
         #   best-effort(raise 안 함): 응답 저장이 만료 때문에 500나면 안 되므로 record_ai_activity 대신 직접 UPDATE.
         await conn.execute(

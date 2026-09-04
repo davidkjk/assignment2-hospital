@@ -3,7 +3,7 @@ from uuid import UUID
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.db.pool import get_pool
-from app.integrations.langchain_client import get_chat_model
+from app.integrations.langchain_client import get_chat_model, resp_text
 
 RAG_SIMILARITY_THRESHOLD = 0.70   # 최상위 조각이 이보다 낮으면 근거 부족 → no_answer 인계. 실측 튜닝 대상.
 EXAMPLE_SIMILARITY_THRESHOLD = 0.80  # 참고 예시는 근거가 아니라 어투·정확도 힌트라 더 엄격히(엉뚱한 예시 주입 방지).
@@ -47,7 +47,7 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     prompt = ChatPromptTemplate.from_messages(messages)
     # format_messages + ainvoke — 주입 가짜모델(langchain Runnable 아님) 호환(Task 5·6과 동일).
     resp = await (model or get_chat_model()).ainvoke(prompt.format_messages(**fmt))
-    reply = getattr(resp, "content", str(resp)).strip()
+    reply = resp_text(resp).strip()
     result = {"reply": reply, "sources": sources}
     if restricted:
         result["restricted_block"] = restricted[0]["content"]   # 봇이 살 붙이지 않은 원문 그대로
