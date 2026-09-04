@@ -25,7 +25,19 @@ export function ChatRoom(p: ChatRoomProps) {
   const [draft, setDraft] = useState('');
   return (
     <section className="wc-room" role="region" aria-label="AI 상담봇" data-widget="true">
-      <header className="wc-header" role="banner">AI 상담봇{p.guideSlot}{p.handoffSlot}</header>
+      <header className="wc-header" role="banner">
+        <span className="wc-header__av" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 5h16v12H9l-5 3V5Z" /><path d="M8 10h8M8 13h5" />
+          </svg>
+        </span>
+        <span className="wc-header__title">
+          AI 상담봇
+          <span className="wc-header__status"><i className="wc-header__dot" aria-hidden="true" />지금 응답 가능</span>
+        </span>
+      </header>
+      {/* 진료과 배너·인계 상태 — 헤더가 아니라 대화 영역에 둔다(WEBCHAT-GUIDE: 추천 중에만 메시지와 함께). */}
+      <div className="wc-status">{p.guideSlot}{p.handoffSlot}</div>
       {p.phase === 'restoring' && <div className="wc-loading" role="status">불러오는 중…</div>}
       <ul className="wc-body">
         {p.messages.map((m) => (

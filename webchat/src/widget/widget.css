@@ -61,23 +61,200 @@
   min-height: 0;
 }
 
-/* ── 헤더(ChatRoom <header role=banner>) — 딥틸 그라데이션 ─────────────── */
+/* ── 헤더(ChatRoom <header role=banner>) — 딥틸 그라데이션 + 아바타 + 상태점 ── */
 .wc-header {
   flex: 0 0 auto;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  padding: 20px 56px 18px 20px; /* 오른쪽은 wc-close 자리 확보 */
+  padding: 16px 56px 16px 18px; /* 오른쪽은 wc-close 자리 확보 */
   background: linear-gradient(120deg, var(--wc-primary-d), var(--wc-primary));
   color: #fff;
+}
+.wc-header__av {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .18);
+  border: 1.5px solid rgba(255, 255, 255, .4);
+  display: grid;
+  place-items: center;
+}
+.wc-header__av svg { width: 24px; height: 24px; }
+.wc-header__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 17px;
   font-weight: 800;
   letter-spacing: -.01em;
+  line-height: 1.2;
 }
-/* 상태 슬롯(진료과 배너·인계 배지)은 Task 3에서 리스킨 — 헤더 밑으로 자연스럽게 흐르도록 폭 100% */
-.wc-header > * {
-  font-weight: 400;
+.wc-header__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  opacity: .92;
+}
+.wc-header__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--wc-live);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, .3);
+}
+
+/* ── 상태 영역(헤더 밑) — 진료과 배너·인계 상태 ──────────────────────────
+ * WEBCHAT-GUIDE: 추천 중에만 메시지와 함께. 비어 있으면 접는다.                */
+.wc-status {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--wc-soft);
+}
+.wc-status:empty { display: none; }
+.wc-status:not(:empty) { padding: 14px 18px 0; }
+
+/* 진료과 추천 배너(WEBCHAT-GUIDE) — 딥틸 좌측선 안내(진단 아님) */
+.wc-guide {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--wc-primary-soft);
+  border-left: 4px solid var(--wc-primary);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--wc-ink-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* 직원 인계 상태(WEBCHAT-HANDOFF) — 상태 배지 + 운영시간 안내 */
+.wc-handoff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.wc-handoff__badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--wc-primary-soft);
+  color: var(--wc-primary);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.wc-handoff__who { font-size: 11.5px; color: var(--wc-ink-2); }
+.wc-handoff__msg { width: 100%; margin: 0; font-size: 12px; color: var(--wc-ink-2); }
+.wc-handoff__hours {
+  width: 100%;
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--wc-warn);
+  border-radius: 8px;
+  background: var(--wc-warn-bg);
+  color: var(--wc-warn);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.wc-handoff--loading { font-size: 12px; color: var(--wc-ink-3); }
+.wc-handoff--error {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--wc-line);
+  border-left: 3px solid var(--wc-danger);
+  border-radius: 8px;
+  background: var(--wc-danger-bg);
+  color: var(--wc-danger);
+  font-size: 12px;
+}
+.wc-handoff--error button {
+  border: 1px solid var(--wc-primary-soft);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--wc-primary);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+
+/* ── 긴급 안내(WEBCHAT-URGENT) — danger 카드, 119/응급실 우선 ─────────────
+ * URGENT-03/04: 예약 CTA·로그인·연락처 수집을 함께 표시하지 않는다(로직으로 강제).  */
+.wc-urgent {
+  display: flex;
+  gap: 10px;
+  margin: 2px 0;
+  padding: 13px 15px;
+  border: 1px solid var(--wc-line);
+  border-left: 4px solid var(--wc-danger);
+  border-radius: 12px;
+  background: var(--wc-danger-bg);
+  color: #6B2A47;
+}
+.wc-urgent__icon { flex: 0 0 auto; width: 22px; height: 22px; color: var(--wc-danger); margin-top: 1px; }
+.wc-urgent p { margin: 0; font-size: 13px; line-height: 1.55; font-weight: 600; }
+
+/* ── 장애 안내(WEBCHAT-OUTAGE) — 전화·문의 남기기가 주 경로 ─────────────── */
+.wc-outage {
+  margin: 2px 0;
+  padding: 15px;
+  border: 1px solid var(--wc-line);
+  border-left: 4px solid var(--wc-danger);
+  border-radius: 12px;
+  background: #fff;
+}
+.wc-outage__lead { margin: 0 0 12px; font-size: 13px; line-height: 1.6; color: var(--wc-ink-2); }
+.wc-outage__phone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--wc-primary-soft);
+  border-radius: 10px;
+  background: var(--wc-primary-soft);
+  color: var(--wc-primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+.wc-outage__phone svg { flex: 0 0 auto; width: 20px; height: 20px; }
+.wc-outage__action {
+  width: 100%;
+  height: 46px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--wc-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+}
+.wc-outage__action:disabled { background: #DDE5E8; color: #72838C; cursor: default; }
+.wc-outage__err { margin: 10px 0 6px; color: var(--wc-danger); font-size: 12.5px; }
+.wc-outage__secondary {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--wc-line);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--wc-ink-3);
+}
+.wc-outage__done {
+  margin: 2px 0;
+  padding: 11px 13px;
+  border-left: 3px solid var(--wc-primary);
+  border-radius: 8px;
+  background: var(--wc-primary-soft);
+  color: var(--wc-primary);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 /* 닫기(WebchatWidget의 × 버튼) — 헤더 위 절대배치 */
