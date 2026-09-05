@@ -1,12 +1,12 @@
 -- ============================================================================
 -- seed_demo_patient.sql — 환자앱 데모용 "풍부한" 환자 1명(+가족)을 심는다 (배포 SP2).
 -- ----------------------------------------------------------------------------
--- 목적: 강사 시연 때 010-1234-5678 / demo1234 로 로그인하면 홈·예약목록·방문이력·
+-- 목적: 강사 시연 때 데모 환자 계정(전화·비밀번호는 seed_demo_patient.sh 환경변수로 주입)으로 로그인하면 홈·예약목록·방문이력·
 --   알림·사전문진이 **한 계정 안에서 다양한 상태**로 채워져 보이게 한다.
 --   (seed_demo.sql은 직원웹 손검수용 대규모 시드라 환자 auth 계정을 안 만든다 — 스태프만.
 --    원격 환자 154명은 auth_user_id 연결 0명(with_auth=0)이라 환자앱 로그인이 불가했다.)
 --
--- ⚠️ 전제: 전화 인증 auth.users(010-1234-5678, phone_confirm=true)는 **이 SQL이 만들지 않는다.**
+-- ⚠️ 전제: 전화 인증 auth.users(phone_confirm=true)는 **이 SQL이 만들지 않는다.**
 --   Supabase Admin API로 미리 만들고(그 UID를 psql 변수 :demo_auth_uid 로 넘긴다) 여기선 그 UID에
 --   patients 계정을 연결한다. 프로비저닝은 seed_demo_patient.sh 가 담당한다.
 --     실행: psql "$URL" -v ON_ERROR_STOP=1 -v demo_auth_uid='<uid>' -f supabase/seed_demo_patient.sql
@@ -29,6 +29,19 @@
 \else
 \echo '✗ demo_auth_uid 변수가 필요합니다. seed_demo_patient.sh 로 실행하거나 -v demo_auth_uid=<uid> 를 주세요.'
 \quit
+\endif
+
+-- patients.phone에 넣을 표시 전화번호. 파일에 하드코딩하지 않고 seed_demo_patient.sh 가 넘긴다(D#1).
+\if :{?demo_phone_display}
+\else
+\echo '✗ demo_phone_display 변수가 필요합니다. seed_demo_patient.sh 로 실행하세요(전화번호를 파일에 하드코딩하지 않습니다).'
+\quit
+\endif
+
+-- 전역 알림 잠금(대상 DB 전체 prefs OFF·병원 마스터 스위치 OFF) 적용 여부(D#2). 기본은 off(건너뜀).
+\if :{?apply_global_lock}
+\else
+\set apply_global_lock off
 \endif
 
 begin;
@@ -108,7 +121,7 @@ update patients set auth_user_id = null
 --    notifications_seen_at은 넣지 않는다(NULL) → 알림 전부 "안 읽음" = 종 배지가 숫자를 보인다.
 -- ────────────────────────────────────────────────────────────────────────────
 insert into patients (id, name, birth_date, gender, phone, is_active, auth_user_id) values
-  ('dede0000-0000-0000-0000-0000000000a1', '김바이', '1986-05-12', 'M', '010-7601-7654', true, :'demo_auth_uid'::uuid),
+  ('dede0000-0000-0000-0000-0000000000a1', '김바이', '1986-05-12', 'M', :'demo_phone_display', true, :'demo_auth_uid'::uuid),
   ('dede0000-0000-0000-0000-0000000000f1', '이수진', '1988-09-22', 'F', '010-1234-5679', true, null),  -- 배우자
   ('dede0000-0000-0000-0000-0000000000f2', '김도윤', '2016-07-08', 'M', null,            true, null),  -- 자녀(아들)
   ('dede0000-0000-0000-0000-0000000000f3', '김하린', '2019-11-30', 'F', null,            true, null),  -- 자녀(딸)
@@ -181,7 +194,7 @@ from (values
   ('dede0000-0000-0000-0000-00000000050a','dede0000-0000-0000-0000-0000000000a1','어지럼증',      '진료완료',   null,     null,   null,   0),
   ('dede0000-0000-0000-0000-00000000050b','dede0000-0000-0000-0000-0000000000a1','발목 통증',      '예약부도',   null,     null,   null,   0),
   ('dede0000-0000-0000-0000-00000000050c','dede0000-0000-0000-0000-0000000000f2','복통',          '진료완료',   null,     null,   null,   0),
-  ('dede0000-0000-0000-0000-00000000050d','dede0000-0000-0000-0000-0000000000f1','몸살',          '환자취소',   'patient','본인',  '김가온', 11),
+  ('dede0000-0000-0000-0000-00000000050d','dede0000-0000-0000-0000-0000000000f1','몸살',          '환자취소',   'patient','본인',  '김바이', 11),
   ('dede0000-0000-0000-0000-00000000050e','dede0000-0000-0000-0000-0000000000f4','정기 검진',      '병원취소',   'hospital', null,  null,    26)
 ) as v(slot_id, forpat, reason, status, cxl_by, cxl_rel, cxl_name, cxl_days)
 join lateral (
@@ -299,19 +312,27 @@ values
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 9) 데모 발송 안전장치 (문자 오발송·코인 봉쇄). 3중 잠금.
---    ⚠️ 이 블록은 원격의 **모든 환자**(스태프 시드 154명 + 이 데모 가족 포함)에 적용된다.
+--    ② 데모 가족 sms_dead 표식은 고정 UUID로 범위가 좁으니 항상 적용한다.
+--    ①③ 병원 마스터 스위치 OFF + 대상 DB "전체" 환자 prefs OFF 는 대상 DB 전체를 건드리는
+--        파괴적 변경이라 apply_global_lock=on 일 때만 적용한다(seed_demo_patient.sh 가
+--        허용 project ref + 명시 동의 APPLY_GLOBAL_NOTIFY_LOCK 확인 후 넘긴다 — 코드리뷰 D#2).
+--    ⚠️ ③이 "전체" 환자를 대상으로 하는 건 의도다: 스태프 시드 환자(약 150명, seed_demo.sql:235)는
+--        그럴듯한 010 번호를 갖고 sms_dead도 아니라, 마스터 스위치를 켜는 순간 그들에게도 문자가 나갈 수 있다.
+--        전역 OFF라야 시연 때 문자가 본인(김바이)에게만 간다 → 범위를 데모 UUID로 좁히면 안전장치가 깨진다.
 --    시연 때 실제 문자를 보고 싶으면: ① 직원웹 설정에서 병원 문자스위치 ON
 --    ② 환자앱에서 본인(김바이) 알림 ON — 둘 다 켜야만, 그것도 김바이(유효·살아있는 번호)에게만 나간다.
 --    납품(실운영) 전환 = 실제 환자 데이터 넣고 이 블록의 반대(sms_enabled=true·해당 update 제거)로.
 -- ────────────────────────────────────────────────────────────────────────────
--- ① 병원 문자 마스터 스위치 OFF (전원 공통 차단).
-update hospital_settings set sms_enabled = false;
--- ② 데모 가족(가짜지만 유효형식 번호) 문자 죽음 표식 → 라우팅 불가. 본인(a1=김바이)은 살려둔다.
+-- ② 데모 가족(가짜지만 유효형식 번호) 문자 죽음 표식 → 라우팅 불가. 본인(a1=김바이)은 살려둔다. (범위 좁음: 항상 적용)
 update patients set sms_dead = true, sms_dead_checked_at = now()
  where id in ('dede0000-0000-0000-0000-0000000000f1','dede0000-0000-0000-0000-0000000000f2',
               'dede0000-0000-0000-0000-0000000000f3','dede0000-0000-0000-0000-0000000000f4',
               'dede0000-0000-0000-0000-0000000000f5');
--- ③ 모든 환자 × 모든 알림종류 = 꺼짐(행 없으면 기본 ON이라 명시로 박는다). 본인 포함 — 앱에서 직접 켜서 테스트.
+
+\if :apply_global_lock
+-- ① 병원 문자 마스터 스위치 OFF (전원 공통 차단). (전역: 승인 시에만)
+update hospital_settings set sms_enabled = false;
+-- ③ 모든 환자 × 모든 알림종류 = 꺼짐(행 없으면 기본 ON이라 명시로 박는다). 본인 포함 — 앱에서 직접 켜서 테스트. (전역: 승인 시에만)
 insert into notification_preferences (patient_id, notification_type, enabled)
 select p.id, t.ntype, false
   from patients p
@@ -321,8 +342,14 @@ select p.id, t.ntype, false
                      ('questionnaire_partial'),('visit_completed'),('support_answered'),
                      ('family_linked')) as t(ntype)
 on conflict (patient_id, notification_type) do update set enabled = false;
+\echo '🔒 전역 알림 잠금 적용: 병원 문자스위치 OFF · 대상 DB 전체 환자 알림설정 OFF.'
+\else
+\echo '⚠ 전역 알림 잠금(①병원 마스터 OFF·③전원 prefs OFF)을 건너뜀 — apply_global_lock=off.'
+\echo '   데모에서 문자 마스터 스위치를 켜면 다른 데모 환자(스태프 시드 약 150명)에게도 문자가 나갈 수 있습니다.'
+\echo '   전체 안전장치가 필요하면 APPLY_GLOBAL_NOTIFY_LOCK=1 로 seed_demo_patient.sh 를 다시 실행하세요.'
+\endif
 
 commit;
 
-\echo '✅ 데모 환자 김바이(010-7601-7654) + 가족 5명 + 예약 14건 + 문진·알림 적재 완료.'
-\echo '🔒 안전장치: 병원 문자스위치 OFF · 전원 알림설정 OFF · 가족 sms_dead=true (본인만 살아있음).'
+\echo '✅ 데모 환자 김바이 + 가족 5명 + 예약 14건 + 문진·알림 적재 완료.'
+\echo '🔒 데모 가족 sms_dead=true (본인만 살아있음). 전역 알림 잠금 적용 여부는 위 메시지를 참조하세요.'
