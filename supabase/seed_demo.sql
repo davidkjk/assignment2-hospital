@@ -232,8 +232,10 @@ select
             '준서','소율','시윤','예린','도현'])[((i*7)%25)+1],
   (date '1948-01-01' + ((i*211)%26000) * interval '1 day')::date,
   case when i % 2 = 0 then 'M' else 'F' end,  -- 00028 성별 check(F/M) — 표시(남/여)는 앱에서 변환 · 갭 #57(문진 「보일 대상」 전제)
-  '010-' || lpad(((i*37) % 9000 + 1000)::text, 4, '0')
-        || '-' || lpad(((i*53) % 9000 + 1000)::text, 4, '0'),
+  -- ⚠️ 데모 안전: 국번을 0000(통신사 미할당)으로 고정해 실존할 수 없는 가짜 번호로 만든다.
+  --    실번호 형식(010-XXXX-XXXX)이면 발송 안전장치가 뚫릴 때 실제 번호로 문자가 갈 수 있다.
+  --    뒷자리로 150명을 유니크하게 구분한다. (김바이 등 시연 대상 실번호는 이 시드에 없음 — env 주입)
+  '010-0000-' || lpad(((i*53) % 9000 + 1000)::text, 4, '0'),
   true
 from generate_series(1, 150) as i;
 
@@ -457,7 +459,7 @@ on conflict (department_id, version_no) do update set questions = excluded.quest
 --    (제품 기본은 결정31 '문자 초기 ON'이라 스키마 default는 true 유지 — 여기 데모 시드에서만 off로 덮는다.
 --     실 발송 데모가 필요하면 이 값을 true로 바꾸고 Solapi 키를 환경에 넣는다.)
 insert into hospital_settings (id, hospital_address, hospital_phone, sms_enabled)
-values (true, '서울특별시 강남구 테헤란로 123, 가온빌딩 3층', '02-1234-5678', false)
+values (true, '서울특별시 강남구 테헤란로 123, 가온빌딩 3층', '02-0000-0000', false)
 on conflict (id) do update
   set hospital_address = excluded.hospital_address,
       hospital_phone = excluded.hospital_phone,
