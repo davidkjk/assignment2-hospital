@@ -57,6 +57,9 @@ async def list_access_logs(
                        and l.result_count >= (select wide_search_threshold_count from hospital_settings limit 1),
                      false) as is_wide_search,
                    l.patient_id, s.name as staff_name,
+                   -- [ALOG-LIST-13][STAT-AUDIT-02] 통계 감사 비개인정보 payload(통계 행에만, 나머지는 null).
+                   l.stats_metric, l.stats_period_from, l.stats_period_to,
+                   l.stats_target_count, l.stats_csv_rows, l.stats_suppressed,
                    p.name as patient_name, p.phone as patient_phone,
                    p.birth_date as patient_birth_date
             from access_audit_log l
@@ -106,4 +109,12 @@ def _to_row(r) -> dict:
         "is_wide_search": r["is_wide_search"],
         "staff_name": r["staff_name"],
         "patient": patient,
+        # [ALOG-LIST-13][STAT-AUDIT-02] 통계 상세 열람·CSV 내보내기 행의 비개인정보 payload.
+        #   통계 아닌 행은 전부 null이다. 라벨(「통계 상세 열람」 등)은 resource_type으로 표시층이 붙인다.
+        "stats_metric": r["stats_metric"],
+        "stats_period_from": r["stats_period_from"],
+        "stats_period_to": r["stats_period_to"],
+        "stats_target_count": r["stats_target_count"],
+        "stats_csv_rows": r["stats_csv_rows"],
+        "stats_suppressed": r["stats_suppressed"],
     }

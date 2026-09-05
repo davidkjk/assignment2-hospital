@@ -2098,7 +2098,7 @@
 | `ALOG-LIST-10` | 행 조작 | 행·환자 이름 누름 | 환자 상세로 자동 이동 안 함. 이름 누르면 같은 화면 `patient_id` 필터만, 원문 추가로 안 펼침 | `NAV-SHELL-10` 범위 구분·`MASK-*`·P-05; `FINAL` |
 | `ALOG-LIST-11` | 빈 결과 | 필터 결과 0건 | `이 환자의 접근 기록이 없습니다`+`다른 환자를 선택하거나 전체 기록으로 돌아가세요`. 실패 아니므로 `[다시 시도]` 안 둠 | `EMPTY-ZERO-01·02`·P-05; `FINAL` |
 | `ALOG-LIST-12` | 병합 사건 종류 | `resource_type = patient_merge`·`patient_merge_undo` | `병합`·`병합 되돌림`을 서로 다른 배지로, 열람과 안 섞음. 대표·합쳐진 환자·실행자·시각, 되돌림엔 사유. 마스킹·권한은 `MASK-*`·`ROLE-*` | 결정17·`MERGE-AUDIT-01`; `B-4 BLOCKED-BEFORE-MERGE` |
-| `ALOG-LIST-13` | 관리자 활동 종류 | `resource_type = stats_drilldown`·`stats_export` | 환자 없는 관리자 활동 `통계 상세 열람`·`통계 CSV 내보내기` 별도 표시, 실행자·시각·지표·기간·대상 건수·억제 여부만. 집계 표 보기·필터 변경은 행 안 만듦, raw 개인정보·검색어 노출 안 함 | 결정22·`STAT-AUDIT-02`·`ROLE-ADM-03`·`MASK-SRV-01`; `B-4 BLOCKED-BEFORE-MERGE` |
+| `ALOG-LIST-13` | 관리자 활동 종류 | `resource_type = stats_drilldown`·`stats_export` | 환자 없는 관리자 활동 `통계 상세 열람`·`통계 CSV 내보내기` 별도 표시, 실행자·시각·지표·기간·대상 건수·억제 여부만. 집계 표 보기·필터 변경은 행 안 만듦, raw 개인정보·검색어 노출 안 함 | 결정22·`STAT-AUDIT-02`·`ROLE-ADM-03`·`MASK-SRV-01`; ~~`B-4 BLOCKED-BEFORE-MERGE`~~ ✅ **구현(2026-09-05, 마이그 `00091`)** |
 
 ### 검색·마스킹 해제·대량 열람의 표시 경계 (`ALOG-AUDIT-*`·`ALOG-GROUP-*`)
 
@@ -2413,7 +2413,7 @@
 | ID | 요소 | 조건 | 동작 | 근거·상태 |
 |---|---|---|---|---|
 | `STAT-AUDIT-01` | 집계 표·필터 감사 경계 | 집계 표를 보거나 기간/진료과·의사 필터를 변경 | 결정22에 따라 별도 감사 행을 만들지 않음(특정 환자 겨냥 아님). 조회 기간·기준은 화면에만 표시. 권한·환자 데이터 경계는 `ROLE-*`·`MASK-*` 계속 적용 | 결정22·`ROLE-ADM-03`·`MASK-SRV-01`; `AUTO-FINAL` |
-| `STAT-AUDIT-02` | 드릴다운·CSV 감사 | 상세 목록을 열거나 CSV를 생성 | 결정22에 따라 `stats_drilldown`/`stats_export`를 환자 없는 관리자 활동 감사 행으로. 실행자·시각·지표·기간·대상 건수·CSV 행 수·억제 여부만, 환자명·raw·전화·생년월일·검색어는 payload에 복사 안 함 | 결정22·`ROLE-ADM-03`·`MASK-SRV-01`·`ALOG-LIST-13`; `B-4 BLOCKED-BEFORE-MERGE` |
+| `STAT-AUDIT-02` | 드릴다운·CSV 감사 | 상세 목록을 열거나 CSV를 생성 | 결정22에 따라 `stats_drilldown`/`stats_export`를 환자 없는 관리자 활동 감사 행으로. 실행자·시각·지표·기간·대상 건수·CSV 행 수·억제 여부만, 환자명·raw·전화·생년월일·검색어는 payload에 복사 안 함 | 결정22·`ROLE-ADM-03`·`MASK-SRV-01`·`ALOG-LIST-13`; ~~`B-4 BLOCKED-BEFORE-MERGE`~~ ✅ **구현(2026-09-05, 마이그 `00091`)** |
 
 ### 로딩·빈 상태·실패 (`STAT-STATE-*`)
 
@@ -2440,7 +2440,7 @@
 | 오프라인 | `[다시 시도]` | 연결 복구되면 같은 기간 조회 재실행 | `EMPTY-OFF-01`·`NAV-GLOBAL-01` |
 
 > 사용자 결정 완료: 회의 결정21(`24b:11` 화면 공개·CSV만 `k=5` 억제)·22(`24:53` 드릴다운·CSV만 감사)·23(`24b:13` 챗봇 별도 유입원)·24(`24b:12` 마스킹 명단+행→환자상세)로 통계의 `NEEDS-USER-DECISION`은 전부 해소됐다. **화면 소수 억제·관리자 예외 버튼은 만들지 않는다**(결정21).
-> `BLOCKED`(구현 전, **B-4**와 게이트): `STAT-AUDIT-02`용 ALOG 환자 없는 행 저장/조회(resource type CHECK·`patient_id NOT NULL` 확장), `k=5` 저장 위치·CSV 억제·설명 생성 로직, 상담봇 문의·분류 집계 저장/API·유입원 3분류 API, 진료과·의사별 전체 지표·이름 DTO, 드릴다운 마스킹 DTO·행↔환자상세 링크·안정 정렬·상한·오래 대기 상세, 실제 frontend/backend 구현과 상태별 테스트. 목업 84의 값은 레이아웃 확인용 합성 샘플(실제 수치·임계값 아님).
+> ~~`BLOCKED`(구현 전, **B-4**와 게이트): `STAT-AUDIT-02`용 ALOG 환자 없는 행 저장/조회…~~ ✅ **해소(2026-09-05 확인)** — resource type CHECK·`patient_id NOT NULL` 확장은 `00034`가, 집계 저장/API·유입원 3분류·드릴 마스킹 DTO·안정 정렬은 ⑦(`bot_stats_service`·`admin_chat`, `94889da`)가, **감사 payload 저장/조회(지표·기간·건수·억제)는 `00091`+`audit_service.log_stats_*`+`audit_query_service`(2026-09-05)** 가 구현했다. 남은 것=frontend 표시층(통계 감사 행 라벨링, staff-web 몫)뿐. 목업 84의 값은 레이아웃 확인용 합성 샘플(실제 수치·임계값 아님).
 
 ## 직원 로그인 /login (`STAFF-LOGIN-*`)
 
@@ -5836,7 +5836,7 @@
 | `BOTSTAT-DASH-12` | CSV | 조회 성공·내보내기 계약 존재 | 현재 기간·지표 기준의 집계 CSV를 생성하고 환자 상세 명단은 자동 포함하지 않는다. | `STAT-EXPORT-01` |
 | `BOTSTAT-DASH-13` | CSV 보호 | 환자 기준 셀이 5건 미만 | CSV에서만 소수 셀과 보완 추론 셀을 가리고 이유를 표시한다. 화면 수치에는 이 억제를 적용하지 않는다. | `STAT-MASK-01~04`, `STAT-EXPORT-02` |
 | `BOTSTAT-DASH-14` | CSV 불가 | 집계 계약 없음·조회 실패·오프라인 | 다운로드를 실행하지 않고 현재 집계 불가 이유를 유지한다. 빈 파일이나 0건 파일을 만들지 않는다. | `STAT-METRIC-05~06`, `STAT-STATE-03~04`; 정본 §1(16) |
-| `BOTSTAT-DASH-15` | 감사 | 상세 열기·CSV 생성 | 실행자·시각·지표·기간·대상 건수·억제 여부만 감사하고 환자명·전화·검색어를 payload에 복사하지 않는다. 구현 계약은 차단 상태임을 유지한다. | `STAT-AUDIT-02` |
+| `BOTSTAT-DASH-15` | 감사 | 상세 열기·CSV 생성 | 실행자·시각·지표·기간·대상 건수·억제 여부만 감사하고 환자명·전화·검색어를 payload에 복사하지 않는다. ~~구현 계약은 차단 상태임을 유지한다.~~ ✅ **구현됨(2026-09-05, 마이그 `00091` + `audit_service.log_stats_*` + `admin_chat` 3엔드포인트 배선 + `audit_query_service` 노출)** | `STAT-AUDIT-02` |
 
 ##### 화면 사이 이동 (`NAV-ADM-*`)
 

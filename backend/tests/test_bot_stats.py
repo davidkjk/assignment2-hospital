@@ -171,13 +171,40 @@ async def test_csv_suppresses_cells_below_five_and_carries_period(committed_conn
     for _ in range(2):
         await _seed_ai_session(committed_conn, p["patient_id"], handed_off=True)
 
-    csv = await bot_stats_service.export_csv(WIN, WIN)
-    assert WIN in csv                                       # 기간
-    assert bot_stats_service.SUPPRESSED_LABEL in csv       # 직원 연결=2건(<5) 가림
-    assert "자체 안내,6" in csv                              # 6건(≥5)은 그대로 노출
+    export = await bot_stats_service.export_csv(WIN, WIN)
+    assert WIN in export.body                               # 기간
+    assert bot_stats_service.SUPPRESSED_LABEL in export.body  # 직원 연결=2건(<5) 가림
+    assert "자체 안내,6" in export.body                      # 6건(≥5)은 그대로 노출
     # 화면 집계는 억제하지 않는다 — 서비스 get_metrics는 참값
     m = await bot_stats_service.get_metrics(WIN, WIN)
     assert m["handed_off"]["count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_export_csv_returns_audit_meta(committed_conn):
+    # [STAT-AUDIT-02][ALOG-LIST-13] export는 감사에 남길 행 수·억제 여부를 함께 돌려준다.
+    p = await seed_patient(committed_conn)
+    for _ in range(6):
+        await _seed_ai_session(committed_conn, p["patient_id"], handed_off=False)
+    for _ in range(2):
+        await _seed_ai_session(committed_conn, p["patient_id"], handed_off=True)
+
+    export = await bot_stats_service.export_csv(WIN, WIN)
+    assert export.rows == 6           # 지표 3 + 유입원 3 = 데이터 값 6줄
+    assert export.suppressed is True  # 직원 연결 2건(<5) 셀을 가렸다
+
+
+@pytest.mark.asyncio
+async def test_export_csv_no_suppression_when_all_cells_safe(committed_conn):
+    # 5건 미만 셀이 없으면 억제 없음(suppressed=False).
+    p = await seed_patient(committed_conn)
+    for _ in range(6):
+        await _seed_ai_session(committed_conn, p["patient_id"], handed_off=False)
+    for _ in range(6):
+        await _seed_ai_session(committed_conn, p["patient_id"], handed_off=True)
+
+    export = await bot_stats_service.export_csv(WIN, WIN)
+    assert export.suppressed is False
 
 
 @pytest.mark.asyncio
@@ -187,7 +214,8 @@ async def test_router_stats_endpoints_require_admin_and_return_aggregates(commit
     await _seed_appt(committed_conn, p["patient_id"], "app")
     await _seed_question(committed_conn, p["patient_id"], "주차 되나요")
     st = await seed_staff(committed_conn, role="admin")
-    admin = StaffContext(id=st["staff_id"], auth_user_id=uuid4(), role="admin", department_id=None)
+    # auth_user_id는 실제 seed 값 — export 감사(STAT-AUDIT-02)가 RLS 아래 자기 staff로 INSERT한다.
+    admin = StaffContext(id=st["staff_id"], auth_user_id=st["auth_user_id"], role="admin", department_id=None)
     try:
         app.dependency_overrides[get_current_staff] = lambda: admin
         app.dependency_overrides[bot_stats_service.get_embedder_dep] = \
@@ -200,5 +228,40 @@ async def test_router_stats_endpoints_require_admin_and_return_aggregates(commit
             assert ranking.status_code == 200 and ranking.json()["kind"] == "clusters"
             csv = c.get("/admin/chat/stats/export.csv?from=&to=")
             assert csv.status_code == 200 and "text/csv" in csv.headers["content-type"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_router_drilldown_and_export_write_audit_but_aggregate_does_not(committed_conn):
+    # [STAT-AUDIT-01/02] 집계·필터는 감사 안 하고 드릴다운·CSV만 남긴다(결정 #22).
+    p = await seed_patient(committed_conn)
+    for _ in range(6):
+        await _seed_ai_session(committed_conn, p["patient_id"], handed_off=False)
+    st = await seed_staff(committed_conn, role="admin")
+    admin = StaffContext(id=st["staff_id"], auth_user_id=st["auth_user_id"], role="admin", department_id=None)
+    try:
+        app.dependency_overrides[get_current_staff] = lambda: admin
+        app.dependency_overrides[bot_stats_service.get_embedder_dep] = lambda: StubEmbedder({})
+        with TestClient(app) as c:
+            # 집계 — 감사 행 없음
+            assert c.get("/admin/chat/stats?from=&to=").status_code == 200
+            n_agg = await committed_conn.fetchval(
+                "select count(*) from access_audit_log where staff_id=$1 "
+                "and resource_type in ('stats_drilldown','stats_export')", st["staff_id"])
+            assert n_agg == 0
+            # 드릴다운 — stats_drilldown 행 + 지표·대상 건수
+            assert c.get("/admin/chat/stats/inquiries/detail?from=&to=").status_code == 200
+            drill = await committed_conn.fetchrow(
+                "select * from access_audit_log where staff_id=$1 and resource_type='stats_drilldown'",
+                st["staff_id"])
+            assert drill is not None and drill["stats_metric"] == "inquiries"
+            assert drill["stats_target_count"] == 6 and drill["patient_id"] is None
+            # CSV — stats_export 행 + 행 수
+            assert c.get("/admin/chat/stats/export.csv?from=&to=").status_code == 200
+            exp = await committed_conn.fetchrow(
+                "select * from access_audit_log where staff_id=$1 and resource_type='stats_export'",
+                st["staff_id"])
+            assert exp is not None and exp["stats_csv_rows"] == 6
     finally:
         app.dependency_overrides.clear()

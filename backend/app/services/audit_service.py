@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from app.core.security import StaffContext
@@ -46,30 +47,67 @@ async def log_access(
         return await _run(c)
 
 
-async def log_stats_drilldown(staff: StaffContext, *, conn=None) -> None:
-    """[STAT-AUDIT-02][결정22] 통계 드릴다운은 환자 없는 관리자 활동 행으로 남긴다.
+def _as_date(value):
+    """from/to 쿼리는 '2026-09-01' 또는 ''(무제한)로 온다 — 빈 값은 null(무제한)로."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        return date.fromisoformat(value)
+    return value
 
-    특정 환자를 겨냥한 열람이 아니라 「관리자가 상세 목록을 열었다」는 사실이므로
-    patient_id는 null이다(00034가 nullable + stats_drilldown 종류를 열어 뒀다).
 
-    ⚠️ ALOG-LIST-13이 요구하는 지표·기간·대상 건수·억제 여부의 상세 payload 저장은
-       access_audit_log에 전용 컬럼이 없어 BLOCKED다 — payload 컬럼 추가 마이그레이션이
-       필요하고 이 태스크는 새 마이그레이션을 만들지 않는다. 지금은 실행자·시각·종류만 남긴다.
+async def _log_stats(
+    staff: StaffContext, resource_type: str, *,
+    metric: str | None, period_from, period_to,
+    target_count: int | None, csv_rows: int | None, suppressed: bool | None,
+    conn=None,
+) -> None:
+    """[STAT-AUDIT-02][ALOG-LIST-13] 통계 감사 — 환자 없는 관리자 활동 행.
+
+    특정 환자를 겨냥한 열람이 아니라 「관리자가 상세 목록을 열었다/CSV를 만들었다」는 사실이므로
+    patient_id는 null이다(00034가 nullable + 종류를 열어 뒀다). 담는 것은 비개인정보뿐 —
+    지표·기간·대상 건수·CSV 행 수·억제 여부(00091). 환자명·전화·생년월일·검색어(원문)는 넣지 않는다.
     """
-    await log_access(None, "stats_drilldown", staff, conn=conn)
+    async def _run(c) -> None:
+        await c.execute(
+            "insert into access_audit_log "
+            "(staff_id, patient_id, resource_type, stats_metric, stats_period_from, "
+            " stats_period_to, stats_target_count, stats_csv_rows, stats_suppressed) "
+            "values ($1, null, $2, $3, $4, $5, $6, $7, $8)",
+            staff.id, resource_type, metric, _as_date(period_from), _as_date(period_to),
+            target_count, csv_rows, suppressed,
+        )
+
+    if conn is not None:
+        return await _run(conn)
+
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await _run(c)
+
+
+async def log_stats_drilldown(
+    staff: StaffContext, *, metric: str | None = None,
+    period_from=None, period_to=None, target_count: int | None = None, conn=None,
+) -> None:
+    """[STAT-AUDIT-02][결정22] 통계 드릴다운(상세 목록 열기) 감사 행."""
+    await _log_stats(
+        staff, "stats_drilldown", metric=metric, period_from=period_from,
+        period_to=period_to, target_count=target_count, csv_rows=None,
+        suppressed=None, conn=conn,
+    )
 
 
 async def log_stats_export(
-    staff: StaffContext, *, metric: str | None = None, rows: int | None = None,
-    suppressed: bool | None = None, conn=None,
+    staff: StaffContext, *, metric: str | None = None,
+    period_from=None, period_to=None, target_count: int | None = None,
+    rows: int | None = None, suppressed: bool | None = None, conn=None,
 ) -> None:
-    """[STAT-AUDIT-02][ALOG-LIST-13][결정22] 통계 CSV 내보내기 감사 — 환자 없는 행.
-
-    metric·rows·suppressed는 ALOG-LIST-13이 남기라 한 값이지만, 저장할 payload 컬럼이
-    아직 없어(BLOCKED, 마이그 필요) 지금은 종류·실행자·시각만 남긴다 — 원문·검색어는
-    어차피 복사하지 않는다.
-    """
-    await log_access(None, "stats_export", staff, conn=conn)
+    """[STAT-AUDIT-02][ALOG-LIST-13][결정22] 통계 CSV 내보내기 감사 — 행 수·k=5 억제까지."""
+    await _log_stats(
+        staff, "stats_export", metric=metric, period_from=period_from,
+        period_to=period_to, target_count=target_count, csv_rows=rows,
+        suppressed=suppressed, conn=conn,
+    )
 
 
 async def _log_search(

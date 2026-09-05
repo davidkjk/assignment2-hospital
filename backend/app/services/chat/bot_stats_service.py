@@ -14,10 +14,12 @@ Asia/Seoul date 경계로 자른다. 유효한 0건과 계약 부재를 구분�
 - TOP N = 상위 10(동률은 대표 질문 텍스트 오름차순 — cluster_questions 기본 정렬).
 - 드릴 마스킹 = 이름 첫 글자 + ○(익명 웹은 '웹 상담객'). 원본은 클라이언트로 내보내지 않는다.
 - CSV k=5 = 환자 기준 셀이 5건 미만이면 CSV에서만 가린다(화면 수치엔 억제 없음).
-- 감사 저장은 BLOCKED 유지(BOTSTAT-DASH-15) — 서버가 검색어·환자명·전화를 payload로 적재하지 않는다.
+- 감사 저장(BOTSTAT-DASH-15): 드릴다운·CSV는 비개인정보(지표·기간·건수·억제)만 access_audit_log에
+  남긴다(00091, audit_service.log_stats_*) — 검색어·환자명·전화는 절대 payload로 적재하지 않는다.
 """
 import csv
 import io
+from dataclasses import dataclass
 
 from app.core.errors import AppError
 from app.db.pool import get_pool
@@ -137,21 +139,43 @@ def _cell(count: int) -> str:
     return SUPPRESSED_LABEL if 0 < count < K_ANON else str(count)
 
 
-async def export_csv(date_from: str | None, date_to: str | None) -> str:
+@dataclass
+class CsvExport:
+    """[STAT-AUDIT-02][ALOG-LIST-13] CSV 본문 + 감사에 남길 비개인정보 메타."""
+
+    body: str
+    rows: int          # CSV로 쓴 데이터 값 행 수(지표 3 + 유입원 3)
+    suppressed: bool   # k=5 억제가 한 셀이라도 일어났나
+    target_count: int  # 내보낸 지표 셀 수(억제 전 원값)
+
+
+async def export_csv(date_from: str | None, date_to: str | None) -> CsvExport:
     m = await get_metrics(date_from, date_to)
     buf = io.StringIO()
     w = csv.writer(buf)
+    state = {"rows": 0, "suppressed": False}
+
+    def cell(count: int) -> str:
+        state["rows"] += 1
+        rendered = _cell(count)
+        if rendered == SUPPRESSED_LABEL:
+            state["suppressed"] = True
+        return rendered
+
     w.writerow(["기간", date_from or "전체", date_to or "전체"])
     w.writerow([])
     w.writerow(["지표", "값"])
-    w.writerow(["문의 수", _cell(m["inquiries"]["count"])])
-    w.writerow(["자체 안내", _cell(m["self_served"]["count"])])
-    w.writerow(["직원 연결", _cell(m["handed_off"]["count"])])
+    w.writerow(["문의 수", cell(m["inquiries"]["count"])])
+    w.writerow(["자체 안내", cell(m["self_served"]["count"])])
+    w.writerow(["직원 연결", cell(m["handed_off"]["count"])])
     w.writerow([])
     w.writerow(["예약 유입원", "값"])
-    w.writerow(["앱", _cell(m["inflow"]["app"])])
-    w.writerow(["직원", _cell(m["inflow"]["staff"])])
-    w.writerow(["챗봇", _cell(m["inflow"]["chatbot"])])
+    w.writerow(["앱", cell(m["inflow"]["app"])])
+    w.writerow(["직원", cell(m["inflow"]["staff"])])
+    w.writerow(["챗봇", cell(m["inflow"]["chatbot"])])
     w.writerow([])
     w.writerow([f"* {SUPPRESSED_LABEL}: 개인정보 보호를 위해 5건 미만 셀은 CSV에서만 가립니다(화면 수치는 그대로)."])
-    return buf.getvalue()
+    return CsvExport(
+        body=buf.getvalue(), rows=state["rows"],
+        suppressed=state["suppressed"], target_count=state["rows"],
+    )

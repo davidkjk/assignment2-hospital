@@ -214,3 +214,28 @@ async def test_search_log_06_검색_아닌_사건은_넓은검색_아니다(db_c
     result = await audit_query_service.list_access_logs(admin, conn=db_conn)
 
     assert result["rows"][0]["is_wide_search"] is False
+
+
+async def test_통계_감사행은_비개인정보_payload를_노출한다(db_conn):
+    """[ALOG-LIST-13][STAT-AUDIT-02] 통계 상세 열람·CSV 내보내기 행은 환자 없이
+    지표·기간·대상 건수·억제 여부를 그대로 실어 보낸다(표시 라벨은 프론트).
+    """
+    admin = _ctx(await seed_staff(db_conn, role="admin"), "admin")
+    await db_conn.execute(
+        """insert into access_audit_log
+             (staff_id, resource_type, patient_id, stats_metric,
+              stats_period_from, stats_period_to, stats_target_count,
+              stats_csv_rows, stats_suppressed)
+           values ($1, 'stats_export', null, 'all', '2026-09-01', '2026-09-30', 6, 6, true)""",
+        admin.id,
+    )
+
+    result = await audit_query_service.list_access_logs(admin, conn=db_conn)
+    row = next(r for r in result["rows"] if r["resource_type"] == "stats_export")
+
+    assert row["patient"] is None
+    assert row["stats_metric"] == "all"
+    assert row["stats_target_count"] == 6
+    assert row["stats_csv_rows"] == 6
+    assert row["stats_suppressed"] is True
+    assert str(row["stats_period_from"]) == "2026-09-01"

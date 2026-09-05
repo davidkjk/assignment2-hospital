@@ -93,11 +93,11 @@
 | 예약 중 상담 구현 | ✅ **해소(2026-08-12, E4)** — 같은 엔진의 제한 모드로 구현한다. 정보성 안내·진료과 추천만 허용하고 모든 행동형 도구를 금지하며, 긴급 안전 안내만 예외로 둔다. | 결정 E4; `BOOK-BOT-07~08` |
 | 제한 자료 검색 우선순위·충돌 | ✅ **원칙 해소(2026-08-12, A3)** — 일반 답변은 유지하고 제한 주제 문구만 글자 그대로 별도 블록으로 격리한다. 전부 막는 배타 방식은 기각했다. **검색 점수·임계값 같은 숫자 튜닝만 `확인 필요`**로 남긴다. | 결정 A3; `KBADM-EDITOR-04` |
 | 빠른 답변 구현 | 정책은 확정됐지만 기존 메시지 타입·상담봇 플랜·환자 앱 상담 태스크에 `quick_replies` 반영이 필요하다. | 결정로그 L3323–3327 |
-| 의사 소개 데이터 | `specialty`·`bio`·`photo_url` 저장 칸, 관리자 입력, 사진 저장소가 아직 구현 전제다. | 결정로그 L3251–3255; `BOOK-DOC-07` |
-| 환자 상세 상담 문의 | `support_tickets` 마이그레이션이 없고 티켓 최신순 동점 키도 서버에 없다. | `PTDET-SUPPORT-03`, `PTDET-SUPPORT-*` 절의 `BLOCKED` 표시 |
-| 상담봇 운영 통계 | 상담봇 문의·분류 집계 API와 3분류 유입원 집계가 없어 구현 전 병합 차단 상태다. | `STAT-METRIC-05~06`, `STAT-*` 절의 `BLOCKED` 표시 |
-| 사전문진 완료 상태 | 현재 구현은 문진 행 존재만 보며 저장 때마다 `submitted_at`이 갱신돼 완료 판정 칸이 없다. | `QNR-STATE-07~08` |
-| 사전문진 문항 식별·상한 | 현재 문항 고유 ID가 없고 질문 글자로 답을 매칭하며, 30문항 상한·0문항 계약의 서버 검증도 없다. | `QNR-ID-10`, `QNR-FORM-09` |
+| 의사 소개 데이터 | ~~`specialty`·`bio`·`photo_url` 저장 칸, 관리자 입력, 사진 저장소가 아직 구현 전제다.~~ ✅ **해소(2026-09-05 코드 확인)** — 칸 `00042_staff_profile_palette.sql`, 관리자 입력 `staff_profile.update_doctor_profile`+`PATCH /staff/{id}/profile`, 사진 저장소 `staff_profile.upload_photo`(Storage 버킷→public_url)·`delete_photo`+`POST /staff/{id}/photo`. | 결정로그 L3251–3255; `BOOK-DOC-07` |
+| 환자 상세 상담 문의 | ~~`support_tickets` 마이그레이션이 없고 티켓 최신순 동점 키도 서버에 없다.~~ ✅ **해소(2026-09-05 코드 확인)** — 마이그 `00054`(외 00078·00085), 동점키 `ticket_service.py:68 order by created_at desc, id desc`·L134 `asc, id asc`. 라우터 `staff_chat.patient_support_tickets` 배선. | `PTDET-SUPPORT-03`, `PTDET-SUPPORT-*` 절의 `BLOCKED` 표시 |
+| 상담봇 운영 통계 | ~~상담봇 문의·분류 집계 API와 3분류 유입원 집계가 없어 구현 전 병합 차단 상태다.~~ ✅ **해소(2026-09-05 코드 확인, ⑦ `94889da`)** — `bot_stats_service`(5엔드포인트 실집계)+`admin_chat` 라우터, 3분류 유입원(appointments.source app/staff/chatbot). ⚠️ **감사 payload 적재만 잔존 BLOCKED**(`admin_chat.py:175` "-15"). | `STAT-METRIC-05~06`, `STAT-*` 절의 `BLOCKED` 표시 |
+| 사전문진 완료 상태 | ~~현재 구현은 문진 행 존재만 보며 저장 때마다 `submitted_at`이 갱신돼 완료 판정 칸이 없다.~~ ✅ **해소(2026-09-05 코드 확인)** — 완료 전용 칸 `00021_questionnaire_completion.sql` `completed_at`(갭 #50). | `QNR-STATE-07~08` |
+| 사전문진 문항 식별·상한 | ~~현재 문항 고유 ID가 없고 질문 글자로 답을 매칭하며, 30문항 상한·0문항 계약의 서버 검증도 없다.~~ ✅ **해소(2026-09-05 코드 확인)** — `questionnaire_admin_service`: 고유 ID `next_question_id`+`_validate`(ID 없음/중복 거절), 상한 `MAX_QUESTIONS=30`(>30 거절), 0문항 허용은 `QADM-FORM-09`(0개=문진 안 받음) 정본과 일치. | `QNR-ID-10`, `QNR-FORM-09` |
 
 ## §5 다음 세션 읽기 목록 (Claude가 상담봇 목업 시작할 때 읽을 파일·줄범위)
 

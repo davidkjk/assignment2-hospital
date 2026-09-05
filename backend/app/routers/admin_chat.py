@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.security import StaffContext, require_role
 from app.integrations.embedding_client import get_embedding_client
+from app.services import audit_service
 from app.services.chat import (answer_feedback_service, bot_stats_service, kb_service,
                                quality_service, unresolved_service)
 
@@ -191,7 +192,13 @@ async def stats_ranking_cluster(
     staff: StaffContext = Depends(require_role("admin")),
     embedder=Depends(bot_stats_service.get_embedder_dep),
 ):
-    return await bot_stats_service.get_ranking_cluster(cluster_id, from_, to, embedder)
+    result = await bot_stats_service.get_ranking_cluster(cluster_id, from_, to, embedder)
+    # [STAT-AUDIT-02] 상세 묶음을 열었다 = 드릴다운 감사 행(환자 없이, 비개인정보만).
+    await audit_service.log_stats_drilldown(
+        staff, metric="ranking", period_from=from_, period_to=to,
+        target_count=len(result.get("questions", [])),
+    )
+    return result
 
 
 @router.get("/stats/export.csv")
@@ -199,8 +206,13 @@ async def stats_export_csv(
     from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
     staff: StaffContext = Depends(require_role("admin")),
 ):
-    body = await bot_stats_service.export_csv(from_, to)
-    return Response(content=body, media_type="text/csv; charset=utf-8",
+    export = await bot_stats_service.export_csv(from_, to)
+    # [STAT-AUDIT-02][ALOG-LIST-13] CSV를 만들었다 = 내보내기 감사 행(행 수·k=5 억제까지).
+    await audit_service.log_stats_export(
+        staff, metric="all", period_from=from_, period_to=to,
+        target_count=export.target_count, rows=export.rows, suppressed=export.suppressed,
+    )
+    return Response(content=export.body, media_type="text/csv; charset=utf-8",
                    headers={"Content-Disposition": 'attachment; filename="bot-stats.csv"'})
 
 
@@ -210,7 +222,12 @@ async def stats_drill(
     from_: str | None = Query(default=None, alias="from"), to: str | None = Query(default=None),
     staff: StaffContext = Depends(require_role("admin")),
 ):
-    return await bot_stats_service.get_drill(metric, from_, to)
+    result = await bot_stats_service.get_drill(metric, from_, to)
+    # [STAT-AUDIT-02] 지표 상세 목록을 열었다 = 드릴다운 감사 행.
+    await audit_service.log_stats_drilldown(
+        staff, metric=metric, period_from=from_, period_to=to, target_count=len(result),
+    )
+    return result
 
 
 @router.get("/stats")
