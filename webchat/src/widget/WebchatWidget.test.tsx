@@ -6,10 +6,13 @@ import { saveAnonToken, clearAnonToken } from '../state/anonSession';
 
 const session: SessionState = { threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
   messages: [{ id: 'm1', senderType: 'patient', messageType: 'text', content: '내 예약 보여줘', sendState: 'sent' }] };
-function fakeApi(): WebchatApi {
+// 첫 상담(복원할 메시지 0건) — 시작 고정 묶음(봇 인사말·시작 칩)은 빈 피드에만 뜬다(WEBCHAT-ROOM-03·WEBCARD-QUICK-01).
+const emptySession: SessionState = { threadId: 't1', aiSessionId: 's1', anonToken: 'TOK', messages: [] };
+const WELCOME = '안녕하세요, 무엇을 도와드릴까요?';
+function fakeApi(sess: SessionState = session): WebchatApi {
   return {
-    startOrRestoreSession: vi.fn(async () => session),
-    fetchMessages: vi.fn(async () => session.messages),
+    startOrRestoreSession: vi.fn(async () => sess),
+    fetchMessages: vi.fn(async () => sess.messages),
     sendMessage: vi.fn(async () => ({ routeTaken: 'rag' })),
     fetchHandoff: vi.fn(async (): Promise<HandoffStatus> => ({ phase: 'connecting', isOpen: true })),
     acknowledgeBatches: vi.fn(async () => {}),
@@ -17,6 +20,33 @@ function fakeApi(): WebchatApi {
   };
 }
 beforeEach(() => clearAnonToken());
+
+test('[WEBCARD-QUICK-01] 방을 처음 열면(빈 피드) 봇 인사말과 시작 고정 칩 5개를 대화 안에 보여준다', async () => {
+  const api = fakeApi(emptySession);
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  expect(await screen.findByText(WELCOME)).toBeInTheDocument();
+  for (const label of ['진료시간', '예약 방법', '오시는 길', '내 예약 조회', '직원에게 문의'])
+    expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+});
+
+test('[WEBCARD-QUICK-02] 시작 칩(진료시간)을 누르면 그 문장을 환자 말풍선으로 전송한다', async () => {
+  const api = fakeApi(emptySession);
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await userEvent.click(await screen.findByRole('button', { name: '진료시간' }));
+  await waitFor(() => expect(api.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ content: '진료시간' })));
+});
+
+test('[WEBCHAT-ROOM-03] 대화가 시작되면(피드에 메시지) 시작 고정 묶음이 사라진다 — 입력바 위 상시 칩도 없다', async () => {
+  const api = fakeApi(); // 비어있지 않은 피드(내 예약 보여줘)
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await waitFor(() => screen.getByText('내 예약 보여줘'));
+  expect(screen.queryByText(WELCOME)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '진료시간' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '내 예약 조회' })).not.toBeInTheDocument(); // 상시 칩 제거(A-②)
+});
 
 test('[NAV-WEBCHAT-01] 닫힌 런처를 누르면 방을 열고 같은 브라우저 익명 세션을 복원한다', async () => {
   saveAnonToken('OLD');
@@ -29,7 +59,7 @@ test('[NAV-WEBCHAT-01] 닫힌 런처를 누르면 방을 열고 같은 브라우
 
 test('[NAV-WEBCHAT-02] 로그인 필요 행동이면 선택·대화 문맥을 보존하고 onAuthGate(인증 관문)를 연다', async () => {
   const onAuthGate = vi.fn();
-  const api = fakeApi();
+  const api = fakeApi(emptySession); // 시작 고정 칩(내 예약 조회)은 첫 상담 화면에 뜬다
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={onAuthGate} onHandoffNeeded={() => {}} renderCard={() => null} />);
   await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
   await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
@@ -38,18 +68,18 @@ test('[NAV-WEBCHAT-02] 로그인 필요 행동이면 선택·대화 문맥을 �
 });
 
 test('[NAV-WEBCHAT-03] 인증 모달을 닫으면 원래 행동을 실행하지 않고 같은 익명 방 위치로 돌아온다', async () => {
-  const api = fakeApi();
+  const api = fakeApi(emptySession);
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
   await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
   await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
   await userEvent.click(await screen.findByRole('button', { name: '내 예약 조회' }));
-  // 콜백만 부르고 방은 그대로(모달 화면은 Task 15). 원래 메시지 문맥 유지.
-  expect(screen.getByText('내 예약 보여줘')).toBeInTheDocument();
+  // 콜백만 부르고 방은 그대로(모달 화면은 Task 15). 첫 상담 안내 화면이 유지된다.
+  expect(screen.getByText(WELCOME)).toBeInTheDocument();
   expect(api.sendMessage).not.toHaveBeenCalled(); // 원래 행동은 인증 전 실행 안 됨
 });
 
 test('[NAV-WEBCHAT-04] 로그인 완료면 최신 값을 조회해 원래 행동으로 복귀한다(가입 완료 복귀=재확인 카드는 Task 15)', async () => {
-  const api = fakeApi();
+  const api = fakeApi(emptySession);
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
   await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
   await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));
@@ -61,7 +91,7 @@ test('[NAV-WEBCHAT-04] 로그인 완료면 최신 값을 조회해 원래 행동
 
 test('[NAV-WEBCHAT-05] 익명 인계가 필요하면 onHandoffNeeded로 폼을 열고 성공하면 인계 상태로 돌아온다', async () => {
   const onHandoffNeeded = vi.fn();
-  const api = fakeApi();
+  const api = fakeApi(emptySession);
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={onHandoffNeeded} renderCard={() => null} />);
   await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
   await waitFor(() => screen.getByRole('region', { name: 'AI 상담봇' }));

@@ -28,6 +28,27 @@ test('[WEBCHAT-ROOM-03] 첫 상담이면 빈 오류가 아니라 첫 안내 + �
   expect(screen.queryByText(/오류|실패/)).not.toBeInTheDocument();
 });
 
+test('[WEBCHAT-ROOM-03] 첫 안내(startSlot·시작 고정 묶음)를 빈 피드일 때 대화 안에 표시한다', () => {
+  // WEBCHAT-ROOM-03 「첫 안내」 + WEBCARD-QUICK-01 「시작 고정 묶음」 = 봇 인사말·시작 칩을 대화 영역에 렌더.
+  render(<ChatRoom phase="ready" messages={[]} {...base} startSlot={<div>시작안내블록</div>} />);
+  expect(screen.getByText('시작안내블록')).toBeInTheDocument();
+});
+
+test('[WEBCHAT-ROOM-03] 대화가 시작되면(메시지 있음) 시작 안내를 감춘다', () => {
+  // 시작 고정 묶음은 첫 상담(피드 0건)에만 — 대화가 시작되면 사라진다(홈페이지 챗봇과 동일).
+  const msgs: ThreadMessage[] = [{ id: 'm1', senderType: 'patient', messageType: 'text', content: '안녕', sendState: 'sent' }];
+  render(<ChatRoom phase="ready" messages={msgs} {...base} startSlot={<div>시작안내블록</div>} />);
+  expect(screen.queryByText('시작안내블록')).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-ROOM-03] 조회 오류·복원 중에는 시작 안내를 표시하지 않는다', () => {
+  // loadError는 [다시 시도] 화면, restoring은 로딩 표시 — 빈 피드라도 시작 안내로 가장하지 않는다.
+  const { rerender } = render(<ChatRoom phase="loadError" messages={[]} {...base} startSlot={<div>시작안내블록</div>} />);
+  expect(screen.queryByText('시작안내블록')).not.toBeInTheDocument();
+  rerender(<ChatRoom phase="restoring" messages={[]} {...base} startSlot={<div>시작안내블록</div>} />);
+  expect(screen.queryByText('시작안내블록')).not.toBeInTheDocument();
+});
+
 test('[WEBCHAT-ROOM-06] 로딩 중이면 로딩 표시 — 기존 메시지를 가리지 않는다', () => {
   const msgs: ThreadMessage[] = [{ id: 'm1', senderType: 'bot', messageType: 'text', content: '안녕하세요' }];
   render(<ChatRoom phase="restoring" messages={msgs} {...base} />);

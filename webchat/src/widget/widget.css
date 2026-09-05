@@ -460,7 +460,7 @@ html, body { height: 100%; }
 .wc-send:hover { background: var(--wc-primary-d); transform: scale(1.06); }
 .wc-send svg { width: 18px; height: 18px; }
 
-/* ── 빠른 답변 칩(QuickReplies) + 상시 빠른행동(내 예약·직원 문의) — 홈페이지 .chip ── */
+/* ── 빠른 답변 칩(QuickReplies·시작 고정 묶음) — 홈페이지 .chip ── */
 .wc-quick { display: flex; flex-wrap: wrap; gap: 8px; }
 .wc-chip {
   font-size: 13px;
@@ -477,6 +477,11 @@ html, body { height: 100%; }
 /* no_answer 안내의 [직원에게 연결] — 사람 연결 콜백 칩. FAQ 칩(테두리형)과 구분해 딥틸 채움으로. */
 .wc-chip--handoff { background: var(--wc-primary); color: #fff; border-color: var(--wc-primary); }
 .wc-chip--handoff:hover { background: var(--wc-primary-d); border-color: var(--wc-primary-d); }
+
+/* ── 첫 상담 시작 안내(WEBCHAT-ROOM-03·WEBCARD-QUICK-01) — 봇 인사말 + 시작 고정 칩을 대화 안에 ── */
+.wc-startline { align-self: stretch; max-width: 100%; }
+.wc-start { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.wc-start__hi { margin: 0; }   /* 인사말은 봇 말풍선(wc-msg--bot) 그대로 — <p> 기본 마진만 제거 */
 
 /* ── 앱 카드 재사용(WEBCARD-*) — 목업 102 카드 보드 ─────────────────────── */
 .wc-cardline { align-self: stretch; max-width: 100%; }

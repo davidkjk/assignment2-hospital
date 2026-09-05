@@ -11,7 +11,7 @@ export type ChatRoomProps = {
   onRetryLoad: () => void;
   guideSlot: ReactNode;
   handoffSlot: ReactNode;
-  quickActionsSlot?: ReactNode;   // 입력바 위 상시 빠른행동 칩(내 예약 조회·직원에게 문의). 홈페이지 챗봇의 quick-chips 자리.
+  startSlot?: ReactNode;          // 첫 상담(빈 피드) 시작 안내 — 봇 인사말 + 시작 고정 칩(WEBCHAT-ROOM-03·WEBCARD-QUICK-01). 대화 영역 안에 렌더.
   botTyping?: boolean;            // 봇 답변 대기 중 타이핑 점 표시(홈페이지 .typing)
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
 };
@@ -45,6 +45,10 @@ export function ChatRoom(p: ChatRoomProps) {
       <div className="wc-status">{p.guideSlot}{p.handoffSlot}</div>
       {p.phase === 'restoring' && <div className="wc-loading" role="status">불러오는 중…</div>}
       <ul className="wc-body">
+        {/* 첫 상담(복원 메시지 0건)이면 빈 오류가 아니라 시작 안내를 대화 안에 표시(WEBCHAT-ROOM-03) — 복원 중·조회 오류엔 감춘다. */}
+        {p.messages.length === 0 && p.phase !== 'restoring' && p.phase !== 'loadError' && p.startSlot && (
+          <li className="wc-startline">{p.startSlot}</li>
+        )}
         {p.messages.map((m) => (
           <li
             key={m.id}
@@ -70,7 +74,6 @@ export function ChatRoom(p: ChatRoomProps) {
         </div>
       )}
       <div className="wc-foot">
-        {p.quickActionsSlot && <div className="wc-quick wc-quick--actions">{p.quickActionsSlot}</div>}
         <form className="wc-inputbar" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { p.onSend(draft.trim()); setDraft(''); } }}>
           <input className="wc-input" placeholder="메시지를 입력하세요" value={draft} onChange={(e) => setDraft(e.target.value)} />
           <button type="submit" className="wc-send" aria-label="보내기">

@@ -53,11 +53,19 @@ export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, ex
             handoffSlot={(w.handoff.phase !== null || w.handoff.loadError)
               ? <HandoffBadge status={w.handoff} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
               : null}
-            // 로그인 필요 행동·직원 문의는 콜백만 부른다(원래 행동은 인증/인계 전 실행하지 않음). 홈페이지 챗봇 quick-chips 자리에 칩으로.
-            quickActionsSlot={<>
-              <button type="button" className="wc-chip" onClick={() => onAuthGate({ kind: 'view_my_appointments' })}>내 예약 조회</button>
-              <button type="button" className="wc-chip" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
-            </>}
+            // 첫 상담(빈 피드) 시작 안내 — 봇 인사말 + 시작 고정 칩(WEBCHAT-ROOM-03·WEBCARD-QUICK-01). 대화 시작 후엔 ChatRoom이 감춘다.
+            //   진료시간·예약 방법·오시는 길 = 문장 그대로 환자 말풍선으로 전송(WEBCARD-QUICK-02).
+            //   내 예약 조회 = 로그인 필요 → 관문(WEBMOD-AUTH-01) / 직원에게 문의 = 인계 폼(WEBANON-HANDOFF, 사람에게 닿는 칩이라 채움형).
+            startSlot={<div className="wc-start">
+              <p className="wc-msg wc-msg--bot wc-start__hi">안녕하세요, 무엇을 도와드릴까요?</p>
+              <div className="wc-quick wc-quick--start" aria-label="빠른 시작">
+                {['진료시간', '예약 방법', '오시는 길'].map((t) => (
+                  <button key={t} type="button" className="wc-chip" onClick={() => w.send(t)}>{t}</button>
+                ))}
+                <button type="button" className="wc-chip" onClick={() => onAuthGate({ kind: 'view_my_appointments' })}>내 예약 조회</button>
+                <button type="button" className="wc-chip wc-chip--handoff" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
+              </div>
+            </div>}
             renderCard={(payload) => renderCard(payload, {
               send: w.send,
               onHandoff: () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); },
