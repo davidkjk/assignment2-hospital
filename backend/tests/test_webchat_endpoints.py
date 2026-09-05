@@ -137,9 +137,10 @@ def _fake_llm():
     app.dependency_overrides.clear()
 
 
-def test_anonymous_message_stored_as_user_sender_and_handoff_on_empty_kb(client, _fake_llm):
-    # [WEBCHAT-SEND] 익명 위젯이 인증 없이 camelCase 본문으로 메시지를 보낸다.
-    # 빈 KB라 봇이 못 답해(no_answer) 인계로 전환된다. 저장된 발신 메시지의 senderType은
+def test_anonymous_message_stored_as_user_sender_and_no_answer_on_empty_kb(client, _fake_llm):
+    # [WEBCHAT-SEND][WEBCHAT-NOANS] 익명 위젯이 인증 없이 camelCase 본문으로 메시지를 보낸다.
+    # 빈 KB라 봇이 못 답한다 → A-①(2026-09-04) 이후 자동 인계 폐기 → route_taken='no_answer'로
+    # 봇 안내 말풍선 + 칩 카드를 준다(handoff 아님). 저장된 발신 메시지의 senderType은
     # 'patient'(DB sender_type='patient' + sender_anonymous_session_id) — 프론트도 자기 말풍선은 'patient'.
     with client as c:
         sess = c.post("/chat/sessions", json={"channel": "web"}).json()
@@ -147,7 +148,7 @@ def test_anonymous_message_stored_as_user_sender_and_handoff_on_empty_kb(client,
             "threadId": sess["threadId"], "aiSessionId": sess["aiSessionId"],
             "content": "우리 동네 약국 어디", "clientMessageId": str(uuid.uuid4())})
         assert r.status_code == 200, r.text
-        assert r.json()["route_taken"] == "handoff"
+        assert r.json()["route_taken"] == "no_answer"
         msgs = c.get(f"/chat/threads/{sess['threadId']}/messages").json()["messages"]
     mine = [m for m in msgs if m["content"] == "우리 동네 약국 어디"]
     assert len(mine) == 1
