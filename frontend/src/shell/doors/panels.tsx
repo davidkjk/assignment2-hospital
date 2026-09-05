@@ -315,7 +315,7 @@ function ReserveBody() {
   const { draft, activeField, setField, patch, pickDoctor, finish } = useDoors()
   const qc = useQueryClient()
   const [confirm, setConfirm] = useState(false)
-  const [gap, setGap] = useState<{ slotMinutes: number; gapMinutes: number; overlap: { patientLabel: string; startLabel: string; minutes: number } } | null>(null)
+  const [gap, setGap] = useState<{ slotMinutes: number; gapMinutes: number; occupied: boolean; overlap: { patientLabel: string; startLabel: string; endLabel: string; minutes: number } } | null>(null)
   const [raceMsg, setRaceMsg] = useState<string | null>(null)
   const [blockedMsg, setBlockedMsg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -396,7 +396,14 @@ function ReserveBody() {
       setGap({
         slotMinutes,
         gapMinutes: Math.max(0, ov.startMin - startMin),
-        overlap: { patientLabel: `${ov.label} 님`, startLabel: minToHHMM(ov.startMin), minutes: Math.min(startMin + slotMinutes, ov.endMin) - Math.max(startMin, ov.startMin) },
+        // 겹치는 예약이 고른 시각보다 앞서(또는 같이) 시작하면 「이미 찬 자리」다 — 문구가 갈린다(CAL-GAP-05).
+        occupied: ov.startMin <= startMin,
+        overlap: {
+          patientLabel: `${ov.label} 님`,
+          startLabel: minToHHMM(ov.startMin),
+          endLabel: minToHHMM(ov.endMin),
+          minutes: Math.min(startMin + slotMinutes, ov.endMin) - Math.max(startMin, ov.startMin),
+        },
       })
       return
     }
@@ -468,6 +475,7 @@ function ReserveBody() {
         <GapWarningDialog
           slotMinutes={gap.slotMinutes}
           gapMinutes={gap.gapMinutes}
+          occupied={gap.occupied}
           overlap={gap.overlap}
           onCancel={() => setGap(null)}
           onProceed={() => {
