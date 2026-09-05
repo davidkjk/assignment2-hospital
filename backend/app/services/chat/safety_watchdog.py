@@ -18,10 +18,25 @@ EMERGENCY_REPLY = (
 # 6가지 인계 조건 = support_tickets 생성 사유(late_cancellation은 도구가 별도 생성).
 LLM_ESCALATION_LABELS = {"medical_judgment", "data_mismatch", "complaint"}
 
+# 명시적 직원 연결 요청 — 결정적(응급처럼 AI 확률판단에 안 맡김). 사용자가 직접 사람을 찾으면 바로 인계한다.
+# "연결/바꿔/문의/물어" 같은 연결 의도어를 반드시 함께 담아 "직원분 친절해요?" 같은 단순 언급은 안 걸리게 큐레이션.
+EXPLICIT_STAFF_KEYWORDS = [
+    "직원 연결", "직원에게 연결", "직원한테 연결", "직원과 연결", "직원이랑 연결", "직원분 연결",
+    "직원 바꿔", "직원한테 바꿔", "직원에게 문의", "직원에게 물어", "직원한테 물어", "직원 좀 연결",
+    "상담원 연결", "상담원에게 연결", "상담원한테", "상담원과 연결", "상담원 바꿔", "상담사 연결",
+    "사람과 연결", "사람이랑 연결", "사람한테 연결", "실제 직원", "진짜 사람", "담당자 연결", "담당자에게 연결",
+]
+
 
 def check_emergency(text: str) -> bool:
     t = text.replace(" ", "")
     return any(k.replace(" ", "") in t for k in EMERGENCY_KEYWORDS)
+
+
+def check_staff_request(text: str) -> bool:
+    """사용자가 명시적으로 직원(사람) 연결을 요청했는지 — 결정적 판단(정본 §1 인계조건 신설)."""
+    t = text.replace(" ", "")
+    return any(k.replace(" ", "") in t for k in EXPLICIT_STAFF_KEYWORDS)
 
 
 def check_repeated(history_texts: list[str], current: str, threshold: int = 3) -> bool:

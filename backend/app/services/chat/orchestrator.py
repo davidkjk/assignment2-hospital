@@ -28,6 +28,9 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
     # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0).
     if safety_watchdog.check_emergency(message):
         return {"route_taken": "emergency", "reply": safety_watchdog.EMERGENCY_REPLY, "escalated": False}
+    # ⓪-b 명시적 직원 연결 요청 — 결정적. 사용자가 사람을 직접 찾으면 갈래·모드와 무관하게 바로 인계(정본 §1 신설).
+    if safety_watchdog.check_staff_request(message):
+        return {"route_taken": "handoff", "handoff_reason": "staff_request", "escalated": True}
     # ① 인계 감시 — 조건 감지 시 무조건 인계(에이전트 도구 아님).
     reason = await safety_watchdog.check_escalation(
         message, history_texts, unhelpful_flagged=unhelpful_flagged,

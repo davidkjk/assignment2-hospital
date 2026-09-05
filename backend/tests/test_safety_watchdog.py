@@ -1,7 +1,20 @@
 import pytest
 
 from app.services.chat.safety_watchdog import (
-    check_emergency, EMERGENCY_REPLY, check_repeated, check_escalation)
+    check_emergency, EMERGENCY_REPLY, check_repeated, check_escalation, check_staff_request)
+
+
+def test_explicit_staff_request_is_rule_based():
+    # 명시적 직원 연결 요청은 AI 없이 결정적으로 잡아 바로 인계(정본 §1 인계조건 신설).
+    assert check_staff_request("직원에게 연결해줘") is True
+    assert check_staff_request("상담원 바꿔주세요") is True
+    assert check_staff_request("그냥 사람이랑 연결하고 싶어요") is True
+    assert check_staff_request("직원에게 문의할게요") is True
+    # 단순 언급(연결 의도어 없음)은 오탐하지 않는다.
+    assert check_staff_request("직원분들 정말 친절하시네요") is False
+    assert check_staff_request("주차 되나요?") is False
+    # 직원요청이 응급으로 오탐되지 않는다(서로 독립 조건).
+    assert check_emergency("직원 연결해줘") is False
 
 
 def test_emergency_is_rule_based_and_deterministic():
