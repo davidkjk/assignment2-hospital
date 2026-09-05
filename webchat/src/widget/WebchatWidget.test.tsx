@@ -108,6 +108,30 @@ test('[NAV-WEBCHAT-06] 같은 브라우저는 토큰으로 복원, 다른 기기
   expect(screen.queryByRole('button', { name: /다른 기기.*이어보기/ })).not.toBeInTheDocument();
 });
 
+test('[WEBCHAT-URGENT] 긴급(emergency) 응답이면 긴급 안내 배너와 필수 면책 문구를 대화 위에 렌더한다', async () => {
+  const api = fakeApi(emptySession);
+  (api.sendMessage as any).mockResolvedValue({ routeTaken: 'emergency', botMessage: {
+    id: 'e1', senderType: 'bot', messageType: 'text', content: '지금 위급한 상황일 수 있어요' } });
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await userEvent.click(await screen.findByRole('button', { name: '진료시간' })); // 아무 전송이나 → emergency 분류
+  expect(await screen.findByText('이 안내는 긴급 여부를 완벽히 판단하거나 진단하는 것이 아닙니다.')).toBeInTheDocument();
+  // URGENT-03: 예약 시간선택·신청 CTA를 함께 노출하지 않는다.
+  expect(screen.queryByRole('button', { name: /시간 선택|예약 신청/ })).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-OUTAGE] AI 장애(전송 5xx)면 병원 전화·[문의 남기기]를 주 경로로 렌더하고, 문의는 익명 인계로 연결', async () => {
+  const onHandoffNeeded = vi.fn();
+  const api = fakeApi(emptySession);
+  (api.sendMessage as any).mockRejectedValue(new Error('webchat_api_500'));
+  render(<WebchatWidget api={api} hospitalPhone="02-1234-5678" onAuthGate={() => {}} onHandoffNeeded={onHandoffNeeded} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await userEvent.click(await screen.findByRole('button', { name: '진료시간' }));
+  expect(await screen.findByText('02-1234-5678')).toBeInTheDocument();          // 병원 전화번호(WEBCHAT-OUTAGE-06)
+  await userEvent.click(screen.getByRole('button', { name: '문의 남기기' }));
+  expect(onHandoffNeeded).toHaveBeenCalledWith(expect.objectContaining({ threadId: 't1' })); // 대화 문맥으로 익명 인계(OUTAGE-02)
+});
+
 test('[NAV-WEBCHAT-07] 웹에서 마감 후 취소·변경은 앱 팝업/예약 맥락 화면을 복제하거나 새 이동을 만들지 않는다', async () => {
   const api = fakeApi();
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);

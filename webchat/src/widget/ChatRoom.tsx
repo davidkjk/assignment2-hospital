@@ -11,6 +11,8 @@ export type ChatRoomProps = {
   onRetryLoad: () => void;
   guideSlot: ReactNode;
   handoffSlot: ReactNode;
+  urgentSlot?: ReactNode;         // 긴급 안내 배너(WEBCHAT-URGENT) — 긴급 표현 감지 시 대화 위에 고정.
+  outageSlot?: ReactNode;         // AI 장애 안내(WEBCHAT-OUTAGE) — 전화·문의 남기기가 주 경로. 기존 대화와 함께 유지.
   startSlot?: ReactNode;          // 첫 상담(빈 피드) 시작 안내 — 봇 인사말 + 시작 고정 칩(WEBCHAT-ROOM-03·WEBCARD-QUICK-01). 대화 영역 안에 렌더.
   botTyping?: boolean;            // 봇 답변 대기 중 타이핑 점 표시(홈페이지 .typing)
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
@@ -41,8 +43,8 @@ export function ChatRoom(p: ChatRoomProps) {
           <span className="wc-header__status"><i className="wc-header__dot" aria-hidden="true" />지금 응답 가능</span>
         </span>
       </header>
-      {/* 진료과 배너·인계 상태 — 헤더가 아니라 대화 영역에 둔다(WEBCHAT-GUIDE: 추천 중에만 메시지와 함께). */}
-      <div className="wc-status">{p.guideSlot}{p.handoffSlot}</div>
+      {/* 진료과 배너·인계 상태·긴급/장애 안내 — 헤더가 아니라 대화 영역에 둔다(WEBCHAT-GUIDE: 추천 중에만 메시지와 함께). */}
+      <div className="wc-status">{p.guideSlot}{p.handoffSlot}{p.urgentSlot}{p.outageSlot}</div>
       {p.phase === 'restoring' && <div className="wc-loading" role="status">불러오는 중…</div>}
       <ul className="wc-body">
         {/* 첫 상담(복원 메시지 0건)이면 빈 오류가 아니라 시작 안내를 대화 안에 표시(WEBCHAT-ROOM-03) — 복원 중·조회 오류엔 감춘다. */}
