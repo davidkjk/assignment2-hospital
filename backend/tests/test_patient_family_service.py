@@ -303,7 +303,8 @@ async def test_staff_revoked_link_cannot_be_relinked_by_patient_add(committed_co
     with pytest.raises(AppError) as e:
         await patient_family_service.add_family_member(me, "홍길동", date(1950, 1, 1), "M", "배우자")
     assert e.value.status_code == 409
-    assert "병원에 문의" in e.value.message
+    # 중립 문구(상태만) — "병원 문의" 안내는 환자앱이 덧붙인다(문구 중복 방지).
+    assert e.value.message == "이 가족은 지금 연결할 수 없습니다."
 
 
 @pytest.mark.asyncio

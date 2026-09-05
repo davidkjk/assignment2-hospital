@@ -44,8 +44,10 @@ async def add_family_member(patient, name: str, birth_date: date, gender: str, r
                 patient.id, name, birth_date, gender)
             if existing is not None:
                 if existing["unlinked_by"] is not None:
-                    # 직원 철회 건 — 막다른 길을 만들지 않도록 갈 길(병원 문의)을 함께 준다.
-                    raise AppError("이 가족은 지금 연결할 수 없습니다. 병원에 문의해 주세요.", status_code=409)
+                    # 직원 철회 건 — 막다른 길을 만들지 않도록 갈 길을 함께 준다. 환자앱이 뒤에
+                    # "더 필요하시면 병원에 문의해 주세요."를 덧붙이므로(family_new_screen 409 경로)
+                    # 백엔드 문구는 상태만 중립으로 전한다(문구 중복 방지, 코디 승인 2026-09-04).
+                    raise AppError("이 가족은 지금 연결할 수 없습니다.", status_code=409)
                 # 자가해제 건만 재활성 — 감사 트리오는 어떤 경우에도 건드리지 않는다(append-only,
                 # 자가해제는 트리오가 이미 null이라 00045 CHECK도 그대로 충족).
                 # FAM-UNLINK-12·13 — 다시 이을 때 관계는 새로 준 값으로 갱신한다(옛 관계를 되살리지 않는다).
