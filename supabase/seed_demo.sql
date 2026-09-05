@@ -32,21 +32,16 @@ begin;
 -- appointments / patients / staff(의사)를 참조하는 모든 테이블을 먼저 비운다.
 -- ⭐ 챗봇 테이블 먼저: 원격엔 환자·예약을 참조하는 챗봇 대화·티켓이 있어, 이걸 안 비우면
 --    아래 patients/appointments DELETE가 FK로 막힌다(로컬은 챗봇 데이터가 없어 안 드러났다).
---    정리 순서는 seed_demo_chat.sql의 정리 블록과 동일(자식→부모). 챗봇 데이터는 seed_demo_chat.sql이 재적재한다.
-delete from qa_example_bank;
-delete from chat_message_sources;
-delete from answer_feedback;
-delete from chat_quality_reviews;
-delete from unresolved_questions;
-delete from chat_messages;
-delete from support_ticket_assignment_history;
-delete from support_tickets;
-delete from ai_chat_sessions;
-delete from chat_read_states;
-delete from anonymous_chat_contacts;
-delete from anonymous_chat_sessions;
-delete from chat_notification_batches;
-delete from chat_threads;
+--    개별 DELETE는 순환·누락 FK로 순서를 맞추기 어려워(원격 데이터가 로컬에 없어 예측 불가),
+--    챗봇 트랜잭션 테이블을 TRUNCATE … CASCADE로 한 번에 비운다(참조 자식까지 자동 정리, 순서 무관).
+--    KB(kb_*)는 목록에 없고 이 테이블들의 부모도 아니라 건드리지 않는다.
+--    챗봇 데이터는 뒤이어 seed_demo_chat.sql이 재적재한다.
+truncate table
+  chat_message_sources, answer_feedback, chat_quality_reviews, unresolved_questions,
+  qa_example_bank, chat_messages, support_ticket_assignment_history, support_tickets,
+  ai_chat_sessions, chat_read_states, anonymous_chat_contacts, anonymous_chat_sessions,
+  chat_notification_batches, chat_threads
+  cascade;
 delete from schedule_change_acks;
 delete from medical_record_revisions;
 delete from medical_records;
