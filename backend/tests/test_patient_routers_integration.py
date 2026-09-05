@@ -80,17 +80,48 @@ async def test_unregistered_auth_user_gets_403(client, committed_conn):
 
 
 # ── 프로필: 가입 직후 엔드포인트는 get_current_auth_user_id(/patient, 직원 /patients와 분리) ──
+# [보안 F-05 벡터1] 가입 요청 계약 — 필수 동의 단언 + 약관 버전(현재판 "2026-08-01").
+_VALID_CONSENTS = {"terms": True, "privacy": True, "sensitive": True}
+_TERMS_VERSION = "2026-08-01"
+
+
 @pytest.mark.asyncio
 async def test_register_creates_patient(client, committed_conn):
     uid = await _seed_auth_user(committed_conn)
     with patch("app.services.patient_profile_service.get_admin_client",
                return_value=_mock_verified_phone(None)):
         reg = client.post("/patient", headers=_hdr(make_token(uid)),
-                          json={"name": "김환자", "birth_date": "1980-05-05", "gender": "F"})
+                          json={"name": "김환자", "birth_date": "1980-05-05", "gender": "F",
+                                "consents": _VALID_CONSENTS, "terms_version": _TERMS_VERSION})
     assert reg.status_code == 200 and "patient_id" in reg.json()
     row = await committed_conn.fetchrow(
         "select name from patients where id=$1", uuid.UUID(reg.json()["patient_id"]))
     assert row["name"] == "김환자"
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_missing_consents_field(client, committed_conn):
+    # [F-05 v1] consents 필드가 없으면 스키마 검증에서 막힌다(422) — 서버가 동의를 만들지 않는다.
+    uid = await _seed_auth_user(committed_conn)
+    with patch("app.services.patient_profile_service.get_admin_client",
+               return_value=_mock_verified_phone(None)):
+        reg = client.post("/patient", headers=_hdr(make_token(uid)),
+                          json={"name": "무동의", "birth_date": "1980-05-05", "gender": "F",
+                                "terms_version": _TERMS_VERSION})
+    assert reg.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_false_mandatory_consent(client, committed_conn):
+    # [F-05 v1] 필수 동의를 false로 보내면 400으로 거절(거짓 증적 불가).
+    uid = await _seed_auth_user(committed_conn)
+    with patch("app.services.patient_profile_service.get_admin_client",
+               return_value=_mock_verified_phone(None)):
+        reg = client.post("/patient", headers=_hdr(make_token(uid)),
+                          json={"name": "부분동의", "birth_date": "1980-05-05", "gender": "F",
+                                "consents": {"terms": True, "privacy": True, "sensitive": False},
+                                "terms_version": _TERMS_VERSION})
+    assert reg.status_code == 400
 
 
 @pytest.mark.asyncio
