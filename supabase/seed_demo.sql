@@ -47,6 +47,10 @@ delete from patient_internal_notes;
 delete from patient_family_links;
 delete from patient_merges;
 delete from appointment_status_history;
+-- 챗봇 티켓(support_tickets)의 예약 참조를 먼저 끊는다 — 티켓 자체는 챗봇 시드(seed_demo_chat.sql)가 관리하므로
+-- 여기선 지우지 않고 appointment_id(nullable)만 null로 비운다.
+-- ⚠️ 원격 특유 FK: 로컬은 support_tickets가 비어 안 드러났고, 원격엔 챗봇 데이터가 있어 appointments DELETE가 막혔다.
+update support_tickets set appointment_id = null where appointment_id is not null;
 delete from appointments;
 delete from appointment_slots;
 delete from doctor_schedule_exceptions;
