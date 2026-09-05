@@ -106,3 +106,32 @@ async def regenerate_slots(
         "created": len(to_create),
         "step_minutes": step_minutes,
     }
+
+
+async def regenerate_all_doctors(conn, weeks: int) -> dict:
+    """[SCHED-WINDOW-03·04] 예약 가능 기간이 바뀌면 전 활성 의사의 격자를 새로 만든다.
+
+    - 늘릴 때: regenerate_slots가 새 주에 빈칸을 추가한다(기존 로직 그대로).
+    - ⭐ 줄일 때: regenerate_slots는 「새 범위 안」만 청소하므로 범위 밖(잘려나간 주)의 빈칸이
+      DB에 남는다 — 환자가 그 빈칸을 눌렀다 예약 검증에 거절당하는 막다른 길이 된다. 그래서
+      여기서 범위 밖 **빈 자리만** 지운다. 예약된 자리(status != '빈시간')는 절대 건드리지
+      않는다(SCHED-SLOT-05) — 그 예약은 유효하고 의사는 그 시각에 그대로 진료한다.
+    """
+    today: date = await conn.fetchval("select current_date")
+    last_day = today + timedelta(weeks=weeks)
+    doctors = await conn.fetch(
+        "select id from staff where role = 'doctor' and is_active order by id"
+    )
+    created = removed = pruned = 0
+    for row in doctors:
+        result = await regenerate_slots(conn, row["id"], weeks)
+        created += result["created"]
+        removed += result["removed"]
+        # 범위 밖(줄인 뒤 잘려나간 구간)의 빈 자리 삭제 — 예약된 자리는 남긴다.
+        tag = await conn.execute(
+            "delete from appointment_slots "
+            "where doctor_id = $1 and slot_date > $2 and status = '빈시간'",
+            row["id"], last_day,
+        )
+        pruned += int(tag.split()[-1]) if tag.startswith("DELETE") else 0
+    return {"doctors": len(doctors), "created": created, "removed": removed, "pruned": pruned}

@@ -24,8 +24,7 @@ from app.core.masking import mask_phone
 from app.core.pagination import Page, paginate
 from app.core.security import StaffContext
 from app.db.pool import acquire_as, get_pool
-from app.services import dispatch_service
-from app.services.slot_generator import REGENERATION_WEEKS  # =8 (SCHED-SLOT-09)
+from app.services import dispatch_service, settings_service
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -86,15 +85,15 @@ def _estimate_sms(channel: str, n: int) -> int:
     return 0 if channel == "push" else n
 
 
-def _validate_scheduled_at(at: datetime) -> None:
-    # MSGX-SCHED-01 — 5분 단위·KST·최대 미래 범위 REGENERATION_WEEKS(하드코딩 금지).
+def _validate_scheduled_at(at: datetime, max_weeks: int) -> None:
+    # MSGX-SCHED-01 — 5분 단위·KST·최대 미래 범위(hospital_settings.booking_window_weeks, 하드코딩 금지).
     at = at.astimezone(KST)
     if at.minute % 5 != 0:
         raise ValidationError("예약 시각은 5분 단위로 선택해 주세요.")
     now = _now_kst()
-    if not (now < at <= now + timedelta(weeks=REGENERATION_WEEKS)):
+    if not (now < at <= now + timedelta(weeks=max_weeks)):
         raise ValidationError(
-            f"예약은 지금부터 {REGENERATION_WEEKS}주 이내로만 잡을 수 있습니다.")
+            f"예약은 지금부터 {max_weeks}주 이내로만 잡을 수 있습니다.")
 
 
 async def resolve_recipients(spec: dict, kind: str, conn) -> tuple[list, int]:
@@ -149,7 +148,7 @@ async def _enqueue_on_conn(staff: StaffContext, conn, *, kind: str, recipients_s
 
     if scheduled_at is not None:
         # SEND-LATER-01 — 예약 발송. 별도 큐(scheduled_notifications)로 notification_log와 분리.
-        _validate_scheduled_at(scheduled_at)
+        _validate_scheduled_at(scheduled_at, await settings_service.get_booking_window_weeks(conn))
         row = await conn.fetchrow(
             "insert into scheduled_notifications "
             "(notification_type, kind, body, channel, scheduled_at, created_by, target_count, status) "

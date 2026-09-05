@@ -35,6 +35,7 @@ export interface UpcomingClosure {
 export interface Settings {
   cancellation_deadline_hours: number
   long_wait_threshold_minutes: number
+  booking_window_weeks: number
   auto_confirm_app_bookings: boolean
   hospital_address: string | null
   hospital_phone: string | null
@@ -58,6 +59,7 @@ export interface NotificationPatch {
 export interface SettingsPatch {
   cancellation_deadline_hours?: number
   long_wait_threshold_minutes?: number
+  booking_window_weeks?: number
   auto_confirm_app_bookings?: boolean
   hospital_address?: string | null
   hospital_phone?: string | null
@@ -83,6 +85,11 @@ export function saveSettings(patch: SettingsPatch, baseVersion: number): Promise
 /** GET preview — 새 마감으로 마감 후가 되는 예약 건수만(HSETX-API-03). */
 export function previewCancellation(hours: number): Promise<{ count: number }> {
   return apiFetch(`/admin/settings/preview-cancellation?hours=${hours}`)
+}
+
+/** GET preview — 예약 기간을 줄일 때 새 범위 밖에 남을 예약 건수만(SCHED-WINDOW-05). */
+export function previewBookingWindow(weeks: number): Promise<{ count: number }> {
+  return apiFetch(`/admin/settings/preview-booking-window?weeks=${weeks}`)
 }
 
 /** 화면 표시 순서·라벨(HSET-MSG-01 다섯째 줄, 10종). */

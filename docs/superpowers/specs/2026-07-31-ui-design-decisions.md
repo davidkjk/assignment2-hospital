@@ -5581,6 +5581,8 @@ D4 브라우저 대조에서 **한 화면 안에서 날짜가 갈리는 것**이
 
 ### 예약 가능 범위 8주 — 화면과 서버가 **같은 경계**를 지킨다 (2026-08-28)
 
+> ✅ **후속(2026-09-05)**: ~~8주는 상수(`REGENERATION_WEEKS`)~~ → **관리자 설정 `booking_window_weeks`(1~26, 기본 8)로 승격.** 아래 「예약 가능 기간을 관리자가 바꾼다」·`SCHED-WINDOW-*`·마이그 `00092` 참조. 이 결정의 「같은 경계」 원칙은 그대로, 경계값만 상수→설정으로 바뀐 것.
+
 **결정**: 규칙 `CAL-BOOK-13`(화면)·`CAL-BOOK-14`(서버) 신설. 사용자 지시 *"접수에서 사이드바에서 날짜가 8주 앞까지만 선택할 수 있어야 해. 이 프로그램의 예약이 8주까지만 되거든"*(2026-08-28).
 
 **관측된 상태**: 세 곳이 갈려 있었다 — 슬롯 생성(`slot_generator.py:17` `REGENERATION_WEEKS = 8`)과 안내 문자 예약(`message_service.py:95`)은 8주를 지키는데, **직원 전화예약(`create_phone_appointment`)과 예약 문 달력은 아무 제한이 없었다.** 문자는 8주로 막히는데 정작 진료 예약이 안 막히는 셈이었다.
@@ -5647,3 +5649,18 @@ D4 브라우저 대조에서 **한 화면 안에서 날짜가 갈리는 것**이
 **미해결 로깅 = 결정 B(모든 `no_answer` 기록)**. **기각한 A안: 인계할 때만 기록** — 「직원 인계는 한 번 더 용기가 필요」하므로, 인계한 것만 기록하면 **조용히 포기한 다수**(가장 큰 KB 구멍)를 통째로 놓친다. B안은 인계 여부와 무관하게 질문+임베딩을 남긴다(마이그 `00085` — `unresolved_questions.ticket_id` nullable). 인계로 티켓이 생기면 링크, 아니면 null. 임베딩이 있어 관리자단 클러스터링(`UNRES-CLUSTER-01`)은 그대로 동작한다.
 
 **구현**(2026-09-04): 백엔드 `orchestrator`(no_answer 분기 → `route_taken:"no_answer"` + 봇 말풍선 + 칩)·`chat_flow_service`(봇 말풍선 + `quick_replies` 카드 저장·세션 유지·`record_unresolved(None)`)·`card_builder.build_quick_replies_card`·`quality_service.record_unresolved`(ticket nullable)·마이그 `00085`. 웹 `QuickReplies`(handoff_chip)·`useWebchat`(카드 append)·`webchatApi`(응답 `card` 매핑)·`WebchatWidget`/`WebchatApp`(onHandoff 배선). 앱 `chat_quick_replies`(handoff 칩 + `activeQuickReplies` 헬퍼)·`chat_room_view`(입력슬롯 배선).
+
+## 예약 가능 기간을 관리자가 바꾼다 — 8주 상수를 설정으로 승격 (2026-09-05)
+
+**배경**: `REGENERATION_WEEKS = 8`이 파이썬 상수(`slot_generator.py`)라, 병원이 예약 받는 기간을 바꿀 화구가 없었다(살아있는 갭). 슬롯 생성·예약 검증·문자 예약 상한·달력/앱 지평 넷이 모두 이 상수를 읽었다.
+
+**채택(사용자 결정 2026-09-05)**: `hospital_settings.booking_window_weeks`(기본 8, **범위 1~26주**)로 승격한다. 상수는 fallback 기본값으로만 남기고, 넷 다 `settings_service.get_booking_window_weeks`로 읽는다. 저장하면 **전 활성 의사 슬롯을 같은 트랜잭션에서 재생성**(`regenerate_all_doctors`). 화면은 직원웹 설정 「예약 규칙」에 입력칸 하나(기존 취소-마감과 같은 `SettingRow`+`NumberField`). 규칙 = `SCHED-WINDOW-01~05`, 마이그 `00092`.
+
+**⭐ 「줄일 때가 문제」 — 사용자 지적**: 늘리는 건 새 주에 빈칸을 더하면 끝이지만, 줄이면 잘려나간 구간(예: 7~8주)의 처리가 관건이다. 확정한 동작:
+- **범위 밖 빈 자리 = 삭제**(막다른 길 방지) — 안 지우면 환자가 그 빈칸을 눌렀다 예약 검증에 거절당한다. 단 기존 `regenerate_slots`는 「새 범위 안」만 청소하므로 `regenerate_all_doctors`가 범위 밖 빈칸을 따로 지운다.
+- **이미 잡힌 예약 = 유지**(`SCHED-SLOT-05`) — 그 예약은 유효하고 의사는 그 시각에 그대로 진료한다. 데이터를 잃지 않으므로 「줄이기」가 안전하다.
+- **줄일 때만 확인창**(`SCHED-WINDOW-05`) — `preview_booking_window`가 새 범위 밖 유지 예약 건수를 세어 *"N건은 그대로 유지됩니다"*로 안내. 늘릴 때는 조용히 저장.
+
+**기각 ①: 절대 날짜 예약 차단(「○월○일부터 예약 안 받음」)** — 사용자가 줄이기 논의 중 제안했으나, **「기간 조절」에는 불필요**하다(상대 「오늘부터 N주」로 늘림·줄임이 다 되고, 줄여도 기존 예약이 안전). 절대 날짜 차단은 병원 폐업·의사 은퇴 같은 **계획된 종료**를 위한 다른 기능이라 별도 과제로 남긴다(사용자: *"충분해"*).
+
+**곁들여 정정한 잠재 버그**: `appointment_slots`의 RLS 정책 `receptionist_admin_can_manage_slots`는 ALL(DELETE 포함)을 허용하는데 테이블 GRANT에 DELETE가 빠져 있어, 슬롯 재생성의 빈자리 삭제가 authenticated 역할에서 `permission denied`로 막히던 잠재 버그를 `00092`가 함께 고쳤다(`grant delete on appointment_slots to authenticated`; 환자는 DELETE 정책이 없어 여전히 차단). 테스트가 superuser로 돌아 안 걸리던 것이 이번에 드러났다.

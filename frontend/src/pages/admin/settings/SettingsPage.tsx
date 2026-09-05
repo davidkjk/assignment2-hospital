@@ -4,7 +4,7 @@ import { ApiError } from '../../../api/httpClient'
 import { InlineError } from '../../../components/InlineError'
 import { btnPrimary, btnGhost } from '../../../components/staff-ui'
 import {
-  getSettings, previewCancellation, saveSettings,
+  getSettings, previewBookingWindow, previewCancellation, saveSettings,
   NOTIFICATION_ORDER, type NotificationType, type Settings, type SettingsPatch,
 } from '../../../api/settings'
 import { BookingRules } from './BookingRules'
@@ -21,7 +21,7 @@ import { SaveConfirmDialog } from './SaveConfirmDialog'
 type MenuKey = '예약 규칙' | '대기실 운영' | '문자 발송' | '자동 알림' | '병원 정보'
 
 const MENUS: { key: MenuKey; fields: (keyof Settings)[] }[] = [
-  { key: '예약 규칙', fields: ['cancellation_deadline_hours', 'auto_confirm_app_bookings'] },
+  { key: '예약 규칙', fields: ['booking_window_weeks', 'cancellation_deadline_hours', 'auto_confirm_app_bookings'] },
   { key: '대기실 운영', fields: ['long_wait_threshold_minutes'] },
   { key: '문자 발송', fields: ['sms_enabled', 'sms_recipients', 'sms_opt_out_number'] },
   { key: '자동 알림', fields: ['notifications'] },
@@ -29,7 +29,8 @@ const MENUS: { key: MenuKey; fields: (keyof Settings)[] }[] = [
 ]
 
 const SCALAR_KEYS: (keyof Settings)[] = [
-  'cancellation_deadline_hours', 'long_wait_threshold_minutes', 'auto_confirm_app_bookings',
+  'cancellation_deadline_hours', 'long_wait_threshold_minutes', 'booking_window_weeks',
+  'auto_confirm_app_bookings',
   'hospital_address', 'hospital_phone', 'sms_enabled', 'sms_recipients', 'sms_opt_out_number',
 ]
 
@@ -71,6 +72,8 @@ function validate(draft: Settings): string | null {
   if (!(Number.isInteger(h) && h >= 0 && h <= 168)) return '취소 마감은 0~168시간으로 입력해 주세요.'
   const w = draft.long_wait_threshold_minutes
   if (!(Number.isInteger(w) && w >= 1 && w <= 180)) return '오래 대기 기준은 1~180분으로 입력해 주세요.'
+  const bw = draft.booking_window_weeks
+  if (!(Number.isInteger(bw) && bw >= 1 && bw <= 26)) return '예약 가능 기간은 1~26주로 입력해 주세요.'
   for (const t of NOTIFICATION_ORDER) {
     const row = draft.notifications[t]
     if (!row.is_default && !row.body.trim()) return '문구를 비워 둘 수 없습니다.'
@@ -88,7 +91,7 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
   const [saveError, setSaveError] = useState<string | null>(null)
   // 저장했는지 눈에 보이게 한다 — 배지가 조용히 사라지는 것만으론 「눌렀는데 아무 일도 없다」로 읽힌다(G1·프로필과 같은 처방).
   const [flash, setFlash] = useState<string | null>(null)
-  const [dialog, setDialog] = useState<{ count: number | null; bodies: string[]; patch: SettingsPatch } | null>(null)
+  const [dialog, setDialog] = useState<{ count: number | null; windowCount: number | null; bodies: string[]; patch: SettingsPatch } | null>(null)
 
   useEffect(() => {
     if (query.data && !baseline) {
@@ -167,11 +170,15 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
     const p = computePatch(baseline!, draft!)
     if (changedCount(p) === 0) return
     const cancellationChanged = 'cancellation_deadline_hours' in p
+    // [SCHED-WINDOW-05] 예약 기간을 「줄일 때만」 확인창 — 늘리는 건 아무 것도 잃지 않아 조용히 저장.
+    const windowShrunk = 'booking_window_weeks' in p && draft!.booking_window_weeks < baseline!.booking_window_weeks
     const bodies = changedBodies(baseline!, draft!)
-    if (cancellationChanged || bodies.length > 0) {
+    if (cancellationChanged || windowShrunk || bodies.length > 0) {
       let count: number | null = null
       if (cancellationChanged) count = (await previewCancellation(draft!.cancellation_deadline_hours)).count
-      setDialog({ count, bodies, patch: p })
+      let windowCount: number | null = null
+      if (windowShrunk) windowCount = (await previewBookingWindow(draft!.booking_window_weeks)).count
+      setDialog({ count, windowCount, bodies, patch: p })
       return
     }
     await doSave(p)
@@ -193,8 +200,10 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
     const h = draft!.cancellation_deadline_hours
     const w = draft!.long_wait_threshold_minutes
     switch (key) {
-      case '예약 규칙':
-        return `취소 마감 ${Number.isNaN(h) ? '—' : `${h}시간`} · 자동확정 ${draft!.auto_confirm_app_bookings ? '켜짐' : '꺼짐'}`
+      case '예약 규칙': {
+        const bw = draft!.booking_window_weeks
+        return `예약 ${Number.isNaN(bw) ? '—' : `${bw}주`} · 취소 마감 ${Number.isNaN(h) ? '—' : `${h}시간`} · 자동확정 ${draft!.auto_confirm_app_bookings ? '켜짐' : '꺼짐'}`
+      }
       case '대기실 운영':
         return showLongWait ? `${Number.isNaN(w) ? '—' : w}분 이상 표시` : '오래 대기 표시 꺼짐'
       case '문자 발송':
@@ -271,6 +280,7 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
       {dialog && (
         <SaveConfirmDialog
           cancellationCount={dialog.count}
+          bookingWindowCount={dialog.windowCount}
           changedMessageBodies={dialog.bodies}
           onCancel={() => setDialog(null)}
           onConfirm={async () => {

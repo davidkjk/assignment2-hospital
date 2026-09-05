@@ -44,3 +44,13 @@ async def preview_cancellation(
     """[HSETX-API-03][HSET-SAVE-06] 새 마감으로 마감 후가 되는 미래 예약 건수만(이름·전화 없음)."""
     count = await settings_service.preview_cancellation_deadline(staff, hours)
     return {"count": count}
+
+
+@router.get("/admin/settings/preview-booking-window")
+async def preview_booking_window(
+    weeks: int,
+    staff: StaffContext = Depends(require_role(*_ADMIN)),
+) -> dict:
+    """[SCHED-WINDOW-05] 예약 기간을 줄이기 전 확인창용 — 새 범위 밖에 남을 예약 건수만."""
+    count = await settings_service.preview_booking_window(staff, weeks)
+    return {"count": count}

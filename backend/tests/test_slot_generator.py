@@ -156,3 +156,45 @@ async def test_재생성은_오늘부터_8주치다(db_conn):
     hi = await db_conn.fetchval("select max(slot_date) from appointment_slots where doctor_id=$1", doc)
     assert lo >= today
     assert hi <= today + timedelta(weeks=8)
+
+
+# ── [SCHED-WINDOW-*] 예약 가능 기간 변경 시 전 의사 재생성 + 줄일 때 범위 밖 빈칸 청소 ──
+from app.services import slot_generator  # noqa: E402
+
+
+async def test_전_의사_재생성은_활성_의사를_모두_다룬다(db_conn):
+    """[SCHED-WINDOW-03] 기간을 바꾸면 한 의사가 아니라 전 의사 격자를 새로 만든다."""
+    dept = await _dept(db_conn)
+    d1 = await _doctor(db_conn, dept)
+    d2 = await _doctor(db_conn, dept)
+    for d in (d1, d2):
+        await save_week_rules(db_conn, d, [_row(wd) for wd in range(7)], staff=None)
+
+    r = await slot_generator.regenerate_all_doctors(db_conn, 8)
+
+    assert r["doctors"] == 2 and r["created"] > 0
+    for d in (d1, d2):
+        n = await db_conn.fetchval("select count(*) from appointment_slots where doctor_id=$1", d)
+        assert n > 0
+
+
+async def test_기간을_줄이면_범위_밖_빈칸은_지우고_예약된_칸은_남긴다(db_conn):
+    """[SCHED-WINDOW-04][SCHED-SLOT-05] 줄일 때가 문제 — 범위 밖 빈칸을 지워 막다른 길을 없애되
+    이미 잡힌 예약은 절대 지우지 않는다(그 예약은 유효하고 의사는 그 시각에 진료한다)."""
+    dept = await _dept(db_conn)
+    doc = await _doctor(db_conn, dept)
+    await save_week_rules(db_conn, doc, [_row(wd) for wd in range(7)], staff=None)
+    await slot_generator.regenerate_all_doctors(db_conn, 8)   # 8주치
+
+    today = await _today(db_conn)
+    far = today + timedelta(weeks=6)                          # 4주로 줄이면 범위 밖
+    far_slots = await db_conn.fetch(
+        "select id from appointment_slots where doctor_id=$1 and slot_date=$2 order by start_time", doc, far)
+    assert len(far_slots) >= 2, "범위 밖 날에 빈칸이 여럿 있어야 시나리오가 성립"
+    await db_conn.execute("update appointment_slots set status='예약됨' where id=$1", far_slots[0]["id"])
+
+    await slot_generator.regenerate_all_doctors(db_conn, 4)   # 4주로 줄임
+
+    remaining = [r["status"] for r in await db_conn.fetch(
+        "select status from appointment_slots where doctor_id=$1 and slot_date=$2", doc, far)]
+    assert remaining == ["예약됨"], "범위 밖 빈칸은 지우고 예약된 칸만 남아야"

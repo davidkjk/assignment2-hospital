@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from app.core.security import StaffContext, require_role
 from app.db.pool import acquire_as
-from app.services import department_service, schedule_admin_service, slot_generator
+from app.services import department_service, schedule_admin_service, settings_service, slot_generator
 from app.services import opening_hours
 
 router = APIRouter(prefix="/admin", tags=["schedule-admin"])
@@ -139,7 +139,8 @@ async def put_week_rules(
     async with acquire_as(str(staff.auth_user_id)) as conn:
         result = await schedule_admin_service.save_week_rules(conn, doctor_id, rows, staff=staff)
         # 저장 뒤 8주치 추천 자리를 규칙대로 다시 만든다(격자 밖 예약은 남는다, SCHED-SLOT-05).
-        regen = await slot_generator.regenerate_slots(conn, doctor_id)
+        regen = await slot_generator.regenerate_slots(
+            conn, doctor_id, await settings_service.get_booking_window_weeks(conn))
     return {**result, "regenerated": regen}
 
 
@@ -155,7 +156,8 @@ async def regenerate(
     doctor_id: UUID, dry_run: bool = False, staff: StaffContext = Depends(AdminOnly)
 ) -> dict:
     async with acquire_as(str(staff.auth_user_id)) as conn:
-        return await slot_generator.regenerate_slots(conn, doctor_id, dry_run=dry_run)
+        weeks = await settings_service.get_booking_window_weeks(conn)
+        return await slot_generator.regenerate_slots(conn, doctor_id, weeks, dry_run=dry_run)
 
 
 @router.post("/schedule/doctors/{doctor_id}/exceptions")

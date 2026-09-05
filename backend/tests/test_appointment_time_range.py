@@ -224,3 +224,21 @@ async def test_예약_가능_범위는_날짜_단위다_마지막_날_늦은_시
     # 다음 날 새벽 02:00이라 last_day+1이 되어(프로덕션 풀도 Asia/Seoul) 거절된다. 병원 시각으로 잡는다.
     late = datetime.combine(last_day, time(17, 0), tzinfo=ZoneInfo("Asia/Seoul"))
     assert await _book(db_conn, ctx, late) is not None
+
+
+@pytest.mark.asyncio
+async def test_예약_가능_범위는_병원_설정을_따른다(db_conn):
+    """[SCHED-WINDOW-01] 8주는 하드코딩이 아니라 hospital_settings.booking_window_weeks다 —
+    병원이 2주로 줄이면 서버 검증도 2주로 좁힌다(화면·문자·검증이 한 숫자로 움직인다)."""
+    ctx = await _seed(db_conn)
+    # 설정 변경은 관리자만(RLS) — 테스트에선 잠시 superuser로 바꾸고 접수직원 컨텍스트로 되돌린다.
+    await db_conn.execute("reset role")
+    await db_conn.execute("update hospital_settings set booking_window_weeks = 2 where id")
+    await set_session_auth(db_conn, ctx["receptionist"].auth_user_id)
+
+    with pytest.raises(AppError) as exc:
+        await _book(db_conn, ctx, _future5(weeks=3))   # 2주 설정에선 3주는 범위 밖
+    assert exc.value.status_code == 400 and "2주" in exc.value.message
+
+    ok = await _book(db_conn, ctx, _future5(weeks=1))   # 범위 안은 그대로 통과
+    assert ok is not None

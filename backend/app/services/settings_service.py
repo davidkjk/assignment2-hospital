@@ -52,7 +52,12 @@ _SCALAR_COLUMNS = {
     "sms_enabled",
     "sms_recipients",
     "sms_opt_out_number",
+    "booking_window_weeks",
 }
+
+# [SCHED-SLOT-09] 설정이 없거나 못 읽을 때의 기본 — 기존 상수와 같은 8주.
+DEFAULT_BOOKING_WINDOW_WEEKS = 8
+MAX_BOOKING_WINDOW_WEEKS = 26
 
 
 def is_secret_key(key: str) -> bool:
@@ -105,6 +110,9 @@ def _validate(patch: Mapping[str, Any]) -> None:
     w = patch.get("long_wait_threshold_minutes")
     if w is not None and not (isinstance(w, int) and 1 <= w <= 180):
         raise ValidationError("오래 대기 기준은 1~180분으로 입력해 주세요.")
+    bw = patch.get("booking_window_weeks")
+    if bw is not None and not (isinstance(bw, int) and 1 <= bw <= MAX_BOOKING_WINDOW_WEEKS):
+        raise ValidationError(f"예약 가능 기간은 1~{MAX_BOOKING_WINDOW_WEEKS}주로 입력해 주세요.")
     for _t, v in patch.get("notifications", {}).items():
         if "body_override" in v and v["body_override"] is not None and not v["body_override"].strip():
             raise ValidationError("문구를 비워 둘 수 없습니다.")           # HSET-MSG-25
@@ -132,6 +140,16 @@ async def _upcoming_closures(conn) -> list[dict]:
         "select closure_date, memo from hospital_closures "
         "where closure_date >= current_date order by closure_date")
     return [{"closure_date": r["closure_date"].isoformat(), "memo": r["memo"]} for r in rows]
+
+
+async def get_booking_window_weeks(conn) -> int:
+    """[SCHED-WINDOW-01] 예약 가능 기간(주)을 hospital_settings에서 읽는다.
+
+    슬롯 생성·예약 검증·문자 예약·대시보드가 상수 대신 이 값을 쓴다. 표가 비어 있으면
+    기존 상수와 같은 기본(8주)으로 방어한다 — 어떤 경로도 예약 지평을 잃지 않는다.
+    """
+    w = await conn.fetchval("select booking_window_weeks from hospital_settings where id")
+    return w if w is not None else DEFAULT_BOOKING_WINDOW_WEEKS
 
 
 async def _read_settings(conn) -> dict:
@@ -200,6 +218,11 @@ async def _save(conn, staff, patch, base_version) -> dict:
             old = await conn.fetchval(f"select {key}::text from hospital_settings where id")
             await conn.execute(f"update hospital_settings set {key} = $1 where id", new)
             await _audit(conn, staff, key, old, str(new))            # 같은 트랜잭션(HSETX-AUDIT-02)
+        # [SCHED-WINDOW-03] 예약 가능 기간이 바뀌면 전 의사 격자를 새로 만든다(같은 트랜잭션).
+        #   늘리면 새 주에 빈칸 추가, 줄이면 범위 밖 빈칸 삭제(예약된 자리는 유지, SCHED-SLOT-05).
+        if "booking_window_weeks" in dict(_scalar_items(patch)):
+            from app.services import slot_generator
+            await slot_generator.regenerate_all_doctors(conn, patch["booking_window_weeks"])
         for t, v in patch.get("notifications", {}).items():
             if t not in _TYPES:
                 raise ValidationError("알 수 없는 알림 종류입니다.")
@@ -227,6 +250,29 @@ async def save_settings(staff, patch, base_version, *, conn=None) -> dict:
         return await _save(conn, staff, patch, base_version)
     async with acquire_as(str(_auth_user_id(staff))) as c:
         return await _save(c, staff, patch, base_version)
+
+
+async def preview_booking_window(staff, new_weeks: int, *, conn=None) -> int:
+    """[SCHED-WINDOW-05] 예약 가능 기간을 줄이기 전 확인창용 — 새 범위 밖에 이미 잡힌
+    (그리고 줄여도 유지될) 예약 건수만. 개수뿐, 이름·전화는 세지 않는다.
+
+    이 예약들은 SCHED-SLOT-05에 따라 줄여도 지워지지 않는다 — 의사는 그 시각에 그대로
+    진료한다. 관리자가 "몇 건이 범위 밖에 남는지"를 알고 저장하도록 미리 보여줄 값이다.
+    """
+    _require_admin(staff)
+
+    async def query(c) -> int:
+        return await c.fetchval(
+            "select count(*) from appointments a "
+            "join appointment_slots s on s.id = a.slot_id "
+            "where a.status in ('예약신청','예약확정') "
+            "  and s.slot_date > current_date + make_interval(weeks => $1)",
+            new_weeks)
+
+    if conn is not None:
+        return int(await query(conn))
+    async with acquire_as(str(_auth_user_id(staff))) as c:
+        return int(await query(c))
 
 
 async def preview_cancellation_deadline(staff, new_hours: int, *, conn=None) -> int:

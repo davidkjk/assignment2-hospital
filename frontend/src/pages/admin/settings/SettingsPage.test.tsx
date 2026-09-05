@@ -27,6 +27,7 @@ function baseSettings(over: Partial<Settings> = {}): Settings {
   return {
     cancellation_deadline_hours: 24,
     long_wait_threshold_minutes: 30,
+    booking_window_weeks: 8,
     auto_confirm_app_bookings: true,
     hospital_address: '',
     hospital_phone: '',
@@ -45,12 +46,14 @@ function baseSettings(over: Partial<Settings> = {}): Settings {
 let lastPut: { patch: Record<string, unknown>; base_version: number } | null = null
 let putStatus = 200
 
-function mockApi(settings: Settings, opts: { previewCount?: number } = {}) {
+function mockApi(settings: Settings, opts: { previewCount?: number; windowCount?: number } = {}) {
   lastPut = null
   putStatus = 200
   server.use(
     http.get('*/admin/settings/preview-cancellation', () =>
       HttpResponse.json({ count: opts.previewCount ?? 0 })),
+    http.get('*/admin/settings/preview-booking-window', () =>
+      HttpResponse.json({ count: opts.windowCount ?? 0 })),
     http.get('*/admin/settings', () => HttpResponse.json(settings)),
     http.put('*/admin/settings', async ({ request }) => {
       lastPut = (await request.json()) as { patch: Record<string, unknown>; base_version: number }
@@ -60,8 +63,8 @@ function mockApi(settings: Settings, opts: { previewCount?: number } = {}) {
   )
 }
 
-function renderSettings(props: { role?: 'admin' | 'receptionist' | 'doctor'; settings?: Partial<Settings> } = {}) {
-  mockApi(baseSettings(props.settings), { previewCount: 3 })
+function renderSettings(props: { role?: 'admin' | 'receptionist' | 'doctor'; settings?: Partial<Settings>; windowCount?: number } = {}) {
+  mockApi(baseSettings(props.settings), { previewCount: 3, windowCount: props.windowCount ?? 0 })
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const utils = render(
     <QueryClientProvider client={qc}>
@@ -229,6 +232,29 @@ test('[HSET-SAVE-06][HSET-SAVE-08] 취소 마감이 바뀐 저장만 N건 확인
   expect(dlg).toHaveTextContent(/자동으로 알림이 나가지는 않습니다/)
   await user.click(within(dlg).getByRole('button', { name: '저장' }))
   await waitFor(() => expect(lastPut?.patch.cancellation_deadline_hours).toBe(48))
+})
+
+test('[SCHED-WINDOW-05] 예약 기간을 줄이면 유지될 예약 건수 확인창을 거친다', async () => {
+  renderSettings({ windowCount: 5 })
+  await ready()
+  await user.clear(field('예약 가능 기간'))
+  await user.type(field('예약 가능 기간'), '4')   // 8 → 4주(줄임)
+  await user.click(saveButton())
+  const dlg = await screen.findByRole('dialog')
+  expect(dlg).toHaveTextContent(/5건/)
+  expect(dlg).toHaveTextContent(/그대로 유지됩니다/)
+  await user.click(within(dlg).getByRole('button', { name: '저장' }))
+  await waitFor(() => expect(lastPut?.patch.booking_window_weeks).toBe(4))
+})
+
+test('[SCHED-WINDOW-05] 예약 기간을 늘리면 확인창 없이 바로 저장된다', async () => {
+  renderSettings()
+  await ready()
+  await user.clear(field('예약 가능 기간'))
+  await user.type(field('예약 가능 기간'), '12')  // 8 → 12주(늘림)
+  await user.click(saveButton())
+  await waitFor(() => expect(lastPut?.patch.booking_window_weeks).toBe(12))
+  expect(screen.queryByRole('dialog')).toBeNull()
 })
 
 test('[HSET-SAVE-07] 취소 마감이 안 바뀐 저장은 확인창 없이 바로 저장된다', async () => {

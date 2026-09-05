@@ -14,8 +14,7 @@ from app.core.errors import AppError
 from app.core.masking import mask_birth_date
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
-from app.services import opening_hours, schedule_change
-from app.services.slot_generator import REGENERATION_WEEKS  # =8 (SCHED-SLOT-09)
+from app.services import opening_hours, schedule_change, settings_service
 
 # 오늘에 속하는 예약 판정: 슬롯이 있으면 슬롯 날짜, 없으면(현장 접수) 생성일(KST) 기준(R2-07).
 _TODAY_SCOPE = "coalesce(s.slot_date, (a.created_at at time zone 'Asia/Seoul')::date) = current_date"
@@ -423,7 +422,8 @@ async def get_calendar(staff: StaffContext, *, from_, to, doctor_ids=None, conn=
         #    ⭐ 갭 #47 재발 방지(BOOK-DATE-08 *"앱이 8을 박지 않음"*): 숫자를 화면에 박으면
         #       병원이 범위를 바꿔도 화면만 옛 값에서 멈춘다. 경계는 slot_generator와 같은 날이다.
         horizon = await c.fetchval(
-            "select (current_date + make_interval(weeks => $1))::date", REGENERATION_WEEKS
+            "select (current_date + make_interval(weeks => $1))::date",
+            await settings_service.get_booking_window_weeks(c),
         )
 
         return {
