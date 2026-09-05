@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/tokens.dart';
 import 'package:hospital_patient_app/features/history/history_repository.dart';
 import 'package:hospital_patient_app/features/history/history_screen.dart';
+import 'package:hospital_patient_app/features/home/status_badge.dart' show StatusBadge;
 
 VisitHistoryEntry _e(VisitStatus s,
         {String? notes, String? by, String? rel, String? name, bool self = true, bool qnr = false}) =>
@@ -79,10 +80,20 @@ void main() {
     expect(t.widget<Text>(find.byKey(const Key('history-row-title'))).style?.decoration ?? TextDecoration.none,
         TextDecoration.none); // 부도로 찍지 않는다(환자 탓 아님)
   });
-  testWidgets('[HIST-ROW-13] 상태 배지는 글자만(배경 없음) — 완료=딥틸, 나머지=회색', (t) async {
-    await t.pumpWidget(_row(_e(VisitStatus.done, notes: '휴식하세요')));
-    final done = t.widget<VisitBadge>(find.byType(VisitBadge));
-    expect(done.status, VisitStatus.done); // 색 매핑은 위젯 안(배경 상자 없음)
+  testWidgets('[HIST-ROW-13] 상태 배지는 배경 있는 알약(공용 StatusBadge) — 데모 톤: 완료=딥틸·취소=muted·부도=slate·미확정=amber', (t) async {
+    // 2026-09-05 결정 ④ A안: 글자만→배경 알약, 홈·예약과 같은 공용 부품으로 통일.
+    final expected = {
+      VisitStatus.done: (AppTokens.primary, AppTokens.badgeOnColor),      // 완료=딥틸 배경·흰 글자
+      VisitStatus.cancelled: (AppTokens.muted, AppTokens.badgeSlate),     // 취소=옅은 회색 바탕·진회색 글자
+      VisitStatus.noShow: (AppTokens.badgeSlate, AppTokens.badgeOnColor), // 부도=slate·흰 글자
+      VisitStatus.unconfirmed: (AppTokens.badgeAmber, AppTokens.badgeOnColor), // 미확정=amber·흰 글자
+    };
+    for (final entry in expected.entries) {
+      await t.pumpWidget(_row(_e(entry.key)));
+      final badge = t.widget<StatusBadge>(find.byType(StatusBadge)); // 글자가 아니라 배경 알약 부품
+      expect(badge.color, entry.value.$1);
+      expect(badge.textColor, entry.value.$2);
+    }
   });
   testWidgets('[HIST-ROW-14] 어느 줄에도 [다시 예약하기] 버튼을 붙이지 않는다', (t) async {
     for (final s in VisitStatus.values) {

@@ -9,6 +9,7 @@ import '../../widgets/empty_state.dart';
 import '../../widgets/patient_app_bar.dart';
 import '../appointment/appointment_detail.dart' show appointmentDetailProvider;
 import '../family/family_repository.dart';
+import '../home/status_badge.dart' show StatusBadge;
 import '../notifications/notification_gone_dialog.dart' show showNotificationGoneDialog;
 import 'history_repository.dart';
 import 'history_row_detail.dart';
@@ -156,19 +157,22 @@ class DateRail extends StatelessWidget {
   }
 }
 
-/// 상태 배지 — 글자만(배경 없음). 완료=딥틸, 나머지=회색(HIST-ROW-13).
+/// 상태 배지 — 배경 있는 알약(HIST-ROW-13, 2026-09-05 결정 ④ A안). 홈·예약과 **같은 공용 부품**
+/// (StatusBadge)을 써서 화면 간 통일. 색 톤은 데모 History StatusBadge대로:
+/// 완료=딥틸(흰 글자) · 취소=muted(옅은 회색 바탕·진회색 글자) · 방문하지 않음=slate(흰 글자) ·
+/// 확정되지 않음=amber(홈·예약의 미확정과 같은 부품 톤, 흰 글자). 하드코딩 금지 — 전부 AppTokens.
 class VisitBadge extends StatelessWidget {
   const VisitBadge({super.key, required this.status});
   final VisitStatus status;
   @override
   Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      VisitStatus.done => ('진료 완료', AppTokens.primary),
-      VisitStatus.cancelled => ('취소됨', AppTokens.grayDone),
-      VisitStatus.noShow => ('방문하지 않음', AppTokens.grayDone),
-      VisitStatus.unconfirmed => ('확정되지 않음', AppTokens.grayDone),
+    final (label, color, textColor) = switch (status) {
+      VisitStatus.done => ('진료 완료', AppTokens.primary, AppTokens.badgeOnColor),
+      VisitStatus.cancelled => ('취소됨', AppTokens.muted, AppTokens.badgeSlate),
+      VisitStatus.noShow => ('방문하지 않음', AppTokens.badgeSlate, AppTokens.badgeOnColor),
+      VisitStatus.unconfirmed => ('확정되지 않음', AppTokens.badgeAmber, AppTokens.badgeOnColor),
     };
-    return Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700));
+    return StatusBadge(label: label, color: color, textColor: textColor);
   }
 }
 
