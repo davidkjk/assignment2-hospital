@@ -61,3 +61,21 @@
     text-decoration: none;
   }
 }
+
+/* [커서] Tailwind v4 preflight는 버튼 커서를 브라우저 기본(화살표)으로 둔다(v3→v4 변경점).
+   클릭 가능한 요소에 손모양(pointer)을, 비활성엔 not-allowed를 전역으로 준다.
+   인라인 style로 cursor를 준 곳은 그대로 우선한다. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  select,
+  label[for] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
