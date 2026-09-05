@@ -33,6 +33,7 @@ begin;
 -- ⭐ 챗봇 테이블 먼저: 원격엔 환자·예약을 참조하는 챗봇 대화·티켓이 있어, 이걸 안 비우면
 --    아래 patients/appointments DELETE가 FK로 막힌다(로컬은 챗봇 데이터가 없어 안 드러났다).
 --    정리 순서는 seed_demo_chat.sql의 정리 블록과 동일(자식→부모). 챗봇 데이터는 seed_demo_chat.sql이 재적재한다.
+delete from qa_example_bank;
 delete from chat_message_sources;
 delete from answer_feedback;
 delete from chat_quality_reviews;
