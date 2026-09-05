@@ -100,15 +100,19 @@ def _validate_scheduled_at(at: datetime) -> None:
 async def resolve_recipients(spec: dict, kind: str, conn) -> tuple[list, int]:
     """수신자 id 목록과 광고 제외 인원을 돌려준다.
 
-    SEND-ADS-01 — 광고는 동의자만 남긴다. ⛔ consent 원천은 환자앱(3단계)이라 아직 없다 →
-    지금은 전체 대상 + excluded=0(자리만). 필터는 BLOCKED-BEFORE-MERGE에서 붙는다.
+    [보안 F-04] SEND-ADS-01 — 광고(kind=marketing)는 서버에서 ads_consent=true만 남긴다.
+    비동의자를 명단에 고정하면 발송 시점에 새어 나가므로(한국법상 위반) 해석 시점에 거른다.
+    거래성(비광고)은 동의와 무관하게 전체 대상. 발송 시점 재확인은 dispatch_service가 한 번 더 한다.
     """
     if spec.get("all"):
-        rows = await conn.fetch("select id from patients where is_active")
+        rows = await conn.fetch("select id, ads_consent from patients where is_active")
     else:
         ids = spec.get("patient_ids", [])
         rows = await conn.fetch(
-            "select id from patients where id = any($1::uuid[]) and is_active", ids)
+            "select id, ads_consent from patients where id = any($1::uuid[]) and is_active", ids)
+    if kind == "marketing":
+        eligible = [r["id"] for r in rows if r["ads_consent"]]
+        return eligible, len(rows) - len(eligible)
     return [r["id"] for r in rows], 0
 
 

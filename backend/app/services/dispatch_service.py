@@ -144,10 +144,16 @@ async def send_now(notification_ids, conn, *, push_send=None, sms_send=None) -> 
 
 async def _dispatch_one(nid, conn, push_send, sms_send) -> None:
     row = await conn.fetchrow(
-        "select patient_id, anonymous_contact_id, requested_channel, channel, body "
+        "select patient_id, anonymous_contact_id, requested_channel, channel, body, kind "
         "from notification_log where id=$1 for update", nid)
     if row is None:
         return
+    # [보안 F-04] 발송 시점 수신동의 재확인 — 광고는 지금 동의한 환자에게만. 예약 순간엔 동의했더라도
+    # 그새 철회했으면 조용히 누락하지 않고 '제외'로 남기고 보내지 않는다(SEND-ADS-01·한국법).
+    if row["kind"] == "marketing" and row["patient_id"] is not None:
+        if not await _ads_consented(conn, row["patient_id"]):
+            await mark_excluded(conn, nid, "ads_consent_withdrawn")
+            return
     requested = row["requested_channel"] or row["channel"]  # 옛 행 보호(requested 없을 수 있음)
     body = row["body"] or ""
     wants_push = requested in ("push_sms", "push")
@@ -226,6 +232,18 @@ async def _phone(conn, patient_id) -> str | None:
 
 async def _is_dead_number(conn, patient_id) -> bool:
     return bool(await conn.fetchval("select sms_dead from patients where id=$1", patient_id))
+
+
+async def _ads_consented(conn, patient_id) -> bool:
+    """[보안 F-04] 발송 시점의 현재 광고 수신 동의."""
+    return bool(await conn.fetchval("select ads_consent from patients where id=$1", patient_id))
+
+
+async def mark_excluded(conn, notification_id, reason: str) -> None:
+    """[보안 F-04] 정책상 안 보낸다 — '제외'로 사유를 남긴다(배달 실패와 구분, 후속 없음)."""
+    await conn.execute(
+        "update notification_log set delivery_status='제외', failure_code=$2, next_retry_at=null "
+        "where id=$1", notification_id, reason)
 
 
 # ── 재시도 claim(MSGX-SCHED-03) — 쿼리만. 실제 10분 주기 cron 실행 = 배포 ────────

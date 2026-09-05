@@ -30,11 +30,12 @@ async def _ctx(conn, role) -> StaffContext:
                         role=role, department_id=None)
 
 
-async def _patient(conn, name="김환자", phone="01011112222"):
+async def _patient(conn, name="김환자", phone="01011112222", ads_consent=True):
+    # [보안 F-04] 광고는 ads_consent=true만 발송 대상 → 컴포즈 테스트 기본 환자는 동의자.
     return await conn.fetchval(
-        "insert into patients (name, birth_date, gender, phone) "
-        "values ($1, '1990-05-14', 'F', $2) returning id",
-        name, phone,
+        "insert into patients (name, birth_date, gender, phone, ads_consent) "
+        "values ($1, '1990-05-14', 'F', $2, $3) returning id",
+        name, phone, ads_consent,
     )
 
 
