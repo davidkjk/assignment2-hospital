@@ -11,6 +11,7 @@ export type CardContext = {
   onPick: (text: string) => void;                                           // 빠른답변 → 환자 말풍선 전송
   onReconsult: (payload: Record<string, unknown>) => void;                  // [다시 문의하기]
   onRebook: () => void;                                                      // [새로 예약하기]
+  onHandoff?: () => void;                                                    // [직원에게 연결](WEBCHAT-NOANS) → 익명 인계 폼
 };
 export type CardProps = { p: Record<string, unknown>; ctx: CardContext };
 

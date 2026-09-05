@@ -13,26 +13,33 @@ class _RagModel:
 
 
 @pytest.mark.asyncio
-async def test_no_answer_message_creates_handoff_ticket_and_unresolved(committed_conn):
-    # §8 파이프라인: 봇이 못 답하면(빈 KB → no_answer) 티켓 생성 + 미해결 기록 + AI 세션 staff_handoff 종료.
+async def test_no_answer_message_returns_chips_keeps_session_and_logs_unresolved(committed_conn):
+    # WEBCHAT-NOANS: 봇이 못 답하면(빈 KB → no_answer) 자동 인계·자동 티켓을 만들지 않는다(폐기) →
+    #   봇 안내 말풍선 + quick_replies 카드(FAQ 칩 + [직원에게 연결]). 세션은 active 유지, 미해결은 티켓 없이(null) 기록.
+    q = "우리 동네 약국 어디"
     p = await seed_patient(committed_conn)
     t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
     s = await committed_conn.fetchrow(
         "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()+interval '30 min') returning *", t)
     out = await chat_flow_service.handle_patient_message(
-        s, "우리 동네 약국 어디", thread_id=t, client_message_id=uuid.uuid4(),
+        s, q, thread_id=t, client_message_id=uuid.uuid4(),
         embedder=FakeEmbedder(), model=_RagModel())
-    assert out["route_taken"] == "handoff" and out["reason"] == "no_answer"
-    tk = await committed_conn.fetchrow("select status from support_tickets where id=$1", out["ticket_id"])
-    assert tk["status"] == "pending"
+    assert out["route_taken"] == "no_answer"
+    assert out["card"]["card_type"] == "quick_replies" and out["card"]["handoff_chip"] == "직원에게 연결"
+    # 자동 인계 없음 — 티켓 0, 세션 active 유지.
+    assert await committed_conn.fetchval("select count(*) from support_tickets where thread_id=$1", t) == 0
+    assert await committed_conn.fetchval("select status from ai_chat_sessions where id=$1", s["id"]) == "active"
+    # 봇 안내 말풍선(text) 1 + quick_replies 카드(card) 1 저장.
     assert await committed_conn.fetchval(
-        "select count(*) from unresolved_questions where ticket_id=$1", out["ticket_id"]) == 1
+        "select count(*) from chat_messages where thread_id=$1 and sender_type='bot' and message_type='text'", t) == 1
     assert await committed_conn.fetchval(
-        "select status from ai_chat_sessions where id=$1", s["id"]) == "ended"
+        "select count(*) from chat_messages where thread_id=$1 and message_type='card'", t) == 1
+    # 미해결 질문은 티켓 없이(null) 기록(모든 no_answer 로깅 = 결정 B).
+    assert await committed_conn.fetchval(
+        "select count(*) from unresolved_questions where ticket_id is null and question_text=$1", q) == 1
     # cleanup
-    await committed_conn.execute("delete from unresolved_questions where ticket_id=$1", out["ticket_id"])
+    await committed_conn.execute("delete from unresolved_questions where question_text=$1", q)
     await committed_conn.execute("delete from chat_messages where thread_id=$1", t)
-    await committed_conn.execute("delete from support_tickets where id=$1", out["ticket_id"])
     await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
     await committed_conn.execute("delete from chat_threads where id=$1", t)
     await committed_conn.execute("delete from patients where id=$1", p["patient_id"])

@@ -474,6 +474,9 @@ html, body { height: 100%; }
   transition: background .2s, color .2s, border-color .2s;
 }
 .wc-chip:hover { background: var(--wc-primary); color: #fff; border-color: var(--wc-primary); }
+/* no_answer 안내의 [직원에게 연결] — 사람 연결 콜백 칩. FAQ 칩(테두리형)과 구분해 딥틸 채움으로. */
+.wc-chip--handoff { background: var(--wc-primary); color: #fff; border-color: var(--wc-primary); }
+.wc-chip--handoff:hover { background: var(--wc-primary-d); border-color: var(--wc-primary-d); }
 
 /* ── 앱 카드 재사용(WEBCARD-*) — 목업 102 카드 보드 ─────────────────────── */
 .wc-cardline { align-self: stretch; max-width: 100%; }

@@ -2,7 +2,7 @@ import json
 from uuid import UUID
 
 from app.db.pool import get_pool
-from app.services.chat import orchestrator, rag_service, quality_service
+from app.services.chat import orchestrator, rag_service, quality_service, card_builder
 
 
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
@@ -82,6 +82,23 @@ async def handle_message(session, content: str, *, thread_id: UUID,
             if out["handoff_reason"] == "no_answer":
                 await quality_service.record_unresolved(ticket["id"], content, embedder)
             return {"route_taken": "handoff", "ticket_id": ticket["id"], "reason": out["handoff_reason"]}
+        if out["route_taken"] == "no_answer":
+            # WEBCHAT-NOANS: 자동 인계·자동 티켓 폐기 → 봇 안내 말풍선 + quick_replies 카드(FAQ 칩 + [직원에게 연결]).
+            #   세션은 유지(active)하고, 미해결 질문은 티켓 없이(null) 기록(결정 B — 조용히 포기한 다수까지 KB 구멍으로 잡는다).
+            bmsg = await conn.fetchrow(
+                "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken) "
+                "values ($1,$2,'bot','text',$3,'no_answer') returning id", thread_id, sid, body)
+            card = card_builder.build_quick_replies_card(
+                replies=out["quick_replies"], handoff_chip=out["handoff_chip"])
+            await conn.execute(
+                "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, payload, route_taken) "
+                "values ($1,$2,'bot','card',$3::jsonb,'no_answer')", thread_id, sid, json.dumps(card))
+            # 봇 답변도 활동이다(정본 last_activity) → 세션 만료 시각 갱신(만료였으면 갱신 안 됨 — 상위가 새 세션 안내).
+            await conn.execute(
+                "update ai_chat_sessions set last_activity_at=now(), expires_at=now()+interval '30 minutes' "
+                "where id=$1 and status='active' and now() < expires_at", sid)
+            await quality_service.record_unresolved(None, content, embedder)
+            return {"route_taken": "no_answer", "message_id": bmsg["id"], "reply": body, "card": card}
         # 봇 답변(응급·rag·department_guide). route_taken 기록 + 근거 스냅샷.
         bmsg = await conn.fetchrow(
             "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken) "

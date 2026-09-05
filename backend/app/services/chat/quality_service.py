@@ -98,8 +98,9 @@ async def correct(session_id: UUID, staff_id: UUID, correction_text: str) -> dic
     return {"feedback_id": str(fb["id"])}
 
 
-async def record_unresolved(ticket_id: UUID, question: str, embedder) -> None:
-    # 봇이 못 답해 인계된 질문을 임베딩과 함께 저장(클러스터 대상).
+async def record_unresolved(ticket_id: UUID | None, question: str, embedder) -> None:
+    # 봇이 못 답한 질문을 임베딩과 함께 저장(클러스터 대상). WEBCHAT-NOANS 결정 B: 인계로 티켓이 생겼든(ticket_id)
+    # 사용자가 조용히 포기했든(ticket_id=None) 모든 no_answer를 기록한다 — 가장 큰 KB 구멍(포기한 다수)을 놓치지 않게.
     vec = (await embedder.embed([question]))[0]
     pool = await get_pool()
     async with pool.acquire() as conn:

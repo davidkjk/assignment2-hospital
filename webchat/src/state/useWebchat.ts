@@ -33,7 +33,7 @@ export function useWebchat(api: WebchatApi) {
     setBotTyping(true);                                // 봇 답변을 기다리는 동안 타이핑 표시
     try {
       const out = await api.sendMessage({ threadId: session.threadId, aiSessionId: session.aiSessionId, content, clientMessageId });
-      setMessages((m) => markSent(m, clientMessageId, out.botMessage));
+      setMessages((m) => markSent(m, clientMessageId, out.botMessage, out.cardMessage));
       if (out.routeTaken === 'department_guide') setGuide({ active: true, text: '진료과 안내 진행 중' });
       else setGuide((g) => ({ ...g, active: false }));
     } catch {
@@ -64,9 +64,10 @@ export function useWebchat(api: WebchatApi) {
 function upsertLocal(list: ThreadMessage[], p: { content: string; clientMessageId: string; sendState: 'sending' }): ThreadMessage[] {
   return [...list, { id: `local-${p.clientMessageId}`, senderType: 'patient', messageType: 'text', ...p }];
 }
-function markSent(list: ThreadMessage[], cid: string, bot?: ThreadMessage): ThreadMessage[] {
+function markSent(list: ThreadMessage[], cid: string, bot?: ThreadMessage, card?: ThreadMessage): ThreadMessage[] {
   const next = list.map((m) => (m.clientMessageId === cid ? { ...m, sendState: 'sent' as const } : m));
-  return bot ? [...next, bot] : next;
+  // 봇 말풍선 뒤에 카드(no_answer의 quick_replies)를 이어 붙인다 — 둘 다 없으면 상태 갱신만.
+  return [...next, ...(bot ? [bot] : []), ...(card ? [card] : [])];
 }
 function markFailed(list: ThreadMessage[], cid: string): ThreadMessage[] {
   return list.map((m) => (m.clientMessageId === cid ? { ...m, sendState: 'failed' as const } : m));

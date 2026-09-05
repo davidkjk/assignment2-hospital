@@ -64,6 +64,21 @@ test('[WEBCHAT-ROOM-08] 전송은 clientMessageId를 부여해 멱등 — 같은
   expect(call.content).toBe('주차 되나요?');
 });
 
+test('[WEBCHAT-NOANS] no_answer 응답은 봇 안내 말풍선과 quick_replies 카드를 함께 피드에 붙인다', async () => {
+  const api = fakeApi({ sendMessage: vi.fn(async () => ({
+    routeTaken: 'no_answer',
+    botMessage: { id: 'b1', senderType: 'bot', messageType: 'text', content: '바로 답을 찾지 못했어요' } as ThreadMessage,
+    cardMessage: { id: 'c1', senderType: 'bot', messageType: 'card', content: null,
+      payload: { card_type: 'quick_replies', options: ['진료시간이 어떻게 되나요'], handoff_chip: '직원에게 연결' } } as ThreadMessage,
+  })) });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('우리 동네 약국 어디'); });
+  const card = result.current.messages.find((m) => m.messageType === 'card');
+  expect(card?.payload?.card_type).toBe('quick_replies');                             // 칩 카드가 피드에 들어온다
+  expect(result.current.messages.some((m) => m.content === '바로 답을 찾지 못했어요')).toBe(true); // 안내 말풍선도 함께
+});
+
 test('[WEBCHAT-ROOM-09] 전송 실패면 말풍선을 failed로 두고 resend는 같은 clientMessageId로 재전송', async () => {
   const send = vi.fn()
     .mockRejectedValueOnce(new Error('webchat_api_500'))

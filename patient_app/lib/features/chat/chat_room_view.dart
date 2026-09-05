@@ -68,20 +68,27 @@ class ChatRoomView extends ConsumerWidget {
                   onFeedback: (_) => onFeedback?.call(),
                 ),
         }),
-        ChatInputBar(
-          onSend: (c) => ctl.send(c), // CHAT-ROOM-INPUT-01 (항상 열림)
-          // T12 슬롯 채움: 시작 화면(첫 상담)에 고정 빠른답변 4개(CCARD-QUICK-START).
-          // 대화 중 추천(MID)은 서버 생성이라 여기선 비운다 — 자유 입력만 유지(LOAD/ERR).
-          quickRepliesSlot: st.phase == ChatRoomPhase.loaded
-              ? ChatQuickReplies(
-                  replies: st.isEmpty
-                      ? startQuickReplies(hasUpcoming: false)
-                      : const [],
-                  onSend: (c) => ctl.send(c),
-                )
-              : null,
-        ),
+        _inputBar(st, ctl),
       ]),
+    );
+  }
+
+  Widget _inputBar(ChatRoomState st, ChatRoomController ctl) => ChatInputBar(
+        onSend: (c) => ctl.send(c), // CHAT-ROOM-INPUT-01 (항상 열림)
+        // T12 슬롯 채움: 시작 화면(첫 상담)에 고정 빠른답변 4개(CCARD-QUICK-START).
+        // 대화 중 추천(MID)은 서버 생성이라 비운다(자유 입력만). no_answer(WEBCHAT-NOANS)면 피드 마지막의
+        // quick_replies 카드를 여기 칩으로 띄운다 — FAQ 칩=문장 전송, [직원에게 연결]="직원에게 연결" 전송(⓪-b 인계).
+        quickRepliesSlot: st.phase == ChatRoomPhase.loaded ? _buildQuickReplies(st, ctl) : null,
+      );
+
+  Widget _buildQuickReplies(ChatRoomState st, ChatRoomController ctl) {
+    final active = activeQuickReplies(st.items);
+    return ChatQuickReplies(
+      replies: st.isEmpty ? startQuickReplies(hasUpcoming: false) : (active?.replies ?? const []),
+      onSend: (c) => ctl.send(c),
+      handoffLabel: active?.handoffLabel,
+      // [직원에게 연결] = 그 문장을 전송 → 백엔드 ⓪-b(check_staff_request)가 즉시 직원 인계로 전환.
+      onHandoff: active?.handoffLabel != null ? () => ctl.send(active!.handoffLabel!) : null,
     );
   }
 }

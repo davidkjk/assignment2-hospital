@@ -56,3 +56,22 @@ def test_questionnaire_card_uses_server_progress_not_recomputed():
 def test_validate_rejects_unknown_card_type():
     with pytest.raises(ValueError):
         cb.validate_card_payload({"card_type": "made_up"})
+
+
+def test_quick_replies_card_carries_options_and_handoff_chip():
+    # no_answer 안내: FAQ 칩(텍스트 전송) + [직원에게 연결] 콜백 칩(WEBCHAT-NOANS).
+    # 프론트(웹 QuickReplies.p.options)가 읽는 키는 options다.
+    card = cb.build_quick_replies_card(
+        replies=["진료시간이 어떻게 되나요", "예약하려면 어떻게 하나요", "오시는 길이 궁금해요"],
+        handoff_chip="직원에게 연결")
+    assert card["card_type"] == "quick_replies"
+    assert card["options"] == ["진료시간이 어떻게 되나요", "예약하려면 어떻게 하나요", "오시는 길이 궁금해요"]
+    assert card["handoff_chip"] == "직원에게 연결"
+    cb.validate_card_payload(card)   # 알려진 카드 종류(예외 없음)
+
+
+def test_quick_replies_card_handoff_chip_optional():
+    # 시작 칩 등 인계 없는 묶음은 handoff_chip 없이도 만든다(None).
+    card = cb.build_quick_replies_card(replies=["진료시간이 어떻게 되나요"])
+    assert card["handoff_chip"] is None
+    assert card["options"] == ["진료시간이 어떻게 되나요"]

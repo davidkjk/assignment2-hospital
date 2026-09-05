@@ -5635,3 +5635,15 @@ D4 브라우저 대조에서 **한 화면 안에서 날짜가 갈리는 것**이
 ### 곁들여 정한 것 (같은 손검수)
 - **전일 미완료 날짜는 행마다 반복하지 않고 카드 머리에 한 번**(`TODAY-YDAY-03` 개정) — 전부 같은 날이면 머리에 배지로, 여러 지난 날이 섞였을 때만 행마다(서버가 `slot_date < 오늘`이라 여러 날 가능). **기각**: 상단 날짜 라벨 부활(중복) / 행마다 유지(번잡).
 - **헤더 세 구역 경계**(`SHELL-HDR`) — 로그아웃은 테두리만 준 조용한 버튼(자주 안 쓰는 「나가기」), 등록·예약은 그림자 강화로 도드라지게, 계정칩은 회색 pill이라 이미 구분.
+
+## no_answer = 칩 — 자동 인계 폐기 (2026-09-04, brainstorming)
+
+봇이 근거를 못 찾았을 때(RAG `no_answer`) 지금까지는 **자동으로 직원 인계 티켓을 만들고 AI 세션을 종료**했다. 손검수·설계 검토에서 이 자동 인계가 두 가지로 나빴다: ⓐ 직원 문의가 필요하지 않은 단순 질문(오타·표현 차이)도 곧장 사람에게 넘겨 직원 부담을 키우고, ⓑ 「막다른 길 금지」 원칙과 달리 **환자에게 해결 경로(다른 표현·FAQ·직접 연결)를 주지 않고** 방을 닫아버린다.
+
+**채택(사용자 결정 2026-09-04, brainstorming)**: `no_answer`면 **자동 인계·자동 티켓을 폐기**하고, 봇 안내 말풍선(`바로 답을 찾지 못했어요…`) + **`quick_replies` 카드**를 낸다 — **FAQ 3개**(`진료시간이 어떻게 되나요`·`예약하려면 어떻게 하나요`·`오시는 길이 궁금해요`, 누르면 문장 전송) + **`[직원에게 연결]` 콜백 칩**. 웹은 이 칩이 익명 인계 폼(`WEBANON-HANDOFF`)을 열고(제출해야 티켓), 앱은 직원 연결 요청을 보내 즉시 인계(⓪-b `staff_request`)로 전환한다. **세션은 유지**(종료·티켓 없음). 범위 = 웹 + 앱(백엔드 공유). 규칙 = `WEBCHAT-NOANS-01~03`.
+
+**기각 ①: `[다르게 다시 물어보기]` 칩** — 채팅창에 직접 다시 치면 되므로 칩으로 자리를 차지할 필요가 없다(사용자 결정).
+
+**미해결 로깅 = 결정 B(모든 `no_answer` 기록)**. **기각한 A안: 인계할 때만 기록** — 「직원 인계는 한 번 더 용기가 필요」하므로, 인계한 것만 기록하면 **조용히 포기한 다수**(가장 큰 KB 구멍)를 통째로 놓친다. B안은 인계 여부와 무관하게 질문+임베딩을 남긴다(마이그 `00085` — `unresolved_questions.ticket_id` nullable). 인계로 티켓이 생기면 링크, 아니면 null. 임베딩이 있어 관리자단 클러스터링(`UNRES-CLUSTER-01`)은 그대로 동작한다.
+
+**구현**(2026-09-04): 백엔드 `orchestrator`(no_answer 분기 → `route_taken:"no_answer"` + 봇 말풍선 + 칩)·`chat_flow_service`(봇 말풍선 + `quick_replies` 카드 저장·세션 유지·`record_unresolved(None)`)·`card_builder.build_quick_replies_card`·`quality_service.record_unresolved`(ticket nullable)·마이그 `00085`. 웹 `QuickReplies`(handoff_chip)·`useWebchat`(카드 append)·`webchatApi`(응답 `card` 매핑)·`WebchatWidget`/`WebchatApp`(onHandoff 배선). 앱 `chat_quick_replies`(handoff 칩 + `activeQuickReplies` 헬퍼)·`chat_room_view`(입력슬롯 배선).

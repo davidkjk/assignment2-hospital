@@ -8,7 +8,10 @@ import { HandoffBadge } from './HandoffBadge';
 
 export type PendingAction = { kind: 'view_my_appointments' | 'book' | 'cancel'; payload?: Record<string, unknown> };
 export type HandoffSummary = { threadId: string; summary: string[] };
-export type CardSlot = { send: (text: string) => void }; // 카드가 빠른답변을 환자 말풍선으로 보낼 통로(Task 15)
+export type CardSlot = {
+  send: (text: string) => void;   // 카드가 빠른답변을 환자 말풍선으로 보낼 통로(Task 15)
+  onHandoff: () => void;          // no_answer 카드의 [직원에게 연결] → 익명 인계 폼(WEBCHAT-NOANS)
+};
 export type WidgetProps = {
   api: WebchatApi;
   hospitalPhone: string;
@@ -55,7 +58,10 @@ export function WebchatWidget({ api, onAuthGate, onHandoffNeeded, renderCard, ex
               <button type="button" className="wc-chip" onClick={() => onAuthGate({ kind: 'view_my_appointments' })}>내 예약 조회</button>
               <button type="button" className="wc-chip" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
             </>}
-            renderCard={(payload) => renderCard(payload, { send: w.send })}
+            renderCard={(payload) => renderCard(payload, {
+              send: w.send,
+              onHandoff: () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); },
+            })}
           />
         </div>
       )}

@@ -37,11 +37,17 @@ async def test_restricted_mode_downgrades_agent_to_rag():
 
 
 @pytest.mark.asyncio
-async def test_rag_no_answer_becomes_handoff():
+async def test_rag_no_answer_returns_chips_not_auto_handoff():
+    # WEBCHAT-NOANS: 봇이 못 찾으면 자동 인계·자동 티켓 폐기 → 봇 말풍선 + FAQ 칩 + [직원에게 연결] 콜백 칩.
+    # 세션은 유지되고(escalated False), 인계는 사용자가 칩을 눌러야 시작한다.
     async def rag_fn(s, m): return {"no_answer": True}
     out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
                                          "우리 동네 약국 어디", rag_fn=rag_fn, model=_Model("rag"))
-    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "no_answer"
+    assert out["route_taken"] == "no_answer"
+    assert out["escalated"] is False
+    assert out["reply"]                                  # 봇 말풍선(안내 문구) 존재
+    assert len(out["quick_replies"]) == 3                # FAQ 3개(텍스트 전송)
+    assert out["handoff_chip"] == "직원에게 연결"          # 콜백 칩(인계 폼 열기)
 
 
 def test_length_nudge_threshold():

@@ -63,6 +63,15 @@ void main() {
     expect(called, isTrue); // 답변+맥락을 직원 인계 대상으로(본체=T11 라이브)
   });
 
+  testWidgets('[WEBCHAT-NOANS] 마지막 줄이 quick_replies 카드면 입력창 슬롯에 FAQ+[직원에게 연결] 칩을 띄운다', (t) async {
+    final card = ChatFeedItem(
+        id: 'c', messageType: 'card', senderType: 'bot', createdAt: DateTime(2026),
+        payload: const {'card_type': 'quick_replies', 'options': ['진료시간이 어떻게 되나요'], 'handoff_chip': '직원에게 연결'});
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('바로 답을 못 찾았어요'), card])));
+    expect(find.text('진료시간이 어떻게 되나요'), findsOneWidget); // 입력 슬롯 FAQ 칩(카드는 피드에서 SizedBox)
+    expect(find.text('직원에게 연결'), findsOneWidget);          // 콜백 칩
+  });
+
   testWidgets('[CHAT-HISTORY-DEEP-03] 딥링크 대상이 없으면 다른 방을 열지 않고 오류+목록 복귀', (t) async {
     // 방 없음(404) → 조회 오류 상태 + [다시 시도] 경로. 임의의 다른 방을 열지 않는다.
     await t.pumpWidget(_scope(const ChatRoomState(ChatRoomPhase.error)));

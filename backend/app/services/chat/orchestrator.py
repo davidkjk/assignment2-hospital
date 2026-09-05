@@ -4,6 +4,13 @@ from app.services.chat import safety_watchdog, chat_router, department_guide_cha
 CHAT_CONTEXT_TURN_WINDOW = 12     # 최근 N턴은 원문, 그 앞은 요약(MR2-08 — 절단 아님)
 CHAT_NUDGE_MESSAGE_COUNT = 40     # 이 이상이면 CHAT-LEN 소프트 넛지 신호(하드컷 아님)
 
+# WEBCHAT-NOANS: 봇이 근거를 못 찾았을 때(RAG no_answer) 자동 인계·자동 티켓을 만들지 않는다(폐기).
+# 대신 봇 말풍선 + FAQ 칩(텍스트 전송) + [직원에게 연결] 콜백 칩을 내고 세션은 유지한다.
+# 인계는 사용자가 칩을 눌러야 시작(익명 인계 폼 WEBANON-HANDOFF). 미해결 질문은 티켓 없이도 기록(record_unresolved).
+NO_ANSWER_REPLY = "그 질문은 제가 바로 답을 찾지 못했어요. 이런 걸 도와드릴 수 있어요:"
+NO_ANSWER_QUICK_REPLIES = ["진료시간이 어떻게 되나요", "예약하려면 어떻게 하나요", "오시는 길이 궁금해요"]
+NO_ANSWER_HANDOFF_CHIP = "직원에게 연결"
+
 
 def should_nudge_length(message_count: int) -> bool:
     return message_count >= CHAT_NUDGE_MESSAGE_COUNT
@@ -57,5 +64,8 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
         return {"route_taken": "rag", "reply": None, "escalated": False}
     result = await rag_fn(session, message)
     if result.get("no_answer"):
-        return {"route_taken": "handoff", "handoff_reason": "no_answer", "escalated": True}
+        # WEBCHAT-NOANS: 자동 인계 폐기 → 봇 말풍선 + FAQ 칩 + [직원에게 연결] 콜백 칩(세션 유지).
+        return {"route_taken": "no_answer", "reply": NO_ANSWER_REPLY,
+                "quick_replies": NO_ANSWER_QUICK_REPLIES, "handoff_chip": NO_ANSWER_HANDOFF_CHIP,
+                "escalated": False}
     return {"route_taken": "rag", **result}

@@ -43,9 +43,10 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
     return () => window.removeEventListener('message', onMsg);
   }, []);
 
-  const cardCtx = (send: (t: string) => void): CardContext => ({
+  const cardCtx = (slot: { send: (t: string) => void; onHandoff?: () => void }): CardContext => ({
     isAnonymous: !patientId,
     onAuthGate: setAuthAction,                               // 카드의 로그인 필요 행동 → 관문
+    onHandoff: slot.onHandoff,                               // [직원에게 연결](WEBCHAT-NOANS) → 익명 인계 폼
     // [신청]/[취소] 확정 → 서버 실행 결과 카드(booking_done·cancel_done·실패 재확인)를 같은 대화 흐름의 다음 메시지로 피드에 삽입한다.
     // (CCARD-BOOKDONE-SHOW-01: 결과를 받은 뒤 한 번만 삽입 / 성공 위장 금지 — 서버가 준 실제 카드를 그대로 표시)
     onExecute: async (cardType, payload) => {
@@ -53,7 +54,7 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
       setReconfirm(null);
       setDoneCards((prev) => [...prev, result]);
     },
-    onPick: send,
+    onPick: slot.send,
     onReconsult: () => {}, onRebook: () => setAuthAction({ kind: 'book' }),
   });
 
@@ -79,7 +80,7 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
         open={open} onOpenChange={setOpen} onUnreadChange={setHasUnread} // 홈페이지 iframe 열기/미읽음 배선(Task 2)
         onAuthGate={setAuthAction}                            // WEBMOD-AUTH-01: 관문 열기(원래 행동·문맥 보존)
         onHandoffNeeded={setHandoff}
-        renderCard={(payload, slot) => <WebCard payload={payload} ctx={cardCtx(slot.send)} />}
+        renderCard={(payload, slot) => <WebCard payload={payload} ctx={cardCtx(slot)} />}
         extraCards={doneCards}                                // 실행 결과 완료 카드를 피드 끝에 렌더(재열기해도 유지)
       />
       {authAction && <AuthGateModal action={authAction} auth={auth} onClose={() => setAuthAction(null)} onAuthenticated={afterAuth} />}
@@ -87,7 +88,7 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
       {reconfirm && (
         <div className="wc-scrim">
           <div role="dialog" aria-label="예약 재확인" className="wc-modal wc-modal--card">
-            <WebCard payload={reconfirm.payload} ctx={cardCtx(() => {})} />
+            <WebCard payload={reconfirm.payload} ctx={cardCtx({ send: () => {} })} />
           </div>
         </div>
       )}

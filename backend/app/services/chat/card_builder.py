@@ -81,6 +81,13 @@ def build_questionnaire_card(*, state: str, answered: int, total: int,
             "state": state, "answered": answered, "total": total}
 
 
+def build_quick_replies_card(*, replies: list[str], handoff_chip: str | None = None) -> dict:
+    # 빠른답변 묶음(WEBCARD-QUICK). no_answer 안내에선 FAQ 칩(텍스트 전송) + [직원에게 연결] 콜백 칩(handoff_chip)을
+    # 함께 낸다 — 봇이 답을 못 찾아도 자동 인계·자동 티켓을 만들지 않고, 인계는 사용자가 칩을 눌러야 시작한다(WEBCHAT-NOANS).
+    # options 키는 프론트(웹 QuickReplies·앱 chat_quick_replies)가 읽는 계약 이름. handoff_chip 없으면 None(시작 칩 등).
+    return {"card_type": "quick_replies", "options": replies, "handoff_chip": handoff_chip, "state": "정상"}
+
+
 def validate_card_payload(payload: dict) -> None:
     ct = payload.get("card_type")
     if ct not in CARD_TYPES:

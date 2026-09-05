@@ -43,7 +43,7 @@ export interface WebchatApi {
   // 멱등: 같은 clientMessageId면 서버가 한 행만 만든다(§8-4). route_taken을 결과로 준다.
   sendMessage(args: {
     threadId: string; aiSessionId: string; content: string; clientMessageId: string;
-  }): Promise<{ routeTaken: string; botMessage?: ThreadMessage; handoffTicketId?: string }>;
+  }): Promise<{ routeTaken: string; botMessage?: ThreadMessage; cardMessage?: ThreadMessage; handoffTicketId?: string }>;
   fetchHandoff(threadId: string): Promise<HandoffStatus>;
   acknowledgeBatches(threadId: string): Promise<void>; // POST /chat/read
   // 인증 완료 후: 최신 대상·슬롯을 서버에서 재검증한 "재확인 카드"(실행 아님). 서버는 X-Anon-Token으로 세션을 찾는다.
@@ -95,9 +95,15 @@ export function createWebchatApi(baseUrl: string, deps: WebchatApiDeps = {}): We
         typeof reply === 'string' && reply.length > 0
           ? { id: j.message_id ?? `bot-${a.clientMessageId}`, senderType: 'bot', messageType: 'text', content: reply }
           : undefined;
+      // WEBCHAT-NOANS: no_answer면 서버가 quick_replies 카드(FAQ + [직원에게 연결])를 함께 준다 → 카드 말풍선으로 매핑.
+      const card = j.card as Record<string, unknown> | null | undefined;
+      const cardMessage: ThreadMessage | undefined =
+        card && typeof card.card_type === 'string'
+          ? { id: `card-${a.clientMessageId}`, senderType: 'bot', messageType: 'card', content: null, payload: card }
+          : undefined;
       return {
         routeTaken: (j.route_taken ?? j.routeTaken ?? '') as string,
-        botMessage,
+        botMessage, cardMessage,
         handoffTicketId: j.handoff_ticket_id ?? j.handoffTicketId,
       };
     },
