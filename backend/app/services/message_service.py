@@ -369,11 +369,23 @@ async def handle_status_callback(*, provider_message_id: str, status: str,
         return await _callback_on_conn(c, provider_message_id, status, failure_code)
 
 
+# [보안 F-03] 종결상태 allowlist — 제공자가 보내는 처리 대상 status. 그 외(오타·모르는 값)는
+# 실패 경로로 흘리지 않고 무시한다. 이미 종결(도달/실패)된 줄에 다시 온 콜백은 멱등 무시(replay).
+_ACCEPTED_CALLBACK_STATUSES = ("delivered", "failed")
+_TERMINAL_DELIVERY_STATUSES = ("도달", "실패")
+
+
 async def _callback_on_conn(conn, provider_message_id, status, failure_code) -> dict:
+    # ⭐ 모든 분기가 같은 응답({"status":"ok"})을 돌려준다 — ID 존재 여부를 노출하지 않는다(oracle 제거).
+    if status not in _ACCEPTED_CALLBACK_STATUSES:
+        return {"status": "ok"}
     row = await conn.fetchrow(
-        "select id from notification_log where provider_message_id = $1", provider_message_id)
+        "select id, delivery_status from notification_log where provider_message_id = $1",
+        provider_message_id)
     if row is None:
-        return {"status": "ignored"}
+        return {"status": "ok"}
+    if row["delivery_status"] in _TERMINAL_DELIVERY_STATUSES:
+        return {"status": "ok"}  # replay 멱등 — 이미 종결된 줄은 다시 처리하지 않는다
     if status == "delivered":
         await dispatch_service.mark_delivered(conn, row["id"])
     else:
