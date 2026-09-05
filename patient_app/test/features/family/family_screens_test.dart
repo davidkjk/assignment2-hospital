@@ -4,6 +4,7 @@ import 'package:hospital_patient_app/features/family/family_edit_screen.dart';
 import 'package:hospital_patient_app/features/family/family_list_screen.dart';
 import 'package:hospital_patient_app/features/family/unlink_section.dart';
 import 'package:hospital_patient_app/core/router.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
 
 import 'harness.dart';
 
@@ -111,12 +112,21 @@ void main() {
       expect(find.text('이름·생년월일·성별을 모두 입력해 주세요'), findsNothing);
     });
 
-    testWidgets('[FAM-EDIT-12·13] 관계 칩 4종 + 자유 입력', (t) async {
+    testWidgets('[FAM-EDIT-12·13] 관계 칩 5종 + 자유 입력', (t) async {
+      // 세션22c(e31d1c4)에서 옵션 부모→아버지/어머니로 바뀜 — 프리셋 밖 값('부모')은 자유 입력칸에 남는다.
       await pumpEdit(t, fam(relation: '부모', canEdit: false, lock: 'linked'));
-      for (final r in ['아들', '딸', '배우자', '부모']) {
+      for (final r in ['아들', '딸', '배우자', '아버지', '어머니']) {
         expect(find.widgetWithText(RelationChips, r), findsOneWidget);
       }
-      expect(find.byType(TextField), findsWidgets);   // 자유 입력칸 존재
+      expect(find.byType(TextField), findsWidgets);   // 자유 입력칸 존재('부모'가 남음)
+    });
+
+    testWidgets('[FAM-EDIT-12] 미선택 관계 칩은 데모 outline처럼 흰 면 + 올라온 그림자(외곽선 없음)', (t) async {
+      await pumpEdit(t, fam(relation: '부모', canEdit: false, lock: 'linked')); // 부모=프리셋 밖 → 5칩 모두 미선택
+      final chip = t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '아들'));
+      expect(chip.style!.side!.resolve({}), BorderSide.none);              // 외곽선 제거
+      expect(chip.style!.backgroundColor!.resolve({}), AppTokens.surface); // 흰 면(bg-card)
+      expect(chip.style!.elevation!.resolve({}), 1.5);                     // 올라온 그림자(shadow-sm)
     });
 
     testWidgets('[FAM-EDIT-02][NAV-FAM-13] 열린 가족 저장 → 신원+관계 둘 다 PATCH · 목록으로', (t) async {

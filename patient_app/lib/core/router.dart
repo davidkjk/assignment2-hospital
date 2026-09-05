@@ -157,13 +157,21 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
         GoRoute(
           path: '/signup/step3',
           builder: (c, s) => Consumer(
-              builder: (c, ref, _) => SignupProfileScreen(
-                    controller: SignupProfileController(
-                        ref.read(signupProfileRepoProvider)),
-                    adsAgreed: ref.watch(consentProvider).ads,
-                    onDone: () =>
-                        c.go('/home'), // AUTH-SIGNUP-07: 홈으로(축하 화면 없음)
-                  )), // NAV-AUTH-08·09
+              builder: (c, ref, _) {
+                final consent = ref.watch(consentProvider); // 동의 화면이 들고 온 실제 체크 상태
+                return SignupProfileScreen(
+                  controller:
+                      SignupProfileController(ref.read(signupProfileRepoProvider)),
+                  adsAgreed: consent.ads,
+                  // 서버 계약(F-05v1)에 실을 필수 동의 3종 — 실제 체크 상태 그대로.
+                  consents: (
+                    terms: consent.terms,
+                    privacy: consent.privacy,
+                    sensitive: consent.sensitive,
+                  ),
+                  onDone: () => c.go('/home'), // AUTH-SIGNUP-07: 홈으로(축하 화면 없음)
+                );
+              }), // NAV-AUTH-08·09
         ),
         GoRoute(
           path: '/duplicate',

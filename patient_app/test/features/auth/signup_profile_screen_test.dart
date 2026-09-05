@@ -7,6 +7,9 @@ import 'package:hospital_patient_app/features/auth/signup_profile_screen.dart';
 class _FakeRepo implements SignupProfileRepo {
   int pwSet = 0, created = 0;
   String? failWith;
+  SignupConsents? lastConsents;
+  String? lastTermsVersion;
+  bool? lastAdsAgreed;
   @override
   Future<void> setPassword(String pw) async => pwSet++;
   @override
@@ -14,8 +17,12 @@ class _FakeRepo implements SignupProfileRepo {
       {required String name,
       required String birthDate,
       required String gender,
+      required SignupConsents consents,
       required bool adsAgreed,
       required String termsVersion}) async {
+    lastConsents = consents;
+    lastTermsVersion = termsVersion;
+    lastAdsAgreed = adsAgreed;
     if (failWith != null) throw ApiException(failWith!);
     created++;
   }
@@ -126,6 +133,23 @@ void main() {
     expect(repo.pwSet, 1);
     expect(repo.created, 1);
     expect(done, isTrue); // 홈으로(별도 축하 화면 없음)
+  });
+
+  testWidgets('[CONSENT-BTN-01b] 가입 완료는 동의 3종·약관버전·광고동의를 서버 계약대로 실어 보낸다', (t) async {
+    final repo = _FakeRepo();
+    await t.pumpWidget(MaterialApp(
+        home: SignupProfileScreen(
+            controller: SignupProfileController(repo),
+            // 동의 화면(CONSENT-BTN-01 게이트)을 통과해야 여기 오므로 필수 3종은 true, 광고는 선택
+            consents: (terms: true, privacy: true, sensitive: true),
+            adsAgreed: true,
+            onDone: () {})));
+    await _fillValid(t);
+    await t.tap(find.text('가입 완료'));
+    await t.pumpAndSettle();
+    expect(repo.lastConsents, (terms: true, privacy: true, sensitive: true)); // 실제 체크 상태 그대로
+    expect(repo.lastTermsVersion, '2026-08-01'); // 앱 상수(출시 전 동시배포)
+    expect(repo.lastAdsAgreed, isTrue); // 선택 광고 동의 매핑
   });
 
   testWidgets('[AUTH-PROFILE-08] 실패면 버튼 위 오류, ①②를 다시 시키지 않는다', (t) async {

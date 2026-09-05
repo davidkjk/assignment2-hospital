@@ -273,7 +273,16 @@ class _Chip extends StatelessWidget {
               foregroundColor: AppTokens.onSurface,
             ).merge(chipStyle),
             child: Text(label))
-        : OutlinedButton(onPressed: onTap, style: chipStyle, child: Text(label));
+        // 미선택 = 데모 outline variant(bg-card shadow-sm): 흰 면 + 올라온 그림자, 외곽선 제거.
+        : OutlinedButton(
+            onPressed: onTap,
+            style: chipStyle.copyWith(
+              side: const WidgetStatePropertyAll(BorderSide.none),
+              backgroundColor: const WidgetStatePropertyAll(AppTokens.surface),
+              elevation: const WidgetStatePropertyAll(1.5),
+              shadowColor: const WidgetStatePropertyAll(Color(0x33102D32)),
+            ),
+            child: Text(label));
   }
 }
 

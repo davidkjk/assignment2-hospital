@@ -109,11 +109,24 @@ class SupabaseSignupProfileRepo implements SignupProfileRepo {
     required String name,
     required String birthDate,
     required String gender,
+    required SignupConsents consents,
     required bool adsAgreed,
-    required String termsVersion, // 서버가 자체 상수를 쓰므로 본문엔 담지 않는다(CONSENT-LOG-01)
+    required String termsVersion,
   }) =>
-      api.post<void>('/patient',
-          {'name': name, 'birth_date': birthDate, 'gender': gender, 'ads_agreed': adsAgreed}, (_) {});
+      // F-05v1 얼린 계약(CONSENT-BTN-01b): 필수 동의 3종·약관 버전·광고 동의를 본문에 싣는다.
+      // 서버가 consents 하나라도 false면 400, terms_version 불일치면 400으로 거절(문구는 detail로 옴).
+      api.post<void>('/patient', {
+        'name': name,
+        'birth_date': birthDate,
+        'gender': gender,
+        'consents': {
+          'terms': consents.terms,
+          'privacy': consents.privacy,
+          'sensitive': consents.sensitive,
+        },
+        'terms_version': termsVersion,
+        'ads_agreed': adsAgreed,
+      }, (_) {});
 }
 
 final signupProfileRepoProvider = Provider<SignupProfileRepo>((ref) => SupabaseSignupProfileRepo(
