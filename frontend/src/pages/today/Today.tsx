@@ -421,10 +421,10 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateF
         )}
 
         {/* 확인 필요 상담 문의 — 4단계 집계 계약이 없으면 「집계 불가」(STAT-METRIC-06: 0이 아니다). */}
-        <div className="flex items-baseline gap-2 px-1 text-sm">
-          <span className="font-semibold text-muted-foreground">확인 필요 상담 문의</span>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 text-sm">
+          <span className="break-keep font-semibold text-muted-foreground">확인 필요 상담 문의</span>
           {data.bot_pending === null ? (
-            <span className="text-muted-foreground/60">현재 집계할 수 없음</span>
+            <span className="break-keep text-muted-foreground/60">현재 집계할 수 없음</span>
           ) : (
             <span data-testid="bot-pending" className="font-bold tabular-nums text-foreground">{data.bot_pending}</span>
           )}
