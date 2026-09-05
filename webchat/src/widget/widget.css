@@ -223,7 +223,10 @@ html, body { height: 100%; }
   box-shadow: 0 4px 16px -8px rgba(160, 47, 61, .30);
 }
 .wc-urgent__icon { flex: 0 0 auto; width: 23px; height: 23px; color: var(--wc-danger); margin-top: 1px; }
+.wc-urgent__body { display: flex; flex-direction: column; gap: 5px; }
 .wc-urgent p { margin: 0; font-size: 13.5px; line-height: 1.55; font-weight: 600; }
+/* 필수 면책 문구(URGENT-02) — 안내보다 한 단계 낮은 위계로, 진단·보장이 아님을 고정 표시. */
+.wc-urgent__disc { font-size: 12px; font-weight: 500; line-height: 1.5; color: #8A4A63; }
 
 /* ── 장애 안내(WEBCHAT-OUTAGE) — 전화·문의 남기기가 주 경로 ─────────────── */
 .wc-outage {
