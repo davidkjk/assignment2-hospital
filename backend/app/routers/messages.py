@@ -3,12 +3,14 @@
 ⚠️ 코디 배선 필요: main.py에 `app.include_router(messages.router)`를 등록해야 노출된다.
    이 태스크는 만들기(enqueue)·목록·예약 취소까지다 — 실제 배달·결과·재시도는 Task 30.
 """
+import hmac
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.security import StaffContext, require_role
 from app.services import message_service
 
@@ -45,11 +47,19 @@ def _result_dto(res) -> dict:
 
 
 @router.post("/messages/status-callback")
-async def status_callback(body: StatusCallbackIn) -> dict:
-    """[SEND-RESULT-02] 업체 status callback 수신 — 인증 없음(제공자 호출). 서명검증 자리=배포.
+async def status_callback(
+    body: StatusCallbackIn,
+    x_solapi_secret: str | None = Header(default=None),
+) -> dict:
+    """[SEND-RESULT-02][보안 F-03] 업체 status callback 수신 — 공유 시크릿 서명 검증.
 
-    provider_message_id로 줄을 찾아 도달/실패·재시도·죽은번호 처리를 굴린다. 모르는 값은 무시.
+    제공자만 아는 웹훅 시크릿(X-Solapi-Secret)을 상수시간 비교해 위조 콜백을 막는다.
+    시크릿 미설정이면 fail-closed(어떤 콜백도 처리 안 함). 검증 실패·모르는 콜백 모두
+    같은 응답을 돌려준다(ID 존재 여부를 노출하는 oracle 제거·막다른 길 없음).
     """
+    secret = settings.solapi_webhook_secret
+    if not secret or x_solapi_secret is None or not hmac.compare_digest(x_solapi_secret, secret):
+        return {"status": "ok"}
     return await message_service.handle_status_callback(
         provider_message_id=body.provider_message_id, status=body.status,
         failure_code=body.failure_code)

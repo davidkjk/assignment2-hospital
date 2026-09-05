@@ -100,15 +100,19 @@ def _validate_scheduled_at(at: datetime) -> None:
 async def resolve_recipients(spec: dict, kind: str, conn) -> tuple[list, int]:
     """수신자 id 목록과 광고 제외 인원을 돌려준다.
 
-    SEND-ADS-01 — 광고는 동의자만 남긴다. ⛔ consent 원천은 환자앱(3단계)이라 아직 없다 →
-    지금은 전체 대상 + excluded=0(자리만). 필터는 BLOCKED-BEFORE-MERGE에서 붙는다.
+    [보안 F-04] SEND-ADS-01 — 광고(kind=marketing)는 서버에서 ads_consent=true만 남긴다.
+    비동의자를 명단에 고정하면 발송 시점에 새어 나가므로(한국법상 위반) 해석 시점에 거른다.
+    거래성(비광고)은 동의와 무관하게 전체 대상. 발송 시점 재확인은 dispatch_service가 한 번 더 한다.
     """
     if spec.get("all"):
-        rows = await conn.fetch("select id from patients where is_active")
+        rows = await conn.fetch("select id, ads_consent from patients where is_active")
     else:
         ids = spec.get("patient_ids", [])
         rows = await conn.fetch(
-            "select id from patients where id = any($1::uuid[]) and is_active", ids)
+            "select id, ads_consent from patients where id = any($1::uuid[]) and is_active", ids)
+    if kind == "marketing":
+        eligible = [r["id"] for r in rows if r["ads_consent"]]
+        return eligible, len(rows) - len(eligible)
     return [r["id"] for r in rows], 0
 
 
@@ -369,11 +373,23 @@ async def handle_status_callback(*, provider_message_id: str, status: str,
         return await _callback_on_conn(c, provider_message_id, status, failure_code)
 
 
+# [보안 F-03] 종결상태 allowlist — 제공자가 보내는 처리 대상 status. 그 외(오타·모르는 값)는
+# 실패 경로로 흘리지 않고 무시한다. 이미 종결(도달/실패)된 줄에 다시 온 콜백은 멱등 무시(replay).
+_ACCEPTED_CALLBACK_STATUSES = ("delivered", "failed")
+_TERMINAL_DELIVERY_STATUSES = ("도달", "실패")
+
+
 async def _callback_on_conn(conn, provider_message_id, status, failure_code) -> dict:
+    # ⭐ 모든 분기가 같은 응답({"status":"ok"})을 돌려준다 — ID 존재 여부를 노출하지 않는다(oracle 제거).
+    if status not in _ACCEPTED_CALLBACK_STATUSES:
+        return {"status": "ok"}
     row = await conn.fetchrow(
-        "select id from notification_log where provider_message_id = $1", provider_message_id)
+        "select id, delivery_status from notification_log where provider_message_id = $1",
+        provider_message_id)
     if row is None:
-        return {"status": "ignored"}
+        return {"status": "ok"}
+    if row["delivery_status"] in _TERMINAL_DELIVERY_STATUSES:
+        return {"status": "ok"}  # replay 멱등 — 이미 종결된 줄은 다시 처리하지 않는다
     if status == "delivered":
         await dispatch_service.mark_delivered(conn, row["id"])
     else:

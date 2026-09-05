@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     solapi_api_key: str = ""
     solapi_api_secret: str = ""
     sms_sender_number: str = ""
+    # [보안 F-03] 발송 상태 콜백(웹훅) 서명 검증용 공유 시크릿. 제공자가 콜백에 X-Solapi-Secret
+    # 헤더로 실어 보내면 이 값과 상수시간 비교해 위조 콜백을 막는다. 비면 fail-closed —
+    # 어떤 콜백도 처리하지 않는다(로컬·개발엔 콜백이 안 오므로 무해, 배포 env에서 설정).
+    solapi_webhook_secret: str = ""
     # 푸시 발송(FCM HTTP v1) — 서비스 계정 JSON(내용 또는 경로)·프로젝트 ID. 비면 개발 폴백.
     fcm_credentials_json: str = ""
     fcm_project_id: str = ""

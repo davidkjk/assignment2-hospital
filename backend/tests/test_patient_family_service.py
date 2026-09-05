@@ -1,8 +1,10 @@
 from datetime import date, time
 from uuid import uuid4
 import pytest
+import asyncpg
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext, list_accessible_patient_ids
+from app.db.pool import acquire_as
 from app.services import patient_family_service
 from tests.conftest import seed_patient, seed_staff
 
@@ -279,6 +281,57 @@ async def test_relink_after_unlink_succeeds(committed_conn):
     assert again == fid                                    # 새 행을 만들지 않고 옛 링크를 되살린다
     row = next(r for r in await patient_family_service.list_family_members(me) if r["id"] == fid)
     assert row["relation"] == "배우자"                      # 관계는 새로 준 값으로 갱신
+
+
+# ─── [보안 F-01] 직원 철회 가족접근을 환자가 되살릴 수 없다 ──────────────────────
+
+async def _staff_revoke_link(conn, family_patient_id, *, reason="직원 철회"):
+    """직원 철회 시뮬레이션 — 감사 트리오(unlinked_at/by/reason)를 채운다(patient_service.unlink와 동형)."""
+    staff = await seed_staff(conn, role="receptionist")
+    await conn.execute(
+        "update patient_family_links set is_active=false, unlinked_at=now(), "
+        "unlinked_by=$2, unlink_reason=$3 where family_patient_id=$1",
+        family_patient_id, staff["staff_id"], reason)
+
+
+@pytest.mark.asyncio
+async def test_staff_revoked_link_cannot_be_relinked_by_patient_add(committed_conn):
+    # F-01: 직원이 철회한 가족 연결은 환자가 add_family_member로 되살릴 수 없다(중립 문구·병원 문의).
+    me = await _seed_account(committed_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950, 1, 1), "M", "부모")
+    await _staff_revoke_link(committed_conn, fid)
+    with pytest.raises(AppError) as e:
+        await patient_family_service.add_family_member(me, "홍길동", date(1950, 1, 1), "M", "배우자")
+    assert e.value.status_code == 409
+    # 중립 문구(상태만) — "병원 문의" 안내는 환자앱이 덧붙인다(문구 중복 방지).
+    assert e.value.message == "이 가족은 지금 연결할 수 없습니다."
+
+
+@pytest.mark.asyncio
+async def test_staff_revocation_audit_is_preserved_after_blocked_readd(committed_conn):
+    # F-01: 막힌 재추가 뒤에도 감사 트리오는 append-only 보존, 링크는 비활성 유지.
+    me = await _seed_account(committed_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950, 1, 1), "M", "부모")
+    await _staff_revoke_link(committed_conn, fid, reason="본인 요청으로 직원이 해제")
+    with pytest.raises(AppError):
+        await patient_family_service.add_family_member(me, "홍길동", date(1950, 1, 1), "M", "배우자")
+    row = await committed_conn.fetchrow(
+        "select is_active, unlinked_by, unlink_reason from patient_family_links where family_patient_id=$1", fid)
+    assert row["is_active"] is False
+    assert row["unlinked_by"] is not None
+    assert row["unlink_reason"] == "본인 요청으로 직원이 해제"
+
+
+@pytest.mark.asyncio
+async def test_relink_family_link_self_execute_is_revoked(committed_conn):
+    # F-01: 앱 미사용 relink RPC는 authenticated에서 실행 불가(봉인)여야 한다.
+    me = await _seed_account(committed_conn)
+    fid = await patient_family_service.add_family_member(me, "홍길동", date(1950, 1, 1), "M", "부모")
+    link_id = await committed_conn.fetchval(
+        "select id from patient_family_links where family_patient_id=$1", fid)
+    async with acquire_as(str(me.auth_user_id)) as conn:
+        with pytest.raises(asyncpg.PostgresError):
+            await conn.execute("select relink_family_link_self($1)", link_id)
 
 
 # ─── T3 기존 계약 (보존) ──────────────────────────────────────────────────────

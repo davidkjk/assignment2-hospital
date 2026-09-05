@@ -1,9 +1,13 @@
 from datetime import date
 from unittest.mock import patch, MagicMock
 import uuid, pytest
+from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.services import patient_profile_service
+from app.services import consent_service
 from tests.conftest import seed_patient, set_session_auth
+
+_MANDATORY_OK = {"terms": True, "privacy": True, "sensitive": True}  # [F-05 v1] 필수 동의 전부 단언
 
 # ⚠️ register_profile/deactivate_self는 자기 커넥션(get_pool/acquire_as)을 연다 → db_conn 미커밋 데이터는
 #    안 보이고, auth.users insert는 authenticated 역할로 막힌다. 시딩은 committed_conn(postgres·autocommit)으로.
@@ -20,7 +24,7 @@ async def test_register_links_single_unlinked_match(committed_conn):
     uid = uuid.uuid4()
     await committed_conn.execute("insert into auth.users (id,email,aud,role,created_at,updated_at) values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@test.local")
     with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
-        pid = await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M")
+        pid = await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M", consents=_MANDATORY_OK, terms_version=consent_service.TERMS_VERSION)
     assert pid == legacy
     assert await committed_conn.fetchval("select count(*) from patients where phone='01012345678'") == 1
 
@@ -33,7 +37,7 @@ async def test_register_new_row_when_ambiguous(committed_conn):
     uid = uuid.uuid4()
     await committed_conn.execute("insert into auth.users (id,email,aud,role,created_at,updated_at) values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@test.local")
     with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
-        await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M")
+        await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M", consents=_MANDATORY_OK, terms_version=consent_service.TERMS_VERSION)
     assert await committed_conn.fetchval("select count(*) from patients where phone='01012345678'") == 3
 
 
@@ -76,6 +80,65 @@ async def test_차단이_있으면_Auth를_건드리기_전에_멈춘다(committ
             await patient_profile_service.deactivate_self(
                 PatientContext(id=p["patient_id"], auth_user_id=p["auth_user_id"]))
     fake.auth.admin.delete_user.assert_not_called()               # Auth 안 건드림
+
+
+# ─── [보안 F-05 벡터1] 서버가 필수 동의를 실제로 강제한다 ──────────────────────
+
+async def _new_auth_user(conn) -> uuid.UUID:
+    uid = uuid.uuid4()
+    await conn.execute(
+        "insert into auth.users (id,email,aud,role,created_at,updated_at) "
+        "values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@test.local")
+    return uid
+
+
+@pytest.mark.asyncio
+async def test_register_rejected_when_a_mandatory_consent_is_not_agreed(committed_conn):
+    # F-05 v1: 필수 동의(여기선 sensitive) 하나라도 false면 가입 거절 — 거짓 증적 불가.
+    uid = await _new_auth_user(committed_conn)
+    before = await committed_conn.fetchval("select count(*) from patients")
+    with patch("app.services.patient_profile_service.get_admin_client",
+               return_value=_mock_verified_phone("01099998888")):
+        with pytest.raises(AppError) as e:
+            await patient_profile_service.register_profile(
+                auth_user_id=uid, name="동의안함", birth_date=date(1980, 5, 5), gender="F",
+                consents={"terms": True, "privacy": True, "sensitive": False},
+                terms_version=consent_service.TERMS_VERSION)
+    assert e.value.status_code == 400
+    # 환자 행이 생기지 않아야 한다(부분 생성·거짓 동의 없음).
+    assert await committed_conn.fetchval("select count(*) from patients") == before
+
+
+@pytest.mark.asyncio
+async def test_register_rejected_on_stale_terms_version(committed_conn):
+    # F-05 v1: 앱이 옛 약관판을 보여줬으면(버전 불일치) 최신판 동의로 둔갑시키지 않고 거절한다.
+    uid = await _new_auth_user(committed_conn)
+    before = await committed_conn.fetchval("select count(*) from patients")
+    with patch("app.services.patient_profile_service.get_admin_client",
+               return_value=_mock_verified_phone("01088887777")):
+        with pytest.raises(AppError) as e:
+            await patient_profile_service.register_profile(
+                auth_user_id=uid, name="옛약관", birth_date=date(1980, 5, 5), gender="F",
+                consents=_MANDATORY_OK, terms_version="1999-01-01")
+    assert e.value.status_code == 400
+    assert await committed_conn.fetchval("select count(*) from patients") == before
+
+
+@pytest.mark.asyncio
+async def test_register_records_asserted_consent_values(committed_conn):
+    # F-05 v1: 필수 모두 동의 + 광고 미동의로 가입하면, 서버가 무조건 true로 박지 않고
+    # 실제 단언값(광고=false 포함)을 현재 버전으로 기록한다.
+    uid = await _new_auth_user(committed_conn)
+    with patch("app.services.patient_profile_service.get_admin_client",
+               return_value=_mock_verified_phone("01077776666")):
+        pid = await patient_profile_service.register_profile(
+            auth_user_id=uid, name="정상가입", birth_date=date(1980, 5, 5), gender="F",
+            consents=_MANDATORY_OK, ads_agreed=False, terms_version=consent_service.TERMS_VERSION)
+    rows = await committed_conn.fetch(
+        "select item, agreed, terms_version from patient_consents where patient_id=$1", pid)
+    got = {r["item"]: r["agreed"] for r in rows}
+    assert got == {"terms": True, "privacy": True, "sensitive": True, "ads": False}
+    assert all(r["terms_version"] == consent_service.TERMS_VERSION for r in rows)
 
 
 @pytest.mark.asyncio

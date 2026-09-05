@@ -85,9 +85,10 @@ async def test_BADGE_접수직원은_배지수를_받는다(client, committed_co
     assert res.json()["count"] == 0
 
 
-async def test_CALLBACK_모르는_콜백은_인증없이_조용히_무시한다(client):
-    """[SEND-RESULT-02] 상태 콜백은 제공자 호출이라 인증 없음. 모르는 id는 막다른 길 없이 무시."""
+async def test_CALLBACK_서명없는_콜백은_무시한다(client):
+    """[SEND-RESULT-02][보안 F-03] 서명(X-Solapi-Secret) 없는 콜백은 처리하지 않는다.
+    시크릿 미설정(로컬 기본)이면 fail-closed라 어떤 콜백도 무시하고 균일 응답을 준다."""
     res = client.post("/messages/status-callback",
                       json={"provider_message_id": "no-such-id", "status": "delivered"})
     assert res.status_code == 200
-    assert res.json()["status"] == "ignored"
+    assert res.json()["status"] == "ok"  # ID 존재 여부를 노출하지 않는 균일 응답

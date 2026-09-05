@@ -16,7 +16,7 @@ async def _seed_patient(conn):
 async def test_record_consents_writes_four_rows(db_conn):
     # CONSENT-LOG-01 — 프로필 생성 시 4줄(필수 3 true + 광고 선택) 기록
     pid = await _seed_patient(db_conn)
-    await consent_service.record_consents(db_conn, pid, ads_agreed=False, terms_version=TV)
+    await consent_service.record_consents(db_conn, pid, mandatory={'terms': True, 'privacy': True, 'sensitive': True}, ads_agreed=False, terms_version=TV)
     rows = await db_conn.fetch(
         "select item, agreed from patient_consents where patient_id=$1", pid)
     items = {r['item']: r['agreed'] for r in rows}
@@ -26,7 +26,7 @@ async def test_record_consents_writes_four_rows(db_conn):
 async def test_record_consents_sets_current_ads_flag(db_conn):
     # CONSENT-LOG-01 — 현재 상태 칸도 함께 맞춘다
     pid = await _seed_patient(db_conn)
-    await consent_service.record_consents(db_conn, pid, ads_agreed=True, terms_version=TV)
+    await consent_service.record_consents(db_conn, pid, mandatory={'terms': True, 'privacy': True, 'sensitive': True}, ads_agreed=True, terms_version=TV)
     assert await db_conn.fetchval("select ads_consent from patients where id=$1", pid) is True
 
 

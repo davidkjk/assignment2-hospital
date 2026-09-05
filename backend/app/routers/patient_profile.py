@@ -13,11 +13,21 @@ from app.services import patient_profile_service
 router = APIRouter(prefix="/patient", tags=["patient-profile"])
 
 
+class ConsentAssertions(BaseModel):
+    """[보안 F-05 벡터1] 화면에서 실제로 체크한 필수 동의 상태를 담는다. 세 항목 모두 필수 필드다
+    (누락 시 422). 서버가 present+true를 강제하고 거짓/누락이면 가입을 거절한다."""
+    terms: bool
+    privacy: bool
+    sensitive: bool
+
+
 class RegisterProfileRequest(BaseModel):
     name: str
     birth_date: date
     gender: str
-    ads_agreed: bool = False  # CONSENT-LOG-01 — 필수 3동의는 여기 도달=동의, 광고만 선택값으로 받는다
+    consents: ConsentAssertions          # [F-05 v1] 필수 동의 단언 — 더는 「도달=동의」로 서버가 만들지 않는다
+    terms_version: str                    # 화면이 보여준 약관판 — 서버 현재판과 일치해야 통과
+    ads_agreed: bool = False              # 광고(선택)만 기본값
 
 
 @router.post("")
@@ -25,7 +35,9 @@ async def register_profile(body: RegisterProfileRequest,
                            auth_user_id: UUID = Depends(get_current_auth_user_id)) -> dict:
     # 가입 직후 — patients 행이 아직 없으므로 get_current_patient가 아니라 auth_user_id 의존성.
     patient_id = await patient_profile_service.register_profile(
-        auth_user_id, body.name, body.birth_date, body.gender, ads_agreed=body.ads_agreed)
+        auth_user_id, body.name, body.birth_date, body.gender,
+        consents=body.consents.model_dump(), ads_agreed=body.ads_agreed,
+        terms_version=body.terms_version)
     return {"patient_id": patient_id}
 
 

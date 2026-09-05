@@ -8,8 +8,11 @@ from app.services import consent_service
 
 
 async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str,
-                           *, ads_agreed: bool = False,
+                           *, consents: dict, ads_agreed: bool = False,
                            terms_version: str = consent_service.TERMS_VERSION) -> UUID:
+    # [보안 F-05 벡터1] 서버가 필수 동의를 실제로 강제한다 — 필수 항목이 present+true가 아니거나
+    # 약관 버전이 현재판과 다르면 환자 행을 만들기 전에 거절한다(거짓 증적·우회 가입 방지).
+    consent_service.validate_registration_consents(consents, terms_version)
     # [R5-05] phone은 요청 본문을 신뢰하지 않고 Supabase Auth(admin API)의 검증번호를 직접 조회한다.
     # 검증 phone+birth_date+name 일치 미연결 1건이면 연결(과거 예약·이력 승계), 0·2+건이면 신규 가입.
     # get_pool() 서비스 역할 커넥션 — 아직 auth 연결 전이라 patient_owns RLS로는 조회 불가.
@@ -32,7 +35,8 @@ async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gend
                     "values ($1,$2,$3,$4,$5) returning id", auth_user_id, name, birth_date, gender, phone)
             # CONSENT-LOG-01 — 같은 트랜잭션 안에서 동의 4줄을 남긴다(프로필과 함께 커밋/롤백).
             await consent_service.record_consents(
-                conn, patient_id, ads_agreed=ads_agreed, terms_version=terms_version)
+                conn, patient_id, mandatory=consents, ads_agreed=ads_agreed,
+                terms_version=terms_version)
     return patient_id
 
 

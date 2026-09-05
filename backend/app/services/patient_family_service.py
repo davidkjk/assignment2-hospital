@@ -31,19 +31,28 @@ async def add_family_member(patient, name: str, birth_date: date, gender: str, r
             if active >= MAX_ACTIVE_FAMILY:
                 raise AppError(f"가족은 최대 {MAX_ACTIVE_FAMILY}명까지 등록할 수 있습니다.", status_code=409)
             # 같은 사람(이름·생년월일·성별 동일)에 soft-delete된 링크가 있으면 재활성화(새 행 안 만듦).
+            # [보안 F-01] 단, 재활성은 **환자 자가해제 건(감사 트리오가 전부 null)**만 허용한다.
+            #   직원 철회(unlinked_by NOT NULL)는 환자가 앱에서 되살릴 수 없다 — 재위임은 새 검증
+            #   이벤트(병원 확인/OTP)라야 하고, 철회 증적은 append-only로 보존한다. 매칭 비활성 링크
+            #   중 직원 철회 건을 먼저 보도록 정렬해, 있으면 중립 문구로 거절(개인정보 열거 방지).
             existing = await conn.fetchrow(
-                "select l.id link_id, l.family_patient_id from patient_family_links l "
+                "select l.id link_id, l.family_patient_id, l.unlinked_by from patient_family_links l "
                 "join patients p on p.id = l.family_patient_id "
                 "where l.account_patient_id=$1 and not l.is_active "
-                "and p.name=$2 and p.birth_date=$3 and p.gender=$4",
+                "and p.name=$2 and p.birth_date=$3 and p.gender=$4 "
+                "order by (l.unlinked_by is not null) desc",
                 patient.id, name, birth_date, gender)
             if existing is not None:
-                # 00045 CHECK: 재활성화 시 unlinked_* 트리오를 통째로 비운다(직원 해제였을 수도 있으므로).
+                if existing["unlinked_by"] is not None:
+                    # 직원 철회 건 — 막다른 길을 만들지 않도록 갈 길을 함께 준다. 환자앱이 뒤에
+                    # "더 필요하시면 병원에 문의해 주세요."를 덧붙이므로(family_new_screen 409 경로)
+                    # 백엔드 문구는 상태만 중립으로 전한다(문구 중복 방지, 코디 승인 2026-09-04).
+                    raise AppError("이 가족은 지금 연결할 수 없습니다.", status_code=409)
+                # 자가해제 건만 재활성 — 감사 트리오는 어떤 경우에도 건드리지 않는다(append-only,
+                # 자가해제는 트리오가 이미 null이라 00045 CHECK도 그대로 충족).
                 # FAM-UNLINK-12·13 — 다시 이을 때 관계는 새로 준 값으로 갱신한다(옛 관계를 되살리지 않는다).
                 await conn.execute(
-                    "update patient_family_links "
-                    "set is_active=true, relation=$2, unlinked_at=null, unlinked_by=null, unlink_reason=null "
-                    "where id=$1",
+                    "update patient_family_links set is_active=true, relation=$2 where id=$1",
                     existing["link_id"], relation)
                 return existing["family_patient_id"]
             family_id = await conn.fetchval(
