@@ -30,6 +30,22 @@ begin;
 -- 0) PREAMBLE — 데모 트랜잭션 데이터 정리 (FK 자식 → 부모 순서)
 -- ════════════════════════════════════════════════════════════════════════════
 -- appointments / patients / staff(의사)를 참조하는 모든 테이블을 먼저 비운다.
+-- ⭐ 챗봇 테이블 먼저: 원격엔 환자·예약을 참조하는 챗봇 대화·티켓이 있어, 이걸 안 비우면
+--    아래 patients/appointments DELETE가 FK로 막힌다(로컬은 챗봇 데이터가 없어 안 드러났다).
+--    정리 순서는 seed_demo_chat.sql의 정리 블록과 동일(자식→부모). 챗봇 데이터는 seed_demo_chat.sql이 재적재한다.
+delete from chat_message_sources;
+delete from answer_feedback;
+delete from chat_quality_reviews;
+delete from unresolved_questions;
+delete from chat_messages;
+delete from support_ticket_assignment_history;
+delete from support_tickets;
+delete from ai_chat_sessions;
+delete from chat_read_states;
+delete from anonymous_chat_contacts;
+delete from anonymous_chat_sessions;
+delete from chat_notification_batches;
+delete from chat_threads;
 delete from schedule_change_acks;
 delete from medical_record_revisions;
 delete from medical_records;
@@ -47,10 +63,6 @@ delete from patient_internal_notes;
 delete from patient_family_links;
 delete from patient_merges;
 delete from appointment_status_history;
--- 챗봇 티켓(support_tickets)의 예약 참조를 먼저 끊는다 — 티켓 자체는 챗봇 시드(seed_demo_chat.sql)가 관리하므로
--- 여기선 지우지 않고 appointment_id(nullable)만 null로 비운다.
--- ⚠️ 원격 특유 FK: 로컬은 support_tickets가 비어 안 드러났고, 원격엔 챗봇 데이터가 있어 appointments DELETE가 막혔다.
-update support_tickets set appointment_id = null where appointment_id is not null;
 delete from appointments;
 delete from appointment_slots;
 delete from doctor_schedule_exceptions;
