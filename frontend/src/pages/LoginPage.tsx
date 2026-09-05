@@ -48,9 +48,16 @@ export function LoginPage({ onAuthenticate }: { onAuthenticate?: Authenticate })
 
   return (
     <main style={styles.page}>
+      {/* 로고·눈 아이콘 인라인 sprite — 빌드 후에도 살아남고 currentColor(딥틸)를 상속한다.
+          외부 파일(/src/shell/icons.svg) 참조는 vite dev 전용 경로라 빌드 시 404로 깨졌다. */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false">
+        <symbol id="hospital" viewBox="0 0 24 24"><path d="M4 21V5h6V2h4v3h6v16M9 9h6M12 6v6M8 21v-5h8v5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></symbol>
+        <symbol id="eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" /></symbol>
+        <symbol id="eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 6.1A10 10 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.2 2.8M6.2 6.3C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6c1.2 0 2.3-.2 3.3-.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></symbol>
+      </svg>
       <div style={styles.stack}>
         <div style={styles.brandBlock}>
-          <div style={styles.brandMark} aria-hidden="true"><svg width="30" height="30"><use href="/src/shell/icons.svg#hospital" /></svg></div>
+          <div style={styles.brandMark} aria-hidden="true"><svg width="30" height="30"><use href="#hospital" /></svg></div>
           <p style={styles.brand}>가온병원</p>
           <p style={styles.kicker}>직원 업무 시스템</p>
         </div>
@@ -84,7 +91,7 @@ export function LoginPage({ onAuthenticate }: { onAuthenticate?: Authenticate })
               style={{ ...styles.input, margin: 0, paddingRight: 'var(--sp-12)' }}
             />
             <button type="button" aria-label={showPassword ? '비밀번호 가리기' : '비밀번호 보기'} onClick={() => setShowPassword((value) => !value)} style={styles.eyeButton}>
-              <svg width="20" height="20"><use href={`/src/shell/icons.svg#${showPassword ? 'eye-off' : 'eye'}`} /></svg>
+              <svg width="20" height="20"><use href={`#${showPassword ? 'eye-off' : 'eye'}`} /></svg>
             </button>
           </div>
           {passwordInvalid && <p style={styles.fieldError}>비밀번호를 입력해 주세요</p>}
