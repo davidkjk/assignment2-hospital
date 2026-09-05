@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -104,7 +105,7 @@ class _SettingsPasswordScreenState extends ConsumerState<SettingsPasswordScreen>
     final canSubmit = _pwOk(_pw.text) && _match && !state.busy;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('비밀번호 변경')),
+      appBar: const PatientAppBar(title: '비밀번호 변경'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

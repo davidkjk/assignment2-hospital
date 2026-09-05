@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -122,7 +123,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
     final online = ref.watch(connectivityProvider).valueOrNull ?? true;
     final detail = ref.watch(appointmentDetailProvider(id));
     return Scaffold(
-      appBar: AppBar(title: const Text('예약 상세')),
+      appBar: const PatientAppBar(title: '예약 상세'),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => EmptyState.error(

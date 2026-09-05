@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/field_error.dart';
@@ -54,7 +55,7 @@ class _PasswordFindScreenState extends State<PasswordFindScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('비밀번호 찾기')),
+      appBar: const PatientAppBar(title: '비밀번호 찾기'),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
         const Text('비밀번호를 찾을 전화번호를 입력해 주세요',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -58,7 +59,7 @@ class ConsentScreen extends ConsumerWidget {
     final s = ref.watch(consentProvider);
     final n = ref.read(consentProvider.notifier);
     return Scaffold(
-      appBar: AppBar(title: const Text('회원가입')),
+      appBar: const PatientAppBar(title: '회원가입'),
       body: Column(
         children: [
           const SignupProgress(step: 1),

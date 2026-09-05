@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api_client.dart';
@@ -83,7 +84,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
   Widget build(BuildContext context) {
     final canSubmit = _name.text.trim().isNotEmpty && _pwOk(_pw.text) && _match;
     return Scaffold(
-      appBar: AppBar(title: const Text('새 비밀번호')),
+      appBar: const PatientAppBar(title: '새 비밀번호'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

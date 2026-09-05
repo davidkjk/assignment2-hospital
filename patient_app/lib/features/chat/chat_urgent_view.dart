@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/tokens.dart';
 
@@ -17,7 +18,7 @@ class ChatUrgentView extends StatelessWidget {
         : '증상이 위급할 수 있습니다. 먼저 119에 연락하거나 가까운 응급실을 이용하세요.';
     return Scaffold(
       backgroundColor: AppTokens.background,
-      appBar: AppBar(title: const Text('안내')), // 긴급 단정 아님 — 제목은 '안내'
+      appBar: const PatientAppBar(title: '안내'), // 긴급 단정 아님 — 제목은 '안내'
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

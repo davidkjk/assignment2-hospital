@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import 'auth_repo.dart';
@@ -22,7 +23,7 @@ class DuplicateAccountScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('회원가입')),
+      appBar: const PatientAppBar(title: '회원가입'),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 24, 20, 16), children: [
         const Text('이미 가입하신 번호입니다',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
@@ -24,7 +25,7 @@ class ChatRoomView extends ConsumerWidget {
     final ctl = ref.read(chatRoomProvider(threadId).notifier);
     return Scaffold(
       backgroundColor: AppTokens.background,
-      appBar: AppBar(title: const Text('AI 상담봇')), // CHAT-ROOM-NAME-01
+      appBar: const PatientAppBar(title: 'AI 상담봇'), // CHAT-ROOM-NAME-01
       body: Column(children: [
         const ChatSafetyBanner(), // CHAT-ROOM-SAFE-01 (항상)
         Expanded(child: switch (st.phase) {

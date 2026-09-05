@@ -19,7 +19,7 @@ class FamilyListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(familyListProvider);
     return Scaffold(
-      appBar: PatientAppBar(title: '가족 관리', icon: AppIcons.groups),
+      appBar: const PatientAppBar(title: '가족 관리', icon: AppIcons.groups),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) {

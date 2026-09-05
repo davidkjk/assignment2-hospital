@@ -34,7 +34,9 @@ class AppIcons {
   static const IconData chat_bubble_outline = IconData(0xe168, fontFamily: 'PhosphorFill', matchTextDirection: true);
   static const IconData check = IconData(0xe182, fontFamily: 'PhosphorFill', matchTextDirection: true);
   static const IconData check_circle = IconData(0xe184, fontFamily: 'PhosphorFill', matchTextDirection: true);
-  static const IconData close = IconData(0xe4f6, fontFamily: 'PhosphorFill', matchTextDirection: true);
+  // 닫기 X — Fill(0xe4f6)은 두꺼운 획이라 뭉툭해 보인다(2026-09-03 사용자 지적) → 같은 글리프의
+  // Bold 굵기로(얇게). X 코드포인트는 굵기 무관 동일하고, 로드된 폰트 중 Bold가 가장 얇다.
+  static const IconData close = IconData(0xe4f6, fontFamily: 'PhosphorBold', matchTextDirection: true);
   static const IconData cloud_off_outlined = IconData(0xe1b6, fontFamily: 'PhosphorFill', matchTextDirection: true);
   static const IconData description = IconData(0xe23a, fontFamily: 'PhosphorFill', matchTextDirection: true);
   static const IconData edit = IconData(0xe3b4, fontFamily: 'PhosphorFill', matchTextDirection: true);

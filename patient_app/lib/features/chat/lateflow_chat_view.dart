@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'widgets/chat_safety_banner.dart';
 
 /// 예약 맥락 상담방(LATEFLOW-CHAT). 이미 팝업 시점에 기록됐으므로(RECORD) 이 화면은 중복 생성·추가
@@ -21,7 +22,7 @@ class LateFlowChatView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loadError) {
       return Scaffold(
-        appBar: AppBar(title: const Text('AI 상담봇')),
+        appBar: const PatientAppBar(title: 'AI 상담봇'),
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Text('예약 정보를 불러오지 못했어요'),
@@ -33,9 +34,9 @@ class LateFlowChatView extends StatelessWidget {
     if (!contextLoaded && !alreadyLinked) {
       return const Scaffold(body: Center(child: CircularProgressIndicator())); // LOAD
     }
-    return Scaffold(
-      appBar: AppBar(title: const Text('AI 상담봇')),
-      body: const Column(
+    return const Scaffold(
+      appBar: PatientAppBar(title: 'AI 상담봇'),
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ChatSafetyBanner(),

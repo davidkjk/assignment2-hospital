@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -47,7 +48,7 @@ class _FamilyAddChoiceScreenState extends ConsumerState<FamilyAddChoiceScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('가족 추가')),
+      appBar: const PatientAppBar(title: '가족 추가'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

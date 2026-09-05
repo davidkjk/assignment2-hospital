@@ -15,7 +15,7 @@ void main() {
   Widget host(List<VisitHistoryEntry> items) => ProviderScope(
         overrides: [
           familyRepositoryProvider.overrideWithValue(_ChipsRepo(
-              [FamilyMember(id: 'me', name: '김순자', birthDate: '1990-01-01', gender: 'F',
+              [const FamilyMember(id: 'me', name: '김순자', birthDate: '1990-01-01', gender: 'F',
                   relation: '본인', isSelf: true, canEditIdentity: true,
                   hasVisitHistory: false, phoneBorrowed: false)])),
           historyProvider.overrideWith(() => _FakeHistory(items)),

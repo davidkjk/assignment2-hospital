@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/phone_cooldown.dart';
@@ -107,7 +108,7 @@ class _OtpScreenState extends State<OtpScreen> {
     final mm = _left ~/ 60, ss = _left % 60;
     final isSignup = widget.purpose == OtpPurpose.signup;
     return Scaffold(
-      appBar: AppBar(title: Text(isSignup ? '회원가입' : '인증번호 입력')),
+      appBar: PatientAppBar(title: isSignup ? '회원가입' : '인증번호 입력'),
       body: Column(children: [
         if (isSignup) const SignupProgress(step: 3),
         Expanded(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/phone_cooldown.dart';
 import '../../core/button_sizes.dart';
@@ -68,7 +69,7 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('회원가입')),
+      appBar: const PatientAppBar(title: '회원가입'),
       body: Column(children: [
         const SignupProgress(step: 2),
         Expanded(

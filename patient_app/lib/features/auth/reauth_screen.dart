@@ -4,6 +4,7 @@ import '../../core/sensitive_reauth.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/labeled_field.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'auth_repo.dart';
 
 class ReauthController {
@@ -63,17 +64,14 @@ class _ReauthScreenState extends State<ReauthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        // 셸 밖·redirect 진입이라 탭바도 뒤로가기도 없다 → 막다른 길 방지로 나가는 문(닫기 → 홈)을 둔다.
-        // 데모 ScreenHeader처럼 아이콘↔제목을 촘촘히(gap-2≈8) 붙인다: Material 기본(leading 56 + titleSpacing 16)은
-        // X와 제목이 너무 벌어져 보인다(2026-09-02 사용자 지적) → leadingWidth를 클릭타깃(44)로, titleSpacing 0.
-        leadingWidth: 44,
-        titleSpacing: 0,
+      // 셸 밖·redirect 진입이라 탭바도 뒤로가기도 없다 → 막다른 길 방지로 나가는 문(닫기 → 홈)을 둔다.
+      // 간격(leadingWidth 44·titleSpacing 0)은 PatientAppBar가 잡는다.
+      appBar: PatientAppBar(
+        title: '본인 확인',
         leading: IconButton(
             icon: const Icon(AppIcons.close),
             tooltip: '닫기',
             onPressed: widget.onCancel),
-        title: const Text('본인 확인'),
       ),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
         const Text('민감한 정보를 열기 전에\n비밀번호를 한 번 더 확인합니다',

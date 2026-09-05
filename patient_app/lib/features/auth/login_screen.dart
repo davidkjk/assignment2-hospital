@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter/services.dart';
 import '../../core/button_sizes.dart';
@@ -85,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('로그인')),
+      appBar: const PatientAppBar(title: '로그인'),
       // 데모 LoginForm main px-6(=25.5) — 다른 화면 px-5(21.3)보다 데모가 좌우를 더 넓게 준다.
       body: ListView(padding: const EdgeInsets.fromLTRB(25.5, 24, 25.5, 20), children: [
         LabeledField(

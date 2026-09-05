@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/connectivity.dart';
@@ -67,7 +68,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
     final offline = ref.watch(connectivityProvider).valueOrNull == false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('알림 설정')),
+      appBar: const PatientAppBar(title: '알림 설정'),
       body: state.loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

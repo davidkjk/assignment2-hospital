@@ -7,6 +7,7 @@ import '../../core/connectivity.dart';
 import '../../core/tokens.dart';
 import '../../core/wait_format.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'notification_data.dart';
 import 'notification_gone_dialog.dart';
 import 'notification_view.dart';
@@ -38,8 +39,8 @@ class _NotificationInboxState extends ConsumerState<NotificationInbox> {
     final online = ref.watch(connectivityProvider).valueOrNull ?? true;
     return Scaffold(
       backgroundColor: AppTokens.background,
-      appBar: AppBar(
-        title: const Text('알림함'),
+      appBar: PatientAppBar(
+        title: '알림함',
         leading: IconButton(
           icon: const Icon(AppIcons.arrow_back),
           onPressed: () => context.go('/home'),

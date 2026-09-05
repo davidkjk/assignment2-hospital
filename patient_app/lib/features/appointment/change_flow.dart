@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -90,7 +91,7 @@ class ChangeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(appointmentDetailProvider(id));
     return Scaffold(
-      appBar: AppBar(title: const Text('예약 변경')),
+      appBar: const PatientAppBar(title: '예약 변경'),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => EmptyState.error(onRetry: () => ref.invalidate(appointmentDetailProvider(id))),

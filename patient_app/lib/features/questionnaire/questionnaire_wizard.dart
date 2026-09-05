@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
+import '../../widgets/patient_app_bar.dart';
 import '../appointment/appointment_detail.dart'; // appointmentDetailProvider — 작성 중 라이브 취소 감지(QNR-LIVE-01)
 import '../home/home_data.dart'; // homeAcknowledgeProvider — 병원발 [확인] 창구 재사용(새 API 안 만듦)
 import 'questionnaire_controller.dart';
@@ -95,8 +96,8 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
         if (leave && context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('사전문진'),
+        appBar: PatientAppBar(
+          title: '사전문진',
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(40),
             // 진행률 위치 표시 — 문구(N번/M문항)는 QNR-PROG 계열=T24가 채운다. 여기는 자리만.

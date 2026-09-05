@@ -6,6 +6,7 @@ import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'family_form_bits.dart'; // GenderBox(신규·수정 공용)
 import 'family_repository.dart';
 import 'unlink_section.dart';
@@ -73,8 +74,8 @@ class _FamilyEditScreenState extends ConsumerState<FamilyEditScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(familyListProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('가족 정보 수정'),
+      appBar: PatientAppBar(
+        title: '가족 정보 수정',
         leading: BackButton(onPressed: () => context.go('/family')),
       ),
       body: async.when(

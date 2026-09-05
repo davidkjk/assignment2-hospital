@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'questionnaire_controller.dart';
@@ -27,7 +28,7 @@ class ResumeScreen extends ConsumerWidget {
     final resumeAt = _firstUnanswered(st.questions, st.answers);
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('사전문진')),
+      appBar: const PatientAppBar(title: '사전문진'),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

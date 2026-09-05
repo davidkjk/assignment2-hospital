@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,7 +31,7 @@ class ConfirmScreen extends ConsumerWidget {
     if (gate != null) return gate;
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(readOnly ? '사전문진' : '사전문진 확인')),
+      appBar: PatientAppBar(title: readOnly ? '사전문진' : '사전문진 확인'),
       body: ListView(padding: const EdgeInsets.all(20), children: [
         // 상단 안내(데모 mb-6): 라벨 muted → 제목 → 설명 muted.
         Text(readOnly ? '작성한 내용' : '마지막 단계',

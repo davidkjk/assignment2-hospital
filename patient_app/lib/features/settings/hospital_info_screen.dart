@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +41,7 @@ class _HospitalInfoScreenState extends ConsumerState<HospitalInfoScreen> {
     final hoursAsync = ref.watch(hospitalHoursProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('병원 정보')),
+      appBar: const PatientAppBar(title: '병원 정보'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

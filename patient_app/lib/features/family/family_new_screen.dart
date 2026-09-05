@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -86,7 +87,7 @@ class _FamilyNewScreenState extends ConsumerState<FamilyNewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('가족 정보')),
+      appBar: const PatientAppBar(title: '가족 정보'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

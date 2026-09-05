@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../widgets/empty_state.dart';
 import 'questionnaire_controller.dart';
@@ -14,7 +15,7 @@ import 'questionnaire_controller.dart';
 Widget? qnrLoadGate(WidgetRef ref, QnrState st, String appointmentId) {
   if (st.error != null) {
     return Scaffold(
-      appBar: AppBar(title: const Text('사전문진')), // 막다른 길 방지 — 나가는 문(뒤로)이 있어야 한다
+      appBar: const PatientAppBar(title: '사전문진'), // 막다른 길 방지 — 나가는 문(뒤로)이 있어야 한다
       body: EmptyState.error(
         onRetry: () => ref.invalidate(questionnaireProvider(appointmentId)),
       ),

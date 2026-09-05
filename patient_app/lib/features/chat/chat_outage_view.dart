@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/tokens.dart';
 
@@ -40,7 +41,7 @@ class _ChatOutageViewState extends State<ChatOutageView> {
     final busy = widget.phase == OutageInquiryPhase.busy;
     return Scaffold(
       backgroundColor: AppTokens.background,
-      appBar: AppBar(title: const Text('AI 상담봇')),
+      appBar: const PatientAppBar(title: 'AI 상담봇'),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         // SHOW: 정상 답변/0건 위장 없이 장애 상태를 알린다.
         Container(

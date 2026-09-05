@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,7 +16,7 @@ class PhoneChangeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('전화번호 변경 안내')),
+      appBar: const PatientAppBar(title: '전화번호 변경 안내'),
       body: ListView(padding: const EdgeInsets.fromLTRB(20, 20, 20, 16), children: [
         Row(children: [
           // 데모 ShieldCheck(방패+체크) — Material verified_user(방패+사람)와 글리프가 달라 SVG로 맞춘다.

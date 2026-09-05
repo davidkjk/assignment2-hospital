@@ -138,10 +138,10 @@ class DateRail extends StatelessWidget {
           : Column(
               mainAxisAlignment: MainAxisAlignment.center, // 레일 세로 가운데(데모 justify-center)
               children: [
-                Text('${date!.day}', // 데모 text-2xl font-semibold
+                Text('${date!.day}', // 데모 text-2xl이나 전역 배율(1.22)로 커져 20으로 낮춤(2026-09-03 사용자)
                     maxLines: 1,
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: dayColor,
                       height: 1.0,
@@ -334,7 +334,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     ref.listen(selectedHistoryPatientProvider, (_, __) => setState(_expanded.clear)); // HIST-LIST-11 재진입 접힘
     final page = ref.watch(historyProvider);
     return Scaffold(
-      appBar: PatientAppBar(title: '이력', icon: AppIcons.history), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
+      appBar: const PatientAppBar(title: '이력', icon: AppIcons.history), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
       body: Column(children: [
         chips.when(
           data: (ms) => NameChips(

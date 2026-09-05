@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hospital_patient_app/core/connectivity.dart';
 import 'package:hospital_patient_app/core/theme.dart';
+import 'package:hospital_patient_app/core/tokens.dart';
 import 'package:hospital_patient_app/features/home/home_data.dart' show hospitalInfoProvider, HospitalInfo;
 import 'package:hospital_patient_app/features/settings/settings_home_screen.dart';
 
@@ -71,8 +72,10 @@ void main() {
 
   testWidgets('[SET-HOME-12·13·14] 로그아웃은 붉은색 아닌 버튼, 탈퇴는 작은 회색 밑줄', (t) async {
     await _pump(t);
-    final logout = t.widget<OutlinedButton>(find.byKey(const Key('logout-button')));
-    expect(logout.onPressed, isNotNull); // 버튼(붉은 채움 아님)
+    // 데모 outline = 테두리 없는 흰 버튼 + 옅은 그림자(붉은 채움 아님). 배경이 surface(흰)인지로 검증.
+    final logout = t.widget<ElevatedButton>(find.byKey(const Key('logout-button')));
+    expect(logout.onPressed, isNotNull);
+    expect(logout.style?.backgroundColor?.resolve({}), AppTokens.surface); // 붉은/틸 채움 아님
     final quit = t.widget<Text>(find.byKey(const Key('withdraw-text')));
     expect(quit.style!.decoration, TextDecoration.underline);
   });

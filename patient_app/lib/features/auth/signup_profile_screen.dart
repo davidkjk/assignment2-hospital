@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/api_client.dart';
 import '../../core/button_sizes.dart';
@@ -110,7 +111,7 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
     final pwValid = passwordOk(_pw.text);
     final mismatch = _pwConfirm.text.isNotEmpty && _pw.text != _pwConfirm.text;
     return Scaffold(
-      appBar: AppBar(title: const Text('회원가입')),
+      appBar: const PatientAppBar(title: '회원가입'),
       body: Column(children: [
         const SignupProgress(step: 4),
         Expanded(

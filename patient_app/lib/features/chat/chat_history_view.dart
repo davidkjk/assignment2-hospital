@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
@@ -18,7 +19,7 @@ class ChatHistoryView extends ConsumerWidget {
     final v = ref.watch(chatHistoryProvider);
     return Scaffold(
       backgroundColor: AppTokens.background,
-      appBar: AppBar(title: const Text('AI 상담')),
+      appBar: const PatientAppBar(title: 'AI 상담'),
       body: v.when(
         loading: () => const Center(child: CircularProgressIndicator()), // LOAD
         error: (_, __) => Center(

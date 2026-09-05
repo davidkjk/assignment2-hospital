@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -64,7 +65,7 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
     final offline = ref.watch(connectivityProvider).valueOrNull == false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('회원 탈퇴')),
+      appBar: const PatientAppBar(title: '회원 탈퇴'),
       body: blocksAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => offline

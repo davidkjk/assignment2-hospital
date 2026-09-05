@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/tokens.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'booking_controller.dart';
 import 'steps/who_step.dart';
 import 'steps/dept_step.dart';
@@ -37,13 +38,13 @@ class BookingWizard extends ConsumerWidget {
         onBack();
       },
       child: Scaffold(
-        appBar: AppBar(
+        // BOOK-NAV-02 — 밴드엔 단계 이름만(숫자·진행 막대는 데모처럼 아래 회색 띠로 분리).
+        appBar: PatientAppBar(
+          title: _stepNames[step],
           leading: IconButton(
             icon: const BackButtonIcon(),
             onPressed: onBack, // BOOK-NAV-03 — 뒤로 버튼 하나만(단계 칩·점프 없음)
           ),
-          // BOOK-NAV-02 — 밴드엔 단계 이름만(숫자·진행 막대는 데모처럼 아래 회색 띠로 분리).
-          title: Text(_stepNames[step]),
         ),
         body: Column(children: [
           _ProgressStrip(step), // BOOK-NAV-02 — 진행 막대 + 'N단계 / 8단계' (데모 회색 띠)

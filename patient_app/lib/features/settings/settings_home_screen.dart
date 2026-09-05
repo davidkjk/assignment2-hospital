@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -40,7 +41,7 @@ class SettingsHomeScreen extends ConsumerWidget {
     final offline = ref.watch(connectivityProvider).valueOrNull == false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('설정')),
+      appBar: const PatientAppBar(title: '설정'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -91,7 +92,7 @@ class SettingsHomeScreen extends ConsumerWidget {
                 foregroundColor: AppTokens.primary,
               ),
               child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Text('전화번호 변경', style: TextStyle(fontSize: 13)),
+                Text('전화번호 변경 안내', style: TextStyle(fontSize: 13)),
                 Icon(AppIcons.chevron_right, size: 16),
               ]),
             ),
@@ -129,11 +130,23 @@ class SettingsHomeScreen extends ConsumerWidget {
           const SizedBox(height: 20),
 
           // ⑤ 로그아웃 — 평범한 버튼(붉은색 아님, SET-HOME-12). 누르면 확인 팝업(SET-OUT-03).
-          OutlinedButton.icon(
+          // 데모 Button variant="outline" = border-transparent(테두리 없음) + bg-card + shadow-sm
+          // (바깥 옅은 그림자). 이전 OutlinedButton은 반대(테두리 있고 그림자 없음)였다(2026-09-03 사용자).
+          ElevatedButton.icon(
             key: const Key('logout-button'),
             onPressed: () => showLogoutConfirm(context, ref),
             icon: const Icon(AppIcons.logout, size: 18, color: AppTokens.primary),
             label: const Text('로그아웃'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTokens.surface, // 데모 bg-card
+              foregroundColor: AppTokens.onSurface,
+              elevation: 2,
+              shadowColor: const Color(0x33102D32), // 데모 shadow-sm — 바깥 옅은 그림자(딥틸 톤)
+              surfaceTintColor: Colors.transparent,
+              minimumSize: const Size(double.infinity, 46), // 데모 w-full
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.densityCardRadius)),
+            ),
           ),
           const SizedBox(height: 8),
           // ⑥ 회원 탈퇴 — 맨 아래 작은 회색 밑줄(버튼 아님, SET-HOME-13·14).
