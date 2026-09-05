@@ -67,6 +67,11 @@ delete from appointments;
 delete from appointment_slots;
 delete from doctor_schedule_exceptions;
 delete from doctor_schedule_rules;
+-- 환자를 참조하는 요청·동의 로그(원격 데모에서만 쌓인다 — 로컬은 비어 안 드러났다).
+delete from family_link_requests;
+delete from patient_phone_change_requests;
+delete from staff_family_link_requests;
+delete from patient_consents;
 delete from patients;
 
 -- 옛 의사 계정을 제거한다(admin·reception은 유지). 위에서 참조 테이블을 모두 비웠다.
