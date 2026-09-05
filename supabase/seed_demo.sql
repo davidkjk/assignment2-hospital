@@ -1,0 +1,794 @@
+-- ============================================================================
+-- seed_demo.sql — 직원웹 데모 손검수용 "대규모" 시드 데이터
+-- ----------------------------------------------------------------------------
+-- 실행: docker exec -i supabase_db_foundation-auth-data-model \
+--         psql -U postgres -d postgres < supabase/seed_demo.sql
+--
+-- 규모(손검수용):
+--   * 진료과 4개(내과·정형외과·이비인후과·소아과), 과당 의사 2명 = 의사 8명.
+--   * 의사 8명 로그인: doctor1@gaon.local ~ doctor8@gaon.local / demo1234.
+--   * 관리자 admin@gaon.local, 접수 reception@gaon.local / demo1234 (유지).
+--   * 환자 150명.
+--   * 슬롯·예약이 덮는 범위 = **지난 1년 ~ 앞으로 8주**(미래 8주 = REGENERATION_WEEKS=8과 같다).
+--     과거 1년치는 통계 프리셋(7·30·90일·1년·전체)을 채우기 위한 것 — 과거 슬롯은 성기게 깐다(§6).
+--     완료된 과거 진료엔 진료기록·문진표 응답과 「종료 상태 이력」을 함께 심어 통계·환자 이력을 채운다.
+--     밀도는 날짜 거리로 달라진다 — 어제·오늘은 빽빽하고, 멀수록 듬성해진다.
+--     ⭐ 미래를 전부 채우면 캘린더에 **빈 시간이 없어져** CAL-SLOT-01(빈 시간 블록)·
+--        CAL-GAP(틈에 끼워넣기)을 검수할 수 없다. 실제 병원도 먼 날짜는 듬성하다.
+--
+-- 성질:
+--   * postgres(superuser)로 실행 → RLS 우회. auth.uid()가 없으므로 status-history
+--     트리거는 조용히 스킵된다(설계된 동작). booking_code는 트리거 자동발급.
+--   * 맨 위 preamble이 데모 트랜잭션 데이터를 FK 순서대로 지운다(재실행 안전).
+--     로그인 계정(admin·reception)과 진료과·문진표 템플릿은 보존/재사용한다.
+--     questionnaire_templates는 BEFORE DELETE 트리거로 삭제금지 → ON CONFLICT 스킵.
+-- ============================================================================
+
+begin;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 0) PREAMBLE — 데모 트랜잭션 데이터 정리 (FK 자식 → 부모 순서)
+-- ════════════════════════════════════════════════════════════════════════════
+-- appointments / patients / staff(의사)를 참조하는 모든 테이블을 먼저 비운다.
+delete from schedule_change_acks;
+delete from medical_record_revisions;
+delete from medical_records;
+delete from questionnaire_responses;
+delete from scheduled_notification_recipients;
+delete from scheduled_notifications;
+delete from notification_log;
+delete from notification_preferences;
+delete from device_tokens;
+delete from access_audit_log;
+delete from settings_audit_log;
+delete from system_error_log;         -- 재적재마다 알려진 오류 15건으로 리셋(운영 찌꺼기·실행 오류 제거)
+delete from doctor_quick_phrases;
+delete from patient_internal_notes;
+delete from patient_family_links;
+delete from patient_merges;
+delete from appointment_status_history;
+delete from appointments;
+delete from appointment_slots;
+delete from doctor_schedule_exceptions;
+delete from doctor_schedule_rules;
+delete from patients;
+
+-- 옛 의사 계정을 제거한다(admin·reception은 유지). 위에서 참조 테이블을 모두 비웠다.
+delete from staff where role = 'doctor';
+delete from auth.identities
+  where user_id in (select id from auth.users where email like 'doctor%@gaon.local');
+delete from auth.users where email like 'doctor%@gaon.local';
+
+-- [L32] 검수·테스트 잔여 직원 계정 청소 — 정본 직원(admin·reception·doctor1~8)이 아닌 @gaon.local
+--   auth 사용자를 재시드마다 쓸어낸다(예: Aside 초대 테스트가 남긴 qatest-staff@gaon.local).
+--   ⚠️ 실환자(전화 로그인)·개발자 개인계정(@gaon.local 아님)은 대상이 아니다.
+delete from auth.identities where user_id in (
+  select id from auth.users where email like '%@gaon.local'
+    and email not in ('admin@gaon.local', 'reception@gaon.local')
+    and email not like 'doctor%@gaon.local');
+delete from auth.users where email like '%@gaon.local'
+  and email not in ('admin@gaon.local', 'reception@gaon.local')
+  and email not like 'doctor%@gaon.local';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 1) 진료과 4개
+-- ════════════════════════════════════════════════════════════════════════════
+insert into departments (id, name, is_active) values
+  ('11111111-1111-1111-1111-111111111111', '내과',     true),
+  ('22222222-2222-2222-2222-222222222222', '정형외과', true),
+  ('33333333-3333-3333-3333-333333333333', '이비인후과', true),
+  ('44444444-4444-4444-4444-444444444444', '소아과',   true)
+on conflict (id) do nothing;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 2) auth.users (bcrypt 비밀번호 = demo1234) — 관리자·접수 + 의사 8명
+-- ════════════════════════════════════════════════════════════════════════════
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at,
+  confirmation_token, recovery_token, email_change, email_change_token_new
+)
+select
+  '00000000-0000-0000-0000-000000000000', u.id,
+  'authenticated', 'authenticated', u.email,
+  crypt('demo1234', gen_salt('bf')), now(),
+  '{"provider":"email","providers":["email"]}', '{}', false, now(), now(),
+  '', '', '', ''
+from (values
+  ('aaaaaaaa-0000-0000-0000-000000000001'::uuid, 'admin@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000002'::uuid, 'reception@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000011'::uuid, 'doctor1@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000012'::uuid, 'doctor2@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000013'::uuid, 'doctor3@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000014'::uuid, 'doctor4@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000015'::uuid, 'doctor5@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000016'::uuid, 'doctor6@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000017'::uuid, 'doctor7@gaon.local'),
+  ('aaaaaaaa-0000-0000-0000-000000000018'::uuid, 'doctor8@gaon.local')
+) as u(id, email)
+on conflict (id) do nothing;
+
+-- 로그인 이력 백필 — 직원 대부분은 이미 로그인해 '들어온' 상태로 보이게 한다. StaffList는 last_sign_in_at=null이면
+-- 「초대함 · 아직 안 들어옴」으로 표시하므로(STAFF-LIST-08), 안 채우면 전원이 초대 대기로 보인다.
+-- doctor8 한 명만 일부러 null로 남겨 '초대 대기' 상태도 데모 화면에 함께 보이게 둔다.
+update auth.users set last_sign_in_at = now() - (interval '1 hour' * (abs(hashtext(email)) % 72 + 1))
+ where email in (
+   'admin@gaon.local','reception@gaon.local',
+   'doctor1@gaon.local','doctor2@gaon.local','doctor3@gaon.local','doctor4@gaon.local',
+   'doctor5@gaon.local','doctor6@gaon.local','doctor7@gaon.local'
+ );
+
+-- auth.identities (이메일 provider)
+insert into auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+select
+  u.id::text, u.id,
+  jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true, 'phone_verified', false),
+  'email', now(), now(), now()
+from auth.users u
+where u.email in (
+  'admin@gaon.local','reception@gaon.local',
+  'doctor1@gaon.local','doctor2@gaon.local','doctor3@gaon.local','doctor4@gaon.local',
+  'doctor5@gaon.local','doctor6@gaon.local','doctor7@gaon.local','doctor8@gaon.local'
+)
+on conflict (provider_id, provider) do nothing;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 3) staff — 관리자·접수 + 의사 8명(진료과 분산·색 0~7·전공)
+-- ════════════════════════════════════════════════════════════════════════════
+insert into staff (id, auth_user_id, name, role, department_id, is_active) values
+  ('bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
+   '김관리', 'admin',        null, true),
+  ('bbbbbbbb-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000002',
+   '박접수', 'receptionist', null, true)
+on conflict (id) do nothing;
+
+-- photo_url(D-4): 의사 사진은 doctor-photos 버킷 공개 URL. 여기선 **상대경로**로 넣어
+--   환자앱이 실행 환경의 SUPABASE_URL(에뮬 10.0.2.2 / 로컬 127.0.0.1)로 이어붙이게 한다
+--   (실사진 파일은 supabase/upload-doctor-photos.sh가 버킷에 올린다 — seed-demo.sh가 함께 호출).
+--   ⭐ 얼굴↔이름 배정은 **홈페이지(homepage/index.html의 kr-doc-*)와 동일**하게 맞췄다
+--   (같은 의사가 홈페이지·앱에서 같은 얼굴로 보이게). 원본 파일도 md5까지 동일하다.
+--   ped-1.jpg(한지우 전용)를 8번째로 추가해 **8명=8장, 중복 없음**. (회색 원 폴백은 photo_url이 비면 자동 동작.)
+--   대응표: 이정민=im-1 · 김서준=os-1 · 최도윤=ent-1 · 정하은=im-2 · 강수아=os-2 · 윤지호=derm-1 · 임채원=oph-1 · 한지우=ped-1
+insert into staff (id, auth_user_id, name, role, department_id, is_active, specialty, calendar_color_index, photo_url) values
+  ('bbbbbbbb-0000-0000-0000-000000000011', 'aaaaaaaa-0000-0000-0000-000000000011',
+   '이정민', 'doctor', '11111111-1111-1111-1111-111111111111', true, '소화기내과', 0, '/storage/v1/object/public/doctor-photos/im-1.jpg'),
+  ('bbbbbbbb-0000-0000-0000-000000000012', 'aaaaaaaa-0000-0000-0000-000000000012',
+   '김서준', 'doctor', '11111111-1111-1111-1111-111111111111', true, '호흡기내과', 1, '/storage/v1/object/public/doctor-photos/os-1.jpg'),
+  ('bbbbbbbb-0000-0000-0000-000000000013', 'aaaaaaaa-0000-0000-0000-000000000013',
+   '최도윤', 'doctor', '22222222-2222-2222-2222-222222222222', true, '척추·관절', 2, '/storage/v1/object/public/doctor-photos/ent-1.jpg'),
+  ('bbbbbbbb-0000-0000-0000-000000000014', 'aaaaaaaa-0000-0000-0000-000000000014',
+   '정하은', 'doctor', '22222222-2222-2222-2222-222222222222', true, '스포츠의학', 3, '/storage/v1/object/public/doctor-photos/im-2.jpg'),
+  ('bbbbbbbb-0000-0000-0000-000000000015', 'aaaaaaaa-0000-0000-0000-000000000015',
+   '강수아', 'doctor', '33333333-3333-3333-3333-333333333333', true, '비염·부비동', 4, '/storage/v1/object/public/doctor-photos/os-2.jpg'),
+  ('bbbbbbbb-0000-0000-0000-000000000016', 'aaaaaaaa-0000-0000-0000-000000000016',
+   '윤지호', 'doctor', '33333333-3333-3333-3333-333333333333', true, '이명·난청', 5, '/storage/v1/object/public/doctor-photos/derm-1.jpg'),
+  ('bbbbbbbb-0000-0000-0000-000000000017', 'aaaaaaaa-0000-0000-0000-000000000017',
+   '임채원', 'doctor', '44444444-4444-4444-4444-444444444444', true, '영유아 검진', 6, '/storage/v1/object/public/doctor-photos/oph-1.jpg'),
+  ('bbbbbbbb-0000-0000-0000-000000000018', 'aaaaaaaa-0000-0000-0000-000000000018',
+   '한지우', 'doctor', '44444444-4444-4444-4444-444444444444', true, '소아 호흡기', 7, '/storage/v1/object/public/doctor-photos/ped-1.jpg')
+on conflict (id) do nothing;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 4) 주간 운영시간 (doctor_schedule_rules) — 의사 8명 월~토(토요일 오전), 일요일 휴무
+-- ════════════════════════════════════════════════════════════════════════════
+-- ⭐ weekday는 **Python date.weekday() 규약(월=0 … 일=6)**이다 — 백엔드가 그렇게 읽는다
+--    (appointment_service.py `start_at.date().weekday()` · dashboard_service.py `isodow-1`).
+--    ⚠️ 옛 시드는 `generate_series(1,5)`로 넣어 실제로는 **화~토**였다(월0 규칙 누락) —
+--       슬롯을 요일 무관하게 깔아 안 드러났을 뿐. 여기서 월~토(0~5)로 바로잡는다.
+-- ⭐ slot_duration은 진료과마다 다르다(현실 반영): 내과 15 · 정형외과 20 · 이비인후과 10 · 소아과 15.
+--    → 격자에 10·15·20분 열이 섞이고, 정각이 아닌 애매한 시각(09:10·09:15…)이 자연히 생긴다.
+insert into doctor_schedule_rules
+  (doctor_id, weekday, start_time, end_time, slot_duration_minutes,
+   lunch_start, lunch_end, max_daily_appointments, booking_deadline)
+select s.id, wd,
+       time '09:00',
+       case when wd = 5 then time '13:00' else time '18:00' end,   -- 토요일(5)은 오전 진료만
+       case s.department_id
+         when '11111111-1111-1111-1111-111111111111' then 15   -- 내과
+         when '22222222-2222-2222-2222-222222222222' then 20   -- 정형외과
+         when '33333333-3333-3333-3333-333333333333' then 10   -- 이비인후과
+         else 15 end,                                          -- 소아과(44444444)
+       time '12:00', time '13:00',
+       -- ⭐ 하루 최대 인원(max_daily_appointments)은 요구사항 3.7의 「의사별 하루 최대 예약 인원」
+       --    = 관리자가 정하는 상한(슬롯 수와 별개, SCHED-WEEK-03). 계산값이 아니다.
+       --    현실감: 슬롯이 짧은 과일수록 상한을 크게 + 의사별 ±3 편차(옛 시드는 전원 20 고정이라 가짜 티가 났다).
+       (case s.department_id
+          when '11111111-1111-1111-1111-111111111111' then 28   -- 내과 15분
+          when '22222222-2222-2222-2222-222222222222' then 20   -- 정형외과 20분
+          when '33333333-3333-3333-3333-333333333333' then 40   -- 이비인후과 10분
+          else 30 end                                           -- 소아과 15분
+        + (abs(hashtext(s.id::text)) % 7) - 3),
+       time '17:00'
+from staff s
+cross join generate_series(0, 5) as wd   -- 월(0)~토(5). 일요일(6)은 규칙 없음 = 휴무.
+where s.role = 'doctor'
+on conflict (doctor_id, weekday) do nothing;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 4b) 병원 운영시간 (hospital_hours) — 접수 창구가 열려 있는 시간(의사 진료시간과 별개, SCHED-HOURS-*)
+-- ════════════════════════════════════════════════════════════════════════════
+-- ⚠️ [L51] 00041은 표만 만들고 기본 행을 넣지 않는다 → 비어 있으면 「진료 일정 관리」 사이드바 부제·상담봇
+--    "지금 문 열렸나" 판정이 프론트 하드코딩 기본값(09:00~18:00)으로 폴백해 "하드코딩처럼" 보인다.
+--    일요일(6)은 행을 만들지 않는다 = 휴무(open/close가 NOT NULL이라 휴무를 행 부재로 표현한다).
+-- ⭐ DO NOTHING — 이미 저장된 운영시간(관리자가 바꾼 값)은 덮어쓰지 않는다. 빈 DB에서만 채운다.
+insert into hospital_hours (weekday, open_time, close_time, lunch_start, lunch_end)
+values
+  (0, time '09:00', time '18:00', time '12:00', time '13:00'),  -- 월
+  (1, time '09:00', time '18:00', time '12:00', time '13:00'),  -- 화
+  (2, time '09:00', time '18:00', time '12:00', time '13:00'),  -- 수
+  (3, time '09:00', time '18:00', time '12:00', time '13:00'),  -- 목
+  (4, time '09:00', time '18:00', time '12:00', time '13:00'),  -- 금
+  (5, time '09:00', time '13:00', null, null)                   -- 토(오전 진료, 점심 없음)
+on conflict (weekday) do nothing;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 5) 환자 150명 (다양한 한국 이름·전화·생년월일)
+-- ════════════════════════════════════════════════════════════════════════════
+insert into patients (name, birth_date, gender, phone, is_active)
+select
+  (array['김','이','박','최','정','강','조','윤','장','임','한','오','서','신','권','황','안','송','류','전'])[((i-1)%20)+1]
+  || (array['민준','서연','도윤','지우','하준','서아','예준','지민','시우','유나',
+            '지호','수아','건우','하은','우진','채원','지훈','다은','현우','예은',
+            '준서','소율','시윤','예린','도현'])[((i*7)%25)+1],
+  (date '1948-01-01' + ((i*211)%26000) * interval '1 day')::date,
+  case when i % 2 = 0 then 'M' else 'F' end,  -- 00028 성별 check(F/M) — 표시(남/여)는 앱에서 변환 · 갭 #57(문진 「보일 대상」 전제)
+  -- ⚠️ 데모 안전: 국번을 0000(통신사 미할당)으로 고정해 실존할 수 없는 가짜 번호로 만든다.
+  --    실번호 형식(010-XXXX-XXXX)이면 발송 안전장치가 뚫릴 때 실제 번호로 문자가 갈 수 있다.
+  --    뒷자리로 150명을 유니크하게 구분한다. (김바이 등 시연 대상 실번호는 이 시드에 없음 — env 주입)
+  '010-0000-' || lpad(((i*53) % 9000 + 1000)::text, 4, '0'),
+  true
+from generate_series(1, 150) as i;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 6) 예약 슬롯 — 의사 8명 × (지난 1년 ~ 앞으로 8주) × 타임(30분, 점심 12~13 제외)
+-- ════════════════════════════════════════════════════════════════════════════
+-- 타임: 09:00~11:30(6) + 13:00~17:30(10) = 16. 모두 '빈시간'으로 넣고,
+-- 예약이 물린 슬롯만 뒤에서 '예약됨'으로 바꾼다.
+-- ⭐ 앞으로 8주 = `slot_generator.REGENERATION_WEEKS`와 같은 범위다(SCHED-SLOT-09).
+--    달력이 `booking_horizon_date`까지 열리므로(CAL-BOOK-13) 그 날까지 자리가 있어야
+--    「열리는데 자리가 없다」는 빈 하루가 안 나온다.
+-- ⭐ 과거는 통계 프리셋(최근 7일·30일·90일·1년·전체)을 채우려 1년치까지 넓힌다.
+--    다만 **과거 슬롯을 매일 16타임씩 다 만들면 5만 행이 넘어** 재적재가 느려진다.
+--    통계는 예약 건수 집계이므로 과거는 슬롯을 성기게 깐다:
+--      · 최근 90일 + 미래 8주 → 매일 16타임(촘촘)
+--      · 그 이전 1년치        → 월·수·금 + 오전 6타임만(성김)
+--    이러면 슬롯이 ~2.4만으로 줄고도 1년 프리셋이 빈틈 없이 찬다.
+-- ⚠️ 이 시드는 `current_date`를 쓴다 — psql 세션 시간대에 걸린다. 서버 커넥션이 KST로
+--    못박혀 있으므로(app/db/pool.py) **`PGTZ=Asia/Seoul`로 넣어야** 서버가 보는 오늘과 맞는다.
+-- ⭐ 슬롯 시각은 **의사의 운영규칙(§4)에서 편다** — 요일·진료시간·의사별 간격·점심을 규칙 하나가 정한다.
+--    · 최근 90일 + 미래 8주 → 의사별 간격(10·15·20분)으로 촘촘 → 격자에 애매한 시각·다른 폭이 보인다.
+--    · 그 이전 1년치       → 30분 격자 + 월·수·금 + 오전 3·오후 3만(성김) — 통계 프리셋용이라 정밀도 불필요.
+--    규칙 없는 요일(일요일=weekday 6)은 join이 비어 슬롯이 안 생긴다 = 휴무.
+insert into appointment_slots (doctor_id, slot_date, start_time, status)
+select s.id, dy.dd::date, t.st, '빈시간'
+from staff s
+cross join generate_series(current_date - 365, current_date + 56, interval '1 day') as dy(dd)
+join doctor_schedule_rules r
+  on r.doctor_id = s.id
+ and r.weekday = extract(isodow from dy.dd)::int - 1   -- isodow(월1..일7) − 1 = Python weekday(월0..일6)
+cross join lateral (
+  select gs::time as st
+  from generate_series(
+    date '2000-01-01' + r.start_time,
+    date '2000-01-01' + r.end_time - make_interval(mins => r.slot_duration_minutes),
+    make_interval(mins => case when dy.dd >= current_date - 90 then r.slot_duration_minutes else 30 end)
+  ) as gs
+  where gs::time < r.lunch_start or gs::time >= r.lunch_end   -- 점심시간 제외
+) as t
+where s.role = 'doctor'
+  -- 그 이전 1년치(90일보다 과거)는 성기게: 월·수·금 + 오전 3·오후 3 정각만(시간대 통계가 쏠리지 않게).
+  and (dy.dd >= current_date - 90
+       or (extract(isodow from dy.dd) in (1, 3, 5)   -- 월·수·금 (isodow)
+           and t.st in (time '09:00', time '10:00', time '11:00', time '13:00', time '14:00', time '15:00')))
+on conflict (doctor_id, slot_date, start_time) do nothing;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 7) 예약 ~300건 — 각 (의사,일자)의 앞 K개 슬롯을 채운다
+-- ════════════════════════════════════════════════════════════════════════════
+-- K: 색 0~3 의사는 13건, 4~7 의사는 12건 → 하루 4*13+4*12 = 100건.
+-- 상태 분포:
+--   어제(y): rn1=환자취소, rn2·3=예약부도, 나머지=진료완료.
+--   오늘(t): 확정·도착·진료대기·진료중(1/의사)·완료·환자취소·병원취소·부도 골고루.
+--   내일(m): 전부 예약확정.
+with docs as (
+  select s.id as doctor_id, s.department_id, s.calendar_color_index as cidx,
+         case when s.calendar_color_index < 4 then 13 else 12 end as k
+  from staff s where s.role = 'doctor'
+),
+ranked as (
+  select sl.id as slot_id, sl.doctor_id, sl.slot_date, sl.start_time,
+         (sl.slot_date - current_date) as d_off,
+         row_number() over (partition by sl.doctor_id, sl.slot_date order by sl.start_time) as rn,
+         -- ⭐ 미래는 **앞 시각부터** 채우면 안 된다 — 그러면 어느 날을 열어도 오전만 차고
+         --    오후가 통째로 비어 「빈 시간」이 늘 같은 자리에 생긴다. 해시로 흩는다.
+         row_number() over (partition by sl.doctor_id, sl.slot_date order by md5(sl.id::text)) as rn_mix
+  from appointment_slots sl
+),
+chosen as (
+  select r.slot_id, r.doctor_id, r.slot_date, r.start_time, r.rn, r.rn_mix, r.d_off,
+         d.department_id, d.k, d.cidx,
+         case
+           when r.d_off > 0 then 'm'   -- 앞으로 올 날
+           when r.d_off = 0 then 't'   -- 오늘
+           when r.d_off = -1 then 'y'  -- 어제 — 「전일 미완료」가 여기서 나온다(TODAY-YDAY)
+           else 'p'                    -- 그 이전 과거 — 이미 다 끝난 날
+         end as tag
+  from ranked r
+  join docs d on d.doctor_id = r.doctor_id
+  -- 밀도: 날짜가 멀수록 듬성해진다. 창구에서 보는 실제 모습이고, 그래야 「빈 시간」이 보인다.
+  where case
+    when r.d_off between -1 and 0 then r.rn     <= d.k                        -- 어제·오늘: 빽빽
+    when r.d_off < -1             then r.rn     <= greatest(1, d.k / 2)       -- 과거(어제 제외): 절반 — 성긴 1년치 슬롯(오전 6타임)은 이 한도로 사실상 다 찬다
+    when r.d_off <= 7             then r.rn_mix <= greatest(1, d.k * 2 / 3)   -- 다음 1주: 꽤 참
+    when r.d_off <= 28            then r.rn_mix <= greatest(1, d.k / 4)       -- 2~4주: 성김
+    else                               r.rn_mix <= greatest(1, d.k / 8)       -- 5~8주: 듬성
+  end
+),
+-- ⭐ 「진료중」은 의사당 정확히 1명이어야 한다(현실: 의사 한 명은 한 번에 한 환자만 본다).
+--   %8 분포는 한 의사에게 진료중을 여러 번 매겨 「4명 동시 진료중」을 만들었다(L61). 여기서
+--   오늘 지난 시각 슬롯 중 **가장 늦은 것**을 그 의사의 진료중 픽으로 고르고(ip_rank=1),
+--   나머지 진료중 후보(%8=5)는 진료완료로 돌린다.
+tagged as (
+  select c.*,
+         row_number() over (
+           partition by c.doctor_id
+           order by case when c.tag = 't'
+                          and (c.slot_date + c.start_time) <= (now() at time zone 'Asia/Seoul')
+                         then 0 else 1 end,
+                    c.start_time desc
+         ) as ip_rank
+  from chosen c
+)
+insert into appointments
+  (slot_id, account_patient_id, for_patient_id, department_id, doctor_id,
+   reason, status, source, created_by)
+select
+  c.slot_id, pt.pid, pt.pid, c.department_id, c.doctor_id,
+  (array['감기 기운','소화불량','기침 지속','몸살','정기 검진','두통','복통',
+         '어지럼증','발열','피로감','알레르기 증상','목 통증','무릎 통증',
+         '허리 통증','건강검진 상담'])[(c.rn % 15) + 1],
+  case c.tag
+    -- 앞으로 올 날: 대부분 확정이되 **일부는 「예약신청」(미확정)**이다 — 캘린더의
+    -- 「신청 · 미확정」 표기(CAL-SLOT-02)와 확정 대기 흐름을 검수할 자리가 있어야 한다.
+    when 'm' then case when (c.rn_mix + c.cidx) % 7 = 0 then '예약신청' else '예약확정' end
+    -- 지난 2주(어제 제외): 이미 다 끝난 날이다. ⛔ 여기에 진료대기·도착을 남기면
+    -- 「전일 미완료」가 2주치로 불어난다 — 그 카드는 **어제 것만** 본다(TODAY-YDAY).
+    when 'p' then case
+        -- ⚠️ rn은 성긴 과거(오전3+오후3)에선 1~6뿐이라 %11·%13이 안 걸려 취소·부도가 통째로
+        --    빠진다 → 어제치만 남아 통계가 「과거엔 취소 0」으로 뜬다. 해시로 흩어 고르게 뿌린다.
+        when (abs(hashtext(c.slot_id::text)) % 20) = 0 then '환자취소'   -- ~5%
+        when (abs(hashtext(c.slot_id::text)) % 20) = 1 then '예약부도'   -- ~5%
+        else '진료완료' end
+    when 'y' then case
+        when c.rn = 1 then '환자취소'
+        when c.rn in (2, 3) then '예약부도'
+        when c.rn = 4 then '진료대기'   -- 마감 안 된 전일 미완료(도착/대기) → /today「전일 미완료」가 산다
+        when c.rn = 5 then '도착'
+        else '진료완료' end
+    -- ⭐ 오늘은 **슬롯 순번이 아니라 「지금 시각을 지났는지」**로 가른다(2026-08-28).
+    --    순번으로만 정하면 오후 4시에 화면을 열어도 오전 11시 예약이 「예약확정」으로 남아
+    --    「미접수·시각 경과」가 24건씩 쌓인다 — 창구에서 나올 수 없는 그림이다.
+    else case
+        when (c.slot_date + c.start_time) > (now() at time zone 'Asia/Seoul')
+          -- 아직 오지 않은 시각: 대부분 확정이고, 가끔 취소가 섞인다.
+          then case when c.rn % 9 = 0 then '환자취소' else '예약확정' end
+          -- 이미 지난 시각: 진료가 끝났거나 진행 중이거나 대기 중이다.
+          --   ⚠️ 여덟에 하나만 '예약확정'으로 남긴다 = **「미접수·시각 경과」 카드**(TODAY-NOSHOW-01).
+          --      전부 남기면 카드가 오늘 예약 전체가 되고, 하나도 없으면 카드가 빈다.
+          -- ⭐ 의사 색 번호를 더해 **의사마다 순번을 어긋나게** 한다. 안 그러면 여덟 의사가
+          --    똑같은 순번에서 같은 상태가 되어 「미접수」 8건이 전부 같은 시각(13:30)에 몰린다.
+          -- ⭐ 진료중은 이 의사의 진료중 픽(ip_rank=1, 가장 늦은 지난 슬롯)일 때만 — 의사당 1명(L61).
+          --   나머지는 %8로 뿌리되 옛 「5→진료중」은 완료로 흡수한다.
+          else case
+            when c.ip_rank = 1 then '진료중'
+            else case (c.rn + c.cidx) % 8
+              when 0 then '예약확정'   -- 미접수·시각 경과(TODAY-NOSHOW-01)
+              when 3 then '진료대기'
+              when 4 then '도착'
+              when 7 then '예약부도'
+              else '진료완료' end     -- 1·2·5·6 → 완료(5는 옛 진료중)
+          end
+      end
+  end,
+  case when c.rn % 3 = 0 then 'staff'
+       when c.rn % 5 = 0 then 'chatbot'
+       else 'app' end,
+  'bbbbbbbb-0000-0000-0000-000000000002'
+from tagged c
+join lateral (
+  select p.id as pid from patients p
+  order by md5(c.slot_id::text || p.id::text)
+  limit 1
+) pt on true;
+
+-- 예약이 물린(취소류가 아닌) 슬롯만 '예약됨'으로. 취소류는 자리를 놓아준 상태로 둔다
+-- (슬롯 status는 '빈시간'이되 예약 행은 slot_id를 유지 → 일자 스코프가 slot_date로 잡힌다).
+update appointment_slots sl
+set status = '예약됨'
+where exists (
+  select 1 from appointments a
+  where a.slot_id = sl.id
+    and a.status not in ('환자취소', '병원취소', '예약부도')
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 8) 문진표 버전 (진료과별 v1) — 삭제금지 트리거 → ON CONFLICT 스킵
+-- ════════════════════════════════════════════════════════════════════════════
+-- ⭐ 문항 형식 정본 = 단답형(short_text)·장문형(long_text)·예/아니오(yes_no) 3종(screen-behaviors.md:4104,
+--   QNR-TYPE-01~03·QADM-FORM-05). 객관식(options)은 정본에 없다 — 옛 text/single/options 형식은 문진표
+--   관리(questionnaire_admin_service._validate)가 못 읽어 화면이 비었었다. 각 문항엔 text·show_to·required가 있다.
+-- ⚠️ on conflict는 do update — 이미 심긴 옛 형식 행을 재시드가 정본으로 덮는다(삭제금지 트리거라 delete 불가).
+insert into questionnaire_templates (department_id, questions, version_no, is_active, created_by)
+values
+  -- [L40] 내과는 버전 기록을 시연할 수 있게 v1(옛·비활성)→v2(현재·활성) 2개를 심는다.
+  --   ⚠️ v1 문항은 이미 심긴 것과 정확히 같아야 한다(결정 12 불변 트리거는 questions 변경을 막고
+  --   is_active 토글만 허용) — v2가 「알레르기」 문항을 더한 개정본이다. 나머지 진료과는 v1 하나.
+  --   활성은 진료과당 하나만(one_active_per_dept).
+  ('11111111-1111-1111-1111-111111111111',
+   '[{"id":"q1","type":"short_text","text":"현재 가장 불편한 증상을 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 언제부터 어떻게 시작됐는지 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"복용 중인 약이 있나요?","show_to":"all","required":true}]'::jsonb,
+   1, false, 'bbbbbbbb-0000-0000-0000-000000000001'),
+  ('11111111-1111-1111-1111-111111111111',
+   '[{"id":"q1","type":"short_text","text":"현재 가장 불편한 증상을 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 언제부터 어떻게 시작됐는지 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"복용 중인 약이 있나요?","show_to":"all","required":true},
+     {"id":"q4","type":"yes_no","text":"알레르기가 있나요?","show_to":"all","required":false}]'::jsonb,
+   2, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
+  ('22222222-2222-2222-2222-222222222222',
+   '[{"id":"q1","type":"short_text","text":"통증 부위를 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"다친 경위나 통증 양상을 자세히 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"이전에 같은 부위를 다친 적이 있나요?","show_to":"all","required":false}]'::jsonb,
+   1, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
+  ('33333333-3333-3333-3333-333333333333',
+   '[{"id":"q1","type":"short_text","text":"증상 부위를 알려주세요(코·귀·목)","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 얼마나 지속됐는지, 어떤 상황에서 심한지 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"발열이 있나요?","show_to":"all","required":true}]'::jsonb,
+   1, true, 'bbbbbbbb-0000-0000-0000-000000000001'),
+  ('44444444-4444-4444-4444-444444444444',
+   '[{"id":"q1","type":"short_text","text":"아이의 증상을 알려주세요","show_to":"all","required":true},
+     {"id":"q2","type":"long_text","text":"증상이 시작된 시점과 지금까지의 변화를 적어주세요","show_to":"all","required":false},
+     {"id":"q3","type":"yes_no","text":"예방접종은 최신인가요?","show_to":"all","required":false}]'::jsonb,
+   1, true, 'bbbbbbbb-0000-0000-0000-000000000001')
+on conflict (department_id, version_no) do update set questions = excluded.questions, is_active = excluded.is_active;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 9) 병원 설정 (싱글턴)
+-- ════════════════════════════════════════════════════════════════════════════
+-- ⚠️ sms_enabled=false: 데모 안전장치 — 문자 폴백을 꺼 실제 문자 발송/코인 소모를 막는다.
+--    (제품 기본은 결정31 '문자 초기 ON'이라 스키마 default는 true 유지 — 여기 데모 시드에서만 off로 덮는다.
+--     실 발송 데모가 필요하면 이 값을 true로 바꾸고 Solapi 키를 환경에 넣는다.)
+insert into hospital_settings (id, hospital_address, hospital_phone, sms_enabled)
+values (true, '서울특별시 강남구 테헤란로 123, 가온빌딩 3층', '02-0000-0000', false)
+on conflict (id) do update
+  set hospital_address = excluded.hospital_address,
+      hospital_phone = excluded.hospital_phone,
+      sms_enabled = excluded.sms_enabled;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 10) 상태 이력 — 「장기 대기」 카드가 여기서 나온다 (TODAY-WAIT)
+-- ════════════════════════════════════════════════════════════════════════════
+-- ⚠️ 이 시드는 postgres(superuser)로 돌아 auth.uid()가 없다 → 예약 상태 트리거가 이력을
+--    조용히 스킵한다. 그래서 이력을 **직접 심는다.** 심지 않으면 「장기 대기」가 영원히 0이다
+--    (대기 시각을 appointment_status_history의 `→진료대기` 행에서만 읽기 때문).
+-- 대기 시간은 now() 기준 상대값이라 **언제 실행해도** 카드가 찬다(병원 설정 임계 30분).
+insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_at)
+select a.id, '예약확정', '도착', 'bbbbbbbb-0000-0000-0000-000000000002',
+       -- 도착은 진료대기보다 조금 앞선다. 값을 나머지연산으로 가둬 「몇 시간 대기」 같은
+       -- 현실에 없는 숫자가 나오지 않게 한다(창구에서 읽을 수 있는 범위로).
+       now() - make_interval(mins => 12 + ((row_number() over (order by a.id))::int * 13) % 70)
+from appointments a
+join appointment_slots s on s.id = a.slot_id
+where s.slot_date = current_date and a.status in ('도착', '진료대기', '진료중', '진료완료');
+
+-- 진료대기로 넘어간 시각 — 줄마다 다르게 흩어 「26분 대기」처럼 읽히게 한다.
+-- ⭐ 아직 기다리는 사람(오늘 '진료대기')만 따로 센다 — 진료중·진료완료까지 한 번에 세면
+--    넷에 하나 규칙이 그들에게도 나뉘어 장기 대기가 한두 건으로 쪼그라든다.
+insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_at)
+select x.id, '도착', '진료대기', 'bbbbbbbb-0000-0000-0000-000000000002',
+       -- 넷에 하나만 임계(병원 설정 30분)를 넘긴다. 전부 장기 대기면 카드가 무의미해지고,
+       -- 하나도 없으면 화면이 무엇을 보여주려는 카드인지 알 수 없다.
+       now() - case when x.rn % 4 = 0
+                    then make_interval(mins => 34 + (x.rn * 9) % 30)
+                    else make_interval(mins => 4 + (x.rn * 11) % 23)
+               end
+from (
+  select a.id, (row_number() over (order by a.id))::int as rn
+  from appointments a
+  join appointment_slots s on s.id = a.slot_id
+  where s.slot_date = current_date and a.status = '진료대기'
+) as x;
+
+-- 이미 진료로 넘어간 사람들 — 대기 카드에는 안 잡히지만 이력이 비면 상세가 허전하다.
+insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_at)
+select a.id, '도착', '진료대기', 'bbbbbbbb-0000-0000-0000-000000000002', now() - interval '55 min'
+from appointments a
+join appointment_slots s on s.id = a.slot_id
+where s.slot_date = current_date and a.status in ('진료중', '진료완료');
+
+insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_at)
+select a.id, '진료대기', '진료중', 'bbbbbbbb-0000-0000-0000-000000000001', now() - interval '18 min'
+from appointments a
+join appointment_slots s on s.id = a.slot_id
+where s.slot_date = current_date and a.status in ('진료중', '진료완료');
+
+-- 주의 표시(is_urgent_flag) — 오늘 활성 큐 몇 건에 켜서 의사 콘솔(DOCTOR-QUEUE-02)·대기 목록(QUEUE-URG-06)
+--   배지가 빈 화면이 아니게 한다. 응급/주의는 드문 일이라 3건만. 각 의사 색 번호로 흩어 한 의사에게
+--   몰리지 않게 한다. ⚠️ 「누가 언제 켰는지」 표시자·시각은 아직 칸이 없어(살아있는 갭) 플래그만 켠다.
+update appointments a set is_urgent_flag = true
+from appointment_slots s
+where s.id = a.slot_id
+  and s.slot_date = current_date
+  and a.status in ('도착', '진료대기', '진료중')
+  and a.id in (
+    select a2.id from appointments a2
+    join appointment_slots s2 on s2.id = a2.slot_id
+    where s2.slot_date = current_date and a2.status in ('도착', '진료대기', '진료중')
+    order by a2.id
+    limit 3
+  );
+
+-- ── 과거(오늘 이전) 예약의 「종료 상태 이력」 ──────────────────────────────────
+-- ⭐ 통계는 방문·취소·부도를 appointment_status_history의 changed_at::date로 센다
+--    (stats_service: to_status='진료완료'/'예약부도'/취소 행). 이 이력이 없으면 과거 슬롯·
+--    예약을 아무리 채워도 통계 프리셋(30·90일·1년)이 0으로 뜬다 — 예약 건수만으론 안 찬다.
+--    ⚠️ 오늘(current_date)은 위에서 이미 도착→대기→진료 흐름을 심었으므로 제외한다.
+insert into appointment_status_history (appointment_id, from_status, to_status, changed_by, changed_at)
+select
+  a.id,
+  case a.status when '진료완료' then '진료중' else '예약확정' end,   -- from_status(≠ to_status)
+  a.status,
+  'bbbbbbbb-0000-0000-0000-000000000002',
+  case a.status
+    when '환자취소' then (s.slot_date::timestamp - interval '1 day' + interval '10 hour')  -- 전날 취소
+    when '병원취소' then (s.slot_date::timestamp - interval '1 day' + interval '15 hour')
+    else (s.slot_date + s.start_time + interval '25 min')  -- 완료·부도: 진료 시각 무렵
+  end
+from appointments a
+join appointment_slots s on s.id = a.slot_id
+where s.slot_date < current_date
+  and a.status in ('진료완료', '환자취소', '병원취소', '예약부도');
+
+-- ── 과거 예약의 created_at을 진료 1~14일 전으로 ───────────────────────────────
+-- 유입경로(source_mix)는 created_at::date로 집계한다. 시드 insert의 created_at은 전부
+-- 재적재 순간(now())이라, 그대로 두면 과거 기간 필터에 안 잡혀 유입경로가 0이 된다.
+-- 실제로도 예약은 진료일 며칠 전에 생성되므로 slot_date보다 앞선 값이 자연스럽다.
+update appointments a
+set created_at = (s.slot_date::timestamp - ((abs(hashtext(a.id::text)) % 14 + 1) * interval '1 day'))
+from appointment_slots s
+where s.id = a.slot_id and s.slot_date < current_date;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 11) 취소·변경 상담 — 「확인 필요 예약」 카드 (SUPPORT-*)
+-- ════════════════════════════════════════════════════════════════════════════
+-- 마감 후 취소·변경 문의가 들어와 직원이 확인해야 하는 예약. 환자에게는 "상담으로 연결됐다"만
+-- 말한다(취소가 접수됐다고 하지 않는다) — 그 상태를 만드는 데이터다.
+update appointments a
+   set support_requested_at = now() - make_interval(mins => 20 + (x.rn * 37)),
+       request_type = case when x.rn % 2 = 0 then '취소' else '변경' end
+  from (
+    select a2.id, (row_number() over (order by a2.id))::int as rn
+    from appointments a2
+    join appointment_slots s2 on s2.id = a2.slot_id
+    -- ⭐ 앞으로의 예약에만 붙인다 — 오늘 지난 시각의 '예약확정'은 「미접수·시각 경과」 카드가
+    --    이미 가져간다. 같은 사람이 두 카드에 겹쳐 나오면 「지금 처리할 것」 숫자가 부풀고
+    --    창구가 같은 건을 두 번 처리하게 된다.
+    where a2.status = '예약확정' and s2.slot_date > current_date
+    limit 7
+  ) as x
+ where a.id = x.id;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 12) 안내 발송 기록 — /messages 목록 + 사이드바 배지(SEND-BADGE-01)
+-- ════════════════════════════════════════════════════════════════════════════
+-- 배지는 「전화해야 할 미처리 실패」만 센다: delivery_status='실패' · handled_at is null ·
+-- kind<>'marketing' · 전화 필요 종류 · 환자 번호가 살아 있음(sms_dead=false).
+-- 그래서 실패를 **처리된 것/안 된 것**으로 갈라 심는다 — 배지가 0도 아니고 전부도 아니게.
+insert into notification_log
+  (patient_id, appointment_id, sender_staff_id, notification_type, kind, body, channel,
+   requested_channel, delivery_status, failure_code, retry_count, notification_date, sent_at,
+   delivered_at, failed_at, handled_at)
+select
+  a.for_patient_id, a.id, 'bbbbbbbb-0000-0000-0000-000000000002',
+  (array['reminder_day_before','reminder_today','rescheduled','hospital_cancelled','staff_direct'])[1 + (x.rn % 5)],
+  'transactional',
+  case (x.rn % 5)
+    when 0 then '내일 예약 안내드립니다. 시간에 맞춰 방문해 주세요.'
+    when 1 then '오늘 예약 안내드립니다. 접수는 창구에서 도와드립니다.'
+    when 2 then '예약 시각이 변경되었습니다. 확인 부탁드립니다.'
+    when 3 then '병원 사정으로 예약이 취소되었습니다. 창구로 연락 주세요.'
+    else '병원에서 보내드리는 안내입니다.'
+  end,
+  case when x.rn % 3 = 0 then 'sms' else 'push' end,
+  'push_sms',
+  case (x.rn % 7) when 0 then '실패' when 1 then '실패' when 2 then '재시도중' when 3 then '발송중' else '도달' end,
+  case when x.rn % 7 in (0, 1) then (array['unreachable','rejected','expired'])[1 + (x.rn % 3)] end,
+  case when x.rn % 7 = 2 then 1 else 0 end,
+  current_date, now() - make_interval(mins => 15 + x.rn * 9),
+  case when x.rn % 7 > 3 then now() - make_interval(mins => 14 + x.rn * 9) end,
+  case when x.rn % 7 in (0, 1) then now() - make_interval(mins => 13 + x.rn * 9) end,
+  -- 실패 중 일부만 「처리함」 — 나머지가 배지 숫자가 된다.
+  case when x.rn % 7 = 1 and x.rn % 2 = 1 then now() - interval '5 min' end
+from (
+  select a2.id, a2.for_patient_id, (row_number() over (order by a2.id))::int as rn
+  from appointments a2
+  join appointment_slots s2 on s2.id = a2.slot_id
+  where s2.slot_date between current_date - 1 and current_date + 1
+  limit 40
+) as x
+join appointments a on a.id = x.id;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 13) 접근 기록 — /admin/access-logs (누가 언제 무엇을 열었나)
+-- ════════════════════════════════════════════════════════════════════════════
+-- 환자를 여는 일(patient_detail·phone_reveal)과 환자 없이 남는 일(search)을 섞는다.
+-- [SEARCH-LOG-06] 검색 사건엔 결과 건수·조각 수를 함께 심어 「여러 종류」를 보인다:
+--   `김`(28명·조각1)·`1955`(41명·조각1)은 조각 하나로 기준(기본 20) 이상 → ⚠ 넓은 검색,
+--   `이말 3021`(조각2=이어 좁힌 검색)·`박강`(6명)·`010-2841`(2명)은 정상. 열람/진료기록은 null.
+insert into access_audit_log
+  (staff_id, patient_id, resource_type, accessed_at, search_term, result_count, fragment_count)
+select
+  case when x.rn % 3 = 0 then 'bbbbbbbb-0000-0000-0000-000000000001'::uuid
+       else 'bbbbbbbb-0000-0000-0000-000000000002'::uuid end,
+  case when x.rn % 4 = 3 then null else x.id end,
+  case (x.rn % 4) when 0 then 'patient_detail' when 1 then 'phone_reveal'
+                  when 2 then 'medical_record' else 'search' end,
+  now() - make_interval(mins => 3 + x.rn * 13),
+  case when x.rn % 4 = 3 then (array['김','1955','이말 3021','박강','010-2841'])[1 + (x.rn % 5)] end,
+  case when x.rn % 4 = 3 then (array[28, 41, 7, 6, 2])[1 + (x.rn % 5)] end,
+  case when x.rn % 4 = 3 then (array[1, 1, 2, 1, 1])[1 + (x.rn % 5)] end
+from (select p.id, (row_number() over (order by p.id))::int as rn from patients p limit 30) as x;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 14) 환자 상세를 채우는 것들 — 내부 메모 · 가족 연결
+-- ════════════════════════════════════════════════════════════════════════════
+insert into patient_internal_notes (patient_id, staff_id, content, created_at)
+select x.id, 'bbbbbbbb-0000-0000-0000-000000000002',
+       (array[
+         '귀가 어두우셔서 창구에서 큰 소리로 안내 필요.',
+         '보호자(딸) 동행이 많음. 연락은 보호자 번호로.',
+         '거동이 불편해 1층 대기실 이용 권장.',
+         '문자 수신을 어려워하심 — 전화로 안내.',
+         '진료 후 수납 안내를 다시 한 번 드릴 것.'
+       ])[1 + (x.rn % 5)],
+       now() - make_interval(days => 1 + x.rn)
+from (select p.id, (row_number() over (order by p.id))::int as rn from patients p limit 12) as x;
+
+-- 가족 연결 — 앱 계정 하나가 가족 환자를 함께 보는 관계(직원이 창구에서 확인해 연결).
+insert into patient_family_links
+  (account_patient_id, family_patient_id, relation, is_active, linked_by, linked_at, verification_method)
+-- 관계: 부모는 성별로 아버지/어머니로 표기(사용자 요청 2026-09-03 — 아들/딸처럼 성별 구분).
+select x.a, x.b,
+       case (array['자녀','배우자','부모'])[1 + (x.rn % 3)]
+         when '부모' then case when x.bg = 'M' then '아버지' else '어머니' end
+         else (array['자녀','배우자','부모'])[1 + (x.rn % 3)]
+       end, true,
+       'bbbbbbbb-0000-0000-0000-000000000002', now() - make_interval(days => 2 + x.rn), 'in_person'
+from (
+  select p1.id as a, p2.id as b, p2.gender as bg, (row_number() over (order by p1.id))::int as rn
+  from (select id, row_number() over (order by id) as r from patients limit 16) p1
+  join (select id, gender, row_number() over (order by id) as r from patients limit 16) p2
+    on p2.r = p1.r + 8
+  where p1.r <= 8
+) as x;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 15) 중복 환자 후보 — /admin/patient-merge-candidates
+-- ════════════════════════════════════════════════════════════════════════════
+-- 같은 사람이 두 번 등록된 상황을 만든다(전화·생년월일이 같고 이름 표기만 다름).
+-- ⛔ 병합 결과(patient_merges)는 심지 않는다 — 「후보를 검토하는 화면」을 보려는 것이지
+--    이미 병합된 이력을 보려는 게 아니다.
+insert into patients (name, birth_date, gender, phone, is_active)
+select p.name, p.birth_date, p.gender, p.phone, true
+from (select * from patients order by id limit 4) p;
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- 16) 진료기록 · 문진표 응답 — 환자 상세의 「지난 방문 이력」·의사 콘솔의 「과거 기록」
+-- ════════════════════════════════════════════════════════════════════════════
+-- 과거 1년치까지 넓혔으니 **완료된 진료**마다 기록이 있어야 상세가 채워진다.
+-- 둘 다 appointment_id가 unique(1:1)이므로 '진료완료' 예약 하나당 한 행씩.
+-- ⚠️ medical_records.doctor_id는 트리거(00006)가 **그 예약의 실제 담당의와 일치**를
+--    강제한다 → 반드시 a.doctor_id를 그대로 쓴다. is_completed=true(끝난 진료).
+-- 내용은 hashtext(a.id)로 흩어 진료마다 다르게 하되 창구에서 읽을 수 있는 범위로.
+insert into medical_records
+  (appointment_id, doctor_id, symptoms, diagnosis, treatment, patient_visible_notes, is_completed)
+select
+  a.id, a.doctor_id,
+  a.reason || ' — 문진 및 진찰 시행.',
+  (array['경증, 경과 관찰','급성 상기도 감염','근골격계 통증','위염 의증','알레르기성 비염',
+         '장염 의증','긴장성 두통','혈압 경계 소견','특이 소견 없음','바이러스성 감염'])
+    [(abs(hashtext(a.id::text)) % 10) + 1],
+  (array['약물 처방(3일분)','경과 관찰 후 재내원 안내','물리치료 병행','수분 섭취·휴식 권고',
+         '생활습관 교정 안내','대증 치료','국소 도포제 처방','추가 검사 예정'])
+    [(abs(hashtext(a.id::text || 'tx')) % 8) + 1],
+  (array['증상 지속 시 재방문해 주세요.','처방약을 시간 맞춰 복용하세요.','충분히 쉬시고 수분을 드세요.',
+         '다음 예약일에 경과를 보겠습니다.','','매운 음식·음주는 당분간 피하세요.'])
+    [(abs(hashtext(a.id::text || 'note')) % 6) + 1],
+  true
+from appointments a
+where a.status = '진료완료';
+
+-- 문진표 응답 — 정본 문항 형식(q1 단답·q2 장문·q3 예/아니오)에 맞춘 답을 심는다.
+-- 옛 시드는 템플릿 options에서 골랐으나, 정본엔 options가 없어 답을 형식별로 직접 만든다(항상 일치).
+insert into questionnaire_responses (appointment_id, template_id, answers)
+select
+  a.id, qt.id,
+  jsonb_build_object(
+    'q1', a.reason,
+    'q2', (array['어제 저녁부터 증상이 조금씩 있었습니다.','며칠 전부터 서서히 심해졌어요.',
+                 '오늘 아침에 갑자기 나타났습니다.','일주일 넘게 계속 이어지고 있어요.'])
+          [(abs(hashtext(a.id::text || 'q2')) % 4) + 1],
+    'q3', (array['예','아니오'])[(abs(hashtext(a.id::text || 'q3')) % 2) + 1]
+  )
+from appointments a
+join questionnaire_templates qt
+  on qt.department_id = a.department_id and qt.is_active
+where a.status = '진료완료';
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- §17. 시스템 오류 기록 (/admin/errors) — 현실적인 오류 15건
+--   화면이 비어 보이지 않게 실제 운영에서 날 법한 오류를 심는다. 시각은 재적재 순간 기준
+--   최근 며칠에 자연스럽게 흩는다(now() - interval). safe_summary만 화면에 보이고(결정#20),
+--   message(기술 상세)는 화면 계약에 없다. 보존 1년(ERRADM-SCOPE-03)이라 이 15건은 늘 보관 범위 안.
+--   ⚠️ is_service_outage=true(ERRADM-NOTI-02)는 "서비스 전체 장애"(발송 업체 무응답 등)에만. 15건 중
+--     문자 발송·푸시 알림 2건이 전체 장애라 amber 배지로 한 줄 구분된다. 나머지는 개별·부분 지연이라 false.
+-- ════════════════════════════════════════════════════════════════════════════
+insert into system_error_log (occurred_at, feature, message, safe_summary, is_service_outage) values
+  (now() - interval '2 hours',   '문자 발송',      'sms provider timeout after 30s (redacted)', '문자 서비스 전체 장애 — 발송 업체가 응답하지 않았습니다.', true),
+  (now() - interval '6 hours',   '예약 동기화',    'sync batch exceeded 60s lock wait',          '예약 상태 동기화 작업이 시간 초과로 종료되었습니다.', false),
+  (now() - interval '9 hours',   '문진 저장',      'db connection reset during write',           '문진 응답 저장 중 일시적인 데이터베이스 연결 오류가 있었습니다.', false),
+  (now() - interval '1 day 3 hours',  'PDF 생성',   'template load failed: form_v3 missing',      '진료 확인서 PDF 생성에 실패했습니다 — 서식 템플릿을 불러오지 못했습니다.', false),
+  (now() - interval '1 day 8 hours',  '캘린더 조회', 'slow query 4.2s on calendar range',         '캘린더 대량 조회 응답이 지연되었습니다.', false),
+  (now() - interval '1 day 14 hours', '푸시 알림',   'push auth token expired (redacted)',         '푸시 알림 서비스 전체 장애 — 인증 토큰이 만료되었습니다.', true),
+  (now() - interval '2 days 2 hours', '진료기록 저장', 'optimistic lock conflict, retried',       '진료기록 저장 중 동시 수정이 감지되어 재시도했습니다.', false),
+  (now() - interval '2 days 7 hours', '검색 색인',   'partial index rebuild failure',             '환자 검색 색인 갱신 중 일부가 실패했습니다.', false),
+  (now() - interval '2 days 15 hours','상담봇 응답', 'kb lookup timeout 8s',                       '상담봇 응답 생성이 지연되었습니다 — 지식베이스 조회가 시간을 초과했습니다.', false),
+  (now() - interval '3 days 4 hours', '야간 백업',   'storage 92% full at backup start',          '자정 백업 작업 중 저장소 용량이 부족했습니다.', false),
+  (now() - interval '3 days 11 hours','통계 집계',   'aggregation batch delayed 12m',             '운영 통계 집계 배치가 예상보다 지연되었습니다.', false),
+  (now() - interval '4 days 5 hours', '파일 업로드', 'rejected mime type application/x-msdownload','첨부 파일 업로드 처리 오류 — 허용되지 않은 형식입니다.', false),
+  (now() - interval '4 days 13 hours','예약 알림',   'reminder queue drain slow',                 '예약 리마인더 발송 큐 처리가 지연되었습니다.', false),
+  (now() - interval '5 days 6 hours', '야간 부도 처리','no-show batch paused then resumed',        '자정 예약 부도 처리 배치가 일시 중단 후 재개되었습니다.', false),
+  (now() - interval '5 days 16 hours','로그인',      'token verify transient error (redacted)',   '인증 토큰 검증 중 일시적인 오류가 있었습니다.', false);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- §17.5 병합 되돌림 이력 (/admin/merge-history) — MHIST-* 검증용 3건
+-- ════════════════════════════════════════════════════════════════════════════
+-- §15은 「병합 후보」를 보여주려고 patient_merges를 일부러 비워 뒀다. 이 화면(S18)은 반대로
+-- 「이미 발생한 병합」을 조회·되돌림하는 화면이라 원장 행이 있어야 렌더된다 → 여기서만 심는다.
+-- ⭐ §15 후보(=id 오름차순 첫 4명과 그 복제)와 겹치지 않게, 데이터가 있는 다른 환자 6명을 쓴다.
+--   병합된 대상은 is_active를 건드리지 않는다(다른 화면 교란 방지) — 원장 행만 남긴다.
+-- ⭐ 상태 3종을 now() 기준으로 만든다(트랜잭션 시작시각 하나로 고정되므로 아래가 결정적):
+--   · 되돌림가능(undoable): performed_at = now() → §16 진료기록(created_at=now())이 「그 뒤」가 아님(> 아님).
+--   · 되돌림완료(undone)  : undone_at/by/reason 채움(_undo_status가 undone을 먼저 판정).
+--   · 되돌림불가(locked)  : performed_at = 100일 전 → 대표의 진료기록(now())이 「그 뒤」라 잠김.
+with excluded as (select id from patients order by id limit 4),  -- §15 후보 원본 제외
+pool as (
+  select p.id, row_number() over (order by p.id) rn
+  from patients p
+  where p.is_active
+    and p.id not in (select id from excluded)
+    and exists (select 1 from appointments a
+                where a.for_patient_id = p.id and a.status = '진료완료')
+),
+pick as (select id, rn from pool where rn <= 6),
+prim as (select id, row_number() over (order by rn) k from pick where rn <= 3),
+merg as (select id, row_number() over (order by rn) k from pick where rn >= 4),
+adm  as (select id from staff where role = 'admin' order by id limit 1)
+insert into patient_merges
+  (primary_patient_id, merged_patient_id, performed_by, performed_at,
+   counts_snapshot, account_link_moved, undone_at, undone_by, undo_reason)
+select
+  pr.id, me.id, adm.id,
+  case pr.k when 1 then now()
+            when 2 then now() - interval '12 days'
+            else now() - interval '100 days' end,
+  jsonb_build_object('primary', '스냅샷(시드)', 'merged', '스냅샷(시드)'),
+  false,
+  case pr.k when 2 then now() - interval '10 days' else null end,
+  case pr.k when 2 then adm.id else null end,
+  case pr.k when 2 then '동명이인으로 확인되어 병합을 되돌렸습니다.' else null end
+from prim pr
+join merg me on me.k = pr.k
+cross join adm;
+
+commit;

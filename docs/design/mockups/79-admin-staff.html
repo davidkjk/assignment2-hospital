@@ -89,6 +89,15 @@ svg.i{width:14px;height:14px;vertical-align:-3px;fill:none;stroke:currentColor;s
         </div>
 
         <section class="impact" aria-label="의사 사용 중지 확인 팝업">
+          <div class="callout" style="border-left-color:#B44E00;background:#FFF6EE;margin:0 0 10px">
+            <svg class="i" style="color:#B44E00"><use href="#i-warn"/></svg>
+            <span><b>⚠️ 이 팝업 그림은 결정 #10 「이전」 상태다 (2026-08-16 표시).</b><br>
+            아래의 <b>SB-48 정책 ㉮/㉯/㉰ 고르기</b>와 <b>잠긴 [사용 중지 확정]</b> 버튼은 <b>더 이상 유효하지 않다.</b>
+            정책은 <b>A안으로 확정</b>됐고(자동 취소·재배정 금지 → <code>/today</code> 「확인 필요」 큐),
+            팝업은 <b>선택지 없이 A안 하나로만</b> 그린다. 정본은 규칙 <code>STAFF-DEACT-05~07</code>(<b>FINAL</b>)이다.<br>
+            ✅ 함께 확정: <b>의사 프로필(전문분야·소개·사진)·캘린더 색은 오른쪽 칸을 전환해 편집</b>한다(<code>STAFF-PROFILE-01~13</code>) ·
+            목록 줄에 <b><code>⚑ 초대함 · 아직 안 들어옴</code> 딱지와 마지막 로그인</b>을 함께 보인다(<code>STAFF-LIST-07~09</code>).</span>
+          </div>
           <div class="impact-h"><svg class="i"><use href="#i-warn"/></svg>사용 중지 전에 확인이 필요합니다 <span class="sp"></span><span class="rule warn">STAFF-DEACT-01</span><span class="rule warn">SB-48</span></div>
           <div class="impact-b">
             <div class="target"><div class="avatar">이</div><div><div class="name">이민호 · 의사</div><div class="meta">내과 · 직원 ID s-002 · 현재 활성</div></div><span class="status warn">예약 영향 있음</span></div>
@@ -117,7 +126,7 @@ svg.i{width:14px;height:14px;vertical-align:-3px;fill:none;stroke:currentColor;s
 
   <h2>레이아웃 결정 — A/B/C</h2>
   <div class="cmp">
-    <section class="opt win"><div class="opthd"><span class="tag ok">추천</span> ㉮ 목록 + 초대 2칸</div><div class="optbd"><div class="mini-shell"><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div style="display:grid;grid-template-columns:1.25fr .8fr;gap:5px"><div><div class="mini-line p"></div><div class="mini-row"></div><div class="mini-row"></div><div class="mini-row"></div></div><div><div class="mini-line"></div><div class="mini-input"></div><div class="mini-input"></div><div class="mini-line p"></div></div></div></div></div></div><p>권한 원본과 초대 폼을 같이 보며 중지 대상의 역할·소속·상태를 비교한다.</p></div><div class="verdict ok"><b>PROVISIONAL</b> — `STAFF-LIST-*`와 `STAFF-INVITE-*`를 같은 화면에 둔다.</div></section>
+    <section class="opt win"><div class="opthd"><span class="tag ok">추천</span> ㉮ 목록 + 초대 2칸</div><div class="optbd"><div class="mini-shell"><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div style="display:grid;grid-template-columns:1.25fr .8fr;gap:5px"><div><div class="mini-line p"></div><div class="mini-row"></div><div class="mini-row"></div><div class="mini-row"></div></div><div><div class="mini-line"></div><div class="mini-input"></div><div class="mini-input"></div><div class="mini-line p"></div></div></div></div></div></div><p>권한 원본과 초대 폼을 같이 보며 중지 대상의 역할·소속·상태를 비교한다.</p></div><div class="verdict ok"><b>✅ 확정 (2026-08-16)</b> — `STAFF-LIST-*`와 `STAFF-INVITE-*`를 같은 화면에 둔다. 오른쪽 칸은 의사 `[프로필]`을 누르는 <b>동안만</b> 프로필 편집으로 바뀌고, 닫으면 초대 폼으로 돌아온다(`STAFF-PROFILE-01·10`).</div></section>
     <section class="opt lose"><div class="opthd"><span class="tag no">기각</span> ㉯ 목록 / 초대 탭</div><div class="optbd"><div class="mini-shell"><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div class="mini-line"></div><div class="mini-line p"></div><div class="mini-row"></div></div></div></div><p>초대 중 현재 직원 목록과 중지 대상을 잃는다. 팝업이 다른 탭에 가려진다.</p></div><div class="verdict no"><b>기각 사유</b> — 권한 원본과 작업 입력을 분리해 판단 맥락을 끊는다.</div></section>
     <section class="opt lose"><div class="opthd"><span class="tag no">기각</span> ㉰ 중지 전용 화면</div><div class="optbd"><div class="mini-shell"><div class="mini-body"><div class="mini-nav"></div><div class="mini-main"><div class="mini-line w"></div><div class="mini-line"></div><div class="mini-line d"></div></div></div></div><p>예약 영향은 따로 찾아야 하고, 목록의 역할·소속과 동떨어진 파괴적 작업이 된다.</p></div><div class="verdict no"><b>기각 사유</b> — `P-04` 확인 맥락과 `SB-48`의 영향 예약 검토를 두 화면으로 나눈다.</div></section>
   </div>

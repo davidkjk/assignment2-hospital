@@ -4,7 +4,7 @@ from uuid import UUID
 
 import asyncpg
 
-from app.core.errors import AppError
+from app.core.errors import AppError, pg_error_to_app_error
 from app.core.security import StaffContext
 from app.db.pool import acquire_as
 from app.services import audit_service
@@ -30,8 +30,9 @@ async def create_draft_record(
                 appointment_id, staff.id, symptoms, diagnosis, treatment, patient_visible_notes,
             )
         except asyncpg.PostgresError as exc:
-            # enforce_medical_record_doctor_match 트리거 메시지는 이미 한글 안내문이다.
-            raise AppError(str(exc), status_code=400) from exc
+            # enforce_medical_record_doctor_match 트리거의 한글 안내(P0…)는 그대로,
+            # 그 밖의 드라이버 오류는 로그+고정 문구로.
+            raise (await pg_error_to_app_error(exc, "medical_record.create_draft")) from exc
 
     if conn is not None:
         return await _run(conn)
@@ -120,7 +121,8 @@ async def update_draft_record(
             )
         except asyncpg.PostgresError as exc:
             # 완료된 기록은 block_direct_update_of_completed_records 트리거가 거부한다.
-            raise AppError(str(exc), status_code=400) from exc
+            # 트리거의 한글 안내(P0…)는 그대로, 그 밖의 드라이버 오류는 로그+고정 문구로.
+            raise (await pg_error_to_app_error(exc, "medical_record.update_draft")) from exc
 
     if conn is not None:
         result = await _run(conn)
@@ -138,20 +140,39 @@ async def complete_record(
     staff: StaffContext,
     conn=None,
 ) -> None:
-    async def _run(c) -> str:
-        return await c.execute(
+    async def _run(c) -> None:
+        # ① 진료기록을 완료로 표시(낙관적 잠금).
+        result = await c.execute(
             "update medical_records set is_completed = true, updated_at = now() where id = $1 and updated_at = $2",
             record_id, expected_updated_at,
         )
+        if result == "UPDATE 0":
+            raise AppError("다른 사람이 먼저 수정했습니다. 새로고침 후 다시 시도하세요.", status_code=409)
+
+        # ② ⭐ 진료가 끝났으니 예약도 진료중 → 진료완료로 옮긴다(L59). 이게 없으면 기록만 완료되고 예약은
+        #    진료중에 남아, 의사 큐에서 빠지지도 「오늘 완료」로 내려가지도 않는다("완료 눌러도 아무 일 안 일어남").
+        #    상태 전이 유효성·이력은 DB 트리거(enforce_appointment_status_transition·상태이력)가 처리한다.
+        appt = await c.fetchrow(
+            "select a.id, a.status from appointments a "
+            "join medical_records mr on mr.appointment_id = a.id where mr.id = $1",
+            record_id,
+        )
+        if appt is not None and appt["status"] == "진료중":
+            try:
+                await c.execute(
+                    "update appointments set status = '진료완료', updated_at = now() "
+                    "where id = $1 and status = '진료중'",
+                    appt["id"],
+                )
+            except asyncpg.PostgresError as exc:
+                raise (await pg_error_to_app_error(exc, "medical_record.complete_transition")) from exc
 
     if conn is not None:
-        result = await _run(conn)
+        await _run(conn)
     else:
         async with acquire_as(str(staff.auth_user_id)) as c:
-            result = await _run(c)
-
-    if result == "UPDATE 0":
-        raise AppError("다른 사람이 먼저 수정했습니다. 새로고침 후 다시 시도하세요.", status_code=409)
+            async with c.transaction():
+                await _run(c)
 
 
 async def revise_completed_record(
@@ -172,11 +193,10 @@ async def revise_completed_record(
                 record_id, symptoms, diagnosis, treatment, patient_visible_notes, reason, expected_updated_at,
             )
         except asyncpg.PostgresError as exc:
-            # revise_medical_record() RPC의 예외 메시지는 이미 한글 안내문이다.
-            # P0003(낙관적 잠금 충돌)은 update_draft_record/complete_record의 동일 충돌과
-            # 같은 409로 맞춰, 클라이언트가 상태 코드만으로 재조회를 유도할 수 있게 한다.
-            status_code = 409 if getattr(exc, "sqlstate", None) == "P0003" else 400
-            raise AppError(str(exc), status_code=status_code) from exc
+            # revise_medical_record() RPC의 한글 안내(P0…)는 그대로 노출하고, P0003
+            # (낙관적 잠금 충돌)은 다른 수정 경로와 같은 409로 맞춘다. 그 밖의 드라이버
+            # 오류는 원문을 로그에만 남기고 고정 문구로 바꾼다.
+            raise (await pg_error_to_app_error(exc, "medical_record.revise")) from exc
 
     if conn is not None:
         return await _run(conn)

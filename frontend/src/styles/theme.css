@@ -1,0 +1,81 @@
+/* Tailwind v4 — tokens.css(생성물, 원본=design-tokens/tokens.json)를 소비하는 유틸리티 레이어.
+ *
+ * ✅ preflight(전역 태그 리셋)를 들여온다 — 2026-08-28 정정. 원래는 기존 인라인 style 화면(pages/*)을
+ *    지키려고 뺐는데, **인라인 style은 어떤 스타일시트보다 우선하므로 애초에 영향을 받지 않는다.**
+ *    빼 둔 대가로 데모 마크업이 브라우저 기본 스타일을 그대로 뒤집어썼다(버튼=회색 3D 크롬,
+ *    표=벌어진 칸, dd=40px 들여쓰기, ul=글머리표) → M3 포팅 UI가 「데모와 전혀 다르다」는 지적으로 드러남.
+ *    ⚠️ 레거시에서 실제로 달라지는 것은 **스타일을 안 준 태그의 기본 여백**뿐이다(전수: `<p>` 5 · `<h1~3>` 3 · `<table>` 9).
+ *
+ * 색·크기 "원본"은 tokens.css 하나다. 여기선 Tailwind 색 네임스페이스(bg-primary·
+ * text-foreground·border-border·bg-sidebar-ink …)를 그 토큰에 별칭만 한다 → 데모의
+ * shadcn 계열 클래스를 거의 그대로 포팅할 수 있다. radius(rounded-xl=12px)·기본 text 크기는
+ * Tailwind 기본값이 이미 실 토큰과 근사하므로 매핑하지 않는다. amber·white 등은 Tailwind 기본 팔레트. */
+@layer theme, base, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-primary-wash: var(--color-primary-wash);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-foreground: var(--color-ink);
+  --color-muted-foreground: var(--color-ink-muted);
+  --color-background: var(--color-bg);
+  --color-card: var(--color-surface);
+  --color-border: var(--color-divider);
+  --color-destructive: var(--color-danger);
+  --color-warn: var(--color-warn);
+  --color-muted: var(--color-done-bg);
+  --color-sidebar-ink: var(--color-sidebar-ink);
+  /* 데모가 전 화면 입력칸에 쓰는 shadcn 의미색 — border-input / focus:border-ring / focus:ring-ring. */
+  --color-input: var(--color-input);
+  --color-ring: var(--color-ring);
+  --font-logo: var(--font-logo);
+  /* 각진 촘촘 패널의 미세 그림자 — 데모 `shadow-[0_1px_2px_rgba(16,45,50,0.04)]`의 토큰판. */
+  --shadow-panel: var(--shadow-panel);
+}
+
+/* 데모 `index.css`의 `@layer base`와 같은 기반 설정 — 이 셋이 없으면 같은 마크업도 다르게 보인다. */
+@layer base {
+  /* 데모: `* { @apply border-border }`. 없으면 색을 안 준 `border`가 **글자색**으로 그려져 시커멓다. */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-divider);
+  }
+  /* ⭐ 데모: `html { font-size: 17px }` — 어르신 가독성. rem 기반이라 전 화면 글자·여백이 비례로 커진다.
+     브라우저 기본 16px로 두면 포팅한 화면이 통째로 6% 작아져 촘촘하고 옹색해 보인다.
+     G3 타이포 위계 롤아웃(2026-08-30)으로 전 화면이 rem 위계 토큰(--fs-caption/body/section/title)을
+     쓰므로 이 값에 비례한다. (통계 숫자용 --fs-num=20px만 px 유지.) */
+  html {
+    font-size: 17px;
+  }
+  /* [L28] 공용 텍스트 버튼(staff-ui `TextButton`) — 밑줄은 hover에서만, 비활성은 옅게. */
+  .staff-text-btn:hover {
+    text-decoration: underline;
+  }
+  .staff-text-btn:disabled {
+    cursor: default;
+    opacity: 0.5;
+    text-decoration: none;
+  }
+}
+
+/* [커서] Tailwind v4 preflight는 버튼 커서를 브라우저 기본(화살표)으로 둔다(v3→v4 변경점).
+   클릭 가능한 요소에 손모양(pointer)을, 비활성엔 not-allowed를 전역으로 준다.
+   인라인 style로 cursor를 준 곳은 그대로 우선한다. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  select,
+  label[for] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}

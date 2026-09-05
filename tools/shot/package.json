@@ -1,0 +1,9 @@
+{
+  "name": "shot",
+  "private": true,
+  "type": "module",
+  "//": "화면 대조 전용 도구 — 리포 본체 의존이 아니다. 이 디렉터리에서 `npm i` 후 shot.mjs를 돌린다.",
+  "dependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}

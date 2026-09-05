@@ -20,6 +20,7 @@ class SaveDraftRequest(BaseModel):
 
 class SaveDraftResponse(BaseModel):
     record_id: UUID
+    updated_at: datetime
 
 
 @router.post("/draft", response_model=SaveDraftResponse)
@@ -35,7 +36,10 @@ async def save_draft(
         patient_visible_notes=body.patient_visible_notes,
         staff=staff,
     )
-    return SaveDraftResponse(record_id=record_id)
+    # ⭐ 방금 만든 초안의 updated_at을 함께 돌려준다 — 완료가 이 값을 낙관적 잠금 기준으로 쓴다(L59).
+    #   없으면 완료 흐름이 엉뚱한 시각(현재시각)을 보내 방금 만든 초안에 409로 실패한다("완료 눌러도 무동작").
+    rec = await medical_record_service.get_record(body.appointment_id, staff)
+    return SaveDraftResponse(record_id=record_id, updated_at=rec["updated_at"])
 
 
 class CompleteRecordRequest(BaseModel):

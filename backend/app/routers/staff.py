@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel
 
 from app.core.security import StaffContext, require_role
-from app.services import staff_service
+from app.db.pool import acquire_as
+from app.services import staff_profile, staff_service
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
@@ -18,6 +19,17 @@ class InviteStaffRequest(BaseModel):
 
 class InviteStaffResponse(BaseModel):
     staff_id: UUID
+
+
+class UpdateProfileRequest(BaseModel):
+    specialty: str | None = None
+    bio: str | None = None
+    photo_url: str | None = None
+    calendar_color_index: int | None = None
+
+
+class DeactivateRequest(BaseModel):
+    impact_version: str | None = None
 
 
 @router.post("", response_model=InviteStaffResponse)
@@ -34,10 +46,67 @@ async def invite_staff(
 @router.patch("/{staff_id}/deactivate")
 async def deactivate_staff(
     staff_id: UUID,
+    body: DeactivateRequest | None = None,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> dict:
-    await staff_service.deactivate_staff(staff_id, deactivated_by=staff)
+    impact_version = body.impact_version if body is not None else None
+    await staff_service.deactivate_staff(staff_id, deactivated_by=staff, impact_version=impact_version)
     return {"status": "deactivated"}
+
+
+@router.get("/{staff_id}/deactivation-impact")
+async def get_deactivation_impact(
+    staff_id: UUID,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[STAFF-DEACT-04] 중지 확정 전 미리보기 — 건수·날짜·시각만(이름·전화 없음)."""
+    async with acquire_as(str(staff.auth_user_id)) as conn:
+        return await staff_service.get_deactivation_impact(conn, staff_id)
+
+
+@router.patch("/{staff_id}/profile")
+async def update_profile(
+    staff_id: UUID,
+    body: UpdateProfileRequest,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[STAFF-PROFILE-04] 전달된 칸만 갱신한다(부분 저장).
+
+    ⚠️ 안 보낸 칸은 **서비스의** `_UNSET`으로 채워져야 한다 — 라우터가 따로 만든 센티널을
+    넘기면 서비스의 `is not _UNSET` 검사가 그걸 못 알아보고 SQL 인자에 그대로 실어 500이 났다.
+    그래서 여기서는 보낸 칸만 `**fields`로 넘겨, 없는 칸은 서비스 기본값(`_UNSET`)이 채우게 둔다.
+    """
+    fields = body.model_dump(exclude_unset=True)
+    await staff_profile.update_doctor_profile(staff_id, staff=staff, **fields)
+    return {"status": "updated"}
+
+
+@router.post("/{staff_id}/photo")
+async def upload_photo(
+    staff_id: UUID,
+    file: UploadFile = File(...),
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[STAFF-PROFILE-06] 사진을 Storage에 올리고 공개 URL을 돌려준다."""
+    data = await file.read()
+    photo_url = await staff_profile.upload_photo(
+        staff_id,
+        filename=file.filename or "photo",
+        content_type=file.content_type or "application/octet-stream",
+        data=data,
+        staff=staff,
+    )
+    return {"photo_url": photo_url}
+
+
+@router.delete("/{staff_id}/photo")
+async def delete_photo(
+    staff_id: UUID,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[STAFF-PROFILE-07] 사진 칸을 비우고 저장소의 파일도 지운다."""
+    await staff_profile.delete_photo(staff_id, staff=staff)
+    return {"status": "deleted"}
 
 
 @router.get("")

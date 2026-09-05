@@ -1,0 +1,272 @@
+"""[CAL-SLOT-*][SCHED-EXC-12] 캘린더 조립 — 빗금은 resolve_day 하나로만 판정한다.
+
+⭐ 판정 함수는 하나뿐이다(SCHED-EXC-12) — 캘린더가 자기 계산을 가지면 같은 날이
+   캘린더에서는 진료중, 예약에서는 휴무가 된다. 그래서 빗금(점심·휴진)은 resolve_day가,
+   ⚠ 확인 필요는 list_affected_appointments가 판정한 것을 그대로 실어 나른다.
+"""
+import uuid
+from datetime import date, time, timedelta
+
+import pytest
+
+from app.services import dashboard_service
+from tests.conftest import seed_staff
+from tests.task13_fixtures import (
+    seed_department,
+    seed_doctor,
+    seed_patient,
+    seed_slot,
+    seed_appointment,
+    to_context,
+)
+
+# 2026-08-17 = 월요일(weekday 0), 2026-08-22 = 토요일.
+MON = date(2026, 8, 17)
+SAT = date(2026, 8, 22)
+
+
+async def _rule(conn, doctor, weekday, **kw):
+    await conn.execute(
+        """
+        insert into doctor_schedule_rules
+          (doctor_id, weekday, start_time, end_time, slot_duration_minutes,
+           lunch_start, lunch_end, max_daily_appointments, is_day_off)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        """,
+        doctor, weekday,
+        kw.get("start", time(9)), kw.get("end", time(18)),
+        kw.get("slot", 20), kw.get("lunch_start"), kw.get("lunch_end"),
+        kw.get("max_daily", 30), kw.get("is_day_off", False),
+    )
+
+
+@pytest.mark.asyncio
+async def test_캘_슬롯_09_점심_빗금은_의사마다_다른_시각에_그려진다(db_conn):
+    """[CAL-SLOT-08·09] 점심은 doctor_schedule_rules에서 의사별로 읽는다 — 빗금이 열마다 다르다."""
+    dept = await seed_department(db_conn)
+    doc1 = await seed_doctor(db_conn, dept)
+    doc2 = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc1["staff_id"], MON.weekday(), lunch_start=time(12), lunch_end=time(13))
+    await _rule(db_conn, doc2["staff_id"], MON.weekday(), lunch_start=time(13), lunch_end=time(14))
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc1["staff_id"], doc2["staff_id"]], conn=db_conn
+    )
+
+    lunches = {
+        (b["doctor_id"], b["start"], b["end"])
+        for b in result["blocks"] if b["kind"] == "lunch"
+    }
+    assert (doc1["staff_id"], time(12), time(13)) in lunches
+    assert (doc2["staff_id"], time(13), time(14)) in lunches  # 의사마다 다른 시각
+
+
+@pytest.mark.asyncio
+async def test_캘_슬롯_03_휴진일은_한_덩어리_휴진_빗금이_된다(db_conn):
+    """[CAL-SLOT-03] 요일 규칙이 없는(=휴진) 날은 resolve_day가 닫고 closed 빗금 한 줄이 나온다."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    # MON 규칙은 넣고 SAT 규칙은 안 넣는다 → SAT는 휴진.
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=SAT, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    # 하루 전체 휴진 = start·end 둘 다 None인 한 덩어리 빗금. 진료시간 밖 봉투(아래 테스트)와 구분한다.
+    full_off = {b["date"] for b in result["blocks"] if b["kind"] == "closed" and b["start"] is None and b["end"] is None}
+    assert SAT in full_off  # 휴진일은 하루 전체 빗금
+    assert MON not in full_off  # 진료일은 하루 전체 휴진 빗금이 아니다
+
+
+@pytest.mark.asyncio
+async def test_캘_슬롯_11_진료하는_날도_시작전_종료후는_못잡는_빗금이_된다(db_conn):
+    """[CAL-SLOT-04·11][CAL-BOOK-04d] 09~13시만 보는 의사의 13시 뒤가 빈칸으로 클릭 가능하면,
+    예약 검증(`진료 시간 밖` 400)과 어긋나 막다른 길이 된다. 시작 전·종료 후도 closed 빗금으로 막는다."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    # 월요일은 09:00~13:00만 진료(오전만).
+    await _rule(db_conn, doc["staff_id"], MON.weekday(), start=time(9), end=time(13))
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    closed = [b for b in result["blocks"] if b["kind"] == "closed"]
+    # 종료(13:00) 뒤를 창 끝까지 막는 빗금이 있다(start=13:00, end=None).
+    assert any(b["start"] == time(13) and b["end"] is None for b in closed), closed
+    # 시작(09:00) 전을 막는 빗금도 있다(start=None, end=09:00).
+    assert any(b["start"] is None and b["end"] == time(9) for b in closed), closed
+    # 하루 전체 휴진 빗금은 아니다(진료는 한다).
+    assert not any(b["start"] is None and b["end"] is None for b in closed), closed
+
+
+@pytest.mark.asyncio
+async def test_캘_슬롯_05_확인필요_예약은_affected로_표시된다(db_conn):
+    """[CAL-SLOT-05] 일정 변경 영향 예약은 list_affected_appointments 판정을 그대로 싣는다."""
+    from tests.task13_fixtures import db_today
+
+    # list_affected_appointments는 미래 예약만 본다 — 오늘 이후 날짜로 잡는다.
+    today = await db_today(db_conn)
+    future = today + timedelta(days=7)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], future.weekday())
+    patient = await seed_patient(db_conn)
+    slot = await seed_slot(db_conn, doc["staff_id"], future, start_time=time(10))
+    appt = await seed_appointment(
+        db_conn, doctor_id=doc["staff_id"], department_id=dept, patient_id=patient,
+        slot_id=slot, status="예약확정",
+    )
+    # 그 날 그 의사를 종일 휴진으로 덮는다 → 그 예약이 영향권에 든다.
+    await db_conn.execute(
+        "insert into doctor_schedule_exceptions (doctor_id, exception_date, is_closed) values ($1,$2,true)",
+        doc["staff_id"], future,
+    )
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=future, to=future, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    assert appt in set(result["affected_appointment_ids"])
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_활성의사를_이름과_진료과와_함께_싣는다(db_conn):
+    """[CAL-NAME][CAL-COLOR] 격자가 열을 그리려면 doctors 카탈로그(id·name·진료과)가 응답에 있어야 한다."""
+    dept = await seed_department(db_conn, name="정형외과")
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["name"] == "Test Staff"
+    assert entry["department_name"] == "정형외과"
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_palette_index는_아직_null이다(db_conn):
+    """[CAL-COLOR-10 / 갭 #83] 색 저장 칸이 아직 없다(Task 19) — 계약만 열어 두고 항상 null."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["palette_index"] is None
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_doctor_ids로_필터된다(db_conn):
+    """[CAL-VIEW] doctor_ids가 오면 그 의사만 카탈로그에 든다 — 지정 밖 의사는 빠진다."""
+    dept = await seed_department(db_conn)
+    doc1 = await seed_doctor(db_conn, dept)
+    doc2 = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc1["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc1["staff_id"]], conn=db_conn
+    )
+
+    ids = {d["id"] for d in result["doctors"]}
+    assert doc1["staff_id"] in ids
+    assert doc2["staff_id"] not in ids  # 지정 밖 의사는 카탈로그에서 빠진다
+
+
+@pytest.mark.asyncio
+async def test_예약_막대는_이름은_실명_전화_생년월일은_아예_없다(db_conn):
+    """[MASK-SRV-01][요구사항 :81] 캘린더 막대도 목록이다 — 가리는 것은 **전화·생년월일**이고,
+
+    이름은 실명이다(`SEARCH-RESULT-09` 계열). 원본 전화·생년월일 키는 응답에 아예 없다.
+    """
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    patient = await seed_patient(db_conn, name="홍길동")
+    slot = await seed_slot(db_conn, doc["staff_id"], MON, start_time=time(10))
+    appt = await seed_appointment(
+        db_conn, doctor_id=doc["staff_id"], department_id=dept, patient_id=patient,
+        slot_id=slot, status="예약확정",
+    )
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    bar = next(b for b in result["appointments"] if b["appointment_id"] == appt)
+    assert bar["name"] == "홍길동" and "masked_name" not in bar
+    assert "patient_name" not in bar and "phone" not in bar and "birth_date" not in bar
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_그_날_요일의_진료길이를_싣는다(db_conn):
+    """[CAL-TIME-09][CAL-NAME-02] 「N분 진료」는 서버가 준 근거로만 적는다.
+
+    ⭐ 예약 문(세 문의 '예약')은 **아직 아무 예약도 없는 날**에 첫 예약을 잡는 일이 흔하다.
+       화면이 예약 막대 길이에서 진료 길이를 거꾸로 추측하면(gridModel.deriveSlotMinutes)
+       그런 날엔 추측이 실패해 20분 의사에게도 「15분 진료」라고 **틀린 값**을 적고,
+       그 틀린 길이로 겹침(CAL-GAP-09)까지 계산한다. 그래서 카탈로그가 직접 싣는다.
+    """
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday(), slot=20)
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["slot_minutes"] == 20
+
+
+@pytest.mark.asyncio
+async def test_캘_카탈로그_그_요일_규칙이_없으면_진료길이는_null이다(db_conn):
+    """[QUEUE-WALK-08c] 근거가 없으면 말하지 않는다 — 그 요일에 규칙이 없으면 길이를 지어내지 않는다."""
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday(), slot=20)
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    # 토요일 — 그 요일 규칙을 넣지 않았다.
+    result = await dashboard_service.get_calendar(
+        staff, from_=SAT, to=SAT, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
+    assert entry["slot_minutes"] is None
+
+
+@pytest.mark.asyncio
+async def test_캘_예약_가능한_마지막_날을_함께_준다(db_conn):
+    """[CAL-BOOK-13][SCHED-SLOT-09] 화면이 「8주」를 박지 않게 서버가 경계를 알려준다.
+
+    ⭐ 갭 #47의 재발 방지다(`BOOK-DATE-08`: *"앱이 8을 박지 않음"*). 숫자를 화면에 박으면
+       병원이 예약 범위를 12주로 바꿨을 때 **서버는 12주치 자리를 만드는데 화면만 8주에서 멈춘다.**
+    📌 경계는 슬롯 생성과 같은 날이다 — `regenerate_slots`가 `오늘 ~ 오늘+N주`를 덮는다.
+    """
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, doc["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    result = await dashboard_service.get_calendar(
+        staff, from_=MON, to=MON, doctor_ids=[doc["staff_id"]], conn=db_conn
+    )
+
+    expected = await db_conn.fetchval("select (current_date + interval '8 weeks')::date")
+    assert result["booking_horizon_date"] == expected

@@ -1,0 +1,503 @@
+import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/pending_request.dart' show koreanTime;
+import '../../core/tokens.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/patient_app_bar.dart';
+import '../appointment/appointment_detail.dart' show appointmentDetailProvider;
+import '../family/family_repository.dart';
+import '../home/status_badge.dart' show StatusBadge;
+import '../notifications/notification_gone_dialog.dart' show showNotificationGoneDialog;
+import 'history_repository.dart';
+import 'history_row_detail.dart';
+
+/// 취소 날짜·시각 한 줄(HIST-ROW-03) — '7월 18일 오후 3:12'. 카드(T17)와 같은 어휘.
+String _cancelDateTime(DateTime t) => '${t.month}월 ${t.day}일 ${koreanTime(t)}';
+
+/// 취소 주체 한 줄(HIST-ROW-02·05) — CxlBody(T17)와 같은 의미라 카드·이력 문구가 어긋나지 않는다.
+String _cancelActorText(VisitHistoryEntry e) {
+  if (e.cancelledBy == 'hospital') return '병원에서 취소'; // HIST-ROW-05: 직원 이름 없음
+  if (e.isSelf) return '본인 취소'; // HIST-ROW-02
+  return '${e.cancelledByRelation ?? ''} ${e.cancelledByName ?? ''} 님 취소'.trim();
+}
+
+/// 가로 이름 칩 — 본인 먼저·가족 이름순. 가족 0명이면 줄 자체를 감춘다(HIST-WHO-04).
+class NameChips extends StatelessWidget {
+  const NameChips({super.key, required this.members, required this.selectedId, required this.onSelect});
+  final List<FamilyMember> members;
+  final String? selectedId;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (members.length <= 1) return const SizedBox.shrink(); // HIST-WHO-04: 가족 0명이면 칩 줄 없음
+    final sorted = [...members]..sort((x, y) {
+        // HIST-WHO-02: 본인 먼저, 가족 이름순
+        if (x.isSelf != y.isSelf) return x.isSelf ? -1 : 1;
+        return x.name.compareTo(y.name);
+      });
+    return SingleChildScrollView(
+      key: const Key('history-chip-row'),
+      scrollDirection: Axis.horizontal, // HIST-WHO-05: 가로 스크롤(줄바꿈 아님)
+      // 데모 mb-5 pb-1 — 칩 줄 아래 여백. 좌우 16(데모 px-5 대응은 리스트 패딩과 통일해 16).
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Row(children: [
+        for (final m in sorted)
+          Padding(
+            padding: const EdgeInsets.only(right: 8), // 데모 gap-2
+            child: Builder(builder: (context) {
+              final sel = m.id == selectedId;
+              // 데모 사람 칩: rounded-full px-4 py-2 text-sm. 선택=bg-primary+흰 글자, 미선택=흰 배경+테두리.
+              // Material ChoiceChip을 데모 룩으로 스타일(체크표시 제거·스타디움·틸 채움) — a11y 유지.
+              return ChoiceChip(
+                label: Text(m.name),
+                selected: sel,
+                showCheckmark: false,
+                onSelected: (_) => onSelect(m.id), // HIST-WHO-10: 콜백만(화면 안 옮김)
+                backgroundColor: AppTokens.surface,
+                selectedColor: AppTokens.primary,
+                side: BorderSide(color: sel ? AppTokens.primary : AppTokens.border),
+                shape: const StadiumBorder(),
+                labelStyle: TextStyle(
+                    fontSize: 14, color: sel ? Colors.white : AppTokens.onSurface),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 6), // 데모 px-4 근사
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }),
+          ),
+      ]),
+    );
+  }
+}
+
+/// 데모 History.tsx의 둥근 알약 버튼을 그대로 옮긴 것 — 연도 바로가기 칩.
+/// 흰 배경+테두리, 틸 글자(textColor). 이름 칩은 a11y 위해 ChoiceChip으로 별도 구현.
+class _HistoryPill extends StatelessWidget {
+  const _HistoryPill({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // 데모 px-4 py-2
+    this.textColor,
+    this.fontWeight = FontWeight.w400,
+  });
+  final String label;
+  final VoidCallback onTap;
+  final EdgeInsets padding;
+  final Color? textColor;
+  final FontWeight fontWeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = textColor ?? AppTokens.onSurface;
+    return Material(
+      color: AppTokens.surface, // 데모 bg-card
+      shape: const StadiumBorder(side: BorderSide(color: AppTokens.border)), // 데모 rounded-full + border
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: padding,
+          child: Text(label,
+              style: TextStyle(fontSize: 14, fontWeight: fontWeight, color: fg)), // 데모 text-sm
+        ),
+      ),
+    );
+  }
+}
+
+const _weekdayNames = ['월', '화', '수', '목', '금', '토', '일']; // DateTime.weekday: 월=1
+String _weekdayKo(DateTime d) => _weekdayNames[d.weekday - 1];
+
+/// 날짜 레일 — 일 크게(고정폭) / 요일 작게. 데모(History.tsx)처럼 왼쪽에 4px 강조 바.
+/// ⭐ 월은 그룹 헤더로 올렸다(레일엔 일+요일만) — 데모와 동일. HIST-LIST-04 갱신(월을 레일에서 헤더로).
+/// 바 색은 HIST-LIST-05·06(레일 색) 그대로. 일 글자는 데모처럼 완료(딥틸)면 딥틸, 아니면 본문색.
+class DateRail extends StatelessWidget {
+  const DateRail({super.key, required this.date, required this.color});
+  final DateTime? date;
+  final Color color;
+  @override
+  Widget build(BuildContext context) {
+    final dayColor = color == AppTokens.primary ? AppTokens.primary : AppTokens.onSurface;
+    return Container(
+      // 데모 w-12(48)을 글자 배율(textScaler)만큼 키운다 — 고정 44는 폰트가 커지면 두 자리 날짜(27 등)가
+      // 세로로 쪼개진다. 데모는 rem이라 루트 커지면 칸도 함께 커져 한 줄을 유지한다.
+      width: MediaQuery.textScalerOf(context).scale(48),
+      decoration: date == null
+          ? null
+          : BoxDecoration(
+              border: Border(left: BorderSide(color: color, width: 4)), // 데모 border-l-4
+            ),
+      padding: date == null ? null : const EdgeInsets.only(left: 8), // 데모 pl-2
+      child: date == null
+          ? const SizedBox()
+          : Column(
+              mainAxisAlignment: MainAxisAlignment.center, // 레일 세로 가운데(데모 justify-center)
+              children: [
+                Text('${date!.day}', // 데모 text-2xl이나 전역 배율(1.22)로 커져 20으로 낮춤(2026-09-03 사용자)
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: dayColor,
+                      height: 1.0,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    )),
+                const SizedBox(height: 2), // 데모 mt-0.5
+                Text('(${_weekdayKo(date!)})',
+                    style: const TextStyle(fontSize: 12, color: AppTokens.grayPending)), // 데모 text-xs muted
+              ],
+            ),
+    );
+  }
+}
+
+/// 상태 배지 — 배경 있는 알약(HIST-ROW-13, 2026-09-05 결정 ④ A안). 홈·예약과 **같은 공용 부품**
+/// (StatusBadge)을 써서 화면 간 통일. 색 톤은 데모 History StatusBadge대로:
+/// 완료=딥틸(흰 글자) · 취소=muted(옅은 회색 바탕·진회색 글자) · 방문하지 않음=slate(흰 글자) ·
+/// 확정되지 않음=amber(홈·예약의 미확정과 같은 부품 톤, 흰 글자). 하드코딩 금지 — 전부 AppTokens.
+class VisitBadge extends StatelessWidget {
+  const VisitBadge({super.key, required this.status});
+  final VisitStatus status;
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, textColor) = switch (status) {
+      VisitStatus.done => ('진료 완료', AppTokens.primary, AppTokens.badgeOnColor),
+      VisitStatus.cancelled => ('취소됨', AppTokens.muted, AppTokens.badgeSlate),
+      VisitStatus.noShow => ('방문하지 않음', AppTokens.badgeSlate, AppTokens.badgeOnColor),
+      VisitStatus.unconfirmed => ('확정되지 않음', AppTokens.badgeAmber, AppTokens.badgeOnColor),
+    };
+    return StatusBadge(label: label, color: color, textColor: textColor);
+  }
+}
+
+/// 지나간 예약 한 줄 — 접힌 모습 + 펼침 슬롯. detail은 T27b가 실제 위젯을 주입한다(양방향 악수).
+class HistoryRow extends StatelessWidget {
+  const HistoryRow({super.key, required this.entry, required this.expanded, required this.onToggle, required this.detail});
+  final VisitHistoryEntry entry;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget detail; // ⭐ 펼침 슬롯 — T27a는 빈 상자, T27b가 알맹이
+  @override
+  Widget build(BuildContext context) {
+    final struck = entry.status == VisitStatus.cancelled; // HIST-ROW-04: 취소만 취소선
+    final railColor = (entry.status == VisitStatus.done && (entry.patientVisibleNotes ?? '').isNotEmpty)
+        ? AppTokens.primary
+        : AppTokens.grayPending; // HIST-LIST-05·06
+    // 데모(History.tsx `<Card>`)처럼 각 줄을 흰 카드로 — 그림자는 바깥 Container(안쪽에 두면
+    // 카드 사각형에 잘려 "각진 네모/단절"로 보인다 — booking_widgets 구조와 동일).
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // 데모 space-y-3
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTokens.surface,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: AppTokens.cardElevation,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            InkWell(
+              onTap: onToggle, // HIST-LIST-08: 누르면 펼침(이동 없음)
+              child: Padding(
+                padding: const EdgeInsets.all(16), // 데모 p-4
+                child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  DateRail(date: entry.slotDate, color: railColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${entry.departmentName} · ${entry.doctorName}',
+                          key: const Key('history-row-title'),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              decoration: struck ? TextDecoration.lineThrough : null)), // HIST-ROW-04
+                      if (entry.status == VisitStatus.cancelled) ...[
+                        Text('취소됨 · ${_cancelActorText(entry)}',
+                            style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-02
+                        if (entry.cancelledAt != null)
+                          Text(_cancelDateTime(entry.cancelledAt!),
+                              style: const TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-03
+                      ],
+                      if (entry.status == VisitStatus.unconfirmed)
+                        const Text('병원에서 확정하지 않아 진료가 진행되지 않았습니다',
+                            style: TextStyle(fontSize: 13, color: AppTokens.grayDone)), // HIST-ROW-11
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  VisitBadge(status: entry.status), // HIST-LIST-07 오른쪽 배지
+                  const SizedBox(width: 6),
+                  // 펼침 affordance(데모 ChevronDown) — 배지 위치 규칙(HIST-LIST-07) 유지하며 오른쪽에 덧댐.
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: const Icon(AppIcons.expand_more, size: 20, color: AppTokens.primary),
+                  ),
+                ]),
+              ),
+            ),
+            if (expanded) // T27b가 채운다(HIST-NOTE·HIST-QNR) — 데모처럼 border-t로 구분
+              Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: AppTokens.border)),
+                ),
+                padding: const EdgeInsets.only(top: 8),
+                child: detail,
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// ⭐ 양방향 악수 갚음(T27b): T27a는 빈 상자였다 — 이제 안내문+문진 알맹이를 돌려준다.
+Widget historyDetailBuilder(VisitHistoryEntry e) => HistoryRowDetail(entry: e);
+
+/// 이력 탭. 칩으로 사람 하나 골라 그 사람의 지나간 예약 전체를 본다(HIST-ROLE-01).
+class HistoryScreen extends ConsumerStatefulWidget {
+  const HistoryScreen({super.key, this.deepLinkAppointment});
+  final String? deepLinkAppointment; // NAV-HIST-05·06: 알림이 넘긴 예약 id(?appointment=)
+  @override
+  ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  final _scroll = ScrollController();
+  final Set<String> _expanded = {}; // 펼친 줄 id(여러 개 가능 — HIST-LIST-10)
+  final Map<int, GlobalKey> _yearKeys = {}; // 연도 헤더 위치(연도 바로가기 스크롤 대상)
+
+  // UI-HISTORY(데모 A-2 대비): 연도 칩을 누르면 그 해 헤더로 부드럽게 스크롤한다.
+  void _jumpToYear(int year) {
+    final ctx = _yearKeys[year]?.currentContext;
+    if (ctx == null) return; // 아직 안 불러온 해면 칩 자체가 없다
+    Scrollable.ensureVisible(ctx,
+        duration: const Duration(milliseconds: 300), alignment: 0.0);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_maybeLoadMore);
+    if (widget.deepLinkAppointment != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleDeepLink());
+    }
+  }
+
+  /// 알림 딥링크(?appointment=)엔 patient가 없다 → 상세로 소유자를 찾아 그 칩을 고르고 그 줄을 편다.
+  /// 못 찾으면(가족 연결 해제·지워짐) 안내 팝업 + 알림은 목록에 남긴다(NAV-HIST-05·06·07).
+  Future<void> _handleDeepLink() async {
+    final apptId = widget.deepLinkAppointment;
+    if (apptId == null) return;
+    final detail = await ref.read(appointmentDetailProvider(apptId).future).catchError((_) => null);
+    final owner = detail?.forPatientId;
+    final chips = ref.read(historyChipsProvider).valueOrNull ?? [];
+    if (owner == null || !chips.any((m) => m.id == owner)) {
+      if (mounted) showNotificationGoneDialog(context); // NAV-HIST-07(B-12) — 이동 안 함
+      return;
+    }
+    ref.read(selectedHistoryPatientProvider.notifier).state = owner; // 그 사람 칩 선택(HIST-WHO-08)
+    HistoryState? page;
+    try {
+      page = await ref.read(historyProvider.future); // 그 사람 이력 로드
+    } catch (_) {
+      page = null;
+    }
+    if (page == null || page.items.every((e) => e.id != apptId)) {
+      if (mounted) showNotificationGoneDialog(context); // 로드했는데 그 줄이 없다 → NAV-HIST-07
+      return;
+    }
+    if (mounted) setState(() => _expanded.add(apptId)); // 그 줄 펼침(완료면 안내문이 그 안 — NAV-HIST-06)
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _maybeLoadMore() {
+    // 끝 가까우면 다음 20건(HIST-LIST-16)
+    if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 400) {
+      ref.read(historyProvider.notifier).loadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = ref.watch(historyChipsProvider);
+    final selfId = chips.valueOrNull?.where((m) => m.isSelf).map((m) => m.id).firstOrNull;
+    final selected = ref.watch(selectedHistoryPatientProvider) ?? selfId; // HIST-WHO-03: 기본 본인
+    ref.listen(selectedHistoryPatientProvider, (_, __) => setState(_expanded.clear)); // HIST-LIST-11 재진입 접힘
+    final page = ref.watch(historyProvider);
+    return Scaffold(
+      appBar: const PatientAppBar(title: '이력', icon: AppIcons.history), // HIST-ROLE-02: 「이력」(「방문 이력」 아님)
+      body: Column(children: [
+        chips.when(
+          data: (ms) => NameChips(
+              members: ms,
+              selectedId: selected,
+              onSelect: (id) => ref.read(selectedHistoryPatientProvider.notifier).state = id), // HIST-WHO-10
+          loading: () => const SizedBox(),
+          error: (_, __) => const SizedBox(),
+        ),
+        Expanded(
+          child: page.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => EmptyState.offline(
+                screenName: '이력', // HIST-LIST-13·14 한 벌(오프라인·조회 실패 같은 벌)
+                onRetry: () => ref.read(historyProvider.notifier).reload()),
+            data: (st) => st.items.isEmpty
+                ? EmptyState.zero(
+                    message: '아직 방문하신 기록이 없습니다', // HIST-LIST-12
+                    nextAction: TextButton(
+                        onPressed: () => context.go('/booking'), child: const Text('+ 진료 예약하기')))
+                : ListView(controller: _scroll, children: [
+                    _YearJumpBar(
+                        years: _distinctYears(st.items), onJump: _jumpToYear),
+                    ..._withYearHeaders(st.items), // HIST-LIST-01·02·03
+                    if (st.loadingMore)
+                      const Padding(padding: EdgeInsets.all(12), child: Text('◌ 불러오는 중…')), // HIST-LIST-17
+                    if (st.appendError)
+                      TextButton(
+                          onPressed: () => ref.read(historyProvider.notifier).loadMore(),
+                          child: const Text('다시 시도')), // HIST-LIST-19(기존 줄 유지)
+                    if (st.next == null && !st.loadingMore && st.items.isNotEmpty)
+                      const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Text('처음부터 모두 보여드렸습니다',
+                              style: TextStyle(color: AppTokens.grayDone))), // HIST-LIST-18
+                  ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  List<Widget> _withYearHeaders(List<VisitHistoryEntry> items) {
+    final out = <Widget>[];
+    int? lastYear;
+    String? lastMonthKey;
+    for (final e in items) {
+      // 최신 위(서버가 이미 정렬 — HIST-LIST-01)
+      final d = e.slotDate;
+      // ⭐ 데모처럼 연·월을 그룹 헤더로(레일에서 뺐다). 연 바뀌면 헤더+월 헤더 다시 찍는다.
+      if (d != null && d.year != lastYear) {
+        out.add(_YearHeader(
+          year: d.year,
+          headerKey: _yearKeys.putIfAbsent(d.year, () => GlobalKey()), // 연도 바로가기 스크롤 대상
+        ));
+        lastYear = d.year;
+      }
+      final monthKey = d == null ? null : '${d.year}-${d.month}';
+      if (monthKey != null && monthKey != lastMonthKey) {
+        out.add(_MonthHeader(month: d!.month));
+        lastMonthKey = monthKey;
+      }
+      out.add(HistoryRow(
+        entry: e,
+        expanded: _expanded.contains(e.id),
+        onToggle: () =>
+            setState(() => _expanded.contains(e.id) ? _expanded.remove(e.id) : _expanded.add(e.id)),
+        detail: KeyedSubtree(
+            key: Key('history-expanded-${e.id}'), child: historyDetailBuilder(e)), // ⭐ T27a: SizedBox
+      ));
+    }
+    return out;
+  }
+
+  // 불러온 항목에서 나타나는 해를 최신순으로(중복 제거). 연도 바로가기 칩 재료.
+  List<int> _distinctYears(List<VisitHistoryEntry> items) {
+    final out = <int>[];
+    for (final e in items) {
+      final y = e.slotDate?.year;
+      if (y != null && !out.contains(y)) out.add(y);
+    }
+    return out;
+  }
+}
+
+/// UI-HISTORY(데모 A-2 대비) — 연도 바로가기 칩 줄. 해가 둘 이상일 때만 보인다.
+/// 규칙서엔 헤더(HIST-LIST-02)만 있고 이 편의는 데모 방향 리스킨으로 더한 것.
+class _YearJumpBar extends StatelessWidget {
+  const _YearJumpBar({required this.years, required this.onJump});
+  final List<int> years;
+  final void Function(int) onJump;
+
+  @override
+  Widget build(BuildContext context) {
+    if (years.length < 2) return const SizedBox.shrink(); // 한 해뿐이면 군더더기
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), // 데모 mb-4
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(right: 8), // 데모 gap-2
+              child: Text('바로가기',
+                  style: TextStyle(fontSize: 12, color: AppTokens.grayPending)), // 데모 text-xs muted
+            ),
+            for (final y in years)
+              Padding(
+                padding: const EdgeInsets.only(right: 8), // 데모 gap-2
+                child: _HistoryPill(
+                  key: Key('year-jump-$y'),
+                  label: '$y년',
+                  onTap: () => onJump(y),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), // 데모 px-3 py-1.5
+                  textColor: AppTokens.primary,
+                  fontWeight: FontWeight.w500, // 데모 font-medium
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 연도 그룹 헤더 — 데모: text-base font-bold `2026년` + 오른쪽으로 뻗는 얇은 선(bg-border).
+class _YearHeader extends StatelessWidget {
+  const _YearHeader({required this.year, required this.headerKey});
+  final int year;
+  final Key headerKey;
+  @override
+  Widget build(BuildContext context) => Padding(
+        key: headerKey,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), // 데모 pt-3
+        child: Row(children: [
+          Text('$year년',
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: AppTokens.onSurface)),
+          const SizedBox(width: 12), // 데모 gap-3
+          const Expanded(child: Divider(height: 1, thickness: 1, color: AppTokens.border)),
+        ]),
+      );
+}
+
+/// 월 그룹 헤더 — 데모: text-sm font-semibold text-primary `9월` + 옅은 틸 선(bg-primary/15).
+class _MonthHeader extends StatelessWidget {
+  const _MonthHeader({required this.month});
+  final int month;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4), // 데모 pt-1
+        child: Row(children: [
+          Text('$month월',
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w600, color: AppTokens.primary)),
+          const SizedBox(width: 12), // 데모 gap-3
+          Expanded(
+              child: Divider(
+                  height: 1, thickness: 1, color: AppTokens.primary.withValues(alpha: 0.15))), // 데모 bg-primary/15
+        ]),
+      );
+}

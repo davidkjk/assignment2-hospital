@@ -1,0 +1,7 @@
+{
+  "name": "assignment2-hospital",
+  "private": true,
+  "scripts": {
+    "lint:tokens": "node design-tokens/lint-tokens.mjs frontend/src # CI gate: run npm run lint:tokens in the required checks"
+  }
+}

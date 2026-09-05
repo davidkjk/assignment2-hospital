@@ -1,0 +1,362 @@
+import { render, screen, within, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { http, HttpResponse } from 'msw'
+import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, expect, test, vi } from 'vitest'
+import { server } from '../../test/msw/server'
+import { CalendarPage } from './CalendarPage'
+import { PanelHost, PanelProvider } from '../../components/PanelHost'
+import { DoorProvider } from '../../shell/doors/DoorContext'
+import { DoorRegion } from '../../shell/doors/panels'
+import type { CalendarData } from '../../api/calendar'
+
+// 셸 채널 구독만 하는 useCalendarRealtime가 실제 supabase를 부르지 않게 막는다(SHELL-LIVE-02).
+vi.mock('../../lib/supabaseClient', () => ({
+  supabase: {
+    channel: () => ({ on() { return this }, subscribe() { return this } }),
+    removeChannel: () => {},
+  },
+}))
+
+const NOW = new Date('2026-08-06T09:00:00+09:00') // 목요일
+
+const DATA: CalendarData = {
+  booking_horizon_date: '2026-10-01',
+  doctors: [
+    { id: 'd1', name: '박지훈', department_name: '내과', palette_index: null, slot_minutes: null },
+    { id: 'd2', name: '최민석', department_name: '내과', palette_index: null, slot_minutes: null },
+    { id: 'd3', name: '한소연', department_name: '피부과', palette_index: null, slot_minutes: null },
+  ],
+  appointments: [
+    { patient_id: 'p1', name: '김*지', appointment_id: 'a1', doctor_id: 'd1', status: 'confirmed', start: '2026-08-06T10:00:00+09:00', end: '2026-08-06T10:15:00+09:00' },
+  ],
+  blocks: [],
+  affected_appointment_ids: [],
+}
+
+function calendarOk(body: CalendarData = DATA) {
+  server.use(
+    // 칩·색 팔레트는 필터와 무관한 전체 카탈로그에서 온다(L11) — 격자 응답의 doctors와 같은 목록으로 준다.
+    http.get('*/calendar/doctors', () => HttpResponse.json(body.doctors)),
+    http.get('*/calendar', () => HttpResponse.json(body)),
+  )
+}
+
+// 예약 상세 패널은 이제 뷰와 무관하게 GET /appointments/:id로 한 건을 읽는다(딥링크가 미래 날짜
+// 상담 예약을 열어도 채워지도록). 패널을 여는 테스트는 이 응답을 함께 준다.
+function appointmentOk(over: Record<string, unknown> = {}) {
+  server.use(
+    http.get('*/appointments/:id', () =>
+      HttpResponse.json({
+        appointment_id: 'a1', status: 'confirmed', doctor_id: 'd1', doctor_name: '박지훈', department_name: '내과',
+        start: '2026-08-06T10:00:00', updated_at: '2026-08-06T00:30:00Z',
+        patient: { patient_id: 'p1', name: '김*지' }, support: null, ...over,
+      }),
+    ),
+  )
+}
+
+function renderPage(entry = '/calendar') {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[entry]}>
+        <PanelProvider>
+          <DoorProvider>
+            <CalendarPage now={NOW} />
+            <PanelHost />
+            {/* 빈칸 클릭은 헤더와 같은 예약 문을 연다 — 문 패널을 함께 걸어 둔다(2026-08-31 통합). */}
+            <DoorRegion />
+          </DoorProvider>
+        </PanelProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+beforeEach(() => {
+  sessionStorage.clear()
+})
+
+test('[CAL-VIEW-03] 기본은 일간+전체 — 의사가 열이 되고 이름이 순서대로 선다', async () => {
+  calendarOk()
+  renderPage()
+  expect(await screen.findByTestId('head-d1')).toHaveTextContent('박지훈')
+  expect(screen.getByTestId('head-d2')).toHaveTextContent('최민석')
+  expect(screen.getByTestId('head-d3')).toHaveTextContent('한소연')
+})
+
+test('[CAL-DOC-04][CAL-DOC-05] 진료과 칩이 의사 칩을 좁히고 걸린 필터가 글자로 남는다', async () => {
+  calendarOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  const deptGroup = screen.getByRole('group', { name: '진료과' })
+  await user.click(within(deptGroup).getByRole('button', { name: '내과' }))
+  const nameGroup = screen.getByRole('group', { name: '의사' })
+  const chips = within(nameGroup).getAllByRole('button').map((b) => b.textContent)
+  expect(chips).toEqual(['전체', '박지훈', '최민석']) // 피부과 한소연은 빠진다
+  expect(screen.getByText('내과만 보는 중')).toBeVisible()
+})
+
+test('[L11] 의사 한 명을 골라도 나머지 의사 칩이 남아 다른 의사를 더 고를 수 있다', async () => {
+  // 격자(/calendar)는 필터를 존중해 고른 의사만 반환한다(실제 백엔드 동작). 그래도 칩(/calendar/doctors)은
+  // 늘 전체라, 한 명 고른 뒤에도 나머지 칩이 남아야 한다 — 예전엔 칩을 필터된 격자에서 만들어 순환에 빠졌다.
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', ({ request }) => {
+      // 실제 백엔드(FastAPI list[UUID]=Query)처럼 반복 파라미터로 읽는다 — 콤마 조인이면 잡힌다.
+      const picked = new URL(request.url).searchParams.getAll('doctor_ids')
+      if (picked.length === 0) return HttpResponse.json(DATA)
+      return HttpResponse.json({
+        ...DATA,
+        doctors: DATA.doctors.filter((d) => picked.includes(d.id)),
+        appointments: DATA.appointments.filter((a) => picked.includes(a.doctor_id)),
+      })
+    }),
+  )
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  const nameGroup = screen.getByRole('group', { name: '의사' })
+  await user.click(within(nameGroup).getByRole('button', { name: '박지훈' }))
+  // 격자는 좁혀져 한소연 열이 사라지지만…
+  await waitFor(() => expect(screen.queryByTestId('head-d3')).toBeNull())
+  // …칩은 전부 남아 다른 의사를 더 고를 수 있다.
+  const chips = within(screen.getByRole('group', { name: '의사' })).getAllByRole('button').map((b) => b.textContent)
+  expect(chips).toEqual(['전체', '박지훈', '최민석', '한소연'])
+})
+
+test('[CAL-DOC-02b] 의사 2명을 함께 고르면 두 열이 다 보인다 (doctor_ids 반복 파라미터)', async () => {
+  // 회귀: doctor_ids를 콤마로 조인하면 백엔드(list[UUID]=Query)가 UUID 파싱 실패로 422를 낸다.
+  // 반복 파라미터(doctor_ids=a&doctor_ids=b)로 보내야 2명 이상이 걸러진다.
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', ({ request }) => {
+      const picked = new URL(request.url).searchParams.getAll('doctor_ids')
+      if (picked.length === 0) return HttpResponse.json(DATA)
+      return HttpResponse.json({
+        ...DATA,
+        doctors: DATA.doctors.filter((d) => picked.includes(d.id)),
+        appointments: DATA.appointments.filter((a) => picked.includes(a.doctor_id)),
+      })
+    }),
+  )
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  const nameGroup = screen.getByRole('group', { name: '의사' })
+  await user.click(within(nameGroup).getByRole('button', { name: '박지훈' }))
+  await user.click(within(nameGroup).getByRole('button', { name: '최민석' }))
+  // 두 열이 다 남고(콤마였다면 'a,b' 한 덩어리라 아무 열도 안 남는다), 안 고른 한소연만 사라진다.
+  expect(await screen.findByTestId('head-d1')).toBeVisible()
+  expect(await screen.findByTestId('head-d2')).toBeVisible()
+  await waitFor(() => expect(screen.queryByTestId('head-d3')).toBeNull())
+})
+
+test('[CAL-VIEW-07][CAL-VIEW-08] 주간으로 바꿔도 의사를 자동으로 좁히지 않고 「외 N」으로 접지 않는다', async () => {
+  calendarOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByRole('button', { name: '주간' }))
+  expect(await screen.findByTestId('week-grid')).toBeVisible()
+  expect(screen.queryByText(/외 \d+/)).toBeNull()
+})
+
+test('[CAL-NAV-04][CAL-NAV-05] 기간 글자 자체가 버튼이고 별도 [달력 열기] 아이콘을 두지 않는다', async () => {
+  calendarOk()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  expect(screen.getByRole('button', { name: /2026년 8월 6일/ })).toBeVisible()
+  expect(screen.queryByLabelText('달력 열기')).toBeNull()
+})
+
+test('[CAL-NAV-03][CAL-NAV-08] 화살표는 단위만큼 움직이고 [오늘]로 돌아온다', async () => {
+  calendarOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByRole('button', { name: '다음' }))
+  expect(screen.getByRole('button', { name: /8월 7일/ })).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '오늘' }))
+  expect(screen.getByRole('button', { name: /8월 6일/ })).toBeVisible()
+})
+
+test('[CAL-NAV-06][CAL-NAV-07] 작은 달력이 잡는 단위를 글자로 적고 보기마다 다르다', async () => {
+  calendarOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByRole('button', { name: '주간' }))
+  await user.click(screen.getByRole('button', { name: /2026년 8월/ }))
+  expect(screen.getByTestId('mini-unit-note')).toHaveTextContent('누른 날이 든 주로 이동합니다')
+})
+
+test('[NAV-QUEUE-07][NAV-TODAY-06][CAL-PANEL-06] 밖에서 들어오면 예약 패널이 이미 열린 채로 뜬다', async () => {
+  calendarOk()
+  appointmentOk()
+  renderPage('/calendar?appointment=a1&panel=open')
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  expect(await within(panel).findByRole('button', { name: '예약 변경' })).toBeVisible()
+})
+
+test('[CAL-SLOT-07] 예약 블록을 누르면 오른쪽에 예약 상세 패널이 열린다', async () => {
+  calendarOk()
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  expect(await within(panel).findByRole('button', { name: '예약 변경' })).toBeVisible()
+})
+
+test('[CAL-PANEL-01][L1] 예약 취소는 사유를 받아 병원취소로 전이하고 캘린더를 새로고침한다', async () => {
+  // 회귀 가드: 예전엔 로더가 onCancel을 안 넘겨 [예약 취소]가 무동작이었다(G1). 이제 병원취소
+  // 전이(낙관잠금 expected_updated_at)를 부르고, 성공하면 격자를 새로 읽어 막대가 사라진다.
+  let patched: Record<string, unknown> | null = null
+  let calendarCalls = 0
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', () => {
+      calendarCalls += 1
+      return HttpResponse.json(calendarCalls === 1 ? DATA : { ...DATA, appointments: [] })
+    }),
+    http.patch('*/appointments/a1/status', async ({ request }) => {
+      patched = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ status: 'updated' })
+    }),
+  )
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 취소' }))
+  const dialog = await screen.findByRole('dialog', { name: '예약을 취소할까요?' })
+  await user.type(within(dialog).getByRole('textbox'), '환자 요청')
+  await user.click(within(dialog).getByRole('button', { name: '확인' }))
+
+  await waitFor(() =>
+    expect(patched).toEqual({
+      new_status: '병원취소',
+      reason: '환자 요청',
+      expected_updated_at: '2026-08-06T00:30:00Z',
+    }),
+  )
+  // onDone → 패널 닫힘 + 캘린더 새로고침 → 취소된 막대가 사라진다.
+  await waitFor(() => expect(screen.queryByText('김*지')).not.toBeInTheDocument())
+})
+
+test('[CAL-PANEL-*] 딥링크한 예약이 오늘 격자에 없어도(미래 날짜 상담) 패널이 채워진다', async () => {
+  // 회귀 가드: 예전엔 오늘 격자 막대에서 값을 찾다 못 찾으면 「환자 · 」로 텅 비었다.
+  calendarOk() // 격자엔 a1만. 딥링크는 격자에 없는 future1.
+  appointmentOk({
+    appointment_id: 'future1', status: '예약확정', doctor_name: '이정민', department_name: '내과',
+    start: '2026-09-03T17:00:00', patient: { patient_id: 'p9', name: '오*은' },
+    support: { request_type: '변경', requested_at: '2026-08-29T03:18:00Z' },
+  })
+  renderPage('/calendar?appointment=future1&panel=open')
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  expect(await within(panel).findByText(/오\*은/)).toBeVisible()      // 텅 빈 「환자」가 아니다
+  expect(within(panel).getByText('2026-09-03 17:00')).toBeVisible()   // 미래 날짜 시각
+  expect(within(panel).getByText('변경 상담')).toBeVisible()          // 상담 요약(SUPPORT-CAL-*)
+})
+
+test('[CAL-PANEL-01][schedule-change] [예약 변경]을 누르면 변경 모드로 들어가 환자·의사가 채워진 패널이 열린다', async () => {
+  calendarOk()
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 변경' }))
+  // 변경 모드 — 환자·의사는 그대로 두고 새 시각을 왼쪽에서 고르라고 안내한다(CAL-RACE-03·CAL-PANEL-02).
+  expect(await within(panel).findByText('변경 중')).toBeVisible()
+  expect(within(panel).getByRole('heading', { name: /김\*지/ })).toBeVisible()
+  expect(within(panel).getByText(/왼쪽 캘린더에서 새 시각을 고르세요/)).toBeVisible()
+  expect(within(panel).getByRole('button', { name: '예약 변경 저장' })).toBeDisabled()
+})
+
+test('[CAL-PANEL-02][schedule-change] 왼쪽에서 새 빈 시각을 고르고 사유를 적어 저장하면 새 시각·사유로 재예약하고 캘린더를 새로고침한다', async () => {
+  let posted: Record<string, unknown> | null = null
+  let calendarCalls = 0
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', () => {
+      calendarCalls += 1
+      // 저장 뒤 새로고침에서는 막대가 새 시각으로 옮겨졌다고 본다(옮긴 자리 확인은 백엔드 몫).
+      return HttpResponse.json(calendarCalls <= 1 ? DATA : { ...DATA, appointments: [] })
+    }),
+    http.post('*/appointments/a1/reschedule', async ({ request }) => {
+      posted = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ status: 'rescheduled' })
+    }),
+  )
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 변경' }))
+  await within(panel).findByText('변경 중')
+  // 같은 의사(d1) 열의 빈 시각을 고른다 — 변경 모드라 새 예약 문이 아니라 이 패널의 새 시각으로 들어간다.
+  const col = within(screen.getByTestId('day-grid')).getByTestId('column-d1')
+  await user.click(within(col).getAllByText(/빈 시간/)[0])
+  await user.type(within(panel).getByLabelText('변경 사유'), '환자 요청으로 시간 이동')
+  await user.click(within(panel).getByRole('button', { name: '예약 변경 저장' }))
+
+  await waitFor(() => expect(posted).not.toBeNull())
+  expect(posted).toMatchObject({ reason: '환자 요청으로 시간 이동' })
+  expect(String(posted!.new_start_at)).toMatch(/^2026-08-06T\d{2}:\d{2}/)
+  // 성공하면 패널이 닫히고 격자를 새로 읽는다.
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: '패널' })).toBeNull())
+})
+
+test('[CAL-RACE-04][G1] 재예약 저장이 충돌(409)하면 시각을 비우고 이유를 알리되 패널·사유는 남는다', async () => {
+  server.use(
+    http.get('*/calendar/doctors', () => HttpResponse.json(DATA.doctors)),
+    http.get('*/calendar', () => HttpResponse.json(DATA)),
+    http.post('*/appointments/a1/reschedule', () =>
+      HttpResponse.json({ detail: '다른 시간을 선택하세요' }, { status: 409 }),
+    ),
+  )
+  appointmentOk()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByTestId('head-d1')
+  await user.click(screen.getByText('김*지'))
+  const panel = await screen.findByRole('complementary', { name: '패널' })
+  await user.click(within(panel).getByRole('button', { name: '예약 변경' }))
+  await within(panel).findByText('변경 중')
+  const col = within(screen.getByTestId('day-grid')).getByTestId('column-d1')
+  await user.click(within(col).getAllByText(/빈 시간/)[0])
+  await user.type(within(panel).getByLabelText('변경 사유'), '환자 요청')
+  await user.click(within(panel).getByRole('button', { name: '예약 변경 저장' }))
+
+  // 막다른 길 대신 이유(CAL-RACE-04) — 패널은 그대로, 사유는 남고, 시각만 비운다.
+  expect(await within(panel).findByRole('alert')).toHaveTextContent(/다른 직원이 이 자리를 잡았습니다/)
+  expect(within(panel).getByLabelText('변경 사유')).toHaveValue('환자 요청')
+  expect(within(panel).getByText(/왼쪽 캘린더에서 새 시각을 고르세요/)).toBeVisible()
+})
+
+test('[CAL-SLOT-06][CAL-BOOK-01] 빈 구간을 누르면 헤더와 같은 예약 문이 의사·날짜 프리필로 열린다 (캘린더 전용 「전화 예약」 패널을 따로 두지 않는다)', async () => {
+  calendarOk()
+  const user = userEvent.setup()
+  renderPage()
+  const grid = await screen.findByTestId('day-grid')
+  const col = within(grid).getByTestId('column-d2') // 예약 없는 의사 열은 통째로 빈 시간
+  await user.click(within(col).getByText(/빈 시간/))
+  // 캘린더 전용 패널이 아니라 헤더 세 버튼과 같은 「새 예약」 문이 열린다(2026-08-31 통합).
+  const door = await screen.findByRole('complementary', { name: '새 예약' })
+  // 의사·날짜가 채워진 채로(CAL-BOOK-02) — 남은 칸은 환자뿐.
+  expect(within(door).getByText('최민석 선생님')).toBeVisible()
+  expect(within(door).getByText(/8월 6일/)).toBeVisible()
+  expect(within(door).getByText('왼쪽에서 환자를 찾아 고르세요')).toBeVisible()
+  expect(screen.queryByText('전화 예약')).toBeNull()
+})

@@ -1,12 +1,13 @@
 node_modules/
 dist/
-HANDOFF.md
+HANDOFF*.md
 
 # 작업용 문서 — 설계 논의·검토 기록, 배포 산출물이 아니라 git 추적 제외
 CLAUDE.md
 
 # Supabase CLI 로컬 실행 시 생성되는 임시 상태 디렉토리
 supabase/.temp/
+supabase/.branches/
 
 # 로컬 도구 설정 — 팀/환경마다 다를 수 있어 추적 제외
 .claude/
@@ -16,3 +17,29 @@ supabase/.temp/
 
 # macOS 파인더가 만드는 폴더 정보 파일
 .DS_Store
+
+# 파이썬 캐시 — 검사기(spec-index/*.py)를 돌릴 때마다 생긴다
+__pycache__/
+*.pyc
+
+# 로컬 개발용 환경변수 — 기기마다 다르고 키가 들어간다
+.env.local
+
+# 화면 대조 shot 출력(PNG) · 스크래치 — 이미 추적 중인 참조 스샷 239개는 그대로 남고(git이 추적 파일은
+#   ignore해도 유지), 이후 QA 스크래치 신규분만 안 잡히게 한다(의도한 참조는 `git add -f`).
+tools/shot/
+output/
+tmp/
+
+# 홈페이지 챗봇 소개용 참조 이미지 원본(8MB) — 코드 아님, 산출물은 별도 최적화본만 커밋
+source/
+
+# 비밀 자격증명(Firebase 서비스 계정 키, 각종 서비스 키 파일) — 절대 커밋 금지.
+# ⚠️ git 히스토리에 한 번이라도 올라가면 영구히 남으므로, 실수로 커밋했으면 파일 삭제로 끝내지 말고
+#    해당 서비스에서 키를 재발급(rotate)한다.
+secrets/*
+!secrets/README.md
+*serviceAccount*.json
+*service-account*.json
+*-adminsdk-*.json
+.env

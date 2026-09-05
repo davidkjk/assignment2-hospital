@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>가온병원</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230B6E70'/><g transform='translate(1.6 1.4) scale(.87)'><path fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M4 21V5h6V2h4v3h6v16M9 9h6M12 6v6M8 21v-5h8v5'/></g></svg>">
+<style>
+  :root{
+    /* 중립 베이스(미니쉬처럼 밝고 담백) — 틸 기운 걷어냄 */
+    --ink:#161a1f; --ink-2:#525a64; --ink-3:#949aa4;
+    --line:#e7e9ee; --line-2:#eef0f4;
+    --bg:#ffffff; --soft:#f5f6f8; --soft-2:#edeff3;
+    /* 딥틸 = 직원웹 브랜드색(#0B6E70) · 사이드바 딥(#0a4a4c) — 포인트에만 사용 */
+    --teal:#0B6E70; --teal-d:#0a4a4c; --teal-dd:#073638; --teal-2:#0e6163;
+    --teal-soft:#e4f0ef; --teal-tint:#f0f6f5; --teal-line:#c6e0dd;
+    --teal-lite:#3fd3c9; /* 다크 위 라이트 틸 액센트 */
+    --accent:#0B6E70; --accent-d:#0a4a4c; --accent-soft:#e2f0ef;
+    --navy:#0a4a4c;
+    --ok:#1a8f5a;
+    --maxw:1200px;
+    --hdr:74px;
+    --qbar:64px;
+    --ease:cubic-bezier(.22,.61,.36,1);
+    color-scheme:light;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Noto Sans KR","Manrope",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    font-weight:400; line-height:1.7; -webkit-font-smoothing:antialiased;
+    text-size-adjust:100%; word-break:keep-all; overflow-wrap:break-word;
+  }
+  h1,h2,h3,h4{margin:0; line-height:1.22; letter-spacing:-.02em; text-wrap:balance; font-weight:900}
+  p{margin:0}
+  a{color:inherit; text-decoration:none}
+  img{display:block; max-width:100%}
+  ul{margin:0; padding:0; list-style:none}
+  button{font:inherit; cursor:pointer; border:0; background:none; color:inherit}
+  .en{font-family:"Manrope",sans-serif}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+  :focus-visible{outline:3px solid var(--accent); outline-offset:3px; border-radius:4px}
+
+  /* ---------- buttons ---------- */
+  .btn{display:inline-flex; align-items:center; gap:9px; padding:14px 24px; border-radius:8px;
+    font-weight:700; font-size:15px; transition:transform .2s var(--ease), background .2s, box-shadow .2s, color .2s; white-space:nowrap}
+  .btn svg{width:18px;height:18px}
+  .btn-primary{background:var(--accent); color:#fff; box-shadow:0 8px 22px -8px rgba(21,96,201,.7)}
+  .btn-primary:hover{background:var(--accent-d); transform:translateY(-2px)}
+  .btn-ghost{background:rgba(255,255,255,.14); color:#fff; border:1.5px solid rgba(255,255,255,.5); backdrop-filter:blur(4px)}
+  .btn-ghost:hover{background:rgba(255,255,255,.24); transform:translateY(-2px)}
+  .btn-white{background:#fff; color:var(--accent); border:1px solid rgba(11,110,112,.18); box-shadow:0 8px 22px -8px rgba(8,22,42,.45)}
+  .btn-white:hover{background:var(--teal-tint); transform:translateY(-2px)}
+  .site-header.solid .btn-white{border-color:var(--line); box-shadow:0 4px 16px -10px rgba(8,22,42,.4)}
+  .btn-dark{background:var(--ink); color:#fff}
+  .btn-dark:hover{background:#000; transform:translateY(-2px)}
+  .btn-line{background:#fff; color:var(--ink); border:1.5px solid var(--line)}
+  .btn-line:hover{border-color:var(--ink); transform:translateY(-2px)}
+
+  /* ---------- intro (키네틱 액션 시퀀스: 문구 전달 → 열리고 → 사이트) ---------- */
+  /* 배경은 투명 — 패널이 열리는 동안 뒤 홈페이지가 그대로 드러난다 */
+  #intro{position:fixed;inset:0;z-index:2000;overflow:hidden;background:transparent}
+  #intro.done{display:none}
+  /* 최종 커튼(위로 열려 사이트 공개) */
+  .intro-panels{position:absolute;inset:0;display:flex;z-index:1}
+  .intro-panel{flex:1;background:linear-gradient(180deg,#16333a 0%, #070f11 100%);transition:transform 1s cubic-bezier(.76,0,.24,1)}
+  .intro-panel + .intro-panel{box-shadow:-1px 0 0 rgba(255,255,255,.05)}
+  #intro.exit .intro-panel{transform:translateY(-101%)}
+  #intro.exit .intro-panel:nth-child(1){transition-delay:0s}
+  #intro.exit .intro-panel:nth-child(2){transition-delay:.07s}
+  #intro.exit .intro-panel:nth-child(3){transition-delay:.14s}
+  #intro.exit .intro-panel:nth-child(4){transition-delay:.21s}
+  .intro-stage{position:absolute;inset:0;z-index:2;display:grid;place-items:center;text-align:center}
+  #intro.exit .intro-stage{opacity:0;transition:opacity .45s}
+  /* ① 슬로건 — 단어가 좌/우/스케일로 꽂히고 위로 퇴장 */
+  .intro-slogan{position:absolute;display:flex;flex-direction:column;gap:4px;color:#fff;font-weight:900;
+    font-size:clamp(30px,6.4vw,66px);letter-spacing:-.03em;line-height:1.08;
+    animation:sloganOut .5s 1.35s cubic-bezier(.6,0,.2,1) forwards}
+  .intro-slogan .w{opacity:0;display:block}
+  .intro-slogan .w1{transform:translateX(-70px);animation:wIn .7s .3s cubic-bezier(.16,.85,.3,1) forwards}
+  .intro-slogan .w2{transform:translateX(70px);animation:wIn .7s .5s cubic-bezier(.16,.85,.3,1) forwards}
+  .intro-slogan .w3{transform:scale(.55);color:#fff;animation:wInS .7s .72s cubic-bezier(.16,.95,.3,1) forwards}
+  @keyframes wIn{to{opacity:1;transform:none}}
+  @keyframes wInS{to{opacity:1;transform:scale(1)}}
+  @keyframes sloganOut{to{opacity:0;transform:translateY(-46px)}}
+  /* ② 브랜드 — 슬로건이 빠지며 열리듯 등장 */
+  .intro-brand{position:absolute;display:flex;flex-direction:column;align-items:center;gap:14px;color:#fff;opacity:0;
+    animation:brandIn .7s 1.4s cubic-bezier(.22,.7,.2,1) forwards}
+  @keyframes brandIn{from{opacity:0;transform:translateY(26px) scale(.95);filter:blur(7px)}to{opacity:1;transform:none;filter:blur(0)}}
+  .intro-brand .ic{width:74px;height:74px;color:#fff;filter:drop-shadow(0 0 18px rgba(255,255,255,.35))}
+  .intro-brand .kr{font-family:"Do Hyeon",sans-serif;font-size:clamp(44px,8vw,84px);letter-spacing:-.02em;line-height:1;color:#fff}
+  .intro-brand .intro-line{height:2px;width:0;background:linear-gradient(90deg,rgba(255,255,255,.55),#d6af5a);
+    border-radius:2px;animation:introLine .8s 1.8s cubic-bezier(.22,.61,.36,1) forwards}
+  .intro-brand .intro-sub{font-family:"Manrope";font-size:12.5px;letter-spacing:.3em;color:rgba(255,255,255,.6);font-weight:600}
+  @keyframes introLine{to{width:220px}}
+
+  /* ---------- header ---------- */
+  .site-header{position:fixed; top:0; left:0; right:0; z-index:1000; height:var(--hdr);
+    display:flex; align-items:center; transition:background .3s, box-shadow .3s, border-color .3s;
+    border-bottom:1px solid transparent}
+  .site-header .wrap{display:flex; align-items:center; gap:28px; width:100%}
+  .brand{display:flex; align-items:center; gap:11px; font-weight:900; font-size:22px; letter-spacing:-.02em; color:#fff; transition:color .3s}
+  .brand .logo{width:34px; height:34px; flex:0 0 auto}
+  .nav{display:flex; gap:30px; margin-left:14px}
+  .nav a{font-size:15.5px; font-weight:500; color:rgba(255,255,255,.9); transition:color .2s; position:relative}
+  .nav a::after{content:""; position:absolute; left:0; right:100%; bottom:-6px; height:2px; background:currentColor; transition:right .25s var(--ease)}
+  .nav a:hover::after{right:0}
+  .header-cta{margin-left:auto; display:flex; align-items:center; gap:14px}
+  .header-cta .phone{color:#fff; font-weight:700; font-size:15px; display:flex; align-items:center; gap:7px; transition:color .3s; opacity:.95}
+  .header-cta .phone svg{width:17px;height:17px}
+  /* scrolled state */
+  .site-header.solid{background:rgba(255,255,255,.94); backdrop-filter:blur(10px); border-color:var(--line); box-shadow:0 4px 24px -18px rgba(12,35,64,.5)}
+  .site-header.solid .brand{color:var(--ink)}
+  .site-header.solid .nav a{color:var(--ink-2)}
+  .site-header.solid .nav a:hover{color:var(--accent)}
+  .site-header.solid .header-cta .phone{color:var(--ink)}
+  .menu-toggle{display:none}
+
+  /* ---------- hero ---------- */
+  .hero{position:relative; min-height:calc(100vh - 0px); min-height:760px; display:flex; align-items:center;
+    color:#fff; overflow:hidden; padding-top:var(--hdr)}
+  .hero-bg{position:absolute; inset:0; background-size:cover; background-position:center 30%;
+    transform:scale(1.08); animation:heroZoom 9s var(--ease) forwards}
+  @keyframes heroZoom{to{transform:scale(1)}}
+  .hero::after{content:""; position:absolute; inset:0;
+    background:linear-gradient(100deg, rgba(8,22,42,.86) 0%, rgba(8,22,42,.6) 42%, rgba(8,22,42,.28) 100%)}
+  .hero .wrap{position:relative; z-index:2; width:100%}
+  .hero-inner{max-width:660px}
+  .hero .eyebrow{display:inline-flex; align-items:center; gap:9px; font-family:"Manrope"; font-weight:700;
+    font-size:13px; letter-spacing:.28em; color:#bcd4f5; margin-bottom:22px}
+  .hero .eyebrow::before{content:""; width:26px; height:2px; background:#7fb0f0}
+  .hero h1{font-size:clamp(34px,5.4vw,60px); line-height:1.16; margin-bottom:22px}
+  .hero .lead{font-size:clamp(16px,2vw,19px); line-height:1.75; color:rgba(255,255,255,.9); font-weight:400; max-width:560px; margin-bottom:34px}
+  .hero-cta{display:flex; gap:14px; flex-wrap:wrap}
+  .hero-stats{display:flex; gap:38px; margin-top:52px; flex-wrap:wrap}
+  .hero-stats .s .n{font-family:"Manrope"; font-weight:800; font-size:30px; line-height:1}
+  .hero-stats .s .l{font-size:13.5px; color:rgba(255,255,255,.72); margin-top:7px}
+  .hero-stats .s{position:relative; padding-left:20px}
+  .hero-stats .s::before{content:""; position:absolute; left:0; top:3px; bottom:3px; width:3px; background:#4c8ee8; border-radius:2px}
+  .scroll-cue{position:absolute; left:50%; bottom:26px; transform:translateX(-50%); z-index:2; color:rgba(255,255,255,.8);
+    font-size:11px; letter-spacing:.3em; font-family:"Manrope"; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:9px}
+  .scroll-cue .bar{width:1px; height:38px; background:linear-gradient(rgba(255,255,255,.9),rgba(255,255,255,0)); animation:cue 1.8s var(--ease) infinite}
+  @keyframes cue{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  /* hero entrance */
+  .hero-inner>*{opacity:0; transform:translateY(26px)}
+  .ready .hero-inner>*{animation:riseIn .9s var(--ease) forwards}
+  .ready .hero-inner>*:nth-child(1){animation-delay:.15s}
+  .ready .hero-inner>*:nth-child(2){animation-delay:.28s}
+  .ready .hero-inner>*:nth-child(3){animation-delay:.4s}
+  .ready .hero-inner>*:nth-child(4){animation-delay:.52s}
+  .ready .hero-inner>*:nth-child(5){animation-delay:.64s}
+  @keyframes riseIn{to{opacity:1; transform:translateY(0)}}
+
+  /* ---------- section frame ---------- */
+  section{position:relative}
+  .band{padding:104px 0}
+  .band.soft{background:var(--soft)}
+  .sec-head{max-width:660px; margin-bottom:52px}
+  .sec-head.center{margin-left:auto; margin-right:auto; text-align:center}
+  .kicker{display:inline-flex; align-items:center; gap:9px; font-family:"Manrope"; font-weight:700; font-size:13px;
+    letter-spacing:.22em; color:var(--accent); margin-bottom:16px}
+  .kicker::before{content:""; width:24px; height:2px; background:var(--accent)}
+  .sec-head.center .kicker::before{display:none}
+  .sec-head h2{font-size:clamp(27px,3.6vw,40px); line-height:1.24}
+  .sec-head .desc{margin-top:18px; color:var(--ink-2); font-size:16.5px; line-height:1.8}
+
+  /* reveal (enhancement only; visible without JS) */
+  .js .reveal{opacity:0; transform:translateY(38px); transition:opacity .85s var(--ease), transform .85s var(--ease)}
+  .js .reveal.is-in{opacity:1; transform:none}
+  .js .reveal.d1{transition-delay:.08s}.js .reveal.d2{transition-delay:.16s}.js .reveal.d3{transition-delay:.24s}.js .reveal.d4{transition-delay:.32s}
+
+  /* ---------- pillars (강점 4) ---------- */
+  .pillars{display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:#fff}
+  .pillar{padding:38px 30px; border-right:1px solid var(--line); transition:background .25s}
+  .pillar:last-child{border-right:0}
+  .pillar:hover{background:var(--soft)}
+  .pillar .ic{width:52px; height:52px; border-radius:13px; background:var(--accent-soft); color:var(--accent);
+    display:grid; place-items:center; margin-bottom:20px}
+  .pillar .ic svg{width:27px;height:27px}
+  .pillar h3{font-size:18.5px; margin-bottom:10px}
+  .pillar p{color:var(--ink-2); font-size:14.5px; line-height:1.72}
+
+  /* ---------- departments ---------- */
+  .dept-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:16px}
+  .dept{background:#fff; border:1px solid var(--line); border-radius:14px; padding:26px 22px; transition:transform .25s var(--ease), box-shadow .25s, border-color .25s}
+  .dept:hover{transform:translateY(-6px); box-shadow:0 22px 40px -26px rgba(12,35,64,.4); border-color:var(--accent-soft)}
+  .dept .ic{width:44px;height:44px; color:var(--accent); margin-bottom:16px}
+  .dept .ic svg{width:44px;height:44px}
+  .dept h4{font-size:17px; font-weight:700; margin-bottom:6px}
+  .dept p{font-size:13px; color:var(--ink-3); line-height:1.6}
+
+  /* ---------- facility carousel ---------- */
+  .facility .wrap{max-width:none; padding:0}
+  .fac-head{max-width:var(--maxw); margin:0 auto 44px; padding:0 24px}
+  .carousel{position:relative}
+  .track-view{overflow:hidden}
+  .track{display:flex; transition:transform .6s var(--ease)}
+  .slide{flex:0 0 62%; margin-right:22px; position:relative; border-radius:18px; overflow:hidden; aspect-ratio:16/9}
+  .slide img{width:100%; height:100%; object-fit:cover}
+  .slide .cap{position:absolute; left:0; right:0; bottom:0; padding:52px 30px 26px; color:#fff;
+    background:linear-gradient(transparent, rgba(8,22,42,.82))}
+  .slide .cap .t{font-size:20px; font-weight:700}
+  .slide .cap .d{font-size:14px; opacity:.85; margin-top:4px}
+  .car-ctrl{display:flex; align-items:center; justify-content:space-between; max-width:var(--maxw); margin:30px auto 0; padding:0 24px}
+  .dots{display:flex; gap:9px}
+  .dots button{width:9px;height:9px;border-radius:50%; background:var(--line); transition:width .3s, background .3s}
+  .dots button.on{width:30px; background:var(--accent); border-radius:5px}
+  .arrows{display:flex; gap:10px}
+  .arrows button{width:52px;height:52px;border-radius:50%; border:1.5px solid var(--line); display:grid; place-items:center; transition:all .2s}
+  .arrows button:hover{border-color:var(--ink); background:var(--ink); color:#fff}
+  .arrows svg{width:20px;height:20px}
+
+  /* ---------- doctors ---------- */
+  .doc-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:24px}
+  .doc{border-radius:16px; overflow:hidden; background:#fff; border:1px solid var(--line); transition:transform .3s var(--ease), box-shadow .3s}
+  .doc:hover{transform:translateY(-8px); box-shadow:0 30px 50px -30px rgba(12,35,64,.5)}
+  .doc .ph{aspect-ratio:4/5; overflow:hidden; background:var(--soft-2)}
+  .doc .ph img{width:100%;height:100%;object-fit:cover; transition:transform .5s var(--ease); filter:saturate(.98)}
+  .doc:hover .ph img{transform:scale(1.05)}
+  .doc .info{padding:22px 22px 26px}
+  .doc .dept-tag{font-family:"Manrope"; font-size:12px; font-weight:700; letter-spacing:.06em; color:var(--accent); text-transform:uppercase}
+  .doc h4{font-size:20px; margin:9px 0 4px}
+  .doc .role{font-size:14px; color:var(--ink-2)}
+  .doc .tags{margin-top:14px; display:flex; gap:7px; flex-wrap:wrap}
+  .doc .tags span{font-size:12px; color:var(--ink-2); background:var(--soft); border:1px solid var(--line); border-radius:20px; padding:4px 11px}
+
+  /* ---------- stats band ---------- */
+  .statband{background:var(--navy); color:#fff; padding:80px 0}
+  .stat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:24px; text-align:center}
+  .stat .n{font-family:"Manrope"; font-weight:800; font-size:clamp(38px,5vw,58px); line-height:1; letter-spacing:-.02em}
+  .stat .n .suf{color:#6fa4ea; font-size:.5em; margin-left:3px}
+  .stat .l{margin-top:12px; color:rgba(255,255,255,.72); font-size:15px}
+  .stat{position:relative}
+  .stat+.stat::before{content:""; position:absolute; left:-12px; top:14%; bottom:14%; width:1px; background:rgba(255,255,255,.14)}
+
+  /* ---------- philosophy split ---------- */
+  .split{display:grid; grid-template-columns:1.05fr 1fr; gap:64px; align-items:center}
+  .split .media{border-radius:20px; overflow:hidden; aspect-ratio:5/4}
+  .split .media img{width:100%;height:100%;object-fit:cover}
+  .phi-list{margin-top:30px; display:grid; gap:18px}
+  .phi-list li{display:flex; gap:16px; align-items:flex-start}
+  .phi-list .num{flex:0 0 auto; width:38px;height:38px;border-radius:11px; background:var(--accent-soft); color:var(--accent);
+    display:grid;place-items:center; font-family:"Manrope"; font-weight:800; font-size:16px}
+  .phi-list h4{font-size:17px; margin-bottom:3px}
+  .phi-list p{color:var(--ink-2); font-size:14.5px; line-height:1.7}
+
+  /* ---------- connect / 3 entry points ---------- */
+  .connect{background:linear-gradient(180deg,var(--soft) 0%, #fff 100%)}
+  .entry-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:24px; max-width:820px; margin:0 auto}
+  .entry{background:#fff; border:1px solid var(--line); border-radius:18px; padding:34px 30px 32px; display:flex; flex-direction:column; transition:transform .3s var(--ease), box-shadow .3s}
+  .entry:hover{transform:translateY(-6px); box-shadow:0 26px 46px -28px rgba(12,35,64,.42)}
+  .entry .ic{width:56px;height:56px;border-radius:15px; display:grid;place-items:center; margin-bottom:22px; color:#fff}
+  .entry .ic svg{width:28px;height:28px}
+  .entry.e1 .ic{background:linear-gradient(135deg,#1a6fe0,#0d3f89)}
+  .entry.e2 .ic{background:linear-gradient(135deg,#17a06a,#0c6b45)}
+  .entry.e3 .ic{background:linear-gradient(135deg,#3a4557,#171c26)}
+  .entry h3{font-size:21px; margin-bottom:10px}
+  .entry p{color:var(--ink-2); font-size:14.5px; line-height:1.72; flex:1}
+  .entry .act{margin-top:22px}
+  .entry .badge{display:inline-block; font-size:12px; font-weight:700; color:var(--accent); background:var(--accent-soft); border-radius:20px; padding:4px 12px; margin-bottom:16px; align-self:flex-start; font-family:"Manrope"}
+  .store-btns{display:flex; gap:10px; margin-top:22px; flex-wrap:wrap}
+  .store{display:flex; align-items:center; gap:9px; border:1.5px solid var(--line); border-radius:10px; padding:9px 14px; transition:border-color .2s, transform .2s}
+  .store:hover{border-color:var(--ink); transform:translateY(-2px)}
+  .store svg{width:22px;height:22px}
+  .store .tx small{display:block; font-size:10px; color:var(--ink-3); line-height:1}
+  .store .tx b{font-size:14px}
+
+  /* ---------- visit / footer ---------- */
+  .visit-grid{display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:start}
+  .hours{width:100%; border-collapse:collapse}
+  .hours th,.hours td{text-align:left; padding:15px 8px; border-bottom:1px solid var(--line); font-size:15.5px}
+  .hours th{color:var(--ink-2); font-weight:500; width:130px}
+  .hours td{font-weight:700; font-variant-numeric:tabular-nums}
+  .hours tr:last-child th,.hours tr:last-child td{border-bottom:0}
+  .hours .em td{color:var(--accent)}
+  .info-list{display:grid; gap:20px}
+  .info-list .row{display:flex; gap:16px; align-items:flex-start}
+  .info-list .ic{flex:0 0 auto; width:42px;height:42px;border-radius:11px; background:var(--soft); color:var(--accent); display:grid;place-items:center}
+  .info-list .ic svg{width:20px;height:20px}
+  .info-list .k{font-size:13px; color:var(--ink-3); margin-bottom:2px}
+  .info-list .v{font-size:16px; font-weight:700}
+  .map-note{margin-top:20px; border-radius:14px; overflow:hidden; border:1px solid var(--line); background:var(--soft);
+    aspect-ratio:16/7; display:grid; place-items:center; color:var(--ink-3); font-size:14px; position:relative}
+  .map-note .pin{position:absolute; left:50%; top:50%; transform:translate(-50%,-100%); color:var(--accent)}
+
+  footer{background:var(--ink); color:#fff; padding:56px 0 40px}
+  .foot-top{display:flex; justify-content:space-between; gap:40px; flex-wrap:wrap; padding-bottom:36px; border-bottom:1px solid rgba(255,255,255,.12)}
+  .foot-brand{font-size:24px; font-weight:900; letter-spacing:-.02em; display:flex; align-items:center; gap:11px}
+  .foot-brand .logo{width:32px;height:32px}
+  .foot-desc{color:rgba(255,255,255,.6); font-size:14px; margin-top:14px; max-width:340px; line-height:1.7}
+  .foot-links{display:flex; gap:56px; flex-wrap:wrap}
+  .foot-col h5{font-size:13px; color:rgba(255,255,255,.5); font-weight:600; margin-bottom:14px; letter-spacing:.04em}
+  .foot-col a,.foot-col span{display:block; font-size:14.5px; color:rgba(255,255,255,.85); margin-bottom:10px; transition:color .2s}
+  .foot-col a:hover{color:#fff}
+  .foot-bottom{display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-top:28px; color:rgba(255,255,255,.42); font-size:13px}
+
+  /* ---------- floating quick + chat ---------- */
+  .fab-stack{position:fixed; right:26px; bottom:26px; z-index:900; display:flex; flex-direction:column; gap:12px; align-items:flex-end}
+  .fab-top{display:flex; flex-direction:column; gap:10px; align-items:flex-end}
+  .fab-mini{display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--line); box-shadow:0 10px 30px -12px rgba(12,35,64,.4);
+    border-radius:30px; padding:9px 16px 9px 12px; font-size:14px; font-weight:700; transition:transform .2s, box-shadow .2s}
+  .fab-mini:hover{transform:translateY(-2px); box-shadow:0 16px 34px -12px rgba(12,35,64,.5)}
+  .fab-mini .d{width:34px;height:34px;border-radius:50%; display:grid;place-items:center; color:#fff}
+  .fab-mini.call .d{background:#17a06a}
+  .fab-mini.top .d{background:var(--ink)}
+  .fab-mini svg{width:18px;height:18px}
+  .fab-chat{width:64px;height:64px;border-radius:50%; background:var(--accent); color:#fff; display:grid; place-items:center;
+    box-shadow:0 14px 34px -8px rgba(21,96,201,.8); transition:transform .25s var(--ease), background .25s; position:relative}
+  .fab-chat:hover{transform:scale(1.06); background:var(--accent-d)}
+  .fab-chat svg{width:29px;height:29px}
+  .fab-chat .pulse{position:absolute; inset:0; border-radius:50%; border:2px solid var(--accent); animation:pulse 2.2s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+  /* 미읽음 표식 — 직원 답변 도착 시 점 하나(webchat:unread로 토글, 숫자 배지 아님) */
+  .fab-badge{position:absolute; top:-1px; right:-1px; width:14px;height:14px;border-radius:50%; background:#e5484d; border:2px solid #fff}
+
+  /* 진짜 webchat 위젯을 담는 iframe 컨테이너. 내부 콘텐츠는 webchat(React)이 그린다. */
+  .chat{position:fixed; right:26px; bottom:26px; z-index:950; width:380px; max-width:calc(100vw - 32px); height:600px; max-height:calc(100vh - 40px);
+    background:#fff; border-radius:20px; box-shadow:0 30px 70px -20px rgba(12,35,64,.55); overflow:hidden;
+    opacity:0; transform:translateY(24px) scale(.96); pointer-events:none; transition:opacity .3s var(--ease), transform .3s var(--ease)}
+  .chat.open{opacity:1; transform:none; pointer-events:auto}
+  .chat iframe{width:100%; height:100%; border:0; display:block; background:#fff}
+
+  /* ---------- toast ---------- */
+  .toast{position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(20px); z-index:1500;
+    background:var(--ink); color:#fff; padding:14px 22px; border-radius:12px; font-size:14.5px; font-weight:600;
+    box-shadow:0 20px 40px -12px rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .3s, transform .3s}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:1000px){
+    .pillars{grid-template-columns:repeat(2,1fr)}
+    .pillar:nth-child(2){border-right:0}
+    .pillar:nth-child(1),.pillar:nth-child(2){border-bottom:1px solid var(--line)}
+    .dept-grid{grid-template-columns:repeat(3,1fr)}
+    .doc-grid{grid-template-columns:repeat(2,1fr)}
+    .split{grid-template-columns:1fr; gap:36px}
+    .entry-grid{grid-template-columns:1fr}
+    .visit-grid{grid-template-columns:1fr; gap:36px}
+    .slide{flex-basis:80%}
+    .nav,.header-cta .phone{display:none}
+  }
+  @media (max-width:600px){
+    .wrap{padding:0 18px}
+    .band{padding:70px 0}
+    .dept-grid{grid-template-columns:repeat(2,1fr)}
+    .stat-grid{grid-template-columns:repeat(2,1fr); gap:34px 20px}
+    .stat+.stat::before{display:none}
+    .hero-stats{gap:24px}
+    .hero-stats .s .n{font-size:24px}
+    .foot-links{gap:32px}
+    .slide{flex-basis:88%; aspect-ratio:4/3}
+    .fab-mini span{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
+    .hero-inner>*{opacity:1; transform:none}
+    .js .reveal{opacity:1; transform:none}
+  }
+  /* staff-web 로고 워드마크 = Do Hyeon */
+  .brand .wm,.foot-brand .wm{font-family:"Do Hyeon","Noto Sans KR",sans-serif;font-weight:400;letter-spacing:0}
+  .brand .logo,.foot-brand .logo{width:30px;height:30px}
+  /* 의료진 이니셜 아바타(직원웹 캘린더 색과 동일) */
+  .doc .ph.avatar{display:grid;place-items:center}
+  .doc .ph.avatar span{font-family:"Do Hyeon","Noto Sans KR",sans-serif;font-size:74px;color:#fff;opacity:.96}
+
+  /* ============================================================
+     MINISH-STYLE 고도화 — 딥틸(#0B6E70/#0a4a4c) 단일 시그니처
+     형태·구도·움직임을 본뜸: 하이라이트 박스 · 도킹 상담폼 ·
+     대각선 딥틸 패널 · 하단 퀵바 · 필 라벨칩 · 겹침 블록 · 랭킹
+     ============================================================ */
+
+  /* ── 시그니처: 형광펜 하이라이트 박스 ── */
+  .hl{background:var(--teal-d); color:#fff; padding:.04em .26em; border-radius:.24em;
+    box-decoration-break:clone; -webkit-box-decoration-break:clone; white-space:nowrap}
+  .hl.soft{background:var(--teal-soft); color:var(--teal-d)}
+
+  /* ── 인트로 딥틸 ── */
+
+  /* ── 히어로: onetopdental 스타일 다크 풀블리드 + 좌측 테마 리스트 + 우측 큰 헤드라인 ── */
+  .hero{min-height:100vh; min-height:800px; color:#fff; background:#0a1a1c;
+    padding:var(--hdr) 0 120px; align-items:center; overflow:hidden}
+  .hero .hero-bg{display:block !important; position:absolute; inset:0;
+    background:url("assets/img/kr-hero-lobby.jpg") center/cover;
+    transform:scale(1.08); animation:heroZoom 12s var(--ease) forwards}
+  /* 딥틸 글로우 + 시네마틱 그라디언트 (농도 낮춰 로비가 더 보이게) */
+  .hero::after{content:""; display:block !important; position:absolute; inset:0;
+    background:
+      radial-gradient(130% 100% at 88% 8%, rgba(15,140,140,.26) 0%, rgba(15,140,140,0) 46%),
+      radial-gradient(120% 90% at 8% 100%, rgba(6,58,60,.42) 0%, rgba(6,58,60,0) 50%),
+      linear-gradient(92deg, rgba(6,16,18,.74) 0%, rgba(6,16,18,.46) 46%, rgba(6,16,18,.26) 100%)}
+  .hero .hero-bg::after{content:""; position:absolute; inset:0;
+    box-shadow:inset 0 -110px 110px -70px rgba(4,12,13,.6), inset 0 70px 80px -60px rgba(4,12,13,.4)}
+  .hero .wrap{position:relative; z-index:2; width:100%; display:grid; grid-template-columns:auto 1fr; gap:44px; align-items:center}
+  /* 좌측 세로 테마 리스트(활성 하나만 딥틸 강조) */
+  .hero-themes{display:flex; flex-direction:column; gap:20px; border-left:2px solid rgba(255,255,255,.18); padding-left:22px}
+  .hero-themes a{display:flex; align-items:center; gap:13px; color:rgba(255,255,255,.55); font-size:15px; font-weight:600; transition:color .2s}
+  .hero-themes a::before{content:""; flex:0 0 auto; width:9px; height:9px; border-radius:50%; border:2px solid rgba(255,255,255,.45); transition:all .2s}
+  .hero-themes a:hover{color:#fff}
+  .hero-themes a.on{color:#fff; font-weight:800; font-size:16.5px}
+  .hero-themes a.on::before{background:var(--teal); border-color:var(--teal); box-shadow:0 0 0 4px rgba(11,110,112,.4)}
+  /* 우측 큰 헤드라인(우측 정렬) */
+  .hero-copy{justify-self:end; text-align:right; max-width:740px}
+  .hero .badge-pill{display:inline-flex; align-items:center; gap:9px; border:1px solid rgba(63,211,201,.5);
+    color:var(--teal-lite); background:rgba(11,110,112,.16); border-radius:30px; padding:8px 16px;
+    font-size:13px; font-weight:700; letter-spacing:.01em; margin-bottom:16px; backdrop-filter:blur(6px)}
+  .hero .badge-pill .dot{width:7px; height:7px; border-radius:50%; background:var(--teal-lite);
+    box-shadow:0 0 0 4px rgba(63,211,201,.22); animation:badgePulse 2s ease-out infinite}
+  @keyframes badgePulse{0%{box-shadow:0 0 0 0 rgba(63,211,201,.5)}100%{box-shadow:0 0 0 8px rgba(63,211,201,0)}}
+  .hero .eyebrow{color:rgba(255,255,255,.72); justify-content:flex-end; margin-bottom:14px}
+  .hero .eyebrow::before{display:none}
+  .hero .hero-ment{color:#fff; font-size:clamp(16px,2.05vw,20px); font-weight:700; line-height:1.6;
+    max-width:560px; margin:2px 0 12px auto; text-shadow:0 2px 20px rgba(0,0,0,.3)}
+  .hero .hero-ment .u{background:linear-gradient(transparent 60%, rgba(63,211,201,.42) 60%)}
+  .hero h1{color:#fff; font-size:clamp(32px,5.4vw,64px); line-height:1.16; letter-spacing:-.025em;
+    text-shadow:0 2px 34px rgba(0,0,0,.38)}
+  .hero .lead{color:rgba(255,255,255,.86); max-width:540px; margin-left:auto; margin-bottom:30px}
+  .hero-cta{justify-content:flex-end}
+  .hero .hl{display:inline-block; line-height:1; padding:.08em .22em .14em; border-radius:10px;
+    vertical-align:baseline; background:linear-gradient(135deg,#0d9488 0%, #0f766e 100%); color:#fff;
+    box-shadow:0 8px 26px -12px rgba(13,148,136,.6)}
+  .scroll-cue{display:none}
+
+  /* 화려: 하단 프로스티드 글래스 통계 스트립 */
+  .hero-strip{position:absolute; left:0; right:0; bottom:0; z-index:3; display:grid; grid-template-columns:repeat(4,1fr);
+    background:rgba(255,255,255,.07); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    border-top:1px solid rgba(255,255,255,.18)}
+  .hero-strip .hs{padding:22px 20px; display:flex; align-items:baseline; justify-content:center; gap:8px;
+    color:#fff; border-left:1px solid rgba(255,255,255,.12)}
+  .hero-strip .hs:first-child{border-left:0}
+  .hero-strip .hs b{font-family:"Manrope"; font-weight:800; font-size:clamp(26px,3vw,34px); line-height:1;
+    color:var(--teal-lite); letter-spacing:-.02em}
+  .hero-strip .hs span{font-size:14px; color:rgba(255,255,255,.82); font-weight:500}
+  /* 등장 애니메이션 */
+  .hero-themes a{opacity:0; transform:translateX(-14px)}
+  .ready .hero-themes a{animation:heroTheme .7s var(--ease) forwards}
+  .ready .hero-themes a:nth-child(1){animation-delay:.35s}
+  .ready .hero-themes a:nth-child(2){animation-delay:.46s}
+  .ready .hero-themes a:nth-child(3){animation-delay:.57s}
+  .ready .hero-themes a:nth-child(4){animation-delay:.68s}
+  @keyframes heroTheme{to{opacity:1; transform:none}}
+  .hero-strip{opacity:0; transform:translateY(18px)}
+  .ready .hero-strip{animation:heroStrip .8s .7s var(--ease) forwards}
+  @keyframes heroStrip{to{opacity:1; transform:none}}
+  .consult-card .cc-head{background:var(--teal-d); color:#fff; padding:16px 20px; font-size:16px; font-weight:500}
+  .consult-card .cc-head b{font-weight:900}
+  .consult-card .cc-body{padding:16px 18px 20px}
+  .consult-card .cc-sub{font-size:13px; color:var(--ink-2); text-align:center; line-height:1.6; margin-bottom:14px}
+  .consult-card .fld{width:100%; border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:14px;
+    color:var(--ink); background:var(--soft); margin-bottom:9px; font-family:inherit}
+  .consult-card textarea.fld{resize:none; height:64px}
+  .consult-card .fld:focus{outline:none; border-color:var(--teal); background:#fff; box-shadow:0 0 0 3px var(--teal-soft)}
+  .consult-card .cc-consent{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-2); margin:6px 0 14px}
+  .consult-card .cc-consent input{accent-color:var(--teal)}
+  .consult-card .cc-submit{width:100%; background:var(--teal-d); color:#fff; border-radius:10px; padding:14px;
+    font-size:16px; font-weight:800; transition:background .2s, transform .2s}
+  .consult-card .cc-submit:hover{background:var(--teal-dd); transform:translateY(-2px)}
+
+  /* ── 섹션 헤드: 딥틸 kicker ── */
+  .kicker{color:var(--teal)} .kicker::before{background:var(--teal)}
+
+  /* ── 강점(pillars): 필 라벨칩 + 딥틸 아이콘 ── */
+  .pillar .ic{background:var(--teal-soft); color:var(--teal-d)}
+  .pill-chip{display:inline-block; font-family:"Manrope"; font-size:11.5px; font-weight:800; letter-spacing:.02em;
+    color:#fff; background:var(--teal-d); border-radius:20px; padding:5px 13px; margin-bottom:14px}
+  .pillar .pill-chip{background:var(--teal); }
+
+  /* ── 진료과 카드 ── */
+  .dept:hover{border-color:var(--teal-line); box-shadow:0 22px 40px -26px rgba(10,74,76,.4)}
+  .dept .ic{color:var(--teal)}
+  /* ── 진료과 섹션: 온라인 상담(챗봇) 미리보기 ── */
+  .triage{display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center; margin-top:60px}
+  .triage .tx h3{font-size:clamp(22px,3vw,30px); line-height:1.3; margin:12px 0 14px}
+  .triage .tx p{color:var(--ink-2); font-size:16px; line-height:1.75; margin-bottom:24px}
+  .triage .tx p b{color:var(--teal-d)}
+  .chat-mock{width:100%; max-width:380px; margin-left:auto; border-radius:20px; overflow:hidden;
+    border:1px solid var(--line); background:#fff; box-shadow:0 34px 64px -34px rgba(10,74,76,.5)}
+  .chat-mock .cm-head{background:var(--teal-d); color:#fff; padding:15px 18px; font-size:14.5px; font-weight:700;
+    display:flex; align-items:center; gap:9px}
+  .chat-mock .cm-head .dot{width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 3px rgba(74,222,128,.3)}
+  .chat-mock .cm-body{background:var(--soft); padding:18px 16px; display:flex; flex-direction:column; gap:10px}
+  .cm-msg{max-width:84%; padding:11px 14px; border-radius:15px; font-size:13.5px; line-height:1.55}
+  .cm-msg.bot{background:#fff; border:1px solid var(--line); align-self:flex-start; border-bottom-left-radius:5px}
+  .cm-msg.bot b{color:var(--teal-d)}
+  .cm-msg.me{background:var(--teal); color:#fff; align-self:flex-end; border-bottom-right-radius:5px}
+  .cm-chips{display:flex; gap:7px; flex-wrap:wrap; margin-top:2px}
+  .cm-chip{font-size:12px; font-weight:600; color:var(--teal-d); background:var(--teal-soft); border:1px solid var(--teal-line); border-radius:20px; padding:6px 12px}
+  @media (max-width:1000px){ .triage{grid-template-columns:1fr; gap:32px} .chat-mock{margin:0 auto} }
+
+  /* ── 시설 캐러셀: 캡션/도트 딥틸 ── */
+  .slide .cap{background:linear-gradient(transparent, rgba(7,54,56,.86))}
+  .dots button.on{background:var(--teal)}
+  .arrows button:hover{background:var(--teal-d); border-color:var(--teal-d)}
+
+  /* ── 의료진 태그 딥틸 ── */
+  .doc .dept-tag{color:var(--teal)}
+
+  /* ── 철학/약속: 겹침 딥틸 블록 + 워터마크 로고 ── */
+  #care{background:var(--soft); overflow:hidden}
+  #care .split{grid-template-columns:1fr 1fr; gap:56px}
+  .care-visual{position:relative; min-height:400px}
+  .care-visual .wm{position:absolute; left:-6%; top:-10%; width:280px; height:280px; color:var(--teal); opacity:.06; z-index:0}
+  .care-visual .blk{position:relative; z-index:1; border-radius:18px; padding:28px 30px; box-shadow:0 22px 46px -30px rgba(10,74,76,.4)}
+  .care-visual .blk.a{background:var(--teal-soft); color:var(--teal-d); width:78%; margin-bottom:20px}
+  .care-visual .blk.b{background:var(--teal-d); color:#fff; width:88%; margin-left:auto; display:flex; align-items:center; gap:18px}
+  .care-visual .blk .big{font-size:22px; font-weight:900; line-height:1.3}
+  .care-visual .blk.b .medal{flex:0 0 auto; width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.14);
+    display:grid; place-items:center}
+  .care-visual .blk.b .medal svg{width:30px; height:30px; color:#fff}
+  .phi-list .num{background:var(--teal-soft); color:var(--teal-d)}
+  .care-more{margin-top:26px; display:inline-flex; align-items:center; gap:9px; border:1.5px solid var(--teal);
+    color:var(--teal-d); border-radius:30px; padding:11px 22px; font-weight:800; font-size:14.5px; transition:all .2s}
+  .care-more:hover{background:var(--teal-d); color:#fff; border-color:var(--teal-d)}
+  .care-more svg{width:16px; height:16px}
+
+  /* ── 리얼 후기: 랭킹 1·2·3 (가운데 솟음) ── */
+  #reviews{background:#fff}
+  .rank-row{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; align-items:end; margin-top:20px}
+  .rank{border:1px solid var(--line); border-radius:18px; overflow:hidden; background:#fff; text-align:center;
+    transition:transform .3s var(--ease), box-shadow .3s}
+  .rank .ph{aspect-ratio:1/1; background:var(--soft-2); position:relative; overflow:hidden}
+  .rank .ph img{width:100%;height:100%;object-fit:cover}
+  .rank .ph .no{position:absolute; top:12px; left:12px; width:34px;height:34px; border-radius:50%; background:var(--teal-d);
+    color:#fff; font-family:"Manrope"; font-weight:800; display:grid; place-items:center; font-size:15px}
+  .rank .ph .ph-hint{position:absolute; inset:0; display:grid; place-items:center; color:var(--ink-3); font-size:12px; font-weight:600}
+  .rank .rv{padding:18px 18px 22px}
+  .rank .rv .q{font-size:15px; font-weight:700; color:var(--ink); line-height:1.5}
+  .rank .rv .who{font-size:12.5px; color:var(--ink-3); margin-top:8px}
+  .rank.win{transform:translateY(-18px); box-shadow:0 30px 56px -30px rgba(10,74,76,.5); border-color:var(--teal-line)}
+  .rank.win .ph .no{background:var(--teal); width:40px;height:40px; font-size:17px}
+  .reviews-note{text-align:center; margin-top:30px; font-size:13px; color:var(--ink-3)}
+
+  /* ── 연결(connect) 딥틸 그라디언트 아이콘 ── */
+  .entry.e1 .ic{background:linear-gradient(135deg,var(--teal),var(--teal-d))}
+  .entry .badge{color:var(--teal); background:var(--teal-soft)}
+  .connect{background:linear-gradient(180deg,var(--teal-tint) 0%, #fff 100%)}
+
+  /* ── 방문/오시는길 딥틸 ── */
+  .hours .em td{color:var(--teal)}
+  .info-list .ic{color:var(--teal)}
+  .map-note .pin{color:var(--teal)}
+
+  /* ── 하단 고정 퀵바 (minish 시그니처 persistent chrome) ── */
+  .quickbar{position:fixed; left:0; right:0; bottom:0; z-index:940; height:var(--qbar);
+    background:#fff; border-top:1px solid var(--line); box-shadow:0 -8px 26px -18px rgba(10,74,76,.4);
+    display:flex}
+  .quickbar a{flex:1; display:flex; align-items:center; justify-content:center; gap:9px; font-size:14.5px; font-weight:700;
+    color:var(--ink); border-left:1px solid var(--line-2); transition:background .18s, color .18s}
+  .quickbar a:first-child{border-left:0}
+  .quickbar a:hover{background:var(--teal-tint); color:var(--teal-d)}
+  .quickbar a .qi{width:34px;height:34px;border-radius:10px; background:var(--teal-soft); color:var(--teal-d);
+    display:grid; place-items:center}
+  .quickbar a .qi svg{width:19px;height:19px}
+  .fab-stack{bottom:26px}
+  .chat{bottom:26px}
+
+  /* ── 세련화: 흰색+딥틸 두 톤, 중간색(연틸·틴트) 걷어내기 ── */
+  /* 의료진 아바타 → 중립 그레이 + 딥틸 이니셜 */
+  .doc .ph.avatar{background:linear-gradient(160deg,#f1f3f6,#e5e8ee)!important}
+  .doc .ph.avatar span{color:var(--teal-d); opacity:1}
+  /* 강점 아이콘·번호 → 중립 배경 + 딥틸 아이콘 */
+  .pillar .ic{background:var(--soft); color:var(--teal)}
+  .phi-list .num{background:var(--soft); color:var(--teal-d)}
+  .info-list .ic{background:var(--soft)}
+  .entry .badge{background:var(--soft); color:var(--teal-d)}
+  /* 약속 겹침 블록: 연틸 블록 → 흰 카드, 딥틸 블록만 유지 */
+  .care-visual .blk.a{background:#fff; color:var(--ink); border:1px solid var(--line)}
+  /* 퀵바 아이콘칩 → 칩 제거, 딥틸 아이콘만 */
+  .quickbar a .qi{background:transparent; color:var(--teal)}
+  .quickbar a:hover{background:var(--soft)}
+  .quickbar a:hover .qi{color:var(--teal-d)}
+  /* connect 연틸 배경 → 중립 */
+  .connect{background:linear-gradient(180deg,var(--soft) 0%, #fff 100%)}
+  /* 후기 랭킹 사진 자리 → 중립 + 상단 크롭(하단 워터마크·자막 가림) */
+  .rank .ph{background:var(--soft-2)}
+  .rank .ph img{object-position:center top}
+
+  /* ── 반응형 보강 ── */
+  @media (max-width:1000px){
+    .hero{min-height:auto; padding:calc(var(--hdr) + 30px) 0 100px}
+    .hero .wrap{grid-template-columns:1fr; gap:28px}
+    .hero-themes{order:2; flex-direction:row; flex-wrap:wrap; gap:12px 20px; border-left:0; border-top:2px solid rgba(255,255,255,.18); padding-left:0; padding-top:20px}
+    .hero-copy{order:1; text-align:left; justify-self:start; max-width:none}
+    .hero .eyebrow{justify-content:flex-start}
+    .hero .lead{margin-left:0}
+    .hero-cta{justify-content:flex-start}
+    #care .split{grid-template-columns:1fr}
+    .quickbar a span{font-size:13px}
+  }
+  @media (max-width:600px){
+    .hero-strip{grid-template-columns:repeat(2,1fr)}
+    .hero-strip .hs{padding:15px 12px}
+    .hero-strip .hs:nth-child(3){border-left:0}
+    .hero-strip .hs:nth-child(n+3){border-top:1px solid rgba(255,255,255,.12)}
+    .rank-row{grid-template-columns:1fr}
+    .rank.win{transform:none}
+    .quickbar a .qi{display:none}
+    .quickbar a{gap:0; font-size:12.5px}
+    .quickbar a span{font-size:12px}
+  }
+</style>
+</head>
+<body>
+
+<!--
+  사진: 사용자가 제공한 실제 한국 병원·의료진 이미지(source/ → assets/img/kr-*).
+  히어로 인물=kr-hero-doctor · 팀=kr-team · 상담=kr-consult
+  시설 캐러셀=kr-fac-lobby/exam/scan/surgery/procedure/recovery
+  전부 눈으로 검수: 외국 병원 간판·서양 인물 없음, 한국 의료 현장.
+  (후기 섹션의 얼굴 자리만 아직 자리표시 — 환자 후기 사진 대기)
+-->
+
+<!-- ============ INTRO ============ -->
+<div id="intro" aria-hidden="true">
+  <div class="intro-panels"><div class="intro-panel"></div><div class="intro-panel"></div><div class="intro-panel"></div><div class="intro-panel"></div></div>
+  <div class="intro-stage">
+    <div class="intro-slogan">
+      <span class="w w1">여러 과를</span>
+      <span class="w w2">한 병원에서</span>
+      <span class="w w3">끝까지</span>
+    </div>
+    <div class="intro-brand">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5h6V2h4v3h6v16M9 9h6M12 6v6M8 21v-5h8v5"/></svg>
+      <div class="kr">가온병원</div>
+      <div class="intro-line"></div>
+      <div class="intro-sub">GAON MEDICAL CENTER</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HEADER ============ -->
+<header class="site-header" id="header">
+  <div class="wrap">
+    <a href="#top" class="brand" aria-label="가온병원 홈">
+      <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5h6V2h4v3h6v16M9 9h6M12 6v6M8 21v-5h8v5"/></svg>
+      <span class="wm">가온병원</span>
+    </a>
+    <nav class="nav" aria-label="주요 메뉴">
+      <a href="#about">병원소개</a>
+      <a href="#depts">진료과</a>
+      <a href="#doctors">의료진</a>
+      <a href="#facility">시설안내</a>
+      <a href="#visit">오시는 길</a>
+    </nav>
+    <div class="header-cta">
+      <a href="tel:1588-0000" class="phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>1588-0000</a>
+      <button class="btn btn-white" data-chat-open><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>온라인 상담</button>
+    </div>
+  </div>
+</header>
+
+<a id="top"></a>
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="wrap">
+    <nav class="hero-themes" aria-label="가온병원 강점">
+      <a href="#depts" class="on">분과별 협진 · 4개 진료과</a>
+      <a href="#about">24시간 응급의료센터</a>
+      <a href="#about">MRI · CT 첨단 검사</a>
+      <a href="#connect">온라인 상담 · 예약</a>
+    </nav>
+    <div class="hero-inner hero-copy">
+      <span class="badge-pill"><span class="dot"></span>24시간 응급의료 · 4개 진료과 협진</span>
+      <span class="eyebrow">GAON MEDICAL CENTER</span>
+      <h1>가까이에서 더 깊이,<br>당신의 <span class="hl">건강</span>을 지킵니다</h1>
+      <p class="hero-ment">증상이 어느 과인지 몰라도 괜찮습니다.<br><span class="u">온라인 상담으로 먼저 묻고, 예약까지 한 번에.</span></p>
+      <p class="lead">내과·정형외과·이비인후과·소아과 전문의가 한 병원에서 협진합니다. 대기는 줄이고, 진료는 깊게.</p>
+      <div class="hero-cta">
+        <button class="btn btn-white" data-chat-open><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>온라인 상담 시작</button>
+        <a href="#connect" class="btn btn-ghost">진료 예약 안내</a>
+      </div>
+    </div>
+  </div>
+  <div class="hero-strip" aria-hidden="true">
+    <div class="hs"><b>4</b><span>개 진료과</span></div>
+    <div class="hs"><b>8</b><span>명 전문의</span></div>
+    <div class="hs"><b>24</b><span>시간 응급의료</span></div>
+    <div class="hs"><b>6</b><span>일 진료 · 월–토</span></div>
+  </div>
+</section>
+
+<!-- ============ PILLARS ============ -->
+<section class="band" id="about">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <span class="kicker">WHY GAON</span>
+      <h2>큰 병원의 <span class="hl">실력</span>, 동네 병원의 <span class="hl">편안함</span></h2>
+      <p class="desc">진단부터 치료, 재활, 그리고 일상 관리까지. 흩어진 진료를 한곳에서 잇는 것이 가온병원의 방식입니다.</p>
+    </div>
+    <div class="pillars reveal">
+      <div class="pillar">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21V8l9-5 9 5v13" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 21v-6h6v6M12 11v.01" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>4개 진료과 협진</h3>
+        <p>내과·정형외과·이비인후과·소아과가 한 병원에. 필요하면 과 사이를 이어서 봅니다.</p>
+      </div>
+      <div class="pillar">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2 5 4-12 2 7h6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>24시간 응급의료</h3>
+        <p>야간·주말에도 열려 있는 응급의료센터. 갑작스러운 순간에도 곁을 지킵니다.</p>
+      </div>
+      <div class="pillar">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7" stroke-linecap="round"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>첨단 진단·검사</h3>
+        <p>MRI·CT·초음파 등 정밀 장비로 원인을 정확히 찾고, 결과는 알기 쉽게 설명합니다.</p>
+      </div>
+      <div class="pillar">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2.5" width="12" height="19" rx="3" stroke-linecap="round"/><path d="M11 18.5h2" stroke-linecap="round"/></svg></div>
+        <h3>온라인 상담·예약</h3>
+        <p>앱과 웹으로 예약하고, 챗봇으로 궁금한 점을 먼저 물어보세요. 대기는 줄이고 안내는 빠르게.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DOCTORS ============ -->
+<section class="band soft" id="doctors">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kicker">MEDICAL TEAM</span>
+      <h2><span class="hl">8명의 전문의</span>가 함께 봅니다</h2>
+      <p class="desc">각 분야의 전문의가 진단과 치료, 그 이후의 관리까지 책임집니다.</p>
+    </div>
+    <div class="team-feature reveal" style="position:relative;border-radius:20px;overflow:hidden;margin-bottom:28px;box-shadow:0 26px 52px -32px rgba(10,74,76,.5)">
+      <img src="assets/img/kr-team.jpg" alt="가온병원 의료진 8명" style="display:block;width:100%;aspect-ratio:1844/853;object-fit:cover;object-position:center top">
+      <div style="position:absolute;inset:auto 0 0 0;padding:48px 34px 26px;color:#fff;background:linear-gradient(transparent,rgba(7,54,56,.82))">
+        <div style="font-size:clamp(20px,2.6vw,26px);font-weight:900;letter-spacing:-.02em">진단부터 회복까지, 한 팀으로</div>
+        <div style="font-size:14.5px;opacity:.92;margin-top:6px">내과 · 정형외과 · 이비인후과 · 소아과 전문의가 함께 협진합니다</div>
+      </div>
+    </div>
+    <div class="doc-grid reveal">
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-a.jpg" alt="이정민 원장" style="object-position:50% 17%"></div><div class="info"><div class="dept-tag">Internal Medicine</div><h4>이정민</h4><div class="role">내과 · 소화기내과</div></div></article>
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-b.jpg" alt="김서준 원장" style="object-position:50% 8%"></div><div class="info"><div class="dept-tag">Internal Medicine</div><h4>김서준</h4><div class="role">내과 · 호흡기내과</div></div></article>
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-3.jpg" alt="최도윤 원장" style="object-position:50% 40%"></div><div class="info"><div class="dept-tag">Orthopedics</div><h4>최도윤</h4><div class="role">정형외과 · 척추·관절</div></div></article>
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-f1.jpg" alt="정하은 원장" style="object-position:50% 16%"></div><div class="info"><div class="dept-tag">Orthopedics</div><h4>정하은</h4><div class="role">정형외과 · 스포츠의학</div></div></article>
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-f2.jpg" alt="강수아 원장" style="object-position:50% 8%"></div><div class="info"><div class="dept-tag">ENT</div><h4>강수아</h4><div class="role">이비인후과 · 비염·부비동</div></div></article>
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-2.jpg" alt="윤지호 원장" style="object-position:50% 6%"></div><div class="info"><div class="dept-tag">ENT</div><h4>윤지호</h4><div class="role">이비인후과 · 이명·난청</div></div></article>
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-f3.jpg" alt="임채원 원장" style="object-position:50% 2%"></div><div class="info"><div class="dept-tag">Pediatrics</div><h4>임채원</h4><div class="role">소아과 · 영유아 검진</div></div></article>
+      <article class="doc"><div class="ph"><img src="assets/img/kr-doc-c.jpg" alt="한지우 원장" style="object-position:50% 30%"></div><div class="info"><div class="dept-tag">Pediatrics</div><h4>한지우</h4><div class="role">소아과 · 소아 호흡기</div></div></article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DEPARTMENTS ============ -->
+<section class="band" id="depts">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kicker">DEPARTMENTS</span>
+      <h2><span class="hl">4개 진료과</span>, 필요한 진료를 한곳에서</h2>
+      <p class="desc">증상이 어느 과인지 헷갈릴 때는 온라인 상담으로 먼저 물어보세요. 알맞은 진료과를 안내해 드립니다.</p>
+    </div>
+    <div class="dept-grid reveal" style="grid-template-columns:repeat(4,1fr)">
+      <div class="dept"><div class="ic"><svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 15c0-3 2-5 5-5s5 2 5 7 2 7 5 7 5-2 5-5" stroke-linecap="round"/><circle cx="32" cy="19" r="3"/></svg></div><h4>내과</h4><p>소화기내과 · 호흡기내과</p></div>
+      <div class="dept"><div class="ic"><svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16 10l4 4-6 6-4-4M28 34l-4-4 6-6 4 4M14 20l16 10" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h4>정형외과</h4><p>척추·관절 · 스포츠의학</p></div>
+      <div class="dept"><div class="ic"><svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 12c-5 0-8 4-8 9 0 6 4 11 8 11 2 0 3-2 3-4s1-3 2-3 2 1 3 1c2 0 3-2 3-5 0-5-4-9-9-9Z" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h4>이비인후과</h4><p>비염·부비동 · 이명·난청</p></div>
+      <div class="dept"><div class="ic"><svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="22" cy="15" r="5"/><path d="M13 34c0-5 4-9 9-9s9 4 9 9" stroke-linecap="round"/></svg></div><h4>소아과</h4><p>영유아 검진 · 소아 호흡기</p></div>
+    </div>
+    <div class="triage reveal">
+      <div class="tx">
+        <span class="kicker">ONLINE TRIAGE</span>
+        <h3>어느 과로 가야 할지 모르겠다면?</h3>
+        <p>증상만 입력하면 <b>온라인 상담</b>이 알맞은 진료과를 먼저 안내합니다. 예약까지 그대로 이어져요.</p>
+        <button class="btn btn-primary" data-chat-open><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>온라인 상담 시작</button>
+      </div>
+      <div class="chat-mock" aria-hidden="true">
+        <div class="cm-head"><span class="dot"></span>가온 상담봇 · 지금 응답 가능</div>
+        <div class="cm-body">
+          <div class="cm-msg bot">안녕하세요, 무엇을 도와드릴까요?</div>
+          <div class="cm-msg me">무릎이 아파요</div>
+          <div class="cm-msg bot">말씀하신 증상은 <b>정형외과</b> 진료가 적합해 보입니다. 예약을 도와드릴까요?</div>
+          <div class="cm-chips"><span class="cm-chip">예약 방법</span><span class="cm-chip">진료시간</span><span class="cm-chip">직원 상담</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FACILITY CAROUSEL ============ -->
+<section class="band facility" id="facility">
+  <div class="fac-head sec-head reveal" style="margin-bottom:44px">
+    <span class="kicker">OUR SPACE</span>
+    <h2>편안함을 먼저 생각한 공간</h2>
+    <p class="desc">넓고 밝은 로비부터 감염관리 병동, 최신 수술실까지. 환자와 보호자의 동선을 배려해 설계했습니다.</p>
+  </div>
+  <div class="carousel reveal">
+    <div class="track-view">
+      <div class="track" id="track">
+        <div class="slide"><img src="assets/img/kr-fac-atrium.webp" alt="로비"><div class="cap"><div class="t">중앙 로비</div><div class="d">넓고 밝은 동선으로 처음 방문도 쉽게</div></div></div>
+        <div class="slide"><img src="assets/img/kr-fac-exam.jpg" alt="진료실에서 상담하는 의료진"><div class="cap"><div class="t">진료실</div><div class="d">충분히 설명하고 함께 결정하는 공간</div></div></div>
+        <div class="slide"><img src="assets/img/kr-fac-scan.jpg" alt="영상 검사실(MRI·CT)"><div class="cap"><div class="t">영상 검사실</div><div class="d">MRI·CT로 원인을 정확히 찾습니다</div></div></div>
+        <div class="slide"><img src="assets/img/kr-fac-surgery.webp" alt="수술 중인 의료진"><div class="cap"><div class="t">수술실</div><div class="d">감염관리 기준을 충족한 수술 환경</div></div></div>
+        <div class="slide"><img src="assets/img/kr-fac-procedure.jpg" alt="정밀 시술 장면"><div class="cap"><div class="t">정밀 시술</div><div class="d">현미경 기반의 세밀한 시술</div></div></div>
+        <div class="slide"><img src="assets/img/kr-fac-recovery.jpg" alt="회복 병실"><div class="cap"><div class="t">회복 병실</div><div class="d">보호자 공간을 갖춘 조용한 회복 환경</div></div></div>
+      </div>
+    </div>
+    <div class="car-ctrl">
+      <div class="dots" id="dots"></div>
+      <div class="arrows">
+        <button id="prev" aria-label="이전"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button id="next" aria-label="다음"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PHILOSOPHY ============ -->
+<section class="band" id="care">
+  <div class="wrap">
+    <div class="split">
+      <div class="care-visual reveal">
+        <svg class="wm" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 3a1 1 0 0 0-1 1v16H3v2h18v-2h-2V4a1 1 0 0 0-1-1H6Zm5 3h2v2h2v2h-2v2h-2v-2H9V8h2V6Zm-2 9h2v4H9v-4Zm4 0h2v4h-2v-4Z"/></svg>
+        <div style="position:relative;z-index:1;border-radius:18px;overflow:hidden;aspect-ratio:16/10;margin-bottom:18px;box-shadow:0 26px 50px -30px rgba(10,74,76,.5)">
+          <img src="assets/img/kr-consult.jpg" alt="의료진이 환자와 상담하는 모습" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="blk a"><div class="big">숫자로만 보지 않습니다</div></div>
+        <div class="blk b">
+          <div class="medal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 8.6a5.5 5.5 0 0 0-9-6 5.5 5.5 0 0 0-9 6c1.7 4 9 8.4 9 8.4s7.3-4.4 9-8.4Z" stroke-linejoin="round"/></svg></div>
+          <div class="big">한 사람의 하루를<br>끝까지 함께합니다</div>
+        </div>
+      </div>
+      <div class="reveal d1">
+        <span class="kicker">OUR PROMISE</span>
+        <h2 style="font-size:clamp(25px,3.4vw,36px)">환자 한 사람의<br><span class="hl">하루</span>를 생각합니다</h2>
+        <p class="desc" style="margin-top:16px">숫자로만 보지 않습니다. 왜 아픈지 정확히 찾고, 이해할 수 있게 설명하고, 나아질 때까지 함께합니다.</p>
+        <ul class="phi-list">
+          <li><div class="num">01</div><div><h4>정확한 진단</h4><p>충분한 검사와 협진으로 원인을 제대로 짚습니다.</p></div></li>
+          <li><div class="num">02</div><div><h4>알기 쉬운 설명</h4><p>어려운 의학용어는 풀어서, 선택은 환자와 함께 결정합니다.</p></div></li>
+          <li><div class="num">03</div><div><h4>끝까지 함께</h4><p>치료 이후의 회복과 일상 관리까지 이어서 돌봅니다.</p></div></li>
+        </ul>
+        <a href="#connect" class="care-more">가온의 진료 방식 더 보기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REAL REVIEWS (랭킹) ============ -->
+<section class="band" id="reviews">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <span class="kicker">REAL STORIES</span>
+      <h2>가온을 <span class="hl">먼저 경험</span>한 분들</h2>
+      <p class="desc">실제 진료를 받은 환자분들이 남긴 이야기입니다.</p>
+    </div>
+    <div class="rank-row reveal">
+      <div class="rank">
+        <div class="ph"><div class="no">2</div><img src="assets/img/kr-review-2.webp" alt="환자 후기"></div>
+        <div class="rv"><div class="q">“대기 시간이 짧고, 검사 결과를 알기 쉽게 설명해 주셨어요.”</div><div class="who">30대 · 내과 진료</div></div>
+      </div>
+      <div class="rank win">
+        <div class="ph"><div class="no">1</div><img src="assets/img/kr-review-1.jpg" alt="환자 후기"></div>
+        <div class="rv"><div class="q">“어느 과로 가야 할지 막막했는데, 온라인 상담으로 안내받고 예약까지 한 번에 됐어요.”</div><div class="who">30대 · 온라인 상담 후 방문</div></div>
+      </div>
+      <div class="rank">
+        <div class="ph"><div class="no">3</div><img src="assets/img/kr-review-3.jpg" alt="환자 후기"></div>
+        <div class="rv"><div class="q">“아이가 아픈데 소아과 예약이 빨라 다행이었습니다.”</div><div class="who">40대 · 소아과 보호자</div></div>
+      </div>
+    </div>
+    <p class="reviews-note">※ 후기 속 얼굴은 실제 한국인 환자 사진으로 교체될 자리입니다 (데모 화면).</p>
+  </div>
+</section>
+
+<!-- ============ CONNECT / 3 ENTRY POINTS ============ -->
+<section class="band connect" id="connect">
+  <div class="wrap">
+    <div class="sec-head center reveal">
+      <span class="kicker">GET CONNECTED</span>
+      <h2>언제 어디서나, 가온과 연결</h2>
+      <p class="desc">병원에 오기 전에도 가온과 이어질 수 있습니다. 두 가지 방법 중 편한 것을 고르세요.</p>
+    </div>
+    <div class="entry-grid reveal">
+      <div class="entry e1">
+        <span class="badge">누구나 · 로그인 없이</span>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" stroke-linecap="round"/></svg></div>
+        <h3>온라인 상담 (챗봇)</h3>
+        <p>진료과·진료시간·예약 방법이 궁금할 때, 24시간 챗봇이 먼저 안내합니다. 어려운 문의는 담당 직원 상담으로 이어드립니다.</p>
+        <div class="act"><button class="btn btn-primary" data-chat-open style="width:100%; justify-content:center">지금 상담 시작</button></div>
+      </div>
+      <div class="entry e2">
+        <span class="badge">환자용 모바일</span>
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18.5h2" stroke-linecap="round"/></svg></div>
+        <h3>환자앱</h3>
+        <p>예약과 대기 현황, 진료 내역과 문진 작성까지. 내 진료를 손안에서 관리하세요.</p>
+        <div class="store-btns">
+          <a href="#" class="store" data-soon="환자앱은 준비 중입니다"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a5 5 0 0 0-5 5c0 .3 0 .6.1.9C5 8.5 3.5 10.6 3.5 13.2c0 3.2 2.3 8.8 4.8 8.8 1 0 1.6-.6 2.9-.6 1.3 0 1.8.6 2.9.6 2.5 0 4.8-5.6 4.8-8.8 0-2.6-1.5-4.7-3.6-5.3.1-.3.1-.6.1-.9a5 5 0 0 0-5-5Z"/></svg><div class="tx"><small>Download on the</small><b>App Store</b></div></a>
+          <a href="#" class="store" data-soon="환자앱은 준비 중입니다"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 3l14 9-14 9V3Z"/></svg><div class="tx"><small>GET IT ON</small><b>Google Play</b></div></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VISIT ============ -->
+<section class="band soft" id="visit">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kicker">VISIT US</span>
+      <h2>오시는 길 · 진료 시간</h2>
+    </div>
+    <div class="visit-grid">
+      <div class="reveal">
+        <table class="hours">
+          <tr><th>평일</th><td>09:00 – 18:00</td></tr>
+          <tr><th>토요일</th><td>09:00 – 13:00</td></tr>
+          <tr><th>점심시간</th><td>13:00 – 14:00</td></tr>
+          <tr><th>일요일·공휴일</th><td>휴진</td></tr>
+          <tr class="em"><th>응급실</th><td>24시간 운영</td></tr>
+        </table>
+      </div>
+      <div class="reveal d1">
+        <div class="info-list">
+          <div class="row"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" stroke-linejoin="round"/><circle cx="12" cy="10" r="3"/></svg></div><div><div class="k">주소</div><div class="v">서울특별시 가온구 한빛로 24, 가온병원</div></div></div>
+          <div class="row"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.1 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="k">대표전화</div><div class="v">1588-0000</div></div></div>
+          <div class="row"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke-linecap="round"/></svg></div><div><div class="k">교통</div><div class="v">지하철 3호선 가온역 2번 출구 도보 5분 · 주차 300대</div></div></div>
+        </div>
+        <div class="map-note" role="img" aria-label="가온병원 약도 — 3호선 가온역 2번 출구 도보 5분">
+          <svg viewBox="0 0 640 280" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style="display:block">
+            <rect width="640" height="280" fill="#eef2f1"/>
+            <rect x="34" y="26" width="150" height="86" rx="7" fill="#e4eae9"/>
+            <rect x="470" y="150" width="140" height="104" rx="7" fill="#e4eae9"/>
+            <rect x="60" y="176" width="120" height="78" rx="7" fill="#e2efe6"/>
+            <text x="120" y="222" text-anchor="middle" font-size="12" fill="#9bb0a8">한빛공원</text>
+            <!-- 도로 -->
+            <path d="M-10 140 H650" stroke="#ffffff" stroke-width="30"/>
+            <path d="M320 -10 V290" stroke="#ffffff" stroke-width="24"/>
+            <path d="M-10 140 H650" stroke="#cfd8d6" stroke-width="2" stroke-dasharray="16 13"/>
+            <text x="52" y="133" font-size="12.5" fill="#8a9695" font-weight="600">한빛로</text>
+            <!-- 3호선 -->
+            <path d="M10 268 L630 14" stroke="#0B6E70" stroke-width="4" stroke-dasharray="1 9" stroke-linecap="round" opacity=".75"/>
+            <circle cx="320" cy="140" r="10" fill="#fff" stroke="#0B6E70" stroke-width="4.5"/>
+            <text x="320" y="118" text-anchor="middle" font-size="14.5" font-weight="800" fill="#334240">가온역</text>
+            <rect x="352" y="146" width="70" height="22" rx="11" fill="#0B6E70"/>
+            <text x="387" y="161" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2번 출구</text>
+            <!-- 병원 핀 -->
+            <text x="430" y="96" text-anchor="middle" font-size="15" font-weight="800" fill="#0a4a4c">가온병원</text>
+            <g transform="translate(430,150)">
+              <ellipse cx="0" cy="4" rx="13" ry="4" fill="rgba(10,74,76,.25)"/>
+              <path d="M0 2 C-16 -22 -27 -33 -27 -49 A27 27 0 1 1 27 -49 C27 -33 16 -22 0 2Z" fill="#0a4a4c"/>
+              <path d="M-9 -60a1 1 0 0 0-1 1v14h11v-14a1 1 0 0 0-1-1h-8Zm3.5 3h1.6v1.6h1.6v1.6h-1.6v1.6h-1.6v-1.6h-1.6v-1.6h1.6v-1.6Z" fill="#fff" transform="translate(9.5,10) scale(.95)"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div>
+        <div class="foot-brand"><svg class="logo" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5h6V2h4v3h6v16M9 9h6M12 6v6M8 21v-5h8v5"/></svg><span class="wm">가온병원</span></div>
+        <p class="foot-desc">가까이에서 더 깊이. 지역과 함께 20년, 가온병원이 당신의 건강한 하루를 지킵니다.</p>
+      </div>
+      <div class="foot-links">
+        <div class="foot-col"><h5>바로가기</h5><a href="#depts">진료과 안내</a><a href="#doctors">의료진</a><a href="#facility">시설안내</a><a href="#visit">오시는 길</a></div>
+        <div class="foot-col"><h5>이용하기</h5><a href="#" data-chat-open>온라인 상담</a><a href="#connect">환자앱</a><a href="#" data-soon="직원 업무 시스템으로 이동합니다">직원 로그인</a></div>
+        <div class="foot-col"><h5>연락처</h5><span>대표 1588-0000</span><span>응급 02-000-0119</span><span>평일 09–18시</span></div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 가온병원 (GAON MEDICAL CENTER)</span>
+      <span>개인정보처리방침 · 이용약관 · 비급여 진료비 안내</span>
+    </div>
+  </div>
+</footer>
+
+
+<!-- ============ FLOATING FAB + CHAT ============ -->
+<div class="fab-stack" id="fabStack">
+  <div class="fab-top" id="fabTop">
+    <a href="tel:1588-0000" class="fab-mini call"><span>전화 상담</span><div class="d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.1 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg></div></a>
+    <button class="fab-mini top" id="toTop"><span>맨 위로</span><div class="d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M6 11l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></div></button>
+  </div>
+  <button class="fab-chat" id="fabChat" aria-label="온라인 상담 열기">
+    <span class="pulse"></span>
+    <span class="fab-badge" id="fabBadge" role="img" aria-label="새 답변 있음" hidden></span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-11.9 7.6L3 21l1.9-6.1A8.4 8.4 0 1 1 21 11.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<!-- 진짜 webchat(React 위젯)을 iframe으로 담는다. 콘텐츠·상태·문구는 webchat이 그리고, 홈페이지는 열기/미읽음만 postMessage로 주고받는다. -->
+<section class="chat" id="chat" aria-label="AI 상담봇">
+  <iframe id="wcFrame" title="AI 상담봇" allow="clipboard-write"></iframe>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  root.classList.add('js');
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  /* ---- intro ---- */
+  function finishIntro(){
+    document.body.classList.add('ready');
+    var intro=document.getElementById('intro');
+    if(intro){intro.classList.add('exit'); setTimeout(function(){intro.classList.add('done');},1350);}
+  }
+  if(reduce){finishIntro();}
+  else{window.addEventListener('load',function(){setTimeout(finishIntro,2100);}); setTimeout(finishIntro,2800);}
+
+  /* ---- header solid on scroll ---- */
+  var header=document.getElementById('header');
+  function onScroll(){ if(window.scrollY>60) header.classList.add('solid'); else header.classList.remove('solid'); }
+  onScroll(); window.addEventListener('scroll',onScroll,{passive:true});
+
+  /* ---- reveal ---- */
+  var revs=[].slice.call(document.querySelectorAll('.reveal'));
+  if('IntersectionObserver' in window && !reduce){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('is-in'); io.unobserve(e.target);}});},{threshold:.14, rootMargin:'0px 0px -8% 0px'});
+    revs.forEach(function(el){io.observe(el);});
+    // 안전장치: 관찰자가 어떤 이유로든 안 뜨는 환경에서도 5초 뒤엔 모든 섹션이 보이게 한다(빈 섹션 방지).
+    setTimeout(function(){ revs.forEach(function(el){el.classList.add('is-in');}); }, 120000);
+  } else { revs.forEach(function(el){el.classList.add('is-in');}); }
+
+  /* ---- counters ---- */
+  var counted=false;
+  function runCounters(){
+    if(counted) return; counted=true;
+    document.querySelectorAll('.count').forEach(function(el){
+      var to=+el.getAttribute('data-to'), dur=1400, st=null;
+      if(reduce){el.textContent=to; return;}
+      function step(t){ if(!st)st=t; var p=Math.min((t-st)/dur,1); var e=1-Math.pow(1-p,3);
+        el.textContent=Math.round(to*e); if(p<1) requestAnimationFrame(step); }
+      requestAnimationFrame(step);
+    });
+  }
+  var sb=document.getElementById('stats');
+  if(sb && 'IntersectionObserver' in window){
+    var io2=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){runCounters(); io2.disconnect();}});},{threshold:.4});
+    io2.observe(sb);
+  } else runCounters();
+
+  /* ---- carousel ---- */
+  var track=document.getElementById('track');
+  var slides=track?[].slice.call(track.children):[];
+  var idx=0, dotsWrap=document.getElementById('dots'), auto;
+  function slideStep(){ var s=slides[0]; var w=s.getBoundingClientRect().width + parseFloat(getComputedStyle(s).marginRight); return w; }
+  function maxIdx(){ var view=track.parentElement.getBoundingClientRect().width; var total=slides.length*slideStep(); return Math.max(0, Math.ceil((total-view)/slideStep())); }
+  function go(i){ var m=maxIdx(); idx=Math.max(0,Math.min(i,m)); track.style.transform='translateX(-'+(idx*slideStep())+'px)'; upDots(); }
+  function upDots(){ if(!dotsWrap)return; [].slice.call(dotsWrap.children).forEach(function(d,i){d.classList.toggle('on',i===idx);}); }
+  if(track){
+    var m0=maxIdx();
+    for(var i=0;i<=m0;i++){ var b=document.createElement('button'); b.setAttribute('aria-label',(i+1)+'번째'); (function(n){b.onclick=function(){go(n); restart();};})(i); dotsWrap.appendChild(b); }
+    upDots();
+    document.getElementById('next').onclick=function(){ go(idx>=maxIdx()?0:idx+1); restart(); };
+    document.getElementById('prev').onclick=function(){ go(idx<=0?maxIdx():idx-1); restart(); };
+    function play(){ if(reduce)return; auto=setInterval(function(){ go(idx>=maxIdx()?0:idx+1); },4200); }
+    function restart(){ clearInterval(auto); play(); }
+    var car=document.querySelector('.carousel');
+    car.addEventListener('mouseenter',function(){clearInterval(auto);});
+    car.addEventListener('mouseleave',play);
+    window.addEventListener('resize',function(){ // rebuild dots on breakpoint change
+      var want=maxIdx(); if(want+1!==dotsWrap.children.length){ dotsWrap.innerHTML=''; for(var j=0;j<=want;j++){ var bb=document.createElement('button'); (function(n){bb.onclick=function(){go(n);restart();};})(j); dotsWrap.appendChild(bb);} } go(Math.min(idx,want)); });
+    play();
+  }
+
+  /* ---- to top ---- */
+  document.getElementById('toTop').onclick=function(){ window.scrollTo({top:0,behavior:reduce?'auto':'smooth'}); };
+
+  /* ---- toast ---- */
+  var toast=document.getElementById('toast'), tt;
+  function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); clearTimeout(tt); tt=setTimeout(function(){toast.classList.remove('show');},2600); }
+  document.querySelectorAll('[data-soon]').forEach(function(el){ el.addEventListener('click',function(e){ e.preventDefault(); showToast(el.getAttribute('data-soon')); }); });
+
+  /* ---- webchat iframe 통합 ---- */
+  // 진짜 webchat(React 위젯)의 배포 origin. 로컬 통합 확인 시에만 dev 포트로 임시 변경한다(배포 고정은 Task 6).
+  var WC_ORIGIN='https://gaonhospital-webchat.vercel.app';
+  var chat=document.getElementById('chat'), fabChat=document.getElementById('fabChat'),
+      fabStack=document.getElementById('fabStack'), fabBadge=document.getElementById('fabBadge'),
+      wcFrame=document.getElementById('wcFrame');
+  var wcOpen=false;
+  wcFrame.src=WC_ORIGIN;                                  // iframe 로드(닫혀도 마운트 유지 → 폴링·미읽음)
+  function postToWidget(v){ if(wcFrame.contentWindow) wcFrame.contentWindow.postMessage({type:'host:setOpen',value:v}, WC_ORIGIN); }
+  function openWidget(){ wcOpen=true; chat.classList.add('open');
+    fabStack.style.opacity=0; fabStack.style.pointerEvents='none';
+    fabBadge.hidden=true;                                 // 열면 미읽음 표식 해제
+    postToWidget(true); }
+  function closeWidget(){ wcOpen=false; chat.classList.remove('open');
+    fabStack.style.opacity=1; fabStack.style.pointerEvents='auto'; }
+  fabChat.onclick=openWidget;
+  document.querySelectorAll('[data-chat-open]').forEach(function(b){ b.addEventListener('click',function(e){e.preventDefault(); openWidget();}); });
+  // iframe(webchat)에서 오는 알림만 신뢰(origin 검증). 열림 동기화 + 미읽음 점.
+  window.addEventListener('message',function(e){
+    if(e.origin!==WC_ORIGIN) return;
+    var d=e.data||{};
+    if(d.type==='webchat:setOpen'){ if(d.value){ if(!wcOpen) openWidget(); } else closeWidget(); }
+    else if(d.type==='webchat:unread'){ fabBadge.hidden=!(d.value && !wcOpen); }
+  });
+})();
+</script>
+
+</body>
+</html>

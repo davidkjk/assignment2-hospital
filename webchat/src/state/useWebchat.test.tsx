@@ -1,0 +1,131 @@
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { useWebchat } from './useWebchat';
+import type { WebchatApi, SessionState, ThreadMessage } from '../api/webchatApi';
+import { saveAnonToken, loadAnonToken, clearAnonToken } from './anonSession';
+
+const session: SessionState = { threadId: 't1', aiSessionId: 's1', anonToken: 'TOK', messages: [] };
+function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
+  return {
+    startOrRestoreSession: vi.fn(async () => session),
+    fetchMessages: vi.fn(async () => []),
+    sendMessage: vi.fn(async () => ({ routeTaken: 'rag', botMessage: {
+      id: 'b1', senderType: 'bot', messageType: 'text', content: '네, 가능합니다' } as ThreadMessage })),
+    fetchHandoff: vi.fn(async () => ({ phase: null, isOpen: true })),
+    acknowledgeBatches: vi.fn(async () => {}),
+    revalidateAction: vi.fn(), executeCard: vi.fn(), createHandoffTicket: vi.fn(), attributeSessionToAccount: vi.fn(),
+    ...over,
+  };
+}
+beforeEach(() => clearAnonToken());
+
+test('[WEBCHAT-ROOM-03] 익명 토큰이 없으면 첫 상담 세션을 시작하고 서버 토큰을 저장한다', async () => {
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith(null); // 토큰 없음 → 첫 상담
+  await waitFor(() => expect(result.current.phase).toBe('ready'));
+  expect(loadAnonToken()).toBe('TOK'); // 같은 브라우저 복원용으로 저장
+});
+
+test('[WEBCHAT-ROOM-04] 유효한 익명 토큰이 있으면 복원 — 이름/연락처를 다시 묻지 않는다', async () => {
+  saveAnonToken('OLD');
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith('OLD'); // 토큰으로 기존 대화 복원
+  expect(result.current.askedForContact).toBe(false);            // 새 방으로 가장 안 함
+});
+
+test('[WEBCHAT-ROOM-05] 다른 기기(토큰 없음)엔 이어보기 경로가 없다 — 이름/전화로 추측 조회 안 함', async () => {
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  expect(loadAnonToken()).toBeNull();          // 다른 기기엔 토큰이 없다
+  await act(async () => { await result.current.open(); });
+  expect(api.startOrRestoreSession).toHaveBeenCalledWith(null); // 새 익명 세션일 뿐, 남의 상담을 찾지 않음
+  expect(result.current.crossDeviceResume).toBe(false);
+});
+
+test('[WEBCHAT-ROOM-07] 세션 조회 실패면 loadError — 토큰을 지우지 않는다', async () => {
+  saveAnonToken('KEEP');
+  const api = fakeApi({ startOrRestoreSession: vi.fn(async () => { throw new Error('webchat_api_500'); }) });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await waitFor(() => expect(result.current.phase).toBe('loadError'));
+  expect(loadAnonToken()).toBe('KEEP'); // 조회 실패로 토큰 삭제 금지
+});
+
+test('[WEBCHAT-ROOM-08] 전송은 clientMessageId를 부여해 멱등 — 같은 전송 중 메시지를 중복 전송하지 않는다', async () => {
+  const api = fakeApi();
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('주차 되나요?'); });
+  const call = (api.sendMessage as any).mock.calls[0][0];
+  expect(typeof call.clientMessageId).toBe('string');       // 멱등 키 부여(§8-4)
+  expect(call.content).toBe('주차 되나요?');
+});
+
+test('[WEBCHAT-NOANS] no_answer 응답은 봇 안내 말풍선과 quick_replies 카드를 함께 피드에 붙인다', async () => {
+  const api = fakeApi({ sendMessage: vi.fn(async () => ({
+    routeTaken: 'no_answer',
+    botMessage: { id: 'b1', senderType: 'bot', messageType: 'text', content: '바로 답을 찾지 못했어요' } as ThreadMessage,
+    cardMessage: { id: 'c1', senderType: 'bot', messageType: 'card', content: null,
+      payload: { card_type: 'quick_replies', options: ['진료시간이 어떻게 되나요'], handoff_chip: '직원에게 연결' } } as ThreadMessage,
+  })) });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('우리 동네 약국 어디'); });
+  const card = result.current.messages.find((m) => m.messageType === 'card');
+  expect(card?.payload?.card_type).toBe('quick_replies');                             // 칩 카드가 피드에 들어온다
+  expect(result.current.messages.some((m) => m.content === '바로 답을 찾지 못했어요')).toBe(true); // 안내 말풍선도 함께
+});
+
+test('[WEBCHAT-URGENT] route_taken=emergency면 긴급 상태를 켜고, 다음 일반 턴 성공이면 자동 해제', async () => {
+  const send = vi.fn()
+    .mockResolvedValueOnce({ routeTaken: 'emergency', botMessage: {
+      id: 'e1', senderType: 'bot', messageType: 'text', content: '지금 위급한 상황일 수 있어요' } })
+    .mockResolvedValueOnce({ routeTaken: 'rag' });
+  const api = fakeApi({ sendMessage: send });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('숨을 못 쉬겠어요') ; });
+  expect(result.current.urgent).toBe(true);           // 긴급 감지 → 배너 켜짐
+  await act(async () => { await result.current.send('주차 되나요?'); });
+  expect(result.current.urgent).toBe(false);          // 일반 턴이 성공하면 해제(URGENT-01 재분류)
+});
+
+test('[WEBCHAT-OUTAGE] 서버 5xx 실패면 장애 상태를 켜고, 성공 왕복이면 배너를 걷는다', async () => {
+  const send = vi.fn()
+    .mockRejectedValueOnce(new Error('webchat_api_500'))
+    .mockResolvedValueOnce({ routeTaken: 'rag' });
+  const api = fakeApi({ sendMessage: send });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('진료시간 알려줘'); });
+  expect(result.current.outage).toBe('idle');         // AI 장애 안내 켜짐(WEBCHAT-OUTAGE-01)
+  expect(result.current.messages.some((m) => m.sendState === 'failed')).toBe(true); // 실패 말풍선과 공존(ROOM-09)
+  const failed = result.current.messages.find((m) => m.sendState === 'failed');
+  await act(async () => { await result.current.resend(failed!.clientMessageId!); });
+  expect(result.current.outage).toBeNull();           // 성공 왕복으로만 복구(CHAT-OUTAGE-RECOVER-01)
+});
+
+test('[WEBCHAT-OUTAGE] 4xx(세션 등)은 장애로 보지 않는다 — 배너를 띄우지 않는다', async () => {
+  const api = fakeApi({ sendMessage: vi.fn(async () => { throw new Error('webchat_api_409'); }) });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('예약 바꿔줘'); });
+  expect(result.current.outage).toBeNull();           // 4xx는 AI 장애가 아님(다른 경로가 처리)
+});
+
+test('[WEBCHAT-ROOM-09] 전송 실패면 말풍선을 failed로 두고 resend는 같은 clientMessageId로 재전송', async () => {
+  const send = vi.fn()
+    .mockRejectedValueOnce(new Error('webchat_api_500'))
+    .mockResolvedValueOnce({ routeTaken: 'rag' });
+  const api = fakeApi({ sendMessage: send });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('예약 되나요?'); });
+  const failed = result.current.messages.find((m) => m.sendState === 'failed');
+  expect(failed?.content).toBe('예약 되나요?');
+  await act(async () => { await result.current.resend(failed!.clientMessageId!); });
+  expect(send.mock.calls[0][0].clientMessageId).toBe(send.mock.calls[1][0].clientMessageId); // 동일 키
+});

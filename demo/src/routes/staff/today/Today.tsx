@@ -1,0 +1,363 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle } from '@/components/icons'
+import {
+  doctorWaits,
+  maskBirth,
+  problemCards,
+  problemTotal,
+  summaryTiles,
+  type ProblemCard,
+  type ProblemRow,
+  type SummaryTile,
+} from '../mockData'
+
+// 오늘의 현황 (/today) — TODAY-*.
+// 정본이 요구하는 순서: 「지금 처리할 것」(문제 우선)이 맨 위, 「오늘 요약」 숫자는 그 아래.
+// 요구사항 3.2: "숫자만 보여주는 화면보다 지금 처리해야 할 환자와 문제가 먼저".
+
+const REDUCED_MOTION =
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+const TONE_TEXT: Record<SummaryTile['tone'], string> = {
+  teal: 'text-primary',
+  amber: 'text-amber-600',
+  sky: 'text-sky-600',
+  violet: 'text-violet-600',
+  gray: 'text-slate-500',
+  neutral: 'text-foreground',
+}
+
+/** 작은 버튼 — 데모용 공통 스타일 */
+function Btn({
+  children,
+  variant = 'ghost',
+  onClick,
+}: {
+  children: React.ReactNode
+  variant?: 'primary' | 'outline' | 'ghost' | 'quiet'
+  onClick?: () => void
+}) {
+  const base = 'rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors'
+  const styles = {
+    primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+    outline: 'border border-border bg-card hover:bg-muted',
+    ghost: 'text-primary hover:bg-primary/8',
+    quiet: 'border border-border text-muted-foreground hover:bg-muted', // '그대로 두기'처럼 주된 길 아닌 것
+  }[variant]
+  return (
+    <button onClick={onClick} className={`${base} ${styles}`}>
+      {children}
+    </button>
+  )
+}
+
+function Row({
+  card,
+  row,
+  stampLabel,
+  onProcess,
+  onUndo,
+}: {
+  card: ProblemCard
+  row: ProblemRow
+  stampLabel?: string
+  onProcess: (label: string) => void
+  onUndo: () => void
+}) {
+  const navigate = useNavigate()
+  const [revealed, setRevealed] = useState(false)
+  const done = stampLabel !== undefined
+
+  // 처리 도장은 어느 버튼을 눌렀는지에 맞춰 문구가 달라진다 — '그대로 두기'를 눌렀는데 '처리함'이라
+  // 뜨면 헷갈린다는 지적(폰 검수)에 따라, 취소함/확인함/마감함/진료 대기로 보냄으로 구분해 보여준다.
+  const stamp = (
+    <span className="text-sm text-muted-foreground">
+      {stampLabel} ·{' '}
+      <button onClick={onUndo} className="font-medium text-primary hover:underline">
+        되돌리기
+      </button>
+    </span>
+  )
+
+  // 버튼 색의 뜻: 딥틸(꽉 참)=그 자리에서 한 번에 끝나는 동작 / 흰(테두리)=다른 화면으로 가서 처리한다.
+  const buttons = () => {
+    switch (card.kind) {
+      case 'wait':
+        return (
+          <>
+            <Btn variant="outline" onClick={() => navigate('/staff/queue')}>
+              대기 목록에서 보기
+            </Btn>
+            <Btn onClick={() => navigate('/staff/patients/p1')}>환자 상세</Btn>
+          </>
+        )
+      case 'noshow':
+        // 예약 시각이 이미 지난 분 → 오시면 도착 보류 없이 바로 진료 대기로
+        return (
+          <>
+            <Btn variant="primary" onClick={() => onProcess('진료 대기로 보냄')}>
+              진료 대기
+            </Btn>
+            <Btn variant="ghost" onClick={() => setRevealed((v) => !v)}>
+              번호 보기
+            </Btn>
+            <Btn onClick={() => navigate('/staff/patients/p1')}>환자 상세</Btn>
+          </>
+        )
+      case 'yday':
+        return (
+          <>
+            <Btn variant="primary" onClick={() => onProcess('마감함')}>
+              진료 완료로 마감
+            </Btn>
+            <Btn onClick={() => navigate('/staff/patients/p1')}>환자 상세</Btn>
+          </>
+        )
+      case 'resched':
+        if (row.reason.includes('상담')) {
+          // 취소·변경 상담 = 캘린더 맥락 + 읽기전용 상담 요약 패널로(대화 전체는 문의함에서)
+          return (
+            <Btn
+              variant="outline"
+              onClick={() =>
+                navigate('/staff/calendar', {
+                  state: { panel: { kind: 'support', name: row.name, dept: row.dept, doctor: row.doctor, time: row.time, reason: row.reason } },
+                })
+              }
+            >
+              예약·상담 보기
+            </Btn>
+          )
+        }
+        return (
+          <>
+            <Btn
+              variant="outline"
+              onClick={() =>
+                navigate('/staff/calendar', {
+                  state: { panel: { kind: 'reschedule', name: row.name, dept: row.dept, doctor: row.doctor, time: row.time, reason: row.reason } },
+                })
+              }
+            >
+              예약 옮기기
+            </Btn>
+            <Btn variant="ghost" onClick={() => onProcess('취소함')}>
+              취소
+            </Btn>
+            <Btn variant="quiet" onClick={() => onProcess('확인함')}>
+              그대로 두기
+            </Btn>
+          </>
+        )
+    }
+  }
+
+  return (
+    <div className={`flex items-center gap-4 px-4 py-2.5 ${done ? 'opacity-45' : ''}`}>
+      {/* 시각 레일 (시그니처) — 미접수·미래는 옅은 회색 (TODAY-ROW-02) */}
+      <div className="flex w-14 shrink-0 flex-col items-end border-r border-border pr-3">
+        <span
+          className={`text-sm font-semibold tabular-nums ${
+            row.future ? 'text-muted-foreground/60' : 'text-foreground'
+          }`}
+        >
+          {row.time}
+        </span>
+      </div>
+
+      {/* 이름 + 생년월일·과/의사 */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-bold">{row.name}</span>
+          {row.emergency && (
+            <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[0.7rem] font-bold text-white">응급</span>
+          )}
+          {row.smsFailed && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/12 px-2 py-0.5 text-xs font-medium text-amber-700">
+              <AlertTriangle className="h-3 w-3" />
+              {row.smsFailed}
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 text-sm text-muted-foreground">
+          {revealed ? (
+            <span className="font-medium text-foreground">{row.tel}</span>
+          ) : (
+            maskBirth(row.birth)
+          )}
+          {' · '}
+          {row.dept} {row.doctor}
+          {revealed && row.tel && (
+            <button
+              onClick={() => navigator.clipboard?.writeText(row.tel!)}
+              className="ml-2 text-xs font-medium text-primary hover:underline"
+            >
+              복사
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 사유 (주의색) */}
+      <div className="hidden w-40 shrink-0 text-sm font-medium text-amber-600 sm:block">{row.reason}</div>
+
+      {/* 버튼 or 처리 도장 */}
+      <div className="flex shrink-0 items-center gap-2">{done ? stamp : buttons()}</div>
+    </div>
+  )
+}
+
+function ProblemCardView({
+  card,
+  processed,
+  onProcess,
+  onUndo,
+}: {
+  card: ProblemCard
+  processed: Map<string, string>
+  onProcess: (id: string, label: string) => void
+  onUndo: (id: string) => void
+}) {
+  const allDone = card.rows.every((r) => processed.has(r.id))
+  const remaining = card.rows.filter((r) => !processed.has(r.id)).length
+  return (
+    <section
+      id={`today-card-${card.kind}`}
+      className="scroll-mt-4 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]"
+    >
+      {/* 카드 제목 — 좌측 4px 주의색 바 + 남은 건수(처리할수록 줄어든다), 배경 안 칠함 (TODAY-CARD-01) */}
+      <div className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
+        <span className={`h-4 w-1 rounded-full ${allDone ? 'bg-slate-300' : 'bg-amber-500'}`} />
+        <h3 className="text-sm font-semibold">{card.title}</h3>
+        <span className={`text-sm font-bold tabular-nums ${allDone ? 'text-muted-foreground' : 'text-amber-600'}`}>{remaining}</span>
+      </div>
+      {allDone ? (
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">모두 처리했습니다</p>
+          <p className="mt-1">처리한 줄은 이 화면을 떠나면 목록에서 사라집니다.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border/60">
+          {card.rows.map((r) => (
+            <Row
+              key={r.id}
+              card={card}
+              row={r}
+              stampLabel={processed.get(r.id)}
+              onProcess={(label) => onProcess(r.id, label)}
+              onUndo={() => onUndo(r.id)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function Today() {
+  const navigate = useNavigate()
+  // 처리 도장 — 어느 버튼을 눌러도 그 줄이 '처리함'이 된다(TODAY-RESCHED-04). 되돌릴 수 있고, 다 처리하면 카드가 빈 상태가 되며 화면을 떠나면 사라진다.
+  const [processed, setProcessed] = useState<Map<string, string>>(new Map())
+  const markProcessed = (id: string, label: string) => setProcessed((s) => new Map(s).set(id, label))
+  const undo = (id: string) =>
+    setProcessed((s) => {
+      const n = new Map(s)
+      n.delete(id)
+      return n
+    })
+  // 할 일 숫자 버튼 → 해당 카드로 점프(목록이 한 화면을 넘쳐도 바로 간다)
+  const scrollToCard = (kind: string) =>
+    document.getElementById(`today-card-${kind}`)?.scrollIntoView({
+      behavior: REDUCED_MOTION ? 'auto' : 'smooth',
+      block: 'start',
+    })
+
+  return (
+    <div className="mx-auto max-w-6xl px-6 py-5">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        {/* ── 주 컬럼: 지금 처리할 것 (정본대로 전부 표시, TODAY-LAY-01·ORDER-02) ── */}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-3">
+            {problemCards.map((c) => (
+              <ProblemCardView key={c.kind} card={c} processed={processed} onProcess={markProcessed} onUndo={undo} />
+            ))}
+          </div>
+        </div>
+
+        {/* ── 오른쪽 사이드 레일 (넓은 화면에서 따라 붙음) — 요약은 부차라 오른쪽(TODAY-LAY-01 위계 유지) ── */}
+        <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-5 lg:w-72">
+          {/* 지금 처리할 것 — 숫자 버튼(누르면 해당 카드로 점프). 카드 3종 제목 스타일 통일 */}
+          <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <h3 className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              지금 처리할 것
+              <span className="rounded-full bg-amber-500/12 px-1.5 py-0.5 text-[0.7rem] font-bold text-amber-700 tabular-nums">
+                {problemTotal}
+              </span>
+            </h3>
+            <div className="flex flex-col gap-0.5">
+              {problemCards.map((c) => (
+                <button
+                  key={c.kind}
+                  onClick={() => scrollToCard(c.kind)}
+                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    {c.title}
+                  </span>
+                  <span className="font-bold tabular-nums text-amber-600">{c.rows.length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 오늘 요약 6타일 (전부 /queue로, TODAY-SUM-03) */}
+          <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">오늘 요약</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+              {summaryTiles.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => navigate('/staff/queue')}
+                  className="rounded-lg border border-border/70 bg-card px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"
+                >
+                  <div className={`text-xl font-bold tabular-nums ${TONE_TEXT[t.tone]}`}>{t.count}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{t.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 의사별 대기 인원 (TODAY-DOC-01: 진료과 생략 안 함) */}
+          <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+            <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              의사별 대기 인원
+            </h3>
+            <div className="flex flex-col gap-0.5">
+              {doctorWaits.map((d) => (
+                <button
+                  key={d.dept + d.doctor}
+                  onClick={() => navigate('/staff/queue')}
+                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
+                >
+                  <span>
+                    <span className="text-muted-foreground">{d.dept}</span> {d.doctor}
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {d.waiting}
+                    <span className="ml-0.5 text-sm font-normal text-muted-foreground">명</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <p className="mt-6 text-center text-xs text-muted-foreground">
+        데모 화면입니다 · 가짜 데이터로 정상 흐름을 보여 줍니다
+      </p>
+    </div>
+  )
+}

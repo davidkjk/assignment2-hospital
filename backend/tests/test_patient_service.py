@@ -21,10 +21,12 @@ async def test_register_and_find_patient(db_conn):
     )
     assert patient_id is not None
 
-    found_id = await patient_service.find_by_phone_and_birthdate(
+    found = await patient_service.find_by_phone_and_birthdate(
         phone="01012345678", birth_date=date(1985, 3, 1), staff=staff, conn=db_conn,
     )
-    assert found_id == patient_id
+    # 후보 한 줄(id·name·birth_date) — 가리는 일은 라우터가 한다(MASK-SRV-01).
+    assert found is not None and found["id"] == patient_id
+    assert found["name"] == "홍길동" and found["birth_date"] == date(1985, 3, 1)
 
 
 @pytest.mark.asyncio
@@ -32,7 +34,7 @@ async def test_find_returns_none_when_no_match(db_conn):
     seed = await seed_staff(db_conn, role="receptionist")
     staff = _to_context(seed, "receptionist")
 
-    found_id = await patient_service.find_by_phone_and_birthdate(
+    found = await patient_service.find_by_phone_and_birthdate(
         phone="01099999999", birth_date=date(1990, 1, 1), staff=staff, conn=db_conn,
     )
-    assert found_id is None
+    assert found is None

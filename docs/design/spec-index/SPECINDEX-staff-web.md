@@ -4,6 +4,8 @@
 > 두 부분으로 구성한다. **Part A = 기존 직원웹 화면**(queue·today·calendar·schedule·settings·shell), **Part B = 신규 15화면 + 상담봇 운영 접점**(환자상세·checkin·의사콘솔·관리자 페이지).
 > ⚠️ Part B의 「7. 상담봇 직원·관리자 통합 범위」는 상담봇 영역과 겹친다 — **상세 정본은 `SPECINDEX-ai-chatbot.md` Part B**이며, 여기서는 직원 웹 접점만 참고한다.
 > 공용 `00010_` 마이그레이션 계약은 각 기능 옆에 표기돼 있다(migration 단계에서 `grep 00010`으로 모은다).
+>
+> ⚠️ **삭제된 상류 작업본 안내(2026-08-26)**: 이 색인이 인용하는 `.claude/codex-work/**` 경로는 설계 단계의 상류 작업본으로 2026-08-26에 삭제됐다. 내용은 결정로그·이 색인 본문·플랜 인라인에 병합돼 있어 지장 없다. 경로는 역사적 출처 표시로만 남는다.
 
 ## 목차
 - **Part A — 기존 직원웹 화면**: 1 기능 갭 · 2 구조 결정 · 3 화면 설계(셸/today/queue/calendar/schedule/settings) · 4 체크박스·후반결정 미반영 · 5 폐기·대체 · 6 링크·재작성 순서
@@ -433,7 +435,7 @@
 |---|---|---|
 | 공통 shell·역할·밀도 | 진료 화면은 의사 전용 단독, 나머지는 업무/기록/설정/상담봇 4그룹. 접지 않고 240px sidebar, 1440 기준·1280 최소. 본문 13px·이름 14px·시각 15px·행 44px·버튼 36px 토큰. 결정로그 AD-069의 3그룹 표현은 후속 `MR2-07`에서 **4그룹 최종 정본으로 교체**됐다. | 목업 전체 반영과 route 권한 대조 필요. `screen-behaviors.md:77-123`; 결정로그 `:3187-3188`, `:5086`(AD-069·070·MR2-07). 현재 route 수는 위 B안의 18개 표를 따른다. |
 | `/patients/:id` `PTDET-*` | 헤더 요약+2열 섹션+anchor, 탭으로 숨기지 않는다. 방문·가족·문진·기록·지원 문의·내부 메모·액션을 한 화면에서 로드한다. 목록은 masked, 상세 접근은 감사한다. | 환자 편집·가족 OTP·dead SMS·support ticket 연결이 차단. `screen-behaviors.md:1537-1653`; `staff-web-design.md:69-75` |
-| `/checkin` `CHKIN-*` | QR 1순위, 6자리 booking code 2순위. 같은 결과 카드에서 `[도착 처리]`, 성공 뒤 화면 유지·`도착` 갱신, `예약확정→도착`, 중복 스캔은 첫 callback을 중복 처리하지 않는다. 서버 전체 멱등 계약은 별도 API 대조가 필요하다. | Task 20은 있으나 API/RLS·오류·카메라 fallback을 새 규칙과 대조. `screen-behaviors.md:1654-1716`; `staff-web.md:7962-8260` |
+| `/checkin` `CHKIN-*` | QR 1순위, 6자리 booking code 2순위. 같은 결과 카드에서 `[도착 처리]`, 성공 뒤 화면 유지·`도착` 갱신, `예약확정→도착`, 중복 스캔은 첫 callback을 중복 처리하지 않는다. 서버 전체 멱등 계약은 별도 API 대조가 필요하다. | ~~Task 20은 있으나 API/RLS·오류·카메라 fallback을 새 규칙과 대조.~~ ✅ **대조 완료(2026-08-16, ⑤ Task 20 재작성)** — 조회가 **UUID 하나에서 결과 카드용 요약(`updated_at` 포함)으로** 커졌고, 도착 처리는 **1단계 `PATCH /appointments/{id}/status`를 그대로 소비**한다(새 API 없음). 역할 가드·오류·오프라인은 `require_role`·Task 5 부품. 카메라 fallback은 `CHKIN-SCAN-04` + 수동 검증 절. ⚠️ **대조에서 새 갭 #127 이 나왔다** — `generate_booking_code()`가 **8.7%를 6자리 미만으로 발급**해 `CHKIN-CODE-04`가 정상 코드를 거절했다(실측 2만 건). `00027`이 고친다. 신설 규칙 **`CHKIN-CODE-07`**(예약번호를 모르는 환자의 갈 길). `screen-behaviors.md`의 `/checkin` 절; `plans/2026-08-15-staff-web.md` Task 20 |
 | `/doctor/console` `DOCTOR-*` | 3열, 오늘 본인 queue, 특정 예약은 `/doctor/console/:appointmentId`. 문진·최근 기록·초안/완료/수정 이유·커서 위치 문구 삽입. 열 너비는 min/max/default로 조절. | 자동저장·세션 이탈 복구·역전이·과거 날짜 정책이 차단되며 autosave 간격·만료 배너·재진입 일부는 정책 미결이다. `screen-behaviors.md:1717-1836`; 결정로그 `:3124`, `:3404-3409` |
 | `/admin/staff` `STAFF-*` | 초대·목록·활성/비활성·의사 프로필. 비활성화 전 영향 예약 수만 미리 보고, 확정 시 확인 필요 큐로 이동. | `SCHED-DEPT-05`의 유일한 목적지. 기존 Task 19는 단순 deactivate뿐이고 reactivation/impact API가 없다. `screen-behaviors.md:1837-1905`; `staff-web.md:7629-7960` |
 | `/admin/access-logs` `ALOG-*` | 관리자 전용, 환자·기간 조회와 resource type/직원 관련 감사 사건, stable sort, masked list. phone reveal/search/bulk는 각자 감사, 통계 aggregate/filter는 감사하지 않음. | 기존 API가 `patient_detail` 또는 `medical_record`에 고정. resource type·환자 없는 관리자 활동 행을 확장. `screen-behaviors.md:1906-1987`; `staff-web.md:5117-5399` |

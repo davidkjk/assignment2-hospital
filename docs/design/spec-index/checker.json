@@ -1,0 +1,53 @@
+{
+  "_설명": "플랜 검사기(plan-coverage-check.py · plan-prefix-check.py)가 읽는 프로젝트 설정.",
+  "_왜": "검사기 실체는 ~/.claude/scripts/에 있고 프로젝트에는 바로가기만 둔다(도구는 밖, 자료는 안). 프로젝트마다 다른 값은 전부 이 파일에 있어야 도구가 갈라지지 않는다.",
+  "_루트": "이 파일이 있는 디렉터리에서 위로 올라가며 .git을 찾은 곳이 프로젝트 루트다. 아래 경로는 전부 루트 기준 상대경로.",
+  "behaviors": "docs/design/screen-behaviors.md",
+  "_decisions": "결정문서(설계 결정·기능 갭·플랜 패치표) — 정합성 검사기가 읽는다",
+  "decisions": "docs/superpowers/specs/2026-07-31-ui-design-decisions.md",
+  "_plans": "검산 대상 = 재작성본. 옛 플랜은 재작성의 입력일 뿐 정본이 아니므로 세지 않는다. 재작성본이 생기면 여기만 고친다(코드는 안 고친다).",
+  "plans": {
+    "staff-web": "docs/superpowers/plans/2026-08-15-staff-web.md",
+    "patient-app": "docs/superpowers/plans/2026-08-17-patient-app.md",
+    "ai-chatbot": "docs/superpowers/plans/2026-08-18-ai-chatbot.md"
+  },
+  "_area_markers": "screen-behaviors.md의 영역 경계. 줄번호가 아니라 절 제목으로 찾는다(문서가 자라도 안 깨진다). [시작제목, 끝제목] — 끝이 null이면 문서 끝까지.",
+  "area_markers": {
+    "staff-web": [
+      "# 화면 동작 명세서",
+      "# 환자 앱"
+    ],
+    "patient-app": [
+      "# 환자 앱",
+      "## 상담봇 (chatbot)"
+    ],
+    "ai-chatbot": [
+      "## 상담봇 (chatbot)",
+      null
+    ]
+  },
+  "_default_plan": "plan-prefix-check.py를 인자 없이 부를 때 볼 플랜.",
+  "default_plan": "docs/superpowers/plans/2026-08-15-staff-web.md",
+  "_handovers": "이관 원장(넘긴 미결). 검사기가 「받을 플랜에 들어갔나」를 본다.",
+  "handovers": "docs/design/spec-index/HANDOVERS.md",
+  "_requirements": "요구사항 원문. ④ 요구사항 절 추적이 「모든 절이 규칙에 인용됐나」를 본다(요구사항→규칙 완전성). 없으면 ④를 건너뛴다.",
+  "requirements": "docs/고객요구사항.txt",
+  "_requirement_area_map": "요구사항 절 앞자리 → 영역. `## 3.2`는 staff-web, `## 4.5`는 patient-app 규칙에 인용돼야 한다. 여기 없는 앞자리(1·2 맥락, 6 공통)는 절 추적에서 제외.",
+  "requirement_area_map": {
+    "3": "staff-web",
+    "4": "patient-app",
+    "5": "ai-chatbot"
+  },
+  "_migrations": "SQL 대상 실재 검사(🏷)와 「아무도 안 읽는 칸」(🧱)이 훑는 곳.",
+  "migrations": "supabase/migrations",
+  "_plans_dir": "🔗·📦 검사가 「받을 플랜」을 이름으로 찾는 곳.",
+  "plans_dir": "docs/superpowers/plans",
+  "_backend_code": "🔗(부르는 쪽만 있고 만드는 쪽이 없는 이름) 검사가 훑는 서버 코드.",
+  "backend_code": "backend/app",
+  "_code_dirs": "🧱(만들어 두고 아무도 읽지 않는 칸) 검사가 「읽는 곳」으로 훑을 코드 폴더.",
+  "code_dirs": [
+    "backend/app",
+    "frontend/src",
+    "patient_app/lib"
+  ]
+}

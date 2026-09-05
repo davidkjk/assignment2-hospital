@@ -1,0 +1,169 @@
+name: CI
+
+# [배포 Task 11] 테스트 게이트 — push/PR마다 4개 트랙을 병렬 검증한다.
+# 트랙: backend(pytest) · frontend(vitest+build) · webchat(vitest+build) · patient_app(analyze+test).
+# 각 job은 독립이라 병렬로 돈다. 하나라도 red면 배포 게이트가 막힌다.
+on:
+  push:
+  pull_request:
+  # 수동 배포 버튼(Actions 탭 → Run workflow). 테스트 게이트를 우회한 의도적 배포·토큰 검증용.
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 백엔드 테스트는 실제 Postgres에 붙는다(asyncpg). 마이그 71개가 Supabase 전용
+      # 역할(authenticated·service_role·anon)·auth 스키마를 쓰므로 맨 Postgres로는 안 되고,
+      # Supabase 로컬 스택을 띄워 마이그를 적용한 DB(54322)에 붙는다.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Supabase 로컬 스택 기동 (supabase/migrations 71개 자동 적용)
+        run: supabase start
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: 의존성 설치
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: pytest
+        working-directory: backend
+        env:
+          # ⚠️ 아래는 Supabase 로컬의 **공개 기본 키**다(비밀 아님 — ephemeral 로컬 DB에만 유효).
+          #    SUPABASE_JWT_SECRET은 tests/scenarios/conftest.py의 bearer()가 토큰을 서명하는
+          #    값과 같아야 하고(HS256), supabase 로컬이 쓰는 기본 secret과도 일치한다.
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+          SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+          SUPABASE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+          DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
+        run: pytest
+
+  frontend:
+    name: frontend (vitest + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 의존성 설치
+        working-directory: frontend
+        run: npm ci
+      - name: 단위 테스트
+        working-directory: frontend
+        run: npm test
+      - name: 타입체크 + 빌드
+        working-directory: frontend
+        run: npm run build
+
+  webchat:
+    name: webchat (vitest + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: webchat/package-lock.json
+      - name: 의존성 설치
+        working-directory: webchat
+        run: npm ci
+      - name: 단위 테스트
+        working-directory: webchat
+        run: npm test
+      - name: 타입체크 + 빌드 (위젯 로더 포함)
+        working-directory: webchat
+        run: npm run build
+
+  patient_app:
+    name: patient_app (analyze + test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.4"
+          channel: stable
+          cache: true
+      - name: 의존성 받기
+        working-directory: patient_app
+        run: flutter pub get
+      # errors·warnings는 게이트로 막고, info 수준 스타일 린트(prefer_const_constructors 등)엔
+      # 안 깨지게 한다 — 진짜 문제만 배포를 막고, 스타일은 로컬에서 다듬는다.
+      - name: 정적 분석
+        working-directory: patient_app
+        run: flutter analyze --no-fatal-infos
+      # 골든 테스트(*_golden_test.dart 14개)는 폰트 렌더가 OS마다 달라 macOS에서 생성한
+      # 기준 이미지가 Linux CI에서 픽셀 불일치로 깨진다 — CI에선 제외하고 로직·위젯 테스트만
+      # 게이트로 삼는다(시각 회귀는 개발자가 로컬/macOS에서 확인). 나머지 144개는 플랫폼 무관.
+      - name: 단위·위젯 테스트 (골든 제외)
+        working-directory: patient_app
+        run: flutter test $(find test -name '*_test.dart' ! -name '*_golden_test.dart')
+
+  # ── [배포 Task 17] CI 게이트 뒤 Vercel 자동 배포 ──────────────────────────
+  # 위 4개 테스트 job이 모두 초록이어야만(needs) 돈다 → 깨진 프론트가 배포되는 걸 막는 잠금.
+  # Vercel은 이 저장소에서 git 자동배포가 안 붙어(CLI 업로드 방식) 여기서 토큰으로 배포한다.
+  # ⭐ 무장 스위치: 저장소 변수 ENABLE_VERCEL_DEPLOY=true 일 때만 실행(토큰 준비 전엔 잠듦→빨간불 안 뜸).
+  #    준비 완료 후 켜기: gh variable set ENABLE_VERCEL_DEPLOY --body true
+  #    필요 시크릿:      gh secret set VERCEL_TOKEN   (Vercel 대시보드 발급 토큰, iansoft 팀 스코프)
+  # org/project ID는 비밀이 아닌 식별자라 여기 명시(.vercel/project.json은 gitignore라 CI에 없음).
+  # 배포 브랜치 = merge/design-integration (Railway 자동배포 브랜치와 동일). main 병합(Task 21) 후엔 ref 갱신.
+  deploy-frontend:
+    name: deploy frontend (Vercel)
+    needs: [backend, frontend, webchat, patient_app]
+    # always()로 needs 일부가 red여도 이 job 조건을 평가한다. 그 위에서:
+    #  · push: 테스트 4개가 전부 success일 때만 배포(진짜 게이트).
+    #  · workflow_dispatch(수동): 테스트 통과 여부와 무관하게 배포(의도적 수동 배포·토큰 검증).
+    # 둘 다 무장 스위치 ENABLE_VERCEL_DEPLOY=='true'가 있어야 한다.
+    if: >
+      always() && vars.ENABLE_VERCEL_DEPLOY == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' &&
+         needs.backend.result == 'success' && needs.frontend.result == 'success' &&
+         needs.webchat.result == 'success' && needs.patient_app.result == 'success')
+      )
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: team_kX5J1fZg4n17fjOrdA0TpFER
+      VERCEL_PROJECT_ID: prj_vWqgro6uOjUd0aGkZg74gLXCBo7T
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vercel 프로덕션 배포 — 직원웹
+        run: npx vercel@59 deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
+
+  deploy-webchat:
+    name: deploy webchat (Vercel)
+    needs: [backend, frontend, webchat, patient_app]
+    # always()로 needs 일부가 red여도 이 job 조건을 평가한다. 그 위에서:
+    #  · push: 테스트 4개가 전부 success일 때만 배포(진짜 게이트).
+    #  · workflow_dispatch(수동): 테스트 통과 여부와 무관하게 배포(의도적 수동 배포·토큰 검증).
+    # 둘 다 무장 스위치 ENABLE_VERCEL_DEPLOY=='true'가 있어야 한다.
+    if: >
+      always() && vars.ENABLE_VERCEL_DEPLOY == 'true' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' &&
+         needs.backend.result == 'success' && needs.frontend.result == 'success' &&
+         needs.webchat.result == 'success' && needs.patient_app.result == 'success')
+      )
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: team_kX5J1fZg4n17fjOrdA0TpFER
+      VERCEL_PROJECT_ID: prj_YytZWs90uMSPiBnbjtjMA32YsjLi
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vercel 프로덕션 배포 — 상담봇 위젯
+        run: npx vercel@59 deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --cwd webchat

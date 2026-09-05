@@ -1,0 +1,286 @@
+"""[PTDET-VISIT-07][DOCTOR-HISTORY-02][R5-02][PTDET-FAMILY-04·05][R5-06][PTDET-NOTE-01·04]
+환자 하위 이력 — 방문·진료기록·가족·자격 재판정·내부 메모.
+
+⭐ 이력 목록은 전부 공용 커서(core.pagination)와 마스킹 경계(core.dto)를 쓴다 — 계약을
+   두 벌 만들면 한쪽만 고쳐지고 아무도 모른다(SEARCH-ORDER-05).
+"""
+import json
+from dataclasses import dataclass
+from datetime import date
+from uuid import UUID
+
+from app.core.dto import patient_row_dto
+from app.core.pagination import Page, paginate
+from app.core.security import StaffContext
+from app.core.patient_security import PatientContext
+from app.db.pool import acquire_as
+
+# 방문/기록의 발생 시각: 슬롯이 있으면 슬롯 일시(KST), 없으면 생성 시각.
+_OCCURRED = "coalesce((s.slot_date + s.start_time) at time zone 'Asia/Seoul', {fallback})"
+
+
+@dataclass
+class EligibilityResult:
+    allowed: bool
+    message: str
+
+
+async def _dispatch(staff: StaffContext, conn, fn):
+    if conn is not None:
+        return await fn(conn)
+    async with acquire_as(str(staff.auth_user_id)) as c:
+        return await fn(c)
+
+
+def _visit_row(r) -> dict:
+    return patient_row_dto(
+        patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+        id=r["id"], occurred_at=r["occurred_at"], status=r["status"],
+        # [PTDET-QNR-03 A안] 예약별 사전문진 '작성 여부'. 제출 시각만 실린다(답변 내용은 아님) —
+        #   정의자 권한 함수 questionnaire_submitted_at_for(00076). None이면 미작성.
+        questionnaire_submitted_at=r["questionnaire_submitted_at"],
+    )
+
+
+async def get_visits(patient_id: UUID, staff: StaffContext, *, cursor=None, conn=None) -> Page:
+    """[PTDET-VISIT-07][R5-06] 방문 이력 — 공용 이어받기 + 마스킹된 값만."""
+    async def _run(c):
+        return await c.fetch(
+            f"""
+            select a.id, a.for_patient_id, a.status, p.name, p.phone, p.birth_date,
+                   {_OCCURRED.format(fallback='a.created_at')} as occurred_at,
+                   public.questionnaire_submitted_at_for(a.id) as questionnaire_submitted_at
+            from appointments a
+            join patients p on p.id = a.for_patient_id
+            left join appointment_slots s on s.id = a.slot_id
+            where a.for_patient_id = $1
+            """,
+            patient_id,
+        )
+
+    fetched = await _dispatch(staff, conn, _run)
+    return paginate([_visit_row(r) for r in fetched], cursor=cursor, order="occurred_at desc")
+
+
+async def get_medical_records(patient_id: UUID, staff: StaffContext, *, cursor=None, conn=None) -> Page:
+    """[DOCTOR-HISTORY-02] 진료기록 이력 — 방문과 같은 공용 부품·같은 정렬 계약."""
+    async def _run(c):
+        return await c.fetch(
+            f"""
+            select mr.id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   mr.diagnosis, mr.is_completed,
+                   {_OCCURRED.format(fallback='mr.created_at')} as occurred_at
+            from medical_records mr
+            join appointments a on a.id = mr.appointment_id
+            join patients p on p.id = a.for_patient_id
+            left join appointment_slots s on s.id = a.slot_id
+            where a.for_patient_id = $1
+            """,
+            patient_id,
+        )
+
+    fetched = await _dispatch(staff, conn, _run)
+    rows = [
+        patient_row_dto(
+            patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+            id=r["id"], occurred_at=r["occurred_at"], diagnosis=r["diagnosis"], is_completed=r["is_completed"],
+        )
+        for r in fetched
+    ]
+    return paginate(rows, cursor=cursor, order="occurred_at desc")
+
+
+async def get_family(patient_id: UUID, staff: StaffContext, *, conn=None) -> list[dict]:
+    """[R5-02] 활성 링크만 — 해제한 연결이 계속 보이면 '연결을 끊었다'가 거짓이 된다."""
+    async def _run(c):
+        return await c.fetch(
+            """
+            select l.id, l.relation, l.family_patient_id, p.name, p.phone, p.birth_date
+            from patient_family_links l
+            join patients p on p.id = l.family_patient_id
+            where l.account_patient_id = $1 and l.is_active
+            order by p.name
+            """,
+            patient_id,
+        )
+
+    fetched = await _dispatch(staff, conn, _run)
+    return [
+        patient_row_dto(
+            patient_id=r["family_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+            id=r["id"], relation=r["relation"],
+        )
+        for r in fetched
+    ]
+
+
+async def verify_family_eligibility(
+    account_patient_id: UUID, member_patient_id: UUID, staff: StaffContext, *, conn=None
+) -> EligibilityResult:
+    """[PTDET-FAMILY-04·05] 예외 입구를 서버가 다시 판정한다.
+
+    판정 조건은 오직 **B(member)의 등록 전화번호 유무**다. 번호가 있으면 예외 경로(대면·
+    가족관계증명서)로 전환할 수 없고 OTP 본인확인에 머문다. 클라이언트가 예외를 선택했다는
+    사실만으로 열지 않는다 — 판정을 화면에 두면 요청을 직접 만들어 우회한다.
+    """
+    async def _run(c):
+        return await c.fetchval(
+            "select phone from patients where id = $1 and is_active", member_patient_id
+        )
+
+    phone = await _dispatch(staff, conn, _run)
+    has_registered_number = phone is not None and phone.strip() != ""
+    if has_registered_number:
+        return EligibilityResult(
+            allowed=False, message="등록된 번호가 있어 다른 확인 방법으로 전환할 수 없습니다"
+        )
+    return EligibilityResult(allowed=True, message="")
+
+
+# ── 내부 메모 (PTDET-NOTE-01·04) ─────────────────────────────────────────
+# ⛔ update_note·delete_note를 만들지 않는다 — PTDET-NOTE-04가 BLOCKED다(변경이력·삭제
+#    복구 계약 없음). 00004의 grant도 select, insert만 열려 있다.
+
+async def get_notes(patient_id: UUID, staff: StaffContext, *, conn=None) -> list[dict]:
+    """[PTDET-NOTE-01] 내용·작성 직원·시각을 최신순. 직원이 쓴 글이라 마스킹을 거치지 않는다."""
+    async def _run(c):
+        return await c.fetch(
+            """
+            select n.id, n.content, n.created_at, s.name as staff_name
+            from patient_internal_notes n
+            join staff s on s.id = n.staff_id
+            where n.patient_id = $1
+            order by n.created_at desc, n.id desc
+            """,
+            patient_id,
+        )
+
+    fetched = await _dispatch(staff, conn, _run)
+    return [
+        {"id": r["id"], "content": r["content"], "created_at": r["created_at"], "staff_name": r["staff_name"]}
+        for r in fetched
+    ]
+
+
+async def get_questionnaire(appointment_id: UUID, staff: StaffContext, *, conn=None) -> dict | None:
+    """[R2-02] 예약별 사전 문진. RLS(assigned_doctor_can_read_responses)가 담당의·관리자만
+    열도록 판정한다 — 서버가 또 거르지 않는다. 없으면 None(화면이 '문진 없음')."""
+    async def _run(c):
+        row = await c.fetchrow(
+            "select appointment_id, template_id, answers, submitted_at "
+            "from questionnaire_responses where appointment_id = $1",
+            appointment_id,
+        )
+        if row is None:
+            return None
+        # [L62b] 답변 키(q1·q2·q3)를 실제 질문 문구로 바꾸려면 답변 시점 템플릿을 함께 읽는다.
+        #   template_id가 그 버전을 정확히 가리키므로(버전마다 한 행) 문구가 답변 당시와 일치한다.
+        #   staff_can_read_templates 정책으로 담당 의사도 읽을 수 있다(같은 RLS 커넥션).
+        tmpl = await c.fetchrow(
+            "select questions from questionnaire_templates where id = $1",
+            row["template_id"],
+        )
+        return row, tmpl
+
+    result = await _dispatch(staff, conn, _run)
+    if result is None:
+        return None
+    row, tmpl = result
+    # ⚠️ answers는 jsonb지만 asyncpg는 전역 코덱이 없어 **문자열**로 돌려준다(questions도 같은 이유로
+    #   json.loads 한다). 파싱하지 않으면 화면이 Object.entries(문자열)로 글자 하나씩 펼친다(L62).
+    answers = row["answers"]
+    if isinstance(answers, str):
+        answers = json.loads(answers)
+    questions = tmpl["questions"] if tmpl else None
+    if isinstance(questions, str):
+        questions = json.loads(questions)
+    return {
+        "appointment_id": row["appointment_id"],
+        "template_id": row["template_id"],
+        "answers": _relabel_answers(answers, questions),
+        "submitted_at": row["submitted_at"],
+    }
+
+
+def _relabel_answers(answers, questions) -> dict:
+    """[L62b] 답변 키(질문ID)를 실제 질문 문구로 바꾼다. 템플릿 질문 순서를 따라 답변이 있는 것만
+    싣고, 템플릿에 없는 키(질문이 나중에 삭제된 옛 답변 등)는 원래 키 그대로 뒤에 남긴다.
+    문구를 못 찾으면 화면이 최소한 ID라도 보이도록 원래 키를 쓴다(빈 표가 되지 않게)."""
+    if not isinstance(answers, dict) or not questions:
+        return answers if isinstance(answers, dict) else {}
+    known_ids = {q.get("id") for q in questions if q.get("id")}
+    out: dict = {}
+    for q in questions:
+        qid = q.get("id")
+        if qid in answers:
+            out[q.get("text") or qid] = answers[qid]
+    for key, value in answers.items():
+        if key not in known_ids:
+            out.setdefault(key, value)
+    return out
+
+
+async def add_note(patient_id: UUID, content: str, staff: StaffContext, *, conn=None) -> UUID:
+    """[PTDET-NOTE-01] 내부 메모 작성(POST). 작성자는 세션 직원으로 고정한다."""
+    async def _run(c):
+        return await c.fetchval(
+            "insert into patient_internal_notes (patient_id, staff_id, content) "
+            "values ($1, $2, $3) returning id",
+            patient_id, staff.id, content,
+        )
+
+    return await _dispatch(staff, conn, _run)
+
+
+# ── 환자 앱 방문 이력(list_visit_history) — HIST-ROLE/WHO/LIST/ROW, 커서 20건(#71) ──
+# 종료 상태 + '예약신청'인 채 지난 예약(확정되지않음, HIST-ROW 계열 09). 예약확정+지남은 규칙 미정의라 제외.
+_HISTORY_WHERE = (
+    "(a.status in ('진료완료','환자취소','병원취소','예약부도') "
+    " or (a.status = '예약신청' and s.slot_date < current_date))")
+
+
+def _encode(slot_date, aid) -> str:
+    return f"{slot_date.isoformat() if slot_date else ''}|{aid}"
+
+
+def _decode(cursor: str):
+    d, aid = cursor.split("|", 1)
+    return (d or None), aid
+
+
+async def list_visit_history(patient: PatientContext, for_patient_id: UUID,
+                             cursor: str | None = None, limit: int = 20) -> dict:
+    params = [for_patient_id]
+    keyset = ""
+    if cursor:
+        cdate, cid = _decode(cursor)
+        # cdate는 커서 문자열이라 date로 되돌린다($2::date에 asyncpg가 date 객체를 요구).
+        params += [date.fromisoformat(cdate) if cdate else None, cid]
+        # (slot_date, id) 내림차순 keyset. 안정 동점키 = id(HIST-LIST 안정정렬).
+        keyset = "and (s.slot_date, a.id) < ($2::date, $3::uuid) "
+    params.append(limit + 1)  # 다음 페이지 존재 여부 판정용 +1
+    async with acquire_as(str(patient.auth_user_id)) as conn:  # RLS가 소유 필터
+        rows = await conn.fetch(
+            "select a.id, a.status, s.slot_date, d.name as department_name, st.name as doctor_name, "
+            "  n.patient_visible_notes, "
+            "  a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at, "  # 갭 #11 이력분(HIST-ROW-02·03)
+            "  (a.account_patient_id = a.for_patient_id) as is_self, "                           # HIST-ROW-02 본인/가족 갈래
+            "  case a.status when '진료완료' then '진료완료' "
+            "       when '환자취소' then '취소됨' when '병원취소' then '취소됨' "
+            "       when '예약부도' then '방문하지않음' else '확정되지않음' end as visit_status, "
+            "  exists (select 1 from questionnaire_responses q where q.appointment_id=a.id) as has_questionnaire "
+            "from appointments a "
+            "join departments d on d.id=a.department_id "
+            "join staff st on st.id=a.doctor_id "
+            "left join appointment_slots s on s.id=a.slot_id "
+            "left join patient_medical_notes n on n.appointment_id=a.id "
+            f"where a.for_patient_id = $1 and {_HISTORY_WHERE} {keyset}"
+            "order by s.slot_date desc nulls last, a.id desc "
+            f"limit ${len(params)}", *params)
+    items = [dict(r) for r in rows]
+    next_cursor = None
+    if len(items) > limit:                       # +1이 잡혔으면 다음 페이지가 있다
+        items = items[:limit]
+        last = items[-1]
+        next_cursor = _encode(last["slot_date"], str(last["id"]))
+    return {"items": items, "next_cursor": next_cursor}

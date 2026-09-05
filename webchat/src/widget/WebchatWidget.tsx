@@ -1,0 +1,93 @@
+import { useState, useEffect, type ReactNode } from 'react';
+import type { WebchatApi, ThreadMessage } from '../api/webchatApi';
+import { useWebchat } from '../state/useWebchat';
+import { Launcher } from './Launcher';
+import { ChatRoom } from './ChatRoom';
+import { GuideBanner } from './GuideBanner';
+import { HandoffBadge } from './HandoffBadge';
+import { UrgentNotice } from './UrgentNotice';
+import { OutageNotice } from './OutageNotice';
+
+export type PendingAction = { kind: 'view_my_appointments' | 'book' | 'cancel'; payload?: Record<string, unknown> };
+export type HandoffSummary = { threadId: string; summary: string[] };
+export type CardSlot = {
+  send: (text: string) => void;   // 카드가 빠른답변을 환자 말풍선으로 보낼 통로(Task 15)
+  onHandoff: () => void;          // no_answer 카드의 [직원에게 연결] → 익명 인계 폼(WEBCHAT-NOANS)
+};
+export type WidgetProps = {
+  api: WebchatApi;
+  hospitalPhone: string;
+  onAuthGate: (action: PendingAction) => void;      // → WEBMOD-AUTH(Task 15)
+  onHandoffNeeded: (summary: HandoffSummary) => void; // → WEBANON-HANDOFF(Task 15)
+  renderCard: (payload: Record<string, unknown> | null | undefined, slot: CardSlot) => ReactNode; // → WEBCARD(Task 15)
+  extraCards?: ThreadMessage[]; // 재확인 카드 [신청]/[취소] 실행 결과(booking_done·cancel_done 등)를 피드 끝에 얹는다(CCARD-BOOKDONE-SHOW-01). 재열기해도 살아남음(WEBCARD-BOOKDONE-03)
+  open?: boolean;                                   // 제어 모드(홈페이지 iframe이 host:setOpen으로 연다). 없으면 자체 상태로 연다(단독 배포).
+  onOpenChange?: (open: boolean) => void;           // 열림 상태 변화를 부모에 통지(WebchatApp이 webchat:setOpen 송신)
+  onUnreadChange?: (hasUnread: boolean) => void;    // 미읽음(직원 답변 도착) 변화를 부모에 통지(webchat:unread 송신)
+};
+
+export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded, renderCard, extraCards = [], open: openProp, onOpenChange, onUnreadChange }: WidgetProps) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;               // 제어 모드면 부모 값, 아니면 자체 상태
+  const setOpen = (v: boolean) => { setOpenState(v); onOpenChange?.(v); };
+  const w = useWebchat(api);
+  const hasUnread = w.handoff.phase === 'answered';
+  // 장애 중 [문의 남기기] → 익명 인계 폼(WEBCHAT-OUTAGE-02) — 봇 응답 없이 기존 대화 문맥으로 직원에게 연결.
+  const leaveInquiry = () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); };
+  // [다시 시도] = 마지막 실패 메시지의 전송 왕복(CHAT-OUTAGE-RECOVER-01: 성공하면 배너가 걷힌다).
+  const lastFailed = [...w.messages].reverse().find((m) => m.sendState === 'failed');
+  const openSession = w.open;                        // 안정 useCallback(=[api])
+  // 열림으로 전이될 때마다 세션 확보(기존 openRoom = setOpen(true)+w.open() 동작을 그대로 보존).
+  useEffect(() => { if (open) openSession(); }, [open, openSession]);
+  useEffect(() => { onUnreadChange?.(hasUnread); }, [hasUnread, onUnreadChange]);
+
+  return (
+    <>
+      <Launcher open={open} hasUnread={hasUnread} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} />
+      {open && (
+        <div className="wc-panel">
+          <button type="button" className="wc-close" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
+          <ChatRoom
+            phase={w.phase}
+            messages={[...w.messages, ...extraCards]}
+            botTyping={w.botTyping}
+            onSend={w.send}
+            onResend={w.resend}
+            onRetryLoad={w.retryLoad}
+            guideSlot={<GuideBanner active={w.guide.active} text={w.guide.text} />}
+            // 인계 배지는 실제 인계가 시작(phase 확정)되거나 조회 실패일 때만 — 그 전엔 "상태 확인 중…"을 상시 노출하지 않는다.
+            handoffSlot={(w.handoff.phase !== null || w.handoff.loadError)
+              ? <HandoffBadge status={w.handoff} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
+              : null}
+            // 긴급 안내(WEBCHAT-URGENT) — 감지 시 대화 위 고정 배너. 예약 CTA·연락처 수집은 함께 두지 않는다(URGENT-03·04).
+            urgentSlot={w.urgent ? <UrgentNotice bookingCtaVisible={false} contactRequested={false} /> : null}
+            // AI 장애 안내(WEBCHAT-OUTAGE) — 병원 전화·[문의 남기기]가 주 경로. 실패 말풍선(재전송=복구 왕복)과 공존.
+            outageSlot={w.outage ? (
+              <OutageNotice
+                phase={w.outage} hospitalPhone={hospitalPhone}
+                onLeaveInquiry={leaveInquiry}
+                onRetry={() => { if (lastFailed?.clientMessageId) w.resend(lastFailed.clientMessageId); }} />
+            ) : null}
+            // 첫 상담(빈 피드) 시작 안내 — 봇 인사말 + 시작 고정 칩(WEBCHAT-ROOM-03·WEBCARD-QUICK-01). 대화 시작 후엔 ChatRoom이 감춘다.
+            //   진료시간·예약 방법·오시는 길 = 문장 그대로 환자 말풍선으로 전송(WEBCARD-QUICK-02).
+            //   내 예약 조회 = 로그인 필요 → 관문(WEBMOD-AUTH-01) / 직원에게 문의 = 인계 폼(WEBANON-HANDOFF, 사람에게 닿는 칩이라 채움형).
+            startSlot={<div className="wc-start">
+              <p className="wc-msg wc-msg--bot wc-start__hi">안녕하세요, 무엇을 도와드릴까요?</p>
+              <div className="wc-quick wc-quick--start" aria-label="빠른 시작">
+                {['진료시간', '예약 방법', '오시는 길'].map((t) => (
+                  <button key={t} type="button" className="wc-chip" onClick={() => w.send(t)}>{t}</button>
+                ))}
+                <button type="button" className="wc-chip" onClick={() => onAuthGate({ kind: 'view_my_appointments' })}>내 예약 조회</button>
+                <button type="button" className="wc-chip wc-chip--handoff" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
+              </div>
+            </div>}
+            renderCard={(payload) => renderCard(payload, {
+              send: w.send,
+              onHandoff: () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); },
+            })}
+          />
+        </div>
+      )}
+    </>
+  );
+}

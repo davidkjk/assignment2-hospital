@@ -1,0 +1,366 @@
+[
+  {
+    "verdict": "confirmed",
+    "title": "Staff-revoked family access can be restored by the patient",
+    "description": "An authenticated patient who owns an inactive family link can invoke the exposed relink RPC. The RPC reactivates the link even when staff performed the revocation and clears the recorded revocation actor, reason, and timestamp. The active link makes patient_owns true again for the family member, restoring access protected by that ownership predicate.",
+    "root_cause": "relink_family_link_self in supabase/migrations/00018_patient_family_link_rpcs.sql does not distinguish patient self-unlink from staff revocation, allowing a patient to override an authorized revocation and erase its audit fields.",
+    "intended_behavior": "An inactive existing-patient family relationship should be relinked only after fresh OTP or authorized staff verification. A staff revocation remains effective until then, and the prior revocation event remains auditable rather than being overwritten.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "supabase/migrations/00018_patient_family_link_rpcs.sql",
+        "line": 30,
+        "scope": "relink_family_link_self",
+        "description": "The SECURITY DEFINER RPC is granted to authenticated callers and accepts an attacker-selected link UUID."
+      },
+      {
+        "kind": "propagation",
+        "file": "supabase/migrations/00018_patient_family_link_rpcs.sql",
+        "line": 35,
+        "scope": "relink_family_link_self",
+        "description": "The sole authorization gate is patient_owns(v_acct). It accepts the caller's own patient ID or an actively linked family patient as account_patient_id; it does not verify direct account ownership or inspect who revoked the target link."
+      },
+      {
+        "kind": "sink",
+        "file": "supabase/migrations/00018_patient_family_link_rpcs.sql",
+        "line": 39,
+        "scope": "relink_family_link_self",
+        "description": "The privileged update sets is_active=true and clears unlinked_at, unlinked_by, and unlink_reason."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "The attacker has a valid authentication token mapped to an active registered patient account."
+      },
+      {
+        "kind": "data_state",
+        "description": "The account owns an inactive family link, including one revoked by staff; its UUID is readable through the account's family-link RLS policy."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "An authenticated patient whose previously authorized family access was revoked by hospital staff.",
+      "payloads": [
+        "POST /rest/v1/rpc/relink_family_link_self with JSON {\"p_link_id\":\"<staff-revoked-link-uuid>\"}"
+      ],
+      "instructions": [
+        "Read the inactive link UUID through the caller's permitted patient_family_links query.",
+        "Invoke the authenticated relink RPC.",
+        "Query the link and a family-owned resource after the request."
+      ],
+      "expected_result": "The link becomes active, staff revocation audit fields become null, and family ownership-gated data is accessible again."
+    },
+    "remediation": {
+      "strategy": "Revoke authenticated execution of relink_family_link_self, or strictly limit it to a separately recorded provenance-safe self-unlink flow. Make add_family_member refuse to revive staff-revoked links, route existing-relationship relinking through OTP or authorized staff verification, and store revocation events append-only."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "The attacker needs only their normal patient session and a link ID that their RLS policy permits them to read."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "The exploit defeats an explicit staff access revocation and restores access to another patient's health-related data while deleting audit evidence."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The authenticated grant, ownership check, privileged update, and downstream active-link ownership predicate were independently verified in the migrations and backend."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "title": "Authenticated IDOR in questionnaire-move SECURITY DEFINER RPC",
+    "description": "The move_questionnaire_response RPC is executable by every authenticated role and runs as SECURITY DEFINER. It checks only that the source and destination appointments have equal account and patient IDs, not that the caller owns them or that a legitimate reschedule created the destination. A receptionist or administrator can enumerate appointment IDs and reassign a questionnaire to another appointment for the same patient, including across departments. Read authorization then follows the destination appointment's doctor.",
+    "root_cause": "move_questionnaire_response in supabase/migrations/00020_booking_idempotency.sql does not authorize the caller or verify rescheduling lineage, allowing authenticated users to reassign another patient's clinical questionnaire.",
+    "intended_behavior": "Only the authorized patient booking-change transaction should move an unfinished questionnaire from the exact old appointment to the newly created replacement appointment.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "supabase/migrations/00020_booking_idempotency.sql",
+        "line": 28,
+        "scope": "move_questionnaire_response",
+        "description": "An authenticated caller can invoke the public SECURITY DEFINER RPC with two appointment UUIDs."
+      },
+      {
+        "kind": "propagation",
+        "file": "supabase/migrations/00020_booking_idempotency.sql",
+        "line": 34,
+        "scope": "move_questionnaire_response",
+        "description": "The function loads both appointments and compares them only to each other without checking auth.uid, patient ownership, staff role, department, status, or lineage."
+      },
+      {
+        "kind": "sink",
+        "file": "supabase/migrations/00020_booking_idempotency.sql",
+        "line": 42,
+        "scope": "move_questionnaire_response",
+        "description": "The definer-privileged update changes questionnaire_responses.appointment_id to the attacker-selected destination."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "A receptionist or administrator has normal appointment-read access; other authenticated users additionally need to discover both UUIDs."
+      },
+      {
+        "kind": "data_state",
+        "description": "The source has a questionnaire response, the destination has none, and both appointments share account_patient_id and for_patient_id."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A malicious or compromised receptionist or administrator account with legitimate access to appointment identifiers but no authority to rewrite clinical questionnaire ownership.",
+      "payloads": [
+        "POST /rest/v1/rpc/move_questionnaire_response with Authorization: Bearer <authenticated staff JWT>, apikey: <project anon key>, Content-Type: application/json, and body {\"p_old_appointment_id\":\"<source appointment UUID>\",\"p_new_appointment_id\":\"<destination appointment UUID>\"}"
+      ],
+      "instructions": [
+        "Use receptionist/admin appointment-read access to obtain two distinct appointments sharing account_patient_id and for_patient_id. Identify a source with a response and a destination without one using the submitted-at/existence metadata exposed by questionnaire_submitted_at_for or the patient visits endpoint.",
+        "Invoke the Supabase RPC with those appointment UUIDs.",
+        "Observe the response association and destination-doctor read scope."
+      ],
+      "expected_result": "The response moves to the unrelated destination appointment and becomes readable to the destination appointment's assigned doctor."
+    },
+    "remediation": {
+      "strategy": "Revoke direct authenticated execution and make the mover an internal helper of an atomic rescheduling RPC that verifies caller ownership, exact old-to-new lineage, department, status, and destination emptiness."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Exploitation requires authentication and two compatible appointment IDs, which receptionists and administrators can obtain through intended reads."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "The RPC bypasses the medical questionnaire RLS model, corrupts clinical association, and can disclose sensitive answers to a different physician."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The definer function, generic grant, appointment-read policy, update sink, and destination-doctor read policy were independently verified; no later revocation or caller guard exists."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "title": "Unsigned notification status callback permits privileged state changes",
+    "description": "POST /messages/status-callback has no authentication or provider-signature verification. Attacker-controlled provider_message_id, status, and failure_code reach a service-role database path. Any status other than delivered is treated as failure; selected codes schedule retries or mark the associated patient's number dead. A valid provider message ID is required, although the endpoint exposes an ok/ignored validity oracle and the development fallback uses a fixed ID.",
+    "root_cause": "status_callback in backend/app/routers/messages.py does not authenticate or verify the notification provider's signed request, allowing forged callbacks to mutate delivery and patient state.",
+    "intended_behavior": "Only authentic, fresh callbacks from the configured provider should update the matching notification using a strictly validated provider event type.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/routers/messages.py",
+        "line": 47,
+        "scope": "status_callback",
+        "description": "The public POST route accepts the callback body without a dependency or signature check."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/message_service.py",
+        "line": 358,
+        "scope": "handle_status_callback",
+        "description": "Attacker fields enter a raw service-role transaction and the notification is selected solely by provider_message_id."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/dispatch_service.py",
+        "line": 99,
+        "scope": "mark_failed",
+        "description": "The privileged failure handler changes delivery state, can schedule retries, and sets patients.sms_dead for attacker-selected dead-number codes."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "data_state",
+        "description": "The attacker knows or guesses a provider_message_id present in notification_log; the development fallback value is constant."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "Extra-message and cost impact additionally require an active retry worker and provider; state corruption occurs immediately without them."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "An unauthenticated remote caller able to reach the Railway FastAPI deployment.",
+      "payloads": [
+        "POST /messages/status-callback with a known provider_message_id, status failed, and failure_code invalid_number",
+        "Use failure_code rate_limited to schedule a retry instead of poisoning sms_dead"
+      ],
+      "instructions": [
+        "Submit the JSON callback without an Authorization header or provider signature.",
+        "Repeat with candidate provider IDs and distinguish ok from ignored responses.",
+        "Inspect delivery status, retry state, or the associated patient's sms_dead flag."
+      ],
+      "expected_result": "The server returns success for a matching ID and performs the requested privileged failure transition without authenticating the sender."
+    },
+    "remediation": {
+      "strategy": "Add a provider-specific authenticated callback adapter. For Solapi, compare X-Solapi-Secret in constant time with the configured webhook secret, parse the real SINGLE-REPORT messageId/statusCode payload, allowlist terminal states, process replays idempotently, bind IDs to Solapi sends, and return indistinguishable external responses. Apply each future provider's official signature scheme separately."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "The route is unauthenticated, but production exploitation normally requires a valid provider message identifier."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "A forged callback can suppress future SMS, corrupt delivery evidence, and under active worker conditions trigger duplicate messages and provider cost."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The route was exercised with an in-memory FastAPI harness, and the unauthenticated field propagation and privileged sinks were independently verified in source and tests."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "title": "Scheduled marketing messages bypass patient advertising consent",
+    "description": "A receptionist or administrator can schedule a marketing send to all active patients. Recipient resolution accepts kind but does not use it or read ads_consent, freezes every active patient into the scheduled recipient table, and dispatches later without a send-time consent check. The existing can_send_ads policy helper is not called by this path, so patients whose consent is false or was later withdrawn receive marketing when channel prerequisites are met.",
+    "root_cause": "resolve_recipients in backend/app/services/message_service.py does not filter marketing recipients by current ads_consent, allowing opted-out patients to be queued and dispatched advertising.",
+    "intended_behavior": "Marketing sends should include only currently consenting patients and should recheck current consent immediately before each actual delivery.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/routers/messages.py",
+        "line": 95,
+        "scope": "send_message",
+        "description": "A receptionist or administrator submits kind=marketing with a recipient specification and future scheduled_at."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/message_service.py",
+        "line": 100,
+        "scope": "resolve_recipients",
+        "description": "The resolver ignores kind and consent and returns every selected active patient with zero exclusions."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/message_service.py",
+        "line": 194,
+        "scope": "_run_scheduled_on_conn",
+        "description": "The due worker loads the frozen recipient IDs, creates marketing notification rows, and calls dispatch without rereading consent."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/dispatch_service.py",
+        "line": 145,
+        "scope": "_dispatch_one",
+        "description": "Push or SMS delivery is attempted based on token, phone, hospital setting, and sms_dead, but not ads_consent."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "The attacker controls a receptionist or administrator account that is allowed to compose messages."
+      },
+      {
+        "kind": "data_state",
+        "description": "At least one active selected patient has ads_consent=false and a usable push token or SMS number."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "The scheduled worker and selected delivery provider are active; for SMS, hospital SMS is enabled and the number is not marked dead."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A malicious or compromised receptionist or administrator who is authorized to send operational notices but not to override patient advertising consent.",
+      "payloads": [
+        "POST /messages with kind marketing, recipients_spec all=true, a real channel, body, and a valid future scheduled_at"
+      ],
+      "instructions": [
+        "Ensure an active patient has ads_consent=false and an eligible delivery channel.",
+        "Schedule a marketing message for all patients using the normal staff endpoint.",
+        "Run the due scheduled-send worker after scheduled_at.",
+        "Observe the opted-out patient's provider invocation or notification record."
+      ],
+      "expected_result": "The opted-out patient remains in the frozen recipient set and reaches the provider delivery path."
+    },
+    "remediation": {
+      "strategy": "Filter by ads_consent during recipient resolution and enforce a second current-consent check at send time through one mandatory marketing-policy function shared by all channels."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "A privileged messaging role and active delivery infrastructure are required, but the normal all-patients workflow deterministically includes opt-outs."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "The issue defeats explicit advertising consent and sends unwanted health-provider marketing, with privacy, trust, and compliance consequences."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The resolver, frozen schedule, dispatcher, RLS grants, default-false consent field, unused policy helper, and an in-memory dispatch harness all support the finding."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "title": "Mandatory consent is enforced only by the client and falsely recorded by the server",
+    "description": "A valid Supabase user without a linked patient can skip the Flutter consent screen and call POST /patient with profile fields only. The request has no assertions for terms, privacy, or sensitive-health-data processing, yet the service writes all three as agreed=true with a server Entered timestamp and version. Downstream patient authorization checks only for an active patient row. In addition, the patients RLS policy permits a self-linked authenticated INSERT with no consent-row invariant, allowing direct profile creation that omits the records altogether.",
+    "root_cause": "register_profile in backend/app/routers/patient_profile.py does not require mandatory consent assertions, allowing profile creation to fabricate or bypass the consent invariant.",
+    "intended_behavior": "A user should become an active patient only after the server receives and atomically records explicit agreement to each mandatory item for the exact current terms version.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/routers/patient_profile.py",
+        "line": 23,
+        "scope": "register_profile",
+        "description": "The authenticated endpoint accepts name, birth date, gender, and optional advertising consent but no mandatory consent assertions."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/patient_profile_service.py",
+        "line": 10,
+        "scope": "register_profile",
+        "description": "The service creates or links the patient with a raw service-role transaction and calls consent recording based solely on reaching this function."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/consent_service.py",
+        "line": 14,
+        "scope": "record_consents",
+        "description": "The sink constructs terms, privacy, and sensitive rows with agreed=true unconditionally and inserts timestamped/versioned consent evidence."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "The attacker has a valid Supabase authentication token whose subject is not already linked to a patient row."
+      },
+      {
+        "kind": "data_state",
+        "description": "No existing patient is linked to the token subject; otherwise the backend path returns 409."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A newly authenticated user who does not accept the mandatory terms but wants normal patient application access.",
+      "payloads": [
+        "POST /patient with only name, birth_date, gender, and ads_agreed=false",
+        "Alternatively insert a patients row through the Supabase Data API with auth_user_id equal to the JWT subject"
+      ],
+      "instructions": [
+        "Obtain a valid Supabase session without using the Flutter consent screen.",
+        "Submit the profile request without mandatory consent fields, or use the permitted self-register RLS insert.",
+        "Call an endpoint guarded by get_current_patient and inspect patient_consents."
+      ],
+      "expected_result": "The account receives active patient authorization; the backend path creates false affirmative consent records, while the direct RLS path can create no consent evidence at all."
+    },
+    "remediation": {
+      "strategy": "Require explicit true assertions for every mandatory item and the exact server-advertised version, enforce the invariant in one atomic server/RPC path, and revoke general authenticated INSERT on patients."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "A normal authenticated session is required, but bypassing the client screen and sending the accepted request shape is straightforward."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "The user gains patient functionality without mandatory consent and the hospital's timestamped legal and sensitive-data consent evidence becomes false."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "The request schema, service-role call chain, unconditional inserts, UI-only gate, downstream patient authorization, and direct RLS insert policy were independently verified."
+    }
+  }
+]

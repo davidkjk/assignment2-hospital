@@ -1,0 +1,858 @@
+/* 예약 캘린더(/calendar) 시각 레이어 — 실 격자(cal-* 시맨틱 클래스)에 데모 세공을 입힌다.
+ *   - 색은 tokens.css 토큰만 쓴다(lint:tokens 대비). JSX·로직·data-testid는 건드리지 않는다(테스트 셀렉터 보존).
+ *   - 구조 주의: 실 DayGrid는 TimeAxis가 열(cal-columns)의 왼쪽 형제이고 열 머리(cal-column-head)가 각 열 안에 있다
+ *     → 축을 열 머리 높이(--cal-head-h)만큼 내려 본문과 정렬한다. 데모는 sticky 별도 행이었다(구조가 다르므로 CSS로 화해). */
+
+.cal-page {
+  --cal-head-h: 44px;
+  --cal-gutter: 56px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 20px 24px;
+  gap: 12px;
+}
+
+/* ── 툴바(무엇을·언제를 보나) ───────────────────────────── */
+.cal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  flex-shrink: 0;
+}
+.cal-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cal-view-toggle button {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+}
+.cal-view-toggle button + button {
+  border-left: 1px solid var(--color-divider);
+}
+.cal-view-toggle button[aria-pressed='true'] {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-weight: 600;
+}
+
+.cal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 세그먼트 그룹 — 일간/주간 토글과 같은 테두리·radius·구분선(사용자 지시 2026-08-30).
+   화살표 ‹ ›와 기간 글자를 한 덩어리로 이어붙여 「기간 네비게이터」로 읽히게 한다. */
+.cal-nav-group {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.cal-nav-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  color: var(--color-ink-muted);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+/* [L5] hover 피드백 — done-bg(#F5F7F8)는 흰 배경과 구분이 안 돼 안 보였다. 인터랙티브 wash로 또렷하게. */
+.cal-nav-arrow:hover {
+  background: var(--color-primary-wash);
+  color: var(--color-ink);
+}
+/* 기간 글자 = 가운데 세그먼트, 양옆 구분선으로 화살표와 나뉜다. */
+.cal-nav-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 196px;
+  height: 30px;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 0 12px;
+  border-left: 1px solid var(--color-divider);
+  border-right: 1px solid var(--color-divider);
+  background: var(--color-surface);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.cal-nav-range:hover {
+  background: var(--color-primary-wash);
+}
+/* 달력 아이콘 — 살짝 강조(primary)로 「날짜를 고르는 곳」임을 알린다. */
+.cal-nav-range-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+/* 드롭다운 캐럿 — 옅게, 「작은 달력이 열린다」는 신호만. */
+.cal-nav-range-caret {
+  color: var(--color-ink-muted);
+  flex-shrink: 0;
+}
+/* [#3] 텍스트로 보이던 「오늘」을 명확한 ghost 버튼으로 — 테두리+배경 부여(btnGhost 계열). */
+.cal-nav-today {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-divider);
+  background: var(--color-surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.cal-nav-today:hover {
+  background: var(--color-primary-wash);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.cal-zoom {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-zoom-hint {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+@media (max-width: 900px) {
+  .cal-zoom-hint {
+    display: none;
+  }
+}
+.cal-zoom-step {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  font-size: 15px;
+  color: var(--color-ink-muted);
+}
+.cal-zoom-step:hover {
+  background: var(--color-done-bg);
+}
+.cal-zoom-reset {
+  padding: 4px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+.cal-zoom-reset:hover {
+  background: var(--color-done-bg);
+}
+
+/* ── 의사·진료과 칩 ───────────────────────────── */
+.cal-doctor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cal-dept-chips,
+.cal-name-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cal-dept-chips::after {
+  content: '';
+  width: 1px;
+  height: 16px;
+  background: var(--color-divider);
+  margin: 0 2px;
+}
+.cal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cal-chip:hover {
+  background: var(--color-done-bg);
+}
+.cal-chip[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-wash);
+  color: var(--color-primary);
+}
+/* 의사 칩 앞 색점 — 격자 예약 블록과 같은 색으로 칩↔열을 잇는다(사용자 결정 2026-08-29).
+   ⭐ 블록은 「연한 fill」인데 예전엔 점만 「진한 solid」라 칩이 더 진해 보였다(사용자 지적 2026-08-31).
+   → 점도 블록처럼 연한 fill 바탕 + 얇은 solid 테두리로 = 격자의 미니 블록. 색값은 인라인(팔레트 인덱스)로 온다. */
+.cal-chip-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  border: 1.5px solid;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+.cal-filter-note {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+/* ── 격자 그릇 ───────────────────────────── */
+.cal-day-grid,
+.cal-week-grid {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+/* 시간축(왼쪽 한 번) — 열 머리 높이만큼 내려 본문과 정렬. */
+.cal-time-axis {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  width: var(--cal-gutter);
+  margin-top: var(--cal-head-h);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-divider);
+}
+.cal-axis-label {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cal-axis-label:first-child {
+  transform: none;
+}
+.cal-grid-line-15min {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed color-mix(in srgb, var(--color-divider) 70%, transparent);
+}
+
+/* 열들 */
+.cal-columns {
+  display: flex;
+  min-width: max-content;
+}
+.cal-column {
+  display: flex;
+  flex-direction: column;
+  width: 176px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--color-divider);
+}
+.cal-column:last-child {
+  border-right: 0;
+}
+.cal-column-head {
+  height: var(--cal-head-h);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-divider);
+}
+.cal-column-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.cal-column-gear {
+  color: var(--color-ink-muted);
+  padding: 2px;
+  border-radius: 4px;
+}
+.cal-column-gear:hover {
+  background: var(--color-done-bg);
+}
+.cal-lane-head {
+  font-size: 12px;
+  font-weight: 600;
+}
+.cal-column-body {
+  position: relative;
+  background: color-mix(in srgb, var(--color-done-bg) 40%, var(--color-surface));
+}
+
+/* ── 슬롯(빈/예약/빗금/과거) ───────────────────────────── */
+.cal-slot-pos {
+  padding: 0 4px;
+}
+.cal-slot {
+  height: 100%;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.cal-slot.is-dotted {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-divider);
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* [CAL-TIME-03] 호버 — ⛔ 빈 구간 「전체」를 채우지 않는다(사용자 지적 2026-08-31: 통째로 잡히는 것처럼 보였다).
+   테두리만 옅게 또렷해져 「여기 누를 수 있다」만 알리고, 실제로 잡히는 5분 지점은 파란 캡슐(cal-empty-hover)이 짚는다. */
+.cal-slot-pos:hover .cal-slot.is-dotted {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-divider));
+}
+/* 빈 시간 호버 미리보기(CAL-TIME-03) — 커서 높이에 파란 시각 캡슐. 호버 중엔 「빈 시간 …」 글자를 비워 겹침을 피한다. */
+.cal-slot-pos[data-hovering='1'] .cal-slot.is-dotted {
+  color: transparent;
+}
+.cal-empty-hover {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.cal-empty-hover-time {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.cal-empty-hover-line {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+.cal-slot.is-past {
+  color: var(--color-gray-past);
+  opacity: 0.7;
+}
+.cal-slot.is-hatched {
+  display: flex;
+  align-items: flex-start;
+  border: 1px solid var(--color-divider);
+  color: var(--color-ink-muted);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--color-ink-muted) 12%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+.cal-slot.is-filled {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-ink);
+  box-shadow: 0 1px 0 var(--color-surface);
+}
+.cal-slot-patient {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-slot-status {
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cal-slot-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--color-warn);
+}
+.slot-badge-icon {
+  color: var(--color-warn);
+}
+
+/* 저장 전 자리표(hold) */
+.cal-hold {
+  border: 1px dashed var(--color-primary);
+  border-radius: 6px;
+  background: var(--color-primary-wash);
+  color: var(--color-primary);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-hold.is-taken {
+  border-color: var(--color-warn);
+  background: var(--color-danger-bg);
+  color: var(--color-warn);
+}
+
+/* 지금 선(rose) */
+.cal-now-line {
+  height: 1px;
+  background: var(--color-danger);
+  z-index: 3;
+  pointer-events: none;
+}
+/* 점은 격자 맨 왼쪽(gutter 경계 = 첫 열 왼쪽)에 하나만 — 데모의 gutter 경계 점.
+   선은 열마다 그려지므로(실 구조) ::before를 그대로 두면 열마다 점이 반복돼 지저분하다. */
+.cal-now-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  transform: translateX(-50%);
+  display: none;
+}
+.cal-column:first-child .cal-now-line::before {
+  display: block;
+}
+
+/* 지금 시각 라벨 — TimeAxis(gutter)에 rose 캡슐로 하나. 데모는 선 왼쪽 끝의 흰 글씨 라벨. */
+.cal-axis-now {
+  position: absolute;
+  right: 4px;
+  transform: translateY(-50%);
+  z-index: 6;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ── 상태 배너·안내 ───────────────────────────── */
+.cal-stale-banner {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-warn) 12%, var(--color-surface));
+  color: var(--color-warn);
+  font-size: 12px;
+}
+.cal-loading {
+  padding: 24px;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+}
+.cal-past-hint {
+  position: sticky;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+.cal-past-hint button {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* ── 주간뷰 ─────────────────────────────
+   ⭐ 시간축은 6일 바깥의 공용 거터(위 .cal-time-axis)다 — 월요일 칸 안에 넣지 않는다(2026-08-31 사용자 지적:
+      축이 월요일에만 있어 그 칸만 좁고 화~토와 어긋났다). 6일은 flex로 균등하되, 각 칸 min-width = 의사 수 ×
+      레인폭(WeekGrid 인라인)이라 8명이면 6일이 화면을 넘겨 .cal-week-grid가 가로로 스크롤된다(CAL-WEEK-07). */
+.cal-week-day {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  border-right: 1px solid var(--color-divider);
+}
+.cal-week-day:last-child {
+  border-right: 0;
+}
+.cal-week-day-head {
+  height: var(--cal-head-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-divider);
+  font-variant-numeric: tabular-nums;
+}
+.cal-week-day-head:hover {
+  background: var(--color-done-bg);
+}
+/* 주간 안쪽 DayGrid는 그릇(테두리·그림자·스크롤)을 죽인다 — 바깥 cal-week-grid가 그릇이다. */
+.cal-week-grid .cal-day-grid {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  flex: 1;
+}
+/* 레인 묶음이 고정폭 칸을 꽉 채우게 — 일간용 `min-width: max-content`(예약 글자가 칸을 부풀림)를 풀고
+   flex로 의사 수만큼 균등 분배한다. 좁은 레인의 글자는 슬롯 overflow:hidden으로 깔끔히 잘린다. */
+.cal-week-grid .cal-columns {
+  flex: 1;
+  min-width: 0;
+}
+/* 주간 열 머리는 날짜 머리가 대신하므로 접는다(성 한 자 머리는 DOM엔 남아 CAL-WEEK-04 검사가 찾는다). */
+.cal-week-grid .cal-column-head {
+  display: none;
+}
+
+/* ── 미니 달력(날짜 이동) ───────────────────────────── */
+.cal-mini {
+  position: absolute;
+  top: 56px;
+  left: 200px;
+  z-index: 40;
+  width: 280px;
+  padding: 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+.cal-mini-note {
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--color-ink-muted);
+}
+.cal-mini-heads,
+.cal-mini-week {
+  display: grid;
+  grid-template-columns: 24px repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-mini-head {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+/* [L8] 여러 달을 죽 펼칠 때 왼쪽 여백에 달 이름을 적는 길잡이 열. */
+.cal-mini-monthcol {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+/* [L8] 예약 범위 전체를 한눈에 — 8~9주가 세로로 넘칠 수 있어 스크롤을 둔다. */
+.cal-mini-weeks {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* [#2] 340px는 현재 달만 보여 다음 달을 못 본다는 오해를 낳았다(macOS는 스크롤바를 숨긴다).
+     화면 높이에 맞춰 길게 — 대부분 화면에서 예약 범위(≈8주)가 한눈에, 넘치면 스크롤. */
+  max-height: min(560px, 62vh);
+  overflow-y: auto;
+}
+.cal-mini-day {
+  height: 30px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.cal-mini-day:hover:not(:disabled) {
+  background: var(--color-done-bg);
+}
+.cal-mini-day.is-other-month {
+  color: color-mix(in srgb, var(--color-ink-muted) 45%, transparent);
+}
+.cal-mini-day.is-today {
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-wash);
+}
+.cal-mini-day:disabled {
+  color: color-mix(in srgb, var(--color-ink-muted) 30%, transparent);
+  cursor: default;
+}
+.cal-mini-range {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* ── 패널(예약 상세·전화 예약) ───────────────────────────── */
+.cal-appointment-panel,
+.cal-booking-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cal-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cal-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.cal-panel-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--color-ink-muted);
+}
+.cal-panel-close:hover {
+  background: var(--color-done-bg);
+}
+.cal-panel-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cal-panel-fields div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cal-panel-fields dt {
+  font-size: 11px;
+  color: var(--color-ink-muted);
+}
+.cal-panel-fields dd {
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+/* 예약 상세 본문 머리 — 환자(제목)·상태(배지). PanelHost가 「예약 상세」 제목·✕를 이미 보이므로 여기선 주인공만. */
+.cal-panel-subject {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-divider);
+}
+.cal-panel-subject-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.cal-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-wash);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+/* 정보 행(의사·시간) — 라벨 왼쪽 고정폭, 값 오른쪽. dl을 표처럼 정렬해 훑기 쉽게. */
+.cal-panel-fields div {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+}
+.cal-panel-fields dt {
+  flex: 0 0 44px;
+}
+
+/* 보조 버튼 — 외곽선(주 버튼 teal과 구분). 오류 「다시 시도」·「캘린더에서 시간 고르기」에 쓴다.
+   ⚠️ 예전 오류 버튼은 28×28 정사각(cal-panel-close)이라 「다시 시도」가 세로로 깨졌다. */
+.cal-btn-secondary {
+  align-self: flex-start;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-divider);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.cal-btn-secondary:hover {
+  background: var(--color-primary-wash);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.cal-panel-status {
+  padding: 4px 2px;
+  color: var(--color-ink-muted);
+  font-size: 13px;
+}
+.cal-panel-error {
+  margin: 0 0 8px;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 폼 필드 */
+.cal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cal-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+.cal-field input,
+.cal-field select {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--color-input);
+  border-radius: 8px;
+  background: var(--color-surface);
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.cal-field input:focus,
+.cal-field select:focus {
+  outline: none;
+  border-color: var(--color-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-ring) 30%, transparent);
+}
+.cal-patient-results {
+  border: 1px solid var(--color-divider);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cal-patient-results li + li {
+  border-top: 1px solid var(--color-divider);
+}
+.cal-patient-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.cal-patient-results button:hover {
+  background: var(--color-done-bg);
+}
+.cal-field-error {
+  font-size: 12px;
+  color: var(--color-danger);
+}
+.cal-race-msg {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-warn) 12%, var(--color-surface));
+  color: var(--color-warn);
+  font-size: 12px;
+}
+.cal-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cal-cancel-link {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+.cal-cancel-link:hover {
+  color: var(--color-danger);
+}
+
+/* 상담 요약(예약 패널에 흡수) */
+.cal-support-summary {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-warn) 30%, var(--color-divider));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-warn) 8%, var(--color-surface));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cal-support-line {
+  font-size: 12px;
+  color: var(--color-warn);
+}
+.cal-support-line.is-error {
+  color: var(--color-danger);
+}
+.cal-support-count {
+  font-weight: 600;
+}
+.cal-support-note {
+  font-size: 11px;
+  color: var(--color-ink-muted);
+  margin-top: 2px;
+}
+/* [상담 전체 보기] — 처리(답장·종료)는 문의함에서 하므로 이 버튼이 그리로 가는 유일한 문. */
+.cal-support-open {
+  margin-top: 8px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.cal-support-open:hover {
+  background: color-mix(in srgb, var(--color-primary) 90%, black);
+}

@@ -1,0 +1,1 @@
+/Users/kimjunkee/.claude/scripts/plan-coverage-check.py
