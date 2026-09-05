@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/booking/booking_controller.dart';
@@ -20,7 +21,7 @@ void main() {
     await pumpDept(t, depts: const [kInternal]);
     final title = t.widget<Text>(find.text('내과'));
     expect(title.style!.fontWeight, FontWeight.bold);
-    expect(find.byIcon(Icons.chevron_right), findsWidgets);
+    expect(find.byIcon(AppIcons.chevron_right), findsWidgets);
   });
 
   testWidgets('[BOOK-DEPT-02] 목록 맨 아래에 "어느 과인지 모르겠어요" 상담 진입점이 있다', (t) async {
@@ -54,7 +55,7 @@ void main() {
     final c = await pumpDept(t, depts: const [kInternal], target: kSelf);
     await t.tap(find.text('어느 과인지 모르겠어요'));
     await t.pumpAndSettle();
-    await t.tap(find.widgetWithIcon(IconButton, Icons.cancel)); // 원형 X로 닫기
+    await t.tap(find.widgetWithIcon(IconButton, AppIcons.cancel)); // 원형 X로 닫기
     await t.pumpAndSettle();
     expect(c.read(bookingProvider).department, isNull); // 선택 없음
     expect(c.read(bookingProvider).step, 1); // target만 고른 채 2단계 진입 전

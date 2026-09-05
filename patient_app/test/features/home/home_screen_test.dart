@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/pending_request.dart';
@@ -111,7 +112,7 @@ void main() {
     await t.pumpWidget(_home([_view('1', '예약확정')]));
     await t.pumpAndSettle();
     expect(find.byType(NotificationBell), findsOneWidget);
-    expect(find.byIcon(Icons.settings), findsOneWidget);
+    expect(find.byIcon(AppIcons.settings), findsOneWidget);
     expect(find.byIcon(Icons.menu), findsNothing); // 햄버거 없음
   });
 

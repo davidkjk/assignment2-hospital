@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/appointments/appointment_list_qnr_line.dart';
@@ -31,7 +32,7 @@ void main() {
     expect(find.textContaining('사전문진 미작성'), findsOneWidget);
     expect(find.textContaining('작성하기'), findsOneWidget);
     expect(find.byKey(const Key('qnr-band')), findsOneWidget); // 데모 카드 아래 밴드
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    expect(find.byIcon(AppIcons.chevron_right), findsOneWidget);
   });
   testWidgets('[LIST-QNR-03] 작성 중 → 「사전문진 작성 중 (3/8) · 이어서 쓰기」', (t) async {
     final w = appointmentListQnrLine(_qv('예약확정', qnr: '작성 중', answered: 3, total: 8), onOpen: () {});

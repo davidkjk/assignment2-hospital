@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/api_client.dart';
 import 'package:hospital_patient_app/features/auth/new_password_screen.dart';
@@ -34,7 +35,7 @@ void main() {
     await t.pumpWidget(MaterialApp(home: _screen(_FakeReset())));
     expect(find.byKey(const Key('newpw')), findsOneWidget);
     expect(find.byKey(const Key('newpw-confirm')), findsOneWidget);
-    expect(find.byIcon(Icons.visibility_off), findsNWidgets(2)); // 두 칸 각각
+    expect(find.byIcon(AppIcons.visibility_off), findsNWidgets(2)); // 두 칸 각각
   });
 
   testWidgets('[AUTH-PWNEW-02] 조건 네 줄(8자·영문숫자·두 칸 같음·피하기)', (t) async {

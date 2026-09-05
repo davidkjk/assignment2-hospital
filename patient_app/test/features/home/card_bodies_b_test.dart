@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:hospital_patient_app/features/home/appointment_card.dart';
@@ -51,7 +52,7 @@ void main() {
   });
   testWidgets('[CARD-DOC-03] 진료중 문진 줄은 숨기지 않고 자물쇠로 잠근다', (t) async {
     await t.pumpWidget(wrap(AppointmentCard(view: bView('진료중', hasQuestionnaire: true))));
-    expect(find.byIcon(Icons.lock), findsOneWidget);
+    expect(find.byIcon(AppIcons.lock), findsOneWidget);
     expect(find.textContaining('수정할 수 없습니다'), findsOneWidget);
   });
 

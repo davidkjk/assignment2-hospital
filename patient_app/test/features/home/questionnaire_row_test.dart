@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/home/questionnaire_row.dart';
 
@@ -23,13 +24,13 @@ void main() {
   });
   testWidgets('[CARD-QNR-03] 진료중 이후면 자물쇠 + 수정할 수 없습니다 · 내용 보기', (t) async {
     await t.pumpWidget(_wrap(const QuestionnaireRow(state: QnrRowState.locked)));
-    expect(find.byIcon(Icons.lock), findsOneWidget);
+    expect(find.byIcon(AppIcons.lock), findsOneWidget);
     expect(find.textContaining('수정할 수 없습니다'), findsOneWidget);
     expect(find.textContaining('내용 보기'), findsOneWidget);
   });
   testWidgets('[CARD-QNR-04] 완료·이력이면 눈 + 내가 작성한 사전문진 보기', (t) async {
     await t.pumpWidget(_wrap(const QuestionnaireRow(state: QnrRowState.readonly)));
-    expect(find.byIcon(Icons.visibility), findsOneWidget);
+    expect(find.byIcon(AppIcons.visibility), findsOneWidget);
     expect(find.textContaining('내가 작성한 사전문진 보기'), findsOneWidget);
   });
 

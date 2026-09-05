@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/auth/consent_screen.dart';
@@ -80,7 +81,7 @@ void main() {
 
   testWidgets('[CONSENT-ITEM-05] 줄 끝 › 를 누르면 본문(자리표시자)이 열린다', (t) async {
     await t.pumpWidget(_host(const ConsentScreen()));
-    await t.tap(find.byIcon(Icons.chevron_right).first);
+    await t.tap(find.byIcon(AppIcons.chevron_right).first);
     await t.pumpAndSettle();
     expect(find.byType(Dialog), findsOneWidget); // 본문 열림(내용은 병원이 채운다)
   });

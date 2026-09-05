@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/api_client.dart';
@@ -154,7 +155,7 @@ void main() {
 
   testWidgets('[APPT-QNR-05][APPT-QNR-07] 진료중 이후는 자물쇠·읽기전용·수정 없음', (t) async {
     await pumpDetail(t, detail: detail(status: '진료중', qnr: 'readonly'));
-    expect(find.byIcon(Icons.lock), findsOneWidget);
+    expect(find.byIcon(AppIcons.lock), findsOneWidget);
     await t.tap(find.textContaining('작성완료'));
     await t.pumpAndSettle();
     expect(find.text('진료가 시작되어 수정할 수 없습니다'), findsOneWidget);

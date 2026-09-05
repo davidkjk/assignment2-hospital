@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/appointment/detail_sections.dart' show QnrTable;
@@ -39,8 +40,8 @@ void main() {
   testWidgets('[HIST-QNR-01][HIST-QNR-02] 문진 있으면 「내가 작성한 사전문진」 + 눈 아이콘', (t) async {
     await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: '휴식', qnr: true))));
     expect(find.text('내가 작성한 사전문진'), findsOneWidget);
-    expect(find.byIcon(Icons.visibility), findsOneWidget); // 눈 = 처음부터 보기만(자물쇠 아님)
-    expect(find.byIcon(Icons.lock), findsNothing);
+    expect(find.byIcon(AppIcons.visibility), findsOneWidget); // 눈 = 처음부터 보기만(자물쇠 아님)
+    expect(find.byIcon(AppIcons.lock), findsNothing);
   });
   testWidgets('[HIST-QNR-04] 미작성이었던 예약은 문진 줄 자체를 두지 않는다(「작성하지 않으셨습니다」 없음)', (t) async {
     await t.pumpWidget(_host(HistoryRowDetail(entry: _e(VisitStatus.done, notes: '휴식', qnr: false))));

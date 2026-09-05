@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/api_client.dart';
 import 'package:hospital_patient_app/features/auth/signup_profile_screen.dart';
@@ -96,7 +97,7 @@ void main() {
     await t.pumpWidget(MaterialApp(home: _screen(_FakeRepo())));
     final pw = t.widget<TextField>(find.byKey(const Key('pw')));
     expect(pw.obscureText, isTrue); // 기본 가림
-    expect(find.byIcon(Icons.visibility_off), findsWidgets);
+    expect(find.byIcon(AppIcons.visibility_off), findsWidgets);
   });
 
   testWidgets('[AUTH-PROFILE-03b] 확인 칸을 둔다(비밀번호 + 비밀번호 확인)', (t) async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/theme.dart';
@@ -51,7 +52,7 @@ void main() {
 
   testWidgets('[BOOK-BOT-03] 오른쪽 위 원형 X(40px)로 닫는다', (t) async {
     await pumpSheet(t);
-    final btn = t.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.cancel));
+    final btn = t.widget<IconButton>(find.widgetWithIcon(IconButton, AppIcons.cancel));
     expect(btn.iconSize, 40);
   });
 
@@ -67,7 +68,7 @@ void main() {
 
   testWidgets('[BOOK-BOT-06] 그냥 닫으면 아무것도 고르지 않은 2단계 그대로', (t) async {
     final c = await pumpSheet(t); // suggested 없음
-    await t.tap(find.widgetWithIcon(IconButton, Icons.cancel));
+    await t.tap(find.widgetWithIcon(IconButton, AppIcons.cancel));
     await t.pumpAndSettle();
     expect(c.read(bookingProvider).department, isNull);
   });

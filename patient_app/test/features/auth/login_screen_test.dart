@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/auth/auth_repo.dart';
 import 'package:hospital_patient_app/features/auth/login_screen.dart';
@@ -44,7 +45,7 @@ void main() {
     await t.pumpWidget(MaterialApp(home: _screen(_FakeAuth())));
     final pw = t.widget<TextField>(find.byKey(const Key('login-password')));
     expect(pw.obscureText, isTrue); // 기본 가림
-    expect(find.byIcon(Icons.visibility_off), findsOneWidget);
+    expect(find.byIcon(AppIcons.visibility_off), findsOneWidget);
   });
 
   testWidgets('[AUTH-LOGIN-04] 확인 칸을 두지 않는다', (t) async {

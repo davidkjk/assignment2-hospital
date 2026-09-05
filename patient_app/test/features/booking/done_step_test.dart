@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/booking/booking_submit.dart';
 import 'package:hospital_patient_app/features/booking/booking_wizard.dart';
@@ -58,7 +59,7 @@ void main() {
 
   testWidgets('[BOOK-DONE-01] 가운데 체크 표시 + 제목 + 요약', (t) async {
     await pumpDone(t, appt: _apptJson(status: '예약확정', code: 'A-1'));
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(AppIcons.check_circle), findsOneWidget);
     expect(find.textContaining('내과 · 김의사 선생님'), findsOneWidget);
   });
 

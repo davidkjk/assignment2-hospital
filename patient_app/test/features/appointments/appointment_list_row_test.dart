@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/appointments/appointment_list_row.dart';
@@ -45,7 +46,7 @@ void main() {
     await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약신청'), now: now)));
     expect(find.text('확인 중'), findsOneWidget);
     await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정'), now: now))); // 글자 없음
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    expect(find.byIcon(AppIcons.chevron_right), findsOneWidget);
   });
   testWidgets('[LIST-LIST-12][LIST-ST-15][LIST-ST-17] 줄에는 어떤 버튼도 두지 않는다(변경·취소·문진·QR·확인)', (t) async {
     await t.pumpWidget(_wrap(AppointmentListRow(view: _v('예약확정', change: DateTime(2026, 8, 20, 9)), now: now)));
