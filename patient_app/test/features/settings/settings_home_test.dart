@@ -8,7 +8,7 @@ import 'package:hospital_patient_app/core/tokens.dart';
 import 'package:hospital_patient_app/features/home/home_data.dart' show hospitalInfoProvider, HospitalInfo;
 import 'package:hospital_patient_app/features/settings/settings_home_screen.dart';
 
-const _me = MyProfile(name: '김순자', phone: '010-1234-5678');
+const _me = MyProfile(name: '김순자', phone: '010-0000-5678');
 const _hospital = HospitalInfo(phone: '02-1234-5678', address: '서울특별시 강남구 테헤란로 123');
 
 late GoRouter _router;
@@ -53,7 +53,7 @@ void main() {
   testWidgets('[SET-HOME-05·06] 내 정보는 이름·전화를 가리지 않고 보여주기만 한다(못 누름)', (t) async {
     await _pump(t);
     expect(find.text('김순자'), findsOneWidget);
-    expect(find.text('010-1234-5678'), findsOneWidget); // 마스킹 없음
+    expect(find.text('010-0000-5678'), findsOneWidget); // 마스킹 없음
     expect(find.byKey(const Key('block-myinfo')), findsOneWidget);
     // block-myinfo 안에 탭 대상(InkWell/GestureDetector)이 없다.
     expect(

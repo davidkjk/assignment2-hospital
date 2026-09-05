@@ -142,7 +142,7 @@ void main() {
     await _shoot(
         t,
         OtpScreen(
-          phone: '01012345678',
+          phone: '01000005678',
           purpose: OtpPurpose.signup,
           cooldown: PhoneCooldownStore(_mem()),
           onResend: () async {},

@@ -30,7 +30,7 @@ export const DEMO_ACCOUNTS: Record<string, CurrentStaff> = {
 export const DEFAULT_STAFF = DEMO_ACCOUNTS['admin@gaon.kr']
 
 // ── 마스킹(목록 화면 전부) — MASK-TEL-01·MASK-DOB-01 ──
-/** 010-1234-5678 → 010-****-5678 (뒷자리 남김) */
+/** 010-0000-5678 → 010-****-5678 (뒷자리 남김) */
 export function maskPhone(tel: string): string {
   return tel.replace(/^(\d{3})-?\d{3,4}-?(\d{4})$/, '$1-****-$2')
 }

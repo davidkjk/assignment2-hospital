@@ -45,7 +45,7 @@ export function PhoneStep({ state, setField, next }: SignupWizardContext) {
             onBlur={() => {
               if (state.phone && !isPhoneNumber(state.phone)) setError('전화번호를 확인해 주세요')
             }}
-            placeholder="010-1234-5678"
+            placeholder="010-0000-5678"
             className="mt-2 h-12 w-full rounded-lg border px-3 text-base outline-none focus:border-primary"
             aria-invalid={Boolean(error)}
           />

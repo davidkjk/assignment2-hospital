@@ -10,7 +10,7 @@ function patient(over: Partial<PatientDetail> = {}): PatientDetail {
     name: over.name ?? '김환자',
     birth_date: over.birth_date ?? '1990-05-14',
     gender: over.gender ?? 'F',
-    phone: over.phone ?? '010-1234-5678',
+    phone: over.phone ?? '010-0000-5678',
     sms_dead: over.sms_dead,
     sms_dead_checked_at: over.sms_dead_checked_at,
   }

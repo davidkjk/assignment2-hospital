@@ -95,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: _phone,
           keyboardType: TextInputType.phone, // AUTH-LOGIN-02
           inputFormatters: [PhoneHyphenFormatter()],
-          hint: '010-1234-5678',
+          hint: '010-0000-5678',
           textStyle: const TextStyle(
               fontSize: 16, fontFeatures: [FontFeature.tabularFigures()]), // 고정폭 숫자
         ),

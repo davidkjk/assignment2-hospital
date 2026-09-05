@@ -61,7 +61,7 @@ export function doctorInk(paletteIndex = 0): string {
 //    원본 그대로 크게 띄우면 창구 화면이 어깨너머로 읽히므로, 화면 표시만 같은 모양으로 맞춘다.
 // ⛔ 서버가 준 `masked_*`에는 절대 다시 쓰지 않는다.
 
-/** 010-1234-5678 → 010-****-5678 (뒷자리 남김, `MASK-TEL-01`) */
+/** 010-0000-5678 → 010-****-5678 (뒷자리 남김, `MASK-TEL-01`) */
 export function maskTypedPhone(tel: string): string {
   return tel.replace(/^(\d{3})-?\d{3,4}-?(\d{4})$/, '$1-****-$2')
 }

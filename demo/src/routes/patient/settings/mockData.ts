@@ -126,7 +126,7 @@ export const settingsItems: SettingsItem[] = [
 
 export const accountSnapshot = {
   name: '김순자',
-  phone: '010-1234-5678',
+  phone: '010-0000-5678',
 }
 
 export const hospitalInfo = {

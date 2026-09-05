@@ -8,7 +8,7 @@ Future<AddHarness> _openOtp(
   WidgetTester t, {
   FakeFamilyAddRepo? addRepo,
   String name = '김영수',
-  String phone = '01012345678',
+  String phone = '01000005678',
   String? relation, // null이면 폼 기본값('어머니')
 }) async {
   final h = await pumpLinkForm(t, addRepo: addRepo);
@@ -35,7 +35,7 @@ Future<void> _enterCode(WidgetTester t, String code) async {
 
 void main() {
   testWidgets('[FAM-LINK-04][FAM-LINK-05] 6자리·5:00 · 마스킹된 그분 번호', (t) async {
-    await _openOtp(t, phone: '01012345678');
+    await _openOtp(t, phone: '01000005678');
     expect(find.byType(TextField), findsNWidgets(6));
     expect(find.textContaining('5:00'), findsOneWidget);
     expect(find.textContaining('010-****-5678'), findsOneWidget); // AUTH-OTP-06
@@ -70,16 +70,16 @@ void main() {
   });
 
   testWidgets('[NAV-FAM-10] 뒤로 가면 정보 입력 화면이고 값이 그대로 있다', (t) async {
-    final h = await _openOtp(t, name: '김영수', phone: '01012345678');
+    final h = await _openOtp(t, name: '김영수', phone: '01000005678');
     await t.pageBack();
     await t.pumpAndSettle();
     expect(h.lastRoute, '/family/add/link');
     expect(find.text('김영수'), findsOneWidget); // 다시 치게 하지 않는다
-    expect(find.text('01012345678'), findsOneWidget);
+    expect(find.text('01000005678'), findsOneWidget);
   });
 
   testWidgets('[FAM-LINK-22] 도착 시 번호 쿨다운이 이어져 [다시 받기]가 카운트다운으로 잠겨 있다', (t) async {
-    await _openOtp(t, phone: '01012345678');
+    await _openOtp(t, phone: '01000005678');
     // 폼에서 시작한 30초 쿨다운이 번호 기준으로 인증 화면에도 이어진다(BTN-COOL-04·05).
     expect(find.textContaining('초 후 다시 받기'), findsOneWidget);
   });

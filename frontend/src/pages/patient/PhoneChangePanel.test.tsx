@@ -14,7 +14,7 @@ describe('PhoneChangePanel', () => {
     const onRequestCode = vi.fn(async () => {})
     const onConfirm = vi.fn(async () => {})
     const onDone = vi.fn()
-    render(<PhoneChangePanel currentPhone="010-1234-5678" onRequestCode={onRequestCode} onConfirm={onConfirm} onDone={onDone} />)
+    render(<PhoneChangePanel currentPhone="010-0000-5678" onRequestCode={onRequestCode} onConfirm={onConfirm} onDone={onDone} />)
 
     await user.type(screen.getByLabelText('새 전화번호'), '010-9999-8888')
     await user.click(screen.getByRole('button', { name: '다음' }))
@@ -32,7 +32,7 @@ describe('PhoneChangePanel', () => {
       throw new Error('인증번호가 올바르지 않습니다.')
     })
     const onDone = vi.fn()
-    render(<PhoneChangePanel currentPhone="010-1234-5678" onRequestCode={onRequestCode} onConfirm={onConfirm} onDone={onDone} />)
+    render(<PhoneChangePanel currentPhone="010-0000-5678" onRequestCode={onRequestCode} onConfirm={onConfirm} onDone={onDone} />)
 
     await user.type(screen.getByLabelText('새 전화번호'), '010-9999-8888')
     await user.click(screen.getByRole('button', { name: '다음' }))
@@ -53,7 +53,7 @@ describe('PhoneChangePanel', () => {
       throw new Error('본인확인(OTP) 창구가 아직 열리지 않았습니다.')
     })
     const onConfirm = vi.fn(async () => {})
-    render(<PhoneChangePanel currentPhone="010-1234-5678" onRequestCode={onRequestCode} onConfirm={onConfirm} onDone={vi.fn()} />)
+    render(<PhoneChangePanel currentPhone="010-0000-5678" onRequestCode={onRequestCode} onConfirm={onConfirm} onDone={vi.fn()} />)
 
     await user.type(screen.getByLabelText('새 전화번호'), '010-9999-8888')
     await user.click(screen.getByRole('button', { name: '다음' }))
@@ -66,7 +66,7 @@ describe('PhoneChangePanel', () => {
   test('[PTDET-ACTION-02] 새 번호가 비면 다음으로 넘어가지 않는다', async () => {
     const user = userEvent.setup()
     const onRequestCode = vi.fn(async () => {})
-    render(<PhoneChangePanel currentPhone="010-1234-5678" onRequestCode={onRequestCode} onConfirm={vi.fn()} onDone={vi.fn()} />)
+    render(<PhoneChangePanel currentPhone="010-0000-5678" onRequestCode={onRequestCode} onConfirm={vi.fn()} onDone={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: '다음' }))
     await waitFor(() => expect(screen.getByRole('alert')).toBeVisible())
     expect(onRequestCode).not.toHaveBeenCalled()

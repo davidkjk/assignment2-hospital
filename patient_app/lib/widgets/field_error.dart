@@ -96,7 +96,7 @@ class _FieldTextInputState extends State<FieldTextInput> {
           focusNode: _node,
           keyboardType: TextInputType.phone,
           style: const TextStyle(fontSize: 16, color: AppTokens.onSurface),
-          decoration: const InputDecoration(hintText: '010-1234-5678'),
+          decoration: const InputDecoration(hintText: '010-0000-5678'),
           // ERR-FLD-02: 타이핑 도중에는 (처음) 검사하지 않는다. 단 이미 떠 있는 오류는 입력을
           // 건드리는 즉시 지운다(ERR-GONE-01) — 맞게 고치고 있는 사람을 계속 나무라지 않는다.
           onChanged: (_) {

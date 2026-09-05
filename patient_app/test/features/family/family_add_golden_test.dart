@@ -95,7 +95,7 @@ void main() {
             draft: LinkDraft(
                 name: '김영수',
                 birthDate: DateTime(1948, 5, 20),
-                phone: '01012345678',
+                phone: '01000005678',
                 relation: '어머니',
                 requestId: 'req-1')));
   });

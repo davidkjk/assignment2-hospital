@@ -49,7 +49,7 @@ describe('DrilldownModal', () => {
     expect(await screen.findByText('홍*동')).toBeVisible()
     expect(screen.getByText(/010-\*\*\*\*-5678/)).toBeVisible()
     // 서버가 보낸 응답 자체에 원본이 없다(클라이언트가 받아 가리는 경로를 만들지 않는다).
-    expect(JSON.stringify(MASKED)).not.toMatch(/010-1234-5678|홍길동/)
+    expect(JSON.stringify(MASKED)).not.toMatch(/010-0000-5678|홍길동/)
   })
 
   test('[STAT-DRILL-04][결정24] 명단 행을 누르면 내부 patient_id로 환자 상세로 간다', async () => {

@@ -10,7 +10,7 @@ async function openPhoneStep(user: ReturnType<typeof userEvent.setup>) {
 
 async function openOtpStep(user: ReturnType<typeof userEvent.setup>) {
   await openPhoneStep(user)
-  await user.type(screen.getByRole('textbox', { name: '전화번호' }), '010-1234-5678')
+  await user.type(screen.getByRole('textbox', { name: '전화번호' }), '010-0000-5678')
   await user.click(screen.getByRole('button', { name: '인증번호 받기' }))
 }
 
@@ -115,7 +115,7 @@ test('[AUTH-PHONE-03] 전화번호를 입력하고 인증번호 받기를 누르
   renderApp(routes, ['/signup'])
   await openPhoneStep(user)
 
-  await user.type(screen.getByRole('textbox', { name: '전화번호' }), '010-1234-5678')
+  await user.type(screen.getByRole('textbox', { name: '전화번호' }), '010-0000-5678')
   await user.click(screen.getByRole('button', { name: '인증번호 받기' }))
 
   expect(screen.getByTestId('signup-otp-step')).toBeInTheDocument()
@@ -143,7 +143,7 @@ test('[AUTH-OTP-05] 가입 인증번호 화면은 입력한 전화번호를 가�
   renderApp(routes, ['/signup'])
   await openOtpStep(user)
 
-  expect(screen.getByText('010-1234-5678')).toBeInTheDocument()
+  expect(screen.getByText('010-0000-5678')).toBeInTheDocument()
 })
 
 test('[AUTH-OTP-08] 인증번호 화면은 마지막 문자만 유효하다고 안내한다', async () => {
@@ -170,7 +170,7 @@ test('[AUTH-SIGNUP-05] 인증번호 단계에서 뒤로 가면 입력한 전화�
 
   await user.click(screen.getByRole('button', { name: '뒤로' }))
 
-  expect(screen.getByRole('textbox', { name: '전화번호' })).toHaveValue('010-1234-5678')
+  expect(screen.getByRole('textbox', { name: '전화번호' })).toHaveValue('010-0000-5678')
 })
 
 test('[AUTH-PROFILE-01] 프로필 단계는 비밀번호 조건을 미리 보여준다', async () => {

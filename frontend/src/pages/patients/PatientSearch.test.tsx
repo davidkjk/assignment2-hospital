@@ -378,7 +378,7 @@ describe('결과·이유·이어받기', () => {
     const row = await waitFor(() => rowByName('김순자'))
     expect(within(row).getByText('1958-**-12')).toBeVisible()
     expect(within(row).getByText('010-****-5678')).toBeVisible()
-    expect(within(row).queryByText('01012345678')).toBeNull() // 원본은 오지도 않는다
+    expect(within(row).queryByText('01000005678')).toBeNull() // 원본은 오지도 않는다
   })
 
   test('[SEARCH-WHY-01][SEARCH-WHY-03] 왜 걸렸는지 배지로 — 여러 조각이면 배지도 여럿', async () => {

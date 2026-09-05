@@ -50,7 +50,7 @@ describe('LogTable /admin/access-logs', () => {
   test('[ALOG-LIST-04][MASK-SRV-01] 환자 식별은 서버가 마스킹한 값이고 원본은 화면에 없다', () => {
     renderRows([row({ id: 'r0' })])
     expect(screen.getByRole('button', { name: '홍*동 · 1985-**-01' })).toBeVisible()
-    expect(screen.queryByText(/홍길동|1985-03-01|010-1234-5678/)).toBeNull()
+    expect(screen.queryByText(/홍길동|1985-03-01|010-0000-5678/)).toBeNull()
   })
 
   test('[ALOG-LIST-05][ALOG-LIST-06] patient_detail은 「환자정보」, medical_record는 「진료기록」', () => {

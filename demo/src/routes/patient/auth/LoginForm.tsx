@@ -16,7 +16,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showPwFindNote, setShowPwFindNote] = useState(false)
 
-  // 하이픈은 앱이 넣어준다(AUTH-LOGIN-02) — 숫자만 받아 010-1234-5678 꼴로 보여준다.
+  // 하이픈은 앱이 넣어준다(AUTH-LOGIN-02) — 숫자만 받아 010-0000-5678 꼴로 보여준다.
   const onPhoneChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 11)
     const parts = [digits.slice(0, 3), digits.slice(3, 7), digits.slice(7, 11)].filter(Boolean)
@@ -42,7 +42,7 @@ export function LoginForm() {
                 type="tel"
                 inputMode="numeric"
                 autoComplete="tel"
-                placeholder="010-1234-5678"
+                placeholder="010-0000-5678"
                 value={phone}
                 onChange={(event) => onPhoneChange(event.target.value)}
                 className="tabular-nums"

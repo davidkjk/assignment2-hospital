@@ -18,7 +18,7 @@
 모든 비밀번호는 `demo1234`. 전체 목록: [`supabase/demo_accounts.md`](supabase/demo_accounts.md).
 
 - **직원 웹**(이메일+비번): `admin@gaon.local`(관리자) · `reception@gaon.local`(접수) · `doctor1~8@gaon.local`(의사)
-- **환자 앱**(전화+비번): `010-1234-5678`
+- **환자 앱**(전화+비번): 김바이 `010-0000-5678`
 
 ## 환자 앱 설치
 

@@ -11,7 +11,7 @@ import 'package:hospital_patient_app/features/settings/settings_home_screen.dart
 
 import 'harness.dart';
 
-const _me = MyProfile(name: '김순자', phone: '010-1234-5678');
+const _me = MyProfile(name: '김순자', phone: '010-0000-5678');
 
 Future<(FakeAuthRepoForLogout, FakePushService)> _pump(WidgetTester t,
     {bool offline = false, bool failUnregister = false}) async {

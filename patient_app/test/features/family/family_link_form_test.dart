@@ -5,7 +5,7 @@ import 'add_harness.dart';
 
 // TextField 순서: 이름(0) · 생년월일(1) · 휴대폰(2) · 관계 자유입력(3).
 Future<void> _fillLink(WidgetTester t,
-    {String name = '김영수', String birth = '1948-05-20', String phone = '01012345678'}) async {
+    {String name = '김영수', String birth = '1948-05-20', String phone = '01000005678'}) async {
   await t.enterText(find.byType(TextField).at(0), name);
   await t.enterText(find.byType(TextField).at(1), birth);
   await t.enterText(find.byType(TextField).at(2), phone);
@@ -93,20 +93,20 @@ void main() {
 
   testWidgets('[FAM-LINK-22] 인증번호 받기를 누르면 그 번호에 30초 쿨다운이 걸린다(번호 기준)', (t) async {
     final h = await pumpLinkForm(t);
-    await _fillLink(t, phone: '01012345678');
+    await _fillLink(t, phone: '01000005678');
     await t.tap(find.text('인증번호 받기'));
     await t.pumpAndSettle();
-    expect(h.cooldown.remainingSeconds('01012345678', DateTime.now()), greaterThan(0));
+    expect(h.cooldown.remainingSeconds('01000005678', DateTime.now()), greaterThan(0));
   });
 
   testWidgets('[FAM-LINK-22][#16] 서버가 429 + 남은 초를 주면 그 값으로 쿨다운을 맞춘다', (t) async {
     final repo = FakeFamilyAddRepo()
       ..failRequestWith(429, '인증번호는 30초 뒤에 다시 받으실 수 있습니다.', retryAfter: 12);
     final h = await pumpLinkForm(t, addRepo: repo);
-    await _fillLink(t, phone: '01012345678');
+    await _fillLink(t, phone: '01000005678');
     await t.tap(find.text('인증번호 받기'));
     await t.pumpAndSettle();
-    final left = h.cooldown.remainingSeconds('01012345678', DateTime.now());
+    final left = h.cooldown.remainingSeconds('01000005678', DateTime.now());
     expect(left, greaterThan(0));
     expect(left, lessThanOrEqualTo(12)); // 서버 값(12초)에 맞춘다 — 앱 기본 30초가 아니다
     expect(h.lastRoute, '/family/add/link'); // 넘어가지 않는다

@@ -22,7 +22,7 @@ import 'harness.dart';
 // 골든 게이트(핸드오프 정본): 데모(demo/src/routes/patient/settings Settings/Notifications/Hospital)와
 // 눈으로 대조하기 위해 실제 렌더를 PNG로 남긴다. AppTheme.theme(데모 teal 시스템)를 입힌다.
 
-const _me = MyProfile(name: '김순자', phone: '010-1234-5678');
+const _me = MyProfile(name: '김순자', phone: '010-0000-5678');
 const _hospital = HospitalInfo(phone: '02-1234-5678', address: '서울특별시 강남구 테헤란로 123');
 
 Future<void> _shoot(WidgetTester t, String name, Widget child, List<Override> overrides) async {

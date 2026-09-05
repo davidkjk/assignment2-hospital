@@ -40,7 +40,7 @@ test('[PANEL-USE-02] [확인]·[취소]만 팝업을 움직인다', async () => 
 test('[QUEUE-SAME-01][SEARCH-ACT-07] 저장 직전 재확인은 이름·생년월일·전화를 함께 보인다', () => {
   render(
     <IdentityConfirmDialog
-      patient={{ name: '김순자', birthDate: '1958-03-12', phone: '010-1234-5678' }}
+      patient={{ name: '김순자', birthDate: '1958-03-12', phone: '010-0000-5678' }}
       confirmLabel="등록"
       onConfirm={vi.fn()}
       onCancel={vi.fn()}
@@ -49,7 +49,7 @@ test('[QUEUE-SAME-01][SEARCH-ACT-07] 저장 직전 재확인은 이름·생년�
   const dialog = screen.getByRole('dialog')
   expect(dialog).toHaveTextContent('김순자')
   expect(dialog).toHaveTextContent('1958-03-12')
-  expect(dialog).toHaveTextContent('010-1234-5678')
+  expect(dialog).toHaveTextContent('010-0000-5678')
   expect(dialog).not.toHaveClass('side-panel') // 패널이 아니라 가운데 팝업
 })
 

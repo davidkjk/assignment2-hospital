@@ -14,7 +14,7 @@ vi.mock('../../auth/useAuth', () => ({
   useAuth: () => ({ staff: { staffId: 's1', name: '김수진', email: 'x@y.z', role: currentRole, departmentId: null, departmentName: null } }),
 }))
 
-const DETAIL = { id: 'p1', name: '홍길동', birth_date: '1958-03-12', gender: '남', phone: '010-1234-5678' }
+const DETAIL = { id: 'p1', name: '홍길동', birth_date: '1958-03-12', gender: '남', phone: '010-0000-5678' }
 
 interface MockOpts {
   detail?: Record<string, unknown> | number // number = 상태코드로 실패
@@ -77,7 +77,7 @@ describe('PatientDetailPage', () => {
     mockAll()
     renderDetail()
     expect(await screen.findByText('홍길동')).toBeVisible()
-    expect(screen.getByText('010-1234-5678')).toBeVisible()
+    expect(screen.getByText('010-0000-5678')).toBeVisible()
     expect(screen.getByText('1958-03-12')).toBeVisible()
     expect(screen.getByTestId('phone').textContent).not.toContain('*')
   })
