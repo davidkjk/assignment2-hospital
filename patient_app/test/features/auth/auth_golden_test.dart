@@ -74,6 +74,7 @@ class _FakeProfileRepo implements SignupProfileRepo {
       {required String name,
       required String birthDate,
       required String gender,
+      required SignupConsents consents,
       required bool adsAgreed,
       required String termsVersion}) async {}
 }

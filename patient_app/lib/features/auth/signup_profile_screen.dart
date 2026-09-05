@@ -9,13 +9,18 @@ import 'signup_flow.dart';
 
 const _termsVersion = '2026-08-01';
 
-/// 비밀번호 설정 + 프로필 생성(Supabase updateUser + POST /patients). 테스트에서 Fake로 대체.
+/// 가입 필수 동의 3종 — 서버 계약 consents{terms,privacy,sensitive}로 실려 간다(F-05v1·CONSENT-BTN-01b).
+/// 실제 체크 상태(consentProvider)를 그대로 담는다. 서버가 하나라도 false면 400으로 거절한다.
+typedef SignupConsents = ({bool terms, bool privacy, bool sensitive});
+
+/// 비밀번호 설정 + 프로필 생성(Supabase updateUser + POST /patient). 테스트에서 Fake로 대체.
 abstract class SignupProfileRepo {
   Future<void> setPassword(String pw);
   Future<void> createProfile({
     required String name,
     required String birthDate,
     required String gender,
+    required SignupConsents consents,
     required bool adsAgreed,
     required String termsVersion,
   });
@@ -32,6 +37,7 @@ class SignupProfileController {
     required String name,
     required String birthDate,
     required String gender,
+    required SignupConsents consents,
     required bool adsAgreed,
   }) async {
     try {
@@ -40,6 +46,7 @@ class SignupProfileController {
           name: name,
           birthDate: birthDate,
           gender: gender,
+          consents: consents,
           adsAgreed: adsAgreed,
           termsVersion: _termsVersion);
       return null;
@@ -55,9 +62,14 @@ bool passwordOk(String pw) =>
 class SignupProfileScreen extends StatefulWidget {
   final SignupProfileController controller;
   final bool adsAgreed; // consentProvider.ads에서 넘어온다
+  final SignupConsents consents; // consentProvider의 필수 3종(라우터가 주입) — 서버 계약에 실린다
   final VoidCallback onDone;
   const SignupProfileScreen(
-      {super.key, required this.controller, this.adsAgreed = false, required this.onDone});
+      {super.key,
+      required this.controller,
+      this.adsAgreed = false,
+      this.consents = (terms: false, privacy: false, sensitive: false),
+      required this.onDone});
   @override
   State<SignupProfileScreen> createState() => _SignupProfileScreenState();
 }
@@ -97,6 +109,7 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
         birthDate:
             '${_birth!.year}-${_birth!.month.toString().padLeft(2, '0')}-${_birth!.day.toString().padLeft(2, '0')}',
         gender: _gender!,
+        consents: widget.consents,
         adsAgreed: widget.adsAgreed);
     if (!mounted) return;
     setState(() {
