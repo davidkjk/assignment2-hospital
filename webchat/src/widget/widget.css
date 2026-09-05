@@ -223,7 +223,10 @@ html, body { height: 100%; }
   box-shadow: 0 4px 16px -8px rgba(160, 47, 61, .30);
 }
 .wc-urgent__icon { flex: 0 0 auto; width: 23px; height: 23px; color: var(--wc-danger); margin-top: 1px; }
+.wc-urgent__body { display: flex; flex-direction: column; gap: 5px; }
 .wc-urgent p { margin: 0; font-size: 13.5px; line-height: 1.55; font-weight: 600; }
+/* 필수 면책 문구(URGENT-02) — 안내보다 한 단계 낮은 위계로, 진단·보장이 아님을 고정 표시. */
+.wc-urgent__disc { font-size: 12px; font-weight: 500; line-height: 1.5; color: #8A4A63; }
 
 /* ── 장애 안내(WEBCHAT-OUTAGE) — 전화·문의 남기기가 주 경로 ─────────────── */
 .wc-outage {
@@ -233,20 +236,22 @@ html, body { height: 100%; }
   background: #fff;
   box-shadow: 0 8px 24px -10px rgba(12, 35, 64, .20);
 }
+.wc-outage__title { margin: 0 0 8px; font-size: 15.5px; font-weight: 800; line-height: 1.4; color: var(--wc-ink); }
 .wc-outage__lead { margin: 0 0 12px; font-size: 13.5px; line-height: 1.6; color: var(--wc-ink-2); }
 .wc-outage__phone {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   margin: 0 0 10px;
   padding: 12px 14px;
   border-radius: 12px;
   background: var(--wc-primary-soft);
   color: var(--wc-primary);
-  font-size: 15px;
-  font-weight: 800;
 }
 .wc-outage__phone svg { flex: 0 0 auto; width: 20px; height: 20px; }
+.wc-outage__phone-info { display: flex; flex-direction: column; gap: 1px; }
+.wc-outage__phone-num { font-size: 15px; font-weight: 800; }
+.wc-outage__phone-cap { font-size: 12px; font-weight: 600; color: var(--wc-primary-d); }
 .wc-outage__action {
   width: 100%;
   height: 48px;
@@ -260,7 +265,8 @@ html, body { height: 100%; }
   box-shadow: 0 8px 20px -8px rgba(11, 110, 112, .45);
 }
 .wc-outage__action:disabled { background: #DDE5E8; color: #72838C; cursor: default; box-shadow: none; }
-.wc-outage__err { margin: 10px 0 6px; color: var(--wc-danger); font-size: 13px; }
+.wc-outage__err { margin: 10px 0 2px; color: var(--wc-danger); font-size: 13px; font-weight: 700; }
+.wc-outage__err-sub { margin: 0 0 6px; color: var(--wc-ink-2); font-size: 12.5px; }
 .wc-outage__secondary {
   margin: 13px 0 0;
   padding-top: 12px;
