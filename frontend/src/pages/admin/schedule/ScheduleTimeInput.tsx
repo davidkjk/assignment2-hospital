@@ -30,7 +30,7 @@ export function isValidHHMM(v: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(v)
 }
 
-/** 시각 칸 형식 오류 문구 — 입력칸 placeholder(`예: 0900`)와 같은 어휘. */
+/** 시각 칸 형식 오류 문구 — 입력칸 placeholder(`0900`)와 같은 어휘. */
 export const TIME_FORMAT_ERROR = '시각을 0900처럼 4자리로 입력하세요'
 
 export function ScheduleTimeInput({ label, value, onChange, disabled }: Props) {
@@ -39,7 +39,7 @@ export function ScheduleTimeInput({ label, value, onChange, disabled }: Props) {
       type="text"
       inputMode="numeric"
       aria-label={label}
-      placeholder="예: 0900"
+      placeholder="0900"
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(formatTimeDigits(e.target.value))}
