@@ -29,7 +29,9 @@ async def list_doctors(department_id: UUID, patient: PatientContext) -> list[dic
     async with (await get_pool()).acquire() as admin:
         srows = await admin.fetch(
             "select doctor_id, weekday, start_time, end_time from doctor_schedule_rules "
-            "where doctor_id = any($1::uuid[])", ids)
+            # [BOOK-DOC-10] 휴무(is_day_off) 요일은 예약 칸이 안 생기므로 '진료시간'으로 안 친다
+            # — 진료요약(schedule_summary)에서도 빠지고, 아래 노출 필터에서도 빠진다.
+            "where doctor_id = any($1::uuid[]) and not is_day_off", ids)
     by_doctor: dict[UUID, list[dict]] = defaultdict(list)
     for r in srows:
         by_doctor[r["doctor_id"]].append(

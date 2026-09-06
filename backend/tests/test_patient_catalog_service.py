@@ -61,6 +61,20 @@ async def test_list_doctors_excludes_doctors_without_schedule(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_list_doctors_excludes_doctor_with_only_day_off(committed_conn):
+    """[BOOK-DOC-10] 휴무(is_day_off) 요일만 등록된 의사는 예약 칸이 안 생겨 환자에게 숨긴다."""
+    dept = await committed_conn.fetchval(
+        "insert into departments (name, is_active) values ('테스트휴무전용과', true) returning id")
+    off_only = await seed_staff(committed_conn, role="doctor", department_id=dept)
+    await committed_conn.execute(
+        "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments, is_day_off) "
+        "values ($1,0,'09:00','12:00',20,10,true)", off_only["staff_id"])
+
+    docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(committed_conn)))
+    assert off_only["staff_id"] not in [d["id"] for d in docs]
+
+
+@pytest.mark.asyncio
 async def test_available_slots_uses_bookable_function(committed_conn):
     # 미래 날짜(8주 이내)라야 list_bookable_slots의 current_date+56 필터를 통과한다(2999는 8주 초과라 []).
     from datetime import timedelta
