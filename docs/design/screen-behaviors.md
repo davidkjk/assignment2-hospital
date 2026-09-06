@@ -2001,7 +2001,7 @@
 | `STAFF-INVITE-03` | 소속 진료과 | 역할=의사 | `GET /departments`를 드롭다운으로 필수 선택. 미선택이면 서버 요청 전 차단+서버도 같은 검사. `PLAN-GAP` — `GET /departments` 활성 진료과 필터 계약 확인 필요 | plan Task 12 `invite_staff`·Task 19; `FINAL`(검증) |
 | `STAFF-INVITE-04` | 초대 성공 | `POST /staff` 성공 | 폼 비우고 `초대했습니다` 표시 후 목록 재조회. 새 직원은 활성 목록에 **`⚑ 초대함 · 아직 안 들어옴`으로** 나타난다(`STAFF-LIST-08`) | plan Task 19 Step 3 · `STAFF-LIST-08`; ~~`PROVISIONAL`~~ ✅ **`FINAL`(2026-08-16, 목업 79)** |
 | `STAFF-INVITE-05` | 초대 실패 | 네트워크·서버·이메일 발송 실패 | 폼 값 유지, 버튼 가까이 실패 이유·`[다시 시도]`. 조용히 성공으로 안 바꿈 | plan Task 19 · `ERR-*`·`P-05`; `FINAL` |
-| `STAFF-ROW-01` | 행 작업 | 활성 직원·대상≠본인 | `[중지]`·`[재초대]`를 행 안에. `[재초대]`는 `POST /staff/{id}/resend-invite` 호출 후 같은 행에 성공 문구. `재초대` 성공이 계정 활성화와 같다는 문구 안 씀 | plan Task 19 Step 3 · `STAFF-LIST-08`; ~~`PROVISIONAL`~~ ✅ **`FINAL`(2026-08-16, 목업 79)** |
+| `STAFF-ROW-01` | 행 작업 | 활성 직원·대상≠본인 | `[중지]`·`[재초대]`를 행 안에. `[재초대]`는 `POST /staff/{id}/resend-invite` 호출 후 같은 행에 성공 문구. `재초대` 성공이 계정 활성화와 같다는 문구 안 씀. ⚙️ **재초대 = 「초대 다시」가 아니라 「비밀번호 설정(복구) 메일」 재발송**(`reset_password_for_email`, `STAFF-LOGIN-10`과 같은 경로) — 초대(`invite_user_by_email`)는 계정 생성과 한 덩어리라 초대만 받고 **아직 수락 안 한 계정에도 막혀**(email_exists→예전엔 "이미 수락한 계정" 이라는 엉뚱한 409) 재발송 자체가 불가능했다(2026-09-06 버그수정) | plan Task 19 Step 3 · `STAFF-LIST-08`·`STAFF-LOGIN-10`; ~~`PROVISIONAL`~~ ✅ **`FINAL`(2026-08-16, 목업 79)** |
 | `STAFF-ROW-02` | 자기 행 | 현재 로그인 관리자 | `[중지]` 안 그림. 서버도 본인 중지를 409로 막지만 화면에서 먼저 잘못된 길 제거 | plan Task 12·19 · `P-04`; `FINAL` |
 
 ### 의사 프로필·캘린더 색 (`STAFF-PROFILE-*`) 🆕 — 갭 #7·#83 · 사용자 확정 2026-08-16

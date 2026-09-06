@@ -30,6 +30,18 @@ def _send_invite_email(admin, email: str, redirect_to: str | None):
     return admin.auth.admin.invite_user_by_email(email)
 
 
+def _send_password_setup_email(admin, email: str, redirect_to: str | None):
+    """이미 계정이 있는 직원에게 '비밀번호 설정' 링크를 다시 보낸다(재초대).
+
+    재초대는 '초대 다시'(invite_user_by_email)가 아니다 — 초대는 계정 생성과 한 덩어리라,
+    초대만 받고 아직 수락 안 한 계정에도 email_exists(422)로 막힌다. 대신 복구(recovery)
+    메일을 보내면 링크가 같은 '비밀번호 설정' 화면(/reset-password/new — 복구·초대 공용)으로
+    가고, 계정 유무와 무관하게 동작한다(auth_staff의 비밀번호 재설정과 같은 경로)."""
+    if redirect_to:
+        return admin.auth.reset_password_for_email(email, {"redirect_to": redirect_to})
+    return admin.auth.reset_password_for_email(email)
+
+
 async def _create_staff_row(
     auth_user_id: UUID,
     name: str,
@@ -319,10 +331,14 @@ async def list_staff(staff: StaffContext, conn=None) -> list[dict]:
 async def resend_invite(
     staff_id: UUID, requested_by: StaffContext, redirect_to: str | None = None, conn=None
 ) -> None:
-    """[정합성 검토 R3-04] 초대 이메일이 도착하지 않았거나 링크가 만료된 경우 관리자가 재발송할 수
-    있게 한다. `staff`에는 이메일이 없으므로(계정 자체는 `auth.users`가 소유) auth_user_id로
-    실제 이메일을 조회한 뒤 같은 `invite_user_by_email`을 다시 호출한다 — 이미 초대를 수락한
-    계정에 호출하면 Supabase가 오류를 반환하므로 그대로 사용자에게 안내한다."""
+    """[정합성 검토 R3-04][STAFF-ROW-03] 초대 이메일이 도착하지 않았거나 링크가 만료된 경우
+    관리자가 재발송할 수 있게 한다. `staff`에는 이메일이 없으므로(계정 자체는 `auth.users`가
+    소유) auth_user_id로 실제 이메일을 조회한 뒤 '비밀번호 설정'(복구) 메일을 보낸다.
+
+    ⚠️ '초대 다시'(invite_user_by_email)가 아니다 — 초대는 계정 생성과 묶여 있어, 초대만
+    받고 아직 수락 안 한 계정에도 email_exists로 막힌다(그래서 예전엔 '이미 수락한 계정'이라는
+    엉뚱한 409가 떴다). reset_password_for_email은 계정이 이미 있어도 같은 비번설정 화면으로
+    가는 링크를 보내므로 재발송이 정상 동작한다."""
     async def _run(c):
         return await c.fetchval("select auth_user_id from staff where id = $1", staff_id)
 
@@ -340,7 +356,7 @@ async def resend_invite(
     if user is None or user.user is None or not user.user.email:
         raise AppError("계정 이메일을 확인할 수 없습니다.", status_code=404)
     try:
-        _send_invite_email(admin, user.user.email, redirect_to)
+        _send_password_setup_email(admin, user.user.email, redirect_to)
     except Exception as exc:
         if _is_rate_limit_error(exc):
             raise AppError(
@@ -348,6 +364,6 @@ async def resend_invite(
                 status_code=429,
             ) from exc
         raise AppError(
-            "재초대에 실패했습니다. 이미 초대를 수락한 계정일 수 있습니다(그 직원은 로그인만 하면 됩니다).",
-            status_code=409,
+            "비밀번호 설정 메일을 다시 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            status_code=502,
         ) from exc
