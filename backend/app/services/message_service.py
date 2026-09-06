@@ -180,6 +180,10 @@ async def _enqueue_on_conn(staff: StaffContext, conn, *, kind: str, recipients_s
             "values ($1, 'staff_direct', $2, $3, $4, $5, $6, $7, '발송중', $8) returning id",
             pid, kind, stored_body, _norm_channel(channel), channel, staff.id, len(ids), batch_id)
         nids.append(r["id"])
+    # 즉시 발송은 만든 '발송중' 행을 바로 배달한다(예약발송 run_scheduled_sends와 같은 인라인 send_now).
+    # 이게 없으면 행이 '발송중'에 영원히 멈춰 배달이 안 된다(2026-09-05 발견: OTP는 Supabase 훅이라 잘 오지만
+    # 직원 안내 발송은 이 경로라 안 나갔다). send_now가 안전잠금(_sms_eligible)·광고 재확인·푸시/문자 폴백을 처리한다.
+    await dispatch_service.send_now(nids, conn)
     return EnqueueResult(target_count=len(ids), sms_count=_estimate_sms(channel, len(ids)),
                          marketing_excluded=excluded, notification_ids=nids)
 
