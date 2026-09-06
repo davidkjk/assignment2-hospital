@@ -9,10 +9,17 @@ import { env } from '../lib/env';
 
 // 홈페이지(호스트) 통합용 postMessage 계약(Task 2). 위젯은 열기/미읽음만 부모와 주고받는다 — 데이터는
 // 위젯 자체의 same-origin 프록시로 백엔드에 닿으므로 CORS가 없다. 배포는 env.hostOrigin으로 origin을 고정한다.
-const POST_TARGET = env.hostOrigin || '*';                 // 부모로 보낼 대상(개발/단독은 '*')
-function toHost(msg: { type: string; value?: boolean }) {
-  // 단독/테스트에선 window.parent === window라 자기 자신에게 가고(수신 리스너가 webchat:* 는 무시), iframe이면 홈페이지로 간다.
-  window.parent.postMessage(msg, POST_TARGET);
+
+// 신뢰할 호스트 origin인가 — 배포 홈페이지(정확 일치) + **그 홈페이지의 Vercel 프리뷰**(같은 프로젝트 stem)까지.
+// ⭐ 프리뷰(스테이징)에서도 위젯이 열리게 자기 프로젝트 프리뷰 origin을 허용한다. 임의 사이트는 막는다:
+//   hostOrigin이 `https://<stem>.vercel.app`면 `https://<stem>-...vercel.app`(자기 프리뷰)만 추가로 신뢰.
+//   hostOrigin 미설정(개발/단독)이면 무검증(기존 동작). 순수 함수라 단위 테스트한다.
+export function matchesHostOrigin(origin: string, hostOrigin: string): boolean {
+  if (!hostOrigin) return true;                 // 개발/단독: 무검증
+  if (origin === hostOrigin) return true;       // 배포(프로덕션) 홈페이지 정확 일치
+  const m = hostOrigin.match(/^https:\/\/([a-z0-9-]+)\.vercel\.app$/);
+  if (!m) return false;                         // vercel.app 형태가 아니면 정확 일치만 인정(임의 확장 금지)
+  return new RegExp(`^https://${m[1]}-[a-z0-9-]+\\.vercel\\.app$`).test(origin);
 }
 
 export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth: WebAuth; hospitalPhone: string }) {
@@ -26,6 +33,13 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
 
   // 마운트 통지 + 열림/미읽음 변화를 부모에 통지 + 부모의 host:setOpen 수신(origin 검증).
   const firstOpenPost = useRef(true);
+  // 부모로 보낼 대상 origin. 초기엔 배포값(없으면 '*'), 신뢰된 수신으로 실제 부모(프리뷰 포함)를 알면 그리로 좁힌다
+  // — 프리뷰 홈페이지에 얹혔을 때도 회신(열림 동기화·미읽음)이 실제 부모에 닿게 한다.
+  const sendTargetRef = useRef(env.hostOrigin || '*');
+  const toHost = (msg: { type: string; value?: boolean }) => {
+    // 단독/테스트에선 window.parent === window라 자기 자신에게 가고(수신 리스너가 webchat:* 는 무시), iframe이면 홈페이지로 간다.
+    window.parent.postMessage(msg, sendTargetRef.current);
+  };
   useEffect(() => { toHost({ type: 'webchat:ready' }); }, []);
   useEffect(() => {
     // 마운트 초기값(open=false)은 통지하지 않는다 — 호스트가 막 연 창을 뒤늦게 닫는 경합을 막는다(실제 변화만 통지).
@@ -35,9 +49,11 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
   useEffect(() => { toHost({ type: 'webchat:unread', value: hasUnread }); }, [hasUnread]);
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      if (env.hostOrigin && e.origin !== env.hostOrigin) return; // 배포는 홈페이지 origin만 신뢰
       const d = e.data as { type?: string; value?: unknown } | null;
-      if (d && d.type === 'host:setOpen') setOpen(Boolean(d.value));
+      if (!d || typeof d.type !== 'string' || !d.type.startsWith('host:')) return; // 호스트 메시지만(자기 webchat:* 루프백 무시)
+      if (!matchesHostOrigin(e.origin, env.hostOrigin)) return;  // 배포 홈페이지 + 그 프리뷰만 신뢰
+      if (e.origin) sendTargetRef.current = e.origin;            // 실제 부모(프리뷰 포함)를 알았으니 회신을 그리로 좁힌다
+      if (d.type === 'host:setOpen') setOpen(Boolean(d.value));
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
