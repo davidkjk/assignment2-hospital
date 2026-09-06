@@ -74,11 +74,12 @@ export function Checkbox({
   ariaLabel?: string
 }) {
   return (
-    <label className={`inline-flex items-center gap-2 text-sm ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+    <label className={`inline-flex items-center gap-2 text-sm ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
       <span
-        className="relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border transition-colors"
+        className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border-2 transition-colors"
         style={{
-          borderColor: checked ? 'var(--color-primary)' : 'var(--color-input)',
+          // 미체크 테두리는 뚜렷한 중간톤(ink-muted)으로 — 옛 색(input #C7C7C7)은 흰 배경에서 흐릿해 「네모가 옅다」는 지적.
+          borderColor: checked ? 'var(--color-primary)' : 'var(--color-ink-muted)',
           background: checked ? 'var(--color-primary)' : 'var(--color-surface)',
         }}
       >
@@ -91,8 +92,8 @@ export function Checkbox({
           className="absolute inset-0 m-0 opacity-0"
         />
         {checked && (
-          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" aria-hidden="true">
-            <path d="M2.5 6.2 5 8.6 9.5 3.6" stroke="var(--color-primary-foreground)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+            <path d="M2.5 6.2 5 8.6 9.5 3.6" stroke="var(--color-primary-foreground)" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
       </span>
@@ -113,11 +114,11 @@ export function Radio({
   ariaLabel?: string
 }) {
   return (
-    <label className={`inline-flex items-center gap-2 text-sm ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+    <label className={`inline-flex items-center gap-2 text-sm ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
       <span
-        className="relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border transition-colors"
+        className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors"
         style={{
-          borderColor: checked ? 'var(--color-primary)' : 'var(--color-input)',
+          borderColor: checked ? 'var(--color-primary)' : 'var(--color-ink-muted)',
           background: 'var(--color-surface)',
         }}
       >
