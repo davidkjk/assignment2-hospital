@@ -53,6 +53,33 @@ def patch_android_settings() -> None:
     print("  ✅ settings.gradle.kts에 google-services 플러그인 선언을 심었습니다.")
 
 
+def patch_android_desugaring() -> None:
+    """flutter_local_notifications(v22)가 요구하는 core library desugaring을 app gradle에 켠다.
+    android/는 재생성되므로 매번 심는다(멱등)."""
+    f = ROOT / "android" / "app" / "build.gradle.kts"
+    if not f.exists():
+        print("  ⚠ android/app/build.gradle.kts 없음 — flutter create 먼저.")
+        return
+    text = f.read_text()
+    if "isCoreLibraryDesugaringEnabled" in text and "coreLibraryDesugaring" in text:
+        print("  • desugaring 이미 있음(스킵).")
+        return
+    if "isCoreLibraryDesugaringEnabled" not in text:
+        text = text.replace(
+            "compileOptions {\n",
+            "compileOptions {\n        isCoreLibraryDesugaringEnabled = true\n",
+            1,
+        )
+    if "coreLibraryDesugaring" not in text:
+        text = text.rstrip() + (
+            "\n\ndependencies {\n"
+            '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n'
+            "}\n"
+        )
+    f.write_text(text)
+    print("  ✅ app build.gradle.kts에 core library desugaring을 켰습니다.")
+
+
 def patch_ios_entitlements() -> None:
     pbx = ROOT / "ios" / "Runner.xcodeproj" / "project.pbxproj"
     if not pbx.exists():
@@ -114,6 +141,7 @@ def main() -> int:
         _copy(SRC / "Runner.entitlements", ROOT / "ios" / "Runner" / "Runner.entitlements")
     print("▶ Android gradle …")
     patch_android_settings()
+    patch_android_desugaring()
     print("▶ iOS 푸시 배선 …")
     patch_ios_entitlements()
     patch_ios_info_plist()
