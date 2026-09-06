@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 
 import '../../core/button_sizes.dart';
@@ -6,6 +7,22 @@ import '../../core/tokens.dart';
 
 /// FAM-EDIT-12 관계 4종(데모 relationOptions)과 같은 목록.
 const familyRelationOptions = ['아들', '딸', '배우자', '아버지', '어머니'];
+
+/// #21(2026-09-05): 생년월일은 숫자만 치면 YYYY-MM-DD로 하이픈을 자동으로 넣는다(하이픈 직접 입력 불편 해소).
+class BirthDateInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    var digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length > 8) digits = digits.substring(0, 8); // YYYYMMDD
+    final b = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i == 4 || i == 6) b.write('-'); // 연 뒤·월 뒤에 하이픈
+      b.write(digits[i]);
+    }
+    final text = b.toString();
+    return TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+  }
+}
 
 /// 휴대폰 번호 형식(하이픈 있어도 됨). 011/016/017/018/019도 허용한다.
 bool familyPhoneValid(String raw) {

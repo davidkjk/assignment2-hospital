@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // TextInputFormatter(#21 생년월일 포매터)
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -155,7 +156,8 @@ class _EditBody extends StatelessWidget {
         const SizedBox(height: 16),
         _LabeledInput(
             label: '생년월일', controller: birth, enabled: _editable, onChanged: onChanged,
-            hint: '1990-01-01', keyboardType: TextInputType.datetime),
+            hint: '1990-01-01', keyboardType: TextInputType.number, // #21 숫자만 → 하이픈 자동
+            inputFormatters: [BirthDateInputFormatter()]),
         const SizedBox(height: 16),
 
         // FAM-EDIT-11 — 성별 두 칸 중 하나, 미리 골라두지 않는다.
@@ -294,6 +296,7 @@ class _LabeledInput extends StatelessWidget {
     required this.onChanged,
     this.hint,
     this.keyboardType,
+    this.inputFormatters,
   });
   final String label;
   final TextEditingController controller;
@@ -301,6 +304,7 @@ class _LabeledInput extends StatelessWidget {
   final VoidCallback onChanged;
   final String? hint;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -313,6 +317,7 @@ class _LabeledInput extends StatelessWidget {
           controller: controller,
           enabled: enabled,   // 잠긴 칸 = 회색 채움 대신 배경색(데모 disabled:bg-transparent)
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           onChanged: (_) => onChanged(),
           style: const TextStyle(fontSize: 16, color: AppTokens.onSurface),
           decoration: InputDecoration(hintText: hint),

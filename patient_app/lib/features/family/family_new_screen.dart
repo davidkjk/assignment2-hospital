@@ -111,7 +111,8 @@ class _FamilyNewScreenState extends ConsumerState<FamilyNewScreen> {
               label: '생년월일',
               controller: _birth,
               hint: '1990-01-01',
-              keyboardType: TextInputType.datetime),
+              keyboardType: TextInputType.number, // #21 숫자만 → 하이픈 자동
+              inputFormatters: [BirthDateInputFormatter()]),
           if (_birthError != null) _fieldError(_birthError!),
           const SizedBox(height: 16),
 

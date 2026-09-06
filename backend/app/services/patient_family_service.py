@@ -90,7 +90,7 @@ async def list_family_members(patient) -> list[dict]:
             "   order by s.slot_date, s.start_time limit 1"
             ") up on true "
             "where p.id = $1 or l.id is not null "                            # 본인 + 활성 연결 가족
-            "order by (p.id = $1) desc, p.name",                              # FAM-LIST-01·02
+            "order by (p.id = $1) desc, p.birth_date asc, p.name",            # FAM-LIST-01·02 (#22: 본인 맨위+나이 많은 순=생년월일 오래된순, 동일생년=이름)
             patient.id, list(_UPCOMING_STATUSES))
 
     out = []

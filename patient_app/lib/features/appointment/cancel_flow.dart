@@ -121,6 +121,7 @@ class CancelConfirmDialog extends StatelessWidget {
         const SizedBox(height: 12),
         // CANCEL-PRE-02 — 취소 대상 예약을 다시 적는다(다른 예약을 잘못 취소하는 사고 방지). 데모: 옅은 박스.
         Container(
+          width: double.infinity, // #20: 내용 너비만큼만 커져 팝업 대비 좁던 것 → 팝업 폭에 맞춤
           decoration: BoxDecoration(
             color: AppTokens.muted.withValues(alpha: 0.5),
             border: Border.all(color: AppTokens.border),

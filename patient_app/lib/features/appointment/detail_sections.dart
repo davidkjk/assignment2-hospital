@@ -135,22 +135,27 @@ class InfoTable extends StatelessWidget {
     if (d.hospitalAddress != null && d.hospitalAddress!.isNotEmpty) {
       entries.add((
         '장소',
-        InkWell(
-          onTap: () => openMapQuery(d.hospitalAddress!),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(AppIcons.place, size: 16, color: AppTokens.primary),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(d.hospitalAddress!),
-                const SizedBox(height: 2),
-                const Text('지도 앱으로 길 찾기',
-                    style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
-              ]),
-            ),
-            const Icon(AppIcons.open_in_new, size: 14, color: AppTokens.primary),
-          ]),
-        ),
+        // #17(2026-09-05): 주소는 SelectableText로 길게 눌러 복사(iOS 네이티브 메뉴). 지도 열기는
+        // 아래 "지도 앱으로 길 찾기" 링크로 옮겨, 주소 텍스트 선택과 지도 탭이 서로 안 먹히게 분리.
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(AppIcons.place, size: 16, color: AppTokens.primary),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SelectableText(d.hospitalAddress!),
+              const SizedBox(height: 2),
+              InkWell(
+                onTap: () => openMapQuery(d.hospitalAddress!),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('지도 앱으로 길 찾기',
+                      style: TextStyle(fontSize: 12, color: AppTokens.primary)),
+                  SizedBox(width: 4),
+                  Icon(AppIcons.open_in_new, size: 14, color: AppTokens.primary),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
       ));
     }
     // APPT-INFO-02 — 방문이유가 비면 그 줄을 감춘다(빈 줄·안내문 안 남김) / APPT-INFO-03 — 쓴 문장 그대로.

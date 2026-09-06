@@ -146,8 +146,10 @@ class FamilyCard extends StatelessWidget {
               const SizedBox(width: 12),
               OutlinedButton.icon(
                 onPressed: onEdit,
-                icon: const Icon(AppIcons.edit, size: 15),
-                label: const Text('정보 수정'),
+                // #18(2026-09-05): 본인은 신원 수정 불가(canEditIdentity=false) → 라벨 "정보 안내"·보기 아이콘으로
+                // 막다른 길("수정"인데 못 고침)을 없앤다. 가족은 "정보 수정" 그대로.
+                icon: Icon(member.isSelf ? AppIcons.visibility : AppIcons.edit, size: 15),
+                label: Text(member.isSelf ? '정보 안내' : '정보 수정'),
                 // 테두리→그림자(사용자 요청): 흰 면 + 옅은 그림자, 외곽선 제거.
                 style: AppButtonSize.shrink(AppButtonSize.sm).copyWith(
                     side: const WidgetStatePropertyAll(BorderSide.none),
