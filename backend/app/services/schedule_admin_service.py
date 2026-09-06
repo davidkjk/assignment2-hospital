@@ -344,8 +344,12 @@ async def list_day_doctors(conn, day: date) -> list[dict]:
     - appointment_count: 그 날 살아있는 예약 건수(SCHED-EXC-07).
     """
     doctors = await conn.fetch(
-        "select id, name from staff where role = 'doctor' and is_active order by name"
+        "select id, name, auth_user_id from staff where role = 'doctor' and is_active order by name"
     )
+    # [STAFF-PEND-01] 아직 한 번도 로그인 안 한(초대 미수락) 의사를 pending=True로 표시한다 —
+    # last_sign_in_at은 auth.users가 원본이라 목록 1회 조회(직원 목록과 같은 배치 경로)로 받는다.
+    from app.services import staff_service  # 지연 import — 모듈 로드 순환 방지
+    auth = staff_service._auth_users_by_id()
     out = []
     for doc in doctors:
         rule = await conn.fetchrow(
@@ -353,10 +357,12 @@ async def list_day_doctors(conn, day: date) -> list[dict]:
             doc["id"], day.weekday(),
         )
         regular_day_off = rule is None or rule["is_day_off"]
+        user = auth.get(str(doc["auth_user_id"]))
         out.append({
             "id": str(doc["id"]),
             "name": doc["name"],
             "regular_day_off": regular_day_off,
+            "pending": getattr(user, "last_sign_in_at", None) is None,
             "appointment_count": await _active_appt_count(conn, doc["id"], day),
         })
     return out

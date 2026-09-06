@@ -37,6 +37,9 @@ export interface CalendarDoctorCatalog {
   /** [CAL-TIME-09] 그 날 요일의 진료 길이(분). 그 요일에 규칙이 없으면 null —
    *  근거가 없으면 서버가 지어내지 않는다(QUEUE-WALK-08c). */
   slot_minutes: number | null
+  /** [STAFF-PEND-01] 아직 한 번도 로그인 안 한(초대 미수락) 의사. 칩·격자 열이
+   *  「아직 안 들어옴」을 표시한다(선택·배정은 그대로). 옛 배포 호환 위해 옵셔널. */
+  pending?: boolean
 }
 
 /** 캘린더가 그릴 넷을 한 응답으로(CAL-SLOT-*·CAL-VIEW-*). 워크인(슬롯 없음)은 시각이 없어 여기 안 든다. */

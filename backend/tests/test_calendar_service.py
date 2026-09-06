@@ -5,7 +5,8 @@
    ⚠ 확인 필요는 list_affected_appointments가 판정한 것을 그대로 실어 나른다.
 """
 import uuid
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -166,6 +167,31 @@ async def test_캘_카탈로그_palette_index는_아직_null이다(db_conn):
 
     entry = next(d for d in result["doctors"] if d["id"] == doc["staff_id"])
     assert entry["palette_index"] is None
+
+
+@pytest.mark.asyncio
+async def test_캘_칩_카탈로그_미로그인_의사를_pending으로_싣는다(db_conn):
+    """[STAFF-PEND-01] /calendar/doctors 카탈로그(칩)는 아직 한 번도 로그인 안 한(초대 미수락)
+    의사를 pending=True로, 로그인한 적 있는 의사는 pending=False로 싣는다."""
+    dept = await seed_department(db_conn)
+    signed_in = await seed_doctor(db_conn, dept)
+    never = await seed_doctor(db_conn, dept)
+    await _rule(db_conn, signed_in["staff_id"], MON.weekday())
+    await _rule(db_conn, never["staff_id"], MON.weekday())
+    staff = to_context(await seed_staff(db_conn, "receptionist"), "receptionist")
+
+    signed = MagicMock(); signed.last_sign_in_at = datetime(2026, 1, 1)
+    pending = MagicMock(); pending.last_sign_in_at = None
+    auth_map = {
+        str(signed_in["auth_user_id"]): signed,
+        str(never["auth_user_id"]): pending,
+    }
+    with patch("app.services.staff_service._auth_users_by_id", return_value=auth_map):
+        catalog = await dashboard_service.get_calendar_doctor_catalog(staff, on_date=MON, conn=db_conn)
+
+    by_id = {d["id"]: d for d in catalog}
+    assert by_id[signed_in["staff_id"]]["pending"] is False   # 로그인한 적 있음
+    assert by_id[never["staff_id"]]["pending"] is True         # 초대만 받고 미수락
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,8 @@ export interface CalendarDoctor {
   slotMinutes: number
   /** 팔레트의 몇 번째(CAL-COLOR-09) — 색값이 아니라 인덱스. */
   paletteIndex: number
+  /** [STAFF-PEND-01] 아직 한 번도 로그인 안 한(초대 미수락) 의사 — 칩에 「아직 안 들어옴」 표시. */
+  pending?: boolean
 }
 
 export interface DoctorChipsProps {
@@ -81,7 +83,7 @@ export function DoctorChips({
           <button
             key={doc.id}
             type="button"
-            className="cal-chip"
+            className={`cal-chip${doc.pending ? ' is-pending' : ''}`}
             aria-pressed={selectedDoctorIds.includes(doc.id)}
             onClick={() => onToggleDoctor(doc.id)}
           >
@@ -95,6 +97,20 @@ export function DoctorChips({
               aria-hidden
             />
             {doc.name}
+            {/* [STAFF-PEND-01] 아직 안 들어온(초대 미수락) 의사 — 깃발 표식 + 접근성 라벨.
+                고를 수는 있다(진료시간을 넣으면 BOOK-DOC-10으로 환자에게 보이기 시작). */}
+            {doc.pending && (
+              <span
+                className="cal-chip-pending"
+                role="img"
+                aria-label="아직 안 들어옴"
+                title="아직 안 들어옴 (초대 미수락)"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+                  <path d="M5 3h11l-2 4 2 4H5v10H3V3z" />
+                </svg>
+              </span>
+            )}
           </button>
         ))}
       </div>

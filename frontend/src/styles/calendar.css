@@ -221,6 +221,17 @@
   font-size: 12px;
   color: var(--color-ink-muted);
 }
+/* [STAFF-PEND-01] 아직 안 들어온(초대 미수락) 의사 칩 — 점선 테두리 + 경고색 깃발로
+   "고를 수는 있으나 아직 미수락"을 알린다(선택·배정은 그대로). */
+.cal-chip.is-pending {
+  border-style: dashed;
+}
+.cal-chip-pending {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-warn);
+  flex: 0 0 auto;
+}
 
 /* ── 격자 그릇 ───────────────────────────── */
 .cal-day-grid,

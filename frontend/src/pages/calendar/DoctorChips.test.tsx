@@ -72,3 +72,18 @@ test('[CAL-DOC-05] 걸린 필터가 항상 보인다 — 「내과만 보는 중
   setup({ selectedDepartmentId: 'im' })
   expect(screen.getByText('내과만 보는 중')).toBeVisible()
 })
+
+test('[STAFF-PEND-01] 아직 안 들어온(초대 미수락) 의사 칩엔 표식이 붙되 고를 수는 있다', async () => {
+  const user = userEvent.setup()
+  const props = setup({
+    doctors: [
+      { id: 'd1', name: '박지훈', departmentId: 'im', departmentName: '내과', slotMinutes: 15, paletteIndex: 3, pending: true },
+      { id: 'd2', name: '최민석', departmentId: 'im', departmentName: '내과', slotMinutes: 20, paletteIndex: 1 },
+    ],
+  })
+  // 표식은 미수락 의사에게만 붙는다.
+  expect(screen.getAllByLabelText('아직 안 들어옴')).toHaveLength(1)
+  // 그래도 고를 수 있다 — 진료시간을 넣으면 환자에게 보이기 시작한다(BOOK-DOC-10).
+  await user.click(screen.getByRole('button', { name: /박지훈/ }))
+  expect(props.onToggleDoctor).toHaveBeenCalledWith('d1')
+})

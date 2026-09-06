@@ -142,6 +142,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
     departmentName: d.department_name ?? '',
     slotMinutes: d.slot_minutes ?? 0,
     paletteIndex: paletteMap.get(d.id) ?? 0,
+    pending: d.pending ?? false,
   }))
   const departments = useMemo(() => {
     const seen = new Map<string, string>()
