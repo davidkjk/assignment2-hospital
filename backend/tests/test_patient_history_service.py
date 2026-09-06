@@ -331,10 +331,12 @@ async def test_history_all_mode_paginates_across_members(committed_conn):
     me = _ctx(await seed_patient_c(committed_conn, name="김본인"))
     member = await seed_patient_c(committed_conn, name="김가족", phone="01099998888")
     await _link_family(committed_conn, me.id, member["patient_id"])
+    # 슬롯 유니크키=(doctor, slot_date, start_time)라 날짜가 겹치면 안 된다 — 본인은 2026-01,
+    # 가족은 2025-01로 날짜를 전부 다르게(그리고 본인>가족 순서가 되게) 준다.
     for i in range(13):
-        await _past(committed_conn, me, dept, did, "진료완료", f"2026-{(i%12)+1:02d}-05")
+        await _past(committed_conn, me, dept, did, "진료완료", f"2026-01-{i+1:02d}")
     for i in range(12):
-        await _past_for(committed_conn, me.id, member["patient_id"], dept, did, "진료완료", f"2025-{(i%12)+1:02d}-07")
+        await _past_for(committed_conn, me.id, member["patient_id"], dept, did, "진료완료", f"2025-01-{i+1:02d}")
     first = await h.list_visit_history(me, limit=20)
     assert len(first["items"]) == 20 and first["next_cursor"] is not None
     second = await h.list_visit_history(me, cursor=first["next_cursor"], limit=20)
