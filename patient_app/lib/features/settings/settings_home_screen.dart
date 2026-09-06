@@ -41,7 +41,7 @@ class SettingsHomeScreen extends ConsumerWidget {
     final offline = ref.watch(connectivityProvider).valueOrNull == false;
 
     return Scaffold(
-      appBar: const PatientAppBar(title: '설정'),
+      appBar: const PatientAppBar(title: '설정', icon: AppIcons.settings), // #39: 헤더에 톱니 아이콘(사용자 요청)
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

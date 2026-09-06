@@ -42,9 +42,12 @@ async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gend
 
 async def get_my_profile(patient: PatientContext) -> dict:
     async with acquire_as(str(patient.auth_user_id)) as conn:
-        row = await conn.fetchrow("select id, name, birth_date, gender, phone from patients where id=$1", patient.id)
+        row = await conn.fetchrow(
+            "select id, name, birth_date, gender, phone, ads_consent from patients where id=$1",
+            patient.id)  # #38: 광고 수신동의 현재값을 앱 설정 토글이 읽을 수 있게 포함
     return {"id": row["id"], "name": row["name"], "birth_date": str(row["birth_date"]),
-            "gender": row["gender"], "phone": row["phone"]}
+            "gender": row["gender"], "phone": row["phone"],
+            "ads_consent": row["ads_consent"] is True}
 
 
 async def get_withdrawal_blocks(patient: PatientContext) -> list[dict]:

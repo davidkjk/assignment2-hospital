@@ -6,6 +6,7 @@ import '../../core/connectivity.dart';
 import '../../core/tokens.dart';
 import '../../widgets/block_dialog.dart';
 import '../../widgets/inline_error.dart';
+import 'ads_consent_repository.dart';
 import 'notification_prefs_repository.dart';
 
 // [SET-NOTI-04] 2묶음 · 6토글. (group, 라벨, 중요 여부). 「받는 방법」·「문자로도 받기」 묶음은 없다(B-41).
@@ -37,6 +38,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(notificationSettingsControllerProvider.notifier).load();
+      ref.read(adsConsentControllerProvider.notifier).load(); // #38 광고 수신동의 현재값
     });
   }
 
@@ -65,6 +67,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(notificationSettingsControllerProvider);
+    final ads = ref.watch(adsConsentControllerProvider); // #38 광고 수신동의
     final offline = ref.watch(connectivityProvider).valueOrNull == false;
 
     return Scaffold(
@@ -117,6 +120,40 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
                   ),
                   const SizedBox(height: 20),
                 ],
+                // #38 광고성 정보 수신 동의(선택) — 정보성 6토글과 별개 창구(법적 수신동의).
+                const Text('광고성 정보 수신',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600, color: AppTokens.grayPending)),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppTokens.surface,
+                    border: Border.all(color: AppTokens.border),
+                    borderRadius: BorderRadius.circular(AppTokens.densityCardRadius),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Material(
+                    color: AppTokens.surface,
+                    child: SwitchListTile(
+                      key: const Key('switch-ads-consent'),
+                      value: ads.agreed,
+                      onChanged: (ads.busy || offline || ads.loading)
+                          ? null
+                          : (v) => ref.read(adsConsentControllerProvider.notifier).toggle(v),
+                      activeThumbColor: AppTokens.primary,
+                      title: const Text('광고성 정보 수신 동의',
+                          style: TextStyle(fontWeight: FontWeight.w500)),
+                      subtitle: const Text('검진·행사 등 혜택 안내를 문자로 받습니다. 언제든 끌 수 있어요.',
+                          style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
+                    ),
+                  ),
+                ),
+                if (ads.error != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: InlineError(ads.error!),
+                  ),
+                const SizedBox(height: 20),
               ],
             ),
     );

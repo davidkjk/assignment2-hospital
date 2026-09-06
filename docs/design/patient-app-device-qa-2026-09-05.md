@@ -74,3 +74,8 @@
 - **#17 가온빌딩 = 가짜 데모 주소**(`seed_demo.sql:479`). 실재 아님.
 - **#18 본인 신원 수정 불가 = 설계**(`canEditIdentity`).
 - **#35 앱 AI상담 = 스텁 아님**(chat_repository가 `/chat/*` 실호출). 답 없음은 LLM키 문제 유력.
+
+## L. 재검수 중 추가 findings (2026-09-05, 수정앱 재설치 후)
+- [x] **#38** ✅코드(⚠️백엔드 재배포 후 반영) — 알림설정에 "광고성 정보 수신 동의" 토글 신설(`ads_consent_repository.dart`+`notification_settings_screen.dart`). 백엔드 `/patient/me`에 `ads_consent` 추가(`patient_profile_service.py`), PATCH `/patient/me/ads-consent` 재사용. 가입 동의(consent_screen)와 별개로 사후 켜기 가능.
+- [x] **#39** ✅코드(폰검증대기) — 설정 헤더에 톱니 아이콘(`PatientAppBar icon: AppIcons.settings`). 2차화면 관례에서 예외(사용자 요청). `settings_home_screen.dart`.
+- [ ] **#3(리전)** ⚠️CLI 차단(프로덕션 변경 auto-mode 거부) → **사용자가 Railway 대시보드 api 서비스 Region=Singapore로 변경+재배포**(진행 중). cron은 선택(앱 속도 무관).
