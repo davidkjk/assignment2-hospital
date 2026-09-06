@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'api_client.dart';
@@ -23,45 +24,90 @@ class PushService {
   /// 로그인 직후 호출(app.dart가 signedIn을 감지해 부름). 권한 요청 + 리스너 배선.
   /// 여러 번 불려도 무해하다(리스너는 한 번만 건다).
   Future<void> init() async {
-    await FirebaseMessaging.instance.requestPermission();
-    // iOS: 앱을 보고 있는 중에도 OS가 배너를 띄우게 한다(안드로이드는 아래 로컬 알림으로 처리).
-    await FirebaseMessaging.instance
-        .setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
+    debugPrint('[PUSH] init() 시작');
+    try {
+      final settings = await FirebaseMessaging.instance.requestPermission();
+      debugPrint('[PUSH] 알림 권한 상태 = ${settings.authorizationStatus}');
+    } catch (e) {
+      debugPrint('[PUSH] requestPermission 오류: $e');
+    }
 
-    // 안드로이드 포그라운드 표시용 로컬 알림 초기화 + 채널 등록.
-    await _local.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        iOS: DarwinInitializationSettings(),
-      ),
-      onDidReceiveNotificationResponse: (_) => _openFromTap(),
-    );
-    await _local
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_androidChannel);
+    // ⭐ 토큰 등록(핵심 경로) — 아래 표시 설정보다 먼저·독립적으로. 표시 설정이 iOS에서 막히거나
+    //    예외를 던져도 토큰 등록에는 영향이 없게 한다(그동안 이 순서 때문에 등록이 통째로 건너뛰었다).
+    await registerToken();
 
+    // FCM 리스너는 표시 초기화보다 먼저 건다(표시 초기화가 막혀도 갱신 재등록·탭 이동은 살아 있게).
     if (!_wired) {
       _wired = true;
-      // 포그라운드 수신 → 안드로이드에서 로컬 알림으로 표시(iOS는 위 옵션으로 OS가 표시).
       FirebaseMessaging.onMessage.listen(_showForeground);
-      // 백그라운드 상태에서 알림을 눌러 앱이 열림 → 알림함으로.
       FirebaseMessaging.onMessageOpenedApp.listen((_) => _openFromTap());
       // FCM 토큰은 갱신될 수 있다 — 갱신되면 서버에 다시 등록(#100 죽은 토큰 정리와 짝).
       FirebaseMessaging.instance.onTokenRefresh.listen(_postToken);
     }
 
+    // 포그라운드 표시 설정(best-effort) — 실패해도 등록·수신엔 영향 없음. 단계별 로그로 원인 추적.
+    try {
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
+      debugPrint('[PUSH] setForegroundOptions 완료');
+      await _local.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(),
+        ),
+        onDidReceiveNotificationResponse: (_) => _openFromTap(),
+      );
+      debugPrint('[PUSH] local.initialize 완료');
+      await _local
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(_androidChannel);
+    } catch (e) {
+      debugPrint('[PUSH] 포그라운드 표시 설정 오류(무시): $e');
+    }
+
     // 앱이 완전히 꺼진 상태에서 알림 탭으로 열렸으면 알림함으로.
-    final initial = await FirebaseMessaging.instance.getInitialMessage();
-    if (initial != null) _openFromTap();
+    try {
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) _openFromTap();
+    } catch (e) {
+      debugPrint('[PUSH] getInitialMessage 오류(무시): $e');
+    }
   }
 
   // 로그인 직후: FCM 토큰을 Task 10 엔드포인트로 등록(같은 기기 재등록은 서버가 on conflict로 무해).
   Future<void> registerToken() async {
-    await _postToken(await FirebaseMessaging.instance.getToken());
+    // iOS: APNS 토큰이 세팅된 뒤에야 FCM 토큰을 받을 수 있다 — 준비될 때까지 잠깐 기다린다(타이밍 방어).
+    try {
+      for (var i = 0; i < 8; i++) {
+        final apns = await FirebaseMessaging.instance.getAPNSToken();
+        debugPrint('[PUSH] getAPNSToken try$i = ${apns == null ? "null" : "OK"}');
+        if (apns != null) break;
+        await Future<void>.delayed(const Duration(milliseconds: 800));
+      }
+    } catch (e) {
+      debugPrint('[PUSH] getAPNSToken 오류: $e');
+    }
+    String? token;
+    try {
+      token = await FirebaseMessaging.instance.getToken();
+    } catch (e) {
+      debugPrint('[PUSH] getToken 오류: $e');
+    }
+    debugPrint('[PUSH] getToken = ${token == null ? "null" : "${token.substring(0, 12)}…(len ${token.length})"}');
+    await _postToken(token);
   }
 
   Future<void> _postToken(String? token) async {
-    if (token != null) await _api.post('/device-tokens', {'fcm_token': token}, (_) {});
+    if (token == null) {
+      debugPrint('[PUSH] 토큰이 null이라 등록을 건너뜁니다.');
+      return;
+    }
+    try {
+      await _api.post('/device-tokens', {'fcm_token': token}, (_) {});
+      debugPrint('[PUSH] /device-tokens 등록 성공');
+    } catch (e) {
+      debugPrint('[PUSH] /device-tokens 등록 실패: $e');
+    }
   }
 
   // 로그아웃·탈퇴: 등록 해제(죽은 토큰의 남은 절반은 서버 T30가 발송 시 정리 — #100).
@@ -73,7 +119,8 @@ class PushService {
   void _showForeground(RemoteMessage message) {
     final n = message.notification;
     if (n == null) return; // 데이터-only 메시지는 표시하지 않는다(현재 서버는 알림형만 보냄).
-    _local.show(
+    try {
+      _local.show(
       id: n.hashCode,
       title: n.title ?? '가온병원',
       body: n.body,
@@ -89,6 +136,9 @@ class PushService {
         iOS: DarwinNotificationDetails(),
       ),
     );
+    } catch (e) {
+      debugPrint('[PUSH] 포그라운드 표시 실패(무시): $e');
+    }
   }
 
   // NOTI-GONE-05: 알림 탭 딥링크는 알림함으로 보낸다 — 거기서 개별 항목 라우팅(예약 존재 확인·

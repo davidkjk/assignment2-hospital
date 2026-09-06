@@ -139,6 +139,9 @@ def main() -> int:
     if (ROOT / "ios").exists():
         _copy(SRC / "GoogleService-Info.plist", ROOT / "ios" / "Runner" / "GoogleService-Info.plist")
         _copy(SRC / "Runner.entitlements", ROOT / "ios" / "Runner" / "Runner.entitlements")
+        # 최신 Flutter iOS 템플릿은 registerForRemoteNotifications를 부르지 않아 APNS 토큰이 안 온다.
+        # 이 프로젝트의 AppDelegate(등록 강제 + APNS 토큰 Firebase 전달)를 정본으로 심는다.
+        _copy(SRC / "AppDelegate.swift", ROOT / "ios" / "Runner" / "AppDelegate.swift")
     print("▶ Android gradle …")
     patch_android_settings()
     patch_android_desugaring()
