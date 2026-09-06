@@ -3,12 +3,14 @@ import 'package:hospital_patient_app/core/router.dart';
 import 'package:hospital_patient_app/features/auth/auth_state.dart';
 
 void main() {
-  test('signedOut + 보호경로 → /login (NAV-GLOBAL-03)', () {
+  test('signedOut + 보호경로 → /landing (NAV-GLOBAL-03·#40 가입 입구가 랜딩에 있음)', () {
     expect(computeRedirect(auth: AuthStatus.signedOut, profileMissing: false, needsReauth: false, loc: '/home'),
-        '/login');
+        '/landing');
   });
 
-  test('signedOut + 로그인/가입 경로는 그대로', () {
+  test('signedOut + 랜딩/로그인/가입 경로는 그대로', () {
+    expect(computeRedirect(auth: AuthStatus.signedOut, profileMissing: false, needsReauth: false, loc: '/landing'),
+        isNull);
     expect(computeRedirect(auth: AuthStatus.signedOut, profileMissing: false, needsReauth: false, loc: '/login'),
         isNull);
     expect(computeRedirect(auth: AuthStatus.signedOut, profileMissing: false, needsReauth: false, loc: '/signup'),
