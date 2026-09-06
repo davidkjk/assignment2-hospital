@@ -38,6 +38,9 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
+  # #2(2026-09-05): 아이폰만 로고를 키운다(로고가 캔버스 ~42%→~70%). 안드로이드는 원형마스크
+  #   잘림 우려로 현행(app_icon.png + adaptive foreground) 유지 — 사용자 결정.
+  image_path_ios: "assets/icon/app_icon_ios.png"
   adaptive_icon_background: "#0B6E70"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
