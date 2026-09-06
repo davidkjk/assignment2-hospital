@@ -465,19 +465,27 @@ async def test_투데이_노쇼_01_시각_지난_예약확정만_미접수로_�
 @pytest.mark.asyncio
 async def test_투데이_이데이_01_전일_미완료_잔여만_올린다(db_conn):
     """[TODAY-YDAY-01] 지난 날짜의 도착·진료대기·진료중만 올린다. 지난 예약확정(→자정 부도
-    배치)·오늘 진행 중인 건은 제외. 지난 날짜이므로 날짜를 함께 준다(TODAY-YDAY-03)."""
+    배치)·오늘 진행 중인 건은 제외. 지난 날짜이므로 날짜를 함께 준다(TODAY-YDAY-03).
+
+    [TODAY-YDAY-01 개정 2026-09-05] 사유는 남은 **상태별로** 나뉜다 — 도착만 하고 진료 못 본
+    사람을 「진료 중」이라 부르지 않는다(사용자 결정)."""
     today = await db_today(db_conn)
     yday = today - timedelta(days=1)
     dept = await seed_department(db_conn)
     doc = await seed_doctor(db_conn, dept)
     admin = to_context(await _seed_admin(db_conn), "admin")
-    p_left, p_confirmed, p_today = (await seed_patient(db_conn), await seed_patient(db_conn),
-                                    await seed_patient(db_conn))
+    p_left, p_arr, p_wait, p_confirmed, p_today = [await seed_patient(db_conn) for _ in range(5)]
     slot_y = await seed_slot(db_conn, doc["staff_id"], yday, start_time=time(16, 30))
+    slot_ya = await seed_slot(db_conn, doc["staff_id"], yday, start_time=time(16, 45))
+    slot_yw = await seed_slot(db_conn, doc["staff_id"], yday, start_time=time(16, 50))
     slot_y2 = await seed_slot(db_conn, doc["staff_id"], yday, start_time=time(17, 0))
     slot_t = await seed_slot(db_conn, doc["staff_id"], today, start_time=time(9, 0))
     left = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
                                   patient_id=p_left, slot_id=slot_y, status="진료중")
+    arr = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                 patient_id=p_arr, slot_id=slot_ya, status="도착")
+    wait = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p_wait, slot_id=slot_yw, status="진료대기")
     await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
                            patient_id=p_confirmed, slot_id=slot_y2, status="예약확정")
     await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
@@ -485,8 +493,11 @@ async def test_투데이_이데이_01_전일_미완료_잔여만_올린다(db_co
     await set_session_auth(db_conn, admin.auth_user_id)
     s = await dashboard_service.get_today_summary(admin, conn=db_conn)
     rows = s["yesterday_unfinished"]
-    assert [r["appointment_id"] for r in rows] == [left]
-    assert rows[0]["reason"] == "진료 중인 채로 마감"
+    assert {r["appointment_id"] for r in rows} == {left, arr, wait}
+    reason_of = {r["appointment_id"]: r["reason"] for r in rows}
+    assert reason_of[left] == "진료 중 마감"
+    assert reason_of[arr] == "도착 후 미진료"
+    assert reason_of[wait] == "대기 중 마감"
     assert rows[0]["slot_date"] == yday
 
 

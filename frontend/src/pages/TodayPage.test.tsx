@@ -45,7 +45,7 @@ const ALL: TodaySummary = {
     { patient_id: 'p9', name: '최*연', masked_birth_date: '1970-**-**', appointment_id: 'a9', slot_time: '09:30:00' },
   ],
   yesterday_unfinished: [
-    { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감', updated_at: '2026-08-02T16:30:00+09:00' },
+    { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중 마감', updated_at: '2026-08-02T16:30:00+09:00' },
   ],
   doctor_waiting: [
     { doctor_id: 'd1', doctor_name: '박지훈', department_name: '내과', waiting_count: 3 },
@@ -179,7 +179,7 @@ describe('오늘의 현황 /today', () => {
     const header = screen.getByTestId('card-header-yday')
     expect(within(header).getByText(/8\/2/)).toBeVisible()
     const row = screen.getByTestId('yday-row-a8')
-    expect(within(row).getByText('진료 중인 채로 마감')).toBeVisible()
+    expect(within(row).getByText('진료 중 마감')).toBeVisible()
     expect(within(row).queryByText(/8\/2/)).toBeNull() // 행엔 날짜를 달지 않는다
   })
 
@@ -187,8 +187,8 @@ describe('오늘의 현황 /today', () => {
     summaryOk({
       ...ALL,
       yesterday_unfinished: [
-        { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '진료 중인 채로 마감', updated_at: '2026-08-02T16:30:00+09:00' },
-        { patient_id: 'p7', name: '김*수', masked_birth_date: '1990-**-**', appointment_id: 'a7', slot_date: '2026-07-30', slot_time: '10:00:00', reason: '진료 중인 채로 마감', updated_at: '2026-07-30T10:00:00+09:00' },
+        { patient_id: 'p8', name: '정*훈', masked_birth_date: '1982-**-**', appointment_id: 'a8', slot_date: '2026-08-02', slot_time: '16:30:00', reason: '도착 후 미진료', updated_at: '2026-08-02T16:30:00+09:00' },
+        { patient_id: 'p7', name: '김*수', masked_birth_date: '1990-**-**', appointment_id: 'a7', slot_date: '2026-07-30', slot_time: '10:00:00', reason: '진료 중 마감', updated_at: '2026-07-30T10:00:00+09:00' },
       ],
     })
     renderToday()

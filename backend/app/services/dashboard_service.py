@@ -53,6 +53,14 @@ _TAB_STATUSES: dict[str, tuple[str, ...] | None] = {
     "cancelled_or_noshow": ("환자취소", "병원취소", "예약부도"),
 }
 
+# [TODAY-YDAY-01 개정 2026-09-05] 전일 미완료 「사유」를 남은 상태별로 나눈다(사용자 결정).
+#  ⭐ 도착만 하고 진료 못 본 사람을 「진료 중」이라 부르지 않는다. 처리(마감)는 상태와 무관하게 동일.
+_YDAY_REASON: dict[str, str] = {
+    "도착": "도착 후 미진료",
+    "진료대기": "대기 중 마감",
+    "진료중": "진료 중 마감",
+}
+
 
 async def get_queue(staff: StaffContext, *, doctor_id=None, tab: str = "waiting", conn=None) -> QueueResult:
     """[QUEUE-TAB-01][QUEUE-ORDER-03][QUEUE-FILT-03] 고른 탭의 행 + 전체 기준 탭 숫자를 준다.
@@ -678,7 +686,7 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             """
             select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
                    d.name as doctor_name, dept.name as department_name,
-                   s.slot_date, s.start_time as slot_time, a.updated_at
+                   s.slot_date, s.start_time as slot_time, a.updated_at, a.status
             from appointments a
             join patients p on p.id = a.for_patient_id
             join staff d on d.id = a.doctor_id
@@ -752,7 +760,10 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
                 appointment_id=r["appointment_id"], slot_date=r["slot_date"], slot_time=r["slot_time"],
                 # [TODAY-YDAY-04] 마감 처리의 낙관적 잠금 열쇠(도착 처리·긴급 표시와 같은 방식).
                 updated_at=r["updated_at"].isoformat(),
-                reason="진료 중인 채로 마감", doctor_name=r["doctor_name"], department_name=r["department_name"],
+                # [TODAY-YDAY-01 개정] 사유는 남은 **상태별로** 나눈다 — 도착만 하고 진료 못 본 사람을
+                #  「진료 중」이라 부르지 않는다(사용자 결정 2026-09-05). 처리 방식(마감)은 상태와 무관하게 같다.
+                reason=_YDAY_REASON.get(r["status"], "진료 중인 채로 마감"),
+                doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in yesterday_unfinished
         ],
