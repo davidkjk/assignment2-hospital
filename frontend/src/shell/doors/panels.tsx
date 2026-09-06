@@ -530,13 +530,28 @@ function fmtBirthInput(raw: string): string {
   return [d.slice(0, 4), d.slice(4, 6), d.slice(6, 8)].filter(Boolean).join('-')
 }
 
+/** 생년월일이 **실제로 있는 날짜**인지 — 8자리이면서 월(1~12)·일이 그 달에 맞고, 1900년 이후·미래가 아님.
+ *  ⭐ 「8자리인지」만 보면 `19195310`(월 53) 같은 값이 서버로 가 일반 오류로 튕긴다(막다른 길). 여기서 미리 잡는다. */
+function birthDateValid(birth: string): boolean {
+  const d = birth.replace(/\D/g, '')
+  if (d.length !== 8) return false
+  const y = +d.slice(0, 4), m = +d.slice(4, 6), day = +d.slice(6, 8)
+  if (y < 1900 || m < 1 || m > 12 || day < 1 || day > 31) return false
+  const dt = new Date(y, m - 1, day)
+  // new Date가 조용히 보정하는 값(2월 30일→3월 2일 등)을 되돌려 잡는다.
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== day) return false
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  return dt <= today // 미래 생일은 없다(오늘까지 허용)
+}
+
 /** 등록 문 — 새 환자를 병원에 등록한다. 검색은 강요하지 않는다(직원 재량 = 사이드바 '환자 검색').
  *  겹치면 소프트 확인만(막지 않음). 등록·확인 뒤에는 막다른 길 없이 예약/접수로 이음(F-4). */
 function RegisterBody() {
   const { draft, patch, pickPatient, switchDoor, close } = useDoors()
   const [form, setForm] = useState({ name: '', sex: '', birth: '', tel: '' })
   const [confirm, setConfirm] = useState(false)
-  const birthOk = form.birth.replace(/\D/g, '').length === 8
+  const birthTyped = form.birth.replace(/\D/g, '').length === 8 // 8자리는 다 쳤다
+  const birthOk = birthDateValid(form.birth)                     // 실제 있는 날짜인가
   const telOk = form.tel.replace(/\D/g, '').length >= 9
   const newReady = !!form.name && !!form.sex && birthOk && telOk
 
@@ -618,7 +633,11 @@ function RegisterBody() {
             placeholder="예) 19551203"
             className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm tabular-nums outline-none focus:border-ring focus:ring-2 focus:ring-ring/40"
           />
-          <p className="mt-1 text-[0.7rem] text-muted-foreground">숫자 8자리만 치면 됩니다</p>
+          {birthTyped && !birthOk ? (
+            <p className="mt-1 text-[0.7rem] text-rose-600">생년월일을 다시 확인해 주세요 (예: 1955년 12월 3일 → 19551203)</p>
+          ) : (
+            <p className="mt-1 text-[0.7rem] text-muted-foreground">숫자 8자리만 치면 됩니다</p>
+          )}
         </div>
       </div>
       <div>

@@ -76,6 +76,24 @@ test('[SHELL-DOOR-03] 신원 폼을 확인창으로 확인하면 그대로 서�
   expect(sent[0]).toEqual({ name: '이신규', gender: '여', birth_date: '1975-08-20', phone: '01055556666' })
 })
 
+test('[SHELL-DOOR-03] 실제로 없는 날짜(월 53 등)는 등록 전에 막고 알려준다 — 서버로 보내 일반 오류로 튕기지 않는다', async () => {
+  const user = userEvent.setup()
+  const sent: unknown[] = []
+  seedNoDuplicate((body) => sent.push(body))
+  renderShell()
+
+  await user.click(screen.getByRole('button', { name: '등록' }))
+  await user.type(screen.getByLabelText('이름'), '이신규')
+  await user.click(screen.getByRole('button', { name: '남' }))
+  await user.type(screen.getByLabelText('생년월일'), '19195310') // 월 53 = 없는 날짜
+  await user.type(screen.getByLabelText('전화번호'), '01055556666')
+
+  // 콕 집어 알려준다(막다른 길 금지) + [새 환자 등록]은 눌리지 않는다.
+  expect(screen.getByText(/생년월일을 다시 확인/)).toBeVisible()
+  expect(screen.getByRole('button', { name: '새 환자 등록' })).toBeDisabled()
+  expect(sent).toHaveLength(0)
+})
+
 test('[SHELL-DOOR-05] 등록을 마치면 막다른 길이 아니라 [예약 잡기]·[바로 접수]로 이어진다', async () => {
   const user = userEvent.setup()
   seedNoDuplicate()
