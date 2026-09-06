@@ -39,6 +39,25 @@ async def test_approve_chunks_and_embeds(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_approve_empty_content_is_rejected_before_embedding(committed_conn):
+    # 빈 내용 승인은 OpenAI가 "input cannot be an empty string"(400)으로 거부해 승인이 502로 실패했었다.
+    # 이제 임베딩 호출 전에 명확한 안내(AppError 400)로 막고, 문서는 draft로 남는다.
+    from app.core.errors import AppError
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, created_by) "
+        "values ('','   ','draft',$1) returning id", st["staff_id"])
+    with pytest.raises(AppError) as ei:
+        await kb_service.approve_document(doc, FakeEmbedder())
+    assert ei.value.status_code == 400
+    status = await committed_conn.fetchval("select status from kb_documents where id=$1", doc)
+    n = await committed_conn.fetchval("select count(*) from kb_chunks where document_id=$1", doc)
+    assert status == "draft" and n == 0   # 승인 안 됨 + 조각도 안 생김(트랜잭션 롤백)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
 async def test_edit_stays_pending_until_approved(committed_conn):
     st = await seed_staff(committed_conn, role="admin")
     doc = await committed_conn.fetchval(

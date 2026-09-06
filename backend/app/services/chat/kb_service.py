@@ -24,6 +24,10 @@ async def _reembed(conn, doc_id: UUID, content: str, embedder) -> None:
     # 옛 조각 삭제 + 새 조각 삽입을 같은 트랜잭션에서. 실패하면 옛 조각·옛 답 유지(A2).
     # ⭐ 임베딩 텍스트에는 제목을 함께 넣는다(저장 content는 본문만) — 짧은 외래어 질의('주차','와이파이')가
     #   제목과 정렬돼 유사도가 오른다(2026-09-04 실측 +0.02~0.12). 검색·표시는 본문 그대로.
+    # 빈 내용은 OpenAI 임베딩이 "input cannot be an empty string"(400)으로 거부해 승인이 502로 실패한다.
+    # 애초에 근거로 쓸 내용이 없으므로, 호출 전에 명확한 안내로 막는다(트랜잭션째 롤백 → 승인 안 됨).
+    if not content.strip():
+        raise AppError("안내 내용이 비어 있어요. 내용을 입력한 뒤 다시 시도해 주세요.", 400)
     title = await conn.fetchval("select title from kb_documents where id=$1", doc_id)
     chunks = chunk_text(content)
     embed_texts = [f"{title}\n{c}" if title else c for c in chunks]
