@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -14,6 +15,12 @@ from app.services.slot_service import book_slot
 # 전화예약 길이의 안전망 — resolve_day가 요일 규칙이 아닌 경로(의사별 예외 override)로
 # 그 날을 열어 주면 slot_duration_minutes가 없을 수 있다. 그때만 쓰는 기본 진료 길이(분).
 _DEFAULT_SLOT_MINUTES = 15
+
+# ⭐ 병원 시간대. start_at은 화면이 `toISOString()`으로 보내 **UTC(Z)**로 도착한다.
+#    asyncpg/Pydantic이 준 datetime의 `.date()`·`.time()`은 그대로 쓰면 **UTC 벽시계**라
+#    14:40 KST가 05:40으로 읽혀 진료시간(09~18) 밖으로 잘못 걸린다 — 반드시 KST로 환산해서 판정한다.
+#    (날짜·5분스냅은 DB 캐스트/오프셋 무관이라 기존 그대로 둔다.)
+_HOSPITAL_TZ = ZoneInfo("Asia/Seoul")
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
     "예약신청": {"예약확정", "환자취소", "병원취소"},
@@ -325,11 +332,16 @@ async def create_phone_appointment(
                 f"예약은 지금부터 {window_weeks}주 뒤까지만 잡을 수 있습니다.", status_code=400
             )
 
+        # ── 병원 벽시계로 환산(위 _HOSPITAL_TZ 주석) — 날짜·요일·시각 판정은 전부 이 값으로 ──
+        #    오프셋이 붙은 값(화면의 UTC)만 환산한다. 오프셋 없는 값(전화·상담봇이 병원 벽시계로
+        #    보내는 naive)은 이미 KST 벽시계이므로 그대로 쓴다(이중 환산 방지).
+        local_start = start_at.astimezone(_HOSPITAL_TZ) if start_at.tzinfo is not None else start_at
+
         # ── 닫힌 시간(SCHED-SLOT-11) — resolve_day가 유일 판정기, 화면·상담봇과 같은 답 ──
-        sched = await resolve_day(c, doctor_id, start_at.date())
+        sched = await resolve_day(c, doctor_id, local_start.date())
         if not sched.is_open:
             raise AppError("그 날은 진료하지 않습니다.", status_code=400)
-        t = start_at.time()
+        t = local_start.time()
         if sched.start is not None and sched.end is not None and not (sched.start <= t < sched.end):
             raise AppError("진료 시간 밖에는 예약을 잡을 수 없습니다.", status_code=400)
         if sched.lunch is not None and sched.lunch[0] <= t < sched.lunch[1]:
@@ -338,7 +350,7 @@ async def create_phone_appointment(
         # ── 길이 = 의사별 slot_duration_minutes(CAL-TIME-09) ──
         duration = await c.fetchval(
             "select slot_duration_minutes from doctor_schedule_rules where doctor_id = $1 and weekday = $2",
-            doctor_id, start_at.date().weekday(),
+            doctor_id, local_start.date().weekday(),
         )
         end_at = start_at + timedelta(minutes=duration or _DEFAULT_SLOT_MINUTES)
 

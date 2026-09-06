@@ -167,14 +167,31 @@ async def test_점심시간에는_예약을_만들_수_없다(db_conn):
     """[SCHED-SLOT-11][CAL-SLOT-08·09] 점심은 「예약을 못 잡는 구간」이다 — resolve_day가 판정한다."""
     ctx = await _seed(db_conn)
     at = _future5(hours=3)
-    lunch_start = at.time().replace(minute=at.time().minute - at.time().minute % 5, second=0, microsecond=0)
+    # 점심 판정은 병원 시각(KST)으로 이뤄진다(create_phone_appointment가 start_at을 KST로 환산해 잰다) —
+    # 규칙도 KST 벽시계로 심어야 검사와 같은 시간대가 된다. UTC로 심으면 9시간 어긋나 안 걸린다.
+    local = at.astimezone(ZoneInfo("Asia/Seoul"))
+    lunch_start = local.time().replace(second=0, microsecond=0)
     await _set_rule(
-        db_conn, ctx["doctor_id"], at.date(),
-        lunch=(lunch_start, (datetime.combine(at.date(), lunch_start) + timedelta(minutes=30)).time()),
+        db_conn, ctx["doctor_id"], local.date(),
+        lunch=(lunch_start, (datetime.combine(local.date(), lunch_start) + timedelta(minutes=30)).time()),
     )
     with pytest.raises(AppError) as exc:
         await _book(db_conn, ctx, at, open_day=False)
     assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_병원시간대로_판정한다_UTC오후는_진료시간_안이다(db_conn):
+    """[SCHED-SLOT-11][회귀] 화면은 14:40(KST)을 `toISOString()`으로 05:40Z로 보낸다.
+    이 05:40을 UTC 벽시계로 그대로 재면 진료시간(09~18) 밖으로 잘못 걸린다 —
+    반드시 KST로 환산해 재야 한다(데모에서 정하은 선생님 14:40이 이 버그로 막혔다)."""
+    ctx = await _seed(db_conn)
+    # 다음 주 같은 요일 14:40 KST(= 05:40Z). 그 요일 규칙은 09~18로 연다.
+    day = (await db_conn.fetchval("select (current_date + interval '7 days')::date"))
+    at = datetime.combine(day, time(14, 40), tzinfo=ZoneInfo("Asia/Seoul"))
+    await _set_rule(db_conn, ctx["doctor_id"], day, start=time(9, 0), end=time(18, 0))
+    appt_id = await _book(db_conn, ctx, at, open_day=False)
+    assert appt_id is not None
 
 
 @pytest.mark.asyncio
