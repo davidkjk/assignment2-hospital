@@ -6,7 +6,10 @@ import 'package:hospital_patient_app/core/connectivity.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/appointment/appointment_detail.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
+import 'package:hospital_patient_app/features/questionnaire/questionnaire_repository.dart';
 import 'package:hospital_patient_app/widgets/app_shell.dart'; // 오프라인 띠는 전역 셸이 얹는다(NAV-GLOBAL-01)
+
+import '../../support/fake_qnr_repo.dart';
 
 /// 상세 화면 한 벌을 만든다. 서버 판정(상태·문진상태·방문이유 등)은 fixture가 정해 주입한다 —
 /// 앱은 판정하지 않고 받은 값을 그린다.
@@ -110,6 +113,7 @@ class DetailHarness {
           appointmentDetailProvider('a1').overrideWith((ref) async => fixture),
           connectivityProvider.overrideWith((ref) => Stream.value(online)),
           detailActionProvider('a1').overrideWith((ref) => action),
+          questionnaireRepositoryProvider.overrideWithValue(FakeQnrRepo()),
         ],
         child: MaterialApp.router(theme: AppTheme.theme, routerConfig: router),
       );

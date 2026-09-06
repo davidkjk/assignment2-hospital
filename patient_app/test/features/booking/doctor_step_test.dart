@@ -5,6 +5,7 @@ import 'package:hospital_patient_app/core/tokens.dart';
 import 'package:hospital_patient_app/features/booking/booking_controller.dart';
 import 'package:hospital_patient_app/features/booking/catalog_repository.dart';
 import 'package:hospital_patient_app/features/booking/steps/doctor_step.dart';
+import 'package:hospital_patient_app/widgets/doctor_avatar.dart';
 import 'booking_test_support.dart';
 
 Future<ProviderContainer> pumpDoctor(WidgetTester t,
@@ -20,7 +21,9 @@ Future<ProviderContainer> pumpDoctor(WidgetTester t,
 void main() {
   testWidgets('[BOOK-DOC-02][BOOK-DOC-03] 사진 원형 + 이름/진료시간/분야 세 줄', (t) async {
     await pumpDoctor(t, docs: const [kDocPhoto]);
-    expect(find.byType(CircleAvatar), findsOneWidget);
+    // 사진이 있는 의사 아바타는 얼굴 잘림 방지로 CircleAvatar 대신 원형 DecorationImage(Container)로
+    // 그린다(DoctorAvatar, BOOK-DOC-02·05). 아바타 위젯 자체의 존재로 확인한다.
+    expect(find.byType(DoctorAvatar), findsOneWidget);
     expect(find.text('김의사'), findsOneWidget);
     expect(find.text('월·수·금 오전'), findsOneWidget); // 갭 #9 서버 요약을 그대로 표시
     expect(find.text('소화기내과'), findsOneWidget); // 갭 #7 전공

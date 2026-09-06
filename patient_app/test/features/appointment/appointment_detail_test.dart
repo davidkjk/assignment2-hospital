@@ -83,9 +83,10 @@ void main() {
     expect(find.text('오른쪽 무릎이 아파요'), findsOneWidget);
   });
 
-  testWidgets('[APPT-INFO-04][NAV-APPT-19] 장소 주소를 누르면 지도 앱', (t) async {
+  testWidgets('[APPT-INFO-04][NAV-APPT-19] 장소의 「지도 앱으로 길 찾기」를 누르면 지도 앱', (t) async {
     await pumpDetail(t, detail: detail(address: '서울 강남'));
-    await t.tap(find.text('서울 강남'));
+    // #17(2026-09-05): 주소는 복사용 SelectableText로 바뀌고, 지도 열기는 별도 링크로 분리됐다.
+    await t.tap(find.text('지도 앱으로 길 찾기'));
     await t.pump();
     expect(lastMap, '서울 강남');
   });

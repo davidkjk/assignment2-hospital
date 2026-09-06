@@ -14,7 +14,7 @@ import 'package:hospital_patient_app/widgets/empty_state.dart';
 import 'package:hospital_patient_app/widgets/offline_banner.dart';
 import 'package:hospital_patient_app/widgets/app_shell.dart';
 
-AppointmentView _view(String status, {String id = 'a'}) => AppointmentView.fromJson({
+AppointmentView _view(String status, {String id = 'a', String? slotDate}) => AppointmentView.fromJson({
       'id': id,
       'status': status,
       'for_patient_name': '본인',
@@ -23,9 +23,16 @@ AppointmentView _view(String status, {String id = 'a'}) => AppointmentView.fromJ
       'doctor_name': '이의사',
       'booking_code': 'A',
       'has_questionnaire': false,
-      'slot_date': '2026-09-01',
+      'slot_date': slotDate ?? '2026-09-01',
       'start_time': '10:00',
     });
+
+/// '예약신청'이 req(확인 중) 상태로 남으려면 slot이 '지금'보다 미래여야 한다(과거면 grace 초과→unconf).
+/// 화면이 실제 DateTime.now()를 쓰므로 고정 날짜는 시간이 지나면 썩는다 → now 기준으로 만든다.
+String _futureSlotDate() {
+  final d = DateTime.now().add(const Duration(days: 3));
+  return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
 
 class _SpyRealtime implements UpcomingRealtime {
   final _ctl = StreamController<void>.broadcast();
@@ -140,7 +147,8 @@ void main() {
 
   testWidgets('[LIST-REFRESH-03] 실시간 이벤트가 오면 재조회해 「확인 중」이 저절로 사라진다', (t) async {
     final sub = _SpyRealtime();
-    var current = [_view('예약신청')];
+    final slot = _futureSlotDate(); // 미래 slot이라야 '예약신청'이 req(확인 중)에 머문다
+    var current = [_view('예약신청', slotDate: slot)];
     final scope = ProviderScope(
       overrides: [
         connectivityProvider.overrideWith((ref) => Stream.value(true)),
@@ -152,7 +160,7 @@ void main() {
     await t.pumpWidget(scope);
     await t.pumpAndSettle();
     expect(find.text('확인 중'), findsOneWidget);
-    current = [_view('예약확정')]; // 병원이 승인
+    current = [_view('예약확정', slotDate: slot)]; // 병원이 승인
     sub.fire(); // 실시간 이벤트 = invalidate → 재조회
     await t.pumpAndSettle();
     expect(find.text('확인 중'), findsNothing); // 저절로 사라짐(A등급)

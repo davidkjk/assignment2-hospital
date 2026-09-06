@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
 import 'package:hospital_patient_app/core/connectivity.dart';
+import 'package:hospital_patient_app/core/providers.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/settings/notification_prefs_repository.dart';
 import 'package:hospital_patient_app/features/settings/notification_settings_screen.dart';
 
 import 'harness.dart';
+
+/// #38 광고 수신동의는 화면이 뜰 때 apiClientProvider(→Supabase.instance)를 타고 GET /patient/me를
+/// 부른다. 위젯 테스트에서 실제 Supabase·네트워크를 타지 않게 얇은 가짜로 갈아끼운다 — ads_consent는
+/// 꺼짐으로 응답한다(이 화면 테스트는 6토글·중요알림 UI를 보지 광고 토글 값을 보지 않는다).
+class _FakeAdsApi extends Fake implements ApiClient {
+  @override
+  Future<T> get<T>(String path, T Function(dynamic) parse, {Map<String, String>? query}) async =>
+      parse({'ads_consent': false});
+  @override
+  Future<T> patch<T>(String path, Map<String, dynamic> body, T Function(dynamic) parse) async =>
+      parse({'ads_consent': body['agreed'] == true});
+}
 
 // ── 컨트롤러 단위(SET-NOTI-12·13·14) ──
 void main() {
@@ -45,6 +59,7 @@ void main() {
       {bool offline = false}) async {
     final container = ProviderContainer(overrides: [
       notificationPrefsRepositoryProvider.overrideWithValue(api),
+      apiClientProvider.overrideWithValue(_FakeAdsApi()),
       if (offline) connectivityProvider.overrideWith((ref) => Stream.value(false)),
     ]);
     addTearDown(container.dispose);
@@ -60,7 +75,12 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('예약에 관한 알림'), findsOneWidget);
     expect(find.text('그 밖의 알림'), findsOneWidget);
-    expect(find.byType(SwitchListTile), findsNWidgets(6));
+    // #38: 광고 수신동의 토글(switch-ads-consent)이 별도로 하나 더 있다 — 「6토글」은 알림 6묶음을
+    // 뜻하므로 광고 토글은 제외하고 센다(광고는 정보성 알림과 별개 창구).
+    expect(find.byKey(const Key('switch-ads-consent')), findsOneWidget);
+    final notiToggles = find.byWidgetPredicate(
+        (w) => w is SwitchListTile && w.key != const Key('switch-ads-consent'));
+    expect(notiToggles, findsNWidgets(6));
     expect(find.textContaining('문자로도 받기'), findsNothing);
     expect(find.textContaining('받는 방법'), findsNothing);
   });

@@ -10,6 +10,9 @@ import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/family/family_repository.dart';
 import 'package:hospital_patient_app/features/history/history_repository.dart';
 import 'package:hospital_patient_app/features/history/history_screen.dart';
+import 'package:hospital_patient_app/features/questionnaire/questionnaire_repository.dart';
+
+import '../../support/fake_qnr_repo.dart';
 
 VisitHistoryEntry _e(VisitStatus s, DateTime d, {required String id, String? notes, bool qnr = false}) =>
     VisitHistoryEntry(
@@ -71,6 +74,8 @@ Future<void> _pumpDeeplink(
       historyProvider.overrideWith(() => _FakeHistoryByPatient(history, chips, online: online)),
       appointmentDetailProvider.overrideWith((ref, id) async =>
           ownerPatientId == null ? null : AppointmentDetail(view: _av(id), forPatientId: ownerPatientId)),
+      // 펼침 문진 표가 Supabase.instance를 타지 않게 가짜 저장소를 끼운다(로딩 상태에 머문다).
+      questionnaireRepositoryProvider.overrideWithValue(FakeQnrRepo()),
     ],
     child: MaterialApp.router(theme: AppTheme.theme, routerConfig: router),
   ));

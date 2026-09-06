@@ -5,12 +5,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/appointment/detail_sections.dart' show QnrTable;
 import 'package:hospital_patient_app/features/history/history_repository.dart';
 import 'package:hospital_patient_app/features/history/history_row_detail.dart';
+import 'package:hospital_patient_app/features/questionnaire/questionnaire_repository.dart';
+
+import '../../support/fake_qnr_repo.dart';
 
 VisitHistoryEntry _e(VisitStatus s, {String? notes, bool qnr = false}) => VisitHistoryEntry(
       id: 'ap1', status: s, slotDate: DateTime(2026, 8, 3), departmentName: '내과', doctorName: '이의사',
       patientVisibleNotes: notes, hasQuestionnaire: qnr, isSelf: true);
 
-Widget _host(Widget w) => ProviderScope(child: MaterialApp(home: Scaffold(body: w)));
+// 펼침 문진 표가 Supabase.instance를 타지 않게 가짜 저장소를 끼운다(로딩 상태에 머문다).
+Widget _host(Widget w) => ProviderScope(
+      overrides: [questionnaireRepositoryProvider.overrideWithValue(FakeQnrRepo())],
+      child: MaterialApp(home: Scaffold(body: w)),
+    );
 
 void main() {
   testWidgets('[HIST-NOTE-01] 진료완료 줄 펼침 = 그 자리에 「병원 안내」 제목 + 본문', (t) async {
