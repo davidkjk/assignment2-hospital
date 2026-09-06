@@ -18,6 +18,10 @@ import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
+    // FCM 푸시 — flutterfire configure가 넣는 google-services 플러그인. android/는 재생성되므로
+    //   여기(패처가 다시 쓰는 plugins 블록)에 함께 심어 재현 가능하게 한다. settings.gradle.kts의
+    //   `apply false` 선언은 patch_firebase.py가 심는다.
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }

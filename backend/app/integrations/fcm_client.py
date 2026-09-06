@@ -15,6 +15,8 @@ _OAUTH_URL = "https://oauth2.googleapis.com/token"
 _SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 # 죽은 토큰으로 보는 오류 status — 그 device_tokens 줄을 지운다(SEND-RESULT-03b).
 _DEAD_STATUSES = {"UNREGISTERED", "NOT_FOUND"}
+# 푸시 알림 제목 — 본문(body)만 있으면 기기가 앱 이름을 제목으로 쓴다. 병원명을 제목으로 고정한다.
+_PUSH_TITLE = "가온병원"
 
 
 class FcmClient:
@@ -34,7 +36,8 @@ class FcmClient:
             resp = self._http.post(
                 url,
                 headers={"Authorization": f"Bearer {self._token_provider()}"},
-                json={"message": {"token": token, "notification": {"body": body}}},
+                json={"message": {"token": token,
+                                   "notification": {"title": _PUSH_TITLE, "body": body}}},
             )
         except httpx.TransportError:
             return None  # 일시 오류 — 문자로 폴백(토큰은 살려 둔다)

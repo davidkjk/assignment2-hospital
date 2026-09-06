@@ -24,6 +24,7 @@ dependencies:
   screen_brightness: ^2.1.2
   uuid: ^4.4.0
   flutter_svg: ^2.0.10 # 브랜드 로고(Phosphor Hospital) 벡터 — 데모·직원웹과 정확 일치
+  flutter_local_notifications: ^22.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

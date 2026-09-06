@@ -33,6 +33,8 @@ def test_send_posts_to_fcm_v1_and_returns_message_name():
     assert seen["auth"] == "Bearer ACCESS"
     assert seen["body"]["message"]["token"] == "device-tok"
     assert seen["body"]["message"]["notification"]["body"] == "예약이 확정됐습니다"
+    # [FCM-TITLE] 제목은 병원명으로 고정(본문만 있으면 기기가 앱 이름을 제목으로 쓴다).
+    assert seen["body"]["message"]["notification"]["title"] == "가온병원"
     assert name == "projects/proj-1/messages/0:123"
 
 

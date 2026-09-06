@@ -1,11 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/providers.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'features/auth/auth_state.dart';
+import 'features/settings/logout_confirm.dart' show pushServiceProvider;
 
-class PatientApp extends StatelessWidget {
+class PatientApp extends ConsumerWidget {
   const PatientApp({super.key});
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 로그인·회원가입·앱 재시작(자동 로그인)으로 인증이 signedIn이 되면 FCM 토큰을 등록한다.
+    // (로그아웃·탈퇴의 unregister는 SET-OUT-08·SET-QUIT-23에서 별도로 처리한다.)
+    // init/registerToken은 여러 번 불려도 무해하다(서버 on conflict, 리스너 1회 배선).
+    ref.listen(authStateChangesProvider, (prev, next) {
+      if (next.value?.status == AuthStatus.signedIn) {
+        final push = ref.read(pushServiceProvider);
+        push.init();
+        push.registerToken();
+      }
+    });
     return MaterialApp.router(
       title: '병원 앱',
       theme: AppTheme.theme,

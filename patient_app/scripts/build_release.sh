@@ -36,6 +36,11 @@ else
   echo "⚠ key.properties 없음 — debug 키로 서명(검증 빌드용). 배포 산출물은 RELEASE.md대로 keystore를 준비하세요."
 fi
 
+# ③.5 FCM 푸시 네이티브 설정 심기(설정 파일 복사 + iOS 엔타이틀먼트 + settings.gradle 플러그인).
+#     정본은 firebase/ 안의 3파일. android/ios가 재생성되므로 매번 다시 심는다(멱등).
+echo "▶ Firebase 푸시 설정 심기 …"
+python3 tool/patch_firebase.py
+
 # ④ 런처 아이콘 생성(android/ios 리소스).
 echo "▶ 런처 아이콘 생성 …"
 flutter pub get
