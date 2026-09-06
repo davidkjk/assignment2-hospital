@@ -52,6 +52,7 @@ async def save_questionnaire(appointment_id: UUID, body: SaveQuestionnaireReques
 
 
 @router.get("/history")
-async def visit_history(for_patient_id: UUID, cursor: str | None = None, limit: int = 20,
+async def visit_history(for_patient_id: UUID | None = None, cursor: str | None = None, limit: int = 20,
                         patient: PatientContext = Depends(get_current_patient)) -> dict:
+    # for_patient_id 생략 = 「전체」 이력(본인+활성 가족을 서버가 병합, 소유자 이름·키셋 페이지 포함).
     return await patient_history_service.list_visit_history(patient, for_patient_id, cursor, limit)
