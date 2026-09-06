@@ -2,5 +2,8 @@
 # 백업 크론 잡(app.jobs.backup)이 pg_dump를 호출하는데,
 # 기본 NIXPACKS 파이썬 이미지에는 postgresql 클라이언트가 없어 배포 컨테이너에서
 # pg_dump를 찾지 못한다. 배포 계획 Task 16 Step 2 주석대로 여기서 설치한다.
+# ⚠️ pg_dump 버전은 Supabase 서버 메이저 이상이어야 한다(pg_dump는 자기보다 새 서버를 덤프 못 함).
+#    2026-09-05: Supabase가 PG17로 올라가 postgresql_16(pg_dump 16.4)이 "server version mismatch(17.6)"로
+#    백업 크론이 매일 실패했다 → postgresql_17로 상향. (Supabase 메이저 업그레이드 시 여기도 함께 올릴 것.)
 [phases.setup]
-nixPkgs = ["...", "postgresql_16"]
+nixPkgs = ["...", "postgresql_17"]
