@@ -217,6 +217,7 @@ export function FamilyLinkPanel({ accountPatientId, onDone }: FamilyLinkPanelPro
         {selectedSummary}
         <p style={styles.hint}>
           <b style={styles.strong}>{selected?.masked_phone}</b> 로 인증번호를 보냈습니다. 대상자 휴대폰에 온 6자리를 입력하세요.
+          {' '}인증번호는 <b style={styles.strong}>5분</b> 안에 입력해 주세요. 시간이 지났으면 <b style={styles.strong}>다시 받기</b>를 누르세요.
         </p>
         <label style={styles.field}>
           인증번호
