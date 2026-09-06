@@ -124,7 +124,11 @@ async def enqueue_send(staff: StaffContext, *, kind: str, recipients_spec: dict,
     if conn is not None:
         return await _enqueue_on_conn(staff, conn, kind=kind, recipients_spec=recipients_spec,
                                       channel=channel, body=body, scheduled_at=scheduled_at)
-    async with acquire_as(str(staff.auth_user_id)) as c, c.transaction():
+    # notification_log·scheduled_notifications 쓰기는 서비스 역할(RLS 우회)로만 — 00011 설계.
+    # 직원 세션(acquire_as=authenticated)엔 이 테이블 INSERT/UPDATE 정책이 없어 RLS 위반 500이 났다
+    # (2026-09-05 라이브 발견). 권한은 위 _require_roles(접수·관리자)가 이미 막고, 예약발송·콜백과 같은 서버 주체 경로다.
+    pool = await get_pool()
+    async with pool.acquire() as c, c.transaction():
         return await _enqueue_on_conn(staff, c, kind=kind, recipients_spec=recipients_spec,
                                       channel=channel, body=body, scheduled_at=scheduled_at)
 
@@ -228,7 +232,11 @@ async def cancel_scheduled(staff: StaffContext, scheduled_id, expected_status: s
     _require_roles(staff, "receptionist", "admin")
     if conn is not None:
         return await _cancel_on_conn(staff, conn, scheduled_id)
-    async with acquire_as(str(staff.auth_user_id)) as c, c.transaction():
+    # notification_log·scheduled_notifications 쓰기는 서비스 역할(RLS 우회)로만 — 00011 설계.
+    # 직원 세션(acquire_as=authenticated)엔 이 테이블 INSERT/UPDATE 정책이 없어 RLS 위반 500이 났다
+    # (2026-09-05 라이브 발견). 권한은 위 _require_roles(접수·관리자)가 이미 막고, 예약발송·콜백과 같은 서버 주체 경로다.
+    pool = await get_pool()
+    async with pool.acquire() as c, c.transaction():
         return await _cancel_on_conn(staff, c, scheduled_id)
 
 
@@ -317,7 +325,11 @@ async def mark_handled(staff: StaffContext, notification_id, conn=None) -> dict:
     _require_roles(staff, "receptionist", "admin")
     if conn is not None:
         return await _handled_on_conn(conn, notification_id)
-    async with acquire_as(str(staff.auth_user_id)) as c, c.transaction():
+    # notification_log·scheduled_notifications 쓰기는 서비스 역할(RLS 우회)로만 — 00011 설계.
+    # 직원 세션(acquire_as=authenticated)엔 이 테이블 INSERT/UPDATE 정책이 없어 RLS 위반 500이 났다
+    # (2026-09-05 라이브 발견). 권한은 위 _require_roles(접수·관리자)가 이미 막고, 예약발송·콜백과 같은 서버 주체 경로다.
+    pool = await get_pool()
+    async with pool.acquire() as c, c.transaction():
         return await _handled_on_conn(c, notification_id)
 
 
