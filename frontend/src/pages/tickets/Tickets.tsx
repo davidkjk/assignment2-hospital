@@ -59,7 +59,7 @@ export function Tickets({
   return (
     <StaffPage max="max-w-full" testid="staff-tickets" footer={false}>
       <div className="flex gap-4" style={{ height: 'calc(100vh - 11rem)' }}>
-        {/* 왼쪽: 상태 탭 + 접수순 목록. 탭바 윗선을 오른쪽 상세 카드의 테두리 윗선과 같은 높이로 맞춘다(top 패딩 없음). */}
+        {/* 왼쪽: 상태 탭 + 접수순 목록. 탭바는 왼쪽 위에만 단독으로 두고, 오른쪽 상세 카드 윗선은 아래 '문의 목록' 첫 카드에 맞춘다. */}
         <div className="flex w-96 shrink-0 flex-col">
           <Segmented
             options={inbox.tabs}
@@ -104,16 +104,20 @@ export function Tickets({
           </div>
         </div>
 
-        {/* 오른쪽: 상세 작업공간 (내용 = Task 17이 detailSlot으로 채운다) */}
-        <div
-          aria-label="상세 작업공간"
-          className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]"
-        >
-          {detailSlot ? (
-            detailSlot(selected, { backToList })
-          ) : (
-            <DefaultRightPane selected={selected} />
-          )}
+        {/* 오른쪽: 상세 작업공간 (내용 = Task 17이 detailSlot으로 채운다).
+            윗선을 왼쪽 '문의 목록' 첫 카드와 맞춘다 — 탭바(h-9=36px) 높이만큼 비우고 목록과 같은 mt-2 간격을 준다. */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div aria-hidden className="h-9 shrink-0" />
+          <div
+            aria-label="상세 작업공간"
+            className="mt-2 min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]"
+          >
+            {detailSlot ? (
+              detailSlot(selected, { backToList })
+            ) : (
+              <DefaultRightPane selected={selected} />
+            )}
+          </div>
         </div>
       </div>
     </StaffPage>

@@ -12,7 +12,7 @@ from uuid import UUID
 from app.core.dto import patient_row_dto
 from app.core.pagination import Page, paginate
 from app.core.security import StaffContext
-from app.core.patient_security import PatientContext
+from app.core.patient_security import PatientContext, list_accessible_patient_ids
 from app.db.pool import acquire_as
 
 # 방문/기록의 발생 시각: 슬롯이 있으면 슬롯 일시(KST), 없으면 생성 시각.
@@ -248,20 +248,27 @@ def _decode(cursor: str):
     return (d or None), aid
 
 
-async def list_visit_history(patient: PatientContext, for_patient_id: UUID,
+async def list_visit_history(patient: PatientContext, for_patient_id: UUID | None = None,
                              cursor: str | None = None, limit: int = 20) -> dict:
-    params = [for_patient_id]
+    # for_patient_id를 주면 그 한 사람, 생략하면 「전체」(본인+활성 가족) 이력을 한 번에 병합해 준다.
+    # ⭐ 전체 모드도 RLS에만 기대지 않고 접근 가능한 환자 id 집합으로 명시 필터한다 — 상태 필터가
+    #    넓어지면 RLS 서브쿼리가 병원 전체 행마다 돌아 느려지고(메모리 RLS-only 성능 함정), 명시
+    #    집합이 patient_owns()가 참인 범위와 정확히 같아 안전 경계도 그대로다(00017:82 정책).
+    owner_ids = [for_patient_id] if for_patient_id is not None \
+        else await list_accessible_patient_ids(patient)
+    params: list = [owner_ids]
     keyset = ""
     if cursor:
         cdate, cid = _decode(cursor)
         # cdate는 커서 문자열이라 date로 되돌린다($2::date에 asyncpg가 date 객체를 요구).
         params += [date.fromisoformat(cdate) if cdate else None, cid]
-        # (slot_date, id) 내림차순 keyset. 안정 동점키 = id(HIST-LIST 안정정렬).
+        # (slot_date, id) 내림차순 keyset — 병합셋 전체에 그대로 유효하다(전체 모드도 한 정렬키).
         keyset = "and (s.slot_date, a.id) < ($2::date, $3::uuid) "
     params.append(limit + 1)  # 다음 페이지 존재 여부 판정용 +1
-    async with acquire_as(str(patient.auth_user_id)) as conn:  # RLS가 소유 필터
+    async with acquire_as(str(patient.auth_user_id)) as conn:  # RLS가 소유 경계를 한 번 더 지킨다
         rows = await conn.fetch(
             "select a.id, a.status, s.slot_date, d.name as department_name, st.name as doctor_name, "
+            "  owner.name as owner_name, "                                                    # 전체 모드 소유자 라벨(#34)
             "  n.patient_visible_notes, "
             "  a.cancelled_by, a.cancelled_by_relation, a.cancelled_by_name, a.cancelled_at, "  # 갭 #11 이력분(HIST-ROW-02·03)
             "  (a.account_patient_id = a.for_patient_id) as is_self, "                           # HIST-ROW-02 본인/가족 갈래
@@ -272,9 +279,10 @@ async def list_visit_history(patient: PatientContext, for_patient_id: UUID,
             "from appointments a "
             "join departments d on d.id=a.department_id "
             "join staff st on st.id=a.doctor_id "
+            "join patients owner on owner.id=a.for_patient_id "
             "left join appointment_slots s on s.id=a.slot_id "
             "left join patient_medical_notes n on n.appointment_id=a.id "
-            f"where a.for_patient_id = $1 and {_HISTORY_WHERE} {keyset}"
+            f"where a.for_patient_id = any($1::uuid[]) and {_HISTORY_WHERE} {keyset}"
             "order by s.slot_date desc nulls last, a.id desc "
             f"limit ${len(params)}", *params)
     items = [dict(r) for r in rows]

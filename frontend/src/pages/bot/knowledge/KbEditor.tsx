@@ -30,6 +30,15 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [savedNote, setSavedNote] = useState(false)
+  const [usedCategories, setUsedCategories] = useState<string[]>([]) // DB 실사용 분류(콤보박스 추천)
+
+  // 실제로 쓰이는 분류를 서버에서 받아 콤보박스에 채운다(EDITOR-02) — 관리자가 만든 새 분류가
+  // 다른 자료 편집 때도 보이게. 실패하거나 옛 API면 표준 분류로 조용히 폴백한다.
+  useEffect(() => {
+    let alive = true
+    api.listCategories?.().then((c) => alive && setUsedCategories(c)).catch(() => {})
+    return () => { alive = false }
+  }, [api])
 
   const load = () => {
     setPhase('loading')
@@ -86,10 +95,15 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
 
   const excluded = EXCLUDED_CATEGORIES.includes(category as (typeof EXCLUDED_CATEGORIES)[number])
   const isApproved = detail?.status === 'approved'
-  // 현재 분류가 표준 목록에 없어도(예: 옛 자료) 선택지에 얹어 값을 잃지 않는다.
-  const categoryOptions = KB_CATEGORIES.includes(category as (typeof KB_CATEGORIES)[number])
-    ? [...KB_CATEGORIES]
-    : [category, ...KB_CATEGORIES]
+  // 콤보박스 추천 = 현재 분류(옛 자료라도 값 유지) ∪ DB 실사용 분류(제외 분류는 추천 안 함) ∪ 표준 분류.
+  // 제외 분류(진료과·의사 소개, 진료시간·휴진일)는 추천에서 뺀다 — 재승인 금지 대상이라(EDITOR-17).
+  const categoryOptions = [
+    ...new Set([
+      category,
+      ...usedCategories.filter((c) => !EXCLUDED_CATEGORIES.includes(c as (typeof EXCLUDED_CATEGORIES)[number])),
+      ...KB_CATEGORIES,
+    ]),
+  ].filter(Boolean)
 
   const save = () => {
     setSaving(true)

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { WebchatApp } from './WebchatApp';
+import { WebchatApp, matchesHostOrigin } from './WebchatApp';
 import type { WebchatApi } from '../api/webchatApi';
 import type { WebAuth } from '../auth/webAuth';
 import { clearAnonToken } from '../state/anonSession';
@@ -22,6 +22,25 @@ function fakeAuth(): WebAuth {
 }
 
 beforeEach(() => clearAnonToken());
+
+// origin 신뢰 규칙 — 배포 홈페이지 + 그 프로젝트의 Vercel 프리뷰까지 허용(프리뷰 스테이징서도 위젯이 열리게).
+describe('matchesHostOrigin', () => {
+  const PROD = 'https://gaonhospital-homepage.vercel.app';
+  test('hostOrigin 미설정(개발/단독)이면 아무 origin이나 신뢰한다', () => {
+    expect(matchesHostOrigin('https://anything.example.com', '')).toBe(true);
+  });
+  test('배포 홈페이지 origin은 정확히 일치로 신뢰한다', () => {
+    expect(matchesHostOrigin(PROD, PROD)).toBe(true);
+  });
+  test('같은 프로젝트의 Vercel 프리뷰 origin도 신뢰한다', () => {
+    expect(matchesHostOrigin('https://gaonhospital-homepage-git-merge-design-integration-iansoft.vercel.app', PROD)).toBe(true);
+  });
+  test('다른 프로젝트·임의 사이트는 막는다', () => {
+    expect(matchesHostOrigin('https://gaonhospital-webchat.vercel.app', PROD)).toBe(false);   // 다른 프로젝트
+    expect(matchesHostOrigin('https://evil.vercel.app', PROD)).toBe(false);                    // 남의 프리뷰 사칭 방지
+    expect(matchesHostOrigin('https://gaonhospital-homepage.evil.com', PROD)).toBe(false);     // vercel.app 아님
+  });
+});
 
 test('[iframe] 마운트 시 부모로 webchat:ready 를 통지한다', () => {
   const spy = vi.spyOn(window.parent, 'postMessage');

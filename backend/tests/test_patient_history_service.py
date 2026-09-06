@@ -275,3 +275,71 @@ async def test_history_paginates_20_with_cursor(committed_conn):
     assert len(first["items"]) == 20 and first["next_cursor"] is not None
     second = await h.list_visit_history(me, me.id, cursor=first["next_cursor"], limit=20)
     assert len(second["items"]) == 5 and second["next_cursor"] is None
+
+
+async def _past_for(committed_conn, account_id, for_id, dept, doctor_id, status, date_str):
+    """account/for를 따로 두는 예약(가족 예약: account=보호자, for=가족구성원)."""
+    slot = await committed_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1,$2,'09:00','예약됨') returning id", doctor_id, date.fromisoformat(date_str))
+    return await committed_conn.fetchval(
+        "insert into appointments (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source) "
+        "values ($1,$2,$3,$4,$5,$6,'app') returning id", slot, account_id, for_id, dept, doctor_id, status)
+
+
+async def _link_family(committed_conn, account_id, member_id, relation="자녀"):
+    await committed_conn.execute(
+        "insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) "
+        "values ($1,$2,$3,true)", account_id, member_id, relation)
+
+
+# ── #34 「전체」 이력(본인+가족 서버 병합) — for_patient_id 생략 모드 ──
+
+@pytest.mark.asyncio
+async def test_history_all_mode_merges_family_with_owner_name(committed_conn):
+    # for_patient_id를 생략하면 본인+활성 가족의 이력이 한 번에 오고, 각 줄에 소유자 이름이 실린다.
+    did, dept = await _seed_dd(committed_conn)
+    me = _ctx(await seed_patient_c(committed_conn, name="김본인"))
+    member = await seed_patient_c(committed_conn, name="김가족", phone="01099998888")
+    await _link_family(committed_conn, me.id, member["patient_id"])
+    await _past(committed_conn, me, dept, did, "진료완료", "2026-01-10")                          # 본인
+    await _past_for(committed_conn, me.id, member["patient_id"], dept, did, "진료완료", "2026-02-10")  # 가족(보호자가 예약)
+    res = await h.list_visit_history(me)  # for_patient_id 없음 = 전체
+    assert len(res["items"]) == 2
+    assert {i["owner_name"] for i in res["items"]} == {"김본인", "김가족"}
+    # 날짜 내림차순으로 병합: 02-10(가족) > 01-10(본인).
+    assert [i["owner_name"] for i in res["items"]] == ["김가족", "김본인"]
+
+
+@pytest.mark.asyncio
+async def test_history_all_mode_excludes_unlinked_stranger(committed_conn):
+    # ⭐ 안전 경계: 링크되지 않은 남의 이력은 전체 모드에 절대 들어오지 않는다(patient_owns 밖).
+    did, dept = await _seed_dd(committed_conn)
+    me = _ctx(await seed_patient_c(committed_conn, name="김본인"))
+    stranger = await seed_patient_c(committed_conn, name="남남", phone="01077776666")
+    await _past(committed_conn, me, dept, did, "진료완료", "2026-01-10")
+    await _past_for(committed_conn, stranger["patient_id"], stranger["patient_id"], dept, did, "진료완료", "2026-05-10")
+    res = await h.list_visit_history(me)
+    assert len(res["items"]) == 1
+    assert res["items"][0]["owner_name"] == "김본인"
+
+
+@pytest.mark.asyncio
+async def test_history_all_mode_paginates_across_members(committed_conn):
+    # 키셋 커서가 본인·가족을 합친 집합 전체를 가로질러 겹치지도 빠지지도 않는다.
+    did, dept = await _seed_dd(committed_conn)
+    me = _ctx(await seed_patient_c(committed_conn, name="김본인"))
+    member = await seed_patient_c(committed_conn, name="김가족", phone="01099998888")
+    await _link_family(committed_conn, me.id, member["patient_id"])
+    # 슬롯 유니크키=(doctor, slot_date, start_time)라 날짜가 겹치면 안 된다 — 본인은 2026-01,
+    # 가족은 2025-01로 날짜를 전부 다르게(그리고 본인>가족 순서가 되게) 준다.
+    for i in range(13):
+        await _past(committed_conn, me, dept, did, "진료완료", f"2026-01-{i+1:02d}")
+    for i in range(12):
+        await _past_for(committed_conn, me.id, member["patient_id"], dept, did, "진료완료", f"2025-01-{i+1:02d}")
+    first = await h.list_visit_history(me, limit=20)
+    assert len(first["items"]) == 20 and first["next_cursor"] is not None
+    second = await h.list_visit_history(me, cursor=first["next_cursor"], limit=20)
+    assert len(second["items"]) == 5 and second["next_cursor"] is None
+    ids = {i["id"] for i in first["items"]} | {i["id"] for i in second["items"]}
+    assert len(ids) == 25  # 13 + 12, 겹침 없음

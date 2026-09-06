@@ -68,6 +68,8 @@ export interface KbAdminApi {
   rejectEdit(id: string): Promise<void> // POST .../reject                  ⚠️ 계약 선언
   archiveDoc(id: string): Promise<void> // POST .../archive                 ⚠️ 계약 선언
   listRevisions(id: string): Promise<KbRevision[]> // GET .../revisions     ⚠️ 계약 선언
+  // 편집기 분류 콤보박스가 실사용 분류를 채우게 한다(EDITOR-02). 옵셔널 — 없으면 표준 분류로 폴백.
+  listCategories?(): Promise<string[]> // GET /admin/chat/kb/categories
 }
 
 /** 서버 응답(snake_case) — 매핑 전 원형. 프론트 어디에도 새 나가지 않는다. */
@@ -158,5 +160,8 @@ export const kbAdminApi: KbAdminApi = {
   async listRevisions(id) {
     const rows = await apiFetch<KbRevisionDto[]>(`/admin/chat/kb/${id}/revisions`)
     return rows.map(toRevision)
+  },
+  async listCategories() {
+    return await apiFetch<string[]>(`/admin/chat/kb/categories`)
   },
 }

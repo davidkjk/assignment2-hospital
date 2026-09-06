@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { KbEditor } from './KbEditor'
 import type { KbAdminApi, KbDetail } from '../../../api/kbAdmin'
@@ -43,6 +43,16 @@ describe('KbEditor', () => {
     const opts = Array.from(container.querySelectorAll('#kb-category-list option')).map((o) => (o as HTMLOptionElement).value)
     expect(opts).not.toContain('진료과·의사 소개')
     expect(opts).not.toContain('진료시간·휴진일')
+  })
+
+  it('[KBADM-EDITOR-02] 실사용 분류를 서버에서 받아 콤보박스 추천에 채운다(제외 분류는 빼고)', async () => {
+    // 관리자가 만든 새 분류가 다른 자료를 편집할 때도 추천에 뜬다 — 고정 상수가 아님.
+    const api = mkApi({ listCategories: vi.fn().mockResolvedValue(['예방접종 안내', '진료시간·휴진일']) })
+    const { container } = render(<KbEditor api={api} docId="d1" />)
+    await screen.findByLabelText('분류')
+    const opts = () => Array.from(container.querySelectorAll('#kb-category-list option')).map((o) => (o as HTMLOptionElement).value)
+    await waitFor(() => expect(opts()).toContain('예방접종 안내'))  // 서버가 준 실사용 분류가 뜬다
+    expect(opts()).not.toContain('진료시간·휴진일')                 // 제외 분류는 서버가 줘도 추천 안 함(EDITOR-17)
   })
 
   it('[KBADM-EDITOR-분류자유입력] 목록에 없는 새 분류명을 직접 입력해 저장할 수 있다', async () => {

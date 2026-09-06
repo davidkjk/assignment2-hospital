@@ -6,7 +6,7 @@ import type { MessageChannel, MessageKind } from '../../api/messages'
 const CHANNEL_OPTIONS: { value: MessageChannel; label: string }[] = [
   { value: 'push_sms', label: '앱 알림 + 못 받는 사람은 문자' },
   { value: 'push', label: '앱 알림만' },
-  { value: 'sms', label: '모두에게 문자도' },
+  { value: 'sms', label: '모두에게 문자' },
 ]
 
 interface Props {

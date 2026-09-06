@@ -50,11 +50,11 @@ test('[SEND-CH-01] 보내는 방법은 세 가지다', () => {
   expect(options.map((o) => o.textContent)).toEqual([
     '앱 알림 + 못 받는 사람은 문자',
     '앱 알림만',
-    '모두에게 문자도',
+    '모두에게 문자',
   ])
 })
 
-test('[SEND-CH-04] 「모두에게 문자도」를 고르면 문자 건수·비용이 그 자리에 보인다', async () => {
+test('[SEND-CH-04] 「모두에게 문자」를 고르면 문자 건수·비용이 그 자리에 보인다', async () => {
   const user = userEvent.setup()
   renderPanel({ mode: 'pick', patients: [{ id: 'p1', name: '김하나' }, { id: 'p2', name: '이두리' }] })
   await user.selectOptions(screen.getByLabelText('보내는 방법'), 'sms')
