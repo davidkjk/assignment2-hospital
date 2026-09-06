@@ -112,58 +112,11 @@ jobs:
         working-directory: patient_app
         run: flutter test $(find test -name '*_test.dart' ! -name '*_golden_test.dart')
 
-  # ── [배포 Task 17] CI 게이트 뒤 Vercel 자동 배포 ──────────────────────────
-  # 위 4개 테스트 job이 모두 초록이어야만(needs) 돈다 → 깨진 프론트가 배포되는 걸 막는 잠금.
-  # Vercel은 이 저장소에서 git 자동배포가 안 붙어(CLI 업로드 방식) 여기서 토큰으로 배포한다.
-  # ⭐ 무장 스위치: 저장소 변수 ENABLE_VERCEL_DEPLOY=true 일 때만 실행(토큰 준비 전엔 잠듦→빨간불 안 뜸).
-  #    준비 완료 후 켜기: gh variable set ENABLE_VERCEL_DEPLOY --body true
-  #    필요 시크릿:      gh secret set VERCEL_TOKEN   (Vercel 대시보드 발급 토큰, iansoft 팀 스코프)
-  # org/project ID는 비밀이 아닌 식별자라 여기 명시(.vercel/project.json은 gitignore라 CI에 없음).
-  # 배포 브랜치 = merge/design-integration (Railway 자동배포 브랜치와 동일). main 병합(Task 21) 후엔 ref 갱신.
-  deploy-frontend:
-    name: deploy frontend (Vercel)
-    needs: [backend, frontend, webchat, patient_app]
-    # always()로 needs 일부가 red여도 이 job 조건을 평가한다. 그 위에서:
-    #  · push: 테스트 4개가 전부 success일 때만 배포(진짜 게이트).
-    #  · workflow_dispatch(수동): 테스트 통과 여부와 무관하게 배포(의도적 수동 배포·토큰 검증).
-    # 둘 다 무장 스위치 ENABLE_VERCEL_DEPLOY=='true'가 있어야 한다.
-    if: >
-      always() && vars.ENABLE_VERCEL_DEPLOY == 'true' &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' &&
-         needs.backend.result == 'success' && needs.frontend.result == 'success' &&
-         needs.webchat.result == 'success' && needs.patient_app.result == 'success')
-      )
-    runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: team_kX5J1fZg4n17fjOrdA0TpFER
-      VERCEL_PROJECT_ID: prj_vWqgro6uOjUd0aGkZg74gLXCBo7T
-    steps:
-      - uses: actions/checkout@v4
-      - name: Vercel 프로덕션 배포 — 직원웹
-        run: npx vercel@59 deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --cwd frontend
-
-  deploy-webchat:
-    name: deploy webchat (Vercel)
-    needs: [backend, frontend, webchat, patient_app]
-    # always()로 needs 일부가 red여도 이 job 조건을 평가한다. 그 위에서:
-    #  · push: 테스트 4개가 전부 success일 때만 배포(진짜 게이트).
-    #  · workflow_dispatch(수동): 테스트 통과 여부와 무관하게 배포(의도적 수동 배포·토큰 검증).
-    # 둘 다 무장 스위치 ENABLE_VERCEL_DEPLOY=='true'가 있어야 한다.
-    if: >
-      always() && vars.ENABLE_VERCEL_DEPLOY == 'true' &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/merge/design-integration' &&
-         needs.backend.result == 'success' && needs.frontend.result == 'success' &&
-         needs.webchat.result == 'success' && needs.patient_app.result == 'success')
-      )
-    runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: team_kX5J1fZg4n17fjOrdA0TpFER
-      VERCEL_PROJECT_ID: prj_YytZWs90uMSPiBnbjtjMA32YsjLi
-    steps:
-      - uses: actions/checkout@v4
-      - name: Vercel 프로덕션 배포 — 상담봇 위젯
-        run: npx vercel@59 deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} --cwd webchat
+  # ── Vercel 배포는 git 자동연동이 담당(이 CI 잡은 제거, 2026-09-06) ──────────
+  # 2026-09-05에 3개 Vercel 프로젝트(staff·webchat·homepage)를 GitHub git 자동연동으로 전환했다
+  # (브랜치 push→프리뷰/스테이징 · main 병합→프로덕션). 그 뒤로 이 CLI 배포 잡은 중복이자 충돌이었다:
+  #   ① `vercel deploy --cwd frontend`가 프로젝트 Root Directory(=frontend)와 겹쳐 `frontend/frontend`
+  #      경로 오류로 실패했고(테스트 4개가 처음 다 초록이 되며 이 잡이 처음 실행돼 드러남),
+  #   ② `--prod`라 브랜치 push마다 프로덕션에 배포하려 해 위의 스테이징/프로덕션 분리와 어긋났다.
+  # → 배포는 Vercel git 자동연동에 맡기고 CI는 테스트 게이트만 담당한다(사용자 결정 2026-09-06).
+  #   (ENABLE_VERCEL_DEPLOY 변수·VERCEL_TOKEN 시크릿은 더 안 쓰인다 — 필요 시 정리 가능.)
