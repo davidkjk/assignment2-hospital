@@ -306,3 +306,142 @@ async def test_concurrent_deactivation_keeps_one_active_admin(db_pool):
             "select count(*) from staff where role = 'admin' and is_active"
         )
     assert active_admin_count == 1
+
+
+# ── 초대 이메일 실패 UX (STAFF-INVITE-06~09) ──────────────────────────────
+# 막다른 500 대신 원인별 안내를 주고, 고아 계정(auth엔 있으나 staff 행 없음)은 자동으로
+# 잇는다. 실제 DB를 건드리지 않도록(공용 시드 보호) SQL 문자열로 분기하는 최소 conn을 쓴다.
+
+
+class _FakeAuthError(Exception):
+    """Supabase AuthApiError를 흉내낸다 — .status/.code/.message를 갖는다."""
+
+    def __init__(self, message: str, status: int, code: str):
+        super().__init__(message)
+        self.message = message
+        self.status = status
+        self.code = code
+
+
+class _FakeConn:
+    def __init__(self, *, staff_exists: bool = False, new_staff_id=None, auth_user_id=None):
+        self._staff_exists = staff_exists
+        self._new_staff_id = new_staff_id
+        self._auth_user_id = auth_user_id
+        self.inserted = False
+
+    async def fetchval(self, sql, *args):
+        s = " ".join(sql.lower().split())
+        if "select auth_user_id from staff where id" in s:
+            return self._auth_user_id
+        if "from staff where auth_user_id" in s:
+            return 1 if self._staff_exists else None
+        if "generate_series" in s:  # _NEXT_COLOR_SQL (의사 색 배정)
+            return 3
+        if "insert into staff" in s:
+            self.inserted = True
+            return self._new_staff_id
+        return None
+
+
+def _admin_ctx() -> StaffContext:
+    return StaffContext(id=uuid4(), auth_user_id=uuid4(), role="admin", department_id=None)
+
+
+@pytest.mark.asyncio
+async def test_invite_rate_limit_gives_clear_message_not_500():
+    """[STAFF-INVITE-06] 발송 한도(429)는 막다른 500이 아니라 사람이 읽는 안내를 준다."""
+    admin = MagicMock()
+    admin.auth.admin.invite_user_by_email.side_effect = _FakeAuthError(
+        "email rate limit exceeded", 429, "over_email_send_rate_limit"
+    )
+    conn = _FakeConn(new_staff_id=uuid4())
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError) as ei:
+            await staff_service.invite_staff(
+                email="x@test.local", name="김", role="receptionist",
+                department_id=None, invited_by=_admin_ctx(), conn=conn,
+            )
+    assert ei.value.status_code == 429
+    assert "제한" in ei.value.message
+    assert not conn.inserted
+
+
+@pytest.mark.asyncio
+async def test_invite_already_registered_staff_tells_admin():
+    """[STAFF-INVITE-07] 이미 staff 행이 있는 이메일이면 '이미 등록된 직원' 안내(구제 아님)."""
+    existing = MagicMock()
+    existing.id = str(uuid4())
+    existing.email = "dup@test.local"
+    admin = MagicMock()
+    admin.auth.admin.invite_user_by_email.side_effect = _FakeAuthError(
+        "User already registered", 422, "email_exists"
+    )
+    admin.auth.admin.list_users.return_value = [existing]
+    conn = _FakeConn(staff_exists=True, new_staff_id=uuid4())
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError) as ei:
+            await staff_service.invite_staff(
+                email="dup@test.local", name="김", role="receptionist",
+                department_id=None, invited_by=_admin_ctx(), conn=conn,
+            )
+    assert ei.value.status_code == 409
+    assert "이미 등록된 직원" in ei.value.message
+    assert not conn.inserted
+
+
+@pytest.mark.asyncio
+async def test_invite_orphan_account_is_relinked_and_reinvited():
+    """[STAFF-INVITE-08] auth엔 있으나 staff 행이 없는 고아 계정 → 이어붙이고 초대 재발송."""
+    orphan = MagicMock()
+    orphan.id = str(uuid4())
+    orphan.email = "orphan@test.local"
+    admin = MagicMock()
+    admin.auth.admin.invite_user_by_email.side_effect = [
+        _FakeAuthError("User already registered", 422, "email_exists"),  # 첫 초대
+        MagicMock(),  # 구제 후 재발송 성공
+    ]
+    admin.auth.admin.list_users.return_value = [orphan]
+    new_id = uuid4()
+    conn = _FakeConn(staff_exists=False, new_staff_id=new_id)
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        staff_id = await staff_service.invite_staff(
+            email="orphan@test.local", name="김접수", role="receptionist",
+            department_id=None, invited_by=_admin_ctx(), conn=conn,
+        )
+    assert staff_id == new_id
+    assert conn.inserted
+    assert admin.auth.admin.invite_user_by_email.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_invite_unknown_error_still_bubbles_up():
+    """[STAFF-INVITE-09] 분류 안 되는 오류는 삼키지 않고 위로 던져 로그·추적이 남게 한다."""
+    admin = MagicMock()
+    admin.auth.admin.invite_user_by_email.side_effect = RuntimeError("network down")
+    conn = _FakeConn(new_staff_id=uuid4())
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(RuntimeError):
+            await staff_service.invite_staff(
+                email="x@test.local", name="김", role="receptionist",
+                department_id=None, invited_by=_admin_ctx(), conn=conn,
+            )
+    assert not conn.inserted
+
+
+@pytest.mark.asyncio
+async def test_resend_invite_rate_limit_gives_clear_message():
+    """[STAFF-INVITE-06] 재초대도 발송 한도(429)면 막다른 길 대신 안내를 준다."""
+    admin = MagicMock()
+    wrapped = MagicMock()
+    wrapped.user.email = "r@test.local"
+    admin.auth.admin.get_user_by_id.return_value = wrapped
+    admin.auth.admin.invite_user_by_email.side_effect = _FakeAuthError(
+        "rate", 429, "over_email_send_rate_limit"
+    )
+    conn = _FakeConn(auth_user_id=uuid4())
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError) as ei:
+            await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+    assert ei.value.status_code == 429
+    assert "제한" in ei.value.message

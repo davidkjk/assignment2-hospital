@@ -22,6 +22,130 @@ select coalesce(
 """
 
 
+def _send_invite_email(admin, email: str, redirect_to: str | None):
+    """초대 이메일 한 통. redirect_to가 있으면 초대 수락 링크가 그 직원웹 origin으로 돌아온다
+    (라우터가 요청 origin에서 계산). 없으면 옛 동작 그대로 Supabase Site URL로 폴백한다."""
+    if redirect_to:
+        return admin.auth.admin.invite_user_by_email(email, {"redirect_to": redirect_to})
+    return admin.auth.admin.invite_user_by_email(email)
+
+
+async def _create_staff_row(
+    auth_user_id: UUID,
+    name: str,
+    role: str,
+    department_id: UUID | None,
+    invited_by: StaffContext,
+    conn,
+) -> UUID:
+    """staff 행을 만든다(의사면 캘린더 색 자동 배정 — CAL-COLOR-08). invite_staff의 정상 경로와
+    고아 계정 구제 경로가 같은 삽입을 공유한다."""
+    async def _run(c):
+        color = await c.fetchval(_NEXT_COLOR_SQL) if role == "doctor" else None
+        return await c.fetchval(
+            """
+            insert into staff (auth_user_id, name, role, department_id, calendar_color_index)
+            values ($1, $2, $3, $4, $5)
+            returning id
+            """,
+            auth_user_id, name, role, department_id, color,
+        )
+
+    if conn is not None:
+        return await _run(conn)
+    async with acquire_as(str(invited_by.auth_user_id)) as c:
+        return await _run(c)
+
+
+def _find_auth_user_by_email(admin, email: str):
+    """auth.users에서 이메일로 계정을 찾는다. SDK에 이메일 단건 조회가 없어 목록에서 고른다
+    (20명 병원 규모라 목록 한 번으로 충분 — _auth_users_by_id와 같은 패턴). 초대가 '이미 있는
+    이메일'(422)을 던졌을 때 그 실제 계정을 되찾아 고아 여부를 판단하는 데 쓴다."""
+    result = admin.auth.admin.list_users()
+    users = getattr(result, "users", result)
+    target = (email or "").strip().lower()
+    for user in users:
+        if ((getattr(user, "email", None) or "").strip().lower()) == target:
+            return user
+    return None
+
+
+async def _staff_row_exists(auth_user_id: UUID, requested_by: StaffContext, conn) -> bool:
+    async def _run(c):
+        return await c.fetchval("select 1 from staff where auth_user_id = $1", auth_user_id)
+
+    if conn is not None:
+        return (await _run(conn)) is not None
+    async with acquire_as(str(requested_by.auth_user_id)) as c:
+        return (await _run(c)) is not None
+
+
+def _is_rate_limit_error(exc) -> bool:
+    status = getattr(exc, "status", None)
+    code = getattr(exc, "code", None)
+    return status == 429 or (isinstance(code, str) and code.endswith("rate_limit"))
+
+
+def _is_already_registered_error(exc) -> bool:
+    status = getattr(exc, "status", None)
+    code = getattr(exc, "code", None)
+    return status == 422 or code in ("email_exists", "user_already_exists")
+
+
+async def _recover_or_explain_invite_failure(
+    exc,
+    email: str,
+    name: str,
+    role: str,
+    department_id: UUID | None,
+    invited_by: StaffContext,
+    redirect_to: str | None,
+    conn,
+) -> UUID:
+    """초대 이메일 발송이 실패했을 때, 막다른 500 대신 원인을 사람 말로 돌려주고 고칠 수 있으면 잇는다.
+
+    - 발송 한도(429): 잠시 후 다시 안내(같은 시간에 여러 명을 초대하면 Supabase 이메일 서버가 잠깐 쉰다).
+    - 이미 있는 이메일(422): auth.users엔 있는데 staff 행이 없으면 = 이전 초대가 중간에 끊긴 '고아
+      계정' → staff 행을 이어붙이고 초대를 새로 보낸다(막다른 길 해소). 진짜 등록된 직원이면 그대로 안내.
+    - 그 밖의 알 수 없는 오류: 삼키지 않고 위로 던진다 — 전역 핸들러가 추적을 로그로 남기고 500을 낸다.
+    """
+    if _is_rate_limit_error(exc):
+        raise AppError(
+            "초대 이메일 발송이 잠시 제한되었습니다. 같은 시간에 여러 명을 초대하면 이메일 서버가 "
+            "잠깐 쉬어야 합니다. 몇 분 뒤 다시 시도해 주세요.",
+            status_code=429,
+        ) from exc
+
+    if _is_already_registered_error(exc):
+        admin = get_admin_client()
+        existing = _find_auth_user_by_email(admin, email)
+        if existing is not None and getattr(existing, "id", None):
+            existing_id = UUID(str(existing.id))
+            if await _staff_row_exists(existing_id, invited_by, conn):
+                raise AppError(
+                    "이미 등록된 직원입니다. 직원 목록에서 확인하시고, 초대 링크를 다시 보내려면 그 "
+                    "직원의 [재초대]를 눌러 주세요.",
+                    status_code=409,
+                ) from exc
+            # 고아 계정 구제 — 끊겼던 연결을 잇고 초대를 새로 보낸다.
+            staff_id = await _create_staff_row(existing_id, name, role, department_id, invited_by, conn)
+            try:
+                _send_invite_email(admin, email, redirect_to)
+            except Exception:
+                # 이미 초대를 수락한 계정이면 재발송이 막힐 수 있다 — staff 연결은 이미 됐으니
+                # 그 직원은 로그인만 하면 된다(막다른 길 아님).
+                pass
+            return staff_id
+        raise AppError(
+            "이미 등록된 이메일이지만 계정을 찾지 못했습니다. 잠시 후 다시 시도하거나 관리자에게 "
+            "문의해 주세요.",
+            status_code=409,
+        ) from exc
+
+    # 분류되지 않은 오류 — 원래대로 위로 던진다(알 수 없는 원인은 추적이 남는 편이 안전하다).
+    raise exc
+
+
 async def invite_staff(
     email: str,
     name: str,
@@ -39,31 +163,16 @@ async def invite_staff(
         raise AppError("의사는 소속 진료과를 선택해야 합니다.", status_code=400)
 
     admin = get_admin_client()
-    # redirect_to가 있으면 초대 수락 링크가 그 직원웹 origin으로 돌아온다(라우터가 요청 origin에서
-    # 계산). 없으면 옛 동작 그대로 Supabase Site URL로 폴백한다.
-    if redirect_to:
-        result = admin.auth.admin.invite_user_by_email(email, {"redirect_to": redirect_to})
-    else:
-        result = admin.auth.admin.invite_user_by_email(email)
-    auth_user_id = UUID(result.user.id)
-
-    async def _run(c):
-        # 의사에게만 색을 자동 배정한다(CAL-COLOR-08). 비의사는 캘린더에 열이 없어 색이 없다.
-        color = await c.fetchval(_NEXT_COLOR_SQL) if role == "doctor" else None
-        return await c.fetchval(
-            """
-            insert into staff (auth_user_id, name, role, department_id, calendar_color_index)
-            values ($1, $2, $3, $4, $5)
-            returning id
-            """,
-            auth_user_id, name, role, department_id, color,
+    try:
+        result = _send_invite_email(admin, email, redirect_to)
+        auth_user_id = UUID(result.user.id)
+    except Exception as exc:
+        # 발송 실패를 막다른 500으로 흘리지 않는다(STAFF-INVITE-06~09) — 원인별 안내 + 고아 구제.
+        return await _recover_or_explain_invite_failure(
+            exc, email, name, role, department_id, invited_by, redirect_to, conn,
         )
 
-    if conn is not None:
-        return await _run(conn)
-
-    async with acquire_as(str(invited_by.auth_user_id)) as c:
-        return await _run(c)
+    return await _create_staff_row(auth_user_id, name, role, department_id, invited_by, conn)
 
 
 def _impact_version(rows: list[dict]) -> str:
@@ -231,9 +340,14 @@ async def resend_invite(
     if user is None or user.user is None or not user.user.email:
         raise AppError("계정 이메일을 확인할 수 없습니다.", status_code=404)
     try:
-        if redirect_to:
-            admin.auth.admin.invite_user_by_email(user.user.email, {"redirect_to": redirect_to})
-        else:
-            admin.auth.admin.invite_user_by_email(user.user.email)
+        _send_invite_email(admin, user.user.email, redirect_to)
     except Exception as exc:
-        raise AppError("재초대에 실패했습니다. 이미 초대를 수락한 계정일 수 있습니다.", status_code=409) from exc
+        if _is_rate_limit_error(exc):
+            raise AppError(
+                "초대 이메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.",
+                status_code=429,
+            ) from exc
+        raise AppError(
+            "재초대에 실패했습니다. 이미 초대를 수락한 계정일 수 있습니다(그 직원은 로그인만 하면 됩니다).",
+            status_code=409,
+        ) from exc
