@@ -1,13 +1,57 @@
+from urllib.parse import urlsplit
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.security import StaffContext, require_role
 from app.db.pool import acquire_as
 from app.services import staff_profile, staff_service
 
 router = APIRouter(prefix="/staff", tags=["staff"])
+
+
+def _normalize_origin(value: str | None) -> str | None:
+    """http(s) origin(스킴+호스트[:포트])만 통과시키고, 경로·자격증명이 붙었으면 버린다."""
+    candidate = (value or "").strip().rstrip("/")
+    if not candidate:
+        return None
+    try:
+        parsed = urlsplit(candidate)
+        _ = parsed.port  # 잘못된 포트 표기를 ValueError로 거른다.
+    except ValueError:
+        return None
+    if (
+        parsed.scheme in {"http", "https"}
+        and parsed.hostname is not None
+        and parsed.username is None
+        and parsed.password is None
+        and candidate == f"{parsed.scheme}://{parsed.netloc}"
+    ):
+        return candidate
+    return None
+
+
+def _invite_redirect_origin(request: Request) -> str | None:
+    """초대 수락 링크가 되돌아올 직원웹 origin.
+
+    비밀번호 재설정(auth_staff._password_recovery_redirect)은 '비로그인' 요청이라 서버 고정
+    origin(STAFF_WEB_ORIGIN)만 신뢰하지만, 초대는 admin 인증 + Bearer 토큰(쿠키 아님 → CSRF
+    불가) 요청이라 브라우저가 보낸 실제 origin을 신뢰해도 안전하다. 이렇게 하면 preview·main·
+    실도메인 어디서 초대하든 그 화면 주소로 링크가 가고(설정 변경 0회), Supabase의 Redirect URLs
+    허용목록(와일드카드)이 최종 방어선이 된다. 헤더가 없으면 서버 설정으로 폴백한다.
+    """
+    origin = _normalize_origin(request.headers.get("origin"))
+    if origin is None:
+        referer = request.headers.get("referer")
+        if referer:
+            parsed = urlsplit(referer)
+            if parsed.scheme and parsed.netloc:
+                origin = _normalize_origin(f"{parsed.scheme}://{parsed.netloc}")
+    if origin is None:
+        origin = _normalize_origin(settings.staff_web_origin)
+    return origin
 
 
 class InviteStaffRequest(BaseModel):
@@ -35,10 +79,12 @@ class DeactivateRequest(BaseModel):
 @router.post("", response_model=InviteStaffResponse)
 async def invite_staff(
     body: InviteStaffRequest,
+    request: Request,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> InviteStaffResponse:
     staff_id = await staff_service.invite_staff(
         email=body.email, name=body.name, role=body.role, department_id=body.department_id, invited_by=staff,
+        redirect_to=_invite_redirect_origin(request),
     )
     return InviteStaffResponse(staff_id=staff_id)
 
@@ -120,8 +166,11 @@ async def get_staff_list(
 @router.post("/{staff_id}/resend-invite")
 async def resend_invite(
     staff_id: UUID,
+    request: Request,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> dict:
     """[정합성 검토 R3-04] 초대 이메일 재발송."""
-    await staff_service.resend_invite(staff_id, requested_by=staff)
+    await staff_service.resend_invite(
+        staff_id, requested_by=staff, redirect_to=_invite_redirect_origin(request)
+    )
     return {"status": "resent"}

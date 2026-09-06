@@ -62,6 +62,39 @@ async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_invite_staff_passes_redirect_to(db_conn):
+    """redirect_to가 주어지면 Supabase 초대에 그대로 전달돼 수락 링크가 그 직원웹으로 돌아온다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    invited_auth_id = uuid4()
+    fake_user = MagicMock()
+    fake_user.user.id = str(invited_auth_id)
+    fake_admin_client = MagicMock()
+    fake_admin_client.auth.admin.invite_user_by_email.return_value = fake_user
+
+    await db_conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, 'redir-doctor@test.local', '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        invited_auth_id,
+    )
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+
+    origin = "https://gaonhospital-staff-git-merge-design-integration-iansoft.vercel.app"
+    with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
+        await staff_service.invite_staff(
+            email="redir-doctor@test.local", name="김의사", role="doctor", department_id=dept_id,
+            invited_by=admin_ctx, redirect_to=origin, conn=db_conn,
+        )
+
+    fake_admin_client.auth.admin.invite_user_by_email.assert_called_once_with(
+        "redir-doctor@test.local", {"redirect_to": origin}
+    )
+
+
+@pytest.mark.asyncio
 async def test_invite_doctor_without_department_rejected(db_conn):
     """[정합성 검토 R3-04] 프론트엔드 검증을 우회한 직접 API 호출도 막혀야 한다 —
     이전에는 StaffAdminPage.tsx에만 이 검사가 있어 서버가 소속 없는 의사 생성을 그대로 허용했다."""
@@ -187,6 +220,32 @@ async def test_resend_invite_calls_invite_user_by_email_again(db_conn):
 
     fake_admin_client.auth.admin.get_user_by_id.assert_called_once_with(str(target_seed["auth_user_id"]))
     fake_admin_client.auth.admin.invite_user_by_email.assert_called_once_with(target_email)
+
+
+@pytest.mark.asyncio
+async def test_resend_invite_passes_redirect_to(db_conn):
+    """재초대도 redirect_to를 그대로 넘겨 수락 링크가 그 직원웹으로 돌아온다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target_seed = await seed_staff(db_conn, role="receptionist")
+    target_email = await db_conn.fetchval(
+        "select email from auth.users where id = $1", target_seed["auth_user_id"]
+    )
+
+    fake_user = MagicMock()
+    fake_user.user.email = target_email
+    fake_admin_client = MagicMock()
+    fake_admin_client.auth.admin.get_user_by_id.return_value = fake_user
+
+    origin = "https://gaonhospital-staff.vercel.app"
+    with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
+        await staff_service.resend_invite(
+            target_seed["staff_id"], requested_by=admin_ctx, redirect_to=origin, conn=db_conn
+        )
+
+    fake_admin_client.auth.admin.invite_user_by_email.assert_called_once_with(
+        target_email, {"redirect_to": origin}
+    )
 
 
 @pytest.mark.asyncio

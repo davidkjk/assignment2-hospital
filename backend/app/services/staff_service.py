@@ -28,6 +28,7 @@ async def invite_staff(
     role: str,
     department_id: UUID | None,
     invited_by: StaffContext,
+    redirect_to: str | None = None,
     conn=None,
 ) -> UUID:
     # [정합성 검토 R3-04] 의사는 소속 진료과가 있어야 예약·슬롯·환자조회 범위(doctor_can_view_patient 등)가
@@ -38,7 +39,12 @@ async def invite_staff(
         raise AppError("의사는 소속 진료과를 선택해야 합니다.", status_code=400)
 
     admin = get_admin_client()
-    result = admin.auth.admin.invite_user_by_email(email)
+    # redirect_to가 있으면 초대 수락 링크가 그 직원웹 origin으로 돌아온다(라우터가 요청 origin에서
+    # 계산). 없으면 옛 동작 그대로 Supabase Site URL로 폴백한다.
+    if redirect_to:
+        result = admin.auth.admin.invite_user_by_email(email, {"redirect_to": redirect_to})
+    else:
+        result = admin.auth.admin.invite_user_by_email(email)
     auth_user_id = UUID(result.user.id)
 
     async def _run(c):
@@ -201,7 +207,9 @@ async def list_staff(staff: StaffContext, conn=None) -> list[dict]:
     return rows
 
 
-async def resend_invite(staff_id: UUID, requested_by: StaffContext, conn=None) -> None:
+async def resend_invite(
+    staff_id: UUID, requested_by: StaffContext, redirect_to: str | None = None, conn=None
+) -> None:
     """[정합성 검토 R3-04] 초대 이메일이 도착하지 않았거나 링크가 만료된 경우 관리자가 재발송할 수
     있게 한다. `staff`에는 이메일이 없으므로(계정 자체는 `auth.users`가 소유) auth_user_id로
     실제 이메일을 조회한 뒤 같은 `invite_user_by_email`을 다시 호출한다 — 이미 초대를 수락한
@@ -223,6 +231,9 @@ async def resend_invite(staff_id: UUID, requested_by: StaffContext, conn=None) -
     if user is None or user.user is None or not user.user.email:
         raise AppError("계정 이메일을 확인할 수 없습니다.", status_code=404)
     try:
-        admin.auth.admin.invite_user_by_email(user.user.email)
+        if redirect_to:
+            admin.auth.admin.invite_user_by_email(user.user.email, {"redirect_to": redirect_to})
+        else:
+            admin.auth.admin.invite_user_by_email(user.user.email)
     except Exception as exc:
         raise AppError("재초대에 실패했습니다. 이미 초대를 수락한 계정일 수 있습니다.", status_code=409) from exc
