@@ -10,6 +10,7 @@ import 'package:hospital_patient_app/features/auth/auth_state.dart';
 import 'package:hospital_patient_app/features/auth/login_screen.dart';
 import 'package:hospital_patient_app/features/auth/password_find_screen.dart';
 import 'package:hospital_patient_app/features/auth/phone_change_screen.dart';
+import 'package:hospital_patient_app/features/home/main_tabs.dart';
 import 'package:hospital_patient_app/features/auth/reauth_screen.dart';
 import 'package:hospital_patient_app/features/auth/signup_profile_screen.dart';
 
@@ -60,7 +61,7 @@ void main() {
 
   testWidgets('[NAV-AUTH-19] 로그인 전 화면에는 하단 탭이 없다', (t) async {
     await _pump(t, '/login');
-    expect(find.byType(BottomNavigationBar), findsNothing);
+    expect(find.byType(MainTabs), findsNothing); // 인증 화면엔 하단 탭바 없음(커스텀 MainTabs)
   });
 
   test('[AUTH-REAUTH-05] 민감 경로 판정 — 가족·설정만', () {

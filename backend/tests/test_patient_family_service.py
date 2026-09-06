@@ -78,12 +78,15 @@ async def test_hospital_registered_patient_has_null_origin(committed_conn):
 
 @pytest.mark.asyncio
 async def test_list_puts_self_first_then_names(committed_conn):
-    """[FAM-LIST-01][FAM-LIST-02][FAM-LIST-09] 본인이 맨 위, 가족은 이름 오름차순."""
+    """[FAM-LIST-01][FAM-LIST-02][FAM-LIST-09] 본인이 맨 위, 가족은 나이 많은 순(생년월일 오래된 순).
+
+    사용자 결정(2026-09-06): 가족 목록은 이름순이 아니라 나이 많은 순으로 정렬한다 —
+    구현은 `order by (본인) desc, birth_date asc, name`(동일 생년은 이름). FAM-LIST-02 갱신."""
     me = await _seed_account(committed_conn, name="김보호")
     await patient_family_service.add_family_member(me, "홍길동", date(1950, 1, 1), "M", "부모")
     await patient_family_service.add_family_member(me, "강아들", date(2015, 1, 1), "M", "아들")
     rows = await patient_family_service.list_family_members(me)
-    assert [r["name"] for r in rows] == ["김보호", "강아들", "홍길동"]   # 본인은 정렬에서 빠진다
+    assert [r["name"] for r in rows] == ["김보호", "홍길동", "강아들"]   # 본인 맨위 · 가족은 나이 많은 순(1950→2015)
     assert rows[0]["is_self"] is True and rows[0]["relation"] == "본인"
     assert all(r["is_self"] is False for r in rows[1:])
 

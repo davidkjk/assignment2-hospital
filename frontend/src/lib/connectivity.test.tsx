@@ -100,7 +100,13 @@ test('[OFFX-STAFF-01] 마지막으로 서버에서 확인한 절대 시각을 �
   setupBanner()
   await userEvent.click(screen.getByText('서버확인표시'))
   act(() => setBrowserOnline(false))
-  expect(screen.getByText(/오후 2:14 기준/)).toBeVisible()
+  // 기대 시각을 컴포넌트와 '같은 포맷터'로 만든다 — ko-KR/Intl 출력은 Node의 ICU 버전마다
+  // 오전/오후 위치·공백이 달라(로컬 Node25=「오후 2:14」, CI Node20은 다름) 문자열 하드코딩이
+  // CI에서만 깨졌다. 같은 포맷터를 쓰면 ICU 버전과 무관하게 일치한다. OK_AT=05:14Z=14:14 KST.
+  const expected = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(new Date(OK_AT))
+  expect(screen.getByText(`${expected} 기준`)).toBeVisible()
 })
 
 test('[OFFX-STAFF-01] 서버 응답이 한 번도 없으면 시각을 지어내지 않는다', () => {

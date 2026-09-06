@@ -8,6 +8,7 @@ import 'package:hospital_patient_app/features/auth/auth_state.dart';
 import 'package:hospital_patient_app/features/home/appointment_view.dart';
 import 'package:hospital_patient_app/features/home/home_data.dart';
 import 'package:hospital_patient_app/features/home/home_screen.dart';
+import 'package:hospital_patient_app/features/home/main_tabs.dart';
 import 'package:hospital_patient_app/features/home/notification_bell.dart';
 import 'package:hospital_patient_app/features/notifications/notification_data.dart';
 import 'package:hospital_patient_app/widgets/action_button.dart';
@@ -77,7 +78,7 @@ void main() {
   testWidgets('[NAV-HOME-19] 로그인 후 홈에는 하단 탭 바가 있다', (t) async {
     await t.pumpWidget(_app(initial: '/home'));
     await t.pumpAndSettle();
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.byType(MainTabs), findsOneWidget); // 커스텀 하단 탭바(BottomNavigationBar 아님)
   });
 
   testWidgets('[NAV-HOME-01] 홈에서 예약 카드를 누르면 예약 상세로 간다', (t) async {

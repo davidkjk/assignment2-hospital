@@ -8,6 +8,7 @@ import 'package:hospital_patient_app/core/router.dart';
 import 'package:hospital_patient_app/core/session_guard.dart';
 import 'package:hospital_patient_app/features/auth/auth_state.dart';
 import 'package:hospital_patient_app/features/home/home_data.dart' show hospitalInfoProvider;
+import 'package:hospital_patient_app/features/home/main_tabs.dart';
 import 'package:hospital_patient_app/features/settings/settings_home_screen.dart' show myProfileProvider;
 
 // 막다른 길 회귀 가드(2026-09-01 시뮬 검수): 로그인 후 전 화면은 전역 셸(하단 탭바)로 감싸
@@ -32,7 +33,7 @@ void main() {
   testWidgets('[NAV-GLOBAL] AI 상담 탭(/chat)에도 하단 탭바가 있다 — 막다른 길 아님', (t) async {
     await t.pumpWidget(_app('/chat'));
     await t.pumpAndSettle();
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.byType(MainTabs), findsOneWidget); // 커스텀 하단 탭바(BottomNavigationBar 아님)
   });
 
   testWidgets('[NAV-GLOBAL] 설정(/settings)에도 하단 탭바가 있다 — 홈 복귀 가능', (t) async {
@@ -41,7 +42,7 @@ void main() {
       hospitalInfoProvider.overrideWith((ref) async => null),
     ]));
     await t.pumpAndSettle();
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.byType(MainTabs), findsOneWidget); // 커스텀 하단 탭바(BottomNavigationBar 아님)
   });
 
   // 로그인 전(/login)·QR 몰입(/qr)에 탭바가 없다는 반대편은 auth_routes_test가 이미 단언한다(중복 금지).
