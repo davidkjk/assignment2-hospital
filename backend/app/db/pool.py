@@ -36,7 +36,14 @@ async def get_pool() -> asyncpg.Pool:
         async def _set_session_tz(conn: asyncpg.Connection) -> None:
             await conn.execute("SET TIME ZONE 'Asia/Seoul'")
 
-        _pool = await asyncpg.create_pool(settings.database_url, setup=_set_session_tz)
+        # min/max_size를 작게(기본 1/4) 잡는다 — asyncpg 기본값(10/10)은 API + cron 프로세스가
+        # 각자 10을 잡아 Supavisor 세션 모드 한도(15)를 넘겨 EMAXCONNSESSION을 냈다(config 참조).
+        _pool = await asyncpg.create_pool(
+            settings.database_url,
+            setup=_set_session_tz,
+            min_size=settings.db_pool_min_size,
+            max_size=settings.db_pool_max_size,
+        )
     return _pool
 
 

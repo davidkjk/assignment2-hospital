@@ -8,6 +8,14 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str
     database_url: str
     session_timeout_minutes: int = 30
+
+    # DB 커넥션 풀 크기. Supabase 풀러(Supavisor) 세션 모드는 프로젝트 전체 클라이언트 접속을
+    # pool_size(기본 15)로 제한한다. asyncpg 기본값(min=max=10)은 API 프로세스와 cron 프로세스가
+    # 각자 10씩 잡아 15를 넘겨 EMAXCONNSESSION을 냈고, 그 여파로 cron·직원 초대(DB 연결 필요)가
+    # "잠시 후 다시" 오류로 실패했다(2026-09-06). 작게 잡아 (API + cron + 배포 순간 컨테이너 겹침)이
+    # 15 안에 들게 한다. 배포 env(DB_POOL_MAX_SIZE 등)로 조정 가능.
+    db_pool_min_size: int = 1
+    db_pool_max_size: int = 4
     # Password-recovery links may only return to this server-owned origin.
     # None is fail-closed: the API keeps its neutral response but sends no link.
     staff_web_origin: str | None = None
