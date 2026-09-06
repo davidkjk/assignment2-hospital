@@ -98,8 +98,12 @@ def fill_tokens(template: str, values: Mapping[str, Any]) -> str:
 
 
 def _provider_connected() -> bool:
-    # 문자 제공자 연결은 배포(env)가 정한다. 아직 미연결이므로 상태만 노출한다(무음 실패 방지, HSETX-DEFAULT-02).
-    return False
+    # 문자 제공자 연결 여부 = 배포 env(Solapi 3값: key·secret·발신번호)로 정해진다.
+    # get_solapi_client는 세 값이 다 차면 클라이언트를, 하나라도 비면 None을 준다 — 그게 곧 연결 여부다
+    # (HSETX-DEFAULT-02 무음 실패 방지: 미연결이면 화면이 경고). 옛 하드코딩 False는 셋업 전 자리표시자였다
+    # (2026-09-05: env가 실제로 들어왔는데도 화면이 늘 "미연결"이라 거짓말을 하고 있었다 → 실상태 반영).
+    from app.integrations.solapi_client import get_solapi_client
+    return get_solapi_client() is not None
 
 
 def _validate(patch: Mapping[str, Any]) -> None:
