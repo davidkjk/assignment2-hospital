@@ -84,6 +84,15 @@ async def _sms_eligible(conn, patient_id) -> bool:
     return bool(row["sms_enabled"]) and not row["sms_dead"] and bool(row["phone"])
 
 
+async def _sms_to_all(conn) -> bool:
+    """[HSET-SMS-03·SEND-CH-06] 병원 '누구에게 문자' = `모든 환자`인가.
+
+    `app_only`(기본)면 문자는 앱으로 못 받는 사람에게만(푸시 폴백). `all`이면 앱 유저에게도
+    문자를 **함께** 보낸다 — 앱을 써도 시스템/앱 설정에서 알림을 꺼둔 사람을 놓치지 않기 위함.
+    """
+    return await conn.fetchval("select sms_recipients from hospital_settings where id") == "all"
+
+
 # ── 상태 전이(SEND-RESULT-05) ─────────────────────────────────────────────────
 async def mark_delivered(conn, notification_id, *, channel: str | None = None,
                          provider_message_id: str | None = None) -> None:
@@ -173,6 +182,14 @@ async def _dispatch_one(nid, conn, push_send, sms_send) -> None:
     if wants_push:
         pmid = await _try_push(conn, row["patient_id"], body, push_send)
         if pmid is not None:
+            # [SEND-CH-06·HSET-SMS-03] 병원이 '모든 환자'를 골랐고 문자 대상이면, 앱 알림을 꺼둔
+            #   사람도 놓치지 않게 문자를 **함께** 보낸다. 추적 채널은 문자(재시도·콜백이 문자에 걸린다)로
+            #   두고, 방금 성공한 푸시는 실시간 보너스로 남긴다(로그 한 줄 = 알림함 한 줄 유지).
+            if (wants_sms and await _sms_to_all(conn)
+                    and await _sms_eligible(conn, row["patient_id"])):
+                await _apply_sms_outcome(
+                    conn, nid, sms_send(await _phone(conn, row["patient_id"]), body))
+                return
             await mark_delivered(conn, nid, channel="push", provider_message_id=pmid)
             return
 

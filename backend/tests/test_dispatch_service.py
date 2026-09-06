@@ -105,6 +105,64 @@ async def test_RESULT_02_provider_message_id_is_stored(db_conn):
     assert val == "sms-sid"
 
 
+# ── 누구에게 문자(HSET-SMS-03 · SEND-CH-06): '모든 환자'면 앱 유저에게도 문자 함께 ──────────
+def _sms_spy(sink):
+    def _send(phone, body):
+        sink.append(phone)
+        return SmsOutcome(status="queued", provider_message_id="sms-sid")
+    return _send
+
+
+@pytest.mark.asyncio
+async def test_CH06_all_recipients_also_sends_sms_when_push_delivers(db_conn):
+    """[SEND-CH-06] sms_recipients='all'이면 푸시가 배달돼도 문자를 함께 보낸다(앱 알림 꺼둔 사람 보험)."""
+    await db_conn.execute("update hospital_settings set sms_enabled=true, sms_recipients='all' where id")
+    pid = await _patient(db_conn)
+    await _token(db_conn, pid)
+    nid = await _log(db_conn, pid, requested="push_sms")
+    sent = []
+    await ds.send_now([nid], db_conn, push_send=_push_ok, sms_send=_sms_spy(sent))
+    assert sent == ["01011112222"]
+
+
+@pytest.mark.asyncio
+async def test_CH06_all_recipients_tracks_sms_channel(db_conn):
+    """[SEND-CH-06] '모든 환자' 발송에서 추적 채널은 문자(재시도·콜백이 문자에 걸린다) — '발송중' 유지."""
+    await db_conn.execute("update hospital_settings set sms_enabled=true, sms_recipients='all' where id")
+    pid = await _patient(db_conn)
+    await _token(db_conn, pid)
+    nid = await _log(db_conn, pid, requested="push_sms")
+    await ds.send_now([nid], db_conn, push_send=_push_ok, sms_send=_sms_queued)
+    row = await db_conn.fetchrow(
+        "select channel, delivery_status from notification_log where id=$1", nid)
+    assert (row["channel"], row["delivery_status"]) == ("sms", "발송중")
+
+
+@pytest.mark.asyncio
+async def test_CH06_app_only_does_not_double_send(db_conn):
+    """[SEND-CH-06] 기본값 'app_only'는 푸시가 배달되면 문자를 보내지 않는다(중복·비용 방지)."""
+    pid = await _patient(db_conn)          # hospital_settings 기본 sms_recipients='app_only'
+    await _token(db_conn, pid)
+    nid = await _log(db_conn, pid, requested="push_sms")
+    sent = []
+    await ds.send_now([nid], db_conn, push_send=_push_ok, sms_send=_sms_spy(sent))
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_CH06_all_but_sms_ineligible_delivers_push_only(db_conn):
+    """[SEND-CH-06] '모든 환자'라도 문자 대상이 아니면(죽은 번호) 푸시만 배달('도달') — 문자 안 보냄."""
+    await db_conn.execute("update hospital_settings set sms_recipients='all' where id")
+    pid = await _patient(db_conn, sms_dead=True)
+    await _token(db_conn, pid)
+    nid = await _log(db_conn, pid, requested="push_sms")
+    sent = []
+    await ds.send_now([nid], db_conn, push_send=_push_ok, sms_send=_sms_spy(sent))
+    row = await db_conn.fetchrow(
+        "select channel, delivery_status from notification_log where id=$1", nid)
+    assert (row["channel"], row["delivery_status"], sent) == ("push", "도달", [])
+
+
 # ── 문자 판정(_sms_eligible) / 죽은 번호 ──────────────────────────────────────
 @pytest.mark.asyncio
 async def test_RESULT_05_dead_number_no_delivery_becomes_silpae(db_conn):
