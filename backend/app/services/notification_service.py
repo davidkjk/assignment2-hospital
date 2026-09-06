@@ -77,7 +77,7 @@ async def notify_patient(
             if (notification_type == "questionnaire_missing" and remaining is not None) \
             else notification_type
         setting = await conn.fetchrow(
-            "select body from notification_type_settings where notification_type=$1", message_key,
+            "select body, also_sms from notification_type_settings where notification_type=$1", message_key,
         )
         base = (setting["body"] if setting and setting["body"] else None) \
             or MESSAGES.get(message_key, "새 소식이 있습니다.")
@@ -101,7 +101,10 @@ async def notify_patient(
         tokens = await conn.fetch(
             "select token from device_tokens where patient_id=$1", account_patient_id,
         )
-        sms_ok = await dispatch_service._sms_eligible(conn, account_patient_id)
+        # per-type '문자도 발송'(also_sms — HSET-SMS-01·02, 00013 기본 false) × 마스터 문자 스위치(_sms_eligible).
+        # 둘 다 켜져야 이 유형이 문자로 폴백한다. 옛 코드는 also_sms를 무시해 토글이 죽어 있었다(2026-09-05 배선).
+        also_sms = bool(setting and setting["also_sms"])
+        sms_ok = also_sms and await dispatch_service._sms_eligible(conn, account_patient_id)
         if tokens:
             channel = "push"
             requested = "push_sms" if sms_ok else "push"

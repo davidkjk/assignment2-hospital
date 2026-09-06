@@ -64,10 +64,19 @@ async def test_push_when_token_exists(committed_conn, sent):
     assert len(sent) == 1                            # 배달 계층으로 넘어갔다
 
 
+async def _set_type_sms(conn, notification_type: str, also_sms: bool) -> None:
+    # per-type '문자도 발송'(also_sms) 토글 — HSET-SMS-01. 기본 false라 문자 폴백 테스트는 켜 줘야 한다.
+    await conn.execute(
+        "insert into notification_type_settings (notification_type, also_sms) values ($1, $2) "
+        "on conflict (notification_type) do update set also_sms = excluded.also_sms",
+        notification_type, also_sms)
+
+
 @pytest.mark.asyncio
 async def test_sms_fallback_when_no_token(committed_conn, sent):
-    # SEND-CH-01 기본값: 토큰 없으면 문자 폴백. #120: 'push' 상수로 안 박힌다.
+    # SEND-CH-01: 토큰 없고 (마스터 문자 on AND 유형별 also_sms on)이면 문자 폴백. #120: 'push' 상수로 안 박힌다.
     await committed_conn.execute("update hospital_settings set sms_enabled=true")  # 다른 테스트가 off로 남겼을 수 있다
+    await _set_type_sms(committed_conn, "confirmed", True)
     p = await seed_patient(committed_conn)
     await notification_service.notify_patient(p["patient_id"], "confirmed")
     assert await committed_conn.fetchval(
@@ -76,10 +85,23 @@ async def test_sms_fallback_when_no_token(committed_conn, sent):
 
 
 @pytest.mark.asyncio
+async def test_type_sms_off_blocks_fallback(committed_conn, sent):
+    # HSET-SMS-01 배선: 마스터 문자는 켜져 있어도 유형별 '문자도 발송'이 꺼져 있으면 문자로 안 간다.
+    await committed_conn.execute("update hospital_settings set sms_enabled=true")
+    await _set_type_sms(committed_conn, "confirmed", False)
+    p = await seed_patient(committed_conn)
+    await notification_service.notify_patient(p["patient_id"], "confirmed")
+    assert sent == []
+    assert await committed_conn.fetchval(
+        "select count(*) from notification_log where patient_id=$1", p["patient_id"]) == 0
+
+
+@pytest.mark.asyncio
 async def test_hospital_sms_off_blocks_fallback(committed_conn, sent):
-    # #111: 병원이 문자를 끄면 토큰 없는 사람에게도 아무것도 나가지 않는다(발송 시도 자체를 막는다).
+    # #111: 병원이 문자를 끄면(마스터 off) 유형별 also_sms가 켜져 있어도 아무것도 나가지 않는다.
     prev = await committed_conn.fetchval("select sms_enabled from hospital_settings limit 1")
     await committed_conn.execute("update hospital_settings set sms_enabled=false")
+    await _set_type_sms(committed_conn, "confirmed", True)  # 유형은 켜도 마스터가 막는지 본다
     try:
         p = await seed_patient(committed_conn)
         await notification_service.notify_patient(p["patient_id"], "confirmed")
@@ -92,8 +114,9 @@ async def test_hospital_sms_off_blocks_fallback(committed_conn, sent):
 
 @pytest.mark.asyncio
 async def test_sms_dead_blocks_sms(committed_conn, sent):
-    # 00014: 번호가 죽은(sms_dead) 사람에게 문자 폴백을 시도하지 않는다.
+    # 00014: 번호가 죽은(sms_dead) 사람에게 문자 폴백을 시도하지 않는다(마스터·유형 다 켜도).
     await committed_conn.execute("update hospital_settings set sms_enabled=true")
+    await _set_type_sms(committed_conn, "confirmed", True)
     p = await seed_patient(committed_conn)
     await committed_conn.execute("update patients set sms_dead=true where id=$1", p["patient_id"])
     await notification_service.notify_patient(p["patient_id"], "confirmed")
