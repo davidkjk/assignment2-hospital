@@ -11,6 +11,8 @@ class _MockSupabase extends Mock implements SupabaseClient {}
 
 class _MockAuth extends Mock implements GoTrueClient {}
 
+class _MockSession extends Mock implements Session {}
+
 ProviderContainer _container({
   required bool online,
   required AuthStatus base,
@@ -58,6 +60,17 @@ void main() {
     final c = _container(online: true, base: AuthStatus.signedOut);
     await _warmUp(c);
     expect(c.read(effectiveAuthProvider), AuthStatus.signedOut);
+  });
+
+  test('effectiveAuth: 로그인 직후 레이스 — 스트림 stale signedOut이어도 currentSession 있으면 signedIn', () async {
+    // signInWithPassword가 currentSession을 동기로 채운 순간(스트림 이벤트는 아직 안 옴)을 모의.
+    final supabase = _MockSupabase();
+    final auth = _MockAuth();
+    when(() => supabase.auth).thenReturn(auth);
+    when(() => auth.currentSession).thenReturn(_MockSession());
+    final c = _container(online: true, base: AuthStatus.signedOut, supabase: supabase);
+    await _warmUp(c);
+    expect(c.read(effectiveAuthProvider), AuthStatus.signedIn);
   });
 
   test('handleUnauthorized: 온라인이면 signOut 호출 + 플래그 해제 (NAV-GLOBAL-03)', () async {

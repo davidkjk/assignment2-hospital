@@ -13,8 +13,22 @@ final effectiveAuthProvider = Provider<AuthStatus>((ref) {
   final offlineExpired = ref.watch(expiredOfflineProvider);
   if (base == AuthStatus.signedIn) return AuthStatus.signedIn;
   if (!online && offlineExpired) return AuthStatus.expiredOffline;   // OFF-AUTH-01: 읽기전용 유지, 로그인 안 보냄
+  // 로그인 직후 레이스: signInWithPassword는 currentSession을 동기로 채우지만 onAuthStateChange(스트림)는
+  // 한 박자 늦다. 그 사이 onSuccess의 go('/home')가 redirect를 돌리면 stale signedOut을 읽어 /landing으로
+  // 튕기고, 스트림 이벤트는 이미 소비돼 재평가가 안 걸려 랜딩에 눌러앉았다(사용자: "처음 로그인하면 랜딩,
+  // 다시 하면 됨"). currentSession이 있으면 signedIn으로 본다 — 위 오프라인-만료 분기 뒤라 OFF-AUTH-01 불변.
+  if (_hasLiveSession(ref)) return AuthStatus.signedIn;
   return AuthStatus.signedOut;                                       // OFF-AUTH-04·NAV-GLOBAL-03: 온라인 401만 여기
 });
+
+// currentSession 존재 여부(동기). Supabase 미초기화·목 미설정(테스트)이면 false로 안전 폴백.
+bool _hasLiveSession(Ref ref) {
+  try {
+    return ref.read(supabaseClientProvider).auth.currentSession != null;
+  } catch (_) {
+    return false;
+  }
+}
 
 // ApiClient가 401을 받으면 부른다(router 배선). OFF-AUTH-04: 네트워크 실패와 인증 실패를 구분한다.
 Future<void> handleUnauthorized(Ref ref) async {
