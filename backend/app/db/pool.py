@@ -25,8 +25,18 @@ async def get_pool() -> asyncpg.Pool:
         #   안 하면 서버 OS(UTC) 기준이라 bare `current_date`/`now()::date`가 KST 자정~UTC 자정 사이에 하루 어긋난다
         #   (자정 부도 배치·doctor_can_view_*·환자 upcoming/슬롯 판정 등 `current_date` 소비자 전부). timestamptz는 UTC로
         #   저장되고 `at time zone 'Asia/Seoul'` 같은 절대 표현식은 이 설정과 무관하므로 이중 적용 없음.
-        _pool = await asyncpg.create_pool(
-            settings.database_url, server_settings={"timezone": "Asia/Seoul"})
+        #
+        # ⚠️ #33(2026-09-06 라이브 실측): `server_settings={"timezone": ...}`(연결 startup 파라미터)는
+        #   Supabase 풀러(Supavisor)가 통째로 버린다 → 라이브 세션이 UTC로 떨어져 `current_date`가
+        #   KST 자정이 아니라 UTC 자정(=KST 09:00)에 넘어갔다("오늘 예약이 아침 9시에 사라짐").
+        #   실측: asyncpg server_settings timezone=Asia/Seoul → `show timezone` = UTC.
+        #   → 매 acquire마다 도는 setup 콜백의 런타임 `SET TIME ZONE`으로 바꾼다(startup 파라미터가 아니라
+        #   일반 쿼리라 풀러가 그대로 전달, asyncpg가 release 때 RESET ALL로 지워도 다음 acquire에서 재적용).
+        #   이 한 곳이 SQL 함수(doctor_can_view_*·mark_overdue_no_shows 등) 안의 current_date까지 함께 고친다.
+        async def _set_session_tz(conn: asyncpg.Connection) -> None:
+            await conn.execute("SET TIME ZONE 'Asia/Seoul'")
+
+        _pool = await asyncpg.create_pool(settings.database_url, setup=_set_session_tz)
     return _pool
 
 
