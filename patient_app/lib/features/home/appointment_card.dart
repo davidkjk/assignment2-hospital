@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../core/wait_format.dart';
 import '../../widgets/app_card.dart';
@@ -32,6 +33,10 @@ class AppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = resolveCardState(view, now ?? DateTime.now());
+    // #32(2026-09-05): 데모 액션 버튼은 size="sm"(h-8)인데 Flutter 아웃라인 버튼은 탭영역(48dp)만큼
+    // 레이아웃이 부풀어 카드 하단이 데모보다 과하게 떠 보인다. DetailButtonBar와 같은 방식으로
+    // 「버튼이 있으면」 아래 여백·버튼 앞 간격에서 tapPad만큼 빼 데모 간격과 맞춘다(탭영역은 유지).
+    final actionPad = _hasActions(state) ? AppButtonSize.tapPad(AppTokens.buttonBaseHeight) : 0.0;
     final numberLabel = view.isConfirmedBefore ? '예약번호' : '신청번호'; // COMMON-02/03
     // CARD-CHG-06 경계: 병원취소면 CxlBody가 전담하고 변경 배너는 얹지 않는다(취소 문구 중복 방지).
     final showAnnouncement = view.hospitalChangePrevTime != null && view.status != '병원취소';
@@ -52,7 +57,8 @@ class AppointmentCard extends StatelessWidget {
             boxShadow: AppTokens.cardElevation, // 데모 --elevation-card
           ),
           // 데모 Card py-4(상하 16) + 헤더·콘텐츠 px-4(좌우 16) = 사방 16.
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          // 하단은 버튼 tapPad만큼 빼 데모 py-4(16)와 시각적으로 맞춘다(#32).
+          padding: EdgeInsets.only(top: 16, bottom: 16 - actionPad),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
@@ -202,6 +208,18 @@ class AppointmentCard extends StatelessWidget {
         _ => const [],
       };
 
+  // #32 — 하단에 아웃라인 버튼 행이 그려지는 상태(간격 보정 대상). _actions의 switch와 같은 분류.
+  bool _hasActions(AppointmentCardState s) => switch (s) {
+        AppointmentCardState.req ||
+        AppointmentCardState.confirmed ||
+        AppointmentCardState.done ||
+        AppointmentCardState.cancelled ||
+        AppointmentCardState.unconf ||
+        AppointmentCardState.late =>
+          true,
+        _ => false,
+      };
+
   List<Widget> _actions(BuildContext context, AppointmentCardState s) {
     final buttons = switch (s) {
       AppointmentCardState.req => [
@@ -226,7 +244,8 @@ class AppointmentCard extends StatelessWidget {
     };
     if (buttons.isEmpty) return const [];
     return [
-      const SizedBox(height: 12),
+      // 데모 space-y-3(12) — 버튼 tapPad만큼 빼 시각 간격을 12로 맞춘다(#32).
+      SizedBox(height: 12 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
       Row(
         mainAxisAlignment: MainAxisAlignment.end, // 데모: 오른쪽 정렬
         children: [

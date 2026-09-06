@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/tokens.dart';
 import '../../widgets/dashed_border.dart';
 import 'appointment_view.dart';
@@ -90,16 +91,26 @@ class QrPreviewBody extends StatelessWidget {
           Container(
             width: 80, // 데모 h-20 w-20
             height: 80,
+            padding: const EdgeInsets.all(6), // QR이 테두리에 닿지 않게 안쪽 여백
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: AppTokens.border),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Center(
-              child: SvgPicture.asset('assets/icons/qr_code_fill.svg', // 데모 Phosphor QrCode(fill) h-16 w-16
-                  width: 64,
-                  height: 64,
-                  colorFilter: const ColorFilter.mode(AppTokens.primary, BlendMode.srcIn)),
+            // #6(2026-09-05, 사용자 결정): 데모는 QrCode 아이콘이지만, 실기기에선 접수처에
+            // 그대로 보여줄 수 있게 「본인 QR 축소형」을 그린다. 데이터·색은 전체화면 QR과 동일
+            // (data=예약번호, 모듈색 0xFF0F172A) — 눌러서 크게 보기가 같은 QR을 키우는 것임을 시각으로 잇는다.
+            child: QrImageView(
+              key: ValueKey('qr-mini-$code'), // 코드가 QR을 결정함을 노출(전체화면 QrCard와 같은 규칙)
+              data: code,
+              version: QrVersions.auto,
+              size: 68,
+              gapless: true,
+              padding: EdgeInsets.zero,
+              eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square, color: Color(0xFF0F172A)),
+              dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square, color: Color(0xFF0F172A)),
             ),
           ),
           const SizedBox(width: 16),

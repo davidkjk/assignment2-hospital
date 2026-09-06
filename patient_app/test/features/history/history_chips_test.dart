@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/family/family_repository.dart';
+import 'package:hospital_patient_app/features/history/history_repository.dart' show kAllHistoryPatientId;
 import 'package:hospital_patient_app/features/history/history_screen.dart';
 
 FamilyMember _m(String id, String name, {bool self = false}) => FamilyMember(
@@ -11,12 +12,20 @@ FamilyMember _m(String id, String name, {bool self = false}) => FamilyMember(
 Widget _host(Widget w) => MaterialApp(home: Scaffold(body: w));
 
 void main() {
-  testWidgets('[HIST-WHO-01][HIST-WHO-02] 가로 이름 칩 — 본인 맨 앞, 가족은 이름 오름차순', (t) async {
+  testWidgets('[HIST-WHO-01][HIST-WHO-02] 가로 이름 칩 — 전체 → 본인 → 가족 이름 오름차순', (t) async {
     final members = [_m('me', '김순자', self: true), _m('b', '김병수'), _m('a', '김가영')];
     await t.pumpWidget(_host(NameChips(members: members, selectedId: 'me', onSelect: (_) {})));
     final chips = t.widgetList<Text>(find.byType(Text)).map((e) => e.data).toList();
-    expect(chips.first, '김순자'); // 본인 먼저(HIST-WHO-02)
+    expect(chips.first, '전체'); // #34: 「전체」(전원) 칩이 맨 앞
+    expect(chips.indexOf('김순자') < chips.indexOf('김가영'), true); // 본인 먼저(사람 중, HIST-WHO-02)
     expect(chips.indexOf('김가영') < chips.indexOf('김병수'), true); // 가족 이름 오름차순
+  });
+  testWidgets('[HIST-WHO-11] #34 「전체」 칩 — 누르면 전원 센티넬로 콜백', (t) async {
+    String? picked;
+    final members = [_m('me', '김순자', self: true), _m('a', '김가영')];
+    await t.pumpWidget(_host(NameChips(members: members, selectedId: 'me', onSelect: (id) => picked = id)));
+    await t.tap(find.text('전체'));
+    expect(picked, kAllHistoryPatientId); // 전원 이력 병합 뷰로
   });
   testWidgets('[HIST-WHO-03] 기본 선택은 본인 — 본인 칩이 선택된 채로 그려진다', (t) async {
     // ⚠️ 플랜 Step7의 「본인 1명만으로 김순자 렌더」는 HIST-WHO-04(본인 칩 하나만 남기지 않음)와 모순 →
