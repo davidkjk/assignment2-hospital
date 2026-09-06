@@ -112,14 +112,23 @@ class _SummaryChips extends StatelessWidget {
       if (sel.department != null) sel.department!.name,
       if (sel.doctor != null) sel.doctor!.name,
     ];
+    final cs = Theme.of(context).colorScheme;
+    // #27(2026-09-05 사용자): 칩처럼 안 보임 → 깔끔한 알약(둥근끝·컴팩트·작은 글자). 데모엔 없는 Flutter 전용
+    // 요소라 대조 대상 없음. 읽기전용 유지(BOOK-NAV-06, 누를 수 없음).
     return Padding(
-      padding: const EdgeInsets.all(8),
-      child: Wrap(spacing: 6, children: [
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Wrap(spacing: 6, runSpacing: 6, children: [
         for (final c in chips)
           Chip(
-            label: Text(c),
+            label: Text(c,
+                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
             backgroundColor: AppTokens.muted, // 회색, onPressed 없음(누를 수 없음)
             side: BorderSide.none,
+            shape: const StadiumBorder(), // 둥근끝 알약
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           ),
       ]),
     );

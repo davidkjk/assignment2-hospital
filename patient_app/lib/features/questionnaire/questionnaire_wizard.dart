@@ -18,9 +18,12 @@ import 'qnr_progress_text.dart';
 const _editableStatuses = {'예약신청', '예약확정', '도착', '진료대기'};
 
 class QuestionnaireWizard extends ConsumerStatefulWidget {
-  const QuestionnaireWizard({super.key, required this.appointmentId, this.startIndex = 0});
+  const QuestionnaireWizard(
+      {super.key, required this.appointmentId, this.startIndex = 0, this.from});
   final String appointmentId;
   final int startIndex;
+  // 확인 화면 [고치기]로 들어오면 from='confirm' — 한 문항만 고치고 확인으로 돌아간다(NAV-QNR-14).
+  final String? from;
   @override
   ConsumerState<QuestionnaireWizard> createState() => _WizardState();
 }
@@ -33,6 +36,7 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
   bool _appliedStart = false;
 
   Future<void> _next() async {
+    FocusScope.of(context).unfocus(); // #28: 탭 즉시 키보드 내려 반응을 눈에 보이게(첫 탭 무반응 해소)
     final ctl = ref.read(questionnaireProvider(widget.appointmentId).notifier);
     final before = ref.read(questionnaireProvider(widget.appointmentId));
     final wasLast = before.index >= before.questions.length - 1;
@@ -40,6 +44,11 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
     await ctl.next(); // 자동 저장(complete=false) — 필수 비어도 그대로 진행(QNR-REQ-01·10)
     if (!mounted) return;
     setState(() => _saving = false);
+    // #4/NAV-QNR-14: 확인 화면 [고치기]로 들어온 한 문항 편집이면, 다음 문항으로 걷지 않고 확인으로 복귀.
+    if (widget.from == 'confirm') {
+      context.go('/questionnaire/${widget.appointmentId}/confirm');
+      return;
+    }
     if (wasLast) {
       context.go('/questionnaire/${widget.appointmentId}/confirm'); // 마지막 → 확인(NAV-QNR-13)
     }
@@ -104,87 +113,109 @@ class _WizardState extends ConsumerState<QuestionnaireWizard> {
             child: QnrProgressHeader(index: st.index, total: st.questions.length),
           ),
         ),
-        body: Padding(
-          // 데모 main px-5 py-5(20). 하단 버튼(시각 34)이 padded 탭 영역(48)으로 7px 더 차지 → 아래서 뺀다.
-          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            // QNR-LIVE-02·03·04: 취소되면 그 자리에 안내를 얹는다(병원발만 [확인]). 화면은 그대로 남는다.
-            if (cancelled && view != null && !_cxlAcked) ...[
-              QnrCancelledBanner(
-                cancelledBy: view.cancelledBy ?? 'hospital',
-                isSelf: view.isSelf,
-                relation: view.cancelledByRelation,
-                name: view.cancelledByName,
-                onAcknowledge: () {
-                  ref.read(homeAcknowledgeProvider)(widget.appointmentId); // 병원발 「봤다」 창구 재사용
-                  setState(() => _cxlAcked = true);
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('진료 전 확인',
-                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-                  const SizedBox(height: 8),
-                  Text(q.text,
-                      style: TextStyle(
-                          fontSize: 20, height: 1.4, fontWeight: FontWeight.w700, color: cs.primary)),
+        // #31 막다른 길 해소: 본문은 스크롤(Expanded+SingleChildScrollView), 푸터는 스크롤 밖에
+        // 고정 → 키보드가 떠도 [이전]/[다음]이 항상 키보드 위에 보인다. 빈 곳 탭하면 키보드 내려감.
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Column(children: [
+            Expanded(
+              child: SingleChildScrollView(
+                // 데모 main px-5 py-5(20).
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  // QNR-LIVE-02·03·04: 취소되면 그 자리에 안내를 얹는다(병원발만 [확인]). 화면은 그대로 남는다.
+                  if (cancelled && view != null && !_cxlAcked) ...[
+                    QnrCancelledBanner(
+                      cancelledBy: view.cancelledBy ?? 'hospital',
+                      isSelf: view.isSelf,
+                      relation: view.cancelledByRelation,
+                      name: view.cancelledByName,
+                      onAcknowledge: () {
+                        ref.read(homeAcknowledgeProvider)(widget.appointmentId); // 병원발 「봤다」 창구 재사용
+                        setState(() => _cxlAcked = true);
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('진료 전 확인',
+                            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                        const SizedBox(height: 8),
+                        Text(q.text,
+                            style: TextStyle(
+                                fontSize: 20,
+                                height: 1.4,
+                                fontWeight: FontWeight.w700,
+                                color: cs.primary)),
+                      ]),
+                    ),
+                    if (q.required)
+                      Container(
+                        margin: const EdgeInsets.only(left: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: cs.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(999)),
+                        child: Text('필수', style: TextStyle(fontSize: 12, color: cs.primary)),
+                      ),
+                  ]),
+                  const SizedBox(height: 24),
+                  QuestionField(
+                      question: q,
+                      value: st.answers[q.id],
+                      // QNR-LIVE-05: 잠기면 onChanged=null → 값은 보이고 입력만 막힌다.
+                      onChanged: locked
+                          ? null
+                          : (v) => ref
+                              .read(questionnaireProvider(widget.appointmentId).notifier)
+                              .answer(q.id, v)),
+                  const SizedBox(height: 20),
+                  // 잠기면 자동 저장 안내는 거짓말이 되므로 감춘다.
+                  if (!locked)
+                    Text('입력하신 답변은 자동으로 저장됩니다.',
+                        style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                 ]),
               ),
-              if (q.required)
-                Container(
-                  margin: const EdgeInsets.only(left: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: cs.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(999)),
-                  child: Text('필수', style: TextStyle(fontSize: 12, color: cs.primary)),
-                ),
-            ]),
-            const SizedBox(height: 24),
-            QuestionField(
-                question: q,
-                value: st.answers[q.id],
-                // QNR-LIVE-05: 잠기면 onChanged=null → 값은 보이고 입력만 막힌다.
-                onChanged: locked
-                    ? null
-                    : (v) =>
-                        ref.read(questionnaireProvider(widget.appointmentId).notifier).answer(q.id, v)),
-            const SizedBox(height: 20),
-            // 잠기면 자동 저장 안내는 거짓말이 되므로 감춘다.
-            if (!locked)
-              Text('입력하신 답변은 자동으로 저장됩니다.',
-                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-            const Spacer(),
+            ),
             // QNR-LIVE-05: 잠기면 [이전]·[다음]·[최종 확인]이 사라진다(진행할 것이 없다).
             if (!locked)
-              // 데모: 버튼 줄 위에 얇은 구분선(border-t) + 여백(pt-4). [이전]은 첫 문항에서 숨기지
-              // 않고 비활성(레이아웃 안정 — 데모와 동일).
-              Container(
-                decoration: BoxDecoration(
-                    border: Border(top: BorderSide(color: cs.outlineVariant))),
-                padding: EdgeInsets.only(top: 16 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
-                child: Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                        onPressed: st.index > 0
-                            ? () => ref
-                                .read(questionnaireProvider(widget.appointmentId).notifier)
-                                .prev()
-                            : null, // 첫 문항이면 비활성
-                        child: const Text('이전')),
-                  ),
-                  const SizedBox(width: 8), // 데모 푸터 gap-2
-                  Expanded(
-                    child: ActionButton(
-                        label: st.index >= st.questions.length - 1 ? '최종 확인' : '다음',
-                        busyLabel: '저장 중…',
-                        busy: _saving,
-                        onPressed: _next),
-                  ),
-                ]),
+              // 데모: 버튼 줄 위에 얇은 구분선(border-t) + 여백(pt-4). 하단 버튼(시각 34)이 padded 탭
+              // 영역(48)으로 7px 더 차지 → 위·아래 여백에서 뺀다. [이전]은 첫 문항에서 비활성(레이아웃 안정).
+              // #4: 확인 [고치기](from=confirm)로 온 한 문항 편집이면 [이전]은 없다(돌아갈 곳=확인 하나).
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    20, 0, 20, 20 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
+                child: Container(
+                  decoration:
+                      BoxDecoration(border: Border(top: BorderSide(color: cs.outlineVariant))),
+                  padding: EdgeInsets.only(top: 16 - AppButtonSize.tapPad(AppTokens.buttonBaseHeight)),
+                  child: Row(children: [
+                    if (widget.from != 'confirm') ...[
+                      Expanded(
+                        child: OutlinedButton(
+                            onPressed: st.index > 0
+                                ? () => ref
+                                    .read(questionnaireProvider(widget.appointmentId).notifier)
+                                    .prev()
+                                : null, // 첫 문항이면 비활성
+                            child: const Text('이전')),
+                      ),
+                      const SizedBox(width: 8), // 데모 푸터 gap-2
+                    ],
+                    Expanded(
+                      child: ActionButton(
+                          label: widget.from == 'confirm'
+                              ? '확인으로 돌아가기' // #4 데모 returnToReview
+                              : (st.index >= st.questions.length - 1 ? '최종 확인' : '다음'),
+                          busyLabel: '저장 중…',
+                          busy: _saving,
+                          onPressed: _next),
+                    ),
+                  ]),
+                ),
               ),
           ]),
         ),

@@ -145,8 +145,9 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
         ),
         const SizedBox(height: 12),
         // AUTH-PWNEW-12: 오타·개명으로 진짜 환자가 잠기지 않게 병원 안내 출구.
+        // #10(2026-09-05): go(스택 대체)면 안내 화면에 뒤로가기가 없어 재시도 불가 → push로(로그인 진입과 일치).
         TextButton(
-            onPressed: () => context.go('/phone-change'),
+            onPressed: () => context.push('/phone-change'),
             child: const Text('이름이 기억나지 않거나 맞지 않나요? ›')),
         // AUTH-PWNEW-06: 기억난 사람이 굳이 바꾸지 않아도 되게.
         TextButton(

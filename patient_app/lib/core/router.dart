@@ -359,10 +359,12 @@ GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
                   final id = s.pathParameters['id']!;
                   final start = s.uri.queryParameters['start'];
                   // ?start=N → 마법사가 그 문항으로(이어쓰기 [이어서]/[처음부터], 확인 [고치기]). 없으면 상태 분기.
+                  // from=confirm이면 [고치기] 한 문항 편집 → 저장 후 확인으로 복귀(#4·NAV-QNR-14).
                   if (start != null) {
                     return QuestionnaireWizard(
                         appointmentId: id,
-                        startIndex: int.tryParse(start) ?? 0);
+                        startIndex: int.tryParse(start) ?? 0,
+                        from: s.uri.queryParameters['from']);
                   }
                   return QuestionnaireEntry(appointmentId: id);
                 }), // NAV-HOME-05·NAV-QNR (화면=T23)

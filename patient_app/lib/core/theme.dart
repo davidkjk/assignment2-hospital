@@ -64,7 +64,9 @@ class AppTheme {
         fillColor: AppTokens.surface,
         isDense: false,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        hintStyle: const TextStyle(color: AppTokens.grayPending),
+        // #7(2026-09-05): grayPending(#454545 진회색)이라 플레이스홀더가 입력값처럼 보였다 →
+        // grayDone(#A3AFB8 옅은 회색=비활성 텍스트)로 낮춰 안내글임이 드러나게(전 입력칸 공통).
+        hintStyle: const TextStyle(color: AppTokens.grayDone),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppTokens.border),

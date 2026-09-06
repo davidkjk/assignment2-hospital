@@ -24,7 +24,9 @@ Future<void> openNotification(BuildContext context, WidgetRef ref, NotificationV
     showNotificationGoneDialog(context); // 팝업 + 이동 안 함 + 알림은 목록에 그대로(GONE-01·02)
     return;
   }
-  context.go(route); // NAV-HOME-16
+  // #12(2026-09-05): go(스택 대체)면 예약상세에서 뒤로가기 시 알림함으로 못 돌아옴 → push로 얹어
+  // 뒤로가기가 알림함으로 복귀하게 한다(NAV-HOME-16).
+  context.push(route);
 }
 
 /// 누른 그 순간 목적지 존재 확인. 예약 기반이면 GET /my/appointments/{id}(없음/권한없음 → false).

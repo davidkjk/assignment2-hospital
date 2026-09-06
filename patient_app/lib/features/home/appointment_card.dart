@@ -150,7 +150,8 @@ class AppointmentCard extends StatelessWidget {
       AppointmentCardState.unconf => const UnconfBody(),
       AppointmentCardState.confirmed ||
       AppointmentCardState.late =>
-        QrPreviewBody(view: view, onTap: () => context.go('/qr/${view.id}')), // NAV-HOME-02
+        // #5(2026-09-05): go(스택 대체)면 QR 전체화면 X가 먹통 → push로(예약상세와 동일). X=pop(NAV-HOME-02).
+        QrPreviewBody(view: view, onTap: () => context.push('/qr/${view.id}')),
       AppointmentCardState.arrived => const InBody(),
       AppointmentCardState.inTreatment => const DocBody(),
       AppointmentCardState.done => const DoneBody(),

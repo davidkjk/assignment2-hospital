@@ -350,8 +350,11 @@ class _QnrAccordionState extends State<QnrAccordion> {
           ListTile(
           leading: Icon(readonly ? AppIcons.lock : AppIcons.visibility, // APPT-QNR-07
               color: AppTokens.grayPending),
-          title: Text(readonly ? '사전문진  작성완료 · 조회만' : '사전문진  작성완료 · 수정 가능', // APPT-QNR-03
-              style: const TextStyle(fontWeight: FontWeight.w600)),
+          // #19(2026-09-05): 한 줄에 다 넣으면 "· 수정 가능"이 잘려 줄바꿈 → 제목/부제 2단으로(APPT-QNR-03).
+          title: const Text('사전문진 작성완료',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(readonly ? '조회만' : '수정 가능',
+              style: const TextStyle(fontSize: 13, color: AppTokens.grayPending)),
           trailing: Icon(_open ? AppIcons.expand_less : AppIcons.expand_more),
           onTap: () => setState(() => _open = !_open),
         ),

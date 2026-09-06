@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/tokens.dart';
-import '../../../widgets/dashed_border.dart';
 import '../../../widgets/empty_state.dart';
 import '../booking_controller.dart';
 import '../booking_widgets.dart';
@@ -54,32 +53,42 @@ class DeptStep extends ConsumerWidget {
   }
 }
 
-// BOOK-DEPT-02 — 점선 테두리 + 연한 딥틸 배경, "어느 과인지 모르겠어요" + 안내 한 줄.
+// BOOK-DEPT-02 — "어느 과인지 모르겠어요" 상담봇 진입점.
+// #25(2026-09-05 사용자): 점선 박스가 버튼처럼 안 보임 → 진료과 카드와 같은 계열의 버튼형으로
+// (연한 딥틸 틴트 면 + 실선 테두리 + 좌측 물음표 + 우측 화살표). 데모 점선(border-dashed)에서 갈림.
 class _DeptBotEntry extends StatelessWidget {
   const _DeptBotEntry({required this.onTap});
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      // BOOK-DEPT-02 — 데모 border-dashed border-primary/40 bg-primary/5 (점선 + 연한 딥틸 틴트).
-      child: DottedBorder(
-        color: AppTokens.primary.withValues(alpha: 0.4),
-        radius: 18,
-        backgroundColor: AppTokens.primary.withValues(alpha: 0.06),
-        padding: const EdgeInsets.all(16),
-        child: const Column(children: [
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(AppIcons.help, size: 18, color: AppTokens.primary),
-            SizedBox(width: 8),
-            Text('어느 과인지 모르겠어요',
-                style: TextStyle(color: AppTokens.primary, fontWeight: FontWeight.w600)),
+    return Material(
+      color: AppTokens.primary.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTokens.primary.withValues(alpha: 0.3)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: const Row(children: [
+            Icon(AppIcons.help, size: 20, color: AppTokens.primary),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('어느 과인지 모르겠어요',
+                    style: TextStyle(
+                        color: AppTokens.primary, fontWeight: FontWeight.w600, fontSize: 15)),
+                SizedBox(height: 2),
+                Text('증상을 말씀하시면 AI 상담봇이 안내해드립니다',
+                    style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
+              ]),
+            ),
+            Icon(AppIcons.chevron_right, color: AppTokens.primary),
           ]),
-          SizedBox(height: 4),
-          Text('증상을 말씀하시면 AI 상담봇이 안내해드립니다',
-              style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
-        ]),
+        ),
       ),
     );
   }

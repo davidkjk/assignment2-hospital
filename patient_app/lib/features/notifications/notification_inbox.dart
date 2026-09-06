@@ -174,7 +174,9 @@ class NotificationRow extends StatelessWidget {
     // NOTI-READ-02: 읽은 줄은 글자·아이콘이 회색으로 내려간다.
     final titleColor = read ? AppTokens.grayDone : AppTokens.onSurface;
     final iconColor = read ? AppTokens.grayDone : AppTokens.primary;
-    final bodyColor = read ? AppTokens.grayDone : AppTokens.muted;
+    // #13(2026-09-05): 안 읽음 본문색이 muted(#F2F2F2 배경 토큰)라 흰 바탕에 거의 안 보였다(배경색을
+    // 글자색에 잘못 씀) → 읽을 수 있는 진한 색(onSurface)으로. 읽음은 grayDone 유지.
+    final bodyColor = read ? AppTokens.grayDone : AppTokens.onSurface;
 
     return InkWell(
       onTap: onTap,
@@ -206,10 +208,10 @@ class NotificationRow extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w600, color: titleColor)),
                             const SizedBox(height: 4),
                             // NOTI-BODY-01: 저장된 body 그대로(진료과·의사·증상 다시 안 붙임).
+                            // #13·#14(2026-09-05): 한 줄 truncate라 "…"로 잘려 내용을 못 읽었다(특히 병원안내는
+                            // 여는 화면 없는 순수 공지라 여기서만 읽을 수 있다) → 전문 표시(maxLines 제한 제거).
                             Text(view.body,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis, // 데모 truncate — 한 줄로 자른다
-                                style: TextStyle(fontSize: 13, color: bodyColor)),
+                                style: TextStyle(fontSize: 13, height: 1.4, color: bodyColor)),
                             const SizedBox(height: 4),
                             Text(formatKoreanTime(view.sentAt),
                                 style:
