@@ -28,11 +28,36 @@ async def test_list_doctors_active_doctors_of_department(committed_conn):
     dept = await committed_conn.fetchval("insert into departments (name) values ('테스트내과') returning id")
     doc = await seed_staff(committed_conn, role="doctor", department_id=dept)
     await committed_conn.execute("update staff set name='김의사' where id=$1", doc["staff_id"])
+    # BOOK-DOC-10: 진료시간이 하나라도 있어야 환자에게 보인다.
+    await committed_conn.execute(
+        "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments) "
+        "values ($1,0,'09:00','12:00',20,10)", doc["staff_id"])
     recp = await seed_staff(committed_conn, role="receptionist", department_id=dept)  # 의사 아님 → 제외
     docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(committed_conn)))
     ids = [d["id"] for d in docs]
     assert doc["staff_id"] in ids
     assert recp["staff_id"] not in ids
+
+
+@pytest.mark.asyncio
+async def test_list_doctors_excludes_doctors_without_schedule(committed_conn):
+    """[BOOK-DOC-10] 환자에게는 '진료시간이 하나라도 등록된' 활성 의사만 보인다.
+
+    초대만 받고 아직 진료시간이 없는 의사는 환자 예약 화면에서 숨긴다 — 보이면 예약할
+    시간칸이 없어 막다른 길이 된다(설계 ①·①-a, 2026-09-06)."""
+    dept = await committed_conn.fetchval(
+        "insert into departments (name, is_active) values ('테스트일정게이트과', true) returning id")
+    with_sched = await seed_staff(committed_conn, role="doctor", department_id=dept)
+    without_sched = await seed_staff(committed_conn, role="doctor", department_id=dept)
+    await committed_conn.execute(
+        "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments) "
+        "values ($1,0,'09:00','12:00',20,10)", with_sched["staff_id"])
+
+    docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(committed_conn)))
+    ids = [d["id"] for d in docs]
+
+    assert with_sched["staff_id"] in ids          # 진료시간 있는 의사는 보인다
+    assert without_sched["staff_id"] not in ids    # 아직 진료시간 없는(미수락) 의사는 숨긴다
 
 
 @pytest.mark.asyncio
@@ -85,9 +110,13 @@ async def test_list_doctors_photo_url_null_when_absent(committed_conn):
     dept = await committed_conn.fetchval(
         "insert into departments (name, is_active) values ('테스트무사진과', true) returning id")
     doc = await seed_staff(committed_conn, role="doctor", department_id=dept)
+    # BOOK-DOC-10: 진료시간이 있어야 목록에 뜬다 — 사진 없음(photo_url null)만 이 테스트의 관심사.
+    await committed_conn.execute(
+        "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments) "
+        "values ($1,0,'09:00','12:00',20,10)", doc["staff_id"])
     docs = await patient_catalog_service.list_doctors(dept, _ctx(await seed_patient(committed_conn)))
     mine = next(d for d in docs if d["id"] == doc["staff_id"])
-    assert mine["photo_url"] is None and mine["schedule_summary"] == "진료시간 문의"
+    assert mine["photo_url"] is None
 
 
 @pytest.mark.asyncio

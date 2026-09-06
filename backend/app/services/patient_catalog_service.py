@@ -34,6 +34,10 @@ async def list_doctors(department_id: UUID, patient: PatientContext) -> list[dic
     for r in srows:
         by_doctor[r["doctor_id"]].append(
             {"weekday": r["weekday"], "start_time": r["start_time"], "end_time": r["end_time"]})
+    # [BOOK-DOC-10] 진료시간이 하나라도 등록된 의사만 환자에게 보인다 — 초대만 받고 아직
+    # 진료시간이 없는 의사는 예약할 칸이 없어 막다른 길이 되므로 숨긴다(설계 ①·①-a).
+    # by_doctor는 위에서 서비스역할(get_pool)로 읽은 것이라 환자 커넥션의 RLS 권한과 무관하다.
+    doctors = [d for d in doctors if by_doctor.get(d["id"])]
     for d in doctors:
         d["schedule_summary"] = summarize_schedule(by_doctor.get(d["id"], []))
     return doctors  # {id, name, specialty, photo_url, schedule_summary}
