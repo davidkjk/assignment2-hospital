@@ -10,7 +10,7 @@ const supabaseAuth = vi.hoisted(() => ({
   signOut: vi.fn(),
 }))
 
-vi.mock('../lib/supabaseClient', () => ({ supabase: { auth: supabaseAuth } }))
+vi.mock('../lib/supabaseClient', () => ({ supabase: { auth: supabaseAuth }, authFlowType: null, clearAuthFlowType: vi.fn() }))
 
 function authValue(isRecoverySession: boolean) {
   return {
@@ -66,6 +66,35 @@ test('[STAFF-LOGIN-10] PASSWORD_RECOVERY proof가 있는 세션만 새 비밀번
   )
 
   expect(await screen.findByRole('heading', { name: '새 비밀번호 만들기' })).toBeVisible()
+})
+
+test('[초대 수락] type=invite 세션은 최초 비밀번호 설정 화면을 연다', async () => {
+  render(
+    <AuthContext.Provider value={authValue(false) as never}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <PasswordResetNewPage flowType="invite" />
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+
+  // 복구 proof(isRecoverySession)가 없어도 초대 세션이면 열린다.
+  expect(await screen.findByRole('heading', { name: '가온병원에 오신 것을 환영합니다' })).toBeVisible()
+  expect(screen.getByRole('button', { name: '비밀번호 설정' })).toBeVisible()
+  expect(screen.queryByRole('link', { name: '비밀번호 재설정 다시 요청' })).toBeNull()
+})
+
+test('[초대 수락] 세션 없는 invite 링크는 폼을 열지 않는다', async () => {
+  const noSession = { ...authValue(false), session: null }
+  render(
+    <AuthContext.Provider value={noSession as never}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <PasswordResetNewPage flowType="invite" />
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+
+  expect(await screen.findByRole('heading', { name: '이 초대 링크를 사용할 수 없습니다' })).toBeVisible()
+  expect(screen.queryByRole('button', { name: '비밀번호 설정' })).toBeNull()
 })
 
 describe('복구 비밀번호 저장 순서', () => {

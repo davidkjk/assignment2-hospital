@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import settings
-from app.routers.staff import _invite_redirect_origin, _normalize_origin
+from app.routers.staff import _invite_accept_url, _invite_redirect_origin, _normalize_origin
 
 
 def _request(headers: dict[str, str]):
@@ -40,6 +40,19 @@ def test_falls_back_to_configured_origin(monkeypatch):
 def test_returns_none_when_nothing_available(monkeypatch):
     monkeypatch.setattr(settings, "staff_web_origin", None)
     assert _invite_redirect_origin(_request({})) is None
+
+
+def test_accept_url_appends_set_password_path():
+    origin = "https://gaonhospital-staff-git-merge-design-integration-iansoft.vercel.app"
+    assert (
+        _invite_accept_url(_request({"origin": origin}))
+        == f"{origin}/reset-password/new"
+    )
+
+
+def test_accept_url_none_when_no_origin(monkeypatch):
+    monkeypatch.setattr(settings, "staff_web_origin", None)
+    assert _invite_accept_url(_request({})) is None
 
 
 @pytest.mark.parametrize(

@@ -54,6 +54,16 @@ def _invite_redirect_origin(request: Request) -> str | None:
     return origin
 
 
+# 초대 수락 링크가 착지할 화면 — 여기서 초대받은 직원이 최초 비밀번호를 설정한다.
+# (프론트 라우트 /reset-password/new: 복구·초대 공용 '비밀번호 설정' 화면)
+_INVITE_ACCEPT_PATH = "/reset-password/new"
+
+
+def _invite_accept_url(request: Request) -> str | None:
+    origin = _invite_redirect_origin(request)
+    return f"{origin}{_INVITE_ACCEPT_PATH}" if origin else None
+
+
 class InviteStaffRequest(BaseModel):
     email: str
     name: str
@@ -84,7 +94,7 @@ async def invite_staff(
 ) -> InviteStaffResponse:
     staff_id = await staff_service.invite_staff(
         email=body.email, name=body.name, role=body.role, department_id=body.department_id, invited_by=staff,
-        redirect_to=_invite_redirect_origin(request),
+        redirect_to=_invite_accept_url(request),
     )
     return InviteStaffResponse(staff_id=staff_id)
 
@@ -171,6 +181,6 @@ async def resend_invite(
 ) -> dict:
     """[정합성 검토 R3-04] 초대 이메일 재발송."""
     await staff_service.resend_invite(
-        staff_id, requested_by=staff, redirect_to=_invite_redirect_origin(request)
+        staff_id, requested_by=staff, redirect_to=_invite_accept_url(request)
     )
     return {"status": "resent"}
