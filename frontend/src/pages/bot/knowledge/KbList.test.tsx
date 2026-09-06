@@ -52,9 +52,9 @@ describe('KbList', () => {
     expect(screen.getByText('임시본').closest('[data-doc]')!.textContent).not.toMatch(/답변 근거/)
   })
 
-  it('[KBADM-LIST-05] is_restricted 자료는 \'답하면 안 되는 내용\'으로 구분한다', () => {
+  it('[KBADM-LIST-05] is_restricted 자료는 \'고정 문구만 노출\'로 구분한다', () => {
     render(<KbList docs={[doc({ isRestricted: true })]} phase="ready" filters={{}} onFilter={vi.fn()} onOpen={vi.fn()} />)
-    expect(screen.getByText(/답하면 안 되는 내용/)).toBeVisible()
+    expect(screen.getByText(/고정 문구만 노출/)).toBeVisible()
   })
 
   it('[KBADM-LIST-06] 0건은 \'조건에 맞는 안내자료가 없습니다\'이며 조회 실패를 대체하지 않는다', () => {

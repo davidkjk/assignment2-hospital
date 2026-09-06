@@ -8,7 +8,7 @@ import type { Phase } from './useKbList'
 
 // 안내자료 목록(KBADM-LIST-*) — 상단 필터 줄(분류·상태 + 오른쪽 액션) + 목록 카드(헤더바=건수).
 // 승인/제한 구분, 0건↔로딩↔오류를 각각 구분한다. 표현형 — useKbList의 phase·docs·filters만 읽는다.
-// 데모(routes/staff/bot/Knowledge.tsx)의 칩 줄·카드 헤더를 따르되, 분류 필터·'답하면 안 되는 내용'은 규칙이 이긴다.
+// 데모(routes/staff/bot/Knowledge.tsx)의 칩 줄·카드 헤더를 따르되, 분류 필터·'고정 문구만 노출'(is_restricted)은 규칙이 이긴다.
 
 const STATUSES: KbStatus[] = ['draft', 'approved', 'archived']
 const STATUS_TONE: Record<KbStatus, string> = {
@@ -114,7 +114,7 @@ export function KbList({
                       )}
                       {k.isRestricted && (
                         <span className="inline-flex items-center gap-0.5 text-rose-600">
-                          <LockKeyhole className="h-3 w-3" /> 답하면 안 되는 내용
+                          <LockKeyhole className="h-3 w-3" /> 고정 문구만 노출
                         </span>
                       )}
                     </div>
