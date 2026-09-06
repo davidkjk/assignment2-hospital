@@ -14,6 +14,7 @@ import '../../widgets/doctor_avatar.dart';
 import '../../widgets/inline_error.dart';
 import '../home/appointment_view.dart';
 import '../home/status_badge.dart';
+import '../questionnaire/questionnaire_controller.dart'; // #23 문항–답변 표 렌더
 import 'appointment_detail.dart';
 import 'cancelled_view.dart';
 
@@ -391,17 +392,52 @@ class _QnrAccordionState extends State<QnrAccordion> {
 /// 문항-답변 표. 내용 데이터·수정 화면은 T23·24(QNR-*)가 채운다. 여기선 펼침 자리만.
 /// 문항–답변 표(읽기 전용). 예약 상세(APPT-QNR-04)와 방문 이력 펼침(HIST-QNR, T27b)이 공유한다.
 /// 내용·수정 화면은 T23·24 소유(지금은 자리표시자).
-class QnrTable extends StatelessWidget {
+/// APPT-QNR-04 / HIST-QNR-03 — 저장된 문항–답변을 그 자리에 읽기전용으로 편다.
+/// #23(2026-09-05): 종전엔 항상 "불러오는 중" 문구만 내던 스텁이라 영원히 멈춰 보였다 → 실제 로드·렌더.
+class QnrTable extends ConsumerWidget {
   const QnrTable(this.appointmentId, {super.key});
-  // ignore: unused_field
   final String appointmentId;
   @override
-  Widget build(BuildContext context) {
-    return const Align(
-      alignment: Alignment.centerLeft,
-      child: Text('문진 답변을 불러오는 중입니다',
-          style: TextStyle(fontSize: 13, color: AppTokens.grayPending)),
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final st = ref.watch(questionnaireProvider(appointmentId));
+    if (st.loading) {
+      return const Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Text('문진 답변을 불러오는 중입니다',
+              style: TextStyle(fontSize: 13, color: AppTokens.grayPending)),
+        ),
+      );
+    }
+    if (st.error != null) {
+      return const Align(
+        alignment: Alignment.centerLeft,
+        child: Text('문진을 불러오지 못했어요.',
+            style: TextStyle(fontSize: 13, color: AppTokens.grayPending)),
+      );
+    }
+    if (st.questions.isEmpty && st.answers.isEmpty) {
+      return const Align(
+        alignment: Alignment.centerLeft,
+        child: Text('작성한 문진 내용이 없습니다.',
+            style: TextStyle(fontSize: 13, color: AppTokens.grayPending)),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (var i = 0; i < st.questions.length; i++) ...[
+        if (i > 0) const SizedBox(height: 12),
+        Text(st.questions[i].text,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.4)),
+        const SizedBox(height: 2),
+        Text(
+          (st.answers[st.questions[i].id]?.isNotEmpty ?? false)
+              ? st.answers[st.questions[i].id]!
+              : '작성하지 않음',
+          style: const TextStyle(fontSize: 14, color: AppTokens.grayPending),
+        ),
+      ],
+    ]);
   }
 }
 

@@ -133,7 +133,9 @@ class _OtpScreenState extends State<OtpScreen> {
                             controller: _boxes[i],
                             focusNode: _nodes[i],
                             keyboardType: TextInputType.number, // AUTH-OTP-01
-                            maxLength: 1,
+                            // #8: maxLength:1은 iOS SMS 자동채우기(6자리)를 1자로 잘라 막는다 → 제거하고
+                            //     아래 onChanged에서 6자리를 각 칸으로 분배. autofillHints로 키보드 위 자동채우기 노출.
+                            autofillHints: const [AutofillHints.oneTimeCode],
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                                 fontSize: 20, fontWeight: FontWeight.bold),
@@ -142,7 +144,25 @@ class _OtpScreenState extends State<OtpScreen> {
                                 counterText: '',
                                 contentPadding: EdgeInsets.zero),
                             onChanged: (v) {
-                              if (v.isNotEmpty && i < 5) _nodes[i + 1].requestFocus();
+                              final digits = v.replaceAll(RegExp(r'\D'), '');
+                              if (digits.length > 1) {
+                                // 자동채우기·붙여넣기: i번 칸부터 한 자씩 분배(컨트롤러 직접 세팅은 onChanged 재귀 없음).
+                                for (var k = 0; k + i < 6 && k < digits.length; k++) {
+                                  _boxes[i + k].text = digits[k];
+                                }
+                                final filled = (i + digits.length).clamp(0, 6);
+                                if (filled >= 6) {
+                                  _nodes[5].unfocus();
+                                } else {
+                                  _nodes[filled].requestFocus();
+                                }
+                                return;
+                              }
+                              if (v.isNotEmpty && i < 5) {
+                                _nodes[i + 1].requestFocus(); // 입력 → 다음 칸
+                              } else if (v.isEmpty && i > 0) {
+                                _nodes[i - 1].requestFocus(); // #8 삭제 → 이전 칸으로 이어서
+                              }
                             },
                           ),
                         )),
@@ -189,7 +209,8 @@ class _OtpScreenState extends State<OtpScreen> {
             // AUTH-PWFIND-06 / NAV-AUTH-16: 비밀번호 찾기는 「문자가 오지 않나요?」 → 번호 변경 안내로 push(겹침).
             if (widget.purpose == OtpPurpose.passwordFind)
               TextButton(
-                  onPressed: () => Navigator.of(context).pushNamed('/phone-change'),
+                  // #9(2026-09-05): Navigator.pushNamed는 go_router에서 무반응 → context.push로.
+                  onPressed: () => context.push('/phone-change'),
                   child: const Text('문자가 오지 않나요?')),
           ]),
         ),

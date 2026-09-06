@@ -24,7 +24,7 @@
 ## C. 홈 / 카드 레이아웃
 - [ ] **#32** 🔎 홈 히어로 카드 "사전문진 작성하기" 아래 **하단 여백 과다** → 축소. (액션 버튼 영역과 겹쳐 보여 폰에서 직접 확인 후 수정 — 재빌드 후 재검토)
 - [ ] **#6** 홈 히어로 QR 그림 하드코딩 → **본인 QR 축소형으로 교체**(누르면 전체화면). [결정]
-- [ ] **#37** **홈 헤더 높이가 다른 탭보다 낮음** → 통일.
+- [x] **#37** ✅코드(폰검증대기) — 홈 브랜드바 height 48 고정(다른 탭 PatientAppBar 48과 통일). `home_screen.dart`.
 - [ ] **#15** 예약 탭 하단 「새 예약하기」: **배경 제거 + 그림자 옅게 + 탭바에 더 가까이**.
 - [ ] **#16** 예약상세 하단 2버튼(상담채팅 연결·병원 전화): **배경 제거 + #15와 동일 형식 + 그림자 + 탭바 가까이**.
 
@@ -34,8 +34,8 @@
 
 ## E. 로그인 / OTP
 - [x] **#7** ✅코드(폰검증대기) — 전역 `hintStyle` `grayPending`(#454545)→`grayDone`(#A3AFB8 옅은 회색). 전 입력칸 플레이스홀더 공통. `theme.dart`.
-- [ ] **#8** 비번찾기 OTP칸: **지울 때 이전칸으로 안 이어짐** + **iOS SMS 자동채우기 눌러도 안 채워짐**.
-- [ ] **#9** 비번찾기 OTP화면 **「문자가 오지 않나요?」 눌러도 아무것도 안 뜸**.
+- [x] **#8** ✅코드(폰검증대기) — maxLength:1 제거(자동채우기 6자리 분배)+autofillHints oneTimeCode+삭제 시 이전칸 이동. `otp_screen.dart`.
+- [x] **#9** ✅코드(폰검증대기) — Navigator.pushNamed(go_router서 무반응)→context.push. `otp_screen.dart`.
 
 ## F. 가족
 - [x] **#18** ✅코드(폰검증대기) — 본인 카드만 라벨 "정보 안내"·보기 아이콘(가족은 "정보 수정"). 진입 시 잠긴 신원 안내. `family_list_screen.dart`.
@@ -44,15 +44,15 @@
 - [x] **#22** ✅코드(⚠️백엔드 재배포 후 반영) — 서버 order-by `p.name`→`p.birth_date asc, p.name`(본인 맨위 유지, 나이 많은 순). `backend/app/services/patient_family_service.py:93`. 규칙 FAM-LIST-02 갱신 필요.
 
 ## G. 이력
-- [ ] **#23** 진료완료>「내가 작성한 사전문진」 펼치면 **"불러오는 중…"에서 멈춤**·내용 안 나옴(조사).
-- [ ] **#24** 노쇼("방문하지 않음")/취소됨 카드 펼치면 **빈 내용** → 안내 문구.
+- [x] **#23** ✅코드(폰검증대기) — QnrTable이 스텁(항상 "불러오는 중")이었음 → questionnaireProvider로 문항–답변 실제 로드·렌더(로딩/오류/빈상태 분기). `detail_sections.dart`.
+- [x] **#24** ✅코드(폰검증대기) — done/문진 둘 다 없으면 빈 펼침 → 상태별 안내문("방문하지 않은 예약이에요…"). `history_row_detail.dart`.
 - [ ] **#34** 이력 가족 필터칩에 **"전체"(전원 이력) 칩** 추가.
 
 ## H. 기타 표시/기능
 - [x] **#17** ✅코드(폰검증대기) — 주소 `SelectableText`(길게눌러 iOS 복사) + 지도 열기는 "지도 앱으로 길 찾기" 링크로 분리. `detail_sections.dart`. (가온빌딩=가짜 데모 주소, 납품 시 실주소)
 - [x] **#19** ✅코드(폰검증대기) — 문진 접기 헤더를 제목("사전문진 작성완료")/부제("수정 가능"·"조회만") 2단으로 → 줄바꿈 잘림 해소. `detail_sections.dart`.
 - [ ] **#2** 앱 아이콘 로고 **아이폰만 키움**(안드로이드 원형마스크 잘림 우려로 현행 유지). [결정]
-- [ ] **#36** 앱 AI 상담 화면 **아이콘 없음(누락)** → 추가.
+- [x] **#36** ✅코드(폰검증대기) — AI 상담 탭 헤더에 chat_bubble 아이콘(다른 탭과 통일). `chat_history_view.dart`.
 
 ## I. 조사 필요 (백엔드/클라우드) — 워커 조사 완료(보고서 `backend-qa-investigation-2026-09-05.md`)
 - [x] **#33 ⭐** ✅원인확정+코드수정(`8d8afb5`, ⚠️배포대기) — Supabase 풀러가 `server_settings` timezone을 버려 세션 UTC → `current_date` UTC경계. fix=`pool.py` setup 콜백 `SET TIME ZONE 'Asia/Seoul'`(라이브 검증). **Railway 재배포 필요.**
@@ -78,4 +78,6 @@
 ## L. 재검수 중 추가 findings (2026-09-05, 수정앱 재설치 후)
 - [x] **#38** ✅코드(⚠️백엔드 재배포 후 반영) — 알림설정에 "광고성 정보 수신 동의" 토글 신설(`ads_consent_repository.dart`+`notification_settings_screen.dart`). 백엔드 `/patient/me`에 `ads_consent` 추가(`patient_profile_service.py`), PATCH `/patient/me/ads-consent` 재사용. 가입 동의(consent_screen)와 별개로 사후 켜기 가능.
 - [x] **#39** ✅코드(폰검증대기) — 설정 헤더에 톱니 아이콘(`PatientAppBar icon: AppIcons.settings`). 2차화면 관례에서 예외(사용자 요청). `settings_home_screen.dart`.
+- [x] **#40 ⭐** ✅코드(폰검증대기) — 회원가입 진입 불가였음: 랜딩 화면(로그인+회원가입 버튼, AUTH-LAND-01)이 완성돼 있으나 라우터 미등록·앱이 /login 직행이라 가입 입구가 가려짐 → /landing 라우트 등록+signedOut 리다이렉트를 /landing로+초기위치 /landing. `router.dart`. (로그인 화면에 가입링크 없는 건 설계상 정상)
+- [ ] **#34** 이력 "전체"(전원 이력) 칩 — 멤버별 조회 병합 필요, 다음 라운드.
 - [ ] **#3(리전)** ⚠️CLI 차단(프로덕션 변경 auto-mode 거부) → **사용자가 Railway 대시보드 api 서비스 Region=Singapore로 변경+재배포**(진행 중). cron은 선택(앱 속도 무관).

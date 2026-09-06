@@ -199,8 +199,11 @@ class _BrandBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // #37(2026-09-05): 상하 패딩+48dp 아이콘버튼이라 다른 탭 헤더(PatientAppBar 48)보다 높았다 →
+      // 높이 48 고정으로 통일(아이콘 48dp 터치영역은 바 안에서 유지). 헤더 아래 줄이 탭들과 맞음.
+      height: 48,
       color: AppTokens.primary,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: IconTheme(
         data: const IconThemeData(color: Colors.white),
         child: Row(

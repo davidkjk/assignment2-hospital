@@ -19,7 +19,7 @@ class ChatHistoryView extends ConsumerWidget {
     final v = ref.watch(chatHistoryProvider);
     return Scaffold(
       backgroundColor: AppTokens.background,
-      appBar: const PatientAppBar(title: 'AI 상담'),
+      appBar: const PatientAppBar(title: 'AI 상담', icon: AppIcons.chat_bubble), // #36: 탭 헤더 아이콘(하단 탭과 동일)
       body: v.when(
         loading: () => const Center(child: CircularProgressIndicator()), // LOAD
         error: (_, __) => Center(

@@ -10,6 +10,7 @@ import '../features/auth/auth_state.dart';
 import '../features/auth/auth_repo.dart';
 import '../features/auth/consent_screen.dart';
 import '../features/auth/duplicate_account_screen.dart';
+import '../features/auth/landing_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/new_password_screen.dart';
 import '../features/auth/otp_screen.dart';
@@ -63,9 +64,11 @@ String? computeRedirect({
   required bool needsReauth,
   required String loc,
 }) {
-  final protected = !loc.startsWith('/login') && !loc.startsWith('/signup');
-  // NAV-GLOBAL-03: 진짜 로그아웃(온라인 401)만 로그인으로. expiredOffline은 여기서 안 걸린다.
-  if (auth == AuthStatus.signedOut && protected) return '/login';
+  // #40(2026-09-05): 로그인 전 첫 화면은 랜딩(AUTH-LAND-01, [로그인]+[회원가입]). 랜딩·로그인·가입은 비보호.
+  final protected =
+      !loc.startsWith('/login') && !loc.startsWith('/signup') && !loc.startsWith('/landing');
+  // NAV-GLOBAL-03: 진짜 로그아웃(온라인 401)만 랜딩으로(가입 입구가 랜딩에 있다). expiredOffline은 안 걸린다.
+  if (auth == AuthStatus.signedOut && protected) return '/landing';
   // OFF-AUTH-01: expiredOffline이면 캐시 읽기전용 화면 유지 — 로그인으로 보내지 않는다.
   if (auth == AuthStatus.expiredOffline) return null;
   // NAV-GLOBAL-04(갭 #43): 인증됐지만 프로필 미완료면 가입 ③으로(profileMissingProvider는 Task 13이 채운다).
@@ -103,10 +106,12 @@ Future<void> _afterSignupOtp(
 }
 
 /// 라우터를 함수로 감싸 테스트가 시작 위치를 주입할 수 있게 한다. main.dart는 기본 인스턴스를 쓴다.
-GoRouter buildAppRouter({String initialLocation = '/login'}) => GoRouter(
+GoRouter buildAppRouter({String initialLocation = '/landing'}) => GoRouter(
       initialLocation: initialLocation,
       redirect: _authRedirect,
       routes: [
+        // #40: 로그인 전 첫 화면 — [로그인]+[회원가입] 큰 버튼(AUTH-LAND-01). 가입 입구가 여기 있다.
+        GoRoute(path: '/landing', builder: (c, s) => const LandingScreen()),
         GoRoute(
           path: '/login',
           builder: (c, s) {

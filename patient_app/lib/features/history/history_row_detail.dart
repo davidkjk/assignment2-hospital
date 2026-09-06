@@ -61,13 +61,25 @@ class HistoryRowDetail extends StatelessWidget {
   const HistoryRowDetail({super.key, required this.entry});
   final VisitHistoryEntry entry;
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(72, 0, 16, 12), // 레일 폭만큼 들여씀
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (entry.status == VisitStatus.done) // HIST-NOTE-04: 완료 줄만 안내문 자리
-            HospitalNoteBlock(notes: entry.patientVisibleNotes),
-          if (entry.hasQuestionnaire) // HIST-QNR-04: 문진 있으면 줄, 없으면 아예 없음
-            HistoryQnrLine(appointmentId: entry.id, status: entry.status, hasQuestionnaire: true),
-        ]),
-      );
+  Widget build(BuildContext context) {
+    // #24(2026-09-05): done(안내블록)도 아니고 문진도 없으면 펼침이 완전히 비어 보였다(노쇼·취소 등)
+    // → 상태에 맞는 안내 한 줄을 남긴다(빈 화면 방지).
+    final hasContent = entry.status == VisitStatus.done || entry.hasQuestionnaire;
+    final emptyMsg = switch (entry.status) {
+      VisitStatus.noShow => '방문하지 않은 예약이에요. 남은 기록이 없습니다.',
+      VisitStatus.cancelled => '취소된 예약이에요. 남은 기록이 없습니다.',
+      _ => '남은 기록이 없습니다.',
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(72, 0, 16, 12), // 레일 폭만큼 들여씀
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (entry.status == VisitStatus.done) // HIST-NOTE-04: 완료 줄만 안내문 자리
+          HospitalNoteBlock(notes: entry.patientVisibleNotes),
+        if (entry.hasQuestionnaire) // HIST-QNR-04: 문진 있으면 줄, 없으면 아예 없음
+          HistoryQnrLine(appointmentId: entry.id, status: entry.status, hasQuestionnaire: true),
+        if (!hasContent)
+          Text(emptyMsg, style: const TextStyle(color: AppTokens.grayPending, fontSize: 13)),
+      ]),
+    );
+  }
 }
