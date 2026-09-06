@@ -74,6 +74,19 @@ async def list_documents(*, category: str | None = None, status: str | None = No
     return [_row_to_doc(r) for r in rows]
 
 
+async def list_categories() -> list[str]:
+    # 편집기 분류 콤보박스(datalist)가 보여줄 「실제로 쓰이고 있는」 분류 목록(EDITOR-02).
+    # ⭐ 고정 상수가 아니라 DB에 실재하는 distinct category라야, 관리자가 새로 만든 분류가 다른
+    #    자료를 편집할 때도 추천에 뜬다(고정 선택지가 아니라 자유 입력 — 사용자 결정 2026-09-02).
+    #    빈 문자열·null은 뺀다. 정렬은 가나다순(표시 순서는 프론트가 표준 분류와 병합해 정한다).
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "select distinct category from kb_documents "
+            "where category is not null and category <> '' order by category")
+    return [r["category"] for r in rows]
+
+
 async def get_document(doc_id: UUID) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:

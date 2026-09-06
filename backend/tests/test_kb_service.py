@@ -6,6 +6,24 @@ from tests.conftest_chat import FakeEmbedder
 
 
 @pytest.mark.asyncio
+async def test_list_categories_shows_used_categories_distinct(committed_conn):
+    # 편집기 콤보박스는 「실제로 쓰이는」 분류를 보여준다 — 관리자가 만든 새 분류가 뜨고, 중복은 한 번,
+    # 빈 값은 빠진다(EDITOR-02 자유 입력 콤보박스, 고정 상수가 아님).
+    st = await seed_staff(committed_conn, role="admin")
+    for cat in ["위치·주차", "예방접종 안내", "예방접종 안내", ""]:
+        await committed_conn.execute(
+            "insert into kb_documents (title, category, content, status, created_by) "
+            "values ('t',$1,'c','draft',$2)", cat, st["staff_id"])
+    cats = await kb_service.list_categories()
+    assert "예방접종 안내" in cats          # 새로 만든 분류가 목록에 뜬다(핵심)
+    assert "위치·주차" in cats
+    assert cats.count("예방접종 안내") == 1  # distinct — 중복 제거
+    assert "" not in cats                    # 빈 값 제외
+    await committed_conn.execute("delete from kb_documents where created_by=$1", st["staff_id"])
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
 async def test_approve_chunks_and_embeds(committed_conn):
     st = await seed_staff(committed_conn, role="admin")
     doc = await committed_conn.fetchval(

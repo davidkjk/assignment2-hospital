@@ -30,6 +30,13 @@ async def list_kb(category: str | None = Query(default=None), status: str | None
     return await kb_service.list_documents(category=category, status=status)
 
 
+# ⚠️ /kb/{document_id}(UUID)보다 먼저 선언한다 — 뒤에 두면 'categories'가 UUID 파싱에 걸려 422가 난다.
+@router.get("/kb/categories")
+async def list_kb_categories(staff: StaffContext = Depends(require_role("admin"))) -> list[str]:
+    # 편집기 분류 콤보박스가 실제로 쓰이는 분류를 보여주게 한다(EDITOR-02 자유 입력 콤보박스).
+    return await kb_service.list_categories()
+
+
 @router.post("/kb", status_code=201)
 async def create_kb(body: KbBody, staff: StaffContext = Depends(require_role("admin"))):
     # 새 자료는 draft — 저장만으로 공개되지 않는다.
