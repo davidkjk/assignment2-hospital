@@ -16,8 +16,9 @@ class PatientApp extends ConsumerWidget {
     ref.listen(authStateChangesProvider, (prev, next) {
       if (next.value?.status == AuthStatus.signedIn) {
         final push = ref.read(pushServiceProvider);
-        push.init();
-        push.registerToken();
+        // 권한 요청·리스너 배선(init)이 끝난 뒤 토큰을 등록한다 — iOS는 권한 전 getToken이 null이라
+        // 순서가 중요하다(놓쳐도 onTokenRefresh가 뒤늦게 잡지만, 순서를 명확히 둔다).
+        push.init().then((_) => push.registerToken());
       }
     });
     return MaterialApp.router(
