@@ -165,6 +165,11 @@ export function setupStaff(config: SetupConfig = {}) {
     http.post('*/staff/:id/resend-invite', async ({ request }) => {
       const p = pathname(request)
       record('POST', p, await readBody(request))
+      if (shouldFail('POST', p))
+        return HttpResponse.json(
+          { detail: '초대 이메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' },
+          { status: 429 },
+        )
       return HttpResponse.json({ status: 'resent' })
     }),
     http.post('*/staff', async ({ request }) => {

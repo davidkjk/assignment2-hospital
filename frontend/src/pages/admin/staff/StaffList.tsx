@@ -3,6 +3,7 @@ import { BusyButton } from '../../../components/BusyButton'
 import { EmptyState } from '../../../components/EmptyState'
 import { ROLE_LABEL } from '../../../auth/roles'
 import { staffApi, type Department, type StaffMember } from '../../../api/staff'
+import { ApiError } from '../../../api/httpClient'
 import { formatInvitedDate, formatLastSignIn } from './staffFormat'
 
 // [STAFF-LIST-*·STAFF-ROW-*·STAFF-STATE-01·CAL-COLOR-08] 왼쪽 직원 목록.
@@ -42,6 +43,7 @@ export function StaffList({
 }: StaffListProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [resentIds, setResentIds] = useState<Set<string>>(new Set())
+  const [resendErrors, setResendErrors] = useState<Map<string, string>>(new Map())
 
   const deptName = useMemo(() => {
     const map = new Map(departments.map((d) => [d.id, d.name]))
@@ -75,8 +77,25 @@ export function StaffList({
   )
 
   async function resend(id: string) {
-    await staffApi.resendInvite(id)
-    setResentIds((prev) => new Set(prev).add(id))
+    // 실패해도 조용히 넘어가지 않는다 — 재초대는 발송 한도(429)·이미 수락한 계정(409)으로 자주
+    // 막히는데, 그때 아무 표시가 없으면 관리자는 "눌러도 아무 일이 없다"고 느낀다(실사용 지적).
+    try {
+      await staffApi.resendInvite(id)
+      setResentIds((prev) => new Set(prev).add(id))
+      setResendErrors((prev) => {
+        const next = new Map(prev)
+        next.delete(id)
+        return next
+      })
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : '재초대에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+      setResendErrors((prev) => new Map(prev).set(id, message))
+      setResentIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
   }
 
   return (
@@ -173,6 +192,11 @@ export function StaffList({
                   {resentIds.has(m.id) && (
                     <span role="status" style={styles.resent}>
                       초대 이메일을 다시 보냈습니다
+                    </span>
+                  )}
+                  {resendErrors.has(m.id) && (
+                    <span role="alert" style={styles.resendError}>
+                      {resendErrors.get(m.id)}
                     </span>
                   )}
                 </div>
@@ -279,6 +303,7 @@ const styles: Record<string, CSSProperties> = {
   },
   off: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
   resent: { fontSize: 'var(--fs-caption)', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+  resendError: { fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   rowActions: { display: 'flex', gap: 'var(--sp-2)', flex: 'none' },
   action: {
     height: 30,

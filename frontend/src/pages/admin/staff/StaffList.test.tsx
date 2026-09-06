@@ -118,6 +118,16 @@ test('[STAFF-ROW-01] 재초대 뒤에도 계정이 살아났다고 말하지 않
   expect(rowOf('김의사')).toHaveTextContent('초대함 · 아직 안 들어옴')
 })
 
+test('[STAFF-ROW-03] 재초대가 실패하면 그 행에 이유를 보여준다(막다른 침묵 금지)', async () => {
+  const { user, api } = setupStaff()
+  api.fail('POST /staff/s-006/resend-invite')
+  await screen.findByText('김의사')
+  await user.click(within(rowOf('김의사')).getByRole('button', { name: '재초대' }))
+  // 실패했는데 "다시 보냈습니다"가 뜨면 거짓말 — 서버가 준 이유를 그 행 alert로 보여준다.
+  expect(await within(rowOf('김의사')).findByRole('alert')).toHaveTextContent('발송이 잠시 제한')
+  expect(within(rowOf('김의사')).queryByText('초대 이메일을 다시 보냈습니다')).toBeNull()
+})
+
 test('[STAFF-STATE-01] 목록이 다시 조회에 실패해도 초대 입력은 지워지지 않는다', async () => {
   const { user, api, refetchList } = setupStaff()
   await screen.findByText('이민호')
