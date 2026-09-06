@@ -452,16 +452,18 @@ class DetailButtonBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final id = d.view.id;
     final bar = _buildInner(context, ref, id);
-    // 데모 footer는 p-4(상하 16) + base(h-8) 버튼. Flutter는 base 버튼 레이아웃이 탭영역(48)만큼
-    // 부풀어 상하 각 7px 초과 → 데모와 어긋난다. base 변형에선 여백에서 tapPad만큼 뺀다
-    // (cta[새로 예약하기]·텍스트 안내 변형은 tapPad 0이라 그대로 16).
-    final v = 16 - _barTapPad();
+    // #16(2026-09-05): 흰 패널+상단 테두리를 걷어내고(배경 제거, #15와 같은 깨끗한 형식) 옅은 상단
+    // 그림자로만 본문과 가른다(탭바처럼 위로 뜨는 0 -1px 10px rgba(0,0,0,.05)). 하단은 더 붙인다.
+    // base(h-8) 버튼은 탭영역(48)만큼 레이아웃이 부풀어 tapPad만큼 여백에서 뺀다(cta·텍스트 안내는 0).
+    final topPad = 12 - _barTapPad();
+    final botPad = 10 - _barTapPad();
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppTokens.border)), // 데모 border 한 색으로 통일
+        boxShadow: [
+          BoxShadow(color: Color(0x0D000000), offset: Offset(0, -1), blurRadius: 10),
+        ],
       ),
-      padding: EdgeInsets.fromLTRB(16, v, 16, v),
+      padding: EdgeInsets.fromLTRB(16, topPad, 16, botPad),
       child: SafeArea(top: false, child: bar),
     );
   }

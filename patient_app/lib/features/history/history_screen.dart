@@ -45,34 +45,34 @@ class NameChips extends StatelessWidget {
       // 데모 mb-5 pb-1 — 칩 줄 아래 여백. 좌우 16(데모 px-5 대응은 리스트 패딩과 통일해 16).
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       child: Row(children: [
-        for (final m in sorted)
-          Padding(
-            padding: const EdgeInsets.only(right: 8), // 데모 gap-2
-            child: Builder(builder: (context) {
-              final sel = m.id == selectedId;
-              // 데모 사람 칩: rounded-full px-4 py-2 text-sm. 선택=bg-primary+흰 글자, 미선택=흰 배경+테두리.
-              // Material ChoiceChip을 데모 룩으로 스타일(체크표시 제거·스타디움·틸 채움) — a11y 유지.
-              return ChoiceChip(
-                label: Text(m.name),
-                selected: sel,
-                showCheckmark: false,
-                onSelected: (_) => onSelect(m.id), // HIST-WHO-10: 콜백만(화면 안 옮김)
-                backgroundColor: AppTokens.surface,
-                selectedColor: AppTokens.primary,
-                side: BorderSide(color: sel ? AppTokens.primary : AppTokens.border),
-                shape: const StadiumBorder(),
-                labelStyle: TextStyle(
-                    fontSize: 14, color: sel ? Colors.white : AppTokens.onSurface),
-                labelPadding: const EdgeInsets.symmetric(horizontal: 6), // 데모 px-4 근사
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              );
-            }),
-          ),
+        // #34(2026-09-05) — 맨 앞에 「전체」(전원 이력) 칩. 가족이 있을 때만(2명 이상) 뜬다.
+        _chip('전체', selectedId == kAllHistoryPatientId, () => onSelect(kAllHistoryPatientId)),
+        const SizedBox(width: 8), // 데모 gap-2
+        for (final m in sorted) ...[
+          _chip(m.name, m.id == selectedId, () => onSelect(m.id)), // HIST-WHO-10: 콜백만(화면 안 옮김)
+          const SizedBox(width: 8),
+        ],
       ]),
     );
   }
+
+  // 데모 사람 칩: rounded-full px-4 py-2 text-sm. 선택=bg-primary+흰 글자, 미선택=흰 배경+테두리.
+  // Material ChoiceChip을 데모 룩으로 스타일(체크표시 제거·스타디움·틸 채움) — a11y 유지.
+  Widget _chip(String label, bool sel, VoidCallback onTap) => ChoiceChip(
+        label: Text(label),
+        selected: sel,
+        showCheckmark: false,
+        onSelected: (_) => onTap(),
+        backgroundColor: AppTokens.surface,
+        selectedColor: AppTokens.primary,
+        side: BorderSide(color: sel ? AppTokens.primary : AppTokens.border),
+        shape: const StadiumBorder(),
+        labelStyle: TextStyle(fontSize: 14, color: sel ? Colors.white : AppTokens.onSurface),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 6), // 데모 px-4 근사
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
 }
 
 /// 데모 History.tsx의 둥근 알약 버튼을 그대로 옮긴 것 — 연도 바로가기 칩.
@@ -213,6 +213,12 @@ class HistoryRow extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      // #34 — 「전체」 병합 뷰에서만 이 줄이 누구 것인지(소유자 이름). 단일 사람 뷰엔 null이라 안 뜬다.
+                      if (entry.ownerName != null)
+                        Text(entry.ownerName!,
+                            key: const Key('history-row-owner'),
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600, color: AppTokens.primary)),
                       Text('${entry.departmentName} · ${entry.doctorName}',
                           key: const Key('history-row-title'),
                           style: TextStyle(

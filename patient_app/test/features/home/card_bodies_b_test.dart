@@ -16,9 +16,11 @@ void main() {
     expect(find.textContaining('접수용 QR'), findsOneWidget);
     expect(find.textContaining('241401'), findsOneWidget);
   });
-  testWidgets('[CARD-OK-01b] 카드 안엔 실제 QR을 그리지 않는다(전체화면에만) — 아이콘 + 눌러서 크게', (t) async {
+  // #6(2026-09-05, 사용자 결정): 데모는 QrCode 아이콘이지만 실기기 접수 편의를 위해 홈 카드에
+  // 「본인 QR 축소형」을 그린다. 눌러서 크게 보기(전체화면)는 그대로.
+  testWidgets('[CARD-OK-01b] 확정 카드는 본인 QR 축소형 + 눌러서 크게(#6)', (t) async {
     await t.pumpWidget(wrap(QrPreviewBody(view: bView('예약확정'))));
-    expect(find.byType(QrImageView), findsNothing); // 작은 카드엔 실 QR 안 그림
+    expect(find.byType(QrImageView), findsOneWidget); // #6: 홈 카드에도 실제 축소 QR
     expect(find.textContaining('눌러서 크게 보기'), findsOneWidget);
   });
   testWidgets('[CARD-OK-04] 확정 카드 버튼은 시간 변경 · 예약 취소(아웃라인)', (t) async {
