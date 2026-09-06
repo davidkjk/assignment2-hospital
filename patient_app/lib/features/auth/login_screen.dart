@@ -86,7 +86,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const PatientAppBar(title: '로그인'),
+      // 로그인은 인증 흐름의 관문 화면 → 헤더에 자물쇠 아이콘(보안·로그인). 랜딩에서 push로 와 뒤로 버튼도 함께.
+      appBar: const PatientAppBar(title: '로그인', icon: AppIcons.lock),
       // 데모 LoginForm main px-6(=25.5) — 다른 화면 px-5(21.3)보다 데모가 좌우를 더 넓게 준다.
       body: ListView(padding: const EdgeInsets.fromLTRB(25.5, 24, 25.5, 20), children: [
         LabeledField(

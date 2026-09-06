@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState; // 세션 변화 → 라우터 새로고침
 import 'connectivity.dart';
 import 'phone_cooldown.dart';
 import 'profile_status.dart';
@@ -77,6 +79,12 @@ String? computeRedirect({
       !loc.startsWith('/signup')) {
     return '/signup/step3';
   }
+  // #6(2026-09-05): 앱을 껐다 켜도 Supabase 세션은 살아 있다(supabase_flutter가 저장·자동복원).
+  // 초기 위치가 /landing이라 세션이 있어도 로그인 화면처럼 보였다 → 세션 있고 프로필 완료면 홈으로 보낸다.
+  // (profileMissing이면 위에서 이미 step3로 갔다.) /login은 로그인 후 사용자가 직접 갈 일이 없어 건드리지 않는다.
+  if (auth == AuthStatus.signedIn && !profileMissing && loc == '/landing') {
+    return '/home';
+  }
   // NAV-GLOBAL-05: 민감 경로이고 떠난 지 5분 지났으면 재인증 먼저(Task 14 AUTH-REAUTH-*).
   if (_isSensitive(loc) && needsReauth) return '/reauth?next=$loc';
   return null;
@@ -105,9 +113,25 @@ Future<void> _afterSignupOtp(
   }
 }
 
+/// 스트림(세션 변화 등)을 GoRouter의 refreshListenable로 잇는 얇은 어댑터.
+/// go_router 14엔 GoRouterRefreshStream 공개 export가 없어 직접 둔다.
+class _StreamRefresh extends ChangeNotifier {
+  _StreamRefresh(Stream<dynamic> stream) {
+    _sub = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+  late final StreamSubscription<dynamic> _sub;
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+}
+
 /// 라우터를 함수로 감싸 테스트가 시작 위치를 주입할 수 있게 한다. main.dart는 기본 인스턴스를 쓴다.
-GoRouter buildAppRouter({String initialLocation = '/landing'}) => GoRouter(
+/// [refresh]가 있으면 그 신호마다 redirect를 다시 평가한다(세션 복원 시 /landing→/home, #6).
+GoRouter buildAppRouter({String initialLocation = '/landing', Listenable? refresh}) => GoRouter(
       initialLocation: initialLocation,
+      refreshListenable: refresh,
       redirect: _authRedirect,
       routes: [
         // #40: 로그인 전 첫 화면 — [로그인]+[회원가입] 큰 버튼(AUTH-LAND-01). 가입 입구가 여기 있다.
@@ -396,7 +420,19 @@ GoRouter buildAppRouter({String initialLocation = '/landing'}) => GoRouter(
       ],
     );
 
-final GoRouter appRouter = buildAppRouter(); // main.dart가 쓰는 기본 인스턴스
+// 세션 변화(로그인/로그아웃/앱 재시작 시 초기세션 복원)마다 redirect를 다시 평가하는 신호.
+// Supabase 미초기화(위젯 테스트 등)면 null — 예전처럼 새로고침 없이 동작한다.
+Listenable? _authRefresh() {
+  try {
+    return _StreamRefresh(Supabase.instance.client.auth.onAuthStateChange);
+  } catch (_) {
+    return null; // 테스트 등 Supabase.initialize 전 환경
+  }
+}
+
+// main.dart가 쓰는 기본 인스턴스. top-level final은 최초 접근(app.dart build) 시 지연 초기화되므로
+// 프로덕션에선 Supabase.initialize 이후 실행된다 — 저장된 세션이 살아나면 /landing→/home(#6).
+final GoRouter appRouter = buildAppRouter(refresh: _authRefresh());
 
 class _Placeholder extends StatelessWidget {
   const _Placeholder(this.label);

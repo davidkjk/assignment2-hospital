@@ -32,6 +32,14 @@ void main() {
         isNull);
   });
 
+  test('#6 앱 재시작: signedIn + 프로필 완료 + /landing → /home (저장된 세션 복원)', () {
+    expect(computeRedirect(auth: AuthStatus.signedIn, profileMissing: false, needsReauth: false, loc: '/landing'),
+        '/home');
+    // 미완료면 랜딩에서도 step3가 먼저(위 규칙). 홈으로 보내지 않는다.
+    expect(computeRedirect(auth: AuthStatus.signedIn, profileMissing: true, needsReauth: false, loc: '/landing'),
+        '/signup/step3');
+  });
+
   test('민감 경로 + 재인증 필요 → /reauth?next= (NAV-GLOBAL-05)', () {
     expect(computeRedirect(auth: AuthStatus.signedIn, profileMissing: false, needsReauth: true, loc: '/settings'),
         '/reauth?next=/settings');
