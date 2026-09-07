@@ -4,10 +4,12 @@ CARD_TYPES = {
     "time_select", "booking_confirm", "booking_done",
     "cancel_confirm", "cancel_done", "cancel_reject",
     "questionnaire", "quick_replies",
+    "department_select", "doctor_select", "date_select", "target_select",  # 예약 앞흐름(WEBCARD-DEPT/DOC/DATE/TARGET)
 }
 
 BOOKING_CONFIRM_BUTTON = "예약 신청하기"     # auto_confirm 설정과 무관하게 고정(카탈로그 §2)
 VISIT_REASON_MAX = 100                        # BOOK-WHY: 최대 100자 선택 입력(#8)
+DEPT_GUIDE_CHIP = "잘 모르겠어요 · 증상으로 찾기"   # [WEBCARD-DEPT-01] 하이브리드(결정 ①)
 
 
 def collect_visit_reason(text: str | None) -> str:
@@ -86,6 +88,36 @@ def build_quick_replies_card(*, replies: list[str], handoff_chip: str | None = N
     # 함께 낸다 — 봇이 답을 못 찾아도 자동 인계·자동 티켓을 만들지 않고, 인계는 사용자가 칩을 눌러야 시작한다(WEBCHAT-NOANS).
     # options 키는 프론트(웹 QuickReplies·앱 chat_quick_replies)가 읽는 계약 이름. handoff_chip 없으면 None(시작 칩 등).
     return {"card_type": "quick_replies", "options": replies, "handoff_chip": handoff_chip, "state": "정상"}
+
+
+def build_department_select_card(*, departments: list[dict], allow_symptom_guide: bool = True) -> dict:
+    # [WEBCARD-DEPT-01] 진료과 버튼 카드 + (선택)증상으로 찾기 칩. 선택값은 다음 카드 payload가 누적한다(서버 무상태).
+    return {"card_type": "department_select",
+            "departments": [{"id": str(d["id"]), "name": d["name"]} for d in departments],
+            "guide_chip": DEPT_GUIDE_CHIP if allow_symptom_guide else None, "state": "정상"}
+
+
+def build_doctor_select_card(*, department_id: str, department_name: str, doctors: list[dict]) -> dict:
+    # [WEBCARD-DOC-01] 의사가 1명이어도 항상 표시(결정 ②). 0명이면 빈(막다른 길 문구는 프론트가 렌더).
+    return {"card_type": "doctor_select", "department_id": str(department_id), "department_name": department_name,
+            "doctors": [{"id": str(d["id"]), "name": d["name"], "specialty": d.get("specialty"),
+                         "schedule_summary": d.get("schedule_summary")} for d in doctors],
+            "state": "정상" if doctors else "빈"}
+
+
+def build_date_select_card(*, department_id: str, doctor_id: str, doctor_name: str, dates: list[dict]) -> dict:
+    # [WEBCARD-DATE-01] 예약 가능 날짜 버튼. dates=[{date, label}]. 0일이면 빈(다른 의사 경로는 프론트).
+    return {"card_type": "date_select", "department_id": str(department_id), "doctor_id": str(doctor_id),
+            "doctor_name": doctor_name, "dates": list(dates), "state": "정상" if dates else "빈"}
+
+
+def build_target_select_card(*, department_id: str, doctor_id: str, slot_id: str, slot_at: str,
+                             targets: list[dict]) -> dict:
+    # [WEBCARD-TARGET-01] 로그인 후 대상 선택(본인/가족) + 앞 선택값(dep·doc·slot) 누적(payload가 상태를 나른다).
+    return {"card_type": "target_select", "department_id": str(department_id), "doctor_id": str(doctor_id),
+            "slot_id": str(slot_id), "slot_at": slot_at,
+            "targets": [{"for_patient_id": str(t["for_patient_id"]), "name": t["name"],
+                         "relation": t.get("relation")} for t in targets], "state": "정상"}
 
 
 def validate_card_payload(payload: dict) -> None:
