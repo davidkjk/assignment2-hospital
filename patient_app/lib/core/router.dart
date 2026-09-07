@@ -46,7 +46,7 @@ import '../features/settings/settings_password_screen.dart';
 import '../features/settings/withdraw_screen.dart';
 import '../features/appointments/my_appointments_screen.dart';
 import '../features/chat/chat_history_view.dart';
-import '../features/chat/chat_room_view.dart';
+import '../features/chat/chat_room_entry.dart';
 import '../widgets/app_shell.dart';
 
 // NAV-LIST-01: 하단 '예약' 탭의 목적지는 목록(/my)이다 — 예약 마법사(/booking)가 아니다(LIST-ROLE-01).
@@ -407,16 +407,23 @@ GoRouter buildAppRouter({String initialLocation = '/landing', Listenable? refres
                       readOnly: false,
                       returnTo: returnRouteFor(from, id));
                 }),
+            // AI 상담 탭 = 곧바로 상담방(CHAT-TAB-NAV-01·NAV-CHATAPP-01). 세션 확보 후 방을 연다.
+            // 이전 상담 목록은 방 앱바의 '지난 상담' 아이콘 → /chat/history 로 옮겼다(옛날엔 이 탭이
+            // 목록이라 규칙·데모와 어긋났다).
             GoRoute(
                 path: '/chat',
+                builder: (c, s) => const ChatRoomEntry(showHistory: true)),
+            GoRoute(
+                path: '/chat/history',
                 builder: (c, s) => ChatHistoryView(
-                    onOpen: (id) => c.go('/chat/room/$id'))), // NAV-HOME-11(4단계 · CHAT-HISTORY-LIST-01)
+                    onOpen: (id) => c.go('/chat/room/$id'))), // NAV-CHATAPP-10 · CHAT-HISTORY-LIST-01
           ],
         ),
-        // 상담방(상세 — 셸 없이 풀스크린). 전역 _authRedirect가 미인증 콜드스타트를 로그인으로 보낸다(CHAT-HISTORY-DEEP-02).
+        // 지난 상담 이어보기(상세 — 셸 없이 풀스크린). 그 방의 세션을 확보해 연다.
+        // 전역 _authRedirect가 미인증 콜드스타트를 로그인으로 보낸다(CHAT-HISTORY-DEEP-02).
         GoRoute(
             path: '/chat/room/:threadId',
-            builder: (c, s) => ChatRoomView(threadId: s.pathParameters['threadId']!)),
+            builder: (c, s) => ChatRoomEntry(threadId: s.pathParameters['threadId']!)),
       ],
     );
 

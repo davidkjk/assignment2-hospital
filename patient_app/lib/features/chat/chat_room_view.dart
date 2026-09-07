@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,16 +17,36 @@ import 'widgets/chat_safety_banner.dart';
 /// 안전 배너(SAFE-01)와 입력창(INPUT-01)을 항상 붙인다. 이름은 AI 상담봇(NAME-01).
 class ChatRoomView extends ConsumerWidget {
   final String threadId;
+  final String aiSessionId;
+  final bool showHistory; // AI 상담 탭(방)에서만 '지난 상담' 아이콘을 앱바에 붙인다(NAV-CHATAPP-10)
   final VoidCallback? onFeedback; // 봇 답변 피드백 → 인계(T11)
-  const ChatRoomView({super.key, required this.threadId, this.onFeedback});
+  const ChatRoomView({
+    super.key,
+    required this.threadId,
+    this.aiSessionId = '',
+    this.showHistory = false,
+    this.onFeedback,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final st = ref.watch(chatRoomProvider(threadId));
-    final ctl = ref.read(chatRoomProvider(threadId).notifier);
+    final key = (threadId, aiSessionId);
+    final st = ref.watch(chatRoomProvider(key));
+    final ctl = ref.read(chatRoomProvider(key).notifier);
     return Scaffold(
       backgroundColor: AppTokens.background,
-      appBar: const PatientAppBar(title: 'AI 상담봇'), // CHAT-ROOM-NAME-01
+      appBar: PatientAppBar(
+        title: 'AI 상담봇', // CHAT-ROOM-NAME-01
+        actions: showHistory
+            ? [
+                IconButton(
+                  icon: const Icon(AppIcons.history),
+                  tooltip: '지난 상담',
+                  onPressed: () => context.go('/chat/history'), // NAV-CHATAPP-10
+                ),
+              ]
+            : null,
+      ),
       body: Column(children: [
         const ChatSafetyBanner(), // CHAT-ROOM-SAFE-01 (항상)
         Expanded(child: switch (st.phase) {

@@ -8,6 +8,14 @@ import 'chat_room_controller.dart' show reticketRequest;
 /// 4단계 챗봇 라우터(Task 9)의 얇은 클라이언트. 오케스트레이션·멱등은 전부 서버가 하고,
 /// 여기서는 client_message_id를 실어 보내기만 한다(CHAT-ROOM-SEND-01·03).
 /// 라이브(직원 말풍선·타이핑·시스템 이벤트)는 Supabase Realtime으로 같은 스레드를 구독한다(T11).
+/// 상담 세션 참조 — 서버가 상담방(thread)과 함께 발급하는 활성 AI 세션 번호.
+/// 메시지를 보낼 땐 이 둘을 함께 실어야 서버가 그 세션에 이어 붙인다(백엔드 필수 계약).
+class ChatSessionRef {
+  final String threadId;
+  final String aiSessionId;
+  const ChatSessionRef({required this.threadId, required this.aiSessionId});
+}
+
 class ChatRepository {
   final ApiClient _api;
   final SupabaseClient? _realtime;
@@ -20,20 +28,36 @@ class ChatRepository {
             .toList(),
       );
 
-  Future<String> openSession({String? resumeFrom}) => _api.post(
+  /// 상담 세션을 확보한다(NAV-CHATAPP-01·CHAT-TAB-NAV-01). 서버가 로그인 환자의 활성 세션을
+  /// 찾거나(없으면 새 상담방·세션 생성) 발급해 {thread_id, ai_chat_session_id}를 준다.
+  /// - [threadId]를 주면 그 상담방의 세션을 확보한다(지난 상담 이어보기 — 목록에서 진입).
+  /// - [resumeFrom]을 주면 직전 상담 요약을 가진 새 세션을 만든다(CHAT-ROOM-AI-REOPEN-01).
+  Future<ChatSessionRef> openSession({String? resumeFrom, String? threadId}) => _api.post(
         '/chat/sessions',
-        resumeFrom == null ? {} : {'resume_from': resumeFrom},
-        (j) => (j as Map)['thread_id'] as String,
+        {
+          if (resumeFrom != null) 'resume_from': resumeFrom,
+          if (threadId != null) 'thread_id': threadId,
+        },
+        (j) => ChatSessionRef(
+          threadId: (j as Map)['thread_id'] as String,
+          aiSessionId: j['ai_chat_session_id'] as String,
+        ),
       );
 
   Future<ChatFeedItem> sendMessage({
     required String threadId,
+    required String aiSessionId,
     required String content,
     required String clientMessageId,
   }) =>
       _api.post(
         '/chat/messages',
-        {'thread_id': threadId, 'content': content, 'client_message_id': clientMessageId},
+        {
+          'thread_id': threadId,
+          'ai_chat_session_id': aiSessionId, // 백엔드 필수 — 이 세션에 이어 붙인다
+          'content': content,
+          'client_message_id': clientMessageId,
+        },
         (j) => ChatFeedItem.fromJson(j as Map<String, dynamic>),
       );
 
@@ -59,11 +83,11 @@ class ChatRepository {
       _api.post('/chat/threads/$threadId/inquiry', {'content': content}, (_) {});
 
   /// [이어서 AI 질문]: 직전 상담 요약(서버 Task 5)을 가진 새 AI 상담(CHAT-ROOM-END-NAV-01·AI-REOPEN-01).
-  Future<String> resumeWithSummary(String threadId) =>
+  Future<ChatSessionRef> resumeWithSummary(String threadId) =>
       openSession(resumeFrom: threadId);
 
   /// [새 질문]: 과거 문맥 없는 새 AI 상담.
-  Future<String> startFreshSession() => openSession();
+  Future<ChatSessionRef> startFreshSession() => openSession();
 
   /// 재문의(CHAT-ROOM-RETICKET-01): 완료 티켓 재개가 아니라 previous_ticket_id로 새 티켓.
   Future<void> reticket({required String previousTicketId, required String threadId}) =>
