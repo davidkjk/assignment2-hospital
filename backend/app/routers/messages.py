@@ -7,7 +7,7 @@ import hmac
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -27,21 +27,30 @@ class SendIn(BaseModel):
     scheduled_at: datetime | None = None
 
 
-class SolapiReport(BaseModel):
-    """[SEND-RESULT-02] SOLAPI 웹훅 리포트 한 건. 웹훅 본문은 이 객체의 배열이다.
-
-    SOLAPI 실제 필드명 그대로: messageId(발송 시 저장한 provider_message_id), statusCode
-    (`"4000"`=수신완료=도달, 그 외 종결 코드=실패). 나머지 필드(groupId·dateReported 등)는
-    받되 쓰지 않는다(추가 필드 무시).
-    """
-    model_config = {"extra": "ignore"}
-    messageId: str
-    statusCode: str
-    statusMessage: str | None = None
-
-
 # [SEND-RESULT-02] SOLAPI 리포트 성공 코드 — 수신완료.
 _SOLAPI_DELIVERED_CODE = "4000"
+
+
+def _extract_reports(payload) -> list[dict]:
+    """SOLAPI 웹훅 본문에서 리포트 목록을 꺼낸다 — 실측 형식 3가지 모두 수용.
+
+    ⭐ 실측(SOLAPI 콘솔 Request Data): 본문이 **{"data": [ {messageId, statusCode, …} ]}** 래퍼다.
+    방어적으로 맨 배열([...])·단일 객체({...})도 받는다(알 수 없는 모양은 빈 목록 → 무시).
+    필드명은 SOLAPI 그대로: messageId(=발송 시 저장한 provider_message_id), statusCode
+    ("4000"=수신완료=도달, 그 외 종결코드=실패).
+    """
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, list):
+            return [r for r in data if isinstance(r, dict)]
+        if isinstance(data, dict):
+            return [data]
+        if "messageId" in payload:
+            return [payload]
+        return []
+    if isinstance(payload, list):
+        return [r for r in payload if isinstance(r, dict)]
+    return []
 
 
 def _page_dto(page) -> dict:
@@ -57,30 +66,37 @@ def _result_dto(res) -> dict:
 
 
 @router.post("/messages/status-callback")
-async def status_callback(
-    reports: list[SolapiReport],
-    token: str | None = None,
-) -> dict:
-    """[SEND-RESULT-02][보안 F-03] SOLAPI 웹훅 수신 — 리포트 배열 + URL 토큰 인증.
+async def status_callback(request: Request, token: str | None = None) -> dict:
+    """[SEND-RESULT-02][보안 F-03] SOLAPI 웹훅 수신 — 리포트 + URL 토큰 인증.
 
     SOLAPI 웹훅은 커스텀 헤더가 아니라 **등록 URL에 심은 토큰**(`?token=`)으로 인증한다.
     제공자만 아는 토큰을 상수시간 비교해 위조 콜백을 막는다(시크릿 미설정 시 fail-closed).
     검증 실패·모르는 콜백 모두 같은 응답({"status":"ok"})을 돌려준다(ID oracle 제거).
 
-    본문은 리포트 객체 **배열**이며, 각 건의 statusCode를 도달/실패로 매핑해 messageId
-    (=발송 시 저장한 provider_message_id)로 줄을 찾아 상태를 굴린다.
+    본문은 SOLAPI 실측 형식 **{"data": [ {messageId, statusCode, …} ]}**(래퍼)이며,
+    `_extract_reports`가 래퍼·맨 배열·단일 객체를 모두 받아 리포트 목록을 뽑는다. 각 건의
+    statusCode를 도달/실패로 매핑해 messageId(=발송 시 저장한 provider_message_id)로 줄을
+    찾아 상태를 굴린다.
     ⚠️ 4000 외 코드의 정확한 성공/실패 구분은 실발송 1건으로 최종 확정 대상(보수적으로 실패 처리).
     """
     secret = settings.solapi_webhook_secret
     if not secret or token is None or not hmac.compare_digest(token, secret):
         return {"status": "ok"}
-    for r in reports:
-        if r.statusCode == _SOLAPI_DELIVERED_CODE:
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"status": "ok"}  # 본문이 JSON이 아니면 조용히 무시(막다른 길 없음)
+    for r in _extract_reports(payload):
+        mid = r.get("messageId")
+        if not mid:
+            continue
+        code = str(r.get("statusCode", ""))
+        if code == _SOLAPI_DELIVERED_CODE:
             await message_service.handle_status_callback(
-                provider_message_id=r.messageId, status="delivered")
+                provider_message_id=mid, status="delivered")
         else:
             await message_service.handle_status_callback(
-                provider_message_id=r.messageId, status="failed", failure_code=r.statusCode)
+                provider_message_id=mid, status="failed", failure_code=code)
     return {"status": "ok"}
 
 
