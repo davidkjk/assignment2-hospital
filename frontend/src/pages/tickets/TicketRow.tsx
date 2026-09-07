@@ -35,24 +35,27 @@ export function TicketRow({
           active ? 'border-primary bg-primary/5' : 'border-border/70 bg-card hover:bg-muted'
         } ${ticket.isMine && !active ? 'ring-1 ring-primary/30' : ''}`}
       >
-        <span className="line-clamp-2 text-sm font-medium">{ticket.patientQuestion}</span>
-        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">인계 이유: {ticket.handoffReason}</p>
+        {/* break-words: 공백 없는 긴 토큰(번호·영문)도 열 안에서 줄바꿈해 삐져나오지 않게 */}
+        <span className="line-clamp-2 break-words text-sm font-medium">{ticket.patientQuestion}</span>
+        <p className="mt-1 line-clamp-1 break-all text-xs text-muted-foreground">인계 이유: {ticket.handoffReason}</p>
         {bookingLabel && (
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+          // min-w-0: 예약 요약(appointmentSummary)이 길어도 이 flex 줄이 열(w-96)을 뚫지 않게 —
+          //   배지는 shrink-0로 온전히, 요약은 truncate로 …처리(가로 오버플로 방지, TICKET-ROW 데모정렬).
+          <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
               {bookingLabel}
             </span>
             {ticket.appointmentSummary && (
-              <span className="text-[11px] text-muted-foreground">· {ticket.appointmentSummary}</span>
+              <span className="min-w-0 truncate text-[11px] text-muted-foreground">· {ticket.appointmentSummary}</span>
             )}
           </div>
         )}
-        <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
-          <time>{fmtCreated(ticket.createdAt)}</time>
-          <span className="flex items-center gap-1.5">
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <time className="shrink-0">{fmtCreated(ticket.createdAt)}</time>
+          <span className="flex min-w-0 items-center gap-1.5">
             {/* 이관 알림: 내게 배정된 상담을 공용 문의함에서 바로 알아보게 강조 */}
-            {ticket.isMine && <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">내 담당</span>}
-            담당: {ticket.assigneeName ?? '미배정'}
+            {ticket.isMine && <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">내 담당</span>}
+            <span className="truncate">담당: {ticket.assigneeName ?? '미배정'}</span>
           </span>
         </div>
       </button>
