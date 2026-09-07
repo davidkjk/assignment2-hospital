@@ -16,6 +16,5 @@ class AdsConsentIn(BaseModel):
 @router.patch("/ads-consent")
 async def patch_ads_consent(body: AdsConsentIn, patient: PatientContext = Depends(get_current_patient)):
     async with (await get_pool()).acquire() as conn:  # 서비스 역할 — 정책 없음(get_pool은 async)
-        await consent_service.set_ads_consent(
-            conn, patient.id, agreed=body.agreed, terms_version=consent_service.TERMS_VERSION)
+        await consent_service.set_ads_consent(conn, patient.id, agreed=body.agreed)
     return {"ads_consent": body.agreed}
