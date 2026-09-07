@@ -30,6 +30,7 @@ void main() {
     expect(navChatApp('staff_reply_push'), '/chat/room/:id');
   });
   test('[NAV-CHATAPP-10] 상단 이전 상담 아이콘 → CHAT-HISTORY 목록(뒤로는 상담방)', () {
-    expect(navChatApp('history_icon'), '/chat');
+    // 탭(/chat)이 이제 상담방이라, 이전 목록은 별도 경로 /chat/history 로 연다.
+    expect(navChatApp('history_icon'), '/chat/history');
   });
 }

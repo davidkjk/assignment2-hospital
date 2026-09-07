@@ -10,6 +10,6 @@ String navChatApp(String from) => switch (from) {
       'lateflow_continue' => 'lateflow_chat_resume', // 07 같은 예약 맥락(새 티켓 없음)
       'cancel_reject_push' => '/appointments/:id', // 08 확인 전 안내(T13)
       'staff_reply_push' => '/chat/room/:id', // 09 해당 상담방(T10 딥링크)
-      'history_icon' => '/chat', // 10 이전 상담 목록
+      'history_icon' => '/chat/history', // 10 이전 상담 목록(탭=상담방이라 목록은 별도 경로)
       _ => '/chat',
     };

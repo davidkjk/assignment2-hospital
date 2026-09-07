@@ -21,9 +21,21 @@ void main() {
       sentBody = req.body;
       return http.Response.bytes(utf8.encode(savedMsg), 200);
     }));
-    await r.sendMessage(threadId: 't1', content: '안녕', clientMessageId: 'c-123');
+    await r.sendMessage(
+        threadId: 't1', aiSessionId: 's1', content: '안녕', clientMessageId: 'c-123');
     expect(sentBody, contains('c-123'));
     expect(sentBody, contains('안녕'));
+    // 백엔드 필수 계약: 활성 AI 세션 번호를 함께 실어야 그 세션에 붙는다(안 실으면 서버 422).
+    expect(sentBody, contains('ai_chat_session_id'));
+    expect(sentBody, contains('s1'));
+  });
+
+  test('[CHAT-TAB-NAV-01] openSession은 thread_id + ai_chat_session_id 둘 다 받는다', () async {
+    final r = repo(MockClient((req) async => http.Response(
+        '{"thread_id":"t7","ai_chat_session_id":"s7"}', 200)));
+    final ref = await r.openSession();
+    expect(ref.threadId, 't7');
+    expect(ref.aiSessionId, 's7');
   });
 
   test('[CHAT-ROOM-SEND-03] 재전송은 같은 client_message_id를 그대로 재사용한다', () async {
@@ -34,8 +46,9 @@ void main() {
           .group(1)!);
       return http.Response.bytes(utf8.encode(savedMsg), 200);
     }));
-    await r.sendMessage(threadId: 't1', content: 'x', clientMessageId: 'same');
-    await r.sendMessage(threadId: 't1', content: 'x', clientMessageId: 'same'); // 재전송
+    await r.sendMessage(threadId: 't1', aiSessionId: 's1', content: 'x', clientMessageId: 'same');
+    await r.sendMessage(
+        threadId: 't1', aiSessionId: 's1', content: 'x', clientMessageId: 'same'); // 재전송
     expect(ids, ['same', 'same']); // 새 키를 만들지 않는다 → 서버가 중복 저장 거부
   });
 

@@ -6,7 +6,10 @@ import 'chat_repository.dart';
 abstract class ChatRepositoryLike {
   Future<List<ChatFeedItem>> fetchMessages(String threadId);
   Future<ChatFeedItem> sendMessage(
-      {required String threadId, required String content, required String clientMessageId});
+      {required String threadId,
+      required String aiSessionId,
+      required String content,
+      required String clientMessageId});
   Future<void> markRead({required String batchId});
 }
 
@@ -15,9 +18,11 @@ abstract class ChatRepositoryLike {
 class ChatRoomController extends StateNotifier<ChatRoomState> {
   final ChatRepositoryLike _repo;
   final String threadId;
+  final String aiSessionId; // 전송 시 함께 실어 보내는 활성 AI 세션(백엔드 필수)
   final void Function(String batchId)? onMarkRead;
   int _seq = 0;
-  ChatRoomController(this._repo, {required this.threadId, this.onMarkRead})
+  ChatRoomController(this._repo,
+      {required this.threadId, this.aiSessionId = '', this.onMarkRead})
       : super(const ChatRoomState(ChatRoomPhase.loading));
 
   Future<void> load({String? batchId}) async {
@@ -66,7 +71,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
 
   Future<void> _deliver(String cid, String content) async {
     try {
-      await _repo.sendMessage(threadId: threadId, content: content, clientMessageId: cid);
+      await _repo.sendMessage(
+          threadId: threadId, aiSessionId: aiSessionId, content: content, clientMessageId: cid);
       _replace(
           cid,
           state.items
@@ -103,12 +109,15 @@ bool isAiSessionExpired(DateTime lastActivity,
 Map<String, dynamic> reticketRequest({required String previousTicketId}) =>
     {'previous_ticket_id': previousTicketId};
 
+/// 상담방 식별자 = (상담방 thread, 활성 AI 세션). 세션 번호가 있어야 전송이 서버에 붙는다.
+typedef ChatRoomKey = (String threadId, String aiSessionId);
+
 final chatRoomProvider =
-    StateNotifierProvider.family<ChatRoomController, ChatRoomState, String>(
-        (ref, threadId) {
+    StateNotifierProvider.family<ChatRoomController, ChatRoomState, ChatRoomKey>(
+        (ref, key) {
   final repo = ref.watch(chatRepositoryProvider);
-  final ctl =
-      ChatRoomController(_RepoAdapter(repo), threadId: threadId, onMarkRead: (_) {});
+  final ctl = ChatRoomController(_RepoAdapter(repo),
+      threadId: key.$1, aiSessionId: key.$2, onMarkRead: (_) {});
   ctl.load(); // 방을 열면 복원한다(셸 진입 = 자동 load). 배치 확인은 딥링크/알림이 batchId로 정밀화(T11).
   return ctl;
 });
@@ -122,9 +131,14 @@ class _RepoAdapter implements ChatRepositoryLike {
   @override
   Future<ChatFeedItem> sendMessage(
           {required String threadId,
+          required String aiSessionId,
           required String content,
           required String clientMessageId}) =>
-      _r.sendMessage(threadId: threadId, content: content, clientMessageId: clientMessageId);
+      _r.sendMessage(
+          threadId: threadId,
+          aiSessionId: aiSessionId,
+          content: content,
+          clientMessageId: clientMessageId);
   @override
   Future<void> markRead({required String batchId}) => _r.markRead(batchId: batchId);
 }

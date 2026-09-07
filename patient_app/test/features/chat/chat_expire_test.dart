@@ -8,6 +8,7 @@ class _Repo implements ChatRepositoryLike {
   Future<List<ChatFeedItem>> fetchMessages(String t) async => [];
   @override
   Future<ChatFeedItem> sendMessage({required String threadId,
+      required String aiSessionId,
       required String content, required String clientMessageId}) async =>
       ChatFeedItem(id: 'x', messageType: 'text', senderType: 'patient', content: content,
           createdAt: DateTime(2026), clientMessageId: clientMessageId);
