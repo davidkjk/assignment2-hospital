@@ -125,3 +125,18 @@ def test_target_select_card_carries_self_and_family():
     assert card["card_type"] == "target_select"
     assert card["slot_id"] == "sl1" and card["department_id"] == "d1"
     assert [t["name"] for t in card["targets"]] == ["홍길동", "홍자녀"]
+
+
+def test_open_booking_wizard_card_empty_prefill():
+    # [BOOK-BOT-WIZARD] 앱 예약 인계 카드 — 추천 과 없으면 프리필 None
+    card = cb.build_open_booking_wizard_card()
+    assert card["card_type"] == "open_booking_wizard"
+    assert card["department_id"] is None and card["department_name"] is None
+    assert card["button"] == "예약하러 가기"
+    cb.validate_card_payload(card)
+
+
+def test_open_booking_wizard_card_with_department_prefill():
+    # [BOOK-BOT-WIZARD] 추천 진료과가 있으면 실어 앱 마법사 2단계를 미리 선택
+    card = cb.build_open_booking_wizard_card(department_id="d1", department_name="내과")
+    assert card["department_id"] == "d1" and card["department_name"] == "내과"

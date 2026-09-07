@@ -61,15 +61,14 @@ async def test_no_answer_message_returns_chips_keeps_session_and_logs_unresolved
 
 
 @pytest.mark.asyncio
-async def test_booking_intent_reaches_department_card_not_handoff(committed_conn, monkeypatch):
-    # [WEBBOOK-05] 예약 의도 → agent 카드(막다른 길 action_unavailable 아님).
-    # 라우터를 agent로, 인계감시는 없음으로 고정(LLM 비의존). 진료과는 실제로 시드.
+async def test_booking_intent_app_reaches_wizard_card_not_handoff(committed_conn, monkeypatch):
+    # [WEBBOOK-05][BOOK-BOT-WIZARD] 앱(patient) 예약 의도 → 예약 마법사 인계 카드(대화 내 예약 아님, 결정 B).
+    #   막다른 길 action_unavailable 아님. 라우터 agent·인계감시 없음 고정(LLM 비의존).
     from app.services.chat import chat_router, safety_watchdog
     async def fake_classify(*a, **k): return "agent"
     async def no_escalation(*a, **k): return None
     monkeypatch.setattr(chat_router, "classify", fake_classify)
     monkeypatch.setattr(safety_watchdog, "check_escalation", no_escalation)
-    await committed_conn.execute("insert into departments (name, is_active) values ('테스트예약내과', true)")
 
     p = await seed_patient(committed_conn)
     t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
@@ -80,7 +79,7 @@ async def test_booking_intent_reaches_department_card_not_handoff(committed_conn
         embedder=FakeEmbedder(), model=_RagModel())
 
     assert out["route_taken"] == "agent"
-    assert out["card"]["card_type"] == "department_select"
+    assert out["card"]["card_type"] == "open_booking_wizard"   # 앱은 마법사로 인계
     assert out.get("reason") != "action_unavailable"
     # 봇 안내 말풍선(text) 1 + 진료과 카드(card) 1 저장, 세션 active 유지(막다른 길 아님).
     assert await committed_conn.fetchval(
@@ -92,3 +91,30 @@ async def test_booking_intent_reaches_department_card_not_handoff(committed_conn
     await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
     await committed_conn.execute("delete from chat_threads where id=$1", t)
     await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
+
+
+@pytest.mark.asyncio
+async def test_booking_intent_web_reaches_department_card(committed_conn, monkeypatch):
+    # [WEBBOOK-05] 웹(anonymous_web) 예약 의도 → 대화 내 예약(진료과 선택 카드). 앱과 달리 마법사 인계 아님(결정 B).
+    from app.services.chat import chat_router, safety_watchdog
+    from app.services.chat import webchat_service
+    async def fake_classify(*a, **k): return "agent"
+    async def no_escalation(*a, **k): return None
+    monkeypatch.setattr(chat_router, "classify", fake_classify)
+    monkeypatch.setattr(safety_watchdog, "check_escalation", no_escalation)
+    await committed_conn.execute("insert into departments (name, is_active) values ('테스트웹예약과', true)")
+
+    # 익명 세션·상담방 확보(웹 위젯 경로).
+    sess = await webchat_service.start_or_restore_session(None)
+    from uuid import UUID
+    thread_id = UUID(sess["threadId"])
+    s = await webchat_service.load_anonymous_session(UUID(sess["aiSessionId"]), thread_id)
+    out = await chat_flow_service.handle_anonymous_message(
+        s, "예약하고 싶어요", thread_id=thread_id, client_message_id=uuid.uuid4(),
+        embedder=FakeEmbedder(), model=_RagModel())
+
+    assert out["route_taken"] == "agent"
+    assert out["card"]["card_type"] == "department_select"     # 웹은 대화 내 예약
+    assert any(d["name"] == "테스트웹예약과" for d in out["card"]["departments"])
+    # cleanup(익명 클러스터는 전역 _cleanup_committed_data가 truncate하지만 명시 정리)
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", thread_id)

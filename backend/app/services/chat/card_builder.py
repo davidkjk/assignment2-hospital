@@ -5,6 +5,7 @@ CARD_TYPES = {
     "cancel_confirm", "cancel_done", "cancel_reject",
     "questionnaire", "quick_replies",
     "department_select", "doctor_select", "date_select", "target_select",  # 예약 앞흐름(WEBCARD-DEPT/DOC/DATE/TARGET)
+    "open_booking_wizard",   # 앱 AI 상담(patient/app): 대화 내 예약 대신 예약 마법사로 인계(사용자 결정 B)
 }
 
 BOOKING_CONFIRM_BUTTON = "예약 신청하기"     # auto_confirm 설정과 무관하게 고정(카탈로그 §2)
@@ -118,6 +119,18 @@ def build_target_select_card(*, department_id: str, doctor_id: str, slot_id: str
             "slot_id": str(slot_id), "slot_at": slot_at,
             "targets": [{"for_patient_id": str(t["for_patient_id"]), "name": t["name"],
                          "relation": t.get("relation")} for t in targets], "state": "정상"}
+
+
+OPEN_WIZARD_BUTTON = "예약하러 가기"   # 앱 카드 버튼(앱이 렌더·네비게이션 소유)
+
+
+def build_open_booking_wizard_card(*, department_id=None, department_name=None) -> dict:
+    # [BOOK-BOT-WIZARD] 앱 AI 상담(patient/app)은 대화 안에서 예약하지 않는다(사용자 결정 B) — 예약 마법사로 인계.
+    # 추천 진료과가 있으면 실어 앱이 마법사 2단계를 미리 선택한다(선택 프리필). 앱 렌더·이동은 patient-app 트랙 소유.
+    return {"card_type": "open_booking_wizard",
+            "department_id": str(department_id) if department_id else None,
+            "department_name": department_name,
+            "button": OPEN_WIZARD_BUTTON}
 
 
 def validate_card_payload(payload: dict) -> None:

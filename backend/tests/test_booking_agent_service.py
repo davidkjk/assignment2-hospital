@@ -50,3 +50,22 @@ async def test_named_department_with_no_doctors_still_reaches_doctor_card_empty(
         None, "정형외과 예약", list_departments_fn=_departments_fn([{"id": "d2", "name": "정형외과"}]),
         list_doctors_fn=_doctors_fn([]))
     assert out["card"]["card_type"] == "doctor_select" and out["card"]["state"] == "빈"
+
+
+@pytest.mark.asyncio
+async def test_wizard_handoff_returns_open_wizard_card():
+    # [BOOK-BOT-WIZARD] 앱 경로 예약 의도 → 예약 마법사 인계 카드(대화 내 예약 아님, 결정 B)
+    out = await booking_agent_service.booking_wizard_handoff(
+        None, "예약하고 싶어요", list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]))
+    assert out["reply"]
+    assert out["card"]["card_type"] == "open_booking_wizard"
+    assert out["card"]["department_id"] is None       # 과 미지정 → 프리필 없음
+
+
+@pytest.mark.asyncio
+async def test_wizard_handoff_prefills_named_department():
+    # [BOOK-BOT-WIZARD] 진료과명이 있으면 마법사 프리필용으로 실어 보낸다
+    out = await booking_agent_service.booking_wizard_handoff(
+        None, "내과 예약할래요", list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]))
+    assert out["card"]["card_type"] == "open_booking_wizard"
+    assert out["card"]["department_id"] == "d1" and out["card"]["department_name"] == "내과"

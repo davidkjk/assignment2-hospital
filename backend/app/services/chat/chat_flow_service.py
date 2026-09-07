@@ -60,8 +60,12 @@ async def handle_message(session, content: str, *, thread_id: UUID,
         return await rag_service.rag_answer(m, embedder=embedder, model=model)
 
     async def agent_fn(s, m):
-        # 행동형(예약) — 예약 의도를 진료과 선택 카드로. 지금까지 비어 막다른 길이던 자리(WEBBOOK-05).
-        return await booking_agent_service.booking_agent(s, m)
+        # 행동형(예약). 채널로 갈린다(사용자 결정 B):
+        #  · 웹(anonymous_web) = 대화 내 예약 → 진료과 선택 카드(WEBBOOK-05).
+        #  · 앱(patient) = 대화 안에서 예약하지 않고 예약 마법사로 인계 → open_booking_wizard 카드.
+        if sender_kind == "anonymous_web":
+            return await booking_agent_service.booking_agent(s, m)
+        return await booking_agent_service.booking_wizard_handoff(s, m)
 
     out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
                                          rag_fn=rag_fn, agent_fn=agent_fn, model=model)

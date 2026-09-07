@@ -9,6 +9,9 @@ from app.services.chat import card_builder
 
 BOOKING_REPLY = "어느 진료과로 예약하시겠어요? 아래에서 골라 주세요."
 BOOKING_REPLY_NAMED = "{name}로 예약을 도와드릴게요. 담당의를 골라 주세요."
+# 앱 AI 상담(patient/app): 대화 안에서 예약하지 않고 예약 마법사로 인계한다(사용자 결정 B).
+WIZARD_REPLY = "예약은 예약 마법사에서 도와드릴게요. 지금 이동하시겠어요?"
+WIZARD_REPLY_NAMED = "{name} 예약을 도와드릴게요. 예약 마법사로 이동하시겠어요?"
 
 
 async def _default_list_departments() -> list[dict]:
@@ -48,3 +51,15 @@ async def booking_agent(session, message: str, *, list_departments_fn=None, list
                     department_id=str(named["id"]), department_name=named["name"], doctors=doctors)}
     return {"reply": BOOKING_REPLY,
             "card": card_builder.build_department_select_card(departments=departments)}
+
+
+async def booking_wizard_handoff(session, message: str, *, list_departments_fn=None) -> dict:
+    """[BOOK-BOT-WIZARD] 앱 AI 상담(patient/app)의 예약 의도 → 대화 내 예약 대신 예약 마법사로 인계(결정 B).
+    진료과명이 메시지에 있으면 프리필해 앱 마법사 2단계를 미리 선택한다. 반환 {reply, card}(reply 항상 non-empty)."""
+    departments = await (list_departments_fn or _default_list_departments)()
+    named = _match_department(message, departments)
+    if named is not None:
+        return {"reply": WIZARD_REPLY_NAMED.format(name=named["name"]),
+                "card": card_builder.build_open_booking_wizard_card(
+                    department_id=named["id"], department_name=named["name"])}
+    return {"reply": WIZARD_REPLY, "card": card_builder.build_open_booking_wizard_card()}
