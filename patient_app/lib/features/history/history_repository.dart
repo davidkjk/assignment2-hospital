@@ -4,10 +4,10 @@ import '../../core/api_client.dart';
 import '../../core/providers.dart';
 import '../family/family_repository.dart'; // FamilyMember·familyListProvider
 
-/// #34(2026-09-05) — 이력 「전체」(전원) 칩의 선택값. 실제 patient id가 아니라 집계 센티넬.
-/// 백엔드가 for_patient_id를 필수로 받아, 「전체」는 프론트에서 멤버별로 조회해 병합한다.
-/// ⏳ 다음 라운드(백엔드 배선): `/my/history`에 for_patient_id 생략(=전원) 모드 + 응답에 소유자
-/// 이름 + 키셋 페이지네이션을 추가하면, 아래 클라이언트 병합·무한스크롤 제한을 걷어낼 수 있다.
+/// #34 — 이력 「전체」(전원) 칩의 선택값. 실제 patient id가 아니라 집계 센티넬.
+/// 「전체」는 `/my/history`를 for_patient_id 없이 호출해 서버가 본인+활성가족을 한 번에 병합해 준다
+/// (소유자 이름·키셋 페이지네이션 포함, 백엔드 d4d1b4d). 예전 멤버별 조회·클라이언트 병합
+/// (멤버당 50건·무한스크롤 없음) 워크어라운드는 이 서버 모드로 대체됐다.
 const String kAllHistoryPatientId = '__all__';
 
 /// 지나간 예약 줄 4종. HIST-ROLE-03. (앞으로 갈 예약 5종은 홈·예약 탭 몫 — 여기 안 온다.)
@@ -32,7 +32,7 @@ class VisitHistoryEntry {
   final String? cancelledByRelation, cancelledByName;
   final DateTime? cancelledAt;
   final bool isSelf; // account_patient_id == for_patient_id
-  final String? ownerName; // #34 — 「전체」 병합 시 이 줄이 누구 것인지(클라이언트 태그, 서버 미제공)
+  final String? ownerName; // #34 — 「전체」 뷰에서 이 줄이 누구 것인지(서버 owner_name). 단일 뷰엔 null.
   VisitHistoryEntry({
     required this.id,
     required this.status,
@@ -49,24 +49,9 @@ class VisitHistoryEntry {
     this.ownerName,
   });
 
-  /// #34 — 「전체」 병합에서 소유자 이름을 붙인 사본(서버는 이력 줄에 이름을 내려주지 않는다).
-  VisitHistoryEntry withOwner(String name) => VisitHistoryEntry(
-        id: id,
-        status: status,
-        slotDate: slotDate,
-        departmentName: departmentName,
-        doctorName: doctorName,
-        patientVisibleNotes: patientVisibleNotes,
-        hasQuestionnaire: hasQuestionnaire,
-        cancelledBy: cancelledBy,
-        cancelledByRelation: cancelledByRelation,
-        cancelledByName: cancelledByName,
-        cancelledAt: cancelledAt,
-        isSelf: isSelf,
-        ownerName: name,
-      );
-
-  factory VisitHistoryEntry.fromJson(Map<String, dynamic> j) => VisitHistoryEntry(
+  /// [includeOwner]가 참일 때만 서버 owner_name을 담는다 — 「전체」 뷰에서만 소유자 라벨을 보인다
+  /// (HIST-WHO-12). 단일 사람 뷰는 서버가 owner_name을 내려줘도 라벨을 붙이지 않는다.
+  factory VisitHistoryEntry.fromJson(Map<String, dynamic> j, {bool includeOwner = false}) => VisitHistoryEntry(
         id: j['id'] as String,
         status: visitStatusFromServer(j['visit_status'] as String),
         slotDate: j['slot_date'] == null ? null : DateTime.parse(j['slot_date'] as String),
@@ -79,6 +64,7 @@ class VisitHistoryEntry {
         cancelledByName: j['cancelled_by_name'] as String?,
         cancelledAt: j['cancelled_at'] == null ? null : DateTime.parse(j['cancelled_at'] as String),
         isSelf: j['is_self'] == true,
+        ownerName: includeOwner ? j['owner_name'] as String? : null,
       );
 }
 
@@ -92,21 +78,29 @@ class HistoryRepository {
   HistoryRepository(this._api);
   final ApiClient _api;
 
-  Future<HistoryPage> list(String forPatientId, {String? cursor, int? limit}) => _api.get<HistoryPage>(
-        '/my/history', // GET /my/history(T10)
-        (j) {
-          final m = (j as Map).cast<String, dynamic>();
-          return HistoryPage(
-            [for (final r in (m['items'] as List)) VisitHistoryEntry.fromJson((r as Map).cast<String, dynamic>())],
-            m['next_cursor'] as String?,
-          );
-        },
-        query: {
-          'for_patient_id': forPatientId,
-          if (cursor != null) 'cursor': cursor,
-          if (limit != null) 'limit': '$limit',
-        },
-      );
+  /// [forPatientId]가 null이면 「전체」 — for_patient_id를 생략해 서버가 본인+활성가족을 병합한다.
+  /// 그때만 각 줄에 소유자 이름(owner_name)을 담는다(HIST-WHO-12: 단일 뷰엔 라벨 없음).
+  Future<HistoryPage> list(String? forPatientId, {String? cursor, int? limit}) {
+    final all = forPatientId == null; // null = 「전체」(서버 병합)
+    return _api.get<HistoryPage>(
+      '/my/history', // GET /my/history(T10)
+      (j) {
+        final m = (j as Map).cast<String, dynamic>();
+        return HistoryPage(
+          [
+            for (final r in (m['items'] as List))
+              VisitHistoryEntry.fromJson((r as Map).cast<String, dynamic>(), includeOwner: all)
+          ],
+          m['next_cursor'] as String?,
+        );
+      },
+      query: {
+        if (forPatientId != null) 'for_patient_id': forPatientId,
+        if (cursor != null) 'cursor': cursor,
+        if (limit != null) 'limit': '$limit',
+      },
+    );
+  }
 }
 
 final historyRepositoryProvider = Provider((ref) => HistoryRepository(ref.read(apiClientProvider)));
@@ -136,10 +130,11 @@ class HistoryState {
 
 /// 선택된 환자가 바뀌면 build가 다시 돌아 첫 페이지를 새로 받는다(HIST-LIST-11 재진입 근거).
 class HistoryNotifier extends AsyncNotifier<HistoryState> {
-  String? _pid; // 이번 로드의 대상 환자(loadMore가 같은 사람으로 이어받도록)
+  String? _pid; // 이번 로드의 대상 환자(loadMore가 같은 대상으로 이어받도록)
 
-  // #34 — 「전체」에서 멤버당 조회할 최근 이력 상한(무한스크롤 없이 첫 페이지만 병합).
-  static const int _allPerMemberLimit = 50;
+  /// 「전체」 센티넬은 서버에 for_patient_id를 생략해 보낸다(서버가 본인+활성가족을 병합).
+  /// 그 외에는 그 사람 id를 그대로 실어 단일 뷰로 조회한다.
+  String? get _forQuery => _pid == kAllHistoryPatientId ? null : _pid;
 
   @override
   Future<HistoryState> build() async {
@@ -147,29 +142,9 @@ class HistoryNotifier extends AsyncNotifier<HistoryState> {
     final chips = await ref.watch(historyChipsProvider.future);
     final selfId = chips.firstWhere((m) => m.isSelf).id;
     _pid = selected ?? selfId; // HIST-WHO-03: 기본 본인
-    if (_pid == kAllHistoryPatientId) return _buildAll(chips); // #34 「전체」
-    final page = await ref.read(historyRepositoryProvider).list(_pid!);
+    // #34 「전체」도 서버 한 번(키셋 커서 포함) — 예전 멤버별 클라 병합·무한스크롤 제한 제거.
+    final page = await ref.read(historyRepositoryProvider).list(_forQuery);
     return HistoryState(items: page.items, next: page.nextCursor);
-  }
-
-  /// #34 「전체」 — 멤버별로 최근 이력을 조회해 소유자 이름을 붙이고 병합·날짜 내림차순 정렬.
-  /// 무한스크롤 없음(next=null): 멤버당 첫 페이지(limit 큼)만 — 대부분 가족은 과거 방문이 이보다 적다.
-  /// 페이지네이션·서버측 병합은 다음 라운드 백엔드 배선 몫(kAllHistoryPatientId 주석 참고).
-  Future<HistoryState> _buildAll(List<FamilyMember> members) async {
-    final repo = ref.read(historyRepositoryProvider);
-    final lists = await Future.wait(members.map((m) async {
-      final page = await repo.list(m.id, limit: _allPerMemberLimit);
-      return page.items.map((e) => e.withOwner(m.name)).toList();
-    }));
-    final merged = [for (final l in lists) ...l]..sort((a, b) {
-        final ad = a.slotDate, bd = b.slotDate;
-        if (ad == null && bd == null) return a.id.compareTo(b.id);
-        if (ad == null) return 1; // 날짜 없는 줄은 맨 뒤로
-        if (bd == null) return -1;
-        final c = bd.compareTo(ad); // 최신 위(내림차순)
-        return c != 0 ? c : a.id.compareTo(b.id);
-      });
-    return HistoryState(items: merged, next: null);
   }
 
   Future<void> loadMore() async {
@@ -177,7 +152,7 @@ class HistoryNotifier extends AsyncNotifier<HistoryState> {
     if (cur == null || cur.next == null || cur.loadingMore) return; // 끝났거나 이미 받는 중
     state = AsyncData(cur.copyWith(loadingMore: true, appendError: false));
     try {
-      final page = await ref.read(historyRepositoryProvider).list(_pid!, cursor: cur.next);
+      final page = await ref.read(historyRepositoryProvider).list(_forQuery, cursor: cur.next);
       state = AsyncData(HistoryState(items: [...cur.items, ...page.items], next: page.nextCursor));
     } catch (_) {
       // HIST-LIST-19: 이미 받은 줄은 지우지 않는다 — 맨 아래 [다시 시도]만 띄운다.

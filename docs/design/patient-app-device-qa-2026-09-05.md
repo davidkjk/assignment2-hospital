@@ -46,7 +46,7 @@
 ## G. 이력
 - [x] **#23** ✅코드(폰검증대기) — QnrTable이 스텁(항상 "불러오는 중")이었음 → questionnaireProvider로 문항–답변 실제 로드·렌더(로딩/오류/빈상태 분기). `detail_sections.dart`.
 - [x] **#24** ✅코드(폰검증대기) — done/문진 둘 다 없으면 빈 펼침 → 상태별 안내문("방문하지 않은 예약이에요…"). `history_row_detail.dart`.
-- [~] **#34** ▶ 프론트 완료(폰검증대기)·⏳백엔드 배선 다음 라운드 — 이력 칩 맨 앞에 **「전체」(전원 이력) 칩** + 멤버별 조회를 **클라이언트에서 병합**(각 줄에 소유자 이름 라벨, 날짜 내림차순). 백엔드 `/my/history`가 `for_patient_id` 필수라 서버 「전체」 모드가 없어, 프론트가 멤버별로 조회(멤버당 limit 50)해 합침. **한계**: 「전체」 뷰엔 무한스크롤 없음(멤버당 첫 페이지만) — 과거 방문이 아주 많은 멤버는 잘림. ⏳ **다음 라운드 백엔드 배선**: `/my/history`에 for_patient_id 생략(=전원) 모드 + 응답에 소유자 이름 + 키셋 페이지네이션 → 클라 병합·상한 제거. `history_repository.dart`(`kAllHistoryPatientId`·`_buildAll`)·`history_screen.dart`(전체 칩·소유자 라벨).
+- [x] **#34** ✅**완료(백엔드+프론트, 2026-09-07)** — 이력 칩 맨 앞에 **「전체」(전원 이력) 칩** + 서버 병합. 백엔드 `/my/history`가 `for_patient_id` 옵셔널이 돼(`d4d1b4d`), 생략하면 서버가 본인+활성가족을 **한 번에 병합**(소유자 이름 `owner_name`·키셋 페이지네이션). 프론트도 **서버 모드로 재배선**해 예전 클라이언트 병합(멤버당 limit 50·무한스크롤 없음·많으면 잘림)을 걷어냈다 — 이제 「전체」도 무한스크롤·상한 없음. 소유자 라벨은 「전체」 조회(`includeOwner`)에서만 담아 단일 뷰엔 안 뜬다(HIST-WHO-12). `history_repository.dart`(`kAllHistoryPatientId`·`list(null)`)·`history_screen.dart`(전체 칩·소유자 라벨). 테스트 `history_all_server_mode_test.dart` 4건. 폰검증대기(칩 순서·라벨 화면).
 
 ## H. 기타 표시/기능
 - [x] **#17** ✅코드(폰검증대기) — 주소 `SelectableText`(길게눌러 iOS 복사) + 지도 열기는 "지도 앱으로 길 찾기" 링크로 분리. `detail_sections.dart`. (가온빌딩=가짜 데모 주소, 납품 시 실주소)
@@ -79,7 +79,7 @@
 - [x] **#38** ✅코드(⚠️백엔드 재배포 후 반영) — 알림설정에 "광고성 정보 수신 동의" 토글 신설(`ads_consent_repository.dart`+`notification_settings_screen.dart`). 백엔드 `/patient/me`에 `ads_consent` 추가(`patient_profile_service.py`), PATCH `/patient/me/ads-consent` 재사용. 가입 동의(consent_screen)와 별개로 사후 켜기 가능.
 - [x] **#39** ✅코드(폰검증대기) — 설정 헤더에 톱니 아이콘(`PatientAppBar icon: AppIcons.settings`). 2차화면 관례에서 예외(사용자 요청). `settings_home_screen.dart`.
 - [x] **#40 ⭐** ✅코드(폰검증대기) — 회원가입 진입 불가였음: 랜딩 화면(로그인+회원가입 버튼, AUTH-LAND-01)이 완성돼 있으나 라우터 미등록·앱이 /login 직행이라 가입 입구가 가려짐 → /landing 라우트 등록+signedOut 리다이렉트를 /landing로+초기위치 /landing. `router.dart`. (로그인 화면에 가입링크 없는 건 설계상 정상)
-- [~] **#34** ▶ 프론트 완료(폰검증대기) — 멤버별 조회를 클라이언트에서 병합(C절 #34 참고). ⏳ 백엔드 「전체」 모드 배선은 다음 라운드.
+- [x] **#34** ✅완료(백엔드+프론트, 2026-09-07) — 서버 「전체」 병합 모드로 재배선, 클라 병합·무한스크롤 제한 제거(C절 #34 참고).
 - [~] **#3(리전)** ⚠️사용자 대시보드=Singapore로 확인됨(코디 CLI/측정으론 확정 불가·정정). 이미 SG면 느림 원인 재조사 필요(위 #3).
 - [~] **#41** 알림 토글 저장/페이지 전환 느림(release 빌드 문제 아님, 매 토글=서버 PATCH 왕복). #3과 동일 원인 → **#3 재조사와 함께**(리전이 이미 SG일 수 있어 다른 원인 가능).
 
