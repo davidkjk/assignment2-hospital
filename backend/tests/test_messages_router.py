@@ -85,10 +85,11 @@ async def test_BADGE_접수직원은_배지수를_받는다(client, committed_co
     assert res.json()["count"] == 0
 
 
-async def test_CALLBACK_서명없는_콜백은_무시한다(client):
-    """[SEND-RESULT-02][보안 F-03] 서명(X-Solapi-Secret) 없는 콜백은 처리하지 않는다.
-    시크릿 미설정(로컬 기본)이면 fail-closed라 어떤 콜백도 무시하고 균일 응답을 준다."""
+async def test_CALLBACK_토큰없는_콜백은_무시한다(client):
+    """[SEND-RESULT-02][보안 F-03] URL 토큰(?token=) 없는 콜백은 처리하지 않는다.
+    시크릿 미설정(로컬 기본)이면 fail-closed라 어떤 콜백도 무시하고 균일 응답을 준다.
+    (SOLAPI 실제 형식=리포트 배열. 인증·형식 상세는 test_solapi_status_callback.py.)"""
     res = client.post("/messages/status-callback",
-                      json={"provider_message_id": "no-such-id", "status": "delivered"})
+                      json=[{"messageId": "no-such-id", "statusCode": "4000"}])
     assert res.status_code == 200
     assert res.json()["status"] == "ok"  # ID 존재 여부를 노출하지 않는 균일 응답

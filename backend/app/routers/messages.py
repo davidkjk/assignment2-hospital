@@ -7,7 +7,7 @@ import hmac
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -27,11 +27,21 @@ class SendIn(BaseModel):
     scheduled_at: datetime | None = None
 
 
-class StatusCallbackIn(BaseModel):
-    """[SEND-RESULT-02] 업체(Twilio 등) 상태 되알림. 서명검증(실제 값)은 배포 env."""
-    provider_message_id: str
-    status: str                       # 'delivered' | 'failed'
-    failure_code: str | None = None
+class SolapiReport(BaseModel):
+    """[SEND-RESULT-02] SOLAPI 웹훅 리포트 한 건. 웹훅 본문은 이 객체의 배열이다.
+
+    SOLAPI 실제 필드명 그대로: messageId(발송 시 저장한 provider_message_id), statusCode
+    (`"4000"`=수신완료=도달, 그 외 종결 코드=실패). 나머지 필드(groupId·dateReported 등)는
+    받되 쓰지 않는다(추가 필드 무시).
+    """
+    model_config = {"extra": "ignore"}
+    messageId: str
+    statusCode: str
+    statusMessage: str | None = None
+
+
+# [SEND-RESULT-02] SOLAPI 리포트 성공 코드 — 수신완료.
+_SOLAPI_DELIVERED_CODE = "4000"
 
 
 def _page_dto(page) -> dict:
@@ -48,21 +58,30 @@ def _result_dto(res) -> dict:
 
 @router.post("/messages/status-callback")
 async def status_callback(
-    body: StatusCallbackIn,
-    x_solapi_secret: str | None = Header(default=None),
+    reports: list[SolapiReport],
+    token: str | None = None,
 ) -> dict:
-    """[SEND-RESULT-02][보안 F-03] 업체 status callback 수신 — 공유 시크릿 서명 검증.
+    """[SEND-RESULT-02][보안 F-03] SOLAPI 웹훅 수신 — 리포트 배열 + URL 토큰 인증.
 
-    제공자만 아는 웹훅 시크릿(X-Solapi-Secret)을 상수시간 비교해 위조 콜백을 막는다.
-    시크릿 미설정이면 fail-closed(어떤 콜백도 처리 안 함). 검증 실패·모르는 콜백 모두
-    같은 응답을 돌려준다(ID 존재 여부를 노출하는 oracle 제거·막다른 길 없음).
+    SOLAPI 웹훅은 커스텀 헤더가 아니라 **등록 URL에 심은 토큰**(`?token=`)으로 인증한다.
+    제공자만 아는 토큰을 상수시간 비교해 위조 콜백을 막는다(시크릿 미설정 시 fail-closed).
+    검증 실패·모르는 콜백 모두 같은 응답({"status":"ok"})을 돌려준다(ID oracle 제거).
+
+    본문은 리포트 객체 **배열**이며, 각 건의 statusCode를 도달/실패로 매핑해 messageId
+    (=발송 시 저장한 provider_message_id)로 줄을 찾아 상태를 굴린다.
+    ⚠️ 4000 외 코드의 정확한 성공/실패 구분은 실발송 1건으로 최종 확정 대상(보수적으로 실패 처리).
     """
     secret = settings.solapi_webhook_secret
-    if not secret or x_solapi_secret is None or not hmac.compare_digest(x_solapi_secret, secret):
+    if not secret or token is None or not hmac.compare_digest(token, secret):
         return {"status": "ok"}
-    return await message_service.handle_status_callback(
-        provider_message_id=body.provider_message_id, status=body.status,
-        failure_code=body.failure_code)
+    for r in reports:
+        if r.statusCode == _SOLAPI_DELIVERED_CODE:
+            await message_service.handle_status_callback(
+                provider_message_id=r.messageId, status="delivered")
+        else:
+            await message_service.handle_status_callback(
+                provider_message_id=r.messageId, status="failed", failure_code=r.statusCode)
+    return {"status": "ok"}
 
 
 @router.get("/messages/badge-count")
