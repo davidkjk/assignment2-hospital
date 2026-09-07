@@ -101,3 +101,26 @@ test('[WEBMOD-AUTH-09] 명시적 로그인 성공 시에만 앞선 익명 이력
   await userEvent.click(screen.getByRole('button', { name: '로그인' }));
   await waitFor(() => expect(api.attributeSessionToAccount).toHaveBeenCalledWith({ patientId: 'p1' }));
 });
+
+
+// ── 예약 앞흐름 피드 배선 (WEBBOOK-06/07) ──────────────────────────────────────
+
+function withDeptCard() {
+  // 익명 세션에 진료과 선택 카드가 떠 있는 상태(agent가 낸 카드 시뮬레이션)
+  return fakeApi({
+    startOrRestoreSession: vi.fn(async (): Promise<SessionState> => ({
+      threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
+      messages: [{ id: 'm1', senderType: 'bot', messageType: 'card', content: null,
+        payload: { card_type: 'department_select', departments: [{ id: 'd1', name: '내과' }], guide_chip: null } }],
+    })),
+  });
+}
+
+test('[WEBBOOK-06] 진료과 탭 → navigateAction(pick_department) → 의사 카드가 피드에 삽입된다', async () => {
+  const api = withDeptCard();
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(await screen.findByRole('button', { name: '내과' }));
+  await waitFor(() => expect(api.navigateAction).toHaveBeenCalledWith({ action: { kind: 'pick_department', payload: { department_id: 'd1' } } }));
+  expect(await screen.findByRole('button', { name: /김의사/ })).toBeInTheDocument(); // 다음 카드 피드 삽입
+});

@@ -3,7 +3,7 @@ import type { CardProps } from './WebCard';
 // ── WEBCARD-TIME ── CCARD-TIME 본체(정상·0개·조회 중·조회 오류) + 위젯 폭 버튼 + 인증 연결
 export function TimeSelectCard({ p, ctx }: CardProps) {
   const state = (p.state as string) ?? '정상';
-  const candidates = (p.candidates as { label: string; slot_at: string }[] | undefined) ?? [];
+  const candidates = (p.candidates as { label: string; slot_at: string; slot_id?: string; department_id?: string; doctor_id?: string }[] | undefined) ?? [];
   if (state === '조회중') return <p role="status">시간을 불러오는 중입니다…</p>;
   if (state === '조회오류') return <div role="alert"><p>시간을 불러오지 못했습니다</p><button type="button">다시 시도</button></div>;
   if (state === '빈' || candidates.length === 0)
@@ -12,8 +12,10 @@ export function TimeSelectCard({ p, ctx }: CardProps) {
     <ul aria-label="예약 가능한 시간">
       {candidates.map((c) => (
         <li key={c.slot_at}>
-          {/* WEBCARD-TIME-03: 선택만으로 슬롯 선점·예약하지 않고, 문맥 유지한 채 인증 관문으로 */}
-          <button type="button" onClick={() => ctx.onAuthGate({ kind: 'book', payload: { ...p, slot_at: c.slot_at } })}>{c.label}</button>
+          {/* WEBCARD-TIME-03: 선택만으로 슬롯 선점·예약하지 않고, 문맥 유지한 채 인증 관문으로. */}
+          {/* 후보가 slot_id·dept·doc를 나르므로 그대로 실어 로그인 후 대상·확인 단계로 이어진다(for_patient_id는 아직 없음 → 대상 선택부터). */}
+          <button type="button" onClick={() => ctx.onAuthGate({ kind: 'book', payload: {
+            department_id: c.department_id, doctor_id: c.doctor_id, slot_id: c.slot_id, slot_at: c.slot_at } })}>{c.label}</button>
         </li>
       ))}
     </ul>
