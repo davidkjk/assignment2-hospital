@@ -118,7 +118,9 @@
 
 ## 10. 미결·후속
 
-- `revalidate_action` 새 kind 이름 최종 확정(구현 시).
-- `WEBCARD-DEPT/DOC/DATE/TARGET/WHY`·`WEBBOOK-*` 규칙 ID 배정 + 결정 문서 역참조(`chatbot-source-of-truth.md` §4 "상담봇 전용 화면 규칙 0개" 갱신).
+- ~~`revalidate_action` 새 kind 이름 최종 확정(구현 시).~~ ✅ **확정(2026-09-07 구현)**: 익명 nav = `pick_department`·`pick_doctor`·`pick_date`(`webchat_service.ANON_NAV_KINDS`, `/cards/revalidate`가 X-Anon-Token으로 처리) · 로그인 후 = `pick_target`(Bearer) → 대상 카드 · 프론트 로컬 = `pick_reason`(방문이유 카드)·`submit_reason`(→ `book` 재검증) · 최종 = `book`(기존). 스펙 §5.4의 `set_reason`은 프론트 로컬 `submit_reason`으로 대체.
+- ~~`WEBCARD-DEPT/DOC/DATE/TARGET/WHY`·`WEBBOOK-*` 규칙 ID 배정 + 결정 문서 역참조.~~ ✅ **완료(2026-09-07)**: `screen-behaviors.md` 「C. 웹 예약 앞흐름」에 `WEBBOOK-01~08`·`WEBCARD-DEPT/DOC/DATE/TARGET/WHY`·`BOOK-BOT-WIZARD-01~02` 신설, `chatbot-source-of-truth.md` §4 역참조.
+- ⭐ **채널 분기 계약 추가(2026-09-07, 사용자 결정 B, patient-chat-wiring 트랙과 합의)**: 앱(`owner_type=patient`/`channel=app`) AI 상담은 대화 안에서 예약하지 않고 **예약 마법사로 인계**한다 — `card_type="open_booking_wizard"`, `payload={department_id?, department_name?}`(추천 과 프리필). 웹(`anonymous_web`)만 대화 내 예약(department_select~booking_confirm). 백엔드 카드·라우팅=이 트랙(`booking_wizard_handoff`, `chat_flow_service`가 `sender_kind`로 분기), 앱 렌더·"예약하러 가기"→마법사 이동·과 프리필=patient-app 트랙.
+- ⚠️ **스펙 §9 이탈(routers/chat.py 수정)**: 늦은 관문(④)이 로그인 전 카드 탭을 요구하는데 `/cards/revalidate`가 Bearer 필수라, 익명 nav kind면 X-Anon-Token으로 처리하도록 최소 수정함(patient-chat-wiring은 이 파일 무수정 확인 → 충돌 없음).
 - 원격 반영은 배포 단계(백엔드 push=Railway 자동배포, webchat=Vercel). 이 설계·구현은 코드 단계.
 - 카드 레이아웃(시각) 목업은 구현 착수 시 별도 — 정본 색·형태는 기존 webchat 카드 따름.
