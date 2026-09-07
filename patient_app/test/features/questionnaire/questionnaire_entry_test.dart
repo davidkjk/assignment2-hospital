@@ -105,6 +105,19 @@ void main() {
     expect(find.text('문항 1'), findsOneWidget);
   });
 
+  testWidgets('[NAV-QNR-01 회귀] 미작성 진입 후 1문항을 답하면 다음 문항으로 — 이어쓰기(Resume) 화면으로 튕기지 않는다', (t) async {
+    // 버그(2026-09-07 사용자 검수): 위저드가 1문항 자동저장 시 상태가 미작성→작성 중으로 바뀌는데,
+    // Entry가 그 상태를 watch해 위저드를 ResumeScreen으로 교체해 버렸다. 진입 시점 상태로 1회 고정해야 한다.
+    await _pump(t, data: _data(state: '미작성', n: 3));
+    expect(find.text('문항 1'), findsOneWidget);
+    await t.enterText(find.byType(TextField).first, '답1');
+    await t.tap(find.text('다음')); // 자동저장(→'작성 중') + 다음 문항
+    await t.pump();
+    await t.pump();
+    expect(find.textContaining('작성하던 문진이 있어요'), findsNothing); // ResumeScreen으로 교체되면 안 된다
+    expect(find.text('문항 2'), findsOneWidget); // 위저드가 그대로 다음 문항을 보여준다
+  });
+
   testWidgets('[NAV-QNR-02] 작성 중 진입 → 이어쓰기 화면', (t) async {
     await _pump(t, data: _data(state: '작성 중', ans: {'q1': 'a'}));
     expect(find.textContaining('이어서'), findsWidgets);

@@ -28,19 +28,31 @@ String returnRouteFor(String? from, String appointmentId) {
 }
 
 /// `/questionnaire/:id` 진입 시 서버 상태에 따라 다른 화면을 연다(NAV-QNR-01~10·18·19).
-class QuestionnaireEntry extends ConsumerWidget {
+class QuestionnaireEntry extends ConsumerStatefulWidget {
   const QuestionnaireEntry({super.key, required this.appointmentId});
   final String appointmentId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final st = ref.watch(questionnaireProvider(appointmentId));
-    final detail = ref.watch(appointmentDetailProvider(appointmentId));
+  ConsumerState<QuestionnaireEntry> createState() => _QuestionnaireEntryState();
+}
+
+class _QuestionnaireEntryState extends ConsumerState<QuestionnaireEntry> {
+  // ⭐ 위저드 vs 이어쓰기(Resume) vs 확인 분기는 「진입 시점 문진 상태」로 1회만 정한다.
+  //    위저드에서 1문항을 자동저장하면 상태가 미작성→작성 중으로 바뀌는데(controller.next), 매 변화마다
+  //    재분기하면 위저드가 이어쓰기 화면으로 교체돼 버린다(사용자 검수 2026-09-07 회귀). 여기서 고정한다.
+  //    이어쓰기·처음부터·고치기 진입은 라우터가 `?start=N`으로 위저드에 직행하므로 Entry를 거치지 않는다.
+  String? _entryStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = widget.appointmentId;
+    final st = ref.watch(questionnaireProvider(id));
+    final detail = ref.watch(appointmentDetailProvider(id));
     final from = GoRouterState.of(context).uri.queryParameters['from'];
-    final returnTo = returnRouteFor(from, appointmentId);
+    final returnTo = returnRouteFor(from, id);
 
     // 로드 실패면 [다시 시도], 로딩 중이면 스피너(막다른 스피너 방지 — qnr_load_gate).
-    final gate = qnrLoadGate(ref, st, appointmentId);
+    final gate = qnrLoadGate(ref, st, id);
     if (gate != null || detail.isLoading) {
       return gate ?? const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -54,25 +66,27 @@ class QuestionnaireEntry extends ConsumerWidget {
     }
     // QNR-FORM-06b: 0문항이어도 쓴 답이 있으면 읽기전용 조회는 남는다.
     if (st.questions.isEmpty) {
-      return ConfirmScreen(appointmentId: appointmentId, readOnly: true, returnTo: returnTo);
+      return ConfirmScreen(appointmentId: id, readOnly: true, returnTo: returnTo);
     }
 
     // 실행 보정: appointmentDetailProvider는 AppointmentDetail?를 주고 상태는 .view.status에 있다.
     final status = detail.valueOrNull?.view.status;
     final readOnly = status != null && !editableStatuses.contains(status); // NAV-QNR-04·10
     if (readOnly) {
-      return ConfirmScreen(appointmentId: appointmentId, readOnly: true, returnTo: returnTo);
+      return ConfirmScreen(appointmentId: id, readOnly: true, returnTo: returnTo);
     }
     // NAV-QNR-18: 취소 등으로 상태가 바뀌어도 여기 머문다(읽기전용 전환은 T24 QNR-LIVE 계열).
 
-    switch (st.status) {
+    // 진입 시점의 문진 상태로 분기를 1회 고정(그 뒤 자동저장이 위저드를 이어쓰기로 바꾸지 않게).
+    _entryStatus ??= st.status;
+    switch (_entryStatus) {
       case '작성완료':
-        return ConfirmScreen(appointmentId: appointmentId, readOnly: false, returnTo: returnTo); // NAV-QNR-03
+        return ConfirmScreen(appointmentId: id, readOnly: false, returnTo: returnTo); // NAV-QNR-03
       case '작성 중':
-        return ResumeScreen(appointmentId: appointmentId); // NAV-QNR-02
+        return ResumeScreen(appointmentId: id); // NAV-QNR-02
       case '미작성':
       default:
-        return QuestionnaireWizard(appointmentId: appointmentId, startIndex: 0); // NAV-QNR-01·05
+        return QuestionnaireWizard(appointmentId: id, startIndex: 0); // NAV-QNR-01·05
     }
   }
 }
