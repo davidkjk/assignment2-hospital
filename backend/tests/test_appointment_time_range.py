@@ -23,9 +23,20 @@ def _ctx(seed: dict, role: str) -> StaffContext:
     return StaffContext(id=seed["staff_id"], auth_user_id=seed["auth_user_id"], role=role, department_id=None)
 
 
+_HOSPITAL_TZ = ZoneInfo("Asia/Seoul")
+
+
 def _snap5(dt: datetime) -> datetime:
     """5분 격자에 붙이고 초·마이크로초를 지운다 — 테스트가 스냅 규칙에 걸리지 않게."""
     return dt.replace(minute=dt.minute - dt.minute % 5, second=0, microsecond=0)
+
+
+def _hday(dt: datetime):
+    """규칙을 심을 요일 = 서비스가 판정하는 **병원(KST) 날짜**의 요일이다.
+    create_phone_appointment는 start_at을 KST로 환산해 resolve_day에 넘기므로(요일=KST 기준),
+    규칙도 KST 날짜의 weekday로 심어야 같은 날을 가리킨다. UTC 날짜(`dt.date()`)로 심으면 CI가
+    UTC 오후(=KST 다음날)에 돌 때 요일이 하루 어긋나 "그 날은 진료하지 않습니다"로 플래키하게 깨진다."""
+    return dt.astimezone(_HOSPITAL_TZ).date()
 
 
 async def _seed(db_conn) -> dict:
@@ -82,7 +93,7 @@ async def _set_rule(
 async def _book(conn, ctx: dict, start_at: datetime, *, minutes: int = 15, allow_overlap: bool = False,
                 open_day: bool = True):
     if open_day:
-        await _set_rule(conn, ctx["doctor_id"], start_at.date(), slot_minutes=minutes)
+        await _set_rule(conn, ctx["doctor_id"], _hday(start_at), slot_minutes=minutes)
     return await appointment_service.create_phone_appointment(
         staff=ctx["receptionist"],
         patient_id=ctx["patient_id"],
@@ -95,7 +106,13 @@ async def _book(conn, ctx: dict, start_at: datetime, *, minutes: int = 15, allow
 
 
 def _future5(**kw) -> datetime:
-    return _snap5(datetime.now(timezone.utc) + timedelta(**kw))
+    """예약용 미래 시각 — 병원(KST) 벽시계로 '내일 오전 10:00 + 오프셋'에 고정한다.
+    ⭐ 예전엔 `now(UTC) + offset`을 썼는데 두 가지 날짜 플래키가 있었다: (1) UTC 날짜의 요일로
+    규칙을 심으면 서비스의 KST 요일 판정과 어긋난다(CI가 UTC 오후=KST 다음날에 돌 때). (2) 오프셋이
+    KST 자정을 넘으면 예약이 규칙 없는 다음 날로 샌다. KST 벽시계 오전에 고정하면 항상 미래·근무시간·
+    자정과 멀어 둘 다 사라진다(규칙은 그 요일 하루 종일 열어 심으므로 시각 판정만 안전하면 된다)."""
+    base = (datetime.now(_HOSPITAL_TZ) + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+    return _snap5(base + timedelta(**kw))
 
 
 @pytest.mark.asyncio
@@ -156,7 +173,7 @@ async def test_휴진일에는_예약을_만들_수_없다(db_conn):
     어디에나 잡으므로, 판정기(resolve_day)가 닫힌 날을 열려 있다고 답하면 휴진일에 예약이 들어온다."""
     ctx = await _seed(db_conn)
     at = _future5(hours=3)
-    await _set_rule(db_conn, ctx["doctor_id"], at.date(), is_day_off=True)
+    await _set_rule(db_conn, ctx["doctor_id"], _hday(at), is_day_off=True)
     with pytest.raises(AppError) as exc:
         await _book(db_conn, ctx, at, open_day=False)
     assert exc.value.status_code == 400

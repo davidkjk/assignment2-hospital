@@ -13,6 +13,7 @@
 DB now()로 지난 시각을 재므로(클럭 스큐 회피) 테스트도 「지금」 기준 상대 시각을 쓴다.
 """
 from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -26,8 +27,18 @@ def _ctx(seed: dict, role: str) -> StaffContext:
     return StaffContext(id=seed["staff_id"], auth_user_id=seed["auth_user_id"], role=role, department_id=None)
 
 
+_HOSPITAL_TZ = ZoneInfo("Asia/Seoul")
+
+
 def _snap5(dt: datetime) -> datetime:
     return dt.replace(minute=dt.minute - dt.minute % 5, second=0, microsecond=0)
+
+
+def _hday(dt: datetime):
+    """규칙을 심을 요일 = 서비스가 판정하는 병원(KST) 날짜의 요일. create_phone_appointment가
+    start_at을 KST로 환산해 요일을 보므로, UTC 날짜(`dt.date()`)로 심으면 CI가 UTC 오후(=KST
+    다음날)에 돌 때 하루 어긋나 "그 날은 진료하지 않습니다"로 플래키하게 깨진다."""
+    return dt.astimezone(_HOSPITAL_TZ).date()
 
 
 async def _seed(db_conn) -> dict:
@@ -70,7 +81,11 @@ async def _set_rule(conn, doctor_id, day, *, max_daily: int, slot_minutes: int =
 
 
 def _future5(**kw) -> datetime:
-    return _snap5(datetime.now(timezone.utc) + timedelta(**kw))
+    """예약용 미래 시각 — 병원(KST) 벽시계로 '내일 오전 10:00 + 오프셋'에 고정한다(플래키 방지).
+    예전 `now(UTC)+offset`은 (1) UTC/KST 요일 어긋남 (2) 오프셋이 KST 자정을 넘어 다른 날로 새는
+    두 플래키가 있었다. KST 오전 고정으로 항상 미래·근무시간·자정과 멀게 해 둘 다 없앤다."""
+    base = (datetime.now(_HOSPITAL_TZ) + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+    return _snap5(base + timedelta(**kw))
 
 
 async def _phone(conn, ctx, at, *, allow_over_daily_max: bool = False):
@@ -90,7 +105,7 @@ async def test_정원을_채운_날_직원_예약은_막힌다(db_conn):
     """[A5] max_daily=1인 날에 한 건이 차면 같은 날 두 번째 예약은 409로 막힌다."""
     ctx = await _seed(db_conn)
     base = _future5(hours=3)
-    await _set_rule(db_conn, ctx["doctor_id"], base.date(), max_daily=1)
+    await _set_rule(db_conn, ctx["doctor_id"], _hday(base), max_daily=1)
     await _phone(db_conn, ctx, base)  # 1건 = 정원
     with pytest.raises(AppError) as exc:
         await _phone(db_conn, ctx, base + timedelta(minutes=30))  # 같은 날 2건째
@@ -103,7 +118,7 @@ async def test_경고_후_허용_오버라이드로_정원을_넘길_수_있다(
     """[A5] allow_over_daily_max=True면 정원을 넘겨 예약할 수 있다(창구 융통성)."""
     ctx = await _seed(db_conn)
     base = _future5(hours=3)
-    await _set_rule(db_conn, ctx["doctor_id"], base.date(), max_daily=1)
+    await _set_rule(db_conn, ctx["doctor_id"], _hday(base), max_daily=1)
     await _phone(db_conn, ctx, base)
     ok = await _phone(db_conn, ctx, base + timedelta(minutes=30), allow_over_daily_max=True)
     assert ok is not None
@@ -114,7 +129,7 @@ async def test_당일_방문은_정원과_무관하게_항상_받는다(db_conn)
     """[A5] 이미 온 환자를 돌려보낼 수 없다 — walk-in은 정원 검사를 건너뛴다."""
     ctx = await _seed(db_conn)
     base = _future5(hours=3)
-    await _set_rule(db_conn, ctx["doctor_id"], base.date(), max_daily=1)
+    await _set_rule(db_conn, ctx["doctor_id"], _hday(base), max_daily=1)
     await _phone(db_conn, ctx, base)  # 정원 참
     ok = await appointment_service.create_walkin_appointment(
         staff=ctx["receptionist"], patient_id=ctx["patient_id"],
@@ -128,7 +143,7 @@ async def test_취소된_예약은_정원에_세지_않는다(db_conn):
     """[A5] 산정 대상은 살아 있는 예약뿐 — 취소하면 그 자리는 다시 열린다."""
     ctx = await _seed(db_conn)
     base = _future5(hours=3)
-    await _set_rule(db_conn, ctx["doctor_id"], base.date(), max_daily=1)
+    await _set_rule(db_conn, ctx["doctor_id"], _hday(base), max_daily=1)
     first = await _phone(db_conn, ctx, base)
     await db_conn.execute("reset role")
     await db_conn.execute("update appointments set status = '환자취소' where id = $1", first)
