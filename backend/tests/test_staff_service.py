@@ -328,20 +328,27 @@ async def test_list_staff_returns_all_roles(db_conn):
 
 
 @pytest.mark.asyncio
-async def test_resend_invite_sends_password_setup_email():
-    """[STAFF-ROW-03] 재초대는 '초대 다시'가 아니라 '비밀번호 설정 링크 다시 보내기'다.
+async def test_resend_invite_returns_recovery_link_and_does_not_send_email():
+    """[STAFF-ROW-01·STAFF-REINVITE-LINK-01] 재초대는 메일을 자동 발송하지 않고(발신 도메인 미검증),
+    관리자가 직접 전달할 복구(비밀번호 설정) 링크를 만들어 돌려준다(2026-09-07 후속 결정).
 
-    초대(invite_user_by_email)는 계정 생성과 한 덩어리라, 초대만 받고 아직 수락 안 한
-    계정에도 막힌다(email_exists). 복구 메일(reset_password_for_email)을 보내면 링크가
-    같은 '비밀번호 설정' 화면(/reset-password/new)으로 가고 계정 유무와 무관하게 동작한다."""
+    옛 방식(reset_password_for_email)은 메일을 부쳤는데 타인 주소로는 500으로 막혔다 — 초대와
+    같은 도메인 제약. generate_link(type=recovery)는 메일 없이 링크만 돌려주고, 그 링크가 같은
+    '비밀번호 설정' 화면(/reset-password/new, 복구·초대 공용)으로 간다(계정 유무와 무관)."""
     admin = MagicMock()
     admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
+    action_link = "https://staff.example/reset-password/new?token=recov&type=recovery"
+    admin.auth.admin.generate_link.return_value.properties.action_link = action_link
     conn = _FakeConn(auth_user_id=uuid4())
 
     with patch("app.services.staff_service.get_admin_client", return_value=admin):
-        await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+        link = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
 
-    admin.auth.reset_password_for_email.assert_called_once_with("r@test.local")
+    # 관리자에게 돌려줄 링크가 그대로 나온다.
+    assert link == action_link
+    admin.auth.admin.generate_link.assert_called_once_with({"type": "recovery", "email": "r@test.local"})
+    # 메일 경로(reset_password_for_email·invite)는 부르지 않는다 — 도메인 미검증 500의 원인 제거.
+    admin.auth.reset_password_for_email.assert_not_called()
     admin.auth.admin.invite_user_by_email.assert_not_called()
 
 
@@ -350,6 +357,7 @@ async def test_resend_invite_passes_redirect_to():
     """재초대(=비번설정 링크)도 redirect_to를 넘겨 링크가 그 직원웹으로 돌아온다."""
     admin = MagicMock()
     admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
+    admin.auth.admin.generate_link.return_value.properties.action_link = "https://x/link"
     conn = _FakeConn(auth_user_id=uuid4())
     origin = "https://gaonhospital-staff.vercel.app"
 
@@ -358,8 +366,8 @@ async def test_resend_invite_passes_redirect_to():
             uuid4(), requested_by=_admin_ctx(), redirect_to=origin, conn=conn
         )
 
-    admin.auth.reset_password_for_email.assert_called_once_with(
-        "r@test.local", {"redirect_to": origin}
+    admin.auth.admin.generate_link.assert_called_once_with(
+        {"type": "recovery", "email": "r@test.local", "options": {"redirect_to": origin}}
     )
 
 
@@ -367,9 +375,10 @@ async def test_resend_invite_passes_redirect_to():
 async def test_resend_invite_succeeds_for_already_existing_account():
     """버그 재현·회귀 가드: 초대만 받고 아직 수락 안 한(=계정은 이미 있는) 직원에게 재초대해도
     성공해야 한다. 옛 코드는 invite_user_by_email이 email_exists(422)로 막혀 409 '이미 수락한
-    계정' 이라는 엉뚱한 안내를 줬다. 새 코드는 초대를 다시 부르지 않고 복구 메일을 보낸다."""
+    계정' 이라는 엉뚱한 안내를 줬다. 새 코드는 초대를 다시 부르지 않고 복구 링크를 만든다."""
     admin = MagicMock()
     admin.auth.admin.get_user_by_id.return_value.user.email = "invited@test.local"
+    admin.auth.admin.generate_link.return_value.properties.action_link = "https://x/link"
     # 옛 경로(초대 다시)였다면 이 오류로 막혔을 것이다 — 새 경로는 이걸 아예 부르지 않는다.
     admin.auth.admin.invite_user_by_email.side_effect = _FakeAuthError(
         "User already registered", 422, "email_exists"
@@ -377,9 +386,29 @@ async def test_resend_invite_succeeds_for_already_existing_account():
     conn = _FakeConn(auth_user_id=uuid4())
 
     with patch("app.services.staff_service.get_admin_client", return_value=admin):
-        await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+        link = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
 
-    admin.auth.reset_password_for_email.assert_called_once()
+    assert link
+    admin.auth.admin.generate_link.assert_called_once()
+    admin.auth.admin.invite_user_by_email.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_resend_invite_rate_limit_gives_clear_message():
+    """[STAFF-REINVITE-LINK-01] 링크 생성이 호출 한도(429)에 걸리면 밋밋한 500이 아니라
+    '잠시 후 다시' 안내로 바꿔 던진다(막다른 침묵 금지)."""
+    admin = MagicMock()
+    admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
+    admin.auth.admin.generate_link.side_effect = _FakeAuthError(
+        "rate limited", 429, "over_email_send_rate_limit"
+    )
+    conn = _FakeConn(auth_user_id=uuid4())
+
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError) as exc:
+            await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+
+    assert exc.value.status_code == 429
 
 
 @pytest.mark.asyncio

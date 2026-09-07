@@ -72,14 +72,16 @@ export const staffApi = {
       body: JSON.stringify(body),
     }),
 
-  /** STAFF-ROW-01 — 별도 엔드포인트. 「계정이 살아났다」와 다른 동작이다. */
+  /** STAFF-ROW-01·STAFF-REINVITE-LINK-01 — 별도 엔드포인트. 「계정이 살아났다」와 다른 동작이다.
+   *  메일을 자동 발송하지 않고(발신 도메인 미검증) 관리자가 직접 전달할 링크(link)를 돌려준다. */
   resendInvite: (id: string) =>
-    apiFetch<{ status: string }>(`/staff/${id}/resend-invite`, { method: 'POST' }),
+    apiFetch<{ status: string; link: string | null }>(`/staff/${id}/resend-invite`, { method: 'POST' }),
 
-  /** STAFF-RESET-PW-01 — 이미 들어온(활성) 직원의 비밀번호 재설정 링크를 관리자가 발송(#26 확장).
-   *  재초대와 같은 함수를 쓰나 착지 화면은 「새 비밀번호 만들기」(welcome 표식 없음). */
+  /** STAFF-RESET-PW-01·STAFF-RESETPW-LINK-01 — 이미 들어온(활성) 직원의 비밀번호 재설정 링크를
+   *  관리자가 발송(#26 확장). 재초대와 같은 함수를 쓰나 착지 화면은 「새 비밀번호 만들기」(welcome
+   *  표식 없음). 메일 대신 화면에 노출할 링크(link)를 돌려준다. */
   resetPassword: (id: string) =>
-    apiFetch<{ status: string }>(`/staff/${id}/reset-password`, { method: 'POST' }),
+    apiFetch<{ status: string; link: string | null }>(`/staff/${id}/reset-password`, { method: 'POST' }),
 
   /** STAFF-DELETE-01 — 잘못 초대한 미수락 계정을 되돌린다(삭제). 서버가 미수락+데이터없음을 가드. */
   remove: (id: string) =>

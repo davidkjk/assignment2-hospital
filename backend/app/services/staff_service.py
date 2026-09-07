@@ -65,18 +65,6 @@ def _generate_recovery_link(admin, email: str, redirect_to: str | None) -> str:
     return admin.auth.admin.generate_link(params).properties.action_link
 
 
-def _send_password_setup_email(admin, email: str, redirect_to: str | None):
-    """이미 계정이 있는 직원에게 '비밀번호 설정' 링크를 다시 보낸다(재초대).
-
-    재초대는 '초대 다시'(invite_user_by_email)가 아니다 — 초대는 계정 생성과 한 덩어리라,
-    초대만 받고 아직 수락 안 한 계정에도 email_exists(422)로 막힌다. 대신 복구(recovery)
-    메일을 보내면 링크가 같은 '비밀번호 설정' 화면(/reset-password/new — 복구·초대 공용)으로
-    가고, 계정 유무와 무관하게 동작한다(auth_staff의 비밀번호 재설정과 같은 경로)."""
-    if redirect_to:
-        return admin.auth.reset_password_for_email(email, {"redirect_to": redirect_to})
-    return admin.auth.reset_password_for_email(email)
-
-
 async def _create_staff_row(
     auth_user_id: UUID,
     name: str,
@@ -401,15 +389,20 @@ async def activate_self(staff: StaffContext) -> None:
 
 async def resend_invite(
     staff_id: UUID, requested_by: StaffContext, redirect_to: str | None = None, conn=None
-) -> None:
-    """[정합성 검토 R3-04][STAFF-ROW-03] 초대 이메일이 도착하지 않았거나 링크가 만료된 경우
-    관리자가 재발송할 수 있게 한다. `staff`에는 이메일이 없으므로(계정 자체는 `auth.users`가
-    소유) auth_user_id로 실제 이메일을 조회한 뒤 '비밀번호 설정'(복구) 메일을 보낸다.
+) -> str | None:
+    """[정합성 검토 R3-04][STAFF-ROW-01·STAFF-REINVITE-LINK-01·STAFF-RESETPW-LINK-01] 초대 링크가
+    도착하지 않았거나 만료된 경우(재초대), 또는 활성 직원이 비번을 잊은 경우(관리자 발신 재설정)에
+    관리자가 다시 발급할 수 있게 한다. `staff`에는 이메일이 없으므로(계정 자체는 `auth.users`가
+    소유) auth_user_id로 실제 이메일을 조회한 뒤 '비밀번호 설정'(복구) 링크를 만들어 돌려준다.
 
-    ⚠️ '초대 다시'(invite_user_by_email)가 아니다 — 초대는 계정 생성과 묶여 있어, 초대만
-    받고 아직 수락 안 한 계정에도 email_exists로 막힌다(그래서 예전엔 '이미 수락한 계정'이라는
-    엉뚱한 409가 떴다). reset_password_for_email은 계정이 이미 있어도 같은 비번설정 화면으로
-    가는 링크를 보내므로 재발송이 정상 동작한다."""
+    ⚠️ 메일을 자동 발송하지 않는다(2026-09-07 후속 결정) — 초대와 같은 도메인 제약 때문이다.
+    발신 도메인 미검증(Resend B방식)이라 계정 주인 본인 외의 주소로는 메일이 500으로 막힌다.
+    옛 방식(reset_password_for_email)이 바로 그 메일 경로였다. 대신 generate_link(type=recovery)로
+    메일 없이 링크만 뽑아 돌려주면, 라우터가 응답에 실어 화면이 '링크 복사'로 노출하고 관리자가
+    카톡·문자 등으로 직접 전달한다. 링크는 같은 '비밀번호 설정' 화면(/reset-password/new — 복구·초대
+    공용)으로 가고, 계정 유무와 무관하게 동작한다('초대 다시'는 email_exists로 막혀 못 쓴다).
+
+    반환: 관리자에게 노출할 복구 링크(항상 문자열; 링크 생성 실패는 예외로 던진다)."""
     async def _run(c):
         return await c.fetchval("select auth_user_id from staff where id = $1", staff_id)
 
@@ -427,15 +420,15 @@ async def resend_invite(
     if user is None or user.user is None or not user.user.email:
         raise AppError("계정 이메일을 확인할 수 없습니다.", status_code=404)
     try:
-        _send_password_setup_email(admin, user.user.email, redirect_to)
+        return _generate_recovery_link(admin, user.user.email, redirect_to)
     except Exception as exc:
         if _is_rate_limit_error(exc):
             raise AppError(
-                "메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.",
+                "링크 발급이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.",
                 status_code=429,
             ) from exc
         raise AppError(
-            "비밀번호 설정 메일을 다시 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            "비밀번호 설정 링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
             status_code=502,
         ) from exc
 

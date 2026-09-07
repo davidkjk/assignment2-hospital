@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { BusyButton } from '../../../components/BusyButton'
 import { EmptyState } from '../../../components/EmptyState'
+import { LinkShareBox } from '../../../components/LinkShareBox'
 import { ROLE_LABEL } from '../../../auth/roles'
 import { staffApi, type Department, type StaffMember } from '../../../api/staff'
 import { ApiError } from '../../../api/httpClient'
@@ -52,9 +53,11 @@ export function StaffList({
   onInviteEmptyState,
 }: StaffListProps) {
   const [filter, setFilter] = useState<Filter>('all')
-  const [resentIds, setResentIds] = useState<Set<string>>(new Set())
+  // [STAFF-REINVITE-LINK-01·STAFF-RESETPW-LINK-01] 성공하면 관리자가 직접 전달할 링크를 그 행에
+  //   노출한다(메일 자동발송 폐기 — 발신 도메인 미검증). 값은 링크 문자열, 드물게 못 만들면 null.
+  const [resentLinks, setResentLinks] = useState<Map<string, string | null>>(new Map())
   const [resendErrors, setResendErrors] = useState<Map<string, string>>(new Map())
-  const [resetSentIds, setResetSentIds] = useState<Set<string>>(new Set())
+  const [resetLinks, setResetLinks] = useState<Map<string, string | null>>(new Map())
   const [resetErrors, setResetErrors] = useState<Map<string, string>>(new Map())
 
   const deptName = useMemo(() => {
@@ -92,8 +95,8 @@ export function StaffList({
     // 실패해도 조용히 넘어가지 않는다 — 재초대는 발송 한도(429)·이미 수락한 계정(409)으로 자주
     // 막히는데, 그때 아무 표시가 없으면 관리자는 "눌러도 아무 일이 없다"고 느낀다(실사용 지적).
     try {
-      await staffApi.resendInvite(id)
-      setResentIds((prev) => new Set(prev).add(id))
+      const { link } = await staffApi.resendInvite(id)
+      setResentLinks((prev) => new Map(prev).set(id, link))
       setResendErrors((prev) => {
         const next = new Map(prev)
         next.delete(id)
@@ -102,8 +105,8 @@ export function StaffList({
     } catch (err) {
       const message = err instanceof ApiError ? err.message : '재초대에 실패했습니다. 잠시 후 다시 시도해 주세요.'
       setResendErrors((prev) => new Map(prev).set(id, message))
-      setResentIds((prev) => {
-        const next = new Set(prev)
+      setResentLinks((prev) => {
+        const next = new Map(prev)
         next.delete(id)
         return next
       })
@@ -111,21 +114,21 @@ export function StaffList({
   }
 
   async function resetPassword(id: string) {
-    // [STAFF-RESET-PW-01] 관리자가 활성 직원에게 비밀번호 재설정 링크를 보낸다. 재초대와 마찬가지로
+    // [STAFF-RESET-PW-01] 관리자가 활성 직원에게 비밀번호 재설정 링크를 발급한다. 재초대와 마찬가지로
     // 실패(429 등)를 삼키지 않고 그 행에 이유를 보인다(무반응 방지).
     try {
-      await staffApi.resetPassword(id)
-      setResetSentIds((prev) => new Set(prev).add(id))
+      const { link } = await staffApi.resetPassword(id)
+      setResetLinks((prev) => new Map(prev).set(id, link))
       setResetErrors((prev) => {
         const next = new Map(prev)
         next.delete(id)
         return next
       })
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : '재설정 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.'
+      const message = err instanceof ApiError ? err.message : '재설정 링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.'
       setResetErrors((prev) => new Map(prev).set(id, message))
-      setResetSentIds((prev) => {
-        const next = new Set(prev)
+      setResetLinks((prev) => {
+        const next = new Map(prev)
         next.delete(id)
         return next
       })
@@ -224,21 +227,38 @@ export function StaffList({
                         2026-09-01) 편집도 여기서 못 한다. 색은 프로필 패널(PalettePicker)에서만 보이고 고친다. */}
                   </div>
 
-                  {resentIds.has(m.id) && (
-                    <span role="status" style={styles.resent}>
-                      초대 이메일을 다시 보냈습니다
-                    </span>
-                  )}
+                  {/* [STAFF-REINVITE-LINK-01] 재초대 성공 — 메일이 아니라 관리자가 직접 전달할 링크를
+                      그 행에 노출한다. 계정이 살아났다고 말하지 않는다(딱지는 그대로, STAFF-ROW-01). */}
+                  {resentLinks.has(m.id) &&
+                    (resentLinks.get(m.id) ? (
+                      <LinkShareBox
+                        label="재초대 링크"
+                        link={resentLinks.get(m.id) as string}
+                        guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 비밀번호를 설정합니다."
+                      />
+                    ) : (
+                      <span role="status" style={styles.resendError}>
+                        링크를 만들지 못했습니다. 잠시 후 [재초대]를 다시 눌러 주세요.
+                      </span>
+                    ))}
                   {resendErrors.has(m.id) && (
                     <span role="alert" style={styles.resendError}>
                       {resendErrors.get(m.id)}
                     </span>
                   )}
-                  {resetSentIds.has(m.id) && (
-                    <span role="status" style={styles.resent}>
-                      비밀번호 재설정 메일을 보냈습니다
-                    </span>
-                  )}
+                  {/* [STAFF-RESETPW-LINK-01] 비밀번호 재설정 성공 — 메일이 아니라 전달용 링크를 노출한다. */}
+                  {resetLinks.has(m.id) &&
+                    (resetLinks.get(m.id) ? (
+                      <LinkShareBox
+                        label="비밀번호 재설정 링크"
+                        link={resetLinks.get(m.id) as string}
+                        guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 새 비밀번호를 만듭니다."
+                      />
+                    ) : (
+                      <span role="status" style={styles.resendError}>
+                        링크를 만들지 못했습니다. 잠시 후 [비밀번호 재설정]을 다시 눌러 주세요.
+                      </span>
+                    ))}
                   {resetErrors.has(m.id) && (
                     <span role="alert" style={styles.resendError}>
                       {resetErrors.get(m.id)}
@@ -358,7 +378,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'],
   },
   off: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
-  resent: { fontSize: 'var(--fs-caption)', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   resendError: { fontSize: 'var(--fs-caption)', color: 'var(--color-warn)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
   rowActions: { display: 'flex', gap: 'var(--sp-2)', flex: 'none' },
   action: {

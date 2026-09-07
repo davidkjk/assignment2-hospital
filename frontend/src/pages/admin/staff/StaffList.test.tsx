@@ -128,22 +128,26 @@ test('[STAFF-ROW-01] 재초대는 resend-invite 엔드포인트를 부른다', a
   await waitFor(() => expect(api.lastCall()).toBe('POST /staff/s-006/resend-invite'))
 })
 
-test('[STAFF-ROW-01] 재초대 뒤에도 계정이 살아났다고 말하지 않고 초대 딱지가 남는다', async () => {
+test('[STAFF-ROW-01][STAFF-REINVITE-LINK-01] 재초대는 메일이 아니라 전달용 링크를 그 행에 보이고, 계정이 살아났다고 말하지 않는다', async () => {
   const { user } = setupStaff()
   await screen.findByText('김의사')
   await user.click(within(rowOf('김의사')).getByRole('button', { name: '재초대' }))
-  expect(await within(rowOf('김의사')).findByText('초대 이메일을 다시 보냈습니다')).toBeVisible()
+  // 메일 자동발송(발신 도메인 미검증) 대신, 관리자가 직접 전달할 링크를 노출한다.
+  const link = await within(rowOf('김의사')).findByLabelText('재초대 링크')
+  expect(link).toHaveValue('https://staff.test/reset-password/new?token=reinvite-s-006')
+  expect(within(rowOf('김의사')).getByRole('button', { name: '링크 복사' })).toBeVisible()
+  // 계정이 살아났다고 말하지 않고 초대 딱지가 남는다(STAFF-ROW-01).
   expect(rowOf('김의사')).toHaveTextContent('초대함 · 아직 안 들어옴')
 })
 
-test('[STAFF-ROW-03] 재초대가 실패하면 그 행에 이유를 보여준다(막다른 침묵 금지)', async () => {
+test('[STAFF-ROW-03] 재초대가 실패하면 그 행에 이유를 보여주고 링크는 안 뜬다(막다른 침묵 금지)', async () => {
   const { user, api } = setupStaff()
   api.fail('POST /staff/s-006/resend-invite')
   await screen.findByText('김의사')
   await user.click(within(rowOf('김의사')).getByRole('button', { name: '재초대' }))
-  // 실패했는데 "다시 보냈습니다"가 뜨면 거짓말 — 서버가 준 이유를 그 행 alert로 보여준다.
+  // 실패했는데 링크가 뜨면 거짓말 — 서버가 준 이유를 그 행 alert로 보여준다.
   expect(await within(rowOf('김의사')).findByRole('alert')).toHaveTextContent('발송이 잠시 제한')
-  expect(within(rowOf('김의사')).queryByText('초대 이메일을 다시 보냈습니다')).toBeNull()
+  expect(within(rowOf('김의사')).queryByLabelText('재초대 링크')).toBeNull()
 })
 
 test('[STAFF-DELETE-01][STAFF-RESET-PW-01] 삭제는 미수락에만, 비밀번호 재설정은 활성 수락 직원에만 뜬다', async () => {
@@ -178,12 +182,14 @@ test('[STAFF-DELETE-01] 딸린 데이터로 삭제가 막히면 이유를 보이
   expect(screen.getByText('김의사')).toBeVisible()
 })
 
-test('[STAFF-RESET-PW-01] 비밀번호 재설정은 reset-password 엔드포인트를 부르고 보냈다고 알린다', async () => {
+test('[STAFF-RESET-PW-01][STAFF-RESETPW-LINK-01] 비밀번호 재설정은 reset-password 엔드포인트를 부르고 메일이 아니라 전달용 링크를 보인다', async () => {
   const { user, api } = setupStaff()
   await screen.findByText('박접수')
   await user.click(within(rowOf('박접수')).getByRole('button', { name: '비밀번호 재설정' }))
   await waitFor(() => expect(api.lastCall()).toBe('POST /staff/s-003/reset-password'))
-  expect(await within(rowOf('박접수')).findByText('비밀번호 재설정 메일을 보냈습니다')).toBeVisible()
+  const link = await within(rowOf('박접수')).findByLabelText('비밀번호 재설정 링크')
+  expect(link).toHaveValue('https://staff.test/reset-password/new?token=reset-s-003')
+  expect(within(rowOf('박접수')).getByRole('button', { name: '링크 복사' })).toBeVisible()
 })
 
 test('[STAFF-STATE-01] 목록이 다시 조회에 실패해도 초대 입력은 지워지지 않는다', async () => {
