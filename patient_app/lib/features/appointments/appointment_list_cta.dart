@@ -12,8 +12,10 @@ class AppointmentListCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // #15(2026-09-05): 별도 배경 패널·그림자 없이(이미 깨끗) 하단 여백만 줄여 탭바에 더 붙인다.
-    // cta 버튼(h-12=48)은 tapPad 0이라 여백 보정이 필요 없다.
+    // #15(2026-09-07 사용자 요구): 배경 패널 없이(투명) + 위로 뜨는 옅은 그림자로만 리스트와 가른다.
+    //   (예약상세는 흰 바로 확정했으나, 예약 탭 새예약하기는 단일 주 버튼이라 「배경 제거+그림자」로.)
+    //   cta 버튼(h-12=48)은 tapPad 0이라 여백 보정이 필요 없다.
+    // 2026-09-07 사용자 요구: 배경·그림자 없음 — 버튼만 리스트 위에 떠 있다(리스트가 버튼 뒤로 스크롤).
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: ActionButton(

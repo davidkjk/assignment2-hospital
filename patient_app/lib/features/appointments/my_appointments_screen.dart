@@ -113,6 +113,8 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
           child: ListView(
             key: const PageStorageKey(
                 'my-appointments'), // LIST-REFRESH-05: 상세에서 돌아오면 같은 스크롤 위치
+            // 아래에 떠 있는 「새 예약하기」 버튼 높이만큼 여백 — 마지막 카드가 버튼 뒤로 가려지지 않게.
+            padding: const EdgeInsets.only(bottom: 84),
             children: [
               // LIST-EMPTY-04·05 오프라인 띠는 전역 셸(AppShell)이 맨 위에 얹는다(NAV-GLOBAL-01) — 여기선 중복 금지.
               if (!online && stale)
@@ -143,11 +145,21 @@ class _MyAppointmentsScreenState extends ConsumerState<MyAppointmentsScreen> {
     return Scaffold(
       // LIST-ROLE: 탭 화면 타이틀은 「나의 예약」(데모 정본) + 📅 아이콘(하단 탭 '예약'과 짝).
       appBar: const PatientAppBar(title: '나의 예약', icon: AppIcons.calendar_month), // 데모 CalendarDots(체크 없는 달력)·예약 탭과 통일(DISP-ICON-03)
-      body: content,
       // LIST-CTA-01·02·03: 어느 분기든 하단에 「+ 새 예약하기」 하나(0건에도 있어야 막다른 길이 아니다).
-      bottomNavigationBar: widget.bottomSlot ??
-          AppointmentListCta(
-              offline: !online, onNewBooking: () => context.go('/booking')),
+      // ⭐ 「배경 제거+그림자」(2026-09-07 사용자 요구): 버튼을 리스트 위에 띄운다(Stack) — 회색 판 없이
+      //    리스트가 버튼 뒤로 스크롤되고, 버튼 위쪽 그림자로만 구분된다. (bottomNavigationBar/Column은
+      //    버튼 자리에 불투명 회색 판을 남겨 이 룩이 안 나왔다.) 리스트엔 버튼 높이만큼 하단 여백을 준다.
+      body: Stack(children: [
+        Positioned.fill(child: content),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: widget.bottomSlot ??
+              AppointmentListCta(
+                  offline: !online, onNewBooking: () => context.go('/booking')),
+        ),
+      ]),
     );
   }
 }
