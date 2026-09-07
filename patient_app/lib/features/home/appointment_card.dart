@@ -262,6 +262,11 @@ class AppointmentCard extends StatelessWidget {
     final style = OutlinedButton.styleFrom(
       foregroundColor: AppTokens.onSurface,
       side: const BorderSide(color: AppTokens.border),
+      // #32: 테마 기본 minimumSize = Size.fromHeight(=무한 minWidth)를 끈다. 이 버튼들은 오른쪽
+      // 정렬 Row 안에 놓이는데, Row는 주축에 무한 제약을 주므로 무한 minWidth면 버튼이 무한 너비로
+      // 부풀어 오버플로한다(release에선 클리핑돼 버튼이 안 보이고 빈 여백만 남았다). 내용 폭만큼만
+      // 잡도록 minWidth=0으로 내린다(높이·탭영역은 유지). 앱의 shrink()/Size(0,32) 관행과 동일.
+      minimumSize: const Size(0, AppTokens.buttonBaseHeight),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
     );
