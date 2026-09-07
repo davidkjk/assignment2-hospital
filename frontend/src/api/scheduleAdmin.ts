@@ -22,6 +22,9 @@ export interface PanelDoctorDto {
   name: string
   regular_day_off: boolean
   appointment_count: number
+  /** [STAFF-PEND-01] 아직 한 번도 로그인 안 한(초대 미수락) 의사 — 「아직 안 들어옴」 표식.
+   *  고르기·배정은 그대로. 옛 배포 호환 위해 옵셔널. */
+  pending?: boolean
 }
 export interface SaveExceptionBody {
   exception_date: string

@@ -24,6 +24,9 @@ export interface GridDoctor {
   /** [CAL-NAME-02][CAL-TIME-09] 「N분」 표기·스냅 미리보기에 쓰는 진료 길이.
    *  서버 카탈로그의 slot_minutes가 먼저고, 없으면 예약 길이에서 도출, 그것도 없으면 15분. */
   slotMinutes: number
+  /** [STAFF-PEND-01] 아직 한 번도 로그인 안 한(초대 미수락) 의사 — 열 머리에 「아직 안 들어옴」 깃발.
+   *  격자 데이터(get_calendar)엔 없고 칩 카탈로그가 실어 CalendarPage가 병합한다. */
+  pending?: boolean
 }
 
 /** 격자에 그릴 예약 막대 — 시각은 자정 기준 분으로 갖는다(격자 좌표 계산에 곧바로 쓰인다). */

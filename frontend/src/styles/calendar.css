@@ -308,6 +308,18 @@
   font-weight: 600;
   color: var(--color-ink);
 }
+/* [STAFF-PEND-01] 격자 열 머리의 「아직 안 들어옴」 깃발 — 칩(.cal-chip-pending)과 같은 경고색. */
+.cal-pending-flag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  color: var(--color-warn);
+  vertical-align: middle;
+}
+/* 주간 좁은 레인은 성 한 자만 보이므로 경고색으로 물들여 미수락을 알린다. */
+.cal-lane-head.is-pending {
+  color: var(--color-warn);
+}
 .cal-column-gear {
   color: var(--color-ink-muted);
   padding: 2px;

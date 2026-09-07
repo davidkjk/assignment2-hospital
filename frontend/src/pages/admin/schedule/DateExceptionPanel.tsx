@@ -25,6 +25,7 @@ interface PanelDoctor {
   name: string
   regularDayOff: boolean // 그 요일이 정기 휴진 → 회색, 못 고름(EXC-06)
   appointmentCount: number // 그 날 예약 건수(EXC-07)
+  pending?: boolean // [STAFF-PEND-01] 초대만 받고 아직 로그인 안 함 → 「아직 안 들어옴」 표식(고르기는 그대로)
 }
 
 export interface SaveExceptionInput {
@@ -190,13 +191,25 @@ export function DateExceptionPanel({
             <ul style={styles.doctorList}>
               {dayDoctors.map((d) => (
                 <li key={d.id} data-doctor-row={d.name} style={styles.doctorRow}>
-                  <Checkbox
-                    ariaLabel={d.name}
-                    label={d.name}
-                    disabled={d.regularDayOff}
-                    checked={checked.includes(d.id)}
-                    onChange={() => toggle(d.id)}
-                  />
+                  <span style={styles.doctorLabel}>
+                    <Checkbox
+                      ariaLabel={d.name}
+                      label={d.name}
+                      disabled={d.regularDayOff}
+                      checked={checked.includes(d.id)}
+                      onChange={() => toggle(d.id)}
+                    />
+                    {/* [STAFF-PEND-01] 아직 안 들어온(초대 미수락) 의사 — 칩·격자 열과 같은 경고색 깃발.
+                        고를 수는 있다(진료시간을 넣으면 BOOK-DOC-10으로 환자에게 보이기 시작). */}
+                    {d.pending && (
+                      <span style={styles.pendingMark} role="img" aria-label="아직 안 들어옴" title="아직 안 들어옴 (초대 미수락)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+                          <path d="M5 3h11l-2 4 2 4H5v10H3V3z" />
+                        </svg>
+                        아직 안 들어옴
+                      </span>
+                    )}
+                  </span>
                   <span style={styles.entryMeta}>예약 {d.appointmentCount}건</span>
                 </li>
               ))}
@@ -273,6 +286,8 @@ const styles: Record<string, CSSProperties> = {
   doctorPick: { marginBottom: 'var(--sp-3)' },
   doctorList: { listStyle: 'none', margin: 'var(--sp-3) 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   doctorRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-2)' },
+  doctorLabel: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', minWidth: 0 },
+  pendingMark: { display: 'inline-flex', alignItems: 'center', gap: 2, color: 'var(--color-warn)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' },
   timeRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', width: '100%' },
   tilde: { color: 'var(--color-ink-muted)' },
   actionError: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-danger)' },

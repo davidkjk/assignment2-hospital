@@ -43,6 +43,12 @@ test('[CAL-NAME-02] 열 머리에 진료과와 진료시간을 함께 적는다'
   expect(screen.getByTestId('head-d1')).toHaveTextContent(/박지훈\s*내과\s*15분/)
 })
 
+test('[STAFF-PEND-01] 초대 미수락(pending) 의사 열 머리에 「아직 안 들어옴」 깃발이 뜨고, 아닌 의사엔 없다', () => {
+  renderGrid({ doctors: [{ ...DOCTORS[0], pending: true }, DOCTORS[1]] })
+  expect(within(screen.getByTestId('head-d1')).getByLabelText('아직 안 들어옴')).toBeInTheDocument()
+  expect(within(screen.getByTestId('head-d2')).queryByLabelText('아직 안 들어옴')).toBeNull()
+})
+
 test('[CAL-TIME-01][CAL-TIME-08] 눈금 글자는 30분마다이고 5분 격자선을 깔지 않는다', () => {
   const { container } = renderGrid({ startHour: 9, endHour: 12 })
   const labels = within(screen.getByTestId('time-axis')).getAllByTestId('axis-label').map((n) => n.textContent)

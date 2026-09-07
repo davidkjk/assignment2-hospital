@@ -228,11 +228,31 @@ function DoctorColumn({
       {/* [CAL-NAME-02] 열 머리 — 이름 · 진료과 · 진료시간. 좁으면(주간) 성 한 자만. */}
       <div className="cal-column-head" data-testid={`head-${doctor.id}`}>
         {compact ? (
-          <span className="cal-lane-head">{doctor.name.slice(0, 1)}</span>
+          // [STAFF-PEND-01] 좁은 주간 레인엔 깃발을 놓을 자리가 없어 성 한 자를 경고색으로만 물들인다.
+          <span
+            className={`cal-lane-head${doctor.pending ? ' is-pending' : ''}`}
+            title={doctor.pending ? '아직 안 들어옴 (초대 미수락)' : undefined}
+          >
+            {doctor.name.slice(0, 1)}
+          </span>
         ) : (
           <span className="cal-column-name">
             {doctor.name}
             {doctor.departmentName ? ` ${doctor.departmentName}` : ''} {doctor.slotMinutes}분
+            {/* [STAFF-PEND-01] 아직 안 들어온(초대 미수락) 의사 — 칩과 같은 경고색 깃발.
+                고르기·진료시간 배정은 그대로(BOOK-DOC-10). */}
+            {doctor.pending && (
+              <span
+                className="cal-pending-flag"
+                role="img"
+                aria-label="아직 안 들어옴"
+                title="아직 안 들어옴 (초대 미수락)"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+                  <path d="M5 3h11l-2 4 2 4H5v10H3V3z" />
+                </svg>
+              </span>
+            )}
           </span>
         )}
         {isAdmin && !compact && (

@@ -134,7 +134,16 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
     () => (data ? buildGridModel(data, dayDate, paletteMap) : null),
     [data, dayDate, paletteMap],
   )
-  const gridDoctors: GridDoctor[] = model?.doctors ?? []
+  // [STAFF-PEND-01] pending(초대 미수락)은 격자 데이터(get_calendar)엔 없고 칩 카탈로그가 싣는다 —
+  //   열 머리에도 같은 「아직 안 들어옴」 표식을 달려고 카탈로그의 pending을 격자 의사에 병합한다.
+  const pendingIds = useMemo(
+    () => new Set(fullCatalog.filter((d) => d.pending).map((d) => d.id)),
+    [fullCatalog],
+  )
+  const gridDoctors: GridDoctor[] = useMemo(
+    () => (model?.doctors ?? []).map((d) => ({ ...d, pending: pendingIds.has(d.id) })),
+    [model, pendingIds],
+  )
   const chipDoctors: CalendarDoctor[] = fullCatalog.map((d) => ({
     id: d.id,
     name: d.name,

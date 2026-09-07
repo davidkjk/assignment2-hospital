@@ -64,6 +64,7 @@ function ScheduleInner() {
     name: d.name,
     regularDayOff: d.regular_day_off,
     appointmentCount: d.appointment_count,
+    pending: d.pending ?? false, // [STAFF-PEND-01] 초대 미수락 표식
   }))
   const dayExceptions = dayExcQ.data?.exceptions ?? []
 

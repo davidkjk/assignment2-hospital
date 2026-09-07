@@ -32,7 +32,8 @@ function exc(over: Partial<DateException>): DateException {
   }
 }
 
-function renderPanel(config: { dayExceptions?: DateException[]; onSave?: (i: SaveExceptionInput) => Promise<{ affected: number }> } = {}) {
+type PanelDoctorInput = { id: string; name: string; regularDayOff: boolean; appointmentCount: number; pending?: boolean }
+function renderPanel(config: { dayExceptions?: DateException[]; onSave?: (i: SaveExceptionInput) => Promise<{ affected: number }>; dayDoctors?: PanelDoctorInput[] } = {}) {
   const onSave = config.onSave ?? vi.fn(async (_i: SaveExceptionInput) => ({ affected: 0 }))
   const onRevert = vi.fn(async (_id: string) => {})
   function Harness() {
@@ -43,7 +44,7 @@ function renderPanel(config: { dayExceptions?: DateException[]; onSave?: (i: Sav
         calendarDays={CAL_DAYS}
         selectedDate="2026-08-17"
         onSelectDate={vi.fn()}
-        dayDoctors={DAY_DOCTORS}
+        dayDoctors={config.dayDoctors ?? DAY_DOCTORS}
         dayExceptions={entries}
         onSave={onSave}
         onRevert={async (id) => {
@@ -93,6 +94,25 @@ test('[SCHED-EXC-07] 이름 옆에 그 날 예약 건수를 적는다', async ()
   renderPanel()
   await user.click(screen.getByLabelText('의사 고르기'))
   expect(doctorRow('박지훈')).toHaveTextContent('예약 4건')
+})
+
+test('[STAFF-PEND-01] 초대 미수락 의사 옆에 「아직 안 들어옴」 표식이 뜨고, 고르기는 그대로 된다', async () => {
+  const user = userEvent.setup()
+  renderPanel({
+    dayDoctors: [
+      { id: 'd1', name: '박지훈', regularDayOff: false, appointmentCount: 4, pending: true },
+      { id: 'd2', name: '한소연', regularDayOff: false, appointmentCount: 0 },
+    ],
+  })
+  await user.click(screen.getByLabelText('의사 고르기'))
+  // 미수락 의사엔 표식이 있고, 아닌 의사엔 없다.
+  expect(within(doctorRow('박지훈')).getByLabelText('아직 안 들어옴')).toBeInTheDocument()
+  expect(within(doctorRow('한소연')).queryByLabelText('아직 안 들어옴')).toBeNull()
+  // 막지 않는다 — 미수락이어도 체크(고르기)는 그대로 된다(BOOK-DOC-10).
+  const box = screen.getByLabelText('박지훈')
+  expect(box).not.toBeDisabled()
+  await user.click(box)
+  expect(box).toBeChecked()
 })
 
 test('[SCHED-EXC-08][SCHED-EXC-08b][갭 #94] 담는 것은 종일 휴진·시간 변경 둘뿐이다', () => {
