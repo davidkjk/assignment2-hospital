@@ -1,7 +1,8 @@
 import pytest
 
 from app.services.chat.safety_watchdog import (
-    check_emergency, EMERGENCY_REPLY, check_repeated, check_escalation, check_staff_request)
+    check_emergency, EMERGENCY_REPLY, check_repeated, check_escalation, check_staff_request,
+    check_department_inquiry)
 
 
 def test_explicit_staff_request_is_rule_based():
@@ -33,6 +34,33 @@ def test_repeated_triggers_at_threshold():
     hist = ["보험 되나요", "보험 되나요", "다른 얘기"]
     assert check_repeated(hist, "보험 되나요", threshold=3) is True   # 같은 질문 3번째
     assert check_repeated(["보험 되나요"], "주차", threshold=3) is False
+
+
+def test_department_inquiry_is_rule_based():
+    # "어느 과에 가야 하나"류 진료과 문의는 결정적으로 잡아 진료과 안내로 흘려보낸다(요구사항 L49 진료과 선택 도움·L57).
+    assert check_department_inquiry("어지럽고 두통이 심한데 어느 과에 가야 할까요") is True
+    assert check_department_inquiry("이런 증상은 무슨 과를 가야 하나요") is True
+    assert check_department_inquiry("어떤 진료과를 골라야 할지 모르겠어요") is True
+    # 진단·치료 요구(진료과 문의 아님)는 잡지 않는다 → medical_judgment 인계 유지(요구사항 L51).
+    assert check_department_inquiry("이 두통이 무슨 병인가요") is False
+    assert check_department_inquiry("무슨 약을 먹어야 하나요") is False
+    # 무관한 문장 오탐 없음.
+    assert check_department_inquiry("주차 되나요") is False
+    assert check_department_inquiry("검사 결과 어때요") is False
+
+
+@pytest.mark.asyncio
+async def test_medical_judgment_yields_to_department_inquiry():
+    # LLM이 medical_judgment라 답해도 진료과 문의면 인계를 취소해 진료과 안내(department_guide)로 보낸다.
+    # 근거: 요구사항 L49(진료과 선택 도움)·L57 vs L51(진단은 인계). department_guide 체인도 자체 진단금지 SAFETY_RULES가 있어 안전.
+    class MedModel:
+        async def ainvoke(self, _):
+            class R: content = "medical_judgment"
+            return R()
+    # 진료과 문의: 인계 취소(None) → 상위 orchestrator가 classify로 department_guide 판정
+    assert await check_escalation("어지럽고 두통이 심한데 어느 과에 가야 할까요", [], model=MedModel()) is None
+    # 진단 요구: medical_judgment 인계 유지
+    assert await check_escalation("이 두통이 무슨 병인가요", [], model=MedModel()) == "medical_judgment"
 
 
 @pytest.mark.asyncio

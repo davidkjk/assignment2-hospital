@@ -39,6 +39,21 @@ def check_staff_request(text: str) -> bool:
     return any(k.replace(" ", "") in t for k in EXPLICIT_STAFF_KEYWORDS)
 
 
+# 진료과 문의 — "어느 과에 가야 하나"류. 요구사항 L49(진료과 선택 도움)·L57이 상담봇의 임무로 지정.
+# 진단·치료 요구("무슨 병"·"무슨 약")는 여기에 넣지 않아 medical_judgment 인계(L51)가 유지된다.
+# 큐레이션 목록(확장 가능) — LLM이 "어느 과" 문의를 medical_judgment로 오분류해 진료과 안내를 못 하던 것을 결정적으로 구제한다.
+DEPARTMENT_INQUIRY_KEYWORDS = [
+    "어느 과", "무슨 과", "어떤 과", "몇 과", "어디 과",
+    "어느 진료과", "무슨 진료과", "어떤 진료과", "진료과 추천", "진료과 안내",
+]
+
+
+def check_department_inquiry(text: str) -> bool:
+    """"어느 과에 가야 하나"류 진료과 문의인지 — 진단 요구와 구분하는 결정적 판단(요구사항 L49·L57)."""
+    t = text.replace(" ", "")
+    return any(k.replace(" ", "") in t for k in DEPARTMENT_INQUIRY_KEYWORDS)
+
+
 def check_repeated(history_texts: list[str], current: str, threshold: int = 3) -> bool:
     same = sum(1 for h in history_texts if h.strip() == current.strip()) + 1
     return same >= threshold
@@ -65,4 +80,10 @@ async def check_escalation(text, history_texts, *, unhelpful_flagged=False,
     ])
     resp = await llm.ainvoke(prompt.format_messages(text=text))
     label = resp_text(resp).strip()
-    return label if label in LLM_ESCALATION_LABELS else None
+    if label not in LLM_ESCALATION_LABELS:
+        return None
+    # "어느 과 가야하나"류 진료과 문의가 medical_judgment로 잡혀도 인계하지 않고 진료과 안내(department_guide)로 넘긴다.
+    # 진단어("무슨 병")가 없으면 안내가 맞다(요구사항 L49·L57 vs L51). 상위 orchestrator가 이어서 classify로 department_guide 판정.
+    if label == "medical_judgment" and check_department_inquiry(text):
+        return None
+    return label
