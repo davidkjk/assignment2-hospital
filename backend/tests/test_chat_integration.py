@@ -118,3 +118,55 @@ async def test_booking_intent_web_reaches_department_card(committed_conn, monkey
     assert any(d["name"] == "테스트웹예약과" for d in out["card"]["departments"])
     # cleanup(익명 클러스터는 전역 _cleanup_committed_data가 truncate하지만 명시 정리)
     await committed_conn.execute("delete from chat_messages where thread_id=$1", thread_id)
+
+
+@pytest.mark.asyncio
+async def test_department_guide_web_attaches_department_card(committed_conn, monkeypatch):
+    # [WEBBOOK-08] 웹: 증상 대화가 진료과를 추천하면 진료과 선택 카드를 함께 낸다(하이브리드 ①)
+    from app.services.chat import chat_router, department_guide_chain, webchat_service
+    async def to_guide(*a, **k): return "department_guide"
+    async def rec(*a, **k): return "증상을 보면 내과 진료가 좋겠어요."
+    monkeypatch.setattr(chat_router, "classify", to_guide)
+    monkeypatch.setattr(department_guide_chain, "ask_next_question", rec)
+    await committed_conn.execute("insert into departments (name, is_active) values ('내과', true)")
+
+    sess = await webchat_service.start_or_restore_session(None)
+    from uuid import UUID
+    thread_id = UUID(sess["threadId"])
+    s = await webchat_service.load_anonymous_session(UUID(sess["aiSessionId"]), thread_id)
+    out = await chat_flow_service.handle_anonymous_message(
+        s, "배가 아파요", thread_id=thread_id, client_message_id=uuid.uuid4(),
+        embedder=FakeEmbedder(), model=_RagModel())
+
+    assert out["route_taken"] == "department_guide"
+    assert out["card"]["card_type"] == "department_select"
+    assert [d["name"] for d in out["card"]["departments"]] == ["내과"]
+    assert out["card"]["guide_chip"] is None            # 이미 좁혀졌으니 증상칩 숨김
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", thread_id)
+
+
+@pytest.mark.asyncio
+async def test_department_guide_app_attaches_wizard_card(committed_conn, monkeypatch):
+    # [WEBBOOK-08][BOOK-BOT-WIZARD] 앱: 증상 대화가 진료과를 추천하면 예약 마법사 인계 카드(대화 내 예약 아님, 결정 B)
+    from app.services.chat import chat_router, department_guide_chain
+    async def to_guide(*a, **k): return "department_guide"
+    async def rec(*a, **k): return "증상을 보면 내과 진료가 좋겠어요."
+    monkeypatch.setattr(chat_router, "classify", to_guide)
+    monkeypatch.setattr(department_guide_chain, "ask_next_question", rec)
+    await committed_conn.execute("insert into departments (name, is_active) values ('내과', true)")
+
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    s = await committed_conn.fetchrow(
+        "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()+interval '30 min') returning *", t)
+    out = await chat_flow_service.handle_patient_message(
+        s, "배가 아파요", thread_id=t, client_message_id=uuid.uuid4(),
+        embedder=FakeEmbedder(), model=_RagModel())
+
+    assert out["route_taken"] == "department_guide"
+    assert out["card"]["card_type"] == "open_booking_wizard"
+    assert out["card"]["department_name"] == "내과"
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", t)
+    await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
