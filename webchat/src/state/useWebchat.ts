@@ -15,7 +15,8 @@ function isOutageError(err: unknown): boolean {
   return true;                          // status 없는 네트워크 실패도 응답을 못 받음 → 장애로 안내
 }
 
-export function useWebchat(api: WebchatApi) {
+export function useWebchat(api: WebchatApi, opts: { onHandoffRequested?: (threadId: string) => void } = {}) {
+  const { onHandoffRequested } = opts; // route_taken=handoff(타이핑 "직원 연결" 즉시 인계, ⓪-b) → 인계 폼(WEBANON-HANDOFF)
   const [phase, setPhase] = useState<WebchatPhase>('firstConsult');
   const [session, setSession] = useState<SessionState | null>(null);
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
@@ -52,6 +53,9 @@ export function useWebchat(api: WebchatApi) {
       setUrgent(out.routeTaken === 'emergency');
       if (out.routeTaken === 'department_guide') setGuide({ active: true, text: '진료과 안내 진행 중' });
       else setGuide((g) => ({ ...g, active: false }));
+      // 타이핑으로 "직원 연결"을 요청하면 백엔드가 즉시 인계(route_taken=handoff, ⓪-b staff_request).
+      // 화면은 칩·카드·장애와 동일하게 익명 인계 폼(WEBANON-HANDOFF)을 연다 — 그래야 SMS 답변용 연락처를 받고 막다른 길이 안 된다.
+      if (out.routeTaken === 'handoff') onHandoffRequested?.(session.threadId);
     } catch (err) {
       setMessages((m) => markFailed(m, clientMessageId)); // 성공 위장 금지(WEBCHAT-ROOM-09) — 실패 말풍선 유지
       if (isOutageError(err)) setOutage('idle');          // AI 장애 안내(WEBCHAT-OUTAGE-01) — 실패 말풍선과 공존
@@ -59,7 +63,7 @@ export function useWebchat(api: WebchatApi) {
       inFlight.current.delete(clientMessageId);
       setBotTyping(false);
     }
-  }, [api, session]);
+  }, [api, session, onHandoffRequested]);
 
   const send = useCallback((content: string) => dispatchSend(content, uuid()), [dispatchSend]);
   const resend = useCallback((clientMessageId: string) => {

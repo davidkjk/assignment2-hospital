@@ -116,6 +116,24 @@ test('[WEBCHAT-OUTAGE] 4xx(세션 등)은 장애로 보지 않는다 — 배너�
   expect(result.current.outage).toBeNull();           // 4xx는 AI 장애가 아님(다른 경로가 처리)
 });
 
+test('[WEBANON-HANDOFF] 타이핑으로 직원 연결을 요청하면(route_taken=handoff) 인계 폼을 연다', async () => {
+  const onHandoffRequested = vi.fn();
+  const api = fakeApi({ sendMessage: vi.fn(async () => ({ routeTaken: 'handoff' })) });
+  const { result } = renderHook(() => useWebchat(api, { onHandoffRequested }));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('직원에게 연결해주세요'); });
+  expect(onHandoffRequested).toHaveBeenCalledWith('t1'); // 세션 threadId로 인계 폼(WEBANON-HANDOFF) 트리거
+});
+
+test('[WEBANON-HANDOFF] 일반 응답(rag)에서는 인계 폼을 열지 않는다', async () => {
+  const onHandoffRequested = vi.fn();
+  const api = fakeApi(); // 기본 sendMessage는 routeTaken='rag'
+  const { result } = renderHook(() => useWebchat(api, { onHandoffRequested }));
+  await act(async () => { await result.current.open(); });
+  await act(async () => { await result.current.send('주차 되나요?'); });
+  expect(onHandoffRequested).not.toHaveBeenCalled(); // 인계가 아닌 턴은 폼을 열지 않음
+});
+
 test('[WEBCHAT-ROOM-09] 전송 실패면 말풍선을 failed로 두고 resend는 같은 clientMessageId로 재전송', async () => {
   const send = vi.fn()
     .mockRejectedValueOnce(new Error('webchat_api_500'))
