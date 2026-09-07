@@ -1,6 +1,7 @@
 import { useState, type CSSProperties, type Ref } from 'react'
 import { BusyButton } from '../../../components/BusyButton'
 import { InlineError } from '../../../components/InlineError'
+import { LinkShareBox } from '../../../components/LinkShareBox'
 import { ROLE_LABEL, type Role } from '../../../auth/roles'
 import { ApiError } from '../../../api/httpClient'
 import { staffApi, type Department } from '../../../api/staff'
@@ -28,13 +29,11 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
   const [done, setDone] = useState(false)
   // [STAFF-INVITE-LINK-01] 성공 시 관리자가 직접 전달할 수락 링크. null=아직 없음/못 만듦.
   const [inviteLink, setInviteLink] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
   async function submit() {
     setDone(false)
     setServerError(null)
     setInviteLink(null)
-    setCopied(false)
     if (role === 'doctor' && !departmentId) {
       setValidationError('의사는 소속 진료과를 선택해야 합니다.')
       return
@@ -54,17 +53,6 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
     } catch (err) {
       // 실패해도 값을 남긴다(STAFF-INVITE-05) — 서버 문장을 그대로(ERR-MSG-01).
       setServerError(err instanceof ApiError ? err.message : '초대에 실패했습니다')
-    }
-  }
-
-  async function copyLink() {
-    if (!inviteLink) return
-    try {
-      await navigator.clipboard?.writeText(inviteLink)
-      setCopied(true)
-    } catch {
-      // 클립보드 접근이 막힌 환경 — 링크는 화면에 그대로 있으니 직접 선택해 복사할 수 있다(막다른 길 아님).
-      setCopied(false)
     }
   }
 
@@ -158,20 +146,11 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
       {/* [STAFF-INVITE-LINK-01] 메일을 자동 발송하지 않으므로(발신 도메인 미검증), 관리자가 직접
           전달할 수 있도록 수락 링크를 노출한다. 복사 버튼으로 카톡·문자 등에 붙여넣게 한다. */}
       {done && inviteLink && (
-        <div style={styles.linkBox}>
-          <p style={styles.linkGuide}>아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 비밀번호를 설정합니다.</p>
-          <div style={styles.linkRow}>
-            <input aria-label="초대 링크" readOnly value={inviteLink} onFocus={(e) => e.currentTarget.select()} style={styles.linkInput} />
-            <button type="button" onClick={() => void copyLink()} style={styles.copyBtn}>
-              링크 복사
-            </button>
-          </div>
-          {copied && (
-            <span role="status" style={styles.copied}>
-              복사됐습니다
-            </span>
-          )}
-        </div>
+        <LinkShareBox
+          label="초대 링크"
+          link={inviteLink}
+          guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 비밀번호를 설정합니다."
+        />
       )}
 
       {/* 링크를 못 만든 드문 경우(고아 복구 실패) — 막다른 길 대신 다음 행동을 준다. */}
@@ -223,23 +202,4 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   done: { fontSize: 'var(--fs-body)', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
-  linkBox: {
-    display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
-    padding: 'var(--sp-3)', borderRadius: 8,
-    border: '1px solid var(--color-primary)', background: 'var(--color-primary-wash)',
-  },
-  linkGuide: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink)' },
-  linkRow: { display: 'flex', gap: 'var(--sp-2)', alignItems: 'stretch' },
-  linkInput: {
-    flex: 1, minWidth: 0, height: 34, padding: '0 var(--sp-3)', borderRadius: 8,
-    border: '1px solid var(--color-divider)', background: 'var(--color-surface)',
-    color: 'var(--color-ink)', fontSize: 'var(--fs-caption)',
-  },
-  copyBtn: {
-    flexShrink: 0, height: 34, padding: '0 var(--sp-4)', borderRadius: 8,
-    border: '1px solid var(--color-primary)', background: 'var(--color-primary)',
-    color: 'var(--color-on-primary, #fff)', fontSize: 'var(--fs-body)',
-    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], cursor: 'pointer',
-  },
-  copied: { fontSize: 'var(--fs-caption)', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
 }

@@ -170,22 +170,24 @@ export function setupStaff(config: SetupConfig = {}) {
       const impact = state.conflicted && state.impactAfterConflict ? state.impactAfterConflict : state.impact
       return HttpResponse.json(impact)
     }),
-    http.post('*/staff/:id/resend-invite', async ({ request }) => {
+    http.post('*/staff/:id/resend-invite', async ({ request, params }) => {
       const p = pathname(request)
       record('POST', p, await readBody(request))
       if (shouldFail('POST', p))
         return HttpResponse.json(
-          { detail: '초대 이메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' },
+          { detail: '초대 링크 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' },
           { status: 429 },
         )
-      return HttpResponse.json({ status: 'resent' })
+      // [STAFF-REINVITE-LINK-01] 메일이 아니라 관리자가 직접 전달할 링크를 돌려준다.
+      return HttpResponse.json({ status: 'resent', link: `https://staff.test/reset-password/new?token=reinvite-${params.id}` })
     }),
-    http.post('*/staff/:id/reset-password', async ({ request }) => {
+    http.post('*/staff/:id/reset-password', async ({ request, params }) => {
       const p = pathname(request)
       record('POST', p, await readBody(request))
       if (shouldFail('POST', p))
-        return HttpResponse.json({ detail: '재설정 메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' }, { status: 429 })
-      return HttpResponse.json({ status: 'sent' })
+        return HttpResponse.json({ detail: '재설정 링크 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' }, { status: 429 })
+      // [STAFF-RESETPW-LINK-01] 메일이 아니라 관리자가 직접 전달할 링크를 돌려준다.
+      return HttpResponse.json({ status: 'sent', link: `https://staff.test/reset-password/new?token=reset-${params.id}` })
     }),
     http.post('*/staff', async ({ request }) => {
       const p = pathname(request)

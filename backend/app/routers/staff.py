@@ -191,12 +191,13 @@ async def resend_invite(
     request: Request,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> dict:
-    """[정합성 검토 R3-04] 초대 이메일 재발송(미수락 직원). welcome=True → 착지 화면이 최초
-    초대와 같은 「환영합니다」(STAFF-REINVITE-COPY-01)."""
-    await staff_service.resend_invite(
+    """[정합성 검토 R3-04][STAFF-REINVITE-LINK-01] 재초대 — 메일을 자동 발송하지 않고(발신 도메인
+    미검증) 관리자가 직접 전달할 링크를 돌려준다(2026-09-07 후속 결정). welcome=True → 착지 화면이
+    최초 초대와 같은 「환영합니다」(STAFF-REINVITE-COPY-01)."""
+    link = await staff_service.resend_invite(
         staff_id, requested_by=staff, redirect_to=_invite_accept_url(request, welcome=True)
     )
-    return {"status": "resent"}
+    return {"status": "resent", "link": link}
 
 
 @router.post("/{staff_id}/reset-password")
@@ -205,15 +206,16 @@ async def reset_staff_password(
     request: Request,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> dict:
-    """[STAFF-RESET-PW-01] 이미 들어온(활성) 직원이 비밀번호를 잊었을 때 관리자가 재설정 링크를
-    보낸다(사용자 결정 2026-09-07, #26 확장 — 셀프 재설정만이 아니라 관리자 발송도 허용).
-    재초대와 같은 reset_password_for_email을 쓰되 welcome 표식을 붙이지 않아 착지 화면은
-    「새 비밀번호 만들기」(재설정 문구)로 뜬다. 관리자는 비번을 보지 않는다 — 링크만 보내고
-    새 비번은 직원이 스스로 만든다(요구사항 451과 상충 안 함)."""
-    await staff_service.resend_invite(
+    """[STAFF-RESET-PW-01][STAFF-RESETPW-LINK-01] 이미 들어온(활성) 직원이 비밀번호를 잊었을 때
+    관리자가 재설정 링크를 발급한다(사용자 결정 2026-09-07, #26 확장 — 셀프 재설정만이 아니라 관리자
+    발급도 허용). 재초대와 같은 generate_link(type=recovery)를 쓰되 welcome 표식을 붙이지 않아 착지
+    화면은 「새 비밀번호 만들기」(재설정 문구)로 뜬다. 메일을 자동 발송하지 않고(발신 도메인 미검증)
+    링크를 돌려준다 — 화면이 '링크 복사'로 노출하면 관리자가 직접 전달한다. 관리자는 비번을 보지
+    않는다 — 링크만 전달하고 새 비번은 직원이 스스로 만든다(요구사항 451과 상충 안 함)."""
+    link = await staff_service.resend_invite(
         staff_id, requested_by=staff, redirect_to=_invite_accept_url(request)
     )
-    return {"status": "sent"}
+    return {"status": "sent", "link": link}
 
 
 @router.delete("/{staff_id}")
