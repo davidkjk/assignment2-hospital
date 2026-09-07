@@ -113,6 +113,14 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
       body: SafeArea(
         child: Stack(
           children: [
+            // 본문(스와이프·스크롤 레이어)을 맨 아래에 둔다 — 그 위에 닫기 버튼을 얹어야
+            // 좁은 폰에서도 X 탭이 본문에 먹히지 않는다(Stack은 위 레이어부터 히트테스트).
+            if (_qr.isEmpty)
+              const Center(
+                child: Text('표시할 접수 QR이 없습니다',
+                    style: TextStyle(color: AppTokens.grayPending)))
+            else
+              _body(_qr[_index]),
             if (!widget.online)
               // QR-OFF-02: 오프라인이어도 QR은 그대로(클라이언트 생성) + 상단 띠로 접수 직원이 한 번 더 확인.
               const Align(alignment: Alignment.topCenter, child: _OfflineNotice()),
@@ -120,6 +128,8 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
               right: 16,
               top: 16,
               // 데모: rounded-full bg-card p-2 shadow-sm + X h-5(20).
+              // ⭐ 이 버튼은 Stack의 맨 마지막 자식 = 최상위 레이어여야 한다. 본문(_body)의
+              // 스크롤/스와이프 GestureDetector 위에 올라가야 X 탭이 확실히 버튼에 도달한다.
               child: _CircleCardButton(
                 icon: AppIcons.close,
                 tooltip: '닫기',
@@ -128,12 +138,6 @@ class _QrFullscreenViewState extends State<QrFullscreenView> {
                 onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
               ),
             ),
-            if (_qr.isEmpty)
-              const Center(
-                child: Text('표시할 접수 QR이 없습니다',
-                    style: TextStyle(color: AppTokens.grayPending)))
-            else
-              _body(_qr[_index]),
           ],
         ),
       ),
