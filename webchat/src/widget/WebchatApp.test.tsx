@@ -12,6 +12,7 @@ function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
     startOrRestoreSession: vi.fn(async () => ({ threadId: 't1', aiSessionId: 's1', anonToken: 'TOK', messages: [] })),
     fetchMessages: vi.fn(async () => []), sendMessage: vi.fn(async () => ({ routeTaken: 'rag' })),
     fetchHandoff: vi.fn(async () => ({ phase: null, isOpen: true })), acknowledgeBatches: vi.fn(async () => {}),
+    navigateAction: vi.fn(async () => ({ card: { id: 'nav1', senderType: 'bot', messageType: 'card', content: null, payload: { card_type: 'doctor_select', state: '정상', department_id: 'd1', department_name: '내과', doctors: [{ id: 's1', name: '김의사' }] } } })),
     revalidateAction: vi.fn(async () => ({ card: { id: 'c1', senderType: 'bot', messageType: 'card', content: null, payload: { ...bookConfirmPayload } } })),
     executeCard: vi.fn(async () => ({ result: { id: 'd1', senderType: 'bot', messageType: 'card', content: null, payload: { card_type: 'booking_done', headline: '예약이 신청되었습니다', number_label: '신청번호', number: 'A-1' } } })),
     createHandoffTicket: vi.fn(async () => ({ ticketId: 'tk1' })),
