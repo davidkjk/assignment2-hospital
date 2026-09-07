@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from uuid import UUID
 
 from app.core.errors import AppError
@@ -6,6 +7,12 @@ from app.core.security import StaffContext
 from app.db.admin_client import get_admin_client
 from app.db.pool import acquire_as
 from app.services.schedule_change import list_affected_appointments
+
+logger = logging.getLogger(__name__)
+
+# [STAFF-DEACT / 2026-09-07] 중지 시 세션 무효화용 ban 기간(~100년 = 사실상 영구).
+# 재활성화(G-04, 미구현)를 붙일 땐 ban_duration="none"으로 함께 풀어야 한다.
+_DEACTIVATE_BAN_DURATION = "876000h"
 
 # CAL-COLOR-03·07·13 — 의사를 초대하면 남은 색을 0번부터 준다. 다 찼으면 가장 적게 쓰인 번호 중
 # 가장 작은 것(막다른 길 금지). 팔레트는 「서로 가장 먼 것부터」 배열돼 앞 번호끼리 가장 잘 구별된다.
@@ -279,13 +286,27 @@ async def deactivate_staff(
         async with acquire_as(str(deactivated_by.auth_user_id)) as c:
             target = await _run(c)
 
-    # [정합성 검토 R1-우선2 재검증] scope="global" — 이 직원이 로그인해둔 모든 기기/브라우저의
-    # 리프레시 토큰을 한 번에 무효화한다. DB 트랜잭션 밖에서 호출하는 이유: Admin API 호출은
-    # DB 트랜잭션에 편입될 수 없는 별도의 외부 호출이라, is_active 반영을 먼저 커밋해 RLS가
-    # 즉시 데이터 접근을 막도록 한 뒤 세션을 끊는 순서가 더 안전하다(반대 순서면 세션은 끊겼지만
-    # is_active 갱신이 실패해 RLS로는 여전히 접근 가능한 상태가 남을 수 있다).
-    admin = get_admin_client()
-    admin.auth.admin.sign_out(str(target["auth_user_id"]), scope="global")
+    # [정합성 검토 R1-우선2 재검증 / 2026-09-07 버그수정] 세션 무효화.
+    # ⚠️ 예전엔 admin.auth.admin.sign_out(auth_user_id, scope="global")을 썼는데, GoTrue의
+    #    admin sign_out은 '사용자의 JWT'를 받는다(user_id가 아니다) — user_id를 넘기면 매번
+    #    "invalid JWT"로 500이 났다(is_active는 그 전에 커밋돼 "중지는 됐는데 에러" 상태). GoTrue엔
+    #    user_id로 로그아웃하는 admin 엔드포인트가 없다(POST /admin/users/{id}/logout=404 확인).
+    #    → ban으로 리프레시 토큰 갱신을 막는다: 현재 access token은 만료까지 유효하나(≤ JWT TTL)
+    #    그 뒤 재발급이 막혀 완전히 잠기고, 그 사이 데이터 접근은 RLS의 is_active 게이트가 막는다(두 겹).
+    # DB 트랜잭션 밖에서(커밋 뒤) 호출: is_active를 먼저 반영해 RLS가 즉시 막게 한 뒤 세션을 끊는
+    #    순서가 더 안전하다. best-effort — admin API가 실패해도 중지(is_active=false)는 유효하게 둔다
+    #    (막다른 길·거짓 실패 방지). 목킹 테스트가 실제 GoTrue 계약 위반을 삼켜 이 버그를 못 잡았다.
+    try:
+        admin = get_admin_client()
+        admin.auth.admin.update_user_by_id(
+            str(target["auth_user_id"]), {"ban_duration": _DEACTIVATE_BAN_DURATION}
+        )
+    except Exception:  # noqa: BLE001 — 세션 무효화는 부가 방어. 실패해도 중지는 유효해야 한다.
+        logger.warning(
+            "deactivate_staff: 세션 무효화(ban) 실패 staff_id=%s — 중지(is_active=false)는 반영됨",
+            staff_id,
+            exc_info=True,
+        )
 
 
 def _auth_users_by_id() -> dict[str, object]:

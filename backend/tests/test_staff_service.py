@@ -124,18 +124,37 @@ async def test_deactivate_staff_sets_flags(db_conn):
 
 @pytest.mark.asyncio
 async def test_deactivate_staff_revokes_auth_session(db_conn, _fake_admin_client):
-    """[정합성 검토 R1-우선2 재검증] 비활성화 시 대상 직원의 Supabase Auth 세션을 전 기기에서
-    즉시 끊는다 — RLS(`is_active_staff()`)는 데이터 접근을 막아주지만, 세션 자체는 살아있어
-    JWT 만료(최대 30분) 전까지 로그인된 화면이 떠 있을 수 있었다는 지적을 반영."""
+    """[R1-우선2 / 2026-09-07 버그수정] 비활성화 시 대상 직원의 Supabase Auth 세션을 무효화한다.
+    ⚠️ 예전 구현은 admin sign_out(user_id)를 썼으나 GoTrue sign_out은 JWT 전용이라 user_id를
+    넘기면 매번 "invalid JWT" 500이 났다(user_id로 로그아웃하는 admin API가 없다). ban으로
+    토큰 갱신을 막는다 — 현재 access token은 만료까지 유효하나 그 사이 데이터는 RLS의
+    is_active 게이트가 막는다(두 겹)."""
     admin_seed = await seed_staff(db_conn, role="admin")
     admin_ctx = _to_context(admin_seed, "admin")
     target = await seed_staff(db_conn, role="receptionist")
 
     await staff_service.deactivate_staff(target["staff_id"], deactivated_by=admin_ctx, conn=db_conn)
 
-    _fake_admin_client.auth.admin.sign_out.assert_called_once_with(
-        str(target["auth_user_id"]), scope="global"
+    _fake_admin_client.auth.admin.update_user_by_id.assert_called_once_with(
+        str(target["auth_user_id"]), {"ban_duration": "876000h"}
     )
+
+
+@pytest.mark.asyncio
+async def test_deactivate_staff_succeeds_even_if_session_revoke_fails(db_conn, _fake_admin_client):
+    """세션 무효화(ban)는 부가 방어다 — Supabase admin API가 실패해도 중지(is_active=false) 자체는
+    성공해야 한다(막다른 길·거짓 실패 방지). 예전 버그: 무효화 호출이 500나면 is_active는 이미
+    커밋됐는데 관리자에겐 "잠시 후 다시" 에러만 떠 '중지됐는지' 알 수 없었다."""
+    _fake_admin_client.auth.admin.update_user_by_id.side_effect = RuntimeError("gotrue down")
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")
+
+    # 예외를 밖으로 던지지 않는다.
+    await staff_service.deactivate_staff(target["staff_id"], deactivated_by=admin_ctx, conn=db_conn)
+
+    row = await db_conn.fetchrow("select is_active from staff where id = $1", target["staff_id"])
+    assert row["is_active"] is False
 
 
 @pytest.mark.asyncio
