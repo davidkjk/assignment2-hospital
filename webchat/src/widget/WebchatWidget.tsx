@@ -30,7 +30,10 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;               // 제어 모드면 부모 값, 아니면 자체 상태
   const setOpen = (v: boolean) => { setOpenState(v); onOpenChange?.(v); };
-  const w = useWebchat(api);
+  // 타이핑 "직원 연결" 즉시 인계(route_taken=handoff, ⓪-b)를 칩·카드·장애와 같은 익명 인계 폼(WEBANON-HANDOFF)으로 연결한다.
+  const w = useWebchat(api, {
+    onHandoffRequested: (threadId) => onHandoffNeeded({ threadId, summary: [] }),
+  });
   const hasUnread = w.handoff.phase === 'answered';
   // 장애 중 [문의 남기기] → 익명 인계 폼(WEBCHAT-OUTAGE-02) — 봇 응답 없이 기존 대화 문맥으로 직원에게 연결.
   const leaveInquiry = () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); };

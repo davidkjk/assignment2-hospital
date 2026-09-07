@@ -132,6 +132,16 @@ test('[WEBCHAT-OUTAGE] AI 장애(전송 5xx)면 병원 전화·[문의 남기기
   expect(onHandoffNeeded).toHaveBeenCalledWith(expect.objectContaining({ threadId: 't1' })); // 대화 문맥으로 익명 인계(OUTAGE-02)
 });
 
+test('[NAV-WEBCHAT-05b] 타이핑으로 직원 연결을 요청하면(route_taken=handoff) 익명 인계 폼(onHandoffNeeded)을 연다', async () => {
+  const onHandoffNeeded = vi.fn();
+  const api = fakeApi(emptySession);
+  (api.sendMessage as any).mockResolvedValue({ routeTaken: 'handoff' });
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={onHandoffNeeded} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await userEvent.click(await screen.findByRole('button', { name: '진료시간' })); // 아무 전송 → 백엔드가 handoff로 분류
+  await waitFor(() => expect(onHandoffNeeded).toHaveBeenCalledWith(expect.objectContaining({ threadId: 't1' }))); // 칩과 동일한 인계 폼 흐름
+});
+
 test('[NAV-WEBCHAT-07] 웹에서 마감 후 취소·변경은 앱 팝업/예약 맥락 화면을 복제하거나 새 이동을 만들지 않는다', async () => {
   const api = fakeApi();
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
