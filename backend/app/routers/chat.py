@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.patient_security import PatientContext, get_current_patient   # 3단계 환자 인증
 from app.integrations.embedding_client import get_embedding_client
 from app.integrations.langchain_client import get_chat_model
-from app.services.chat import anonymous_service, chat_flow_service, ai_session_service, webchat_service
+from app.services.chat import anonymous_service, chat_flow_service, ai_session_service, patient_ai_session, webchat_service
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -40,6 +40,9 @@ class SendMessageRequest(BaseModel):
 
 class StartSessionRequest(BaseModel):
     channel: str = "web"
+    # 로그인 환자 경로에서만 쓴다: thread_id=지난 상담 이어보기, resume_from=이어서 AI 질문(새 방).
+    thread_id: UUID | None = None
+    resume_from: UUID | None = None
 
 
 class ReadRequest(BaseModel):
@@ -94,9 +97,15 @@ async def send_message(body: SendMessageRequest, request: Request,
 @router.post("/sessions")
 async def start_session(
     body: StartSessionRequest,
+    request: Request,
     x_anon_token: str | None = Header(default=None),
 ):
-    # 토큰이 있으면 복원, 없으면 서버가 발급해 anonToken으로 돌려준다.
+    # 로그인 헤더가 있으면 환자 경로(RLS 소유), 없으면 익명 웹 위젯 경로 — /messages와 같은 분기.
+    if request.headers.get("authorization", "").startswith("Bearer "):
+        patient = await get_current_patient(request)
+        return await patient_ai_session.start(
+            patient, thread_id=body.thread_id, resume_from=body.resume_from)
+    # 익명: 토큰이 있으면 복원, 없으면 서버가 발급해 anonToken으로 돌려준다.
     return await webchat_service.start_or_restore_session(x_anon_token)
 
 

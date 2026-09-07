@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import 'chat_models.dart';
 import 'chat_repository.dart';
 
@@ -20,7 +21,6 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   final String threadId;
   final String aiSessionId; // 전송 시 함께 실어 보내는 활성 AI 세션(백엔드 필수)
   final void Function(String batchId)? onMarkRead;
-  int _seq = 0;
   ChatRoomController(this._repo,
       {required this.threadId, this.aiSessionId = '', this.onMarkRead})
       : super(const ChatRoomState(ChatRoomPhase.loading));
@@ -40,7 +40,9 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     }
   }
 
-  String _newClientId() => '${DateTime.now().microsecondsSinceEpoch}-${_seq++}';
+  // 서버 client_message_id 컬럼은 UUID(전역 unique 멱등 키, 00053). 실제 UUID를 만들어야
+  // 서버가 받는다(옛 "microseconds-seq"는 UUID가 아니라 422). 재전송은 같은 키 재사용(SEND-03).
+  String _newClientId() => const Uuid().v4();
 
   Future<void> send(String content) async {
     // CHAT-ROOM-SEND-01: 진행 중인 같은 내용이 있으면 중복 전송을 막는다.
