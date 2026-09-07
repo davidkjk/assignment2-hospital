@@ -464,26 +464,23 @@ async def get_calendar_doctor_catalog(staff: StaffContext, *, on_date=None, conn
 
 
 async def _mark_pending_doctors(conn, catalog: list) -> None:
-    """[STAFF-PEND-01] 아직 한 번도 로그인 안 한(초대 미수락) 의사를 pending=True로 표시한다 —
-    캘린더 칩·격자 열이 「아직 안 들어옴」을 보이려고 쓴다.
+    """[STAFF-PEND-01·STAFF-ACTIVATED-01] 아직 초대 미수락(비밀번호 미설정)인 의사를 pending=True로
+    표시한다 — 캘린더 칩·격자 열이 「아직 안 들어옴」을 보이려고 쓴다.
 
-    last_sign_in_at은 auth.users가 원본이라 목록 1회 조회(_auth_users_by_id, 직원 목록과 같은
-    배치 경로)로 받는다. ⚠️ 매 날짜 이동마다 도는 get_calendar에는 넣지 않는다 — 이 카탈로그
-    (/calendar/doctors)는 캘린더 마운트 때 한 번만 읽히므로 여기서만 auth를 조회한다."""
+    ⚠️ 예전엔 auth.users.last_sign_in_at으로 봤으나 초대/복구 링크를 클릭만 해도 채워져, 비번을
+    안 만든 의사가 "들어옴"으로 오분류됐다(00094). 이제 staff.activated_at이 원본이라 auth 조회
+    없이 격자와 같은 conn 한 번으로 읽는다."""
     if not catalog:
         return
-    from app.services import staff_service  # 지연 import — 모듈 로드 순환 방지
-    auth = staff_service._auth_users_by_id()
-    id_to_auth = {
-        r["id"]: r["auth_user_id"]
+    pending = {
+        r["id"]: r["activated_at"] is None
         for r in await conn.fetch(
-            "select id, auth_user_id from staff where id = any($1::uuid[])",
+            "select id, activated_at from staff where id = any($1::uuid[])",
             [d["id"] for d in catalog],
         )
     }
     for d in catalog:
-        user = auth.get(str(id_to_auth.get(d["id"])))
-        d["pending"] = getattr(user, "last_sign_in_at", None) is None
+        d["pending"] = pending.get(d["id"], False)
 
 
 async def _calendar_doctors(conn, doctor_ids) -> list:

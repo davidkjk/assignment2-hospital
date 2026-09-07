@@ -6,7 +6,7 @@ import type { Role } from '../auth/roles'
 // ⚠️ 진료과는 schedule_admin 라우터(prefix=/admin)의 GET /admin/departments가 원본이다.
 //    STAFF-INVITE-03: 사용 중인 진료과만 필요하므로 include_inactive=false로만 부른다.
 
-/** GET /staff 한 줄. last_sign_in_at=null & is_active=true → 「초대중」(STAFF-LIST-08). */
+/** GET /staff 한 줄. activated_at=null & is_active=true → 「초대중(미수락)」(STAFF-LIST-08·STAFF-ACTIVATED-01). */
 export interface StaffMember {
   id: string
   name: string
@@ -18,6 +18,10 @@ export interface StaffMember {
   photo_url: string | null
   /** 팔레트의 몇 번째(CAL-COLOR-09) — 색값이 아니라 인덱스. 의사만 값이 있다(CAL-COLOR-08). */
   calendar_color_index: number | null
+  /** [STAFF-ACTIVATED-01] 초대 수락(최초 비밀번호 설정) 완료 시각. null=미수락. 링크 클릭만으로는
+   *  켜지지 않아 미수락/수락을 정확히 가른다(예전 last_sign_in_at 판정의 오분류 해소). */
+  activated_at: string | null
+  /** 표시 전용 — 「마지막 로그인 …」. ⚠️ 수락 여부 판정에는 쓰지 않는다(activated_at을 쓴다). */
   last_sign_in_at: string | null
   invited_at: string | null
 }
@@ -51,6 +55,10 @@ export interface ProfilePatch {
 
 export const staffApi = {
   list: () => apiFetch<StaffMember[]>('/staff'),
+
+  /** STAFF-ACTIVATED-01 — 초대 수락자가 최초 비밀번호 설정을 마친 직후 자기 계정을 「수락」으로 넘긴다.
+   *  멱등(이미 수락자는 무동작). 실패해도 사용자 흐름을 막지 않는 베스트에포트 호출이다. */
+  activateSelf: () => apiFetch<void>('/me/activate', { method: 'POST' }),
 
   /** STAFF-INVITE-03 — 사용 중인 진료과만. */
   departments: () => apiFetch<Department[]>('/admin/departments?include_inactive=false'),

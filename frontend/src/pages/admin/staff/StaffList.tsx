@@ -26,13 +26,16 @@ interface StaffListProps {
   onInviteEmptyState(): void
 }
 
+// [STAFF-ACTIVATED-01] 미수락 = 초대만 나가고 아직 비밀번호를 설정하지 않은 활성 직원.
+// ⚠️ 판정은 activated_at으로 한다 — last_sign_in_at은 초대 링크를 "클릭"만 해도 채워져, 비번을
+//    안 만든 사람이 [비밀번호 재설정]+[중지](수락됨 취급)로 잘못 보였다(00094로 자체 표식 도입).
 function isInvited(m: StaffMember): boolean {
-  return m.is_active && m.last_sign_in_at === null
+  return m.is_active && m.activated_at === null
 }
 
 // 이미 들어온(수락한) 활성 직원 — 비밀번호 재설정 대상(STAFF-RESET-PW-01). 미수락은 [재초대]가 맡는다.
 function isAccepted(m: StaffMember): boolean {
-  return m.is_active && m.last_sign_in_at !== null
+  return m.is_active && m.activated_at !== null
 }
 
 export function StaffList({

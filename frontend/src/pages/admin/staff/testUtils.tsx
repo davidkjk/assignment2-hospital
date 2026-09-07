@@ -28,7 +28,7 @@ function s(
   role: Role,
   over: Partial<StaffMember> = {},
 ): StaffMember {
-  return {
+  const m: StaffMember = {
     id,
     name,
     role,
@@ -38,10 +38,18 @@ function s(
     bio: null,
     photo_url: null,
     calendar_color_index: role === 'doctor' ? 0 : null,
+    activated_at: null,
     last_sign_in_at: null,
     invited_at: null,
     ...over,
   }
+  // [STAFF-ACTIVATED-01] 픽스처 편의: activated_at을 따로 안 주면 로그인 이력이 있는 직원은
+  //   수락 완료로 본다(기존 픽스처의 「last_sign_in_at으로 수락 표현」 의미를 그대로 유지). 미수락을
+  //   테스트하려면 last_sign_in_at 없이 두거나 activated_at: null을 명시한다.
+  if (over.activated_at === undefined && m.last_sign_in_at !== null) {
+    m.activated_at = m.last_sign_in_at
+  }
+  return m
 }
 
 // 기본 픽스처 — 현재 로그인 = 관리자 s-001(김관리). 시각 기준은 vi.setSystemTime로 고정한다.

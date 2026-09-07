@@ -214,12 +214,15 @@ async def test_delete_staff_rejects_self(db_conn):
 
 @pytest.mark.asyncio
 async def test_delete_staff_rejects_accepted(db_conn, _fake_admin_client):
-    """[STAFF-DELETE-01] 이미 로그인한 적 있는(수락) 직원은 삭제하지 않는다 — 중지를 쓴다.
-    참조 기록이 깨질 수 있어 미수락만 삭제한다."""
+    """[STAFF-DELETE-01·STAFF-ACTIVATED-01] 이미 수락한(비밀번호 설정 완료=activated_at 있음) 직원은
+    삭제하지 않는다 — 중지를 쓴다. 참조 기록이 깨질 수 있어 미수락만 삭제한다.
+    ⚠️ 판정은 staff.activated_at으로 한다 — auth.last_sign_in_at은 링크 클릭만으로 채워져 못 쓴다(00094)."""
     admin_seed = await seed_staff(db_conn, role="admin")
     admin_ctx = _to_context(admin_seed, "admin")
     target = await seed_staff(db_conn, role="receptionist")
-    _fake_admin_client.auth.admin.get_user_by_id.return_value.user.last_sign_in_at = "2026-08-01T09:00:00+09:00"
+    await db_conn.execute(
+        "update staff set activated_at = now() where id = $1", target["staff_id"]
+    )
 
     with pytest.raises(AppError) as exc_info:
         await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
@@ -230,13 +233,29 @@ async def test_delete_staff_rejects_accepted(db_conn, _fake_admin_client):
 
 
 @pytest.mark.asyncio
-async def test_delete_staff_removes_pending(db_conn, _fake_admin_client):
-    """[STAFF-DELETE-01] 미수락(로그인 이력 없음) + 딸린 데이터 없음이면 staff 행을 지우고
-    auth 사용자도 지운다(같은 이메일 재초대 가능)."""
+async def test_delete_staff_rejects_link_clicked_but_not_activated(db_conn, _fake_admin_client):
+    """[STAFF-ACTIVATED-01] 회귀: 초대 링크를 클릭만 하고(auth에 last_sign_in_at 채워짐) 비밀번호는
+    안 만든 계정도 activated_at이 null이면 미수락이라 삭제된다. 예전엔 last_sign_in_at 때문에
+    "수락됨"으로 오분류돼 삭제가 막혔다."""
     admin_seed = await seed_staff(db_conn, role="admin")
     admin_ctx = _to_context(admin_seed, "admin")
     target = await seed_staff(db_conn, role="receptionist")
-    _fake_admin_client.auth.admin.get_user_by_id.return_value.user.last_sign_in_at = None
+    # 링크 클릭으로 auth엔 로그인 시각이 있으나 activated_at은 여전히 null(비번 미설정).
+    _fake_admin_client.auth.admin.get_user_by_id.return_value.user.last_sign_in_at = "2026-08-01T09:00:00+09:00"
+
+    await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
+
+    row = await db_conn.fetchrow("select id from staff where id = $1", target["staff_id"])
+    assert row is None  # activated_at null → 미수락 → 삭제됨
+
+
+@pytest.mark.asyncio
+async def test_delete_staff_removes_pending(db_conn, _fake_admin_client):
+    """[STAFF-DELETE-01] 미수락(activated_at null) + 딸린 데이터 없음이면 staff 행을 지우고
+    auth 사용자도 지운다(같은 이메일 재초대 가능)."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")  # activated_at 기본 null = 미수락
 
     await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
 
@@ -375,6 +394,30 @@ async def test_concurrent_deactivation_keeps_one_active_admin(db_pool):
             "select count(*) from staff where role = 'admin' and is_active"
         )
     assert active_admin_count == 1
+
+
+@pytest.mark.asyncio
+async def test_activate_self_sets_activated_at_once(db_pool):
+    """[STAFF-ACTIVATED-01] 초대 수락자가 최초 비밀번호 설정을 마치고 activate_self를 부르면
+    activated_at이 한 번 채워지고(미수락→수락), 재호출·이미 수락자에겐 무동작(멱등)이다."""
+    async with db_pool.acquire() as setup_conn:
+        target = await _seed_committed_staff(setup_conn, role="receptionist")
+    ctx = _to_context(target, "receptionist")
+
+    async with db_pool.acquire() as c:
+        assert await c.fetchval("select activated_at from staff where id = $1", target["staff_id"]) is None
+
+    # 최초 수락 — null → now()
+    await staff_service.activate_self(ctx)
+    async with db_pool.acquire() as c:
+        first = await c.fetchval("select activated_at from staff where id = $1", target["staff_id"])
+    assert first is not None
+
+    # 멱등 — 다시 불러도 처음 시각을 덮어쓰지 않는다.
+    await staff_service.activate_self(ctx)
+    async with db_pool.acquire() as c:
+        second = await c.fetchval("select activated_at from staff where id = $1", target["staff_id"])
+    assert second == first
 
 
 # ── 초대 이메일 실패 UX (STAFF-INVITE-06~09) ──────────────────────────────

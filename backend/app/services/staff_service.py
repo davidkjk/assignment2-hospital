@@ -7,7 +7,7 @@ from asyncpg.exceptions import ForeignKeyViolationError
 from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.admin_client import get_admin_client
-from app.db.pool import acquire_as
+from app.db.pool import acquire_as, get_pool
 from app.services.schedule_change import list_affected_appointments
 
 logger = logging.getLogger(__name__)
@@ -328,7 +328,7 @@ async def list_staff(staff: StaffContext, conn=None) -> list[dict]:
         rows = await c.fetch(
             """
             select id, auth_user_id, name, role, department_id, is_active,
-                   specialty, bio, photo_url, calendar_color_index
+                   specialty, bio, photo_url, calendar_color_index, activated_at
             from staff
             order by is_active desc, name, id
             """
@@ -349,6 +349,26 @@ async def list_staff(staff: StaffContext, conn=None) -> list[dict]:
         row["invited_at"] = getattr(user, "invited_at", None) if user is not None else None
         row.pop("auth_user_id", None)
     return rows
+
+
+async def activate_self(staff: StaffContext) -> None:
+    """[STAFF-ACTIVATED-01] 초대 수락자가 최초 비밀번호 설정을 마친 직후(프론트 PasswordResetNewPage
+    성공 지점) 호출한다. 자기 staff 행의 activated_at을 처음 한 번만 채운다.
+
+    ⚠️ auth 신호(last_sign_in_at)는 초대/복구 링크를 클릭만 해도 채워져 "수락"으로 오분류됐다(00094).
+    이 표식은 비밀번호를 실제로 설정해야 켜지므로, 미수락(초대만 나감)과 수락을 정확히 가른다.
+
+    · service 역할 풀로 쓴다 — 호출자는 get_current_staff로 이미 인증됐고, WHERE가 자기 행
+      (auth_user_id) + activated_at is null로 좁혀 재호출·이미 수락자에겐 무동작(멱등)이다. staff에
+      자기 행 UPDATE용 RLS/GRANT를 새로 열 필요가 없다.
+    · 복구(기존 활성 직원의 비밀번호 변경)에서 호출돼도 안전하다 — 이미 activated_at이 있어 no-op.
+    """
+    pool = await get_pool()
+    await pool.execute(
+        "update public.staff set activated_at = now() "
+        "where auth_user_id = $1 and activated_at is null",
+        str(staff.auth_user_id),
+    )
 
 
 async def resend_invite(
@@ -406,15 +426,17 @@ async def delete_staff(staff_id: UUID, requested_by: StaffContext, conn=None) ->
     admin = get_admin_client()
 
     async def _run(c):
-        target = await c.fetchrow("select auth_user_id from staff where id = $1", staff_id)
+        target = await c.fetchrow(
+            "select auth_user_id, activated_at from staff where id = $1", staff_id
+        )
         if target is None:
             raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
-        # 미수락만 — auth.users의 last_sign_in_at이 원본(수락=최초 로그인 시점에 채워진다).
-        user_resp = admin.auth.admin.get_user_by_id(str(target["auth_user_id"]))
-        user = getattr(user_resp, "user", user_resp)
-        if getattr(user, "last_sign_in_at", None) is not None:
+        # [STAFF-ACTIVATED-01] 미수락만 삭제한다 — activated_at(비밀번호 설정 완료 시각)이 원본이다.
+        #   ⚠️ 예전엔 auth.users.last_sign_in_at으로 봤으나 링크 클릭만으로도 채워져, 비번을 안 만든
+        #   계정이 "수락됨"으로 오분류돼 삭제가 막혔다(00094). activated_at은 클릭으로 켜지지 않는다.
+        if target["activated_at"] is not None:
             raise AppError(
-                "이미 로그인한 적 있는 직원은 삭제할 수 없습니다. 대신 '중지'를 사용하세요.",
+                "이미 들어온(비밀번호를 설정한) 직원은 삭제할 수 없습니다. 대신 '중지'를 사용하세요.",
                 status_code=409,
             )
         # 딸린 데이터(예약·기록·일정 등)가 있으면 FK가 막는다 — 조용한 0행 삭제가 아니라

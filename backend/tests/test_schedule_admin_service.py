@@ -6,8 +6,7 @@
 - upsert_closure / upsert_doctor_exception: 병원 휴무·의사 예외 저장.
 """
 import uuid
-from datetime import date, datetime, time
-from unittest.mock import MagicMock, patch
+from datetime import date, time
 
 import pytest
 
@@ -211,19 +210,16 @@ async def test_그날_의사_목록은_정기휴진_회색_예약건수를_준�
 
 @pytest.mark.asyncio
 async def test_그날_의사_목록은_미로그인_의사를_pending으로_표시한다(db_conn):
-    """[STAFF-PEND-01] 일정관리 「의사 고르기」도 아직 한 번도 로그인 안 한(초대 미수락)
-    의사를 pending=True로, 로그인한 적 있는 의사는 pending=False로 싣는다."""
+    """[STAFF-PEND-01·STAFF-ACTIVATED-01] 일정관리 「의사 고르기」도 미수락(비밀번호 미설정=
+    activated_at null)인 의사를 pending=True로, 수락한 의사는 pending=False로 싣는다.
+    ⚠️ 판정은 staff.activated_at으로 한다 — auth.last_sign_in_at은 링크 클릭만으로 채워져 못 쓴다(00094)."""
     dept = await _dept(db_conn)
     signed_in = await _doctor(db_conn, "로그인의사", dept)
     never = await _doctor(db_conn, "미수락의사", dept)
-    a1 = await db_conn.fetchval("select auth_user_id from staff where id=$1", signed_in)
-    a2 = await db_conn.fetchval("select auth_user_id from staff where id=$1", never)
+    # 수락(비번 설정 완료) 의사는 activated_at을 채우고, 미수락 의사는 null로 둔다.
+    await db_conn.execute("update staff set activated_at = now() where id = $1", signed_in)
 
-    signed = MagicMock(); signed.last_sign_in_at = datetime(2026, 1, 1)
-    pending = MagicMock(); pending.last_sign_in_at = None
-    auth_map = {str(a1): signed, str(a2): pending}
-    with patch("app.services.staff_service._auth_users_by_id", return_value=auth_map):
-        doctors = {d["name"]: d for d in await list_day_doctors(db_conn, MON)}
+    doctors = {d["name"]: d for d in await list_day_doctors(db_conn, MON)}
 
     assert doctors["로그인의사"]["pending"] is False
     assert doctors["미수락의사"]["pending"] is True

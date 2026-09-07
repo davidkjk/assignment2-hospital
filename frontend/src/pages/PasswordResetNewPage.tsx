@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { authFlowType, clearAuthFlowType, supabase } from '../lib/supabaseClient'
+import { staffApi } from '../api/staff'
 
 // 이 화면은 두 갈래가 같은 폼을 쓴다:
 //   · recovery(비밀번호 찾기)  — PASSWORD_RECOVERY 세션(auth.isRecoverySession)
@@ -77,6 +78,10 @@ export function PasswordResetNewPage({
     setError('')
     const { error: updateError } = await supabase.auth.updateUser({ password })
     if (updateError) { setError('비밀번호를 바꾸지 못했습니다. 다시 시도해 주세요.'); setBusy(false); return }
+    // [STAFF-ACTIVATED-01] 비밀번호를 실제로 설정한 순간 계정을 「수락」으로 넘긴다(현재 세션 유효).
+    //   베스트에포트 — 분류 표식이라 실패해도 사용자 흐름을 막지 않는다(관리자 재초대로 복구 가능).
+    //   복구(기존 직원 비번 변경)에서 호출돼도 서버가 멱등 no-op으로 처리한다.
+    try { await staffApi.activateSelf() } catch { /* 분류 실패는 흐름을 막지 않는다 */ }
     const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' })
     if (signOutError) { setError('다른 기기의 로그아웃을 마치지 못했습니다. 병원에 알려 주세요.'); setBusy(false); return }
     auth?.finishPasswordRecovery()

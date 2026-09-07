@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { chip, filterChips, leftColumn, rightColumn, rowNames, rowOf, setupStaff } from './testUtils'
+import { chip, defaultStaff, filterChips, leftColumn, rightColumn, rowNames, rowOf, setupStaff } from './testUtils'
 
 // [STAFF-LIST-*·STAFF-ROW-*·STAFF-STATE-01] 직원 목록.
 // 날짜 어휘가 절대 시각이라(STAFF-LIST-07) 기준 시각을 **병원 시각** 2026-08-27 12:00으로
@@ -89,6 +89,24 @@ test('[STAFF-LIST-08] 이미 들어온 직원에게는 초대 딱지가 붙지 �
   setupStaff()
   await screen.findByText('이민호')
   expect(rowOf('이민호')).not.toHaveTextContent('초대함')
+})
+
+test('[STAFF-ACTIVATED-01] 초대 링크를 클릭만 하고 비번은 안 만든 계정은 여전히 미수락으로 보인다', async () => {
+  // 회귀: Supabase는 링크 클릭만으로 세션을 만들며 last_sign_in_at을 채운다. 예전엔 이 값으로
+  //   수락을 판정해, 비번을 안 만든 사람이 [비밀번호 재설정]+[중지](수락됨)로 잘못 보였다(00094).
+  //   activated_at=null이면 last_sign_in_at이 있어도 미수락([재초대]·[삭제]·초대 딱지)이어야 한다.
+  const staff = defaultStaff().map((m) =>
+    m.name === '김의사' ? { ...m, last_sign_in_at: '2026-08-27T09:30:00+09:00', activated_at: null } : m,
+  )
+  setupStaff({ staff })
+  await screen.findByText('김의사')
+  const row = within(rowOf('김의사'))
+  expect(rowOf('김의사')).toHaveTextContent('초대함 · 아직 안 들어옴')
+  expect(row.getByRole('button', { name: '재초대' })).toBeVisible()
+  expect(row.getByRole('button', { name: '삭제' })).toBeVisible()
+  // 핵심: 수락됨 취급(비밀번호 재설정)이 아니라 미수락 버튼만 떠야 한다.
+  expect(row.queryByRole('button', { name: '비밀번호 재설정' })).toBeNull()
+  expect(rowOf('김의사')).not.toHaveTextContent('마지막 로그인')
 })
 
 test('[STAFF-ROW-02] 내 행에는 [중지] 버튼이 없다', async () => {
