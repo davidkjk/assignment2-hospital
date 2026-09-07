@@ -5,7 +5,7 @@ import type { WebchatApi, SessionState } from '../api/webchatApi';
 import type { WebAuth } from '../auth/webAuth';
 import { clearAnonToken } from '../state/anonSession';
 
-const bookConfirmPayload = { card_type: 'booking_confirm', patient_name: '홍길동', department_name: '내과', doctor_name: '김의사', slot_at: '2026-08-20T10:00', button: '예약 신청하기', state: '정상' };
+const bookConfirmPayload = { card_type: 'booking_confirm', for_patient_id: 'p1', patient_name: '홍길동', department_name: '내과', doctor_name: '김의사', slot_at: '2026-08-20T10:00', button: '예약 신청하기', state: '정상' };
 
 function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
   return {
@@ -123,4 +123,61 @@ test('[WEBBOOK-06] 진료과 탭 → navigateAction(pick_department) → 의사 
   await userEvent.click(await screen.findByRole('button', { name: '내과' }));
   await waitFor(() => expect(api.navigateAction).toHaveBeenCalledWith({ action: { kind: 'pick_department', payload: { department_id: 'd1' } } }));
   expect(await screen.findByRole('button', { name: /김의사/ })).toBeInTheDocument(); // 다음 카드 피드 삽입
+});
+
+
+test('[WEBBOOK-07] 시간 선택 후 로그인 → 대상 선택 카드가 피드에 뜬다(확인 카드로 직행하지 않음)', async () => {
+  // 익명 세션에 시간 선택 카드가 떠 있는 상태 → 시간 탭(for_patient_id 없음) → 관문 → 로그인 → 대상 카드.
+  const targetCard = { id: 't1', senderType: 'bot' as const, messageType: 'card' as const, content: null,
+    payload: { card_type: 'target_select', state: '정상', department_id: 'd1', doctor_id: 's1', slot_id: 'sl1',
+               slot_at: '2026-09-11T10:00:00', targets: [{ for_patient_id: 'p1', name: '홍길동', relation: null }] } };
+  const api = fakeApi({
+    startOrRestoreSession: vi.fn(async (): Promise<SessionState> => ({
+      threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
+      messages: [{ id: 'm1', senderType: 'bot', messageType: 'card', content: null,
+        payload: { card_type: 'time_select', state: '정상',
+                   candidates: [{ label: '오전 10:00', slot_at: '2026-09-11T10:00:00', slot_id: 'sl1', department_id: 'd1', doctor_id: 's1' }] } }],
+    })),
+    revalidateAction: vi.fn(async () => ({ card: targetCard })),
+  });
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(await screen.findByRole('button', { name: '오전 10:00' })); // 시간 탭 → 관문
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));            // 로그인
+  await waitFor(() => expect(api.revalidateAction).toHaveBeenCalledWith(
+    { action: { kind: 'pick_target', payload: expect.objectContaining({ slot_id: 'sl1' }) } }));
+  expect(await screen.findByRole('button', { name: /홍길동/ })).toBeInTheDocument(); // 대상 카드 피드 삽입
+  expect(screen.queryByRole('dialog', { name: '예약 재확인' })).not.toBeInTheDocument(); // 확인 카드로 직행 안 함
+});
+
+
+test('[WEBBOOK-07] 로그인 후 대상→방문이유(건너뛰기)→확인→신청→완료가 피드로 이어진다', async () => {
+  const targetCard = { id: 't1', senderType: 'bot' as const, messageType: 'card' as const, content: null,
+    payload: { card_type: 'target_select', state: '정상', department_id: 'd1', doctor_id: 's1', slot_id: 'sl1',
+               slot_at: '2026-09-11T10:00:00', targets: [{ for_patient_id: 'p1', name: '홍길동', relation: null }] } };
+  const confirmCard = { id: 'cc', senderType: 'bot' as const, messageType: 'card' as const, content: null,
+    payload: { ...bookConfirmPayload } };
+  const revalidate = vi.fn(async ({ action }: { action: { kind: string } }) =>
+    ({ card: action.kind === 'pick_target' ? targetCard : confirmCard }));
+  const api = fakeApi({
+    startOrRestoreSession: vi.fn(async (): Promise<SessionState> => ({
+      threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
+      messages: [{ id: 'm1', senderType: 'bot', messageType: 'card', content: null,
+        payload: { card_type: 'time_select', state: '정상',
+                   candidates: [{ label: '오전 10:00', slot_at: '2026-09-11T10:00:00', slot_id: 'sl1', department_id: 'd1', doctor_id: 's1' }] } }],
+    })),
+    revalidateAction: revalidate,
+  });
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(await screen.findByRole('button', { name: '오전 10:00' }));  // 시간 → 관문
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));             // 로그인 → 대상 카드
+  await userEvent.click(await screen.findByRole('button', { name: /홍길동/ }));       // 대상 → 방문이유 카드
+  await userEvent.click(await screen.findByRole('button', { name: '건너뛰기' }));     // 방문이유 생략 → 확인 카드
+  await waitFor(() => expect(revalidate).toHaveBeenCalledWith(
+    { action: { kind: 'book', payload: expect.objectContaining({ for_patient_id: 'p1', visit_reason: '' }) } }));
+  const applyBtns = await screen.findAllByRole('button', { name: '예약 신청하기' });  // 확인 카드 [신청]
+  await userEvent.click(applyBtns[applyBtns.length - 1]);
+  await waitFor(() => expect(api.executeCard).toHaveBeenCalledWith(expect.objectContaining({ cardType: 'booking_confirm' })));
+  expect(await screen.findByText('예약이 신청되었습니다')).toBeInTheDocument();       // 완료 카드
 });

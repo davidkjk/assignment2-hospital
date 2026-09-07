@@ -104,7 +104,13 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
     try {
       await api.attributeSessionToAccount({ patientId: pid });  // WEBMOD-AUTH-09: 명시 인증에만 귀속
       if (action.kind === 'view_my_appointments') { await api.revalidateAction({ action }); return; } // WEBMOD-AUTH-07: 최신 조회
-      const { card } = await api.revalidateAction({ action });  // WEBMOD-AUTH-08 / BOOKCONF-03: 재확인 카드(자동 실행 없음)
+      if (action.kind === 'book' && !(action.payload && action.payload.for_patient_id)) {
+        // 늦은 관문(④): 시간까지만 고른 상태(대상 미정) → 로그인 후 대상 선택부터. 확인 카드로 직행하지 않는다(WEBBOOK-07).
+        const { card } = await api.revalidateAction({ action: { kind: 'pick_target', payload: action.payload ?? {} } });
+        if (card) setFlowCards((prev) => [...prev, card]);
+        return;
+      }
+      const { card } = await api.revalidateAction({ action });  // WEBMOD-AUTH-08 / BOOKCONF-03: 대상이 이미 정해진 재확인 카드(자동 실행 없음)
       setReconfirm(card);
     } catch {
       // ⑦ 미배선 — 재확인 카드·귀속은 건너뛴다(로그인은 이미 성공 처리됨).
