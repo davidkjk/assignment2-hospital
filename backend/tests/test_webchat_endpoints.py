@@ -327,3 +327,42 @@ def _seed_ticket_in_progress(thread_id: str, ai_session_id: str) -> str:
             await conn.close()
 
     return _run(go())
+
+
+# ── /chat/cards/revalidate 익명 nav 분기 (늦은 관문 ④ — 로그인 전 예약 탐색) ──────
+
+async def _seed_dept_doctor():
+    conn = await _connect()
+    try:
+        dept = await conn.fetchval(
+            "insert into departments (name, is_active) values ('테스트관문과', true) returning id")
+        doc = await seed_staff(conn, role="doctor", department_id=dept)
+        await conn.execute("update staff set name='관문의사' where id=$1", doc["staff_id"])
+        await conn.execute(
+            "insert into doctor_schedule_rules (doctor_id, weekday, start_time, end_time, slot_duration_minutes, max_daily_appointments) "
+            "values ($1,0,'09:00','12:00',20,10)", doc["staff_id"])
+        return str(dept), str(doc["staff_id"])
+    finally:
+        await conn.close()
+
+
+def test_revalidate_anon_nav_needs_anon_token(client):
+    # 익명 nav도 X-Anon-Token 없이는 401(세션 소유 확인) — Bearer도 없으니 명확히 막는다.
+    r = client.post("/chat/cards/revalidate", json={"action": {
+        "kind": "pick_department",
+        "payload": {"department_id": "00000000-0000-0000-0000-000000000000"}}})
+    assert r.status_code == 401
+
+
+def test_revalidate_nav_kind_uses_anon_path_not_bearer(client):
+    # [WEBBOOK-02] nav kind는 Bearer 없이 X-Anon-Token만으로 다음 카드를 준다(로그인 전 탐색).
+    dept_id, doctor_id = _run(_seed_dept_doctor())
+    with client as c:
+        sess = c.post("/chat/sessions", json={"channel": "web"}).json()
+        r = c.post("/chat/cards/revalidate",
+                   headers={"X-Anon-Token": sess["anonToken"]},
+                   json={"action": {"kind": "pick_department", "payload": {"department_id": dept_id}}})
+    assert r.status_code == 200
+    card = r.json()["card"]["payload"]
+    assert card["card_type"] == "doctor_select"
+    assert any(d["id"] == doctor_id for d in card["doctors"])

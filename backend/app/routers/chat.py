@@ -142,8 +142,15 @@ async def attribute_session(body: AttributeRequest, request: Request,
 
 
 @router.post("/cards/revalidate")
-async def revalidate_card(body: RevalidateRequest, request: Request):
-    # WEBCARD-BOOKCONF-03: 인증(Bearer)한 환자로 원래 행동을 최신 상태에 재검증해 재확인 카드를 준다.
+async def revalidate_card(body: RevalidateRequest, request: Request,
+                          x_anon_token: str | None = Header(default=None)):
+    # 늦은 관문(④): 진료과·의사·날짜 탐색은 로그인 전(익명 nav)이라 Bearer가 없다 → X-Anon-Token으로 소유 확인.
+    kind = (body.action or {}).get("kind")
+    if kind in webchat_service.ANON_NAV_KINDS:
+        await require_anonymous_session(x_anon_token)     # 없으면 401
+        card = await webchat_service.navigate_booking(body.action)
+        return {"card": card}
+    # WEBCARD-BOOKCONF-03: 그 외(book·cancel·view_my_appointments·pick_target)는 인증(Bearer)한 환자로 재검증.
     patient = await get_current_patient(request)
     card = await webchat_service.revalidate_action(patient, body.action)
     return {"card": card}

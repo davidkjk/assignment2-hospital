@@ -13,11 +13,14 @@ from datetime import datetime
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+from datetime import date as _date
+
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.db.pool import acquire_as, get_pool
 from app.services import opening_hours
 from app.services.chat import anonymous_contact_codec, anonymous_service, card_builder
+from app.services.doctor_schedule_summary import summarize_schedule
 
 # 세션 복원 시 실어 보내는 최근 이력의 최대 건수(위젯 초기 렌더용).
 HISTORY_LIMIT = 200
@@ -156,6 +159,85 @@ async def attribute_session_to_patient(*, session_id: UUID, patient_id: UUID) ->
             "anonymous_session_id=null, updated_at=now() "
             "where owner_type='anonymous_web' and anonymous_session_id=$1",
             session_id, patient_id)
+
+
+# ── 로그인 전 예약 탐색 (늦은 관문 ④ — 진료과·의사·날짜·시간, 환자 없이) ─────────
+# 카드 버튼 탭이 오는 /cards/revalidate가 이 kind면 Bearer 없이 X-Anon-Token만으로 다음 카드를 준다.
+# 조회에 환자가 실제 필터로 안 쓰이므로(departments·staff·slot은 민감정보 아님) 서비스 역할 conn으로 읽는다.
+ANON_NAV_KINDS = ("pick_department", "pick_doctor", "pick_date")
+
+_WD = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def _date_label(d) -> str:
+    return f"{d.month}월 {d.day}일 ({_WD[d.weekday()]})"
+
+
+async def _list_doctors_public(conn, department_id: UUID) -> list[dict]:
+    """로그인 전 통로: 환자 없이 그 과의 예약 가능 의사(전공·진료요약). list_doctors와 같은 BOOK-DOC-10 규칙."""
+    rows = await conn.fetch(
+        "select id, name, specialty from staff where role='doctor' and department_id=$1 and is_active order by name",
+        department_id)
+    doctors = [dict(r) for r in rows]
+    if not doctors:
+        return []
+    ids = [d["id"] for d in doctors]
+    srows = await conn.fetch(
+        "select doctor_id, weekday, start_time, end_time from doctor_schedule_rules "
+        "where doctor_id = any($1::uuid[]) and not is_day_off", ids)
+    by_doc: dict = {}
+    for r in srows:
+        by_doc.setdefault(r["doctor_id"], []).append(
+            {"weekday": r["weekday"], "start_time": r["start_time"], "end_time": r["end_time"]})
+    # [BOOK-DOC-10] 진료시간 없는 의사는 예약 칸이 없어 숨긴다(막다른 길 방지).
+    doctors = [d for d in doctors if by_doc.get(d["id"])]
+    for d in doctors:
+        d["schedule_summary"] = summarize_schedule(by_doc.get(d["id"], []))
+    return doctors
+
+
+async def _list_dates_public(conn, doctor_id: UUID) -> list[dict]:
+    rows = await conn.fetch(
+        "select distinct slot_date from appointment_slots "
+        "where doctor_id=$1 and status='빈시간' and slot_date between current_date and current_date+56 "
+        "order by slot_date", doctor_id)
+    return [{"date": str(r["slot_date"]), "label": _date_label(r["slot_date"])} for r in rows]
+
+
+async def navigate_booking(action: dict) -> dict:
+    """[WEBBOOK-02~04] 로그인 전 예약 탐색 — pick_department→의사, pick_doctor→날짜, pick_date→시간.
+    각 단계 payload는 다음 카드로 선택값을 누적한다(서버 무상태). 위변조는 다음 단계에서 서버가 재검증한다."""
+    kind = action.get("kind")
+    payload = action.get("payload") or {}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if kind == "pick_department":
+            department_id = UUID(payload["department_id"])
+            dept_name = await conn.fetchval("select name from departments where id=$1", department_id)
+            doctors = await _list_doctors_public(conn, department_id)
+            return _envelope(card_builder.build_doctor_select_card(
+                department_id=str(department_id), department_name=dept_name, doctors=doctors))
+        if kind == "pick_doctor":
+            department_id = UUID(payload["department_id"])
+            doctor_id = UUID(payload["doctor_id"])
+            doctor_name = await conn.fetchval("select name from staff where id=$1", doctor_id)
+            dates = await _list_dates_public(conn, doctor_id)
+            return _envelope(card_builder.build_date_select_card(
+                department_id=str(department_id), doctor_id=str(doctor_id),
+                doctor_name=doctor_name, dates=dates))
+        if kind == "pick_date":
+            department_id = UUID(payload["department_id"])
+            doctor_id = UUID(payload["doctor_id"])
+            target_date = _date.fromisoformat(payload["date"])
+            rows = await conn.fetch("select id, start_time from list_bookable_slots($1, $2)", doctor_id, target_date)
+            candidates = [{
+                "label": r["start_time"].strftime("%H:%M"),
+                "slot_at": datetime.combine(target_date, r["start_time"]).isoformat(),
+                "slot_id": str(r["id"]), "department_id": str(department_id), "doctor_id": str(doctor_id),
+            } for r in rows]
+            return _envelope(card_builder.build_time_select_card(
+                candidates=candidates, state=("정상" if candidates else "빈")))
+    raise AppError("알 수 없는 예약 탐색 동작입니다.", status_code=400)
 
 
 # ── 인증 후 카드 재검증·실행 (WEBCARD-BOOKCONF-03 / execute) ──────────────────
