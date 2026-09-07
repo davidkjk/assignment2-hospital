@@ -160,7 +160,7 @@ class AppointmentDetailScreen extends ConsumerWidget {
                 ),
               ]),
             ),
-            DetailButtonBar(d, state, online: online), // APPT-BTN-01 — 맨 아래 고정
+            DetailButtonBar(d, state, online: online), // APPT-BTN-01 — 목업대로 화면 맨 아래 고정 바
           ]);
         },
       ),

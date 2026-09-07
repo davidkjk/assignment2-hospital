@@ -452,19 +452,20 @@ class DetailButtonBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final id = d.view.id;
     final bar = _buildInner(context, ref, id);
-    // #16(2026-09-05): 흰 패널+상단 테두리를 걷어내고(배경 제거, #15와 같은 깨끗한 형식) 옅은 상단
-    // 그림자로만 본문과 가른다(탭바처럼 위로 뜨는 0 -1px 10px rgba(0,0,0,.05)). 하단은 더 붙인다.
-    // base(h-8) 버튼은 탭영역(48)만큼 레이아웃이 부풀어 tapPad만큼 여백에서 뺀다(cta·텍스트 안내는 0).
+    // 목업(11-appointment-detail.html) A안대로 하단 고정 바 = **흰 배경 + 윗 테두리 1px**.
+    //   (2026-09-07 사용자 검수: 이전 「투명+그림자」는 스캐폴드 회색이 비쳐 「붕 뜬 회색 띠」로 보였다 →
+    //    목업의 깨끗한 흰 바로 되돌린다. 안내문 상태도 같은 흰 바 자리에 온다.)
+    //   base(h-8) 버튼은 탭영역(48)만큼 레이아웃이 부풀어 tapPad만큼 여백에서 뺀다(cta·텍스트 안내는 0).
+    //   SafeArea(bottom)는 두지 않는다 — 하단 탭바(셸)가 이미 안전영역을 처리해, 넣으면 탭바와 벌어진다.
     final topPad = 12 - _barTapPad();
-    final botPad = 10 - _barTapPad();
+    final botPad = 12 - _barTapPad();
     return Container(
       decoration: const BoxDecoration(
-        boxShadow: [
-          BoxShadow(color: Color(0x0D000000), offset: Offset(0, -1), blurRadius: 10),
-        ],
+        color: AppTokens.surface, // 목업 background:#fff
+        border: Border(top: BorderSide(color: AppTokens.border)), // 목업 border-top 1px
       ),
       padding: EdgeInsets.fromLTRB(16, topPad, 16, botPad),
-      child: SafeArea(top: false, child: bar),
+      child: bar,
     );
   }
 
@@ -591,13 +592,9 @@ class _Notice extends StatelessWidget {
   final String text;
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // 목업 D안: 흰 하단 바 안엔 plain 텍스트만(안쪽 틴트 박스를 겹치지 않는다) — 다른 상태와 형식 통일.
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTokens.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-      ),
       child: Text(text,
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 13, color: AppTokens.grayPending)),
