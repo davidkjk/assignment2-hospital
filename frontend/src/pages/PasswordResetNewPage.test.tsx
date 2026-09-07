@@ -83,6 +83,22 @@ test('[초대 수락] type=invite 세션은 최초 비밀번호 설정 화면을
   expect(screen.queryByRole('link', { name: '비밀번호 재설정 다시 요청' })).toBeNull()
 })
 
+test('[재초대] recovery 링크라도 welcome 표식이 있으면 초대(환영합니다) 문구로 통일한다', async () => {
+  // 재초대는 reset_password_for_email(type=recovery)이라 세션은 복구지만, 백엔드가 붙인 ?welcome=1로
+  // 최초 초대와 같은 '환영합니다(최초 설정)' 문구를 보인다(사용자 결정 2026-09-07).
+  render(
+    <AuthContext.Provider value={authValue(true) as never}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <PasswordResetNewPage flowType="recovery" welcome />
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+
+  expect(await screen.findByRole('heading', { name: '가온병원에 오신 것을 환영합니다' })).toBeVisible()
+  expect(screen.getByRole('button', { name: '비밀번호 설정' })).toBeVisible()
+  expect(screen.queryByRole('heading', { name: '새 비밀번호 만들기' })).toBeNull()
+})
+
 test('[초대 수락] 세션 없는 invite 링크는 폼을 열지 않는다', async () => {
   const noSession = { ...authValue(false), session: null }
   render(

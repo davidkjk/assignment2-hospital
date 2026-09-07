@@ -55,6 +55,17 @@ def test_accept_url_none_when_no_origin(monkeypatch):
     assert _invite_accept_url(_request({})) is None
 
 
+def test_accept_url_welcome_marks_reinvite_as_invite():
+    """재초대(reset_password_for_email·type=recovery)도 최초 초대와 같은 '환영합니다' 문구를
+    보이게 welcome=True면 ?welcome=1을 붙인다(사용자 결정 2026-09-07). 착지 화면이 이 표식으로
+    초대 맥락을 안다(링크의 type=recovery로는 알 수 없다)."""
+    origin = "https://gaonhospital-staff.vercel.app"
+    assert (
+        _invite_accept_url(_request({"origin": origin}), welcome=True)
+        == f"{origin}/reset-password/new?welcome=1"
+    )
+
+
 @pytest.mark.parametrize(
     "bad",
     [

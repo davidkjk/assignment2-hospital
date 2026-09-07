@@ -7,12 +7,26 @@ import { authFlowType, clearAuthFlowType, supabase } from '../lib/supabaseClient
 //   · recovery(비밀번호 찾기)  — PASSWORD_RECOVERY 세션(auth.isRecoverySession)
 //   · invite(직원 초대 수락)   — supabase는 초대에 별도 이벤트를 안 내므로 링크의 type=invite
 //     표식(authFlowType)으로만 구분한다. 초대는 "최초 비밀번호 설정"이라 문구만 달라진다.
+// ⭐ 재초대(reset_password_for_email·type=recovery)도 최초 초대와 같은 '환영합니다' 문구로 통일한다
+//   (사용자 결정 2026-09-07). 링크의 type=recovery라 authFlowType으론 초대인지 알 수 없어,
+//   백엔드가 redirect_to에 붙인 ?welcome=1 표식으로만 초대 맥락을 안다(폼이 열리는 조건은 그대로 —
+//   recovery 세션이라 이미 열린다; 이 표식은 문구만 초대용으로 바꾼다).
+function readWelcomeFlag(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('welcome') === '1'
+  } catch {
+    return false
+  }
+}
+
 export function PasswordResetNewPage({
   verifyRecovery,
   flowType = authFlowType,
+  welcome = readWelcomeFlag(),
 }: {
   verifyRecovery?: () => Promise<boolean>
   flowType?: string | null
+  welcome?: boolean
 }) {
   const navigate = useNavigate()
   const auth = useAuthOptional()
@@ -27,7 +41,7 @@ export function PasswordResetNewPage({
     void verifyRecovery().then(setVerifiedOverride).catch(() => setVerifiedOverride(false))
   }, [verifyRecovery])
 
-  const isInvite = flowType === 'invite'
+  const isInvite = flowType === 'invite' || welcome
   // 초대는 PASSWORD_RECOVERY proof가 없으므로 세션 존재 + type=invite로 연다.
   const inviteReady = isInvite && Boolean(auth?.session)
   const valid = verifyRecovery

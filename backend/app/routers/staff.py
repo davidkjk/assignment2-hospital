@@ -59,9 +59,17 @@ def _invite_redirect_origin(request: Request) -> str | None:
 _INVITE_ACCEPT_PATH = "/reset-password/new"
 
 
-def _invite_accept_url(request: Request) -> str | None:
+def _invite_accept_url(request: Request, *, welcome: bool = False) -> str | None:
+    """초대 수락 링크. welcome=True면 착지 화면이 초대(환영) 문구를 쓰도록 ?welcome=1을 붙인다.
+
+    재초대는 reset_password_for_email(복구 메일)이라 링크의 type=recovery로 와, 이 표식이 없으면
+    화면이 '비밀번호 재설정'으로 보인다. 최초 초대와 같은 '환영합니다(최초 설정)'로 통일하기 위한
+    표식(사용자 결정 2026-09-07). 최초 초대는 type=invite라 표식 없이도 초대 문구가 뜬다."""
     origin = _invite_redirect_origin(request)
-    return f"{origin}{_INVITE_ACCEPT_PATH}" if origin else None
+    if not origin:
+        return None
+    url = f"{origin}{_INVITE_ACCEPT_PATH}"
+    return f"{url}?welcome=1" if welcome else url
 
 
 class InviteStaffRequest(BaseModel):
@@ -181,6 +189,6 @@ async def resend_invite(
 ) -> dict:
     """[정합성 검토 R3-04] 초대 이메일 재발송."""
     await staff_service.resend_invite(
-        staff_id, requested_by=staff, redirect_to=_invite_accept_url(request)
+        staff_id, requested_by=staff, redirect_to=_invite_accept_url(request, welcome=True)
     )
     return {"status": "resent"}
