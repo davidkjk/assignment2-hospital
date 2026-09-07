@@ -22,7 +22,8 @@
 - [x] **#12** ✅코드(폰검증대기) — 알림 탭 목적지를 `go`→`push`로(뒤로가기가 알림함 복귀). `notification_gone_dialog.dart`.
 
 ## C. 홈 / 카드 레이아웃
-- [x] **#32** ✅코드(폰검증대기) — 원인=데모 액션 버튼(size=sm, h-8)인데 Flutter 아웃라인 버튼이 탭영역(48dp)만큼 레이아웃이 부풀어 카드 하단이 데모보다 떠 보였다(데모 Card 패딩 자체는 충실 일치). `DetailButtonBar`와 같은 tapPad 보정 기법을 홈 카드 액션 영역에 적용(버튼 있으면 하단 여백·버튼 앞 간격에서 tapPad만큼 뺌) — 탭영역은 유지, 데모 간격과 맞춤. `appointment_card.dart`(`_hasActions`·`actionPad`). 골든 재생성.
+- [x] **#32** ✅코드(폰검증대기) — ⭐**진짜 원인(2026-09-07 세션29 확정) = 아웃라인 버튼 무한 minWidth 오버플로**. `_outline`이 `minimumSize`를 재정의하지 않아 테마 `outlinedButtonTheme.minimumSize: Size.fromHeight(32)`(=`Size(무한대, 32)`, 무한 minWidth)를 상속 → `_actions`의 우측정렬 Row(주축 무한 제약)에서 각 버튼이 무한 너비로 계산 → **release 빌드에선 클리핑돼 버튼이 안 보이고 자리(빈 여백)만 남음**. 골든이 이걸 못 잡은 이유=`card_gallery_golden_test`가 `theme:` 없이(기본 Material 테마=유한 minWidth 64) 렌더해 실제 테마를 한 번도 안 거쳤다(전 카드 테스트가 `wrap()`=테마 없는 셸). **수정=`_outline`에 `minimumSize: Size(0, buttonBaseHeight)`**(앱의 `shrink()`/`Size(0,32)` 관행과 동일, 높이·탭영역 유지). 회귀 테스트 `appointment_card_actions_theme_test.dart`(실제 테마+390px로 오버플로 검증) 신설, `card_gallery.png` 재생성. `appointment_card.dart`(`_outline`).
+  - ~~옛 원인 서술: 「데모 sm 버튼 대비 탭영역(48dp)만큼 부풀어 카드 하단이 떠 보임 → tapPad 보정(`_hasActions`·`actionPad`)」~~ ✅ **정정(세션29)** — tapPad 보정은 **간격 미세조정**엔 유효해 그대로 두지만, 사용자가 본 「버튼 미표시+빈 여백」의 원인은 tapPad가 **아니라** 위의 무한 minWidth였다(세션28에서 클린 재설치로도 여백이 남아 tapPad 이론이 틀렸음이 드러났다).
 - [x] **#6** ✅코드(폰검증대기) — 홈 히어로 QR 아이콘 하드코딩 → **본인 QR 축소형**(실제 QR, data=예약번호, 모듈색 전체화면과 통일). 누르면 전체화면(기존 onTap 유지). 데모는 QrCode 아이콘이지만 실기기 접수 편의 위해 의도적 갈림(#6 결정). `card_bodies_b.dart` `QrPreviewBody`. 규칙 `CARD-OK-01b` 뒤집힘(테스트·골든 갱신).
 - [x] **#37** ✅코드(폰검증대기) — 홈 브랜드바 height 48 고정(다른 탭 PatientAppBar 48과 통일). `home_screen.dart`.
 - [x] **#15** ✅코드(폰검증대기) — 예약 탭 하단 「+ 새 예약하기」는 이미 배경 패널·그림자 없음(FilledButton M3 elevation 0). 하단 여백 16→8로 줄여 탭바에 더 붙임. `appointment_list_cta.dart`.
