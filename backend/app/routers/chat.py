@@ -109,6 +109,13 @@ async def start_session(
     return await webchat_service.start_or_restore_session(x_anon_token)
 
 
+@router.get("/threads")
+async def patient_threads(request: Request):
+    # 지난 상담 목록(CHAT-HISTORY-LIST-01) — 로그인 환자 소유만. 앱은 바로 배열을 받는다.
+    patient = await get_current_patient(request)
+    return await patient_ai_session.list_threads(patient)
+
+
 @router.get("/threads/{thread_id}/messages")
 async def thread_messages(thread_id: UUID):
     # thread UUID가 능력토큰(추측 불가) — 익명 토큰 없이 이력을 준다.

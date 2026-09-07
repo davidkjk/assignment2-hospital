@@ -56,3 +56,21 @@ async def _new_patient_thread(conn, patient_id: UUID) -> UUID:
     return await conn.fetchval(
         "insert into chat_threads (owner_type, patient_id) values ('patient', $1) returning id",
         patient_id)
+
+
+async def list_threads(patient: PatientContext) -> list[dict]:
+    # 지난 상담 목록(CHAT-HISTORY-LIST-01) — 메시지가 있는 내 상담방만, 마지막 활동 최신순.
+    # 방금 연 빈 상담방(메시지 0)은 이력이 아니므로 제외한다.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "select t.id::text as thread_id, "
+            "  (select content from chat_messages m where m.thread_id = t.id "
+            "   order by m.created_at desc, m.id desc limit 1) as last_snippet, "
+            "  t.last_activity_at as last_at "
+            "from chat_threads t "
+            "where t.owner_type='patient' and t.patient_id = $1 "
+            "  and exists (select 1 from chat_messages m where m.thread_id = t.id) "
+            "order by t.last_activity_at desc",
+            patient.id)
+    return [dict(r) for r in rows]

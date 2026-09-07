@@ -54,6 +54,26 @@ async def test_open_specific_owned_thread_by_id(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_list_threads_returns_only_threads_with_messages(committed_conn):
+    # 지난 상담 목록: 메시지가 있는 내 상담방만, 빈 방(방금 연 것)은 제외(CHAT-HISTORY-LIST-01).
+    p = await seed_patient(committed_conn)
+    empty = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    talked = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    sid = await committed_conn.fetchval(
+        "select id from create_ai_session($1, null, null, null, null)", talked)
+    await committed_conn.execute(
+        "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content) "
+        "values ($1, $2, 'bot', 'text', '두통은 내과로 안내드려요')", talked, sid)
+
+    rows = await patient_ai_session.list_threads(_ctx(p))
+    ids = [r["thread_id"] for r in rows]
+    assert str(talked) in ids
+    assert str(empty) not in ids  # 메시지 없는 방은 이력이 아니다
+    row = next(r for r in rows if r["thread_id"] == str(talked))
+    assert row["last_snippet"] == "두통은 내과로 안내드려요"
+
+
+@pytest.mark.asyncio
 async def test_rejects_other_patients_thread(committed_conn):
     # 남의 상담방은 이어볼 수 없다(404) — 개인정보 경계(맞든 틀리든 여는 게 아니라 못 연다).
     me = await seed_patient(committed_conn)
