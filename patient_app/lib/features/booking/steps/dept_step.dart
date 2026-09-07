@@ -44,7 +44,7 @@ class DeptStep extends ConsumerWidget {
                     ),
                   ),
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 8),
                   child: _DeptBotEntry(onTap: () => openDeptBot(context)),
                 ),
               ],
@@ -54,44 +54,53 @@ class DeptStep extends ConsumerWidget {
 }
 
 // BOOK-DEPT-02 — "어느 과인지 모르겠어요" 상담봇 진입점.
-// #25(2026-09-05 사용자): 점선 박스가 버튼처럼 안 보임 → 진료과 카드와 같은 계열의 버튼형으로
-// (연한 딥틸 틴트 면 + 실선 테두리 + 좌측 물음표 + 우측 화살표). 데모 점선(border-dashed)에서 갈림.
+// #25(2026-09-05): 데모 점선(border-dashed)이 버튼처럼 안 보여 실선 틴트 카드로 갈랐으나,
+//   그래도 위 진료과 카드(흰 카드+화살표)와 같은 모양이라 "또 하나의 흐린 카드 줄"로 읽혔다(사용자 재지적).
+// → 카드 목록과 의도적으로 다른 "톤 버튼"으로 재디자인: 딥틸 원형 아이콘 배지(누르는 액션의 핵심 신호)
+//   + 솔리드 톤 면 + 화살표 제거(목록 이동 어포던스라 버튼감을 죽임). 주 버튼(ActionButton)보다는 조용하게.
 class _DeptBotEntry extends StatelessWidget {
   const _DeptBotEntry({required this.onTap});
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTokens.primary.withValues(alpha: 0.06),
-      borderRadius: BorderRadius.circular(14),
+      color: AppTokens.primary.withValues(alpha: 0.10), // 옅은 카드가 아니라 채워진 톤 버튼 면
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTokens.primary.withValues(alpha: 0.3)),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: const Row(children: [
-            Icon(AppIcons.help, size: 20, color: AppTokens.primary),
+        child: const Padding(
+          padding: EdgeInsets.all(14),
+          child: Row(children: [
+            // 원형 딥틸 배지 + 흰 물음표 — 흰 카드 목록과 갈라 "누르는 버튼"임을 못박는 신호.
+            _BadgeIcon(),
             SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('어느 과인지 모르겠어요',
                     style: TextStyle(
-                        color: AppTokens.primary, fontWeight: FontWeight.w600, fontSize: 15)),
+                        color: AppTokens.primary, fontWeight: FontWeight.w700, fontSize: 15)),
                 SizedBox(height: 2),
                 Text('증상을 말씀하시면 AI 상담봇이 안내해드립니다',
                     style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
               ]),
             ),
-            Icon(AppIcons.chevron_right, color: AppTokens.primary),
           ]),
         ),
       ),
     );
   }
+}
+
+class _BadgeIcon extends StatelessWidget {
+  const _BadgeIcon();
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(color: AppTokens.primary, shape: BoxShape.circle),
+        child: const Icon(AppIcons.help, size: 22, color: Colors.white),
+      );
 }
 
 // NAV-BOOK-06 — 상담봇 시트를 연다(화면을 떠나지 않는 겹침). ⚠️ 시트 UI(BOOK-BOT-*)는 Task 20이 실체화.
