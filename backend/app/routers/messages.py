@@ -66,8 +66,7 @@ def _result_dto(res) -> dict:
 
 
 @router.post("/messages/status-callback")
-async def status_callback(request: Request, token: str | None = None,
-                          debug: str | None = None) -> dict:
+async def status_callback(request: Request, token: str | None = None) -> dict:
     """[SEND-RESULT-02][보안 F-03] SOLAPI 웹훅 수신 — 리포트 + URL 토큰 인증.
 
     SOLAPI 웹훅은 커스텀 헤더가 아니라 **등록 URL에 심은 토큰**(`?token=`)으로 인증한다.
@@ -81,18 +80,12 @@ async def status_callback(request: Request, token: str | None = None,
     ⚠️ 4000 외 코드의 정확한 성공/실패 구분은 실발송 1건으로 최종 확정 대상(보수적으로 실패 처리).
     """
     secret = settings.solapi_webhook_secret
-    authed = bool(secret) and token is not None and hmac.compare_digest(token, secret)
-    if not authed:
-        # TEMP DIAG(revert 예정): 값은 노출 안 함(bool만) — 서버가 시크릿을 읽고 있나/토큰이 왔나만.
-        if debug == "1":
-            return {"status": "ok", "_diag": {
-                "secret_set": bool(secret), "token_seen": token is not None, "authed": False}}
+    if not secret or token is None or not hmac.compare_digest(token, secret):
         return {"status": "ok"}
     try:
         payload = await request.json()
     except Exception:
         return {"status": "ok"}  # 본문이 JSON이 아니면 조용히 무시(막다른 길 없음)
-    diag_rows = []
     for r in _extract_reports(payload):
         mid = r.get("messageId")
         if not mid:
@@ -104,15 +97,6 @@ async def status_callback(request: Request, token: str | None = None,
         else:
             await message_service.handle_status_callback(
                 provider_message_id=mid, status="failed", failure_code=code)
-        if debug == "1":
-            from app.db.pool import get_pool
-            _pool = await get_pool()
-            async with _pool.acquire() as _c:
-                st = await _c.fetchval(
-                    "select delivery_status from notification_log where provider_message_id=$1", mid)
-            diag_rows.append({"mid_tail": mid[-6:], "code": code, "status_after": st})
-    if debug == "1":
-        return {"status": "ok", "_diag": {"authed": True, "rows": diag_rows}}
     return {"status": "ok"}
 
 
