@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from typing import NamedTuple
 from uuid import UUID
 
 from asyncpg.exceptions import ForeignKeyViolationError
@@ -31,12 +32,37 @@ select coalesce(
 """
 
 
-def _send_invite_email(admin, email: str, redirect_to: str | None):
-    """초대 이메일 한 통. redirect_to가 있으면 초대 수락 링크가 그 직원웹 origin으로 돌아온다
-    (라우터가 요청 origin에서 계산). 없으면 옛 동작 그대로 Supabase Site URL로 폴백한다."""
+class InviteResult(NamedTuple):
+    """초대 결과 — 생성된 staff 행 id와, 관리자가 직접 전달할 수락 링크.
+
+    invite_link는 None일 수 있다(고아 계정 복구에서 링크 생성이 실패한 드문 경우) —
+    이때 화면은 「링크를 만들지 못했습니다. [재초대]를 눌러 주세요」로 막다른 길을 피한다."""
+    staff_id: UUID
+    invite_link: str | None
+
+
+def _generate_invite_link(admin, email: str, redirect_to: str | None):
+    """초대 링크 한 개를 만든다 — 이메일을 발송하지 않고, 관리자가 직접 전달할 수락 링크만 뽑는다.
+
+    옛 방식(invite_user_by_email)은 Supabase가 즉시 초대 메일을 발송했는데, 발신 도메인
+    미검증(Resend B방식)이라 계정 주인 본인 외의 주소로는 발송이 500으로 실패해 초대가 막혔다
+    (2026-09-07). generate_link(type=invite)는 계정을 만들되 메일은 보내지 않고 action_link만
+    돌려주므로, 그 링크를 화면에 띄워 관리자가 카톡·문자 등으로 직접 전달한다(도메인 불필요).
+    redirect_to가 있으면 수락 링크가 그 직원웹 origin의 '비밀번호 설정' 화면으로 돌아온다."""
+    params: dict = {"type": "invite", "email": email}
     if redirect_to:
-        return admin.auth.admin.invite_user_by_email(email, {"redirect_to": redirect_to})
-    return admin.auth.admin.invite_user_by_email(email)
+        params["options"] = {"redirect_to": redirect_to}
+    return admin.auth.admin.generate_link(params)
+
+
+def _generate_recovery_link(admin, email: str, redirect_to: str | None) -> str:
+    """이미 계정이 있는 직원(고아 복구 등)에게 줄 '비밀번호 설정' 링크. 초대(type=invite)는 계정
+    생성과 한 덩어리라 기존 계정엔 막히므로, 복구(type=recovery) 링크를 뽑는다 — 착지 화면은
+    초대와 같은 /reset-password/new(복구·초대 공용)다. 여기서도 메일은 보내지 않는다."""
+    params: dict = {"type": "recovery", "email": email}
+    if redirect_to:
+        params["options"] = {"redirect_to": redirect_to}
+    return admin.auth.admin.generate_link(params).properties.action_link
 
 
 def _send_password_setup_email(admin, email: str, redirect_to: str | None):
@@ -122,18 +148,19 @@ async def _recover_or_explain_invite_failure(
     invited_by: StaffContext,
     redirect_to: str | None,
     conn,
-) -> UUID:
-    """초대 이메일 발송이 실패했을 때, 막다른 500 대신 원인을 사람 말로 돌려주고 고칠 수 있으면 잇는다.
+) -> "InviteResult":
+    """초대 링크 생성이 실패했을 때, 막다른 500 대신 원인을 사람 말로 돌려주고 고칠 수 있으면 잇는다.
 
-    - 발송 한도(429): 잠시 후 다시 안내(같은 시간에 여러 명을 초대하면 Supabase 이메일 서버가 잠깐 쉰다).
+    - 호출 한도(429): 잠시 후 다시 안내(같은 시간에 여러 명을 초대하면 Supabase가 잠깐 쉰다).
     - 이미 있는 이메일(422): auth.users엔 있는데 staff 행이 없으면 = 이전 초대가 중간에 끊긴 '고아
-      계정' → staff 행을 이어붙이고 초대를 새로 보낸다(막다른 길 해소). 진짜 등록된 직원이면 그대로 안내.
+      계정' → staff 행을 이어붙이고 복구 링크를 새로 만들어 돌려준다(막다른 길 해소). 진짜 등록된
+      직원이면 그대로 안내.
     - 그 밖의 알 수 없는 오류: 삼키지 않고 위로 던진다 — 전역 핸들러가 추적을 로그로 남기고 500을 낸다.
     """
     if _is_rate_limit_error(exc):
         raise AppError(
-            "초대 이메일 발송이 잠시 제한되었습니다. 같은 시간에 여러 명을 초대하면 이메일 서버가 "
-            "잠깐 쉬어야 합니다. 몇 분 뒤 다시 시도해 주세요.",
+            "초대가 잠시 제한되었습니다. 같은 시간에 여러 명을 초대하면 잠깐 쉬어야 합니다. "
+            "몇 분 뒤 다시 시도해 주세요.",
             status_code=429,
         ) from exc
 
@@ -148,15 +175,14 @@ async def _recover_or_explain_invite_failure(
                     "직원의 [재초대]를 눌러 주세요.",
                     status_code=409,
                 ) from exc
-            # 고아 계정 구제 — 끊겼던 연결을 잇고 초대를 새로 보낸다.
+            # 고아 계정 구제 — 끊겼던 연결을 잇고 복구 링크를 새로 만들어 돌려준다.
             staff_id = await _create_staff_row(existing_id, name, role, department_id, invited_by, conn)
             try:
-                _send_invite_email(admin, email, redirect_to)
+                link = _generate_recovery_link(admin, email, redirect_to)
             except Exception:
-                # 이미 초대를 수락한 계정이면 재발송이 막힐 수 있다 — staff 연결은 이미 됐으니
-                # 그 직원은 로그인만 하면 된다(막다른 길 아님).
-                pass
-            return staff_id
+                # 링크를 못 만들어도 staff 연결은 이미 됐다 — 화면이 [재초대]로 안내한다(막다른 길 아님).
+                link = None
+            return InviteResult(staff_id=staff_id, invite_link=link)
         raise AppError(
             "이미 등록된 이메일이지만 계정을 찾지 못했습니다. 잠시 후 다시 시도하거나 관리자에게 "
             "문의해 주세요.",
@@ -175,25 +201,27 @@ async def invite_staff(
     invited_by: StaffContext,
     redirect_to: str | None = None,
     conn=None,
-) -> UUID:
+) -> InviteResult:
     # [정합성 검토 R3-04] 의사는 소속 진료과가 있어야 예약·슬롯·환자조회 범위(doctor_can_view_patient 등)가
     # 성립한다. 이전에는 이 검사가 StaffAdminPage.tsx(프론트엔드)에만 있어, 프론트를 거치지 않는 직접
-    # API 호출(또는 클라이언트 버그)로 소속 없는 의사가 만들어질 수 있었다. 이메일을 실제로 보내기 전에
-    # 먼저 검사해 불필요한 초대 발송도 막는다.
+    # API 호출(또는 클라이언트 버그)로 소속 없는 의사가 만들어질 수 있었다. 링크를 만들기 전에
+    # 먼저 검사해 불필요한 초대 생성도 막는다.
     if role == "doctor" and department_id is None:
         raise AppError("의사는 소속 진료과를 선택해야 합니다.", status_code=400)
 
     admin = get_admin_client()
     try:
-        result = _send_invite_email(admin, email, redirect_to)
+        result = _generate_invite_link(admin, email, redirect_to)
         auth_user_id = UUID(result.user.id)
+        invite_link = result.properties.action_link
     except Exception as exc:
-        # 발송 실패를 막다른 500으로 흘리지 않는다(STAFF-INVITE-06~09) — 원인별 안내 + 고아 구제.
+        # 링크 생성 실패를 막다른 500으로 흘리지 않는다(STAFF-INVITE-06~09) — 원인별 안내 + 고아 구제.
         return await _recover_or_explain_invite_failure(
             exc, email, name, role, department_id, invited_by, redirect_to, conn,
         )
 
-    return await _create_staff_row(auth_user_id, name, role, department_id, invited_by, conn)
+    staff_id = await _create_staff_row(auth_user_id, name, role, department_id, invited_by, conn)
+    return InviteResult(staff_id=staff_id, invite_link=invite_link)
 
 
 def _impact_version(rows: list[dict]) -> str:

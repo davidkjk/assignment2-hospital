@@ -203,7 +203,10 @@ export function setupStaff(config: SetupConfig = {}) {
           }),
         )
       }
-      return HttpResponse.json({ staff_id: id })
+      return HttpResponse.json({
+        staff_id: id,
+        invite_link: `https://staff.test/reset-password/new?token=tok-${id}`,
+      })
     }),
     http.patch('*/staff/:id/profile', async ({ request, params }) => {
       const p = pathname(request)

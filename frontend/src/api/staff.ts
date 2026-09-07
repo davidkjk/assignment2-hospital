@@ -63,8 +63,10 @@ export const staffApi = {
   /** STAFF-INVITE-03 — 사용 중인 진료과만. */
   departments: () => apiFetch<Department[]>('/admin/departments?include_inactive=false'),
 
+  /** 초대는 메일을 자동 발송하지 않는다(발신 도메인 미검증) — 대신 관리자가 직접 전달할 수락
+   *  링크(invite_link)를 돌려준다. 드물게 링크를 못 만든 경우 null(화면은 [재초대]로 안내). */
   invite: (body: InviteBody) =>
-    apiFetch<{ staff_id: string }>('/staff', {
+    apiFetch<{ staff_id: string; invite_link: string | null }>('/staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

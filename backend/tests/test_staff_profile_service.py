@@ -138,7 +138,7 @@ async def test_한_번도_로그인하지_않았으면_초대시각만_있다(db
 
 
 def _invite_admin_with_seeded_users(db_conn, n):
-    """invite_user_by_email가 미리 심어둔 auth.users id를 차례로 돌려주는 fake."""
+    """generate_link가 미리 심어둔 auth.users id를 차례로 돌려주는 fake(메일은 안 보내고 링크만)."""
     ids = []
 
     async def _seed():
@@ -156,12 +156,13 @@ def _invite_admin_with_seeded_users(db_conn, n):
     admin = MagicMock()
     it = iter(range(n))
 
-    def _invite(_email):
+    def _invite(_params):
         u = MagicMock()
         u.user.id = str(ids[next(it)])
+        u.properties.action_link = "https://staff.example/reset-password/new?token=t"
         return u
 
-    admin.auth.admin.invite_user_by_email.side_effect = _invite
+    admin.auth.admin.generate_link.side_effect = _invite
     return admin, ids, _seed
 
 
@@ -179,8 +180,8 @@ async def test_새_의사에게_남은_색을_0번부터_자동으로_준다(db_
     with patch("app.services.staff_service.get_admin_client", return_value=fake):
         a = await staff_service.invite_staff(email="a@t", name="가", role="doctor", department_id=dept, invited_by=_ctx(admin), conn=db_conn)
         b = await staff_service.invite_staff(email="b@t", name="나", role="doctor", department_id=dept, invited_by=_ctx(admin), conn=db_conn)
-    assert await _color_of(db_conn, a) == 0
-    assert await _color_of(db_conn, b) == 1
+    assert await _color_of(db_conn, a.staff_id) == 0
+    assert await _color_of(db_conn, b.staff_id) == 1
 
 
 @pytest.mark.asyncio
@@ -202,7 +203,7 @@ async def test_색이_다_찼어도_계정은_만들어진다(db_conn):
     await seed()
     with patch("app.services.staff_service.get_admin_client", return_value=fake):
         k = await staff_service.invite_staff(email="k@t", name="열한번째", role="doctor", department_id=dept, invited_by=_ctx(admin), conn=db_conn)
-    assert await _color_of(db_conn, k) == 0
+    assert await _color_of(db_conn, k.staff_id) == 0
 
 
 @pytest.mark.asyncio
@@ -213,7 +214,7 @@ async def test_접수직원에게는_색을_주지_않는다(db_conn):
     await seed()
     with patch("app.services.staff_service.get_admin_client", return_value=fake):
         r = await staff_service.invite_staff(email="r@t", name="박접수", role="receptionist", department_id=None, invited_by=_ctx(admin), conn=db_conn)
-    assert await _color_of(db_conn, r) is None
+    assert await _color_of(db_conn, r.staff_id) is None
 
 
 @pytest.mark.asyncio

@@ -81,6 +81,10 @@ class InviteStaffRequest(BaseModel):
 
 class InviteStaffResponse(BaseModel):
     staff_id: UUID
+    # 관리자가 초대받는 직원에게 직접 전달할 '비밀번호 설정' 링크. 발신 도메인 미검증이라 메일을
+    # 자동 발송하지 않고(2026-09-07), 화면이 이 링크를 복사 버튼으로 띄운다. 드물게 링크를 만들지
+    # 못한 경우(고아 복구 실패) None — 화면은 [재초대]로 안내한다.
+    invite_link: str | None = None
 
 
 class UpdateProfileRequest(BaseModel):
@@ -100,11 +104,11 @@ async def invite_staff(
     request: Request,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> InviteStaffResponse:
-    staff_id = await staff_service.invite_staff(
+    result = await staff_service.invite_staff(
         email=body.email, name=body.name, role=body.role, department_id=body.department_id, invited_by=staff,
         redirect_to=_invite_accept_url(request),
     )
-    return InviteStaffResponse(staff_id=staff_id)
+    return InviteStaffResponse(staff_id=result.staff_id, invite_link=result.invite_link)
 
 
 @router.patch("/{staff_id}/deactivate")
