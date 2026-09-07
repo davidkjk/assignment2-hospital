@@ -172,6 +172,13 @@ export function setupStaff(config: SetupConfig = {}) {
         )
       return HttpResponse.json({ status: 'resent' })
     }),
+    http.post('*/staff/:id/reset-password', async ({ request }) => {
+      const p = pathname(request)
+      record('POST', p, await readBody(request))
+      if (shouldFail('POST', p))
+        return HttpResponse.json({ detail: '재설정 메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' }, { status: 429 })
+      return HttpResponse.json({ status: 'sent' })
+    }),
     http.post('*/staff', async ({ request }) => {
       const p = pathname(request)
       const body = (await readBody(request)) as { email: string; name: string; role: Role; department_id: string | null } | null
@@ -227,6 +234,20 @@ export function setupStaff(config: SetupConfig = {}) {
       const member = state.staff.find((m) => m.id === params.id)
       if (member) member.is_active = false
       return HttpResponse.json({ status: 'deactivated' })
+    }),
+    http.delete('*/staff/:id', ({ request, params }) => {
+      const p = pathname(request)
+      record('DELETE', p, null)
+      const ov = overrideFor('DELETE', p)
+      if (ov) return HttpResponse.json(ov.detail ? { detail: ov.detail } : {}, { status: ov.status })
+      if (shouldFail('DELETE', p))
+        return HttpResponse.json(
+          { detail: "이 직원에게 딸린 기록(예약·일정 등)이 있어 삭제할 수 없습니다. 대신 '중지'를 사용하세요." },
+          { status: 409 },
+        )
+      const idx = state.staff.findIndex((m) => m.id === params.id)
+      if (idx >= 0) state.staff.splice(idx, 1)
+      return HttpResponse.json({ status: 'deleted' })
     }),
   )
 

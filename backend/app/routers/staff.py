@@ -187,8 +187,37 @@ async def resend_invite(
     request: Request,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> dict:
-    """[정합성 검토 R3-04] 초대 이메일 재발송."""
+    """[정합성 검토 R3-04] 초대 이메일 재발송(미수락 직원). welcome=True → 착지 화면이 최초
+    초대와 같은 「환영합니다」(STAFF-REINVITE-COPY-01)."""
     await staff_service.resend_invite(
         staff_id, requested_by=staff, redirect_to=_invite_accept_url(request, welcome=True)
     )
     return {"status": "resent"}
+
+
+@router.post("/{staff_id}/reset-password")
+async def reset_staff_password(
+    staff_id: UUID,
+    request: Request,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[STAFF-RESET-PW-01] 이미 들어온(활성) 직원이 비밀번호를 잊었을 때 관리자가 재설정 링크를
+    보낸다(사용자 결정 2026-09-07, #26 확장 — 셀프 재설정만이 아니라 관리자 발송도 허용).
+    재초대와 같은 reset_password_for_email을 쓰되 welcome 표식을 붙이지 않아 착지 화면은
+    「새 비밀번호 만들기」(재설정 문구)로 뜬다. 관리자는 비번을 보지 않는다 — 링크만 보내고
+    새 비번은 직원이 스스로 만든다(요구사항 451과 상충 안 함)."""
+    await staff_service.resend_invite(
+        staff_id, requested_by=staff, redirect_to=_invite_accept_url(request)
+    )
+    return {"status": "sent"}
+
+
+@router.delete("/{staff_id}")
+async def delete_staff(
+    staff_id: UUID,
+    staff: StaffContext = Depends(require_role("admin")),
+) -> dict:
+    """[STAFF-DELETE-01] 잘못 초대한 미수락 계정을 되돌린다(삭제). 미수락 + 딸린 데이터 없음일
+    때만 성공 — 서비스가 가드한다(사용자 결정 2026-09-07)."""
+    await staff_service.delete_staff(staff_id, requested_by=staff)
+    return {"status": "deleted"}

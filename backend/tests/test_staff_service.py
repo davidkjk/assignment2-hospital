@@ -203,6 +203,49 @@ async def test_deactivate_staff_allows_admin_when_another_admin_remains(db_conn)
 
 
 @pytest.mark.asyncio
+async def test_delete_staff_rejects_self(db_conn):
+    """[STAFF-DELETE-01] 본인 계정은 삭제할 수 없다(가드 먼저 — admin API도 안 부른다)."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    with pytest.raises(AppError) as exc_info:
+        await staff_service.delete_staff(admin_ctx.id, requested_by=admin_ctx, conn=db_conn)
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_delete_staff_rejects_accepted(db_conn, _fake_admin_client):
+    """[STAFF-DELETE-01] 이미 로그인한 적 있는(수락) 직원은 삭제하지 않는다 — 중지를 쓴다.
+    참조 기록이 깨질 수 있어 미수락만 삭제한다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")
+    _fake_admin_client.auth.admin.get_user_by_id.return_value.user.last_sign_in_at = "2026-08-01T09:00:00+09:00"
+
+    with pytest.raises(AppError) as exc_info:
+        await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
+    assert exc_info.value.status_code == 409
+    row = await db_conn.fetchrow("select id from staff where id = $1", target["staff_id"])
+    assert row is not None  # 삭제 안 됨
+    _fake_admin_client.auth.admin.delete_user.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_staff_removes_pending(db_conn, _fake_admin_client):
+    """[STAFF-DELETE-01] 미수락(로그인 이력 없음) + 딸린 데이터 없음이면 staff 행을 지우고
+    auth 사용자도 지운다(같은 이메일 재초대 가능)."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")
+    _fake_admin_client.auth.admin.get_user_by_id.return_value.user.last_sign_in_at = None
+
+    await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
+
+    row = await db_conn.fetchrow("select id from staff where id = $1", target["staff_id"])
+    assert row is None
+    _fake_admin_client.auth.admin.delete_user.assert_called_once_with(str(target["auth_user_id"]))
+
+
+@pytest.mark.asyncio
 async def test_list_staff_returns_all_roles(db_conn):
     """[정합성 검토 R3-04] 관리자 화면의 직원 목록 — 활성/비활성 모두 포함한다."""
     admin_seed = await seed_staff(db_conn, role="admin")

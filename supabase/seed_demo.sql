@@ -219,6 +219,12 @@ select s.id, wd,
 from staff s
 cross join generate_series(0, 5) as wd   -- 월(0)~토(5). 일요일(6)은 규칙 없음 = 휴무.
 where s.role = 'doctor'
+  -- [STAFF-PEND-01 데모] doctor8은 '초대만 하고 아직 안 들어온(미수락)' 데모 의사다(위 §2에서
+  --   last_sign_in_at을 일부러 null로 둔다). 현실의 미수락 의사엔 딸린 데이터가 없어야 하므로
+  --   진료시간을 만들지 않는다 → 슬롯(이 규칙에 JOIN)·예약(슬롯 파생)도 연쇄로 안 생긴다.
+  --   그래야 캘린더 칩·일정 피커엔 '아직 안 들어옴'으로 뜨고(격자 열엔 진료시간이 없어 안 뜸),
+  --   잘못 초대 되돌리기(삭제, STAFF-DELETE-01)도 딸린 데이터 없이 자연스럽게 된다.
+  and s.id <> 'bbbbbbbb-0000-0000-0000-000000000018'::uuid
 on conflict (doctor_id, weekday) do nothing;
 
 -- ════════════════════════════════════════════════════════════════════════════

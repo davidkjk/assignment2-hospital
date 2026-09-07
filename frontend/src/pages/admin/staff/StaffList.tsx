@@ -22,11 +22,17 @@ interface StaffListProps {
   activeProfileId: string | null
   onProfile(id: string): void
   onDeactivate(member: StaffMember): void
+  onDelete(member: StaffMember): void
   onInviteEmptyState(): void
 }
 
 function isInvited(m: StaffMember): boolean {
   return m.is_active && m.last_sign_in_at === null
+}
+
+// 이미 들어온(수락한) 활성 직원 — 비밀번호 재설정 대상(STAFF-RESET-PW-01). 미수락은 [재초대]가 맡는다.
+function isAccepted(m: StaffMember): boolean {
+  return m.is_active && m.last_sign_in_at !== null
 }
 
 export function StaffList({
@@ -39,11 +45,14 @@ export function StaffList({
   activeProfileId,
   onProfile,
   onDeactivate,
+  onDelete,
   onInviteEmptyState,
 }: StaffListProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const [resentIds, setResentIds] = useState<Set<string>>(new Set())
   const [resendErrors, setResendErrors] = useState<Map<string, string>>(new Map())
+  const [resetSentIds, setResetSentIds] = useState<Set<string>>(new Set())
+  const [resetErrors, setResetErrors] = useState<Map<string, string>>(new Map())
 
   const deptName = useMemo(() => {
     const map = new Map(departments.map((d) => [d.id, d.name]))
@@ -98,6 +107,28 @@ export function StaffList({
     }
   }
 
+  async function resetPassword(id: string) {
+    // [STAFF-RESET-PW-01] 관리자가 활성 직원에게 비밀번호 재설정 링크를 보낸다. 재초대와 마찬가지로
+    // 실패(429 등)를 삼키지 않고 그 행에 이유를 보인다(무반응 방지).
+    try {
+      await staffApi.resetPassword(id)
+      setResetSentIds((prev) => new Set(prev).add(id))
+      setResetErrors((prev) => {
+        const next = new Map(prev)
+        next.delete(id)
+        return next
+      })
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : '재설정 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.'
+      setResetErrors((prev) => new Map(prev).set(id, message))
+      setResetSentIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
   return (
     <div data-col="left" style={styles.col}>
       <div style={styles.filters} role="group" aria-label="상태 필터">
@@ -145,6 +176,7 @@ export function StaffList({
           {visible.map((m) => {
             const self = m.id === currentStaffId
             const invited = isInvited(m)
+            const accepted = isAccepted(m)
             const isDoctor = m.role === 'doctor'
             return (
               <li
@@ -199,6 +231,16 @@ export function StaffList({
                       {resendErrors.get(m.id)}
                     </span>
                   )}
+                  {resetSentIds.has(m.id) && (
+                    <span role="status" style={styles.resent}>
+                      비밀번호 재설정 메일을 보냈습니다
+                    </span>
+                  )}
+                  {resetErrors.has(m.id) && (
+                    <span role="alert" style={styles.resendError}>
+                      {resetErrors.get(m.id)}
+                    </span>
+                  )}
                 </div>
 
                 <div style={styles.rowActions}>
@@ -209,6 +251,17 @@ export function StaffList({
                   )}
                   {invited && !self && (
                     <BusyButton label="재초대" busyLabel="보내는 중…" onClick={() => resend(m.id)} />
+                  )}
+                  {/* [STAFF-DELETE-01] 미수락 계정만 삭제(잘못 초대 되돌리기). 되돌릴 수 없어 확인창
+                      안에서만 실제 삭제(빨간 버튼은 그 안에서·BLOCK-CONF-01) — 여기선 평범한 버튼. */}
+                  {invited && !self && (
+                    <button type="button" onClick={() => onDelete(m)} style={styles.action}>
+                      삭제
+                    </button>
+                  )}
+                  {/* [STAFF-RESET-PW-01] 이미 들어온 직원이 비번을 잊었을 때 관리자가 재설정 링크 발송. */}
+                  {accepted && !self && (
+                    <BusyButton label="비밀번호 재설정" busyLabel="보내는 중…" onClick={() => resetPassword(m.id)} />
                   )}
                   {m.is_active && !self && (
                     <button type="button" onClick={() => onDeactivate(m)} style={styles.action}>

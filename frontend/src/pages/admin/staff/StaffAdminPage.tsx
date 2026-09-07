@@ -4,8 +4,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { RequireRole } from '../../../auth/RequireRole'
 import { ADMIN_ONLY } from '../../../auth/roles'
 import { useAuth } from '../../../auth/useAuth'
-import { dialogStyles } from '../../../components/ConfirmDialog'
+import { ConfirmDialog, dialogStyles } from '../../../components/ConfirmDialog'
 import { staffApi, type StaffMember } from '../../../api/staff'
+import { ApiError } from '../../../api/httpClient'
 import { StaffList } from './StaffList'
 import { InviteForm } from './InviteForm'
 import { DoctorProfilePanel } from './DoctorProfilePanel'
@@ -47,6 +48,9 @@ function StaffAdminInner() {
   const [profileDirty, setProfileDirty] = useState(false)
   const [leavePrompt, setLeavePrompt] = useState<{ proceed: () => void } | null>(null)
   const [deactivating, setDeactivating] = useState<StaffMember | null>(null)
+  const [deleting, setDeleting] = useState<StaffMember | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const [banner, setBanner] = useState<{ count: number } | null>(null)
 
   const handleDirty = useCallback((d: boolean) => setProfileDirty(d), [])
@@ -78,6 +82,22 @@ function StaffAdminInner() {
     setBanner(count > 0 ? { count } : null)
   }
 
+  async function confirmDelete() {
+    if (!deleting || deleteBusy) return
+    setDeleteBusy(true)
+    setDeleteError(null)
+    try {
+      await staffApi.remove(deleting.id)
+      setDeleting(null)
+      await staffQ.refetch()
+    } catch (err) {
+      // 딸린 데이터가 있으면 서버가 409로 "중지를 쓰세요"를 준다 — 삼키지 않고 확인창에 보인다.
+      setDeleteError(err instanceof ApiError ? err.message : '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+
   const selectedDoctor =
     right.kind === 'profile' ? staff.find((m) => m.id === right.staffId) : undefined
 
@@ -104,6 +124,10 @@ function StaffAdminInner() {
           activeProfileId={right.kind === 'profile' ? right.staffId : null}
           onProfile={openProfile}
           onDeactivate={setDeactivating}
+          onDelete={(m) => {
+            setDeleteError(null)
+            setDeleting(m)
+          }}
           onInviteEmptyState={() => {
             setRight({ kind: 'invite' })
             emailRef.current?.focus()
@@ -137,6 +161,27 @@ function StaffAdminInner() {
           onCancel={() => setDeactivating(null)}
           onDone={onDeactivated}
         />
+      )}
+
+      {/* [STAFF-DELETE-01] 잘못 초대한 미수락 계정 되돌리기(삭제). 되돌릴 수 없어 확인창 안에서만,
+          빨간 버튼(danger)도 여기서만(BLOCK-CONF-01). 딸린 데이터가 있으면 서버가 막고 이유를 보인다. */}
+      {deleting && (
+        <ConfirmDialog
+          title={`${deleting.name} 님의 초대를 취소할까요?`}
+          confirmLabel={deleteBusy ? '지우는 중…' : '초대 취소하고 삭제'}
+          cancelLabel="그만두기"
+          danger
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => void confirmDelete()}
+        >
+          <p style={styles.deleteMsg}>
+            아직 들어오지 않은(초대 수락 전) 계정이라 지워도 안전합니다. 계정을 완전히 삭제하며,
+            <strong> 되돌릴 수 없습니다.</strong> 같은 이메일로 정보를 다시 입력해 초대할 수 있습니다.
+          </p>
+          {deleteError && (
+            <p role="alert" style={styles.deleteError}>{deleteError}</p>
+          )}
+        </ConfirmDialog>
       )}
 
       {leavePrompt && (
@@ -211,6 +256,8 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
   },
+  deleteMsg: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)', lineHeight: 1.5 },
+  deleteError: { margin: 'var(--sp-3) 0 0', fontSize: 'var(--fs-caption)', color: 'var(--color-danger)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'] },
   leaveTitle: { margin: 0, fontSize: 'var(--fs-section)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   leaveMsg: { margin: 'var(--sp-2) 0 0', fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   leaveActions: { display: 'flex', justifyContent: 'flex-end', gap: 'var(--sp-2)', marginTop: 'var(--sp-5)' },

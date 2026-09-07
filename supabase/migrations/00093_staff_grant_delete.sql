@@ -1,0 +1,12 @@
+-- [STAFF-DELETE-01] 미수락(잘못 초대) 계정 삭제(delete_staff, 2026-09-07 사용자 결정)를 위한
+-- 테이블 GRANT 보정.
+--
+-- RLS 정책 admin_can_manage_staff(ALL, private.is_admin())는 이미 DELETE를 관리자로 제한하지만,
+-- 테이블 GRANT에 DELETE가 빠져 있어 관리자 세션에서도 "permission denied for table staff"로 막혔다.
+-- (Postgres는 테이블 GRANT[권한]과 RLS[행 필터]를 둘 다 요구한다 — 00092가 appointment_slots에서
+--  고친 것과 같은 이중 계층 함정.)
+--
+-- GRANT만 추가한다 — 어느 행을 지울 수 있는지는 RLS(admin_can_manage_staff)가 그대로 강제하므로
+-- 관리자만 삭제 가능하다. 환자·일반 직원은 staff에 DELETE 정책이 없어 여전히 전부 차단된다.
+-- 추가·되돌림 가능·데이터 무변경.
+grant delete on public.staff to authenticated;

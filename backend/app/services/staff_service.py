@@ -2,6 +2,8 @@ import hashlib
 import logging
 from uuid import UUID
 
+from asyncpg.exceptions import ForeignKeyViolationError
+
 from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.admin_client import get_admin_client
@@ -381,10 +383,68 @@ async def resend_invite(
     except Exception as exc:
         if _is_rate_limit_error(exc):
             raise AppError(
-                "초대 이메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.",
+                "메일 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.",
                 status_code=429,
             ) from exc
         raise AppError(
             "비밀번호 설정 메일을 다시 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
             status_code=502,
         ) from exc
+
+
+async def delete_staff(staff_id: UUID, requested_by: StaffContext, conn=None) -> None:
+    """[STAFF-DELETE-01] 잘못 초대한 계정을 되돌린다 — **미수락(한 번도 로그인 안 함) + 딸린
+    데이터가 없을 때만** 통째로 삭제한다(staff 행 + auth 사용자). 그러면 같은 이메일로 정보를
+    다시 기입해 새로 초대할 수 있다.
+
+    ⚠️ 이미 들어온(수락한) 직원이나, 예약·진료기록·일정이 딸린 계정은 삭제하지 않는다 — 그 직원을
+    참조하는 기록이 깨진다(staff를 가리키는 FK 대부분이 NO ACTION). 그런 경우는 '중지'를 쓴다.
+    (사용자 결정 2026-09-07: 미수락만 삭제.)"""
+    if staff_id == requested_by.id:
+        raise AppError("본인 계정은 삭제할 수 없습니다.", status_code=409)
+
+    admin = get_admin_client()
+
+    async def _run(c):
+        target = await c.fetchrow("select auth_user_id from staff where id = $1", staff_id)
+        if target is None:
+            raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
+        # 미수락만 — auth.users의 last_sign_in_at이 원본(수락=최초 로그인 시점에 채워진다).
+        user_resp = admin.auth.admin.get_user_by_id(str(target["auth_user_id"]))
+        user = getattr(user_resp, "user", user_resp)
+        if getattr(user, "last_sign_in_at", None) is not None:
+            raise AppError(
+                "이미 로그인한 적 있는 직원은 삭제할 수 없습니다. 대신 '중지'를 사용하세요.",
+                status_code=409,
+            )
+        # 딸린 데이터(예약·기록·일정 등)가 있으면 FK가 막는다 — 조용한 0행 삭제가 아니라
+        # 친절한 이유로 바꿔 던진다(막다른 길 금지: 해결 경로=중지 안내).
+        try:
+            deleted = await c.fetchval("delete from staff where id = $1 returning id", staff_id)
+        except ForeignKeyViolationError as exc:
+            raise AppError(
+                "이 직원에게 딸린 기록(예약·일정 등)이 있어 삭제할 수 없습니다. 대신 '중지'를 사용하세요.",
+                status_code=409,
+            ) from exc
+        if deleted is None:
+            # RLS로 걸러졌거나 경쟁 삭제 — 관리자만 삭제 가능(admin_can_manage_staff ALL).
+            raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
+        return target
+
+    if conn is not None:
+        target = await _run(conn)
+    else:
+        async with acquire_as(str(requested_by.auth_user_id)) as c:
+            target = await _run(c)
+
+    # staff 행이 지워진 뒤 auth 사용자도 지운다(이메일을 비워 재초대 가능). ⚠️ 순서 중요:
+    # staff.auth_user_id → auth.users FK(NO ACTION)라 staff를 먼저 지워야 auth 삭제가 막히지 않는다.
+    # best-effort — 실패하면 auth 사용자가 남지만, 같은 이메일 재초대 시 orphan 복구 경로가 이어붙인다.
+    try:
+        admin.auth.admin.delete_user(str(target["auth_user_id"]))
+    except Exception:  # noqa: BLE001 — staff 행은 이미 삭제됨. auth 잔존은 재초대가 복구한다.
+        logger.warning(
+            "delete_staff: auth 사용자 삭제 실패 auth_user_id=%s (staff 행은 삭제됨)",
+            target["auth_user_id"],
+            exc_info=True,
+        )

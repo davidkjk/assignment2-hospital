@@ -66,6 +66,15 @@ export const staffApi = {
   resendInvite: (id: string) =>
     apiFetch<{ status: string }>(`/staff/${id}/resend-invite`, { method: 'POST' }),
 
+  /** STAFF-RESET-PW-01 — 이미 들어온(활성) 직원의 비밀번호 재설정 링크를 관리자가 발송(#26 확장).
+   *  재초대와 같은 함수를 쓰나 착지 화면은 「새 비밀번호 만들기」(welcome 표식 없음). */
+  resetPassword: (id: string) =>
+    apiFetch<{ status: string }>(`/staff/${id}/reset-password`, { method: 'POST' }),
+
+  /** STAFF-DELETE-01 — 잘못 초대한 미수락 계정을 되돌린다(삭제). 서버가 미수락+데이터없음을 가드. */
+  remove: (id: string) =>
+    apiFetch<{ status: string }>(`/staff/${id}`, { method: 'DELETE' }),
+
   /** STAFF-PROFILE-04·CAL-COLOR-09 — 바뀐 칸만 보낸다(부분 저장). */
   updateProfile: (id: string, patch: ProfilePatch) =>
     apiFetch<{ status: string }>(`/staff/${id}/profile`, {

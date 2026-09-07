@@ -128,6 +128,46 @@ test('[STAFF-ROW-03] 재초대가 실패하면 그 행에 이유를 보여준다
   expect(within(rowOf('김의사')).queryByText('초대 이메일을 다시 보냈습니다')).toBeNull()
 })
 
+test('[STAFF-DELETE-01][STAFF-RESET-PW-01] 삭제는 미수락에만, 비밀번호 재설정은 활성 수락 직원에만 뜬다', async () => {
+  setupStaff()
+  await screen.findByText('김의사')
+  // 미수락(김의사): [삭제] O, [비밀번호 재설정] X
+  expect(within(rowOf('김의사')).getByRole('button', { name: '삭제' })).toBeVisible()
+  expect(within(rowOf('김의사')).queryByRole('button', { name: '비밀번호 재설정' })).toBeNull()
+  // 활성 수락(박접수): [비밀번호 재설정] O, [삭제] X
+  expect(within(rowOf('박접수')).getByRole('button', { name: '비밀번호 재설정' })).toBeVisible()
+  expect(within(rowOf('박접수')).queryByRole('button', { name: '삭제' })).toBeNull()
+})
+
+test('[STAFF-DELETE-01] 미수락 [삭제]는 확인창을 거쳐 DELETE를 부르고 목록에서 사라진다', async () => {
+  const { user, api } = setupStaff()
+  await screen.findByText('김의사')
+  await user.click(within(rowOf('김의사')).getByRole('button', { name: '삭제' }))
+  // 되돌릴 수 없는 동작이라 확인창 안에서만 실제 삭제(빨간 버튼도 여기서만).
+  await user.click(screen.getByRole('button', { name: '초대 취소하고 삭제' }))
+  await waitFor(() => expect(api.calls('DELETE /staff/s-006')).toHaveLength(1))
+  await waitFor(() => expect(screen.queryByText('김의사')).toBeNull())
+})
+
+test('[STAFF-DELETE-01] 딸린 데이터로 삭제가 막히면 이유를 보이고 행은 남는다(막다른 길 금지)', async () => {
+  const { user, api } = setupStaff()
+  api.fail('DELETE /staff/s-006')
+  await screen.findByText('김의사')
+  await user.click(within(rowOf('김의사')).getByRole('button', { name: '삭제' }))
+  await user.click(screen.getByRole('button', { name: '초대 취소하고 삭제' }))
+  // 서버가 준 이유("중지를 사용하세요")를 확인창에 보이고, 행은 그대로 남는다.
+  expect(await screen.findByRole('alert')).toHaveTextContent('중지')
+  expect(screen.getByText('김의사')).toBeVisible()
+})
+
+test('[STAFF-RESET-PW-01] 비밀번호 재설정은 reset-password 엔드포인트를 부르고 보냈다고 알린다', async () => {
+  const { user, api } = setupStaff()
+  await screen.findByText('박접수')
+  await user.click(within(rowOf('박접수')).getByRole('button', { name: '비밀번호 재설정' }))
+  await waitFor(() => expect(api.lastCall()).toBe('POST /staff/s-003/reset-password'))
+  expect(await within(rowOf('박접수')).findByText('비밀번호 재설정 메일을 보냈습니다')).toBeVisible()
+})
+
 test('[STAFF-STATE-01] 목록이 다시 조회에 실패해도 초대 입력은 지워지지 않는다', async () => {
   const { user, api, refetchList } = setupStaff()
   await screen.findByText('이민호')
