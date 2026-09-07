@@ -350,6 +350,18 @@ async def _revalidate_cancel(patient: PatientContext, payload: dict) -> dict:
         updated_at=row["updated_at"].isoformat()))
 
 
+async def _revalidate_pick_target(patient: PatientContext, payload: dict) -> dict:
+    """[WEBCARD-TARGET-01/02] 로그인 후 대상 선택 카드. list_family_members가 본인+활성 가족을 함께 준다
+    (본인 relation='본인' → 카드 계약상 None으로 정규화). 앞 선택값(dep·doc·slot)은 payload가 그대로 나른다."""
+    from app.services import patient_family_service
+    members = await patient_family_service.list_family_members(patient)
+    targets = [{"for_patient_id": str(m["id"]), "name": m["name"],
+                "relation": None if m["is_self"] else m["relation"]} for m in members]
+    return _envelope(card_builder.build_target_select_card(
+        department_id=str(UUID(payload["department_id"])), doctor_id=str(UUID(payload["doctor_id"])),
+        slot_id=str(UUID(payload["slot_id"])), slot_at=payload["slot_at"], targets=targets))
+
+
 async def revalidate_action(patient: PatientContext, action: dict) -> dict | None:
     """인증 후 원래 행동을 최신 서버 상태로 재검증한다(자동 실행 없음 — 재확인 카드만 준다)."""
     kind = action.get("kind")
@@ -358,6 +370,8 @@ async def revalidate_action(patient: PatientContext, action: dict) -> dict | Non
         return await _revalidate_book(patient, payload)
     if kind == "cancel":
         return await _revalidate_cancel(patient, payload)
+    if kind == "pick_target":
+        return await _revalidate_pick_target(patient, payload)   # 늦은 관문(④) 로그인 후 대상 선택
     if kind == "view_my_appointments":
         return None   # [WEBMOD-AUTH-07] 최신 조회만 — 카드 없이 프론트가 목록을 새로 읽는다.
     raise AppError("알 수 없는 재확인 행동입니다.", status_code=400)

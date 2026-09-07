@@ -81,3 +81,43 @@ async def test_navigate_unknown_kind_rejected():
     # 위변조·오타 kind는 400(막다른 길이 아니라 명확한 거절)
     with pytest.raises(AppError):
         await webchat_service.navigate_booking({"kind": "pick_bogus", "payload": {}})
+
+
+# ── 로그인 후 대상 선택 (pick_target, Bearer 경로) ────────────────────────────
+
+async def _seed_patient_with_family(conn):
+    acct = await seed_patient(conn, name="홍길동", phone="010-1111-0001")
+    fam = await seed_patient(conn, name="홍자녀", phone="010-1111-0002")
+    await conn.execute(
+        "insert into patient_family_links (account_patient_id, family_patient_id, relation, is_active) "
+        "values ($1,$2,'자녀',true)", acct["patient_id"], fam["patient_id"])
+    return acct, fam
+
+
+@pytest.mark.asyncio
+async def test_revalidate_pick_target_returns_self_and_family(committed_conn):
+    # [WEBCARD-TARGET-01] 로그인 후 대상 = 본인 + 활성 가족, 앞 선택값(dep·doc·slot) 누적
+    dep = await _seed_dept_doctor_slot(committed_conn)
+    acct, fam = await _seed_patient_with_family(committed_conn)
+    out = await webchat_service.revalidate_action(_ctx(acct), {"kind": "pick_target", "payload": {
+        "department_id": str(dep["department_id"]), "doctor_id": str(dep["doctor_id"]),
+        "slot_id": str(dep["slot_id"]), "slot_at": dep["slot_at"]}})
+    card = out["payload"]
+    assert card["card_type"] == "target_select"
+    ids = [t["for_patient_id"] for t in card["targets"]]
+    assert str(acct["patient_id"]) in ids and str(fam["patient_id"]) in ids   # 본인+가족
+    assert card["slot_id"] == str(dep["slot_id"])                              # 앞 선택값 보존
+    self_t = next(t for t in card["targets"] if t["for_patient_id"] == str(acct["patient_id"]))
+    assert self_t["relation"] is None                                         # 본인은 relation=None
+
+
+@pytest.mark.asyncio
+async def test_revalidate_pick_target_self_only_when_no_family(committed_conn):
+    # [WEBCARD-TARGET-02] 가족 없으면 본인만(가족 추가는 앱 몫)
+    dep = await _seed_dept_doctor_slot(committed_conn)
+    acct = await seed_patient(committed_conn, name="독신환자", phone="010-2222-0001")
+    out = await webchat_service.revalidate_action(_ctx(acct), {"kind": "pick_target", "payload": {
+        "department_id": str(dep["department_id"]), "doctor_id": str(dep["doctor_id"]),
+        "slot_id": str(dep["slot_id"]), "slot_at": dep["slot_at"]}})
+    assert len(out["payload"]["targets"]) == 1
+    assert out["payload"]["targets"][0]["relation"] is None
