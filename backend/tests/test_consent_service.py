@@ -4,7 +4,33 @@ from app.services import consent_service
 
 pytestmark = pytest.mark.asyncio
 
-TV = '2026-08-01'  # terms_version
+CUR = {'terms': 'v1.0', 'privacy': 'v1.0', 'sensitive': 'v1.0', 'ads': 'v1.0'}  # 현재 문서별 버전
+OK_CONSENTS = {'terms': True, 'privacy': True, 'sensitive': True}
+
+
+def test_validate_passes_when_all_true_and_versions_match():
+    # F-05v1 — 필수 3개 present+true이고 문서별 버전이 현재판과 일치하면 통과
+    consent_service.validate_registration_consents(OK_CONSENTS, CUR)
+
+
+def test_validate_rejects_missing_required():
+    # 필수 항목 하나라도 false/누락이면 400
+    with pytest.raises(Exception):
+        consent_service.validate_registration_consents(
+            {'terms': True, 'privacy': True, 'sensitive': False}, CUR)
+
+
+def test_validate_rejects_stale_version():
+    # 어느 문서든 제시 버전이 현재판과 다르면 fail-closed 400(옛 약관 둔갑 차단)
+    stale = {**CUR, 'privacy': 'v0.9'}
+    with pytest.raises(Exception):
+        consent_service.validate_registration_consents(OK_CONSENTS, stale)
+
+
+def test_validate_rejects_stale_ads_version():
+    stale = {**CUR, 'ads': 'v0.9'}
+    with pytest.raises(Exception):
+        consent_service.validate_registration_consents(OK_CONSENTS, stale)
 
 
 async def _seed_patient(conn):
@@ -16,7 +42,7 @@ async def _seed_patient(conn):
 async def test_record_consents_writes_four_rows(db_conn):
     # CONSENT-LOG-01 — 프로필 생성 시 4줄(필수 3 true + 광고 선택) 기록
     pid = await _seed_patient(db_conn)
-    await consent_service.record_consents(db_conn, pid, mandatory={'terms': True, 'privacy': True, 'sensitive': True}, ads_agreed=False, terms_version=TV)
+    await consent_service.record_consents(db_conn, pid, mandatory={'terms': True, 'privacy': True, 'sensitive': True}, ads_agreed=False, document_versions=CUR)
     rows = await db_conn.fetch(
         "select item, agreed from patient_consents where patient_id=$1", pid)
     items = {r['item']: r['agreed'] for r in rows}
@@ -26,14 +52,14 @@ async def test_record_consents_writes_four_rows(db_conn):
 async def test_record_consents_sets_current_ads_flag(db_conn):
     # CONSENT-LOG-01 — 현재 상태 칸도 함께 맞춘다
     pid = await _seed_patient(db_conn)
-    await consent_service.record_consents(db_conn, pid, mandatory={'terms': True, 'privacy': True, 'sensitive': True}, ads_agreed=True, terms_version=TV)
+    await consent_service.record_consents(db_conn, pid, mandatory={'terms': True, 'privacy': True, 'sensitive': True}, ads_agreed=True, document_versions=CUR)
     assert await db_conn.fetchval("select ads_consent from patients where id=$1", pid) is True
 
 
 async def test_set_ads_consent_toggles_and_logs(db_conn):
     # CONSENT-LATER-01 — 가입 뒤 광고 동의를 켜면 현재 상태 + 이력 한 줄
     pid = await _seed_patient(db_conn)
-    await consent_service.set_ads_consent(db_conn, pid, agreed=True, terms_version=TV)
+    await consent_service.set_ads_consent(db_conn, pid, agreed=True)
     assert await db_conn.fetchval("select ads_consent from patients where id=$1", pid) is True
     n = await db_conn.fetchval(
         "select count(*) from patient_consents where patient_id=$1 and item='ads'", pid)
