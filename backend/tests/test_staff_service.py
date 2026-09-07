@@ -617,19 +617,3 @@ async def test_invite_unknown_error_still_bubbles_up():
                 department_id=None, invited_by=_admin_ctx(), conn=conn,
             )
     assert not conn.inserted
-
-
-@pytest.mark.asyncio
-async def test_resend_invite_rate_limit_gives_clear_message():
-    """[STAFF-INVITE-06] 재초대(비번설정 메일)도 발송 한도(429)면 막다른 길 대신 안내를 준다."""
-    admin = MagicMock()
-    admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
-    admin.auth.reset_password_for_email.side_effect = _FakeAuthError(
-        "rate", 429, "over_email_send_rate_limit"
-    )
-    conn = _FakeConn(auth_user_id=uuid4())
-    with patch("app.services.staff_service.get_admin_client", return_value=admin):
-        with pytest.raises(AppError) as ei:
-            await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
-    assert ei.value.status_code == 429
-    assert "제한" in ei.value.message

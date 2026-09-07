@@ -192,6 +192,7 @@ export function StaffList({
                 aria-current={activeProfileId === m.id ? 'true' : undefined}
                 style={{ ...styles.row, ...(m.is_active ? null : styles.rowOff), ...(activeProfileId === m.id ? styles.rowActive : null) }}
               >
+                <div style={styles.rowLine}>
                 <div style={styles.rowMain}>
                   <div style={styles.rowTop}>
                     <span style={styles.name}>
@@ -226,44 +227,6 @@ export function StaffList({
                     {/* [CAL-COLOR-08] 목록엔 캘린더 색 표시를 두지 않는다 — 로그인 상태처럼 오인되고(사용자 지적
                         2026-09-01) 편집도 여기서 못 한다. 색은 프로필 패널(PalettePicker)에서만 보이고 고친다. */}
                   </div>
-
-                  {/* [STAFF-REINVITE-LINK-01] 재초대 성공 — 메일이 아니라 관리자가 직접 전달할 링크를
-                      그 행에 노출한다. 계정이 살아났다고 말하지 않는다(딱지는 그대로, STAFF-ROW-01). */}
-                  {resentLinks.has(m.id) &&
-                    (resentLinks.get(m.id) ? (
-                      <LinkShareBox
-                        label="재초대 링크"
-                        link={resentLinks.get(m.id) as string}
-                        guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 비밀번호를 설정합니다."
-                      />
-                    ) : (
-                      <span role="status" style={styles.resendError}>
-                        링크를 만들지 못했습니다. 잠시 후 [재초대]를 다시 눌러 주세요.
-                      </span>
-                    ))}
-                  {resendErrors.has(m.id) && (
-                    <span role="alert" style={styles.resendError}>
-                      {resendErrors.get(m.id)}
-                    </span>
-                  )}
-                  {/* [STAFF-RESETPW-LINK-01] 비밀번호 재설정 성공 — 메일이 아니라 전달용 링크를 노출한다. */}
-                  {resetLinks.has(m.id) &&
-                    (resetLinks.get(m.id) ? (
-                      <LinkShareBox
-                        label="비밀번호 재설정 링크"
-                        link={resetLinks.get(m.id) as string}
-                        guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 새 비밀번호를 만듭니다."
-                      />
-                    ) : (
-                      <span role="status" style={styles.resendError}>
-                        링크를 만들지 못했습니다. 잠시 후 [비밀번호 재설정]을 다시 눌러 주세요.
-                      </span>
-                    ))}
-                  {resetErrors.has(m.id) && (
-                    <span role="alert" style={styles.resendError}>
-                      {resetErrors.get(m.id)}
-                    </span>
-                  )}
                 </div>
 
                 <div style={styles.rowActions}>
@@ -292,6 +255,45 @@ export function StaffList({
                     </button>
                   )}
                 </div>
+                </div>
+
+                {/* [STAFF-REINVITE-LINK-01·STAFF-RESETPW-LINK-01] 링크·알림은 버튼 줄 아래 전체 너비로
+                    내린다 — 버튼 옆에 끼면 좁아 답답하다(사용자 지적 2026-09-07). 계정이 살아났다고
+                    말하지 않는다(딱지는 그대로, STAFF-ROW-01). */}
+                {resentLinks.has(m.id) &&
+                  (resentLinks.get(m.id) ? (
+                    <LinkShareBox
+                      label="재초대 링크"
+                      link={resentLinks.get(m.id) as string}
+                      guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 비밀번호를 설정합니다."
+                    />
+                  ) : (
+                    <span role="status" style={styles.resendError}>
+                      링크를 만들지 못했습니다. 잠시 후 [재초대]를 다시 눌러 주세요.
+                    </span>
+                  ))}
+                {resendErrors.has(m.id) && (
+                  <span role="alert" style={styles.resendError}>
+                    {resendErrors.get(m.id)}
+                  </span>
+                )}
+                {resetLinks.has(m.id) &&
+                  (resetLinks.get(m.id) ? (
+                    <LinkShareBox
+                      label="비밀번호 재설정 링크"
+                      link={resetLinks.get(m.id) as string}
+                      guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 새 비밀번호를 만듭니다."
+                    />
+                  ) : (
+                    <span role="status" style={styles.resendError}>
+                      링크를 만들지 못했습니다. 잠시 후 [비밀번호 재설정]을 다시 눌러 주세요.
+                    </span>
+                  ))}
+                {resetErrors.has(m.id) && (
+                  <span role="alert" style={styles.resendError}>
+                    {resetErrors.get(m.id)}
+                  </span>
+                )}
               </li>
             )
           })}
@@ -340,14 +342,21 @@ const styles: Record<string, CSSProperties> = {
   muted: { fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   row: {
+    // 이름·버튼 줄(rowLine) 아래에 링크/알림을 세로로 쌓으므로 카드 자체는 세로 스택이다.
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 'var(--sp-3)',
+    flexDirection: 'column',
+    gap: 'var(--sp-2)',
     padding: 'var(--sp-3) var(--sp-3)',
     borderRadius: 10,
     border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
+  },
+  // 이름·역할·상태(왼쪽) + 작업 버튼(오른쪽)이 한 줄. 링크/알림은 이 줄 밖(아래)으로 내려 전체 너비.
+  rowLine: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 'var(--sp-3)',
   },
   rowOff: { background: 'var(--color-bg)', opacity: 0.85 },
   rowActive: { borderColor: 'var(--color-primary)', boxShadow: 'inset 0 0 0 1px var(--color-primary)' },

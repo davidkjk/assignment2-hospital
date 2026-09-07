@@ -104,9 +104,13 @@ async def invite_staff(
     request: Request,
     staff: StaffContext = Depends(require_role("admin")),
 ) -> InviteStaffResponse:
+    # [STAFF-REINVITE-COPY-01] 최초 초대도 착지 화면이 「환영합니다」가 뜨도록 ?welcome=1을 붙인다.
+    # generate_link(type=invite) 링크의 URL 조각(#…&type=invite)만으로도 착지 화면이 초대임을
+    # 알 수 있으나, 조각 파싱이 어긋나면 「새 비밀번호 만들기」(재설정 문구)로 떨어진다 — 재초대가
+    # 쓰는 것과 같은 welcome 표식을 첫 초대에도 붙여 확실히 초대 문구가 뜨게 한다(비대칭 제거).
     result = await staff_service.invite_staff(
         email=body.email, name=body.name, role=body.role, department_id=body.department_id, invited_by=staff,
-        redirect_to=_invite_accept_url(request),
+        redirect_to=_invite_accept_url(request, welcome=True),
     )
     return InviteStaffResponse(staff_id=result.staff_id, invite_link=result.invite_link)
 
