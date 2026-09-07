@@ -2,7 +2,7 @@ import json
 from uuid import UUID
 
 from app.db.pool import get_pool
-from app.services.chat import orchestrator, rag_service, quality_service, card_builder
+from app.services.chat import orchestrator, rag_service, quality_service, card_builder, booking_agent_service
 
 
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
@@ -59,12 +59,29 @@ async def handle_message(session, content: str, *, thread_id: UUID,
     async def rag_fn(s, m):
         return await rag_service.rag_answer(m, embedder=embedder, model=model)
 
+    async def agent_fn(s, m):
+        # 행동형(예약) — 예약 의도를 진료과 선택 카드로. 지금까지 비어 막다른 길이던 자리(WEBBOOK-05).
+        return await booking_agent_service.booking_agent(s, m)
+
     out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
-                                         rag_fn=rag_fn, model=model)
+                                         rag_fn=rag_fn, agent_fn=agent_fn, model=model)
     # 봇 메시지 본문 결정: 평소 답(reply). 제한 주제 전용이면 reply가 비고 원문(restricted_block)이 본문이 된다(A3).
     body = (out.get("reply") or "").strip() or (out.get("restricted_block") or "").strip()
-    # 본문이 비면(예: 예약 등 행동형 요청 — 이 대화 파이프라인엔 에이전트 도구가 주입되지 않는다) 빈 봇 메시지는
-    # chat_messages_type_shape CHECK를 위반해 500난다 → 막다른 길 금지 원칙대로 직원 인계로 되돌린다.
+    # 행동형(agent)이 카드를 냈으면 막다른 길이 아니다 — 봇 말풍선 + 카드를 저장·반환한다(no_answer 카드와 같은 통로).
+    if out["route_taken"] == "agent" and out.get("card"):
+        async with pool.acquire() as conn:
+            bmsg = await conn.fetchrow(
+                "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken) "
+                "values ($1,$2,'bot','text',$3,'agent') returning id", thread_id, sid, body)
+            await conn.execute(
+                "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, payload, route_taken) "
+                "values ($1,$2,'bot','card',$3::jsonb,'agent')", thread_id, sid, json.dumps(out["card"]))
+            await conn.execute(
+                "update ai_chat_sessions set last_activity_at=now(), expires_at=now()+interval '30 minutes' "
+                "where id=$1 and status='active' and now() < expires_at", sid)
+        return {"route_taken": "agent", "message_id": bmsg["id"], "reply": body, "card": out["card"]}
+    # 본문이 비면(카드도 없는 행동형/빈 응답) 빈 봇 메시지는 chat_messages_type_shape CHECK 위반 500 →
+    # 막다른 길 금지 원칙대로 직원 인계로 되돌린다.
     if out["route_taken"] != "handoff" and not body:
         out = {**out, "route_taken": "handoff", "handoff_reason": "action_unavailable"}
     async with pool.acquire() as conn:

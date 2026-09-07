@@ -58,3 +58,37 @@ async def test_no_answer_message_returns_chips_keeps_session_and_logs_unresolved
 #  §8-11 익명도 SMS 대상·patient_id null . test_chat_notification_batching.test_anonymous_verified_contact_gets_batch_with_null_patient
 #  §8-12 두 경로 같은 파이프라인 ........ (위 6·11이 함께 보증) + notification_recipient.resolve_recipient
 #  §8-10 Realtime 재연결 커서 복원 ...... 구현 시 통합(커서 조회는 chat_messages(thread_id, created_at, id) 인덱스)
+
+
+@pytest.mark.asyncio
+async def test_booking_intent_reaches_department_card_not_handoff(committed_conn, monkeypatch):
+    # [WEBBOOK-05] 예약 의도 → agent 카드(막다른 길 action_unavailable 아님).
+    # 라우터를 agent로, 인계감시는 없음으로 고정(LLM 비의존). 진료과는 실제로 시드.
+    from app.services.chat import chat_router, safety_watchdog
+    async def fake_classify(*a, **k): return "agent"
+    async def no_escalation(*a, **k): return None
+    monkeypatch.setattr(chat_router, "classify", fake_classify)
+    monkeypatch.setattr(safety_watchdog, "check_escalation", no_escalation)
+    await committed_conn.execute("insert into departments (name, is_active) values ('테스트예약내과', true)")
+
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    s = await committed_conn.fetchrow(
+        "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()+interval '30 min') returning *", t)
+    out = await chat_flow_service.handle_patient_message(
+        s, "예약하고 싶어요", thread_id=t, client_message_id=uuid.uuid4(),
+        embedder=FakeEmbedder(), model=_RagModel())
+
+    assert out["route_taken"] == "agent"
+    assert out["card"]["card_type"] == "department_select"
+    assert out.get("reason") != "action_unavailable"
+    # 봇 안내 말풍선(text) 1 + 진료과 카드(card) 1 저장, 세션 active 유지(막다른 길 아님).
+    assert await committed_conn.fetchval(
+        "select count(*) from chat_messages where thread_id=$1 and message_type='card'", t) == 1
+    assert await committed_conn.fetchval("select status from ai_chat_sessions where id=$1", s["id"]) == "active"
+    assert await committed_conn.fetchval("select count(*) from support_tickets where thread_id=$1", t) == 0
+    # cleanup
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", t)
+    await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
