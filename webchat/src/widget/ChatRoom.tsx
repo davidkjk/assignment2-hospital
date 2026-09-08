@@ -15,6 +15,7 @@ export type ChatRoomProps = {
   outageSlot?: ReactNode;         // AI 장애 안내(WEBCHAT-OUTAGE) — 전화·문의 남기기가 주 경로. 기존 대화와 함께 유지.
   startSlot?: ReactNode;          // 첫 상담(빈 피드) 시작 안내 — 봇 인사말 + 시작 고정 칩(WEBCHAT-ROOM-03·WEBCARD-QUICK-01). 대화 영역 안에 렌더.
   botTyping?: boolean;            // 봇 답변 대기 중 타이핑 점 표시(홈페이지 .typing)
+  onStaffHandoff?: () => void;    // Q5: 가장 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼(WEBANON-HANDOFF)
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
 };
 
@@ -68,6 +69,18 @@ export function ChatRoom(p: ChatRoomProps) {
             <i /><i /><i />
           </li>
         )}
+        {/* Q5: 가장 최근 봇 텍스트 답변이면 [직원에게 연결] 칩(막다른 길 금지). no_answer는 카드가 이미
+            handoff_chip을 내므로(중복 방지) 마지막이 카드가 아닐 때만. 환자 발화가 마지막(봇 대기)이면 감춘다. */}
+        {(() => {
+          const last = p.messages[p.messages.length - 1];
+          const showStaffChip = !p.botTyping && p.onStaffHandoff &&
+            last && last.messageType !== 'card' && last.senderType === 'bot';
+          return showStaffChip ? (
+            <li className="wc-quick" aria-label="직원 연결">
+              <button type="button" className="wc-chip wc-chip--handoff" onClick={p.onStaffHandoff}>직원에게 연결</button>
+            </li>
+          ) : null;
+        })()}
       </ul>
       {p.phase === 'loadError' && (
         <div className="wc-error">

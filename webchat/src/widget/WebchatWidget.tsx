@@ -54,6 +54,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
             phase={w.phase}
             messages={[...w.messages, ...extraCards]}
             botTyping={w.botTyping}
+            onStaffHandoff={leaveInquiry}   // Q5: 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼
             onSend={w.send}
             onResend={w.resend}
             onRetryLoad={w.retryLoad}

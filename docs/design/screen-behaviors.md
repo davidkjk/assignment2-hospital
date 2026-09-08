@@ -5438,6 +5438,7 @@
 | `WEBCHAT-NOANS-01` | 안내 방식 | RAG가 근거를 못 찾음(`no_answer`) | 자동 인계·자동 티켓을 만들지 않고 세션을 유지한 채, 봇 안내 말풍선(`바로 답을 찾지 못했어요…`) + `WEBCARD-QUICK` 카드(FAQ 3개 + `[직원에게 연결]` 콜백 칩)를 대화에 낸다. 막다른 길을 만들지 않는다(해결 경로를 함께 준다). | 결정 문서 「no_answer=칩」(2026-09-04, brainstorming); 정본 §0 막다른 길 금지 |
 | `WEBCHAT-NOANS-02` | 칩 동작 | 칩 선택 | FAQ 칩은 문장 그대로 환자 말풍선으로 전송한다(`WEBCARD-QUICK-02`). `[직원에게 연결]`은 문장 전송이 아니라 인계 경로다 — 웹은 익명 인계 폼(`WEBANON-HANDOFF`)을 열고(제출해야 티켓), 앱은 직원 연결 요청을 보내 즉시 직원 인계로 전환한다(⓪-b `staff_request`). | `WEBANON-HANDOFF-01`; 정본 §1 인계조건 ⓪-b |
 | `WEBCHAT-NOANS-03` | 미해결 로깅 | `no_answer` 발생 시마다 | 인계로 티켓이 생겼든(ticket 링크) 사용자가 조용히 포기했든(ticket 없음) **모든 `no_answer`를 질문·임베딩과 함께 기록**한다(결정 B). 조용히 포기한 다수가 가장 큰 KB 구멍이라 놓치지 않는다. | 결정 문서 「미해결 로깅 B」; `UNRES-CLUSTER-01` |
+| `WEBCHAT-STAFFCHIP-01` 🆕 | 직원 연결 칩 | 피드 **마지막 줄이 봇 텍스트 답변**(no_answer 카드 아님, 봇 대기 아님) | 대화 밑에 `[직원에게 연결]` 칩 하나를 띄운다 — 누르면 익명 인계 폼(`WEBANON-HANDOFF`). no_answer는 `WEBCARD-QUICK` 카드가 이미 handoff_chip을 내므로 중복해서 붙이지 않고, 환자 발화가 마지막(봇 대기)이면 감춘다(칩이 남지 않음). 앱 `CHAT-ROOM-FEEDBACK-01`(가장 최근 봇 답변 칩)과 대칭 | ✅ **신설(2026-09-08, Q5)** — 환자앱과 공통으로 "필요할 때만 직원 연결 칩". `ChatRoom.onStaffHandoff`=`WebchatWidget.leaveInquiry` |
 
 ###### 11. 웹 진료과 추천 진행 배너 `WEBCHAT-GUIDE` — 재사용 3개
 
