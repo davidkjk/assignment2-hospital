@@ -62,7 +62,7 @@ _INVITE_ACCEPT_PATH = "/reset-password/new"
 def _invite_accept_url(request: Request, *, welcome: bool = False) -> str | None:
     """초대 수락 링크. welcome=True면 착지 화면이 초대(환영) 문구를 쓰도록 ?welcome=1을 붙인다.
 
-    재초대는 reset_password_for_email(복구 메일)이라 링크의 type=recovery로 와, 이 표식이 없으면
+    재초대는 generate_link(type=recovery)라 링크의 type=recovery로 와, 이 표식이 없으면
     화면이 '비밀번호 재설정'으로 보인다. 최초 초대와 같은 '환영합니다(최초 설정)'로 통일하기 위한
     표식(사용자 결정 2026-09-07). 최초 초대는 type=invite라 표식 없이도 초대 문구가 뜬다."""
     origin = _invite_redirect_origin(request)
@@ -81,10 +81,13 @@ class InviteStaffRequest(BaseModel):
 
 class InviteStaffResponse(BaseModel):
     staff_id: UUID
-    # 관리자가 초대받는 직원에게 직접 전달할 '비밀번호 설정' 링크. 발신 도메인 미검증이라 메일을
-    # 자동 발송하지 않고(2026-09-07), 화면이 이 링크를 복사 버튼으로 띄운다. 드물게 링크를 만들지
-    # 못한 경우(고아 복구 실패) None — 화면은 [재초대]로 안내한다.
+    # 관리자가 초대받는 직원에게 직접 전달할 '비밀번호 설정' 링크. 하이브리드(2026-09-07 도메인 인증
+    # 후): 초대 메일을 자동 발송하면서도 이 링크를 화면에 함께 노출해, 메일 실패·스팸 시 관리자가
+    # 직접 전달할 수 있게 한다. 드물게 링크를 만들지 못한 경우(고아 복구 실패) None — 화면은 [재초대]로.
     invite_link: str | None = None
+    # 초대 메일이 자동 발송됐는지(True) — 화면 문구를 「메일을 보냈습니다」/「메일 전송 실패, 링크로
+    # 전달」로 가른다. Resend 키가 없거나(개발) 발송이 실패하면 False.
+    email_sent: bool = False
 
 
 class UpdateProfileRequest(BaseModel):
@@ -112,7 +115,8 @@ async def invite_staff(
         email=body.email, name=body.name, role=body.role, department_id=body.department_id, invited_by=staff,
         redirect_to=_invite_accept_url(request, welcome=True),
     )
-    return InviteStaffResponse(staff_id=result.staff_id, invite_link=result.invite_link)
+    return InviteStaffResponse(
+        staff_id=result.staff_id, invite_link=result.invite_link, email_sent=result.email_sent)
 
 
 @router.patch("/{staff_id}/deactivate")
@@ -197,11 +201,13 @@ async def resend_invite(
 ) -> dict:
     """[정합성 검토 R3-04][STAFF-REINVITE-LINK-01] 재초대 — 메일을 자동 발송하지 않고(발신 도메인
     미검증) 관리자가 직접 전달할 링크를 돌려준다(2026-09-07 후속 결정). welcome=True → 착지 화면이
-    최초 초대와 같은 「환영합니다」(STAFF-REINVITE-COPY-01)."""
-    link = await staff_service.resend_invite(
+    최초 초대와 같은 「환영합니다」(STAFF-REINVITE-COPY-01).
+
+    ⭐ 하이브리드(2026-09-07 도메인 인증 후): 재초대(환영) 메일을 자동 발송하면서 링크도 함께 노출한다."""
+    result = await staff_service.resend_invite(
         staff_id, requested_by=staff, redirect_to=_invite_accept_url(request, welcome=True)
     )
-    return {"status": "resent", "link": link}
+    return {"status": "resent", "link": result.link, "email_sent": result.email_sent}
 
 
 @router.post("/{staff_id}/reset-password")
@@ -215,11 +221,13 @@ async def reset_staff_password(
     발급도 허용). 재초대와 같은 generate_link(type=recovery)를 쓰되 welcome 표식을 붙이지 않아 착지
     화면은 「새 비밀번호 만들기」(재설정 문구)로 뜬다. 메일을 자동 발송하지 않고(발신 도메인 미검증)
     링크를 돌려준다 — 화면이 '링크 복사'로 노출하면 관리자가 직접 전달한다. 관리자는 비번을 보지
-    않는다 — 링크만 전달하고 새 비번은 직원이 스스로 만든다(요구사항 451과 상충 안 함)."""
-    link = await staff_service.resend_invite(
+    않는다 — 링크만 전달하고 새 비번은 직원이 스스로 만든다(요구사항 451과 상충 안 함).
+
+    ⭐ 하이브리드(2026-09-07 도메인 인증 후): 재설정 메일을 자동 발송하면서 링크도 함께 노출한다."""
+    result = await staff_service.resend_invite(
         staff_id, requested_by=staff, redirect_to=_invite_accept_url(request)
     )
-    return {"status": "sent", "link": link}
+    return {"status": "sent", "link": result.link, "email_sent": result.email_sent}
 
 
 @router.delete("/{staff_id}")

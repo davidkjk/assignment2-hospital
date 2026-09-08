@@ -27,6 +27,17 @@ def _fake_admin_client(monkeypatch):
     return fake_admin_client
 
 
+@pytest.fixture(autouse=True)
+def _fake_resend_client(monkeypatch):
+    """[하이브리드] 초대·재초대·재설정은 링크를 만들면서 메일도 자동 발송한다(도메인 인증 후).
+    실제 네트워크(Resend)로 나가지 않게 가짜 클라이언트로 바꾼다 — send는 True(발송 성공)를
+    돌려주고 호출을 기록한다. email_sent 플래그·발송 호출을 보는 테스트가 이 목을 받아 assert한다."""
+    client = MagicMock()
+    client.send.return_value = True
+    monkeypatch.setattr("app.services.staff_service.get_resend_client", lambda: client)
+    return client
+
+
 @pytest.mark.asyncio
 async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
     admin_seed = await seed_staff(db_conn, role="admin")
@@ -63,10 +74,10 @@ async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_invite_staff_returns_link_and_does_not_send_email(db_conn):
-    """[STAFF-INVITE-LINK-01] 초대는 이메일을 발송하지 않고, 관리자가 직접 전달할 수락 링크를
-    만들어 돌려준다. (Resend 도메인 미검증이라 타인 주소로는 메일이 안 나가므로, 자동 발송 대신
-    링크 전달로 전환 — 2026-09-07 결정.)"""
+async def test_invite_staff_returns_link_and_sends_email(db_conn, _fake_resend_client):
+    """[STAFF-INVITE-LINK-01·하이브리드] 초대는 링크를 만들어 돌려주면서(관리자가 직접 전달 가능)
+    초대(환영) 메일도 자동 발송한다(도메인 인증 후, 2026-09-07). 메일이 실패해도 링크는 화면에
+    남아 막다른 길이 아니다. invite_user_by_email(즉시발송·도메인 500)은 여전히 쓰지 않는다."""
     admin_seed = await seed_staff(db_conn, role="admin")
     admin_ctx = _to_context(admin_seed, "admin")
 
@@ -93,11 +104,18 @@ async def test_invite_staff_returns_link_and_does_not_send_email(db_conn):
             department_id=None, invited_by=admin_ctx, redirect_to=origin, conn=db_conn,
         )
 
-    # 관리자에게 돌려줄 링크가 그대로 나온다.
+    # 관리자에게 돌려줄 링크가 그대로 나온다 + 초대 메일 자동 발송(하이브리드).
     assert result.invite_link == action_link
-    # 이메일은 보내지 않는다(발송 실패 500의 원인 제거).
+    assert result.email_sent is True
+    # 초대(환영) 메일을 그 링크로 보낸다.
+    _fake_resend_client.send.assert_called_once()
+    sent = _fake_resend_client.send.call_args.kwargs
+    assert sent["to"] == "link-invite@test.local"
+    assert sent["subject"] == "[가온병원] 직원 계정 초대"
+    assert action_link in sent["html"] and action_link in sent["text"]
+    # 즉시발송 API(invite_user_by_email·도메인 500)는 여전히 쓰지 않는다.
     fake_admin_client.auth.admin.invite_user_by_email.assert_not_called()
-    # generate_link에 invite 타입과 redirect_to를 넘긴다(메일 없이 링크만 뽑는 Supabase API).
+    # generate_link에 invite 타입과 redirect_to를 넘긴다(링크를 뽑는 Supabase API).
     fake_admin_client.auth.admin.generate_link.assert_called_once_with(
         {"type": "invite", "email": "link-invite@test.local", "options": {"redirect_to": origin}}
     )
@@ -328,13 +346,13 @@ async def test_list_staff_returns_all_roles(db_conn):
 
 
 @pytest.mark.asyncio
-async def test_resend_invite_returns_recovery_link_and_does_not_send_email():
-    """[STAFF-ROW-01·STAFF-REINVITE-LINK-01] 재초대는 메일을 자동 발송하지 않고(발신 도메인 미검증),
-    관리자가 직접 전달할 복구(비밀번호 설정) 링크를 만들어 돌려준다(2026-09-07 후속 결정).
+async def test_resend_invite_returns_recovery_link_and_sends_email(_fake_resend_client):
+    """[STAFF-ROW-01·STAFF-REINVITE-LINK-01·하이브리드] 재초대는 복구(비밀번호 설정) 링크를 만들어
+    돌려주면서(관리자가 직접 전달 가능) 메일도 자동 발송한다(도메인 인증 후, 2026-09-07).
 
-    옛 방식(reset_password_for_email)은 메일을 부쳤는데 타인 주소로는 500으로 막혔다 — 초대와
-    같은 도메인 제약. generate_link(type=recovery)는 메일 없이 링크만 돌려주고, 그 링크가 같은
-    '비밀번호 설정' 화면(/reset-password/new, 복구·초대 공용)으로 간다(계정 유무와 무관)."""
+    generate_link(type=recovery)로 링크를 뽑아 그 링크를 담은 메일을 백엔드가 직접 보낸다. 링크는
+    같은 '비밀번호 설정' 화면(/reset-password/new, 복구·초대 공용)으로 간다(계정 유무와 무관).
+    welcome 표식이 없으면(기본) 재설정 메일이다."""
     admin = MagicMock()
     admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
     action_link = "https://staff.example/reset-password/new?token=recov&type=recovery"
@@ -342,12 +360,19 @@ async def test_resend_invite_returns_recovery_link_and_does_not_send_email():
     conn = _FakeConn(auth_user_id=uuid4())
 
     with patch("app.services.staff_service.get_admin_client", return_value=admin):
-        link = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+        result = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
 
-    # 관리자에게 돌려줄 링크가 그대로 나온다.
-    assert link == action_link
+    # 관리자에게 돌려줄 링크 + 메일 자동 발송(하이브리드).
+    assert result.link == action_link
+    assert result.email_sent is True
     admin.auth.admin.generate_link.assert_called_once_with({"type": "recovery", "email": "r@test.local"})
-    # 메일 경로(reset_password_for_email·invite)는 부르지 않는다 — 도메인 미검증 500의 원인 제거.
+    # welcome 없음 → 재설정 메일을 그 링크로 보낸다.
+    _fake_resend_client.send.assert_called_once()
+    sent = _fake_resend_client.send.call_args.kwargs
+    assert sent["to"] == "r@test.local"
+    assert sent["subject"] == "[가온병원] 비밀번호 재설정"
+    assert action_link in sent["html"]
+    # 즉시발송 API(reset_password_for_email·invite_user_by_email·도메인 500)는 여전히 안 쓴다.
     admin.auth.reset_password_for_email.assert_not_called()
     admin.auth.admin.invite_user_by_email.assert_not_called()
 
@@ -386,9 +411,9 @@ async def test_resend_invite_succeeds_for_already_existing_account():
     conn = _FakeConn(auth_user_id=uuid4())
 
     with patch("app.services.staff_service.get_admin_client", return_value=admin):
-        link = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+        result = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
 
-    assert link
+    assert result.link
     admin.auth.admin.generate_link.assert_called_once()
     admin.auth.admin.invite_user_by_email.assert_not_called()
 
@@ -516,6 +541,14 @@ class _FakeConn:
         self._new_staff_id = new_staff_id
         self._auth_user_id = auth_user_id
         self.inserted = False
+
+    async def fetchrow(self, sql, *args):
+        s = " ".join(sql.lower().split())
+        if "select auth_user_id, name from staff where id" in s:
+            if self._auth_user_id is None:
+                return None
+            return {"auth_user_id": self._auth_user_id, "name": "테스트직원"}
+        return None
 
     async def fetchval(self, sql, *args):
         s = " ".join(sql.lower().split())

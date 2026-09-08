@@ -9,9 +9,26 @@ from app.core.errors import AppError
 from app.core.security import StaffContext
 from app.db.admin_client import get_admin_client
 from app.db.pool import acquire_as, get_pool
+from app.integrations.resend_client import get_resend_client
 from app.services.schedule_change import list_affected_appointments
+from app.services.staff_email import build_invite_email, build_reset_email
 
 logger = logging.getLogger(__name__)
+
+
+def send_staff_email(*, to: str, name: str | None, link: str, welcome: bool) -> bool:
+    """직원에게 초대(welcome)·비밀번호 재설정(reset) 메일을 보낸다 — best-effort.
+
+    도메인(withlog.app) 인증 후 백엔드가 직접 발송한다(2026-09-07). 발송 성공이면 True.
+    Resend 키가 없으면(개발 폴백) 발송하지 않고 False. ⭐ 초대·재초대·재설정은 링크를 화면에도
+    노출하므로(하이브리드) 메일이 실패해도 관리자가 링크로 전달할 수 있다(막다른 길 아님) — 그래서
+    실패를 예외로 올리지 않고 email_sent 플래그로만 알린다."""
+    client = get_resend_client()
+    if client is None:
+        return False
+    content = (build_invite_email(name=name, link=link) if welcome
+               else build_reset_email(link=link))
+    return client.send(to=to, subject=content.subject, html=content.html, text=content.text)
 
 # [STAFF-DEACT / 2026-09-07] 중지 시 세션 무효화용 ban 기간(~100년 = 사실상 영구).
 # 재활성화(G-04, 미구현)를 붙일 땐 ban_duration="none"으로 함께 풀어야 한다.
@@ -33,12 +50,21 @@ select coalesce(
 
 
 class InviteResult(NamedTuple):
-    """초대 결과 — 생성된 staff 행 id와, 관리자가 직접 전달할 수락 링크.
+    """초대 결과 — 생성된 staff 행 id와, 관리자가 직접 전달할 수락 링크, 메일 발송 여부.
 
     invite_link는 None일 수 있다(고아 계정 복구에서 링크 생성이 실패한 드문 경우) —
-    이때 화면은 「링크를 만들지 못했습니다. [재초대]를 눌러 주세요」로 막다른 길을 피한다."""
+    이때 화면은 「링크를 만들지 못했습니다. [재초대]를 눌러 주세요」로 막다른 길을 피한다.
+    email_sent=True면 초대 메일이 자동 발송됐고, False면(키 없음·발송 실패·링크 없음) 화면이
+    「아래 링크를 직접 전달하세요」로 안내한다(하이브리드 — 링크는 언제나 함께 노출)."""
     staff_id: UUID
     invite_link: str | None
+    email_sent: bool = False
+
+
+class ResendResult(NamedTuple):
+    """재초대·비밀번호 재설정(관리자 발급) 결과 — 전달용 링크 + 메일 발송 여부(하이브리드)."""
+    link: str
+    email_sent: bool = False
 
 
 def _generate_invite_link(admin, email: str, redirect_to: str | None):
@@ -204,12 +230,24 @@ async def invite_staff(
         invite_link = result.properties.action_link
     except Exception as exc:
         # 링크 생성 실패를 막다른 500으로 흘리지 않는다(STAFF-INVITE-06~09) — 원인별 안내 + 고아 구제.
-        return await _recover_or_explain_invite_failure(
+        recovered = await _recover_or_explain_invite_failure(
             exc, email, name, role, department_id, invited_by, redirect_to, conn,
         )
+        # 고아 구제로 새 링크가 나왔으면 초대(환영) 메일도 함께 보낸다(하이브리드).
+        email_sent = (
+            send_staff_email(to=email, name=name, link=recovered.invite_link, welcome=True)
+            if recovered.invite_link else False
+        )
+        return recovered._replace(email_sent=email_sent)
 
     staff_id = await _create_staff_row(auth_user_id, name, role, department_id, invited_by, conn)
-    return InviteResult(staff_id=staff_id, invite_link=invite_link)
+    # [STAFF-INVITE-LINK-01·하이브리드] 초대(환영) 메일을 자동 발송하고(도메인 인증 후), 링크도
+    # 화면에 함께 노출한다 — 메일이 스팸에 빠지거나 실패해도 관리자가 링크로 전달할 수 있게(막다른 길 금지).
+    email_sent = (
+        send_staff_email(to=email, name=name, link=invite_link, welcome=True)
+        if invite_link else False
+    )
+    return InviteResult(staff_id=staff_id, invite_link=invite_link, email_sent=email_sent)
 
 
 def _impact_version(rows: list[dict]) -> str:
@@ -389,38 +427,39 @@ async def activate_self(staff: StaffContext) -> None:
 
 async def resend_invite(
     staff_id: UUID, requested_by: StaffContext, redirect_to: str | None = None, conn=None
-) -> str | None:
+) -> "ResendResult":
     """[정합성 검토 R3-04][STAFF-ROW-01·STAFF-REINVITE-LINK-01·STAFF-RESETPW-LINK-01] 초대 링크가
     도착하지 않았거나 만료된 경우(재초대), 또는 활성 직원이 비번을 잊은 경우(관리자 발신 재설정)에
     관리자가 다시 발급할 수 있게 한다. `staff`에는 이메일이 없으므로(계정 자체는 `auth.users`가
-    소유) auth_user_id로 실제 이메일을 조회한 뒤 '비밀번호 설정'(복구) 링크를 만들어 돌려준다.
+    소유) auth_user_id로 실제 이메일을 조회한 뒤 '비밀번호 설정'(복구) 링크를 만든다.
 
-    ⚠️ 메일을 자동 발송하지 않는다(2026-09-07 후속 결정) — 초대와 같은 도메인 제약 때문이다.
-    발신 도메인 미검증(Resend B방식)이라 계정 주인 본인 외의 주소로는 메일이 500으로 막힌다.
-    옛 방식(reset_password_for_email)이 바로 그 메일 경로였다. 대신 generate_link(type=recovery)로
-    메일 없이 링크만 뽑아 돌려주면, 라우터가 응답에 실어 화면이 '링크 복사'로 노출하고 관리자가
-    카톡·문자 등으로 직접 전달한다. 링크는 같은 '비밀번호 설정' 화면(/reset-password/new — 복구·초대
-    공용)으로 가고, 계정 유무와 무관하게 동작한다('초대 다시'는 email_exists로 막혀 못 쓴다).
+    ⭐ 하이브리드(2026-09-07, 도메인 인증 후): 링크를 **메일로도 자동 발송**하고 **화면에도 노출**한다.
+    ~~옛 방식은 메일을 안 보내고 링크만 돌려줬다(발신 도메인 미검증이라 본인 외 주소로 500)~~ —
+    도메인(withlog.app) 인증으로 해소돼, generate_link(type=recovery)로 링크를 뽑아 그 링크를 담은
+    메일을 백엔드가 직접 보낸다(send_staff_email). 메일이 실패해도 링크는 화면에 남아 관리자가 직접
+    전달할 수 있다(막다른 길 금지). welcome(redirect_to의 ?welcome=1)면 초대(환영) 메일, 아니면
+    재설정 메일. 링크는 같은 '비밀번호 설정' 화면(/reset-password/new — 복구·초대 공용)으로 간다.
 
-    반환: 관리자에게 노출할 복구 링크(항상 문자열; 링크 생성 실패는 예외로 던진다)."""
+    반환: ResendResult(link=관리자에게 노출할 링크, email_sent=메일 자동발송 성공 여부).
+          링크 생성 실패는 예외로 던진다."""
     async def _run(c):
-        return await c.fetchval("select auth_user_id from staff where id = $1", staff_id)
+        return await c.fetchrow("select auth_user_id, name from staff where id = $1", staff_id)
 
     if conn is not None:
-        auth_user_id = await _run(conn)
+        row = await _run(conn)
     else:
         async with acquire_as(str(requested_by.auth_user_id)) as c:
-            auth_user_id = await _run(c)
+            row = await _run(c)
 
-    if auth_user_id is None:
+    if row is None or row["auth_user_id"] is None:
         raise AppError("대상 직원을 찾을 수 없습니다.", status_code=404)
 
     admin = get_admin_client()
-    user = admin.auth.admin.get_user_by_id(str(auth_user_id))
+    user = admin.auth.admin.get_user_by_id(str(row["auth_user_id"]))
     if user is None or user.user is None or not user.user.email:
         raise AppError("계정 이메일을 확인할 수 없습니다.", status_code=404)
     try:
-        return _generate_recovery_link(admin, user.user.email, redirect_to)
+        link = _generate_recovery_link(admin, user.user.email, redirect_to)
     except Exception as exc:
         if _is_rate_limit_error(exc):
             raise AppError(
@@ -431,6 +470,11 @@ async def resend_invite(
             "비밀번호 설정 링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
             status_code=502,
         ) from exc
+
+    welcome = "welcome=1" in (redirect_to or "")
+    email_sent = send_staff_email(
+        to=user.user.email, name=row["name"], link=link, welcome=welcome)
+    return ResendResult(link=link, email_sent=email_sent)
 
 
 async def delete_staff(staff_id: UUID, requested_by: StaffContext, conn=None) -> None:

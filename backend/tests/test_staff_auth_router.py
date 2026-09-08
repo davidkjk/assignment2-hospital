@@ -101,6 +101,11 @@ class FakeAuthAdmin:
         self.signed_out = []
         self.sign_out_error = False
         self.list_users_error = False
+        # [STAFF-LOGIN-10 하이브리드] 셀프 재설정은 이제 generate_link(recovery)로 링크를 뽑아
+        # 백엔드가 직접 메일을 보낸다(옛 reset_password_for_email 대체). 링크 생성 호출을 기록하고,
+        # broken@hospital.kr은 생성 자체를 실패시켜 "발송 실패도 같은 응답" 계약을 검증한다.
+        self.generate_link_calls = []
+        self.generate_link_error_emails = {"broken@hospital.kr"}
         self.users = [
             type("User", (), {"id": "active-user", "email": "real@hospital.kr"})(),
             type("User", (), {"id": "inactive-user", "email": "inactive@hospital.kr"})(),
@@ -110,6 +115,15 @@ class FakeAuthAdmin:
 
     def get_user_by_id(self, _user_id):
         return type("Result", (), {"user": type("User", (), {"email": "me@hospital.kr"})()})()
+
+    def generate_link(self, params):
+        self.generate_link_calls.append(params)
+        if params.get("email") in self.generate_link_error_emails:
+            raise RuntimeError("link generation failed")
+        return type("Result", (), {
+            "properties": type("Props", (), {
+                "action_link": "https://staff.hospital.test/reset-password/new#tok"})(),
+        })()
 
     def update_user_by_id(self, user_id, attributes):
         self.updated.append((user_id, attributes))
@@ -202,6 +216,18 @@ def make_auth_client(*, raise_server_exceptions=True):
     return TestClient(app, raise_server_exceptions=raise_server_exceptions), admin, staff
 
 
+@pytest.fixture(autouse=True)
+def _stub_staff_email(monkeypatch):
+    """셀프 재설정 발송(send_staff_email)이 실제 네트워크(Resend)로 나가지 않게 스텁한다 —
+    이 라우터 테스트는 링크 생성·프라이버시 응답 계약만 본다(발송 자체는 resend 단위테스트 담당)."""
+    sent = []
+    monkeypatch.setattr(
+        "app.routers.auth_staff.send_staff_email",
+        lambda **kwargs: bool(sent.append(kwargs)) or True,
+    )
+    return sent
+
+
 def test_재설정_요청은_가입_여부와_무관하게_같은_응답이다():
     """[STAFF-LOGIN-10] 등록 여부와 무관하게 같은 응답을 돌려 계정 열거를 막는다."""
     client, _, _ = make_auth_client()
@@ -235,11 +261,12 @@ def test_재설정_링크는_요청_origin이나_host가_아닌_서버_설정으
 
     assert response.status_code == 202
     assert response.json() == {"message": RESET_MESSAGE}
-    assert admin.auth.reset_requests == [
-        (
-            "real@hospital.kr",
-            {"redirect_to": "https://staff.hospital.test/reset-password/new"},
-        )
+    assert admin.auth.admin.generate_link_calls == [
+        {
+            "type": "recovery",
+            "email": "real@hospital.kr",
+            "options": {"redirect_to": "https://staff.hospital.test/reset-password/new"},
+        }
     ]
 
 
@@ -261,7 +288,7 @@ def test_신뢰_origin_설정이_없거나_잘못되면_요청값으로_fallback
 
     assert response.status_code == 202
     assert response.json() == {"message": RESET_MESSAGE}
-    assert admin.auth.reset_requests == []
+    assert admin.auth.admin.generate_link_calls == []
 
 
 @pytest.mark.parametrize(
@@ -280,7 +307,7 @@ def test_활성_staff가_아니면_복구메일을_보내지_않고_같은_응�
 
     assert response.status_code == 202
     assert response.json() == {"message": RESET_MESSAGE}
-    assert admin.auth.reset_requests == []
+    assert admin.auth.admin.generate_link_calls == []
 
 
 @pytest.mark.parametrize("failure", ["auth_lookup", "staff_lookup", "mail_send"])
@@ -302,7 +329,9 @@ def test_재설정_조회나_발송_실패도_같은_응답을_돌려준다(monk
     assert response.status_code == 202
     assert response.json() == {"message": RESET_MESSAGE}
     if failure != "mail_send":
-        assert admin.auth.reset_requests == []
+        # 조회 단계에서 막히면 링크 생성까지 가지 않는다. mail_send(broken@)는 링크 생성이
+        # 시도되지만 실패해도(예외) 같은 응답으로 삼킨다.
+        assert admin.auth.admin.generate_link_calls == []
 
 
 def test_재설정_요청은_다섯_번_뒤_시도_제한을_건다():

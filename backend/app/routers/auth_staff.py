@@ -11,6 +11,7 @@ from supabase import Client, create_client
 from app.core.config import settings
 from app.core.security import StaffContext, get_current_staff
 from app.db.admin_client import get_admin_client
+from app.services.staff_service import send_staff_email
 
 router = APIRouter(tags=["staff-auth"])
 
@@ -129,10 +130,15 @@ def request_password_reset(
             auth_user = _find_auth_user_by_email(admin, email)
             auth_user_id = getattr(auth_user, "id", None)
             if auth_user_id and _has_active_staff_membership(admin, auth_user_id):
-                admin.auth.reset_password_for_email(
-                    email,
-                    {"redirect_to": redirect_to},
-                )
+                # [STAFF-LOGIN-10 하이브리드] 도메인(withlog.app) 인증 후 백엔드가 직접 재설정 메일을
+                # 보낸다. generate_link(recovery)로 링크를 뽑아 그 링크를 담은 메일을 발송하되,
+                # 링크는 HTTP 응답에 싣지 않는다 — 요청자가 관리자가 아니라 직원 본인이라 화면에 링크를
+                # 띄우면 남 계정 재설정 링크를 가로챌 수 있기 때문(⑧ 기각 ⓐ). 메일함으로만 간다.
+                link = admin.auth.admin.generate_link(
+                    {"type": "recovery", "email": email,
+                     "options": {"redirect_to": redirect_to}}
+                ).properties.action_link
+                send_staff_email(to=email, name=None, link=link, welcome=False)
         except Exception:
             # STAFF-LOGIN-10: 없는 이메일과 제공자 오류의 세부를 브라우저에 드러내지 않는다.
             pass
