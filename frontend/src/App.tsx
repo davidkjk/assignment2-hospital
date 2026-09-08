@@ -44,6 +44,13 @@ function LoginRoute() {
   return <LoginPage />
 }
 
+// 루트 `/`로 직접 들어왔을 때 역할별 기본 화면으로 보낸다(NAV-SHELL-01·02).
+// 이 컴포넌트는 RequireRole 안에서만 렌더되므로 staff가 항상 존재한다.
+export function HomeRedirect() {
+  const { staff } = useAuth()
+  return <Navigate to={staff ? homeFor(staff.role) : '/login'} replace />
+}
+
 // 상담봇 화면(문의함·기록·안내자료·미해결/오답/품질·처리 현황)은 4단계 Task 16~22에서 모두 실제 화면으로 채워졌다.
 // 남은 Placeholder는 아직 본문이 없는 그 밖의 화면에만 쓰인다.
 function Placeholder({ title, note }: { title: string; note?: string }) {
@@ -133,6 +140,7 @@ export function App() {
         <Route path="/reset-password" element={<PasswordResetRequestPage />} />
         <Route path="/reset-password/new" element={<PasswordResetNewPage />} />
         <Route path="/" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><AppShell /></RequireRole>}>
+          <Route index element={<HomeRedirect />} />
           {NAV_ITEMS.map((item) => <Route key={item.path} path={item.path.slice(1)} element={<RequireRole roles={item.roles}>{pageFor(item.path, item.label)}</RequireRole>} />)}
           <Route path="chatlog/report/:messageId" element={<RequireRole roles={RECEPTION_AND_ADMIN}><BadReportPage /></RequireRole>} />
           <Route path="patients/:id" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><PatientDetailPage /></RequireRole>} />
