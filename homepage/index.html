@@ -323,11 +323,16 @@
   .fab-badge{position:absolute; top:-1px; right:-1px; width:14px;height:14px;border-radius:50%; background:#e5484d; border:2px solid #fff}
 
   /* 진짜 webchat 위젯을 담는 iframe 컨테이너. 내부 콘텐츠는 webchat(React)이 그린다. */
-  .chat{position:fixed; right:26px; bottom:26px; z-index:950; width:380px; max-width:calc(100vw - 32px); height:600px; max-height:calc(100vh - 40px);
+  /* z-index는 .site-header(1000)보다 높아야 패널 상단(webchat 닫기 버튼)이 헤더 밑에 안 깔린다(Q12). */
+  .chat{position:fixed; right:26px; bottom:26px; z-index:1200; width:380px; max-width:calc(100vw - 32px); height:600px; max-height:calc(100vh - 40px);
     background:#fff; border-radius:20px; box-shadow:0 30px 70px -20px rgba(12,35,64,.55); overflow:hidden;
     opacity:0; transform:translateY(24px) scale(.96); pointer-events:none; transition:opacity .3s var(--ease), transform .3s var(--ease)}
   .chat.open{opacity:1; transform:none; pointer-events:auto}
   .chat iframe{width:100%; height:100%; border:0; display:block; background:#fff}
+  /* 바깥 탭으로 닫는 백드롭(Q12) — 모바일에서만 보이게(데스크톱은 코너 위젯이라 전체 딤 불필요). */
+  .chat-backdrop{position:fixed; inset:0; z-index:1190; background:rgba(8,22,42,.38);
+    opacity:0; pointer-events:none; transition:opacity .3s var(--ease); display:none}
+  .chat-backdrop.open{opacity:1; pointer-events:auto}
 
   /* ---------- toast ---------- */
   .toast{position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(20px); z-index:1500;
@@ -359,6 +364,12 @@
     .foot-links{gap:32px}
     .slide{flex-basis:88%; aspect-ratio:4/3}
     .fab-mini span{display:none}
+    /* Q12: 모바일에선 상담창을 화면 안에 꽉 차는 시트로 — 상·하 inset(+safe-area)로 잡아
+       100vh가 주소창 뒤까지 넘쳐 헤더가 잘리던 문제 제거. 바깥 탭 닫기용 백드롭도 노출. */
+    .chat{top:max(10px, env(safe-area-inset-top)); left:10px; right:10px;
+      bottom:max(10px, env(safe-area-inset-bottom)); width:auto; max-width:none;
+      height:auto; max-height:none; border-radius:16px}
+    .chat-backdrop{display:block}
   }
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
@@ -987,6 +998,8 @@
   </button>
 </div>
 
+<!-- Q12: 바깥(백드롭)을 탭하면 상담창을 닫는다 — 모바일에서 헤더가 가려져 못 닫히던 막다른 길 방지. -->
+<div class="chat-backdrop" id="chatBackdrop" aria-hidden="true"></div>
 <!-- 진짜 webchat(React 위젯)을 iframe으로 담는다. 콘텐츠·상태·문구는 webchat이 그리고, 홈페이지는 열기/미읽음만 postMessage로 주고받는다. -->
 <section class="chat" id="chat" aria-label="AI 상담봇">
   <iframe id="wcFrame" title="AI 상담봇" allow="clipboard-write"></iframe>
@@ -1078,17 +1091,22 @@
   var WC_ORIGIN='https://gaonhospital-webchat.vercel.app';
   var chat=document.getElementById('chat'), fabChat=document.getElementById('fabChat'),
       fabStack=document.getElementById('fabStack'), fabBadge=document.getElementById('fabBadge'),
+      chatBackdrop=document.getElementById('chatBackdrop'),
       wcFrame=document.getElementById('wcFrame');
   var wcOpen=false;
   wcFrame.src=WC_ORIGIN;                                  // iframe 로드(닫혀도 마운트 유지 → 폴링·미읽음)
   function postToWidget(v){ if(wcFrame.contentWindow) wcFrame.contentWindow.postMessage({type:'host:setOpen',value:v}, WC_ORIGIN); }
   function openWidget(){ wcOpen=true; chat.classList.add('open');
+    chatBackdrop.classList.add('open');                   // Q12: 바깥 탭 닫기용 백드롭(모바일 노출)
     fabStack.style.opacity=0; fabStack.style.pointerEvents='none';
     fabBadge.hidden=true;                                 // 열면 미읽음 표식 해제
     postToWidget(true); }
   function closeWidget(){ wcOpen=false; chat.classList.remove('open');
-    fabStack.style.opacity=1; fabStack.style.pointerEvents='auto'; }
+    chatBackdrop.classList.remove('open');
+    fabStack.style.opacity=1; fabStack.style.pointerEvents='auto';
+    postToWidget(false); }                                // 호스트가 닫으면(백드롭) iframe 위젯도 닫힘 동기화
   fabChat.onclick=openWidget;
+  chatBackdrop.addEventListener('click', closeWidget);    // Q12: 바깥(백드롭) 탭 → 닫기
   document.querySelectorAll('[data-chat-open]').forEach(function(b){ b.addEventListener('click',function(e){e.preventDefault(); openWidget();}); });
   // iframe(webchat)에서 오는 알림만 신뢰(origin 검증). 열림 동기화 + 미읽음 점.
   window.addEventListener('message',function(e){
