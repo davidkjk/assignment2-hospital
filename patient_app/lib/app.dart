@@ -33,7 +33,14 @@ class PatientApp extends ConsumerWidget {
         final factor = mq.textScaler.scale(1) * AppTheme.rootFontScale;
         return MediaQuery(
           data: mq.copyWith(textScaler: TextScaler.linear(factor)),
-          child: child!,
+          // 전역 키보드 내리기: 입력창·버튼·탭 등 상호작용 요소가 아닌 **빈 곳**을 탭하면 키보드를 내린다.
+          // translucent라 상호작용 요소는 자기 탭을 먼저 가져가고(그대로 동작), 아무도 안 쓰는 탭만 여기로 온다.
+          // 탭바가 키보드 위에서 숨는 A안(app_shell)과 짝 — 먼저 키보드를 내려야 탭바가 다시 나와 이동할 수 있다.
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: child!,
+          ),
         );
       },
     );
