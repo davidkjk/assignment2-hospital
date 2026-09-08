@@ -3,9 +3,16 @@ import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/auth/consent_screen.dart';
+import 'package:hospital_patient_app/features/home/home_data.dart';
+import 'package:hospital_patient_app/features/legal/legal_document_view.dart';
+
+// 병원정보(대표전화) provider를 스텁으로 주입한다 — 네트워크 없이 하단 문구 전화를 검증.
+List<Override> _phoneOverride([String phone = '1588-7830']) =>
+    [hospitalInfoProvider.overrideWith((ref) async => HospitalInfo(phone: phone))];
 
 Widget _host(Widget child, [ProviderContainer? c]) => UncontrolledProviderScope(
-    container: c ?? ProviderContainer(), child: MaterialApp(home: child));
+    container: c ?? ProviderContainer(overrides: _phoneOverride()),
+    child: MaterialApp(home: child));
 
 void main() {
   test('[CONSENT-ALL-01] 「필수 항목에 모두 동의」는 필수 3개만 켜고 광고는 켜지 않는다', () {
@@ -79,11 +86,15 @@ void main() {
     expect(find.textContaining('안 받아도 예약 알림은 그대로 옵니다'), findsOneWidget);
   });
 
-  testWidgets('[CONSENT-ITEM-05] 줄 끝 › 를 누르면 본문(자리표시자)이 열린다', (t) async {
-    await t.pumpWidget(_host(const ConsentScreen()));
-    await t.tap(find.byIcon(AppIcons.chevron_right).first);
+  testWidgets('[CONSENT-DOC-02] 줄 끝 › 를 누르면 전문 뷰어가 열리되 동의 체크는 변하지 않는다', (t) async {
+    final c = ProviderContainer(overrides: _phoneOverride());
+    addTearDown(c.dispose);
+    await t.pumpWidget(_host(const ConsentScreen(), c));
+    final before = c.read(consentProvider).terms;
+    await t.tap(find.byIcon(AppIcons.chevron_right).first); // 첫 줄(이용약관) ›
     await t.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget); // 본문 열림(내용은 병원이 채운다)
+    expect(find.byType(LegalDocumentView), findsOneWidget); // 전문 뷰어 열림
+    expect(c.read(consentProvider).terms, before); // 열람 ≠ 동의
   });
 
   testWidgets('[CONSENT-ALL-03] 맨 위 줄 이름은 「필수 항목에 모두 동의」(전체 동의 아님)', (t) async {
@@ -111,8 +122,12 @@ void main() {
     expect(find.text('필수 항목 2개가 남았습니다'), findsOneWidget);
   });
 
-  testWidgets('[CONSENT-BTN-04] 막다른 길 방지 — 동의 없이 이용하려면 병원 전화 안내', (t) async {
+  testWidgets('[CONSENT-BTN-04] 하단 2줄 안내(가입 불가 / 전화·방문 별도경로) + provider 대표전화', (t) async {
     await t.pumpWidget(_host(const ConsentScreen()));
-    expect(find.textContaining('동의 없이 이용하려면 병원으로 전화'), findsOneWidget);
+    await t.pumpAndSettle(); // hospitalInfoProvider 해소
+    expect(find.textContaining('필수 항목에 동의하지 않으면'), findsOneWidget);
+    expect(find.textContaining('앱 가입 없이 예약·문의하려면 병원으로 전화'), findsOneWidget);
+    expect(find.textContaining('1588-7830'), findsOneWidget); // provider 값
+    expect(find.textContaining('02-000-0000'), findsNothing); // 하드코딩 제거
   });
 }

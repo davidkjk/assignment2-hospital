@@ -5,9 +5,12 @@ import '../../core/api_client.dart';
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
 import '../../widgets/labeled_field.dart';
+import '../legal/legal_documents.dart';
 import 'signup_flow.dart';
 
-const _termsVersion = '2026-08-01';
+/// 서버에 싣는 문서별 버전 맵 — 매니페스트에서 파생(단일 상수 폐기, 드리프트 방지).
+Map<String, String> currentDocumentVersions() =>
+    {for (final e in legalDocs.entries) e.key: e.value.version};
 
 /// 가입 필수 동의 3종 — 서버 계약 consents{terms,privacy,sensitive}로 실려 간다(F-05v1·CONSENT-BTN-01b).
 /// 실제 체크 상태(consentProvider)를 그대로 담는다. 서버가 하나라도 false면 400으로 거절한다.
@@ -22,7 +25,7 @@ abstract class SignupProfileRepo {
     required String gender,
     required SignupConsents consents,
     required bool adsAgreed,
-    required String termsVersion,
+    required Map<String, String> documentVersions,
   });
 }
 
@@ -48,7 +51,7 @@ class SignupProfileController {
           gender: gender,
           consents: consents,
           adsAgreed: adsAgreed,
-          termsVersion: _termsVersion);
+          documentVersions: currentDocumentVersions());
       return null;
     } on ApiException catch (e) {
       return e.message;

@@ -26,7 +26,7 @@ class RegisterProfileRequest(BaseModel):
     birth_date: date
     gender: str
     consents: ConsentAssertions          # [F-05 v1] 필수 동의 단언 — 더는 「도달=동의」로 서버가 만들지 않는다
-    terms_version: str                    # 화면이 보여준 약관판 — 서버 현재판과 일치해야 통과
+    document_versions: dict[str, str]     # 항목키→제시 버전(terms/privacy/sensitive/ads) — 현재판과 일치해야 통과
     ads_agreed: bool = False              # 광고(선택)만 기본값
 
 
@@ -37,7 +37,7 @@ async def register_profile(body: RegisterProfileRequest,
     patient_id = await patient_profile_service.register_profile(
         auth_user_id, body.name, body.birth_date, body.gender,
         consents=body.consents.model_dump(), ads_agreed=body.ads_agreed,
-        terms_version=body.terms_version)
+        document_versions=body.document_versions)
     return {"patient_id": patient_id}
 
 

@@ -111,10 +111,10 @@ class SupabaseSignupProfileRepo implements SignupProfileRepo {
     required String gender,
     required SignupConsents consents,
     required bool adsAgreed,
-    required String termsVersion,
+    required Map<String, String> documentVersions,
   }) =>
-      // F-05v1 얼린 계약(CONSENT-BTN-01b): 필수 동의 3종·약관 버전·광고 동의를 본문에 싣는다.
-      // 서버가 consents 하나라도 false면 400, terms_version 불일치면 400으로 거절(문구는 detail로 옴).
+      // F-05v1 얼린 계약(CONSENT-BTN-01b): 필수 동의 3종·문서별 버전 맵·광고 동의를 본문에 싣는다.
+      // 서버가 consents 하나라도 false면 400, 문서 버전 불일치면 400으로 거절(문구는 detail로 옴).
       api.post<void>('/patient', {
         'name': name,
         'birth_date': birthDate,
@@ -124,7 +124,7 @@ class SupabaseSignupProfileRepo implements SignupProfileRepo {
           'privacy': consents.privacy,
           'sensitive': consents.sensitive,
         },
-        'terms_version': termsVersion,
+        'document_versions': documentVersions,
         'ads_agreed': adsAgreed,
       }, (_) {});
 }

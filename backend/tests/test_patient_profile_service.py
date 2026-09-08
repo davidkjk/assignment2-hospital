@@ -24,7 +24,7 @@ async def test_register_links_single_unlinked_match(committed_conn):
     uid = uuid.uuid4()
     await committed_conn.execute("insert into auth.users (id,email,aud,role,created_at,updated_at) values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@test.local")
     with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
-        pid = await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M", consents=_MANDATORY_OK, terms_version=consent_service.TERMS_VERSION)
+        pid = await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M", consents=_MANDATORY_OK, document_versions=consent_service.DOCUMENT_VERSIONS)
     assert pid == legacy
     assert await committed_conn.fetchval("select count(*) from patients where phone='01012345678'") == 1
 
@@ -37,7 +37,7 @@ async def test_register_new_row_when_ambiguous(committed_conn):
     uid = uuid.uuid4()
     await committed_conn.execute("insert into auth.users (id,email,aud,role,created_at,updated_at) values ($1,$2,'authenticated','authenticated',now(),now())", uid, f"{uid}@test.local")
     with patch("app.services.patient_profile_service.get_admin_client", return_value=_mock_verified_phone("01012345678")):
-        await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M", consents=_MANDATORY_OK, terms_version=consent_service.TERMS_VERSION)
+        await patient_profile_service.register_profile(auth_user_id=uid, name="홍길동", birth_date=date(1985,3,1), gender="M", consents=_MANDATORY_OK, document_versions=consent_service.DOCUMENT_VERSIONS)
     assert await committed_conn.fetchval("select count(*) from patients where phone='01012345678'") == 3
 
 
@@ -103,23 +103,24 @@ async def test_register_rejected_when_a_mandatory_consent_is_not_agreed(committe
             await patient_profile_service.register_profile(
                 auth_user_id=uid, name="동의안함", birth_date=date(1980, 5, 5), gender="F",
                 consents={"terms": True, "privacy": True, "sensitive": False},
-                terms_version=consent_service.TERMS_VERSION)
+                document_versions=consent_service.DOCUMENT_VERSIONS)
     assert e.value.status_code == 400
     # 환자 행이 생기지 않아야 한다(부분 생성·거짓 동의 없음).
     assert await committed_conn.fetchval("select count(*) from patients") == before
 
 
 @pytest.mark.asyncio
-async def test_register_rejected_on_stale_terms_version(committed_conn):
-    # F-05 v1: 앱이 옛 약관판을 보여줬으면(버전 불일치) 최신판 동의로 둔갑시키지 않고 거절한다.
+async def test_register_rejected_on_stale_document_version(committed_conn):
+    # F-05 v1: 앱이 옛 약관판을 보여줬으면(어느 문서든 버전 불일치) 최신판 동의로 둔갑시키지 않고 거절한다.
     uid = await _new_auth_user(committed_conn)
     before = await committed_conn.fetchval("select count(*) from patients")
+    stale = {**consent_service.DOCUMENT_VERSIONS, "privacy": "v0.1"}
     with patch("app.services.patient_profile_service.get_admin_client",
                return_value=_mock_verified_phone("01088887777")):
         with pytest.raises(AppError) as e:
             await patient_profile_service.register_profile(
                 auth_user_id=uid, name="옛약관", birth_date=date(1980, 5, 5), gender="F",
-                consents=_MANDATORY_OK, terms_version="1999-01-01")
+                consents=_MANDATORY_OK, document_versions=stale)
     assert e.value.status_code == 400
     assert await committed_conn.fetchval("select count(*) from patients") == before
 
@@ -133,12 +134,13 @@ async def test_register_records_asserted_consent_values(committed_conn):
                return_value=_mock_verified_phone("01077776666")):
         pid = await patient_profile_service.register_profile(
             auth_user_id=uid, name="정상가입", birth_date=date(1980, 5, 5), gender="F",
-            consents=_MANDATORY_OK, ads_agreed=False, terms_version=consent_service.TERMS_VERSION)
+            consents=_MANDATORY_OK, ads_agreed=False, document_versions=consent_service.DOCUMENT_VERSIONS)
     rows = await committed_conn.fetch(
         "select item, agreed, terms_version from patient_consents where patient_id=$1", pid)
     got = {r["item"]: r["agreed"] for r in rows}
     assert got == {"terms": True, "privacy": True, "sensitive": True, "ads": False}
-    assert all(r["terms_version"] == consent_service.TERMS_VERSION for r in rows)
+    # 각 행에 그 문서의 버전이 기록된다(문서별 버전).
+    assert all(r["terms_version"] == consent_service.DOCUMENT_VERSIONS[r["item"]] for r in rows)
 
 
 @pytest.mark.asyncio

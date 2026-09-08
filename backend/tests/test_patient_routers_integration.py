@@ -80,9 +80,9 @@ async def test_unregistered_auth_user_gets_403(client, committed_conn):
 
 
 # ── 프로필: 가입 직후 엔드포인트는 get_current_auth_user_id(/patient, 직원 /patients와 분리) ──
-# [보안 F-05 벡터1] 가입 요청 계약 — 필수 동의 단언 + 약관 버전(현재판 "2026-08-01").
+# [보안 F-05 벡터1] 가입 요청 계약 — 필수 동의 단언 + 문서별 버전 맵(현재판 v1.0).
 _VALID_CONSENTS = {"terms": True, "privacy": True, "sensitive": True}
-_TERMS_VERSION = "2026-08-01"
+_DOCUMENT_VERSIONS = {"terms": "v1.0", "privacy": "v1.0", "sensitive": "v1.0", "ads": "v1.0"}
 
 
 @pytest.mark.asyncio
@@ -92,7 +92,7 @@ async def test_register_creates_patient(client, committed_conn):
                return_value=_mock_verified_phone(None)):
         reg = client.post("/patient", headers=_hdr(make_token(uid)),
                           json={"name": "김환자", "birth_date": "1980-05-05", "gender": "F",
-                                "consents": _VALID_CONSENTS, "terms_version": _TERMS_VERSION})
+                                "consents": _VALID_CONSENTS, "document_versions": _DOCUMENT_VERSIONS})
     assert reg.status_code == 200 and "patient_id" in reg.json()
     row = await committed_conn.fetchrow(
         "select name from patients where id=$1", uuid.UUID(reg.json()["patient_id"]))
@@ -107,7 +107,7 @@ async def test_register_rejects_missing_consents_field(client, committed_conn):
                return_value=_mock_verified_phone(None)):
         reg = client.post("/patient", headers=_hdr(make_token(uid)),
                           json={"name": "무동의", "birth_date": "1980-05-05", "gender": "F",
-                                "terms_version": _TERMS_VERSION})
+                                "document_versions": _DOCUMENT_VERSIONS})
     assert reg.status_code == 422
 
 
@@ -120,7 +120,7 @@ async def test_register_rejects_false_mandatory_consent(client, committed_conn):
         reg = client.post("/patient", headers=_hdr(make_token(uid)),
                           json={"name": "부분동의", "birth_date": "1980-05-05", "gender": "F",
                                 "consents": {"terms": True, "privacy": True, "sensitive": False},
-                                "terms_version": _TERMS_VERSION})
+                                "document_versions": _DOCUMENT_VERSIONS})
     assert reg.status_code == 400
 
 

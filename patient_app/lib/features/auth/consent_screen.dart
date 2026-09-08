@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/button_sizes.dart';
 import '../../core/tokens.dart';
+import '../home/home_data.dart';
+import '../legal/legal_documents.dart';
+import '../legal/legal_document_view.dart';
 import 'signup_flow.dart';
 
 /// 4줄 동의의 로컬 상태(CONSENT-STEP-03: 세션 없이 화면이 들고 있다). 화면 밖 provider라
@@ -58,6 +61,8 @@ class ConsentScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(consentProvider);
     final n = ref.read(consentProvider.notifier);
+    // CONSENT-BTN-04: 하단 안내의 대표전화는 공개 병원정보 API에서(하드코딩 금지).
+    final phone = ref.watch(hospitalInfoProvider).valueOrNull?.phone ?? '';
     return Scaffold(
       appBar: const PatientAppBar(title: '회원가입'),
       body: Column(
@@ -87,17 +92,17 @@ class ConsentScreen extends ConsumerWidget {
                       border: Border.all(color: AppTokens.border),
                     ),
                     child: Column(children: [
-                      _row(context, '[필수] 서비스 이용약관', '서비스 이용에 필요한 약속', null, s.terms,
-                          () => n.toggle('terms')),
+                      _row(context, 'terms', '[필수] 서비스 이용약관', '서비스 이용에 필요한 약속', null,
+                          s.terms, () => n.toggle('terms')),
                       const Divider(height: 1),
-                      _row(context, '[필수] 개인정보 수집·이용', '이름 · 생년월일 · 성별 · 전화번호', null,
-                          s.privacy, () => n.toggle('privacy')),
+                      _row(context, 'privacy', '[필수] 개인정보 수집·이용', '이름 · 생년월일 · 성별 · 전화번호',
+                          null, s.privacy, () => n.toggle('privacy')),
                       const Divider(height: 1),
-                      _row(context, '[필수] 민감정보(건강정보) 처리', '문진 답변 · 진료기록 · 처방', null,
-                          s.sensitive, () => n.toggle('sensitive')),
+                      _row(context, 'sensitive', '[필수] 민감정보(건강정보) 처리', '문진 답변 · 진료기록 · 처방',
+                          null, s.sensitive, () => n.toggle('sensitive')),
                       const Divider(height: 1),
                       // CONSENT-ITEM-04: 정보성과 광고성이 다르다는 것을 밝히는 유일한 자리.
-                      _row(context, '[선택] 광고성 정보 수신', '검진·행사 안내',
+                      _row(context, 'ads', '[선택] 광고성 정보 수신', '검진·행사 안내',
                           '안 받아도 예약 알림은 그대로 옵니다', s.ads, () => n.toggle('ads')),
                     ]),
                   ),
@@ -124,13 +129,18 @@ class ConsentScreen extends ConsumerWidget {
                       style: const TextStyle(color: AppTokens.grayPending, fontSize: 13)),
                 ),
               const SizedBox(height: 12),
-              // CONSENT-BTN-04: 막다른 길 금지 — 동의를 안 하는 사람에게도 길을 준다.
-              const Text('동의 없이 이용하려면 병원으로 전화 주세요 · 02-000-0000',
+              // CONSENT-BTN-04: 막다른 길 금지 + "동의 없이 앱을 쓸 수 있다" 오독 차단(의미 2줄 분리).
+              const Text('필수 항목에 동의하지 않으면 앱 회원가입은 할 수 없습니다.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: AppTokens.grayPending,
-                      fontSize: 12,
-                      decoration: TextDecoration.underline)),
+                  style: TextStyle(color: AppTokens.grayPending, fontSize: 12)),
+              const SizedBox(height: 2),
+              Text(
+                phone.isEmpty
+                    ? '앱 가입 없이 예약·문의하려면 병원으로 전화해 주세요'
+                    : '앱 가입 없이 예약·문의하려면 병원으로 전화해 주세요 · $phone',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppTokens.grayPending, fontSize: 12),
+              ),
             ]),
           ),
         ],
@@ -138,9 +148,9 @@ class ConsentScreen extends ConsumerWidget {
     );
   }
 
-  /// 동의 한 줄: 네모 체크 + 제목(굵게)·부제 + 줄 끝 › (본문 자리표시자).
-  Widget _row(BuildContext context, String title, String sub, String? note, bool value,
-      VoidCallback onToggle) {
+  /// 동의 한 줄: 네모 체크 + 제목(굵게)·부제 + 줄 끝 › (전문 뷰어 열기).
+  Widget _row(BuildContext context, String docKey, String title, String sub, String? note,
+      bool value, VoidCallback onToggle) {
     return InkWell(
       onTap: onToggle,
       child: Padding(
@@ -173,13 +183,11 @@ class ConsentScreen extends ConsumerWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(AppIcons.chevron_right,
-                  color: AppTokens.grayPending), // CONSENT-ITEM-05: › → 본문(병원이 채운다)
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const Dialog(
-                    child:
-                        Padding(padding: EdgeInsets.all(24), child: Text('약관 본문(준비 중)'))),
+              icon: const Icon(AppIcons.chevron_right, color: AppTokens.grayPending),
+              // CONSENT-DOC-02: › → 전문 뷰어(열람 ≠ 동의 — 체크는 바뀌지 않는다)
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => LegalDocumentView(doc: legalDocs[docKey]!)),
               ),
             ),
           ],

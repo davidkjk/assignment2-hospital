@@ -76,7 +76,7 @@ class _FakeProfileRepo implements SignupProfileRepo {
       required String gender,
       required SignupConsents consents,
       required bool adsAgreed,
-      required String termsVersion}) async {}
+      required Map<String, String> documentVersions}) async {}
 }
 
 Widget _wrap(Widget child) => ProviderScope(
