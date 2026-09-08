@@ -83,6 +83,29 @@ async def test_navigate_unknown_kind_rejected():
         await webchat_service.navigate_booking({"kind": "pick_bogus", "payload": {}})
 
 
+@pytest.mark.asyncio
+async def test_list_dates_excludes_dates_with_no_bookable_slots(db_conn):
+    # [WEBBOOK-03] 날짜 목록은 예약 가능 시간이 하나라도 있는 날짜만 보여야 한다.
+    # 오늘 이미 지난 시각(00:00) 슬롯만 있는 날짜는 시간 후보가 0(list_bookable_slots가
+    # 당일 30분 여유로 제외) → 그 날짜를 목록에 남기면 고른 사용자가 막다른 길에 빠진다.
+    # db_conn(롤백)에서 _list_dates_public을 직접 호출한다 — list_bookable_slots는 definer라
+    # 같은 트랜잭션의 미커밋 슬롯도 본다(test_bookable_slots와 동일).
+    from datetime import timedelta
+    doc = await seed_staff(db_conn, role="doctor")
+    today = await db_conn.fetchval("select current_date")
+    # 오늘: 이미 지난 00:00 빈시간만 → 예약 가능 시간 0 → 날짜 목록에서 빠져야
+    await db_conn.execute(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date, '00:00', '빈시간')", doc["staff_id"])
+    # 내일: 미래 슬롯 → 예약 가능 → 날짜 목록에 있어야
+    await db_conn.execute(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) "
+        "values ($1, current_date + 1, '10:00', '빈시간')", doc["staff_id"])
+    dates = [d["date"] for d in await webchat_service._list_dates_public(db_conn, doc["staff_id"])]
+    assert str(today) not in dates                       # 오늘 = 시간후보 0(막다른 길) → 제외
+    assert str(today + timedelta(days=1)) in dates        # 내일 = 예약 가능 → 포함
+
+
 # ── 로그인 후 대상 선택 (pick_target, Bearer 경로) ────────────────────────────
 
 async def _seed_patient_with_family(conn):

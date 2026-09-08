@@ -197,10 +197,17 @@ async def _list_doctors_public(conn, department_id: UUID) -> list[dict]:
 
 
 async def _list_dates_public(conn, doctor_id: UUID) -> list[dict]:
+    # [WEBBOOK-03] 예약 가능 시간이 하나라도 있는 날짜만 보여야 한다 — 안 그러면 그 날짜를 고른
+    # 사용자가 시간 후보 0(막다른 길)에 빠진다. 정본 함수 list_bookable_slots(00019)가 당일
+    # 30분 여유·마감(booking_deadline)·8주까지 판정하므로, 후보 날짜별로 그 결과가 비어있지 않은지
+    # exists로 확인해 재사용한다(조건 중복 없음 → 시간 목록과 drift 불가). 예약 화면 진입 시 1회다.
     rows = await conn.fetch(
-        "select distinct slot_date from appointment_slots "
-        "where doctor_id=$1 and status='빈시간' and slot_date between current_date and current_date+56 "
-        "order by slot_date", doctor_id)
+        "select d.slot_date from ("
+        "  select distinct slot_date from appointment_slots"
+        "  where doctor_id=$1 and status='빈시간' and slot_date between current_date and current_date+56"
+        ") d "
+        "where exists (select 1 from list_bookable_slots($1, d.slot_date)) "
+        "order by d.slot_date", doctor_id)
     return [{"date": str(r["slot_date"]), "label": _date_label(r["slot_date"])} for r in rows]
 
 
