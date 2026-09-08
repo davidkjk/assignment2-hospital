@@ -18,6 +18,9 @@ WIZARD_REPLY_NAMED = "{name} 예약을 도와드릴게요. 예약 마법사로 �
 # → 취소 의도는 "앱에서 직접 취소 / 직원 상담 연결" 안내 + [직원에게 연결] 칩으로 돌린다.
 # TODO(앱 다운로드 링크 확보 시): 안내에 앱 설치 버튼/링크 추가(현재 링크 없음).
 CANCEL_GUIDANCE_REPLY = "예약 취소는 앱의 예약 내역에서 직접 하시거나, 직원 상담으로 도와드릴 수 있어요."
+# 앱(patient/app) AI 상담: 사용자가 이미 앱 안에 있으므로 '앱의 예약 내역'이 아니라 앱 내 [예약 내역]
+# 화면으로 안내한다(사용자 결정 2026-09-08, 옵션 A). 봇이 취소를 실행하지 않는 건 웹과 동일(L49).
+CANCEL_GUIDANCE_REPLY_APP = "예약 취소는 예약 내역 화면에서 직접 하실 수 있어요. 도움이 필요하시면 직원 상담으로 연결해 드릴게요."
 CANCEL_HANDOFF_CHIP = "직원에게 연결"
 
 
@@ -72,6 +75,11 @@ async def booking_agent(session, message: str, *, list_departments_fn=None, list
 async def booking_wizard_handoff(session, message: str, *, list_departments_fn=None) -> dict:
     """[BOOK-BOT-WIZARD] 앱 AI 상담(patient/app)의 예약 의도 → 대화 내 예약 대신 예약 마법사로 인계(결정 B).
     진료과명이 메시지에 있으면 프리필해 앱 마법사 2단계를 미리 선택한다. 반환 {reply, card}(reply 항상 non-empty)."""
+    if _is_cancel_intent(message):
+        # [BOOK-BOT-WIZARD-CANCEL] 라우터가 예약·취소를 함께 agent로 보내므로 앱에서도 취소를 가른다.
+        # 취소는 봇이 실행하지 않고(L49) 앱 내 [예약 내역] 화면 + [직원에게 연결] 칩으로 안내한다.
+        return {"reply": CANCEL_GUIDANCE_REPLY_APP,
+                "card": card_builder.build_quick_replies_card(replies=[], handoff_chip=CANCEL_HANDOFF_CHIP)}
     departments = await (list_departments_fn or _default_list_departments)()
     named = _match_department(message, departments)
     if named is not None:

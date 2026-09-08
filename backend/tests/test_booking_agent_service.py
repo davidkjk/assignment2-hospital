@@ -93,3 +93,26 @@ async def test_wizard_handoff_prefills_named_department():
         None, "내과 예약할래요", list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]))
     assert out["card"]["card_type"] == "open_booking_wizard"
     assert out["card"]["department_id"] == "d1" and out["card"]["department_name"] == "내과"
+
+
+@pytest.mark.asyncio
+async def test_wizard_handoff_cancel_intent_returns_guidance_not_wizard_card():
+    # [BOOK-BOT-WIZARD-CANCEL] 앱 AI 상담도 취소를 실행하지 않고 안내한다(요구사항 L49, 사용자 결정 2026-09-08).
+    # 웹과 달리 사용자가 이미 앱 안에 있으므로 앱 내 [예약 내역] 화면으로 안내한다 → 예약 마법사 카드로 새지 않는다.
+    out = await booking_agent_service.booking_wizard_handoff(
+        None, "예약을 취소하고 싶어요",
+        list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]))
+    assert out["reply"]                                    # 안내 문구 비어 있지 않음
+    assert "예약 내역" in out["reply"]                       # 앱 내 취소 화면으로 안내(웹의 '앱의…'와 다름)
+    assert out["card"]["card_type"] == "quick_replies"     # 예약 마법사 카드(open_booking_wizard) 아님
+    assert out["card"]["handoff_chip"] == "직원에게 연결"      # 직원 상담 칩(막다른 길 방지)
+
+
+@pytest.mark.asyncio
+async def test_wizard_handoff_cancel_takes_priority_over_department_name():
+    # [BOOK-BOT-WIZARD-CANCEL] 진료과명이 함께 있어도 취소가 우선 — 마법사 프리필로 새지 않는다.
+    out = await booking_agent_service.booking_wizard_handoff(
+        None, "내과 예약 취소해줘",
+        list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]))
+    assert out["card"]["card_type"] == "quick_replies"
+    assert out["card"]["handoff_chip"] == "직원에게 연결"
