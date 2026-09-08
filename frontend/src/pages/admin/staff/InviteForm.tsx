@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type Ref } from 'react'
+import { useRef, useState, type CSSProperties, type Ref } from 'react'
 import { BusyButton } from '../../../components/BusyButton'
 import { InlineError } from '../../../components/InlineError'
 import { LinkShareBox } from '../../../components/LinkShareBox'
@@ -31,17 +31,27 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   // 초대 메일이 자동 발송됐는지 — 문구를 「메일을 보냈습니다」/「메일 전송 실패, 링크로 전달」로 가른다.
   const [emailSent, setEmailSent] = useState(false)
+  // [STAFF-INVITE-11] 전송 중 표시(버튼)용. 실제 재진입 차단은 아래 ref가 한다.
+  const [submitting, setSubmitting] = useState(false)
+  // ⛔ 이중 전송 방지 — 느려서 두 번 눌러도(엔터·연타) 초대는 한 번만 나가야 한다. state는 다음
+  //    렌더에야 반영돼 「같은 틱의 두 번째 전송」을 못 막으므로, 동기적으로 읽히는 ref로 막는다.
+  //    막지 않으면 첫 요청은 계정을 만들어 링크를 주고, 둘째는 같은 이메일이라 서버가 500을 내
+  //    「성공 링크 + 실패 배너」가 한 화면에 겹친다(2026-09-08 스크린샷).
+  const submittingRef = useRef(false)
 
   async function submit() {
-    setDone(false)
-    setServerError(null)
-    setInviteLink(null)
-    setEmailSent(false)
+    if (submittingRef.current) return // 이미 전송 중이면 무시(재진입 금지)
     if (role === 'doctor' && !departmentId) {
       setValidationError('의사는 소속 진료과를 선택해야 합니다.')
       return
     }
     setValidationError(null)
+    submittingRef.current = true
+    setSubmitting(true)
+    setDone(false)
+    setServerError(null)
+    setInviteLink(null)
+    setEmailSent(false)
     try {
       const { invite_link, email_sent } = await staffApi.invite({
         email, name, role, department_id: role === 'doctor' ? departmentId : null,
@@ -57,6 +67,9 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
     } catch (err) {
       // 실패해도 값을 남긴다(STAFF-INVITE-05) — 서버 문장을 그대로(ERR-MSG-01).
       setServerError(err instanceof ApiError ? err.message : '초대에 실패했습니다')
+    } finally {
+      submittingRef.current = false
+      setSubmitting(false)
     }
   }
 
@@ -134,11 +147,13 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
 
       <div style={styles.actions}>
         {serverError ? (
-          <button type="button" onClick={() => void submit()} style={styles.retry}>
+          <button type="button" disabled={submitting} onClick={() => void submit()} style={styles.retry}>
             다시 시도
           </button>
         ) : (
-          <BusyButton type="submit" label="초대" busyLabel="초대하는 중…" />
+          // busy를 밖에서 다스린다 — 제출 버튼은 폼 onSubmit으로 도는데, BusyButton은 그 프라미스를
+          // 붙잡지 못해(onClick 없음) 스스로는 처리중을 지속 못 한다. submitting으로 실제 시간을 준다.
+          <BusyButton type="submit" label="초대" busyLabel="초대하는 중…" busy={submitting} />
         )}
         {done && (
           <span role="status" style={styles.done}>
