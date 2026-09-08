@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../../core/tokens.dart';
 
-/// [CHAT-ROOM-LIVE-TYPING-01] 담당 직원이 답변을 작성 중일 때 상담방 하단(입력창 위)에
-/// `직원이 입력 중입니다`를 **일시 표시**한다. ⛔ 온라인 초록 점이나 "곧 답변" 보장이 아니다
-/// (TICKET-DETAIL-SCOPE-01) — 잠깐의 상태 표시일 뿐, 신호가 끊기면 사라진다.
+/// 상담방 하단(입력창 위)의 **일시** 입력 중 표시 — 점 3개 애니메이션 + 라벨.
+/// - `직원이 입력 중입니다`(기본): 담당 직원이 답변 작성 중(CHAT-ROOM-LIVE-TYPING-01).
+/// - `상담봇이 입력 중`: 보내고 봇 응답을 기다리는 중(CHAT-ROOM-BOT-TYPING-01, 웹 위젯 botTyping과 동치).
+/// ⛔ 온라인 초록 점이나 "곧 답변" 보장이 아니다(TICKET-DETAIL-SCOPE-01) — 잠깐의 상태 표시일 뿐.
 class ChatTypingIndicator extends StatefulWidget {
-  const ChatTypingIndicator({super.key});
+  const ChatTypingIndicator({super.key, this.label = '직원이 입력 중입니다'});
+
+  /// 표시 문구. 봇 대기 표시는 '상담봇이 입력 중'을 준다.
+  final String label;
+
   @override
   State<ChatTypingIndicator> createState() => _ChatTypingIndicatorState();
 }
@@ -31,9 +36,9 @@ class _ChatTypingIndicatorState extends State<ChatTypingIndicator>
         children: [
           _AnimatedDots(controller: _c),
           const SizedBox(width: 8),
-          const Text(
-            '직원이 입력 중입니다', // CHAT-ROOM-LIVE-TYPING-01 (정본 문구)
-            style: TextStyle(color: AppTokens.grayPending, fontSize: 13),
+          Text(
+            widget.label, // '직원이 입력 중입니다'(기본) / '상담봇이 입력 중'
+            style: const TextStyle(color: AppTokens.grayPending, fontSize: 13),
           ),
         ],
       ),

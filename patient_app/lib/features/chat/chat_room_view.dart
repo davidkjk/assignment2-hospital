@@ -107,8 +107,11 @@ class ChatRoomView extends ConsumerWidget {
                   onFeedback: (_) => onFeedback?.call(),
                 ),
         }),
-        // CHAT-ROOM-LIVE-TYPING-01: 직원이 입력 중이면 입력창 위에 일시 표시(피드가 로드된 방에서만).
-        if (st.phase == ChatRoomPhase.loaded && st.staffTyping)
+        // 입력창 위 일시 표시(피드가 로드된 방에서만). 봇 대기(BOT-TYPING-01)가 우선,
+        // 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 표시 없음(상시 노출 금지).
+        if (st.phase == ChatRoomPhase.loaded && st.botThinking)
+          const ChatTypingIndicator(label: '상담봇이 입력 중')
+        else if (st.phase == ChatRoomPhase.loaded && st.staffTyping)
           const ChatTypingIndicator(),
         _inputBar(st, ctl),
       ]),

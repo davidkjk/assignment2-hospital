@@ -114,8 +114,12 @@ class ChatRoomState {
   final List<ChatFeedItem> items;
   final String? batchId; // 보고 있으면 이 배치를 읽음 처리(CHAT-ROOM-NOTIFY-01)
   final bool staffTyping; // 담당 직원이 입력 중(CHAT-ROOM-LIVE-TYPING-01) — 일시 표시, 초록 점 아님
+  final bool botThinking; // 봇 답변 대기 중(웹 위젯 botTyping과 동치) — 보내고 응답 오기 전 "상담봇이 입력 중"
   const ChatRoomState(this.phase,
-      {this.items = const [], this.batchId, this.staffTyping = false});
+      {this.items = const [],
+      this.batchId,
+      this.staffTyping = false,
+      this.botThinking = false});
 
   bool get isEmpty =>
       phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
@@ -125,12 +129,14 @@ class ChatRoomState {
     List<ChatFeedItem>? items,
     String? batchId,
     bool? staffTyping,
+    bool? botThinking,
   }) =>
       ChatRoomState(
         phase ?? this.phase,
         items: items ?? this.items,
         batchId: batchId ?? this.batchId,
         staffTyping: staffTyping ?? this.staffTyping,
+        botThinking: botThinking ?? this.botThinking,
       );
 }
 

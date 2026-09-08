@@ -68,7 +68,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     state = ChatRoomState(ChatRoomPhase.loaded,
         items: [...state.items, optimistic],
         batchId: state.batchId,
-        staffTyping: state.staffTyping);
+        staffTyping: state.staffTyping,
+        botThinking: state.botThinking);
     await _deliver(cid, content);
   }
 
@@ -79,6 +80,9 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   }
 
   Future<void> _deliver(String cid, String content) async {
+    // CHAT-ROOM-BOT-TYPING-01: 보내고 봇 응답이 오기 전까지 "상담봇이 입력 중"을 띄운다(웹 위젯과 동치).
+    // 아무 반응이 없으면 고장으로 오인한다 — 응답(성공/실패)이 오면 반드시 끈다.
+    state = state.copyWith(botThinking: true);
     try {
       final res = await _repo.sendMessage(
           threadId: threadId, aiSessionId: aiSessionId, content: content, clientMessageId: cid);
@@ -97,7 +101,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
             if (res.cardMessage != null) res.cardMessage!,
           ],
           batchId: state.batchId,
-          staffTyping: state.staffTyping);
+          staffTyping: state.staffTyping,
+          botThinking: false); // 응답 도착 → 봇 대기 표시 끔
     } catch (_) {
       // CHAT-ROOM-SEND-02: 원문 보존 + failed. 봇 처리를 시작하지 않는다(성공 위장 금지).
       _replace(
@@ -105,6 +110,7 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
           state.items
               .firstWhere((i) => i.clientMessageId == cid)
               .copyWith(sendState: ChatSendState.failed));
+      state = state.copyWith(botThinking: false); // 실패해도 대기 표시는 끈다(고장 오인 방지의 반대편)
     }
   }
 
@@ -112,7 +118,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     state = ChatRoomState(ChatRoomPhase.loaded,
         items: [for (final i in state.items) i.clientMessageId == cid ? next : i],
         batchId: state.batchId,
-        staffTyping: state.staffTyping);
+        staffTyping: state.staffTyping,
+        botThinking: state.botThinking);
   }
 
   StreamSubscription<List<ChatFeedItem>>? _liveSub;
@@ -149,7 +156,10 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
         return x.compareTo(y);
       });
     state = ChatRoomState(ChatRoomPhase.loaded,
-        items: merged, batchId: state.batchId, staffTyping: state.staffTyping);
+        items: merged,
+        batchId: state.batchId,
+        staffTyping: state.staffTyping,
+        botThinking: state.botThinking);
   }
 
   StreamSubscription<bool>? _typingSub;

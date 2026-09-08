@@ -20,6 +20,7 @@ class _FakeRepo implements ChatRepositoryLike {
   }
 
   final List<String> sentSessionIds = [];
+  Completer<void>? sendGate; // 있으면 응답을 이 게이트가 열릴 때까지 붙잡는다(대기 상태 관찰용)
   @override
   Future<SendResult> sendMessage(
       {required String threadId,
@@ -28,6 +29,7 @@ class _FakeRepo implements ChatRepositoryLike {
       required String clientMessageId}) async {
     sentIds.add(clientMessageId);
     sentSessionIds.add(aiSessionId);
+    if (sendGate != null) await sendGate!.future;
     if (sendError != null) throw sendError!;
     return SendResult(
       routeTaken: 'rag',
@@ -218,6 +220,33 @@ void main() {
     expect(c.state.items.any((i) => i.senderType == 'bot'), isTrue);
     expect(c.state.staffTyping, isTrue); // 재구성에도 타이핑 표시 유지
     await typing.close();
+  });
+
+  test('[CHAT-ROOM-BOT-TYPING-01] 보내고 응답 오기 전엔 botThinking=true, 응답 오면 false', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..botReply = '안내드립니다'
+      ..sendGate = Completer<void>();
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    final f = c.send('두통'); // 아직 응답 안 옴(게이트 닫힘)
+    await Future<void>.delayed(Duration.zero);
+    expect(c.state.botThinking, isTrue); // 대기 중 "상담봇이 입력 중"
+    repo.sendGate!.complete(); // 응답 도착
+    await f;
+    expect(c.state.botThinking, isFalse); // 답변 뜨면 대기 표시 끔
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isTrue);
+  });
+
+  test('[CHAT-ROOM-BOT-TYPING-01] 전송 실패해도 botThinking을 반드시 끈다(멈춘 채로 두지 않음)', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendError = Exception('boom');
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('두통');
+    expect(c.state.botThinking, isFalse);
+    expect(c.state.items.any((i) => i.sendState == ChatSendState.failed), isTrue);
   });
 
   test('[CHAT-ROOM-LIVE-TYPING-01] 끔 신호가 유실돼도 6초 안전 타임아웃으로 자동 해제한다', () {

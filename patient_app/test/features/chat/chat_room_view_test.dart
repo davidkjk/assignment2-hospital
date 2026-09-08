@@ -124,4 +124,19 @@ void main() {
     await t.pump();
     expect(find.text('직원이 입력 중입니다'), findsNothing);
   });
+
+  testWidgets('[CHAT-ROOM-BOT-TYPING-01] 봇 답변 대기 중이면 "상담봇이 입력 중"을 표시', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
+        items: [bot('안녕')], botThinking: true)));
+    await t.pump();
+    expect(find.text('상담봇이 입력 중'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-BOT-TYPING-01] 봇 대기가 직원 입력 중보다 우선(둘 다면 봇만)', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
+        items: [bot('안녕')], botThinking: true, staffTyping: true)));
+    await t.pump();
+    expect(find.text('상담봇이 입력 중'), findsOneWidget);
+    expect(find.text('직원이 입력 중입니다'), findsNothing);
+  });
 }

@@ -420,13 +420,16 @@ GoRouter buildAppRouter({String initialLocation = '/landing', Listenable? refres
                 // ChatRoomView.onExit가 /chat/history로 보낸다(CHAT-HISTORY-DEEP-02).
                 builder: (c, s) => ChatHistoryView(
                     onOpen: (id) => c.push('/chat/room/$id'))), // NAV-CHATAPP-10 · CHAT-HISTORY-LIST-01
+            // 지난 상담 이어보기(상세). ⭐ 셸 **안**에 둬 하단 탭바를 유지한다(막다른 길 금지·다른 상세
+            // 화면과 일관) — 예전엔 셸 밖 풀스크린이라 탭이 없어 갇혔다(2026-09-08 실기기 지적).
+            // push 스택이 있으면 방 앱바 뒤로가기=목록, 콜드스타트(스택 0)는 onExit가 /chat/history로.
+            // 전역 _authRedirect가 미인증 콜드스타트를 로그인으로 보낸다(CHAT-HISTORY-DEEP-02).
+            GoRoute(
+                path: '/chat/room/:threadId',
+                builder: (c, s) =>
+                    ChatRoomEntry(threadId: s.pathParameters['threadId']!)),
           ],
         ),
-        // 지난 상담 이어보기(상세 — 셸 없이 풀스크린). 그 방의 세션을 확보해 연다.
-        // 전역 _authRedirect가 미인증 콜드스타트를 로그인으로 보낸다(CHAT-HISTORY-DEEP-02).
-        GoRoute(
-            path: '/chat/room/:threadId',
-            builder: (c, s) => ChatRoomEntry(threadId: s.pathParameters['threadId']!)),
       ],
     );
 

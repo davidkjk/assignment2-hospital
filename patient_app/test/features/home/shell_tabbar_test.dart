@@ -45,5 +45,12 @@ void main() {
     expect(find.byType(MainTabs), findsOneWidget); // 커스텀 하단 탭바(BottomNavigationBar 아님)
   });
 
+  testWidgets('[NAV-GLOBAL] 지난 상담 이어보기(/chat/room)에도 하단 탭바가 있다 — 막다른 길 아님', (t) async {
+    // 2026-09-08 실기기 지적: 목록에서 방으로 들어가면 탭바가 없어 갇혔다 → 셸 안으로 옮김.
+    await t.pumpWidget(_app('/chat/room/t9'));
+    await t.pumpAndSettle();
+    expect(find.byType(MainTabs), findsOneWidget); // 셸 안(탭바 있음), 다른 상세 화면과 일관
+  });
+
   // 로그인 전(/login)·QR 몰입(/qr)에 탭바가 없다는 반대편은 auth_routes_test가 이미 단언한다(중복 금지).
 }
