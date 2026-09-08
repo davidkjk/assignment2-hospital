@@ -8,6 +8,7 @@ import 'cards/chat_card_dispatcher.dart';
 import 'chat_models.dart';
 import 'chat_repository.dart';
 import 'chat_room_controller.dart';
+import 'chat_room_entry.dart'; // chatSessionProvider(탭 세션) 무효화용
 import 'widgets/chat_feed.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_live_row.dart';
@@ -60,13 +61,15 @@ class ChatRoomView extends ConsumerWidget {
             tooltip: '새 대화',
             onPressed: () async {
               try {
-                final sref =
-                    await ref.read(chatRepositoryProvider).startFreshSession();
-                // A4(2026-09-08): 새 대화 = **현재 대화처럼** 연다 — 뒤로가기 없음·'지난 상담' 아이콘 있음.
-                // extra:true(primary)로 딥링크 방(뒤로가기=목록)과 구분한다. 예전엔 그냥 push라 딥링크 방으로
-                // 취급돼 뒤로버튼이 생기고 이력 아이콘이 사라졌다("진짜 새창이 아니다" 실기기 지적).
+                // Q1·Q2(2026-09-08 실기기): 예전엔 push('/chat/room/:id')라 [새 대화]를 누를 때마다
+                // 방이 스택에 쌓이고(뒤로가기 생김), 탭(/chat)은 옛 세션 provider가 캐시돼 있어 다시
+                // 눌러도 옛 대화로 갔다. 고침: 새 세션을 만든 뒤 탭 세션 provider를 무효화하고
+                // go('/chat')로 이동 — 스택을 쌓지 않고, 탭이 '가장 최근 활성 방'(방금 만든 새 방)을
+                // 다시 계산해 보여준다(_resolve_thread tab-entry, patient_ai_session.py).
+                await ref.read(chatRepositoryProvider).startFreshSession();
+                ref.invalidate(chatSessionProvider(null)); // 탭이 새 방을 다시 잡도록
                 if (context.mounted) {
-                  context.push('/chat/room/${sref.threadId}', extra: true);
+                  context.go('/chat');
                 }
               } catch (_) {
                 if (context.mounted) {

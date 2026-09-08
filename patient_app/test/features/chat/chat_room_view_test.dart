@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:hospital_patient_app/core/api_client.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:hospital_patient_app/features/chat/chat_models.dart';
+import 'package:hospital_patient_app/features/chat/chat_repository.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_view.dart';
 
@@ -15,6 +20,18 @@ class _StubCtl extends StateNotifier<ChatRoomState> implements ChatRoomControlle
   _StubCtl(super.s);
   @override
   dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
+}
+
+// [새 대화]가 부르는 startFreshSession만 새 방(t2)으로 답하는 가짜 저장소.
+class _FreshRepo extends ChatRepository {
+  _FreshRepo()
+      : super(ApiClient(
+            baseUrl: 'http://x',
+            tokenProvider: () async => 't',
+            httpClient: MockClient((_) async => http.Response('{}', 200))));
+  @override
+  Future<ChatSessionRef> startFreshSession() async =>
+      const ChatSessionRef(threadId: 't2', aiSessionId: 'a2');
 }
 
 void main() {
@@ -160,11 +177,43 @@ void main() {
     expect(find.text('직원에게 물어보기'), findsWidgets); // 다음 갈 곳(직원 연결)으로 반전
   });
 
+  testWidgets('[Q1·Q2] 새 대화는 방을 스택에 쌓지 않고 상담 탭(/chat)으로 이동한다', (t) async {
+    // 실기기 지적: [새 대화]를 누를 때마다 카드 위에 카드가 쌓이고(뒤로가기 생김),
+    // 탭을 다시 눌러도 옛 대화로 감. 원인=push('/chat/room/:id')로 스택에 쌓고 탭(/chat)을
+    // 갱신하지 않음. 고침=go('/chat')로 스택 없이 탭으로 이동(+ 탭 세션 provider 무효화).
+    final router = GoRouter(
+      initialLocation: '/chat/room/t1',
+      routes: [
+        GoRoute(path: '/chat', builder: (c, s) => const Text('CHAT_TAB_MARKER')),
+        GoRoute(
+            path: '/chat/room/:id',
+            builder: (c, s) => ChatRoomView(threadId: s.pathParameters['id']!)),
+      ],
+    );
+    await t.pumpWidget(ProviderScope(
+      overrides: [
+        chatRepositoryProvider.overrideWithValue(_FreshRepo()),
+        chatRoomProvider(('t1', '')).overrideWith((ref) =>
+            _StubCtl(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')]))),
+        // 옛 코드가 push하면 열릴 새 방(t2)도 스텁 — RED가 깔끔히 실패하도록.
+        chatRoomProvider(('t2', '')).overrideWith((ref) =>
+            _StubCtl(ChatRoomState(ChatRoomPhase.loaded, items: [bot('새 방')]))),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await t.pump();
+    await t.tap(find.byTooltip('새 대화'));
+    await t.pumpAndSettle();
+    expect(find.text('CHAT_TAB_MARKER'), findsOneWidget); // 탭으로 이동(Q2)
+    expect(find.byType(ChatRoomView), findsNothing); // 방이 스택에 안 쌓임(Q1)
+  });
+
   testWidgets('[A4] 새 대화(현재 대화처럼)는 뒤로가기 없이 지난 상담 아이콘이 있다', (t) async {
     await t.pumpWidget(ProviderScope(
       overrides: [chatRoomProvider(('t1', '')).overrideWith((ref) => _StubCtl(
           ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])))],
-      child: MaterialApp(home: ChatRoomView(threadId: 't1', showHistory: true)),
+      child: const MaterialApp(
+          home: ChatRoomView(threadId: 't1', showHistory: true)),
     ));
     await t.pump();
     expect(find.byTooltip('지난 상담'), findsOneWidget);     // 이력 아이콘 있음
