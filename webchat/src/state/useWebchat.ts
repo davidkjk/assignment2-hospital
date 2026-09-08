@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WebchatApi, SessionState, ThreadMessage, HandoffStatus, GuideState } from '../api/webchatApi';
 import type { WebchatPhase } from '../widget/ChatRoom';
 import type { OutagePhase } from '../widget/OutageNotice';
@@ -65,6 +65,26 @@ export function useWebchat(api: WebchatApi, opts: { onHandoffRequested?: (thread
     }
   }, [api, session, onHandoffRequested]);
 
+  // Q18①: 인계 상태를 능동적으로 가져온다 — 예전엔 setHandoff로만 갱신해 폼 제출 후에도 배지가 안 떴다.
+  //   진입/새로고침 시 1회 + 이후 주기 폴링으로 최신 상태(connecting→answered)를 배지에 반영한다.
+  //   ("직원이 확인 중" 열람 presence는 별도 realtime — 후속 세션.)
+  const refreshHandoff = useCallback(async () => {
+    if (!session) return;
+    try {
+      const st = await api.fetchHandoff(session.threadId);
+      setHandoff(st);
+    } catch {
+      setHandoff((h) => ({ ...h, loadError: true }));
+    }
+  }, [api, session]);
+
+  useEffect(() => {
+    if (!session) return;
+    void refreshHandoff();                               // 진입 즉시(기존 인계 복원·제출 후 반영)
+    const id = setInterval(() => { void refreshHandoff(); }, 8000); // 이후 상태 변화(답변 도착) 반영
+    return () => clearInterval(id);
+  }, [session, refreshHandoff]);
+
   const send = useCallback((content: string) => dispatchSend(content, uuid()), [dispatchSend]);
   const resend = useCallback((clientMessageId: string) => {
     const prev = messages.find((x) => x.clientMessageId === clientMessageId);
@@ -78,7 +98,7 @@ export function useWebchat(api: WebchatApi, opts: { onHandoffRequested?: (thread
     open, send, resend,
     retryLoad: open,
     acknowledgeView: useCallback(async () => { if (session) await api.acknowledgeBatches(session.threadId); }, [api, session]),
-    setHandoff,
+    setHandoff, refreshHandoff,
   };
 }
 

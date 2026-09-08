@@ -4,13 +4,13 @@ import { HandoffBadge } from './HandoffBadge';
 import type { HandoffStatus } from '../api/webchatApi';
 const pump = (s: HandoffStatus, onRetry = () => {}) => render(<HandoffBadge status={s} onRetry={onRetry} />);
 
-test('[WEBCHAT-HANDOFF-01] 인계 뒤 대기중/직원 확인중/답변완료를 같은 API 상태로 표시', () => {
+test('[WEBCHAT-HANDOFF-01/Q18④] 인계 뒤 상태별 라벨 — 확인 전/확인 중(presence)/답변 도착', () => {
   pump({ phase: 'connecting', isOpen: true });
-  expect(screen.getByText('대기중')).toBeInTheDocument();
+  expect(screen.getByText('직원 확인 전이에요')).toBeInTheDocument();       // 배정돼도 환자에겐 '확인 전'(Q18②)
   pump({ phase: 'inProgress', isOpen: true, assigneeName: '김간호', assigneeRole: '간호사' });
-  expect(screen.getByText('직원 확인중')).toBeInTheDocument();
-  pump({ phase: 'answered', isOpen: true });
-  expect(screen.getByText('답변완료')).toBeInTheDocument();
+  expect(screen.getByText('직원이 확인 중이에요')).toBeInTheDocument();     // 실제 열람 presence(별도 realtime)
+  pump({ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' });
+  expect(screen.getByText('이의사 의사')).toBeInTheDocument();             // 답변 도착 = 직원 이름·역할
 });
 
 test('[WEBCHAT-HANDOFF-02] 운영시간 판정은 서버 is_open 결과를 쓴다 — 환경변수 9~18시 금지', () => {
@@ -19,9 +19,9 @@ test('[WEBCHAT-HANDOFF-02] 운영시간 판정은 서버 is_open 결과를 쓴�
   expect(screen.getByText('다음 영업일에 답변드립니다')).toBeInTheDocument();
 });
 
-test('[WEBCHAT-HANDOFF-03] 운영시간 안 연결이면 상담 중 표시 — 근거 없는 분 단위 예상시간을 만들지 않는다', () => {
+test('[WEBCHAT-HANDOFF-03] 상담 중이어도 근거 없는 분 단위 예상시간을 만들지 않는다', () => {
   pump({ phase: 'inProgress', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' });
-  expect(screen.getByText('직원 확인중')).toBeInTheDocument();
+  expect(screen.getByText('직원이 확인 중이에요')).toBeInTheDocument();
   expect(screen.queryByText(/분 후|분 뒤|예상/)).not.toBeInTheDocument(); // 서버가 안 준 예상시간 금지
 });
 
@@ -45,8 +45,9 @@ test('[WEBCHAT-HANDOFF-06] 상태 조회 오류면 답변완료로 가장하지 
   expect(onRetry).toHaveBeenCalledTimes(1);
 });
 
-test('[WEBCHAT-HANDOFF-07] 환자 노출 문구는 `상담(직원 확인)으로 연결됐습니다`만 — 취소 접수/등록 암시 금지', () => {
+test('[WEBCHAT-HANDOFF-07/Q18] 환자 노출 문구는 `상담(직원 확인)으로 연결됐어요`만 — 취소 접수/등록·시간 약속 금지', () => {
   pump({ phase: 'connecting', isOpen: true });
-  expect(screen.getByText('상담(직원 확인)으로 연결됐습니다')).toBeInTheDocument();
+  expect(screen.getByText(/상담\(직원 확인\)으로 연결됐어요\. 순서대로 확인해 답변드려요/)).toBeInTheDocument();
   expect(screen.queryByText(/취소 요청.*(접수|등록)|예약이 취소/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/\d+분|몇 시|까지 답변/)).not.toBeInTheDocument(); // 시간 약속 금지
 });

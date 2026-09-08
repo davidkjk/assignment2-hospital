@@ -180,14 +180,15 @@ def test_handoff_status_pending_maps_to_connecting(client):
     assert isinstance(st["isOpen"], bool)
 
 
-def test_handoff_status_in_progress_includes_assignee(client):
-    # [WEBCHAT-HANDOFF] 티켓 in_progress + 담당자 → phase 'inProgress' + 담당자 이름.
+def test_handoff_status_in_progress_hides_assignment_from_patient(client):
+    # [WEBCHAT-HANDOFF/Q18②] 배정(in_progress)은 환자에게 숨긴다 — 여전히 'connecting'(직원 확인 전)이고
+    # 담당자 정보는 노출하지 않는다("직원이 확인 중"은 실제 열람 presence만, 별도). 기대만 키우지 않는다.
     with client as c:
         sess = c.post("/chat/sessions", json={"channel": "web"}).json()
         _seed_ticket_in_progress(sess["threadId"], sess["aiSessionId"])
         st = c.get(f"/chat/threads/{sess['threadId']}/handoff").json()
-    assert st["phase"] == "inProgress"
-    assert st["assigneeName"] == "Test Staff"
+    assert st["phase"] == "connecting"
+    assert st["assigneeName"] is None
 
 
 # ── POST /chat/handoff (익명 인계 — X-Anon-Token 필수) ────────────────────────

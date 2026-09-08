@@ -147,3 +147,23 @@ test('[WEBCHAT-ROOM-09] 전송 실패면 말풍선을 failed로 두고 resend는
   await act(async () => { await result.current.resend(failed!.clientMessageId!); });
   expect(send.mock.calls[0][0].clientMessageId).toBe(send.mock.calls[1][0].clientMessageId); // 동일 키
 });
+
+test('[Q18①] 세션 진입 시 인계 상태를 능동적으로 가져와 배지에 반영한다(제출 후 무반응 해소)', async () => {
+  // 예전엔 handoff를 setHandoff로만 갱신해, 인계 폼 제출 후에도 배지가 안 떴다(아무 변화 없음).
+  // 세션이 생기면 fetchHandoff로 최신 인계 상태를 가져와 배지가 뜨게 한다.
+  const api = fakeApi({ fetchHandoff: vi.fn(async () => ({ phase: 'connecting' as const, isOpen: true })) });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  await waitFor(() => expect(result.current.handoff.phase).toBe('connecting'));
+  expect(api.fetchHandoff).toHaveBeenCalledWith('t1');
+});
+
+test('[Q18①] refreshHandoff로 제출 직후 즉시 상태를 다시 가져올 수 있다', async () => {
+  const fetchHandoff = vi.fn(async () => ({ phase: 'connecting' as const, isOpen: true }));
+  const api = fakeApi({ fetchHandoff });
+  const { result } = renderHook(() => useWebchat(api));
+  await act(async () => { await result.current.open(); });
+  fetchHandoff.mockClear();
+  await act(async () => { await result.current.refreshHandoff(); });
+  expect(fetchHandoff).toHaveBeenCalledWith('t1');
+});
