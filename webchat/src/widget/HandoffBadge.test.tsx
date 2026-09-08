@@ -13,6 +13,14 @@ test('[WEBCHAT-HANDOFF-01/Q18④] 인계 뒤 상태별 라벨 — 확인 전/확
   expect(screen.getByText('이의사 의사')).toBeInTheDocument();             // 답변 도착 = 직원 이름·역할
 });
 
+test('[Q18③] connecting에 열람 presence(staffViewing)가 겹치면 `직원이 확인 중이에요`로 바뀐다', () => {
+  const { rerender } = render(<HandoffBadge status={{ phase: 'connecting', isOpen: true }} onRetry={() => {}} />);
+  expect(screen.getByText('직원 확인 전이에요')).toBeInTheDocument(); // presence 없으면 확인 전
+  rerender(<HandoffBadge status={{ phase: 'connecting', isOpen: true }} staffViewing onRetry={() => {}} />);
+  expect(screen.getByText('직원이 확인 중이에요')).toBeInTheDocument(); // 직원이 실제 열람 중
+  expect(screen.queryByText('직원 확인 전이에요')).not.toBeInTheDocument();
+});
+
 test('[WEBCHAT-HANDOFF-02] 운영시간 판정은 서버 is_open 결과를 쓴다 — 환경변수 9~18시 금지', () => {
   // isOpen은 서버가 준 값이며 위젯은 클라 시계로 재판정하지 않는다.
   pump({ phase: 'connecting', isOpen: false, hoursNote: '다음 영업일에 답변드립니다' });

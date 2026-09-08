@@ -7,6 +7,7 @@ import { GuideBanner } from './GuideBanner';
 import { HandoffBadge } from './HandoffBadge';
 import { UrgentNotice } from './UrgentNotice';
 import { OutageNotice } from './OutageNotice';
+import { useStaffPresence } from './useStaffPresence';
 
 export type PendingAction = { kind: 'view_my_appointments' | 'book' | 'cancel' | 'pick_target'; payload?: Record<string, unknown> };
 export type HandoffSummary = { threadId: string; summary: string[] };
@@ -35,6 +36,8 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
     onHandoffRequested: (threadId) => onHandoffNeeded({ threadId, summary: [] }),
   });
   const hasUnread = w.handoff.phase === 'answered';
+  // Q18③: 직원이 상담 상세를 실제로 열어 보는 중이면 배지가 "직원이 확인 중이에요"로(열람 presence).
+  const staffViewing = useStaffPresence(w.session?.threadId);
   // 장애 중 [문의 남기기] → 익명 인계 폼(WEBCHAT-OUTAGE-02) — 봇 응답 없이 기존 대화 문맥으로 직원에게 연결.
   const leaveInquiry = () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); };
   // [다시 시도] = 마지막 실패 메시지의 전송 왕복(CHAT-OUTAGE-RECOVER-01: 성공하면 배너가 걷힌다).
@@ -61,7 +64,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
             guideSlot={<GuideBanner active={w.guide.active} text={w.guide.text} />}
             // 인계 배지는 실제 인계가 시작(phase 확정)되거나 조회 실패일 때만 — 그 전엔 "상태 확인 중…"을 상시 노출하지 않는다.
             handoffSlot={(w.handoff.phase !== null || w.handoff.loadError)
-              ? <HandoffBadge status={w.handoff} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
+              ? <HandoffBadge status={w.handoff} staffViewing={staffViewing} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
               : null}
             // 긴급 안내(WEBCHAT-URGENT) — 감지 시 대화 위 고정 배너. 예약 CTA·연락처 수집은 함께 두지 않는다(URGENT-03·04).
             urgentSlot={w.urgent ? <UrgentNotice bookingCtaVisible={false} contactRequested={false} /> : null}
