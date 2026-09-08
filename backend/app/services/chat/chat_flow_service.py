@@ -92,6 +92,22 @@ async def handle_message(session, content: str, *, thread_id: UUID,
         channel = "web" if sender_kind == "anonymous_web" else "app"
         async with pool.acquire() as c:
             if intent == "hospital_hours":
+                # Q8: 질문에 의사 이름이 있으면 그 의사 개인 진료시간(doctor_schedule_rules)으로 답한다.
+                #     이름이 없으면(=일반 "진료시간") 병원 전체 시간을 유지한다(퇴행 방지).
+                doctors = await c.fetch(
+                    "select s.id, s.name, coalesce(d.name, s.specialty) as specialty "
+                    "from staff s left join departments d on d.id = s.department_id "
+                    "where s.role = 'doctor' and s.is_active")
+                matched = intent_precheck.match_doctor_names(m, [dict(r) for r in doctors])
+                if matched:
+                    parts = []
+                    for doc in matched:
+                        rules = await c.fetch(
+                            "select weekday, start_time, end_time, lunch_start, lunch_end "
+                            "from doctor_schedule_rules where doctor_id = $1 order by weekday", doc["id"])
+                        parts.append(intent_precheck.format_doctor_schedule(
+                            doc["name"], doc.get("specialty"), [dict(r) for r in rules]))
+                    return {"reply": "\n\n".join(parts)}
                 return {"reply": intent_precheck.format_hours(
                     await opening_hours.list_hospital_hours(c), channel=channel)}
             if intent == "doctor_list":
