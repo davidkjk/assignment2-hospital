@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
 import 'package:hospital_patient_app/features/chat/chat_models.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_view.dart';
@@ -76,5 +77,37 @@ void main() {
     // 방 없음(404) → 조회 오류 상태 + [다시 시도] 경로. 임의의 다른 방을 열지 않는다.
     await t.pumpWidget(_scope(const ChatRoomState(ChatRoomPhase.error)));
     expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-NAME-01] 앱바에 봇 아이콘이 항상 붙는다(로딩→방 전이 시 깜빡임 없음)', (t) async {
+    // ChatRoomEntry 로딩/오류는 icon: chat_bubble을 주는데 방(ChatRoomView)이 안 주면 로드 순간
+    // 아이콘이 사라져 깜빡였다 — 방도 같은 아이콘을 붙여 일관되게 한다.
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])));
+    expect(find.byIcon(AppIcons.chat_bubble), findsOneWidget);
+  });
+
+  testWidgets('[NAV-CHATAPP-09] 딥링크 방(onExit)엔 이전 상담 목록으로 나가는 뒤로 버튼이 있다', (t) async {
+    // 셸 밖 풀스크린 방은 탭바가 없어 onExit(뒤로가기→이전 상담 목록)가 유일한 출구다(막다른 길 금지).
+    var exited = false;
+    await t.pumpWidget(ProviderScope(
+      overrides: [chatRoomProvider(('t1', '')).overrideWith((ref) => _StubCtl(
+          ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])))],
+      child: MaterialApp(
+          home: ChatRoomView(threadId: 't1', onExit: () => exited = true)),
+    ));
+    await t.tap(find.byTooltip('이전 상담 목록'));
+    expect(exited, isTrue);
+  });
+
+  testWidgets('[CHAT-ROOM-INPUT-01] 대화 영역을 탭하면 키보드가 내려간다(갇힘 방지)', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])));
+    bool inputFocused() =>
+        t.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus;
+    await t.tap(find.byType(TextField)); // 입력창 포커스 → 키보드
+    await t.pump();
+    expect(inputFocused(), isTrue);
+    await t.tap(find.textContaining('진단이 아니라')); // 안전 배너(버튼 아님)를 탭 = 빈 영역 탭
+    await t.pump();
+    expect(inputFocused(), isFalse); // 입력창 포커스 해제 → 키보드 내려감
   });
 }

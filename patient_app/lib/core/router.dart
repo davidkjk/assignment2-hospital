@@ -415,8 +415,11 @@ GoRouter buildAppRouter({String initialLocation = '/landing', Listenable? refres
                 builder: (c, s) => const ChatRoomEntry(showHistory: true)),
             GoRoute(
                 path: '/chat/history',
+                // push로 열어 뒤로가기 스택을 남긴다 — 방에서 뒤로가면 목록으로 돌아온다(NAV-CHATAPP-10).
+                // go면 스택이 없어 셸 밖 방이 막다른 길이 됐다(⑦). 콜드스타트 딥링크는 스택이 없어도
+                // ChatRoomView.onExit가 /chat/history로 보낸다(CHAT-HISTORY-DEEP-02).
                 builder: (c, s) => ChatHistoryView(
-                    onOpen: (id) => c.go('/chat/room/$id'))), // NAV-CHATAPP-10 · CHAT-HISTORY-LIST-01
+                    onOpen: (id) => c.push('/chat/room/$id'))), // NAV-CHATAPP-10 · CHAT-HISTORY-LIST-01
           ],
         ),
         // 지난 상담 이어보기(상세 — 셸 없이 풀스크린). 그 방의 세션을 확보해 연다.

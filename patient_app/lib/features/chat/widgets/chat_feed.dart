@@ -33,9 +33,16 @@ class ChatFeed extends StatelessWidget {
           if (it.messageType == 'system' && liveSlotBuilder != null) {
             return liveSlotBuilder!(ctx, it);
           }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          // CHAT-ROOM-FEED-01: 발신자별 좌우 정렬. ChatBubble 내부 end 정렬은 열이 내용폭으로 줄어
+          // 무효라, 여기서 Align으로 감싸 내 메시지=오른쪽, 봇·직원=왼쪽에 붙인다.
+          final isPatient = it.senderType == 'patient';
+          return Align(
+            key: ValueKey('msg-align-${it.id}'),
+            alignment: isPatient ? Alignment.centerRight : Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment:
+                  isPatient ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
               ChatBubble(
                 item: it,
                 onRetry: it.clientMessageId == null
@@ -60,6 +67,7 @@ class ChatFeed extends StatelessWidget {
                   ),
                 ),
             ],
+            ),
           );
         },
       );

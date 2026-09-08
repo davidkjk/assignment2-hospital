@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../widgets/patient_app_bar.dart';
 import '../../core/tokens.dart';
@@ -57,6 +58,13 @@ class ChatRoomEntry extends ConsumerWidget {
         threadId: sref.threadId,
         aiSessionId: sref.aiSessionId,
         showHistory: showHistory,
+        // 딥링크 방(threadId 지정 = 셸 밖 풀스크린)은 탭바가 없어 막다른 길이 된다 → 뒤로가기를
+        // 이전 상담 목록으로 준다(CHAT-HISTORY-DEEP-02·NAV-CHATAPP-09). 스택이 있으면 그냥 pop.
+        onExit: threadId == null
+            ? null
+            : () => Navigator.of(context).canPop()
+                ? context.pop()
+                : context.go('/chat/history'),
       ),
     );
   }

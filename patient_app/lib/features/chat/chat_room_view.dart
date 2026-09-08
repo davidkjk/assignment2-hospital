@@ -20,12 +20,16 @@ class ChatRoomView extends ConsumerWidget {
   final String aiSessionId;
   final bool showHistory; // AI 상담 탭(방)에서만 '지난 상담' 아이콘을 앱바에 붙인다(NAV-CHATAPP-10)
   final VoidCallback? onFeedback; // 봇 답변 피드백 → 인계(T11)
+  // 딥링크 상담방(셸 밖 풀스크린)일 때만 준다. 뒤로가기 = 이전 상담 목록으로(CHAT-HISTORY-DEEP-02·
+  // NAV-CHATAPP-09). null이면 탭 진입(하단 탭바가 출구)이라 별도 뒤로 버튼을 두지 않는다.
+  final VoidCallback? onExit;
   const ChatRoomView({
     super.key,
     required this.threadId,
     this.aiSessionId = '',
     this.showHistory = false,
     this.onFeedback,
+    this.onExit,
   });
 
   @override
@@ -37,6 +41,15 @@ class ChatRoomView extends ConsumerWidget {
       backgroundColor: AppTokens.background,
       appBar: PatientAppBar(
         title: 'AI 상담봇', // CHAT-ROOM-NAME-01
+        icon: AppIcons.chat_bubble, // 로딩/오류(ChatRoomEntry)와 같은 봇 아이콘 — 전이 시 깜빡임 방지
+        // 딥링크 방(onExit != null): 뒤로가기 = 이전 상담 목록(CHAT-HISTORY-DEEP-02·NAV-CHATAPP-09).
+        leading: onExit == null
+            ? null
+            : IconButton(
+                icon: const Icon(AppIcons.arrow_back),
+                tooltip: '이전 상담 목록',
+                onPressed: onExit,
+              ),
         actions: showHistory
             ? [
                 IconButton(
@@ -47,7 +60,11 @@ class ChatRoomView extends ConsumerWidget {
               ]
             : null,
       ),
-      body: Column(children: [
+      // CHAT-ROOM-INPUT-01: 대화 영역(버튼 아닌 곳)을 탭하면 키보드를 내린다 — 갇힘 방지.
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(children: [
         const ChatSafetyBanner(), // CHAT-ROOM-SAFE-01 (항상)
         Expanded(child: switch (st.phase) {
           ChatRoomPhase.loading =>
@@ -91,6 +108,7 @@ class ChatRoomView extends ConsumerWidget {
         }),
         _inputBar(st, ctl),
       ]),
+      ),
     );
   }
 
