@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     # 웹훅) 수신 경로를 이 위에 얹는다. 비면 콜백 URL을 만들지 않는다(개발·로컬).
     public_base_url: str = ""
 
+    # 이메일 발송(Resend) — 직원 초대·재초대·비밀번호 재설정 메일을 백엔드가 직접 보낸다.
+    # 도메인(withlog.app)을 Resend에 인증한 뒤에만 본인 외 주소로 발송된다(2026-09-07 도메인 검증).
+    # 키가 비면 개발 폴백(발송 안 함·로그만) — Solapi·FCM과 같은 "키만 꽂으면 진짜" 원칙.
+    # mail_from은 "이름 <주소>" 형식 가능하며 주소의 도메인이 인증된 것이어야 한다.
+    resend_api_key: str = ""
+    mail_from: str = "가온병원 <hospital@withlog.app>"
+
     model_config = SettingsConfigDict(env_file=".env")
 
     @property
