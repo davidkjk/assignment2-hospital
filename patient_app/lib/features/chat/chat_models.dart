@@ -3,6 +3,10 @@
 enum NoticeKind { medical, general } // CHAT-ROOM-VISUAL-01 머리말
 enum ChatSendState { sent, sending, failed } // 환자 말풍선 전송 상태(CHAT-ROOM-SEND-*)
 
+/// AI 장애 화면(CHAT-OUTAGE-*)의 문의 남기기 하위 상태. 데이터 계층에 두어 상태(ChatRoomState)와
+/// 화면(chat_outage_view.dart)이 공유한다(화면이 이 enum을 re-export한다).
+enum OutageInquiryPhase { idle, busy, error, done }
+
 class ChatFeedItem {
   final String id;
   final String messageType; // 'text' | 'card' | 'system'
@@ -115,11 +119,15 @@ class ChatRoomState {
   final String? batchId; // 보고 있으면 이 배치를 읽음 처리(CHAT-ROOM-NOTIFY-01)
   final bool staffTyping; // 담당 직원이 입력 중(CHAT-ROOM-LIVE-TYPING-01) — 일시 표시, 초록 점 아님
   final bool botThinking; // 봇 답변 대기 중(웹 위젯 botTyping과 동치) — 보내고 응답 오기 전 "상담봇이 입력 중"
+  // AI 일시 장애(Q19·CHAT-OUTAGE-01). null=정상. 값이 있으면 방 대신 ChatOutageView를 전면에 띄운다
+  // (빈 응답/5xx = AI에 못 닿음 → 강제 직원인계가 아니라 장애 안내). webchat OutageNotice와 통일.
+  final OutageInquiryPhase? outagePhase;
   const ChatRoomState(this.phase,
       {this.items = const [],
       this.batchId,
       this.staffTyping = false,
-      this.botThinking = false});
+      this.botThinking = false,
+      this.outagePhase});
 
   bool get isEmpty =>
       phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
@@ -130,6 +138,8 @@ class ChatRoomState {
     String? batchId,
     bool? staffTyping,
     bool? botThinking,
+    OutageInquiryPhase? outagePhase,
+    bool clearOutage = false, // true면 outagePhase를 null로 되돌린다(장애 복구 — nullable 갱신은 ??로 못 지운다)
   }) =>
       ChatRoomState(
         phase ?? this.phase,
@@ -137,6 +147,7 @@ class ChatRoomState {
         batchId: batchId ?? this.batchId,
         staffTyping: staffTyping ?? this.staffTyping,
         botThinking: botThinking ?? this.botThinking,
+        outagePhase: clearOutage ? null : (outagePhase ?? this.outagePhase),
       );
 }
 

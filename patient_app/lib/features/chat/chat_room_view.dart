@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
 import 'cards/chat_card_dispatcher.dart';
 import 'chat_models.dart';
+import 'chat_outage_view.dart';
 import 'chat_repository.dart';
 import 'chat_room_controller.dart';
 import 'chat_room_entry.dart'; // chatSessionProvider(탭 세션) 무효화용
@@ -40,6 +41,17 @@ class ChatRoomView extends ConsumerWidget {
     final key = (threadId, aiSessionId);
     final st = ref.watch(chatRoomProvider(key));
     final ctl = ref.read(chatRoomProvider(key).notifier);
+    // Q19(CHAT-OUTAGE-01): AI 일시 장애(빈 응답/5xx)면 강제 직원인계가 아니라 장애 화면을 전면에 띄운다.
+    //   [다시 시도] 성공 → outagePhase가 null로 돌아가 방으로 복귀(자동 폴링·재전송 없음). webchat과 통일.
+    if (st.outagePhase != null) {
+      return ChatOutageView(
+        phase: st.outagePhase!,
+        hospitalPhone: '02-1234-5678', // 앱 공용 병원 대표번호(hospital_info·appointment_card와 동일)
+        onBook: () => context.go('/booking'), // 예약은 앱에서 바로(막다른 길 방지)
+        onRetry: ctl.retryFromOutage,
+        onInquiry: ctl.submitOutageInquiry,
+      );
+    }
     return Scaffold(
       backgroundColor: AppTokens.background,
       appBar: PatientAppBar(

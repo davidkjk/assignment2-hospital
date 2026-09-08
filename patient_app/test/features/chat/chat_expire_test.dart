@@ -14,6 +14,8 @@ class _Repo implements ChatRepositoryLike {
       const SendResult(routeTaken: 'rag');
   @override
   Future<void> markRead({required String threadId}) async {}
+  @override
+  Future<void> createInquiry({required String threadId, required String content}) async {}
 }
 
 void main() {

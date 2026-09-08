@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hospital_patient_app/core/api_client.dart' show ApiException;
 import 'package:hospital_patient_app/features/chat/chat_models.dart';
 import 'package:hospital_patient_app/features/chat/chat_repository.dart' show SendResult;
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
@@ -48,6 +49,14 @@ class _FakeRepo implements ChatRepositoryLike {
 
   @override
   Future<void> markRead({required String threadId}) async {}
+
+  final List<String> inquiries = []; // createInquiry로 남긴 문의 본문(장애 화면 [문의 남기기])
+  Object? inquiryError; // 있으면 createInquiry가 던진다(문의 실패 관찰용)
+  @override
+  Future<void> createInquiry({required String threadId, required String content}) async {
+    if (inquiryError != null) throw inquiryError!;
+    inquiries.add(content);
+  }
 }
 
 void main() {
@@ -292,5 +301,84 @@ void main() {
     final sys = c.state.items.where((i) => i.messageType == 'system').toList();
     expect(sys, isNotEmpty);
     expect(sys.last.content, contains('답변을 가져오지 못했어요'));
+  });
+
+  // ── Q19 AI 일시 장애(CHAT-OUTAGE-01) ────────────────────────────────────────
+  test('[CHAT-OUTAGE-01] 전송이 5xx로 실패하면 강제 인계가 아니라 장애 화면으로 — 실패 말풍선/시스템줄 안 만든다', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendError = ApiException('서버 오류', statusCode: 503);
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('배가 아파요');
+    expect(c.state.outagePhase, OutageInquiryPhase.idle); // 전면 장애 화면
+    expect(c.state.botThinking, isFalse); // 대기 표시는 끈다(고장 오인 방지)
+    // 강제 직원인계(시스템 줄)를 만들지 않는다.
+    expect(c.state.items.where((i) => i.messageType == 'system'), isEmpty);
+  });
+
+  test('[CHAT-OUTAGE-01] 4xx(세션 만료 등)는 장애 아님 — 예전처럼 실패 말풍선, 장애 화면 안 뜬다', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendError = ApiException('세션 만료', statusCode: 401);
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('안녕');
+    expect(c.state.outagePhase, isNull); // 장애 화면 아님
+    expect(c.state.items.any((i) => i.sendState == ChatSendState.failed), isTrue);
+  });
+
+  test('[CHAT-OUTAGE-01] status 없는 네트워크 실패는 전면 장애가 아니라 실패 말풍선(과도한 에스컬레이션 방지)', () async {
+    // ⚠️ webchat는 no-status도 장애로 보지만, 앱은 이미 메시지별 실패-말풍선 재시도가 있어 그쪽으로 둔다.
+    //   전면 장애화면은 5xx(진짜 AI 미가용)로만.
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendError = Exception('SocketException'); // ApiException 아님(status 없음)
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('여보세요');
+    expect(c.state.outagePhase, isNull); // 장애 화면 아님
+    expect(c.state.items.any((i) => i.sendState == ChatSendState.failed), isTrue);
+  });
+
+  test('[CHAT-OUTAGE-RECOVER-01] 장애 후 [다시 시도] 성공 = 같은 키 재전송 + 장애 해제, 봇 답변 표시', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendError = ApiException('서버 오류', statusCode: 503);
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('두통이 심해요');
+    final firstCid = repo.sentIds.single;
+    // 서버 복구 후 재시도.
+    repo.sendError = null;
+    repo.botReply = '가까운 신경과를 안내드릴게요';
+    await c.retryFromOutage();
+    expect(c.state.outagePhase, isNull); // 성공 왕복 → 장애 해제(방 복귀)
+    expect(repo.sentIds, [firstCid, firstCid]); // 같은 멱등 키로 재전송(중복 방지)
+    expect(c.state.items.any((i) => i.senderType == 'bot' && i.content == '가까운 신경과를 안내드릴게요'), isTrue);
+  });
+
+  test('[CHAT-OUTAGE-INQUIRY-01] 장애 화면 [문의 남기기]: busy→done, createInquiry에 본문 전달', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendError = ApiException('서버 오류', statusCode: 500);
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('상담 문의');
+    await c.submitOutageInquiry('CT 준비물이 궁금해요');
+    expect(c.state.outagePhase, OutageInquiryPhase.done);
+    expect(repo.inquiries, ['CT 준비물이 궁금해요']);
+  });
+
+  test('[CHAT-OUTAGE-INQUIRY-01] 문의 실패는 완료로 위장하지 않고 error', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendError = ApiException('서버 오류', statusCode: 500)
+      ..inquiryError = Exception('boom');
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('상담 문의');
+    await c.submitOutageInquiry('문의 본문');
+    expect(c.state.outagePhase, OutageInquiryPhase.error);
   });
 }

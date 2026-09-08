@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../../core/api_client.dart' show ApiException;
 import 'chat_models.dart';
 import 'chat_repository.dart';
 
@@ -14,6 +15,8 @@ abstract class ChatRepositoryLike {
       required String content,
       required String clientMessageId});
   Future<void> markRead({required String threadId});
+  // AI 장애 시 AI를 거치지 않는 문의(CHAT-OUTAGE-INQUIRY-01). 장애 화면의 [문의 남기기]가 부른다.
+  Future<void> createInquiry({required String threadId, required String content});
 }
 
 /// 상담방 셸의 상태 기계. 복원(CHAT-ROOM-LOAD/EMPTY/ERR)·전송(SEND-01·02·03)·읽음(NOTIFY-01).
@@ -79,7 +82,14 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     await _deliver(clientMessageId, item.content!); // 같은 키 재사용(CHAT-ROOM-SEND-03)
   }
 
+  // 마지막 전송(장애 화면의 [다시 시도]가 같은 키로 재전송 — 멱등). 성공 왕복이 오면 상태가 새로 만들어져
+  // outagePhase가 null로 돌아가므로 별도 복구 신호가 필요 없다(webchat "성공 왕복=장애 해제"와 동치).
+  String? _lastCid;
+  String? _lastContent;
+
   Future<void> _deliver(String cid, String content) async {
+    _lastCid = cid;
+    _lastContent = content;
     // CHAT-ROOM-BOT-TYPING-01: 보내고 봇 응답이 오기 전까지 "상담봇이 입력 중"을 띄운다(웹 위젯과 동치).
     // 아무 반응이 없으면 고장으로 오인한다 — 응답(성공/실패)이 오면 반드시 끈다.
     state = state.copyWith(botThinking: true);
@@ -118,7 +128,15 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
           batchId: state.batchId,
           staffTyping: state.staffTyping,
           botThinking: false); // 응답 도착 → 봇 대기 표시 끔
-    } catch (_) {
+    } catch (e) {
+      // Q19(CHAT-OUTAGE-01): 서버/AI 장애(5xx — 빈 AI 응답은 백엔드가 503으로 내린다)면 강제 직원인계가
+      //   아니라 장애 화면(ChatOutageView)으로 안내한다. ⚠️ webchat는 status 없는 네트워크 실패도 장애로
+      //   보지만, 앱은 그런 일시 blip을 이미 "메시지별 실패 말풍선 재시도"(SEND-02, 아래)로 덜 거슬리게
+      //   처리한다 — 전면 장애화면은 5xx(진짜 AI 미가용)로만 띄워 과도한 에스컬레이션을 막는다.
+      if (_isOutageError(e)) {
+        state = state.copyWith(outagePhase: OutageInquiryPhase.idle, botThinking: false);
+        return;
+      }
       // CHAT-ROOM-SEND-02: 원문 보존 + failed. 봇 처리를 시작하지 않는다(성공 위장 금지).
       _replace(
           cid,
@@ -126,6 +144,35 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
               .firstWhere((i) => i.clientMessageId == cid)
               .copyWith(sendState: ChatSendState.failed));
       state = state.copyWith(botThinking: false); // 실패해도 대기 표시는 끈다(고장 오인 방지의 반대편)
+    }
+  }
+
+  // 5xx = 서버/AI 미가용(장애). 4xx·status 없는 네트워크 실패는 장애 화면을 띄우지 않는다
+  //   — 4xx는 다른 경로(세션 만료 등) 소관, 네트워크 blip은 메시지별 실패 말풍선 재시도(SEND-02)가 처리.
+  static bool _isOutageError(Object e) =>
+      e is ApiException && e.statusCode != null && e.statusCode! >= 500;
+
+  /// [CHAT-OUTAGE-RECOVER-01] 장애 화면의 [다시 시도] — 마지막 메시지를 같은 키로 재전송한다(멱등).
+  /// 성공하면 봇 답변이 붙고 outagePhase가 자연히 null로 돌아가 방으로 복귀한다(자동 폴링·재전송 없음).
+  Future<void> retryFromOutage() async {
+    final cid = _lastCid, content = _lastContent;
+    if (cid == null || content == null) {
+      state = state.copyWith(clearOutage: true); // 재전송할 것이 없으면 방으로만 돌아간다
+      return;
+    }
+    await _deliver(cid, content);
+  }
+
+  /// [CHAT-OUTAGE-INQUIRY-01] 장애 화면의 [문의 남기기] — AI를 거치지 않고 문의를 남긴다.
+  /// busy 동안 잠그고(입력 보존), 성공=done, 실패=error(완료로 위장하지 않음).
+  Future<void> submitOutageInquiry(String content) async {
+    if (content.isEmpty) return;
+    state = state.copyWith(outagePhase: OutageInquiryPhase.busy);
+    try {
+      await _repo.createInquiry(threadId: threadId, content: content);
+      state = state.copyWith(outagePhase: OutageInquiryPhase.done);
+    } catch (_) {
+      state = state.copyWith(outagePhase: OutageInquiryPhase.error);
     }
   }
 
@@ -257,4 +304,7 @@ class _RepoAdapter implements ChatRepositoryLike {
           clientMessageId: clientMessageId);
   @override
   Future<void> markRead({required String threadId}) => _r.markRead(threadId: threadId);
+  @override
+  Future<void> createInquiry({required String threadId, required String content}) =>
+      _r.createInquiry(threadId: threadId, content: content);
 }

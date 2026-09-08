@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import '../../widgets/patient_app_bar.dart';
 import 'package:hospital_patient_app/core/app_icons.dart';
 import '../../core/tokens.dart';
+import 'chat_models.dart' show OutageInquiryPhase;
+// OutageInquiryPhase는 데이터 계층(chat_models.dart)에 있다(상태·화면 공유). 기존 `import chat_outage_view`
+// 사용처가 그대로 이 enum을 보도록 re-export한다.
+export 'chat_models.dart' show OutageInquiryPhase;
 
 /// AI 장애 화면(CHAT-OUTAGE-*). 장애 알림(SHOW)·비AI 문의(INQUIRY/BUSY/ERR/DONE)·
 /// 예약 우회(BOOK)·전화 우회(PHONE). 복구는 [다시 시도]의 성공으로만 확인한다
 /// (CHAT-OUTAGE-RECOVER-01 확정 — 배경 폴링·자동 재전송 없음).
-enum OutageInquiryPhase { idle, busy, error, done }
 
 class ChatOutageView extends StatefulWidget {
   final OutageInquiryPhase phase;
