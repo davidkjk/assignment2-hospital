@@ -1,18 +1,37 @@
+import re
 from uuid import UUID
 
 from app.core.errors import AppError
 from app.db.pool import get_pool
 
 
-def chunk_text(content: str, *, max_len: int = 500) -> list[str]:
-    # 단순 청킹: 빈 줄 문단 우선, 너무 길면 max_len로 자른다(검색 단위).
-    parts, buf = [], ""
+# 문장 끝(마침표·물음표·느낌표) 뒤 공백에서 자른다. 한국어 '…다.' 문장에 맞는다.
+_SENT_SPLIT = re.compile(r"(?<=[.!?。])\s+")
+
+
+def _tail_sentences(text: str, n: int) -> str:
+    # text의 마지막 n개 문장을 돌려준다(조각 사이 겹침용). 문단 경계(개행)는 공백으로 눕힌다.
+    if n <= 0:
+        return ""
+    flat = re.sub(r"\s+", " ", text).strip()
+    sents = [s for s in _SENT_SPLIT.split(flat) if s.strip()]
+    return " ".join(sents[-n:]) if sents else ""
+
+
+def chunk_text(content: str, *, max_len: int = 500, overlap_sentences: int = 1) -> list[str]:
+    # 청킹(검색 단위): 빈 줄 문단 우선, 이어붙여 max_len을 넘으면 자른다.
+    # ⭐ 조각 사이 문장 겹침(overlap) — 두 번째 조각부터는 직전 조각의 마지막 overlap_sentences 문장으로
+    #    시작해, 문단 경계에서 맥락이 끊겨 답이 반 토막 나는 것을 막는다(overlap_sentences=0이면 겹침 없음).
+    parts: list[str] = []
+    buf = ""
     for para in content.split("\n\n"):
         para = para.strip()
         if not para:
             continue
         if len(buf) + len(para) + 2 > max_len and buf:
-            parts.append(buf); buf = para
+            parts.append(buf)
+            overlap = _tail_sentences(buf, overlap_sentences)
+            buf = f"{overlap}\n\n{para}" if overlap else para
         else:
             buf = f"{buf}\n\n{para}" if buf else para
     if buf:

@@ -5,6 +5,26 @@ from tests.conftest import seed_staff
 from tests.conftest_chat import FakeEmbedder
 
 
+def test_chunk_text_sentence_overlap():
+    # 문단 두 개를 작은 max_len으로 강제 분할한다. overlap 여부로 두 번째 조각 시작이 달라진다.
+    content = "문장 A. 문장 B.\n\n문장 C. 문장 D."
+    no_ov = kb_service.chunk_text(content, max_len=20, overlap_sentences=0)
+    ov = kb_service.chunk_text(content, max_len=20, overlap_sentences=1)
+    # 겹침 없음: 조각이 문단 그대로
+    assert no_ov == ["문장 A. 문장 B.", "문장 C. 문장 D."]
+    # 겹침 1문장: 조각 수는 같고, 둘째 조각이 첫째 조각의 마지막 문장으로 시작한다
+    assert len(ov) == 2
+    assert ov[0] == "문장 A. 문장 B."
+    assert ov[1].startswith("문장 B.")
+    assert "문장 C. 문장 D." in ov[1]
+
+
+def test_chunk_text_single_chunk_has_no_overlap():
+    # 짧아서 한 조각이면 겹침이 생기지 않는다(기존 짧은 안내자료 동작 불변).
+    content = "한 문단짜리 짧은 안내입니다. 두 번째 문장입니다."
+    assert kb_service.chunk_text(content) == [content]
+
+
 @pytest.mark.asyncio
 async def test_list_categories_shows_used_categories_distinct(committed_conn):
     # 편집기 콤보박스는 「실제로 쓰이는」 분류를 보여준다 — 관리자가 만든 새 분류가 뜨고, 중복은 한 번,
