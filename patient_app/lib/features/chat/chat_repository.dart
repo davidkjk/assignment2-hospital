@@ -16,6 +16,41 @@ class ChatSessionRef {
   const ChatSessionRef({required this.threadId, required this.aiSessionId});
 }
 
+/// POST /chat/messages 의 응답을 담는다. 서버는 저장된 환자 메시지가 아니라 **봇 처리 결과**를
+/// {route_taken, message_id, reply, restricted_block, card?} 로 준다(웹 위젯과 동일 계약).
+/// reply → 봇 텍스트 말풍선, card(card_type 있음) → 카드 말풍선. 둘 다 없으면(예: handoff) null.
+class SendResult {
+  const SendResult({required this.routeTaken, this.botMessage, this.cardMessage});
+  final String routeTaken;
+  final ChatFeedItem? botMessage;
+  final ChatFeedItem? cardMessage;
+}
+
+SendResult _parseSendResult(Map<String, dynamic> j, String clientMessageId) {
+  final reply = j['reply'];
+  final bot = (reply is String && reply.isNotEmpty)
+      ? ChatFeedItem(
+          id: (j['message_id'] as String?) ?? 'bot-$clientMessageId',
+          messageType: 'text',
+          senderType: 'bot',
+          content: reply,
+          createdAt: DateTime.now())
+      : null;
+  final card = j['card'];
+  final cardItem = (card is Map && card['card_type'] is String)
+      ? ChatFeedItem(
+          id: 'card-$clientMessageId',
+          messageType: 'card',
+          senderType: 'bot',
+          payload: card.cast<String, dynamic>(),
+          createdAt: DateTime.now())
+      : null;
+  return SendResult(
+      routeTaken: (j['route_taken'] as String?) ?? '',
+      botMessage: bot,
+      cardMessage: cardItem);
+}
+
 class ChatRepository {
   final ApiClient _api;
   final SupabaseClient? _realtime;
@@ -47,7 +82,7 @@ class ChatRepository {
         ),
       );
 
-  Future<ChatFeedItem> sendMessage({
+  Future<SendResult> sendMessage({
     required String threadId,
     required String aiSessionId,
     required String content,
@@ -61,11 +96,13 @@ class ChatRepository {
           'content': content,
           'client_message_id': clientMessageId,
         },
-        (j) => ChatFeedItem.fromJson(j as Map<String, dynamic>),
+        // 응답은 저장된 ChatFeedItem이 아니라 봇 처리 결과({route_taken, message_id, reply, ...}).
+        // 예전엔 이걸 ChatFeedItem.fromJson으로 캐스팅하다 j['id']에서 터져 전송을 실패로 위장했다.
+        (j) => _parseSendResult(j as Map<String, dynamic>, clientMessageId),
       );
 
-  Future<void> markRead({required String batchId}) =>
-      _api.post('/chat/read', {'batch_id': batchId}, (_) {});
+  Future<void> markRead({required String threadId}) =>
+      _api.post('/chat/read', {'thread_id': threadId}, (_) {});
 
   Future<List<ChatThreadSummary>> fetchThreads() => _api.get(
         '/chat/threads',

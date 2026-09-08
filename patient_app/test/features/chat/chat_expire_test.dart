@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/chat/chat_models.dart';
+import 'package:hospital_patient_app/features/chat/chat_repository.dart' show SendResult;
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 
 // 계약이 3메서드로 유지됨을 못박는 가짜 저장소(라이브·인계 확장이 계약을 넓히지 않는다).
@@ -7,13 +8,12 @@ class _Repo implements ChatRepositoryLike {
   @override
   Future<List<ChatFeedItem>> fetchMessages(String t) async => [];
   @override
-  Future<ChatFeedItem> sendMessage({required String threadId,
+  Future<SendResult> sendMessage({required String threadId,
       required String aiSessionId,
       required String content, required String clientMessageId}) async =>
-      ChatFeedItem(id: 'x', messageType: 'text', senderType: 'patient', content: content,
-          createdAt: DateTime(2026), clientMessageId: clientMessageId);
+      const SendResult(routeTaken: 'rag');
   @override
-  Future<void> markRead({required String batchId}) async {}
+  Future<void> markRead({required String threadId}) async {}
 }
 
 void main() {

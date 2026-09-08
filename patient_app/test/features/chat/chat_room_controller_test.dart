@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/chat/chat_models.dart';
+import 'package:hospital_patient_app/features/chat/chat_repository.dart' show SendResult;
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 
 // 가짜 저장소: 시나리오를 주입한다.
@@ -7,6 +8,7 @@ class _FakeRepo implements ChatRepositoryLike {
   List<ChatFeedItem>? messages;
   Object? loadError;
   Object? sendError;
+  String? botReply; // 서버가 돌려주는 봇 답변(reply). 있으면 전송 성공 시 봇 말풍선이 붙어야 한다.
   final List<String> sentIds = [];
   @override
   Future<List<ChatFeedItem>> fetchMessages(String t) async {
@@ -16,7 +18,7 @@ class _FakeRepo implements ChatRepositoryLike {
 
   final List<String> sentSessionIds = [];
   @override
-  Future<ChatFeedItem> sendMessage(
+  Future<SendResult> sendMessage(
       {required String threadId,
       required String aiSessionId,
       required String content,
@@ -24,17 +26,21 @@ class _FakeRepo implements ChatRepositoryLike {
     sentIds.add(clientMessageId);
     sentSessionIds.add(aiSessionId);
     if (sendError != null) throw sendError!;
-    return ChatFeedItem(
-        id: 'srv',
-        messageType: 'text',
-        senderType: 'patient',
-        content: content,
-        createdAt: DateTime(2026),
-        clientMessageId: clientMessageId);
+    return SendResult(
+      routeTaken: 'rag',
+      botMessage: botReply == null
+          ? null
+          : ChatFeedItem(
+              id: 'bot-$clientMessageId',
+              messageType: 'text',
+              senderType: 'bot',
+              content: botReply,
+              createdAt: DateTime(2026)),
+    );
   }
 
   @override
-  Future<void> markRead({required String batchId}) async {}
+  Future<void> markRead({required String threadId}) async {}
 }
 
 void main() {
@@ -78,6 +84,22 @@ void main() {
     expect(c.state.items.where((i) => i.senderType == 'patient').length, 1);
     await f;
     expect(c.state.items.last.sendState, ChatSendState.sent);
+  });
+
+  test('[CHAT-ROOM-REPLY-01] 전송 성공 시 서버가 준 봇 답변(reply)을 피드에 봇 말풍선으로 붙인다', () async {
+    // 봇 답변은 realtime이 아니라 POST /chat/messages 응답의 reply로 온다(웹 위젯과 동일 계약).
+    // 예전엔 응답을 버려 봇 말풍선이 아예 안 떴고, ChatFeedItem으로 캐스팅하다 터져 전송이 실패로
+    // 위장됐다 — 이 케이스가 그 회귀를 막는다.
+    final repo = _FakeRepo()
+      ..messages = []
+      ..botReply = '진료시간은 평일 낮입니다.';
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('진료시간 알려줘');
+    final patient = c.state.items.firstWhere((i) => i.senderType == 'patient');
+    expect(patient.sendState, ChatSendState.sent); // 전송은 성공으로 표시(실패 위장 아님)
+    final bot = c.state.items.where((i) => i.senderType == 'bot').toList();
+    expect(bot.single.content, '진료시간은 평일 낮입니다.'); // 봇 답변 말풍선이 붙었다
   });
 
   test('[CHAT-ROOM-SEND-02] 전송 실패는 원문을 failed로 보존하고 봇 처리를 시작하지 않는다', () async {

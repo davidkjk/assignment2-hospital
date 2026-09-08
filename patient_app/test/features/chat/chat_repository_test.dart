@@ -74,13 +74,35 @@ void main() {
     expect(await r.fetchMessages('t1'), isEmpty);
   });
 
-  test('[CHAT-ROOM-NOTIFY-01] markRead는 batch_id로 확인 배치를 닫는다', () async {
+  test('[CHAT-ROOM-REPLY-01] sendMessage는 {route_taken,message_id,reply}를 봇 말풍선으로 매핑한다', () async {
+    // POST /chat/messages 응답은 저장된 ChatFeedItem이 아니라 봇 처리 결과다. reply→봇 텍스트 말풍선.
+    final r = repo(MockClient((req) async => http.Response.bytes(
+        utf8.encode('{"route_taken":"rag","message_id":"b9","reply":"평일 낮에 진료합니다.","restricted_block":null}'),
+        200)));
+    final res = await r.sendMessage(threadId: 't1', aiSessionId: 's1', content: '진료시간', clientMessageId: 'c1');
+    expect(res.routeTaken, 'rag');
+    expect(res.botMessage!.senderType, 'bot');
+    expect(res.botMessage!.messageType, 'text');
+    expect(res.botMessage!.content, '평일 낮에 진료합니다.');
+  });
+
+  test('[CHAT-ROOM-REPLY-02] reply가 없으면(handoff 등) 봇 말풍선을 만들지 않는다', () async {
+    final r = repo(MockClient((req) async => http.Response(
+        '{"route_taken":"handoff","message_id":null,"reply":null}', 200)));
+    final res = await r.sendMessage(threadId: 't1', aiSessionId: 's1', content: '직원 연결', clientMessageId: 'c2');
+    expect(res.routeTaken, 'handoff');
+    expect(res.botMessage, isNull);
+  });
+
+  test('[CHAT-ROOM-NOTIFY-01] markRead는 상담방(thread_id)을 읽음 처리한다', () async {
+    // 백엔드 /chat/read 계약 = {thread_id}(alias threadId). 예전엔 {batch_id}를 보내 422였다.
     String? body;
     final r = repo(MockClient((req) async {
       body = req.body;
       return http.Response('{}', 200);
     }));
-    await r.markRead(batchId: 'b5');
-    expect(body, contains('b5'));
+    await r.markRead(threadId: 't1');
+    expect(body, contains('thread_id'));
+    expect(body, contains('t1'));
   });
 }

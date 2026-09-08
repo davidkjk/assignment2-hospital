@@ -6,12 +6,12 @@ import 'chat_repository.dart';
 /// 테스트에서 가짜 저장소를 주입하기 위한 최소 계약.
 abstract class ChatRepositoryLike {
   Future<List<ChatFeedItem>> fetchMessages(String threadId);
-  Future<ChatFeedItem> sendMessage(
+  Future<SendResult> sendMessage(
       {required String threadId,
       required String aiSessionId,
       required String content,
       required String clientMessageId});
-  Future<void> markRead({required String batchId});
+  Future<void> markRead({required String threadId});
 }
 
 /// 상담방 셸의 상태 기계. 복원(CHAT-ROOM-LOAD/EMPTY/ERR)·전송(SEND-01·02·03)·읽음(NOTIFY-01).
@@ -31,9 +31,12 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
       final items = await _repo.fetchMessages(threadId);
       state = ChatRoomState(ChatRoomPhase.loaded, items: items, batchId: batchId);
       if (batchId != null) {
-        // CHAT-ROOM-NOTIFY-01: 열람 = 확인
+        // CHAT-ROOM-NOTIFY-01: 열람 = 확인. 읽음처리는 이 상담방(thread) 단위다(백엔드 /chat/read).
         onMarkRead?.call(batchId);
-        await _repo.markRead(batchId: batchId);
+        // 읽음처리(부가 기능)가 실패해도 이미 그려진 대화를 error로 덮지 않는다(방어).
+        try {
+          await _repo.markRead(threadId: threadId);
+        } catch (_) {/* best-effort */}
       }
     } catch (_) {
       state = const ChatRoomState(ChatRoomPhase.error); // 빈 대화로 덮지 않는다
@@ -73,13 +76,23 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
 
   Future<void> _deliver(String cid, String content) async {
     try {
-      await _repo.sendMessage(
+      final res = await _repo.sendMessage(
           threadId: threadId, aiSessionId: aiSessionId, content: content, clientMessageId: cid);
-      _replace(
-          cid,
-          state.items
-              .firstWhere((i) => i.clientMessageId == cid)
-              .copyWith(sendState: ChatSendState.sent));
+      // 환자 말풍선을 sent로 바꾸고, 서버가 준 봇 답변(reply)·카드(no_answer 등)를 피드에 이어 붙인다.
+      // 봇 답변은 realtime이 아니라 이 응답으로 온다(웹 위젯과 동일 계약) — 예전엔 응답을 버려
+      // 봇 말풍선이 아예 안 떴다(+ 파싱 예외로 전송이 실패로 위장됐다).
+      final marked = [
+        for (final i in state.items)
+          i.clientMessageId == cid ? i.copyWith(sendState: ChatSendState.sent) : i
+      ];
+      state = ChatRoomState(
+          ChatRoomPhase.loaded,
+          items: [
+            ...marked,
+            if (res.botMessage != null) res.botMessage!,
+            if (res.cardMessage != null) res.cardMessage!,
+          ],
+          batchId: state.batchId);
     } catch (_) {
       // CHAT-ROOM-SEND-02: 원문 보존 + failed. 봇 처리를 시작하지 않는다(성공 위장 금지).
       _replace(
@@ -131,7 +144,7 @@ class _RepoAdapter implements ChatRepositoryLike {
   @override
   Future<List<ChatFeedItem>> fetchMessages(String t) => _r.fetchMessages(t);
   @override
-  Future<ChatFeedItem> sendMessage(
+  Future<SendResult> sendMessage(
           {required String threadId,
           required String aiSessionId,
           required String content,
@@ -142,5 +155,5 @@ class _RepoAdapter implements ChatRepositoryLike {
           content: content,
           clientMessageId: clientMessageId);
   @override
-  Future<void> markRead({required String batchId}) => _r.markRead(batchId: batchId);
+  Future<void> markRead({required String threadId}) => _r.markRead(threadId: threadId);
 }
