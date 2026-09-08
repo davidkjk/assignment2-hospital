@@ -18,7 +18,7 @@ def _tail_sentences(text: str, n: int) -> str:
     return " ".join(sents[-n:]) if sents else ""
 
 
-def chunk_text(content: str, *, max_len: int = 500, overlap_sentences: int = 1) -> list[str]:
+def chunk_text(content: str, *, max_len: int = 500, overlap_sentences: int = 2) -> list[str]:
     # 청킹(검색 단위): 빈 줄 문단 우선, 이어붙여 max_len을 넘으면 자른다.
     # ⭐ 조각 사이 문장 겹침(overlap) — 두 번째 조각부터는 직전 조각의 마지막 overlap_sentences 문장으로
     #    시작해, 문단 경계에서 맥락이 끊겨 답이 반 토막 나는 것을 막는다(overlap_sentences=0이면 겹침 없음).
