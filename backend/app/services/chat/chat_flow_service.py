@@ -88,9 +88,12 @@ async def handle_message(session, content: str, *, thread_id: UUID,
 
     async def intent_fn(s, m, intent):
         # B1·B2: 진료시간·의사명단은 DB 단일원본에서 읽는다(KBADM-EDITOR-17). 빈값이면 None → RAG 폴백.
+        # Q15: 진료시간 답변 끝 안내 문구를 채널별로 — 웹은 "여기서 바로 예약", 앱은 "앱 예약 화면".
+        channel = "web" if sender_kind == "anonymous_web" else "app"
         async with pool.acquire() as c:
             if intent == "hospital_hours":
-                return {"reply": intent_precheck.format_hours(await opening_hours.list_hospital_hours(c))}
+                return {"reply": intent_precheck.format_hours(
+                    await opening_hours.list_hospital_hours(c), channel=channel)}
             if intent == "doctor_list":
                 rows = await c.fetch(
                     "select s.name, coalesce(d.name, s.specialty) as specialty "

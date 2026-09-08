@@ -54,8 +54,13 @@ def _hhmm(v) -> str | None:
     return s[:5]
 
 
-def format_hours(rows: list[dict]) -> str | None:
-    """요일별 접수 창구 운영시간을 텍스트로. 데이터 없으면 None(→RAG 폴백)."""
+def format_hours(rows: list[dict], channel: str = "app") -> str | None:
+    """요일별 접수 창구 운영시간을 텍스트로. 데이터 없으면 None(→RAG 폴백).
+
+    Q15 — 마지막 안내 문구를 채널별로 분기한다(misdirect 방지):
+      · web(webchat)  = 대화 안에서 바로 예약 가능 → "여기서 바로 예약".
+      · app(환자앱)   = 예약 마법사가 별도 화면 → "앱의 예약 화면".
+    """
     if not rows:
         return None
     lines = ["병원 진료시간은 다음과 같습니다."]
@@ -73,7 +78,10 @@ def format_hours(rows: list[dict]) -> str | None:
         lines.append(line)
     if len(lines) == 1:
         return None
-    lines.append("정확한 예약 가능 시간은 앱의 예약 화면에서 확인하실 수 있어요.")
+    if channel == "web":
+        lines.append("정확한 예약 가능 시간은 지금 여기서 바로 예약하며 확인하실 수 있어요.")
+    else:
+        lines.append("정확한 예약 가능 시간은 앱의 예약 화면에서 확인하실 수 있어요.")
     return "\n".join(lines)
 
 

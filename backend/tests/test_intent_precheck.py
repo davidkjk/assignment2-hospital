@@ -56,6 +56,26 @@ class TestFormatHours:
         # 데이터가 없으면 None → orchestrator가 기존 RAG로 폴백(막다른 길 방지).
         assert intent_precheck.format_hours([]) is None
 
+    def _one_row(self):
+        return [{"weekday": 0, "open_time": "09:00:00", "close_time": "18:00:00",
+                 "lunch_start": None, "lunch_end": None, "is_closed": False}]
+
+    def test_web_channel_directs_to_book_here(self):
+        # Q15: webchat은 대화 안에서 바로 예약 가능 → "여기서 바로 예약", "앱" 언급 금지(misdirect).
+        text = intent_precheck.format_hours(self._one_row(), channel="web")
+        assert "여기서 바로 예약" in text
+        assert "앱" not in text
+
+    def test_app_channel_directs_to_app_screen(self):
+        # Q15: 앱 채널은 예약 화면으로 안내(현행 유지).
+        text = intent_precheck.format_hours(self._one_row(), channel="app")
+        assert "앱" in text and "예약 화면" in text
+
+    def test_default_channel_is_app(self):
+        # 채널 미지정(기존 호출부·하위호환)은 앱 문구.
+        text = intent_precheck.format_hours(self._one_row())
+        assert "앱" in text
+
 
 class TestFormatDoctors:
     def test_groups_by_department(self):
