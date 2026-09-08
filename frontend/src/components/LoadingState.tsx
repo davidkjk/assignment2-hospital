@@ -34,7 +34,7 @@ const base: CSSProperties = {
 
 const styles: Record<string, CSSProperties> = {
   wrapPage: { ...base, minHeight: '55vh' },
-  wrapCard: { ...base, height: '100%', minHeight: 160, padding: '40px var(--sp-6)' },
+  wrapCard: { ...base, height: '100%', minHeight: '40vh', padding: '40px var(--sp-6)' },
   spinner: {
     width: 24,
     height: 24,

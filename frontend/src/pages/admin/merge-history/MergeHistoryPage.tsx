@@ -5,6 +5,7 @@ import { RequireRole } from '../../../auth/RequireRole'
 import { ADMIN_ONLY } from '../../../auth/roles'
 import { useConnectivity } from '../../../lib/connectivity'
 import { EmptyState } from '../../../components/EmptyState'
+import { LoadingState } from '../../../components/LoadingState'
 import { getMergeHistory, statusBadge, type MergeUndoStatus } from '../../../api/mergeHistory'
 import { formatHospitalDateTime } from '../../../lib/clock'
 
@@ -49,11 +50,7 @@ function MergeHistoryInner() {
       )}
 
       {q.isLoading ? (
-        <div aria-busy="true">
-          <p style={styles.loading}>병합 이력을 불러오는 중입니다</p>
-          <div data-testid="skeleton" style={styles.skeleton} />
-          <div data-testid="skeleton" style={styles.skeleton} />
-        </div>
+        <LoadingState variant="card" message="병합 이력을 불러오는 중입니다" />
       ) : q.isError && rows.length === 0 ? (
         <EmptyState kind="error" onRetry={() => void q.refetch()} />
       ) : rows.length === 0 ? (

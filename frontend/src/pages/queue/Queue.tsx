@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, UserRound, X } from '../../components/icons'
 import { StaffPage } from '../../components/staff-ui'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { hospitalHHMM } from '../../lib/clock'
 import { getQueue, type QueueRow, type QueueTab, type QueueTabCounts } from '../../api/dashboard'
 import { reorderQueue, setUrgentFlag, transitionStatus } from '../../api/appointments'
@@ -280,7 +281,7 @@ export function Queue() {
         </div>
       )}
 
-      {query.isPending && <p role="status" className="text-muted-foreground">대기 목록을 불러오는 중입니다</p>}
+      {query.isPending && <LoadingState variant="card" message="대기 목록을 불러오는 중입니다" />}
       {query.isError && <EmptyState kind="error" onRetry={() => query.refetch()} />}
 
       {query.data && (
