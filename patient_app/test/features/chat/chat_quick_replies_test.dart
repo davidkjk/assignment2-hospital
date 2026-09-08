@@ -16,6 +16,15 @@ void main() {
     expect(r2, isNot(r)); // 유무에 따라 다른 고정 묶음
   });
 
+  test('[CCARD-QUICK-START-01] 시작 칩은 정본 §8·백엔드 quick_replies.py와 글자까지 동일(파편 금지)', () {
+    // 예전 `증상 상담`·`병원 위치·시간` 같은 파편은 handoff로 빠져 눌러도 무응답이었다(실기기 확증).
+    // 구체적 질문문이라야 rag/department_guide/agent로 깨끗이 응답한다.
+    expect(startQuickReplies(hasUpcoming: false),
+        ['진료시간이 어떻게 되나요', '어느 과에 가야 할지 모르겠어요', '예약하려면 어떻게 하나요', '주차할 수 있나요']);
+    expect(startQuickReplies(hasUpcoming: true),
+        ['내 예약 확인해줘', '예약을 바꾸고 싶어요', '진료 전에 준비할 게 있나요', '주차할 수 있나요']);
+  });
+
   testWidgets('[CCARD-QUICK-SEND-01] 버튼을 누르면 그 문장을 환자 말풍선으로 전송', (t) async {
     String? sent;
     await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(

@@ -62,7 +62,12 @@ class ChatRoomView extends ConsumerWidget {
               try {
                 final sref =
                     await ref.read(chatRepositoryProvider).startFreshSession();
-                if (context.mounted) context.push('/chat/room/${sref.threadId}');
+                // A4(2026-09-08): 새 대화 = **현재 대화처럼** 연다 — 뒤로가기 없음·'지난 상담' 아이콘 있음.
+                // extra:true(primary)로 딥링크 방(뒤로가기=목록)과 구분한다. 예전엔 그냥 push라 딥링크 방으로
+                // 취급돼 뒤로버튼이 생기고 이력 아이콘이 사라졌다("진짜 새창이 아니다" 실기기 지적).
+                if (context.mounted) {
+                  context.push('/chat/room/${sref.threadId}', extra: true);
+                }
               } catch (_) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -104,16 +109,20 @@ class ChatRoomView extends ConsumerWidget {
               ),
             ),
           ChatRoomPhase.loaded => st.isEmpty
-              ? const Center(
-                  key: Key('chat-empty-guide'),
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
+              // 빈 상태: 안내 + 시작 칩을 **대화창 안**(입력창 위 고정 바 아님)에 둔다. 스크롤 가능.
+              ? ListView(
+                  key: const Key('chat-empty-guide'),
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    const SizedBox(height: 24),
+                    const Text(
                       '무엇을 도와드릴까요?\n증상이나 궁금한 점을 편하게 남겨 주세요.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppTokens.grayPending, height: 1.5),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    Center(child: _buildQuickReplies(st, ctl)),
+                  ],
                 )
               : ChatFeed(
                   items: st.items,
@@ -122,7 +131,12 @@ class ChatRoomView extends ConsumerWidget {
                   // T11 슬롯 채움: 직원 말풍선·시스템 이벤트도 같은 피드에(CHAT-ROOM-LIVE-01).
                   liveSlotBuilder: (ctx, it) => ChatLiveRow(item: it),
                   onRetry: (id) => ctl.retry(id),
-                  onFeedback: (_) => onFeedback?.call(),
+                  // CHAT-ROOM-FEEDBACK-01: onFeedback 미주입(탭/딥링크 기본)이면 직원 인계로 연결한다
+                  // (요구사항 5.5). 예전엔 entry가 안 넘겨 버튼이 죽어 있었다.
+                  onFeedback: (_) =>
+                      onFeedback != null ? onFeedback!() : ctl.send('직원에게 연결'),
+                  // A3: 빠른답변 칩을 피드 마지막 줄(말풍선 밑)에 둔다 — 입력창 위 고정 바는 대화창을 가린다.
+                  footer: _buildQuickReplies(st, ctl),
                 ),
         }),
         // 입력창 위 일시 표시(피드가 로드된 방에서만). 봇 대기(BOT-TYPING-01)가 우선,
@@ -137,13 +151,10 @@ class ChatRoomView extends ConsumerWidget {
     );
   }
 
-  Widget _inputBar(ChatRoomState st, ChatRoomController ctl) => ChatInputBar(
-        onSend: (c) => ctl.send(c), // CHAT-ROOM-INPUT-01 (항상 열림)
-        // T12 슬롯 채움: 시작 화면(첫 상담)에 고정 빠른답변 4개(CCARD-QUICK-START).
-        // 대화 중 추천(MID)은 서버 생성이라 비운다(자유 입력만). no_answer(WEBCHAT-NOANS)면 피드 마지막의
-        // quick_replies 카드를 여기 칩으로 띄운다 — FAQ 칩=문장 전송, [직원에게 연결]="직원에게 연결" 전송(⓪-b 인계).
-        quickRepliesSlot: st.phase == ChatRoomPhase.loaded ? _buildQuickReplies(st, ctl) : null,
-      );
+  // CHAT-ROOM-INPUT-01 (항상 열림). 빠른답변 칩은 입력창 위 고정 바가 아니라 **피드 마지막 줄**에 둔다
+  // (A3, 2026-09-08 실기기: 고정 바가 대화창을 가림). 시작 묶음은 빈 상태 안내 밑, no_answer 칩은 피드 footer.
+  Widget _inputBar(ChatRoomState st, ChatRoomController ctl) =>
+      ChatInputBar(onSend: (c) => ctl.send(c));
 
   Widget _buildQuickReplies(ChatRoomState st, ChatRoomController ctl) {
     final active = activeQuickReplies(st.items);

@@ -23,7 +23,12 @@ class ChatRoomEntry extends ConsumerWidget {
   /// 탭(방)일 때만 앱바에 '지난 상담' 아이콘을 붙인다.
   final bool showHistory;
 
-  const ChatRoomEntry({super.key, this.threadId, this.showHistory = false});
+  /// [새 대화]로 연 방(A4). threadId가 있어도 **현재 대화처럼** 연다 — 뒤로가기 없음·'지난 상담' 아이콘 有.
+  /// (목록에서 이어본 방과 구분: 그쪽은 뒤로가기로 목록 복귀.)
+  final bool primary;
+
+  const ChatRoomEntry(
+      {super.key, this.threadId, this.showHistory = false, this.primary = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,10 +62,11 @@ class ChatRoomEntry extends ConsumerWidget {
       data: (sref) => ChatRoomView(
         threadId: sref.threadId,
         aiSessionId: sref.aiSessionId,
-        showHistory: showHistory,
-        // 딥링크 방(threadId 지정 = 셸 밖 풀스크린)은 탭바가 없어 막다른 길이 된다 → 뒤로가기를
-        // 이전 상담 목록으로 준다(CHAT-HISTORY-DEEP-02·NAV-CHATAPP-09). 스택이 있으면 그냥 pop.
-        onExit: threadId == null
+        // primary(새 대화)는 현재 대화처럼 '지난 상담' 아이콘을 붙인다(A4).
+        showHistory: showHistory || primary,
+        // 목록에서 이어본 방(threadId 지정·primary 아님)은 뒤로가기로 이전 상담 목록에 복귀한다
+        // (CHAT-HISTORY-DEEP-02·NAV-CHATAPP-09). 새 대화(primary)·탭 진입(threadId null)은 뒤로버튼 없음.
+        onExit: (threadId == null || primary)
             ? null
             : () => Navigator.of(context).canPop()
                 ? context.pop()

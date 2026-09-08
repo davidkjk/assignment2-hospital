@@ -426,8 +426,11 @@ GoRouter buildAppRouter({String initialLocation = '/landing', Listenable? refres
             // 전역 _authRedirect가 미인증 콜드스타트를 로그인으로 보낸다(CHAT-HISTORY-DEEP-02).
             GoRoute(
                 path: '/chat/room/:threadId',
-                builder: (c, s) =>
-                    ChatRoomEntry(threadId: s.pathParameters['threadId']!)),
+                // [새 대화]로 연 방(extra==true, primary)=현재 대화처럼 연다(뒤로가기 없음·'지난 상담' 아이콘 有).
+                // 목록에서 연 방(extra 없음)=뒤로가기로 이전 상담 목록 복귀(CHAT-HISTORY-DEEP-02).
+                builder: (c, s) => ChatRoomEntry(
+                    threadId: s.pathParameters['threadId']!,
+                    primary: s.extra == true)),
           ],
         ),
       ],

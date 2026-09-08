@@ -5,8 +5,12 @@ import '../chat_models.dart';
 /// 빠른답변 버튼 묶음(CCARD-QUICK). 시작 묶음은 앱이 다가오는 예약 유무로 고정 4개(AI 없음, START),
 /// 대화 중은 서버가 만든 3~4개(MID). 누르면 그 문장을 환자 말풍선으로 전송(SEND). 자유 입력은 항상
 /// 함께 열려 있고(INPUT), 생성 대기·실패에도 스켈레톤/오류를 만들지 않는다(LOAD·ERR) — 자유 입력만 유지.
-const _startUpcoming = ['예약 확인하고 싶어요', '예약을 변경하고 싶어요', '문진 작성할래요', '병원 이용 안내'];
-const _startNoUpcoming = ['예약하고 싶어요', '진료과를 모르겠어요', '병원 위치·시간', '증상 상담'];
+// ⭐ 시작 묶음은 정본 카드사전 §8·백엔드 `quick_replies.py`(START_NO_UPCOMING)와 **글자까지 동일**해야
+// 한다. 예전엔 앱이 `증상 상담`·`병원 위치·시간` 같은 **짧은 파편**을 썼는데, 파편은 문장이 아니라
+// 백엔드 인계 분류기가 handoff(reply 없음)로 빼 **눌러도 무응답**이 됐다(2026-09-08 실기기). 구체적
+// 질문문으로 맞추면 전부 rag/department_guide/agent로 깨끗이 응답한다(probe 확증).
+const _startUpcoming = ['내 예약 확인해줘', '예약을 바꾸고 싶어요', '진료 전에 준비할 게 있나요', '주차할 수 있나요'];
+const _startNoUpcoming = ['진료시간이 어떻게 되나요', '어느 과에 가야 할지 모르겠어요', '예약하려면 어떻게 하나요', '주차할 수 있나요'];
 
 List<String> startQuickReplies({required bool hasUpcoming}) =>
     hasUpcoming ? _startUpcoming : _startNoUpcoming;

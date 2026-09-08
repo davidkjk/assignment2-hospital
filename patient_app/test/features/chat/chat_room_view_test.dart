@@ -145,4 +145,29 @@ void main() {
     await t.pump();
     expect(find.byTooltip('새 대화'), findsOneWidget); // 언제든 새로 시작 가능(사용자 결정 B)
   });
+
+  testWidgets('[CCARD-QUICK-START-01] 빈 상태 시작 칩은 입력창 위 고정 바가 아니라 대화 안내 밑에 있다', (t) async {
+    await t.pumpWidget(_scope(const ChatRoomState(ChatRoomPhase.loaded, items: [])));
+    await t.pump();
+    expect(find.byKey(const Key('chat-empty-guide')), findsOneWidget);
+    expect(find.text('진료시간이 어떻게 되나요'), findsOneWidget); // 정본 시작 칩이 대화창 안에 뜬다
+  });
+
+  testWidgets('[CHAT-ROOM-FEEDBACK-01] 피드백 버튼 문구는 중립적(이미 도움 안 된 느낌 금지)', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])));
+    await t.pump();
+    expect(find.text('도움이 안 됐어요'), findsNothing);
+    expect(find.text('직원에게 물어보기'), findsWidgets); // 다음 갈 곳(직원 연결)으로 반전
+  });
+
+  testWidgets('[A4] 새 대화(현재 대화처럼)는 뒤로가기 없이 지난 상담 아이콘이 있다', (t) async {
+    await t.pumpWidget(ProviderScope(
+      overrides: [chatRoomProvider(('t1', '')).overrideWith((ref) => _StubCtl(
+          ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])))],
+      child: MaterialApp(home: ChatRoomView(threadId: 't1', showHistory: true)),
+    ));
+    await t.pump();
+    expect(find.byTooltip('지난 상담'), findsOneWidget);     // 이력 아이콘 있음
+    expect(find.byTooltip('이전 상담 목록'), findsNothing);  // 뒤로가기 버튼 없음
+  });
 }

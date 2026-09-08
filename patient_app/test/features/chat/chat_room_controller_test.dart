@@ -21,6 +21,7 @@ class _FakeRepo implements ChatRepositoryLike {
 
   final List<String> sentSessionIds = [];
   Completer<void>? sendGate; // 있으면 응답을 이 게이트가 열릴 때까지 붙잡는다(대기 상태 관찰용)
+  SendResult? sendResult; // 있으면 이 결과를 그대로 반환(handoff/무응답 등 특수 케이스 주입)
   @override
   Future<SendResult> sendMessage(
       {required String threadId,
@@ -31,6 +32,7 @@ class _FakeRepo implements ChatRepositoryLike {
     sentSessionIds.add(aiSessionId);
     if (sendGate != null) await sendGate!.future;
     if (sendError != null) throw sendError!;
+    if (sendResult != null) return sendResult!;
     return SendResult(
       routeTaken: 'rag',
       botMessage: botReply == null
@@ -264,5 +266,31 @@ void main() {
       async.elapse(const Duration(seconds: 6));
       expect(c.state.staffTyping, isFalse);
     });
+  });
+
+  test('[CHAT-ROOM-SEND-04] handoff처럼 reply·card가 둘 다 없으면 "연결 중" 시스템 줄을 붙여 무응답을 막는다',
+      () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendResult = const SendResult(routeTaken: 'handoff'); // {ticket_id,reason}만 → bot/card 없음
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('증상 상담');
+    // 환자 말풍선 + 시스템 안내 줄(봇 말풍선 없음이어도 화면엔 무언가 보인다)
+    final sys = c.state.items.where((i) => i.messageType == 'system').toList();
+    expect(sys, isNotEmpty);
+    expect(sys.last.content, contains('직원에게 연결'));
+  });
+
+  test('[CHAT-ROOM-SEND-04] reply도 card도 없는 일반 응답이면 다시 물어봐 달라는 폴백 줄을 붙인다', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendResult = const SendResult(routeTaken: 'rag'); // 드물게 rag가 reply=None
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
+    await c.load();
+    await c.send('의사 선생님 누가 계세요?');
+    final sys = c.state.items.where((i) => i.messageType == 'system').toList();
+    expect(sys, isNotEmpty);
+    expect(sys.last.content, contains('답변을 가져오지 못했어요'));
   });
 }
