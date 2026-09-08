@@ -11,6 +11,7 @@ import 'package:hospital_patient_app/features/chat/chat_repository.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_view.dart';
 import 'package:hospital_patient_app/features/chat/widgets/chat_typing_indicator.dart';
+import 'package:hospital_patient_app/features/chat/widgets/chat_handoff_badge.dart';
 
 // 상태를 직접 심는 가짜 컨트롤러 provider override.
 Widget _scope(ChatRoomState st, {void Function()? onFeedback}) => ProviderScope(
@@ -162,6 +163,27 @@ void main() {
     await t.pump();
     expect(find.byType(ChatTypingBubble), findsOneWidget);
     expect(typingBubble(t).label, '상담봇이 입력 중');
+  });
+
+  testWidgets('[Q18] 인계된 상담이면 상담방에 상태 배지(직원 확인 전이에요)가 뜬다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')],
+        handoff: const HandoffStatus(phase: HandoffPhase.connecting))));
+    await t.pump();
+    expect(find.byType(ChatHandoffBadge), findsOneWidget);
+    expect(find.text('직원 확인 전이에요'), findsOneWidget);
+  });
+
+  testWidgets('[Q18③] 직원 열람 presence(staffViewing)면 배지가 `직원이 확인 중이에요`로 바뀐다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')],
+        handoff: const HandoffStatus(phase: HandoffPhase.connecting), staffViewing: true)));
+    await t.pump();
+    expect(find.text('직원이 확인 중이에요'), findsOneWidget);
+  });
+
+  testWidgets('[Q18] 인계 전(handoff 없음)이면 상태 배지를 그리지 않는다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])));
+    await t.pump();
+    expect(find.byType(ChatHandoffBadge), findsNothing);
   });
 
   testWidgets('[CHAT-ROOM-NEW-01] 상담방 상단에 [새 대화] 버튼이 상시 있다', (t) async {

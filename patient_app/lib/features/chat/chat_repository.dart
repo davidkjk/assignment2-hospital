@@ -178,6 +178,29 @@ class ChatRepository {
     controller.onCancel = () => rt.removeChannel(channel);
     return controller.stream;
   }
+
+  /// [Q18③] 직원이 상담 상세를 **열어 보는 중**인지(열람 presence). typing과 같은 thread 채널
+  /// (`chat-typing:<threadId>`)의 별도 이벤트 `viewing`을 구독한다 — 직원웹 TicketConversation이 열릴 때
+  /// `{role:'staff', on:true}`, 닫힐 때 `on:false`를 보낸다(DB 미기록 일회성 broadcast). 배정(claim)과
+  /// 무관한 실열람이라 "직원이 확인 중"만 띄우고 초록 점·답변 보장으로 바꾸지 않는다(SCOPE-01).
+  /// realtime 미주입이면 빈 스트림(무해).
+  Stream<bool> streamStaffPresence(String threadId) {
+    final rt = _realtime;
+    if (rt == null) return const Stream<bool>.empty();
+    final controller = StreamController<bool>();
+    final channel = rt.channel('chat-typing:$threadId');
+    channel.onBroadcast(
+      event: 'viewing',
+      callback: (payload) {
+        final data = payload['payload'] is Map ? payload['payload'] as Map : payload;
+        if (data['role'] == 'staff' && !controller.isClosed) {
+          controller.add(data['on'] == true);
+        }
+      },
+    ).subscribe();
+    controller.onCancel = () => rt.removeChannel(channel);
+    return controller.stream;
+  }
 }
 
 final chatRepositoryProvider = Provider<ChatRepository>((ref) => ChatRepository(

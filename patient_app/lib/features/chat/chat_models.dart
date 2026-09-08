@@ -115,11 +115,18 @@ class ChatRoomState {
   final String? batchId; // 보고 있으면 이 배치를 읽음 처리(CHAT-ROOM-NOTIFY-01)
   final bool staffTyping; // 담당 직원이 입력 중(CHAT-ROOM-LIVE-TYPING-01) — 일시 표시, 초록 점 아님
   final bool botThinking; // 봇 답변 대기 중(웹 위젯 botTyping과 동치) — 보내고 응답 오기 전 "상담봇이 입력 중"
+  // Q18: 인계 상태 배지(직원 확인 전/답변 도착·운영시간). null=아직 조회 전(배지 안 뜸).
+  final HandoffStatus? handoff;
+  // Q18③ presence: 직원이 상담 상세를 실제로 열어 보는 중(typing과 같은 broadcast 채널의 'viewing' 신호).
+  //   연결 상태(connecting)에 겹치면 배지가 "직원이 확인 중이에요"로 바뀐다. 배정(claim)과 무관한 실열람.
+  final bool staffViewing;
   const ChatRoomState(this.phase,
       {this.items = const [],
       this.batchId,
       this.staffTyping = false,
-      this.botThinking = false});
+      this.botThinking = false,
+      this.handoff,
+      this.staffViewing = false});
 
   bool get isEmpty =>
       phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
@@ -130,6 +137,8 @@ class ChatRoomState {
     String? batchId,
     bool? staffTyping,
     bool? botThinking,
+    HandoffStatus? handoff,
+    bool? staffViewing,
   }) =>
       ChatRoomState(
         phase ?? this.phase,
@@ -137,6 +146,8 @@ class ChatRoomState {
         batchId: batchId ?? this.batchId,
         staffTyping: staffTyping ?? this.staffTyping,
         botThinking: botThinking ?? this.botThinking,
+        handoff: handoff ?? this.handoff,
+        staffViewing: staffViewing ?? this.staffViewing,
       );
 }
 

@@ -7,16 +7,19 @@ import { supabase } from '../../lib/supabaseClient'
 interface FakeChannel {
   sent: unknown[]
   subscribed: boolean
-  subscribe(): FakeChannel
+  subscribe(cb?: (status: string) => void): FakeChannel
   send(msg: unknown): Promise<'ok'>
 }
 
-function makeChannel(): FakeChannel {
+// 기본 fake는 subscribe 콜백을 무시한다(구독 상태 콜백 없음) → viewing:true는 안 나간다.
+// presence-on 테스트는 콜백을 부르는 별도 fake를 쓴다.
+function makeChannel(invokeSubscribed = false): FakeChannel {
   const ch: FakeChannel = {
     sent: [],
     subscribed: false,
-    subscribe() {
+    subscribe(cb) {
       ch.subscribed = true
+      if (invokeSubscribed) cb?.('SUBSCRIBED')
       return ch
     },
     async send(msg) {
@@ -71,4 +74,17 @@ test('언마운트 시 채널을 정리한다(누수 방지)', () => {
   const { unmount } = renderHook(() => useTypingChannel('t-1'))
   unmount()
   expect(supabase.removeChannel).toHaveBeenCalledWith(channel)
+})
+
+test('[TICKET-DETAIL-PRESENCE-01] 상세를 열어 구독되면 열람 presence(viewing:true)를 보낸다', () => {
+  const ch = makeChannel(true) // subscribe 콜백을 SUBSCRIBED로 부른다
+  ;(supabase.channel as ReturnType<typeof vi.fn>).mockReturnValue(ch)
+  renderHook(() => useTypingChannel('t-1'))
+  expect(ch.sent).toContainEqual({ type: 'broadcast', event: 'viewing', payload: { role: 'staff', on: true } })
+})
+
+test('[TICKET-DETAIL-PRESENCE-01] 상세를 닫으면(언마운트) 열람 종료(viewing:false)를 보낸다', () => {
+  const { unmount } = renderHook(() => useTypingChannel('t-1'))
+  unmount()
+  expect(channel.sent).toContainEqual({ type: 'broadcast', event: 'viewing', payload: { role: 'staff', on: false } })
 })

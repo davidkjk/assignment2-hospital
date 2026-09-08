@@ -282,6 +282,60 @@ void main() {
     expect(sys.last.content, contains('직원에게 연결'));
   });
 
+  test('[Q18] bindHandoff는 진입 즉시 인계 상태를 채운다(제출 후 무반응 해소)', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    c.bindHandoff(() async => const HandoffStatus(phase: HandoffPhase.connecting));
+    await Future<void>.delayed(Duration.zero);
+    expect(c.state.handoff?.phase, HandoffPhase.connecting);
+    c.dispose(); // 8초 폴링 타이머 정리
+  });
+
+  test('[Q18/CHAT-HANDOFF-ERR-01] 인계 상태 조회 실패는 loadError로 둔다(완료 위장 금지)', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    c.bindHandoff(() async => throw Exception('net'));
+    await Future<void>.delayed(Duration.zero);
+    expect(c.state.handoff?.loadError, isTrue);
+    expect(c.state.handoff?.phase, isNull); // 완료로 바꾸지 않음
+    c.dispose();
+  });
+
+  test('[Q18③] bindPresence는 직원 열람 신호(true/false)를 staffViewing에 반영한다', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    final presence = StreamController<bool>();
+    c.bindPresence(presence.stream);
+
+    presence.add(true);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.state.staffViewing, isTrue);
+
+    presence.add(false);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.state.staffViewing, isFalse);
+    await presence.close();
+  });
+
+  test('[Q18③] 열람 종료 신호가 유실돼도 12초 안전 타임아웃으로 자동 해제한다', () {
+    fakeAsync((async) {
+      final repo = _FakeRepo()..messages = [];
+      final c = ChatRoomController(repo, threadId: 't1');
+      c.load();
+      async.flushMicrotasks();
+      final presence = StreamController<bool>();
+      c.bindPresence(presence.stream);
+      presence.add(true);
+      async.flushMicrotasks();
+      expect(c.state.staffViewing, isTrue);
+      async.elapse(const Duration(seconds: 12));
+      expect(c.state.staffViewing, isFalse);
+    });
+  });
+
   test('[CHAT-ROOM-SEND-04/Q11] reply도 card도 없는 일반 응답이면 봇 말풍선으로 폴백 — 마지막이 봇이라 [직원에게 연결] 칩이 뜬다', () async {
     final repo = _FakeRepo()
       ..messages = []

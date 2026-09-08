@@ -10,6 +10,7 @@ import 'chat_repository.dart';
 import 'chat_room_controller.dart';
 import 'chat_room_entry.dart'; // chatSessionProvider(탭 세션) 무효화용
 import 'widgets/chat_feed.dart';
+import 'widgets/chat_handoff_badge.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_live_row.dart';
 import 'widgets/chat_quick_replies.dart';
@@ -92,6 +93,14 @@ class ChatRoomView extends ConsumerWidget {
         onTap: () => FocusScope.of(context).unfocus(),
         child: Column(children: [
         const ChatSafetyBanner(), // CHAT-ROOM-SAFE-01 (항상)
+        // Q18: 인계됐으면 상태 배지(직원 확인 전→확인 중(presence)→답변 도착). 인계 전(phase null·오류 아님)엔
+        // 안 뜬다. presence(staffViewing)가 connecting에 겹치면 "직원이 확인 중이에요"로 바뀐다.
+        if (st.handoff != null && (st.handoff!.phase != null || st.handoff!.loadError))
+          ChatHandoffBadge(
+            status: st.handoff!,
+            staffViewing: st.staffViewing,
+            onRetry: () => ctl.refreshHandoff(),
+          ),
         Expanded(child: switch (st.phase) {
           ChatRoomPhase.loading =>
             const Center(child: CircularProgressIndicator()),
