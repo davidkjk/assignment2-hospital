@@ -117,7 +117,9 @@ class ConsentScreen extends ConsumerWidget {
               FilledButton(
                 style: AppButtonSize.cta, // 데모 ConsentStep: size=lg h-12 text-base
                 // CONSENT-BTN-01: 필수 셋이 켜져야 살아난다 → ① 전화번호로.
-                onPressed: s.requiredAllOn ? () => context.go('/signup/phone') : null,
+                // push(go 아님) — ①전화에 뒤로가기가 생겨 ⓪동의로 돌아온다(AUTH-SIGNUP-05·NAV-AUTH-03).
+                // go는 스택을 대체해 전화·인증이 막다른 길이 된다(2026-09-08 사용자 실사용 발견).
+                onPressed: s.requiredAllOn ? () => context.push('/signup/phone') : null,
                 child: const Text('다음'),
               ),
               // CONSENT-BTN-02·03: 왜 안 눌리는지 모르는 버튼을 만들지 않는다 — 남은 개수를 센다.

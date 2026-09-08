@@ -110,6 +110,22 @@ async def test_register_rejected_when_a_mandatory_consent_is_not_agreed(committe
 
 
 @pytest.mark.asyncio
+async def test_register_rejected_when_under_14(committed_conn):
+    # [AGE-GATE-05] 클라이언트가 연령 게이트를 우회해 만 14세 미만 생년월일로 직접 호출해도
+    # 서버가 만 나이를 다시 계산해 403으로 막는다 — 환자 행이 생기지 않는다.
+    uid = await _new_auth_user(committed_conn)
+    before = await committed_conn.fetchval("select count(*) from patients")
+    with patch("app.services.patient_profile_service.get_admin_client",
+               return_value=_mock_verified_phone("01055554444")):
+        with pytest.raises(AppError) as e:
+            await patient_profile_service.register_profile(
+                auth_user_id=uid, name="아동", birth_date=date(2020, 1, 1), gender="M",
+                consents=_MANDATORY_OK, document_versions=consent_service.DOCUMENT_VERSIONS)
+    assert e.value.status_code == 403
+    assert await committed_conn.fetchval("select count(*) from patients") == before
+
+
+@pytest.mark.asyncio
 async def test_register_rejected_on_stale_document_version(committed_conn):
     # F-05 v1: 앱이 옛 약관판을 보여줬으면(어느 문서든 버전 불일치) 최신판 동의로 둔갑시키지 않고 거절한다.
     uid = await _new_auth_user(committed_conn)

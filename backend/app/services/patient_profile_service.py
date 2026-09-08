@@ -1,5 +1,6 @@
 from datetime import date
 from uuid import UUID
+from app.core import age_gate
 from app.core.errors import AppError
 from app.core.patient_security import PatientContext
 from app.db.admin_client import get_admin_client
@@ -10,6 +11,9 @@ from app.services import consent_service
 async def register_profile(auth_user_id: UUID, name: str, birth_date: date, gender: str,
                            *, consents: dict, ads_agreed: bool = False,
                            document_versions: dict) -> UUID:
+    # [AGE-GATE-05] 서버가 생년월일로 만 나이를 다시 계산해 만 14세 미만이면 거절한다(403).
+    # 클라이언트의 연령 게이트(AgeGateScreen) 선택만 믿지 않는다 — 우회 가입(직접 API 호출) 차단.
+    age_gate.assert_signup_age_eligible(birth_date)
     # [보안 F-05 벡터1] 서버가 필수 동의를 실제로 강제한다 — 필수 항목이 present+true가 아니거나
     # 문서별 버전이 현재판과 다르면 환자 행을 만들기 전에 거절한다(거짓 증적·우회 가입 방지).
     consent_service.validate_registration_consents(consents, document_versions)

@@ -11,6 +11,7 @@ import 'session_guard.dart';
 import '../features/auth/auth_state.dart';
 import '../features/auth/auth_repo.dart';
 import '../features/auth/consent_screen.dart';
+import '../features/auth/signup_age_gate.dart';
 import '../features/auth/duplicate_account_screen.dart';
 import '../features/auth/landing_screen.dart';
 import '../features/auth/login_screen.dart';
@@ -153,6 +154,9 @@ GoRouter buildAppRouter({String initialLocation = '/landing', Listenable? refres
                     ));
           },
         ),
+        // [AGE-GATE-01] 연령 확인 게이트 — ⓪동의 앞. 만 14세 미만은 앱 가입 차단(병원 안내로).
+        GoRoute(path: '/signup/age', builder: (c, s) => const AgeGateScreen()),
+        GoRoute(path: '/signup/blocked', builder: (c, s) => const BlockedMinorScreen()),
         // ⓪동의 → ①전화 → ②인증(분기) → ③기본정보 (화면은 T13, 여기선 콜백만 잇는다)
         GoRoute(
             path: '/signup',
