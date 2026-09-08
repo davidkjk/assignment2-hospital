@@ -81,3 +81,17 @@ async def list_threads(patient: PatientContext) -> list[dict]:
             "order by t.last_activity_at desc",
             patient.id)
     return [dict(r) for r in rows]
+
+
+async def delete_thread(patient: PatientContext, thread_id: UUID) -> bool:
+    # 지난 상담 "진짜 삭제"(하드삭제, B3 — CHAT-HISTORY-DELETE-01). 되돌릴 수 없음.
+    # 소유권은 SQL 함수 delete_patient_chat_thread가 다시 검사한다(방어적 심층). 서비스 풀(=service_role)로
+    # 호출 — 자식 FK가 cascade 없고 세션↔티켓 순환 참조라 함수가 순서대로 지운다. 없거나 남의 방이면 False.
+    import asyncpg
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            await conn.execute("select delete_patient_chat_thread($1, $2)", thread_id, patient.id)
+            return True
+        except asyncpg.InsufficientPrivilegeError:
+            return False

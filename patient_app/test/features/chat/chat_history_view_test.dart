@@ -8,10 +8,11 @@ import 'package:hospital_patient_app/features/chat/chat_history_view.dart';
 
 Widget _scope(
         FutureOr<List<ChatThreadSummary>> Function() create,
-        {void Function(String)? onOpen}) =>
+        {void Function(String)? onOpen,
+        Future<bool> Function(String)? onDelete}) =>
     ProviderScope(
         overrides: [chatHistoryProvider.overrideWith((ref) => create())],
-        child: MaterialApp(home: ChatHistoryView(onOpen: onOpen)));
+        child: MaterialApp(home: ChatHistoryView(onOpen: onOpen, onDelete: onDelete)));
 
 void main() {
   final one = [const ChatThreadSummary(threadId: 't1', lastSnippet: '두통 상담')];
@@ -76,5 +77,45 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('두통 상담'));
     expect(opened, 't1'); // 같은 threadId로 /chat/room/:id 복원
+  });
+
+  testWidgets('[CHAT-HISTORY-DELETE-01] 스와이프하면 되돌릴 수 없다는 빨간 확인창을 먼저 띄운다', (t) async {
+    await t.pumpWidget(_scope(() => one, onDelete: (_) async => true));
+    await t.pumpAndSettle();
+    await t.drag(find.text('두통 상담'), const Offset(-500, 0));
+    await t.pumpAndSettle();
+    // 되돌릴 수 없음을 알리는 확인창 — 삭제는 확인 뒤에만.
+    expect(find.textContaining('삭제'), findsWidgets);
+    expect(find.textContaining('되돌릴 수 없'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-HISTORY-DELETE-01] 확인창에서 삭제를 누르면 그 방을 삭제하고 목록에서 사라진다', (t) async {
+    String? deleted;
+    await t.pumpWidget(_scope(() => one, onDelete: (id) async {
+      deleted = id;
+      return true;
+    }));
+    await t.pumpAndSettle();
+    await t.drag(find.text('두통 상담'), const Offset(-500, 0));
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(TextButton, '삭제'));
+    await t.pumpAndSettle();
+    expect(deleted, 't1'); // 그 방을 진짜 삭제
+    expect(find.text('두통 상담'), findsNothing); // 목록에서 사라짐
+  });
+
+  testWidgets('[CHAT-HISTORY-DELETE-01] 확인창에서 취소하면 삭제하지 않고 행이 남는다', (t) async {
+    var called = false;
+    await t.pumpWidget(_scope(() => one, onDelete: (_) async {
+      called = true;
+      return true;
+    }));
+    await t.pumpAndSettle();
+    await t.drag(find.text('두통 상담'), const Offset(-500, 0));
+    await t.pumpAndSettle();
+    await t.tap(find.widgetWithText(TextButton, '취소'));
+    await t.pumpAndSettle();
+    expect(called, isFalse); // 삭제 안 함
+    expect(find.text('두통 상담'), findsOneWidget); // 행 유지
   });
 }

@@ -107,6 +107,36 @@ async def test_list_threads_snippet_skips_null_content(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_delete_thread_hard_deletes_thread_and_children(committed_conn):
+    # 지난 상담 진짜 삭제(B3 — CHAT-HISTORY-DELETE-01): 상담방과 메시지·세션이 실제로 사라진다.
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    sid = await committed_conn.fetchval(
+        "select id from create_ai_session($1, null, null, null, null)", t)
+    await committed_conn.execute(
+        "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content) "
+        "values ($1, $2, 'bot', 'text', '삭제될 메시지')", t, sid)
+
+    ok = await patient_ai_session.delete_thread(_ctx(p), t)
+    assert ok is True
+    assert await committed_conn.fetchval("select count(*) from chat_threads where id=$1", t) == 0
+    assert await committed_conn.fetchval("select count(*) from chat_messages where thread_id=$1", t) == 0
+    assert await committed_conn.fetchval("select count(*) from ai_chat_sessions where thread_id=$1", t) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_thread_rejects_other_patient(committed_conn):
+    # 남의 상담방은 삭제할 수 없다 — False(상위 라우트는 404). 그 방은 그대로 남는다.
+    me = await seed_patient(committed_conn)
+    other = await seed_patient(committed_conn)
+    t_other = await seed_chat_thread(committed_conn, patient_id=other["patient_id"])
+
+    ok = await patient_ai_session.delete_thread(_ctx(me), t_other)
+    assert ok is False
+    assert await committed_conn.fetchval("select count(*) from chat_threads where id=$1", t_other) == 1
+
+
+@pytest.mark.asyncio
 async def test_rejects_other_patients_thread(committed_conn):
     # 남의 상담방은 이어볼 수 없다(404) — 개인정보 경계(맞든 틀리든 여는 게 아니라 못 연다).
     me = await seed_patient(committed_conn)

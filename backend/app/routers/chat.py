@@ -143,6 +143,16 @@ async def patient_threads(request: Request):
     return await patient_ai_session.list_threads(patient)
 
 
+@router.delete("/threads/{thread_id}")
+async def delete_thread(thread_id: UUID, request: Request):
+    # 지난 상담 진짜 삭제(CHAT-HISTORY-DELETE-01) — 로그인 환자 소유만. 되돌릴 수 없음(프론트 확인창 필수).
+    # 없거나 남의 상담방이면 같은 404(개인정보 열거 방지).
+    patient = await get_current_patient(request)
+    if not await patient_ai_session.delete_thread(patient, thread_id):
+        raise HTTPException(status_code=404, detail="상담을 찾을 수 없습니다.")
+    return {"ok": True}
+
+
 @router.get("/threads/{thread_id}/messages")
 async def thread_messages(thread_id: UUID):
     # thread UUID가 능력토큰(추측 불가) — 익명 토큰 없이 이력을 준다.

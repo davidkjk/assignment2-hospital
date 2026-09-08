@@ -107,6 +107,11 @@ class ChatRepository {
   Future<void> markRead({required String threadId}) =>
       _api.post('/chat/read', {'thread_id': threadId}, (_) {});
 
+  /// 지난 상담 진짜 삭제(CHAT-HISTORY-DELETE-01). 되돌릴 수 없음 — 화면 확인창 뒤에만 호출한다.
+  /// 서버가 소유권을 검사하고(없거나 남의 방=404) 상담방·메시지·세션을 하드삭제한다.
+  Future<void> deleteThread(String threadId) =>
+      _api.delete('/chat/threads/$threadId', (_) {});
+
   Future<List<ChatThreadSummary>> fetchThreads() => _api.get(
         '/chat/threads',
         (j) => (j as List)
