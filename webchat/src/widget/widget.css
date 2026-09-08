@@ -591,12 +591,16 @@ html, body { height: 100%; }
   color: #fff !important;
 }
 
-/* 빠른답변 칩(QuickReplies) — 카드 프레임 없이 딥틸 외곽선 알약 */
+/* 빠른답변 칩(QuickReplies) — 카드 프레임 없이 딥틸 외곽선 알약.
+ * Q14(2026-09-08): background:none만으론 `.webcard`의 box-shadow가 남아 투명 카드에 "희미한
+ * 배경 카드+그림자"가 칩 뒤로 보였다 → box-shadow·radius도 리셋해 칩이 배경에 바로 박히게 한다. */
 .webcard[data-card-type="quick_replies"] {
   border: 0;
   padding: 0;
   margin: 6px 0;
   background: none;
+  box-shadow: none;
+  border-radius: 0;
 }
 .webcard[data-card-type="quick_replies"]::before { content: none; }
 .webcard[data-card-type="quick_replies"] > div { display: flex; flex-wrap: wrap; gap: 7px; }
