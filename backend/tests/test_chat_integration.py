@@ -83,6 +83,45 @@ async def test_no_answer_message_returns_chips_keeps_session_and_logs_unresolved
     await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
 
 
+@pytest.mark.asyncio
+async def test_handoff_stores_ai_summary_in_payload(committed_conn, monkeypatch):
+    # Q28: 인계(handoff) 시 대화 요약 3항목(bot_confirmed·already_guided·staff_should_check)을
+    #   staff_handoff 시스템 메시지 payload에 함께 저장한다 → 직원 상세가 읽어 「인계 요약」 3칸을 채운다.
+    import json
+    from app.services.chat import orchestrator
+    async def to_handoff(*a, **k):
+        return {"route_taken": "handoff", "handoff_reason": "medical_judgment", "reply": ""}
+    async def fake_summary(history_text, model=None):
+        return {"bot_confirmed": "진료시간을 안내함", "already_guided": "예약 방법을 안내함",
+                "staff_should_check": "환자 증상 상세 확인"}
+    monkeypatch.setattr(orchestrator, "orchestrate", to_handoff)
+    monkeypatch.setattr(orchestrator, "make_handoff_summary", fake_summary)
+
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    s = await committed_conn.fetchrow(
+        "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()+interval '30 min') returning *", t)
+    out = await chat_flow_service.handle_patient_message(
+        s, "상담 요청", thread_id=t, client_message_id=uuid.uuid4(),
+        embedder=FakeEmbedder(), model=_RagModel())
+    assert out["route_taken"] == "handoff"
+
+    payload = await committed_conn.fetchval(
+        "select payload from chat_messages where thread_id=$1 and sender_type='system' "
+        "and payload->>'event'='staff_handoff'", t)
+    data = json.loads(payload) if isinstance(payload, str) else payload
+    assert data["reason"] == "medical_judgment"       # 기존 필드 유지
+    assert data["bot_confirmed"] == "진료시간을 안내함"
+    assert data["already_guided"] == "예약 방법을 안내함"
+    assert data["staff_should_check"] == "환자 증상 상세 확인"
+    # cleanup
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", t)
+    await committed_conn.execute("delete from support_tickets where thread_id=$1", t)
+    await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
+
+
 # 나머지 §8 추적: 아래는 단위 테스트가 이미 보증한다. 통합에서 재확인할 항목만 여기에 둔다.
 #  §8-1 두 직원 claim 한 명 승 ......... test_ticket_service.test_two_staff_claim_only_one_wins
 #  §8-2 send 유지·close만 answered ...... test_ticket_service.test_send_keeps_in_progress_only_close_answers

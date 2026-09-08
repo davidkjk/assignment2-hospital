@@ -167,11 +167,12 @@ async def count_my_active_tickets(auth_user_id: str) -> int:
 
 
 # ── 티켓 상세 (TICKET-DETAIL-*) — 요약 5항목 + 전체 대화 + 담당자 + 연락처 마스킹 ──────
-# ⚠️ 인계 요약 5항목의 구조화 출처는 백엔드에 없다(staff_handoff 시스템 메시지 payload는 {event,reason}뿐).
-#    §0(모르는 상태·사유를 지어내지 않는다)대로 파생 가능한 둘만 채우고 나머지는 null로 둔다(SUM-02):
+# 인계 요약 5항목의 출처(TICKET-DETAIL-SUM-01):
 #      · patient_asked   = 상담방 첫 환자 메시지(inbox와 같은 파생)
 #      · unresolved_reason = 인계 사유 코드의 사람 문장(_REASON_TEXT)
-#      · bot_confirmed / already_guided / staff_should_check = null → 화면이 "내용 없음"
+#      · bot_confirmed / already_guided / staff_should_check = Q28: 인계 시 LLM이 대화를 요약해
+#        staff_handoff payload에 실어 둔 값(chat_flow_service.make_handoff_summary). 위 lateral이 그 payload를
+#        읽는다. 값이 없으면(옛 인계·best-effort 실패) null → 화면이 '없음'(SUM-02: 지어내지 않는다).
 # DB enum staff_role은 receptionist인데 화면 계약은 reception이다 — DTO에서 한 번만 옮긴다.
 _ROLE_MAP = {"receptionist": "reception", "doctor": "doctor", "admin": "admin"}
 
@@ -186,6 +187,9 @@ select
   s.name as assignee_name,
   s.role::text as assignee_role,
   (t.assigned_staff_id is not null and t.assigned_staff_id = private.current_staff_id()) as is_mine,
+  hs.bot_confirmed,
+  hs.already_guided,
+  hs.staff_should_check,
   (select cm.content from public.chat_messages cm
      where cm.thread_id = t.thread_id and cm.sender_type = 'patient'
      order by cm.created_at asc, cm.id asc limit 1) as patient_asked
@@ -193,7 +197,10 @@ from public.support_tickets t
 join public.chat_threads th on th.id = t.thread_id
 left join public.staff s on s.id = t.assigned_staff_id
 left join lateral (
-  select cm.payload->>'reason' as reason_code
+  select cm.payload->>'reason' as reason_code,
+         cm.payload->>'bot_confirmed' as bot_confirmed,
+         cm.payload->>'already_guided' as already_guided,
+         cm.payload->>'staff_should_check' as staff_should_check
     from public.chat_messages cm
    where cm.thread_id = t.thread_id and cm.sender_type = 'system'
      and cm.payload->>'event' = 'staff_handoff'
@@ -251,10 +258,10 @@ class TicketNotFound(AppError):
 def _detail_summary(header) -> dict:
     return {
         "patient_asked": header["patient_asked"],
-        "bot_confirmed": None,
-        "already_guided": None,
+        "bot_confirmed": header["bot_confirmed"],
+        "already_guided": header["already_guided"],
         "unresolved_reason": _REASON_TEXT.get(header["reason"]),
-        "staff_should_check": None,
+        "staff_should_check": header["staff_should_check"],
     }
 
 

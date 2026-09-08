@@ -103,3 +103,54 @@ async def test_intent_precheck_skipped_during_active_flow():
 def test_length_nudge_threshold():
     assert orchestrator.should_nudge_length(40) is True
     assert orchestrator.should_nudge_length(39) is False
+
+
+# ── Q28: 인계 요약 3항목 AI 생성(make_handoff_summary) ───────────────────────────
+# 직원 티켓 상세의 「상담봇이 확인한 정보·이미 안내한 내용·직원이 확인할 사항」 3칸을
+# 인계 시점 대화 요약으로 채운다(TICKET-DETAIL-SUM-01). 진단 금지·없으면 None(SUM-02).
+
+@pytest.mark.asyncio
+async def test_handoff_summary_parses_three_fields():
+    model = _Model('{"bot_confirmed": "예약 가능 시간대를 확인했어요", '
+                   '"already_guided": "앱 예약 화면 위치를 안내했어요", '
+                   '"staff_should_check": "환자가 원하는 정확한 날짜"}')
+    out = await orchestrator.make_handoff_summary("환자: 예약하고 싶어요\n봇: 앱에서 예약하실 수 있어요",
+                                                  model=model)
+    assert out == {
+        "bot_confirmed": "예약 가능 시간대를 확인했어요",
+        "already_guided": "앱 예약 화면 위치를 안내했어요",
+        "staff_should_check": "환자가 원하는 정확한 날짜",
+    }
+
+
+@pytest.mark.asyncio
+async def test_handoff_summary_empty_or_missing_fields_become_none():
+    # SUM-02: 값이 없거나 빈 문자열이면 지어내지 않고 None(화면 '없음').
+    model = _Model('{"bot_confirmed": "진료시간을 확인했어요", "already_guided": "   "}')
+    out = await orchestrator.make_handoff_summary("환자: 진료시간요?\n봇: 평일 9시-6시예요", model=model)
+    assert out == {
+        "bot_confirmed": "진료시간을 확인했어요",
+        "already_guided": None,
+        "staff_should_check": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_handoff_summary_parses_markdown_fenced_json():
+    # 실제 모델이 ```json … ``` 펜스로 감싸도 3항목을 뽑아낸다.
+    model = _Model('```json\n{"bot_confirmed": "예약 가능 여부 확인", '
+                   '"already_guided": null, "staff_should_check": "환자 희망 날짜"}\n```')
+    out = await orchestrator.make_handoff_summary("환자: 예약\n봇: 네", model=model)
+    assert out["bot_confirmed"] == "예약 가능 여부 확인"
+    assert out["already_guided"] is None
+    assert out["staff_should_check"] == "환자 희망 날짜"
+
+
+@pytest.mark.asyncio
+async def test_handoff_summary_failure_is_best_effort_all_none():
+    # LLM 호출·파싱 실패는 세 항목 전부 None — 인계는 이 요약 때문에 막히지 않는다.
+    class _Boom:
+        async def ainvoke(self, _):
+            raise RuntimeError("LLM down")
+    out = await orchestrator.make_handoff_summary("환자: ...", model=_Boom())
+    assert out == {"bot_confirmed": None, "already_guided": None, "staff_should_check": None}

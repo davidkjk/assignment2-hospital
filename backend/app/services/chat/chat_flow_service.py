@@ -140,6 +140,13 @@ async def handle_message(session, content: str, *, thread_id: UUID,
                         safe_summary="AI 상담이 일시적으로 답변을 만들지 못했습니다.",
                         is_service_outage=True)
         raise AppError("잠시 AI 상담을 이용할 수 없어요. 잠시 후 다시 시도해 주세요.", status_code=503)
+    # Q28: 인계 요약 3항목(상담봇이 확인한 정보·이미 안내한 내용·직원이 확인할 사항)을 LLM으로 만들어
+    #   staff_handoff payload에 함께 실어 직원 상세가 채우게 한다(TICKET-DETAIL-SUM-01). DB 커넥션을 잡기 전에
+    #   생성한다 — LLM 왕복 동안 풀을 점유하지 않는다(Supavisor 15/풀 4 한도). 실패해도 make_handoff_summary가
+    #   전부 None을 돌려주므로(best-effort) 인계는 이 요약 때문에 막히지 않는다(SUM-02: 없으면 '없음').
+    handoff_summary = {}
+    if out["route_taken"] == "handoff":
+        handoff_summary = await orchestrator.make_handoff_summary("\n".join(history_texts or []), model=model)
     async with pool.acquire() as conn:
         if out["route_taken"] == "handoff":
             # AI 세션 종료 + 티켓 생성 + 시스템 메시지. no_answer면 미해결 기록.
@@ -151,7 +158,7 @@ async def handle_message(session, content: str, *, thread_id: UUID,
             await conn.execute(
                 "insert into chat_messages (thread_id, support_ticket_id, sender_type, message_type, payload) "
                 "values ($1,$2,'system','system', $3::jsonb)", thread_id, ticket["id"],
-                json.dumps({"event": "staff_handoff", "reason": out["handoff_reason"]}))
+                json.dumps({"event": "staff_handoff", "reason": out["handoff_reason"], **handoff_summary}))
             if out["handoff_reason"] == "no_answer":
                 await quality_service.record_unresolved(ticket["id"], content, embedder)
             return {"route_taken": "handoff", "ticket_id": ticket["id"], "reason": out["handoff_reason"]}

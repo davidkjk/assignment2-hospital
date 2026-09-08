@@ -145,3 +145,46 @@ async def test_detail_shows_anonymous_applicant_name_from_payload(db_conn):
               if r["sender"] == "system"]
     assert "상담 신청자: 홍길동" in bodies
     assert "상담 신청자: (이름 미기재)" in bodies  # 빈 pill이 아니라 자리표시
+
+
+@pytest.mark.asyncio
+async def test_detail_summary_reads_ai_summary_from_handoff_payload(db_conn):
+    # Q28: staff_handoff payload에 실린 3항목(bot_confirmed/already_guided/staff_should_check)을
+    #   상세 「인계 요약」이 읽어 채운다(TICKET-DETAIL-SUM-01). 나머지 2항목은 기존대로 파생.
+    import json
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ticket = await _open_ticket(db_conn, t)
+    await db_conn.execute(
+        "insert into chat_messages (thread_id, support_ticket_id, sender_type, message_type, payload) "
+        "values ($1, $2, 'system', 'system', $3::jsonb)", t, ticket,
+        json.dumps({"event": "staff_handoff", "reason": "medical_judgment",
+                    "bot_confirmed": "진료시간을 안내함", "already_guided": "예약 방법을 안내함",
+                    "staff_should_check": "환자 증상 상세 확인"}))
+    st = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, st["auth_user_id"])
+    header = await db_conn.fetchrow(ticket_service._DETAIL_HEADER_SQL, ticket)
+    summary = ticket_service._detail_summary(header)
+    assert summary["bot_confirmed"] == "진료시간을 안내함"
+    assert summary["already_guided"] == "예약 방법을 안내함"
+    assert summary["staff_should_check"] == "환자 증상 상세 확인"
+
+
+@pytest.mark.asyncio
+async def test_detail_summary_absent_ai_fields_stay_none(db_conn):
+    # SUM-02: payload에 3항목이 없으면(옛 인계·best-effort 실패) 지어내지 않고 None → 화면 '없음'.
+    import json
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ticket = await _open_ticket(db_conn, t)
+    await db_conn.execute(
+        "insert into chat_messages (thread_id, support_ticket_id, sender_type, message_type, payload) "
+        "values ($1, $2, 'system', 'system', $3::jsonb)", t, ticket,
+        json.dumps({"event": "staff_handoff", "reason": "no_answer"}))
+    st = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, st["auth_user_id"])
+    header = await db_conn.fetchrow(ticket_service._DETAIL_HEADER_SQL, ticket)
+    summary = ticket_service._detail_summary(header)
+    assert summary["bot_confirmed"] is None
+    assert summary["already_guided"] is None
+    assert summary["staff_should_check"] is None

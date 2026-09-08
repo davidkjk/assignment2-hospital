@@ -1,4 +1,6 @@
 # 매 메시지 파이프라인: ⓪응급 → ①인계감시 → ②라우터 → 갈래 실행. 인계 조건은 어느 갈래든 우선한다.
+import json
+
 from app.services.chat import safety_watchdog, chat_router, department_guide_chain, intent_precheck
 
 CHAT_CONTEXT_TURN_WINDOW = 12     # 최근 N턴은 원문, 그 앞은 요약(MR2-08 — 절단 아님)
@@ -27,6 +29,50 @@ async def make_closing_summary(history_text: str, model=None) -> str:
     ])
     resp = await (model or get_chat_model()).ainvoke(prompt.format_messages(history=history_text))
     return resp_text(resp).strip()
+
+
+# Q28 인계 요약 3항목 — 직원 티켓 상세(TICKET-DETAIL-SUM-01)의
+#   「상담봇이 확인한 정보(bot_confirmed)·이미 안내한 내용(already_guided)·직원이 확인할 사항(staff_should_check)」.
+#   나머지 2항목(환자가 궁금해한 내용·해결되지 않은 이유)은 대화·인계사유에서 결정적으로 파생하므로 여기서 안 만든다.
+_HANDOFF_SUMMARY_KEYS = ("bot_confirmed", "already_guided", "staff_should_check")
+
+
+async def make_handoff_summary(history_text: str, model=None) -> dict:
+    """인계 시점 대화를 요약해 직원 인계 요약 3항목을 만든다.
+
+    반환: {"bot_confirmed": str|None, "already_guided": str|None, "staff_should_check": str|None}
+      · 봇이 실제 **확인/안내한 사실**만 요약한다(진단·처방·의료판단 금지 — 정본 §0).
+      · 해당 없음/빈값은 None으로 둔다(SUM-02: 없는 내용을 지어내지 않는다 → 화면 '없음').
+      · 파싱·호출 실패는 세 항목 전부 None(best-effort). 인계 자체는 절대 이 요약 때문에 막지 않는다.
+    """
+    from langchain_core.prompts import ChatPromptTemplate
+    from app.integrations.langchain_client import get_chat_model, resp_text
+    prompt = ChatPromptTemplate.from_messages([
+        ("system",
+         "다음은 병원 상담봇과 환자의 대화입니다. 직원에게 인계하기 위한 요약을 JSON 객체로만 답하세요.\n"
+         "키는 정확히 bot_confirmed, already_guided, staff_should_check 세 개입니다.\n"
+         "- bot_confirmed: 상담봇이 대화에서 사실로 확인해 준 정보(예: 진료시간·예약 가능 여부). 없으면 빈 문자열.\n"
+         "- already_guided: 봇이 환자에게 이미 안내한 내용. 없으면 빈 문자열.\n"
+         "- staff_should_check: 직원이 이어서 확인/처리해야 할 사항. 없으면 빈 문자열.\n"
+         "진단·처방·의료적 판단은 절대 넣지 마세요. 대화에 없는 내용을 지어내지 마세요. "
+         "각 값은 한 문장 이내로 짧게. JSON 외 다른 텍스트는 쓰지 마세요."),
+        ("human", "{history}"),
+    ])
+    try:
+        resp = await (model or get_chat_model()).ainvoke(prompt.format_messages(history=history_text))
+        raw = resp_text(resp)
+        start, end = raw.find("{"), raw.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            raise ValueError("no json object")
+        parsed = json.loads(raw[start:end + 1])
+    except Exception:
+        parsed = {}
+    out = {}
+    for key in _HANDOFF_SUMMARY_KEYS:
+        value = parsed.get(key)
+        value = value.strip() if isinstance(value, str) else None
+        out[key] = value or None
+    return out
 
 
 async def orchestrate(session, message, *, history_texts=None, restricted=False,
