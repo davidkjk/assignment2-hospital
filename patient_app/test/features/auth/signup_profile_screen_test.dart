@@ -8,7 +8,7 @@ class _FakeRepo implements SignupProfileRepo {
   int pwSet = 0, created = 0;
   String? failWith;
   SignupConsents? lastConsents;
-  String? lastTermsVersion;
+  Map<String, String>? lastDocumentVersions;
   bool? lastAdsAgreed;
   @override
   Future<void> setPassword(String pw) async => pwSet++;
@@ -19,9 +19,9 @@ class _FakeRepo implements SignupProfileRepo {
       required String gender,
       required SignupConsents consents,
       required bool adsAgreed,
-      required String termsVersion}) async {
+      required Map<String, String> documentVersions}) async {
     lastConsents = consents;
-    lastTermsVersion = termsVersion;
+    lastDocumentVersions = documentVersions;
     lastAdsAgreed = adsAgreed;
     if (failWith != null) throw ApiException(failWith!);
     created++;
@@ -148,7 +148,9 @@ void main() {
     await t.tap(find.text('가입 완료'));
     await t.pumpAndSettle();
     expect(repo.lastConsents, (terms: true, privacy: true, sensitive: true)); // 실제 체크 상태 그대로
-    expect(repo.lastTermsVersion, '2026-08-01'); // 앱 상수(출시 전 동시배포)
+    // [CONSENT-BTN-01b] 단일 버전 문자열이 아니라 문서별 버전 맵을 싣는다.
+    expect(repo.lastDocumentVersions,
+        {'terms': 'v1.0', 'privacy': 'v1.0', 'sensitive': 'v1.0', 'ads': 'v1.0'});
     expect(repo.lastAdsAgreed, isTrue); // 선택 광고 동의 매핑
   });
 
