@@ -72,11 +72,12 @@ class ChatRepository {
   /// 찾거나(없으면 새 상담방·세션 생성) 발급해 {thread_id, ai_chat_session_id}를 준다.
   /// - [threadId]를 주면 그 상담방의 세션을 확보한다(지난 상담 이어보기 — 목록에서 진입).
   /// - [resumeFrom]을 주면 직전 상담 요약을 가진 새 세션을 만든다(CHAT-ROOM-AI-REOPEN-01).
-  Future<ChatSessionRef> openSession({String? resumeFrom, String? threadId}) => _api.post(
+  Future<ChatSessionRef> openSession({String? resumeFrom, String? threadId, bool fresh = false}) => _api.post(
         '/chat/sessions',
         {
           if (resumeFrom != null) 'resume_from': resumeFrom,
           if (threadId != null) 'thread_id': threadId,
+          if (fresh) 'fresh': true, // [새 대화] 활성 세션 무시하고 새 상담방(CHAT-ROOM-NEW-01)
         },
         (j) => ChatSessionRef(
           threadId: (j as Map)['thread_id'] as String,
@@ -129,7 +130,7 @@ class ChatRepository {
       openSession(resumeFrom: threadId);
 
   /// [새 질문]: 과거 문맥 없는 새 AI 상담.
-  Future<ChatSessionRef> startFreshSession() => openSession();
+  Future<ChatSessionRef> startFreshSession() => openSession(fresh: true);
 
   /// 재문의(CHAT-ROOM-RETICKET-01): 완료 티켓 재개가 아니라 previous_ticket_id로 새 티켓.
   Future<void> reticket({required String previousTicketId, required String threadId}) =>

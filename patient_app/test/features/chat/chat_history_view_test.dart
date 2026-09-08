@@ -46,6 +46,30 @@ void main() {
     expect(find.text('두통 상담'), findsOneWidget);
   });
 
+  testWidgets('[CHAT-HISTORY-LIST-01] 행에 날짜를 함께 보여 구분한다(요약+날짜)', (t) async {
+    final withDate = [
+      ChatThreadSummary(
+          threadId: 't1', lastSnippet: '두통 상담', lastAt: DateTime(2026, 9, 5, 15, 12)),
+    ];
+    await t.pumpWidget(_scope(() => withDate));
+    await t.pumpAndSettle();
+    expect(find.text('두통 상담'), findsOneWidget);
+    expect(find.text('9월 5일 오후 3:12'), findsOneWidget); // 날짜 부제
+  });
+
+  testWidgets('[CHAT-HISTORY-LIST-01] 요약이 없어도 날짜로 행을 구분한다("상담"만 반복되지 않음)', (t) async {
+    final noSnippet = [
+      ChatThreadSummary(threadId: 't1', lastAt: DateTime(2026, 9, 5, 9, 0)),
+      ChatThreadSummary(threadId: 't2', lastAt: DateTime(2026, 9, 3, 14, 30)),
+    ];
+    await t.pumpWidget(_scope(() => noSnippet));
+    await t.pumpAndSettle();
+    // 폴백 제목 'AI 상담'은 두 행 + 앱바 타이틀이라 최소 2개. 행 구분의 핵심은 서로 다른 날짜다.
+    expect(find.text('AI 상담'), findsAtLeastNWidgets(2));
+    expect(find.text('9월 5일 오전 9:00'), findsOneWidget); // 서로 다른 날짜로 구분됨
+    expect(find.text('9월 3일 오후 2:30'), findsOneWidget);
+  });
+
   testWidgets('[CHAT-HISTORY-RESTORE-01] 행을 누르면 그 방 식별자로 복원 이동한다', (t) async {
     String? opened;
     await t.pumpWidget(_scope(() => one, onOpen: (id) => opened = id));

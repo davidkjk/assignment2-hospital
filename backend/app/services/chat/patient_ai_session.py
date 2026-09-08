@@ -15,11 +15,12 @@ from app.db.pool import get_pool
 
 async def start(patient: PatientContext, *,
                 thread_id: UUID | None = None,
-                resume_from: UUID | None = None) -> dict:
+                resume_from: UUID | None = None,
+                fresh: bool = False) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         tid = await _resolve_thread(conn, patient.id,
-                                    thread_id=thread_id, resume_from=resume_from)
+                                    thread_id=thread_id, resume_from=resume_from, fresh=fresh)
         # thread당 활성 하나(idx_ai_sessions_one_active). 있으면 재사용, 없으면 새로 만든다.
         aid = await conn.fetchval(
             "select id from ai_chat_sessions where thread_id=$1 and status='active' "
@@ -30,7 +31,12 @@ async def start(patient: PatientContext, *,
 
 
 async def _resolve_thread(conn, patient_id: UUID, *,
-                          thread_id: UUID | None, resume_from: UUID | None) -> UUID:
+                          thread_id: UUID | None, resume_from: UUID | None,
+                          fresh: bool = False) -> UUID:
+    if fresh:
+        # [새 대화](CHAT-ROOM-NEW-01): 활성 세션이 있어도 과거 문맥 없는 새 상담방을 연다.
+        # 지난 상담 이어보기(thread_id)와 배타 — fresh가 오면 그것을 최우선으로 새 방을 만든다.
+        return await _new_patient_thread(conn, patient_id)
     if thread_id is not None:
         # 지난 상담 이어보기 — 목록에서 진입. 반드시 이 환자 소유여야 한다(서비스 풀이라 직접 확인).
         owned = await conn.fetchval(
@@ -66,6 +72,7 @@ async def list_threads(patient: PatientContext) -> list[dict]:
         rows = await conn.fetch(
             "select t.id::text as thread_id, "
             "  (select content from chat_messages m where m.thread_id = t.id "
+            "   and m.content is not null "  # 카드·시스템(content null)은 건너뛰어 요약이 '상담'으로 폴백되지 않게
             "   order by m.created_at desc, m.id desc limit 1) as last_snippet, "
             "  t.last_activity_at as last_at "
             "from chat_threads t "

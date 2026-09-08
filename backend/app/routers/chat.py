@@ -43,6 +43,8 @@ class StartSessionRequest(BaseModel):
     # 로그인 환자 경로에서만 쓴다: thread_id=지난 상담 이어보기, resume_from=이어서 AI 질문(새 방).
     thread_id: UUID | None = None
     resume_from: UUID | None = None
+    # fresh=[새 대화]: 활성 세션이 있어도 무시하고 과거 문맥 없는 새 상담방을 연다(CHAT-ROOM-NEW-01).
+    fresh: bool = False
 
 
 class ReadRequest(BaseModel):
@@ -104,7 +106,7 @@ async def start_session(
     if request.headers.get("authorization", "").startswith("Bearer "):
         patient = await get_current_patient(request)
         return await patient_ai_session.start(
-            patient, thread_id=body.thread_id, resume_from=body.resume_from)
+            patient, thread_id=body.thread_id, resume_from=body.resume_from, fresh=body.fresh)
     # 익명: 토큰이 있으면 복원, 없으면 서버가 발급해 anonToken으로 돌려준다.
     return await webchat_service.start_or_restore_session(x_anon_token)
 

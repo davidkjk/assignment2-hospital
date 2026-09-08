@@ -10,6 +10,21 @@ import 'chat_repository.dart';
 final chatHistoryProvider = FutureProvider<List<ChatThreadSummary>>(
     (ref) => ref.watch(chatRepositoryProvider).fetchThreads());
 
+/// 목록 행의 날짜(last_at, UTC)를 로컬 기준 한국어로. 오늘/어제는 상대, 그 외는 'M월 D일'.
+String _fmtDate(DateTime? at) {
+  if (at == null) return '';
+  final d = at.toLocal();
+  final now = DateTime.now();
+  final ampm = d.hour < 12 ? '오전' : '오후';
+  final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final time = '$ampm $h12:${d.minute.toString().padLeft(2, '0')}';
+  bool sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+  if (sameDay(d, now)) return '오늘 $time';
+  if (sameDay(d, now.subtract(const Duration(days: 1)))) return '어제 $time';
+  return '${d.month}월 ${d.day}일 $time';
+}
+
 class ChatHistoryView extends ConsumerWidget {
   final void Function(String threadId)? onOpen;
   const ChatHistoryView({super.key, this.onOpen});
@@ -54,11 +69,19 @@ class ChatHistoryView extends ConsumerWidget {
                     const Divider(height: 1, color: AppTokens.border),
                 itemBuilder: (_, i) {
                   final s = list[i];
+                  // CHAT-HISTORY-LIST-01: 식별 가능한 행 — 마지막 대화 요약(제목) + 날짜(부제).
+                  // 요약이 비면(마지막이 카드·시스템) 'AI 상담'으로 폴백하되, 날짜로 행을 구분한다.
+                  final date = _fmtDate(s.lastAt);
                   return ListTile(
                     leading: const Icon(AppIcons.chat_bubble_outline,
                         color: AppTokens.primary),
-                    title: Text(s.lastSnippet ?? '상담',
+                    title: Text(s.lastSnippet ?? 'AI 상담',
                         maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: date.isEmpty
+                        ? null
+                        : Text(date,
+                            style: const TextStyle(
+                                color: AppTokens.grayPending, fontSize: 12.5)),
                     trailing: const Icon(AppIcons.chevron_right, color: AppTokens.grayDone),
                     onTap: () => onOpen?.call(s.threadId), // RESTORE
                   );

@@ -139,4 +139,10 @@ void main() {
     expect(find.text('상담봇이 입력 중'), findsOneWidget);
     expect(find.text('직원이 입력 중입니다'), findsNothing);
   });
+
+  testWidgets('[CHAT-ROOM-NEW-01] 상담방 상단에 [새 대화] 버튼이 상시 있다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])));
+    await t.pump();
+    expect(find.byTooltip('새 대화'), findsOneWidget); // 언제든 새로 시작 가능(사용자 결정 B)
+  });
 }

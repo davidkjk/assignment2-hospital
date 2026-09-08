@@ -74,6 +74,39 @@ async def test_list_threads_returns_only_threads_with_messages(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_fresh_opens_new_thread_even_with_active_session(committed_conn):
+    # [새 대화](CHAT-ROOM-NEW-01): 활성 세션이 있어도 fresh=True면 과거 문맥 없는 새 상담방을 연다.
+    p = await seed_patient(committed_conn)
+    ctx = _ctx(p)
+    r1 = await patient_ai_session.start(ctx)          # 활성 세션 생성
+    r2 = await patient_ai_session.start(ctx, fresh=True)
+    assert r2["thread_id"] != r1["thread_id"]         # 재사용 아님 — 새 방
+    # 그냥 재진입(fresh 아님)은 여전히 재사용(대조)
+    r3 = await patient_ai_session.start(ctx)
+    assert r3["thread_id"] == r2["thread_id"]          # fresh로 연 새 방이 이제 최신 활성
+
+
+@pytest.mark.asyncio
+async def test_list_threads_snippet_skips_null_content(committed_conn):
+    # 마지막 메시지가 카드·시스템(content null)이어도 요약이 '상담'으로 폴백되지 않게, content 있는
+    # 마지막 메시지를 요약으로 준다(CHAT-HISTORY-LIST-01 식별 가능한 행).
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    sid = await committed_conn.fetchval(
+        "select id from create_ai_session($1, null, null, null, null)", t)
+    await committed_conn.execute(
+        "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content) "
+        "values ($1, $2, 'bot', 'text', '내과로 안내드려요')", t, sid)
+    await committed_conn.execute(  # 그 뒤 카드(content null, payload는 필수)가 마지막
+        "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, payload) "
+        "values ($1, $2, 'bot', 'card', null, '{\"card_type\":\"book_confirm\"}'::jsonb)", t, sid)
+
+    rows = await patient_ai_session.list_threads(_ctx(p))
+    row = next(r for r in rows if r["thread_id"] == str(t))
+    assert row["last_snippet"] == "내과로 안내드려요"  # 카드(null)를 건너뜀
+
+
+@pytest.mark.asyncio
 async def test_rejects_other_patients_thread(committed_conn):
     # 남의 상담방은 이어볼 수 없다(404) — 개인정보 경계(맞든 틀리든 여는 게 아니라 못 연다).
     me = await seed_patient(committed_conn)

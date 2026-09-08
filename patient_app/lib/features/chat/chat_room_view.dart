@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/tokens.dart';
 import 'cards/chat_card_dispatcher.dart';
 import 'chat_models.dart';
+import 'chat_repository.dart';
 import 'chat_room_controller.dart';
 import 'widgets/chat_feed.dart';
 import 'widgets/chat_input_bar.dart';
@@ -51,15 +52,32 @@ class ChatRoomView extends ConsumerWidget {
                 tooltip: '이전 상담 목록',
                 onPressed: onExit,
               ),
-        actions: showHistory
-            ? [
-                IconButton(
-                  icon: const Icon(AppIcons.history),
-                  tooltip: '지난 상담',
-                  onPressed: () => context.go('/chat/history'), // NAV-CHATAPP-10
-                ),
-              ]
-            : null,
+        actions: [
+          // [새 대화](CHAT-ROOM-NEW-01): 활성 세션이 있어도 과거 문맥 없는 새 상담을 시작한다(상시).
+          // 기본은 이어가기(30분 재사용)지만, 원할 때 새로 시작할 수 있어야 한다(사용자 결정 B, 2026-09-08).
+          IconButton(
+            icon: const Icon(AppIcons.edit),
+            tooltip: '새 대화',
+            onPressed: () async {
+              try {
+                final sref =
+                    await ref.read(chatRepositoryProvider).startFreshSession();
+                if (context.mounted) context.push('/chat/room/${sref.threadId}');
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('새 상담을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.')));
+                }
+              }
+            },
+          ),
+          if (showHistory)
+            IconButton(
+              icon: const Icon(AppIcons.history),
+              tooltip: '지난 상담',
+              onPressed: () => context.go('/chat/history'), // NAV-CHATAPP-10
+            ),
+        ],
       ),
       // CHAT-ROOM-INPUT-01: 대화 영역(버튼 아닌 곳)을 탭하면 키보드를 내린다 — 갇힘 방지.
       body: GestureDetector(
