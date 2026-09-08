@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { homeFor, type StaffProfile } from '../auth/roles'
 import { canAccessPath } from '../shell/navItems'
@@ -97,9 +97,9 @@ export function LoginPage({ onAuthenticate }: { onAuthenticate?: Authenticate })
           {passwordInvalid && <p style={styles.fieldError}>비밀번호를 입력해 주세요</p>}
           {failure && <p role="alert" style={styles.authError}>로그인 정보를 확인해 주세요</p>}
           <button type="submit" disabled={busy} style={styles.primaryButton}>{busy ? '◌ 로그인 중…' : '로그인'}</button>
-          {/* [STAFF-LOGIN-10] 비밀번호 재설정은 관리자 발급(B)만 유지 — 로그인 화면 셀프 재설정은
-              없앤다(발신 도메인 미검증이라 셀프 메일이 막다른 길). 대신 해결 경로를 문구로 준다. */}
-          <p style={styles.resetHint}>비밀번호를 잊으셨다면 관리자에게 재설정을 요청하세요.</p>
+          {/* [STAFF-LOGIN-10] 셀프 비밀번호 재설정 — 도메인 인증 후 복원(결정 ⑩). 직원이 자기 이메일로
+              새 비밀번호를 만들 링크를 받는다(막다른 길이던 「관리자에게 요청」 문구를 실제 창구로 되돌림). */}
+          <Link to="/reset-password" style={styles.resetLink}>비밀번호를 잊으셨나요?</Link>
         </form>
         </section>
       </div>
@@ -136,5 +136,5 @@ const styles: Record<string, CSSProperties> = {
   fieldError: { margin: 'var(--sp-1) 0 0', color: 'var(--color-danger)', fontSize: 12 },
   authError: { margin: 'var(--sp-4) 0 var(--sp-2)', color: 'var(--color-danger)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], fontSize: 13 },
   primaryButton: { width: '100%', minHeight: 44, marginTop: 'var(--sp-5)', border: 0, borderRadius: 8, background: 'var(--color-primary)', color: 'white', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer' },
-  resetHint: { margin: 'var(--sp-4) 0 0', textAlign: 'center', color: 'var(--color-ink-muted)', fontSize: 13 },
+  resetLink: { display: 'block', marginTop: 'var(--sp-4)', textAlign: 'center', color: 'var(--color-primary)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], fontSize: 13 },
 }

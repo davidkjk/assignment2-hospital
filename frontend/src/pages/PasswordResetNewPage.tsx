@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { authFlowType, clearAuthFlowType, supabase } from '../lib/supabaseClient'
 import { staffApi } from '../api/staff'
@@ -61,11 +61,12 @@ export function PasswordResetNewPage({
           <section style={styles.card}>
             <h1 style={styles.heading}>{isInvite ? '이 초대 링크를 사용할 수 없습니다' : '이 재설정 링크를 사용할 수 없습니다'}</h1>
             <p style={styles.lead}>링크가 만료되었거나 이미 사용되었습니다.</p>
-            {/* [STAFF-LOGIN-10] 셀프 재설정(A)을 없앴으므로(관리자 발급 B만), 만료 시에도 자기 재요청
-                링크가 아니라 관리자 요청 안내를 준다 — 초대 만료와 같은 형태(막다른 길 금지). */}
+            {/* [STAFF-LOGIN-10] 셀프 재설정 복원(결정 ⑩) — 만료된 재설정 링크는 직원이 스스로 다시
+                요청할 수 있게 링크를 준다(막다른 길 금지). 초대(admin 발급)는 셀프 요청 창구가 없어
+                「관리자에게 재발송 요청」 그대로. */}
             {isInvite
               ? <p style={styles.lead}>병원 관리자에게 초대 재발송을 요청해 주세요.</p>
-              : <p style={styles.lead}>병원 관리자에게 비밀번호 재설정을 요청해 주세요.</p>}
+              : <Link to="/reset-password" style={styles.resetLink}>비밀번호 재설정 다시 요청</Link>}
           </section>
         </div>
       </main>

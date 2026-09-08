@@ -35,11 +35,9 @@ describe('직원 로그인', () => {
     expect(screen.queryByText(/비활성|등록되지 않은|inactive/)).toBeNull()
   })
 
-  test('[STAFF-LOGIN-10] 셀프 재설정 링크 대신 관리자에게 요청하도록 안내한다', () => {
+  test('[STAFF-LOGIN-10] 폼 아래에 셀프 비밀번호 재설정 링크를 둔다(도메인 인증 후 복원, 결정 ⑩)', () => {
     render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><LoginPage onAuthenticate={vi.fn()} /></MemoryRouter>)
-    // 비밀번호 재설정은 관리자 발급(B)만 유지한다 — 로그인 화면의 셀프 재설정 링크는 없앤다(발신 도메인
-    // 미검증이라 셀프 메일이 본인 외엔 안 가 막다른 길이 되기 때문). 대신 해결 경로를 문구로 준다.
-    expect(screen.queryByRole('link', { name: '비밀번호 재설정' })).toBeNull()
-    expect(screen.getByText('비밀번호를 잊으셨다면 관리자에게 재설정을 요청하세요.')).toBeVisible()
+    // 도메인 인증으로 셀프 메일이 실제로 가게 돼, 직원이 자기 이메일로 재설정을 요청할 수 있다.
+    expect(screen.getByRole('link', { name: '비밀번호를 잊으셨나요?' })).toHaveAttribute('href', '/reset-password')
   })
 })
