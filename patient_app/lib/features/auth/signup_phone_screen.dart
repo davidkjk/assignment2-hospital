@@ -62,7 +62,9 @@ class _SignupPhoneScreenState extends State<SignupPhoneScreen> {
     if (!mounted) return;
     setState(() => _busy = false);
     // AUTH-PHONE-04: 쿨다운이 남았으면 「방금 인증번호를 보내드렸습니다」와 함께 ②로.
-    context.go('/signup/otp',
+    // push(go 아님) — ②인증에 뒤로가기가 생겨 ①전화(번호 유지)로 돌아온다(NAV-AUTH-03).
+    // 쿨다운은 번호에 걸려 있어(BTN-COOL-04) 되돌아가도 유지된다 — 처음부터 다시가 아니다.
+    context.push('/signup/otp',
         extra: {'phone': digits, 'alreadySent': r == PhoneSendResult.alreadySent});
   }
 
