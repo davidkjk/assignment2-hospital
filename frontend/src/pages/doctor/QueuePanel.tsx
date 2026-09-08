@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { AlertTriangle } from '../../components/icons'
 import { StatusBadge, type BadgeTone } from '../../components/staff-ui/StatusBadge'
 
@@ -142,7 +143,7 @@ export function QueuePanel({
       )}
 
       {loading ? (
-        <div data-testid="skeleton" aria-hidden="true" style={styles.skeleton} />
+        <LoadingState variant="card" message="대기 목록을 불러오는 중입니다" />
       ) : error ? (
         <EmptyState kind="error" onRetry={onRetry} />
       ) : active.length === 0 && completed.length === 0 ? (

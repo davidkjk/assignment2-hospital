@@ -6,6 +6,7 @@ import { RequireRole } from '../../../auth/RequireRole'
 import { ADMIN_ONLY } from '../../../auth/roles'
 import { useConnectivity } from '../../../lib/connectivity'
 import { EmptyState } from '../../../components/EmptyState'
+import { LoadingState } from '../../../components/LoadingState'
 import { patientMergeApi, type CandidateRow, type MergeResult } from '../../../api/patientMerge'
 import { CandidateGroup } from './CandidateGroup'
 import { ComparePanel } from './ComparePanel'
@@ -108,9 +109,7 @@ function MergeCandidatesInner() {
     if (candidatesQ.isFetching) {
       return (
         <div aria-busy="true">
-          <p style={styles.loading}>중복 환자 후보를 불러오는 중입니다</p>
-          <div data-testid="skeleton" style={styles.skeleton} />
-          <div data-testid="skeleton" style={styles.skeleton} />
+          <LoadingState variant="card" message="중복 환자 후보를 불러오는 중입니다" />
         </div>
       )
     }

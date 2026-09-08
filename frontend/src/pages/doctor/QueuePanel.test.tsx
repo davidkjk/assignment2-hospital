@@ -168,6 +168,6 @@ describe('QueuePanel', () => {
 
   test('[DOCTOR-LOAD-01][EMPTY-LAY-01] 로딩 중 자리 표시자를 그린다(흰 빈 화면 금지)', () => {
     renderPanel({ loading: true })
-    expect(screen.getByTestId('skeleton')).toBeVisible()
+    expect(screen.getByText('대기 목록을 불러오는 중입니다')).toBeVisible()
   })
 })

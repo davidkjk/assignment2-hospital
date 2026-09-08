@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { RequireRole } from './auth/RequireRole'
+import { LoadingState } from './components/LoadingState'
 import { ADMIN_ONLY, RECEPTION_AND_ADMIN, homeFor } from './auth/roles'
 import { useAuth } from './auth/useAuth'
 import { LoginPage } from './pages/LoginPage'
@@ -38,7 +39,7 @@ import { NAV_ITEMS } from './shell/navItems'
 
 function LoginRoute() {
   const { loading, session, staff } = useAuth()
-  if (loading) return <p role="status">로그인 정보를 확인하는 중입니다</p>
+  if (loading) return <LoadingState message="로그인 정보를 확인하는 중입니다" />
   if (session && staff) return <Navigate to={homeFor(staff.role)} replace />
   return <LoginPage />
 }

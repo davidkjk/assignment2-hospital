@@ -3,12 +3,13 @@ import type { ReactNode } from 'react'
 import { useAuth } from './useAuth'
 import { ALL_STAFF, homeFor, type Role } from './roles'
 import { canAccessPath, navItemForPath } from '../shell/navItems'
+import { LoadingState } from '../components/LoadingState'
 
 export function RequireRole({ roles, children }: { roles?: readonly Role[]; children: ReactNode }) {
   const { loading, session, staff } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  if (loading) return <p role="status">로그인 정보를 확인하는 중입니다</p>
+  if (loading) return <LoadingState message="로그인 정보를 확인하는 중입니다" />
   if (!session || !staff) return <Navigate to="/login" replace />
   const routeItem = navItemForPath(location.pathname)
   const allowed = routeItem ? canAccessPath(staff.role, location.pathname) : (roles ?? ALL_STAFF).includes(staff.role)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PeriodSelect, PERIOD_CUSTOM, PERIOD_PRESETS, periodRange, btnGhost, type PeriodValue } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import { QuestionRanking } from './QuestionRanking'
 import type { BotMetrics, BotStatsApi, DateRange, DrillRow, InflowShare, MetricValue } from '../../../api/botStats'
 
@@ -85,9 +86,9 @@ export function BotStatsDashboard({
         ) : errState === 'error' ? (
           <StateBox text="현황을 불러오지 못했습니다." onRetry={() => setPeriod({ ...period })} />
         ) : loading ? (
-          <p aria-label="현황 로딩" className="rounded-xl border border-border/70 bg-card py-8 text-center text-sm text-muted-foreground">
-            불러오는 중…
-          </p>
+          <div className="rounded-xl border border-border/70 bg-card">
+            <LoadingState variant="card" message="현황을 불러오는 중입니다" />
+          </div>
         ) : noContract ? (
           <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4">
             <p className="text-sm text-muted-foreground">현재 집계할 수 없음</p>
