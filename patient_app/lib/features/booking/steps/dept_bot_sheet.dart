@@ -15,7 +15,7 @@ final deptBotSuggestionProvider = Provider<Department?>((ref) => null);
 
 // BOOK-DEPT-02 / NAV-BOOK-06 — "어느 과인지 모르겠어요" 상담봇 시트(정본 BOOK-BOT-*).
 // 제한모드 계약(결정 E4): 행동형 카드·예약/취소/직원인계 없음. 유일한 출구는 [○○과로 계속하기], 119 예외.
-// 채팅 UI 부품(ChatBubble·ChatInputBar·ChatTypingIndicator)은 일반 상담방과 공유하되, 세션·스레드는
+// 채팅 UI 부품(ChatBubble·ChatInputBar·ChatTypingBubble)은 일반 상담방과 공유하되, 세션·스레드는
 // 만들지 않는다(겹침 도우미) — 대화는 DeptBotController가 /chat/dept-guide로 무상태로 주고받는다.
 class DeptBotSheet extends ConsumerWidget {
   const DeptBotSheet({super.key});
@@ -57,7 +57,7 @@ class DeptBotSheet extends ConsumerWidget {
           ),
         ),
         if (st.sending)
-          const ChatTypingIndicator(label: '상담봇이 입력 중'), // CHAT-ROOM-BOT-TYPING-01 재사용
+          const ChatTypingBubble(label: '상담봇이 입력 중'), // Q7: 봇 말풍선 자리(점) — CHAT-ROOM-BOT-TYPING-01 재사용
         if (st.errored) _ErrorRow(onRetry: ctl.retryLast),
         // 추천이 잡히면 유일 행동 출구(BOOK-BOT-04·05).
         if (suggested != null)

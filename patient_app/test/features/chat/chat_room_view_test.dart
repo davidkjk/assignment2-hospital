@@ -10,6 +10,8 @@ import 'package:hospital_patient_app/features/chat/chat_models.dart';
 import 'package:hospital_patient_app/features/chat/chat_repository.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_view.dart';
+import 'package:hospital_patient_app/features/chat/widgets/chat_typing_indicator.dart';
+import 'package:hospital_patient_app/features/chat/widgets/chat_handoff_badge.dart';
 
 // 상태를 직접 심는 가짜 컨트롤러 provider override.
 Widget _scope(ChatRoomState st, {void Function()? onFeedback}) => ProviderScope(
@@ -71,14 +73,12 @@ void main() {
     expect(find.textContaining('진단이 아니라'), findsOneWidget);
   });
 
-  testWidgets('[CHAT-ROOM-FEEDBACK-01] 봇 답변의 `도움이 안 됐어요`를 누르면 인계 연결 콜백을 부른다',
-      (t) async {
-    var called = false;
+  testWidgets('[Q5] 마지막이 봇 답변이면 상시 버튼 대신 입력창 슬롯 [직원에게 연결] 칩을 띄운다', (t) async {
     await t.pumpWidget(_scope(
-        ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')]),
-        onFeedback: () => called = true));
-    await t.tap(find.byKey(const Key('chat-feedback-btn')).first);
-    expect(called, isTrue); // 답변+맥락을 직원 인계 대상으로(본체=T11 라이브)
+        ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕하세요, 이렇게 안내드려요')])));
+    await t.pump();
+    expect(find.byKey(const Key('chat-feedback-btn')), findsNothing); // 매 말풍선 상시 버튼 폐지
+    expect(find.text('직원에게 연결'), findsOneWidget);                 // 필요 시 콜백 칩(막다른 길 금지)
   });
 
   testWidgets('[WEBCHAT-NOANS] 마지막 줄이 quick_replies 카드면 입력창 슬롯에 FAQ+[직원에게 연결] 칩을 띄운다', (t) async {
@@ -128,33 +128,62 @@ void main() {
     expect(inputFocused(), isFalse); // 입력창 포커스 해제 → 키보드 내려감
   });
 
-  testWidgets('[CHAT-ROOM-LIVE-TYPING-01] 직원 입력 중이면 입력창 위에 "직원이 입력 중입니다"를 표시', (t) async {
+  // Q7: 입력 중 표시는 입력바 위 텍스트가 아니라 **피드 안 봇 말풍선 자리의 점 말풍선**(ChatTypingBubble).
+  // 문구는 화면에 글자로 그리지 않고 접근성 라벨(label)로만 둔다(정본 webchat aria-label).
+  ChatTypingBubble typingBubble(WidgetTester t) =>
+      t.widget<ChatTypingBubble>(find.byType(ChatTypingBubble));
+
+  testWidgets('[CHAT-ROOM-LIVE-TYPING-01·Q7] 직원 입력 중이면 피드 안 점 말풍선(라벨=직원이 입력 중입니다)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], staffTyping: true)));
     await t.pump(); // 무한 애니메이션 — pumpAndSettle 금지(타임아웃)
-    expect(find.text('직원이 입력 중입니다'), findsOneWidget);
+    expect(find.byType(ChatTypingBubble), findsOneWidget);
+    expect(typingBubble(t).label, '직원이 입력 중입니다');
+    expect(find.text('직원이 입력 중입니다'), findsNothing); // 화면 글자 아님(a11y 라벨)
   });
 
-  testWidgets('[CHAT-ROOM-LIVE-TYPING-01] 직원이 입력 중이 아니면 표시하지 않는다(상시 노출 금지)', (t) async {
+  testWidgets('[CHAT-ROOM-LIVE-TYPING-01·Q7] 직원이 입력 중이 아니면 점 말풍선 없음(상시 노출 금지)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], staffTyping: false)));
     await t.pump();
-    expect(find.text('직원이 입력 중입니다'), findsNothing);
+    expect(find.byType(ChatTypingBubble), findsNothing);
   });
 
-  testWidgets('[CHAT-ROOM-BOT-TYPING-01] 봇 답변 대기 중이면 "상담봇이 입력 중"을 표시', (t) async {
+  testWidgets('[CHAT-ROOM-BOT-TYPING-01·Q7] 봇 답변 대기 중이면 점 말풍선(라벨=상담봇이 입력 중)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], botThinking: true)));
     await t.pump();
-    expect(find.text('상담봇이 입력 중'), findsOneWidget);
+    expect(find.byType(ChatTypingBubble), findsOneWidget);
+    expect(typingBubble(t).label, '상담봇이 입력 중');
   });
 
-  testWidgets('[CHAT-ROOM-BOT-TYPING-01] 봇 대기가 직원 입력 중보다 우선(둘 다면 봇만)', (t) async {
+  testWidgets('[CHAT-ROOM-BOT-TYPING-01·Q7] 봇 대기가 직원 입력 중보다 우선(둘 다면 봇 라벨만)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], botThinking: true, staffTyping: true)));
     await t.pump();
-    expect(find.text('상담봇이 입력 중'), findsOneWidget);
-    expect(find.text('직원이 입력 중입니다'), findsNothing);
+    expect(find.byType(ChatTypingBubble), findsOneWidget);
+    expect(typingBubble(t).label, '상담봇이 입력 중');
+  });
+
+  testWidgets('[Q18] 인계된 상담이면 상담방에 상태 배지(직원 확인 전이에요)가 뜬다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')],
+        handoff: const HandoffStatus(phase: HandoffPhase.connecting))));
+    await t.pump();
+    expect(find.byType(ChatHandoffBadge), findsOneWidget);
+    expect(find.text('직원 확인 전이에요'), findsOneWidget);
+  });
+
+  testWidgets('[Q18③] 직원 열람 presence(staffViewing)면 배지가 `직원이 확인 중이에요`로 바뀐다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')],
+        handoff: const HandoffStatus(phase: HandoffPhase.connecting), staffViewing: true)));
+    await t.pump();
+    expect(find.text('직원이 확인 중이에요'), findsOneWidget);
+  });
+
+  testWidgets('[Q18] 인계 전(handoff 없음)이면 상태 배지를 그리지 않는다', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])));
+    await t.pump();
+    expect(find.byType(ChatHandoffBadge), findsNothing);
   });
 
   testWidgets('[CHAT-ROOM-NEW-01] 상담방 상단에 [새 대화] 버튼이 상시 있다', (t) async {
@@ -170,11 +199,12 @@ void main() {
     expect(find.text('진료시간이 어떻게 되나요'), findsOneWidget); // 정본 시작 칩이 대화창 안에 뜬다
   });
 
-  testWidgets('[CHAT-ROOM-FEEDBACK-01] 피드백 버튼 문구는 중립적(이미 도움 안 된 느낌 금지)', (t) async {
+  testWidgets('[Q5] 매 봇 말풍선의 상시 [직원에게 물어보기] 버튼은 폐지 — 필요 시 [직원에게 연결] 칩만', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')])));
     await t.pump();
     expect(find.text('도움이 안 됐어요'), findsNothing);
-    expect(find.text('직원에게 물어보기'), findsWidgets); // 다음 갈 곳(직원 연결)으로 반전
+    expect(find.text('직원에게 물어보기'), findsNothing); // 상시 버튼 폐지(반복돼 "이미 도움 안 됨" 느낌)
+    expect(find.text('직원에게 연결'), findsOneWidget);   // 대체: 최근 봇 답변에 콜백 칩
   });
 
   testWidgets('[Q1·Q2] 새 대화는 방을 스택에 쌓지 않고 상담 탭(/chat)으로 이동한다', (t) async {

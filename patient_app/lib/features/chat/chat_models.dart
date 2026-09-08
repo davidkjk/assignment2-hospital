@@ -122,12 +122,19 @@ class ChatRoomState {
   // AI 일시 장애(Q19·CHAT-OUTAGE-01). null=정상. 값이 있으면 방 대신 ChatOutageView를 전면에 띄운다
   // (빈 응답/5xx = AI에 못 닿음 → 강제 직원인계가 아니라 장애 안내). webchat OutageNotice와 통일.
   final OutageInquiryPhase? outagePhase;
+  // Q18: 인계 상태 배지(직원 확인 전/답변 도착·운영시간). null=아직 조회 전(배지 안 뜸).
+  final HandoffStatus? handoff;
+  // Q18③ presence: 직원이 상담 상세를 실제로 열어 보는 중(typing과 같은 broadcast 채널의 'viewing' 신호).
+  //   연결 상태(connecting)에 겹치면 배지가 "직원이 확인 중이에요"로 바뀐다. 배정(claim)과 무관한 실열람.
+  final bool staffViewing;
   const ChatRoomState(this.phase,
       {this.items = const [],
       this.batchId,
       this.staffTyping = false,
       this.botThinking = false,
-      this.outagePhase});
+      this.outagePhase,
+      this.handoff,
+      this.staffViewing = false});
 
   bool get isEmpty =>
       phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
@@ -140,6 +147,8 @@ class ChatRoomState {
     bool? botThinking,
     OutageInquiryPhase? outagePhase,
     bool clearOutage = false, // true면 outagePhase를 null로 되돌린다(장애 복구 — nullable 갱신은 ??로 못 지운다)
+    HandoffStatus? handoff,
+    bool? staffViewing,
   }) =>
       ChatRoomState(
         phase ?? this.phase,
@@ -148,6 +157,8 @@ class ChatRoomState {
         staffTyping: staffTyping ?? this.staffTyping,
         botThinking: botThinking ?? this.botThinking,
         outagePhase: clearOutage ? null : (outagePhase ?? this.outagePhase),
+        handoff: handoff ?? this.handoff,
+        staffViewing: staffViewing ?? this.staffViewing,
       );
 }
 

@@ -5,7 +5,7 @@ from app.core.errors import AppError, log_error
 from app.db.pool import get_pool
 from app.services import opening_hours
 from app.services.chat import (orchestrator, rag_service, quality_service, card_builder,
-                               booking_agent_service, intent_precheck)
+                               booking_agent_service, intent_precheck, dept_guide_service)
 
 
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
@@ -17,15 +17,6 @@ _SENDER_ID_COL = {
     "patient": ("sender_patient_id", "t.patient_id"),
     "anonymous_web": ("sender_anonymous_session_id", "t.anonymous_session_id"),
 }
-
-
-async def _match_departments_in_text(text: str) -> list[dict]:
-    # 증상 대화 추천문에 등장한 진료과명을 실제 진료과 목록과 매칭한다(하이브리드 ①). 없으면 [].
-    from app.services import department_service
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        departments = await department_service.list_departments(conn)
-    return [d for d in departments if d.get("name") and d["name"] in text]
 
 
 def _guide_booking_card(sender_kind: str, matched: list[dict]) -> dict:
@@ -89,9 +80,28 @@ async def handle_message(session, content: str, *, thread_id: UUID,
 
     async def intent_fn(s, m, intent):
         # B1·B2: 진료시간·의사명단은 DB 단일원본에서 읽는다(KBADM-EDITOR-17). 빈값이면 None → RAG 폴백.
+        # Q15: 진료시간 답변 끝 안내 문구를 채널별로 — 웹은 "여기서 바로 예약", 앱은 "앱 예약 화면".
+        channel = "web" if sender_kind == "anonymous_web" else "app"
         async with pool.acquire() as c:
             if intent == "hospital_hours":
-                return {"reply": intent_precheck.format_hours(await opening_hours.list_hospital_hours(c))}
+                # Q8: 질문에 의사 이름이 있으면 그 의사 개인 진료시간(doctor_schedule_rules)으로 답한다.
+                #     이름이 없으면(=일반 "진료시간") 병원 전체 시간을 유지한다(퇴행 방지).
+                doctors = await c.fetch(
+                    "select s.id, s.name, coalesce(d.name, s.specialty) as specialty "
+                    "from staff s left join departments d on d.id = s.department_id "
+                    "where s.role = 'doctor' and s.is_active")
+                matched = intent_precheck.match_doctor_names(m, [dict(r) for r in doctors])
+                if matched:
+                    parts = []
+                    for doc in matched:
+                        rules = await c.fetch(
+                            "select weekday, start_time, end_time, lunch_start, lunch_end "
+                            "from doctor_schedule_rules where doctor_id = $1 order by weekday", doc["id"])
+                        parts.append(intent_precheck.format_doctor_schedule(
+                            doc["name"], doc.get("specialty"), [dict(r) for r in rules]))
+                    return {"reply": "\n\n".join(parts)}
+                return {"reply": intent_precheck.format_hours(
+                    await opening_hours.list_hospital_hours(c), channel=channel)}
             if intent == "doctor_list":
                 rows = await c.fetch(
                     "select s.name, coalesce(d.name, s.specialty) as specialty "
@@ -101,15 +111,23 @@ async def handle_message(session, content: str, *, thread_id: UUID,
                 return {"reply": intent_precheck.format_doctors([dict(r) for r in rows])}
         return None
 
+    async def dept_guide_fn(s, m):
+        # Q3: 증상 대화는 진단식 다단질문 없이 한 번에 답한다 — 진료과 목록을 넘겨 respond가 추천하게 하고,
+        #     추천된 진료과(suggested_department)를 함께 돌려준다(하이브리드①이 예약 카드 재료로 쓴다).
+        from app.services import department_service
+        async with pool.acquire() as conn:
+            departments = await department_service.list_departments(conn)
+        result = await dept_guide_service.guide(
+            message=m, history=history_texts, departments=departments, model=model)
+        return {"reply": result["reply"], "suggested_department": result.get("suggested_department")}
+
     out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
                                          rag_fn=rag_fn, agent_fn=agent_fn, intent_fn=intent_fn,
-                                         model=model)
+                                         dept_guide_fn=dept_guide_fn, model=model)
     # 하이브리드 ①(WEBBOOK-08): 증상 대화(department_guide)가 진료과를 추천하면 예약으로 잇는 카드를 함께 낸다.
-    #   웹=진료과 선택 카드(대화 내 예약), 앱=예약 마법사 인계 카드(결정 B). 추천이 없으면 카드 없음(그냥 문답).
-    if out["route_taken"] == "department_guide" and out.get("reply") and not out.get("card"):
-        matched = await _match_departments_in_text(out["reply"])
-        if matched:
-            out = {**out, "card": _guide_booking_card(sender_kind, matched)}
+    #   웹=진료과 선택 카드(대화 내 예약), 앱=예약 마법사 인계 카드(결정 B). 추천이 없으면(1회 질문 단계) 카드 없음.
+    if out["route_taken"] == "department_guide" and out.get("suggested_department") and not out.get("card"):
+        out = {**out, "card": _guide_booking_card(sender_kind, [out["suggested_department"]])}
     # 봇 메시지 본문 결정: 평소 답(reply). 제한 주제 전용이면 reply가 비고 원문(restricted_block)이 본문이 된다(A3).
     body = (out.get("reply") or "").strip() or (out.get("restricted_block") or "").strip()
     # 행동형(agent)·증상추천(department_guide)이 카드를 냈으면 막다른 길이 아니다 — 봇 말풍선 + 카드를 저장·반환한다.

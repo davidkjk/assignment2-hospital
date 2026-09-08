@@ -110,3 +110,35 @@ test('[WEBCHAT-ROOM-10] 인증 모달 왕복 뒤 메시지·전송 완료가 유
   expect(screen.getByText('내 예약 보여줘')).toBeInTheDocument();
   expect(screen.queryByText(/비밀번호/)).not.toBeInTheDocument(); // 인증 입력은 상담 기록에 없음
 });
+
+test('[Q5] 마지막이 봇 답변이면 [직원에게 연결] 칩을 대화 밑에 띄우고 누르면 인계', async () => {
+  const onStaffHandoff = vi.fn();
+  const msgs: ThreadMessage[] = [
+    { id: 'p', senderType: 'patient', messageType: 'text', content: '질문' },
+    { id: 'b', senderType: 'bot', messageType: 'text', content: '이렇게 안내드려요' },
+  ];
+  render(<ChatRoom phase="ready" messages={msgs} {...base} onStaffHandoff={onStaffHandoff} />);
+  await userEvent.click(screen.getByRole('button', { name: '직원에게 연결' }));
+  expect(onStaffHandoff).toHaveBeenCalledTimes(1);
+});
+
+test('[Q5] 마지막이 환자 발화(봇 대기)면 직원연결 칩을 띄우지 않는다', () => {
+  const msgs: ThreadMessage[] = [
+    { id: 'b', senderType: 'bot', messageType: 'text', content: '답' },
+    { id: 'p', senderType: 'patient', messageType: 'text', content: '질문' },
+  ];
+  render(<ChatRoom phase="ready" messages={msgs} {...base} onStaffHandoff={vi.fn()} />);
+  expect(screen.queryByRole('button', { name: '직원에게 연결' })).not.toBeInTheDocument();
+});
+
+test('[Q5] 마지막이 카드(no_answer)면 대화 밑 칩을 중복으로 띄우지 않는다', () => {
+  // no_answer는 QuickReplies 카드가 handoff_chip을 이미 낸다 — 대화 밑 칩과 중복 방지.
+  const msgs: ThreadMessage[] = [
+    { id: 'b', senderType: 'bot', messageType: 'text', content: '바로 답을 못 찾았어요' },
+    { id: 'c', senderType: 'bot', messageType: 'card', content: '', payload: { card_type: 'quick_replies', options: [], handoff_chip: '직원에게 연결' } },
+  ];
+  render(<ChatRoom phase="ready" messages={msgs} {...base} onStaffHandoff={vi.fn()}
+    renderCard={() => <button type="button">직원에게 연결</button>} />);
+  // 카드가 낸 칩 1개만(대화 밑 칩이 더 붙지 않음)
+  expect(screen.getAllByRole('button', { name: '직원에게 연결' })).toHaveLength(1);
+});

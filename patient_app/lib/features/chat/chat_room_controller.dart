@@ -68,11 +68,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
         createdAt: DateTime.now(),
         clientMessageId: cid,
         sendState: ChatSendState.sending);
-    state = ChatRoomState(ChatRoomPhase.loaded,
-        items: [...state.items, optimistic],
-        batchId: state.batchId,
-        staffTyping: state.staffTyping,
-        botThinking: state.botThinking);
+    state = state.copyWith(
+        phase: ChatRoomPhase.loaded, items: [...state.items, optimistic]);
     await _deliver(cid, content);
   }
 
@@ -107,27 +104,33 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
       // 드물게 rag가 reply=None) 피드에 아무것도 안 붙어 **무응답처럼 보인다**(2026-09-08 실기기: "증상 상담"
       // 눌러도 반응 없음의 2차 원인). 이때 가시적 시스템 줄을 넣어 갇힘을 막는다 — handoff는 연결 중 안내,
       // 그 외는 다시 물어봐 달라는 안내(막다른 길 금지).
+      // handoff는 '연결 중' 안내(system 줄). 무답변은 봇 말풍선(text/bot)으로 넣어야 마지막 줄이 봇 답변이 되어
+      // 입력창 슬롯에 [직원에게 연결] 칩이 뜬다(Q5·Q11: 폴백 문구가 가리키는 칩이 실제로 존재 = 막다른 길 금지).
+      final isHandoff = res.routeTaken == 'handoff';
       final fallback = (res.botMessage == null && res.cardMessage == null)
           ? ChatFeedItem(
               id: 'sys-$cid',
-              messageType: 'system',
-              senderType: 'system',
-              content: res.routeTaken == 'handoff'
+              messageType: isHandoff ? 'system' : 'text',
+              senderType: isHandoff ? 'system' : 'bot',
+              content: isHandoff
                   ? '직원에게 연결하고 있어요. 잠시만 기다려 주세요.'
-                  : '죄송해요, 방금은 답변을 가져오지 못했어요. 다시 한 번 여쭤봐 주시거나 아래 [직원에게 물어보기]를 눌러 주세요.',
+                  : '죄송해요, 방금은 답변을 가져오지 못했어요. 다시 한 번 여쭤봐 주시거나 아래 [직원에게 연결] 칩을 눌러 주세요.',
               createdAt: DateTime.now())
           : null;
-      state = ChatRoomState(
-          ChatRoomPhase.loaded,
+      state = state.copyWith(
+          phase: ChatRoomPhase.loaded,
           items: [
             ...marked,
             if (res.botMessage != null) res.botMessage!,
             if (res.cardMessage != null) res.cardMessage!,
             if (fallback != null) fallback,
           ],
-          batchId: state.batchId,
-          staffTyping: state.staffTyping,
-          botThinking: false); // 응답 도착 → 봇 대기 표시 끔
+          botThinking: false, // 응답 도착 → 봇 대기 표시 끔
+          // 성공 왕복이면 장애를 해제한다(CHAT-OUTAGE-RECOVER-01). 병합 전 HEAD는 성공 시 새 ChatRoomState를
+          //   지어 outagePhase가 자연히 null이었으나, q15-q18이 handoff·staffViewing 보존을 위해 copyWith로
+          //   바꾸며 outagePhase도 보존돼 재시도 성공 후에도 장애가 안 풀렸다. clearOutage로 명시 해제한다.
+          //   평소 전송(장애 아님)엔 이미 null이라 무해(null→null).
+          clearOutage: true);
     } catch (e) {
       // Q19(CHAT-OUTAGE-01): 서버/AI 장애(5xx — 빈 AI 응답은 백엔드가 503으로 내린다)면 강제 직원인계가
       //   아니라 장애 화면(ChatOutageView)으로 안내한다. ⚠️ webchat는 status 없는 네트워크 실패도 장애로
@@ -177,11 +180,9 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   }
 
   void _replace(String cid, ChatFeedItem next) {
-    state = ChatRoomState(ChatRoomPhase.loaded,
-        items: [for (final i in state.items) i.clientMessageId == cid ? next : i],
-        batchId: state.batchId,
-        staffTyping: state.staffTyping,
-        botThinking: state.botThinking);
+    state = state.copyWith(
+        phase: ChatRoomPhase.loaded,
+        items: [for (final i in state.items) i.clientMessageId == cid ? next : i]);
   }
 
   StreamSubscription<List<ChatFeedItem>>? _liveSub;
@@ -217,11 +218,7 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
         if (y == null) return -1;
         return x.compareTo(y);
       });
-    state = ChatRoomState(ChatRoomPhase.loaded,
-        items: merged,
-        batchId: state.batchId,
-        staffTyping: state.staffTyping,
-        botThinking: state.botThinking);
+    state = state.copyWith(phase: ChatRoomPhase.loaded, items: merged);
   }
 
   StreamSubscription<bool>? _typingSub;
@@ -244,11 +241,63 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     }, onError: (_) {/* 끊김은 무해 — 재연결 대기 */});
   }
 
+  Timer? _handoffTimer;
+  Future<HandoffStatus> Function()? _handoffFetch;
+
+  /// [Q18] 인계 상태(직원 확인 전/답변 도착·운영시간) 배지를 채운다. webchat과 동형 —
+  /// 진입 즉시 1회 + 8초 주기 폴링으로 최신 상태(connecting→answered)를 반영한다(제출 후 무반응 해소).
+  /// 실패는 완료로 위장하지 않고 loadError로 둔다(CHAT-HANDOFF-ERR-01). 셸(provider)이 fetch를 물려준다.
+  void bindHandoff(Future<HandoffStatus> Function() fetch) {
+    _handoffFetch = fetch;
+    refreshHandoff(); // 진입 즉시(기존 인계 복원·제출 후 반영)
+    _handoffTimer?.cancel();
+    _handoffTimer = Timer.periodic(const Duration(seconds: 8), (_) => refreshHandoff());
+  }
+
+  /// 인계 상태를 한 번 새로 가져온다([다시 시도]·폴링 공용). 실패는 loadError로만 둔다.
+  Future<void> refreshHandoff() async {
+    final fetch = _handoffFetch;
+    if (fetch == null) return;
+    try {
+      final st = await fetch();
+      if (state.phase != ChatRoomPhase.error) state = state.copyWith(handoff: st);
+    } catch (_) {
+      state = state.copyWith(handoff: const HandoffStatus(loadError: true));
+    }
+  }
+
+  /// 배지 상태를 직접 주입한다(테스트·특수 케이스). 조회 실패는 loadError로만 표시한다.
+  void setHandoff(HandoffStatus status) => state = state.copyWith(handoff: status);
+
+  StreamSubscription<bool>? _presenceSub;
+  Timer? _presenceOff;
+
+  /// [Q18③] 직원이 상담 상세를 **실제로 열어 보는 중**인지(열람 presence)를 상태에 반영한다 —
+  /// typing과 같은 broadcast 채널의 'viewing' 신호(직원웹 TicketConversation open 시 emit). 배정(claim)과
+  /// 무관한 실열람이라, connecting 상태에 겹치면 배지가 "직원이 확인 중이에요"로 바뀐다(SCOPE-01: 초록 점·
+  /// 답변 보장 아님). 끔 신호 유실 대비 12초 안전 타임아웃(직원웹 유휴 하트비트보다 여유).
+  void bindPresence(Stream<bool> stream) {
+    _presenceSub?.cancel();
+    _presenceSub = stream.listen((on) {
+      if (state.phase != ChatRoomPhase.loaded) return;
+      _presenceOff?.cancel();
+      state = state.copyWith(staffViewing: on);
+      if (on) {
+        _presenceOff = Timer(const Duration(seconds: 12), () {
+          if (state.staffViewing) state = state.copyWith(staffViewing: false);
+        });
+      }
+    }, onError: (_) {/* 끊김은 무해 — 재연결 대기 */});
+  }
+
   @override
   void dispose() {
     _liveSub?.cancel();
     _typingSub?.cancel();
     _typingOff?.cancel();
+    _handoffTimer?.cancel();
+    _presenceSub?.cancel();
+    _presenceOff?.cancel();
     super.dispose();
   }
 }
@@ -282,6 +331,10 @@ final chatRoomProvider =
   ctl.bindLive(repo.streamThread(key.$1));
   // [CHAT-ROOM-LIVE-TYPING-01] 같은 thread의 broadcast로 오는 "직원 입력 중"을 물려준다(일시 표시).
   ctl.bindTyping(repo.streamStaffTyping(key.$1));
+  // [Q18] 인계 상태 배지 — 진입 즉시 + 8초 폴링(webchat 동형). thread에 인계 티켓이 있을 때만 배지가 뜬다.
+  ctl.bindHandoff(() => repo.fetchHandoffStatus(key.$1));
+  // [Q18③] 직원 열람 presence — typing과 같은 채널의 'viewing' broadcast. realtime 미주입이면 빈 스트림.
+  ctl.bindPresence(repo.streamStaffPresence(key.$1));
   return ctl;
 });
 

@@ -56,6 +56,73 @@ class TestFormatHours:
         # 데이터가 없으면 None → orchestrator가 기존 RAG로 폴백(막다른 길 방지).
         assert intent_precheck.format_hours([]) is None
 
+    def _one_row(self):
+        return [{"weekday": 0, "open_time": "09:00:00", "close_time": "18:00:00",
+                 "lunch_start": None, "lunch_end": None, "is_closed": False}]
+
+    def test_web_channel_directs_to_book_here(self):
+        # Q15: webchat은 대화 안에서 바로 예약 가능 → "여기서 바로 예약", "앱" 언급 금지(misdirect).
+        text = intent_precheck.format_hours(self._one_row(), channel="web")
+        assert "여기서 바로 예약" in text
+        assert "앱" not in text
+
+    def test_app_channel_directs_to_app_screen(self):
+        # Q15: 앱 채널은 예약 화면으로 안내(현행 유지).
+        text = intent_precheck.format_hours(self._one_row(), channel="app")
+        assert "앱" in text and "예약 화면" in text
+
+    def test_default_channel_is_app(self):
+        # 채널 미지정(기존 호출부·하위호환)은 앱 문구.
+        text = intent_precheck.format_hours(self._one_row())
+        assert "앱" in text
+
+
+class TestMatchDoctorNames:
+    """Q8: 진료시간 질문에 의사 이름이 있으면 그 의사 스케줄로 답하기 위해 이름을 먼저 매칭한다.
+    이름이 없으면 [] → 병원 전체 진료시간(hospital_hours) 유지(퇴행 방지)."""
+
+    DOCTORS = [
+        {"id": "d1", "name": "김서준", "specialty": "내과"},
+        {"id": "d2", "name": "이하나", "specialty": "정형외과"},
+        {"id": "d3", "name": "박민수", "specialty": "내과"},
+    ]
+
+    def test_matches_single_named_doctor(self):
+        m = intent_precheck.match_doctor_names("김서준 선생님 언제 진료하세요?", self.DOCTORS)
+        assert [d["id"] for d in m] == ["d1"]
+
+    def test_no_name_returns_empty(self):
+        # "의사들 진료시간" 처럼 이름 없는 일반 질문 → 병원 전체 시간 유지.
+        assert intent_precheck.match_doctor_names("의사 선생님들 진료시간 알려줘", self.DOCTORS) == []
+
+    def test_matches_multiple_when_ambiguous(self):
+        m = intent_precheck.match_doctor_names("김서준, 이하나 선생님 진료시간", self.DOCTORS)
+        assert {d["id"] for d in m} == {"d1", "d2"}
+
+    def test_ignores_spaces_in_name(self):
+        m = intent_precheck.match_doctor_names("김 서준 선생님 진료시간", self.DOCTORS)
+        assert [d["id"] for d in m] == ["d1"]
+
+
+class TestFormatDoctorSchedule:
+    def test_formats_weekday_schedule_with_lunch(self):
+        rules = [
+            {"weekday": 0, "start_time": "09:00:00", "end_time": "17:00:00",
+             "lunch_start": "12:30:00", "lunch_end": "13:30:00"},
+            {"weekday": 2, "start_time": "09:00:00", "end_time": "13:00:00",
+             "lunch_start": None, "lunch_end": None},
+        ]
+        text = intent_precheck.format_doctor_schedule("김서준", "내과", rules)
+        assert "김서준" in text and "내과" in text
+        assert "월요일" in text and "09:00" in text and "17:00" in text
+        assert "점심" in text and "12:30" in text
+        assert "수요일" in text and "13:00" in text
+
+    def test_no_rules_returns_guidance_not_none(self):
+        # 스케줄 데이터가 없으면 그 의사 이름은 넣되 일정 미확인 안내(막다른 길 금지).
+        text = intent_precheck.format_doctor_schedule("김서준", "내과", [])
+        assert text is not None and "김서준" in text
+
 
 class TestFormatDoctors:
     def test_groups_by_department(self):

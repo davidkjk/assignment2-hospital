@@ -25,8 +25,7 @@ from app.services.doctor_schedule_summary import summarize_schedule
 # 세션 복원 시 실어 보내는 최근 이력의 최대 건수(위젯 초기 렌더용).
 HISTORY_LIMIT = 200
 
-# 티켓 status → 프론트 HandoffPhase(webchatApi.ts).
-_HANDOFF_PHASE = {"pending": "connecting", "in_progress": "inProgress", "answered": "answered"}
+# 티켓 status → 환자에게 보이는 HandoffPhase는 patient_handoff_view가 정한다(Q18② 배정 숨김).
 # staff.role(staff_role enum: receptionist|doctor|admin) → 사용자에게 보일 한글 라벨(없으면 원문).
 _ROLE_LABEL = {"doctor": "의사", "receptionist": "접수", "admin": "관리자"}
 _HANDOFF_CLOSED_NOTE = "지금은 상담 운영시간이 아니에요. 남겨주시면 운영시간에 순서대로 답변드려요."
@@ -123,6 +122,19 @@ async def acknowledge_read(thread_id: UUID) -> None:
                                thread_id, thread["patient_id"])
 
 
+def patient_handoff_view(ticket_status, staff_name, staff_role):
+    """Q18②④: 환자에게 보이는 인계 상태 → (phase, name, role).
+
+    배정(in_progress)은 환자에게 숨긴다 — 단순 배정은 기대만 키우므로 여전히 'connecting'(직원 확인 전)이고,
+    "직원이 확인 중"은 실제 열람 presence(별도 realtime)만 보인다. 담당자 정보는 answered일 때만 노출한다.
+    """
+    if not ticket_status:
+        return (None, None, None)
+    if ticket_status == "answered":
+        return ("answered", staff_name, staff_role)
+    return ("connecting", None, None)  # pending·in_progress 모두 '직원 확인 전'
+
+
 async def get_handoff_status(thread_id: UUID) -> dict:
     """상담방의 최신 인계 티켓 상태 → 프론트 HandoffStatus. 운영시간(is_open)은 상담봇 창구 기준."""
     pool = await get_pool()
@@ -134,11 +146,14 @@ async def get_handoff_status(thread_id: UUID) -> dict:
         # 상담봇의 "지금 문 열었나" — 접수 창구(hospital_hours) 기준(의사 진료시간과 다름).
         now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
         is_open = await opening_hours.is_open(conn, now)
-    phase = _HANDOFF_PHASE.get(ticket["status"]) if ticket else None
-    role = ticket["staff_role"] if ticket else None
+    # Q18②: 배정(in_progress)은 환자에게 숨겨 'connecting'으로, 담당자는 answered일 때만 노출한다.
+    phase, name, role = patient_handoff_view(
+        ticket["status"] if ticket else None,
+        ticket["staff_name"] if ticket else None,
+        ticket["staff_role"] if ticket else None)
     return {
         "phase": phase,
-        "assigneeName": ticket["staff_name"] if ticket else None,
+        "assigneeName": name,
         "assigneeRole": _ROLE_LABEL.get(role, role) if role else None,
         "isOpen": is_open,
         "hoursNote": None if is_open else _HANDOFF_CLOSED_NOTE,

@@ -15,16 +15,25 @@ const _startNoUpcoming = ['진료시간이 어떻게 되나요', '어느 과에 
 List<String> startQuickReplies({required bool hasUpcoming}) =>
     hasUpcoming ? _startUpcoming : _startNoUpcoming;
 
-/// no_answer 안내(WEBCHAT-NOANS): 봇이 못 답하면 피드 마지막에 quick_replies 카드가 온다. 앱은 이 카드를
-/// 피드 카드가 아니라 입력창 슬롯의 칩으로 띄운다 → 마지막 줄이 quick_replies 카드일 때 그 옵션·handoff를 준다.
-/// 사용자가 칩을 누르거나 새 봇 답변이 오면 마지막 줄이 바뀌어 자동으로 사라진다(칩이 남지 않는다).
+/// 피드 마지막 줄에 따라 입력창 슬롯의 칩을 정한다(상시 버튼 폐지 후 유일한 [직원에게 연결] 출구, Q5).
+///  · no_answer 안내(WEBCHAT-NOANS): 마지막이 quick_replies 카드면 그 FAQ 옵션 + [직원에게 연결] 칩.
+///  · 일반 봇 답변(Q5 ②)·무답변 안내(Q11): 마지막이 봇 말풍선이면 FAQ 옵션 없이 [직원에게 연결] 칩만.
+///  · 환자 발화가 마지막(봇 대기 중)이면 칩 없음 → 새 봇 답변이 오면 다시 뜬다(칩이 남지 않는다).
+const _staffHandoffChip = '직원에게 연결';
+
 ({List<String> replies, String? handoffLabel})? activeQuickReplies(List<ChatFeedItem> items) {
   if (items.isEmpty) return null;
   final last = items.last;
-  if (last.cardType != 'quick_replies') return null;
-  final p = last.payload ?? const {};
-  final opts = (p['options'] as List?)?.cast<String>() ?? const <String>[];
-  return (replies: opts, handoffLabel: p['handoff_chip'] as String?);
+  if (last.cardType == 'quick_replies') {
+    final p = last.payload ?? const {};
+    final opts = (p['options'] as List?)?.cast<String>() ?? const <String>[];
+    return (replies: opts, handoffLabel: p['handoff_chip'] as String?);
+  }
+  // Q5·Q11: 가장 최근이 봇 답변(일반/무답변 안내)이면 [직원에게 연결] 칩만 — 매 말풍선 상시 버튼을 대체한다.
+  if (last.senderType == 'bot') {
+    return (replies: const <String>[], handoffLabel: _staffHandoffChip);
+  }
+  return null;
 }
 
 class ChatQuickReplies extends StatelessWidget {
@@ -52,14 +61,32 @@ class ChatQuickReplies extends StatelessWidget {
     if (replies.isEmpty && !hasHandoff) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Wrap(spacing: 6, runSpacing: 6, children: [
-        for (final r in replies) ActionChip(label: Text(r), onPressed: () => onSend(r)),
-        if (hasHandoff) // 콜백 칩 — FAQ 칩(테두리형)과 구분되게 딥틸 채움. 누르면 인계(문장 전송 아님).
-          ActionChip(
-            label: Text(handoffLabel!, style: const TextStyle(color: Colors.white)),
-            backgroundColor: AppTokens.primary,
-            onPressed: onHandoff),
+      child: Wrap(spacing: 8, runSpacing: 8, children: [
+        // Q13: 정본(homepage/webchat `.wc-chip`) 알약 — 흰 배경 + 딥틸 옅은 테두리 1.5px, 딥틸 글자.
+        for (final r in replies) _chip(label: r, filled: false, onPressed: () => onSend(r)),
+        if (hasHandoff) // 콜백 칩(WEBCHAT-NOANS) — FAQ 칩(테두리형)과 구분되게 딥틸 채움. 누르면 인계(문장 전송 아님).
+          _chip(label: handoffLabel!, filled: true, onPressed: onHandoff),
       ]),
+    );
+  }
+
+  /// 정본 칩 스타일(homepage/webchat `.wc-chip`) — 흰 알약 + 딥틸 옅은 테두리(FAQ) / 딥틸 채움(인계 콜백).
+  /// `ActionChip`을 유지해 탭 시맨틱·기존 테스트(byType ActionChip)를 지킨다.
+  Widget _chip({required String label, required bool filled, VoidCallback? onPressed}) {
+    return ActionChip(
+      label: Text(label,
+          style: TextStyle(
+            color: filled ? Colors.white : AppTokens.primary,
+            fontWeight: FontWeight.w600,
+          )),
+      backgroundColor: filled ? AppTokens.primary : AppTokens.surface,
+      side: BorderSide(color: filled ? AppTokens.primary : AppTokens.primarySoft, width: 1.5),
+      shape: const StadiumBorder(),
+      elevation: 0,
+      pressElevation: 0,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      onPressed: onPressed,
     );
   }
 }

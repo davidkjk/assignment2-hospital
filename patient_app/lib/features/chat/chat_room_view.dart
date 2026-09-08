@@ -11,11 +11,11 @@ import 'chat_repository.dart';
 import 'chat_room_controller.dart';
 import 'chat_room_entry.dart'; // chatSessionProvider(탭 세션) 무효화용
 import 'widgets/chat_feed.dart';
+import 'widgets/chat_handoff_badge.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_live_row.dart';
 import 'widgets/chat_quick_replies.dart';
 import 'widgets/chat_safety_banner.dart';
-import 'widgets/chat_typing_indicator.dart';
 
 /// 상담방 셸. 로딩(CHAT-ROOM-LOAD-01)·오류(ERR-01)·빈(EMPTY-01)·피드(FEED-01)를 가르고
 /// 안전 배너(SAFE-01)와 입력창(INPUT-01)을 항상 붙인다. 이름은 AI 상담봇(NAME-01).
@@ -105,6 +105,14 @@ class ChatRoomView extends ConsumerWidget {
         onTap: () => FocusScope.of(context).unfocus(),
         child: Column(children: [
         const ChatSafetyBanner(), // CHAT-ROOM-SAFE-01 (항상)
+        // Q18: 인계됐으면 상태 배지(직원 확인 전→확인 중(presence)→답변 도착). 인계 전(phase null·오류 아님)엔
+        // 안 뜬다. presence(staffViewing)가 connecting에 겹치면 "직원이 확인 중이에요"로 바뀐다.
+        if (st.handoff != null && (st.handoff!.phase != null || st.handoff!.loadError))
+          ChatHandoffBadge(
+            status: st.handoff!,
+            staffViewing: st.staffViewing,
+            onRetry: () => ctl.refreshHandoff(),
+          ),
         Expanded(child: switch (st.phase) {
           ChatRoomPhase.loading =>
             const Center(child: CircularProgressIndicator()),
@@ -146,20 +154,17 @@ class ChatRoomView extends ConsumerWidget {
                   // T11 슬롯 채움: 직원 말풍선·시스템 이벤트도 같은 피드에(CHAT-ROOM-LIVE-01).
                   liveSlotBuilder: (ctx, it) => ChatLiveRow(item: it),
                   onRetry: (id) => ctl.retry(id),
-                  // CHAT-ROOM-FEEDBACK-01: onFeedback 미주입(탭/딥링크 기본)이면 직원 인계로 연결한다
-                  // (요구사항 5.5). 예전엔 entry가 안 넘겨 버튼이 죽어 있었다.
-                  onFeedback: (_) =>
-                      onFeedback != null ? onFeedback!() : ctl.send('직원에게 연결'),
+                  // Q5: 매 봇 말풍선의 상시 [직원에게 물어보기] 버튼은 폐지. 직원 연결은 필요할 때만
+                  //     입력창 슬롯의 [직원에게 연결] 칩으로 준다(_buildQuickReplies의 onHandoff, 요구사항 5.5).
                   // A3: 빠른답변 칩을 피드 마지막 줄(말풍선 밑)에 둔다 — 입력창 위 고정 바는 대화창을 가린다.
                   footer: _buildQuickReplies(st, ctl),
+                  // Q7: 입력 중 표시를 입력바 위 텍스트가 아니라 피드 안 봇 말풍선 자리(점)로 둔다.
+                  // 봇 대기(BOT-TYPING-01)가 우선, 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 없음.
+                  typingLabel: st.botThinking
+                      ? '상담봇이 입력 중'
+                      : (st.staffTyping ? '직원이 입력 중입니다' : null),
                 ),
         }),
-        // 입력창 위 일시 표시(피드가 로드된 방에서만). 봇 대기(BOT-TYPING-01)가 우선,
-        // 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 표시 없음(상시 노출 금지).
-        if (st.phase == ChatRoomPhase.loaded && st.botThinking)
-          const ChatTypingIndicator(label: '상담봇이 입력 중')
-        else if (st.phase == ChatRoomPhase.loaded && st.staffTyping)
-          const ChatTypingIndicator(),
         _inputBar(st, ctl),
       ]),
       ),

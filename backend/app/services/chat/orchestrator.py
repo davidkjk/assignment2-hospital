@@ -1,7 +1,7 @@
 # 매 메시지 파이프라인: ⓪응급 → ①인계감시 → ②라우터 → 갈래 실행. 인계 조건은 어느 갈래든 우선한다.
 import json
 
-from app.services.chat import safety_watchdog, chat_router, department_guide_chain, intent_precheck
+from app.services.chat import safety_watchdog, chat_router, intent_precheck
 
 CHAT_CONTEXT_TURN_WINDOW = 12     # 최근 N턴은 원문, 그 앞은 요약(MR2-08 — 절단 아님)
 CHAT_NUDGE_MESSAGE_COUNT = 40     # 이 이상이면 CHAT-LEN 소프트 넛지 신호(하드컷 아님)
@@ -77,7 +77,7 @@ async def make_handoff_summary(history_text: str, model=None) -> dict:
 
 async def orchestrate(session, message, *, history_texts=None, restricted=False,
                       unhelpful_flagged=False, rag_fn=None, agent_fn=None, intent_fn=None,
-                      model=None) -> dict:
+                      dept_guide_fn=None, model=None) -> dict:
     history_texts = history_texts or []
     # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0).
     if safety_watchdog.check_emergency(message):
@@ -106,9 +106,13 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
     if restricted and route == "agent":
         route = "rag"
     if route == "department_guide":
-        reply = await department_guide_chain.ask_next_question(
-            "\n".join(history_texts), getattr(session, "flow_step", 0), model=model)
-        return {"route_taken": "department_guide", "reply": reply, "escalated": False}
+        # Q3: 증상 대화는 진단식 다단질문 없이 dept_guide_fn이 한 번에 답한다
+        #     (불명확하면 1회 질문, 증상 있으면 바로 진료과 추천 + suggested_department).
+        #     dept_guide_fn은 chat_flow_service가 진료과 목록과 함께 주입한다. 미주입이면 막다른 길 대신 빈 응답.
+        if dept_guide_fn is None:
+            return {"route_taken": "department_guide", "reply": None, "escalated": False}
+        return {"route_taken": "department_guide", "escalated": False,
+                **(await dept_guide_fn(session, message))}
     if route == "agent":
         # 행동형 도구·카드는 Task 6이 주입. no_answer면 인계로 되돌린다.
         if agent_fn is None:

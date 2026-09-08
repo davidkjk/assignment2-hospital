@@ -58,6 +58,39 @@ void main() {
     expect(find.text('재전송'), findsOneWidget);
   });
 
+  BoxDecoration bubbleDeco(WidgetTester t) {
+    final c = t.widget<Container>(find.descendant(
+        of: find.byType(ChatBubble),
+        matching: find.byWidgetPredicate((w) =>
+            w is Container && w.decoration is BoxDecoration &&
+            (w.decoration as BoxDecoration).boxShadow != null)));
+    return c.decoration as BoxDecoration;
+  }
+
+  testWidgets('[Q10] 말풍선은 테두리 대신 그림자로 띄운다(봇=테두리 없음·그림자 있음)', (t) async {
+    await pump(t, ChatFeedItem(
+        id: 'm', messageType: 'text', senderType: 'bot', content: '안녕', createdAt: DateTime(2026)));
+    final deco = bubbleDeco(t);
+    expect(deco.border, isNull); // 옛 봇 테두리 폐지
+    expect(deco.boxShadow, isNotNull);
+    expect(deco.boxShadow!.isNotEmpty, isTrue);
+  });
+
+  testWidgets('[Q4] 봇 말풍선은 좌하단, 내 말풍선은 우하단에 꼬리(안쪽 모서리 작게)', (t) async {
+    await pump(t, ChatFeedItem(
+        id: 'm', messageType: 'text', senderType: 'bot', content: '안녕', createdAt: DateTime(2026)));
+    final bot = bubbleDeco(t).borderRadius as BorderRadius;
+    expect(bot.bottomLeft, const Radius.circular(5)); // 봇=좌하단 꼬리
+    expect(bot.bottomRight, const Radius.circular(16));
+
+    await pump(t, ChatFeedItem(
+        id: 'm', messageType: 'text', senderType: 'patient', content: '안녕', createdAt: DateTime(2026)));
+    final me = bubbleDeco(t).borderRadius as BorderRadius;
+    expect(me.bottomRight, const Radius.circular(5)); // 나=우하단 꼬리
+    expect(me.bottomLeft, const Radius.circular(16));
+    expect(bubbleDeco(t).boxShadow!.isNotEmpty, isTrue); // 딥틸 말풍선에도 그림자(Q10)
+  });
+
   testWidgets('[CHAT-ROOM-EXC-01] unknown 아이템은 시각을 지어내지 않고 확인 필요로 표시', (t) async {
     await pump(
         t,

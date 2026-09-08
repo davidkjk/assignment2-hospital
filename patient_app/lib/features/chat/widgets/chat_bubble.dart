@@ -62,11 +62,19 @@ class ChatBubble extends StatelessWidget {
           Container(
             constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.78),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: bubbleColor,
-              borderRadius: BorderRadius.circular(14),
-              border: isPatient ? null : Border.all(color: AppTokens.border),
+              // Q4 꼬리: 정본(webchat/homepage) 말풍선처럼 하단 안쪽 모서리 하나만 작게 접는다 —
+              // 내 메시지(오른쪽 딥틸)=우하단, 봇·직원(왼쪽 흰카드)=좌하단. 나머지는 16.
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isPatient ? 16 : 5),
+                bottomRight: Radius.circular(isPatient ? 5 : 16),
+              ),
+              // Q10: 테두리 대신 그림자로 띄운다(정본=흰 봇 말풍선 그림자). 딥틸 내 말풍선에도 그림자 추가.
+              boxShadow: AppTokens.bubbleShadow,
             ),
             child: Text(item.content ?? '',
                 style: TextStyle(color: textColor, fontSize: AppTokens.bodyFontSize)),

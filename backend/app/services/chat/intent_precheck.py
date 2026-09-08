@@ -54,8 +54,13 @@ def _hhmm(v) -> str | None:
     return s[:5]
 
 
-def format_hours(rows: list[dict]) -> str | None:
-    """요일별 접수 창구 운영시간을 텍스트로. 데이터 없으면 None(→RAG 폴백)."""
+def format_hours(rows: list[dict], channel: str = "app") -> str | None:
+    """요일별 접수 창구 운영시간을 텍스트로. 데이터 없으면 None(→RAG 폴백).
+
+    Q15 — 마지막 안내 문구를 채널별로 분기한다(misdirect 방지):
+      · web(webchat)  = 대화 안에서 바로 예약 가능 → "여기서 바로 예약".
+      · app(환자앱)   = 예약 마법사가 별도 화면 → "앱의 예약 화면".
+    """
     if not rows:
         return None
     lines = ["병원 진료시간은 다음과 같습니다."]
@@ -73,7 +78,51 @@ def format_hours(rows: list[dict]) -> str | None:
         lines.append(line)
     if len(lines) == 1:
         return None
-    lines.append("정확한 예약 가능 시간은 앱의 예약 화면에서 확인하실 수 있어요.")
+    if channel == "web":
+        lines.append("정확한 예약 가능 시간은 지금 여기서 바로 예약하며 확인하실 수 있어요.")
+    else:
+        lines.append("정확한 예약 가능 시간은 앱의 예약 화면에서 확인하실 수 있어요.")
+    return "\n".join(lines)
+
+
+def match_doctor_names(message: str, doctors: list[dict]) -> list[dict]:
+    """Q8: 메시지에 이름이 등장하는 의사들을 반환한다(공백 무시). 없으면 [].
+
+    이름이 없으면 병원 전체 진료시간(hospital_hours)을 유지한다(퇴행 방지).
+    동명이인·복수 언급이면 여럿 반환한다(호출부가 각자 스케줄을 답).
+    """
+    t = (message or "").replace(" ", "")
+    seen: set = set()
+    matched: list[dict] = []
+    for d in doctors:
+        name = (d.get("name") or "").replace(" ", "")
+        if len(name) < 2:  # 한 글자 이름은 오탐 위험이라 제외
+            continue
+        if name in t and d.get("id") not in seen:
+            seen.add(d.get("id"))
+            matched.append(d)
+    return matched
+
+
+def format_doctor_schedule(name: str, specialty: str | None, rules: list[dict]) -> str:
+    """Q8: 한 의사의 요일별 진료시간을 텍스트로. 규칙이 없으면 일정 미확인 안내(막다른 길 금지)."""
+    dept = (specialty or "").strip()
+    head = f"{name} 선생님" + (f"({dept})" if dept else "")
+    if not rules:
+        return f"{head}의 정규 진료 일정은 현재 확인되지 않아요. 정확한 진료 가능 시간은 예약 화면이나 직원에게 확인해 주세요."
+    lines = [f"{head}의 진료시간은 다음과 같습니다."]
+    for r in sorted(rules, key=lambda x: x["weekday"]):
+        wd = _WEEKDAY_KO[r["weekday"]] if 0 <= r["weekday"] < 7 else str(r["weekday"])
+        opn, cls = _hhmm(r.get("start_time")), _hhmm(r.get("end_time"))
+        if not opn or not cls:
+            continue
+        line = f"· {wd} {opn}~{cls}"
+        ls, le = _hhmm(r.get("lunch_start")), _hhmm(r.get("lunch_end"))
+        if ls and le:
+            line += f" (점심 {ls}~{le})"
+        lines.append(line)
+    if len(lines) == 1:  # 유효 행이 하나도 없으면 미확인 안내
+        return f"{head}의 정규 진료 일정은 현재 확인되지 않아요. 정확한 진료 가능 시간은 예약 화면이나 직원에게 확인해 주세요."
     return "\n".join(lines)
 
 

@@ -4,11 +4,9 @@
 #    진료과만 추천한다. 그래서 이 대화는 '지난 상담'에 남지 않고, 30분 만료·실시간 구독·직원 인계와 무관하다
 #    (겹침 시트: 화면을 떠나지 않는 booking 도우미). 행동형(예약/취소/문진 카드)은 애초에 만들지 않는다.
 #
-# 흐름: ⓪응급(항상 최우선) → 직원요청은 '상담' 탭으로 부드럽게 안내 → 문진 몇 턴 → 목록 중 한 과 추천.
+# 흐름: ⓪응급(항상 최우선) → 직원요청은 '상담' 탭으로 부드럽게 안내 → 증상 있으면 바로 추천(없으면 1회 질문).
+#   Q3(2026-09-08): 진단식 다단질문 폐지. 매 발화에 respond가 "불명확하면 1회 질문 / 증상 있으면 바로 추천"으로 답한다.
 from app.services.chat import department_guide_chain, safety_watchdog
-
-# 이전 환자 발화가 이 수 이상이면(=충분히 물어봤으면) 추천 단계로 넘어간다. 그 전엔 문진 질문.
-_ASK_TURNS_BEFORE_RECOMMEND = 2
 
 # 제한모드에선 직원 인계 티켓을 만들지 않는다(막다른 길 금지) — 상담 탭으로 안내하고 문진을 이어간다.
 REDIRECT_TO_CONSULT_REPLY = (
@@ -46,16 +44,12 @@ async def guide(*, message: str, history: list[str], departments: list[dict],
         return {"reply": REDIRECT_TO_CONSULT_REPLY,
                 "suggested_department": None, "emergency": False}
 
-    prior_patient_turns = len(history)
     history_text = "\n".join([*history, message])
     dept_names = [d["name"] for d in departments if d.get("name")]
 
-    if prior_patient_turns >= _ASK_TURNS_BEFORE_RECOMMEND and dept_names:
-        # 마무리: 목록 중 한 과를 이름 그대로 추천하게 강제 → 문장에서 매칭해 "○○과로 계속하기" 재료를 만든다.
-        reply = await department_guide_chain.recommend_department(history_text, dept_names, model=model)
-    else:
-        # 문진: 공감 + 다음 질문. 봇이 조기에 특정 과를 언급하면 아래 매칭이 바로 잡는다.
-        reply = await department_guide_chain.ask_next_question(history_text, prior_patient_turns, model=model)
+    # Q3: 진단식 다단질문 없이 한 번에 답한다 — 증상이 불명확하면 딱 한 번 질문(진료과명 없음 → suggested None),
+    #     증상을 들었으면 바로 목록 중 한 과(애매하면 최대 두 곳)를 이름 그대로 추천한다(문장에서 매칭).
+    reply = await department_guide_chain.respond(history_text, dept_names, model=model)
 
     matched = _match_department(reply, departments)
     suggested = {"id": str(matched["id"]), "name": matched["name"]} if matched else None

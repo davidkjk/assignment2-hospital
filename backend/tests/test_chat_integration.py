@@ -204,7 +204,7 @@ async def test_department_guide_web_attaches_department_card(committed_conn, mon
     async def to_guide(*a, **k): return "department_guide"
     async def rec(*a, **k): return "증상을 보면 내과 진료가 좋겠어요."
     monkeypatch.setattr(chat_router, "classify", to_guide)
-    monkeypatch.setattr(department_guide_chain, "ask_next_question", rec)
+    monkeypatch.setattr(department_guide_chain, "respond", rec)
     await committed_conn.execute("insert into departments (name, is_active) values ('내과', true)")
 
     sess = await webchat_service.start_or_restore_session(None)
@@ -229,7 +229,7 @@ async def test_department_guide_app_attaches_wizard_card(committed_conn, monkeyp
     async def to_guide(*a, **k): return "department_guide"
     async def rec(*a, **k): return "증상을 보면 내과 진료가 좋겠어요."
     monkeypatch.setattr(chat_router, "classify", to_guide)
-    monkeypatch.setattr(department_guide_chain, "ask_next_question", rec)
+    monkeypatch.setattr(department_guide_chain, "respond", rec)
     await committed_conn.execute("insert into departments (name, is_active) values ('내과', true)")
 
     p = await seed_patient(committed_conn)
