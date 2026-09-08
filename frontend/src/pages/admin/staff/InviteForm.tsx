@@ -27,20 +27,23 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
   const [validationError, setValidationError] = useState<string | null>(null)
   const [serverError, setServerError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
-  // [STAFF-INVITE-LINK-01] 성공 시 관리자가 직접 전달할 수락 링크. null=아직 없음/못 만듦.
+  // [STAFF-INVITE-LINK-01·하이브리드] 성공 시 관리자가 직접 전달할 수락 링크. null=아직 없음/못 만듦.
   const [inviteLink, setInviteLink] = useState<string | null>(null)
+  // 초대 메일이 자동 발송됐는지 — 문구를 「메일을 보냈습니다」/「메일 전송 실패, 링크로 전달」로 가른다.
+  const [emailSent, setEmailSent] = useState(false)
 
   async function submit() {
     setDone(false)
     setServerError(null)
     setInviteLink(null)
+    setEmailSent(false)
     if (role === 'doctor' && !departmentId) {
       setValidationError('의사는 소속 진료과를 선택해야 합니다.')
       return
     }
     setValidationError(null)
     try {
-      const { invite_link } = await staffApi.invite({
+      const { invite_link, email_sent } = await staffApi.invite({
         email, name, role, department_id: role === 'doctor' ? departmentId : null,
       })
       setEmail('')
@@ -49,6 +52,7 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
       setDepartmentId('')
       setDone(true)
       setInviteLink(invite_link)
+      setEmailSent(email_sent)
       onInvited()
     } catch (err) {
       // 실패해도 값을 남긴다(STAFF-INVITE-05) — 서버 문장을 그대로(ERR-MSG-01).
@@ -138,18 +142,20 @@ export function InviteForm({ departments, hidden, emailRef, onInvited }: InviteF
         )}
         {done && (
           <span role="status" style={styles.done}>
-            {inviteLink ? '초대 링크를 만들었습니다' : '초대했습니다'}
+            {!inviteLink ? '초대했습니다' : emailSent ? '초대 메일을 보냈습니다' : '초대 링크를 만들었습니다'}
           </span>
         )}
       </div>
 
-      {/* [STAFF-INVITE-LINK-01] 메일을 자동 발송하지 않으므로(발신 도메인 미검증), 관리자가 직접
-          전달할 수 있도록 수락 링크를 노출한다. 복사 버튼으로 카톡·문자 등에 붙여넣게 한다. */}
+      {/* [STAFF-INVITE-LINK-01·하이브리드] 초대 메일을 자동 발송하면서도(도메인 인증 후) 수락 링크를
+          함께 노출한다 — 메일이 스팸에 빠지거나 실패해도 관리자가 링크로 직접 전달할 수 있게(막다른 길 금지). */}
       {done && inviteLink && (
         <LinkShareBox
           label="초대 링크"
           link={inviteLink}
-          guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 비밀번호를 설정합니다."
+          guide={emailSent
+            ? '직원에게 초대 메일을 보냈습니다. 메일이 안 보이면 아래 링크를 복사해 직접 전달하세요.'
+            : '메일을 보내지 못했어요. 아래 링크를 복사해 직원에게 직접 전달하세요.'}
         />
       )}
 

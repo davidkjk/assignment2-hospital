@@ -178,16 +178,16 @@ export function setupStaff(config: SetupConfig = {}) {
           { detail: '초대 링크 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' },
           { status: 429 },
         )
-      // [STAFF-REINVITE-LINK-01] 메일이 아니라 관리자가 직접 전달할 링크를 돌려준다.
-      return HttpResponse.json({ status: 'resent', link: `https://staff.test/reset-password/new?token=reinvite-${params.id}` })
+      // [STAFF-REINVITE-LINK-01·하이브리드] 메일을 자동 발송하면서(email_sent) 전달용 링크도 돌려준다.
+      return HttpResponse.json({ status: 'resent', link: `https://staff.test/reset-password/new?token=reinvite-${params.id}`, email_sent: true })
     }),
     http.post('*/staff/:id/reset-password', async ({ request, params }) => {
       const p = pathname(request)
       record('POST', p, await readBody(request))
       if (shouldFail('POST', p))
         return HttpResponse.json({ detail: '재설정 링크 발송이 잠시 제한되었습니다. 몇 분 뒤 다시 시도해 주세요.' }, { status: 429 })
-      // [STAFF-RESETPW-LINK-01] 메일이 아니라 관리자가 직접 전달할 링크를 돌려준다.
-      return HttpResponse.json({ status: 'sent', link: `https://staff.test/reset-password/new?token=reset-${params.id}` })
+      // [STAFF-RESETPW-LINK-01·하이브리드] 메일을 자동 발송하면서(email_sent) 전달용 링크도 돌려준다.
+      return HttpResponse.json({ status: 'sent', link: `https://staff.test/reset-password/new?token=reset-${params.id}`, email_sent: true })
     }),
     http.post('*/staff', async ({ request }) => {
       const p = pathname(request)
@@ -208,6 +208,7 @@ export function setupStaff(config: SetupConfig = {}) {
       return HttpResponse.json({
         staff_id: id,
         invite_link: `https://staff.test/reset-password/new?token=tok-${id}`,
+        email_sent: true,
       })
     }),
     http.patch('*/staff/:id/profile', async ({ request, params }) => {

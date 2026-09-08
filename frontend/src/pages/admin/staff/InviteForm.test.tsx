@@ -58,15 +58,16 @@ test('[STAFF-INVITE-04] 성공하면 폼을 비운다', async () => {
   const { user } = setupStaff()
   await screen.findByText('이민호')
   await inviteDoctor(user)
-  expect(await screen.findByText('초대 링크를 만들었습니다')).toBeVisible()
+  // [하이브리드] 도메인 인증 후 초대 메일을 자동 발송한다(email_sent) → 「초대 메일을 보냈습니다」.
+  expect(await screen.findByText('초대 메일을 보냈습니다')).toBeVisible()
   expect(within(rightColumn()).getByLabelText('이메일')).toHaveValue('')
 })
 
-test('[STAFF-INVITE-LINK-01] 성공하면 전달용 링크와 복사 버튼을 보여준다', async () => {
+test('[STAFF-INVITE-LINK-01·하이브리드] 성공하면 메일을 보내면서 전달용 링크와 복사 버튼도 보여준다', async () => {
   const { user } = setupStaff()
   await screen.findByText('이민호')
   await inviteDoctor(user)
-  // 관리자가 직접 전달할 수 있도록 링크를 화면에 노출한다(메일 자동 발송 안 함).
+  // 메일을 자동 발송하면서도(막다른 길 대비) 관리자가 직접 전달할 링크를 함께 노출한다.
   const link = await within(rightColumn()).findByLabelText('초대 링크')
   expect(link).toHaveValue('https://staff.test/reset-password/new?token=tok-s-new-7')
   expect(within(rightColumn()).getByRole('button', { name: '링크 복사' })).toBeVisible()

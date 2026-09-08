@@ -128,14 +128,16 @@ test('[STAFF-ROW-01] 재초대는 resend-invite 엔드포인트를 부른다', a
   await waitFor(() => expect(api.lastCall()).toBe('POST /staff/s-006/resend-invite'))
 })
 
-test('[STAFF-ROW-01][STAFF-REINVITE-LINK-01] 재초대는 메일이 아니라 전달용 링크를 그 행에 보이고, 계정이 살아났다고 말하지 않는다', async () => {
+test('[STAFF-ROW-01][STAFF-REINVITE-LINK-01·하이브리드] 재초대는 메일을 보내면서 전달용 링크도 그 행에 보이고, 계정이 살아났다고 말하지 않는다', async () => {
   const { user } = setupStaff()
   await screen.findByText('김의사')
   await user.click(within(rowOf('김의사')).getByRole('button', { name: '재초대' }))
-  // 메일 자동발송(발신 도메인 미검증) 대신, 관리자가 직접 전달할 링크를 노출한다.
+  // [하이브리드] 메일을 자동 발송하면서(email_sent) 관리자가 직접 전달할 링크도 함께 노출한다.
   const link = await within(rowOf('김의사')).findByLabelText('재초대 링크')
   expect(link).toHaveValue('https://staff.test/reset-password/new?token=reinvite-s-006')
   expect(within(rowOf('김의사')).getByRole('button', { name: '링크 복사' })).toBeVisible()
+  // 발송됐음을 안내 문구가 알린다(막다른 길 대비 링크도 함께).
+  expect(within(rowOf('김의사')).getByText(/재초대 메일을 보냈습니다/)).toBeVisible()
   // 계정이 살아났다고 말하지 않고 초대 딱지가 남는다(STAFF-ROW-01).
   expect(rowOf('김의사')).toHaveTextContent('초대함 · 아직 안 들어옴')
 })
@@ -182,7 +184,7 @@ test('[STAFF-DELETE-01] 딸린 데이터로 삭제가 막히면 이유를 보이
   expect(screen.getByText('김의사')).toBeVisible()
 })
 
-test('[STAFF-RESET-PW-01][STAFF-RESETPW-LINK-01] 비밀번호 재설정은 reset-password 엔드포인트를 부르고 메일이 아니라 전달용 링크를 보인다', async () => {
+test('[STAFF-RESET-PW-01][STAFF-RESETPW-LINK-01·하이브리드] 비밀번호 재설정은 reset-password 엔드포인트를 부르고 메일을 보내면서 전달용 링크도 보인다', async () => {
   const { user, api } = setupStaff()
   await screen.findByText('박접수')
   await user.click(within(rowOf('박접수')).getByRole('button', { name: '비밀번호 재설정' }))

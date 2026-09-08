@@ -53,11 +53,14 @@ export function StaffList({
   onInviteEmptyState,
 }: StaffListProps) {
   const [filter, setFilter] = useState<Filter>('all')
-  // [STAFF-REINVITE-LINK-01·STAFF-RESETPW-LINK-01] 성공하면 관리자가 직접 전달할 링크를 그 행에
-  //   노출한다(메일 자동발송 폐기 — 발신 도메인 미검증). 값은 링크 문자열, 드물게 못 만들면 null.
+  // [STAFF-REINVITE-LINK-01·STAFF-RESETPW-LINK-01·하이브리드] 성공하면 메일을 자동 발송하면서(도메인
+  //   인증 후) 관리자가 직접 전달할 링크도 그 행에 함께 노출한다. 값은 링크 문자열, 드물게 못 만들면 null.
+  //   *Sent 맵은 메일 발송 성공 여부 — 안내 문구를 「메일을 보냈습니다」/「메일 전송 실패, 링크로」로 가른다.
   const [resentLinks, setResentLinks] = useState<Map<string, string | null>>(new Map())
+  const [resentSent, setResentSent] = useState<Map<string, boolean>>(new Map())
   const [resendErrors, setResendErrors] = useState<Map<string, string>>(new Map())
   const [resetLinks, setResetLinks] = useState<Map<string, string | null>>(new Map())
+  const [resetSent, setResetSent] = useState<Map<string, boolean>>(new Map())
   const [resetErrors, setResetErrors] = useState<Map<string, string>>(new Map())
 
   const deptName = useMemo(() => {
@@ -95,8 +98,9 @@ export function StaffList({
     // 실패해도 조용히 넘어가지 않는다 — 재초대는 발송 한도(429)·이미 수락한 계정(409)으로 자주
     // 막히는데, 그때 아무 표시가 없으면 관리자는 "눌러도 아무 일이 없다"고 느낀다(실사용 지적).
     try {
-      const { link } = await staffApi.resendInvite(id)
+      const { link, email_sent } = await staffApi.resendInvite(id)
       setResentLinks((prev) => new Map(prev).set(id, link))
+      setResentSent((prev) => new Map(prev).set(id, email_sent))
       setResendErrors((prev) => {
         const next = new Map(prev)
         next.delete(id)
@@ -117,8 +121,9 @@ export function StaffList({
     // [STAFF-RESET-PW-01] 관리자가 활성 직원에게 비밀번호 재설정 링크를 발급한다. 재초대와 마찬가지로
     // 실패(429 등)를 삼키지 않고 그 행에 이유를 보인다(무반응 방지).
     try {
-      const { link } = await staffApi.resetPassword(id)
+      const { link, email_sent } = await staffApi.resetPassword(id)
       setResetLinks((prev) => new Map(prev).set(id, link))
+      setResetSent((prev) => new Map(prev).set(id, email_sent))
       setResetErrors((prev) => {
         const next = new Map(prev)
         next.delete(id)
@@ -265,7 +270,9 @@ export function StaffList({
                     <LinkShareBox
                       label="재초대 링크"
                       link={resentLinks.get(m.id) as string}
-                      guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 비밀번호를 설정합니다."
+                      guide={resentSent.get(m.id)
+                        ? '직원에게 재초대 메일을 보냈습니다. 메일이 안 보이면 아래 링크를 복사해 직접 전달하세요.'
+                        : '메일을 보내지 못했어요. 아래 링크를 복사해 직원에게 직접 전달하세요.'}
                     />
                   ) : (
                     <span role="status" style={styles.resendError}>
@@ -282,7 +289,9 @@ export function StaffList({
                     <LinkShareBox
                       label="비밀번호 재설정 링크"
                       link={resetLinks.get(m.id) as string}
-                      guide="아래 링크를 복사해 직원에게 전달하세요. 직원은 이 링크에서 새 비밀번호를 만듭니다."
+                      guide={resetSent.get(m.id)
+                        ? '직원에게 재설정 메일을 보냈습니다. 메일이 안 보이면 아래 링크를 복사해 직접 전달하세요.'
+                        : '메일을 보내지 못했어요. 아래 링크를 복사해 직원에게 직접 전달하세요.'}
                     />
                   ) : (
                     <span role="status" style={styles.resendError}>
