@@ -45,14 +45,23 @@ async def test_staff_request_redirects_without_ticket():
 
 
 @pytest.mark.asyncio
-async def test_early_turn_asks_question_no_suggestion():
-    # 초반(이전 환자 발화 부족)엔 추천이 아니라 문진 질문을 한다 — 과 언급이 없으면 추천 없음.
+async def test_unclear_symptom_asks_once_no_suggestion():
+    # Q3: 증상이 불명확하면 진단식으로 캐묻지 않고 딱 한 번만 질문한다 — 과 언급이 없으면 추천 없음.
     out = await dept_guide_service.guide(
-        message="배가 아파요", history=[], departments=_DEPTS,
-        model=_Model("언제부터 아프셨나요?"))
+        message="잘 모르겠어요", history=[], departments=_DEPTS,
+        model=_Model("어떤 불편이 있으세요?"))
     assert out["emergency"] is False
     assert out["suggested_department"] is None
-    assert out["reply"] == "언제부터 아프셨나요?"
+    assert out["reply"] == "어떤 불편이 있으세요?"
+
+
+@pytest.mark.asyncio
+async def test_recommends_on_first_symptom_without_extra_questions():
+    # Q3: 첫 발화라도 증상을 말하면(history 없어도) 되묻지 않고 바로 진료과를 추천한다.
+    out = await dept_guide_service.guide(
+        message="무릎이 아파요", history=[], departments=_DEPTS,
+        model=_Model("많이 불편하셨겠어요. 정형외과를 추천드려요. 최종 선택은 확인해 주세요."))
+    assert out["suggested_department"] == {"id": "d2", "name": "정형외과"}
 
 
 @pytest.mark.asyncio
