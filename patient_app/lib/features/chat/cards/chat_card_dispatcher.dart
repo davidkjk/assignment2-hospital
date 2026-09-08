@@ -6,6 +6,7 @@ import 'c_book_done_card.dart';
 import 'c_cancel_confirm_card.dart';
 import 'c_cancel_done_card.dart';
 import 'c_cancel_reject_card.dart';
+import 'c_open_booking_wizard_card.dart';
 import 'c_qnr_card.dart';
 
 /// 피드의 카드 아이템을 card_type으로 갈라 카드 위젯을 만든다(CCARD-*-SHOW). T10 cardBuilder 슬롯 값.
@@ -27,6 +28,8 @@ Widget buildChatCard(BuildContext ctx, ChatFeedItem item, {bool restricted = fal
     'cancel_confirm' => CCancelConfirmCard(payload: p, onConfirm: () {}, onNo: () {}),
     'cancel_done' => CCancelDoneCard(payload: p),
     'cancel_reject' => CCancelRejectCard(payload: p, onAck: () {}, onReinquire: () {}),
+    // 앱 전용 예약 인계 카드(결정 B) — 대화 내 예약 대신 마법사로 넘긴다. 백엔드가 채널(app)일 때만 보낸다.
+    'open_booking_wizard' => COpenBookingWizardCard(payload: p),
     _ => const SizedBox.shrink(), // quick_replies 는 입력창 슬롯(카드 아님)
   };
 }

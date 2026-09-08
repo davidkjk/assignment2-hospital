@@ -8,6 +8,7 @@ import '../../../widgets/empty_state.dart';
 import '../booking_controller.dart';
 import '../booking_targets_provider.dart';
 import '../booking_widgets.dart';
+import '../catalog_repository.dart' show Department;
 
 // 1단계 — 누구의 예약인가(BOOK-WHO-*). 본인 + 가족 목록, 본인 맨 위.
 class WhoStep extends ConsumerWidget {
@@ -31,7 +32,15 @@ class WhoStep extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: BookingSelectCard(
                 key: Key('target-${tgt.patientId}'),
-                onTap: () => ref.read(bookingProvider.notifier).selectTarget(tgt), // 선택=2단계로
+                onTap: () {
+                  final n = ref.read(bookingProvider.notifier);
+                  n.selectTarget(tgt); // 선택=2단계로
+                  // AI 상담에서 추천 진료과를 안고 넘어왔으면(GoRouter extra) 대상 선택 뒤 자동 적용해
+                  // 진료과 단계를 건너뛴다(진료과 봇 "○○과로 계속하기" 선례, 결정 B). 수동/웹 진입은
+                  // extra=null이라 영향 없음 — selectTarget이 뒤 단계를 비우므로 여기서 다시 얹는다.
+                  final rec = GoRouterState.of(context).extra;
+                  if (rec is Department) n.selectDepartment(rec);
+                }, // 선택=2단계로
                 child: Row(children: [
                   Expanded(
                     child: Row(crossAxisAlignment: CrossAxisAlignment.baseline,
