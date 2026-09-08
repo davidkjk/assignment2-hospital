@@ -5,6 +5,7 @@ import { RequireRole } from '../../../auth/RequireRole'
 import { ADMIN_ONLY } from '../../../auth/roles'
 import { useConnectivity } from '../../../lib/connectivity'
 import { EmptyState } from '../../../components/EmptyState'
+import { LoadingState } from '../../../components/LoadingState'
 import { getMergeEvent, type MergeEventData, type MergeHistoryPage } from '../../../api/mergeHistory'
 import { formatHospitalDateTime } from '../../../lib/clock'
 import { UndoReasonStep } from './UndoReasonStep'
@@ -53,7 +54,7 @@ function MergeEventDetailInner() {
   if (q.isLoading) {
     return (
       <main data-merge-event-detail style={styles.page}>
-        <p role="status" style={styles.loading}>병합 이벤트를 불러오는 중입니다</p>
+        <LoadingState message="병합 이벤트를 불러오는 중입니다" />
       </main>
     )
   }
