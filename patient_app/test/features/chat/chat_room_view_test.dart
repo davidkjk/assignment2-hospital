@@ -7,7 +7,7 @@ import 'package:hospital_patient_app/features/chat/chat_room_view.dart';
 
 // 상태를 직접 심는 가짜 컨트롤러 provider override.
 Widget _scope(ChatRoomState st, {void Function()? onFeedback}) => ProviderScope(
-    overrides: [chatRoomProvider('t1').overrideWith((ref) => _StubCtl(st))],
+    overrides: [chatRoomProvider(('t1', '')).overrideWith((ref) => _StubCtl(st))],
     child: MaterialApp(home: ChatRoomView(threadId: 't1', onFeedback: onFeedback)));
 
 class _StubCtl extends StateNotifier<ChatRoomState> implements ChatRoomController {

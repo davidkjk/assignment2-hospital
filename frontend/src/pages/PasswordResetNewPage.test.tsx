@@ -42,9 +42,11 @@ beforeEach(() => {
   supabaseAuth.signOut.mockResolvedValue({ error: null })
 })
 
-test('[STAFF-LOGIN-10] 만료된 복구 링크는 재설정 재요청 길을 제공한다', async () => {
+test('[STAFF-LOGIN-10] 만료된 복구 링크는 관리자에게 재요청하도록 안내한다', async () => {
   render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><PasswordResetNewPage verifyRecovery={vi.fn().mockResolvedValue(false)} /></MemoryRouter>)
-  expect(await screen.findByRole('link', { name: '비밀번호 재설정 다시 요청' })).toHaveAttribute('href', '/reset-password')
+  // 셀프 재설정(B만 유지)을 없앴으므로 만료 시에도 자기 재요청 링크가 아니라 관리자 요청 안내를 준다.
+  expect(await screen.findByText('병원 관리자에게 비밀번호 재설정을 요청해 주세요.')).toBeVisible()
+  expect(screen.queryByRole('link', { name: '비밀번호 재설정 다시 요청' })).toBeNull()
 })
 
 test('[STAFF-LOGIN-10] 일반 로그인 세션은 새 비밀번호 화면 proof가 아니다', async () => {
@@ -54,7 +56,7 @@ test('[STAFF-LOGIN-10] 일반 로그인 세션은 새 비밀번호 화면 proof�
     </AuthContext.Provider>,
   )
 
-  expect(await screen.findByRole('link', { name: '비밀번호 재설정 다시 요청' })).toHaveAttribute('href', '/reset-password')
+  expect(await screen.findByText('병원 관리자에게 비밀번호 재설정을 요청해 주세요.')).toBeVisible()
   expect(screen.queryByRole('heading', { name: '새 비밀번호 만들기' })).toBeNull()
 })
 

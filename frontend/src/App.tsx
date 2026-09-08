@@ -4,7 +4,6 @@ import { ADMIN_ONLY, RECEPTION_AND_ADMIN, homeFor } from './auth/roles'
 import { useAuth } from './auth/useAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PasswordResetNewPage } from './pages/PasswordResetNewPage'
-import { PasswordResetRequestPage } from './pages/PasswordResetRequestPage'
 import { Queue } from './pages/queue/Queue'
 import { PatientDetailPage } from './pages/patient/PatientDetailPage'
 import { DoctorConsolePage } from './pages/doctor/DoctorConsolePage'
@@ -126,7 +125,8 @@ export function App() {
       <style>{`@layer base{*{box-sizing:border-box}html,body,#root{margin:0;min-height:100%;font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif}button,input{font:inherit}a{color:var(--color-primary)}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--color-primary);outline-offset:2px}}`}</style>
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
-        <Route path="/reset-password" element={<PasswordResetRequestPage />} />
+        {/* [STAFF-LOGIN-10] 셀프 재설정 요청 화면(/reset-password)은 제거 — 관리자 발급(B)만 유지.
+            관리자 발급·초대 링크가 도착하는 /reset-password/new(비밀번호 설정)만 남긴다. */}
         <Route path="/reset-password/new" element={<PasswordResetNewPage />} />
         <Route path="/" element={<RequireRole roles={['receptionist', 'doctor', 'admin']}><AppShell /></RequireRole>}>
           {NAV_ITEMS.map((item) => <Route key={item.path} path={item.path.slice(1)} element={<RequireRole roles={item.roles}>{pageFor(item.path, item.label)}</RequireRole>} />)}

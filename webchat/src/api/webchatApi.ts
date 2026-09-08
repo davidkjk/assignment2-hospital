@@ -46,6 +46,8 @@ export interface WebchatApi {
   }): Promise<{ routeTaken: string; botMessage?: ThreadMessage; cardMessage?: ThreadMessage; handoffTicketId?: string }>;
   fetchHandoff(threadId: string): Promise<HandoffStatus>;
   acknowledgeBatches(threadId: string): Promise<void>; // POST /chat/read
+  // 로그인 전 예약 탐색(진료과·의사·날짜) — X-Anon-Token만, Bearer 없음(늦은 관문 ④). 다음 카드를 준다.
+  navigateAction(args: { action: { kind: string; payload: Record<string, unknown> } }): Promise<{ card: CardMessage }>; // WEBBOOK-02~04
   // 인증 완료 후: 최신 대상·슬롯을 서버에서 재검증한 "재확인 카드"(실행 아님). 서버는 X-Anon-Token으로 세션을 찾는다.
   revalidateAction(args: { action: PendingAction }): Promise<{ card: CardMessage | null }>; // WEBMOD-AUTH-07·08, WEBCARD-BOOKCONF-03 (내 예약 조회는 카드 없이 최신 조회 → null)
   // 재확인 카드의 [신청]/[취소]: 서버가 payload를 재검증하고 실행 → 결과 카드(booking_done/cancel_done). 위변조 payload는 거절.
@@ -112,6 +114,10 @@ export function createWebchatApi(baseUrl: string, deps: WebchatApiDeps = {}): We
     },
     async acknowledgeBatches(threadId) {
       await call('/chat/read', { method: 'POST', body: JSON.stringify({ threadId }) }, null);
+    },
+    async navigateAction(args) {
+      // 로그인 전 탐색 — 익명(Bearer 없이). 서버가 nav kind면 X-Anon-Token으로만 다음 카드를 준다.
+      return call('/chat/cards/revalidate', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken());
     },
     async revalidateAction(args) {
       return call('/chat/cards/revalidate', { method: 'POST', body: JSON.stringify(args) }, loadAnonToken(), true);

@@ -14,12 +14,15 @@ class _FakeRepo implements ChatRepositoryLike {
     return messages ?? [];
   }
 
+  final List<String> sentSessionIds = [];
   @override
   Future<ChatFeedItem> sendMessage(
       {required String threadId,
+      required String aiSessionId,
       required String content,
       required String clientMessageId}) async {
     sentIds.add(clientMessageId);
+    sentSessionIds.add(aiSessionId);
     if (sendError != null) throw sendError!;
     return ChatFeedItem(
         id: 'srv',
@@ -53,6 +56,14 @@ void main() {
     final c = ChatRoomController(repo, threadId: 't1');
     await c.load();
     expect(c.state.phase, ChatRoomPhase.error); // empty가 아니다(빈 대화 위장 금지)
+  });
+
+  test('[CHAT-TAB-NAV-01] 전송은 활성 AI 세션 번호를 함께 실어 보낸다(백엔드 필수)', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's9');
+    await c.load();
+    await c.send('두통이 있어요');
+    expect(repo.sentSessionIds, ['s9']); // 세션 번호 누락 없이 그대로 전달
   });
 
   test('[CHAT-ROOM-SEND-01] 전송 중엔 sending 말풍선을 낙관적으로 넣고 같은 메시지 중복 전송을 막는다',
