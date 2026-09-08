@@ -59,4 +59,68 @@ void main() {
     expect(sys.messageType, 'system');
     expect(sys.payload!['event'], 'handoff_started'); // 인계 상태 보존(T11이 렌더)
   });
+
+  // GET /chat/threads/{id}/messages 의 실제 응답은 camelCase다(webchat_service.message_to_dict).
+  // 앱이 snake로만 읽어 messageType(필수)이 null→타입예외로 "대화를 불러오지 못했어요"가 나던 회귀.
+  test('[CHAT-HISTORY-LOAD-01] 이력 응답의 camelCase(실서버 모양)를 파싱한다 — 로딩 실패 회귀', () {
+    final item = ChatFeedItem.fromJson({
+      'id': 'm1',
+      'messageType': 'text',
+      'senderType': 'patient',
+      'content': '안녕',
+      'payload': null,
+      'clientMessageId': 'c-1',
+      'createdAt': '2026-08-19T09:00:00Z',
+    });
+    expect(item.messageType, 'text');
+    expect(item.senderType, 'patient');
+    expect(item.clientMessageId, 'c-1');
+    expect(item.createdAt, isNotNull);
+    expect(item.isUnknown, isFalse); // senderType·createdAt이 있으니 unknown 아님
+  });
+
+  // Supabase 실시간(streamThread)은 DB 컬럼명 그대로 snake를 실어 온다 — 같은 파서가 둘 다 받아야 한다.
+  test('[CHAT-HISTORY-LOAD-01] 실시간 snake_case도 여전히 파싱한다(폴백)', () {
+    final item = ChatFeedItem.fromJson({
+      'id': 'm2',
+      'message_type': 'text',
+      'sender_type': 'bot',
+      'content': '네',
+      'payload': null,
+      'client_message_id': null,
+      'created_at': '2026-08-19T09:01:00Z',
+    });
+    expect(item.messageType, 'text');
+    expect(item.senderType, 'bot');
+    expect(item.createdAt, isNotNull);
+  });
+
+  // GET /chat/threads/{id}/handoff 응답도 camelCase이고 phase는 이미 가공된 값을 준다
+  // (webchat_service._HANDOFF_PHASE: pending→connecting / in_progress→inProgress / answered→answered).
+  test('[CHAT-HANDOFF-LOAD-01] 인계 상태의 camelCase(실서버 모양)를 파싱한다', () {
+    final s = HandoffStatus.fromJson({
+      'phase': 'inProgress',
+      'assigneeName': '김간호',
+      'assigneeRole': '간호사',
+      'isOpen': true,
+      'hoursNote': null,
+    });
+    expect(s.phase, HandoffPhase.inProgress);
+    expect(s.assigneeName, '김간호');
+    expect(s.assigneeRole, '간호사');
+    expect(s.isOpen, isTrue);
+  });
+
+  test('[CHAT-HANDOFF-LOAD-01] answered는 종료(ended), 운영시간 밖 안내문을 보존한다', () {
+    final s = HandoffStatus.fromJson({
+      'phase': 'answered',
+      'assigneeName': null,
+      'assigneeRole': null,
+      'isOpen': false,
+      'hoursNote': '지금은 상담 운영시간이 아니에요.',
+    });
+    expect(s.phase, HandoffPhase.ended);
+    expect(s.isOpen, isFalse);
+    expect(s.hoursNote, '지금은 상담 운영시간이 아니에요.');
+  });
 }

@@ -35,17 +35,20 @@ class ChatFeedItem {
   // CHAT-ROOM-EXC-01: 발신자나 시각이 비면 값을 지어내지 않고 unknown으로 표시한다.
   bool get isUnknown => senderType == null || createdAt == null;
 
-  factory ChatFeedItem.fromJson(Map<String, dynamic> j) => ChatFeedItem(
-        id: j['id'] as String,
-        messageType: j['message_type'] as String,
-        senderType: j['sender_type'] as String?,
-        content: j['content'] as String?,
-        payload: (j['payload'] as Map?)?.cast<String, dynamic>(),
-        createdAt: (j['created_at'] as String?) == null
-            ? null
-            : DateTime.parse(j['created_at'] as String),
-        clientMessageId: j['client_message_id'] as String?,
-      );
+  // 이력 REST 응답은 camelCase(webchat_service.message_to_dict), Supabase 실시간은
+  // DB 컬럼명 그대로 snake — 같은 파서가 둘 다 받는다(camel 우선, snake 폴백).
+  factory ChatFeedItem.fromJson(Map<String, dynamic> j) {
+    final created = (j['createdAt'] ?? j['created_at']) as String?;
+    return ChatFeedItem(
+      id: j['id'] as String,
+      messageType: (j['messageType'] ?? j['message_type']) as String,
+      senderType: (j['senderType'] ?? j['sender_type']) as String?,
+      content: j['content'] as String?,
+      payload: (j['payload'] as Map?)?.cast<String, dynamic>(),
+      createdAt: created == null ? null : DateTime.parse(created),
+      clientMessageId: (j['clientMessageId'] ?? j['client_message_id']) as String?,
+    );
+  }
 
   ChatFeedItem copyWith({ChatSendState? sendState}) => ChatFeedItem(
         id: id,
@@ -82,17 +85,21 @@ class HandoffStatus {
     this.loadError = false,
   });
 
+  // GET /chat/threads/{id}/handoff는 camelCase이고 phase는 서버가 이미 가공한 값을 준다
+  // (_HANDOFF_PHASE: pending→connecting / in_progress→inProgress / answered→answered).
+  // 옛 snake·원본 ticket_status 값도 폴백으로 받는다.
   factory HandoffStatus.fromJson(Map<String, dynamic> j) => HandoffStatus(
-        phase: switch (j['ticket_status']) {
-          'pending' => HandoffPhase.connecting,
-          'in_progress' => HandoffPhase.inProgress,
-          'answered' => HandoffPhase.ended,
+        phase: switch (j['phase'] ?? j['ticket_status']) {
+          'connecting' || 'pending' => HandoffPhase.connecting,
+          'inProgress' || 'in_progress' => HandoffPhase.inProgress,
+          'answered' || 'ended' => HandoffPhase.ended,
           _ => null,
         },
-        assigneeName: j['assignee_name'] as String?,
-        assigneeRole: j['assignee_role'] as String?,
-        hoursNote: j['hours_note'] as String?, // 서버 is_open(at) 판정 문구(앱 미재계산)
-        isOpen: (j['is_open'] as bool?) ?? false,
+        assigneeName: (j['assigneeName'] ?? j['assignee_name']) as String?,
+        assigneeRole: (j['assigneeRole'] ?? j['assignee_role']) as String?,
+        // 서버 is_open(at) 판정 문구(앱 미재계산)
+        hoursNote: (j['hoursNote'] ?? j['hours_note']) as String?,
+        isOpen: ((j['isOpen'] ?? j['is_open']) as bool?) ?? false,
       );
 }
 

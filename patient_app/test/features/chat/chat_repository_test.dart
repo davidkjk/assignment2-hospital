@@ -11,9 +11,11 @@ void main() {
       baseUrl: 'http://x', tokenProvider: () async => 'tk', httpClient: mock));
 
   // 실제 서버가 돌려주는 저장된 메시지 한 건(fromJson이 요구하는 필드 포함).
-  const savedMsg = '{"id":"m9","message_type":"text","sender_type":"patient",'
-      '"content":"안녕","payload":null,"created_at":"2026-08-19T09:00:00Z",'
-      '"client_message_id":"c-123"}';
+  // 백엔드 GET /chat/threads/{id}/messages 의 실제 응답 모양 = camelCase(webchat_service.message_to_dict).
+  // 예전 snake 픽스처는 content만 검증해 casing 불일치(messageType null→타입예외)를 못 잡았다.
+  const savedMsg = '{"id":"m9","messageType":"text","senderType":"patient",'
+      '"content":"안녕","payload":null,"createdAt":"2026-08-19T09:00:00Z",'
+      '"clientMessageId":"c-123"}';
 
   test('[CHAT-ROOM-SEND-01] 전송은 client_message_id를 실어 보낸다 — 서버 멱등 키', () async {
     String? sentBody;
@@ -67,6 +69,9 @@ void main() {
         http.Response.bytes(utf8.encode('{"messages":[$savedMsg]}'), 200)));
     final list = await r.fetchMessages('t1');
     expect(list.single.content, '안녕');
+    expect(list.single.messageType, 'text'); // camelCase 실응답 파싱 확인(로딩실패 회귀)
+    expect(list.single.senderType, 'patient');
+    expect(list.single.isUnknown, isFalse); // 발신자·시각이 살아 unknown으로 뭉개지지 않음
   });
 
   test('[CHAT-ROOM-RESTORE-02] fetchMessages는 빈 이력({"messages":[]})도 정상 파싱한다', () async {
