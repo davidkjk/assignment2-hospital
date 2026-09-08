@@ -14,7 +14,6 @@ import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_live_row.dart';
 import 'widgets/chat_quick_replies.dart';
 import 'widgets/chat_safety_banner.dart';
-import 'widgets/chat_typing_indicator.dart';
 
 /// 상담방 셸. 로딩(CHAT-ROOM-LOAD-01)·오류(ERR-01)·빈(EMPTY-01)·피드(FEED-01)를 가르고
 /// 안전 배너(SAFE-01)와 입력창(INPUT-01)을 항상 붙인다. 이름은 AI 상담봇(NAME-01).
@@ -138,14 +137,13 @@ class ChatRoomView extends ConsumerWidget {
                   //     입력창 슬롯의 [직원에게 연결] 칩으로 준다(_buildQuickReplies의 onHandoff, 요구사항 5.5).
                   // A3: 빠른답변 칩을 피드 마지막 줄(말풍선 밑)에 둔다 — 입력창 위 고정 바는 대화창을 가린다.
                   footer: _buildQuickReplies(st, ctl),
+                  // Q7: 입력 중 표시를 입력바 위 텍스트가 아니라 피드 안 봇 말풍선 자리(점)로 둔다.
+                  // 봇 대기(BOT-TYPING-01)가 우선, 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 없음.
+                  typingLabel: st.botThinking
+                      ? '상담봇이 입력 중'
+                      : (st.staffTyping ? '직원이 입력 중입니다' : null),
                 ),
         }),
-        // 입력창 위 일시 표시(피드가 로드된 방에서만). 봇 대기(BOT-TYPING-01)가 우선,
-        // 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 표시 없음(상시 노출 금지).
-        if (st.phase == ChatRoomPhase.loaded && st.botThinking)
-          const ChatTypingIndicator(label: '상담봇이 입력 중')
-        else if (st.phase == ChatRoomPhase.loaded && st.staffTyping)
-          const ChatTypingIndicator(),
         _inputBar(st, ctl),
       ]),
       ),

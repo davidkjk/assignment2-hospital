@@ -61,14 +61,32 @@ class ChatQuickReplies extends StatelessWidget {
     if (replies.isEmpty && !hasHandoff) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Wrap(spacing: 6, runSpacing: 6, children: [
-        for (final r in replies) ActionChip(label: Text(r), onPressed: () => onSend(r)),
-        if (hasHandoff) // 콜백 칩 — FAQ 칩(테두리형)과 구분되게 딥틸 채움. 누르면 인계(문장 전송 아님).
-          ActionChip(
-            label: Text(handoffLabel!, style: const TextStyle(color: Colors.white)),
-            backgroundColor: AppTokens.primary,
-            onPressed: onHandoff),
+      child: Wrap(spacing: 8, runSpacing: 8, children: [
+        // Q13: 정본(homepage/webchat `.wc-chip`) 알약 — 흰 배경 + 딥틸 옅은 테두리 1.5px, 딥틸 글자.
+        for (final r in replies) _chip(label: r, filled: false, onPressed: () => onSend(r)),
+        if (hasHandoff) // 콜백 칩(WEBCHAT-NOANS) — FAQ 칩(테두리형)과 구분되게 딥틸 채움. 누르면 인계(문장 전송 아님).
+          _chip(label: handoffLabel!, filled: true, onPressed: onHandoff),
       ]),
+    );
+  }
+
+  /// 정본 칩 스타일(homepage/webchat `.wc-chip`) — 흰 알약 + 딥틸 옅은 테두리(FAQ) / 딥틸 채움(인계 콜백).
+  /// `ActionChip`을 유지해 탭 시맨틱·기존 테스트(byType ActionChip)를 지킨다.
+  Widget _chip({required String label, required bool filled, VoidCallback? onPressed}) {
+    return ActionChip(
+      label: Text(label,
+          style: TextStyle(
+            color: filled ? Colors.white : AppTokens.primary,
+            fontWeight: FontWeight.w600,
+          )),
+      backgroundColor: filled ? AppTokens.primary : AppTokens.surface,
+      side: BorderSide(color: filled ? AppTokens.primary : AppTokens.primarySoft, width: 1.5),
+      shape: const StadiumBorder(),
+      elevation: 0,
+      pressElevation: 0,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      onPressed: onPressed,
     );
   }
 }

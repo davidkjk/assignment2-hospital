@@ -10,6 +10,7 @@ import 'package:hospital_patient_app/features/chat/chat_models.dart';
 import 'package:hospital_patient_app/features/chat/chat_repository.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_view.dart';
+import 'package:hospital_patient_app/features/chat/widgets/chat_typing_indicator.dart';
 
 // 상태를 직접 심는 가짜 컨트롤러 provider override.
 Widget _scope(ChatRoomState st, {void Function()? onFeedback}) => ProviderScope(
@@ -126,33 +127,41 @@ void main() {
     expect(inputFocused(), isFalse); // 입력창 포커스 해제 → 키보드 내려감
   });
 
-  testWidgets('[CHAT-ROOM-LIVE-TYPING-01] 직원 입력 중이면 입력창 위에 "직원이 입력 중입니다"를 표시', (t) async {
+  // Q7: 입력 중 표시는 입력바 위 텍스트가 아니라 **피드 안 봇 말풍선 자리의 점 말풍선**(ChatTypingBubble).
+  // 문구는 화면에 글자로 그리지 않고 접근성 라벨(label)로만 둔다(정본 webchat aria-label).
+  ChatTypingBubble typingBubble(WidgetTester t) =>
+      t.widget<ChatTypingBubble>(find.byType(ChatTypingBubble));
+
+  testWidgets('[CHAT-ROOM-LIVE-TYPING-01·Q7] 직원 입력 중이면 피드 안 점 말풍선(라벨=직원이 입력 중입니다)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], staffTyping: true)));
     await t.pump(); // 무한 애니메이션 — pumpAndSettle 금지(타임아웃)
-    expect(find.text('직원이 입력 중입니다'), findsOneWidget);
+    expect(find.byType(ChatTypingBubble), findsOneWidget);
+    expect(typingBubble(t).label, '직원이 입력 중입니다');
+    expect(find.text('직원이 입력 중입니다'), findsNothing); // 화면 글자 아님(a11y 라벨)
   });
 
-  testWidgets('[CHAT-ROOM-LIVE-TYPING-01] 직원이 입력 중이 아니면 표시하지 않는다(상시 노출 금지)', (t) async {
+  testWidgets('[CHAT-ROOM-LIVE-TYPING-01·Q7] 직원이 입력 중이 아니면 점 말풍선 없음(상시 노출 금지)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], staffTyping: false)));
     await t.pump();
-    expect(find.text('직원이 입력 중입니다'), findsNothing);
+    expect(find.byType(ChatTypingBubble), findsNothing);
   });
 
-  testWidgets('[CHAT-ROOM-BOT-TYPING-01] 봇 답변 대기 중이면 "상담봇이 입력 중"을 표시', (t) async {
+  testWidgets('[CHAT-ROOM-BOT-TYPING-01·Q7] 봇 답변 대기 중이면 점 말풍선(라벨=상담봇이 입력 중)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], botThinking: true)));
     await t.pump();
-    expect(find.text('상담봇이 입력 중'), findsOneWidget);
+    expect(find.byType(ChatTypingBubble), findsOneWidget);
+    expect(typingBubble(t).label, '상담봇이 입력 중');
   });
 
-  testWidgets('[CHAT-ROOM-BOT-TYPING-01] 봇 대기가 직원 입력 중보다 우선(둘 다면 봇만)', (t) async {
+  testWidgets('[CHAT-ROOM-BOT-TYPING-01·Q7] 봇 대기가 직원 입력 중보다 우선(둘 다면 봇 라벨만)', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
         items: [bot('안녕')], botThinking: true, staffTyping: true)));
     await t.pump();
-    expect(find.text('상담봇이 입력 중'), findsOneWidget);
-    expect(find.text('직원이 입력 중입니다'), findsNothing);
+    expect(find.byType(ChatTypingBubble), findsOneWidget);
+    expect(typingBubble(t).label, '상담봇이 입력 중');
   });
 
   testWidgets('[CHAT-ROOM-NEW-01] 상담방 상단에 [새 대화] 버튼이 상시 있다', (t) async {

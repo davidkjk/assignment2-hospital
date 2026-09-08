@@ -28,6 +28,9 @@ class AppTokens {
   // 값 근거: 목업 --primary:#0B6E70(66회). 처리 중 흐림은 primary를 알파로 낮춘 계열(≈.75).
   static const Color primary = Color(0xFF0B6E70); // color.primary 재사용
   static const Color primaryBusy = Color(0xBF0B6E70); // patientApp.primaryBusy(알파 0xBF≈.75 — 회색으로 칠하지 않는다)
+  // 딥틸 옅은 배경/테두리 — webchat `--wc-primary-soft`(#e2f0ef)와 동일값. 빠른답변 칩(Q13) 테두리·
+  // 옅은 칩 배경에 쓴다(FAQ 칩=흰 알약 + primarySoft 1.5px 테두리, homepage/webchat 정본).
+  static const Color primarySoft = Color(0xFFE2F0EF); // patientApp.primarySoft
 
   // DISP-CARD-01 — 카드 본문 높이 고정.
   static const double cardBodyHeight = 132.0;
@@ -80,5 +83,13 @@ class AppTokens {
   static const List<BoxShadow> cardElevation = [
     BoxShadow(color: Color(0x12102D32), blurRadius: 14), // 사방 고른 앰비언트(사용자 요청 미세하게↑)
     BoxShadow(color: Color(0x24102D32), blurRadius: 18, offset: Offset(0, 3)), // 아래로 은은히(가깝게)
+  ];
+
+  // 말풍선 그림자(Q4·Q10) — 테두리 대신 부드럽게 띄운다. 정본=webchat `.wc-msg--bot`
+  // box-shadow(0 3px 12px -4px rgba(12,35,64,.18)). 카드보다 한 단계 얕게(대화가 촘촘해 강한
+  // 그림자는 붙어 보임) — 딥틸 톤 앰비언트 + 아래로 은은히. 봇 흰 말풍선·딥틸 내 말풍선 공용.
+  static const List<BoxShadow> bubbleShadow = [
+    BoxShadow(color: Color(0x0F102D32), blurRadius: 10, offset: Offset(0, 2)),
+    BoxShadow(color: Color(0x14102D32), blurRadius: 14, offset: Offset(0, 3)),
   ];
 }
