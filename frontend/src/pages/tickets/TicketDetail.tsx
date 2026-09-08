@@ -7,6 +7,7 @@ import { TicketConversation, messageBadges, ContactBanner } from './TicketConver
 import { ReplyBox } from './ReplyBox'
 import { ReassignControl } from './ReassignControl'
 import { CloseTicketButton } from './CloseTicketDialog'
+import { useTypingChannel } from './useTypingChannel'
 import { LoadingState } from '../../components/LoadingState'
 
 // 티켓 상세 조립(LAYOUT-01) — 위→아래: 담당 이관 → 인계 요약 → 전체 대화 → 답변/보내기 → (따로) 상담 종료.
@@ -23,6 +24,9 @@ export function TicketDetail(props: {
   const { api, ticket, onLoserBackToList, onReportBad } = props
   const d = useTicketDetail(api, ticket.id, { onLoserBackToList })
   const [draft, setDraft] = useState('')
+  // TICKET-DETAIL-TYPING-01: 답변 작성 중이면 같은 thread의 broadcast로 "직원 입력 중"을 환자 상담방에 보낸다.
+  // 유휴 3초 해제(디바운스)는 d.setTyping이, 송신 transport는 sendTyping이 담당한다.
+  const sendTyping = useTypingChannel(d.detail?.threadId)
 
   // SCROLL-01: 새 메시지가 늘면(특히 내가 방금 보낸 답변) 대화 맨 아래로 스크롤한다.
   // 안 하면 보낸 글이 스크롤 영역 밑에 접혀 "아무 일도 안 일어난 것"처럼 보인다.
@@ -113,8 +117,16 @@ export function TicketDetail(props: {
         </section>
       </div>
 
-      {/* ④ 답변 입력/보내기 */}
-      <ReplyBox readOnly={d.isReadOnly} sending={d.sending} onSend={d.send} onDraftChange={setDraft} />
+      {/* ④ 답변 입력/보내기 — 입력이 바뀔 때마다 타이핑 신호(디바운스는 훅) */}
+      <ReplyBox
+        readOnly={d.isReadOnly}
+        sending={d.sending}
+        onSend={d.send}
+        onDraftChange={(v) => {
+          setDraft(v)
+          d.setTyping(sendTyping) // TICKET-DETAIL-TYPING-01
+        }}
+      />
 
       {/* ⑤ 따로 상담 종료(분리) — 읽기 전용이면 없음 */}
       {!d.isReadOnly && (

@@ -110,4 +110,18 @@ void main() {
     await t.pump();
     expect(inputFocused(), isFalse); // 입력창 포커스 해제 → 키보드 내려감
   });
+
+  testWidgets('[CHAT-ROOM-LIVE-TYPING-01] 직원 입력 중이면 입력창 위에 "직원이 입력 중입니다"를 표시', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
+        items: [bot('안녕')], staffTyping: true)));
+    await t.pump(); // 무한 애니메이션 — pumpAndSettle 금지(타임아웃)
+    expect(find.text('직원이 입력 중입니다'), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-LIVE-TYPING-01] 직원이 입력 중이 아니면 표시하지 않는다(상시 노출 금지)', (t) async {
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded,
+        items: [bot('안녕')], staffTyping: false)));
+    await t.pump();
+    expect(find.text('직원이 입력 중입니다'), findsNothing);
+  });
 }

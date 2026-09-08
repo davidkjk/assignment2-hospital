@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/features/chat/chat_models.dart';
 import 'package:hospital_patient_app/features/chat/chat_repository.dart' show SendResult;
@@ -181,5 +184,56 @@ void main() {
     final c = ChatRoomController(repo, threadId: 't1', onMarkRead: (b) => readBatch = b);
     await c.load(batchId: 'b7');
     expect(readBatch, 'b7'); // 열람 = 확인 → 서버가 그 배치로 새 알림을 내지 않는다
+  });
+
+  test('[CHAT-ROOM-LIVE-TYPING-01] 직원 입력 중 신호(true/false)를 staffTyping에 반영한다', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    final typing = StreamController<bool>();
+    c.bindTyping(typing.stream);
+
+    typing.add(true);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.state.staffTyping, isTrue);
+
+    typing.add(false);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.state.staffTyping, isFalse);
+    await typing.close();
+  });
+
+  test('[CHAT-ROOM-LIVE-TYPING-01] 타이핑 중 봇 답변이 와도 staffTyping을 잃지 않는다(상태 보존)', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..botReply = '안내드립니다';
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    final typing = StreamController<bool>();
+    c.bindTyping(typing.stream);
+    typing.add(true);
+    await Future<void>.delayed(Duration.zero);
+
+    await c.send('질문'); // 봇 답변 말풍선이 붙는 상태 재구성
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isTrue);
+    expect(c.state.staffTyping, isTrue); // 재구성에도 타이핑 표시 유지
+    await typing.close();
+  });
+
+  test('[CHAT-ROOM-LIVE-TYPING-01] 끔 신호가 유실돼도 6초 안전 타임아웃으로 자동 해제한다', () {
+    fakeAsync((async) {
+      final repo = _FakeRepo()..messages = [];
+      final c = ChatRoomController(repo, threadId: 't1');
+      c.load(); // fakeAsync 안에서 완료시킨다
+      async.flushMicrotasks();
+      final typing = StreamController<bool>();
+      c.bindTyping(typing.stream);
+      typing.add(true);
+      async.flushMicrotasks();
+      expect(c.state.staffTyping, isTrue);
+      // 끔 신호 없이 6초 경과 → 자동 해제(직원웹 디바운스 3초 + 여유)
+      async.elapse(const Duration(seconds: 6));
+      expect(c.state.staffTyping, isFalse);
+    });
   });
 }

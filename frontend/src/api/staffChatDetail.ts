@@ -41,6 +41,7 @@ export interface Contact {
 
 export interface TicketDetail {
   id: string
+  threadId: string // 실시간 타이핑 broadcast 채널 키(TICKET-DETAIL-TYPING-01) — 환자앱과 같은 thread로 맞춘다
   status: TicketStatus
   reason: string // 인계 이유 코드. 'medical_judgment'면 의료판단 전달 강조(REASSIGN-01)
   assignee: { name: string; role: StaffRole } | null
@@ -76,6 +77,7 @@ interface ConvMessageDto {
 }
 interface TicketDetailDto {
   id: string
+  thread_id: string
   status: TicketStatus
   reason: string
   assignee: { name: string; role: StaffRole } | null
@@ -110,6 +112,7 @@ function msgFromDto(m: ConvMessageDto): ConvMessage {
 function detailFromDto(d: TicketDetailDto): TicketDetail {
   return {
     id: d.id,
+    threadId: d.thread_id,
     status: d.status,
     reason: d.reason,
     assignee: d.assignee,

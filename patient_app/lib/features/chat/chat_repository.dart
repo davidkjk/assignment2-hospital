@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
 import '../../core/api_client.dart';
@@ -146,6 +148,29 @@ class ChatRepository {
         .eq('thread_id', threadId)
         .order('created_at')
         .map((rows) => rows.map(ChatFeedItem.fromJson).toList());
+  }
+
+  /// [CHAT-ROOM-LIVE-TYPING-01] 담당 직원이 답변을 작성 중이면 "직원이 입력 중입니다"를 일시 표시한다.
+  /// 직원웹이 같은 thread 채널(`chat-typing:<threadId>`)로 보내는 **일회성 broadcast**(DB 미기록)를
+  /// 구독한다 — 켬(true)/끔(false)만 흘린다. 온라인 초록 점·답변 보장으로 바꾸지 않는다(SCOPE-01).
+  /// realtime 미주입이면 빈 스트림(무해). 유휴 시 끔 신호가 유실돼도 뷰가 자체 타임아웃으로 내린다.
+  Stream<bool> streamStaffTyping(String threadId) {
+    final rt = _realtime;
+    if (rt == null) return const Stream<bool>.empty();
+    final controller = StreamController<bool>();
+    final channel = rt.channel('chat-typing:$threadId');
+    channel.onBroadcast(
+      event: 'typing',
+      callback: (payload) {
+        // onBroadcast는 메시지 전체를 준다 — 실제 값은 payload['payload']에 있다(양쪽 형태 방어).
+        final data = payload['payload'] is Map ? payload['payload'] as Map : payload;
+        if (data['role'] == 'staff' && !controller.isClosed) {
+          controller.add(data['on'] == true);
+        }
+      },
+    ).subscribe();
+    controller.onCancel = () => rt.removeChannel(channel);
+    return controller.stream;
   }
 }
 

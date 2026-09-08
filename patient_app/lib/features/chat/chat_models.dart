@@ -113,10 +113,25 @@ class ChatRoomState {
   final ChatRoomPhase phase;
   final List<ChatFeedItem> items;
   final String? batchId; // 보고 있으면 이 배치를 읽음 처리(CHAT-ROOM-NOTIFY-01)
-  const ChatRoomState(this.phase, {this.items = const [], this.batchId});
+  final bool staffTyping; // 담당 직원이 입력 중(CHAT-ROOM-LIVE-TYPING-01) — 일시 표시, 초록 점 아님
+  const ChatRoomState(this.phase,
+      {this.items = const [], this.batchId, this.staffTyping = false});
 
   bool get isEmpty =>
       phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
+
+  ChatRoomState copyWith({
+    ChatRoomPhase? phase,
+    List<ChatFeedItem>? items,
+    String? batchId,
+    bool? staffTyping,
+  }) =>
+      ChatRoomState(
+        phase ?? this.phase,
+        items: items ?? this.items,
+        batchId: batchId ?? this.batchId,
+        staffTyping: staffTyping ?? this.staffTyping,
+      );
 }
 
 /// 이전 상담 목록의 한 행(CHAT-HISTORY-LIST-01).

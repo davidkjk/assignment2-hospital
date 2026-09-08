@@ -270,6 +270,9 @@ async def get_ticket_detail(auth_user_id: str, ticket_id: UUID) -> dict:
                     "role": _ROLE_MAP.get(header["assignee_role"], header["assignee_role"])}
     return {
         "id": header["id"],
+        # 실시간 타이핑 broadcast(TICKET-DETAIL-TYPING-01) 채널 키. 직원웹·환자앱이 같은 thread_id로
+        # 채널 이름을 맞춰야 "직원이 입력 중"이 오간다. 서버 응답에만 노출(테이블은 안 건드림).
+        "thread_id": str(header["thread_id"]),
         "status": header["status"],
         "reason": header["reason"],
         "assignee": assignee,

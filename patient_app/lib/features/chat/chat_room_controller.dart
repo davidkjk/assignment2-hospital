@@ -66,7 +66,9 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
         clientMessageId: cid,
         sendState: ChatSendState.sending);
     state = ChatRoomState(ChatRoomPhase.loaded,
-        items: [...state.items, optimistic], batchId: state.batchId);
+        items: [...state.items, optimistic],
+        batchId: state.batchId,
+        staffTyping: state.staffTyping);
     await _deliver(cid, content);
   }
 
@@ -94,7 +96,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
             if (res.botMessage != null) res.botMessage!,
             if (res.cardMessage != null) res.cardMessage!,
           ],
-          batchId: state.batchId);
+          batchId: state.batchId,
+          staffTyping: state.staffTyping);
     } catch (_) {
       // CHAT-ROOM-SEND-02: 원문 보존 + failed. 봇 처리를 시작하지 않는다(성공 위장 금지).
       _replace(
@@ -108,7 +111,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   void _replace(String cid, ChatFeedItem next) {
     state = ChatRoomState(ChatRoomPhase.loaded,
         items: [for (final i in state.items) i.clientMessageId == cid ? next : i],
-        batchId: state.batchId);
+        batchId: state.batchId,
+        staffTyping: state.staffTyping);
   }
 
   StreamSubscription<List<ChatFeedItem>>? _liveSub;
@@ -144,12 +148,35 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
         if (y == null) return -1;
         return x.compareTo(y);
       });
-    state = ChatRoomState(ChatRoomPhase.loaded, items: merged, batchId: state.batchId);
+    state = ChatRoomState(ChatRoomPhase.loaded,
+        items: merged, batchId: state.batchId, staffTyping: state.staffTyping);
+  }
+
+  StreamSubscription<bool>? _typingSub;
+  Timer? _typingOff;
+
+  /// [CHAT-ROOM-LIVE-TYPING-01] 담당 직원의 "입력 중" 신호(streamStaffTyping)를 상태에 반영한다 —
+  /// 셸(provider)이 물려준다. 일시 표시일 뿐, 온라인 초록 점·답변 보장으로 바꾸지 않는다(SCOPE-01).
+  /// 끔(false) 신호가 유실될 때를 대비해 6초 안전 타임아웃으로 자동 해제한다(디바운스 3초 + 여유).
+  void bindTyping(Stream<bool> stream) {
+    _typingSub?.cancel();
+    _typingSub = stream.listen((on) {
+      if (state.phase != ChatRoomPhase.loaded) return;
+      _typingOff?.cancel();
+      state = state.copyWith(staffTyping: on);
+      if (on) {
+        _typingOff = Timer(const Duration(seconds: 6), () {
+          if (state.staffTyping) state = state.copyWith(staffTyping: false);
+        });
+      }
+    }, onError: (_) {/* 끊김은 무해 — 재연결 대기 */});
   }
 
   @override
   void dispose() {
     _liveSub?.cancel();
+    _typingSub?.cancel();
+    _typingOff?.cancel();
     super.dispose();
   }
 }
@@ -181,6 +208,8 @@ final chatRoomProvider =
   // [CHAT-ROOM-LIVE-01] 같은 스레드의 실시간 스냅샷(직원 말풍선·시스템 이벤트)을 컨트롤러에 물려준다.
   // realtime 미주입(supabaseClient null)이면 streamThread는 빈 스트림이라 무해하다.
   ctl.bindLive(repo.streamThread(key.$1));
+  // [CHAT-ROOM-LIVE-TYPING-01] 같은 thread의 broadcast로 오는 "직원 입력 중"을 물려준다(일시 표시).
+  ctl.bindTyping(repo.streamStaffTyping(key.$1));
   return ctl;
 });
 

@@ -21,6 +21,7 @@ const ticket: InboxTicket = {
 }
 const detail: TD = {
   id: 't1',
+  threadId: 'th-1',
   status: 'in_progress',
   reason: 'general',
   assignee: { name: '나', role: 'reception' },

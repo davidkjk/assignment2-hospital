@@ -12,6 +12,7 @@ import { useTicketDetail } from './useTicketDetail'
 
 const mkDetail = (over: Partial<TicketDetail> = {}): TicketDetail => ({
   id: 't1',
+  threadId: 'th-1',
   status: 'in_progress',
   reason: 'general',
   assignee: { name: '나', role: 'reception' },

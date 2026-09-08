@@ -12,6 +12,7 @@ import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_live_row.dart';
 import 'widgets/chat_quick_replies.dart';
 import 'widgets/chat_safety_banner.dart';
+import 'widgets/chat_typing_indicator.dart';
 
 /// 상담방 셸. 로딩(CHAT-ROOM-LOAD-01)·오류(ERR-01)·빈(EMPTY-01)·피드(FEED-01)를 가르고
 /// 안전 배너(SAFE-01)와 입력창(INPUT-01)을 항상 붙인다. 이름은 AI 상담봇(NAME-01).
@@ -106,6 +107,9 @@ class ChatRoomView extends ConsumerWidget {
                   onFeedback: (_) => onFeedback?.call(),
                 ),
         }),
+        // CHAT-ROOM-LIVE-TYPING-01: 직원이 입력 중이면 입력창 위에 일시 표시(피드가 로드된 방에서만).
+        if (st.phase == ChatRoomPhase.loaded && st.staffTyping)
+          const ChatTypingIndicator(),
         _inputBar(st, ctl),
       ]),
       ),
