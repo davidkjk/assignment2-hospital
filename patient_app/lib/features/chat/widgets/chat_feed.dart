@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:hospital_patient_app/core/app_icons.dart';
-import '../../../core/tokens.dart';
 import '../chat_models.dart';
 import 'chat_bubble.dart';
 
@@ -11,7 +9,6 @@ class ChatFeed extends StatelessWidget {
   final Widget Function(BuildContext, ChatFeedItem)? cardBuilder; // T12·T13
   final Widget Function(BuildContext, ChatFeedItem)? liveSlotBuilder; // T11
   final void Function(String clientMessageId)? onRetry;
-  final void Function(ChatFeedItem)? onFeedback;
   // 빠른답변 칩은 입력창 위(고정 바)가 아니라 **피드 마지막 줄**에 둔다 — 고정 바는 대화창을 가린다는
   // 실기기 지적(2026-09-08). 마지막 말풍선 바로 밑에 칩이 흐름대로 따라오고, 스크롤로 자연히 사라진다.
   final Widget? footer;
@@ -21,7 +18,6 @@ class ChatFeed extends StatelessWidget {
     this.cardBuilder,
     this.liveSlotBuilder,
     this.onRetry,
-    this.onFeedback,
     this.footer,
   });
 
@@ -51,32 +47,15 @@ class ChatFeed extends StatelessWidget {
               crossAxisAlignment:
                   isPatient ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
+              // CHAT-ROOM-FEEDBACK-01/Q5: 매 봇 말풍선마다 붙던 상시 [직원에게 물어보기] 버튼을 폐지했다
+              // (2026-09-08 실기기: 매번 반복돼 "이미 도움이 안 됐다"는 느낌). 직원 연결은 필요할 때만 —
+              // no_answer·가장 최근 봇 답변일 때 입력창 슬롯의 [직원에게 연결] 칩으로 준다(activeQuickReplies).
               ChatBubble(
                 item: it,
                 onRetry: it.clientMessageId == null
                     ? null
                     : () => onRetry?.call(it.clientMessageId!),
               ),
-              if (it.senderType == 'bot')
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, bottom: 4),
-                  // CHAT-ROOM-FEEDBACK-01: 중립 문구로 반전(2026-09-08). 예전 `도움이 안 됐어요`는
-                  // 누르기도 전에 "이미 도움이 안 됐다"는 느낌이라, 답변 평가가 아니라 **다음 갈 곳**을
-                  // 주는 말로 바꾼다(직원 인계로 연결 = 막다른 길 방지). 기능은 동일(요구사항 5.5).
-                  child: TextButton.icon(
-                    key: const Key('chat-feedback-btn'),
-                    onPressed: () => onFeedback?.call(it),
-                    icon: const Icon(AppIcons.person, size: 15),
-                    label: const Text('직원에게 물어보기'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppTokens.grayPending,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ),
             ],
             ),
           );

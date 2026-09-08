@@ -15,16 +15,25 @@ const _startNoUpcoming = ['진료시간이 어떻게 되나요', '어느 과에 
 List<String> startQuickReplies({required bool hasUpcoming}) =>
     hasUpcoming ? _startUpcoming : _startNoUpcoming;
 
-/// no_answer 안내(WEBCHAT-NOANS): 봇이 못 답하면 피드 마지막에 quick_replies 카드가 온다. 앱은 이 카드를
-/// 피드 카드가 아니라 입력창 슬롯의 칩으로 띄운다 → 마지막 줄이 quick_replies 카드일 때 그 옵션·handoff를 준다.
-/// 사용자가 칩을 누르거나 새 봇 답변이 오면 마지막 줄이 바뀌어 자동으로 사라진다(칩이 남지 않는다).
+/// 피드 마지막 줄에 따라 입력창 슬롯의 칩을 정한다(상시 버튼 폐지 후 유일한 [직원에게 연결] 출구, Q5).
+///  · no_answer 안내(WEBCHAT-NOANS): 마지막이 quick_replies 카드면 그 FAQ 옵션 + [직원에게 연결] 칩.
+///  · 일반 봇 답변(Q5 ②)·무답변 안내(Q11): 마지막이 봇 말풍선이면 FAQ 옵션 없이 [직원에게 연결] 칩만.
+///  · 환자 발화가 마지막(봇 대기 중)이면 칩 없음 → 새 봇 답변이 오면 다시 뜬다(칩이 남지 않는다).
+const _staffHandoffChip = '직원에게 연결';
+
 ({List<String> replies, String? handoffLabel})? activeQuickReplies(List<ChatFeedItem> items) {
   if (items.isEmpty) return null;
   final last = items.last;
-  if (last.cardType != 'quick_replies') return null;
-  final p = last.payload ?? const {};
-  final opts = (p['options'] as List?)?.cast<String>() ?? const <String>[];
-  return (replies: opts, handoffLabel: p['handoff_chip'] as String?);
+  if (last.cardType == 'quick_replies') {
+    final p = last.payload ?? const {};
+    final opts = (p['options'] as List?)?.cast<String>() ?? const <String>[];
+    return (replies: opts, handoffLabel: p['handoff_chip'] as String?);
+  }
+  // Q5·Q11: 가장 최근이 봇 답변(일반/무답변 안내)이면 [직원에게 연결] 칩만 — 매 말풍선 상시 버튼을 대체한다.
+  if (last.senderType == 'bot') {
+    return (replies: const <String>[], handoffLabel: _staffHandoffChip);
+  }
+  return null;
 }
 
 class ChatQuickReplies extends StatelessWidget {

@@ -282,15 +282,17 @@ void main() {
     expect(sys.last.content, contains('직원에게 연결'));
   });
 
-  test('[CHAT-ROOM-SEND-04] reply도 card도 없는 일반 응답이면 다시 물어봐 달라는 폴백 줄을 붙인다', () async {
+  test('[CHAT-ROOM-SEND-04/Q11] reply도 card도 없는 일반 응답이면 봇 말풍선으로 폴백 — 마지막이 봇이라 [직원에게 연결] 칩이 뜬다', () async {
     final repo = _FakeRepo()
       ..messages = []
       ..sendResult = const SendResult(routeTaken: 'rag'); // 드물게 rag가 reply=None
     final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
     await c.load();
     await c.send('의사 선생님 누가 계세요?');
-    final sys = c.state.items.where((i) => i.messageType == 'system').toList();
-    expect(sys, isNotEmpty);
-    expect(sys.last.content, contains('답변을 가져오지 못했어요'));
+    // Q11: 무답변 폴백은 봇 말풍선(text/bot)이라 activeQuickReplies가 [직원에게 연결] 칩을 띄운다(막다른 길 금지).
+    final last = c.state.items.last;
+    expect(last.senderType, 'bot');
+    expect(last.content, contains('답변을 가져오지 못했어요'));
+    expect(last.content, contains('직원에게 연결'));
   });
 }

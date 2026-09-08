@@ -87,11 +87,28 @@ void main() {
     expect(a.handoffLabel, '직원에게 연결');
   });
 
-  test('[WEBCHAT-NOANS] 마지막 줄이 quick_replies 카드가 아니면 null(칩이 사라진다)', () {
+  test('[WEBCHAT-NOANS] 마지막 줄이 환자 발화면 null(봇 대기 중 — 칩이 사라진다)', () {
     final items = [
       _card(),
       ChatFeedItem(id: '3', messageType: 'text', senderType: 'patient', content: '진료시간이 어떻게 되나요', createdAt: DateTime(2026)),
     ];
     expect(activeQuickReplies(items), isNull);
+  });
+
+  test('[Q5] 마지막이 봇 답변이면 상시 버튼 대신 [직원에게 연결] 칩만(FAQ 옵션 없음)', () {
+    final a = activeQuickReplies([
+      ChatFeedItem(id: 'p', messageType: 'text', senderType: 'patient', content: '질문', createdAt: DateTime(2026)),
+      ChatFeedItem(id: 'b', messageType: 'text', senderType: 'bot', content: '이렇게 안내드려요', createdAt: DateTime(2026)),
+    ]);
+    expect(a!.replies, isEmpty);
+    expect(a.handoffLabel, '직원에게 연결');
+  });
+
+  test('[Q11] 마지막이 무답변 안내(봇)여도 [직원에게 연결] 칩이 실제로 뜬다(막다른 길 금지)', () {
+    final a = activeQuickReplies([
+      ChatFeedItem(id: 'sys-abc', messageType: 'text', senderType: 'bot',
+          content: '죄송해요, 방금은 답변을 가져오지 못했어요.', createdAt: DateTime(2026)),
+    ]);
+    expect(a!.handoffLabel, '직원에게 연결');
   });
 }

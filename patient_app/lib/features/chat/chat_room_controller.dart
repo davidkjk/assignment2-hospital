@@ -97,14 +97,17 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
       // 드물게 rag가 reply=None) 피드에 아무것도 안 붙어 **무응답처럼 보인다**(2026-09-08 실기기: "증상 상담"
       // 눌러도 반응 없음의 2차 원인). 이때 가시적 시스템 줄을 넣어 갇힘을 막는다 — handoff는 연결 중 안내,
       // 그 외는 다시 물어봐 달라는 안내(막다른 길 금지).
+      // handoff는 '연결 중' 안내(system 줄). 무답변은 봇 말풍선(text/bot)으로 넣어야 마지막 줄이 봇 답변이 되어
+      // 입력창 슬롯에 [직원에게 연결] 칩이 뜬다(Q5·Q11: 폴백 문구가 가리키는 칩이 실제로 존재 = 막다른 길 금지).
+      final isHandoff = res.routeTaken == 'handoff';
       final fallback = (res.botMessage == null && res.cardMessage == null)
           ? ChatFeedItem(
               id: 'sys-$cid',
-              messageType: 'system',
-              senderType: 'system',
-              content: res.routeTaken == 'handoff'
+              messageType: isHandoff ? 'system' : 'text',
+              senderType: isHandoff ? 'system' : 'bot',
+              content: isHandoff
                   ? '직원에게 연결하고 있어요. 잠시만 기다려 주세요.'
-                  : '죄송해요, 방금은 답변을 가져오지 못했어요. 다시 한 번 여쭤봐 주시거나 아래 [직원에게 물어보기]를 눌러 주세요.',
+                  : '죄송해요, 방금은 답변을 가져오지 못했어요. 다시 한 번 여쭤봐 주시거나 아래 [직원에게 연결] 칩을 눌러 주세요.',
               createdAt: DateTime.now())
           : null;
       state = ChatRoomState(
