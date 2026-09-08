@@ -88,7 +88,7 @@ describe('QualityReport (QUALITY-REPORT-*)', () => {
 
   it('[QUALITY-REPORT-10] 로딩은 기간과 선택 맥락을 유지한 채 로딩을 표시한다', () => {
     render(<QualityReport api={mkApi({ listQualitySessions: vi.fn(() => new Promise<{ items: QualitySession[] }>(() => {})) })} range={range} selectedId="s1" />)
-    expect(screen.getByLabelText('품질 목록 로딩')).toBeVisible()
+    expect(screen.getByText('상담을 불러오는 중입니다')).toBeVisible()
     expect(screen.getByTestId('quality-range').dataset.from).toBe('2026-08-01')
     expect(screen.getByTestId('quality-detail-panel')).toBeInTheDocument() // 선택 유지
   })

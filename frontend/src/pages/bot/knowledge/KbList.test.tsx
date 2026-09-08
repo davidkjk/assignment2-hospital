@@ -65,7 +65,7 @@ describe('KbList', () => {
 
   it('[KBADM-LIST-07] 로딩은 이전 조건을 유지하고 이전 결과를 새 조건 결과로 가장하지 않는다', () => {
     render(<KbList docs={[doc()]} phase="loading" filters={{ category: '주차' }} onFilter={vi.fn()} onOpen={vi.fn()} />)
-    expect(screen.getByLabelText('목록 로딩')).toBeVisible()
+    expect(screen.getByText('안내자료를 불러오는 중입니다')).toBeVisible()
     expect(screen.getByLabelText('분류')).toHaveValue('주차')
   })
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, History } from '../../../components/icons'
 import { btnGhost } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { KbAdminApi, KbDetail } from '../../../api/kbAdmin'
 import { KbApproveFlow } from './KbApproveFlow'
 import { EXCLUDED_CATEGORIES, KB_CATEGORIES, RESTRICTED_LABEL } from './constants'
@@ -73,9 +74,8 @@ export function KbEditor({ api, docId, onGotoRevision = () => {}, prefill }: KbE
     return (
       <div className="flex h-full flex-col">
         {header}
-        <div aria-label="자료 로딩" className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
-          자료를 불러오는 중…
+        <div className="flex-1">
+          <LoadingState variant="card" message="자료를 불러오는 중입니다" />
         </div>
       </div>
     )

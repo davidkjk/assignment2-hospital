@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ApiError } from '../../../api/httpClient'
 import { InlineError } from '../../../components/InlineError'
+import { LoadingState } from '../../../components/LoadingState'
 import { btnPrimary, btnGhost } from '../../../components/staff-ui'
 import {
   getSettings, previewBookingWindow, previewCancellation, saveSettings,
@@ -109,7 +110,7 @@ export function SettingsPage({ role = 'admin' }: { role?: string }) {
       </section>
     )
   }
-  if (!draft || !baseline) return <p role="status">설정을 불러오는 중입니다</p>
+  if (!draft || !baseline) return <LoadingState message="설정을 불러오는 중입니다" />
 
   const patch = computePatch(baseline, draft)
   const dirtyCount = changedCount(patch)

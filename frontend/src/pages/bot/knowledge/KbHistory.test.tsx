@@ -65,7 +65,7 @@ describe('KbHistory', () => {
 
   it('[KBADM-HISTORY-07] 로딩은 대상 자료 식별을 유지하고 이력 영역에 로딩을 표시한다', () => {
     render(<KbHistory api={mkApi({ listRevisions: vi.fn((): Promise<KbRevision[]> => new Promise(() => {})) })} docId="d1" onEditRevision={vi.fn()} />)
-    expect(screen.getByLabelText('이력 로딩')).toBeVisible()
+    expect(screen.getByText('수정이력을 불러오는 중입니다')).toBeVisible()
     expect(screen.getByTestId('kb-history').dataset.doc).toBe('d1')
   })
 

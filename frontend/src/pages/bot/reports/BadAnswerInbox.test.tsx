@@ -125,7 +125,7 @@ describe('BadAnswerInbox (BADINBOX-REVIEW-*)', () => {
 
   it('[BADINBOX-REVIEW-11] 로딩 중에는 로딩을 표시하고 처리 버튼을 노출하지 않는다', () => {
     render(<BadAnswerInbox api={mkApi({ listBadInbox: vi.fn(() => new Promise<Feedback[]>(() => {})) })} />)
-    expect(screen.getByLabelText('처리함 로딩')).toBeVisible()
+    expect(screen.getByText('오답 신고를 불러오는 중입니다')).toBeVisible()
     expect(screen.queryByRole('button', { name: /반영/ })).toBeNull()
   })
 

@@ -110,7 +110,7 @@ describe('KbEditor', () => {
   it('[KBADM-EDITOR-15] 기존 자료 로딩 중에는 빈 새 자료처럼 보이지 않고 로딩을 표시한다', () => {
     const api = mkApi({ getDoc: vi.fn((): Promise<KbDetail> => new Promise(() => {})) })
     render(<KbEditor api={api} docId="d1" />)
-    expect(screen.getByLabelText('자료 로딩')).toBeVisible()
+    expect(screen.getByText('자료를 불러오는 중입니다')).toBeVisible()
     expect(screen.queryByRole('button', { name: '저장' })).toBeNull()
   })
 

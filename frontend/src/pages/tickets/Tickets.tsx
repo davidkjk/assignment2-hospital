@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { StaffPage, Segmented } from '../../components/staff-ui'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { staffChatApi, TicketClaimConflict, type StaffChatApi, type InboxTicket } from '../../api/staffChat'
 import { useTicketInbox } from './useTicketInbox'
 import { TicketRow } from './TicketRow'
@@ -73,11 +74,7 @@ export function Tickets({
             </p>
           )}
           <div className="mt-2 flex-1 space-y-1.5 overflow-y-auto pr-1">
-            {inbox.phase === 'loading' && (
-              <p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
-                불러오는 중…
-              </p>
-            )}
+            {inbox.phase === 'loading' && <LoadingState variant="card" message="문의를 불러오는 중입니다" />}
             {inbox.phase === 'blocked' && (
               <p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
                 상담 문의 기능이 아직 준비 중입니다

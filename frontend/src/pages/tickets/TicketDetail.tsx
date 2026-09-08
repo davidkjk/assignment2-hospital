@@ -7,6 +7,7 @@ import { TicketConversation, messageBadges, ContactBanner } from './TicketConver
 import { ReplyBox } from './ReplyBox'
 import { ReassignControl } from './ReassignControl'
 import { CloseTicketButton } from './CloseTicketDialog'
+import { LoadingState } from '../../components/LoadingState'
 
 // 티켓 상세 조립(LAYOUT-01) — 위→아래: 담당 이관 → 인계 요약 → 전체 대화 → 답변/보내기 → (따로) 상담 종료.
 // 라이브 범위는 훅이 제공하는 것만(SCOPE-01): 새 메시지·상태·입력 중·재전송·재연결·알림·미확인·자동 배정/이관·종료.
@@ -39,13 +40,7 @@ export function TicketDetail(props: {
 
   if (d.phase === 'loading') {
     // LOAD-01: '처리 중' 단정 없이 로딩만.
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p role="status" className="text-sm text-muted-foreground">
-          불러오는 중…
-        </p>
-      </div>
-    )
+    return <LoadingState variant="card" message="대화를 불러오는 중입니다" />
   }
   if (d.phase === 'notfound') {
     // ERR-02: 내용 노출 없이 복귀 경로.

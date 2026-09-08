@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronRight, FlagIcon, X } from '../../../components/icons'
 import { EmptyState, Tag, btnGhost, btnPrimary } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { DateRange, QualityApi, QualitySession, QualitySessionDetail, ReviewStatus } from '../../../api/qualityAdmin'
 import { formatKst } from '../knowledge/format'
 
@@ -66,11 +67,7 @@ export function QualityReport({ api, range, selectedId = null, onGoToInbox }: Qu
           <span>일시</span><span>질문 요약</span><span>경로</span><span>상태</span>
         </div>
 
-        {phase === 'loading' && (
-          <div aria-label="품질 목록 로딩" className="flex items-center gap-2 px-4 py-10 text-sm text-muted-foreground">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" /> 상담을 불러오는 중…
-          </div>
-        )}
+        {phase === 'loading' && <LoadingState variant="card" message="상담을 불러오는 중입니다" />}
         {phase === 'error' && (
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
             <p className="text-sm font-medium">상담을 불러오지 못했습니다</p>

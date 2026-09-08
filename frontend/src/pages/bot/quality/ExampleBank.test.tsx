@@ -74,7 +74,7 @@ describe('ExampleBank (QAEX-LIST-*)', () => {
 
   it('[QAEX-LIST-09] 목록 조회 중에는 예시 영역에 로딩을 표시한다', () => {
     render(<ExampleBank api={mkApi({ listExamples: vi.fn(() => new Promise<Example[]>(() => {})) })} />)
-    expect(screen.getByLabelText('예시 로딩')).toBeVisible()
+    expect(screen.getByText('참고 예시를 불러오는 중입니다')).toBeVisible()
   })
 
   it('[QAEX-LIST-10] 목록 조회 실패는 오류·재시도이며 0건으로 표시하지 않는다', async () => {

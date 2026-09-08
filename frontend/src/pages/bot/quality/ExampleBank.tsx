@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { btnGhost } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { Example, QualityApi } from '../../../api/qualityAdmin'
 
 // 참고 예시 관리(QAEX-LIST-*) — 「향후 유사 질문 예시로도 사용」으로 등록된 교정(qa_example_bank) 목록.
@@ -55,11 +56,7 @@ export function ExampleBank({ api }: { api: QualityApi }) {
       <h3 className="mb-2 text-sm font-semibold">참고 예시</h3>
       <p className="mb-2 text-xs text-muted-foreground">「향후 유사 질문 예시로도 사용」으로 등록된 교정입니다. 비활성화하면 상담봇이 더 이상 참고하지 않습니다(삭제 아님).</p>
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-        {phase === 'loading' && (
-          <div aria-label="예시 로딩" className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" /> 참고 예시를 불러오는 중…
-          </div>
-        )}
+        {phase === 'loading' && <LoadingState variant="card" message="참고 예시를 불러오는 중입니다" />}
         {phase === 'error' && (
           <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
             <p className="text-sm font-medium">참고 예시를 불러오지 못했습니다</p>

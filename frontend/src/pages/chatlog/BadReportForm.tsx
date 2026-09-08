@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2 } from '../../components/icons'
 import { btnGhost, btnPrimary } from '../../components/staff-ui'
+import { LoadingState } from '../../components/LoadingState'
 import type { BadReportApi, TargetMessage } from '../../api/badReport'
 
 // 직원 오답 신고 작성(BADRPT-FORM-*) — 상담봇 기록·티켓 상세의 봇 답변 「잘못된 답변 신고」로 들어오는 별도 전체 화면.
@@ -77,9 +78,7 @@ export function BadReportForm({ api, messageId, onDone, onCancel, returnScroll }
   if (phase === 'loading') {
     return (
       <Shell>
-        <div aria-label="대상 답변 로딩" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" /> 신고할 답변을 불러오는 중…
-        </div>
+        <LoadingState variant="card" message="신고할 답변을 불러오는 중입니다" />
       </Shell>
     )
   }

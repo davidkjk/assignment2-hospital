@@ -6,6 +6,7 @@ import { getCalendar, getCalendarDoctors, type AppointmentDetailData, type Calen
 import { rescheduleAppointment } from '../../api/schedule'
 import { usePanel } from '../../components/PanelHost'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { CalendarNav, formatRange, shiftAnchor, type CalendarMode } from './CalendarNav'
 import { DoctorChips, type CalendarDoctor } from './DoctorChips'
 import { DayGrid } from './DayGrid'
@@ -376,7 +377,7 @@ export function CalendarPage({ staffKey = 'staff', isAdmin = false, now = new Da
       {query.isError ? (
         <EmptyState kind="error" screen="캘린더" onRetry={() => void query.refetch()} />
       ) : !data || !model ? (
-        <p className="cal-loading">불러오는 중…</p>
+        <LoadingState variant="card" message="일정을 불러오는 중입니다" />
       ) : mode === 'week' ? (
         <WeekGrid
           anchorDate={anchorDate}
