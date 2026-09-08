@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'chat_models.dart';
@@ -108,6 +110,48 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
         items: [for (final i in state.items) i.clientMessageId == cid ? next : i],
         batchId: state.batchId);
   }
+
+  StreamSubscription<List<ChatFeedItem>>? _liveSub;
+
+  /// [CHAT-ROOM-LIVE-01·CONN-01] 셸(provider)이 실시간 스트림(streamThread)을 물려준다.
+  /// 계약(ChatRepositoryLike)은 3메서드로 유지하고 라이브는 여기로 주입한다 — 직원 말풍선·시스템
+  /// 이벤트가 같은 피드로 들어온다. dispose에서 구독을 끊는다.
+  void bindLive(Stream<List<ChatFeedItem>> stream) {
+    _liveSub?.cancel();
+    _liveSub = stream.listen(mergeLiveRows, onError: (_) {/* CONN-01: 끊김은 원문 보존, 재연결 대기 */});
+  }
+
+  /// 실시간 스냅샷을 피드에 병합한다(CHAT-ROOM-LIVE-01). Supabase `.stream()`은 매 변경마다 전체
+  /// 목록을 재방출하므로 id로 중복을 막는다. 병합 대상은 **직원(staff)·시스템 이벤트**뿐 —
+  /// 환자 에코와 봇 답변은 send 응답/낙관 말풍선이 이미 소유한다(중복 말풍선 금지).
+  void mergeLiveRows(List<ChatFeedItem> rows) {
+    if (state.phase != ChatRoomPhase.loaded) return;
+    final have = state.items.map((i) => i.id).toSet();
+    final adds = [
+      for (final r in rows)
+        if ((r.senderType == 'staff' ||
+                r.senderType == 'system' ||
+                r.messageType == 'system') &&
+            !have.contains(r.id))
+          r
+    ];
+    if (adds.isEmpty) return;
+    final merged = [...state.items, ...adds]
+      ..sort((a, b) {
+        final x = a.createdAt, y = b.createdAt;
+        if (x == null && y == null) return 0;
+        if (x == null) return 1; // 시각 미상은 뒤로(EXC-01)
+        if (y == null) return -1;
+        return x.compareTo(y);
+      });
+    state = ChatRoomState(ChatRoomPhase.loaded, items: merged, batchId: state.batchId);
+  }
+
+  @override
+  void dispose() {
+    _liveSub?.cancel();
+    super.dispose();
+  }
 }
 
 /// AI 상담 30분 무활동 만료(CHAT-ROOM-AI-EXPIRE-01). 창을 닫아도 같은 30분 기준이며
@@ -134,6 +178,9 @@ final chatRoomProvider =
   final ctl = ChatRoomController(_RepoAdapter(repo),
       threadId: key.$1, aiSessionId: key.$2, onMarkRead: (_) {});
   ctl.load(); // 방을 열면 복원한다(셸 진입 = 자동 load). 배치 확인은 딥링크/알림이 batchId로 정밀화(T11).
+  // [CHAT-ROOM-LIVE-01] 같은 스레드의 실시간 스냅샷(직원 말풍선·시스템 이벤트)을 컨트롤러에 물려준다.
+  // realtime 미주입(supabaseClient null)이면 streamThread는 빈 스트림이라 무해하다.
+  ctl.bindLive(repo.streamThread(key.$1));
   return ctl;
 });
 

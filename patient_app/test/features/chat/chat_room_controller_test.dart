@@ -130,6 +130,50 @@ void main() {
     expect(c.state.items.where((i) => i.senderType == 'patient').length, 1); // 중복 없음
   });
 
+  test('[CHAT-ROOM-LIVE-01] 실시간 직원 말풍선을 같은 피드에 병합한다(계약은 3메서드 유지)', () async {
+    // 라이브 구독은 셸(provider)이 streamThread를 물려주고 컨트롤러는 mergeLiveRows로 받는다.
+    // 봇 답변은 send 응답으로 오므로 라이브 병합 대상은 직원(staff)·시스템 이벤트다.
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    c.mergeLiveRows([
+      ChatFeedItem(
+          id: 's1',
+          messageType: 'text',
+          senderType: 'staff',
+          content: '직원입니다. 무엇을 도와드릴까요?',
+          createdAt: DateTime(2026, 1, 1, 10)),
+    ]);
+    final staff = c.state.items.where((i) => i.senderType == 'staff').toList();
+    expect(staff.single.content, '직원입니다. 무엇을 도와드릴까요?');
+  });
+
+  test('[CHAT-ROOM-LIVE-01] 같은 id를 다시 받아도 중복 병합하지 않는다(재연결·재방출 방어)', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    final row = ChatFeedItem(
+        id: 's1', messageType: 'text', senderType: 'staff', content: 'hi',
+        createdAt: DateTime(2026, 1, 1, 10));
+    c.mergeLiveRows([row]);
+    c.mergeLiveRows([row]); // Supabase .stream()은 전체 목록을 매번 재방출한다
+    expect(c.state.items.where((i) => i.id == 's1').length, 1);
+  });
+
+  test('[CHAT-ROOM-LIVE-01] 라이브는 환자 에코를 중복으로 넣지 않는다(내 말풍선은 send가 소유)', () async {
+    final repo = _FakeRepo()..messages = [];
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('두통이 있어요'); // 낙관적 환자 말풍선(로컬)
+    // realtime이 같은 환자 메시지를 persisted로 되쏴도(다른 서버 id) 중복 말풍선을 만들지 않는다.
+    c.mergeLiveRows([
+      ChatFeedItem(
+          id: 'srv-echo', messageType: 'text', senderType: 'patient',
+          content: '두통이 있어요', createdAt: DateTime(2026, 1, 1, 10)),
+    ]);
+    expect(c.state.items.where((i) => i.senderType == 'patient').length, 1);
+  });
+
   test('[CHAT-ROOM-NOTIFY-01] 상담방을 열면(load) 미확인 배치를 읽음 처리한다 — 보는 중엔 알리지 않는다',
       () async {
     String? readBatch;
