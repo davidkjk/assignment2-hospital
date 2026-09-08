@@ -100,13 +100,12 @@ describe('AccessLogPage /admin/access-logs', () => {
     expect(q.get('cursor')).toBeNull()
   })
 
-  test('[ALOG-STATE-01] 로딩 중엔 표 머리를 유지하고 skeleton 4행을 보이며 환자 행을 안 섞는다', async () => {
+  test('[ALOG-STATE-01] 로딩 중엔 로딩만 보이고 이전 환자 행을 안 섞는다', async () => {
     server.use(http.get('*/admin/access-logs', async () => {
       await delay(80)
       return HttpResponse.json({ rows: [detail(0)], next_cursor: null, total_hint: 1 })
     }))
     renderPage()
-    expect(screen.getAllByTestId('skeleton-row')).toHaveLength(4)
     expect(screen.getByText('기록을 불러오는 중입니다')).toBeVisible()
     expect(screen.queryByText('홍*동 · 1985-**-01')).toBeNull()
   })

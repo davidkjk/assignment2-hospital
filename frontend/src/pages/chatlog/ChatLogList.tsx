@@ -1,5 +1,6 @@
 import type { ChatLogRow, ChatLogQuery, Channel, RouteTaken, LogCounts } from '../../api/staffChatLog'
 import { EmptyState, Segmented, Tag, PeriodSelect, type PeriodValue } from '../../components/staff-ui'
+import { LoadingState } from '../../components/LoadingState'
 import { channelText, routeText, routeDot } from './labels'
 
 // 상담봇 기록 목록(CHATLOG-LIST) — 앱·웹 대화를 한 목록에(SCOPE-01). 채널·갈래 필터(FILTER-01/02).
@@ -85,11 +86,7 @@ export function ChatLogList({ rows, phase, filters, onFilter, onOpen, onRetry, c
         </div>
 
         {phase === 'loading' ? (
-          <div aria-label="상담 기록 로딩" className="space-y-2 p-4">
-            {[0, 1, 2].map((i) => (
-              <div key={i} aria-hidden="true" className="h-9 rounded-lg bg-muted/50" />
-            ))}
-          </div>
+          <LoadingState variant="card" message="상담 기록을 불러오는 중입니다" />
         ) : phase === 'error' ? (
           // ERR-01: 0건으로 위장하지 않는다 — 오류+재시도.
           <div role="alert" className="px-6 py-16 text-center text-sm">
