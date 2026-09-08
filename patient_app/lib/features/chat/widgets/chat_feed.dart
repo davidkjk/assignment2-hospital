@@ -25,16 +25,30 @@ class ChatFeed extends StatelessWidget {
     this.footer,
   });
 
+  // Q20: 내용 없는 말풍선(빈 흰 알약)을 그리지 않는다. 카드·시스템 슬롯으로 가는 것, 실패(재전송 표시
+  //   유지), 확인필요(자체 안내)는 제외하고, 그 밖에 본문이 비거나 공백뿐이면 말풍선·피드백 버튼 통째 건너뛴다.
+  //   봇 빈 응답의 근본은 백엔드(Q19 = 빈 응답을 503 장애로) 쪽에서 막지만, 실시간 병합 등 어떤 경로로도
+  //   빈 말풍선이 새지 않도록 렌더 단계에서 방어한다.
+  bool _isBlankBubble(ChatFeedItem it) {
+    if (it.messageType == 'card' && cardBuilder != null) return false;
+    if (it.messageType == 'system' && liveSlotBuilder != null) return false;
+    if (it.isUnknown) return false;
+    if (it.sendState == ChatSendState.failed) return false;
+    return (it.content?.trim().isEmpty ?? true);
+  }
+
   @override
-  Widget build(BuildContext context) => ListView.builder(
+  Widget build(BuildContext context) {
+    final visible = [for (final it in items) if (!_isBlankBubble(it)) it];
+    return ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: items.length + (footer != null ? 1 : 0),
+        itemCount: visible.length + (footer != null ? 1 : 0),
         itemBuilder: (ctx, i) {
-          if (footer != null && i == items.length) {
+          if (footer != null && i == visible.length) {
             return Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 8), child: footer!);
           }
-          final it = items[i];
+          final it = visible[i];
           if (it.messageType == 'card' && cardBuilder != null) {
             return cardBuilder!(ctx, it);
           }
@@ -82,4 +96,5 @@ class ChatFeed extends StatelessWidget {
           );
         },
       );
+  }
 }

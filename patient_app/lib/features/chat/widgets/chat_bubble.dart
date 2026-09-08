@@ -30,6 +30,11 @@ class ChatBubble extends StatelessWidget {
     final isPatient = item.senderType == 'patient';
     final isBot = item.senderType == 'bot';
     final failed = item.sendState == ChatSendState.failed;
+    // Q20: 본문이 비거나 공백뿐인 말풍선은 빈 흰 알약이 되므로 그리지 않는다(실패는 재전송 표시가 있어 예외).
+    //   ChatFeed도 같은 행을 걸러내지만, ChatLiveRow 등 다른 경로로 온 빈 메시지까지 방어한다.
+    if (!failed && (item.content?.trim().isEmpty ?? true)) {
+      return const SizedBox.shrink();
+    }
     final bubbleColor = isPatient ? AppTokens.primary : AppTokens.surface;
     final textColor = isPatient ? Colors.white : AppTokens.onSurface;
 

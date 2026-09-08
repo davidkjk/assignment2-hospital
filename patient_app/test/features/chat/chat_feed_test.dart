@@ -27,4 +27,24 @@ void main() {
     expect(b.alignment, Alignment.centerLeft); // 봇 = 왼쪽
     expect(s.alignment, Alignment.centerLeft); // 직원 = 왼쪽
   });
+
+  testWidgets('[Q20] 본문이 빈 봇 메시지는 빈 말풍선·피드백 버튼을 그리지 않는다', (t) async {
+    final blank = ChatFeedItem(
+        id: 'b-empty', messageType: 'text', senderType: 'bot', content: '   ',
+        createdAt: DateTime(2026, 1, 1, 10));
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(body: ChatFeed(items: [_msg('p1', 'patient'), blank])),
+    ));
+    expect(find.byKey(const ValueKey('msg-align-b-empty')), findsNothing); // 빈 알약 없음
+    expect(find.byKey(const Key('chat-feedback-btn')), findsNothing); // 고아 피드백 버튼 없음
+    expect(find.byKey(const ValueKey('msg-align-p1')), findsOneWidget); // 정상 메시지는 유지
+  });
+
+  testWidgets('[Q20] 본문이 있는 봇 메시지는 정상 렌더(가드 오작동 아님)', (t) async {
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(body: ChatFeed(items: [_msg('b1', 'bot')])),
+    ));
+    expect(find.byKey(const ValueKey('msg-align-b1')), findsOneWidget);
+    expect(find.text('bot 메시지'), findsOneWidget);
+  });
 }
