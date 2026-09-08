@@ -8,7 +8,7 @@ const summary: HandoffSummary = { threadId: 't1', summary: ['방문 이유: 두�
 function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
   return {
     startOrRestoreSession: vi.fn(), fetchMessages: vi.fn(), sendMessage: vi.fn(), fetchHandoff: vi.fn(), acknowledgeBatches: vi.fn(),
-    revalidateAction: vi.fn(), executeCard: vi.fn(), attributeSessionToAccount: vi.fn(),
+    navigateAction: vi.fn(), revalidateAction: vi.fn(), executeCard: vi.fn(), attributeSessionToAccount: vi.fn(),
     createHandoffTicket: vi.fn(async () => ({ ticketId: 'tk1' })),
     ...over,
   } as unknown as WebchatApi;

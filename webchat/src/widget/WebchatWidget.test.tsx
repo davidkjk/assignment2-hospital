@@ -16,7 +16,7 @@ function fakeApi(sess: SessionState = session): WebchatApi {
     sendMessage: vi.fn(async () => ({ routeTaken: 'rag' })),
     fetchHandoff: vi.fn(async (): Promise<HandoffStatus> => ({ phase: 'connecting', isOpen: true })),
     acknowledgeBatches: vi.fn(async () => {}),
-    revalidateAction: vi.fn(), executeCard: vi.fn(), createHandoffTicket: vi.fn(), attributeSessionToAccount: vi.fn(),
+    navigateAction: vi.fn(), revalidateAction: vi.fn(), executeCard: vi.fn(), createHandoffTicket: vi.fn(), attributeSessionToAccount: vi.fn(),
   };
 }
 beforeEach(() => clearAnonToken());

@@ -1,8 +1,11 @@
 import type { PendingAction } from '../WebchatWidget';
 import { TimeSelectCard, BookConfirmCard, BookDoneCard } from './BookingCards';
 import { CancelConfirmCard, CancelDoneCard, CancelRejectCard } from './CancelCards';
+import { DeptSelectCard, DoctorSelectCard, DateSelectCard, TargetSelectCard, ReasonCard } from './FlowCards';
 import { QnrCard } from './QnrCard';
 import { QuickReplies } from './QuickReplies';
+
+export type NavAction = { kind: string; payload: Record<string, unknown> };  // 예약 앞흐름 카드 탭
 
 export type CardContext = {
   isAnonymous: boolean;
@@ -12,6 +15,7 @@ export type CardContext = {
   onReconsult: (payload: Record<string, unknown>) => void;                  // [다시 문의하기]
   onRebook: () => void;                                                      // [새로 예약하기]
   onHandoff?: () => void;                                                    // [직원에게 연결](WEBCHAT-NOANS) → 익명 인계 폼
+  onNavigate?: (action: NavAction) => void;                                 // 예약 앞흐름 다음 단계(진료과→의사→날짜→대상→방문이유)
 };
 export type CardProps = { p: Record<string, unknown>; ctx: CardContext };
 
@@ -28,6 +32,11 @@ export function WebCard({ payload, ctx }: { payload: Record<string, unknown> | n
       case 'cancel_reject':   return <CancelRejectCard p={payload} ctx={ctx} />;
       case 'questionnaire':   return <QnrCard p={payload} ctx={ctx} />;
       case 'quick_replies':   return <QuickReplies p={payload} ctx={ctx} />;
+      case 'department_select': return <DeptSelectCard p={payload} ctx={ctx} />;
+      case 'doctor_select':     return <DoctorSelectCard p={payload} ctx={ctx} />;
+      case 'date_select':       return <DateSelectCard p={payload} ctx={ctx} />;
+      case 'target_select':     return <TargetSelectCard p={payload} ctx={ctx} />;
+      case 'reason_input':      return <ReasonCard p={payload} ctx={ctx} />;
       default:                return null;
     }
   })();

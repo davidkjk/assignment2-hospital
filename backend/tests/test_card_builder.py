@@ -75,3 +75,68 @@ def test_quick_replies_card_handoff_chip_optional():
     card = cb.build_quick_replies_card(replies=["진료시간이 어떻게 되나요"])
     assert card["handoff_chip"] is None
     assert card["options"] == ["진료시간이 어떻게 되나요"]
+
+
+# ── 예약 앞흐름 카드 4종 (WEBCARD-DEPT/DOC/DATE/TARGET) ──────────────────────
+
+def test_department_select_card_carries_departments_and_guide_chip():
+    # [WEBCARD-DEPT-01] 진료과 버튼 + 맨 아래 증상으로 찾기 칩
+    card = cb.build_department_select_card(
+        departments=[{"id": "d1", "name": "내과"}, {"id": "d2", "name": "정형외과"}])
+    assert card["card_type"] == "department_select"
+    assert [d["name"] for d in card["departments"]] == ["내과", "정형외과"]
+    assert card["guide_chip"] == "잘 모르겠어요 · 증상으로 찾기"
+    cb.validate_card_payload(card)
+
+
+def test_department_select_card_can_hide_guide_chip():
+    # [WEBCARD-DEPT-02] 증상 대화로 이미 좁혀졌으면 칩을 숨긴다
+    card = cb.build_department_select_card(departments=[{"id": "d1", "name": "내과"}], allow_symptom_guide=False)
+    assert card["guide_chip"] is None
+
+
+def test_doctor_select_card_empty_state_when_no_doctors():
+    # [WEBCARD-DOC-02] 가용 의사 0 → 빈 상태(막다른 길 문구는 프론트가 렌더)
+    card = cb.build_doctor_select_card(department_id="d1", department_name="내과", doctors=[])
+    assert card["card_type"] == "doctor_select" and card["state"] == "빈"
+
+
+def test_doctor_select_card_lists_doctors_always_even_single():
+    # [WEBCARD-DOC-01] 의사가 1명이어도 항상 표시(결정 ②)
+    card = cb.build_doctor_select_card(
+        department_id="d1", department_name="내과",
+        doctors=[{"id": "s1", "name": "김의사", "specialty": "소화기", "schedule_summary": "월·수·금"}])
+    assert card["state"] == "정상" and len(card["doctors"]) == 1
+    assert card["doctors"][0]["name"] == "김의사"
+
+
+def test_date_select_card_empty_state():
+    # [WEBCARD-DATE-02] 가용일 0 → 빈 상태
+    card = cb.build_date_select_card(department_id="d1", doctor_id="s1", doctor_name="김의사", dates=[])
+    assert card["card_type"] == "date_select" and card["state"] == "빈"
+
+
+def test_target_select_card_carries_self_and_family():
+    # [WEBCARD-TARGET-01] 본인/가족 + 앞 선택값(dep·doc·slot) 누적
+    card = cb.build_target_select_card(
+        department_id="d1", doctor_id="s1", slot_id="sl1", slot_at="2026-09-11T10:00:00",
+        targets=[{"for_patient_id": "p1", "name": "홍길동", "relation": None},
+                 {"for_patient_id": "p2", "name": "홍자녀", "relation": "자녀"}])
+    assert card["card_type"] == "target_select"
+    assert card["slot_id"] == "sl1" and card["department_id"] == "d1"
+    assert [t["name"] for t in card["targets"]] == ["홍길동", "홍자녀"]
+
+
+def test_open_booking_wizard_card_empty_prefill():
+    # [BOOK-BOT-WIZARD] 앱 예약 인계 카드 — 추천 과 없으면 프리필 None
+    card = cb.build_open_booking_wizard_card()
+    assert card["card_type"] == "open_booking_wizard"
+    assert card["department_id"] is None and card["department_name"] is None
+    assert card["button"] == "예약하러 가기"
+    cb.validate_card_payload(card)
+
+
+def test_open_booking_wizard_card_with_department_prefill():
+    # [BOOK-BOT-WIZARD] 추천 진료과가 있으면 실어 앱 마법사 2단계를 미리 선택
+    card = cb.build_open_booking_wizard_card(department_id="d1", department_name="내과")
+    assert card["department_id"] == "d1" and card["department_name"] == "내과"

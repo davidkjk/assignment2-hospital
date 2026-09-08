@@ -2,7 +2,7 @@ import json
 from uuid import UUID
 
 from app.db.pool import get_pool
-from app.services.chat import orchestrator, rag_service, quality_service, card_builder
+from app.services.chat import orchestrator, rag_service, quality_service, card_builder, booking_agent_service
 
 
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
@@ -14,6 +14,23 @@ _SENDER_ID_COL = {
     "patient": ("sender_patient_id", "t.patient_id"),
     "anonymous_web": ("sender_anonymous_session_id", "t.anonymous_session_id"),
 }
+
+
+async def _match_departments_in_text(text: str) -> list[dict]:
+    # 증상 대화 추천문에 등장한 진료과명을 실제 진료과 목록과 매칭한다(하이브리드 ①). 없으면 [].
+    from app.services import department_service
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        departments = await department_service.list_departments(conn)
+    return [d for d in departments if d.get("name") and d["name"] in text]
+
+
+def _guide_booking_card(sender_kind: str, matched: list[dict]) -> dict:
+    # 웹=진료과 선택 카드(대화 내 예약, 증상칩 숨김), 앱=예약 마법사 인계 카드(첫 후보 프리필, 결정 B).
+    if sender_kind == "anonymous_web":
+        return card_builder.build_department_select_card(departments=matched, allow_symptom_guide=False)
+    d0 = matched[0]
+    return card_builder.build_open_booking_wizard_card(department_id=d0["id"], department_name=d0["name"])
 
 
 async def handle_patient_message(session, content: str, *, thread_id: UUID,
@@ -59,12 +76,40 @@ async def handle_message(session, content: str, *, thread_id: UUID,
     async def rag_fn(s, m):
         return await rag_service.rag_answer(m, embedder=embedder, model=model)
 
+    async def agent_fn(s, m):
+        # 행동형(예약). 채널로 갈린다(사용자 결정 B):
+        #  · 웹(anonymous_web) = 대화 내 예약 → 진료과 선택 카드(WEBBOOK-05).
+        #  · 앱(patient) = 대화 안에서 예약하지 않고 예약 마법사로 인계 → open_booking_wizard 카드.
+        if sender_kind == "anonymous_web":
+            return await booking_agent_service.booking_agent(s, m)
+        return await booking_agent_service.booking_wizard_handoff(s, m)
+
     out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
-                                         rag_fn=rag_fn, model=model)
+                                         rag_fn=rag_fn, agent_fn=agent_fn, model=model)
+    # 하이브리드 ①(WEBBOOK-08): 증상 대화(department_guide)가 진료과를 추천하면 예약으로 잇는 카드를 함께 낸다.
+    #   웹=진료과 선택 카드(대화 내 예약), 앱=예약 마법사 인계 카드(결정 B). 추천이 없으면 카드 없음(그냥 문답).
+    if out["route_taken"] == "department_guide" and out.get("reply") and not out.get("card"):
+        matched = await _match_departments_in_text(out["reply"])
+        if matched:
+            out = {**out, "card": _guide_booking_card(sender_kind, matched)}
     # 봇 메시지 본문 결정: 평소 답(reply). 제한 주제 전용이면 reply가 비고 원문(restricted_block)이 본문이 된다(A3).
     body = (out.get("reply") or "").strip() or (out.get("restricted_block") or "").strip()
-    # 본문이 비면(예: 예약 등 행동형 요청 — 이 대화 파이프라인엔 에이전트 도구가 주입되지 않는다) 빈 봇 메시지는
-    # chat_messages_type_shape CHECK를 위반해 500난다 → 막다른 길 금지 원칙대로 직원 인계로 되돌린다.
+    # 행동형(agent)·증상추천(department_guide)이 카드를 냈으면 막다른 길이 아니다 — 봇 말풍선 + 카드를 저장·반환한다.
+    if out["route_taken"] in ("agent", "department_guide") and out.get("card"):
+        rt = out["route_taken"]
+        async with pool.acquire() as conn:
+            bmsg = await conn.fetchrow(
+                "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, content, route_taken) "
+                "values ($1,$2,'bot','text',$3,$4) returning id", thread_id, sid, body, rt)
+            await conn.execute(
+                "insert into chat_messages (thread_id, ai_chat_session_id, sender_type, message_type, payload, route_taken) "
+                "values ($1,$2,'bot','card',$3::jsonb,$4)", thread_id, sid, json.dumps(out["card"]), rt)
+            await conn.execute(
+                "update ai_chat_sessions set last_activity_at=now(), expires_at=now()+interval '30 minutes' "
+                "where id=$1 and status='active' and now() < expires_at", sid)
+        return {"route_taken": rt, "message_id": bmsg["id"], "reply": body, "card": out["card"]}
+    # 본문이 비면(카드도 없는 행동형/빈 응답) 빈 봇 메시지는 chat_messages_type_shape CHECK 위반 500 →
+    # 막다른 길 금지 원칙대로 직원 인계로 되돌린다.
     if out["route_taken"] != "handoff" and not body:
         out = {**out, "route_taken": "handoff", "handoff_reason": "action_unavailable"}
     async with pool.acquire() as conn:

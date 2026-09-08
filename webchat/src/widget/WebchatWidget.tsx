@@ -8,7 +8,7 @@ import { HandoffBadge } from './HandoffBadge';
 import { UrgentNotice } from './UrgentNotice';
 import { OutageNotice } from './OutageNotice';
 
-export type PendingAction = { kind: 'view_my_appointments' | 'book' | 'cancel'; payload?: Record<string, unknown> };
+export type PendingAction = { kind: 'view_my_appointments' | 'book' | 'cancel' | 'pick_target'; payload?: Record<string, unknown> };
 export type HandoffSummary = { threadId: string; summary: string[] };
 export type CardSlot = {
   send: (text: string) => void;   // 카드가 빠른답변을 환자 말풍선으로 보낼 통로(Task 15)

@@ -22,6 +22,12 @@ export function matchesHostOrigin(origin: string, hostOrigin: string): boolean {
   return new RegExp(`^https://${m[1]}-[a-z0-9-]+\\.vercel\\.app$`).test(origin);
 }
 
+// 프론트 로컬 카드(방문이유 입력 등 서버가 안 만드는 표시용) 합성. 피드에 이어 붙인다.
+function localCard(cardType: string, payload: Record<string, unknown>): CardMessage {
+  return { id: `local-${crypto.randomUUID()}`, senderType: 'bot', messageType: 'card',
+           content: null, payload: { card_type: cardType, ...payload } };
+}
+
 export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth: WebAuth; hospitalPhone: string }) {
   const [open, setOpen] = useState(false);                 // 위젯 열림(홈페이지 host:setOpen과 위젯 런처가 공유)
   const [hasUnread, setHasUnread] = useState(false);       // 직원 답변 도착(닫힘 중 런처 ● 표시용)
@@ -29,6 +35,7 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
   const [handoff, setHandoff] = useState<HandoffSummary | null>(null);
   const [reconfirm, setReconfirm] = useState<CardMessage | null>(null);
   const [doneCards, setDoneCards] = useState<CardMessage[]>([]); // 실행 결과 카드를 피드 끝에 쌓는다(재확인 카드/피드 카드 공통)
+  const [flowCards, setFlowCards] = useState<CardMessage[]>([]); // 예약 앞흐름 카드(의사·날짜·시간·대상·방문이유·확인)를 피드에 이어 붙인다
   const [patientId, setPatientId] = useState<string | null>(null);
 
   // 마운트 통지 + 열림/미읽음 변화를 부모에 통지 + 부모의 host:setOpen 수신(origin 검증).
@@ -72,6 +79,21 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
     },
     onPick: slot.send,
     onReconsult: () => {}, onRebook: () => setAuthAction({ kind: 'book' }),
+    // 예약 앞흐름 다음 단계 — 진료과·의사·날짜는 로그인 전 익명 통로(navigateAction),
+    // 방문이유 카드는 로컬 삽입, 방문이유 확정은 로그인 후 확인 카드 재검증(book). 각 카드를 피드에 이어 붙인다.
+    onNavigate: async (action) => {
+      if (action.kind === 'pick_reason') {                     // 대상 선택 후 방문이유 입력(로컬 카드)
+        setFlowCards((prev) => [...prev, localCard('reason_input', action.payload)]);
+        return;
+      }
+      if (action.kind === 'submit_reason') {                   // 방문이유 확정 → 확인 카드(Bearer 재검증)
+        const { card } = await api.revalidateAction({ action: { kind: 'book', payload: action.payload } });
+        if (card) setFlowCards((prev) => [...prev, card]);
+        return;
+      }
+      const { card } = await api.navigateAction({ action });   // pick_department·pick_doctor·pick_date(익명)
+      if (card) setFlowCards((prev) => [...prev, card]);
+    },
   });
 
   const afterAuth = async (pid: string, action: PendingAction) => {
@@ -82,7 +104,13 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
     try {
       await api.attributeSessionToAccount({ patientId: pid });  // WEBMOD-AUTH-09: 명시 인증에만 귀속
       if (action.kind === 'view_my_appointments') { await api.revalidateAction({ action }); return; } // WEBMOD-AUTH-07: 최신 조회
-      const { card } = await api.revalidateAction({ action });  // WEBMOD-AUTH-08 / BOOKCONF-03: 재확인 카드(자동 실행 없음)
+      if (action.kind === 'book' && !(action.payload && action.payload.for_patient_id)) {
+        // 늦은 관문(④): 시간까지만 고른 상태(대상 미정) → 로그인 후 대상 선택부터. 확인 카드로 직행하지 않는다(WEBBOOK-07).
+        const { card } = await api.revalidateAction({ action: { kind: 'pick_target', payload: action.payload ?? {} } });
+        if (card) setFlowCards((prev) => [...prev, card]);
+        return;
+      }
+      const { card } = await api.revalidateAction({ action });  // WEBMOD-AUTH-08 / BOOKCONF-03: 대상이 이미 정해진 재확인 카드(자동 실행 없음)
       setReconfirm(card);
     } catch {
       // ⑦ 미배선 — 재확인 카드·귀속은 건너뛴다(로그인은 이미 성공 처리됨).
@@ -97,7 +125,7 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
         onAuthGate={setAuthAction}                            // WEBMOD-AUTH-01: 관문 열기(원래 행동·문맥 보존)
         onHandoffNeeded={setHandoff}
         renderCard={(payload, slot) => <WebCard payload={payload} ctx={cardCtx(slot)} />}
-        extraCards={doneCards}                                // 실행 결과 완료 카드를 피드 끝에 렌더(재열기해도 유지)
+        extraCards={[...flowCards, ...doneCards]}             // 예약 앞흐름 카드 + 실행 결과 완료 카드를 피드 끝에 렌더(재열기해도 유지)
       />
       {authAction && <AuthGateModal action={authAction} auth={auth} onClose={() => setAuthAction(null)} onAuthenticated={afterAuth} />}
       {handoff && <HandoffForm api={api} summary={handoff} onDone={() => setHandoff(null)} onCancel={() => setHandoff(null)} />}
