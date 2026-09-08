@@ -57,7 +57,11 @@ def check(cond, label, detail=""):
 # ── A. no_answer 칩 재클릭 이어가기 ─────────────────────────────
 print("=== A. no_answer 칩 재클릭 이어가기 (멀티턴) ===")
 anon, sess = new_session()
-st, r1 = send(anon, sess, "오늘 저녁 뭐 먹을지 골라줘")
+# ⚠️ 잡담 문구는 예약/의료/시간·선택 토큰이 없는 명확한 잡담이라야 한다. 옛 문구
+# "오늘 저녁 뭐 먹을지 골라줘"는 "골라줘"+"오늘 저녁"을 라우터가 예약(agent)으로 ~40% 오분류해
+# 이 게이트가 무작위로 뒤집혔다(세션35 확인, 위험 없는 경계 비결정성=세션33 마스크와 동류).
+# 이 절의 목적은 라우터 경계 판단이 아니라 no_answer→FAQ칩→칩재전송→rag 멀티턴 흐름이다.
+st, r1 = send(anon, sess, "재미있는 농담 하나 해줘")
 check(r1.get("route_taken") == "no_answer", "1턴: 잡담 → no_answer", f"route={r1.get('route_taken')}")
 card = r1.get("card") or {}
 opts = card.get("options") or []
