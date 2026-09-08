@@ -50,6 +50,56 @@ async def test_rag_no_answer_returns_chips_not_auto_handoff():
     assert out["handoff_chip"] == "직원에게 연결"          # 콜백 칩(인계 폼 열기)
 
 
+@pytest.mark.asyncio
+async def test_hours_intent_answered_from_db_before_rag():
+    # B1: 진료시간 질문은 RAG(안내자료) 대신 DB 단일원본에서 답한다(KBADM-EDITOR-17). RAG 우회.
+    called = {"rag": False}
+    async def rag_fn(s, m):
+        called["rag"] = True
+        return {"reply": "평일 낮에 합니다", "no_answer": False}
+    async def intent_fn(s, m, intent):
+        assert intent == "hospital_hours"
+        return {"reply": "월요일 09:00~18:00"}
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+        "진료시간이 어떻게 되나요", rag_fn=rag_fn, intent_fn=intent_fn, model=_Model("rag"))
+    assert out["route_taken"] == "rag" and "09:00" in out["reply"]
+    assert called["rag"] is False
+
+
+@pytest.mark.asyncio
+async def test_doctor_list_intent_answered_from_db():
+    # B2: 의사명단 질문은 staff DB에서 답한다.
+    async def intent_fn(s, m, intent):
+        return {"reply": "내과: 김서준"} if intent == "doctor_list" else None
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+        "진료하는 의사가 누구예요", intent_fn=intent_fn, model=_Model("rag"))
+    assert out["route_taken"] == "rag" and "김서준" in out["reply"]
+
+
+@pytest.mark.asyncio
+async def test_intent_falls_back_to_rag_when_db_empty():
+    # intent_fn이 빈값 반환(데이터 없음) → 기존 RAG로 폴백(막다른 길 방지).
+    async def rag_fn(s, m): return {"reply": "안내자료 답", "no_answer": False}
+    async def intent_fn(s, m, intent): return None
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+        "진료시간 알려줘", rag_fn=rag_fn, intent_fn=intent_fn, model=_Model("rag"))
+    assert out["route_taken"] == "rag" and out["reply"] == "안내자료 답"
+
+
+@pytest.mark.asyncio
+async def test_intent_precheck_skipped_during_active_flow():
+    # 진행 중 문진(active_flow) 중엔 intent 프리체크를 건너뛰어 흐름을 지킨다.
+    called = {"intent": False}
+    async def intent_fn(s, m, intent):
+        called["intent"] = True
+        return {"reply": "X"}
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow="department_guide", flow_step=1),
+        "진료시간 알려줘", intent_fn=intent_fn, model=_Model("department_guide"))
+    assert out["route_taken"] == "department_guide"
+    assert called["intent"] is False
+
+
 def test_length_nudge_threshold():
     assert orchestrator.should_nudge_length(40) is True
     assert orchestrator.should_nudge_length(39) is False

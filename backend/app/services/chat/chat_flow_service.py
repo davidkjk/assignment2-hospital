@@ -2,7 +2,9 @@ import json
 from uuid import UUID
 
 from app.db.pool import get_pool
-from app.services.chat import orchestrator, rag_service, quality_service, card_builder, booking_agent_service
+from app.services import opening_hours
+from app.services.chat import (orchestrator, rag_service, quality_service, card_builder,
+                               booking_agent_service, intent_precheck)
 
 
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
@@ -84,8 +86,23 @@ async def handle_message(session, content: str, *, thread_id: UUID,
             return await booking_agent_service.booking_agent(s, m)
         return await booking_agent_service.booking_wizard_handoff(s, m)
 
+    async def intent_fn(s, m, intent):
+        # B1·B2: 진료시간·의사명단은 DB 단일원본에서 읽는다(KBADM-EDITOR-17). 빈값이면 None → RAG 폴백.
+        async with pool.acquire() as c:
+            if intent == "hospital_hours":
+                return {"reply": intent_precheck.format_hours(await opening_hours.list_hospital_hours(c))}
+            if intent == "doctor_list":
+                rows = await c.fetch(
+                    "select s.name, coalesce(d.name, s.specialty) as specialty "
+                    "from staff s left join departments d on d.id = s.department_id "
+                    "where s.role = 'doctor' and s.is_active "
+                    "order by coalesce(d.name, s.specialty) nulls last, s.name")
+                return {"reply": intent_precheck.format_doctors([dict(r) for r in rows])}
+        return None
+
     out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
-                                         rag_fn=rag_fn, agent_fn=agent_fn, model=model)
+                                         rag_fn=rag_fn, agent_fn=agent_fn, intent_fn=intent_fn,
+                                         model=model)
     # 하이브리드 ①(WEBBOOK-08): 증상 대화(department_guide)가 진료과를 추천하면 예약으로 잇는 카드를 함께 낸다.
     #   웹=진료과 선택 카드(대화 내 예약), 앱=예약 마법사 인계 카드(결정 B). 추천이 없으면 카드 없음(그냥 문답).
     if out["route_taken"] == "department_guide" and out.get("reply") and not out.get("card"):

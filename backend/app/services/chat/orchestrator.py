@@ -1,5 +1,5 @@
 # 매 메시지 파이프라인: ⓪응급 → ①인계감시 → ②라우터 → 갈래 실행. 인계 조건은 어느 갈래든 우선한다.
-from app.services.chat import safety_watchdog, chat_router, department_guide_chain
+from app.services.chat import safety_watchdog, chat_router, department_guide_chain, intent_precheck
 
 CHAT_CONTEXT_TURN_WINDOW = 12     # 최근 N턴은 원문, 그 앞은 요약(MR2-08 — 절단 아님)
 CHAT_NUDGE_MESSAGE_COUNT = 40     # 이 이상이면 CHAT-LEN 소프트 넛지 신호(하드컷 아님)
@@ -30,7 +30,8 @@ async def make_closing_summary(history_text: str, model=None) -> str:
 
 
 async def orchestrate(session, message, *, history_texts=None, restricted=False,
-                      unhelpful_flagged=False, rag_fn=None, agent_fn=None, model=None) -> dict:
+                      unhelpful_flagged=False, rag_fn=None, agent_fn=None, intent_fn=None,
+                      model=None) -> dict:
     history_texts = history_texts or []
     # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0).
     if safety_watchdog.check_emergency(message):
@@ -46,6 +47,14 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
         return {"route_taken": "handoff", "handoff_reason": reason, "escalated": True}
     # ② 라우터 — 진행 중 문진은 유지.
     active_flow = getattr(session, "active_flow", None) if not restricted else None
+    # ①-b 의도 프리체크(B1·B2) — 진료시간·의사명단은 KB가 아니라 DB 단일원본에서 답한다(KBADM-EDITOR-17).
+    # RAG(벡터 검색)보다 앞서 결정적 키워드로만 판별해 두루뭉술 답/no_answer를 막는다(사용자 결정 A).
+    # 진행 중 문진(active_flow) 중엔 흐름을 지키려 건너뛴다. DB가 비어 답을 못 만들면(None) RAG로 폴백.
+    intent = None if active_flow else intent_precheck.detect_intent(message)
+    if intent and intent_fn is not None:
+        ans = await intent_fn(session, message, intent)
+        if ans and ans.get("reply"):
+            return {"route_taken": "rag", "reply": ans["reply"], "escalated": False, "intent": intent}
     route = await chat_router.classify(message, active_flow=active_flow, model=model)
     # 제한모드(예약 중 상담): 정보성 안내·진료과 추천만. 행동형 금지, 유일 출구는 "○○과로 계속하기"(E4·정본 §0).
     if restricted and route == "agent":
