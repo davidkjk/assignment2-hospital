@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { ApiError } from '../../api/httpClient'
 import { getAccessLogs, type AccessLogPatientRef, type AccessLogRow } from '../../api/accessLogs'
 import { LogFilterBar } from './LogFilterBar'
@@ -191,11 +192,13 @@ export function AccessLogPage() {
             ) : undefined
           }
         />
+      ) : query.isPending ? (
+        // [ALOG-STATE-01] 첫 로드 — 스피너로 통일. 묶은 이전 환자 행을 잠깐이라도 섞지 않는다.
+        <LoadingState variant="card" message="기록을 불러오는 중입니다" />
       ) : (
         <div style={styles.tableWrap}>
           <LogTable
             rows={rows}
-            loading={query.isPending}
             onSelectPatient={(id) => {
               const ref = rows.find((r) => r.patient?.patient_id === id)?.patient
               applyPatient(ref ?? { patient_id: id })
