@@ -13,6 +13,44 @@ class _RagModel:
 
 
 @pytest.mark.asyncio
+async def test_empty_ai_response_signals_outage_not_forced_handoff(committed_conn, monkeypatch):
+    # Q19(결정 2026-09-08 — 장애 안내로 통일): AI가 빈 응답(비-handoff 라우트에 본문 없음 = 일시 장애)을 주면
+    #   예전처럼 강제 직원인계·자동 티켓을 만들지 않는다. 그건 "AI 일시 장애"를 "직원 인계"로 오인시켜
+    #   막다른 길처럼 보였다(스샷 2026-09-08). 대신 503(outage)으로 내려 두 프론트가 장애 화면을 띄운다
+    #   (webchat=OutageNotice 기존 5xx 경로, 환자앱=ChatOutageView). 티켓 X · AI 세션 active 유지 · 발신 멱등.
+    from app.services.chat import orchestrator
+    from app.core.errors import AppError
+    async def empty_orchestrate(*a, **k):
+        return {"route_taken": "rag", "reply": ""}   # AI가 답을 못 만든 상태(빈 응답)
+    monkeypatch.setattr(orchestrator, "orchestrate", empty_orchestrate)
+
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    s = await committed_conn.fetchrow(
+        "insert into ai_chat_sessions (thread_id, expires_at) values ($1, now()+interval '30 min') returning *", t)
+
+    with pytest.raises(AppError) as ei:
+        await chat_flow_service.handle_patient_message(
+            s, "아무 질문", thread_id=t, client_message_id=uuid.uuid4(),
+            embedder=FakeEmbedder(), model=_RagModel())
+    assert ei.value.status_code == 503   # 5xx → 두 프론트의 outage 경로가 동일하게 반응
+
+    # 강제 인계 안 함: 티켓 0, 세션 active 유지, 빈 봇 메시지 미저장.
+    assert await committed_conn.fetchval("select count(*) from support_tickets where thread_id=$1", t) == 0
+    assert await committed_conn.fetchval("select status from ai_chat_sessions where id=$1", s["id"]) == "active"
+    assert await committed_conn.fetchval(
+        "select count(*) from chat_messages where thread_id=$1 and sender_type='bot'", t) == 0
+    # 환자 발신 메시지는 저장돼 있다(멱등 — 재시도 대비).
+    assert await committed_conn.fetchval(
+        "select count(*) from chat_messages where thread_id=$1 and sender_type='patient'", t) == 1
+    # cleanup
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", t)
+    await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
+
+
+@pytest.mark.asyncio
 async def test_no_answer_message_returns_chips_keeps_session_and_logs_unresolved(committed_conn):
     # WEBCHAT-NOANS: 봇이 못 답하면(빈 KB → no_answer) 자동 인계·자동 티켓을 만들지 않는다(폐기) →
     #   봇 안내 말풍선 + quick_replies 카드(FAQ 칩 + [직원에게 연결]). 세션은 active 유지, 미해결은 티켓 없이(null) 기록.

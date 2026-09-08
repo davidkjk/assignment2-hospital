@@ -1,6 +1,7 @@
 import json
 from uuid import UUID
 
+from app.core.errors import AppError, log_error
 from app.db.pool import get_pool
 from app.services import opening_hours
 from app.services.chat import (orchestrator, rag_service, quality_service, card_builder,
@@ -125,10 +126,20 @@ async def handle_message(session, content: str, *, thread_id: UUID,
                 "update ai_chat_sessions set last_activity_at=now(), expires_at=now()+interval '30 minutes' "
                 "where id=$1 and status='active' and now() < expires_at", sid)
         return {"route_taken": rt, "message_id": bmsg["id"], "reply": body, "card": out["card"]}
-    # 본문이 비면(카드도 없는 행동형/빈 응답) 빈 봇 메시지는 chat_messages_type_shape CHECK 위반 500 →
-    # 막다른 길 금지 원칙대로 직원 인계로 되돌린다.
+    # 본문이 비면(카드도 없는 행동형/빈 응답 = AI가 답을 못 만든 상태) — Q19(결정 2026-09-08).
+    #   예전엔 이걸 강제 handoff+자동 티켓으로 되돌렸다(action_unavailable). 그러나 그건 "AI 일시 장애"를
+    #   "직원 인계"로 오인시켜 막다른 길처럼 보였다(스샷 2026-09-08: 증상 답변 직후 "직원에게 연결하고 있어요").
+    #   → 장애 안내로 통일: 티켓·강제 handoff 없이 503(outage)으로 내려 두 프론트가 장애 화면을 띄운다
+    #   (webchat=OutageNotice 기존 5xx 경로 그대로, 환자앱=ChatOutageView). 발신 메시지는 이미 저장(멱등)이라
+    #   재시도 가능하고, AI 세션은 active로 유지한다(재시도 왕복 성공 시 복구). 빈 봇 메시지는 저장하지 않는다
+    #   (chat_messages_type_shape CHECK 위반 500 회피 = 저장 자체를 안 하므로 자연 해소).
+    #   ⛔ 진짜 인계 사유(medical_judgment·직원요청 등 orchestrator가 준 route_taken='handoff')는 아래에서 그대로.
     if out["route_taken"] != "handoff" and not body:
-        out = {**out, "route_taken": "handoff", "handoff_reason": "action_unavailable"}
+        await log_error("chat.ai_empty_response",
+                        f"empty AI body (route={out['route_taken']}) thread={thread_id}",
+                        safe_summary="AI 상담이 일시적으로 답변을 만들지 못했습니다.",
+                        is_service_outage=True)
+        raise AppError("잠시 AI 상담을 이용할 수 없어요. 잠시 후 다시 시도해 주세요.", status_code=503)
     async with pool.acquire() as conn:
         if out["route_taken"] == "handoff":
             # AI 세션 종료 + 티켓 생성 + 시스템 메시지. no_answer면 미해결 기록.
