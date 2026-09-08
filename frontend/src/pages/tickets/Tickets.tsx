@@ -62,12 +62,16 @@ export function Tickets({
       <div className="flex gap-4" style={{ height: 'calc(100vh - 11rem)' }}>
         {/* 왼쪽: 상태 탭 + 접수순 목록. 탭바는 왼쪽 위에만 단독으로 두고, 오른쪽 상세 카드 윗선은 아래 '문의 목록' 첫 카드에 맞춘다. */}
         <div className="flex w-96 shrink-0 flex-col">
-          <Segmented
-            options={inbox.tabs}
-            value={inbox.tab}
-            onChange={(k) => inbox.setTab(k)}
-            count={(k) => inbox.counts[k]}
-          />
+          {/* Q25: 부모 flex-col이 Segmented(inline-flex)를 교차축(가로)으로 stretch해 탭바가 w-96 전폭을
+              채우고 '답변 완료' 오른쪽에 회색 빈 영역이 길게 남았다 → self-start로 내용 폭만 차지하게 한다. */}
+          <div className="self-start">
+            <Segmented
+              options={inbox.tabs}
+              value={inbox.tab}
+              onChange={(k) => inbox.setTab(k)}
+              count={(k) => inbox.counts[k]}
+            />
+          </div>
           {loserNotice && (
             <p role="alert" className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
               {loserNotice}
