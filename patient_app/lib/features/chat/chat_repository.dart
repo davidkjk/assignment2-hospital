@@ -23,7 +23,10 @@ class ChatRepository {
 
   Future<List<ChatFeedItem>> fetchMessages(String threadId) => _api.get(
         '/chat/threads/$threadId/messages',
-        (j) => (j as List)
+        // 백엔드 계약은 {"messages": [...]} (webchat_service·test_webchat_endpoints·웹 위젯과 동일).
+        // 예전엔 최상위 배열을 기대해 `j as List`로 캐스팅하다 실제 응답을 못 읽고 방을 열 때마다
+        // "대화를 불러오지 못했어요"로 떨어졌다(테스트가 FakeRepo로 이 파서를 우회해 미검출).
+        (j) => ((j as Map<String, dynamic>)['messages'] as List)
             .map((e) => ChatFeedItem.fromJson(e as Map<String, dynamic>))
             .toList(),
       );

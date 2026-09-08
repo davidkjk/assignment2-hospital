@@ -59,6 +59,21 @@ void main() {
     expect(list.single.lastSnippet, '두통');
   });
 
+  test('[CHAT-ROOM-RESTORE-01] fetchMessages는 {"messages":[...]} 계약을 파싱한다', () async {
+    // 백엔드 GET /chat/threads/{id}/messages 는 최상위 배열이 아니라 {"messages":[...]}.
+    // 예전 파서가 `j as List`라 실제 응답을 못 읽고 방을 열 때마다 error("대화를 불러오지 못했어요")로
+    // 떨어졌다 — 이 케이스가 그 회귀를 막는다(FakeRepo가 파서를 우회해 미검출이던 구멍).
+    final r = repo(MockClient((req) async =>
+        http.Response.bytes(utf8.encode('{"messages":[$savedMsg]}'), 200)));
+    final list = await r.fetchMessages('t1');
+    expect(list.single.content, '안녕');
+  });
+
+  test('[CHAT-ROOM-RESTORE-02] fetchMessages는 빈 이력({"messages":[]})도 정상 파싱한다', () async {
+    final r = repo(MockClient((req) async => http.Response('{"messages":[]}', 200)));
+    expect(await r.fetchMessages('t1'), isEmpty);
+  });
+
   test('[CHAT-ROOM-NOTIFY-01] markRead는 batch_id로 확인 배치를 닫는다', () async {
     String? body;
     final r = repo(MockClient((req) async {
