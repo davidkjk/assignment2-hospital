@@ -64,7 +64,8 @@ class LandingScreen extends StatelessWidget {
               const SizedBox(height: 12),
               OutlinedButton(
                 style: AppButtonSize.cta,
-                onPressed: () => context.push('/signup'), // 보조 버튼
+                // [AGE-GATE-01] 가입은 연령 확인 게이트부터 — 만 14세 미만은 여기서 걸러 병원 안내로.
+                onPressed: () => context.push('/signup/age'), // 보조 버튼
                 child: const Text('회원가입'),
               ),
               const SizedBox(height: 8),
