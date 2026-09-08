@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { btnGhost } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { KbAdminApi, KbRevision } from '../../../api/kbAdmin'
 import { formatKst } from './format'
 
@@ -60,12 +61,7 @@ export function KbHistory({ api, docId, onEditRevision, onBackToList, docTitle, 
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {phase === 'loading' && (
-          <div aria-label="이력 로딩" className="flex flex-col items-center gap-2 px-6 py-16 text-center text-sm text-muted-foreground">
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
-            수정이력을 불러오는 중…
-          </div>
-        )}
+        {phase === 'loading' && <LoadingState variant="card" message="수정이력을 불러오는 중입니다" />}
 
         {phase === 'empty' && (
           <p className="px-6 py-16 text-center text-sm text-muted-foreground">이전 수정이력이 없습니다</p>

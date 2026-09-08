@@ -63,7 +63,7 @@ describe('UnresolvedClusters (UNRES-CLUSTER-*)', () => {
 
   it('[UNRES-CLUSTER-08] 로딩은 기간을 유지하고 임시 0건이나 이전 기간 결과를 보이지 않는다', () => {
     render(<UnresolvedClusters api={mkApi({ listUnresolved: vi.fn(() => new Promise<UnresolvedResult>(() => {})) })} range={range} />)
-    expect(screen.getByLabelText('집계 로딩')).toBeVisible()
+    expect(screen.getByText(/집계 중/)).toBeVisible()
     expect(screen.queryByText(/미해결 질문이 없습니다/)).toBeNull()
     expect(screen.queryByTestId('cluster-row')).toBeNull()
   })

@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { InlineError } from '../../components/InlineError'
 import { getFailedList, type FailedItem } from '../../api/messages'
 import { TextButton } from '@/components/staff-ui'
@@ -35,7 +36,7 @@ export function FailedListPanel({ batchId }: { batchId: string }) {
   const [tab, setTab] = useState<TabKey>('call_now')
 
   if (query.isError) return <InlineError message="안 닿은 명단을 불러오지 못했습니다." />
-  if (!query.data) return <p style={styles.loading}>불러오는 중…</p>
+  if (!query.data) return <LoadingState variant="card" message="명단을 불러오는 중입니다" />
 
   const { call_now, fix_number } = query.data
   const allTabs: { key: TabKey; label: string; items: FailedItem[] }[] = [

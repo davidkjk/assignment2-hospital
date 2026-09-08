@@ -87,7 +87,7 @@ describe('BadReportForm (BADRPT-FORM-*)', () => {
   it('[BADRPT-FORM-LOAD-01] 대상 조회 중 로딩을 표시하고 다른 답변을 임의로 대입하지 않는다', () => {
     const api = mkApi({ getTargetMessage: vi.fn(() => new Promise<TargetMessage>(() => {})) })
     render(<BadReportForm api={api} messageId="msg1" onDone={vi.fn()} onCancel={vi.fn()} />)
-    expect(screen.getByLabelText('대상 답변 로딩')).toBeVisible()
+    expect(screen.getByText('신고할 답변을 불러오는 중입니다')).toBeVisible()
     expect(screen.queryByTestId('bad-report-target')).toBeNull()
   })
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, BarChart3, FlagIcon, Sparkles, X } from '../../../components/icons'
 import { EmptyState, Segmented, btnGhost, btnPrimary } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { Feedback, FeedbackCounts, FeedbackSource, FeedbackStatus, QualityApi } from '../../../api/qualityAdmin'
 import { formatKst } from '../knowledge/format'
 
@@ -75,11 +76,7 @@ export function BadAnswerInbox({ api, selectedId = null, onApplyToKb, onGoToKb }
 
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-          {phase === 'loading' && (
-            <div aria-label="처리함 로딩" className="flex items-center gap-2 px-4 py-10 text-sm text-muted-foreground">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" /> 오답 신고를 불러오는 중…
-            </div>
-          )}
+          {phase === 'loading' && <LoadingState variant="card" message="오답 신고를 불러오는 중입니다" />}
           {phase === 'error' && (
             <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
               <p className="text-sm font-medium">오답 신고를 불러오지 못했습니다</p>

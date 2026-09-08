@@ -3,6 +3,7 @@ import { hospitalHHMM } from '../../lib/clock'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ApiError } from '../../api/httpClient'
 import { getStats, getStatsBy, logStatsExport, type StatsResponse } from '../../api/stats'
@@ -136,11 +137,7 @@ export function StatsPage({ initialPeriod }: StatsPageProps) {
       )}
 
       {/* 첫 로드 중 — 이전 결과가 없어 보여줄 것이 없다. */}
-      {statsQuery.isPending && !stats && (
-        <p role="status" style={styles.status}>
-          통계를 불러오는 중입니다
-        </p>
-      )}
+      {statsQuery.isPending && !stats && <LoadingState message="통계를 불러오는 중입니다" />}
 
       {/* 갱신 중 실패로 이전 결과만 남았을 때 — 최신인 척하지 않는다(STAT-STATE-04). */}
       {statsQuery.isError && stats && (

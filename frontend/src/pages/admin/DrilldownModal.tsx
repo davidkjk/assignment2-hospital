@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import { formatHospitalDateTime } from '../../lib/clock'
 import { getStatsDetail, type DrilldownRow } from '../../api/stats'
 
@@ -68,7 +69,7 @@ export function DrilldownModal({ target, period, onClose }: DrilldownModalProps)
         </div>
 
         <div style={styles.body}>
-          {query.isPending && <p role="status" style={styles.status}>명단을 불러오는 중입니다</p>}
+          {query.isPending && <LoadingState variant="card" message="명단을 불러오는 중입니다" />}
           {query.isError && <EmptyState kind="error" onRetry={() => query.refetch()} />}
           {page && rows.length === 0 && (
             <EmptyState kind="zero" message="이 기간·지표에 해당하는 명단이 없습니다" />

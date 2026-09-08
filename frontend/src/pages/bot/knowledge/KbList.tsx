@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { LockKeyhole } from '../../../components/icons'
 import { EmptyState, btnGhost } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { KbDoc, KbQuery, KbStatus } from '../../../api/kbAdmin'
 import { KB_CATEGORIES, STATUS_LABELS } from './constants'
 import { formatKst } from './format'
@@ -74,12 +75,7 @@ export function KbList({
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
-          {phase === 'loading' && (
-            <div aria-label="목록 로딩" className="flex flex-col items-center gap-2 px-6 py-16 text-center text-sm text-muted-foreground">
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-primary" />
-              안내자료를 불러오는 중…
-            </div>
-          )}
+          {phase === 'loading' && <LoadingState variant="card" message="안내자료를 불러오는 중입니다" />}
 
           {phase === 'error' && (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">

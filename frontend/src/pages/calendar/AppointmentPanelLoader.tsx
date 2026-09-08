@@ -4,6 +4,7 @@ import { getAppointmentDetail, type AppointmentDetailData } from '../../api/cale
 import { transitionStatus } from '../../api/appointments'
 import { formatHospitalDateTime } from '../../lib/clock'
 import { AppointmentPanel, type SupportSummary } from './AppointmentPanel'
+import { LoadingState } from '../../components/LoadingState'
 
 // [CAL-PANEL-*] 딥링크(/today [예약·상담 보기])로 연 예약 패널의 데이터 창구.
 //   ⭐ 예전엔 오늘 격자의 막대에서 값을 찾아 채우다 못 찾으면(상담 예약은 대개 미래 날짜) 텅 빈
@@ -66,7 +67,7 @@ export function AppointmentPanelLoader({ appointmentId, onClose, onDone, onResch
   })
 
   if (q.isLoading) {
-    return <p className="cal-panel-status" role="status">예약을 불러오는 중입니다…</p>
+    return <LoadingState variant="card" message="예약을 불러오는 중입니다" />
   }
   if (q.isError || !q.data) {
     // ⚠️ 예전엔 [다시 시도]에 28×28 정사각 `cal-panel-close`를 써서 글자가 세로로 깨졌다(사용자 지적).

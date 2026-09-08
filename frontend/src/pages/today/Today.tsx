@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { StaffPage } from '../../components/staff-ui'
 import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
 import {
   getTodaySummary,
   type TodaySummary,
@@ -441,7 +442,7 @@ export function Today() {
   return (
     <StaffPage testid="today">
 
-      {query.isPending && <p role="status" className="text-muted-foreground">오늘의 현황을 불러오는 중입니다</p>}
+      {query.isPending && <LoadingState message="오늘의 현황을 불러오는 중입니다" />}
 
       {/* 조회 실패는 사실이 아니라 실패라 [다시 시도]를 준다(ERR-RETRY-02). */}
       {query.isError && <EmptyState kind="error" onRetry={() => query.refetch()} />}

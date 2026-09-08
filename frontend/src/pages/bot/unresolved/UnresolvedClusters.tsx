@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, ChevronRight, Sparkles } from '../../../components/icons'
 import { EmptyState, btnGhost, btnPrimary } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { Cluster, ClusterDetail, DateRange, QualityApi } from '../../../api/qualityAdmin'
 import { formatKst } from '../knowledge/format'
 
@@ -83,8 +84,8 @@ export function UnresolvedClusters({ api, range, onOpenDetail, detailClusterId, 
           )}
 
           {phase === 'loading' && (
-            <div aria-label="집계 로딩" className="flex items-center gap-2 rounded-xl border border-border/70 bg-card px-4 py-10 text-sm text-muted-foreground">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-primary" /> {range.from || '전체'} ~ {range.to} 집계 중…
+            <div className="rounded-xl border border-border/70 bg-card">
+              <LoadingState variant="card" message={`${range.from || '전체'} ~ ${range.to} 집계 중`} />
             </div>
           )}
           {phase === 'error' && (
