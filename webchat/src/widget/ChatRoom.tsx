@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ThreadMessage } from '../api/webchatApi';
 
 export type WebchatPhase = 'firstConsult' | 'restoring' | 'ready' | 'loadError';
@@ -27,6 +27,17 @@ function bubbleClass(senderType: ThreadMessage['senderType']): string {
 
 export function ChatRoom(p: ChatRoomProps) {
   const [draft, setDraft] = useState('');
+  // Q23(Q9 환자앱과 동형): 새 메시지(내·상대)가 오면 그 메시지로 스크롤한다 — 예전엔 스크롤 관리가 없어
+  //   답변이 와도 화면이 그대로였다. 마지막 메시지의 상단을 뷰포트 위로 맞춘다(긴 답변을 처음부터 읽게).
+  const lastMsgRef = useRef<HTMLLIElement | null>(null);
+  const lastId = p.messages.length ? p.messages[p.messages.length - 1].id : null;
+  useEffect(() => {
+    const el = lastMsgRef.current;
+    // scrollIntoView는 실브라우저에만 있다(jsdom 미구현) — 있을 때만 호출해 테스트 환경을 깨지 않는다.
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }, [lastId]);
   return (
     <section className="wc-room" role="region" aria-label="AI 상담봇" data-widget="true">
       <header className="wc-header" role="banner">
@@ -51,9 +62,10 @@ export function ChatRoom(p: ChatRoomProps) {
         {p.messages.length === 0 && p.phase !== 'restoring' && p.phase !== 'loadError' && p.startSlot && (
           <li className="wc-startline">{p.startSlot}</li>
         )}
-        {p.messages.map((m) => (
+        {p.messages.map((m, idx) => (
           <li
             key={m.id}
+            ref={idx === p.messages.length - 1 ? lastMsgRef : undefined}
             data-send-state={m.sendState ?? 'sent'}
             className={m.messageType === 'card' ? 'wc-cardline' : bubbleClass(m.senderType)}
           >

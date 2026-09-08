@@ -8,6 +8,17 @@ const base = {
   guideSlot: null, handoffSlot: null, renderCard: () => null,
 };
 
+test('[Q23] 새 메시지(내·상대)가 오면 그 메시지로 스크롤한다', () => {
+  const spy = vi.fn();
+  Element.prototype.scrollIntoView = spy; // jsdom 미구현 → 목으로 호출 여부 확인
+  const m1: ThreadMessage = { id: 'm1', senderType: 'patient', messageType: 'text', content: '안녕', sendState: 'sent' };
+  const m2: ThreadMessage = { id: 'm2', senderType: 'bot', messageType: 'text', content: '무엇을 도와드릴까요', sendState: 'sent' };
+  const { rerender } = render(<ChatRoom phase="ready" messages={[m1]} {...base} />);
+  spy.mockClear();
+  rerender(<ChatRoom phase="ready" messages={[m1, m2]} {...base} />); // 새 메시지 도착
+  expect(spy).toHaveBeenCalled();
+});
+
 test('[WEBCHAT-ROOM-01] 자기완결 위젯 경계 — 전체화면이 아니라 위젯 영역으로 표시', () => {
   render(<ChatRoom phase="ready" messages={[]} {...base} />);
   const region = screen.getByRole('region', { name: 'AI 상담봇' });

@@ -241,6 +241,8 @@ html, body { height: 100%; }
 .wc-outage__phone {
   display: flex;
   align-items: center;
+  /* Q27: '병원에 바로 전화하기'를 '문의 남기기' 버튼처럼 가운데 정렬(예전 좌측 정렬과 어긋나 보였다). */
+  justify-content: center;
   gap: 11px;
   margin: 0 0 10px;
   padding: 12px 14px;
@@ -251,7 +253,8 @@ html, body { height: 100%; }
 .wc-outage__phone svg { flex: 0 0 auto; width: 20px; height: 20px; }
 .wc-outage__phone-info { display: flex; flex-direction: column; gap: 1px; }
 .wc-outage__phone-num { font-size: 15px; font-weight: 800; }
-.wc-outage__phone-cap { font-size: 12px; font-weight: 600; color: var(--wc-primary-d); }
+/* Q27: 캡션 글자크기를 '문의 남기기' 버튼 라벨(14.5px)과 통일(예전 12px이라 작아 어긋나 보였다). */
+.wc-outage__phone-cap { font-size: 14.5px; font-weight: 700; color: var(--wc-primary-d); }
 .wc-outage__action {
   width: 100%;
   height: 48px;
@@ -288,8 +291,10 @@ html, body { height: 100%; }
 /* 닫기(WebchatWidget의 × 버튼) — 헤더 위 절대배치 */
 .wc-close {
   position: absolute;
-  top: 16px;
+  /* Q24: 헤더 높이의 세로 중앙에 맞춘다(예전 top:16px은 약간 위로 붙어 보였다). 배경 박스(34px)는 유지. */
+  top: 50%;
   right: 16px;
+  transform: translateY(-50%);
   z-index: 2;
   width: 34px;
   height: 34px;
@@ -297,7 +302,8 @@ html, body { height: 100%; }
   border-radius: 9px;
   background: rgba(255, 255, 255, .16);
   color: #fff;
-  font-size: 20px;
+  /* Q24: × 글리프만 조금 더 크게(배경 박스·색은 그대로). */
+  font-size: 24px;
   line-height: 1;
   display: grid;
   place-items: center;
