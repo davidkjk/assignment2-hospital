@@ -75,7 +75,7 @@ describe('QuestionRanking (QTOP-RANK-*)', () => {
 
   it('[QTOP-RANK-08] 집계 중에는 기간을 유지하고 로딩을 표시하며 이전 기간 순위를 새 결과로 보이지 않는다', () => {
     render(<QuestionRanking api={mkApi(() => new Promise(() => {}))} range={range} onFaqBoost={vi.fn()} />)
-    expect(screen.getByLabelText('질문 순위 로딩')).toBeVisible()
+    expect(screen.getByText('질문 순위를 불러오는 중입니다')).toBeVisible()
     expect(screen.queryByTestId('rank-row')).toBeNull()
   })
 

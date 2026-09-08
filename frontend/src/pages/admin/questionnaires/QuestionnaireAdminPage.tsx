@@ -8,6 +8,7 @@ import { useAuth } from '../../../auth/useAuth'
 import { useConnectivity } from '../../../lib/connectivity'
 import { ApiError, isSessionExpiry, rememberReturn } from '../../../api/httpClient'
 import { EmptyState } from '../../../components/EmptyState'
+import { LoadingState } from '../../../components/LoadingState'
 import { Checkbox, Select, TextArea, btnPrimary, btnGhost } from '../../../components/staff-ui'
 import { dialogStyles } from '../../../components/ConfirmDialog'
 import {
@@ -243,7 +244,7 @@ function QuestionnaireAdminInner() {
           {departmentsQ.isError ? (
             <EmptyState kind="error" onRetry={() => void departmentsQ.refetch()} />
           ) : !departmentsQ.data ? (
-            <p style={styles.historyEmpty}>진료과를 불러오는 중입니다</p>
+            <LoadingState variant="card" message="진료과를 불러오는 중입니다" />
           ) : (
             <ul role="list" aria-label="진료과" style={styles.deptList}>
               {departmentsQ.data.map((d) => {
@@ -281,11 +282,7 @@ function QuestionnaireAdminInner() {
           )}
 
           {selectedDeptId && !formQ.isError && !ready && (
-            <div aria-busy="true" style={styles.loadingWrap}>
-              <p style={styles.loadingText}>문진표를 불러오는 중입니다</p>
-              <div data-testid="skeleton" style={styles.skeleton} />
-              <div data-testid="skeleton" style={styles.skeleton} />
-            </div>
+            <LoadingState variant="card" message="문진표를 불러오는 중입니다" />
           )}
 
           {form && (

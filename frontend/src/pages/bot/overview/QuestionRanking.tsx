@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, ChevronRight } from '../../../components/icons'
 import { btnGhost, btnLink } from '../../../components/staff-ui'
+import { LoadingState } from '../../../components/LoadingState'
 import type { BotStatsApi, DateRange, RankCluster, RankClusterDetail, RankingResult } from '../../../api/botStats'
 
 // 상담봇 처리 현황(117)의 「많이 들어온 질문」 섹션 — QTOP-RANK-*. 116 별도 메뉴가 아니라 이 화면의 한 섹션이다.
@@ -113,9 +114,7 @@ function RankingBody({
   }
   if (result === null) {
     return (
-      <p aria-label="질문 순위 로딩" className="py-6 text-center text-sm text-muted-foreground">
-        불러오는 중…
-      </p>
+      <LoadingState variant="card" message="질문 순위를 불러오는 중입니다" />
     )
   }
   if (result.kind === 'no_contract') {

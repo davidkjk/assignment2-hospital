@@ -103,7 +103,7 @@ describe('DoctorConsolePage', () => {
   test('[DOCTOR-LOAD-01][EMPTY-LAY-01] 처음엔 대기 열에 자리 표시자를 그린다', () => {
     mockConsole({ rows: [] })
     renderConsole()
-    expect(screen.getByTestId('skeleton')).toBeVisible() // 흰 빈 화면을 만들지 않는다
+    expect(screen.getByText('대기 목록을 불러오는 중입니다')).toBeVisible() // 흰 빈 화면을 만들지 않는다
   })
 
   test('[DOCTOR-QUEUE-04][DOCTOR-START-01] 진료대기 행을 열면 진료중 전이를 서버에 요청한다', async () => {

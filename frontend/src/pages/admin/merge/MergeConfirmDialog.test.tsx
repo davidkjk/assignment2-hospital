@@ -109,8 +109,7 @@ test('[MERGE-STATE-01] 재조회 중에는 이전 후보를 새 응답과 섞지
   await screen.findByLabelText('후보 그룹 01')
   api.pauseCandidates()
   await user.click(screen.getByRole('button', { name: '다시 확인' }))
-  expect(await screen.findAllByTestId('skeleton')).toHaveLength(2)
-  expect(screen.getByText('중복 환자 후보를 불러오는 중입니다')).toBeVisible()
+  expect(await screen.findByText('중복 환자 후보를 불러오는 중입니다')).toBeVisible()
   expect(screen.queryByLabelText('후보 그룹 01')).toBeNull() // 섞이면 옛 건수로 병합한다
 })
 

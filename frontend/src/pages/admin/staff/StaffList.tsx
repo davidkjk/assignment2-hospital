@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { BusyButton } from '../../../components/BusyButton'
 import { EmptyState } from '../../../components/EmptyState'
+import { LoadingState } from '../../../components/LoadingState'
 import { LinkShareBox } from '../../../components/LinkShareBox'
 import { ROLE_LABEL } from '../../../auth/roles'
 import { staffApi, type Department, type StaffMember } from '../../../api/staff'
@@ -162,9 +163,7 @@ export function StaffList({
       )}
 
       {loading && staff.length === 0 ? (
-        <p role="status" style={styles.muted}>
-          직원 목록을 불러오는 중…
-        </p>
+        <LoadingState variant="card" message="직원 목록을 불러오는 중입니다" />
       ) : error && staff.length === 0 ? (
         <EmptyState kind="error" onRetry={onRetry} />
       ) : staff.length === 0 ? (

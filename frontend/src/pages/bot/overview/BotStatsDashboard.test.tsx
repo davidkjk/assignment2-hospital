@@ -79,7 +79,7 @@ describe('BotStatsDashboard (BOTSTAT-DASH-*)', () => {
 
   it('[BOTSTAT-DASH-07] 조회 중에는 기간을 유지하고 로딩을 표시하며 이전 결과를 새 응답으로 가장하지 않는다', () => {
     render(<BotStatsDashboard api={mkApi(() => new Promise(() => {}))} range={range} onAudit={audit} />)
-    expect(screen.getByLabelText('현황 로딩')).toBeVisible()
+    expect(screen.getByText('현황을 불러오는 중입니다')).toBeVisible()
     expect(screen.queryByTestId('bot-metrics')).toBeNull()
   })
 
