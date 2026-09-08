@@ -41,6 +41,14 @@ async def register_profile(body: RegisterProfileRequest,
     return {"patient_id": patient_id}
 
 
+@router.post("/abandon-signup")
+async def abandon_signup(auth_user_id: UUID = Depends(get_current_auth_user_id)) -> dict:
+    # [NAV-AUTH-04b] 가입 ③프로필에서 "가입 그만두기" — 프로필 미완이면 반계정 폐기(막다른 길 해소).
+    # patients 행이 아직 없으므로 get_current_patient가 아니라 auth_user_id 의존성(register_profile과 동일).
+    await patient_profile_service.abandon_incomplete_signup(auth_user_id)
+    return {"status": "abandoned"}
+
+
 @router.get("/me")
 async def get_my_profile(patient: PatientContext = Depends(get_current_patient)) -> dict:
     return await patient_profile_service.get_my_profile(patient)

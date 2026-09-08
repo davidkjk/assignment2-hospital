@@ -27,6 +27,9 @@ abstract class SignupProfileRepo {
     required bool adsAgreed,
     required Map<String, String> documentVersions,
   });
+
+  /// [NAV-AUTH-04b] 가입 그만두기 — 인증만 되고 프로필 미완인 반계정을 폐기하고 로그아웃한다.
+  Future<void> abandonSignup();
 }
 
 class SignupProfileController {
@@ -57,6 +60,16 @@ class SignupProfileController {
       return e.message;
     }
   }
+
+  /// [NAV-AUTH-04b] 가입 그만두기 — 성공이면 null, 실패면 서버 문장. 성공 시 상위가 랜딩으로 보낸다.
+  Future<String?> abandon() async {
+    try {
+      await repo.abandonSignup();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    }
+  }
 }
 
 bool passwordOk(String pw) =>
@@ -67,12 +80,16 @@ class SignupProfileScreen extends StatefulWidget {
   final bool adsAgreed; // consentProvider.ads에서 넘어온다
   final SignupConsents consents; // consentProvider의 필수 3종(라우터가 주입) — 서버 계약에 실린다
   final VoidCallback onDone;
+
+  /// [NAV-AUTH-04b] 가입 그만두기 성공 시 상위(라우터)가 랜딩으로 보낸다. 없으면 그만두기 버튼을 숨긴다.
+  final VoidCallback? onCancel;
   const SignupProfileScreen(
       {super.key,
       required this.controller,
       this.adsAgreed = false,
       this.consents = (terms: false, privacy: false, sensitive: false),
-      required this.onDone});
+      required this.onDone,
+      this.onCancel});
   @override
   State<SignupProfileScreen> createState() => _SignupProfileScreenState();
 }
@@ -120,6 +137,36 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
       _error = err;
     });
     if (err == null) widget.onDone(); // AUTH-SIGNUP-07: 홈으로(축하 화면 없음)
+  }
+
+  /// [NAV-AUTH-04b] 가입 그만두기 — 인증만 하고 프로필 미완인 사람의 탈출구(막다른 길 해소).
+  /// 되돌릴 수 없고 다시 문자인증이 필요하므로 확인창 뒤에만 실행한다.
+  Future<void> _cancel() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('가입을 그만둘까요?'),
+        content: const Text('지금까지 입력한 내용이 사라지고, 다시 가입하려면 문자 인증을 처음부터 다시 해야 합니다.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('계속 작성')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: AppTokens.warn),
+              child: const Text('가입 그만두기')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    final err = await widget.controller.abandon();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = err;
+    });
+    if (err == null) widget.onCancel?.call(); // 랜딩으로(반계정 폐기·로그아웃 완료)
   }
 
   @override
@@ -251,11 +298,20 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: FilledButton(
-            style: AppButtonSize.cta, // 데모 ProfileStep: size=lg h-12 text-base
-            onPressed: (_canSubmit && !_busy) ? _submit : null, // AUTH-SIGNUP-06b
-            child: Text(_busy ? '가입 중…' : '가입 완료'),
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            FilledButton(
+              style: AppButtonSize.cta, // 데모 ProfileStep: size=lg h-12 text-base
+              onPressed: (_canSubmit && !_busy) ? _submit : null, // AUTH-SIGNUP-06b
+              child: Text(_busy ? '가입 중…' : '가입 완료'),
+            ),
+            // [NAV-AUTH-04b] 인증 뒤 막다른 길 탈출구 — 눈에 덜 띄는 텍스트 버튼(되돌릴 수 없어 확인창 뒤 실행).
+            if (widget.onCancel != null)
+              TextButton(
+                onPressed: _busy ? null : _cancel,
+                style: TextButton.styleFrom(foregroundColor: AppTokens.grayPending),
+                child: const Text('가입 그만두기'),
+              ),
+          ]),
         ),
       ]),
     );

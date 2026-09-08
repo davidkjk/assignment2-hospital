@@ -160,6 +160,28 @@ async def test_register_records_asserted_consent_values(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_abandon_signup_deletes_auth_when_profile_incomplete(committed_conn):
+    # [NAV-AUTH-04b] 가입 그만두기 — 프로필 미완(patients 미연결)이면 auth 계정을 삭제한다(막다른 길 해소).
+    uid = await _new_auth_user(committed_conn)
+    fake = MagicMock()
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=fake):
+        await patient_profile_service.abandon_incomplete_signup(uid)
+    fake.auth.admin.delete_user.assert_called_once_with(str(uid))
+
+
+@pytest.mark.asyncio
+async def test_abandon_signup_refuses_when_profile_complete(committed_conn):
+    # [NAV-AUTH-04b] 프로필이 이미 완성(patients 연결)됐으면 오용·오삭제 방지로 거부(정식 탈퇴 경로로).
+    p = await seed_patient(committed_conn)  # auth_user_id가 patients에 연결됨
+    fake = MagicMock()
+    with patch("app.services.patient_profile_service.get_admin_client", return_value=fake):
+        with pytest.raises(AppError) as e:
+            await patient_profile_service.abandon_incomplete_signup(p["auth_user_id"])
+    assert e.value.status_code == 409
+    fake.auth.admin.delete_user.assert_not_called()  # auth 안 건드림
+
+
+@pytest.mark.asyncio
 async def test_patient_cannot_directly_update_sensitive_columns(db_conn):
     # [SDB-18] 직접 UPDATE 정책 없음 — auth_user_id·is_active 자가변경/자가재활성 불가.
     # RLS는 정책 없는 UPDATE를 예외가 아니라 0행으로 조용히 막는다.

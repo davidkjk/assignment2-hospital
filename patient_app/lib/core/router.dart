@@ -203,6 +203,7 @@ GoRouter buildAppRouter({String initialLocation = '/landing', Listenable? refres
                     sensitive: consent.sensitive,
                   ),
                   onDone: () => c.go('/home'), // AUTH-SIGNUP-07: 홈으로(축하 화면 없음)
+                  onCancel: () => c.go('/landing'), // NAV-AUTH-04b: 가입 그만두기 → 랜딩(반계정 폐기·로그아웃 완료)
                 );
               }), // NAV-AUTH-08·09
         ),

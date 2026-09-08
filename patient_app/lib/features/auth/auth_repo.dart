@@ -127,6 +127,13 @@ class SupabaseSignupProfileRepo implements SignupProfileRepo {
         'document_versions': documentVersions,
         'ads_agreed': adsAgreed,
       }, (_) {});
+
+  @override
+  Future<void> abandonSignup() async {
+    // [NAV-AUTH-04b] 반계정 폐기(서버가 프로필 미완만 삭제) 후 로그아웃 — 세션이 남으면 라우터가 다시 step3로.
+    await api.post<void>('/patient/abandon-signup', {}, (_) {});
+    await auth.signOut();
+  }
 }
 
 final signupProfileRepoProvider = Provider<SignupProfileRepo>((ref) => SupabaseSignupProfileRepo(

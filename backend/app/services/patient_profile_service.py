@@ -70,3 +70,17 @@ async def deactivate_self(patient: PatientContext) -> None:
     #   거부할 수 있어(플랜의 구현 위험), 계정 삭제로 확실히 푼다 — 「누가 탈퇴했나」 흔적은
     #   patients.former_auth_user_id·deactivated_at에 이미 남겼다(B-37: 번호는 풀리고 흔적은 남는다).
     get_admin_client().auth.admin.delete_user(str(patient.auth_user_id))
+
+
+async def abandon_incomplete_signup(auth_user_id: UUID) -> None:
+    # [NAV-AUTH-04b][결정4, 2026-09-08] 가입 ③프로필(인증 성공 후)에서 "가입 그만두기".
+    # 인증만 되고 프로필이 미완인 반쯤-생성 계정(patients 미연결)을 폐기해 막다른 길을 없앤다.
+    # 재가입하려면 문자인증을 다시 하므로 auth 계정을 삭제해 번호를 푼다(deactivate_self와 같은 이유).
+    # ⚠️ 프로필이 이미 완성(patients 연결)됐으면 정식 탈퇴(deactivate_self)를 쓰게 거부한다 — 오용·오삭제 방지.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        linked = await conn.fetchval(
+            "select id from patients where auth_user_id = $1", auth_user_id)
+    if linked is not None:
+        raise AppError("이미 가입이 완료된 계정입니다. 설정에서 탈퇴를 진행해 주세요.", status_code=409)
+    get_admin_client().auth.admin.delete_user(str(auth_user_id))

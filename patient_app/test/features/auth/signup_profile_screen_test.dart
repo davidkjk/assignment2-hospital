@@ -5,8 +5,14 @@ import 'package:hospital_patient_app/core/api_client.dart';
 import 'package:hospital_patient_app/features/auth/signup_profile_screen.dart';
 
 class _FakeRepo implements SignupProfileRepo {
-  int pwSet = 0, created = 0;
+  int pwSet = 0, created = 0, abandoned = 0;
   String? failWith;
+  String? abandonFailWith;
+  @override
+  Future<void> abandonSignup() async {
+    if (abandonFailWith != null) throw ApiException(abandonFailWith!);
+    abandoned++;
+  }
   SignupConsents? lastConsents;
   Map<String, String>? lastDocumentVersions;
   bool? lastAdsAgreed;
@@ -164,5 +170,46 @@ void main() {
     expect(find.text('가입에 실패했습니다. 잠시 후 다시 시도해주세요.'), findsOneWidget);
     // 여전히 ③ 화면 — ①②로 되돌리지 않는다(인증은 이미 끝났다)
     expect(find.text('가입 완료'), findsOneWidget);
+  });
+
+  testWidgets('[NAV-AUTH-04b] 가입 그만두기 → 확인창(다시 문자인증 안내) 뒤에만 폐기·이탈', (t) async {
+    final repo = _FakeRepo();
+    var cancelled = false;
+    await t.pumpWidget(MaterialApp(
+        home: SignupProfileScreen(
+            controller: SignupProfileController(repo),
+            onDone: () {},
+            onCancel: () => cancelled = true)));
+    await t.ensureVisible(find.text('가입 그만두기'));
+    await t.tap(find.text('가입 그만두기'));
+    await t.pumpAndSettle();
+    // 확인창 — 다시 문자인증을 해야 함을 알린다(막다른 길이 아니라 명시적 이탈).
+    expect(find.textContaining('문자 인증'), findsOneWidget);
+    // 아직 폐기·이탈 전
+    expect(repo.abandoned, 0);
+    expect(cancelled, isFalse);
+    // 확인하면 반계정 폐기 + 랜딩으로
+    await t.tap(find.widgetWithText(TextButton, '가입 그만두기').last);
+    await t.pumpAndSettle();
+    expect(repo.abandoned, 1);
+    expect(cancelled, isTrue);
+  });
+
+  testWidgets('[NAV-AUTH-04b] 확인창에서 계속 작성을 누르면 폐기하지 않고 화면에 남는다', (t) async {
+    final repo = _FakeRepo();
+    var cancelled = false;
+    await t.pumpWidget(MaterialApp(
+        home: SignupProfileScreen(
+            controller: SignupProfileController(repo),
+            onDone: () {},
+            onCancel: () => cancelled = true)));
+    await t.ensureVisible(find.text('가입 그만두기'));
+    await t.tap(find.text('가입 그만두기'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('계속 작성'));
+    await t.pumpAndSettle();
+    expect(repo.abandoned, 0);
+    expect(cancelled, isFalse);
+    expect(find.text('가입 완료'), findsOneWidget); // 여전히 ③ 화면
   });
 }
