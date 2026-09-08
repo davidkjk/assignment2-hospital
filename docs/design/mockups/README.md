@@ -123,7 +123,16 @@
 | **90** | `90-admin-settings.html` | 병원 설정(알림 토큰·문자 정책) |
 | **62b** | `62b-staff-queue-readability.html` | 대기 목록 — 가독성 정본 견본 |
 
+### 상담봇 화면 (100~122)
+
+챗봇 트랙 목업. 정본 색·형태는 실제 `webchat/src/widget/widget.css`를 따른다.
+
+| 번호 | 파일 | 화면 |
+|---|---|---|
+| 100~121 | `10x-chatbot-*.html` · `11x-admin-chatbot-*.html` | 웹 익명 인계·장애·카드 재사용·흐름도, 관리자 지식/품질/대시보드 등 |
+| **122** | `122-chatbot-web-booking-flow-cards.html` | 🆕 **웹 예약 앞흐름 카드**(`WEBCARD-DEPT/DOC/DATE/TARGET/WHY`) + **앱 예약 마법사 인계**(`BOOK-BOT-WIZARD`) + **취소 안내 웹/앱**(`WEBCHAT-CANCEL-GUIDE`·`BOOK-BOT-WIZARD-CANCEL`). 102가 못 담은 예약 앞흐름·채널 분기를 채웠다. 내용은 `FlowCards.tsx`·`booking_agent_service.py`에서 옮김 |
+
 ## 아직 안 만든 것
 
 - ~~**직원 웹 16화면**~~ → ✅ **위 76~90 + 기존 47~75로 완료**(2026-08 병합). 밀도·가독성 토큰은 **47번 · `80b`/`62b`에서 확정**. 남은 직원 웹 화면 없음.
-- **챗봇 화면**(상담 채팅, 카드형 메시지, 빠른 답변 버튼)
+- ~~**챗봇 화면**(상담 채팅, 카드형 메시지, 빠른 답변 버튼)~~ → ✅ **100~122로 완료**(예약 앞흐름 카드 레이아웃은 122가 마지막 미결이었음).
