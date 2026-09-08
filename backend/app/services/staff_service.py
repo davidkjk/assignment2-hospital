@@ -100,17 +100,30 @@ async def _create_staff_row(
     conn,
 ) -> UUID:
     """staff 행을 만든다(의사면 캘린더 색 자동 배정 — CAL-COLOR-08). invite_staff의 정상 경로와
-    고아 계정 구제 경로가 같은 삽입을 공유한다."""
+    고아 계정 구제 경로가 같은 삽입을 공유한다.
+
+    ⛔ 동시 초대 레이스에 멱등하다 — 같은 이메일을 두 번(느려서 두 번 누르거나 두 관리자가 동시에)
+    초대하면 두 요청이 이 계정의 staff 행을 각각 만들려 한다. auth_user_id에 unique 제약이 있어
+    (00001) 두 번째 insert는 원래 미처리 500(유니크 위반)으로 터졌고, 프론트에 「성공 링크 + 실패
+    배너」가 겹쳐 보였다(2026-09-08). on conflict do nothing으로 받아, 먼저 만든 행의 id를 그대로
+    돌려준다(초대는 한 번만 성립 = 멱등). 프론트 재진입 가드(STAFF-INVITE-11)와 이중 방어."""
     async def _run(c):
         color = await c.fetchval(_NEXT_COLOR_SQL) if role == "doctor" else None
-        return await c.fetchval(
+        staff_id = await c.fetchval(
             """
             insert into staff (auth_user_id, name, role, department_id, calendar_color_index)
             values ($1, $2, $3, $4, $5)
+            on conflict (auth_user_id) do nothing
             returning id
             """,
             auth_user_id, name, role, department_id, color,
         )
+        if staff_id is None:
+            # 레이스에서 진 쪽 — 다른 요청이 먼저 이 계정의 staff 행을 만들었다. 그 행을 그대로 쓴다.
+            staff_id = await c.fetchval(
+                "select id from staff where auth_user_id = $1", auth_user_id
+            )
+        return staff_id
 
     if conn is not None:
         return await _run(conn)

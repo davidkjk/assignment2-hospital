@@ -74,6 +74,32 @@ async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_create_staff_row_is_idempotent_on_concurrent_duplicate(db_conn):
+    """[STAFF-INVITE-11] 같은 계정으로 staff 행을 두 번 만들려 해도(동시 초대 레이스) 미처리 500이
+    아니라 먼저 만든 행의 id를 그대로 돌려준다(멱등). auth_user_id unique(00001) 위반을 on conflict로
+    흡수해, 프론트에 「성공 링크 + 실패 배너」가 겹치던 근본 원인을 서버에서도 막는다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    auth_id = uuid4()
+    await db_conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, 'dup@test.local', '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        auth_id,
+    )
+
+    first = await staff_service._create_staff_row(auth_id, "김간호", "receptionist", None, admin_ctx, db_conn)
+    second = await staff_service._create_staff_row(auth_id, "김간호", "receptionist", None, admin_ctx, db_conn)
+
+    assert first is not None
+    assert second == first  # 두 번째 삽입도 예외 없이 같은 행 id를 돌려준다(멱등)
+    count = await db_conn.fetchval("select count(*) from staff where auth_user_id = $1", auth_id)
+    assert count == 1  # 행은 하나만 생긴다
+
+
+@pytest.mark.asyncio
 async def test_invite_staff_returns_link_and_sends_email(db_conn, _fake_resend_client):
     """[STAFF-INVITE-LINK-01·하이브리드] 초대는 링크를 만들어 돌려주면서(관리자가 직접 전달 가능)
     초대(환영) 메일도 자동 발송한다(도메인 인증 후, 2026-09-07). 메일이 실패해도 링크는 화면에
