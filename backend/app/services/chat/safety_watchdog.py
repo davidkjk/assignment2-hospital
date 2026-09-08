@@ -86,4 +86,10 @@ async def check_escalation(text, history_texts, *, unhelpful_flagged=False,
     # 진단어("무슨 병")가 없으면 안내가 맞다(요구사항 L49·L57 vs L51). 상위 orchestrator가 이어서 classify로 department_guide 판정.
     if label == "medical_judgment" and check_department_inquiry(text):
         return None
+    # ⚠️ 정책성 질문 과오탐(2026-09-07 원격 e2e 발견): "마스크 꼭 써야 하나요?"류 의무형이
+    # medical_judgment로 일관 오분류돼(재현 5/5) RAG 도달 전 인계된다(KB엔 "권장" 답이 있고
+    # "마스크 착용 규정?"·"감염 예방 수칙"은 rag로 정답). **사용자 결정 2026-09-07: 현행 유지** —
+    # 안전측 인계 우선(설계 철학 "오탐<미탐"), 예시 1건으로 카브아웃을 신설하면 진짜 의료판단 인계를
+    # 억누를 위험이 더 크다. 정책성 질문 인계가 운영 중 반복되면 위 check_department_inquiry 선례처럼
+    # 결정적 카브아웃을 신설한다(그때 screen-behaviors+결정문서 정본화). 기각: 지금 카브아웃 신설.
     return label
