@@ -46,9 +46,13 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     normal = [c for c in chunks if not c["is_restricted"]]
     sources = [{"chunk_id": c["id"], "title_snapshot": c["title"], "body_snapshot": c["content"],
                 "rank": i, "similarity": float(c["similarity"])} for i, c in enumerate(chunks)]
-    # A3: 질문 전체가 제한 주제(일반 근거 없음)면 제한 원문 + [직원 연결]만.
-    if restricted and not normal:
-        return {"reply": None, "restricted_block": restricted[0]["content"],
+    # A3(결정 2026-08-12·spec §3): 검색 1위가 제한 자료면 Claude 호출 없이 원문을 별도 블록에 그대로.
+    #   ⚠️ "일반 청크가 0개일 때만"이 아니다 — 엉뚱한 일반 청크가 top-5에 1개라도 끼면(제한+일반 혼합)
+    #   LLM 경로로 새고, 근거로 준 일반 청크에 답이 없으면 NO_ANSWER가 되어 제한 원문까지 폐기되던 버그가
+    #   있었다(2026-09-08 rag_diag 실측: CT조영·바륨·대장 모두 1위 제한자료인데 no_answer). 1위 기준이 정본.
+    #   "일반 자료가 함께 걸리면 일반 주제는 답한다"는 1위가 '일반'일 때 아래 LLM 경로(:76)가 처리한다.
+    if chunks[0]["is_restricted"]:
+        return {"reply": None, "restricted_block": chunks[0]["content"],
                 "actions": ["직원 연결"], "sources": sources}
     # 일반 자료로 평소대로 답하고, 제한 자료가 함께 걸리면 원문 그대로 별도 블록으로 덧붙인다.
     context = "\n\n".join(c["content"] for c in normal)
