@@ -487,7 +487,13 @@ async def test_concurrent_deactivation_keeps_one_active_admin(db_pool):
     failures = [r for r in results if isinstance(r, AppError)]
     assert len(successes) == 1
     assert len(failures) == 1
-    assert failures[0].status_code == 409
+    # 거부된 쪽의 상태코드는 레이스 타이밍에 따라 둘 중 하나다 — 둘 다 안전한 거부다:
+    #  · 409: 먼저 잠금을 잡은 트랜잭션이 「마지막 남은 관리자」 가드에 걸림(활성 관리자 <= 1).
+    #  · 404: 진 쪽 행위자(deactivated_by)가 그 찰나에 상대 트랜잭션으로 먼저 비활성화돼,
+    #        `acquire_as`의 RLS(`is_active_staff()`) 게이트에 자기 커넥션이 걸려 대상 staff 행을
+    #        아예 못 봄. 어느 경우든 두 번째 중지는 거부되고 아래 불변식(활성 관리자 정확히 1명)은
+    #        지켜진다. 에러코드 하나로 못박으면 이 정당한 레이스에서 CI가 플래키해진다.
+    assert failures[0].status_code in (404, 409)
 
     async with db_pool.acquire() as check_conn:
         active_admin_count = await check_conn.fetchval(
