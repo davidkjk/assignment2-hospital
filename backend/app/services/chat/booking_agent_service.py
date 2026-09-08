@@ -13,6 +13,18 @@ BOOKING_REPLY_NAMED = "{name}로 예약을 도와드릴게요. 담당의를 골�
 WIZARD_REPLY = "예약은 예약 마법사에서 도와드릴게요. 지금 이동하시겠어요?"
 WIZARD_REPLY_NAMED = "{name} 예약을 도와드릴게요. 예약 마법사로 이동하시겠어요?"
 
+# [WEBCHAT-CANCEL-GUIDE] 요구사항 L49: 상담봇은 예약 변경·취소를 '안내'만 한다(실행 아님).
+# 봇이 직접 취소를 실행하지 않는다(되돌릴 수 없는 동작은 봇 자동실행 최소화, 사용자 결정 2026-09-07).
+# → 취소 의도는 "앱에서 직접 취소 / 직원 상담 연결" 안내 + [직원에게 연결] 칩으로 돌린다.
+# TODO(앱 다운로드 링크 확보 시): 안내에 앱 설치 버튼/링크 추가(현재 링크 없음).
+CANCEL_GUIDANCE_REPLY = "예약 취소는 앱의 예약 내역에서 직접 하시거나, 직원 상담으로 도와드릴 수 있어요."
+CANCEL_HANDOFF_CHIP = "직원에게 연결"
+
+
+def _is_cancel_intent(message: str) -> bool:
+    # 라우터가 예약·취소를 함께 agent로 보내므로(chat_router 프롬프트) agent 안에서 취소를 가른다.
+    return "취소" in message
+
 
 async def _default_list_departments() -> list[dict]:
     from app.db.pool import get_pool
@@ -42,6 +54,10 @@ def _match_department(message: str, departments: list[dict]) -> dict | None:
 async def booking_agent(session, message: str, *, list_departments_fn=None, list_doctors_fn=None) -> dict:
     """[WEBBOOK-01] 예약 의도 → 진료과 선택 카드. 진료과명이 메시지에 있으면 의사 카드로 지름길(①-하이브리드 자연어 갈래).
     반환 {reply, card} — orchestrate가 {route_taken:'agent', **result}로 병합한다. reply는 항상 비어 있지 않다."""
+    if _is_cancel_intent(message):
+        # [WEBCHAT-CANCEL-GUIDE] 취소는 봇이 실행하지 않고 앱/직원상담으로 안내한다(요구사항 L49 '안내').
+        return {"reply": CANCEL_GUIDANCE_REPLY,
+                "card": card_builder.build_quick_replies_card(replies=[], handoff_chip=CANCEL_HANDOFF_CHIP)}
     departments = await (list_departments_fn or _default_list_departments)()
     named = _match_department(message, departments)
     if named is not None:

@@ -53,6 +53,30 @@ async def test_named_department_with_no_doctors_still_reaches_doctor_card_empty(
 
 
 @pytest.mark.asyncio
+async def test_cancel_intent_returns_guidance_not_booking_card():
+    # [WEBCHAT-CANCEL-GUIDE] 요구사항 L49: 상담봇은 예약 변경·취소를 '안내'만 한다(실행 아님).
+    # "예약을 취소하고 싶어요" → 예약 진료과 카드가 아니라 안내(앱/직원상담) + [직원에게 연결] 칩.
+    out = await booking_agent_service.booking_agent(
+        None, "예약을 취소하고 싶어요",
+        list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]))
+    assert out["reply"]                                   # 안내 문구 비어 있지 않음
+    assert "앱" in out["reply"]                            # 앱에서 직접 취소 가능 안내
+    assert out["card"]["card_type"] == "quick_replies"    # 예약 카드(department_select) 아님
+    assert out["card"]["handoff_chip"] == "직원에게 연결"    # 직원 상담 칩
+
+
+@pytest.mark.asyncio
+async def test_cancel_intent_takes_priority_over_department_name():
+    # [WEBCHAT-CANCEL-GUIDE] 진료과명이 함께 있어도 취소가 우선 — 예약 지름길(의사 카드)로 새지 않는다.
+    out = await booking_agent_service.booking_agent(
+        None, "내과 예약 취소해줘",
+        list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]),
+        list_doctors_fn=_doctors_fn([{"id": "s1", "name": "김의사"}]))
+    assert out["card"]["card_type"] == "quick_replies"
+    assert out["card"]["handoff_chip"] == "직원에게 연결"
+
+
+@pytest.mark.asyncio
 async def test_wizard_handoff_returns_open_wizard_card():
     # [BOOK-BOT-WIZARD] 앱 경로 예약 의도 → 예약 마법사 인계 카드(대화 내 예약 아님, 결정 B)
     out = await booking_agent_service.booking_wizard_handoff(
