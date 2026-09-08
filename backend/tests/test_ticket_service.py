@@ -119,3 +119,29 @@ async def test_list_tickets_latest_first_with_id_tiebreak(db_conn):
         "select id from support_tickets where thread_id=$1 order by created_at desc, id desc", t)
     got = [r["id"] for r in rows]
     assert got == sorted(ids, reverse=True)
+
+
+@pytest.mark.asyncio
+async def test_detail_shows_anonymous_applicant_name_from_payload(db_conn):
+    # Q26: 익명 웹 상담 인계(anonymous_handoff)의 신청자 이름은 payload에만 있어 예전엔 상세 대화에 안 떴다
+    #   (본문 쿼리가 content만 SELECT). 상세 메시지 body가 '상담 신청자: {이름}'으로 오는지 확인(직원이
+    #   답변 대상 식별). 전화 원문은 여전히 미노출.
+    import json
+    p = await seed_patient(db_conn)
+    t = await seed_chat_thread(db_conn, patient_id=p["patient_id"])
+    ticket = await _open_ticket(db_conn, t)
+    # 시스템 메시지 insert는 서비스 경로(create_anonymous_handoff) 몫이라, 직원 세션 설정 전에 넣는다
+    #   (staff 세션에선 RLS로 chat_messages INSERT가 막힌다).
+    for payload in (
+        {"event": "anonymous_handoff", "name": "홍길동", "summary": "예약 문의"},
+        {"event": "anonymous_handoff", "name": "  ", "summary": ""},  # 이름 미기재 케이스
+    ):
+        await db_conn.execute(
+            "insert into chat_messages (thread_id, support_ticket_id, sender_type, message_type, payload) "
+            "values ($1, $2, 'system', 'system', $3::jsonb)", t, ticket, json.dumps(payload))
+    st = await seed_staff(db_conn, role="doctor")
+    await set_session_auth(db_conn, st["auth_user_id"])
+    bodies = [r["body"] for r in await db_conn.fetch(ticket_service._DETAIL_MESSAGES_SQL, t)
+              if r["sender"] == "system"]
+    assert "상담 신청자: 홍길동" in bodies
+    assert "상담 신청자: (이름 미기재)" in bodies  # 빈 pill이 아니라 자리표시

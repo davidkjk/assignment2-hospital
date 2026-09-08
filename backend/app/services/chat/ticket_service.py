@@ -221,7 +221,14 @@ patient_cursor as (
 select
   cm.id::text as id,
   case cm.sender_type when 'bot' then 'ai' else cm.sender_type end as sender,
-  cm.content as body,
+  -- Q26: 익명 웹 상담 인계(anonymous_handoff)의 신청자 이름은 payload에만 있어 예전엔 content(null)로 와
+  --   빈 pill이 됐다(직원이 답변 대상 이름을 못 봄). 서버에서 body를 '상담 신청자: {이름}'으로 만들어
+  --   기존 시스템 pill이 그대로 이름을 표시하게 한다(payload 원문은 노출하지 않는다). 전화 원문은 미노출 유지.
+  case
+    when cm.message_type = 'system' and cm.payload->>'event' = 'anonymous_handoff'
+      then '상담 신청자: ' || coalesce(nullif(trim(cm.payload->>'name'), ''), '(이름 미기재)')
+    else cm.content
+  end as body,
   to_char(cm.created_at at time zone 'Asia/Seoul', 'HH24:MI') as at,
   (cm.sender_type = 'staff'
      and (select at from patient_cursor) is not null
