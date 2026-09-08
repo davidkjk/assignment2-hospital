@@ -5,9 +5,13 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.patient_security import PatientContext, get_current_patient   # 3단계 환자 인증
+from app.db.pool import get_pool
 from app.integrations.embedding_client import get_embedding_client
 from app.integrations.langchain_client import get_chat_model
-from app.services.chat import anonymous_service, chat_flow_service, ai_session_service, patient_ai_session, webchat_service
+from app.services import department_service
+from app.services.chat import (
+    anonymous_service, chat_flow_service, ai_session_service, dept_guide_service,
+    patient_ai_session, webchat_service)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -45,6 +49,14 @@ class StartSessionRequest(BaseModel):
     resume_from: UUID | None = None
     # fresh=[새 대화]: 활성 세션이 있어도 무시하고 과거 문맥 없는 새 상담방을 연다(CHAT-ROOM-NEW-01).
     fresh: bool = False
+
+
+class DeptGuideRequest(BaseModel):
+    # 예약 중 진료과 추천(제한모드, E4). 세션 없이 대화 이력을 통째로 실어 보낸다 — history=이전 환자 발화들.
+    model_config = ConfigDict(populate_by_name=True)
+    message: str
+    history: list[str] = Field(default_factory=list)
+    relation: str = "본인"   # 예약 대상 관계(본인/가족) — 안내 문구 톤에만 쓴다
 
 
 class ReadRequest(BaseModel):
@@ -109,6 +121,19 @@ async def start_session(
             patient, thread_id=body.thread_id, resume_from=body.resume_from, fresh=body.fresh)
     # 익명: 토큰이 있으면 복원, 없으면 서버가 발급해 anonToken으로 돌려준다.
     return await webchat_service.start_or_restore_session(x_anon_token)
+
+
+@router.post("/dept-guide")
+async def dept_guide(body: DeptGuideRequest, request: Request, model=Depends(get_model_dep)):
+    # BOOK-DEPT-02 예약 마법사 2단계 "어느 과인지 모르겠어요" 시트 전용(제한모드, E4).
+    # 로그인 환자만(예약 흐름). 세션·스레드를 만들지 않고 진료과만 추천한다 — '지난 상담'에 안 남는다.
+    await get_current_patient(request)   # 인증 확인(소유 리소스는 없지만 로그인 강제)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        departments = await department_service.list_departments(conn)   # 활성 진료과만
+    return await dept_guide_service.guide(
+        message=body.message, history=body.history, departments=departments,
+        relation=body.relation, model=model)
 
 
 @router.get("/threads")

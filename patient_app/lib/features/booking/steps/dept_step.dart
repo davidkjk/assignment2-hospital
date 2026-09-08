@@ -58,13 +58,17 @@ class DeptStep extends ConsumerWidget {
 //   그래도 위 진료과 카드(흰 카드+화살표)와 같은 모양이라 "또 하나의 흐린 카드 줄"로 읽혔다(사용자 재지적).
 // → 카드 목록과 의도적으로 다른 "톤 버튼"으로 재디자인: 딥틸 원형 아이콘 배지(누르는 액션의 핵심 신호)
 //   + 솔리드 톤 면 + 화살표 제거(목록 이동 어포던스라 버튼감을 죽임). 주 버튼(ActionButton)보다는 조용하게.
+// #26(2026-09-08): 여전히 "버튼 같지 않다" → 색(틴트)은 그대로 두고 **그림자(elevation)**를 주어
+//   면 위로 떠 보이게 하고, 보조문구를 "눌러야 한다"는 행동 지시("눌러서 …물어보세요")로 바꿔 탭 어포던스를 못박는다.
 class _DeptBotEntry extends StatelessWidget {
   const _DeptBotEntry({required this.onTap});
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTokens.primary.withValues(alpha: 0.10), // 옅은 카드가 아니라 채워진 톤 버튼 면
+      color: AppTokens.primary.withValues(alpha: 0.10), // 옅은 카드가 아니라 채워진 톤 버튼 면(색 유지)
+      elevation: 3, // #26 — 떠 보이는 그림자로 "누르는 버튼"임을 시각적으로 못박는다
+      shadowColor: AppTokens.primary.withValues(alpha: 0.45),
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -81,7 +85,7 @@ class _DeptBotEntry extends StatelessWidget {
                     style: TextStyle(
                         color: AppTokens.primary, fontWeight: FontWeight.w700, fontSize: 15)),
                 SizedBox(height: 2),
-                Text('증상을 말씀하시면 AI 상담봇이 안내해드립니다',
+                Text('눌러서 AI 상담봇에게 물어보세요', // #26 — 탭 행동 지시(안내가 아니라 "눌러야 한다")
                     style: TextStyle(fontSize: 12, color: AppTokens.grayPending)),
               ]),
             ),
