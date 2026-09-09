@@ -20,6 +20,26 @@ EXAMPLE_MATCH_COUNT = 2              # 품질 개선 사이클(오답 교정 →
 # 근거에 답이 없을 때 모델이 이 토큰만 내도록 지시 → 인계로 전환(엉뚱한 답 방지, 문자열 판정보다 안정).
 _NO_ANSWER_SENTINEL = "NO_ANSWER"
 
+# 답변 작성 지침(리포트 §4.6·§9.6 Sprint 1.3). 얇은 한 줄 프롬프트 → 페르소나 + 대화 원칙.
+#   목적: "분기마다 다른 인격"(§2.5)과 "지나치게 얇은 프롬프트"(§2.4)를 함께 해소.
+#   ⚠️ 의료 안전 두 축은 그대로 유지한다 — ① 병원 자료만 근거(지어내기 금지) ② 답 없으면 NO_ANSWER.
+#   {context}는 ChatPromptTemplate 변수라 이 문자열 안의 유일한 중괄호여야 한다(다른 { } 쓰지 말 것).
+_ANSWER_SYSTEM_PROMPT = (
+    "<역할>\n"
+    "당신은 가온병원 AI 상담봇입니다. 병원 이용·예약·진료과 안내를 돕습니다. "
+    "진단이나 처방은 하지 않습니다.\n"
+    "</역할>\n"
+    "<대화_원칙>\n"
+    "- 사용자가 물은 핵심을 첫 문장에 직접 답합니다.\n"
+    "- 아래 <병원_자료>만 근거로 삼고, 자료를 벗어나 지어내지 않습니다.\n"
+    "- 단순 정보 질문에는 과한 공감 표현 없이 바로 답합니다.\n"
+    "- 불편이나 불안이 드러날 때만 짧게 공감한 뒤 안내합니다.\n"
+    "- 핵심 답 뒤에 필요한 설명은 2~4개의 짧은 문장으로만 덧붙입니다.\n"
+    f"- 자료에 질문의 답이 없으면 다른 말 없이 정확히 '{_NO_ANSWER_SENTINEL}'만 출력합니다.\n"
+    "</대화_원칙>\n"
+    "<병원_자료>\n{context}\n</병원_자료>"
+)
+
 
 async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5) -> dict:
     # 검색용 질의는 동의어 확장(Sprint 1.2): "씨티"→"CT"도 함께 실어 임베딩·트라이그램이 KB 원문을 찾게 한다.
@@ -61,10 +81,7 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     # 일반 자료로 평소대로 답하고, 제한 자료가 함께 걸리면 원문 그대로 별도 블록으로 덧붙인다.
     context = "\n\n".join(c["content"] for c in normal)
     # 근거는 어디까지나 위 병원 자료다 — 예시는 어투·정확도 참고용 few-shot으로만 얹는다(예시로 답을 지어내지 않게).
-    messages = [("system",
-                 "아래 병원 자료만 근거로 간결히 답하세요. 자료를 벗어나 지어내지 마세요.\n"
-                 f"자료에 질문의 답이 없으면 다른 말 없이 정확히 '{_NO_ANSWER_SENTINEL}'만 출력하세요.\n"
-                 "{context}")]
+    messages = [("system", _ANSWER_SYSTEM_PROMPT)]
     fmt = {"context": context, "q": message}
     if examples:
         few_shot = "\n\n".join(f"질문: {e['question']}\n답변: {e['answer']}" for e in examples)

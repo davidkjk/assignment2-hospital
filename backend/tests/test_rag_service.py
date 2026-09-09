@@ -156,6 +156,55 @@ async def test_llm_question_keeps_original_text(committed_conn):
     await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
 
 
+async def _seed_normal_chunk(conn, title="주차 안내", content="지하에 주차할 수 있습니다."):
+    vecstr = "[" + ",".join(["1.0"] + ["0.0"] * 1535) + "]"
+    doc = await conn.fetchval(
+        "insert into kb_documents (title, content, status, is_restricted) "
+        "values ($1,$2,'approved',false) returning id", title, content)
+    await conn.execute(
+        "insert into kb_chunks (document_id, chunk_index, content, embedding) "
+        "values ($1,0,$2,$3::vector)", doc, content, vecstr)
+    return doc
+
+
+class _RecModel:
+    def __init__(self): self.text = None
+    async def ainvoke(self, msgs):
+        self.text = " ".join(getattr(m, "content", str(m)) for m in msgs)
+        class R: content = "지하에 주차할 수 있습니다."
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_answer_prompt_carries_persona_and_conversation_policy(committed_conn):
+    # Sprint 1.3(리포트 §4.6): 얇은 프롬프트 → 페르소나 + 대화 원칙(첫 문장 직접 답·공감 적정선).
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await _seed_normal_chunk(committed_conn)
+    rec = _RecModel()
+    await rag_service.rag_answer("주차 되나요", embedder=_Fixed(), model=rec)
+    assert "가온병원" in rec.text            # 페르소나 정체성
+    assert "진단" in rec.text                # 진단·처방 안 함 경계
+    assert "첫 문장" in rec.text             # 핵심을 첫 문장에 직접 답하는 원칙
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_answer_prompt_preserves_grounding_and_no_answer_safety(committed_conn):
+    # 회귀 가드: 프롬프트를 풍성하게 바꿔도 의료 안전 두 축은 반드시 남는다 —
+    #   ① 병원 자료만 근거(지어내기 금지) ② 답 없으면 NO_ANSWER 센티넬.
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await _seed_normal_chunk(committed_conn)
+    rec = _RecModel()
+    await rag_service.rag_answer("주차 되나요", embedder=_Fixed(), model=rec)
+    assert "자료" in rec.text and "지어내" in rec.text   # 근거 한정·지어내기 금지
+    assert "NO_ANSWER" in rec.text                       # 근거 부족 시 인계 센티넬
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
 @pytest.mark.asyncio
 async def test_similar_qa_example_injected_as_fewshot(committed_conn):
     # 품질 개선 사이클: 오답 교정으로 쌓인 참고 예시가 비슷한 질문의 RAG 프롬프트에 few-shot으로 주입된다.
