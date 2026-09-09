@@ -38,6 +38,21 @@ def test_missing_query_terms_is_case_insensitive():
     assert sc.missing_query_terms("물 마셔도 돼요", ["CT", "조영제"]) == ["CT", "조영제"]
 
 
+def test_department_match_scores_triage_recommendation():
+    # triage 진료과 추천 정확도(증상→과). expected_department가 과 이름이면 실제 추천이 그 과여야 통과.
+    assert sc.department_match("정형외과", "정형외과") is True
+    assert sc.department_match("내과", "정형외과") is False
+
+
+def test_department_match_none_means_honest_no_department():
+    # 없는 과(피부·생리·마음건강 등)는 '추천 없음(정직 안내)'이 정답 → 둘 다 없음일 때만 통과.
+    #   빈 문자열과 None을 동치로 본다(추천 미매칭 = 없음).
+    assert sc.department_match(None, None) is True
+    assert sc.department_match(None, "") is True
+    assert sc.department_match(None, "피부과") is False       # 없는 과를 억지로 추천하면 실패
+    assert sc.department_match("내과", None) is False          # 있는 과를 못 잡아도 실패
+
+
 # ── 러너 헬퍼: 케이스 turns → 현재 메시지 + 이력 (프로덕션 build_history와 동형, 순수) ──
 
 def test_case_message_and_history_single_turn_has_empty_history():
@@ -97,3 +112,17 @@ def test_expected_source_titles_reference_known_kb_docs():
     for c in cases:
         for title in c.get("expected_source_titles", []):
             assert f"'{title}'" in seed, f"{c['id']}: KB에 없는 근거 제목 '{title}'"
+
+
+def test_triage_cases_have_valid_expected_department():
+    # triage(증상→과) 케이스는 expected_department가 있어야 하고, 값은 데모 4개 과 이름이거나
+    #   null(우리 병원에 없는 과 → 정직 안내 = 추천 없음)이어야 한다(seed_demo.sql 진료과 대조).
+    demo_depts = {"내과", "정형외과", "이비인후과", "소아과"}
+    cases = [json.loads(line) for line in CASES_PATH.read_text().splitlines() if line.strip()]
+    triage = [c for c in cases if c.get("category", "").startswith("triage")]
+    assert triage, "triage 케이스가 골든셋에 있어야 합니다"
+    for c in triage:
+        assert "expected_department" in c, f"{c['id']}: triage 케이스는 expected_department 필요"
+        assert c["expected_route"] == "department_guide", f"{c['id']}: triage는 department_guide 경로"
+        dept = c["expected_department"]
+        assert dept is None or dept in demo_depts, f"{c['id']}: 진료과는 데모 4과 또는 null이어야(현재 {dept!r})"

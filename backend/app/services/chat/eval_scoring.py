@@ -30,6 +30,15 @@ def missing_query_terms(query: str, required_terms: list[str]) -> list[str]:
     return [t for t in (required_terms or []) if t.lower() not in q]
 
 
+def department_match(expected, actual) -> bool:
+    # triage 진료과 추천 정확도(증상→과). 러너가 dept_guide 결과의 suggested_department 이름을 채점한다.
+    #   · expected=None(빈 문자열 포함): '우리 병원에 없는 과 → 정직 안내(추천 없음)'가 정답 →
+    #     실제도 추천이 없어야(None/'') 통과한다. 없는 과를 억지로 추천하면 실패(정직 안내 위반).
+    #   · expected=진료과명: 실제 추천이 정확히 그 과여야 통과한다.
+    #   빈 문자열과 None은 동치(추천 미매칭 = 없음)로 본다.
+    return (expected or None) == (actual or None)
+
+
 def scorable(*, no_answer: bool, needs_clarification: bool) -> bool:
     # 이 케이스 결과를 recall·근거 충실성 집계에 넣을지. needs_clarification(애매한 질문에 대한
     #   되묻기)은 정상 rag 흐름이라 '답변 실패'가 아니다(리포트 §7) → 집계에서 뺀다.
