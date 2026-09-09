@@ -9,6 +9,12 @@ from app.services.chat import (orchestrator, rag_service, quality_service, card_
                                conversation_understanding)
 
 
+# rag_fn 호출 형태 구분 sentinel(전면 통합). orchestrate가 legacy 모드면 rag_fn(s, m)로 2-arg 호출
+#   → 여기서 스스로 후속질문을 재작성한다(계약 무변경). llm 모드면 이해기가 낸 검색질의를
+#   retrieval_query=... 로 넘겨 이 재작성을 건너뛴다(질문 이해가 한 곳으로 통합됐으므로 중복 방지).
+_LEGACY_REWRITE = object()
+
+
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
 #   ⚠️ DB sender_type은 둘 다 'patient'다 — chat_messages_sender_shape는 'patient'일 때
 #      sender_patient_id XOR sender_anonymous_session_id를 요구한다('anonymous_web'은 sender_type 값이 아님).
@@ -119,14 +125,17 @@ async def handle_message(session, content: str, *, thread_id: UUID,
             "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW + 1)
     history_texts = build_history(hist, current_id)
 
-    async def rag_fn(s, m):
+    async def rag_fn(s, m, retrieval_query=_LEGACY_REWRITE):
         # Sprint 2(멀티턴 재작성): 후속 질문이면 지시어·생략을 푼 독립형 질의로 검색한다(리포트 §4.2·§9.4).
         #   후속 신호가 있을 때만 재작성 LLM을 한 번 태우고(첫 질문·자기완결 질문엔 낭비), 재작성+원문을
         #   concat해 검색에만 쓴다. 화면·LLM 질문엔 원문(m)이 그대로 간다. 재작성 실패는 원문으로 폴백.
-        retrieval_query = None
-        if conversation_understanding.has_followup_signal(m, history_texts):
-            standalone = await conversation_understanding.rewrite_standalone(m, history_texts, model=model)
-            retrieval_query = conversation_understanding.build_search_query(m, standalone)
+        # 전면 통합(llm 모드): orchestrate가 이해기에서 낸 검색질의를 retrieval_query로 넘기면 그것을 쓴다
+        #   (재작성이 이미 이해기에서 끝났으므로 여기선 다시 안 태운다). legacy(2-arg)면 아래에서 스스로 재작성.
+        if retrieval_query is _LEGACY_REWRITE:
+            retrieval_query = None
+            if conversation_understanding.has_followup_signal(m, history_texts):
+                standalone = await conversation_understanding.rewrite_standalone(m, history_texts, model=model)
+                retrieval_query = conversation_understanding.build_search_query(m, standalone)
         return await rag_service.rag_answer(m, embedder=embedder, model=model,
                                             retrieval_query=retrieval_query)
 

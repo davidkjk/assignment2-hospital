@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     chat_model: str = "claude-sonnet-5"
+    # 질문 이해 방식(전면 통합, 세션46 GO). legacy=흩어진 이해(② 라우터 classify + 후속질문 rewrite,
+    #   호출 2회), llm=이해기 1콜(conversation_understanding.understand)로 통합. 기본 legacy(되돌리기 3겹
+    #   중 플래그 OFF). ⚠️ 안전(응급·직원요청·check_escalation)·답변생성은 두 모드 모두 앞/뒤단 그대로.
+    #   llm 모드가 실패·형식 위반이면 자동으로 legacy 경로로 폴백한다(장애/자동인계로 안 번짐).
+    chat_understanding_mode: str = "legacy"
     embedding_model: str = "text-embedding-3-small"
     anon_rate_limit_per_hour: int = 30
     # 익명 웹 상담 연락처(전화)의 대칭 암복호 키(Fernet base64). 비면 codec은 import는 되되

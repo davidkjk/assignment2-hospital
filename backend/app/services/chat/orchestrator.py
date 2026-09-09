@@ -1,7 +1,8 @@
 # 매 메시지 파이프라인: ⓪응급 → ①인계감시 → ②라우터 → 갈래 실행. 인계 조건은 어느 갈래든 우선한다.
 import json
 
-from app.services.chat import safety_watchdog, chat_router, intent_precheck
+from app.services.chat import (safety_watchdog, chat_router, intent_precheck,
+                               conversation_understanding)
 
 def session_value(session, key, default=None):
     # session은 서비스가 넘긴 dict/asyncpg Record일 수도, 테스트가 넘긴 객체(SimpleNamespace)일 수도 있다.
@@ -97,8 +98,11 @@ async def make_handoff_summary(history_text: str, model=None) -> dict:
 
 async def orchestrate(session, message, *, history_texts=None, restricted=False,
                       unhelpful_flagged=False, rag_fn=None, agent_fn=None, intent_fn=None,
-                      dept_guide_fn=None, model=None) -> dict:
+                      dept_guide_fn=None, model=None, understanding_mode=None) -> dict:
     history_texts = history_texts or []
+    if understanding_mode is None:
+        from app.core.config import settings
+        understanding_mode = settings.chat_understanding_mode
     # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0).
     if safety_watchdog.check_emergency(message):
         return {"route_taken": "emergency", "reply": safety_watchdog.EMERGENCY_REPLY, "escalated": False}
@@ -128,7 +132,30 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
         ans = await intent_fn(session, message, intent)
         if ans and ans.get("reply"):
             return {"route_taken": "rag", "reply": ans["reply"], "escalated": False, "intent": intent}
-    route = await chat_router.classify(message, active_flow=active_flow, model=model)
+    # ② 라우팅 — 전면 통합(chat_understanding_mode):
+    #   legacy = 라우터 classify(②) + 후속질문 rewrite(rag_fn 내부). llm = 이해기 1콜로 통합.
+    #   ⚠️ 안전(⓪ⓠ①)·프리체크(①-b)는 위에서 이미 끝났다 — 이해기는 갈래·검색질의만 다룬다(안전 게이트 아님).
+    retrieval_query = None                 # llm 모드에서 이해기가 준 독립형 검색 질의(rag_fn에 전달)
+    understood = False                      # 이해기가 실제로 갈래를 냈나 — 실패 폴백이면 레거시 rag 경로를 탄다
+    if understanding_mode == "llm":
+        u = await conversation_understanding.understand(
+            message, history_texts, active_flow=active_flow, model=model)
+        if u is None:
+            # 이해기 실패·형식 위반 → 레거시로 자동 폴백(장애/자동인계로 안 번짐). rag_fn도 2-arg(자체 재작성).
+            route = await chat_router.classify(message, active_flow=active_flow, model=model)
+        else:
+            understood = True
+            # 검색-전 되묻기: 애매하면 검색 없이 되묻는다(route_taken=rag 유지 = 실패 아님, 미해결 집계 X).
+            #   검색-후 되묻기(rag_service NEEDS_CLARIFY)는 병행 유지 — 두 겹으로 막다른 길 방지(위험 #2).
+            if u.needs_clarification and u.route == "rag":
+                return {"route_taken": "rag", "needs_clarification": True,
+                        "reply": u.clarification_question, "escalated": False}
+            route = u.route
+            if u.standalone_query:
+                retrieval_query = conversation_understanding.build_search_query(
+                    message, u.standalone_query)
+    else:
+        route = await chat_router.classify(message, active_flow=active_flow, model=model)
     # 제한모드(예약 중 상담): 정보성 안내·진료과 추천만. 행동형 금지, 유일 출구는 "○○과로 계속하기"(E4·정본 §0).
     if restricted and route == "agent":
         route = "rag"
@@ -148,7 +175,12 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
     # 안내형 RAG — 검색은 Task 7이 주입. 검색 실패는 no_answer 인계로.
     if rag_fn is None:
         return {"route_taken": "rag", "reply": None, "escalated": False}
-    result = await rag_fn(session, message)
+    # llm 모드에서 이해기가 재작성 검색질의를 냈으면 rag_fn에 넘긴다(재작성은 검색에만, 화면·LLM엔 원문).
+    #   legacy 모드는 2-arg 그대로 부른다(rag_fn 내부가 스스로 후속질문 재작성 — 계약 무변경).
+    if understanding_mode == "llm" and understood:
+        result = await rag_fn(session, message, retrieval_query=retrieval_query)
+    else:
+        result = await rag_fn(session, message)
     if result.get("no_answer"):
         # WEBCHAT-NOANS: 자동 인계 폐기 → 봇 말풍선 + FAQ 칩 + [직원에게 연결] 콜백 칩(세션 유지).
         return {"route_taken": "no_answer", "reply": NO_ANSWER_REPLY,

@@ -187,3 +187,87 @@ async def test_handoff_summary_failure_is_best_effort_all_none():
             raise RuntimeError("LLM down")
     out = await orchestrator.make_handoff_summary("환자: ...", model=_Boom())
     assert out == {"bot_confirmed": None, "already_guided": None, "staff_should_check": None}
+
+
+# ── 전면 통합(understanding_mode='llm') — 질문 이해 1콜 라우팅 ──────────────────────
+# 안전(⓪ⓠ①)·프리체크(①-b)는 앞단 그대로. ② 라우터 classify + 후속질문 rewrite만 이해기 1콜로.
+# 실패·형식 위반이면 레거시(classify)로 자동 폴백.
+
+class _JsonModel:
+    """understand용 JSON을 content로 돌려주는 mock. check_escalation도 이 model을 쓰지만
+    JSON 문자열은 escalation 라벨이 아니라 None(=인계 없음)이 된다."""
+    def __init__(self, text): self._text = text
+    async def ainvoke(self, _):
+        class R: pass
+        r = R(); r.content = self._text
+        return r
+
+
+def _ujson(**kw):
+    import json
+    base = {"route": "rag", "standalone_query": "", "needs_clarification": False,
+            "clarification_question": "", "topic_shift": False, "confidence": 0.9}
+    base.update(kw)
+    return json.dumps(base, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_passes_rewritten_query_to_rag_fn():
+    # 이해기가 준 독립형 검색 질의가 rag_fn에 retrieval_query로 전달된다(재작성은 검색에만).
+    seen = {}
+    async def rag_fn(s, m, retrieval_query="__2arg__"):
+        seen["rq"] = retrieval_query
+        return {"reply": "검사 전 6시간 금식입니다", "no_answer": False}
+    model = _JsonModel(_ujson(route="rag", standalone_query="CT 조영제 검사 전 물 섭취 가능 여부"))
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0), "그럼 물은?",
+        history_texts=["CT 조영제 검사 준비물이 뭐예요?"],
+        rag_fn=rag_fn, model=model, understanding_mode="llm")
+    assert out["route_taken"] == "rag"
+    assert "CT 조영제 검사 전 물 섭취 가능 여부" in seen["rq"]   # 재작성 질의 전달됨
+    assert "그럼 물은?" in seen["rq"]                          # 원문도 concat(§9.4)
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_search_before_clarification_skips_rag():
+    # 이해기가 애매하다고 판정하면 검색 없이 되묻는다(검색-전 되묻기). route_taken은 rag 유지(실패 아님).
+    called = {"rag": False}
+    async def rag_fn(s, m, retrieval_query="__2arg__"):
+        called["rag"] = True
+        return {"reply": "x", "no_answer": False}
+    model = _JsonModel(_ujson(needs_clarification=True, clarification_question="어떤 검사를 말씀하시나요?"))
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0), "준비물이요?",
+        history_texts=["안녕하세요"], rag_fn=rag_fn, model=model, understanding_mode="llm")
+    assert out["route_taken"] == "rag"
+    assert out["needs_clarification"] is True
+    assert out["reply"] == "어떤 검사를 말씀하시나요?"
+    assert called["rag"] is False                              # 검색 안 함
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_falls_back_to_legacy_classify_on_failure():
+    # 이해기가 JSON을 못 내면(None) 레거시 classify로 폴백 → rag_fn을 2-arg로 부른다(retrieval_query 없음).
+    seen = {}
+    async def rag_fn(s, m, retrieval_query="__2arg__"):
+        seen["rq"] = retrieval_query
+        return {"reply": "주차는 지하 1층입니다", "no_answer": False}
+    model = _JsonModel("rag")                                  # JSON 아님 → understand None, classify는 'rag'
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0), "주차 어디에요?",
+        rag_fn=rag_fn, model=model, understanding_mode="llm")
+    assert out["route_taken"] == "rag"
+    assert seen["rq"] == "__2arg__"                            # 2-arg 레거시 호출(재작성은 rag_fn 내부가 담당)
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_active_flow_stays_department_guide_without_llm_route():
+    # 진행 중 문진은 이해기가 재분류하지 않고 department_guide 유지 → dept_guide_fn 실행.
+    async def dept_guide_fn(s, m): return {"reply": "정형외과를 추천드려요"}
+    model = _JsonModel(_ujson(route="rag"))                    # 이해기가 llm을 태우면 rag가 되지만, active_flow라 안 태움
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow="department_guide", flow_step=1), "3일 됐어요",
+        history_texts=["어디가 불편하세요?"], dept_guide_fn=dept_guide_fn,
+        model=model, understanding_mode="llm")
+    assert out["route_taken"] == "department_guide"
+    assert "정형외과" in out["reply"]
