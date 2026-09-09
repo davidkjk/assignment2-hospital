@@ -26,7 +26,8 @@ from pathlib import Path
 from app.core.config import settings
 from app.integrations.embedding_client import EmbeddingClient
 from app.integrations.langchain_client import get_chat_model
-from app.services.chat import rag_service, eval_scoring as sc, conversation_understanding as cu
+from app.services.chat import (rag_service, eval_scoring as sc, conversation_understanding as cu,
+                               intent_precheck)
 
 CASES_PATH = Path(__file__).resolve().parent.parent / "evals" / "chatbot_cases.jsonl"
 
@@ -52,6 +53,11 @@ async def resolve_understanding(mode: str, message: str, history: list[str], mod
     - llm: conversation_understanding.understand() 1콜 — standalone_query를 검색질의로,
       needs_clarification이면 검색-전 되묻기(검색 안 함). 이해기 실패(None)는 legacy로 폴백(orchestrate 동형).
     """
+    # 프로덕션 orchestrate 순서 재현: ①-b intent 프리체크가 진료시간·의사명단을 DB로 답하면
+    #   ② 라우팅(classify/understand)·재작성에 도달하지 않는다. 러너도 이를 재현해 intent 케이스가
+    #   llm 모드에서만 이해기 되묻기로 빠지는 왜곡(후6 진단)을 없앤다 — 두 모드 모두 이해기 건너뜀.
+    if intent_precheck.detect_intent(message):
+        return None, False
     if mode == "llm":
         u = await cu.understand(message, history, model=model)
         if u is not None:

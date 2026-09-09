@@ -196,3 +196,13 @@ def test_triage_cases_have_valid_expected_department():
         assert c["expected_route"] == "department_guide", f"{c['id']}: triage는 department_guide 경로"
         dept = c["expected_department"]
         assert dept is None or dept in demo_depts, f"{c['id']}: 진료과는 데모 4과 또는 null이어야(현재 {dept!r})"
+
+
+@pytest.mark.asyncio
+async def test_resolve_understanding_skips_understanding_for_intent_message():
+    # 프로덕션은 진료시간·의사명단을 이해기 앞단(intent_precheck ①-b)이 DB로 답한다 → 이해기·재작성 둘 다
+    #   건너뛴다. 러너도 이를 재현해 intent 케이스가 llm에서만 되묻기로 빠지는 왜곡(후6 진단)을 없앤다.
+    model = _Model(_ujson(needs_clarification=True, clarification_question="어느 진료과요?"))
+    rq, needs_clarify = await rag_eval.resolve_understanding("llm", "진료시간이 어떻게 되나요?", [], model)
+    assert rq is None and needs_clarify is False
+    assert model.call_count == 0     # intent 케이스는 이해기 LLM 안 태움
