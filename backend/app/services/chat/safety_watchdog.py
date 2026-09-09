@@ -4,15 +4,30 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.integrations.langchain_client import get_chat_model, resp_text
 
 # 병원과 함께 다듬는 큐레이션 목록(확장 가능). 오탐보다 미탐이 위험하므로 넓게 잡는다.
-EMERGENCY_KEYWORDS = [
+# 응급을 두 갈래로 나눈다(① 결정 2026-09-09, 문안 사용자 승인):
+#   · 마음 위기(정신건강) — 자살·자해 등 → 자살예방·정신건강 상담번호를 먼저 안내(119도 함께).
+#   · 신체 응급 — 그 밖의 신체 위급 → 119/응급실.
+# 함께 언급되면 마음 위기가 우선한다(emergency_kind에서 mental을 먼저 검사).
+MENTAL_CRISIS_KEYWORDS = ["자살", "죽고 싶", "자해", "극단적 선택"]
+PHYSICAL_EMERGENCY_KEYWORDS = [
     "119", "응급실", "의식이 없", "숨을 못", "숨이 안", "호흡곤란",
     # "가슴이 아"는 "가슴이 너무 아파요"처럼 사이에 부사가 끼면 못 잡는다 → "가슴"으로 넓힌다
     # (큐레이션 철학: 오탐보다 미탐이 위험. 흉부 언급은 넓게 잡아 안전 안내로 보낸다).
-    "가슴", "피를 많이", "출혈이 멈", "쓰러졌", "경련", "발작", "자살", "죽고 싶", "심장이", "마비",
+    "가슴", "피를 많이", "출혈이 멈", "쓰러졌", "경련", "발작", "심장이", "마비",
 ]
+# 하위호환: check_emergency는 두 갈래를 합쳐 본다(orchestrator ⓪ 게이트·기존 호출부 유지).
+EMERGENCY_KEYWORDS = PHYSICAL_EMERGENCY_KEYWORDS + MENTAL_CRISIS_KEYWORDS
+
 EMERGENCY_REPLY = (
     "지금 위급한 상황일 수 있어요. 즉시 119에 전화하거나 가까운 응급실로 가 주세요. "
     "이 상담은 응급 진료를 대신할 수 없습니다."
+)
+# 마음 위기(정신건강) 안내 — 자살예방 통합상담 109, 정신건강 상담전화 1577-0199(문안 승인 2026-09-09).
+EMERGENCY_REPLY_MENTAL = (
+    "많이 힘드셨을 것 같아요. 지금 마음이 많이 어렵다면 혼자 견디지 마시고 전문 상담사와 이야기 나눠 보세요. "
+    "24시간 상담할 수 있어요 — 자살예방 상담전화 ☎109, 정신건강 상담전화 ☎1577-0199. "
+    "지금 당장 위험하다고 느껴지면 즉시 119에 전화하거나 가까운 응급실로 가 주세요. "
+    "이 상담은 전문 심리상담이나 응급 진료를 대신할 수 없어요."
 )
 
 # 6가지 인계 조건 = support_tickets 생성 사유(late_cancellation은 도구가 별도 생성).
@@ -28,9 +43,27 @@ EXPLICIT_STAFF_KEYWORDS = [
 ]
 
 
-def check_emergency(text: str) -> bool:
+def emergency_kind(text: str) -> str | None:
+    """응급 갈래를 결정적으로 판정한다 — "mental"(마음 위기) | "physical"(신체 응급) | None.
+
+    마음 위기 신호가 있으면 신체 신호가 함께 있어도 mental이 우선한다(자살예방 상담을 먼저 준다).
+    """
     t = text.replace(" ", "")
-    return any(k.replace(" ", "") in t for k in EMERGENCY_KEYWORDS)
+    if any(k.replace(" ", "") in t for k in MENTAL_CRISIS_KEYWORDS):
+        return "mental"
+    if any(k.replace(" ", "") in t for k in PHYSICAL_EMERGENCY_KEYWORDS):
+        return "physical"
+    return None
+
+
+def emergency_reply(kind: str) -> str:
+    """응급 갈래별 안내 문구. mental=자살예방·정신건강 상담(+119), 그 외=신체 응급(119)."""
+    return EMERGENCY_REPLY_MENTAL if kind == "mental" else EMERGENCY_REPLY
+
+
+def check_emergency(text: str) -> bool:
+    # 하위호환 게이트: 신체·마음 어느 쪽이든 응급이면 True(orchestrator ⓪·dept_guide 등 기존 호출부 유지).
+    return emergency_kind(text) is not None
 
 
 def check_staff_request(text: str) -> bool:

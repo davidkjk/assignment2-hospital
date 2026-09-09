@@ -36,8 +36,10 @@ async def guide(*, message: str, history: list[str], departments: list[dict],
     반환: {reply, suggested_department: {id, name}|None, emergency: bool}
     """
     # ⓪ 응급 — 모드·단계와 무관하게 항상 최우선(정본 §0). 추천보다 먼저 끊는다.
-    if safety_watchdog.check_emergency(message):
-        return {"reply": safety_watchdog.EMERGENCY_REPLY,
+    kind = safety_watchdog.emergency_kind(message)
+    if kind:
+        # 마음 위기/신체 응급으로 안내를 나눈다(① 결정 2026-09-09). 진료과 추천은 하지 않는다.
+        return {"reply": safety_watchdog.emergency_reply(kind),
                 "suggested_department": None, "emergency": True}
     # 직원 연결 요청 — 제한모드에선 티켓 없이 '상담' 탭으로 안내(막다른 길 금지, 결정 E4).
     if safety_watchdog.check_staff_request(message):

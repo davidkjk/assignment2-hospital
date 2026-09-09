@@ -326,3 +326,11 @@ async def test_llm_mode_llm_escalation_short_circuits_before_understanding():
         model=model, understanding_mode="llm")
     assert out["route_taken"] == "handoff" and out["handoff_reason"] == "complaint"
     assert model.call_count == 1                        # 인계감시 1회 후 이해기 도달 안 함
+
+
+@pytest.mark.asyncio
+async def test_mental_crisis_returns_crisis_hotline_reply():
+    # ① 응급 분기: 마음 위기(자살·죽고 싶다)는 자살예방·정신건강 상담번호를 안내한다(신체 119 문구가 아님).
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0), "너무 힘들어 죽고 싶어요")
+    assert out["route_taken"] == "emergency"
+    assert "109" in out["reply"] and "1577-0199" in out["reply"]

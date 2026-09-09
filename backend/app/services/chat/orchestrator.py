@@ -103,9 +103,11 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
     if understanding_mode is None:
         from app.core.config import settings
         understanding_mode = settings.chat_understanding_mode
-    # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0).
-    if safety_watchdog.check_emergency(message):
-        return {"route_taken": "emergency", "reply": safety_watchdog.EMERGENCY_REPLY, "escalated": False}
+    # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0). 마음 위기/신체 응급으로 안내를 나눈다(① 결정).
+    kind = safety_watchdog.emergency_kind(message)
+    if kind:
+        return {"route_taken": "emergency", "reply": safety_watchdog.emergency_reply(kind),
+                "escalated": False}
     # ⓠ-a 확인 칩(정확히 이 문구)을 눌렀다 → 명시적 선택이므로 바로 인계(#6). check_staff_request보다 먼저 본다
     #   (확인 문구도 "직원에게 연결"을 포함해 아래 키워드에 걸리므로 순서가 중요).
     if message.strip() == HANDOFF_CONFIRM_CHIP:

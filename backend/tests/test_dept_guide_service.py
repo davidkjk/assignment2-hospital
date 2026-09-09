@@ -105,3 +105,14 @@ async def test_guide_with_real_department_rows(committed_conn):
         departments=departments, model=_Model("정형외과를 추천드려요. 최종 선택은 확인해 주세요."))
     assert out["suggested_department"]["name"] == "정형외과"
     _uuid.UUID(out["suggested_department"]["id"])   # 실제 UUID 문자열이어야 한다(throw 없으면 통과)
+
+
+@pytest.mark.asyncio
+async def test_mental_crisis_gives_crisis_hotlines_in_dept_bot():
+    # ① 응급 분기: 진료과봇 경로에서도 마음 위기는 자살예방·정신건강 상담번호를 안내한다(3곳 공통).
+    out = await dept_guide_service.guide(
+        message="사는 게 힘들어서 자살 생각이 나요", history=[], departments=_DEPTS,
+        model=_Model("무시됨"))
+    assert out["emergency"] is True
+    assert out["suggested_department"] is None
+    assert "109" in out["reply"] and "1577-0199" in out["reply"]

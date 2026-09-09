@@ -2,7 +2,7 @@ import pytest
 
 from app.services.chat.safety_watchdog import (
     check_emergency, EMERGENCY_REPLY, check_repeated, check_escalation, check_staff_request,
-    check_department_inquiry)
+    check_department_inquiry, emergency_kind, emergency_reply, EMERGENCY_REPLY_MENTAL)
 
 
 def test_explicit_staff_request_is_rule_based():
@@ -28,6 +28,40 @@ def test_emergency_is_rule_based_and_deterministic():
 
 def test_emergency_reply_points_to_119():
     assert "119" in EMERGENCY_REPLY and "응급" in EMERGENCY_REPLY
+
+
+# ── 응급 분기(① 결정 2026-09-09): 신체 응급 vs 마음(정신건강) 위기를 나눠 다른 안내를 낸다 ──
+
+def test_emergency_kind_distinguishes_mental_and_physical():
+    assert emergency_kind("죽고 싶어요") == "mental"
+    assert emergency_kind("자해했어요") == "mental"
+    assert emergency_kind("숨을 못 쉬겠어요") == "physical"
+    assert emergency_kind("의식이 없어요 119") == "physical"
+    assert emergency_kind("주차 어디에 하나요") is None
+
+
+def test_mental_crisis_takes_precedence_over_physical():
+    # 신체·마음 신호가 함께 있으면 마음 위기 안내가 우선(자살예방 상담을 먼저 준다).
+    assert emergency_kind("가슴이 답답하고 죽고 싶어") == "mental"
+
+
+def test_mental_emergency_reply_has_crisis_hotlines():
+    reply = emergency_reply("mental")
+    assert reply == EMERGENCY_REPLY_MENTAL
+    assert "109" in reply and "1577-0199" in reply     # 자살예방(109)·정신건강 상담(1577-0199)
+    assert "119" in reply                              # 즉시 위험 시 119도 함께
+
+
+def test_physical_emergency_reply_points_to_119_not_hotlines():
+    reply = emergency_reply("physical")
+    assert reply == EMERGENCY_REPLY and "119" in reply
+    assert "1577-0199" not in reply                    # 신체 응급엔 정신건강 상담번호를 넣지 않는다
+
+
+def test_check_emergency_stays_true_for_both_kinds():
+    # 하위호환: check_emergency는 신체·마음 어느 쪽이든 응급으로 True(orchestrator ⓪ 게이트 유지).
+    assert check_emergency("죽고 싶어요") is True
+    assert check_emergency("숨을 못 쉬겠어요") is True
 
 
 def test_repeated_triggers_at_threshold():
