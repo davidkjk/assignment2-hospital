@@ -3,6 +3,18 @@ import json
 
 from app.services.chat import safety_watchdog, chat_router, intent_precheck
 
+def session_value(session, key, default=None):
+    # session은 서비스가 넘긴 dict/asyncpg Record일 수도, 테스트가 넘긴 객체(SimpleNamespace)일 수도 있다.
+    #   ⚠️ getattr만 쓰면 dict/Record엔 속성이 없어 항상 default가 됐다(리포트 §2.3 — active_flow가 늘 None).
+    #   속성 접근과 첨자 접근을 모두 시도해 실제 저장값을 읽는다.
+    if hasattr(session, key):
+        return getattr(session, key)
+    try:
+        return session[key]
+    except (KeyError, TypeError, IndexError):
+        return default
+
+
 CHAT_CONTEXT_TURN_WINDOW = 12     # 최근 N턴은 원문, 그 앞은 요약(MR2-08 — 절단 아님)
 CHAT_NUDGE_MESSAGE_COUNT = 40     # 이 이상이면 CHAT-LEN 소프트 넛지 신호(하드컷 아님)
 
@@ -107,7 +119,7 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
     if reason:
         return {"route_taken": "handoff", "handoff_reason": reason, "escalated": True}
     # ② 라우터 — 진행 중 문진은 유지.
-    active_flow = getattr(session, "active_flow", None) if not restricted else None
+    active_flow = None if restricted else session_value(session, "active_flow")
     # ①-b 의도 프리체크(B1·B2) — 진료시간·의사명단은 KB가 아니라 DB 단일원본에서 답한다(KBADM-EDITOR-17).
     # RAG(벡터 검색)보다 앞서 결정적 키워드로만 판별해 두루뭉술 답/no_answer를 막는다(사용자 결정 A).
     # 진행 중 문진(active_flow) 중엔 흐름을 지키려 건너뛴다. DB가 비어 답을 못 만들면(None) RAG로 폴백.
