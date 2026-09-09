@@ -5,7 +5,7 @@ import 'package:hospital_patient_app/features/chat/widgets/chat_quick_replies.da
 
 ChatFeedItem _card() => ChatFeedItem(
     id: '2', messageType: 'card', senderType: 'bot', createdAt: DateTime(2026),
-    payload: const {'card_type': 'quick_replies', 'options': ['진료시간이 어떻게 되나요'], 'handoff_chip': '직원에게 연결'});
+    payload: const {'card_type': 'quick_replies', 'options': ['진료시간이 어떻게 되나요'], 'handoff_chip': '직원에게 연결하기'});
 
 void main() {
   testWidgets('[CCARD-QUICK-START-01] 시작 묶음은 다가오는 예약 유무로 고정 4개 — AI 호출 없음', (t) async {
@@ -65,9 +65,9 @@ void main() {
     var handoff = 0;
     await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(
         replies: const ['진료시간이 어떻게 되나요'], onSend: (s) => sent = s,
-        handoffLabel: '직원에게 연결', onHandoff: () => handoff++))));
-    expect(find.text('직원에게 연결'), findsOneWidget);
-    await t.tap(find.text('직원에게 연결'));
+        handoffLabel: '직원에게 연결하기', onHandoff: () => handoff++))));
+    expect(find.text('직원에게 연결하기'), findsOneWidget);
+    await t.tap(find.text('직원에게 연결하기'));
     expect(handoff, 1);
     expect(sent, isNull); // 콜백 칩 — 문장 전송(onSend) 아님
   });
@@ -75,7 +75,7 @@ void main() {
   testWidgets('[WEBCARD-QUICK] handoffLabel이 없으면 인계 칩을 렌더하지 않음(시작 칩 등)', (t) async {
     await t.pumpWidget(MaterialApp(home: Scaffold(body: ChatQuickReplies(
         replies: const ['a'], onSend: (_) {}))));
-    expect(find.text('직원에게 연결'), findsNothing);
+    expect(find.text('직원에게 연결하기'), findsNothing);
   });
 
   test('[WEBCHAT-NOANS] activeQuickReplies는 마지막 quick_replies 카드의 옵션·handoff를 준다', () {
@@ -84,7 +84,7 @@ void main() {
       _card(),
     ]);
     expect(a!.replies, ['진료시간이 어떻게 되나요']);
-    expect(a.handoffLabel, '직원에게 연결');
+    expect(a.handoffLabel, '직원에게 연결하기');
   });
 
   test('[WEBCHAT-NOANS] 마지막 줄이 환자 발화면 null(봇 대기 중 — 칩이 사라진다)', () {
@@ -101,7 +101,7 @@ void main() {
       ChatFeedItem(id: 'b', messageType: 'text', senderType: 'bot', content: '이렇게 안내드려요', createdAt: DateTime(2026)),
     ]);
     expect(a!.replies, isEmpty);
-    expect(a.handoffLabel, '직원에게 연결');
+    expect(a.handoffLabel, '직원에게 연결하기');
   });
 
   test('[Q11] 마지막이 무답변 안내(봇)여도 [직원에게 연결] 칩이 실제로 뜬다(막다른 길 금지)', () {
@@ -109,6 +109,6 @@ void main() {
       ChatFeedItem(id: 'sys-abc', messageType: 'text', senderType: 'bot',
           content: '죄송해요, 방금은 답변을 가져오지 못했어요.', createdAt: DateTime(2026)),
     ]);
-    expect(a!.handoffLabel, '직원에게 연결');
+    expect(a!.handoffLabel, '직원에게 연결하기');
   });
 }

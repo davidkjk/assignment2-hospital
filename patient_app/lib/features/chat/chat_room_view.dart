@@ -57,6 +57,10 @@ class ChatRoomView extends ConsumerWidget {
       appBar: PatientAppBar(
         title: 'AI 상담봇', // CHAT-ROOM-NAME-01
         icon: AppIcons.chat_bubble, // 로딩/오류(ChatRoomEntry)와 같은 봇 아이콘 — 전이 시 깜빡임 방지
+        // #9: 인계 상태를 제목 옆 짧은 LED 상태로(연결 전/확인 중/답변 도착). 인계 전엔 안 보인다.
+        titleTrailing: (st.handoff != null && st.handoff!.phase != null)
+            ? ChatHandoffHeaderStatus(status: st.handoff!, staffViewing: st.staffViewing)
+            : null,
         // 딥링크 방(onExit != null): 뒤로가기 = 이전 상담 목록(CHAT-HISTORY-DEEP-02·NAV-CHATAPP-09).
         leading: onExit == null
             ? null
@@ -182,7 +186,8 @@ class ChatRoomView extends ConsumerWidget {
       replies: st.isEmpty ? startQuickReplies(hasUpcoming: false) : (active?.replies ?? const []),
       onSend: (c) => ctl.send(c),
       handoffLabel: active?.handoffLabel,
-      // [직원에게 연결] = 그 문장을 전송 → 백엔드 ⓪-b(check_staff_request)가 즉시 직원 인계로 전환.
+      // #6: 칩 문구(HANDOFF_CONFIRM_CHIP)를 전송 → 백엔드 ⓠ-a가 바로 인계로 전환(칩 탭=명시 선택, 재확인 없음).
+      //   자유 입력으로 "직원 연결"을 치면 ⓠ-b에서 확인 프롬프트를 먼저 낸다("항상 물어보게").
       onHandoff: active?.handoffLabel != null ? () => ctl.send(active!.handoffLabel!) : null,
     );
   }

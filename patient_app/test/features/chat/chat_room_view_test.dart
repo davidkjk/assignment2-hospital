@@ -78,16 +78,16 @@ void main() {
         ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕하세요, 이렇게 안내드려요')])));
     await t.pump();
     expect(find.byKey(const Key('chat-feedback-btn')), findsNothing); // 매 말풍선 상시 버튼 폐지
-    expect(find.text('직원에게 연결'), findsOneWidget);                 // 필요 시 콜백 칩(막다른 길 금지)
+    expect(find.text('직원에게 연결하기'), findsOneWidget);                 // 필요 시 콜백 칩(막다른 길 금지)
   });
 
   testWidgets('[WEBCHAT-NOANS] 마지막 줄이 quick_replies 카드면 입력창 슬롯에 FAQ+[직원에게 연결] 칩을 띄운다', (t) async {
     final card = ChatFeedItem(
         id: 'c', messageType: 'card', senderType: 'bot', createdAt: DateTime(2026),
-        payload: const {'card_type': 'quick_replies', 'options': ['진료시간이 어떻게 되나요'], 'handoff_chip': '직원에게 연결'});
+        payload: const {'card_type': 'quick_replies', 'options': ['진료시간이 어떻게 되나요'], 'handoff_chip': '직원에게 연결하기'});
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('바로 답을 못 찾았어요'), card])));
     expect(find.text('진료시간이 어떻게 되나요'), findsOneWidget); // 입력 슬롯 FAQ 칩(카드는 피드에서 SizedBox)
-    expect(find.text('직원에게 연결'), findsOneWidget);          // 콜백 칩
+    expect(find.text('직원에게 연결하기'), findsOneWidget);          // 콜백 칩
   });
 
   testWidgets('[CHAT-HISTORY-DEEP-03] 딥링크 대상이 없으면 다른 방을 열지 않고 오류+목록 복귀', (t) async {
@@ -165,19 +165,20 @@ void main() {
     expect(typingBubble(t).label, '상담봇이 입력 중');
   });
 
-  testWidgets('[Q18] 인계된 상담이면 상담방에 상태 배지(직원 확인 전이에요)가 뜬다', (t) async {
+  testWidgets('[Q18/#9] 인계되면 피드 배지(안내 멘트) + 헤더 상태(직원 확인 전)가 함께 뜬다', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')],
         handoff: const HandoffStatus(phase: HandoffPhase.connecting))));
     await t.pump();
     expect(find.byType(ChatHandoffBadge), findsOneWidget);
-    expect(find.text('직원 확인 전이에요'), findsOneWidget);
+    expect(find.byType(ChatHandoffHeaderStatus), findsOneWidget);
+    expect(find.text('직원 확인 전'), findsOneWidget); // 헤더의 짧은 라벨
   });
 
-  testWidgets('[Q18③] 직원 열람 presence(staffViewing)면 배지가 `직원이 확인 중이에요`로 바뀐다', (t) async {
+  testWidgets('[Q18③/#9] 직원 열람 presence면 헤더가 `직원 확인 중`으로 바뀐다', (t) async {
     await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('안녕')],
         handoff: const HandoffStatus(phase: HandoffPhase.connecting), staffViewing: true)));
     await t.pump();
-    expect(find.text('직원이 확인 중이에요'), findsOneWidget);
+    expect(find.text('직원 확인 중'), findsOneWidget);
   });
 
   testWidgets('[Q18] 인계 전(handoff 없음)이면 상태 배지를 그리지 않는다', (t) async {
@@ -204,7 +205,7 @@ void main() {
     await t.pump();
     expect(find.text('도움이 안 됐어요'), findsNothing);
     expect(find.text('직원에게 물어보기'), findsNothing); // 상시 버튼 폐지(반복돼 "이미 도움 안 됨" 느낌)
-    expect(find.text('직원에게 연결'), findsOneWidget);   // 대체: 최근 봇 답변에 콜백 칩
+    expect(find.text('직원에게 연결하기'), findsOneWidget);   // 대체: 최근 봇 답변에 콜백 칩
   });
 
   testWidgets('[Q1·Q2] 새 대화는 방을 스택에 쌓지 않고 상담 탭(/chat)으로 이동한다', (t) async {

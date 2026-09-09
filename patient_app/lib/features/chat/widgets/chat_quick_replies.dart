@@ -19,7 +19,9 @@ List<String> startQuickReplies({required bool hasUpcoming}) =>
 ///  · no_answer 안내(WEBCHAT-NOANS): 마지막이 quick_replies 카드면 그 FAQ 옵션 + [직원에게 연결] 칩.
 ///  · 일반 봇 답변(Q5 ②)·무답변 안내(Q11): 마지막이 봇 말풍선이면 FAQ 옵션 없이 [직원에게 연결] 칩만.
 ///  · 환자 발화가 마지막(봇 대기 중)이면 칩 없음 → 새 봇 답변이 오면 다시 뜬다(칩이 남지 않는다).
-const _staffHandoffChip = '직원에게 연결';
+// #6(2026-09-08): 이 칩 문구는 백엔드 orchestrator.HANDOFF_CONFIRM_CHIP과 정확히 같아야 한다 —
+//   탭하면 ⓠ-a로 한 번에 인계된다. (자유 입력 "직원 연결"은 ⓠ-b에서 확인 프롬프트로 가지만, 칩 탭은 명시 선택.)
+const _staffHandoffChip = '직원에게 연결하기';
 
 ({List<String> replies, String? handoffLabel})? activeQuickReplies(List<ChatFeedItem> items) {
   if (items.isEmpty) return null;

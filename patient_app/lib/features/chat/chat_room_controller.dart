@@ -114,7 +114,7 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
               senderType: isHandoff ? 'system' : 'bot',
               content: isHandoff
                   ? '직원에게 연결하고 있어요. 잠시만 기다려 주세요.'
-                  : '죄송해요, 방금은 답변을 가져오지 못했어요. 다시 한 번 여쭤봐 주시거나 아래 [직원에게 연결] 칩을 눌러 주세요.',
+                  : '죄송해요, 방금은 답변을 가져오지 못했어요. 다시 한 번 여쭤봐 주시거나 아래 [직원에게 연결하기] 칩을 눌러 주세요.',
               createdAt: DateTime.now())
           : null;
       state = state.copyWith(

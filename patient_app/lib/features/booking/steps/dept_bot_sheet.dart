@@ -133,8 +133,8 @@ class _Greeting extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Text(
           relation == '본인'
-              ? '증상을 말씀해 주시면 맞는 진료과를 안내해 드릴게요.'
-              : '$relation 증상을 말씀해 주시면 맞는 진료과를 안내해 드릴게요.',
+              ? '증상을 말씀해 주시면 맞는\n진료과를 안내해 드릴게요.'
+              : '$relation 증상을 말씀해 주시면 맞는\n진료과를 안내해 드릴게요.',
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 14, color: AppTokens.grayPending),
         ),

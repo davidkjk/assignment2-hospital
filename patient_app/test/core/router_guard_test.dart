@@ -17,6 +17,14 @@ void main() {
         isNull);
   });
 
+  test('signedOut + 비번 찾기 경로는 그대로 (로그인 전에 쓰는 경로 — 랜딩으로 튕기면 막다른 길)', () {
+    // 회귀: /password-find 가 비보호 목록에 빠져 signedOut 이면 /landing 으로 되돌아가던 버그.
+    expect(computeRedirect(auth: AuthStatus.signedOut, profileMissing: false, needsReauth: false, loc: '/password-find'),
+        isNull);
+    expect(computeRedirect(auth: AuthStatus.signedOut, profileMissing: false, needsReauth: false, loc: '/password-find/otp'),
+        isNull);
+  });
+
   test('expiredOffline → 리다이렉트 없음, 읽기전용 유지 (OFF-AUTH-01)', () {
     expect(computeRedirect(auth: AuthStatus.expiredOffline, profileMissing: false, needsReauth: false, loc: '/home'),
         isNull);

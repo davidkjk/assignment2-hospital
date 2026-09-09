@@ -69,7 +69,8 @@ String? computeRedirect({
 }) {
   // #40(2026-09-05): 로그인 전 첫 화면은 랜딩(AUTH-LAND-01, [로그인]+[회원가입]). 랜딩·로그인·가입은 비보호.
   final protected =
-      !loc.startsWith('/login') && !loc.startsWith('/signup') && !loc.startsWith('/landing');
+      !loc.startsWith('/login') && !loc.startsWith('/signup') && !loc.startsWith('/landing') &&
+      !loc.startsWith('/password-find');  // 비번 찾기는 로그인 전에 쓰는 경로 — signedOut이라도 랜딩으로 튕기지 않는다.
   // NAV-GLOBAL-03: 진짜 로그아웃(온라인 401)만 랜딩으로(가입 입구가 랜딩에 있다). expiredOffline은 안 걸린다.
   if (auth == AuthStatus.signedOut && protected) return '/landing';
   // OFF-AUTH-01: expiredOffline이면 캐시 읽기전용 화면 유지 — 로그인으로 보내지 않는다.

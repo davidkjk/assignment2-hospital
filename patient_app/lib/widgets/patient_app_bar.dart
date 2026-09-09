@@ -27,6 +27,7 @@ class PatientAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.actions,
     this.leading,
     this.bottom,
+    this.titleTrailing,
     this.automaticallyImplyLeading = true,
   });
 
@@ -35,6 +36,8 @@ class PatientAppBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget>? actions;
   final Widget? leading;
   final PreferredSizeWidget? bottom;
+  /// 제목 오른쪽에 붙는 작은 위젯(예: 상담봇 인계 상태 LED). 자리를 적게 쓰는 상태 표시용.
+  final Widget? titleTrailing;
   final bool automaticallyImplyLeading;
 
   @override
@@ -52,14 +55,20 @@ class PatientAppBar extends StatelessWidget implements PreferredSizeWidget {
       bottom: bottom,
       leadingWidth: hasLeading ? 48 : null, // 기본 56 → 48 (Android 최소 터치영역 48dp, 코드리뷰 #4)
       titleSpacing: hasLeading ? -4 : null, // 제목을 44px로 당겨 데모 gap-2(8px) 유지(위 주석)
-      title: icon == null
+      title: (icon == null && titleTrailing == null)
           ? Text(title)
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 20),
-                const SizedBox(width: 8),
-                Text(title),
+                if (icon != null) ...[
+                  Icon(icon, size: 20),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+                if (titleTrailing != null) ...[
+                  const SizedBox(width: 8),
+                  titleTrailing!,
+                ],
               ],
             ),
     );
