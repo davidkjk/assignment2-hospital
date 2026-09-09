@@ -72,6 +72,18 @@ async def test_rag_no_answer_returns_chips_not_auto_handoff():
 
 
 @pytest.mark.asyncio
+async def test_rag_needs_clarification_routes_as_normal_reply():
+    # Sprint 2 no_answer 세분화: 애매한 질문의 확인 질문은 실패(no_answer)가 아니라 정상 rag 답변으로
+    #   흘러야 한다 → 티켓·미해결 기록을 만드는 no_answer 경로를 타지 않는다(리포트 §7 "실패 집계 제외").
+    async def rag_fn(s, m): return {"needs_clarification": True, "reply": "어떤 검사를 말씀하시나요?"}
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+                                         "준비물이요?", rag_fn=rag_fn, model=_Model("rag"))
+    assert out["route_taken"] == "rag"                   # no_answer 아님 → 미해결 기록 안 됨
+    assert out["reply"] == "어떤 검사를 말씀하시나요?"
+    assert out.get("needs_clarification") is True
+
+
+@pytest.mark.asyncio
 async def test_hours_intent_answered_from_db_before_rag():
     # B1: 진료시간 질문은 RAG(안내자료) 대신 DB 단일원본에서 답한다(KBADM-EDITOR-17). RAG 우회.
     called = {"rag": False}

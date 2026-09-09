@@ -19,6 +19,10 @@ EXAMPLE_MATCH_COUNT = 2              # 품질 개선 사이클(오답 교정 →
 
 # 근거에 답이 없을 때 모델이 이 토큰만 내도록 지시 → 인계로 전환(엉뚱한 답 방지, 문자열 판정보다 안정).
 _NO_ANSWER_SENTINEL = "NO_ANSWER"
+# 질문이 무엇을 가리키는지 불명확할 때(어떤 검사·진료과인지 빠짐) 모델이 확인 질문 하나를
+#   "NEEDS_CLARIFY: 질문" 형식으로 낸다(Sprint 2 no_answer 세분화). "못 찾음"(kb_gap)과 구분해
+#   미해결로 집계하지 않고 정상 답변으로 되묻는다(리포트 §7 — needs_clarification은 실패 아님).
+_NEEDS_CLARIFY_SENTINEL = "NEEDS_CLARIFY"
 
 # 답변 작성 지침(리포트 §4.6·§9.6 Sprint 1.3). 얇은 한 줄 프롬프트 → 페르소나 + 대화 원칙.
 #   목적: "분기마다 다른 인격"(§2.5)과 "지나치게 얇은 프롬프트"(§2.4)를 함께 해소.
@@ -36,6 +40,8 @@ _ANSWER_SYSTEM_PROMPT = (
     "- 불편이나 불안이 드러날 때만 짧게 공감한 뒤 안내합니다.\n"
     "- 핵심 답 뒤에 필요한 설명은 2~4개의 짧은 문장으로만 덧붙입니다.\n"
     f"- 자료에 질문의 답이 없으면 다른 말 없이 정확히 '{_NO_ANSWER_SENTINEL}'만 출력합니다.\n"
+    "- 질문이 무엇을 가리키는지 불명확해(예: 어떤 검사·어떤 진료과인지 빠짐) 자료에서 무엇을 찾아야 할지 "
+    f"모를 때만, 확인 질문 하나를 '{_NEEDS_CLARIFY_SENTINEL}: 질문' 형식으로 출력합니다(증상을 캐묻지는 않습니다).\n"
     "</대화_원칙>\n"
     "<병원_자료>\n{context}\n</병원_자료>"
 )
@@ -102,6 +108,14 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     #   설명을 먼저 붙이면 == / startswith 는 놓쳐 센티넬 원문이 환자에게 그대로 노출됐다(2026-09-08 실측).
     if _NO_ANSWER_SENTINEL in reply:
         return {"no_answer": True}
+    # 확인 질문(needs_clarification): "NEEDS_CLARIFY: 질문"에서 질문만 벗겨 정상 답변으로 되묻는다.
+    #   NO_ANSWER가 함께 있으면 위에서 이미 no_answer로 나갔다(근거 부재가 우선 — 되묻기 루프·안전).
+    #   질문 본문이 비면 빈 되묻기(막다른 길)라 안전하게 no_answer로 폴백한다.
+    if _NEEDS_CLARIFY_SENTINEL in reply:
+        question = reply.split(_NEEDS_CLARIFY_SENTINEL, 1)[1].lstrip(":：").strip()
+        if not question:
+            return {"no_answer": True}
+        return {"needs_clarification": True, "reply": question}
     result = {"reply": reply, "sources": sources}
     if restricted:
         result["restricted_block"] = restricted[0]["content"]   # 봇이 살 붙이지 않은 원문 그대로

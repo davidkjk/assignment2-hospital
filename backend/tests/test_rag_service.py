@@ -236,6 +236,79 @@ async def test_answer_prompt_preserves_grounding_and_no_answer_safety(committed_
     await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
 
 
+class _ClarifyModel:
+    # 애매한 질문(어떤 검사인지 빠짐)에 모델이 확인 질문 하나를 센티넬 형식으로 낸다.
+    async def ainvoke(self, _):
+        class R: content = "NEEDS_CLARIFY: 어떤 검사를 말씀하시는 걸까요?"
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_question_returns_needs_clarification(committed_conn):
+    # Sprint 2 no_answer 세분화: 질문이 무엇을 가리키는지 불명확하면 "못 찾음"이 아니라 확인 질문 하나로.
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await _seed_normal_chunk(committed_conn, "검사 안내", "각 검사 준비물은 검사별로 다릅니다.")
+    out = await rag_service.rag_answer("준비물이요?", embedder=_Fixed(), model=_ClarifyModel())
+    assert out.get("needs_clarification") is True
+    assert out.get("no_answer") is not True          # KB 구멍 아님 → 미해결로 집계하지 않는다
+    assert out["reply"] == "어떤 검사를 말씀하시는 걸까요?"   # 센티넬은 벗기고 질문만
+    assert "NEEDS_CLARIFY" not in out["reply"]        # 센티넬 원문이 환자에게 새면 안 된다
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+class _BothSentinelModel:
+    # 모델이 모순되게 둘 다 낸 경우 — 근거 부재(NO_ANSWER)가 확인질문보다 우선(되묻기 루프 방지·안전).
+    async def ainvoke(self, _):
+        class R: content = "NEEDS_CLARIFY: 어떤 검사요?\nNO_ANSWER"
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_no_answer_takes_priority_over_clarify(committed_conn):
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await _seed_normal_chunk(committed_conn)
+    out = await rag_service.rag_answer("아무거나요?", embedder=_Fixed(), model=_BothSentinelModel())
+    assert out.get("no_answer") is True
+    assert out.get("needs_clarification") is not True
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+class _EmptyClarifyModel:
+    async def ainvoke(self, _):
+        class R: content = "NEEDS_CLARIFY:   "
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_empty_clarify_question_falls_back_to_no_answer(committed_conn):
+    # 확인 질문 본문이 비면(빈 되묻기=막다른 길) 안전하게 no_answer로 폴백한다.
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await _seed_normal_chunk(committed_conn)
+    out = await rag_service.rag_answer("준비물이요?", embedder=_Fixed(), model=_EmptyClarifyModel())
+    assert out.get("no_answer") is True
+    assert out.get("needs_clarification") is not True
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_answer_prompt_carries_clarify_instruction(committed_conn):
+    # 프롬프트에 확인질문 지침이 실려야 한다(모델이 애매한 질문을 NEEDS_CLARIFY로 낼 수 있게).
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await _seed_normal_chunk(committed_conn)
+    rec = _RecModel()
+    await rag_service.rag_answer("주차 되나요", embedder=_Fixed(), model=rec)
+    assert "NEEDS_CLARIFY" in rec.text
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
 @pytest.mark.asyncio
 async def test_similar_qa_example_injected_as_fewshot(committed_conn):
     # 품질 개선 사이클: 오답 교정으로 쌓인 참고 예시가 비슷한 질문의 RAG 프롬프트에 few-shot으로 주입된다.
