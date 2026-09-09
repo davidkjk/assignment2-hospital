@@ -1,12 +1,14 @@
-import { renderHook } from '@testing-library/react'
-import { beforeEach, expect, test, vi } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { typingChannelName, useTypingChannel } from './useTypingChannel'
 import { supabase } from '../../lib/supabaseClient'
 
-// 제어 가능한 broadcast 채널 mock — send로 무엇을 보냈는지 기록한다.
+// 제어 가능한 broadcast 채널 mock — send는 기록하고, on 핸들러를 저장해 테스트가 수신을 흉내낸다.
 interface FakeChannel {
   sent: unknown[]
   subscribed: boolean
+  handlers: Record<string, (msg: { payload?: unknown }) => void>
+  on(type: string, filter: { event: string }, cb: (msg: { payload?: unknown }) => void): FakeChannel
   subscribe(cb?: (status: string) => void): FakeChannel
   send(msg: unknown): Promise<'ok'>
 }
@@ -17,6 +19,11 @@ function makeChannel(invokeSubscribed = false): FakeChannel {
   const ch: FakeChannel = {
     sent: [],
     subscribed: false,
+    handlers: {},
+    on(_type, filter, cb) {
+      ch.handlers[filter.event] = cb
+      return ch
+    },
     subscribe(cb) {
       ch.subscribed = true
       if (invokeSubscribed) cb?.('SUBSCRIBED')
@@ -38,8 +45,13 @@ vi.mock('../../lib/supabaseClient', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.useFakeTimers()
   channel = makeChannel()
   ;(supabase.channel as ReturnType<typeof vi.fn>).mockReturnValue(channel)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 test('[TICKET-DETAIL-TYPING-01] 채널 이름은 thread를 키로 하고 환자앱과 같은 형식이다', () => {
@@ -53,20 +65,20 @@ test('[TICKET-DETAIL-TYPING-01] thread로 채널을 한 번만 열고 구독한�
   expect(channel.subscribed).toBe(true)
 })
 
-test('[TICKET-DETAIL-TYPING-01] emit(true)/emit(false)를 role=staff broadcast로 보낸다', () => {
+test('[TICKET-DETAIL-TYPING-01] send(true)/send(false)를 role=staff broadcast로 보낸다', () => {
   const { result } = renderHook(() => useTypingChannel('t-1'))
-  result.current(true)
-  result.current(false)
+  result.current.send(true)
+  result.current.send(false)
   expect(channel.sent).toEqual([
     { type: 'broadcast', event: 'typing', payload: { role: 'staff', on: true } },
     { type: 'broadcast', event: 'typing', payload: { role: 'staff', on: false } },
   ])
 })
 
-test('threadId가 없으면 채널을 열지 않고 emit은 no-op(로딩 전 안전)', () => {
+test('threadId가 없으면 채널을 열지 않고 send은 no-op(로딩 전 안전)', () => {
   const { result } = renderHook(() => useTypingChannel(undefined))
   expect(supabase.channel).not.toHaveBeenCalled()
-  result.current(true) // 던지지 않는다
+  result.current.send(true) // 던지지 않는다
   expect(channel.sent).toEqual([])
 })
 
@@ -87,4 +99,38 @@ test('[TICKET-DETAIL-PRESENCE-01] 상세를 닫으면(언마운트) 열람 종�
   const { unmount } = renderHook(() => useTypingChannel('t-1'))
   unmount()
   expect(channel.sent).toContainEqual({ type: 'broadcast', event: 'viewing', payload: { role: 'staff', on: false } })
+})
+
+test('[TICKET-DETAIL-PATIENT-TYPING-01] 환자 입력 중(typing:patient/on) 수신 시 patientTyping=true, role=staff는 무시', () => {
+  const { result } = renderHook(() => useTypingChannel('t-1'))
+  act(() => channel.handlers['typing']?.({ payload: { role: 'staff', on: true } }))
+  expect(result.current.patientTyping).toBe(false) // 직원 자기 신호는 표시 안 함
+  act(() => channel.handlers['typing']?.({ payload: { role: 'patient', on: true } }))
+  expect(result.current.patientTyping).toBe(true)
+  act(() => channel.handlers['typing']?.({ payload: { role: 'patient', on: false } }))
+  expect(result.current.patientTyping).toBe(false)
+})
+
+test('[TICKET-DETAIL-PATIENT-TYPING-01] 끔 신호 유실 대비 6초 안전 타임아웃으로 자동 해제', () => {
+  const { result } = renderHook(() => useTypingChannel('t-1'))
+  act(() => channel.handlers['typing']?.({ payload: { role: 'patient', on: true } }))
+  expect(result.current.patientTyping).toBe(true)
+  act(() => vi.advanceTimersByTime(6000))
+  expect(result.current.patientTyping).toBe(false)
+})
+
+test('[TICKET-DETAIL-PATIENT-PRESENCE-01] 환자 접속(viewing:patient/on) 수신 시 patientViewing=true', () => {
+  const { result } = renderHook(() => useTypingChannel('t-1'))
+  act(() => channel.handlers['viewing']?.({ payload: { role: 'patient', on: true } }))
+  expect(result.current.patientViewing).toBe(true)
+  act(() => channel.handlers['viewing']?.({ payload: { role: 'patient', on: false } }))
+  expect(result.current.patientViewing).toBe(false)
+})
+
+test('[TICKET-DETAIL-PATIENT-PRESENCE-01] 접속 끔 신호 유실 대비 12초 안전 타임아웃', () => {
+  const { result } = renderHook(() => useTypingChannel('t-1'))
+  act(() => channel.handlers['viewing']?.({ payload: { role: 'patient', on: true } }))
+  expect(result.current.patientViewing).toBe(true)
+  act(() => vi.advanceTimersByTime(12000))
+  expect(result.current.patientViewing).toBe(false)
 })

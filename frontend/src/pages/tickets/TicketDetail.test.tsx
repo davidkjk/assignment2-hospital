@@ -5,6 +5,9 @@ import type { StaffTicketDetailApi, TicketDetail as TD } from '../../api/staffCh
 
 // 상세 라이브 훅을 모킹(실제 채널 미개통).
 vi.mock('./useTicketDetailRealtime', () => ({ useTicketDetailRealtime: () => {} }))
+// 타이핑/열람 채널 모킹 — 환자 presence 값을 테스트가 제어한다(실제 realtime 없이 표시 배선 검증).
+const typingState = { send: vi.fn(), patientTyping: false, patientViewing: false }
+vi.mock('./useTypingChannel', () => ({ useTypingChannel: () => typingState }))
 
 import { TicketDetail } from './TicketDetail'
 
@@ -56,4 +59,16 @@ it('[TICKET-DETAIL-SCOPE-01] 온라인 초록 점·사진·파일·음성·메�
   await waitFor(() => expect(screen.getByLabelText('대화')).toBeInTheDocument())
   expect(container.querySelector('input[type="file"]')).not.toBeInTheDocument()
   expect(screen.queryByText(/온라인|사진 첨부|음성|반응 추가/)).not.toBeInTheDocument()
+})
+
+it('[TICKET-DETAIL-PATIENT-TYPING-01] 환자가 입력 중이면 상단에 "환자 입력 중"을 표시한다', async () => {
+  typingState.patientTyping = true
+  typingState.patientViewing = true
+  try {
+    render(<TicketDetail api={fakeApi()} ticket={ticket} onLoserBackToList={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('환자 입력 중')).toBeInTheDocument())
+  } finally {
+    typingState.patientTyping = false
+    typingState.patientViewing = false
+  }
 })

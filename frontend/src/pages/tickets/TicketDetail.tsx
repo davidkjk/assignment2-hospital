@@ -8,6 +8,7 @@ import { ReplyBox } from './ReplyBox'
 import { ReassignControl } from './ReassignControl'
 import { CloseTicketButton } from './CloseTicketDialog'
 import { useTypingChannel } from './useTypingChannel'
+import { PatientPresence } from './PatientPresence'
 import { LoadingState } from '../../components/LoadingState'
 
 // 티켓 상세 조립(LAYOUT-01) — 위→아래: 담당 이관 → 인계 요약 → 전체 대화 → 답변/보내기 → (따로) 상담 종료.
@@ -25,8 +26,9 @@ export function TicketDetail(props: {
   const d = useTicketDetail(api, ticket.id, { onLoserBackToList })
   const [draft, setDraft] = useState('')
   // TICKET-DETAIL-TYPING-01: 답변 작성 중이면 같은 thread의 broadcast로 "직원 입력 중"을 환자 상담방에 보낸다.
-  // 유휴 3초 해제(디바운스)는 d.setTyping이, 송신 transport는 sendTyping이 담당한다.
-  const sendTyping = useTypingChannel(d.detail?.threadId)
+  // 유휴 3초 해제(디바운스)는 d.setTyping이, 송신 transport는 send가 담당한다.
+  // [TICKET-DETAIL-PATIENT-PRESENCE-01·PATIENT-TYPING-01] 같은 채널에서 환자 접속·입력 중도 구독해 표시한다.
+  const { send: sendTyping, patientTyping, patientViewing } = useTypingChannel(d.detail?.threadId)
 
   // SCROLL-01: 새 메시지가 늘면(특히 내가 방금 보낸 답변) 대화 맨 아래로 스크롤한다.
   // 안 하면 보낸 글이 스크롤 영역 밑에 접혀 "아무 일도 안 일어난 것"처럼 보인다.
@@ -75,6 +77,8 @@ export function TicketDetail(props: {
           {d.statusLabel}
         </span>
         {d.live === 'disconnected' && <span className="text-amber-700">· 연결 불안정 · 최신 상태가 아닐 수 있습니다</span>}
+        {/* [TICKET-DETAIL-PATIENT-PRESENCE-01·PATIENT-TYPING-01] 환자 접속·입력 중을 상단에 라이브 표시 */}
+        <PatientPresence typing={patientTyping} viewing={patientViewing} />
       </div>
 
       {/* ① 담당 이관(맨 위) — 읽기 전용이면 이관 없음 */}
