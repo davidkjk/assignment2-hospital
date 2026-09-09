@@ -197,3 +197,15 @@ async def test_understand_parses_topic_shift_and_clamps_confidence():
     assert u.route == "agent"
     assert u.topic_shift is True
     assert u.confidence == 1.0   # [0,1] 밖 값은 클램프
+
+
+@pytest.mark.asyncio
+async def test_understand_ignores_rewrite_when_no_followup_signal():
+    # alias 과잉재작성 방지(후7): 후속 신호가 없는 자기완결 첫 질문은 이해기가 재작성을 내도 신뢰하지 않는다
+    #   (legacy의 has_followup_signal 규율 이식). standalone은 버리고 원문으로 검색.
+    model = _JsonModel(_json(route="rag", standalone_query="컴퓨터단층촬영 CT 금식 여부",
+                             needs_clarification=False, clarification_question="",
+                             topic_shift=False, confidence=0.8))
+    u = await cu.understand("컴퓨터단층촬영 금식해야 돼요?", [], model=model)
+    assert u.route == "rag"
+    assert u.standalone_query is None      # history 없는 첫 질문 → 재작성 무시(원문 유지)

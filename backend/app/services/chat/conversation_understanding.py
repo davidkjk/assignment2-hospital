@@ -148,6 +148,11 @@ async def understand(message: str, history_texts, *, active_flow: str | None = N
     standalone = standalone.strip() if isinstance(standalone, str) else ""
     if not standalone or standalone == (message or "").strip():
         standalone = None
+    # 재작성은 후속 신호가 있을 때만 신뢰한다(legacy has_followup_signal 규율 이식, 후7 alias 회귀 수정).
+    #   자기완결 첫 질문("컴퓨터단층촬영 금식?")을 이해기가 지시 무시하고 재작성하면 검색이 빗나가므로,
+    #   후속 신호가 없으면 재작성을 버리고 원문으로 검색한다(라우팅·되묻기 판정은 그대로 유지).
+    if standalone and not has_followup_signal(message, history_texts):
+        standalone = None
 
     clarify_q = parsed.get("clarification_question")
     clarify_q = clarify_q.strip() if isinstance(clarify_q, str) else ""
