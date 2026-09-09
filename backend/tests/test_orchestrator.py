@@ -78,7 +78,9 @@ async def test_rag_needs_clarification_routes_as_normal_reply():
     async def rag_fn(s, m): return {"needs_clarification": True, "reply": "어떤 검사를 말씀하시나요?"}
     out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
                                          "준비물이요?", rag_fn=rag_fn, model=_Model("rag"))
-    assert out["route_taken"] == "rag"                   # no_answer 아님 → 미해결 기록 안 됨
+    # (a) 계기판: route_taken='needs_clarification'로 구분 저장하되, no_answer/handoff가 아니라
+    #   chat_flow_service의 일반 봇 답변 경로로 흘러 티켓·미해결 기록을 만들지 않는다(리포트 §7).
+    assert out["route_taken"] == "needs_clarification"
     assert out["reply"] == "어떤 검사를 말씀하시나요?"
     assert out.get("needs_clarification") is True
 
@@ -239,7 +241,7 @@ async def test_llm_mode_search_before_clarification_skips_rag():
     out = await orchestrator.orchestrate(
         SimpleNamespace(active_flow=None, flow_step=0), "준비물이요?",
         history_texts=["안녕하세요"], rag_fn=rag_fn, model=model, understanding_mode="llm")
-    assert out["route_taken"] == "rag"
+    assert out["route_taken"] == "needs_clarification"         # (a) 계기판: 되묻기를 구분 저장
     assert out["needs_clarification"] is True
     assert out["reply"] == "어떤 검사를 말씀하시나요?"
     assert called["rag"] is False                              # 검색 안 함

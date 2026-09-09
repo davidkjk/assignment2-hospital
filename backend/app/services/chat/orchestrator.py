@@ -150,7 +150,8 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
             # 검색-전 되묻기: 애매하면 검색 없이 되묻는다(route_taken=rag 유지 = 실패 아님, 미해결 집계 X).
             #   검색-후 되묻기(rag_service NEEDS_CLARIFY)는 병행 유지 — 두 겹으로 막다른 길 방지(위험 #2).
             if u.needs_clarification and u.route == "rag":
-                return {"route_taken": "rag", "needs_clarification": True,
+                # (a) 되묻기 계기판: 일반 답변과 구분해 저장(집계 가능). 프론트는 reply를 렌더(무영향).
+                return {"route_taken": "needs_clarification", "needs_clarification": True,
                         "reply": u.clarification_question, "escalated": False}
             route = u.route
             if u.standalone_query:
@@ -188,4 +189,7 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
         return {"route_taken": "no_answer", "reply": NO_ANSWER_REPLY,
                 "quick_replies": NO_ANSWER_QUICK_REPLIES, "handoff_chip": NO_ANSWER_HANDOFF_CHIP,
                 "escalated": False}
+    # (a) 검색-후 되묻기(rag_service NEEDS_CLARIFY)도 계기판용으로 구분 저장.
+    if result.get("needs_clarification"):
+        return {"route_taken": "needs_clarification", **result}
     return {"route_taken": "rag", **result}
