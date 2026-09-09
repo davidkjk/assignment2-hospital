@@ -50,3 +50,22 @@ async def test_respond_injects_department_names_into_prompt():
     await dgc.respond("배가 아파요", ["내과", "가정의학과"], model=m)
     rendered = "".join(str(msg) for msg in m.calls[0])
     assert "가정의학과" in rendered
+
+
+@pytest.mark.asyncio
+async def test_respond_injects_department_hints_for_mapping():
+    # 이름만으론 증상↔과 매핑이 약하다(실측: 생리→이비인후과 오답). 각 과가 '보는 증상' 힌트를
+    #   프롬프트에 함께 실어 LLM이 정확히 고르게 한다.
+    m = _Model("정형외과를 추천드려요")
+    await dgc.respond("무릎이 아파요", ["내과", "정형외과", "이비인후과"], model=m)
+    rendered = "".join(str(msg) for msg in m.calls[0])
+    assert "관절" in rendered or "허리" in rendered      # 정형외과 힌트
+    assert "코막힘" in rendered or "귀" in rendered        # 이비인후과 힌트
+
+
+def test_prompt_guides_honestly_when_needed_department_absent():
+    # 사용자 결정(2026-09-09): 있는 과는 정확히 추천, 없는 과가 필요한 증상은 '어떤 과가 필요한지는
+    #   알려주되 가온병원엔 없다'고 정직하게 안내(막다른 길 없이 상담/대안). 없는 과를 우리 예약처럼 말하지 않기.
+    p = dgc.GUIDE_SYSTEM_PROMPT
+    assert "없" in p and "가온병원" in p        # 없는 과 정직 안내
+    assert "상담" in p                            # 대안 경로 안내
