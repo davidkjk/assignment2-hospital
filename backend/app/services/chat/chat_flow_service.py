@@ -5,7 +5,8 @@ from app.core.errors import AppError, log_error
 from app.db.pool import get_pool
 from app.services import opening_hours
 from app.services.chat import (orchestrator, rag_service, quality_service, card_builder,
-                               booking_agent_service, intent_precheck, dept_guide_service)
+                               booking_agent_service, intent_precheck, dept_guide_service,
+                               conversation_understanding)
 
 
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
@@ -110,7 +111,15 @@ async def handle_message(session, content: str, *, thread_id: UUID,
     history_texts = build_history(hist, current_id)
 
     async def rag_fn(s, m):
-        return await rag_service.rag_answer(m, embedder=embedder, model=model)
+        # Sprint 2(멀티턴 재작성): 후속 질문이면 지시어·생략을 푼 독립형 질의로 검색한다(리포트 §4.2·§9.4).
+        #   후속 신호가 있을 때만 재작성 LLM을 한 번 태우고(첫 질문·자기완결 질문엔 낭비), 재작성+원문을
+        #   concat해 검색에만 쓴다. 화면·LLM 질문엔 원문(m)이 그대로 간다. 재작성 실패는 원문으로 폴백.
+        retrieval_query = None
+        if conversation_understanding.has_followup_signal(m, history_texts):
+            standalone = await conversation_understanding.rewrite_standalone(m, history_texts, model=model)
+            retrieval_query = conversation_understanding.build_search_query(m, standalone)
+        return await rag_service.rag_answer(m, embedder=embedder, model=model,
+                                            retrieval_query=retrieval_query)
 
     async def agent_fn(s, m):
         # 행동형(예약). 채널로 갈린다(사용자 결정 B):

@@ -41,10 +41,13 @@ _ANSWER_SYSTEM_PROMPT = (
 )
 
 
-async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5) -> dict:
+async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5,
+                     retrieval_query: str | None = None) -> dict:
     # 검색용 질의는 동의어 확장(Sprint 1.2): "씨티"→"CT"도 함께 실어 임베딩·트라이그램이 KB 원문을 찾게 한다.
     # 화면·로그·LLM 질문에는 원문(message)을 그대로 쓴다 — 확장어가 환자에게 보이면 안 된다.
-    search_query = normalize_query(message)
+    # retrieval_query(Sprint 2): 후속 질문이면 orchestrate가 지시어를 푼 독립형 질의(+원문 concat)를 준다.
+    #   그때는 원문 대신 그 질의를 정규화해 검색한다. LLM 질문·화면은 여전히 message(원문)를 쓴다.
+    search_query = normalize_query(retrieval_query or message)
     qvec = (await embedder.embed([search_query]))[0]
     vec = "[" + ",".join(map(str, qvec)) + "]"
     pool = await get_pool()

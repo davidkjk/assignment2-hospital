@@ -132,6 +132,37 @@ async def test_retrieval_embeds_synonym_expanded_query():
 
 
 @pytest.mark.asyncio
+async def test_retrieval_query_is_searched_while_original_goes_to_llm(committed_conn):
+    # Sprint 2(멀티턴 재작성): 후속 질문이면 orchestrate가 재작성한 독립형 질의(retrieval_query)로
+    #   검색하고, LLM 질문·화면엔 원문을 쓴다. retrieval_query가 오면 그것을(정규화해) 임베딩한다.
+    st = await seed_staff(committed_conn, role="admin")
+    vecstr = "[" + ",".join(["1.0"] + ["0.0"] * 1535) + "]"
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, is_restricted) "
+        "values ('CT 안내','CT 검사 전 6시간 금식이 필요합니다.','approved',false) returning id")
+    await committed_conn.execute(
+        "insert into kb_chunks (document_id, chunk_index, content, embedding) "
+        "values ($1,0,'CT 검사 전 6시간 금식이 필요합니다.',$2::vector)", doc, vecstr)
+    rec = _RecEmbedder()
+    captured = {}
+    class _Rec:
+        async def ainvoke(self, msgs):
+            captured["text"] = " ".join(getattr(m, "content", str(m)) for m in msgs)
+            class R: content = "6시간 금식이 필요합니다."
+            return R()
+    await rag_service.rag_answer(
+        "그럼 물은?", embedder=rec, model=_Rec(),
+        retrieval_query="CT 조영제 검사 전에 물을 마셔도 되나요? 그럼 물은?")
+    assert rec.texts is not None
+    assert "ct 조영제 검사 전에 물을 마셔도 되나요?" in rec.texts[0]   # 재작성 질의로 검색(정규화=소문자)
+    assert "그럼 물은?" in captured["text"]        # 원문이 LLM 질문에
+    assert "CT 조영제 검사 전에" not in captured["text"]   # 재작성 질의는 LLM에 새지 않는다
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
 async def test_llm_question_keeps_original_text(committed_conn):
     # 확장은 검색용일 뿐 — 환자가 실제 쓴 질문(원문)이 LLM에 그대로 가야 한다(확장어가 환자에게 안 보이게).
     st = await seed_staff(committed_conn, role="admin")
