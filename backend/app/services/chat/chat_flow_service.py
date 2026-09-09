@@ -19,6 +19,14 @@ _SENDER_ID_COL = {
 }
 
 
+def build_history(rows, current_id) -> list[str]:
+    # 최근 이력 윈도우(최신순 fetch)에서 방금 저장한 현재 메시지(current_id)를 빼고 시간순으로 돌려준다.
+    #   현재 메시지가 이 목록에 남으면 진료과 흐름이 [*history, message]로 현재 발화를 두 번 넣고
+    #   (리포트 §2.2), 반복 감지가 현재를 세어 threshold를 1 일찍 친다. 둘 다 제외로 바로잡는다.
+    #   ⚠️ 내용이 아니라 id로 제외한다 — 같은 말을 반복하면 이전 발화는 보존해야 한다.
+    return [r["content"] for r in reversed(rows) if r["id"] != current_id]
+
+
 def _guide_booking_card(sender_kind: str, matched: list[dict]) -> dict:
     # 웹=진료과 선택 카드(대화 내 예약, 증상칩 숨김), 앱=예약 마법사 인계 카드(첫 후보 프리필, 결정 B).
     if sender_kind == "anonymous_web":
@@ -53,19 +61,24 @@ async def handle_message(session, content: str, *, thread_id: UUID,
         #   방금 넣은 발신 메시지도 함께 롤백된다(만료 세션에 고아 메시지 + 409 방지).
         async with conn.transaction():
             # 1. 발신 메시지 저장(멱등). AI 세션 문맥. sender_type은 'patient', 소유 컬럼만 종류에 맞춘다.
-            await conn.fetchrow(
+            inserted = await conn.fetchrow(
                 f"insert into chat_messages (thread_id, ai_chat_session_id, sender_type, {sender_col}, "
                 f"message_type, content, client_message_id) "
                 f"select $1,$2,'patient', {sender_src}, 'text', $3, $4 from chat_threads t where t.id=$1 "
-                "on conflict (client_message_id) where client_message_id is not null do nothing returning *",
+                "on conflict (client_message_id) where client_message_id is not null do nothing returning id",
                 thread_id, sid, content, client_message_id)
             # 2. 30분 연장(만료됐으면 record_ai_activity가 막는다 → 상위에서 새 세션 안내).
             await conn.execute("select record_ai_activity($1)", sid)
-        # 3. 최근 히스토리(롤링 윈도우).
+        # 방금 저장한 현재 메시지 id — 멱등 재시도로 insert가 no-op이면(None) client_message_id로 되찾는다.
+        current_id = inserted["id"] if inserted else await conn.fetchval(
+            "select id from chat_messages where thread_id=$1 and client_message_id=$2",
+            thread_id, client_message_id)
+        # 3. 최근 히스토리(롤링 윈도우). 현재 메시지를 뺀 이전 발화만 필요하므로 +1개를 더 가져와
+        #    build_history가 현재(current_id)를 제외한 뒤에도 윈도우 크기를 유지한다.
         hist = await conn.fetch(
-            "select content from chat_messages where thread_id=$1 and content is not null "
-            "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW)
-    history_texts = [h["content"] for h in reversed(hist)]
+            "select id, content from chat_messages where thread_id=$1 and content is not null "
+            "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW + 1)
+    history_texts = build_history(hist, current_id)
 
     async def rag_fn(s, m):
         return await rag_service.rag_answer(m, embedder=embedder, model=model)
@@ -164,7 +177,9 @@ async def handle_message(session, content: str, *, thread_id: UUID,
     #   전부 None을 돌려주므로(best-effort) 인계는 이 요약 때문에 막히지 않는다(SUM-02: 없으면 '없음').
     handoff_summary = {}
     if out["route_taken"] == "handoff":
-        handoff_summary = await orchestrator.make_handoff_summary("\n".join(history_texts or []), model=model)
+        # 인계 요약엔 현재(인계를 부른) 발화도 포함한다 — history_texts는 현재를 제외하므로 여기서 다시 붙인다.
+        handoff_summary = await orchestrator.make_handoff_summary(
+            "\n".join([*history_texts, content]), model=model)
     async with pool.acquire() as conn:
         if out["route_taken"] == "handoff":
             # AI 세션 종료 + 티켓 생성 + 시스템 메시지. no_answer면 미해결 기록.
