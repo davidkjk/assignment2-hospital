@@ -59,7 +59,8 @@ class ChatRoomView extends ConsumerWidget {
         icon: AppIcons.chat_bubble, // 로딩/오류(ChatRoomEntry)와 같은 봇 아이콘 — 전이 시 깜빡임 방지
         // #9: 인계 상태를 제목 옆 짧은 LED 상태로(연결 전/확인 중/답변 도착). 인계 전엔 안 보인다.
         titleTrailing: (st.handoff != null && st.handoff!.phase != null)
-            ? ChatHandoffHeaderStatus(status: st.handoff!, staffViewing: st.staffViewing)
+            ? ChatHandoffHeaderStatus(
+                status: st.handoff!, staffViewing: st.staffViewing, staffTyping: st.staffTyping)
             : null,
         // 딥링크 방(onExit != null): 뒤로가기 = 이전 상담 목록(CHAT-HISTORY-DEEP-02·NAV-CHATAPP-09).
         leading: onExit == null

@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hospital_patient_app/core/theme.dart';
 import 'package:hospital_patient_app/features/booking/booking_controller.dart';
 import 'package:hospital_patient_app/features/booking/catalog_repository.dart';
-import 'package:hospital_patient_app/features/booking/steps/dept_bot_controller.dart';
 import 'package:hospital_patient_app/features/booking/steps/dept_bot_sheet.dart';
 import 'package:hospital_patient_app/features/booking/steps/dept_guide_repository.dart';
 import 'booking_test_support.dart';

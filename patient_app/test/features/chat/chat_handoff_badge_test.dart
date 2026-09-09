@@ -37,6 +37,19 @@ void main() {
     expect(find.textContaining('김간호'), findsNothing);
   });
 
+  testWidgets('[#9 헤더] 직원이 타이핑 중이면 `직원이 입력 중` — 확인 중/확인 전으로 안 되돌아감', (t) async {
+    // 실기기 지적(2026-09-09): 직원이 답을 쓰기 시작하면 viewing presence 만료로 헤더가 `직원 확인 전`으로
+    //   되돌아가 배너가 다시 뜨던 문제. 타이핑 중이면 답변 도착 전까지 `직원이 입력 중`으로 유지한다.
+    await t.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: ChatHandoffHeaderStatus(
+                status: const HandoffStatus(phase: HandoffPhase.connecting),
+                staffViewing: false,
+                staffTyping: true))));
+    expect(find.text('직원이 입력 중'), findsOneWidget);
+    expect(find.text('직원 확인 전'), findsNothing);
+  });
+
   testWidgets('[#9 헤더/Q18④] 답변 도착이면 `답변 도착` + 담당자 이름', (t) async {
     await pumpHeader(t, const HandoffStatus(phase: HandoffPhase.ended,
         assigneeName: '이의사', assigneeRole: '의사'));

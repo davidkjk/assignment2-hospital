@@ -47,14 +47,20 @@ HandoffPhase _effectivePhase(HandoffStatus status, bool staffViewing) =>
 class ChatHandoffHeaderStatus extends StatelessWidget {
   final HandoffStatus status;
   final bool staffViewing;
+  final bool staffTyping;
   const ChatHandoffHeaderStatus(
-      {super.key, required this.status, this.staffViewing = false});
+      {super.key, required this.status, this.staffViewing = false, this.staffTyping = false});
 
   @override
   Widget build(BuildContext context) {
     if (status.phase == null) return const SizedBox.shrink();
     final effective = _effectivePhase(status, staffViewing);
-    final v = _HandoffVisual.of(effective);
+    // 답변 도착 전에 직원이 타이핑 중이면 헤더도 '직원이 입력 중'으로 — viewing presence 가 12초로 만료돼도
+    // '직원 확인 전'으로 되돌아가 배너가 다시 뜨는 것을 막는다(2026-09-09 실기기 지적).
+    final typing = staffTyping && effective != HandoffPhase.ended;
+    final v = typing
+        ? (dot: _HandoffVisual.sky, glow: _HandoffVisual.skyGlow, label: '직원이 입력 중')
+        : _HandoffVisual.of(effective);
     // Q18④: 답변 도착(ended)일 때만 담당자 이름을 짧게 덧붙인다(그 전엔 배정을 숨김). 오버플로는 말줄임.
     final showName = effective == HandoffPhase.ended && status.assigneeName != null;
     return Row(mainAxisSize: MainAxisSize.min, children: [
