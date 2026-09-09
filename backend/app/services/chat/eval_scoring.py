@@ -28,3 +28,10 @@ def missing_query_terms(query: str, required_terms: list[str]) -> list[str]:
     # (재작성) 검색 질의에 포함돼야 할 핵심어 중 빠진 것 — 대소문자 무시(CT/ct).
     q = (query or "").lower()
     return [t for t in (required_terms or []) if t.lower() not in q]
+
+
+def scorable(*, no_answer: bool, needs_clarification: bool) -> bool:
+    # 이 케이스 결과를 recall·근거 충실성 집계에 넣을지. needs_clarification(애매한 질문에 대한
+    #   되묻기)은 정상 rag 흐름이라 '답변 실패'가 아니다(리포트 §7) → 집계에서 뺀다.
+    #   no_answer(근거 부족)는 기존대로 집계 대상으로 남긴다(기준선 비교 가능성 보존).
+    return not needs_clarification

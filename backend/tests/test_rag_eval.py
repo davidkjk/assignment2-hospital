@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from app.services.chat import eval_scoring as sc
+from scripts import rag_eval
 
 CASES_PATH = Path(__file__).resolve().parent.parent / "evals" / "chatbot_cases.jsonl"
 
@@ -35,6 +36,39 @@ def test_missing_query_terms_is_case_insensitive():
     # 재작성 질의에 CT·조영제가 들어갔는지(대소문자 무시).
     assert sc.missing_query_terms("ct 조영제 검사 준비", ["CT", "조영제", "준비"]) == []
     assert sc.missing_query_terms("물 마셔도 돼요", ["CT", "조영제"]) == ["CT", "조영제"]
+
+
+# ── 러너 헬퍼: 케이스 turns → 현재 메시지 + 이력 (프로덕션 build_history와 동형, 순수) ──
+
+def test_case_message_and_history_single_turn_has_empty_history():
+    # 단일 발화 케이스: 마지막 user 발화가 현재 메시지, 이력은 비어 있다(첫 질문 → 재작성 안 됨).
+    case = {"turns": [{"role": "user", "content": "CT 조영제 검사 준비물이 뭐예요?"}]}
+    message, history = rag_eval.case_message_and_history(case)
+    assert message == "CT 조영제 검사 준비물이 뭐예요?"
+    assert history == []
+
+
+def test_case_message_and_history_multiturn_keeps_prior_turns_in_order():
+    # 멀티턴: 마지막 user 발화가 현재 메시지, 그 앞의 모든 턴(사용자·봇)이 시간순 이력으로 남는다.
+    #   이 이력이 has_followup_signal(비어있지 않음)·rewrite_standalone(지시어 해소)의 입력이 된다.
+    case = {"turns": [
+        {"role": "user", "content": "씨티 찍어요"},
+        {"role": "assistant", "content": "조영제를 사용하는 CT 검사인가요?"},
+        {"role": "user", "content": "응 그거 몇 시간 굶어야 해?"},
+    ]}
+    message, history = rag_eval.case_message_and_history(case)
+    assert message == "응 그거 몇 시간 굶어야 해?"
+    assert history == ["씨티 찍어요", "조영제를 사용하는 CT 검사인가요?"]
+
+
+# ── 러너 헬퍼: needs_clarification(되묻기)은 recall/근거 집계 대상이 아니다(리포트 §7) ──
+
+def test_scorable_excludes_clarification_but_keeps_no_answer():
+    # needs_clarification(정상 되묻기)은 '답변 시도'가 아니라 recall/근거 집계에서 뺀다.
+    #   no_answer(근거 부족)는 기존대로 집계 대상으로 남긴다(기준선 비교 가능성 보존).
+    assert sc.scorable(no_answer=False, needs_clarification=True) is False
+    assert sc.scorable(no_answer=True, needs_clarification=False) is True
+    assert sc.scorable(no_answer=False, needs_clarification=False) is True
 
 
 # ── 골든 케이스 파일 무결성 ──
