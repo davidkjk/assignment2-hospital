@@ -195,7 +195,11 @@ class ChatRoomView extends ConsumerWidget {
   // CHAT-ROOM-INPUT-01 (항상 열림). 빠른답변 칩은 입력창 위 고정 바가 아니라 **피드 마지막 줄**에 둔다
   // (A3, 2026-09-08 실기기: 고정 바가 대화창을 가림). 시작 묶음은 빈 상태 안내 밑, no_answer 칩은 피드 footer.
   Widget _inputBar(ChatRoomState st, ChatRoomController ctl) =>
-      ChatInputBar(onSend: (c) => ctl.send(c));
+      ChatInputBar(
+        onSend: (c) => ctl.send(c),
+        // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중이면 직원에게 "환자 입력 중"을 알린다(디바운스는 컨트롤러).
+        onChanged: (_) => ctl.notifyTyping(),
+      );
 
   Widget _buildQuickReplies(ChatRoomState st, ChatRoomController ctl) {
     final active = activeQuickReplies(st.items);

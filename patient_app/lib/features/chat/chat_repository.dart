@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show SupabaseClient, RealtimeSubscribeStatus;
 import '../../core/api_client.dart';
 import '../../core/providers.dart';
 import 'chat_models.dart';
@@ -164,10 +165,20 @@ class ChatRepository {
   /// ⚠️ 반드시 **한 채널**에서 두 이벤트를 함께 듣는다. 예전엔 typing·viewing을 각각 `rt.channel('chat-typing:X')`로
   ///   따로 열었는데, **같은 토픽에 채널을 2개** 열면 Supabase realtime이 한쪽으로만 broadcast를 전달해
   ///   viewing은 되고 typing은 영영 안 뜨던 버그가 있었다(2026-09-09 실기기). 한 채널·두 콜백으로 합친다.
-  ({Stream<bool> typing, Stream<bool> viewing}) streamStaffLive(String threadId) {
+  ///
+  /// [CHAT-ROOM-PATIENT-PRESENCE-01·PATIENT-TYPING-01] 방향은 양쪽이다 — 환자쪽도 **같은 채널**로
+  ///   `role:'patient'`의 viewing(방 열림)·typing(입력 중)을 보낸다(직원웹 TicketDetail이 이걸 구독해
+  ///   "환자 접속/입력 중"을 띄운다). 새 채널을 또 열면 위 유실 버그를 다시 부르므로 반드시 이 채널로 보낸다.
+  ///   viewing:on은 구독 완료(subscribed) 후 1회, off는 방 dispose 시. typing은 반환한 sendTyping으로 emit.
+  ({Stream<bool> typing, Stream<bool> viewing, void Function(bool) sendTyping})
+      streamStaffLive(String threadId) {
     final rt = _realtime;
     if (rt == null) {
-      return (typing: const Stream<bool>.empty(), viewing: const Stream<bool>.empty());
+      return (
+        typing: const Stream<bool>.empty(),
+        viewing: const Stream<bool>.empty(),
+        sendTyping: (_) {},
+      );
     }
     final typingC = StreamController<bool>();
     final viewingC = StreamController<bool>();
@@ -177,17 +188,31 @@ class ChatRepository {
       final data = payload['payload'] is Map ? payload['payload'] as Map : payload;
       if (data['role'] == 'staff' && !c.isClosed) c.add(data['on'] == true);
     }
+    void sendPatient(String event, bool on) => channel.sendBroadcastMessage(
+          event: event,
+          payload: {'role': 'patient', 'on': on},
+        );
     channel
         .onBroadcast(event: 'typing', callback: (p) => emit(p, typingC))
         .onBroadcast(event: 'viewing', callback: (p) => emit(p, viewingC))
-        .subscribe();
+        .subscribe((status, _) {
+      // 구독 전 send는 유실된다 — subscribed 후에 환자 열람 presence를 켠다.
+      if (status == RealtimeSubscribeStatus.subscribed) sendPatient('viewing', true);
+    });
     var open = 2; // 두 스트림이 모두 취소되면(방 dispose) 채널을 제거한다.
     void closeOne() {
-      if (--open == 0) rt.removeChannel(channel);
+      if (--open == 0) {
+        sendPatient('viewing', false); // 방을 닫으면 환자 열람 종료(직원웹 12초 타임아웃도 방어).
+        rt.removeChannel(channel);
+      }
     }
     typingC.onCancel = closeOne;
     viewingC.onCancel = closeOne;
-    return (typing: typingC.stream, viewing: viewingC.stream);
+    return (
+      typing: typingC.stream,
+      viewing: viewingC.stream,
+      sendTyping: (on) => sendPatient('typing', on),
+    );
   }
 }
 

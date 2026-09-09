@@ -277,6 +277,64 @@ void main() {
     });
   });
 
+  test('[CHAT-ROOM-PATIENT-TYPING-01] notifyTyping은 첫 입력에 on=true를 한 번만 보낸다(연속 입력 중복 억제)', () {
+    fakeAsync((async) {
+      final repo = _FakeRepo()..messages = [];
+      final c = ChatRoomController(repo, threadId: 't1');
+      c.load();
+      async.flushMicrotasks();
+      final sent = <bool>[];
+      c.bindPatientTyping(sent.add);
+      c.notifyTyping();
+      c.notifyTyping();
+      c.notifyTyping();
+      expect(sent, [true]); // 매 키 입력에 재전송하지 않는다 — 켜짐은 한 번
+    });
+  });
+
+  test('[CHAT-ROOM-PATIENT-TYPING-01] 마지막 입력 후 3초 유휴면 off=false를 보낸다(디바운스)', () {
+    fakeAsync((async) {
+      final repo = _FakeRepo()..messages = [];
+      final c = ChatRoomController(repo, threadId: 't1');
+      c.load();
+      async.flushMicrotasks();
+      final sent = <bool>[];
+      c.bindPatientTyping(sent.add);
+      c.notifyTyping();
+      async.elapse(const Duration(seconds: 3));
+      expect(sent, [true, false]); // 직원웹 setTyping과 대칭: 유휴 3초 해제
+    });
+  });
+
+  test('[CHAT-ROOM-PATIENT-TYPING-01] 3초 안에 다시 입력하면 off를 미루고 새 3초를 센다', () {
+    fakeAsync((async) {
+      final repo = _FakeRepo()..messages = [];
+      final c = ChatRoomController(repo, threadId: 't1');
+      c.load();
+      async.flushMicrotasks();
+      final sent = <bool>[];
+      c.bindPatientTyping(sent.add);
+      c.notifyTyping();
+      async.elapse(const Duration(seconds: 2));
+      c.notifyTyping(); // 유휴 타이머 리셋
+      async.elapse(const Duration(seconds: 2));
+      expect(sent, [true]); // 아직 off 안 됨(마지막 입력에서 2초만 지남)
+      async.elapse(const Duration(seconds: 1));
+      expect(sent, [true, false]); // 마지막 입력 +3초에 off
+    });
+  });
+
+  test('[CHAT-ROOM-PATIENT-TYPING-01] realtime 미주입(sink 없음)이면 notifyTyping은 무해한 no-op', () {
+    fakeAsync((async) {
+      final repo = _FakeRepo()..messages = [];
+      final c = ChatRoomController(repo, threadId: 't1');
+      c.load();
+      async.flushMicrotasks();
+      c.notifyTyping(); // 던지지 않는다
+      async.elapse(const Duration(seconds: 3));
+    });
+  });
+
   test('[CHAT-ROOM-SEND-04] handoff처럼 reply·card가 둘 다 없으면 "연결 중" 시스템 줄을 붙여 무응답을 막는다',
       () async {
     final repo = _FakeRepo()

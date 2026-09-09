@@ -23,4 +23,14 @@ void main() {
         const MaterialApp(home: Scaffold(body: ChatInputBar(onSend: _noop))));
     expect(find.byType(TextField), findsOneWidget);
   });
+
+  testWidgets('[CHAT-ROOM-PATIENT-TYPING-01] 글자가 바뀌면 onChanged로 알린다(환자 입력 중 신호원)',
+      (t) async {
+    final changed = <String>[];
+    await t.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: ChatInputBar(onSend: _noop, onChanged: changed.add))));
+    await t.enterText(find.byType(TextField), '두통');
+    expect(changed, contains('두통')); // 컨트롤러 notifyTyping이 여기에 물린다
+  });
 }

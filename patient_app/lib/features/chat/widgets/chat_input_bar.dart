@@ -7,7 +7,10 @@ import '../../../core/tokens.dart';
 class ChatInputBar extends StatefulWidget {
   final void Function(String content) onSend;
   final Widget? quickRepliesSlot; // T12가 CCARD-QUICK을 채운다
-  const ChatInputBar({super.key, required this.onSend, this.quickRepliesSlot});
+  /// [CHAT-ROOM-PATIENT-TYPING-01] 글자가 바뀔 때마다 부른다 — 환자 "입력 중"을 직원에게 알린다(디바운스는 컨트롤러).
+  final void Function(String content)? onChanged;
+  const ChatInputBar(
+      {super.key, required this.onSend, this.quickRepliesSlot, this.onChanged});
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
 }
@@ -41,6 +44,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
               child: TextField(
                 controller: _c,
                 textInputAction: TextInputAction.send,
+                onChanged: widget.onChanged,
                 onSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
                   hintText: '메시지를 입력하세요',

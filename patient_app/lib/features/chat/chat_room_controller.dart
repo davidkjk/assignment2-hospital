@@ -297,6 +297,33 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     }, onError: (_) {/* 끊김은 무해 — 재연결 대기 */});
   }
 
+  void Function(bool)? _sendTyping;
+  Timer? _patientTypingOff;
+  bool _patientTyping = false;
+
+  /// [CHAT-ROOM-PATIENT-TYPING-01] 환자 "입력 중" 신호를 같은 broadcast 채널로 직원에게 보낼 sink를
+  /// 물린다 — `repo.streamStaffLive`가 이미 연 `chat-typing:<threadId>` 채널을 재사용한다(새 채널 금지,
+  /// 같은 토픽 2채널 = 한쪽 유실 버그). realtime 미주입이면 sink가 없어 notifyTyping은 무해한 no-op.
+  void bindPatientTyping(void Function(bool) send) {
+    _sendTyping = send;
+  }
+
+  /// 입력창 글자가 바뀔 때마다 부른다(chat_input_bar onChanged). 첫 입력에 on=true를 한 번 보내고,
+  /// 마지막 입력 후 유휴 3초면 off=false를 보낸다(직원웹 `setTyping` 디바운스와 대칭, SCOPE-01: 켬/끔만).
+  void notifyTyping() {
+    final send = _sendTyping;
+    if (send == null) return;
+    if (!_patientTyping) {
+      _patientTyping = true;
+      send(true);
+    }
+    _patientTypingOff?.cancel();
+    _patientTypingOff = Timer(const Duration(seconds: 3), () {
+      _patientTyping = false;
+      send(false);
+    });
+  }
+
   @override
   void dispose() {
     _liveSub?.cancel();
@@ -305,6 +332,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     _handoffTimer?.cancel();
     _presenceSub?.cancel();
     _presenceOff?.cancel();
+    _patientTypingOff?.cancel();
+    if (_patientTyping) _sendTyping?.call(false); // 방을 닫으면 입력 중 표시를 내린다
     super.dispose();
   }
 }
@@ -340,6 +369,9 @@ final chatRoomProvider =
   //   한 채널에서 함께 구독해야 둘 다 도달한다(같은 토픽 채널 2개 = 한쪽만 받는 버그, 2026-09-09).
   final live = repo.streamStaffLive(key.$1);
   ctl.bindTyping(live.typing);
+  // [CHAT-ROOM-PATIENT-TYPING-01] 환자 입력 중을 같은 채널로 직원에게 보낼 sink를 물린다(방향은 양쪽).
+  //   viewing(방 열림/닫힘)은 streamStaffLive가 채널 수명으로 직접 emit하므로 여기선 typing만 배선한다.
+  ctl.bindPatientTyping(live.sendTyping);
   // [Q18] 인계 상태 배지 — 진입 즉시 + 8초 폴링(webchat 동형). thread에 인계 티켓이 있을 때만 배지가 뜬다.
   ctl.bindHandoff(() => repo.fetchHandoffStatus(key.$1));
   ctl.bindPresence(live.viewing);
