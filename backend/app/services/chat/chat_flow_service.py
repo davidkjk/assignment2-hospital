@@ -27,6 +27,16 @@ def build_history(rows, current_id) -> list[str]:
     return [r["content"] for r in reversed(rows) if r["id"] != current_id]
 
 
+_ROLE_LABEL = {"patient": "환자", "bot": "상담봇", "staff": "직원", "system": "안내"}
+
+
+def format_roled_history(rows, current_id) -> list[str]:
+    # build_history와 같되 화자 라벨을 붙인다(리포트 §2.2 — content만이면 누가 말했는지 모델이 구분 못 함).
+    #   직원 인계 요약 LLM이 "환자가 말한 것"과 "봇이 답한 것"을 구분하도록 "환자:/상담봇:/직원:/안내:"를 접두.
+    return [f"{_ROLE_LABEL.get(r['sender_type'], '발화')}: {r['content']}"
+            for r in reversed(rows) if r["id"] != current_id]
+
+
 def next_active_flow(out: dict) -> str | None:
     # 진료과 문진을 다음 턴까지 유지할지 결정한다(리포트 §2.3 — active_flow 지속으로 멀티턴 유지).
     #   봇이 불편을 되물었을 때(route=department_guide인데 아직 추천이 없음)만 흐름을 이어가고,
@@ -87,7 +97,7 @@ async def handle_message(session, content: str, *, thread_id: UUID,
         # 3. 최근 히스토리(롤링 윈도우). 현재 메시지를 뺀 이전 발화만 필요하므로 +1개를 더 가져와
         #    build_history가 현재(current_id)를 제외한 뒤에도 윈도우 크기를 유지한다.
         hist = await conn.fetch(
-            "select id, content from chat_messages where thread_id=$1 and content is not null "
+            "select id, sender_type, content from chat_messages where thread_id=$1 and content is not null "
             "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW + 1)
         # 인계됨(사람 상담 모드): 이 스레드에 처리 중 티켓(pending/in_progress)이 있으면 AI를 돌리지 않는다.
         #   환자 메시지는 위에서 이미 저장됐고, 직원이 실시간으로 본다. (2026-09-09 실기기: 인계 후 환자가
@@ -203,9 +213,11 @@ async def handle_message(session, content: str, *, thread_id: UUID,
     #   전부 None을 돌려주므로(best-effort) 인계는 이 요약 때문에 막히지 않는다(SUM-02: 없으면 '없음').
     handoff_summary = {}
     if out["route_taken"] == "handoff":
-        # 인계 요약엔 현재(인계를 부른) 발화도 포함한다 — history_texts는 현재를 제외하므로 여기서 다시 붙인다.
+        # 인계 요약엔 화자 라벨을 붙인 이력을 준다(리포트 §2.2 — 누가 말했는지 구분). 현재(인계를 부른)
+        #   발화도 포함한다(history는 현재 제외 → 환자 발화로 다시 붙인다).
+        roled_history = format_roled_history(hist, current_id)
         handoff_summary = await orchestrator.make_handoff_summary(
-            "\n".join([*history_texts, content]), model=model)
+            "\n".join([*roled_history, f"환자: {content}"]), model=model)
     async with pool.acquire() as conn:
         if out["route_taken"] == "handoff":
             # AI 세션 종료 + 티켓 생성 + 시스템 메시지. no_answer면 미해결 기록.

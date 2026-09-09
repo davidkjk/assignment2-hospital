@@ -5,7 +5,7 @@
 #   그 이력을 진료과 흐름(dept_guide)에 넘기면 dept_guide가 [*history, message]로 현재 발화를 한 번 더
 #   붙여 **현재 메시지가 두 번** 들어간다(리포트 §2.2 확인). 또 반복 감지(check_repeated)가 현재를
 #   이력에서 세어 threshold를 1 일찍 친다. 현재 메시지를 이력에서 제외해 둘 다 바로잡는다.
-from app.services.chat.chat_flow_service import build_history
+from app.services.chat.chat_flow_service import build_history, format_roled_history
 
 
 def _row(msg_id, content):
@@ -27,3 +27,23 @@ def test_build_history_returns_oldest_first():
 def test_build_history_empty_when_only_current_message():
     rows = [_row(5, "지금 보낸 것")]
     assert build_history(rows, current_id=5) == []
+
+
+# ── format_roled_history: 화자 라벨을 붙인 이력(직원 인계 요약 LLM이 누가 말했는지 구분하게) ──
+# 리포트 §2.2: 이력이 content만이라 "환자가 말한 사실"과 "봇이 답한 내용"을 모델이 구분 못 한다.
+
+def test_format_roled_history_labels_by_sender_and_excludes_current():
+    rows = [
+        {"id": 3, "content": "계단에서 넘어졌어요", "sender_type": "patient"},   # 현재(제외)
+        {"id": 2, "content": "어떤 불편이 있으세요?", "sender_type": "bot"},
+        {"id": 1, "content": "무릎이 아파요", "sender_type": "patient"},
+    ]
+    assert format_roled_history(rows, current_id=3) == ["환자: 무릎이 아파요", "상담봇: 어떤 불편이 있으세요?"]
+
+
+def test_format_roled_history_labels_staff_and_system():
+    rows = [
+        {"id": 2, "content": "확인해 드릴게요", "sender_type": "staff"},
+        {"id": 1, "content": "상담이 연결됐어요", "sender_type": "system"},
+    ]
+    assert format_roled_history(rows, current_id=999) == ["안내: 상담이 연결됐어요", "직원: 확인해 드릴게요"]
