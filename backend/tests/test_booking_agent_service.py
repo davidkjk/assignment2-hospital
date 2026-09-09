@@ -62,7 +62,7 @@ async def test_cancel_intent_returns_guidance_not_booking_card():
     assert out["reply"]                                   # 안내 문구 비어 있지 않음
     assert "앱" in out["reply"]                            # 앱에서 직접 취소 가능 안내
     assert out["card"]["card_type"] == "quick_replies"    # 예약 카드(department_select) 아님
-    assert out["card"]["handoff_chip"] == "직원에게 연결"    # 직원 상담 칩
+    assert out["card"]["handoff_chip"] == "직원에게 연결하기"    # 직원 상담 칩
 
 
 @pytest.mark.asyncio
@@ -73,7 +73,7 @@ async def test_cancel_intent_takes_priority_over_department_name():
         list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]),
         list_doctors_fn=_doctors_fn([{"id": "s1", "name": "김의사"}]))
     assert out["card"]["card_type"] == "quick_replies"
-    assert out["card"]["handoff_chip"] == "직원에게 연결"
+    assert out["card"]["handoff_chip"] == "직원에게 연결하기"
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,7 @@ async def test_wizard_handoff_cancel_intent_returns_guidance_not_wizard_card():
     assert out["reply"]                                    # 안내 문구 비어 있지 않음
     assert "예약 내역" in out["reply"]                       # 앱 내 취소 화면으로 안내(웹의 '앱의…'와 다름)
     assert out["card"]["card_type"] == "quick_replies"     # 예약 마법사 카드(open_booking_wizard) 아님
-    assert out["card"]["handoff_chip"] == "직원에게 연결"      # 직원 상담 칩(막다른 길 방지)
+    assert out["card"]["handoff_chip"] == "직원에게 연결하기"      # 직원 상담 칩(막다른 길 방지)
 
 
 @pytest.mark.asyncio
@@ -115,4 +115,4 @@ async def test_wizard_handoff_cancel_takes_priority_over_department_name():
         None, "내과 예약 취소해줘",
         list_departments_fn=_departments_fn([{"id": "d1", "name": "내과"}]))
     assert out["card"]["card_type"] == "quick_replies"
-    assert out["card"]["handoff_chip"] == "직원에게 연결"
+    assert out["card"]["handoff_chip"] == "직원에게 연결하기"

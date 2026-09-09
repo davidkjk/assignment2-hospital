@@ -195,7 +195,9 @@ async def handle_message(session, content: str, *, thread_id: UUID,
             await conn.execute(
                 "update ai_chat_sessions set last_activity_at=now(), expires_at=now()+interval '30 minutes' "
                 "where id=$1 and status='active' and now() < expires_at", sid)
-            await quality_service.record_unresolved(None, content, embedder)
+            # #6: 사람 연결 확인 프롬프트(confirm_handoff)는 KB 구멍이 아니므로 미해결로 기록하지 않는다.
+            if not out.get("confirm_handoff"):
+                await quality_service.record_unresolved(None, content, embedder)
             return {"route_taken": "no_answer", "message_id": bmsg["id"], "reply": body, "card": card}
         # 봇 답변(응급·rag·department_guide). route_taken 기록 + 근거 스냅샷.
         bmsg = await conn.fetchrow(

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.patient_security import PatientContext, get_current_patient
 from app.services import patient_catalog_service
+from app.services.settings_service import get_public_hospital_info
 
 router = APIRouter(prefix="/catalog", tags=["patient-catalog"])
 
@@ -31,8 +32,10 @@ async def slots(doctor_id: UUID, target_date: date,   # 쿼리 ?target_date=YYYY
 
 
 @router.get("/hospital")
-async def hospital(patient: PatientContext = Depends(get_current_patient)) -> dict:
-    return await patient_catalog_service.get_hospital_info(patient)
+async def hospital() -> dict:
+    # 공개 창구 — 로그인 전 화면(연령게이트 병원 전화·약관동의 대표전화)도 써야 한다.
+    # 주소·전화만 반환하는 SECURITY DEFINER 함수라 인증 없이도 안전(HSETX-SEC-01, 익명 연결).
+    return await get_public_hospital_info()
 
 
 @router.get("/hospital/hours")

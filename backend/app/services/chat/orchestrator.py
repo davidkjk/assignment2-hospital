@@ -11,7 +11,15 @@ CHAT_NUDGE_MESSAGE_COUNT = 40     # 이 이상이면 CHAT-LEN 소프트 넛지 �
 # 인계는 사용자가 칩을 눌러야 시작(익명 인계 폼 WEBANON-HANDOFF). 미해결 질문은 티켓 없이도 기록(record_unresolved).
 NO_ANSWER_REPLY = "그 질문은 제가 바로 답을 찾지 못했어요. 이런 걸 도와드릴 수 있어요:"
 NO_ANSWER_QUICK_REPLIES = ["진료시간이 어떻게 되나요", "예약하려면 어떻게 하나요", "오시는 길이 궁금해요"]
-NO_ANSWER_HANDOFF_CHIP = "직원에게 연결"
+
+# #6(2026-09-08 사용자 요청 "직원인계는 항상 물어보게"): 자유 입력으로 사람 연결을 말하면 바로 인계하지 않고
+#   한 번 확인한다 — "직원에게 연결하면 뭘 해주나요" 같은 **질문**이 인계로 오작동하던 것을 막는다.
+#   실제 인계는 이 확인 칩(정확히 이 문구)을 눌러야 시작(ⓠ-a). 칩 탭은 명시적 선택이라 재확인 없이 바로 인계한다.
+#   no_answer의 연결 칩도 같은 문구를 보내 한 번에 인계된다(칩 자체가 이미 사용자 선택).
+#   ⚠️ 예외: 안전 감시(check_escalation — 진단·불만·반복 등)는 보호 목적이라 확인을 끼우지 않고 그대로 자동 인계한다.
+HANDOFF_CONFIRM_CHIP = "직원에게 연결하기"
+HANDOFF_CONFIRM_REPLY = "직원(사람)에게 연결해 드릴까요? 남기신 내용을 직원이 순서대로 확인해요."
+NO_ANSWER_HANDOFF_CHIP = HANDOFF_CONFIRM_CHIP
 
 
 def should_nudge_length(message_count: int) -> bool:
@@ -82,9 +90,16 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
     # ⓪ 응급 — 모드·갈래와 무관하게 항상 최우선(정본 §0).
     if safety_watchdog.check_emergency(message):
         return {"route_taken": "emergency", "reply": safety_watchdog.EMERGENCY_REPLY, "escalated": False}
-    # ⓪-b 명시적 직원 연결 요청 — 결정적. 사용자가 사람을 직접 찾으면 갈래·모드와 무관하게 바로 인계(정본 §1 신설).
-    if safety_watchdog.check_staff_request(message):
+    # ⓠ-a 확인 칩(정확히 이 문구)을 눌렀다 → 명시적 선택이므로 바로 인계(#6). check_staff_request보다 먼저 본다
+    #   (확인 문구도 "직원에게 연결"을 포함해 아래 키워드에 걸리므로 순서가 중요).
+    if message.strip() == HANDOFF_CONFIRM_CHIP:
         return {"route_taken": "handoff", "handoff_reason": "staff_request", "escalated": True}
+    # ⓠ-b 자유 입력으로 사람 연결을 요청 → 바로 인계하지 않고 확인 프롬프트(#6, "항상 물어보게").
+    #   no_answer와 같은 카드 경로로 렌더하되 미해결 기록은 남기지 않는다(confirm_handoff 플래그). 세션은 유지.
+    if safety_watchdog.check_staff_request(message):
+        return {"route_taken": "no_answer", "reply": HANDOFF_CONFIRM_REPLY,
+                "quick_replies": [], "handoff_chip": HANDOFF_CONFIRM_CHIP,
+                "confirm_handoff": True, "escalated": False}
     # ① 인계 감시 — 조건 감지 시 무조건 인계(에이전트 도구 아님).
     reason = await safety_watchdog.check_escalation(
         message, history_texts, unhelpful_flagged=unhelpful_flagged,

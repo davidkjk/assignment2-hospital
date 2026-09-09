@@ -75,6 +75,36 @@ async def test_top1_restricted_returns_verbatim_even_when_irrelevant_normal_pres
     await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
 
 
+class _NoAnswerWithPreambleModel:
+    # 모델이 "다른 말 없이 NO_ANSWER만" 지시를 어기고 설명을 먼저 붙인 뒤 센티넬을 맨 뒤에 두는 실측 사례.
+    async def ainvoke(self, _):
+        class R: content = "주어진 자료에는 CT 촬영 전 준비물에 대한 내용이 없습니다.\n\nNO_ANSWER"
+        return R()
+
+
+@pytest.mark.asyncio
+async def test_no_answer_sentinel_anywhere_in_reply_is_handoff(committed_conn):
+    # 회귀 가드(2026-09-08): 센티넬이 문장 맨 뒤에 붙으면 == / startswith 로는 못 잡아
+    #   "…없습니다.\n\nNO_ANSWER" 원문이 환자에게 그대로 노출됐다. 어디에 있든 no_answer 여야 한다.
+    st = await seed_staff(committed_conn, role="admin")
+    vecstr = "[" + ",".join(["1.0"] + ["0.0"] * 1535) + "]"
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, is_restricted) "
+        "values ('주차 안내','지하에 주차할 수 있습니다.','approved',false) returning id")
+    await committed_conn.execute(
+        "insert into kb_chunks (document_id, chunk_index, content, embedding) "
+        "values ($1,0,'지하에 주차할 수 있습니다.',$2::vector)", doc, vecstr)
+
+    out = await rag_service.rag_answer("CT 준비물", embedder=_Fixed(), model=_NoAnswerWithPreambleModel())
+
+    assert out.get("no_answer") is True                 # 센티넬이 맨 뒤여도 인계로
+    assert "reply" not in out                            # 센티넬 원문이 답변으로 새면 안 된다
+
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
 @pytest.mark.asyncio
 async def test_low_similarity_becomes_no_answer():
     # 승인 조각이 하나도 없으면(빈 KB) 근거 부족 → no_answer.

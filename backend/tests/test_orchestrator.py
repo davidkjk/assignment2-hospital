@@ -28,6 +28,27 @@ async def test_handoff_condition_beats_routing():
 
 
 @pytest.mark.asyncio
+async def test_free_text_staff_request_asks_confirmation_not_auto_handoff():
+    # #6: 자유 입력으로 사람 연결을 말하면 바로 인계하지 않고 확인 프롬프트(칩)를 낸다.
+    #   질문("직원에게 연결하면 뭘 해주나요")이 인계로 오작동하던 것을 막는다 — 세션 유지(escalated False).
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+                                         "직원에게 연결하면 뭘 해주나요", model=_Model("rag"))
+    assert out["route_taken"] == "no_answer"                # no_answer 카드 경로 재사용(렌더 동일)
+    assert out["escalated"] is False                        # 아직 인계 안 됨
+    assert out["confirm_handoff"] is True                   # 미해결 기록은 건너뛴다(KB 구멍 아님)
+    assert out["handoff_chip"] == orchestrator.HANDOFF_CONFIRM_CHIP
+
+
+@pytest.mark.asyncio
+async def test_confirm_chip_triggers_real_handoff():
+    # #6: 확인 칩(정확히 그 문구)을 누르면 그때 실제 인계된다(칩 탭 = 명시적 선택 → 재확인 없음).
+    out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
+                                         orchestrator.HANDOFF_CONFIRM_CHIP)
+    assert out["route_taken"] == "handoff"
+    assert out["handoff_reason"] == "staff_request" and out["escalated"] is True
+
+
+@pytest.mark.asyncio
 async def test_restricted_mode_downgrades_agent_to_rag():
     # 예약 중 상담: 행동형 금지 → 안내형으로. rag_fn 주입.
     async def rag_fn(s, m): return {"reply": "주차는 지하 1층입니다", "no_answer": False}
@@ -47,7 +68,7 @@ async def test_rag_no_answer_returns_chips_not_auto_handoff():
     assert out["escalated"] is False
     assert out["reply"]                                  # 봇 말풍선(안내 문구) 존재
     assert len(out["quick_replies"]) == 3                # FAQ 3개(텍스트 전송)
-    assert out["handoff_chip"] == "직원에게 연결"          # 콜백 칩(인계 폼 열기)
+    assert out["handoff_chip"] == "직원에게 연결하기"          # 콜백 칩(인계 폼 열기)
 
 
 @pytest.mark.asyncio

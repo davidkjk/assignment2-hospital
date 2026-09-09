@@ -20,3 +20,13 @@ def test_in_progress_is_hidden_as_connecting_no_assignee():
 def test_answered_reveals_assignee():
     # 직원이 답했을 때만 담당자 이름·역할을 노출한다(직원 말풍선).
     assert patient_handoff_view("answered", "김직원", "doctor") == ("answered", "김직원", "doctor")
+
+
+def test_staff_reply_upgrades_in_progress_to_answered():
+    # #8: 직원이 답장을 보내면 티켓 status는 in_progress에 머물지만(함수가 안 바꿈), 환자에겐
+    #     '답변 도착'으로 올려 '직원 확인 전이에요' 배너가 영영 안 사라지던 버그를 막는다.
+    assert patient_handoff_view("in_progress", "김직원", "doctor", has_staff_reply=True) \
+        == ("answered", "김직원", "doctor")
+    # 답장 전이면 그대로 connecting(대기).
+    assert patient_handoff_view("in_progress", "김직원", "doctor", has_staff_reply=False) \
+        == ("connecting", None, None)

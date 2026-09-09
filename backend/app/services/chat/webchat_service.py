@@ -122,17 +122,22 @@ async def acknowledge_read(thread_id: UUID) -> None:
                                thread_id, thread["patient_id"])
 
 
-def patient_handoff_view(ticket_status, staff_name, staff_role):
+def patient_handoff_view(ticket_status, staff_name, staff_role, has_staff_reply=False):
     """Q18②④: 환자에게 보이는 인계 상태 → (phase, name, role).
 
     배정(in_progress)은 환자에게 숨긴다 — 단순 배정은 기대만 키우므로 여전히 'connecting'(직원 확인 전)이고,
-    "직원이 확인 중"은 실제 열람 presence(별도 realtime)만 보인다. 담당자 정보는 answered일 때만 노출한다.
+    "직원이 확인 중"은 실제 열람 presence(별도 realtime)만 보인다. 담당자 정보는 답변이 온 뒤에만 노출한다.
+
+    #8(2026-09-08 실측): 직원이 실제로 답장을 보내도 티켓 status는 'in_progress'에 머문다
+    (staff_send_ticket_message가 status를 안 바꾼다 — 'answered'는 '종료'를 뜻해 그때 쓸 수도 없다).
+    그래서 환자 배너가 '직원 확인 전이에요'에서 영영 안 바뀌던 버그. → 직원 답장이 하나라도 있으면
+    (has_staff_reply) 상태값과 무관하게 '답변 도착'으로 올린다(환자 관점의 진실 = 답이 왔다).
     """
     if not ticket_status:
         return (None, None, None)
-    if ticket_status == "answered":
+    if ticket_status == "answered" or has_staff_reply:
         return ("answered", staff_name, staff_role)
-    return ("connecting", None, None)  # pending·in_progress 모두 '직원 확인 전'
+    return ("connecting", None, None)  # pending·in_progress(답장 전) 모두 '직원 확인 전'
 
 
 async def get_handoff_status(thread_id: UUID) -> dict:
@@ -140,17 +145,22 @@ async def get_handoff_status(thread_id: UUID) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         ticket = await conn.fetchrow(
-            "select t.status, s.name as staff_name, s.role as staff_role "
+            "select t.id, t.status, s.name as staff_name, s.role as staff_role "
             "from support_tickets t left join staff s on s.id = t.assigned_staff_id "
             "where t.thread_id=$1 order by t.created_at desc limit 1", thread_id)
+        # #8: 이 티켓에 직원 답장이 하나라도 있으면 '답변 도착'으로 올린다(status는 안 바뀌므로 메시지로 판정).
+        has_staff_reply = bool(ticket) and await conn.fetchval(
+            "select exists(select 1 from chat_messages "
+            "where support_ticket_id=$1 and sender_type='staff')", ticket["id"])
         # 상담봇의 "지금 문 열었나" — 접수 창구(hospital_hours) 기준(의사 진료시간과 다름).
         now = datetime.now(ZoneInfo("Asia/Seoul")).replace(tzinfo=None)
         is_open = await opening_hours.is_open(conn, now)
-    # Q18②: 배정(in_progress)은 환자에게 숨겨 'connecting'으로, 담당자는 answered일 때만 노출한다.
+    # Q18②: 배정(in_progress·답장 전)은 환자에게 숨겨 'connecting'으로, 담당자는 답변 도착 뒤에만 노출한다.
     phase, name, role = patient_handoff_view(
         ticket["status"] if ticket else None,
         ticket["staff_name"] if ticket else None,
-        ticket["staff_role"] if ticket else None)
+        ticket["staff_role"] if ticket else None,
+        has_staff_reply=has_staff_reply)
     return {
         "phase": phase,
         "assigneeName": name,

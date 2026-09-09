@@ -63,7 +63,7 @@ async def test_no_answer_message_returns_chips_keeps_session_and_logs_unresolved
         s, q, thread_id=t, client_message_id=uuid.uuid4(),
         embedder=FakeEmbedder(), model=_RagModel())
     assert out["route_taken"] == "no_answer"
-    assert out["card"]["card_type"] == "quick_replies" and out["card"]["handoff_chip"] == "직원에게 연결"
+    assert out["card"]["card_type"] == "quick_replies" and out["card"]["handoff_chip"] == "직원에게 연결하기"
     # 자동 인계 없음 — 티켓 0, 세션 active 유지.
     assert await committed_conn.fetchval("select count(*) from support_tickets where thread_id=$1", t) == 0
     assert await committed_conn.fetchval("select status from ai_chat_sessions where id=$1", s["id"]) == "active"

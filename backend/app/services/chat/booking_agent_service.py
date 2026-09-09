@@ -21,7 +21,7 @@ CANCEL_GUIDANCE_REPLY = "예약 취소는 앱의 예약 내역에서 직접 하�
 # 앱(patient/app) AI 상담: 사용자가 이미 앱 안에 있으므로 '앱의 예약 내역'이 아니라 앱 내 [예약 내역]
 # 화면으로 안내한다(사용자 결정 2026-09-08, 옵션 A). 봇이 취소를 실행하지 않는 건 웹과 동일(L49).
 CANCEL_GUIDANCE_REPLY_APP = "예약 취소는 예약 내역 화면에서 직접 하실 수 있어요. 도움이 필요하시면 직원 상담으로 연결해 드릴게요."
-CANCEL_HANDOFF_CHIP = "직원에게 연결"
+CANCEL_HANDOFF_CHIP = "직원에게 연결하기"  # #6: 확인 칩과 같은 문구 → 탭하면 orchestrator ⓠ-a로 바로 인계
 
 
 def _is_cancel_intent(message: str) -> bool:

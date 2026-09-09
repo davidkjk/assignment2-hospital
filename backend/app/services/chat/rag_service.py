@@ -74,7 +74,9 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     resp = await (model or get_chat_model()).ainvoke(prompt.format_messages(**fmt))
     reply = resp_text(resp).strip()
     # 모델이 근거에 답이 없다고 판정 → 인계(no_answer). 코사인 컷 대신 모델을 관련성 판정자로 쓴다.
-    if reply == _NO_ANSWER_SENTINEL or reply.startswith(_NO_ANSWER_SENTINEL):
+    #   ⚠️ 센티넬이 문장 「어디에 있든」 잡는다: "…없습니다.\n\nNO_ANSWER"처럼 모델이 지시를 어기고
+    #   설명을 먼저 붙이면 == / startswith 는 놓쳐 센티넬 원문이 환자에게 그대로 노출됐다(2026-09-08 실측).
+    if _NO_ANSWER_SENTINEL in reply:
         return {"no_answer": True}
     result = {"reply": reply, "sources": sources}
     if restricted:
