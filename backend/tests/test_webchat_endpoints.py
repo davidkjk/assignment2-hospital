@@ -191,6 +191,27 @@ def test_handoff_status_in_progress_hides_assignment_from_patient(client):
     assert st["assigneeName"] is None
 
 
+def test_handoff_status_answered_ticket_is_closed(client):
+    # CHAT-HANDOFF-STATE-03: 직원이 [상담 종료]하면 티켓 status='answered'(종료). 이때만 closed=true로 내려
+    #   프론트가 "상담 종료" 경계(CHAT-ROOM-END-01)를 띄우게 한다. 단순 답장(in_progress)은 closed=false.
+    #   기존 phase 계약은 유지한다(answered 티켓의 phase는 여전히 'answered'=답변 도착) — closed는 추가 신호.
+    with client as c:
+        sess = c.post("/chat/sessions", json={"channel": "web"}).json()
+        _seed_ticket_answered(sess["threadId"], sess["aiSessionId"])
+        st = c.get(f"/chat/threads/{sess['threadId']}/handoff").json()
+    assert st["closed"] is True
+    assert st["phase"] == "answered"  # 무회귀: 종료여도 답변 도착 phase는 그대로
+
+
+def test_handoff_status_open_ticket_is_not_closed(client):
+    # 열린 티켓(pending)은 종료가 아니다 — closed=false.
+    with client as c:
+        sess = c.post("/chat/sessions", json={"channel": "web"}).json()
+        _seed_ticket(sess["threadId"], sess["aiSessionId"])
+        st = c.get(f"/chat/threads/{sess['threadId']}/handoff").json()
+    assert st["closed"] is False
+
+
 # ── POST /chat/handoff (익명 인계 — X-Anon-Token 필수) ────────────────────────
 
 def test_handoff_requires_anon_token(client):
@@ -323,6 +344,26 @@ def _seed_ticket_in_progress(thread_id: str, ai_session_id: str) -> str:
             await conn.execute(
                 "update support_tickets set status='in_progress', assigned_staff_id=$2, "
                 "assigned_at=now(), started_at=now() where id=$1", ticket["id"], staff["staff_id"])
+            return str(ticket["id"])
+        finally:
+            await conn.close()
+
+    return _run(go())
+
+
+def _seed_ticket_answered(thread_id: str, ai_session_id: str) -> str:
+    # 직원이 [상담 종료]한 티켓(status='answered'). CHECK(00054): answered면 closed_by_staff_id·closed_at 필수.
+    async def go():
+        conn = await _connect()
+        try:
+            staff = await seed_staff(conn, "receptionist")
+            ticket = await conn.fetchrow(
+                "select * from create_support_ticket($1,$2,null,null)",
+                uuid.UUID(thread_id), uuid.UUID(ai_session_id))
+            await conn.execute(
+                "update support_tickets set status='answered', assigned_staff_id=$2, "
+                "closed_by_staff_id=$2, closed_at=now(), updated_at=now() where id=$1",
+                ticket["id"], staff["staff_id"])
             return str(ticket["id"])
         finally:
             await conn.close()

@@ -186,6 +186,11 @@ async def get_handoff_status(thread_id: UUID) -> dict:
         "assigneeRole": _ROLE_LABEL.get(role, role) if role else None,
         "isOpen": is_open,
         "hoursNote": None if is_open else _HANDOFF_CLOSED_NOTE,
+        # CHAT-HANDOFF-STATE-03: 직원이 [상담 종료]하면 status='answered'(close_ticket, 00054). 이때만 종료다
+        #   — 단순 답장은 status를 안 바꾸므로(in_progress) answered는 유일하게 '종료'를 뜻한다. phase는 그대로
+        #   'answered'(답변 도착) 두고, closed를 추가 신호로 내려 프론트가 "상담 종료" 경계(CHAT-ROOM-END-01)를
+        #   띄우게 한다(phase 계약 무변경 → 기존 배지 무회귀).
+        "closed": bool(ticket) and ticket["status"] == "answered",
     }
 
 
