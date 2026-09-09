@@ -19,6 +19,13 @@ test('[Q23] 새 메시지(내·상대)가 오면 그 메시지로 스크롤한�
   expect(spy).toHaveBeenCalled();
 });
 
+test('[CHAT-ROOM-PATIENT-TYPING-01] 입력창에 글자를 치면 onTyping을 부른다(환자 입력 중 신호원)', async () => {
+  const onTyping = vi.fn();
+  render(<ChatRoom phase="ready" messages={[]} {...base} onTyping={onTyping} />);
+  await userEvent.type(screen.getByPlaceholderText('메시지를 입력하세요'), '두');
+  expect(onTyping).toHaveBeenCalled();
+});
+
 test('[WEBCHAT-ROOM-01] 자기완결 위젯 경계 — 전체화면이 아니라 위젯 영역으로 표시', () => {
   render(<ChatRoom phase="ready" messages={[]} {...base} />);
   const region = screen.getByRole('region', { name: 'AI 상담봇' });

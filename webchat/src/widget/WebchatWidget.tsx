@@ -37,7 +37,8 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
   });
   const hasUnread = w.handoff.phase === 'answered';
   // Q18③: 직원이 상담 상세를 실제로 열어 보는 중이면 배지가 "직원이 확인 중이에요"로(열람 presence).
-  const staffViewing = useStaffPresence(w.session?.threadId);
+  // [CHAT-ROOM-PATIENT-TYPING-01] 방향은 양쪽 — 같은 훅이 이 위젯(환자)의 입력 중을 직원에게 보낼 notifyTyping도 준다.
+  const { staffViewing, notifyTyping } = useStaffPresence(w.session?.threadId);
   // 장애 중 [문의 남기기] → 익명 인계 폼(WEBCHAT-OUTAGE-02) — 봇 응답 없이 기존 대화 문맥으로 직원에게 연결.
   const leaveInquiry = () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); };
   // [다시 시도] = 마지막 실패 메시지의 전송 왕복(CHAT-OUTAGE-RECOVER-01: 성공하면 배너가 걷힌다).
@@ -57,6 +58,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
             phase={w.phase}
             messages={[...w.messages, ...extraCards]}
             botTyping={w.botTyping}
+            onTyping={notifyTyping}         // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중 → 직원에게 "환자 입력 중"
             onStaffHandoff={leaveInquiry}   // Q5: 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼
             onSend={w.send}
             onResend={w.resend}

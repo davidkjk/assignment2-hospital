@@ -15,6 +15,7 @@ export type ChatRoomProps = {
   outageSlot?: ReactNode;         // AI 장애 안내(WEBCHAT-OUTAGE) — 전화·문의 남기기가 주 경로. 기존 대화와 함께 유지.
   startSlot?: ReactNode;          // 첫 상담(빈 피드) 시작 안내 — 봇 인사말 + 시작 고정 칩(WEBCHAT-ROOM-03·WEBCARD-QUICK-01). 대화 영역 안에 렌더.
   botTyping?: boolean;            // 봇 답변 대기 중 타이핑 점 표시(홈페이지 .typing)
+  onTyping?: () => void;          // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중이면 직원에게 "환자 입력 중" 알림(디바운스는 훅)
   onStaffHandoff?: () => void;    // Q5: 가장 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼(WEBANON-HANDOFF)
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
 };
@@ -102,7 +103,7 @@ export function ChatRoom(p: ChatRoomProps) {
       )}
       <div className="wc-foot">
         <form className="wc-inputbar" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { p.onSend(draft.trim()); setDraft(''); } }}>
-          <input className="wc-input" placeholder="메시지를 입력하세요" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <input className="wc-input" placeholder="메시지를 입력하세요" value={draft} onChange={(e) => { setDraft(e.target.value); p.onTyping?.(); }} />
           <button type="submit" className="wc-send" aria-label="보내기">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7Z" strokeLinecap="round" strokeLinejoin="round" />
