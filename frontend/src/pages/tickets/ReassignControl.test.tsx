@@ -17,25 +17,26 @@ it('[TICKET-DETAIL-REASSIGN-01] 의료판단 티켓은 경고문구만 유지하
   // '의사에게 전달' 동작(강조 라벨·버튼)은 제거
   expect(screen.queryByRole('button', { name: '의사에게 전달' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '이관' })).toBeInTheDocument()
-  // 이관 대상은 의사 한정이 아니라 모든 활성 직원(접수 포함)
+  // 이관 대상은 문의함을 쓰는 직원(접수·관리자)뿐 — 의사는 제외
   await waitFor(() => expect(screen.getByText('박접수 · 접수')).toBeInTheDocument())
-  expect(screen.getByText('이의사 · 의사')).toBeInTheDocument()
+  expect(screen.queryByText('이의사 · 의사')).not.toBeInTheDocument()
 })
 
-it('[TICKET-DETAIL-REASSIGN-05] 일반 이관은 의료판단 강조 없이 모든 활성 직원을 드롭다운에 둔다', async () => {
+it('[TICKET-DETAIL-REASSIGN-05] 이관 드롭다운은 문의함을 쓰는 직원(접수·관리자)만 두고 의사는 제외한다', async () => {
   render(<ReassignControl reason="general" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={vi.fn()} />)
   expect(screen.queryByRole('note')).not.toBeInTheDocument()
   await waitFor(() => expect(screen.getByText('박접수 · 접수')).toBeInTheDocument())
-  expect(screen.getByText('이의사 · 의사')).toBeInTheDocument()
   expect(screen.getByText('관리자 · 관리자')).toBeInTheDocument()
+  // 의사는 티켓 답변 화면이 없어 이관 대상이 아니다 — 드롭다운에서 뺀다
+  expect(screen.queryByText('이의사 · 의사')).not.toBeInTheDocument()
 })
 
 it('[TICKET-DETAIL-REASSIGN-02] 재배정 성공은 담당자만 바꾸고 상태는 in_progress로 유지한다(훅이 status 유지)', async () => {
   const onReassign = vi.fn(async () => {})
   render(<ReassignControl reason="general" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={onReassign} />)
-  await userEvent.selectOptions(await screen.findByLabelText('이관할 직원'), 'd1')
+  await userEvent.selectOptions(await screen.findByLabelText('이관할 직원'), 'r1')
   await userEvent.click(screen.getByText('이관'))
-  expect(onReassign).toHaveBeenCalledWith('d1')
+  expect(onReassign).toHaveBeenCalledWith('r1')
 })
 
 it('[TICKET-DETAIL-REASSIGN-03] 요청 중에는 선택과 전달 버튼을 잠그고 처리 중임을 표시한다', async () => {
@@ -49,7 +50,7 @@ it('[TICKET-DETAIL-REASSIGN-04] 재배정 실패면 오류+재시도를 전달 �
     throw new Error('net')
   })
   render(<ReassignControl reason="general" busy={false} loadStaff={vi.fn(async () => staff)} onReassign={onReassign} />)
-  await userEvent.selectOptions(await screen.findByLabelText('이관할 직원'), 'd1')
+  await userEvent.selectOptions(await screen.findByLabelText('이관할 직원'), 'r1')
   await userEvent.click(screen.getByText('이관'))
   expect(await screen.findByRole('alert')).toHaveTextContent('다시 시도')
 })

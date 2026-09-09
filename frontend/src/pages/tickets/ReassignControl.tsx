@@ -29,8 +29,10 @@ export function ReassignControl(props: {
       .catch(() => setStaff([]))
   }, [loadStaff])
 
-  // REASSIGN-05: 이관 대상은 언제나 모든 활성 직원. 의료판단도 '의사에게 전달' 없이 일반 이관으로 통일.
-  const options = staff
+  // REASSIGN-05: 이관 대상은 문의함을 쓰는 직원(접수·관리자)뿐 — 의사는 티켓 답변 화면이 없어
+  //   이관해도 처리할 수 없으므로 드롭다운에서 제외한다(실화면 지적 2026-09). 의료판단 티켓은 경고문구로
+  //   "담당 의사에게 (오프라인) 전달"만 안내하고, 시스템 이관 대상에는 의사를 넣지 않는다.
+  const options = staff.filter((s) => s.role !== 'doctor')
 
   const submit = async () => {
     if (busy || pick === '') return // REASSIGN-03: 잠금
