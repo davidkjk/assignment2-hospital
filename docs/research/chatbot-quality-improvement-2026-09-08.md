@@ -787,6 +787,114 @@ Sprint 0~2 구현 후 러너를 확장해(멀티턴 재작성 반영 + `needs_cl
 
 ---
 
+### 9.9 전면 통합 구현·A/B 측정·후속 개선 (2026-09-09 세션47 — 방법·진행사항)
+
+> §9.6의 Sprint 2 종착점인 **「질문 이해 전면 통합」**을 실제로 구현하고, 엣지케이스로 공정 A/B를 돌려
+> 효과를 수치로 확인한 기록. **다음에 이어받아 반영할 수 있도록 방법과 상태를 모두 남긴다.** 프로덕션은
+> 여전히 **기본 `legacy`**(플래그 OFF)라 동작 불변 — 켜는 절차는 (E)에 정리.
+
+#### (A) 무엇을 통합했나 — 이해 계층 1콜
+
+흩어져 있던 **질문 이해**(② `chat_router.classify` 라우팅 + 후속질문 `rewrite_standalone` 재작성)를
+LLM **한 번**(`conversation_understanding.understand`)으로 합쳤다. 구조화 출력:
+`{route, standalone_query, needs_clarification, clarification_question, topic_shift, confidence}`.
+
+- **안전은 통합 대상이 아니다**(핵심 원칙): ⓪응급·ⓠ직원요청·①`check_escalation`(진단·불만·반복)·①-b intent
+  프리체크는 이해기보다 **앞단에서 결정적으로** 먼저 끝난다. 이해기는 갈래·검색질의만 다룬다(안전 게이트 아님).
+  회귀 가드 4건으로 고정(`test_orchestrator` — 응급/직원요청/unhelpful은 이해기 LLM 호출 전 종료,
+  `model.call_count==0`; escalation은 1회 후 이해기 미도달).
+- **되돌리기 3겹**: 피처플래그 `chat_understanding_mode`(기본 legacy) · 실패/형식위반 시 자동 legacy 폴백
+  (understand→None) · git revert.
+- **비용**: 호출 횟수는 첫 질문 동률(3회), 후속질문 절감(4→3회, 라우팅+재작성을 1콜로). 답변생성(가장 비싼
+  단계)은 두 모드 동일. → 전체 비용 중립~소폭 절감.
+
+파일: `app/core/config.py`(플래그) · `conversation_understanding.py`(understand) · `orchestrator.py`(배선) ·
+`chat_flow_service.py`(rag_fn에 `retrieval_query` kwarg, `_LEGACY_REWRITE` sentinel). 커밋 `e820c38`·`7759101`.
+
+#### (B) A/B 측정 방법 (재현 가능)
+
+러너 `scripts/rag_eval.py --mode {legacy,llm}`가 **같은 골든셋·같은 임베딩 KB**에 두 방식을 돌려 비교한다.
+`resolve_understanding(mode)`가 legacy(has_followup+rewrite) / llm(understand 1콜)을 갈라 검색질의를 만들고,
+채점(recall@5·근거 충실성·금지주장·되묻기)은 동일. 재현 절차:
+
+```bash
+# 로컬 Supabase 실행 상태에서 (전부 로컬 DB·로컬 러너, 외부는 OpenAI 임베딩·Anthropic 답변생성 호출만)
+cd frontend && npm run seed:demo                                   # 데모 KB
+psql "$DATABASE_URL" -f supabase/seed_kb_bulk.sql                  # bulk KB 문서(167건)
+cd backend && .venv/bin/python -m scripts.reembed_kb              # kb_chunks 임베딩(182청크)
+.venv/bin/python -m scripts.rag_eval --mode legacy               # 옛 방식
+.venv/bin/python -m scripts.rag_eval --mode llm                  # 새 방식
+```
+⚠️ 백엔드 pytest는 공용 로컬 DB의 KB·시드를 teardown이 비운다 → 측정 전후로 재적재·재임베딩 필요.
+
+**러너 충실도 수정**(중요): 초기 측정에서 llm 되묻기가 부풀려 보였는데, 원인은 러너가 프로덕션의 **intent
+프리체크 앞단(①-b)을 재현하지 않아** 진료시간·의사 질문을 이해기로 흘려 되묻기가 된 것. `resolve_understanding`에
+`intent_precheck.detect_intent` 앞단을 넣어 왜곡을 제거했다(커밋 `89384b5`).
+
+#### (C) A/B 결과 — 엣지케이스 확대 후
+
+`single`·`alias`(깨끗한 단발) 위주의 원 골든셋은 두 방식이 대부분 동률이라 변별력이 낮았다. 그래서
+**엣지케이스 12건**(지시어 사슬 3~5턴 coref·주제전환·애매한 생략·구어+오탈·공정성 애매)을 추가(52→64)해
+llm의 강점(지시어·생략 해소)이 드러나는 하드 케이스 비중을 높였다(커밋 `89384b5`). 결과(상세=
+`backend/evals/results/2026-09-09-baseline.md` §후6~후8):
+
+| 지표 | legacy(옛) | llm(새, 게이트 수정 후) |
+|---|---|---|
+| Recall@5 | 95% | **97%** |
+| **생략(ellipsis)** | **0.50** | **1.00** ⭐ |
+| alias | 1.00 | 1.00 |
+| coref/topicshift/multiturn | ~1.00 | ~1.00 |
+| 금지 주장 없음(안전) | 100% | 100% (무손) |
+
+- ⭐ **가장 어려운 생략에서 llm 압승**(0.50→1.00), 나머지 동률, 안전 무손 → **깨끗한 우세.**
+- ⚠️ 중간에 발견한 **유일 회귀**: llm이 자기완결 첫 질문("컴퓨터단층촬영 금식?")을 과잉 재작성해 alias가
+  1.00→0.80으로 떨어졌다. **수정=재작성을 `has_followup_signal` 게이트로 감싸 첫 질문은 원문 유지**
+  (legacy 규율 이식, 커밋 `4c3f989`) → alias 1.00 회복.
+
+#### (D) 후속 개선 2건 (이번 세션 구현)
+
+1. **topic_shift 배선**(커밋 `c09f2d1`): 증상 상담 진행 중(active_flow=department_guide)엔 재분류를 잠가
+   짧은 답이 새지 않게 보호하는데, 사용자가 **딴 주제로 바꾸면 계속 증상 상담으로 처리**되던 기존 한계가
+   있었다. 이해기의 `topic_shift` 신호를 배선해, **주제 전환이 확실할 때만 잠금을 풀고 재분류**(아니면 흐름
+   유지=보수적 기본값). **llm 전용**(legacy 분류기는 못 하는 능력). 응급·직원요청은 이 잠금과 무관하게 항상 최우선.
+   - ⏳ 후속: 탈출 후 진료시간류는 intent 프리체크 대신 rag로 감(경미). 필요 시 탈출 경로에 intent 재실행.
+2. **되묻기 계기판**(커밋 `105925f`/마이그 00098): 되묻기(needs_clarification)를 지금까지 `route_taken='rag'`로
+   저장해 일반 답변과 구분 불가였다 → **`route_taken='needs_clarification'`로 구분 저장**(마이그 00098이 CHECK
+   확장). no_answer/handoff가 아니라 일반 봇 답변 경로라 티켓·미해결 기록은 여전히 안 만든다. 집계 쿼리:
+   ```sql
+   select count(*) filter (where route_taken='needs_clarification')::float
+        / nullif(count(*) filter (where sender_type='bot'),0) as clarify_rate
+     from chat_messages where created_at >= now() - interval '7 days';
+   ```
+   ⏳ 후속: 관리자 대시보드 타일(`bot_stats_service`+프론트)로 승격은 미구현(지금은 SQL 쿼리로 확인).
+
+#### (E) 프로덕션 전환 절차 (c) — 아직 미적용, 배포 시
+
+1. **먼저** 원격 DB에 마이그 **00098** `db push`(안 하면 코드가 `needs_clarification`을 저장할 때 원격 CHECK
+   위반으로 500 — 00086 no_answer와 같은 함정). 00097 KB 검색키워드·비대면 KB 재적재·재임베딩도 이때 함께.
+2. 백엔드 코드 push(Railway 프로덕션). 이때도 **기본 legacy라 동작 불변.**
+3. **켜기 = Railway 환경변수 `CHAT_UNDERSTANDING_MODE=llm`**(추천 — 코드 기본값은 legacy로 두고 환경변수로만
+   토글, 문제 시 변수 삭제로 **재배포 없이 즉시 롤백**).
+4. **모니터**: (D)-2 되묻기 비율 쿼리를 며칠 관찰. **불필요한 되묻기가 눈에 띄게 늘면(§9.6 위험 #2) 즉시 롤백.**
+   골든셋은 실제보다 정제돼 있어 실서비스 되묻기는 더 높을 수 있음을 전제로 본다.
+
+#### (F) 남은 갈래 (defer)
+
+triage(증상→과) 라우팅 정확도를 A/B에 붙이기(③ 골든셋 `e6a7162`는 있고 측정 배선만 남음) · 되묻기 대시보드
+타일 · cross-encoder 재랭커(누적 시) · 유료 A/B는 승인 하에 실행(이번 세션 실측 완료).
+
+#### (G) 함께 완료한 소항목 (§9.8 백로그 중, 이번 세션)
+
+- **① 응급 안내 분기**(커밋 `3a6c324`, 문안 사용자 승인): 마음 위기(자살·자해)=자살예방 상담 **109**·정신건강
+  상담 **1577-0199**(+즉시 위험 시 119) / 신체 응급=119. 함께 언급되면 마음 위기 우선. `safety_watchdog`
+  `emergency_kind`/`emergency_reply`, orchestrator ⓪·dept_guide 3곳 공통, 프론트 무변경.
+  ⚠️ §9.8이 표기한 번호는 뒤바뀌어 있었음 — **109=자살예방, 1577-0199=정신건강**이 맞음(정정 반영).
+- **③ 비대면·화상 진료 미지원 안내**(커밋 `3c853e3`): 요구사항 §9가 화상진료를 제외 기능으로 명시 → KB에
+  정직한 미지원+대면 예약 안내 추가. 진료의뢰서·증명서(원무과)는 이미 KB에 있어 무작업. 외국인 통역은 KB에
+  이미 '지원'으로 있어 **현행 유지**(사용자 결정, 요구사항 침묵). ⚠️ 원격=KB 재적재+재임베딩.
+
+---
+
 ## Sources
 
 [^1]: Anthropic. “[Contextual Retrieval in AI Systems](https://www.anthropic.com/engineering/contextual-retrieval).” 2024. 전통적 청킹의 문맥 손실, contextual embeddings/BM25, 재랭킹 실험.
