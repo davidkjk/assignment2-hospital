@@ -1,0 +1,45 @@
+ [single-ct-prep-01           ] recall=1.00 facts=OK forbidden=OK
+ [single-mri-metal-01         ] recall=1.00 facts=OK forbidden=OK
+ [single-urine-01             ] recall=1.00 facts=누락['중간뇨'] forbidden=OK  ← 확인
+ [single-stool-01             ] recall=1.00 facts=OK forbidden=OK
+ [single-ecg-01               ] recall=1.00 facts=OK forbidden=OK
+ [single-parking-fee-01       ] recall=1.00 facts=OK forbidden=OK
+ [single-parking-disabled-01  ] recall=1.00 facts=누락['지하 1·2층'] forbidden=OK  ← 확인
+ [single-bike-01              ] recall=1.00 facts=OK forbidden=OK
+ [single-shuttle-01           ] recall=1.00 facts=OK forbidden=OK
+ [single-building-01          ] recall=1.00 facts=OK forbidden=OK
+ [single-booking-how-01       ] recall=1.00 facts=OK forbidden=OK
+ [single-change-dept-01       ] recall=1.00 facts=OK forbidden=OK
+ [single-family-proxy-01      ] recall=1.00 facts=OK forbidden=OK
+ [single-walkin-01            ] recall=0.00 facts=OK forbidden=OK  ← 확인
+ [single-waitlist-01          ] recall=1.00 facts=OK forbidden=OK
+ [intent-hours-01             ] recall=1.00 facts=OK forbidden=OK
+ [intent-doctors-01           ] recall=1.00 facts=OK forbidden=OK
+ [alias-ct-hangul-01          ] recall=1.00 facts=OK forbidden=OK
+ [alias-ct-full-01            ] recall=1.00 facts=OK forbidden=OK
+ [alias-mri-hangul-01         ] recall=1.00 facts=OK forbidden=OK
+ [alias-parking-informal-01   ] recall=1.00 facts=OK forbidden=OK
+ [alias-hours-typo-01         ] recall=1.00 facts=OK forbidden=OK
+ [alias-shuttle-short-01      ] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-ct-water-01       ] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-ct-fasting-01     ] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-parking-followup-01] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-booking-correction-01] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-topic-shift-01    ] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-pronoun-that-01   ] 되묻기(needs_clarification) — 집계 제외
+ [channel-web-hours-01        ] recall=1.00 facts=OK forbidden=OK
+ [channel-app-hours-01        ] recall=1.00 facts=OK forbidden=OK
+
+── 요약(expected_route=rag) ──
+  케이스 31개 (집계 30개 · 되묻기 1개 제외 · 재작성 태움 6개)
+  Recall@5 통과율   : 29/30 (97%)
+  근거 충실성(사실) : 28/30 (93%)
+  금지 주장 없음    : 30/30 (100%)
+  카테고리별 평균 Recall:
+    alias        1.00  (n=6)
+    channel      1.00  (n=2)
+    db-intent    1.00  (n=2)
+    multiturn    1.00  (n=5)
+    single       0.93  (n=15)
+
+  ※ ↻=후속질문 재작성을 태운 케이스. 라우팅 정확도는 대화 이해기 전면 통합 후 확장.

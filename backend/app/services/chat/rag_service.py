@@ -16,6 +16,12 @@ from app.services.chat.query_normalizer import normalize_query
 HYBRID_FLOOR = 0.30
 EXAMPLE_SIMILARITY_THRESHOLD = 0.80  # 참고 예시는 근거가 아니라 어투·정확도 힌트라 더 엄격히(엉뚱한 예시 주입 방지).
 EXAMPLE_MATCH_COUNT = 2              # 품질 개선 사이클(오답 교정 → 예시은행) 산물을 few-shot으로 최대 2건.
+CANDIDATE_POOL = 12                  # 검색 후보 풀(§4.4 경량 재랭킹). RRF는 '벡터·키워드 두 arm에 다 걸린'
+                                     #   넓은 문서를 위로 올리고, 한쪽 arm에만 강한 구체 문서를 낮은 등수로
+                                     #   묻는다(2026-09-09 실측: "주차 요금이 어떻게 되나요?"에 요금 문서가
+                                     #   벡터 0.551인데 kw=0이라 RRF ~9위 → top-5 밖). 후보를 넓게 뽑아
+                                     #   관련도(max)로 재정렬한 뒤 상위 match_count만 게이트·근거로 쓴다
+                                     #   (컨텍스트 크기는 그대로 — cross-encoder 재랭커 도입 전 경량 대체).
 
 # 근거에 답이 없을 때 모델이 이 토큰만 내도록 지시 → 인계로 전환(엉뚱한 답 방지, 문자열 판정보다 안정).
 _NO_ANSWER_SENTINEL = "NO_ANSWER"
@@ -70,15 +76,17 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
         # 하이브리드(벡터+트라이그램 RRF). 순수 벡터 match_kb_chunks는 근거 확인용으로 남겨둔다.
         # ⚠️ 폴백: 원격 DB에 하이브리드 함수(마이그 00084)가 아직 없으면(db push 전) 순수 벡터로 내려간다.
         #   코드 배포(Railway)가 마이그 적용보다 앞설 수 있어, 그 창에서도 봇이 안 깨지게 한다.
+        pool_n = max(match_count, CANDIDATE_POOL)   # 넓게 뽑고(RRF 컷오프 밖 구체 문서 구제) 아래서 관련도로 좁힌다
         try:
             chunks = await conn.fetch(
-                "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, search_query, match_count)
+                "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, search_query, pool_n)
         except asyncpg.UndefinedFunctionError:
-            rows = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, match_count)
+            rows = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, pool_n)
             chunks = [dict(r) | {"keyword_sim": 0.0} for r in rows]   # 키워드 신호 없음 → floor는 벡터만
-        # RRF 후보를 관련도(max(벡터,키워드)) 순으로 재정렬 — 아래 게이트·제한자료 판정이 1위 청크만 보므로
-        #   무관한 RRF 1위가 관련 근거를 버리지 않게 한다(_rank_by_relevance 주석 참조).
-        chunks = _rank_by_relevance(chunks)
+        # RRF 후보를 관련도(max(벡터,키워드)) 순으로 재정렬한 뒤 상위 match_count만 남긴다 — 아래 게이트·
+        #   제한자료·근거 판정이 1위 청크만/근거 청크로 쓰므로, 무관한 RRF 상위가 관련 근거를 버리거나
+        #   구체 문서가 RRF 컷오프에 잘리지 않게 한다(_rank_by_relevance·CANDIDATE_POOL 주석 참조).
+        chunks = _rank_by_relevance(chunks)[:match_count]
         # 품질 개선 사이클: 오답 교정으로 쌓인 활성 참고 예시 중 이 질문과 가장 비슷한 것(임베딩 코사인).
         example_rows = await conn.fetch(
             "select question, answer, 1 - (embedding <=> $1::vector) as similarity "
