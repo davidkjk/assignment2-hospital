@@ -86,12 +86,20 @@ class ChatHandoffHeaderStatus extends StatelessWidget {
 class ChatHandoffBadge extends StatelessWidget {
   final HandoffStatus status;
   final bool staffViewing;
+  final bool staffTyping;
   final VoidCallback? onRetry;
   const ChatHandoffBadge(
-      {super.key, required this.status, this.staffViewing = false, this.onRetry});
+      {super.key,
+      required this.status,
+      this.staffViewing = false,
+      this.staffTyping = false,
+      this.onRetry});
 
-  static const _connectingMsg =
-      '상담(직원 확인)으로 연결됐어요. 순서대로 확인해 답변드려요. 시간이 걸릴 수 있어요.';
+  // 상태별 안내 멘트(2026-09-09 사용자 결정). 접수/등록·시간 약속 금지(정본 §0·Q18).
+  // - 직원 확인 전(connecting): 아직 대기 — 순서·소요 안내.
+  static const _waitingMsg = '직원이 순서대로 확인해서 답변드려요. 시간이 걸릴 수 있어요.';
+  // - 직원 확인 중(inProgress=실열람): 사람이 실제로 보는 중 — 연결됐음만.
+  static const _connectedMsg = '상담 직원과 연결이 되었어요.';
 
   @override
   Widget build(BuildContext context) {
@@ -126,7 +134,12 @@ class ChatHandoffBadge extends StatelessWidget {
     final effective = _effectivePhase(status, staffViewing);
     // #8·#9: 답변이 오면(ended) 상단 안내 배너는 접는다 — 헤더가 '답변 도착'을 표시한다.
     if (effective == HandoffPhase.ended) return const SizedBox.shrink();
+    // 2026-09-09: 직원이 타이핑 중이면 배너를 숨긴다(헤더가 '직원이 입력 중'을 표시). 곧 답이 온다.
+    if (staffTyping) return const SizedBox.shrink();
     final v = _HandoffVisual.of(effective);
+    // 확인 중(실열람)이면 '연결됐어요', 아직이면 대기 안내. hoursNote(운영시간)는 대기 때만(연결되면 무의미).
+    final connected = effective == HandoffPhase.inProgress;
+    final msg = connected ? _connectedMsg : _waitingMsg;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -144,13 +157,13 @@ class ChatHandoffBadge extends StatelessWidget {
             child: _ledDot(v.dot, v.glow),
           ),
           const SizedBox(width: 8),
-          const Expanded(
-            child: Text(_connectingMsg,
-                style: TextStyle(
+          Expanded(
+            child: Text(msg,
+                style: const TextStyle(
                     fontSize: 12, color: AppTokens.grayPending, height: 1.5)),
           ),
         ]),
-        if (status.hoursNote != null)
+        if (!connected && status.hoursNote != null)
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 17),
             // HOURS-01·02·03: 서버 판정 문구만(앱이 요일·점심·특정일을 재계산하지 않음).

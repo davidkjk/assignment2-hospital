@@ -9,11 +9,11 @@ import 'package:hospital_patient_app/features/chat/widgets/chat_handoff_badge.da
 //   담당자 이름은 답변 도착에만 노출. 노출 문구는 CONNECTING_MSG 하나뿐(시간 약속 금지).
 void main() {
   Future<void> pumpBadge(WidgetTester t, HandoffStatus s,
-          {bool viewing = false, VoidCallback? onRetry}) =>
+          {bool viewing = false, bool typing = false, VoidCallback? onRetry}) =>
       t.pumpWidget(MaterialApp(
           home: Scaffold(
               body: ChatHandoffBadge(
-                  status: s, staffViewing: viewing, onRetry: onRetry))));
+                  status: s, staffViewing: viewing, staffTyping: typing, onRetry: onRetry))));
   Future<void> pumpHeader(WidgetTester t, HandoffStatus s, {bool viewing = false}) =>
       t.pumpWidget(MaterialApp(
           home: Scaffold(
@@ -62,19 +62,34 @@ void main() {
     expect(find.byType(Text), findsNothing);
   });
 
-  // ── 피드 배지(안내 멘트 + LED, 답변 도착이면 접힘) ───────────────────────
-  testWidgets('[#9 피드/Q18④] connecting이면 연결 안내(시간 약속 없음) — 라벨은 헤더로 옮겨 없음', (t) async {
+  // ── 피드 배지(상태별 안내 멘트 + LED, 답변 도착/타이핑이면 접힘) ───────────────
+  testWidgets('[피드] 직원 확인 전이면 대기 안내(순서·소요) — 라벨은 헤더로', (t) async {
     await pumpBadge(t, const HandoffStatus(phase: HandoffPhase.connecting));
-    expect(find.textContaining('상담(직원 확인)으로 연결됐어요'), findsOneWidget);
+    expect(find.textContaining('순서대로 확인해서 답변드려요'), findsOneWidget);
+    expect(find.textContaining('상담 직원과 연결이 되었어요'), findsNothing); // 아직 연결 전
     expect(find.text('직원 확인 전'), findsNothing); // 라벨은 헤더 담당
     expect(find.textContaining('분 후'), findsNothing); // 예상시간 지어내지 않음
     expect(find.textContaining('접수'), findsNothing);  // 접수/등록 약속 금지
   });
 
+  testWidgets('[피드] 직원 확인 중(실열람)이면 `상담 직원과 연결이 되었어요`', (t) async {
+    await pumpBadge(t, const HandoffStatus(phase: HandoffPhase.connecting), viewing: true);
+    expect(find.textContaining('상담 직원과 연결이 되었어요'), findsOneWidget);
+    expect(find.textContaining('순서대로 확인해서 답변드려요'), findsNothing); // 대기 안내는 사라짐
+  });
+
+  testWidgets('[피드] 직원이 타이핑 중이면 배너를 숨긴다', (t) async {
+    await pumpBadge(t, const HandoffStatus(phase: HandoffPhase.connecting),
+        viewing: true, typing: true);
+    expect(find.textContaining('상담 직원과 연결이 되었어요'), findsNothing);
+    expect(find.textContaining('순서대로 확인해서 답변드려요'), findsNothing);
+  });
+
   testWidgets('[#8 피드] 답변 도착이면 배너를 접는다 — 안내 멘트가 사라진다', (t) async {
     await pumpBadge(t, const HandoffStatus(phase: HandoffPhase.ended,
         assigneeName: '이의사', assigneeRole: '의사'));
-    expect(find.textContaining('상담(직원 확인)으로 연결됐어요'), findsNothing);
+    expect(find.textContaining('순서대로 확인해서 답변드려요'), findsNothing);
+    expect(find.textContaining('상담 직원과 연결이 되었어요'), findsNothing);
     expect(find.text('답변 도착'), findsNothing); // 답변 도착 표시는 헤더가 맡는다
   });
 

@@ -116,6 +116,7 @@ class ChatRoomView extends ConsumerWidget {
           ChatHandoffBadge(
             status: st.handoff!,
             staffViewing: st.staffViewing,
+            staffTyping: st.staffTyping, // 타이핑 중이면 배너 숨김(헤더가 '직원이 입력 중')
             onRetry: () => ctl.refreshHandoff(),
           ),
         Expanded(child: switch (st.phase) {
