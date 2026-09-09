@@ -14,6 +14,8 @@ class _HandoffVisual {
   static const amber = Color(0xFFF59E0B), amberGlow = Color(0x8CF59E0B);
   static const sky = Color(0xFF38BDF8), skyGlow = Color(0x8C38BDF8);
   static const green = Color(0xFF2FBF71), greenGlow = Color(0x8C2FBF71);
+  // 상담 종료(CHAT-HANDOFF-STATE-03): 대화가 끝난 상태라 초록(답변 도착)이 아니라 중립 회색 점.
+  static const gray = Color(0xFFA3AFB8), grayGlow = Color(0x8CA3AFB8);
 
   // - connecting(직원 확인 전): 인계됐고 아직 답 없음. 배정(claim)은 환자에게 숨긴다(Q18②).
   // - inProgress(직원 확인 중): 직원이 상담 상세를 **실제로 열어 보는 중**(열람 presence, staffViewing).
@@ -55,14 +57,19 @@ class ChatHandoffHeaderStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     if (status.phase == null) return const SizedBox.shrink();
     final effective = _effectivePhase(status, staffViewing);
+    // CHAT-HANDOFF-STATE-03: 직원이 [상담 종료]하면(closed) '상담 종료'로 — 같은 ended라도 '답변 도착'과 구분.
+    //   종료된 상담이라 타이핑/이름을 더 붙이지 않는다(이어서 물으면 새 AI 세션이 시작된다).
+    final closed = status.closed && effective == HandoffPhase.ended;
     // 답변 도착 전에 직원이 타이핑 중이면 헤더도 '직원이 입력 중'으로 — viewing presence 가 12초로 만료돼도
     // '직원 확인 전'으로 되돌아가 배너가 다시 뜨는 것을 막는다(2026-09-09 실기기 지적).
     final typing = staffTyping && effective != HandoffPhase.ended;
-    final v = typing
-        ? (dot: _HandoffVisual.sky, glow: _HandoffVisual.skyGlow, label: '직원이 입력 중')
-        : _HandoffVisual.of(effective);
-    // Q18④: 답변 도착(ended)일 때만 담당자 이름을 짧게 덧붙인다(그 전엔 배정을 숨김). 오버플로는 말줄임.
-    final showName = effective == HandoffPhase.ended && status.assigneeName != null;
+    final v = closed
+        ? (dot: _HandoffVisual.gray, glow: _HandoffVisual.grayGlow, label: '상담 종료')
+        : typing
+            ? (dot: _HandoffVisual.sky, glow: _HandoffVisual.skyGlow, label: '직원이 입력 중')
+            : _HandoffVisual.of(effective);
+    // Q18④: 답변 도착(ended)일 때만 담당자 이름을 짧게 덧붙인다(그 전엔 배정을 숨김, 종료면 붙이지 않음). 오버플로는 말줄임.
+    final showName = !closed && effective == HandoffPhase.ended && status.assigneeName != null;
     return Row(mainAxisSize: MainAxisSize.min, children: [
       _ledDot(v.dot, v.glow, size: 8),
       const SizedBox(width: 6),

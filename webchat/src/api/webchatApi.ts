@@ -23,6 +23,9 @@ export type HandoffStatus = {
   isOpen: boolean;                // 서버 단일 is_open(at)
   hoursNote?: string;             // 운영시간 안/밖 안내(서버 문구)
   loadError?: boolean;
+  // CHAT-HANDOFF-STATE-03: 직원이 [상담 종료]했을 때만 true(서버 status='answered'). 단순 답장은
+  //   phase='answered'로 올라와도 closed=false — '상담 종료'와 '답변 도착'을 가르는 신호(webchat_service).
+  closed?: boolean;
 };
 
 export type SessionState = {

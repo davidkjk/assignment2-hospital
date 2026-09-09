@@ -10,6 +10,7 @@ import 'chat_outage_view.dart';
 import 'chat_repository.dart';
 import 'chat_room_controller.dart';
 import 'chat_room_entry.dart'; // chatSessionProvider(탭 세션) 무효화용
+import 'widgets/chat_end_boundary.dart';
 import 'widgets/chat_feed.dart';
 import 'widgets/chat_handoff_badge.dart';
 import 'widgets/chat_input_bar.dart';
@@ -41,6 +42,23 @@ class ChatRoomView extends ConsumerWidget {
     final key = (threadId, aiSessionId);
     final st = ref.watch(chatRoomProvider(key));
     final ctl = ref.read(chatRoomProvider(key).notifier);
+    // 직원이 [상담 종료]하면(closed) 이 방의 AI 세션은 ended라 입력하면 503이 난다(막다른 길).
+    //   → 입력창·빠른답변 대신 종료 경계(ChatEndBoundary)를 띄워 두 분기로만 앞으로 가게 한다.
+    final closed = st.handoff?.closed == true;
+    // [CHAT-ROOM-NEW-01·END-NAV-01] 새 AI 세션을 만들고(요약 이어가기 / 과거 문맥 없이) 스택을 쌓지 않고
+    //   상담 탭으로 이동한다 — 탭이 방금 만든 새 방을 다시 잡는다. [새 대화]와 종료 경계 두 분기가 공유한다.
+    Future<void> startAnd(Future<ChatSessionRef> Function() start) async {
+      try {
+        await start();
+        ref.invalidate(chatSessionProvider(null)); // 탭이 새 방을 다시 잡도록
+        if (context.mounted) context.go('/chat');
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('새 상담을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.')));
+        }
+      }
+    }
     // Q19(CHAT-OUTAGE-01): AI 일시 장애(빈 응답/5xx)면 강제 직원인계가 아니라 장애 화면을 전면에 띄운다.
     //   [다시 시도] 성공 → outagePhase가 null로 돌아가 방으로 복귀(자동 폴링·재전송 없음). webchat과 통일.
     if (st.outagePhase != null) {
@@ -76,25 +94,11 @@ class ChatRoomView extends ConsumerWidget {
           IconButton(
             icon: const Icon(AppIcons.edit),
             tooltip: '새 대화',
-            onPressed: () async {
-              try {
-                // Q1·Q2(2026-09-08 실기기): 예전엔 push('/chat/room/:id')라 [새 대화]를 누를 때마다
-                // 방이 스택에 쌓이고(뒤로가기 생김), 탭(/chat)은 옛 세션 provider가 캐시돼 있어 다시
-                // 눌러도 옛 대화로 갔다. 고침: 새 세션을 만든 뒤 탭 세션 provider를 무효화하고
-                // go('/chat')로 이동 — 스택을 쌓지 않고, 탭이 '가장 최근 활성 방'(방금 만든 새 방)을
-                // 다시 계산해 보여준다(_resolve_thread tab-entry, patient_ai_session.py).
-                await ref.read(chatRepositoryProvider).startFreshSession();
-                ref.invalidate(chatSessionProvider(null)); // 탭이 새 방을 다시 잡도록
-                if (context.mounted) {
-                  context.go('/chat');
-                }
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('새 상담을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.')));
-                }
-              }
-            },
+            // Q1·Q2(2026-09-08 실기기): 예전엔 push('/chat/room/:id')라 [새 대화]마다 방이 스택에 쌓이고
+            //   탭은 옛 세션 캐시라 옛 대화로 갔다. 고침=새 세션 만든 뒤 탭 세션 무효화 + go('/chat')
+            //   (스택 안 쌓음, 탭이 방금 만든 새 방을 다시 잡음). startAnd 공용.
+            onPressed: () =>
+                startAnd(() => ref.read(chatRepositoryProvider).startFreshSession()),
           ),
           if (showHistory)
             IconButton(
@@ -163,7 +167,8 @@ class ChatRoomView extends ConsumerWidget {
                   // Q5: 매 봇 말풍선의 상시 [직원에게 물어보기] 버튼은 폐지. 직원 연결은 필요할 때만
                   //     입력창 슬롯의 [직원에게 연결] 칩으로 준다(_buildQuickReplies의 onHandoff, 요구사항 5.5).
                   // A3: 빠른답변 칩을 피드 마지막 줄(말풍선 밑)에 둔다 — 입력창 위 고정 바는 대화창을 가린다.
-                  footer: _buildQuickReplies(st, ctl),
+                  //   종료(closed)면 칩도 접는다 — 죽은 방으로 다시 보내지 않는다(종료 경계가 앞길을 준다).
+                  footer: closed ? null : _buildQuickReplies(st, ctl),
                   // Q7: 입력 중 표시를 입력바 위 텍스트가 아니라 피드 안 봇 말풍선 자리(점)로 둔다.
                   // 봇 대기(BOT-TYPING-01)가 우선, 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 없음.
                   typingLabel: st.botThinking
@@ -171,7 +176,17 @@ class ChatRoomView extends ConsumerWidget {
                       : (st.staffTyping ? '직원이 입력 중입니다' : null),
                 ),
         }),
-        _inputBar(st, ctl),
+        // 직원 종료(closed)면 입력창 대신 종료 경계(CHAT-ROOM-END-01·END-NAV-01, 막다른 길 방지).
+        //   [이어서 AI 질문]=직전 상담(thread) 요약 가진 새 AI 세션 · [새 질문]=과거 문맥 없는 새 AI 세션.
+        if (closed)
+          ChatEndBoundary(
+            onResumeAi: () => startAnd(
+                () => ref.read(chatRepositoryProvider).resumeWithSummary(threadId)),
+            onNewQuestion: () =>
+                startAnd(() => ref.read(chatRepositoryProvider).startFreshSession()),
+          )
+        else
+          _inputBar(st, ctl),
       ]),
       ),
     );

@@ -13,6 +13,20 @@ test('[WEBCHAT-HANDOFF-01/Q18④] 인계 뒤 상태별 라벨 — 확인 전/확
   expect(screen.getByText('이의사 의사')).toBeInTheDocument();             // 답변 도착 = 직원 이름·역할
 });
 
+test('[CHAT-HANDOFF-STATE-03] 직원이 상담 종료(closed)하면 `상담 종료` — 답변 도착과 구분', () => {
+  // 같은 answered라도 closed=true면 '상담 종료'다(직원이 [상담 종료] 실행). 단순 답장(closed=false)은 '답변 도착'.
+  pump({ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사', closed: true });
+  expect(screen.getByText('상담 종료')).toBeInTheDocument();
+  expect(screen.queryByText('답변 도착')).not.toBeInTheDocument();
+  expect(screen.queryByText('이의사 의사')).not.toBeInTheDocument(); // 종료면 담당자 이름 더 안 붙임
+});
+
+test('[CHAT-HANDOFF-STATE-03] 답장만 왔을 뿐 종료가 아니면(closed=false) 그대로 `답변 도착`', () => {
+  pump({ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사', closed: false });
+  expect(screen.getByText('답변 도착')).toBeInTheDocument();
+  expect(screen.queryByText('상담 종료')).not.toBeInTheDocument();
+});
+
 test('[Q18③] connecting에 열람 presence(staffViewing)가 겹치면 `직원이 확인 중이에요`로 바뀐다', () => {
   const { rerender } = render(<HandoffBadge status={{ phase: 'connecting', isOpen: true }} onRetry={() => {}} />);
   expect(screen.getByText('직원 확인 전이에요')).toBeInTheDocument(); // presence 없으면 확인 전

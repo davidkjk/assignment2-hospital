@@ -12,6 +12,7 @@ import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 import 'package:hospital_patient_app/features/chat/chat_room_view.dart';
 import 'package:hospital_patient_app/features/chat/widgets/chat_typing_indicator.dart';
 import 'package:hospital_patient_app/features/chat/widgets/chat_handoff_badge.dart';
+import 'package:hospital_patient_app/features/chat/widgets/chat_end_boundary.dart';
 
 // 상태를 직접 심는 가짜 컨트롤러 provider override.
 Widget _scope(ChatRoomState st, {void Function()? onFeedback}) => ProviderScope(
@@ -34,6 +35,28 @@ class _FreshRepo extends ChatRepository {
   @override
   Future<ChatSessionRef> startFreshSession() async =>
       const ChatSessionRef(threadId: 't2', aiSessionId: 'a2');
+}
+
+// 종료 경계의 두 분기가 실제로 어느 세션 생성 경로를 부르는지 기록하는 가짜 저장소.
+class _EndRepo extends ChatRepository {
+  _EndRepo()
+      : super(ApiClient(
+            baseUrl: 'http://x',
+            tokenProvider: () async => 't',
+            httpClient: MockClient((_) async => http.Response('{}', 200))));
+  bool freshCalled = false;
+  String? resumedFrom;
+  @override
+  Future<ChatSessionRef> startFreshSession() async {
+    freshCalled = true;
+    return const ChatSessionRef(threadId: 't2', aiSessionId: 'a2');
+  }
+
+  @override
+  Future<ChatSessionRef> resumeWithSummary(String threadId) async {
+    resumedFrom = threadId;
+    return const ChatSessionRef(threadId: 't3', aiSessionId: 'a3');
+  }
 }
 
 void main() {
@@ -237,6 +260,75 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('CHAT_TAB_MARKER'), findsOneWidget); // 탭으로 이동(Q2)
     expect(find.byType(ChatRoomView), findsNothing); // 방이 스택에 안 쌓임(Q1)
+  });
+
+  // ── 라이브 상담 완성 #1: 직원 상담 종료 → 막다른 길 방지 ─────────────────────
+  ChatRoomState closedState() => ChatRoomState(ChatRoomPhase.loaded,
+      items: [bot('다른 질문이 없으시면 상담을 마치겠습니다')],
+      handoff: const HandoffStatus(phase: HandoffPhase.ended, closed: true));
+
+  testWidgets('[CHAT-ROOM-END-01] 직원이 상담 종료하면 입력창 대신 종료 경계를 띄운다(막다른 길 방지)',
+      (t) async {
+    await t.pumpWidget(_scope(closedState()));
+    await t.pump();
+    expect(find.byType(ChatEndBoundary), findsOneWidget);
+    expect(find.byType(TextField), findsNothing); // 죽은 방(AI ended)에 입력하면 503 — 입력창을 감춘다
+    expect(find.text('직원에게 연결하기'), findsNothing); // 종료 뒤엔 인계 칩도 없음(재인계 아님)
+  });
+
+  testWidgets('[CHAT-ROOM-END-01] 종료가 아니면(답변 도착) 입력창은 그대로 열려 있다', (t) async {
+    // closed=false(답변 도착)면 대화가 계속 가능해야 한다 — 종료 경계·입력창 감춤은 종료일 때만.
+    await t.pumpWidget(_scope(ChatRoomState(ChatRoomPhase.loaded, items: [bot('네 도와드릴게요')],
+        handoff: const HandoffStatus(phase: HandoffPhase.ended, closed: false))));
+    await t.pump();
+    expect(find.byType(ChatEndBoundary), findsNothing);
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('[CHAT-ROOM-END-NAV-01] [새 질문]은 새 세션으로 시작하고 상담 탭으로 이동', (t) async {
+    final repo = _EndRepo();
+    final router = GoRouter(initialLocation: '/chat/room/t1', routes: [
+      GoRoute(path: '/chat', builder: (c, s) => const Text('CHAT_TAB_MARKER')),
+      GoRoute(
+          path: '/chat/room/:id',
+          builder: (c, s) => ChatRoomView(threadId: s.pathParameters['id']!)),
+    ]);
+    await t.pumpWidget(ProviderScope(
+      overrides: [
+        chatRepositoryProvider.overrideWithValue(repo),
+        chatRoomProvider(('t1', '')).overrideWith((ref) => _StubCtl(closedState())),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await t.pump();
+    await t.tap(find.text('새 질문'));
+    await t.pumpAndSettle();
+    expect(repo.freshCalled, isTrue); // 과거 문맥 없는 새 AI 상담
+    expect(repo.resumedFrom, isNull); // 요약 이어가기는 부르지 않음
+    expect(find.text('CHAT_TAB_MARKER'), findsOneWidget); // 탭으로 이동(스택 안 쌓음)
+  });
+
+  testWidgets('[CHAT-ROOM-END-NAV-01] [이어서 AI 질문]은 직전 상담(t1) 요약을 가진 새 AI 상담을 연다', (t) async {
+    final repo = _EndRepo();
+    final router = GoRouter(initialLocation: '/chat/room/t1', routes: [
+      GoRoute(path: '/chat', builder: (c, s) => const Text('CHAT_TAB_MARKER')),
+      GoRoute(
+          path: '/chat/room/:id',
+          builder: (c, s) => ChatRoomView(threadId: s.pathParameters['id']!)),
+    ]);
+    await t.pumpWidget(ProviderScope(
+      overrides: [
+        chatRepositoryProvider.overrideWithValue(repo),
+        chatRoomProvider(('t1', '')).overrideWith((ref) => _StubCtl(closedState())),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await t.pump();
+    await t.tap(find.text('이어서 AI 질문'));
+    await t.pumpAndSettle();
+    expect(repo.resumedFrom, 't1'); // 직전 직원 상담 요약(resume_from=현재 thread)
+    expect(repo.freshCalled, isFalse);
+    expect(find.text('CHAT_TAB_MARKER'), findsOneWidget);
   });
 
   testWidgets('[A4] 새 대화(현재 대화처럼)는 뒤로가기 없이 지난 상담 아이콘이 있다', (t) async {

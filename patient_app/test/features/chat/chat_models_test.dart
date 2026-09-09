@@ -123,4 +123,25 @@ void main() {
     expect(s.isOpen, isFalse);
     expect(s.hoursNote, '지금은 상담 운영시간이 아니에요.');
   });
+
+  // CHAT-HANDOFF-STATE-03 / CHAT-ROOM-END-01: 직원이 [상담 종료]하면 서버가 closed=true를 준다
+  // (status='answered'). 단순 답장(has_staff_reply)은 phase는 'answered'로 올라와도 closed=false다
+  // — 프론트가 '상담 종료'(막다른 길 경계)와 '답변 도착'을 구분하는 신호(webchat_service.get_handoff_status).
+  test('[CHAT-HANDOFF-STATE-03] 직원 종료면 closed=true를 읽는다', () {
+    final s = HandoffStatus.fromJson({
+      'phase': 'answered',
+      'isOpen': true,
+      'closed': true,
+    });
+    expect(s.phase, HandoffPhase.ended);
+    expect(s.closed, isTrue);
+  });
+
+  test('[CHAT-HANDOFF-STATE-03] 답장만 왔을 뿐 종료가 아니면 closed=false(기본)', () {
+    // closed 키가 없거나 false면 종료 경계를 띄우지 않는다(답변 도착).
+    final answered = HandoffStatus.fromJson({'phase': 'answered', 'isOpen': true});
+    final connecting = HandoffStatus.fromJson({'phase': 'connecting', 'isOpen': true, 'closed': false});
+    expect(answered.closed, isFalse); // 키 부재 = 종료 아님
+    expect(connecting.closed, isFalse);
+  });
 }

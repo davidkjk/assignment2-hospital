@@ -57,6 +57,16 @@ void main() {
     expect(find.textContaining('이의사'), findsOneWidget);
   });
 
+  testWidgets('[CHAT-HANDOFF-STATE-03 헤더] 직원 종료(closed)면 `상담 종료` — 답변 도착과 구분', (t) async {
+    // 같은 phase=ended라도 closed=true면 '상담 종료'다(막다른 길 경계와 짝). 종료된 상담이라 담당자 이름은
+    //   더 붙이지 않는다(대화는 끝났고, 이어서 물으면 새 AI 세션이 시작된다).
+    await pumpHeader(t, const HandoffStatus(phase: HandoffPhase.ended, closed: true,
+        assigneeName: '이의사', assigneeRole: '의사'));
+    expect(find.text('상담 종료'), findsOneWidget);
+    expect(find.text('답변 도착'), findsNothing);
+    expect(find.textContaining('이의사'), findsNothing);
+  });
+
   testWidgets('[#9 헤더] 인계 전(phase null)이면 아무것도 안 보인다', (t) async {
     await pumpHeader(t, const HandoffStatus(phase: null));
     expect(find.byType(Text), findsNothing);

@@ -80,6 +80,10 @@ class HandoffStatus {
   final String? hoursNote;
   final bool isOpen;
   final bool loadError; // 조회 실패(CHAT-HANDOFF-ERR-01) — 완료로 바꾸지 않는다
+  // CHAT-HANDOFF-STATE-03·CHAT-ROOM-END-01: 직원이 [상담 종료]했을 때만 true(서버 status='answered').
+  //   단순 답장(has_staff_reply)은 phase='answered'로 올라와도 closed=false다 — '상담 종료' 경계(막다른 길
+  //   방지)와 '답변 도착'을 가르는 신호. phase 계약은 그대로라 기존 배지는 무회귀(webchat_service).
+  final bool closed;
   const HandoffStatus({
     this.phase,
     this.assigneeName,
@@ -87,6 +91,7 @@ class HandoffStatus {
     this.hoursNote,
     this.isOpen = false,
     this.loadError = false,
+    this.closed = false,
   });
 
   // GET /chat/threads/{id}/handoff는 camelCase이고 phase는 서버가 이미 가공한 값을 준다
@@ -104,6 +109,7 @@ class HandoffStatus {
         // 서버 is_open(at) 판정 문구(앱 미재계산)
         hoursNote: (j['hoursNote'] ?? j['hours_note']) as String?,
         isOpen: ((j['isOpen'] ?? j['is_open']) as bool?) ?? false,
+        closed: ((j['closed'] ?? j['is_closed']) as bool?) ?? false,
       );
 }
 

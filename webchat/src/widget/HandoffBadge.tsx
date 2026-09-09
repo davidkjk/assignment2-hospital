@@ -22,10 +22,13 @@ export function HandoffBadge({ status, staffViewing = false, onRetry }: { status
   // answered(답변 도착)는 열람 여부로 되돌리지 않는다(이미 답이 왔다).
   const phase = status.phase === 'connecting' && staffViewing ? 'inProgress' : status.phase;
   const isAnswered = phase === 'answered';
+  // CHAT-HANDOFF-STATE-03: 직원이 [상담 종료]하면(closed) 같은 answered라도 '상담 종료'다 — 대화가 끝났으니
+  //   담당자 이름·연결 안내를 더 붙이지 않는다(이어서 물으면 새 AI 세션이 시작된다).
+  const isClosed = isAnswered && status.closed === true;
   return (
-    <div className={`wc-handoff wc-handoff--${phase}`}>
-      <span className="wc-handoff__badge">{LABEL[phase]}</span>
-      {status.assigneeName && <span className="wc-handoff__who">{status.assigneeName} {status.assigneeRole}</span>}
+    <div className={`wc-handoff wc-handoff--${isClosed ? 'closed' : phase}`}>
+      <span className="wc-handoff__badge">{isClosed ? '상담 종료' : LABEL[phase]}</span>
+      {!isClosed && status.assigneeName && <span className="wc-handoff__who">{status.assigneeName} {status.assigneeRole}</span>}
       {status.hoursNote && <p className="wc-handoff__hours">{status.hoursNote}</p>}
       {/* 답변 도착이면 직원 이름·역할이 안내를 대신하고, 그 전엔 연결 안내만(시간 약속 없음). */}
       {!isAnswered && <p className="wc-handoff__msg">{CONNECTING_MSG}</p>}
