@@ -78,6 +78,14 @@ async def handle_message(session, content: str, *, thread_id: UUID,
         hist = await conn.fetch(
             "select id, content from chat_messages where thread_id=$1 and content is not null "
             "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW + 1)
+        # 인계됨(사람 상담 모드): 이 스레드에 처리 중 티켓(pending/in_progress)이 있으면 AI를 돌리지 않는다.
+        #   환자 메시지는 위에서 이미 저장됐고, 직원이 실시간으로 본다. (2026-09-09 실기기: 인계 후 환자가
+        #   직원에게 답장하면 AI 상담봇이 대신 답하던 버그 — 인계 자체가 무의미해졌다.)
+        open_ticket = await conn.fetchval(
+            "select 1 from support_tickets where thread_id=$1 and status in ('pending','in_progress') limit 1",
+            thread_id)
+    if open_ticket:
+        return {"route_taken": "staff", "message_id": current_id, "reply": None}
     history_texts = build_history(hist, current_id)
 
     async def rag_fn(s, m):

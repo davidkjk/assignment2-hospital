@@ -114,12 +114,31 @@ async def acknowledge_read(thread_id: UUID) -> None:
             "select owner_type, patient_id, anonymous_session_id from chat_threads where id=$1", thread_id)
         if thread is None:
             return
+        # 읽음 커서(chat_read_states)를 최신 메시지까지 올린다 — 직원 화면의 '환자 확인' 판정이 이 커서다.
+        #   예전엔 알림 배치만 닫고 커서를 안 써서 직원에게 환자가 계속 '미확인'으로 보였다(2026-09-09 실기기).
+        #   최신 메시지 뒤로만 전진(뒤로 안 감). 스레드가 비어 있으면 select 0행 → no-op.
         if thread["owner_type"] == "anonymous_web":
             await conn.execute("select acknowledge_chat_batches($1, 'anonymous_web', $2)",
                                thread_id, thread["anonymous_session_id"])
+            await conn.execute(
+                "insert into chat_read_states (thread_id, reader_type, reader_anonymous_session_id, "
+                "last_read_message_id, last_read_at) "
+                "select $1, 'anonymous_web', $2, cm.id, now() from chat_messages cm "
+                "where cm.thread_id=$1 order by cm.created_at desc, cm.id desc limit 1 "
+                "on conflict (thread_id, reader_anonymous_session_id) where reader_type='anonymous_web' "
+                "do update set last_read_message_id=excluded.last_read_message_id, last_read_at=now(), updated_at=now()",
+                thread_id, thread["anonymous_session_id"])
         else:
             await conn.execute("select acknowledge_chat_batches($1, 'patient', $2)",
                                thread_id, thread["patient_id"])
+            await conn.execute(
+                "insert into chat_read_states (thread_id, reader_type, reader_patient_id, "
+                "last_read_message_id, last_read_at) "
+                "select $1, 'patient', $2, cm.id, now() from chat_messages cm "
+                "where cm.thread_id=$1 order by cm.created_at desc, cm.id desc limit 1 "
+                "on conflict (thread_id, reader_patient_id) where reader_type='patient' "
+                "do update set last_read_message_id=excluded.last_read_message_id, last_read_at=now(), updated_at=now()",
+                thread_id, thread["patient_id"])
 
 
 def patient_handoff_view(ticket_status, staff_name, staff_role, has_staff_reply=False):

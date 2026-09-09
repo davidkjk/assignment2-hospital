@@ -35,14 +35,13 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     try {
       final items = await _repo.fetchMessages(threadId);
       state = ChatRoomState(ChatRoomPhase.loaded, items: items, batchId: batchId);
-      if (batchId != null) {
-        // CHAT-ROOM-NOTIFY-01: 열람 = 확인. 읽음처리는 이 상담방(thread) 단위다(백엔드 /chat/read).
-        onMarkRead?.call(batchId);
-        // 읽음처리(부가 기능)가 실패해도 이미 그려진 대화를 error로 덮지 않는다(방어).
-        try {
-          await _repo.markRead(threadId: threadId);
-        } catch (_) {/* best-effort */}
-      }
+      if (batchId != null) onMarkRead?.call(batchId);
+      // CHAT-ROOM-NOTIFY-01: 열람 = 확인. 상담방을 열면 이 스레드(thread)를 읽음처리한다(백엔드 /chat/read).
+      //   batchId 유무와 무관하게 항상 — 안 하면 직원 화면에 환자가 계속 '미확인'으로 남는다(2026-09-09 실기기).
+      //   부가 기능이라 실패해도 이미 그려진 대화를 error로 덮지 않는다(방어).
+      try {
+        await _repo.markRead(threadId: threadId);
+      } catch (_) {/* best-effort */}
     } catch (_) {
       state = const ChatRoomState(ChatRoomPhase.error); // 빈 대화로 덮지 않는다
     }
@@ -107,7 +106,10 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
       // handoff는 '연결 중' 안내(system 줄). 무답변은 봇 말풍선(text/bot)으로 넣어야 마지막 줄이 봇 답변이 되어
       // 입력창 슬롯에 [직원에게 연결] 칩이 뜬다(Q5·Q11: 폴백 문구가 가리키는 칩이 실제로 존재 = 막다른 길 금지).
       final isHandoff = res.routeTaken == 'handoff';
-      final fallback = (res.botMessage == null && res.cardMessage == null)
+      // 사람 상담 모드(인계 후): 서버가 AI를 안 돌리고 환자 메시지만 저장한다(route_taken='staff').
+      //   폴백 봇 줄을 넣지 않는다 — 답은 직원이 실시간으로 보낸다(2026-09-09 실기기: 인계 후 답장에 AI가 답하던 버그).
+      final isStaffMode = res.routeTaken == 'staff';
+      final fallback = (!isStaffMode && res.botMessage == null && res.cardMessage == null)
           ? ChatFeedItem(
               id: 'sys-$cid',
               messageType: isHandoff ? 'system' : 'text',
@@ -219,6 +221,11 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
         return x.compareTo(y);
       });
     state = state.copyWith(phase: ChatRoomPhase.loaded, items: merged);
+    // 방을 보고 있는 중에 직원 메시지가 실시간으로 오면 바로 읽음처리한다(직원 화면 '환자 확인' 반영).
+    //   best-effort, fire-and-forget — 실패는 무시(다음 열람/도착 때 다시 시도된다).
+    if (adds.any((r) => r.senderType == 'staff')) {
+      _repo.markRead(threadId: threadId).catchError((_) {});
+    }
   }
 
   StreamSubscription<bool>? _typingSub;
@@ -329,12 +336,13 @@ final chatRoomProvider =
   // [CHAT-ROOM-LIVE-01] 같은 스레드의 실시간 스냅샷(직원 말풍선·시스템 이벤트)을 컨트롤러에 물려준다.
   // realtime 미주입(supabaseClient null)이면 streamThread는 빈 스트림이라 무해하다.
   ctl.bindLive(repo.streamThread(key.$1));
-  // [CHAT-ROOM-LIVE-TYPING-01] 같은 thread의 broadcast로 오는 "직원 입력 중"을 물려준다(일시 표시).
-  ctl.bindTyping(repo.streamStaffTyping(key.$1));
+  // [CHAT-ROOM-LIVE-TYPING-01·Q18③] 직원 입력 중(typing)·열람(viewing)은 같은 broadcast 채널의 두 이벤트다.
+  //   한 채널에서 함께 구독해야 둘 다 도달한다(같은 토픽 채널 2개 = 한쪽만 받는 버그, 2026-09-09).
+  final live = repo.streamStaffLive(key.$1);
+  ctl.bindTyping(live.typing);
   // [Q18] 인계 상태 배지 — 진입 즉시 + 8초 폴링(webchat 동형). thread에 인계 티켓이 있을 때만 배지가 뜬다.
   ctl.bindHandoff(() => repo.fetchHandoffStatus(key.$1));
-  // [Q18③] 직원 열람 presence — typing과 같은 채널의 'viewing' broadcast. realtime 미주입이면 빈 스트림.
-  ctl.bindPresence(repo.streamStaffPresence(key.$1));
+  ctl.bindPresence(live.viewing);
   return ctl;
 });
 

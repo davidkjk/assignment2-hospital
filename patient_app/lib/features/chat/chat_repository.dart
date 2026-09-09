@@ -156,50 +156,38 @@ class ChatRepository {
         .map((rows) => rows.map(ChatFeedItem.fromJson).toList());
   }
 
-  /// [CHAT-ROOM-LIVE-TYPING-01] 담당 직원이 답변을 작성 중이면 "직원이 입력 중입니다"를 일시 표시한다.
-  /// 직원웹이 같은 thread 채널(`chat-typing:<threadId>`)로 보내는 **일회성 broadcast**(DB 미기록)를
-  /// 구독한다 — 켬(true)/끔(false)만 흘린다. 온라인 초록 점·답변 보장으로 바꾸지 않는다(SCOPE-01).
-  /// realtime 미주입이면 빈 스트림(무해). 유휴 시 끔 신호가 유실돼도 뷰가 자체 타임아웃으로 내린다.
-  Stream<bool> streamStaffTyping(String threadId) {
+  /// [Q18③·CHAT-ROOM-LIVE-TYPING-01] 직원 열람(viewing)·입력 중(typing)은 같은 broadcast 채널
+  /// (`chat-typing:<threadId>`)의 서로 다른 이벤트다. 직원웹 TicketConversation이 열릴 때 viewing on/off,
+  /// 답변 작성 중 typing on/off 를 보낸다(DB 미기록 일회성 broadcast). 켬/끔만 흘린다(SCOPE-01: 초록 점·
+  /// 답변 보장 아님). realtime 미주입이면 빈 스트림 둘.
+  ///
+  /// ⚠️ 반드시 **한 채널**에서 두 이벤트를 함께 듣는다. 예전엔 typing·viewing을 각각 `rt.channel('chat-typing:X')`로
+  ///   따로 열었는데, **같은 토픽에 채널을 2개** 열면 Supabase realtime이 한쪽으로만 broadcast를 전달해
+  ///   viewing은 되고 typing은 영영 안 뜨던 버그가 있었다(2026-09-09 실기기). 한 채널·두 콜백으로 합친다.
+  ({Stream<bool> typing, Stream<bool> viewing}) streamStaffLive(String threadId) {
     final rt = _realtime;
-    if (rt == null) return const Stream<bool>.empty();
-    final controller = StreamController<bool>();
+    if (rt == null) {
+      return (typing: const Stream<bool>.empty(), viewing: const Stream<bool>.empty());
+    }
+    final typingC = StreamController<bool>();
+    final viewingC = StreamController<bool>();
     final channel = rt.channel('chat-typing:$threadId');
-    channel.onBroadcast(
-      event: 'typing',
-      callback: (payload) {
-        // onBroadcast는 메시지 전체를 준다 — 실제 값은 payload['payload']에 있다(양쪽 형태 방어).
-        final data = payload['payload'] is Map ? payload['payload'] as Map : payload;
-        if (data['role'] == 'staff' && !controller.isClosed) {
-          controller.add(data['on'] == true);
-        }
-      },
-    ).subscribe();
-    controller.onCancel = () => rt.removeChannel(channel);
-    return controller.stream;
-  }
-
-  /// [Q18③] 직원이 상담 상세를 **열어 보는 중**인지(열람 presence). typing과 같은 thread 채널
-  /// (`chat-typing:<threadId>`)의 별도 이벤트 `viewing`을 구독한다 — 직원웹 TicketConversation이 열릴 때
-  /// `{role:'staff', on:true}`, 닫힐 때 `on:false`를 보낸다(DB 미기록 일회성 broadcast). 배정(claim)과
-  /// 무관한 실열람이라 "직원이 확인 중"만 띄우고 초록 점·답변 보장으로 바꾸지 않는다(SCOPE-01).
-  /// realtime 미주입이면 빈 스트림(무해).
-  Stream<bool> streamStaffPresence(String threadId) {
-    final rt = _realtime;
-    if (rt == null) return const Stream<bool>.empty();
-    final controller = StreamController<bool>();
-    final channel = rt.channel('chat-typing:$threadId');
-    channel.onBroadcast(
-      event: 'viewing',
-      callback: (payload) {
-        final data = payload['payload'] is Map ? payload['payload'] as Map : payload;
-        if (data['role'] == 'staff' && !controller.isClosed) {
-          controller.add(data['on'] == true);
-        }
-      },
-    ).subscribe();
-    controller.onCancel = () => rt.removeChannel(channel);
-    return controller.stream;
+    void emit(dynamic payload, StreamController<bool> c) {
+      // onBroadcast는 메시지 전체를 준다 — 실제 값은 payload['payload']에 있다(양쪽 형태 방어).
+      final data = payload['payload'] is Map ? payload['payload'] as Map : payload;
+      if (data['role'] == 'staff' && !c.isClosed) c.add(data['on'] == true);
+    }
+    channel
+        .onBroadcast(event: 'typing', callback: (p) => emit(p, typingC))
+        .onBroadcast(event: 'viewing', callback: (p) => emit(p, viewingC))
+        .subscribe();
+    var open = 2; // 두 스트림이 모두 취소되면(방 dispose) 채널을 제거한다.
+    void closeOne() {
+      if (--open == 0) rt.removeChannel(channel);
+    }
+    typingC.onCancel = closeOne;
+    viewingC.onCancel = closeOne;
+    return (typing: typingC.stream, viewing: viewingC.stream);
   }
 }
 
