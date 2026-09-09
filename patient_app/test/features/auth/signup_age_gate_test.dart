@@ -78,9 +78,12 @@ void main() {
     final launcher = _RecordingLauncher();
     await _pumpAt(t, '/signup/blocked', launcher: launcher);
     expect(find.byType(BlockedMinorScreen), findsOneWidget);
-    expect(find.textContaining('02-1234-5678'), findsOneWidget); // 하드코딩 아님, API 값
+    // 번호는 화면에 표시하지 않는다(누르면 바로 전화 연결되므로 군더더기). 라벨은 문구만.
+    expect(find.text('병원에 전화하기'), findsOneWidget);
+    expect(find.textContaining('02-1234-5678'), findsNothing);
     await t.tap(find.byKey(const Key('blocked-call-button')));
     await t.pumpAndSettle();
+    // 하드코딩 아님, API 값으로 다이얼(tel:)한다 — 표시 없이도 올바른 번호로 연결.
     expect(launcher.opened.single, Uri.parse('tel:0212345678'));
   });
 

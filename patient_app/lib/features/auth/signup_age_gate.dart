@@ -153,13 +153,15 @@ class BlockedMinorScreen extends ConsumerWidget {
               style: TextStyle(color: AppTokens.grayPending, fontSize: 14, height: 1.6),
             ),
             const Spacer(),
+            // 전화번호는 보여주지 않는다 — 누르면 바로 전화 앱으로 연결되므로 번호 표기는 군더더기다.
+            // 아이콘 + 문구는 전체폭 CTA 안에서 기본(Alignment.center)으로 가운데 정렬된다.
             FilledButton.icon(
               key: const Key('blocked-call-button'),
               style: AppButtonSize.cta,
               onPressed: phone.isEmpty ? null : () => _call(ref, phone),
               icon: const Icon(Icons.phone),
-              label: Text(phone.isEmpty ? '병원에 전화하기' : '병원에 전화하기   $phone',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              label: const Text('병원에 전화하기',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
