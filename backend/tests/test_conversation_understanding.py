@@ -179,13 +179,26 @@ async def test_understand_standalone_echo_is_none():
 
 
 @pytest.mark.asyncio
-async def test_understand_active_flow_skips_llm():
-    # 진행 중 문진(active_flow=department_guide)은 재분류하지 않는다 — LLM 호출 없이 그 갈래 유지.
-    model = _JsonModel(_json(route="rag"))
+async def test_understand_active_flow_stays_when_no_topic_shift():
+    # 증상 상담 중(active_flow=department_guide) 사용자가 그 주제를 이어가면(topic_shift=false)
+    #   짧은 답("네 3일 됐어요")이 다른 갈래로 새지 않게 department_guide를 유지한다(흐름 보호).
+    model = _JsonModel(_json(route="rag", standalone_query="", needs_clarification=False,
+                             clarification_question="", topic_shift=False, confidence=0.7))
     u = await cu.understand("네 3일 됐어요", ["어디가 불편하세요?"],
                             active_flow="department_guide", model=model)
-    assert u.route == "department_guide"
-    assert model.call_count == 0
+    assert u.route == "department_guide"    # topic_shift 없으면 흐름 유지(LLM이 rag라 해도)
+    assert u.standalone_query is None
+
+
+@pytest.mark.asyncio
+async def test_understand_active_flow_breaks_out_on_topic_shift():
+    # (b) topic_shift 배선: 증상 상담 중이라도 사용자가 확실히 딴 주제로 바꾸면(topic_shift=true)
+    #   잠금을 풀고 그 새 갈래로 재분류한다 — 새 방식만의 능력(옛 분류기는 못 함).
+    model = _JsonModel(_json(route="rag", standalone_query="", needs_clarification=False,
+                             clarification_question="", topic_shift=True, confidence=0.8))
+    u = await cu.understand("아 근데 주차는 어디예요?", ["어디가 불편하세요?"],
+                            active_flow="department_guide", model=model)
+    assert u.route == "rag"                 # 주제 전환 → 증상 상담에서 탈출
 
 
 @pytest.mark.asyncio

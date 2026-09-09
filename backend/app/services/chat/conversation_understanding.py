@@ -120,14 +120,15 @@ async def understand(message: str, history_texts, *, active_flow: str | None = N
     - needs_clarification True인데 질문 본문이 비면 빈 되묻기(막다른 길)라 되묻기 해제(검색으로 진행).
     - confidence는 [0,1]로 클램프. ⚠️ confidence로 안전 게이트를 여닫지 않는다(안전은 앞단 결정적).
     """
-    if active_flow == "department_guide":
-        return Understanding(route="department_guide", standalone_query=None,
-                             needs_clarification=False, clarification_question=None,
-                             topic_shift=False, confidence=1.0)
     recent = "\n".join((history_texts or [])[-6:])
+    # (b) 증상 상담 진행 중이면 LLM에 그 사실을 알려 topic_shift를 정확히 판단하게 한다.
+    #   같은 주제를 이어가면 topic_shift=false(흐름 유지), 전혀 다른 주제로 바꾸면 true(탈출).
+    flow_hint = ("\n(지금은 증상 상담(진료과 안내)이 진행 중입니다. 사용자가 그 증상 상담을 이어가면 "
+                 "topic_shift=false, 전혀 다른 주제로 바꾸면 topic_shift=true로 판단하세요.)"
+                 if active_flow == "department_guide" else "")
     prompt = ChatPromptTemplate.from_messages([
         ("system", _UNDERSTAND_SYSTEM),
-        ("human", "대화:\n{recent}\n\n마지막 발화: {message}"),
+        ("human", "대화:\n{recent}\n\n마지막 발화: {message}" + flow_hint),
     ])
     try:
         resp = await (model or get_chat_model()).ainvoke(
@@ -164,11 +165,19 @@ async def understand(message: str, history_texts, *, active_flow: str | None = N
         confidence = 0.0
     confidence = max(0.0, min(1.0, confidence))
 
+    topic_shift = bool(parsed.get("topic_shift"))
+    # (b) 증상 상담 중 흐름 제어: 주제 전환이 확실할 때만 탈출하고, 아니면 department_guide를 유지한다.
+    #   짧은 답("네", "이틀요")이 다른 갈래로 새는 걸 막는다(흐름 보호 = 보수적 기본값). 되묻기·재작성은 끈다.
+    if active_flow == "department_guide" and not topic_shift:
+        return Understanding(route="department_guide", standalone_query=None,
+                             needs_clarification=False, clarification_question=None,
+                             topic_shift=False, confidence=confidence)
+
     return Understanding(
         route=route,
         standalone_query=standalone,
         needs_clarification=needs_clarify,
         clarification_question=clarify_q if needs_clarify else None,
-        topic_shift=bool(parsed.get("topic_shift")),
+        topic_shift=topic_shift,
         confidence=confidence,
     )
