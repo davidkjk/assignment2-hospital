@@ -295,7 +295,7 @@ export function DoctorConsolePage() {
       </div>
 
       <div style={styles.columns}>
-        <div style={{ ...styles.col, flex: `0 0 ${widths.queue}px` }} data-col="queue" data-width={widths.queue}>
+        <div style={{ ...styles.queueCol, flex: `0 0 ${widths.queue}px` }} data-col="queue" data-width={widths.queue}>
           <QueuePanel
             rows={queueRows}
             selectedId={selectedId}
@@ -310,9 +310,10 @@ export function DoctorConsolePage() {
         </div>
         <ColumnResizer boundary={0} onDrag={drag} />
 
-        {/* [DOCTOR-CONTEXT-*] 가운데 「환자 맥락」 열의 프레임(패딩·gap·배경·오른쪽 경계)은 이 열이 소유한다
-            — 네 카드(기본정보·예약이유·사전문진·메모)가 한 열 안에서 같은 좌우 인셋·간격이 되게. 카드들은
-            자기 프레임을 갖지 않는다(L65 데모정렬: 데모의 w-80 bg-muted/20 p-4 한 열 구조). */}
+        {/* [DOCTOR-CONTEXT-*] 가운데 「환자 맥락」은 이제 하나의 카드다(사용자 결정 2026-09-09) — 프레임
+            (경계·라운드·그림자·패딩·gap·내부 스크롤)은 이 열(contextCol)이 소유하고, 안의 네 블록
+            (기본정보·예약이유·사전문진·메모)은 자기 프레임 없이 sp-3 간격의 플랫 섹션으로 담긴다(카드 안 카드 방지).
+            ~~예전엔 데모 w-80 bg-muted/20 p-4 한 열~~ → 카드로 승격. */}
         <div style={{ ...styles.col, ...styles.contextCol, flex: `0 0 ${widths.context}px` }} data-col="context" data-width={widths.context}>
           <ContextPanel
             patient={
@@ -408,7 +409,10 @@ export function DoctorConsolePage() {
 export { clearAllDrafts as clearConsoleDraftsOnSignOut }
 
 const styles: Record<string, CSSProperties> = {
-  page: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
+  // 콘솔을 뷰포트 높이에 고정(사용자 결정 2026-09-09) — 셸 헤더(3.5rem)+본문 래퍼 여백(py-5=2.5rem)을 뺀
+  //   나머지를 채워, 네 카드가 한 화면에 들어가고 각 카드가 「안에서」 스크롤한다. (예전 height:100%는 본문
+  //   래퍼가 높이를 안 줘서 실제로는 안 잡혀 콘솔이 한 화면에 안 들어갔다.)
+  page: { display: 'flex', flexDirection: 'column', height: 'calc(100vh - 6rem)', minHeight: 0 },
   toolbar: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', padding: 'var(--sp-2) var(--sp-3)',
     borderBottom: '1px solid var(--color-divider)', background: 'var(--color-surface)',
@@ -423,12 +427,23 @@ const styles: Record<string, CSSProperties> = {
     background: 'var(--color-surface)', color: 'var(--color-ink-muted)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
   columns: { display: 'flex', flex: 1, minHeight: 0 },
+  // 왼쪽 열은 진료대기·진료완료 두 카드를 세로로 쌓는다(각 카드가 내부 스크롤) — 열 자체는 스크롤하지 않는다.
+  queueCol: { display: 'flex', flexDirection: 'column', minHeight: 0, gap: 'var(--sp-3)' },
+  // 가운데/오른쪽 열은 각각 「하나의 카드」다(사용자 결정 2026-09-09) — 프레임(경계·라운드·그림자)을 열이
+  //   소유하고 카드 「안에서」 스크롤한다(col의 overflowY). 안의 블록들은 자기 프레임 없이 플랫 섹션으로.
+  //   ⛔ 리사이저의 회색 선은 껐다(ColumnResizer) — 카드 테두리와 겹쳐 「두 줄」이 되므로.
   col: { display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: 'auto' },
-  // 가운데 「환자 맥락」 열 프레임 — 데모 `w-80 bg-muted/20 p-4` 한 열. 카드 간격(gap)·인셋(padding)을
-  // 여기서 한 번만 준다(카드들은 자기 프레임 없음). ⛔ borderRight를 두지 않는다 — 오른쪽 경계는 열
-  // 리사이저의 가운데 선이 이미 긋는다. 여기에 또 border를 주면 선이 겹쳐 「회색 두 줄」이 됐다(2026-09-01).
-  contextCol: { gap: 'var(--sp-3)', padding: 'var(--sp-4)', background: 'var(--color-bg)' },
-  recordCol: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)', padding: 0 },
+  // 「환자 맥락」 카드 — 기본정보·예약이유·사전문진·메모를 sp-3 간격의 플랫 섹션으로 담는다.
+  contextCol: {
+    gap: 'var(--sp-3)', padding: 'var(--sp-4)', background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)', borderRadius: 12, boxShadow: 'var(--shadow-panel)',
+  },
+  // 「진료기록」 카드 — 작성 칸(RecordPanel, 자기 패딩) + 과거기록(HistoryPanel, 위 구분선)을 담는다.
+  //   섹션이 각자 패딩·구분선을 가지므로 열은 padding 0·gap 0.
+  recordCol: {
+    gap: 0, padding: 0, background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)', borderRadius: 12, boxShadow: 'var(--shadow-panel)',
+  },
   recovered: {
     display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', margin: 'var(--sp-4)', marginBottom: 0, padding: 'var(--sp-2) var(--sp-3)',
     borderRadius: 8, background: 'var(--color-primary-wash)', color: 'var(--color-primary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],

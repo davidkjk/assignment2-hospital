@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { AlertTriangle } from '../../components/icons'
@@ -83,12 +83,11 @@ export function QueuePanel({
   lastSyncedAt,
   onRefresh,
 }: QueuePanelProps) {
-  const [showDone, setShowDone] = useState(false)
-  // [DOCTOR-QUEUE-09] 완료는 따로 모은다 — 대기 목록은 지금 볼 사람에 집중하고, 완료는 접이식으로 뒤에(L60).
+  // [DOCTOR-QUEUE-09] 완료는 따로 모은다 — 대기 카드와 완료 카드로 나눠 그린다(사용자 결정 2026-09-09).
   const active = rows.filter((r) => r.status !== '진료완료')
   const completed = rows.filter((r) => r.status === '진료완료')
 
-  const renderRow = (r: DoctorQueueRow) => {
+  const renderRow = (r: DoctorQueueRow, i: number) => {
     const wait = waitLabel(r.status_since ?? r.waiting_started_at, r.status)
     const selected = r.id === selectedId
     return (
@@ -99,7 +98,7 @@ export function QueuePanel({
           data-status={r.status}
           aria-pressed={selected}
           onClick={() => onOpen(r)}
-          style={selected ? { ...styles.row, ...styles.rowOn } : styles.row}
+          style={{ ...styles.row, ...(i > 0 ? styles.rowDivider : null), ...(selected ? styles.rowOn : null) }}
         >
           <span style={styles.rowTop}>
             <span style={styles.name}>
@@ -128,63 +127,70 @@ export function QueuePanel({
   }
 
   return (
-    <section aria-label="오늘 진료 대기" style={styles.panel}>
-      <header style={styles.head}>
-        <h2 style={styles.heading}>오늘 진료 대기</h2>
-        {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
-      </header>
+    <>
+      {/* 진료대기 카드 — 고정 프레임 + 내부 스크롤(사용자 결정 2026-09-09: 네 영역을 각각 카드로). */}
+      <section aria-label="오늘 진료 대기" style={styles.card}>
+        <header style={styles.head}>
+          <h2 style={styles.heading}>오늘 진료 대기</h2>
+          {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
+        </header>
 
-      {stale && (
-        // [QUEUE-LIVE-02] 낡은 목록 위에서 새 완료를 누르면 남의 기록을 완료시킬 수 있다 — 낡음을 알린다.
-        <div role="status" style={styles.stale}>
-          <span>연결이 끊겨 목록이 낡았습니다{lastSyncedAt ? ` · 기준 시각 ${lastSyncedAt}` : ''}</span>
-          <button type="button" onClick={onRefresh} style={styles.refresh}>지금 새로고침</button>
-        </div>
-      )}
+        {stale && (
+          // [QUEUE-LIVE-02] 낡은 목록 위에서 새 완료를 누르면 남의 기록을 완료시킬 수 있다 — 낡음을 알린다.
+          <div role="status" style={styles.stale}>
+            <span>연결이 끊겨 목록이 낡았습니다{lastSyncedAt ? ` · 기준 시각 ${lastSyncedAt}` : ''}</span>
+            <button type="button" onClick={onRefresh} style={styles.refresh}>지금 새로고침</button>
+          </div>
+        )}
 
-      {loading ? (
-        <LoadingState variant="card" message="대기 목록을 불러오는 중입니다" />
-      ) : error ? (
-        <EmptyState kind="error" onRetry={onRetry} />
-      ) : active.length === 0 && completed.length === 0 ? (
-        // [QUEUE-08] 0건엔 사실 문장 + 갈 길만. 예약·당일 방문 버튼을 만들지 않는다(SHELL-ACT-03).
-        <div style={styles.empty}>
-          <p style={styles.emptyTitle}>오늘 진료 대기 환자가 없습니다</p>
-          <p style={styles.emptyHint}>날짜를 바꿔 과거 환자를 찾을 수 있습니다</p>
-        </div>
-      ) : (
         <div style={styles.body}>
-          {active.length === 0 ? (
-            <p style={styles.activeEmpty}>대기 중인 환자가 없습니다</p>
+          {loading ? (
+            <LoadingState variant="card" message="대기 목록을 불러오는 중입니다" />
+          ) : error ? (
+            <EmptyState kind="error" onRetry={onRetry} />
+          ) : active.length === 0 ? (
+            // [QUEUE-08] 0건엔 사실 문장 + 갈 길만. 예약·당일 방문 버튼을 만들지 않는다(SHELL-ACT-03).
+            <div style={styles.empty}>
+              <p style={styles.emptyTitle}>오늘 진료 대기 환자가 없습니다</p>
+              <p style={styles.emptyHint}>날짜를 바꿔 과거 환자를 찾을 수 있습니다</p>
+            </div>
           ) : (
             <ul style={styles.list}>{active.map(renderRow)}</ul>
           )}
+        </div>
+      </section>
 
-          {completed.length > 0 && (
-            // [DOCTOR-QUEUE-09] 오늘 완료 — 기본은 접혀 있고, 펼치면 방금 완료한 환자를 눌러 수정할 수 있다(L60).
-            <div style={styles.doneWrap}>
-              <button
-                type="button"
-                onClick={() => setShowDone((v) => !v)}
-                aria-expanded={showDone}
-                style={styles.doneToggle}
-              >
-                <span>오늘 완료 {completed.length}명</span>
-                <span aria-hidden="true">{showDone ? '▾' : '▸'}</span>
-              </button>
-              {showDone && <ul style={styles.list}>{completed.map(renderRow)}</ul>}
-            </div>
+      {/* 진료완료 카드 — 별도 카드로 「항상」 표시(사용자 결정 2026-09-09). 예전엔 대기 카드 안의 접이식이었고
+          기본으로 접혀 있었으나(L60 「대기 목록에 집중」), 사용자가 네 번째 영역으로 늘 보이게 뒤집었다.
+          완료 환자를 눌러 수정에 들어간다(수정 진입은 그대로). */}
+      <section aria-label={`오늘 완료 ${completed.length}명`} style={styles.doneCard}>
+        <header style={styles.head}>
+          <h2 style={styles.heading}>오늘 완료 {completed.length}명</h2>
+        </header>
+        <div style={styles.body}>
+          {loading ? null : completed.length === 0 ? (
+            <p style={styles.activeEmpty}>완료한 환자가 없습니다</p>
+          ) : (
+            <ul style={styles.list}>{completed.map(renderRow)}</ul>
           )}
         </div>
-      )}
-    </section>
+      </section>
+    </>
   )
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: {
-    display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%',
-    background: 'var(--color-surface)', borderRight: '1px solid var(--color-divider)',
+  // 진료대기·진료완료 두 카드 공통 프레임 — 열 안에서 고정 높이(flex)로 나눠 각자 내부 스크롤한다.
+  //   진료대기가 더 크게(2), 완료는 작게(1). overflow:hidden으로 라운드 모서리 안에서 스크롤이 깔끔하게.
+  card: {
+    display: 'flex', flexDirection: 'column', minHeight: 0, flex: '2 1 0',
+    background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
+    borderRadius: 12, boxShadow: 'var(--shadow-panel)', overflow: 'hidden',
+  },
+  doneCard: {
+    display: 'flex', flexDirection: 'column', minHeight: 0, flex: '1 1 0',
+    background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
+    borderRadius: 12, boxShadow: 'var(--shadow-panel)', overflow: 'hidden',
   },
   head: { padding: 'var(--sp-3) var(--sp-4)', borderBottom: '1px solid var(--color-divider)' },
   heading: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
@@ -198,25 +204,20 @@ const styles: Record<string, CSSProperties> = {
     height: 26, padding: '0 var(--sp-3)', borderRadius: 6, border: '1px solid var(--color-danger)',
     background: 'var(--color-surface)', color: 'var(--color-danger)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], cursor: 'pointer',
   },
-  skeleton: { height: 56, margin: 'var(--sp-2)', borderRadius: 6, background: 'var(--color-bg)' },
   empty: { padding: 'var(--sp-6) var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
   emptyTitle: { margin: 0, fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   emptyHint: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  body: { flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' },
-  list: { listStyle: 'none', margin: 0, padding: 'var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
+  body: { flex: 1, minHeight: 0, overflowY: 'auto' },
+  // 플랫 행(사용자 결정 2026-09-09) — 개별 카드 테두리 없이 카드 안에 구분선으로 나열, 선택 시 왼쪽 강조 바.
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
   activeEmpty: { margin: 0, padding: 'var(--sp-4)', fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
-  doneWrap: { borderTop: '1px solid var(--color-divider)', marginTop: 'var(--sp-1)' },
-  doneToggle: {
-    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: 'var(--sp-2) var(--sp-3)', border: 'none', background: 'transparent', cursor: 'pointer',
-    fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)',
-  },
   row: {
     width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--sp-0-5)', textAlign: 'left',
-    padding: 'var(--sp-2) var(--sp-3)', borderRadius: 8, border: '1px solid var(--color-divider)',
+    padding: 'var(--sp-2) var(--sp-3)', border: 'none',
     background: 'var(--color-surface)', color: 'var(--color-ink)', cursor: 'pointer',
   },
-  rowOn: { borderColor: 'var(--color-primary)', background: 'var(--color-primary-wash)' },
+  rowDivider: { borderTop: '1px solid var(--color-divider)' },
+  rowOn: { background: 'var(--color-primary-wash)', boxShadow: 'inset 3px 0 0 var(--color-primary)' },
   rowTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-2)' },
   name: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'] },
   pos: { fontVariantNumeric: 'tabular-nums', color: 'var(--color-ink-muted)', minWidth: 14 },

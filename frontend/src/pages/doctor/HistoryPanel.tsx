@@ -54,7 +54,9 @@ export function HistoryPanel({ loading, error, onRetry, records }: HistoryPanelP
 }
 
 const styles: Record<string, CSSProperties> = {
-  panel: { padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)' },
+  // 과거 진료기록은 「진료기록」 열 카드 안, 작성 칸 아래 섹션 — 자기 프레임 대신 위 구분선으로 나눈다
+  //   (플랫, 사용자 결정 2026-09-09). 프레임은 열 카드가 소유한다.
+  panel: { padding: 'var(--sp-4)', borderTop: '1px solid var(--color-divider)' },
   heading: { margin: '0 0 var(--sp-2)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
   skeleton: { height: 60, borderRadius: 6, background: 'var(--color-bg)' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },

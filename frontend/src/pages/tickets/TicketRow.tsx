@@ -28,13 +28,16 @@ export function TicketRow({
   const bookingLabel = ticket.requestType ? REQUEST_LABEL[ticket.requestType] : undefined
   return (
     <li>
+      {/* 플랫 행(사용자 결정 2026-09-09) — 개별 카드 테두리 없이 목록 카드 안에 구분선으로 나열. 선택 시
+          왼쪽 3px 강조 바 + 옅은 배경(색만으로 구분 안 함 — 내 담당은 아래 「내 담당」 칩이 함께 말한다). */}
       <button
         type="button"
         onClick={() => onSelect(ticket)}
-        className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
-          active ? 'border-primary bg-primary/5' : 'border-border/70 bg-card hover:bg-muted'
-        } ${ticket.isMine && !active ? 'ring-1 ring-primary/30' : ''}`}
+        className={`relative block w-full px-3 py-2.5 text-left transition-colors ${
+          active ? 'bg-primary/5' : 'hover:bg-muted'
+        }`}
       >
+        {active && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-primary" />}
         {/* break-words: 공백 없는 긴 토큰(번호·영문)도 열 안에서 줄바꿈해 삐져나오지 않게 */}
         <span className="line-clamp-2 break-words text-sm font-medium">{ticket.patientQuestion}</span>
         <p className="mt-1 line-clamp-1 break-all text-xs text-muted-foreground">인계 이유: {ticket.handoffReason}</p>

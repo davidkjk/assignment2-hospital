@@ -733,9 +733,16 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             order by dept.name, d.name, a.doctor_id
             """
         )
-        return tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting
+        # 확인 필요 상담 문의(사용자 결정 2026-09-09): 아직 아무도 맡지 않은 새 상담 = support_tickets.status='pending'.
+        #   문의함 'pending' 탭·미배정 새 문의와 같은 정의(ticket_service._INBOX_SQL). RLS는 문의함과 같은
+        #   staff 커넥션이라 그대로 읽는다. ⛔ 예전엔 「4단계 집계 계약이 없다」며 None을 박아 화면이 늘
+        #   「현재 집계할 수 없음」이었다 → 실제 미처리 수로 살린다(STAT-METRIC-06 갱신).
+        bot_pending = await c.fetchval(
+            "select count(*)::int from public.support_tickets where status = 'pending'"
+        )
+        return tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting, bot_pending
 
-    tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting = await _dispatch(
+    tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting, bot_pending = await _dispatch(
         staff, conn, _run
     )
 
@@ -801,6 +808,8 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
         ],
         # TODAY-RESCHED-21: 이 카드에 줄이 있는 사람은 사이드바 배지가 두 번 세지 않는다.
         "badge_excluded_patient_ids": [r["for_patient_id"] for r in needs],
-        # STAT-METRIC-06: 4단계 계약이 없다 — 0이 아니라 None(화면이 `현재 집계할 수 없음`).
-        "bot_pending": None,
+        # STAT-METRIC-06(갱신 2026-09-09): 미처리(pending) 상담 문의 수 — 위 _run에서 실제로 센다.
+        #   ~~4단계 계약이 없어 늘 None~~ ✅ 해소: 실제 미배정 새 문의 수로 연결. 화면은 여전히 null이면
+        #   「현재 집계할 수 없음」을 그린다(안전장치) — 다만 이제 support_tickets가 있으면 항상 정수가 온다.
+        "bot_pending": bot_pending,
     }

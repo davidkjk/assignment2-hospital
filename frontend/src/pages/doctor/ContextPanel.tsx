@@ -80,10 +80,9 @@ const styles: Record<string, CSSProperties> = {
   hintBox: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', padding: 'var(--sp-3) var(--sp-0-5)' },
   hint: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
   hintSub: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-subtle, var(--color-ink-muted))' },
+  // 기본정보는 「환자 맥락」 열 카드의 첫 머리 블록 — 자기 프레임을 갖지 않는다(플랫, 사용자 결정 2026-09-09).
   head: {
     display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)',
-    padding: 'var(--sp-3)', background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
-    borderRadius: 'var(--radius-card)', boxShadow: 'var(--shadow-panel)',
   },
   headTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--sp-2)' },
   name: { margin: 0, fontSize: 'var(--fs-title)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },

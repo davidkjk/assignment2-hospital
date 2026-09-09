@@ -167,23 +167,28 @@ export function StaffList({
         </div>
       )}
 
-      {loading && staff.length === 0 ? (
-        <LoadingState variant="card" message="직원 목록을 불러오는 중입니다" />
-      ) : error && staff.length === 0 ? (
-        <EmptyState kind="error" onRetry={onRetry} />
-      ) : staff.length === 0 ? (
-        <EmptyState
-          kind="zero"
-          message="등록된 직원이 없습니다"
-          action={
-            <button type="button" onClick={onInviteEmptyState} style={styles.inviteLink}>
-              직원 초대
-            </button>
-          }
-        />
-      ) : (
-        <ul role="list" aria-label="직원 목록" style={styles.list}>
-          {visible.map((m) => {
+      {/* 목록을 고정 높이 카드로(사용자 결정 2026-09-09) — 명단이 길어도 페이지 전체가 늘어나지 않고
+          카드 안에서 스크롤한다. 행은 플랫 + 구분선(개별 카드 테두리 없음). */}
+      <div style={styles.listCard}>
+        {loading && staff.length === 0 ? (
+          <div style={styles.statePad}><LoadingState variant="card" message="직원 목록을 불러오는 중입니다" /></div>
+        ) : error && staff.length === 0 ? (
+          <div style={styles.statePad}><EmptyState kind="error" onRetry={onRetry} /></div>
+        ) : staff.length === 0 ? (
+          <div style={styles.statePad}>
+            <EmptyState
+              kind="zero"
+              message="등록된 직원이 없습니다"
+              action={
+                <button type="button" onClick={onInviteEmptyState} style={styles.inviteLink}>
+                  직원 초대
+                </button>
+              }
+            />
+          </div>
+        ) : (
+          <ul role="list" aria-label="직원 목록" style={styles.list}>
+            {visible.map((m, i) => {
             const self = m.id === currentStaffId
             const invited = isInvited(m)
             const accepted = isAccepted(m)
@@ -194,7 +199,7 @@ export function StaffList({
                 data-staff-row
                 data-row-name={m.name}
                 aria-current={activeProfileId === m.id ? 'true' : undefined}
-                style={{ ...styles.row, ...(m.is_active ? null : styles.rowOff), ...(activeProfileId === m.id ? styles.rowActive : null) }}
+                style={{ ...styles.row, ...(i > 0 ? styles.rowDivider : null), ...(m.is_active ? null : styles.rowOff), ...(activeProfileId === m.id ? styles.rowActive : null) }}
               >
                 <div style={styles.rowLine}>
                 <div style={styles.rowMain}>
@@ -305,8 +310,9 @@ export function StaffList({
               </li>
             )
           })}
-        </ul>
-      )}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
@@ -348,17 +354,29 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   muted: { fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  // 목록 카드 — 명단이 길어도 페이지를 늘리지 않고 이 카드 안에서 스크롤한다(maxHeight=뷰포트 기준).
+  //   내용이 짧으면 카드가 내용만큼만 차지한다(고정 높이로 억지 확장하지 않음).
+  listCard: {
+    maxHeight: 'calc(100vh - 12rem)',
+    overflowY: 'auto',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 12,
+    background: 'var(--color-surface)',
+    boxShadow: 'var(--shadow-panel)',
+  },
+  statePad: { padding: 'var(--sp-4)' },
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
   row: {
-    // 이름·버튼 줄(rowLine) 아래에 링크/알림을 세로로 쌓으므로 카드 자체는 세로 스택이다.
+    // 플랫 행(사용자 결정 2026-09-09) — 개별 카드 테두리 없이 목록 카드 안에 구분선으로 나열.
+    // 이름·버튼 줄(rowLine) 아래에 링크/알림을 세로로 쌓으므로 행 자체는 세로 스택이다.
     display: 'flex',
     flexDirection: 'column',
     gap: 'var(--sp-2)',
     padding: 'var(--sp-3) var(--sp-3)',
-    borderRadius: 10,
-    border: '1px solid var(--color-divider)',
     background: 'var(--color-surface)',
   },
+  // 첫 행을 뺀 나머지 행 위의 구분선(플랫 목록).
+  rowDivider: { borderTop: '1px solid var(--color-divider)' },
   // 이름·역할·상태(왼쪽) + 작업 버튼(오른쪽)이 한 줄. 링크/알림은 이 줄 밖(아래)으로 내려 전체 너비.
   rowLine: {
     display: 'flex',
@@ -367,7 +385,9 @@ const styles: Record<string, CSSProperties> = {
     gap: 'var(--sp-3)',
   },
   rowOff: { background: 'var(--color-bg)', opacity: 0.85 },
-  rowActive: { borderColor: 'var(--color-primary)', boxShadow: 'inset 0 0 0 1px var(--color-primary)' },
+  // 열린 프로필의 행 강조 — 플랫 목록이라 옅은 배경 + 왼쪽 3px 강조 바(inset, 레이아웃 밀림 없음).
+  //   색만으로 구분하지 않게 aria-current와 오른쪽 프로필 패널이 함께 말한다.
+  rowActive: { background: 'var(--color-primary-wash)', boxShadow: 'inset 3px 0 0 var(--color-primary)' },
   rowMain: { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
   rowTop: { display: 'flex', alignItems: 'baseline', gap: 'var(--sp-2)', flexWrap: 'wrap' },
   name: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },

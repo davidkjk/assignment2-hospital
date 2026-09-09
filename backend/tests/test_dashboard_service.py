@@ -427,12 +427,30 @@ async def test_투데이_리스케드_21_사이드바_제외_목록을_준다(db
 
 
 @pytest.mark.asyncio
-async def test_스탯_메트릭_06_상담봇_지표는_0으로_위장하지_않는다(db_conn):
-    """4단계 계약이 없다. 0으로 주면 '문의가 하나도 없었다'는 거짓말이 된다."""
+async def test_스탯_메트릭_06_상담봇_미처리_문의_수를_센다(db_conn):
+    """[STAT-METRIC-06 갱신 2026-09-09] bot_pending = 아직 아무도 맡지 않은 새 상담(support_tickets.status='pending').
+    문의함 'pending' 탭과 같은 정의. 미처리가 없으면 0(집계가 실제로 0이라는 사실), in_progress는 세지 않는다."""
     admin = to_context(await _seed_admin(db_conn), "admin")
     await set_session_auth(db_conn, admin.auth_user_id)
+
+    # 미처리 문의가 없으면 0 — 예전엔 None이었으나 이제 실제 미처리 수를 센다.
+    s0 = await dashboard_service.get_today_summary(admin, conn=db_conn)
+    assert s0["bot_pending"] == 0
+
+    # 미배정 새 문의(pending) 2건 + 이미 맡은 문의(in_progress) 1건 → pending만 센다(=2).
+    p = await seed_patient(db_conn)
+    for _ in range(2):
+        thread = await db_conn.fetchval(
+            "insert into chat_threads (owner_type, patient_id) values ('patient', $1) returning id", p)
+        await db_conn.execute(
+            "insert into support_tickets (thread_id, status) values ($1, 'pending')", thread)
+    in_prog_thread = await db_conn.fetchval(
+        "insert into chat_threads (owner_type, patient_id) values ('patient', $1) returning id", p)
+    await db_conn.execute(
+        "insert into support_tickets (thread_id, status) values ($1, 'in_progress')", in_prog_thread)
+
     s = await dashboard_service.get_today_summary(admin, conn=db_conn)
-    assert s["bot_pending"] is None
+    assert s["bot_pending"] == 2
 
 
 @pytest.mark.asyncio

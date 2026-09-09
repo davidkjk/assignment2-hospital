@@ -26,11 +26,9 @@ export function ConsoleCard({ icon, title, ariaLabel, children }: ConsoleCardPro
 }
 
 const styles: Record<string, CSSProperties> = {
-  card: {
-    padding: 'var(--sp-3)', background: 'var(--color-surface)',
-    border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)',
-    boxShadow: 'var(--shadow-panel)',
-  },
+  // 플랫 섹션(사용자 결정 2026-09-09) — 프레임(경계·배경·그림자)은 이제 「환자 맥락」 열 카드가 소유한다.
+  //   여기선 제목 + 본문만 그리고, 섹션 사이 간격은 열(contextCol)의 gap이 준다(카드 안 카드 방지).
+  card: {},
   head: {
     margin: '0 0 var(--sp-2)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)',
     fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-title)' as CSSProperties['fontWeight'], color: 'var(--color-ink)',

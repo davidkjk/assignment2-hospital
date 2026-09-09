@@ -95,7 +95,8 @@ const styles: Record<string, CSSProperties> = {
     flex: '0 0 9px', width: 9, cursor: 'col-resize', background: 'transparent',
     display: 'flex', justifyContent: 'center', alignItems: 'stretch',
   },
-  // 실제로 보이는 것은 가운데 1px 선뿐(데모의 열 구분선과 같은 두께).
-  line: { width: 1, background: 'var(--color-divider)', transition: 'width 120ms, background 120ms' },
+  // 카드 레이아웃(2026-09-09)에선 열 카드의 테두리가 이미 경계를 그으므로 평상시 선은 투명하게 둔다
+  //   — 예전 회색 1px 선을 그대로 두면 카드 테두리와 겹쳐 「세로 두 줄」이 된다. 가리키거나 끌 때만 딥틸로 뜬다.
+  line: { width: 2, background: 'transparent', transition: 'width 120ms, background 120ms' },
   lineOn: { width: 2, background: 'var(--color-primary)' },
 }

@@ -77,31 +77,42 @@ export function Tickets({
               {loserNotice}
             </p>
           )}
-          <div className="mt-2 flex-1 space-y-1.5 overflow-y-auto pr-1">
-            {inbox.phase === 'loading' && <LoadingState variant="card" message="문의를 불러오는 중입니다" />}
-            {inbox.phase === 'blocked' && (
-              <p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
-                상담 문의 기능이 아직 준비 중입니다
-              </p>
-            )}
-            {inbox.phase === 'error' && <EmptyState kind="error" onRetry={inbox.retry} />}
-            {inbox.phase === 'empty' && (
-              <EmptyState kind="zero" message={`${inbox.tabs.find((t) => t.key === inbox.tab)?.label} 문의가 없습니다`} />
-            )}
-            {inbox.phase === 'ready' && (
-              <>
-                {inbox.partialError && (
-                  <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    목록을 새로 고치지 못했습니다 · 이전 기준으로 보여줍니다
-                  </p>
-                )}
-                <ul className="space-y-1.5">
-                  {inbox.tickets.map((t) => (
-                    <TicketRow key={t.id} ticket={t} active={t.id === selected?.id} onSelect={select} />
-                  ))}
-                </ul>
-              </>
-            )}
+          {/* 목록 전체를 하나의 카드로(오른쪽 상세와 같은 프레임) — 위아래로 떠 있던 개별 행 대신 한 카드
+              안에서 스크롤한다(사용자 결정 2026-09-09). 윗선은 탭바(h-9)+mt-2로 오른쪽 상세 카드와 맞춘다. */}
+          <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-panel">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {inbox.phase === 'loading' && (
+                <div className="p-3"><LoadingState variant="card" message="문의를 불러오는 중입니다" /></div>
+              )}
+              {inbox.phase === 'blocked' && (
+                <p role="status" className="px-3 py-6 text-center text-sm text-muted-foreground">
+                  상담 문의 기능이 아직 준비 중입니다
+                </p>
+              )}
+              {inbox.phase === 'error' && (
+                <div className="p-3"><EmptyState kind="error" onRetry={inbox.retry} /></div>
+              )}
+              {inbox.phase === 'empty' && (
+                <div className="p-3">
+                  <EmptyState kind="zero" message={`${inbox.tabs.find((t) => t.key === inbox.tab)?.label} 문의가 없습니다`} />
+                </div>
+              )}
+              {inbox.phase === 'ready' && (
+                <>
+                  {inbox.partialError && (
+                    <p role="alert" className="m-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      목록을 새로 고치지 못했습니다 · 이전 기준으로 보여줍니다
+                    </p>
+                  )}
+                  {/* 행 사이는 구분선으로(플랫 목록, 사용자 결정) — 개별 카드 테두리를 두지 않는다. */}
+                  <ul className="divide-y divide-border/60">
+                    {inbox.tickets.map((t) => (
+                      <TicketRow key={t.id} ticket={t} active={t.id === selected?.id} onSelect={select} />
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
           </div>
         </div>
 

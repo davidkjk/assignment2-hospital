@@ -65,7 +65,7 @@ describe('QueuePanel', () => {
     expect(btns[2]).toHaveTextContent(/분 경과/) // 도착
   })
 
-  test('[DOCTOR-QUEUE-09] 완료는 「오늘 완료」 접이식에 모으고, 펼치면 눌러 수정할 수 있다(L60)', async () => {
+  test('[DOCTOR-QUEUE-09] 완료는 「오늘 완료」 별도 카드에 항상 보이고, 눌러 수정에 들어간다(사용자 결정 2026-09-09, 예전 접이식 L60을 뒤집음)', async () => {
     const onOpen = vi.fn()
     render(
       <QueuePanel
@@ -76,13 +76,11 @@ describe('QueuePanel', () => {
         selectedId={null} onOpen={onOpen} loading={false} error={false} onRetry={() => {}}
       />,
     )
-    // 기본은 접혀 있어 완료자는 안 보이고, 토글만 개수와 함께 보인다.
-    expect(screen.getByRole('button', { name: /오늘 완료 1명/ })).toBeVisible()
-    expect(screen.queryByText('완료자')).toBeNull()
-    // 펼치면 완료자가 나오고, 눌러서 그 환자를 연다(수정 진입).
-    await userEvent.click(screen.getByRole('button', { name: /오늘 완료 1명/ }))
+    // 접이식이 아니라 별도 카드(region) — 토글 없이 완료자가 바로 보인다.
+    expect(screen.getByRole('region', { name: /오늘 완료 1명/ })).toBeVisible()
     const done = screen.getByRole('button', { name: /완료자/ })
     expect(done).toBeVisible()
+    // 완료 환자를 눌러 그 환자를 연다(수정 진입).
     await userEvent.click(done)
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'a2', status: '진료완료' }))
   })
