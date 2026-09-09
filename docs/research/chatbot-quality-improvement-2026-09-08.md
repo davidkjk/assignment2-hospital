@@ -749,6 +749,42 @@ Sprint 0~2 구현 후 러너를 확장해(멀티턴 재작성 반영 + `needs_cl
 **무인프라 경량 재랭킹**이 그 상당 부분을 흡수했다 — cross-encoder는 이 경량형으로도 못 잡는
 사례가 쌓일 때 도입한다.
 
+### 9.8 안내자료·구조 보강 후보 — 타 서비스·웹 리서치 대조 (2026-09-09 추가)
+
+"병원 상황에서 더 넣을 안내자료·구조가 없나"를 타 병원 챗봇·의료 챗봇 설계 리서치(2025~26)와
+현재 KB·코드를 대조해 뽑았다. **우리 KB는 카테고리 폭(17개·140건)은 이미 넓다** — 진짜 공백은
+개수가 아니라 아래 넷이다(사용자 지적 "개수는 많아도 하나당 내용이 얇다").
+
+**① 콘텐츠 깊이 (최우선, 정량 확인)** — KB 140건 **본문 중앙값 76자·평균 126자, 131/140이
+200자 미만**(1~2문장). 리서치가 말하는 "정답이 문서로 확정된 문의"를 답하기엔 각 문서가 얕아
+"답은 맞지만 얕다"가 된다(§후5의 `urine·parking-disabled` facts 위양성 일부도 여기서 온다 — 문서에
+그 사실이 아예 없음). → 자주 조회되는 핵심 문서(검사준비·예약·주차·건강검진·입원)를 **절차 단계·
+예외·소요시간·연락 창구·비용 안내 범위**까지 깊게 보강. 보고서 §2.8·§4.3와 직결. 새 문서 추가보다
+**기존 얕은 문서 심화**가 체감 대비 효과가 크다.
+
+**② 응급 안내를 위기 유형별 채널로 (안전, 구체적 공백)** — `safety_watchdog.EMERGENCY_KEYWORDS`는
+신체·정신 위기를 넓게 잡지만("자살"·"죽고 싶" 포함, 오탐<미탐 철학) `EMERGENCY_REPLY`는 **전부
+"119·응급실"로만** 안내한다. 리서치 강조점: red-flag별 **적절한 채널**로 보내라. 정신건강 위기
+(자살·자해)의 표준 채널은 119/응급실이 아니라 **자살예방상담 109**(2024-01-01 통합, 옛 1393)·
+**정신건강 위기상담 1577-0199**다. 현재 KB·코드에 이 번호가 전무(낡은 1393도 없음=고칠 건 없으나
+라우팅 자체가 없음). → 응급 분기를 신체(119)/정신건강(109·1577-0199)으로 나눠 안내. ⚠️ 환자 대면
+응급 문구 변경이라 **병원·사용자 결정**(문구·번호 확정) 후 반영.
+
+**③ triage(진료과 라우팅·응급 감지) 정확도를 평가에 추가 (구조)** — 리서치의 데모 게이트:
+"routine triage 85%+·emergency sensitivity 95%+·100+ vignette". 현재 `rag_eval`은 **RAG recall만**
+채점하고 `dept_guide`(증상→진료과)·`check_emergency` 경로 정확도는 미측정(핸드오프도 "라우팅
+정확도 미측정" 명시). → 골든셋에 증상→진료과·응급 vignette를 넣고 경로 정확도(특히 응급 미탐=0)를
+채점 축으로 추가. 안전상 emergency recall은 별도로 100% 게이트.
+
+**④ 얕게만 있는 콘텐츠 (심화 or 신설 판단)** — grep상 언급은 있으나 얕다: 외국인·통역(4·2회),
+진료의뢰·회송(3회), 정신건강(2회). 없음(추정): 비대면/원격진료, 검사결과 소요시간·수령 방법의 구체.
+리서치의 표준 축(사후관리·재방문 유도)은 우리는 알림/문자(배포 T30)가 담당. → 병원 실제 운영
+범위 확인 후 ①의 심화 대상에 포함할지 결정(재량 사항은 문구로 단정 금지).
+
+> 우선순위: **① 콘텐츠 깊이(효과 최대·무위험)** → **② 위기 채널(안전·사용자 결정)** → **③ triage
+> 평가(구조·회귀 가드)** → ④(운영 범위 확인 후). 근거=아래 Sources의 리서치 + 본 저장소 실측
+> (`safety_watchdog.py`·`seed_kb_bulk.sql` 길이 분포·`rag_eval.py`).
+
 ---
 
 ## Sources
@@ -777,3 +813,7 @@ Sprint 0~2 구현 후 러너를 확장해(멀티턴 재작성 반영 + `needs_cl
 [^22]: Zhang, Yanzhao, et al. “[Qwen3 Embedding: Advancing Text Embedding and Reranking Through Foundation Models](https://arxiv.org/html/2506.05176v1).” 2025. 한국어 등 비영어에서의 견고성 / BGE-M3의 dense·sparse·multi-vector 통합과 다국어·긴 컨텍스트. 모델 카드·논문 근거.
 [^23]: Sifei / AILS-NTUA / uva-irlab. “[SemEval-2026 Task 8: Multi-Turn RAG](https://arxiv.org/pdf/2606.28352).” 2026. 후속 메시지의 약 60%가 미해결 지시어, 재작성 독립질의+원문 concat이 단독보다 우수, HyDE 대비 패러프레이즈의 저비용·저위험.
 [^24]: Voyage AI. “[rerank-2.5](https://blog.voyageai.com/2024/09/30/rerank-2/)” / Jina AI. “[jina-reranker-v2-base-multilingual](https://huggingface.co/jinaai/jina-reranker-v2-base-multilingual)” / Mixpeek. “[Best Rerankers for RAG](https://mixpeek.com/curated-lists/best-rerankers).” 다국어 재랭커(자체호스팅 bge-reranker-v2-m3, 호스티드 Cohere/Jina/Voyage) 비교. 벤더/커뮤니티 자료이므로 선택 전 평가셋 검증 필요.
+[^19]: 보건복지부. “[분산된 자살예방 상담전화 1월 1일부터 ‘109’로 통합 운영](https://www.mohw.go.kr/board.es?mid=a10503010100&bid=0027&act=view&list_no=1479607).” 2024. 자살예방상담 109 통합(옛 1393)·정신건강 위기상담 1577-0199. (§9.8 ② 근거)
+[^20]: Easy Clinic. “[Intelligent triage: how AI healthcare chatbots are transforming clinics](https://www.easyclinic.io/intelligent-triage-begins-here-how-ai-healthcare-chatbots-are-transforming-clinics/).” 2025. 메시지 의도 분류·triage 정확도·감정 감지 에스컬레이션. (§9.8 ③)
+[^21]: IntuitionLabs. “[Healthcare Chatbot Platforms: A Guide & Comparison](https://intuitionlabs.ai/articles/healthcare-chatbot-platforms).” 인계 시 전체 맥락 전달·red-flag 하드코딩·불확실 시 상향 에스컬레이션·클리니컬 비네트 검증. (§9.8 ②③)
+[^22]: 사이드톡. “[병원 예약 AI 챗봇 — 전화 문의 줄이고 예약 누락 잡는 상담 자동화](https://sidetalk.kr/blog/16952/).” 국내 병원 챗봇의 반복 문의 자동화 범위와 안내 한계 설정. (§9.8 ①④)
