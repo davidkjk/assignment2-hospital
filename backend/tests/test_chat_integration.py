@@ -105,6 +105,42 @@ async def test_open_ticket_suppresses_ai_and_routes_to_staff(committed_conn):
 
 
 @pytest.mark.asyncio
+async def test_open_ticket_suppresses_ai_even_when_session_ended(committed_conn):
+    # ⭐ 실기기 재현(2026-09-09): 진짜 인계는 AI 세션을 status='ended'로 바꾸고 티켓을 만든다
+    #   (handle_message의 handoff 분기). 그 뒤 환자가 답장하면 handle_message가 먼저 record_ai_activity(sid)를
+    #   부르는데, ended 세션이라 그 함수가 raise → 트랜잭션 롤백 → 억제(open_ticket) 검사에 도달 못 하고
+    #   환자 메시지도 소실됐다(직원에게 안 이어짐). 앞의 ...routes_to_staff 테스트는 active 세션을 써서
+    #   이 실제 상태(ended)를 재현하지 못해 통과했다. 억제는 record_ai_activity보다 먼저 와야 한다.
+    p = await seed_patient(committed_conn)
+    t = await seed_chat_thread(committed_conn, patient_id=p["patient_id"])
+    s = await committed_conn.fetchrow(
+        "insert into ai_chat_sessions (thread_id, status, ended_at, end_reason, expires_at) "
+        "values ($1, 'ended', now(), 'staff_handoff', now()+interval '30 min') returning *", t)
+    await committed_conn.fetchrow(
+        "select * from create_support_ticket($1, $2, null, null)", t, s["id"])  # 처리 중 티켓(pending)
+
+    out = await chat_flow_service.handle_patient_message(
+        s, "직원분 안녕하세요", thread_id=t, client_message_id=uuid.uuid4(),
+        embedder=FakeEmbedder(), model=_RagModel())
+
+    assert out["route_taken"] == "staff"          # ended 세션이어도 AI 아님
+    assert out.get("reply") is None
+    # 봇 메시지 미저장, 환자 답장은 저장돼야 직원이 본다(직원 상세는 thread 기준 조회 _DETAIL_MESSAGES_SQL).
+    assert await committed_conn.fetchval(
+        "select count(*) from chat_messages where thread_id=$1 and sender_type='bot'", t) == 0
+    assert await committed_conn.fetchval(
+        "select count(*) from chat_messages where thread_id=$1 and sender_type='patient'", t) == 1
+    # 억제가 죽은 세션을 되살리지 않는다(ended 유지).
+    assert await committed_conn.fetchval("select status from ai_chat_sessions where id=$1", s["id"]) == "ended"
+    # cleanup
+    await committed_conn.execute("delete from chat_messages where thread_id=$1", t)
+    await committed_conn.execute("delete from support_tickets where thread_id=$1", t)
+    await committed_conn.execute("delete from ai_chat_sessions where id=$1", s["id"])
+    await committed_conn.execute("delete from chat_threads where id=$1", t)
+    await committed_conn.execute("delete from patients where id=$1", p["patient_id"])
+
+
+@pytest.mark.asyncio
 async def test_no_answer_message_returns_chips_keeps_session_and_logs_unresolved(committed_conn):
     # WEBCHAT-NOANS: 봇이 못 답하면(빈 KB → no_answer) 자동 인계·자동 티켓을 만들지 않는다(폐기) →
     #   봇 안내 말풍선 + quick_replies 카드(FAQ 칩 + [직원에게 연결]). 세션은 active 유지, 미해결은 티켓 없이(null) 기록.

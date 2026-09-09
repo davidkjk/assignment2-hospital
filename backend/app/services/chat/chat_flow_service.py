@@ -77,18 +77,35 @@ async def handle_message(session, content: str, *, thread_id: UUID,
     # session은 서비스가 넘긴 객체(.id)일 수도, 라우터/테스트가 넘긴 asyncpg Record(["id"])일 수도 있다.
     sid = session.id if hasattr(session, "id") else session["id"]
     sender_col, sender_src = _SENDER_ID_COL[sender_kind]  # 내부 상수 — 사용자 입력 아님(f-string 안전)
+    # 발신 메시지 저장 SQL(멱등). AI 세션 문맥. sender_type은 'patient', 소유 컬럼만 종류에 맞춘다.
+    #   ⚠️ 사용자 입력 아님(sender_col/sender_src는 내부 상수) — f-string 안전.
+    _insert_patient_msg = (
+        f"insert into chat_messages (thread_id, ai_chat_session_id, sender_type, {sender_col}, "
+        f"message_type, content, client_message_id) "
+        f"select $1,$2,'patient', {sender_src}, 'text', $3, $4 from chat_threads t where t.id=$1 "
+        "on conflict (client_message_id) where client_message_id is not null do nothing returning id")
+
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # 인계됨(사람 상담 모드): 이 스레드에 처리 중 티켓(pending/in_progress)이 있으면 AI를 돌리지 않고
+        #   환자 메시지만 저장한다(직원이 실시간으로 본다. 직원 상세는 thread 기준 조회 = _DETAIL_MESSAGES_SQL).
+        #   ⭐ 이 검사는 record_ai_activity보다 **먼저** 와야 한다 — 진짜 인계는 AI 세션을 status='ended'로 만들고
+        #   (아래 handoff 분기) 티켓을 생성하는데, ended 세션에선 record_ai_activity가 raise하며 트랜잭션을 통째
+        #   롤백시켜 예전엔 이 억제 검사에 도달조차 못 했다(2026-09-09 실기기: 인계 후 환자 답장이 직원에게 안
+        #   이어지고 소실됐다). 여기선 만료 연장(record_ai_activity)을 하지 않는다 — 죽은 세션을 되살리지 않는다.
+        open_ticket = await conn.fetchval(
+            "select 1 from support_tickets where thread_id=$1 and status in ('pending','in_progress') limit 1",
+            thread_id)
+        if open_ticket:
+            inserted = await conn.fetchrow(_insert_patient_msg, thread_id, sid, content, client_message_id)
+            current_id = inserted["id"] if inserted else await conn.fetchval(
+                "select id from chat_messages where thread_id=$1 and client_message_id=$2",
+                thread_id, client_message_id)
+            return {"route_taken": "staff", "message_id": current_id, "reply": None}
         # 1+2 원자적으로(C6-#8 F05): 메시지 저장과 활동갱신이 한 트랜잭션 — 만료면 record_ai_activity가 raise하며
         #   방금 넣은 발신 메시지도 함께 롤백된다(만료 세션에 고아 메시지 + 409 방지).
         async with conn.transaction():
-            # 1. 발신 메시지 저장(멱등). AI 세션 문맥. sender_type은 'patient', 소유 컬럼만 종류에 맞춘다.
-            inserted = await conn.fetchrow(
-                f"insert into chat_messages (thread_id, ai_chat_session_id, sender_type, {sender_col}, "
-                f"message_type, content, client_message_id) "
-                f"select $1,$2,'patient', {sender_src}, 'text', $3, $4 from chat_threads t where t.id=$1 "
-                "on conflict (client_message_id) where client_message_id is not null do nothing returning id",
-                thread_id, sid, content, client_message_id)
+            inserted = await conn.fetchrow(_insert_patient_msg, thread_id, sid, content, client_message_id)
             # 2. 30분 연장(만료됐으면 record_ai_activity가 막는다 → 상위에서 새 세션 안내).
             await conn.execute("select record_ai_activity($1)", sid)
         # 방금 저장한 현재 메시지 id — 멱등 재시도로 insert가 no-op이면(None) client_message_id로 되찾는다.
@@ -100,14 +117,6 @@ async def handle_message(session, content: str, *, thread_id: UUID,
         hist = await conn.fetch(
             "select id, sender_type, content from chat_messages where thread_id=$1 and content is not null "
             "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW + 1)
-        # 인계됨(사람 상담 모드): 이 스레드에 처리 중 티켓(pending/in_progress)이 있으면 AI를 돌리지 않는다.
-        #   환자 메시지는 위에서 이미 저장됐고, 직원이 실시간으로 본다. (2026-09-09 실기기: 인계 후 환자가
-        #   직원에게 답장하면 AI 상담봇이 대신 답하던 버그 — 인계 자체가 무의미해졌다.)
-        open_ticket = await conn.fetchval(
-            "select 1 from support_tickets where thread_id=$1 and status in ('pending','in_progress') limit 1",
-            thread_id)
-    if open_ticket:
-        return {"route_taken": "staff", "message_id": current_id, "reply": None}
     history_texts = build_history(hist, current_id)
 
     async def rag_fn(s, m):
