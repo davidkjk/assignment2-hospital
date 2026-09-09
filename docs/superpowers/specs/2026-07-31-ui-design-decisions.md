@@ -5852,3 +5852,12 @@ D4 브라우저 대조에서 **한 화면 안에서 날짜가 갈리는 것**이
 **안전(의료 판단 금지)**: 요약 프롬프트에 **진단·처방·의료적 판단 금지**를 박고, 봇이 실제로 확인·안내한 사실만 담게 했다. 대화에 없는 내용은 지어내지 않고 비운다 → `TICKET-DETAIL-SUM-02` 그대로 유지(빈 값=화면 '없음').
 **실패 격리(best-effort)**: LLM 호출·파싱이 실패해도 `make_handoff_summary`가 3칸을 전부 None으로 돌려주므로 **인계 자체는 절대 막히지 않는다**(인계는 안전 동작). 요약 생성은 **DB 커넥션을 잡기 전에** 수행해 LLM 왕복 동안 풀(Supavisor 한도)을 점유하지 않는다.
 **적용 범위**: `handoff` 라우트(진짜 인계 사유 — medical_judgment·직원요청·unhelpful 등)에만. 익명 웹 인계(`anonymous_handoff`, 폼 제출)는 봇 대화 요약 대상이 아니라 별개(신청자 이름·요약 폼값을 그대로 사용).
+
+## 양방향 접속·입력 중 = 직원이 환자 접속·입력을 본다 (`CHAT-ROOM-PATIENT-PRESENCE-01`·`CHAT-ROOM-PATIENT-TYPING-01`·`TICKET-DETAIL-PATIENT-PRESENCE-01`·`-TYPING-01`, 2026-09-10, 라이브 상담 완성 item 2)
+**발단(대화 중 갭 점검)**: presence/typing이 **직원→환자 단방향**이었다 — 환자앱은 직원 입력 중(`CHAT-ROOM-LIVE-TYPING-01`)·직원 열람(Q18③)을 보는데, 환자앱·웹챗은 **자기 typing/viewing을 broadcast하지 않아** 직원은 환자가 지금 방을 보고 있는지·답을 쓰는 중인지 알 수 없었다(직원웹 콘솔에 표시 자체가 없음).
+**사용자 결정(2026-09-10)**: **접속(viewing)+입력(typing) 둘 다** 표시. 표시 위치=대화 상단 작은 상태점+라벨 `환자 접속 중`/`환자 입력 중`(환자앱이 직원 상태를 표시하는 것과 대칭, 직원웹 콘솔 톤).
+**정본 부재→신설**: 직원웹이 환자 상태를 표시하는 규칙이 없어 `TICKET-DETAIL-PATIENT-PRESENCE-01`·`-TYPING-01`(직원웹 표시)과 발신측 `CHAT-ROOM-PATIENT-PRESENCE-01`·`-TYPING-01`(환자앱·웹챗 emit)을 신설. 설계 기반은 이미 있던 원칙 "typing·접속은 보존 메시지가 아니라 Realtime Broadcast로 처리, `chat_messages` 행으로 만들지 않는다"(이 문서 상단 스키마 노트) — 그대로 따라 **DB 미기록·마이그 불필요**.
+**⚠️ 채널 1개 규칙(핵심 함정)**: 같은 토픽(`chat-typing:<threadId>`)에 채널을 2개 열면 Supabase realtime이 한쪽으로만 broadcast를 전달해 한쪽 이벤트가 영영 안 뜬다(2026-09-09 실기기 버그의 교훈, `chat_repository.dart` 주석). 그래서 환자 emit은 **새 채널을 열지 않고** 이미 구독 중인 그 채널로 보낸다 — 환자앱은 `streamStaffLive`가 연 채널, 웹챗은 `useStaffPresence`가 연 채널, 직원웹은 `useTypingChannel`이 연 채널. `self:false`라 자기 신호는 자기가 안 받고 상대 role만 받는다.
+**디바운스·타임아웃(대칭)**: typing은 첫 입력에 on 한 번 + 유휴 3초 off(직원웹 `setTyping`과 동일 디바운스). 수신측 안전 타임아웃 = typing 6초·viewing 12초(끔 신호 유실 대비, 기존 직원→환자 방향과 같은 값). viewing on/off는 방 열림/닫힘(구독/dispose) 수명에 자동으로 묶는다.
+**안전 범위(SCOPE-01)**: 켬/끔 라이브 표시일 뿐 **온라인 초록 점·상시 접속 단정·답변 보장이 아니다**. 직원웹 표시는 aria-live 텍스트로만, 입력 중이 접속보다 우선, 둘 다 아니면 아무것도 안 그린다(막다른 상태 표시 금지).
+**구현(TDD·surface별 커밋)**: ⑴환자앱 `chat_repository.streamStaffLive`(sendTyping 반환·viewing 자동 emit)·`chat_room_controller.notifyTyping`(디바운스)·`chat_input_bar.onChanged` ⑵웹챗 `useStaffPresence`(`{staffViewing, notifyTyping}`)·`ChatRoom.onTyping` ⑶직원웹 `useTypingChannel`(`{send, patientTyping, patientViewing}`)·신규 순수 컴포넌트 `PatientPresence`·`TicketDetail` 배선. 단위: 환자앱 5·웹챗 8·직원웹 16 신규, 세 트랙 광역 무회귀. ⚠️ **realtime 실도달은 2인 실기기 e2e로만 확정**(단위는 순수 로직·주입 sink·목 채널까지).
