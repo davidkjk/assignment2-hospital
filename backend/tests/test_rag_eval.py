@@ -86,6 +86,76 @@ def test_scorable_excludes_clarification_but_keeps_no_answer():
     assert sc.scorable(no_answer=False, needs_clarification=False) is True
 
 
+# ── 러너 A/B: 모드(legacy|llm)별 검색질의·검색-전 되묻기 결정 (mock LLM) ──
+# legacy = has_followup+rewrite(Sprint 2), llm = understand() 1콜. llm 실패는 legacy로 폴백(프로덕션 동형).
+
+import pytest
+
+
+class _Model:
+    """지정 문자열을 content로 돌려주는 mock LLM(호출 카운트 포함)."""
+    def __init__(self, text):
+        self._text = text
+        self.call_count = 0
+    async def ainvoke(self, _):
+        self.call_count += 1
+        class R: pass
+        r = R(); r.content = self._text
+        return r
+
+
+def _ujson(**kw):
+    base = {"route": "rag", "standalone_query": "", "needs_clarification": False,
+            "clarification_question": "", "topic_shift": False, "confidence": 0.9}
+    base.update(kw)
+    return json.dumps(base, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_resolve_understanding_legacy_rewrites_followup():
+    model = _Model("CT 조영제 검사 전 물 섭취 가능 여부")
+    rq, needs_clarify = await rag_eval.resolve_understanding(
+        "legacy", "그럼 물은?", ["CT 조영제 검사 준비물이 뭐예요?"], model)
+    assert "CT 조영제 검사 전 물 섭취 가능 여부" in rq and "그럼 물은?" in rq
+    assert needs_clarify is False
+
+
+@pytest.mark.asyncio
+async def test_resolve_understanding_legacy_first_question_no_rewrite():
+    model = _Model("무시됨")
+    rq, needs_clarify = await rag_eval.resolve_understanding(
+        "legacy", "CT 검사 준비물이 뭐예요?", [], model)
+    assert rq is None and needs_clarify is False
+    assert model.call_count == 0                # 첫 질문은 재작성 LLM 안 태움
+
+
+@pytest.mark.asyncio
+async def test_resolve_understanding_llm_uses_understand_standalone():
+    model = _Model(_ujson(standalone_query="CT 조영제 검사 전 물 섭취 가능 여부"))
+    rq, needs_clarify = await rag_eval.resolve_understanding(
+        "llm", "그럼 물은?", ["CT 조영제 검사 준비물이 뭐예요?"], model)
+    assert "CT 조영제 검사 전 물 섭취 가능 여부" in rq and "그럼 물은?" in rq
+    assert needs_clarify is False
+
+
+@pytest.mark.asyncio
+async def test_resolve_understanding_llm_needs_clarification():
+    model = _Model(_ujson(needs_clarification=True, clarification_question="어떤 검사를 말씀하시나요?"))
+    rq, needs_clarify = await rag_eval.resolve_understanding(
+        "llm", "준비물이요?", ["안녕하세요"], model)
+    assert rq is None and needs_clarify is True    # 검색-전 되묻기 → 검색 안 함, 집계 제외
+
+
+@pytest.mark.asyncio
+async def test_resolve_understanding_llm_failure_falls_back_to_legacy():
+    # 이해기가 JSON을 못 내면(None) legacy 재작성 경로로 폴백(프로덕션 orchestrate와 동형).
+    model = _Model("CT 조영제 검사 전 물 섭취 가능 여부")   # JSON 아님 → understand None → legacy rewrite가 이 문자열 사용
+    rq, needs_clarify = await rag_eval.resolve_understanding(
+        "llm", "그럼 물은?", ["CT 조영제 검사 준비물이 뭐예요?"], model)
+    assert rq is not None and "CT 조영제 검사 전 물 섭취 가능 여부" in rq
+    assert needs_clarify is False
+
+
 # ── 골든 케이스 파일 무결성 ──
 
 def test_cases_file_exists_and_parses():

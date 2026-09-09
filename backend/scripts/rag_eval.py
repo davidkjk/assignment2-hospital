@@ -7,6 +7,7 @@
     cd backend && .venv/bin/python -m scripts.rag_eval
     .venv/bin/python -m scripts.rag_eval --route rag        # 특정 expected_route만
     .venv/bin/python -m scripts.rag_eval --verbose          # 케이스별 상세
+    .venv/bin/python -m scripts.rag_eval --mode llm         # 전면 통합 이해기(A/B: legacy와 비교)
 
 주의:
 - 키가 없으면 아무 것도 호출하지 않고 안내만 출력한다(자동 테스트·CI 안전).
@@ -44,13 +45,37 @@ def case_message_and_history(case: dict) -> tuple[str, list[str]]:
     return message, history
 
 
-async def run_rag_case(case: dict, embedder, model) -> dict:
-    message, history = case_message_and_history(case)
-    # 프로덕션 rag_fn과 동일: 후속 신호면 지시어·생략을 푼 독립형 질의로 검색한다(원문은 LLM·채점에).
-    retrieval_query = None
+async def resolve_understanding(mode: str, message: str, history: list[str], model):
+    """A/B: 모드별로 검색 질의(재작성)와 검색-전 되묻기를 결정한다. 반환 (retrieval_query|None, needs_clarify).
+
+    - legacy: 프로덕션 chat_flow_service.rag_fn과 동형 — 후속 신호면 rewrite_standalone.
+    - llm: conversation_understanding.understand() 1콜 — standalone_query를 검색질의로,
+      needs_clarification이면 검색-전 되묻기(검색 안 함). 이해기 실패(None)는 legacy로 폴백(orchestrate 동형).
+    """
+    if mode == "llm":
+        u = await cu.understand(message, history, model=model)
+        if u is not None:
+            if u.needs_clarification:
+                return None, True
+            rq = cu.build_search_query(message, u.standalone_query) if u.standalone_query else None
+            return rq, False
+        # 이해기 실패 → legacy로 폴백(아래 공통 경로)
     if cu.has_followup_signal(message, history):
         standalone = await cu.rewrite_standalone(message, history, model=model)
-        retrieval_query = cu.build_search_query(message, standalone)
+        return cu.build_search_query(message, standalone), False
+    return None, False
+
+
+async def run_rag_case(case: dict, embedder, model, mode: str = "legacy") -> dict:
+    message, history = case_message_and_history(case)
+    # 모드별 질문 이해(A/B). 검색-전 되묻기면 검색 없이 되묻기로 집계(프로덕션 llm 모드 동형).
+    retrieval_query, pre_clarify = await resolve_understanding(mode, message, history, model)
+    if pre_clarify:
+        return {
+            "query": message, "no_answer": False, "needs_clarification": True,
+            "rewritten": False, "recall": 0.0, "missing_facts": [], "forbidden": [],
+            "missing_query_terms": [], "titles": [], "reply": "",
+        }
     result = await rag_service.rag_answer(message, embedder=embedder, model=model,
                                           retrieval_query=retrieval_query)
     # 검색 질의(재작성됐으면 그것) — expected_query_contains는 실제 검색에 들어간 질의로 채점한다.
@@ -71,7 +96,7 @@ async def run_rag_case(case: dict, embedder, model) -> dict:
     }
 
 
-async def main(route_filter: str | None, verbose: bool) -> None:
+async def main(route_filter: str | None, verbose: bool, mode: str = "legacy") -> None:
     if not settings.openai_api_key or not settings.anthropic_api_key:
         print("⚠️ OPENAI_API_KEY·ANTHROPIC_API_KEY가 필요합니다(로컬 DB도). 키를 넣고 다시 실행하세요.")
         print("   케이스 무결성은 키 없이 `pytest tests/test_rag_eval.py`로 검증됩니다.")
@@ -80,6 +105,7 @@ async def main(route_filter: str | None, verbose: bool) -> None:
     cases = load_cases()
     embedder = EmbeddingClient(settings.openai_api_key)
     model = get_chat_model()
+    print(f"질문 이해 모드: {mode}  (legacy=classify+rewrite / llm=understand 1콜, A/B 비교용)")
 
     rag_cases = [c for c in cases if c.get("expected_route") == "rag"
                  and (route_filter in (None, "rag"))]
@@ -88,7 +114,7 @@ async def main(route_filter: str | None, verbose: bool) -> None:
     n_clarify = n_rewritten = 0
 
     for c in rag_cases:
-        r = await run_rag_case(c, embedder, model)
+        r = await run_rag_case(c, embedder, model, mode=mode)
         rw = "↻" if r["rewritten"] else " "        # 재작성 태운 케이스 표시
         n_rewritten += r["rewritten"]
         # needs_clarification(되묻기)은 정상 흐름 → recall/근거 집계에서 뺀다(리포트 §7).
@@ -131,5 +157,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--route", default=None, help="특정 expected_route만(현재 rag만 지원)")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--mode", default="legacy", choices=["legacy", "llm"],
+                    help="질문 이해 방식 A/B: legacy(classify+rewrite) | llm(understand 1콜)")
     args = ap.parse_args()
-    asyncio.run(main(args.route, args.verbose))
+    asyncio.run(main(args.route, args.verbose, mode=args.mode))

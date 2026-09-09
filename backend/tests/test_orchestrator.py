@@ -271,3 +271,58 @@ async def test_llm_mode_active_flow_stays_department_guide_without_llm_route():
         model=model, understanding_mode="llm")
     assert out["route_taken"] == "department_guide"
     assert "정형외과" in out["reply"]
+
+
+# ── llm 모드 안전 보존 회귀 가드 — 안전은 이해기보다 앞단(⓪ⓠ①), 이해기에 종속되지 않는다 ──
+
+class _CountingModel:
+    """호출 횟수를 세는 mock — 안전이 먼저 끝나면 이해기(model)가 호출되지 않음을 증명한다."""
+    def __init__(self, text="none"):
+        self._text = text
+        self.call_count = 0
+    async def ainvoke(self, _):
+        self.call_count += 1
+        class R: pass
+        r = R(); r.content = self._text
+        return r
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_emergency_still_wins_before_understanding():
+    model = _CountingModel()
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0), "숨을 못 쉬겠어요",
+        model=model, understanding_mode="llm")
+    assert out["route_taken"] == "emergency"
+    assert model.call_count == 0                       # 이해기·인계감시 LLM 도달 전에 응급으로 끝남
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_explicit_staff_request_still_confirms_before_understanding():
+    model = _CountingModel()
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0), "직원에게 연결해주세요",
+        model=model, understanding_mode="llm")
+    assert out["route_taken"] == "no_answer" and out["confirm_handoff"] is True
+    assert model.call_count == 0                       # ⓠ 결정적 판정 — 이해기 도달 안 함
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_unhelpful_escalation_still_fires_before_understanding():
+    model = _CountingModel()
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0), "답이 도움이 안 됐어요",
+        unhelpful_flagged=True, model=model, understanding_mode="llm")
+    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "unhelpful"
+    assert model.call_count == 0                       # ① 결정적 인계 — 이해기 도달 안 함
+
+
+@pytest.mark.asyncio
+async def test_llm_mode_llm_escalation_short_circuits_before_understanding():
+    # check_escalation(LLM ①)이 complaint로 인계하면 이해기까지 안 간다(model 1회=인계감시만).
+    model = _CountingModel("complaint")
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0), "안내가 자꾸 틀려서 화가 나요",
+        model=model, understanding_mode="llm")
+    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "complaint"
+    assert model.call_count == 1                        # 인계감시 1회 후 이해기 도달 안 함
