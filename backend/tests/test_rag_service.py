@@ -112,6 +112,50 @@ async def test_low_similarity_becomes_no_answer():
     assert out.get("no_answer") is True
 
 
+class _RecEmbedder:
+    # 임베딩에 실제로 넘어간 검색 문장을 붙잡는다.
+    def __init__(self): self.texts = None
+    async def embed(self, texts):
+        self.texts = texts
+        return [[1.0] + [0.0] * 1535 for _ in texts]
+
+
+@pytest.mark.asyncio
+async def test_retrieval_embeds_synonym_expanded_query():
+    # Sprint 1.2: 검색 임베딩은 원문이 아니라 동의어 확장 질의를 쓴다("씨티"→"CT"도 함께 실림).
+    #   그래야 한글 음역 질의가 영문 약어로 쓰인 KB 원문을 찾는다.
+    rec = _RecEmbedder()
+    await rag_service.rag_answer("씨티 준비물", embedder=rec, model=_Model())
+    assert rec.texts is not None
+    assert "ct" in rec.texts[0]          # 확장 질의(원문에 없던 표준어)가 임베딩에 실린다
+    assert "씨티" in rec.texts[0]         # 원문 토큰도 보존
+
+
+@pytest.mark.asyncio
+async def test_llm_question_keeps_original_text(committed_conn):
+    # 확장은 검색용일 뿐 — 환자가 실제 쓴 질문(원문)이 LLM에 그대로 가야 한다(확장어가 환자에게 안 보이게).
+    st = await seed_staff(committed_conn, role="admin")
+    vecstr = "[" + ",".join(["1.0"] + ["0.0"] * 1535) + "]"
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, is_restricted) "
+        "values ('CT 안내','CT 검사는 금식이 필요합니다.','approved',false) returning id")
+    await committed_conn.execute(
+        "insert into kb_chunks (document_id, chunk_index, content, embedding) "
+        "values ($1,0,'CT 검사는 금식이 필요합니다.',$2::vector)", doc, vecstr)
+    captured = {}
+    class _Rec:
+        async def ainvoke(self, msgs):
+            captured["text"] = " ".join(getattr(m, "content", str(m)) for m in msgs)
+            class R: content = "금식이 필요합니다."
+            return R()
+    await rag_service.rag_answer("씨티 준비물", embedder=_Fixed(), model=_Rec())
+    assert "씨티 준비물" in captured["text"]       # 원문 질문이 LLM에
+    assert "컴퓨터단층촬영" not in captured["text"]  # 확장어는 LLM에 새지 않는다
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
 @pytest.mark.asyncio
 async def test_similar_qa_example_injected_as_fewshot(committed_conn):
     # 품질 개선 사이클: 오답 교정으로 쌓인 참고 예시가 비슷한 질문의 RAG 프롬프트에 few-shot으로 주입된다.

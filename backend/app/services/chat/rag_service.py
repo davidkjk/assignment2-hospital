@@ -5,6 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.db.pool import get_pool
 from app.integrations.langchain_client import get_chat_model, resp_text
+from app.services.chat.query_normalizer import normalize_query
 
 # 하이브리드 검색 바닥(floor): 최상위 조각이 벡터·키워드 둘 다 이보다 낮으면 근거 부족 → LLM 부르지 않고 바로 인계.
 # 벡터(의미)·키워드(트라이그램 글자) 중 하나라도 이 선을 넘으면 후보로 인정하고, 실제 답변/인계는
@@ -21,7 +22,10 @@ _NO_ANSWER_SENTINEL = "NO_ANSWER"
 
 
 async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5) -> dict:
-    qvec = (await embedder.embed([message]))[0]
+    # 검색용 질의는 동의어 확장(Sprint 1.2): "씨티"→"CT"도 함께 실어 임베딩·트라이그램이 KB 원문을 찾게 한다.
+    # 화면·로그·LLM 질문에는 원문(message)을 그대로 쓴다 — 확장어가 환자에게 보이면 안 된다.
+    search_query = normalize_query(message)
+    qvec = (await embedder.embed([search_query]))[0]
     vec = "[" + ",".join(map(str, qvec)) + "]"
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -30,7 +34,7 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
         #   코드 배포(Railway)가 마이그 적용보다 앞설 수 있어, 그 창에서도 봇이 안 깨지게 한다.
         try:
             chunks = await conn.fetch(
-                "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, message, match_count)
+                "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, search_query, match_count)
         except asyncpg.UndefinedFunctionError:
             rows = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, match_count)
             chunks = [dict(r) | {"keyword_sim": 0.0} for r in rows]   # 키워드 신호 없음 → floor는 벡터만
