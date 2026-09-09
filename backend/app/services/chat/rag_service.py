@@ -47,6 +47,15 @@ _ANSWER_SYSTEM_PROMPT = (
 )
 
 
+def _rank_by_relevance(chunks):
+    # 검색(match_kb_chunks_hybrid)은 RRF로 후보를 넓게 잡는다(recall) — 그러나 RRF는 '벡터·트라이그램
+    #   두 검색에 다 걸린' 무관한 문서를 1위로 올릴 수 있다(2026-09-09 실측: "씨티 찍는데 준비물"에
+    #   입원생활이 0.239로 RRF 1위, 정작 CT는 0.521로 2위). 게이트(HYBRID_FLOOR)·제한자료·근거 판정은
+    #   1위 청크만 보므로, 관련도(max(벡터,키워드)) 최고 청크를 앞세워야 관련 근거가 버려지지 않는다.
+    #   RRF top-N은 후보 선정으로 남고, 여기서 그 후보를 관련도 순으로 재정렬한다.
+    return sorted(chunks, key=lambda c: max(c["similarity"], c["keyword_sim"]), reverse=True)
+
+
 async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5,
                      retrieval_query: str | None = None) -> dict:
     # 검색용 질의는 동의어 확장(Sprint 1.2): "씨티"→"CT"도 함께 실어 임베딩·트라이그램이 KB 원문을 찾게 한다.
@@ -67,6 +76,9 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
         except asyncpg.UndefinedFunctionError:
             rows = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, match_count)
             chunks = [dict(r) | {"keyword_sim": 0.0} for r in rows]   # 키워드 신호 없음 → floor는 벡터만
+        # RRF 후보를 관련도(max(벡터,키워드)) 순으로 재정렬 — 아래 게이트·제한자료 판정이 1위 청크만 보므로
+        #   무관한 RRF 1위가 관련 근거를 버리지 않게 한다(_rank_by_relevance 주석 참조).
+        chunks = _rank_by_relevance(chunks)
         # 품질 개선 사이클: 오답 교정으로 쌓인 활성 참고 예시 중 이 질문과 가장 비슷한 것(임베딩 코사인).
         example_rows = await conn.fetch(
             "select question, answer, 1 - (embedding <=> $1::vector) as similarity "

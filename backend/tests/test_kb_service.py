@@ -25,6 +25,21 @@ def test_chunk_text_single_chunk_has_no_overlap():
     assert kb_service.chunk_text(content) == [content]
 
 
+# ── 임베딩 입력 구성(_embed_input) — 검색 전용 키워드는 임베딩에만, 저장 content엔 안 들어간다 ──
+
+def test_embed_input_includes_title_and_search_keywords():
+    # 임베딩 텍스트 = 제목 + 검색 키워드 + 본문. 환자 음역('씨티')을 실어 표준어 문서('CT')를 찾게 한다.
+    out = kb_service._embed_input("CT(조영제) 검사 전 준비", "씨티 컴퓨터단층촬영", "조영제를 쓰는 CT는…")
+    assert out == "CT(조영제) 검사 전 준비\n씨티 컴퓨터단층촬영\n조영제를 쓰는 CT는…"
+
+
+def test_embed_input_omits_missing_keywords_and_title():
+    # 키워드가 없으면(대부분 문서) 기존과 동일하게 제목+본문만. 빈 문자열·None 모두 생략.
+    assert kb_service._embed_input("제목", None, "본문") == "제목\n본문"
+    assert kb_service._embed_input("제목", "   ", "본문") == "제목\n본문"
+    assert kb_service._embed_input(None, None, "본문") == "본문"
+
+
 @pytest.mark.asyncio
 async def test_list_categories_shows_used_categories_distinct(committed_conn):
     # 편집기 콤보박스는 「실제로 쓰이는」 분류를 보여준다 — 관리자가 만든 새 분류가 뜨고, 중복은 한 번,

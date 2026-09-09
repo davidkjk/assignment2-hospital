@@ -5,6 +5,21 @@ from tests.conftest import seed_staff
 from tests.conftest_chat import FakeEmbedder
 
 
+# ── 답변 판정은 RRF 순위가 아니라 실제 관련도 순으로 (순수 함수) ──
+
+def test_rank_by_relevance_puts_highest_max_score_first():
+    # RRF가 '두 검색에 다 걸린' 무관한 문서를 1위로 올릴 수 있다(2026-09-09 실측: '씨티'에 입원생활이
+    #   0.239로 RRF 1위, CT는 0.521로 2위). 게이트·제한자료 판정은 관련도(max(벡터,키워드)) 최고 청크를
+    #   앞세워야 한다 — 안 그러면 무관한 1위 때문에 관련 청크가 통째로 버려진다.
+    chunks = [
+        {"title": "입원생활", "similarity": 0.239, "keyword_sim": 0.235},   # RRF 1위였던 무관 청크
+        {"title": "CT", "similarity": 0.521, "keyword_sim": 0.0},           # 진짜 관련(하위 RRF)
+        {"title": "대장내시경", "similarity": 0.375, "keyword_sim": 0.0},
+    ]
+    ranked = rag_service._rank_by_relevance(chunks)
+    assert [c["title"] for c in ranked] == ["CT", "대장내시경", "입원생활"]
+
+
 class _Fixed:
     # 임계값 판정을 통제하려고 질의·조각 벡터를 같게 만들어 유사도=1로 만든다.
     async def embed(self, texts): return [[1.0] + [0.0] * 1535 for _ in texts]

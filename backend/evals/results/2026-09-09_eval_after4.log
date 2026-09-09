@@ -1,0 +1,140 @@
+Traceback (most recent call last):
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 72, in map_httpcore_exceptions
+    yield
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 377, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        pool_request.request
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_async/connection.py", line 103, in handle_async_request
+    return await self._connection.handle_async_request(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_async/http11.py", line 136, in handle_async_request
+    raise exc
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_async/http11.py", line 106, in handle_async_request
+    ) = await self._receive_response_headers(**kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_async/http11.py", line 177, in _receive_response_headers
+    event = await self._receive_event(timeout=timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_async/http11.py", line 217, in _receive_event
+    data = await self._network_stream.read(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.READ_NUM_BYTES, timeout=timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_backends/anyio.py", line 32, in read
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ReadTimeout
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/scripts/rag_eval.py", line 135, in <module>
+    asyncio.run(main(args.route, args.verbose))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/scripts/rag_eval.py", line 91, in main
+    r = await run_rag_case(c, embedder, model)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/scripts/rag_eval.py", line 54, in run_rag_case
+    result = await rag_service.rag_answer(message, embedder=embedder, model=model,
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                          retrieval_query=retrieval_query)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/app/services/chat/rag_service.py", line 66, in rag_answer
+    qvec = (await embedder.embed([search_query]))[0]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/app/integrations/embedding_client.py", line 15, in embed
+    resp = await http.post(
+           ^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1905, in post
+    return await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+    )
+    ^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1585, in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1674, in send
+    response = await self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+    )
+    ^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1702, in _send_handling_auth
+    response = await self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1739, in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1776, in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 376, in handle_async_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/kimjunkee/dev/vcu/assignment2-hospital/backend/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 89, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ReadTimeout
+ [single-ct-prep-01           ] recall=1.00 facts=OK forbidden=OK
+ [single-mri-metal-01         ] recall=1.00 facts=OK forbidden=OK
+ [single-urine-01             ] recall=1.00 facts=OK forbidden=OK
+ [single-stool-01             ] recall=1.00 facts=OK forbidden=OK
+ [single-ecg-01               ] recall=1.00 facts=OK forbidden=OK
+ [single-parking-fee-01       ] recall=0.00 facts=누락['30분 무료', '10분당 500원'] forbidden=OK  ← 확인
+ [single-parking-disabled-01  ] recall=1.00 facts=누락['지하 1·2층'] forbidden=OK  ← 확인
+ [single-bike-01              ] recall=1.00 facts=OK forbidden=OK
+ [single-shuttle-01           ] recall=1.00 facts=OK forbidden=OK
+ [single-building-01          ] recall=1.00 facts=OK forbidden=OK
+ [single-booking-how-01       ] recall=1.00 facts=OK forbidden=OK
+ [single-change-dept-01       ] recall=1.00 facts=OK forbidden=OK
+ [single-family-proxy-01      ] recall=1.00 facts=OK forbidden=OK
+ [single-walkin-01            ] recall=1.00 facts=OK forbidden=OK
+ [single-waitlist-01          ] recall=1.00 facts=OK forbidden=OK
+ [intent-hours-01             ] recall=1.00 facts=OK forbidden=OK
+ [intent-doctors-01           ] recall=1.00 facts=OK forbidden=OK
+ [alias-ct-hangul-01          ] recall=1.00 facts=OK forbidden=OK
+ [alias-ct-full-01            ] recall=1.00 facts=OK forbidden=OK
+ [alias-mri-hangul-01         ] recall=1.00 facts=OK forbidden=OK
+ [alias-parking-informal-01   ] recall=1.00 facts=OK forbidden=OK
+ [alias-hours-typo-01         ] recall=1.00 facts=OK forbidden=OK
+ [alias-shuttle-short-01      ] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-ct-water-01       ] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-ct-fasting-01     ] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-parking-followup-01] recall=1.00 facts=OK forbidden=OK
+↻[multiturn-booking-correction-01] recall=1.00 facts=OK forbidden=OK

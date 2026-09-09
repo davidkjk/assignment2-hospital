@@ -1,6 +1,8 @@
 import re
 from uuid import UUID
 
+import asyncpg
+
 from app.core.errors import AppError
 from app.db.pool import get_pool
 
@@ -39,17 +41,34 @@ def chunk_text(content: str, *, max_len: int = 500, overlap_sentences: int = 2) 
     return parts or [content.strip()]
 
 
+def _embed_input(title: str | None, search_keywords: str | None, chunk: str) -> str:
+    # 임베딩 입력 = 제목 + 검색 전용 키워드 + 본문. 키워드는 환자 음역·별칭('씨티','주차비')을 실어
+    #   벡터 검색이 표준어 문서('CT','주차 요금')를 찾게 한다(00097). ⭐ 저장 content·화면 표시·
+    #   LLM에 주는 근거엔 안 들어간다 — 검색 입력에만 합쳐진다(환자 노출 금지). 없으면(대부분 문서)
+    #   기존과 동일하게 제목+본문만이라 재임베딩해도 그 문서 유사도는 불변.
+    return "\n".join(p for p in (title, search_keywords, chunk) if p and p.strip())
+
+
 async def _reembed(conn, doc_id: UUID, content: str, embedder) -> None:
     # 옛 조각 삭제 + 새 조각 삽입을 같은 트랜잭션에서. 실패하면 옛 조각·옛 답 유지(A2).
-    # ⭐ 임베딩 텍스트에는 제목을 함께 넣는다(저장 content는 본문만) — 짧은 외래어 질의('주차','와이파이')가
-    #   제목과 정렬돼 유사도가 오른다(2026-09-04 실측 +0.02~0.12). 검색·표시는 본문 그대로.
+    # ⭐ 임베딩 텍스트에는 제목·검색 키워드를 함께 넣는다(저장 content는 본문만) — 짧은 외래어 질의
+    #   ('주차','와이파이','씨티')가 제목·별칭과 정렬돼 유사도가 오른다(2026-09-04·09-09 실측). 표시는 본문 그대로.
     # 빈 내용은 OpenAI 임베딩이 "input cannot be an empty string"(400)으로 거부해 승인이 502로 실패한다.
     # 애초에 근거로 쓸 내용이 없으므로, 호출 전에 명확한 안내로 막는다(트랜잭션째 롤백 → 승인 안 됨).
     if not content.strip():
         raise AppError("안내 내용이 비어 있어요. 내용을 입력한 뒤 다시 시도해 주세요.", 400)
     title = await conn.fetchval("select title from kb_documents where id=$1", doc_id)
+    # search_keywords(00097)가 원격에 아직 없을 수 있다 — 코드 배포가 마이그보다 앞서는 창(하이브리드
+    #   함수 fallback과 같은 이유). 컬럼 없으면 키워드 없이(제목+본문) 임베딩해 기존 동작 유지.
+    #   savepoint(중첩 트랜잭션)로 열어 컬럼 부재 오류가 바깥 승인 트랜잭션을 물지 않게 한다.
+    keywords = None
+    try:
+        async with conn.transaction():
+            keywords = await conn.fetchval("select search_keywords from kb_documents where id=$1", doc_id)
+    except asyncpg.UndefinedColumnError:
+        keywords = None
     chunks = chunk_text(content)
-    embed_texts = [f"{title}\n{c}" if title else c for c in chunks]
+    embed_texts = [_embed_input(title, keywords, c) for c in chunks]
     vectors = await embedder.embed(embed_texts)
     await conn.execute("delete from kb_chunks where document_id=$1", doc_id)
     for i, (c, v) in enumerate(zip(chunks, vectors)):

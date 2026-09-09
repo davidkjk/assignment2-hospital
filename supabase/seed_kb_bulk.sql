@@ -200,3 +200,22 @@ begin
 
   raise notice '대량 KB 적재 완료: % 건', (select count(*) from _kb);
 end $$;
+
+-- ── 검색 전용 키워드(00097) — 환자 음역·별칭을 문서 쪽에도 실어 벡터 검색을 강화한다. ──
+-- 화면·LLM 근거엔 안 들어가고 _reembed의 임베딩 입력에만 합쳐진다(환자 노출 금지). 재임베딩 필요.
+-- 근거: 2026-09-09 평가 후2에서 "씨티 찍는데 준비물 뭐야?"·"컴퓨터단층촬영 금식?"이 CT 문서를
+--   못 찾아 no_answer로 빠졌다(Recall 0). query_normalizer 별칭과 대칭으로 문서에도 별칭을 싣는다.
+update kb_documents set search_keywords = '씨티 시티 CT 컴퓨터단층촬영 전산화단층촬영 촬영 준비물'
+  where title = 'CT(조영제) 검사 전 준비';
+update kb_documents set search_keywords = '엠알아이 MRI 자기공명영상 촬영 준비물'
+  where title = 'MRI 검사 전 준비·주의사항';
+update kb_documents set search_keywords = '바륨 위장조영 상부위장관조영 촬영 준비물'
+  where title = '위장조영(바륨) 검사 전 준비';
+update kb_documents set search_keywords = '맘모그램 맘모그라피 유방촬영 유방 엑스레이 준비물'
+  where title = '유방촬영(맘모그램) 검사 안내';
+update kb_documents set search_keywords = '심전도 EKG ECG 운동부하 준비물 뭐 입고'
+  where title = '심전도·운동부하 검사 안내';
+update kb_documents set search_keywords = '주차 요금 주차비 얼마 정산 무료 등록'
+  where title = '주차 요금·정산 안내';
+update kb_documents set search_keywords = '접수 몇 층 원무과 안내데스크 위치 로비 층별'
+  where title = '건물·층별 이용 안내';
