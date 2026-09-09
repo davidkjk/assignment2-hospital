@@ -28,10 +28,18 @@ def test_korean_transliteration_bridges_to_english_abbrev():
     assert "씨티" in out         # 원문 토큰도 보존(의미 임베딩용)
 
 
-def test_english_abbrev_bridges_to_korean_variants():
-    # 역방향도 대칭: "mri"만 쳐도 한글 변형이 실려 한글 위주 KB 문장과도 맞는다.
-    out = normalize_query("mri 찍어요")
-    assert "자기공명영상" in out
+def test_korean_transliteration_pulls_english_canonical():
+    # 한글 음역(엠알아이)은 KB 원문 표준어 "mri"와 트라이그램 겹침 0 → 대표어 mri를 실어 준다.
+    out = normalize_query("엠알아이 찍어요")
+    assert "mri" in out
+
+
+def test_expansion_adds_only_canonical_not_long_variants():
+    # 희석 방지(2026-09-09 실측): KB 원문에 없는 긴 대체형은 word_similarity를 떨어뜨린다.
+    #   "씨티" 질의는 대표어 ct만 얹고 "컴퓨터단층촬영"은 얹지 않는다.
+    out = normalize_query("씨티 검사")
+    assert "ct" in out
+    assert "컴퓨터단층촬영" not in out
 
 
 def test_barium_bridges_to_upper_gi_series():

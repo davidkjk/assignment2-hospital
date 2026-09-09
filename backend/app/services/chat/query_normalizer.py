@@ -52,16 +52,20 @@ def normalize_query(text: str) -> str:
     norm = unicodedata.normalize("NFKC", text or "").lower()
     norm = re.sub(r"\s+", " ", norm).strip()
 
+    # 확장은 각 군의 **대표어(group[0])만** 덧붙인다. 대표어는 KB 원문이 실제 쓰는 표준어라
+    #   트라이그램·임베딩 둘 다에 도움이 된다. 긴 대체형(컴퓨터단층촬영 등)은 KB 원문에 없어
+    #   word_similarity를 오히려 희석시킨다(2026-09-09 실측: 씨티 확장이 0.400→0.333로 하락).
+    #   그래서 대체형은 **탐지용**으로만 쓰고(그 표현을 환자가 써도 대표어를 실어 줌) 출력엔 안 넣는다.
     extra: list[str] = []
     seen: set[str] = set()
     for group in _SYNONYM_GROUPS:
         if not any(_present(t, norm) for t in group):
             continue  # 이 군은 질의에 없음 → 확장 안 함(검색 오염 방지)
-        for term in group:
-            if term in seen or _present(term, norm):
-                continue  # 이미 있으면 중복 append 금지(질의 비대·트라이그램 희석 방지)
-            seen.add(term)
-            extra.append(term)
+        canonical = group[0]
+        if canonical in seen or _present(canonical, norm):
+            continue  # 대표어가 이미 있으면 그대로(중복·희석 방지)
+        seen.add(canonical)
+        extra.append(canonical)
     if not extra:
         return norm
     return norm + " " + " ".join(extra)
