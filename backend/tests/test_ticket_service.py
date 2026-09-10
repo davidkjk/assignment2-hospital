@@ -1,9 +1,10 @@
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 import pytest
 
-from app.services.chat import ticket_service
+from app.services.chat import realtime_broadcast, ticket_service
 from tests.conftest import seed_staff, seed_patient, set_session_auth
 from tests.conftest_chat import seed_chat_thread
 
@@ -27,6 +28,44 @@ def test_sent_msg_to_dto_matches_detail_shape():
         "staff_unread": False,
         "sms_sent": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_staff_send_message_broadcasts_staff_message_to_thread_channel(monkeypatch):
+    # 인계 후 익명 웹챗은 chat_messages 테이블을 구독할 수 없다(RLS) — 직원 답장이 환자 화면에
+    # 실시간으로 닿는 유일한 경로가 이 broadcast다. 저장 성공 후 같은 chat-typing:<threadId>
+    # 채널로 'staff_message' 이벤트를 밀어야 한다(봇 스트리밍과 동형, 새 채널 금지).
+    tid = uuid.uuid4()
+    mid = uuid.uuid4()
+    created = datetime(2026, 9, 10, 0, 34, tzinfo=timezone.utc)
+    row = {"id": mid, "thread_id": tid, "sender_type": "staff",
+           "content": "확인했습니다", "created_at": created}
+
+    class _Conn:
+        async def fetchrow(self, *a):
+            return row
+
+    @asynccontextmanager
+    async def _fake_acquire(_auth):
+        yield _Conn()
+
+    monkeypatch.setattr(ticket_service, "acquire_as", _fake_acquire)
+    captured = {}
+
+    async def _fake_broadcast(thread_id, event, payload):
+        captured.update(thread_id=thread_id, event=event, payload=payload)
+
+    monkeypatch.setattr(realtime_broadcast, "broadcast", _fake_broadcast)
+
+    dto = await ticket_service.staff_send_message("auth-1", uuid.uuid4(), "확인했습니다")
+
+    assert captured["thread_id"] == tid
+    assert captured["event"] == "staff_message"
+    assert captured["payload"] == {
+        "id": str(mid), "content": "확인했습니다",
+        "senderType": "staff", "createdAt": created.isoformat()}
+    # 회귀: 발행이 반환 DTO(프론트 계약)를 바꾸지 않는다.
+    assert dto["id"] == str(mid) and dto["body"] == "확인했습니다"
 
 
 async def _open_ticket(conn, thread_id):
