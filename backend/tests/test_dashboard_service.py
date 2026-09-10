@@ -437,6 +437,10 @@ async def test_스탯_메트릭_06_상담봇_미처리_문의_수를_센다(db_c
     s0 = await dashboard_service.get_today_summary(admin, conn=db_conn)
     assert s0["bot_pending"] == 0
 
+    # ⚠️ chat_threads엔 authenticated용 INSERT 정책이 없다(서비스 역할 전용, 00055 주석 참고).
+    #    admin 인증(set local role authenticated) 상태로 직접 넣으면 RLS가 막는다.
+    #    시드는 소유자 역할(BYPASSRLS)로 넣고, 집계 호출 직전에 다시 admin 인증으로 되돌린다.
+    await db_conn.execute("reset role")
     # 미배정 새 문의(pending) 2건 + 이미 맡은 문의(in_progress) 1건 → pending만 센다(=2).
     p = await seed_patient(db_conn)
     for _ in range(2):
@@ -449,6 +453,7 @@ async def test_스탯_메트릭_06_상담봇_미처리_문의_수를_센다(db_c
     await db_conn.execute(
         "insert into support_tickets (thread_id, status) values ($1, 'in_progress')", in_prog_thread)
 
+    await set_session_auth(db_conn, admin.auth_user_id)
     s = await dashboard_service.get_today_summary(admin, conn=db_conn)
     assert s["bot_pending"] == 2
 
