@@ -21,10 +21,16 @@ export type BotDone = {
   outage: boolean;
 };
 
+// [CHAT-STREAM-STAFF-MSG-01] 인계(사람 상담) 후 직원 답장. 익명 웹챗은 chat_messages 테이블을
+// 구독할 수 없어(RLS) 이 broadcast가 직원 답이 환자에게 닿는 유일한 실시간 경로다. 백엔드
+// ticket_service.staff_send_message가 service_role로 같은 채널에 민다(payload 형태 아래).
+export type StaffMessage = { id: string; content: string; createdAt?: string };
+
 export type BotHandlers = {
   onBotTyping?: (on: boolean, gen: string) => void;
   onBotDelta?: (gen: string, seq: number, text: string) => void;
   onBotDone?: (p: BotDone) => void;
+  onStaffMessage?: (m: StaffMessage) => void;
 };
 
 export function useStaffPresence(
@@ -73,6 +79,13 @@ export function useStaffPresence(
     ch.on('broadcast', { event: 'bot_done' }, (msg: { payload?: unknown }) => {
       const d = (msg.payload ?? msg) as BotDone;
       hRef.current?.onBotDone?.(d);
+    });
+    // [CHAT-STREAM-STAFF-MSG-01] 직원 답장 — 같은 채널에 얹는다(새 채널 금지). payload/msg 양쪽 형태 방어.
+    ch.on('broadcast', { event: 'staff_message' }, (msg: { payload?: unknown }) => {
+      const d = (msg.payload ?? msg) as { id?: string; content?: string; createdAt?: string };
+      if (d.id && typeof d.content === 'string') {
+        hRef.current?.onStaffMessage?.({ id: d.id, content: d.content, createdAt: d.createdAt });
+      }
     });
     ch.subscribe((status: string) => {
       // 구독 전 send는 유실된다 — subscribed 후에 환자 열람 presence를 켠다.

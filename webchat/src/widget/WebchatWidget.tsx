@@ -43,6 +43,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
     onBotTyping: w.applyBotTyping,
     onBotDelta: w.applyBotDelta,
     onBotDone: w.applyBotDone,
+    onStaffMessage: w.applyStaffMessage,   // [CHAT-STREAM-STAFF-MSG-01] 인계 후 직원 답장 → 피드에 표시
   });
   // 진행 중 스트리밍 버블을 messages 뒤에 합성한다(ChatRoom 무변경 — 합성만). done이 확정 말풍선으로 대체.
   const streamBubble = w.streaming

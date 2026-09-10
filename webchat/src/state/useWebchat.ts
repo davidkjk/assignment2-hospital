@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WebchatApi, SessionState, ThreadMessage, HandoffStatus, GuideState } from '../api/webchatApi';
-import type { BotDone } from '../widget/useStaffPresence';
+import type { BotDone, StaffMessage } from '../widget/useStaffPresence';
 import type { WebchatPhase } from '../widget/ChatRoom';
 import type { OutagePhase } from '../widget/OutageNotice';
 import { loadAnonToken, saveAnonToken } from './anonSession';
@@ -96,6 +96,15 @@ export function useWebchat(api: WebchatApi, opts: { onHandoffRequested?: (thread
     }
   }, [api, session, reconcileFromServer, clearFallback]);
 
+  // [CHAT-STREAM-STAFF-MSG-01] 인계 후 직원 답장을 피드에 붙인다(실시간 채널 수신). 익명 웹챗은
+  //   chat_messages 테이블 구독 불가(RLS)라 이 경로가 직원 답의 유일한 실시간 도달점이다. DB가 정본이므로
+  //   id로 중복을 막는다(broadcast와 재조회가 겹쳐도 말풍선이 두 번 붙지 않는다).
+  const applyStaffMessage = useCallback((m: StaffMessage) => {
+    setMessages((list) => list.some((x) => x.id === m.id)
+      ? list
+      : [...list, { id: m.id, senderType: 'staff', messageType: 'text', content: m.content }]);
+  }, []);
+
   // ── 실시간 봇 스트림 반영(useStaffPresence 콜백에서 부른다) ──
   const applyBotTyping = useCallback((on: boolean) => {
     setBotTyping(on);
@@ -172,6 +181,7 @@ export function useWebchat(api: WebchatApi, opts: { onHandoffRequested?: (thread
     askedForContact: false, crossDeviceResume: false, // 익명 웹은 이름/연락처를 방 진입에서 묻지 않는다
     open, send, resend,
     applyBotTyping, applyBotDelta, applyBotDone,        // 실시간 봇 이벤트 반영(WebchatWidget이 채널 훅에 연결)
+    applyStaffMessage,                                 // [CHAT-STREAM-STAFF-MSG-01] 인계 후 직원 답장 수신
     retryLoad: open,
     acknowledgeView: useCallback(async () => { if (session) await api.acknowledgeBatches(session.threadId); }, [api, session]),
     setHandoff, refreshHandoff,
