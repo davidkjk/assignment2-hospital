@@ -5447,7 +5447,7 @@
 | ID | 요소 | 조건 | 동작 | 근거 |
 |---|---|---|---|---|
 | `WEBCHAT-HANDOFF-CONFIRM-01` 🆕 | 인계 확인 | 안전 감시가 사유 감지(medical_judgment·data_mismatch·complaint·unhelpful·repeated) | 즉시 인계하지 않고 확인 프롬프트 말풍선(`직원(사람)에게 연결해 드릴까요?…`) + `[직원에게 연결하기]` 칩을 낸다(no_answer와 같은 카드 경로, `confirm_handoff`). 세션 유지·미해결 기록 안 함. 칩을 누르면 인계, 딴 걸 물으면 대기 취소. ⛔ **응급은 예외** — 확인 없이 119 안전 안내 | ✅ **신설(2026-09-09)** — 오탐 자동 연결 방지. `orchestrator.orchestrate` check_escalation 분기; 요구사항 시나리오 7·§5.5 |
-| `WEBCHAT-HANDOFF-CONFIRM-02` 🆕 | 원래 사유 보존 | 확인 프롬프트를 낸 뒤 칩 클릭 | 확인 프롬프트를 낸 턴이 원래 사유를 세션 `pending_handoff_reason`(마이그 00098)에 저장 → 칩 클릭 턴이 읽어 티켓 `staff_handoff` payload `reason`으로 복원(없으면 `staff_request`). 관리자 '직원 연결 현황'이 의료판단/불만/불일치를 구분 | ✅ **신설(2026-09-09)** — 요구사항 L67 통계 구분. `chat_flow_service` pending 저장/해제(active_flow와 동일 패턴) |
+| `WEBCHAT-HANDOFF-CONFIRM-02` 🆕 | 원래 사유 보존 | 확인 프롬프트를 낸 뒤 칩 클릭 | 확인 프롬프트를 낸 턴이 원래 사유를 세션 `pending_handoff_reason`(마이그 00099)에 저장 → 칩 클릭 턴이 읽어 티켓 `staff_handoff` payload `reason`으로 복원(없으면 `staff_request`). 관리자 '직원 연결 현황'이 의료판단/불만/불일치를 구분 | ✅ **신설(2026-09-09)** — 요구사항 L67 통계 구분. `chat_flow_service` pending 저장/해제(active_flow와 동일 패턴) |
 
 ###### 11. 웹 진료과 추천 진행 배너 `WEBCHAT-GUIDE` — 재사용 3개
 
