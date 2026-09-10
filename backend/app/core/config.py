@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     #   중 플래그 OFF). ⚠️ 안전(응급·직원요청·check_escalation)·답변생성은 두 모드 모두 앞/뒤단 그대로.
     #   llm 모드가 실패·형식 위반이면 자동으로 legacy 경로로 폴백한다(장애/자동인계로 안 번짐).
     chat_understanding_mode: str = "legacy"
+    # 브랜치 B(에이전트형 RAG, LangGraph). 기본 OFF=현행 단발 rag_service 경로. 켜면 rag 갈래 답변 생성이
+    #   문서채점→교정재검색→근거검증 그래프로. 되돌리기=이 값 false. env=CHAT_AGENTIC_RAG.
+    chat_agentic_rag: bool = False
     embedding_model: str = "text-embedding-3-small"
     anon_rate_limit_per_hour: int = 30
     # 익명 웹 상담 연락처(전화)의 대칭 암복호 키(Fernet base64). 비면 codec은 import는 되되
