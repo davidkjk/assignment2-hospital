@@ -133,6 +133,10 @@ class ChatRoomState {
   // Q18③ presence: 직원이 상담 상세를 실제로 열어 보는 중(typing과 같은 broadcast 채널의 'viewing' 신호).
   //   연결 상태(connecting)에 겹치면 배지가 "직원이 확인 중이에요"로 바뀐다. 배정(claim)과 무관한 실열람.
   final bool staffViewing;
+  // [CHAT-STREAM-01] 진행 중인 봇 답변 스트림 버블(webchat streaming과 동치). null=진행 중 아님.
+  //   bot_delta 조각이 누적될 때만 채워지고, bot_done에서 확정 말풍선으로 커밋되며 null로 지워진다.
+  //   화면은 items 뒤에 이 버블을 임시로 렌더한다(botThinking 점 대신 타이핑되는 본문).
+  final ChatStreaming? streaming;
   const ChatRoomState(this.phase,
       {this.items = const [],
       this.batchId,
@@ -140,7 +144,8 @@ class ChatRoomState {
       this.botThinking = false,
       this.outagePhase,
       this.handoff,
-      this.staffViewing = false});
+      this.staffViewing = false,
+      this.streaming});
 
   bool get isEmpty =>
       phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
@@ -155,6 +160,8 @@ class ChatRoomState {
     bool clearOutage = false, // true면 outagePhase를 null로 되돌린다(장애 복구 — nullable 갱신은 ??로 못 지운다)
     HandoffStatus? handoff,
     bool? staffViewing,
+    ChatStreaming? streaming,
+    bool clearStreaming = false, // true면 streaming을 null로 지운다(확정 커밋·장애·유실 복구 — nullable ??로 못 지움)
   }) =>
       ChatRoomState(
         phase ?? this.phase,
@@ -165,6 +172,42 @@ class ChatRoomState {
         outagePhase: clearOutage ? null : (outagePhase ?? this.outagePhase),
         handoff: handoff ?? this.handoff,
         staffViewing: staffViewing ?? this.staffViewing,
+        streaming: clearStreaming ? null : (streaming ?? this.streaming),
+      );
+}
+
+/// [CHAT-STREAM-01] 진행 중인 봇 답변 스트림 조각(webchat useWebchat.streaming과 동치).
+/// gen = 이 답변 회차 식별자(bot_delta/bot_done의 gen과 일치해야 반영). text = 지금까지 누적된 본문.
+class ChatStreaming {
+  final String gen;
+  final String text;
+  const ChatStreaming({required this.gen, required this.text});
+}
+
+/// [CHAT-STREAM-01] 봇 답변 완료 이벤트(백엔드 run_generation의 bot_done broadcast payload).
+/// webchat BotDone과 동일 계약 — 백엔드는 camelCase로 민다(messageId·routeTaken). 조각(bot_delta)이
+/// 있었으면 그 누적 본문을 확정 말풍선으로 커밋하고, 없었으면(빠른 경로) DB 정본에서 봇 답을 다시 읽는다.
+class BotDone {
+  final String gen;
+  final String? messageId;
+  final String routeTaken;
+  final Map<String, dynamic>? card;
+  final bool outage; // true = 빈 응답(AI 일시 장애) — 봇 말풍선 없이 ChatOutageView로 안내
+  const BotDone({
+    required this.gen,
+    this.messageId,
+    required this.routeTaken,
+    this.card,
+    this.outage = false,
+  });
+  factory BotDone.fromPayload(Map<dynamic, dynamic> d) => BotDone(
+        gen: (d['gen'] as String?) ?? '',
+        messageId: d['messageId'] as String?,
+        routeTaken: (d['routeTaken'] as String?) ?? '',
+        card: (d['card'] is Map)
+            ? (d['card'] as Map).cast<String, dynamic>()
+            : null,
+        outage: d['outage'] == true,
       );
 }
 

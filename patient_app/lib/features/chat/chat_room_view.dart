@@ -158,7 +158,20 @@ class ChatRoomView extends ConsumerWidget {
                   ],
                 )
               : ChatFeed(
-                  items: st.items,
+                  // [CHAT-STREAM-01] 진행 중인 봇 답 조각은 피드 뒤에 임시 봇 말풍선으로 보인다(webchat 동형).
+                  //   bot_done에서 확정 말풍선으로 커밋되며 streaming이 null로 지워져 이 임시 줄은 사라진다.
+                  items: st.streaming == null
+                      ? st.items
+                      : [
+                          ...st.items,
+                          ChatFeedItem(
+                            id: 'stream-${st.streaming!.gen}',
+                            messageType: 'text',
+                            senderType: 'bot',
+                            content: st.streaming!.text,
+                            createdAt: DateTime.now(), // isUnknown(시각 미상) 스타일 회피
+                          ),
+                        ],
                   // T12 슬롯 채움: 카드 아이템은 dispatcher가 card_type으로 그린다(CCARD-*).
                   cardBuilder: (ctx, it) => buildChatCard(ctx, it),
                   // T11 슬롯 채움: 직원 말풍선·시스템 이벤트도 같은 피드에(CHAT-ROOM-LIVE-01).
@@ -171,7 +184,8 @@ class ChatRoomView extends ConsumerWidget {
                   footer: closed ? null : _buildQuickReplies(st, ctl),
                   // Q7: 입력 중 표시를 입력바 위 텍스트가 아니라 피드 안 봇 말풍선 자리(점)로 둔다.
                   // 봇 대기(BOT-TYPING-01)가 우선, 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 없음.
-                  typingLabel: st.botThinking
+                  // [CHAT-STREAM-01] 스트림 조각이 차오르는 중엔 그 말풍선이 곧 표시라 점(dot)을 겹쳐 띄우지 않는다.
+                  typingLabel: (st.botThinking && st.streaming == null)
                       ? '상담봇이 입력 중'
                       : (st.staffTyping ? '직원이 입력 중입니다' : null),
                 ),

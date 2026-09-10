@@ -19,39 +19,25 @@ class ChatSessionRef {
   const ChatSessionRef({required this.threadId, required this.aiSessionId});
 }
 
-/// POST /chat/messages 의 응답을 담는다. 서버는 저장된 환자 메시지가 아니라 **봇 처리 결과**를
-/// {route_taken, message_id, reply, restricted_block, card?} 로 준다(웹 위젯과 동일 계약).
-/// reply → 봇 텍스트 말풍선, card(card_type 있음) → 카드 말풍선. 둘 다 없으면(예: handoff) null.
+/// POST /chat/messages 의 응답(접수 ack)을 담는다. [CHAT-STREAM-01] 스트리밍 전환 이후 서버는
+/// 봇 답을 이 응답에 **싣지 않는다** — 환자 메시지만 저장하고 즉시 {accepted, gen, routeTaken}만 준다.
+/// 봇 답(조각·완료)은 실시간 채널(chat-typing:<threadId>)의 bot_delta/bot_done으로 따로 온다.
+/// - [gen]: 이 답변 회차 식별자. 이후 도착할 bot_delta/bot_done을 이 gen으로 받는다(다른 gen은 폐기).
+/// - [routeTaken]: 'staff'면 인계(사람 상담) 모드라 봇이 생성하지 않는다(스트림을 기다리지 않는다).
+/// ⚠️ 예전엔 서버가 {reply, card}를 동기로 실어 줬고 앱이 그걸 말풍선으로 붙였다 — 스트리밍 전환 후엔
+///   응답에 답이 없어, 그 옛 파싱은 늘 "답을 못 받았다"로 떨어졌다(2026-09-10 실기기 무응답의 원인).
 class SendResult {
-  const SendResult({required this.routeTaken, this.botMessage, this.cardMessage});
+  const SendResult({required this.routeTaken, this.gen});
   final String routeTaken;
-  final ChatFeedItem? botMessage;
-  final ChatFeedItem? cardMessage;
+  final String? gen; // 접수 ack의 회차 식별자(스트림 정합). staff·중복 전송이면 null일 수 있다.
 }
 
 SendResult _parseSendResult(Map<String, dynamic> j, String clientMessageId) {
-  final reply = j['reply'];
-  final bot = (reply is String && reply.isNotEmpty)
-      ? ChatFeedItem(
-          id: (j['message_id'] as String?) ?? 'bot-$clientMessageId',
-          messageType: 'text',
-          senderType: 'bot',
-          content: reply,
-          createdAt: DateTime.now())
-      : null;
-  final card = j['card'];
-  final cardItem = (card is Map && card['card_type'] is String)
-      ? ChatFeedItem(
-          id: 'card-$clientMessageId',
-          messageType: 'card',
-          senderType: 'bot',
-          payload: card.cast<String, dynamic>(),
-          createdAt: DateTime.now())
-      : null;
+  // 백엔드 접수 ack는 camelCase({gen, routeTaken}). 옛 snake(route_taken)도 방어적으로 함께 읽는다.
   return SendResult(
-      routeTaken: (j['route_taken'] as String?) ?? '',
-      botMessage: bot,
-      cardMessage: cardItem);
+    routeTaken: (j['routeTaken'] as String?) ?? (j['route_taken'] as String?) ?? '',
+    gen: j['gen'] as String?,
+  );
 }
 
 class ChatRepository {
@@ -170,22 +156,40 @@ class ChatRepository {
   ///   `role:'patient'`의 viewing(방 열림)·typing(입력 중)을 보낸다(직원웹 TicketDetail이 이걸 구독해
   ///   "환자 접속/입력 중"을 띄운다). 새 채널을 또 열면 위 유실 버그를 다시 부르므로 반드시 이 채널로 보낸다.
   ///   viewing:on은 구독 완료(subscribed) 후 1회, off는 방 dispose 시. typing은 반환한 sendTyping으로 emit.
-  ({Stream<bool> typing, Stream<bool> viewing, void Function(bool) sendTyping})
-      streamStaffLive(String threadId) {
+  ///
+  /// [CHAT-STREAM-01] 봇 답 스트리밍(bot_typing/bot_delta/bot_done)도 **이 같은 채널**에 얹어 받는다
+  ///   (새 채널 금지 — 같은 토픽 2채널 = 한쪽 유실 버그). 백엔드 run_generation이 service_role로 민다.
+  ///   webchat useStaffPresence와 동형이며, 소비는 ChatRoomController.bindBotStream이 한다.
+  ({
+    Stream<bool> typing,
+    Stream<bool> viewing,
+    void Function(bool) sendTyping,
+    Stream<(String, bool)> botTyping,
+    Stream<(String, int, String)> botDelta,
+    Stream<BotDone> botDone,
+  }) streamStaffLive(String threadId) {
     final rt = _realtime;
     if (rt == null) {
       return (
         typing: const Stream<bool>.empty(),
         viewing: const Stream<bool>.empty(),
         sendTyping: (_) {},
+        botTyping: const Stream<(String, bool)>.empty(),
+        botDelta: const Stream<(String, int, String)>.empty(),
+        botDone: const Stream<BotDone>.empty(),
       );
     }
     final typingC = StreamController<bool>();
     final viewingC = StreamController<bool>();
+    final botTypingC = StreamController<(String, bool)>.broadcast();
+    final botDeltaC = StreamController<(String, int, String)>.broadcast();
+    final botDoneC = StreamController<BotDone>.broadcast();
     final channel = rt.channel('chat-typing:$threadId');
+    // onBroadcast는 메시지 전체를 준다 — 실제 값은 payload['payload']에 있다(양쪽 형태 방어).
+    Map dataOf(dynamic payload) =>
+        payload['payload'] is Map ? payload['payload'] as Map : payload as Map;
     void emit(dynamic payload, StreamController<bool> c) {
-      // onBroadcast는 메시지 전체를 준다 — 실제 값은 payload['payload']에 있다(양쪽 형태 방어).
-      final data = payload['payload'] is Map ? payload['payload'] as Map : payload;
+      final data = dataOf(payload);
       if (data['role'] == 'staff' && !c.isClosed) c.add(data['on'] == true);
     }
     void sendPatient(String event, bool on) => channel.sendBroadcastMessage(
@@ -195,15 +199,39 @@ class ChatRepository {
     channel
         .onBroadcast(event: 'typing', callback: (p) => emit(p, typingC))
         .onBroadcast(event: 'viewing', callback: (p) => emit(p, viewingC))
+        .onBroadcast(event: 'bot_typing', callback: (p) {
+          final d = dataOf(p);
+          if (!botTypingC.isClosed) {
+            botTypingC.add(((d['gen'] as String?) ?? '', d['on'] == true));
+          }
+        })
+        .onBroadcast(event: 'bot_delta', callback: (p) {
+          final d = dataOf(p);
+          if (!botDeltaC.isClosed) {
+            botDeltaC.add((
+              (d['gen'] as String?) ?? '',
+              (d['seq'] as num?)?.toInt() ?? 0,
+              (d['text'] as String?) ?? '',
+            ));
+          }
+        })
+        .onBroadcast(event: 'bot_done', callback: (p) {
+          final d = dataOf(p);
+          if (!botDoneC.isClosed) botDoneC.add(BotDone.fromPayload(d));
+        })
         .subscribe((status, _) {
       // 구독 전 send는 유실된다 — subscribed 후에 환자 열람 presence를 켠다.
       if (status == RealtimeSubscribeStatus.subscribed) sendPatient('viewing', true);
     });
-    var open = 2; // 두 스트림이 모두 취소되면(방 dispose) 채널을 제거한다.
+    var open = 2; // 직원 typing·viewing 두 스트림이 모두 취소되면(방 dispose) 채널을 제거한다.
     void closeOne() {
       if (--open == 0) {
         sendPatient('viewing', false); // 방을 닫으면 환자 열람 종료(직원웹 12초 타임아웃도 방어).
         rt.removeChannel(channel);
+        // 봇 스트림 컨트롤러도 함께 닫는다(채널 수명에 묶는다 — 방을 떠나면 더는 받지 않는다).
+        botTypingC.close();
+        botDeltaC.close();
+        botDoneC.close();
       }
     }
     typingC.onCancel = closeOne;
@@ -212,6 +240,9 @@ class ChatRepository {
       typing: typingC.stream,
       viewing: viewingC.stream,
       sendTyping: (on) => sendPatient('typing', on),
+      botTyping: botTypingC.stream,
+      botDelta: botDeltaC.stream,
+      botDone: botDoneC.stream,
     );
   }
 }

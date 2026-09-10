@@ -87,52 +87,31 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     _lastCid = cid;
     _lastContent = content;
     // CHAT-ROOM-BOT-TYPING-01: 보내고 봇 응답이 오기 전까지 "상담봇이 입력 중"을 띄운다(웹 위젯과 동치).
-    // 아무 반응이 없으면 고장으로 오인한다 — 응답(성공/실패)이 오면 반드시 끈다.
     state = state.copyWith(botThinking: true);
     try {
       final res = await _repo.sendMessage(
           threadId: threadId, aiSessionId: aiSessionId, content: content, clientMessageId: cid);
-      // 환자 말풍선을 sent로 바꾸고, 서버가 준 봇 답변(reply)·카드(no_answer 등)를 피드에 이어 붙인다.
-      // 봇 답변은 realtime이 아니라 이 응답으로 온다(웹 위젯과 동일 계약) — 예전엔 응답을 버려
-      // 봇 말풍선이 아예 안 떴다(+ 파싱 예외로 전송이 실패로 위장됐다).
+      // 환자 말풍선을 sent로 바꾼다. [CHAT-STREAM-01] 봇 답은 이 응답에 없다 — 실시간 채널의
+      //   bot_delta/bot_done으로 따로 온다(applyBotDelta·applyBotDone). 여기서 봇 말풍선을 만들지 않는다.
       final marked = [
         for (final i in state.items)
           i.clientMessageId == cid ? i.copyWith(sendState: ChatSendState.sent) : i
       ];
-      // CHAT-ROOM-SEND-04: 전송은 성공했는데 봇 답변(reply)도 카드도 없으면(handoff는 {ticket_id,reason}만,
-      // 드물게 rag가 reply=None) 피드에 아무것도 안 붙어 **무응답처럼 보인다**(2026-09-08 실기기: "증상 상담"
-      // 눌러도 반응 없음의 2차 원인). 이때 가시적 시스템 줄을 넣어 갇힘을 막는다 — handoff는 연결 중 안내,
-      // 그 외는 다시 물어봐 달라는 안내(막다른 길 금지).
-      // handoff는 '연결 중' 안내(system 줄). 무답변은 봇 말풍선(text/bot)으로 넣어야 마지막 줄이 봇 답변이 되어
-      // 입력창 슬롯에 [직원에게 연결] 칩이 뜬다(Q5·Q11: 폴백 문구가 가리키는 칩이 실제로 존재 = 막다른 길 금지).
-      final isHandoff = res.routeTaken == 'handoff';
-      // 사람 상담 모드(인계 후): 서버가 AI를 안 돌리고 환자 메시지만 저장한다(route_taken='staff').
-      //   폴백 봇 줄을 넣지 않는다 — 답은 직원이 실시간으로 보낸다(2026-09-09 실기기: 인계 후 답장에 AI가 답하던 버그).
-      final isStaffMode = res.routeTaken == 'staff';
-      final fallback = (!isStaffMode && res.botMessage == null && res.cardMessage == null)
-          ? ChatFeedItem(
-              id: 'sys-$cid',
-              messageType: isHandoff ? 'system' : 'text',
-              senderType: isHandoff ? 'system' : 'bot',
-              content: isHandoff
-                  ? '직원에게 연결하고 있어요. 잠시만 기다려 주세요.'
-                  : '죄송해요, 방금은 답변을 가져오지 못했어요. 다시 한 번 여쭤봐 주시거나 아래 [직원에게 연결하기] 칩을 눌러 주세요.',
-              createdAt: DateTime.now())
-          : null;
-      state = state.copyWith(
-          phase: ChatRoomPhase.loaded,
-          items: [
-            ...marked,
-            if (res.botMessage != null) res.botMessage!,
-            if (res.cardMessage != null) res.cardMessage!,
-            if (fallback != null) fallback,
-          ],
-          botThinking: false, // 응답 도착 → 봇 대기 표시 끔
-          // 성공 왕복이면 장애를 해제한다(CHAT-OUTAGE-RECOVER-01). 병합 전 HEAD는 성공 시 새 ChatRoomState를
-          //   지어 outagePhase가 자연히 null이었으나, q15-q18이 handoff·staffViewing 보존을 위해 copyWith로
-          //   바꾸며 outagePhase도 보존돼 재시도 성공 후에도 장애가 안 풀렸다. clearOutage로 명시 해제한다.
-          //   평소 전송(장애 아님)엔 이미 null이라 무해(null→null).
-          clearOutage: true);
+      if (res.routeTaken == 'staff') {
+        // 사람 상담 모드(인계 후): 서버가 AI를 안 돌리고 환자 메시지만 저장한다 — 봇 스트림을 기다리지 않는다.
+        //   답은 직원이 실시간(streamThread)으로 보낸다(2026-09-09: 인계 후 답장에 AI가 답하던 버그 방지).
+        _activeGen = null;
+        _cancelStreamFallback();
+        state = state.copyWith(
+            phase: ChatRoomPhase.loaded, items: marked, botThinking: false, clearOutage: true);
+        return;
+      }
+      // 지금부터 도착할 bot_delta/bot_done을 이 gen으로 받는다(다른 gen 조각은 폐기, webchat 동형).
+      _activeGen = res.gen;
+      _latestText = '';
+      state = state.copyWith(phase: ChatRoomPhase.loaded, items: marked, clearStreaming: true);
+      // 실시간을 못 받으면(broadcast 유실) 일정 시간 뒤 DB 재조회로 복구한다(막다른 길 금지, webchat 동형).
+      _armStreamFallback();
     } catch (e) {
       // Q19(CHAT-OUTAGE-01): 서버/AI 장애(5xx — 빈 AI 응답은 백엔드가 503으로 내린다)면 강제 직원인계가
       //   아니라 장애 화면(ChatOutageView)으로 안내한다. ⚠️ webchat는 status 없는 네트워크 실패도 장애로
@@ -150,6 +129,119 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
               .copyWith(sendState: ChatSendState.failed));
       state = state.copyWith(botThinking: false); // 실패해도 대기 표시는 끈다(고장 오인 방지의 반대편)
     }
+  }
+
+  // ── [CHAT-STREAM-01] 실시간 봇 답 스트림(webchat useWebchat과 동형) ──────────────
+  // ack의 gen으로 회차를 못박고, 그 gen의 bot_delta를 누적해 스트림 버블로 보이며, bot_done에서 확정 커밋한다.
+  String? _activeGen; // 지금 기다리는 답변 회차(다른 gen 이벤트는 폐기)
+  String _latestText = ''; // 지금까지 누적된 스트림 본문
+  Timer? _streamFallback;
+  // webchat STREAM_FALLBACK_MS와 동일 — 생성 최악(~14초)보다 여유. 이 안에 아무 이벤트도 없으면 DB로 복구.
+  static const Duration _streamFallbackAfter = Duration(milliseconds: 45000);
+
+  void _armStreamFallback() {
+    _streamFallback?.cancel();
+    _streamFallback = Timer(_streamFallbackAfter, () {
+      // 실시간 유실 — DB 정본에서 봇 답을 채운다(성공/실패를 위장하지 않는다). 방을 열어 둔 채 복구한다.
+      _activeGen = null;
+      state = state.copyWith(botThinking: false, clearStreaming: true);
+      _reconcileFromServer();
+    });
+  }
+
+  void _cancelStreamFallback() {
+    _streamFallback?.cancel();
+    _streamFallback = null;
+  }
+
+  /// DB 정본에서 대화를 다시 읽어 피드를 맞춘다(스트림 유실·조각 없는 빠른 경로 복구). 실패는 조용히 —
+  /// 성공으로 위장하지 않고 다음 왕복·재시작에서 복구한다(webchat reconcileFromServer 동형).
+  Future<void> _reconcileFromServer() async {
+    try {
+      final items = await _repo.fetchMessages(threadId);
+      if (state.phase != ChatRoomPhase.error) {
+        state = state.copyWith(phase: ChatRoomPhase.loaded, items: items);
+      }
+    } catch (_) {/* best-effort */}
+  }
+
+  StreamSubscription<(String, bool)>? _botTypingSub;
+  StreamSubscription<(String, int, String)>? _botDeltaSub;
+  StreamSubscription<BotDone>? _botDoneSub;
+
+  /// 셸(provider)이 봇 답 스트림 3종(같은 chat-typing 채널)을 물려준다. realtime 미주입이면 빈 스트림이라 무해.
+  void bindBotStream({
+    required Stream<(String, bool)> typing,
+    required Stream<(String, int, String)> delta,
+    required Stream<BotDone> done,
+  }) {
+    _botTypingSub?.cancel();
+    _botDeltaSub?.cancel();
+    _botDoneSub?.cancel();
+    _botTypingSub = typing.listen((e) => applyBotTyping(e.$1, e.$2), onError: (_) {});
+    _botDeltaSub = delta.listen((e) => applyBotDelta(e.$1, e.$2, e.$3), onError: (_) {});
+    _botDoneSub = done.listen(applyBotDone, onError: (_) {});
+  }
+
+  /// bot_typing: 대기 표시(botThinking)만 켬/끔. 회차가 정해졌으면 그 회차만 반영한다.
+  void applyBotTyping(String gen, bool on) {
+    if (_activeGen != null && gen != _activeGen) return;
+    if (state.phase != ChatRoomPhase.loaded) return;
+    state = state.copyWith(botThinking: on);
+  }
+
+  /// bot_delta: 이 회차의 조각을 누적해 스트림 버블로 보인다(타이핑되듯).
+  void applyBotDelta(String gen, int seq, String text) {
+    if (gen != _activeGen) return; // 남의 답 조각 폐기
+    _latestText = _latestText + text;
+    state = state.copyWith(
+        streaming: ChatStreaming(gen: gen, text: _latestText), botThinking: true);
+  }
+
+  /// bot_done: 이 회차를 확정한다. 조각이 있었으면 그 본문을 확정 말풍선으로 커밋하고(+카드),
+  /// 없었으면(빠른 경로: 진료과 안내·no_answer·카드·긴급) DB 정본에서 봇 답을 다시 읽는다.
+  /// outage(빈 응답=AI 장애)면 말풍선 없이 ChatOutageView로 안내한다(webchat applyBotDone 동형).
+  void applyBotDone(BotDone p) {
+    if (p.gen != _activeGen) return;
+    _cancelStreamFallback();
+    _activeGen = null;
+    final text = _latestText;
+    _latestText = '';
+    if (p.outage) {
+      // 빈 답(AI 일시 장애) — 봇 말풍선 없이 전면 장애 안내(Q19).
+      state = state.copyWith(
+          botThinking: false, clearStreaming: true, outagePhase: OutageInquiryPhase.idle);
+      return;
+    }
+    if (text.isNotEmpty) {
+      // 스트리밍된 본문을 확정 말풍선으로 커밋(+ done이 실은 카드). id=messageId면 DB 재조회와도 중복 안 남.
+      final bot = ChatFeedItem(
+          id: p.messageId ?? 'bot-${p.gen}',
+          messageType: 'text',
+          senderType: 'bot',
+          content: text,
+          createdAt: DateTime.now());
+      final card = (p.card != null && p.card!['card_type'] is String)
+          ? ChatFeedItem(
+              id: 'card-${p.gen}',
+              messageType: 'card',
+              senderType: 'bot',
+              payload: p.card,
+              createdAt: DateTime.now())
+          : null;
+      state = state.copyWith(
+          phase: ChatRoomPhase.loaded,
+          items: [...state.items, bot, if (card != null) card],
+          botThinking: false,
+          clearStreaming: true,
+          clearOutage: true); // 봇 답 도착 = 성공 왕복 → 장애 해제(CHAT-OUTAGE-RECOVER-01)
+    } else {
+      // 조각 없는 빠른 경로 — DB 정본에서 봇 답(+카드)을 채운다(막다른 길 금지).
+      state = state.copyWith(botThinking: false, clearStreaming: true, clearOutage: true);
+      _reconcileFromServer();
+    }
+    // 인계 전이는 배지 폴링(bindHandoff)이 담당하지만, 즉시 반영 위해 한 번 새로 가져온다.
+    if (p.routeTaken == 'handoff') refreshHandoff();
   }
 
   // 5xx = 서버/AI 미가용(장애). 4xx·status 없는 네트워크 실패는 장애 화면을 띄우지 않는다
@@ -333,6 +425,10 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     _presenceSub?.cancel();
     _presenceOff?.cancel();
     _patientTypingOff?.cancel();
+    _botTypingSub?.cancel();
+    _botDeltaSub?.cancel();
+    _botDoneSub?.cancel();
+    _cancelStreamFallback();
     if (_patientTyping) _sendTyping?.call(false); // 방을 닫으면 입력 중 표시를 내린다
     super.dispose();
   }
@@ -369,6 +465,9 @@ final chatRoomProvider =
   //   한 채널에서 함께 구독해야 둘 다 도달한다(같은 토픽 채널 2개 = 한쪽만 받는 버그, 2026-09-09).
   final live = repo.streamStaffLive(key.$1);
   ctl.bindTyping(live.typing);
+  // [CHAT-STREAM-01] 봇 답 스트리밍(bot_typing/bot_delta/bot_done)을 같은 채널에서 받아 반영한다
+  //   (webchat과 동형). 이게 없으면 접수 응답에 답이 없어 봇 답이 영영 안 붙는다(2026-09-10 무응답 버그).
+  ctl.bindBotStream(typing: live.botTyping, delta: live.botDelta, done: live.botDone);
   // [CHAT-ROOM-PATIENT-TYPING-01] 환자 입력 중을 같은 채널로 직원에게 보낼 sink를 물린다(방향은 양쪽).
   //   viewing(방 열림/닫힘)은 streamStaffLive가 채널 수명으로 직접 emit하므로 여기선 typing만 배선한다.
   ctl.bindPatientTyping(live.sendTyping);

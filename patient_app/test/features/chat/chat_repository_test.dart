@@ -79,24 +79,23 @@ void main() {
     expect(await r.fetchMessages('t1'), isEmpty);
   });
 
-  test('[CHAT-ROOM-REPLY-01] sendMessage는 {route_taken,message_id,reply}를 봇 말풍선으로 매핑한다', () async {
-    // POST /chat/messages 응답은 저장된 ChatFeedItem이 아니라 봇 처리 결과다. reply→봇 텍스트 말풍선.
+  test('[CHAT-STREAM-01] sendMessage는 접수 ack({accepted,gen,routeTaken})를 파싱한다(봇 답은 실시간)', () async {
+    // 스트리밍 전환: POST /chat/messages는 봇 답을 싣지 않고 즉시 접수만 한다. 봇 답(조각·완료)은
+    //   실시간 채널의 bot_delta/bot_done으로 따로 온다. ack는 camelCase({gen,routeTaken}).
     final r = repo(MockClient((req) async => http.Response.bytes(
-        utf8.encode('{"route_taken":"rag","message_id":"b9","reply":"평일 낮에 진료합니다.","restricted_block":null}'),
+        utf8.encode('{"accepted":true,"threadId":"t1","userMessageId":"u1","gen":"g7","routeTaken":"rag"}'),
         200)));
     final res = await r.sendMessage(threadId: 't1', aiSessionId: 's1', content: '진료시간', clientMessageId: 'c1');
     expect(res.routeTaken, 'rag');
-    expect(res.botMessage!.senderType, 'bot');
-    expect(res.botMessage!.messageType, 'text');
-    expect(res.botMessage!.content, '평일 낮에 진료합니다.');
+    expect(res.gen, 'g7'); // 이후 도착할 bot_delta/bot_done을 이 gen으로 받는다
   });
 
-  test('[CHAT-ROOM-REPLY-02] reply가 없으면(handoff 등) 봇 말풍선을 만들지 않는다', () async {
+  test('[CHAT-STREAM-01] ack routeTaken=staff(인계 후)는 gen 없이도 파싱된다', () async {
     final r = repo(MockClient((req) async => http.Response(
-        '{"route_taken":"handoff","message_id":null,"reply":null}', 200)));
+        '{"accepted":true,"threadId":"t1","userMessageId":"u2","gen":null,"routeTaken":"staff"}', 200)));
     final res = await r.sendMessage(threadId: 't1', aiSessionId: 's1', content: '직원 연결', clientMessageId: 'c2');
-    expect(res.routeTaken, 'handoff');
-    expect(res.botMessage, isNull);
+    expect(res.routeTaken, 'staff');
+    expect(res.gen, isNull);
   });
 
   test('[CHAT-ROOM-NOTIFY-01] markRead는 상담방(thread_id)을 읽음 처리한다', () async {

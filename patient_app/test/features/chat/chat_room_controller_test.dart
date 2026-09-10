@@ -8,21 +8,26 @@ import 'package:hospital_patient_app/features/chat/chat_repository.dart' show Se
 import 'package:hospital_patient_app/features/chat/chat_room_controller.dart';
 
 // 가짜 저장소: 시나리오를 주입한다.
+// [CHAT-STREAM-01] 스트리밍 전환 이후 sendMessage 응답(ack)엔 봇 답이 없다({gen, routeTaken}만).
+//   봇 답은 applyBotDelta/applyBotDone(실시간 채널 소비)로 붙는다 — 테스트가 그 콜백을 직접 부른다.
 class _FakeRepo implements ChatRepositoryLike {
   List<ChatFeedItem>? messages;
   Object? loadError;
   Object? sendError;
-  String? botReply; // 서버가 돌려주는 봇 답변(reply). 있으면 전송 성공 시 봇 말풍선이 붙어야 한다.
+  String sendGen = 'g1'; // 접수 ack가 돌려줄 회차 식별자(applyBotDone의 gen과 맞춰야 반영)
+  String sendRoute = 'rag'; // ack의 routeTaken('staff'면 봇 스트림을 기다리지 않는다)
   final List<String> sentIds = [];
+  final List<String> fetchCalls = []; // _reconcileFromServer가 부른 fetchMessages 추적
   @override
   Future<List<ChatFeedItem>> fetchMessages(String t) async {
+    fetchCalls.add(t);
     if (loadError != null) throw loadError!;
     return messages ?? [];
   }
 
   final List<String> sentSessionIds = [];
   Completer<void>? sendGate; // 있으면 응답을 이 게이트가 열릴 때까지 붙잡는다(대기 상태 관찰용)
-  SendResult? sendResult; // 있으면 이 결과를 그대로 반환(handoff/무응답 등 특수 케이스 주입)
+  SendResult? sendResult; // 있으면 이 결과를 그대로 반환(staff 등 특수 케이스 주입)
   @override
   Future<SendResult> sendMessage(
       {required String threadId,
@@ -34,17 +39,7 @@ class _FakeRepo implements ChatRepositoryLike {
     if (sendGate != null) await sendGate!.future;
     if (sendError != null) throw sendError!;
     if (sendResult != null) return sendResult!;
-    return SendResult(
-      routeTaken: 'rag',
-      botMessage: botReply == null
-          ? null
-          : ChatFeedItem(
-              id: 'bot-$clientMessageId',
-              messageType: 'text',
-              senderType: 'bot',
-              content: botReply,
-              createdAt: DateTime(2026)),
-    );
+    return SendResult(routeTaken: sendRoute, gen: sendGen);
   }
 
   @override
@@ -102,20 +97,28 @@ void main() {
     expect(c.state.items.last.sendState, ChatSendState.sent);
   });
 
-  test('[CHAT-ROOM-REPLY-01] 전송 성공 시 서버가 준 봇 답변(reply)을 피드에 봇 말풍선으로 붙인다', () async {
-    // 봇 답변은 realtime이 아니라 POST /chat/messages 응답의 reply로 온다(웹 위젯과 동일 계약).
-    // 예전엔 응답을 버려 봇 말풍선이 아예 안 떴고, ChatFeedItem으로 캐스팅하다 터져 전송이 실패로
-    // 위장됐다 — 이 케이스가 그 회귀를 막는다.
+  test('[CHAT-STREAM-01] 전송 ack엔 봇 답이 없다 — bot_delta/bot_done(실시간)으로 봇 말풍선이 붙는다', () async {
+    // 스트리밍 전환: 봇 답은 응답이 아니라 실시간 채널로 온다. ⚠️ 예전엔 응답의 reply를 붙였고,
+    //   스트리밍 전환 후 응답에 답이 없어지자 앱이 늘 "답을 못 받았다"로 떨어졌다(2026-09-10 무응답 버그).
+    //   이 케이스가 그 회귀(응답에서 답을 기대)를 막는다.
     final repo = _FakeRepo()
       ..messages = []
-      ..botReply = '진료시간은 평일 낮입니다.';
+      ..sendGen = 'g1';
     final c = ChatRoomController(repo, threadId: 't1');
     await c.load();
     await c.send('진료시간 알려줘');
     final patient = c.state.items.firstWhere((i) => i.senderType == 'patient');
     expect(patient.sendState, ChatSendState.sent); // 전송은 성공으로 표시(실패 위장 아님)
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isFalse); // ack 시점엔 봇 말풍선 없음
+    // 실시간 조각이 차오르고(스트림 버블) 완료에서 확정 말풍선으로 커밋된다.
+    c.applyBotDelta('g1', 1, '진료시간은 ');
+    c.applyBotDelta('g1', 2, '평일 낮입니다.');
+    expect(c.state.streaming?.text, '진료시간은 평일 낮입니다.'); // 진행 중 스트림 버블
+    c.applyBotDone(const BotDone(gen: 'g1', messageId: 'm1', routeTaken: 'rag'));
+    expect(c.state.streaming, isNull); // 확정되면 임시 버블은 사라진다
     final bot = c.state.items.where((i) => i.senderType == 'bot').toList();
-    expect(bot.single.content, '진료시간은 평일 낮입니다.'); // 봇 답변 말풍선이 붙었다
+    expect(bot.single.content, '진료시간은 평일 낮입니다.'); // 확정 봇 말풍선
+    expect(c.state.botThinking, isFalse);
   });
 
   test('[CHAT-ROOM-SEND-02] 전송 실패는 원문을 failed로 보존하고 봇 처리를 시작하지 않는다', () async {
@@ -148,7 +151,8 @@ void main() {
 
   test('[CHAT-ROOM-LIVE-01] 실시간 직원 말풍선을 같은 피드에 병합한다(계약은 3메서드 유지)', () async {
     // 라이브 구독은 셸(provider)이 streamThread를 물려주고 컨트롤러는 mergeLiveRows로 받는다.
-    // 봇 답변은 send 응답으로 오므로 라이브 병합 대상은 직원(staff)·시스템 이벤트다.
+    // 봇 답은 실시간 채널의 bot_done(broadcast)으로 오므로, DB 스냅샷(streamThread) 병합 대상은
+    //   직원(staff)·시스템 이벤트다(봇 행은 여기서 무시 — bot_done이 소유해 중복 말풍선을 막는다).
     final repo = _FakeRepo()..messages = [];
     final c = ChatRoomController(repo, threadId: 't1');
     await c.load();
@@ -216,10 +220,10 @@ void main() {
     await typing.close();
   });
 
-  test('[CHAT-ROOM-LIVE-TYPING-01] 타이핑 중 봇 답변이 와도 staffTyping을 잃지 않는다(상태 보존)', () async {
+  test('[CHAT-ROOM-LIVE-TYPING-01] 봇 답(bot_done 커밋)이 와도 staffTyping을 잃지 않는다(상태 보존)', () async {
     final repo = _FakeRepo()
       ..messages = []
-      ..botReply = '안내드립니다';
+      ..sendGen = 'g1';
     final c = ChatRoomController(repo, threadId: 't1');
     await c.load();
     final typing = StreamController<bool>();
@@ -227,26 +231,33 @@ void main() {
     typing.add(true);
     await Future<void>.delayed(Duration.zero);
 
-    await c.send('질문'); // 봇 답변 말풍선이 붙는 상태 재구성
+    await c.send('질문');
+    c.applyBotDelta('g1', 1, '안내드립니다');
+    c.applyBotDone(const BotDone(gen: 'g1', messageId: 'm1', routeTaken: 'rag')); // 봇 말풍선 커밋
     expect(c.state.items.any((i) => i.senderType == 'bot'), isTrue);
-    expect(c.state.staffTyping, isTrue); // 재구성에도 타이핑 표시 유지
+    expect(c.state.staffTyping, isTrue); // 커밋에도 타이핑 표시 유지
     await typing.close();
   });
 
-  test('[CHAT-ROOM-BOT-TYPING-01] 보내고 응답 오기 전엔 botThinking=true, 응답 오면 false', () async {
+  test('[CHAT-ROOM-BOT-TYPING-01] ack 뒤에도 botThinking=true 유지(스트림 대기), bot_done에서 false', () async {
+    // 스트리밍: 접수 ack가 와도 답은 아직 안 왔다 — 대기 표시를 끄지 않는다(끄면 답이 안 온 채 조용해진다).
     final repo = _FakeRepo()
       ..messages = []
-      ..botReply = '안내드립니다'
+      ..sendGen = 'g1'
       ..sendGate = Completer<void>();
     final c = ChatRoomController(repo, threadId: 't1');
     await c.load();
-    final f = c.send('두통'); // 아직 응답 안 옴(게이트 닫힘)
+    final f = c.send('두통'); // 아직 ack 안 옴(게이트 닫힘)
     await Future<void>.delayed(Duration.zero);
     expect(c.state.botThinking, isTrue); // 대기 중 "상담봇이 입력 중"
-    repo.sendGate!.complete(); // 응답 도착
+    repo.sendGate!.complete(); // ack 도착(하지만 봇 답은 아직)
     await f;
-    expect(c.state.botThinking, isFalse); // 답변 뜨면 대기 표시 끔
-    expect(c.state.items.any((i) => i.senderType == 'bot'), isTrue);
+    expect(c.state.botThinking, isTrue); // ⭐ ack만으론 끄지 않는다 — 스트림을 기다린다
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isFalse);
+    c.applyBotDone(const BotDone(gen: 'g1', messageId: 'm1', routeTaken: 'rag'));
+    // 조각 없는 빠른 경로 — 대기는 끄고 DB에서 봇 답을 채운다.
+    expect(c.state.botThinking, isFalse); // 답 확정 → 대기 표시 끔
+    expect(repo.fetchCalls, contains('t1')); // 조각 없으면 DB 정본에서 채운다(reconcile)
   });
 
   test('[CHAT-ROOM-BOT-TYPING-01] 전송 실패해도 botThinking을 반드시 끈다(멈춘 채로 두지 않음)', () async {
@@ -335,18 +346,18 @@ void main() {
     });
   });
 
-  test('[CHAT-ROOM-SEND-04] handoff처럼 reply·card가 둘 다 없으면 "연결 중" 시스템 줄을 붙여 무응답을 막는다',
-      () async {
+  test('[CHAT-STREAM-01] ack가 staff(인계 후 사람 상담)면 봇 스트림을 기다리지 않고 대기를 끈다', () async {
+    // 이미 인계된 방: 서버가 AI를 안 돌리고 환자 메시지만 저장한다(ack routeTaken='staff').
+    //   답은 직원이 실시간(streamThread)으로 보내므로 botThinking을 켜 둔 채 두지 않는다.
     final repo = _FakeRepo()
       ..messages = []
-      ..sendResult = const SendResult(routeTaken: 'handoff'); // {ticket_id,reason}만 → bot/card 없음
+      ..sendResult = const SendResult(routeTaken: 'staff', gen: null);
     final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
     await c.load();
-    await c.send('증상 상담');
-    // 환자 말풍선 + 시스템 안내 줄(봇 말풍선 없음이어도 화면엔 무언가 보인다)
-    final sys = c.state.items.where((i) => i.messageType == 'system').toList();
-    expect(sys, isNotEmpty);
-    expect(sys.last.content, contains('직원에게 연결'));
+    await c.send('직원에게 추가 질문');
+    expect(c.state.botThinking, isFalse); // 스트림 대기 없음
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isFalse); // 봇 말풍선 만들지 않음
+    expect(c.state.items.last.sendState, ChatSendState.sent); // 환자 말풍선은 sent
   });
 
   test('[Q18] bindHandoff는 진입 즉시 인계 상태를 채운다(제출 후 무반응 해소)', () async {
@@ -403,18 +414,22 @@ void main() {
     });
   });
 
-  test('[CHAT-ROOM-SEND-04/Q11] reply도 card도 없는 일반 응답이면 봇 말풍선으로 폴백 — 마지막이 봇이라 [직원에게 연결] 칩이 뜬다', () async {
+  test('[CHAT-STREAM-01/OUTAGE-01] 빈 답(bot_done outage)이면 가짜 폴백 말풍선이 아니라 장애 화면으로 안내한다', () async {
+    // ⚠️ 예전엔 응답에 답이 없으면 "답변을 가져오지 못했어요" 봇 말풍선을 지어 붙였다 — 이 폴백이
+    //   스트리밍 전환 후 **매 메시지마다** 떠서 무응답처럼 보였다(2026-09-10 버그의 원흉). 이제 빈 답은
+    //   장애(ChatOutageView)로만 안내하고 가짜 말풍선을 만들지 않는다.
     final repo = _FakeRepo()
       ..messages = []
-      ..sendResult = const SendResult(routeTaken: 'rag'); // 드물게 rag가 reply=None
+      ..sendGen = 'g1';
     final c = ChatRoomController(repo, threadId: 't1', aiSessionId: 's1');
     await c.load();
     await c.send('의사 선생님 누가 계세요?');
-    // Q11: 무답변 폴백은 봇 말풍선(text/bot)이라 activeQuickReplies가 [직원에게 연결] 칩을 띄운다(막다른 길 금지).
-    final last = c.state.items.last;
-    expect(last.senderType, 'bot');
-    expect(last.content, contains('답변을 가져오지 못했어요'));
-    expect(last.content, contains('직원에게 연결'));
+    c.applyBotDone(const BotDone(gen: 'g1', routeTaken: 'outage', outage: true));
+    expect(c.state.outagePhase, OutageInquiryPhase.idle); // 전면 장애 안내
+    expect(c.state.botThinking, isFalse);
+    // 가짜 "답변을 가져오지 못했어요" 봇 말풍선을 만들지 않는다.
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isFalse);
+    expect(c.state.items.any((i) => (i.content ?? '').contains('가져오지 못했')), isFalse);
   });
 
   // ── Q19 AI 일시 장애(CHAT-OUTAGE-01) ────────────────────────────────────────
@@ -455,7 +470,7 @@ void main() {
     expect(c.state.items.any((i) => i.sendState == ChatSendState.failed), isTrue);
   });
 
-  test('[CHAT-OUTAGE-RECOVER-01] 장애 후 [다시 시도] 성공 = 같은 키 재전송 + 장애 해제, 봇 답변 표시', () async {
+  test('[CHAT-OUTAGE-RECOVER-01] 장애 후 [다시 시도] 성공 = 같은 키 재전송 + 봇 답(bot_done)이 오면 장애 해제', () async {
     final repo = _FakeRepo()
       ..messages = []
       ..sendError = ApiException('서버 오류', statusCode: 503);
@@ -463,12 +478,15 @@ void main() {
     await c.load();
     await c.send('두통이 심해요');
     final firstCid = repo.sentIds.single;
-    // 서버 복구 후 재시도.
+    expect(c.state.outagePhase, OutageInquiryPhase.idle); // 먼저 장애
+    // 서버 복구 후 재시도 — ack가 정상으로 오고, 봇 답은 실시간으로 온다.
     repo.sendError = null;
-    repo.botReply = '가까운 신경과를 안내드릴게요';
+    repo.sendGen = 'g2';
     await c.retryFromOutage();
-    expect(c.state.outagePhase, isNull); // 성공 왕복 → 장애 해제(방 복귀)
     expect(repo.sentIds, [firstCid, firstCid]); // 같은 멱등 키로 재전송(중복 방지)
+    c.applyBotDelta('g2', 1, '가까운 신경과를 안내드릴게요');
+    c.applyBotDone(const BotDone(gen: 'g2', messageId: 'm2', routeTaken: 'rag'));
+    expect(c.state.outagePhase, isNull); // 봇 답 도착 = 성공 왕복 → 장애 해제(방 복귀)
     expect(c.state.items.any((i) => i.senderType == 'bot' && i.content == '가까운 신경과를 안내드릴게요'), isTrue);
   });
 
@@ -494,5 +512,71 @@ void main() {
     await c.send('상담 문의');
     await c.submitOutageInquiry('문의 본문');
     expect(c.state.outagePhase, OutageInquiryPhase.error);
+  });
+
+  // ── [CHAT-STREAM-01] 실시간 봇 스트림 경로(webchat useWebchat과 동형) ─────────────
+  test('[CHAT-STREAM-01] 다른 회차(gen)의 조각·완료는 폐기한다(옛 답이 새 답을 덮지 않게)', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendGen = 'g2';
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('질문'); // 활성 회차 = g2
+    c.applyBotDelta('g1', 1, '옛 답 조각'); // 지난 회차 — 무시
+    expect(c.state.streaming, isNull);
+    c.applyBotDone(const BotDone(gen: 'g1', messageId: 'mX', routeTaken: 'rag')); // 지난 회차 완료 — 무시
+    expect(c.state.items.any((i) => i.senderType == 'bot'), isFalse);
+    expect(c.state.botThinking, isTrue); // 아직 g2를 기다린다
+  });
+
+  test('[CHAT-STREAM-01] bot_done에 카드가 실려 오면 확정 말풍선과 함께 카드도 붙인다', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendGen = 'g1';
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('예약할래요');
+    c.applyBotDelta('g1', 1, '예약을 도와드릴게요');
+    c.applyBotDone(const BotDone(
+        gen: 'g1', messageId: 'm1', routeTaken: 'agent',
+        card: {'card_type': 'time_select', 'candidates': []}));
+    expect(c.state.items.any((i) => i.senderType == 'bot' && i.content == '예약을 도와드릴게요'), isTrue);
+    expect(c.state.items.any((i) => i.messageType == 'card' && i.cardType == 'time_select'), isTrue);
+  });
+
+  test('[CHAT-STREAM-FALLBACK-01] 실시간이 유실되면(45초 무이벤트) DB 재조회로 복구한다(막다른 길 금지)', () {
+    fakeAsync((async) {
+      final repo = _FakeRepo()
+        ..messages = [
+          ChatFeedItem(
+              id: 'm1', messageType: 'text', senderType: 'bot',
+              content: 'DB에 저장된 봇 답', createdAt: DateTime(2026, 1, 1, 10)),
+        ]
+        ..sendGen = 'g1';
+      final c = ChatRoomController(repo, threadId: 't1');
+      c.load();
+      async.flushMicrotasks();
+      c.send('질문');
+      async.flushMicrotasks();
+      expect(c.state.botThinking, isTrue); // 스트림 대기 중
+      // 아무 bot_delta/bot_done도 안 온 채 45초 경과 → DB 정본에서 복구.
+      async.elapse(const Duration(milliseconds: 45000));
+      async.flushMicrotasks();
+      expect(c.state.botThinking, isFalse);
+      expect(repo.fetchCalls, contains('t1')); // reconcile 호출
+      expect(c.state.items.any((i) => i.content == 'DB에 저장된 봇 답'), isTrue);
+    });
+  });
+
+  test('[CHAT-STREAM-01] bot_done(성공)은 clearOutage로 장애를 해제한다', () async {
+    final repo = _FakeRepo()
+      ..messages = []
+      ..sendGen = 'g1';
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load();
+    await c.send('질문');
+    c.applyBotDelta('g1', 1, '답변입니다');
+    c.applyBotDone(const BotDone(gen: 'g1', messageId: 'm1', routeTaken: 'rag'));
+    expect(c.state.outagePhase, isNull);
   });
 }
