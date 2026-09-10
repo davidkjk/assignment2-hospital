@@ -6,7 +6,13 @@
 #
 # 흐름: ⓪응급(항상 최우선) → 직원요청은 '상담' 탭으로 부드럽게 안내 → 증상 있으면 바로 추천(없으면 1회 질문).
 #   Q3(2026-09-08): 진단식 다단질문 폐지. 매 발화에 respond가 "불명확하면 1회 질문 / 증상 있으면 바로 추천"으로 답한다.
+import re
+
 from app.services.chat import department_guide_chain, safety_watchdog
+
+# 정직 안내('우리 병원엔 그 과가 없어요') 신호. 이게 있으면 곁들인 안전 단서 과명을 주 추천으로
+#   오인하지 않는다(baseline §후9: "피부과 없어요"라며 곁들인 '내과'가 예약 카드로 붙던 오탐).
+_UNAVAILABLE_SIGNALS = ("없어요", "없습니다", "없는데", "개설되어 있지 않", "운영하지 않", "진료하지 않", "진료하지 않아")
 
 # 제한모드에선 직원 인계 티켓을 만들지 않는다(막다른 길 금지) — 상담 탭으로 안내하고 문진을 이어간다.
 REDIRECT_TO_CONSULT_REPLY = (
@@ -17,12 +23,22 @@ REDIRECT_TO_CONSULT_REPLY = (
 
 def _match_department(reply: str, departments: list[dict]) -> dict | None:
     """봇 답변 문장에 등장한 진료과명을 실제 목록과 매칭한다(DEPT-GUIDE-MATCH).
-    긴 이름 우선(예: '정형외과'를 '외과'로 잘못 잡지 않도록)."""
-    for d in sorted(departments, key=lambda x: len(x.get("name") or ""), reverse=True):
-        name = d.get("name")
-        if name and name in reply:
-            return d
-    return None
+    긴 이름 우선(예: '정형외과'를 '외과'로 잘못 잡지 않도록).
+
+    ⚠️ 정직 안내('그 과가 없어요') 답변에선 안전 단서로 곁들인 과명(예: "발열 동반 시 내과에서도
+       확인 가능")을 주 추천으로 오인하지 않는다 — 그 경우엔 '추천' 표지와 함께 등장한 과만 인정한다
+       (baseline §후9). 없는-과 신호가 없는 일반 추천은 종전대로 이름만으로 매칭(무회귀)."""
+    matched = [d for d in sorted(departments, key=lambda x: len(x.get("name") or ""), reverse=True)
+               if d.get("name") and d["name"] in reply]
+    if not matched:
+        return None
+    if any(sig in reply for sig in _UNAVAILABLE_SIGNALS):
+        # 정직 안내 문맥: '○○과…추천'처럼 추천 표지가 과명 직후(문장 내)에 붙은 과만 주 추천으로 인정.
+        for d in matched:
+            if re.search(re.escape(d["name"]) + r"[^.。!?\n]{0,15}추천", reply):
+                return d
+        return None
+    return matched[0]
 
 
 async def guide(*, message: str, history: list[str], departments: list[dict],

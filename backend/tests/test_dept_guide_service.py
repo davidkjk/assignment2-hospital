@@ -83,6 +83,29 @@ async def test_match_prefers_longer_department_name():
     assert out["suggested_department"]["name"] == "정형외과"
 
 
+# ── 정직 안내('없는 과') 시 곁들인 안전 단서 과를 주 추천으로 오인하지 않는다 (baseline §후9) ──
+# _match_department가 답변 속 과명을 무조건 매칭해, "피부과 없어요"라고 정직 안내하며 안전 단서로
+#   곁들인 '내과'를 suggested로 잡던 오탐 → 정직 안내인데 예약 카드가 붙는 모순. 없는-과 신호가 있으면
+#   '추천' 표지와 함께 등장한 과만 인정한다(정상 추천은 무회귀).
+
+@pytest.mark.asyncio
+async def test_honest_no_department_does_not_suggest_hedged_department():
+    reply = ("두드러기는 보통 피부과 진료가 필요한데 가온병원에는 피부과가 없어요. "
+             "가까운 피부과 병원을 권해드려요. 다만 발열이 동반되면 내과에서도 우선 확인해볼 수 있어요.")
+    out = await dept_guide_service.guide(
+        message="온몸에 두드러기가 나요", history=[], departments=_DEPTS, model=_Model(reply))
+    assert out["suggested_department"] is None            # 곁들인 '내과'를 추천으로 잡지 않음(카드 없음)
+
+
+@pytest.mark.asyncio
+async def test_explicit_recommendation_still_matched_despite_unavailable_signal():
+    # 없는-과 신호가 있어도 '추천드려요'로 명시 추천한 과는 정상 매칭한다(false-negative 방지).
+    reply = "피부과는 없어요. 다만 소화 문제는 내과를 추천드려요. 최종 선택은 직접 확인하세요."
+    out = await dept_guide_service.guide(
+        message="두드러기도 나고 배도 아파요", history=[], departments=_DEPTS, model=_Model(reply))
+    assert out["suggested_department"]["name"] == "내과"
+
+
 def test_redirect_reply_constant_mentions_consult_tab():
     assert "상담" in dept_guide_service.REDIRECT_TO_CONSULT_REPLY
 
