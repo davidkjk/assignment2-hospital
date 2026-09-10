@@ -63,7 +63,7 @@ def _rank_by_relevance(chunks):
 
 
 async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5,
-                     retrieval_query: str | None = None) -> dict:
+                     retrieval_query: str | None = None, on_delta=None) -> dict:
     # 검색용 질의는 동의어 확장(Sprint 1.2): "씨티"→"CT"도 함께 실어 임베딩·트라이그램이 KB 원문을 찾게 한다.
     # 화면·로그·LLM 질문에는 원문(message)을 그대로 쓴다 — 확장어가 환자에게 보이면 안 된다.
     # retrieval_query(Sprint 2): 후속 질문이면 orchestrate가 지시어를 푼 독립형 질의(+원문 concat)를 준다.
@@ -121,8 +121,22 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     messages.append(("human", "{q}"))
     prompt = ChatPromptTemplate.from_messages(messages)
     # format_messages + ainvoke — 주입 가짜모델(langchain Runnable 아님) 호환(Task 5·6과 동일).
-    resp = await (model or get_chat_model()).ainvoke(prompt.format_messages(**fmt))
-    reply = resp_text(resp).strip()
+    # on_delta가 주어지고 모델이 astream을 지원하면 조각을 흘리며 콜백을 호출한다(스트리밍).
+    #   센티넬(NO_ANSWER/NEEDS_CLARIFY) 판정은 아래에서 누적 완성본(reply)에 대해 그대로 수행한다 —
+    #   델타를 흘렸어도 최종 판정이 no_answer면 반환은 {no_answer:True}(클라가 bot_done으로 정정).
+    llm = model or get_chat_model()
+    prompt_messages = prompt.format_messages(**fmt)
+    if on_delta is not None and hasattr(llm, "astream"):
+        parts: list[str] = []
+        async for chunk in llm.astream(prompt_messages):
+            piece = resp_text(chunk)
+            if piece:
+                parts.append(piece)
+                on_delta(piece)
+        reply = "".join(parts).strip()
+    else:
+        resp = await llm.ainvoke(prompt_messages)
+        reply = resp_text(resp).strip()
     # 모델이 근거에 답이 없다고 판정 → 인계(no_answer). 코사인 컷 대신 모델을 관련성 판정자로 쓴다.
     #   ⚠️ 센티넬이 문장 「어디에 있든」 잡는다: "…없습니다.\n\nNO_ANSWER"처럼 모델이 지시를 어기고
     #   설명을 먼저 붙이면 == / startswith 는 놓쳐 센티넬 원문이 환자에게 그대로 노출됐다(2026-09-08 실측).
