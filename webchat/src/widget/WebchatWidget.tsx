@@ -39,7 +39,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
   // Q18③: 직원이 상담 상세를 실제로 열어 보는 중이면 배지가 "직원이 확인 중이에요"로(열람 presence).
   // [CHAT-ROOM-PATIENT-TYPING-01] 방향은 양쪽 — 같은 훅이 이 위젯(환자)의 입력 중을 직원에게 보낼 notifyTyping도 준다.
   // [CHAT-STREAM-01] 봇 답 스트리밍(bot_typing/delta/done)도 같은 채널로 받아 useWebchat에 반영한다.
-  const { staffViewing, notifyTyping } = useStaffPresence(w.session?.threadId, {
+  const { staffViewing, staffTyping, notifyTyping } = useStaffPresence(w.session?.threadId, {
     onBotTyping: w.applyBotTyping,
     onBotDelta: w.applyBotDelta,
     onBotDone: w.applyBotDone,
@@ -76,7 +76,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
             guideSlot={<GuideBanner active={w.guide.active} text={w.guide.text} />}
             // 인계 배지는 실제 인계가 시작(phase 확정)되거나 조회 실패일 때만 — 그 전엔 "상태 확인 중…"을 상시 노출하지 않는다.
             handoffSlot={(w.handoff.phase !== null || w.handoff.loadError)
-              ? <HandoffBadge status={w.handoff} staffViewing={staffViewing} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
+              ? <HandoffBadge status={w.handoff} staffViewing={staffViewing} staffTyping={staffTyping} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
               : null}
             // 긴급 안내(WEBCHAT-URGENT) — 감지 시 대화 위 고정 배너. 예약 CTA·연락처 수집은 함께 두지 않는다(URGENT-03·04).
             urgentSlot={w.urgent ? <UrgentNotice bookingCtaVisible={false} contactRequested={false} /> : null}

@@ -2,13 +2,14 @@ import type { HandoffStatus } from '../api/webchatApi';
 
 // Q18④ 상태 라벨(환자 관점). connecting=배정돼도 '확인 전'(Q18② 배정 숨김) / inProgress=실제 열람 presence(별도
 // realtime, 이번 범위 밖이지만 라벨은 미리) / answered=직원 이름·역할로 대신 표시.
-const LABEL: Record<'connecting' | 'inProgress' | 'answered', string> = {
-  connecting: '직원 확인 전이에요', inProgress: '직원이 확인 중이에요', answered: '답변 도착',
+const LABEL: Record<'connecting' | 'inProgress' | 'typing' | 'answered', string> = {
+  connecting: '직원 확인 전이에요', inProgress: '직원이 확인 중이에요',
+  typing: '직원이 입력 중이에요', answered: '답변 도착',
 };
 // 환자 노출 문구는 이것만 — 접수/등록·시간 약속 금지(정본 §0, Q18).
 const CONNECTING_MSG = '상담(직원 확인)으로 연결됐어요. 순서대로 확인해 답변드려요. 시간이 걸릴 수 있어요.';
 
-export function HandoffBadge({ status, staffViewing = false, onRetry }: { status: HandoffStatus; staffViewing?: boolean; onRetry: () => void }) {
+export function HandoffBadge({ status, staffViewing = false, staffTyping = false, onRetry }: { status: HandoffStatus; staffViewing?: boolean; staffTyping?: boolean; onRetry: () => void }) {
   if (status.loadError) {
     return (
       <div className="wc-handoff wc-handoff--error">
@@ -18,9 +19,12 @@ export function HandoffBadge({ status, staffViewing = false, onRetry }: { status
     );
   }
   if (status.phase === null) return <div className="wc-handoff wc-handoff--loading" role="status">상태 확인 중…</div>;
-  // Q18③: connecting(직원 확인 전)에 실제 열람 presence가 겹치면 "직원이 확인 중"으로 올린다.
-  // answered(답변 도착)는 열람 여부로 되돌리지 않는다(이미 답이 왔다).
-  const phase = status.phase === 'connecting' && staffViewing ? 'inProgress' : status.phase;
+  // Q18③·WEBCHAT-STAFF-TYPING-01: answered(답변 도착) 전이면 라이브 신호로 라벨을 올린다 — 입력 중이
+  // 열람보다 강한 신호다(직원 입력 중 > 직원 확인 중 > 확인 전). answered는 라이브 신호로 되돌리지
+  // 않는다(이미 답이 왔다). typing/viewing은 broadcast라 놓쳐도 자동 해제(useStaffPresence 안전 타임아웃).
+  const phase = status.phase !== 'answered' && staffTyping ? 'typing'
+    : status.phase === 'connecting' && staffViewing ? 'inProgress'
+    : status.phase;
   const isAnswered = phase === 'answered';
   // CHAT-HANDOFF-STATE-03: 직원이 [상담 종료]하면(closed) 같은 answered라도 '상담 종료'다 — 대화가 끝났으니
   //   담당자 이름·연결 안내를 더 붙이지 않는다(이어서 물으면 새 AI 세션이 시작된다).
