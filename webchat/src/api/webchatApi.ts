@@ -43,10 +43,11 @@ export interface WebchatApi {
   // 익명 토큰이 있으면 복원, 없으면 첫 상담 세션 시작. 서버가 토큰을 확정해 돌려준다.
   startOrRestoreSession(anonToken: string | null): Promise<SessionState>;
   fetchMessages(threadId: string): Promise<ThreadMessage[]>;
-  // 멱등: 같은 clientMessageId면 서버가 한 행만 만든다(§8-4). route_taken을 결과로 준다.
+  // 스트리밍 전환: 사용자 메시지만 저장하고 즉시 ack를 준다(봇 답은 실시간 채널). gen=답변 1건 식별 uuid.
+  //   멱등: 같은 clientMessageId면 서버가 한 행만 만든다(§8-4). routeTaken은 'staff'(인계 모드) 또는 null.
   sendMessage(args: {
     threadId: string; aiSessionId: string; content: string; clientMessageId: string;
-  }): Promise<{ routeTaken: string; botMessage?: ThreadMessage; cardMessage?: ThreadMessage; handoffTicketId?: string }>;
+  }): Promise<{ accepted: boolean; gen: string; routeTaken: string | null; userMessageId: string | null }>;
   fetchHandoff(threadId: string): Promise<HandoffStatus>;
   acknowledgeBatches(threadId: string): Promise<void>; // POST /chat/read
   // 로그인 전 예약 탐색(진료과·의사·날짜) — X-Anon-Token만, Bearer 없음(늦은 관문 ④). 다음 카드를 준다.
@@ -92,24 +93,13 @@ export function createWebchatApi(baseUrl: string, deps: WebchatApiDeps = {}): We
       return j.messages as ThreadMessage[];
     },
     async sendMessage(a) {
-      // 서버 응답(snake_case): { route_taken, message_id, reply, restricted_block, handoff_ticket_id? }.
-      // useWebchat이 기대하는 계약 { routeTaken, botMessage }로 매핑한다(reply → 봇 텍스트 말풍선).
+      // 서버 응답(ack): { accepted, threadId, userMessageId, gen, routeTaken }. 봇 답은 실시간(bot_delta/done).
       const j = await call('/chat/messages', { method: 'POST', body: JSON.stringify(a) }, null);
-      const reply: unknown = j.reply;
-      const botMessage: ThreadMessage | undefined =
-        typeof reply === 'string' && reply.length > 0
-          ? { id: j.message_id ?? `bot-${a.clientMessageId}`, senderType: 'bot', messageType: 'text', content: reply }
-          : undefined;
-      // WEBCHAT-NOANS: no_answer면 서버가 quick_replies 카드(FAQ + [직원에게 연결])를 함께 준다 → 카드 말풍선으로 매핑.
-      const card = j.card as Record<string, unknown> | null | undefined;
-      const cardMessage: ThreadMessage | undefined =
-        card && typeof card.card_type === 'string'
-          ? { id: `card-${a.clientMessageId}`, senderType: 'bot', messageType: 'card', content: null, payload: card }
-          : undefined;
       return {
-        routeTaken: (j.route_taken ?? j.routeTaken ?? '') as string,
-        botMessage, cardMessage,
-        handoffTicketId: j.handoff_ticket_id ?? j.handoffTicketId,
+        accepted: !!j.accepted,
+        gen: (j.gen ?? '') as string,
+        routeTaken: (j.routeTaken ?? j.route_taken ?? null) as string | null,
+        userMessageId: (j.userMessageId ?? j.user_message_id ?? null) as string | null,
       };
     },
     async fetchHandoff(threadId) {

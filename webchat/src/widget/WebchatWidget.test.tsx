@@ -13,7 +13,7 @@ function fakeApi(sess: SessionState = session): WebchatApi {
   return {
     startOrRestoreSession: vi.fn(async () => sess),
     fetchMessages: vi.fn(async () => sess.messages),
-    sendMessage: vi.fn(async () => ({ routeTaken: 'rag' })),
+    sendMessage: vi.fn(async () => ({ accepted: true, gen: 'g1', routeTaken: null, userMessageId: 'u1' })),
     fetchHandoff: vi.fn(async (): Promise<HandoffStatus> => ({ phase: 'connecting', isOpen: true })),
     acknowledgeBatches: vi.fn(async () => {}),
     navigateAction: vi.fn(), revalidateAction: vi.fn(), executeCard: vi.fn(), createHandoffTicket: vi.fn(), attributeSessionToAccount: vi.fn(),

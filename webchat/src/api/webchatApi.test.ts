@@ -36,24 +36,23 @@ test('[⑦] getAccessToken이 없으면(토큰 미확보) Authorization을 붙�
   expect((fetchMock.mock.calls[0][1]!.headers as Record<string, string>)['Authorization']).toBeUndefined();
 });
 
-test('[sendMessage] 서버 snake_case 응답(route_taken·reply)을 { routeTaken, botMessage } 계약으로 매핑한다', async () => {
+test('[sendMessage] 서버 ack(accepted·gen·routeTaken·userMessageId)를 그대로 매핑한다', async () => {
+  // 스트리밍 전환: /chat/messages는 봇 답을 싣지 않고 ack만 준다(봇 답은 실시간 채널).
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-    new Response(JSON.stringify({ route_taken: 'rag', message_id: 'b9', reply: '네, 대기실 무료 와이파이(GAON-GUEST)를 이용하실 수 있습니다.', restricted_block: null }), { status: 200 }));
+    new Response(JSON.stringify({ accepted: true, threadId: 't1', userMessageId: 'u9', gen: 'g9', routeTaken: null }), { status: 200 }));
   const api = createWebchatApi('http://x');
   const out = await api.sendMessage({ threadId: 't1', aiSessionId: 's1', content: '와이파이 되나요?', clientMessageId: 'm1' });
   expect(fetchMock.mock.calls[0][0]).toBe('http://x/chat/messages');
-  expect(out.routeTaken).toBe('rag');
-  expect(out.botMessage).toMatchObject({ id: 'b9', senderType: 'bot', messageType: 'text', content: '네, 대기실 무료 와이파이(GAON-GUEST)를 이용하실 수 있습니다.' });
+  expect(out).toMatchObject({ accepted: true, gen: 'g9', routeTaken: null, userMessageId: 'u9' });
 });
 
-test('[sendMessage] reply가 없으면 봇 말풍선을 만들지 않는다(routeTaken만 전달)', async () => {
+test('[sendMessage] 인계 모드(routeTaken=staff)도 ack로 그대로 전달한다', async () => {
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-    new Response(JSON.stringify({ route_taken: 'handoff', message_id: null, reply: null, handoff_ticket_id: 'tk9' }), { status: 200 }));
+    new Response(JSON.stringify({ accepted: true, threadId: 't1', userMessageId: 'u2', gen: 'g2', routeTaken: 'staff' }), { status: 200 }));
   const api = createWebchatApi('http://x');
-  const out = await api.sendMessage({ threadId: 't1', aiSessionId: 's1', content: '직원 연결', clientMessageId: 'm2' });
-  expect(out.routeTaken).toBe('handoff');
-  expect(out.botMessage).toBeUndefined();
-  expect(out.handoffTicketId).toBe('tk9');
+  const out = await api.sendMessage({ threadId: 't1', aiSessionId: 's1', content: '직원분 안녕', clientMessageId: 'm2' });
+  expect(out.routeTaken).toBe('staff');
+  expect(out.gen).toBe('g2');
 });
 
 test('[Step1] createHandoffTicket은 인계 엔드포인트로 이름·연락처·요약을 POST한다', async () => {

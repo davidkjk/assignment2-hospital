@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useWebchat } from './useWebchat';
-import type { WebchatApi, SessionState, ThreadMessage } from '../api/webchatApi';
+import type { WebchatApi, SessionState } from '../api/webchatApi';
 import { saveAnonToken, loadAnonToken, clearAnonToken } from './anonSession';
 
 const session: SessionState = { threadId: 't1', aiSessionId: 's1', anonToken: 'TOK', messages: [] };
@@ -8,8 +8,8 @@ function fakeApi(over: Partial<WebchatApi> = {}): WebchatApi {
   return {
     startOrRestoreSession: vi.fn(async () => session),
     fetchMessages: vi.fn(async () => []),
-    sendMessage: vi.fn(async () => ({ routeTaken: 'rag', botMessage: {
-      id: 'b1', senderType: 'bot', messageType: 'text', content: '네, 가능합니다' } as ThreadMessage })),
+    // 스트리밍 전환: sendMessage는 ack만 준다(봇 답은 실시간). 봇 동작은 useWebchat.stream.test.ts가 덮는다.
+    sendMessage: vi.fn(async () => ({ accepted: true, gen: 'g1', routeTaken: null, userMessageId: 'u1' })),
     fetchHandoff: vi.fn(async () => ({ phase: null, isOpen: true })),
     acknowledgeBatches: vi.fn(async () => {}),
     navigateAction: vi.fn(), revalidateAction: vi.fn(), executeCard: vi.fn(), createHandoffTicket: vi.fn(), attributeSessionToAccount: vi.fn(),
@@ -64,48 +64,21 @@ test('[WEBCHAT-ROOM-08] 전송은 clientMessageId를 부여해 멱등 — 같은
   expect(call.content).toBe('주차 되나요?');
 });
 
-test('[WEBCHAT-NOANS] no_answer 응답은 봇 안내 말풍선과 quick_replies 카드를 함께 피드에 붙인다', async () => {
-  const api = fakeApi({ sendMessage: vi.fn(async () => ({
-    routeTaken: 'no_answer',
-    botMessage: { id: 'b1', senderType: 'bot', messageType: 'text', content: '바로 답을 찾지 못했어요' } as ThreadMessage,
-    cardMessage: { id: 'c1', senderType: 'bot', messageType: 'card', content: null,
-      payload: { card_type: 'quick_replies', options: ['진료시간이 어떻게 되나요'], handoff_chip: '직원에게 연결' } } as ThreadMessage,
-  })) });
-  const { result } = renderHook(() => useWebchat(api));
-  await act(async () => { await result.current.open(); });
-  await act(async () => { await result.current.send('우리 동네 약국 어디'); });
-  const card = result.current.messages.find((m) => m.messageType === 'card');
-  expect(card?.payload?.card_type).toBe('quick_replies');                             // 칩 카드가 피드에 들어온다
-  expect(result.current.messages.some((m) => m.content === '바로 답을 찾지 못했어요')).toBe(true); // 안내 말풍선도 함께
-});
-
-test('[WEBCHAT-URGENT] route_taken=emergency면 긴급 상태를 켜고, 다음 일반 턴 성공이면 자동 해제', async () => {
-  const send = vi.fn()
-    .mockResolvedValueOnce({ routeTaken: 'emergency', botMessage: {
-      id: 'e1', senderType: 'bot', messageType: 'text', content: '지금 위급한 상황일 수 있어요' } })
-    .mockResolvedValueOnce({ routeTaken: 'rag' });
-  const api = fakeApi({ sendMessage: send });
-  const { result } = renderHook(() => useWebchat(api));
-  await act(async () => { await result.current.open(); });
-  await act(async () => { await result.current.send('숨을 못 쉬겠어요') ; });
-  expect(result.current.urgent).toBe(true);           // 긴급 감지 → 배너 켜짐
-  await act(async () => { await result.current.send('주차 되나요?'); });
-  expect(result.current.urgent).toBe(false);          // 일반 턴이 성공하면 해제(URGENT-01 재분류)
-});
-
-test('[WEBCHAT-OUTAGE] 서버 5xx 실패면 장애 상태를 켜고, 성공 왕복이면 배너를 걷는다', async () => {
+test('[WEBCHAT-OUTAGE] ack 전송이 5xx면 장애를 켜고, 봇 답 도착(applyBotDone)이면 배너를 걷는다', async () => {
   const send = vi.fn()
     .mockRejectedValueOnce(new Error('webchat_api_500'))
-    .mockResolvedValueOnce({ routeTaken: 'rag' });
+    .mockResolvedValueOnce({ accepted: true, gen: 'g2', routeTaken: null, userMessageId: 'u2' });
   const api = fakeApi({ sendMessage: send });
   const { result } = renderHook(() => useWebchat(api));
   await act(async () => { await result.current.open(); });
   await act(async () => { await result.current.send('진료시간 알려줘'); });
-  expect(result.current.outage).toBe('idle');         // AI 장애 안내 켜짐(WEBCHAT-OUTAGE-01)
+  expect(result.current.outage).toBe('idle');         // ack 전송 5xx = AI 장애 안내 켜짐(WEBCHAT-OUTAGE-01)
   expect(result.current.messages.some((m) => m.sendState === 'failed')).toBe(true); // 실패 말풍선과 공존(ROOM-09)
   const failed = result.current.messages.find((m) => m.sendState === 'failed');
   await act(async () => { await result.current.resend(failed!.clientMessageId!); });
-  expect(result.current.outage).toBeNull();           // 성공 왕복으로만 복구(CHAT-OUTAGE-RECOVER-01)
+  // resend는 ack만 받는다 — 실제 봇 답(applyBotDone)이 도착해야 장애 해제(성공 왕복으로만 복구).
+  act(() => result.current.applyBotDone({ gen: 'g2', messageId: 'b2', routeTaken: 'rag', card: null, outage: false }));
+  expect(result.current.outage).toBeNull();           // CHAT-OUTAGE-RECOVER-01
 });
 
 test('[WEBCHAT-OUTAGE] 4xx(세션 등)은 장애로 보지 않는다 — 배너를 띄우지 않는다', async () => {
@@ -116,22 +89,16 @@ test('[WEBCHAT-OUTAGE] 4xx(세션 등)은 장애로 보지 않는다 — 배너�
   expect(result.current.outage).toBeNull();           // 4xx는 AI 장애가 아님(다른 경로가 처리)
 });
 
-test('[WEBANON-HANDOFF] 타이핑으로 직원 연결을 요청하면(route_taken=handoff) 인계 폼을 연다', async () => {
-  const onHandoffRequested = vi.fn();
-  const api = fakeApi({ sendMessage: vi.fn(async () => ({ routeTaken: 'handoff' })) });
-  const { result } = renderHook(() => useWebchat(api, { onHandoffRequested }));
-  await act(async () => { await result.current.open(); });
-  await act(async () => { await result.current.send('직원에게 연결해주세요'); });
-  expect(onHandoffRequested).toHaveBeenCalledWith('t1'); // 세션 threadId로 인계 폼(WEBANON-HANDOFF) 트리거
-});
-
 test('[WEBANON-HANDOFF] 일반 응답(rag)에서는 인계 폼을 열지 않는다', async () => {
   const onHandoffRequested = vi.fn();
-  const api = fakeApi(); // 기본 sendMessage는 routeTaken='rag'
+  const api = fakeApi(); // 기본 ack(routeTaken=null) — 인계 아님
   const { result } = renderHook(() => useWebchat(api, { onHandoffRequested }));
   await act(async () => { await result.current.open(); });
   await act(async () => { await result.current.send('주차 되나요?'); });
   expect(onHandoffRequested).not.toHaveBeenCalled(); // 인계가 아닌 턴은 폼을 열지 않음
+  // 봇 done이 rag면 여전히 폼을 안 연다(handoff일 때만 — 인계 전이는 stream 테스트가 덮는다).
+  act(() => result.current.applyBotDone({ gen: 'g1', messageId: 'b1', routeTaken: 'rag', card: null, outage: false }));
+  expect(onHandoffRequested).not.toHaveBeenCalled();
 });
 
 test('[WEBCHAT-ROOM-09] 전송 실패면 말풍선을 failed로 두고 resend는 같은 clientMessageId로 재전송', async () => {
