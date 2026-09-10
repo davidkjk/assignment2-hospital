@@ -1124,6 +1124,50 @@ Haiku로 내리는 판단은 **모두 결정적 안전 게이트(응급·진단�
 #### (E) 판정
 "봇 무용지물"의 원인은 품질 튜닝이 아니라 **색인 미생성 1스텝** — 재임베딩으로 즉시 회복(12/15). 남은 라우팅·검색은 **모델 확대가 아니라 프롬프트 원칙·리랭커**로. (사용자 논의: "질문마다 규칙"은 불가·"원칙+eval"이 정석 / LangChain 확대는 이해력을 안 늘림 — 이해는 모델 몫, LangChain은 배관.)
 
+### 9.16 브랜치 A — 저비용 품질 스위치 3종 (2026-09-10 세션56, 구현·커밋 / 배포·측정 대기)
+
+> §9.15(D)가 남긴 두 갈래("모델 안 키우고 해결") 중 **라우팅(A)**을 구현하고, 실사용 중 관찰된 **센티넬 노출**·**JSON 손파싱 취약성**을 함께 손봤다. 세션54 실행계획 1단계. 검색 리콜(§9.15(D)-(B))은 범위 밖(재검색 루프=2단계·조건부).
+
+#### (A) 의도·전체 그림
+**의도.** 사용자의 두 불만 = **"봇이 틀린 답을 한다"**와 **"너무 쉽게 직원 연결로 넘긴다(과잉 인계)"**. 세션53~54에서 이 둘의 뿌리가 **프레임워크가 아니라 검색·KB·라우팅**임을 확인했고, 독립 평가서는 LangGraph 전면 재작성을 **"현 시점 과설계"**로 판정했다. 그래서 방침은 **①측정으로 실패 유형을 먼저 가르고 → ②값싼 개선을 먼저 넣고 → ③그래도 남는 검색 실패에만 "1회 재검색"을 조건부로**. 브랜치 A는 이 중 **②값싼 개선**이다. 목표는 "품질을 한 번에 완성"이 아니라 **되돌릴 수 있는 작은 개선을 실환경에서 측정 가능하게 얹는 것** — 그리고 사용자 결정에 따라 **브랜치 B(LangGraph 전면 재설계)를 실제로 만들어 A와 실환경 A/B로 대조**해, "과설계" 여부를 말이 아니라 숫자로 판정한다.
+
+**전체 그림.** 두 불만 중 **"틀린 답"의 라우팅 갈래** + **스트리밍 UX 버그** + **파싱 견고성** 셋을, LangGraph 없이 값싸게 친다. 세 개 전부 **on/off 스위치 + 격리 브랜치**(`feat/chatbot-branch-a`, 커밋 `5cef3f3`+`9f3b40a`)이며 **기본 OFF = 현재 동작 그대로** — 배포해도 코드만 실리고, env로 켜야 발동한다. (과잉 인계 자체는 `safety_watchdog` 소관이라 브랜치 A 밖이지만, 라우팅 교정이 "정보질문→예약→막다름→직원연결"로 새던 경로 하나를 줄인다.)
+
+| 스위치(env) | 무엇을 고치나 | 대상 파일 |
+|---|---|---|
+| `CHAT_STREAM_SENTINEL_GUARD` | 봇 답 스트리밍 중 `NO_ANSWER`/`NEEDS_CLARIFY` 영어 내부코드가 화면에 잠깐 노출 | `rag_service.py` |
+| `CHAT_CONSERVATIVE_ROUTING` | 정보 질문이 예약(agent)으로 오라우팅 → 막다른 길 | `conversation_understanding.py`·`chat_router.py` |
+| `CHAT_STRUCTURED_UNDERSTANDING` | 이해기 JSON을 손으로 파싱(형식 위반에 취약) | `conversation_understanding.py` |
+
+#### (B) 각 스위치 상세 + 구현하며 확정한 디테일
+1. **센티넬 노출 가드** — RAG 스트리밍이 근거부재·되묻기 센티넬 원문을 조각(delta)으로 노출하던 버그(§9.12 스트리밍 전환의 부작용). **구현 디테일**: 스트리밍 루프를 순수 헬퍼 `rag_service._astream_reply(llm, msgs, on_delta, *, sentinel_guard)`로 추출(순수라 DB 없이 단위 검증 가능). 가드 ON이면 ⑴ 누적 버퍼에 센티넬이 잡히면 이후 조각 전송 중단(`suppressed`), ⑵ 정상 답변도 **끝자락 `_SENTINEL_HOLD`(=`NEEDS_CLARIFY` 길이)글자는 보류**했다 종료 시 마저 전송 — 조각 경계를 가로질러 형성되는 센티넬을 놓치지 않기 위함. **불복 케이스**(모델이 설명 먼저 쓰고 뒤에 `NO_ANSWER`)에선 한국어 설명 일부가 흘러도 **영어 센티넬 토큰은 절대 안 나간다**(최종 판정이 그 답을 no_answer로 폐기·정정). 가드 OFF면 **옛 루프와 바이트 단위 동일**.
+2. **보수적 라우팅** — §9.15(D)-(A)의 직접 구현. **구현 디테일**: 원칙 문구를 `_CONSERVATIVE_ROUTING_PRINCIPLE` **단일 상수**로 두고 라이브 경로 `understand()`와 폴백 `classify()`가 **같은 상수를 import 공유**(문구 갈림 방지). 두 함수에 `conservative_routing: bool | None` **주입 파라미터**를 추가해(기본 None→`settings`) 테스트가 설정 전역을 건드리지 않고 분기를 검증하게 함. ⚠️ §9.15(D) 실측대로 **Sonnet↔Haiku 무관·프롬프트 문제**라 모델 확대 없이 프롬프트로.
+3. **구조화 출력** — 손파싱(`raw.find("{")…json.loads`)을 진짜 모델 `with_structured_output(UnderstandingSchema)`로 교체([^29]). **구현 디테일**: `UnderstandingSchema`(pydantic) 6필드 **전부 안전 기본값** — 모델이 일부를 빠뜨려도 검증 통과, 이후 정규화 로직이 그대로 처리. 반환이 BaseModel이면 `model_dump()`, dict면 그대로. **진짜 `ChatAnthropic`(=`with_structured_output` 보유)일 때만 발동**하고 가짜/미지원 모델은 손파싱 폴백 → 기존 mock·오프라인 계약 무회귀(§2.4 파이프 회피 원칙 유지). 구조화 호출 실패는 `try/except→None`로 레거시 폴백(장애 전파 없음).
+- config 3플래그 전부 `default False`(`app/core/config.py`), env로 켠다.
+
+#### (C) 되돌리기·롤아웃 설계 (기본 OFF인 이유)
+세션54 확정: "브랜치·스위치로 되돌리기 가능하게". ⑴ **staged rollout** — env를 하나씩 켜며 같은 종단셋으로 효과를 격리 측정. ⑵ **되돌리기 3겹** — env `false`(즉시)·Railway 브랜치 원위치·Deployments Rollback. ⑶ 기본 OFF라 **배포 자체가 무해**. 평가서(`docs/research/chatbot-redesign-eval-2026-09-10.md`)의 "측정 먼저 → 값싼 개선 → 조건부 재검색 루프" 순서.
+
+#### (D) 검증 — 테스트 두 층 (+ 구현 중 확정한 실행법)
+- **순수 단위테스트 11건 신규**(TDD, `test_rag_sentinel_guard`·`test_conservative_routing`·`test_structured_understanding`) + 기존 이해기·라우터·오케스트레이터 **무회귀 = 70 passed**. 각 스위치의 ON/OFF 분기·폴백을 결정적으로 검증: 센티넬 억제·정상답 전량 전달·프롬프트 원칙 주입 여부·구조화 경로 vs 손파싱 폴백·가짜모델 폴백.
+- ⚠️ **테스트 실행법(구현 중 확정)**: conftest `_cleanup_committed_data`가 **autouse**라 어떤 pytest든 공용 로컬 DB를 truncate한다(kb·chat·환자 시드 소실). 브랜치 A 테스트는 전부 DB 불필요이므로 **`--noconftest` + 더미 env**(`DATABASE_URL` 등)로 돌려 **공용 DB를 전혀 안 건드리고** 통과시켰다. venv=main `backend/.venv`(워크트리엔 없음).
+- **종단 측정 도구 `backend/scripts/bot_probe.py`(신규)** — 익명 curl 15문항(`POST /chat/sessions`→`/messages`→GET 폴링, **문항마다 새 세션**=멀티턴 오염 방지)으로 `routeTaken`·봇 답을 기록, `--label` JSON 저장, `--diff` 대조. 문항=**정보질문 오라우팅·검색놓침·안전 불변식**(진단 요구 인계·증상=진료과) 겨냥. **구현 디테일**: CA 없는 환경 대비 `--insecure`(자기 소유 URL 측정용). 라우팅 정확도는 이 **실측이 판정**(단위테스트는 프롬프트 배선만 보증).
+- **DB 통합 게이트 보류**: `test_rag_stream`(스트리밍 리팩터)은 플래그 OFF=리팩터 전과 **동일 경로**임을 순수 헬퍼 테스트로 이미 증명 → 공용 DB 보호 위해 평상시 회귀 때 커버.
+
+#### (E) 저장소·프로세스 디테일
+- 격리 워크트리 `feat/chatbot-branch-a`, base=`0d5fe33`(로컬 merge/design tip). origin/merge/design-integration은 `13d4f85`(프로덕션 배포본)라 **백엔드 A/B 차이는 스위치뿐**(clean 대조). 로컬이 origin보다 3커밋 앞섬(`4c343c6` 환자앱·docs 2건, 세션52 미push) — 백엔드 무영향.
+- 병렬 트랙 주의: 다른 터미널이 동시에 **`🔵 세션55`(직원↔환자 실시간 배선 버그)**를 진행 중 — 파일 경계가 달라 브랜치 A와 안 겹친다.
+
+#### (F) 대조 계획 (⓪/Ⓐ/Ⓑ 3자, 같은 실환경)
+같은 `bot_probe.py` 15문항·같은 프로덕션 KB(재임베딩된 181청크)로 순차 측정: **⓪현재**(스위치 OFF) → **Ⓐ브랜치A**(env 3개 ON) → **Ⓑ브랜치B**(LangGraph 전면 재설계, 별도 브랜치). 배포=Railway `gaonhospital-api` 소스 브랜치 전환(`railway.json`이 NIXPACKS+startCommand 못박아 빌더리셋 위험 없음). 사용자 결정: 평가서의 "과설계" 평결을 말로 받지 말고 **A와 B를 실제로 만들어 실환경 대조**.
+
+#### (G) 측정 결과 — 재측정 후 채움
+> ⏳ **미실행**(코드·단위검증은 완료, 행동 검증은 실배포 후 `bot_probe --diff` 실행 시 아래를 채운다).
+- **⓪ baseline**(현재 프로덕션, 스위치 OFF): _(표: 문항·routeTaken·요지 — bot_probe_baseline.json)_
+- **Ⓐ branchA_on**(env 3개 ON): _(표 — bot_probe_branchA_on.json)_
+- **핵심 대조 포인트**: ⑴ 정보질문 3건(진단서 발급·사전문진·CT 물)의 route가 agent→rag로 교정됐나 ⑵ 진짜 예약/취소/변경 3건이 agent 유지됐나(과보정 없음) ⑶ 센티넬 영어 노출 사라졌나 ⑷ 안전 불변식(진단요구 인계·증상=진료과) 무회귀 ⑸ CT류 검색 리콜 — 여전히 no_answer면 **2단계(조건부 재검색 루프) 착수의 실측 근거**.
+- **Ⓑ branchB**(LangGraph): _(별도 브랜치 완성 후)_ — A/B/⓪ 3자 표 + 채택 판정.
+
 ---
 
 ## Sources
