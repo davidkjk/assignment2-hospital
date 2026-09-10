@@ -30,8 +30,10 @@ EMERGENCY_REPLY_MENTAL = (
     "이 상담은 전문 심리상담이나 응급 진료를 대신할 수 없어요."
 )
 
-# 6가지 인계 조건 = support_tickets 생성 사유(late_cancellation은 도구가 별도 생성).
-LLM_ESCALATION_LABELS = {"medical_judgment", "data_mismatch", "complaint"}
+# 인계 사유 = support_tickets 생성 사유(late_cancellation은 도구가 별도 생성). medical_judgment는
+# §9.10 P0(2026-09-10) 이후 결정적 denylist(check_diagnosis_request)가 판정하고, LLM은 판정하지 않는다.
+# LLM이 판정하는 사유는 data_mismatch(안내가 틀렸다는 주장)·complaint(불만)뿐이다(P1에서 구조화 예정).
+LLM_ESCALATION_LABELS = {"data_mismatch", "complaint"}
 
 # 명시적 직원 연결 요청 — 결정적(응급처럼 AI 확률판단에 안 맡김). 사용자가 직접 사람을 찾으면 바로 인계한다.
 # "연결/바꿔/문의/물어" 같은 연결 의도어를 반드시 함께 담아 "직원분 친절해요?" 같은 단순 언급은 안 걸리게 큐레이션.
@@ -87,6 +89,31 @@ def check_department_inquiry(text: str) -> bool:
     return any(k.replace(" ", "") in t for k in DEPARTMENT_INQUIRY_KEYWORDS)
 
 
+# 진단·처방·검사결과 해석 요구 — 요구사항 1.5("봇은 의사처럼 진단·약 추천 금지, 의료 판단 필요 질문은 인계").
+# §9.10 P0(2026-09-10 사용자 승인): LLM "medical_judgment" 선판정을 제거하고, 여기에 걸릴 때만 결정적으로 인계한다.
+# 그 외 증상 서술("배가 아파")·정책 질문("마스크 꼭…")·진료과 문의·검사 준비(rag)는 봇이 답하거나 진료과를 추천한다.
+# 큐레이션 목록(병원과 함께 확장 가능). check_department_inquiry(allowlist)의 대응 — 이쪽은 인계 denylist.
+# ⚠️ 검사 준비 KB 질문("검사 결과 언제 나오나요"·"검사 전 먹어도 되나요")을 오탐하지 않도록 표현을 좁힌다.
+DIAGNOSIS_REQUEST_KEYWORDS = [
+    # 진단 요구(병명 판정)
+    "무슨 병", "무슨 병이", "병명", "암인가", "암일까", "진단해", "진단 좀", "진단받",
+    # 약·처방 요구(어떤 약·복용량·처방)
+    "무슨 약", "어떤 약", "약 추천", "약을 추천", "약 먹어야", "약을 먹어야",
+    "약 먹어도", "약을 먹어도", "얼마나 먹어야", "며칠 먹어야", "복용", "처방",
+    # 검사 결과 해석 요구(수치·결과의 정상/비정상 판정) — "언제 나오나요"류 안내와 구분
+    "결과 해석", "이 수치", "수치가 정상", "검사 결과 어때", "검사 결과 괜찮",
+]
+
+
+def check_diagnosis_request(text: str) -> bool:
+    """진단·처방·검사결과 해석 요구인지 — 결정적 판단(요구사항 1.5, 정본 §9.10 P0).
+
+    걸리면 봇이 답을 시도하지 않고 인계(medical_judgment)한다. 증상 서술·정책 질문·검사 준비는 걸리지 않는다.
+    """
+    t = text.replace(" ", "")
+    return any(k.replace(" ", "") in t for k in DIAGNOSIS_REQUEST_KEYWORDS)
+
+
 def check_repeated(history_texts: list[str], current: str, threshold: int = 3) -> bool:
     same = sum(1 for h in history_texts if h.strip() == current.strip()) + 1
     return same >= threshold
@@ -101,28 +128,25 @@ async def check_escalation(text, history_texts, *, unhelpful_flagged=False,
         return "no_answer"
     if check_repeated(history_texts, text):
         return "repeated"
-    # AI 판단 조건: 의료판단 필요 / 정보 불일치 주장 / 불만. 아니면 None.
+    # §9.10 P0(2026-09-10 사용자 승인): 진단·처방·결과해석 요구만 결정적으로 medical_judgment 인계한다.
+    #   옛 방식은 답 시도 전 LLM 한 단어로 medical_judgment를 선판정해, 증상 서술("배가 아파")·정책 의무형
+    #   ("마스크 꼭 써야 하나요?", 재현 5/5)까지 인계로 쓸려 대화가 통째로 "직원 연결"로 끝났다(§9.10 A).
+    #   이제 진단요구(denylist)만 인계하고, 그 외 증상·정책 질문은 None을 돌려 정상 갈래(dept_guide/rag)로 흐른다.
+    #   진료과 문의는 애초에 denylist에 없어 통과한다(요구사항 L49·L57 vs 1.5).
+    if check_diagnosis_request(text):
+        return "medical_judgment"
+    # 남은 LLM 판단 조건: 정보 불일치 주장(data_mismatch) / 불만(complaint). 아니면 None.
     # ⚠️ prompt | model 파이프 대신 format_messages + ainvoke — 주입 모델(테스트 가짜)이
     #    langchain Runnable이 아니어도 물리게 한다. 실제 ChatAnthropic도 ainvoke를 그대로 받는다.
     llm = model or get_chat_model()
     prompt = ChatPromptTemplate.from_messages([
         ("system", "환자 메시지를 다음 중 하나로만 분류하세요: "
-                   "medical_judgment(진단·치료 판단 요구), data_mismatch(안내가 틀렸다는 주장), "
-                   "complaint(불만·항의), none(해당 없음). 한 단어만 답하세요."),
+                   "data_mismatch(안내가 틀렸다는 주장), complaint(불만·항의), "
+                   "none(해당 없음). 한 단어만 답하세요."),
         ("human", "{text}"),
     ])
     resp = await llm.ainvoke(prompt.format_messages(text=text))
     label = resp_text(resp).strip()
     if label not in LLM_ESCALATION_LABELS:
         return None
-    # "어느 과 가야하나"류 진료과 문의가 medical_judgment로 잡혀도 인계하지 않고 진료과 안내(department_guide)로 넘긴다.
-    # 진단어("무슨 병")가 없으면 안내가 맞다(요구사항 L49·L57 vs L51). 상위 orchestrator가 이어서 classify로 department_guide 판정.
-    if label == "medical_judgment" and check_department_inquiry(text):
-        return None
-    # ⚠️ 정책성 질문 과오탐(2026-09-07 원격 e2e 발견): "마스크 꼭 써야 하나요?"류 의무형이
-    # medical_judgment로 일관 오분류돼(재현 5/5) RAG 도달 전 인계된다(KB엔 "권장" 답이 있고
-    # "마스크 착용 규정?"·"감염 예방 수칙"은 rag로 정답). **사용자 결정 2026-09-07: 현행 유지** —
-    # 안전측 인계 우선(설계 철학 "오탐<미탐"), 예시 1건으로 카브아웃을 신설하면 진짜 의료판단 인계를
-    # 억누를 위험이 더 크다. 정책성 질문 인계가 운영 중 반복되면 위 check_department_inquiry 선례처럼
-    # 결정적 카브아웃을 신설한다(그때 screen-behaviors+결정문서 정본화). 기각: 지금 카브아웃 신설.
     return label

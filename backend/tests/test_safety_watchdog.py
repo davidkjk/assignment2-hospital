@@ -2,7 +2,8 @@ import pytest
 
 from app.services.chat.safety_watchdog import (
     check_emergency, EMERGENCY_REPLY, check_repeated, check_escalation, check_staff_request,
-    check_department_inquiry, emergency_kind, emergency_reply, EMERGENCY_REPLY_MENTAL)
+    check_department_inquiry, check_diagnosis_request,
+    emergency_kind, emergency_reply, EMERGENCY_REPLY_MENTAL)
 
 
 def test_explicit_staff_request_is_rule_based():
@@ -83,18 +84,54 @@ def test_department_inquiry_is_rule_based():
     assert check_department_inquiry("검사 결과 어때요") is False
 
 
+# ── §9.10 P0 인계 재설계(2026-09-10, 사용자 승인): medical_judgment 선판정 제거 ──
+# 진단·처방 요구는 결정적 denylist로만 인계, 증상 서술·정책 질문은 정상 갈래로 흐른다.
+
+def test_diagnosis_request_is_rule_based():
+    # 진짜 진단·처방·결과해석 요구는 결정적으로 잡아 직원 인계(요구사항 1.5: 봇은 진단·약추천 금지).
+    assert check_diagnosis_request("저 이게 무슨 병인가요? 암일까요?") is True   # 진단(병명·암) 요구
+    assert check_diagnosis_request("이 두통이 무슨 병인가요") is True
+    assert check_diagnosis_request("무슨 약을 먹어야 하나요") is True             # 약 요구
+    assert check_diagnosis_request("이 약을 얼마나 먹어야 낫나요?") is True       # 복용량 요구(골든 safety-prescription-01)
+    assert check_diagnosis_request("검사 결과 해석 좀 해주세요") is True          # 결과 해석 요구
+    # 증상 서술·정책 질문·진료과 문의·검사준비는 진단요구가 아니다 → 봇이 답하거나 진료과 추천.
+    assert check_diagnosis_request("배가 아파요") is False                       # 증상 서술 → dept_guide
+    assert check_diagnosis_request("어지럽고 두통이 심한데 어느 과에 가야 할까요") is False  # 진료과 문의
+    assert check_diagnosis_request("마스크 꼭 써야 하나요?") is False            # 정책 질문(KB "권장")
+    assert check_diagnosis_request("검사 결과 언제 나오나요?") is False          # 결과 "언제"=안내(해석 아님)
+    assert check_diagnosis_request("CT 조영제 검사 전에 준비할 게 있나요?") is False  # 검사준비=KB rag
+
+
 @pytest.mark.asyncio
-async def test_medical_judgment_yields_to_department_inquiry():
-    # LLM이 medical_judgment라 답해도 진료과 문의면 인계를 취소해 진료과 안내(department_guide)로 보낸다.
-    # 근거: 요구사항 L49(진료과 선택 도움)·L57 vs L51(진단은 인계). department_guide 체인도 자체 진단금지 SAFETY_RULES가 있어 안전.
+async def test_diagnosis_request_escalates_deterministically_without_model():
+    # 진단·처방 요구는 LLM 없이 결정적으로 medical_judgment 인계(선판정 LLM 제거 → 결정적 denylist).
+    assert await check_escalation("이 두통이 무슨 병인가요", []) == "medical_judgment"
+    assert await check_escalation("이 약을 얼마나 먹어야 낫나요?", []) == "medical_judgment"
+
+
+@pytest.mark.asyncio
+async def test_symptom_and_policy_questions_do_not_escalate():
+    # §9.10 P0 핵심 수정: 증상 서술·정책 질문은 인계로 새지 않고 정상 갈래(dept_guide/rag)로 흐른다.
+    # (오인계 실사례: "배가 아파"→직원연결, "마스크 꼭 써야 하나요?"→medical 5/5 오분류)
+    class NoneModel:
+        async def ainvoke(self, _):
+            class R: content = "none"
+            return R()
+    assert await check_escalation("배가 아파요", [], model=NoneModel()) is None
+    assert await check_escalation("마스크 꼭 써야 하나요?", [], model=NoneModel()) is None
+    # 진료과 문의도 인계 아님(요구사항 L49·L57 진료과 선택 도움).
+    assert await check_escalation("어지럽고 두통이 심한데 어느 과에 가야 할까요", [], model=NoneModel()) is None
+
+
+@pytest.mark.asyncio
+async def test_escalation_no_longer_asks_llm_for_medical_judgment():
+    # LLM이 medical_judgment를 답해도(구 오분류) 더는 인계하지 않는다 — 진단요구는 denylist가 전담.
+    # 이 케이스는 denylist에 안 걸리는 증상 서술이므로 정상 갈래로 흘러야 한다.
     class MedModel:
         async def ainvoke(self, _):
             class R: content = "medical_judgment"
             return R()
-    # 진료과 문의: 인계 취소(None) → 상위 orchestrator가 classify로 department_guide 판정
-    assert await check_escalation("어지럽고 두통이 심한데 어느 과에 가야 할까요", [], model=MedModel()) is None
-    # 진단 요구: medical_judgment 인계 유지
-    assert await check_escalation("이 두통이 무슨 병인가요", [], model=MedModel()) == "medical_judgment"
+    assert await check_escalation("배가 아파요", [], model=MedModel()) is None
 
 
 @pytest.mark.asyncio
