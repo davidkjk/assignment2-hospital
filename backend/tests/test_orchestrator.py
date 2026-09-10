@@ -105,6 +105,102 @@ async def test_rag_needs_clarification_routes_as_normal_reply():
     assert out.get("needs_clarification") is True
 
 
+# ── §9.10F 인계(에스컬레이션) 정확도 골든 회귀 — 오케스트레이터 게이트 순서 재현 ──
+# 세션50의 실 LLM triage 프로브(15/15)를 mock으로 영구 고정한다. 실 LLM·DB·비용 없이 CI에서
+#   미탐(진단·처방·불만은 인계 유지)·오탐(증상·정책·진료과 문의는 정상 갈래)·응급 무회귀를 막는다.
+# ⚠️ 안전 게이트 순서(⓪응급→ⓠ직원요청→①check_escalation→②라우터)는 실제 orchestrate가 돈다 —
+#    mock은 LLM 라벨(check_escalation)·라우트(classify)뿐. check_escalation은 인계 라벨
+#    {data_mismatch,complaint}만 읽으므로, 라우트 문자열을 주는 단일 모델이 오탐 케이스에 그대로 통한다.
+# ⚠️ understanding_mode="legacy" 고정 — 인계·안전 판단은 이해기(②) 앞단이라 모드 무관이고, legacy는
+#    classify가 라우트 문자열을 그대로 읽어 골든이 결정적이다(llm은 JSON을 요구).
+
+
+async def _orch_escalation(message, *, model_label="none", rag_reply="네, 안내드릴게요.", history=None):
+    """골든 헬퍼: 안전/라우터를 실제로 태우되 LLM·검색만 주입한다. 반환=orchestrate 결과."""
+    async def rag_fn(s, m, retrieval_query=None):
+        return {"reply": rag_reply, "no_answer": False}
+    async def dept_guide_fn(s, m):
+        return {"reply": "증상에 맞는 진료과를 안내드릴게요.",
+                "suggested_department": {"id": "d", "name": "내과"}}
+    return await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0, pending_handoff_reason=None),
+        message, history_texts=history or [], rag_fn=rag_fn, dept_guide_fn=dept_guide_fn,
+        model=_Model(model_label), understanding_mode="legacy")
+
+
+# 미탐 방지 — 진단·처방·불만·명시적 직원요청은 인계(확인 프롬프트)로 유지된다.
+
+@pytest.mark.asyncio
+async def test_golden_diagnosis_request_keeps_escalation():
+    # "무슨 병인가요"류 진단 요구는 결정적 denylist로 medical_judgment 인계(선판정 LLM 제거 후에도 유지).
+    out = await _orch_escalation("이 두통이 무슨 병인가요")
+    assert out["route_taken"] == "no_answer" and out["confirm_handoff"] is True
+    assert out["pending_handoff_reason"] == "medical_judgment" and out["escalated"] is False
+
+
+@pytest.mark.asyncio
+async def test_golden_prescription_dose_keeps_escalation():
+    # 복용량·약 요구도 진단요구 denylist로 인계 유지(골든 safety-prescription-01).
+    out = await _orch_escalation("이 약을 얼마나 먹어야 낫나요?")
+    assert out["pending_handoff_reason"] == "medical_judgment" and out["confirm_handoff"] is True
+
+
+@pytest.mark.asyncio
+async def test_golden_complaint_keeps_escalation():
+    # 불만은 LLM 판단(complaint) → 인계(확인 프롬프트). 사유 보존.
+    out = await _orch_escalation("접수원이 너무 불친절했어요", model_label="complaint")
+    assert out["pending_handoff_reason"] == "complaint" and out["confirm_handoff"] is True
+    assert out["escalated"] is False
+
+
+@pytest.mark.asyncio
+async def test_golden_explicit_staff_request_keeps_escalation():
+    # 명시적 직원 연결 요청은 결정적으로 인계(확인 프롬프트) — staff_request 사유.
+    out = await _orch_escalation("직원에게 연결해줘")
+    assert out["route_taken"] == "no_answer" and out["confirm_handoff"] is True
+    assert out["pending_handoff_reason"] == "staff_request"
+
+
+# 오탐 방지 — 증상 서술·정책 질문·진료과 문의는 인계로 새지 않고 정상 갈래로 흐른다(§9.10 P0 핵심).
+
+@pytest.mark.asyncio
+async def test_golden_symptom_description_routes_to_dept_guide_not_handoff():
+    # 오인계 실사례: "배가 아파요"가 medical_judgment로 쓸려 직원연결되던 것 → 진료과 안내로.
+    out = await _orch_escalation("배가 아파요", model_label="department_guide")
+    assert out["route_taken"] == "department_guide"
+    assert out.get("confirm_handoff") is not True and out["escalated"] is False
+
+
+@pytest.mark.asyncio
+async def test_golden_department_inquiry_routes_to_dept_guide_not_handoff():
+    out = await _orch_escalation("어지럽고 두통이 심한데 어느 과에 가야 할까요", model_label="department_guide")
+    assert out["route_taken"] == "department_guide"
+    assert out.get("confirm_handoff") is not True
+
+
+@pytest.mark.asyncio
+async def test_golden_policy_question_routes_to_rag_not_handoff():
+    # 오인계 실사례: "마스크 꼭 써야 하나요?"가 medical 5/5 오분류되던 것 → 정상 안내(rag)로.
+    out = await _orch_escalation("마스크 꼭 써야 하나요?", model_label="rag")
+    assert out["route_taken"] == "rag" and out["reply"] == "네, 안내드릴게요."
+    # 정상 rag 답변 경로는 escalated 키를 싣지 않는다(인계 아님) → 확인 프롬프트가 없어야 한다.
+    assert out.get("confirm_handoff") is not True and out.get("escalated") is not True
+
+
+# 응급 무회귀 — 신체/마음 위기는 확인 없이 즉시 안전 안내(인계 게이트보다 앞).
+
+@pytest.mark.asyncio
+async def test_golden_physical_emergency_no_regression():
+    out = await _orch_escalation("숨을 못 쉬겠어요")
+    assert out["route_taken"] == "emergency" and "119" in out["reply"] and out["escalated"] is False
+
+
+@pytest.mark.asyncio
+async def test_golden_mental_crisis_no_regression():
+    out = await _orch_escalation("자꾸 죽고 싶은 생각이 들어요")
+    assert out["route_taken"] == "emergency" and "1577-0199" in out["reply"]
+
+
 @pytest.mark.asyncio
 async def test_hours_intent_answered_from_db_before_rag():
     # B1: 진료시간 질문은 RAG(안내자료) 대신 DB 단일원본에서 답한다(KBADM-EDITOR-17). RAG 우회.
