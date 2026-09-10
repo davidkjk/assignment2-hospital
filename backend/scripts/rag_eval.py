@@ -11,8 +11,9 @@
 
 주의:
 - 키가 없으면 아무 것도 호출하지 않고 안내만 출력한다(자동 테스트·CI 안전).
-- expected_route=="rag" 케이스의 검색/답변 품질을 잰다. 라우팅 정확도(경로가 맞는 갈래로
-  갔는가)는 대화 이해기 전면 통합 후 확장한다.
+- expected_route=="rag" 케이스의 검색/답변 품질(Recall@k·근거 충실성·금지 주장)을 잰다.
+- triage(category가 "triage"로 시작) 케이스는 dept_guide_service.guide로 태워 진료과 추천
+  정확도(증상→과, 없는 과는 정직 안내=추천 없음)를 별도로 잰다(§9.9F 측정 배선).
 - 멀티턴 재작성 반영(Sprint 2): 이력이 있고 후속 신호가 있으면 프로덕션 chat_flow_service.rag_fn과
   똑같이 conversation_understanding으로 독립형 검색 질의를 만들어 검색에 쓴다(원문은 LLM 질문·채점에).
 - no_answer 세분화(Sprint 2): needs_clarification(되묻기)은 정상 흐름이라 recall/근거 집계에서 뺀다.
@@ -27,9 +28,19 @@ from app.core.config import settings
 from app.integrations.embedding_client import EmbeddingClient
 from app.integrations.langchain_client import get_chat_model
 from app.services.chat import (rag_service, eval_scoring as sc, conversation_understanding as cu,
-                               intent_precheck)
+                               intent_precheck, dept_guide_service)
 
 CASES_PATH = Path(__file__).resolve().parent.parent / "evals" / "chatbot_cases.jsonl"
+
+# 데모 병원 진료과 4개(seed_demo.sql). triage 케이스를 이 목록으로 dept_guide에 태워
+#   진료과 추천 정확도(증상→과)를 잰다. id는 채점에 안 쓰이고(이름만 매칭) suggested 페이로드
+#   형태를 맞추기 위한 자리표시자다. 목록 밖 과(피부·산부인·정신건강 등)는 '정직 안내'가 정답이다.
+DEMO_DEPARTMENTS = [
+    {"id": "dept-im", "name": "내과"},
+    {"id": "dept-ortho", "name": "정형외과"},
+    {"id": "dept-ent", "name": "이비인후과"},
+    {"id": "dept-peds", "name": "소아과"},
+]
 
 
 def load_cases() -> list[dict]:
@@ -102,6 +113,29 @@ async def run_rag_case(case: dict, embedder, model, mode: str = "legacy") -> dic
     }
 
 
+async def run_triage_case(case: dict, departments, model) -> dict:
+    """triage(증상→진료과) 케이스를 dept_guide_service.guide로 태워 진료과 추천을 채점한다.
+
+    - suggested_department 이름을 expected_department와 department_match로 대조한다.
+    - expected_department=None('우리 병원에 없는 과')이면 봇이 목록 안의 과를 추천하지 않는 것(None)이
+      정답(정직 안내). 목록에 있는 엉뚱한 과를 추천하면 실패한다.
+    - dept_guide는 세션·DB가 없어(무상태) LLM만 mock/실모델로 태우면 된다(라우팅 정확도 축).
+    """
+    message, history = case_message_and_history(case)
+    result = await dept_guide_service.guide(
+        message=message, history=history, departments=departments, model=model)
+    dept = result.get("suggested_department")
+    suggested = dept["name"] if dept else None
+    expected = case.get("expected_department")
+    return {
+        "query": message,
+        "suggested": suggested,
+        "expected": expected,
+        "department_ok": sc.department_match(expected, suggested),
+        "emergency": result.get("emergency", False),
+    }
+
+
 async def main(route_filter: str | None, verbose: bool, mode: str = "legacy") -> None:
     if not settings.openai_api_key or not settings.anthropic_api_key:
         print("⚠️ OPENAI_API_KEY·ANTHROPIC_API_KEY가 필요합니다(로컬 DB도). 키를 넣고 다시 실행하세요.")
@@ -156,12 +190,30 @@ async def main(route_filter: str | None, verbose: bool, mode: str = "legacy") ->
     print("  카테고리별 평균 Recall:")
     for cat, vals in sorted(by_cat.items()):
         print(f"    {cat:<12} {sum(vals)/len(vals):.2f}  (n={len(vals)})")
-    print("\n  ※ ↻=후속질문 재작성을 태운 케이스. 라우팅 정확도는 대화 이해기 전면 통합 후 확장.")
+    print("\n  ※ ↻=후속질문 재작성을 태운 케이스.")
+
+    # ── triage(증상→진료과) 정확도 (§9.9F 측정 배선) ──
+    triage_cases = [c for c in cases if c.get("category", "").startswith("triage")]
+    if triage_cases and route_filter in (None, "department_guide"):
+        print("\n── triage(증상→진료과 추천) ──")
+        n_dept_ok = 0
+        for c in triage_cases:
+            r = await run_triage_case(c, DEMO_DEPARTMENTS, model)
+            n_dept_ok += r["department_ok"]
+            exp = r["expected"] or "없음(정직 안내)"
+            got = r["suggested"] or "없음"
+            flag = "" if r["department_ok"] else "  ← 확인"
+            print(f"[{c['id']:<24}] 기대={exp}  추천={got}{flag}")
+            if verbose:
+                print(f"    reply={r.get('query')!r}")
+        print(f"  진료과 추천 정확도: {n_dept_ok}/{len(triage_cases)} "
+              f"({n_dept_ok/len(triage_cases)*100:.0f}%)")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--route", default=None, help="특정 expected_route만(현재 rag만 지원)")
+    ap.add_argument("--route", default=None,
+                    help="특정 축만: rag(검색/답변 품질) | department_guide(triage 진료과 정확도)")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--mode", default="legacy", choices=["legacy", "llm"],
                     help="질문 이해 방식 A/B: legacy(classify+rewrite) | llm(understand 1콜)")

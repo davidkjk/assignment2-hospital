@@ -198,6 +198,66 @@ def test_triage_cases_have_valid_expected_department():
         assert dept is None or dept in demo_depts, f"{c['id']}: 진료과는 데모 4과 또는 null이어야(현재 {dept!r})"
 
 
+# ── 러너: triage(증상→진료과) 정확도 측정 배선 (§9.9F 마감) ──
+# dept_guide_service.guide()를 실제로 태워 suggested_department 이름을 department_match로 채점한다.
+# LLM만 mock(불가피), 진료과 매칭·정직 안내 로직은 실제 코드가 돈다.
+
+
+def test_demo_departments_are_the_four_seed_departments():
+    # 러너가 triage 케이스를 돌릴 진료과 목록 = seed_demo.sql의 데모 4과와 정확히 일치해야 한다
+    #   (없는 과를 목록에 넣으면 '정직 안내'가 무너지고, 있는 과가 빠지면 추천을 못 잡는다).
+    names = {d["name"] for d in rag_eval.DEMO_DEPARTMENTS}
+    assert names == {"내과", "정형외과", "이비인후과", "소아과"}
+
+
+@pytest.mark.asyncio
+async def test_run_triage_case_scores_matched_department_ok():
+    # 봇이 목록 안의 과(정형외과)를 추천하면 suggested가 그 과가 되고, 기대 과와 같으면 통과.
+    case = {"id": "triage-ortho-01", "category": "triage",
+            "turns": [{"role": "user", "content": "발목을 삐끗했어요"}],
+            "expected_department": "정형외과"}
+    model = _Model("발목 통증은 정형외과를 추천드려요. 최종 선택은 직접 확인하세요.")
+    r = await rag_eval.run_triage_case(case, rag_eval.DEMO_DEPARTMENTS, model)
+    assert r["suggested"] == "정형외과"
+    assert r["department_ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_triage_case_scores_wrong_department_as_fail():
+    # 기대(내과)와 다른 과를 추천하면 실패로 채점된다(오라우팅 검출).
+    case = {"id": "triage-internal-01", "category": "triage",
+            "turns": [{"role": "user", "content": "배가 아프고 소화가 안 돼요"}],
+            "expected_department": "내과"}
+    model = _Model("정형외과를 추천드려요.")
+    r = await rag_eval.run_triage_case(case, rag_eval.DEMO_DEPARTMENTS, model)
+    assert r["suggested"] == "정형외과"
+    assert r["department_ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_run_triage_case_honest_no_department_passes_when_none_recommended():
+    # 없는 과(생리→산부인과)는 '정직 안내(추천 없음)'가 정답: 봇이 목록 과를 추천하지 않으면 suggested None → 통과.
+    case = {"id": "triage-none-obgyn-01", "category": "triage-none",
+            "turns": [{"role": "user", "content": "생리통이 심해요"}],
+            "expected_department": None}
+    model = _Model("생리통은 산부인과 진료가 필요한데 가온병원에는 없어요. 가까운 병원이나 상담을 이용해 주세요.")
+    r = await rag_eval.run_triage_case(case, rag_eval.DEMO_DEPARTMENTS, model)
+    assert r["suggested"] is None
+    assert r["department_ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_triage_case_penalizes_inventing_missing_department():
+    # 없는 과인데 목록 밖 과를 억지로 못 잡게: 목록에 있는 과를 잘못 추천하면(생리→소아과) 실패.
+    case = {"id": "triage-none-obgyn-01", "category": "triage-none",
+            "turns": [{"role": "user", "content": "생리통이 심해요"}],
+            "expected_department": None}
+    model = _Model("소아과를 추천드려요.")
+    r = await rag_eval.run_triage_case(case, rag_eval.DEMO_DEPARTMENTS, model)
+    assert r["suggested"] == "소아과"
+    assert r["department_ok"] is False
+
+
 @pytest.mark.asyncio
 async def test_resolve_understanding_skips_understanding_for_intent_message():
     # 프로덕션은 진료시간·의사명단을 이해기 앞단(intent_precheck ①-b)이 DB로 답한다 → 이해기·재작성 둘 다
