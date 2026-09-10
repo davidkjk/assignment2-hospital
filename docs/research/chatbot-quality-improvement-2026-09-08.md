@@ -893,6 +893,80 @@ triage(증상→과) 라우팅 정확도를 A/B에 붙이기(③ 골든셋 `e6a7
   정직한 미지원+대면 예약 안내 추가. 진료의뢰서·증명서(원무과)는 이미 KB에 있어 무작업. 외국인 통역은 KB에
   이미 '지원'으로 있어 **현행 유지**(사용자 결정, 요구사항 침묵). ⚠️ 원격=KB 재적재+재임베딩.
 
+### 9.10 인계(에스컬레이션) 로직 재설계 — "한 단어 인계"의 구조적 결함과 대안 (2026-09-10 추가)
+
+> §9.9에서 **라우팅**을 이해기로 통합했지만, **인계 판단(`check_escalation`)은 통합 대상이 아니었다**(§9.9A "안전은 통합 대상 아님"). 그 결과 §9.9(F)가 defer한 **triage 정확도** 문제와, 데모 대화에서 관찰된 **오인계**("배가 아파"→직원연결, "마스크 꼭 써야 하나요?"→medical 5/5)가 그대로 남았다. 이 절은 원인을 코드로 좁히고 업계·웹 자료와 대조해 **대안을 설계**한다. 코드 착수 전 **설계·승인 단계**(HARD-GATE).
+
+#### (A) 현재 구조와 결함 — 코드 확인
+
+- **위치**: `orchestrator.orchestrate` **①단계**(라우터·검색 ②보다 앞) → 오분류가 나면 **대화 전체가 "연결할까요?"로 종료**된다. `safety_watchdog.check_escalation`.
+- **결정적 선판정**: `unhelpful` / `no_answer` / `repeated`(같은 **글자** 3회) → 그 라벨.
+- **LLM 한 단어 분류**: `medical_judgment` / `data_mismatch` / `complaint` / `none`. 프롬프트가 `("human","{text}")` = **현재 메시지 한 줄만**(문맥 없음).
+- **카브아웃**: `medical_judgment` + `check_department_inquiry`("어느 과" 키워드)면 `None`(진료과 안내로 보냄).
+- **알려진 오탐(코드 주석)**: 의무형 어미("~해야 하나요")가 `medical_judgment`로 5/5 오분류. 결정=현행 유지(오탐<미탐).
+
+| # | 결함 | 결과 |
+|---|---|---|
+| 1 | 거부권 가진 맨 앞 관문 | 오분류 = 대화 전체가 인계로 종료(라우터 오분류보다 비용 큼) |
+| 2 | 답 가능 여부 안 보고 인계 | KB에 답이 있어도 선차단("마스크"=KB "권장" 답 존재) |
+| 3 | "오탐<미탐"을 인계에 전용 | 응급 전용 철학인데 과인계 = 봇 무능·직원 부하·막힌 느낌 |
+| 4 | 문맥 없음 | 이해기가 라우팅엔 문맥을 붙였으나 인계엔 안 붙임(§9.1 확인) |
+| 5 | 라벨 정의 ≠ 발동 | "배가 아파"는 진단요구가 아닌 증상 서술인데 medical로 쓸림 |
+| 6 | 비결정성 | 같은 말이 다른 라벨(재현·디버깅 곤란) |
+| 7 | 문법 패턴 과민 | 의무형 어미만으로 medical 쏠림 |
+| 8 | 수리법이 카브아웃 추가뿐 | §7.1 안티패턴("문제마다 키워드 예외")을 설계가 강요 |
+| 9 | 매 메시지 LLM 왕복 | 대부분 `none`인데 호출 — Supavisor 풀 민감(§9.2) |
+| 10 | 불투명 | 사유·근거 미기록 → 튜닝 곤란(00099는 라벨만 보존) |
+
+#### (B) 업계·웹 자료 대조 (2026-09-10 검색)
+
+- **인계 트리거 3종**: ①명시적 요청(첫 요청에 즉시·무조건) ②감정(연속 sentiment 점수) ③능력한계(confidence)[^25][^26].
+- **확신도 기반**: 답 확신도가 임계값(≈70%) 미만이거나 **같은 의도 2회 실패** 시 인계 — "추측 말고 넘겨라"[^25][^27].
+- 인계는 **실패의 증거가 아니라 설계된 안전장치**, 잘 튜닝된 봇의 인계율 벤치 **15~25%**[^26][^28].
+- 한 단어 대신 **구조화 출력**(JSON 스키마·함수콜) 권장[^29].
+- **임베딩 최근접 라우팅**으로 런타임 LLM 분류를 대체 가능(일관·저비용)[^30]. LLM 라우팅은 도구가 많거나 복잡하면 **brittle** → 명확한 건 규칙/임베딩, 애매한 것만 LLM[^30].
+
+**우리 코드 대조**: 명시적 요청 ✅(`check_staff_request`) · 감정 ⚠️(`complaint` 한 라벨, 점수 아님) · 능력한계 ❌(**답 시도 전** 선판정) · 반복 ⚠️(글자 3회 vs 의도 2회).
+
+#### (C) 목표 설계 — 원칙
+
+⭐ **인계는 "답을 시도한 뒤"의 신호로 낸다**(겉모양 선판정 금지). 팀이 이미 `no_answer`를 이 방향으로 바꿨다(자동 인계 폐기 → 시도 후 칩, `WEBCHAT-NOANS`) — **같은 논리를 `medical_judgment`에 확장**한다.
+
+**안전 불변식(절대 유지)**:
+- ⓪ 응급(`emergency_kind`) 최우선·규칙 기반 불변. **"오탐<미탐"은 응급 전용.**
+- 명시적 직원 요청(`check_staff_request`) 첫 요청에 즉시.
+- **진짜 진단·처방 요구**("무슨 병","무슨 약","약 얼마나","검사 결과 해석")는 여전히 인계(요구사항 L51). ← 이것과 "증상 서술"을 가르는 것이 설계의 핵심.
+
+#### (D) 단계별 안 (데모 규모 반영)
+
+- **P0 (즉시·저위험)** — `check_escalation`에서 **`medical_judgment` 선판정을 뺀다**.
+  - 증상 서술("배가 아파")·정책 의무형("마스크 꼭…")은 인계 대신 **정상 갈래(`department_guide`/`rag`)로 흐르게** 한다.
+  - **진단요구는 결정적 규칙(denylist)으로만 인계 유지** — "어느 과"를 면제하는 allowlist(`check_department_inquiry`)의 반대로, "무슨 병·무슨 약·처방·결과 해석"류 **진단요구 키워드가 있을 때만** 인계. 그 외 증상은 통과.
+  - 남은 인계는 **답 시도 후 `no_answer` 칩 + `repeated` + 명시적 불만**으로 좁힌다.
+  - **회귀 가드**: 안전 케이스(응급·진단요구·명시적요청) 무회귀 + triage 골든셋(§9.9F `e6a7162`) 측정 배선.
+- **P1 (다음)** — `check_escalation`을 남기되 **구조화 출력** `{reason, confidence, evidence}`로 바꾼다. **확신도 임계값** 적용, **최근 대화(문맥) 주입**(문제4·6 해소). `data_mismatch`·`complaint`를 문맥+확신도로 판단.
+- **P2 (defer, 근거 쌓인 뒤)** — 분류를 **임베딩 최근접**으로(비결정성·비용 해소). `complaint`를 **연속 감정 점수**로 대체.
+
+#### (E) 파일·함수 매핑
+
+- `orchestrator.orchestrate`: ①②단계 순서·`medical_judgment` 처리 위치.
+- `safety_watchdog.check_escalation`(핵심 수정) · `check_department_inquiry`(→진단요구 denylist로 대체/보완) · `check_staff_request`·`emergency_kind`(불변).
+- `rag_service`: `HYBRID_FLOOR`(0.30) `no_answer`가 **능력한계 신호의 근거**.
+- 마이그: P1 구조화 사유 저장은 00099 `ai_chat_sessions.pending_handoff_reason`(CHECK=6사유) 재사용/확장.
+
+#### (F) 측정·완료 판정
+
+- 안전 **무회귀**(응급·진단요구·명시적요청 100% 유지) — 최우선.
+- "배가 아파"·"마스크 꼭 써야 하나요?"가 **인계 아닌 정상 답/진료과 추천**으로.
+- triage 골든셋 통과(§9.9F 측정 배선).
+- **인계율 15~25%** 벤치 관찰 — 00098 되묻기 계기판과 같은 방식으로 인계 사유별 집계 SQL.
+- 오탐(불필요 인계) 감소를 대화 로그로 확인.
+
+#### (G) YAGNI / 경계
+
+- 데모에선 **P0만으로 transcript 오인계 중 "배가 아파"·"마스크"류가 풀린다.** P1은 오탐이 계속 관찰될 때, P2(임베딩·감정)는 규모·근거가 요구될 때.
+- ⛔ **인계 판단을 이해기에 통째로 합치지 않는다** — 안전 게이트 약화 위험, §9.9A 원칙 유지.
+
 ---
 
 ## Sources
@@ -921,6 +995,12 @@ triage(증상→과) 라우팅 정확도를 A/B에 붙이기(③ 골든셋 `e6a7
 [^22]: Zhang, Yanzhao, et al. “[Qwen3 Embedding: Advancing Text Embedding and Reranking Through Foundation Models](https://arxiv.org/html/2506.05176v1).” 2025. 한국어 등 비영어에서의 견고성 / BGE-M3의 dense·sparse·multi-vector 통합과 다국어·긴 컨텍스트. 모델 카드·논문 근거.
 [^23]: Sifei / AILS-NTUA / uva-irlab. “[SemEval-2026 Task 8: Multi-Turn RAG](https://arxiv.org/pdf/2606.28352).” 2026. 후속 메시지의 약 60%가 미해결 지시어, 재작성 독립질의+원문 concat이 단독보다 우수, HyDE 대비 패러프레이즈의 저비용·저위험.
 [^24]: Voyage AI. “[rerank-2.5](https://blog.voyageai.com/2024/09/30/rerank-2/)” / Jina AI. “[jina-reranker-v2-base-multilingual](https://huggingface.co/jinaai/jina-reranker-v2-base-multilingual)” / Mixpeek. “[Best Rerankers for RAG](https://mixpeek.com/curated-lists/best-rerankers).” 다국어 재랭커(자체호스팅 bge-reranker-v2-m3, 호스티드 Cohere/Jina/Voyage) 비교. 벤더/커뮤니티 자료이므로 선택 전 평가셋 검증 필요.
+[^25]: Soon. “[AI-to-Human Escalation: When Bots Need an Agent](https://soon.works/blog/bridging-ai-and-human-support-when-to-escalate-from-bot-to-agent).” 인계 트리거 3종(명시적·감정·능력한계), 명시적 요청은 즉시·무조건. 벤더 블로그이므로 방향 확인용.
+[^26]: Cobbai. “[Escalation Done Right: Best Practices for Handing Off from Chatbot to Human](https://cobbai.com/blog/chatbot-escalation-best-practices).” 인계는 설계된 안전장치, 트리거 유형·인계율 관점. 벤더 블로그.
+[^27]: Bluetweak. “[AI-to-Human Handoff: Best Practices for Support Escalation in 2026](https://www.bluetweak.com/blog/ai-to-human-handoff).” 확신도 임계값(≈70%)·2회 연속 실패 시 인계·"추측 말고 넘겨라". 벤더 블로그.
+[^28]: Bucher + Suter. “[Escalation Design: Why AI Fails at the Handoff (Not the Automation)](https://www.bucher-suter.com/escalation-design-why-ai-fails-at-the-handoff-not-the-automation/).” 인계 시 문맥 보존이 해결속도 35~45% 개선, 인계율 벤치 15~25%. 컨설팅 블로그.
+[^29]: Vellum. “[A Beginner's Guide to LLM Intent Classification for Chatbots](https://www.vellum.ai/blog/how-to-build-intent-detection-for-your-chatbot).” 신뢰성 위해 few-shot·구조화 출력(JSON/함수콜) 권장. 벤더 블로그.
+[^30]: mkbctrl. “[Intent Recognition and Auto-Routing in Multi-Agent Systems](https://gist.github.com/mkbctrl/a35764e99fe0c8e8c00b2358f55cd7fa).” 임베딩 최근접으로 런타임 LLM 분류 대체, LLM 라우팅은 도구 많으면 brittle → 규칙/임베딩+LLM 혼합. 커뮤니티 자료이므로 방향 확인용.
 [^19]: 보건복지부. “[분산된 자살예방 상담전화 1월 1일부터 ‘109’로 통합 운영](https://www.mohw.go.kr/board.es?mid=a10503010100&bid=0027&act=view&list_no=1479607).” 2024. 자살예방상담 109 통합(옛 1393)·정신건강 위기상담 1577-0199. (§9.8 ② 근거)
 [^20]: Easy Clinic. “[Intelligent triage: how AI healthcare chatbots are transforming clinics](https://www.easyclinic.io/intelligent-triage-begins-here-how-ai-healthcare-chatbots-are-transforming-clinics/).” 2025. 메시지 의도 분류·triage 정확도·감정 감지 에스컬레이션. (§9.8 ③)
 [^21]: IntuitionLabs. “[Healthcare Chatbot Platforms: A Guide & Comparison](https://intuitionlabs.ai/articles/healthcare-chatbot-platforms).” 인계 시 전체 맥락 전달·red-flag 하드코딩·불확실 시 상향 에스컬레이션·클리니컬 비네트 검증. (§9.8 ②③)
