@@ -53,6 +53,47 @@ _ANSWER_SYSTEM_PROMPT = (
 )
 
 
+# 센티넬 억제용 보류 길이 — 조각이 형성 중인 센티넬(끝자락)일 수 있어, 확정 전까지 이만큼은 흘리지 않는다.
+_SENTINEL_HOLD = max(len(_NO_ANSWER_SENTINEL), len(_NEEDS_CLARIFY_SENTINEL))
+
+
+async def _astream_reply(llm, prompt_messages, on_delta, *, sentinel_guard: bool) -> str:
+    """astream으로 조각을 흘리며 누적 완성본을 반환한다.
+
+    sentinel_guard=True면 근거부재(NO_ANSWER)·되묻기(NEEDS_CLARIFY) 센티넬의 영어 원문이 조각으로
+    환자 화면에 노출되지 않게 억제한다(2026-09-08 실측 버그). 억제는 '전송'만 — 반환하는 완성본에는
+    센티넬을 그대로 남겨 호출부의 최종 판정(no_answer/되묻기)이 정상 동작하게 한다.
+      · 센티넬 감지 시: 이후 조각을 흘리지 않는다(감지 전 흘린 선행 텍스트는 최종 판정이 폐기·정정).
+      · 정상 답변: 형성 중 센티넬을 놓치지 않도록 끝자락 _SENTINEL_HOLD글자만 보류했다가 종료 시 마저 흘린다.
+    sentinel_guard=False(기본)면 현재 동작 그대로 — 모든 조각을 즉시 흘린다(on/off 스위치·되돌리기).
+    """
+    parts: list[str] = []
+    emitted = 0            # on_delta로 이미 흘려보낸 누적 글자 수
+    suppressed = False     # 센티넬 감지 → 이후 전송 중단
+    async for chunk in llm.astream(prompt_messages):
+        piece = resp_text(chunk)
+        if not piece:
+            continue
+        parts.append(piece)
+        if not sentinel_guard:
+            on_delta(piece)
+            continue
+        buffer = "".join(parts)
+        if _NO_ANSWER_SENTINEL in buffer or _NEEDS_CLARIFY_SENTINEL in buffer:
+            suppressed = True                       # 센티넬 원문은 절대 흘리지 않는다
+            continue
+        if suppressed:
+            continue
+        safe = len(buffer) - _SENTINEL_HOLD         # 끝자락은 센티넬 형성 가능성이 있어 보류
+        if safe > emitted:
+            on_delta(buffer[emitted:safe])
+            emitted = safe
+    buffer = "".join(parts)
+    if sentinel_guard and not suppressed and len(buffer) > emitted:
+        on_delta(buffer[emitted:])                  # 정상 답변의 보류된 끝자락을 마저 흘린다
+    return buffer.strip()
+
+
 def _rank_by_relevance(chunks):
     # 검색(match_kb_chunks_hybrid)은 RRF로 후보를 넓게 잡는다(recall) — 그러나 RRF는 '벡터·트라이그램
     #   두 검색에 다 걸린' 무관한 문서를 1위로 올릴 수 있다(2026-09-09 실측: "씨티 찍는데 준비물"에
@@ -127,13 +168,12 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     llm = model or get_chat_model()
     prompt_messages = prompt.format_messages(**fmt)
     if on_delta is not None and hasattr(llm, "astream"):
-        parts: list[str] = []
-        async for chunk in llm.astream(prompt_messages):
-            piece = resp_text(chunk)
-            if piece:
-                parts.append(piece)
-                on_delta(piece)
-        reply = "".join(parts).strip()
+        # 센티넬 노출 가드(브랜치 A, on/off 스위치). 기본 OFF=현재 동작(모든 조각 전송).
+        #   ON이면 NO_ANSWER/NEEDS_CLARIFY 영어 원문이 조각으로 환자에게 노출되지 않게 억제한다.
+        from app.core.config import settings
+        reply = await _astream_reply(
+            llm, prompt_messages, on_delta,
+            sentinel_guard=settings.chat_stream_sentinel_guard)
     else:
         resp = await llm.ainvoke(prompt_messages)
         reply = resp_text(resp).strip()

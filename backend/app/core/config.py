@@ -46,6 +46,20 @@ class Settings(BaseSettings):
     #   중 플래그 OFF). ⚠️ 안전(응급·직원요청·check_escalation)·답변생성은 두 모드 모두 앞/뒤단 그대로.
     #   llm 모드가 실패·형식 위반이면 자동으로 legacy 경로로 폴백한다(장애/자동인계로 안 번짐).
     chat_understanding_mode: str = "legacy"
+    # [브랜치 A · 스위치] RAG 스트리밍 센티넬 노출 가드. True면 근거부재(NO_ANSWER)·되묻기(NEEDS_CLARIFY)
+    #   센티넬의 영어 원문이 조각(delta)으로 환자 화면에 잠깐 노출되던 버그(2026-09-08 실측, 앱·webchat 공통)를
+    #   막는다 — 조각 '전송'만 억제하고 최종 판정(no_answer/되묻기)은 불변. 기본 False=현재 동작 보존(되돌리기).
+    #   되돌리기=env CHAT_STREAM_SENTINEL_GUARD 미설정/false.
+    chat_stream_sentinel_guard: bool = False
+    # [브랜치 A · 스위치] 보수적 라우팅. True면 이해기(understand)·레거시 라우터(classify) 프롬프트에
+    #   "정보 질문은 애매해도 agent가 아니라 rag, 확실한 예약·취소·변경·문진 행동일 때만 agent" 원칙을 얹어
+    #   정보 질문이 예약(agent)으로 오라우팅돼 막다른 길로 가는 것을 줄인다(세션52 실측). 기본 False=현재 동작.
+    #   되돌리기=env CHAT_CONSERVATIVE_ROUTING 미설정/false.
+    chat_conservative_routing: bool = False
+    # [브랜치 A · 스위치] 이해기 구조화 출력. True면 understand()가 진짜 모델의 with_structured_output으로
+    #   JSON을 받아 손파싱(따옴표 깨짐·설명 덧붙임에 취약)을 대체한다. 가짜 모델(테스트)·미지원 모델이면
+    #   자동으로 손파싱 폴백이라 위험이 없다. 기본 False=현재 동작. 되돌리기=env CHAT_STRUCTURED_UNDERSTANDING 미설정/false.
+    chat_structured_understanding: bool = False
     embedding_model: str = "text-embedding-3-small"
     anon_rate_limit_per_hour: int = 30
     # 익명 웹 상담 연락처(전화)의 대칭 암복호 키(Fernet base64). 비면 codec은 import는 되되
