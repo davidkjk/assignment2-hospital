@@ -90,16 +90,34 @@ def ask_one(base, question):
     reply = (bot_msg or {}).get("content") or ""
     payload = (bot_msg or {}).get("payload") or {}
     quick = payload.get("quickReplies") or payload.get("quick_replies")
+    msg_type = (bot_msg or {}).get("messageType")
+    handoff_chip = payload.get("handoffChip") or payload.get("handoff_chip")
     return {
         "question": question,
-        "routeTaken": route,
+        "routeTaken": route,                 # ack의 route(일반 생성 답에선 항상 None — 참고용)
         "reply": reply,
-        "messageType": (bot_msg or {}).get("messageType"),
+        "messageType": msg_type,
+        "payload": payload,                  # 전체 payload(카드 종류 등 사후 분석용)
         "quickReplies": quick,
-        "handoffChip": payload.get("handoffChip") or payload.get("handoff_chip"),
+        "handoffChip": handoff_chip,
         "timedOut": bot_msg is None,
+        "inferredRoute": infer_route(msg_type, reply, quick, handoff_chip, bot_msg is None),
         "threadId": thread_id,
     }
+
+
+def infer_route(msg_type, reply, quick, handoff_chip, timed_out):
+    """ack의 routeTaken이 일반 답에선 None이라, 봇 메시지 형태로 route를 추론한다.
+    text=정보 답(rag) / 인계칩·빠른답칩=no_answer·handoff / card=행동·안내 카드(agent 또는 진료과 안내)."""
+    if timed_out:
+        return "timeout"
+    if handoff_chip or quick:
+        return "no_answer/handoff"
+    if msg_type == "text" and reply.strip():
+        return "rag(answer)"
+    if msg_type == "card":
+        return "card(agent/guide)"
+    return msg_type or "unknown"
 
 
 def run(base, label):
@@ -115,29 +133,38 @@ def run(base, label):
         r["expect"] = expect
         r["why"] = why
         results.append(r)
-        route = r.get("routeTaken")
-        flag = "" if route == expect else f"  (기대 {expect})"
-        snippet = (r.get("reply") or r.get("error") or "").replace("\n", " ")[:70]
-        print(f"{i:>2}. [{str(route):<18}]{flag}\n    Q: {q}\n    A: {snippet}\n")
+        route = r.get("inferredRoute") or r.get("error") or "?"
+        snippet = (r.get("reply") or r.get("error") or "").replace("\n", " ")[:64]
+        print(f"{i:>2}. [{route:<18}] (기대 {expect})\n    Q: {q}\n    A: {snippet}\n")
         time.sleep(0.5)
     out = f"bot_probe_{label}.json"
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"label": label, "base": base, "results": results}, f, ensure_ascii=False, indent=2)
     print(f"→ 저장: {out}  ({len(results)}문항)")
-    matched = sum(1 for r in results if r.get("routeTaken") == r.get("expect"))
-    print(f"→ route 기대일치(참고용): {matched}/{len(results)}\n")
+
+
+def _route_of(r):
+    # 옛 JSON(inferredRoute 없음)도 저장된 필드로 재판독한다.
+    if r.get("inferredRoute"):
+        return r["inferredRoute"]
+    return infer_route(r.get("messageType"), r.get("reply") or "", r.get("quickReplies"),
+                       r.get("handoffChip"), bool(r.get("timedOut")))
 
 
 def diff(path_a, path_b):
     a = json.load(open(path_a, encoding="utf-8"))
     b = json.load(open(path_b, encoding="utf-8"))
     print(f"\n== 대조: {a['label']}  vs  {b['label']} ==\n")
+    changes = 0
     for ra, rb in zip(a["results"], b["results"]):
-        changed = (ra.get("routeTaken") != rb.get("routeTaken"))
-        mark = "▶ route 바뀜" if changed else ""
-        print(f"Q: {ra['question']}  {mark}")
-        print(f"   {a['label']:<14}[{ra.get('routeTaken')}] {(ra.get('reply') or '').splitlines()[0][:60] if ra.get('reply') else ''}")
-        print(f"   {b['label']:<14}[{rb.get('routeTaken')}] {(rb.get('reply') or '').splitlines()[0][:60] if rb.get('reply') else ''}\n")
+        r1, r2 = _route_of(ra), _route_of(rb)
+        changed = r1 != r2
+        changes += changed
+        mark = "  ▶ 바뀜" if changed else ""
+        print(f"Q: {ra['question']}{mark}")
+        print(f"   {a['label']:<12}[{r1:<18}] {(ra.get('reply') or '').splitlines()[0][:56] if ra.get('reply') else ''}")
+        print(f"   {b['label']:<12}[{r2:<18}] {(rb.get('reply') or '').splitlines()[0][:56] if rb.get('reply') else ''}\n")
+    print(f"→ route 추론이 바뀐 문항: {changes}/{len(a['results'])}\n")
 
 
 def main():
