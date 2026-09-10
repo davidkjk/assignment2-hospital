@@ -335,18 +335,22 @@ async def test_llm_mode_unhelpful_escalation_still_fires_before_understanding():
     out = await orchestrator.orchestrate(
         SimpleNamespace(active_flow=None, flow_step=0), "답이 도움이 안 됐어요",
         unhelpful_flagged=True, model=model, understanding_mode="llm")
-    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "unhelpful"
-    assert model.call_count == 0                       # ① 결정적 인계 — 이해기 도달 안 함
+    # SUPPORT-HANDOFF-CONFIRM-ALL(2026-09-09): escalation은 즉시 인계가 아니라 확인 프롬프트(no_answer)로
+    #   나가되, 여전히 이해기(understanding) 앞에서 단락된다(model 미호출).
+    assert out["route_taken"] == "no_answer" and out["pending_handoff_reason"] == "unhelpful"
+    assert out.get("confirm_handoff") is True
+    assert model.call_count == 0                       # ① 결정적 감지 — 이해기 도달 안 함
 
 
 @pytest.mark.asyncio
 async def test_llm_mode_llm_escalation_short_circuits_before_understanding():
-    # check_escalation(LLM ①)이 complaint로 인계하면 이해기까지 안 간다(model 1회=인계감시만).
+    # check_escalation(LLM ①)이 complaint를 잡으면 확인 프롬프트(no_answer)로 나가고 이해기까지 안 간다
+    #   (model 1회=인계감시만). SUPPORT-HANDOFF-CONFIRM-ALL: 즉시 인계가 아니라 확인 칩 경유.
     model = _CountingModel("complaint")
     out = await orchestrator.orchestrate(
         SimpleNamespace(active_flow=None, flow_step=0), "안내가 자꾸 틀려서 화가 나요",
         model=model, understanding_mode="llm")
-    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "complaint"
+    assert out["route_taken"] == "no_answer" and out["pending_handoff_reason"] == "complaint"
     assert model.call_count == 1                        # 인계감시 1회 후 이해기 도달 안 함
 
 
