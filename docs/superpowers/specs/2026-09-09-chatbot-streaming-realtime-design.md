@@ -1,7 +1,7 @@
 # 상담봇 답변 스트리밍(실시간 채널 밀기) — 설계
 
 - 작성일: 2026-09-09
-- 상태: 설계 확정(사용자 승인 2026-09-09) → 구현 계획(writing-plans) 대기
+- 상태: ✅ **백엔드+webchat 구현 완료**(2026-09-09, executing-plans 7태스크 TDD). 규칙 `CHAT-STREAM-01`·`CHAT-STREAM-OUTAGE-01`·`CHAT-STREAM-FALLBACK-01`을 `screen-behaviors.md`(웹 상담창 명세)에 신설. 남음=배포(백엔드 Railway + webchat Vercel **함께**)·실도달 e2e·환자앱 수신(Track ③, 별도 계획).
 - 관련 메모리: [[project-chatbot-disconnect-not-timeout-streaming]]
 
 ## 1. 문제와 근본원인 (실측)
