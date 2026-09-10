@@ -1,3 +1,4 @@
+import asyncio
 import json
 from uuid import UUID
 
@@ -6,7 +7,15 @@ from app.db.pool import get_pool
 from app.services import opening_hours
 from app.services.chat import (orchestrator, rag_service, quality_service, card_builder,
                                booking_agent_service, intent_precheck, dept_guide_service,
-                               conversation_understanding)
+                               conversation_understanding, realtime_broadcast)
+
+
+class _EmptyAiResponse(Exception):
+    """AI가 빈 응답(비-handoff 라우트에 본문 없음 = 일시 장애)을 냈다. 봇 메시지를 저장하지 않는다.
+
+    동기 경로(handle_message)는 이걸 잡아 503(outage)으로 올리고, 스트리밍 경로(run_generation)는
+    bot_done(outage=True) 이벤트로 변환한다 — 두 프론트의 outage 화면 동작은 동일하다(Q19 결정).
+    """
 
 
 # rag_fn 호출 형태 구분 sentinel(전면 통합). orchestrate가 legacy 모드면 rag_fn(s, m)로 2-arg 호출
@@ -77,20 +86,32 @@ async def handle_anonymous_message(session, content: str, *, thread_id: UUID,
                                 model=model, sender_kind="anonymous_web")
 
 
-async def handle_message(session, content: str, *, thread_id: UUID,
-                         client_message_id: UUID | None, embedder, model,
-                         sender_kind: str = "patient") -> dict:
+def _sid(session):
     # session은 서비스가 넘긴 객체(.id)일 수도, 라우터/테스트가 넘긴 asyncpg Record(["id"])일 수도 있다.
-    sid = session.id if hasattr(session, "id") else session["id"]
-    sender_col, sender_src = _SENDER_ID_COL[sender_kind]  # 내부 상수 — 사용자 입력 아님(f-string 안전)
+    return session.id if hasattr(session, "id") else session["id"]
+
+
+def _insert_patient_sql(sender_kind: str) -> str:
     # 발신 메시지 저장 SQL(멱등). AI 세션 문맥. sender_type은 'patient', 소유 컬럼만 종류에 맞춘다.
     #   ⚠️ 사용자 입력 아님(sender_col/sender_src는 내부 상수) — f-string 안전.
-    _insert_patient_msg = (
+    sender_col, sender_src = _SENDER_ID_COL[sender_kind]
+    return (
         f"insert into chat_messages (thread_id, ai_chat_session_id, sender_type, {sender_col}, "
         f"message_type, content, client_message_id) "
         f"select $1,$2,'patient', {sender_src}, 'text', $3, $4 from chat_threads t where t.id=$1 "
         "on conflict (client_message_id) where client_message_id is not null do nothing returning id")
 
+
+async def prepare_turn(session, content: str, *, thread_id: UUID,
+                       client_message_id: UUID | None, sender_kind: str = "patient") -> dict:
+    """요청 스코프(빠름): 환자 메시지 저장(멱등)·활동갱신·인계(open_ticket) 판정.
+
+    반환 `{accepted, route_taken, user_message_id, is_new}`.
+    - `route_taken=="staff"`면 사람 상담 모드(생성하지 않는다).
+    - `is_new=False`면 중복 전송(생성하지 않는다 — 연타/재시도로 답이 2번 나지 않게).
+    """
+    sid = _sid(session)
+    insert_sql = _insert_patient_sql(sender_kind)
     pool = await get_pool()
     async with pool.acquire() as conn:
         # 인계됨(사람 상담 모드): 이 스레드에 처리 중 티켓(pending/in_progress)이 있으면 AI를 돌리지 않고
@@ -103,22 +124,93 @@ async def handle_message(session, content: str, *, thread_id: UUID,
             "select 1 from support_tickets where thread_id=$1 and status in ('pending','in_progress') limit 1",
             thread_id)
         if open_ticket:
-            inserted = await conn.fetchrow(_insert_patient_msg, thread_id, sid, content, client_message_id)
+            inserted = await conn.fetchrow(insert_sql, thread_id, sid, content, client_message_id)
             current_id = inserted["id"] if inserted else await conn.fetchval(
                 "select id from chat_messages where thread_id=$1 and client_message_id=$2",
                 thread_id, client_message_id)
-            return {"route_taken": "staff", "message_id": current_id, "reply": None}
+            return {"accepted": True, "route_taken": "staff",
+                    "user_message_id": current_id, "is_new": bool(inserted)}
         # 1+2 원자적으로(C6-#8 F05): 메시지 저장과 활동갱신이 한 트랜잭션 — 만료면 record_ai_activity가 raise하며
         #   방금 넣은 발신 메시지도 함께 롤백된다(만료 세션에 고아 메시지 + 409 방지).
         async with conn.transaction():
-            inserted = await conn.fetchrow(_insert_patient_msg, thread_id, sid, content, client_message_id)
+            inserted = await conn.fetchrow(insert_sql, thread_id, sid, content, client_message_id)
             # 2. 30분 연장(만료됐으면 record_ai_activity가 막는다 → 상위에서 새 세션 안내).
             await conn.execute("select record_ai_activity($1)", sid)
         # 방금 저장한 현재 메시지 id — 멱등 재시도로 insert가 no-op이면(None) client_message_id로 되찾는다.
         current_id = inserted["id"] if inserted else await conn.fetchval(
             "select id from chat_messages where thread_id=$1 and client_message_id=$2",
             thread_id, client_message_id)
-        # 3. 최근 히스토리(롤링 윈도우). 현재 메시지를 뺀 이전 발화만 필요하므로 +1개를 더 가져와
+    return {"accepted": True, "route_taken": None,
+            "user_message_id": current_id, "is_new": bool(inserted)}
+
+
+async def handle_message(session, content: str, *, thread_id: UUID,
+                         client_message_id: UUID | None, embedder, model,
+                         sender_kind: str = "patient") -> dict:
+    """동기 호환 경로(기존 계약 보존). prepare_turn 후 생성을 그 자리에서 await해 결과 dict를 돌려준다.
+
+    스트리밍은 라우터가 prepare_turn + run_generation(백그라운드)으로 분리해 쓴다. 이 래퍼는 인계 후
+    사람상담(staff)·빈 응답(503)·no_answer 등 기존 반환·예외 계약을 그대로 유지한다(무회귀).
+    """
+    prep = await prepare_turn(session, content, thread_id=thread_id,
+                              client_message_id=client_message_id, sender_kind=sender_kind)
+    if prep["route_taken"] == "staff":
+        return {"route_taken": "staff", "message_id": prep["user_message_id"], "reply": None}
+    try:
+        return await _generate(session, content, thread_id=thread_id, sender_kind=sender_kind,
+                               embedder=embedder, model=model)
+    except _EmptyAiResponse:
+        # 기존 계약: 빈 응답은 503(두 프론트의 outage 경로가 동일하게 반응). 로깅은 _generate가 이미 했다.
+        raise AppError("잠시 AI 상담을 이용할 수 없어요. 잠시 후 다시 시도해 주세요.", status_code=503)
+
+
+async def run_generation(session, content: str, *, thread_id: UUID, gen: str,
+                         embedder, model, sender_kind: str = "patient") -> None:
+    """요청과 분리된 백그라운드 생성. 조각·완료를 실시간 채널로 민다(요청이 끊겨도 완주).
+
+    bot_typing(on) → (rag면 bot_delta 조각들) → bot_done → bot_typing(off). 빈 응답은 bot_done(outage).
+    """
+    await realtime_broadcast.broadcast(thread_id, "bot_typing", {"gen": gen, "on": True})
+    seq = {"n": 0}
+    _delta_tasks: set = set()
+
+    def on_delta(text: str) -> None:
+        seq["n"] += 1
+        # 발행은 fire-and-forget(생성 루프를 막지 않게). best-effort.
+        task = asyncio.create_task(
+            realtime_broadcast.broadcast(thread_id, "bot_delta", {"gen": gen, "seq": seq["n"], "text": text}))
+        _delta_tasks.add(task)
+        task.add_done_callback(_delta_tasks.discard)
+
+    try:
+        result = await _generate(session, content, thread_id=thread_id, sender_kind=sender_kind,
+                                 embedder=embedder, model=model, on_delta=on_delta)
+        await realtime_broadcast.broadcast(thread_id, "bot_done", {
+            "gen": gen,
+            "messageId": str(result["message_id"]) if result.get("message_id") else None,
+            "routeTaken": result["route_taken"],
+            "card": result.get("card"),
+            "outage": False,
+        })
+    except _EmptyAiResponse:
+        # 빈 응답 = AI 일시 장애 → 봇 말풍선 저장 없이 outage 이벤트(클라가 장애 화면). 로깅은 _generate가 했다.
+        await realtime_broadcast.broadcast(thread_id, "bot_done", {
+            "gen": gen, "messageId": None, "routeTaken": "outage", "card": None, "outage": True})
+    finally:
+        await realtime_broadcast.broadcast(thread_id, "bot_typing", {"gen": gen, "on": False})
+
+
+async def _generate(session, content: str, *, thread_id: UUID, sender_kind: str,
+                    embedder, model, on_delta=None) -> dict:
+    # prepare_turn이 이미 환자 메시지를 저장했다(별도 트랜잭션). 여기선 이력만 읽어 답을 만든다.
+    sid = _sid(session)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # 방금 저장된 현재(환자) 메시지 = 최신 patient content 메시지. build_history가 이걸 제외하도록 id를 잡는다.
+        current_id = await conn.fetchval(
+            "select id from chat_messages where thread_id=$1 and sender_type='patient' and content is not null "
+            "order by created_at desc, id desc limit 1", thread_id)
+        # 최근 히스토리(롤링 윈도우). 현재 메시지를 뺀 이전 발화만 필요하므로 +1개를 더 가져와
         #    build_history가 현재(current_id)를 제외한 뒤에도 윈도우 크기를 유지한다.
         hist = await conn.fetch(
             "select id, sender_type, content from chat_messages where thread_id=$1 and content is not null "
@@ -137,7 +229,7 @@ async def handle_message(session, content: str, *, thread_id: UUID,
                 standalone = await conversation_understanding.rewrite_standalone(m, history_texts, model=model)
                 retrieval_query = conversation_understanding.build_search_query(m, standalone)
         return await rag_service.rag_answer(m, embedder=embedder, model=model,
-                                            retrieval_query=retrieval_query)
+                                            retrieval_query=retrieval_query, on_delta=on_delta)
 
     async def agent_fn(s, m):
         # 행동형(예약). 채널로 갈린다(사용자 결정 B):
@@ -233,7 +325,8 @@ async def handle_message(session, content: str, *, thread_id: UUID,
                         f"empty AI body (route={out['route_taken']}) thread={thread_id}",
                         safe_summary="AI 상담이 일시적으로 답변을 만들지 못했습니다.",
                         is_service_outage=True)
-        raise AppError("잠시 AI 상담을 이용할 수 없어요. 잠시 후 다시 시도해 주세요.", status_code=503)
+        # 동기 경로는 이걸 503으로, 스트리밍 경로는 bot_done(outage=True)로 변환한다(둘 다 outage 화면).
+        raise _EmptyAiResponse()
     # Q28: 인계 요약 3항목(상담봇이 확인한 정보·이미 안내한 내용·직원이 확인할 사항)을 LLM으로 만들어
     #   staff_handoff payload에 함께 실어 직원 상세가 채우게 한다(TICKET-DETAIL-SUM-01). DB 커넥션을 잡기 전에
     #   생성한다 — LLM 왕복 동안 풀을 점유하지 않는다(Supavisor 15/풀 4 한도). 실패해도 make_handoff_summary가
