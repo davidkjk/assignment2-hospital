@@ -1,7 +1,7 @@
 # 상담봇 답변 스트리밍(실시간 채널 밀기) — 설계
 
 - 작성일: 2026-09-09
-- 상태: ✅ **백엔드+webchat 구현 완료**(2026-09-09, executing-plans 7태스크 TDD). 규칙 `CHAT-STREAM-01`·`CHAT-STREAM-OUTAGE-01`·`CHAT-STREAM-FALLBACK-01`을 `screen-behaviors.md`(웹 상담창 명세)에 신설. 남음=배포(백엔드 Railway + webchat Vercel **함께**)·실도달 e2e·환자앱 수신(Track ③, 별도 계획).
+- 상태: ✅ **백엔드+webchat 구현 완료**(2026-09-09, executing-plans 7태스크 TDD). 규칙 `CHAT-STREAM-01`·`CHAT-STREAM-OUTAGE-01`·`CHAT-STREAM-FALLBACK-01`을 `screen-behaviors.md`(웹 상담창 명세)에 신설. ✅ **환자앱 수신(Track ③) 구현 완료**(2026-09-10, 커밋 `4c343c6`, 채팅 단위 254 통과) — ~~앱은 옛 동기 계약(응답의 reply 기대)에 남아 매 메시지 무응답 폴백~~ 해소. ⚠️ **구현 선택 = webchat 정본 그대로(broadcast `bot_delta/bot_done` + 45초 fallback reconcile)** — 아래 「환자앱(③)」에 스케치했던 *streamThread(chat_messages insert) 이중 경로*는 **채택 안 함**(중복 말풍선 회피, `mergeLiveRows`는 봇 행 계속 무시). 남음=배포·**실도달 e2e(다음 세션 실기기 클린 재빌드)**.
 - 관련 메모리: [[project-chatbot-disconnect-not-timeout-streaming]]
 
 ## 1. 문제와 근본원인 (실측)
