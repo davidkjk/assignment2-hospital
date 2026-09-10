@@ -95,7 +95,7 @@ POST /chat/messages
 
 ## 7. 범위 밖 (YAGNI)
 
-- **분류 모델 Haiku 교체**(지연 14→7초 단축)는 별도 작업 — 이번은 "전달 방식"만. 회귀 골든셋(triage 8건 `e6a7162`)과 함께 후속.
+- ~~**분류 모델 Haiku 교체**(지연 14→7초 단축)는 별도 작업~~ ✅ **완료(2026-09-10, 세션51, `2da3aa2`)** — `config.classify_model`(Haiku 4.5) + `classify_model_for()`로 이해 계층(classify·check_escalation·understand·rewrite)만 Haiku로 분리, 답변 생성(rag·dept_guide)은 Sonnet 유지. 실 Haiku 라우팅·후속질문 재작성 sanity 정확. 회귀=triage 골든(§9.9F)·인계 골든(§9.10F). 되돌리기=`CLASSIFY_MODEL=claude-sonnet-5`.
 - **통합 3→2**(커밋 `e820c38` 미푸시)도 별도.
 - 문자 단위 초미세 스트리밍 아님(적당한 조각). 지속 잡큐 아님(인프로세스 태스크, 이 규모 허용 — 재시작 시 그 턴 답 유실은 재전송으로 복구).
 - 스트리밍 부분 텍스트 DB 저장 안 함(최종본만 저장, 지금과 동일).
