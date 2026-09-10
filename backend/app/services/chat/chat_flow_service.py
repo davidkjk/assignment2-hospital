@@ -185,12 +185,18 @@ async def handle_message(session, content: str, *, thread_id: UUID,
                                          rag_fn=rag_fn, agent_fn=agent_fn, intent_fn=intent_fn,
                                          dept_guide_fn=dept_guide_fn, model=model)
     # active_flow 지속(리포트 §2.3): 봇이 되물으면 진료과 문진을 다음 턴까지 유지하고, 추천·다른 갈래·인계면
-    #   해제한다. 값이 바뀔 때만 UPDATE(대부분 턴은 무변경 → 커넥션 절약, Supavisor 풀 한도 고려).
+    #   해제한다. pending_handoff_reason 지속(SUPPORT-HANDOFF-CONFIRM-ALL, 2026-09-09): 안전 감시가 인계
+    #   확인 프롬프트를 낼 때 원래 사유를 세션에 저장했다가 다음 턴 [직원에게 연결하기] 칩 클릭에서 그 사유로
+    #   인계한다. 확인 프롬프트가 아닌 턴은 out에 키가 없어 None → 해제(칩 안 누르고 딴 걸 물으면 대기 취소).
+    #   둘 다 값이 바뀔 때만 한 UPDATE로(대부분 턴은 무변경 → 커넥션 절약, Supavisor 풀 한도 고려).
     next_flow = next_active_flow(out)
-    if next_flow != orchestrator.session_value(session, "active_flow"):
+    next_pending = out.get("pending_handoff_reason")
+    if (next_flow != orchestrator.session_value(session, "active_flow")
+            or next_pending != orchestrator.session_value(session, "pending_handoff_reason")):
         async with pool.acquire() as conn:
             await conn.execute(
-                "update ai_chat_sessions set active_flow=$1 where id=$2 and status='active'", next_flow, sid)
+                "update ai_chat_sessions set active_flow=$1, pending_handoff_reason=$2 "
+                "where id=$3 and status='active'", next_flow, next_pending, sid)
     # 하이브리드 ①(WEBBOOK-08): 증상 대화(department_guide)가 진료과를 추천하면 예약으로 잇는 카드를 함께 낸다.
     #   웹=진료과 선택 카드(대화 내 예약), 앱=예약 마법사 인계 카드(결정 B). 추천이 없으면(1회 질문 단계) 카드 없음.
     if out["route_taken"] == "department_guide" and out.get("suggested_department") and not out.get("card"):

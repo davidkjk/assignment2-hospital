@@ -5440,6 +5440,15 @@
 | `WEBCHAT-NOANS-03` | 미해결 로깅 | `no_answer` 발생 시마다 | 인계로 티켓이 생겼든(ticket 링크) 사용자가 조용히 포기했든(ticket 없음) **모든 `no_answer`를 질문·임베딩과 함께 기록**한다(결정 B). 조용히 포기한 다수가 가장 큰 KB 구멍이라 놓치지 않는다. | 결정 문서 「미해결 로깅 B」; `UNRES-CLUSTER-01` |
 | `WEBCHAT-STAFFCHIP-01` 🆕 | 직원 연결 칩 | 피드 **마지막 줄이 봇 텍스트 답변**(no_answer 카드 아님, 봇 대기 아님) | 대화 밑에 `[직원에게 연결]` 칩 하나를 띄운다 — 누르면 익명 인계 폼(`WEBANON-HANDOFF`). no_answer는 `WEBCARD-QUICK` 카드가 이미 handoff_chip을 내므로 중복해서 붙이지 않고, 환자 발화가 마지막(봇 대기)이면 감춘다(칩이 남지 않음). 앱 `CHAT-ROOM-FEEDBACK-01`(가장 최근 봇 답변 칩)과 대칭 | ✅ **신설(2026-09-08, Q5)** — 환자앱과 공통으로 "필요할 때만 직원 연결 칩". `ChatRoom.onStaffHandoff`=`WebchatWidget.leaveInquiry` |
 
+###### 10-c. 안전 감시 인계도 항상 물어본다 `WEBCHAT-HANDOFF-CONFIRM` — 신규 2개 (웹·앱 공통)
+
+> 안전 감시(`check_escalation` — 의료판단·불일치·불만·반복·도움안됨)가 사유를 잡아도 **즉시 자동 인계하지 않고** 먼저 확인 프롬프트(`직원(사람)에게 연결해 드릴까요?` + `[직원에게 연결하기]` 칩)를 낸다. 실제 인계는 칩을 눌러야 시작한다. 확인을 안 거치는 유일한 예외는 **응급**(119 안내라 인계와 별개). 원래 사유는 세션에 저장했다 칩 클릭 때 티켓 사유로 복원한다. 결정 근거·요구사항 대조(시나리오 7 "직원 연결 안내")는 결정 문서 「직원 인계는 안전 감시도 항상 물어본다」(`SUPPORT-HANDOFF-CONFIRM-ALL`, 2026-09-09).
+
+| ID | 요소 | 조건 | 동작 | 근거 |
+|---|---|---|---|---|
+| `WEBCHAT-HANDOFF-CONFIRM-01` 🆕 | 인계 확인 | 안전 감시가 사유 감지(medical_judgment·data_mismatch·complaint·unhelpful·repeated) | 즉시 인계하지 않고 확인 프롬프트 말풍선(`직원(사람)에게 연결해 드릴까요?…`) + `[직원에게 연결하기]` 칩을 낸다(no_answer와 같은 카드 경로, `confirm_handoff`). 세션 유지·미해결 기록 안 함. 칩을 누르면 인계, 딴 걸 물으면 대기 취소. ⛔ **응급은 예외** — 확인 없이 119 안전 안내 | ✅ **신설(2026-09-09)** — 오탐 자동 연결 방지. `orchestrator.orchestrate` check_escalation 분기; 요구사항 시나리오 7·§5.5 |
+| `WEBCHAT-HANDOFF-CONFIRM-02` 🆕 | 원래 사유 보존 | 확인 프롬프트를 낸 뒤 칩 클릭 | 확인 프롬프트를 낸 턴이 원래 사유를 세션 `pending_handoff_reason`(마이그 00098)에 저장 → 칩 클릭 턴이 읽어 티켓 `staff_handoff` payload `reason`으로 복원(없으면 `staff_request`). 관리자 '직원 연결 현황'이 의료판단/불만/불일치를 구분 | ✅ **신설(2026-09-09)** — 요구사항 L67 통계 구분. `chat_flow_service` pending 저장/해제(active_flow와 동일 패턴) |
+
 ###### 11. 웹 진료과 추천 진행 배너 `WEBCHAT-GUIDE` — 재사용 3개
 
 | ID | 요소 | 조건 | 동작 | 근거 |

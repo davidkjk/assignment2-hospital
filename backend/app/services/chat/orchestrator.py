@@ -28,7 +28,14 @@ NO_ANSWER_QUICK_REPLIES = ["진료시간이 어떻게 되나요", "예약하려�
 #   한 번 확인한다 — "직원에게 연결하면 뭘 해주나요" 같은 **질문**이 인계로 오작동하던 것을 막는다.
 #   실제 인계는 이 확인 칩(정확히 이 문구)을 눌러야 시작(ⓠ-a). 칩 탭은 명시적 선택이라 재확인 없이 바로 인계한다.
 #   no_answer의 연결 칩도 같은 문구를 보내 한 번에 인계된다(칩 자체가 이미 사용자 선택).
-#   ⚠️ 예외: 안전 감시(check_escalation — 진단·불만·반복 등)는 보호 목적이라 확인을 끼우지 않고 그대로 자동 인계한다.
+# #6 확장(2026-09-09 사용자 요청 "가끔 바로 연결해버린다 → 항상 물어보게"): 안전 감시(check_escalation —
+#   의료판단·불만·불일치·반복·도움안됨)도 이제 확인을 끼운다. ~~옛 서술: 안전 감시는 보호 목적이라 확인 없이
+#   자동 인계한다~~ ✅ **해소(2026-09-09, 결정 SUPPORT-HANDOFF-CONFIRM-ALL)** — 오탐(예: "마스크 꼭
+#   써야 하나요?"가 medical_judgment로 오분류)이 환자를 갑자기 사람 상담으로 떨어뜨리던 것을 막는다. 칩은 한 번
+#   탭이라 진짜 인계는 그대로 되고, 오연결만 걸린다(요구사항 시나리오 7 "직원 연결 안내" 표현에 더 충실).
+#   ⚠️ 확인을 거치지 않는 유일한 예외는 응급(check_emergency) — 인계가 아니라 119 안내라 별개다.
+#   원래 사유 보존: 확인 프롬프트를 낼 때 사유를 세션(pending_handoff_reason)에 저장 → 칩 클릭 턴에 그 값을
+#   읽어 티켓 사유로 쓴다(관리자 '직원 연결 현황' 통계가 의료판단/불만/불일치를 구분·요구사항 L67).
 HANDOFF_CONFIRM_CHIP = "직원에게 연결하기"
 HANDOFF_CONFIRM_REPLY = "직원(사람)에게 연결해 드릴까요? 남기신 내용을 직원이 순서대로 확인해요."
 NO_ANSWER_HANDOFF_CHIP = HANDOFF_CONFIRM_CHIP
@@ -104,20 +111,29 @@ async def orchestrate(session, message, *, history_texts=None, restricted=False,
         return {"route_taken": "emergency", "reply": safety_watchdog.EMERGENCY_REPLY, "escalated": False}
     # ⓠ-a 확인 칩(정확히 이 문구)을 눌렀다 → 명시적 선택이므로 바로 인계(#6). check_staff_request보다 먼저 본다
     #   (확인 문구도 "직원에게 연결"을 포함해 아래 키워드에 걸리므로 순서가 중요).
+    #   사유 보존: 확인 프롬프트를 냈던 턴이 세션에 저장한 pending_handoff_reason으로 인계한다. 없으면(자유입력
+    #   연결요청 경로) staff_request. 안전 감시 확장(2026-09-09)이 여기로 의료판단·불만 등 원래 사유를 흘려보낸다.
     if message.strip() == HANDOFF_CONFIRM_CHIP:
-        return {"route_taken": "handoff", "handoff_reason": "staff_request", "escalated": True}
+        reason = session_value(session, "pending_handoff_reason") or "staff_request"
+        return {"route_taken": "handoff", "handoff_reason": reason, "escalated": True}
     # ⓠ-b 자유 입력으로 사람 연결을 요청 → 바로 인계하지 않고 확인 프롬프트(#6, "항상 물어보게").
     #   no_answer와 같은 카드 경로로 렌더하되 미해결 기록은 남기지 않는다(confirm_handoff 플래그). 세션은 유지.
     if safety_watchdog.check_staff_request(message):
         return {"route_taken": "no_answer", "reply": HANDOFF_CONFIRM_REPLY,
                 "quick_replies": [], "handoff_chip": HANDOFF_CONFIRM_CHIP,
-                "confirm_handoff": True, "escalated": False}
-    # ① 인계 감시 — 조건 감지 시 무조건 인계(에이전트 도구 아님).
+                "confirm_handoff": True, "escalated": False,
+                "pending_handoff_reason": "staff_request"}
+    # ① 인계 감시 — 조건 감지 시 확인 프롬프트(#6 확장 2026-09-09 "항상 물어보게"). 옛 즉시 자동 인계에서 바뀜.
+    #   응급(위 check_emergency)만 확인 없이 통과하고, 나머지 사유는 칩을 눌러야 인계된다. 원래 사유는
+    #   pending_handoff_reason으로 실어 칩 클릭 턴(ⓠ-a)이 그대로 티켓 사유로 쓴다(관리자 현황 구분·요구사항 L67).
     reason = await safety_watchdog.check_escalation(
         message, history_texts, unhelpful_flagged=unhelpful_flagged,
         no_answer=False, model=model)
     if reason:
-        return {"route_taken": "handoff", "handoff_reason": reason, "escalated": True}
+        return {"route_taken": "no_answer", "reply": HANDOFF_CONFIRM_REPLY,
+                "quick_replies": [], "handoff_chip": HANDOFF_CONFIRM_CHIP,
+                "confirm_handoff": True, "escalated": False,
+                "pending_handoff_reason": reason}
     # ② 라우터 — 진행 중 문진은 유지.
     active_flow = None if restricted else session_value(session, "active_flow")
     # ①-b 의도 프리체크(B1·B2) — 진료시간·의사명단은 KB가 아니라 DB 단일원본에서 답한다(KBADM-EDITOR-17).
