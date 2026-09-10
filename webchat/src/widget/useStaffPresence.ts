@@ -11,7 +11,26 @@ import { supabase } from '../lib/supabaseClient';
 // 열람(방 열림)·입력 중도 `role:'patient'`로 보낸다(직원웹이 "환자 접속/입력 중" 표시). 새 채널을 또
 // 열면 같은 토픽 2채널=한쪽 유실 버그가 재발하므로 반드시 이 채널로 보낸다. viewing:on은 구독 후 1회,
 // off는 언마운트 시. typing은 notifyTyping이 첫 입력에 on 한 번 + 유휴 3초 off(환자앱 컨트롤러와 대칭).
-export function useStaffPresence(threadId: string | undefined): {
+// [CHAT-STREAM-01] 봇 답 스트리밍은 이 같은 채널에 이벤트만 얹는다(새 채널 금지). 서버(백엔드)가
+// service_role로 bot_typing/bot_delta/bot_done을 broadcast하고, 클라는 self:false라 정상 수신한다.
+export type BotDone = {
+  gen: string;
+  messageId: string | null;
+  routeTaken: string;
+  card: unknown;
+  outage: boolean;
+};
+
+export type BotHandlers = {
+  onBotTyping?: (on: boolean, gen: string) => void;
+  onBotDelta?: (gen: string, seq: number, text: string) => void;
+  onBotDone?: (p: BotDone) => void;
+};
+
+export function useStaffPresence(
+  threadId: string | undefined,
+  handlers?: BotHandlers,
+): {
   staffViewing: boolean;
   notifyTyping: () => void;
 } {
@@ -20,6 +39,9 @@ export function useStaffPresence(threadId: string | undefined): {
   const chanRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingOn = useRef(false);
   const typingIdle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 최신 핸들러를 ref로 들고 있어 핸들러가 바뀌어도 채널을 재구독하지 않는다(useEffect는 threadId에만 의존).
+  const hRef = useRef(handlers);
+  hRef.current = handlers;
 
   useEffect(() => {
     if (!threadId) {
@@ -38,6 +60,19 @@ export function useStaffPresence(threadId: string | undefined): {
       if (data.on) {
         offTimer.current = setTimeout(() => setViewing(false), 12000);
       }
+    });
+    // [CHAT-STREAM-01] 봇 답 스트리밍 3종 — 같은 채널에 얹는다(새 채널 금지). payload/msg 양쪽 형태 방어.
+    ch.on('broadcast', { event: 'bot_typing' }, (msg: { payload?: unknown }) => {
+      const d = (msg.payload ?? msg) as { gen?: string; on?: boolean };
+      hRef.current?.onBotTyping?.(!!d.on, d.gen ?? '');
+    });
+    ch.on('broadcast', { event: 'bot_delta' }, (msg: { payload?: unknown }) => {
+      const d = (msg.payload ?? msg) as { gen?: string; seq?: number; text?: string };
+      hRef.current?.onBotDelta?.(d.gen ?? '', d.seq ?? 0, d.text ?? '');
+    });
+    ch.on('broadcast', { event: 'bot_done' }, (msg: { payload?: unknown }) => {
+      const d = (msg.payload ?? msg) as BotDone;
+      hRef.current?.onBotDone?.(d);
     });
     ch.subscribe((status: string) => {
       // 구독 전 send는 유실된다 — subscribed 후에 환자 열람 presence를 켠다.
