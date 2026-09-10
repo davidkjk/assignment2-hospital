@@ -5445,6 +5445,15 @@
 | `CHAT-STREAM-OUTAGE-01` 🆕 | 실시간 장애 이벤트 | 봇이 빈 답(AI 일시 장애, 비-handoff 라우트에 본문 없음) | HTTP 5xx가 사라졌으므로(ack는 이미 200) 장애를 `bot_done`의 `outage:true`로 실어 보낸다. 클라는 장애 안내(`WEBCHAT-OUTAGE-01` OutageNotice)를 띄우고 봇 말풍선은 저장·표시하지 않는다. 발신 메시지는 이미 저장(멱등)이라 재시도 가능. | ✅ **신설(2026-09-09)** — `WEBCHAT-OUTAGE-01`의 실시간판; 스펙 §4 |
 | `CHAT-STREAM-FALLBACK-01` 🆕 | 실시간 놓침 복구 | `bot_done`을 일정 시간(45초) 못 받음 | DB가 정본이므로 `fetchMessages(threadId)`로 재조회해 봇 답을 복구한다(broadcast는 fire-and-forget — 놓친 조각은 재전송 안 함). 성공 위장 없이 DB 최종본으로 맞춘다. | ✅ **신설(2026-09-09)** — 스펙 §4 실시간 놓침 복구; `BTN-TIME-01`(앱이 임의로 안 끊음) 준수 |
 
+###### 10-c. 안전 감시 인계도 항상 물어본다 `WEBCHAT-HANDOFF-CONFIRM` — 신규 2개 (웹·앱 공통)
+
+> 안전 감시(`check_escalation` — 의료판단·불일치·불만·반복·도움안됨)가 사유를 잡아도 **즉시 자동 인계하지 않고** 먼저 확인 프롬프트(`직원(사람)에게 연결해 드릴까요?` + `[직원에게 연결하기]` 칩)를 낸다. 실제 인계는 칩을 눌러야 시작한다. 확인을 안 거치는 유일한 예외는 **응급**(119 안내라 인계와 별개). 원래 사유는 세션에 저장했다 칩 클릭 때 티켓 사유로 복원한다. 결정 근거·요구사항 대조(시나리오 7 "직원 연결 안내")는 결정 문서 「직원 인계는 안전 감시도 항상 물어본다」(`SUPPORT-HANDOFF-CONFIRM-ALL`, 2026-09-09).
+
+| ID | 요소 | 조건 | 동작 | 근거 |
+|---|---|---|---|---|
+| `WEBCHAT-HANDOFF-CONFIRM-01` 🆕 | 인계 확인 | 안전 감시가 사유 감지(medical_judgment·data_mismatch·complaint·unhelpful·repeated) | 즉시 인계하지 않고 확인 프롬프트 말풍선(`직원(사람)에게 연결해 드릴까요?…`) + `[직원에게 연결하기]` 칩을 낸다(no_answer와 같은 카드 경로, `confirm_handoff`). 세션 유지·미해결 기록 안 함. 칩을 누르면 인계, 딴 걸 물으면 대기 취소. ⛔ **응급은 예외** — 확인 없이 119 안전 안내 | ✅ **신설(2026-09-09)** — 오탐 자동 연결 방지. `orchestrator.orchestrate` check_escalation 분기; 요구사항 시나리오 7·§5.5 |
+| `WEBCHAT-HANDOFF-CONFIRM-02` 🆕 | 원래 사유 보존 | 확인 프롬프트를 낸 뒤 칩 클릭 | 확인 프롬프트를 낸 턴이 원래 사유를 세션 `pending_handoff_reason`(마이그 00099)에 저장 → 칩 클릭 턴이 읽어 티켓 `staff_handoff` payload `reason`으로 복원(없으면 `staff_request`). 관리자 '직원 연결 현황'이 의료판단/불만/불일치를 구분 | ✅ **신설(2026-09-09)** — 요구사항 L67 통계 구분. `chat_flow_service` pending 저장/해제(active_flow와 동일 패턴) |
+
 ###### 11. 웹 진료과 추천 진행 배너 `WEBCHAT-GUIDE` — 재사용 3개
 
 | ID | 요소 | 조건 | 동작 | 근거 |

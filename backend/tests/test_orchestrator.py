@@ -21,10 +21,17 @@ async def test_emergency_wins_even_in_restricted_mode():
 
 
 @pytest.mark.asyncio
-async def test_handoff_condition_beats_routing():
+async def test_escalation_asks_confirmation_not_auto_handoff():
+    # #6 확장(2026-09-09 사용자 요청 "직원 인계는 항상 물어보게"): 안전 감시(check_escalation)가 사유를
+    #   잡아도 **바로 인계하지 않고** 확인 프롬프트(칩)를 낸다. 즉시 자동 인계는 오탐 시(예: "마스크 꼭
+    #   써야 하나요?"가 medical_judgment로 오분류) 환자를 갑자기 사람 상담으로 떨어뜨렸다.
     out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
                                          "답이 도움이 안 됐어요", unhelpful_flagged=True)
-    assert out["route_taken"] == "handoff" and out["handoff_reason"] == "unhelpful" and out["escalated"]
+    assert out["route_taken"] == "no_answer"                  # no_answer 카드 경로 재사용(확인 프롬프트)
+    assert out["escalated"] is False                          # 아직 인계 안 됨
+    assert out["confirm_handoff"] is True
+    assert out["handoff_chip"] == orchestrator.HANDOFF_CONFIRM_CHIP
+    assert out["pending_handoff_reason"] == "unhelpful"       # 원래 사유 보존 → 칩 클릭 때 이 사유로 인계
 
 
 @pytest.mark.asyncio
@@ -37,15 +44,28 @@ async def test_free_text_staff_request_asks_confirmation_not_auto_handoff():
     assert out["escalated"] is False                        # 아직 인계 안 됨
     assert out["confirm_handoff"] is True                   # 미해결 기록은 건너뛴다(KB 구멍 아님)
     assert out["handoff_chip"] == orchestrator.HANDOFF_CONFIRM_CHIP
+    assert out["pending_handoff_reason"] == "staff_request"  # 칩 클릭 때 이 사유로 인계
 
 
 @pytest.mark.asyncio
-async def test_confirm_chip_triggers_real_handoff():
+async def test_confirm_chip_without_pending_reason_defaults_to_staff_request():
     # #6: 확인 칩(정확히 그 문구)을 누르면 그때 실제 인계된다(칩 탭 = 명시적 선택 → 재확인 없음).
+    #   세션에 저장된 사유가 없으면(자유입력 연결요청 경로) 기본 staff_request로 인계한다.
     out = await orchestrator.orchestrate(SimpleNamespace(active_flow=None, flow_step=0),
                                          orchestrator.HANDOFF_CONFIRM_CHIP)
     assert out["route_taken"] == "handoff"
     assert out["handoff_reason"] == "staff_request" and out["escalated"] is True
+
+
+@pytest.mark.asyncio
+async def test_confirm_chip_preserves_pending_escalation_reason():
+    # 원래 사유 보존(2026-09-09): 안전 감시가 세션에 저장해 둔 pending_handoff_reason을 칩 클릭 때
+    #   티켓 사유로 쓴다 → 관리자 '직원 연결 현황' 통계에서 의료판단/불만/불일치가 구분된다(요구사항 L67).
+    out = await orchestrator.orchestrate(
+        SimpleNamespace(active_flow=None, flow_step=0, pending_handoff_reason="medical_judgment"),
+        orchestrator.HANDOFF_CONFIRM_CHIP)
+    assert out["route_taken"] == "handoff"
+    assert out["handoff_reason"] == "medical_judgment" and out["escalated"] is True
 
 
 @pytest.mark.asyncio
