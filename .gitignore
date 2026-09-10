@@ -43,3 +43,5 @@ secrets/*
 *service-account*.json
 *-adminsdk-*.json
 .env
+
+handoff-archive/
