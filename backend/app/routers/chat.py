@@ -1,3 +1,5 @@
+import asyncio
+import uuid
 from typing import Annotated
 from uuid import UUID
 
@@ -89,20 +91,37 @@ class ExecuteRequest(BaseModel):
     client_message_id: Annotated[UUID, Field(alias="clientMessageId")]
 
 
+# create_task 참조 유지(GC 방지) — 요청이 끝나도 생성 태스크가 살아 완주하게 잡아 둔다.
+_bg_tasks: set = set()
+
+
 @router.post("/messages")
 async def send_message(body: SendMessageRequest, request: Request,
                        model=Depends(get_model_dep), embedder=Depends(get_embedder_dep)):
+    # 스트리밍(끊김 해결): 사용자 메시지만 저장하고 즉시 ack(~1초)를 반환한다. 답 생성은 요청과 분리된
+    #   백그라운드 태스크가 수행하며, 조각·완료를 실시간 채널(chat-typing:<threadId>)로 민다(요청이 끊겨도 완주).
     # 로그인 헤더가 있으면 환자 경로(RLS 소유권 검증), 없으면 익명 웹 위젯 경로(thread UUID 능력토큰).
     if request.headers.get("authorization", "").startswith("Bearer "):
         patient = await get_current_patient(request)
         session = await ai_session_service.load_owned_session(patient, body.ai_chat_session_id, body.thread_id)
-        return await chat_flow_service.handle_patient_message(
-            session, body.content, thread_id=body.thread_id,
-            client_message_id=body.client_message_id, embedder=embedder, model=model)
-    session = await webchat_service.load_anonymous_session(body.ai_chat_session_id, body.thread_id)
-    return await chat_flow_service.handle_anonymous_message(
+        sender_kind = "patient"
+    else:
+        session = await webchat_service.load_anonymous_session(body.ai_chat_session_id, body.thread_id)
+        sender_kind = "anonymous_web"
+    prep = await chat_flow_service.prepare_turn(
         session, body.content, thread_id=body.thread_id,
-        client_message_id=body.client_message_id, embedder=embedder, model=model)
+        client_message_id=body.client_message_id, sender_kind=sender_kind)
+    gen = str(uuid.uuid4())
+    # 인계 모드(staff)나 중복 전송(is_new=False)이면 생성하지 않는다(연타/재시도로 답이 2번 나지 않게).
+    if prep["route_taken"] is None and prep["is_new"]:
+        t = asyncio.create_task(chat_flow_service.run_generation(
+            session, body.content, thread_id=body.thread_id, gen=gen,
+            embedder=embedder, model=model, sender_kind=sender_kind))
+        _bg_tasks.add(t)
+        t.add_done_callback(_bg_tasks.discard)
+    return {"accepted": True, "threadId": str(body.thread_id),
+            "userMessageId": str(prep["user_message_id"]) if prep["user_message_id"] else None,
+            "gen": gen, "routeTaken": prep["route_taken"]}
 
 
 # ── 웹 위젯(익명) 채널 — ⑦ 배선 ─────────────────────────────────────────────

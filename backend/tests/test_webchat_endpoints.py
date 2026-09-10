@@ -137,21 +137,23 @@ def _fake_llm():
     app.dependency_overrides.clear()
 
 
-def test_anonymous_message_stored_as_user_sender_and_no_answer_on_empty_kb(client, _fake_llm):
-    # [WEBCHAT-SEND][WEBCHAT-NOANS] 익명 위젯이 인증 없이 camelCase 본문으로 메시지를 보낸다.
-    # 빈 KB라 봇이 못 답한다 → A-①(2026-09-04) 이후 자동 인계 폐기 → route_taken='no_answer'로
-    # 봇 안내 말풍선 + 칩 카드를 준다(handoff 아님). 저장된 발신 메시지의 senderType은
-    # 'patient'(DB sender_type='patient' + sender_anonymous_session_id) — 프론트도 자기 말풍선은 'patient'.
+def test_anonymous_message_stored_as_user_sender_and_returns_ack(client, _fake_llm):
+    # [WEBCHAT-SEND] 스트리밍 전환(2026-09-09): /chat/messages는 사용자 메시지만 저장하고 즉시 ack를
+    #   반환한다(accepted/gen). 봇 답 생성은 백그라운드 태스크가 실시간 채널로 민다(동기 응답에 봇 답 없음).
+    #   저장된 발신 메시지의 senderType은 'patient'(DB sender_type='patient' + sender_anonymous_session_id)
+    #   — 프론트도 자기 말풍선은 'patient'. 봇 no_answer 생성 경로 자체는 run_generation 단위테스트가 덮는다.
     with client as c:
         sess = c.post("/chat/sessions", json={"channel": "web"}).json()
         r = c.post("/chat/messages", json={
             "threadId": sess["threadId"], "aiSessionId": sess["aiSessionId"],
             "content": "우리 동네 약국 어디", "clientMessageId": str(uuid.uuid4())})
         assert r.status_code == 200, r.text
-        assert r.json()["route_taken"] == "no_answer"
+        body = r.json()
+        assert body["accepted"] is True and body["gen"]
+        assert body["routeTaken"] is None       # 정상 생성 경로(인계 아님)
         msgs = c.get(f"/chat/threads/{sess['threadId']}/messages").json()["messages"]
     mine = [m for m in msgs if m["content"] == "우리 동네 약국 어디"]
-    assert len(mine) == 1
+    assert len(mine) == 1                        # prepare_turn이 동기로 저장(멱등)
     assert mine[0]["senderType"] == "patient"
 
 
