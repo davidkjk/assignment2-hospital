@@ -38,7 +38,16 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
   const hasUnread = w.handoff.phase === 'answered';
   // Q18③: 직원이 상담 상세를 실제로 열어 보는 중이면 배지가 "직원이 확인 중이에요"로(열람 presence).
   // [CHAT-ROOM-PATIENT-TYPING-01] 방향은 양쪽 — 같은 훅이 이 위젯(환자)의 입력 중을 직원에게 보낼 notifyTyping도 준다.
-  const { staffViewing, notifyTyping } = useStaffPresence(w.session?.threadId);
+  // [CHAT-STREAM-01] 봇 답 스트리밍(bot_typing/delta/done)도 같은 채널로 받아 useWebchat에 반영한다.
+  const { staffViewing, notifyTyping } = useStaffPresence(w.session?.threadId, {
+    onBotTyping: w.applyBotTyping,
+    onBotDelta: w.applyBotDelta,
+    onBotDone: w.applyBotDone,
+  });
+  // 진행 중 스트리밍 버블을 messages 뒤에 합성한다(ChatRoom 무변경 — 합성만). done이 확정 말풍선으로 대체.
+  const streamBubble = w.streaming
+    ? [{ id: `stream-${w.streaming.gen}`, senderType: 'bot' as const, messageType: 'text' as const, content: w.streaming.text }]
+    : [];
   // 장애 중 [문의 남기기] → 익명 인계 폼(WEBCHAT-OUTAGE-02) — 봇 응답 없이 기존 대화 문맥으로 직원에게 연결.
   const leaveInquiry = () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); };
   // [다시 시도] = 마지막 실패 메시지의 전송 왕복(CHAT-OUTAGE-RECOVER-01: 성공하면 배너가 걷힌다).
@@ -56,8 +65,8 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
           <button type="button" className="wc-close" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
           <ChatRoom
             phase={w.phase}
-            messages={[...w.messages, ...extraCards]}
-            botTyping={w.botTyping}
+            messages={[...w.messages, ...streamBubble, ...extraCards]}
+            botTyping={w.botTyping && !w.streaming}   // 델타가 시작되면 점 대신 흐르는 텍스트를 보여준다
             onTyping={notifyTyping}         // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중 → 직원에게 "환자 입력 중"
             onStaffHandoff={leaveInquiry}   // Q5: 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼
             onSend={w.send}
