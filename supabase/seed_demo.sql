@@ -205,7 +205,11 @@ select s.id, wd,
          when '22222222-2222-2222-2222-222222222222' then 20   -- 정형외과
          when '33333333-3333-3333-3333-333333333333' then 10   -- 이비인후과
          else 15 end,                                          -- 소아과(44444444)
-       time '12:00', time '13:00',
+       -- ⚠️ 토요일(5)은 오전 진료만이라 점심이 없다(hospital_hours 토=null과 일치).
+       --    옛 시드는 모든 요일에 12~13 점심을 넣어, 상담봇 의사별 진료시간 답이
+       --    "토요일 09:00~13:00 (점심 12:00~13:00)"처럼 모순되게 나왔다(오전만인데 점심).
+       case when wd = 5 then null::time else time '12:00' end,
+       case when wd = 5 then null::time else time '13:00' end,
        -- ⭐ 하루 최대 인원(max_daily_appointments)은 요구사항 3.7의 「의사별 하루 최대 예약 인원」
        --    = 관리자가 정하는 상한(슬롯 수와 별개, SCHED-WEEK-03). 계산값이 아니다.
        --    현실감: 슬롯이 짧은 과일수록 상한을 크게 + 의사별 ±3 편차(옛 시드는 전원 20 고정이라 가짜 티가 났다).
@@ -296,7 +300,7 @@ cross join lateral (
     date '2000-01-01' + r.end_time - make_interval(mins => r.slot_duration_minutes),
     make_interval(mins => case when dy.dd >= current_date - 90 then r.slot_duration_minutes else 30 end)
   ) as gs
-  where gs::time < r.lunch_start or gs::time >= r.lunch_end   -- 점심시간 제외
+  where r.lunch_start is null or gs::time < r.lunch_start or gs::time >= r.lunch_end   -- 점심 없는 날(토)은 제외 없음, 있으면 점심시간 제외
 ) as t
 where s.role = 'doctor'
   -- 그 이전 1년치(90일보다 과거)는 성기게: 월·수·금 + 오전 3·오후 3 정각만(시간대 통계가 쏠리지 않게).
