@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     chat_model: str = "claude-sonnet-5"
+    # 분류·라우팅·질의 재작성·인계 사유 판정 등 '이해 계층'용 모델. 답변 생성(chat_model)과 분리해
+    #   빠른 모델(Haiku)을 써 답변 앞단 지연을 줄인다(스트리밍 설계 §98: 지연 14→7초). 답변 본문·진료과
+    #   추천은 chat_model(Sonnet) 유지. 하드 안전(응급·진단요구·직원요청)은 결정적이라 모델과 무관.
+    #   되돌리기=이 값을 chat_model과 같게 두면 전부 Sonnet로 복귀.
+    classify_model: str = "claude-haiku-4-5-20251001"
     # 질문 이해 방식(전면 통합, 세션46 GO). legacy=흩어진 이해(② 라우터 classify + 후속질문 rewrite,
     #   호출 2회), llm=이해기 1콜(conversation_understanding.understand)로 통합. 기본 legacy(되돌리기 3겹
     #   중 플래그 OFF). ⚠️ 안전(응급·직원요청·check_escalation)·답변생성은 두 모드 모두 앞/뒤단 그대로.

@@ -5,6 +5,7 @@ from uuid import UUID
 from app.core.errors import AppError, log_error
 from app.db.pool import get_pool
 from app.services import opening_hours
+from app.integrations.langchain_client import classify_model_for
 from app.services.chat import (orchestrator, rag_service, quality_service, card_builder,
                                booking_agent_service, intent_precheck, dept_guide_service,
                                conversation_understanding, realtime_broadcast)
@@ -216,6 +217,9 @@ async def _generate(session, content: str, *, thread_id: UUID, sender_kind: str,
             "select id, sender_type, content from chat_messages where thread_id=$1 and content is not null "
             "order by created_at desc, id desc limit $2", thread_id, orchestrator.CHAT_CONTEXT_TURN_WINDOW + 1)
     history_texts = build_history(hist, current_id)
+    # 이해 계층(분류·라우팅·재작성·인계판정)은 빠른 모델(Haiku)로, 답변 생성은 model(Sonnet) 유지 —
+    #   답변 앞단 지연 절감(스트리밍 설계 §98). 주입 가짜 모델은 그대로(테스트 오프라인 무회귀).
+    classify_model = classify_model_for(model)
 
     async def rag_fn(s, m, retrieval_query=_LEGACY_REWRITE):
         # Sprint 2(멀티턴 재작성): 후속 질문이면 지시어·생략을 푼 독립형 질의로 검색한다(리포트 §4.2·§9.4).
@@ -226,7 +230,7 @@ async def _generate(session, content: str, *, thread_id: UUID, sender_kind: str,
         if retrieval_query is _LEGACY_REWRITE:
             retrieval_query = None
             if conversation_understanding.has_followup_signal(m, history_texts):
-                standalone = await conversation_understanding.rewrite_standalone(m, history_texts, model=model)
+                standalone = await conversation_understanding.rewrite_standalone(m, history_texts, model=classify_model)
                 retrieval_query = conversation_understanding.build_search_query(m, standalone)
         return await rag_service.rag_answer(m, embedder=embedder, model=model,
                                             retrieval_query=retrieval_query, on_delta=on_delta)
@@ -284,7 +288,7 @@ async def _generate(session, content: str, *, thread_id: UUID, sender_kind: str,
 
     out = await orchestrator.orchestrate(session, content, history_texts=history_texts,
                                          rag_fn=rag_fn, agent_fn=agent_fn, intent_fn=intent_fn,
-                                         dept_guide_fn=dept_guide_fn, model=model)
+                                         dept_guide_fn=dept_guide_fn, model=classify_model)
     # active_flow 지속(리포트 §2.3): 봇이 되물으면 진료과 문진을 다음 턴까지 유지하고, 추천·다른 갈래·인계면
     #   해제한다. pending_handoff_reason 지속(SUPPORT-HANDOFF-CONFIRM-ALL, 2026-09-09): 안전 감시가 인계
     #   확인 프롬프트를 낼 때 원래 사유를 세션에 저장했다가 다음 턴 [직원에게 연결하기] 칩 클릭에서 그 사유로
