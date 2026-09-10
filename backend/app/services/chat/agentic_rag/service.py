@@ -3,6 +3,7 @@ import logging
 import time
 
 from app.integrations.langchain_client import classify_model_for, get_chat_model
+from app.services.chat import rag_service
 from app.services.chat.agentic_rag import nodes, retrieval
 from app.services.chat.agentic_rag.graph import build_graph
 
@@ -10,7 +11,7 @@ logger = logging.getLogger("chat.agentic_rag")
 
 MAX_SEARCH = 2
 MAX_REGEN = 1
-TIME_BUDGET_SEC = 20.0
+TIME_BUDGET_SEC = 25.0
 
 
 async def agentic_rag_answer(message: str, *, embedder, model=None, judge_model=None,
@@ -24,14 +25,8 @@ async def agentic_rag_answer(message: str, *, embedder, model=None, judge_model=
     answer_model = model or get_chat_model()
     judge = judge_model or classify_model_for(answer_model)
     meta = {"decomposed": 1}
-    deadline = time.monotonic() + TIME_BUDGET_SEC
-
-    def _expired() -> bool:
-        return time.monotonic() > deadline
 
     async def decompose_node(state):
-        if _expired():
-            return {"sub_queries": [state["initial_query"]]}
         subs = await nodes.decompose_question(state["message"], model=judge)
         # 최초 검색질의(retrieval_query=멀티턴 재작성)가 원문과 다르고 분해가 단일이면 그 질의를 우선.
         if (state.get("initial_query") and state["initial_query"] != state["message"]
@@ -105,12 +100,24 @@ async def agentic_rag_answer(message: str, *, embedder, model=None, judge_model=
                         generate_node=generate_node, verify_node=verify_node,
                         finalize_node=finalize_node, max_search=MAX_SEARCH, max_regen=MAX_REGEN)
     started = time.monotonic()
-    final = await graph.ainvoke({"message": message,
-                                 "initial_query": retrieval_query or message,
-                                 "attempts": 0, "regen": 0})
-    elapsed = time.monotonic() - started
-    logger.info(
-        "agentic_rag route=rag attempts=%s regen=%s decomposed=%s relevant=%s grounded=%s elapsed=%.2fs",
-        final.get("attempts", 0), final.get("regen", 0), meta["decomposed"],
-        final.get("relevant"), final.get("grounded"), elapsed)
-    return final["outcome"]
+    try:
+        # 시간예산 하드 컷: 그래프 전체가 TIME_BUDGET_SEC를 넘거나(느린 루프) 어떤 이유로든 실패하면(그래프
+        #   오류), 사용자가 답을 못 받는 일이 없게 현행 단발 RAG로 폴백한다 — 에이전트 경로는 best-effort.
+        #   조용한 죽음 방지: run_generation은 _EmptyAiResponse만 잡으므로, 여기서 모든 예외를 답으로 흡수한다.
+        final = await asyncio.wait_for(
+            graph.ainvoke({"message": message, "initial_query": retrieval_query or message,
+                           "attempts": 0, "regen": 0}),
+            timeout=TIME_BUDGET_SEC)
+        elapsed = time.monotonic() - started
+        logger.info(
+            "agentic_rag path=agentic attempts=%s regen=%s decomposed=%s relevant=%s grounded=%s elapsed=%.2fs",
+            final.get("attempts", 0), final.get("regen", 0), meta["decomposed"],
+            final.get("relevant"), final.get("grounded"), elapsed)
+        return final["outcome"]
+    except Exception as exc:  # noqa: BLE001 — 예산초과(TimeoutError)·그래프오류 무엇이든 답 보장 우선
+        elapsed = time.monotonic() - started
+        logger.warning("agentic_rag path=fallback reason=%s(%s) elapsed=%.2fs → 단발 RAG",
+                       type(exc).__name__, exc, elapsed)
+        return await rag_service.rag_answer(
+            message, embedder=embedder, model=answer_model,
+            retrieval_query=retrieval_query, on_delta=on_delta)

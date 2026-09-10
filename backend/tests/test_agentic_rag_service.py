@@ -127,6 +127,22 @@ async def test_service_top_restricted_returns_verbatim(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_service_falls_back_to_legacy_on_graph_error(monkeypatch):
+    # 그래프가 어떤 이유로든 실패하면(여기선 retrieve가 예외) 조용히 죽지 않고 현행 단발 RAG로 폴백해 답을 보장.
+    async def boom(query, *, embedder, match_count=5):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(service.retrieval, "retrieve", boom)
+
+    async def fake_legacy(message, **kw):
+        return {"reply": "legacy-fallback", "sources": []}
+    monkeypatch.setattr(service.rag_service, "rag_answer", fake_legacy)
+
+    out = await service.agentic_rag_answer(
+        "x", embedder=object(), model=_AnswerModel("무시"), judge_model=_ScriptedJudge())
+    assert out["reply"] == "legacy-fallback"
+
+
+@pytest.mark.asyncio
 async def test_service_needs_clarify_returns_clarification(monkeypatch):
     async def fake_retrieve(query, *, embedder, match_count=5):
         return {"chunks": [_chunk("c1", "검사", "검사별로 다름")],
