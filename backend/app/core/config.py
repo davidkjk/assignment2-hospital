@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     #   재정렬(_rank_by_relevance). 켜면 rag_service:89에서 rerank_by_llm 호출, 끄면 즉시 원복.
     #   리랭커 모델은 classify_model(Haiku) 재사용, 외부는 이미 쓰는 Anthropic뿐(L410 추가 노출 0).
     chat_reranker: bool = False
+    # 조건부 재검색(2026-09-11) — 무조건 에이전트 루프(브랜치 B: 매 질문 채점·검증으로 p50 +30%) 대신,
+    #   **첫 하이브리드 검색이 게이트(HYBRID_FLOOR) 미달일 때만** 질의를 Haiku로 1회 재작성해 재검색한다.
+    #   실패한 질문에만 지연이 붙어(대다수 정상 질문은 A단독 속도 유지) 검색 놓침(셔틀·CT금식 등)만 건진다.
+    #   기본 OFF=현행 단발 검색. 켜면 rag_service가 miss 시 1회 재시도, 끄면 즉시 원복. env=CHAT_RERETRIEVE_ON_MISS.
+    chat_reretrieve_on_miss: bool = False
     anon_rate_limit_per_hour: int = 30
     # 익명 웹 상담 연락처(전화)의 대칭 암복호 키(Fernet base64). 비면 codec은 import는 되되
     # 실제 암복호 호출 시에만 실패한다(배포에서 설정 — anonymous_contact_codec 지연 초기화).
