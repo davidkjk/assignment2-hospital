@@ -1162,3 +1162,9 @@ Haiku로 내리는 판단은 **모두 결정적 안전 게이트(응급·진단�
 [^20]: Easy Clinic. “[Intelligent triage: how AI healthcare chatbots are transforming clinics](https://www.easyclinic.io/intelligent-triage-begins-here-how-ai-healthcare-chatbots-are-transforming-clinics/).” 2025. 메시지 의도 분류·triage 정확도·감정 감지 에스컬레이션. (§9.8 ③)
 [^21]: IntuitionLabs. “[Healthcare Chatbot Platforms: A Guide & Comparison](https://intuitionlabs.ai/articles/healthcare-chatbot-platforms).” 인계 시 전체 맥락 전달·red-flag 하드코딩·불확실 시 상향 에스컬레이션·클리니컬 비네트 검증. (§9.8 ②③)
 [^22]: 사이드톡. “[병원 예약 AI 챗봇 — 전화 문의 줄이고 예약 누락 잡는 상담 자동화](https://sidetalk.kr/blog/16952/).” 국내 병원 챗봇의 반복 문의 자동화 범위와 안내 한계 설정. (§9.8 ①④)
+
+---
+
+## §9.17 A/B/C 실환경 대조 (2026-09-11) — 별도 문서
+
+라우팅(A)·에이전트형 RAG(B)·리랭커(C) 세 개선안을 44문항·프로덕션 KB로 실측 대조한 결과·방법·한계는 **`docs/research/chatbot-abc-abtest-2026-09-11.md`**에 정본으로 있다. 요지: **A단독이 기준선 압도(rag 25 vs 16), B·C단독은 기준선 미달.** ⚠️ 비스택(독립) 측정이라 **A+B/A+B+C 순증은 미검증** — 다음 세션에서 A+B부터 대조 예정(핸드오프 세션59).
