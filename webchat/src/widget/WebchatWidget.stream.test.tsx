@@ -65,6 +65,31 @@ test('[CHAT-STREAM-01] 전송 후 실시간 델타가 화면에 흐르고 done�
   expect(await screen.findByText('평일 09시부터 18시입니다.')).toBeInTheDocument();
 });
 
+test('[WEBCHAT-NEW-01] 인계 없을 땐 새 상담이 확인창 없이 바로 새 세션을 연다', async () => {
+  const api = fakeApi();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  const btn = await screen.findByRole('button', { name: '새 상담' });
+  const before = (api.startOrRestoreSession as ReturnType<typeof vi.fn>).mock.calls.length;
+  await userEvent.click(btn);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();   // 확인창 없이
+  await waitFor(() => expect((api.startOrRestoreSession as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before));
+});
+
+test('[WEBCHAT-NEW-01] 진행 중 직원 상담이면 확인창 먼저 → 새로 시작에 새 세션을 연다', async () => {
+  const api = fakeApi();
+  (api.fetchHandoff as ReturnType<typeof vi.fn>).mockResolvedValue({ phase: 'connecting', isOpen: true, closed: false });
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  await screen.findByText('직원 확인 전이에요');   // 인계 활성 상태가 반영됨(phase=connecting)
+  await userEvent.click(screen.getByRole('button', { name: '새 상담' }));
+  expect(await screen.findByRole('dialog')).toBeInTheDocument();   // 실수 이탈 방지 확인창
+  const before = (api.startOrRestoreSession as ReturnType<typeof vi.fn>).mock.calls.length;
+  await userEvent.click(screen.getByRole('button', { name: '새로 시작' }));
+  await waitFor(() => expect((api.startOrRestoreSession as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(before));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
 test('[WEBCHAT-URGENT] done.routeTaken=emergency면 긴급 안내 배너와 면책 문구를 렌더한다', async () => {
   const api = fakeApi();
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);

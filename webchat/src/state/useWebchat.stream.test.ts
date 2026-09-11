@@ -92,6 +92,22 @@ test('[CHAT-STREAM-01] 델타 없는 빠른 경로(emergency)는 DB 재조회로
     expect(result.current.messages.some((m) => m.content === '지금 위급한 상황일 수 있어요')).toBe(true));
 });
 
+test('[WEBCHAT-NEW-01] startNew는 익명 토큰을 비우고 새 세션으로 다시 열어 피드를 초기화한다', async () => {
+  const startOrRestoreSession = vi.fn(async (tok: string | null) => ({
+    ...session,
+    messages: tok ? ([{ id: 'old', senderType: 'bot', messageType: 'text', content: '이전 대화' }] as ThreadMessage[]) : [],
+  }));
+  const api = fakeApi({ startOrRestoreSession });
+  const { result } = await opened(api);                 // 첫 열기: 토큰 없음 → 빈 피드
+  act(() => result.current.applyStaffMessage({ id: 'm1', content: '직원답' }));
+  expect(result.current.messages.length).toBeGreaterThan(0);
+
+  await act(async () => { await result.current.startNew(); });
+  expect(result.current.messages).toEqual([]);          // 새 세션 = 빈 피드(처음부터)
+  expect(startOrRestoreSession).toHaveBeenLastCalledWith(null); // 토큰을 비우고 다시 열었다
+  expect(result.current.handoff.phase).toBeNull();      // 인계 상태도 초기화
+});
+
 test('[CHAT-STREAM-STAFF-MSG-01] applyStaffMessage가 직원 말풍선을 피드에 붙인다(중복 방지)', async () => {
   const api = fakeApi();
   const { result } = await opened(api);

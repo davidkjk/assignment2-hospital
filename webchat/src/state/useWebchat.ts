@@ -3,7 +3,7 @@ import type { WebchatApi, SessionState, ThreadMessage, HandoffStatus, GuideState
 import type { BotDone, StaffMessage } from '../widget/useStaffPresence';
 import type { WebchatPhase } from '../widget/ChatRoom';
 import type { OutagePhase } from '../widget/OutageNotice';
-import { loadAnonToken, saveAnonToken } from './anonSession';
+import { loadAnonToken, saveAnonToken, clearAnonToken } from './anonSession';
 
 const uuid = () => crypto.randomUUID();
 
@@ -62,6 +62,20 @@ export function useWebchat(api: WebchatApi, opts: { onHandoffRequested?: (thread
   const clearFallback = useCallback(() => {
     if (fallbackTimer.current) { clearTimeout(fallbackTimer.current); fallbackTimer.current = null; }
   }, []);
+
+  // [WEBCHAT-NEW-01] 새 상담(리셋): 이 브라우저의 익명 토큰을 비우고 새 세션으로 다시 연다 — 지금 대화를
+  //   접고 처음(빈 피드·시작 칩)부터. 기존 대화는 서버 기록엔 남지만 이 브라우저에선 더 안 보인다(백엔드
+  //   변경 없이 토큰만 새로 발급). 막다른 길 방지의 반대편 — "한번 들어가면 못 빠져나옴" 해소.
+  //   진행 중 직원 상담을 실수로 버리지 않도록, 확인은 위젯(WebchatWidget)이 인계 활성 시 확인창으로 감싼다.
+  const startNew = useCallback(async () => {
+    clearFallback();
+    activeGen.current = null; latestText.current = '';
+    clearAnonToken();
+    setSession(null); setMessages([]); setHandoff({ phase: null, isOpen: false });
+    setGuide({ active: false, text: '' }); setStreaming(null); setOutage(null);
+    setUrgent(false); setBotTyping(false);
+    await open();   // 토큰이 비었으므로 서버가 새 익명 세션을 발급한다(추측 조회 없음)
+  }, [open, clearFallback]);
 
   const dispatchSend = useCallback(async (content: string, clientMessageId: string) => {
     if (!session || inFlight.current.has(clientMessageId)) return; // 멱등 중복 차단
@@ -179,7 +193,7 @@ export function useWebchat(api: WebchatApi, opts: { onHandoffRequested?: (thread
     streaming,                                         // 진행 중 봇 스트림 버블(위젯이 messages 뒤에 합성)
     urgent, outage, setOutage,                         // 긴급/장애 상태(WEBCHAT-URGENT·WEBCHAT-OUTAGE) — 위젯이 배너로 렌더
     askedForContact: false, crossDeviceResume: false, // 익명 웹은 이름/연락처를 방 진입에서 묻지 않는다
-    open, send, resend,
+    open, send, resend, startNew,               // [WEBCHAT-NEW-01] 새 상담(리셋)
     applyBotTyping, applyBotDelta, applyBotDone,        // 실시간 봇 이벤트 반영(WebchatWidget이 채널 훅에 연결)
     applyStaffMessage,                                 // [CHAT-STREAM-STAFF-MSG-01] 인계 후 직원 답장 수신
     retryLoad: open,

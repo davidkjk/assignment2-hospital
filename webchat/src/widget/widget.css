@@ -314,6 +314,82 @@ html, body { height: 100%; }
   background: rgba(255, 255, 255, .3);
 }
 
+/* ── [WEBCHAT-NEW-01] 새 상담(헤더 버튼) — 딥틸 헤더 위 은은한 흰 알약. wc-close(우측 16px)와 안 겹치게 우측 여백 확보 ── */
+.wc-newchat {
+  margin-left: auto;                 /* 제목은 왼쪽, 이 버튼은 오른쪽으로 */
+  margin-right: 42px;                /* 닫기(×) 자리 비켜서기 */
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, .35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  font-family: var(--wc-font);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.wc-newchat:hover { background: rgba(255, 255, 255, .3); }
+
+/* ── [WEBCHAT-NEW-01] 새 상담 확인창 — 진행 중 직원 상담을 덮기 전 확인(막다른 길·되돌릴 수 없는 이탈 방지) ── */
+.wc-confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--wc-scrim);
+}
+.wc-confirm__box {
+  width: 100%;
+  max-width: 320px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--wc-shadow);
+}
+.wc-confirm__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--wc-ink);
+}
+.wc-confirm__msg {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--wc-ink-2);
+}
+.wc-confirm__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.wc-confirm__cancel,
+.wc-confirm__go {
+  border-radius: 10px;
+  font-family: var(--wc-font);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.wc-confirm__cancel {
+  border: 1px solid var(--wc-line);
+  background: #fff;
+  color: var(--wc-ink);
+}
+.wc-confirm__cancel:hover { background: var(--wc-soft); }
+/* 되돌릴 수 없는 이탈(진행 중 직원 상담에서 나감)이라 확인창 안에서만 위험색을 쓴다(정본 설계원칙). */
+.wc-confirm__go {
+  border: 1px solid transparent;
+  background: var(--wc-danger);
+  color: #fff;
+}
+.wc-confirm__go:hover { filter: brightness(1.06); }
+
 /* ── 대화 바디(ChatRoom <ul>) ──────────────────────────────────────────── */
 .wc-body {
   flex: 1 1 auto;
