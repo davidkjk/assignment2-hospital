@@ -40,7 +40,7 @@ function ShellBody() {
   // SEND-BADGE-01 — 「안내 보내기」 사이드바 배지(전화해야 할 미처리 실패). 접수·관리자만 조회.
   const canUseStaffTools = staff?.role === 'receptionist' || staff?.role === 'admin'
   const messagesBadge = useMessagesBadge(canUseStaffTools)
-  // 이관 알림 — 「상담봇 문의함」 배지(내게 배정된 진행 중 상담 개수). 문의함을 쓰는 접수·관리자만.
+  // [TICKET-BADGE-01] 「상담봇 문의함」 배지 = 처리 대기 중인 새 문의(미배정) 개수 — 문의함 첫 화면(새 문의 탭)과 같은 값. 접수·관리자만.
   const ticketsBadge = useTicketsBadge(canUseStaffTools)
   const badgeCounts = { ...messagesBadge, ...ticketsBadge }
   if (!staff) return null
