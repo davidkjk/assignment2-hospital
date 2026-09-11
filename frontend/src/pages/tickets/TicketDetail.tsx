@@ -29,7 +29,8 @@ export function TicketDetail(props: {
   // TICKET-DETAIL-TYPING-01: 답변 작성 중이면 같은 thread의 broadcast로 "직원 입력 중"을 환자 상담방에 보낸다.
   // 유휴 3초 해제(디바운스)는 d.setTyping이, 송신 transport는 send가 담당한다.
   // [TICKET-DETAIL-PATIENT-PRESENCE-01·PATIENT-TYPING-01] 같은 채널에서 환자 접속·입력 중도 구독해 표시한다.
-  const { send: sendTyping, patientTyping, patientViewing } = useTypingChannel(d.detail?.threadId)
+  // [F6] onPatientRead: 환자/익명이 읽으면(서버 patient_read 신호) 대화를 재조회해 '환자 미확인'을 실시간으로 걷는다.
+  const { send: sendTyping, patientTyping, patientViewing } = useTypingChannel(d.detail?.threadId, d.reloadConversation)
 
   // SCROLL-01: 새 메시지가 늘면(특히 내가 방금 보낸 답변) 대화 맨 아래로 스크롤한다.
   // 안 하면 보낸 글이 스크롤 영역 밑에 접혀 "아무 일도 안 일어난 것"처럼 보인다.
@@ -39,11 +40,12 @@ export function TicketDetail(props: {
     if (el) el.scrollTop = el.scrollHeight
   }, [d.detail?.messages.length])
 
-  // UNREAD-02: 상세를 열어 미확인 환자 메시지를 보면 서버 확인 상태 갱신.
+  // UNREAD-02: 상세를 열어 미확인 환자 메시지를 보면 서버 확인 상태 갱신. [F6] 보는 중 새 환자 메시지가
+  //   도착해도(메시지 수 증가) 다시 확인 처리한다 — 예전엔 진입 시 1회만 해서 이후 도착분이 계속 '미확인'으로 남았다.
   useEffect(() => {
     if (d.phase === 'ready') void d.markReadVisible()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d.phase])
+  }, [d.phase, d.detail?.messages.length])
 
   if (d.phase === 'loading') {
     // LOAD-01: '처리 중' 단정 없이 로딩만.

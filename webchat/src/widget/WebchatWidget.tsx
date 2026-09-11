@@ -67,6 +67,12 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
   // 열림으로 전이될 때마다 세션 확보(기존 openRoom = setOpen(true)+w.open() 동작을 그대로 보존).
   useEffect(() => { if (open) openSession(); }, [open, openSession]);
   useEffect(() => { onUnreadChange?.(hasUnread); }, [hasUnread, onUnreadChange]);
+  // [F6] 위젯을 열어 대화를 보고 있으면 = 읽음. 읽음 커서를 서버로 전진시킨다(POST /chat/read) —
+  //   예전엔 acknowledgeView가 정의만 되고 호출되는 곳이 없어 직원 화면에 '환자 미확인'이 영영 남았다.
+  //   열림 + 마지막 메시지가 바뀔 때(직원 답장 도착 포함)마다 확인 처리(환자앱 '방 열면 읽음'과 동형).
+  const lastMsgId = w.messages.length ? w.messages[w.messages.length - 1].id : null;
+  const acknowledgeView = w.acknowledgeView;
+  useEffect(() => { if (open && lastMsgId) void acknowledgeView(); }, [open, lastMsgId, acknowledgeView]);
 
   return (
     <>

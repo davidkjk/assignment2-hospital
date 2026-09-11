@@ -31,12 +31,16 @@ export interface TypingChannel {
 
 /** thread별 broadcast 채널을 열고 ⑴ 직원 typing/viewing을 환자에게 보내며 ⑵ 환자 typing/viewing을
  *  구독해 돌려준다. threadId가 없으면(로딩 전) no-op — 상세가 로드되면 effect가 채널을 다시 연다. */
-export function useTypingChannel(threadId: string | undefined): TypingChannel {
+export function useTypingChannel(threadId: string | undefined, onPatientRead?: () => void): TypingChannel {
   const chanRef = useRef<Channel | null>(null)
   const [patientTyping, setPatientTyping] = useState(false)
   const [patientViewing, setPatientViewing] = useState(false)
   const typingOff = useRef<ReturnType<typeof setTimeout> | null>(null)
   const viewingOff = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // [F6] 환자 읽음 신호 콜백을 ref로 최신 유지(effect 재구독 없이). 서버가 chat-typing 채널로 보내는
+  //   'patient_read'를 받아 대화를 재조회하면 '환자 미확인' 배지가 실시간으로 걷힌다.
+  const onPatientReadRef = useRef(onPatientRead)
+  onPatientReadRef.current = onPatientRead
 
   useEffect(() => {
     if (!threadId) {
@@ -64,6 +68,8 @@ export function useTypingChannel(threadId: string | undefined): TypingChannel {
       setPatientViewing(!!data.on)
       if (data.on) viewingOff.current = setTimeout(() => setPatientViewing(false), 12000)
     })
+    // [F6] 환자/익명이 읽음(서버 patient_read 신호) — 대화를 재조회해 '환자 미확인'을 실시간으로 걷는다.
+    ch.on('broadcast', { event: 'patient_read' }, () => onPatientReadRef.current?.())
     ch.subscribe((status: string) => {
       // 구독 완료(SUBSCRIBED) 후에 보내야 신호가 실제로 나간다(구독 전 send는 유실).
       if (status === 'SUBSCRIBED') {

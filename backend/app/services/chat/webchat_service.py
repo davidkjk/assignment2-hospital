@@ -139,6 +139,15 @@ async def acknowledge_read(thread_id: UUID) -> None:
                 "on conflict (thread_id, reader_patient_id) where reader_type='patient' "
                 "do update set last_read_message_id=excluded.last_read_message_id, last_read_at=now(), updated_at=now()",
                 thread_id, thread["patient_id"])
+    # [F6] 환자/익명이 읽었음을 직원 상세 화면에 실시간으로 알린다 — 직원 화면의 '환자 미확인'은 서버가
+    #   조회 시점에 커서로 계산하므로, 알려주지 않으면 직원이 새로고침하기 전까지 안 걷힌다. 같은
+    #   chat-typing:<thread> broadcast 채널로 신호만 보내면(직원 useTypingChannel이 구독) 직원이 재조회한다.
+    #   best-effort — 신호 유실돼도 다음 조회에서 커서로 정합화된다. chat_read_states realtime publication 불필요.
+    from app.services.chat import realtime_broadcast
+    try:
+        await realtime_broadcast.broadcast(thread_id, "patient_read", {})
+    except Exception:  # noqa: BLE001 — 실시간 신호는 부가. DB 커서가 정본.
+        pass
 
 
 def patient_handoff_view(ticket_status, staff_name, staff_role, has_staff_reply=False):
