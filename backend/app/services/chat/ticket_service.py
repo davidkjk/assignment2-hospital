@@ -6,6 +6,7 @@ import asyncpg
 from app.core.errors import AppError
 from app.db.pool import acquire_as
 from app.services.chat import realtime_broadcast
+from app.services.chat.enqueue import enqueue_after_reply
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 
@@ -69,6 +70,14 @@ async def staff_send_message(auth_user_id: str, ticket_id: UUID, content: str,
         "senderType": "staff",
         "createdAt": row["created_at"].isoformat(),
     })
+    # [F8] 인계 답변 알림 배칭을 건다 — 예전엔 이 호출이 어디에도 없어(배선 누락) 직원이 답해도
+    #   문자·푸시가 영영 안 나갔다. 수신자가 상담방을 보고 있으면 즉시읽음(None), 아니면 배치 생성 →
+    #   cron(dispatch_pending_batches)이 발송: 익명 = 검증 연락처로 SMS(항상), 등록 = 푸시 우선·문자 폴백
+    #   (문자는 hospital.sms_enabled ON일 때만). best-effort — 알림 실패가 답변 저장을 되돌리지 않는다.
+    try:
+        await enqueue_after_reply(row["id"])
+    except Exception:  # noqa: BLE001 — 알림은 부가 경로. DB가 정본이라 cron 재실행/재조회로 복구.
+        pass
     return _sent_msg_to_dto(row)
 
 
