@@ -18,12 +18,14 @@ test('[WEBMOD-AUTH-02] [로그인]은 기존 로그인 흐름에 연결하고 �
   await waitFor(() => expect(onAuth).toHaveBeenCalledWith('p1', action));
 });
 
-test('[WEBMOD-AUTH-03] [가입]은 기존 가입 흐름에 연결하며 위젯 내부에 OTP·비밀번호 입력칸을 새로 만들지 않는다', async () => {
+test('[WEBMOD-AUTH-03 개정] 가입은 웹에서 만들지 않으므로 [가입] 버튼을 두지 않고 앱 가입 경로만 안내한다(막다른 길 금지)', async () => {
+  // ~~옛 WEBMOD-AUTH-03: [가입]→기존 가입 흐름 연결~~ ✅ 해소(2026-09-11, 사용자 결정) — 웹 가입 미구현이라 버튼 제거.
   const auth = fakeAuth();
   render(<AuthGateModal action={action} auth={auth} onClose={() => {}} onAuthenticated={() => {}} />);
-  expect(screen.queryByLabelText(/비밀번호|인증번호|OTP/)).not.toBeInTheDocument(); // 위젯 내부 가입 3화면 없음
-  await userEvent.click(screen.getByRole('button', { name: '가입' }));
-  expect(auth.signup).toHaveBeenCalledWith(action);
+  expect(screen.queryByRole('button', { name: '가입' })).not.toBeInTheDocument();       // 오해를 주는 가입 버튼 없음
+  expect(screen.queryByLabelText(/비밀번호|인증번호|OTP/)).not.toBeInTheDocument();       // 위젯 내부 가입 화면도 없음
+  expect(auth.signup).not.toHaveBeenCalled();
+  expect(screen.getByText(/가온병원 앱에서 가입/)).toBeInTheDocument();                    // 계정 없는 분을 앱으로 안내(막다른 길 방지)
 });
 
 test('[WEBMOD-AUTH-04] 처리 중에는 중복 제출과 원래 행동 실행을 막는다', async () => {

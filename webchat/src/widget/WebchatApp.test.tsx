@@ -32,7 +32,7 @@ test('[WEBMOD-AUTH-01] 로그인 필요 행동을 누르면 관문 모달을 열
   render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
   await openRoom();
   await userEvent.click(screen.getByRole('button', { name: '내 예약 조회' }));
-  expect(screen.getByRole('dialog', { name: '로그인 또는 가입' })).toBeInTheDocument();
+  expect(screen.getByRole('dialog', { name: '로그인' })).toBeInTheDocument();
   expect(api.executeCard).not.toHaveBeenCalled();     // 인증 전 원래 행동 실행 없음
 });
 
@@ -46,8 +46,8 @@ test('[WEBMOD-AUTH-07] 로그인 완료는 최신 서버 값을 조회하고 예
   expect(api.executeCard).not.toHaveBeenCalled();     // 확인 단계 안 건너뜀
 });
 
-test('[WEBMOD-AUTH-08] 가입 완료는 재확인 카드를 다시 표시하고 인증만으로 자동 실행하지 않는다', async () => {
-  // 익명 세션에 예약확인 카드가 떠 있는 상태에서 [예약 신청하기] → 관문 → [가입] → 재확인 카드
+test('[WEBMOD-AUTH-08] 로그인 완료는 재확인 카드를 다시 표시하고 인증만으로 자동 실행하지 않는다', async () => {
+  // 익명 세션에 예약확인 카드가 떠 있는 상태에서 [예약 신청하기] → 관문 → [로그인] → 재확인 카드
   const api = fakeApi({ startOrRestoreSession: vi.fn(async (): Promise<SessionState> => ({
     threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
     messages: [{ id: 'm1', senderType: 'bot', messageType: 'card', content: null, payload: { ...bookConfirmPayload } }],
@@ -55,13 +55,13 @@ test('[WEBMOD-AUTH-08] 가입 완료는 재확인 카드를 다시 표시하고 
   render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
   await openRoom();
   await userEvent.click(await screen.findByRole('button', { name: '예약 신청하기' })); // 익명 카드 → 관문
-  await userEvent.click(screen.getByRole('button', { name: '가입' }));           // 가입 완료
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));         // 로그인 완료
   expect(await screen.findByRole('dialog', { name: '예약 재확인' })).toBeInTheDocument(); // 재확인 카드 재표시
   expect(api.executeCard).not.toHaveBeenCalled(); // 인증만으로 자동 신청 없음([신청] 눌러야 확정)
 });
 
 test('[CCARD-BOOKDONE-SHOW-01] 재확인 카드에서 [신청]을 확정하면 실행 결과 완료 카드가 피드에 삽입되고 다이얼로그는 닫힌다', async () => {
-  // 익명 카드 → 관문 → 가입 → 재확인 다이얼로그 → [예약 신청하기] 확정 → executeCard 결과(booking_done)가 피드에.
+  // 익명 카드 → 관문 → 로그인 → 재확인 다이얼로그 → [예약 신청하기] 확정 → executeCard 결과(booking_done)가 피드에.
   const api = fakeApi({ startOrRestoreSession: vi.fn(async (): Promise<SessionState> => ({
     threadId: 't1', aiSessionId: 's1', anonToken: 'TOK',
     messages: [{ id: 'm1', senderType: 'bot', messageType: 'card', content: null, payload: { ...bookConfirmPayload } }],
@@ -69,7 +69,7 @@ test('[CCARD-BOOKDONE-SHOW-01] 재확인 카드에서 [신청]을 확정하면 �
   render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
   await openRoom();
   await userEvent.click(await screen.findByRole('button', { name: '예약 신청하기' })); // 익명 카드 → 관문
-  await userEvent.click(screen.getByRole('button', { name: '가입' }));                 // 가입 → 재확인 카드
+  await userEvent.click(screen.getByRole('button', { name: '로그인' }));               // 로그인 → 재확인 카드
   const dialog = await screen.findByRole('dialog', { name: '예약 재확인' });
   await userEvent.click(within(dialog).getByRole('button', { name: '예약 신청하기' })); // [신청] 확정 → 실행
   await waitFor(() => expect(api.executeCard).toHaveBeenCalledWith(
@@ -89,7 +89,7 @@ test('[SP1] ⑦(귀속·재검증) 라우트가 아직 404여도 로그인 자�
   await openRoom();
   await userEvent.click(screen.getByRole('button', { name: '내 예약 조회' }));
   await userEvent.click(screen.getByRole('button', { name: '로그인' }));
-  await waitFor(() => expect(screen.queryByRole('dialog', { name: '로그인 또는 가입' })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: '로그인' })).not.toBeInTheDocument());
 });
 
 test('[WEBMOD-AUTH-09] 명시적 로그인 성공 시에만 앞선 익명 이력을 계정에 귀속한다', async () => {
@@ -123,6 +123,30 @@ test('[WEBBOOK-06] 진료과 탭 → navigateAction(pick_department) → 의사 
   await userEvent.click(await screen.findByRole('button', { name: '내과' }));
   await waitFor(() => expect(api.navigateAction).toHaveBeenCalledWith({ action: { kind: 'pick_department', payload: { department_id: 'd1' } } }));
   expect(await screen.findByRole('button', { name: /김의사/ })).toBeInTheDocument(); // 다음 카드 피드 삽입
+});
+
+test('[WEBCARD 지난-단계 잠금] 새 카드가 오면 앞 카드는 읽기 기록(webcard--past·inert)으로 잠기고 마지막 카드만 상호작용한다', async () => {
+  // F3: 지난 시간 칩/선택 카드를 다시 눌러 로그인 관문이 또 뜨거나 대화가 밀리던 버그 방지.
+  const api = withDeptCard();
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(await screen.findByRole('button', { name: '내과' }));      // 진료과 → 의사 카드
+  const doctorCard = (await screen.findByRole('button', { name: /김의사/ })).closest('.webcard')!;
+  expect(doctorCard).not.toHaveClass('webcard--past');   // 마지막 카드 = 지금 단계
+  expect(doctorCard).not.toHaveAttribute('inert');
+  const deptCard = screen.getByRole('button', { name: '내과' }).closest('.webcard')!;
+  expect(deptCard).toHaveClass('webcard--past');         // 앞 카드 = 지난 단계로 잠김
+  expect(deptCard).toHaveAttribute('inert');
+});
+
+test('[WEBCHAT-NEW-01] 새 상담을 누르면 지난 예약 흐름 카드가 사라진다(카드 잔존 버그 수정 · F4)', async () => {
+  const api = withDeptCard();
+  render(<WebchatApp api={api} auth={fakeAuth()} hospitalPhone="02-0-0" />);
+  await openRoom();
+  await userEvent.click(await screen.findByRole('button', { name: '내과' }));      // 의사 카드(flowCards)가 쌓임
+  expect(await screen.findByRole('button', { name: /김의사/ })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '새 상담' }));           // 새 상담 → 앱 상태까지 리셋
+  await waitFor(() => expect(screen.queryByRole('button', { name: /김의사/ })).not.toBeInTheDocument()); // 흐름 카드 사라짐
 });
 
 

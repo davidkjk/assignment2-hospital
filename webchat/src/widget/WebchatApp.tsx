@@ -124,8 +124,10 @@ export function WebchatApp({ api, auth, hospitalPhone }: { api: WebchatApi; auth
         open={open} onOpenChange={setOpen} onUnreadChange={setHasUnread} // 홈페이지 iframe 열기/미읽음 배선(Task 2)
         onAuthGate={setAuthAction}                            // WEBMOD-AUTH-01: 관문 열기(원래 행동·문맥 보존)
         onHandoffNeeded={setHandoff}
-        renderCard={(payload, slot) => <WebCard payload={payload} ctx={cardCtx(slot)} />}
+        renderCard={(payload, slot, interactive) => <WebCard payload={payload} ctx={cardCtx(slot)} interactive={interactive} />}
         extraCards={[...flowCards, ...doneCards]}             // 예약 앞흐름 카드 + 실행 결과 완료 카드를 피드 끝에 렌더(재열기해도 유지)
+        // [WEBCHAT-NEW-01] 새 상담 = 완전한 새 출발 → 예약 흐름/완료 카드·재확인·로그인을 함께 비운다(카드 잔존 버그 수정).
+        onReset={() => { setFlowCards([]); setDoneCards([]); setReconfirm(null); setPatientId(null); }}
       />
       {authAction && <AuthGateModal action={authAction} auth={auth} onClose={() => setAuthAction(null)} onAuthenticated={afterAuth} />}
       {handoff && <HandoffForm api={api} summary={handoff} onDone={() => setHandoff(null)} onCancel={() => setHandoff(null)} />}

@@ -20,7 +20,11 @@ export type CardContext = {
 export type CardProps = { p: Record<string, unknown>; ctx: CardContext };
 
 // 셸은 카드의 알맹이를 모른다 — card_type만 읽어 슬롯에 넘기고 위젯 폭 래퍼로 감싼다(공통 원칙 9).
-export function WebCard({ payload, ctx }: { payload: Record<string, unknown> | null | undefined; ctx: CardContext }) {
+// 카드 머리 제목(꼬리표)은 widget.css의 `.webcard[data-card-type=…]::before`가 card_type으로 붙인다(단일 출처).
+// interactive=false면 지난 단계의 카드다 — 읽기 기록으로만 두고 다시 누르지 못하게 막는다(WEBCARD-BOOKDONE-03을
+//   흐름 카드 전체로 확장). 지난 시간 칩을 다시 눌러 로그인 관문이 또 뜨거나, 지난 선택 카드가 새 카드를 덧붙여
+//   대화가 밀리던 버그를 막는다. inert는 마우스·키보드·포커스를 모두 차단한다(React 18은 ref로 토글).
+export function WebCard({ payload, ctx, interactive = true }: { payload: Record<string, unknown> | null | undefined; ctx: CardContext; interactive?: boolean }) {
   if (!payload || typeof payload.card_type !== 'string') return null;
   const inner = (() => {
     switch (payload.card_type) {
@@ -40,5 +44,15 @@ export function WebCard({ payload, ctx }: { payload: Record<string, unknown> | n
       default:                return null;
     }
   })();
-  return <div className="webcard" data-card-type={payload.card_type as string}>{inner}</div>;
+  if (inner === null) return null;   // 알 수 없는 카드는 제목만 덩그러니 남기지 않는다
+  return (
+    <div
+      className={interactive ? 'webcard' : 'webcard webcard--past'}
+      data-card-type={payload.card_type as string}
+      // React 18은 inert prop이 없어 ref로 attribute를 토글한다(지난 카드=상호작용 완전 차단).
+      ref={(el) => { el?.toggleAttribute('inert', !interactive); }}
+    >
+      {inner}
+    </div>
+  );
 }

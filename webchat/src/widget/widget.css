@@ -585,6 +585,25 @@ html, body { height: 100%; }
 .webcard[data-card-type="cancel_done"]::before { content: "취소 결과"; }
 .webcard[data-card-type="cancel_reject"]::before { content: "직원 답변"; }
 .webcard[data-card-type="questionnaire"]::before { content: "앱 안내"; }
+/* 예약 앞흐름 카드에도 같은 꼬리표를 달아 지금 무엇을 고르는 단계인지 보이게 한다(F5, 사용자 제보). */
+.webcard[data-card-type="department_select"]::before { content: "진료과 선택"; }
+.webcard[data-card-type="doctor_select"]::before { content: "의사 선택"; }
+.webcard[data-card-type="date_select"]::before { content: "날짜 선택"; }
+.webcard[data-card-type="target_select"]::before { content: "예약 대상"; }
+.webcard[data-card-type="reason_input"]::before { content: "방문 이유"; }
+
+/* 지난 단계의 카드(대화에서 이미 지나온 선택) — 읽기 기록으로만 남긴다(F3). inert가 상호작용을 막고,
+   여기서는 지나온 단계임을 조용히 드러낸다. 고장난 회색이 아니라 "완료된 기록"으로 읽히게 은은하게만. */
+.webcard--past {
+  opacity: .58;
+  box-shadow: none;
+  background: var(--wc-soft);
+}
+.webcard--past::before {
+  border-color: var(--wc-line);
+  background: var(--wc-line);
+  color: var(--wc-ink-2);
+}
 
 .webcard p { margin: 5px 0; line-height: 1.55; }
 .webcard p[role="status"] { color: var(--wc-ink-3); font-size: 12.5px; }
@@ -729,6 +748,14 @@ html, body { height: 100%; }
   font-weight: 600;
   line-height: 1.55;
   color: var(--wc-ink);
+}
+
+/* 로그인 관문 보조 안내 — 계정이 없는 분을 위한 가입 경로(환자 앱). 막다른 길 방지(F2). */
+.wc-modal__hint {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--wc-ink-2);
 }
 
 /* 닫기 × — 카드 우상단 */

@@ -20,14 +20,15 @@ export type WidgetProps = {
   hospitalPhone: string;
   onAuthGate: (action: PendingAction) => void;      // → WEBMOD-AUTH(Task 15)
   onHandoffNeeded: (summary: HandoffSummary) => void; // → WEBANON-HANDOFF(Task 15)
-  renderCard: (payload: Record<string, unknown> | null | undefined, slot: CardSlot) => ReactNode; // → WEBCARD(Task 15)
+  renderCard: (payload: Record<string, unknown> | null | undefined, slot: CardSlot, interactive: boolean) => ReactNode; // → WEBCARD(Task 15) · interactive=지난 카드 잠금
+  onReset?: () => void;                              // [WEBCHAT-NEW-01] 새 상담 시 앱 레벨 상태(예약 카드·로그인)까지 비운다
   extraCards?: ThreadMessage[]; // 재확인 카드 [신청]/[취소] 실행 결과(booking_done·cancel_done 등)를 피드 끝에 얹는다(CCARD-BOOKDONE-SHOW-01). 재열기해도 살아남음(WEBCARD-BOOKDONE-03)
   open?: boolean;                                   // 제어 모드(홈페이지 iframe이 host:setOpen으로 연다). 없으면 자체 상태로 연다(단독 배포).
   onOpenChange?: (open: boolean) => void;           // 열림 상태 변화를 부모에 통지(WebchatApp이 webchat:setOpen 송신)
   onUnreadChange?: (hasUnread: boolean) => void;    // 미읽음(직원 답변 도착) 변화를 부모에 통지(webchat:unread 송신)
 };
 
-export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded, renderCard, extraCards = [], open: openProp, onOpenChange, onUnreadChange }: WidgetProps) {
+export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded, renderCard, onReset, extraCards = [], open: openProp, onOpenChange, onUnreadChange }: WidgetProps) {
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;               // 제어 모드면 부모 값, 아니면 자체 상태
   const setOpen = (v: boolean) => { setOpenState(v); onOpenChange?.(v); };
@@ -40,8 +41,11 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
   //   버리지 않도록 확인창으로 감싼다(사용자 결정 2026-09-10). 그 외엔 바로 새로 시작.
   const [confirmNew, setConfirmNew] = useState(false);
   const handoffActive = w.handoff.phase !== null && w.handoff.closed !== true;
-  const requestNewChat = () => { if (handoffActive) setConfirmNew(true); else void w.startNew(); };
-  const confirmNewChat = () => { setConfirmNew(false); void w.startNew(); };
+  // 새 상담 = 완전한 새 출발. 스레드(useWebchat)뿐 아니라 앱 레벨 상태(예약 흐름 카드·완료 카드·로그인)도 함께 비운다
+  //   — 안 그러면 지난 예약 카드가 새 대화에 그대로 남는다(사용자 제보).
+  const doStartNew = () => { onReset?.(); void w.startNew(); };
+  const requestNewChat = () => { if (handoffActive) setConfirmNew(true); else doStartNew(); };
+  const confirmNewChat = () => { setConfirmNew(false); doStartNew(); };
   // Q18③: 직원이 상담 상세를 실제로 열어 보는 중이면 배지가 "직원이 확인 중이에요"로(열람 presence).
   // [CHAT-ROOM-PATIENT-TYPING-01] 방향은 양쪽 — 같은 훅이 이 위젯(환자)의 입력 중을 직원에게 보낼 notifyTyping도 준다.
   // [CHAT-STREAM-01] 봇 답 스트리밍(bot_typing/delta/done)도 같은 채널로 받아 useWebchat에 반영한다.
@@ -121,10 +125,10 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
                 <button type="button" className="wc-chip wc-chip--handoff" onClick={() => w.session && onHandoffNeeded({ threadId: w.session.threadId, summary: [] })}>직원에게 문의</button>
               </div>
             </div>}
-            renderCard={(payload) => renderCard(payload, {
+            renderCard={(payload, interactive) => renderCard(payload, {
               send: w.send,
               onHandoff: () => { if (w.session) onHandoffNeeded({ threadId: w.session.threadId, summary: [] }); },
-            })}
+            }, interactive)}
           />
         </div>
       )}

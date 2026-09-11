@@ -19,7 +19,8 @@ export type ChatRoomProps = {
   onStaffHandoff?: () => void;    // Q5: 가장 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼(WEBANON-HANDOFF)
   onNewChat?: () => void;         // [WEBCHAT-NEW-01] 헤더 '새 상담'(연필) — 지금 대화를 접고 처음부터(막다른 길 방지). 없으면 안 그림.
   onClose?: () => void;           // [WEBCHAT-CLOSE-01] 헤더 '닫기'(×) — 위젯을 접는다(호스트로 setOpen:false). 없으면 안 그림(단독 전체화면 등).
-  renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
+  // interactive = 이 카드가 대화의 마지막 메시지인가(지금 단계). 지난 카드는 읽기 기록으로만 둔다(WEBCARD 지난-단계 잠금).
+  renderCard: (payload: Record<string, unknown> | null | undefined, interactive: boolean) => ReactNode;
 };
 
 // 말풍선 정렬: 환자=오른쪽 딥틸, 봇/직원=왼쪽 흰카드, 시스템=가운데(ROOM-08)
@@ -95,7 +96,7 @@ export function ChatRoom(p: ChatRoomProps) {
             data-send-state={m.sendState ?? 'sent'}
             className={m.messageType === 'card' ? 'wc-cardline' : bubbleClass(m.senderType)}
           >
-            {m.messageType === 'card' ? p.renderCard(m.payload) : m.content}
+            {m.messageType === 'card' ? p.renderCard(m.payload, idx === p.messages.length - 1) : m.content}
             {m.sendState === 'failed' && (
               <button type="button" onClick={() => m.clientMessageId && p.onResend(m.clientMessageId)}>재전송</button>
             )}
