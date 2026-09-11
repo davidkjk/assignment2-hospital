@@ -72,6 +72,10 @@ def ask_one(base, question):
     """한 질문을 새 익명 세션으로 던지고 (route, 봇답, 상세)를 돌려준다(멀티턴 오염 방지)."""
     sess = _post(base, "/chat/sessions", {})
     thread_id, ai_id = sess["threadId"], sess["aiSessionId"]
+    # 지연 측정: 환자가 메시지를 보낸 순간(=메시지 POST 직전)부터 봇 답이 뜰 때까지(전송→답변 체감 지연).
+    #   세션 생성은 실사용에선 1회뿐이라 제외. 폴링 간격(POLL_INTERVAL_S)만큼 상향 편향이 있으나
+    #   두 설정에 동일하게 걸려 대조(A vs A+B)에선 상쇄된다.
+    t0 = time.time()
     ack = _post(base, "/chat/messages", {
         "threadId": thread_id, "aiSessionId": ai_id, "content": question,
         "clientMessageId": str(uuid.uuid4()),
@@ -87,6 +91,7 @@ def ask_one(base, question):
             bot_msg = bots[-1]
             break
         time.sleep(POLL_INTERVAL_S)
+    elapsed_s = round(time.time() - t0, 2)   # 전송→봇답 지연(초). timedOut이면 POLL_TIMEOUT_S 근처.
     reply = (bot_msg or {}).get("content") or ""
     payload = (bot_msg or {}).get("payload") or {}
     quick = payload.get("quickReplies") or payload.get("quick_replies")
@@ -101,6 +106,7 @@ def ask_one(base, question):
         "quickReplies": quick,
         "handoffChip": handoff_chip,
         "timedOut": bot_msg is None,
+        "elapsedS": elapsed_s,               # 전송→봇답 지연(초)
         "inferredRoute": infer_route(msg_type, reply, quick, handoff_chip, bot_msg is None),
         "threadId": thread_id,
     }
@@ -144,12 +150,38 @@ def run(base, label, questions=None, only=None, repeat=1):
             route = r.get("inferredRoute") or r.get("error") or "?"
             snippet = (r.get("reply") or r.get("error") or "").replace("\n", " ")[:64]
             tag = f"#{i}" + (f".{k + 1}" if repeat > 1 else "")
-            print(f"{tag:>6} [{route:<18}] (기대 {expect})\n    Q: {q}\n    A: {snippet}\n")
+            el = r.get("elapsedS")
+            eltag = f"{el:>5.1f}s" if isinstance(el, (int, float)) else "  --  "
+            print(f"{tag:>6} [{route:<18}] {eltag} (기대 {expect})\n    Q: {q}\n    A: {snippet}\n")
             time.sleep(0.5)
+    _print_latency(label, results)
     out = f"bot_probe_{label}.json"
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"label": label, "base": base, "results": results}, f, ensure_ascii=False, indent=2)
     print(f"→ 저장: {out}  ({len(results)}문항)")
+
+
+def _pctile(vals, p):
+    # 선형보간 백분위수(넘파이 없이). vals=정렬 전 리스트.
+    if not vals:
+        return None
+    s = sorted(vals)
+    if len(s) == 1:
+        return s[0]
+    k = (len(s) - 1) * (p / 100)
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    return round(s[lo] + (s[hi] - s[lo]) * (k - lo), 2)
+
+
+def _print_latency(label, results):
+    lat = [r["elapsedS"] for r in results if isinstance(r.get("elapsedS"), (int, float)) and not r.get("timedOut")]
+    timeouts = sum(1 for r in results if r.get("timedOut"))
+    if not lat:
+        print(f"→ [{label}] 지연: 측정값 없음(전부 timeout/에러)  timeout={timeouts}\n")
+        return
+    print(f"→ [{label}] 지연(전송→봇답, 초):  p50={_pctile(lat, 50)}  p95={_pctile(lat, 95)}  "
+          f"평균={round(sum(lat) / len(lat), 2)}  최대={max(lat)}  n={len(lat)}  timeout={timeouts}\n")
 
 
 def _route_of(r):
@@ -174,6 +206,8 @@ def diff(path_a, path_b):
         print(f"   {a['label']:<12}[{r1:<18}] {(ra.get('reply') or '').splitlines()[0][:56] if ra.get('reply') else ''}")
         print(f"   {b['label']:<12}[{r2:<18}] {(rb.get('reply') or '').splitlines()[0][:56] if rb.get('reply') else ''}\n")
     print(f"→ route 추론이 바뀐 문항: {changes}/{len(a['results'])}\n")
+    _print_latency(a["label"], a["results"])
+    _print_latency(b["label"], b["results"])
 
 
 def main():

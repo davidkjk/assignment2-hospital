@@ -3,9 +3,11 @@ from uuid import UUID
 import asyncpg
 from langchain_core.prompts import ChatPromptTemplate
 
+from app.core.config import settings
 from app.db.pool import get_pool
 from app.integrations.langchain_client import get_chat_model, resp_text
 from app.services.chat.query_normalizer import normalize_query
+from app.services.chat.reranker import rerank_by_llm
 
 # 하이브리드 검색 바닥(floor): 최상위 조각이 벡터·키워드 둘 다 이보다 낮으면 근거 부족 → LLM 부르지 않고 바로 인계.
 # 벡터(의미)·키워드(트라이그램 글자) 중 하나라도 이 선을 넘으면 후보로 인정하고, 실제 답변/인계는
@@ -104,7 +106,8 @@ def _rank_by_relevance(chunks):
 
 
 async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5,
-                     retrieval_query: str | None = None, on_delta=None) -> dict:
+                     retrieval_query: str | None = None, on_delta=None,
+                     reranker_model=None) -> dict:
     # 검색용 질의는 동의어 확장(Sprint 1.2): "씨티"→"CT"도 함께 실어 임베딩·트라이그램이 KB 원문을 찾게 한다.
     # 화면·로그·LLM 질문에는 원문(message)을 그대로 쓴다 — 확장어가 환자에게 보이면 안 된다.
     # retrieval_query(Sprint 2): 후속 질문이면 orchestrate가 지시어를 푼 독립형 질의(+원문 concat)를 준다.
@@ -127,7 +130,13 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
         # RRF 후보를 관련도(max(벡터,키워드)) 순으로 재정렬한 뒤 상위 match_count만 남긴다 — 아래 게이트·
         #   제한자료·근거 판정이 1위 청크만/근거 청크로 쓰므로, 무관한 RRF 상위가 관련 근거를 버리거나
         #   구체 문서가 RRF 컷오프에 잘리지 않게 한다(_rank_by_relevance·CANDIDATE_POOL 주석 참조).
-        chunks = _rank_by_relevance(chunks)[:match_count]
+        # RRF 후보 재정렬: 플래그 ON이면 Haiku 리랭커(순서만 바꿈, 실패 시 _rank_by_relevance 폴백),
+        #   OFF면 현행 max(벡터,키워드). 게이트·제한자료·근거 판정은 재정렬 결과의 1위/상위를 그대로 쓴다.
+        if settings.chat_reranker:
+            ranked = await rerank_by_llm(search_query, chunks, model=reranker_model)
+        else:
+            ranked = _rank_by_relevance(chunks)
+        chunks = ranked[:match_count]
         # 품질 개선 사이클: 오답 교정으로 쌓인 활성 참고 예시 중 이 질문과 가장 비슷한 것(임베딩 코사인).
         example_rows = await conn.fetch(
             "select question, answer, 1 - (embedding <=> $1::vector) as similarity "

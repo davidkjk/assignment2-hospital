@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     #   문서채점→교정재검색→근거검증 그래프로. 되돌리기=이 값 false. env=CHAT_AGENTIC_RAG.
     chat_agentic_rag: bool = False
     embedding_model: str = "text-embedding-3-small"
+    # 상담봇 브랜치 C(2026-09-10) — 후보 재정렬을 Haiku LLM 리랭커로. 기본 OFF=현행 max(벡터,키워드)
+    #   재정렬(_rank_by_relevance). 켜면 rag_service:89에서 rerank_by_llm 호출, 끄면 즉시 원복.
+    #   리랭커 모델은 classify_model(Haiku) 재사용, 외부는 이미 쓰는 Anthropic뿐(L410 추가 노출 0).
+    chat_reranker: bool = False
     anon_rate_limit_per_hour: int = 30
     # 익명 웹 상담 연락처(전화)의 대칭 암복호 키(Fernet base64). 비면 codec은 import는 되되
     # 실제 암복호 호출 시에만 실패한다(배포에서 설정 — anonymous_contact_codec 지연 초기화).
