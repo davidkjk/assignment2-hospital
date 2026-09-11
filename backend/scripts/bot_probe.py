@@ -120,10 +120,11 @@ def infer_route(msg_type, reply, quick, handoff_chip, timed_out):
     return msg_type or "unknown"
 
 
-def run(base, label):
-    print(f"\n== 상담봇 측정: {label} @ {base} ==\n")
+def run(base, label, questions=None):
+    questions = questions or QUESTIONS
+    print(f"\n== 상담봇 측정: {label} @ {base} ({len(questions)}문항) ==\n")
     results = []
-    for i, (q, expect, why) in enumerate(QUESTIONS, 1):
+    for i, (q, expect, why) in enumerate(questions, 1):
         try:
             r = ask_one(base, q)
         except urllib.error.HTTPError as e:
@@ -174,6 +175,8 @@ def main():
     ap.add_argument("--diff", nargs=2, metavar=("A.json", "B.json"))
     ap.add_argument("--insecure", action="store_true",
                     help="TLS 인증서 검증 끄기(CERTIFICATE_VERIFY_FAILED 날 때만)")
+    ap.add_argument("--questions", metavar="FILE.json",
+                    help="커스텀 질문셋(JSON: [[질문, 기대route, 설명], ...]). 없으면 기본 15문항.")
     args = ap.parse_args()
     if args.insecure:
         global _SSL_CTX
@@ -181,7 +184,11 @@ def main():
     if args.diff:
         diff(*args.diff)
     else:
-        run(args.base_url.rstrip("/"), args.label)
+        questions = None
+        if args.questions:
+            with open(args.questions, encoding="utf-8") as f:
+                questions = [tuple(x) for x in json.load(f)]
+        run(args.base_url.rstrip("/"), args.label, questions)
 
 
 if __name__ == "__main__":
