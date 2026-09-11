@@ -179,7 +179,8 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     if on_delta is not None and hasattr(llm, "astream"):
         # 센티넬 노출 가드(브랜치 A, on/off 스위치). 기본 OFF=현재 동작(모든 조각 전송).
         #   ON이면 NO_ANSWER/NEEDS_CLARIFY 영어 원문이 조각으로 환자에게 노출되지 않게 억제한다.
-        from app.core.config import settings
+        #   settings는 모듈 상단(6행)에서 import — 여기 지역 import를 두면 리랭커 seam(135행)의
+        #   settings 참조가 함수 지역변수 정의 전 접근이 돼 UnboundLocalError가 난다(A+B+C 병합 버그 수정).
         reply = await _astream_reply(
             llm, prompt_messages, on_delta,
             sentinel_guard=settings.chat_stream_sentinel_guard)
