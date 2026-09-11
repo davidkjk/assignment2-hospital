@@ -46,6 +46,18 @@ def test_mental_crisis_takes_precedence_over_physical():
     assert emergency_kind("가슴이 답답하고 죽고 싶어") == "mental"
 
 
+def test_chest_emergency_requires_distress_word_not_imaging():
+    # #8: "가슴" 단독은 "가슴사진(흉부·유방촬영)" 문의까지 119로 오판했다 → 증상어 공기 시에만 응급.
+    assert emergency_kind("가슴사진 찍는 거 언제가 좋아요?") is None
+    assert emergency_kind("가슴 엑스레이 언제 찍어요") is None
+    assert emergency_kind("가슴사진 비싸요?") is None
+    # 진짜 흉부 응급은 그대로 잡는다(미탐 방지) — 부사가 껴도 공기로 잡는다.
+    assert emergency_kind("가슴이 너무 아파요") == "physical"
+    assert emergency_kind("가슴이 조여와요") == "physical"
+    assert emergency_kind("가슴이 답답하고 숨이 안 쉬어져요") == "physical"
+    assert check_emergency("가슴사진 찍는 거 언제가 좋아요?") is False
+
+
 def test_mental_emergency_reply_has_crisis_hotlines():
     reply = emergency_reply("mental")
     assert reply == EMERGENCY_REPLY_MENTAL
