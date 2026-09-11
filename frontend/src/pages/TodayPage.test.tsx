@@ -304,18 +304,8 @@ describe('오늘의 현황 /today', () => {
     expect(header.style.background).toBe('') // 전면 배경을 칠하지 않는다
   })
 
-  test('[STAT-METRIC-06] 상담 문의 집계가 없으면(null) 「현재 집계할 수 없음」을 보인다', async () => {
-    summaryOk(FULL) // bot_pending: null
-    renderToday()
-    expect(await screen.findByText('현재 집계할 수 없음')).toBeVisible()
-  })
-
-  test('[STAT-METRIC-06] 상담 문의 집계가 있으면 그 수를 보인다', async () => {
-    summaryOk(EMPTY) // bot_pending: 4
-    renderToday()
-    const pending = await screen.findByTestId('bot-pending')
-    expect(pending).toHaveTextContent('4')
-  })
+  // [STAT-METRIC-06] 「확인 필요 상담 문의」 카드는 제거됨(2026-09-11) — 사이드바 문의함 배지(TICKET-BADGE-01)와 중복.
+  //   pending 수는 이제 사이드바 배지가 담당한다. bot_pending 필드는 계약상 유지하되 오늘 화면은 소비하지 않는다.
 
   test('[ERR-RETRY-02] 조회 실패는 「다시 시도」가 있는 오류 화면으로 보인다', async () => {
     server.use(http.get('*/today/summary', () => HttpResponse.json({ detail: '오류' }, { status: 500 })))
