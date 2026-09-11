@@ -3,7 +3,8 @@ import type { InboxTicket } from '../../api/staffChat'
 import type { StaffTicketDetailApi } from '../../api/staffChatDetail'
 import { useTicketDetail } from './useTicketDetail'
 import { HandoffSummary } from './HandoffSummary'
-import { TicketConversation, messageBadges, ContactBanner } from './TicketConversation'
+import { TicketConversation, messageBadges, ContactBanner, applicantName } from './TicketConversation'
+import { UserRound } from '../../components/icons'
 import { ReplyBox } from './ReplyBox'
 import { ReassignControl } from './ReassignControl'
 import { CloseTicketButton } from './CloseTicketDialog'
@@ -65,10 +66,11 @@ export function TicketDetail(props: {
   }
 
   const detail = d.detail!
+  const applicant = applicantName(detail.messages)
   return (
     <article aria-label="티켓 상세" className="flex h-full flex-col">
       {/* 상태·연결 표시 */}
-      <div className="flex items-center gap-2 px-4 pt-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2 px-4 pt-3 text-xs">
         <span
           className={`rounded-full px-2 py-0.5 font-medium ${
             d.isReadOnly ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'
@@ -76,6 +78,18 @@ export function TicketDetail(props: {
         >
           {d.statusLabel}
         </span>
+        {/* TICKET-DETAIL-APPLICANT-01: 익명 인계 신청자 이름을 헤더로 끌어올려 스크롤 없이 누구인지 보이게 한다.
+            상태 pill(primary=상태)과 구분되게 조용한 중립 pill + 사람 아이콘(=신원). */}
+        {applicant && (
+          <span
+            aria-label="상담 신청자"
+            className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground"
+          >
+            <UserRound className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground">신청자</span>
+            {applicant}
+          </span>
+        )}
         {d.live === 'disconnected' && <span className="text-amber-700">· 연결 불안정 · 최신 상태가 아닐 수 있습니다</span>}
         {/* [TICKET-DETAIL-PATIENT-PRESENCE-01·PATIENT-TYPING-01] 환자 접속·입력 중을 상단에 라이브 표시 */}
         <PatientPresence typing={patientTyping} viewing={patientViewing} />

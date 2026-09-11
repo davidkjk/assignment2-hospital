@@ -84,6 +84,20 @@ export function messageBadges(m: ConvMessage): string[] {
   return b
 }
 
+// APPLICANT-01: 익명 웹 상담 인계의 신청자 이름을 대화에서 뽑아낸다.
+//   백엔드(ticket_service Q26)가 anonymous_handoff 시스템 메시지의 payload.name을 화면용으로
+//   '상담 신청자: {이름}' body(이름 없으면 '(이름 미기재)')로 이미 만들어 보낸다 — 그 접두를 그대로 벗겨
+//   헤더 배지로 끌어올릴 뿐이다(payload·전화 원문은 서버가 안 보냄). 안내 줄이 없으면 null(등록 환자·일반).
+export const APPLICANT_PREFIX = '상담 신청자: '
+export function applicantName(messages: ConvMessage[]): string | null {
+  for (const m of messages) {
+    if (m.sender === 'system' && m.body && m.body.startsWith(APPLICANT_PREFIX)) {
+      return m.body.slice(APPLICANT_PREFIX.length)
+    }
+  }
+  return null
+}
+
 // CONTACT-01·NOTIFY-04: 익명 웹 연락처 마스킹. 실제 번호·직접 문자 버튼 없음.
 export function ContactBanner({ contact }: { contact: Contact }) {
   if (!contact.anonymous) return null // 등록 환자는 앱 알림 — 마스킹 배너 없음

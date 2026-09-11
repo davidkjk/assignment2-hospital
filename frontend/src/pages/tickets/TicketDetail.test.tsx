@@ -72,3 +72,27 @@ it('[TICKET-DETAIL-PATIENT-TYPING-01] 환자가 입력 중이면 상단에 "환�
     typingState.patientViewing = false
   }
 })
+
+it('[TICKET-DETAIL-APPLICANT-01] 익명 인계 신청자 이름을 헤더 배지로 끌어올려 스크롤 없이 보이게 한다', async () => {
+  const withApplicant: StaffTicketDetailApi = {
+    ...fakeApi(),
+    getDetail: vi.fn(async () => ({
+      ...detail,
+      contact: { anonymous: true, hasPhone: true },
+      messages: [
+        { id: 's1', sender: 'system', body: '상담 신청자: 홍길동', at: '09:00', patientRead: false, staffUnread: false, smsSent: false },
+        { id: 'm1', sender: 'patient', body: '예약 취소하고 싶어요', at: '09:01', patientRead: false, staffUnread: false, smsSent: false },
+      ],
+    })),
+  } as unknown as StaffTicketDetailApi
+  render(<TicketDetail api={withApplicant} ticket={ticket} onLoserBackToList={vi.fn()} />)
+  // 헤더 배지는 aria-label로 타임라인의 같은 안내 줄과 구분한다.
+  const badge = await screen.findByLabelText('상담 신청자')
+  expect(badge).toHaveTextContent('홍길동')
+})
+
+it('[TICKET-DETAIL-APPLICANT-02] 신청자 안내가 없는 티켓(등록 환자·일반)에는 신청자 배지를 두지 않는다', async () => {
+  render(<TicketDetail api={fakeApi()} ticket={ticket} onLoserBackToList={vi.fn()} />)
+  await waitFor(() => expect(screen.getByLabelText('대화')).toBeInTheDocument())
+  expect(screen.queryByLabelText('상담 신청자')).not.toBeInTheDocument()
+})
