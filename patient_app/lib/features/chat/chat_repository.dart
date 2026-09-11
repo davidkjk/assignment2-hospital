@@ -135,12 +135,29 @@ class ChatRepository {
   Stream<List<ChatFeedItem>> streamThread(String threadId) {
     final rt = _realtime;
     if (rt == null) return const Stream.empty();
+    // [RT-DIAG 세션3] 소켓 수준 열림/닫힘/에러 — 직원 답 #2가 안 올 때 그 사이에 무엇이 있었는지 본다.
+    //   (콜백이 클라 수명 동안 누적되나 진단 빌드라 무해. 배포 전 이 블록 전부 제거.)
+    // ignore: avoid_print
+    rt.realtime.onOpen(() => print('[RT-DIAG] socket OPEN'));
+    // ignore: avoid_print
+    rt.realtime.onClose((e) => print('[RT-DIAG] socket CLOSE $e'));
+    // ignore: avoid_print
+    rt.realtime.onError((e) => print('[RT-DIAG] socket ERROR $e'));
     return rt
         .from('chat_messages')
         .stream(primaryKey: ['id'])
         .eq('thread_id', threadId)
         .order('created_at')
-        .map((rows) => rows.map(ChatFeedItem.fromJson).toList());
+        .map((rows) {
+      final items = rows.map(ChatFeedItem.fromJson).toList();
+      final staffIds =
+          items.where((i) => i.senderType == 'staff').map((i) => i.id).toList();
+      // [RT-DIAG 세션3] Supabase가 이 스레드 행 스냅샷을 재방출할 때마다. staffIds에 #2가 들어오면 전달은 된 것.
+      // ignore: avoid_print
+      print('[RT-DIAG] stream EMIT thread=$threadId rows=${items.length} '
+          'staff=${staffIds.length} staffIds=$staffIds');
+      return items;
+    });
   }
 
   /// [Q18③·CHAT-ROOM-LIVE-TYPING-01] 직원 열람(viewing)·입력 중(typing)은 같은 broadcast 채널
@@ -219,7 +236,10 @@ class ChatRepository {
           final d = dataOf(p);
           if (!botDoneC.isClosed) botDoneC.add(BotDone.fromPayload(d));
         })
-        .subscribe((status, _) {
+        .subscribe((status, [error]) {
+      // [RT-DIAG 세션3] broadcast 채널 상태(같은 소켓). staff #2 유실 전후에 재구독/에러가 찍히는지 본다.
+      // ignore: avoid_print
+      print('[RT-DIAG] typing-chan STATUS thread=$threadId status=$status err=$error');
       // 구독 전 send는 유실된다 — subscribed 후에 환자 열람 presence를 켠다.
       if (status == RealtimeSubscribeStatus.subscribed) sendPatient('viewing', true);
     });

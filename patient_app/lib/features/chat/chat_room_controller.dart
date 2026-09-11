@@ -28,7 +28,12 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   final void Function(String batchId)? onMarkRead;
   ChatRoomController(this._repo,
       {required this.threadId, this.aiSessionId = '', this.onMarkRead})
-      : super(const ChatRoomState(ChatRoomPhase.loading));
+      : super(const ChatRoomState(ChatRoomPhase.loading)) {
+    // [RT-DIAG 세션3] 컨트롤러 생성 — family 키((thread,session)) 변경으로 재생성되면 여기가 두 번 찍힌다
+    //   (같은 스레드 postgres_changes 채널이 둘 생겨 한쪽이 유실되는 과거류 버그 재현 여부 확인).
+    // ignore: avoid_print
+    print('[RT-DIAG] ctl CREATE thread=$threadId session=$aiSessionId');
+  }
 
   Future<void> load({String? batchId}) async {
     state = const ChatRoomState(ChatRoomPhase.loading);
@@ -286,14 +291,31 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   /// 이벤트가 같은 피드로 들어온다. dispose에서 구독을 끊는다.
   void bindLive(Stream<List<ChatFeedItem>> stream) {
     _liveSub?.cancel();
-    _liveSub = stream.listen(mergeLiveRows, onError: (_) {/* CONN-01: 끊김은 원문 보존, 재연결 대기 */});
+    _liveSub = stream.listen(
+      mergeLiveRows,
+      // [RT-DIAG 세션3] onError = 일시 채널 에러(재조인으로 복구 가능). onDone = 스트림 영구 종료(채널 closed)
+      //   → 재구독이 없으면 여기서부터 직원 답이 영영 안 온다. 이게 찍히면 "영영 안 옴" 근본원인 확정.
+      onError: (e) {
+        // ignore: avoid_print
+        print('[RT-DIAG] streamThread onError thread=$threadId err=$e');
+      },
+      onDone: () {
+        // ignore: avoid_print
+        print('[RT-DIAG] streamThread onDone (CLOSED) thread=$threadId');
+      },
+    );
   }
 
   /// 실시간 스냅샷을 피드에 병합한다(CHAT-ROOM-LIVE-01). Supabase `.stream()`은 매 변경마다 전체
   /// 목록을 재방출하므로 id로 중복을 막는다. 병합 대상은 **직원(staff)·시스템 이벤트**뿐 —
   /// 환자 에코와 봇 답변은 send 응답/낙관 말풍선이 이미 소유한다(중복 말풍선 금지).
   void mergeLiveRows(List<ChatFeedItem> rows) {
-    if (state.phase != ChatRoomPhase.loaded) return;
+    if (state.phase != ChatRoomPhase.loaded) {
+      // [RT-DIAG 세션3] 전달은 왔지만 phase 가드에 막혀 버려지는 경우(loaded 아님).
+      // ignore: avoid_print
+      print('[RT-DIAG] merge SKIP phase=${state.phase} in=${rows.length}');
+      return;
+    }
     final have = state.items.map((i) => i.id).toSet();
     final adds = [
       for (final r in rows)
@@ -303,6 +325,10 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
             !have.contains(r.id))
           r
     ];
+    // [RT-DIAG 세션3] 전달된 행 중 새로 붙일 staff/system. 스트림은 왔는데 adds가 비면 병합/중복 문제.
+    // ignore: avoid_print
+    print('[RT-DIAG] merge in=${rows.length} have=${have.length} '
+        'adds=${adds.map((r) => '${r.senderType}:${r.id}').toList()}');
     if (adds.isEmpty) return;
     final merged = [...state.items, ...adds]
       ..sort((a, b) {
@@ -418,6 +444,9 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
 
   @override
   void dispose() {
+    // [RT-DIAG 세션3] 컨트롤러 파기 — CREATE 직후 DISPOSE가 찍히면 방을 보는 중 구독이 갈아엎어진 것.
+    // ignore: avoid_print
+    print('[RT-DIAG] ctl DISPOSE thread=$threadId session=$aiSessionId');
     _liveSub?.cancel();
     _typingSub?.cancel();
     _typingOff?.cancel();
