@@ -2,6 +2,7 @@ import asyncio
 import json
 from uuid import UUID
 
+from app.core.config import settings
 from app.core.errors import AppError, log_error
 from app.db.pool import get_pool
 from app.services import opening_hours
@@ -9,6 +10,7 @@ from app.integrations.langchain_client import classify_model_for
 from app.services.chat import (orchestrator, rag_service, quality_service, card_builder,
                                booking_agent_service, intent_precheck, dept_guide_service,
                                conversation_understanding, realtime_broadcast)
+from app.services.chat.agentic_rag import service as agentic_rag_service
 
 
 class _EmptyAiResponse(Exception):
@@ -23,6 +25,25 @@ class _EmptyAiResponse(Exception):
 #   → 여기서 스스로 후속질문을 재작성한다(계약 무변경). llm 모드면 이해기가 낸 검색질의를
 #   retrieval_query=... 로 넘겨 이 재작성을 건너뛴다(질문 이해가 한 곳으로 통합됐으므로 중복 방지).
 _LEGACY_REWRITE = object()
+
+
+def _build_rag_fn(*, embedder, model, classify_model, history_texts, on_delta):
+    # rag 갈래 실행 함수. 플래그(CHAT_AGENTIC_RAG) ON이면 에이전트형 RAG 그래프로, OFF면 현행 단발 경로로.
+    #   두 경로 모두 orchestrate가 준 retrieval_query(멀티턴 재작성)를 최초 검색질의로 쓴다. 반환 dict 동형.
+    async def rag_fn(s, m, retrieval_query=_LEGACY_REWRITE):
+        if retrieval_query is _LEGACY_REWRITE:
+            retrieval_query = None
+            if conversation_understanding.has_followup_signal(m, history_texts):
+                standalone = await conversation_understanding.rewrite_standalone(
+                    m, history_texts, model=classify_model)
+                retrieval_query = conversation_understanding.build_search_query(m, standalone)
+        if settings.chat_agentic_rag:
+            return await agentic_rag_service.agentic_rag_answer(
+                m, embedder=embedder, model=model, judge_model=classify_model,
+                retrieval_query=retrieval_query, on_delta=on_delta)
+        return await rag_service.rag_answer(m, embedder=embedder, model=model,
+                                            retrieval_query=retrieval_query, on_delta=on_delta)
+    return rag_fn
 
 
 # 발신자 종류별 소유 컬럼(§4.3 발신자↔상담방 소유권 트리거가 이 짝을 강제한다).
@@ -221,19 +242,9 @@ async def _generate(session, content: str, *, thread_id: UUID, sender_kind: str,
     #   답변 앞단 지연 절감(스트리밍 설계 §98). 주입 가짜 모델은 그대로(테스트 오프라인 무회귀).
     classify_model = classify_model_for(model)
 
-    async def rag_fn(s, m, retrieval_query=_LEGACY_REWRITE):
-        # Sprint 2(멀티턴 재작성): 후속 질문이면 지시어·생략을 푼 독립형 질의로 검색한다(리포트 §4.2·§9.4).
-        #   후속 신호가 있을 때만 재작성 LLM을 한 번 태우고(첫 질문·자기완결 질문엔 낭비), 재작성+원문을
-        #   concat해 검색에만 쓴다. 화면·LLM 질문엔 원문(m)이 그대로 간다. 재작성 실패는 원문으로 폴백.
-        # 전면 통합(llm 모드): orchestrate가 이해기에서 낸 검색질의를 retrieval_query로 넘기면 그것을 쓴다
-        #   (재작성이 이미 이해기에서 끝났으므로 여기선 다시 안 태운다). legacy(2-arg)면 아래에서 스스로 재작성.
-        if retrieval_query is _LEGACY_REWRITE:
-            retrieval_query = None
-            if conversation_understanding.has_followup_signal(m, history_texts):
-                standalone = await conversation_understanding.rewrite_standalone(m, history_texts, model=classify_model)
-                retrieval_query = conversation_understanding.build_search_query(m, standalone)
-        return await rag_service.rag_answer(m, embedder=embedder, model=model,
-                                            retrieval_query=retrieval_query, on_delta=on_delta)
+    # rag 갈래 실행(멀티턴 재작성 + 플래그 분기)은 모듈수준 _build_rag_fn으로 추출(플래그 분기 단위 테스트용).
+    rag_fn = _build_rag_fn(embedder=embedder, model=model, classify_model=classify_model,
+                           history_texts=history_texts, on_delta=on_delta)
 
     async def agent_fn(s, m):
         # 행동형(예약). 채널로 갈린다(사용자 결정 B):

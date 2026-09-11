@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     #   JSON을 받아 손파싱(따옴표 깨짐·설명 덧붙임에 취약)을 대체한다. 가짜 모델(테스트)·미지원 모델이면
     #   자동으로 손파싱 폴백이라 위험이 없다. 기본 False=현재 동작. 되돌리기=env CHAT_STRUCTURED_UNDERSTANDING 미설정/false.
     chat_structured_understanding: bool = False
+    # 브랜치 B(에이전트형 RAG, LangGraph). 기본 OFF=현행 단발 rag_service 경로. 켜면 rag 갈래 답변 생성이
+    #   문서채점→교정재검색→근거검증 그래프로. 되돌리기=이 값 false. env=CHAT_AGENTIC_RAG.
+    chat_agentic_rag: bool = False
     embedding_model: str = "text-embedding-3-small"
     anon_rate_limit_per_hour: int = 30
     # 익명 웹 상담 연락처(전화)의 대칭 암복호 키(Fernet base64). 비면 codec은 import는 되되
