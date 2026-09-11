@@ -421,25 +421,8 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateF
           </div>
         )}
 
-        {/* 확인 필요 상담 문의(사용자 결정 2026-09-09) — 아직 아무도 맡지 않은 새 상담(support_tickets.status='pending') 수.
-            누르면 상담봇 문의함으로 간다. 집계할 수 없으면(null) 0으로 위장하지 않는다(STAT-METRIC-06). */}
-        {data.bot_pending === null ? (
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 text-sm">
-            <span className="break-keep font-semibold text-muted-foreground">확인 필요 상담 문의</span>
-            <span className="break-keep text-muted-foreground/60">현재 집계할 수 없음</span>
-          </div>
-        ) : (
-          <button
-            onClick={() => navigate('/tickets')}
-            className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-          >
-            <span className="break-keep font-semibold text-muted-foreground">확인 필요 상담 문의</span>
-            <span data-testid="bot-pending" className="shrink-0 font-bold tabular-nums text-amber-600">
-              {data.bot_pending}
-              <span className="ml-0.5 text-sm font-normal text-muted-foreground">건</span>
-            </span>
-          </button>
-        )}
+        {/* [TODAY-DOC-01] 우측열은 데모 원형대로 「의사별 대기 인원」으로 끝난다. 옛 「확인 필요 상담 문의」(2026-09-09)는
+            제거 — 사이드바 「상담봇 문의함」 배지(TICKET-BADGE-01)가 같은 pending 수·같은 목적지(/tickets)라 중복이었다(2026-09-11 사용자 결정). */}
       </aside>
     </div>
   )
