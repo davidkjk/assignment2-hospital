@@ -11,9 +11,14 @@ from app.integrations.langchain_client import get_chat_model, resp_text
 MENTAL_CRISIS_KEYWORDS = ["자살", "죽고 싶", "자해", "극단적 선택"]
 PHYSICAL_EMERGENCY_KEYWORDS = [
     "119", "응급실", "의식이 없", "숨을 못", "숨이 안", "호흡곤란",
-    # "가슴이 아"는 "가슴이 너무 아파요"처럼 사이에 부사가 끼면 못 잡는다 → "가슴"으로 넓힌다
-    # (큐레이션 철학: 오탐보다 미탐이 위험. 흉부 언급은 넓게 잡아 안전 안내로 보낸다).
-    "가슴", "피를 많이", "출혈이 멈", "쓰러졌", "경련", "발작", "심장이", "마비",
+    "피를 많이", "출혈이 멈", "쓰러졌", "경련", "발작", "심장이", "마비",
+]
+# 흉부 응급은 "가슴" 단독으로 잡으면 "가슴사진(흉부·유방촬영)"·"가슴사진 비싸요?"까지 119로 오판한다(#8).
+#   → "가슴" 언급 + 흉부 증상어가 함께 나올 때만 신체 응급으로 본다. 부사가 껴도("가슴이 너무 아파요")
+#   공기(共起)로 잡으므로 옛 인접 매칭의 한계는 없다. 오탐<미탐 원칙은 증상어를 넓게 잡아 지킨다.
+CHEST_DISTRESS_TERMS = [
+    "아파", "아프", "아팠", "통증", "답답", "조여", "조이", "조인", "쥐어",
+    "짓눌", "짓누", "뻐근", "먹먹", "터질", "터져", "두근", "벌렁",
 ]
 # 하위호환: check_emergency는 두 갈래를 합쳐 본다(orchestrator ⓪ 게이트·기존 호출부 유지).
 EMERGENCY_KEYWORDS = PHYSICAL_EMERGENCY_KEYWORDS + MENTAL_CRISIS_KEYWORDS
@@ -54,6 +59,9 @@ def emergency_kind(text: str) -> str | None:
     if any(k.replace(" ", "") in t for k in MENTAL_CRISIS_KEYWORDS):
         return "mental"
     if any(k.replace(" ", "") in t for k in PHYSICAL_EMERGENCY_KEYWORDS):
+        return "physical"
+    # 흉부: "가슴" + 증상어 공기일 때만(가슴사진 등 영상검사 문의는 통과).
+    if "가슴" in t and any(d in t for d in CHEST_DISTRESS_TERMS):
         return "physical"
     return None
 

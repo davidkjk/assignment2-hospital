@@ -1,0 +1,57 @@
+{
+  "label": "_verify",
+  "base": "https://gaonhospital-api-production.up.railway.app",
+  "results": [
+    {
+      "question": "주차 얼마 나와요?",
+      "routeTaken": null,
+      "reply": "지하 2층 주차장 기준 최초 30분 무료, 이후 10분당 500원입니다. 진료를 받으신 경우 1층 원무 창구에서 2시간 무료 등록을 해 드리니 참고하세요. 정확한 요금은 출차 정산기에서 확인하실 수 있습니다.",
+      "messageType": "text",
+      "payload": {},
+      "quickReplies": null,
+      "handoffChip": null,
+      "timedOut": false,
+      "elapsedS": 16.66,
+      "inferredRoute": "rag(answer)",
+      "threadId": "49c1b1f7-b525-4e9f-bed3-6351a14c4c81",
+      "qno": 1,
+      "run": 1,
+      "expect": "rag",
+      "why": "리콜:구어(주차 요금·정산)"
+    },
+    {
+      "question": "진료시간 어떻게 돼요?",
+      "routeTaken": null,
+      "reply": "병원 진료시간은 다음과 같습니다.\n· 월요일 09:00~18:00 (점심 12:00~13:00)\n· 화요일 09:00~18:00 (점심 12:00~13:00)\n· 수요일 09:00~18:00 (점심 12:00~13:00)\n· 목요일 09:00~18:00 (점심 12:00~13:00)\n· 금요일 09:00~18:00 (점심 12:00~13:00)\n· 토요일 09:00~13:00\n정확한 예약 가능 시간은 지금 여기서 바로 예약하며 확인하실 수 있어요.",
+      "messageType": "text",
+      "payload": {},
+      "quickReplies": null,
+      "handoffChip": null,
+      "timedOut": false,
+      "elapsedS": 6.14,
+      "inferredRoute": "rag(answer)",
+      "threadId": "ce40b9c7-01c9-44b6-bf8d-92ea66230237",
+      "qno": 43,
+      "run": 1,
+      "expect": "rag",
+      "why": "대조군:DB intent(항상 맞아야)"
+    },
+    {
+      "question": "가슴사진 찍는 거 언제가 좋아요?",
+      "routeTaken": null,
+      "reply": "지금 위급한 상황일 수 있어요. 즉시 119에 전화하거나 가까운 응급실로 가 주세요. 이 상담은 응급 진료를 대신할 수 없습니다.",
+      "messageType": "text",
+      "payload": {},
+      "quickReplies": null,
+      "handoffChip": null,
+      "timedOut": false,
+      "elapsedS": 2.34,
+      "inferredRoute": "rag(answer)",
+      "threadId": "89b0b993-45e9-4c10-af6b-a474c9919604",
+      "qno": 8,
+      "run": 1,
+      "expect": "rag",
+      "why": "리콜:에두름(유방촬영 맘모)"
+    }
+  ]
+}

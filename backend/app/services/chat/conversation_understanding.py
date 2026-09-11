@@ -16,6 +16,7 @@
 import json
 from dataclasses import dataclass
 
+from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.integrations.langchain_client import get_chat_model, resp_text
@@ -99,6 +100,35 @@ _UNDERSTAND_SYSTEM = (
     "진단·처방·응급 판단은 하지 마세요(그 판단은 앞단이 이미 처리했습니다). JSON 외 다른 텍스트는 쓰지 마세요."
 )
 
+# [브랜치 A · 스위치] 보수적 라우팅 원칙 — 정보 질문이 예약(agent)으로 오라우팅되는 것을 줄인다(세션52 실측:
+#   "진단서 발급 어떻게"·"사전문진 어떻게"·"CT 물 먹어도"가 agent로 샘). 스위치 ON일 때만 프롬프트에 얹는다.
+#   chat_router.classify(레거시 폴백)도 이 상수를 가져다 쓴다(단일 출처).
+_CONSERVATIVE_ROUTING_PRINCIPLE = (
+    "라우팅 판단 원칙(중요): route=agent는 사용자가 **새 진료 예약을 잡으려는** 의도가 분명할 때만 씁니다"
+    "(예: '예약하고 싶어요', '진료 예약할게요'). 예약 취소·변경은 상담봇이 직접 실행하지 않고 앱·직원 상담으로 "
+    "안내하므로 agent가 아니라 rag입니다. 방법·절차·준비물·발급 방법·가능 여부 등 '정보를 묻는 질문'도 예약과 "
+    "관련돼 보여도 agent가 아니라 rag입니다. 새 예약을 잡겠다는 의도가 분명하지 않으면 agent가 아니라 rag를 기본값으로 하세요."
+)
+
+
+def understand_system_prompt(conservative: bool) -> str:
+    """이해기 시스템 프롬프트를 만든다. conservative=True면 보수적 라우팅 원칙을 덧붙인다(스위치 OFF면 원본 그대로)."""
+    if conservative:
+        return _UNDERSTAND_SYSTEM + "\n" + _CONSERVATIVE_ROUTING_PRINCIPLE
+    return _UNDERSTAND_SYSTEM
+
+
+# [브랜치 A · 스위치] 구조화 출력 스키마 — 진짜 모델의 with_structured_output에 넘겨 LLM이 이 형태로만
+#   답하게 강제한다(손파싱 raw.find("{")...json.loads 교체). 필드·설명은 _UNDERSTAND_SYSTEM과 일치.
+#   전 필드에 안전 기본값을 둬, 모델이 일부를 빠뜨려도 검증이 통과하고 아래 정규화 로직이 그대로 처리한다.
+class UnderstandingSchema(BaseModel):
+    route: str = Field("rag", description="rag(정보 안내) | department_guide(증상 상담) | agent(예약·취소·문진 행동)")
+    standalone_query: str = Field("", description="후속 질문의 지시어·생략을 푼 독립형 검색 질의. 첫 질문/자기완결이면 빈 문자열")
+    needs_clarification: bool = Field(False, description="무엇을 묻는지 애매해 확인 질문이 필요하면 true")
+    clarification_question: str = Field("", description="되물을 한 문장(needs_clarification=true일 때만)")
+    topic_shift: bool = Field(False, description="앞 대화와 주제가 바뀌었으면 true")
+    confidence: float = Field(0.0, description="이해 확신도 0.0~1.0")
+
 
 @dataclass
 class Understanding:
@@ -111,7 +141,8 @@ class Understanding:
 
 
 async def understand(message: str, history_texts, *, active_flow: str | None = None,
-                     model=None) -> Understanding | None:
+                     model=None, conservative_routing: bool | None = None,
+                     structured: bool | None = None) -> Understanding | None:
     """질문 이해(라우터+재작성)를 LLM 1회로. 실패·형식 위반이면 None(레거시 폴백).
 
     - 진행 중 문진(active_flow='department_guide')은 재분류하지 않는다 → LLM 호출 없이 그 갈래 유지.
@@ -120,6 +151,12 @@ async def understand(message: str, history_texts, *, active_flow: str | None = N
     - needs_clarification True인데 질문 본문이 비면 빈 되묻기(막다른 길)라 되묻기 해제(검색으로 진행).
     - confidence는 [0,1]로 클램프. ⚠️ confidence로 안전 게이트를 여닫지 않는다(안전은 앞단 결정적).
     """
+    if conservative_routing is None or structured is None:
+        from app.core.config import settings
+        if conservative_routing is None:
+            conservative_routing = settings.chat_conservative_routing
+        if structured is None:
+            structured = settings.chat_structured_understanding
     recent = "\n".join((history_texts or [])[-6:])
     # (b) 증상 상담 진행 중이면 LLM에 그 사실을 알려 topic_shift를 정확히 판단하게 한다.
     #   같은 주제를 이어가면 topic_shift=false(흐름 유지), 전혀 다른 주제로 바꾸면 true(탈출).
@@ -127,17 +164,24 @@ async def understand(message: str, history_texts, *, active_flow: str | None = N
                  "topic_shift=false, 전혀 다른 주제로 바꾸면 topic_shift=true로 판단하세요.)"
                  if active_flow == "department_guide" else "")
     prompt = ChatPromptTemplate.from_messages([
-        ("system", _UNDERSTAND_SYSTEM),
+        ("system", understand_system_prompt(conservative_routing)),
         ("human", "대화:\n{recent}\n\n마지막 발화: {message}" + flow_hint),
     ])
+    llm = model or get_chat_model()
+    prompt_messages = prompt.format_messages(recent=recent, message=message)
     try:
-        resp = await (model or get_chat_model()).ainvoke(
-            prompt.format_messages(recent=recent, message=message))
-        raw = resp_text(resp)
-        start, end = raw.find("{"), raw.rfind("}")
-        if start == -1 or end == -1 or end < start:
-            return None
-        parsed = json.loads(raw[start:end + 1])
+        # [브랜치 A · 스위치] 구조화 출력 — 진짜 모델이 with_structured_output을 지원할 때만.
+        #   스위치 OFF 또는 가짜 모델(테스트 주입, 메서드 없음)이면 손파싱으로 폴백 → 기존 동작·테스트 무회귀.
+        if structured and hasattr(llm, "with_structured_output"):
+            obj = await llm.with_structured_output(UnderstandingSchema).ainvoke(prompt_messages)
+            parsed = obj.model_dump() if hasattr(obj, "model_dump") else dict(obj)
+        else:
+            resp = await llm.ainvoke(prompt_messages)
+            raw = resp_text(resp)
+            start, end = raw.find("{"), raw.rfind("}")
+            if start == -1 or end == -1 or end < start:
+                return None
+            parsed = json.loads(raw[start:end + 1])
     except Exception:
         return None
 

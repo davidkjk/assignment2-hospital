@@ -3,9 +3,11 @@ from uuid import UUID
 import asyncpg
 from langchain_core.prompts import ChatPromptTemplate
 
+from app.core.config import settings
 from app.db.pool import get_pool
-from app.integrations.langchain_client import get_chat_model, resp_text
+from app.integrations.langchain_client import get_chat_model, classify_model_for, resp_text
 from app.services.chat.query_normalizer import normalize_query
+from app.services.chat.reranker import rerank_by_llm
 
 # 하이브리드 검색 바닥(floor): 최상위 조각이 벡터·키워드 둘 다 이보다 낮으면 근거 부족 → LLM 부르지 않고 바로 인계.
 # 벡터(의미)·키워드(트라이그램 글자) 중 하나라도 이 선을 넘으면 후보로 인정하고, 실제 답변/인계는
@@ -53,6 +55,47 @@ _ANSWER_SYSTEM_PROMPT = (
 )
 
 
+# 센티넬 억제용 보류 길이 — 조각이 형성 중인 센티넬(끝자락)일 수 있어, 확정 전까지 이만큼은 흘리지 않는다.
+_SENTINEL_HOLD = max(len(_NO_ANSWER_SENTINEL), len(_NEEDS_CLARIFY_SENTINEL))
+
+
+async def _astream_reply(llm, prompt_messages, on_delta, *, sentinel_guard: bool) -> str:
+    """astream으로 조각을 흘리며 누적 완성본을 반환한다.
+
+    sentinel_guard=True면 근거부재(NO_ANSWER)·되묻기(NEEDS_CLARIFY) 센티넬의 영어 원문이 조각으로
+    환자 화면에 노출되지 않게 억제한다(2026-09-08 실측 버그). 억제는 '전송'만 — 반환하는 완성본에는
+    센티넬을 그대로 남겨 호출부의 최종 판정(no_answer/되묻기)이 정상 동작하게 한다.
+      · 센티넬 감지 시: 이후 조각을 흘리지 않는다(감지 전 흘린 선행 텍스트는 최종 판정이 폐기·정정).
+      · 정상 답변: 형성 중 센티넬을 놓치지 않도록 끝자락 _SENTINEL_HOLD글자만 보류했다가 종료 시 마저 흘린다.
+    sentinel_guard=False(기본)면 현재 동작 그대로 — 모든 조각을 즉시 흘린다(on/off 스위치·되돌리기).
+    """
+    parts: list[str] = []
+    emitted = 0            # on_delta로 이미 흘려보낸 누적 글자 수
+    suppressed = False     # 센티넬 감지 → 이후 전송 중단
+    async for chunk in llm.astream(prompt_messages):
+        piece = resp_text(chunk)
+        if not piece:
+            continue
+        parts.append(piece)
+        if not sentinel_guard:
+            on_delta(piece)
+            continue
+        buffer = "".join(parts)
+        if _NO_ANSWER_SENTINEL in buffer or _NEEDS_CLARIFY_SENTINEL in buffer:
+            suppressed = True                       # 센티넬 원문은 절대 흘리지 않는다
+            continue
+        if suppressed:
+            continue
+        safe = len(buffer) - _SENTINEL_HOLD         # 끝자락은 센티넬 형성 가능성이 있어 보류
+        if safe > emitted:
+            on_delta(buffer[emitted:safe])
+            emitted = safe
+    buffer = "".join(parts)
+    if sentinel_guard and not suppressed and len(buffer) > emitted:
+        on_delta(buffer[emitted:])                  # 정상 답변의 보류된 끝자락을 마저 흘린다
+    return buffer.strip()
+
+
 def _rank_by_relevance(chunks):
     # 검색(match_kb_chunks_hybrid)은 RRF로 후보를 넓게 잡는다(recall) — 그러나 RRF는 '벡터·트라이그램
     #   두 검색에 다 걸린' 무관한 문서를 1위로 올릴 수 있다(2026-09-09 실측: "씨티 찍는데 준비물"에
@@ -62,38 +105,81 @@ def _rank_by_relevance(chunks):
     return sorted(chunks, key=lambda c: max(c["similarity"], c["keyword_sim"]), reverse=True)
 
 
+_RETRY_REWRITE_SYSTEM = (
+    "환자가 상담봇에 물은 질문을, 병원 안내 자료(주차·검사 준비·증명서·예방접종·시설 안내 등)에서 "
+    "더 잘 검색되도록 핵심 명사와 동의어 중심의 한 줄 검색어로 바꿔 주세요. "
+    "구어체·군더더기를 빼고, 설명 없이 바꾼 검색어만 출력하세요."
+)
+
+
+def _below_floor(chunks) -> bool:
+    # 첫 청크(관련도 최고)의 벡터·키워드 유사도가 둘 다 게이트 미만이면 근거 부족(no_answer 경계).
+    return not chunks or max(chunks[0]["similarity"], chunks[0]["keyword_sim"]) < HYBRID_FLOOR
+
+
+async def _search_and_rank(conn, search_query, *, embedder, match_count, reranker_model):
+    """검색(하이브리드 RRF, 함수 부재 시 순수벡터 폴백) + 후보 재정렬 + 상위 match_count.
+    (chunks, 질의벡터문자열) 반환 — 벡터는 호출부가 예시 매칭에 재사용한다."""
+    qvec = (await embedder.embed([search_query]))[0]
+    vec = "[" + ",".join(map(str, qvec)) + "]"
+    pool_n = max(match_count, CANDIDATE_POOL)
+    try:
+        chunks = await conn.fetch(
+            "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, search_query, pool_n)
+    except asyncpg.UndefinedFunctionError:
+        rows = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, pool_n)
+        chunks = [dict(r) | {"keyword_sim": 0.0} for r in rows]   # 키워드 신호 없음 → floor는 벡터만
+    if settings.chat_reranker:
+        ranked = await rerank_by_llm(search_query, chunks, model=reranker_model)
+    else:
+        ranked = _rank_by_relevance(chunks)
+    return ranked[:match_count], vec
+
+
+async def _rewrite_query_for_retry(message: str, model) -> str | None:
+    """첫 검색이 게이트 미달일 때만 호출(조건부 재검색). Haiku로 검색-지향 재작성.
+    실패·빈값이면 None(재검색 생략). 주입 가짜 모델은 classify_model_for가 그대로 둬 오프라인 유지."""
+    try:
+        llm = classify_model_for(model or get_chat_model())
+        resp = await llm.ainvoke([("system", _RETRY_REWRITE_SYSTEM), ("human", message)])
+        alt = resp_text(resp).strip()
+        return alt or None
+    except Exception:   # noqa: BLE001 — 재작성 실패가 답변 경로를 깨지 않게(재검색만 생략)
+        return None
+
+
 async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5,
-                     retrieval_query: str | None = None, on_delta=None) -> dict:
+                     retrieval_query: str | None = None, on_delta=None,
+                     reranker_model=None) -> dict:
     # 검색용 질의는 동의어 확장(Sprint 1.2): "씨티"→"CT"도 함께 실어 임베딩·트라이그램이 KB 원문을 찾게 한다.
     # 화면·로그·LLM 질문에는 원문(message)을 그대로 쓴다 — 확장어가 환자에게 보이면 안 된다.
     # retrieval_query(Sprint 2): 후속 질문이면 orchestrate가 지시어를 푼 독립형 질의(+원문 concat)를 준다.
     #   그때는 원문 대신 그 질의를 정규화해 검색한다. LLM 질문·화면은 여전히 message(원문)를 쓴다.
     search_query = normalize_query(retrieval_query or message)
-    qvec = (await embedder.embed([search_query]))[0]
-    vec = "[" + ",".join(map(str, qvec)) + "]"
     pool = await get_pool()
     async with pool.acquire() as conn:
-        # 하이브리드(벡터+트라이그램 RRF). 순수 벡터 match_kb_chunks는 근거 확인용으로 남겨둔다.
-        # ⚠️ 폴백: 원격 DB에 하이브리드 함수(마이그 00084)가 아직 없으면(db push 전) 순수 벡터로 내려간다.
-        #   코드 배포(Railway)가 마이그 적용보다 앞설 수 있어, 그 창에서도 봇이 안 깨지게 한다.
-        pool_n = max(match_count, CANDIDATE_POOL)   # 넓게 뽑고(RRF 컷오프 밖 구체 문서 구제) 아래서 관련도로 좁힌다
-        try:
-            chunks = await conn.fetch(
-                "select * from match_kb_chunks_hybrid($1::vector, $2, $3)", vec, search_query, pool_n)
-        except asyncpg.UndefinedFunctionError:
-            rows = await conn.fetch("select * from match_kb_chunks($1::vector, $2)", vec, pool_n)
-            chunks = [dict(r) | {"keyword_sim": 0.0} for r in rows]   # 키워드 신호 없음 → floor는 벡터만
-        # RRF 후보를 관련도(max(벡터,키워드)) 순으로 재정렬한 뒤 상위 match_count만 남긴다 — 아래 게이트·
-        #   제한자료·근거 판정이 1위 청크만/근거 청크로 쓰므로, 무관한 RRF 상위가 관련 근거를 버리거나
-        #   구체 문서가 RRF 컷오프에 잘리지 않게 한다(_rank_by_relevance·CANDIDATE_POOL 주석 참조).
-        chunks = _rank_by_relevance(chunks)[:match_count]
+        # 검색+재정렬(하이브리드 RRF, 함수 부재 시 순수벡터 폴백)은 _search_and_rank로 분리 —
+        #   조건부 재검색에서 재호출하기 위함. 게이트·제한자료·근거 판정은 아래에서 1위 청크로 수행.
+        chunks, vec = await _search_and_rank(
+            conn, search_query, embedder=embedder, match_count=match_count, reranker_model=reranker_model)
+        # 조건부 재검색(플래그 chat_reretrieve_on_miss, 기본 OFF): 첫 검색이 게이트 미달이면 Haiku로 질의를
+        #   1회 재작성해 재검색한다. 실패한 질문에만 지연이 붙어(정상 질문은 A단독 속도) 검색 놓침을 건진다.
+        #   재작성 실패/무변경/여전히 미달이면 원래 결과 유지(그대로 no_answer). 예시 매칭은 원질의 벡터(vec) 유지.
+        if settings.chat_reretrieve_on_miss and _below_floor(chunks):
+            alt = await _rewrite_query_for_retry(message, model)
+            alt_query = normalize_query(alt) if alt else None
+            if alt_query and alt_query != search_query:
+                alt_chunks, _ = await _search_and_rank(
+                    conn, alt_query, embedder=embedder, match_count=match_count, reranker_model=reranker_model)
+                if not _below_floor(alt_chunks):
+                    chunks, search_query = alt_chunks, alt_query
         # 품질 개선 사이클: 오답 교정으로 쌓인 활성 참고 예시 중 이 질문과 가장 비슷한 것(임베딩 코사인).
         example_rows = await conn.fetch(
             "select question, answer, 1 - (embedding <=> $1::vector) as similarity "
             "from public.qa_example_bank where is_active "
             "order by embedding <=> $1::vector limit $2", vec, EXAMPLE_MATCH_COUNT)
     examples = [e for e in example_rows if e["similarity"] >= EXAMPLE_SIMILARITY_THRESHOLD]
-    if not chunks or max(chunks[0]["similarity"], chunks[0]["keyword_sim"]) < HYBRID_FLOOR:
+    if _below_floor(chunks):
         return {"no_answer": True}          # 벡터·키워드 둘 다 바닥 미만 → 근거 부족(인계)
     restricted = [c for c in chunks if c["is_restricted"]]
     normal = [c for c in chunks if not c["is_restricted"]]
@@ -127,13 +213,13 @@ async def rag_answer(message: str, *, embedder, model=None, match_count: int = 5
     llm = model or get_chat_model()
     prompt_messages = prompt.format_messages(**fmt)
     if on_delta is not None and hasattr(llm, "astream"):
-        parts: list[str] = []
-        async for chunk in llm.astream(prompt_messages):
-            piece = resp_text(chunk)
-            if piece:
-                parts.append(piece)
-                on_delta(piece)
-        reply = "".join(parts).strip()
+        # 센티넬 노출 가드(브랜치 A, on/off 스위치). 기본 OFF=현재 동작(모든 조각 전송).
+        #   ON이면 NO_ANSWER/NEEDS_CLARIFY 영어 원문이 조각으로 환자에게 노출되지 않게 억제한다.
+        #   settings는 모듈 상단(6행)에서 import — 여기 지역 import를 두면 리랭커 seam(135행)의
+        #   settings 참조가 함수 지역변수 정의 전 접근이 돼 UnboundLocalError가 난다(A+B+C 병합 버그 수정).
+        reply = await _astream_reply(
+            llm, prompt_messages, on_delta,
+            sentinel_guard=settings.chat_stream_sentinel_guard)
     else:
         resp = await llm.ainvoke(prompt_messages)
         reply = resp_text(resp).strip()
