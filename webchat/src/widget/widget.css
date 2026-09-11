@@ -96,7 +96,7 @@ html, body { height: 100%; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 18px 58px 17px 18px; /* 홈페이지 .chat-head(20/20/18) 느낌 + 오른쪽 wc-close 자리 */
+  padding: 18px 14px 17px 18px; /* 홈페이지 .chat-head(20/20/18) 느낌. 우측 컨트롤은 인플로 아이콘 클러스터(wc-header__actions) */
   background: linear-gradient(120deg, var(--wc-primary-d), var(--wc-primary));
   color: #fff;
 }
@@ -288,49 +288,30 @@ html, body { height: 100%; }
   font-weight: 700;
 }
 
-/* 닫기(WebchatWidget의 × 버튼) — 헤더 위 절대배치 */
-.wc-close {
-  position: absolute;
-  /* Q24: 헤더 높이의 세로 중앙에 맞춘다(예전 top:16px은 약간 위로 붙어 보였다). 배경 박스(34px)는 유지. */
-  top: 50%;
-  right: 16px;
-  transform: translateY(-50%);
-  z-index: 2;
+/* ── 헤더 우측 아이콘 클러스터 — [WEBCHAT-NEW-01] 새 상담(연필)·[WEBCHAT-CLOSE-01] 닫기(×) ── */
+.wc-header__actions {
+  margin-left: auto;                 /* 제목은 왼쪽, 클러스터는 오른쪽으로 */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 헤더 아이콘 버튼(고스트) — 딥틸 헤더 위 은은한 흰 사각. 새 상담·닫기 공용. 아바타/전송과 같은 스트로크 아이콘 언어. */
+.wc-hbtn {
+  flex: 0 0 auto;
   width: 34px;
   height: 34px;
   border: 0;
   border-radius: 9px;
   background: rgba(255, 255, 255, .16);
   color: #fff;
-  /* Q24: × 글리프만 조금 더 크게(배경 박스·색은 그대로). */
-  font-size: 24px;
-  line-height: 1;
   display: grid;
   place-items: center;
   cursor: pointer;
   transition: background .2s;
 }
-.wc-close:hover {
-  background: rgba(255, 255, 255, .3);
-}
-
-/* ── [WEBCHAT-NEW-01] 새 상담(헤더 버튼) — 딥틸 헤더 위 은은한 흰 알약. wc-close(우측 16px)와 안 겹치게 우측 여백 확보 ── */
-.wc-newchat {
-  margin-left: auto;                 /* 제목은 왼쪽, 이 버튼은 오른쪽으로 */
-  margin-right: 42px;                /* 닫기(×) 자리 비켜서기 */
-  flex: 0 0 auto;
-  border: 1px solid rgba(255, 255, 255, .35);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .16);
-  color: #fff;
-  font-family: var(--wc-font);
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 6px 12px;
-  cursor: pointer;
-  transition: background .2s;
-}
-.wc-newchat:hover { background: rgba(255, 255, 255, .3); }
+.wc-hbtn svg { width: 20px; height: 20px; }
+.wc-hbtn:hover { background: rgba(255, 255, 255, .3); }
 
 /* ── [WEBCHAT-NEW-01] 새 상담 확인창 — 진행 중 직원 상담을 덮기 전 확인(막다른 길·되돌릴 수 없는 이탈 방지) ── */
 .wc-confirm {
@@ -912,7 +893,7 @@ html, body { height: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wc-close { transition: none; }
+  .wc-hbtn { transition: none; }
   .webcard ul button { transition: none; }
   .wc-scrim, .wc-modal { animation: none; }
 }

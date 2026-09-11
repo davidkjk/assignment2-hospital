@@ -17,7 +17,8 @@ export type ChatRoomProps = {
   botTyping?: boolean;            // 봇 답변 대기 중 타이핑 점 표시(홈페이지 .typing)
   onTyping?: () => void;          // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중이면 직원에게 "환자 입력 중" 알림(디바운스는 훅)
   onStaffHandoff?: () => void;    // Q5: 가장 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼(WEBANON-HANDOFF)
-  onNewChat?: () => void;         // [WEBCHAT-NEW-01] 헤더 '새 상담' — 지금 대화를 접고 처음부터(막다른 길 방지). 없으면 안 그림.
+  onNewChat?: () => void;         // [WEBCHAT-NEW-01] 헤더 '새 상담'(연필) — 지금 대화를 접고 처음부터(막다른 길 방지). 없으면 안 그림.
+  onClose?: () => void;           // [WEBCHAT-CLOSE-01] 헤더 '닫기'(×) — 위젯을 접는다(호스트로 setOpen:false). 없으면 안 그림(단독 전체화면 등).
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
 };
 
@@ -56,9 +57,27 @@ export function ChatRoom(p: ChatRoomProps) {
           AI 상담봇
           <span className="wc-header__status"><i className="wc-header__dot" aria-hidden="true" />지금 응답 가능</span>
         </span>
-        {/* [WEBCHAT-NEW-01] 새 상담 — 지금 대화를 접고 처음부터(못 빠져나옴 방지). 확인은 위젯이 인계 활성 시 감싼다. */}
-        {p.onNewChat && (
-          <button type="button" className="wc-newchat" onClick={p.onNewChat}>새 상담</button>
+        {/* 헤더 우측 아이콘 클러스터 — 새 상담(연필)·닫기(×). 절제된 단일 컨트롤 그룹. */}
+        {(p.onNewChat || p.onClose) && (
+          <div className="wc-header__actions">
+            {/* [WEBCHAT-NEW-01] 새 상담(연필) — 지금 대화를 접고 처음부터(못 빠져나옴 방지). 확인은 위젯이 인계 활성 시 감싼다. 환자앱 [새 대화](CHAT-ROOM-NEW-01)와 같은 compose 연필. */}
+            {p.onNewChat && (
+              <button type="button" className="wc-hbtn" onClick={p.onNewChat} aria-label="새 상담" title="새 상담">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+                </svg>
+              </button>
+            )}
+            {/* [WEBCHAT-CLOSE-01] 닫기(×) — 위젯을 접는다(호스트로 setOpen:false). 홈페이지가 iframe 패널을 닫는다. */}
+            {p.onClose && (
+              <button type="button" className="wc-hbtn" onClick={p.onClose} aria-label="닫기" title="닫기">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            )}
+          </div>
         )}
       </header>
       {/* 진료과 배너·인계 상태·긴급/장애 안내 — 헤더가 아니라 대화 영역에 둔다(WEBCHAT-GUIDE: 추천 중에만 메시지와 함께). */}

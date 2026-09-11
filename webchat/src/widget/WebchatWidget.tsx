@@ -69,7 +69,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
       <Launcher open={open} hasUnread={hasUnread} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} />
       {open && (
         <div className="wc-panel">
-          <button type="button" className="wc-close" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
+          {/* 닫기(×)는 이제 ChatRoom 헤더 우측 클러스터로 옮겼다([WEBCHAT-CLOSE-01]) — 패널 중앙에 떠 있던 옛 wc-close 제거. */}
           {/* [WEBCHAT-NEW-01] 진행 중 직원 상담을 새 상담이 덮기 전 확인 — 되돌릴 수 없는 이탈은 확인창 안에서만. */}
           {confirmNew && (
             <div className="wc-confirm" role="dialog" aria-modal="true" aria-labelledby="wc-confirm-title">
@@ -86,6 +86,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
           <ChatRoom
             phase={w.phase}
             onNewChat={requestNewChat}       // [WEBCHAT-NEW-01] 헤더 '새 상담'(인계 중이면 확인창)
+            onClose={() => setOpen(false)}   // [WEBCHAT-CLOSE-01] 헤더 '닫기' → 호스트로 setOpen:false(홈페이지가 패널 닫음)
             messages={[...w.messages, ...streamBubble, ...extraCards]}
             botTyping={w.botTyping && !w.streaming}   // 델타가 시작되면 점 대신 흐르는 텍스트를 보여준다
             onTyping={notifyTyping}         // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중 → 직원에게 "환자 입력 중"

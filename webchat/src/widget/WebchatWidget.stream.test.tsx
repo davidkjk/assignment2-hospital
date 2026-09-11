@@ -90,6 +90,19 @@ test('[WEBCHAT-NEW-01] 진행 중 직원 상담이면 확인창 먼저 → 새�
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
+test('[WEBCHAT-CLOSE-01] 헤더 닫기(×)를 누르면 위젯이 접히고(패널 사라짐) 호스트에 setOpen:false를 통지한다', async () => {
+  const api = fakeApi();
+  const onOpenChange = vi.fn();
+  render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} onOpenChange={onOpenChange} />);
+  await userEvent.click(screen.getByRole('button', { name: 'AI 상담봇 열기' }));
+  const closeBtn = await screen.findByRole('button', { name: '닫기' });
+  await userEvent.click(closeBtn);
+  // 호스트(홈페이지)로 닫힘 통지 → 홈페이지가 iframe 패널을 닫는다.
+  expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  // 헤더 컨트롤(새 상담)도 사라진다(패널 언마운트).
+  await waitFor(() => expect(screen.queryByRole('button', { name: '새 상담' })).not.toBeInTheDocument());
+});
+
 test('[WEBCHAT-URGENT] done.routeTaken=emergency면 긴급 안내 배너와 면책 문구를 렌더한다', async () => {
   const api = fakeApi();
   render(<WebchatWidget api={api} hospitalPhone="02-000-0000" onAuthGate={() => {}} onHandoffNeeded={() => {}} renderCard={() => null} />);
