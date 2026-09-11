@@ -285,25 +285,54 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
   }
 
   StreamSubscription<List<ChatFeedItem>>? _liveSub;
+  Stream<List<ChatFeedItem>> Function()? _liveFactory;
+  int _liveClosedStreak = 0; // 연달아 닫히면 재구독 백오프(폭주 방지). 정상 수신 시 0으로 리셋.
+  Timer? _liveResubTimer;
 
-  /// [CHAT-ROOM-LIVE-01·CONN-01] 셸(provider)이 실시간 스트림(streamThread)을 물려준다.
-  /// 계약(ChatRepositoryLike)은 3메서드로 유지하고 라이브는 여기로 주입한다 — 직원 말풍선·시스템
-  /// 이벤트가 같은 피드로 들어온다. dispose에서 구독을 끊는다.
-  void bindLive(Stream<List<ChatFeedItem>> stream) {
+  /// [CHAT-ROOM-LIVE-01·CONN-01·LIVE-RESUB-01] 셸(provider)이 실시간 스트림 **팩토리**(streamThread)를 물려준다.
+  /// 스트림 하나가 아니라 팩토리인 이유(세션3, "직원→환자 한 번만 오고 끊김"의 근본원인):
+  ///   Supabase `.stream()`(SupabaseStreamBuilder)은 채널이 `closed` 되면 스트림 컨트롤러를 **영구히 닫는다**.
+  ///   그때 재구독하려면 새 스트림을 다시 만들 수단(팩토리)이 필요하다. 안 그러면 직원 답이 '구독 중'
+  ///   한 번만 오고 그 뒤로 영영 안 온다(모바일 백그라운드 등으로 채널이 닫히면 발생). 닫힘 → DB 재조회(놓친
+  ///   답 회복) + 재구독(이후 실시간 회복). 일시 채널 에러(onError)는 라이브러리가 재조인+재조회로 스스로 복구.
+  void bindLive(Stream<List<ChatFeedItem>> Function() streamFactory) {
+    _liveFactory = streamFactory;
+    _subscribeLive();
+  }
+
+  void _subscribeLive() {
     _liveSub?.cancel();
-    _liveSub = stream.listen(
-      mergeLiveRows,
-      // [RT-DIAG 세션3] onError = 일시 채널 에러(재조인으로 복구 가능). onDone = 스트림 영구 종료(채널 closed)
-      //   → 재구독이 없으면 여기서부터 직원 답이 영영 안 온다. 이게 찍히면 "영영 안 옴" 근본원인 확정.
+    final factory = _liveFactory;
+    if (factory == null) return;
+    _liveSub = factory().listen(
+      (rows) {
+        _liveClosedStreak = 0; // 정상 수신 = 건강한 연결 → 백오프 리셋
+        mergeLiveRows(rows);
+      },
+      // 일시 채널 에러: 라이브러리가 소켓 재연결→재조인→전체 재조회로 스스로 복구한다. 원문 보존, 재연결 대기.
       onError: (e) {
         // ignore: avoid_print
         print('[RT-DIAG] streamThread onError thread=$threadId err=$e');
       },
-      onDone: () {
-        // ignore: avoid_print
-        print('[RT-DIAG] streamThread onDone (CLOSED) thread=$threadId');
-      },
+      // 채널 closed로 스트림이 영구 종료됨 → 재구독 없으면 직원 답이 영영 안 온다(막다른 길). 회복한다.
+      onDone: _onLiveClosed,
     );
+  }
+
+  void _onLiveClosed() {
+    // ignore: avoid_print
+    print('[RT-DIAG] streamThread onDone (CLOSED) thread=$threadId — 재구독+재조회');
+    _reconcileFromServer(); // 닫힌 사이 놓친 직원 답을 DB 정본에서 즉시 회복
+    final streak = _liveClosedStreak;
+    _liveClosedStreak = (streak + 1).clamp(0, 6);
+    _liveResubTimer?.cancel();
+    if (streak == 0) {
+      _subscribeLive(); // 첫 닫힘은 즉시 재구독(실시간 즉시 회복)
+    } else {
+      // 닫히자마자 또 닫히는 경우(지속 장애) 폭주 방지 — 2^n초(최대 30초) 뒤 재구독.
+      final delay = Duration(seconds: (1 << streak).clamp(1, 30));
+      _liveResubTimer = Timer(delay, _subscribeLive);
+    }
   }
 
   /// 실시간 스냅샷을 피드에 병합한다(CHAT-ROOM-LIVE-01). Supabase `.stream()`은 매 변경마다 전체
@@ -448,6 +477,8 @@ class ChatRoomController extends StateNotifier<ChatRoomState> {
     // ignore: avoid_print
     print('[RT-DIAG] ctl DISPOSE thread=$threadId session=$aiSessionId');
     _liveSub?.cancel();
+    _liveResubTimer?.cancel();
+    _liveFactory = null; // 파기 후 재구독 타이머가 살아나 재구독하지 않도록
     _typingSub?.cancel();
     _typingOff?.cancel();
     _handoffTimer?.cancel();
@@ -489,7 +520,7 @@ final chatRoomProvider =
   ctl.load(); // 방을 열면 복원한다(셸 진입 = 자동 load). 배치 확인은 딥링크/알림이 batchId로 정밀화(T11).
   // [CHAT-ROOM-LIVE-01] 같은 스레드의 실시간 스냅샷(직원 말풍선·시스템 이벤트)을 컨트롤러에 물려준다.
   // realtime 미주입(supabaseClient null)이면 streamThread는 빈 스트림이라 무해하다.
-  ctl.bindLive(repo.streamThread(key.$1));
+  ctl.bindLive(() => repo.streamThread(key.$1));
   // [CHAT-ROOM-LIVE-TYPING-01·Q18③] 직원 입력 중(typing)·열람(viewing)은 같은 broadcast 채널의 두 이벤트다.
   //   한 채널에서 함께 구독해야 둘 다 도달한다(같은 토픽 채널 2개 = 한쪽만 받는 버그, 2026-09-09).
   final live = repo.streamStaffLive(key.$1);

@@ -194,6 +194,54 @@ void main() {
     expect(c.state.items.where((i) => i.senderType == 'patient').length, 1);
   });
 
+  test('[CHAT-ROOM-LIVE-RESUB-01] 실시간 스트림이 닫히면(채널 closed) 재구독하고 DB 재조회로 놓친 직원 답을 회복한다',
+      () async {
+    // 근본원인(세션3, "직원→환자 한 번만 오고 끊김"): Supabase .stream()은 채널이 closed 되면
+    //   스트림 컨트롤러를 영구히 닫는다. bindLive가 닫힘(onDone)에 재구독하지 않으면 직원 답이
+    //   '구독 중'에 한 번 오고 그 뒤로 영영 안 온다. 닫힘 → 재구독 + DB 재조회(놓친 답 회복, 막다른 길 방지).
+    final repo = _FakeRepo();
+    final c = ChatRoomController(repo, threadId: 't1');
+    await c.load(); // phase=loaded
+
+    ChatFeedItem staff(String id) => ChatFeedItem(
+        id: id,
+        messageType: 'text',
+        senderType: 'staff',
+        content: id,
+        createdAt: DateTime(2026, 1, 1, 10));
+
+    // 셸이 물려주는 라이브 스트림 팩토리 — 닫힌 뒤 새 스트림을 내줄 수 있어야 한다(재구독).
+    final made = <StreamController<List<ChatFeedItem>>>[];
+    c.bindLive(() {
+      final sc = StreamController<List<ChatFeedItem>>();
+      made.add(sc);
+      return sc.stream;
+    });
+    await pumpEventQueue();
+    expect(made.length, 1); // 최초 구독
+
+    // 구독 중 직원 답 #1 도착 → 병합됨(여기까진 지금도 된다).
+    made[0].add([staff('s1')]);
+    await pumpEventQueue();
+    expect(c.state.items.any((i) => i.id == 's1'), isTrue);
+
+    // DB 정본엔 s1·s2 둘 다 저장돼 있다(직원이 #2도 보냄) — 재조회가 이걸 회복해야 한다.
+    repo.messages = [staff('s1'), staff('s2')];
+
+    // 채널 closed = 스트림 닫힘. 재구독/재조회가 없으면 s2는 영영 안 붙는다.
+    await made[0].close();
+    await pumpEventQueue();
+
+    expect(repo.fetchCalls, contains('t1')); // 재조회로 놓친 직원 답 회복
+    expect(c.state.items.any((i) => i.id == 's2'), isTrue); // s2 회복됨
+    expect(made.length, greaterThanOrEqualTo(2)); // 재구독으로 새 스트림 생성
+
+    // 재구독됐으니 이후 직원 답(#3)도 새 스트림으로 받는다.
+    made.last.add([staff('s1'), staff('s2'), staff('s3')]);
+    await pumpEventQueue();
+    expect(c.state.items.any((i) => i.id == 's3'), isTrue);
+  });
+
   test('[CHAT-ROOM-NOTIFY-01] 상담방을 열면(load) 미확인 배치를 읽음 처리한다 — 보는 중엔 알리지 않는다',
       () async {
     String? readBatch;
