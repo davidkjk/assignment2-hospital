@@ -65,11 +65,12 @@ export function Tickets({
           {/* Q25: 부모 flex-col이 Segmented(inline-flex)를 교차축(가로)으로 stretch해 탭바가 w-96 전폭을
               채우고 '답변 완료' 오른쪽에 회색 빈 영역이 길게 남았다 → self-start로 내용 폭만 차지하게 한다. */}
           <div className="self-start">
+            {/* [TICKET-TAB-COUNT-01] 답변 완료는 계속 쌓이는 아카이브라 숫자가 무의미 → 카운트 숨김(새 문의·처리 중만 표시). */}
             <Segmented
               options={inbox.tabs}
               value={inbox.tab}
               onChange={(k) => inbox.setTab(k)}
-              count={(k) => inbox.counts[k]}
+              count={(k) => (k === 'answered' ? undefined : inbox.counts[k])}
             />
           </div>
           {loserNotice && (
