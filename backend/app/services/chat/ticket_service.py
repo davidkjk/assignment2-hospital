@@ -5,6 +5,7 @@ import asyncpg
 
 from app.core.errors import AppError
 from app.db.pool import acquire_as
+from app.services.chat import realtime_broadcast
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 
@@ -58,7 +59,17 @@ async def staff_send_message(auth_user_id: str, ticket_id: UUID, content: str,
                 "select * from staff_send_ticket_message($1, $2, $3)", ticket_id, content, client_message_id)
         except asyncpg.exceptions.RaiseError as e:
             raise AppError(str(e), 409)
-        return _sent_msg_to_dto(row)
+    # 저장 성공 후 같은 chat-typing:<threadId> 채널로 직원 답장을 실시간 발행한다(봇 스트리밍과 동형,
+    # 새 채널 금지). ⭐ 익명 웹챗은 chat_messages 테이블을 구독할 수 없어(RLS) 이 broadcast가 직원 답이
+    # 환자에게 닿는 유일한 실시간 경로다. best-effort(broadcast가 실패를 삼킨다) — DB가 정본이라 유실돼도
+    # 클라 재조회로 복구. 커넥션은 위 with에서 이미 반환됐다(네트워크 I/O 동안 풀을 잡지 않는다).
+    await realtime_broadcast.broadcast(row["thread_id"], "staff_message", {
+        "id": str(row["id"]),
+        "content": row["content"],
+        "senderType": "staff",
+        "createdAt": row["created_at"].isoformat(),
+    })
+    return _sent_msg_to_dto(row)
 
 
 async def list_thread_tickets(auth_user_id: str, thread_id: UUID) -> list[dict]:

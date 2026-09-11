@@ -35,6 +35,23 @@ test('[Q18③] connecting에 열람 presence(staffViewing)가 겹치면 `직원�
   expect(screen.queryByText('직원 확인 전이에요')).not.toBeInTheDocument();
 });
 
+test('[WEBCHAT-STAFF-TYPING-01] 직원이 입력 중이면 `직원이 입력 중이에요`(열람보다 강한 신호)', () => {
+  const { rerender } = render(
+    <HandoffBadge status={{ phase: 'connecting', isOpen: true }} staffViewing onRetry={() => {}} />);
+  expect(screen.getByText('직원이 확인 중이에요')).toBeInTheDocument();
+  rerender(
+    <HandoffBadge status={{ phase: 'connecting', isOpen: true }} staffViewing staffTyping onRetry={() => {}} />);
+  expect(screen.getByText('직원이 입력 중이에요')).toBeInTheDocument();
+  expect(screen.queryByText('직원이 확인 중이에요')).not.toBeInTheDocument();
+});
+
+test('[WEBCHAT-STAFF-TYPING-01] 답변 도착 뒤엔 입력 중으로 되돌리지 않는다(이미 답이 왔다)', () => {
+  render(<HandoffBadge status={{ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' }}
+    staffTyping onRetry={() => {}} />);
+  expect(screen.getByText('답변 도착')).toBeInTheDocument();
+  expect(screen.queryByText('직원이 입력 중이에요')).not.toBeInTheDocument();
+});
+
 test('[WEBCHAT-HANDOFF-02] 운영시간 판정은 서버 is_open 결과를 쓴다 — 환경변수 9~18시 금지', () => {
   // isOpen은 서버가 준 값이며 위젯은 클라 시계로 재판정하지 않는다.
   pump({ phase: 'connecting', isOpen: false, hoursNote: '다음 영업일에 답변드립니다' });

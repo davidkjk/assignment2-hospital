@@ -110,6 +110,24 @@ test('[WEBCHAT-HANDOFF] 직원 viewing:on 수신 시 staffViewing=true, role=pat
   expect(result.current.staffViewing).toBe(true);
 });
 
+test('[WEBCHAT-STAFF-TYPING-01] 직원 typing:on 수신 시 staffTyping=true, role=patient는 무시', () => {
+  const { result } = renderHook(() => useStaffPresence('t-1'));
+  act(() => channel.handlers['typing']?.({ payload: { role: 'patient', on: true } }));
+  expect(result.current.staffTyping).toBe(false); // 내 것(환자)은 표시 안 함
+  act(() => channel.handlers['typing']?.({ payload: { role: 'staff', on: true } }));
+  expect(result.current.staffTyping).toBe(true);
+  act(() => channel.handlers['typing']?.({ payload: { role: 'staff', on: false } }));
+  expect(result.current.staffTyping).toBe(false);
+});
+
+test('[WEBCHAT-STAFF-TYPING-01] 끔 신호 유실 대비 6초 안전 타임아웃으로 자동 해제', () => {
+  const { result } = renderHook(() => useStaffPresence('t-1'));
+  act(() => channel.handlers['typing']?.({ payload: { role: 'staff', on: true } }));
+  expect(result.current.staffTyping).toBe(true);
+  act(() => vi.advanceTimersByTime(6000));
+  expect(result.current.staffTyping).toBe(false);
+});
+
 test('threadId가 없으면(로딩 전) 채널을 열지 않고 notifyTyping은 no-op', () => {
   const { result } = renderHook(() => useStaffPresence(undefined));
   expect(supabase.channel).not.toHaveBeenCalled();

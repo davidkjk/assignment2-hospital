@@ -17,6 +17,7 @@ export type ChatRoomProps = {
   botTyping?: boolean;            // 봇 답변 대기 중 타이핑 점 표시(홈페이지 .typing)
   onTyping?: () => void;          // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중이면 직원에게 "환자 입력 중" 알림(디바운스는 훅)
   onStaffHandoff?: () => void;    // Q5: 가장 최근 봇 답변 밑 [직원에게 연결] 칩 → 익명 인계 폼(WEBANON-HANDOFF)
+  onNewChat?: () => void;         // [WEBCHAT-NEW-01] 헤더 '새 상담' — 지금 대화를 접고 처음부터(막다른 길 방지). 없으면 안 그림.
   renderCard: (payload: Record<string, unknown> | null | undefined) => ReactNode;
 };
 
@@ -55,6 +56,10 @@ export function ChatRoom(p: ChatRoomProps) {
           AI 상담봇
           <span className="wc-header__status"><i className="wc-header__dot" aria-hidden="true" />지금 응답 가능</span>
         </span>
+        {/* [WEBCHAT-NEW-01] 새 상담 — 지금 대화를 접고 처음부터(못 빠져나옴 방지). 확인은 위젯이 인계 활성 시 감싼다. */}
+        {p.onNewChat && (
+          <button type="button" className="wc-newchat" onClick={p.onNewChat}>새 상담</button>
+        )}
       </header>
       {/* 진료과 배너·인계 상태·긴급/장애 안내 — 헤더가 아니라 대화 영역에 둔다(WEBCHAT-GUIDE: 추천 중에만 메시지와 함께). */}
       <div className="wc-status">{p.guideSlot}{p.handoffSlot}{p.urgentSlot}{p.outageSlot}</div>

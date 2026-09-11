@@ -36,13 +36,20 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
     onHandoffRequested: (threadId) => onHandoffNeeded({ threadId, summary: [] }),
   });
   const hasUnread = w.handoff.phase === 'answered';
+  // [WEBCHAT-NEW-01] 새 상담(리셋). 진행 중 직원 상담(인계 활성=phase 있고 종료 아님)일 땐 실수로 대화를
+  //   버리지 않도록 확인창으로 감싼다(사용자 결정 2026-09-10). 그 외엔 바로 새로 시작.
+  const [confirmNew, setConfirmNew] = useState(false);
+  const handoffActive = w.handoff.phase !== null && w.handoff.closed !== true;
+  const requestNewChat = () => { if (handoffActive) setConfirmNew(true); else void w.startNew(); };
+  const confirmNewChat = () => { setConfirmNew(false); void w.startNew(); };
   // Q18③: 직원이 상담 상세를 실제로 열어 보는 중이면 배지가 "직원이 확인 중이에요"로(열람 presence).
   // [CHAT-ROOM-PATIENT-TYPING-01] 방향은 양쪽 — 같은 훅이 이 위젯(환자)의 입력 중을 직원에게 보낼 notifyTyping도 준다.
   // [CHAT-STREAM-01] 봇 답 스트리밍(bot_typing/delta/done)도 같은 채널로 받아 useWebchat에 반영한다.
-  const { staffViewing, notifyTyping } = useStaffPresence(w.session?.threadId, {
+  const { staffViewing, staffTyping, notifyTyping } = useStaffPresence(w.session?.threadId, {
     onBotTyping: w.applyBotTyping,
     onBotDelta: w.applyBotDelta,
     onBotDone: w.applyBotDone,
+    onStaffMessage: w.applyStaffMessage,   // [CHAT-STREAM-STAFF-MSG-01] 인계 후 직원 답장 → 피드에 표시
   });
   // 진행 중 스트리밍 버블을 messages 뒤에 합성한다(ChatRoom 무변경 — 합성만). done이 확정 말풍선으로 대체.
   const streamBubble = w.streaming
@@ -63,8 +70,22 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
       {open && (
         <div className="wc-panel">
           <button type="button" className="wc-close" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
+          {/* [WEBCHAT-NEW-01] 진행 중 직원 상담을 새 상담이 덮기 전 확인 — 되돌릴 수 없는 이탈은 확인창 안에서만. */}
+          {confirmNew && (
+            <div className="wc-confirm" role="dialog" aria-modal="true" aria-labelledby="wc-confirm-title">
+              <div className="wc-confirm__box">
+                <p id="wc-confirm-title" className="wc-confirm__title">새 상담을 시작할까요?</p>
+                <p className="wc-confirm__msg">직원 상담이 진행 중이에요. 새로 시작하면 이 대화에서 나가고, 직원 답은 이 창에서 더는 볼 수 없어요.</p>
+                <div className="wc-confirm__actions">
+                  <button type="button" className="wc-confirm__cancel" onClick={() => setConfirmNew(false)}>취소</button>
+                  <button type="button" className="wc-confirm__go" onClick={confirmNewChat}>새로 시작</button>
+                </div>
+              </div>
+            </div>
+          )}
           <ChatRoom
             phase={w.phase}
+            onNewChat={requestNewChat}       // [WEBCHAT-NEW-01] 헤더 '새 상담'(인계 중이면 확인창)
             messages={[...w.messages, ...streamBubble, ...extraCards]}
             botTyping={w.botTyping && !w.streaming}   // 델타가 시작되면 점 대신 흐르는 텍스트를 보여준다
             onTyping={notifyTyping}         // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중 → 직원에게 "환자 입력 중"
@@ -75,7 +96,7 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
             guideSlot={<GuideBanner active={w.guide.active} text={w.guide.text} />}
             // 인계 배지는 실제 인계가 시작(phase 확정)되거나 조회 실패일 때만 — 그 전엔 "상태 확인 중…"을 상시 노출하지 않는다.
             handoffSlot={(w.handoff.phase !== null || w.handoff.loadError)
-              ? <HandoffBadge status={w.handoff} staffViewing={staffViewing} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
+              ? <HandoffBadge status={w.handoff} staffViewing={staffViewing} staffTyping={staffTyping} onRetry={() => api.fetchHandoff(w.session!.threadId).then(w.setHandoff)} />
               : null}
             // 긴급 안내(WEBCHAT-URGENT) — 감지 시 대화 위 고정 배너. 예약 CTA·연락처 수집은 함께 두지 않는다(URGENT-03·04).
             urgentSlot={w.urgent ? <UrgentNotice bookingCtaVisible={false} contactRequested={false} /> : null}

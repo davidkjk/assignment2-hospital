@@ -77,3 +77,19 @@ test('[CHAT-STREAM-01] 핸들러 없이도 봇 이벤트가 던지지 않는다(
     act(() => channel.handlers['bot_delta']?.({ payload: { gen: 'g1', seq: 1, text: 'x' } })),
   ).not.toThrow();
 });
+
+test('[CHAT-STREAM-STAFF-MSG-01] 같은 채널에서 staff_message를 수신해 onStaffMessage를 부른다', () => {
+  // 인계 후 익명 웹챗은 chat_messages 테이블 구독 불가(RLS) — 직원 답이 닿는 유일한 실시간 경로.
+  const onStaffMessage = vi.fn();
+  renderHook(() => useStaffPresence('t-1', { onStaffMessage }));
+  expect(supabase.channel).toHaveBeenCalledTimes(1); // 새 채널 금지
+
+  act(() =>
+    channel.handlers['staff_message']?.({
+      payload: { id: 'm9', content: '확인했습니다', senderType: 'staff', createdAt: '2026-09-10T00:34:00+00:00' },
+    }),
+  );
+  expect(onStaffMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 'm9', content: '확인했습니다' }),
+  );
+});

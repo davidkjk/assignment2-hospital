@@ -21,10 +21,16 @@ export type BotDone = {
   outage: boolean;
 };
 
+// [CHAT-STREAM-STAFF-MSG-01] 인계(사람 상담) 후 직원 답장. 익명 웹챗은 chat_messages 테이블을
+// 구독할 수 없어(RLS) 이 broadcast가 직원 답이 환자에게 닿는 유일한 실시간 경로다. 백엔드
+// ticket_service.staff_send_message가 service_role로 같은 채널에 민다(payload 형태 아래).
+export type StaffMessage = { id: string; content: string; createdAt?: string };
+
 export type BotHandlers = {
   onBotTyping?: (on: boolean, gen: string) => void;
   onBotDelta?: (gen: string, seq: number, text: string) => void;
   onBotDone?: (p: BotDone) => void;
+  onStaffMessage?: (m: StaffMessage) => void;
 };
 
 export function useStaffPresence(
@@ -32,10 +38,13 @@ export function useStaffPresence(
   handlers?: BotHandlers,
 ): {
   staffViewing: boolean;
+  staffTyping: boolean;
   notifyTyping: () => void;
 } {
   const [viewing, setViewing] = useState(false);
+  const [staffTyping, setStaffTyping] = useState(false);
   const offTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const staffTypingOff = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chanRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingOn = useRef(false);
   const typingIdle = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,6 +55,7 @@ export function useStaffPresence(
   useEffect(() => {
     if (!threadId) {
       setViewing(false);
+      setStaffTyping(false);
       return;
     }
     const ch = supabase.channel(`chat-typing:${threadId}`, {
@@ -61,6 +71,16 @@ export function useStaffPresence(
         offTimer.current = setTimeout(() => setViewing(false), 12000);
       }
     });
+    // [WEBCHAT-STAFF-TYPING-01] 담당 직원의 "입력 중"(role:staff)을 구독한다 — 환자앱이 직원 typing을
+    // 보여주는 것과 대칭(직원웹 useTypingChannel이 답변 작성 중 typing on/off를 같은 채널로 보낸다).
+    // 끔 신호 유실 대비 6초 안전 타임아웃(직원웹 유휴 3초 디바운스 + 여유). 내(환자) typing은 무시.
+    ch.on('broadcast', { event: 'typing' }, (msg: { payload?: unknown }) => {
+      const data = (msg.payload ?? msg) as { role?: string; on?: boolean };
+      if (data.role !== 'staff') return;
+      if (staffTypingOff.current) clearTimeout(staffTypingOff.current);
+      setStaffTyping(!!data.on);
+      if (data.on) staffTypingOff.current = setTimeout(() => setStaffTyping(false), 6000);
+    });
     // [CHAT-STREAM-01] 봇 답 스트리밍 3종 — 같은 채널에 얹는다(새 채널 금지). payload/msg 양쪽 형태 방어.
     ch.on('broadcast', { event: 'bot_typing' }, (msg: { payload?: unknown }) => {
       const d = (msg.payload ?? msg) as { gen?: string; on?: boolean };
@@ -74,6 +94,13 @@ export function useStaffPresence(
       const d = (msg.payload ?? msg) as BotDone;
       hRef.current?.onBotDone?.(d);
     });
+    // [CHAT-STREAM-STAFF-MSG-01] 직원 답장 — 같은 채널에 얹는다(새 채널 금지). payload/msg 양쪽 형태 방어.
+    ch.on('broadcast', { event: 'staff_message' }, (msg: { payload?: unknown }) => {
+      const d = (msg.payload ?? msg) as { id?: string; content?: string; createdAt?: string };
+      if (d.id && typeof d.content === 'string') {
+        hRef.current?.onStaffMessage?.({ id: d.id, content: d.content, createdAt: d.createdAt });
+      }
+    });
     ch.subscribe((status: string) => {
       // 구독 전 send는 유실된다 — subscribed 후에 환자 열람 presence를 켠다.
       if (status === 'SUBSCRIBED') {
@@ -83,8 +110,10 @@ export function useStaffPresence(
     chanRef.current = ch;
     return () => {
       if (offTimer.current) clearTimeout(offTimer.current);
+      if (staffTypingOff.current) clearTimeout(staffTypingOff.current);
       if (typingIdle.current) clearTimeout(typingIdle.current);
       typingOn.current = false;
+      setStaffTyping(false);
       // 위젯을 닫으면 환자 열람 종료를 알린다(직원 화면의 "환자 접속 중"이 내려간다).
       void ch.send({ type: 'broadcast', event: 'viewing', payload: { role: 'patient', on: false } });
       supabase.removeChannel(ch);
@@ -108,5 +137,5 @@ export function useStaffPresence(
     }, 3000);
   }, []);
 
-  return { staffViewing: viewing, notifyTyping };
+  return { staffViewing: viewing, staffTyping, notifyTyping };
 }
