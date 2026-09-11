@@ -546,6 +546,9 @@ html, body { height: 100%; }
 /* no_answer 안내의 [직원에게 연결] — 사람 연결 콜백 칩. FAQ 칩(테두리형)과 구분해 딥틸 채움으로. */
 .wc-chip--handoff { background: var(--wc-primary); color: #fff; border-color: var(--wc-primary); }
 .wc-chip--handoff:hover { background: var(--wc-primary-d); border-color: var(--wc-primary-d); }
+/* [F1] 시작 화면의 주 행동 = 예약하기. 정보 칩(테두리형)과 구분해 딥틸 채움으로 눈에 띄게. */
+.wc-chip--primary { background: var(--wc-primary); color: #fff; border-color: var(--wc-primary); }
+.wc-chip--primary:hover { background: var(--wc-primary-d); border-color: var(--wc-primary-d); }
 
 /* ── 첫 상담 시작 안내(WEBCHAT-ROOM-03·WEBCARD-QUICK-01) — 봇 인사말 + 시작 고정 칩을 대화 안에 ── */
 .wc-startline { align-self: stretch; max-width: 100%; }

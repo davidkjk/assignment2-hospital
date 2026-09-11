@@ -118,6 +118,9 @@ export function WebchatWidget({ api, hospitalPhone, onAuthGate, onHandoffNeeded,
             startSlot={<div className="wc-start">
               <p className="wc-msg wc-msg--bot wc-start__hi">안녕하세요, 무엇을 도와드릴까요?</p>
               <div className="wc-quick wc-quick--start" aria-label="빠른 시작">
+                {/* [F1] 웹에서도 상담창 안에서 바로 예약할 수 있다 — 시작 화면에 예약 진입 버튼을 둔다(예전엔 없어서
+                    "예약하려면?"에 앱 안내만 나왔다). 예약 의도 메시지로 봇의 예약 흐름(진료과 선택)을 연다. */}
+                <button type="button" className="wc-chip wc-chip--primary" onClick={() => w.send('예약하기')}>예약하기</button>
                 {['진료시간', '예약 방법', '오시는 길'].map((t) => (
                   <button key={t} type="button" className="wc-chip" onClick={() => w.send(t)}>{t}</button>
                 ))}
