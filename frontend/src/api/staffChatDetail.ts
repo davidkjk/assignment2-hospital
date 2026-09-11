@@ -37,6 +37,7 @@ export interface ConvMessage {
 export interface Contact {
   anonymous: boolean
   hasPhone: boolean
+  name: string | null // F9: 로그인 환자 인계의 계정 실명(익명은 null). 직원이 답변 상대를 헤더에서 본다.
 }
 
 export interface TicketDetail {
@@ -90,7 +91,7 @@ interface TicketDetailDto {
     staff_should_check: string | null
   }
   messages: ConvMessageDto[]
-  contact: { anonymous: boolean; has_phone: boolean }
+  contact: { anonymous: boolean; has_phone: boolean; name: string | null }
 }
 interface ActiveStaffDto {
   id: string
@@ -125,7 +126,7 @@ function detailFromDto(d: TicketDetailDto): TicketDetail {
       staffShouldCheck: d.summary.staff_should_check,
     },
     messages: d.messages.map(msgFromDto),
-    contact: { anonymous: d.contact.anonymous, hasPhone: d.contact.has_phone },
+    contact: { anonymous: d.contact.anonymous, hasPhone: d.contact.has_phone, name: d.contact.name ?? null },
   }
 }
 

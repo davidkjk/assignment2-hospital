@@ -19,7 +19,7 @@ const mkDetail = (over: Partial<TicketDetail> = {}): TicketDetail => ({
   isMine: true,
   summary: { patientAsked: '두통약 정보', botConfirmed: null, alreadyGuided: null, unresolvedReason: null, staffShouldCheck: null },
   messages: [],
-  contact: { anonymous: false, hasPhone: false },
+  contact: { anonymous: false, hasPhone: false, name: null },
   ...over,
 })
 

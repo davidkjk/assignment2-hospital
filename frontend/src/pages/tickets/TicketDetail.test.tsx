@@ -31,7 +31,7 @@ const detail: TD = {
   isMine: true,
   summary: { patientAsked: '두통약', botConfirmed: null, alreadyGuided: null, unresolvedReason: null, staffShouldCheck: null },
   messages: [{ id: 'm1', sender: 'patient', body: '질문', at: '09:00', patientRead: false, staffUnread: false, smsSent: false }],
-  contact: { anonymous: false, hasPhone: false },
+  contact: { anonymous: false, hasPhone: false, name: null },
 }
 function fakeApi(): StaffTicketDetailApi {
   return {
@@ -73,26 +73,37 @@ it('[TICKET-DETAIL-PATIENT-TYPING-01] 환자가 입력 중이면 상단에 "환�
   }
 })
 
-it('[TICKET-DETAIL-APPLICANT-01] 익명 인계 신청자 이름을 헤더 배지로 끌어올려 스크롤 없이 보이게 한다', async () => {
-  const withApplicant: StaffTicketDetailApi = {
+it('[TICKET-DETAIL-APPLICANT-01 개정 · F7] 익명 웹 상담은 자기입력 이름 배지를 두지 않고, 대화에도 이름 없는 연결 안내만 남긴다', async () => {
+  // ~~옛: 익명 '상담 신청자: {이름}'을 헤더 배지로~~ ✅ 해소(2026-09-11, 사용자 결정) — 익명 이름 배지 제거.
+  const anon: StaffTicketDetailApi = {
     ...fakeApi(),
     getDetail: vi.fn(async () => ({
       ...detail,
-      contact: { anonymous: true, hasPhone: true },
+      contact: { anonymous: true, hasPhone: true, name: null },   // 익명은 이름 없음
       messages: [
-        { id: 's1', sender: 'system', body: '상담 신청자: 홍길동', at: '09:00', patientRead: false, staffUnread: false, smsSent: false },
+        { id: 's1', sender: 'system', body: '상담이 직원에게 연결되었습니다', at: '09:00', patientRead: false, staffUnread: false, smsSent: false },
         { id: 'm1', sender: 'patient', body: '예약 취소하고 싶어요', at: '09:01', patientRead: false, staffUnread: false, smsSent: false },
       ],
     })),
   } as unknown as StaffTicketDetailApi
-  render(<TicketDetail api={withApplicant} ticket={ticket} onLoserBackToList={vi.fn()} />)
-  // 헤더 배지는 aria-label로 타임라인의 같은 안내 줄과 구분한다.
-  const badge = await screen.findByLabelText('상담 신청자')
-  expect(badge).toHaveTextContent('홍길동')
+  render(<TicketDetail api={anon} ticket={ticket} onLoserBackToList={vi.fn()} />)
+  await waitFor(() => expect(screen.getByLabelText('대화')).toBeInTheDocument())
+  expect(screen.queryByLabelText('환자')).not.toBeInTheDocument()          // 익명 → 신원 배지 없음
+  expect(screen.queryByText(/상담 신청자/)).not.toBeInTheDocument()         // 대화에도 '상담 신청자: 이름' 없음
 })
 
-it('[TICKET-DETAIL-APPLICANT-02] 신청자 안내가 없는 티켓(등록 환자·일반)에는 신청자 배지를 두지 않는다', async () => {
-  render(<TicketDetail api={fakeApi()} ticket={ticket} onLoserBackToList={vi.fn()} />)
+it('[TICKET-DETAIL-APPLICANT-02 개정 · F9] 로그인 환자 인계는 계정 실명을 헤더 배지로 보인다', async () => {
+  const named: StaffTicketDetailApi = {
+    ...fakeApi(),
+    getDetail: vi.fn(async () => ({ ...detail, contact: { anonymous: false, hasPhone: false, name: '김환자' } })),
+  } as unknown as StaffTicketDetailApi
+  render(<TicketDetail api={named} ticket={ticket} onLoserBackToList={vi.fn()} />)
+  const badge = await screen.findByLabelText('환자')
+  expect(badge).toHaveTextContent('김환자')
+})
+
+it('[TICKET-DETAIL-APPLICANT-03] 이름이 없는 티켓(익명·이름 미보유)에는 신원 배지를 두지 않는다', async () => {
+  render(<TicketDetail api={fakeApi()} ticket={ticket} onLoserBackToList={vi.fn()} />)  // 기본 fixture name:null
   await waitFor(() => expect(screen.getByLabelText('대화')).toBeInTheDocument())
-  expect(screen.queryByLabelText('상담 신청자')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('환자')).not.toBeInTheDocument()
 })

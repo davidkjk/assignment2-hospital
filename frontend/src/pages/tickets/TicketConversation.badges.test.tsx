@@ -81,7 +81,7 @@ it('[TICKET-DETAIL-NOTIFY-03] 자리 비움 발송된 직원 답변에 자리 �
 it('[TICKET-DETAIL-NOTIFY-04] 전화번호 미제공이면 연락처 없음 안내만 표시하고 문자 발송됨을 표시하지 않는다', () => {
   render(
     <>
-      <ContactBanner contact={{ anonymous: true, hasPhone: false }} />
+      <ContactBanner contact={{ anonymous: true, hasPhone: false, name: null }} />
       <TicketConversation
         messages={[mk({ id: '1', sender: 'staff', body: '답변', patientRead: false, smsSent: false })]}
         convError={false}
@@ -95,7 +95,7 @@ it('[TICKET-DETAIL-NOTIFY-04] 전화번호 미제공이면 연락처 없음 안�
 })
 
 it('[TICKET-DETAIL-CONTACT-01] 익명 웹 티켓은 실제 번호 대신 마스킹을 표시하고 직접 문자 버튼을 제공하지 않는다', () => {
-  render(<ContactBanner contact={{ anonymous: true, hasPhone: true }} />)
+  render(<ContactBanner contact={{ anonymous: true, hasPhone: true, name: null }} />)
   expect(screen.getByText('연락처 있음 · 문자 알림 가능')).toBeInTheDocument()
   expect(screen.queryByText(/010-|문자 보내기|직접 발송/)).not.toBeInTheDocument()
 })

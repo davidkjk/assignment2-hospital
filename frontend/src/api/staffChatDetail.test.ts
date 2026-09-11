@@ -29,7 +29,7 @@ it('[Step1] claim이 409면 TicketClaimConflict로 reject한다(딥링크 경쟁
 })
 
 it('[Step1] reassignTicket은 to_staff_id를 실어 POST .../reassign한다', async () => {
-  const m = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ id: 't1', status: 'in_progress', reason: 'general', assignee: null, is_mine: true, summary: { patient_asked: null, bot_confirmed: null, already_guided: null, unresolved_reason: null, staff_should_check: null }, messages: [], contact: { anonymous: false, has_phone: false } }))
+  const m = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json({ id: 't1', status: 'in_progress', reason: 'general', assignee: null, is_mine: true, summary: { patient_asked: null, bot_confirmed: null, already_guided: null, unresolved_reason: null, staff_should_check: null }, messages: [], contact: { anonymous: false, has_phone: false, name: null } }))
   await staffChatDetailApi.reassignTicket('t1', 's9')
   expect(m.mock.calls[0][0]).toBe('/staff/chat/tickets/t1/reassign')
   expect(JSON.parse((m.mock.calls[0][1] as RequestInit).body as string)).toEqual({ to_staff_id: 's9' })
@@ -40,7 +40,7 @@ it('[Step1] getDetail은 서버 snake 응답을 카멜 TicketDetail로 옮긴다
     id: 't1', status: 'in_progress', reason: 'medical_judgment', assignee: { name: '박접수', role: 'reception' }, is_mine: true,
     summary: { patient_asked: '두통약', bot_confirmed: null, already_guided: null, unresolved_reason: '진단·치료 판단이 필요합니다', staff_should_check: null },
     messages: [{ id: 'm1', sender: 'ai', body: '안내', at: '09:01', patient_read: false, staff_unread: false, sms_sent: false }],
-    contact: { anonymous: true, has_phone: true },
+    contact: { anonymous: true, has_phone: true, name: null },
   }))
   const d = await staffChatDetailApi.getDetail('t1')
   expect(d.isMine).toBe(true)

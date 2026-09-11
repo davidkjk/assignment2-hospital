@@ -3,7 +3,7 @@ import type { InboxTicket } from '../../api/staffChat'
 import type { StaffTicketDetailApi } from '../../api/staffChatDetail'
 import { useTicketDetail } from './useTicketDetail'
 import { HandoffSummary } from './HandoffSummary'
-import { TicketConversation, messageBadges, ContactBanner, applicantName } from './TicketConversation'
+import { TicketConversation, messageBadges, ContactBanner } from './TicketConversation'
 import { UserRound } from '../../components/icons'
 import { ReplyBox } from './ReplyBox'
 import { ReassignControl } from './ReassignControl'
@@ -66,7 +66,10 @@ export function TicketDetail(props: {
   }
 
   const detail = d.detail!
-  const applicant = applicantName(detail.messages)
+  // F7+F9: 신원 배지는 로그인 환자의 계정 실명만 보인다(익명 웹 상담은 이름 없음 → 배지 없음).
+  //   ~~옛: 익명 인계 시스템 메시지에서 '상담 신청자: {이름}'을 파싱해 배지로~~ ✅ 해소(2026-09-11, 사용자 결정) —
+  //   자기 입력 익명 이름 배지는 없애고, 등록 환자는 서버가 준 실명(contact.name)을 헤더에 띄운다.
+  const requesterName = detail.contact.name
   return (
     <article aria-label="티켓 상세" className="flex h-full flex-col">
       {/* 상태·연결 표시 */}
@@ -78,16 +81,16 @@ export function TicketDetail(props: {
         >
           {d.statusLabel}
         </span>
-        {/* TICKET-DETAIL-APPLICANT-01: 익명 인계 신청자 이름을 헤더로 끌어올려 스크롤 없이 누구인지 보이게 한다.
-            상태 pill(primary=상태)과 구분되게 조용한 중립 pill + 사람 아이콘(=신원). */}
-        {applicant && (
+        {/* TICKET-DETAIL-APPLICANT-01(개정): 로그인 환자 인계는 계정 실명을 헤더로 끌어올려 스크롤 없이 누구인지 보이게 한다.
+            상태 pill(primary=상태)과 구분되게 조용한 중립 pill + 사람 아이콘(=신원). 익명 웹 상담은 이름을 두지 않는다. */}
+        {requesterName && (
           <span
-            aria-label="상담 신청자"
+            aria-label="환자"
             className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground"
           >
             <UserRound className="h-3 w-3 text-muted-foreground" />
-            <span className="text-muted-foreground">신청자</span>
-            {applicant}
+            <span className="text-muted-foreground">환자</span>
+            {requesterName}
           </span>
         )}
         {d.live === 'disconnected' && <span className="text-amber-700">· 연결 불안정 · 최신 상태가 아닐 수 있습니다</span>}

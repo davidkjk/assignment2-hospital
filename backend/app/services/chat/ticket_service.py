@@ -201,11 +201,13 @@ select
   hs.bot_confirmed,
   hs.already_guided,
   hs.staff_should_check,
+  p.name as patient_name,   -- F9: 로그인 환자 인계는 계정 실명을 헤더로 보인다(익명은 null → 배지 없음)
   (select cm.content from public.chat_messages cm
      where cm.thread_id = t.thread_id and cm.sender_type = 'patient'
      order by cm.created_at asc, cm.id asc limit 1) as patient_asked
 from public.support_tickets t
 join public.chat_threads th on th.id = t.thread_id
+left join public.patients p on p.id = th.patient_id
 left join public.staff s on s.id = t.assigned_staff_id
 left join lateral (
   select cm.payload->>'reason' as reason_code,
@@ -239,12 +241,12 @@ patient_cursor as (
 select
   cm.id::text as id,
   case cm.sender_type when 'bot' then 'ai' else cm.sender_type end as sender,
-  -- Q26: 익명 웹 상담 인계(anonymous_handoff)의 신청자 이름은 payload에만 있어 예전엔 content(null)로 와
-  --   빈 pill이 됐다(직원이 답변 대상 이름을 못 봄). 서버에서 body를 '상담 신청자: {이름}'으로 만들어
-  --   기존 시스템 pill이 그대로 이름을 표시하게 한다(payload 원문은 노출하지 않는다). 전화 원문은 미노출 유지.
+  -- F7(개정): 익명 웹 상담 인계(anonymous_handoff)의 자기입력 이름 pill은 없앤다(사용자 결정 2026-09-11) —
+  --   ~~Q26: '상담 신청자: {이름}'으로 이름을 pill에 표시~~. 대신 이름 없는 중립 연결 안내만 남기고(빈 pill 방지),
+  --   로그인 환자의 실명은 헤더 배지(contact.name)로 보인다. 전화 원문은 여전히 미노출.
   case
     when cm.message_type = 'system' and cm.payload->>'event' = 'anonymous_handoff'
-      then '상담 신청자: ' || coalesce(nullif(trim(cm.payload->>'name'), ''), '(이름 미기재)')
+      then '상담이 직원에게 연결되었습니다'
     else cm.content
   end as body,
   to_char(cm.created_at at time zone 'Asia/Seoul', 'HH24:MI') as at,
@@ -304,7 +306,9 @@ async def get_ticket_detail(auth_user_id: str, ticket_id: UUID) -> dict:
         "is_mine": header["is_mine"],
         "summary": _detail_summary(header),
         "messages": [dict(m) for m in msg_rows],
-        "contact": {"anonymous": header["owner_type"] == "anonymous_web", "has_phone": bool(has_phone)},
+        # F9: 로그인 환자는 계정 실명을, 익명 웹은 이름 없음(null). 직원이 답변 상대를 헤더에서 바로 본다.
+        "contact": {"anonymous": header["owner_type"] == "anonymous_web", "has_phone": bool(has_phone),
+                    "name": header["patient_name"] if header["owner_type"] == "patient" else None},
     }
 
 
