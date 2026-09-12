@@ -21,7 +21,13 @@ class _RerankerModel:
     async def ainvoke(self, msgs):
         import json
         import re
-        text = " ".join(getattr(m, "content", str(m)) for m in msgs)
+        # reranker.py는 메시지를 ("role", "content") 튜플로 넘긴다(langchain 튜플 메시지). str(m)로 repr을 만들면
+        # 실제 개행이 '\n' 리터럴로 escape돼 '[N] 제목: TITLE' 블록 정규식이 제목을 통째로 삼킨다 → 튜플이면 본문만 뽑는다.
+        def _text(m):
+            if isinstance(m, tuple):
+                return str(m[-1])
+            return getattr(m, "content", str(m))
+        text = "\n".join(_text(m) for m in msgs)
         blocks = re.findall(r"\[(\d+)\] 제목: ([^\n]*)", text)
         scores = [{"index": int(idx), "score": 0.99 if self._top in title else 0.1}
                   for idx, title in blocks]
