@@ -45,10 +45,25 @@ test('[WEBCHAT-STAFF-TYPING-01] 직원이 입력 중이면 `직원이 입력 중
   expect(screen.queryByText('직원이 확인 중이에요')).not.toBeInTheDocument();
 });
 
-test('[WEBCHAT-STAFF-TYPING-01] 답변 도착 뒤엔 입력 중으로 되돌리지 않는다(이미 답이 왔다)', () => {
-  render(<HandoffBadge status={{ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' }}
-    staffTyping onRetry={() => {}} />);
+test('[G2·WEBCHAT-STAFF-TYPING-02] 답변 도착 뒤에도 직원이 다시 입력하면 `직원이 입력 중이에요`로 올린다(고착 해제)', () => {
+  // ⚠️ 옛 규칙 뒤집음(WEBCHAT-STAFF-TYPING-01의 "answered 뒤엔 되돌리지 않는다"): 사용자 제보 G2 —
+  //   한 번 답장하면 '답변 도착'에 고착돼 직원이 다음 답을 쓰는 중인지 안 보였다. 이제 라이브 신호가 라벨을 올린다.
+  const { rerender } = render(
+    <HandoffBadge status={{ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' }} onRetry={() => {}} />);
   expect(screen.getByText('답변 도착')).toBeInTheDocument();
+  rerender(<HandoffBadge status={{ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' }}
+    staffTyping onRetry={() => {}} />);
+  expect(screen.getByText('직원이 입력 중이에요')).toBeInTheDocument();
+  expect(screen.queryByText('답변 도착')).not.toBeInTheDocument();
+  expect(screen.getByText('이의사 의사')).toBeInTheDocument(); // 대화가 이어지므로 담당자 이름은 유지
+  rerender(<HandoffBadge status={{ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사' }} onRetry={() => {}} />);
+  expect(screen.getByText('답변 도착')).toBeInTheDocument(); // 입력이 멈추면 '답변 도착'으로 복귀
+});
+
+test('[CHAT-HANDOFF-STATE-03] 상담 종료(closed)는 직원이 다시 입력해도 `상담 종료` 유지(종료가 최우선)', () => {
+  render(<HandoffBadge status={{ phase: 'answered', isOpen: true, assigneeName: '이의사', assigneeRole: '의사', closed: true }}
+    staffTyping onRetry={() => {}} />);
+  expect(screen.getByText('상담 종료')).toBeInTheDocument();
   expect(screen.queryByText('직원이 입력 중이에요')).not.toBeInTheDocument();
 });
 
