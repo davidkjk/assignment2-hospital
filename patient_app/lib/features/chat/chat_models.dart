@@ -1,0 +1,227 @@
+/// 상담방 피드의 한 줄. 말풍선·카드·시스템 이벤트를 한 union으로 표현한다(CHAT-ROOM-FEED-01).
+/// 셸은 카드의 알맹이를 모른다 — `cardType`(payload.card_type)만 읽어 T12·T13 슬롯에 넘긴다.
+enum NoticeKind { medical, general } // CHAT-ROOM-VISUAL-01 머리말
+enum ChatSendState { sent, sending, failed } // 환자 말풍선 전송 상태(CHAT-ROOM-SEND-*)
+
+/// AI 장애 화면(CHAT-OUTAGE-*)의 문의 남기기 하위 상태. 데이터 계층에 두어 상태(ChatRoomState)와
+/// 화면(chat_outage_view.dart)이 공유한다(화면이 이 enum을 re-export한다).
+enum OutageInquiryPhase { idle, busy, error, done }
+
+class ChatFeedItem {
+  final String id;
+  final String messageType; // 'text' | 'card' | 'system'
+  final String? senderType; // 'patient' | 'bot' | 'staff' | 'system' (없으면 unknown)
+  final String? content; // 카드·시스템은 null 가능(Task 1: content nullable)
+  final Map<String, dynamic>? payload;
+  final DateTime? createdAt;
+  final String? clientMessageId; // 환자 전송 멱등 키(CHAT-ROOM-SEND-01·03)
+  final ChatSendState sendState;
+
+  const ChatFeedItem({
+    required this.id,
+    required this.messageType,
+    this.senderType,
+    this.content,
+    this.payload,
+    this.createdAt,
+    this.clientMessageId,
+    this.sendState = ChatSendState.sent,
+  });
+
+  String? get cardType => payload?['card_type'] as String?;
+
+  NoticeKind? get noticeKind => switch (payload?['notice_kind']) {
+        'medical' => NoticeKind.medical,
+        'general' => NoticeKind.general,
+        _ => null,
+      };
+
+  // CHAT-ROOM-EXC-01: 발신자나 시각이 비면 값을 지어내지 않고 unknown으로 표시한다.
+  bool get isUnknown => senderType == null || createdAt == null;
+
+  // 이력 REST 응답은 camelCase(webchat_service.message_to_dict), Supabase 실시간은
+  // DB 컬럼명 그대로 snake — 같은 파서가 둘 다 받는다(camel 우선, snake 폴백).
+  factory ChatFeedItem.fromJson(Map<String, dynamic> j) {
+    final created = (j['createdAt'] ?? j['created_at']) as String?;
+    return ChatFeedItem(
+      id: j['id'] as String,
+      messageType: (j['messageType'] ?? j['message_type']) as String,
+      senderType: (j['senderType'] ?? j['sender_type']) as String?,
+      content: j['content'] as String?,
+      payload: (j['payload'] as Map?)?.cast<String, dynamic>(),
+      createdAt: created == null ? null : DateTime.parse(created),
+      clientMessageId: (j['clientMessageId'] ?? j['client_message_id']) as String?,
+    );
+  }
+
+  ChatFeedItem copyWith({ChatSendState? sendState}) => ChatFeedItem(
+        id: id,
+        messageType: messageType,
+        senderType: senderType,
+        content: content,
+        payload: payload,
+        createdAt: createdAt,
+        clientMessageId: clientMessageId,
+        sendState: sendState ?? this.sendState,
+      );
+}
+
+/// 직원 인계(라이브 상담)의 진행 단계. 티켓 pending/in_progress/answered에 대응한다
+/// (CHAT-HANDOFF-STATE-01·02·03). null = 아직 조회 전(CHAT-HANDOFF-LOAD-01).
+enum HandoffPhase { connecting, inProgress, ended }
+
+/// 인계 상태 스냅샷(CHAT-HANDOFF-*). 담당자는 서버가 확정한 현재 한 명만 담는다
+/// (CHAT-ROOM-LIVE-STAFF-01 A안) — 배정 경쟁·이관 이력은 표현하지 않는다.
+/// hoursNote는 서버 is_open(at) 판정으로만 채워지고 앱이 예상시간을 짓지 않는다(CHAT-HANDOFF-HOURS-*).
+class HandoffStatus {
+  final HandoffPhase? phase; // null = 조회 전(CHAT-HANDOFF-LOAD-01)
+  final String? assigneeName;
+  final String? assigneeRole;
+  final String? hoursNote;
+  final bool isOpen;
+  final bool loadError; // 조회 실패(CHAT-HANDOFF-ERR-01) — 완료로 바꾸지 않는다
+  // CHAT-HANDOFF-STATE-03·CHAT-ROOM-END-01: 직원이 [상담 종료]했을 때만 true(서버 status='answered').
+  //   단순 답장(has_staff_reply)은 phase='answered'로 올라와도 closed=false다 — '상담 종료' 경계(막다른 길
+  //   방지)와 '답변 도착'을 가르는 신호. phase 계약은 그대로라 기존 배지는 무회귀(webchat_service).
+  final bool closed;
+  const HandoffStatus({
+    this.phase,
+    this.assigneeName,
+    this.assigneeRole,
+    this.hoursNote,
+    this.isOpen = false,
+    this.loadError = false,
+    this.closed = false,
+  });
+
+  // GET /chat/threads/{id}/handoff는 camelCase이고 phase는 서버가 이미 가공한 값을 준다
+  // (_HANDOFF_PHASE: pending→connecting / in_progress→inProgress / answered→answered).
+  // 옛 snake·원본 ticket_status 값도 폴백으로 받는다.
+  factory HandoffStatus.fromJson(Map<String, dynamic> j) => HandoffStatus(
+        phase: switch (j['phase'] ?? j['ticket_status']) {
+          'connecting' || 'pending' => HandoffPhase.connecting,
+          'inProgress' || 'in_progress' => HandoffPhase.inProgress,
+          'answered' || 'ended' => HandoffPhase.ended,
+          _ => null,
+        },
+        assigneeName: (j['assigneeName'] ?? j['assignee_name']) as String?,
+        assigneeRole: (j['assigneeRole'] ?? j['assignee_role']) as String?,
+        // 서버 is_open(at) 판정 문구(앱 미재계산)
+        hoursNote: (j['hoursNote'] ?? j['hours_note']) as String?,
+        isOpen: ((j['isOpen'] ?? j['is_open']) as bool?) ?? false,
+        closed: ((j['closed'] ?? j['is_closed']) as bool?) ?? false,
+      );
+}
+
+/// AI 상담 세션 단계(CHAT-ROOM-AI-EXPIRE-01·REOPEN-01). 30분 무활동이면 그 상담만 만료.
+enum AiSessionPhase { active, expired }
+
+/// 상담방 로드 상태(CHAT-ROOM-LOAD-01·ERR-01·EMPTY-01). loaded일 때만 items를 그린다.
+enum ChatRoomPhase { loading, error, loaded }
+
+class ChatRoomState {
+  final ChatRoomPhase phase;
+  final List<ChatFeedItem> items;
+  final String? batchId; // 보고 있으면 이 배치를 읽음 처리(CHAT-ROOM-NOTIFY-01)
+  final bool staffTyping; // 담당 직원이 입력 중(CHAT-ROOM-LIVE-TYPING-01) — 일시 표시, 초록 점 아님
+  final bool botThinking; // 봇 답변 대기 중(웹 위젯 botTyping과 동치) — 보내고 응답 오기 전 "상담봇이 입력 중"
+  // AI 일시 장애(Q19·CHAT-OUTAGE-01). null=정상. 값이 있으면 방 대신 ChatOutageView를 전면에 띄운다
+  // (빈 응답/5xx = AI에 못 닿음 → 강제 직원인계가 아니라 장애 안내). webchat OutageNotice와 통일.
+  final OutageInquiryPhase? outagePhase;
+  // Q18: 인계 상태 배지(직원 확인 전/답변 도착·운영시간). null=아직 조회 전(배지 안 뜸).
+  final HandoffStatus? handoff;
+  // Q18③ presence: 직원이 상담 상세를 실제로 열어 보는 중(typing과 같은 broadcast 채널의 'viewing' 신호).
+  //   연결 상태(connecting)에 겹치면 배지가 "직원이 확인 중이에요"로 바뀐다. 배정(claim)과 무관한 실열람.
+  final bool staffViewing;
+  // [CHAT-STREAM-01] 진행 중인 봇 답변 스트림 버블(webchat streaming과 동치). null=진행 중 아님.
+  //   bot_delta 조각이 누적될 때만 채워지고, bot_done에서 확정 말풍선으로 커밋되며 null로 지워진다.
+  //   화면은 items 뒤에 이 버블을 임시로 렌더한다(botThinking 점 대신 타이핑되는 본문).
+  final ChatStreaming? streaming;
+  const ChatRoomState(this.phase,
+      {this.items = const [],
+      this.batchId,
+      this.staffTyping = false,
+      this.botThinking = false,
+      this.outagePhase,
+      this.handoff,
+      this.staffViewing = false,
+      this.streaming});
+
+  bool get isEmpty =>
+      phase == ChatRoomPhase.loaded && items.isEmpty; // 첫 상담(EMPTY-01)
+
+  ChatRoomState copyWith({
+    ChatRoomPhase? phase,
+    List<ChatFeedItem>? items,
+    String? batchId,
+    bool? staffTyping,
+    bool? botThinking,
+    OutageInquiryPhase? outagePhase,
+    bool clearOutage = false, // true면 outagePhase를 null로 되돌린다(장애 복구 — nullable 갱신은 ??로 못 지운다)
+    HandoffStatus? handoff,
+    bool? staffViewing,
+    ChatStreaming? streaming,
+    bool clearStreaming = false, // true면 streaming을 null로 지운다(확정 커밋·장애·유실 복구 — nullable ??로 못 지움)
+  }) =>
+      ChatRoomState(
+        phase ?? this.phase,
+        items: items ?? this.items,
+        batchId: batchId ?? this.batchId,
+        staffTyping: staffTyping ?? this.staffTyping,
+        botThinking: botThinking ?? this.botThinking,
+        outagePhase: clearOutage ? null : (outagePhase ?? this.outagePhase),
+        handoff: handoff ?? this.handoff,
+        staffViewing: staffViewing ?? this.staffViewing,
+        streaming: clearStreaming ? null : (streaming ?? this.streaming),
+      );
+}
+
+/// [CHAT-STREAM-01] 진행 중인 봇 답변 스트림 조각(webchat useWebchat.streaming과 동치).
+/// gen = 이 답변 회차 식별자(bot_delta/bot_done의 gen과 일치해야 반영). text = 지금까지 누적된 본문.
+class ChatStreaming {
+  final String gen;
+  final String text;
+  const ChatStreaming({required this.gen, required this.text});
+}
+
+/// [CHAT-STREAM-01] 봇 답변 완료 이벤트(백엔드 run_generation의 bot_done broadcast payload).
+/// webchat BotDone과 동일 계약 — 백엔드는 camelCase로 민다(messageId·routeTaken). 조각(bot_delta)이
+/// 있었으면 그 누적 본문을 확정 말풍선으로 커밋하고, 없었으면(빠른 경로) DB 정본에서 봇 답을 다시 읽는다.
+class BotDone {
+  final String gen;
+  final String? messageId;
+  final String routeTaken;
+  final Map<String, dynamic>? card;
+  final bool outage; // true = 빈 응답(AI 일시 장애) — 봇 말풍선 없이 ChatOutageView로 안내
+  const BotDone({
+    required this.gen,
+    this.messageId,
+    required this.routeTaken,
+    this.card,
+    this.outage = false,
+  });
+  factory BotDone.fromPayload(Map<dynamic, dynamic> d) => BotDone(
+        gen: (d['gen'] as String?) ?? '',
+        messageId: d['messageId'] as String?,
+        routeTaken: (d['routeTaken'] as String?) ?? '',
+        card: (d['card'] is Map)
+            ? (d['card'] as Map).cast<String, dynamic>()
+            : null,
+        outage: d['outage'] == true,
+      );
+}
+
+/// 이전 상담 목록의 한 행(CHAT-HISTORY-LIST-01).
+class ChatThreadSummary {
+  final String threadId;
+  final String? lastSnippet;
+  final DateTime? lastAt;
+  const ChatThreadSummary({required this.threadId, this.lastSnippet, this.lastAt});
+  factory ChatThreadSummary.fromJson(Map<String, dynamic> j) => ChatThreadSummary(
+        threadId: j['thread_id'] as String,
+        lastSnippet: j['last_snippet'] as String?,
+        lastAt: (j['last_at'] as String?) == null
+            ? null
+            : DateTime.parse(j['last_at'] as String),
+      );
+}

@@ -179,10 +179,10 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+minimum_password_length = 8            # AUTH-PROFILE-02: 6 → 8 (화면이 요구하는 8자를 서버도 보장)
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+password_requirements = "letters_digits"  # AUTH-PROFILE-01: 영문·숫자 함께
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -263,6 +263,11 @@ enable_confirmations = false
 template = "Your code is {{ `{{ .Code }}` }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
 max_frequency = "5s"
+# AUTH-OTP-03·04 — 화면이 5분(300초)을 세므로 서버 SMS OTP 만료도 300초로 맞춘다(없으면 기본이
+# 화면과 어긋난다). CLI 2.109가 이 키(otp_exp)를 「invalid key」로 거부해 파싱을 막으므로 주석
+# 처리한다. 실제 300초는 배포 Task 13 Step 3에서 대시보드(Authentication > Providers > Phone >
+# OTP expiry = 300)로 설정한다(배포 체크리스트).
+# otp_exp = 300
 
 # Use pre-defined map of phone number to OTP for testing.
 # [auth.sms.test_otp]
@@ -384,6 +389,11 @@ deno_version = 2
 
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
+
+# Send SMS Hook(전화 OTP → SOLAPI). Supabase Auth 훅 호출은 사용자 JWT 없이 오므로 JWT 검증을 끈다
+# (안 끄면 훅 호출이 401로 막힌다). 요청 진위는 함수 내부에서 Standard Webhooks 서명으로 검증한다.
+[functions.send-sms-hook]
+verify_jwt = false
 
 [analytics]
 enabled = true

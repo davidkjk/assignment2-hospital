@@ -1,0 +1,295 @@
+import { useRef, useState, type CSSProperties } from 'react'
+import { InlineError } from '../../../components/InlineError'
+import { Checkbox, btnPrimary, btnGhost, TextButton, tableHeadCell } from '../../../components/staff-ui'
+import { PanelCard } from './PanelCard'
+import { ScheduleTimeInput, TIME_FIELD_CLASS, isValidHHMM, TIME_FORMAT_ERROR } from './ScheduleTimeInput'
+import { WEEKDAY_FULL, hhmm, type HospitalHoursRow } from './types'
+
+// [SCHED-HOURS-*] 병원 요일별 운영시간 = 접수 창구가 열려 있는 시간(의사 진료시간과 다르다).
+//   상담봇의 "지금 문 열었나" 판정이 이 값을 본다. ⛔ 의사 점심과 자동 계산하지 않는다(HOURS-05).
+//   잘못된 시각은 인라인 오류이고 저장 버튼을 비활성으로 만들지 않는다(HOURS-11, 왜 안 눌리는지 모르는 버튼 금지).
+//   운영시간을 줄여 의사와 어긋나도 막지 않고 팝업도 안 띄운다 — 표 아래 상시 한 줄(HOURS-17).
+//     그 줄은 저장된 값 기준이다(HOURS-17k) — 입력 중인 값으로 실시간 계산하지 않는다.
+
+/** 저장된 값 기준으로 계산된 「운영시간 < 의사 진료시간」 어긋남(HOURS-17g·17i). */
+export interface HoursMismatch {
+  weekday: number
+  doctorEndLabel: string // "18:00"
+  hoursEndLabel: string // "13:00"
+  doctorNames: string[]
+  firstDoctorId: string
+}
+
+interface Props {
+  hours: HospitalHoursRow[] // 7
+  mismatch: HoursMismatch | null
+  onSave: (rows: HospitalHoursRow[]) => Promise<{ conflict?: boolean }>
+  onRefetch: () => void
+  onGoToWeekly: (doctorId: string) => void
+}
+
+type RowError = { open?: string; close?: string; lunch?: string }
+type FieldErrors = Record<number, RowError>
+
+function validateRow(r: HospitalHoursRow): RowError {
+  if (r.is_closed) return {}
+  const errs: RowError = {}
+  const open = hhmm(r.open_time)
+  const close = hhmm(r.close_time)
+  const ls = hhmm(r.lunch_start)
+  const le = hhmm(r.lunch_end)
+  // 빈 값은 「안 채움」(저장 때 그 요일을 건너뛴다) — 형식 오류가 아니다.
+  const openOk = open === '' || isValidHHMM(open)
+  const closeOk = close === '' || isValidHHMM(close)
+  if (!openOk) errs.open = TIME_FORMAT_ERROR
+  if (!closeOk) errs.close = TIME_FORMAT_ERROR
+  // ⭐ 대소 비교는 둘 다 완성된 시각일 때만 — 형식이 어긋나면 문자열 비교가 뒤집힌다("9" > "09:00").
+  if (openOk && closeOk && open !== '' && close !== '' && close <= open) {
+    errs.close = '닫는 시간이 여는 시간보다 이릅니다'
+  }
+  if (ls !== '' || le !== '') {
+    if (!isValidHHMM(ls) || !isValidHHMM(le)) errs.lunch = TIME_FORMAT_ERROR
+    else if (openOk && closeOk && open !== '' && close !== '' && (ls < open || le > close)) {
+      errs.lunch = '점심시간이 문 여는 시간 밖에 있습니다'
+    }
+  }
+  return errs
+}
+
+export function HospitalHoursTable({ hours, mismatch, onSave, onRefetch, onGoToWeekly }: Props) {
+  const [rows, setRows] = useState<HospitalHoursRow[]>(hours)
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [saving, setSaving] = useState(false)
+  const [conflict, setConflict] = useState(false)
+  // 저장이 서버에서 거절되면(형식 통과 뒤의 뜻밖의 오류) 이유를 보인다 — 안 그러면 「눌렀는데 아무 일도 없다」(G1).
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  function patch(w: number, up: Partial<HospitalHoursRow>) {
+    setRows((prev) => prev.map((r) => (r.weekday === w ? { ...r, ...up } : r)))
+  }
+
+  function copyMonday() {
+    const mon = rows[0]
+    setRows((prev) =>
+      prev.map((r) =>
+        r.weekday >= 1 && r.weekday <= 5 // 화~토(일요일=휴무만 제외, SCHED-HOURS-12 — 병원 월~토 진료)
+          ? { ...r, open_time: mon.open_time, close_time: mon.close_time, lunch_start: mon.lunch_start, lunch_end: mon.lunch_end, is_closed: mon.is_closed }
+          : r,
+      ),
+    )
+  }
+
+  async function handleSave() {
+    const nextErrors: FieldErrors = {}
+    for (const r of rows) {
+      const e = validateRow(r)
+      if (e.open || e.close || e.lunch) nextErrors[r.weekday] = e
+    }
+    setErrors(nextErrors)
+    setSaveError(null)
+    const firstBad = rows.find((r) => nextErrors[r.weekday])
+    if (firstBad) {
+      const e = nextErrors[firstBad.weekday]
+      const field = e.open ? 'open' : e.close ? 'close' : 'lunch'
+      inputRefs.current[`${firstBad.weekday}-${field}`]?.focus() // 오류 난 칸으로 이동(HOURS-11)
+      return
+    }
+    setSaving(true)
+    setConflict(false)
+    try {
+      const result = await onSave(rows)
+      if (result.conflict) {
+        setConflict(true)
+        onRefetch() // 409 → 자동 재조회(HOURS-14)
+      }
+    } catch (e) {
+      // 형식은 위에서 걸렀지만 그래도 서버가 거절할 수 있다(권한·동시성 등) — 삼키지 않고 이유를 보인다.
+      setSaveError(e instanceof Error ? e.message : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <PanelCard title="병원 운영시간">
+      {conflict && (
+        <div style={styles.bannerWrap}>
+          <div role="status" style={styles.banner}>
+            다른 관리자가 먼저 저장해 최신 값을 다시 불러왔습니다. 확인 후 다시 저장해 주세요.
+          </div>
+        </div>
+      )}
+      {saveError && (
+        <div style={styles.bannerWrap}>
+          <div role="alert" style={styles.banner}>
+            {saveError}
+          </div>
+        </div>
+      )}
+
+      <div style={styles.tableScroll}>
+      <div style={styles.tableFrame}>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={{ ...styles.th, textAlign: 'left' }}>요일</th>
+            <th style={styles.th}>휴무</th>
+            <th style={styles.th}>여는 시간</th>
+            <th style={styles.th}>닫는 시간</th>
+            <th style={{ ...styles.th, ...styles.lastColPad }}>점심시간</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const full = WEEKDAY_FULL[r.weekday]
+            const err = errors[r.weekday]
+            const lunchOff = !r.lunch_start && !r.lunch_end
+            return (
+              <tr key={r.weekday} data-hours-row={WEEKDAY_FULL[r.weekday].slice(0, 1)}>
+                <td style={styles.tdLabelPad}>{full}</td>
+                <td style={styles.td}>
+                  <Checkbox
+                    ariaLabel={`${full} 휴무`}
+                    checked={r.is_closed}
+                    onChange={(v) => patch(r.weekday, { is_closed: v })}
+                  />
+                </td>
+                {r.is_closed ? (
+                  <td colSpan={3} style={{ ...styles.closedCell, ...styles.lastColPad }}>
+                    ── 휴무일 ──
+                  </td>
+                ) : (
+                  <>
+                    <td style={styles.td}>
+                      <input
+                        ref={(el) => (inputRefs.current[`${r.weekday}-open`] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        aria-label={`${full} 시작`}
+                        value={hhmm(r.open_time)}
+                        onChange={(e) => patch(r.weekday, { open_time: fmt(e.target.value) })}
+                        className={TIME_FIELD_CLASS}
+                      />
+                      {err?.open && (
+                        <div data-testid={`err-${full}-시작`}>
+                          <InlineError message={err.open} />
+                        </div>
+                      )}
+                    </td>
+                    <td style={styles.td}>
+                      <input
+                        ref={(el) => (inputRefs.current[`${r.weekday}-close`] = el)}
+                        type="text"
+                        inputMode="numeric"
+                        aria-label={`${full} 종료`}
+                        value={hhmm(r.close_time)}
+                        onChange={(e) => patch(r.weekday, { close_time: fmt(e.target.value) })}
+                        className={TIME_FIELD_CLASS}
+                      />
+                      {err?.close && (
+                        <div data-testid={`err-${full}-종료`}>
+                          <InlineError message={err.close} />
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ ...styles.td, ...styles.lastColPad }}>
+                      <span style={styles.lunchToggle}>
+                        <Checkbox
+                          ariaLabel={`${full} 점심 있음`}
+                          checked={!lunchOff}
+                          onChange={(checked) =>
+                            patch(r.weekday, checked ? { lunch_start: '12:00', lunch_end: '13:00' } : { lunch_start: null, lunch_end: null })
+                          }
+                        />
+                        {lunchOff ? (
+                          <span style={styles.dash}>—</span>
+                        ) : (
+                          <>
+                            <ScheduleTimeInput label={`${full} 점심 시작`} value={hhmm(r.lunch_start)} onChange={(v) => patch(r.weekday, { lunch_start: v })} />
+                            <span style={styles.tilde}>~</span>
+                            <ScheduleTimeInput label={`${full} 점심 끝`} value={hhmm(r.lunch_end)} onChange={(v) => patch(r.weekday, { lunch_end: v })} />
+                          </>
+                        )}
+                      </span>
+                      {err?.lunch && (
+                        <div data-testid={`err-${full}-점심`}>
+                          <InlineError message={err.lunch} />
+                        </div>
+                      )}
+                    </td>
+                  </>
+                )}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      </div>
+      </div>
+
+      <div style={styles.footer}>
+        <p style={styles.infoNote}>
+          ⓘ 의사별 진료시간은 「의사별 스케줄」에서 따로 정합니다. 이 값은 접수 창구가 열려 있는 시간입니다.
+        </p>
+
+        <div style={styles.actions}>
+          <button type="button" onClick={copyMonday} className={btnGhost}>
+            월요일 값을 나머지에
+          </button>
+          <button type="button" onClick={handleSave} disabled={saving} className={btnPrimary}>
+            저장
+          </button>
+        </div>
+
+        {mismatch && (
+          <p data-testid="mismatch-note" style={styles.mismatch}>
+            {WEEKDAY_FULL[mismatch.weekday]} {mismatch.doctorEndLabel}까지 진료하는 의사가 {mismatch.doctorNames.length}명 있습니다 —
+            상담봇은 {mismatch.hoursEndLabel} 이후 「진료시간이 아닙니다」라고 답합니다.{' '}
+            <span style={styles.mismatchNames}>{mismatch.doctorNames.join(' · ')}</span>{' '}
+            <TextButton onClick={() => onGoToWeekly(mismatch.firstDoctorId)}>
+              의사별 스케줄에서 보기 ›
+            </TextButton>
+          </p>
+        )}
+      </div>
+    </PanelCard>
+  )
+}
+
+/** "0900"→"09:00" (테이블 자체 텍스트 인풋용 — ScheduleTimeInput과 같은 규칙). */
+function fmt(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 4)
+  return d.length <= 2 ? d : `${d.slice(0, 2)}:${d.slice(2)}`
+}
+
+const styles: Record<string, CSSProperties> = {
+  bannerWrap: { padding: 'var(--sp-4) var(--sp-4) 0' },
+  banner: {
+    padding: 'var(--sp-3) var(--sp-4)',
+    borderRadius: 8,
+    background: 'var(--color-danger-bg)',
+    color: 'var(--color-danger)',
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
+  },
+  // 표를 카드 가장자리까지 늘리지 않고 좌우·아래 여백을 둔 채 내용 폭으로 가운데에(사용자 지적 2026-09-02).
+  tableScroll: { padding: 'var(--sp-3) var(--sp-4) var(--sp-4)' },
+  // 카드처럼 사방이 닫히고 모서리가 둥근 표 — 래퍼가 테두리·둥근 모서리·가로 스크롤을 맡는다(사용자 지시 2026-09-02).
+  tableFrame: { border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-card)', overflowX: 'auto' },
+  footer: { padding: '0 var(--sp-4) var(--sp-4)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-body)' },
+  th: { ...tableHeadCell, textAlign: 'center' },
+  td: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center' },
+  tdLabel: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
+  tdLabelPad: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', fontWeight: 'var(--fw-body)' as CSSProperties['fontWeight'] },
+  lastColPad: {},
+  closedCell: { padding: 'var(--sp-2)', borderBottom: '1px solid var(--color-divider)', textAlign: 'center', color: 'var(--color-ink-muted)' },
+  lunchToggle: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)' },
+  tilde: { margin: '0 var(--sp-0-5)', color: 'var(--color-ink-muted)' },
+  dash: { color: 'var(--color-ink-muted)' },
+  infoNote: { margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  actions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  mismatch: { margin: 0, padding: 'var(--sp-3) var(--sp-4)', borderRadius: 8, background: 'var(--color-done-bg)', fontSize: 'var(--fs-body)', color: 'var(--color-ink)', lineHeight: 1.5 },
+  mismatchNames: { fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'] },
+}

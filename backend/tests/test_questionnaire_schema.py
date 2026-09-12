@@ -78,7 +78,13 @@ async def test_doctor_cannot_read_other_doctors_questionnaire_response(db_conn):
 
 @pytest.mark.asyncio
 async def test_second_template_for_same_department_rejected(db_conn):
-    """[정합성 검토 R5-09] 같은 진료과에 두 번째 행을 INSERT하면 UNIQUE 위반으로 거부된다."""
+    """[00046] 같은 진료과에 (버전 번호 없이) 두 번째 행을 직접 INSERT하면 거부된다.
+
+    ~~[R5-09] 진료과당 두 번째 행 자체를 unique (department_id)로 막는다~~
+    ✅ **뒤집힘(결정 12 / 00046)** — 이제는 여러 버전이 정상이고, 대신 unique (department_id,
+    version_no)가 지킨다. 직접 INSERT 두 번은 default 1로 같은 version_no가 되어 충돌한다
+    (실제 저장은 save_questionnaire_version이 max+1로 번호를 올려 이 경로를 쓰지 않는다).
+    """
     admin = await seed_staff(db_conn, role="admin")
     await set_session_auth(db_conn, admin["auth_user_id"])
     dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
@@ -95,29 +101,33 @@ async def test_second_template_for_same_department_rejected(db_conn):
 
 
 @pytest.mark.asyncio
-async def test_upsert_replaces_the_single_template_row(db_conn):
-    """[정합성 검토 R5-09] on conflict upsert로 그 진료과의 유일한 행을 갱신한다(저장 즉시 활성화, 롤백 없음)."""
+async def test_new_version_supersedes_previous_active(db_conn):
+    """[결정 12 / 00046] 저장하면 upsert로 덮어쓰지 않고 새 불변 버전을 만들어 즉시 활성화한다.
+
+    ~~[R5-09] on conflict (department_id) upsert로 유일한 행을 갱신한다~~
+    ✅ **뒤집힘(2026-08-10, 결정 12 / 00046)** — 덮어쓰기가 과거 답변이 가리키는 문항 글자를
+    슬그머니 바꾸던 문제 때문에 「진료과당 1행 upsert」를 폐기하고 불변 버전으로 갔다. 이제
+    save_questionnaire_version이 옛 버전은 읽기 전용으로 보존한 채 새 활성 버전을 올린다.
+    """
     admin = await seed_staff(db_conn, role="admin")
     await set_session_auth(db_conn, admin["auth_user_id"])
     dept_id = await db_conn.fetchval("insert into departments (name) values ('소아과') returning id")
 
-    await db_conn.execute(
-        """
-        insert into questionnaire_templates (department_id, questions)
-        values ($1, '[{"text": "old"}]'::jsonb)
-        on conflict (department_id) do update set questions = excluded.questions
-        """,
-        dept_id,
+    v1 = await db_conn.fetchval(
+        "select save_questionnaire_version($1, $2::jsonb, $3, $4)",
+        dept_id, '[{"text": "old"}]', None, admin["staff_id"],
     )
-    await db_conn.execute(
-        """
-        insert into questionnaire_templates (department_id, questions)
-        values ($1, '[{"text": "new"}]'::jsonb)
-        on conflict (department_id) do update set questions = excluded.questions
-        """,
-        dept_id,
+    await db_conn.fetchval(
+        "select save_questionnaire_version($1, $2::jsonb, $3, $4)",
+        dept_id, '[{"text": "new"}]', v1, admin["staff_id"],
     )
 
-    rows = await db_conn.fetch("select questions from questionnaire_templates where department_id = $1", dept_id)
-    assert len(rows) == 1
-    assert json.loads(rows[0]["questions"])[0]["text"] == "new"
+    rows = await db_conn.fetch(
+        "select questions, is_active from questionnaire_templates where department_id = $1 order by version_no",
+        dept_id,
+    )
+    # 덮어쓰지 않았다 — 옛 버전은 그대로 남고(읽기 전용), 활성은 하나뿐이며 최신 글자를 가리킨다.
+    assert len(rows) == 2
+    assert [r["is_active"] for r in rows] == [False, True]
+    assert json.loads(rows[0]["questions"])[0]["text"] == "old"
+    assert json.loads(rows[1]["questions"])[0]["text"] == "new"

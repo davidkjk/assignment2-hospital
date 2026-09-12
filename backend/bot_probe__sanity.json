@@ -1,0 +1,23 @@
+{
+  "label": "_sanity",
+  "base": "https://gaonhospital-api-production.up.railway.app",
+  "results": [
+    {
+      "question": "주차 얼마 나와요?",
+      "routeTaken": null,
+      "reply": "",
+      "messageType": null,
+      "payload": {},
+      "quickReplies": null,
+      "handoffChip": null,
+      "timedOut": true,
+      "elapsedS": 92.59,
+      "inferredRoute": "timeout",
+      "threadId": "85f66d9c-57ae-41b1-86ae-2454877125ed",
+      "qno": 1,
+      "run": 1,
+      "expect": "rag",
+      "why": "리콜:구어(주차 요금·정산)"
+    }
+  ]
+}

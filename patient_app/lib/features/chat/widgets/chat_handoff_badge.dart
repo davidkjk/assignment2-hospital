@@ -1,0 +1,183 @@
+import 'package:flutter/material.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
+import '../../../core/tokens.dart';
+import '../chat_models.dart';
+
+/// 인계 상태 색·라벨·LED 점(CHAT-HANDOFF-*, Q18 / #9 재설계 2026-09-08).
+///
+/// #9(사용자 요청): 긴 설명 배너 대신 → **헤더("AI 상담봇") 옆에 짧은 상태**([ChatHandoffHeaderStatus])
+///   + 안내 멘트 왼쪽에 상태색 **LED 느낌 점**(은은한 글로우). 자리를 덜 차지하게.
+///
+/// dot/glow 색은 흰 카드(피드)와 딥틸 밴드(헤더) 둘 다에서 읽히는 밝은 계열로 고른다.
+/// glow 는 같은 색의 반투명(알파 ≈0.55) — 코드 관용대로 ARGB 헥사로 못박아 withOpacity 경고를 피한다.
+class _HandoffVisual {
+  static const amber = Color(0xFFF59E0B), amberGlow = Color(0x8CF59E0B);
+  static const sky = Color(0xFF38BDF8), skyGlow = Color(0x8C38BDF8);
+  static const green = Color(0xFF2FBF71), greenGlow = Color(0x8C2FBF71);
+  // 상담 종료(CHAT-HANDOFF-STATE-03): 대화가 끝난 상태라 초록(답변 도착)이 아니라 중립 회색 점.
+  static const gray = Color(0xFFA3AFB8), grayGlow = Color(0x8CA3AFB8);
+
+  // - connecting(직원 확인 전): 인계됐고 아직 답 없음. 배정(claim)은 환자에게 숨긴다(Q18②).
+  // - inProgress(직원 확인 중): 직원이 상담 상세를 **실제로 열어 보는 중**(열람 presence, staffViewing).
+  // - ended(답변 도착): 직원 답장이 왔다(#8: 티켓 status가 아니라 답장 존재로 판정 — webchat_service).
+  static ({Color dot, Color glow, String label}) of(HandoffPhase p) => switch (p) {
+        HandoffPhase.connecting => (dot: amber, glow: amberGlow, label: '직원 확인 전'),
+        HandoffPhase.inProgress => (dot: sky, glow: skyGlow, label: '직원 확인 중'),
+        HandoffPhase.ended => (dot: green, glow: greenGlow, label: '답변 도착'),
+      };
+}
+
+/// 상태색 LED 점 — 은은한 글로우(엘이디 느낌). size=점 지름.
+Widget _ledDot(Color dot, Color glow, {double size = 9}) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: dot,
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: glow, blurRadius: 6, spreadRadius: 1)],
+      ),
+    );
+
+/// connecting 에 presence(staffViewing)가 겹치면 '직원 확인 중'으로 올린다. answered(답변 도착)는 그대로.
+HandoffPhase _effectivePhase(HandoffStatus status, bool staffViewing) =>
+    (status.phase == HandoffPhase.connecting && staffViewing)
+        ? HandoffPhase.inProgress
+        : status.phase!;
+
+/// #9 헤더 상태 — 앱바 "AI 상담봇" 오른쪽에 붙는 짧은 상태(LED 점 + 라벨, 흰 글자).
+/// 인계 전(phase null)·조회 실패면 아무것도 안 보인다(오류 안내는 피드 배지가 맡는다).
+class ChatHandoffHeaderStatus extends StatelessWidget {
+  final HandoffStatus status;
+  final bool staffViewing;
+  final bool staffTyping;
+  const ChatHandoffHeaderStatus(
+      {super.key, required this.status, this.staffViewing = false, this.staffTyping = false});
+
+  @override
+  Widget build(BuildContext context) {
+    if (status.phase == null) return const SizedBox.shrink();
+    final effective = _effectivePhase(status, staffViewing);
+    // CHAT-HANDOFF-STATE-03: 직원이 [상담 종료]하면(closed) '상담 종료'로 — 같은 ended라도 '답변 도착'과 구분.
+    //   종료된 상담이라 타이핑/이름을 더 붙이지 않는다(이어서 물으면 새 AI 세션이 시작된다).
+    final closed = status.closed && effective == HandoffPhase.ended;
+    // 답변 도착 전에 직원이 타이핑 중이면 헤더도 '직원이 입력 중'으로 — viewing presence 가 12초로 만료돼도
+    // '직원 확인 전'으로 되돌아가 배너가 다시 뜨는 것을 막는다(2026-09-09 실기기 지적).
+    final typing = staffTyping && effective != HandoffPhase.ended;
+    final v = closed
+        ? (dot: _HandoffVisual.gray, glow: _HandoffVisual.grayGlow, label: '상담 종료')
+        : typing
+            ? (dot: _HandoffVisual.sky, glow: _HandoffVisual.skyGlow, label: '직원이 입력 중')
+            : _HandoffVisual.of(effective);
+    // Q18④: 답변 도착(ended)일 때만 담당자 이름을 짧게 덧붙인다(그 전엔 배정을 숨김, 종료면 붙이지 않음). 오버플로는 말줄임.
+    final showName = !closed && effective == HandoffPhase.ended && status.assigneeName != null;
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      _ledDot(v.dot, v.glow, size: 8),
+      const SizedBox(width: 6),
+      Text(v.label,
+          style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+      if (showName)
+        Flexible(
+          child: Text(' · ${status.assigneeName}',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, color: Colors.white70)),
+        ),
+    ]);
+  }
+}
+
+/// 인계 안내 멘트(피드 상단). #9: 상태 라벨은 헤더로 옮겼고, 여기선 **왼쪽 LED 점 + 안내 문구**만 슬림하게.
+/// - connecting/inProgress: 연결 안내(시간 약속 없음) + LED 점.
+/// - ended(답변 도착): 배너를 아예 접는다 — 헤더가 '답변 도착'을 표시하고 직원 말풍선이 대화를 잇는다(#8).
+/// 노출 문구는 CONNECTING_MSG 하나뿐(접수/등록·시간 약속 금지, 정본 §0·Q18). 운영시간은 서버 hoursNote만.
+class ChatHandoffBadge extends StatelessWidget {
+  final HandoffStatus status;
+  final bool staffViewing;
+  final bool staffTyping;
+  final VoidCallback? onRetry;
+  const ChatHandoffBadge(
+      {super.key,
+      required this.status,
+      this.staffViewing = false,
+      this.staffTyping = false,
+      this.onRetry});
+
+  // 상태별 안내 멘트(2026-09-09 사용자 결정). 접수/등록·시간 약속 금지(정본 §0·Q18).
+  // - 직원 확인 전(connecting): 아직 대기 — 순서·소요 안내.
+  static const _waitingMsg = '직원이 순서대로 확인해서 답변드려요. 시간이 걸릴 수 있어요.';
+  // - 직원 확인 중(inProgress=실열람): 사람이 실제로 보는 중 — 연결됐음만.
+  static const _connectedMsg = '상담 직원과 연결이 되었어요.';
+
+  @override
+  Widget build(BuildContext context) {
+    if (status.loadError) {
+      // ERR: 완료로 바꾸지 않고 오류 + 재시도만 노출한다.
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTokens.surface,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: AppTokens.bubbleShadow,
+        ),
+        child: Row(children: [
+          const Icon(AppIcons.error_outline, size: 16, color: AppTokens.warn),
+          const SizedBox(width: 6),
+          const Expanded(
+              child: Text('상태를 불러오지 못했어요',
+                  style: TextStyle(fontSize: 13, color: AppTokens.warn))),
+          TextButton(onPressed: onRetry, child: const Text('다시 시도')),
+        ]),
+      );
+    }
+    if (status.phase == null) {
+      // LOAD: 대기/완료를 추측하지 않고 로딩만.
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: SizedBox(
+            height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    final effective = _effectivePhase(status, staffViewing);
+    // #8·#9: 답변이 오면(ended) 상단 안내 배너는 접는다 — 헤더가 '답변 도착'을 표시한다.
+    if (effective == HandoffPhase.ended) return const SizedBox.shrink();
+    // 2026-09-09: 직원이 타이핑 중이면 배너를 숨긴다(헤더가 '직원이 입력 중'을 표시). 곧 답이 온다.
+    if (staffTyping) return const SizedBox.shrink();
+    final v = _HandoffVisual.of(effective);
+    // 확인 중(실열람)이면 '연결됐어요', 아직이면 대기 안내. hoursNote(운영시간)는 대기 때만(연결되면 무의미).
+    final connected = effective == HandoffPhase.inProgress;
+    final msg = connected ? _connectedMsg : _waitingMsg;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTokens.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: AppTokens.bubbleShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // 안내 멘트 왼쪽 LED 점(#9) — 글자 첫 줄 높이에 맞춰 살짝 내린다.
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: _ledDot(v.dot, v.glow),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(msg,
+                style: const TextStyle(
+                    fontSize: 12, color: AppTokens.grayPending, height: 1.5)),
+          ),
+        ]),
+        if (!connected && status.hoursNote != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 17),
+            // HOURS-01·02·03: 서버 판정 문구만(앱이 요일·점심·특정일을 재계산하지 않음).
+            child: Text(status.hoursNote!,
+                style: const TextStyle(fontSize: 12, color: AppTokens.warn)),
+          ),
+      ]),
+    );
+  }
+}

@@ -1,0 +1,114 @@
+import pytest
+
+from app.services.chat import kb_service
+from tests.conftest import seed_staff
+from tests.conftest_chat import FakeEmbedder
+
+
+def test_chunk_text_sentence_overlap():
+    # 문단 두 개를 작은 max_len으로 강제 분할한다. overlap 여부로 두 번째 조각 시작이 달라진다.
+    content = "문장 A. 문장 B.\n\n문장 C. 문장 D."
+    no_ov = kb_service.chunk_text(content, max_len=20, overlap_sentences=0)
+    ov = kb_service.chunk_text(content, max_len=20, overlap_sentences=1)
+    # 겹침 없음: 조각이 문단 그대로
+    assert no_ov == ["문장 A. 문장 B.", "문장 C. 문장 D."]
+    # 겹침 1문장: 조각 수는 같고, 둘째 조각이 첫째 조각의 마지막 문장으로 시작한다
+    assert len(ov) == 2
+    assert ov[0] == "문장 A. 문장 B."
+    assert ov[1].startswith("문장 B.")
+    assert "문장 C. 문장 D." in ov[1]
+
+
+def test_chunk_text_single_chunk_has_no_overlap():
+    # 짧아서 한 조각이면 겹침이 생기지 않는다(기존 짧은 안내자료 동작 불변).
+    content = "한 문단짜리 짧은 안내입니다. 두 번째 문장입니다."
+    assert kb_service.chunk_text(content) == [content]
+
+
+# ── 임베딩 입력 구성(_embed_input) — 검색 전용 키워드는 임베딩에만, 저장 content엔 안 들어간다 ──
+
+def test_embed_input_includes_title_and_search_keywords():
+    # 임베딩 텍스트 = 제목 + 검색 키워드 + 본문. 환자 음역('씨티')을 실어 표준어 문서('CT')를 찾게 한다.
+    out = kb_service._embed_input("CT(조영제) 검사 전 준비", "씨티 컴퓨터단층촬영", "조영제를 쓰는 CT는…")
+    assert out == "CT(조영제) 검사 전 준비\n씨티 컴퓨터단층촬영\n조영제를 쓰는 CT는…"
+
+
+def test_embed_input_omits_missing_keywords_and_title():
+    # 키워드가 없으면(대부분 문서) 기존과 동일하게 제목+본문만. 빈 문자열·None 모두 생략.
+    assert kb_service._embed_input("제목", None, "본문") == "제목\n본문"
+    assert kb_service._embed_input("제목", "   ", "본문") == "제목\n본문"
+    assert kb_service._embed_input(None, None, "본문") == "본문"
+
+
+@pytest.mark.asyncio
+async def test_list_categories_shows_used_categories_distinct(committed_conn):
+    # 편집기 콤보박스는 「실제로 쓰이는」 분류를 보여준다 — 관리자가 만든 새 분류가 뜨고, 중복은 한 번,
+    # 빈 값은 빠진다(EDITOR-02 자유 입력 콤보박스, 고정 상수가 아님).
+    st = await seed_staff(committed_conn, role="admin")
+    for cat in ["위치·주차", "예방접종 안내", "예방접종 안내", ""]:
+        await committed_conn.execute(
+            "insert into kb_documents (title, category, content, status, created_by) "
+            "values ('t',$1,'c','draft',$2)", cat, st["staff_id"])
+    cats = await kb_service.list_categories()
+    assert "예방접종 안내" in cats          # 새로 만든 분류가 목록에 뜬다(핵심)
+    assert "위치·주차" in cats
+    assert cats.count("예방접종 안내") == 1  # distinct — 중복 제거
+    assert "" not in cats                    # 빈 값 제외
+    await committed_conn.execute("delete from kb_documents where created_by=$1", st["staff_id"])
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_approve_chunks_and_embeds(committed_conn):
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, created_by) "
+        "values ('주차','지하 1층 30분 무료입니다.','draft',$1) returning id", st["staff_id"])
+    await kb_service.approve_document(doc, FakeEmbedder())
+    status = await committed_conn.fetchval("select status from kb_documents where id=$1", doc)
+    n = await committed_conn.fetchval("select count(*) from kb_chunks where document_id=$1", doc)
+    assert status == "approved" and n >= 1
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_approve_empty_content_is_rejected_before_embedding(committed_conn):
+    # 빈 내용 승인은 OpenAI가 "input cannot be an empty string"(400)으로 거부해 승인이 502로 실패했었다.
+    # 이제 임베딩 호출 전에 명확한 안내(AppError 400)로 막고, 문서는 draft로 남는다.
+    from app.core.errors import AppError
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, created_by) "
+        "values ('','   ','draft',$1) returning id", st["staff_id"])
+    with pytest.raises(AppError) as ei:
+        await kb_service.approve_document(doc, FakeEmbedder())
+    assert ei.value.status_code == 400
+    status = await committed_conn.fetchval("select status from kb_documents where id=$1", doc)
+    n = await committed_conn.fetchval("select count(*) from kb_chunks where document_id=$1", doc)
+    assert status == "draft" and n == 0   # 승인 안 됨 + 조각도 안 생김(트랜잭션 롤백)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])
+
+
+@pytest.mark.asyncio
+async def test_edit_stays_pending_until_approved(committed_conn):
+    st = await seed_staff(committed_conn, role="admin")
+    doc = await committed_conn.fetchval(
+        "insert into kb_documents (title, content, status, created_by) "
+        "values ('주차','옛 내용','approved',$1) returning id", st["staff_id"])
+    await kb_service.submit_edit(doc, title="주차", category="기타", content="새 내용",
+                                 is_restricted=False, staff_id=st["staff_id"])
+    live = await committed_conn.fetchrow("select content, has_pending_edit, pending_content from kb_documents where id=$1", doc)
+    assert live["content"] == "옛 내용" and live["has_pending_edit"] and live["pending_content"] == "새 내용"
+    await kb_service.approve_pending_edit(doc, FakeEmbedder())
+    after = await committed_conn.fetchrow("select content, has_pending_edit from kb_documents where id=$1", doc)
+    assert after["content"] == "새 내용" and after["has_pending_edit"] is False
+    rev = await committed_conn.fetchval(
+        "select previous_content from kb_document_revisions where document_id=$1", doc)
+    assert rev == "옛 내용"   # 라이브 교체 전 이력 저장(G-06)
+    await committed_conn.execute("delete from kb_document_revisions where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_chunks where document_id=$1", doc)
+    await committed_conn.execute("delete from kb_documents where id=$1", doc)
+    await committed_conn.execute("delete from staff where id=$1", st["staff_id"])

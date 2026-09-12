@@ -1,7 +1,9 @@
 import time
 
 import pytest
+from fastapi import HTTPException
 from jose import jwt
+from starlette.requests import Request
 
 from app.core.config import settings
 from tests.conftest import seed_staff
@@ -15,6 +17,24 @@ def make_token(auth_user_id: str) -> str:
         "exp": int(time.time()) + 3600,
     }
     return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
+
+
+def make_claims_token(claims: dict[str, object]) -> str:
+    payload = {
+        "aud": "authenticated",
+        "role": "authenticated",
+        "exp": int(time.time()) + 3600,
+        **claims,
+    }
+    return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
+
+
+def request_with_token(token: str) -> Request:
+    scope = {
+        "type": "http",
+        "headers": [(b"authorization", f"Bearer {token}".encode())],
+    }
+    return Request(scope)
 
 
 @pytest.mark.asyncio
@@ -65,3 +85,16 @@ async def test_get_current_staff_rejects_missing_header():
     with pytest.raises(HTTPException) as exc_info:
         await get_current_staff(request)
     assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("claims", [{}, {"sub": "not-a-uuid"}])
+async def test_get_current_staff_normalizes_missing_or_invalid_subject(claims):
+    """[STAFF-LOGIN-11] 누락·비 UUID sub도 같은 인증 실패로 정규화한다."""
+    from app.core.security import get_current_staff
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_staff(request_with_token(make_claims_token(claims)))
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "로그인 정보를 확인해 주세요."

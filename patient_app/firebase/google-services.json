@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "201552319237",
+    "project_id": "gaonhospital-d00e4",
+    "storage_bucket": "gaonhospital-d00e4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:201552319237:android:c568e6adc15e196fdc5d6c",
+        "android_client_info": {
+          "package_name": "com.vcuhospital.hospital_patient_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDT9YnD_aetKNeU_yBsw75B0HmGOWfkY_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

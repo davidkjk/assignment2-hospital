@@ -1,0 +1,15 @@
+# [배포 Task 10] 안드로이드 릴리즈 서명 키 설정 — 예시.
+#
+# 이 파일을 복사해 `patient_app/key.properties`(같은 폴더)를 만들고 실값을 채운다.
+#   cp key.properties.example key.properties
+# 실 key.properties와 keystore(.jks/.keystore)는 .gitignore로 커밋 금지된다.
+# build_release.sh가 빌드할 때 이 파일을 android/로 자동 복사한다(android/는 재생성되므로 루트에 둔다).
+#
+# keystore는 아래처럼 1회 생성한다(RELEASE.md 참고). 암호는 사용자가 안전하게 보관 — 분실 시 앱 업데이트 영구 불가.
+#   keytool -genkey -v -keystore ~/keys/hospital-demo-release.jks \
+#     -alias hospital-demo -keyalg RSA -keysize 2048 -validity 10000
+
+storeFile=/Users/<username>/keys/hospital-demo-release.jks
+storePassword=<keystore 암호>
+keyAlias=hospital-demo
+keyPassword=<keystore 암호>

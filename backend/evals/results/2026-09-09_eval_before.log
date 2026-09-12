@@ -1,0 +1,107 @@
+[single-ct-prep-01           ] recall=0.00 facts=누락['4시간'] forbidden=OK  ← 확인
+    q='CT 조영제 검사 전에 준비할 게 있나요?'  titles=[]
+    reply=''
+[single-mri-metal-01         ] recall=0.00 facts=누락['금속'] forbidden=OK  ← 확인
+    q='MRI 검사인데 주의할 게 뭔가요?'  titles=[]
+    reply=''
+[single-urine-01             ] recall=0.00 facts=누락['중간뇨'] forbidden=OK  ← 확인
+    q='소변검사 어떻게 받아요?'  titles=[]
+    reply=''
+[single-stool-01             ] recall=0.00 facts=누락['채변'] forbidden=OK  ← 확인
+    q='대변 잠혈검사 준비물 알려줘'  titles=[]
+    reply=''
+[single-ecg-01               ] recall=0.00 facts=누락['준비가 필요 없'] forbidden=OK  ← 확인
+    q='심전도 검사 준비 필요해요?'  titles=[]
+    reply=''
+[single-parking-fee-01       ] recall=0.00 facts=누락['30분 무료', '10분당 500원'] forbidden=OK  ← 확인
+    q='주차 요금이 어떻게 되나요?'  titles=[]
+    reply=''
+[single-parking-disabled-01  ] recall=0.00 facts=누락['지하 1·2층'] forbidden=OK  ← 확인
+    q='장애인 주차구역 있어요?'  titles=[]
+    reply=''
+[single-bike-01              ] recall=0.00 facts=누락['지상 1층'] forbidden=OK  ← 확인
+    q='오토바이는 어디에 주차해요?'  titles=[]
+    reply=''
+[single-shuttle-01           ] recall=0.00 facts=누락['운행하지 않'] forbidden=OK  ← 확인
+    q='셔틀버스 운행하나요?'  titles=[]
+    reply=''
+[single-building-01          ] recall=0.00 facts=누락['3층'] forbidden=OK  ← 확인
+    q='접수는 몇 층에서 하나요?'  titles=[]
+    reply=''
+[single-booking-how-01       ] recall=0.00 facts=누락['앱'] forbidden=OK  ← 확인
+    q='진료 예약은 어떻게 하나요?'  titles=[]
+    reply=''
+[single-change-dept-01       ] recall=0.00 facts=OK forbidden=OK  ← 확인
+    q='예약한 진료과를 바꾸고 싶어요'  titles=[]
+    reply=''
+[single-family-proxy-01      ] recall=0.00 facts=누락['가족 연결'] forbidden=OK  ← 확인
+    q='가족 대신 예약할 수 있어요?'  titles=[]
+    reply=''
+[single-walkin-01            ] recall=0.00 facts=누락['당일 접수'] forbidden=OK  ← 확인
+    q='예약 없이 그냥 가도 되나요?'  titles=[]
+    reply=''
+[single-waitlist-01          ] recall=0.00 facts=누락['대기'] forbidden=OK  ← 확인
+    q='원하는 시간이 다 찼는데 취소되면 알 수 있나요?'  titles=[]
+    reply=''
+[intent-hours-01             ] recall=1.00 facts=OK forbidden=OK
+    q='진료시간이 어떻게 되나요?'  titles=[]
+    reply=''
+[intent-doctors-01           ] recall=1.00 facts=OK forbidden=OK
+    q='어떤 선생님들이 진료하세요?'  titles=[]
+    reply=''
+[alias-ct-hangul-01          ] recall=0.00 facts=누락['4시간'] forbidden=OK  ← 확인
+    q='씨티 찍는데 준비물 뭐야?'  titles=[]
+    reply=''
+[alias-ct-full-01            ] recall=0.00 facts=누락['4시간'] forbidden=OK  ← 확인
+    q='컴퓨터단층촬영 금식해야 돼요?'  titles=[]
+    reply=''
+[alias-mri-hangul-01         ] recall=0.00 facts=누락['금속'] forbidden=OK  ← 확인
+    q='엠알아이 검사 금속 괜찮나'  titles=[]
+    reply=''
+[alias-parking-informal-01   ] recall=0.00 facts=누락['10분당 500원'] forbidden=OK  ← 확인
+    q='주차비 얼마임?'  titles=[]
+    reply=''
+[alias-hours-typo-01         ] recall=1.00 facts=OK forbidden=OK
+    q='진료시간 몇시까지에요?'  titles=[]
+    reply=''
+[alias-shuttle-short-01      ] recall=0.00 facts=누락['운행하지 않'] forbidden=OK  ← 확인
+    q='셔틀 있음?'  titles=[]
+    reply=''
+[multiturn-ct-water-01       ] recall=0.00 facts=누락['물은 소량'] forbidden=OK  ← 확인
+    q='그럼 물은 마셔도 돼요?'  titles=[]
+    reply=''
+[multiturn-ct-fasting-01     ] recall=0.00 facts=누락['4시간'] forbidden=OK  ← 확인
+    q='응 그거 몇 시간 굶어야 해?'  titles=[]
+    reply=''
+[multiturn-parking-followup-01] recall=0.00 facts=누락['원무'] forbidden=OK  ← 확인
+    q='그럼 무료 등록은 어디서 해?'  titles=[]
+    reply=''
+[multiturn-booking-correction-01] recall=0.00 facts=OK forbidden=OK  ← 확인
+    q='아니 그거 말고 예약 변경하려고요'  titles=[]
+    reply=''
+[multiturn-topic-shift-01    ] recall=0.00 facts=누락['10분당 500원'] forbidden=OK  ← 확인
+    q='그건 됐고 주차는 얼마예요?'  titles=[]
+    reply=''
+[multiturn-pronoun-that-01   ] recall=0.00 facts=누락['운동복'] forbidden=OK  ← 확인
+    q='그거 뭐 입고 가요?'  titles=[]
+    reply=''
+[channel-web-hours-01        ] recall=1.00 facts=OK forbidden=OK
+    q='진료시간 알려주세요'  titles=[]
+    reply=''
+[channel-app-hours-01        ] recall=1.00 facts=OK forbidden=OK
+    q='진료시간 알려주세요'  titles=[]
+    reply=''
+
+── 요약(expected_route=rag) ──
+  케이스 31개
+  Recall@5 통과율   : 5/31 (16%)
+  근거 충실성(사실) : 7/31 (23%)
+  금지 주장 없음    : 31/31 (100%)
+  카테고리별 평균 Recall:
+    alias        0.17  (n=6)
+    channel      1.00  (n=2)
+    db-intent    1.00  (n=2)
+    multiturn    0.00  (n=6)
+    single       0.00  (n=15)
+
+  ※ 라우팅 정확도·멀티턴 재작성 반영은 Sprint 2(대화 이해기) 후 확장.

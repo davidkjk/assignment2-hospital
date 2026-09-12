@@ -1,0 +1,229 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../widgets/patient_app_bar.dart';
+import 'package:hospital_patient_app/core/app_icons.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/tokens.dart';
+import 'cards/chat_card_dispatcher.dart';
+import 'chat_models.dart';
+import 'chat_outage_view.dart';
+import 'chat_repository.dart';
+import 'chat_room_controller.dart';
+import 'chat_room_entry.dart'; // chatSessionProvider(탭 세션) 무효화용
+import 'widgets/chat_end_boundary.dart';
+import 'widgets/chat_feed.dart';
+import 'widgets/chat_handoff_badge.dart';
+import 'widgets/chat_input_bar.dart';
+import 'widgets/chat_live_row.dart';
+import 'widgets/chat_quick_replies.dart';
+import 'widgets/chat_safety_banner.dart';
+
+/// 상담방 셸. 로딩(CHAT-ROOM-LOAD-01)·오류(ERR-01)·빈(EMPTY-01)·피드(FEED-01)를 가르고
+/// 안전 배너(SAFE-01)와 입력창(INPUT-01)을 항상 붙인다. 이름은 AI 상담봇(NAME-01).
+class ChatRoomView extends ConsumerWidget {
+  final String threadId;
+  final String aiSessionId;
+  final bool showHistory; // AI 상담 탭(방)에서만 '지난 상담' 아이콘을 앱바에 붙인다(NAV-CHATAPP-10)
+  final VoidCallback? onFeedback; // 봇 답변 피드백 → 인계(T11)
+  // 딥링크 상담방(셸 밖 풀스크린)일 때만 준다. 뒤로가기 = 이전 상담 목록으로(CHAT-HISTORY-DEEP-02·
+  // NAV-CHATAPP-09). null이면 탭 진입(하단 탭바가 출구)이라 별도 뒤로 버튼을 두지 않는다.
+  final VoidCallback? onExit;
+  const ChatRoomView({
+    super.key,
+    required this.threadId,
+    this.aiSessionId = '',
+    this.showHistory = false,
+    this.onFeedback,
+    this.onExit,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final key = (threadId, aiSessionId);
+    final st = ref.watch(chatRoomProvider(key));
+    final ctl = ref.read(chatRoomProvider(key).notifier);
+    // 직원이 [상담 종료]하면(closed) 이 방의 AI 세션은 ended라 입력하면 503이 난다(막다른 길).
+    //   → 입력창·빠른답변 대신 종료 경계(ChatEndBoundary)를 띄워 두 분기로만 앞으로 가게 한다.
+    final closed = st.handoff?.closed == true;
+    // [CHAT-ROOM-NEW-01·END-NAV-01] 새 AI 세션을 만들고(요약 이어가기 / 과거 문맥 없이) 스택을 쌓지 않고
+    //   상담 탭으로 이동한다 — 탭이 방금 만든 새 방을 다시 잡는다. [새 대화]와 종료 경계 두 분기가 공유한다.
+    Future<void> startAnd(Future<ChatSessionRef> Function() start) async {
+      try {
+        await start();
+        ref.invalidate(chatSessionProvider(null)); // 탭이 새 방을 다시 잡도록
+        if (context.mounted) context.go('/chat');
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('새 상담을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.')));
+        }
+      }
+    }
+    // Q19(CHAT-OUTAGE-01): AI 일시 장애(빈 응답/5xx)면 강제 직원인계가 아니라 장애 화면을 전면에 띄운다.
+    //   [다시 시도] 성공 → outagePhase가 null로 돌아가 방으로 복귀(자동 폴링·재전송 없음). webchat과 통일.
+    if (st.outagePhase != null) {
+      return ChatOutageView(
+        phase: st.outagePhase!,
+        hospitalPhone: '02-1234-5678', // 앱 공용 병원 대표번호(hospital_info·appointment_card와 동일)
+        onBook: () => context.go('/booking'), // 예약은 앱에서 바로(막다른 길 방지)
+        onRetry: ctl.retryFromOutage,
+        onInquiry: ctl.submitOutageInquiry,
+      );
+    }
+    return Scaffold(
+      backgroundColor: AppTokens.background,
+      appBar: PatientAppBar(
+        title: 'AI 상담봇', // CHAT-ROOM-NAME-01
+        icon: AppIcons.chat_bubble, // 로딩/오류(ChatRoomEntry)와 같은 봇 아이콘 — 전이 시 깜빡임 방지
+        // #9: 인계 상태를 제목 옆 짧은 LED 상태로(연결 전/확인 중/답변 도착). 인계 전엔 안 보인다.
+        titleTrailing: (st.handoff != null && st.handoff!.phase != null)
+            ? ChatHandoffHeaderStatus(
+                status: st.handoff!, staffViewing: st.staffViewing, staffTyping: st.staffTyping)
+            : null,
+        // 딥링크 방(onExit != null): 뒤로가기 = 이전 상담 목록(CHAT-HISTORY-DEEP-02·NAV-CHATAPP-09).
+        leading: onExit == null
+            ? null
+            : IconButton(
+                icon: const Icon(AppIcons.arrow_back),
+                tooltip: '이전 상담 목록',
+                onPressed: onExit,
+              ),
+        actions: [
+          // [새 대화](CHAT-ROOM-NEW-01): 활성 세션이 있어도 과거 문맥 없는 새 상담을 시작한다(상시).
+          // 기본은 이어가기(30분 재사용)지만, 원할 때 새로 시작할 수 있어야 한다(사용자 결정 B, 2026-09-08).
+          IconButton(
+            icon: const Icon(AppIcons.edit),
+            tooltip: '새 대화',
+            // Q1·Q2(2026-09-08 실기기): 예전엔 push('/chat/room/:id')라 [새 대화]마다 방이 스택에 쌓이고
+            //   탭은 옛 세션 캐시라 옛 대화로 갔다. 고침=새 세션 만든 뒤 탭 세션 무효화 + go('/chat')
+            //   (스택 안 쌓음, 탭이 방금 만든 새 방을 다시 잡음). startAnd 공용.
+            onPressed: () =>
+                startAnd(() => ref.read(chatRepositoryProvider).startFreshSession()),
+          ),
+          if (showHistory)
+            IconButton(
+              icon: const Icon(AppIcons.history),
+              tooltip: '지난 상담',
+              onPressed: () => context.go('/chat/history'), // NAV-CHATAPP-10
+            ),
+        ],
+      ),
+      // CHAT-ROOM-INPUT-01: 대화 영역(버튼 아닌 곳)을 탭하면 키보드를 내린다 — 갇힘 방지.
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(children: [
+        const ChatSafetyBanner(), // CHAT-ROOM-SAFE-01 (항상)
+        // Q18: 인계됐으면 상태 배지(직원 확인 전→확인 중(presence)→답변 도착). 인계 전(phase null·오류 아님)엔
+        // 안 뜬다. presence(staffViewing)가 connecting에 겹치면 "직원이 확인 중이에요"로 바뀐다.
+        if (st.handoff != null && (st.handoff!.phase != null || st.handoff!.loadError))
+          ChatHandoffBadge(
+            status: st.handoff!,
+            staffViewing: st.staffViewing,
+            staffTyping: st.staffTyping, // 타이핑 중이면 배너 숨김(헤더가 '직원이 입력 중')
+            onRetry: () => ctl.refreshHandoff(),
+          ),
+        Expanded(child: switch (st.phase) {
+          ChatRoomPhase.loading =>
+            const Center(child: CircularProgressIndicator()),
+          ChatRoomPhase.error => Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(AppIcons.cloud_off_outlined,
+                      size: 40, color: AppTokens.grayDone),
+                  const SizedBox(height: 8),
+                  const Text('대화를 불러오지 못했어요'),
+                  const SizedBox(height: 4),
+                  TextButton(
+                      onPressed: () => ctl.load(),
+                      child: const Text('다시 시도')),
+                ],
+              ),
+            ),
+          ChatRoomPhase.loaded => st.isEmpty
+              // 빈 상태: 안내 + 시작 칩을 **대화창 안**(입력창 위 고정 바 아님)에 둔다. 스크롤 가능.
+              ? ListView(
+                  key: const Key('chat-empty-guide'),
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    const SizedBox(height: 24),
+                    const Text(
+                      '무엇을 도와드릴까요?\n증상이나 궁금한 점을 편하게 남겨 주세요.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppTokens.grayPending, height: 1.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Center(child: _buildQuickReplies(st, ctl)),
+                  ],
+                )
+              : ChatFeed(
+                  // [CHAT-STREAM-01] 진행 중인 봇 답 조각은 피드 뒤에 임시 봇 말풍선으로 보인다(webchat 동형).
+                  //   bot_done에서 확정 말풍선으로 커밋되며 streaming이 null로 지워져 이 임시 줄은 사라진다.
+                  items: st.streaming == null
+                      ? st.items
+                      : [
+                          ...st.items,
+                          ChatFeedItem(
+                            id: 'stream-${st.streaming!.gen}',
+                            messageType: 'text',
+                            senderType: 'bot',
+                            content: st.streaming!.text,
+                            createdAt: DateTime.now(), // isUnknown(시각 미상) 스타일 회피
+                          ),
+                        ],
+                  // T12 슬롯 채움: 카드 아이템은 dispatcher가 card_type으로 그린다(CCARD-*).
+                  cardBuilder: (ctx, it) => buildChatCard(ctx, it),
+                  // T11 슬롯 채움: 직원 말풍선·시스템 이벤트도 같은 피드에(CHAT-ROOM-LIVE-01).
+                  liveSlotBuilder: (ctx, it) => ChatLiveRow(item: it),
+                  onRetry: (id) => ctl.retry(id),
+                  // Q5: 매 봇 말풍선의 상시 [직원에게 물어보기] 버튼은 폐지. 직원 연결은 필요할 때만
+                  //     입력창 슬롯의 [직원에게 연결] 칩으로 준다(_buildQuickReplies의 onHandoff, 요구사항 5.5).
+                  // A3: 빠른답변 칩을 피드 마지막 줄(말풍선 밑)에 둔다 — 입력창 위 고정 바는 대화창을 가린다.
+                  //   종료(closed)면 칩도 접는다 — 죽은 방으로 다시 보내지 않는다(종료 경계가 앞길을 준다).
+                  footer: closed ? null : _buildQuickReplies(st, ctl),
+                  // Q7: 입력 중 표시를 입력바 위 텍스트가 아니라 피드 안 봇 말풍선 자리(점)로 둔다.
+                  // 봇 대기(BOT-TYPING-01)가 우선, 아니면 직원 입력 중(LIVE-TYPING-01). 둘 다 아니면 없음.
+                  // [CHAT-STREAM-01] 스트림 조각이 차오르는 중엔 그 말풍선이 곧 표시라 점(dot)을 겹쳐 띄우지 않는다.
+                  typingLabel: (st.botThinking && st.streaming == null)
+                      ? '상담봇이 입력 중'
+                      : (st.staffTyping ? '직원이 입력 중입니다' : null),
+                ),
+        }),
+        // 직원 종료(closed)면 입력창 대신 종료 경계(CHAT-ROOM-END-01·END-NAV-01, 막다른 길 방지).
+        //   [이어서 AI 질문]=직전 상담(thread) 요약 가진 새 AI 세션 · [새 질문]=과거 문맥 없는 새 AI 세션.
+        if (closed)
+          ChatEndBoundary(
+            onResumeAi: () => startAnd(
+                () => ref.read(chatRepositoryProvider).resumeWithSummary(threadId)),
+            onNewQuestion: () =>
+                startAnd(() => ref.read(chatRepositoryProvider).startFreshSession()),
+          )
+        else
+          _inputBar(st, ctl),
+      ]),
+      ),
+    );
+  }
+
+  // CHAT-ROOM-INPUT-01 (항상 열림). 빠른답변 칩은 입력창 위 고정 바가 아니라 **피드 마지막 줄**에 둔다
+  // (A3, 2026-09-08 실기기: 고정 바가 대화창을 가림). 시작 묶음은 빈 상태 안내 밑, no_answer 칩은 피드 footer.
+  Widget _inputBar(ChatRoomState st, ChatRoomController ctl) =>
+      ChatInputBar(
+        onSend: (c) => ctl.send(c),
+        // [CHAT-ROOM-PATIENT-TYPING-01] 입력 중이면 직원에게 "환자 입력 중"을 알린다(디바운스는 컨트롤러).
+        onChanged: (_) => ctl.notifyTyping(),
+      );
+
+  Widget _buildQuickReplies(ChatRoomState st, ChatRoomController ctl) {
+    final active = activeQuickReplies(st.items);
+    return ChatQuickReplies(
+      replies: st.isEmpty ? startQuickReplies(hasUpcoming: false) : (active?.replies ?? const []),
+      onSend: (c) => ctl.send(c),
+      handoffLabel: active?.handoffLabel,
+      // #6: 칩 문구(HANDOFF_CONFIRM_CHIP)를 전송 → 백엔드 ⓠ-a가 바로 인계로 전환(칩 탭=명시 선택, 재확인 없음).
+      //   자유 입력으로 "직원 연결"을 치면 ⓠ-b에서 확인 프롬프트를 먼저 낸다("항상 물어보게").
+      onHandoff: active?.handoffLabel != null ? () => ctl.send(active!.handoffLabel!) : null,
+    );
+  }
+}

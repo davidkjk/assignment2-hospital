@@ -1,0 +1,227 @@
+"""멀티턴 후속 질문 재작성(리포트 §4.2 · §9.4 · §9.6 Sprint 2).
+
+후속 메시지의 상당수가 미해결 지시어(대명사·생략)를 가져("그럼 물은?"), 원문 그대로 검색하면
+핵심어(CT·조영제·준비)가 사라진다. 이 모듈은 **후속 신호가 있을 때만** 단일 LLM 호출로 지시어를
+푼 독립형 검색 질의를 만든다.
+
+경계(안전·비용):
+- **검색에만** 쓴다 — 재작성 질의는 임베딩·하이브리드 검색에만 들어가고, 화면·로그·LLM 질문에는
+  원문을 쓴다(호출부 rag_service가 분리 적용). 재작성어가 환자에게 보이면 안 된다.
+- **안전·라우팅은 이 앞에서 이미 결정적으로 끝난다** — 응급·직원요청은 orchestrator가 재작성보다
+  앞서 키워드로 판정한다(플레이북 §4: 안전을 LLM 이해기에 종속시키지 않는다). 이 재작성은 route가
+  안내형(rag)일 때 검색 질의만 다듬을 뿐, 갈래를 바꾸지 않는다.
+- **첫 질문·자기완결 질문엔 태우지 않는다**(has_followup_signal 게이트) — 지연·비용·풀 절약.
+- best-effort: 실패·빈결과·원문 그대로면 None → 호출부가 원문으로 검색(재작성은 검색 보조일 뿐).
+"""
+import json
+from dataclasses import dataclass
+
+from pydantic import BaseModel, Field
+from langchain_core.prompts import ChatPromptTemplate
+
+from app.integrations.langchain_client import get_chat_model, resp_text
+
+# 지시어·생략(coreference) 마커. 이게 있고 이전 대화가 있을 때만 재작성 LLM을 태운다.
+#   바 "그" 하나는 너무 넓어(다른 단어에 substring) 넣지 않는다 — 강한 지시 표현만 큐레이션.
+_FOLLOWUP_MARKERS = [
+    "그거", "그건", "그게", "그럼", "그러면", "그래서", "그때", "그곳", "그것",
+    "이거", "이건", "이게", "저거", "저건", "거기", "아까", "방금", "위에서", "앞에서",
+]
+
+# 이보다 짧은 질의는 지시어를 생략한 후속 표현일 가능성이 높다("물은?", "언제요?").
+_SHORT_QUERY_LEN = 8
+
+
+def has_followup_signal(message: str, history_texts) -> bool:
+    """재작성 LLM을 태울 후속 질문 신호가 있는지 — 결정적 판단(LLM·DB 없음)."""
+    if not history_texts:
+        return False                 # 첫 발화는 풀 맥락이 없다 → 재작성 안 함
+    t = (message or "").strip()
+    if not t:
+        return False
+    if len(t) <= _SHORT_QUERY_LEN:   # 아주 짧은 생략형 질의
+        return True
+    return any(m in t for m in _FOLLOWUP_MARKERS)
+
+
+async def rewrite_standalone(message: str, history_texts, *, model=None) -> str | None:
+    """최근 대화와 현재 발화를 주고 지시어·생략을 푼 독립형 검색 질의 한 줄을 받는다.
+
+    best-effort: 호출 실패·빈결과·원문 echo면 None. 의미를 바꾸거나 새 정보를 지어내지 않도록 지시한다.
+    """
+    recent = "\n".join((history_texts or [])[-6:])   # 너무 긴 과거는 옛 주제 오염 → 최근 6턴만(§4.2)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system",
+         "다음은 병원 상담 대화입니다. 마지막 사용자 질문을, 앞 맥락의 지시어(그거·그럼 등)와 생략을 풀어 "
+         "그 자체로 검색 가능한 한 문장의 독립형 질문으로 바꿔 주세요. "
+         "질문의 의미를 바꾸거나 대화에 없는 새 정보를 지어내지 마세요. 재작성한 질문 한 줄만 출력하세요."),
+        ("human", "대화:\n{recent}\n\n마지막 질문: {message}"),
+    ])
+    try:
+        resp = await (model or get_chat_model()).ainvoke(
+            prompt.format_messages(recent=recent, message=message))
+        raw = resp_text(resp).strip()
+    except Exception:
+        return None
+    rewritten = raw.splitlines()[0].strip() if raw else ""
+    if not rewritten or rewritten == (message or "").strip():
+        return None                  # 재작성 가치 없음 → 원문으로 검색
+    return rewritten
+
+
+def build_search_query(message: str, standalone: str | None) -> str:
+    """검색용 질의: 재작성 독립질의 + 원문 concat(§9.4 정련 — 단독보다 일관되게 낫다).
+
+    재작성은 지시어·생략을 풀고, 원문은 사용자가 실제 쓴 표면 표현을 보존한다.
+    """
+    if not standalone:
+        return message
+    return f"{standalone} {message}".strip()
+
+
+# ── 전면 통합(전역 플래그 chat_understanding_mode='llm') — 질문 이해 1콜 ───────────────
+# 흩어져 있던 질문 이해(② 라우터 classify + 후속질문 rewrite)를 LLM 한 번으로 통합한다.
+#   ⚠️ 안전은 이 앞에서 이미 결정적으로 끝난다 — 응급·직원요청·check_escalation(진단·불만·반복)은
+#      orchestrator가 이해기보다 앞서 판정한다(플레이북 §4: 안전을 LLM 이해기에 종속시키지 않는다).
+#      그래서 이해기의 route에는 handoff/emergency가 없다(rag·department_guide·agent만).
+#   되돌리기: 실패·형식 위반이면 None → 호출부가 레거시(classify+rewrite)로 자동 폴백한다.
+_UNDERSTAND_ROUTES = {"rag", "department_guide", "agent"}
+
+_UNDERSTAND_SYSTEM = (
+    "당신은 병원 상담 대화의 '질문 이해기'입니다. 마지막 사용자 발화를 이해해 JSON 객체로만 답하세요.\n"
+    "키는 정확히 다음 여섯 개입니다.\n"
+    "- route: rag(병원 정보 안내) | department_guide(어느 과에 가야 하는지 증상 상담) | agent(예약·취소·문진 등 행동). 셋 중 하나.\n"
+    "- standalone_query: 후속 질문이면 앞 맥락의 지시어(그거·그럼 등)와 생략을 풀어 그 자체로 검색 가능한 한 문장으로."
+    " 첫 질문이거나 이미 자기완결이면 빈 문자열. 의미를 바꾸거나 없는 정보를 지어내지 마세요.\n"
+    "- needs_clarification: 무엇을 묻는지 애매해 확인 질문이 필요하면 true, 아니면 false.\n"
+    "- clarification_question: needs_clarification가 true일 때 되물을 한 문장(증상을 캐묻지는 않습니다). 아니면 빈 문자열.\n"
+    "- topic_shift: 앞 대화와 주제가 바뀌었으면 true, 이어지면 false.\n"
+    "- confidence: 이해 확신도 0.0~1.0 실수.\n"
+    "진단·처방·응급 판단은 하지 마세요(그 판단은 앞단이 이미 처리했습니다). JSON 외 다른 텍스트는 쓰지 마세요."
+)
+
+# [브랜치 A · 스위치] 보수적 라우팅 원칙 — 정보 질문이 예약(agent)으로 오라우팅되는 것을 줄인다(세션52 실측:
+#   "진단서 발급 어떻게"·"사전문진 어떻게"·"CT 물 먹어도"가 agent로 샘). 스위치 ON일 때만 프롬프트에 얹는다.
+#   chat_router.classify(레거시 폴백)도 이 상수를 가져다 쓴다(단일 출처).
+_CONSERVATIVE_ROUTING_PRINCIPLE = (
+    "라우팅 판단 원칙(중요): route=agent는 사용자가 **새 진료 예약을 잡으려는** 의도가 분명할 때만 씁니다"
+    "(예: '예약하고 싶어요', '진료 예약할게요'). 예약 취소·변경은 상담봇이 직접 실행하지 않고 앱·직원 상담으로 "
+    "안내하므로 agent가 아니라 rag입니다. 방법·절차·준비물·발급 방법·가능 여부 등 '정보를 묻는 질문'도 예약과 "
+    "관련돼 보여도 agent가 아니라 rag입니다. 새 예약을 잡겠다는 의도가 분명하지 않으면 agent가 아니라 rag를 기본값으로 하세요."
+)
+
+
+def understand_system_prompt(conservative: bool) -> str:
+    """이해기 시스템 프롬프트를 만든다. conservative=True면 보수적 라우팅 원칙을 덧붙인다(스위치 OFF면 원본 그대로)."""
+    if conservative:
+        return _UNDERSTAND_SYSTEM + "\n" + _CONSERVATIVE_ROUTING_PRINCIPLE
+    return _UNDERSTAND_SYSTEM
+
+
+# [브랜치 A · 스위치] 구조화 출력 스키마 — 진짜 모델의 with_structured_output에 넘겨 LLM이 이 형태로만
+#   답하게 강제한다(손파싱 raw.find("{")...json.loads 교체). 필드·설명은 _UNDERSTAND_SYSTEM과 일치.
+#   전 필드에 안전 기본값을 둬, 모델이 일부를 빠뜨려도 검증이 통과하고 아래 정규화 로직이 그대로 처리한다.
+class UnderstandingSchema(BaseModel):
+    route: str = Field("rag", description="rag(정보 안내) | department_guide(증상 상담) | agent(예약·취소·문진 행동)")
+    standalone_query: str = Field("", description="후속 질문의 지시어·생략을 푼 독립형 검색 질의. 첫 질문/자기완결이면 빈 문자열")
+    needs_clarification: bool = Field(False, description="무엇을 묻는지 애매해 확인 질문이 필요하면 true")
+    clarification_question: str = Field("", description="되물을 한 문장(needs_clarification=true일 때만)")
+    topic_shift: bool = Field(False, description="앞 대화와 주제가 바뀌었으면 true")
+    confidence: float = Field(0.0, description="이해 확신도 0.0~1.0")
+
+
+@dataclass
+class Understanding:
+    route: str
+    standalone_query: str | None
+    needs_clarification: bool
+    clarification_question: str | None
+    topic_shift: bool
+    confidence: float
+
+
+async def understand(message: str, history_texts, *, active_flow: str | None = None,
+                     model=None, conservative_routing: bool | None = None,
+                     structured: bool | None = None) -> Understanding | None:
+    """질문 이해(라우터+재작성)를 LLM 1회로. 실패·형식 위반이면 None(레거시 폴백).
+
+    - 진행 중 문진(active_flow='department_guide')은 재분류하지 않는다 → LLM 호출 없이 그 갈래 유지.
+    - route는 허용 3종만, 그 밖은 안전한 안내형(rag)으로 강등.
+    - standalone_query가 원문과 같거나 비면 None(재작성 가치 없음 → 원문으로 검색).
+    - needs_clarification True인데 질문 본문이 비면 빈 되묻기(막다른 길)라 되묻기 해제(검색으로 진행).
+    - confidence는 [0,1]로 클램프. ⚠️ confidence로 안전 게이트를 여닫지 않는다(안전은 앞단 결정적).
+    """
+    if conservative_routing is None or structured is None:
+        from app.core.config import settings
+        if conservative_routing is None:
+            conservative_routing = settings.chat_conservative_routing
+        if structured is None:
+            structured = settings.chat_structured_understanding
+    recent = "\n".join((history_texts or [])[-6:])
+    # (b) 증상 상담 진행 중이면 LLM에 그 사실을 알려 topic_shift를 정확히 판단하게 한다.
+    #   같은 주제를 이어가면 topic_shift=false(흐름 유지), 전혀 다른 주제로 바꾸면 true(탈출).
+    flow_hint = ("\n(지금은 증상 상담(진료과 안내)이 진행 중입니다. 사용자가 그 증상 상담을 이어가면 "
+                 "topic_shift=false, 전혀 다른 주제로 바꾸면 topic_shift=true로 판단하세요.)"
+                 if active_flow == "department_guide" else "")
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", understand_system_prompt(conservative_routing)),
+        ("human", "대화:\n{recent}\n\n마지막 발화: {message}" + flow_hint),
+    ])
+    llm = model or get_chat_model()
+    prompt_messages = prompt.format_messages(recent=recent, message=message)
+    try:
+        # [브랜치 A · 스위치] 구조화 출력 — 진짜 모델이 with_structured_output을 지원할 때만.
+        #   스위치 OFF 또는 가짜 모델(테스트 주입, 메서드 없음)이면 손파싱으로 폴백 → 기존 동작·테스트 무회귀.
+        if structured and hasattr(llm, "with_structured_output"):
+            obj = await llm.with_structured_output(UnderstandingSchema).ainvoke(prompt_messages)
+            parsed = obj.model_dump() if hasattr(obj, "model_dump") else dict(obj)
+        else:
+            resp = await llm.ainvoke(prompt_messages)
+            raw = resp_text(resp)
+            start, end = raw.find("{"), raw.rfind("}")
+            if start == -1 or end == -1 or end < start:
+                return None
+            parsed = json.loads(raw[start:end + 1])
+    except Exception:
+        return None
+
+    route = parsed.get("route")
+    if route not in _UNDERSTAND_ROUTES:
+        route = "rag"                       # 허용 밖·누락 → 안전한 안내형
+
+    standalone = parsed.get("standalone_query")
+    standalone = standalone.strip() if isinstance(standalone, str) else ""
+    if not standalone or standalone == (message or "").strip():
+        standalone = None
+    # 재작성은 후속 신호가 있을 때만 신뢰한다(legacy has_followup_signal 규율 이식, 후7 alias 회귀 수정).
+    #   자기완결 첫 질문("컴퓨터단층촬영 금식?")을 이해기가 지시 무시하고 재작성하면 검색이 빗나가므로,
+    #   후속 신호가 없으면 재작성을 버리고 원문으로 검색한다(라우팅·되묻기 판정은 그대로 유지).
+    if standalone and not has_followup_signal(message, history_texts):
+        standalone = None
+
+    clarify_q = parsed.get("clarification_question")
+    clarify_q = clarify_q.strip() if isinstance(clarify_q, str) else ""
+    needs_clarify = bool(parsed.get("needs_clarification")) and bool(clarify_q)
+
+    try:
+        confidence = float(parsed.get("confidence"))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    topic_shift = bool(parsed.get("topic_shift"))
+    # (b) 증상 상담 중 흐름 제어: 주제 전환이 확실할 때만 탈출하고, 아니면 department_guide를 유지한다.
+    #   짧은 답("네", "이틀요")이 다른 갈래로 새는 걸 막는다(흐름 보호 = 보수적 기본값). 되묻기·재작성은 끈다.
+    if active_flow == "department_guide" and not topic_shift:
+        return Understanding(route="department_guide", standalone_query=None,
+                             needs_clarification=False, clarification_question=None,
+                             topic_shift=False, confidence=confidence)
+
+    return Understanding(
+        route=route,
+        standalone_query=standalone,
+        needs_clarification=needs_clarify,
+        clarification_question=clarify_q if needs_clarify else None,
+        topic_shift=topic_shift,
+        confidence=confidence,
+    )

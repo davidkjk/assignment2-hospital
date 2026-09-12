@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/chat/:path*",
+      "destination": "https://gaonhospital-api-production.up.railway.app/chat/:path*"
+    },
+    {
+      "source": "/patient/:path*",
+      "destination": "https://gaonhospital-api-production.up.railway.app/patient/:path*"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

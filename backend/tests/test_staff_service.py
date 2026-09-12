@@ -27,6 +27,17 @@ def _fake_admin_client(monkeypatch):
     return fake_admin_client
 
 
+@pytest.fixture(autouse=True)
+def _fake_resend_client(monkeypatch):
+    """[하이브리드] 초대·재초대·재설정은 링크를 만들면서 메일도 자동 발송한다(도메인 인증 후).
+    실제 네트워크(Resend)로 나가지 않게 가짜 클라이언트로 바꾼다 — send는 True(발송 성공)를
+    돌려주고 호출을 기록한다. email_sent 플래그·발송 호출을 보는 테스트가 이 목을 받아 assert한다."""
+    client = MagicMock()
+    client.send.return_value = True
+    monkeypatch.setattr("app.services.staff_service.get_resend_client", lambda: client)
+    return client
+
+
 @pytest.mark.asyncio
 async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
     admin_seed = await seed_staff(db_conn, role="admin")
@@ -35,8 +46,9 @@ async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
     invited_auth_id = uuid4()
     fake_user = MagicMock()
     fake_user.user.id = str(invited_auth_id)
+    fake_user.properties.action_link = "https://staff.example/reset-password/new?token=t"
     fake_admin_client = MagicMock()
-    fake_admin_client.auth.admin.invite_user_by_email.return_value = fake_user
+    fake_admin_client.auth.admin.generate_link.return_value = fake_user
 
     async def fake_seed_auth_user(conn):
         await conn.execute(
@@ -51,14 +63,125 @@ async def test_invite_staff_creates_staff_row(db_conn, monkeypatch):
     dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
 
     with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
-        staff_id = await staff_service.invite_staff(
+        result = await staff_service.invite_staff(
             email="new-doctor@test.local", name="김의사", role="doctor", department_id=dept_id, invited_by=admin_ctx, conn=db_conn,
         )
 
-    assert staff_id is not None
-    row = await db_conn.fetchrow("select role, name from staff where id = $1", staff_id)
+    assert result.staff_id is not None
+    row = await db_conn.fetchrow("select role, name from staff where id = $1", result.staff_id)
     assert row["role"] == "doctor"
     assert row["name"] == "김의사"
+
+
+@pytest.mark.asyncio
+async def test_create_staff_row_is_idempotent_on_concurrent_duplicate(db_conn):
+    """[STAFF-INVITE-11] 같은 계정으로 staff 행을 두 번 만들려 해도(동시 초대 레이스) 미처리 500이
+    아니라 먼저 만든 행의 id를 그대로 돌려준다(멱등). auth_user_id unique(00001) 위반을 on conflict로
+    흡수해, 프론트에 「성공 링크 + 실패 배너」가 겹치던 근본 원인을 서버에서도 막는다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    auth_id = uuid4()
+    await db_conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, 'dup@test.local', '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        auth_id,
+    )
+
+    first = await staff_service._create_staff_row(auth_id, "김간호", "receptionist", None, admin_ctx, db_conn)
+    second = await staff_service._create_staff_row(auth_id, "김간호", "receptionist", None, admin_ctx, db_conn)
+
+    assert first is not None
+    assert second == first  # 두 번째 삽입도 예외 없이 같은 행 id를 돌려준다(멱등)
+    count = await db_conn.fetchval("select count(*) from staff where auth_user_id = $1", auth_id)
+    assert count == 1  # 행은 하나만 생긴다
+
+
+@pytest.mark.asyncio
+async def test_invite_staff_returns_link_and_sends_email(db_conn, _fake_resend_client):
+    """[STAFF-INVITE-LINK-01·하이브리드] 초대는 링크를 만들어 돌려주면서(관리자가 직접 전달 가능)
+    초대(환영) 메일도 자동 발송한다(도메인 인증 후, 2026-09-07). 메일이 실패해도 링크는 화면에
+    남아 막다른 길이 아니다. invite_user_by_email(즉시발송·도메인 500)은 여전히 쓰지 않는다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    invited_auth_id = uuid4()
+    action_link = "https://staff.example/reset-password/new?token=abc&type=invite"
+    fake_resp = MagicMock()
+    fake_resp.user.id = str(invited_auth_id)
+    fake_resp.properties.action_link = action_link
+    fake_admin_client = MagicMock()
+    fake_admin_client.auth.admin.generate_link.return_value = fake_resp
+
+    await db_conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, 'link-invite@test.local', '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        invited_auth_id,
+    )
+
+    origin = "https://staff.example/reset-password/new"
+    with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
+        result = await staff_service.invite_staff(
+            email="link-invite@test.local", name="김직원", role="receptionist",
+            department_id=None, invited_by=admin_ctx, redirect_to=origin, conn=db_conn,
+        )
+
+    # 관리자에게 돌려줄 링크가 그대로 나온다 + 초대 메일 자동 발송(하이브리드).
+    assert result.invite_link == action_link
+    assert result.email_sent is True
+    # 초대(환영) 메일을 그 링크로 보낸다.
+    _fake_resend_client.send.assert_called_once()
+    sent = _fake_resend_client.send.call_args.kwargs
+    assert sent["to"] == "link-invite@test.local"
+    assert sent["subject"] == "[가온병원] 직원 계정 초대"
+    assert action_link in sent["html"] and action_link in sent["text"]
+    # 즉시발송 API(invite_user_by_email·도메인 500)는 여전히 쓰지 않는다.
+    fake_admin_client.auth.admin.invite_user_by_email.assert_not_called()
+    # generate_link에 invite 타입과 redirect_to를 넘긴다(링크를 뽑는 Supabase API).
+    fake_admin_client.auth.admin.generate_link.assert_called_once_with(
+        {"type": "invite", "email": "link-invite@test.local", "options": {"redirect_to": origin}}
+    )
+    # staff 행은 여전히 생성된다.
+    row = await db_conn.fetchrow("select role from staff where id = $1", result.staff_id)
+    assert row["role"] == "receptionist"
+
+
+@pytest.mark.asyncio
+async def test_invite_staff_passes_redirect_to(db_conn):
+    """redirect_to가 주어지면 generate_link에 그대로 전달돼 수락 링크가 그 직원웹으로 돌아온다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+
+    invited_auth_id = uuid4()
+    fake_user = MagicMock()
+    fake_user.user.id = str(invited_auth_id)
+    fake_user.properties.action_link = "https://staff.example/reset-password/new?token=t"
+    fake_admin_client = MagicMock()
+    fake_admin_client.auth.admin.generate_link.return_value = fake_user
+
+    await db_conn.execute(
+        """
+        insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, aud, role)
+        values ($1, 'redir-doctor@test.local', '', now(), now(), now(), 'authenticated', 'authenticated')
+        """,
+        invited_auth_id,
+    )
+    dept_id = await db_conn.fetchval("insert into departments (name) values ('내과') returning id")
+
+    origin = "https://gaonhospital-staff-git-merge-design-integration-iansoft.vercel.app"
+    with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
+        await staff_service.invite_staff(
+            email="redir-doctor@test.local", name="김의사", role="doctor", department_id=dept_id,
+            invited_by=admin_ctx, redirect_to=origin, conn=db_conn,
+        )
+
+    fake_admin_client.auth.admin.generate_link.assert_called_once_with(
+        {"type": "invite", "email": "redir-doctor@test.local", "options": {"redirect_to": origin}}
+    )
 
 
 @pytest.mark.asyncio
@@ -91,18 +214,37 @@ async def test_deactivate_staff_sets_flags(db_conn):
 
 @pytest.mark.asyncio
 async def test_deactivate_staff_revokes_auth_session(db_conn, _fake_admin_client):
-    """[정합성 검토 R1-우선2 재검증] 비활성화 시 대상 직원의 Supabase Auth 세션을 전 기기에서
-    즉시 끊는다 — RLS(`is_active_staff()`)는 데이터 접근을 막아주지만, 세션 자체는 살아있어
-    JWT 만료(최대 30분) 전까지 로그인된 화면이 떠 있을 수 있었다는 지적을 반영."""
+    """[R1-우선2 / 2026-09-07 버그수정] 비활성화 시 대상 직원의 Supabase Auth 세션을 무효화한다.
+    ⚠️ 예전 구현은 admin sign_out(user_id)를 썼으나 GoTrue sign_out은 JWT 전용이라 user_id를
+    넘기면 매번 "invalid JWT" 500이 났다(user_id로 로그아웃하는 admin API가 없다). ban으로
+    토큰 갱신을 막는다 — 현재 access token은 만료까지 유효하나 그 사이 데이터는 RLS의
+    is_active 게이트가 막는다(두 겹)."""
     admin_seed = await seed_staff(db_conn, role="admin")
     admin_ctx = _to_context(admin_seed, "admin")
     target = await seed_staff(db_conn, role="receptionist")
 
     await staff_service.deactivate_staff(target["staff_id"], deactivated_by=admin_ctx, conn=db_conn)
 
-    _fake_admin_client.auth.admin.sign_out.assert_called_once_with(
-        str(target["auth_user_id"]), scope="global"
+    _fake_admin_client.auth.admin.update_user_by_id.assert_called_once_with(
+        str(target["auth_user_id"]), {"ban_duration": "876000h"}
     )
+
+
+@pytest.mark.asyncio
+async def test_deactivate_staff_succeeds_even_if_session_revoke_fails(db_conn, _fake_admin_client):
+    """세션 무효화(ban)는 부가 방어다 — Supabase admin API가 실패해도 중지(is_active=false) 자체는
+    성공해야 한다(막다른 길·거짓 실패 방지). 예전 버그: 무효화 호출이 500나면 is_active는 이미
+    커밋됐는데 관리자에겐 "잠시 후 다시" 에러만 떠 '중지됐는지' 알 수 없었다."""
+    _fake_admin_client.auth.admin.update_user_by_id.side_effect = RuntimeError("gotrue down")
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")
+
+    # 예외를 밖으로 던지지 않는다.
+    await staff_service.deactivate_staff(target["staff_id"], deactivated_by=admin_ctx, conn=db_conn)
+
+    row = await db_conn.fetchrow("select is_active from staff where id = $1", target["staff_id"])
+    assert row["is_active"] is False
 
 
 @pytest.mark.asyncio
@@ -151,6 +293,68 @@ async def test_deactivate_staff_allows_admin_when_another_admin_remains(db_conn)
 
 
 @pytest.mark.asyncio
+async def test_delete_staff_rejects_self(db_conn):
+    """[STAFF-DELETE-01] 본인 계정은 삭제할 수 없다(가드 먼저 — admin API도 안 부른다)."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    with pytest.raises(AppError) as exc_info:
+        await staff_service.delete_staff(admin_ctx.id, requested_by=admin_ctx, conn=db_conn)
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_delete_staff_rejects_accepted(db_conn, _fake_admin_client):
+    """[STAFF-DELETE-01·STAFF-ACTIVATED-01] 이미 수락한(비밀번호 설정 완료=activated_at 있음) 직원은
+    삭제하지 않는다 — 중지를 쓴다. 참조 기록이 깨질 수 있어 미수락만 삭제한다.
+    ⚠️ 판정은 staff.activated_at으로 한다 — auth.last_sign_in_at은 링크 클릭만으로 채워져 못 쓴다(00094)."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")
+    await db_conn.execute(
+        "update staff set activated_at = now() where id = $1", target["staff_id"]
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
+    assert exc_info.value.status_code == 409
+    row = await db_conn.fetchrow("select id from staff where id = $1", target["staff_id"])
+    assert row is not None  # 삭제 안 됨
+    _fake_admin_client.auth.admin.delete_user.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_staff_rejects_link_clicked_but_not_activated(db_conn, _fake_admin_client):
+    """[STAFF-ACTIVATED-01] 회귀: 초대 링크를 클릭만 하고(auth에 last_sign_in_at 채워짐) 비밀번호는
+    안 만든 계정도 activated_at이 null이면 미수락이라 삭제된다. 예전엔 last_sign_in_at 때문에
+    "수락됨"으로 오분류돼 삭제가 막혔다."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")
+    # 링크 클릭으로 auth엔 로그인 시각이 있으나 activated_at은 여전히 null(비번 미설정).
+    _fake_admin_client.auth.admin.get_user_by_id.return_value.user.last_sign_in_at = "2026-08-01T09:00:00+09:00"
+
+    await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
+
+    row = await db_conn.fetchrow("select id from staff where id = $1", target["staff_id"])
+    assert row is None  # activated_at null → 미수락 → 삭제됨
+
+
+@pytest.mark.asyncio
+async def test_delete_staff_removes_pending(db_conn, _fake_admin_client):
+    """[STAFF-DELETE-01] 미수락(activated_at null) + 딸린 데이터 없음이면 staff 행을 지우고
+    auth 사용자도 지운다(같은 이메일 재초대 가능)."""
+    admin_seed = await seed_staff(db_conn, role="admin")
+    admin_ctx = _to_context(admin_seed, "admin")
+    target = await seed_staff(db_conn, role="receptionist")  # activated_at 기본 null = 미수락
+
+    await staff_service.delete_staff(target["staff_id"], requested_by=admin_ctx, conn=db_conn)
+
+    row = await db_conn.fetchrow("select id from staff where id = $1", target["staff_id"])
+    assert row is None
+    _fake_admin_client.auth.admin.delete_user.assert_called_once_with(str(target["auth_user_id"]))
+
+
+@pytest.mark.asyncio
 async def test_list_staff_returns_all_roles(db_conn):
     """[정합성 검토 R3-04] 관리자 화면의 직원 목록 — 활성/비활성 모두 포함한다."""
     admin_seed = await seed_staff(db_conn, role="admin")
@@ -168,34 +372,103 @@ async def test_list_staff_returns_all_roles(db_conn):
 
 
 @pytest.mark.asyncio
-async def test_resend_invite_calls_invite_user_by_email_again(db_conn):
-    """[정합성 검토 R3-04] 초대 이메일을 못 받은 직원에게 관리자가 재발송할 수 있어야 한다."""
-    admin_seed = await seed_staff(db_conn, role="admin")
-    admin_ctx = _to_context(admin_seed, "admin")
-    target_seed = await seed_staff(db_conn, role="receptionist")
-    target_email = await db_conn.fetchval(
-        "select email from auth.users where id = $1", target_seed["auth_user_id"]
-    )
+async def test_resend_invite_returns_recovery_link_and_sends_email(_fake_resend_client):
+    """[STAFF-ROW-01·STAFF-REINVITE-LINK-01·하이브리드] 재초대는 복구(비밀번호 설정) 링크를 만들어
+    돌려주면서(관리자가 직접 전달 가능) 메일도 자동 발송한다(도메인 인증 후, 2026-09-07).
 
-    fake_user = MagicMock()
-    fake_user.user.email = target_email
-    fake_admin_client = MagicMock()
-    fake_admin_client.auth.admin.get_user_by_id.return_value = fake_user
+    generate_link(type=recovery)로 링크를 뽑아 그 링크를 담은 메일을 백엔드가 직접 보낸다. 링크는
+    같은 '비밀번호 설정' 화면(/reset-password/new, 복구·초대 공용)으로 간다(계정 유무와 무관).
+    welcome 표식이 없으면(기본) 재설정 메일이다."""
+    admin = MagicMock()
+    admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
+    action_link = "https://staff.example/reset-password/new?token=recov&type=recovery"
+    admin.auth.admin.generate_link.return_value.properties.action_link = action_link
+    conn = _FakeConn(auth_user_id=uuid4())
 
-    with patch("app.services.staff_service.get_admin_client", return_value=fake_admin_client):
-        await staff_service.resend_invite(target_seed["staff_id"], requested_by=admin_ctx, conn=db_conn)
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        result = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
 
-    fake_admin_client.auth.admin.get_user_by_id.assert_called_once_with(str(target_seed["auth_user_id"]))
-    fake_admin_client.auth.admin.invite_user_by_email.assert_called_once_with(target_email)
+    # 관리자에게 돌려줄 링크 + 메일 자동 발송(하이브리드).
+    assert result.link == action_link
+    assert result.email_sent is True
+    admin.auth.admin.generate_link.assert_called_once_with({"type": "recovery", "email": "r@test.local"})
+    # welcome 없음 → 재설정 메일을 그 링크로 보낸다.
+    _fake_resend_client.send.assert_called_once()
+    sent = _fake_resend_client.send.call_args.kwargs
+    assert sent["to"] == "r@test.local"
+    assert sent["subject"] == "[가온병원] 비밀번호 재설정"
+    assert action_link in sent["html"]
+    # 즉시발송 API(reset_password_for_email·invite_user_by_email·도메인 500)는 여전히 안 쓴다.
+    admin.auth.reset_password_for_email.assert_not_called()
+    admin.auth.admin.invite_user_by_email.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_resend_invite_missing_staff_raises(db_conn):
-    admin_seed = await seed_staff(db_conn, role="admin")
-    admin_ctx = _to_context(admin_seed, "admin")
+async def test_resend_invite_passes_redirect_to():
+    """재초대(=비번설정 링크)도 redirect_to를 넘겨 링크가 그 직원웹으로 돌아온다."""
+    admin = MagicMock()
+    admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
+    admin.auth.admin.generate_link.return_value.properties.action_link = "https://x/link"
+    conn = _FakeConn(auth_user_id=uuid4())
+    origin = "https://gaonhospital-staff.vercel.app"
 
-    with pytest.raises(AppError):
-        await staff_service.resend_invite(uuid4(), requested_by=admin_ctx, conn=db_conn)
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        await staff_service.resend_invite(
+            uuid4(), requested_by=_admin_ctx(), redirect_to=origin, conn=conn
+        )
+
+    admin.auth.admin.generate_link.assert_called_once_with(
+        {"type": "recovery", "email": "r@test.local", "options": {"redirect_to": origin}}
+    )
+
+
+@pytest.mark.asyncio
+async def test_resend_invite_succeeds_for_already_existing_account():
+    """버그 재현·회귀 가드: 초대만 받고 아직 수락 안 한(=계정은 이미 있는) 직원에게 재초대해도
+    성공해야 한다. 옛 코드는 invite_user_by_email이 email_exists(422)로 막혀 409 '이미 수락한
+    계정' 이라는 엉뚱한 안내를 줬다. 새 코드는 초대를 다시 부르지 않고 복구 링크를 만든다."""
+    admin = MagicMock()
+    admin.auth.admin.get_user_by_id.return_value.user.email = "invited@test.local"
+    admin.auth.admin.generate_link.return_value.properties.action_link = "https://x/link"
+    # 옛 경로(초대 다시)였다면 이 오류로 막혔을 것이다 — 새 경로는 이걸 아예 부르지 않는다.
+    admin.auth.admin.invite_user_by_email.side_effect = _FakeAuthError(
+        "User already registered", 422, "email_exists"
+    )
+    conn = _FakeConn(auth_user_id=uuid4())
+
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        result = await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+
+    assert result.link
+    admin.auth.admin.generate_link.assert_called_once()
+    admin.auth.admin.invite_user_by_email.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_resend_invite_rate_limit_gives_clear_message():
+    """[STAFF-REINVITE-LINK-01] 링크 생성이 호출 한도(429)에 걸리면 밋밋한 500이 아니라
+    '잠시 후 다시' 안내로 바꿔 던진다(막다른 침묵 금지)."""
+    admin = MagicMock()
+    admin.auth.admin.get_user_by_id.return_value.user.email = "r@test.local"
+    admin.auth.admin.generate_link.side_effect = _FakeAuthError(
+        "rate limited", 429, "over_email_send_rate_limit"
+    )
+    conn = _FakeConn(auth_user_id=uuid4())
+
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError) as exc:
+            await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
+
+    assert exc.value.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_resend_invite_missing_staff_raises():
+    admin = MagicMock()
+    conn = _FakeConn(auth_user_id=None)  # staff 조회 결과 없음 → 404
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError):
+            await staff_service.resend_invite(uuid4(), requested_by=_admin_ctx(), conn=conn)
 
 
 async def _seed_committed_staff(conn, role: str) -> dict:
@@ -240,10 +513,172 @@ async def test_concurrent_deactivation_keeps_one_active_admin(db_pool):
     failures = [r for r in results if isinstance(r, AppError)]
     assert len(successes) == 1
     assert len(failures) == 1
-    assert failures[0].status_code == 409
+    # 거부된 쪽의 상태코드는 레이스 타이밍에 따라 둘 중 하나다 — 둘 다 안전한 거부다:
+    #  · 409: 먼저 잠금을 잡은 트랜잭션이 「마지막 남은 관리자」 가드에 걸림(활성 관리자 <= 1).
+    #  · 404: 진 쪽 행위자(deactivated_by)가 그 찰나에 상대 트랜잭션으로 먼저 비활성화돼,
+    #        `acquire_as`의 RLS(`is_active_staff()`) 게이트에 자기 커넥션이 걸려 대상 staff 행을
+    #        아예 못 봄. 어느 경우든 두 번째 중지는 거부되고 아래 불변식(활성 관리자 정확히 1명)은
+    #        지켜진다. 에러코드 하나로 못박으면 이 정당한 레이스에서 CI가 플래키해진다.
+    assert failures[0].status_code in (404, 409)
 
     async with db_pool.acquire() as check_conn:
         active_admin_count = await check_conn.fetchval(
             "select count(*) from staff where role = 'admin' and is_active"
         )
     assert active_admin_count == 1
+
+
+@pytest.mark.asyncio
+async def test_activate_self_sets_activated_at_once(db_pool):
+    """[STAFF-ACTIVATED-01] 초대 수락자가 최초 비밀번호 설정을 마치고 activate_self를 부르면
+    activated_at이 한 번 채워지고(미수락→수락), 재호출·이미 수락자에겐 무동작(멱등)이다."""
+    async with db_pool.acquire() as setup_conn:
+        target = await _seed_committed_staff(setup_conn, role="receptionist")
+    ctx = _to_context(target, "receptionist")
+
+    async with db_pool.acquire() as c:
+        assert await c.fetchval("select activated_at from staff where id = $1", target["staff_id"]) is None
+
+    # 최초 수락 — null → now()
+    await staff_service.activate_self(ctx)
+    async with db_pool.acquire() as c:
+        first = await c.fetchval("select activated_at from staff where id = $1", target["staff_id"])
+    assert first is not None
+
+    # 멱등 — 다시 불러도 처음 시각을 덮어쓰지 않는다.
+    await staff_service.activate_self(ctx)
+    async with db_pool.acquire() as c:
+        second = await c.fetchval("select activated_at from staff where id = $1", target["staff_id"])
+    assert second == first
+
+
+# ── 초대 이메일 실패 UX (STAFF-INVITE-06~09) ──────────────────────────────
+# 막다른 500 대신 원인별 안내를 주고, 고아 계정(auth엔 있으나 staff 행 없음)은 자동으로
+# 잇는다. 실제 DB를 건드리지 않도록(공용 시드 보호) SQL 문자열로 분기하는 최소 conn을 쓴다.
+
+
+class _FakeAuthError(Exception):
+    """Supabase AuthApiError를 흉내낸다 — .status/.code/.message를 갖는다."""
+
+    def __init__(self, message: str, status: int, code: str):
+        super().__init__(message)
+        self.message = message
+        self.status = status
+        self.code = code
+
+
+class _FakeConn:
+    def __init__(self, *, staff_exists: bool = False, new_staff_id=None, auth_user_id=None):
+        self._staff_exists = staff_exists
+        self._new_staff_id = new_staff_id
+        self._auth_user_id = auth_user_id
+        self.inserted = False
+
+    async def fetchrow(self, sql, *args):
+        s = " ".join(sql.lower().split())
+        if "select auth_user_id, name from staff where id" in s:
+            if self._auth_user_id is None:
+                return None
+            return {"auth_user_id": self._auth_user_id, "name": "테스트직원"}
+        return None
+
+    async def fetchval(self, sql, *args):
+        s = " ".join(sql.lower().split())
+        if "select auth_user_id from staff where id" in s:
+            return self._auth_user_id
+        if "from staff where auth_user_id" in s:
+            return 1 if self._staff_exists else None
+        if "generate_series" in s:  # _NEXT_COLOR_SQL (의사 색 배정)
+            return 3
+        if "insert into staff" in s:
+            self.inserted = True
+            return self._new_staff_id
+        return None
+
+
+def _admin_ctx() -> StaffContext:
+    return StaffContext(id=uuid4(), auth_user_id=uuid4(), role="admin", department_id=None)
+
+
+@pytest.mark.asyncio
+async def test_invite_rate_limit_gives_clear_message_not_500():
+    """[STAFF-INVITE-06] 발송 한도(429)는 막다른 500이 아니라 사람이 읽는 안내를 준다."""
+    admin = MagicMock()
+    admin.auth.admin.generate_link.side_effect = _FakeAuthError(
+        "email rate limit exceeded", 429, "over_email_send_rate_limit"
+    )
+    conn = _FakeConn(new_staff_id=uuid4())
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError) as ei:
+            await staff_service.invite_staff(
+                email="x@test.local", name="김", role="receptionist",
+                department_id=None, invited_by=_admin_ctx(), conn=conn,
+            )
+    assert ei.value.status_code == 429
+    assert "제한" in ei.value.message
+    assert not conn.inserted
+
+
+@pytest.mark.asyncio
+async def test_invite_already_registered_staff_tells_admin():
+    """[STAFF-INVITE-07] 이미 staff 행이 있는 이메일이면 '이미 등록된 직원' 안내(구제 아님)."""
+    existing = MagicMock()
+    existing.id = str(uuid4())
+    existing.email = "dup@test.local"
+    admin = MagicMock()
+    admin.auth.admin.generate_link.side_effect = _FakeAuthError(
+        "User already registered", 422, "email_exists"
+    )
+    admin.auth.admin.list_users.return_value = [existing]
+    conn = _FakeConn(staff_exists=True, new_staff_id=uuid4())
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(AppError) as ei:
+            await staff_service.invite_staff(
+                email="dup@test.local", name="김", role="receptionist",
+                department_id=None, invited_by=_admin_ctx(), conn=conn,
+            )
+    assert ei.value.status_code == 409
+    assert "이미 등록된 직원" in ei.value.message
+    assert not conn.inserted
+
+
+@pytest.mark.asyncio
+async def test_invite_orphan_account_is_relinked_and_reissued():
+    """[STAFF-INVITE-08] auth엔 있으나 staff 행이 없는 고아 계정 → 이어붙이고 복구 링크를 새로 만들어 준다."""
+    orphan = MagicMock()
+    orphan.id = str(uuid4())
+    orphan.email = "orphan@test.local"
+    recovery_resp = MagicMock()
+    recovery_resp.properties.action_link = "https://staff.example/reset-password/new?token=recover"
+    admin = MagicMock()
+    admin.auth.admin.generate_link.side_effect = [
+        _FakeAuthError("User already registered", 422, "email_exists"),  # 첫 초대(invite) — 기존 계정이라 막힘
+        recovery_resp,  # 구제 후 복구(recovery) 링크 생성 성공
+    ]
+    admin.auth.admin.list_users.return_value = [orphan]
+    new_id = uuid4()
+    conn = _FakeConn(staff_exists=False, new_staff_id=new_id)
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        result = await staff_service.invite_staff(
+            email="orphan@test.local", name="김접수", role="receptionist",
+            department_id=None, invited_by=_admin_ctx(), conn=conn,
+        )
+    assert result.staff_id == new_id
+    assert result.invite_link == "https://staff.example/reset-password/new?token=recover"
+    assert conn.inserted
+    assert admin.auth.admin.generate_link.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_invite_unknown_error_still_bubbles_up():
+    """[STAFF-INVITE-09] 분류 안 되는 오류는 삼키지 않고 위로 던져 로그·추적이 남게 한다."""
+    admin = MagicMock()
+    admin.auth.admin.generate_link.side_effect = RuntimeError("network down")
+    conn = _FakeConn(new_staff_id=uuid4())
+    with patch("app.services.staff_service.get_admin_client", return_value=admin):
+        with pytest.raises(RuntimeError):
+            await staff_service.invite_staff(
+                email="x@test.local", name="김", role="receptionist",
+                department_id=None, invited_by=_admin_ctx(), conn=conn,
+            )
+    assert not conn.inserted

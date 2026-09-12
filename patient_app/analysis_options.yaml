@@ -1,0 +1,5 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - lib/core/tokens.dart # 생성물(design-tokens/build.mjs) — 편집·검사 대상 아님

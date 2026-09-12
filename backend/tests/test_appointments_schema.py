@@ -29,6 +29,70 @@ async def test_slot_unique_per_doctor_date_time(db_conn):
         )
 
 
+# [정합성 검토 브리프B/APPT-RACE] book_slot()의 조건부 UPDATE는 '정상 서비스 경로'만 막는다.
+# 그 함수를 거치지 않는 직접 INSERT(향후 환자앱/챗봇 경로 포함)로 같은 slot_id에 활성 예약을
+# 여러 건 만들 수 있었다 — 슬롯을 실제로 점유하는 '살아있는' 예약은 DB가 한 건만 허용해야 한다.
+async def _insert_appointment(conn, *, slot_id, patient_id, dept_id, doctor_id, created_by, status="예약확정"):
+    return await conn.fetchval(
+        """
+        insert into appointments
+            (slot_id, account_patient_id, for_patient_id, department_id, doctor_id, status, source, created_by)
+        values ($1, $2, $2, $3, $4, $5, 'staff', $6)
+        returning id
+        """,
+        slot_id, patient_id, dept_id, doctor_id, status, created_by,
+    )
+
+
+@pytest.mark.asyncio
+async def test_active_appointment_unique_per_slot(db_conn):
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, '2026-08-01', '09:00') returning id",
+        doctor["staff_id"],
+    )
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+
+    await _insert_appointment(
+        db_conn, slot_id=slot_id, patient_id=patient_id, dept_id=dept_id,
+        doctor_id=doctor["staff_id"], created_by=receptionist["staff_id"],
+    )
+    # 같은 slot_id에 두 번째 활성 예약을 직접 밀어넣으면 부분 유니크 인덱스가 막는다.
+    with pytest.raises(Exception):
+        await _insert_appointment(
+            db_conn, slot_id=slot_id, patient_id=patient_id, dept_id=dept_id,
+            doctor_id=doctor["staff_id"], created_by=receptionist["staff_id"],
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancelled_appointment_frees_slot_for_rebook(db_conn):
+    """취소류(환자취소/병원취소/예약부도)는 슬롯을 놓아준 상태이므로 유니크에서 제외 —
+    취소 뒤 같은 slot에 다시 예약할 수 있어야 한다(부분 유니크의 '부분')."""
+    dept_id, patient_id = await _seed_department_and_patient(db_conn)
+    receptionist = await seed_staff(db_conn, role="receptionist")
+    doctor = await seed_staff(db_conn, role="doctor", department_id=dept_id)
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time) values ($1, '2026-08-01', '09:00') returning id",
+        doctor["staff_id"],
+    )
+    await set_session_auth(db_conn, receptionist["auth_user_id"])
+
+    first = await _insert_appointment(
+        db_conn, slot_id=slot_id, patient_id=patient_id, dept_id=dept_id,
+        doctor_id=doctor["staff_id"], created_by=receptionist["staff_id"],
+    )
+    await db_conn.execute("update appointments set status = '병원취소' where id = $1", first)
+
+    second = await _insert_appointment(
+        db_conn, slot_id=slot_id, patient_id=patient_id, dept_id=dept_id,
+        doctor_id=doctor["staff_id"], created_by=receptionist["staff_id"],
+    )
+    assert second is not None
+
+
 @pytest.mark.asyncio
 async def test_receptionist_can_create_appointment(db_conn):
     admin = await seed_staff(db_conn, role="admin")

@@ -1,0 +1,169 @@
+"""[TODAY-*][QUEUE-*][DOCTOR-*][PTDET-*][ROLE-*] 조회 전용 라우터 — 대시보드·대기·환자 이력.
+
+⚠️ 코디 배선 필요: main.py에 `app.include_router(dashboard.router)` 등록해야 노출된다.
+   이 태스크는 main.py를 손대지 않는다(공용 파일).
+
+역할 경계는 화면이 아니라 여기서도 막는다 — 화면만 막으면 API가 우회로가 된다.
+"""
+from datetime import date
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from app.core.security import StaffContext, require_role
+from app.services import dashboard_service, patient_history_service
+
+router = APIRouter(tags=["dashboard"])
+
+_STAFF = ("receptionist", "admin")
+_STAFF_OR_DOCTOR = ("receptionist", "admin", "doctor")
+
+
+class NoteIn(BaseModel):
+    content: str
+
+
+# ── 대시보드 · 대기 목록 ──────────────────────────────────────────────────
+
+@router.get("/today/summary")
+async def today_summary(staff: StaffContext = Depends(require_role(*_STAFF))) -> dict:
+    return await dashboard_service.get_today_summary(staff)
+
+
+@router.get("/calendar")
+async def calendar(
+    from_: date = Query(alias="from"),
+    to: date = Query(alias="to"),
+    doctor_ids: list[UUID] | None = Query(default=None),
+    staff: StaffContext = Depends(require_role(*_STAFF)),
+) -> dict:
+    """[CAL-SLOT-*][SCHED-EXC-12] 캘린더가 그릴 것(막대·빗금·⚠)을 한 번에.
+
+    빗금(점심·휴진)은 resolve_day 하나로만 판정한다 — 화면이 자기 계산을 갖지 않는다.
+    """
+    return await dashboard_service.get_calendar(staff, from_=from_, to=to, doctor_ids=doctor_ids)
+
+
+@router.get("/calendar/doctors")
+async def calendar_doctors(staff: StaffContext = Depends(require_role(*_STAFF))) -> list[dict]:
+    """[CAL-COLOR-10] 필터와 무관한 전체 활성 의사 카탈로그 — 의사 칩(선택기)·색 팔레트의 기준.
+
+    격자 열은 /calendar가 doctor_ids로 걸러 주지만, 칩을 그 목록에서 만들면 한 명 고르는 순간
+    나머지가 사라져 다중선택이 막힌다(L11). 칩은 늘 이 전체 목록에서 온다.
+    """
+    return await dashboard_service.get_calendar_doctor_catalog(staff)
+
+
+@router.get("/queue")
+async def queue(
+    tab: str = "waiting",
+    doctor_id: UUID | None = None,
+    staff: StaffContext = Depends(require_role(*_STAFF)),
+) -> dict:
+    result = await dashboard_service.get_queue(staff, doctor_id=doctor_id, tab=tab)
+    return {"rows": result.rows, "tab_counts": result.tab_counts}
+
+
+# ── 의사 콘솔 ─────────────────────────────────────────────────────────────
+
+@router.get("/doctors/{doctor_id}/queue")
+async def doctor_queue(
+    doctor_id: UUID,
+    date_: date | None = Query(default=None, alias="date"),
+    staff: StaffContext = Depends(require_role("doctor", "admin")),
+) -> dict:
+    result = await dashboard_service.get_doctor_queue(staff, target_date=date_)
+    return {"rows": result.rows, "mode": result.mode}
+
+
+@router.get("/doctors/{doctor_id}/next-available")
+async def doctor_next_available(
+    doctor_id: UUID,
+    staff: StaffContext = Depends(require_role("doctor", "admin")),
+) -> dict:
+    return {"next_available": await dashboard_service.get_next_available(staff)}
+
+
+@router.get("/doctors/console/patients/{patient_id}/history")
+async def doctor_console_history(
+    patient_id: UUID,
+    exclude_appointment_id: UUID | None = Query(default=None),
+    staff: StaffContext = Depends(require_role("doctor", "admin")),
+) -> dict:
+    # [DOCTOR-HISTORY-01] 콘솔 선택 환자의 완료 과거기록(현재 예약 제외·최신순). care-continuity RLS가 범위를 지킨다.
+    rows = await dashboard_service.get_console_history(
+        patient_id, staff, exclude_appointment_id=exclude_appointment_id,
+    )
+    return {"rows": rows}
+
+
+# ── 환자 하위 이력 ────────────────────────────────────────────────────────
+
+@router.get("/patients/{patient_id}/visits")
+async def patient_visits(
+    patient_id: UUID,
+    cursor: str | None = None,
+    staff: StaffContext = Depends(require_role(*_STAFF_OR_DOCTOR)),
+) -> dict:
+    page = await patient_history_service.get_visits(patient_id, staff, cursor=cursor)
+    return {"rows": page.rows, "next_cursor": page.next_cursor, "has_more": page.has_more}
+
+
+@router.get("/patients/{patient_id}/medical-records")
+async def patient_medical_records(
+    patient_id: UUID,
+    cursor: str | None = None,
+    staff: StaffContext = Depends(require_role(*_STAFF_OR_DOCTOR)),
+) -> dict:
+    page = await patient_history_service.get_medical_records(patient_id, staff, cursor=cursor)
+    return {"rows": page.rows, "next_cursor": page.next_cursor, "has_more": page.has_more}
+
+
+@router.get("/patients/{patient_id}/family")
+async def patient_family(
+    patient_id: UUID,
+    staff: StaffContext = Depends(require_role(*_STAFF)),
+) -> list[dict]:
+    return await patient_history_service.get_family(patient_id, staff)
+
+
+@router.post("/patients/{patient_id}/family/{member_id}/verify-eligibility")
+async def verify_family_eligibility(
+    patient_id: UUID,
+    member_id: UUID,
+    staff: StaffContext = Depends(require_role(*_STAFF)),
+) -> dict:
+    result = await patient_history_service.verify_family_eligibility(patient_id, member_id, staff)
+    return {"allowed": result.allowed, "message": result.message}
+
+
+# ── 내부 메모 (PTDET-NOTE-01·04) — POST·GET 둘뿐 ─────────────────────────
+
+@router.get("/patients/{patient_id}/notes")
+async def list_notes(
+    patient_id: UUID,
+    staff: StaffContext = Depends(require_role(*_STAFF_OR_DOCTOR)),
+) -> list[dict]:
+    return await patient_history_service.get_notes(patient_id, staff)
+
+
+@router.post("/patients/{patient_id}/notes")
+async def create_note(
+    patient_id: UUID,
+    body: NoteIn,
+    staff: StaffContext = Depends(require_role(*_STAFF_OR_DOCTOR)),
+) -> dict:
+    note_id = await patient_history_service.add_note(patient_id, body.content, staff)
+    return {"id": note_id}
+
+
+# ── 사전 문진 ─────────────────────────────────────────────────────────────
+
+@router.get("/appointments/{appointment_id}/questionnaire")
+async def appointment_questionnaire(
+    appointment_id: UUID,
+    staff: StaffContext = Depends(require_role("doctor", "admin")),
+) -> dict:
+    result = await patient_history_service.get_questionnaire(appointment_id, staff)
+    return {"questionnaire": result}

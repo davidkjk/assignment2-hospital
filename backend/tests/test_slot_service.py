@@ -42,6 +42,20 @@ async def test_book_slot_fails_when_already_booked(db_conn):
 
 
 @pytest.mark.asyncio
+async def test_release_slot_returns_to_empty(db_conn):
+    admin = await seed_staff(db_conn, role="admin")
+    doctor = await seed_staff(db_conn, role="doctor")
+    staff = _to_context(admin, "admin")
+    slot_id = await db_conn.fetchval(
+        "insert into appointment_slots (doctor_id, slot_date, start_time, status) values ($1, '2026-08-01', '09:00', '예약됨') returning id",
+        doctor["staff_id"],
+    )
+    await slot_service.release_slot(slot_id, staff, conn=db_conn)
+    status = await db_conn.fetchval("select status from appointment_slots where id = $1", slot_id)
+    assert status == "빈시간"
+
+
+@pytest.mark.asyncio
 async def test_only_one_concurrent_booking_succeeds(db_pool):
     async with db_pool.acquire() as setup_conn:
         admin_auth_id = await _seed_admin(setup_conn)

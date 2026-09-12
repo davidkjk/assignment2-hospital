@@ -1,0 +1,223 @@
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import type { AccessLogPatientRef } from '../../api/accessLogs'
+import { searchPatients } from '../../api/patients'
+import { PeriodPicker } from './PeriodPicker'
+
+// [ALOG-FILTER-02·03] 조회 필터 — 환자 찾기(같은 화면 검색 결과를 patient_id로 연결)·기간.
+//
+// ⭐ 이 화면이 검색 규칙을 새로 만들지 않는다(ALOG-FILTER-02) — SEARCH-*·MASK-* 원본을 그대로
+//    부른다. 결과·칩·URL 어디에도 원문 이름·전화를 넣지 않고 마스킹 식별자만 쓴다.
+// ⛔ 칩만 있고 지울 길이 없으면 막다른 길 — [필터 지우기]를 늘 함께 둔다(ALOG-FILTER-03·05).
+
+interface PatientHit {
+  patient_id: string
+  name?: string
+  masked_birth_date?: string
+  masked_phone?: string
+}
+
+interface LogFilterBarProps {
+  /** 선택된 환자 칩(patient_id + 마스킹 식별자). null이면 필터 없음. */
+  selectedPatient: AccessLogPatientRef | null
+  onSelectPatient: (p: PatientHit) => void
+  onClearPatient: () => void
+  from: string
+  to: string
+  onRangeChange: (r: { from: string; to: string }) => void
+  onApplyRange: () => void
+  rangeError?: string
+  /** 필터 없을 때 전체 건수(전체 N건). 환자 필터가 걸리면 그 환자 M건과 함께 보인다. */
+  overallTotal: number | null
+  filteredTotal: number | null
+}
+
+function identity(p: AccessLogPatientRef): string {
+  return [p.name, p.masked_birth_date, p.masked_phone].filter(Boolean).join(' · ')
+}
+
+export function LogFilterBar({
+  selectedPatient,
+  onSelectPatient,
+  onClearPatient,
+  from,
+  to,
+  onRangeChange,
+  onApplyRange,
+  rangeError,
+  overallTotal,
+  filteredTotal,
+}: LogFilterBarProps) {
+  const [q, setQ] = useState('')
+  const [hits, setHits] = useState<PatientHit[]>([])
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+
+  useEffect(() => {
+    const term = q.trim()
+    // 빈 값만 막는다 — 한국 성씨는 한 글자(김·이·박)라, 두 글자를 요구하면 흔한 이름 검색이 통째로 막힌다.
+    // 메인 환자 검색(useSearchPatients)과 같은 기준: 비어 있지 않으면 찾고, 매 타건이 아니라 손이 멈추면 찾는다(SEARCH-RUN-01·03).
+    if (term === '') {
+      setHits([])
+      return
+    }
+    clearTimeout(timer.current)
+    timer.current = setTimeout(async () => {
+      try {
+        // searchPatients는 이제 커서 페이지({rows,…})를 준다(24a 계약) — 필터 칩은 첫 페이지만 쓴다.
+        const page = await searchPatients(term)
+        setHits(page.rows as unknown as PatientHit[])
+      } catch {
+        setHits([])
+      }
+    }, 400) // SEARCH-RUN-01 — 메인 검색과 같은 0.4초 디바운스(매 타건 검색 금지, 감사 로그 폭주 방지)
+    return () => clearTimeout(timer.current)
+  }, [q])
+
+  function pick(hit: PatientHit) {
+    setQ('')
+    setHits([])
+    onSelectPatient(hit)
+  }
+
+  return (
+    <div style={styles.wrap}>
+      <div style={styles.row}>
+        {!selectedPatient ? (
+          <div style={styles.searchBox}>
+            <label style={styles.field}>
+              <span style={styles.fieldLabel}>환자 찾기</span>
+              <input
+                type="text"
+                aria-label="환자 찾기"
+                value={q}
+                placeholder="이름·전화·생년월일로 찾기"
+                onChange={(e) => setQ(e.target.value)}
+                style={styles.input}
+              />
+            </label>
+            {hits.length > 0 && (
+              <ul role="listbox" aria-label="환자 검색 결과" style={styles.results}>
+                {hits.map((h) => (
+                  <li key={h.patient_id}>
+                    <button type="button" onClick={() => pick(h)} style={styles.resultItem}>
+                      <span style={styles.resultName}>{h.name ?? '이름 미상'}</span>
+                      <span style={styles.resultSub}>
+                        {[h.masked_birth_date, h.masked_phone].filter(Boolean).join(' · ')}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div style={styles.chipRow}>
+            <span data-testid="filter-chip" style={styles.chip}>
+              환자: {identity(selectedPatient)}
+            </span>
+            <button type="button" onClick={onClearPatient} style={styles.clearBtn}>
+              필터 지우기
+            </button>
+          </div>
+        )}
+
+        <PeriodPicker
+          from={from}
+          to={to}
+          onChange={onRangeChange}
+          onApply={onApplyRange}
+          error={rangeError}
+          applyLabel="기간 조회"
+          bare
+        />
+      </div>
+
+      {selectedPatient && (
+        <p data-testid="filter-count" style={styles.count}>
+          전체 {overallTotal != null ? overallTotal.toLocaleString('en-US') : '—'}건 중 이 환자{' '}
+          {filteredTotal != null ? filteredTotal.toLocaleString('en-US') : '—'}건
+        </p>
+      )}
+    </div>
+  )
+}
+
+const styles: Record<string, CSSProperties> = {
+  wrap: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
+  // [ALOG-FILTER-02·03] 환자 찾기와 기간을 한 카드로 묶는다 — 검색이 두 군데로 흩어져 보이지 않게(사용자 지시 2026-08-29).
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    gap: 'var(--sp-3)',
+    padding: 'var(--sp-3) var(--sp-4)',
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 'var(--radius-card)',
+    boxShadow: 'var(--shadow-card)',
+  },
+  searchBox: { position: 'relative', minWidth: 240 },
+  field: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' },
+  fieldLabel: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink-muted)' },
+  input: {
+    height: 34,
+    padding: '0 var(--sp-3)',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 8,
+    background: 'var(--color-surface)',
+    color: 'var(--color-ink)',
+    fontSize: 'var(--fs-body)',
+    minWidth: 240,
+  },
+  results: {
+    listStyle: 'none',
+    position: 'absolute',
+    zIndex: 10,
+    top: 62,
+    left: 0,
+    right: 0,
+    margin: 0,
+    padding: 'var(--sp-1)',
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 8,
+    boxShadow: 'var(--shadow-card)',
+  },
+  resultItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'var(--sp-0-5)',
+    width: '100%',
+    padding: 'var(--sp-2) var(--sp-2)',
+    border: 'none',
+    borderRadius: 6,
+    background: 'none',
+    textAlign: 'left',
+    cursor: 'pointer',
+  },
+  resultName: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'], color: 'var(--color-ink)' },
+  resultSub: { fontSize: 'var(--fs-caption)', color: 'var(--color-ink-muted)' },
+  chipRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    height: 30,
+    padding: '0 var(--sp-3)',
+    borderRadius: 8,
+    background: 'var(--color-primary-wash)',
+    color: 'var(--color-primary)',
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
+  },
+  clearBtn: {
+    height: 30,
+    padding: '0 var(--sp-3)',
+    border: '1px solid var(--color-divider)',
+    borderRadius: 8,
+    background: 'var(--color-surface)',
+    color: 'var(--color-ink)',
+    fontSize: 'var(--fs-body)',
+    fontWeight: 'var(--fw-section)' as CSSProperties['fontWeight'],
+    cursor: 'pointer',
+  },
+  count: { margin: 0, fontSize: 'var(--fs-body)', color: 'var(--color-ink-muted)' },
+}

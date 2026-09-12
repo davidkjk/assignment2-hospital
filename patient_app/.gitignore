@@ -1,0 +1,28 @@
+# Flutter/Dart 빌드 산출물 — pubspec.lock은 앱이므로 커밋한다.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+.packages
+
+# 골든 테스트 실패 diff 산출물
+test/**/failures/
+
+# [배포 Task 10] 릴리즈 서명 비밀 — 실 key.properties(패치 스크립트가 android/로 복사)와 keystore는 절대 커밋 금지.
+key.properties
+*.keystore
+*.jks
+
+# 로컬 검수용 플랫폼 뼈대 — flutter create로 생성(커밋 안 함). 정본은 lib/test뿐.
+ios/
+android/
+web/
+macos/
+linux/
+windows/
+
+# flutter create 잔여물 — 플랫폼 뼈대를 커밋 안 하므로 함께 무시(IntelliJ·기본 README·플랫폼 마이그 추적).
+.idea/
+*.iml
+.metadata
+README.md
