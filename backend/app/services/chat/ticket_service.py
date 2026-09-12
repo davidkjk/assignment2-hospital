@@ -327,7 +327,7 @@ async def get_ticket_detail(auth_user_id: str, ticket_id: UUID) -> dict:
         #   프론트가 '신청자'로 라벨(contact.anonymous로 구분). 이름 미기재면 null → 배지 없음.
         "contact": {"anonymous": header["owner_type"] == "anonymous_web", "has_phone": bool(has_phone),
                     "name": (header["patient_name"] if header["owner_type"] == "patient"
-                             else (header["applicant_name"] or None))},
+                             else ((header["applicant_name"] or "").strip() or None))},
     }
 
 
