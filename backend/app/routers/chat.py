@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.errors import AppError
 from app.core.patient_security import PatientContext, get_current_patient   # 3단계 환자 인증
 from app.db.pool import get_pool
 from app.integrations.embedding_client import get_embedding_client
@@ -103,8 +104,18 @@ async def send_message(body: SendMessageRequest, request: Request,
     # 로그인 헤더가 있으면 환자 경로(RLS 소유권 검증), 없으면 익명 웹 위젯 경로(thread UUID 능력토큰).
     if request.headers.get("authorization", "").startswith("Bearer "):
         patient = await get_current_patient(request)
-        session = await ai_session_service.load_owned_session(patient, body.ai_chat_session_id, body.thread_id)
-        sender_kind = "patient"
+        try:
+            session = await ai_session_service.load_owned_session(patient, body.ai_chat_session_id, body.thread_id)
+            sender_kind = "patient"
+        except AppError as e:
+            # [G7] Bearer는 있으나 이 스레드가 아직 환자에 귀속 안 됨(익명 새 상담·귀속 전) → 익명 경로로 처리.
+            #   웹챗은 로그인 후 예약 시 스레드를 환자 소유로 귀속(attribute_session_to_patient)하는데, 로그인 직후
+            #   새 상담(익명 스레드)에서도 메모리 토큰이 남아 Bearer가 실릴 수 있다 — 그때 404로 대화가 끊기지 않게
+            #   익명 세션으로 폴백한다(스레드가 실제 익명 소유일 때만; 다른 오류는 그대로 던진다).
+            if getattr(e, "status_code", None) != 404:
+                raise
+            session = await webchat_service.load_anonymous_session(body.ai_chat_session_id, body.thread_id)
+            sender_kind = "anonymous_web"
     else:
         session = await webchat_service.load_anonymous_session(body.ai_chat_session_id, body.thread_id)
         sender_kind = "anonymous_web"

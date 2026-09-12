@@ -94,7 +94,10 @@ export function createWebchatApi(baseUrl: string, deps: WebchatApiDeps = {}): We
     },
     async sendMessage(a) {
       // 서버 응답(ack): { accepted, threadId, userMessageId, gen, routeTaken }. 봇 답은 실시간(bot_delta/done).
-      const j = await call('/chat/messages', { method: 'POST', body: JSON.stringify(a) }, null);
+      // [G7] authed=true — 로그인 후(예약 관문 ④에서 인증)엔 Bearer를 붙여 환자 경로(load_owned_session)를 탄다.
+      //   로그인 시 attribute_session_to_patient가 스레드를 환자 소유로 바꾸는데, 익명 경로(load_anonymous_session)는
+      //   owner_type='anonymous_web'만 찾아 404 → 예약 후 대화가 끊겼다. anonToken도 실어 미로그인은 그대로 익명 경로.
+      const j = await call('/chat/messages', { method: 'POST', body: JSON.stringify(a) }, loadAnonToken(), true);
       return {
         accepted: !!j.accepted,
         gen: (j.gen ?? '') as string,

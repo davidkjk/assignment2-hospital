@@ -55,6 +55,27 @@ test('[sendMessage] 인계 모드(routeTaken=staff)도 ack로 그대로 전달�
   expect(out.gen).toBe('g2');
 });
 
+test('[G7] 로그인 후 sendMessage는 Bearer를 실어 환자 경로(load_owned_session)를 타게 한다 — 귀속된 스레드에서 대화가 끊기지 않도록', async () => {
+  // 로그인+예약 시 attribute_session_to_patient가 스레드를 환자 소유로 바꾸는데, 익명 경로는 owner_type='anonymous_web'만
+  // 찾아 404 → 예약 후 대화 불가. getAccessToken이 토큰을 주면 Bearer를 붙여 patient 경로로 간다.
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ accepted: true, threadId: 't1', userMessageId: 'u1', gen: 'g1', routeTaken: null }), { status: 200 }));
+  const api = createWebchatApi('http://x', { getAccessToken: async () => 'JWT123' });
+  await api.sendMessage({ threadId: 't1', aiSessionId: 's1', content: '예약 다 됐어요, 하나 더 물어볼게요', clientMessageId: 'm1' });
+  expect((fetchMock.mock.calls[0][1]!.headers as Record<string, string>)['Authorization']).toBe('Bearer JWT123');
+});
+
+test('[G7] 미로그인 sendMessage는 Bearer 없이 익명 토큰만 실어 익명 경로를 유지한다', async () => {
+  saveAnonToken('ANON9');
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ accepted: true, threadId: 't1', userMessageId: 'u1', gen: 'g1', routeTaken: null }), { status: 200 }));
+  const api = createWebchatApi('http://x', { getAccessToken: async () => null });
+  await api.sendMessage({ threadId: 't1', aiSessionId: 's1', content: '와이파이 되나요?', clientMessageId: 'm1' });
+  const headers = fetchMock.mock.calls[0][1]!.headers as Record<string, string>;
+  expect(headers['Authorization']).toBeUndefined();
+  expect(headers['X-Anon-Token']).toBe('ANON9');
+});
+
 test('[Step1] createHandoffTicket은 인계 엔드포인트로 이름·연락처·요약을 POST한다', async () => {
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
     new Response(JSON.stringify({ ticketId: 'tk1' }), { status: 200 }));
