@@ -1,1 +1,0 @@
-/Users/kimjunkee/.claude/scripts/plan-prefix-check.py

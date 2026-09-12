@@ -5,6 +5,15 @@ HANDOFF*.md
 # 작업용 문서 — 설계 논의·검토 기록, 배포 산출물이 아니라 git 추적 제외
 CLAUDE.md
 
+# 설계·연구·조사·결정·논의 등 과정 문서 전체 — 빌드/서비스가 읽지 않는다
+#   (코드 주석의 "정본: docs/..." 참조 경로는 로컬 파일을 가리킬 뿐, 빌드/런타임 의존 아님)
+#   단 docs/manual/ 은 실제 납품 문서(README에서 링크)라 추적 유지
+docs/*
+!docs/manual/
+
+# 디자인 참조용 데모 프로토타입 — 실제 서비스가 아니며, Vercel엔 로컬에서 CLI로 직접 배포한다
+demo/
+
 # Supabase CLI 로컬 실행 시 생성되는 임시 상태 디렉토리
 supabase/.temp/
 supabase/.branches/

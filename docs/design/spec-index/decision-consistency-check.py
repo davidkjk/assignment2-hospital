@@ -1,1 +1,0 @@
-/Users/kimjunkee/.claude/scripts/decision-consistency-check.py
