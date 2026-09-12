@@ -1,0 +1,78 @@
+name: 데모 데이터 매일 리셋 (밴쿠버 08시)
+
+# 데모 시드는 상대 시각(current_date·now())을 쓴다 → 적재하는 순간이 "데모의 지금".
+# 매일 밴쿠버 오전 8시에 원격 데모 DB를 오늘 기준으로 다시 심어, 통계·당일 예약 화면이
+# 늘 신선하게 보이도록 한다. (수동 리셋을 대체)
+#
+# ⚠️ 서머타임(DST): 밴쿠버 8시 = PDT(여름) 15:00 UTC / PST(겨울) 16:00 UTC.
+#    두 시각 모두 예약하고, 첫 스텝에서 "지금이 밴쿠버 8시인지" 확인해 아닌 쪽은 건너뛴다
+#    → 크론은 UTC로만 돌지만 결과적으로 1년 내내 정확히 밴쿠버 8시에 1회 실행된다.
+#
+# 활성화(1회): 아래 GitHub Secrets를 저장소에 등록해야 실제로 돈다.
+#   DEMO_REMOTE_DATABASE_URL      원격 데모 DB 접속 문자열(세션풀러 5432, postgres 역할)
+#   DEMO_REMOTE_SUPABASE_URL      원격 프로젝트 URL (https://<ref>.supabase.co)
+#   DEMO_REMOTE_SERVICE_ROLE_KEY  원격 service_role 키
+#   DEMO_PHONE                    김바이 전화번호 E.164 (예: +8210XXXXYYYY) — 개인정보라 시크릿에만
+#   DEMO_PASSWORD                 데모 로그인 비밀번호 (검수 대본 기준 demo1234) — 미설정 시 매일 무작위라 로그인 깨짐
+#   DEMO_ALLOWED_PROJECT_REFS     데모용 허용 project ref (운영 DB 오적재 방지 안전장치)
+
+on:
+  schedule:
+    - cron: '0 15 * * *'   # 밴쿠버 08시 (PDT, 서머타임)
+    - cron: '0 16 * * *'   # 밴쿠버 08시 (PST, 표준시)
+  workflow_dispatch: {}    # 수동 실행(테스트용) — 시각 게이트 건너뜀
+
+concurrency:
+  group: demo-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 밴쿠버 08시인지 확인 (서머타임 자동 대응)
+        if: github.event_name == 'schedule'
+        run: |
+          HOUR=$(TZ=America/Vancouver date +%H)
+          echo "밴쿠버 현재 시각: ${HOUR}시"
+          if [ "$HOUR" != "08" ]; then
+            echo "밴쿠버 08시가 아니므로 이번 실행은 건너뜁니다."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: 저장소 체크아웃 (시드 파일 확보)
+        if: env.SKIP != '1'
+        uses: actions/checkout@v4
+
+      - name: psql 설치
+        if: env.SKIP != '1'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: 시크릿 등록 여부 확인
+        if: env.SKIP != '1'
+        env:
+          DB: ${{ secrets.DEMO_REMOTE_DATABASE_URL }}
+          PHONE: ${{ secrets.DEMO_PHONE }}
+          REFS: ${{ secrets.DEMO_ALLOWED_PROJECT_REFS }}
+        run: |
+          missing=0
+          [ -z "$DB" ]    && { echo "✗ DEMO_REMOTE_DATABASE_URL 미설정"; missing=1; }
+          [ -z "$PHONE" ] && { echo "✗ DEMO_PHONE 미설정"; missing=1; }
+          [ -z "$REFS" ]  && { echo "✗ DEMO_ALLOWED_PROJECT_REFS 미설정"; missing=1; }
+          if [ "$missing" = "1" ]; then
+            echo "필수 시크릿이 없어 리셋을 중단합니다. 저장소 Settings → Secrets에 등록하세요."
+            exit 1
+          fi
+
+      - name: 데모 데이터 재적재 (오늘 기준)
+        if: env.SKIP != '1'
+        env:
+          REMOTE_DATABASE_URL: ${{ secrets.DEMO_REMOTE_DATABASE_URL }}
+          REMOTE_SUPABASE_URL: ${{ secrets.DEMO_REMOTE_SUPABASE_URL }}
+          REMOTE_SERVICE_ROLE_KEY: ${{ secrets.DEMO_REMOTE_SERVICE_ROLE_KEY }}
+          DEMO_PHONE: ${{ secrets.DEMO_PHONE }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          DEMO_ALLOWED_PROJECT_REFS: ${{ secrets.DEMO_ALLOWED_PROJECT_REFS }}
+        run: bash supabase/seed-demo-remote.sh
