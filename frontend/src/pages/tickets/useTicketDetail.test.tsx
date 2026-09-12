@@ -8,7 +8,7 @@ vi.mock('./useTicketDetailRealtime', () => ({
   useTicketDetailRealtime: () => {},
 }))
 
-import { useTicketDetail } from './useTicketDetail'
+import { useTicketDetail, hasUnreadByPatient } from './useTicketDetail'
 
 const mkDetail = (over: Partial<TicketDetail> = {}): TicketDetail => ({
   id: 't1',
@@ -198,4 +198,28 @@ it('[TICKET-DETAIL-UNREAD-02] 직원이 상세를 열어 미확인 메시지를 
   })
   expect(markRead).toHaveBeenCalledWith('t1', '1')
   expect(result.current.detail?.messages[0].staffUnread).toBe(false)
+})
+
+// ── G1 안전장치: 환자 미확인 폴백 폴링(READ-POLL-01) ──────────────────────────────
+// setInterval 스파이로 "8초 폴백 인터벌을 거는가"만 검증한다(fake timer + async React는 hang 위험이라 회피).
+// 이 훅에서 8000ms setInterval은 이 효과가 유일한 출처(typing은 setTimeout).
+// [G1·READ-POLL-01] 폴백 폴링의 판단 로직을 순수 함수로 검증한다(setInterval 배선은 자명한 보일러플레이트라
+//   타이머 테스트는 jsdom+React에서 불안정 → 결정 함수만 단위 테스트, 실도달은 2인 e2e 눈확인).
+const staffUnread = { id: 'm1', sender: 'staff' as const, body: '답변', at: '09:00', patientRead: false, staffUnread: false, smsSent: false }
+const staffRead = { ...staffUnread, patientRead: true }
+
+it('[TICKET-DETAIL-READ-POLL-01] 환자가 안 읽은 직원 메시지가 있고 상담 중이면 폴백 폴링을 켠다', () => {
+  expect(hasUnreadByPatient(mkDetail({ status: 'in_progress', messages: [staffUnread] }))).toBe(true)
+})
+
+it('[TICKET-DETAIL-READ-POLL-01] 직원 메시지를 환자가 다 읽었으면 폴링하지 않는다(불필요한 부하 없음)', () => {
+  expect(hasUnreadByPatient(mkDetail({ status: 'in_progress', messages: [staffRead] }))).toBe(false)
+})
+
+it('[TICKET-DETAIL-READ-POLL-01] 종료(answered)면 미확인이 있어도 폴링하지 않는다', () => {
+  expect(hasUnreadByPatient(mkDetail({ status: 'answered', messages: [staffUnread] }))).toBe(false)
+})
+
+it('[TICKET-DETAIL-READ-POLL-01] 아직 로딩 전(detail 없음)이면 폴링하지 않는다', () => {
+  expect(hasUnreadByPatient(null)).toBe(false)
 })

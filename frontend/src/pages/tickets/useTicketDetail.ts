@@ -9,6 +9,14 @@ import { useTicketDetailRealtime, type LiveStatus } from './useTicketDetailRealt
 //    이탈·만료로 close를 부르는 타이머를 두지 않는다(STATUS-02·03은 "종료 트리거 아님"을 훅이 보장).
 
 type Phase = 'loading' | 'ready' | 'notfound'
+
+// [G1·READ-POLL-01] '환자 미확인'이 남아 있는가 = 아직 환자가 안 읽은 직원 메시지가 있고 상담이 안 끝났나.
+//   이 조건일 때만 폴백 폴링을 돈다(전부 읽힘·종료면 폴링 없음). 순수 함수로 뽑아 타이머 없이 검증한다.
+export function hasUnreadByPatient(detail: TicketDetail | null): boolean {
+  return !!detail && detail.status !== 'answered'
+    && detail.messages.some((m) => m.sender === 'staff' && !m.patientRead)
+}
+
 const STATUS_LABEL: Record<TicketStatus, string> = {
   pending: '직원 연결 중',
   in_progress: '직원 상담 중',
@@ -122,6 +130,19 @@ export function useTicketDetail(
     },
     onLiveChange,
   )
+
+  // [G1 안전장치·READ-POLL-01] '환자 미확인'(patientRead=false인 직원 메시지)이 남아 있으면 대화를 주기적으로
+  //   재조회해, 환자 읽음 실시간 신호(chat-typing 'patient_read' broadcast)를 놓쳐도 미확인이 걷히게 한다.
+  //   그 broadcast가 빠른 경로(useTypingChannel→reloadConversation)이고 이건 유실 대비 폴백이다(DB 커서가 정본).
+  //   미확인이 없거나(전부 읽힘) 종료(answered)면 폴링하지 않는다 — 불필요한 부하 0. 끊김 중엔 건너뛴다.
+  const hasPatientUnread = hasUnreadByPatient(detail)
+  useEffect(() => {
+    if (!hasPatientUnread) return
+    const id = setInterval(() => {
+      if (detailRef.current && liveRef.current === 'connected') void reloadConversation()
+    }, 8000)
+    return () => clearInterval(id)
+  }, [hasPatientUnread, reloadConversation])
 
   // TYPING-01: 타이핑 시 입력 중 신호, 유휴 3초면 해제(디바운스, 확정값).
   const setTyping = useCallback((emit: (on: boolean) => void) => {
