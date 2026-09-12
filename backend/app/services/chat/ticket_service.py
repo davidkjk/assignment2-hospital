@@ -210,7 +210,14 @@ select
   hs.bot_confirmed,
   hs.already_guided,
   hs.staff_should_check,
-  p.name as patient_name,   -- F9: 로그인 환자 인계는 계정 실명을 헤더로 보인다(익명은 null → 배지 없음)
+  p.name as patient_name,   -- F9: 로그인 환자 인계는 계정 실명을 헤더로 보인다
+  -- G3(2026-09-11, 사용자 결정): 익명 웹 상담 인계는 신청자가 폼에 직접 입력한 이름을 헤더 배지로 보인다
+  --   (~~F7: 익명은 이름 없음~~ 뒤집음 — 아래 contact.name 참조). anonymous_handoff 시스템 메시지 payload에
+  --   저장돼 있다(create_anonymous_handoff). 자기입력·미검증이라 프론트는 '신청자'로 라벨(계정 실명 '환자'와 구분).
+  (select cm.payload->>'name' from public.chat_messages cm
+     where cm.thread_id = t.thread_id and cm.sender_type = 'system'
+       and cm.payload->>'event' = 'anonymous_handoff'
+     order by cm.created_at desc limit 1) as applicant_name,
   (select cm.content from public.chat_messages cm
      where cm.thread_id = t.thread_id and cm.sender_type = 'patient'
      order by cm.created_at asc, cm.id asc limit 1) as patient_asked
@@ -315,9 +322,12 @@ async def get_ticket_detail(auth_user_id: str, ticket_id: UUID) -> dict:
         "is_mine": header["is_mine"],
         "summary": _detail_summary(header),
         "messages": [dict(m) for m in msg_rows],
-        # F9: 로그인 환자는 계정 실명을, 익명 웹은 이름 없음(null). 직원이 답변 상대를 헤더에서 바로 본다.
+        # F9+G3: 직원이 답변 상대를 헤더에서 바로 본다 — 로그인 환자는 계정 실명(patient_name),
+        #   익명 웹은 신청자가 폼에 입력한 이름(applicant_name, G3·사용자 결정 2026-09-11). 자기입력·미검증이라
+        #   프론트가 '신청자'로 라벨(contact.anonymous로 구분). 이름 미기재면 null → 배지 없음.
         "contact": {"anonymous": header["owner_type"] == "anonymous_web", "has_phone": bool(has_phone),
-                    "name": header["patient_name"] if header["owner_type"] == "patient" else None},
+                    "name": (header["patient_name"] if header["owner_type"] == "patient"
+                             else (header["applicant_name"] or None))},
     }
 
 

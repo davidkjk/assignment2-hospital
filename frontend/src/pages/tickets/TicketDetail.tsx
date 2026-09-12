@@ -68,10 +68,12 @@ export function TicketDetail(props: {
   }
 
   const detail = d.detail!
-  // F7+F9: 신원 배지는 로그인 환자의 계정 실명만 보인다(익명 웹 상담은 이름 없음 → 배지 없음).
-  //   ~~옛: 익명 인계 시스템 메시지에서 '상담 신청자: {이름}'을 파싱해 배지로~~ ✅ 해소(2026-09-11, 사용자 결정) —
-  //   자기 입력 익명 이름 배지는 없애고, 등록 환자는 서버가 준 실명(contact.name)을 헤더에 띄운다.
+  // G3(2026-09-11, 사용자 결정): 신원 배지는 로그인 환자의 계정 실명(contact.anonymous=false)과
+  //   익명 웹 상담 신청자의 자기입력 이름(anonymous=true) 둘 다 보인다. ~~F7: 익명은 이름 없음~~ 뒤집음 —
+  //   앱(로그인)만 뜨고 웹챗 입력 이름이 안 떠 직원이 상대를 못 알아본 문제. 자기입력은 미검증이라 라벨을
+  //   '신청자'로(계정 실명은 '환자') 구분한다. 서버가 이름을 안 주면(미기재) null → 배지 없음.
   const requesterName = detail.contact.name
+  const requesterRole = detail.contact.anonymous ? '신청자' : '환자'
   return (
     <article aria-label="티켓 상세" className="flex h-full flex-col">
       {/* 상태·연결 표시 */}
@@ -83,15 +85,16 @@ export function TicketDetail(props: {
         >
           {d.statusLabel}
         </span>
-        {/* TICKET-DETAIL-APPLICANT-01(개정): 로그인 환자 인계는 계정 실명을 헤더로 끌어올려 스크롤 없이 누구인지 보이게 한다.
-            상태 pill(primary=상태)과 구분되게 조용한 중립 pill + 사람 아이콘(=신원). 익명 웹 상담은 이름을 두지 않는다. */}
+        {/* TICKET-DETAIL-APPLICANT-01(G3 개정): 답변 상대를 헤더로 끌어올려 스크롤 없이 누구인지 보이게 한다.
+            상태 pill(primary=상태)과 구분되게 조용한 중립 pill + 사람 아이콘(=신원). 로그인=계정 실명('환자'),
+            익명 웹=신청자 자기입력 이름('신청자', 미검증). */}
         {requesterName && (
           <span
-            aria-label="환자"
+            aria-label={requesterRole}
             className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground"
           >
             <UserRound className="h-3 w-3 text-muted-foreground" />
-            <span className="text-muted-foreground">환자</span>
+            <span className="text-muted-foreground">{requesterRole}</span>
             {requesterName}
           </span>
         )}

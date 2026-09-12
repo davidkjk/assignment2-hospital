@@ -73,13 +73,14 @@ it('[TICKET-DETAIL-PATIENT-TYPING-01] 환자가 입력 중이면 상단에 "환�
   }
 })
 
-it('[TICKET-DETAIL-APPLICANT-01 개정 · F7] 익명 웹 상담은 자기입력 이름 배지를 두지 않고, 대화에도 이름 없는 연결 안내만 남긴다', async () => {
-  // ~~옛: 익명 '상담 신청자: {이름}'을 헤더 배지로~~ ✅ 해소(2026-09-11, 사용자 결정) — 익명 이름 배지 제거.
+it('[TICKET-DETAIL-APPLICANT-01 개정 · G3] 익명 웹 상담은 신청자 자기입력 이름을 헤더 배지(신청자)로 보이되, 대화 본문엔 이름 없는 연결 안내만 남긴다', async () => {
+  // ⚠️ F7 뒤집음(~~"익명은 이름 배지 없음"~~): 사용자 결정 2026-09-11 — 앱(로그인)만 이름이 뜨고 웹챗 입력
+  //   이름이 안 떠 직원이 상대를 못 알아본 문제. 익명 자기입력은 미검증이라 '환자'가 아니라 '신청자'로 라벨.
   const anon: StaffTicketDetailApi = {
     ...fakeApi(),
     getDetail: vi.fn(async () => ({
       ...detail,
-      contact: { anonymous: true, hasPhone: true, name: null },   // 익명은 이름 없음
+      contact: { anonymous: true, hasPhone: true, name: '박익명' },   // 신청자가 폼에 입력한 이름
       messages: [
         { id: 's1', sender: 'system', body: '상담이 직원에게 연결되었습니다', at: '09:00', patientRead: false, staffUnread: false, smsSent: false },
         { id: 'm1', sender: 'patient', body: '예약 취소하고 싶어요', at: '09:01', patientRead: false, staffUnread: false, smsSent: false },
@@ -87,9 +88,10 @@ it('[TICKET-DETAIL-APPLICANT-01 개정 · F7] 익명 웹 상담은 자기입력 
     })),
   } as unknown as StaffTicketDetailApi
   render(<TicketDetail api={anon} ticket={ticket} onLoserBackToList={vi.fn()} />)
-  await waitFor(() => expect(screen.getByLabelText('대화')).toBeInTheDocument())
-  expect(screen.queryByLabelText('환자')).not.toBeInTheDocument()          // 익명 → 신원 배지 없음
-  expect(screen.queryByText(/상담 신청자/)).not.toBeInTheDocument()         // 대화에도 '상담 신청자: 이름' 없음
+  const badge = await screen.findByLabelText('신청자')
+  expect(badge).toHaveTextContent('박익명')                                // 익명 → '신청자' 배지에 자기입력 이름
+  expect(screen.queryByLabelText('환자')).not.toBeInTheDocument()          // '환자'(계정 실명) 라벨은 아님
+  expect(screen.queryByText(/상담 신청자/)).not.toBeInTheDocument()         // 대화 본문엔 여전히 '상담 신청자: 이름' 없음
 })
 
 it('[TICKET-DETAIL-APPLICANT-02 개정 · F9] 로그인 환자 인계는 계정 실명을 헤더 배지로 보인다', async () => {
