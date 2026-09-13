@@ -18,11 +18,16 @@
 --   * postgres(superuser)로 실행 → RLS 우회. 상태이력 트리거는 auth.uid()가 없어 조용히 스킵된다(설계).
 --     booking_code는 트리거가 자동 발급. 상태 전이 트리거는 UPDATE에만 걸려 여기 직접 INSERT는 자유.
 --   * 고정 UUID를 쓰고 맨 앞에서 데모 환자 데이터를 지운 뒤 다시 넣는다 → 몇 번 돌려도 같은 결과(멱등).
---   * 슬롯 시각(current_date/now())은 psql 세션 시간대를 탄다 → **PGTZ=Asia/Seoul**로 넣어야
---     "오늘"이 서버가 보는 오늘과 맞는다.
+--   * 슬롯 시각(current_date/now())은 psql 세션 시간대를 탄다. ~~PGTZ=Asia/Seoul로 넣어야
+--     맞는다~~ ✅ **해소(2026-09-13)** — 원격 풀러(Supavisor)가 PGTZ(startup)를 버려 UTC로
+--     돌던 것을 아래 런타임 `set time zone 'Asia/Seoul'`로 못박아 해결
+--     ([[reference-supavisor-drops-timezone-startup-param]]). 149행의 current_date가 이걸 탄다.
 -- ============================================================================
 
 \set ON_ERROR_STOP on
+
+-- 세션 시간대를 KST로 고정(위 ⚠️ 참고 — 원격 풀러가 PGTZ를 버리므로 런타임 SET이 정본).
+set time zone 'Asia/Seoul';
 
 -- demo_auth_uid 변수가 없으면 즉시 실패(계정 연결이 이 시드의 핵심이라 빈 채로 진행하면 안 된다).
 \if :{?demo_auth_uid}
