@@ -41,6 +41,11 @@ fi
 echo "▶ Firebase 푸시 설정 심기 …"
 python3 tool/patch_firebase.py
 
+# ③.6 iOS 최소 지원 버전 15.0 강제(ITMS-90068 — App Store는 2027 봄부터 15.0+만 허용).
+#     ios/는 재생성되므로 flutter create가 박는 낮은 기본값을 매번 15.0으로 덮는다(멱등).
+echo "▶ iOS 최소 버전(15.0) 심기 …"
+python3 tool/patch_ios_min_os.py
+
 # ④ 런처 아이콘 생성(android/ios 리소스).
 echo "▶ 런처 아이콘 생성 …"
 flutter pub get
