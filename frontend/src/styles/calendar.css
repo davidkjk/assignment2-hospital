@@ -302,11 +302,25 @@
   padding: 0 12px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-divider);
+  /* [CAL-NAME-03] 긴 진료과명이 고정 높이 헤더를 넘쳐 격자를 밀지 않도록 클립. */
+  overflow: hidden;
 }
 .cal-column-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--color-ink);
+  /* [CAL-NAME-03] 톱니(기어)와 나란히 두고, 텍스트가 줄어들 수 있게(min-width:0) 만든다. */
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* [CAL-NAME-03] 이름·진료과·분 텍스트는 한 줄로만 — 넘치면 …로 자른다(깃발은 밖에 있어 안 잘림). */
+.cal-column-name-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 /* [STAFF-PEND-01] 격자 열 머리의 「아직 안 들어옴」 깃발 — 칩(.cal-chip-pending)과 같은 경고색. */
 .cal-pending-flag {

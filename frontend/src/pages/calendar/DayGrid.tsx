@@ -237,8 +237,12 @@ function DoctorColumn({
           </span>
         ) : (
           <span className="cal-column-name">
-            {doctor.name}
-            {doctor.departmentName ? ` ${doctor.departmentName}` : ''} {doctor.slotMinutes}분
+            {/* [CAL-NAME-03] 긴 진료과명(예: 이비인후과)이 헤더를 2줄로 밀지 않도록 텍스트만
+                한 줄+말줄임 처리하고, 깃발은 그 밖에 둬서 잘리지 않게 한다. */}
+            <span className="cal-column-name-text">
+              {doctor.name}
+              {doctor.departmentName ? ` ${doctor.departmentName}` : ''} {doctor.slotMinutes}분
+            </span>
             {/* [STAFF-PEND-01] 아직 안 들어온(초대 미수락) 의사 — 칩과 같은 경고색 깃발.
                 고르기·진료시간 배정은 그대로(BOOK-DOC-10). */}
             {doctor.pending && (
