@@ -125,12 +125,15 @@ describe('Queue', () => {
     expect(within(r).getByRole('button', { name: '되돌리기' })).toBeInTheDocument()
   })
 
-  test('QUEUE-BTN-02: 도착 줄은 [진료 대기]·[되돌리기]·[환자 상세]', async () => {
+  test('QUEUE-BTN-02/QUEUE-DETAIL-01: 도착 줄은 [진료 대기]·[되돌리기]를 두고, 이름 클릭으로 환자 상세를 연다', async () => {
     renderQueue('/queue?tab=arrived')
     const r = await screen.findByTestId('queue-row-ar1')
     expect(within(r).getByRole('button', { name: '진료 대기' })).toBeInTheDocument()
     expect(within(r).getByRole('button', { name: '되돌리기' })).toBeInTheDocument()
-    expect(within(r).getByRole('button', { name: '환자 상세' })).toBeInTheDocument()
+    // [환자 상세] 버튼은 없앴다 — 이름·생년월일 클릭으로 대신한다(QUEUE-DETAIL-01).
+    expect(within(r).queryByRole('button', { name: '환자 상세' })).toBeNull()
+    await userEvent.click(within(r).getByRole('button', { name: '홍*동' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/pat-ar1')
   })
 
   test('UNDO-BTN-01: [되돌리기]는 한 칸 되돌리기 엔드포인트를 부른다', async () => {

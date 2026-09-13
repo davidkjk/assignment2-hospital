@@ -421,9 +421,17 @@ function RowNode({
         ) : null}
       </div>
 
-      {/* 이름 (+ 응급/당일방문 표식) */}
-      <div className="flex w-40 shrink-0 items-center gap-1.5">
-        <span className="font-semibold">{row.name}</span>
+      {/* 이름 (+ 응급/당일방문 표식) — [QUEUE-DETAIL-01] 이름·생년월일을 눌러 환자 상세로(옛 [환자 상세]
+          버튼 갈음, 2026-09-13). [C] 열 폭을 w-28로 좁혀 이름↔생년월일 간격을 줄였다(옛 w-40). */}
+      <div className="flex w-28 shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => navigate(`/patients/${row.patient_id}`)}
+          title="환자 상세 보기"
+          className="cursor-pointer font-semibold hover:underline focus-visible:underline"
+        >
+          {row.name}
+        </button>
         {urgent && (
           <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-600">
             <AlertTriangle className="h-3 w-3" />응급
@@ -435,7 +443,8 @@ function RowNode({
         )}
       </div>
 
-      {/* 생년월일(마스킹) / 번호 펼침(MASK-VIEW-01) — 데모 폭(w-32). w-40이면 배지+버튼과 겹쳐 행이 넘쳤다(L70). */}
+      {/* 생년월일(마스킹) / 번호 펼침(MASK-VIEW-01) — 데모 폭(w-32). w-40이면 배지+버튼과 겹쳐 행이 넘쳤다(L70).
+          [QUEUE-DETAIL-01] 평소엔 생년월일을 눌러 환자 상세로. 번호 보기로 전화가 펼쳐진 동안은 전화+복사 용도라 클릭 없음. */}
       <div className="w-32 shrink-0 text-sm text-muted-foreground">
         {phone ? (
           <span className="font-medium text-foreground">
@@ -449,7 +458,14 @@ function RowNode({
             </button>
           </span>
         ) : (
-          row.masked_birth_date
+          <button
+            type="button"
+            onClick={() => navigate(`/patients/${row.patient_id}`)}
+            title="환자 상세 보기"
+            className="cursor-pointer hover:underline focus-visible:underline"
+          >
+            {row.masked_birth_date}
+          </button>
         )}
       </div>
 
@@ -496,7 +512,8 @@ function RowActions({
   onChanged: () => void
   setUrgFor: (v: { row: QueueRow; turningOn: boolean }) => void
 }) {
-  const detail = <Btn key="d" variant="detail" onClick={() => navigate(`/patients/${row.patient_id}`)}>환자 상세</Btn>
+  // [QUEUE-DETAIL-01] 환자 상세는 이름·생년월일 클릭으로 연다 — 줄의 [환자 상세] 버튼을 없앴다(2026-09-13).
+  //   ~~옛: variant='detail' [환자 상세] 버튼(사용자 지시 2026-08-30)~~ → 텍스트 클릭으로 통일.
   // 전체 탭은 줄마다 그 줄의 상태를 따른다(QUEUE-BTN-08).
   const effective = tab === 'total' ? tabForStatus(row.status) : tab
 
@@ -504,32 +521,26 @@ function RowActions({
     case 'not_arrived':
       return <ArrivalActions row={row} reveal={reveal} onChanged={onChanged} />
     case 'arrived':
-      // QUEUE-BTN-02(개정 2026-08-24): [진료 대기] + [되돌리기](UNDO-*) + [환자 상세]. 앞당겨 넣을 때만 [진료 대기].
-      return <><ToWaitingButton key="w" row={row} onChanged={onChanged} /><UndoButton key="u" row={row} onChanged={onChanged} />{detail}</>
+      // QUEUE-BTN-02(개정 2026-08-24·2026-09-13): [진료 대기] + [되돌리기](UNDO-*). 상세는 이름 클릭(QUEUE-DETAIL-01).
+      return <><ToWaitingButton key="w" row={row} onChanged={onChanged} /><UndoButton key="u" row={row} onChanged={onChanged} /></>
     case 'waiting':
-      // QUEUE-BTN-03(전역 UNDO-BTN-01·SCOPE-01): 진료중 전이 버튼은 없다(의사 자동). [응급/주의] + [되돌리기] + [환자 상세].
-      // ⚠️ QUEUE-BTN-03 본문은 「응급/주의+환자 상세만」이라 되돌리기를 안 적었으나, 전역 되돌리기 규칙(진료대기=되돌릴 수 있는 4상태)이
-      //    우선한다(문서 낡음 — 사용자 확인 대기). 순서변경은 드래그.
+      // QUEUE-BTN-03(전역 UNDO-BTN-01·SCOPE-01): 진료중 전이 버튼은 없다(의사 자동). [응급/주의] + [되돌리기]. 상세는 이름 클릭.
       return (
         <>
           <Btn key="e" variant="outline" onClick={() => setUrgFor({ row, turningOn: !row.is_urgent_flag })}>
             {row.is_urgent_flag ? '표시 끄기' : '응급/주의 표시'}
           </Btn>
           <UndoButton key="u" row={row} onChanged={onChanged} />
-          {detail}
         </>
       )
     case 'cancelled_or_noshow':
-      // QUEUE-BTN-05: [재예약](캘린더) + [환자 상세].
+      // QUEUE-BTN-05: [재예약](캘린더). 상세는 이름 클릭(QUEUE-DETAIL-01).
       return (
-        <>
-          <Btn key="r" variant="outline" onClick={() => navigate(`/calendar?appointment=${row.appointment_id}`)}>재예약</Btn>
-          {detail}
-        </>
+        <Btn key="r" variant="outline" onClick={() => navigate(`/calendar?appointment=${row.appointment_id}`)}>재예약</Btn>
       )
     default:
-      // QUEUE-BTN-04: 진료 중·진료 완료 — [환자 상세]만.
-      return detail
+      // QUEUE-BTN-04: 진료 중·진료 완료 — 줄 버튼 없음(상세는 이름 클릭, QUEUE-DETAIL-01).
+      return null
   }
 }
 

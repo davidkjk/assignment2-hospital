@@ -115,13 +115,17 @@ describe('오늘의 현황 /today', () => {
     expect(within(a2).getByText('당일')).toBeVisible()
   })
 
-  test('[TODAY-BTN-01] 장기 대기 행은 [진료 시작] 없이 [대기 목록에서 보기]·[환자 상세]만 둔다', async () => {
+  test('[TODAY-BTN-01/TODAY-DETAIL-01] 장기 대기 행은 [대기 목록에서 보기]만 두고, 이름 클릭으로 환자 상세를 연다', async () => {
     summaryOk(FULL)
+    const user = userEvent.setup()
     renderToday()
     const row = await screen.findByTestId('longwait-row-a1')
     expect(within(row).getByRole('button', { name: '대기 목록에서 보기' })).toBeVisible()
-    expect(within(row).getByRole('button', { name: '환자 상세' })).toBeVisible()
+    // [환자 상세] 버튼은 없앴다 — 이름·생년월일 클릭으로 대신한다(TODAY-DETAIL-01).
+    expect(within(row).queryByRole('button', { name: '환자 상세' })).toBeNull()
     expect(within(row).queryByRole('button', { name: '진료 시작' })).toBeNull()
+    await user.click(within(row).getByRole('button', { name: '김*동' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/patients/p1')
   })
 
   test('[TODAY-RESCHED-23] 취소·변경 상담을 「확인 필요한 예약」 카드의 행으로 합치고 별도 수치 카드를 안 만든다', async () => {

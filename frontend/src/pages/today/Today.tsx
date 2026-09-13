@@ -140,12 +140,9 @@ function Btn({
 function RowButtons({ kind, row, navigate, onReveal, onCloseStale }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onReveal: () => void; onCloseStale: () => void }) {
   switch (kind) {
     case 'longwait':
-      // TODAY-BTN-01: [진료 시작]을 두지 않는다 — 순서 조정과 상세 보기만.
+      // TODAY-BTN-01: [진료 시작]을 두지 않는다 — 순서 조정만. 상세는 이름·생년월일 클릭(TODAY-DETAIL-01).
       return (
-        <>
-          <Btn variant="outline" onClick={() => navigate('/queue?tab=waiting')}>대기 목록에서 보기</Btn>
-          <Btn variant="detail" onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
-        </>
+        <Btn variant="outline" onClick={() => navigate('/queue?tab=waiting')}>대기 목록에서 보기</Btn>
       )
     case 'noshow':
       // TODAY-BTN-02: [진료 대기]·[도착] 두 갈래(/queue 미도착 줄과 같다). TODAY-BTN-05: [번호 보기]는 인라인(MASK-VIEW-01).
@@ -158,11 +155,9 @@ function RowButtons({ kind, row, navigate, onReveal, onCloseStale }: { kind: Car
       )
     case 'yday':
       // TODAY-YDAY-04: 사람이 닫는 창구 — [마감 처리] → 확인창에서 완료/취소를 고른다.
+      //   상세는 이름·생년월일 클릭(TODAY-DETAIL-01, 옛 [환자 상세] 버튼 갈음).
       return (
-        <>
-          <Btn variant="primary" onClick={onCloseStale}>마감 처리</Btn>
-          <Btn variant="detail" onClick={() => navigate(`/patients/${row.patientId}`)}>환자 상세</Btn>
-        </>
+        <Btn variant="primary" onClick={onCloseStale}>마감 처리</Btn>
       )
     case 'needs':
       // TODAY-RESCHED-24/25: 버튼 하나 — 해당 예약이 선택된 캘린더로(옮기기·취소 도장은 여기서 안 찍는다).
@@ -184,6 +179,8 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
       /* 조회 실패는 조용히 — 행 전체를 무너뜨리지 않는다 */
     }
   }
+  // [TODAY-DETAIL-01] 환자 상세로 — 별도 [환자 상세] 버튼 대신 이름·생년월일을 눌러 연다(2026-09-13).
+  const goDetail = () => navigate(`/patients/${row.patientId}`)
 
   return (
     <div data-testid={`${kind}-row-${row.appointmentId}`} className="flex items-center gap-4 px-4 py-2.5">
@@ -202,9 +199,30 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
           이름은 그대로 두고 뒤 정보만 「…」로 자른다(넉넉한 폭에선 …가 나타나지 않음). */}
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-x-2">
-          <span className="shrink-0 whitespace-nowrap font-bold">{row.name}</span>
+          {/* [TODAY-DETAIL-01] 이름·생년월일을 누르면 환자 상세로(호버 밑줄). 옛 variant='detail' [환자 상세]
+              버튼을 갈음한다(2026-09-13, ~~사용자 지시 2026-08-30의 전용 버튼~~ → 텍스트 클릭으로 통일).
+              번호 보기로 전화가 펼쳐진 동안은 그 자리가 전화+복사이므로 이름만 누를 수 있다. */}
+          <button
+            type="button"
+            onClick={goDetail}
+            title="환자 상세 보기"
+            className="shrink-0 cursor-pointer whitespace-nowrap font-bold hover:underline focus-visible:underline"
+          >
+            {row.name}
+          </button>
           <span className="min-w-0 truncate text-sm text-muted-foreground">
-            {phone ? <span className="font-medium text-foreground">{phone}</span> : row.maskedBirth}
+            {phone ? (
+              <span className="font-medium text-foreground">{phone}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={goDetail}
+                title="환자 상세 보기"
+                className="cursor-pointer hover:underline focus-visible:underline"
+              >
+                {row.maskedBirth}
+              </button>
+            )}
             {(row.dept || row.doctor) && (
               <>
                 {' · '}
@@ -220,8 +238,9 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
         </div>
       </div>
 
-      {/* 사유(주의색) */}
-      {row.reason && <div className="hidden w-40 shrink-0 text-sm font-medium text-amber-600 sm:block">{row.reason}</div>}
+      {/* 사유(주의색) — [TODAY-YDAY-05] 오른쪽 정렬로 버튼에 붙여 상태글자↔버튼 간격을 좁힌다
+          (전일 미완료 [마감 처리]와의 간격을 「확인 필요한 예약」 수준으로, 2026-09-13). */}
+      {row.reason && <div className="hidden w-40 shrink-0 text-right text-sm font-medium text-amber-600 sm:block">{row.reason}</div>}
 
       {/* 버튼 */}
       <div className="flex shrink-0 items-center gap-2">
