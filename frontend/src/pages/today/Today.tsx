@@ -156,13 +156,24 @@ function Btn({
   )
 }
 
-function RowButtons({ kind, row, navigate, onReveal, onCloseStale, onConfirm }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onReveal: () => void; onCloseStale: () => void; onConfirm: () => void }) {
+function RowButtons({ kind, row, navigate, onReveal, onCloseStale, onConfirm, onMore }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onReveal: () => void; onCloseStale: () => void; onConfirm: () => void; onMore: () => void }) {
   switch (kind) {
     case 'pending':
       // TODAY-CONFIRM-01: 주 동작은 [예약 확정] 하나만 또렷이. 거절(병원취소)은 되돌릴 수 없어
-      //   ⋯ 메뉴 안에 숨긴다(다음 슬라이스). 상세는 이름·생년월일 클릭(TODAY-DETAIL-01).
+      //   ⋯ 메뉴 안에 숨긴다(눈에 덜 띄게, 빨간 확인은 창 안에서만). 상세는 이름·생년월일 클릭.
       return (
-        <Btn variant="primary" onClick={onConfirm}>예약 확정</Btn>
+        <>
+          <Btn variant="primary" onClick={onConfirm}>예약 확정</Btn>
+          <button
+            type="button"
+            aria-label="더 보기"
+            aria-haspopup="menu"
+            onClick={onMore}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-lg leading-none text-muted-foreground hover:bg-muted"
+          >
+            ⋯
+          </button>
+        </>
       )
     case 'longwait':
       // TODAY-BTN-01: [진료 시작]을 두지 않는다 — 순서 조정만. 상세는 이름·생년월일 클릭(TODAY-DETAIL-01).
@@ -196,6 +207,8 @@ function Row({ kind, row, navigate, onConfirm }: { kind: CardKind; row: UiRow; n
   // 번호 보기 = 그 줄에서 원문이 펼쳐지고 [복사]가 함께 뜬다(MASK-VIEW-01). revealContact가 열람 기록을 남긴다(MASK-VIEW-02).
   const [phone, setPhone] = useState<string | null>(null)
   const [closing, setClosing] = useState(false) // [TODAY-YDAY-04] 마감 확인창
+  const [menuOpen, setMenuOpen] = useState(false) // [TODAY-CONFIRM-03] ⋯ 메뉴(확정 대기)
+  const [rejecting, setRejecting] = useState(false) // [TODAY-CONFIRM-03] 거절 확인창
   const reveal = async () => {
     try {
       const c = await revealContact(row.patientId)
@@ -268,11 +281,28 @@ function Row({ kind, row, navigate, onConfirm }: { kind: CardKind; row: UiRow; n
       {row.reason && <div className="hidden w-40 shrink-0 text-right text-sm font-medium text-amber-600 sm:block">{row.reason}</div>}
 
       {/* 버튼 */}
-      <div className="flex shrink-0 items-center gap-2">
-        <RowButtons kind={kind} row={row} navigate={navigate} onReveal={reveal} onCloseStale={() => setClosing(true)} onConfirm={() => onConfirm?.(row)} />
+      <div className="relative flex shrink-0 items-center gap-2">
+        <RowButtons kind={kind} row={row} navigate={navigate} onReveal={reveal} onCloseStale={() => setClosing(true)} onConfirm={() => onConfirm?.(row)} onMore={() => setMenuOpen((v) => !v)} />
+        {/* [TODAY-CONFIRM-03] ⋯ 메뉴 — 거절 하나만. 되돌릴 수 없어 목록 밖(메뉴) → 확인창으로 두 단계. */}
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setMenuOpen(false)} />
+            <div role="menu" className="absolute right-0 top-9 z-20 min-w-36 rounded-lg border border-border bg-card py-1 shadow-[var(--shadow-card)]">
+              <button
+                role="menuitem"
+                type="button"
+                onClick={() => { setMenuOpen(false); setRejecting(true) }}
+                className="block w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/5"
+              >
+                예약 거절
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {closing && <CloseStaleDialog row={row} onClose={() => setClosing(false)} />}
+      {rejecting && <RejectDialog row={row} onClose={() => setRejecting(false)} />}
     </div>
   )
 }
@@ -330,6 +360,70 @@ function CloseStaleDialog({ row, onClose }: { row: UiRow; onClose: () => void })
             className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50"
           >
             닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** [TODAY-CONFIRM-03] 확정 대기 예약 거절 = '예약신청'→'병원취소' 전이. 되돌릴 수 없고 환자에게
+ *  취소 안내가 나가므로 확인창 안에서만(빨간 확인). 사유는 남길 수 있게 하되 강제하지 않는다. */
+function RejectDialog({ row, onClose }: { row: UiRow; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const mutation = useMutation({
+    mutationFn: () =>
+      transitionStatus(row.appointmentId, {
+        new_status: '병원취소',
+        reason: reason.trim() || null,
+        expected_updated_at: row.updatedAt ?? '',
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['today-summary'] })
+      onClose()
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : '거절하지 못했습니다. 잠시 후 다시 시도하세요.'),
+  })
+  const busy = mutation.isPending
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/20 px-4" role="dialog" aria-modal="true" aria-label="예약 거절">
+      <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
+        <h2 className="text-lg font-bold">이 예약을 거절할까요?</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{row.name}</span>
+          {(row.dept || row.doctor) && <> · {row.dept} {row.doctor}</>}
+        </p>
+        <p className="mt-3 text-sm">
+          거절하면 병원 취소로 기록되고 <span className="text-muted-foreground">환자에게 취소 안내가 갑니다. 되돌릴 수 없습니다.</span>
+        </p>
+        <label htmlFor="reject-reason" className="mt-3 block text-sm font-medium">거절 사유</label>
+        <textarea
+          id="reject-reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={2}
+          placeholder="예: 의사 휴진으로 이 시간 진료 불가"
+          className="mt-1 w-full rounded-lg border border-border bg-card p-2 text-sm"
+        />
+        {error && <p role="alert" className="mt-2 text-sm font-medium text-destructive">{error}</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onClose}
+            className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          >
+            그대로 두기
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => mutation.mutate()}
+            className="rounded-lg border border-destructive/40 bg-card px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:opacity-50"
+          >
+            예약 거절
           </button>
         </div>
       </div>

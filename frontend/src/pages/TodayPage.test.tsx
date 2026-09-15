@@ -354,6 +354,25 @@ describe('오늘의 현황 /today', () => {
     expect(within(card).getByText('9/17')).toBeInTheDocument()
   })
 
+  test('[TODAY-CONFIRM-03] ⋯ 메뉴의 예약 거절은 사유와 함께 병원취소 전이를 보낸다', async () => {
+    summaryOk(PENDING)
+    let sent: Record<string, unknown> | null = null
+    server.use(http.patch('*/appointments/ac1/status', async ({ request }) => {
+      sent = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ status: 'updated' })
+    }))
+    renderToday()
+    await screen.findByRole('heading', { name: /확정 대기 예약/ })
+    // 거절은 되돌릴 수 없어 ⋯ 뒤에 숨어 있다(목록엔 [예약 확정]만 또렷이).
+    await userEvent.click(screen.getAllByRole('button', { name: '더 보기' })[0])
+    await userEvent.click(screen.getByRole('menuitem', { name: '예약 거절' }))
+    await userEvent.type(screen.getByLabelText('거절 사유'), '의사 휴진')
+    await userEvent.click(screen.getByRole('button', { name: '예약 거절' })) // 빨간 확인은 창 안에서만
+    await waitFor(() => expect(sent).not.toBeNull())
+    expect(sent).toMatchObject({ new_status: '병원취소', reason: '의사 휴진' })
+    expect(sent!.expected_updated_at).toBe('2026-09-15T08:00:00+09:00')
+  })
+
   test('[TODAY-LAY-05] 요약 레일이 카드 영역보다 DOM에서 먼저(왼쪽) 온다', async () => {
     summaryOk(FULL)
     renderToday()
