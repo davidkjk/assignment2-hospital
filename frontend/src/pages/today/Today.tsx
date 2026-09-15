@@ -11,7 +11,7 @@ import {
   type PatientRow,
 } from '../../api/dashboard'
 import { revealContact } from '../../api/patients'
-import { closeStaleAppointment } from '../../api/appointments'
+import { closeStaleAppointment, transitionStatus } from '../../api/appointments'
 import { UserRound } from '../../components/icons'
 
 // 오늘의 현황 (/today) — TODAY-*.
@@ -26,7 +26,7 @@ import { UserRound } from '../../components/icons'
 const REDUCED_MOTION =
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-type CardKind = 'longwait' | 'noshow' | 'yday' | 'needs'
+type CardKind = 'longwait' | 'noshow' | 'yday' | 'needs' | 'pending'
 
 /** 데모 카드/행이 소비하는 통합 행 모양 — 실 4종 행을 여기로 모은다. */
 interface UiRow {
@@ -41,7 +41,8 @@ interface UiRow {
   railPast: boolean // 지난/미래 예약이면 옅은 회색(TODAY-ROW-02)
   reason?: string
   slotLabel?: string // 마감 확인창에 보이는 「날짜·시각」(전일 미완료만)
-  updatedAt?: string // [TODAY-YDAY-04] 마감 처리 낙관적 잠금 열쇠(전일 미완료만)
+  updatedAt?: string // [TODAY-YDAY-04][TODAY-CONFIRM-01] 낙관적 잠금 열쇠(전일 미완료 마감·확정 대기 확정)
+  slotDate?: string // [TODAY-CONFIRM-01] 확정 대기 날짜 묶음용 원본 날짜(yyyy-mm-dd)
 }
 interface UiCard {
   kind: CardKind
@@ -107,7 +108,25 @@ function buildCards(data: TodaySummary): UiCard[] {
       title: '확인 필요한 예약',
       rows: data.needs_attention.map((r) => ({ ...baseRow(r), rail: '상담', railPast: false, reason: r.reason })),
     })
+  // [TODAY-CONFIRM-01] 확정 대기 예약(자동확정 OFF에서 들어온 '예약신청'). 로비에서 실제로 기다리는
+  //   환자(장기 대기·미접수)보다 덜 급하므로 맨 끝에 둔다. 미래 날짜라 날짜별 묶음으로 보인다(가까운 순).
+  //   행은 시각만(날짜는 묶음 머리글이 진다), 확정 시 낙관적 잠금 열쇠로 updated_at을 싣는다.
+  if (data.pending_confirmations.length)
+    cards.push({
+      kind: 'pending',
+      title: '확정 대기 예약',
+      rows: data.pending_confirmations.map((r) => ({
+        ...baseRow(r), rail: hhmm(r.slot_time), railPast: false, slotDate: r.slot_date, updatedAt: r.updated_at,
+      })),
+    })
   return cards
+}
+
+// [TODAY-CONFIRM-02] 확정 대기 날짜 묶음 머리글의 요일(현지 파싱으로 UTC 경계 어긋남 방지).
+const _WD = ['일', '월', '화', '수', '목', '금', '토']
+function weekdayKo(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return _WD[new Date(y, m - 1, d).getDay()]
 }
 
 /** 작은 버튼 — 데모 공통 스타일(딥틸 꽉 참=그 자리 완결 / 흰 테두리=다른 화면).
@@ -137,8 +156,14 @@ function Btn({
   )
 }
 
-function RowButtons({ kind, row, navigate, onReveal, onCloseStale }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onReveal: () => void; onCloseStale: () => void }) {
+function RowButtons({ kind, row, navigate, onReveal, onCloseStale, onConfirm }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onReveal: () => void; onCloseStale: () => void; onConfirm: () => void }) {
   switch (kind) {
+    case 'pending':
+      // TODAY-CONFIRM-01: 주 동작은 [예약 확정] 하나만 또렷이. 거절(병원취소)은 되돌릴 수 없어
+      //   ⋯ 메뉴 안에 숨긴다(다음 슬라이스). 상세는 이름·생년월일 클릭(TODAY-DETAIL-01).
+      return (
+        <Btn variant="primary" onClick={onConfirm}>예약 확정</Btn>
+      )
     case 'longwait':
       // TODAY-BTN-01: [진료 시작]을 두지 않는다 — 순서 조정만. 상세는 이름·생년월일 클릭(TODAY-DETAIL-01).
       return (
@@ -167,7 +192,7 @@ function RowButtons({ kind, row, navigate, onReveal, onCloseStale }: { kind: Car
   }
 }
 
-function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: NavigateFunction }) {
+function Row({ kind, row, navigate, onConfirm }: { kind: CardKind; row: UiRow; navigate: NavigateFunction; onConfirm?: (row: UiRow) => void }) {
   // 번호 보기 = 그 줄에서 원문이 펼쳐지고 [복사]가 함께 뜬다(MASK-VIEW-01). revealContact가 열람 기록을 남긴다(MASK-VIEW-02).
   const [phone, setPhone] = useState<string | null>(null)
   const [closing, setClosing] = useState(false) // [TODAY-YDAY-04] 마감 확인창
@@ -244,7 +269,7 @@ function Row({ kind, row, navigate }: { kind: CardKind; row: UiRow; navigate: Na
 
       {/* 버튼 */}
       <div className="flex shrink-0 items-center gap-2">
-        <RowButtons kind={kind} row={row} navigate={navigate} onReveal={reveal} onCloseStale={() => setClosing(true)} />
+        <RowButtons kind={kind} row={row} navigate={navigate} onReveal={reveal} onCloseStale={() => setClosing(true)} onConfirm={() => onConfirm?.(row)} />
       </div>
 
       {closing && <CloseStaleDialog row={row} onClose={() => setClosing(false)} />}
@@ -312,23 +337,57 @@ function CloseStaleDialog({ row, onClose }: { row: UiRow; onClose: () => void })
   )
 }
 
-function ProblemCardView({ card, navigate }: { card: UiCard; navigate: NavigateFunction }) {
+/** [TODAY-CONFIRM-02] 확정 대기는 날짜별 머리글로 묶어 전부 펼친다(가까운 순으로 이미 정렬돼 옴).
+ *  머리글은 날짜가 바뀔 때만 낀다 — 같은 날 여러 건이면 한 번만 보인다. */
+function groupByDate(rows: UiRow[]): { date: string; rows: UiRow[] }[] {
+  const groups: { date: string; rows: UiRow[] }[] = []
+  for (const r of rows) {
+    const date = r.slotDate ?? ''
+    const last = groups[groups.length - 1]
+    if (last && last.date === date) last.rows.push(r)
+    else groups.push({ date, rows: [r] })
+  }
+  return groups
+}
+
+function ProblemCardView({ card, navigate, onConfirm }: { card: UiCard; navigate: NavigateFunction; onConfirm?: (row: UiRow) => void }) {
+  const isPending = card.kind === 'pending'
   return (
     <section id={`today-card-${card.kind}`} className="scroll-mt-4 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
-      {/* TODAY-CARD-01: 좌측 주의색 바 + 건수(배경 안 칠함). */}
+      {/* TODAY-CARD-01: 좌측 주의색 바 + 건수(배경 안 칠함). 확정 대기는 청록 바(신규·처리형). */}
       <div data-testid={`card-header-${card.kind}`} className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
-        <span className="h-4 w-1 rounded-full bg-amber-500" />
+        <span className={`h-4 w-1 rounded-full ${isPending ? 'bg-primary' : 'bg-amber-500'}`} />
         <h3 className="text-sm font-semibold">{card.title}</h3>
         {/* 전일 미완료가 전부 같은 날이면 그 날짜를 머리에 한 번만(TODAY-YDAY-03). 행마다 반복하지 않는다.
             ⭐ 어느 날 건지 한눈에 들어오도록 배지로(사용자 지시 2026-08-30 — 더 잘 보이게). */}
         {card.headerNote && <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold tabular-nums text-foreground">{card.headerNote}</span>}
-        <span className="text-sm font-bold tabular-nums text-amber-600">{card.rows.length}</span>
+        <span className={`text-sm font-bold tabular-nums ${isPending ? 'text-primary' : 'text-amber-600'}`}>{card.rows.length}</span>
       </div>
-      <div className="divide-y divide-border/60">
-        {card.rows.map((r) => (
-          <Row key={r.appointmentId} kind={card.kind} row={r} navigate={navigate} />
-        ))}
-      </div>
+      {isPending ? (
+        // [TODAY-CONFIRM-02] 날짜별 묶음 머리글 + 그 날의 행들(전부 펼침).
+        <div>
+          {groupByDate(card.rows).map((g) => (
+            <div key={g.date}>
+              <div className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-1.5">
+                <span className="text-sm font-bold tabular-nums">{md(g.date)}</span>
+                <span className="text-xs text-muted-foreground">({weekdayKo(g.date)})</span>
+                <span className="text-xs text-muted-foreground">· {g.rows.length}건</span>
+              </div>
+              <div className="divide-y divide-border/60">
+                {g.rows.map((r) => (
+                  <Row key={r.appointmentId} kind={card.kind} row={r} navigate={navigate} onConfirm={onConfirm} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="divide-y divide-border/60">
+          {card.rows.map((r) => (
+            <Row key={r.appointmentId} kind={card.kind} row={r} navigate={navigate} />
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -345,9 +404,19 @@ const TILE_SPECS: { key: keyof TodaySummary['tiles']; label: string; tab: string
 
 function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateFunction }) {
   const cards = buildCards(data)
-  const total = data.long_wait.length + data.not_arrived.length + data.yesterday_unfinished.length + data.needs_attention.length
+  const total = data.long_wait.length + data.not_arrived.length + data.yesterday_unfinished.length + data.needs_attention.length + data.pending_confirmations.length
   const scrollToCard = (kind: string) =>
     document.getElementById(`today-card-${kind}`)?.scrollIntoView({ behavior: REDUCED_MOTION ? 'auto' : 'smooth', block: 'start' })
+
+  // [TODAY-CONFIRM-01] 확정 대기 [예약 확정] = '예약신청'→'예약확정' 전이(기존 transitionStatus 재사용).
+  //   updated_at을 낙관적 잠금 열쇠로 싣는다. 성공하면 요약을 다시 불러 목록에서 빠진다.
+  const qc = useQueryClient()
+  const confirmMut = useMutation({
+    mutationFn: (row: UiRow) =>
+      transitionStatus(row.appointmentId, { new_status: '예약확정', expected_updated_at: row.updatedAt ?? '' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['today-summary'] }),
+  })
+  const onConfirm = (row: UiRow) => confirmMut.mutate(row)
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -362,7 +431,7 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateF
         ) : (
           <div className="flex flex-col gap-3">
             {cards.map((c) => (
-              <ProblemCardView key={c.kind} card={c} navigate={navigate} />
+              <ProblemCardView key={c.kind} card={c} navigate={navigate} onConfirm={onConfirm} />
             ))}
           </div>
         )}

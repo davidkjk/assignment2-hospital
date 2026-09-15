@@ -51,6 +51,14 @@ export interface YesterdayUnfinishedRow extends PatientRow {
   updated_at: string
 }
 
+/** 확정 대기 예약 행(TODAY-CONFIRM-01) — 미래 날짜라 slot_date를 함께 준다(가까운 순으로 옴).
+ *  updated_at은 [예약 확정]·거절(병원취소)의 낙관적 잠금 열쇠(transitionStatus expected_updated_at). */
+export interface PendingConfirmationRow extends PatientRow {
+  slot_date: string
+  slot_time: string
+  updated_at: string
+}
+
 /** 의사별 대기(TODAY-DOC-01) — 진료과+의사 이름과 대기 수. 집계라 환자 원문이 없다. */
 export interface DoctorWaitingRow {
   doctor_id: string
@@ -67,6 +75,8 @@ export interface TodaySummary {
   not_arrived: NotArrivedRow[]
   /** 전일 미완료(TODAY-YDAY-01). */
   yesterday_unfinished: YesterdayUnfinishedRow[]
+  /** 확정 대기 예약(TODAY-CONFIRM-01) — 자동확정 OFF일 때 직원이 확정할 '예약신청' 건. */
+  pending_confirmations: PendingConfirmationRow[]
   /** 의사별 대기(TODAY-DOC-01) — 요약 API 단일 소스(프론트 이중계산 방지). */
   doctor_waiting: DoctorWaitingRow[]
   /** 이 카드에 줄이 있는 사람은 사이드바 배지가 두 번 세지 않는다(TODAY-RESCHED-21). */

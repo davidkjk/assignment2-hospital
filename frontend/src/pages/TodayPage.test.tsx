@@ -22,6 +22,7 @@ const FULL: TodaySummary = {
   ],
   not_arrived: [],
   yesterday_unfinished: [],
+  pending_confirmations: [],
   doctor_waiting: [],
   badge_excluded_patient_ids: ['p3'],
   bot_pending: null,
@@ -33,9 +34,19 @@ const EMPTY: TodaySummary = {
   needs_attention: [],
   not_arrived: [],
   yesterday_unfinished: [],
+  pending_confirmations: [],
   doctor_waiting: [],
   badge_excluded_patient_ids: [],
   bot_pending: 4,
+}
+
+// 확정 대기 예약(TODAY-CONFIRM-01) — 백엔드가 가까운 예약 순으로 준다(내일 → 모레).
+const PENDING: TodaySummary = {
+  ...EMPTY,
+  pending_confirmations: [
+    { patient_id: 'pc1', name: '김*수', masked_birth_date: '1958-**-**', appointment_id: 'ac1', slot_date: '2026-09-16', slot_time: '09:00:00', updated_at: '2026-09-15T08:00:00+09:00', department_name: '정형외과', doctor_name: '이준호' },
+    { patient_id: 'pc2', name: '박*자', masked_birth_date: '1949-**-**', appointment_id: 'ac2', slot_date: '2026-09-17', slot_time: '10:30:00', updated_at: '2026-09-15T08:00:00+09:00', department_name: '이비인후과', doctor_name: '최민서' },
+  ],
 }
 
 // 네 카드가 모두 있는 화면(TODAY-NOSHOW/YDAY/ORDER 검증용).
@@ -316,5 +327,30 @@ describe('오늘의 현황 /today', () => {
     renderToday()
     expect(await screen.findByText('정보를 불러오지 못했습니다')).toBeVisible()
     expect(screen.getByRole('button', { name: '다시 시도' })).toBeVisible()
+  })
+
+  test('[TODAY-CONFIRM-01] 확정 대기 예약 카드의 [예약 확정]이 예약신청→예약확정 전이를 보낸다', async () => {
+    summaryOk(PENDING)
+    let sent: Record<string, unknown> | null = null
+    server.use(http.patch('*/appointments/ac1/status', async ({ request }) => {
+      sent = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ status: 'updated' })
+    }))
+    renderToday()
+    await screen.findByRole('heading', { name: /확정 대기 예약/ })
+    const confirmButtons = await screen.findAllByRole('button', { name: '예약 확정' })
+    await userEvent.click(confirmButtons[0])
+    await waitFor(() => expect(sent).not.toBeNull())
+    // 첫 행(가장 가까운 예약, ac1)의 확정 — 낙관적 잠금 열쇠를 함께 싣는다.
+    expect(sent).toEqual({ new_status: '예약확정', expected_updated_at: '2026-09-15T08:00:00+09:00' })
+  })
+
+  test('[TODAY-CONFIRM-02] 확정 대기 카드는 예약을 날짜별 머리글로 묶는다', async () => {
+    summaryOk(PENDING)
+    renderToday()
+    const card = (await screen.findByRole('heading', { name: /확정 대기 예약/ })).closest('section')!
+    // 두 예약이 다른 날짜 → 날짜 머리글 두 개(9/16, 9/17)로 묶인다.
+    expect(within(card).getByText('9/16')).toBeInTheDocument()
+    expect(within(card).getByText('9/17')).toBeInTheDocument()
   })
 })
