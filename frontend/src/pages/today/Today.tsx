@@ -353,7 +353,7 @@ function groupByDate(rows: UiRow[]): { date: string; rows: UiRow[] }[] {
 function ProblemCardView({ card, navigate, onConfirm }: { card: UiCard; navigate: NavigateFunction; onConfirm?: (row: UiRow) => void }) {
   const isPending = card.kind === 'pending'
   return (
-    <section id={`today-card-${card.kind}`} className="scroll-mt-4 overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
+    <section id={`today-card-${card.kind}`} className="mb-3 break-inside-avoid overflow-hidden rounded-xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(16,45,50,0.04)] scroll-mt-4">
       {/* TODAY-CARD-01: 좌측 주의색 바 + 건수(배경 안 칠함). 확정 대기는 청록 바(신규·처리형). */}
       <div data-testid={`card-header-${card.kind}`} className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
         <span className={`h-4 w-1 rounded-full ${isPending ? 'bg-primary' : 'bg-amber-500'}`} />
@@ -418,29 +418,21 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateF
   })
   const onConfirm = (row: UiRow) => confirmMut.mutate(row)
 
+  // [TODAY-LAY-04] 카드 열 수(1/2) — 직원이 모니터에 맞춰 고르고 localStorage에 기억한다(best-effort).
+  //   저장 실패(사생활 모드·목)는 조용히 넘기고 기본 1열로 둔다.
+  const [cols, setColsState] = useState<1 | 2>(() => {
+    try { return localStorage.getItem('today_cols') === '2' ? 2 : 1 } catch { return 1 }
+  })
+  const setCols = (n: 1 | 2) => {
+    setColsState(n)
+    try { localStorage.setItem('today_cols', String(n)) } catch { /* best-effort */ }
+  }
+
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-      {/* ── 주 컬럼: 지금 처리할 것 (TODAY-LAY-01·ORDER-02, 전부 표시) ── */}
-      <div className="min-w-0 flex-1">
-        {total === 0 ? (
-          // TODAY-EMPTY-01: 사실 문장 + 안내. TODAY-EMPTY-02: [다시 시도] 없음(실패가 아니다).
-          <div className="flex flex-col items-center">
-            <EmptyState kind="zero" message="지금 처리할 일이 없습니다" />
-            <p className="mt-0.5 text-sm text-muted-foreground">새 문제가 생기면 여기에 바로 나타납니다</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {cards.map((c) => (
-              <ProblemCardView key={c.kind} card={c} navigate={navigate} onConfirm={onConfirm} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── 오른쪽 사이드 레일 (넓은 화면에서 따라 붙음, 좁으면 아래로 스택) ──
-          [TODAY-LAY-02] 카드 행은 이름·정보를 「한 줄로」. 레일을 288→224px로 좁혀 주 컬럼에 자리를 넘겨
-          이비인후과·정형외과처럼 긴 진료과도 접히지 않게 한다(사용자 지적 2026-09-02). */}
-      <aside className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-5 lg:w-56">
+      {/* ── 요약 레일: 왼쪽 고정 (사용자 결정 2026-09-15 — ~~E-6에서 오른쪽 승인~~을 왼쪽으로 뒤집음).
+          [TODAY-LAY-05] 전역 메뉴 옆에서 요약을 먼저 읽게 한다. [TODAY-LAY-02] 레일 224px(긴 진료과도 안 접힘). */}
+      <aside data-testid="today-rail" className="flex w-full shrink-0 flex-col gap-4 lg:sticky lg:top-5 lg:w-56">
         {/* 지금 처리할 것 — 숫자 버튼(누르면 해당 카드로 점프). */}
         {total > 0 && (
           <div className="rounded-xl border border-border/70 bg-card p-3 shadow-[0_1px_2px_rgba(16,45,50,0.04)]">
@@ -512,6 +504,42 @@ function TodayBody({ data, navigate }: { data: TodaySummary; navigate: NavigateF
         {/* [TODAY-DOC-01] 우측열은 데모 원형대로 「의사별 대기 인원」으로 끝난다. 옛 「확인 필요 상담 문의」(2026-09-09)는
             제거 — 사이드바 「상담봇 문의함」 배지(TICKET-BADGE-01)가 같은 pending 수·같은 목적지(/tickets)라 중복이었다(2026-09-11 사용자 결정). */}
       </aside>
+
+      {/* ── 주 컬럼: 지금 처리할 것 (TODAY-LAY-01·ORDER-02, 전부 표시) ── */}
+      <div className="min-w-0 flex-1">
+        {/* [TODAY-LAY-04] 1열/2열 토글 — 직원이 모니터에 맞춰 고른다(넓으면 2열로 더 많이, 좁으면 1열). */}
+        {total > 0 && (
+          <div className="mb-3 flex items-center justify-end">
+            <div className="inline-flex overflow-hidden rounded-lg border border-border">
+              {([1, 2] as const).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setCols(n)}
+                  aria-pressed={cols === n}
+                  className={`px-3 py-1 text-sm ${cols === n ? 'bg-primary font-semibold text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'} ${n === 2 ? 'border-l border-border' : ''}`}
+                >
+                  {n}열
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {total === 0 ? (
+          // TODAY-EMPTY-01: 사실 문장 + 안내. TODAY-EMPTY-02: [다시 시도] 없음(실패가 아니다).
+          <div className="flex flex-col items-center">
+            <EmptyState kind="zero" message="지금 처리할 일이 없습니다" />
+            <p className="mt-0.5 text-sm text-muted-foreground">새 문제가 생기면 여기에 바로 나타납니다</p>
+          </div>
+        ) : (
+          // [TODAY-LAY-04] 2열은 CSS 다단(넓은 xl↑에서만 — 좁으면 자동 1단으로 접혀 잘림을 막는다).
+          //   카드는 break-inside-avoid라 단 사이에서 쪼개지지 않는다.
+          <div data-testid="today-cards" data-cols={cols} className={cols === 2 ? 'columns-1 [column-gap:0.75rem] xl:columns-2' : ''}>
+            {cards.map((c) => (
+              <ProblemCardView key={c.kind} card={c} navigate={navigate} onConfirm={onConfirm} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

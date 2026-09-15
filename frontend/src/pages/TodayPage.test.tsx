@@ -353,4 +353,24 @@ describe('오늘의 현황 /today', () => {
     expect(within(card).getByText('9/16')).toBeInTheDocument()
     expect(within(card).getByText('9/17')).toBeInTheDocument()
   })
+
+  test('[TODAY-LAY-05] 요약 레일이 카드 영역보다 DOM에서 먼저(왼쪽) 온다', async () => {
+    summaryOk(FULL)
+    renderToday()
+    const rail = await screen.findByTestId('today-rail')
+    const cards = screen.getByTestId('today-cards')
+    expect(rail.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  test('[TODAY-LAY-04] [1열]/[2열] 토글이 카드 영역 열 모드를 바꾼다', async () => {
+    // 선택은 localStorage에 기억되나(모니터별 취향), 저장은 best-effort라 여기선 토글 동작만 검증한다.
+    summaryOk(FULL)
+    renderToday()
+    const region = await screen.findByTestId('today-cards')
+    expect(region).toHaveAttribute('data-cols', '1') // 기본 1열
+    await userEvent.click(screen.getByRole('button', { name: '2열' }))
+    expect(region).toHaveAttribute('data-cols', '2')
+    await userEvent.click(screen.getByRole('button', { name: '1열' }))
+    expect(region).toHaveAttribute('data-cols', '1')
+  })
 })
