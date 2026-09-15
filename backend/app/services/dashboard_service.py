@@ -718,6 +718,25 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
             order by s.slot_date, s.start_time, a.id
             """
         )
+        # TODAY-CONFIRM-01: 자동확정 OFF(hospital_settings.auto_confirm_app_bookings=false, HSET-BOOK-05/06)
+        #   일 때 앱·상담봇 예약이 '예약신청'으로 들어온다 — 직원이 확인 후 확정할 목록이다.
+        #   ⛔ 오늘만 세는 _TODAY_SCOPE를 쓰지 않는다: 확정 대기는 대부분 미래 날짜라 날짜 무관하게 모으고,
+        #      가까운 예약(slot_date,start_time)부터 위에 둔다(내일 것 먼저 확정). 지난 슬롯(미확정 경과)은
+        #      제외한다(slot_date >= current_date) — 이미 지난 신청은 확정할 자리가 아니다.
+        pending_confirmations = await c.fetch(
+            """
+            select a.id as appointment_id, a.for_patient_id, p.name, p.phone, p.birth_date,
+                   d.name as doctor_name, dept.name as department_name,
+                   s.slot_date, s.start_time as slot_time, a.updated_at
+            from appointments a
+            join patients p on p.id = a.for_patient_id
+            join staff d on d.id = a.doctor_id
+            join departments dept on dept.id = a.department_id
+            join appointment_slots s on s.id = a.slot_id
+            where a.status = '예약신청' and s.slot_date >= current_date
+            order by s.slot_date, s.start_time, a.id
+            """
+        )
         # TODAY-DOC-01: 의사별 '진료대기' 인원. 진료과+의사 이름과 함께(진료과 생략 안 함, 동명 방지).
         # 코디 결정: 요약 API에 단일 소스로(프론트 이중계산 방지, SHELL-LIVE '한 응답' 원칙).
         doctor_waiting = await c.fetch(
@@ -740,11 +759,11 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
         bot_pending = await c.fetchval(
             "select count(*)::int from public.support_tickets where status = 'pending'"
         )
-        return tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting, bot_pending
+        return (tiles, long_wait, needs, not_arrived, yesterday_unfinished,
+                pending_confirmations, doctor_waiting, bot_pending)
 
-    tiles, long_wait, needs, not_arrived, yesterday_unfinished, doctor_waiting, bot_pending = await _dispatch(
-        staff, conn, _run
-    )
+    (tiles, long_wait, needs, not_arrived, yesterday_unfinished,
+     pending_confirmations, doctor_waiting, bot_pending) = await _dispatch(staff, conn, _run)
 
     return {
         "tiles": {
@@ -795,6 +814,17 @@ async def get_today_summary(staff: StaffContext, *, conn=None) -> dict:
                 doctor_name=r["doctor_name"], department_name=r["department_name"],
             )
             for r in yesterday_unfinished
+        ],
+        # TODAY-CONFIRM-01: 확정 대기(예약신청) — 미래 날짜라 날짜를 함께(가까운 순). updated_at은
+        #   [예약 확정]·거절(병원취소)의 낙관적 잠금 열쇠(transition_status expected_updated_at).
+        "pending_confirmations": [
+            patient_row_dto(
+                patient_id=r["for_patient_id"], name=r["name"], phone=r["phone"], birth_date=r["birth_date"],
+                appointment_id=r["appointment_id"], slot_date=r["slot_date"], slot_time=r["slot_time"],
+                updated_at=r["updated_at"].isoformat(),
+                doctor_name=r["doctor_name"], department_name=r["department_name"],
+            )
+            for r in pending_confirmations
         ],
         # TODAY-DOC-01: 의사별 대기(환자 원문 없음 — 집계이므로 마스킹 대상 아님).
         "doctor_waiting": [

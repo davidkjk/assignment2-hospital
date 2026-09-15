@@ -486,6 +486,41 @@ async def test_투데이_노쇼_01_시각_지난_예약확정만_미접수로_�
 
 
 @pytest.mark.asyncio
+async def test_투데이_컨펌_01_미래_예약신청만_확정대기로_준다(db_conn):
+    """[TODAY-CONFIRM-01] 앱·상담봇 예약이 '예약신청'(미확정)으로 들어온 건을 '확정 대기'로 모은다.
+    자동확정 OFF 모드에서 직원이 확정할 목록이다. 오늘 이후 슬롯만, 가까운 예약 순.
+    예약확정(이미 확정)·지난 신청(슬롯 경과)은 제외. 마스킹 통과(이름O·전화/생년월일 원본X)."""
+    today = await db_today(db_conn)
+    tomorrow = today + timedelta(days=1)
+    next_week = today + timedelta(days=7)
+    yday = today - timedelta(days=1)
+    dept = await seed_department(db_conn)
+    doc = await seed_doctor(db_conn, dept)
+    admin = to_context(await _seed_admin(db_conn), "admin")
+    p_soon, p_late, p_confirmed, p_past = [await seed_patient(db_conn) for _ in range(4)]
+    slot_soon = await seed_slot(db_conn, doc["staff_id"], tomorrow, start_time=time(9, 0))
+    slot_late = await seed_slot(db_conn, doc["staff_id"], next_week, start_time=time(10, 0))
+    slot_conf = await seed_slot(db_conn, doc["staff_id"], tomorrow, start_time=time(11, 0))
+    slot_past = await seed_slot(db_conn, doc["staff_id"], yday, start_time=time(9, 0))
+    # 미래 신청 2건(가까운 순으로 와야) · 미래 확정 1건(제외) · 지난 신청 1건(제외)
+    late = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p_late, slot_id=slot_late, status="예약신청", source="app")
+    soon = await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                                  patient_id=p_soon, slot_id=slot_soon, status="예약신청", source="chatbot")
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p_confirmed, slot_id=slot_conf, status="예약확정", source="app")
+    await seed_appointment(db_conn, doctor_id=doc["staff_id"], department_id=dept,
+                           patient_id=p_past, slot_id=slot_past, status="예약신청", source="app")
+    await set_session_auth(db_conn, admin.auth_user_id)
+    s = await dashboard_service.get_today_summary(admin, conn=db_conn)
+    rows = s["pending_confirmations"]
+    assert [r["appointment_id"] for r in rows] == [soon, late]  # 가까운 예약 순
+    assert rows[0]["slot_date"] == tomorrow and rows[0]["slot_time"] is not None
+    assert rows[0]["updated_at"]  # 확정 시 낙관적 잠금 열쇠(expected_updated_at)
+    assert "name" in rows[0] and "phone" not in rows[0] and "birth_date" not in rows[0]
+
+
+@pytest.mark.asyncio
 async def test_투데이_이데이_01_전일_미완료_잔여만_올린다(db_conn):
     """[TODAY-YDAY-01] 지난 날짜의 도착·진료대기·진료중만 올린다. 지난 예약확정(→자정 부도
     배치)·오늘 진행 중인 건은 제외. 지난 날짜이므로 날짜를 함께 준다(TODAY-YDAY-03).
